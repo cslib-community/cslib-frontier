@@ -412,42 +412,16 @@ theorem seeds_rehashSubtree
   dsimp only [rehashSubtree]
   by_cases h0 : ℓ₀ = 0
   · rw [dite_eq_left h0]; exact hsc
-  · rw [dite_eq_right h0]; ext j hj v
-    by_cases hj0 : j = 0
-    · subst hj0
-      by_cases h1 : ℓ₀ = 1 <;>
-      · simp only [h1, ↓reduceDIte, seeds_zero]
-        rw [← seeds_zero st hj v]
-        exact (houtside 0 hj v fun ⟨hg, _⟩ => by omega).symm
-    · by_cases hj1 : j = 1
-      · subst hj1
-        by_cases h1 : ℓ₀ = 1
-        · subst h1; simp only [↓reduceDIte, seeds_one]
-          split_ifs with hsub
-          · rw [← seeds_one st_c hj v, hsc]
-          · rw [← seeds_one st hj v, houtside 1 hj v hsub]
-        · simp only [h1, ↓reduceDIte, seeds_one]
-          split_ifs
-          · simp
-          · rw [← seeds_one st hj v, houtside 1 hj v fun ⟨hg, _⟩ => by omega]
-      · by_cases hlt : j < P.depth
-        · by_cases h1 : ℓ₀ = 1
-          · simp only [h1, ↓reduceDIte, seeds_inner _ (by omega) hlt hj]
-            split_ifs with hsub
-            · rw [← seeds_inner st_c (by omega) hlt hj v, hsc]
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-          · simp only [h1, ↓reduceDIte, seeds_inner _ (by omega) hlt hj]
-            split_ifs with hsub hlt0 heq
-            · rw [← seeds_inner st_c (by omega) hlt hj v, hsc]
-            · simp
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-        · obtain rfl : j = P.depth := by omega
-          by_cases h1 : ℓ₀ = 1 <;>
-          · simp only [h1, ↓reduceDIte, seeds_depth]
-            split_ifs with hsub
-            · rw [← seeds_depth st_c hj v, hsc]
-            · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
+  rw [dite_eq_right h0]; ext j hj v
+  have hc := congrArg (·.seed j hj v) hsc
+  have ho := houtside j hj v
+  rcases (by omega : j = 0 ∨ j = 1 ∨ (2 ≤ j ∧ j < P.depth) ∨ j = P.depth) with
+    rfl | rfl | ⟨h2, hlt⟩ | rfl <;>
+  by_cases h1 : ℓ₀ = 1 <;>
+  simp (disch := omega) only [h1, ↓reduceDIte, seeds_zero, seeds_one, seeds_inner, seeds_depth]
+    at hc ho ⊢ <;>
+  (try split_ifs) <;>
+  first | exact hc | exact (ho ‹_›).symm | exact (ho fun ⟨hg, _⟩ => by omega).symm | simp
 
 /-- Non-ancestor root trees (`u₁ ≠ ancestorAt u₀`, `1 ≤ ℓ₀`) are untouched by `rehashSubtree`. -/
 theorem rehashSubtree_untouched_roots
@@ -626,84 +600,77 @@ private theorem wellFormedPadded_rehash_pos (st : P.TreeState) {storeLvl' : Fin 
   have hout_node := fun {j : ℕ} (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j))
       (hns : ¬ P.InSubtree ℓ₀ u₀ j v) (hna : ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) =>
     st.rehashSubtree_node_outside hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj1 hj v hns hna
+  have tri : ∀ {j : ℕ} (v : Fin (P.numNodes j)), P.InSubtree ℓ₀ u₀ j v ∨
+      (∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) ∨
+      (¬ P.InSubtree ℓ₀ u₀ j v ∧ ¬ ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀) := fun _ => by
+    tauto
   exact
     { goodSeeds := by rwa [hsf]
       storeLvl_bounds := hbounds, storeLvl_outside := hstore_out
       dom_eq := fun j hj1 hj v => by
         rw [hsf]
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
         · rw [(hsub_node hj1 hj v hsub).1, hwf_c.dom_eq j hj1 hj v, hsc]
           congr 1; exact filter_congr fun x hx => (hsub_iff hj hsub x hx).1.symm
-        · by_cases hanc_ex : ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀
-          · obtain ⟨hlt, rfl⟩ := hanc_ex
-            obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
-            by_cases hj_one : j = 1
-            · subst hj_one
-              rw [nodeDom_one, hrt, dom_buildRootOfStoreLvl d seeds' hgood' hvsl']
-            · rw [nodeDom_inner _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _,
-                dom_buildInnerOfStoreLvl]
-          · rw [(hout_node hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v]
-            exact image_filter_outside_congr houtside hj1 hj v hsub fun x hx => by
-              rw [hout_eq hj1 hj hsub hanc_ex x hx]
+        · obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
+          by_cases hj_one : j = 1
+          · subst hj_one
+            rw [nodeDom_one, hrt, dom_buildRootOfStoreLvl d seeds' hgood' hvsl']
+          · rw [nodeDom_inner _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _,
+              dom_buildInnerOfStoreLvl]
+        · rw [(hout_node hj1 hj v hsub hanc_ex).1, hwf.dom_eq j hj1 hj v]
+          exact image_filter_outside_congr houtside hj1 hj v hsub fun x hx => by
+            rw [hout_eq hj1 hj hsub hanc_ex x hx]
       query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => by
         rw [hsf] at hnx ⊢
         have hx_act : x ∈ seeds'.activeAt (P.paddedDom d) j hj v :=
           SeedAssignment.mem_activeAt_iff.mpr ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
         · rw [(hsub_node hj1 hj v hsub).2.1]
           have hq := hwf_c.query_eq_of_storeLvl j hj1 hj v x vx hdx (by rwa [hsc])
             ((hsub_iff hj hsub x hx_act).1.mp hsl)
           rwa [hsc] at hq
-        · by_cases hanc_ex : ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀
-          · obtain ⟨hlt, rfl⟩ := hanc_ex
-            obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
-            by_cases hj_one : j = 1
-            · subst hj_one; rw [nodeQuery_one, hrt]
-              exact query_buildRootOfStoreLvl hgood' hvsl' _ hdx hnx hsl
-            · rw [nodeQuery_inner _ _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _]
-              exact query_buildInnerOfStoreLvl hgood' hvsl' hj1 (by omega) _ _ hdx hnx hsl
-          · rw [(hout_node hj1 hj v hsub hanc_ex).2.1]
-            exact query_eq_outside hwf houtside hj1 hj v hsub hdx hnx
-              (hout_eq hj1 hj hsub hanc_ex x hx_act ▸ hsl)
+        · obtain ⟨hvsl', hrt, hin⟩ := hanc (by omega)
+          by_cases hj_one : j = 1
+          · subst hj_one; rw [nodeQuery_one, hrt]
+            exact query_buildRootOfStoreLvl hgood' hvsl' _ hdx hnx hsl
+          · rw [nodeQuery_inner _ _ hj1 (by omega) (hlt.trans_le hℓ₀), hin (by omega) hlt _]
+            exact query_buildInnerOfStoreLvl hgood' hvsl' hj1 (by omega) _ _ hdx hnx hsl
+        · rw [(hout_node hj1 hj v hsub hanc_ex).2.1]
+          exact query_eq_outside hwf houtside hj1 hj v hsub hdx hnx
+            (hout_eq hj1 hj hsub hanc_ex x hx_act ▸ hsl)
       inner_full := fun j hj2 hlt v => by
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
+        rcases tri v with hsub | ⟨hlt0, rfl⟩ | ⟨hsub, hanc_ex⟩
         · rw [(hsub_node (by omega) hlt.le v hsub).2.2.2 hj2 hlt]
           exact hwf_c.inner_full j hj2 hlt v
-        · by_cases hanc_ex : ∃ hlt0 : j < ℓ₀, v = P.ancestorAt hlt0.le u₀
-          · obtain ⟨hlt0, rfl⟩ := hanc_ex
-            obtain ⟨_, _, hin⟩ := hanc (by omega)
-            rw [hin hj2 hlt0 hlt]; exact card_dom_buildInnerOfStoreLvl ..
-          · rw [st.rehashSubtree_untouched_inner hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj2 hlt v
-              hsub fun hlt0 he => hanc_ex ⟨hlt0, he⟩]
-            exact hwf.inner_full j hj2 hlt v
+        · obtain ⟨_, _, hin⟩ := hanc (by omega)
+          rw [hin hj2 hlt0 hlt]; exact card_dom_buildInnerOfStoreLvl ..
+        · rw [st.rehashSubtree_untouched_inner hwf h1₀ hℓ₀ u₀ seeds' houtside hgood' hj2 hlt v
+            hsub fun hlt0 he => hanc_ex ⟨hlt0, he⟩]
+          exact hwf.inner_full j hj2 hlt v
       wait_dom_eq := fun j hj2 hj v => by
         rw [hsf]
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
         · rw [(hsub_node (by omega) hj v hsub).2.2.1 hj2, hwf_c.wait_dom_eq j hj2 hj v, hsc]
           congr 1; exact filter_congr fun x hx => (hsub_iff hj hsub x hx).2.symm
-        · by_cases hanc_ex : ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀
-          · obtain ⟨hlt, rfl⟩ := hanc_ex
-            obtain ⟨_, _, hin⟩ := hanc (by omega)
-            rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _,
-              wait_dom_buildInnerOfStoreLvl]
-          · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2, hwf.wait_dom_eq j hj2 hj v]
-            exact image_filter_outside_congr houtside (by omega) hj v hsub fun x hx => by
-              rw [hout_eq (by omega) hj hsub hanc_ex x hx]
+        · obtain ⟨_, _, hin⟩ := hanc (by omega)
+          rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _, wait_dom_buildInnerOfStoreLvl]
+        · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2, hwf.wait_dom_eq j hj2 hj v]
+          exact image_filter_outside_congr houtside (by omega) hj v hsub fun x hx => by
+            rw [hout_eq (by omega) hj hsub hanc_ex x hx]
       wait_lookup_eq := fun j hj2 hj v x hx hsl => by
         rw [hsf] at hx ⊢
-        by_cases hsub : P.InSubtree ℓ₀ u₀ j v
+        rcases tri v with hsub | ⟨hlt, rfl⟩ | ⟨hsub, hanc_ex⟩
         · rw [(hsub_node (by omega) hj v hsub).2.2.1 hj2]
           have hw := hwf_c.wait_lookup_eq j hj2 hj v x (by rwa [hsc])
             ((hsub_iff hj hsub x hx).2.mp hsl)
           rwa [hsc] at hw
-        · by_cases hanc_ex : ∃ hlt : j < ℓ₀, v = P.ancestorAt hlt.le u₀
-          · obtain ⟨hlt, rfl⟩ := hanc_ex
-            obtain ⟨hvsl', _, hin⟩ := hanc (by omega)
-            rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _]
-            exact wait_lookup_buildInnerOfStoreLvl hgood' hvsl' hj2 (hlt.trans_le hℓ₀) _ hx hsl
-          · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2]
-            exact wait_lookup_eq_outside hwf houtside hj2 hj v hsub hx
-              (hout_eq (by omega) hj hsub hanc_ex x hx ▸ hsl) }
+        · obtain ⟨hvsl', _, hin⟩ := hanc (by omega)
+          rw [nodeWait_inner _ hj2 (hlt.trans_le hℓ₀), hin hj2 hlt _]
+          exact wait_lookup_buildInnerOfStoreLvl hgood' hvsl' hj2 (hlt.trans_le hℓ₀) _ hx hsl
+        · rw [(hout_node (by omega) hj v hsub hanc_ex).2.2 hj2]
+          exact wait_lookup_eq_outside hwf houtside hj2 hj v hsub hx
+            (hout_eq (by omega) hj hsub hanc_ex x hx ▸ hsl) }
 
 end SpliceHelpers
 

@@ -63,16 +63,12 @@ theorem sum_eval_eq_zero_of_natDegree_lt {g : K[X]} (hg : g.natDegree < q - 1) :
 /-- A polynomial of degree less than `q - 1` sums over the units to minus its value at `0`. -/
 theorem sum_units_eval [DecidableEq K] {g : K[X]} (hg : g.natDegree < q - 1) :
     ∑ u : Kˣ, g.eval (u : K) = -g.eval 0 := by
-  have hunits : ∑ u : Kˣ, g.eval (u : K) = ∑ x ∈ univ \ {0}, g.eval x := by
-    refine Finset.sum_nbij (fun u => (u : K)) (fun u _ => by simp) ?_ ?_ fun _ _ => rfl
-    · exact fun u _ v _ h => Units.ext h
-    · intro x hx
-      have hx0 : x ≠ 0 := by simpa using hx
-      exact ⟨Units.mk0 x hx0, mem_univ _, rfl⟩
+  have hunits : ∑ u : Kˣ, g.eval (u : K) = ∑ x ∈ univ \ {0}, g.eval x :=
+    Finset.sum_nbij (fun u => (u : K)) (fun _ _ => by simp) (fun _ _ _ _ h => Units.ext h)
+      (fun x hx => ⟨Units.mk0 x (by simpa using hx), mem_univ _, rfl⟩) fun _ _ => rfl
   have h := sum_eval_eq_zero_of_natDegree_lt hg
   rw [← sum_sdiff ({0} : Finset K).subset_univ, sum_singleton] at h
-  rw [hunits]
-  exact eq_neg_of_add_eq_zero_left h
+  exact hunits.trans (eq_neg_of_add_eq_zero_left h)
 
 omit [Fintype K] in
 /-- Restricting a multivariate polynomial to the line `t ↦ t • τ + x` gives a univariate
@@ -80,14 +76,11 @@ polynomial of degree at most the total degree. -/
 theorem natDegree_eval₂_line_le {ι : Type*} (p : MvPolynomial ι K) (τ x : ι → K) :
     (p.eval₂ C fun i => C (τ i) * X + C (x i)).natDegree ≤ p.totalDegree := by
   rw [MvPolynomial.eval₂_eq]
-  refine natDegree_sum_le_of_forall_le _ _ fun s hs => ?_
-  refine (natDegree_C_mul_le _ _).trans <| (natDegree_prod_le _ _).trans ?_
-  calc _ ≤ ∑ i ∈ s.support, s i := by
-        gcongr with i
-        exact natDegree_pow_le.trans <|
-          (Nat.mul_le_mul_left (s i) natDegree_linear_le).trans_eq (mul_one _)
-    _ ≤ p.totalDegree := by
-        simpa [Finsupp.sum] using MvPolynomial.le_totalDegree hs
+  refine natDegree_sum_le_of_forall_le _ _ fun s hs =>
+    (natDegree_C_mul_le _ _).trans <| (natDegree_prod_le _ _).trans ?_
+  calc _ ≤ ∑ i ∈ s.support, s i := Finset.sum_le_sum fun i _ =>
+        natDegree_pow_le.trans ((Nat.mul_le_mul_left _ natDegree_linear_le).trans_eq (mul_one _))
+    _ ≤ p.totalDegree := by simpa [Finsupp.sum] using MvPolynomial.le_totalDegree hs
 
 omit [Fintype K] in
 /-- Evaluating the univariate restriction of `p` to the line `t ↦ t • τ + x` at `t` evaluates `p`
@@ -105,10 +98,9 @@ the masked evaluations `p (u • τ + x)` over all units `u` gives `-p x`, for e
 theorem sum_units_eval_mul_add [DecidableEq K] {ι : Type*} {p : MvPolynomial ι K}
     (hp : p.totalDegree < q - 1) (τ x : ι → K) :
     ∑ u : Kˣ, MvPolynomial.eval (fun i => (u : K) * τ i + x i) p = -MvPolynomial.eval x p := by
-  let g : K[X] := p.eval₂ C fun i => C (τ i) * X + C (x i)
-  have hg (t : K) : g.eval t = MvPolynomial.eval (fun i => t * τ i + x i) p :=
-    eval_eval₂_line p τ x t
-  have h0 : MvPolynomial.eval x p = g.eval 0 := by simp only [hg, zero_mul, zero_add]
+  have hg (t : K) := eval_eval₂_line p τ x t
+  have h0 : MvPolynomial.eval x p = (p.eval₂ C fun i => C (τ i) * X + C (x i)).eval 0 := by
+    simp only [hg, zero_mul, zero_add]
   simp_rw [h0, ← hg]
   exact sum_units_eval ((natDegree_eval₂_line_le p τ x).trans_lt hp)
 

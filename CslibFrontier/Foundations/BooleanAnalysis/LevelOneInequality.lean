@@ -152,10 +152,9 @@ theorem levelWeight_one_le_of_abs_le_one {f : (ι → Bool) → ℝ} (hf : ∀ x
         (if s ≤ |∑ i, c i * signVal (x i)| then 1 else 0) := by
     set l := ∑ i, c i * signVal (x i)
     have hfl : f x * l ≤ |f x| * |l| := (le_abs_self _).trans_eq (abs_mul _ _)
-    have := abs_nonneg (f x)
     split_ifs with h
-    · nlinarith [hf x, abs_nonneg l]
-    · nlinarith [mul_le_mul_of_nonneg_left (not_le.1 h).le this]
+    · linarith [mul_le_of_le_one_left (abs_nonneg l) (hf x), mul_nonneg hs (abs_nonneg (f x))]
+    · linarith [mul_le_mul_of_nonneg_left (not_le.1 h).le (abs_nonneg (f x))]
   -- The tail: `Pr[|ℓ| ≥ s] ≤ 2 exp (-s ^ 2 / 2) = 2 α ^ 2`.
   have htail := expect_abs_sum_mul_signVal_mul_ite_le hc hs
   have hexp : exp (-(s ^ 2 / 2)) = α ^ 2 := by
@@ -171,9 +170,10 @@ theorem levelWeight_one_le_of_abs_le_one {f : (ι → Bool) → ℝ} (hf : ∀ x
       _ ≤ s * α + √2 * α := by
           rw [expect_add_distrib, ← mul_expect]
           linarith [htail]
-  have hsqrt2 : √2 ≤ s := sqrt_le_iff.2 ⟨hs, by linarith⟩
+  have hsqrt2 : √2 * α ≤ s * α :=
+    mul_le_mul_of_nonneg_right (sqrt_le_iff.2 ⟨hs, by linarith⟩) hα₀
   calc W = σ ^ 2 := hσσ.symm
-    _ ≤ (2 * s * α) ^ 2 := pow_le_pow_left₀ hσ.le (by nlinarith) 2
+    _ ≤ (2 * s * α) ^ 2 := pow_le_pow_left₀ hσ.le (by linarith) 2
     _ = 16 * α ^ 2 * L := by rw [mul_pow, mul_pow, hss]; ring
 
 end Cslib.BitString

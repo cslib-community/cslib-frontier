@@ -25,6 +25,8 @@ limit in the compact set of prices below a bound.
 
 ## Main results
 
+* `Cslib.PartyTensor.SpectralPoint.exists_extend_keep`: Proposition A.7 for moves of new parties,
+  keeping the wire exponents and the value at a tensor.
 * `Cslib.PartyTensor.IsPrice.exists_extend_random`,
   `Cslib.PartyTensor.IsPrice.exists_extend_of_weights`.
 
@@ -46,28 +48,50 @@ section Spectral
 
 variable {P Q : Type} [Fintype P] [DecidableEq P] [Fintype Q] [DecidableEq Q]
 
-/-- Proof of Proposition A.8, the finite case for `w = d_φ`: apply Proposition A.7 to the product
-`C` of all wires `⟨2⟩_uv` with `u, v ∈ Y`. Every pair `e` of `Y ∪ Q` gets
-`d_φ'(e) ≤ ∑ θ_l d_φ(π_l e)`. On `Y`, `d_φ' ≤ d_φ` with equality for the sum over all pairs, hence
-equality for each. -/
-private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin m → ℝ)
-    (hθ : ∀ l, 0 ≤ θ l)
-    (hθ1 : ∑ l, θ l = 1) (σ : Fin m → Q → P) :
+/-- Proposition A.7 for the moves `Sum.elim id (σ l)` of new parties `Q` to the parties `P`, with
+weights `θ l`: a spectral point `F` over `P` extends to `F'` over `P ⊕ Q` that is at most the
+weighted geometric mean of the moved values, keeps the wire exponents on `P` and the value at a
+tensor `C` with `0 < F C`. Then every wire exponent of `F'` is at most the weighted mean of the
+moved ones. (Applied to the product `W * C` of all wires `⟨2⟩_uv`, `u, v ∈ P`, and `C`: on `P`,
+`d_F' ≤ d_F` with equality for the sum over all pairs, hence for each.) -/
+theorem SpectralPoint.exists_extend_keep (F : SpectralPoint K P) {m : ℕ} (θ : Fin m → ℝ)
+    (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1) (σ : Fin m → Q → P) (C : PartyTensor K P)
+    (hC : 0 < F C) :
     ∃ F' : SpectralPoint K (P ⊕ Q),
-        (∀ p p', F'.wireExponent (Sum.inl p) (Sum.inl p') = F.wireExponent p p') ∧
-      ∀ a b, F'.wireExponent a b ≤ ∑ l,
-          θ l * F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b) := by
+      (∀ t, F' t ≤ ∏ l, F (push (Sum.elim id (σ l)) t) ^ θ l) ∧
+      (∀ a b, F'.wireExponent a b ≤ ∑ l,
+          θ l * F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b)) ∧
+      (∀ p p', F'.wireExponent (Sum.inl p) (Sum.inl p') = F.wireExponent p p') ∧
+      F' (push Sum.inl C) = F C := by
   classical
-  obtain ⟨F', hle, hC⟩ := SpectralPoint.exists_extend (K := K) (Sum.inl : P → P ⊕ Q)
-    (fun l => Sum.elim id (σ l)) (fun l i => rfl) θ hθ hθ1 F
-    (prod fun e : P × P => wire K 2 e.1 e.2)
-  have hb : ∀ a b, F'.wireExponent a b ≤ ∑ l,
+  set W : PartyTensor K P := prod fun e : P × P => wire K 2 e.1 e.2 with hW
+  obtain ⟨F', hle, hWC⟩ := SpectralPoint.exists_extend (K := K) (Sum.inl : P → P ⊕ Q)
+    (fun l => Sum.elim id (σ l)) (fun l i => rfl) θ hθ hθ1 F (W * C)
+  -- on tensors over `P` the extension is not larger
+  have hA (A : PartyTensor K P) (h0 : 0 < F A) : F' (push Sum.inl A) ≤ F A := by
+    refine (hle _).trans_eq ?_
+    have h1 (l : Fin m) : F (push (Sum.elim id (σ l)) (push Sum.inl A)) = F A :=
+      F.congr ((antisymmRel_push_push _ _ A).trans (antisymmRel_push_id A))
+    simp only [h1]
+    rw [← Real.rpow_sum_of_pos h0, hθ1, Real.rpow_one]
+  have hW0 : 0 < F W := by
+    rw [hW, F.map_prod]
+    exact Finset.prod_pos fun e _ => by rw [F.apply_wire_two]; positivity
+  rw [F'.congr (antisymmRel_push_mul _ W C), F'.map_mul, F.map_mul] at hWC
+  have h1 := hA W hW0
+  have h2 := hA C hC
+  have hC' : F' (push Sum.inl C) = F C := by
+    refine le_antisymm h2 (not_lt.1 fun hlt => ?_)
+    exact (lt_of_le_of_lt (mul_le_mul_of_nonneg_right h1 (F'.nonneg _))
+      (mul_lt_mul_of_pos_left hlt hW0)).ne hWC
+  have hW' : F' (push Sum.inl W) = F W := by
+    rw [hC'] at hWC
+    exact mul_right_cancel₀ hC.ne' hWC
+  have hb (a b : P ⊕ Q) : F'.wireExponent a b ≤ ∑ l,
       θ l * F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b) := by
-    intro a b
     have h1 := hle (wire K 2 a b)
-    have h2 : ∀ l, F (push (Sum.elim id (σ l)) (wire K 2 a b)) =
+    have h2 (l : Fin m) : F (push (Sum.elim id (σ l)) (wire K 2 a b)) =
         2 ^ F.wireExponent (Sum.elim id (σ l) a) (Sum.elim id (σ l) b) := by
-      intro l
       rw [← F.pull_apply, (F.pull _).apply_wire_two, F.pull_wireExponent]
     simp only [h2] at h1
     rw [F'.apply_wire_two] at h1
@@ -78,24 +102,19 @@ private theorem prop_random_spectral (F : SpectralPoint K P) {m : ℕ} (θ : Fin
       rw [← Real.rpow_mul (by norm_num), mul_comm]
     rw [h3] at h1
     exact (Real.rpow_le_rpow_left_iff (by norm_num)).1 h1
-  refine ⟨F', ?_, hb⟩
-  have hle' : ∀ p p', F'.wireExponent (Sum.inl p) (Sum.inl p') ≤ F.wireExponent p p' := by
-    intro p p'
-    refine (hb (Sum.inl p) (Sum.inl p')).trans (le_of_eq ?_)
-    simp only [Sum.elim_inl, id]
-    rw [← Finset.sum_mul, hθ1, one_mul]
+  refine ⟨F', hle, hb, ?_, hC'⟩
+  have hle' (p p' : P) : F'.wireExponent (Sum.inl p) (Sum.inl p') ≤ F.wireExponent p p' :=
+    (hb _ _).trans_eq (by simp only [Sum.elim_inl, id]; rw [← Finset.sum_mul, hθ1, one_mul])
   have hsum : ∑ e : P × P, F'.wireExponent (Sum.inl e.1) (Sum.inl e.2) = ∑ e : P × P,
       F.wireExponent e.1 e.2 := by
-    rw [← F'.pull_apply, (F'.pull _).map_prod, F.map_prod] at hC
-    simp only [SpectralPoint.apply_wire_two, SpectralPoint.pull_wireExponent] at hC
-    rw [← Real.rpow_sum_of_pos (by norm_num), ← Real.rpow_sum_of_pos (by norm_num)] at hC
-    have h2 := congrArg (Real.logb 2) hC
+    rw [← F'.pull_apply, hW, (F'.pull _).map_prod, F.map_prod] at hW'
+    simp only [SpectralPoint.apply_wire_two, SpectralPoint.pull_wireExponent] at hW'
+    rw [← Real.rpow_sum_of_pos (by norm_num), ← Real.rpow_sum_of_pos (by norm_num)] at hW'
+    have h2 := congrArg (Real.logb 2) hW'
     rwa [Real.logb_rpow (by norm_num) (by norm_num), Real.logb_rpow (by norm_num) (by norm_num)]
       at h2
-  intro p p'
-  have h1 := (Finset.sum_eq_sum_iff_of_le
-    (fun (e : P × P) _ => hle' e.1 e.2)).1 hsum (p, p') (Finset.mem_univ _)
-  exact h1
+  exact fun p p' => (Finset.sum_eq_sum_iff_of_le fun (e : P × P) _ => hle' e.1 e.2).1 hsum (p, p')
+    (Finset.mem_univ _)
 
 end Spectral
 
@@ -128,12 +147,9 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
       (U.map fun T (a b : S) => D T a b) (by
         rw [le_principal_iff, Ultrafilter.coe_map, Filter.mem_map]
         filter_upwards [hmem S] with T hT
-        have e : (fun a b : S => D T a b) = fun a b : S => d T ⟨a, hT a.2⟩ ⟨b, hT b.2⟩ := by
-          funext a b
-          exact hD hT a b
         refine ⟨?_, fun a b => (hD hT a b).le.trans (hAB T _ _).2⟩
         change IsPrice K fun a b : S => D T a b
-        rw [e]
+        rw [funext₂ fun a b => hD hT a b]
         exact IsPrice.comp (hd T) fun a : S => (⟨a, hT a.2⟩ : T))
     have h1 : Tendsto (fun T (a b : S) => D T a b) U (nhds v) := hlim
     exact ⟨v, hv, fun a b => tendsto_pi_nhds.1 (tendsto_pi_nhds.1 h1 a) b⟩
@@ -146,10 +162,8 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
     tendsto_nhds_unique (hlim S a b) (hlim {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩)
   refine ⟨fun a b => v {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩, isPrice_of_finset fun S => ?_,
       fun a b => ⟨?_, ?_⟩⟩
-  · have e : (fun a b : S => v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S := by
-      funext a b
-      exact (hfit S a b).symm
-    rw [e]
+  · rw [show (fun a b : S => v {a.1, b.1} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) = v S from
+      funext₂ fun a b => (hfit S a b).symm]
     exact (hv S).1
   · refine ge_of_tendsto (hlim {a, b} ⟨a, ha _ _⟩ ⟨b, hb _ _⟩) ?_
     filter_upwards [hmem {a, b}] with T hT
@@ -158,8 +172,8 @@ private theorem prop_random_compact {Z : Type*} (A B : Z → Z → ℝ)
 
 /-- Proof of Proposition A.8, the finite case: `Y` and `Q` are finite and `σ` takes the values `π_l`
 with probabilities `θ_l`. By a limit, `w = s · d_φ`, and then `s = 1` by homogeneity: the prices
-that `prop_random_spectral` gives for approximations `s · d_φ` of `w` have a limit, since they lie
-in a compact set (`isCompact_setOf_isPrice_le K`). -/
+that `SpectralPoint.exists_extend_keep` gives for approximations `s · d_φ` of `w` have a limit,
+since they lie in a compact set (`isCompact_setOf_isPrice_le K`). -/
 private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → P → ℝ}
     (hw : IsPrice K w) {m : ℕ} (θ : Fin m → ℝ) (hθ : ∀ l, 0 ≤ θ l) (hθ1 : ∑ l, θ l = 1)
         (σ : Fin m → Q → P) :
@@ -169,12 +183,14 @@ private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → 
   have := Fintype.ofFinite Q
   classical
   have hpos : ∀ n : ℕ, (0 : ℝ) < 1 / (n + 1) := fun n => by positivity
-  have hle1 : ∀ n : ℕ, (1 : ℝ) / (n + 1) ≤ 1 := fun n => by
-    rw [div_le_one (by positivity)]
-    linarith [Nat.cast_nonneg (α := ℝ) n]
+  have hle1 : ∀ n : ℕ, (1 : ℝ) / (n + 1) ≤ 1 := fun n => div_le_one_of_le₀ (by simp) (by positivity)
   -- w is s·d_φ up to 1/(n+1)
   choose φ s hs hφ using fun n : ℕ => hw.exists_spectralPoint (id : P → P) (hpos n)
-  choose φ' h1 h2 using fun n => prop_random_spectral (φ n) θ hθ hθ1 σ
+  choose φ' _ h2 h1 _ using fun n => (φ n).exists_extend_keep θ hθ hθ1 σ
+    (prod fun e : P × P => wire K 2 e.1 e.2)
+    (by
+      rw [(φ n).map_prod]
+      exact Finset.prod_pos fun e _ => by rw [(φ n).apply_wire_two]; positivity)
   let B : P ⊕ Q → P ⊕ Q → ℝ := fun a b => ∑ l, θ l * w (Sum.elim id (σ l) a) (Sum.elim id (σ l) b)
   let d : ℕ → P ⊕ Q → P ⊕ Q → ℝ := fun n a b => s n * (φ' n).wireExponent a b
   have hd : ∀ n, IsPrice K (d n) := fun n => IsPrice.smul (isPrice_wireExponent (φ' n)) (hs n)
@@ -208,12 +224,10 @@ private theorem prop_random_limit {P Q : Type} [Finite P] [Finite Q] {w : P → 
   refine ⟨w', hw', fun p p' => ?_, fun a b => ?_⟩
   · have h3 : Tendsto (fun n => d n (Sum.inl p) (Sum.inl p') - w p p') U (nhds 0) := by
       refine squeeze_zero_norm (fun n => ?_) hzero
-      have h4 := hφ n p p'
-      simp only [id] at h4
       rw [Real.norm_eq_abs, abs_sub_comm]
       change |w p p' - s n * (φ' n).wireExponent (Sum.inl p) (Sum.inl p')| ≤ _
       rw [h1]
-      exact h4.le
+      exact (hφ n p p').le
     have h4 := tendsto_nhds_unique h3 ((hlim' (Sum.inl p) (Sum.inl p')).sub_const (w p p'))
     linarith
   · exact le_of_tendsto_of_tendsto (hlim' a b) ((hzero.const_add (B a b)).trans (by rw [add_zero]))
@@ -235,12 +249,8 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
     exact ⟨ω, rfl⟩
   let V : Finset (T → Y) := hfin'.toFinset
   have hV : ∀ ω, (fun κ : T => σ κ ω) ∈ V := fun ω => by simp [V]
-  have hmeas' : ∀ f : T → Y, MeasurableSet {ω | (fun κ : T => σ κ ω) = f} := by
-    intro f
-    have : {ω | (fun κ : T => σ κ ω) = f} = ⋂ κ : T, σ κ ⁻¹' {f κ} := by
-      ext ω
-      simp [funext_iff]
-    rw [this]
+  have hmeas' : ∀ f : T → Y, MeasurableSet {ω | (fun κ : T => σ κ ω) = f} := fun f => by
+    rw [show {ω | (fun κ : T => σ κ ω) = f} = ⋂ κ : T, σ κ ⁻¹' {f κ} by ext; simp [funext_iff]]
     exact MeasurableSet.iInter fun κ => hmeas _ _
   let e : Fin V.card ≃ V := V.equivFin.symm
   have hmean : ∀ f : (T → Y) → ℝ, ∫ ω, f (fun κ : T => σ κ ω) ∂μ =
@@ -249,13 +259,9 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
     have h1 : ∀ ω, f (fun κ : T => σ κ ω) = ∑ g ∈ V,
         ({ω | (fun κ : T => σ κ ω) = g}).indicator (fun _ => f g) ω := by
       intro ω
-      rw [Finset.sum_eq_single (fun κ : T => σ κ ω)]
-      · rw [Set.indicator_of_mem]; rfl
-      · intro g _ hg
-        rw [Set.indicator_of_notMem]
-        exact fun h => hg h.symm
-      · intro h
-        exact absurd (hV ω) h
+      rw [Finset.sum_eq_single_of_mem _ (hV ω) fun g _ hg => Set.indicator_of_notMem
+        (fun h : (fun κ : T => σ κ ω) = g => hg h.symm) _, Set.indicator_of_mem]
+      rfl
     simp only [h1]
     rw [integral_finsetSum]
     · rw [← Finset.sum_coe_sort V]
@@ -265,9 +271,7 @@ private theorem prop_random_values {Y Q Ω : Type} [MeasurableSpace Ω] (μ : Me
       exact (integrable_const _).indicator (hmeas' g)
   refine ⟨V.card, fun l => μ.real {ω | (fun κ : T => σ κ ω) = (e l : T → Y)}, fun l => e l,
     fun l => measureReal_nonneg, ?_, hmean⟩
-  have := hmean fun _ => 1
-  simp only [mul_one, integral_const, probReal_univ, smul_eq_mul] at this
-  exact this.symm
+  simpa only [mul_one, integral_const, probReal_univ, smul_eq_mul] using (hmean fun _ => 1).symm
 
 end Random
 

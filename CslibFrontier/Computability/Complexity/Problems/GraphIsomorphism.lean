@@ -143,13 +143,10 @@ theorem mem_GraphIsomorphism_iff_exists_perm {G₀ G₁ : Graph}
     (h : G₁.distinctVertices.length = G₀.distinctVertices.length) :
     (⟨G₀, G₁⟩ : GraphIsomorphismInstance) ∈ GraphIsomorphism ↔
       ∃ τ : Equiv.Perm (Fin G₀.distinctVertices.length),
-        ∀ i j, G₁.adjIndex (τ i) (τ j) = G₀.adjIndex i j := by
-  rw [mem_GraphIsomorphism_iff]
-  constructor
-  · rintro ⟨σ, hσ⟩
-    exact ⟨σ.trans (finCongr h), fun i j => hσ i j⟩
-  · rintro ⟨τ, hτ⟩
-    exact ⟨τ.trans (finCongr h.symm), fun i j => hτ i j⟩
+        ∀ i j, G₁.adjIndex (τ i) (τ j) = G₀.adjIndex i j :=
+  mem_GraphIsomorphism_iff.trans
+    ⟨fun ⟨σ, hσ⟩ => ⟨σ.trans (finCongr h), hσ⟩,
+     fun ⟨τ, hτ⟩ => ⟨τ.trans (finCongr h.symm), hτ⟩⟩
 
 namespace GraphIsomorphism
 
@@ -196,17 +193,14 @@ theorem isVerifier :
       let f : Fin G.distinctVertices.length → ℕ := fun i => φ (G.vertexEquiv i)
       have hf : Function.Injective f :=
         Subtype.val_injective.comp (φ.injective.comp G.vertexEquiv.injective)
-      refine ⟨List.ofFn f, List.nodup_ofFn.2 hf, fun v => ⟨?_, ?_⟩, List.length_ofFn,
-        fun i hi j hj => ?_⟩
-      · rintro hv
-        obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hv
-        exact (φ (G.vertexEquiv i)).2
-      · intro hv
-        exact List.mem_ofFn.2 ⟨G.vertexEquiv.symm (φ.symm ⟨v, hv⟩), by simp [f]⟩
-      · rw [List.getD_ofFn_of_lt _ hi, List.getD_ofFn_of_lt _ hj]
-        rw [Bool.eq_iff_iff, H.adjBool_eq_true_iff,
-          ← Graph.induced_adj_vertexEquiv G ⟨i, hi⟩ ⟨j, hj⟩]
-        exact φ.map_adj_iff
+      refine ⟨List.ofFn f, List.nodup_ofFn.2 hf,
+        fun v => ⟨fun hv => Exists.elim (List.mem_ofFn.1 hv) fun i hi =>
+            hi ▸ (φ (G.vertexEquiv i)).2,
+          fun hv => List.mem_ofFn.2 ⟨G.vertexEquiv.symm (φ.symm ⟨v, hv⟩), by simp [f]⟩⟩,
+        List.length_ofFn, fun i hi j hj => ?_⟩
+      rw [List.getD_ofFn_of_lt _ hi, List.getD_ofFn_of_lt _ hj, Bool.eq_iff_iff,
+        H.adjBool_eq_true_iff, ← Graph.induced_adj_vertexEquiv G ⟨i, hi⟩ ⟨j, hj⟩]
+      exact φ.map_adj_iff
     · rintro ⟨p, hnd, hcov, hlen, hadj⟩
       let e : Fin G.distinctVertices.length ≃ {v // v ∈ H.vertices} :=
         (finCongr hlen.symm).trans ((hnd.getEquiv _).trans (Equiv.subtypeEquivRight hcov))

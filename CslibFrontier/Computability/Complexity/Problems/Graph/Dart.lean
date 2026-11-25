@@ -62,14 +62,13 @@ theorem card (G : Graph) : Fintype.card (Dart G) = 2 * G.edges.length := by
 /-- Distinct endpoints of a dart are adjacent in the simple graph of the edge list. -/
 theorem adj_vertex_reverse {G : Graph} (d : Dart G) (hne : d.vertex ≠ d.reverse.vertex) :
     G.toSimpleGraph.Adj d.vertex d.reverse.vertex := by
-  rw [toSimpleGraph_adj]
-  refine ⟨hne, ?_⟩
   rcases d with ⟨i, side⟩
   have hm : G.edges[i] ∈ G.edges := List.getElem_mem _
   rw [edge_eq_vertices] at hm
+  rw [toSimpleGraph_adj]
   cases side
-  · exact Or.inl hm
-  · exact Or.inr hm
+  · exact ⟨hne, Or.inl hm⟩
+  · exact ⟨hne, Or.inr hm⟩
 
 end Dart
 
@@ -84,15 +83,11 @@ theorem exists_split_darts (G : Graph) (selected : Dart G → Prop) [DecidablePr
   let H : Graph := ⟨w :: G.vertices,
     List.ofFn fun i : Fin G.edges.length => (endpoint (i, false), endpoint (i, true))⟩
   have hlen : H.edges.length = G.edges.length := List.length_ofFn
-  let E : Fin G.edges.length ≃ Fin H.edges.length := finCongr hlen.symm
-  refine ⟨H, E, rfl, ?_⟩
-  rintro ⟨i, b⟩
+  refine ⟨H, finCongr hlen.symm, rfl, fun ⟨i, b⟩ => ?_⟩
   have hi : i.val < H.edges.length := hlen.symm ▸ i.isLt
-  change (if b then (H.edges.getD i.val (0, 0)).2 else (H.edges.getD i.val (0, 0)).1) = _
-  rw [List.getD_eq_getElem _ _ hi]
-  change (if b then ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).2
-    else ((List.ofFn fun j => (endpoint (j, false), endpoint (j, true)))[i.val]).1) = _
-  rw [List.getElem_ofFn]
+  simp only [Dart.vertex, Graph.edgeEndpoint, finCongr_apply, Fin.val_cast,
+    List.getD_eq_getElem _ _ hi]
+  simp only [H, List.getElem_ofFn]
   cases b <;> rfl
 
 end Cslib.Complexity.Graph

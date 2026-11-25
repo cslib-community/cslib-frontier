@@ -96,11 +96,9 @@ theorem mem_vertexList (v : TargetVertex N A) : v ∈ vertexList N A order := by
 
 private theorem localEdges_nodup (v : Vert U C R) : (localEdges N A v).Nodup := by
   have hs : (ownedShared v).Nodup := by rcases v with u | (c | r) <;> simp [ownedShared]
-  apply List.nodup_append.mpr
-  refine ⟨hs.map Sum.inl_injective,
+  refine List.nodup_append.mpr ⟨hs.map Sum.inl_injective,
     (Diagram.Replacement.innerList_nodup (cell N A v).openSim).map
-      (Sum.inr_injective.comp sigma_mk_injective), ?_⟩
-  intro e he f hf hef
+      (Sum.inr_injective.comp sigma_mk_injective), fun e he f hf hef => ?_⟩
   obtain ⟨e, _, rfl⟩ := List.mem_map.mp he
   obtain ⟨f, _, rfl⟩ := List.mem_map.mp hf
   cases hef
@@ -112,12 +110,11 @@ theorem owner_mem_localEdges (v : Vert U C R) (e : Edge C R ⊕ Private N A)
   · obtain ⟨e, he', rfl⟩ := List.mem_map.mp hs
     rcases v with u | (c | r)
     · exact (List.not_mem_nil he').elim
-    · simp only [ownedShared, List.mem_singleton] at he'
-      subst e
-      rfl
-    · simp only [ownedShared, List.mem_cons, List.not_mem_nil, or_false] at he'
-      rcases he' with rfl | rfl <;> rfl
-  · obtain ⟨e, _, rfl⟩ := List.mem_map.mp hp
+    · exact List.mem_singleton.mp he' ▸ rfl
+    · rcases List.mem_cons.mp he' with rfl | h
+      · rfl
+      · exact List.mem_singleton.mp h ▸ rfl
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hp
     rfl
 
 /-- Enumerate edges in source-cell order, so row-local cells retain row-local edge numbering. -/
@@ -125,24 +122,21 @@ theorem owner_mem_localEdges (v : Vert U C R) (e : Edge C R ⊕ Private N A)
   (List.ofFn order.symm).flatMap (localEdges N A)
 
 /-- No two shared or private implementation edges receive the same number. -/
-theorem edgeList_nodup : (edgeList N A order).Nodup := by
-  apply List.nodup_flatMap.mpr
-  refine ⟨fun v _ => localEdges_nodup N A v, (sourceList_nodup order).imp ?_⟩
-  intro v w hvw e he hf
-  exact hvw ((owner_mem_localEdges N A v e he).symm.trans (owner_mem_localEdges N A w e hf))
+theorem edgeList_nodup : (edgeList N A order).Nodup :=
+  List.nodup_flatMap.mpr ⟨fun v _ => localEdges_nodup N A v, (sourceList_nodup order).imp
+    fun {v w} hvw e he hf => hvw ((owner_mem_localEdges N A v e he).symm.trans
+      (owner_mem_localEdges N A w e hf))⟩
 
 /-- Every implementation edge is represented in the explicit edge list. -/
 theorem mem_edgeList (e : Edge C R ⊕ Private N A) : e ∈ edgeList N A order := by
-  apply List.mem_flatMap.mpr
+  refine List.mem_flatMap.mpr ?_
   rcases e with (c | ⟨r, b⟩) | ⟨v, e⟩
-  · refine ⟨.inr (.inl c), mem_sourceList order _, List.mem_append_left _ ?_⟩
-    exact List.mem_map.mpr ⟨.inl c, List.mem_singleton_self _, rfl⟩
-  · refine ⟨.inr (.inr r), mem_sourceList order _, List.mem_append_left _ ?_⟩
-    apply List.mem_map.mpr
-    refine ⟨.inr (r, b), ?_, rfl⟩
-    cases b <;> simp [ownedShared]
-  · refine ⟨v, mem_sourceList order _, List.mem_append_right _ ?_⟩
-    exact List.mem_map.mpr ⟨e, Diagram.Replacement.mem_innerList (cell N A v).openSim e, rfl⟩
+  · exact ⟨.inr (.inl c), mem_sourceList order _,
+      List.mem_append_left _ (List.mem_map.mpr ⟨.inl c, List.mem_singleton_self _, rfl⟩)⟩
+  · exact ⟨.inr (.inr r), mem_sourceList order _, List.mem_append_left _
+      (List.mem_map.mpr ⟨.inr (r, b), by cases b <;> simp [ownedShared], rfl⟩)⟩
+  · exact ⟨v, mem_sourceList order _, List.mem_append_right _
+      (List.mem_map.mpr ⟨e, Diagram.Replacement.mem_innerList (cell N A v).openSim e, rfl⟩)⟩
 
 variable [DecidableEq R]
 
@@ -161,9 +155,7 @@ private theorem edgeEquiv_val (e : Edge C R ⊕ Private N A) :
     (edgeEquiv N A order e).val = (edgeList N A order).idxOf e := by
   have hget : (edgeList N A order).get (edgeEquiv N A order e) = e :=
     (edgeEquiv N A order).symm_apply_apply e
-  have h := List.get_idxOf (edgeList_nodup N A order) (edgeEquiv N A order e)
-  rw [hget] at h
-  exact h.symm
+  simpa only [hget] using (List.get_idxOf (edgeList_nodup N A order) (edgeEquiv N A order e)).symm
 
 /-- The same implementation on finite vertex and edge intervals. -/
 @[expose] def graph : ConstraintGraph (Fin (vertexList N A order).length)
@@ -195,11 +187,9 @@ theorem isAndOr : (graph N A order).IsAndOr :=
   fun i => (AndOr.isAndOr N A ((vertexEquiv N A order).symm i)).map _
 
 /-- Exact edge numbering preserves absence of self-loops. -/
-theorem loopFree : (graph N A order).LoopFree := by
-  apply ConstraintGraph.LoopFree.map
-  · intro i
-    exact AndOr.loopFree N A ((vertexEquiv N A order).symm i)
-  · exact (edgeEquiv N A order).injective
+theorem loopFree : (graph N A order).LoopFree :=
+  ConstraintGraph.LoopFree.map (fun i => AndOr.loopFree N A ((vertexEquiv N A order).symm i))
+    (edgeEquiv N A order).injective
 
 /-- Numbering preserves the same two opposite, equally weighted ports per edge. -/
 theorem wellFormed : (graph N A order).WellFormed := by

@@ -64,8 +64,7 @@ theorem StrongConvexOn.smul {c : ℝ} (hc : 0 ≤ c) (hf : StrongConvexOn s m f)
 /-- Adding a convex function to an `m`-strongly convex function keeps it `m`-strongly convex. -/
 theorem StrongConvexOn.add_convexOn (hf : StrongConvexOn s m f) (hg : ConvexOn ℝ s g) :
     StrongConvexOn s m (f + g) := by
-  have h := UniformConvexOn.add hf hg.uniformConvexOn_zero
-  simpa only [StrongConvexOn, add_zero] using h
+  simpa only [StrongConvexOn, add_zero] using UniformConvexOn.add hf hg.uniformConvexOn_zero
 
 /-- **Quadratic growth at a minimizer.** If `x` minimizes an `m`-strongly convex function `f` on
 `s`, then `f x + m / 2 * ‖y - x‖ ^ 2 ≤ f y` for every `y ∈ s`. -/
@@ -79,30 +78,22 @@ theorem StrongConvexOn.add_le_of_isMinOn (hf : StrongConvexOn s m f) {x : E} (hx
   have key : ∀ a : ℝ, 0 ≤ a → a ≤ 1 → a * (1 - a) * c ≤ a * g := by
     intro a ha0 ha1
     have hconv := hf.2 hy hx ha0 (sub_nonneg.mpr ha1) (by ring)
-    have hmem : a • y + (1 - a) • x ∈ s :=
-      hf.1 hy hx ha0 (sub_nonneg.mpr ha1) (by ring)
-    have hle : f x ≤ f (a • y + (1 - a) • x) := hmin hmem
+    have hle : f x ≤ f (a • y + (1 - a) • x) :=
+      hmin (hf.1 hy hx ha0 (sub_nonneg.mpr ha1) (by ring))
     simp only [smul_eq_mul] at hconv
     rw [hc]
     nlinarith
-  have hg0 : 0 ≤ g := by
-    have : f x ≤ f y := hmin hy
-    linarith
+  have hg0 : 0 ≤ g := sub_nonneg.mpr (hmin hy)
   by_contra hlt
-  have hgc : g < c := by linarith [not_le.mp hlt]
-  have hc0 : 0 < c := lt_of_le_of_lt hg0 hgc
-  set a := (c - g) / (2 * c) with ha
-  have ha0 : 0 < a := div_pos (by linarith) (by positivity)
-  have ha1 : a ≤ 1 := by
-    rw [ha, div_le_one (by positivity)]
-    linarith
-  have h := key a ha0.le ha1
-  have h' : (1 - a) * c ≤ g := le_of_mul_le_mul_left (by linarith) ha0
-  have h1a : (1 - a) * c = (c + g) / 2 := by
-    rw [ha]
+  have hcg : 0 < c - g := by linarith
+  have hc0 : 0 < c := by linarith
+  have h := key ((c - g) / (2 * c)) (by positivity)
+    (div_le_one_of_le₀ (by linarith) (by positivity))
+  have hid : ((c - g) / (2 * c)) * (1 - (c - g) / (2 * c)) * c - ((c - g) / (2 * c)) * g =
+      (c - g) ^ 2 / (4 * c) := by
     field_simp
     ring
-  linarith
+  linarith [show 0 < (c - g) ^ 2 / (4 * c) by positivity]
 
 /-- **Stability of a strongly convex minimizer under a perturbation.** If `x` minimizes an
 `m`-strongly convex function `f` on `s` with `m > 0`, and the perturbation `ℓ` satisfies the

@@ -117,14 +117,13 @@ private lemma digraphLaplacianEntry_eq (G : Graph) (u v : {v // v ∈ G.vertices
       refine Fintype.card_congr (Equiv.subtypeEquiv G.vertexEquiv fun i => ?_)
       simp only [Bool.and_eq_true, decide_eq_true_eq, any_eq_decide_mem, toDigraph, ne_eq,
         Subtype.ext_iff, Graph.vertexEquiv_getElem, and_comm]
-    simp only [digraphLaplacianEntry, ↓reduceIte, hdiag]
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ u), add_sub_cancel_left]
-    simp only [Digraph.adjMatrix_apply, Finset.sum_boole, Nat.cast_inj]
+    simp only [digraphLaplacianEntry, ↓reduceIte, hdiag,
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ u), add_sub_cancel_left,
+      Digraph.adjMatrix_apply, Finset.sum_boole, Nat.cast_inj]
     congr 1
     ext w
     simp [and_comm]
-  · have hne : u.1 ≠ v.1 := fun h => huv (Subtype.ext h)
-    simp only [digraphLaplacianEntry, hne, ↓reduceIte, huv, any_eq_decide_mem,
+  · simp only [digraphLaplacianEntry, mt Subtype.ext huv, ↓reduceIte, huv, any_eq_decide_mem,
       Digraph.adjMatrix_apply, zero_sub, decide_eq_true_eq]
     dsimp only [toDigraph]
     by_cases hadj : (u.1, v.1) ∈ G.edges <;> simp [hadj]
@@ -161,14 +160,12 @@ theorem mem_validArcs {G : Graph} {e : ℕ × ℕ} :
   simp [validArcs]
 
 theorem mem_validArcs_fst {G : Graph} {e : ℕ × ℕ} (he : e ∈ G.validArcs) :
-    e.1 ∈ G.vertices := by
-  rcases mem_validArcs.1 he with ⟨_, h1, _⟩
-  exact h1
+    e.1 ∈ G.vertices :=
+  (mem_validArcs.1 he).2.1
 
 theorem mem_validArcs_snd {G : Graph} {e : ℕ × ℕ} (he : e ∈ G.validArcs) :
-    e.2 ∈ G.vertices := by
-  rcases mem_validArcs.1 he with ⟨_, _, h2⟩
-  exact h2
+    e.2 ∈ G.vertices :=
+  (mem_validArcs.1 he).2.2
 
 /-- Source vertex of an arc in `G.validArcs`. -/
 @[expose]
@@ -214,9 +211,8 @@ private lemma multiLaplacianEntry_eq {mem : ℕ → Prop} [Fintype {v // mem v}]
   rw [Matrix.laplacian_apply]
   by_cases huv : u = v
   · subst huv
-    simp only [multiLaplacianEntry, ↓reduceIte]
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ u), add_sub_cancel_left]
-    simp only [Multidigraph.arcMatrix_apply, ← Nat.cast_sum, Nat.cast_inj,
+    simp only [multiLaplacianEntry, ↓reduceIte, ← Finset.add_sum_erase _ _ (Finset.mem_univ u),
+      add_sub_cancel_left, Multidigraph.arcMatrix_apply, ← Nat.cast_sum, Nat.cast_inj,
       List.countP_eq_card_filter_getElem]
     have hfib :
         ∑ w ∈ Finset.univ.erase u, (Finset.univ.filter fun e => src e = u ∧ tgt e = w).card =
@@ -228,9 +224,9 @@ private lemma multiLaplacianEntry_eq {mem : ℕ → Prop} [Fintype {v // mem v}]
     congr 1
     ext i
     simp [src, tgt, Subtype.ext_iff]
-  · have hne : u.1 ≠ v.1 := fun h => huv (Subtype.ext h)
-    simp only [multiLaplacianEntry, hne, ↓reduceIte, huv, Multidigraph.arcMatrix_apply, zero_sub,
-      neg_inj, Nat.cast_inj, List.countP_eq_card_filter_getElem]
+  · simp only [multiLaplacianEntry, mt Subtype.ext huv, ↓reduceIte, huv,
+      Multidigraph.arcMatrix_apply, zero_sub, neg_inj, Nat.cast_inj,
+      List.countP_eq_card_filter_getElem]
     congr 1
     ext i
     simp [src, tgt, Subtype.ext_iff]
@@ -251,14 +247,12 @@ theorem multiLaplacianCount_eq_natCard {vs : List ℕ} (hnd : vs.Nodup) {mem : �
         Multidigraph.IsInArborescence src tgt ⟨r, (hmem r).1 hr⟩ f} := by
   classical
   intro src tgt
-  let : Fintype {v // mem v} :=
-    Fintype.ofEquiv {v // v ∈ vs} (Equiv.subtypeEquivRight hmem)
   let e : {v // v ∈ vs} ≃ {v // mem v} := Equiv.subtypeEquivRight hmem
-  have hdet := detRows_filter_ne_equiv_eq hnd e hr
-    (Multidigraph.arcMatrix src tgt ℤ).laplacian (multiLaplacianEntry arcs)
-    fun u v _ _ => multiLaplacianEntry_eq arcs harcs (e u) (e v)
+  let : Fintype {v // mem v} := Fintype.ofEquiv {v // v ∈ vs} e
   change (Cslib.Circuits.Rational.detRows _).toNat = _
-  rw [hdet, Multidigraph.det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence]
+  rw [detRows_filter_ne_equiv_eq hnd e hr (Multidigraph.arcMatrix src tgt ℤ).laplacian
+      (multiLaplacianEntry arcs) fun u v _ _ => multiLaplacianEntry_eq arcs harcs (e u) (e v),
+    Multidigraph.det_laplacian_arcMatrix_submatrix_eq_natCard_isInArborescence]
   exact Int.toNat_natCast _
 
 /-- `G.multiInArborescenceCount r` equals the number of multidigraph spanning in-arborescences
@@ -300,13 +294,10 @@ theorem computableInPolyTime_digraphInArborescenceCount :
     ComputableInPolyTime (fun p : Graph × ℕ => p.1.digraphInArborescenceCount p.2)
       (encPair encGraph encNat) encNat := by
   dsimp only [digraphInArborescenceCount]
-  have hentry : ComputableInPolyTime
-      (fun q : ((Graph × ℕ) × ℕ) × ℕ => q.1.1.1.digraphLaplacianEntry q.1.2 q.2)
-      (encPair (encPair (encPair encGraph encNat) encNat) encNat) encIntBin :=
-    computableInPolyTime_digraphLaplacianEntry.comp
-      (g := fun q : ((Graph × ℕ) × ℕ) × ℕ => ((q.1.1.1, q.1.2), q.2)) (by fun_prop)
   exact ComputableInPolyTime.ite' (by fun_prop)
-    (ComputableInPolyTime.intBin_toNat.comp (computableInPolyTime_detRows_map (by fun_prop) hentry))
+    (ComputableInPolyTime.intBin_toNat.comp (computableInPolyTime_detRows_map (by fun_prop)
+      (computableInPolyTime_digraphLaplacianEntry.comp
+        (g := fun q : ((Graph × ℕ) × ℕ) × ℕ => ((q.1.1.1, q.1.2), q.2)) (by fun_prop))))
     (ComputableInPolyTime.const 0)
 
 /-- The number of spanning in-arborescences of a simple digraph `G.toDigraph` rooted at `r` is
@@ -318,9 +309,9 @@ theorem computableInPolyTime_natCard_digraphIsInArborescence :
           Nat.card {T : Digraph {v // v ∈ p.1.vertices} //
             T ≤ p.1.toDigraph ∧ T.IsInArborescence ⟨p.2, hr⟩}
         else 0)
-      (encPair encGraph encNat) encNat := by
-  refine computableInPolyTime_digraphInArborescenceCount.of_enc_eq fun p => ?_
-  rw [digraphInArborescenceCount_eq_natCard]
+      (encPair encGraph encNat) encNat :=
+  computableInPolyTime_digraphInArborescenceCount.of_enc_eq fun p =>
+    congrArg encNat (p.1.digraphInArborescenceCount_eq_natCard p.2).symm
 
 /-- Binary encoding of a list of directed arcs `(ℕ × ℕ)`. -/
 abbrev encArcList : List (ℕ × ℕ) ↪ List Bool :=
@@ -372,8 +363,8 @@ theorem computableInPolyTime_natCard_multiIsInArborescence :
           Nat.card {f : {v : {v // v ∈ p.1.vertices} // v ≠ ⟨p.2, hr⟩} → Fin p.1.validArcs.length //
             Multidigraph.IsInArborescence p.1.arcSrc p.1.arcTgt ⟨p.2, hr⟩ f}
         else 0)
-      (encPair encGraph encNat) encNat := by
-  refine computableInPolyTime_multiInArborescenceCount.of_enc_eq fun p => ?_
-  rw [multiInArborescenceCount_eq_natCard]
+      (encPair encGraph encNat) encNat :=
+  computableInPolyTime_multiInArborescenceCount.of_enc_eq fun p =>
+    congrArg encNat (p.1.multiInArborescenceCount_eq_natCard p.2).symm
 
 end Cslib.Complexity.Graph

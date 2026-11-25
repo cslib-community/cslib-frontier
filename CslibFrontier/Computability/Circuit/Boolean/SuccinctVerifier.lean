@@ -110,13 +110,7 @@ theorem eval_clause_eq_true_iff (D : Circuit signature q (3 * (r + 1)))
     (clause D x).eval a = true ↔ ∃ j : Fin 3,
       a (fun i => D.eval interpretation x (addressWire r j i)) =
         D.eval interpretation x (signWire r j) := by
-  rw [Clause.eval_eq_true_iff]
-  constructor
-  · rintro ⟨l, hl, h⟩
-    obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hl
-    exact ⟨j, h⟩
-  · rintro ⟨j, h⟩
-    exact ⟨_, List.mem_ofFn.mpr ⟨j, rfl⟩, h⟩
+  simp [clause, Fin.exists_fin_succ]
 
 /-- The expanded formula holds exactly when every clause address is satisfied. -/
 theorem eval_toCNF_eq_true_iff (D : Circuit signature q (3 * (r + 1)))
@@ -163,10 +157,9 @@ theorem eval_badClause (D : Circuit signature q (3 * (r + 1)))
     (badClause D W).eval interpretation x 0 =
       !(clause D x).eval (fun y => W.eval interpretation y 0) := by
   simp only [badClause, Circuit.eval_comp, Formula.eval_toCircuit, Circuit.eval_append,
-    Circuit.eval_pi, Circuit.eval_wiring, eval_violationTest, Function.comp_def]
-  simp only [clause, List.ofFn_succ, List.ofFn_zero, Clause.eval_cons, Clause.eval_nil,
-    Literal.eval_mk, Bool.or_false]
-  simp only [← Bool.bne_eq_xor, bne, Bool.not_or, Fin.succ_zero_eq_one, Fin.succ_one_eq_two]
+    Circuit.eval_pi, Circuit.eval_wiring, eval_violationTest, Function.comp_def, clause,
+    List.ofFn_succ, List.ofFn_zero, Clause.eval_cons, Clause.eval_nil, Literal.eval_mk,
+    Bool.or_false, ← Bool.bne_eq_xor, bne, Bool.not_or, Fin.succ_zero_eq_one, Fin.succ_one_eq_two]
 
 /-- **Verification by unsatisfiability.** The bad-clause circuit has no satisfying input exactly
 when the proposed witness's truth table satisfies the entire represented formula. -/
@@ -188,14 +181,9 @@ theorem exists_small_witness_iff (D : Circuit signature q (3 * (r + 1))) (s : �
   · rintro ⟨a, ha, hsize⟩
     obtain ⟨W, hW, hsizeW⟩ := complexity_le_iff.mp hsize
     refine ⟨W, hsizeW, (not_mem_CircuitSAT_badClause_iff D W).2 ?_⟩
-    have heq : (fun y => W.eval interpretation y 0) = a :=
-      funext ((Circuit.computes_single_iff).mp hW)
-    rw [heq]
-    exact ha
+    rwa [funext (Circuit.computes_single_iff.mp hW)]
   · rintro ⟨W, hsize, hW⟩
-    refine ⟨fun y => W.eval interpretation y 0,
-      (not_mem_CircuitSAT_badClause_iff D W).1 hW, ?_⟩
-    exact (complexity_le_of_computes W ((Circuit.computes_single_iff).2 fun _ => rfl)).trans
-      hsize
+    exact ⟨fun y => W.eval interpretation y 0, (not_mem_CircuitSAT_badClause_iff D W).1 hW,
+      (complexity_le_of_computes W (Circuit.computes_single_iff.2 fun _ => rfl)).trans hsize⟩
 
 end Cslib.Circuits.Boolean.SuccinctVerifier

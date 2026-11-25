@@ -87,9 +87,8 @@ theorem weightedSuccess_nonneg (t : DecisionTree ι β) (f : (ι → Bool) → O
 
 omit [Fintype ι] [DecidableEq ι] in
 private theorem restrictWeight_nonneg {ν : (ι → Bool) → ℝ} (hν : ∀ x, 0 ≤ ν x)
-    (q : ι) (b : Bool) : ∀ x, 0 ≤ restrictWeight ν q b x := by
-  intro x
-  exact ite_nonneg (hν x) le_rfl
+    (q : ι) (b : Bool) : ∀ x, 0 ≤ restrictWeight ν q b x :=
+  fun x => ite_nonneg (hν x) le_rfl
 
 private theorem weightedSuccess_node (f : (ι → Bool) → Option β) (ν : (ι → Bool) → ℝ)
     (q : ι) (t₀ t₁ : DecisionTree ι β) :
@@ -98,8 +97,7 @@ private theorem weightedSuccess_node (f : (ι → Bool) → Option β) (ν : (ι
         t₁.weightedSuccess (restrictWeight ν q true) f := by
   unfold weightedSuccess restrictWeight
   rw [← sum_add_distrib]
-  refine sum_congr rfl fun x _ => ?_
-  cases hx : x q <;> simp [eval_node, hx]
+  exact sum_congr rfl fun x _ => by cases hx : x q <;> simp [eval_node, hx]
 
 section Budget
 
@@ -140,14 +138,14 @@ private theorem budgetValue_mono (f : (ι → Bool) → Option β) {c d : ℕ} (
   | succ d _ ih => exact ih.trans (budgetValue_le_succ f d ν)
 
 private theorem leafSuccess_le_budgetValue (f : (ι → Bool) → Option β) (c : ℕ)
-    (ν : (ι → Bool) → ℝ) (b : β) : (leaf b).weightedSuccess ν f ≤ budgetValue f c ν := by
-  refine le_trans ?_ (budgetValue_mono f (Nat.zero_le c) ν)
-  exact le_sup' (f := fun b : β => (leaf b).weightedSuccess ν f) (mem_univ b)
+    (ν : (ι → Bool) → ℝ) (b : β) : (leaf b).weightedSuccess ν f ≤ budgetValue f c ν :=
+  (le_sup' (f := fun b : β => (leaf b).weightedSuccess ν f) (mem_univ b)).trans
+    (budgetValue_mono f (Nat.zero_le c) ν)
 
 private theorem budgetValue_nonneg (f : (ι → Bool) → Option β) (c : ℕ)
-    {ν : (ι → Bool) → ℝ} (hν : ∀ x, 0 ≤ ν x) : 0 ≤ budgetValue f c ν := by
-  obtain ⟨b⟩ := ‹Nonempty β›
-  exact (weightedSuccess_nonneg (leaf b) f hν).trans (leafSuccess_le_budgetValue f c ν b)
+    {ν : (ι → Bool) → ℝ} (hν : ∀ x, 0 ≤ ν x) : 0 ≤ budgetValue f c ν :=
+  let ⟨b⟩ := ‹Nonempty β›
+  (weightedSuccess_nonneg (leaf b) f hν).trans (leafSuccess_le_budgetValue f c ν b)
 
 /-- The finite recursion is attained by a tree. -/
 private theorem exists_tree_budgetValue_le (f : (ι → Bool) → Option β) (c : ℕ)
@@ -156,28 +154,22 @@ private theorem exists_tree_budgetValue_le (f : (ι → Bool) → Option β) (c 
   induction c generalizing ν with
   | zero =>
     obtain ⟨b, -, hb⟩ := exists_mem_eq_sup' (s := (univ : Finset β)) univ_nonempty
-      (fun b => (leaf b).weightedSuccess ν f)
-    exact ⟨leaf b, le_rfl, by simpa only [budgetValue] using hb.le⟩
+      fun b => (leaf b).weightedSuccess ν f
+    exact ⟨leaf b, le_rfl, hb.le⟩
   | succ c ih =>
-    rw [budgetValue]
-    obtain ⟨o, -, ho⟩ := exists_mem_eq_sup' (s := (univ : Finset (Option ι)))
-      ⟨none, mem_univ _⟩ (fun o => match o with
-        | none => budgetValue f c ν
-        | some q => budgetValue f c (restrictWeight ν q false) +
-            budgetValue f c (restrictWeight ν q true))
-    rw [ho]
-    cases o with
-    | none =>
-      obtain ⟨t, ht, h⟩ := ih ν
+    obtain ⟨o, -, ho⟩ := exists_mem_eq_sup' (s := (univ : Finset (Option ι))) ⟨none, mem_univ _⟩
+      fun | none => budgetValue f c ν
+          | some q => budgetValue f c (restrictWeight ν q false) +
+              budgetValue f c (restrictWeight ν q true)
+    rw [budgetValue, ho]
+    rcases o with _ | q
+    · obtain ⟨t, ht, h⟩ := ih ν
       exact ⟨t, ht.trans (Nat.le_succ _), h⟩
-    | some q =>
-      obtain ⟨t₀, ht₀, h₀⟩ := ih (restrictWeight ν q false)
+    · obtain ⟨t₀, ht₀, h₀⟩ := ih (restrictWeight ν q false)
       obtain ⟨t₁, ht₁, h₁⟩ := ih (restrictWeight ν q true)
-      refine ⟨node q t₀ t₁, ?_, ?_⟩
-      · simp only [depth_node]
-        omega
-      · rw [weightedSuccess_node]
-        exact add_le_add h₀ h₁
+      refine ⟨node q t₀ t₁, by simp only [depth_node]; omega, ?_⟩
+      rw [weightedSuccess_node]
+      exact add_le_add h₀ h₁
 
 private theorem budgetValue_le_of_forall {f : (ι → Bool) → Option β} {c : ℕ}
     {ν : (ι → Bool) → ℝ} {b : ℝ}
@@ -205,8 +197,7 @@ theorem productSuccess_leaf (ν : J → (ι → Bool) → ℝ)
   rw [prod_univ_sum, Fintype.piFinset_univ]
   refine sum_congr rfl fun U _ => ?_
   simp only [eval_leaf, prod_mul_distrib]
-  congr 1
-  exact (Fintype.prod_boole (p := fun j => f j (U j) = some (s j))).symm
+  exact congrArg (_ * ·) (Fintype.prod_boole (p := fun j => f j (U j) = some (s j))).symm
 
 private theorem productSuccess_node (f : J → (ι → Bool) → Option β)
     (ν : J → (ι → Bool) → ℝ) (h : J) (q : ι)
@@ -217,14 +208,12 @@ private theorem productSuccess_node (f : J → (ι → Bool) → Option β)
   unfold productSuccess
   rw [← sum_add_distrib]
   refine sum_congr rfl fun U _ => ?_
-  have hsplit : ∀ b, ∏ j, Function.update ν h (restrictWeight (ν h) q b) j (U j) =
+  have hsplit (b : Bool) : ∏ j, Function.update ν h (restrictWeight (ν h) q b) j (U j) =
       (if U h q = b then 1 else 0) * ∏ j, ν j (U j) := by
-    intro b
     simp_rw [Function.apply_update (fun j w => w (U j)) ν h (restrictWeight (ν h) q b)]
     rw [prod_update_of_mem (mem_univ h), sdiff_singleton_eq_erase,
       ← mul_prod_erase univ (fun j => ν j (U j)) (mem_univ h)]
-    unfold restrictWeight
-    split_ifs <;> simp
+    by_cases hq : U h q = b <;> simp [restrictWeight, hq]
   rw [hsplit, hsplit]
   cases hq : U h q <;> simp [eval_node, Function.uncurry, hq]
 
@@ -244,35 +233,29 @@ private theorem productSuccess_le_prod_budgetValue (f : J → (ι → Bool) → 
   | node p t₀ t₁ ih₀ ih₁ =>
     obtain ⟨h, q⟩ := p
     obtain ⟨h0, h₀, h₁⟩ := capped_node_iff.mp ht
-    have hν' : ∀ b j x, 0 ≤ Function.update ν h (restrictWeight (ν h) q b) j x := by
-      intro b j x
-      by_cases hj : j = h
-      · subst hj
-        simpa using restrictWeight_nonneg (hν j) q b x
+    have hν' (b : Bool) (j : J) (x : ι → Bool) :
+        0 ≤ Function.update ν h (restrictWeight (ν h) q b) j x := by
+      rcases eq_or_ne j h with rfl | hj
+      · simpa using restrictWeight_nonneg (hν j) q b x
       · simpa [Function.update_of_ne hj] using hν j x
-    let c' := Function.update c h (c h - 1)
-    have hprod : ∀ b, ∏ j, budgetValue (f j) (c' j)
+    have hprod (b : Bool) : ∏ j, budgetValue (f j) (Function.update c h (c h - 1) j)
           (Function.update ν h (restrictWeight (ν h) q b) j) =
         budgetValue (f h) (c h - 1) (restrictWeight (ν h) q b) *
           ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) := by
-      intro b
-      dsimp only [c']
       simp_rw [Function.apply_update₂ (fun j n w => budgetValue (f j) n w)
         c ν h (c h - 1) (restrictWeight (ν h) q b)]
       rw [prod_update_of_mem (mem_univ h), sdiff_singleton_eq_erase]
-    have hP : 0 ≤ ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) :=
-      prod_nonneg fun j _ => budgetValue_nonneg (f j) (c j) (hν j)
     rw [productSuccess_node]
-    calc _ ≤ _ := add_le_add (ih₀ _ c' (hν' false) h₀) (ih₁ _ c' (hν' true) h₁)
+    calc _ ≤ _ := add_le_add (ih₀ _ _ (hν' false) h₀) (ih₁ _ _ (hν' true) h₁)
       _ = (budgetValue (f h) (c h - 1) (restrictWeight (ν h) q false) +
             budgetValue (f h) (c h - 1) (restrictWeight (ν h) q true)) *
           ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) := by
             rw [hprod, hprod, add_mul]
       _ ≤ budgetValue (f h) (c h) (ν h) *
-          ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) := by
-            refine mul_le_mul_of_nonneg_right ?_ hP
-            have hstep := budgetValue_add_le (f h) (c h - 1) (ν h) q
-            rwa [Nat.sub_add_cancel h0] at hstep
+          ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) :=
+            mul_le_mul_of_nonneg_right
+              (Nat.sub_add_cancel h0 ▸ budgetValue_add_le (f h) (c h - 1) (ν h) q)
+              (prod_nonneg fun j _ => budgetValue_nonneg (f j) (c j) (hν j))
       _ = ∏ j, budgetValue (f j) (c j) (ν j) :=
         mul_prod_erase univ (fun j => budgetValue (f j) (c j) (ν j)) (mem_univ h)
 

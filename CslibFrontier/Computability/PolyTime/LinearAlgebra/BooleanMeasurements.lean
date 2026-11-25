@@ -89,8 +89,8 @@ theorem evalBoolRow_eq_sum (row : List ℤ) (y : List Bool) :
 
 /-- Total lookup of an evaluated row agrees with evaluating the total row lookup. -/
 theorem evalBoolMatrix_getD (M : List (List ℤ)) (y : List Bool) (i : ℕ) :
-    (evalBoolMatrix M y).getD i 0 = evalBoolRow (M.getD i []) y := by
-  exact List.getD_map M [] (n := i) (fun row => evalBoolRow row y)
+    (evalBoolMatrix M y).getD i 0 = evalBoolRow (M.getD i []) y :=
+  List.getD_map M [] (n := i) (fun row => evalBoolRow row y)
 
 /-- A target of the wrong length cannot be the matrix's complete measurement vector. -/
 theorem evalBoolMatrix_ne_of_length_ne (M : List (List ℤ)) (y : List Bool) (target : List ℤ)
@@ -199,17 +199,11 @@ theorem search_eq_none_iff_cube (matOf : C → List (List ℤ)) (targetOf : C �
     (p : C × ℕ) :
     search matOf targetOf p = none ↔ ∀ y : BitString p.2,
       evalBoolMatrix (matOf p.1) (List.ofFn y) ≠ targetOf p.1 := by
+  rcases p with ⟨c, n⟩
   rw [search_eq_none_iff]
-  constructor
-  · intro h y
-    exact h _ List.length_ofFn
-  · intro h y hy
-    let x : BitString p.2 := fun i => y.getD i false
-    have hx : List.ofFn x = y := by
-      apply List.ext_getElem (by simpa only [List.length_ofFn] using hy.symm)
-      intro i hi hi'
-      simp only [List.getElem_ofFn, x, List.getD_eq_getElem _ _ hi']
-    exact hx ▸ h x
+  refine ⟨fun h y => h _ List.length_ofFn, ?_⟩
+  rintro h y rfl
+  exact List.ofFn_getElem (xs := y) ▸ h _
 
 private theorem listTest_polyTime {encC : C ↪ List Bool}
     {matOf : C → List (List ℤ)} {targetOf : C → List ℤ}

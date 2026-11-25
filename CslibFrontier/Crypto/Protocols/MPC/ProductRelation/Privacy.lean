@@ -132,66 +132,34 @@ theorem bind_honestOpening_eq_bind_uniform {q m : ℕ} [Fact (Nat.Prime q)] (hm 
   set d₁ : PartyDeal q m := e₁.toDeal t₁
   let h : ZMod q → ZMod q → PMF β := fun α₂ β₂ =>
     g (α₂, β₂, (d₁.polyA.eval r + α₂) * (d₁.polyB.eval r + β₂) - d₁.polyC.eval r)
-  have hrew : ∀ a02 b02 : ZMod q,
+  have hrew (a02 b02 : ZMod q) :
       let d₂ := (honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂
       g (d₂.polyA.eval r, d₂.polyB.eval r, d₂.polyC.eval r) =
         h (offA + basisZeroAt q m r * a02) (offB + basisZeroAt q m r * b02) := by
-    intro a02 b02
-    dsimp only []
     set d₂ := (honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂
     have hA : d₂.polyA.eval r = offA + basisZeroAt q m r * a02 := by
-      have hdec := eval_interpPoly_decompose d₂.a r
-      change d₂.polyA.eval r = _ at hdec
-      rw [hdec]
+      rw [PartyDeal.polyA, eval_interpPoly_decompose]
       simp only [d₂, DealerExtra.toDeal_a, honestC2_a0, Fin.cons_zero, Fin.cons_succ, offA,
         add_comm]
     have hB : d₂.polyB.eval r = offB + basisZeroAt q m r * b02 := by
-      have hdec := eval_interpPoly_decompose d₂.b r
-      change d₂.polyB.eval r = _ at hdec
-      rw [hdec]
+      rw [PartyDeal.polyB, eval_interpPoly_decompose]
       simp only [d₂, DealerExtra.toDeal_b, honestC2_b0, Fin.cons_zero, Fin.cons_succ, offB,
         add_comm]
     have hdisc := congrArg (Polynomial.eval r)
       (discrepancyPoly_eq_zero_of_productRelations hm hrel e₁ a02 b02)
     simp only [discrepancyPoly, Polynomial.eval_sub, Polynomial.eval_mul, Polynomial.eval_add,
       Polynomial.eval_zero, sub_eq_zero] at hdisc
-    have hC : d₂.polyC.eval r =
-        (d₁.polyA.eval r + d₂.polyA.eval r) * (d₁.polyB.eval r + d₂.polyB.eval r) -
-          d₁.polyC.eval r :=
-      eq_sub_of_add_eq' hdisc.symm
-    rw [hA, hB] at hC ⊢
-    simpa only [h] using congrArg (fun c => g (offA + basisZeroAt q m r * a02,
-      offB + basisZeroAt q m r * b02, c)) hC
-  have hlhs :
-      ((PMF.uniformOfFintype (ZMod q)).bind fun a02 =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun b02 =>
-          let d₂ := (honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂
-          g (d₂.polyA.eval r, d₂.polyB.eval r, d₂.polyC.eval r)) =
-      (PMF.uniformOfFintype (ZMod q)).bind fun a02 =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun b02 =>
-          h (offA + basisZeroAt q m r * a02) (offB + basisZeroAt q m r * b02) := by
-    congr 1 with a02 : 1
-    congr 1 with b02 : 1
-    exact hrew a02 b02
-  rw [hlhs]
-  have hinner : ∀ a02 : ZMod q,
-      ((PMF.uniformOfFintype (ZMod q)).bind fun b02 =>
-        h (offA + basisZeroAt q m r * a02) (offB + basisZeroAt q m r * b02)) =
-      (PMF.uniformOfFintype (ZMod q)).bind
-        (fun β₂ => h (offA + basisZeroAt q m r * a02) β₂) := by
-    intro a02
-    rw [show (fun b02 : ZMod q =>
-          h (offA + basisZeroAt q m r * a02) (offB + basisZeroAt q m r * b02)) =
-        (h (offA + basisZeroAt q m r * a02)) ∘ (fun b02 => offB + basisZeroAt q m r • b02) from
-      funext fun _ => by simp [smul_eq_mul]]
-    rw [← PMF.bind_map, Cslib.Probability.PMF.map_add_smul_uniformOfFintype offB hc]
-  simp_rw [hinner]
-  rw [show (fun a02 : ZMod q => (PMF.uniformOfFintype (ZMod q)).bind
-        (fun β₂ => h (offA + basisZeroAt q m r * a02) β₂)) =
-      (fun α₂ => (PMF.uniformOfFintype (ZMod q)).bind (fun β₂ => h α₂ β₂)) ∘
-        (fun a02 => offA + basisZeroAt q m r • a02) from
-    funext fun _ => by simp [smul_eq_mul]]
-  rw [← PMF.bind_map, Cslib.Probability.PMF.map_add_smul_uniformOfFintype offA hc]
+    simpa only [h, ← hA, ← hB] using
+      congrArg (fun c => g (d₂.polyA.eval r, d₂.polyB.eval r, c)) (eq_sub_of_add_eq' hdisc.symm)
+  have haff (off : ZMod q) (k : ZMod q → PMF β) :
+      ((PMF.uniformOfFintype (ZMod q)).bind fun x => k (off + basisZeroAt q m r * x)) =
+        (PMF.uniformOfFintype (ZMod q)).bind k := by
+    have hcomp : (fun x => k (off + basisZeroAt q m r * x)) =
+        k ∘ fun x => off + basisZeroAt q m r • x :=
+      funext fun _ => by simp [smul_eq_mul]
+    rw [hcomp, ← PMF.bind_map, Cslib.Probability.PMF.map_add_smul_uniformOfFintype off hc]
+  simp_rw [hrew, haff offB]
+  exact haff offA fun α₂ => (PMF.uniformOfFintype (ZMod q)).bind (h α₂)
 
 /-- Interactive adversary corrupting `P₁` in Protocol 23.5 (Section 23.2.4.7). -/
 structure CorruptP1Adversary (q m : ℕ) (σ : Type) where
@@ -285,14 +253,13 @@ theorem eval_experiment0P1_eq_experiment1P1 {q m : ℕ} [Fact (Nat.Prime q)] (hm
     ProbComp.eval (experiment0P1 q m A) = ProbComp.eval (experiment1P1 q m A) := by
   simp only [experiment0P1, experiment1P1, deal, simDeal, sim1Eval, pmf_norm, ProbComp.eval_uniform]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
-  have htx : ProductRelations t₁ t₂ := hrel t₁ t₂ st hx
   congr 1 with e₁ : 1
   rw [bind_uniform_uniform_bind_comm]
   congr 1 with ⟨r, st'⟩ : 1
   by_cases hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q)
   · simp_rw [eq_true hr, ite_true]
     simp only [pmf_norm, ProbComp.eval_uniform]
-    exact bind_honestOpening_eq_bind_uniform hm htx e₁ hr fun (α₂, β₂, γ₂) =>
+    exact bind_honestOpening_eq_bind_uniform hm (hrel t₁ t₂ st hx) e₁ hr fun (α₂, β₂, γ₂) =>
       (ProbComp.eval (A.sendOpening st' (α₂, β₂, γ₂))).bind fun ((α₁, β₁, γ₁), st'') =>
         ProbComp.eval (A.finish st'' (some (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂))))
   · simp_rw [eq_false hr, ite_false]
@@ -301,12 +268,9 @@ theorem eval_experiment0P1_eq_experiment1P1 {q m : ℕ} [Fact (Nat.Prime q)] (hm
 /-- Symmetry of `(23.7)` between `P₁`'s and `P₂`'s triple shares. -/
 theorem productRelations_comm {q m : ℕ} {t₁ t₂ : Fin m → TripleShare (ZMod q)} :
     ProductRelations t₁ t₂ ↔ ProductRelations t₂ t₁ := by
-  dsimp only [ProductRelations]
-  constructor <;> intro h k
-  · rw [add_comm (t₂ k).a, add_comm (t₂ k).b, add_comm (t₂ k).c]
-    exact h k
-  · rw [add_comm (t₁ k).a, add_comm (t₁ k).b, add_comm (t₁ k).c]
-    exact h k
+  have symm {a b : Fin m → TripleShare (ZMod q)} (h : ProductRelations a b) :
+      ProductRelations b a := fun k => by simpa only [add_comm] using h k
+  exact ⟨symm, symm⟩
 
 private theorem honestC2_involutive {q m : ℕ} [Fact (Nat.Prime q)]
     (t₁ t₂ : Fin m → TripleShare (ZMod q)) (e₁ : DealerExtra q m) (a02 b02 : ZMod q) :
@@ -405,20 +369,16 @@ theorem eval_experiment0P2_eq_experiment1P2 {q m : ℕ} [Fact (Nat.Prime q)] (hm
   have : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
   simp only [experiment0P2, experiment1P2, sim2Eval, simDeal, pmf_norm, ProbComp.eval_uniform]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
-  have htx : ProductRelations t₂ t₁ := productRelations_comm.mp (hrel t₁ t₂ st hx)
-  have hswap : ProbComp.eval (deal t₁ t₂) = (ProbComp.eval (deal t₂ t₁)).map Prod.swap := by
-    rw [← eval_deal_swap t₁ t₂, PMF.map_comp]
-    simp only [Function.comp_def, Prod.swap_swap]
-    exact (PMF.map_id _).symm
-  rw [hswap, PMF.bind_map]
+  rw [← eval_deal_swap t₂ t₁, PMF.bind_map]
   simp only [deal, pmf_norm, ProbComp.eval_uniform, Prod.swap]
   congr 1 with e₂ : 1
   rw [bind_uniform_uniform_bind_comm]
   congr 1 with r : 1
-  have h1 := bind_honestOpening_eq_bind_uniform hm htx e₂ r.2 fun (α₁, β₁, γ₁) =>
-    (ProbComp.eval (A.sendOpening st (e₂.toDeal t₂) r.1 (α₁, β₁, γ₁))).bind
-      fun ((α₂, β₂, γ₂), st') =>
-        ProbComp.eval (A.finish st' (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)))
-  simpa only [add_comm] using h1
+  simpa only [add_comm] using
+    bind_honestOpening_eq_bind_uniform hm (productRelations_comm.mp (hrel t₁ t₂ st hx)) e₂ r.2
+      fun (α₁, β₁, γ₁) =>
+        (ProbComp.eval (A.sendOpening st (e₂.toDeal t₂) r.1 (α₁, β₁, γ₁))).bind
+          fun ((α₂, β₂, γ₂), st') =>
+            ProbComp.eval (A.finish st' (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)))
 
 end Cslib.Crypto.Protocols.MPC.ProductRelation

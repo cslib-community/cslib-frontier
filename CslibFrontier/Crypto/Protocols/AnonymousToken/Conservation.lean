@@ -43,9 +43,10 @@ and semantic notes reuse `Credit.Note`. The KP800 and MQ instantiations are the 
 are not formalized here. The game is a permissive modeling choice. It omits the range checks (V4,
 and `T ≥ 1` at issuance), and every amount `T`, debit `d` and refund `x'` comes from the
 adversary's request. In the draft, `T` is agreed out of band and is the issuer's own input, and the
-issuer chooses `x'`. The bounds below hold for this game as stated. Transferring them to the
-draft's issuer would need a simulation of issuer-selected amounts, range rejections and their
-replies; that bridge is left open.
+issuer chooses `x'`. The bounds below hold for this game as stated. `IssuerBridge`
+(`CslibFrontier/Crypto/Protocols/AnonymousToken/IssuerBridge.lean`) transfers them without
+probability loss to a stateful, probabilistic draft-style issuer with issuer-agreed initial
+balances, issuer-chosen refunds, and range rejections.
 
 In the extracted model, every request carries the witness that a knowledge extractor for its
 VOLEitH proof would output, next to its public statement, and the issuer checks the relation on
@@ -225,8 +226,8 @@ def Request.outputPayload :
 for issuance, `com nf ctx T r = c`; for spend, `(V1)` verification on
 `Credit.target com tag inputNote oldOpening`, `(V2)` change commitment opening
 `com nf' ctx t' r' = c'`, and `(V3)` natural-number balance conservation `t + x = t' + d` (no
-modular wraparound). The draft's `(V4)` range bounds are omitted, a permissive modeling choice
-described in the module docstring. -/
+modular wraparound). The draft's `(V4)` range bounds are omitted here and enforced in
+`Cslib.Crypto.AnonymousToken.IssuerBridge` (`acceptDraftIssue`, `acceptDraftSpendPre`). -/
 def acceptLocal [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -430,24 +431,17 @@ private theorem not_hasSpentNullifier_of_validTraceFrom
   | cons req rest ih =>
     simp only [validTraceFrom, Bool.and_eq_true] at h
     intro s hs
+    have hprev (hs' : s ∈ spends rest) : hasSpentNullifier acc s.ctx s.nullifier = false :=
+      Bool.eq_false_iff.mpr fun htrue =>
+        Bool.false_ne_true ((ih h.2 s hs').symm.trans
+          (hasSpentNullifier_append_left acc [req] s.ctx s.nullifier htrue))
     cases req with
-    | issue ir =>
-      rw [spends_cons_issue] at hs
-      have hsub := ih h.2 s hs
-      by_contra htrue
-      have hfalse := Bool.eq_true_of_not_eq_false htrue
-      have := hasSpentNullifier_append_left acc [.issue ir] s.ctx s.nullifier hfalse
-      simp [hsub] at this
+    | issue ir => exact hprev hs
     | spend sr =>
-      rw [spends_cons_spend, List.mem_cons] at hs
-      rcases hs with rfl | hs
+      rcases List.mem_cons.mp hs with rfl | hs
       · exact Bool.eq_false_iff.mpr (by
           simpa [acceptRequest, Bool.and_eq_true] using (Bool.and_eq_true_iff.mp h.1).2)
-      · have hsub := ih h.2 s hs
-        by_contra htrue
-        have hfalse := Bool.eq_true_of_not_eq_false htrue
-        have := hasSpentNullifier_append_left acc [.spend sr] s.ctx s.nullifier hfalse
-        simp [hsub] at this
+      · exact hprev hs
 
 private theorem nodup_spends_of_validTraceFrom
     [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
@@ -652,20 +646,17 @@ theorem spentDebit_le_of_certified [DecidableEq Context]
       sum_balance_outputPayload_filter reqs ctx
   omega
 
-private theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
+/-- `findNoteForgery reqs = none` iff every spend in `reqs` uses a certified input note. -/
+theorem findNoteForgery_eq_none_iff [DecidableEq Nullifier] [DecidableEq Context]
     (reqs : List (Request Nullifier Context Opening Commitment Sig)) :
     findNoteForgery reqs = none ↔
       ∀ s ∈ spends reqs, s.inputNote ∈ reqs.map (fun r => r.outputPayload.message) := by
-  simp only [findNoteForgery, List.findSome?_eq_none_iff]
-  constructor
-  · intro h s hs
-    by_contra hnot
-    have := h s hs
-    simp [hnot] at this
-  · intro h s hs
-    simp [h s hs]
+  simp only [findNoteForgery, List.findSome?_eq_none_iff, ite_eq_left_iff, reduceCtorEq, imp_false,
+    Decidable.not_not]
 
-private theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
+/-- If `findNoteForgery reqs = some tok`, then `tok` is the payload/signature pair of some spend
+in `reqs` whose input note never appeared among the output notes in `reqs`. -/
+theorem findNoteForgery_eq_some [DecidableEq Nullifier] [DecidableEq Context]
     {reqs : List (Request Nullifier Context Opening Commitment Sig)}
     {tok : Token (Credit.Note Nullifier Context) Opening Sig}
     (h : findNoteForgery reqs = some tok) :
@@ -992,19 +983,14 @@ private theorem extractedConservationAccept_imp_extractedAccept
       ((run.log.filterMap fun p => p.2.map fun σ => (p.1.outputPayload, σ)).map
           fun entry => entry.1.message) =
         reqs.map (fun r => r.outputPayload.message) := by
-    clear hvalid hwin
     dsimp only [reqs]
     generalize run.log = rawLog at hsome ⊢
     induction rawLog with
-    | nil => simp
+    | nil => rfl
     | cons hd tl ih =>
-      obtain ⟨r, resp⟩ := hd
-      have hhd := hsome (r, resp) List.mem_cons_self
-      cases resp with
-      | none => simp at hhd
-      | some σ =>
-        have htl := ih (fun p hp => hsome p (List.mem_cons_of_mem _ hp))
-        simpa using htl
+      rcases hd with ⟨r, _ | σ⟩
+      · exact absurd (hsome (r, none) List.mem_cons_self) (by simp)
+      · simpa using ih fun p hp => hsome p (List.mem_cons_of_mem _ hp)
   cases hforg : findNoteForgery reqs with
   | none =>
     exfalso
@@ -1090,29 +1076,17 @@ theorem checkBindingWitness_prod_mk_iff
             w.first.opening =
           com w.second.message.nullifier w.second.message.context w.second.message.credit
             w.second.opening := by
-  simp only [checkBindingWitness, Credit.target, decide_eq_true_eq, Prod.mk.injEq]
-  constructor
-  · rintro ⟨hne, hcom, href⟩
-    refine ⟨href, ?_, hcom⟩
-    intro htri
-    apply hne
-    rcases w with ⟨⟨⟨nf₁, ctx₁, t₁, x₁⟩, r₁⟩, ⟨⟨nf₂, ctx₂, t₂, x₂⟩, r₂⟩⟩
-    dsimp only at href htri
-    rcases Prod.mk.inj htri with ⟨rfl, hrest⟩
-    rcases Prod.mk.inj hrest with ⟨rfl, rfl⟩
-    cases href
-    rfl
-  · rintro ⟨href, htri, hcom⟩
-    refine ⟨?_, hcom, href⟩
-    intro hnote
-    apply htri
-    rw [hnote]
+  rcases w with ⟨⟨⟨nf₁, ctx₁, t₁, x₁⟩, r₁⟩, ⟨⟨nf₂, ctx₂, t₂, x₂⟩, r₂⟩⟩
+  simp only [checkBindingWitness, Credit.target, decide_eq_true_eq, ne_eq, Prod.mk.injEq,
+    Credit.Note.mk.injEq]
+  exact ⟨fun ⟨hne, hcom, rfl⟩ => ⟨rfl, fun ⟨rfl, rfl, rfl⟩ => hne ⟨rfl, rfl, rfl, rfl⟩, hcom⟩,
+    fun ⟨href, htri, hcom⟩ => ⟨fun ⟨rfl, rfl, rfl, _⟩ => htri ⟨rfl, rfl, rfl⟩, hcom, href⟩⟩
 
 end
 
 /-- Convert a binding witness for `Credit.target com Prod.mk` into a commitment binding
 collision over `(nullifier, context, credit)` triples. -/
-private def noteBindingCollision
+@[expose] def noteBindingCollision
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (w : BindingWitness (Credit.Note Nullifier Context) Opening) :
     Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
@@ -1147,7 +1121,7 @@ private theorem isBindingCollision_noteBindingCollision
 
 /-- `noteBindingCollision` on a found witness. With no witness it returns a trivial pair that
 opens `com default default 0 default` twice to the same message, which is never a collision. -/
-private def noteBindingCollisionOrTrivial
+@[expose] def noteBindingCollisionOrTrivial
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
     (com : Nullifier → Context → ℕ → Opening → Commitment) :
     Option (BindingWitness (Credit.Note Nullifier Context) Opening) →
@@ -1178,6 +1152,18 @@ def commitmentBindingReduction
   fun _ =>
     noteBindingCollisionOrTrivial com <$>
       bindingReduction S (Credit.target com Prod.mk) (noteForger com Prod.mk S A)
+
+/-- Unfolding specification for `commitmentBindingReduction` at any key `k`. -/
+theorem commitmentBindingReduction_eq
+    {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (S : Signature.Scheme PK SK (Commitment × ℕ) Sig)
+    (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (k : K) :
+    commitmentBindingReduction com S A k =
+      noteBindingCollisionOrTrivial com <$>
+        bindingReduction S (Credit.target com Prod.mk) (noteForger com Prod.mk S A) := by
+  rfl
 
 /-- Extracted-model reduction step, original to this library: the target-binding success
 probability of `noteForger` under `Credit.target com Prod.mk` is at most the commitment-binding

@@ -54,18 +54,10 @@ def layoutWidth (n : ℕ) : ℕ := logWidth 3 (n + 1)
 /-- Four array blocks and both initialization constants fit at the layout-width threshold.
 This does not by itself bound input key magnitudes. -/
 theorem layout_fits (n : ℕ) : Fits (layoutWidth n) (1 + 4 * n) ∧ Fits (layoutWidth n) 2 := by
-  have hs : 4 ≤ (n + 2) ^ 2 := Nat.pow_le_pow_left (show 2 ≤ n + 2 by omega) 2
-  have hm := Nat.mul_le_mul_right (n + 2) hs
-  have hp : 4 * (n + 2) ≤ (n + 2) ^ 3 := by simpa only [Nat.pow_succ] using hm
-  constructor
-  · apply fits_of_lt_pow
-    have he : n + 1 + 1 = n + 2 := by omega
-    rw [he]
-    omega
-  · apply fits_of_lt_pow
-    have he : n + 1 + 1 = n + 2 := by omega
-    rw [he]
-    omega
+  have hp : 4 * (n + 2) ≤ (n + 1 + 1) ^ 3 := by
+    simpa only [Nat.pow_succ] using
+      Nat.mul_le_mul_right (n + 2) (Nat.pow_le_pow_left (Nat.le_add_left 2 n) 2)
+  exact ⟨fits_of_lt_pow (by omega), fits_of_lt_pow (by omega)⟩
 
 /-- Execute the complete finite native program on the standard input convention. The bound
 includes the final halt and every setup/address/control instruction. Input fit and the explicit

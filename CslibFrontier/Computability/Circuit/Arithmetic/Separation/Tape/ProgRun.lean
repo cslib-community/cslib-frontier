@@ -59,10 +59,8 @@ private theorem ofFn_getElem? {Ω : Type*} (w : List Ω) (t : ℕ) (h : w.length
 theorem emit_idle {Γ S J : Type*} [DecidableEq S] [DecidableEq J]
     (w : List (Ch S J × Γ)) (j : ℕ) :
     emit (w.map some ++ List.replicate j none) = proj w := by
-  have hred : (w.map some ++ List.replicate j none).reduceOption = w := by
-    rw [List.reduceOption_append]
-    simp [List.reduceOption]
-  rw [emit, hred]
+  rw [emit, List.reduceOption_append]
+  simp [List.reduceOption]
 
 section Runs
 

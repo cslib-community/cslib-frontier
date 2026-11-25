@@ -39,21 +39,14 @@ private theorem predecessor_mem {S T : Finset α} {p r : α} {k : ℕ}
     (hT : T ∈ (insert p S).powersetCard (k + 1)) (hr : r ∈ T) :
     (if p ∈ T then T.erase p else T.erase r) ∈ S.powersetCard k := by
   obtain ⟨hTS, hcard⟩ := mem_powersetCard.mp hT
-  apply mem_powersetCard.mpr
-  constructor
-  · intro x hx
-    by_cases hp : p ∈ T
-    · rw [ite_eq_left hp] at hx
-      have hxT := (mem_erase.mp hx).2
-      exact (mem_insert.mp (hTS hxT)).resolve_left (mem_erase.mp hx).1
-    · rw [ite_eq_right hp] at hx
-      have hxT := (mem_erase.mp hx).2
-      exact (mem_insert.mp (hTS hxT)).resolve_left (fun h => hp (h ▸ hxT))
-  · split_ifs with hp
-    · rw [card_erase_of_mem hp, hcard]
-      omega
-    · rw [card_erase_of_mem hr, hcard]
-      omega
+  split_ifs with hp <;> refine mem_powersetCard.mpr ⟨fun x hx => ?_, ?_⟩
+  · exact (mem_insert.mp (hTS (mem_erase.mp hx).2)).resolve_left (mem_erase.mp hx).1
+  · rw [card_erase_of_mem hp, hcard]
+    omega
+  · exact (mem_insert.mp (hTS (mem_erase.mp hx).2)).resolve_left
+      fun h => hp (h ▸ (mem_erase.mp hx).2)
+  · rw [card_erase_of_mem hr, hcard]
+    omega
 
 private def collisionInsertMarkedEquiv (S : Finset α) (p : α) (k : ℕ) (hp : p ∉ S) :
     (↥(S.powersetCard k) × ↥(insert p S)) ≃

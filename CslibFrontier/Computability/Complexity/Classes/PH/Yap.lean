@@ -233,16 +233,10 @@ theorem PiP_three_subset_SigmaP_three_of_coNP_subset_NPPoly
       rw [List.length_append, List.length_replicate, Nat.add_sub_cancel' hframe_le]
     have hunf : unframe w = adv (M.eval (enc a).length) := unframe_frame_append _ _
     refine ⟨w, hw, fun s hs ⟨hBs, hEs⟩ => ?_, fun u₁ hu₁ => ?_⟩
-    · dsimp only at hs hBs hEs
-      rw [hunf, ← hlen a s hs] at hBs
-      exact (hEB (a, s)).2 hBs hEs
-    · dsimp only at hu₁
-      obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
+    · exact (hEB (a, s)).2 (by rwa [hlen a s hs, ← hunf]) hEs
+    · obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
       have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]
-      refine ⟨u₂, hu₂, ?_⟩
-      dsimp only [Set.mem_ofPred_eq]
-      rw [hunf, ← hlen a (u₁ ++ u₂) hs]
-      exact (hEB (a, u₁ ++ u₂)).1 hnotE
+      exact ⟨u₂, hu₂, by have h := (hEB (a, u₁ ++ u₂)).1 hnotE; rwa [hlen a _ hs, ← hunf] at h⟩
   · rintro ⟨w, -, hSound, hMain⟩ u₁ hu₁
     obtain ⟨u₂, hu₂, hBu⟩ := hMain u₁ hu₁
     have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]

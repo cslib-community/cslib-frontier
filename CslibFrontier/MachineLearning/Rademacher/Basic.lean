@@ -123,12 +123,9 @@ theorem rademacherAverage_eq_expect_ciSup_sum_div {ι : Type*} {m : ℕ} (a : ι
     rademacherAverage a = (𝔼 σ : Fin m → Bool, ⨆ j, ∑ i, a j i * signVal (σ i)) / m := by
   rw [rademacherAverage, Finset.expect_div]
   refine Finset.expect_congr rfl fun σ _ => ?_
-  simp only [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
-  rw [div_eq_mul_inv, Real.iSup_mul_of_nonneg (by positivity)]
-  refine iSup_congr fun j => ?_
-  rw [← div_eq_mul_inv]
-  congr 1
-  exact Finset.sum_congr rfl fun i _ => mul_comm _ _
+  simp only [Fintype.expect_eq_sum_div_card, Fintype.card_fin, div_eq_mul_inv]
+  rw [Real.iSup_mul_of_nonneg (by positivity)]
+  exact iSup_congr fun j => congrArg (· * _) (Finset.sum_congr rfl fun i _ => mul_comm _ _)
 
 /-- The correlation of a fixed vector with a uniformly random sign vector has mean zero. -/
 private theorem expect_expect_signVal_mul_eq_zero {m : ℕ} (b : Fin m → ℝ) :
@@ -136,9 +133,8 @@ private theorem expect_expect_signVal_mul_eq_zero {m : ℕ} (b : Fin m → ℝ) 
   calc 𝔼 σ : Fin m → Bool, 𝔼 i, signVal (σ i) * b i
       = 𝔼 σ : Fin m → Bool, (∑ i, b i * signVal (σ i)) / m :=
         Finset.expect_congr rfl fun σ _ => by
-          rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
-          congr 1
-          exact Finset.sum_congr rfl fun i _ => mul_comm _ _
+          simp only [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
+          exact congrArg (· / _) (Finset.sum_congr rfl fun i _ => mul_comm _ _)
     _ = 0 := by rw [← Finset.expect_div, expect_sum_mul_signVal_eq_zero, zero_div]
 
 /-- The Rademacher average of a single vector is `0`. -/
@@ -169,13 +165,12 @@ theorem rademacherAverage_le_of_forall_exists {ι κ : Type*} {m : ℕ} {a : ι 
     rademacherAverage a ≤ rademacherAverage b := by
   rcases isEmpty_or_nonempty ι with hι | hι
   · rw [rademacherAverage_of_isEmpty]
-    rcases isEmpty_or_nonempty κ with hκ | hκ
+    rcases isEmpty_or_nonempty κ with _ | _
     · rw [rademacherAverage_of_isEmpty]
     · exact rademacherAverage_nonneg hb
   refine Finset.expect_le_expect fun σ _ => ciSup_le fun j => ?_
   obtain ⟨k, hk⟩ := hab j
-  rw [hk]
-  exact le_ciSup (bddAbove_range_expect_signVal_mul b hb σ) k
+  exact hk ▸ le_ciSup (bddAbove_range_expect_signVal_mul b hb σ) k
 
 /-- Two bounded families realizing the same vectors have the same Rademacher average. -/
 theorem rademacherAverage_eq_of_forall_exists {ι κ : Type*} {m : ℕ} {a : ι → Fin m → ℝ}
@@ -196,28 +191,25 @@ theorem rademacherAverage_add_mul_signVal_mul {ι : Type*} {m : ℕ} {a : ι →
       β * rademacherAverage a := by
   rcases isEmpty_or_nonempty ι with hι | hι
   · rw [rademacherAverage_of_isEmpty, rademacherAverage_of_isEmpty, mul_zero]
-  have hbdd (σ : Fin m → Bool) := bddAbove_range_expect_signVal_mul a ha σ
   have hσ (σ : Fin m → Bool) :
       ⨆ j, 𝔼 i, signVal (σ i) * (c i + β * (signVal (s i) * a j i)) =
         𝔼 i, signVal (σ i) * c i + β * ⨆ j, 𝔼 i, signVal (σ i ^^ s i) * a j i := by
+    obtain ⟨M, hM⟩ := bddAbove_range_expect_signVal_mul a ha fun i => σ i ^^ s i
     have hbddβ : BddAbove (Set.range fun j => β * 𝔼 i, signVal (σ i ^^ s i) * a j i) := by
-      obtain ⟨M, hM⟩ := hbdd fun i => σ i ^^ s i
       refine ⟨β * M, ?_⟩
       rintro _ ⟨j, rfl⟩
       exact mul_le_mul_of_nonneg_left (hM ⟨j, rfl⟩) hβ
     rw [Real.mul_iSup_of_nonneg hβ, add_ciSup hbddβ]
     refine iSup_congr fun j => ?_
     rw [Finset.mul_expect, ← Finset.expect_add_distrib]
-    refine Finset.expect_congr rfl fun i _ => ?_
-    rw [signVal_xor]
-    ring
-  have hinv : Function.Involutive fun (σ : Fin m → Bool) i => σ i ^^ s i :=
-    fun σ => funext fun i => by simp
+    exact Finset.expect_congr rfl fun i _ => by rw [signVal_xor]; ring
   rw [rademacherAverage_def, rademacherAverage_def, Finset.expect_congr rfl fun σ _ => hσ σ,
     Finset.expect_add_distrib, expect_expect_signVal_mul_eq_zero, zero_add, Finset.mul_expect]
-  exact Fintype.expect_equiv (Function.Involutive.toPerm _ hinv)
+  exact Fintype.expect_equiv
+    (Function.Involutive.toPerm (fun (σ : Fin m → Bool) i => σ i ^^ s i) fun σ =>
+      funext fun i => by simp)
     (fun σ => β * ⨆ j, 𝔼 i, signVal (σ i ^^ s i) * a j i)
-    (fun σ => β * ⨆ j, 𝔼 i, signVal (σ i) * a j i) fun σ => rfl
+    (fun σ => β * ⨆ j, 𝔼 i, signVal (σ i) * a j i) fun _ => rfl
 
 /-- **Massart's lemma**, normalized [MohriRostamizadehTalwalkar2018, Theorem 3.7]: the Rademacher
 average of finitely many vectors of Euclidean norm at most `r` is at most `r √(2 log N) / m`. -/
@@ -302,28 +294,24 @@ theorem empiricalRademacherComplexity_le_of_finite {F : Set (Z → ℝ)} {B : �
   · simp [empiricalRademacherComplexity, rademacherAverage, Real.iSup_const_zero]
   rcases F.eq_empty_or_nonempty with rfl | ⟨f₀, hf₀⟩
   · simp [empiricalRademacherComplexity_empty]
-  have hB : 0 ≤ B := (abs_nonneg (f₀ (S ⟨0, hm⟩))).trans (hF f₀ hf₀ _)
-  have hPa : ∀ p ∈ hP.toFinset, ∀ i, |p i| ≤ B := by
-    intro p hp i
+  have hPa : ∀ p : hP.toFinset, ∀ i, |(p : Fin m → ℝ) i| ≤ B := by
+    rintro ⟨_, hp⟩ _
     obtain ⟨f, hf, rfl⟩ := hP.mem_toFinset.1 hp
     exact hF f hf _
-  have h := rademacherAverage_le_mul_sqrt (fun (p : hP.toFinset) => (p : Fin m → ℝ)) hB
-    fun p i => hPa p p.2 i
-  rw [Fintype.card_coe, ← Set.ncard_eq_toFinset_card _ hP] at h
-  rw [empiricalRademacherComplexity_def]
-  exact (rademacherAverage_le_of_forall_exists
-    (b := fun (p : hP.toFinset) => (p : Fin m → ℝ)) (fun p i => hPa p p.2 i)
-    fun (f : F) => ⟨⟨_, hP.mem_toFinset.2 ⟨f, f.2, rfl⟩⟩, rfl⟩).trans h
+  rw [empiricalRademacherComplexity_def, Set.ncard_eq_toFinset_card _ hP, ← Fintype.card_coe]
+  exact (rademacherAverage_le_of_forall_exists hPa
+    fun (f : F) => ⟨⟨_, hP.mem_toFinset.2 ⟨f, f.2, rfl⟩⟩, rfl⟩).trans
+    (rademacherAverage_le_mul_sqrt _ ((abs_nonneg (f₀ (S ⟨0, hm⟩))).trans (hF f₀ hf₀ _)) hPa)
 
 /-- **Massart's lemma for a finite class** bounded by `B`: the empirical Rademacher complexity is
 at most `B √(2 log |F| / m)`. -/
 theorem empiricalRademacherComplexity_le_of_finset {F : Finset (Z → ℝ)} {B : ℝ} (hB : 0 ≤ B)
     (hF : ∀ f ∈ F, ∀ z, |f z| ≤ B) {m : ℕ} (S : Fin m → Z) :
     empiricalRademacherComplexity (F : Set (Z → ℝ)) S ≤ B * √(2 * Real.log F.card / m) := by
-  have h := rademacherAverage_le_mul_sqrt (fun (f : (F : Set (Z → ℝ))) i => (f : Z → ℝ) (S i))
-    hB fun f i => hF f f.2 _
   rw [empiricalRademacherComplexity_def]
-  simpa only [Finset.coe_sort_coe, Fintype.card_coe] using h
+  simpa only [Finset.coe_sort_coe, Fintype.card_coe] using
+    rademacherAverage_le_mul_sqrt (fun (f : (F : Set (Z → ℝ))) i => (f : Z → ℝ) (S i)) hB
+      fun f _ => hF f f.2 _
 
 variable [Fintype Z]
 

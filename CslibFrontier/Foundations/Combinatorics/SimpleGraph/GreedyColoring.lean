@@ -47,14 +47,8 @@ theorem colorable_of_maxDegree_lt {q : ℕ} (hq : G.maxDegree < q) : G.Colorable
     obtain ⟨x, hx⟩ := ih
     have hcard : ((G.neighborFinset a).image x).card < q :=
       (Finset.card_image_le.trans (G.degree_le_maxDegree a)).trans_lt hq
-    obtain ⟨c, hc⟩ : ∃ c : Fin q, c ∉ (G.neighborFinset a).image x := by
-      by_contra h
-      push Not at h
-      have hsub : (Finset.univ : Finset (Fin q)) ⊆ (G.neighborFinset a).image x :=
-        fun c _ => h c
-      have := Finset.card_le_card hsub
-      rw [Finset.card_univ, Fintype.card_fin] at this
-      omega
+    obtain ⟨c, -, hc⟩ : ∃ c ∈ (Finset.univ : Finset (Fin q)), c ∉ (G.neighborFinset a).image x :=
+      Finset.exists_mem_notMem_of_card_lt_card (by simpa using hcard)
     have hc' (v : V) (hv : G.Adj a v) : c ≠ x v := fun h =>
       hc (Finset.mem_image.2 ⟨v, (G.mem_neighborFinset a v).2 hv, h.symm⟩)
     refine ⟨Function.update x a c, fun u hu v hv huv => ?_⟩

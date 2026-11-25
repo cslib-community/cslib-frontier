@@ -115,14 +115,7 @@ private theorem uniform_or {E : Type*} (ps : List (Port E)) (s : E → Bool) :
   simp only [Vertex.Sat, Vertex.inflow, List.map_map, Function.comp_def]
   induction ps with
   | nil => simp
-  | cons p ps ih =>
-    by_cases hp : p.In s
-    · simp only [List.map_cons, List.sum_cons, hp, ite_true, List.mem_cons,
-        exists_eq_or_imp, true_or]
-      exact iff_true_intro (Nat.le_add_right 2 _)
-    · simp only [List.map_cons, List.sum_cons, hp, ite_false, Nat.zero_add,
-        List.mem_cons, exists_eq_or_imp, false_or]
-      exact ih
+  | cons p ps ih => by_cases hp : p.In s <;> simp [hp, ih]
 
 /-- An OR boundary is legal exactly when an input is inward or the output is inward. -/
 theorem legal_generator_iff (n : ℕ) (β : Fin (bundle n).length ⊕ Fin 1 → Bool) :
@@ -131,26 +124,18 @@ theorem legal_generator_iff (n : ℕ) (β : Fin (bundle n).length ⊕ Fin 1 → 
   change ((gen (generator n) : Diagram Prim (bundle n) [B]).graph Prim.interp).Legal β ↔ _
   rw [← genLegal_iff]
   change (∀ v ∈ generator n, v.Sat β) ↔ _
-  simp only [generator, List.mem_singleton, forall_eq]
   have h := uniform_or
     ((List.finRange (bundle n).length).map (fun i => ⟨.inl i, true⟩) ++ [⟨.inr 0, false⟩]) β
   simp only [List.map_append, List.map_map, Function.comp_def, List.map_cons, List.map_nil] at h
-  rw [h]
+  simp only [generator, List.mem_singleton, forall_eq, h]
   simp [Port.In]
 
 private theorem input_cases (n : ℕ) (i : Fin (bundle (n + 1)).length) :
     i = first n ∨ ∃ j, i = rest n j := by
   let e := (List.appendIndexEquiv [B] (bundle n)).symm
   rcases hi : e i with j | j
-  · left
-    apply e.injective
-    change e i = e (e.symm (.inl 0))
-    rw [e.apply_symm_apply, hi, Fin.eq_zero j]
-  · right
-    refine ⟨j, ?_⟩
-    apply e.injective
-    change e i = e (e.symm (.inr j))
-    rw [e.apply_symm_apply, hi]
+  · exact Or.inl <| e.injective (by simp [first, e, hi, Fin.eq_zero j])
+  · exact Or.inr ⟨j, e.injective (by simp [rest, e, hi])⟩
 
 private theorem legal_grow_iff (n : ℕ) (s : GrowEdge n → Bool) :
     ((grow n).graph Prim.interp).Legal s ↔
@@ -159,21 +144,15 @@ private theorem legal_grow_iff (n : ℕ) (s : GrowEdge n → Bool) :
         s ((grow n).bottom 0) = false) := by
   change ((((Diagram.id [B]).tensor (node n)).comp
     (gen [genVertex [B, B] [B] 2])).graph Prim.interp).Legal s ↔ _
-  rw [legal_comp_iff, legal_tensor_iff]
+  rw [legal_comp_iff, legal_tensor_iff, legal_generator_iff]
   simp only [legal_id, true_and]
-  rw [legal_generator_iff]
-  have hj (β : Fin 2 ⊕ Fin 1 → Bool) :
-      ((gen [genVertex [B, B] [B] 2] : Diagram Prim [B, B] [B]).graph Prim.interp).Legal β ↔
-        β (.inl 0) = true ∨ β (.inl 1) = true ∨ β (.inr (0 : Fin 1)) = false := by
-    rw [← genLegal_iff]
-    simp only [GenLegal, Prim.interp, List.mem_singleton, forall_eq]
-    change (2 ≤ (if β (.inl 0) = true then 2 else 0) +
-      ((if β (.inl 1) = true then 2 else 0) +
-        ((if β (.inr 0) = false then 2 else 0) + 0))) ↔ _
-    cases h0 : β (.inl 0) <;> cases h1 : β (.inl 1) <;> cases h2 : β (.inr 0) <;>
-      simp_all
-  rw [hj]
-  rfl
+  refine and_congr_right fun _ => ?_
+  rw [← genLegal_iff]
+  simp only [GenLegal, Prim.interp, List.mem_singleton, forall_eq]
+  change (2 ≤ (if s (.inl (first n)) = true then 2 else 0) +
+    ((if s TreeJunction.middle = true then 2 else 0) +
+      ((if s ((grow n).bottom 0) = false then 2 else 0) + 0))) ↔ _
+  cases s (.inl (first n)) <;> cases s TreeJunction.middle <;> cases s ((grow n).bottom 0) <;> simp
 
 private theorem source_iff (n : ℕ)
     (β : Fin (bundle (n + 1)).length ⊕ Fin 1 → Bool) :
@@ -181,11 +160,10 @@ private theorem source_iff (n : ℕ)
       β (.inl (first n)) = true ∨ active n β = true ∨ β (.inr 0) = false := by
   rw [legal_generator_iff]
   simp only [active, decide_eq_true_eq]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro (⟨i, hi⟩ | ho)
-    · rcases input_cases n i with rfl | ⟨j, rfl⟩
-      · exact Or.inl hi
-      · exact Or.inr (Or.inl ⟨j, hi⟩)
+    · exact (input_cases n i).elim (fun h => Or.inl (h ▸ hi))
+        fun ⟨j, h⟩ => Or.inr (Or.inl ⟨j, h ▸ hi⟩)
     · exact Or.inr (Or.inr ho)
   · rintro (hi | ⟨i, hi⟩ | ho)
     · exact Or.inl ⟨first n, hi⟩
@@ -232,10 +210,8 @@ private theorem positive_input_legal (n : ℕ)
     (hβ : ((node (n + 1)).graph Prim.interp).Legal β) :
     ((grow n).graph Prim.interp).Legal
       (TreeJunction.put (reverse β (.inl i)) (active n β)) := by
-  have ham := active_mono n (β := β) (γ := reverse β (.inl i))
-    (fun k => TreeJunction.le_reverse_of_false β (.inl i) hx (.inl k))
-  apply (legal_put_iff n _ _).mpr
-  constructor
+  have ham := active_mono n (fun k => TreeJunction.le_reverse_of_false β (.inl i) hx (.inl k))
+  refine (legal_put_iff n _ _).mpr ⟨?_, ?_⟩
   · cases ha : active n β
     · exact Or.inr rfl
     · exact Or.inl (Bool.eq_true_of_true_le (ha ▸ ham))
@@ -243,8 +219,7 @@ private theorem positive_input_legal (n : ℕ)
     · exact Or.inl (Bool.eq_true_of_true_le
         (h ▸ TreeJunction.le_reverse_of_false β (.inl i) hx (.inl (first n))))
     · exact Or.inr (Or.inl h)
-    · exact Or.inr (Or.inr ((reverse_of_ne β
-        (show Sum.inr (0 : Fin 1) ≠ Sum.inl i by simp)).trans h))
+    · exact Or.inr (Or.inr ((reverse_of_ne β (by simp)).trans h))
 
 private def growOpenSim (n : ℕ) : OpenSim Prim.interp Prim.interp (node (n + 1)) (grow n) where
   ι := (grow n).bmap
@@ -294,8 +269,7 @@ theorem checkStandard : ∀ n, (diagram n).checkGens
   | 0 => by decide +kernel
   | n + 1 => by
     change (true && (diagram n).checkGens _) && true = true
-    rw [checkStandard n]
-    rfl
+    simp [checkStandard n]
 
 /-- The OR tree has no crossings. -/
 theorem planar : ∀ n, (diagram n).Planar
@@ -314,7 +288,6 @@ theorem innerCount : ∀ n, (diagram n).innerCount = n + 5
   | 0 => by decide +kernel
   | n + 1 => by
     change 0 + (diagram n).innerCount + 1 = n + 1 + 5
-    rw [innerCount n]
-    omega
+    rw [innerCount n]; omega
 
 end Cslib.Complexity.NCL.Gadgets.OrTree

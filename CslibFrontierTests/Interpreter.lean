@@ -6,11 +6,13 @@ Authors: Anthropic, Christian Reitwiessner
 
 import CslibFrontier.Foundations.FieldTheory.FiniteOfFiniteType
 import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.EvalThm
+import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Comp
 import Mathlib.Algebra.Field.ZMod
 
 /-! Tests of the first interpreter layer: finiteness of fields of finite type over `ℤ`,
 deterministic evaluation of small formulas, and the interpreter theorem on a named
-multiplication with a one-unit and an exhausted budget. -/
+multiplication with a one-unit and an exhausted budget; budgets of constants, and the
+compositional rules for weighted values. -/
 
 namespace CslibFrontierTests.Interpreter
 
@@ -64,5 +66,28 @@ example : Ev θ IF (env (Fm.mul (.quote .nil)).code .nil (.leaf [false])) [] := 
   have hs : simS (.leaf [false]) [(⟨2, 1, [[]], .nil⟩ : Run A)] = [] := rfl
   rw [hs, List.forall₂_nil_right_iff] at hr
   exact hr ▸ hl'
+
+/-! ### Budgets of constants -/
+
+/-- One unit of budget allows one use of the name, not two. -/
+example : ok (.leaf [true]) [[]] = true ∧ ok (.leaf [true]) [[], []] = false := by decide
+
+/-- With one digit, a constant `c` has the budgets `0` and `1`, with weights `c ^ 0` and `c ^ 1`. -/
+example {R : Type} [CommRing R] (c : R) :
+    (KT.leaf c).budg 1 = [(.leaf [false], c ^ 0), (.leaf [true], c ^ 1)] := by rfl
+
+/-- The power `2 ^ 2` of a constant is named `1 1 0`. -/
+example {R : Type} [CommRing R] (c : R) : KT.combVal c (KT.pw 2) = c ^ 4 := KT.combVal_pw c 2
+
+/-! ### Weighted values of formulas -/
+
+/-- A condition with a nonempty value selects the first branch. -/
+example (x : Tree) :
+    Gives θ (.ite (.quote (.cons .nil .nil)) .id (.quote .nil)) x x (1 + 1 + 1) :=
+  Does.ite_true (Gives.quote _ _) (by simp) (Gives.id x)
+
+/-- `hd` of a pair, then the first component: the value is computed step by step. -/
+example (a b : Tree) : Gives θ (.hd (.cons (.quote a) (.quote b))) .nil a (1 + 1 + 1 + 1) :=
+  Gives.hd (Gives.cons (Gives.quote a _) (Gives.quote b _))
 
 end CslibFrontierTests.Interpreter

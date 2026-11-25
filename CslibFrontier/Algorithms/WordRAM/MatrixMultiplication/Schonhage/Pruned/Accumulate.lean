@@ -69,21 +69,14 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
     have hnot : a ∉ written j := by
       rintro h
       obtain ⟨i, hi, rfl⟩ := mem_image.mp h
-      have hik := mem_range.mp (mem_filter.mp hi).1
-      have hq := hcode i (lt_of_lt_of_le hik hj)
-      apply ha
-      change x.regs valueBase ≤ x.regs valueBase + input i ∧
-        x.regs valueBase + input i < x.regs valueBase + capacity
-      omega
-    rw [hy.1]
-    simp only [Finset.piecewise, hnot, ↓reduceIte]
+      have := hcode i ((mem_range.mp (mem_filter.mp hi).1).trans_le hj)
+      exact ha (show x.regs valueBase ≤ _ ∧ _ < x.regs valueBase + capacity by omega)
+    simp only [hy.1, Finset.piecewise, hnot, ↓reduceIte]
   have hread (j : ℕ) (y : Data registers) (hj : j ≤ N) (hy : P j y) (i : ℕ) (hi : i < N) :
       y.mem (x.regs listBase + i) = input i := by
-    rw [houtside j y hj hy]
-    · exact hinput i hi
-    · change ¬(x.regs valueBase ≤ x.regs listBase + i ∧
-        x.regs listBase + i < x.regs valueBase + capacity)
-      rcases hsepSource with h | h <;> omega
+    refine (houtside j y hj hy _ fun h => ?_).trans (hinput i hi)
+    dsimp only [Block.Owns] at h
+    rcases hsepSource with hs | hs <;> omega
   have hstep (y : Data registers) (hy : P (y.regs index) y) (hk : y.regs index < N) :
       ∃ z, ExecWithin (w + 2) accumulateStep y z 29 ∧ P (y.regs index + 1) z ∧
         z.regs index = y.regs index + 1 := by
@@ -93,27 +86,23 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
     have hcptr := hf childValues (by decide)
     have ht := hf term (by decide)
     have hq := hcode (y.regs index) hk
-    have hquot : input (y.regs index) / 10 < capacity :=
-      lt_of_le_of_lt (Nat.div_le_self _ _) hq
+    have hquot : input (y.regs index) / 10 < capacity := (Nat.div_le_self _ _).trans_lt hq
     have hnot : x.regs valueBase + input (y.regs index) ∉ written (y.regs index) := by
       rintro h
       obtain ⟨j, hj, he⟩ := mem_image.mp h
       have hjk := mem_range.mp (mem_filter.mp hj).1
-      have hji := hinj (lt_of_lt_of_le hjk hk.le) hk (Nat.add_left_cancel he)
-      omega
+      exact absurd (hinj (hjk.trans_le hk.le) hk (Nat.add_left_cancel he)) (by omega)
     have hleft : y.mem (y.regs valueBase + input (y.regs index)) =
         encode (V (input (y.regs index))) := by
-      rw [hv, hmem]
-      simp only [Finset.piecewise, hnot, ↓reduceIte]
-      exact hparent _ hk
+      simp only [hv, hmem, Finset.piecewise, hnot, ↓reduceIte, hparent _ hk]
     have hright (hs : selected true (y.regs term) (input (y.regs index))) :
         y.mem (y.regs childValues + input (y.regs index) / 10) =
           encode (B (input (y.regs index) / 10)) := by
       rw [hcptr, houtside (y.regs index) y hk.le ⟨hmem, hf⟩]
-      · exact hchild _ hk (by simpa only [ht] using hs)
-      · change ¬(x.regs valueBase ≤ x.regs childValues + input (y.regs index) / 10 ∧
-          x.regs childValues + input (y.regs index) / 10 < x.regs valueBase + capacity)
-        rcases hsepChild with h | h <;> omega
+      · exact hchild _ hk (ht ▸ hs)
+      · intro h
+        dsimp only [Block.Owns] at h
+        rcases hsepChild with hc | hc <;> omega
     obtain ⟨z, hz, hi, hm, hregs⟩ := exec_accumulateStep (hV _ hk) (hB _ hk) y
       (input (y.regs index)) (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hmem, hf⟩ _ hk)
       (by regs_frame) (by regs_frame) (by regs_frame) (fun _ => hleft) hright
@@ -128,12 +117,9 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
         simp [written, range_add_one, filter_insert, hs]
     rw [hm, ht, hv, hmem, hnext]
     funext a
-    by_cases hs : selected true (x.regs term) (input (y.regs index))
-    · by_cases he : a = x.regs valueBase + input (y.regs index)
-      · subst a
-        simp [hs, Finset.piecewise, newValue]
-      · simp [hs, Finset.piecewise, he, newValue]
-    · simp [hs, Finset.piecewise, newValue]
+    by_cases hs : selected true (x.regs term) (input (y.regs index)) <;>
+      by_cases he : a = x.regs valueBase + input (y.regs index) <;>
+      simp [hs, he, Finset.piecewise, newValue]
   refine WP.exists_execWithin ?_
   unfold accumulateLoop
   wram_exec

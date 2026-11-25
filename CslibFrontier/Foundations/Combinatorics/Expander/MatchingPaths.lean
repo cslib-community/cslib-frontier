@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Foundations.Combinatorics.Expander.MatchingPencil
 public import CslibFrontier.Foundations.Combinatorics.Expander.PathInterpolation
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
-import Mathlib.Tactic.Linarith
 
 /-!
 # Eigenvalue exclusion for paths attached along a matching
@@ -51,6 +50,12 @@ open scoped BigOperators
 
 variable {V : Type*} [Fintype V] [DecidableEq V]
 
+private theorem recurrence_alt_sign {ℓ : ℕ} {r : ℝ} {x : ℕ → ℝ}
+    (hrec : ExpanderPath.Recurrence ℓ (-r) x) :
+    ExpanderPath.Recurrence ℓ r (fun j => (-1) ^ j * x j) := fun j hj => by
+  simp only [pow_add, pow_one, neg_one_sq, mul_one]
+  linear_combination (-1) ^ j * hrec j hj
+
 /-- A matching-path eigenmode at `cos θ` vanishes if the Laplacian gap of the core exceeds the
 explicit path-elimination budget. Both the core and all path interiors are included. -/
 theorem matchingPath_mode_eq_zero {L : Matrix V V ℝ} (hL : L.IsSymm)
@@ -82,7 +87,7 @@ theorem matchingPath_mode_eq_zero {L : Matrix V V ℝ} (hL : L.IsSymm)
     simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
       Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
       Pi.zero_apply]
-    nlinarith [hv]
+    linear_combination -hv
   have hf : f = 0 := by
     apply laplacianPencil_injective hL hLone w σ hσ hw0 hw1 hwσ hwpos hgap hq
       (Real.abs_cos_le_one _) hc (sub_nonneg.mpr (Real.cos_le_one _)) hbudget
@@ -110,11 +115,8 @@ theorem matchingPath_negative_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
       -3 * Real.cos θ * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
   let y : V → ℕ → ℝ := fun v j => (-1) ^ j * x v j
-  have hyrec (v : V) : ExpanderPath.Recurrence ℓ (Real.cos θ) (y v) := by
-    intro j hj
-    have heq := congrArg (fun a : ℝ => (-1) ^ j * a) (hrec v j hj)
-    simp only [y, pow_add, pow_one, neg_one_sq, mul_one]
-    nlinarith [heq]
+  have hyrec (v : V) : ExpanderPath.Recurrence ℓ (Real.cos θ) (y v) :=
+    recurrence_alt_sign (hrec v)
   have hfirst (v : V) :
       -x v 1 = Real.cos θ * f v + (Real.sin θ / Real.sin ((ℓ : ℝ) * θ)) *
         ((-1) ^ ℓ * f (σ v) - Real.cos ((ℓ : ℝ) * θ) * f v) := by
@@ -125,12 +127,11 @@ theorem matchingPath_negative_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
         ((-1) ^ (ℓ + 1)) (1 - Real.cos θ) *ᵥ f = 0 := by
     ext v
     have hv := hcore v
-    have hf := congrArg (fun a : ℝ => w v * a) (hfirst v)
     simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
     simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
       Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
       Pi.zero_apply, pow_succ]
-    nlinarith [hv, hf]
+    linear_combination hv + w v * hfirst v
   have hf : f = 0 := by
     apply signlessPencil_injective ((2 : ℝ) • coreDegree w - L) w σ hw0 hw1 hwσ hgap hq
       (c := Real.cos ((ℓ : ℝ) * θ)) (s := (-1) ^ (ℓ + 1))
@@ -155,11 +156,7 @@ theorem matchingPath_neg_one_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
     (hcore : ∀ v, ((coreDegree w - L) *ᵥ f) v + w v * x v 1 = -3 * f v) :
     f = 0 ∧ ∀ v j, j ≤ ℓ → x v j = 0 := by
   let y : V → ℕ → ℝ := fun v j => (-1) ^ j * x v j
-  have hyrec (v : V) : ExpanderPath.Recurrence ℓ 1 (y v) := by
-    intro j hj
-    have heq := congrArg (fun a : ℝ => (-1) ^ j * a) (hrec v j hj)
-    simp only [y, pow_add, pow_one, neg_one_sq, mul_one]
-    nlinarith [heq]
+  have hyrec (v : V) : ExpanderPath.Recurrence ℓ 1 (y v) := recurrence_alt_sign (hrec v)
   have hfirst (v : V) :
       -x v 1 = f v + ((-1) ^ ℓ * f (σ v) - f v) / (ℓ : ℝ) := by
     simpa only [y, pow_one, pow_zero, one_mul, neg_one_mul, hstart, hend] using
@@ -168,13 +165,11 @@ theorem matchingPath_neg_one_mode_eq_zero (L : Matrix V V ℝ) (w : V → ℝ)
       ((-1) ^ (ℓ + 1)) 0 *ᵥ f = 0 := by
     ext v
     have hv := hcore v
-    have hf := congrArg (fun a : ℝ => w v * a) (hfirst v)
     simp only [sub_mulVec, Pi.sub_apply, coreDegree, mulVec_diagonal] at hv
-    simp only [div_eq_mul_inv] at hf
     simp only [pencil, sub_mulVec, add_mulVec, smul_mulVec, Pi.sub_apply, Pi.add_apply,
       Pi.smul_apply, smul_eq_mul, coreDegree, mulVec_diagonal, weightedMatching_mulVec,
-      Pi.zero_apply, pow_succ, div_eq_mul_inv, one_mul, zero_mul, sub_zero]
-    nlinarith [hv, hf]
+      Pi.zero_apply, pow_succ, one_mul, zero_mul, sub_zero]
+    linear_combination hv + w v * hfirst v
   have hbudget' : 2 * (1 / (ℓ : ℝ)) + 3 * 0 < ν := by
     convert hbudget using 1; ring
   have hf : f = 0 := by

@@ -109,15 +109,16 @@ theorem isCodeFrom_deMorganCode (A : Proposition (Fin n)) (k : ℕ) :
     rw [Program.isCodeFrom_append, Program.isCodeFrom_append]
     refine ⟨⟨ihA k, ihB _⟩, ?_⟩
     first
-      | exact ⟨⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩, trivial⟩
-      | exact ⟨⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩,
-          ⟨rfl, fun i hi => by
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-          simp only [List.length_append]; omega⟩, trivial⟩
+      | exact ⟨⟨rfl, by
+          simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_append]
+          rintro _ (rfl | rfl) <;> omega⟩, trivial⟩
+      | exact ⟨⟨rfl, by
+          simp only [List.mem_singleton, List.length_append]
+          rintro _ rfl
+          omega⟩,
+        ⟨rfl, by
+          simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_append]
+          rintro _ (rfl | rfl) <;> omega⟩, trivial⟩
 
 /-- The value of a gate appended after the gates `gates`. -/
 private theorem getD_evalCode_append_singleton (x : List Bool) (gates : List (Op × List ℕ))
@@ -199,21 +200,15 @@ theorem exists_eval_tseitinCNF_iff_satisfiable_tseitinSatCNF (A : Proposition (F
     (∃ σ, A.tseitinCNF.eval σ = true ∧ σ ∘ Sum.inl = v) ↔
       (tseitinSatCNF (List.ofFn v) n (A.deMorganCode 0).gates
         (A.deMorganCode 0).output).Satisfiable := by
-  have hcircuit : (tseitinSatCNF (List.ofFn v) n (A.deMorganCode 0).gates
-      (A.deMorganCode 0).output).Satisfiable ↔ A.eval v = true := by
-    rw [satisfiable_tseitinSatCNF_iff (isCodeFrom_deMorganCode A 0) (by simp)
-      (by simpa using output_deMorganCode_lt A 0)]
-    constructor
-    · rintro ⟨y, hy, hpre, hout⟩
-      obtain rfl := hpre.eq_of_length (by simp [hy])
-      rwa [evalOutput_deMorganCode] at hout
-    · intro h
-      exact ⟨List.ofFn v, by simp, List.prefix_refl _, by rwa [evalOutput_deMorganCode]⟩
-  rw [hcircuit]
-  constructor
+  rw [satisfiable_tseitinSatCNF_iff (isCodeFrom_deMorganCode A 0) (by simp)
+    (by simpa using output_deMorganCode_lt A 0)]
+  refine ⟨?_, ?_⟩
   · rintro ⟨σ, hσ, rfl⟩
-    exact ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1
-  · intro h
-    exact ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans h, rfl⟩
+    exact ⟨List.ofFn _, by simp, List.prefix_refl _,
+      (evalOutput_deMorganCode A _).trans ((eval_tseitinCNF_eq_true_iff σ A).1 hσ).1⟩
+  · rintro ⟨y, hy, hpre, hout⟩
+    obtain rfl := hpre.eq_of_length (by simp [hy])
+    rw [evalOutput_deMorganCode] at hout
+    exact ⟨tseitinExtend v, (eval_tseitinCNF_tseitinExtend v A).trans hout, rfl⟩
 
 end Cslib.Logic.PL.Proposition

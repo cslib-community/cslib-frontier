@@ -203,45 +203,31 @@ private theorem log2Loop_spec {w hdrAddr K x₀ : ℕ} {s₀ : Memory.State}
         have hrem_fit : Fits w rem := hx₀.of_le hle_x
         have hacc1_fit : Fits w (acc + 1) := hK.of_le (by omega)
         have hs' := clientState_log2StepProg (hdrAddr, (rem, acc)) s
+        have hres : (Memory.spec 0).clientResult s (log2StepProg (hdrAddr, (rem, acc))) =
+            if 1 < rem then (rem / 2, acc + 1) else (rem, acc) := by
+          dsimp only [log2StepProg]
+          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
+            prog_runClient_state_read]
+          split_ifs <;> simp only [prog_clientResult_pure, Nat.shiftRight_eq_div_pow, pow_one]
         refine ⟨⟨hfr, hrem_fit, hacc1_fit⟩, validHistory_log2StepProg hfr,
           memoryCost_log2Step_le_one _ _,
           congrArg Memory.State.frontier hs',
           (fun _ _ => by rw [hs']),
-          hs', ?_, ?_, ?_⟩
-        · dsimp only [log2StepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs
-          · rw [Nat.shiftRight_eq_div_pow]; exact (Nat.div_le_self _ _).trans hle_x
-          · exact hle_x
-        · dsimp only [log2StepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          have hsub : K - k = (K - (k + 1)) + 1 := by omega
-          have hst := log2CapAux_step (K - (k + 1)) rem acc
-          dsimp only at hst
-          rw [← hsub] at hst
-          split_ifs with h1 <;>
-            simp only [h1, ↓reduceIte, prog_clientResult_pure, Nat.shiftRight_eq_div_pow,
-              pow_one] at hst ⊢
-          · exact hst.trans hsum
-          · exact hst.trans hsum
-        · dsimp only [log2StepProg]
-          simp only [prog_clientResult_bind, StateTransitionSpec.clientState,
-            prog_runClient_state_read]
-          split_ifs with h1
-          · dsimp only [prog_clientResult_pure]
-            have hpos : 1 ≤ (log2CapAux (K - k) rem).2 := by
-              rw [log2CapAux_snd]
-              exact le_min (by omega) (Nat.le_log_of_pow_le one_lt_two (by omega))
-            rw [log2CapAux_snd K x₀] at hsum
-            omega
-          · exact hacc_le)
+          hs', ?_⟩
+        have hst := log2CapAux_step (K - (k + 1)) rem acc
+        dsimp only at hst
+        rw [show K - (k + 1) + 1 = K - k by omega] at hst
+        rw [hres]
+        split_ifs at hst ⊢ with h1 <;> dsimp only at hst ⊢
+        · have hpos : 1 ≤ (log2CapAux (K - k) rem).2 := by
+            rw [log2CapAux_snd]
+            exact le_min (by omega) (Nat.le_log_of_pow_le one_lt_two (by omega))
+          have := log2CapAux_snd K x₀
+          exact ⟨(Nat.div_le_self _ _).trans hle_x, hst.trans hsum, by omega⟩
+        · exact ⟨hle_x, hst.trans hsum, hacc_le⟩)
       (x₀, 0) s₀ ⟨rfl, le_rfl, by simp, Nat.zero_le _⟩
   refine ⟨hsafe, hv, by simpa only [one_mul] using hcost, hs_eq, ?_⟩
-  rw [Nat.sub_self] at hsum_end
-  dsimp only [log2CapAux] at hsum_end
-  rw [Nat.add_zero] at hsum_end
+  simp only [Nat.sub_self, log2CapAux, Nat.add_zero] at hsum_end
   exact hsum_end.trans (log2CapAux_snd K x₀)
 
 /-- Bounded `K`-step evaluator computing `min K (Nat.log 2 x₀)` via `iterate`. -/
@@ -278,23 +264,12 @@ theorem log2CapProg_spec {w hdrAddr K x₀ : ℕ} {s₀ : Memory.State}
     (Memory.spec 0).clientResult s₀ prog = min K (Nat.log 2 x₀) := by
   intro prog
   obtain ⟨_, hv, hc, hst, hres⟩ := log2Loop_spec hfr hx₀ hK
-  refine ⟨⟨hfr, hx₀, hK⟩, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog, log2CapProg]
-    rw [validHistory_bind', hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate log2StepProg hdrAddr K (x₀, 0)) with ⟨_, _⟩
-    exact ⟨hv, trivial⟩
-  · dsimp only [prog, log2CapProg]
-    rw [Realization.memoryCost_bind', hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate log2StepProg hdrAddr K (x₀, 0)) with ⟨_, _⟩
-    dsimp only; rw [memoryCost_pure]; omega
-  · dsimp only [prog, log2CapProg]
-    rw [StateTransitionSpec.clientState_bind, hst]
-    rcases (Memory.spec 0).clientResult s₀ (iterate log2StepProg hdrAddr K (x₀, 0)) with ⟨_, _⟩
-    rfl
-  · dsimp only [prog, log2CapProg]
-    rw [prog_clientResult_bind, hst]
-    rcases hp : (Memory.spec 0).clientResult s₀ (iterate log2StepProg hdrAddr K (x₀, 0)) with ⟨_, r⟩
-    dsimp only; rw [prog_clientResult_pure, ← hres, hp]
+  dsimp only [prog, log2CapProg]
+  rw [validHistory_bind', Realization.memoryCost_bind', StateTransitionSpec.clientState_bind,
+    prog_clientResult_bind, hst]
+  rcases hp : (Memory.spec 0).clientResult s₀ (iterate log2StepProg hdrAddr K (x₀, 0)) with ⟨_, r⟩
+  rw [hp] at hres
+  exact ⟨⟨hfr, hx₀, hK⟩, ⟨hv, trivial⟩, by dsimp only; rw [memoryCost_pure]; omega, rfl, hres⟩
 
 /-! ## Pure Scalar Combinators and Read/Write Step Helpers -/
 
@@ -494,29 +469,18 @@ theorem writeBlock3Prog_spec {w : ℕ} (base v0 v1 v2 : ℕ) {s : Memory.State}
     (∀ a, ¬(base ≤ a ∧ a < base + 3) → s'.mem a = s.mem a) ∧
     memoryCost prog s = 3 := by
   intro d prog s'
-  refine ⟨⟨hfr, hfit_end⟩, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨⟨hfr, hfit_end⟩, ?_, ?_⟩
   · rcases s with ⟨mem, fr⟩
     dsimp only [prog, d, writeBlock3Prog] at hfr ⊢
     refine validHistory_write_step (by omega) hv0 ?_
     refine validHistory_write_step (by omega) hv1 ?_
     exact ⟨⟨show base + 2 < fr by omega, hv2⟩, trivial⟩
   · dsimp only [s', prog, d, writeBlock3Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-  · dsimp only [s', prog, d, writeBlock3Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-    refine ⟨?_, ?_, ?_⟩
-    · rw [Function.update_of_ne (show base ≠ base + 2 by omega),
-        Function.update_of_ne (show base ≠ base + 1 by omega), Function.update_self]
-    · rw [Function.update_of_ne (show base + 1 ≠ base + 2 by omega), Function.update_self]
-    · rw [Function.update_self]
-  · intro a ha
-    dsimp only [s', prog, d, writeBlock3Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-    rw [Function.update_of_ne (show a ≠ base + 2 by omega),
-      Function.update_of_ne (show a ≠ base + 1 by omega),
-      Function.update_of_ne (show a ≠ base by omega)]
-  · dsimp only [prog, d, writeBlock3Prog]
-    simp only [Realization.memoryCost_bind', prog_memoryCost_write, prog_runClient_state_write]
+    simp (disch := omega) only [prog_runClient_state_bind, prog_runClient_state_write,
+      Realization.memoryCost_bind', prog_memoryCost_write, Function.update_of_ne,
+      Function.update_self, true_and, and_true]
+    intro a ha
+    simp (disch := omega) only [Function.update_of_ne]
 
 /-- Write 4 contiguous words `((v0, v1), (v2, v3))` at `[base, base + 4)`. -/
 @[expose] def writeBlock4Prog : ℕ × ((ℕ × ℕ) × (ℕ × ℕ)) → Memory.Prog Unit
@@ -555,7 +519,7 @@ theorem writeBlock4Prog_spec {w : ℕ} (base v0 v1 v2 v3 : ℕ) {s : Memory.Stat
     (∀ a, ¬(base ≤ a ∧ a < base + 4) → s'.mem a = s.mem a) ∧
     memoryCost prog s = 4 := by
   intro d prog s'
-  refine ⟨⟨hfr, hfit_end⟩, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨⟨hfr, hfit_end⟩, ?_, ?_⟩
   · rcases s with ⟨mem, fr⟩
     dsimp only [prog, d, writeBlock4Prog] at hfr ⊢
     refine validHistory_write_step (by omega) hv0 ?_
@@ -563,26 +527,11 @@ theorem writeBlock4Prog_spec {w : ℕ} (base v0 v1 v2 v3 : ℕ) {s : Memory.Stat
     refine validHistory_write_step (by omega) hv2 ?_
     exact ⟨⟨show base + 3 < fr by omega, hv3⟩, trivial⟩
   · dsimp only [s', prog, d, writeBlock4Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-  · dsimp only [s', prog, d, writeBlock4Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · rw [Function.update_of_ne (show base ≠ base + 3 by omega),
-        Function.update_of_ne (show base ≠ base + 2 by omega),
-        Function.update_of_ne (show base ≠ base + 1 by omega), Function.update_self]
-    · rw [Function.update_of_ne (show base + 1 ≠ base + 3 by omega),
-        Function.update_of_ne (show base + 1 ≠ base + 2 by omega), Function.update_self]
-    · rw [Function.update_of_ne (show base + 2 ≠ base + 3 by omega), Function.update_self]
-    · rw [Function.update_self]
-  · intro a ha
-    dsimp only [s', prog, d, writeBlock4Prog, StateTransitionSpec.clientState]
-    simp only [prog_runClient_state_bind, prog_runClient_state_write]
-    rw [Function.update_of_ne (show a ≠ base + 3 by omega),
-      Function.update_of_ne (show a ≠ base + 2 by omega),
-      Function.update_of_ne (show a ≠ base + 1 by omega),
-      Function.update_of_ne (show a ≠ base by omega)]
-  · dsimp only [prog, d, writeBlock4Prog]
-    simp only [Realization.memoryCost_bind', prog_memoryCost_write, prog_runClient_state_write]
+    simp (disch := omega) only [prog_runClient_state_bind, prog_runClient_state_write,
+      Realization.memoryCost_bind', prog_memoryCost_write, Function.update_of_ne,
+      Function.update_self, true_and, and_true]
+    intro a ha
+    simp (disch := omega) only [Function.update_of_ne]
 
 /-- Specification for two consecutive `writeBlock4Prog` calls writing slice `[off, off + 8)` of
 `g : Fin n → ℕ` into `[base, base + 8)`. -/
@@ -622,14 +571,9 @@ theorem writeTwoBlock4Fin_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off
     obtain ⟨m10, m11, m12, m13⟩ := hm1
     rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 by omega) with
       rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    · rw [Nat.add_zero, hframe1 _ (by omega)]; exact m00
-    · rw [hframe1 _ (by omega)]; exact m01
-    · rw [hframe1 _ (by omega)]; exact m02
-    · rw [hframe1 _ (by omega)]; exact m03
-    · exact m10
-    · rw [show base + 5 = base + 4 + 1 by omega]; exact m11
-    · rw [show base + 6 = base + 4 + 2 by omega]; exact m12
-    · rw [show base + 7 = base + 4 + 3 by omega]; exact m13
+    all_goals first
+      | exact m10 | exact m11 | exact m12 | exact m13
+      | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
   · intro a ha
     rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
   · dsimp only [prog]; rw [Realization.memoryCost_bind', hc0, hc1]

@@ -46,32 +46,25 @@ theorem step_ends (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) :
   unfold step
   by_cases h0 : T.e0 e = c
   · rw [ite_eq_left h0, h0]
-  · have h1 : T.e1 e = c := hc.resolve_left h0
-    rw [ite_eq_right h0, h1, Sym2.eq_swap]
+  · rw [ite_eq_right h0, hc.resolve_left h0, Sym2.eq_swap]
 
 theorem step_ne (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : c ≠ T.step e c := by
   intro heq
   have h1 := step_ends e hc
   rw [← heq, Sym2.eq_iff] at h1
-  have := T.e_ne e
-  rcases h1 with ⟨h2, h3⟩ | ⟨h2, h3⟩ <;> exact this (h2.trans h3.symm)
+  rcases h1 with ⟨h2, h3⟩ | ⟨h2, h3⟩ <;> exact T.e_ne e (h2.trans h3.symm)
 
 theorem step_mem (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) :
     T.e0 e = T.step e c ∨ T.e1 e = T.step e c := by
-  have h1 := step_ends e hc
-  rw [Sym2.eq_iff] at h1
-  rcases h1 with ⟨_, h3⟩ | ⟨h2, _⟩
-  · exact Or.inr h3
-  · exact Or.inl h2
+  rcases Sym2.eq_iff.mp (step_ends e hc) with ⟨_, h3⟩ | ⟨h2, _⟩
+  exacts [Or.inr h3, Or.inl h2]
 
 theorem step_step (e : T.Ed j) {c : T.X j} (hc : T.e0 e = c ∨ T.e1 e = c) : T.step e (T.step e c) =
     c := by
-  have h1 := step_ends e hc
   have h2 := step_ends e (step_mem e hc)
-  rw [h1, Sym2.eq_iff] at h2
+  rw [step_ends e hc, Sym2.eq_iff] at h2
   rcases h2 with ⟨h3, h4⟩ | ⟨h3, _⟩
-  · exact h4.symm.trans h3.symm
-  · exact h3.symm
+  exacts [h4.symm.trans h3.symm, h3.symm]
 
 /-- The chamber after `s` steps. -/
 def nodeAt (c : T.X j) (l : List (T.Ed j)) (s : ℕ) : T.X j :=
@@ -97,21 +90,16 @@ theorem walk_step {c c' : T.X j} {l : List (T.Ed j)} (hw : T.Walk c l c') {s : �
     cases s with
     | zero =>
       simp only [List.getElem?_cons_zero, Option.some.injEq] at he
-      subst he
-      exact ⟨hw.1, rfl⟩
+      exact he ▸ ⟨hw.1, rfl⟩
     | succ s =>
-      simp only [List.getElem?_cons_succ] at he
       rw [nodeAt_cons, nodeAt_cons]
-      exact ih hw.2 he
+      exact ih hw.2 (by simpa using he)
 
 theorem walk_append {c c' c'' : T.X j} {l l' : List (T.Ed j)} (h1 : T.Walk c l c')
     (h2 : T.Walk c' l' c'') :
     T.Walk c (l ++ l') c'' := by
   induction l generalizing c with
-  | nil =>
-    have : c = c' := h1
-    subst this
-    exact h2
+  | nil => exact h1 ▸ h2
   | cons e l ih => exact ⟨h1.1, ih h1.2⟩
 
 theorem walk_reverse {c c' : T.X j} {l : List (T.Ed j)} (h1 : T.Walk c l c') : T.Walk c' l.reverse
@@ -131,6 +119,11 @@ variable {h b D J r : ℕ} {T : Tower h b D J r} {m Uu : ℕ} (R : Routes T m Uu
 
 /-- The path from `c` to `c'` by way of `γ`. -/
 def path (c c' γ : T.X 0) : List (T.Ed 0) := R.rt c γ ++ (R.rt c' γ).reverse
+
+/-- The path from `c` to `c'` by way of `γ` is the route from `c` to `γ` followed by the reversed
+route from `c'` to `γ`. -/
+theorem path_def (c c' γ : T.X 0) : R.path c c' γ = R.rt c γ ++ (R.rt c' γ).reverse := by
+  rw [path]
 
 theorem path_walk (c c' γ : T.X 0) : T.Walk c (R.path c c' γ) c' :=
   Tower.walk_append (R.walk c γ) (Tower.walk_reverse (R.walk c' γ))
@@ -174,15 +167,9 @@ theorem exists_edge (c c' γ : T.X 0) {s : ℕ} (hs : s < R.pl c c' γ) :
     ∃ e, (R.path c c' γ)[s]? = some e ∧ s(T.e0 e, T.e1 e) = s(R.pn c c' γ s, R.pn c c' γ (s + 1)) ∧
       R.pn c c' γ s ≠ R.pn c c' γ (s + 1) := by
   have hlt : s < (R.path c c' γ).length := lt_of_lt_of_le hs (R.pl_le c c' γ)
-  refine ⟨(R.path c c' γ)[s], List.getElem?_eq_getElem hlt, ?_, ?_⟩
-  · obtain ⟨h1, h2⟩ := Tower.walk_step (R.path_walk c c' γ) (List.getElem?_eq_getElem hlt)
-    unfold pn
-    rw [h2]
-    exact Tower.step_ends _ h1
-  · obtain ⟨h1, h2⟩ := Tower.walk_step (R.path_walk c c' γ) (List.getElem?_eq_getElem hlt)
-    unfold pn
-    rw [h2]
-    exact Tower.step_ne _ h1
+  obtain ⟨h1, h2⟩ := Tower.walk_step (R.path_walk c c' γ) (List.getElem?_eq_getElem hlt)
+  refine ⟨(R.path c c' γ)[s], List.getElem?_eq_getElem hlt, ?_, ?_⟩ <;> unfold pn <;> rw [h2]
+  exacts [Tower.step_ends _ h1, Tower.step_ne _ h1]
 
 end Routes
 

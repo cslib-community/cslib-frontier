@@ -36,8 +36,7 @@ theorem boundedEndpoints_frame {I : FixedRotationInput} (hI : Valid I) :
   intro segment hs
   obtain ⟨entry, he, hs⟩ := List.mem_flatMap.mp hs
   obtain ⟨hi, hv⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
-  have hem : entry.1 ∈ I.graph.edges := by rw [← hv]; exact List.getElem_mem hi
-  obtain ⟨hu, hw⟩ := hI.edge_endpoints_lt hem
+  obtain ⟨hu, hw⟩ := hI.edge_endpoints_lt (hv ▸ List.getElem_mem hi)
   change segment ∈ [((entry.1.1, I.graph.vertices.length + 2 * entry.2), _),
     ((I.graph.vertices.length + 2 * entry.2, I.graph.vertices.length + 2 * entry.2 + 1), false),
     ((I.graph.vertices.length + 2 * entry.2 + 1, entry.1.2), _)] at hs
@@ -51,28 +50,23 @@ theorem label_lt_row {F : Frame} (hF : BoundedEndpoints F)
     {e f : Segment × ℕ} (he : e ∈ F.segments.zipIdx) (hf : f ∈ F.segments.zipIdx)
     {label : ℕ} (hl : label ∈ (row F e f).vars) :
     label < F.segments.length * F.vertexCount := by
-  have entry (x : Segment × ℕ) (hx : x ∈ F.segments.zipIdx) :
+  have entry {x : Segment × ℕ} (hx : x ∈ F.segments.zipIdx) :
       x.2 < F.segments.length ∧ x.1 ∈ F.segments := by
     obtain ⟨hi, hv⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hx)
     exact ⟨hi, hv ▸ List.getElem_mem hi⟩
-  have he' := entry e he
-  have hf' := entry f hf
-  have eb := hF e.1 he'.2
-  have fb := hF f.1 hf'.2
-  have helper (n i : ℕ) (s : Segment) (p : ℕ × ℕ) (hi : i < F.segments.length)
-      (hp : p.1 < F.vertexCount ∧ p.2 < F.vertexCount) (hn : n = F.vertexCount)
-      (hl : label ∈ moveLabels n i s p) : label < F.segments.length * F.vertexCount := by
-    subst n
+  have helper {i : ℕ} {s : Segment} {p : ℕ × ℕ} (hi : i < F.segments.length)
+      (hp : p.1 < F.vertexCount ∧ p.2 < F.vertexCount)
+      (hl : label ∈ moveLabels F.vertexCount i s p) :
+      label < F.segments.length * F.vertexCount := by
     unfold moveLabels at hl
     split at hl
     · simp at hl
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-      rcases hl with rfl | rfl
+    · rcases (by simpa using hl : label = _ ∨ label = _) with rfl | rfl
       · exact moveLabel_lt hi hp.1
       · exact moveLabel_lt hi hp.2
-  rcases List.mem_append.mp hl with hl | hl
-  · exact helper _ _ _ _ he'.1 fb rfl hl
-  · exact helper _ _ _ _ hf'.1 eb rfl hl
+  exact (List.mem_append.mp hl).elim
+    (helper (entry he).1 (hF f.1 (entry hf).2))
+    (helper (entry hf).1 (hF e.1 (entry he).2))
 
 /-- Every compiled row comes from an actual independent pair of segment occurrences. -/
 theorem mem_compileFrame {F : Frame} {r : AffineEquation ℕ} :
@@ -103,9 +97,8 @@ theorem bits_compileFrame {F : Frame} (hF : BoundedEndpoints F)
 theorem framed_row_length_le {r : AffineEquation ℕ} {ell : ℕ} (hw : r.vars.length ≤ 4)
     (hb : ∀ label ∈ r.vars, (encNat label).length ≤ ell) :
     2 * (encAffineEquation encNat r).length + 1 ≤ 32 * ell + 21 := by
-  have hl := length_encList_le encNat r.vars hb
   have hv : (encList encNat r.vars).length ≤ 4 * (2 * ell + 1) :=
-    hl.trans (Nat.mul_le_mul_right _ hw)
+    (length_encList_le encNat r.vars hb).trans (Nat.mul_le_mul_right _ hw)
   enc_len [encAffineEquation_apply, encAffineEquationFields, List.length_singleton]
 
 /-- The entire sparse system encoding, including equation and list framing. -/
@@ -116,10 +109,9 @@ theorem length_encoding_compileFrame_le {F : Frame} (hF : BoundedEndpoints F) :
   rw [XORSAT.encoding, length_encList]
   calc
     _ ≤ ((compileFrame F).map fun _ =>
-        32 * (Nat.log2 (F.segments.length * F.vertexCount) + 1) + 21).sum := by
-      apply List.sum_le_sum
-      intro r hr
-      exact framed_row_length_le (width_compileFrame hr) (fun _ hl => bits_compileFrame hF hr hl)
+        32 * (Nat.log2 (F.segments.length * F.vertexCount) + 1) + 21).sum :=
+      List.sum_le_sum fun r hr =>
+        framed_row_length_le (width_compileFrame hr) fun _ => bits_compileFrame hF hr
     _ = (compileFrame F).length *
         (32 * (Nat.log2 (F.segments.length * F.vertexCount) + 1) + 21) := by simp
     _ ≤ _ := Nat.mul_le_mul_right _ (length_compileFrame_le F)

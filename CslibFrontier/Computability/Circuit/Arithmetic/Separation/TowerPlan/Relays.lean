@@ -7,8 +7,8 @@ Authors: Anthropic, PBC, Aviv Bar Natan
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Chamber
 public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Path
+public import CslibFrontier.Foundations.Combinatorics.CoveringTower.Tree
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Laws
 public import Mathlib.Data.Fin.VecNotation
 public import Mathlib.Data.Fintype.Sigma
@@ -18,16 +18,16 @@ public import Mathlib.Tactic.DeriveFintype
 import Mathlib.Tactic.FinCases
 
 /-!
-# The tower plan: nodes, relays and targets
+# The tower plan: relays and targets
 
 The tower plan of [AnthropicVPVNP2026] (proof of Theorem H.2; module `Nc.Tow.Net`) moves the
-units of a network along a covering tower until all of them join a node and its parent in a
-tree. The nodes of the tree (`Node`) are the chambers of all levels of the tower and a root. The
-units of two base parties are led by relays along a route between their chambers (`Relay.start`);
-at a stage, the units on an edge whose type is not the chosen one are relayed through the host
-of the edge (`Relay.inner`), those on an edge of the chosen type are relayed in four steps
-through the hosts and the images of its ends (`Relay.middle`), and after the last stage all units
-are relayed through the root (`Relay.final`).
+units of a network along a covering tower until all of them join a node and its parent in the
+tree of the tower (`Cslib.CoveringTower.Tower.Node`), whose nodes are the chambers of all levels
+and a root. The units of two base parties are led by relays along a route between their chambers
+(`Relay.start`); at a stage, the units on an edge whose type is not the chosen one are relayed
+through the host of the edge (`Relay.inner`), those on an edge of the chosen type are relayed in
+four steps through the hosts and the images of its ends (`Relay.middle`), and after the last stage
+all units are relayed through the root (`Relay.final`).
 
 Every channel of a move has a *target* (`Target`) that says what becomes of its units: they stay
 between a node and its parent (`Target.done`), they lie on an edge of a stage (`Target.edge`),
@@ -36,7 +36,6 @@ vertex, to which a law is applied (`Target.segment`).
 
 ## Main definitions
 
-* `Node`, `Node.ofChamber`: the nodes of the tree.
 * `Relay`, `Relay.party`, `Relay.Occurs`, `Relay.time`: the relays, their three parties, the
   condition under which a relay is a move of the plan, and the order of the relays.
 * `Target`, `Target.time`, `endTime`, `stepTarget`, `Relay.target`, `Relay.input`: targets and
@@ -47,6 +46,7 @@ vertex, to which a law is applied (`Target.segment`).
 
 ## Main results
 
+* `Relay.sum_eq`: a sum over the relays, by their kinds.
 * `Relay.party_injective`: the three parties of a relay of the plan are different.
 * `Relay.time_lt_time_target`, `Relay.time_input_le`: the units of the channels of a relay are
   given later, and the units given in a relay are made earlier.
@@ -65,36 +65,6 @@ open Finset Cslib.CoveringTower
 
 variable {h b D J r m Uu A : ℕ}
 
-/-- The nodes of the tree: the root, and the chambers of all levels of the tower. -/
-inductive Node (T : Tower h b D J r) where
-  /-- The root. -/
-  | root
-  /-- A chamber of the level `j`. -/
-  | chamber (j : Fin (J + 1)) (c : T.X j)
-  deriving DecidableEq, Fintype
-
-namespace Node
-
-variable {T : Tower h b D J r} {j j' : ℕ}
-
-/-- The node of a chamber of the level `j ≤ J`. -/
-@[expose] def ofChamber (hj : j ≤ J) (c : T.X j) : Node T := .chamber ⟨j, Nat.lt_succ_of_le hj⟩ c
-
-@[simp]
-theorem ofChamber_inj {hj hj' : j ≤ J} {c c' : T.X j} :
-    ofChamber hj c = ofChamber hj' c' ↔ c = c' := by
-  simp [ofChamber]
-
-theorem ofChamber_ne_of_ne (hjj : j ≠ j') {hj : j ≤ J} {hj' : j' ≤ J} {c : T.X j} {c' : T.X j'} :
-    ofChamber hj c ≠ ofChamber hj' c' := by
-  simp [ofChamber, hjj]
-
-@[simp]
-theorem ofChamber_ne_root {hj : j ≤ J} {c : T.X j} : ofChamber hj c ≠ root := by
-  simp [ofChamber]
-
-end Node
-
 /-- The relays of the tower plan. -/
 inductive Relay (T : Tower h b D J r) (m A : ℕ) where
   /-- Step `s` of the route of the units from the base party `a` to the base party `c` that are
@@ -110,6 +80,14 @@ inductive Relay (T : Tower h b D J r) (m A : ℕ) where
   | final (e : T.Ed J)
   deriving DecidableEq, Fintype
 
+/-- A sum over the relays, by their kinds. -/
+theorem Relay.sum_eq {T : Tower h b D J r} {M : Type*} [AddCommMonoid M] (g : Relay T m A → M) :
+    ∑ x, g x = (∑ a, ∑ c, ∑ γ, ∑ s, g (.start a c γ s)) + ((∑ j, ∑ i, ∑ e, g (.inner j i e)) +
+      ((∑ j, ∑ e, ∑ s, g (.middle j e s)) + ∑ e, g (.final e))) := by
+  rw [← (proxy_equiv% (Relay T m A)).sum_comp]
+  simp only [Fintype.sum_sum_type, Fintype.sum_sigma]
+  rfl
+
 /-- The targets: what becomes of the units of a channel. -/
 inductive Target (T : Tower h b D J r) (m A : ℕ) where
   /-- The units stay between a node and its parent. -/
@@ -120,7 +98,7 @@ inductive Target (T : Tower h b D J r) (m A : ℕ) where
   | relay (x : Relay T m A)
   /-- The units are end segments on the pair `q` of places of the vertex `ω`. -/
   | segment (j : Fin J) (i : Fin h) (ω : T.V (j + 1) i) (q : Sym2 T.Fl)
-  deriving DecidableEq
+  deriving DecidableEq, Fintype
 
 variable {T : Tower h b D J r}
 
@@ -130,17 +108,17 @@ variable (R : Routes T m Uu) (ch : Fin A ↪ T.X 0)
 
 /-- The three parties of a relay: the units between `source` and `sink` are led through
 `via`. -/
-@[expose] def party : Relay T m A → RelayRole → Node T
+@[expose] def party : Relay T m A → RelayRole → T.Node
   | .start a c γ s => RelayRole.elim (.ofChamber (Nat.zero_le J) (R.pn (ch a) (ch c) γ s))
       (.ofChamber (Nat.zero_le J) (R.pn (ch a) (ch c) γ (s + 1)))
       (.ofChamber (Nat.zero_le J) (ch c))
   | .inner j i e => RelayRole.elim (.ofChamber j.2.le (T.e0 e))
       (.ofChamber j.2 (T.hostOf i (T.e0 e))) (.ofChamber j.2.le (T.e1 e))
   | .middle j e s =>
-    let host₀ : Node T := .ofChamber j.2 (T.hostOf (T.ty e) (T.e0 e))
-    let host₁ : Node T := .ofChamber j.2 (T.hostOf (T.ty e) (T.e1 e))
-    let image₀ : Node T := .ofChamber j.2 (T.π (T.e0 e))
-    let image₁ : Node T := .ofChamber j.2 (T.π (T.e1 e))
+    let host₀ : T.Node := .ofChamber j.2 (T.hostOf (T.ty e) (T.e0 e))
+    let host₁ : T.Node := .ofChamber j.2 (T.hostOf (T.ty e) (T.e1 e))
+    let image₀ : T.Node := .ofChamber j.2 (T.π (T.e0 e))
+    let image₁ : T.Node := .ofChamber j.2 (T.π (T.e1 e))
     RelayRole.elim (![.ofChamber j.2.le (T.e0 e), host₀, image₀, image₁] s)
       (![host₀, image₀, image₁, host₁] s) (.ofChamber j.2.le (T.e1 e))
   | .final e => RelayRole.elim (.ofChamber le_rfl (T.e0 e)) .root (.ofChamber le_rfl (T.e1 e))
@@ -171,15 +149,15 @@ theorem party_injective {x : Relay T m A} (hx : x.Occurs R ch) :
     obtain ⟨-, -, -, h3⟩ := R.exists_edge (ch a) (ch c) γ (s := s) (by omega)
     exact RelayRole.elim_injective (by simpa using h3) (by simpa using R.pn_ne _ _ _ (by omega))
       (by simpa using R.pn_ne _ _ _ hs)
-  · exact RelayRole.elim_injective (Node.ofChamber_ne_of_ne (by omega)) (by simpa using T.e_ne e)
-      (Node.ofChamber_ne_of_ne (by omega))
+  · exact RelayRole.elim_injective (Tower.Node.ofChamber_ne_of_ne (by omega))
+      (by simpa using T.e_ne e) (Tower.Node.ofChamber_ne_of_ne (by omega))
   · have h1 := T.π_ne j.2 e
     have h2 := T.e_ne e
-    have h3 {c : T.X j} {c' : T.X (j + 1)} : Node.ofChamber j.2.le c ≠ Node.ofChamber j.2 c' :=
-      Node.ofChamber_ne_of_ne (by omega)
+    have h3 {c : T.X j} {c' : T.X (j + 1)} : (.ofChamber j.2.le c : T.Node) ≠ .ofChamber j.2 c' :=
+      Tower.Node.ofChamber_ne_of_ne (by omega)
     refine RelayRole.elim_injective ?_ ?_ ?_ <;> fin_cases s <;> simp_all [Occurs, h3.symm]
-  · exact RelayRole.elim_injective Node.ofChamber_ne_root (by simpa using T.e_ne e)
-      Node.ofChamber_ne_root.symm
+  · exact RelayRole.elim_injective Tower.Node.ofChamber_ne_root (by simpa using T.e_ne e)
+      Tower.Node.ofChamber_ne_root.symm
 
 variable (m) in
 /-- The time of a relay: the relays of the routes come first, then those of the stages. -/

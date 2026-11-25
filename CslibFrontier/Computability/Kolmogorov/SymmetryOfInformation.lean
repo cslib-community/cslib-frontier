@@ -198,18 +198,15 @@ private theorem exists_sectionEvent_eq_some_iff {k x v : ℕ} :
     obtain ⟨z, hz, hv⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hv with hx
     obtain rfl := Option.some.inj hv
-    have hzx : Nat.pair x z.unpair.2 = z := by rw [← hx, Nat.pair_unpair]
-    rw [hzx]
+    rw [show Nat.pair x z.unpair.2 = z by rw [← hx, Nat.pair_unpair]]
     exact (ecomplexity_le_length (Produces.of_mem_runFor hz)).trans (by exact_mod_cast hlen)
   · intro h
     obtain ⟨p, hp, hlen⟩ :=
       exists_length_eq_ecomplexity (ne_top_of_le_ne_top (ENat.natCast_ne_top k) h)
     obtain ⟨t, ht⟩ := produces_iff_exists_mem_runFor.mp hp
-    refine ⟨Nat.pair (encode p) t, ?_⟩
-    have hlen' : p.length ≤ k := by
-      rw [← hlen] at h
-      exact_mod_cast h
-    simp [sectionEvent, hlen', Option.mem_def.mp ht]
+    exact ⟨Nat.pair (encode p) t, by
+      simp [sectionEvent, show p.length ≤ k by exact_mod_cast hlen.trans_le h,
+        Option.mem_def.mp ht]⟩
 
 private theorem setOf_exists_sectionEvent_eq (k x : ℕ) :
     {v | ∃ n, sectionEvent (k, x) n = some v} = {v | universal.ecomplexity (Nat.pair x v) ≤ k} :=
@@ -243,13 +240,11 @@ private theorem exists_heavyEvent_eq_some_iff {k l u : ℕ} :
     simp only [heavyEvent] at hs
     split_ifs at hs with h
     obtain rfl := Option.some.inj hs
-    rw [← setOf_exists_sectionEvent_eq]
-    exact h.trans (Nat.length_distinctValues_le_ncard hfin _)
+    exact setOf_exists_sectionEvent_eq k s.unpair.1 ▸
+      h.trans (Nat.length_distinctValues_le_ncard hfin _)
   · intro h
     obtain ⟨N, hN⟩ := Nat.exists_length_distinctValues_eq_ncard hfin
-    refine ⟨Nat.pair u N, ?_⟩
-    rw [setOf_exists_sectionEvent_eq] at hN
-    simp [heavyEvent, hN, h]
+    exact ⟨Nat.pair u N, by simp [heavyEvent, setOf_exists_sectionEvent_eq k u ▸ hN, h]⟩
 
 /-- Decode, given `x`, a program `selfDelimitingCode k.bits ++ j.bits` as the `j`-th element of
 `{v | C(x, v) ≤ k}`. -/
@@ -311,9 +306,8 @@ theorem exists_complexity_universal_add_condUniversal_le :
     Nat.exists_mem_nthDistinctValue_of_finite (setOf_exists_sectionEvent_eq k x ▸ hSfin) hn
   rw [setOf_exists_sectionEvent_eq] at hj
   have hY : (condUniversal x).ecomplexity y ≤
-      ((selfDelimitingCode k.bits ++ j.bits).length : ℕ) + cY := by
-    refine hcY x _ y ?_
-    simpa [sectionDecoder, decodeSelfDelimiting_selfDelimitingCode_append] using hjy
+      ((selfDelimitingCode k.bits ++ j.bits).length : ℕ) + cY :=
+    hcY x _ y (by simpa [sectionDecoder, decodeSelfDelimiting_selfDelimitingCode_append] using hjy)
   -- describing `x`, by its index `i` among the numbers with at least `2 ^ l` partners
   set B := {u | 2 ^ l ≤ {v | universal.ecomplexity (Nat.pair u v) ≤ k}.ncard} with hB
   have hBfin : B.Finite := universal.finite_setOf_two_pow_le_ncard k l
@@ -334,13 +328,11 @@ theorem exists_complexity_universal_add_condUniversal_le :
   -- `i` is written with exactly `k + 1 - l` digits, so that `l` can be recovered
   have hrest : (i.bits ++ List.replicate (k + 1 - l - i.size) false).length = k + 1 - l := by
     grind [List.length_append, List.length_replicate, Nat.size_eq_bits_len]
-  have hl' : k + 1 - (k + 1 - l) = l := by omega
   have hX : universal.ecomplexity x ≤
       ((selfDelimitingCode k.bits ++ (i.bits ++ List.replicate (k + 1 - l - i.size) false)).length
-        : ℕ) + cX := by
-    refine hcX _ x ?_
-    simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
-      Nat.foldr_bit_append_replicate_false, hrest, hl'] using hix
+        : ℕ) + cX :=
+    hcX _ x (by simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
+      Nat.foldr_bit_append_replicate_false, hrest, show k + 1 - (k + 1 - l) = l by omega] using hix)
   rw [← natCast_complexity_universal] at hX
   rw [← natCast_complexity_condUniversal] at hY
   norm_cast at hX hY
@@ -390,9 +382,8 @@ theorem exists_algorithmicInformation_ge :
     ∃ c : ℕ, ∀ x y, -(c : ℤ) ≤ algorithmicInformation x y := by
   obtain ⟨c, hc⟩ := exists_complexity_condUniversal_le
   refine ⟨c, fun x y => ?_⟩
-  have h := hc x y
-  rw [algorithmicInformation]
-  omega
+  have := hc x y
+  rw [algorithmicInformation]; omega
 
 /-- The algorithmic information is `C(x) + C(y) - C(x, y)` up to a logarithmic term: there is a
 constant `c` with `|I(x : y) - (C(x) + C(y) - C(x, y))| ≤ 6 size (C(x, y)) + c`
@@ -402,10 +393,10 @@ theorem exists_abs_algorithmicInformation_sub_le :
       universal.complexity y - universal.complexity (Nat.pair x y) : ℤ)| ≤
         6 * (universal.complexity (Nat.pair x y)).size + c := by
   obtain ⟨c, hc⟩ := exists_abs_complexity_universal_pair_sub_le
-  refine ⟨c, fun x y => ?_⟩
-  have h := abs_le.mp (hc x y)
-  rw [abs_le, algorithmicInformation]
-  constructor <;> omega
+  exact ⟨c, fun x y => by
+    have := abs_le.mp (hc x y)
+    rw [abs_le, algorithmicInformation]
+    omega⟩
 
 /-- **Symmetry of information** [Shen, Uspensky and Vereshchagin, Section
 2.3][ShenUspenskyVereshchagin2017]: there is a constant `c` with

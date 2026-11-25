@@ -682,6 +682,15 @@ def rename (f : Fin n → Fin m) (F : Formula σ n) : Formula σ m :=
   | input i => rfl
   | gate op args ih => simp only [rename, gate_bind, leafSize_gate] at ih ⊢; simp only [ih]
 
+/-- Renaming the inputs preserves the sum of arbitrary operation weights. -/
+@[simp] theorem cost_rename (weight : σ.Op → ℕ) (f : Fin n → Fin m) (F : Formula σ n) :
+    (F.rename f).cost weight = F.cost weight := by
+  induction F with
+  | input i => rfl
+  | gate op args ih =>
+    simp only [rename, gate_bind, cost_gate] at ih ⊢
+    simp only [ih]
+
 /-- Renaming the inputs by `f` and then by `g` renames them by `g ∘ f`. -/
 @[simp] theorem rename_rename {k : ℕ} (f : Fin n → Fin m) (g : Fin m → Fin k) (F : Formula σ n) :
     (F.rename f).rename g = F.rename (g ∘ f) := by
@@ -787,3 +796,4 @@ theorem depth_toCircuit_le (F : Formula σ n) : F.toCircuit.depth ≤ F.depth :=
 end Formula
 
 end Cslib.Circuits
+

@@ -74,10 +74,10 @@ structure FastMemHdrs (base c U V w n_max : ℕ) (fs : FastState) (mem : ℕ →
 /-- Extract `FastMemHdrs` from a full `FastMemRep` witness. -/
 theorem fastMemHdrs {base c U V w n_max : ℕ} {fs : FastState} {mem : ℕ → ℕ}
     (hrep : FastMemRep base c U V w n_max fs mem) :
-    FastMemHdrs base c U V w n_max fs mem := by
-  rcases hrep with ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
-    _, _, hbmeta, _⟩
-  exact ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
+    FastMemHdrs base c U V w n_max fs mem :=
+  let ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11, _, _, hbmeta, _⟩ :=
+    hrep
+  ⟨hdc_le, hm0, hm1, hm2, hm3, hm4, hm5, hm6, hm7, hm8, hm9, hm10, hm11,
     fun b hb => (hbmeta b hb).1⟩
 
 /-- Named bucket accessor for a `bufCheckSlotGenProg` result `(presentFlag, (bkt, loc))`. -/
@@ -104,13 +104,9 @@ theorem realizes_readBufAllocs :
       (fun w (base, _) _ => 0 < w ∧ Fits w (base + 32))
       (fun _ _ => 0) := by
   unfold readBufAllocsProg
-  have hrh := realizes_readHdr
-  realize
-  all_goals (
-    obtain ⟨_hw, hfit32⟩ := h
-    exact hfit32.of_le (by dsimp [hdrBuf0NodeAlloc, hdrBuf0ItemAlloc,
-      hdrBuf1NodeAlloc, hdrBuf1ItemAlloc]; omega)
-  )
+  realize [realizes_readHdr]
+  all_goals exact h.2.of_le (by
+    dsimp [hdrBuf0NodeAlloc, hdrBuf0ItemAlloc, hdrBuf1NodeAlloc, hdrBuf1ItemAlloc]; omega)
 
 private theorem readBufAllocsProg_pair_spec {w F base offNa offIa na ia : ℕ}
     {s : Memory.State} (hNa : base + offNa < F) (hIa : base + offIa < F)
@@ -125,15 +121,12 @@ private theorem readBufAllocsProg_pair_spec {w F base offNa offIa na ia : ℕ}
     readHdrProg_spec (w := w) (F := F) (base := base) (hdrOff := offNa) hNa (s := s)
   obtain ⟨hi_st, hi_res, hi_mc, hi_vp⟩ :=
     readHdrProg_spec (w := w) (F := F) (base := base) (hdrOff := offIa) hIa (s := s)
-  rw [hmNa] at hn_res
-  rw [hmIa] at hi_res
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hn_st, clientState_bind, hi_st]; rfl
-  · rw [clientResult_bind, hn_st, hn_res, clientResult_bind, hi_st, hi_res]; rfl
+  refine ⟨by rw [clientState_bind, hn_st, clientState_bind, hi_st]; rfl, ?_,
+    ?_, validProg_bind hn_vp (hn_st.symm ▸ validProg_bind hi_vp (hi_st.symm ▸ validProg_pure _))⟩
+  · rw [clientResult_bind, hn_st, hn_res, hmNa, clientResult_bind, hi_st, hi_res, hmIa]
+    rfl
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
     rw [hn_st, hn_mc, hi_mc]
-  · refine validProg_bind hn_vp ?_; rw [hn_st]
-    refine validProg_bind hi_vp ?_; rw [hi_st]; exact validProg_pure _
 
 /-- Cost and result specification for `readBufAllocsProg`. -/
 theorem readBufAllocsProg_spec {c U V w n_max base ep : ℕ}
@@ -147,18 +140,17 @@ theorem readBufAllocsProg_spec {c U V w n_max base ep : ℕ}
     memoryCost prog s ≤ 2 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-  unfold readBufAllocsProg; simp only [pure_bind]
+  unfold readBufAllocsProg
+  simp only [pure_bind]
   rcases hep with rfl | rfl
   · simp only [↓reduceIte]
-    have hb0 := hrep.buf_rep (Or.inl rfl)
-    exact readBufAllocsProg_pair_spec
-      (by dsimp [hdrBuf0NodeAlloc]; omega) (by dsimp [hdrBuf0ItemAlloc]; omega)
-      hb0.2.2.1 hb0.2.2.2.1
+    exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf0NodeAlloc]; omega)
+      (by dsimp [hdrBuf0ItemAlloc]; omega) (hrep.buf_rep (.inl rfl)).2.2.1
+      (hrep.buf_rep (.inl rfl)).2.2.2.1
   · simp only [one_ne_zero, ↓reduceIte]
-    have hb1 := hrep.buf_rep (Or.inr rfl)
-    exact readBufAllocsProg_pair_spec
-      (by dsimp [hdrBuf1NodeAlloc]; omega) (by dsimp [hdrBuf1ItemAlloc]; omega)
-      hb1.2.2.1 hb1.2.2.2.1
+    exact readBufAllocsProg_pair_spec (by dsimp [hdrBuf1NodeAlloc]; omega)
+      (by dsimp [hdrBuf1ItemAlloc]; omega) (hrep.buf_rep (.inr rfl)).2.2.1
+      (hrep.buf_rep (.inr rfl)).2.2.2.1
 
 /-- `FastStateStep` wrapper around `bufClearStepsGenProg_spec`. -/
 theorem bufClearStepsGenProg_fastStep {c U V w n_max base ep k : ℕ}
@@ -437,27 +429,14 @@ theorem stageSlotCheckSeq_fastStep {c U V w n_max base midCost tailCost maxCost 
     memoryCost prog s ≤ maxCost ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ fsOut s ((Memory.spec 0).clientState s prog) := by
-  have hseq := seqUnitProg_fastStep (c₁ := midCost) (c₂ := tailCost)
+  obtain ⟨hmc_seq, hvp_seq, hst_seq⟩ := seqUnitProg_fastStep (c₁ := midCost) (c₂ := tailCost)
     ⟨hMid_mc, hMid_vp, hMid_step⟩ ⟨hTail_mc, hTail_vp, hTail_step⟩
-  have hbr :
-      memoryCost (bufCheckSlotGenProg
-        (((mkWhpCoreParams c U V w n_max, base), fs.oldEp), fs.stageCursor) >>= kSlot) s ≤
-        midCost + tailCost + 12 ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (bufCheckSlotGenProg
-          (((mkWhpCoreParams c U V w n_max, base), fs.oldEp), fs.stageCursor) >>= kSlot) ∧
-      FastStateStep base c U V w n_max θ fsOut s
-        ((Memory.spec 0).clientState s
-          (bufCheckSlotGenProg
-            (((mkWhpCoreParams c U V w n_max, base), fs.oldEp), fs.stageCursor) >>= kSlot)) := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hcs_st, hcs_res, hSlot_eq]
-      have hmc := hseq.1; omega
-    · refine validProg_bind hcs_vp ?_; rw [hcs_st, hcs_res, hSlot_eq]; exact hseq.2.1
-    · rw [clientState_bind, hcs_st, hcs_res, hSlot_eq]; exact hseq.2.2
-  have hpref := stageCursorPrefix_lt_fastStep (kLt := kLt) (kGe := kGe)
-    hr hlt hkLt hbr.1 hbr.2.1 hbr.2.2
+  have hpref := stageCursorPrefix_lt_fastStep (kLt := kLt) (kGe := kGe) hr hlt hkLt
+    (tailCost := midCost + tailCost + 12)
+    (by simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+        rw [hcs_st, hcs_res, hSlot_eq]; omega)
+    (validProg_bind hcs_vp (by rwa [hcs_st, hcs_res, hSlot_eq]))
+    (by rwa [clientState_bind, hcs_st, hcs_res, hSlot_eq])
   exact ⟨by have := hpref.1; omega, hpref.2.1, hpref.2.2⟩
 
 /-- Transition to Stage 3 (`rebStage := 3, stageCursor := 0`). -/
@@ -475,15 +454,10 @@ theorem realizes_tickToStage3 :
       (fun w base _ => 2 ≤ w ∧ Fits w (base + 32))
       (fun _ _ => 0) := by
   unfold tickToStage3Prog
-  have hwh := realizes_writeHdr
-  realize
-  all_goals (
-    obtain ⟨h2w, hfit32⟩ := h
-    have h4 : 4 ≤ 2 ^ w := (by decide : 4 ≤ 2 ^ 2).trans (Nat.pow_le_pow_right two_pos h2w)
-    first
-    | (change 3 < 2 ^ w; omega)
-    | exact hfit32.of_le (by dsimp [hdrRebStage, hdrStageCursor]; omega)
-  )
+  realize [realizes_writeHdr]
+  all_goals first
+    | exact lt_of_lt_of_le (by decide : 3 < 2 ^ 2) (Nat.pow_le_pow_right two_pos h.1)
+    | exact h.2.of_le (by dsimp [hdrRebStage, hdrStageCursor]; omega)
 
 /-- `FastStateStep` specification for `tickToStage3Prog`. -/
 theorem tickToStage3Prog_fastStep {c U V w n_max base : ℕ}
@@ -499,10 +473,9 @@ theorem tickToStage3Prog_fastStep {c U V w n_max base : ℕ}
   have h1 := writeHdrStep (fs := fs) henv (by dsimp [hdrRebStage]; decide)
     (henv.fits_const (by decide)) (fun h => by dsimp [hdrRebStage] at h; omega) hseed hrep
     (hdrOff := hdrRebStage) (val := 3)
-  have h2 := thenWriteHdr (hdrOff := hdrStageCursor) henv
-    (by dsimp [hdrStageCursor]; decide) (Nat.two_pow_pos w) (fun _ => Nat.zero_le _) h1
   unfold tickToStage3Prog; simp only [pure_bind]
-  exact h2
+  exact thenWriteHdr (hdrOff := hdrStageCursor) henv
+    (by simp [hdrStageCursor]) (Nat.two_pow_pos w) (fun _ => Nat.zero_le _) h1
 
 /-- Set `(rebCandSalt, rebScanCursor, rebInsCount, rebCollision) := (cand, 0, 0, 0)`
 (`d = (base, cand)`). -/
@@ -522,13 +495,11 @@ theorem realizes_resetRebScanHdrs :
       (fun w (base, _) _ => 0 < w ∧ Fits w (base + 32))
       (fun _ _ => 0) := by
   unfold resetRebScanHdrsProg
-  have hwh := realizes_writeHdr
-  realize
-  all_goals (
+  realize [realizes_writeHdr]
+  all_goals
     obtain ⟨_, hfit32⟩ := h
     exact hfit32.of_le
       (by dsimp [hdrRebCandSalt, hdrRebScanCursor, hdrRebInsCount, hdrRebCollision]; omega)
-  )
 
 /-- `FastStateStep` specification for `resetRebScanHdrsProg`. -/
 theorem resetRebScanHdrsProg_fastStep {c U V w n_max base cand : ℕ}
@@ -550,18 +521,15 @@ theorem resetRebScanHdrsProg_fastStep {c U V w n_max base cand : ℕ}
   have h1 := writeHdrStep (fs := fs) henv (by dsimp [hdrRebCandSalt]; decide) hcand
     (fun h => by dsimp [hdrRebCandSalt] at h; omega) hseed hrep
     (hdrOff := hdrRebCandSalt) (val := cand) (s := s)
-  set s1 := (Memory.spec 0).clientState s (writeHdrProg ((base, hdrRebCandSalt), cand))
   set fs1 : FastState := { fs with rebCandSalt := cand }
   have h2 := writeHdrZeroStep (fs := fs1) henv (by dsimp [hdrRebScanCursor]; decide)
-    h1.2.2.2.1 h1.2.2.2.2.1 (hdrOff := hdrRebScanCursor) (s := s1)
-  set s2 := (Memory.spec 0).clientState s1 (writeHdrProg ((base, hdrRebScanCursor), 0))
+    h1.2.2.2.1 h1.2.2.2.2.1 (hdrOff := hdrRebScanCursor)
   set fs2 : FastState := { fs1 with rebScanCursor := 0 }
   have h3 := writeHdrZeroStep (fs := fs2) henv (by dsimp [hdrRebInsCount]; decide)
-    h2.2.2.2.1 h2.2.2.2.2.1 (hdrOff := hdrRebInsCount) (s := s2)
-  set s3 := (Memory.spec 0).clientState s2 (writeHdrProg ((base, hdrRebInsCount), 0))
+    h2.2.2.2.1 h2.2.2.2.2.1 (hdrOff := hdrRebInsCount)
   set fs3 : FastState := { fs2 with rebInsCount := 0 }
   have h4 := writeHdrZeroStep (fs := fs3) henv (by dsimp [hdrRebCollision]; decide)
-    h3.2.2.2.1 h3.2.2.2.2.1 (hdrOff := hdrRebCollision) (s := s3)
+    h3.2.2.2.1 h3.2.2.2.2.1 (hdrOff := hdrRebCollision)
   unfold resetRebScanHdrsProg; simp only [pure_bind]
   exact seqUnitProg_fastStep h1 (seqUnitProg_fastStep h2 (seqUnitProg_fastStep h3 h4))
 
@@ -603,29 +571,23 @@ theorem rebScanSteps_preserved {c U n_max : ℕ} (θ : SeedWhp c U n_max) (b : �
     · rw [ite_eq_left hcnz]
       exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Nat.le_add_right _ _⟩
     · rw [ite_eq_right hcnz]
-      have h1 : ∀ fs1 : FastState,
-          RebScanPreserved fs fs1 1 →
-            RebScanPreserved fs (rebScanSteps c U n_max θ b k fs1) (k + 1) := by
-        intro fs1 hp1
-        have hpk := rebScanSteps_preserved θ b k fs1
-        exact ⟨hpk.curEp.trans hp1.curEp,
-          hpk.epochClock.trans hp1.epochClock,
-          hpk.rebStage.trans hp1.rebStage,
-          hpk.stageCursor.trans hp1.stageCursor,
-          hpk.dirtyCount.trans hp1.dirtyCount,
-          hpk.dirtyIdx.trans hp1.dirtyIdx,
-          hpk.dirtyBuckets.trans hp1.dirtyBuckets,
-          hpk.rebCandSalt.trans hp1.rebCandSalt,
-          hpk.bktCount.trans hp1.bktCount,
-          hpk.liveRole.trans hp1.liveRole,
-          hpk.overmarsRole.trans hp1.overmarsRole,
-          by have := hpk.rebInsCount_le; have := hp1.rebInsCount_le; omega⟩
-      apply h1
+      refine (fun {fs1} (hp1 : RebScanPreserved fs fs1 1) =>
+        let hpk := rebScanSteps_preserved θ b k fs1
+        (⟨hpk.curEp.trans hp1.curEp, hpk.epochClock.trans hp1.epochClock,
+          hpk.rebStage.trans hp1.rebStage, hpk.stageCursor.trans hp1.stageCursor,
+          hpk.dirtyCount.trans hp1.dirtyCount, hpk.dirtyIdx.trans hp1.dirtyIdx,
+          hpk.dirtyBuckets.trans hp1.dirtyBuckets, hpk.rebCandSalt.trans hp1.rebCandSalt,
+          hpk.bktCount.trans hp1.bktCount, hpk.liveRole.trans hp1.liveRole,
+          hpk.overmarsRole.trans hp1.overmarsRole, by
+            have := hpk.rebInsCount_le
+            have := hp1.rebInsCount_le
+            omega⟩ :
+            RebScanPreserved fs _ (k + 1))) ?_
       split_ifs with hact
       · cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.rebSliceIdx b)) (fs.fpAt c U n_max θ fs.rebCandSalt b fs.rebScanCursor)
-        · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, le_rfl⟩
-        · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Nat.le_succ _⟩
+            (fs.slices (fs.rebSliceIdx b))
+            (fs.fpAt c U n_max θ fs.rebCandSalt b fs.rebScanCursor) <;>
+          exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, by dsimp only; omega⟩
       · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Nat.le_succ _⟩
 
 /-- Exact read-only rollover pre-condition guaranteeing `(epochTick c U n_max θ fs).isSome`. -/

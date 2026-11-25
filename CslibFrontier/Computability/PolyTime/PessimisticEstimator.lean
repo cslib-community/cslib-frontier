@@ -170,9 +170,7 @@ theorem computableInPolyTime_run
   refine foldlWithInput_of_bounded_growth hinit ⟨hrounds, hstep, inferInstance, inferInstance⟩
     ⟨hpoly, fun x s r hr => ?_⟩
   dsimp only [greedyStep]
-  split_ifs
-  · exact hgrowth x s r true hr
-  · exact hgrowth x s r false hr
+  split_ifs <;> exact hgrowth x s r _ hr
 
 end Execution
 
@@ -361,24 +359,17 @@ theorem computableInPolyTime_run
   let encAM := encPair encA encM
   let encOpt := encOption encAM
   let encScanIn := encPair (encPair encRound encOpt) encA
-  have hx_round : ComputableInPolyTime (fun p : (I × S) × R => p.1.1) encRound encI :=
-    (fst (encPair encI encS) encR).fst'
-  have hr_round : ComputableInPolyTime (fun p : (I × S) × R => p.2) encRound encR :=
-    snd (encPair encI encS) encR
   have hlist_p : ComputableInPolyTime (fun p : (I × S) × R => G.choices p.1.1 p.2)
-      encRound encLA :=
-    hchoices.comp (hx_round.prod hr_round)
+      encRound encLA := by
+    fun_prop
   have hval_pa : ComputableInPolyTime
       (fun pa : ((I × S) × R) × A =>
         G.estimate pa.1.1.1 (G.branch pa.1.1.1 pa.1.2 pa.2 pa.1.1.2))
-      (encChoiceInput encI encS encR encA) encM :=
-    hestimate.comp ((hx_round.comp (fst encRound encA)).prod hbranch)
+      (encChoiceInput encI encS encR encA) encM := by
+    fun_prop
   have hround_scan : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A => q.1.1) encScanIn encRound :=
     (fst (encPair encRound encOpt) encA).fst'
-  have hbest_scan : ComputableInPolyTime
-      (fun q : (((I × S) × R) × Option (A × M)) × A => q.1.2) encScanIn encOpt :=
-    (fst (encPair encRound encOpt) encA).snd'
   have ha_scan : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A => q.2) encScanIn encA :=
     snd (encPair encRound encOpt) encA
@@ -390,13 +381,13 @@ theorem computableInPolyTime_run
   have hnew_some : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A =>
         some (q.2, G.estimate q.1.1.1.1 (G.branch q.1.1.1.1 q.1.1.2 q.2 q.1.1.1.2)))
-      encScanIn encOpt :=
-    (optionSome encAM).comp (ha_scan.prod hval_scan)
+      encScanIn encOpt := by
+    fun_prop
   have hscan_step : ComputableInPolyTime
       (fun q : (((I × S) × R) × Option (A × M)) × A =>
         G.scanStep q.1.1.1.1 q.1.1.1.2 q.1.1.2 q.1.2 q.2)
       encScanIn encOpt := by
-    refine optionElimWithInput hbest_scan hnew_some ?_
+    refine optionElimWithInput (by fun_prop) hnew_some ?_
     let encBody := encPair encScanIn encAM
     have hq_b : ComputableInPolyTime _ encBody encScanIn := fst encScanIn encAM
     have hbm_b : ComputableInPolyTime _ encBody encAM := snd encScanIn encAM
@@ -441,7 +432,7 @@ theorem computableInPolyTime_run
   have hstep_round : ComputableInPolyTime
       (fun p : (I × S) × R => G.stepRound p.1.1 p.1.2 p.2)
       encRound encS := by
-    refine optionElimWithInput hscan_fold ((snd encI encS).comp (fst (encPair encI encS) encR)) ?_
+    refine optionElimWithInput hscan_fold (by fun_prop) ?_
     exact hbranch.comp ((fst encRound encAM).prod ((fst encA encM).comp (snd encRound encAM)))
   refine foldlWithInput_of_bounded_growth hinit ⟨hrounds, hstep_round, inferInstance, inferInstance⟩
     ⟨hpoly, fun x s r hr => ?_⟩

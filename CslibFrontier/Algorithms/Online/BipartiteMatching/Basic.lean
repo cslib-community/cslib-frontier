@@ -163,18 +163,10 @@ theorem onlineStep_eq_some_iff [DecidableEq L] {matched N : Finset L} {o : Optio
   cases o with
   | none => simp [onlineStep]
   | some w =>
-    simp only [onlineStep]
-    split_ifs with h
-    · constructor
-      · rintro ⟨rfl⟩
-        exact ⟨rfl, h⟩
-      · rintro ⟨⟨rfl⟩, -⟩
-        rfl
-    · constructor
-      · intro hc
-        cases hc
-      · rintro ⟨⟨rfl⟩, hw⟩
-        exact absurd hw h
+    by_cases hw : w = u
+    · subst hw
+      simp [onlineStep]
+    · simp [onlineStep, hw]
 
 /-- Update the set of matched offline vertices after an admissible step choice `c`. -/
 @[expose] def updateMatched [DecidableEq L] (matched : Finset L) : Option L → Finset L
@@ -353,26 +345,22 @@ private theorem runChoicesFrom_valid (hist : List (Finset L)) (matched : Finset 
         have ⟨huN, hu_not⟩ := hmem_ih i' (Nat.lt_of_succ_lt_succ hi) u hu
         exact ⟨huN, fun hm => hu_not (hstep_sub u hm)⟩
     · intro i j hi hj u hui huj
+      have hzero {k : ℕ} (hk : k + 1 < (N :: rest).length)
+          (h0 : (A.runChoicesFrom hist matched (N :: rest))[0]'(by simp) = some u)
+          (hs : (A.runChoicesFrom hist matched (N :: rest))[k + 1]'(by simpa using hk) = some u) :
+          False := by
+        simp only [runChoicesFrom, List.getElem_cons_zero, List.getElem_cons_succ, ← hc_def]
+          at h0 hs
+        exact (hmem_ih k (Nat.lt_of_succ_lt_succ hk) u hs).2
+          (h0 ▸ Finset.mem_insert_self u matched)
       cases i with
       | zero =>
         cases j with
         | zero => rfl
-        | succ j' =>
-          simp only [runChoicesFrom, List.getElem_cons_zero] at hui
-          simp only [runChoicesFrom, List.getElem_cons_succ] at huj
-          have ⟨_, hu_not⟩ := hmem_ih j' (Nat.lt_of_succ_lt_succ hj) u huj
-          rw [← hc_def] at hui
-          rw [hui] at hu_not
-          exact absurd (Finset.mem_insert_self u matched) hu_not
+        | succ j' => exact (hzero hj hui huj).elim
       | succ i' =>
         cases j with
-        | zero =>
-          simp only [runChoicesFrom, List.getElem_cons_succ] at hui
-          simp only [runChoicesFrom, List.getElem_cons_zero] at huj
-          have ⟨_, hu_not⟩ := hmem_ih i' (Nat.lt_of_succ_lt_succ hi) u hui
-          rw [← hc_def] at huj
-          rw [huj] at hu_not
-          exact absurd (Finset.mem_insert_self u matched) hu_not
+        | zero => exact (hzero hi huj hui).elim
         | succ j' =>
           simp only [runChoicesFrom, List.getElem_cons_succ] at hui huj
           exact congrArg Nat.succ
@@ -389,17 +377,12 @@ theorem mem_runMatching_iff (arrivals : List (Finset L)) (u : L) (j : Fin arriva
     (u, j) ∈ A.runMatching arrivals ↔
       (A.runChoices arrivals)[j.1]'(by simp [j.2]) = some u := by
   simp only [runMatching, Finset.mem_biUnion, Finset.mem_univ, true_and]
-  constructor
-  · rintro ⟨j', hj'⟩
-    cases h : (A.runChoices arrivals)[j'.1]'(by simp [j'.2]) with
-    | none => simp [h] at hj'
-    | some w =>
-      simp only [h, Finset.mem_singleton, Prod.mk.injEq] at hj'
-      rcases hj' with ⟨rfl, rfl⟩
-      exact h
-  · intro h
-    refine ⟨j, ?_⟩
-    simp [h]
+  refine ⟨fun ⟨j', hj'⟩ => ?_, fun h => ⟨j, by simp [h]⟩⟩
+  cases h : (A.runChoices arrivals)[j'.1]'(by simp [j'.2]) with
+  | none => simp [h] at hj'
+  | some w =>
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Finset.mem_singleton.mp (by simpa [h] using hj'))
+    exact h
 
 /-- Every deterministic online matching algorithm produces a valid matching on every arrival
 sequence. -/
@@ -601,21 +584,12 @@ private theorem detHardPrefix_card_le (k : ℕ) (A : DetAlg (Fin (2 * k))) (m : 
         simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte, add_zero]
         split_ifs <;> omega
       | some u =>
-        have hN₁ : N₁ = {u} := by simp [N₁, hc]
         have hnone : onlineStep (updateMatched matched (some u)) N₁
             (A.choose (pref ++ [N₀]) (updateMatched matched (some u)) N₁) = none := by
-          rw [hN₁]
-          simp only [updateMatched]
-          cases A.choose (pref ++ [N₀]) (insert u matched) {u} with
-          | none => rfl
-          | some w =>
-            simp only [onlineStep]
-            split_ifs with hw
-            · exfalso
-              have heq : w = u := Finset.mem_singleton.mp hw.1
-              rw [heq] at hw
-              exact hw.2 (Finset.mem_insert_self u matched)
-            · rfl
+          refine Option.eq_none_iff_forall_not_mem.mpr fun w hw => ?_
+          obtain ⟨-, hwN₁, hwm⟩ := onlineStep_eq_some_iff.mp hw
+          simp only [N₁, hc, Finset.mem_singleton, updateMatched, Finset.mem_insert] at hwN₁ hwm
+          exact hwm (Or.inl hwN₁)
         simp [hnone]
     omega
 
@@ -652,33 +626,47 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
     have hM₀'_card : M₀'.card = 2 * m := by
       rw [Finset.card_image_of_injective _ hlift_inj, hcard₀]
     have hpair : ∃ a₀ a₁ : Fin (2 * k),
-        a₀ ∈ N₀ ∧ a₁ ∈ N₁ ∧ a₀ ≠ a₁ ∧ 2 * m ≤ a₀.1 ∧ 2 * m ≤ a₁.1 ∧
-          a₀.1 < 2 * (m + 1) ∧ a₁.1 < 2 * (m + 1) := by
+        a₀ ∈ N₀ ∧ a₁ ∈ N₁ ∧ a₀ ≠ a₁ ∧
+          (2 * m ≤ a₀.1 ∧ a₀.1 < 2 * (m + 1)) ∧ (2 * m ≤ a₁.1 ∧ a₁.1 < 2 * (m + 1)) := by
       have hu₀_val : u₀.1 = 2 * m := by simp [u₀, pairVertex]
       have hu₁_val : u₁.1 = 2 * m + 1 := by simp [u₁, pairVertex]
       have hne : u₀ ≠ u₁ := fun h => by
         have := congrArg Fin.val h
         omega
+      have hbd {a : Fin (2 * k)} (ha : a = u₀ ∨ a = u₁) : 2 * m ≤ a.1 ∧ a.1 < 2 * (m + 1) := by
+        rcases ha with rfl | rfl <;> omega
       cases hc : c with
       | none =>
-        refine ⟨u₁, u₀, by simp [N₀], by simp [N₁, hc], hne.symm, by omega, by omega,
-          by omega, by omega⟩
+        exact ⟨u₁, u₀, by simp [N₀], by simp [N₁, hc], hne.symm, hbd (.inr rfl), hbd (.inl rfl)⟩
       | some u =>
-        have huN₀ : u ∈ N₀ := (onlineStep_eq_some_iff.mp hc).2.1
-        simp only [N₀, Finset.mem_insert, Finset.mem_singleton] at huN₀
-        rcases huN₀ with rfl | rfl
-        · exact ⟨u₁, u₀, by simp [N₀], by simp [N₁, hc], hne.symm, by omega, by omega,
-            by omega, by omega⟩
-        · exact ⟨u₀, u₁, by simp [N₀], by simp [N₁, hc], hne, by omega, by omega,
-            by omega, by omega⟩
-    obtain ⟨a₀, a₁, ha₀N₀, ha₁N₁, hne_a, ha₀_ge, ha₁_ge, ha₀_lt, ha₁_lt⟩ := hpair
+        rcases Finset.mem_insert.mp (onlineStep_eq_some_iff.mp hc).2.1 with rfl | hu
+        · exact ⟨u₁, u₀, by simp [N₀], by simp [N₁, hc], hne.symm, hbd (.inr rfl), hbd (.inl rfl)⟩
+        · obtain rfl := Finset.mem_singleton.mp hu
+          exact ⟨u₀, u₁, by simp [N₀], by simp [N₁, hc], hne, hbd (.inl rfl), hbd (.inr rfl)⟩
+    obtain ⟨a₀, a₁, ha₀N₀, ha₁N₁, hne_a, ⟨ha₀_ge, ha₀_lt⟩, ⟨ha₁_ge, ha₁_lt⟩⟩ := hpair
     let j₀ : Fin full.length := ⟨2 * m, by omega⟩
     let j₁ : Fin full.length := ⟨2 * m + 1, by omega⟩
-    have hnot₀ : ∀ x ∈ M₀, x.1 ≠ a₀ := fun x hx h => by
-      have := hlt₀ x hx
+    have hj₀_val : j₀.1 = 2 * m := rfl
+    have hj₁_val : j₁.1 = 2 * m + 1 := rfl
+    have hj_ne : j₀ ≠ j₁ := fun h => by
+      have := congrArg Fin.val h
       omega
-    have hnot₁ : ∀ x ∈ M₀, x.1 ≠ a₁ := fun x hx h => by
-      have := hlt₀ x hx
+    have hM₀'_lt {x : Fin (2 * k)} {v : Fin full.length} (h : (x, v) ∈ M₀') :
+        x.1 < 2 * m ∧ v.1 < 2 * m := by
+      obtain ⟨⟨u, j⟩, hj, heq⟩ := Finset.mem_image.mp h
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+      exact ⟨hlt₀ (u, j) hj, by dsimp [liftJ]; omega⟩
+    have ha₀_not {v} (h : (a₀, v) ∈ M₀') : False := by
+      have := (hM₀'_lt h).1
+      omega
+    have ha₁_not {v} (h : (a₁, v) ∈ M₀') : False := by
+      have := (hM₀'_lt h).1
+      omega
+    have hj₀_not {x} (h : (x, j₀) ∈ M₀') : False := by
+      have := (hM₀'_lt h).2
+      omega
+    have hj₁_not {x} (h : (x, j₁) ∈ M₀') : False := by
+      have := (hM₀'_lt h).2
       omega
     refine ⟨insert (a₀, j₀) (insert (a₁, j₁) M₀'), ?_, ?_, ?_⟩
     · refine ⟨?_, ?_, ?_⟩
@@ -695,81 +683,53 @@ private theorem detHardPrefix_exists_matching (k : ℕ) (A : DetAlg (Fin (2 * k)
           rw [List.getElem_append_left j.2]
           simpa [graphOfArrivals] using hM₀.1 (u, j) hj
       · intro u v₁ v₂ h₁ h₂
-        simp only [Finset.mem_insert, Finset.mem_image, M₀', Prod.mk.injEq] at h₁ h₂
-        rcases h₁ with ⟨hu₁, hv₁⟩ | ⟨hu₁, hv₁⟩ | ⟨⟨u₁', r₁⟩, hr₁, hu₁, hv₁⟩ <;>
-        rcases h₂ with ⟨hu₂, hv₂⟩ | ⟨hu₂, hv₂⟩ | ⟨⟨u₂', r₂⟩, hr₂, hu₂, hv₂⟩
-        · rw [hv₁, hv₂]
+        simp only [Finset.mem_insert, Prod.mk.injEq] at h₁ h₂
+        rcases h₁ with ⟨hu₁, hv₁⟩ | ⟨hu₁, hv₁⟩ | h₁ <;>
+        rcases h₂ with ⟨hu₂, hv₂⟩ | ⟨hu₂, hv₂⟩ | h₂
+        · exact hv₁.trans hv₂.symm
         · exact absurd (hu₁.symm.trans hu₂) hne_a
-        · exact absurd (hu₂.trans hu₁) (hnot₀ _ hr₂)
+        · exact (ha₀_not (hu₁ ▸ h₂)).elim
         · exact absurd (hu₂.symm.trans hu₁) hne_a
-        · rw [hv₁, hv₂]
-        · exact absurd (hu₂.trans hu₁) (hnot₁ _ hr₂)
-        · exact absurd (hu₁.trans hu₂) (hnot₀ _ hr₁)
-        · exact absurd (hu₁.trans hu₂) (hnot₁ _ hr₁)
-        · have hu_eq : u₁' = u₂' := hu₁.trans hu₂.symm
-          subst hu_eq
-          rw [← hv₁, ← hv₂]
-          exact congrArg liftJ (hM₀.2.1 u₁' r₁ r₂ hr₁ hr₂)
+        · exact hv₁.trans hv₂.symm
+        · exact (ha₁_not (hu₁ ▸ h₂)).elim
+        · exact (ha₀_not (hu₂ ▸ h₁)).elim
+        · exact (ha₁_not (hu₂ ▸ h₁)).elim
+        · obtain ⟨⟨u₁', r₁⟩, hr₁, heq₁⟩ := Finset.mem_image.mp h₁
+          obtain ⟨⟨u₂', r₂⟩, hr₂, heq₂⟩ := Finset.mem_image.mp h₂
+          obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq₁
+          obtain ⟨hu, rfl⟩ := Prod.mk.inj heq₂
+          subst hu
+          exact congrArg liftJ (hM₀.2.1 _ r₁ r₂ hr₁ hr₂)
       · intro x₁ x₂ v h₁ h₂
-        simp only [Finset.mem_insert, Finset.mem_image, M₀', Prod.mk.injEq] at h₁ h₂
-        rcases h₁ with ⟨hx₁, hv₁⟩ | ⟨hx₁, hv₁⟩ | ⟨⟨u₁', r₁⟩, hr₁, hx₁, hv₁⟩ <;>
-        rcases h₂ with ⟨hx₂, hv₂⟩ | ⟨hx₂, hv₂⟩ | ⟨⟨u₂', r₂⟩, hr₂, hx₂, hv₂⟩
-        · rw [hx₁, hx₂]
-        · exfalso
-          have := congrArg Fin.val (hv₁.symm.trans hv₂)
-          simp only [j₀, j₁] at this
-          omega
-        · exfalso
-          have := congrArg Fin.val (hv₂.trans hv₁)
-          simp only [j₀, liftJ] at this
-          omega
-        · exfalso
-          have := congrArg Fin.val (hv₁.symm.trans hv₂)
-          simp only [j₀, j₁] at this
-          omega
-        · rw [hx₁, hx₂]
-        · exfalso
-          have := congrArg Fin.val (hv₂.trans hv₁)
-          simp only [j₁, liftJ] at this
-          omega
-        · exfalso
-          have := congrArg Fin.val (hv₁.trans hv₂)
-          simp only [j₀, liftJ] at this
-          omega
-        · exfalso
-          have := congrArg Fin.val (hv₁.trans hv₂)
-          simp only [j₁, liftJ] at this
-          omega
-        · have hr : r₁ = r₂ := Fin.ext (by
-            have := congrArg Fin.val (hv₁.trans hv₂.symm)
-            simpa [liftJ] using this)
-          subst hr
-          rw [← hx₁, ← hx₂]
-          exact hM₀.2.2 u₁' u₂' r₁ hr₁ hr₂
-    · have hnot_in₁ : (a₁, j₁) ∉ M₀' := by
-        intro hm1
-        obtain ⟨⟨u, j⟩, _, heq⟩ := Finset.mem_image.mp hm1
-        have := congrArg Fin.val (Prod.mk.inj heq).2
-        simp only [liftJ, j₁] at this
-        omega
+        simp only [Finset.mem_insert, Prod.mk.injEq] at h₁ h₂
+        rcases h₁ with ⟨hx₁, hv₁⟩ | ⟨hx₁, hv₁⟩ | h₁ <;>
+        rcases h₂ with ⟨hx₂, hv₂⟩ | ⟨hx₂, hv₂⟩ | h₂
+        · exact hx₁.trans hx₂.symm
+        · exact absurd (hv₁.symm.trans hv₂) hj_ne
+        · exact (hj₀_not (hv₁ ▸ h₂)).elim
+        · exact absurd (hv₂.symm.trans hv₁) hj_ne
+        · exact hx₁.trans hx₂.symm
+        · exact (hj₁_not (hv₁ ▸ h₂)).elim
+        · exact (hj₀_not (hv₂ ▸ h₁)).elim
+        · exact (hj₁_not (hv₂ ▸ h₁)).elim
+        · obtain ⟨⟨u₁', r₁⟩, hr₁, heq₁⟩ := Finset.mem_image.mp h₁
+          obtain ⟨⟨u₂', r₂⟩, hr₂, heq₂⟩ := Finset.mem_image.mp h₂
+          obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq₁
+          obtain ⟨rfl, hv⟩ := Prod.mk.inj heq₂
+          have hr : r₁ = r₂ := Fin.ext (by simpa [liftJ] using congrArg Fin.val hv.symm)
+          exact hM₀.2.2 u₁' _ r₁ hr₁ (hr ▸ hr₂)
+    · have hnot_in₁ : (a₁, j₁) ∉ M₀' := hj₁_not
       have hnot_in₀ : (a₀, j₀) ∉ insert (a₁, j₁) M₀' := by
-        intro hm0
-        simp only [Finset.mem_insert, Prod.mk.injEq, Finset.mem_image, M₀'] at hm0
-        rcases hm0 with ⟨h, _⟩ | ⟨⟨u, j⟩, _, _, h⟩
-        · exact hne_a h
-        · have := congrArg Fin.val h
-          simp only [liftJ, j₀] at this
-          omega
+        rw [Finset.mem_insert, Prod.mk.injEq]
+        exact not_or.mpr ⟨fun h => hne_a h.1, hj₀_not⟩
       rw [Finset.card_insert_of_notMem hnot_in₀, Finset.card_insert_of_notMem hnot_in₁, hM₀'_card]
       omega
-    · intro e he
-      simp only [Finset.mem_insert, Finset.mem_image, M₀'] at he
-      rcases he with rfl | rfl | ⟨⟨u, j⟩, hx, rfl⟩
+    · rintro ⟨x, v⟩ he
+      simp only [Finset.mem_insert, Prod.mk.injEq] at he
+      rcases he with ⟨rfl, -⟩ | ⟨rfl, -⟩ | he
       · exact ha₀_lt
       · exact ha₁_lt
-      · have := hlt₀ (u, j) hx
-        dsimp at this ⊢
-        omega
+      · exact (hM₀'_lt he).1.trans (by omega)
 
 /-- **`2k + 2k` deterministic lower bound:** for every `k` and every deterministic online algorithm
 on `Fin (2 * k)`, there is an arrival sequence admitting a perfect matching of size `2 * k` on

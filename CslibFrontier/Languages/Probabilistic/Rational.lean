@@ -80,13 +80,15 @@ theorem coe_evalRat_eq_toReal_eval [DecidableEq α] (M : ProbComp α) (a : α) :
       Nat.cast_one, ENNReal.toReal_add (ENNReal.natCast_ne_top n) ENNReal.one_ne_top,
       ENNReal.toReal_natCast, ENNReal.toReal_one, Finset.mul_sum, ih]
 
+private theorem evalRat_eq_of_cast_eq [DecidableEq α] {M : ProbComp α} {a : α} {q : ℚ}
+    (h : (eval M a).toReal = q) : evalRat M a = q :=
+  Rat.cast_injective ((coe_evalRat_eq_toReal_eval M a).trans h)
+
 /-- Programs with equal `ProbComp.eval` distributions have equal rational probabilities at every
 outcome. -/
 theorem evalRat_eq_of_eval_eq [DecidableEq α] {M N : ProbComp α} (h : eval M = eval N) (a : α) :
-    evalRat M a = evalRat N a := by
-  have hR : ((evalRat M a : ℚ) : ℝ) = ((evalRat N a : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, coe_evalRat_eq_toReal_eval, h]
-  exact_mod_cast hR
+    evalRat M a = evalRat N a :=
+  evalRat_eq_of_cast_eq (h ▸ (coe_evalRat_eq_toReal_eval N a).symm)
 
 /-- Two closed `ProbComp` programs have the same `PMF` law if and only if they assign the same
 rational probability to every outcome. -/
@@ -102,38 +104,23 @@ theorem evalRat_nonneg [DecidableEq α] (M : ProbComp α) (a : α) : 0 ≤ evalR
   exact_mod_cast (coe_evalRat_eq_toReal_eval M a).symm ▸ ENNReal.toReal_nonneg
 
 theorem evalRat_le_one [DecidableEq α] (M : ProbComp α) (a : α) : evalRat M a ≤ 1 := by
-  have h : ((evalRat M a : ℚ) : ℝ) ≤ (1 : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval]
-    exact PMF.toReal_apply_le_one (eval M) a
-  exact_mod_cast h
+  exact_mod_cast (coe_evalRat_eq_toReal_eval M a).trans_le (PMF.toReal_apply_le_one (eval M) a)
 
 @[simp] theorem evalRat_unifFin (n : ℕ) (k : Fin (n + 1)) :
-    evalRat (unifFin n) k = ((n + 1 : ℚ))⁻¹ := by
-  have h : ((evalRat (unifFin n) k : ℚ) : ℝ) = ((((n + 1 : ℚ))⁻¹ : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, eval_unifFin, PMF.uniformOfFintype_apply, Fintype.card_fin,
-      ENNReal.toReal_inv, Nat.cast_add, Nat.cast_one,
-      ENNReal.toReal_add (ENNReal.natCast_ne_top n) ENNReal.one_ne_top, ENNReal.toReal_natCast,
-      ENNReal.toReal_one]
-    push_cast
-    rfl
-  exact_mod_cast h
+    evalRat (unifFin n) k = ((n + 1 : ℚ))⁻¹ :=
+  evalRat_eq_of_cast_eq <| by
+    simp [eval_unifFin, ENNReal.toReal_add (ENNReal.natCast_ne_top n) ENNReal.one_ne_top]
 
 @[simp] theorem evalRat_uniform [Fintype α] [Nonempty α] [DecidableEq α] (a : α) :
-    evalRat (ProbComp.uniform α) a = (Fintype.card α : ℚ)⁻¹ := by
-  have h : ((evalRat (ProbComp.uniform α) a : ℚ) : ℝ) = (((Fintype.card α : ℚ)⁻¹ : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, eval_uniform, PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast, Rat.cast_inv, Rat.cast_natCast]
-  exact_mod_cast h
+    evalRat (ProbComp.uniform α) a = (Fintype.card α : ℚ)⁻¹ :=
+  evalRat_eq_of_cast_eq <| by simp [eval_uniform]
 
 theorem evalRat_bind {β : Type} [Fintype α] [DecidableEq α] [DecidableEq β]
     (M : ProbComp α) (f : α → ProbComp β) (b : β) :
-    evalRat (M >>= f) b = ∑ a : α, evalRat M a * evalRat (f a) b := by
-  have h : ((evalRat (M >>= f) b : ℚ) : ℝ) =
-      ((∑ a : α, evalRat M a * evalRat (f a) b : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, eval_bind, PMF.bind_apply_toReal]
-    push_cast
-    simp only [coe_evalRat_eq_toReal_eval]
-  exact_mod_cast h
+    evalRat (M >>= f) b = ∑ a : α, evalRat M a * evalRat (f a) b :=
+  evalRat_eq_of_cast_eq <| by
+    rw [eval_bind, PMF.bind_apply_toReal]
+    simp [← coe_evalRat_eq_toReal_eval]
 
 theorem evalRat_map {β : Type} [Fintype α] [DecidableEq α] [DecidableEq β]
     (f : α → β) (M : ProbComp α) (b : β) :
@@ -154,16 +141,10 @@ theorem eval_bernoulliRat_true (p : ℚ) :
     eval (bernoulliRat p) true =
       ((min (max p 0) 1).num.toNat : ℝ≥0∞) / (min (max p 0) 1).den := by
   set q := min (max p 0) 1
-  have hq0 : 0 ≤ q := le_min (le_max_right p 0) zero_le_one
-  have hq1 : q ≤ 1 := min_le_right (max p 0) 1
-  have hnum0 : 0 ≤ q.num := Rat.num_nonneg.mpr hq0
-  have hden_pos : (0 : ℝ) < q.den := by exact_mod_cast q.den_pos
-  have hnum_le_real : (q.num : ℝ) ≤ q.den := by
-    have hqr : (q : ℝ) ≤ 1 := by exact_mod_cast hq1
-    have hdiv : (q.num : ℝ) / q.den ≤ 1 := by simpa [Rat.cast_def] using hqr
-    exact (div_le_one hden_pos).mp hdiv
-  have hnum_le_int : q.num ≤ q.den := by exact_mod_cast hnum_le_real
-  have hnum_le : q.num.toNat ≤ q.den := by omega
+  have hnum_le : q.num.toNat ≤ q.den := by
+    have h1 : (q.num : ℚ) / q.den ≤ 1 := q.num_div_den.symm ▸ min_le_right (max p 0) 1
+    have h2 : q.num ≤ q.den := by exact_mod_cast (div_le_one (Nat.cast_pos.mpr q.den_pos)).mp h1
+    omega
   let _ : NeZero q.den := ⟨q.den_pos.ne'⟩
   have hcast :
       eval (Fin.cast (Nat.sub_add_cancel q.den_pos) <$> unifFin (q.den - 1)) =
@@ -179,11 +160,9 @@ theorem eval_bernoulliRat_true (p : ℚ) :
 theorem toReal_eval_bernoulliRat_true (p : ℚ) :
     (eval (bernoulliRat p) true).toReal = min (max (p : ℝ) 0) 1 := by
   set q := min (max p 0) 1
-  have hq0 : 0 ≤ q := le_min (le_max_right p 0) zero_le_one
-  have hnum0 : 0 ≤ q.num := Rat.num_nonneg.mpr hq0
-  rw [eval_bernoulliRat_true, ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast]
-  have hcast_n : (q.num.toNat : ℝ) = (q.num : ℝ) := by exact_mod_cast Int.toNat_of_nonneg hnum0
-  rw [hcast_n, ← Rat.cast_def]
+  have hnum0 : 0 ≤ q.num := Rat.num_nonneg.mpr (le_min (le_max_right p 0) zero_le_one)
+  rw [eval_bernoulliRat_true, ENNReal.toReal_div, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
+    show (q.num.toNat : ℝ) = q.num by exact_mod_cast Int.toNat_of_nonneg hnum0, ← Rat.cast_def]
   simp [q]
 
 theorem toReal_eval_bernoulliRat_true_of_mem_Icc {p : ℚ} (hp0 : 0 ≤ p) (hp1 : p ≤ 1) :
@@ -212,30 +191,17 @@ theorem toReal_eval_bernoulliRat_false (p : ℚ) :
   rw [PMF.toReal_false_eq_one_sub, toReal_eval_bernoulliRat_true]
 
 @[simp] theorem evalRat_bernoulliRat_true (p : ℚ) :
-    evalRat (bernoulliRat p) true = min (max p 0) 1 := by
-  have h : ((evalRat (bernoulliRat p) true : ℚ) : ℝ) = ((min (max p 0) 1 : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, toReal_eval_bernoulliRat_true]
-    simp
-  exact_mod_cast h
+    evalRat (bernoulliRat p) true = min (max p 0) 1 :=
+  evalRat_eq_of_cast_eq <| by simp [toReal_eval_bernoulliRat_true]
 
 @[simp] theorem evalRat_bernoulliRat_false (p : ℚ) :
-    evalRat (bernoulliRat p) false = 1 - min (max p 0) 1 := by
-  have h : ((evalRat (bernoulliRat p) false : ℚ) : ℝ) = ((1 - min (max p 0) 1 : ℚ) : ℝ) := by
-    rw [coe_evalRat_eq_toReal_eval, toReal_eval_bernoulliRat_false]
-    simp
-  exact_mod_cast h
+    evalRat (bernoulliRat p) false = 1 - min (max p 0) 1 :=
+  evalRat_eq_of_cast_eq <| by simp [toReal_eval_bernoulliRat_false]
 
 /-- When `1 ≤ p`, `bernoulliRat p` outputs `true` with probability `1`. -/
 theorem eval_bernoulliRat_of_one_le {p : ℚ} (hp : 1 ≤ p) :
     eval (bernoulliRat p) = PMF.pure true := by
-  have hpR : (1 : ℝ) ≤ (p : ℝ) := by exact_mod_cast hp
-  have hmax : max (p : ℝ) 0 = p := max_eq_left (zero_le_one.trans hpR)
-  have hmin : min (max (p : ℝ) 0) 1 = 1 := by rw [hmax]; exact min_eq_right hpR
-  ext b
-  rw [← ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
-  cases b
-  · rw [toReal_eval_bernoulliRat_false, hmin, sub_self, ENNReal.ofReal_zero, PMF.pure_apply,
-      ite_eq_right Bool.false_ne_true]
-  · rw [toReal_eval_bernoulliRat_true, hmin, ENNReal.ofReal_one, PMF.pure_apply, ite_eq_left rfl]
+  rw [← eval_pure, eval_eq_iff_evalRat_eq]
+  rintro (_ | _) <;> simp [max_eq_left (zero_le_one.trans hp), min_eq_right hp]
 
 end Cslib.ProbComp

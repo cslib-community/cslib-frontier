@@ -83,28 +83,24 @@ private theorem loop (t : BinaryTree (Label M extra)) (x : State M (layout extra
     refine Program.WP.loopUntil_iter (by simp [pm_simps, cursor, nil, root]) ?_
     by_cases less : x.data 0 < a.data 0
     · pm_exec [searchStep, read, record, compare, less]
-      refine (il _ (some a.address) (by exact rep.2.1) ?_ ?_).mono ?_
-      · simp
-      · simp [nil]
+      refine (il _ (some a.address) (by exact rep.2.1) (by simp) (by simp [nil])).mono ?_
       rintro y n ⟨time, found, key⟩
-      refine ⟨?_, ?_, fun b hb => ?_⟩
+      refine ⟨?_, by simpa [keys, BinaryTree.map, contains, less] using found, fun b hb => ?_⟩
       · simp only [keys, BinaryTree.map, searchVisits, less, ↓reduceIte] at time ⊢
         simp at time
         omega
-      · simpa [keys, BinaryTree.map, contains, less] using found
       · obtain ⟨path, label, get, address, same⟩ := key b hb
         exact ⟨.bit0 path, label, get, address, by simpa using same⟩
     · by_cases greater : a.data 0 < x.data 0
       · pm_exec [searchStep, read, record, compare, less, greater]
-        refine (ir _ (some a.address) (by exact rep.2.2) ?_ ?_).mono ?_
-        · simp
-        · simp [nil]
+        refine (ir _ (some a.address) (by exact rep.2.2) (by simp)
+          (by simp [nil])).mono ?_
         rintro y n ⟨time, found, key⟩
-        refine ⟨?_, ?_, fun b hb => ?_⟩
+        refine ⟨?_, by simpa [keys, BinaryTree.map, contains, less, greater] using found,
+          fun b hb => ?_⟩
         · simp only [keys, BinaryTree.map, searchVisits, less, greater, ↓reduceIte] at time ⊢
           simp at time
           omega
-        · simpa [keys, BinaryTree.map, contains, less, greater] using found
         · obtain ⟨path, label, get, address, same⟩ := key b hb
           exact ⟨.bit1 path, label, get, address, by simpa using same⟩
       · pm_exec [searchStep, read, record, compare, less, greater]

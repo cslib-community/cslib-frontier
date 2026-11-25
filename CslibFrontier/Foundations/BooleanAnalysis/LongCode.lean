@@ -258,16 +258,12 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
       revert hgi
       change g i ≤ f i → ((f i && h i) = g i ↔ (h i + g i) ≤ !f i)
       cases f i <;> cases g i <;> cases h i <;> decide
-    refine Finset.card_bij (fun h _ => h + g) (fun h hh => (hiff h).1 (mem_filter.1 hh).2)
-      (fun h₁ _ h₂ _ h12 => add_right_cancel h12) (fun k hk => ⟨k + g, ?_, ?_⟩)
-    · refine mem_filter.2 ⟨mem_univ _, (hiff (k + g)).2 ?_⟩
-      convert hk using 1
-      ext i
+    have hkg (k : α → Bool) : k + g + g = k := funext fun i => by
       change (k i + g i) + g i = k i
       cases k i <;> cases g i <;> rfl
-    · ext i
-      change (k i + g i) + g i = k i
-      cases k i <;> cases g i <;> rfl
+    exact Finset.card_bij (fun h _ => h + g) (fun h hh => (hiff h).1 (mem_filter.1 hh).2)
+      (fun _ _ _ _ h12 => add_right_cancel h12)
+      (fun k hk => ⟨k + g, mem_filter.2 ⟨mem_univ _, (hiff (k + g)).2 ((hkg k).symm ▸ hk)⟩, hkg k⟩)
   have hcard : #S * #T = #(univ : Finset (α → Bool)) := by
     rw [← sum_const_nat hfiber, sum_card_fiberwise_eq_card_filter]
     exact congrArg Finset.card (filter_true_of_mem hmaps)
@@ -378,14 +374,11 @@ theorem longCodeSubcubeProb_le_of_linear {B : (α → Bool) → Bool}
     longCodeSubcubeProb B ≤ 7 / 8 := by
   obtain ⟨s, rfl⟩ := exists_eq_hadamardCode_iff.2 hlin
   refine longCodeSubcubeProb_hadamardCode_le ?_
-  have hs0 : ∃ x, s x = true := by
+  obtain ⟨x, hx⟩ : ∃ x, s x = true := by
     by_contra! h
-    apply hB0
     have hs : s = 0 := funext fun x => Bool.eq_false_iff.2 (h x)
-    subst hs
-    exact funext fun a => zero_dotProduct a
-  obtain ⟨x, hx⟩ := hs0
-  have hsx : ∃ y, y ≠ x ∧ s y = true := by
+    exact hB0 (hs ▸ funext zero_dotProduct)
+  obtain ⟨y, hyx, hy⟩ : ∃ y, y ≠ x ∧ s y = true := by
     by_contra! h
     apply hnotLC x
     rw [longCode_eq_hadamardCode]
@@ -395,13 +388,11 @@ theorem longCodeSubcubeProb_le_of_linear {B : (α → Bool) → Bool}
     · subst hyx
       simp [hx]
     · simp [Pi.single_eq_of_ne hyx, Bool.zero_eq_false, Bool.eq_false_iff.2 (h y hyx)]
-  obtain ⟨y, hyx, hy⟩ := hsx
   rw [← card_pair hyx.symm]
-  refine card_le_card fun z hz => ?_
+  refine card_le_card fun z hz => mem_filter.2 ⟨mem_univ _, ?_⟩
   rcases mem_insert.1 hz with rfl | hz
-  · exact mem_filter.2 ⟨mem_univ _, hx⟩
-  · rw [mem_singleton.1 hz]
-    exact mem_filter.2 ⟨mem_univ _, hy⟩
+  · exact hx
+  · exact mem_singleton.1 hz ▸ hy
 
 end SubcubeTest
 

@@ -57,10 +57,10 @@ theorem friIOP_rbrSound [DecidableEq F] (params : FRIParams F) (e : ℕ) :
       ((friSmoothIOP_rbrSound params.toSmooth e).step_doomed stmt pref π c
         ((friDoomed_iff_friSmoothDoomed params _ stmt pref).mp hdoomed)
         ((friGoodStep_iff_friSmoothGoodStep params _ stmt pref π c).mp hgood))
-  reject_of_doomed stmt oracles chals hdoomed := by
-    rw [friIOP_eq_friSmoothIOP]
-    exact (friSmoothIOP_rbrSound params.toSmooth e).reject_of_doomed stmt oracles chals
-      ((friDoomed_iff_friSmoothDoomed params _ stmt _).mp hdoomed)
+  reject_of_doomed stmt oracles chals hdoomed :=
+    friIOP_eq_friSmoothIOP params ▸
+      (friSmoothIOP_rbrSound params.toSmooth e).reject_of_doomed stmt oracles chals
+        ((friDoomed_iff_friSmoothDoomed params _ stmt _).mp hdoomed)
 
 /-- When `pref.length = m` and `pref` is doomed at threshold `B`, at most `B` starting points in
 `Fin (2 ^ d)` pass `friFinalPasses` against any final oracle `π`. -/
@@ -70,9 +70,10 @@ theorem card_filter_friFinalPasses_le_of_friDoomed [DecidableEq F] (params : FRI
     (hlen : pref.length = params.m) (π : OracleTable params.d F)
     (hdoomed : friDoomed params B stmt pref) :
     (Finset.univ.filter fun s => friFinalPasses params stmt pref π s).card ≤ B := by
-  rw [Finset.filter_congr fun s _ => friFinalPasses_iff_friSmoothFinalPasses params stmt pref π s]
-  exact card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params.toSmooth hlen π
-    ((friDoomed_iff_friSmoothDoomed params B stmt pref).mp hdoomed)
+  simpa only [Finset.filter_congr fun s _ =>
+    friFinalPasses_iff_friSmoothFinalPasses params stmt pref π s] using
+    card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params.toSmooth hlen π
+      ((friDoomed_iff_friSmoothDoomed params B stmt pref).mp hdoomed)
 
 /-- **Unconditional binary query-round escape bound** (corollary of
 `friSmoothQueryRound_escape_le`). -/
@@ -84,9 +85,9 @@ theorem friQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIParams 
     (PMF.uniformOfFintype (FRIChal F params.d params.q)).toOuterMeasure
         {c | ¬ friGoodStep params B stmt pref π c} ≤
       ((B : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q := by
-  rw [setOf_not_friGoodStep_eq]
-  exact friSmoothQueryRound_escape_le params.toSmooth B stmt pref hlen π
-    ((friDoomed_iff_friSmoothDoomed params B stmt pref).mp hdoomed)
+  simpa only [setOf_not_friGoodStep_eq] using
+    friSmoothQueryRound_escape_le params.toSmooth B stmt pref hlen π
+      ((friDoomed_iff_friSmoothDoomed params B stmt pref).mp hdoomed)
 
 /-- Every integer per-round bad-scalar bound `WeightedLineGapPerRound params B B_commit` induces a
 per-round escape-probability bound `ε_commit i = B_commit i / |F|`. -/
@@ -291,23 +292,20 @@ theorem FRIParams.dim_le_domainSize (params : FRIParams F) {r : ℕ} (hr : r ≤
 theorem FRIParams.sum_domainSize_succ (params : FRIParams F) :
     (∑ i : Fin params.m, 2 ^ (params.d - (i.val + 1))) =
       2 ^ params.d - 2 ^ (params.d - params.m) := by
-  have h := params.toSmooth.sum_arity_sub_one_mul_domainSize
-  rw [params.toSmooth_totalLog] at h
-  rw [← h]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  simp only [FRISmoothParams.arity, pow_one, Nat.reduceSub, one_mul,
-    params.toSmooth_domainSize i.isLt]
+  refine (Finset.sum_congr rfl fun i _ => ?_).trans
+    (by simpa only [params.toSmooth_totalLog] using
+      params.toSmooth.sum_arity_sub_one_mul_domainSize)
+  simp [FRISmoothParams.arity, params.toSmooth_domainSize i.isLt]
 
 /-- Transport the initial unique-decoding bound `2 * e + params.dim 0 ≤ 2 ^ params.d` to the
 scaled round-`(i + 1)` unique-decoding bound. -/
 theorem FRIParams.two_mul_div_add_dim_le (params : FRIParams F) {e : ℕ}
     (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) (i : Fin params.m) :
     2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) := by
-  have huniq' : 2 * e + params.toSmooth.dim 0 ≤ 2 ^ params.toSmooth.d := by
-    simpa only [params.toSmooth_dim (Nat.zero_le params.m)] using huniq
   simpa only [params.toSmooth_cumLog i.isLt, params.toSmooth_dim i.isLt,
     params.toSmooth_domainSize i.isLt] using
-    params.toSmooth.two_mul_div_add_dim_le huniq' i
+    params.toSmooth.two_mul_div_add_dim_le
+      (by simpa only [params.toSmooth_dim (Nat.zero_le params.m)] using huniq) i
 
 
 end BinarySoundnessCorollaries

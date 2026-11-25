@@ -77,22 +77,13 @@ def exSets {m : ℕ} : {n : ℕ} → Formula α m n → Formula α m 0
     (exSets φ).Realize w v V ↔ ∃ W : Fin n → Set (Fin ℓ), φ.Realize w v W := by
   induction n with
   | zero =>
-    have hV : V = Fin.elim0 := funext fun X => X.elim0
     refine ⟨fun h => ⟨V, h⟩, fun ⟨W, h⟩ => ?_⟩
-    have hW : W = Fin.elim0 := funext fun X => X.elim0
-    rw [hV]
-    rw [hW] at h
-    exact h
+    rwa [Subsingleton.elim V W]
   | succ n ih =>
     rw [exSets, ih]
     simp only [realize_exSet]
-    constructor
-    · rintro ⟨W, S, h⟩
-      exact ⟨_, h⟩
-    · rintro ⟨W, h⟩
-      refine ⟨Fin.init W, W (Fin.last n), ?_⟩
-      rw [Fin.snoc_init_self]
-      exact h
+    exact ⟨fun ⟨_, _, h⟩ => ⟨_, h⟩,
+      fun ⟨W, h⟩ => ⟨Fin.init W, W (Fin.last n), by rwa [Fin.snoc_init_self]⟩⟩
 
 end Formula
 
@@ -155,15 +146,8 @@ theorem dfaSentence_language : (dfaSentence M).language = M.accepts := by
   by_cases hw : w.length = 0
   · have hno : ¬ ∃ _ : Fin w.length, True := fun ⟨i, _⟩ => absurd i.isLt (by omega)
     have he : M.eval w = M.start := by rw [List.eq_nil_of_length_eq_zero hw, DFA.eval_nil]
-    rw [he]
-    constructor
-    · rintro ⟨h, -⟩
-      by_contra hs
-      have h' := h hno
-      simp only [hs, ↓reduceIte, realize_falsum] at h'
-    · intro hs
-      refine ⟨fun _ => ?_, fun h => absurd h hno⟩
-      simp only [hs, ↓reduceIte, realize_top]
+    rw [he, imp_iff_right hno, and_iff_left fun h => absurd h hno]
+    split_ifs with hs <;> simp [hs]
   · have hyes : ∃ _ : Fin w.length, True := ⟨⟨0, by omega⟩, trivial⟩
     constructor
     · rintro ⟨-, h⟩
@@ -174,14 +158,10 @@ theorem dfaSentence_language : (dfaSentence M).language = M.accepts := by
           (⟨i, hi⟩ : Fin w.length) ∈ W (X (M.eval (w.take (i + 1)))) := by
         intro i
         induction i with
-        | zero =>
-          intro hi
-          rw [eval_take_one M w hi]
-          exact hinit ⟨0, hi⟩ rfl w[0] rfl
+        | zero => exact fun hi => eval_take_one M w hi ▸ hinit ⟨0, hi⟩ rfl w[0] rfl
         | succ i ih =>
-          intro hi
-          rw [eval_take_succ_succ M w i hi]
-          exact htrans ⟨i, by omega⟩ ⟨i + 1, hi⟩ rfl _ _ (ih (by omega)) rfl
+          exact fun hi => eval_take_succ_succ M w i hi ▸
+            htrans ⟨i, by omega⟩ ⟨i + 1, hi⟩ rfl _ _ (ih (by omega)) rfl
       by_contra hacc
       have hlast := run (w.length - 1) (by omega)
       rw [Nat.sub_add_cancel (by omega), List.take_length] at hlast
@@ -189,29 +169,17 @@ theorem dfaSentence_language : (dfaSentence M).language = M.accepts := by
     · intro hacc
       refine ⟨fun h => absurd hyes h, fun _ => ?_⟩
       refine ⟨fun c => {i | X (M.eval (w.take (i + 1))) = c}, ?_, ?_, ?_⟩
-      · intro i hi a ha
-        change X (M.eval (w.take (i + 1))) = X (M.step M.start a)
-        rw [hX]
-        have hi0 : (i : ℕ) = 0 := hi
-        obtain ⟨i, hi'⟩ := i
-        simp only at hi0
-        subst hi0
-        rw [eval_take_one M w hi', ← ha]
-        rfl
-      · intro i j hij q a hq ha
-        change X (M.eval (w.take (j + 1))) = X (M.step q a)
-        change X (M.eval (w.take (i + 1))) = X q at hq
-        rw [hX] at hq ⊢
-        obtain ⟨j, hj⟩ := j
-        simp only at hij
-        subst hij
-        rw [eval_take_succ_succ M w i hj, hq, ← ha]
-        rfl
+      · rintro ⟨i, hi'⟩ hi a rfl
+        obtain rfl : i = 0 := hi
+        exact congrArg X (eval_take_one M w hi')
+      · rintro i ⟨j, hj⟩ hij q a hq rfl
+        obtain rfl : j = i + 1 := hij
+        obtain rfl := (hX _ _).1 hq
+        exact congrArg X (eval_take_succ_succ M w i hj)
       · intro i hi q hq hmem
-        change X (M.eval (w.take (i + 1))) = X q at hmem
-        rw [hX] at hmem
-        rw [hi, List.take_length] at hmem
-        exact hq (hmem ▸ hacc)
+        obtain rfl := (hX _ _).1 hmem
+        rw [hi, List.take_length] at hq
+        exact hq hacc
 
 end DFA
 
@@ -260,26 +228,18 @@ theorem evenSentence_language : (evenSentence : Sentence α).language = {w | Eve
         rw [Nat.even_add_one, ← ih (by omega)]
         exact ⟨fun hs hs' => h.1 hs' hs, fun hs => h.2 hs⟩
     rcases Nat.eq_zero_or_pos w.length with h0 | hpos
-    · rw [h0]
-      exact ⟨0, rfl⟩
-    · have h := key (w.length - 1) (by omega)
-      have hn := hlast ⟨w.length - 1, by omega⟩ (by simp only; omega)
-      rw [h] at hn
-      have : w.length = w.length - 1 + 1 := by omega
-      rw [this, Nat.even_add_one]
-      exact hn
+    · exact h0 ▸ ⟨0, rfl⟩
+    · have hn := hlast ⟨w.length - 1, by omega⟩ (by simp only; omega)
+      rw [key (w.length - 1) (by omega)] at hn
+      rwa [show w.length = w.length - 1 + 1 by omega, Nat.even_add_one]
   · intro heven
     refine ⟨{i | Even (i : ℕ)}, fun i hi => ?_, fun i j hij => ?_, fun i hi => ?_⟩
-    · change Even (i : ℕ)
-      rw [hi]
-      exact ⟨0, rfl⟩
+    · exact show Even (i : ℕ) from hi ▸ ⟨0, rfl⟩
     · change (Even (i : ℕ) → ¬ Even (j : ℕ)) ∧ (¬ Even (i : ℕ) → Even (j : ℕ))
       rw [hij, Nat.even_add_one]
       exact ⟨fun h h' => h' h, fun h => h⟩
     · change ¬ Even (i : ℕ)
-      have : w.length = (i : ℕ) + 1 := hi.symm
-      rw [this, Nat.even_add_one] at heven
-      exact heven
+      rwa [← hi, Nat.even_add_one] at heven
 
 /-- The words of even length form an MSO-definable language, over any alphabet. -/
 theorem definable_even : Definable {w : List α | Even w.length} :=

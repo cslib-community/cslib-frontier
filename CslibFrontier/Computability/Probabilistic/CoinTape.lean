@@ -102,17 +102,12 @@ theorem IsPPTOn.exists_total_seeded_evaluator (h : IsPPTOn input output program)
   obtain ⟨c, d, raw, hraw, hlaw⟩ := h.exists_polyTime_coin_evaluator
   let budget (a : α) := c * ((input a).length + 1) ^ d
   let tape (a : α) (coins : List Bool) := (coins ++ List.replicate (budget a) true).take (budget a)
-  have hlength (a : α) (coins : List Bool) : (tape a coins).length = budget a := by
-    simp [tape]
   have hvalid (a : α) (coins : List Bool) : ∃ result,
       result ∈ (ProbComp.eval (program a)).support ∧
         output result = raw (tape a coins) (input a) := by
-    have hs : raw (tape a coins) (input a) ∈
-        ((BitString.uniformList (budget a)).map (fun seed => raw seed (input a))).support :=
-      (PMF.mem_support_map_iff _ _ _).mpr
-        ⟨tape a coins, BitString.mem_support_uniformList_iff.mpr (hlength a coins), rfl⟩
-    rw [← hlaw a] at hs
-    exact (PMF.mem_support_map_iff _ _ _).mp hs
+    have hlen : (tape a coins).length = budget a := by simp [tape]
+    rw [← PMF.mem_support_map_iff, hlaw a, PMF.mem_support_map_iff]
+    exact ⟨tape a coins, BitString.mem_support_uniformList_iff.mpr hlen, rfl⟩
   let evaluate (a : α) (coins : List Bool) := (hvalid a coins).choose
   have hencode (a : α) (coins : List Bool) :
       output (evaluate a coins) = raw (tape a coins) (input a) := (hvalid a coins).choose_spec.2
@@ -136,12 +131,11 @@ theorem IsPPTOn.exists_total_seeded_evaluator (h : IsPPTOn input output program)
     rw [hlaw, PMF.map_comp, ← BitString.uniformList_take hbudget, PMF.map_comp]
     apply PMF.bind_congr_on_support
     intro coins hcoins
-    change PMF.pure (raw (coins.take (budget a)) (input a)) =
-      PMF.pure (output (evaluate a coins))
-    congr 1
-    have hcoinsLength := BitString.length_of_mem_support_uniformList hcoins
-    simp only [hencode, tape, List.take_append_of_le_length
-      (show budget a ≤ coins.length by simpa only [budget, hcoinsLength] using hbudget)]
+    have hle : budget a ≤ coins.length := by
+      simpa only [budget, BitString.length_of_mem_support_uniformList hcoins] using hbudget
+    change PMF.pure (raw (coins.take (budget a)) (input a)) = PMF.pure (output (evaluate a coins))
+    rw [hencode]
+    simp only [tape, List.take_append_of_le_length hle]
 
 /-- The exact-budget specialization of the total seeded evaluator. -/
 theorem IsPPTOn.exists_seeded_evaluator (h : IsPPTOn input output program) :

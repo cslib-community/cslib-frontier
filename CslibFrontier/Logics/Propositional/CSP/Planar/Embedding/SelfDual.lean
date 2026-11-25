@@ -52,17 +52,11 @@ theorem exists_disequality_of_common_not
   have hex : ∃ n, Q n := ⟨arity r, booleanRelation arity sem r, PPGadget.atom r,
     ⟨Witness.atom arity sem r⟩, hr, hz⟩
   obtain ⟨S, g, ⟨w⟩, ⟨a, ha⟩, hz⟩ := Nat.find_spec hex
-  have hn : Nat.find hex ≠ 0 := by
-    intro hn
-    have he : a = 0 := by
-      funext i
-      exact (by have hi := i.isLt; omega : False).elim
-    exact hz (he ▸ ha)
+  have hn : Nat.find hex ≠ 0 := fun hn =>
+    hz ((show a = 0 from funext fun i => absurd i.isLt (by omega)) ▸ ha)
   obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero hn
   generalize hk : Nat.find hex = k at *
-  have hfind : Nat.find hex = n + 1 := hk.trans hn
-  clear hk
-  subst k
+  subst hn
   have hp (j : Fin (n + 1)) : (0 : Fin n → Bool) ∈ project S j := by
     by_contra hzero
     have hnew : Q n := ⟨project S j, g.project j, ⟨w.project j⟩,
@@ -97,32 +91,16 @@ theorem exists_disequality_of_common_not
     have hnew : Q (k + 2) := ⟨adjacent S false, g.equalDrop, ⟨w.equalDrop⟩, hne, hzero⟩
     exact (Nat.find_min hex (by omega : k + 2 < Nat.find hex)) hnew
   have hself := g.isPolymorphism hnot
-  have hn1 : n = 1 := by
-    by_cases hn0 : n = 0
-    · subst n
-      have hh := hself (fun _ => Pi.single (0 : Fin 1) true) (fun _ => hu 0)
-      have he : (fun i : Fin 1 => !((Pi.single (0 : Fin 1) true : Fin 1 → Bool) i)) = 0 := by
-        decide
-      exact (hz (he ▸ hh)).elim
+  obtain rfl : n = 1 := by
+    rcases Nat.eq_zero_or_pos n with rfl | _
+    · exact (hz (by convert hself (fun _ => Pi.single 0 true) (fun _ => hu 0) using 1; decide)).elim
     · omega
-  subst n
-  have hones : (fun _ : Fin 2 => true) ∉ S := by
-    intro hm
-    have hh := hself (fun _ => fun _ => true) (fun _ => hm)
-    exact hz hh
-  have hff : (![false, false] : Fin 2 → Bool) ∉ S := by
-    simpa only [show (![false, false] : Fin 2 → Bool) = 0 by decide] using hz
-  have htt : (![true, true] : Fin 2 → Bool) ∉ S := by
-    simpa only [show (![true, true] : Fin 2 → Bool) = (fun _ => true) by decide] using hones
-  have htf : (![true, false] : Fin 2 → Bool) ∈ S := by
-    simpa only [show (Pi.single (0 : Fin 2) true) = ![true, false] by decide] using hu 0
-  have hft : (![false, true] : Fin 2 → Bool) ∈ S := by
-    simpa only [show (Pi.single (1 : Fin 2) true) = ![false, true] by decide] using hu 1
+  have hones : (fun _ : Fin 2 => true) ∉ S := fun hm => hz (hself (fun _ _ => true) fun _ => hm)
   have he : S = disequality := by
     ext x
-    have hx : x = ![x 0, x 1] := by ext i; fin_cases i <;> rfl
-    rw [hx]
-    cases x 0 <;> cases x 1 <;> simp [disequality, hff, htt, htf, hft]
+    obtain rfl | rfl | rfl | rfl : x = 0 ∨ x = Pi.single 0 true ∨ x = Pi.single 1 true ∨
+        x = fun _ => true := by revert x; decide
+    all_goals simp [disequality, hz, hones, hu]
   subst S
   exact ⟨g, ⟨w⟩⟩
 

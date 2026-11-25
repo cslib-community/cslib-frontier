@@ -48,8 +48,7 @@ private theorem foldlM_rank_le {α : Type} (rank : α → ℕ) (d j : ℕ)
   induction j generalizing a b with
   | zero =>
     simp only [Fin.foldlM_zero, List.pure_def, List.mem_singleton] at hb
-    subst b
-    simp
+    simp [hb]
   | succ j ih =>
     simp only [Fin.foldlM_succ_last, List.bind_eq_flatMap, List.mem_flatMap] at hb
     obtain ⟨c, hc, hb⟩ := hb
@@ -62,13 +61,9 @@ private theorem predecessorStep_le {n : ℕ} (edge : Fin n → Fin n → List Bo
     (member : Fin n → List Bool) (v u : Fin n) (c b : ℕ)
     (hb : b ∈ predecessorStep edge member v c u) : b ≤ c + 1 := by
   simp only [predecessorStep, List.bind_eq_flatMap, List.mem_flatMap] at hb
-  obtain ⟨e, _, hb⟩ := hb
-  cases e with
-  | false =>
-    simp only [Bool.false_eq_true, ↓reduceIte, List.pure_def, List.mem_singleton] at hb
-    omega
-  | true =>
-    simp only [↓reduceIte, List.mem_flatMap] at hb
+  obtain ⟨_ | _, _, hb⟩ := hb
+  · simp only [Bool.false_eq_true, ↓reduceIte, List.pure_def, List.mem_singleton] at hb; omega
+  · simp only [↓reduceIte, List.mem_flatMap] at hb
     obtain ⟨hit, _, hb⟩ := hb
     cases hit <;> simp_all
 
@@ -87,19 +82,14 @@ private theorem scanVertex_le {n : ℕ} (edge : Fin n → Fin n → List Bool)
     b.tally.count ≤ a.tally.count + 1 ∧
       b.tally.lengthSum ≤ a.tally.lengthSum + (k + 1) := by
   simp only [scanVertex, List.bind_eq_flatMap, List.mem_flatMap] at hb
-  obtain ⟨hit, _, hb⟩ := hb
-  cases hit with
-  | true =>
-    simp only [↓reduceIte, List.pure_def, List.mem_singleton] at hb
-    subst b
-    simp
-  | false =>
-    simp only [Bool.false_eq_true, ↓reduceIte, List.mem_flatMap] at hb
-    obtain ⟨p, _, hb⟩ := hb
-    simp only [List.pure_def, List.mem_singleton] at hb
-    subst b
+  obtain ⟨_ | _, _, hb⟩ := hb
+  · simp only [Bool.false_eq_true, ↓reduceIte, List.mem_flatMap, List.pure_def,
+      List.mem_singleton] at hb
+    obtain ⟨_, _, rfl⟩ := hb
     unfold RoundUpdate.addVertex
     split <;> simp
+  · simp only [↓reduceIte, List.pure_def, List.mem_singleton] at hb
+    simp [hb]
 
 /-- All scalar outer-loop prefixes are bounded without assuming correct membership, absence
 of ties, or eventual success. The index map can select the increasing initial segment. -/
@@ -107,21 +97,20 @@ theorem scanVertex_prefix_bounds {n j : ℕ} (edge : Fin n → Fin n → List Bo
     (member : Fin n → List Bool) (k : ℕ) (index : Fin j → Fin n) (a b : RoundUpdate)
     (hb : b ∈ Fin.foldlM j (fun a i => scanVertex edge member k a (index i)) a) :
     b.tally.count ≤ a.tally.count + j ∧
-      b.tally.lengthSum ≤ a.tally.lengthSum + j * (k + 1) := by
-  constructor
-  · simpa using foldlM_rank_le (fun a : RoundUpdate => a.tally.count) 1 j _ a b
-      (fun a i b h => (scanVertex_le edge member k a b (index i) h).1) hb
-  · exact foldlM_rank_le (fun a : RoundUpdate => a.tally.lengthSum) (k + 1) j _ a b
-      (fun a i b h => (scanVertex_le edge member k a b (index i) h).2) hb
+      b.tally.lengthSum ≤ a.tally.lengthSum + j * (k + 1) :=
+  ⟨by
+      simpa using foldlM_rank_le (fun a : RoundUpdate => a.tally.count) 1 j _ a b
+        (fun a i b h => (scanVertex_le edge member k a b (index i) h).1) hb,
+    foldlM_rank_le (fun a : RoundUpdate => a.tally.lengthSum) (k + 1) j _ a b
+      (fun a i b h => (scanVertex_le edge member k a b (index i) h).2) hb⟩
 
 /-- The actual round scan satisfies the same bounds, also when its tie flag is set. -/
 theorem scanNextRound_bounds {n : ℕ} (edge : Fin n → Fin n → List Bool)
     (member : MembershipScan List n) (k : ℕ) (t : Tally) (a : RoundUpdate)
     (ha : a ∈ scanNextRound edge member k t) :
     a.tally.count ≤ t.count + n ∧ a.tally.lengthSum ≤ t.lengthSum + n * (k + 1) :=
-by
-  apply scanVertex_prefix_bounds edge (member k t) k id ⟨t, false⟩ a
-  simpa only [scanNextRound, id_eq] using ha
+  scanVertex_prefix_bounds edge (member k t) k id ⟨t, false⟩ a
+    (by simpa only [scanNextRound, id_eq] using ha)
 
 /-- Reachable recursive calls of the existing controller, starting with its actual fuel and
 initial tally. This is a proof-level call relation, not another controller implementation. -/

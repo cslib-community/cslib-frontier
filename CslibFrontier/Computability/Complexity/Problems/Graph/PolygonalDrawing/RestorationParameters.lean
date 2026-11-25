@@ -44,67 +44,50 @@ theorem restoredRoute_eval_cases {G : Graph} {u v : ℕ}
         (D.cutPort ρ (contractedIndex G u v e, true)) (D.restoredVertex a b w₁) t ∧
       (D.restoredRoute ρ a b e).position i t =
         (p.segments : ℝ) + (attachmentCount u v w₀ : ℝ) + t) := by
+  dsimp only
   let p := D.outsideRoute v ρ (contractedIndex G u v e)
   let w₀ := Dart.vertex (G := G) (e, false)
   let w₁ := Dart.vertex (G := G) (e, true)
   let C := D.restoredVertex a b
-  let T (q : Route) : Prop := ∀ (i : Fin q.segments) (t : ℝ),
-    (∃ j : Fin p.segments, q.eval i t = p.eval j t ∧
-      q.position i t = (attachmentCount u v w₀ : ℝ) + p.position j t) ∨
-    ((w₀ = u ∨ w₀ = v) ∧ q.eval i t = AffineMap.lineMap (C w₀)
-      (D.cutPort ρ (contractedIndex G u v e, false)) t ∧ q.position i t = t) ∨
-    ((w₁ = u ∨ w₁ = v) ∧ q.eval i t = AffineMap.lineMap
-      (D.cutPort ρ (contractedIndex G u v e, true)) (C w₁) t ∧
-      q.position i t = (p.segments : ℝ) + (attachmentCount u v w₀ : ℝ) + t)
-  have hport (side : Bool) (h : Dart.vertex (G := G) (e, side) = u ∨
-      Dart.vertex (G := G) (e, side) = v) :
+  have hport (side : Bool)
+      (h : Dart.vertex (G := G) (e, side) = u ∨ Dart.vertex (G := G) (e, side) = v) :
       p.endpoint side = D.cutPort ρ (contractedIndex G u v e, side) := by
     have hv : Dart.vertex (contractedIndex G u v e, side) = v := by
       rw [vertex_contractedIndex]
       rcases h with h | h <;> simp [h, Function.update_apply]
-    simpa only [hv, ↓reduceIte] using
-      D.endpoint_outsideRoute v ρ (contractedIndex G u v e) side
-  have hT : T (D.restoredRoute ρ a b e) := by
-    by_cases h₀ : w₀ = u ∨ w₀ = v
-    · have hc₀ : attachmentCount u v w₀ = 1 := ite_eq_left h₀
-      have hp₀ : p.start = D.cutPort ρ (contractedIndex G u v e, false) := hport false h₀
-      by_cases h₁ : w₁ = u ∨ w₁ = v
-      · have hp₁ : p.finish = D.cutPort ρ (contractedIndex G u v e, true) := hport true h₁
-        have hroute : D.restoredRoute ρ a b e = (Route.prepend (C w₀) p).append (C w₁) := by
-          rw [restoredRoute, D.restoreLast_eq_append huv _ h₁,
-            D.restoreFirst_eq_prepend huv _ h₀]
-        apply (congrArg T hroute).mpr
-        intro i t
-        rcases Route.attach_eval_cases (C w₀) p (C w₁) i t with
-          ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩ | ⟨heval, hpos⟩
-        · exact Or.inl ⟨j, heval, by simpa only [hc₀, Nat.cast_one] using hpos⟩
-        · exact Or.inr (Or.inl ⟨h₀, by simpa only [hp₀] using heval, hpos⟩)
-        · exact Or.inr (Or.inr ⟨h₁, by simpa only [hp₁] using heval,
-            by simpa only [hc₀, Nat.cast_one] using hpos⟩)
-      · have hroute : D.restoredRoute ρ a b e = Route.prepend (C w₀) p := by
-          rw [restoredRoute, restoreLast_eq_self _ _ _ h₁, D.restoreFirst_eq_prepend huv _ h₀]
-        apply (congrArg T hroute).mpr
-        intro i t
-        rcases Route.prepend_eval_cases (C w₀) p i t with ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩
-        · exact Or.inl ⟨j, heval, by simpa only [hc₀, Nat.cast_one] using hpos⟩
-        · exact Or.inr (Or.inl ⟨h₀, by simpa only [hp₀] using heval, hpos⟩)
-    · have hc₀ : attachmentCount u v w₀ = 0 := ite_eq_right h₀
-      by_cases h₁ : w₁ = u ∨ w₁ = v
-      · have hp₁ : p.finish = D.cutPort ρ (contractedIndex G u v e, true) := hport true h₁
-        have hroute : D.restoredRoute ρ a b e = p.append (C w₁) := by
-          rw [restoredRoute, D.restoreLast_eq_append huv _ h₁, restoreFirst_eq_self _ _ _ h₀]
-        apply (congrArg T hroute).mpr
-        intro i t
-        rcases Route.append_eval_cases p (C w₁) i t with ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩
-        · exact Or.inl ⟨j, heval, by simpa only [hc₀, Nat.cast_zero, zero_add] using hpos⟩
-        · exact Or.inr (Or.inr ⟨h₁, by simpa only [hp₁] using heval,
-            by simpa only [hc₀, Nat.cast_zero, add_zero] using hpos⟩)
-      · have hroute : D.restoredRoute ρ a b e = p := by
-          rw [restoredRoute, restoreLast_eq_self _ _ _ h₁, restoreFirst_eq_self _ _ _ h₀]
-        apply (congrArg T hroute).mpr
-        intro i t
-        exact Or.inl ⟨i, rfl, by simp only [hc₀, Nat.cast_zero, zero_add]⟩
-  exact hT i t
+    simpa only [hv, ↓reduceIte] using D.endpoint_outsideRoute v ρ (contractedIndex G u v e) side
+  revert i
+  by_cases h₀ : w₀ = u ∨ w₀ = v <;> by_cases h₁ : w₁ = u ∨ w₁ = v
+  · have hp₀ : p.start = D.cutPort ρ (contractedIndex G u v e, false) := hport false h₀
+    have hp₁ : p.finish = D.cutPort ρ (contractedIndex G u v e, true) := hport true h₁
+    rw [restoredRoute, D.restoreLast_eq_append huv _ h₁, D.restoreFirst_eq_prepend huv _ h₀]
+    intro i
+    rcases Route.attach_eval_cases (C w₀) p (C w₁) i t with
+      ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩ | ⟨heval, hpos⟩
+    · exact .inl ⟨j, heval,
+        by simpa only [attachmentCount, w₀, ite_eq_left h₀, Nat.cast_one] using hpos⟩
+    · exact .inr (.inl ⟨h₀, by simpa only [hp₀] using heval, hpos⟩)
+    · exact .inr (.inr ⟨h₁, by simpa only [hp₁] using heval,
+        by simpa only [attachmentCount, w₀, ite_eq_left h₀, Nat.cast_one] using hpos⟩)
+  · have hp₀ : p.start = D.cutPort ρ (contractedIndex G u v e, false) := hport false h₀
+    rw [restoredRoute, restoreLast_eq_self _ _ _ h₁, D.restoreFirst_eq_prepend huv _ h₀]
+    intro i
+    rcases Route.prepend_eval_cases (C w₀) p i t with ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩
+    · exact .inl ⟨j, heval,
+        by simpa only [attachmentCount, w₀, ite_eq_left h₀, Nat.cast_one] using hpos⟩
+    · exact .inr (.inl ⟨h₀, by simpa only [hp₀] using heval, hpos⟩)
+  · have hp₁ : p.finish = D.cutPort ρ (contractedIndex G u v e, true) := hport true h₁
+    rw [restoredRoute, D.restoreLast_eq_append huv _ h₁, restoreFirst_eq_self _ _ _ h₀]
+    intro i
+    rcases Route.append_eval_cases p (C w₁) i t with ⟨j, heval, hpos⟩ | ⟨heval, hpos⟩
+    · exact .inl ⟨j, heval,
+        by simpa only [attachmentCount, w₀, ite_eq_right h₀, Nat.cast_zero, zero_add] using hpos⟩
+    · exact .inr (.inr ⟨h₁, by simpa only [hp₁] using heval,
+        by simpa only [attachmentCount, w₀, ite_eq_right h₀, Nat.cast_zero, add_zero] using hpos⟩)
+  · rw [restoredRoute, restoreLast_eq_self _ _ _ h₁, restoreFirst_eq_self _ _ _ h₀]
+    intro i
+    exact .inl ⟨i, rfl,
+      by simp only [attachmentCount, w₀, ite_eq_right h₀, Nat.cast_zero, zero_add]⟩
 
 /-- An unchanged exterior endpoint retains its exact original end tag in the
 restored route. Positive attachments at the other end are counted explicitly. -/

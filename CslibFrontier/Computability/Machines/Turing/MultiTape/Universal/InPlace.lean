@@ -7,12 +7,14 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 -- vendored: `spaceUsed` is the space of a run path since cslib #1133 and #1122; `try` steps
--- that the unused-tactic linter flags are dropped
+-- that the unused-tactic linter flags are dropped; the public universal theorem returns plain
+-- `ComputableInTimeAndSpace` (#862)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Translate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -40,7 +42,7 @@ a plain function on events.
 * `Turing.MultiTapeTM.Universal.events_eIn`: the events of the encoded input.
 * `Turing.MultiTapeTM.Universal.inputSymbol_scan`: the countdown finds the symbol under the input
   head.
-* `Turing.MultiTapeTM.Universal.computableTidilyInTimeAndSpace_universal_inPlace`: the universal
+* `Turing.MultiTapeTM.Universal.computableInTimeAndSpace_universal_inPlace`: the universal
   function is computable in space linear in `stateSpace`.
 * `Turing.MultiTapeTM.Universal.stateSpace_desc`: on descriptions of machines, `stateSpace` is
   linear in the description times the space of the machine, plus logarithms of the length of the
@@ -739,13 +741,12 @@ lemma length_eSt_le' (d : Desc) (x : List ℕ) (t i j : ℕ) :
   rw [events_eIn]
   exact length_eSt_le d x t i j
 
-/-- **The universal machine, reading its input in place.** The universal function is tidily
-computable in space linear in a bound on the states of the simulation (`stateSpace`): the
-description, a configuration, the number of steps and the position of the input head in binary,
-and the largest symbol of the input. It never copies the input. Each step reads the whole
-input. -/
-public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
-    ComputableTidilyInTimeAndSpace universal eIn eOut
+/-- **The universal machine, reading its input in place.** The universal function is computable
+in space linear in a bound on the states of the simulation (`stateSpace`): the description, a
+configuration, the number of steps and the position of the input head in binary, and the largest
+symbol of the input. It never copies the input. Each step reads the whole input. -/
+public theorem computableInTimeAndSpace_universal_inPlace : ∃ c,
+    ComputableInTimeAndSpace universal eIn eOut
       (fun i => c * ((i.2.2 + 1) * ((eIn i).length + 1) ^ 2 * (stateSpace i.1 i.2.1 i.2.2 + 1) ^ 3))
       (fun i => c * (stateSpace i.1 i.2.1 i.2.2 + 1)) := by
   refine Exists.elim (ComputableTidilyInTimeAndSpace.multiPassFold_translate inTr
@@ -805,7 +806,8 @@ public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
     rintro ⟨d, x, t⟩
     dsimp only
     exact length_eSt_le' d x t (t - 1 + 1) 0
-  refine ⟨20 * c, h.mono (fun i => ?_) fun i => ?_⟩ <;> obtain ⟨d, x, t⟩ := i <;> dsimp only
+  refine ⟨20 * c, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+    (fun i => ?_) fun i => ?_⟩ <;> obtain ⟨d, x, t⟩ := i <;> dsimp only
   · exact final_time c _ t _ _ _ (by simp only [length_encPair, stateSpace, descLen]; omega)
       (length_eSt_le' d x t (t - 1 + 1) 0)
   · exact (final_space c _ _ _ (by simp only [length_encPair, stateSpace, descLen]; omega)

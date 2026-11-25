@@ -92,12 +92,11 @@ theorem interpret_id_congr (answer answer' : (q : ι) → spec q) (program : Ora
   induction program using PFunctor.FreeM.induction with
   | pure a => exact ⟨rfl, rfl⟩
   | lift_bind q cont ih =>
-    have hq : answer' q = answer q := h q (List.mem_cons_self ..)
     have hrest := ih (answer q) fun q' hq' => h q' (List.mem_cons_of_mem _ hq')
     change interpret (m := Id) answer' (cont (answer' q)) =
         interpret (m := Id) answer (cont (answer q)) ∧
       q :: queriesWith answer' (cont (answer' q)) = q :: queriesWith answer (cont (answer q))
-    rw [hq]
+    rw [h q (List.mem_cons_self ..)]
     exact ⟨hrest.1, congrArg (q :: ·) hrest.2⟩
 
 /-- A program with a query budget of `n` makes at most `n` requests along every run. -/
@@ -105,10 +104,9 @@ theorem IsQueryBounded.length_queriesWith_le (answer : (q : ι) → spec q)
     {program : OracleComp spec α} {n : ℕ} (h : program.IsQueryBounded n) :
     (queriesWith answer program).length ≤ n := by
   induction h with
-  | pure a n => exact Nat.zero_le _
-  | liftBind q cont n _ ih =>
-    rw [queriesWith_query_bind, List.length_cons]
-    exact Nat.add_le_add_right (ih _) 1
+  | pure => exact Nat.zero_le _
+  | liftBind _ _ _ _ ih =>
+    simpa only [queriesWith_query_bind, List.length_cons] using Nat.add_le_add_right (ih _) 1
 
 /-- A run whose every answer is possible has a possible result. -/
 theorem interpret_id_mem_supportWith {possible : (q : ι) → Set (spec q)}

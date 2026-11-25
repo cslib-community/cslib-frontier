@@ -179,15 +179,10 @@ private theorem two_mul_le_mul_sub_of_le {m g q : ℕ} (hq : 0 < q)
   have hq' : (0 : ℝ) < q := by exact_mod_cast hq
   have hpos : (0 : ℝ) < 2 ^ m := by positivity
   have hg : 2 ^ m ≤ 2 * g := by
-    have : (2 : ℝ) ^ m ≤ 2 * g := by nlinarith [div_pos one_pos hq']
-    exact_mod_cast this
-  have key : (2 : ℝ) * 2 ^ m ≤ q * (2 * g - 2 ^ m) := by
-    have : (1 : ℝ) / q * 2 ^ m * q = 2 ^ m := by field_simp
-    nlinarith
-  have : ((2 * 2 ^ m : ℕ) : ℝ) ≤ ((q * (2 * g - 2 ^ m) : ℕ) : ℝ) := by
-    push_cast [Nat.cast_sub hg]
-    exact key
-  exact_mod_cast this
+    exact_mod_cast (show (2 : ℝ) ^ m ≤ 2 * g by nlinarith [div_pos one_pos hq'])
+  suffices ((2 * 2 ^ m : ℕ) : ℝ) ≤ ((q * (2 * g - 2 ^ m) : ℕ) : ℝ) by exact_mod_cast this
+  push_cast [Nat.cast_sub hg]
+  nlinarith [show (1 : ℝ) / q * 2 ^ m * q = 2 ^ m by field_simp]
 
 /-- `x ^ (-c) ≥ x ^ (-⌈c⌉₊)` for `x ≥ 1`. -/
 private theorem inv_pow_ceil_le_rpow_neg {x : ℝ} (hx : 1 ≤ x) (c : ℝ) :
@@ -267,39 +262,33 @@ theorem BPPWithError_subset_BPP {ε : ℕ → ℝ} (q : Polynomial ℕ)
     obtain ⟨hq₀, hε⟩ := hN _ hN'
     have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a)
       (n := p.eval (enc a).length)
+    have hp2 : (0 : ℝ) < 2 ^ p.eval (enc a).length := pow_pos two_pos _
     refine (boundedErrorAt_repeatMajority_sq (V := V) (two_mul_le_mul_sub_of_le hq₀ ?_)).congr
       fun r => by simp [V', hN']
     cases b
-    · have ha : a ∉ A := by simpa using hb
-      have := (hA a).2 ha
+    · have := (hA a).2 (by simpa using hb)
       have hcast : ((univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
           V (a, List.ofFn r) = false).card : ℝ) =
           2 ^ p.eval (enc a).length - acceptCount V a (p.eval (enc a).length) := by
         rw [eq_sub_iff_add_eq, add_comm]
         exact_mod_cast hsum
-      rw [hcast]
-      nlinarith [pow_pos (two_pos : (0 : ℝ) < 2) (p.eval (enc a).length)]
-    · have ha : a ∈ A := by simpa using hb
-      have := (hA a).1 ha
+      rw [hcast]; nlinarith
+    · have := (hA a).1 (by simpa using hb)
       change _ ≤ ((acceptCount V a _ : ℕ) : ℝ)
-      nlinarith [pow_pos (two_pos : (0 : ℝ) < 2) (p.eval (enc a).length)]
-  let A' : Set α := {a | a ∈ A ∧ N ≤ (enc a).length}
-  have hA' : A' ∈ BPP enc := ⟨2 * q ^ 2 * p, V', hV', fun a => ⟨fun ha => ?_, fun ha => ?_⟩⟩
-  rotate_left
-  · exact hlong a ha.2 true (iff_of_true rfl ha.1)
-  · by_cases hN' : N ≤ (enc a).length
-    · exact hlong a hN' false (iff_of_false Bool.false_ne_true fun h => ha ⟨h, hN'⟩)
-    · simp [BoundedErrorAt, V', hN']
+      nlinarith
+  have hA' : {a | a ∈ A ∧ N ≤ (enc a).length} ∈ BPP enc :=
+    ⟨2 * q ^ 2 * p, V', hV', fun a => ⟨fun ha => hlong a ha.2 true (iff_of_true rfl ha.1),
+      fun ha => if hN' : N ≤ (enc a).length then
+        hlong a hN' false (iff_of_false Bool.false_ne_true fun h => ha ⟨h, hN'⟩)
+      else by simp [BoundedErrorAt, V', hN']⟩⟩
   have hfin : (A ∩ {a | (enc a).length < N}).Finite :=
     ((List.finite_length_lt Bool N).preimage_embedding enc).subset Set.inter_subset_right
-  have hsplit : A = A' ∪ (A ∩ {a | (enc a).length < N}) := by
-    ext a
-    refine ⟨fun ha => ?_, fun ha => ha.elim (·.1) (·.1)⟩
-    by_cases hN' : N ≤ (enc a).length
-    · exact Or.inl ⟨ha, hN'⟩
-    · exact Or.inr ⟨ha, Nat.lt_of_not_le hN'⟩
-  rw [hsplit]
-  exact union_mem_BPP hA' (P_subset_BPP hfin.mem_P)
+  suffices A = {a | a ∈ A ∧ N ≤ (enc a).length} ∪ (A ∩ {a | (enc a).length < N}) from
+    this ▸ union_mem_BPP hA' (P_subset_BPP hfin.mem_P)
+  ext a
+  simp only [Set.mem_union, Set.mem_inter_iff]
+  exact ⟨fun ha => (le_or_gt N (enc a).length).imp (⟨ha, ·⟩) (⟨ha, ·⟩),
+    fun h => h.elim (·.1) (·.1)⟩
 
 /-- **Exponential error reduction into `BPP_ε`.** If `2 ^ (-q(n)) ≤ ε(n)` for a polynomial `q`, then
 `BPP ⊆ BPP_ε`. -/
@@ -321,11 +310,9 @@ theorem BPPWithError_eq_BPP {p : Polynomial ℕ} (hp : ∀ n, 2 < p.eval n) :
     BPPWithError enc (fun n => 1 / 2 - 1 / ((p.eval n : ℕ) : ℝ)) = BPP enc := by
   refine (BPPWithError_subset_BPP p (Eventually.of_forall fun n =>
     ⟨by have := hp n; omega, le_rfl⟩)).antisymm (BPP_subset_BPPWithError 3 fun n => ?_)
-  have h3 : (3 : ℝ) ≤ p.eval n := by exact_mod_cast hp n
-  have : 1 / ((p.eval n : ℕ) : ℝ) ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) h3
-  simp only [eval_ofNat]
-  calc ((2 : ℝ) ^ 3)⁻¹ = 1 / 2 - 1 / 3 - 1 / 24 := by norm_num
-    _ ≤ _ := by linarith
+  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 3)
+    (by exact_mod_cast hp n : (3 : ℝ) ≤ p.eval n)
+  simp only [eval_ofNat]; linarith [show ((2 : ℝ) ^ 3)⁻¹ = 1 / 8 by norm_num]
 
 /-- **[Arora–Barak, Lemma 7.9][AroraBarak07], with the printed bound from some length on**: for
 `c > 0`, the problems decided in polynomial time with success probability at least
@@ -342,10 +329,8 @@ theorem setOf_exists_BPPWithError_rpow_eq_BPP {c : ℝ} (hc : 0 < c) :
       (eventually_atTop.2 ⟨max N 1, fun n hn => ⟨?_, ?_⟩⟩) hA
     · simp only [eval_pow, eval_X]
       exact pow_pos (by omega) _
-    · have h1 : (1 : ℝ) ≤ n := by exact_mod_cast (le_of_max_le_right hn)
-      have := inv_pow_ceil_le_rpow_neg h1 c
-      rw [inv_eq_one_div] at this
-      simp only [show ¬n < N by omega, ↓reduceIte, eval_pow, eval_X, Nat.cast_pow]
+    · have := inv_pow_ceil_le_rpow_neg (by exact_mod_cast le_of_max_le_right hn : (1 : ℝ) ≤ n) c
+      simp only [show ¬n < N by omega, ↓reduceIte, eval_pow, eval_X, Nat.cast_pow, one_div]
       linarith
   · intro hA
     -- the error `1 / 4` is at most `1 / 2 - n ^ (-c)` once `n ^ (-c) ≤ 1 / 4`
@@ -355,10 +340,8 @@ theorem setOf_exists_BPPWithError_rpow_eq_BPP {c : ℝ} (hc : 0 < c) :
     simp only [eval_ofNat]
     split_ifs with hn
     · norm_num
-    · have := hN n (by omega)
-      simp only [Function.comp_apply] at this
-      norm_num
-      linarith
+    · linarith [show (n : ℝ) ^ (-c) ≤ 1 / 4 from hN n (by omega),
+        show ((2 : ℝ) ^ 2)⁻¹ = 1 / 4 by norm_num]
 
 /-- **[Arora–Barak, Theorem 7.10][AroraBarak07]** (error reduction), with the hypothesis of
 Lemma 7.9 read from some length on (`Cslib.Complexity.setOf_exists_BPPWithError_rpow_eq_BPP`): for
@@ -371,9 +354,8 @@ theorem setOf_exists_BPPWithError_rpow_subset_two_rpow {c : ℝ} (hc : 0 < c) (d
       BPPWithError enc (fun n => (2 : ℝ) ^ (-((n : ℝ) + 1) ^ d)) := by
   rw [setOf_exists_BPPWithError_rpow_eq_BPP hc]
   exact BPP_subset_BPPWithError ((X + 1) ^ ⌈d⌉₊) fun n => by
-    have := inv_two_pow_pow_ceil_le (by linarith [n.cast_nonneg (α := ℝ)] : (1 : ℝ) ≤ n + 1) d
     rw [eval_two_pow_X_add_one_pow]
-    exact this
+    exact inv_two_pow_pow_ceil_le (by linarith [n.cast_nonneg (α := ℝ)]) d
 
 /-! ### `RP` -/
 
@@ -386,38 +368,33 @@ theorem two_pow_le_two_mul_acceptCount_repeatAny {q p : Polynomial ℕ}
       q.eval (enc a).length * acceptCount V a (p.eval (enc a).length)) :
     2 ^ (q * p).eval (enc a).length ≤
       2 * acceptCount (repeatAny enc q p V) a ((q * p).eval (enc a).length) := by
-  have hlen : (q * p).eval (enc a).length = q.eval (enc a).length * p.eval (enc a).length :=
-    eval_mul
   have hsum := acceptCount_add_card_filter_eq_false (V := repeatAny enc q p V) (a := a)
     (n := (q * p).eval (enc a).length)
   have hrej := card_filter_repeatAny_eq_false (enc := enc) (q := q) (p := p) (V := V) a
   have hone := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
   have hc := acceptCount_le_two_pow (V := V) (a := a) (n := p.eval (enc a).length)
-  rw [hlen] at hsum ⊢
+  rw [eval_mul] at hsum ⊢
   set k := q.eval (enc a).length
   set m := p.eval (enc a).length
   set c := acceptCount V a m
   -- the strings rejected by one run make up at most a `1 - 1 / k` fraction
   set F := (univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false).card
-  have hF : F = 2 ^ m - c := by omega
   have hpos : (0 : ℝ) < 2 ^ m := by positivity
   obtain ⟨x, hx⟩ : ∃ x : ℝ, x = c / 2 ^ m := ⟨_, rfl⟩
-  have hx₀ : 0 ≤ x := by rw [hx]; positivity
   have hx₁ : x ≤ 1 := by rw [hx, div_le_one hpos]; exact_mod_cast hc
   have hkx : (1 : ℝ) ≤ k * x := by
     rw [hx, ← mul_div_assoc, le_div_iff₀ hpos, one_mul]
     exact_mod_cast h
-  have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one hx₀ hx₁ k
+  have hB := Cslib.one_sub_pow_mul_one_add_mul_le_one (by rw [hx]; positivity) hx₁ k
   have hFr : (F : ℝ) = 2 ^ m * (1 - x) := by
-    rw [hx, hF, Nat.cast_sub hc]
+    rw [hx, show F = 2 ^ m - c by omega, Nat.cast_sub hc]
     push_cast
     field_simp
   have hpow : 2 * F ^ k ≤ 2 ^ (k * m) := by
-    have : (2 : ℝ) * (F : ℝ) ^ k ≤ (2 : ℝ) ^ (k * m) := by
-      rw [hFr, mul_pow, ← pow_mul, mul_comm m]
-      have h1 : (0 : ℝ) ≤ (1 - x) ^ k := pow_nonneg (by linarith) _
-      nlinarith [pow_pos hpos k, pow_pos (two_pos : (0 : ℝ) < 2) (k * m)]
-    exact_mod_cast this
+    suffices (2 : ℝ) * (F : ℝ) ^ k ≤ (2 : ℝ) ^ (k * m) by exact_mod_cast this
+    rw [hFr, mul_pow, ← pow_mul, mul_comm m]
+    nlinarith [pow_nonneg (show 0 ≤ 1 - x by linarith) k, pow_pos hpos k,
+      pow_pos (two_pos : (0 : ℝ) < 2) (k * m)]
   omega
 
 /-- **Inverse-polynomial success gives `RP`.** If `ρ(n) ≥ 1 / q(n) > 0` for a polynomial `q`, then
@@ -427,22 +404,13 @@ theorem RPWithSuccess_subset_RP {ρ : ℕ → ℝ} (q : Polynomial ℕ)
     (hq : ∀ n, 0 < q.eval n ∧ 1 / ((q.eval n : ℕ) : ℝ) ≤ ρ n) : RPWithSuccess enc ρ ⊆ RP enc := by
   rintro A ⟨p, V, hV, h⟩
   refine ⟨q * p, repeatAny enc q p V, computableInPolyTime_repeatAny hV q p,
-    fun a => ⟨fun ha => two_pow_le_two_mul_acceptCount_repeatAny ?_, fun ha x => ?_⟩⟩
+    fun a => ⟨fun ha => two_pow_le_two_mul_acceptCount_repeatAny ?_, fun ha => ?_⟩⟩
   · obtain ⟨hq₀, hρ⟩ := hq (enc a).length
-    have hmem := (h a).1 ha
     have hq' : (0 : ℝ) < q.eval (enc a).length := by exact_mod_cast hq₀
-    have : (2 : ℝ) ^ p.eval (enc a).length ≤
-        q.eval (enc a).length * acceptCount V a (p.eval (enc a).length) := by
-      have h1 : 1 / ((q.eval (enc a).length : ℕ) : ℝ) * 2 ^ p.eval (enc a).length ≤
-          acceptCount V a (p.eval (enc a).length) :=
-        (mul_le_mul_of_nonneg_right hρ (by positivity)).trans hmem
-      rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ hq', mul_comm] at h1
-      exact h1
-    exact_mod_cast this
-  · have hlen : (q * p).eval (enc a).length = q.eval (enc a).length * p.eval (enc a).length :=
-      eval_mul
-    revert x
-    rw [hlen]
+    have h1 := (mul_le_mul_of_nonneg_right hρ (by positivity)).trans ((h a).1 ha)
+    rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ hq', mul_comm] at h1
+    exact_mod_cast h1
+  · rw [eval_mul]
     intro x
     rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]
     simpa using fun i => (h a).2 ha (BitString.block x i)
@@ -465,10 +433,9 @@ theorem RPWithSuccess_inv_eq_RP {p : Polynomial ℕ} (hp : ∀ n, 2 ≤ p.eval n
     RPWithSuccess enc (fun n => 1 / ((p.eval n : ℕ) : ℝ)) = RP enc := by
   refine (RPWithSuccess_subset_RP p fun n => ⟨by have := hp n; omega, le_rfl⟩).antisymm
     (RP_subset_RPWithSuccess 1 fun n => ?_)
-  have h2 : (2 : ℝ) ≤ p.eval n := by exact_mod_cast hp n
-  have : 1 / ((p.eval n : ℕ) : ℝ) ≤ 1 / 2 := one_div_le_one_div_of_le (by norm_num) h2
-  simp only [eval_one, pow_one]
-  linarith
+  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 2)
+    (by exact_mod_cast hp n : (2 : ℝ) ≤ p.eval n)
+  simp only [eval_one, pow_one]; linarith
 
 /-- **[Arora–Barak, Theorem 7.12][AroraBarak07]** (error reduction for `RP`): a problem decided in
 polynomial time with one-sided error and success probability at least `(n + 1) ^ (-c)` is, for every
@@ -531,10 +498,9 @@ theorem ZPPWithSuccess_inv_eq_ZPP {p : Polynomial ℕ} (hp : ∀ n, 2 ≤ p.eval
     ZPPWithSuccess enc (fun n => 1 / ((p.eval n : ℕ) : ℝ)) = ZPP enc := by
   refine (ZPPWithSuccess_subset_ZPP p fun n => ⟨by have := hp n; omega, le_rfl⟩).antisymm
     (ZPP_subset_ZPPWithSuccess 1 fun n => ?_)
-  have h2 : (2 : ℝ) ≤ p.eval n := by exact_mod_cast hp n
-  have : 1 / ((p.eval n : ℕ) : ℝ) ≤ 1 / 2 := one_div_le_one_div_of_le (by norm_num) h2
-  simp only [eval_one, pow_one]
-  linarith
+  have := one_div_le_one_div_of_le (by norm_num : (0 : ℝ) < 2)
+    (by exact_mod_cast hp n : (2 : ℝ) ≤ p.eval n)
+  simp only [eval_one, pow_one]; linarith
 
 /-- **[Goldreich, Exercise 6.6(2)][Goldreich2007Draft]**: for every positive polynomial `p`, the
 class `ZPP` equals `ZPP_ρ` for `ρ(n) = 1 - 2 ^ (-p(n))`, for every encoding of the instances. -/
@@ -542,13 +508,10 @@ theorem ZPP_eq_ZPPWithSuccess {p : Polynomial ℕ} (hp : ∀ n, 0 < p.eval n) :
     ZPP enc = ZPPWithSuccess enc (fun n => 1 - ((2 : ℝ) ^ p.eval n)⁻¹) := by
   refine (ZPP_subset_ZPPWithSuccess p fun n => le_rfl).antisymm
     (ZPPWithSuccess_subset_ZPP 2 fun n => ⟨by simp, ?_⟩)
-  have h : (2 : ℝ) ≤ 2 ^ p.eval n := by
-    calc (2 : ℝ) = 2 ^ 1 := (pow_one 2).symm
-      _ ≤ 2 ^ p.eval n := pow_le_pow_right₀ (by norm_num) (hp n)
-  have : ((2 : ℝ) ^ p.eval n)⁻¹ ≤ 1 / 2 := by
-    rw [inv_eq_one_div]
-    exact one_div_le_one_div_of_le (by norm_num) h
-  simp only [eval_ofNat, Nat.cast_ofNat]
-  linarith
+  have : ((2 : ℝ) ^ p.eval n)⁻¹ ≤ 1 / 2 :=
+    calc ((2 : ℝ) ^ p.eval n)⁻¹
+        ≤ ((2 : ℝ) ^ 1)⁻¹ := inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) (hp n))
+      _ = 1 / 2 := by norm_num
+  simp only [eval_ofNat, Nat.cast_ofNat]; linarith
 
 end Cslib.Complexity

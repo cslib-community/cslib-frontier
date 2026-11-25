@@ -170,18 +170,16 @@ private theorem lem_means_display (hN : CrossingLength N) (hh : IsHomogeneous N)
       τ * (N p ^ 2 + N q ^ 2) + (N a ^ 2 + N b ^ 2) / (2 * τ) := by
   unfold meansDiff
   have h := hN.crossing p (-p) q (-q) a (-a) b (-b) τ hτ
-  have e1 : ∀ Z : ℤ × ℤ, N (Z - -Z) = 2 * N Z := by
-    intro Z
+  have e1 (Z : ℤ × ℤ) : N (Z - -Z) = 2 * N Z := by
     rw [show Z - -Z = 2 • Z by module, hh]
     norm_num
-  have e2 : N (-p - -a) = N (p - a) := by rw [← hN.neg]; congr 1; module
-  have e3 : N (-p - -b) = N (p - b) := by rw [← hN.neg]; congr 1; module
-  have e4 : N (-q - -a) = N (q - a) := by rw [← hN.neg]; congr 1; module
-  have e5 : N (-q - b) = N (q - -b) := by rw [← hN.neg]; congr 1; module
-  rw [e1 p, e1 q, e1 a, e1 b, e2, e3, e4, e5] at h
+  have en (X Y : ℤ × ℤ) : N (-X - Y) = N (X - -Y) := by
+    rw [← hN.neg]
+    congr 1
+    module
   have e6 : ((2 * N a) ^ 2 + (2 * N b) ^ 2) / (2 * τ) = 4 * ((N a ^ 2 + N b ^ 2) / (2 * τ)) := by
     ring
-  rw [e6] at h
+  rw [e1 p, e1 q, e1 a, e1 b, en p (-a), en p (-b), en q (-a), en q b, neg_neg, neg_neg, e6] at h
   linarith
 
 /-- `∂A_i + ∂(A_i - a) = 2 (N(A_i) - N(A_i - c)) + δ_i - δ_{i+1}`, for every function `N`. -/
@@ -189,11 +187,10 @@ private theorem lem_means_identity (a b : ℤ × ℤ) (M i : ℕ) :
     meansDiff N a b (meansPt a b M i) + meansDiff N a b (meansPt a b M i - a) =
       2 * (N (meansPt a b M i) - N (meansPt a b M i - (a + b)))
         + (meansDelta N a b M i - meansDelta N a b M (i + 1)) := by
-  simp only [meansDiff, meansDelta, meansPt]
-  have e1 : M • (a + b) + (i + 1) • (a - b) - a = M • (a + b) + i • (a - b) - b := by module
-  have e2 : M • (a + b) + i • (a - b) - b - a = M • (a + b) + i • (a - b) - (a + b) := by module
-  have e3 : M • (a + b) + i • (a - b) - a - b = M • (a + b) + i • (a - b) - (a + b) := by module
-  rw [e1, e2, e3]
+  simp only [meansDiff, meansDelta, meansPt,
+    show M • (a + b) + (i + 1) • (a - b) - a = M • (a + b) + i • (a - b) - b by module,
+    show M • (a + b) + i • (a - b) - b - a = M • (a + b) + i • (a - b) - (a + b) by module,
+    show M • (a + b) + i • (a - b) - a - b = M • (a + b) + i • (a - b) - (a + b) by module]
   ring
 
 /-- Since `t ↦ N(t c + i e)` is convex, the first difference on the right is at least
@@ -249,13 +246,8 @@ private theorem lem_means_telescope (hN : CrossingLength N) (hh : IsHomogeneous 
   have h5 := Finset.sum_le_sum h2
   rw [Finset.sum_add_distrib, Finset.sum_range_sub', Finset.sum_const, Finset.card_range,
     nsmul_eq_mul (α := ℝ)] at h5
-  have h6 : meansDelta N a b M R ≤ N a := by
-    unfold meansDelta
-    linarith [hN.le_sub_add (meansPt a b M R - a) a]
-  have h7 : -N a ≤ meansDelta N a b M 0 := by
-    unfold meansDelta
-    linarith [hN.sub_le (meansPt a b M 0 - a) a]
-  linarith
+  unfold meansDelta at h5
+  linarith [hN.le_sub_add (meansPt a b M R - a) a, hN.sub_le (meansPt a b M 0 - a) a]
 
 /-- `N(p) = M f + O(R)` at the points `p = M c + i e` and `p = M c + i e - a` with `i < R`: the
 error is at most `2 R κ` if `N(a), N(e) ≤ κ`. -/
@@ -296,47 +288,31 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
   have e1 : (N a ^ 2 + N b ^ 2) / (2 * (1 / (2 * (M : ℝ)))) = M * (N a ^ 2 + N b ^ 2) := by
     field_simp
   rw [e1] at h1
-  have hxp : |meansDiff N a b p| ≤ κ := by
+  have hdiff (u z : ℤ × ℤ) (hz : N a + N z ≤ κ) : |meansDiff N a z u| ≤ κ := by
     unfold meansDiff
-    have h2 := hN.abs_sub_le p (p - a)
-    have h3 := hN.abs_sub_le p (p - b)
-    rw [sub_sub_cancel] at h2 h3
-    rw [abs_le] at h2 h3 ⊢
+    have h2 := hN.abs_sub_le u (u - a)
+    have h3 := hN.abs_sub_le u (u - z)
+    rw [sub_sub_cancel, abs_le] at h2 h3
+    rw [abs_le]
     constructor <;> linarith
-  have hxq : |meansDiff N a (-b) q| ≤ κ := by
-    unfold meansDiff
-    have h2 := hN.abs_sub_le q (q - a)
-    have h3 := hN.abs_sub_le q (q - -b)
-    rw [sub_sub_cancel] at h2 h3
-    rw [hN.neg] at h3
-    rw [abs_le] at h2 h3 ⊢
-    constructor <;> linarith
-  have low : ∀ (A B x : ℝ), |A - B| ≤ 2 * R * κ → |x| ≤ κ → B * x - 2 * R * κ ^ 2 ≤ A * x := by
-    intro A B x hA hx
-    have h2 : |(A - B) * x| ≤ 2 * R * κ * κ := by
-      rw [abs_mul]
-      exact mul_le_mul hA hx (abs_nonneg _) (by positivity)
-    have h3 := (abs_le.1 h2).1
+  have low (A B x : ℝ) (hA : |A - B| ≤ 2 * R * κ) (hx : |x| ≤ κ) :
+      B * x - 2 * R * κ ^ 2 ≤ A * x := by
+    have h2 := (abs_le.1 (abs_mul (A - B) x ▸
+      mul_le_mul hA hx (abs_nonneg _) (by positivity))).1
     nlinarith
-  have sq : ∀ (Z c : ℤ × ℤ), N c ≤ κ → |N Z - M * N c| ≤ 2 * R * κ →
+  have sq (Z c : ℤ × ℤ) (hc : N c ≤ κ) (hZ : |N Z - M * N c| ≤ 2 * R * κ) :
       1 / (2 * M) * N Z ^ 2 ≤ M * N c ^ 2 / 2 + 4 * R * κ ^ 2 := by
-    intro Z c hc hZ
-    have h2 : N Z ≤ M * N c + 2 * R * κ := by linarith [(abs_le.1 hZ).2]
-    have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 := pow_le_pow_left₀ (hN.nonneg Z) h2 2
-    have h4 : (M * N c + 2 * R * κ) ^ 2 ≤ M ^ 2 * N c ^ 2 + 8 * M * R * κ ^ 2 := by
-      have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
-        rw [sq κ]
-        exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
-      have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
-      nlinarith
+    have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 :=
+      pow_le_pow_left₀ (hN.nonneg Z) (by linarith [(abs_le.1 hZ).2]) 2
+    have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
+      rw [sq κ]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
+    have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
+      mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ (by positivity)]
     nlinarith
-  have l1 := low _ _ _ hp hxp
-  have l2 := low _ _ _ hq hxq
-  have s1 := sq _ _ hc hp
-  have s2 := sq _ _ he hq
-  linarith
+  linarith [low _ _ _ hp (hdiff p b hκ), low _ _ _ hq (hdiff q (-b) (by rwa [hN.neg])),
+    sq _ _ hc hp, sq _ _ he hq]
 
 /-- The arithmetic of averaging over `i` and dividing by `2M`, with `M = m²`, `f, f', n = N(a)` at
 most `κ`, and `Q = N(a)² + N(b)²`. -/
@@ -349,27 +325,17 @@ private theorem means_arith {m f f' n Q κ : ℝ} (hm : 0 < m) (hf0 : 0 ≤ f) (
         + (m ^ 2 * ((f ^ 2 + f' ^ 2) / 2 + Q) + 12 * m * κ ^ 2))) :
     f ^ 2 + f' ^ 2 ≤ 2 * Q + 36 * κ ^ 2 * (1 / m) := by
   have hκ0 : 0 ≤ κ := hf0.trans hf
-  have q1 : f * f' ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf hf' hf0' hκ0
-  have q2 : f * n ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf hn hn0 hκ0
-  have q3 : f' * n ≤ κ ^ 2 := by rw [sq]; exact mul_le_mul hf' hn hn0 hκ0
-  have e3 : m ^ 2 * f * (2 * m * (f - 2 * m * f' / m ^ 2) - 2 * n) =
-      2 * m ^ 3 * f ^ 2 - 4 * (f * f') * m ^ 2 - 2 * (f * n) * m ^ 2 := by
+  have el (x y : ℝ) : m ^ 2 * x * (2 * m * (x - 2 * m * y / m ^ 2) - 2 * n) =
+      2 * m ^ 3 * x ^ 2 - 4 * (x * y) * m ^ 2 - 2 * (x * n) * m ^ 2 := by
     field_simp
     ring
-  have e4 : m ^ 2 * f' * (2 * m * (f' - 2 * m * f / m ^ 2) - 2 * n) =
-      2 * m ^ 3 * f' ^ 2 - 4 * (f * f') * m ^ 2 - 2 * (f' * n) * m ^ 2 := by
+  rw [el f f', el f' f, mul_comm f' f] at h
+  refine le_of_mul_le_mul_left (a := m ^ 3) ?_ (by positivity)
+  have e5 : m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 := by
     field_simp
-    ring
-  rw [e3, e4] at h
-  have h5 : m ^ 3 * (f ^ 2 + f' ^ 2) ≤ m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) := by
-    have e5 : m ^ 3 * (2 * Q + 36 * κ ^ 2 * (1 / m)) = 2 * m ^ 3 * Q + 36 * κ ^ 2 * m ^ 2 := by
-      field_simp
-    rw [e5]
-    have w1 := mul_le_mul_of_nonneg_right q1 (sq_nonneg m)
-    have w2 := mul_le_mul_of_nonneg_right q2 (sq_nonneg m)
-    have w3 := mul_le_mul_of_nonneg_right q3 (sq_nonneg m)
-    linarith
-  exact le_of_mul_le_mul_left h5 (by positivity)
+  rw [e5]
+  nlinarith [mul_le_mul hf hf' hf0' hκ0, mul_le_mul hf hn hn0 hκ0, mul_le_mul hf' hn hn0 hκ0,
+    sq_nonneg m]
 
 /-- With `τ = 1/(2M)`, adding the two inequalities, averaging over `i` and dividing by `2M` gives
 `f² + f'² ≤ ½ (f² + f'²) + N(a)² + N(b)² + O(1/R)`, where `M = R²`. Here the inequality is doubled

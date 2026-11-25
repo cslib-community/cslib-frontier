@@ -203,11 +203,9 @@ private theorem rank_decreases (s : State N τ) (selector : Bool)
     simp only [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read,
       machine, halted, Bool.false_eq_true, ite_false, advance, advanceChoice]
     split
-    · have htail : 0 < if choice.stopped then 1 else if choice.reading then
-          N.size - choice.reader.cursor + 1 else N.size + 2 := by
+    · have hpos : 0 < rank N clock (State.choose r choice : State N τ) := by
+        simp only [rank]
         split_ifs <;> omega
-      have hpos : 0 < rank N clock (State.choose r choice : State N τ) := by
-        unfold rank; dsimp only; omega
       split
       · exact ⟨trivial, hpos⟩
       · split
@@ -218,7 +216,8 @@ private theorem rank_decreases (s : State N τ) (selector : Bool)
           by_cases hv : v < N
           · simp only [dite_eq_left hv]
             refine ⟨trivial, ?_⟩
-            unfold rank; simp only [hfuel, Nat.succ_mul]; omega
+            simp only [rank, hfuel, Nat.succ_mul]
+            split_ifs <;> omega
           · simp only [dite_eq_right hv]
             exact ⟨trivial, hpos⟩
     · rename_i hnot
@@ -237,11 +236,9 @@ private theorem rank_decreases (s : State N τ) (selector : Bool)
     simp only [NondeterministicQueryMachine.step, NondeterministicQueryMachine.read,
       machine, halted, Bool.false_eq_true, ite_false, advance, advanceCall]
     cases selector <;> cases remaining
-    · by_cases hs' : (edge.halted s && verdict s) = true
-      · rw [ite_eq_left hs']
-        exact ⟨rfl, by simp [rank, boundary, NondeterministicChoice.machine]⟩
-      · rw [ite_eq_right hs']
-        exact ⟨trivial, by simp [rank]⟩
+    · by_cases hs' : (edge.halted s && verdict s) = true <;>
+        simp [hs', widthInvariant, rank, boundary, NondeterministicChoice.machine,
+          VertexReader.machine]
     all_goals simp [widthInvariant, rank]
 
 /-- The common clock includes destination bits, the routing step, and adjacency return.
@@ -479,10 +476,7 @@ def selectors (clock : ℕ) : List (Fin N) → List Bool
 theorem eq_of_selectors_prefix (clock : ℕ) {a b : List (Fin N)}
     (h : selectors clock a <+: selectors clock b) : a = b := by
   induction a generalizing b with
-  | nil =>
-    cases b with
-    | nil => rfl
-    | cons v vs => simp [selectors] at h
+  | nil => cases b <;> simp [selectors] at h ⊢
   | cons u us ih =>
     cases b with
     | nil => simp [selectors] at h
@@ -855,18 +849,12 @@ theorem firstHalting_remainingFuel_iff (adjacent : Fin N → Fin N → Bool)
       ∃ tail, bits = selectors clock tail ∧
         (walkM readNext (fun u v => pure (adjacent u v))
           initial.target initial.fuel initial.current tail).1 = some left := by
-  constructor
-  · rintro ⟨hf, hresult⟩
-    have hret : (M).run input bits = .done (some left) := by
-      cases he : (M).run input bits <;> rw [he] at hresult
-      · cases hresult
-      · cases hresult
-      · exact congrArg State.done hresult
-    exact successful_walk edge start verdict clock initial input adjacent hclock hedge
-      initial bits hf hret
-  · rintro ⟨tail, rfl, hwalk⟩
-    exact firstHalting_selectors edge start verdict clock initial input adjacent hclock hedge
-      tail hwalk
+  refine ⟨fun ⟨hf, hresult⟩ => ?_, fun ⟨tail, hbits, hwalk⟩ => hbits ▸
+    firstHalting_selectors edge start verdict clock initial input adjacent hclock hedge tail hwalk⟩
+  have hret : (M).run input bits = .done (some left) := by
+    cases he : (M).run input bits <;> simp_all [remainingFuel]
+  exact successful_walk edge start verdict clock initial input adjacent hclock hedge
+    initial bits hf hret
 
 end Replay
 
@@ -1071,13 +1059,8 @@ theorem advanceCall_budget {edge : QueryMachine τ} {verdict : τ → Bool} {dim
     (budget_ite (budget_natIsZero hticks)
       (budget_ite (budget_boolAnd hhalt hvd) hresume hreject) hcontinue)).of_enc_eq fun a => ?_
   cases selector a <;> cases ticks a <;> try rfl
-  by_cases h : (edge.halted (callee a) && verdict (callee a)) = true
-  · let r' := { r a with current := v a }
-    have hword : encState encCallee (boundary r') =
-        choiceWord (encRegisters (dimension a) r')
-          (NondeterministicChoice.machine (dimension a)).init := rfl
-    simpa [advanceCall, h, r'] using hword
-  · simp [advanceCall, h]
+  by_cases h : (edge.halted (callee a) && verdict (callee a)) = true <;>
+    simp [advanceCall, h, boundary, encState_choice]
 
 private theorem callNext_inSpace (encCallee : τ ↪ List Bool)
     (hnext : ComputableInSpace edge.next (QueryMachine.encStateRead encCallee) encCallee
@@ -1290,18 +1273,10 @@ private theorem dispatch_readState_eq {κ : Type} {n : ℕ} {call : QueryMachine
         (fun p => p.elim
           (fun active => callDispatch encCallee call verdict (active, context, n, reply, selector))
           (fun result => encState encCallee (.done (N := 0) result))) := by
-  cases n with
-  | zero => exact (Nat.not_lt_zero _ hp).elim
-  | succ n =>
-    cases s with
-    | choose r reader =>
-      simp only [advance, readState, Sum.elim_inl, chooseDispatch, readRegisters_succ]
-      rfl
-    | call r dest remaining callee =>
-      simp only [advance, readState, Sum.elim_inl, Sum.elim_inr,
-        callDispatch, readRegisters_succ, readVertex_succ]
-      rfl
-    | done result => rfl
+  rcases n with _ | n
+  · exact (Nat.not_lt_zero _ hp).elim
+  · cases s <;> simp [advance, readState, chooseDispatch, callDispatch,
+      readRegisters_succ, readVertex_succ] <;> rfl
 
 /-- Dispatch the existing walk update on a nonempty carrier computed from the input. The
 encoded choice and call fields use the same layout as in the fixed-dimension walk. -/
@@ -1433,7 +1408,6 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
   rw [R.existsUnique_accepting_replay_iff]
   constructor
   · rintro ⟨hfirst, haccept⟩
-    change (remainingFuel (walk.run (encIn a) bits)).isSome = true at haccept
     obtain ⟨left, hl⟩ := Option.isSome_iff_exists.mp haccept
     obtain ⟨tail, hbits, hwalk⟩ :=
       (firstHalting_remainingFuel_iff edge start verdict clock (registers a) (encIn a)
@@ -1442,7 +1416,7 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
   · rintro ⟨tail, left, rfl, hs⟩
     obtain ⟨hfirst, hresult⟩ := firstHalting_selectors edge start verdict clock (registers a)
       (encIn a) adjacent hclock hedge tail hs
-    exact ⟨hfirst, by change (remainingFuel (walk.run _ _)).isSome = true; rw [hresult]; rfl⟩
+    exact ⟨hfirst, Option.isSome_iff_exists.mpr ⟨left, hresult⟩⟩
 
 end Native
 

@@ -79,19 +79,11 @@ theorem IsPTF.isUnate {f : (ι → Bool) → Bool} (hf : IsPTF 1 f) : IsUnate f 
       Left.neg_pos_iff] at this ⊢ <;> simp [this, this.le, not_lt.2]
   rcases le_total 0 (fourierCoeff p {i}) with hi | hi
   · refine Or.inl fun x => ?_
-    rw [hsign, hsign]
-    have := hd x
-    by_cases h : p (update x i false) < 0
-    · have h' : p (update x i true) < 0 := by linarith
-      simp only [h, h', decide_true, le_refl]
-    · simp only [h, decide_false, Bool.false_le]
+    rw [hsign, hsign, Bool.le_iff_imp]
+    exact fun h => decide_eq_true (by linarith [hd x, of_decide_eq_true h])
   · refine Or.inr fun x => ?_
-    rw [hsign, hsign]
-    have := hd x
-    by_cases h : p (update x i true) < 0
-    · have h' : p (update x i false) < 0 := by linarith
-      simp only [h, h', decide_true, le_refl]
-    · simp only [h, decide_false, Bool.false_le]
+    rw [hsign, hsign, Bool.le_iff_imp]
+    exact fun h => decide_eq_true (by linarith [hd x, of_decide_eq_true h])
 
 /-- **Linear threshold functions have total influence at most `√n`**: a linear threshold function
 on `n` coordinates, read as signs, has total influence at most `√n`

@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Logics.FirstOrder.Ordered.BitArithmetic
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Packing
 import CslibFrontier.Tactic.FirstOrder
-import Mathlib.Tactic.Linarith
 
 /-!
 # Native access to fixed tuples of packed words
@@ -74,10 +73,17 @@ theorem realize_packedBit {B : ℕ} (h : (language L).Term α)
   fo_simp [packedBit, not_le, and_assoc]
   constructor
   · rintro ⟨r, u, h0, h1, h2, h3⟩
-    exact ⟨r, u 1, by lia, h2, h3⟩
+    exact ⟨r, u 1, by omega, h2, h3⟩
   · rintro ⟨r, b, ha, hb, hw⟩
-    have ho : r.val * (h.realize v).val < n := by have := (a.realize v).isLt; lia
+    have ho : r.val * (h.realize v).val < n := by have := (a.realize v).isLt; omega
     exact ⟨r, ![⟨_, ho⟩, b], rfl, ha, hb, hw⟩
+
+private theorem mul_add_lt_of_mul_lt {B h n : ℕ} {r : Fin B} {t : Fin h}
+    (hn : B * h < n) : r.val * h + t.val < n :=
+  calc r.val * h + t.val < r.val * h + h := Nat.add_lt_add_left t.isLt _
+    _ = (r.val + 1) * h := (Nat.succ_mul r.val h).symm
+    _ ≤ B * h := Nat.mul_le_mul_right h r.isLt
+    _ < n := hn
 
 /-- When `B` words of width `h` fit in the universe, `packedField L h w a s z` holds exactly when
 `z` is the field of `s` bits at position `a` (`BitString.readPackedField`). -/
@@ -103,21 +109,14 @@ theorem realize_packedField {B : ℕ} (h : (language L).Term α)
       exact ⟨hbs, r, ⟨t.val, hth⟩, ht.trans hu.symm, hw⟩
     · rintro ⟨hbs, r, t, ht, hw⟩
       have hb : b < n := lt_trans hbs (s.realize v).isLt
-      have ha : (a.realize v).val + b < n := by
-        have hr := r.isLt
-        have htt := t.isLt
-        nlinarith
-      apply (hf (fun _ => ⟨b, hb⟩)).mpr
-      exact ⟨hbs, (fun _ => ⟨_, ha⟩), rfl, r,
+      have ha : (a.realize v).val + b < n := ht ▸ mul_add_lt_of_mul_lt hspace
+      exact (hf (fun _ => ⟨b, hb⟩)).mpr ⟨hbs, (fun _ => ⟨_, ha⟩), rfl, r,
         ⟨t.val, lt_trans t.isLt (h.realize v).isLt⟩, ht, t.isLt, hw⟩
   · intro hz b
     rw [hz, BitString.readPackedField_testBit]
     constructor
     · rintro ⟨hbs, r, t, ht, hw⟩
-      have ha : (a.realize v).val + (b ()).val < n := by
-        have hr := r.isLt
-        have htt := t.isLt
-        nlinarith
+      have ha : (a.realize v).val + (b ()).val < n := ht ▸ mul_add_lt_of_mul_lt hspace
       exact ⟨hbs, (fun _ => ⟨_, ha⟩), rfl, r,
         ⟨t.val, lt_trans t.isLt (h.realize v).isLt⟩, ht, t.isLt, hw⟩
     · rintro ⟨hbs, u, hu, r, t, ht, hth, hw⟩

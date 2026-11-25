@@ -125,17 +125,13 @@ private theorem sum_prod_mem_lowDegree {G : Multiset (Finset T)} {F E : ℕ}
     (hG : ∀ S ∈ G, #S ≤ F) {g : T → (T → Bool) → ℤ} (hg : ∀ t, g t ∈ lowDegree ℤ T E) :
     (fun v => (G.map fun S => ∏ t ∈ S, g t v).sum) ∈ lowDegree ℤ T (F * E) := by
   induction G using Multiset.induction_on with
-  | empty =>
-    simp only [Multiset.map_zero, Multiset.sum_zero]
-    exact Submodule.zero_mem (lowDegree ℤ T (F * E))
+  | empty => exact Submodule.zero_mem _
   | cons S G ih =>
-    have hS : (fun v => ∏ t ∈ S, g t v) ∈ lowDegree ℤ T (F * E) := by
-      have := prod_mem_lowDegree S fun t _ => hg t
-      rw [Finset.prod_fn] at this
-      exact lowDegree_mono (Nat.mul_le_mul_right E (hG S (Multiset.mem_cons_self S G))) this
-    have hrest := ih fun S' hS' => hG S' (Multiset.mem_cons_of_mem hS')
     simp only [Multiset.map_cons, Multiset.sum_cons]
-    exact Submodule.add_mem _ hS hrest
+    refine Submodule.add_mem _ (lowDegree_mono
+      (Nat.mul_le_mul_right E (hG S (Multiset.mem_cons_self S G))) ?_)
+      (ih fun S' hS' => hG S' (Multiset.mem_cons_of_mem hS'))
+    simpa only [Finset.prod_fn] using prod_mem_lowDegree S fun t _ => hg t
 
 /-- The modulus-amplified count of `C` after the layer `L`: the sum over the gates `S` of `C` of
 `∏_{t ∈ S} (1 - p_k(q_t ^ (p - 1)))`. Modulo `p ^ k` it is the number of gates of `C` satisfied
@@ -148,11 +144,10 @@ after `L` (`SymAnd.amplifiedCount_modEq`). -/
 have degree at most `D`. -/
 theorem amplifiedCount_mem_lowDegree (C : SymAnd T) (L : ModPolyLayer T) {D : ℕ}
     (hq : ∀ t, L.q t ∈ lowDegree ℤ T D) (k : ℕ) :
-    amplifiedCount C L k ∈ lowDegree ℤ T (C.fanIn * ((2 * k - 1) * ((L.p - 1) * D))) := by
-  refine sum_prod_mem_lowDegree (fun S hS => card_le_fanIn hS) fun t => ?_
-  have h1 : (fun v => L.q t v ^ (L.p - 1)) ∈ lowDegree ℤ T ((L.p - 1) * D) :=
-    pow_mem_lowDegree (hq t) _
-  exact one_sub_mem_lowDegree (polynomial_eval_mem_lowDegree h1 (natDegree_parityAmplifier_le k))
+    amplifiedCount C L k ∈ lowDegree ℤ T (C.fanIn * ((2 * k - 1) * ((L.p - 1) * D))) :=
+  sum_prod_mem_lowDegree (fun _ hS => card_le_fanIn hS) fun t =>
+    one_sub_mem_lowDegree (polynomial_eval_mem_lowDegree
+      (pow_mem_lowDegree (hq t) _) (natDegree_parityAmplifier_le k))
 
 /-- For a prime modulus, the amplified count is the number of gates of `C` satisfied after `L`,
 modulo `p ^ k` [BeigelTarui1994, Fact 2.7]. -/
@@ -162,12 +157,10 @@ theorem amplifiedCount_modEq (C : SymAnd T) (L : ModPolyLayer T) (hp : L.p.Prime
   rw [natCast_count_eq_sum, ← ZMod.intCast_eq_intCast_iff]
   simp only [amplifiedCount, Int.cast_multiset_sum, Multiset.map_map, Function.comp_def,
     Int.cast_prod, BitString.monomial]
-  congr 1
-  refine Multiset.map_congr rfl fun S _ => Finset.prod_congr rfl fun t _ => ?_
-  refine (ZMod.intCast_eq_intCast_iff _ _ _).2 ?_
-  have := one_sub_parityAmplifier_eval_pow_modEq hp k (L.q t v)
-  simp only [ModPolyLayer.step, bitVal, decide_eq_true_eq, Nat.cast_pow]
-  exact this
+  refine congrArg Multiset.sum (Multiset.map_congr rfl fun S _ => Finset.prod_congr rfl fun t _ =>
+    (ZMod.intCast_eq_intCast_iff _ _ _).2 ?_)
+  simpa only [ModPolyLayer.step, bitVal, decide_eq_true_eq, Nat.cast_pow] using
+    one_sub_parityAmplifier_eval_pow_modEq hp k (L.q t v)
 
 /-- **One explicit collapse step** [BeigelTarui1994, Lemma 2.8]: the canonical circuit
 (`SymAnd.ofLowDegree`) of the amplified count `amplifiedCount C L k` modulo `p ^ k`, up to its
@@ -219,22 +212,17 @@ theorem exists_eval_eq_eval_step [Fintype T] (C : SymAnd T) (L : ModPolyLayer T)
 private theorem tower_fanIn_le {B F p : ℕ} (hF : F ≤ B) (hp : p ≤ B) :
     F * ((2 * (B + 1) - 1) * ((p - 1) * B)) ≤ 3 * B ^ 4 := by
   rcases Nat.eq_zero_or_pos B with rfl | hB
-  · simp only [Nat.le_zero] at hF
-    simp [hF]
-  have h1 : 2 * (B + 1) - 1 ≤ 3 * B := by omega
-  have h2 : (p - 1) * B ≤ B * B := Nat.mul_le_mul_right B (by omega)
-  calc F * ((2 * (B + 1) - 1) * ((p - 1) * B)) ≤ B * (3 * B * (B * B)) := by gcongr
+  · simp [Nat.le_zero.1 hF]
+  calc F * ((2 * (B + 1) - 1) * ((p - 1) * B))
+      ≤ B * (3 * B * (B * B)) :=
+        Nat.mul_le_mul hF (Nat.mul_le_mul (by omega) (Nat.mul_le_mul_right B (by omega)))
     _ = 3 * B ^ 4 := by ring
 
 private theorem tower_log_size_le {B e : ℕ} (hB : 1 ≤ B) (he : e ≤ 3 * B ^ 4) :
     B * (B + 1) + B * e ≤ 5 * B ^ 5 := by
-  have h1 : B ^ 1 ≤ B ^ 5 := Nat.pow_le_pow_right hB (by norm_num)
-  have h2 : B ^ 2 ≤ B ^ 5 := Nat.pow_le_pow_right hB (by norm_num)
-  have h3 : B * e ≤ B * (3 * B ^ 4) := Nat.mul_le_mul_left B he
-  have h4 : B * (3 * B ^ 4) = 3 * B ^ 5 := by ring
-  have h5 : B * (B + 1) = B ^ 2 + B ^ 1 := by ring
-  rw [h5]
-  linarith
+  have : B ^ 1 ≤ B ^ 5 := Nat.pow_le_pow_right hB (by norm_num)
+  have : B ^ 2 ≤ B ^ 5 := Nat.pow_le_pow_right hB (by norm_num)
+  nlinarith
 
 private theorem tower_size_le {B B' p N e : ℕ} (hpB : p ≤ 2 ^ B) (hN : N ≤ 2 ^ B)
     (hle : B * (B + 1) + B * e ≤ B') : p ^ (B + 1) * N ^ e ≤ 2 ^ B' :=
@@ -259,30 +247,26 @@ private theorem collapseRun_spec [Fintype T] [DecidableEq T] (C : SymAnd T)
       (collapseRun C Ls B).size ≤ 2 ^ (2 * B) ^ 5 ^ Ls.length := by
   induction Ls generalizing C B with
   | nil =>
-    refine ⟨fun v => rfl, ?_, ?_⟩
-    · simp only [collapseRun, List.length_nil, pow_zero, pow_one]
-      omega
-    · simp only [collapseRun, List.length_nil, pow_zero, pow_one]
-      exact hs.trans (Nat.pow_le_pow_right (by norm_num) (by omega))
+    refine ⟨fun _ => rfl, by simp [collapseRun]; omega, ?_⟩
+    simpa only [collapseRun, List.length_nil, pow_zero, pow_one] using
+      hs.trans (Nat.pow_le_pow_right (by norm_num) (by omega))
   | cons L Ls ih =>
     obtain ⟨hp, hpB, hq⟩ := hLs L List.mem_cons_self
-    have hB : 1 ≤ B := le_trans hp.one_lt.le hpB
+    have hB : 1 ≤ B := hp.one_lt.le.trans hpB
     have hk : C.size < L.p ^ (B + 1) :=
       calc C.size ≤ 2 ^ B := hs
         _ < 2 ^ (B + 1) := Nat.pow_lt_pow_right (by norm_num) (Nat.lt_succ_self B)
         _ ≤ L.p ^ (B + 1) := Nat.pow_le_pow_left hp.two_le _
     have he := tower_fanIn_le hf hpB
-    have h45 : 3 * B ^ 4 ≤ 5 * B ^ 5 := by gcongr <;> omega
     have hB₁ : B ≤ 5 * B ^ 5 := by
-      have : B ^ 1 ≤ B ^ 5 := Nat.pow_le_pow_right hB (by norm_num)
-      rw [pow_one] at this
+      have := Nat.le_self_pow (by decide : 5 ≠ 0) B
       omega
     obtain ⟨hC', hf', hs'⟩ := ih (collapseStep C L (B + 1) B) (B := 5 * B ^ 5)
       (fun L' hL' =>
-        have h := hLs L' (List.mem_cons_of_mem L hL')
+        let h := hLs L' (List.mem_cons_of_mem L hL')
         ⟨h.1, h.2.1.trans hB₁, fun t => lowDegree_mono hB₁ (h.2.2 t)⟩)
       (hT.trans (Nat.pow_le_pow_right (by norm_num) hB₁))
-      ((fanIn_collapseStep_le C L (B + 1) B).trans (he.trans h45))
+      ((fanIn_collapseStep_le C L (B + 1) B).trans (he.trans (by gcongr <;> omega)))
       ((size_collapseStep_le C L hp.pos (B + 1) B).trans
         (tower_size_le (hpB.trans Nat.lt_two_pow_self.le) hT (tower_log_size_le hB he)))
     have hbase : 2 * (5 * B ^ 5) ≤ (2 * B) ^ 5 :=
@@ -290,13 +274,10 @@ private theorem collapseRun_spec [Fintype T] [DecidableEq T] (C : SymAnd T)
         _ ≤ 32 * B ^ 5 := Nat.mul_le_mul_right _ (by norm_num)
         _ = (2 * B) ^ 5 := by ring
     have hexp : (2 * (5 * B ^ 5)) ^ 5 ^ Ls.length ≤ (2 * B) ^ 5 ^ (L :: Ls).length := by
-      have h5 : 5 ^ (L :: Ls).length = 5 * 5 ^ Ls.length := by
-        rw [List.length_cons, pow_succ']
-      rw [h5, pow_mul]
+      conv_rhs => rw [List.length_cons, pow_succ', pow_mul]
       exact Nat.pow_le_pow_left hbase _
-    refine ⟨fun v => by rw [collapseRun, hC', ModPolyLayer.run_cons,
-      eval_collapseStep C L hp hq hk], hf'.trans hexp,
-      hs'.trans (Nat.pow_le_pow_right (by norm_num) hexp)⟩
+    exact ⟨fun v => by rw [collapseRun, hC', ModPolyLayer.run_cons, eval_collapseStep C L hp hq hk],
+      hf'.trans hexp, hs'.trans (Nat.pow_le_pow_right (by norm_num) hexp)⟩
 
 /-- **What the explicit tower collapse computes**: under the hypotheses of
 `SymAnd.exists_eval_eq_eval_run`, `collapseRun C Ls B` computes `C` after running `Ls`. -/
@@ -345,12 +326,10 @@ theorem exists_eval_eq_run_apply [Fintype T] (Ls : List (ModPolyLayer T)) (t : T
     (hT : Fintype.card T + 1 ≤ 2 ^ B) :
     ∃ C : SymAnd T, (∀ v, C.eval v = ModPolyLayer.run Ls v t) ∧
       C.fanIn ≤ (2 * B) ^ 5 ^ Ls.length ∧ C.size ≤ 2 ^ (2 * B) ^ 5 ^ Ls.length := by
-  have hB : 1 ≤ B := by
-    rcases Nat.eq_zero_or_pos B with rfl | hB
-    · have : 0 < Fintype.card T := Fintype.card_pos_iff.2 ⟨t⟩
-      simp only [pow_zero] at hT
-      omega
-    · exact hB
+  have hB : 1 ≤ B := Nat.pos_of_ne_zero fun h0 => by
+    have : 0 < Fintype.card T := Fintype.card_pos_iff.2 ⟨t⟩
+    simp only [h0, pow_zero] at hT
+    omega
   obtain ⟨C, hC, hf, hs⟩ := exists_eval_eq_eval_run (slot t) Ls hLs hT
     (by rw [fanIn_slot]; exact hB) (by rw [size_slot]; exact Nat.one_le_two_pow)
   exact ⟨C, fun v => by rw [hC, eval_slot], hf, hs⟩

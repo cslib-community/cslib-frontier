@@ -233,27 +233,16 @@ theorem computableInPolyTime_rsaHashRoot {α : Type} {enc : α ↪ List Bool}
 theorem isPPT_rsaHashToRSA {A : CollisionFinderFor RSAHashKey}
     (hA : IsPPTOn (encPair encUnary encRSAHashKey) (encPair encBits encBits)
       (fun p => A p.1 p.2)) : (rsaHashToRSA A).IsPPT := by
-  have hrun : IsPPTOn encRSAInput (encPair encBits encBits)
-      (fun x : RSAInput => A x.secParam ⟨x.publicKey, x.challenge⟩) :=
-    hA.preprocess
-      (prepare := fun x : RSAInput => (x.secParam, (⟨x.publicKey, x.challenge⟩ : RSAHashKey)))
-      (by fun_prop)
-  have hd₁ : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) => rsaHashDecoder.decode p.2.1)
-      (encPair encRSAInput (encPair encBits encBits)) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (by fun_prop)
-  have hd₂ : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) => rsaHashDecoder.decode p.2.2)
-      (encPair encRSAInput (encPair encBits encBits)) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (by fun_prop)
-  have hroot : ComputableInPolyTime
-      (fun p : RSAInput × (List Bool × List Bool) =>
-        rsaHashRoot p.1.publicKey.N p.1.publicKey.e p.1.challenge
-          (rsaHashDecoder.decode p.2.1).1 (rsaHashDecoder.decode p.2.1).2
-          (rsaHashDecoder.decode p.2.2).1 (rsaHashDecoder.decode p.2.2).2)
-      (encPair encRSAInput (encPair encBits encBits)) encNat :=
-    computableInPolyTime_rsaHashRoot (by fun_prop) (by fun_prop) (by fun_prop)
-      hd₁.fst' hd₁.snd' hd₂.fst' hd₂.snd'
+  have hrun := hA.preprocess
+    (prepare := fun x : RSAInput => (x.secParam, (⟨x.publicKey, x.challenge⟩ : RSAHashKey)))
+    (by fun_prop)
+  have hsnd := ComputableInPolyTime.snd encRSAInput (encPair encBits encBits)
+  have hd₁ := rsaHashDecoder.computableInPolyTime.comp hsnd.fst'
+  have hd₂ := rsaHashDecoder.computableInPolyTime.comp hsnd.snd'
+  have hroot := computableInPolyTime_rsaHashRoot
+    (N := fun p : RSAInput × (List Bool × List Bool) => p.1.publicKey.N)
+    (e := fun p => p.1.publicKey.e) (y := fun p => p.1.challenge)
+    (by fun_prop) (by fun_prop) (by fun_prop) hd₁.fst' hd₁.snd' hd₂.fst' hd₂.snd'
   refine (hrun.map_with
     (f := fun x pair => rsaHashRoot x.publicKey.N x.publicKey.e x.challenge
       (rsaHashDecoder.decode pair.1).1 (rsaHashDecoder.decode pair.1).2
@@ -264,12 +253,10 @@ theorem isPPT_rsaHashToRSA {A : CollisionFinderFor RSAHashKey}
 theorem computableInPolyTime_rsaHash :
     ComputableInPolyTime (fun p : RSAHashKey × List Bool => rsaHash p.1 p.2)
       (encPair encRSAHashKey encBits) encNat := by
-  have hd : ComputableInPolyTime (fun p : RSAHashKey × List Bool => rsaHashDecoder.decode p.2)
-      (encPair encRSAHashKey encBits) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  have hd := rsaHashDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd encRSAHashKey encBits)
   have hN : ComputableInPolyTime (fun p : RSAHashKey × List Bool => p.1.publicKey.N)
       (encPair encRSAHashKey encBits) encNat := by fun_prop
-  unfold rsaHash
   exact ComputableInPolyTime.binary_mod'
     (ComputableInPolyTime.binary_mul'
       (computableInPolyTime_powMod hN hd.fst' (by fun_prop))
@@ -280,26 +267,17 @@ theorem computableInPolyTime_validRSAHashInput :
     ComputableInPolyTime
       (fun p : (ℕ × RSAHashKey) × List Bool => validRSAHashInput p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encRSAHashKey) encBits) encBool := by
-  have hd : ComputableInPolyTime
-      (fun p : (ℕ × RSAHashKey) × List Bool => rsaHashDecoder.decode p.2)
-      (encPair (encPair encUnary encRSAHashKey) encBits) (encPair encNat encNat) :=
-    rsaHashDecoder.computableInPolyTime.comp (ComputableInPolyTime.snd _ _)
+  have hd := rsaHashDecoder.computableInPolyTime.comp
+    (ComputableInPolyTime.snd (encPair encUnary encRSAHashKey) encBits)
   have hN : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.N)
       (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
   have he : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.e)
       (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
-  have hcanon : ComputableInPolyTime
-      (fun p : (ℕ × RSAHashKey) × List Bool =>
-        encPair encNat encNat (rsaHashDecoder.decode p.2) == p.2)
-      (encPair (encPair encUnary encRSAHashKey) encBits) encBool :=
-    ComputableInPolyTime.beq hd.encoding_comp (ComputableInPolyTime.snd _ _)
-  have hlt := ComputableInPolyTime.binary_lt' hd.fst' hN
+  have hcanon := hd.encoding_comp.beq (ComputableInPolyTime.snd _ _)
   have hcop := ComputableInPolyTime.decide_eq'
-    (ComputableInPolyTime.binary_gcd' hd.fst' hN) (ComputableInPolyTime.const 1)
-  have hlt₂ := ComputableInPolyTime.binary_lt' hd.snd' he
-  unfold validRSAHashInput
-  exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.bool_and' hcanon hlt) hcop) hlt₂)
+    (hd.fst'.binary_gcd' hN) (ComputableInPolyTime.const 1)
+  exact ((hcanon.bool_and' (hd.fst'.binary_lt' hN)).bool_and' hcop).bool_and'
+    (hd.snd'.binary_lt' he)
 
 /-- A collision of the RSA hash at a key with prime `e` and a unit base `y < N` decodes to pairs
 from which `rsaHashRoot` computes an `e`-th root of `y`. -/

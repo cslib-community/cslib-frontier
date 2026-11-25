@@ -128,11 +128,7 @@ private theorem roundPauliSide [Fintype η] [DecidableEq η]
   change (𝔼 c, S.state.norm (B c - f (P.charObs c)) ^ 2) ≤ _
   have h := S.state.expect_norm_sub_sq_le_through univ B
     (fun c => (T.alice c).observable) (fun c => f (P.charObs c))
-  have hswap (c : Fin n → Bool) :
-      S.state.norm (B c - (T.alice c).observable) =
-        S.state.norm ((T.alice c).observable - B c) :=
-    S.state.norm_sub_comm _ _
-  simp only [hswap] at h
+  simp only [S.state.norm_sub_comm (B _) (T.alice _).observable] at h
   unfold pauliBraidingRoundingError
   linarith only [h, hdec', hround]
 

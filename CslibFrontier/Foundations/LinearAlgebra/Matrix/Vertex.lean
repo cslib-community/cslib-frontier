@@ -137,10 +137,9 @@ private def restrictRows (A : Matrix κ ι K) (s : Finset κ) : (ι → K) →�
   (LinearMap.funLeft K K ((↑) : s → κ)).comp (Matrix.mulVecLin A)
 
 private theorem restrictRows_injective (h : IsVertex A b x) :
-    Function.Injective (restrictRows A (tightRows A b x)) := by
-  rw [← LinearMap.ker_eq_bot, LinearMap.ker_eq_bot']
-  intro v hv
-  exact h.2 v fun k hk => congrFun hv ⟨k, hk⟩
+    Function.Injective (restrictRows A (tightRows A b x)) :=
+  LinearMap.ker_eq_bot.1 <| LinearMap.ker_eq_bot'.2 fun v hv =>
+    h.2 v fun k hk => congrFun hv ⟨k, hk⟩
 
 /-- A vertex has at least `card ι` tight rows. -/
 theorem IsVertex.card_le_card_tightRows (h : IsVertex A b x) :
@@ -152,10 +151,9 @@ theorem IsVertex.card_le_card_tightRows (h : IsVertex A b x) :
 /-- A vertex is the only point of the polyhedron's affine space on which its tight rows are tight:
 if they are all tight at `y`, then `y = x`. -/
 theorem IsVertex.eq_of_tightRows_subset (hx : IsVertex A b x)
-    (h : tightRows A b x ⊆ tightRows A b y) : y = x := by
-  have := hx.2 (y - x) fun k hk => by
+    (h : tightRows A b x ⊆ tightRows A b y) : y = x :=
+  sub_eq_zero.1 <| hx.2 (y - x) fun k hk => by
     rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 hk, mem_tightRows.1 (h hk), sub_self]
-  exact sub_eq_zero.1 this
 
 /-- A vertex is determined by its set of tight rows. -/
 theorem IsVertex.eq_of_tightRows_eq (hx : IsVertex A b x)
@@ -184,16 +182,16 @@ theorem tightRows_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ)
 /-- Permuting the rows of `A *ᵥ x ≤ b` by an equivalence preserves vertices. -/
 theorem isVertex_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ) :
     IsVertex (A.submatrix e id) (b ∘ e) x ↔ IsVertex A b x := by
-  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
-    fun v => A.submatrix_mulVec_equiv v e (.refl ι)
+  have hmul (v : ι → K) : (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
+    A.submatrix_mulVec_equiv v e (.refl ι)
   simp only [IsVertex, tightRows_submatrix_equiv, hmul, Pi.le_def, Function.comp_apply,
     e.forall_congr_left, Equiv.apply_symm_apply, mem_map_equiv, Equiv.symm_symm]
 
 /-- Permuting the rows of `A *ᵥ x ≤ b` by an equivalence preserves nondegeneracy. -/
 theorem isNondegenerateSystem_submatrix_equiv {κ' : Type*} [Fintype κ'] (e : κ' ≃ κ) :
     IsNondegenerateSystem (A.submatrix e id) (b ∘ e) ↔ IsNondegenerateSystem A b := by
-  have hmul : ∀ v : ι → K, (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
-    fun v => A.submatrix_mulVec_equiv v e (.refl ι)
+  have hmul (v : ι → K) : (A.submatrix e id) *ᵥ v = (A *ᵥ v) ∘ e :=
+    A.submatrix_mulVec_equiv v e (.refl ι)
   simp only [IsNondegenerateSystem, tightRows_submatrix_equiv, card_map, hmul, Pi.le_def,
     Function.comp_apply, e.forall_congr_left, Equiv.apply_symm_apply]
 
@@ -216,17 +214,15 @@ private theorem exists_tight_add_smul [Finite κ] (hx : A *ᵥ x ≤ b) {v : ι 
     (hc : 0 < (A *ᵥ v) c) :
     ∃ t : K, ∃ c, 0 < (A *ᵥ v) c ∧ A *ᵥ (x + t • v) ≤ b ∧ (A *ᵥ (x + t • v)) c = b c := by
   have := Fintype.ofFinite κ
-  have hs : ({k | 0 < (A *ᵥ v) k} : Finset κ).Nonempty := ⟨c, by simp [hc]⟩
-  obtain ⟨c₀, hc₀s, hc₀⟩ :=
-    exists_min_image _ (fun k => (b k - (A *ᵥ x) k) / (A *ᵥ v) k) hs
+  obtain ⟨c₀, hc₀s, hc₀⟩ := exists_min_image ({k | 0 < (A *ᵥ v) k} : Finset κ)
+    (fun k => (b k - (A *ᵥ x) k) / (A *ᵥ v) k) ⟨c, by simp [hc]⟩
   have hpos : 0 < (A *ᵥ v) c₀ := by simpa using hc₀s
   refine ⟨(b c₀ - (A *ᵥ x) c₀) / (A *ᵥ v) c₀, c₀, hpos, fun k => ?_, ?_⟩
   · simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
     rcases le_or_gt ((A *ᵥ v) k) 0 with hk | hk
     · have := mul_nonpos_of_nonneg_of_nonpos (div_nonneg (sub_nonneg.2 (hx c₀)) hpos.le) hk
       linarith [hx k]
-    · have := (le_div_iff₀ hk).1 (hc₀ k (by simp [hk]))
-      linarith
+    · linarith [(le_div_iff₀ hk).1 (hc₀ k (by simp [hk]))]
   · simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
     field_simp
     ring
@@ -239,21 +235,16 @@ theorem isVertex_of_card_tightRows (hnd : IsNondegenerateSystem A b)
   classical
   refine ⟨hx, fun v hv => ?_⟩
   by_contra hne
-  have hv0 : ¬ A *ᵥ v ≤ 0 := fun h => hne (hrec v h)
-  simp only [Pi.le_def, not_forall, not_le, Pi.zero_apply] at hv0
-  obtain ⟨c, hc⟩ := hv0
+  obtain ⟨c, hc⟩ : ∃ c, 0 < (A *ᵥ v) c := by
+    simpa [Pi.le_def] using fun h : A *ᵥ v ≤ 0 => hne (hrec v h)
   obtain ⟨t, c', hc', hle, htight⟩ := exists_tight_add_smul hx hc
-  have hc'T : c' ∉ tightRows A b x := fun h => (hv c' h ▸ hc').false
-  have hsub : insert c' (tightRows A b x) ⊆ tightRows A b (x + t • v) := by
-    intro k hk
+  have hsub : insert c' (tightRows A b x) ⊆ tightRows A b (x + t • v) := fun k hk => by
     rcases mem_insert.1 hk with rfl | hk
     · exact mem_tightRows.2 htight
-    · rw [mem_tightRows, mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, hv k hk, smul_zero,
-        add_zero]
-      exact mem_tightRows.1 hk
+    · simp [mulVec_add, mulVec_smul, hv k hk, mem_tightRows.1 hk]
   have h1 := card_le_card hsub
-  rw [card_insert_of_notMem hc'T] at h1
-  have h2 := hnd _ hle
+  rw [card_insert_of_notMem fun h => (hv c' h ▸ hc').false] at h1
+  have := hnd _ hle
   omega
 
 /-- The vertices of a bounded nondegenerate system are its feasible points with exactly `card ι`
@@ -271,47 +262,30 @@ variable [DecidableEq κ]
 theorem IsVertex.exists_pivot (hnd : IsNondegenerateSystem A b)
     (hrec : ∀ v, A *ᵥ v ≤ 0 → v = 0) (hx : IsVertex A b x) {l : κ} (hl : l ∈ tightRows A b x) :
     ∃ y, IsVertex A b y ∧ y ≠ x ∧ (tightRows A b x).erase l ⊆ tightRows A b y := by
-  set T := tightRows A b x with hTdef
+  set T := tightRows A b x
   have hT : #T = Fintype.card ι := hx.card_tightRows hnd
-  have hsurj : Function.Surjective (restrictRows A T) := by
-    have hinj := restrictRows_injective hx
-    rwa [← LinearMap.injective_iff_surjective_of_finrank_eq_finrank]
-    rw [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card, Fintype.card_coe,
-      hT]
+  have hsurj : Function.Surjective (restrictRows A T) :=
+    (LinearMap.injective_iff_surjective_of_finrank_eq_finrank <| by
+      simp [Module.finrank_fintype_fun_eq_card, hT]).1 (restrictRows_injective hx)
   obtain ⟨v, hv⟩ := hsurj fun k => if (k : κ) = l then -1 else 0
-  have hvT : ∀ k ∈ T, (A *ᵥ v) k = if k = l then -1 else 0 := fun k hk => congrFun hv ⟨k, hk⟩
-  have hvl : (A *ᵥ v) l = -1 := by simpa using hvT l hl
-  have hv0 : ¬ A *ᵥ v ≤ 0 := by
-    intro h
-    have := hrec v h
-    subst this
-    simp at hvl
-  simp only [Pi.le_def, not_forall, not_le, Pi.zero_apply] at hv0
-  obtain ⟨c, hc⟩ := hv0
+  have hvT (k) (hk : k ∈ T) : (A *ᵥ v) k = if k = l then -1 else 0 := congrFun hv ⟨k, hk⟩
+  have hv0 : ¬ A *ᵥ v ≤ 0 := fun h => by simpa [hrec v h] using hvT l hl
+  obtain ⟨c, hc⟩ : ∃ c, 0 < (A *ᵥ v) c := by simpa [Pi.le_def] using hv0
   obtain ⟨t, c', hc', hle, htight⟩ := exists_tight_add_smul hx.1 hc
-  have hc'T : c' ∉ T := by
-    intro h
+  have hc'T : c' ∉ T := fun h => by
     have := hvT c' h
     split_ifs at this <;> linarith
-  have hsub : insert c' (T.erase l) ⊆ tightRows A b (x + t • v) := by
-    intro k hk
+  have hsub : insert c' (T.erase l) ⊆ tightRows A b (x + t • v) := fun k hk => by
     rcases mem_insert.1 hk with rfl | hk
     · exact mem_tightRows.2 htight
     · obtain ⟨hkl, hkT⟩ := mem_erase.1 hk
-      have hk0 : (A *ᵥ v) k = 0 := by simpa [hkl] using hvT k hkT
-      rw [mem_tightRows, mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, hk0, smul_zero,
-        add_zero]
-      exact mem_tightRows.1 hkT
-  have hcard : Fintype.card ι ≤ #(tightRows A b (x + t • v)) := by
-    have h1 := card_le_card hsub
-    rw [card_insert_of_notMem (fun h => hc'T (mem_of_mem_erase h)), card_erase_of_mem hl, hT] at h1
-    have : 0 < Fintype.card ι := hT ▸ card_pos.2 ⟨l, hl⟩
-    omega
-  refine ⟨x + t • v, isVertex_of_card_tightRows hnd hrec hle hcard, fun h => ?_,
-    fun k hk => hsub (mem_insert_of_mem hk)⟩
-  apply hc'T
-  rw [h] at htight
-  exact mem_tightRows.2 htight
+      simp [mulVec_add, mulVec_smul, show (A *ᵥ v) k = 0 by simpa [hkl] using hvT k hkT,
+        mem_tightRows.1 hkT]
+  have h1 := card_le_card hsub
+  rw [card_insert_of_notMem fun h => hc'T (mem_of_mem_erase h), card_erase_of_mem hl, hT] at h1
+  have : 0 < Fintype.card ι := hT ▸ card_pos.2 ⟨l, hl⟩
+  refine ⟨x + t • v, isVertex_of_card_tightRows hnd hrec hle (by omega),
+    fun h => hc'T (mem_tightRows.2 (h ▸ htight)), fun k hk => hsub (mem_insert_of_mem hk)⟩
 
 /-- The direction from a vertex `x` to a pivot `y` (dropping `l`) strictly decreases row `l`, and
 some row not tight at `x` becomes tight at `y` while strictly increasing. -/
@@ -322,21 +296,18 @@ private theorem IsVertex.pivot_aux (hnd : IsNondegenerateSystem A b) (hx : IsVer
   have hlnot := hx.notMem_tightRows_of_erase_subset hyx hyT
   have hl' : (A *ᵥ (y - x)) l < 0 := by
     rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 hl]
-    exact sub_neg.2 (lt_of_le_of_ne (hy.1 l) (fun h => hlnot (mem_tightRows.2 h)))
-  have : ¬ tightRows A b y ⊆ (tightRows A b x).erase l := by
-    intro h
+    exact sub_neg.2 ((hy.1 l).lt_of_ne fun h => hlnot (mem_tightRows.2 h))
+  obtain ⟨c, hcy, hcT⟩ := not_subset.1 fun h : tightRows A b y ⊆ (tightRows A b x).erase l => by
     have h1 := card_le_card h
     rw [card_erase_of_mem hl] at h1
-    have h2 := hy.card_le_card_tightRows
-    have h3 := hnd x hx.1
-    have h4 : 0 < #(tightRows A b x) := card_pos.2 ⟨l, hl⟩
+    have := hy.card_le_card_tightRows
+    have := hnd x hx.1
+    have : 0 < #(tightRows A b x) := card_pos.2 ⟨l, hl⟩
     omega
-  obtain ⟨c, hcy, hcT⟩ := not_subset.1 this
-  have hcT' : c ∉ tightRows A b x :=
-    fun h => hcT (mem_erase.2 ⟨fun hcl => hlnot (hcl ▸ hcy), h⟩)
   refine ⟨hl', c, ?_, mem_tightRows.1 hcy⟩
   rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 hcy, sub_pos]
-  exact lt_of_le_of_ne (hx.1 c) (fun h => hcT' (mem_tightRows.2 h))
+  exact (hx.1 c).lt_of_ne fun h => hcT (mem_erase.2 ⟨fun hcl => hlnot (hcl ▸ hcy),
+    mem_tightRows.2 h⟩)
 
 /-- **Pivoting, uniqueness.** In a nondegenerate system, there is at most one vertex `y ≠ x` at
 which all tight rows of the vertex `x` other than `l` stay tight. -/
@@ -346,33 +317,27 @@ theorem IsVertex.eq_of_erase_subset (hnd : IsNondegenerateSystem A b) (hx : IsVe
     (hzT : (tightRows A b x).erase l ⊆ tightRows A b z) : z = y := by
   obtain ⟨hyl, c, hc, hcy⟩ := hx.pivot_aux hnd hl hy hyx hyT
   obtain ⟨hzl, c', hc', hc'z⟩ := hx.pivot_aux hnd hl hz hzx hzT
-  have hrow : ∀ {u}, (tightRows A b x).erase l ⊆ tightRows A b u →
-      ∀ k ∈ tightRows A b x, k ≠ l → (A *ᵥ (u - x)) k = 0 := fun hu k hk hkl => by
+  have hrow {u} (hu : (tightRows A b x).erase l ⊆ tightRows A b u) (k)
+      (hk : k ∈ tightRows A b x) (hkl : k ≠ l) : (A *ᵥ (u - x)) k = 0 := by
     rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 (hu (mem_erase.2 ⟨hkl, hk⟩)),
       mem_tightRows.1 hk, sub_self]
   set s := (A *ᵥ (z - x)) l / (A *ᵥ (y - x)) l with hs
-  have hw : z - x = s • (y - x) := by
-    refine sub_eq_zero.1 (hx.2 _ fun k hk => ?_)
+  have hw : z - x = s • (y - x) := sub_eq_zero.1 <| hx.2 _ fun k hk => by
     rw [mulVec_sub, mulVec_smul, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
     by_cases hkl : k = l
     · subst hkl
       rw [hs, div_mul_cancel₀ _ hyl.ne, sub_self]
     · rw [hrow hyT k hk hkl, hrow hzT k hk hkl, mul_zero, sub_zero]
-  have hspos : 0 < s := div_pos_of_neg_of_neg hzl hyl
   have hz' : z = x + s • (y - x) := by rw [← hw]; abel
   have hzc := hz.1 c
   have hyc' := hy.1 c'
   rw [hz', mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at hzc hc'z
   rw [hw, mulVec_smul, Pi.smul_apply, smul_eq_mul] at hc'
-  have hyc'' : (A *ᵥ (y - x)) c' + (A *ᵥ x) c' ≤ b c' := by
-    rw [mulVec_sub, Pi.sub_apply]; linarith
-  have hcy' : (A *ᵥ (y - x)) c = b c - (A *ᵥ x) c := by
-    rw [mulVec_sub, Pi.sub_apply, hcy]
-  have hpos' : 0 < (A *ᵥ (y - x)) c' := pos_of_mul_pos_right hc' hspos.le
-  have h1 : s ≤ 1 := by nlinarith
-  have h2 : 1 ≤ s := by nlinarith
-  rw [hz', le_antisymm h1 h2, one_smul]
-  abel
+  have hyc'' : (A *ᵥ (y - x)) c' + (A *ᵥ x) c' ≤ b c' := by rw [mulVec_sub, Pi.sub_apply]; linarith
+  have hcy' : (A *ᵥ (y - x)) c = b c - (A *ᵥ x) c := by rw [mulVec_sub, Pi.sub_apply, hcy]
+  have hpos' : 0 < (A *ᵥ (y - x)) c' := pos_of_mul_pos_right hc' (div_pos_of_neg_of_neg hzl hyl).le
+  have hs1 : s = 1 := le_antisymm (by nlinarith) (by nlinarith)
+  rw [hz', hs1, one_smul]; abel
 
 /-- The vertex reached from the vertex `x` by dropping its tight row `l`: the other vertex at which
 all tight rows of `x` except `l` are tight. For a bounded nondegenerate system it exists and is
@@ -414,24 +379,19 @@ theorem IsVertex.notMem_tightRows_pivotVertex (hnd : IsNondegenerateSystem A b)
 theorem vertexAdj_iff_exists_pivotVertex (hnd : IsNondegenerateSystem A b)
     (hrec : ∀ v, A *ᵥ v ≤ 0 → v = 0) (hx : IsVertex A b x) :
     VertexAdj A b x y ↔ ∃ l ∈ tightRows A b x, y = pivotVertex A b x l := by
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨-, hy, hxy, hcard⟩
     have hTx := hx.card_tightRows hnd
-    have hne : ¬ tightRows A b x ⊆ tightRows A b y :=
-      fun h => hxy (hx.eq_of_tightRows_subset h).symm
-    obtain ⟨l, hlx, hly⟩ := not_subset.1 hne
+    obtain ⟨l, hlx, hly⟩ := not_subset.1 fun h => hxy (hx.eq_of_tightRows_subset h).symm
     refine ⟨l, hlx, hx.eq_pivotVertex hnd hrec hlx hy hxy.symm ?_⟩
     have hsub : tightRows A b x ∩ tightRows A b y ⊆ (tightRows A b x).erase l :=
       fun k hk => mem_erase.2 ⟨fun h => hly (h ▸ (mem_inter.1 hk).2), (mem_inter.1 hk).1⟩
-    have heq := eq_of_subset_of_card_le hsub (by rw [card_erase_of_mem hlx]; omega)
-    rw [← heq]
-    exact inter_subset_right
+    exact eq_of_subset_of_card_le hsub (by rw [card_erase_of_mem hlx]; omega) ▸ inter_subset_right
   · rintro ⟨l, hl, rfl⟩
     obtain ⟨h1, h2, h3⟩ := hx.pivotVertex_spec hnd hrec hl
-    refine ⟨hx, h1, h2.symm, ?_⟩
     have := card_le_card (subset_inter (erase_subset l _) h3)
     rw [card_erase_of_mem hl, hx.card_tightRows hnd] at this
-    omega
+    exact ⟨hx, h1, h2.symm, by omega⟩
 
 omit [DecidableEq κ] in
 /-- Dropping different tight rows of a vertex leads to different pivots. -/
@@ -439,11 +399,7 @@ theorem IsVertex.pivotVertex_injOn (hnd : IsNondegenerateSystem A b)
     (hrec : ∀ v, A *ᵥ v ≤ 0 → v = 0) (hx : IsVertex A b x) :
     Set.InjOn (pivotVertex A b x) (tightRows A b x) := by
   classical
-  intro l₁ hl₁ l₂ hl₂ h
-  by_contra hne
-  have h1 := hx.notMem_tightRows_pivotVertex hnd hrec hl₁
-  have h2 := (hx.pivotVertex_spec hnd hrec hl₂).2.2 (mem_erase.2 ⟨hne, hl₁⟩)
-  rw [← h] at h2
-  exact h1 h2
+  exact fun l₁ hl₁ l₂ hl₂ h => by_contra fun hne => hx.notMem_tightRows_pivotVertex hnd hrec hl₁
+    (h ▸ (hx.pivotVertex_spec hnd hrec hl₂).2.2 (mem_erase.2 ⟨hne, hl₁⟩))
 
 end Matrix

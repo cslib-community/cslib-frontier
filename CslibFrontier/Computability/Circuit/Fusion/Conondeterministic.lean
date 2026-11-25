@@ -54,11 +54,8 @@ private abbrev Witness := SemifilterWitness (trueSet (forallGuess g)) (literalSe
 private theorem exists_rejectingAuxiliary (x : ↥((trueSet (forallGuess g))ᶜ)) :
     ∃ y : BitString a, g (Fin.append x.val y) ≠ true := by
   classical
-  have h : ¬ ∀ y : BitString a, g (Fin.append x.val y) = true := by
-    intro hall
-    exact x.property (by simpa only [trueSet, Set.mem_ofPred_eq, forallGuess, decide_eq_true_eq]
-      using hall)
-  exact not_forall.mp h
+  exact not_forall.mp fun hall => x.property
+    (by simpa only [trueSet, Set.mem_ofPred_eq, forallGuess, decide_eq_true_eq] using hall)
 
 private noncomputable def rejectingAuxiliary (x : ↥((trueSet (forallGuess g))ᶜ)) : BitString a :=
   Classical.choose (exists_rejectingAuxiliary g x)

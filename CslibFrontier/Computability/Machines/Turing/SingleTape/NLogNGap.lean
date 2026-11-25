@@ -107,11 +107,9 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
     rw [← List.length_eq_zero_iff, ← List.length_eq_zero_iff, l₁, l₂]
     omega
   have hL : ((tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).run (T w.length)).state =
-      none := by
-    rw [← e₁]; exact hw
+      none := e₁ ▸ hw
   have hR : ((tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).run (T w.length)).state =
-      none := by
-    rw [← e₂]; exact hw
+      none := e₂ ▸ hw
   have hx : (tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).crossings
       ((w.take i).map ι).length (T w.length) =
       (tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).crossings
@@ -125,12 +123,10 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
       (T (w.take i ++ w.drop j).length) =
       (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b (T w.length + T w.length) :=
     AbsCfg.crossings_eq_of_halted _ b hw' hC
-  refine ⟨fun b hb => ?_, fun b hb => ?_⟩
-  · rw [heq]
-    exact hcL b (by rw [l₁]; exact_mod_cast hb)
-  · rw [heq, hcR b (by rw [l₁]; exact_mod_cast hb), l₁, l₂]
-    congr 1
-    omega
+  refine ⟨fun b hb => (heq b).trans (hcL b (by rw [l₁]; exact_mod_cast hb)), fun b hb => ?_⟩
+  rw [heq, hcR b (by rw [l₁]; exact_mod_cast hb), l₁, l₂]
+  congr 1
+  omega
 
 /-- In a shortest input with a crossing sequence longer than `K` at a boundary `b`, two
 boundaries `i < j` with `b ≤ i` or `j ≤ b` have different crossing sequences: otherwise cutting
@@ -179,14 +175,11 @@ private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
     rw [pow_mul]
     exact Nat.pow_le_pow_left hpow L
   rcases Nat.eq_zero_or_pos L with h0 | hLpos
-  · rw [h0, Nat.mul_zero]
-    exact Nat.zero_le _
+  · simp [h0]
   · have hdiv : d * L + (Nat.log 2 m - 1) % d = Nat.log 2 m - 1 := hL ▸ Nat.div_add_mod _ d
     have hdL : 1 ≤ d * L := Nat.mul_pos hd hLpos
     have hlog : d * L + 1 ≤ Nat.log 2 m := by omega
-    have hm0 : m ≠ 0 := by
-      rintro rfl
-      simp at hlog
+    have hm0 : m ≠ 0 := by rintro rfl; simp at hlog
     have h2P : 2 * 2 ^ (d * L) ≤ m :=
       calc 2 * 2 ^ (d * L) = 2 ^ (d * L + 1) := by ring
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos hlog
@@ -214,18 +207,8 @@ private lemma gap_arith {d n m t : ℕ} (hd : 0 < d) (hm : n + 1 ≤ 2 * m)
   have hdiv : d * L + (l - 1) % d = l - 1 := hL ▸ Nat.div_add_mod (l - 1) d
   have hmod := Nat.mod_lt (l - 1) hd
   have h3 : g + 1 ≤ 2 * (d * L) := by omega
-  have h1 : 2 * m * (d * L) ≤ 4 * d * t :=
-    calc 2 * m * (d * L) = 2 * d * (m * L) := by ring
-      _ ≤ 2 * d * (2 * t) := Nat.mul_le_mul_left _ hcount
-      _ = 4 * d * t := by ring
-  have h4 : (n + 1) * (g + 1) ≤ n * g :=
-    calc (n + 1) * (g + 1) ≤ (n + 1) * (2 * (d * L)) := Nat.mul_le_mul_left _ h3
-      _ = 2 * ((n + 1) * (d * L)) := by ring
-      _ ≤ 2 * (2 * m * (d * L)) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hm)
-      _ ≤ 2 * (4 * d * t) := Nat.mul_le_mul_left _ h1
-      _ = 8 * d * t := by ring
-      _ ≤ n * g := hT
-  nlinarith
+  linarith [Nat.mul_le_mul_left (n + 1) h3, Nat.mul_le_mul_right (d * L) hm,
+    Nat.mul_le_mul_left (2 * d) hcount]
 
 /-- **The `n log n` gap for single-tape machines.** Let `d = ⌈log₂ (|Q| + 2)⌉` where `Q` is the
 state set. If `tm` decides `L` within time `T`, answering under the head, and
