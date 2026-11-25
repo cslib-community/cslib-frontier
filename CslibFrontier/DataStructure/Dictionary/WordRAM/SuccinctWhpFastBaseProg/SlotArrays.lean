@@ -157,11 +157,9 @@ theorem writeQuotGenProg_fastStep {c U V w n_max base p q_val : ℕ}
       (fun j hj => ⟨(readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans (hpool0 j hj).2⟩)⟩
-  by_cases hip : i = p
-  · subst hip; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem i hq_lt
-  · simp only [Function.update_of_ne hip]
-    exact (readPacked_writePacked_of_ne hw s.mem hip q_val).trans (hqv0 i hi).1
+  simp only [Function.update_apply]; split_ifs with hip
+  · subst hip; exact readPacked_writePacked_self _ _ _ s.mem i hq_lt
+  · exact (readPacked_writePacked_of_ne hw s.mem hip q_val).trans (hqv0 i hi).1
 
 private theorem val_pre_safe {w base p : ℕ} {cp : WhpCoreParams}
     (h : WhpLargeEnvGen w cp base ∧ p < wpNMax cp) :
@@ -263,11 +261,9 @@ theorem writeValGenProg_fastStep {c U V w n_max base p v_val : ℕ}
       (fun j hj => ⟨(readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans
           (hpool0 j hj).1,
         (readPacked_writePacked_disjoint hw hj hp (Or.inr (by omega))).trans (hpool0 j hj).2⟩)⟩
-  by_cases hip : i = p
-  · subst hip; simp only [Function.update_self]
-    exact readPacked_writePacked_self _ _ _ s.mem i hv_lt
-  · simp only [Function.update_of_ne hip]
-    exact (readPacked_writePacked_of_ne hw s.mem hip v_val).trans (hqv0 i hi).2
+  simp only [Function.update_apply]; split_ifs with hip
+  · subst hip; exact readPacked_writePacked_self _ _ _ s.mem i hv_lt
+  · exact (readPacked_writePacked_of_ne hw s.mem hip v_val).trans (hqv0 i hi).2
 
 /-! ## Section 2: `backPtr` Accessors -/
 
@@ -409,9 +405,7 @@ theorem writeBackPtrGenProg_fastStep {c U V w n_max base b k pSlot : ℕ}
       fun heq => hbk (mul_add_inj_right hk' hk heq)
     rw [readPacked_writePacked_of_ne hw s.mem hne pSlot, hbptr0 b' hb' k' hk']
     by_cases hbb : b' = b
-    · subst hbb
-      have hkk : k' ≠ k := fun h => hbk ⟨rfl, h⟩
-      simp [hkk]
+    · subst hbb; simp [show k' ≠ k from fun h => hbk ⟨rfl, h⟩]
     · simp [hbb]
 
 /-! ## Section 3: Composite Coordinate Helpers (`physSlot`, `rKeyAt`, `fpAt`) -/
@@ -486,12 +480,10 @@ theorem physSlotGenProg_spec {c U V w n_max base b loc : ℕ} {fs : FastState}
   have hps_eq := (large_index_bounds hth).2.1
   unfold physSlotGenProg FastState.physSlot
   simp only [wp_large_capFront hth, wp_large_frontTotal hth, pure_bind]
-  by_cases hcf : loc < capFrontWhp n_max
-  · simp only [hcf, ↓reduceIte]
-    have hlt := mul_add_lt_mul_bound hb hcf
+  split_ifs with hcf
+  · have hlt := mul_add_lt_mul_bound hb hcf
     exact ⟨rfl, rfl, by omega, Nat.zero_le 2, validProg_pure _⟩
-  · simp only [hcf, ↓reduceIte]
-    have hk : loc - capFrontWhp n_max < capBackWhp n_max := by
+  · have hk : loc - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hloc; omega
     obtain ⟨hst, hres, hmc, hvp⟩ := readBackPtrGenProg_spec henv hb hk hrep (s := s)
     have hp := hbp_lt (Nat.not_lt.mp hcf)
@@ -559,7 +551,7 @@ private theorem coordHashPrefix_spec {c U V w n_max base b loc : ℕ}
     mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
   obtain ⟨hc_st, hc_res, hc_mc, hc_vp⟩ := hcont
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max from hwp1]
+  rw [hwp1]
   refine ⟨?_, ?_, ?_, ?_⟩
   · rw [clientState_bind, hps_st, hps_res, clientState_bind, hrq_st, hrq_res,
       clientState_bind, hmh_st, hmh_res, hc_st]

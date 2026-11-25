@@ -50,35 +50,30 @@ theorem exec_fullLeaf {w L m t D V AA BB K F A B : ℕ} (x : Data registers)
   have hcode : c < 10 ^ L := by simpa only [c, hlen] using prefixCode_lt xs
   have hcap : (L + 1) * 10 ^ L = L * 10 ^ L + 10 ^ L := by ring
   have hAB : A * B ≤ 10 ^ (2 * L) * (A * B) := Nat.le_mul_of_pos_left _ (by positivity)
-  have hterm : 10 ^ L * (A * B) ≤ 10 ^ (2 * L) * (A * B) := by
-    apply Nat.mul_le_mul_right
-    exact Nat.pow_le_pow_right (by decide) (by omega)
+  have hterm : 10 ^ L * (A * B) ≤ 10 ^ (2 * L) * (A * B) :=
+    Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (by decide) (by omega))
   have hfa : GenericRAM.Signed.Fits w (a τ) :=
     hmag.of_natAbs_le ((ha _).trans (by unfold magnitudeBound; omega))
   have hfb : GenericRAM.Signed.Fits w (b τ) :=
     hmag.of_natAbs_le ((hb _).trans (by unfold magnitudeBound; omega))
-  have hfab : GenericRAM.Signed.Fits w (a τ * b τ) := by
-    apply hmag.of_natAbs_le
+  have hfab : GenericRAM.Signed.Fits w (a τ * b τ) := hmag.of_natAbs_le (by
     rw [Int.natAbs_mul]
-    exact (Nat.mul_le_mul (ha _) (hb _)).trans (by unfold magnitudeBound; omega)
+    exact (Nat.mul_le_mul (ha _) (hb _)).trans (by unfold magnitudeBound; omega))
   have hfz : GenericRAM.Signed.Fits w z := hmag.of_natAbs_le hzn
   have hleft : x.mem (AA + c) = Signed.encode (a τ) := by
-    have h := hr.left ⟨c, hcode⟩
-    simpa only [c, leafAt_prefixCode xs hlen, τ] using h
+    simpa only [c, leafAt_prefixCode xs hlen, τ] using hr.left ⟨c, hcode⟩
   have hright : x.mem (BB + c) = Signed.encode (b τ) := by
-    have h := hr.right ⟨c, hcode⟩
-    simpa only [c, leafAt_prefixCode xs hlen, τ] using h
+    simpa only [c, leafAt_prefixCode xs hlen, τ] using hr.right ⟨c, hcode⟩
+  have hfitr (r : ℕ) (hr : r ≤ (L + 1) * 10 ^ L) :
+      Fits (w + 2) (D + V + AA + BB + e * 10 ^ L + c + r + 10) := hfit.of_le (by
+    have heT := Nat.mul_le_mul_right (10 ^ L) he
+    omega)
   by_cases hd : usedFrom η 0 xs < t
   · obtain ⟨y, hy, hyv, hym, hyf⟩ := exec_leaf (T := 10 ^ L) (c := c) (e := e)
       (d := usedFrom η 0 xs) (t := t) (r := 0) (v := 0) x hfa hfb hfab
       (GenericRAM.Signed.fits_zero hmag.1) hfz hp.directory hp.values hp.arrayA hp.arrayB
       hp.span hc hs hu hp.threshold hp.one hz (fun _ => ⟨hleft, hright⟩)
-      (by intro hn; exact False.elim (hn hd))
-      (hfit.of_le (by
-        have heT := Nat.mul_le_mul_right (10 ^ L) he
-        dsimp only [c, e]
-        dsimp only [c, e] at hcode heT
-        omega))
+      (fun hn => (hn hd).elim) (hfitr 0 (Nat.zero_le _))
     refine ⟨y, hy, ?_, hym, hyf⟩
     simpa only [hd, ite_true, completeLeaf_value hgood hlen hη a b, τ] using hyv
   · have ht : usedFrom η 0 xs = t := by have := hgood.2.2; omega
@@ -91,8 +86,7 @@ theorem exec_fullLeaf {w L m t D V AA BB K F A B : ℕ} (x : Data registers)
       hr.values s hslot heligible
     have hrS : r < 10 ^ L * (L + 1) := by
       have hm : m ≤ L := by
-        have hcard := Finset.card_le_univ (innerSetO η)
-        simpa only [hη, Fintype.card_fin] using hcard
+        simpa only [hη, Fintype.card_fin] using Finset.card_le_univ (innerSetO η)
       have hr' := (Nat.count_le (BoxTable.Eligible L (m - t)) (n := s)).trans_lt hslot
       have hSL := Nat.mul_le_mul_right (10 ^ L) (by omega : m - t + 1 ≤ L + 1)
       exact hr'.trans_le (by simpa only [Nat.mul_comm] using hSL)
@@ -103,12 +97,7 @@ theorem exec_fullLeaf {w L m t D V AA BB K F A B : ℕ} (x : Data registers)
     obtain ⟨y, hy, hyv, hym, hyf⟩ := exec_leaf (T := 10 ^ L) (c := c) (e := e)
       (d := usedFrom η 0 xs) (t := t) (r := r) x hfa hfb hfab hfv hfz
       hp.directory hp.values hp.arrayA hp.arrayB hp.span hc hs hu hp.threshold hp.one hz
-      (by intro hl; exact False.elim (hd hl)) (fun _ => ⟨hrank, hvalue⟩)
-      (hfit.of_le (by
-        have heT := Nat.mul_le_mul_right (10 ^ L) he
-        dsimp only [c, e]
-        dsimp only [c, e] at hcode heT
-        omega))
+      (fun hl => (hd hl).elim) (fun _ => ⟨hrank, hvalue⟩) (hfitr r hrS.le)
     refine ⟨y, hy, ?_, hym, hyf⟩
     simpa only [completeLeaf_value hgood hlen hη a b, hd, ite_false, τ, s, c, e] using hyv
 

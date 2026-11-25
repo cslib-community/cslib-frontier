@@ -106,13 +106,11 @@ theorem bufEverPresentGenProg_spec {c U V w n_max base ep rKey : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   have hth := henv.2.2.2.1
   have hw := henv.2.1
-  have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-    fun v ch hnz => hv.bounds.2.2.1 v ch hnz
   obtain ⟨hrt_st, hrt_res, hrt_mc, hrt_vp⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
   set rt := mkBufRt c U V w n_max base ep
   obtain ⟨_, hw_st, hw_mc, hw_vp, _, hw_a1⟩ :=
-    bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
+    bufWalkLoop_spec henv hep hrep hv.bounds.1 hv.bounds.2.2.1 (cTabWhp c) 1 0 rKey hv.bounds.1
   have hw1 := hw_a1 rfl
   have hm_seg := (rt_seg_le c U V w n_max base ep hep).2.2.2.1
   have hrep_li : ∀ u < tr.nodeAlloc,
@@ -136,14 +134,11 @@ theorem bufEverPresentGenProg_spec {c U V w n_max base ep rKey : ℕ}
       split_ifs <;> rfl
   · rw [clientResult_bind, hrt_st, hrt_res, hbr_cTab,
       clientResult_bind, hw_st]
-    rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
-    · rw [hwk] at hw1
-      unfold bufEverPresent
-      rw [hwk, ite_eq_left hw1]; rfl
-    · rw [hwk] at hw1
-      unfold bufEverPresent
-      rw [hwk]
-      obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
+    unfold bufEverPresent
+    rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf <;>
+      rw [hwk] at hw1
+    · rw [ite_eq_left hw1]; rfl
+    · obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
       have hw_one : wres.1 = 1 := congrArg Prod.fst hw_eq
       have hw_lf : wres.2.1 = leaf := congrArg (fun p => p.2.1) hw_eq
       rw [ite_eq_right (by omega : wres.1 ≠ 0), hw_lf]
@@ -201,12 +196,10 @@ theorem realizes_bufEverPresentGen :
     have hth := henv.2.2.2.1
     have hw_eq := henv.2.2.1
     subst hw_eq
-    have hchild : ∀ v ch, tr.trieChild v ch ≠ 0 → tr.trieChild v ch < tr.nodeAlloc :=
-      fun v ch hnz => hv.bounds.2.2.1 v ch hnz
     obtain ⟨hrt_st, hrt_res, _, _⟩ := mkBufRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) (ep := ep) hth s
     obtain ⟨hsafe, hw_st, _, _, _, hw_a1⟩ :=
-      bufWalkLoop_spec henv hep hrep hv.bounds.1 hchild (cTabWhp c) 1 0 rKey hv.bounds.1
+      bufWalkLoop_spec henv hep hrep hv.bounds.1 hv.bounds.2.2.1 (cTabWhp c) 1 0 rKey hv.bounds.1
     have hw1 := hw_a1 rfl
     simp only [hrt_st, hrt_res] at *
     first
@@ -215,10 +208,10 @@ theorem realizes_bufEverPresentGen :
     | exact hsafe
     | exact ⟨c, U, V, w, n_max, base, ep, henv, hep, rfl⟩
     | (dsimp only [mkBufRt, brCTab, brMaxNodes] at *
-       rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf
-       · rw [hwk] at hw1; omega
-       · rw [hwk] at hw1
-         obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
+       rcases hwk : bufWalk (bCharWhp n_max) tr.trieChild rKey (cTabWhp c) 0 0 with _ | leaf <;>
+         rw [hwk] at hw1
+       · omega
+       · obtain ⟨_, hw_eq, hlf_lt⟩ := hw1
          exact (congrArg (fun p => p.2.1) hw_eq) ▸ hlf_lt.trans_le hrep.1)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp

@@ -70,14 +70,13 @@ theorem exec_core {W b m t N s r q : ℕ}
         y.mem (b + a) % windowSize N qs.length =
           (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem a) ∧
       (∀ a, a < b ∨ b + windowSize N qs.length ≤ a → y.mem a = x.mem a) := by
-  let original :=
-    (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
+  let original := (State.init (BoxProduct.input true (21 * m) t X Y qs) : State 160).data.mem
   have hsource (a : ℕ) (ha : 0 < a) (ha' : a < QueriedProduct.inputEnd m N qs.length) :
       original a =
         (State.init (QueriedProduct.input true (21 * m) X Y qs) : State 160).data.mem a :=
     BoxProduct.input_prefix true X Y qs a ha ha'
-  have hXabs (i k) : |X i k| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hX i k).1]; exact (hX i k).2
-  have hYabs (k j) : |Y k j| ≤ (1 : ℤ) := by rw [abs_of_nonneg (hY k j).1]; exact (hY k j).2
+  have hXabs (i k) : |X i k| ≤ (1 : ℤ) := (abs_of_nonneg (hX i k).1).trans_le (hX i k).2
+  have hYabs (k j) : |Y k j| ≤ (1 : ℤ) := (abs_of_nonneg (hY k j).1).trans_le (hY k j).2
   obtain ⟨hw, hmag, hbudget⟩ := CallableBoxProduct.source_admission (Q := qs.length) ht hN
   have htwo : sourceWidth N qs.length - 2 + 2 = sourceWidth N qs.length := by omega
   have hbudget' : Fits (sourceWidth N qs.length - 2 + 2)

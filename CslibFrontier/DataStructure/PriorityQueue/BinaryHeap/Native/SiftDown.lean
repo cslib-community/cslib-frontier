@@ -113,11 +113,9 @@ theorem finish_loop_eq (d : Argument) (ht : d.control = d.size / 2 + 1) (fuel k 
       BinaryHeap.Memory.siftDown d.layout d.size k := by
   induction fuel generalizing k with
   | zero =>
-    have hstop : ¬(1 ≤ k ∧ 2 * k ≤ d.size) := by
-      intro hg
-      have hm := Nat.log_mono_right (b := 2) hg.2
-      have hl := log_child hk (show (2 * k) / 2 = k by omega)
-      omega
+    have hstop : ¬(1 ≤ k ∧ 2 * k ≤ d.size) := fun hg => by
+      have := log_child hk (show (2 * k) / 2 = k by omega)
+      have := Nat.log_mono_right (b := 2) hg.2; omega
     rw [BinaryHeap.Memory.siftDown, ite_eq_right hstop]
     rfl
   | succ fuel ih =>
@@ -202,12 +200,8 @@ theorem step_triple {w : ℕ} {d : Argument} {k : ℕ} {s : Memory.State}
       have hm := Nat.log_mono_right (b := 2) hcS
       wram_omega
     · refine Triple.pure ⟨⟨ht, hn, hA, hshape, by omega, le_rfl⟩, ?_⟩
-      have hm : Nat.log 2 d.size ≤ Nat.log 2 (d.size + 1) :=
-        Nat.log_mono_right (by omega)
-      have hz : rank d (d.size + 1) = 0 := Nat.sub_eq_zero_of_le hm
-      rw [hz]
-      change 0 < Nat.log 2 d.size - Nat.log 2 k
-      omega
+      have hm : Nat.log 2 d.size ≤ Nat.log 2 (d.size + 1) := Nat.log_mono_right (by omega)
+      unfold rank; omega
   unfold step
   dsimp only
   refine Triple.read_bind (BinaryHeap.Memory.heap_lt hA (by omega)) <|
@@ -279,8 +273,7 @@ theorem realizes_loop : Realizes .exact
   intro hv
   -- Compare body domains at the loop's fixed captured environment.
   refine whileSafe_imp _ _ (fun _ => Iff.rfl) (fun _ => rfl) ?_ (loop_safe h hv)
-  intro a t hg hi
-  exact hi
+  exact fun _ _ _ hi => hi
 
 /-- The original source storage/shape domain, admitting index zero as an immediate exit. -/
 def Safe (w : ℕ) (d : Argument) (s : Memory.State) : Prop :=
@@ -310,13 +303,11 @@ theorem realizes_siftDown : Realizes .exact
       | exact ⟨rfl, hn, hA, hshape, by omega, hkS.trans (Nat.le_succ _)⟩
       | omega
       | exact hmem.frontier_fits.of_le (by omega)
-  refine hp.congr ?_
-  intro d
+  refine hp.congr fun d => ?_
   dsimp only [p]
-  by_cases hk : d.control = 0
+  split_ifs with hk
   · simp [hk, BinaryHeap.Memory.siftDown]
-  · rw [ite_eq_right hk]
-    exact finish_loop_eq (d.1, d.size / 2 + 1) rfl
+  · exact finish_loop_eq (d.1, d.size / 2 + 1) rfl
       (rank (d.1, d.size / 2 + 1) d.control) d.control (by omega) le_rfl
 
 /-- The exact source's logarithmic order repair and rearrangement lift to one uniform native
@@ -339,8 +330,7 @@ theorem exec_siftDown {r : ℕ} (frontier : Fin r) (src : Fin 6 → Fin r)
       ∀ i, i ≠ frontier → (∀ j, tmp j ≠ i) → y.regs i = x.regs i := by
   have hn : Fits w n := by
     have h : Fits w ((x.regs ∘ src) 0) := hx.1 (src 0)
-    rw [hin] at h
-    exact h
+    rwa [hin] at h
   obtain ⟨hv, hc, hpost⟩ := triple_iff.mp
     (BinaryHeap.Memory.siftDown_triple hn hA hkS hshape hord)
   have hI : Safe w (((⟨n, L⟩ : HeapLayout), S), k) (memoryState frontier x) :=
@@ -353,10 +343,7 @@ theorem exec_siftDown {r : ℕ} (frontier : Fin r) (src : Fin 6 → Fin r)
   have hbound : realizes_siftDown.factor *
       (memoryCost (BinaryHeap.Memory.siftDown L S k) (memoryState frontier x) + 0 + 1) ≤
       10 * realizes_siftDown.factor * (Nat.log 2 n + 1) := by
-    calc
-      _ ≤ realizes_siftDown.factor * (10 * (Nat.log 2 n + 1)) :=
-        Nat.mul_le_mul_left _ (by omega)
-      _ = _ := by ring
+    rw [Nat.mul_comm 10, Nat.mul_assoc]; exact Nat.mul_le_mul_left _ (by omega)
   rw [← hm] at hpost
   exact ⟨y, hy.mono hbound, hm, hpost.1, hpost.2, hframe⟩
 

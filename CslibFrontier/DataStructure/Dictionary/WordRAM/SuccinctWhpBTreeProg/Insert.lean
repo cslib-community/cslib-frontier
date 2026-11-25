@@ -113,17 +113,7 @@ theorem btreeInsertGenProg_spec {c U V w n_max base sIdx insCount q val : ℕ}
   unfold btreeInsertGenProg
   dsimp only [d0]
   simp only [wp_large_hMaxBTree hth]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (ensureAndSplitRootGenProg ((mkWhpCoreParams c U V w n_max, base), sIdx) >>= fun ar1 =>
-        descendSplitLoopGenProg ((d0, ar1), hMaxBTree) >>= fun ar2 =>
-        finishLeafInsertGenProg (((d0.1, ar2.2), q), val)) =
-      (Memory.spec 0).clientState s2
-        (finishLeafInsertGenProg (((d0.1, p.2), q), val)) := by
-    dsimp only [d0]
-    rw [clientState_bind, hres1,
-      clientState_bind, hres2]
-  simp only [d0] at hs'_eq ⊢
-  rw [hs'_eq]
+  rw [clientState_bind, hres1, clientState_bind, hres2]
   refine ⟨hfr3.trans (hfr2.trans hfr1), ?_, ?_, hrep3, hv_ins, ?_, ?_, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1, s2, d0] at hmc1 hmc2 hmc3 hres1 hres2 ⊢
@@ -138,19 +128,10 @@ theorem btreeInsertGenProg_spec {c U V w n_max base sIdx insCount q val : ℕ}
   · intro sIdx' hsIdx' hne sl₂ hr₂
     exact hoth3 sIdx' hsIdx' hne sl₂ (hoth2 sIdx' hsIdx' hne sl₂ (hoth1 sIdx' hsIdx' hne sl₂ hr₂))
   · intro idx hidx h1 h2
-    have hbm3 : readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
-        ((Memory.spec 0).clientState s2
-          (finishLeafInsertGenProg (((d0.1, p.2), q), val))).mem idx =
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s2.mem idx :=
-      readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => hout3 a (Or.inl (by omega))
-    exact hbm3.trans ((hbm2 idx hidx h1).trans (hbm1 idx hidx h1 h2))
+    exact (readPacked_congr hw (mem₂ := s2.mem) (fun a ⟨_, ha2⟩ => hout3 a (Or.inl (by omega)))
+      hidx).trans ((hbm2 idx hidx h1).trans (hbm1 idx hidx h1 h2))
   · intro a ha
-    have ha3 : a < base + offBtMeta c U V w n_max ∨ base + offTrieChild0 c U V w n_max ≤ a := by
-      rcases ha with ha1 | ⟨_, ha2⟩ | ha3'
-      · exact Or.inl (by omega)
-      · exact Or.inl ha2
-      · exact Or.inr ha3'
-    exact (hout3 a ha3).trans ((hout2 a ha).trans (hout1 a ha))
+    exact (hout3 a (by omega)).trans ((hout2 a ha).trans (hout1 a ha))
 
 theorem realizes_btreeInsertGen :
     Realizes .exact btreeInsertGenProg

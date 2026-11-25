@@ -245,23 +245,19 @@ private theorem actSizedDictEquiv_pairBOf {U V n t₀ m : ℕ} [NeZero V] (ht₀
       S₀.map τ.toEmbedding := by
     dsimp only [S₀]
     rw [actSeed8Equiv_activeKeys, actSeed8Equiv_deletedSet, Finset.map_union, Finset.map_sdiff]
+  have hcard : (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
+        Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
+          (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding).card = S₀.card := by
+    rw [hmap_S₀, Finset.card_map]
   dsimp only [pairBOf, actSizedDictEquiv, Equiv.coe_fn_mk]
   by_cases hc : S₀.card = n
-  · have hc' : (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
-        Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
-          (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding).card = n := by
-      rw [hmap_S₀, Finset.card_map]; exact hc
-    rw [dite_eq_left hc', dite_eq_left hc]
+  · rw [dite_eq_left (hcard.trans hc), dite_eq_left hc]
     refine sizedDictOfFinset_ext _ _ (by rw [dom_sizedDictOfFinset, hmap_S₀]) fun u hu => ?_
     obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp (hmap_S₀ ▸ hu)
     simp only [Equiv.coe_toEmbedding, Equiv.symm_apply_apply]
     rw [dictKV_sizedDictOfFinset S₀ hc s.kv hx]
     simp only [actSeed8Equiv, Equiv.coe_fn_mk, Equiv.symm_apply_apply]
-  · have hc' : (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
-        Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
-          (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding).card ≠ n := by
-      rw [hmap_S₀, Finset.card_map]; exact hc
-    rw [dite_eq_right hc', dite_eq_right hc]
+  · rw [dite_eq_right (hcard.trans_ne hc), dite_eq_right hc]
     refine sizedDictOfFinset_ext _ _
       (by rw [dom_sizedDictOfFinset, actSeed8Equiv_activeKeys]) fun u hu => ?_
     have hu' := actSeed8Equiv_activeKeys τ δ s t₀ (Nat.le_of_add_right_le ht₀) ▸ hu
@@ -356,19 +352,7 @@ theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} {γ R : 
     obtain ⟨τ, δ, hp_eq⟩ := exists_actSizedDictEquiv p₁ p₂
     let e_sb : (HardKeyValSeed U V n × Finset (Fin U)) ≃
         (HardKeyValSeed U V n × Finset (Fin U)) :=
-      (actSeed8Equiv τ δ).prodCongr
-        { toFun := fun B => B.map τ.toEmbedding
-          invFun := fun B => B.map τ.symm.toEmbedding
-          left_inv := fun B => by
-            ext x; simp only [Finset.mem_map, Equiv.coe_toEmbedding]
-            exact ⟨fun ⟨y, ⟨z, hz, hyz⟩, hyx⟩ => by
-              rwa [← hyx, ← hyz, τ.symm_apply_apply],
-              fun hx => ⟨τ x, ⟨x, hx, rfl⟩, τ.symm_apply_apply x⟩⟩
-          right_inv := fun B => by
-            ext x; simp only [Finset.mem_map, Equiv.coe_toEmbedding]
-            exact ⟨fun ⟨y, ⟨z, hz, hyz⟩, hyx⟩ => by
-              rwa [← hyx, ← hyz, τ.apply_symm_apply],
-              fun hx => ⟨τ.symm x, ⟨x, hx, rfl⟩, τ.apply_symm_apply x⟩⟩ }
+      (actSeed8Equiv τ δ).prodCongr τ.finsetCongr
     have hpair_act (sb : HardKeyValSeed U V n × Finset (Fin U)) :
         pairBOf t₀ m ht₀ (e_sb sb) = p₂ ↔ pairBOf t₀ m ht₀ sb = p₁ := by
       rcases sb with ⟨s, B⟩
@@ -410,20 +394,13 @@ theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} {γ R : 
       simp_rw [PMF.map_apply_toReal, Finset.sum_mul]
       rw [Finset.sum_comm]
       refine Finset.sum_congr rfl fun sb _ => ?_
-      have h1 (p : SizedDict U V n) :
-          (if p = pairBOf t₀ m ht₀ sb then (μ_g sb).toReal else 0) *
-            ((stateFiber D_det stepIdx p.val).card : ℝ) =
-          if p = pairBOf t₀ m ht₀ sb then
-            (μ_g sb).toReal * ((stateFiber D_det stepIdx p.val).card : ℝ)
-          else 0 := by
-        split_ifs <;> ring
-      simp_rw [h1]
+      simp_rw [ite_mul, zero_mul]
       rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_univ _)]
     rw [hpush]
     simp_rw [hpair_prob, ← Finset.mul_sum]
     have hsum_le : (∑ p : SizedDict U V n,
-        ((stateFiber D_det stepIdx p.val).card : ℝ)) ≤ (2 : ℝ) ^ (cells * w) := by
-      exact_mod_cast sum_card_stateFiber_le D_det stepIdx
+        ((stateFiber D_det stepIdx p.val).card : ℝ)) ≤ (2 : ℝ) ^ (cells * w) :=
+      mod_cast sum_card_stateFiber_le D_det stepIdx
     have h2cw : (2 : ℝ) ^ (cells * w) ≤ (N_tot : ℝ) * (2 : ℝ) ^ R := by
       have hc_ne : ((U.choose n : ℕ) : ℝ) ≠ 0 := by
         exact_mod_cast (Nat.choose_pos (by omega)).ne'
@@ -437,10 +414,7 @@ theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} {γ R : 
         Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num : (2 : ℝ) ≠ 1) hN_pos] at hrpow
       exact hrpow
     calc (N_tot : ℝ)⁻¹ * ∑ p : SizedDict U V n, ((stateFiber D_det stepIdx p.val).card : ℝ)
-        ≤ (N_tot : ℝ)⁻¹ * (2 : ℝ) ^ (cells * w) :=
-          mul_le_mul_of_nonneg_left hsum_le (inv_nonneg.mpr hN_pos.le)
-      _ ≤ (N_tot : ℝ)⁻¹ * ((N_tot : ℝ) * (2 : ℝ) ^ R) :=
-          mul_le_mul_of_nonneg_left h2cw (inv_nonneg.mpr hN_pos.le)
+        ≤ (N_tot : ℝ)⁻¹ * ((N_tot : ℝ) * (2 : ℝ) ^ R) := by gcongr; exact hsum_le.trans h2cw
       _ = (2 : ℝ) ^ R := inv_mul_cancel_left₀ hN_pos.ne' _
   have hU_pos : (0 : ℝ) < (U : ℝ) := by exact_mod_cast hU_pos_nat
   have hM_pos : 0 < M_cap := mul_pos (Real.rpow_pos_of_pos (by norm_num) _)

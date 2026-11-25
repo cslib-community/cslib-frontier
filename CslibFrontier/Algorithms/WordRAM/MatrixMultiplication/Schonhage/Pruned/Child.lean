@@ -69,16 +69,13 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
         x.mem v.mem := by
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
-  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
+  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.mul_le_mul_right _ (by omega)
   obtain ⟨u, hu, humem, huf', huc, hup', hstride', hut, hul', _, hun', huch', _, hureg⟩ :=
     hregs.exec_loadFrame hd hdL.le (hw.of_le (by omega))
-  have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
-    hureg i hi
   have hus' : u.regs stamps = f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L := by regs_frame
   have huc' : u.regs count = N := huc.trans hN
   have hut' : u.regs term = k := hut.trans hterm
-  have hue : u.regs epoch = x.regs epoch := fixed epoch (by decide)
+  have hue : u.regs epoch = x.regs epoch := hureg epoch (by decide)
   obtain ⟨v, hv, _, hve, hvc, htable, _, hscanFrame, hvreg⟩ :=
     exec_scan (N := N) (capacity := 10 ^ L) true u input huc'
       (by simpa only [hul', humem] using hinput)
@@ -101,10 +98,8 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
   · intro y T htail
     have hcall : ExecWithin w dispatch u y (20 * N + 5 + T + 1) :=
       (hv.seq htail).branch_pos
-        (by simpa only [Cond.holds_lt, hut', (fixed ten (by decide)).trans hregs.ten_eq] using hk)
-    have hum : u.regs mode = 1 := by regs_frame
-    have hu0 : u.regs nil = 0 := by regs_frame
-    have hu1 : u.regs one = 1 := by regs_frame
+        (by simpa only [Cond.holds_lt, hut', (hureg ten (by decide)).trans hregs.ten_eq] using hk)
+    obtain ⟨hum, hu0, hu1⟩ : u.regs mode = 1 ∧ u.regs nil = 0 ∧ u.regs one = 1 := by regs_frame
     have hbranch : ExecWithin w
         (ram[ if mode = nil then [ ⟪enter⟫ ] else [
           if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (20 * N + 5 + T + 4) :=
@@ -132,17 +127,11 @@ theorem postScan_memory {L f d E g : ℕ} {S : Finset ℕ} {μ₀ μ ν : ℕ �
       (Block.mk (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L) (10 ^ L)).footprint ∪
       (Block.mk g 4).footprint) μ₀ ν ∧
     ∀ a < f + 4 * (L + 1), μ a = μ₀ a := by
-  have hlistAway (q : ℕ) : ¬(Block.mk g 4).Owns
-      (f + 4 * (L + 1) + (d + 1) * 10 ^ L + q) := by
-    change ¬(g ≤ _ ∧ _ < g + 4)
+  have hAway (a : ℕ) (ha : f + 4 * (L + 1) ≤ a) : a ∉ (Block.mk g 4).footprint := by
+    simp only [Block.mem_footprint, Block.Owns]
     omega
-  have hstampAway (q : ℕ) : ¬(Block.mk g 4).Owns
-      (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L + q) := by
-    change ¬(g ≤ _ ∧ _ < g + 4)
-    omega
-  refine ⟨htable.congr
-      (fun i _ => hframe _ (by simpa only [Block.mem_footprint] using hlistAway i))
-      (fun q _ => hframe _ (by simpa only [Block.mem_footprint] using hstampAway q)),
+  refine ⟨htable.congr (fun i _ => hframe _ (hAway _ (by omega)))
+      (fun q _ => hframe _ (hAway _ (by omega))),
     fun c hc => ?_, fun a ha => hscan a ?_⟩
   · have hn := Finset.notMem_union.mp hc
     exact (hframe c hn.2).trans (hscan c hn.1)
@@ -179,8 +168,7 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
       Modifies (childWrites L f d) x.mem y.mem := by
   have hpow : 1 ≤ (10 : ℕ) ^ L := Nat.one_le_pow L _ (by decide)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
-  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L :=
-    Nat.mul_le_mul_right _ (by omega)
+  have hmul : (d + 1) * 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.mul_le_mul_right _ (by omega)
   have hnext : (10 : ℕ) ^ d * 10 ≤ 10 ^ L := by
     simpa only [← pow_succ] using
       Nat.pow_le_pow_right (by decide : 1 ≤ (10 : ℕ)) (by omega : d + 1 ≤ L)
@@ -196,24 +184,12 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
       nlinarith only [hcap, hpow, hL, hmul, hnext, hnewp]))
   have hnonempty : (Cond.lt nil childCount).Holds v := by
     simpa only [Cond.holds_lt, hv0, hvc'] using Finset.card_pos.mpr hne
-  have he : ExecWithin w step x y (20 * N + 42) :=
-    (hstep (hy.branch_pos hnonempty)).mono (by omega)
-  have hfbase : v.regs frames + v.regs nextLevel * 4 = f + 4 * (d + 1) := by
-    rw [hvf, hvn]
-    omega
+  have he : ExecWithin w step x y (20 * N + 42) := (hstep (hy.branch_pos hnonempty)).mono (by omega)
+  have hfbase : v.regs frames + v.regs nextLevel * 4 = f + 4 * (d + 1) := by rw [hvf, hvn]; omega
   have hchildFrame : Modifies (Block.mk (f + 4 * (d + 1)) 4).footprint v.mem y.mem := by
     simpa only [hfbase] using hpushFrame
   obtain ⟨hymem, hymod, _⟩ := postScan_memory htable' hscanMod hchildFrame (by omega)
-  refine ⟨y, he, hregs.of_step he, hyl.trans hvn, hym,
-    by regs_frame, by regs_frame,
-    hymem, ?_, ?_, ?_, ?_, hymod⟩
-  · rw [hmem, hfbase, hvc']
-    simp
-  · rw [hmem, hfbase, hvp, hvt, hvst]
-    simp
-  · rw [hmem, hfbase, hvst]
-    simp [pow_succ]
-  · rw [hmem, hfbase]
-    simp
+  refine ⟨y, he, hregs.of_step he, hyl.trans hvn, hym, by regs_frame, by regs_frame,
+    hymem, ?_, ?_, ?_, ?_, hymod⟩ <;> rw [hmem, hfbase] <;> simp [hvc', hvp, hvt, hvst, pow_succ]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

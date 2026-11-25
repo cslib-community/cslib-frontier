@@ -93,16 +93,7 @@ theorem btreeUpdateGenProg_spec {c U V w n_max base sIdx insCount q newVal : ℕ
   simp only [wp_large_wVal hth, pure_bind]
   rcases hres with ⟨hres0, _, _, hupd0⟩ |
       ⟨leafIdx, r, hres1, hleaf_lt, hrc, hcnt_le, hm_lt, hk_lt, _, hvw_cnt, _, _, hupd1⟩
-  · have hs'_eq : (Memory.spec 0).clientState s
-        (btreeLocateHitGenProg (((mkWhpCoreParams c U V w n_max, base), sIdx), q) >>= fun loc =>
-          if loc.1 = 0 then pure () else
-            wordUpdateAtGenProg (((valLaneBitsWhp n_max, loc.2.1.2), newVal), loc.2.2.2.2) >>=
-              fun v' =>
-            writeBTreeNodeGenProg
-              ((((mkWhpCoreParams c U V w n_max, base), sIdx), loc.2.1.1),
-                (loc.2.2.1, (loc.2.2.2.1, v')))) = s := by
-      rw [clientState_bind, hst, hres0]; rfl
-    rw [hs'_eq, hupd0 newVal]
+  · rw [hupd0 newVal, clientState_bind, hst, hres0]
     refine ⟨rfl, ?_, ?_, hrep, fun _ _ _ _ hr => hr, fun _ _ => rfl⟩
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres0]
       simp only [↓reduceIte, memoryCost_pure]; omega
@@ -120,22 +111,9 @@ theorem btreeUpdateGenProg_spec {c U V w n_max base sIdx insCount q newVal : ℕ
     obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
       writeBTreeNodeGenProg_inPlace_sliceRep (nd' := nd') henv hsIdx hrep hleaf_lt
         hm_lt hk_lt hv'_lt (s := s)
-    have hs'_wn : (Memory.spec 0).clientState s
-        (btreeLocateHitGenProg (((mkWhpCoreParams c U V w n_max, base), sIdx), q) >>= fun loc =>
-          if loc.1 = 0 then pure () else
-            wordUpdateAtGenProg (((valLaneBitsWhp n_max, loc.2.1.2), newVal), loc.2.2.2.2) >>=
-              fun v' =>
-            writeBTreeNodeGenProg
-              ((((mkWhpCoreParams c U V w n_max, base), sIdx), loc.2.1.1),
-                (loc.2.2.1, (loc.2.2.2.1, v')))) =
-        (Memory.spec 0).clientState s
-          (writeBTreeNodeGenProg
-            ((((mkWhpCoreParams c U V w n_max, base), sIdx), leafIdx),
-              (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
-      rw [clientState_bind, hst, hres1]
-      simp only [Nat.one_ne_zero, ↓reduceIte]
-      rw [clientState_bind, clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
-    rw [hs'_wn, hupd1 newVal]
+    rw [hupd1 newVal, clientState_bind, hst, hres1]
+    simp only [Nat.one_ne_zero, ↓reduceIte]
+    rw [clientState_bind, clientState_wordUpdateAtGenProg, clientResult_wordUpdateAtGenProg]
     refine ⟨hwn_fr, ?_, ?_, hwn_rep, hwn_other, hwn_out⟩
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres1]
       simp only [Nat.one_ne_zero, ↓reduceIte]

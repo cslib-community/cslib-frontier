@@ -47,11 +47,9 @@ theorem count_eq_card {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fi
 
 private theorem pieces_pos {n D g : ℕ} (hD : 16 ≤ D) (hDn : D ≤ n) (hg : 1 ≤ g) :
     0 < numPieces n D g := by
-  have hcover : n ≤ numPieces n D g * pieceSize D g :=
-    Nat.le_ceilDiv_mul (pieceSize_pos hD hg)
-  by_contra h
-  have hzero : numPieces n D g = 0 := by omega
-  rw [hzero, Nat.zero_mul] at hcover
+  have hcover : n ≤ numPieces n D g * pieceSize D g := Nat.le_ceilDiv_mul (pieceSize_pos hD hg)
+  refine Nat.pos_of_ne_zero fun h => ?_
+  rw [h, Nat.zero_mul] at hcover
   omega
 
 /-- Every occupied native instance slot has exactly one existing finite class/chunk/piece
@@ -79,11 +77,9 @@ theorem index_unique {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin
     ((Nat.div_lt_iff_lt_mul hH).mpr hi)
   let out : InstanceIndex p := ⟨rc.1, rc.2.val, i % H⟩
   have hout : out ∈ instanceIndices wAB D g p := by
-    rw [mem_instanceIndices]
-    refine ⟨?_, Nat.mod_lt _ hH⟩
+    refine (mem_instanceIndices wAB out).2 ⟨?_, Nat.mod_lt _ hH⟩
     change rc.2.val < numChunks (residueClass wAB p rc.1) (queryCap n D)
-    rw [numChunks, hCount]
-    exact rc.2.isLt
+    rw [numChunks, hCount]; exact rc.2.isLt
   refine ⟨out, ⟨hout, ?_⟩, ?_⟩
   · change i = (ChunkCatalogue.before C (queryCap n D) rc.1.val + rc.2.val) * H + i % H
     rw [← hrc]
@@ -97,8 +93,7 @@ theorem index_unique {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n → Fin
     have heq : i = (ChunkCatalogue.before C (queryCap n D) other.residue.val + other.chunk) * H +
         other.piece := hother.2
     have hdiv : i / H = ChunkCatalogue.before C (queryCap n D) other.residue.val + other.chunk := by
-      rw [heq, Nat.mul_comm _ H, Nat.mul_add_div hH,
-        Nat.div_eq_of_lt hj, Nat.add_zero]
+      rw [heq]; exact Nat.mul_add_div_of_lt _ hj
     have hmod : i % H = other.piece := by rw [heq, Nat.mul_add_mod_of_lt hj]
     have he : rc' = rc := huniq rc' hdiv
     exact InstanceIndex.ext (congrArg Sigma.fst he) (congrArg (fun q => q.2.val) he) hmod.symm
@@ -160,8 +155,7 @@ theorem instance_readback {n D g p : ℕ} (values : ℕ → ℤ) (wAB : Fin n �
       5 + 6 * N + p + 2 * idx.residue.val * N + 2 * (idx.chunk * queryCap n D) := hd.2.1
   have hcount : y.mem (desc + 3 * ord + 2) =
       min (queryCap n D) ((residueClass wAB p idx.residue).card - idx.chunk * queryCap n D) := by
-    rw [hCount]
-    exact hd.2.2
+    rw [hCount]; exact hd.2.2
   obtain ⟨hr, hL, hR⟩ := hblocks i hi
   dsimp only at hr hL hR
   rw [hdiv, hmod, hresidue, hquery, hcount] at hr

@@ -71,22 +71,18 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
   let H := numPieces n D g
   let K := ChunkCatalogue.before C (queryCap n D) p
   let chunk := ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk
-  let desc := 5 + 6 * N + p + 2 * N * p
   let out := x.regs Instances.output
   obtain ⟨hk, hj⟩ := (mem_instanceIndices _ idx).mp hidx
-  have hH : 0 < H := lt_of_le_of_lt (Nat.zero_le _) hj
+  have hH : 0 < H := Nat.zero_lt_of_lt hj
   have hcard : (residueClass (fun u v : Fin n => values (pairIndex (u, v))) p idx.residue).card =
       C idx.residue.val := QuerySpec.card_residueClass _ hp R (by intro pair; rfl) idx.residue
   have hk' : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n D := by
     simpa only [numChunks, hcard] using hk
-  have hchunk : chunk < K :=
-    ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hk'
+  have hchunk : chunk < K := ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hk'
   have hdiv : x.regs Instances.produced / x.regs Instances.pieces = chunk := by
-    rw [hi, cursor.pieces]
-    exact Nat.mul_add_div_of_lt chunk hj
+    rw [hi, cursor.pieces]; exact Nat.mul_add_div_of_lt chunk hj
   have hmod : x.regs Instances.produced % x.regs Instances.pieces = idx.piece := by
-    rw [hi, cursor.pieces]
-    exact Nat.mul_add_mod_of_lt hj
+    rw [hi, cursor.pieces]; exact Nat.mul_add_mod_of_lt hj
   have hdesc :
       x.mem (chunk * 3 + x.regs Instances.descriptors) = idx.residue.val ∧
       x.mem (chunk * 3 + x.regs Instances.descriptors + 1) =
@@ -96,15 +92,11 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
   have hfirst : idx.piece * pieceSize D g ≤ n := (piece_start_lt hD hg hj).le
   have hres (k : ℕ) : R k < p := Int.natMod_lt hp
   have hleft (j : ℕ) (hj : j < N) : x.mem (x.regs Instances.srcLeft + j) = R (2 * N + j) := by
-    rw [cursor.srcLeft]
-    convert hresidues (2 * N + j) (by omega) using 1
-    congr 1
-    omega
+    rw [cursor.srcLeft, show 5 + 5 * (n * n) + j = 5 + 3 * (n * n) + (2 * N + j) by omega]
+    exact hresidues _ (by omega)
   have hright (j : ℕ) (hj : j < N) : x.mem (x.regs Instances.srcRight + j) = R (N + j) := by
-    rw [cursor.srcRight]
-    convert hresidues (N + j) (by omega) using 1
-    congr 1
-    omega
+    rw [cursor.srcRight, show 5 + 4 * (n * n) + j = 5 + 3 * (n * n) + (N + j) by omega]
+    exact hresidues _ (by omega)
   obtain ⟨y, he, yi, yh, hdr, hl, hr, frame⟩ := Instances.exec_visit x
     (fun k => R (2 * N + k)) (fun k => R (N + k)) cursor.one cursor.three
     (by rw [cursor.pieces]; exact hH)
@@ -145,11 +137,8 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
     simpa [Instances.pairInput, hmod, hdiv, hdesc.1, hdesc.2.1, hdesc.2.2,
       InstancePair.rho, InstancePair.piece, InstancePair.queries, InstancePair.count, out]
       using hdr
-  · rw [argsL] at hl
-    exact hl
-  · rw [argsR] at hr
-    exact hr
-  · intro u hu
-    exact frame u (by rw [hheap, cursor.stride]; omega)
+  · rwa [argsL] at hl
+  · rwa [argsR] at hr
+  · exact fun u hu => frame u (by rw [hheap, cursor.stride]; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.StreamingFixedPrime

@@ -191,31 +191,22 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   have ha3 : a.mem 3 = n := (haframe 3 (Or.inl (by omega))).trans hnHeader
   have ha4 : a.mem 4 = p := (haframe 4 (Or.inl (by omega))).trans hpHeader
   wram_exec [ha1, ha2, ha3]
-  wram_call (Parameters.exec _
-    (by wram_simp; exact hbudget.of_le (by omega))
-    (by wram_simp; exact hbudget.of_le (by dsimp [N]; omega))
-    (by wram_simp; exact hbudget.of_le (by omega))
-    (by wram_simp; exact hbudget.of_le (by omega)))
-    canonical bank_injective with c ⟨hvs, hvq, hvB, hvH, hvn, _, _, hvm⟩
+  wram_call (Parameters.exec ..) canonical bank_injective [hbudget.of_le, N]
+    with c ⟨hvs, hvq, hvB, hvH, hvn, _, _, hvm⟩
   wram_simp at hvq hvB hvH hvn hvm
   have hc4 : c.mem 4 = p := (congrFun hvm 4).trans ha4
-  have h2Np : Fits (w + 2) ((n * n + n * n) * p) :=
-    hbudget.of_le (by dsimp [N]; nlinarith only [])
+  have h2Np : Fits (w + 2) ((n * n + n * n) * p) := hbudget.of_le (by dsimp [N]; nlinarith only [])
   have hOut : Fits (w + 2) ((n * n + n * n) * p + queryBase) :=
     hbudget.of_le (by dsimp [N, queryBase, countBase]; nlinarith only [])
   wram_exec [hac, haq, hvn, hvq, hvB, hvH, hc4]
   have hout_eq : (n * n + n * n) * p + queryBase = out := by dsimp [out, N]; nlinarith only []
-  wram_call (ChunkCatalogue.exec _ C
-    (fun rho hrho => by wram_simp [hvm] at hrho ⊢; exact hacounts rho hrho)
-    (fun rho hrho => by wram_simp at hrho ⊢; exact hC rho hrho)
-    (by wram_simp; exact one_le_queryCap hD hDn)
-    (by wram_simp; dsimp [queryBase]; omega)
+  have hq := one_le_queryCap hD hDn
+  wram_call (ChunkCatalogue.exec _ C _ _ _ (by wram_simp; dsimp [queryBase]; omega)
     (by wram_simp; nlinarith only [])
     (by wram_simp; exact hbudget.of_le (by dsimp [queryBase, countBase, N]; nlinarith only [])))
-    framed with vy my ⟨hycount, hyheap, -, hycells, hyframe⟩
+    framed [hvm] with vy my ⟨hycount, hyheap, -, hycells, hyframe⟩
   rw [hout_eq] at hyheap hycells hyframe
-  have hyold (a' : ℕ) (ha' : a' < out) : my a' = a.mem a' :=
-    (hyframe a' (by omega)).trans (congrFun hvm a')
+  have hyold (a' : ℕ) (ha' : a' < out) : my a' = a.mem a' := hyframe a' (by omega)
   refine ⟨by wram_simp [cost, N]; ring_nf; omega,
     by wram_simp, by wram_simp, by wram_simp; rfl, by wram_simp; rfl,
     by wram_simp [hout_eq]; rfl, by wram_simp,
@@ -224,12 +215,10 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
     ?_, ?_, ?_, ?_, ?_⟩
   · intro q hq
     wram_simp
-    rw [hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)]
-    exact hares q hq
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hares q hq)
   · intro rho hrho
     wram_simp
-    rw [hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)]
-    exact hacounts rho hrho
+    exact (hyold _ (by dsimp [out, queryBase, countBase, N] at *; omega)).trans (hacounts rho hrho)
   · intro rho hrho q hq hRq
     wram_simp
     have hcount : Nat.count (fun k => R k = rho) q ≤ q := Nat.count_le _
@@ -242,15 +231,8 @@ theorem exec_at {w : ℕ} (n D g p : ℕ) (values : ℕ → ℤ) (initial : Data
   · intro a' ha'
     wram_simp at ha' ⊢
     change a' < 5 + 3 * N ∨ out + 3 * vy ChunkCatalogue.written ≤ a' at ha'
-    have hfr : ¬(out ≤ a' ∧ a' < out + 3 * vy ChunkCatalogue.written) := by
-      rcases ha' with h | h
-      · have : a' < out := by dsimp [out, queryBase, countBase, N] at *; omega
-        omega
-      · omega
-    rw [hyframe a' hfr, hvm]
-    apply haframe a'
-    rcases ha' with h | h
-    · exact Or.inl h
-    · exact Or.inr (by change out ≤ a'; omega)
+    have hlt : 5 + 3 * N ≤ out := by dsimp only [out, queryBase, countBase]; omega
+    rw [hyframe a' (by omega)]
+    exact haframe a' (ha'.imp_right fun _ => by change out ≤ a'; omega)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Catalogue

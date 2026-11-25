@@ -162,9 +162,8 @@ theorem sumDomainValues_valid {w : ℕ} {args : SumDomainArgs}
     have hstep : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (sumDomainStep (args, st))) := by
       unfold sumDomainStep
-      refine validHistory_read_bind hs0 ?_
-      refine validHistory_bind_step (evalBucketProd_valid hout hb hlen) ?_
-      exact validHistory_pure w _ _
+      exact validHistory_read_bind hs0
+        (validHistory_bind_step (evalBucketProd_valid hout hb hlen) (validHistory_pure w _ _))
     change (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s
         (sumDomainStep (args, st) >>= iterate sumDomainStep args n))
@@ -196,11 +195,7 @@ theorem sumDomainValues_le_cap {args : SumDomainArgs} {bucket : List (FactorTabl
     have hp := evalBucketProd_le_cap
       (args := ⟨args.dom, args.x, curA, args.outPtr, args.outLen, args.idx,
         args.bucketPtr, args.bucketLen⟩) hb hlen
-    calc ((Memory.spec 0).clientResult s (iterate sumDomainStep args k _)).sumAcc
-        ≤ (acc + _) + k * (bucket.map capFactor).prod := ih (curA + 1) _
-      _ ≤ (acc + (bucket.map capFactor).prod) + k * (bucket.map capFactor).prod :=
-          Nat.add_le_add_right (Nat.add_le_add_left hp acc) _
-      _ = acc + (k + 1) * (bucket.map capFactor).prod := by ring
+    exact (ih (curA + 1) _).trans (by linarith)
 
 theorem sumDomainValues_result {args : SumDomainArgs} {outScope : List ℕ}
     {bucket : List (FactorTable ℕ ℕ)} {s : Memory.State}
@@ -270,22 +265,14 @@ theorem sumDomainValues_realizes :
   dsimp only
   have h1_prod : 1 ≤ (bucket.map capFactor).prod :=
     List.one_le_prod_of_one_le (by simp [one_le_capFactor])
-  have hprod_le_B : (bucket.map capFactor).prod ≤ B :=
-    (Nat.le_mul_of_pos_left _ hdom).trans hcapB
-  have hcurA_fit : Fits w (st.curA + 1) := by
-    have hle : st.curA + 1 ≤ B := by
-      calc st.curA + 1 ≤ d.dom := by omega
-        _ ≤ d.dom * (bucket.map capFactor).prod := Nat.le_mul_of_pos_right _ h1_prod
-        _ ≤ B := hcapB
-    exact hB.of_le hle
+  have hprod_le_B : (bucket.map capFactor).prod ≤ B := (Nat.le_mul_of_pos_left _ hdom).trans hcapB
+  have hcurA_fit : Fits w (st.curA + 1) := hB.of_le
+    ((show st.curA + 1 ≤ d.dom by omega).trans ((Nat.le_mul_of_pos_right _ h1_prod).trans hcapB))
   have hp := evalBucketProd_le_cap
     (args := ⟨d.dom, d.x, st.curA, d.outPtr, d.outLen, d.idx, d.bucketPtr, d.bucketLen⟩) hbf hblen
   have hsum_next : st.sumAcc + (Memory.spec 0).clientResult s (evalBucketProd
       ⟨d.dom, d.x, st.curA, d.outPtr, d.outLen, d.idx, d.bucketPtr, d.bucketLen⟩) ≤
-      (st.curA + 1) * (bucket.map capFactor).prod := by
-    calc st.sumAcc + _ ≤ st.curA * (bucket.map capFactor).prod + (bucket.map capFactor).prod :=
-          Nat.add_le_add hsum hp
-      _ = (st.curA + 1) * (bucket.map capFactor).prod := by ring
+      (st.curA + 1) * (bucket.map capFactor).prod := (Nat.add_le_add hsum hp).trans_eq (by ring)
   have hsum_B : (st.curA + 1) * (bucket.map capFactor).prod ≤ B :=
     (Nat.mul_le_mul_right _ (by omega : st.curA + 1 ≤ d.dom)).trans hcapB
   refine ⟨?_, ?_⟩

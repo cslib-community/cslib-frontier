@@ -193,9 +193,7 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
     (by omega : loc_last ≤ n_max) hwl_step.2.1 hwl_step.2.2.1 (s := s1)
   set s2 := (Memory.spec 0).clientState s1 (writeBktFieldGenProg ((((cp, base), b), 0), loc_last))
   simp only [setBktField] at hwb_step
-  dsimp only
   unfold fastDeleteShrinkGenProg fastDeleteShrink
-  dsimp only
   simp only [cp, wp_large_capFront hth, pure_bind]
   by_cases hcf : capFrontWhp n_max ≤ loc_last
   · simp only [hcf, ↓reduceIte]
@@ -256,8 +254,7 @@ theorem fastDeleteShrinkGenProg_fastStep {c U V w n_max base b loc_last : ℕ}
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
       dsimp only [s1, cp] at hwl_mc hwb_mc ⊢
       omega
-    · refine validProg_bind hwl_vp ?_
-      exact validProg_bind hwb_vp (validProg_pure _)
+    · exact validProg_bind hwl_vp (validProg_bind hwb_vp (validProg_pure _))
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -97,16 +97,7 @@ theorem btreeDeleteGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
   simp only [wp_large_wKey hth, wp_large_wVal hth, pure_bind]
   rcases hres with ⟨hres0, _, hdel0, _⟩ |
       ⟨leafIdx, r, hres1, hleaf_lt, hrc, hcnt_le, _, _, hkw_cnt, hvw_cnt, _, hdel1, _⟩
-  · have hs'_eq : (Memory.spec 0).clientState s
-        (btreeLocateHitGenProg (((mkWhpCoreParams c U V w n_max, base), sIdx), q) >>= fun loc =>
-          if loc.1 = 0 then pure () else
-            wordDeleteAtGenProg ((keyLaneBitsWhp n_max, loc.2.1.2), loc.2.2.2.1) >>= fun k' =>
-            wordDeleteAtGenProg ((valLaneBitsWhp n_max, loc.2.1.2), loc.2.2.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg
-              ((((mkWhpCoreParams c U V w n_max, base), sIdx), loc.2.1.1),
-                (1 + 2 * (loc.2.2.1 / 2 - 1), (k', v')))) = s := by
-      rw [clientState_bind, hst, hres0]; rfl
-    rw [hs'_eq, hdel0]
+  · rw [hdel0, clientState_bind, hst, hres0]
     refine ⟨rfl, ?_, ?_, hrep, fun _ _ _ _ hr => hr, fun _ _ => rfl⟩
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres0]
       simp only [↓reduceIte, memoryCost_pure]; omega
@@ -139,24 +130,10 @@ theorem btreeDeleteGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     obtain ⟨hwn_fr, hwn_mc, hwn_vp, hwn_rep, hwn_other, hwn_out⟩ :=
       writeBTreeNodeGenProg_inPlace_sliceRep (nd' := nd') henv hsIdx hrep hleaf_lt
         hm'_lt hk'_lt hv'_lt (s := s)
-    have hs'_wn : (Memory.spec 0).clientState s
-        (btreeLocateHitGenProg (((mkWhpCoreParams c U V w n_max, base), sIdx), q) >>= fun loc =>
-          if loc.1 = 0 then pure () else
-            wordDeleteAtGenProg ((keyLaneBitsWhp n_max, loc.2.1.2), loc.2.2.2.1) >>= fun k' =>
-            wordDeleteAtGenProg ((valLaneBitsWhp n_max, loc.2.1.2), loc.2.2.2.2) >>= fun v' =>
-            writeBTreeNodeGenProg
-              ((((mkWhpCoreParams c U V w n_max, base), sIdx), loc.2.1.1),
-                (1 + 2 * (loc.2.2.1 / 2 - 1), (k', v')))) =
-        (Memory.spec 0).clientState s
-          (writeBTreeNodeGenProg
-            ((((mkWhpCoreParams c U V w n_max, base), sIdx), leafIdx),
-              (nd'.metaWord, (nd'.keysWord, nd'.valsWord)))) := by
-      rw [clientState_bind, hst, hres1]
-      simp only [Nat.one_ne_zero, ↓reduceIte, hcnt_div]
-      rw [clientState_bind, clientState_wordDeleteAtGenProg, clientResult_wordDeleteAtGenProg,
-        clientState_bind, clientState_wordDeleteAtGenProg, clientResult_wordDeleteAtGenProg]
-      rfl
-    rw [hs'_wn, hdel1]
+    rw [hdel1, clientState_bind, hst, hres1]
+    simp only [Nat.one_ne_zero, ↓reduceIte, hcnt_div]
+    rw [clientState_bind, clientState_wordDeleteAtGenProg, clientResult_wordDeleteAtGenProg,
+      clientState_bind, clientState_wordDeleteAtGenProg, clientResult_wordDeleteAtGenProg]
     refine ⟨hwn_fr, ?_, ?_, hwn_rep, hwn_other, hwn_out⟩
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres1]
       simp only [Nat.one_ne_zero, ↓reduceIte, hcnt_div]

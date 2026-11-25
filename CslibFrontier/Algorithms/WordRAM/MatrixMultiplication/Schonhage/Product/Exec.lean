@@ -61,14 +61,9 @@ public theorem exec {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   have hStamp : scratchBase L m N qs.length + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L =
       stampBase L m N qs.length := rfl
   have hEnd : stampBase L m N qs.length + 10 ^ L = memoryEnd L m N qs.length := rfl
-  have hL : x.mem 1 = L := by
-    simpa [State.init, Data.init, input] using hinput 1 (by decide) (by omega)
-  have hm' : x.mem 2 = m := by
-    simpa [State.init, Data.init, input] using hinput 2 (by decide) (by omega)
-  have hN : x.mem 3 = N := by
-    simpa [State.init, Data.init, input] using hinput 3 (by decide) (by omega)
-  have hQ : x.mem 4 = qs.length := by
-    simpa [State.init, Data.init, input] using hinput 4 (by decide) (by omega)
+  obtain ⟨hL, hm', hN, hQ⟩ : x.mem 1 = L ∧ x.mem 2 = m ∧ x.mem 3 = N ∧ x.mem 4 = qs.length := by
+    refine ⟨(hinput 1 ?_ ?_).trans ?_, (hinput 2 ?_ ?_).trans ?_, (hinput 3 ?_ ?_).trans ?_,
+      (hinput 4 ?_ ?_).trans ?_⟩ <;> first | omega | simp [State.init, Data.init, input]
   have hqueries (i : ℕ) (hi : i < qs.length) :
       x.mem (queryInputBase m N + 2 * i) = (Wanted.inputPairs qs i).1 ∧
         x.mem (queryInputBase m N + 2 * i + 1) = (Wanted.inputPairs qs i).2 := by
@@ -107,8 +102,7 @@ public theorem exec {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   refine ⟨y, (hr.seq (hc.seq (hb.seq (hd.seq (ht.seq (ho.seq hy)))))).mono
     (by unfold timeBound; omega), yp, ?_, ?_⟩
   · intro i
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega)]
-    exact ov i
+    rw [ym, ArrayCopy.copyPrefix_outside (by omega), ov i]
   · intro a ha
     by_cases hi : a < inputEnd m N qs.length
     · rw [ym]

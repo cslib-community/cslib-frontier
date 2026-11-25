@@ -64,16 +64,13 @@ public theorem thin_envelopes (m t N Q A : ℕ) (ht : t ≤ m) (hN : D m ^ 18 �
     simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hOld.1
   have hOldEnd : QueriedProduct.memoryEnd (21 * m) m N Q ≤ 128 * Z ^ 2 := by
     simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hOld.2
-  have hSlot : (m - t + 1) * 10 ^ (21 * m) ≤ (Z + 1) * Z :=
-    Nat.mul_le_mul (by omega) h10
-  have hLC : (21 * m + 1) * 10 ^ (21 * m) ≤ (Z + 1) * Z :=
-    Nat.mul_le_mul (by omega) h10
+  have hSlot : (m - t + 1) * 10 ^ (21 * m) ≤ (Z + 1) * Z := Nat.mul_le_mul (by omega) h10
+  have hLC : (21 * m + 1) * 10 ^ (21 * m) ≤ (Z + 1) * Z := Nat.mul_le_mul (by omega) h10
   have hK := Nat.count_le (BoxTable.Eligible (21 * m) (m - t))
     (n := (m - t + 1) * 10 ^ (21 * m))
   rw [BoxTable.count_eligible_eq_card_boxes] at hK
   have hDir : directoryBase (21 * m) m N Q ≤ 128 * Z ^ 2 := hOldEnd
-  have hRec : recordBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + (Z + 1) * Z :=
-    Nat.add_le_add hDir hSlot
+  have hRec : recordBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + (Z + 1) * Z := Nat.add_le_add hDir hSlot
   have hVal : valueBase (21 * m) m t N Q ≤ 128 * Z ^ 2 + 4 * ((Z + 1) * Z) := by
     unfold valueBase
     nlinarith only [hRec, hK.trans hSlot]
@@ -84,27 +81,20 @@ public theorem thin_envelopes (m t N Q A : ℕ) (ht : t ≤ m) (hN : D m ^ 18 �
       10000 * (QueriedProduct.wordBudget (21 * m) m N Q + 1024 * Z ^ 2) := by
     unfold wordBudget
     nlinarith only [hEnd, hDir, hRec, hVal, hSlot, hLC, hL, ht, hN0, hQ0, h0, h1]
-  have hEnc : encodedBound (21 * m) A ≤ Z * Z := by
-    unfold encodedBound
-    exact Nat.mul_le_mul h7 hA0
+  have hEnc : encodedBound (21 * m) A ≤ Z * Z := Nat.mul_le_mul h7 hA0
   have h10twice : 10 ^ (2 * (21 * m)) ≤ Z * Z := by
-    rw [show 2 * (21 * m) = 21 * m + 21 * m by omega, pow_add]
-    exact Nat.mul_le_mul h10 h10
+    rw [two_mul, pow_add]; exact Nat.mul_le_mul h10 h10
   have hMag : magnitudeBound (21 * m) A ≤
       QueriedProduct.magnitudeBound (21 * m) A + 2 * Z ^ 2 + Z ^ 6 := by
     have hBox : BoxQuery.magnitudeBound (21 * m) (encodedBound (21 * m) A)
-        (encodedBound (21 * m) A) ≤ Z * Z + Z * Z +
-          (Z * Z) * ((Z * Z) * (Z * Z)) := by
-      exact Nat.add_le_add (Nat.add_le_add hEnc hEnc)
-        (Nat.mul_le_mul h10twice (Nat.mul_le_mul hEnc hEnc))
+        (encodedBound (21 * m) A) ≤ Z * Z + Z * Z + (Z * Z) * ((Z * Z) * (Z * Z)) :=
+      Nat.add_le_add (Nat.add_le_add hEnc hEnc) (Nat.mul_le_mul h10twice (Nat.mul_le_mul hEnc hEnc))
     unfold magnitudeBound
     nlinarith only [hBox]
-  constructor
-  · have hTotal : magnitudeBound (21 * m) A + wordBudget (21 * m) m t N Q + 1 ≤
-        2 ^ 60 * Z ^ 6 := by
-      nlinarith only [hOldTotal, hMag, hBudget, h5, h2]
-    simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hTotal
-  · simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hEnd
+  refine ⟨?_, by simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hEnd⟩
+  have hTotal : magnitudeBound (21 * m) A + wordBudget (21 * m) m t N Q + 1 ≤ 2 ^ 60 * Z ^ 6 := by
+    nlinarith only [hOldTotal, hMag, hBudget, h5, h2]
+  simpa only [Z, S, ← pow_mul, Nat.reduceMul] using hTotal
 
 /-- Original-data logarithmic width suffices in the `21*m` box-product regime. -/
 public theorem thin_admissionWidth_le (m t N Q A : ℕ) (ht : t ≤ m)
