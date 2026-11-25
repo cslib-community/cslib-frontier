@@ -544,14 +544,11 @@ private theorem bakeryStepShape_of_step [Fintype P] [LinearOrder P]
     {s s' : BakeryState P} {μ : BakeryAction P}
     (htr : bakeryStep? s μ = some s') : BakeryStepShape s μ.actor μ s' := by
   cases μ with
-  | enterDoorway p =>
+  | enterDoorway p | finishChoosingTrue p | finishChoosingFalse p | exitCS p
+  | finishResetNumber p | recover p =>
     simp only [bakeryStep?] at htr
     split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .enter p hph
-  | finishChoosingTrue p =>
-    simp only [bakeryStep?] at htr
-    split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .finishChTrue p hph
+    subst htr; constructor; assumption
   | readTicket p j val =>
     simp only [bakeryStep?] at htr
     cases hph : s.phase p <;> simp only [hph, reduceCtorEq] at htr
@@ -566,10 +563,6 @@ private theorem bakeryStepShape_of_step [Fintype P] [LinearOrder P]
     simp only [bakeryStep?] at htr
     cases hph : s.phase p <;> simp only [hph, Option.some.injEq, reduceCtorEq] at htr
     subst htr; exact .finishNum p _ hph
-  | finishChoosingFalse p =>
-    simp only [bakeryStep?] at htr
-    split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .finishChFalse p _ hph
   | pollChoosing p val =>
     simp only [bakeryStep?] at htr
     cases hph : s.phase p <;> simp only [hph, reduceCtorEq] at htr
@@ -595,21 +588,9 @@ private theorem bakeryStepShape_of_step [Fintype P] [LinearOrder P]
       · rename_i hnrem; subst htr
         rw [Finset.not_nonempty_iff_eq_empty, Finset.sdiff_eq_empty_iff_subset] at hnrem
         exact .pollNumCS p val _ _ hph hsafe hnspin fun x => hnrem (Finset.mem_univ x)
-  | exitCS p =>
-    simp only [bakeryStep?] at htr
-    split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .exit p hph
-  | finishResetNumber p =>
-    simp only [bakeryStep?] at htr
-    split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .finishReset p hph
   | fail p =>
     simp only [bakeryStep?, Option.some.injEq] at htr
     subst htr; exact .fail p
-  | recover p =>
-    simp only [bakeryStep?] at htr
-    split at htr <;> simp only [Option.some.injEq, reduceCtorEq] at htr
-    rename_i hph; subst htr; exact .recover p hph
   | stutter =>
     simp only [bakeryStep?, Option.some.injEq] at htr
     subst htr; exact .stutter
@@ -708,16 +689,7 @@ private structure BakeryInv [Fintype P] [LinearOrder P] (s : BakeryState P) : Pr
 
 private theorem bakeryInv_init [Fintype P] [LinearOrder P] :
     BakeryInv (BakeryState.init P) where
-  local_inv _ := {
-    rem := fun _ => ⟨rfl, rfl⟩
-    readMax := by simp [BakeryState.init]
-    writeNumber := by simp [BakeryState.init]
-    writeChoosingFalse := by simp [BakeryState.init]
-    waitL2 := by simp [BakeryState.init]
-    waitL3 := by simp [BakeryState.init]
-    cs := by simp [BakeryState.init]
-    writeNumberZero := by simp [BakeryState.init]
-  }
+  local_inv _ := by constructor <;> simp [BakeryState.init]
   l2_scan _ _ _ h := by simp [passedL2, BakeryState.init] at h
   l3_ticket _ _ _ h := by simp [passedL3, BakeryState.init] at h
 
@@ -746,15 +718,9 @@ private def localPhaseInv (s : BakeryState P) (i : P) : Prop :=
   | .writeChoosingTrue | .failed => True
 
 private theorem localInv_of_phaseInv {s : BakeryState P} {i : P}
-    (h : localPhaseInv s i) : LocalInv s i where
-  rem hph := by unfold localPhaseInv at h; rwa [hph] at h
-  readMax _ _ hph := by unfold localPhaseInv at h; rwa [hph] at h
-  writeNumber _ hph := by unfold localPhaseInv at h; rwa [hph] at h
-  writeChoosingFalse hph := by unfold localPhaseInv at h; rwa [hph] at h
-  waitL2 _ _ hph := by unfold localPhaseInv at h; rwa [hph] at h
-  waitL3 _ _ hph := by unfold localPhaseInv at h; rwa [hph] at h
-  cs hph := by unfold localPhaseInv at h; rwa [hph] at h
-  writeNumberZero hph := by unfold localPhaseInv at h; rwa [hph] at h
+    (h : localPhaseInv s i) : LocalInv s i := by
+  unfold localPhaseInv at h
+  constructor <;> intros <;> rename_i hph <;> rwa [hph] at h
 
 private theorem localInv_preserved [Fintype P] [LinearOrder P]
     {s s' : BakeryState P} {μ : BakeryAction P} (hinv : ∀ i, LocalInv s i)
@@ -1112,45 +1078,51 @@ private theorem nonBakeryMeasure_step_lt [Fintype P] [LinearOrder P]
   | fail => exact absurd rfl hnf
   | _ => simp_all [nonBakeryMeasure]
 
+/-- Under weak fairness, a measure on `q`'s phase that drops at each of `q`'s steps while positive
+(and is unchanged by other processes' steps) eventually reaches zero, provided `q` is not in its
+remainder section while the measure is positive. -/
+private theorem exists_measure_zero [Fintype P] [LinearOrder P]
+    {ss : ωSequence (BakeryState P)} {μs : ωSequence (BakeryAction P)}
+    (hexec : (bakeryLTS P).OmegaExecution ss μs) (hfair : BakeryState.WeakFair ss μs)
+    {q : P} (f : BakeryPhase P → ℕ) {i : ℕ}
+    (hdec : ∀ k ≥ i, (μs k).actor = some q → 0 < f ((ss k).phase q) →
+      f ((ss (k + 1)).phase q) < f ((ss k).phase q))
+    (hrem : ∀ k ≥ i, 0 < f ((ss k).phase q) → (ss k).phase q ≠ .remainder) :
+    ∃ k ≥ i, f ((ss k).phase q) = 0 := by
+  suffices ∀ m j, i ≤ j → f ((ss j).phase q) ≤ m → ∃ k ≥ j, f ((ss k).phase q) = 0 from
+    this _ i le_rfl le_rfl
+  intro m
+  induction m with
+  | zero => exact fun j _ hm => ⟨j, le_rfl, Nat.eq_zero_of_le_zero hm⟩
+  | succ m ih =>
+    intro j hij hm
+    by_cases hall : ∀ k ≥ j, 0 < f ((ss k).phase q)
+    · have hstay : ∀ k ≥ j, f ((ss k).phase q) ≤ m + 1 := by
+        intro k hjk
+        induction k, hjk using Nat.le_induction with
+        | base => exact hm
+        | succ k hjk ihk =>
+          by_cases hact : (μs k).actor = some q
+          · have := hdec k (by omega) hact (hall k hjk); omega
+          · rwa [(step_actor_frame (hexec k) hact).1]
+      obtain ⟨k₀, hk₀_ge, hact₀⟩ := hfair q j fun k hk => hrem k (by omega) (hall k hk)
+      have := hstay k₀ hk₀_ge
+      have := hdec k₀ (by omega) hact₀ (hall k₀ hk₀_ge)
+      obtain ⟨k₁, hk₁_ge, hk₁_zero⟩ := ih (k₀ + 1) (by omega) (by omega)
+      exact ⟨k₁, by omega, hk₁_zero⟩
+    · push Not at hall
+      obtain ⟨k, hk, hle0⟩ := hall
+      exact ⟨k, hk, Nat.eq_zero_of_le_zero hle0⟩
+
 private theorem exists_nonBakeryMeasure_zero [Fintype P] [LinearOrder P]
     {ss : ωSequence (BakeryState P)} {μs : ωSequence (BakeryAction P)}
     (hexec : (bakeryLTS P).OmegaExecution ss μs)
     (hfair : BakeryState.WeakFair ss μs)
     {q : P} {i : ℕ} (hnf : ∀ k ≥ i, μs k ≠ .fail q) :
-    ∃ k ≥ i, nonBakeryMeasure ((ss k).phase q) = 0 := by
-  suffices ∀ m i, (∀ k ≥ i, μs k ≠ .fail q) → nonBakeryMeasure ((ss i).phase q) ≤ m →
-      ∃ k ≥ i, nonBakeryMeasure ((ss k).phase q) = 0 from
-    this (nonBakeryMeasure ((ss i).phase q)) i hnf le_rfl
-  intro m
-  induction m with
-  | zero =>
-    intro i _ hm
-    exact ⟨i, le_rfl, Nat.eq_zero_of_le_zero hm⟩
-  | succ m ih =>
-    intro i hnf_i hm
-    by_cases hall : ∀ k ≥ i, 0 < nonBakeryMeasure ((ss k).phase q)
-    · have hstay : ∀ j ≥ i, nonBakeryMeasure ((ss j).phase q) ≤ m + 1 := by
-        intro j hij
-        induction j, hij using Nat.le_induction with
-        | base => exact hm
-        | succ j hij ihj =>
-          by_cases hact_j : (μs j).actor = some q
-          · have hlt := nonBakeryMeasure_step_lt (hexec j) hact_j (hnf_i j hij) (hall j hij)
-            omega
-          · rw [(step_actor_frame (hexec j) hact_j).1]
-            exact ihj
-      have hne_rem : ∀ k ≥ i, (ss k).phase q ≠ .remainder :=
-        fun k hk => phase_ne_remainder_of_nonBakeryMeasure_pos (hall k hk)
-      obtain ⟨k₀, hk₀_ge, hact₀⟩ := hfair q i hne_rem
-      have hle_k₀ := hstay k₀ hk₀_ge
-      have hlt_succ :=
-        nonBakeryMeasure_step_lt (hexec k₀) hact₀ (hnf_i k₀ hk₀_ge) (hall k₀ hk₀_ge)
-      obtain ⟨k₁, hk₁_ge, hk₁_zero⟩ :=
-        ih (k₀ + 1) (fun k hk => hnf_i k (by omega)) (by omega)
-      exact ⟨k₁, by omega, hk₁_zero⟩
-    · push Not at hall
-      obtain ⟨k, hk, hle0⟩ := hall
-      exact ⟨k, hk, Nat.eq_zero_of_le_zero hle0⟩
+    ∃ k ≥ i, nonBakeryMeasure ((ss k).phase q) = 0 :=
+  exists_measure_zero hexec hfair nonBakeryMeasure
+    (fun k hk hact hpos => nonBakeryMeasure_step_lt (hexec k) hact (hnf k hk) hpos)
+    fun _ _ => phase_ne_remainder_of_nonBakeryMeasure_pos
 
 private theorem isTrying_step_of_not_cs [Fintype P] [LinearOrder P]
     {s s' : BakeryState P} {μ : BakeryAction P} {p : P}
@@ -1235,36 +1207,24 @@ private theorem phase_rem_or_waiting_of_clean {s : BakeryState P} {r : P}
 private theorem exists_forall_eq_of_antitone_finset
     {f : ℕ → Finset P} {t₁ : ℕ} (hanti : ∀ k ≥ t₁, f (k + 1) ⊆ f k) :
     ∃ t ≥ t₁, ∀ k ≥ t, f k = f t := by
-  suffices ∀ c t₁, (∀ k ≥ t₁, f (k + 1) ⊆ f k) → (f t₁).card ≤ c →
-      ∃ t ≥ t₁, ∀ k ≥ t, f k = f t from
-    this (f t₁).card t₁ hanti le_rfl
+  suffices ∀ c t₁, (∀ k ≥ t₁, f (k + 1) ⊆ f k) → (f t₁).card = c →
+      ∃ t ≥ t₁, ∀ k ≥ t, f k = f t from this _ t₁ hanti rfl
   intro c
-  induction c with
-  | zero =>
+  induction c using Nat.strong_induction_on with
+  | _ c ih =>
     intro t₁ hanti hc
-    refine ⟨t₁, le_rfl, fun k hk => ?_⟩
-    have h0 : f t₁ = ∅ := Finset.card_eq_zero.mp (Nat.eq_zero_of_le_zero hc)
-    have hsub : f k ⊆ f t₁ := by
-      induction k, hk using Nat.le_induction with
-      | base => exact Finset.Subset.refl _
-      | succ k hk ih => exact (hanti k hk).trans ih
-    rw [h0] at hsub ⊢
-    exact Finset.subset_empty.mp hsub
-  | succ c ih =>
-    intro t₁ hanti hc
-    have hsub_all : ∀ k ≥ t₁, f k ⊆ f t₁ := by
-      intro k hk
-      induction k, hk using Nat.le_induction with
-      | base => exact Finset.Subset.refl _
-      | succ k hk ihk => exact (hanti k hk).trans ihk
     by_cases hall : ∀ k ≥ t₁, f k = f t₁
     · exact ⟨t₁, le_rfl, hall⟩
-    · push Not at hall
-      obtain ⟨k₀, hk₀, hne⟩ := hall
-      have hlt : (f k₀).card < (f t₁).card :=
-        Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hsub_all k₀ hk₀, hne⟩)
-      obtain ⟨t, ht, hstab⟩ := ih k₀ (fun k hk => hanti k (by omega)) (by omega)
-      exact ⟨t, by omega, hstab⟩
+    push Not at hall
+    obtain ⟨k₀, hk₀, hne⟩ := hall
+    have hsub : f k₀ ⊆ f t₁ := by
+      clear hne
+      induction k₀, hk₀ using Nat.le_induction with
+      | base => exact Finset.Subset.refl _
+      | succ k hk ihk => exact (hanti k hk).trans ihk
+    obtain ⟨t, ht, hstab⟩ := ih _ (hc ▸ Finset.card_lt_card
+      (Finset.ssubset_iff_subset_ne.mpr ⟨hsub, hne⟩)) k₀ (fun k hk => hanti k (by omega)) rfl
+    exact ⟨t, by omega, hstab⟩
 
 private def waitMeasure [Fintype P] [DecidableEq P] : BakeryPhase P → ℕ
   | .waitL2 checked _ => 2 * (Finset.univ \ checked).card
@@ -1277,14 +1237,10 @@ private theorem waitMeasure_pos_of_inWaiting [Fintype P] [LinearOrder P]
   unfold BakeryState.inWaiting BakeryPhase.isWaiting at hw
   cases hph : s.phase q with
   | waitL2 checked target =>
-    have hnot := (hl.waitL2 checked target hph).2.2
-    have hpos : 0 < (Finset.univ \ checked).card :=
-      Finset.card_pos.mpr ⟨target, Finset.mem_sdiff.mpr ⟨Finset.mem_univ target, hnot⟩⟩
+    have := sdiff_insert_card_lt (hl.waitL2 checked target hph).2.2
     simp only [waitMeasure]; omega
   | waitL3 checked target =>
-    have hnot := (hl.waitL3 checked target hph).2.2
-    have hpos : 0 < (Finset.univ \ checked).card :=
-      Finset.card_pos.mpr ⟨target, Finset.mem_sdiff.mpr ⟨Finset.mem_univ target, hnot⟩⟩
+    have := sdiff_insert_card_lt (hl.waitL3 checked target hph).2.2
     simp only [waitMeasure]; omega
   | _ => simp [hph] at hw
 
@@ -1319,9 +1275,7 @@ private theorem waitMeasure_step_lt_of_quiescent [Fintype P] [LinearOrder P]
         (localInv_choosing_false_of_inWaiting (hl target))
     simp [BakeryState.SafeReadChoosing, hnwr_t, hch_t] at hsafe
   | pollChPass _ checked target hph =>
-    have hnot := ((hl q).waitL2 checked target hph).2.2
-    have hpos : 0 < (Finset.univ \ checked).card :=
-      Finset.card_pos.mpr ⟨target, Finset.mem_sdiff.mpr ⟨Finset.mem_univ target, hnot⟩⟩
+    have := sdiff_insert_card_lt ((hl q).waitL2 checked target hph).2.2
     simp only [Function.update_self, hph, waitMeasure]; omega
   | pollNumSpin _ val _ target _ hsafe hspin =>
     exact absurd hspin (hnspin_of_wait val target hsafe)
@@ -1382,9 +1336,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     obtain ⟨u, hu_ge, hu_zero⟩ :=
       exists_nonBakeryMeasure_zero hexec hfair (q := q) (i := t₀)
         (fun k hk => hbound k (by omega) q)
-    rcases nonBakeryMeasure_eq_zero_iff.mp hu_zero with hrem | hbak
-    · exact ⟨u, hu_ge, Or.inl (BakeryState.beforeDoorwayScan_of_remainder hrem)⟩
-    · exact ⟨u, hu_ge, Or.inr hbak⟩
+    exact ⟨u, hu_ge, (nonBakeryMeasure_eq_zero_iff.mp hu_zero).imp_left
+      BakeryState.beforeDoorwayScan_of_remainder⟩
   choose u_of hu_ge hu_prop using hex_drain
   let t₁ := Finset.univ.sup u_of ⊔ t₀
   have hda_from : ∀ q k, u_of q ≤ k →
@@ -1411,12 +1364,9 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
           have hbef_next := beforeDoorwayScan_of_exit_bakery (hexec k)
             (hbound k (by omega) q) hbak_k hbak_next
           exact Or.inr (doorwayAfter_of_beforeDoorwayScan hbef_next)
-      · have hnum_k : (ss k).number p = (ss t₀).number p := (hw_p k (by omega)).2
-        have hnum_k1 : (ss (k + 1)).number p = (ss t₀).number p := (hw_p (k + 1) (by omega)).2
-        rw [← hnum_k] at hda_k
-        have hda_next := doorwayAfter_step (hexec k) hp_k hp_k1 hda_k
-        rw [hnum_k1] at hda_next
-        exact Or.inr hda_next
+      · rw [← (hw_p k (by omega)).2] at hda_k
+        rw [← (hw_p (k + 1) (by omega)).2]
+        exact Or.inr (doorwayAfter_step (hexec k) hp_k hp_k1 hda_k)
   -- Step 3: Antitone stabilization of `B k = {q | inBakery q ∧ ticket q ≤ T_p}` for `k ≥ t₁`.
   let T_p := (ss t₀).ticket p
   let B : ℕ → Finset P := fun k =>
@@ -1425,10 +1375,7 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     intro k hk q hq_mem
     simp only [B, Finset.mem_filter, Finset.mem_univ, true_and] at hq_mem ⊢
     rcases hq_mem with ⟨hq_bak1, hq_le1⟩
-    have hu_le_k : u_of q ≤ k := by
-      have hsup : u_of q ≤ Finset.univ.sup u_of := Finset.le_sup (Finset.mem_univ q)
-      have hsup' : Finset.univ.sup u_of ≤ t₁ := le_sup_left
-      omega
+    have hu_le_k : u_of q ≤ k := ((Finset.le_sup (Finset.mem_univ q)).trans le_sup_left).trans hk
     rcases hda_from q (k + 1) (by omega) with hall_bak | hda1
     · have hq_bak0 : (ss k).inBakery q := hall_bak k hu_le_k (Nat.le_succ k)
       have hnum_eq : (ss (k + 1)).number q = (ss k).number q :=
@@ -1532,10 +1479,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
   have ht_A_ge : t_s ≤ t_A := le_sup_right
   have hclean_after_tA : ∀ k ≥ t_A, ∀ r,
       (ss k).phase r ≠ .failed ∧ (ss k).phase r ≠ .writeNumberZero := by
-    intro k hk r
-    have h1 : v_of r ≤ Finset.univ.sup v_of := Finset.le_sup (Finset.mem_univ r)
-    have h2 : Finset.univ.sup v_of ≤ t_A := le_sup_left
-    exact hv_clean_from r k (by omega)
+    exact fun k hk r =>
+      hv_clean_from r k (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
   -- Step 4b: From `t_A` onward, any doorway completion enters `inWaiting` permanently.
   have hstay_waiting_after_tA : ∀ r k, t_A ≤ k → (ss k).inWaiting r →
       ∀ j ≥ k, (ss j).inWaiting r := by
@@ -1573,52 +1518,17 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
   let t₂ := Finset.univ.sup w_of ⊔ t_A
   have ht₂_ge : t_A ≤ t₂ := le_sup_right
   have hquiesce_all : ∀ k ≥ t₂, ∀ r, (ss k).phase r = .remainder ∨ (ss k).inWaiting r := by
-    intro k hk r
-    have h1 : w_of r ≤ Finset.univ.sup w_of := Finset.le_sup (Finset.mem_univ r)
-    have h2 : Finset.univ.sup w_of ≤ t₂ := le_sup_left
-    exact hw_quiesce r k (by omega)
+    exact fun k hk r =>
+      hw_quiesce r k (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
   -- Step 5: From `t₂` onward, every step of `q_star` strictly decreases `waitMeasure`.
-  have h_contradict : ∀ m k, t₂ ≤ k → waitMeasure ((ss k).phase q_star) ≤ m → False := by
-    intro m
-    induction m with
-    | zero =>
-      intro k hk hm0
-      have hpos := waitMeasure_pos_of_inWaiting ((hreach_all k).bakeryInv.local_inv q_star)
-        (hq_star_wait k (by omega))
-      omega
-    | succ m ih =>
-      intro k hk hm
-      have hstay_wm : ∀ j ≥ k, waitMeasure ((ss j).phase q_star) ≤ m + 1 := by
-        intro j hkj
-        induction j, hkj using Nat.le_induction with
-        | base => exact hm
-        | succ j hkj ihj =>
-          by_cases hact_j : (μs j).actor = some q_star
-          · have hlt := waitMeasure_step_lt_of_quiescent
-              (hreach_all j).bakeryInv.local_inv (hexec j) hact_j
-              (hbound j (by omega) q_star)
-              (hq_star_wait j (by omega))
-              (hquiesce_all j (by omega))
-              (fun r hr_w hr_ne => hq_star_global_min j (by omega) r
-                (BakeryState.inBakery_of_inWaiting hr_w) hr_ne)
-            omega
-          · rw [(step_actor_frame (hexec j) hact_j).1]
-            exact ihj
-      have hne_rem : ∀ j ≥ k, (ss j).phase q_star ≠ .remainder := by
-        intro j hj
-        have hw := hq_star_wait j (by omega)
-        unfold BakeryState.inWaiting BakeryPhase.isWaiting at hw
-        cases hph : (ss j).phase q_star <;> simp_all
-      obtain ⟨k₀, hk₀_ge, hact₀⟩ := hfair q_star k hne_rem
-      have hle_k₀ := hstay_wm k₀ hk₀_ge
-      have hlt_succ := waitMeasure_step_lt_of_quiescent
-        (hreach_all k₀).bakeryInv.local_inv (hexec k₀) hact₀
-        (hbound k₀ (by omega) q_star)
-        (hq_star_wait k₀ (by omega))
-        (hquiesce_all k₀ (by omega))
-        (fun r hr_w hr_ne => hq_star_global_min k₀ (by omega) r
-          (BakeryState.inBakery_of_inWaiting hr_w) hr_ne)
-      exact ih (k₀ + 1) (by omega) (by omega)
-  exact h_contradict (waitMeasure ((ss t₂).phase q_star)) t₂ le_rfl le_rfl
+  obtain ⟨k, hk, hk_zero⟩ := exists_measure_zero hexec hfair (q := q_star) (i := t₂) waitMeasure
+    (fun j hj hact _ => waitMeasure_step_lt_of_quiescent (hreach_all j).bakeryInv.local_inv
+      (hexec j) hact (hbound j (by omega) q_star) (hq_star_wait j (by omega)) (hquiesce_all j hj)
+      fun r hr_w hr_ne => hq_star_global_min j (by omega) r
+        (BakeryState.inBakery_of_inWaiting hr_w) hr_ne)
+    fun _ _ hpos hrem => by simp [hrem, waitMeasure] at hpos
+  have := waitMeasure_pos_of_inWaiting ((hreach_all k).bakeryInv.local_inv q_star)
+    (hq_star_wait k (by omega))
+  omega
 
 end Cslib.Distributed.MutualExclusion
