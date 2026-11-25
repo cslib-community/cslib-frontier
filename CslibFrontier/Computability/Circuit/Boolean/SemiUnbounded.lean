@@ -13,6 +13,7 @@ public import Mathlib.Order.Filter.Extr
 
 import Mathlib.Basic.Finite.Prod
 import Mathlib.Basic.Finite.Sigma
+import Mathlib.Basic.Finite.Sum
 import Mathlib.Order.WellFounded
 
 /-!
@@ -270,102 +271,21 @@ instance [Finite G] (C : LayeredSemiUnboundedCircuit G) (g : G) : Finite (ProofT
   induction n using Nat.strong_induction_on with
   | ind n ih =>
     intro g hn
-    match hk : C.kind g with
-    | .leaf b =>
-      refine Finite.of_injective (fun _ : ProofTree C g => ()) fun t₁ t₂ _ => ?_
-      cases t₁ with
-      | leaf h₁ =>
-        cases t₂ with
-        | leaf h₂ => rfl
-        | andUnary h₂ _ => rw [h₁] at h₂; cases h₂
-        | andBinary h₂ _ _ => rw [h₁] at h₂; cases h₂
-        | orChoice h₂ _ _ => rw [h₁] at h₂; cases h₂
-      | andUnary h₁ _ => rw [hk] at h₁; cases h₁
-      | andBinary h₁ _ _ => rw [hk] at h₁; cases h₁
-      | orChoice h₁ _ _ => rw [hk] at h₁; cases h₁
-    | .and (.unary c) =>
-      have hc : Finite (ProofTree C c) := ih _ (by have := C.layer_andUnary hk; omega) c rfl
-      let f : ProofTree C g → ProofTree C c
-        | .leaf h => by rw [hk] at h; cases h
-        | .andUnary h sub => by
-          have h' := hk.symm.trans h
-          cases h'
-          exact sub
-        | .andBinary h _ _ => by rw [hk] at h; cases h
-        | .orChoice h _ _ => by rw [hk] at h; cases h
-      refine Finite.of_injective f fun t₁ t₂ heq => ?_
-      cases t₁ with
-      | leaf h => rw [hk] at h; cases h
-      | andBinary h _ _ => rw [hk] at h; cases h
-      | orChoice h _ _ => rw [hk] at h; cases h
-      | andUnary h₁ sub₁ =>
-        cases t₂ with
-        | leaf h => rw [hk] at h; cases h
-        | andBinary h _ _ => rw [hk] at h; cases h
-        | orChoice h _ _ => rw [hk] at h; cases h
-        | andUnary h₂ sub₂ =>
-          have hc₁ := hk.symm.trans h₁
-          have hc₂ := hk.symm.trans h₂
-          cases hc₁
-          cases hc₂
-          simp only [f] at heq
-          subst heq
-          rfl
-    | .and (.binary l r) =>
-      have hlr := C.layer_andBinary hk
-      have hl : Finite (ProofTree C l) := ih _ (by omega) l rfl
-      have hr : Finite (ProofTree C r) := ih _ (by omega) r rfl
-      let f : ProofTree C g → ProofTree C l × ProofTree C r
-        | .leaf h => by rw [hk] at h; cases h
-        | .andUnary h _ => by rw [hk] at h; cases h
-        | .andBinary h tl tr => by
-          have h' := hk.symm.trans h
-          cases h'
-          exact (tl, tr)
-        | .orChoice h _ _ => by rw [hk] at h; cases h
-      refine Finite.of_injective f fun t₁ t₂ heq => ?_
-      cases t₁ with
-      | leaf h => rw [hk] at h; cases h
-      | andUnary h _ => rw [hk] at h; cases h
-      | orChoice h _ _ => rw [hk] at h; cases h
-      | andBinary h₁ tl₁ tr₁ =>
-        cases t₂ with
-        | leaf h => rw [hk] at h; cases h
-        | andUnary h _ => rw [hk] at h; cases h
-        | orChoice h _ _ => rw [hk] at h; cases h
-        | andBinary h₂ tl₂ tr₂ =>
-          have h₁' := hk.symm.trans h₁
-          have h₂' := hk.symm.trans h₂
-          cases h₁'
-          cases h₂'
-          simp only [f] at heq
-          rcases heq with ⟨rfl, rfl⟩
-          rfl
-    | .or =>
-      have hsub : ∀ c : {c : G // C.orChild g c}, Finite (ProofTree C c.1) := fun c =>
-        ih _ (by have := C.layer_orChild hk c.2; omega) c.1 rfl
-      let f : ProofTree C g → Σ c : {c : G // C.orChild g c}, ProofTree C c.1
-        | .leaf h => by rw [hk] at h; cases h
-        | .andUnary h _ => by rw [hk] at h; cases h
-        | .andBinary h _ _ => by rw [hk] at h; cases h
-        | .orChoice _ hch sub => ⟨⟨_, hch⟩, sub⟩
-      refine Finite.of_injective f fun t₁ t₂ heq => ?_
-      cases t₁ with
-      | leaf h => rw [hk] at h; cases h
-      | andUnary h _ => rw [hk] at h; cases h
-      | andBinary h _ _ => rw [hk] at h; cases h
-      | orChoice h₁ hc₁ sub₁ =>
-        cases t₂ with
-        | leaf h => rw [hk] at h; cases h
-        | andUnary h _ => rw [hk] at h; cases h
-        | andBinary h _ _ => rw [hk] at h; cases h
-        | orChoice h₂ hc₂ sub₂ =>
-          simp only [f, Sigma.mk.injEq] at heq
-          obtain ⟨hc, hsub⟩ := heq
-          have hce : _ = _ := congrArg Subtype.val hc
-          subst hce
-          cases eq_of_heq hsub
-          rfl
+    -- A proof tree at `g` is determined by its constructor and its subtrees, which are proof
+    -- trees at gates on lower layers.
+    let T := Σ c : {c : G // C.layer c < n}, ProofTree C c
+    have (c : {c : G // C.layer c < n}) : Finite (ProofTree C c) := ih _ c.2 c rfl
+    have : Finite T := Finite.instSigma
+    let f : ProofTree C g → Unit ⊕ T ⊕ (T × T) ⊕ T
+      | .leaf _ => .inl ()
+      | .andUnary h sub => .inr (.inl ⟨⟨_, by have := C.layer_andUnary h; omega⟩, sub⟩)
+      | .andBinary h tl tr =>
+        have := C.layer_andBinary h
+        .inr (.inr (.inl (⟨⟨_, by omega⟩, tl⟩, ⟨⟨_, by omega⟩, tr⟩)))
+      | .orChoice h hch sub =>
+        .inr (.inr (.inr ⟨⟨_, by have := C.layer_orChild h hch; omega⟩, sub⟩))
+    refine Finite.of_injective f fun t₁ t₂ heq => ?_
+    cases t₁ <;> cases t₂ <;> cases heq <;> rfl
 
 namespace ProofTree
 
@@ -464,9 +384,7 @@ theorem andNodes_level_profile (hnorm : C.InNormalForm) {g : G} (t : ProofTree C
       have hzero := sub.andNodes_filter_eq_nil_of_le hnorm (by omega : C.layer c ≤ 2 * m)
       rw [hm, show (2 * m + 1 - 1) / 2 - m = 0 by omega, pow_zero]
       simp [hgm, hzero]
-    · have hne : decide (C.andLevel g = k) = false := by
-        simp only [decide_eq_false_iff_not, hgm]
-        exact hkm
+    · have hne : decide (C.andLevel g = k) = false := decide_eq_false (by omega)
       simp only [hne, Bool.false_eq_true, ↓reduceIte]
       have hk' : 2 * k < C.layer c := by omega
       refine (ih k hk').trans ?_
@@ -483,20 +401,13 @@ theorem andNodes_level_profile (hnorm : C.InNormalForm) {g : G} (t : ProofTree C
       have hzr := right.andNodes_filter_eq_nil_of_le hnorm (by omega : C.layer r ≤ 2 * m)
       rw [hm, show (2 * m + 1 - 1) / 2 - m = 0 by omega, pow_zero]
       simp [hgm, hzl, hzr]
-    · have hne : decide (C.andLevel g = k) = false := by
-        simp only [decide_eq_false_iff_not, hgm]
-        exact hkm
+    · have hne : decide (C.andLevel g = k) = false := decide_eq_false (by omega)
       simp only [hne, Bool.false_eq_true, ↓reduceIte, List.length_append]
-      have hkl : 2 * k < C.layer l := by omega
-      have hkr : 2 * k < C.layer r := by omega
-      have hl := ihl k hkl
-      have hr := ihr k hkr
-      have hexpl : (C.layer l - 1) / 2 - k = m - 1 - k := by omega
-      have hexpr : (C.layer r - 1) / 2 - k = m - 1 - k := by omega
-      have hexpg : (C.layer g - 1) / 2 - k = (m - 1 - k) + 1 := by omega
-      rw [hexpl] at hl
-      rw [hexpr] at hr
-      rw [hexpg, pow_succ]
+      have hl := ihl k (by omega)
+      have hr := ihr k (by omega)
+      rw [show (C.layer l - 1) / 2 - k = m - 1 - k by omega] at hl
+      rw [show (C.layer r - 1) / 2 - k = m - 1 - k by omega] at hr
+      rw [show (C.layer g - 1) / 2 - k = m - 1 - k + 1 by omega, pow_succ]
       omega
 
 /-- In normal form, the AND-gate occurrences of a proof tree rooted at an AND gate `u` split as
@@ -510,32 +421,25 @@ theorem andNodes_and_profile (hnorm : C.InNormalForm) {u : G} {inp : AndInputs G
         (rest.filter fun x => decide (C.andLevel x = k)).length ≤ 2 ^ (C.andLevel u - k) := by
   obtain ⟨m, hm⟩ := hnorm.odd_of_and hkind
   have hum : C.andLevel u = m := by simp only [andLevel, hm]; omega
-  have hprof := t.andNodes_level_profile hnorm
+  have hcount {rest : List G} (hrest : t.andNodes = u :: rest) (k : ℕ) (hk : k < C.andLevel u) :
+      (rest.filter fun x => decide (C.andLevel x = k)).length ≤ 2 ^ (C.andLevel u - k) := by
+    have hp := t.andNodes_level_profile hnorm k (by omega)
+    simp only [hrest, List.filter_cons,
+      show decide (C.andLevel u = k) = false by simp only [decide_eq_false_iff_not]; omega] at hp
+    exact hp.trans (Nat.pow_le_pow_right (by decide) (by omega))
   cases t with
-  | leaf h => rw [hkind] at h; cases h
-  | orChoice h _ _ => rw [hkind] at h; cases h
   | andUnary h sub =>
     have hlayer := C.layer_andUnary h
-    refine ⟨sub.andNodes, rfl, fun x hx => ?_, fun k hk => ?_⟩
-    · have hlt := (sub.andNodes_layer_lt hnorm x hx).2
-      omega
-    · have hk' : 2 * k < C.layer u := by omega
-      have hp := hprof k hk'
-      simp only [andNodes, List.filter_cons,
-        show decide (C.andLevel u = k) = false by simp only [decide_eq_false_iff_not]; omega] at hp
-      exact hp.trans (Nat.pow_le_pow_right (by decide) (by omega))
+    refine ⟨sub.andNodes, rfl, fun x hx => ?_, hcount rfl⟩
+    have hlt := (sub.andNodes_layer_lt hnorm x hx).2
+    omega
   | andBinary h left right =>
     have hlr := C.layer_andBinary h
-    refine ⟨left.andNodes ++ right.andNodes, rfl, fun x hx => ?_, fun k hk => ?_⟩
-    · simp only [List.mem_append] at hx
-      rcases hx with hx | hx
-      · have hlt := (left.andNodes_layer_lt hnorm x hx).2; omega
-      · have hlt := (right.andNodes_layer_lt hnorm x hx).2; omega
-    · have hk' : 2 * k < C.layer u := by omega
-      have hp := hprof k hk'
-      simp only [andNodes, List.filter_cons,
-        show decide (C.andLevel u = k) = false by simp only [decide_eq_false_iff_not]; omega] at hp
-      exact hp.trans (Nat.pow_le_pow_right (by decide) (by omega))
+    refine ⟨left.andNodes ++ right.andNodes, rfl, fun x hx => ?_, hcount rfl⟩
+    rcases List.mem_append.mp hx with hx | hx
+    · have hlt := (left.andNodes_layer_lt hnorm x hx).2; omega
+    · have hlt := (right.andNodes_layer_lt hnorm x hx).2; omega
+  | _ => cases hkind.symm.trans ‹_›
 
 end ProofTree
 
@@ -560,14 +464,11 @@ theorem isMinOn_andUnary_iff {g c : G} (hkind : C.kind g = .and (.unary c))
     omega
   · intro h p
     cases p with
-    | leaf h' => rw [hkind] at h'; cases h'
-    | andBinary h' _ _ => rw [hkind] at h'; cases h'
-    | orChoice h' _ _ => rw [hkind] at h'; cases h'
     | andUnary h' t' =>
-      have hc := hkind.symm.trans h'
-      cases hc
+      cases hkind.symm.trans h'
       simp only [ProofTree.weight]
       exact Nat.add_le_add_left (h t') _
+    | _ => cases hkind.symm.trans ‹_›
 
 /-- Minimizing a proof tree of a fan-in-two AND gate is equivalent to minimizing both children's
 proof trees independently. -/
@@ -587,14 +488,11 @@ theorem isMinOn_andBinary_iff {g l r : G} (hkind : C.kind g = .and (.binary l r)
       omega
   · rintro ⟨hl, hr⟩ p
     cases p with
-    | leaf h' => rw [hkind] at h'; cases h'
-    | andUnary h' _ => rw [hkind] at h'; cases h'
-    | orChoice h' _ _ => rw [hkind] at h'; cases h'
     | andBinary h' tl' tr' =>
-      have hlr := hkind.symm.trans h'
-      cases hlr
+      cases hkind.symm.trans h'
       simp only [ProofTree.weight]
       exact Nat.add_le_add (Nat.add_le_add_left (hl tl') _) (hr tr')
+    | _ => cases hkind.symm.trans ‹_›
 
 /-- The chosen child subtree of a minimum-weight proof tree at an OR gate is itself a
 minimum-weight proof tree of that child. -/
@@ -637,30 +535,21 @@ theorem isMinIsolating_of_separated (C : LayeredSemiUnboundedCircuit G)
     | leaf h₁ =>
       cases q with
       | leaf _ => rfl
-      | andUnary h₂ _ => rw [h₁] at h₂; cases h₂
-      | andBinary h₂ _ _ => rw [h₁] at h₂; cases h₂
-      | orChoice h₂ _ _ => rw [h₁] at h₂; cases h₂
+      | _ => cases h₁.symm.trans ‹_›
     | @andUnary _ c₁ h₁ sub₁ =>
       cases q with
-      | leaf h₂ => rw [h₁] at h₂; cases h₂
-      | andBinary h₂ _ _ => rw [h₁] at h₂; cases h₂
-      | orChoice h₂ _ _ => rw [h₁] at h₂; cases h₂
       | @andUnary _ c₂ h₂ sub₂ =>
-        have hc := h₁.symm.trans h₂
-        cases hc
+        cases h₁.symm.trans h₂
         have hlc : C.layer c₁ < n := by have := C.layer_andUnary h₁; omega
         obtain ⟨_, _, huniq⟩ := ih _ hlc c₁ rfl ((C.eval_andUnary h₁).mp hg)
         have hs₁ := (isMinOn_andUnary_iff w h₁ sub₁).mp hp
         have hs₂ := (isMinOn_andUnary_iff w h₁ sub₂).mp hq
         rw [(huniq _ hs₂).trans (huniq _ hs₁).symm]
+      | _ => cases h₁.symm.trans ‹_›
     | @andBinary _ l₁ r₁ h₁ tl₁ tr₁ =>
       cases q with
-      | leaf h₂ => rw [h₁] at h₂; cases h₂
-      | andUnary h₂ _ => rw [h₁] at h₂; cases h₂
-      | orChoice h₂ _ _ => rw [h₁] at h₂; cases h₂
       | @andBinary _ l₂ r₂ h₂ tl₂ tr₂ =>
-        have hlr := h₁.symm.trans h₂
-        cases hlr
+        cases h₁.symm.trans h₂
         have hlayer := C.layer_andBinary h₁
         have ⟨hevalL, hevalR⟩ := (C.eval_andBinary h₁).mp hg
         obtain ⟨_, _, huniqL⟩ := ih _ (by omega) l₁ rfl hevalL
@@ -669,11 +558,9 @@ theorem isMinIsolating_of_separated (C : LayeredSemiUnboundedCircuit G)
         obtain ⟨hl₂, hr₂⟩ := (isMinOn_andBinary_iff w h₁ tl₂ tr₂).mp hq
         rw [(huniqL _ hl₂).trans (huniqL _ hl₁).symm,
           (huniqR _ hr₂).trans (huniqR _ hr₁).symm]
+      | _ => cases h₁.symm.trans ‹_›
     | @orChoice _ c₁ h₁ hc₁ sub₁ =>
       cases q with
-      | leaf h₂ => rw [h₁] at h₂; cases h₂
-      | andUnary h₂ _ => rw [h₁] at h₂; cases h₂
-      | andBinary h₂ _ _ => rw [h₁] at h₂; cases h₂
       | @orChoice _ c₂ h₂ hc₂ sub₂ =>
         have hs₁ := isMinOn_orChoice_sub w h₁ hc₁ hp
         have hs₂ := isMinOn_orChoice_sub w h₁ hc₂ hq
@@ -690,6 +577,7 @@ theorem isMinIsolating_of_separated (C : LayeredSemiUnboundedCircuit G)
         have hevalC : C.Eval c₁ := (C.eval_iff_nonempty_proofTree c₁).mpr ⟨sub₁⟩
         obtain ⟨_, _, huniq⟩ := ih _ hlc c₁ rfl hevalC
         rw [(huniq _ hs₂).trans (huniq _ hs₁).symm]
+      | _ => cases h₁.symm.trans ‹_›
 
 end LayeredSemiUnboundedCircuit
 
