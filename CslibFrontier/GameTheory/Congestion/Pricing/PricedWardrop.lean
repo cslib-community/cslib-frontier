@@ -673,11 +673,7 @@ theorem SmoothConvexLatencies.isSocialOptimum_iff_kkt {d R : ℝ}
         rw [hxi0, sub_zero]
         exact mul_le_mul_of_nonneg_right hle_i (hy.1 i)
       · rw [heq i hxi]
-    have hμ_bound : μ * ((∑ i, y i) - ∑ i, xS i) ≤ 0 := by
-      have h1 : μ * (d - ∑ i, xS i) = 0 := hcomp
-      have h2 : μ * ((∑ i, y i) - d) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hμ0 (sub_nonpos.mpr hy.2)
-      linarith
-    linarith
+    linarith [mul_nonpos_of_nonneg_of_nonpos hμ0 (sub_nonpos.mpr hy.2)]
 
 /-- **Pigovian marginal-congestion decentralization** ([Ozdaglar and Srikant, Section 22.2.2,
 Eq. (22.24), p. 581][OzdaglarSrikant2007]): for smooth convex latencies, any social optimum `xS`
@@ -688,13 +684,8 @@ theorem SmoothConvexLatencies.isPricedWardrop_pigovianPrice_of_sum_eq {d R : ℝ
     IsPricedWardrop d R latency (pigovianPrice latencyDeriv xS) xS := by
   obtain ⟨hfeas, μ, hμ0, _, hle, heq⟩ := h.isSocialOptimum_iff_kkt.mp hopt
   refine ⟨hfeas, fun i j hi => ?_, fun i hi => ?_, fun _ => hsum⟩
-  · have hi_eq := heq i hi
-    have hj_le := hle j
-    simp only [pigovianPrice]
-    linarith
-  · have hi_eq := heq i hi
-    simp only [pigovianPrice]
-    linarith
+  · simp only [pigovianPrice]; linarith [heq i hi, hle j]
+  · simp only [pigovianPrice]; linarith [heq i hi]
 
 end ExistenceAndPigou
 
