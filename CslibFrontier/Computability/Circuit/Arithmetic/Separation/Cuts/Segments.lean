@@ -89,10 +89,6 @@ theorem joinSegments_injective :
       (List.append_cons_inj_of_notMem_prefix (by simp) (by simp)).1 hw'
   exact funext fun s => List.map_inj_left.1 key s (mem_toList.2 (mem_univ s))
 
-private theorem length_joinSegments (X : σ → List Γ) :
-    (joinSegments X).length = ∑ s, (X s).length + Fintype.card σ := by
-  simp [joinSegments, List.length_flatMap, sum_add_distrib]
-
 /-- The bit string of the segments on all tapes, for a code `cb` of the letters and of the
 separator. -/
 @[expose] noncomputable def segmentString (cb : Option Γ → BitString c) (X : σ → List Γ) :
@@ -106,7 +102,7 @@ theorem segmentString_injective {cb : Option Γ → BitString c} (hcb : Function
 
 theorem length_segmentString (cb : Option Γ → BitString c) (X : σ → List Γ) :
     (segmentString cb X).length = (∑ s, (X s).length + Fintype.card σ) * c := by
-  rw [segmentString, length_bitsOf, length_joinSegments]
+  simp [segmentString, length_bitsOf, joinSegments, List.length_flatMap, sum_add_distrib]
 
 /-- The number of units of the bit strings from a party to all parties (or to a party from all
 parties), if the party writes (or reads) at most `T` letters on all tapes together. -/
@@ -142,9 +138,8 @@ theorem cat_parts (ℓ : ℕ) (u : List Γ) :
   induction K generalizing u with
   | zero => simp [cat]
   | succ K ih =>
-    have e : (fun κ : Fin K => parts ℓ u κ.succ) = parts ℓ (u.drop ℓ) := by
-      funext κ
-      simp [parts, Nat.add_mul, Nat.add_comm]
+    have e : (fun κ : Fin K => parts ℓ u κ.succ) = parts ℓ (u.drop ℓ) :=
+      funext fun _ => by simp [parts, Nat.add_mul, Nat.add_comm]
     rw [cat_succ, e, ih, Nat.succ_mul, Nat.add_comm (K * ℓ), List.take_add]
     simp [parts]
 
@@ -218,9 +213,9 @@ theorem sum_length_le_of_partyWeight_ne_zero (hx : ∀ κ, (x κ).length ≤ T) 
     rw [partyWeight_block] at h
     obtain ⟨hR, hw⟩ := ite_ne_right_iff.1 h
     rw [cat_eq_nil.2 hR, List.length_nil, zero_add]
-    refine le_trans ?_ (sum_length_le_of_blockWeight_ne_zero hw)
-    exact (sum_map univ ⟨fun s => Ch.tp s false, fun _ _ e => by simpa using e⟩
-      fun z => (blockEmission R C z).length).symm.trans_le (sum_le_sum_of_subset (subset_univ _))
+    exact ((sum_map univ ⟨fun s => Ch.tp s false, fun _ _ e => by simpa using e⟩
+      fun z => (blockEmission R C z).length).symm.trans_le
+      (sum_le_sum_of_subset (subset_univ _))).trans (sum_length_le_of_blockWeight_ne_zero hw)
   | right κ =>
     rw [partyWeight_input] at h
     obtain ⟨⟨h1, -, h3⟩, -⟩ := ite_ne_right_iff.1 h
@@ -268,8 +263,7 @@ private theorem segmentWeight_ne_zero (h : segmentWeight mu T q x X ≠ 0) :
       (blockEmission (fun s b => X s (Fin.castAdd K κ) b) fun s b => X s b (Fin.castAdd K κ)) := by
   have h0 (p) : partyWeight mu T q x p (fun s b => X s p b) (fun s b => X s b p) ≠ 0 :=
     fun hp => h (prod_eq_zero (mem_univ p) hp)
-  have hb (κ : Fin K) := h0 (Fin.castAdd K κ)
-  have hi (κ : Fin K) := h0 (Fin.natAdd K κ)
+  have hb (κ) := h0 (Fin.castAdd K κ); have hi (κ) := h0 (Fin.natAdd K κ)
   simp only [partyWeight_block, partyWeight_input, ite_ne_right_iff] at hb hi
   exact ⟨fun κ => (hb κ).1, fun s κ => (hi κ).1.1 s, fun s κ => (hi κ).1.2.1 s,
     fun κ => (hi κ).1.2.2, segmentWeight_eq_prod (fun κ => (hb κ).1) (fun s κ => (hi κ).1.1 s)
@@ -294,23 +288,18 @@ private theorem segmentWeight_of_isRef {v : Fin K → Ch S Unit → List Γ}
     (fun κ => blockEmission (fun s b => X s (Fin.castAdd K κ) b)
       fun s b => X s b (Fin.castAdd K κ)) = v ∧
     segmentWeight mu T q x X = ∏ κ, blockWeight mu T (q κ.castSucc) (q κ.succ) (v κ) := by
-  have row (s a) := (h s).row a
-  have col (s b) := (h s).col b
   have hv : (fun κ => blockEmission (fun s b => X s (Fin.castAdd K κ) b)
-      fun s b => X s b (Fin.castAdd K κ)) = v := by
-    funext κ z
-    rcases z with ⟨s, _ | _⟩ | ⟨⟨⟩⟩
-    · exact (row (some s) (Fin.castAdd K κ)).trans (Fin.append_left _ _ κ)
-    · exact (col (some s) (Fin.castAdd K κ)).trans (Fin.append_left _ _ κ)
-    · exact (col none (Fin.castAdd K κ)).trans (Fin.append_left _ _ κ)
-  refine ⟨hv, ?_⟩
-  rw [segmentWeight_eq_prod
-    (fun κ => cat_eq_nil.1 ((row none (Fin.castAdd K κ)).trans (Fin.append_left _ _ κ)))
-    (fun s κ => cat_eq_nil.1 ((row (some s) (Fin.natAdd K κ)).trans (Fin.append_right _ _ κ)))
-    (fun s κ => cat_eq_nil.1 ((col s (Fin.natAdd K κ)).trans
-      (by cases s <;> exact Fin.append_right _ _ κ)))
-    fun κ => (row none (Fin.natAdd K κ)).trans (Fin.append_right _ _ κ)]
-  exact prod_congr rfl fun κ _ => by rw [← hv]
+      fun s b => X s b (Fin.castAdd K κ)) = v :=
+    funext₂ fun κ => fun
+      | .tp s false => ((h (some s)).row _).trans (Fin.append_left _ _ κ)
+      | .tp s true => ((h (some s)).col _).trans (Fin.append_left _ _ κ)
+      | .inp () => ((h none).col _).trans (Fin.append_left _ _ κ)
+  refine ⟨hv, (segmentWeight_eq_prod
+    (fun κ => cat_eq_nil.1 (((h none).row _).trans (Fin.append_left _ _ κ)))
+    (fun s κ => cat_eq_nil.1 (((h (some s)).row _).trans (Fin.append_right _ _ κ)))
+    (fun s κ => cat_eq_nil.1 (((h s).col _).trans (by cases s <;> exact Fin.append_right _ _ κ)))
+    fun κ => ((h none).row _).trans (Fin.append_right _ _ κ)).trans ?_⟩
+  exact prod_congr rfl fun κ _ => by rw [congr_fun hv κ]
 
 /-- **Segments.** For given states `q` between the blocks, the sum over the words that the
 blocks emit, restricted to those for which the two sides of every tape carry the same
@@ -327,28 +316,23 @@ theorem sum_segments (q : Fin (K + 1) → Q) {x : Fin K → List Γ} (hx : ∀ �
     ∑ X ∈ segments Γ S K T, if ∀ s, Stair (X s) then segmentWeight mu T q x X else 0 := by
   symm
   refine sum_bij_ne_zero (fun X _ _ κ => blockEmission (fun s b => X s (Fin.castAdd K κ) b)
-    fun s b => X s b (Fin.castAdd K κ)) ?_ ?_ ?_ ?_
-  · intro X _ hX
-    obtain ⟨-, hw⟩ := ite_ne_right_iff.1 hX
+    fun s b => X s b (Fin.castAdd K κ)) (fun X _ hX => ?_) (fun X _ hX X' _ hX' heq => ?_)
+    (fun v hv hne => ?_) fun X _ hX => ?_
+  · have hw := (ite_ne_right_iff.1 hX).2
     rw [(segmentWeight_ne_zero hw).2.2.2.2] at hw
     exact Fintype.mem_piFinset.2 fun κ => Fintype.mem_piFinset.2
       (blockWeight_ne_zero fun h0 => hw (prod_eq_zero (mem_univ κ) h0))
-  · intro X _ hX X' _ hX' heq
-    obtain ⟨hst, hw⟩ := ite_ne_right_iff.1 hX
-    obtain ⟨hst', hw'⟩ := ite_ne_right_iff.1 hX'
+  · obtain ⟨hst, hw⟩ := ite_ne_right_iff.1 hX; obtain ⟨hst', hw'⟩ := ite_ne_right_iff.1 hX'
     exact funext fun s => (isRef_of_segmentWeight_ne_zero hst hw s).unique
       (heq ▸ isRef_of_segmentWeight_ne_zero hst' hw' s)
-  · intro v hv hne
-    obtain ⟨hm, hw⟩ := ite_ne_right_iff.1 hne
+  · obtain ⟨hm, hw⟩ := ite_ne_right_iff.1 hne
     choose X hX using fun s => IsRef.exists ((cat_written_eq_cat_read_iff hu).2 hm s)
     obtain ⟨e, hW⟩ := segmentWeight_of_isRef (mu := mu) (T := T) (q := q) hX
-    refine ⟨X, mem_segments.2 fun s a b => ?_, ?_, e⟩
-    · rw [Fintype.mem_piFinset] at hv
-      exact (length_le_cat (X s a) b).trans ((hX s).row a ▸ length_written_le hx
-        (fun κ z => List.mem_wordsLe.1 (Fintype.mem_piFinset.1 (hv κ) z)) s a)
-    · rwa [ite_eq_left fun s => (hX s).stair, hW]
-  · intro X _ hX
-    obtain ⟨hst, hw⟩ := ite_ne_right_iff.1 hX
+    refine ⟨X, mem_segments.2 fun s a b => (length_le_cat (X s a) b).trans <| (hX s).row a ▸
+      length_written_le hx (fun κ z => List.mem_wordsLe.1
+        (Fintype.mem_piFinset.1 (Fintype.mem_piFinset.1 hv κ) z)) s a, ?_, e⟩
+    rwa [ite_eq_left fun s => (hX s).stair, hW]
+  · obtain ⟨hst, hw⟩ := ite_ne_right_iff.1 hX
     rw [ite_eq_left hst, ite_eq_left ((cat_written_eq_cat_read_iff hu).1 fun s =>
       (isRef_of_segmentWeight_ne_zero hst hw s).cat_eq), (segmentWeight_ne_zero hw).2.2.2.2]
 
