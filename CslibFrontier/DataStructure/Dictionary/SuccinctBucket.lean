@@ -1182,7 +1182,10 @@ theorem tableArrays_words_le_succinctWords {U V w n_max C_hdr : ℕ} :
       localMetaLen n_max * effBucketPosBits n_max +
         globalMetaLen n_max * globalPtrBits n_max ≤
         74 * n_max * Dynamic.logLogFactor n_max := by
-    linarith
+    have hdist : 74 * n_max * Dynamic.logLogFactor n_max =
+        54 * n_max * Dynamic.logLogFactor n_max + 20 * n_max * Dynamic.logLogFactor n_max := by
+      ring
+    omega
   have hmaster :
       (n_max * quotientBits U n_max + n_max * valBits V +
         (localMetaLen n_max * effBucketPosBits n_max +
