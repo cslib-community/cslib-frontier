@@ -134,13 +134,18 @@ theorem integrated_actual_clipped_tail_capacity
       (actualClippedTail HP s t Ls Lt D sourceSuffix suffix k m η G ζ n K Δ raw) ≤
       (((2 + 256 * M / η) * (εμ 0 + εμ 1)) / 63 + (εz 0 + εz 1) * (7 / 9)) ^ 4 := by
   have hb := integrated_two_mask_envelope_capacity HP s t hst Ls Lt D hD sourceSuffix suffix H hk
-    hLt G hG ζ hη hNu hmass m n K hn Δ raw εμ εz hεμ hεz B hB hμ hbudget hzbudget
+    hLt
+    G hG ζ hη hNu hmass m n K hn Δ raw εμ εz hεμ hεz B hB hμ hbudget hzbudget
   dsimp only at hb ⊢
-  refine (vertex_mono_nonneg (retainedMask s Ls D sourceSuffix) hNu _ _
-    (fun σ x => sum_nonneg fun j _ => ?_)
-    (actual_tail_le_envelope HP s t Ls Lt D sourceSuffix suffix k m η G hG ζ _ K Δ raw hz)).trans hb
-  split_ifs
-  · exact sum_nonneg fun i _ => mul_nonneg (by positivity) kthLargest_nonneg
-  · exact le_rfl
+  apply le_trans (vertex_mono_nonneg (retainedMask s Ls D sourceSuffix) hNu _ _ ?_ ?_) hb
+  · intro σ x
+    unfold actualClippedTail
+    apply sum_nonneg
+    intro j _
+    split_ifs
+    · exact sum_nonneg fun i _ => mul_nonneg (by positivity) kthLargest_nonneg
+    · exact le_rfl
+  · intro σ x
+    exact actual_tail_le_envelope HP s t Ls Lt D sourceSuffix suffix k m η G hG ζ _ K Δ raw hz σ x
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

@@ -236,22 +236,26 @@ theorem inter_mem_BPP {A B : Set α} (hA : A ∈ BPP enc) (hB : B ∈ BPP enc) :
   refine mem_BPP.2 ⟨p₁ + p₂, andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂,
     by fun_prop, fun a => ?_⟩
   have hc : acceptCount (andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂) a
-      ((p₁ + p₂).eval (enc a).length) = acceptCount V₁ a (p₁.eval (enc a).length) *
+      ((p₁ + p₂).eval (enc a).length) =
+      acceptCount V₁ a (p₁.eval (enc a).length) *
         acceptCount V₂ a (p₂.eval (enc a).length) := by
     rw [Polynomial.eval_add]
-    exact acceptCount_andVerifier _ V₁ V₂ a _
+    exact acceptCount_andVerifier (fun a => p₁.eval (enc a).length) V₁ V₂ a (p₂.eval (enc a).length)
   have hb₁ := acceptCount_le_two_pow (V := V₁) (a := a) (n := p₁.eval (enc a).length)
   have hb₂ := acceptCount_le_two_pow (V := V₂) (a := a) (n := p₂.eval (enc a).length)
-  refine ⟨fun ha => ?_, fun ha => ?_⟩
-  · have e₁ := errorExponentAt_true_iff.1 ((h₁ a).1 ha.1)
+  constructor
+  · intro ha
+    have e₁ := errorExponentAt_true_iff.1 ((h₁ a).1 ha.1)
     have e₂ := errorExponentAt_true_iff.1 ((h₂ a).1 ha.2)
     simp only [Polynomial.eval_ofNat] at e₁ e₂
+    have f₁ : 7 * 2 ^ p₁.eval (enc a).length ≤
+        8 * acceptCount V₁ a (p₁.eval (enc a).length) := by omega
+    have f₂ : 7 * 2 ^ p₂.eval (enc a).length ≤
+        8 * acceptCount V₂ a (p₂.eval (enc a).length) := by omega
     rw [boundedErrorAt_true_iff, hc, Polynomial.eval_add, pow_add]
-    nlinarith [Nat.mul_le_mul
-      (show 7 * 2 ^ p₁.eval (enc a).length ≤ 8 * acceptCount V₁ a (p₁.eval (enc a).length) by omega)
-      (show 7 * 2 ^ p₂.eval (enc a).length ≤
-        8 * acceptCount V₂ a (p₂.eval (enc a).length) by omega)]
-  · rw [boundedErrorAt_false_iff, hc, Polynomial.eval_add, pow_add]
+    nlinarith [Nat.mul_le_mul f₁ f₂]
+  · intro ha
+    rw [boundedErrorAt_false_iff, hc, Polynomial.eval_add, pow_add]
     by_cases ha₁ : a ∈ A
     · have e₂ := errorExponentAt_false_iff.1 ((h₂ a).2 fun hb => ha ⟨ha₁, hb⟩)
       simp only [Polynomial.eval_ofNat] at e₂

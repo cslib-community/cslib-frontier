@@ -187,8 +187,8 @@ theorem runInterval_flatMap_range_append (L : ℕ) (ops : List Op) :
       ((D.runInterval t₀ m₀ ((List.range L).flatMap seg)).1 ++
         (D.runInterval (segStart seg t₀ L) (D.segMem seg t₀ m₀ L) ops).1,
        (D.runInterval (segStart seg t₀ L) (D.segMem seg t₀ m₀ L) ops).2) := by
-  rw [runInterval_append, (D.runInterval_flatMap_range seg t₀ m₀ L).1,
-    (D.runInterval_flatMap_range seg t₀ m₀ L).2]
+  obtain ⟨hmem, hlen⟩ := D.runInterval_flatMap_range seg t₀ m₀ L
+  rw [runInterval_append, hmem, hlen]
 
 /-! ### Later and last-touched cells -/
 
@@ -252,13 +252,13 @@ theorem hammingDist_overlayMem_le (L j : ℕ) :
 /-- The cells last touched by different segments `j, k < L` are disjoint. -/
 theorem disjoint_lastCells {L j k : ℕ} (hj : j < L) (hk : k < L) (hjk : j ≠ k) :
     Disjoint (D.lastCells seg t₀ m₀ L j) (D.lastCells seg t₀ m₀ L k) := by
-  have aux {a b : ℕ} (hab : a < b) (hb : b < L) :
-      Disjoint (D.lastCells seg t₀ m₀ L a) (D.lastCells seg t₀ m₀ L b) :=
-    disjoint_of_subset_right ((D.lastCells_subset_segCells seg t₀ m₀ L b).trans
-      (D.segCells_subset_laterCells seg t₀ m₀ hab hb)) sdiff_disjoint
   rcases lt_or_gt_of_ne hjk with h | h
-  · exact aux h hk
-  · exact (aux h hj).symm
+  · exact disjoint_of_subset_right
+      ((D.lastCells_subset_segCells seg t₀ m₀ L k).trans
+        (D.segCells_subset_laterCells seg t₀ m₀ h hk)) sdiff_disjoint
+  · exact (disjoint_of_subset_right
+      ((D.lastCells_subset_segCells seg t₀ m₀ L j).trans
+        (D.segCells_subset_laterCells seg t₀ m₀ h hj)) sdiff_disjoint).symm
 
 /-- The cells last touched by the segments `j < L` form a pairwise disjoint family. -/
 theorem pairwiseDisjoint_lastCells (L : ℕ) :

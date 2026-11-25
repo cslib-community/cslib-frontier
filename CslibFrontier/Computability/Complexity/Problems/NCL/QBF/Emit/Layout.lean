@@ -157,17 +157,16 @@ theorem terminalBase (k p : ℕ) (ms : List (List Bool)) :
     Layout recorded (Matrix.terminalBase p ms) (Initial.terminalBase p ms).orient k
       (Emit.terminal k p ms) := by
   let ctrl := Realization.id (I := Gate.interp) [.blue, .blue] [true, false] rfl
-  simpa only [Emit.terminal, List.nil_append, List.append_assoc] using! compReal (compReal
-    (tensorReal (u := ctrl)
-      (v := Realization.zeros (I := Gate.interp) _ (Network.legal_network_zero [] (2 * p) ms))
-      (.id _ _ k) (network [] (2 * p) (k + 2) ms))
-    (tensorReal (u := ctrl)
-      (v := Realization.zeros (I := Gate.interp) _
-        (Initial.legal_moveLeft_zero (Network.bundle (2 * p)) .blue []))
-      (.id _ _ k) (moveLeft [] (2 * p) (k + 2))))
-    (tensorReal (u := Initial.returnInitial)
-      (v := Realization.zeros (I := Gate.interp) _ (Initial.legal_caps_zero [] p))
-      (.cell .returnGate k) (caps (recorded := recorded) [] p k))
+  let net := Realization.zeros (I := Gate.interp) _ (Network.legal_network_zero [] (2 * p) ms)
+  let move := Realization.zeros (I := Gate.interp) _
+    (Initial.legal_moveLeft_zero (Network.bundle (2 * p)) .blue [])
+  let cap := Realization.zeros (I := Gate.interp) _ (Initial.legal_caps_zero [] p)
+  have h := compReal (compReal
+    (tensorReal (u := ctrl) (v := net) (.id _ _ k) (network [] (2 * p) (k + 2) ms))
+    (tensorReal (u := ctrl) (v := move) (.id _ _ k) (moveLeft [] (2 * p) (k + 2))))
+    (tensorReal (u := Initial.returnInitial) (v := cap) (.cell .returnGate k)
+      (caps (recorded := recorded) [] p k))
+  simpa only [Emit.terminal, List.nil_append, List.append_assoc] using! h
 
 private theorem terminal (p : ℕ) (qs : List Quantifier) (ms : List (List Bool)) :
     Layout recorded (Matrix.terminal p qs ms) (Initial.terminal p qs ms).orient 0

@@ -89,10 +89,13 @@ theorem scanView_eq (M : Methods (spec n K V) (Memory.spec w)) (u : Fin n) (du :
       rw [link_forM, List.range_eq_range']
       exact (range'_forM_eq (fun i => link M (relaxEdge u du i)) d d 0 (by omega)).symm
     _ = link M (scan u du) := by
-      have hd : (degree (K := K) (V := V) u).liftM M = M (.inr (.inr (.degree u))) :=
+      have hd : (degree (K := K) (V := V) u).liftM M =
+          M (.inr (.inr (.degree u))) :=
         PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M (.inr (.inr (.degree u)))
-      exact (congrArg (· >>= fun d => link M ((List.range d).forM (relaxEdge u du)))
-        hd.symm).trans (PFunctor.FreeM.liftM_bind M (degree u) _).symm
+      exact (congrArg (fun p : Memory.Prog ℕ =>
+        p >>= fun d => link M ((List.range d).forM (relaxEdge u du))) hd.symm).trans
+          (PFunctor.FreeM.liftM_bind M (degree u)
+            (fun d => (List.range d).forM (relaxEdge u du))).symm
 
 /-- One extraction and scan, setting the counter to zero when the queue is empty. -/
 def loopStep (M : Methods (spec n K V) (Memory.spec w)) (x : Unit × ℕ) :

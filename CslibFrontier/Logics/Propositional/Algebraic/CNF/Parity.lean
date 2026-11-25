@@ -132,12 +132,15 @@ private theorem parityClauseSum_eq [CommRing R] [CharP R 2] (B : Finset ι) (c :
     parityClauseSum R B c = (if c then 1 else 0) + ∑ i ∈ B, X i := by
   have h2 : (2 : MvPolynomial ι R) = 0 := CharTwo.two_eq_zero
   induction B using Finset.induction_on generalizing c with
-  | empty => cases c <;> simp [parityClauseSum]
+  | empty =>
+    cases c <;> simp [parityClauseSum]
   | insert j B hj ih =>
     rw [parityClauseSum_insert hj, ih, ih, sum_insert hj]
-    cases c <;> simp only [Bool.false_eq_true, Bool.not_false, Bool.not_true, ite_false, ite_true]
-    · ring
-    · linear_combination (-X j) * h2
+    cases c
+    · simp only [Bool.false_eq_true, ite_false, Bool.not_false, ite_true]
+      ring
+    · simp only [ite_true, Bool.not_true, Bool.false_eq_true, ite_false]
+      linear_combination (-X j) * h2
 
 /-- In characteristic `2`, the polynomials of the clauses excluding the assignments to `B` of
 parity other than `c` add up to `[c = 1] + ∑_{i ∈ B} X i`: both sides are the indicator of

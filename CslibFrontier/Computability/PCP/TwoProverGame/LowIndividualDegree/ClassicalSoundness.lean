@@ -126,10 +126,10 @@ theorem exists_polynomial_of_classical_winProb (a b : Q → Ans) {k : ℕ} (hk :
   have hbranch : 1 - (branchGame (F := F) n d .consistency).winProb a b ≤ 3 * ε := by
     classical
     let S := QuantumStrategy.ofDeterministic a b
-    have h0 : 1 - (branchGame (F := F) n d .consistency).quantumWinProb S ≤
-        3 * (1 - (game (F := F) n d).quantumWinProb S) :=
-      branch_loss_le_three_mul n d .consistency S.answers
-    simpa only [S, TwoProverGame.quantumWinProb_ofDeterministic] using h0
+    have h := branch_loss_le_three_mul n d .consistency S.answers
+    change 1 - (branchGame (F := F) n d .consistency).quantumWinProb S ≤
+      3 * (1 - (game (F := F) n d).quantumWinProb S) at h
+    simpa only [S, TwoProverGame.quantumWinProb_ofDeterministic] using h
   rw [consistency_loss_eq_expect] at hbranch
   refine ⟨g, le_trans ?_ (add_le_add h hbranch)⟩
   rw [← expect_add_distrib]

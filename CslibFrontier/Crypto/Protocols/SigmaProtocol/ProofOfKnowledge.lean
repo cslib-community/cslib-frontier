@@ -390,24 +390,29 @@ theorem le_add_sqrt_bind_extractionGame (hsound : ∀ i, (P i).SpecialSoundness 
         √(Game.succProbability (μ.bind fun y => extractionGame enc encW R
           (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
   classical
+  set κ : ℝ := 1 / Fintype.card (C i) + δ with hκ_def
   -- Each challenge has probability at most `1 / |C i| + δ` under the sampler.
+  have hκ (c : C i) : (ProbComp.eval (sampleChallenge i) c).toReal ≤ κ :=
+    hclose.toReal_apply_le_of_uniformOfFintype c
   -- With challenges from the sampler, the prover succeeds with probability at most `κ + √ε'`.
   have hsampled : (Game.succProbability
       (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) : ℝ) ≤
-      1 / Fintype.card (C i) + δ + √(Game.succProbability (μ.bind fun y => extractionGame enc encW R
+      κ + √(Game.succProbability (μ.bind fun y => extractionGame enc encW R
         (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
-    simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, bind_acceptanceGame_eq_once]
-    exact (Rewinding.le_add_sqrt_twice _ _ _ _ fun _ _ c =>
-      hclose.toReal_apply_le_of_uniformOfFintype c).trans (add_le_add le_rfl <|
-        Real.sqrt_le_sqrt <| ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-          (twice_withStatement_le_bind_extractionGame hsound hreal sampleChallenge A i μ))
+    simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
+    rw [bind_acceptanceGame_eq_once]
+    exact (Rewinding.le_add_sqrt_twice _ _ _ _ fun _ _ c => hκ c).trans
+      (add_le_add le_rfl (Real.sqrt_le_sqrt (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+        (twice_withStatement_le_bind_extractionGame hsound hreal sampleChallenge A i μ))))
   -- Replacing uniform challenges by the sampler changes acceptance by at most `δ`.
-  have hgame : CloseTo (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i)))
+  have hgame : CloseTo
+      (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i)))
       (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) δ := by
     simp only [bind_acceptanceGame_eq_once, Rewinding.once]
-    exact CloseTo.bind_right _ fun _ _ => hclose.bind_left _
-  linarith [Game.coe_succProbability_le_add_of_advantage_le
-    (NNReal.coe_le_coe.mpr (Game.closeTo_iff_advantage_le.mp hgame))]
+    exact CloseTo.bind_right _ fun yts _ => hclose.bind_left _
+  have hswap := Game.coe_succProbability_le_add_of_advantage_le
+    (NNReal.coe_le_coe.mpr (Game.closeTo_iff_advantage_le.mp hgame))
+  linarith
 
 /-- **Extraction by rewinding with approximately uniform challenges**: on every statement `y`, if
 `sampleChallenge i` is within statistical distance `δ` of uniform, the honest verifier's

@@ -101,13 +101,13 @@ private theorem re_im_mem_lowDegree {f : (ι → Bool) → ℂ} (hf : f ∈ lowD
   induction hf using Submodule.span_induction with
   | mem g hg =>
     obtain ⟨S, hS, rfl⟩ := hg
-    simpa only [monomial_complex, Complex.ofReal_re, Complex.ofReal_im] using
-      And.intro (monomial_mem_lowDegree hS) (const_mem_lowDegree D 0)
+    simp only [monomial_complex, Complex.ofReal_re, Complex.ofReal_im]
+    exact ⟨monomial_mem_lowDegree hS, const_mem_lowDegree D 0⟩
   | zero => exact ⟨const_mem_lowDegree D 0, const_mem_lowDegree D 0⟩
-  | add _ _ _ _ hg hh =>
+  | add g h _ _ hg hh =>
     simp only [Pi.add_apply, Complex.add_re, Complex.add_im]
     exact ⟨Submodule.add_mem _ hg.1 hh.1, Submodule.add_mem _ hg.2 hh.2⟩
-  | smul c _ _ hg =>
+  | smul c g _ hg =>
     simp only [Pi.smul_apply, smul_eq_mul, Complex.mul_re, Complex.mul_im]
     exact ⟨Submodule.sub_mem _ (Submodule.smul_mem _ c.re hg.1) (Submodule.smul_mem _ c.im hg.2),
       Submodule.add_mem _ (Submodule.smul_mem _ c.re hg.2) (Submodule.smul_mem _ c.im hg.1)⟩
@@ -219,8 +219,8 @@ theorem degree_le_two_mul {f : BooleanFunction N} (U : ℕ → State N W →ₗ�
     (ψ₀ : State N W) (T : ℕ) (S : Finset (Fin N × Bool × W))
     (h : ∀ x, measureProb (run U ψ₀ x T) S = bitVal ℝ (f x)) :
     degree f ≤ 2 * T := by
-  simpa only [approxDegree_zero] using
-    approxDegree_le_two_mul (f := f) (ε := 0) U ψ₀ T S fun x => by simp [h x]
+  have := approxDegree_le_two_mul (f := f) (ε := 0) U ψ₀ T S fun x => by simp [h x]
+  rwa [approxDegree_zero] at this
 
 /-- **Block sensitivity bounds exact quantum queries** [Beals, Buhrman, Cleve, Mosca, de
 Wolf][BealsBuhrmanCleveMoscaDeWolf2001]: if a `T`-query algorithm accepts every input `x`, by an

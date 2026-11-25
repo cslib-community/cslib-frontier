@@ -149,24 +149,30 @@ theorem dyadicFirstFlagSign_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (hr : ComputableInPolyTime r enc encNat) :
     (fun x => dyadicFirstFlagSign (d x) (B x) (r x) (fun k => N (x, k))) ∈
       CountingFunction (a + 2) enc encIntBin := by
-  have hs : ComputableInPolyTime (fun p : α × ℕ => 2 ^ B p.1) (encPair enc encNat) encNat :=
+  have hd' : ComputableInPolyTime (fun p : α × ℕ => d p.1)
+      (encPair enc encNat) encNat := hd.comp (ComputableInPolyTime.fst _ _)
+  have hs : ComputableInPolyTime (fun p : α × ℕ => 2 ^ B p.1)
+      (encPair enc encNat) encNat :=
     (ComputableInPolyTime.binary_two_pow.comp hB).comp (ComputableInPolyTime.fst _ _)
   have hu : ComputableInPolyTime (fun p : α × ℕ => (d p.1 - 1) * 2 ^ B p.1)
       (encPair enc encNat) encNat := by fun_prop
-  have hmul := nat_mul (of_polyTime (hd.comp (ComputableInPolyTime.fst _ _))) hN
-  have hevent := map (output := encBool)
-    (prod (map (prod (of_polyTime hs) hmul) ComputableInPolyTime.binary_le)
-      (map (prod hmul (of_polyTime hu)) ComputableInPolyTime.binary_le))
+  have hmul := nat_mul (of_polyTime hd') hN
+  have hlo := map (prod (of_polyTime hs) hmul) ComputableInPolyTime.binary_le
+  have hhi := map (prod hmul (of_polyTime hu)) ComputableInPolyTime.binary_le
+  have hevent := map (output := encBool) (prod hlo hhi)
     (ComputableInPolyTime.of_finite (fun p : Bool × Bool => p.1 && p.2))
   have htwice := nat_mul (of_polyTime (ComputableInPolyTime.const 2)) hN
-  convert firstEventSign_mem_CountingFunction D hevent
-    (nat_lt htwice (of_polyTime hs)) (nat_lt (of_polyTime hs) htwice) hr using 1
+  have hleft := nat_lt htwice (of_polyTime hs)
+  have hright := nat_lt (of_polyTime hs) htwice
+  have h := firstEventSign_mem_CountingFunction D hevent hleft hright hr
+  convert h using 1
   funext x
   simp only [dyadicFirstFlagSign, Bool.decide_and]
   exact firstEventSign_freeze
     (fun p : α × ℕ => decide (2 ^ B p.1 ≤ d p.1 * N p) &&
       decide (d p.1 * N p ≤ (d p.1 - 1) * 2 ^ B p.1))
-    (fun p => decide (2 * N p < 2 ^ B p.1)) (fun p => decide (2 ^ B p.1 < 2 * N p)) r x
+    (fun p => decide (2 * N p < 2 ^ B p.1))
+    (fun p => decide (2 ^ B p.1 < 2 * N p)) r x
 
 end CountingFunction
 end Cslib.Complexity

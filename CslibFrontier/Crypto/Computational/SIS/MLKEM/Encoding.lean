@@ -126,13 +126,16 @@ theorem rawCoefficient_byteEncode (d : CodecWidth) (F : Coefficients d) (i : Fin
     rawCoefficient d (byteEncode d F) i = (F i).val := by
   have hcapacity : i.val * d.val + d.val ≤ (32 * d.val) * 8 := by
     calc
-      i.val * d.val + d.val = (i.val + 1) * d.val := by rw [Nat.add_mul, Nat.one_mul]
+      i.val * d.val + d.val = (i.val + 1) * d.val := by
+        rw [Nat.add_mul, Nat.one_mul]
       _ ≤ 256 * d.val := Nat.mul_le_mul_right d.val (Nat.succ_le_iff.mpr i.isLt)
       _ = (32 * d.val) * 8 := by omega
+  have hvalue :
+      (F ⟨i.val % 256, Nat.mod_lt _ (by decide)⟩).val < 2 ^ d.val :=
+    lt_of_lt_of_le (ZMod.val_lt _) (codecModulus_le_two_pow d)
   have hfield := BitString.readPackedField_fields
     (fun q => (F ⟨q % 256, Nat.mod_lt _ (by decide)⟩).val)
-    (h := 8) (B := 32 * d.val) (q := i.val) (s := d.val) d.pos hcapacity
-    ((ZMod.val_lt _).trans_le (codecModulus_le_two_pow d))
+    (h := 8) (B := 32 * d.val) (q := i.val) (s := d.val) d.pos hcapacity hvalue
   have hindex : (⟨i.val % 256, Nat.mod_lt _ (by decide)⟩ : Fin 256) = i :=
     Fin.ext (Nat.mod_eq_of_lt i.isLt)
   simpa only [rawCoefficient, byteEncode, hindex] using hfield

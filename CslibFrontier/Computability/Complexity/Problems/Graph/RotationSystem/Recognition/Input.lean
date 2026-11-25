@@ -86,21 +86,25 @@ theorem validate_eq_true_iff (I : FixedRotationInput) : validate I = true ↔ Va
   constructor
   · rintro ⟨⟨⟨hd, he⟩, hw⟩, ho⟩
     refine ⟨hd, he, hw, fun v word hv => ?_⟩
-    have hlt : v < I.orders.length := Nat.lt_of_not_ge fun h => by
-      rw [List.getD_eq_default _ _ h] at hv
-      cases hv
+    have hlt : v < I.orders.length := by
+      by_contra h
+      rw [List.getD_eq_default _ _ (by omega)] at hv
+      contradiction
     have hx : (some word, v) ∈ I.orders.zipIdx := by
-      rw [List.mem_zipIdx_iff_getElem?, ← hv, List.getD_eq_getElem _ _ hlt]
+      apply List.mem_zipIdx_iff_getElem?.mpr
+      rw [← hv, List.getD_eq_getElem _ _ hlt]
       simp
     exact enumeratesBool_eq_true_iff.mp (ho _ hx)
   · rintro ⟨hd, he, hw, ho⟩
     refine ⟨⟨⟨hd, he⟩, hw⟩, fun entry hentry => ?_⟩
-    obtain ⟨hlt, hval⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hentry)
+    have hget := List.mem_zipIdx_iff_getElem?.mp hentry
+    obtain ⟨hlt, hval⟩ := List.getElem?_eq_some_iff.mp hget
     have hread : I.orders.getD entry.2 none = entry.1 := by
       rw [List.getD_eq_getElem _ _ hlt, hval]
     cases hx : entry.1 with
     | none => rfl
-    | some word => exact enumeratesBool_eq_true_iff.mpr (ho entry.2 word (hread.trans hx))
+    | some word =>
+      exact enumeratesBool_eq_true_iff.mpr (ho entry.2 word (hread.trans hx))
 
 /-- Next position in a complete cyclic word, with a total zero fallback. -/
 @[expose] def nextInWord (word : List ℕ) (i : ℕ) : ℕ :=

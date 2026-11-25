@@ -139,12 +139,16 @@ theorem computableInPolyTime_exactClauseCheck :
     ComputableInPolyTime exactClauseCheck (encClause encNat) encBool := by
   have hvars : ComputableInPolyTime (fun c : Clause ℕ => c.map Prod.fst)
       (encList (encPair encNat encBool)) (encList encNat) := by fun_prop
-  have hread (i : ℕ) : ComputableInPolyTime (fun c : Clause ℕ => (c.map Prod.fst).getD i 0)
+  have hread (i : ℕ) : ComputableInPolyTime
+      (fun c : Clause ℕ => (c.map Prod.fst).getD i 0)
       (encList (encPair encNat encBool)) encNat :=
     (ComputableInPolyTime.listGetD (encA := encNat) (encL := encList encNat) 0).comp
       (hvars.prod (.const i))
-  have hlen := ComputableInPolyTime.beq
-    (ComputableInPolyTime.length_list (encPair encNat encBool)) (.const 3)
+  have hlen : ComputableInPolyTime (fun c : Clause ℕ => c.length == 3)
+      (encList (encPair encNat encBool)) encBool :=
+    ComputableInPolyTime.beq
+      (ComputableInPolyTime.length_list (encPair encNat encBool))
+      (.const 3)
   have h01 := (hread 0).beq (hread 1)
   have h02 := (hread 0).beq (hread 2)
   have h12 := (hread 1).beq (hread 2)

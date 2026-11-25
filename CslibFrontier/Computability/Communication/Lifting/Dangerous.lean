@@ -160,10 +160,16 @@ theorem exists_bayes_frequency_certificate {g : Fin m → Fin m → Bool} {σ : 
       (#Y : ℝ) / #(agreeOn Y J α) / (2 ^ (#I + 1) * σ ^ #J) <
         #(gadgetFiber g (agreeOn Y J α) I x β) / (#(agreeOn Y J α) : ℝ) := by
   obtain ⟨J, α, hJ, hJne, hd, hne, hcard⟩ := exists_bayes_card_certificate hleak hfail
-  have hAne : (agreeOn Y J α).Nonempty := hne.mono (gadgetFiber_subset g _ I x β)
+  have hAne : (agreeOn Y J α).Nonempty :=
+    hne.mono (gadgetFiber_subset g _ I x β)
   have hA : (0 : ℝ) < #(agreeOn Y J α) := by exact_mod_cast card_pos.mpr hAne
   refine ⟨J, α, hJ, hJne, hd, hAne, ?_⟩
-  rw [div_div, div_lt_div_iff₀ (by positivity) hA]
-  nlinarith
+  have hc : (0 : ℝ) < 2 ^ (#I + 1) * σ ^ #J := by positivity
+  have hdiv : (#Y : ℝ) / (2 ^ (#I + 1) * σ ^ #J) <
+      #(gadgetFiber g (agreeOn Y J α) I x β) := by
+    apply (div_lt_iff₀ hc).mpr
+    nlinarith
+  have hratio := (div_lt_div_iff_of_pos_right hA).mpr hdiv
+  convert hratio using 1; ring
 
 end Cslib.Communication.Lifting

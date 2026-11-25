@@ -47,27 +47,36 @@ theorem exists_power_threshold_of_ratio {N R : ℝ} (hN : 2 ≤ N) (hR : 16 * N 
   have hN0 : 0 < N := by linarith
   have hR0 : 0 < R := lt_of_lt_of_le (by positivity) hR
   have hL : 1 ≤ Real.logb 2 N := by
-    simpa using Real.logb_le_logb_of_le (b := 2) (by norm_num) (by norm_num) hN
+    have h := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by norm_num) hN
+    simpa using h
+  have h16 : Real.logb 2 16 = 4 := by
+    rw [show (16 : ℝ) = 2 ^ 4 by norm_num, Real.logb_pow]
+    norm_num
   have hA : 2 * Real.logb 2 N + 4 ≤ Real.logb 2 R := by
-    have h := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hR
-    rw [Real.logb_mul (by norm_num) (pow_ne_zero _ hN0.ne'), Real.logb_pow,
-      show (16 : ℝ) = 2 ^ 4 by norm_num, Real.logb_pow] at h
+    have h := Real.logb_le_logb_of_le (b := 2) (by norm_num)
+      (by positivity : 0 < 16 * N ^ 2) hR
+    rw [Real.logb_mul (by norm_num) (pow_ne_zero _ hN0.ne'), Real.logb_pow, h16] at h
     norm_num at h
     linarith
   obtain ⟨t, ht, hlower, hupper⟩ := exists_dangerous_parity_threshold hL hA
   have hpow (k : ℕ) : (2 : ℝ) ^ ((k : ℝ) * Real.logb 2 N) = N ^ k := by
-    rw [mul_comm, Real.rpow_mul (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hN0,
-      Real.rpow_natCast]
+    rw [mul_comm, Real.rpow_mul (by norm_num),
+      Real.rpow_logb (by norm_num) (by norm_num) hN0, Real.rpow_natCast]
   refine ⟨t, ht, ?_, ?_⟩
   · calc
       N ^ t = (2 : ℝ) ^ ((t : ℝ) * Real.logb 2 N) := (hpow t).symm
-      _ ≤ 2 ^ (Real.logb 2 R - 2) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hupper
+      _ ≤ 2 ^ (Real.logb 2 R - 2) :=
+        Real.rpow_le_rpow_of_exponent_le (by norm_num) hupper
       _ = R / 4 := by
-        rw [Real.rpow_sub (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hR0]; norm_num
+        rw [Real.rpow_sub (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hR0]
+        norm_num
   · have h := Real.rpow_le_rpow_of_exponent_le (by norm_num : (1 : ℝ) ≤ 2) hlower
+    rw [Real.rpow_logb (by norm_num) (by norm_num) hR0] at h
     have heq : (2 : ℝ) * Real.logb 2 N * t = ((2 * t : ℕ) : ℝ) * Real.logb 2 N := by
-      push_cast; ring
-    rwa [Real.rpow_logb (by norm_num) (by norm_num) hR0, heq, hpow] at h
+      push_cast
+      ring
+    rw [heq, hpow] at h
+    exact h
 
 /-- A generous density-sum margin pays the losses from the fourth-power XOR estimate,
 conditioning-witness counting, and the outer geometric sum. All factors are explicit; no

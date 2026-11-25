@@ -106,13 +106,17 @@ theorem card_filter_heavyCountEvent_mul_le (Y : Ω → V → Prop) (T : Finset �
   simp only [hevent] at hcount
   have hn : (n : ℝ) ≤ 2 * (((n + 1) / 2 : ℕ) : ℝ) := by
     exact_mod_cast (show n ≤ 2 * ((n + 1) / 2) by omega)
+  have hmassD : (#D : ℝ) * (a * ρ) ≤ 4 * M :=
+    card_filter_heavy_mul_le S ha hd hmass
   have hmassc : c * a * #D * ρ ≤ 4 * c * M := by
-    nlinarith [mul_le_mul_of_nonneg_left (card_filter_heavy_mul_le S (ρ := ρ) ha hd hmass) hc]
+    have h := mul_le_mul_of_nonneg_left hmassD hc
+    nlinarith
   calc
-    _ ≤ (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * (2 * (((n + 1) / 2 : ℕ) : ℝ)) * ρ :=
+    _ ≤ (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) *
+        (2 * (((n + 1) / 2 : ℕ) : ℝ)) * ρ :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hn (by positivity)) hρ.le
-    _ = 2 * ((#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * (((n + 1) / 2 : ℕ) : ℝ)) * ρ := by
-      ring
+    _ = 2 * ((#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) *
+        (((n + 1) / 2 : ℕ) : ℝ)) * ρ := by ring
     _ ≤ 2 * (#T * (1 + c * a * #D)) * ρ :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hcount (by norm_num)) hρ.le
     _ = #T * (2 * (ρ + c * a * #D * ρ)) := by ring

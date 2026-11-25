@@ -77,8 +77,9 @@ theorem Program.exists_affine_trace [CommRing F] (p : Program (affineSignature F
     ∃ (L : (Fin n → F) →ₗ[F] F) (b : F), ∀ x, p.trace (affineInterpretation F) x w = L x + b := by
   induction p with
   | empty =>
-    rcases w with i | g
-    exacts [⟨LinearMap.proj i, 0, fun _ => by simp⟩, g.elim0]
+    cases w with
+    | input i => exact ⟨LinearMap.proj i, 0, fun x => by simp⟩
+    | gate g => exact g.elim0
   | gate p line ih =>
     refine Wire.lastCases ?_ (fun w => ?_) w
     · obtain ⟨⟨k, c, d⟩, wires⟩ := line
@@ -250,10 +251,9 @@ theorem Circuit.Computes.exists_affine [Field F] [Infinite F] {σ : Signature}
   obtain rfl : I = polynomialInterpretation P F := funext fun o => funext (hP o)
   refine ⟨⟨c.program.linearize P, c.outputs⟩, rfl,
     congrArg Finset.card (c.program.innerGates_linearize P),
-    fun r => c.program.fanInAtMost_linearize P r,
-    by simp only [Circuit.depth, Circuit.outputDepths, Program.wireDepths,
-      c.program.depths_linearize P],
-    fun x => funext fun i => ?_⟩
+    fun r => c.program.fanInAtMost_linearize P r, ?_, fun x => funext fun i => ?_⟩
+  · simp only [Circuit.depth, Circuit.outputDepths, Program.wireDepths,
+      c.program.depths_linearize P]
   change (c.program.linearize P).trace _ x (c.outputs i) = _
   rw [Program.trace_linearize, Circuit.trace_outputs_dualNumber P hc]
   simp

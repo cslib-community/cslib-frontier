@@ -140,15 +140,18 @@ private theorem expect_mul_noiseOp_le_sum {p q ρ : ℝ} (hρ : -1 ≤ ρ) (hρ'
   -- the norms of the restrictions, as functions of the bits in `ι`
   let F : (ι → Bool) → ℝ := fun x₁ => lpNorm p fun x₂ => f (Sum.elim x₁ x₂)
   let G : (ι → Bool) → ℝ := fun y₁ => lpNorm q fun y₂ => g (Sum.elim y₁ y₂)
+  have hr : 0 ≤ (1 - ρ) / 2 := by linarith
+  have hr' : (1 - ρ) / 2 ≤ 1 := by linarith
   calc 𝔼 x, f x * noiseOp ρ g x
       = 𝔼 x₁, bernoulliAverage ((1 - ρ) / 2) fun P => 𝔼 x₂, f (Sum.elim x₁ x₂) *
           noiseOp ρ (fun y₂ => g (Sum.elim (x₁ + P) y₂)) x₂ := expect_mul_noiseOp_sumElim ρ f g
     _ ≤ 𝔼 x₁, bernoulliAverage ((1 - ρ) / 2) fun P => F x₁ * G (x₁ + P) :=
-        expect_le_expect fun _ _ =>
-          bernoulliAverage_mono (by linarith) (by linarith) fun _ => hκ _ _
-    _ = 𝔼 x₁, F x₁ * noiseOp ρ G x₁ := by simp only [noiseOp, bernoulliAverage_const_mul]
+        expect_le_expect fun x₁ _ => bernoulliAverage_mono hr hr' fun P => hκ _ _
+    _ = 𝔼 x₁, F x₁ * noiseOp ρ G x₁ := by
+        simp only [noiseOp, bernoulliAverage_const_mul]
     _ ≤ lpNorm p F * lpNorm q G := hι F G
-    _ = lpNorm p f * lpNorm q g := by rw [lpNorm_sumElim p f, lpNorm_sumElim q g]
+    _ = lpNorm p f * lpNorm q g := by
+        rw [lpNorm_sumElim p f, lpNorm_sumElim q g]
 
 /-- **The Two-Function Hypercontractivity Induction Theorem**: if the two-function inequality
 `𝔼_x f x · T_ρ g x ≤ ‖f‖_p ‖g‖_q` holds for all functions of a single bit, then it holds for all

@@ -239,11 +239,18 @@ theorem eufCmaGame_schnorrEncodedROMScheme_eq
   intro keys _
   apply PMF.bind_congr_on_support
   intro coins _
-  simp only [← OracleComp.runWith_eq_run_interpret,
-    F.runWith_schnorrDecodedForger d hm (F.schnorrIdealKeyGen d) A keys.2.1 keys.2.2 keys.1 coins,
-    PMF.bind_map]
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
+      (PMF.uniformOfFintype (ZMod (F.order d)))) (F.encScalar d keys.2.1))
+    (A.forge (F.encode d keys.1) coins) ([], [])]
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrWordROMScheme d hm) keys.2)
+    ((F.schnorrDecodedForger d A).forge keys.1 coins) ([], [])]
+  rw [F.runWith_schnorrDecodedForger d hm (F.schnorrIdealKeyGen d) A
+    keys.2.1 keys.2.2 keys.1 coins ([], []), PMF.bind_map]
   apply PMF.bind_congr_on_support
   intro out _
-  simp only [Function.comp_def, Prod.map, id_eq, F.schnorrEncodedROMScheme_verify_encode d hm]
+  simp only [Function.comp_def, Prod.map, id_eq,
+    F.schnorrEncodedROMScheme_verify_encode d hm]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

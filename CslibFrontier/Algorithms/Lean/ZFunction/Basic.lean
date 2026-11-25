@@ -140,10 +140,12 @@ their longest common prefix with `s` up to `r - i`. -/
 theorem min_lcpLen_zBox (s : List α) {i l r : ℕ} (hli : l ≤ i) (hir : i ≤ r)
     (hrl : r ≤ l + List.lcpLen s (s.drop l)) :
     min (List.lcpLen s (s.drop (i - l))) (r - i) = min (List.lcpLen s (s.drop i)) (r - i) := by
-  obtain ⟨_, _, htake⟩ := List.le_lcpLen_iff.mp (show r - l ≤ List.lcpLen s (s.drop l) by omega)
+  obtain ⟨_, _, htake⟩ :=
+    List.le_lcpLen_iff.mp (show r - l ≤ List.lcpLen s (s.drop l) by omega)
   apply List.min_lcpLen_eq_of_take_eq
-  rw [show s.drop i = (s.drop l).drop (i - l) by rw [List.drop_drop, Nat.add_sub_of_le hli],
-    List.take_drop, List.take_drop, show i - l + (r - i) = r - l by omega, htake]
+  have hdrop : s.drop i = (s.drop l).drop (i - l) := by
+    rw [List.drop_drop, Nat.add_sub_of_le hli]
+  rw [hdrop, List.take_drop, List.take_drop, show i - l + (r - i) = r - l by omega, htake]
 
 private theorem z_push_getElem {s : Array α} {z : Array ℕ} {i v : ℕ} (hz : z.size = i)
     (hzs : ∀ (j : ℕ) (hj : j < i), z[j]'(hz ▸ hj) = List.lcpLen s.toList (s.toList.drop j))
