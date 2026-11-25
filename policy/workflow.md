@@ -34,13 +34,16 @@ requested fixes, reviews and landing existing work before starting more PRs.
 
 ### Backpressure and tending
 
-A coordinator does not start or commission new pull-request work, its own or a worker's, while
-more than ten of its fleet's open pull requests need the fleet's own action. A pull request needs
-the fleet's action when a review has requested changes and any requested item is still
+A coordinator does not start or commission new feature pull-request work, its own or a worker's,
+while more than ten of its fleet's open pull requests need the fleet's own action. A pull request
+needs the fleet's action when a review has requested changes and any requested item is still
 outstanding, when it conflicts with `main`, when a required check fails,
 or when it is approved for its current head, has no hold and is not queued. Drafts and pull
 requests waiting for someone else's review, including a delta review of a complete fix, do not
-count. The number is a ceiling, not a target;
+count. The cap pauses *new starts* only—never reviewing, fixing, restacking, promoting, or
+queueing already-open or already-approved PRs. Under backpressure, prioritize draining verified,
+approved PRs through the queue so the count falls; never hold a clean approved PR back to wait out
+the ceiling. The number is a ceiling, not a target;
 the point is that finishing work in flight comes before starting more.
 
 A person running several coordinators names one of them the fleet's **tender**. The tender works
@@ -142,8 +145,12 @@ tooling.
 - Merge only with required validation and independent review of the current revision. Reviewers
   queue the heads they approve ([Approve and queue](review.md#approve-and-queue)); coordinators queue any
   approved head still waiting and keep the queue moving: do not treat a PR as done when it is
-  merely queued. Monitor queued batches until they land on `main`, merge `main` into or re-queue
-  PRs ejected by conflicts or transient failures, sequence broad tree-wide refactors so they do
+  merely queued. Monitor queued batches until they land on `main`, pre-check candidates against the
+  live queue with `python3 scripts/queue_status.py prefix <PR> <approved-head>`, keep
+  `references.bib`- and `manual/sources.md`-free leaf waves separate from PRs editing those files
+  so plain-text merges do not eject unrelated batches, merge `main` into or re-queue PRs ejected by
+  conflicts or transient failures (verifying there are no both-sides-added duplicate entries in
+  `references.bib` or `manual/sources.md`), sequence broad tree-wide refactors so they do
   not stall smaller PRs behind cold cache rebuilds, and diagnose and fix merge-queue or CI
   bottlenecks when the queue jams. The queue squash-merges: a stacked PR that edits lines a lower
   PR introduces conflicts with that PR's squashed commit and is ejected, so queue it once the
@@ -153,7 +160,9 @@ tooling.
   [Review cycle](review.md#review-cycle).
 
 If a shared GitHub account prevents formal approval, use one brief PR comment naming the reviewer
-agent/session, revision and verdict. This is agent review, not platform or human approval.
+agent/session, revision and verdict—starting with the canonical top line in
+[Review cycle](review.md#review-cycle) (`Verdict: <APPROVE|REQUEST CHANGES> @ <head-sha> | Reviewer: <id> (<model>) | Author: <id> | agent review, not human review`).
+This is agent review, not platform or human approval.
 
 ## Working on changes
 
@@ -172,7 +181,14 @@ repository with its own Git object database for such operations.
 Before Git recovery or nonstandard object manipulation, verify the actual Git common directory,
 object alternates, and storage sharing. The experimental repository must not use the shared
 database through a gitfile, alternate object directory, or hard-linked object files. Never delete
-objects, refs, worktree registrations, or metadata belonging to another session. Worktrees also
+objects, refs, worktree registrations, or metadata belonging to another session. For a
+crash-truncated `.git/reftable/tables.list` in a shared database, do **not** modify `.git/` without
+explicit human maintainer approval: first stop concurrent writers you own (and alert other session
+owners), copy `.git/reftable/` into an isolated scratch snapshot outside the repository without
+modifying `.git/`, record `sha256sum` digests of every table file and `tables.list`, verify any
+candidate recovery in an isolated copy only, and wait for maintainer sign-off before replacing the
+live file; re-verify hashes and `git fsck` afterwards while keeping the snapshot until verified.
+Worktrees also
 share one stash stack, so `git stash pop` can apply and drop another session's entry: never push,
 pop, apply or drop stash entries in a shared checkout or its worktrees. Keep work in progress as a
 commit on your own branch or as a patch file in your scratch directory

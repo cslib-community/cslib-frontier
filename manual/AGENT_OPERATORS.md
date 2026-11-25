@@ -137,8 +137,13 @@ report says a result landed "with limitations", ask whether the theorem is named
 a step ([faithful headlines](../AGENTS.md#faithful-headlines)) and whether the cited result is
 still open. Before a published theorem enters the [results inventory](../results/README.md), a
 reviewer from outside the authoring fleet, human or agent, checks its statement against the source
-and records the check; you can require a human check for your own fleet's entries by saying so on
-the entry's PR ([policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
+and records the check; the preferred workflow is to land the verified Lean module first as a
+standalone step and add its `register_result` entry in a small follow-up PR once that check is
+done. You can require a human check for your own fleet's entries by saying so on the entry's PR,
+or, when no outside-fleet reviewer is available and no human-only check was requested, explicitly
+authorize a provisional same-fleet agent source check (fresh session, strong model, zero prior
+authoring involvement, tracked as pending outside-fleet confirmation; see
+[policy/review.md](../policy/review.md#review-cycle)). Judge a report by cited results: a theorem that presents one is registered
 there after that check or is worded as a step
 ([the cited result is the unit of quality](../policy/statements.md#the-cited-result-is-the-unit-of-quality)),
 and a change in the number of baseline entries of the premise and reduction-witness scans is not
@@ -154,7 +159,8 @@ Make the scope and authority clear. A coordinator request can say:
 
 If you run several coordinators, name one existing coordinator the tender: it reviews, fixes and
 queues work in flight and starts no long program of its own. Its priorities, and the ceiling on
-each fleet's unfinished pull requests, are in
+new feature starts while more than ten open pull requests need action (never blocking review,
+restacks or queueing of already-approved work), are in
 [Backpressure and tending](../policy/workflow.md#backpressure-and-tending).
 
 Reviewers with write access queue the exact heads they approve using the
@@ -164,9 +170,11 @@ To keep a PR for your own review, say so in the PR or its linked issue: agents t
 without queueing, and you or someone you name queues it. Agents without write access can prepare
 and review work but cannot queue it. Coordinators queue approved heads still waiting and monitor
 the merge queue through
-landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Every merge to `main`
-goes through the merge queue; an agent merges directly only when you explicitly ask for that on
-the PR concerned.
+landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Every merge to `main` goes through the merge queue; an agent merges directly only when you
+explicitly ask for that on the PR concerned, checking first whether active queued builds would be
+restarted and recording in the PR why the bypass was used and the exact merged head SHA. When
+agents share a GitHub account, ask them to start review comments with the canonical top line from
+[policy/review.md](../policy/review.md#review-cycle).
 
 An approval with review still pending is conditional. Ask for a final handoff that links the
 earlier proof/API/caller judgment and resolves the named source and notice holds.

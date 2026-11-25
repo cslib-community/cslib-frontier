@@ -46,7 +46,9 @@ The `mk_all` import aggregates have a similar opt-in driver, which merges their 
 sets and writes them sorted:
 `git config merge.leanagg.driver 'python3 scripts/resolve_aggregate_conflict.py %O %A %B'`.
 Without it, git merges them as text; regenerate them with `lake exe mk_all` rather than trusting a
-hand or `merge=union` merge.
+hand or `merge=union` merge. Never configure `merge=union` for `references.bib` or
+`manual/sources.md` either, and after any merge with `main` touching those files check for
+duplicate entries added on both sides ([Restacks](policy/review.md#restacks)).
 
 Develop against representative clients and state the public contract: model or encodings,
 mathematical behavior, and resource or security claim. Test automation on ordinary expressions,
@@ -489,8 +491,11 @@ the tested revision (or base revision and exact diff), commands and outcomes, re
 scope, findings and their resolution, and any remaining limitations. Preserve enough evidence
 there for another contributor to assess the change; a path into a local `.lake/` directory is not
 a durable review record. Recheck changes made after review and identify the final reviewed revision.
-Link the hosted CI run for the final revision rather than asserting which checks passed. Keep review
-verdicts short: the revision, the verdict and the findings, linking evidence rather than pasting it.
+Link the hosted CI run for the final revision rather than asserting which checks passed. Keep
+review verdicts short: the revision, the verdict and the findings, linking evidence rather than
+pasting it. On shared-account fleets, start each review comment with the canonical top line in
+[policy/review.md](policy/review.md#review-cycle) so tooling can separate authors, independent
+reviewers and stale heads.
 For descriptions with Lean declaration names, `python3 scripts/check_pr_names.py --pr N` can
 catch backticked names absent from the PR head. CI posts the same advisory notice; fix relevant
 findings without requiring a duplicate local run.

@@ -143,7 +143,12 @@ step is listed at all, its own title and `theorem` field say it is a step of tha
 original results are not registered as proofs of a nearby source theorem. A published theorem
 enters the inventory only after a reviewer from outside the authoring fleet, human or agent, has
 checked its statement against the source and recorded the check
-([review cycle](../AGENTS.md#review-cycle)).
+([review cycle](../AGENTS.md#review-cycle)). Prefer landing the Lean module first as a standalone
+step and adding its `register_result` entry in a small follow-up PR once that check is done. When
+no outside-fleet reviewer is available and no human-only check is required, a human maintainer may
+authorize a provisional same-fleet agent source check (fresh session, strong model, zero prior
+authoring involvement; see [policy/review.md](../policy/review.md#review-cycle)); mark the entry's
+`scope` note as awaiting outside-fleet confirmation until confirmed.
 
 ## Remaining collection work
 

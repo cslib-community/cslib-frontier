@@ -109,6 +109,12 @@ still a finding: it is tracked by an issue or a baseline entry and shows in the 
 ([taste.md](taste.md#a-stated-limitation-is-tracked)), or the review asks for that. A source's own
 hypothesis or a deliberate model boundary is not a gap.
 
+Prefer separating `CslibFrontierResults/` registration from Lean code merges: land verified Lean
+modules first as standalone steps (under
+[Faithful headlines](statements.md#faithful-headlines) rule 2, without an inventory entry), and
+register the `register_result` entry in a small follow-up PR once the source check below is
+recorded. A PR may combine both when the source check is already completed before queueing.
+
 Before a published theorem enters the [results inventory](../results/README.md), its statement is
 checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
 checker reads the cited passages in the source itself, not locators copied from the PR, reads the
@@ -119,10 +125,22 @@ listed under
 [The cited result is the unit of quality](statements.md#the-cited-result-is-the-unit-of-quality),
 and the affected points are checked again, as a delta, when the statement or a definition it names
 changes in meaning. A headline for a cited result is registered after this check, or is presented
-as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check says that it is an agent's and is never presented as a
-human one. The check is a step of its own, separate from the ordinary independent review, which
-is still required. A maintainer may require a human check for entries from their own fleet by
-saying so on the entry's PR or tracking issue; that requirement then holds for those entries.
+as a step under [Faithful headlines](statements.md#faithful-headlines) rule 2. An agent's check
+says that it is an agent's and is never presented as a human one. The check is a step of its own,
+separate from the ordinary independent review, which is still required. A maintainer may require a
+human check for entries from their own fleet by saying so on the entry's PR or tracking issue; that
+requirement then holds for those entries.
+
+When no outside-fleet reviewer is available and no human-only check has been required, a human
+maintainer may authorize a **provisional same-fleet agent source check** via an explicit,
+timestamped comment on the entry's PR or tracking issue. The checker runs in a fresh session on a
+strong model with zero prior authoring or design involvement in the theorem, executes the full
+[review cycle](../AGENTS.md#review-cycle) (steps 1–7) and all six cited-result points against the
+actual source and named definitions, and stamps its comment with its reviewer/session ID, model,
+UTC timestamp and the disclosure `provisional agent source check; not human review; pending outside-fleet confirmation`.
+Record that pending confirmation in the `register_result` entry's `scope` note (and its tracking
+issue) until an outside-fleet reviewer confirms the check. Provisional registration does not waive
+faithful-headline review: stand-ins, vacuous hypotheses and `(iv)` premises remain blocked.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both
@@ -180,6 +198,18 @@ long explanation; a clean review does not need a checklist of everything inspect
 reviewed revision, meaningful findings and resolutions once in the PR, following
 [CONTRIBUTING.md](../CONTRIBUTING.md#ai-assistance-and-review).
 
+When a fleet shares a GitHub account, start each review comment with a canonical top line so
+tooling can separate authors, independent reviewers and stale heads while keeping the thread
+readable to humans:
+
+```text
+Verdict: <APPROVE|REQUEST CHANGES> @ <head-sha> | Reviewer: <id> (<model>) | Author: <id> | agent review, not human review
+```
+
+Use a single concrete verdict (`APPROVE` or `REQUEST CHANGES`) and the full 40-character head SHA
+being reviewed. Put any approval hold on the following line (`Hold: <reason>`) so automated checks
+do not treat a held approval as queue-ready. Human reviewers may omit the trailing agent notice.
+
 ### Approve and queue
 
 Approving a PR's exact current head and queueing it are one step. A non-authoring reviewer with
@@ -211,11 +241,23 @@ conflicting PR and failed checks. When the reviewer cannot queue, any other non-
 write access may run the same command for the approved head; coordinators sweep for approved heads
 still waiting. Authors do not queue their own PRs.
 
+**Batch waves and queue separation.** For batched merges into a non-empty queue, pre-check each
+candidate with `python3 scripts/queue_status.py prefix <PR> <approved-head>` and enqueue with
+`scripts/queue_pr.py` (which repeats the local prefix replay). Keep `references.bib`- and
+`manual/sources.md`-free leaf waves separate from PRs touching `references.bib`,
+`manual/sources.md`, or high-fan-in hub modules (`>= 500` transitive importers; pass `--hold-hubs`
+to `queue_pr.py`): GitHub's merge queue ignores custom `.gitattributes` drivers (`bibkeys`,
+`leanagg`) and uses plain text merges, so adjacent additions to `references.bib` or
+`manual/sources.md` eject later entries in the batch.
+
 **Every merge to `main` goes through the merge queue.** Enqueue with `scripts/queue_pr.py`. Never
 call a direct merge endpoint: the REST merge API, a GitHub connector's `merge_pull_request` tool,
 or `gh pr merge --admin`. With admin rights such a call skips the queue: it lands a combination
-that the queue never built, and every queued build restarts on the new `main`. The only exception
-is a human maintainer's explicit request for that PR, recorded in the PR.
+that the queue never built, cancels in-flight queue runs, and every active queued build restarts on
+the new `main`. The only exception is a human maintainer's explicit request for that PR, recorded in
+the PR. Under that exception, check active queue entries first, warn the maintainer if teammate or
+queued CI builds are running and would be invalidated, and record in the PR both the exact merged
+head SHA and **why** the queue was bypassed.
 
 ### Restacks
 
@@ -225,7 +267,9 @@ does not require branches to be up to date, so refreshing an approved PR only re
 head. After the merge, regenerate the import aggregates with `lake exe mk_all`, or let the opt-in
 [`leanagg` driver](../CONTRIBUTING.md#proposing-and-contributing-work) merge them and then check them
 with `lake exe mk_all --check`, since the driver sees only the aggregates and not the merged tree;
-never trust a `merge=union` result, which keeps deleted imports and can misorder added ones.
+never trust a `merge=union` result for the import aggregates, `references.bib` or
+`manual/sources.md`: it keeps deleted entries, can misorder added ones, and silently introduces
+duplicate citation keys or anchors.
 
 GitHub declines every push to the branch of a PR that is in the merge queue ("protected branch
 hook declined"), even when its entry is `UNMERGEABLE`. Whoever restacks a queued PR, by hand or
@@ -267,4 +311,15 @@ the lower head and that `main`, and names it in the result. Anyone, including
 the author, may post the script's result line, which names both heads and the exact command. The
 non-author who queues the new head runs that command again rather than relying on the posted line.
 When the script reports differences, review the paths and diffs it prints as a delta, under the
+carry-forward rule above.
+
+**Mandatory duplicate-entry check after merging `main`.** After any merge with `main` touching
+`references.bib` or `manual/sources.md`, inspect the diff for entries added on both sides before
+queueing. `scripts/resolve_bib_conflict.py` refuses when both sides modify the same
+`references.bib` key differently, and `scripts/check_hygiene.py` checks key uniqueness and sort
+order, but neither flags two distinct keys added for the same work. In addition,
+`manual/sources.md` has no custom merge driver, and `scripts/check_operator_manual.py` reads
+`<a id="...">` anchors into a set, so duplicate headings or entries inserted at non-overlapping lines
+can merge cleanly and pass `scripts/check_restack.py`. Resolving a both-sides-added duplicate is a
+substantive edit rather than an automatic mechanical restack: verify it as a delta under the
 carry-forward rule above.
