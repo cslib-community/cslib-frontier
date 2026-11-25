@@ -369,7 +369,9 @@ theorem valid_of_mem_support_build {fuel : ℕ} {keys : List X} (hkeys : keys.No
     refine ⟨rfl, by simp only [hcard]; exact hgood, fun j hj => ?_, fun j x hx y hy hxy => ?_⟩
     · rw [hcard] at hj ⊢
       have : 0 < (bucketOf keys t.values j).length ^ 2 := by positivity
-      dsimp only; rw [(hsecj j).1]; omega
+      dsimp only
+      rw [(hsecj j).1]
+      omega
     · rw [Finset.mem_coe, mem_bucket_iff_mem_bucketOf hvs] at hx hy
       exact (hsecj j).2 hx hy hxy
 
@@ -539,7 +541,9 @@ theorem expectedCost_build_eval_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
             ((bucketOf_sublist keys t.values j).nodup hkeys)).trans ?_
           simp
       _ ≤ 2 * keys.length := by
-          rw [← mul_sum]; gcongr; exact_mod_cast sum_length_bucketOf_le keys t.values
+          rw [← mul_sum]
+          gcongr
+          exact_mod_cast sum_length_bucketOf_le keys t.values
   · calc expectedCost (answer F) evalCost
           (retry (TopGood keys) (trial F (keys.length - 1) keys) fuel) + 2 * (keys.length : ℝ≥0∞)
         ≤ 2 * keys.length + 2 * (keys.length : ℝ≥0∞) := by

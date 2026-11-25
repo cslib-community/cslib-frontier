@@ -271,7 +271,9 @@ private theorem exec_dfsLevel {w bOff k : ℕ} {inst : SparseInstance}
                 simp only [List.mem_append] at he ⊢
                 exact he.elim Or.inl (Or.inr ∘ Or.inl))⟩
             have haug_le : augPairs.length ≤ inst.r := by
-              have := hfr.hcovers.length_le; simp only [List.length_append] at this; omega
+              have := hfr.hcovers.length_le
+              simp only [List.length_append] at this
+              omega
             have hc_d {a} (ha : DfsSubtreeOutside inst bOff d a) : y_pop.mem a = x.mem a :=
               (hf_c a (by simp only [DfsSubtreeOutside] at ha ⊢; omega)).trans (hf_sub_p a ha)
             have hfr_pop : DfsFrame inst bOff k mate dist augPairs d path u (pre ++ [v])
@@ -581,7 +583,10 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           intro heq
           exact hdu0 (by rw [h]; congr 1; omega)
       have hc_nval1 : ¬(Cond.eq val one).Holds x_chk := by
-        rw [Cond.holds_eq, hb_chk.hone]; dsimp only [x_chk]; wram_simp; exact henc_ne1
+        rw [Cond.holds_eq, hb_chk.hone]
+        dsimp only [x_chk]
+        wram_simp
+        exact henc_ne1
       have hnop : ExecWithin w (ram[ tmp ← zero ] : Code .standard 34) x_chk (x_chk.set tmp 0) 1 :=
         WP.execWithin (by wram_exec [hb_chk.hzero]; rfl)
       have hqh_chk : x_chk.regs qHead = pre.length := by dsimp only [x_chk]; wram_simp [hqh]

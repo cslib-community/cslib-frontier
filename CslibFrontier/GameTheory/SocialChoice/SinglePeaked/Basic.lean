@@ -752,7 +752,9 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
       have hfQR_eq_z : f Q_R = z := Function.update_induction (x := Q_L) (y := Q_R)
         (P := fun R => f R = z) hfQL_eq fun R _ hR j hjQL hjne => by
         have hj_cond : j = i ∨ ((P j).peak : ℝ) ≤ z := by_contra fun hnot => hjne <| by
-          rw [hjQL]; dsimp only [Q_L, Q_R]; rw [ite_eq_right hnot, ite_eq_right hnot]
+          rw [hjQL]
+          dsimp only [Q_L, Q_R]
+          rw [ite_eq_right hnot, ite_eq_right hnot]
         set yR := f (Function.update R j (Q_R j))
         have h := hf (Function.update R j (Q_R j)) R j fun _ hkj => Function.update_of_ne hkj _ _
         change (Function.update R j (Q_R j) j).AtLeast yR (f R) at h
@@ -763,7 +765,9 @@ theorem IsStrategyProof.optionSet_eq_Icc [Finite ι] [DecidableEq ι]
       have hfQR_eq_xR : f Q_R = f P_R := Function.update_induction (x := P_R) (y := Q_R)
         (P := fun R => f R = f P_R) rfl fun R _ hR j hjPR hjne => by
         have hj_not_i : j ≠ i := fun h => hjne <| by
-          subst h; rw [hjPR]; dsimp only [P_R, Q_R]
+          subst h
+          rw [hjPR]
+          dsimp only [P_R, Q_R]
           rw [Function.update_self, ite_eq_left (.inl rfl)]
         have hj_le : ((P j).peak : ℝ) ≤ z := by_contra fun hgt => hjne <| by
           rw [hjPR]; dsimp only [P_R, Q_R]

@@ -348,7 +348,9 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
       refine ⟨?_, ?_, ?_⟩
       · have hmc := hbody.1
         simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hck_st, hck_res]; simp only [↓reduceIte]; omega
+        rw [hck_st, hck_res]
+        simp only [↓reduceIte]
+        omega
       · refine validProg_bind hck_vp ?_
         rw [hck_st, hck_res]; exact hbody.2.1
       · have h22 := hbody.2.2
@@ -397,8 +399,14 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
         · refine validProg_bind hfi_vp ?_
           dsimp only [progIns] at hfi_m
           rw [hfi_m.1]; simp only [zero_ne_one, ↓reduceIte]; exact validProg_pure _
-        · rw [clientResult_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]; rfl
-        · rw [clientState_bind]; dsimp only [progIns, s1] at hfi_m; rw [hfi_m.1, hfi_m.2]; rfl
+        · rw [clientResult_bind]
+          dsimp only [progIns] at hfi_m
+          rw [hfi_m.1]
+          rfl
+        · rw [clientState_bind]
+          dsimp only [progIns, s1] at hfi_m
+          rw [hfi_m.1, hfi_m.2]
+          rfl
       | some fs1 =>
         rw [hins] at hfi_m; dsimp only
         obtain ⟨hcore1, _, hst1, _⟩ := hv.fastInsert_spec hnU hval_op hins
@@ -412,11 +420,17 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
           dsimp only [progIns, s1] at hfi_m hfi_mc het_mc ⊢
           rw [hfi_m.1]; simp only [↓reduceIte, memoryCost_bind, memoryCost_pure]; omega
         · refine validProg_bind hfi_vp ?_
-          dsimp only [progIns] at hfi_m; rw [hfi_m.1]; simp only [↓reduceIte]
+          dsimp only [progIns] at hfi_m
+          rw [hfi_m.1]
+          simp only [↓reduceIte]
           exact validProg_bind het_vp (validProg_pure _)
-        · rw [clientResult_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]
+        · rw [clientResult_bind]
+          dsimp only [progIns] at hfi_m
+          rw [hfi_m.1]
           simp only [↓reduceIte]; rw [clientResult_bind]; rfl
-        · rw [clientState_bind]; dsimp only [progIns] at hfi_m; rw [hfi_m.1]
+        · rw [clientState_bind]
+          dsimp only [progIns] at hfi_m
+          rw [hfi_m.1]
           simp only [↓reduceIte]; rw [clientState_bind, clientState_pure_whp]
           exact hfi_m.2.trans het_step
     | delete u =>
@@ -442,9 +456,13 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     rw [hnot] at hck_res; simp only [Bool.false_eq_true, ↓reduceIte] at hck_res
     refine ⟨?_, ?_, ?_⟩
     · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res]; simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]; omega
+      rw [hck_st, hck_res]
+      simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
+      omega
     · refine validProg_bind hck_vp ?_
-      rw [hck_st, hck_res]; simp only [zero_ne_one, ↓reduceIte]; exact validProg_pure _
+      rw [hck_st, hck_res]
+      simp only [zero_ne_one, ↓reduceIte]
+      exact validProg_pure _
     · suffices fastStepPure c U n_max θ fs op = none by
         rw [this, clientResult_bind, clientState_bind, hck_st, hck_res]
         exact ⟨rfl, rfl⟩

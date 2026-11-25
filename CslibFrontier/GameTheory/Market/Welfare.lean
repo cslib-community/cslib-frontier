@@ -172,7 +172,9 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     linarith
   -- Step 2: `∀ g, 0 ≤ p g` by scaling `-Pi.single g₀ 1` inside `negOrthant G`.
   have hp_nn : ∀ g : G, 0 ≤ p g := by
-    intro g₀; by_contra hpg_neg; push Not at hpg_neg
+    intro g₀
+    by_contra hpg_neg
+    push Not at hpg_neg
     set S : ℝ := ∑ g : G, |p g|
     have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
     set M : ℝ := (|u| + S + 1) / (-p g₀)

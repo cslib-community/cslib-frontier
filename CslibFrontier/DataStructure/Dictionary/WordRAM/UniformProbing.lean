@@ -1404,11 +1404,15 @@ def charge (c_exp n_max : ℕ) : ℕ :=
 
 theorem probeBound_le_doubleTabThreshold (c_exp n_max : ℕ) :
     probeBound c_exp n_max ≤ doubleTabThreshold c_exp := by
-  have := four_le_doubleTabThreshold c_exp; dsimp only [probeBound]; split_ifs <;> omega
+  have := four_le_doubleTabThreshold c_exp
+  dsimp only [probeBound]
+  split_ifs <;> omega
 
 theorem charge_le_expectedOpCharge (c_exp n_max : ℕ) :
     charge c_exp n_max ≤ expectedOpCharge c_exp := by
-  have := probeBound_le_doubleTabThreshold c_exp n_max; dsimp only [charge, expectedOpCharge]; omega
+  have := probeBound_le_doubleTabThreshold c_exp n_max
+  dsimp only [charge, expectedOpCharge]
+  omega
 
 /-- Above the Double Tabulation threshold the per-operation charge is
 `13 * 3 + hashEvalSteps c_exp + 8`, independent of `doubleTabThreshold c_exp`. -/

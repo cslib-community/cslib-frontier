@@ -62,7 +62,9 @@ private theorem stage1_pos_after_queue {c U V n_max : ℕ} {θ : SeedWhp c U n_m
       · rw [hdc0, Function.update_self]; exact hb₀
       · rw [Function.update_of_ne (Ne.symm hdc0)]; exact hd0 (Nat.pos_of_ne_zero hdc0)
     exact ⟨hb_z, rebSliceIdx_lt_of_core hc hb_z⟩
-  · rw [ite_eq_right hrq0]; intro hpos; exact ⟨hd0 hpos, rebSliceIdx_lt_of_core hc (hd0 hpos)⟩
+  · rw [ite_eq_right hrq0]
+    intro hpos
+    exact ⟨hd0 hpos, rebSliceIdx_lt_of_core hc (hd0 hpos)⟩
 
 /-- Enter Stage 2 on `dirtyBuckets 0` (`d = (cp, base)`). -/
 @[irreducible] private def stage1EnterStage2Prog :
@@ -248,7 +250,10 @@ private theorem stage1FinishGenProg_fastStep {c U V w n_max base : ℕ}
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
     (by dsimp [hdrDirtyCount]; omega) (s := s)
   rw [hh.dirtyCount] at hdc_res
-  dsimp only; unfold stage1FinishGenProg; simp only [pure_bind]; dsimp only [epochTickStage1Finish]
+  dsimp only
+  unfold stage1FinishGenProg
+  simp only [pure_bind]
+  dsimp only [epochTickStage1Finish]
   by_cases hdc0 : fs.dirtyCount = 0
   · obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     rw [ite_eq_left hdc0, clientState_bind, hdc_st, hdc_res, ite_eq_left hdc0]
@@ -263,7 +268,9 @@ private theorem stage1FinishGenProg_fastStep {c U V w n_max base : ℕ}
     refine ⟨?_, validProg_bind_read_eq hdc_vp hdc_st hdc_res
       (by rw [ite_eq_right hdc0]; exact he2_vp), he2_step⟩
     simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hdc_st, hdc_res, hdc_mc, ite_eq_right hdc0]; dsimp only [cp] at he2_mc ⊢; omega
+    rw [hdc_st, hdc_res, hdc_mc, ite_eq_right hdc0]
+    dsimp only [cp] at he2_mc ⊢
+    omega
 
 /-- Stage 1 `some (b, _)` helper: queue bucket `b` if `rebQueued b = 0` (`d = ((cp, base), b)`). -/
 @[irreducible] private def stage1QueueBucketProg :
@@ -341,7 +348,9 @@ private theorem stage1QueueBucketProg_fastStep {c U V w n_max base b : ℕ}
   obtain ⟨h9_st, h9_res, h9_mc, h9_vp⟩ :=
     readBktFieldGenProg_spec henv hb (by decide : 9 < 10) hrep (s := s)
   simp only [getBktField] at h9_res
-  dsimp only; unfold stage1QueueBucketProg; simp only [pure_bind]
+  dsimp only
+  unfold stage1QueueBucketProg
+  simp only [pure_bind]
   by_cases hrq0 : fs.rebQueued b = 0
   · obtain ⟨hw_mc, hw_vp, hw_step⟩ := writeBktFieldGenProg_fastStep henv hb (by decide : 9 < 10)
       (by have := henv.numBuckets_le_n_max; omega : 1 ≤ n_max) hseed hrep (s := s)

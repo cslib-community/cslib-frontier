@@ -247,7 +247,9 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
   refine ⟨?_, ?_, by rw [clientState_bind, hst, hres]; exact hk.2.2⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     rw [hst, hres, hmc]; have := hk.1; omega
-  · refine validProg_bind hvp ?_; rw [hst, hres]; exact hk.2.1
+  · refine validProg_bind hvp ?_
+    rw [hst, hres]
+    exact hk.2.1
 
 private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} {s : Memory.State}
@@ -266,7 +268,9 @@ private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
     simp [mkWhpParams, Nat.not_lt.mpr hth]
   set cp := mkWhpCoreParams c U V w n_max
-  dsimp only; unfold epochTickStageAllGenProg; dsimp only
+  dsimp only
+  unfold epochTickStageAllGenProg
+  dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1,
     show 2 * cTabWhp c + 32 * hashEvalCostWhp c + 43950 =
       (2 * cTabWhp c + 32 * hashEvalCostWhp c + 43949) + 1 from rfl]
@@ -379,7 +383,9 @@ private theorem epochTickRolloverGenProg_fastStep {c U V w n_max base : ℕ}
   have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
   set cp := mkWhpCoreParams c U V w n_max
   have hq_cp : wpQEpoch cp = qEpochWhp n_max := wp_large_qEpoch hth
-  dsimp only; unfold epochTickRolloverGenProg; simp only [pure_bind, hq_cp]
+  dsimp only
+  unfold epochTickRolloverGenProg
+  simp only [pure_bind, hq_cp]
   dsimp only [epochTickRollover]
   by_cases hroll : qEpochWhp n_max ≤ fs1.epochClock + 1
   · rw [ite_eq_left hroll, ite_eq_left (hroll_ok hroll)]

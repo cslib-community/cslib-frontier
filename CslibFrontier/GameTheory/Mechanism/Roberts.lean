@@ -299,7 +299,9 @@ theorem isGeneralizedWMON_of_isPAD {f : (ι → Ω → ℝ) → Ω}
     hf v v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
       change z ≠ x at hz; change v'' i z - v i z < v'' i x - v i x
       by_cases hzy : z = y
-      · subst hzy; simp only [v'', hxy.symm, ↓reduceIte]; linarith [hΔ i]
+      · subst hzy
+        simp only [v'', hxy.symm, ↓reduceIte]
+        linarith [hΔ i]
       · simp only [v'', hz, hzy, ↓reduceIte]
         linarith [min_le_left (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
   have hfy : f v'' = y :=
@@ -361,7 +363,9 @@ private theorem diffSet_upward {f : (ι → Ω → ℝ) → Ω}
   refine ⟨v', fun i => by simp only [v', hxy.symm, ↓reduceIte]; linarith [hdiff i], ?_⟩
   rw [← hfx]
   refine hpad v v' (fun _ => trivial) (fun _ => trivial) fun i z hz => ?_
-  rw [hfx] at hz ⊢; simp only [v', hz, ↓reduceIte]; linarith [hlt i]
+  rw [hfx] at hz ⊢
+  simp only [v', hz, ↓reduceIte]
+  linarith [hlt i]
 
 /-- Contrapositive core behind Claim 12.31(i) ([Lavi2007], p. 319). -/
 private theorem exists_add_nonneg_of_mem_diffSet {f : (ι → Ω → ℝ) → Ω}
@@ -461,7 +465,9 @@ private theorem gamma_neg [Finite ι] [Nonempty ι] [DecidableEq Ω]
           (by linarith : gamma f y x - ε < gamma f y x))
       have hmem' : (fun _ : ι => -gamma f y x + ε) ∈ diffSet f x y := by
         convert hmem using 1
-        ext; simp only [Pi.neg_apply]; ring
+        ext
+        simp only [Pi.neg_apply]
+        ring
       simp only [gamma, hxy, ↓reduceIte]
       exact csInf_le (gammaSet_bddBelow hf_onto hgw hxy) hmem'
     · by_contra hlt; push Not at hlt
@@ -633,7 +639,9 @@ private theorem openShifted_half [Finite ι] [Nonempty ι] [Fintype Ω] [Decidab
     (α := fun i => α i / 2 + gamma f x₀ y₀ - ε / 8) fun h => hnot ⟨ε / 8, by linarith, by
       convert h using 1; ext; simp only [Pi.smul_apply, smul_eq_mul]; ring⟩
   have h2_diff : (fun i => -α i / 2 + ε / 4 + gamma f y₀ x₀ - ε / 8) ∈ diffSet f y₀ x₀ := by
-    convert hneg using 1; ext; simp only [Pi.neg_apply]
+    convert hneg using 1
+    ext
+    simp only [Pi.neg_apply]
     rw [gamma_neg hf_onto hpad hgw y₀ x₀]; ring
   have h2 : (fun i => -α i / 2 + ε / 4) ∈ openShifted f x₀ y₀ := by
     rw [openShifted_eq hf_onto hpad hgw hcard hxy hxy.symm]
@@ -792,7 +800,10 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
       let α : ι → ℝ := fun i => b i x - b i y - gamma f x y + ε
       have hα_diff : (fun i => α i + gamma f x y - ε) ∈ diffSet f x y := by
         have hdiff : (fun i => b i x - b i y) ∈ diffSet f x y := ⟨b, fun _ => rfl, rfl⟩
-        convert hdiff using 1; ext; simp only [α]; ring
+        convert hdiff using 1
+        ext
+        simp only [α]
+        ring
       have hα : α ∈ openShifted f x₀ y₀ := by
         rw [← openShifted_eq hf_onto hpad hgw hcard (Ne.symm heq) hxy]
         exact ⟨ε, hε, hα_diff⟩

@@ -1222,7 +1222,9 @@ private theorem extend_dir_step_interior {V : Type*} (W : WeightedGraph V) [Fini
           d₀.edge ≠ d''.edge ∧ 0 < (t₀ : ℝ) ∧ (t₀ : ℝ) < 1 ∧ ∃ s_v,
             circleMap hs.1 s_v = vertex d₀.fst ∧ circleMap hs.1 s = edgePoint d₀ t₀ ∧
             (s_v = s + (t₀ : ℝ) * W.weight d₀.edge ∨ s_v = s - (t₀ : ℝ) * W.weight d₀.edge) := by
-        subst hd₀; subst ht₀; cases isFst
+        subst hd₀
+        subst ht₀
+        cases isFst
         · exact ⟨by simpa only [Bool.false_eq_true, ↓reduceIte, Dart.edge_symm, hed]
               using Ne.symm hde,
             sub_pos.mpr ht1, sub_lt_self 1 ht0, _, hsnd_cm,
