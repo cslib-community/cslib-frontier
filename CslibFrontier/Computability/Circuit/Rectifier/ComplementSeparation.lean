@@ -511,9 +511,8 @@ theorem choose_pow_four_le_mul_orComplexity_compl_sergeevComplementMatrix_pow_th
   by_cases hp3 : p = 3
   · subst hp3
     have hrow : ∀ x : Fin 3 → ZMod 3,
-        6 ≤ #(univ.filter fun y => brownMatrix 3 x y = true) := by
-      intro x
-      rw [card_row_brownMatrix hp x]
+        6 ≤ #(univ.filter fun y => brownMatrix 3 x y = true) :=
+      fun x => (card_row_brownMatrix hp x).ge
     have hbound := mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix
       (brownMatrix 3) hrow
     rw [card_fin3_zmod] at hbound
@@ -548,9 +547,8 @@ theorem choose_pow_four_le_mul_orComplexity_compl_sergeevComplementMatrix_pow_th
         _ ≤ 32 * ((7 + t) ^ 3) ^ 4 * B_wt := hlem1
         _ = (7 + t) ^ 12 * (32 * B_wt) := by ring
     have hp_le_2pred : 7 + t ≤ 2 * (7 + t - 1) := by omega
-    have hp4_le : (7 + t) ^ 4 ≤ 16 * (7 + t - 1) ^ 4 := by
-      calc (7 + t) ^ 4 ≤ (2 * (7 + t - 1)) ^ 4 := Nat.pow_le_pow_left hp_le_2pred 4
-        _ = 16 * (7 + t - 1) ^ 4 := by ring
+    have hp4_le : (7 + t) ^ 4 ≤ 16 * (7 + t - 1) ^ 4 :=
+      (Nat.pow_le_pow_left hp_le_2pred 4).trans_eq (by ring)
     have hp8_le : (7 + t) ^ 8 ≤ 512 * B_wt := by
       calc (7 + t) ^ 8 = (7 + t) ^ 4 * (7 + t) ^ 4 := by ring
         _ ≤ (7 + t) ^ 4 * (16 * (7 + t - 1) ^ 4) := Nat.mul_le_mul_left _ hp4_le
@@ -559,9 +557,7 @@ theorem choose_pow_four_le_mul_orComplexity_compl_sergeevComplementMatrix_pow_th
         _ = 512 * B_wt := by ring
     have h2n_le : 2 * ((7 + t) ^ 3).choose 2 ≤ (7 + t) ^ 6 := by
       rw [two_mul_choose_two]
-      calc (7 + t) ^ 3 * ((7 + t) ^ 3 - 1)
-          ≤ (7 + t) ^ 3 * (7 + t) ^ 3 := Nat.mul_le_mul_left _ (Nat.sub_le _ 1)
-        _ = (7 + t) ^ 6 := by ring
+      exact (Nat.mul_le_mul_left _ (Nat.sub_le _ 1)).trans_eq (by ring)
     have h16n4 : 16 * (((7 + t) ^ 3).choose 2) ^ 4 ≤ 2 ^ 27 * B_wt ^ 3 := by
       calc 16 * (((7 + t) ^ 3).choose 2) ^ 4
           = (2 * ((7 + t) ^ 3).choose 2) ^ 4 := by ring
@@ -569,10 +565,7 @@ theorem choose_pow_four_le_mul_orComplexity_compl_sergeevComplementMatrix_pow_th
         _ = ((7 + t) ^ 8) ^ 3 := by ring
         _ ≤ (512 * B_wt) ^ 3 := Nat.pow_le_pow_left hp8_le 3
         _ = 2 ^ 27 * B_wt ^ 3 := by ring
-    refine Nat.le_of_mul_le_mul_left (c := 16) ?_ (by decide)
-    calc 16 * (((7 + t) ^ 3).choose 2) ^ 4
-        ≤ 2 ^ 27 * B_wt ^ 3 := h16n4
-      _ = 16 * (2 ^ 23 * B_wt ^ 3) := by ring
+    linarith
 
 end TheoremOnePartTwo
 
@@ -591,32 +584,19 @@ theorem exists_gt_sergeev_or_complement_separation (N : ℕ) :
   obtain ⟨p, hp_gt, hp_prime, hp_mod⟩ :=
     Nat.forall_exists_prime_gt_and_modEq (N + 3) (q := 4) (a := 3) (by decide) (by decide)
   have : Fact p.Prime := ⟨hp_prime⟩
-  have hp : p % 4 = 3 := by
-    rw [Nat.ModEq] at hp_mod
-    simpa only [Nat.reduceMod] using hp_mod
+  have hp : p % 4 = 3 := hp_mod
   set n := (p ^ 3).choose 2
   have hcard : Fintype.card {s : Finset (Fin 3 → ZMod p) // #s = 2} = n := by
     rw [card_twoSubsets, card_fin3_zmod]
   let e : {s : Finset (Fin 3 → ZMod p) // #s = 2} ≃ Fin n :=
     (Fintype.equivFin _).trans (finCongr hcard)
   let C : Matrix (Fin n) (Fin n) Bool := Matrix.reindex e e (sergeevComplementMatrix p)
-  have hC_compl : C.map (! ·) = Matrix.reindex e e ((sergeevComplementMatrix p).map (! ·)) := by
-    ext i j
+  have hC_compl : C.map (! ·) = Matrix.reindex e e ((sergeevComplementMatrix p).map (! ·)) :=
     rfl
   have hn_gt : N < n := by
-    have hp4 : 4 ≤ p := by omega
-    have hp3_ge : 4 ≤ p ^ 3 := by
-      calc 4 ≤ p ^ 1 := by rw [pow_one]; exact hp4
-        _ ≤ p ^ 3 := Nat.pow_le_pow_right (by omega) (by decide)
+    have hp3 : p ≤ p ^ 3 := Nat.le_self_pow (by norm_num) p
     have h2n : 2 * n = p ^ 3 * (p ^ 3 - 1) := two_mul_choose_two (p ^ 3)
-    have hp_le_n : p ≤ n := by
-      have h1 : 2 * p ≤ 2 * n := by
-        calc 2 * p ≤ p ^ 3 * 3 := by
-              have : 2 ≤ p ^ 2 * 3 := by nlinarith
-              nlinarith [show p ^ 3 = p * p ^ 2 by ring]
-          _ ≤ p ^ 3 * (p ^ 3 - 1) := Nat.mul_le_mul_left _ (by omega)
-          _ = 2 * n := h2n.symm
-      omega
+    have := Nat.mul_le_mul_left (p ^ 3) (show 2 ≤ p ^ 3 - 1 by omega)
     omega
   refine ⟨n, C, hn_gt, ?_, ?_, ?_, ?_, ?_⟩
   · rw [orDepthComplexity_reindex]
