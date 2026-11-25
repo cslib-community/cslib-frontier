@@ -33,8 +33,10 @@ model (`#7068`), including:
 1. **Protocol model (`OpeningCommitment`, `validStatement`, `multiProofZKRealGame` / `SimGame`)**:
    explicit statement/witness relations enforcing `(V1)` (`S.verify pk (tag c x) s`), `(V2)`
    (`c' = Com(nf', ctx, t', r')`), `(V3)` (`t' = t + x - d`), and `(V4)` range checks (`t, x, t',
-   d < bound`, with `0 < T < bound` at issuance and `oldRefund = 0` on newly issued tokens matching
-   `CslibFrontier/Crypto/Protocols/AnonymousToken/Conservation.lean`).
+   d < bound`, with `0 < T < bound` at issuance and `oldRefund = 0` on newly issued tokens,
+   aligning with the `(V1)`–`(V4)` checks of `AnonymousToken.Conservation` and
+   `AnonymousToken.IssuerBridge` while keeping this client-side statement-witness relation
+   separate from extracted issuer accounting).
 2. **Adaptive malicious-issuer unlinkability (`unlinkabilityExperiment`) and balance-partitioning
    attacks**: an adversary chooses arbitrary `(pk, ctx, T₀, T₁)`, interacts with both clients during
    issuance and `preRounds` adaptive pre-challenge spends, and then interacts with challenge thread
@@ -52,11 +54,14 @@ model (`#7068`), including:
    commitments (reducing to `2 + challengeSpends` when `preRounds = 0`) are replaced sequentially
    because `choosePre` chooses client branches adaptively.
 4. **Non-black-box `G8 → G8.5` CRT witness-reuse decoupling (`crtDecouple_advantage_le`)**:
-   connecting the coupled CRT witness-reuse simulation `g8Game` (`d_j = r_j + u_j`, `H5`-derived
-   `cmult`) via `IdenticalUntilBad` to decoupled `g85Game`, and reducing `BadH5` via
-   `badH5HidingReduction` and `badH5BindingReduction` (using provably distinct
-   `CommitMsg.bumpBal`) to `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` (original to this
-   library).
+   connecting the coupled CRT witness-reuse simulation `g8Game` (`G8` in [BaumEtAl2026FAEST]
+   §10.10 Theorem 10.42; `d_j = r_j + u_j`, raw `H5`-derived `cmult`) via `IdenticalUntilBad` to
+   decoupled `g85Game` (`G8.5` is this library's intermediate hop), and reducing `BadH5` via
+   `badH5HidingReduction` and `badH5BindingReduction` (using provably distinct `CommitMsg.bumpBal`)
+   to `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` (original to this library). Here token
+   messages are non-adaptive (fixed by `ck`), `r j` itself serves as the witness prefix (`r`-first
+   layout), `cmult` is raw `H5` output, `g85IvCollisionProb` replaces the fixed `2 ^ (-λ)` term,
+   and end-to-end composition from `G1–G8` remains open under `#7068`.
 
 As in `CRTHazard.lean`, all games and reductions are finite query-bounded constructions (`#7068`);
 asymptotic polynomial-time certificates are outside this module's scope.
@@ -74,7 +79,7 @@ asymptotic polynomial-time certificates are outside this module's scope.
 
 ## Main results
 
-* `toScheme_correct`, `CommitMsg.bumpBal_ne`.
+* `OpeningCommitment.toScheme_correct`, `CommitMsg.bumpBal_ne`.
 * `balancePartitionInit_unguarded_advantage_eq_one`,
   `balancePartitionInit_guarded_advantage_eq_zero`,
   `balancePartitionRefund_unguarded_advantage_eq_one`,
@@ -86,6 +91,9 @@ asymptotic polynomial-time certificates are outside this module's scope.
 
 * [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Initial Issuance (`#issuance`), Spending
   (`#spending`), and Proof Status (`#proof-status`).
+* [*FAEST v3: Algorithm Specifications*][BaumEtAl2026FAEST], Sections 3.1–3.3 (pp. 13–18),
+  Section 6 (pp. 35–43, Figures 6.1–6.3), and Section 10.10 (Theorem 10.42, Games `G6`–`G11`,
+  pp. 115–121).
 -/
 
 @[expose] public section
@@ -126,7 +134,7 @@ def OpeningCommitment.toScheme {CommitKey Message C Opening : Type}
   verify ck m c r := decide (Com.eval ck m r = c)
 
 /-- Every honest opening emitted by `Com.toScheme.commit` passes `Com.toScheme.verify`. -/
-theorem toScheme_correct {CommitKey Message C Opening : Type}
+theorem OpeningCommitment.toScheme_correct {CommitKey Message C Opening : Type}
     [DecidableEq C] (Com : OpeningCommitment CommitKey Message C Opening) :
     Com.toScheme.Correct := by
   intro ck _ m c r hmem
@@ -438,7 +446,7 @@ inductive SimContinuation
       (cClient : Bool) (d : ℕ) (st : State) (nfPrime : Nullifier) (tPrime : ℕ)
       (i : ℕ) (hi : i < preRounds)
   /-- Paused immediately before challenge-phase spend `j` commitment. -/
-  | chal (pk : PK) (ctx : Context) (b : Bool) (noteAct : SimNote Nullifier)
+  | chal (pk : PK) (ctx : Context) (noteAct : SimNote Nullifier)
       (balOther refOther : ℕ) (st : State) (d : ℕ) (nfPrime : Nullifier) (tPrime : ℕ)
       (j : ℕ) (hj : j < challengeSpends)
   /-- Execution already terminated with final output `res`. -/
@@ -464,7 +472,7 @@ def challengeLoopOracle
     {preRounds challengeSpends : ℕ}
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth b : Bool)
+    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth : Bool)
     (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (noteAct : ClientNote Nullifier C O Sig) (balOther refOther : ℕ) (st : State) :
     ProbOracleComp (ProofSpec PK C Context Nullifier O Sig Proof) Bool :=
@@ -499,7 +507,7 @@ def challengeLoopOracle
             let noteNext : ClientNote Nullifier C O Sig :=
               ⟨nfPrime, tPrime, rPrime, cPrime, resp.refund, resp.sig⟩
             let balOtherNext := balOther + refOther - choice.debit
-            challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth b rem' (by omega)
+            challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth rem' (by omega)
               noteNext balOtherNext resp.refund resp.st
 
 /-- Adaptive pre-challenge spend loop inside `ProbOracleComp (ProofSpec ...) Bool`, transitioning
@@ -518,10 +526,10 @@ def preLoopOracle
   match rem with
   | 0 =>
     if b then
-      challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth true
+      challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) note1 note0.bal note0.ref st
     else
-      challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth false
+      challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) note0 note1.bal note1.ref st
   | rem' + 1 =>
     let i : Fin preRounds := ⟨preRounds - (rem' + 1), by omega⟩
@@ -735,14 +743,14 @@ private lemma eval_challengeLoop_debit2_true
     (hfin : ∀ st nf d cPrime pi,
       adv.finalizeChallenge 0 st nf d cPrime pi = pure ⟨0, mkSig (tag cPrime 0), ()⟩)
     (hguess : ∀ st, adv.guess st = pure true)
-    (ck : CommitKey) (guardBoth b : Bool)
+    (ck : CommitKey) (guardBoth : Bool)
     (noteAct : ClientNote Nullifier C O Sig) (balOther refOther : ℕ)
     (hsum : 2 ≤ noteAct.bal + noteAct.ref ∧ noteAct.bal + noteAct.ref - 2 < bound)
     (hoth : guardBoth = true → 2 ≤ balOther + refOther ∧ balOther + refOther - 2 < bound)
     (hnote_com : noteAct.com = Com.eval ck ⟨noteAct.nf, ctx, noteAct.bal⟩ noteAct.r)
     (hnote_bal : noteAct.bal < bound) (hnote_ref : noteAct.ref < bound)
     (hnote_sig : S.verify pk (tag noteAct.com noteAct.ref) noteAct.sig = true) :
-    ProbComp.eval ((challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth b 1
+    ProbComp.eval ((challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth 1
         (le_refl _) noteAct balOther refOther ()).run (realProofOracle Com tag S bound sys ck)) =
       (ProbComp.eval nfGen).bind fun nfC =>
       (ProbComp.eval Com.openSample).bind fun rC =>
@@ -793,10 +801,10 @@ private lemma eval_challengeLoop_debit2_false
     {preRounds : ℕ}
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig Unit preRounds 1)
     (hchoose : ∀ st, adv.chooseChallenge 0 st = pure ⟨2, ()⟩)
-    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth b : Bool)
+    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth : Bool)
     (noteAct : ClientNote Nullifier C O Sig) (balOther refOther : ℕ)
     (habort : noteAct.bal + noteAct.ref < 2 ∨ (guardBoth = true ∧ balOther + refOther < 2)) :
-    ProbComp.eval ((challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth b 1
+    ProbComp.eval ((challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth 1
         (le_refl _) noteAct balOther refOther ()).run (realProofOracle Com tag S bound sys ck)) =
       PMF.pure false := by
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
@@ -812,9 +820,7 @@ private lemma eval_challengeLoop_debit2_false
       simp only [decide_eq_false_iff_not]; omega
     simp [hadm]
 
-/-- Without the cross-branch non-abort guard, `balancePartitionInitAdversary` achieves
-unlinkability advantage `1` whenever `bound ≥ 3` and `mkSig` produces valid signatures under
-`pk`. -/
+/-- Shared evaluation helper for `balancePartitionInitAdversary` across worlds. -/
 private lemma eval_balancePartitionInit_eq
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
@@ -824,7 +830,7 @@ private lemma eval_balancePartitionInit_eq
     (hmksig : ∀ t, S.verify pk t (mkSig t) = true) (guardBoth b res : Bool)
     (htail : ∀ ck nf r,
       ProbComp.eval ((challengeLoopOracle Com nfGen tag S bound
-        (balancePartitionInitAdversary tag pk ctx mkSig) ck pk ctx guardBoth b 1 (le_refl _)
+        (balancePartitionInitAdversary tag pk ctx mkSig) ck pk ctx guardBoth 1 (le_refl _)
         ⟨nf, if b then 1 else 2, r, Com.eval ck ⟨nf, ctx, if b then 1 else 2⟩ r, 0,
           mkSig (tag (Com.eval ck ⟨nf, ctx, if b then 1 else 2⟩ r) 0)⟩
         (if b then 2 else 1) 0 ()).run (realProofOracle Com tag S bound sys ck)) =
@@ -863,10 +869,13 @@ private lemma eval_balancePartitionInit_abort
     guardBoth b false fun ck nf r => ?_
   cases b
   · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth false _ 1 0 (Or.inr ⟨hbad, by simp⟩)
+      guardBoth _ 1 0 (Or.inr ⟨hbad, by simp⟩)
   · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth true _ 2 0 (Or.inl (by simp))
+      guardBoth _ 2 0 (Or.inl (by simp))
 
+/-- Without the cross-branch non-abort guard, `balancePartitionInitAdversary` achieves
+unlinkability advantage `1` whenever `bound ≥ 3` and `mkSig` produces valid signatures under
+`pk`. -/
 theorem balancePartitionInit_unguarded_advantage_eq_one
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
@@ -886,7 +895,7 @@ theorem balancePartitionInit_unguarded_advantage_eq_one
     refine eval_balancePartitionInit_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
       false false true fun ck nf0 r0 => ?_
     refine (eval_challengeLoop_debit2_true Com nfGen tag S bound sys adv hbound pk ctx mkSig
-      hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false false
+      hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false
       ⟨nf0, 2, r0, Com.eval ck ⟨nf0, ctx, 2⟩ r0, 0,
         mkSig (tag (Com.eval ck ⟨nf0, ctx, 2⟩ r0) 0)⟩
       1 0 ⟨by dsimp; omega, by dsimp; omega⟩ (by intro h; cases h) rfl (by dsimp; omega)
@@ -1059,13 +1068,13 @@ theorem balancePartitionRefund_unguarded_advantage_eq_one
           cases b
           · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte, Bool.not_false]
             rw [eval_challengeLoop_debit2_true Com nfGen tag S bound sys adv (by omega) pk ctx
-              mkSig hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false false _
+              mkSig hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) (fun _ => rfl) ck false _
               1 0 ⟨by simp, by simp; omega⟩ (by simp) rfl (by simp; omega) (by simp; omega)
               (by simp [hmksig])]
             simp only [PMF.bind_const]
           · simp only [preLoopOracle, ↓reduceIte, Bool.not_true]
             exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck
-              pk ctx false true _ 1 2 (Or.inl (by simp))
+              pk ctx false _ 1 2 (Or.inl (by simp))
         dsimp only [adv] at hchal
         simp only [hchal, PMF.bind_const]
       simp only [hstep, PMF.bind_const]
@@ -1125,10 +1134,10 @@ theorem balancePartitionRefund_guarded_advantage_eq_zero
           cases b
           · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte]
             exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck pk
-              ctx true false _ 1 0 (Or.inr ⟨rfl, by simp⟩)
+              ctx true _ 1 0 (Or.inr ⟨rfl, by simp⟩)
           · simp only [preLoopOracle, ↓reduceIte]
             exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys adv (fun _ => rfl) ck pk
-              ctx true true _ 1 2 (Or.inl (by simp))
+              ctx true _ 1 2 (Or.inl (by simp))
         dsimp only [adv] at hchal
         simp only [hchal, PMF.bind_const]
       simp only [hstep, PMF.bind_const]
@@ -1180,11 +1189,11 @@ private lemma challengeLoopOracle_isQueryBounded
     {preRounds challengeSpends : ℕ}
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth b : Bool)
+    (ck : CommitKey) (pk : PK) (ctx : Context) (guardBoth : Bool)
     (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (noteAct : ClientNote Nullifier C O Sig) (balOther refOther : ℕ) (st : State) :
     ProbOracleComp.IsQueryBounded
-      (challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth b rem hrem
+      (challengeLoopOracle Com nfGen tag S bound adv ck pk ctx guardBoth rem hrem
         noteAct balOther refOther st)
       rem := by
   induction rem generalizing noteAct balOther refOther st with
@@ -1230,7 +1239,7 @@ private lemma preLoopOracle_isQueryBounded
   | zero =>
     simp only [preLoopOracle, Nat.zero_add]
     split_ifs <;>
-      exact challengeLoopOracle_isQueryBounded Com nfGen tag S bound adv ck pk ctx guardBoth _
+      exact challengeLoopOracle_isQueryBounded Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) _ _ _ _
   | succ rem' ih =>
     simp only [preLoopOracle]
@@ -1343,7 +1352,7 @@ def challengeLoopSim {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b : Bool) (hop : ℕ)
+    (pk : PK) (ctx : Context) (hop : ℕ)
     (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (noteAct : SimNote Nullifier) (balOther refOther : ℕ) (st : State) : ProbComp Bool :=
   match rem with
@@ -1372,7 +1381,7 @@ def challengeLoopSim {preRounds challengeSpends : ℕ}
         else
           let noteNext : SimNote Nullifier := ⟨nfPrime, tPrime, resp.refund⟩
           let balOtherNext := balOther + refOther - choice.debit
-          challengeLoopSim env adv pk ctx b hop rem' (by omega)
+          challengeLoopSim env adv pk ctx hop rem' (by omega)
             noteNext balOtherNext resp.refund resp.st
 
 /-- Pre-challenge simulator loop parameterized by commitment hybrid cutoff `hop`. -/
@@ -1386,10 +1395,10 @@ def preLoopSim {preRounds challengeSpends : ℕ}
   match rem with
   | 0 =>
     if b then
-      challengeLoopSim env adv pk ctx true hop challengeSpends (le_refl _)
+      challengeLoopSim env adv pk ctx hop challengeSpends (le_refl _)
         note1 note0.bal note0.ref st
     else
-      challengeLoopSim env adv pk ctx false hop challengeSpends (le_refl _)
+      challengeLoopSim env adv pk ctx hop challengeSpends (le_refl _)
         note0 note1.bal note1.ref st
   | rem' + 1 =>
     let i : Fin preRounds := ⟨preRounds - (rem' + 1), by omega⟩
@@ -1418,7 +1427,7 @@ def preLoopSim {preRounds challengeSpends : ℕ}
           preLoopSim env adv pk ctx b hop rem' (by omega) note0' note1' resp.st
 
 /-- Full direct-simulator hybrid game at cutoff `hop : ℕ` (`0` = `G1`, `2 + pre + chal` = `G4`). -/
-def runSimProgram {preRounds challengeSpends : ℕ}
+private def runSimProgram {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1454,13 +1463,13 @@ private lemma challengeLoopSim_cutoff_congr {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b : Bool) (hop1 hop2 : ℕ)
+    (pk : PK) (ctx : Context) (hop1 hop2 : ℕ)
     (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (h1 : hop1 ≤ 2 + preRounds + (challengeSpends - rem))
     (h2 : hop2 ≤ 2 + preRounds + (challengeSpends - rem))
     (noteAct : SimNote Nullifier) (balOther refOther : ℕ) (st : State) :
-    challengeLoopSim env adv pk ctx b hop1 rem hrem noteAct balOther refOther st =
-      challengeLoopSim env adv pk ctx b hop2 rem hrem noteAct balOther refOther st := by
+    challengeLoopSim env adv pk ctx hop1 rem hrem noteAct balOther refOther st =
+      challengeLoopSim env adv pk ctx hop2 rem hrem noteAct balOther refOther st := by
   induction rem generalizing noteAct balOther refOther st with
   | zero => rfl
   | succ rem' ih =>
@@ -1494,10 +1503,10 @@ private lemma preLoopSim_cutoff_congr {preRounds challengeSpends : ℕ}
     simp only [preLoopSim]
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopSim_cutoff_congr env adv pk ctx false hop1 hop2 challengeSpends
+      exact challengeLoopSim_cutoff_congr env adv pk ctx hop1 hop2 challengeSpends
         (le_refl _) (by omega) (by omega) _ _ _ _
     · simp only [↓reduceIte]
-      exact challengeLoopSim_cutoff_congr env adv pk ctx true hop1 hop2 challengeSpends
+      exact challengeLoopSim_cutoff_congr env adv pk ctx hop1 hop2 challengeSpends
         (le_refl _) (by omega) (by omega) _ _ _ _
   | succ rem' ih =>
     have hf1 : ¬ (2 + (preRounds - (rem' + 1)) < hop1) := by omega
@@ -1580,13 +1589,13 @@ private lemma challengeLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpe
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b : Bool) (rem : ℕ) (hrem : rem ≤ challengeSpends)
+    (pk : PK) (ctx : Context) (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (noteAct : ClientNote Nullifier C O Sig) (balOther refOther : ℕ) (st : State)
     (hinv : NoteInv env.Com env.tag env.S env.bound env.ck pk ctx noteAct) :
     ProbComp.eval ((challengeLoopOracle env.Com env.nfGen env.tag env.S env.bound adv env.ck pk
-        ctx true b rem hrem noteAct balOther refOther st).run
+        ctx true rem hrem noteAct balOther refOther st).run
         (simProofOracle env.Com env.tag env.S env.bound env.sys env.ck)) =
-      ProbComp.eval (challengeLoopSim env adv pk ctx b 0 rem hrem noteAct.toSim balOther
+      ProbComp.eval (challengeLoopSim env adv pk ctx 0 rem hrem noteAct.toSim balOther
         refOther st) := by
   induction rem generalizing noteAct balOther refOther st with
   | zero =>
@@ -1635,10 +1644,10 @@ private lemma preLoopOracle_sim_eq [DecidableEq C] {preRounds challengeSpends : 
     simp only [preLoopOracle, preLoopSim]
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopOracle_sim_eq env adv pk ctx false challengeSpends (le_refl _)
+      exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
         note0 note1.bal note1.ref st h0
     · simp only [↓reduceIte]
-      exact challengeLoopOracle_sim_eq env adv pk ctx true challengeSpends (le_refl _)
+      exact challengeLoopOracle_sim_eq env adv pk ctx challengeSpends (le_refl _)
         note1 note0.bal note0.ref st h1
   | succ rem' ih =>
     simp only [preLoopOracle, preLoopSim, Nat.not_lt_zero, ↓reduceIte, ProbOracleComp.run_bind,
@@ -1736,7 +1745,7 @@ def challengeLoopPause {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b : Bool) (pauseSlot : ℕ)
+    (pk : PK) (ctx : Context) (pauseSlot : ℕ)
     (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (noteAct : SimNote Nullifier) (balOther refOther : ℕ) (st : State) :
     ProbComp (PauseResult PK Context C Nullifier Proof State preRounds challengeSpends) :=
@@ -1760,7 +1769,7 @@ def challengeLoopPause {preRounds challengeSpends : ℕ}
         let dummyMsg : CommitMsg Nullifier Context := ⟨env.dummyNf, ctx, 0⟩
         if idx = pauseSlot then
           return ⟨realMsg, dummyMsg,
-            .chal pk ctx b noteAct balOther refOther choice.st choice.debit nfPrime tPrime
+            .chal pk ctx noteAct balOther refOther choice.st choice.debit nfPrime tPrime
               j.val j.isLt⟩
         else
           let rPrime ← env.Com.openSample
@@ -1773,7 +1782,7 @@ def challengeLoopPause {preRounds challengeSpends : ℕ}
             return ⟨dummyMsg, dummyMsg, .done false⟩
           else
             let noteNext : SimNote Nullifier := ⟨nfPrime, tPrime, resp.refund⟩
-            challengeLoopPause env adv pk ctx b pauseSlot rem' (by omega)
+            challengeLoopPause env adv pk ctx pauseSlot rem' (by omega)
               noteNext (balOther + refOther - choice.debit) resp.refund resp.st
 
 /-- Pre-challenge pause step: stops right before commitment slot `idx` equals `pauseSlot`. -/
@@ -1788,10 +1797,10 @@ def preLoopPause {preRounds challengeSpends : ℕ}
   match rem with
   | 0 =>
     if b then
-      challengeLoopPause env adv pk ctx true pauseSlot challengeSpends (le_refl _)
+      challengeLoopPause env adv pk ctx pauseSlot challengeSpends (le_refl _)
         note1 note0.bal note0.ref st
     else
-      challengeLoopPause env adv pk ctx false pauseSlot challengeSpends (le_refl _)
+      challengeLoopPause env adv pk ctx pauseSlot challengeSpends (le_refl _)
         note0 note1.bal note1.ref st
   | rem' + 1 =>
     let i : Fin preRounds := ⟨preRounds - (rem' + 1), by omega⟩
@@ -1906,14 +1915,14 @@ def resumeAfterCom {preRounds challengeSpends : ℕ}
       let note1' := if cClient then noteUpdated else note1
       preLoopSim env adv pk ctx b (pauseSlot + 1) (preRounds - (i + 1)) (by omega)
         note0' note1' resp.st
-  | .chal pk ctx b noteAct balOther refOther st d nfPrime tPrime j hj => do
+  | .chal pk ctx noteAct balOther refOther st d nfPrime tPrime j hj => do
     let pi ← env.sys.simulate env.ck (.spend ⟨pk, ctx, noteAct.nf, d, cStar⟩)
     let resp ← adv.finalizeChallenge ⟨j, hj⟩ st noteAct.nf d cStar pi
     if !(resp.refund < env.bound && env.S.verify pk (env.tag cStar resp.refund) resp.sig) then
       return false
     else
       let noteNext : SimNote Nullifier := ⟨nfPrime, tPrime, resp.refund⟩
-      challengeLoopSim env adv pk ctx b (pauseSlot + 1) (challengeSpends - (j + 1)) (by omega)
+      challengeLoopSim env adv pk ctx (pauseSlot + 1) (challengeSpends - (j + 1)) (by omega)
         noteNext (balOther + refOther - d) resp.refund resp.st
 
 /-- Pausing `challengeLoopPause` at `pauseSlot` and committing `msgReal` (`isDummy = false`) or
@@ -1923,17 +1932,17 @@ private lemma challengeLoopPause_resume_eq {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b isDummy : Bool) (pauseSlot rem : ℕ)
+    (pk : PK) (ctx : Context) (isDummy : Bool) (pauseSlot rem : ℕ)
     (hrem : rem ≤ challengeSpends)
     (hslot : 2 + preRounds + (challengeSpends - rem) ≤ pauseSlot)
     (noteAct : SimNote Nullifier) (balOther refOther : ℕ) (st : State) :
     ProbComp.eval (do
-        let res ← challengeLoopPause env adv pk ctx b pauseSlot rem hrem noteAct balOther
+        let res ← challengeLoopPause env adv pk ctx pauseSlot rem hrem noteAct balOther
           refOther st
         let r ← env.Com.openSample
         resumeAfterCom env adv pauseSlot res.cont
           (env.Com.eval env.ck (if isDummy then res.msgDummy else res.msgReal) r)) =
-      ProbComp.eval (challengeLoopSim env adv pk ctx b
+      ProbComp.eval (challengeLoopSim env adv pk ctx
         (if isDummy then pauseSlot + 1 else pauseSlot) rem hrem noteAct balOther refOther st) := by
   induction rem generalizing noteAct balOther refOther st with
   | zero =>
@@ -1960,7 +1969,7 @@ private lemma challengeLoopPause_resume_eq {preRounds challengeSpends : ℕ}
             pmfBind_congr _ fun resp => ?_
           split_ifs
           · rfl
-          · exact congrArg ProbComp.eval (challengeLoopSim_cutoff_congr env adv pk ctx b
+          · exact congrArg ProbComp.eval (challengeLoopSim_cutoff_congr env adv pk ctx
               (pauseSlot + 1) pauseSlot rem' (by omega) (by omega) (by omega) _ _ _ _)
         · simp only [heq, ↓reduceIte, Nat.lt_succ_self, ProbComp.eval_bind, ProbComp.eval_pure,
             PMF.pure_bind, resumeAfterCom, hrem_eq]
@@ -2006,10 +2015,10 @@ private lemma preLoopPause_resume_eq {preRounds challengeSpends : ℕ}
     simp only [preLoopPause, preLoopSim]
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact challengeLoopPause_resume_eq env adv pk ctx false isDummy pauseSlot challengeSpends
+      exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
         (le_refl _) (by omega) note0 note1.bal note1.ref st
     · simp only [↓reduceIte]
-      exact challengeLoopPause_resume_eq env adv pk ctx true isDummy pauseSlot challengeSpends
+      exact challengeLoopPause_resume_eq env adv pk ctx isDummy pauseSlot challengeSpends
         (le_refl _) (by omega) note1 note0.bal note0.ref st
   | succ rem' ih =>
     simp only [preLoopPause, preLoopSim, ProbComp.eval_bind, PMF.bind_bind]
@@ -2219,7 +2228,7 @@ noncomputable def unlinkHidingReduction {preRounds challengeSpends : ℕ}
 
 /-- Skeleton of the challenge loop at the final hybrid `hop = 2 + preRounds + challengeSpends`,
 sampling fresh `nf` on the fly at each spend without inspecting `balAct` or `balOther`. -/
-def challengeLoopG4Skeleton {preRounds challengeSpends : ℕ}
+private def challengeLoopG4Skeleton {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -2282,10 +2291,10 @@ private lemma challengeLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
-    (pk : PK) (ctx : Context) (b : Bool) (rem : ℕ) (hrem : rem ≤ challengeSpends)
+    (pk : PK) (ctx : Context) (rem : ℕ) (hrem : rem ≤ challengeSpends)
     (balAct refAct balOther refOther : ℕ) (st : State) :
     ((ProbComp.eval env.nfGen).bind fun nfAct =>
-      ProbComp.eval (challengeLoopSim env adv pk ctx b (2 + preRounds + challengeSpends) rem
+      ProbComp.eval (challengeLoopSim env adv pk ctx (2 + preRounds + challengeSpends) rem
         hrem ⟨nfAct, balAct, refAct⟩ balOther refOther st)) =
       ProbComp.eval (challengeLoopG4Skeleton env adv pk ctx rem hrem balAct refAct balOther
         refOther st) := by
@@ -2313,7 +2322,7 @@ private lemma challengeLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
       · exact ih (by omega) _ _ _ _ _
 
 /-- Pre-challenge skeleton at the final hybrid `hop = 2 + preRounds + challengeSpends`. -/
-def preLoopG4Skeleton {preRounds challengeSpends : ℕ}
+private def preLoopG4Skeleton {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -2364,11 +2373,11 @@ private lemma preLoopSim_G4_eq_skeleton {preRounds challengeSpends : ℕ}
     simp only [preLoopSim, preLoopG4Skeleton]
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx false challengeSpends
+      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
         (le_refl _) bal0 ref0 bal1 ref1 st
       simpa only [PMF.bind_const] using hsub
     · simp only [↓reduceIte]
-      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx true challengeSpends
+      have hsub := challengeLoopSim_G4_eq_skeleton env adv pk ctx challengeSpends
         (le_refl _) bal1 ref1 bal0 ref0 st
       rw [PMF.bind_const, hsub]
       exact congrArg ProbComp.eval (challengeLoopG4Skeleton_symm env adv pk ctx challengeSpends
@@ -2730,20 +2739,22 @@ structure CRTProofToken (C IV : Type) (nMult lam nMask : ℕ) where
   /-- Garbled gate multiplier table `cmult`. -/
   cmult : Fin nMult → Fin nMask → ZMod 2
 
-/-- Configuration for non-black-box CRT witness-reuse decoupling (`G8 → G8.5`):
-`qTok` token events (`0 < qTok`) with commitment openings `Fin lam → ZMod 2`, IV generator
-`ivGen`, gate labels `baseLabel`, and adaptive `H5`-querying distinguisher `adv`. -/
+/-- Configuration for non-black-box CRT witness-reuse decoupling (`G8 → G8.5`, where `G8` follows
+[BaumEtAl2026FAEST] §10.10 Theorem 10.42 and `G8.5` is this library's intermediate hop): `qTok`
+token events (`0 < qTok`) with non-adaptive `ck`-fixed messages, openings `r j` in `r`-first
+layout (`Fin lam → ZMod 2`), IV generator `ivGen`, gate labels `baseLabel`, and `adv` making
+adaptive `H5` queries over all `qTok` token bundles delivered together. -/
 structure G85Setup
     (CommitKey C Nullifier Context IV : Type) (nMult lam nMask qTok : ℕ) where
   /-- Deterministic-evaluation opening commitment with openings in `Fin lam → ZMod 2`. -/
   Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C (Fin lam → ZMod 2)
-  /-- Real note message per token event `j : Fin qTok`. -/
+  /-- Non-adaptive real note message per token event `j : Fin qTok`, fixed by `ck`. -/
   msgs : CommitKey → Fin qTok → CommitMsg Nullifier Context
   /-- Per-token IV distribution. -/
   ivGen : CommitKey → Fin qTok → ProbComp IV
   /-- Base garbled-circuit wire labels `(j, e) ↦ L₀(j, e)`. -/
   baseLabel : CommitKey → Fin qTok → Fin nMult → Fin lam → ZMod 2
-  /-- Adaptive `H5`-querying distinguisher receiving all `qTok` token bundles. -/
+  /-- `H5`-adaptive distinguisher receiving all `qTok` token bundles together. -/
   adv : CommitKey → (Fin qTok → CRTProofToken C IV nMult lam nMask) →
     ProbOracleComp (H5Spec IV nMult lam nMask) Bool
 
@@ -2813,9 +2824,10 @@ def isBadH5Query (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nM
     (q : H5Query IV nMult lam) : Bool :=
   decide (∃ j : Fin qTok, ∃ e : Fin nMult, q = badH5Key setup ck iv d r j e)
 
-/-- Coupled `G8` game under `REUSE_CRT_WITNESS = true`: draws witness opening `r j`, coupled mask
-`u j` with `d j := r j + u j`, and populates `cmult j e` directly from random oracle `H5` at
-`badH5Key`. -/
+/-- Coupled `G8` game ([BaumEtAl2026FAEST] §10.10, Theorem 10.42) under the witness-reuse CRT mask
+option reusing commitment opening `r j` (`r`-first layout, rather than a flag named in
+[BaumEtAl2026FAEST] or [VOLEACT2026]): draws `u j`, sets `d j := r j + u j`, and sets `cmult j e`
+directly to the raw `H5` value at `badH5Key`. -/
 noncomputable def g8Game [Fintype IV]
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : Game :=
   ProbComp.eval do
@@ -2844,8 +2856,8 @@ noncomputable def g8Handler
   else
     pure (h5 q, bad)
 
-/-- Decoupled `G8.5` `StateT Bool` oracle returning `h5 q` uniformly while latching `bad := true`
-if `isBadH5Query` triggers. -/
+/-- Decoupled `G8.5` (this library's intermediate hop between FAEST's `G8` and `G9`) `StateT Bool`
+oracle returning `h5 q` uniformly while latching `bad := true` if `isBadH5Query` triggers. -/
 noncomputable def g85Handler
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
     (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
@@ -2860,7 +2872,8 @@ def g85HandlerP (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMa
     (q : H5Query IV nMult lam) : StateT Bool ProbComp (Fin nMask → ZMod 2) :=
   fun bad => pure (h5 q, bad || isBadH5Query setup ck iv d r q)
 
-/-- Full decoupled `G8.5` joint execution over `(output, badH5, ivCollision)`. -/
+/-- Full decoupled `G8.5` (library intermediate hop) joint execution over
+`(output, badH5, ivCollision)`. -/
 noncomputable def g85FullRun [Fintype IV]
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) :
     ProbComp (Bool × Bool × Bool) := do
@@ -2876,13 +2889,14 @@ noncomputable def g85FullRun [Fintype IV]
   let ivColl : Bool := decide (¬ Function.Injective iv)
   return (res.1, res.2, ivColl)
 
-/-- Decoupled `G8.5` distinguishing game: `d j` and `cmult j` are uniform and independent of
-`r j` and `h5`. -/
+/-- Decoupled `G8.5` (library intermediate hop) distinguishing game: `d j` and `cmult j` are
+uniform and independent of `r j` and `h5`. -/
 noncomputable def g85Game [Fintype IV]
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : Game :=
   (ProbComp.eval (g85FullRun setup)).map fun (out, _, _) => out
 
-/-- Probability of an IV collision across the `qTok` token proofs in `g85FullRun`. -/
+/-- Probability `Pr[¬ Function.Injective iv]` of an IV collision across the `qTok` proofs in
+`g85FullRun` (`0` for counter IVs; replaces a fixed `2 ^ (-λ)` constant bound). -/
 noncomputable def g85IvCollisionProb [Fintype IV]
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : ℝ :=
   (((ProbComp.eval (g85FullRun setup)).map fun (_, _, ivColl) => ivColl) true).toReal
@@ -3034,11 +3048,14 @@ noncomputable def badH5BindingReduction [DecidableEq C] [Fintype IV]
       opening₁ := 0
     }
 
-/-- **Non-black-box CRT witness-reuse decoupling (`G8 → G8.5`)** (original to this library):
-assuming `0 < qTok` (`NeZero qTok`), any adaptive `H5`-querying distinguisher has advantage between
-coupled `g8Game` and decoupled `g85Game` at most
+/-- **Non-black-box CRT witness-reuse decoupling (`G8 → G8.5`)** (original to this library, where
+`G8` follows [BaumEtAl2026FAEST] §10.10 Theorem 10.42 and `G8.5` is this library's intermediate
+hop): assuming `0 < qTok` (`NeZero qTok`), any `H5`-adaptive distinguisher over the `qTok`
+non-adaptive `ck`-fixed token bundles (`r j` as witness prefix in `r`-first layout, raw-`H5`
+`cmult`) has advantage between coupled `g8Game` and decoupled `g85Game` at most
 `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` via `badH5HidingReduction` and
-`badH5BindingReduction`. -/
+`badH5BindingReduction` (`g85IvCollisionProb` tracks IV injectivity instead of a fixed `2 ^ (-λ)`
+term, and composition with `G1–G8` remains `#7068`). -/
 theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
     [DecidableEq Nullifier] [DecidableEq Context]
     (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)

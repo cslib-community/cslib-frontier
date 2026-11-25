@@ -45,7 +45,9 @@ parameters; FAEST-128s uses `nmult = 312` and `nmask = dzk + 3`).
 This formalization, its matrix bounds, random-oracle `H5` distinguishers, query bounds,
 unlinkability games, and witness-order repair statements are original to this library as finite,
 query-bounded steps (`#7068`); asymptotic PPT certificates and concrete circuit lookup tables
-are outside this module's scope.
+are outside this module's scope. Empty/zero-width parameterizations (`nMask = 0`, `rSub = 0`, or
+`nMult ≤ lam`) are admitted and degenerate to trivial `0 ≤ advantage` or `0 ≤ leftKernelDim`
+bounds.
 
 ## Main definitions
 
@@ -70,7 +72,7 @@ are outside this module's scope.
 * `crtPrefixTest_isQueryBounded`, `crtPrefixTest_honest_true`, `crtPrefixTest_wrong_guess_prob`:
   `kGates`-query soundness and completeness of the `H5` prefix distinguisher.
 * `crtIssueSpendAdversary_isQueryBounded`, `crtIssueSpendAdversary_advantage_ge`: Issue-to-Spend
-  unlinkability break when `nf` sits in the CRT prefix (accounting for the `d₁ = nf₀` collision).
+  unlinkability break when `nf` sits in the CRT prefix (accounting for the `d₀ = nf₁` collision).
 * `crtSpendPrefixTest_isQueryBounded`, `crtSpendPrefixTest_correct`,
   `crtSpendPrefixTest_wrong_t_le`, `crtSpendBalancePrefix_advantage_ge`: Spend-time `(t, r_lo)`
   brute-force distinguishing bound.
@@ -874,6 +876,7 @@ def packBalancePrefix {wBal wRand : ℕ}
     Fin (wBal + wRand) → ZMod 2 :=
   Fin.append tBits rBits
 
+/-- Left-injectivity of `packBalancePrefix`: equal encodings imply `t₀ = t₁`. -/
 theorem packBalancePrefix_inj_left {wBal wRand : ℕ}
     {t₀ t₁ : Fin wBal → ZMod 2} {r₀ r₁ : Fin wRand → ZMod 2}
     (h : packBalancePrefix t₀ r₀ = packBalancePrefix t₁ r₁) : t₀ = t₁ := by
@@ -933,10 +936,12 @@ noncomputable def balancePrefixGuesses (wBal wRand : ℕ) (tStar : Fin wBal → 
       ((Fintype.equivFin (Fin wRand → ZMod 2)).symm
         (Fin.cast (by simp [ZMod.card]) idx))
 
+/-- `balancePrefixGuesses wBal wRand tStar` has length `2 ^ wRand`. -/
 @[simp] theorem length_balancePrefixGuesses (wBal wRand : ℕ) (tStar : Fin wBal → ZMod 2) :
     (balancePrefixGuesses wBal wRand tStar).length = 2 ^ wRand := by
   simp [balancePrefixGuesses]
 
+/-- Every `packBalancePrefix tStar r` is listed in `balancePrefixGuesses wBal wRand tStar`. -/
 theorem mem_balancePrefixGuesses {wBal wRand : ℕ} (tStar : Fin wBal → ZMod 2)
     (r : Fin wRand → ZMod 2) :
     packBalancePrefix tStar r ∈ balancePrefixGuesses wBal wRand tStar := by
@@ -945,6 +950,8 @@ theorem mem_balancePrefixGuesses {wBal wRand : ℕ} (tStar : Fin wBal → ZMod 2
     (Fintype.equivFin (Fin wRand → ZMod 2) r), ?_⟩
   simp
 
+/-- Candidates in `balancePrefixGuesses wBal wRand tStar` are disjoint from
+`packBalancePrefix tReal rReal` whenever `tStar ≠ tReal`. -/
 theorem mem_balancePrefixGuesses_ne {wBal wRand : ℕ} {tStar tReal : Fin wBal → ZMod 2}
     (hne : tStar ≠ tReal) (rReal : Fin wRand → ZMod 2) :
     ∀ w ∈ balancePrefixGuesses wBal wRand tStar, w ≠ packBalancePrefix tReal rReal := by
@@ -1210,7 +1217,8 @@ theorem crtSpendBalancePrefix_advantage_ge {IV : Type} [Fintype IV] [DecidableEq
   simp only [NNReal.coe_one]
   exact le_trans (by linarith) (le_abs_self _)
 
-/-- Witness-order repair view (`REUSE_CRT_WITNESS = true` with fresh uniform opening `r` placed at
+/-- Witness-order repair view (in the witness-reuse CRT mode that reuses the witness prefix as the
+CRT mask offset, placing fresh uniform opening `r` at
 bytes `0..lam` and `H5` unqueried on complementary labels): given public `L0` and `active`, the
 uniform opening `r`, uniform VOLE secret `u`, and uniform `H5` mask padding `hXor` produce
 `dPrefix := r + u` and `cmult` shifted by `F *ᵥ maskInput metaData`. -/
@@ -1228,8 +1236,9 @@ noncomputable def rFirstCRTMaskView {IV Meta : Type} {nMult lam nMask : ℕ}
     dPrefix := r + u
     cmult := fun mask e => hXor mask e + (F *ᵥ maskInput metaData mask) e }
 
-/-- Idealized decoupled `G8.5` CRT table distribution with uniform `dPrefix` and `cmult`,
-independent of the witness opening `r`. -/
+/-- Idealized decoupled CRT table distribution (`G8.5`, this library's intermediate hop between
+FAEST v3.0 Theorem 10.42's `G8` and `G9` in [BaumEtAl2026FAEST]) with uniform `dPrefix` and
+`cmult`, independent of the witness opening `r`. -/
 noncomputable def rFirstDecoupledView {IV : Type} {nMult lam nMask : ℕ}
     (iv : IV) (activeLabel : Fin nMult → (Fin lam → ZMod 2)) :
     PMF (CRTMaskTable IV nMult lam nMask) := do

@@ -22,8 +22,9 @@ Exercises `Cslib.Crypto.AnonymousToken.Unlinkability` and
   `unlinkabilityExperiment`, isolating the cross-branch non-abort guard;
 * concrete `example`s instantiating `zkDistinguisher_isQueryBounded`,
   `unlinkabilityExperiment_advantage_le` (including the `preRounds = 0` specialization
-  `2 * (2 + challengeSpends)`), `crtDecouple_identicalUntilBad`, `crtDecouple_advantage_le`, and
-  `CommitMsg.bumpBal_ne`;
+  `2 * (2 + challengeSpends)`), `crtDecouple_identicalUntilBad`, `crtDecouple_advantage_le`
+  (both type-level instantiation and a non-vacuous `advantage = 1 / 2` non-hiding separator),
+  and `CommitMsg.bumpBal_ne`;
 * concrete `5 × 3` and `6 × 4` `ZMod 2` parity-check matrix witnesses (`H * F = 0`, surjective
   `H.mulVecLin`), numeric instantiations of `sub_le_leftKernelDim` (`312 - 128 = 184`) and
   `multiMask_parityCheck_uniform_zero_prob` (`2⁻¹ ^ (12 * 14) = 2⁻¹ ^ 168`), strictly interior
@@ -199,7 +200,99 @@ example :
             (Experiment.succProbability
               (testCom.toScheme.bindingExperiment (badH5BindingReduction testG85Setup)) : ℝ)) +
           g85IvCollisionProb testG85Setup :=
-  ⟨toScheme_correct testCom, CommitMsg.bumpBal_ne _, crtDecouple_advantage_le testG85Setup⟩
+  ⟨testCom.toScheme_correct, CommitMsg.bumpBal_ne _, crtDecouple_advantage_le testG85Setup⟩
+
+/-- Non-hiding `G8 → G8.5` distinguisher reading `r 0 = (tok 0).com.2`, querying `H5` at
+`badH5Key`, and comparing the reply against `(tok 0).cmult 0`. -/
+private noncomputable def testG85Distinguisher :
+    Unit → (Fin 1 → CRTProofToken (CommitMsg ℕ ℕ × (Fin 1 → ZMod 2)) (Fin 1) 1 1 1) →
+      ProbOracleComp (H5Spec (Fin 1) 1 1 1) Bool := fun _ tok => do
+  let h ← ProbOracleComp.query ⟨(tok 0).iv, 0, (tok 0).d + (tok 0).com.2⟩
+  return decide ((tok 0).cmult 0 = h)
+
+/-- Concrete `qTok = 1`, `nMult = 1`, `lam = 1`, `nMask = 1` setup pairing non-hiding `testCom`
+with `testG85Distinguisher`. -/
+private noncomputable def testG85AttackSetup :
+    G85Setup Unit (CommitMsg ℕ ℕ × (Fin 1 → ZMod 2)) ℕ ℕ (Fin 1) 1 1 1 1 where
+  Com := testCom
+  msgs _ _ := ⟨0, 1, 10⟩
+  ivGen _ _ := pure 0
+  baseLabel _ _ _ _ := 0
+  adv := testG85Distinguisher
+
+/-- Non-vacuity check for `G8 → G8.5`: with non-hiding `testCom`, `testG85Distinguisher` separates
+`g8Game testG85AttackSetup` (`1`) from `g85Game testG85AttackSetup` (`1 / 2`) with
+`Game.advantage = 1 / 2` (`0 < advantage`), bounded above by `crtDecouple_advantage_le`. -/
+example :
+    (0 : ℝ) < (Game.advantage (g8Game testG85AttackSetup) (g85Game testG85AttackSetup) : ℝ) ∧
+      (Game.advantage (g8Game testG85AttackSetup) (g85Game testG85AttackSetup) : ℝ) = 1 / 2 ∧
+      (Game.advantage (g8Game testG85AttackSetup) (g85Game testG85AttackSetup) : ℝ) ≤
+        (1 : ℝ) *
+          ((Experiment.advantage
+            (testCom.toScheme.hidingExperiment
+              (badH5HidingReduction testG85AttackSetup) false)
+            (testCom.toScheme.hidingExperiment
+              (badH5HidingReduction testG85AttackSetup) true) : ℝ) +
+            (Experiment.succProbability
+              (testCom.toScheme.bindingExperiment
+                (badH5BindingReduction testG85AttackSetup)) : ℝ)) +
+          g85IvCollisionProb testG85AttackSetup := by
+  have hx : ∀ r u : Fin 1 → ZMod 2, (r + u) + r = u := by
+    intro r u
+    ext i
+    exact (by decide : ∀ a b : ZMod 2, a + b + a = b) (r i) (u i)
+  have hzl : ∀ u : Fin 1 → ZMod 2, (fun _ : Fin 1 => (0 : ZMod 2)) + u = u := fun u =>
+    zero_add u
+  have hg8 : g8Game testG85AttackSetup = PMF.pure true := by
+    simp only [g8Game, testG85AttackSetup, testG85Distinguisher, testCom, samplePi,
+      ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, ProbOracleComp.run_bind,
+      ProbOracleComp.run_query, ProbOracleComp.run_pure, PMF.pure_bind, Fin.isValue]
+    simp only [hzl, hx, decide_true, PMF.bind_const]
+  have hconst : ∀ {α : Type} (p : PMF α) (f : α → PMF Bool) (c : ℝ≥0∞),
+      (∀ x, f x true = c) → (p.bind f) true = c := by
+    intro α p f c hf
+    simp [PMF.bind_apply, hf, ENNReal.tsum_mul_right, p.tsum_coe]
+  have hcmult : ∀ a : Fin 1 → ZMod 2,
+      ((uniformOfFintype (Fin 1 → Fin 1 → Fin 1 → ZMod 2)).map
+        fun cm => decide (cm 0 0 = a)) true = (2 : ℝ≥0∞)⁻¹ := by
+    intro a
+    let e : (Fin 1 → Fin 1 → Fin 1 → ZMod 2) ≃ (Fin 1 → ZMod 2) :=
+      { toFun := fun cm => cm 0 0
+        invFun := fun v _ _ => v
+        left_inv := fun cm => by
+          ext i j k
+          fin_cases i
+          fin_cases j
+          fin_cases k
+          rfl
+        right_inv := fun _ => rfl }
+    have hmap := Probability.PMF.uniformOfFintype_map_equiv e
+    change ((uniformOfFintype (Fin 1 → Fin 1 → Fin 1 → ZMod 2)).map
+      fun cm => decide (e cm = a)) true = (2 : ℝ≥0∞)⁻¹
+    rw [show (fun cm : Fin 1 → Fin 1 → Fin 1 → ZMod 2 => decide (e cm = a)) =
+      (fun v => decide (v = a)) ∘ e from rfl, ← PMF.map_comp, hmap]
+    simp only [PMF.map_apply, tsum_fintype]
+    rw [Finset.sum_eq_single a]
+    · simp [Probability.PMF.uniformOfFintype_apply, ZMod.card]
+    · intro v _ hv; simp [hv]
+    · intro ha; exact (ha (Finset.mem_univ a)).elim
+  have hg85 : g85Game testG85AttackSetup true = (2 : ℝ≥0∞)⁻¹ := by
+    simp only [g85Game, g85FullRun, testG85AttackSetup, testG85Distinguisher,
+      ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
+      StateT.run_bind, StateT.run_pure]
+    simp only [testCom, samplePi, StateT.run, g85HandlerP, ProbComp.eval_bind,
+      ProbComp.eval_uniform, ProbComp.eval_pure, PMF.map, Function.comp_def, PMF.bind_bind,
+      PMF.pure_bind, Fin.isValue]
+    refine hconst _ _ _ fun _ => hconst _ _ _ fun _ => hconst _ _ _ fun _ => ?_
+    simpa only [PMF.map, Function.comp_def] using hcmult _
+  have hadv : (Game.advantage (g8Game testG85AttackSetup) (g85Game testG85AttackSetup) : ℝ) =
+      1 / 2 := by
+    rw [Game.coe_advantage, hg8]
+    simp [Game.succProbability, hg85, ENNReal.toNNReal_ofNat]
+    norm_num
+  refine ⟨by rw [hadv]; norm_num, hadv, ?_⟩
+  rw [← Nat.cast_one (R := ℝ)]
+  exact crtDecouple_advantage_le testG85AttackSetup
 
 /-- Explicit `5 × 3` matrix over `ZMod 2` whose last two rows are `row0 + row1` and
 `row1 + row2`, together with its `2 × 5` surjective parity-check matrix `testH`. -/
@@ -210,6 +303,7 @@ private def testF : Matrix (Fin 5) (Fin 3) (ZMod 2) :=
      1, 1, 0;
      0, 1, 1]
 
+/-- Surjective `2 × 5` parity-check matrix witnessing `testH * testF = 0`. -/
 private def testH : Matrix (Fin 2) (Fin 5) (ZMod 2) :=
   !![1, 1, 0, 1, 0;
      0, 1, 1, 0, 1]
@@ -268,6 +362,7 @@ private def testF6 : Matrix (Fin 6) (Fin 4) (ZMod 2) :=
      1, 1, 0, 0;
      0, 0, 1, 1]
 
+/-- Surjective `2 × 6` parity-check matrix witnessing `testH6 * testF6 = 0`. -/
 private def testH6 : Matrix (Fin 2) (Fin 6) (ZMod 2) :=
   !![1, 1, 0, 0, 1, 0;
      0, 0, 1, 1, 0, 1]
@@ -335,6 +430,7 @@ example
   norm_num at hge
   exact hge
 
+/-- Re-typed `6 × (2 + 2)` view of `testF6` for the Spend balance-prefix regression. -/
 private def testF6_22 : Matrix (Fin 6) (Fin (2 + 2)) (ZMod 2) := testF6
 
 private lemma testH6_mul_sub_testF6_22 :
