@@ -172,8 +172,7 @@ theorem expect_expect_sq_sub_le_sum_expect_expect_sq_sub_update {n : ℕ}
   have hlocal (i : Fin n) :
       (𝔼 u, 𝔼 a, (f u - f (update u i a)) ^ 2) =
         2 * (𝔼 u, (f u - 𝔼 a, f (update u i a)) ^ 2) := by
-    rw [mul_expect]
-    rw [← expect_expect_update _ i, ← expect_expect_update
+    rw [mul_expect, ← expect_expect_update _ i, ← expect_expect_update
       (fun u => 2 * (f u - 𝔼 a, f (update u i a)) ^ 2) i]
     refine expect_congr rfl fun u _ => ?_
     simpa only [update_idem, ← mul_expect] using expect_expect_sq_sub_eq (fun a => f (update u i a))
@@ -199,27 +198,16 @@ theorem expect_sub_expect_sq_le {κ : Type*} [Fintype κ] [DecidableEq κ]
   have hcoord (j : Fin (Fintype.card κ)) :
       (𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ c (e.symm j) ^ 2 := by
     refine expect_le univ_nonempty fun u _ => expect_le univ_nonempty fun a _ => ?_
-    have hu : (fun i => u (e i)) = update (fun i => u (e i)) (e.symm j) (u j) := by
-      ext i
-      by_cases hi : i = e.symm j
-      · subst hi
-        simp only [update_self, e.apply_symm_apply]
-      · simp only [update_of_ne hi]
-    have hupd : (fun i => update u j a (e i)) = update (fun i => u (e i)) (e.symm j) a := by
-      ext i
-      by_cases hi : i = e.symm j
-      · subst hi
-        simp only [update_self, e.apply_symm_apply]
-      · have hej : e i ≠ j := fun h => hi (e.eq_symm_apply.mpr h)
-        simp only [update_of_ne hej, update_of_ne hi]
+    have hu : (fun i => u (e i)) = update (fun i => u (e i)) (e.symm j) (u j) :=
+      (update_eq_self_iff.2 (by simp)).symm
+    have hupd : (fun i => update u j a (e i)) = update (fun i => u (e i)) (e.symm j) a :=
+      update_comp_equiv u e j a
     have hdiff : g u - g (update u j a) =
         f (update (fun i => u (e i)) (e.symm j) (u j)) -
           f (update (fun i => u (e i)) (e.symm j) a) := by
       dsimp only [g]
       rw [← hu, hupd]
-    have habs : |g u - g (update u j a)| ≤ c (e.symm j) := by
-      rw [hdiff]
-      exact hf _ _ _ _
+    have habs : |g u - g (update u j a)| ≤ c (e.symm j) := hdiff ▸ hf _ _ _ _
     exact sq_le_sq.mpr (by rwa [abs_of_nonneg (hc (e.symm j))])
   have hsum : (∑ j, 𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ ∑ i, c i ^ 2 :=
     (sum_le_sum fun j _ => hcoord j).trans_eq (e.symm.sum_comp fun i => c i ^ 2)
