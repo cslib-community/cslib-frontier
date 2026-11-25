@@ -185,20 +185,8 @@ def expandToken (xs : List ℕ) (t : Kind × ℕ) : List (ArithQBF.Kind × ℕ) 
 the variables of `xs` inserted before every quantifier. -/
 theorem tokens_arithmetize (xs : List ℕ) (φ : QBF ℕ) :
     (φ.arithmetize xs).tokens = φ.tokens.flatMap (expandToken xs) := by
-  induction φ with
-  | var v => rfl
-  | top => rfl
-  | bot => rfl
-  | not φ ih => simp [arithmetize, ArithQBF.tokens, tokens, ih, expandToken, Kind.isQuantifier,
-      Kind.arith]
-  | and φ ψ ihφ ihψ => simp [arithmetize, ArithQBF.tokens, tokens, ihφ, ihψ, expandToken,
-      Kind.isQuantifier, Kind.arith]
-  | or φ ψ ihφ ihψ => simp [arithmetize, ArithQBF.tokens, tokens, ihφ, ihψ, expandToken,
-      Kind.isQuantifier, Kind.arith]
-  | ex v φ ih => simp [arithmetize, ArithQBF.tokens_lins, ArithQBF.tokens, tokens, ih,
-      expandToken, Kind.isQuantifier, Kind.arith]
-  | all v φ ih => simp [arithmetize, ArithQBF.tokens_lins, ArithQBF.tokens, tokens, ih,
-      expandToken, Kind.isQuantifier, Kind.arith]
+  induction φ <;> simp [arithmetize, ArithQBF.tokens, ArithQBF.tokens_lins, tokens, expandToken,
+    Kind.isQuantifier, Kind.arith, *]
 
 end QBF
 
@@ -331,9 +319,9 @@ theorem run_verifyAt_of_agreesAt (f : QueryAt F → List F) (xs : List ℕ)
     runWith (fun q s => PMF.pure (f q, s)) (verifyAt sampler D e rest r (e.eval r)) s =
       PMF.pure (true, s) := by
   induction e generalizing rest r with
-  | var v => simp only [verifyAt, ArithQBF.eval_var, decide_true, ProbOracleComp.runWith_pure]
-  | top => simp only [verifyAt, ArithQBF.eval_top, decide_true, ProbOracleComp.runWith_pure]
-  | bot => simp only [verifyAt, ArithQBF.eval_bot, decide_true, ProbOracleComp.runWith_pure]
+  | var _ | top | bot =>
+    simp only [verifyAt, ArithQBF.eval_var, ArithQBF.eval_top, ArithQBF.eval_bot, decide_true,
+      ProbOracleComp.runWith_pure]
   | not e ih => rw [verifyAt, ArithQBF.eval_not, sub_sub_cancel, ih he hD]
   | bin o e₁ e₂ ih₁ ih₂ =>
     rw [ArithQBF.maxRoundDegree, max_le_iff] at hD
