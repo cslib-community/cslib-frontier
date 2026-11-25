@@ -127,18 +127,10 @@ atomic code `oracle` numbered `4`. -/
     | true, true => rfind' (ofNatCode m)
 
 private theorem encode_ofNatCode : ∀ n, encodeCode (ofNatCode n) = n
-  | 0 => by simp [ofNatCode, encodeCode]
-  | 1 => by simp [ofNatCode, encodeCode]
-  | 2 => by simp [ofNatCode, encodeCode]
-  | 3 => by simp [ofNatCode, encodeCode]
-  | 4 => by simp [ofNatCode, encodeCode]
+  | 0 | 1 | 2 | 3 | 4 => by simp [ofNatCode, encodeCode]
   | n + 5 => by
     let m := n.div2.div2
-    have hm : m < n + 5 := by
-      simp only [m, div2_val]
-      exact
-        lt_of_le_of_lt (le_trans (Nat.div_le_self _ _) (Nat.div_le_self _ _))
-          (Nat.succ_le_succ (Nat.le_add_right _ _))
+    have hm : m < n + 5 := by simp only [m, div2_val]; omega
     have _m1 : m.unpair.1 < n + 5 := lt_of_le_of_lt m.unpair_left_le hm
     have _m2 : m.unpair.2 < n + 5 := lt_of_le_of_lt m.unpair_right_le hm
     have IH := encode_ofNatCode m
@@ -326,10 +318,7 @@ theorem evaln_sound {g : ℕ →. ℕ} {σ : List ℕ} (hσ : ∀ i (h : i < σ.
     induction c generalizing x n <;>
     simp only [eval, evaln, Option.bind_eq_bind, Option.mem_def, Option.bind_eq_some_iff,
       Option.guard_eq_some', exists_const] at h ⊢
-    case zero => simpa [pure, PFun.pure] using h.2.symm
-    case succ => simpa using h.2.symm
-    case left => simpa using h.2.symm
-    case right => simpa using h.2.symm
+    case zero | succ | left | right => simpa [pure, PFun.pure] using h.2.symm
     case oracle =>
       obtain ⟨hn, rfl⟩ := List.getElem?_eq_some_iff.1 h.2
       exact hσ n hn
@@ -348,9 +337,7 @@ theorem evaln_sound {g : ℕ →. ℕ} {σ : List ℕ} (hσ : ∀ i (h : i < σ.
       obtain ⟨_, h⟩ := h
       revert h
       induction n.unpair.2 generalizing x with
-      | zero =>
-        simp only [rec_zero]
-        apply hf
+      | zero => simp only [rec_zero]; apply hf
       | succ m IH =>
         simp only [Option.bind_eq_some_iff, Part.mem_bind_iff, forall_exists_index, and_imp]
         refine fun y h₁ h₂ ↦ ⟨y, IH _ ?_, hg _ _ h₂⟩
@@ -566,21 +553,11 @@ theorem exists_code {g f : ℕ →. ℕ} : Nat.RecursiveIn {g} f ↔ ∃ c : Cod
     | succ => exact ⟨succ, rfl⟩
     | left => exact ⟨left, rfl⟩
     | right => exact ⟨right, rfl⟩
-    | oracle g' hg' =>
-      rw [Set.mem_singleton_iff.1 hg']
-      exact ⟨oracle, rfl⟩
-    | pair pf pg hf hg =>
-      rcases hf with ⟨cf, rfl⟩; rcases hg with ⟨cg, rfl⟩
-      exact ⟨pair cf cg, rfl⟩
-    | comp pf pg hf hg =>
-      rcases hf with ⟨cf, rfl⟩; rcases hg with ⟨cg, rfl⟩
-      exact ⟨comp cf cg, rfl⟩
-    | prec pf pg hf hg =>
-      rcases hf with ⟨cf, rfl⟩; rcases hg with ⟨cg, rfl⟩
-      exact ⟨prec cf cg, rfl⟩
-    | rfind pf hf =>
-      rcases hf with ⟨cf, rfl⟩
-      exact ⟨Code.rfind cf, funext (eval_rfind g cf)⟩
+    | oracle g' hg' => exact ⟨oracle, (Set.mem_singleton_iff.1 hg').symm⟩
+    | pair _ _ hf hg => obtain ⟨⟨cf, rfl⟩, cg, rfl⟩ := And.intro hf hg; exact ⟨pair cf cg, rfl⟩
+    | comp _ _ hf hg => obtain ⟨⟨cf, rfl⟩, cg, rfl⟩ := And.intro hf hg; exact ⟨comp cf cg, rfl⟩
+    | prec _ _ hf hg => obtain ⟨⟨cf, rfl⟩, cg, rfl⟩ := And.intro hf hg; exact ⟨prec cf cg, rfl⟩
+    | rfind _ hf => obtain ⟨cf, rfl⟩ := hf; exact ⟨Code.rfind cf, funext (eval_rfind g cf)⟩
   · rintro ⟨c, rfl⟩
     induction c with
     | zero => exact .zero
@@ -602,12 +579,8 @@ end Code
 
 open scoped Computability in
 /-- Only countably many partial functions are Turing reducible to a given oracle. -/
-theorem countable_setOf_turingReducible (g : ℕ →. ℕ) : {f | f ≤ᵀ g}.Countable := by
-  have : {f | f ≤ᵀ g} = Set.range (eval g) := by
-    ext f
-    exact turingReducible_iff_exists_code
-  rw [this]
-  exact Set.countable_range _
+theorem countable_setOf_turingReducible (g : ℕ →. ℕ) : {f | f ≤ᵀ g}.Countable :=
+  (Set.countable_range (eval g)).mono fun _ => turingReducible_iff_exists_code.1
 
 end Nat.RecursiveIn
 
@@ -627,12 +600,7 @@ open Encodable Denumerable _root_.Primrec
 
 instance : Primcodable Code where
   toEncodable := inferInstance
-  prim := by
-    have : (fun n => Encodable.encode (Encodable.decode (α := Code) n)) = Nat.succ := by
-      ext n
-      simp only [decode_eq_ofNat, encode_some, encode_ofNat]
-    rw [this]
-    exact Primrec.succ
+  prim := Nat.Primrec.succ.of_eq fun n => by simp only [decode_eq_ofNat, encode_some, encode_ofNat]
 
 end Code
 end RecursiveIn
