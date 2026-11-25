@@ -2698,9 +2698,7 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
   have hdiv : slotToNat (r, s) / nSlot = rIdx := slotToNat_div (r, s)
   have hmod : slotToNat (r, s) % nSlot = _ := slotToNat_mod (r, s)
   have hmem_iff : ∀ a : ℕ, (uSub.any fun x => decide (x = a)) = decide (a ∈ uSub) := fun a => by
-    apply Bool.eq_iff_iff.2
-    simp only [List.any_eq_true, decide_eq_true_eq]
-    exact ⟨fun ⟨x, hx, hxa⟩ => hxa ▸ hx, fun ha => ⟨a, ha, rfl⟩⟩
+    simp [List.any_eq]
   have hwire_idx : ∀ wire : Wire c.1 c.2.size,
       slotToNat (m := m) (r, (Sum.inl wire : Slot c.1 c.2.size m)) =
         rIdx * nSlot + wire.toNat := by
@@ -2924,19 +2922,12 @@ private theorem evalLayerQMod_modEq {n g m ℓ M : ℕ} (hm : 0 < m) (hM : 0 < M
       simp only [hnotlt, ↓reduceIte, Nat.add_sub_cancel_left, digitQ]
       have hremLt : p.1 * (m + 1) + i.1 < (m + 1) * (m + 1) := by
         have hp := p.isLt; have hi := i.isLt; nlinarith
-      have hdivk :
-          (k.1 * ((m + 1) * (m + 1)) + p.1 * (m + 1) + i.1) / ((m + 1) * (m + 1)) = k.1 := by
-        rw [Nat.add_assoc, Nat.mul_comm k.1, Nat.mul_add_div (by positivity),
-          Nat.div_eq_of_lt hremLt, Nat.add_zero]
-      have hmodk : (k.1 * ((m + 1) * (m + 1)) + p.1 * (m + 1) + i.1) % ((m + 1) * (m + 1)) =
-          p.1 * (m + 1) + i.1 := by
-        rw [Nat.add_assoc, Nat.mul_comm k.1, Nat.mul_add_mod, Nat.mod_eq_of_lt hremLt]
-      have hdivp : (p.1 * (m + 1) + i.1) / (m + 1) = p.1 := by
-        rw [Nat.mul_comm p.1, Nat.mul_add_div (Nat.succ_pos m), Nat.div_eq_of_lt i.isLt,
-          Nat.add_zero]
-      have hmodi : (p.1 * (m + 1) + i.1) % (m + 1) = i.1 := by
-        rw [Nat.mul_comm p.1, Nat.mul_add_mod, Nat.mod_eq_of_lt i.isLt]
-      rw [hdivk, hmodk, hdivp, hmodi]
+      have hk : (k.1 * ((m + 1) * (m + 1)) + p.1 * (m + 1) + i.1) / ((m + 1) * (m + 1)) = k.1 ∧
+          (k.1 * ((m + 1) * (m + 1)) + p.1 * (m + 1) + i.1) % ((m + 1) * (m + 1)) =
+            p.1 * (m + 1) + i.1 := (Nat.div_mod_unique (by positivity)).2 ⟨by ring, hremLt⟩
+      have hpi : (p.1 * (m + 1) + i.1) / (m + 1) = p.1 ∧ (p.1 * (m + 1) + i.1) % (m + 1) = i.1 :=
+        (Nat.div_mod_unique (by omega)).2 ⟨by ring, i.isLt⟩
+      rw [hk.1, hk.2, hpi.1, hpi.2]
       have hcond_iff : (decide (p.1 = p₀) && (relList m).any
           (fun pi => decide (pi.1 = p.1) && decide (pi.2 = i.1))) = true ↔
           (p.1 = p₀ ∧ (p, i) ∈ rel m) := by
@@ -3174,16 +3165,8 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
               (Int.modEq_zero_iff_dvd.2 dvd_rfl).sub (Int.mod_modEq _ _)
             simpa only [zero_sub] using (Int.mod_modEq _ _).trans h1
       refine (hfold_sum _).trans ?_
-      rw [subsetMobius]
       -- Convert list sum over `allSubsetsCapped S U` to Finset sum over `(decodeIdxSet S).powerset`
-      have hlist_to_fin : ((allSubsetsCapped S U).map fun uSub =>
-            (-1 : ℤ) ^ (S.length - uSub.length) *
-              (amplifiedCountMod m layer (buildCtx m c) (B + 1) M W uSub : ℤ)).sum =
-          ∑ uSub ∈ (allSubsetsCapped S U).toFinset,
-            (-1 : ℤ) ^ (S.length - uSub.length) *
-              (amplifiedCountMod m layer (buildCtx m c) (B + 1) M W uSub : ℤ) := by
-        rw [← List.sum_toFinset _ hsubs_nd]
-      rw [hlist_to_fin]
+      rw [subsetMobius, ← List.sum_toFinset _ hsubs_nd]
       have hsum_bij :
           (∑ uSub ∈ (allSubsetsCapped S U).toFinset,
             (-1 : ℤ) ^ (S.length - uSub.length) *
@@ -3253,28 +3236,12 @@ private theorem collapseStepExec_rep {m B U : ℕ} (hm : 0 < m)
         ((subsetsUpToCapped N D U : Multiset (List ℕ)).bind fun S =>
           Multiset.replicate (mobiusCoeffMod m layer (buildCtx m c) (B + 1) M U W S)
             (decodeIdxSet c.1 c.2.size m ℓ S)) := by
-      rw [decodeWList]
-      set f : List ℕ → ℕ := fun S => mobiusCoeffMod m layer (buildCtx m c) (B + 1) M U W S
-      have haux : ∀ (L' : List (List ℕ)),
-          (((L'.map fun S => (S, f S)).filter fun e => decide (0 < e.2) : Multiset WGate).bind
-            fun e => Multiset.replicate e.2 (decodeIdxSet c.1 c.2.size m ℓ e.1)) =
-          ((L' : Multiset (List ℕ)).bind fun S =>
-            Multiset.replicate (f S) (decodeIdxSet c.1 c.2.size m ℓ S)) := by
-        intro L'; induction L' with
-        | nil => simp
-        | cons S Ss ih =>
-          simp only [List.map_cons, List.filter_cons]
-          by_cases hpos : 0 < f S
-          · simp only [hpos, decide_true, ↓reduceIte]
-            change ((S, f S) ::ₘ ((Ss.map fun S => (S, f S)).filter fun e => decide (0 < e.2) :
-              Multiset WGate)).bind _ = (S ::ₘ (Ss : Multiset (List ℕ))).bind _
-            rw [Multiset.cons_bind, Multiset.cons_bind, ih]
-          · have hf0 : f S = 0 := by omega
-            simp only [hpos, decide_false, Bool.false_eq_true, ↓reduceIte]
-            change (((Ss.map fun S => (S, f S)).filter fun e => decide (0 < e.2) :
-              Multiset WGate)).bind _ = (S ::ₘ (Ss : Multiset (List ℕ))).bind _
-            rw [ih, Multiset.cons_bind, hf0, Multiset.replicate_zero, Multiset.zero_add]
-      exact haux _
+      simp only [decodeWList, ← Multiset.filter_coe, ← Multiset.map_coe, Multiset.bind_filter,
+        Multiset.bind_map]
+      refine Multiset.bind_congr fun S _ => ?_
+      split_ifs with h
+      · rfl
+      · rw [Nat.eq_zero_of_not_pos h, Multiset.replicate_zero]
     rw [hbind_filt]
     have hmap_sets : (subsetsUpToCapped N D U : Multiset (List ℕ)).map
         (decodeIdxSet c.1 c.2.size m ℓ) =
