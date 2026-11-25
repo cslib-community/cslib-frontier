@@ -79,22 +79,18 @@ private theorem card_mul_sq_le {κ : Type*} [DecidableEq ι] (L : Finset κ)
     (hinter : ∀ c ∈ L, ∀ c' ∈ L, c ≠ c' → #(B c ∩ B c') ≤ t) :
     #L * a ^ 2 ≤ Fintype.card ι * (a + (#L - 1) * t) := by
   classical
-  have hrow : ∀ c ∈ L, ∑ c' ∈ L, #(B c ∩ B c') ≤ a + (#L - 1) * t := by
-    intro c hc
-    rw [← add_sum_erase L _ hc, inter_self, hB c hc]
+  have hrow : ∀ c ∈ L, ∑ c' ∈ L, #(B c ∩ B c') ≤ a + (#L - 1) * t := fun c hc => by
+    rw [← add_sum_erase L _ hc, inter_self, hB c hc, ← card_erase_of_mem hc, ← smul_eq_mul]
     gcongr
-    calc ∑ c' ∈ L.erase c, #(B c ∩ B c') ≤ ∑ _c' ∈ L.erase c, t :=
-          sum_le_sum fun c' hc' => hinter c hc c' (mem_of_mem_erase hc') (ne_of_mem_erase hc').symm
-      _ = (#L - 1) * t := by rw [sum_const, card_erase_of_mem hc, smul_eq_mul]
+    exact sum_le_card_nsmul _ _ _ fun c' hc' =>
+      hinter c hc c' (mem_of_mem_erase hc') (ne_of_mem_erase hc').symm
   have hcs := sq_sum_card_le_card_mul_sum_sum_card_inter L B (U := univ) fun _ _ => subset_univ _
   rw [sum_congr rfl hB, sum_const, smul_eq_mul, card_univ] at hcs
-  rcases L.eq_empty_or_nonempty with rfl | hL
-  · simp
-  have hL0 : 0 < #L := hL.card_pos
-  have : (#L * a) ^ 2 ≤ Fintype.card ι * (#L * (a + (#L - 1) * t)) :=
-    hcs.trans (Nat.mul_le_mul_left _ ((sum_le_sum hrow).trans_eq (by rw [sum_const, smul_eq_mul])))
-  rw [mul_pow, sq (#L), mul_assoc, Nat.mul_left_comm (Fintype.card ι) (#L)] at this
-  exact Nat.le_of_mul_le_mul_left this hL0
+  rcases Nat.eq_zero_or_pos #L with hL0 | hL0
+  · simp [hL0]
+  refine Nat.le_of_mul_le_mul_left ?_ hL0
+  linarith [hcs.trans (Nat.mul_le_mul_left (Fintype.card ι)
+    ((sum_le_sum hrow).trans_eq (by rw [sum_const, smul_eq_mul])))]
 
 /-- **Double counting for agreement sets.** If each `c ∈ L` has a set `S c ⊆ ι` of size at least
 `a`, and distinct members of `L` meet in at most `t` elements, then
@@ -211,9 +207,7 @@ theorem exists_listCode_listDecodes {M : Type*} [Finite M] [Nonempty M]
     rw [coe_image, coe_univ, Set.image_univ]
   have hC : (d : ℕ∞) ≤ minDist ((univ.image enc : Finset (ι → α)) : Set (ι → α)) :=
     hrange ▸ hd
-  have hn : (Fintype.card ι : ℝ) ≠ 0 := by
-    refine Nat.cast_ne_zero.2 fun h0 => ?_
-    simp [h0] at h
+  have hn : (Fintype.card ι : ℝ) ≠ 0 := Nat.cast_ne_zero.2 fun h0 => by simp [h0] at h
   rw [← isListDecodable_range_iff_exists_listCode henc, hrange, isListDecodable_finset_iff]
   intro w
   calc #{c ∈ univ.image enc |
