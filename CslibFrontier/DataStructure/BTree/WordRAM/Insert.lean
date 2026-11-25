@@ -115,10 +115,10 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
     obtain ⟨y, his, hby, hymem, hmod, hb_y, hd_y⟩ :=
       initSingleCode_spec (x := x₀) (k := k) (v := v) ht (by omega)
         ((((hr.bounded.set hf0).set hf1).set hf_b1).set hf0) hfit rfl rfl
-        (by dsimp only [x₀]; wram_simp; exact hr.base_eq)
-        (by dsimp only [x₀]; wram_simp; exact hr.deg_eq)
-        (by dsimp only [x₀]; wram_simp; exact hkey)
-        (by dsimp only [x₀]; wram_simp; exact hval)
+        ((by dsimp only [x₀]; wram_simp : x₀.regs rBase = _).trans hr.base_eq)
+        ((by dsimp only [x₀]; wram_simp : x₀.regs rDeg = _).trans hr.deg_eq)
+        ((by dsimp only [x₀]; wram_simp : x₀.regs rKey = _).trans hkey)
+        ((by dsimp only [x₀]; wram_simp : x₀.regs rVal = _).trans hval)
     have he : ExecWithin w insertCode x y ((91 * t + 160) * ((.leaf : BTree ℕ ℕ).height + 1) +
         (21 * t + 120)) := by
       unfold insertCode
@@ -128,23 +128,22 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
     simp only [x₀, Data.set_mem] at hymem hmod
     obtain ⟨hb0_s, hb1_s, hv_s, hs_s, htl_s, hset_s⟩ := memInitSingle_spec (base := base)
       (k := k) (v := v) ht x.mem
-    have hrep : Rep base capNodes t w (readTree 0 base t y.mem 0) y := by
-      refine ⟨hby, ht, hb_y, hd_y, hfit, ?_, Or.inr ⟨?_, 0, ?_, ?_, ?_, ?_⟩⟩
-      · rw [hymem, hb1_s]; omega
-      · rw [hymem, hb1_s]; omega
-      · rw [hymem, hb0_s]
-      · rw [hymem, hb0_s]; exact hv_s
-      · rw [hymem, hb0_s]; exact hs_s
-      · rw [hymem, hb0_s, hb1_s, hset_s]
-        intro w_id hw; simp only [Finset.mem_singleton] at hw; subst hw; simp
-    refine ⟨y, readTree 0 base t y.mem 0, he, hrep, ?_, ?_, hmod⟩
-    · rw [hymem, htl_s]; rfl
-    · rw [hymem, hb1_s]; omega
+    have hrep : Rep base capNodes t w (readTree 0 base t y.mem 0) y :=
+      ⟨hby, ht, hb_y, hd_y, hfit, by rw [hymem, hb1_s]; omega,
+        .inr ⟨by rw [hymem, hb1_s]; omega, 0, by rw [hymem, hb0_s],
+          by rw [hymem, hb0_s]; exact hv_s,
+          by rw [hymem, hb0_s]; exact hs_s,
+          fun _ hw => by
+            rw [hymem, hb0_s, hset_s] at hw
+            rw [hymem, hb1_s]; simp_all⟩⟩
+    exact ⟨y, readTree 0 base t y.mem 0, he, hrep, by rw [hymem, htl_s]; rfl,
+      by rw [hymem, hb1_s]; omega, hmod⟩
   · obtain ⟨cnt, hcnt_def⟩ : ∃ cnt, x.mem (base + 1) = cnt := ⟨_, rfl⟩
     obtain ⟨oldRoot, holdRoot_def⟩ : ∃ oldRoot, x.mem base = oldRoot := ⟨_, rfl⟩
     rw [hcnt_def] at hcnt_pos hrange hcap
     rw [holdRoot_def] at hv hs hrange hcap ⊢
     have hh_eq : (readTree l base t x.mem oldRoot).height = l + 1 := hv.balanced_and_height.2
+    have hcap' : cnt + (l + 1) + 2 ≤ capNodes := hh_eq ▸ hcap
     have hcnt_ne : cnt ≠ 0 := by omega
     have hr_lt_cnt : oldRoot < cnt :=
       Finset.mem_range.mp (hrange (self_mem_readNodeSet l base t x.mem oldRoot))
@@ -193,8 +192,8 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         splitRootCode_spec (x := x₁) (oldRoot := oldRoot) (cnt := cnt)
           ht hr_lt_cnt (by rw [hh_eq] at hcap; omega) hbx₁ hfit
           rfl rfl
-          (by dsimp only [x₁]; wram_simp; exact hr.base_eq)
-          (by dsimp only [x₁]; wram_simp; exact hr.deg_eq)
+          ((by dsimp only [x₁]; wram_simp : x₁.regs rBase = _).trans hr.base_eq)
+          ((by dsimp only [x₁]; wram_simp : x₁.regs rDeg = _).trans hr.deg_eq)
           rfl rfl rfl
       simp only [x₁, Data.set_mem] at hmem_x₂ hmod_sr
       dsimp only [x₁] at hk_x₂ hv_x₂
@@ -232,86 +231,67 @@ theorem insertCode_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : 
         wram_exec [hf1]
         exact WP.of_execWithin hloop ⟨by omega, rfl⟩
       have hy_b0 : y.mem base = cnt + 1 := by
-        rw [hmb0]; change x₂.mem base = cnt + 1; rw [hmem_x₂, hmr_b0]
-      have hrange_y : readNodeSet (l + 1) base t y.mem (cnt + 1) ⊆ Finset.range cnt' := by
-        intro w_id hwin
-        rw [Finset.mem_range]
-        rcases Finset.mem_union.mp (hsub_y hwin) with hold | hico
-        · change w_id ∈ readNodeSet (l + 1) base t x₂.mem (cnt + 1) at hold
-          rw [hmem_x₂] at hold
-          have := Finset.mem_range.mp (hrange_r1 hold); omega
-        · exact (Finset.mem_Ico.mp hico).2
-      have hrep : Rep base capNodes t w (readTree (l + 1) base t y.mem (cnt + 1)) y := by
-        refine ⟨hby, ht, hby_reg, hdy_reg, hfit, ?_, Or.inr ⟨?_, l + 1, ?_, ?_, ?_, ?_⟩⟩
-        · rw [hmb1]; rw [hh_eq] at hcap; omega
-        · rw [hmb1]; omega
-        · rw [hy_b0]
-        · rw [hy_b0]; exact hv_y
-        · rw [hy_b0]; exact hs_y
-        · rw [hy_b0, hmb1]; exact hrange_y
-      simp only [x₃, Data.set_mem] at hmod_loop
-      refine ⟨y, readTree (l + 1) base t y.mem (cnt + 1), he, hrep, ?_, ?_,
+        rw [hmb0]
+        change x₂.mem base = cnt + 1; rw [hmem_x₂, hmr_b0]
+      have hrange_y : readNodeSet (l + 1) base t y.mem (cnt + 1) ⊆ Finset.range cnt' :=
+        fun w_id hwin => Finset.mem_range.mpr <| by
+          rcases Finset.mem_union.mp (hsub_y hwin) with hold | hico
+          · change w_id ∈ readNodeSet (l + 1) base t x₂.mem (cnt + 1) at hold
+            have := Finset.mem_range.mp (hrange_r1 (hmem_x₂ ▸ hold)); omega
+          · exact (Finset.mem_Ico.mp hico).2
+      have hrep : Rep base capNodes t w (readTree (l + 1) base t y.mem (cnt + 1)) y :=
+        ⟨hby, ht, hby_reg, hdy_reg, hfit, by rw [hmb1]; omega,
+          .inr ⟨by rw [hmb1]; omega, l + 1, by rw [hy_b0],
+            by rw [hy_b0]; exact hv_y,
+            by rw [hy_b0]; exact hs_y,
+            by rw [hy_b0, hmb1]; exact hrange_y⟩⟩
+      simp only [x₃, Data.set_mem] at hmod_loop htr_y
+      exact ⟨y, readTree (l + 1) base t y.mem (cnt + 1), he, hrep,
+        by rw [htr_y, hmem_x₂, htr_r1], by rw [hmb1, hh_eq]; omega,
         by simpa only [Finset.union_idempotent] using hmod_sr.trans hmod_loop⟩
-      · rw [htr_y]
-        have htr_x₃ : readTree (l + 1) base t x₃.mem (cnt + 1) =
-            readTree (l + 1) base t (memSplitRoot base t oldRoot cnt x.mem) (cnt + 1) := by
-          change readTree (l + 1) base t x₂.mem (cnt + 1) = _
-          rw [hmem_x₂]
-        rw [htr_x₃, htr_r1]
-      · rw [hmb1, hh_eq]; omega
     · let x₂ := (x₁.set rCur oldRoot).set rActive 1
       have hnf_r : numKeys base t x₂.mem oldRoot ≤ 2 * t - 2 := by
         have := hv.numKeys_le
-        simp only [x₂, x₁, Data.set_mem]
-        omega
+        simp only [x₂, x₁, Data.set_mem]; omega
       obtain ⟨y, cnt', hloop, hby, hcnt_le, hcnt'_hi, hmb0, hmb1, hby_reg, hdy_reg,
           hmod_loop, _, hv_y, hs_y, _, hsub_y, htr_y⟩ :=
         insertLoop_spec (x := x₂) (l := l) (u := oldRoot) (cnt := cnt) (k := k) (v := v) ht
           ((hbx₁.set (holdRoot_def ▸ hr.bounded.2 _)).set hf1) hfit
-          (by simp only [x₂, x₁, Data.set_mem]; exact hv)
-          (by simp only [x₂, x₁, Data.set_mem]; exact hs)
-          hnf_r
-          (by simp only [x₂, x₁, Data.set_mem]; exact hrange)
-          (by rw [hh_eq] at hcap; omega)
+          (by simpa only [x₂, x₁, Data.set_mem] using hv)
+          (by simpa only [x₂, x₁, Data.set_mem] using hs) hnf_r
+          (by simpa only [x₂, x₁, Data.set_mem] using hrange)
+          (by omega)
           (by simp only [x₂, x₁, Data.set_mem, hcnt_def])
           rfl rfl
-          (by dsimp only [x₂, x₁]; wram_simp; exact hr.base_eq)
-          (by dsimp only [x₂, x₁]; wram_simp; exact hr.deg_eq)
-          rfl
-          (by dsimp only [x₂, x₁]; wram_simp; exact hkey)
-          (by dsimp only [x₂, x₁]; wram_simp; exact hval)
-          rfl rfl rfl
+          ((by dsimp only [x₂, x₁]; wram_simp : x₂.regs rBase = _).trans hr.base_eq)
+          ((by dsimp only [x₂, x₁]; wram_simp : x₂.regs rDeg = _).trans hr.deg_eq) rfl
+          ((by dsimp only [x₂, x₁]; wram_simp : x₂.regs rKey = _).trans hkey)
+          ((by dsimp only [x₂, x₁]; wram_simp : x₂.regs rVal = _).trans hval) rfl rfl rfl
       simp only [x₂, x₁, Data.set_mem] at hmb0 hmod_loop hsub_y htr_y
       have he : ExecWithin w insertCode x y
           ((91 * t + 160) * ((readTree l base t x.mem oldRoot).height + 1) + (21 * t + 120)) := by
         rw [hh_eq]
-        unfold insertCode
-        apply WP.execWithin
+        unfold insertCode; apply WP.execWithin
         wram_exec [hr.base_eq, hr.deg_eq, hcnt_def, holdRoot_def, hnk_old_eq,
           hcnt_ne, h6t, hna_r1, h2tm1_eq, hfull_r,
           hf0, hf1, hf_b1, hf_2t, hf_4t, hf_6t,
           hf_rmul, hf_rb0, hf_rb1, hf_rb2, hf_rb3, hf_ar1, hf_2tm10, hf_2tm1]
-        exact WP.of_execWithin hloop ⟨by
-          have : (91 * t + 160) * (l + 1) ≤ (91 * t + 160) * (l + 1 + 1) :=
-            Nat.mul_le_mul_left _ (by omega)
-          omega, rfl⟩
+        exact WP.of_execWithin hloop
+          ⟨by have := Nat.mul_le_mul_left (91 * t + 160) (Nat.le_add_right (l + 1) 1); omega, rfl⟩
       have hy_b0 : y.mem base = oldRoot := hmb0.trans holdRoot_def
-      have hrange_y : readNodeSet l base t y.mem oldRoot ⊆ Finset.range cnt' := by
-        intro w_id hwin
-        rw [Finset.mem_range]
-        rcases Finset.mem_union.mp (hsub_y hwin) with hold | hico
-        · have := Finset.mem_range.mp (hrange hold); omega
-        · exact (Finset.mem_Ico.mp hico).2
-      have hrep : Rep base capNodes t w (readTree l base t y.mem oldRoot) y := by
-        refine ⟨hby, ht, hby_reg, hdy_reg, hfit, ?_, Or.inr ⟨?_, l, ?_, ?_, ?_, ?_⟩⟩
-        · rw [hmb1]; rw [hh_eq] at hcap; omega
-        · rw [hmb1]; omega
-        · rw [hy_b0]
-        · rw [hy_b0]; exact hv_y
-        · rw [hy_b0]; exact hs_y
-        · rw [hy_b0, hmb1]; exact hrange_y
-      refine ⟨y, readTree l base t y.mem oldRoot, he, hrep, htr_y, ?_, hmod_loop⟩
-      rw [hmb1, hh_eq]; omega
+      have hrange_y : readNodeSet l base t y.mem oldRoot ⊆ Finset.range cnt' :=
+        fun w_id hwin => Finset.mem_range.mpr <| by
+          rcases Finset.mem_union.mp (hsub_y hwin) with hold | hico
+          · have := Finset.mem_range.mp (hrange hold); omega
+          · exact (Finset.mem_Ico.mp hico).2
+      have hrep : Rep base capNodes t w (readTree l base t y.mem oldRoot) y :=
+        ⟨hby, ht, hby_reg, hdy_reg, hfit, by rw [hmb1]; omega,
+          .inr ⟨by rw [hmb1]; omega, l, by rw [hy_b0],
+            by rw [hy_b0]; exact hv_y,
+            by rw [hy_b0]; exact hs_y,
+            by rw [hy_b0, hmb1]; exact hrange_y⟩⟩
+      exact ⟨y, readTree l base t y.mem oldRoot, he, hrep, htr_y,
+        by rw [hmb1, hh_eq]; omega, hmod_loop⟩
 
 /-- Logarithmic `O(t log_t n)` Word-RAM instruction bound for `insertCode`. -/
 theorem insertCode_log_spec {w base capNodes t k v : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}

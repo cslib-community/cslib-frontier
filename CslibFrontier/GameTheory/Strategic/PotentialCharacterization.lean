@@ -121,20 +121,11 @@ theorem isWeightedPotential_one_iff {Φ : (∀ i, S i) → ℝ} :
 /-- A `w`-potential with positive weights `0 < w i` is an ordinal potential
 ([MondererShapley1996], Section 2, pp. 127–128). -/
 theorem IsWeightedPotential.isOrdinalPotential {w : ι → ℝ} {Φ : (∀ i, S i) → ℝ}
-    (hw : ∀ i, 0 < w i) (h : G.IsWeightedPotential w Φ) : G.IsOrdinalPotential Φ := by
-  intro s i a
-  have hdiff := h s i a
-  have hwi := hw i
-  constructor
-  · intro hlt
-    by_contra hge
-    have hnn : 0 ≤ w i * (Φ (update s i a) - Φ s) :=
-      mul_nonneg hwi.le (sub_nonneg.2 (le_of_not_gt hge))
-    linarith
-  · intro hlt
-    have hneg : w i * (Φ (update s i a) - Φ s) < 0 :=
-      mul_neg_of_pos_of_neg hwi (sub_neg.2 hlt)
-    linarith
+    (hw : ∀ i, 0 < w i) (h : G.IsWeightedPotential w Φ) : G.IsOrdinalPotential Φ :=
+  fun s i a =>
+    ⟨fun hlt => by_contra fun hge => by
+        linarith [h s i a, mul_nonneg (hw i).le (sub_nonneg.2 (not_lt.1 hge))],
+     fun hlt => by linarith [h s i a, mul_neg_of_pos_of_neg (hw i) (sub_neg.2 hlt)]⟩
 
 /-- A finite game with a positive-weight `w`-potential has the finite improvement property. -/
 theorem IsWeightedPotential.hasFIP [Finite (∀ i, S i)] {w : ι → ℝ} {Φ : (∀ i, S i) → ℝ}
@@ -168,23 +159,13 @@ potential is an ordinal potential ([MondererShapley1996], proof of Corollary 2.6
 theorem IsGeneralizedOrdinalPotential.isOrdinalPotential_of_ne {Φ : (∀ i, S i) → ℝ}
     (hΦ : G.IsGeneralizedOrdinalPotential Φ)
     (hne : ∀ i s (a b : S i), a ≠ b → G.cost i (update s i a) ≠ G.cost i (update s i b)) :
-    G.IsOrdinalPotential Φ := by
-  intro s i a
-  refine ⟨hΦ s i a, fun hlt => ?_⟩
-  have ha : a ≠ s i := by
-    rintro rfl
-    rw [update_eq_self] at hlt
-    exact lt_irrefl _ hlt
-  have hcost_ne : G.cost i (update s i a) ≠ G.cost i s := by
-    simpa only [update_eq_self] using hne i s a (s i) ha
-  rcases lt_or_gt_of_ne hcost_ne with hcost_lt | hcost_gt
-  · exact hcost_lt
-  · exfalso
-    have hback : G.cost i (update (update s i a) i (s i)) < G.cost i (update s i a) := by
-      simpa only [update_idem, update_eq_self] using hcost_gt
-    have hbackΦ : Φ s < Φ (update s i a) := by
-      simpa only [update_idem, update_eq_self] using hΦ (update s i a) i (s i) hback
-    exact lt_asymm hlt hbackΦ
+    G.IsOrdinalPotential Φ := fun s i a =>
+  ⟨hΦ s i a, fun hlt => by
+    have ha : a ≠ s i := fun h => lt_irrefl _ (by rwa [h, update_eq_self] at hlt)
+    refine (lt_or_gt_of_ne (by simpa only [update_eq_self] using hne i s a (s i) ha)).resolve_right
+      fun hgt => lt_asymm hlt ?_
+    simpa only [update_idem, update_eq_self] using
+      hΦ (update s i a) i (s i) (by simpa only [update_idem, update_eq_self] using hgt)⟩
 
 variable (G) in
 /-- **[MondererShapley1996], Corollary 2.6 (p. 130)**: a finite game with the finite improvement
@@ -192,9 +173,9 @@ property in which distinct unilateral deviations never yield equal costs admits 
 potential. -/
 theorem exists_isOrdinalPotential_of_hasFIP [Finite (∀ i, S i)] (hFIP : G.HasFIP)
     (hne : ∀ i s (a b : S i), a ≠ b → G.cost i (update s i a) ≠ G.cost i (update s i b)) :
-    ∃ Φ, G.IsOrdinalPotential Φ := by
-  obtain ⟨Φ, hΦ⟩ := G.hasFIP_iff_exists_isGeneralizedOrdinalPotential.1 hFIP
-  exact ⟨Φ, hΦ.isOrdinalPotential_of_ne hne⟩
+    ∃ Φ, G.IsOrdinalPotential Φ :=
+  let ⟨Φ, hΦ⟩ := G.hasFIP_iff_exists_isGeneralizedOrdinalPotential.1 hFIP
+  ⟨Φ, hΦ.isOrdinalPotential_of_ne hne⟩
 
 variable (G) in
 /-- **Coordination–dummy decomposition of exact potential games**: `G` admits an exact potential if
@@ -202,20 +183,12 @@ and only if `G` decomposes as the pointwise sum of a coordination game `C` and a
 theorem exists_isExactPotential_iff_coordination_add_dummy :
     (∃ Φ, G.IsExactPotential Φ) ↔
       ∃ C D : CostGame ι S, C.IsCoordination ∧ D.IsDummy ∧
-        ∀ i s, G.cost i s = C.cost i s + D.cost i s := by
-  constructor
-  · rintro ⟨Φ, hΦ⟩
-    refine ⟨⟨fun _ s => Φ s⟩, ⟨fun i s => G.cost i s - Φ s⟩, ⟨Φ, fun _ _ => rfl⟩, ?_, ?_⟩
-    · intro i s a
-      dsimp only
-      linarith [hΦ s i a]
-    · intro i s
-      dsimp only
-      ring
-  · rintro ⟨C, D, ⟨Φ, hC⟩, hD, hsum⟩
-    refine ⟨Φ, fun s i a => ?_⟩
-    rw [hsum i (update s i a), hsum i s, hC i (update s i a), hC i s, hD i s a]
-    ring
+        ∀ i s, G.cost i s = C.cost i s + D.cost i s :=
+  ⟨fun ⟨Φ, hΦ⟩ => ⟨⟨fun _ => Φ⟩, ⟨fun i s => G.cost i s - Φ s⟩, ⟨Φ, fun _ _ => rfl⟩,
+    fun i s a => by dsimp only; linarith [hΦ s i a],
+    fun _ _ => by dsimp only; ring⟩,
+   fun ⟨_, _, ⟨Φ, hC⟩, hD, hsum⟩ => ⟨Φ, fun s i a => by
+    rw [hsum i (update s i a), hsum i s, hC i (update s i a), hC i s, hD i s a]; ring⟩⟩
 
 end WeightedAndDecomposition
 
@@ -362,56 +335,25 @@ private theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
   set C := update (update s i yᵢ) j yⱼ
   set D := update (update s i xᵢ) j yⱼ
   by_cases hxi : xᵢ = yᵢ
-  · subst hxi
-    have hAB : B = A := rfl
-    have hCD : D = C := rfl
-    rw [hAB, hCD]
-    ring
+  · subst hxi; ring
   by_cases hxj : xⱼ = yⱼ
-  · subst hxj
-    have hBC : C = B := rfl
-    have hDA : D = A := rfl
-    rw [hBC, hDA]
-    ring
-  have hAi : A i = xᵢ := by simp only [A, update_of_ne hij, update_self]
-  have hAj : A j = xⱼ := by simp only [A, update_self]
-  have hBi : B i = yᵢ := by simp only [B, update_of_ne hij, update_self]
-  have hBj : B j = xⱼ := by simp only [B, update_self]
-  have hCi : C i = yᵢ := by simp only [C, update_of_ne hij, update_self]
-  have hCj : C j = yⱼ := by simp only [C, update_self]
-  have hDi : D i = xᵢ := by simp only [D, update_of_ne hij, update_self]
-  have hDj : D j = yⱼ := by simp only [D, update_self]
-  have hstepAB : IsUnilateralStep i A B := by
-    refine ⟨?_, by rw [hAi, hBi]; exact hxi⟩
-    rw [hBi]
-    simp only [A, B, update_comm hij.symm xⱼ yᵢ, update_idem]
-  have hstepBC : IsUnilateralStep j B C := by
-    refine ⟨?_, by rw [hBj, hCj]; exact hxj⟩
-    rw [hCj]
-    simp only [B, C, update_idem]
-  have hstepCD : IsUnilateralStep i C D := by
-    refine ⟨?_, by rw [hCi, hDi]; exact Ne.symm hxi⟩
-    rw [hDi]
-    simp only [C, D, update_comm hij.symm yⱼ xᵢ, update_idem]
-  have hstepDA : IsUnilateralStep j D A := by
-    refine ⟨?_, by rw [hDj, hAj]; exact Ne.symm hxj⟩
-    rw [hAj]
-    simp only [D, A, update_idem]
+  · subst hxj; ring
+  have hne_of : ∀ (u v : ∀ k, S k) (k : ι), u k ≠ v k → u ≠ v :=
+    fun _ _ k h e => h (congrFun e k)
   let γ : UnilateralPath ι S :=
     { start := A
       steps := [⟨i, B⟩, ⟨j, C⟩, ⟨i, D⟩, ⟨j, A⟩]
-      valid := ⟨hstepAB, hstepBC, hstepCD, hstepDA, trivial⟩ }
-  have hAB_ne : A ≠ B := fun h => hxi (by rw [← hAi, ← hBi, h])
-  have hAC_ne : A ≠ C := fun h => hxi (by rw [← hAi, ← hCi, h])
-  have hAD_ne : A ≠ D := fun h => hxj (by rw [← hAj, ← hDj, h])
-  have hBC_ne : B ≠ C := fun h => hxj (by rw [← hBj, ← hCj, h])
-  have hBD_ne : B ≠ D := fun h => hxi (by rw [← hDi, ← hBi, h])
-  have hCD_ne : C ≠ D := fun h => hxi (by rw [← hDi, ← hCi, h])
-  have hsimple : γ.IsSimpleClosed := by
-    refine ⟨rfl, ?_⟩
-    simp only [γ, UnilateralPath.initialVertices, stepInitialVertices, List.nodup_cons,
-      List.mem_cons, List.not_mem_nil, or_false, hAB_ne, hAC_ne, hAD_ne, hBC_ne, hBD_ne, hCD_ne,
-      not_false_eq_true, and_self, List.nodup_nil]
+      valid :=
+        ⟨⟨by simp [A, B, hij, update_comm hij.symm], by simp [A, B, hij, hxi]⟩,
+         ⟨by simp [B, C], by simp [B, C, hxj]⟩,
+         ⟨by simp [C, D, hij, update_comm hij.symm], by simp [C, D, hij, Ne.symm hxi]⟩,
+         ⟨by simp [D, A], by simp [D, A, Ne.symm hxj]⟩, trivial⟩ }
+  have hsimple : γ.IsSimpleClosed :=
+    ⟨rfl, by simp [γ, UnilateralPath.initialVertices, stepInitialVertices,
+      hne_of A B i (by simp [A, B, hij, hxi]), hne_of A C i (by simp [A, C, hij, hxi]),
+      hne_of A D j (by simp [A, D, hxj]), hne_of B C j (by simp [B, C, hxj]),
+      hne_of B D i (by simp [B, D, hij, Ne.symm hxi]),
+      hne_of C D i (by simp [C, D, hij, Ne.symm hxi])]⟩
   have hzero := h4 γ hsimple rfl
   simp only [γ, pathIntegral, stepIntegral] at hzero
   linarith
@@ -431,51 +373,40 @@ private def sweepCost (G : CostGame ι S) : List ι → (∀ i, S i) → (∀ i,
 private theorem sweepProfile_apply (L : List ι) (cur target : ∀ i, S i) (k : ι) :
     sweepProfile L cur target k = if k ∈ L then target k else cur k := by
   induction L generalizing cur with
-  | nil => simp only [sweepProfile, List.not_mem_nil, ite_false]
+  | nil => simp only [sweepProfile, List.not_mem_nil, ↓reduceIte]
   | cons i L ih =>
       rw [sweepProfile, ih]
-      by_cases hkL : k ∈ L
-      · simp only [hkL, ite_true, List.mem_cons, or_true]
-      · by_cases hki : k = i
-        · subst hki
-          simp only [hkL, ite_false, List.mem_cons, true_or, ite_true, update_self]
-        · simp only [hkL, ite_false, List.mem_cons, hki, false_or, update_of_ne hki]
+      by_cases hki : k = i
+      · subst hki; simp
+      · simp [hki]
 
 private theorem sweepCost_append (G : CostGame ι S) (L₁ L₂ : List ι) (cur target : ∀ i, S i) :
     sweepCost G (L₁ ++ L₂) cur target =
       sweepCost G L₁ cur target + sweepCost G L₂ (sweepProfile L₁ cur target) target := by
   induction L₁ generalizing cur with
   | nil => simp only [List.nil_append, sweepCost, sweepProfile, zero_add]
-  | cons i L₁ ih =>
-      simp only [List.cons_append, sweepCost, sweepProfile, ih]
-      ring
+  | cons i L₁ ih => simp only [List.cons_append, sweepCost, sweepProfile, ih]; ring
 
 private theorem sweepCost_congr_of_notMem (G : CostGame ι S) {i : ι} :
     ∀ {L : List ι}, i ∉ L → ∀ (cur s : ∀ k, S k) (a : S i),
       sweepCost G L cur (update s i a) = sweepCost G L cur s
   | [], _, _, _, _ => rfl
   | j :: L, hi, cur, s, a => by
-      have hji : j ≠ i := fun h => hi (List.mem_cons.2 (Or.inl h.symm))
-      have hiL : i ∉ L := fun h => hi (List.mem_cons.2 (Or.inr h))
-      simp only [sweepCost, update_of_ne hji, sweepCost_congr_of_notMem G hiL]
+      simp only [sweepCost, update_of_ne (fun h => hi (List.mem_cons.2 (.inl h.symm))),
+        sweepCost_congr_of_notMem G (fun h => hi (List.mem_cons.2 (.inr h)))]
 
 private theorem sweepCost_swap_head {G : CostGame ι S} (h : G.FourCycleZero) {i j : ι}
     (hij : i ≠ j) (L : List ι) (cur target : ∀ k, S k) :
     sweepCost G (i :: j :: L) cur target = sweepCost G (j :: i :: L) cur target := by
   have hrect := h hij cur (cur i) (target i) (cur j) (target j)
   dsimp only at hrect
-  have hA : update (update cur i (cur i)) j (cur j) = cur := by
-    simp only [update_eq_self]
   have hB : update (update cur i (target i)) j (cur j) = update cur i (target i) := by
-    have hj : (update cur i (target i)) j = cur j := update_of_ne hij.symm _ _
-    rw [← hj, update_eq_self]
-  have hD : update (update cur i (cur i)) j (target j) = update cur j (target j) := by
-    simp only [update_eq_self]
-  have hC : update (update cur j (target j)) i (target i) =
-      update (update cur i (target i)) j (target j) :=
-    update_comm hij.symm (target j) (target i) cur
-  rw [hA, hB, hD] at hrect
-  simp only [sweepCost, hC]
+    ext k
+    by_cases hk : k = j
+    · subst hk; simp [hij.symm]
+    · simp [hk]
+  simp only [update_eq_self, hB] at hrect
+  simp only [sweepCost, update_comm hij.symm (target j) (target i) cur]
   linarith
 
 private theorem sweepCost_perm {G : CostGame ι S} (h : G.FourCycleZero) :
@@ -508,36 +439,24 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
   let L_all := (Finset.univ : Finset ι).toList
   let L_rem := (Finset.univ.erase i).toList
   have hnd_all : L_all.Nodup := Finset.nodup_toList _
-  have hnd_rem : L_rem.Nodup := Finset.nodup_toList _
-  have hi_notMem : i ∉ L_rem := by
-    simp only [L_rem, Finset.mem_toList, Finset.mem_erase, ne_eq, not_true_eq_false, false_and,
-      not_false_eq_true]
-  have hnd_split : (L_rem ++ [i]).Nodup := by
-    rw [List.nodup_append]
-    refine ⟨hnd_rem, List.nodup_singleton i, fun x hx y hy => ?_⟩
-    rw [List.mem_singleton.1 hy]
-    rintro rfl
-    exact hi_notMem hx
-  have hperm : L_all.Perm (L_rem ++ [i]) := by
-    rw [List.perm_ext_iff_of_nodup hnd_all hnd_split]
-    intro x
-    simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
-      Finset.mem_erase, List.mem_singleton, and_true]
-    exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
-  have hw_rem : ∀ t : ∀ k, S k, sweepProfile L_rem z t = update t i (z i) := by
-    intro t
-    funext k
-    rw [sweepProfile_apply]
+  have hi_notMem : i ∉ L_rem := by simp [L_rem]
+  have hnd_split : (L_rem ++ [i]).Nodup := List.nodup_append.2
+    ⟨Finset.nodup_toList _, List.nodup_singleton i,
+      fun x hx y hy => by rintro rfl; exact hi_notMem (List.mem_singleton.1 hy ▸ hx)⟩
+  have hperm : L_all.Perm (L_rem ++ [i]) :=
+    (List.perm_ext_iff_of_nodup hnd_all hnd_split).2 fun x => by
+      simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
+        Finset.mem_erase, List.mem_singleton, and_true]
+      exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
+  have hw_rem : ∀ t : ∀ k, S k, sweepProfile L_rem z t = update t i (z i) := fun t => by
+    funext k; rw [sweepProfile_apply]
     by_cases hki : k = i
-    · subst hki
-      simp only [hi_notMem, ite_false, update_self]
-    · have hk : k ∈ L_rem := Finset.mem_toList.2 (Finset.mem_erase.2 ⟨hki, Finset.mem_univ k⟩)
-      simp only [hk, ite_true, update_of_ne hki]
+    · subst hki; simp [L_rem]
+    · simp [L_rem, hki]
   unfold potentialOfBase
-  rw [sweepCost_perm h hperm hnd_all z (update s i a),
-    sweepCost_perm h hperm hnd_all z s,
-    sweepCost_append, sweepCost_append,
-    sweepCost_congr_of_notMem G hi_notMem z s a, hw_rem s, hw_rem (update s i a), update_idem]
+  rw [sweepCost_perm h hperm hnd_all z (update s i a), sweepCost_perm h hperm hnd_all z s,
+    sweepCost_append, sweepCost_append, sweepCost_congr_of_notMem G hi_notMem z s a,
+    hw_rem s, hw_rem (update s i a), update_idem]
   simp only [sweepCost, update_idem, update_self, update_eq_self]
   ring
 
@@ -665,8 +584,8 @@ theorem IsWeightedPotential.mixedExtension {G : CostGame ι S} {w : ι → ℝ} 
   have hmap : (fun j => (update p i q j).1) = update (fun j => (p j).1) i q.1 := by
     funext j
     by_cases hj : j = i
-    · subst hj; simp only [update_self]
-    · simp only [update_of_ne hj]
+    · subst hj; simp
+    · simp [hj]
   simp only [CostGame.mixedExtension, hmap]
   exact hΦ.expectedCost_update_sub (fun j => (p j).2.sum_eq_one) i q.2.sum_eq_one
 
@@ -675,22 +594,19 @@ if and only if its mixed extension `G.mixedExtension` is a `w`-potential game. -
 theorem exists_isWeightedPotential_mixedExtension_iff {G : CostGame ι S} {w : ι → ℝ} :
     (∃ Ψ, G.mixedExtension.IsWeightedPotential w Ψ) ↔ ∃ Φ, G.IsWeightedPotential w Φ := by
   classical
-  constructor
-  · rintro ⟨Ψ, hΨ⟩
-    let pureProf : (∀ j, S j) → ∀ j, { q : S j → ℝ // IsMixedStrategy q } :=
-      fun s j => ⟨Pi.single (s j) 1, isMixedStrategy_single (s j)⟩
-    refine ⟨fun s => Ψ (pureProf s), fun s i a => ?_⟩
-    have hupd : pureProf (update s i a) =
-        update (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩ := by
-      funext j
-      by_cases hj : j = i
-      · subst hj; simp only [pureProf, update_self]
-      · simp only [pureProf, update_of_ne hj]
-    have hstep := hΨ (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩
-    rw [← hupd] at hstep
-    simpa only [mixedExtension, pureProf, G.expectedCost_single] using hstep
-  · rintro ⟨Φ, hΦ⟩
-    exact ⟨_, hΦ.mixedExtension⟩
+  refine ⟨fun ⟨Ψ, hΨ⟩ => ?_, fun ⟨Φ, hΦ⟩ => ⟨_, hΦ.mixedExtension⟩⟩
+  let pureProf : (∀ j, S j) → ∀ j, { q : S j → ℝ // IsMixedStrategy q } :=
+    fun s j => ⟨Pi.single (s j) 1, isMixedStrategy_single (s j)⟩
+  refine ⟨fun s => Ψ (pureProf s), fun s i a => ?_⟩
+  have hupd : pureProf (update s i a) =
+      update (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩ := by
+    funext j
+    by_cases hj : j = i
+    · subst hj; simp [pureProf]
+    · simp [pureProf, hj]
+  have hstep := hΨ (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩
+  rw [← hupd] at hstep
+  simpa only [mixedExtension, pureProf, G.expectedCost_single] using hstep
 
 /-- Exact-potential (`w = 1`) specialization of [MondererShapley1996], Lemma 2.10 (pp. 131–132): a
 finite game admits an exact potential if and only if its mixed extension does. -/
