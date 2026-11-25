@@ -27,6 +27,7 @@ length of its output.
 
 ## Main results
 
+* `Cslib.Complexity.DecidableInPowerExpTime.mono_measure`: enlarge the instance parameter.
 * `Cslib.Complexity.DecidableInPowerExpTime.of_reduction`: transfer along a reduction with an
   exponential time bound and a power bound on the target parameter.
 * `Cslib.Complexity.DecidableInPowerExpTime.of_polyTime_reduction`: the polynomial-time
@@ -48,6 +49,17 @@ constants `C` and `e`, with `L` the length of the encoded input. -/
     Prop :=
   ∃ C e : ℕ, DecidableInTimeO A enc
     fun a => (2 : ℝ) ^ (C * (μ a + 1 : ℝ) ^ p) * ((enc a).length + 1) ^ e
+
+/-- At a nonnegative power, enlarging the instance parameter only relaxes the time bound. -/
+theorem DecidableInPowerExpTime.mono_measure {ν : α → ℕ} {p : ℝ}
+    (h : DecidableInPowerExpTime A encA μA p) (hμ : ∀ a, μA a ≤ ν a) (hp : 0 ≤ p) :
+    DecidableInPowerExpTime A encA ν p := by
+  obtain ⟨C, e, h⟩ := h
+  refine ⟨C, e, h.mono 1 (fun a => ?_) (fun _ => by positivity)⟩
+  have hbase : (μA a + 1 : ℝ) ≤ (ν a + 1 : ℝ) := by exact_mod_cast Nat.add_le_add_right (hμ a) 1
+  have hparam := Real.rpow_le_rpow (by positivity : 0 ≤ (μA a + 1 : ℝ)) hbase hp
+  exact (two_rpow_mul_pow_le_two_rpow_mul_pow
+    (mul_le_mul_of_nonneg_left hparam (Nat.cast_nonneg C)) le_rfl).trans (by simp)
 
 /-- If a many-one reduction takes time exponential in the `q`th power of its source parameter,
 times a polynomial in input length, and has parameter blowup `O((μA + 1) ^ b)`, then a target
