@@ -152,26 +152,18 @@ theorem exists_disjoint_blocks_avoiding_bags {n r cap q : ℕ} (L : Finset (Fin 
       calc s.card ≤ (J ×ˢ (Finset.univ : Finset (Fin q))).card := Finset.card_le_card hs_sub
         _ = J.card * q := by simp
     rcases J.eq_empty_or_nonempty with hJ0 | ⟨j₀, hj₀⟩
-    · have hs0 : s = ∅ := by
-        ext p
-        simp only [Finset.notMem_empty, iff_false]
-        intro hp
-        have : p.1 ∈ J := Finset.mem_image_of_mem _ hp
-        simp [hJ0] at this
-      simp [hs0]
+    · simp [Finset.image_eq_empty.mp hJ0]
     · by_cases hJr : J.card ≤ r
       · obtain ⟨p₀, hp₀, rfl⟩ := Finset.mem_image.mp hj₀
         have hsub : L \ bags p₀.1 ⊆ s.biUnion avail := Finset.subset_biUnion_of_mem avail hp₀
         have hsdiff := Finset.card_sdiff_add_card_inter L (bags p₀.1)
         have hbag := hcap p₀.1
         have hge : r * q ≤ (L \ bags p₀.1).card := by omega
-        have hmul : J.card * q ≤ r * q := Nat.mul_le_mul_right q hJr
-        exact hs_card.trans (hmul.trans (hge.trans (Finset.card_le_card hsub)))
-      · have hJu : J = Finset.univ := by
+        exact hs_card.trans ((Nat.mul_le_mul_right q hJr).trans
+          (hge.trans (Finset.card_le_card hsub)))
+      · have hJcard : J.card ≤ r + 1 := by simpa [Fintype.card_fin] using Finset.card_le_univ J
+        have hJu : J = Finset.univ := by
           apply Finset.eq_univ_of_card
-          have hle : J.card ≤ r + 1 := by
-            simpa [Fintype.card_fin] using Finset.card_le_univ J
-          have hgt : r < J.card := Nat.lt_of_not_ge hJr
           rw [Fintype.card_fin]
           omega
         have hL_sub : L ⊆ s.biUnion avail := by
@@ -185,7 +177,6 @@ theorem exists_disjoint_blocks_avoiding_bags {n r cap q : ℕ} (L : Finset (Fin 
           refine Finset.mem_biUnion.mpr ⟨p, hp, ?_⟩
           simp only [avail, hpj, Finset.mem_sdiff]
           exact ⟨hi, fun hmem => hj_not (Finset.mem_filter.mpr ⟨Finset.mem_univ j, hmem⟩)⟩
-        have hJcard : J.card ≤ r + 1 := by simpa [Fintype.card_fin] using Finset.card_le_univ J
         calc s.card ≤ J.card * q := hs_card
           _ ≤ (r + 1) * q := Nat.mul_le_mul_right q hJcard
           _ ≤ L.card := hq_tot
@@ -867,9 +858,7 @@ theorem exists_nof_protocol_on_subset {σ : Signature} {n r B q : ℕ} (hB : 1 �
   have hbag_cap : ∀ j : Fin (r + 1), (L ∩ bags j).card ≤ (F.leafSize + 2 * r * B) / (r + 1) := by
     intro j
     have hcard_le_sum : (L ∩ bags j).card ≤ ∑ i ∈ L, wBag j i := by
-      have hsub : L ∩ bags j = L.filter (· ∈ bags j) := by
-        ext i; simp [Finset.mem_inter, Finset.mem_filter]
-      rw [hsub, Finset.card_filter]
+      rw [← Finset.filter_mem_eq_inter, Finset.card_filter]
       refine Finset.sum_le_sum fun i _ => ?_
       simp only [bags, Finset.mem_filter, Finset.mem_univ, true_and]
       by_cases h0 : wBag j i = 0 <;> simp [h0]; omega
@@ -881,14 +870,12 @@ theorem exists_nof_protocol_on_subset {σ : Signature} {n r B q : ℕ} (hB : 1 �
         simp only [zeroLoad, Finset.sum_const_zero, zero_add]
         exact htot.trans_le hT₀_cnt.le) (fun _ => Nat.zero_le _) j
     exact hcard_le_sum.trans (hsum_le_final.trans (by
-      have hrw : r * (2 * B) = 2 * r * B := by ring
-      rwa [hrw] at hfinal_le))
+      rwa [show r * (2 * B) = 2 * r * B by ring] at hfinal_le))
   obtain ⟨X, hdisj, hX⟩ := exists_disjoint_blocks_avoiding_bags L bags hbag_read hbag_cap
     hq_tot hq_cap
   have havoid : ∀ j : Fin (r + 1), ∀ i ∈ X j, wBag j i = 0 := by
     intro j i hiX
-    have hnot : i ∉ bags j := Finset.disjoint_left.mp (hX j).2.2 hiX
-    simpa [bags] using hnot
+    simpa [bags] using Finset.disjoint_left.mp (hX j).2.2 hiX
   have hdepth : S.steps ≤ F.leafSize / (B + 1) + 1 := by
     have hsteps' : (S.steps - 1) * (B + 1) ≤ F.leafSize := hsteps.trans_eq hT₀_cnt
     have hdiv : S.steps - 1 ≤ F.leafSize / (B + 1) :=
@@ -1446,41 +1433,30 @@ theorem exists_balanced_nof_discrepancy (n : ℕ) :
           have hc := card_bad_cylinder_le hdisj z₀ φ ht_pos
           rw [hcard_Y, ht_exp] at hc
           exact hc.trans (mul_le_mul_of_nonneg_left hexp_bound (by positivity))
-        have hbi : ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) ≤
-            ∑ φ, ((badCyl X φ).card : ℝ) := by
-          exact_mod_cast Finset.card_biUnion_le
         calc ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ)
-            ≤ ∑ φ, ((badCyl X φ).card : ℝ) := hbi
-          _ ≤ ∑ _φ, (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) :=
-              Finset.sum_le_sum fun φ _ => hcyl_le φ
-          _ = (Fintype.card (∀ i : Fin (r + 1), NOF.View (fun j => X j → Bool) i → Bool) : ℝ) *
-                (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
-              rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+            ≤ ∑ φ, ((badCyl X φ).card : ℝ) := by exact_mod_cast Finset.card_biUnion_le
+          _ ≤ Finset.univ.card • (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) :=
+              Finset.sum_le_card_nsmul _ _ _ fun φ _ => hcyl_le φ
           _ = (2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
                 (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
-              rw [hcard_phi, Nat.cast_pow, Nat.cast_ofNat]
+              rw [nsmul_eq_mul, Finset.card_univ, hcard_phi, Nat.cast_pow, Nat.cast_ofNat]
       have hcard_goodX : ((goodX r).card : ℝ) ≤ (2 : ℝ) ^ (n * (r + 1)) := by
         exact_mod_cast (Finset.card_le_univ _).trans_eq
           (by simp [← pow_mul] : Fintype.card (Fin (r + 1) → Finset (Fin n)) = 2 ^ (n * (r + 1)))
-      have hbiR : ((badR r).card : ℝ) ≤
-          ∑ X ∈ goodX r, ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) := by
-        exact_mod_cast Finset.card_biUnion_le
       set K := 1 + n * (r + 1) + (r + 1) * 2 ^ (r * q)
       have hK_inv : (2 : ℝ) ^ K * ((2 : ℝ) ^ (2 ^ E))⁻¹ ≤ ((2 : ℝ) ^ (n + 1))⁻¹ := by
         rw [← div_eq_mul_inv, div_le_iff₀ (by positivity), ← div_eq_inv_mul,
           le_div_iff₀ (by positivity), ← pow_add]
         exact pow_le_pow_right₀ one_le_two (by omega)
       calc ((badR r).card : ℝ)
-          ≤ ∑ X ∈ goodX r, ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) := hbiR
-        _ ≤ ∑ _X ∈ goodX r, ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+          ≤ ∑ X ∈ goodX r, ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) := by
+            exact_mod_cast Finset.card_biUnion_le
+        _ ≤ (goodX r).card • ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
               (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) :=
-            Finset.sum_le_sum fun X hX => hbadX_le X hX
-        _ = ((goodX r).card : ℝ) * ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
-              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) := by
-            rw [Finset.sum_const, nsmul_eq_mul]
+            Finset.sum_le_card_nsmul _ _ _ hbadX_le
         _ ≤ (2 : ℝ) ^ (n * (r + 1)) * ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
-              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) :=
-            mul_le_mul_of_nonneg_right hcard_goodX (by positivity)
+              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) := by
+            rw [nsmul_eq_mul]; exact mul_le_mul_of_nonneg_right hcard_goodX (by positivity)
         _ = (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ K * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
             dsimp only [K]
             rw [pow_add, pow_add, pow_one]
@@ -1488,11 +1464,9 @@ theorem exists_balanced_nof_discrepancy (n : ℕ) :
         _ ≤ (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹ :=
             mul_le_mul_of_nonneg_left hK_inv (by positivity)
     have hR_card : (Rset.card : ℝ) < (2 : ℝ) ^ (n + 1) := by
-      have hsub : Rset.card ≤ (Finset.Icc 1 n).card := Finset.card_filter_le _ _
-      have hicc : (Finset.Icc 1 n).card = n := by simp
       have hlt : n < 2 ^ (n + 1) :=
         Nat.lt_two_pow_self.trans (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self n))
-      exact_mod_cast (hsub.trans_eq hicc).trans_lt hlt
+      exact_mod_cast ((Finset.card_filter_le _ _).trans_eq (by simp)).trans_lt hlt
     have htot_lt : (badTotal.card : ℝ) < Fintype.card ℱ := by
       calc (badTotal.card : ℝ)
           ≤ ∑ r ∈ Rset, ((badR r).card : ℝ) := by exact_mod_cast Finset.card_biUnion_le
