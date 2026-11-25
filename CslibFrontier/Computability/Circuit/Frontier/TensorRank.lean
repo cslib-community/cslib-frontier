@@ -831,45 +831,23 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
   classical
   set R_set := (Compiler.network c I Acc).read
   set m := R_set.ncard
-  have hm_le_n : m ≤ n := by
-    have := ncard_le_card R_set
-    rwa [Nat.card_eq_fintype_card, Fintype.card_fin] at this
   -- Order `Fin n` with `R_set` in positions `0 .. m - 1` and `R_setᶜ` in positions `m .. n - 1`,
   -- then assign `idx i % 3`: each residue appears `≥ n / 3` times globally (`BalancedTripartition`)
   -- and `≤ m / 3 + 1` times on `R_set`.
   let R_fin := R_set.toFinset
-  let U_fin := (R_setᶜ).toFinset
   have hcard_R : R_fin.card = m := (Set.ncard_eq_toFinset_card' R_set).symm
-  have hcard_RU : R_fin.card + U_fin.card = n := by
-    rw [show U_fin = R_finᶜ from Set.toFinset_compl R_set, Finset.card_add_card_compl,
-      Fintype.card_fin]
-  let eR : R_fin ≃ Fin R_fin.card := R_fin.equivFin
-  let eU : U_fin ≃ Fin U_fin.card := U_fin.equivFin
-  have hmU {i : Fin n} (hi : i ∉ R_fin) : i ∈ U_fin := by
-    simp [U_fin]; simpa [R_fin] using hi
-  let idx (i : Fin n) : Fin n :=
-    if hi : i ∈ R_fin then ⟨(eR ⟨i, hi⟩).val, by omega⟩
-    else ⟨R_fin.card + (eU ⟨i, hmU hi⟩).val, by
-      have := (eU ⟨i, hmU hi⟩).isLt; omega⟩
-  have hidx_inj : Function.Injective idx := by
-    intro i₁ i₂ heq
-    dsimp [idx] at heq
-    split_ifs at heq with h1 h2 h2
-    · have hval : (eR ⟨i₁, h1⟩).val = (eR ⟨i₂, h2⟩).val := congrArg (@Fin.val n) heq
-      exact congrArg Subtype.val (eR.injective (Fin.ext hval))
-    · have hval : (eR ⟨i₁, h1⟩).val = R_fin.card + (eU ⟨i₂, hmU h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hlt := (eR ⟨i₁, h1⟩).isLt
-      omega
-    · have hval : R_fin.card + (eU ⟨i₁, hmU h1⟩).val = (eR ⟨i₂, h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hlt := (eR ⟨i₂, h2⟩).isLt
-      omega
-    · have hval : R_fin.card + (eU ⟨i₁, hmU h1⟩).val = R_fin.card + (eU ⟨i₂, hmU h2⟩).val :=
-        congrArg (@Fin.val n) heq
-      have hsub : (eU ⟨i₁, hmU h1⟩).val = (eU ⟨i₂, hmU h2⟩).val := by omega
-      exact congrArg Subtype.val (eU.injective (Fin.ext hsub))
-  let eqvIdx : Fin n ≃ Fin n := Equiv.ofBijective idx (Finite.injective_iff_bijective.mp hidx_inj)
+  -- `eqvIdx` lists `R_set` first, then its complement.
+  let eqvIdx : Fin n ≃ Fin n :=
+    ((Equiv.sumCompl (· ∈ R_fin)).symm.trans
+      ((R_fin.equivFin.sumCongr (Fintype.equivFin _)).trans finSumFinEquiv)).trans
+      (finCongr (by
+        rw [Fintype.card_subtype_compl, Fintype.card_coe, Fintype.card_fin]
+        have := R_fin.card_le_univ; simp only [Fintype.card_fin] at this; omega))
+  have hidx_lt {i : Fin n} (hi : i ∈ R_fin) : (eqvIdx i).val < m := by
+    simp only [eqvIdx, Equiv.trans_apply, Equiv.sumCompl_symm_apply_of_pos hi,
+      Equiv.sumCongr_apply, Sum.map_inl, finSumFinEquiv_apply_left, finCongr_apply,
+      Fin.val_cast, Fin.val_castAdd]
+    exact hcard_R ▸ Fin.isLt _
   let p (i : Fin n) : Fin 3 := ⟨(eqvIdx i).val % 3, Nat.mod_lt _ (by norm_num)⟩
   -- 1. `p` is a `BalancedTripartition`: each mod-`3` class in `Fin n` has size `≥ n / 3`.
   have hbal : BalancedTripartition n p := by
@@ -907,11 +885,7 @@ private theorem exists_balanced_rank_of_read_ncard (K : Type*) [CommSemiring K]
       Fintype.card {i : Fin n // p i = c ∧ i ∈ R_set} ≤ m / 3 + 1 := by
     let toQuot (x : {i : Fin n // p i = c ∧ i ∈ R_set}) : Fin (m / 3 + 1) :=
       ⟨(eqvIdx x.1).val / 3, by
-        have hiR : x.1 ∈ R_fin := Set.mem_toFinset.mpr x.2.2
-        have hval : (eqvIdx x.1).val = (eR ⟨x.1, hiR⟩).val := by
-          change (idx x.1).val = _; simp [idx, hiR]
-        have hlt : (eR ⟨x.1, hiR⟩).val < m := by rw [← hcard_R]; exact (eR ⟨x.1, hiR⟩).isLt
-        omega⟩
+        have := hidx_lt (Set.mem_toFinset.mpr x.2.2); omega⟩
     have hinj_q : Function.Injective toQuot := by
       intro x₁ x₂ hq
       have hdiv : (eqvIdx x₁.1).val / 3 = (eqvIdx x₂.1).val / 3 := Fin.ext_iff.mp hq
