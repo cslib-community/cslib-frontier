@@ -331,23 +331,6 @@ theorem mleFin_hellingerDist_ge_le [Finite α] {M : ℕ} [NeZero M]
   simpa only [mleFin, Finset.card_univ, Fintype.card_fin] using
     mle_hellingerDist_ge_le Finset.univ Finset.univ_nonempty models (Finset.mem_univ i₀) n hr
 
-/-- Sample-complexity helper: if `c ≤ K`, `0 < K`, `0 < a`, `0 < δ`, and
-`Real.log (K / δ) / a ≤ n`, then `c * Real.exp (-(a * n)) ≤ δ`. -/
-theorem mul_exp_neg_le_of_log {c K n a δ : ℝ}
-    (hcK : c ≤ K) (hK : 0 < K) (ha : 0 < a) (hδ : 0 < δ)
-    (hn : Real.log (K / δ) / a ≤ n) :
-    c * Real.exp (-(a * n)) ≤ δ := by
-  have hlog : Real.log (K / δ) ≤ a * n := ((div_le_iff₀ ha).mp hn).trans_eq (mul_comm n a)
-  have hexp : Real.exp (-(a * n)) ≤ δ / K := by
-    calc Real.exp (-(a * n))
-        ≤ Real.exp (-Real.log (K / δ)) := Real.exp_le_exp.mpr (by linarith)
-      _ = (K / δ)⁻¹ := by rw [Real.exp_neg, Real.exp_log (div_pos hK hδ)]
-      _ = δ / K := inv_div K δ
-  calc c * Real.exp (-(a * n))
-      ≤ K * Real.exp (-(a * n)) := mul_le_mul_of_nonneg_right hcK (Real.exp_pos _).le
-    _ ≤ K * (δ / K) := mul_le_mul_of_nonneg_left hexp hK.le
-    _ = δ := mul_div_cancel₀ δ hK.ne'
-
 /-- Sample complexity of `mleFin`: `n ≥ log (M / δ) / r ^ 2` suffices for `mleFin` to succeed
 within Hellinger radius `r > 0` with failure probability at most `δ > 0`. -/
 theorem mleFin_hellingerDist_ge_le_of_log [Finite α] {M : ℕ} [NeZero M]
@@ -359,6 +342,6 @@ theorem mleFin_hellingerDist_ge_le_of_log [Finite α] {M : ℕ} [NeZero M]
   refine (mleFin_hellingerDist_ge_le models i₀ n hr).trans ?_
   have hM : (1 : ℝ) ≤ M := by exact_mod_cast NeZero.pos M
   rw [show -(n : ℝ) * r ^ 2 = -(r ^ 2 * (n : ℝ)) by ring]
-  exact mul_exp_neg_le_of_log (by linarith) (by linarith) (sq_pos_of_pos hr) hδ hn
+  exact Real.mul_exp_neg_le_of_log (by linarith) (by linarith) (sq_pos_of_pos hr) hδ hn
 
 end Cslib.Probability.HypothesisSelection

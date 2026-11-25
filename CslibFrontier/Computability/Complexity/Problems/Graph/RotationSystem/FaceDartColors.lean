@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpace
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CycleSpaceConverse
 import CslibFrontier.Foundations.Algebra.BigOperators.Fin
+import Mathlib.Tactic.FinCases
 
 /-!
 # Clockwise dart colors for actual face boundaries
@@ -21,6 +22,7 @@ would give the opposite recurrence. Conversely this recurrence descends to actua
 The existing cycle-space converse then gives a numerical genus criterion in these coordinates.
 `color_ends_eq_of_dart_path` sums route transport along consecutive darts, and
 `color_sum_eq_true_iff_inverse_rotate_of_three_darts` reads the order at a degree-three vertex.
+`inverse_rotate_iff_not_inverse_rotate_of_three_paths` compares the two orders of three arms.
 -/
 
 public section
@@ -160,5 +162,108 @@ theorem color_sum_eq_true_iff_inverse_rotate_of_three_darts
       rw [add_comm]
       simpa only [hcNext, hc] using hsector c
     simp [hzero, h]
+
+/-- The order comparison for three nonempty dart paths following the inverse rotation at
+their internal joints. The two port equivalences enumerate the paths in the same order.
+The first two arms are selected, so the crossing contributions within the first arm
+cancel in pairs. Even crossings between distinct arms make the third arm's total zero.
+This is the dart-color step for the opposite-orders assertion of Claim B in
+[FulekKynclPalvolgyi2017], §3. Its hypotheses are algebraic, with dart colors supplied. -/
+theorem inverse_rotate_iff_not_inverse_rotate_of_three_paths {u v : ℕ}
+    {length : Fin 3 → ℕ} (path : ∀ k, Fin (length k + 1) → Dart G)
+    (start : Fin 3 ≃ {d : Dart G // d.vertex = u})
+    (finish : Fin 3 ≃ {d : Dart G // d.vertex = v})
+    (hstart : ∀ k, (start k).val = path k 0)
+    (hfinish : ∀ k, (finish k).val = (path k (Fin.last (length k))).reverse)
+    (hstep : ∀ k (i : Fin (length k)), r.rotate.symm (path k i.castSucc).reverse = path k i.succ)
+    (hfirst : Function.Injective fun i => (path 0 i).1)
+    (color : Dart G → Bool) (label : Fin G.edges.length → Bool)
+    (hlabel : ∀ e, label e = true ↔ ∃ k : Fin 3, k ≠ 2 ∧ ∃ i, (path k i).1 = e)
+    (hlast : ∀ i, label (path 2 i).1 = false)
+    (crosses : Fin G.edges.length → Fin G.edges.length → Bool)
+    (hsymm : ∀ e f, crosses e f = crosses f e) (hdiag : ∀ e, crosses e e = 0)
+    (hcross : ∀ (a b : Fin 3), a ≠ b → ∀ i j, crosses (path a i).1 (path b j).1 = 0)
+    (hedge : ∀ d, color d + color d.reverse = label d.1 + ∑ f, label f * crosses f d.1)
+    (hsector : ∀ d, color d + color (r.rotate.symm d) = label d.1) :
+    r.rotate.symm (start 0).val = (start 2).val ↔
+      r.rotate.symm (finish 0).val ≠ (finish 2).val := by
+  classical
+  let firstEdge : Fin (length 0 + 1) ↪ Fin G.edges.length := ⟨fun i => (path 0 i).1, hfirst⟩
+  let firstEdges := Finset.univ.map firstEdge
+  let contribution (e : Fin G.edges.length) := ∑ f, label f * crosses f e
+  have firstLabel (i : Fin (length 0 + 1)) : label (firstEdge i) = true :=
+    (hlabel _).mpr ⟨0, by decide, i, rfl⟩
+  have firstRow (i : Fin (length 0 + 1)) :
+      contribution (firstEdge i) = ∑ j, crosses (firstEdge j) (firstEdge i) := by
+    have outside (f : Fin G.edges.length) (hf : f ∉ firstEdges) :
+        label f * crosses f (firstEdge i) = 0 := by
+      cases hbit : label f
+      · simp [← Bool.zero_eq_false]
+      · obtain ⟨k, _, j, rfl⟩ := (hlabel _).mp hbit
+        have hk : k ≠ 0 := by
+          rintro rfl
+          exact hf (Finset.mem_map.mpr ⟨j, Finset.mem_univ _, rfl⟩)
+        change true * crosses (path k j).1 (path 0 i).1 = 0
+        rw [hcross k 0 hk j i, mul_zero]
+    rw [show contribution (firstEdge i) = ∑ f, label f * crosses f (firstEdge i) from rfl,
+      ← Finset.sum_subset (Finset.subset_univ firstEdges) (fun f _ => outside f)]
+    simp [firstEdges, Finset.sum_map, firstLabel, ← Bool.one_eq_true]
+  have firstTotal : (∑ i, contribution (firstEdge i)) = 0 := by
+    simp_rw [firstRow]
+    rw [← Fintype.sum_prod_type (fun a : Fin (length 0 + 1) × Fin (length 0 + 1) =>
+      crosses (firstEdge a.2) (firstEdge a.1))]
+    refine Finset.sum_ninvolution Prod.swap ?_ ?_ (fun _ => Finset.mem_univ _) Prod.swap_swap
+    · intro a
+      change crosses (firstEdge a.2) (firstEdge a.1) +
+        crosses (firstEdge a.1) (firstEdge a.2) = 0
+      rw [hsymm (firstEdge a.2) (firstEdge a.1), BooleanRing.add_self]
+    · rintro ⟨i, j⟩ hne he
+      have hij : j = i := congrArg Prod.fst he
+      exact hne (hij ▸ hdiag (firstEdge i))
+  have lastRow (i : Fin (length 2 + 1)) : contribution (path 2 i).1 = 0 := by
+    apply Finset.sum_eq_zero
+    intro f _
+    cases hbit : label f
+    · simp [← Bool.zero_eq_false]
+    · obtain ⟨k, hk, j, rfl⟩ := (hlabel _).mp hbit
+      rw [hcross k 2 hk j i, mul_zero]
+  have firstEnds := r.color_ends_eq_of_dart_path (path 0) color label contribution
+    (hstep 0) hedge hsector
+  change _ = label (firstEdge (Fin.last (length 0))) + ∑ i, contribution (firstEdge i)
+    at firstEnds
+  rw [firstLabel, firstTotal, add_zero] at firstEnds
+  have lastEnds := r.color_ends_eq_of_dart_path (path 2) color label contribution
+    (hstep 2) hedge hsector
+  simp only [hlast, lastRow, Finset.sum_const_zero, add_zero] at lastEnds
+  have order {w : ℕ} (ports : Fin 3 ≃ {d : Dart G // d.vertex = w})
+      (h0 : label (ports 0).val.1 = true) (h2 : label (ports 2).val.1 = false) :
+      color (ports 0).val + color (ports 2).val = true ↔
+        r.rotate.symm (ports 0).val = (ports 2).val := by
+    have distinct {a b : Fin 3} (hne : a ≠ b) :
+        (ports a).val ≠ (ports b).val :=
+      fun he => hne (ports.injective (Subtype.ext he))
+    refine r.color_sum_eq_true_iff_inverse_rotate_of_three_darts color label hsector
+      (ports 0).val (ports 1).val (ports 2).val
+      ((ports 0).property.trans (ports 1).property.symm)
+      ((ports 0).property.trans (ports 2).property.symm)
+      (distinct (by decide)) (distinct (by decide)) (distinct (by decide)) ?_ h0 h2
+    intro d hd
+    obtain ⟨k, hk⟩ := ports.surjective ⟨d, hd.trans (ports 0).property⟩
+    have he := congrArg Subtype.val hk.symm
+    fin_cases k
+    · exact Or.inl he
+    · exact Or.inr (Or.inl he)
+    · exact Or.inr (Or.inr he)
+  have startOrder := order start (by rw [hstart]; exact firstLabel _)
+    (by rw [hstart]; exact hlast _)
+  have finishOrder := order finish (by rw [hfinish]; exact firstLabel _)
+    (by rw [hfinish]; exact hlast _)
+  have opposite : ∀ p q s t : Bool, p + q = true → s + t = false →
+      (p + s = true ↔ q + t ≠ true) := by decide
+  have colorsOpposite : color (start 0).val + color (start 2).val = true ↔
+      color (finish 0).val + color (finish 2).val ≠ true := by
+    rw [hstart 0, hstart 2, hfinish 0, hfinish 2]
+    exact opposite _ _ _ _ firstEnds lastEnds
+  exact startOrder.symm.trans (colorsOpposite.trans finishOrder.not)
 
 end Cslib.Complexity.Graph.RotationSystem

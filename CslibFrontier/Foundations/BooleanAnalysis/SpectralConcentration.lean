@@ -36,7 +36,10 @@ Coefficients of absolute value at most `θ` on `T` weigh at most `θ ‖f̂‖�
 algorithm (`UniformLearning.uniformError_kmHypothesis_le`). So a function with small spectral
 `1`-norm is `ε`-concentrated on a collection of at most `‖f̂‖₁ ^ 2 / ε` sets
 (`BitString.exists_card_le_sum_fourierCoeff_sq_le`) [O'Donnell, Exercise 3.16][ODonnell2014]; the
-proof takes the sets `S` with `ε ≤ ‖f̂‖₁ |f̂(S)|`.
+proof takes the sets `S` with `ε ≤ ‖f̂‖₁ |f̂(S)|`. Against any collection `F`, the coefficients of
+absolute value at most `θ` on `T` weigh at most their weight off `F` plus `#F θ²`
+(`BitString.sum_fourierCoeff_sq_le_sum_compl_add`), the estimate behind learning concentrated
+classes (`UniformLearning.kmLearner_learns_concentrated`).
 
 ## Usage
 
@@ -65,7 +68,8 @@ form of Exercise 3.17, and combine Exercise 3.16 with sign rounding, in
 * `Cslib.BitString.sum_fourierCoeff_sq_le_expect_sub_sq`: approximation by a function with no
   weight on `T`.
 * `Cslib.BitString.sum_fourierCoeff_sq_le_two_mul_add`: Exercise 3.17.
-* `Cslib.BitString.sum_fourierCoeff_sq_le_mul_sum_abs`: the weight of small coefficients.
+* `Cslib.BitString.sum_fourierCoeff_sq_le_mul_sum_abs`,
+  `Cslib.BitString.sum_fourierCoeff_sq_le_sum_compl_add`: the weight of small coefficients.
 * `Cslib.BitString.exists_card_le_sum_fourierCoeff_sq_le`: Exercise 3.16.
 
 ## References
@@ -122,6 +126,25 @@ theorem sum_fourierCoeff_sq_le_mul_sum_abs {T : Finset (Finset ι)} {f : (ι →
     (sum_le_univ_sum_of_nonneg fun _ => mul_nonneg hθ (abs_nonneg _))
   rw [← sq_abs, sq]
   exact mul_le_mul_of_nonneg_right (h S hS) (abs_nonneg _)
+
+/-- **The weight of small coefficients against a collection**: if every coefficient of `f` on `T`
+has absolute value at most `θ`, then the weight of `f` on `T` is at most its weight off any
+collection `F` plus `#F θ²`. With `T` the sets whose coefficient is below `θ`, this bounds what the
+Kushilevitz–Mansour search misses for a function concentrated on `F`. -/
+theorem sum_fourierCoeff_sq_le_sum_compl_add {T : Finset (Finset ι)} {f : (ι → Bool) → ℝ}
+    {θ : ℝ} (h : ∀ S ∈ T, |fourierCoeff f S| ≤ θ) (F : Finset (Finset ι)) :
+    ∑ S ∈ T, fourierCoeff f S ^ 2 ≤ ∑ S ∈ Fᶜ, fourierCoeff f S ^ 2 + #F * θ ^ 2 := by
+  rw [← sum_filter_add_sum_filter_not T (fun S => S ∈ F), add_comm]
+  refine add_le_add (sum_le_sum_of_subset_of_nonneg
+    (fun S hS => mem_compl.2 (mem_filter.1 hS).2) fun _ _ _ => sq_nonneg _) ?_
+  calc ∑ S ∈ T with S ∈ F, fourierCoeff f S ^ 2 ≤ ∑ _S ∈ T with _S ∈ F, θ ^ 2 :=
+        sum_le_sum fun S hS => by
+          rw [← sq_abs]
+          exact pow_le_pow_left₀ (abs_nonneg _) (h S (mem_filter.1 hS).1) 2
+    _ = #(T.filter fun S => S ∈ F) * θ ^ 2 := by rw [sum_const, nsmul_eq_mul]
+    _ ≤ #F * θ ^ 2 := by
+        gcongr
+        exact fun S hS => (mem_filter.1 hS).2
 
 /-- **Small spectral `1`-norm forces concentration on few sets**: the spectrum of `f` is
 `ε`-concentrated on a collection of at most `‖f̂‖₁ ^ 2 / ε` sets

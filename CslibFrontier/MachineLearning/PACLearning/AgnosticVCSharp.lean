@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.MachineLearning.PACLearning.VCUniformConvergence
 public import CslibFrontier.MachineLearning.PACLearning.VCUpperBound
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import CslibFrontier.MachineLearning.PACLearning.VCDimension
 import CslibFrontier.MachineLearning.Rademacher.Chaining
@@ -322,10 +323,8 @@ theorem measure_pi_not_isRepresentative_le_of_chainingSampleSize_le_of_lossClass
   rw [chainingSampleSize, div_le_iff₀ (by positivity)] at hm
   refine (measure_pi_not_isRepresentative_le_exp_of_lossClass D hloss hε.le (by linarith)).trans
     (ENNReal.ofReal_le_ofReal ?_)
-  calc 4 * Real.exp (-(m * ε ^ 2 / 32)) ≤ 4 * Real.exp (-Real.log (4 / δ)) := by
-        gcongr
-        linarith
-    _ = δ := by rw [Real.exp_neg, Real.exp_log (by positivity), inv_div]; ring
+  rw [show -(m * ε ^ 2 / 32) = -(1 * (m * ε ^ 2 / 32)) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl four_pos one_pos hδ (by rw [div_one]; linarith)
 
 end LossClass
 

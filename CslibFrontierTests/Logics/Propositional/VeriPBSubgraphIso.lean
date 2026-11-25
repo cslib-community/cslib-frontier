@@ -12,10 +12,10 @@ public import Mathlib.Combinatorics.SimpleGraph.Hasse
 
 /-! Subgraph isomorphism under the ordinary imports of its API: the simple graph of a LAD graph,
 the variables and constraints of the encoding, evaluated by the kernel (`decide`), the correctness
-theorems on an assignment checked by the kernel, and the end-to-end theorems in the shapes a
-client uses them. The LAD reader and the checkers have no exposed bodies;
-`CslibFrontierTests.Logics.Propositional.VeriPBSubgraphIsoDecide` evaluates them in the kernel,
-with proofs checked against LAD texts and Mathlib's graphs. -/
+theorems on an assignment checked by the kernel, CakePB's variable names and their cover of the
+encoding, and the end-to-end theorems in the shapes a client uses them. The LAD reader and the
+checkers have no exposed bodies; `CslibFrontierTests.Logics.Propositional.VeriPBSubgraphIsoDecide`
+evaluates them in the kernel, with proofs checked against LAD texts and Mathlib's graphs. -/
 
 @[expose] public section
 
@@ -75,6 +75,33 @@ example : ¬ ∃ σ : ℕ → Bool,
   rw [exists_holds_isoConstraints_iff]
   rintro ⟨f⟩
   simpa using Fintype.card_le_of_injective f f.injective
+
+/-! ### CakePB's names -/
+
+-- The pattern vertex `1` mapped to the target vertex `2` is named `x1_2`, as by `cake_pb_iso`.
+example : isoName 1 2 = "x1_2" := by decide
+
+example : (isoNames 2 3).name (isoVar 3 (1 : Fin 2) (2 : Fin 3)) = "x1_2" := by
+  rw [name_isoNames_isoVar]
+  decide
+
+open Text in
+/-- **A copy from the solution of a `SAT` proof**: the names cover the encoding, so the solution
+logged by an accepted proof solves it, and its literal `xa_u` tells whether the copy sends the
+pattern vertex `a` to the target vertex `u`. -/
+example {p t : ℕ} (P : SimpleGraph (Fin p)) [DecidableRel P.Adj] (T : SimpleGraph (Fin t))
+    [DecidableRel T.Adj] {pbp : String} {ρ : List (Literal ℕ)}
+    (h : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).map
+      (·.1) = some (Conclusion.sat (some ρ))) :
+    ∃ f : P.Copy T, ∀ (a : Fin p) (u : Fin t), (ρ.map fun l =>
+      ((proofNames (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).name l.1,
+        l.2)).contains (isoName a u, true) = decide (f a = u) := by
+  obtain ⟨f, hf⟩ := (forall_holds_isoConstraints_iff P T _).1
+    (holds_of_checkOPB_printOPB_sat (isoNames_covers P T) h)
+  refine ⟨f, fun a u => ?_⟩
+  have := hf a u
+  simp only [name_isoNames_isoVar] at this
+  exact this
 
 /-! ### End to end -/
 
