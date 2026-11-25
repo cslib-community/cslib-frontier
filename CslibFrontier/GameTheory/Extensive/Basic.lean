@@ -306,8 +306,7 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
           if ∀ h : H i, ∀ p ∈ σ, p.1 = h → (⟨h, s h⟩ : Choice H Act i) = p then
             ∏ h : H i, β h (s h)
           else 0 := by
-        refine sum_congr rfl fun s _ => ?_
-        rw [if_congr (hmatch s) rfl rfl]
+        exact sum_congr rfl fun s _ => if_congr (hmatch s) rfl rfl
     _ = ∏ h : H i, ∑ a : Act i h,
           if ∀ p ∈ σ, p.1 = h → (⟨h, a⟩ : Choice H Act i) = p then β h a else 0 :=
         sum_pi_ite_eq (fun h a => β h a)
@@ -342,31 +341,20 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
                 rcases List.mem_cons.1 hp with rfl | hp
                 · rfl
                 · exact absurd hp1 (hq p hp).symm
-            calc (∑ a : Act i qh,
-                    if ∀ p ∈ (⟨qh, qa⟩ :: σ), p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p
-                    then β qh a else 0)
-                = ∑ a : Act i qh, if a = qa then β qh a else 0 :=
-                  sum_congr rfl fun a _ => if_congr (hiff a) rfl rfl
-              _ = β qh qa := by simp
+            exact (sum_congr rfl fun a _ => if_congr (hiff a) rfl rfl).trans (by simp)
           have htail : (∑ a : Act i qh,
               if ∀ p ∈ σ, p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p then β qh a else 0) = 1 := by
-            have hiff : ∀ a : Act i qh,
-                (∀ p ∈ σ, p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p) ↔ True :=
-              fun a => iff_true_intro fun p hp hp1 => absurd hp1 (hq p hp).symm
-            simp only [hiff, ↓reduceIte]
-            exact (hβ qh).sum_eq_one
+            rw [← (hβ qh).sum_eq_one]
+            exact sum_congr rfl fun a _ => ite_eq_left fun p hp hp1 => absurd hp1 (hq p hp).symm
           rw [hsum, htail, one_mul]
           congr 1
           refine prod_congr rfl fun h hh => ?_
           have hne : h ≠ qh := ne_of_mem_erase hh
-          refine sum_congr rfl fun a _ => if_congr ?_ rfl rfl
-          constructor
-          · intro h1 p hp hp1
-            exact h1 p (List.mem_cons_of_mem _ hp) hp1
-          · intro h1 p hp hp1
-            rcases List.mem_cons.1 hp with rfl | hp
-            · exact absurd hp1 hne.symm
-            · exact h1 p hp hp1
+          refine sum_congr rfl fun a _ => if_congr ⟨fun h1 p hp => h1 p (List.mem_cons_of_mem _ hp),
+            fun h1 p hp hp1 => ?_⟩ rfl rfl
+          rcases List.mem_cons.1 hp with rfl | hp
+          · exact absurd hp1 hne.symm
+          · exact h1 p hp hp1
 
 end Strategies
 
@@ -778,12 +766,8 @@ theorem ExtensiveTree.evalPure_eq_sum_terminal [∀ i h, Fintype (Act i h)]
     rw [← e.sum_comp, Fintype.sum_sigma]
     simp only [ExtensiveTree.evalPure, e, Equiv.coe_fn_mk, terminalProbPure, Terminal.payoff]
     rw [ExtensiveTree.evalPure_eq_sum_terminal s (next (s i h)) j]
-    rw [sum_eq_single (s i h)]
-    · simp
-    · intro a _ ha
-      simp [Ne.symm ha]
-    · intro hmem
-      exact absurd (mem_univ _) hmem
+    rw [sum_eq_single (s i h) (fun a _ ha => by simp [Ne.symm ha]) (by simp)]
+    simp
 
 theorem ExtensiveTree.evalBehavior_eq_sum_terminal [∀ i h, Fintype (Act i h)]
     (β : ∀ i, ∀ h : H i, Act i h → ℝ) :
@@ -902,12 +886,8 @@ theorem terminalProbWithFactor_realizationProbMixed [Fintype ι] [DecidableEq ι
     intro j hj
     rw [Function.update_of_ne (ne_of_mem_erase hj)]
     simp only [realizationProbMixed]
-    rw [sum_eq_single (s j)]
-    · simp
-    · intro t _ ht
-      simp [Pi.single_eq_of_ne ht]
-    · intro hmem
-      exact absurd (mem_univ _) hmem
+    rw [sum_eq_single (s j) (fun t _ ht => by simp [Pi.single_eq_of_ne ht]) (by simp)]
+    simp
   rw [hself, prod_congr rfl hother]
   ring
 
@@ -1008,13 +988,8 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
         have hne : j ≠ i := ne_of_mem_erase hj
         simp only [hne, ↓reduceDIte]
         split_ifs <;> simp
-      calc (∏ j, g j (s j)) * (z.chanceWeight * r (z.seq i) *
-              ∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then 1 else 0)
-          = z.chanceWeight * r (z.seq i) * ((∏ j, g j (s j)) *
-              ∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then 1 else 0) := by ring
-        _ = z.chanceWeight * r (z.seq i) *
-              ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
-                else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by rw [hlhs]
+      rw [← hlhs]
+      ring
     simp_rw [hfactor, ← mul_sum]
     congr 1
     rw [(Fintype.prod_sum fun j (s_j : PureStrategy H Act j) =>
@@ -1025,12 +1000,8 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
         if h : i = i then if s_i = h ▸ s₀ then (1 : ℝ) else 0
         else if MatchesSeq s_i (z.seq i) then μ i s_i else 0) = 1 := by
       simp only [↓reduceDIte]
-      rw [sum_eq_single s₀]
-      · simp
-      · intro s_i _ hs
-        simp [hs]
-      · intro hs
-        exact absurd (mem_univ _) hs
+      rw [sum_eq_single s₀ (fun s_i _ hs => by simp [hs]) (by simp)]
+      simp
     rw [hi_one, one_mul]
     refine prod_congr rfl fun j hj => ?_
     have hne : j ≠ i := ne_of_mem_erase hj
