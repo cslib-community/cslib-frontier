@@ -640,23 +640,11 @@ private theorem definiteClause_isSome
   · obtain ⟨⟨i, sign⟩, _, d, _, hC⟩ := h
     unfold headPrevClausesFor at hC
     cases hdir : (if sign then d else -d) <;>
-      simp only [hdir, List.mem_cons, List.not_mem_nil, or_false] at hC
-    · subst hC; rfl
-    · subst hC; rfl
-    · rcases hC with rfl | rfl <;> rfl
+      simp only [hdir, List.mem_cons, List.not_mem_nil, or_false] at hC <;>
+      first | (subst hC; rfl) | (rcases hC with rfl | rfl <;> rfl)
   · obtain ⟨q, _, hC⟩ := h
-    cases q <;> simp only [initClausesFor] at hC
-    · split_ifs at hC
-      · obtain rfl := List.mem_singleton.mp hC; rfl
-      · cases hC
-    · split_ifs at hC
-      · obtain rfl := List.mem_singleton.mp hC; rfl
-      · cases hC
-    · obtain rfl := List.mem_singleton.mp hC; rfl
-    · obtain rfl := List.mem_singleton.mp hC; rfl
-    · split_ifs at hC
-      · obtain rfl := List.mem_singleton.mp hC; rfl
-      · cases hC
+    cases q <;> simp only [initClausesFor] at hC <;> (try split_ifs at hC) <;>
+      first | (obtain rfl := List.mem_singleton.mp hC; rfl) | cases hC
   · obtain ⟨q, _, hC⟩ := h
     obtain ⟨body, _, rfl⟩ := List.mem_map.mp hC
     rfl
