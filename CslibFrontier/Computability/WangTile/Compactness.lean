@@ -46,12 +46,14 @@ private theorem exists_matching {α : Type} (τ : List WangTile) (east north : �
   obtain ⟨f, hf⟩ := Finset.rado_selection_subtype (β := fun _ : α => {t // t ∈ τ}) g
   refine ⟨fun p => (f p).val, fun p => ⟨(f p).property, ?_⟩⟩
   obtain ⟨s, hs, heq⟩ := hf {p, east p, north p}
-  have hp : p ∈ s := hs (by simp); have he : east p ∈ s := hs (by simp)
+  have hp : p ∈ s := hs (by simp)
+  have he : east p ∈ s := hs (by simp)
   have hn : north p ∈ s := hs (by simp)
+  have ep : f p = g s ⟨p, hp⟩ := heq ⟨p, by simp⟩
+  have ee : f (east p) = g s ⟨east p, he⟩ := heq ⟨east p, by simp⟩
+  have en : f (north p) = g s ⟨north p, hn⟩ := heq ⟨north p, by simp⟩
   dsimp only
-  rw [show f p = g s ⟨p, hp⟩ from heq ⟨p, by simp⟩,
-    show f (east p) = g s ⟨east p, he⟩ from heq ⟨east p, by simp⟩,
-    show f (north p) = g s ⟨north p, hn⟩ from heq ⟨north p, by simp⟩]
+  rw [ep, ee, en]
   exact ⟨(hg s).1 ⟨p, hp⟩, (hg s).2.1 ⟨p, hp⟩ ⟨east p, he⟩ rfl,
     (hg s).2.2 ⟨p, hp⟩ ⟨north p, hn⟩ rfl⟩
 
@@ -59,55 +61,98 @@ private theorem exists_matching {α : Type} (τ : List WangTile) (east north : �
 theorem tilesPlane_iff_squares (τ : List WangTile) :
     TilesPlane τ ↔ ∀ n, Nonempty (Rectangle τ (n + 1) (n + 1)) := by
   classical
-  refine ⟨fun ⟨f, hf⟩ n => ⟨⟨fun i j => f i j, fun i j => (hf i j).1,
-    fun i j _ => by simpa using (hf i j).2.1, fun i j _ => by simpa using (hf i j).2.2⟩⟩,
-    fun h => ?_⟩
-  obtain ⟨f, hf⟩ := exists_matching τ (fun p : ℤ × ℤ => (p.1 + 1, p.2))
-    (fun p => (p.1, p.2 + 1)) (fun _ _ => True) fun s => by
-      let N := s.sup fun p => max p.1.natAbs p.2.natAbs
-      let q := (h (2 * N)).some
-      have bounds (p : s) : -(N : ℤ) ≤ p.1.1 ∧ p.1.1 ≤ N ∧ -(N : ℤ) ≤ p.1.2 ∧ p.1.2 ≤ N := by
-        have : p.1.1.natAbs ≤ N := Finset.le_sup_of_le p.2 (Nat.le_max_left _ _)
-        have : p.1.2.natAbs ≤ N := Finset.le_sup_of_le p.2 (Nat.le_max_right _ _); omega
-      let ix (p : s) : Fin (2 * N + 1) := ⟨(p.1.1 + N).toNat, by have := bounds p; omega⟩
-      let iy (p : s) : Fin (2 * N + 1) := ⟨(p.1.2 + N).toNat, by have := bounds p; omega⟩
-      refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, fun _ => trivial, ?_, ?_⟩
-      · intro p r hr
-        have hx : (ix p).val + 1 = (ix r).val := by
-          have := bounds p; have := bounds r; have := congrArg Prod.fst hr; dsimp only [ix]; omega
-        have hy : iy p = iy r := by have := congrArg Prod.snd hr; fin_index [iy]
-        simpa only [hy, Fin.ext_iff, hx] using q.horizontal (ix p) (iy p) (by omega)
-      · intro p r hr
-        have hx : ix p = ix r := by have := congrArg Prod.fst hr; fin_index [ix]
-        have hy : (iy p).val + 1 = (iy r).val := by
-          have := bounds p; have := bounds r; have := congrArg Prod.snd hr; dsimp only [iy]; omega
-        simpa only [hx, Fin.ext_iff, hy] using q.vertical (ix p) (iy p) (by omega)
-  exact ⟨fun x y => f (x, y), fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
+  constructor
+  · rintro ⟨f, hf⟩ n
+    exact ⟨{
+      tile := fun i j => f i.val j.val
+      mem := fun i j => (hf i.val j.val).1
+      horizontal := fun i j hi => by simpa using (hf i.val j.val).2.1
+      vertical := fun i j hj => by simpa using (hf i.val j.val).2.2 }⟩
+  · intro h
+    have localPatch (s : Finset (ℤ × ℤ)) := h (2 * s.sup fun p => max p.1.natAbs p.2.natAbs)
+    obtain ⟨f, hf⟩ := exists_matching τ (fun p : ℤ × ℤ => (p.1 + 1, p.2))
+      (fun p => (p.1, p.2 + 1)) (fun _ _ => True) (by
+        intro s
+        let N := s.sup fun p => max p.1.natAbs p.2.natAbs
+        let q := (localPatch s).some
+        have bounds (p : s) : -(N : ℤ) ≤ p.val.1 ∧ p.val.1 ≤ N ∧
+            -(N : ℤ) ≤ p.val.2 ∧ p.val.2 ≤ N := by
+          have hx : p.val.1.natAbs ≤ N :=
+            Finset.le_sup_of_le p.property (Nat.le_max_left _ _)
+          have hy : p.val.2.natAbs ≤ N :=
+            Finset.le_sup_of_le p.property (Nat.le_max_right _ _)
+          omega
+        let ix (p : s) : Fin (2 * N + 1) :=
+          ⟨(p.val.1 + N).toNat, by have := bounds p; omega⟩
+        let iy (p : s) : Fin (2 * N + 1) :=
+          ⟨(p.val.2 + N).toNat, by have := bounds p; omega⟩
+        refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, fun _ => trivial, ?_, ?_⟩
+        · intro p r hr
+          have hx : (ix p).val + 1 = (ix r).val := by
+            have := bounds p
+            have := bounds r
+            have hfirst := congrArg Prod.fst hr
+            have hsecond := congrArg Prod.snd hr
+            dsimp only [ix]
+            omega
+          have hy : iy p = iy r := by
+            have hsecond := congrArg Prod.snd hr
+            fin_index [iy]
+          simpa only [hy, Fin.ext_iff, hx] using
+            q.horizontal (ix p) (iy p) (by omega : (ix p).val + 1 < 2 * N + 1)
+        · intro p r hr
+          have hx : ix p = ix r := by
+            have hfirst := congrArg Prod.fst hr
+            fin_index [ix]
+          have hy : (iy p).val + 1 = (iy r).val := by
+            have := bounds p
+            have := bounds r
+            have hfirst := congrArg Prod.fst hr
+            have hsecond := congrArg Prod.snd hr
+            dsimp only [iy]
+            omega
+          simpa only [hx, Fin.ext_iff, hy] using
+            q.vertical (ix p) (iy p) (by omega : (iy p).val + 1 < 2 * N + 1))
+    exact ⟨fun x y => f (x, y), fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
 
 /-- A seeded palette tiles the quadrant iff it has seeded squares of every positive side. -/
 theorem tilesQuadrant_iff_seededSquares (I : SeededInstance) :
     TilesQuadrant I ↔ ∀ n, Nonempty (SeededSquare I n) := by
   classical
-  refine ⟨fun ⟨f, hseed, hf⟩ n => ⟨⟨⟨fun i j => f i j, fun i j => (hf i j).1,
-    fun i j _ => (hf i j).2.1, fun i j _ => (hf i j).2.2⟩, hseed⟩⟩, fun h => ?_⟩
-  obtain ⟨f, hf⟩ := exists_matching I.tiles (fun p : ℕ × ℕ => (p.1 + 1, p.2))
-    (fun p => (p.1, p.2 + 1)) (fun p t => p = (0, 0) → t = I.seed) fun s => by
-      let N := s.sup fun p => max p.1 p.2
-      let q := (h N).some
-      let ix (p : s) : Fin (N + 1) :=
-        ⟨p.1.1, Nat.lt_succ_of_le (Finset.le_sup_of_le p.2 (Nat.le_max_left _ _))⟩
-      let iy (p : s) : Fin (N + 1) :=
-        ⟨p.1.2, Nat.lt_succ_of_le (Finset.le_sup_of_le p.2 (Nat.le_max_right _ _))⟩
-      refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, fun p hp => ?_,
-        fun p r hr => ?_, fun p r hr => ?_⟩
-      · simpa only [show ix p = 0 from Fin.ext (congrArg Prod.fst hp),
-          show iy p = 0 from Fin.ext (congrArg Prod.snd hp)] using q.corner
-      · have hx : (ix p).val + 1 = (ix r).val := (congrArg Prod.fst hr).symm
-        simpa only [show iy p = iy r from Fin.ext (congrArg Prod.snd hr).symm, Fin.ext_iff, hx]
-          using q.horizontal (ix p) (iy p) (by omega)
-      · have hy : (iy p).val + 1 = (iy r).val := (congrArg Prod.snd hr).symm
-        simpa only [show ix p = ix r from Fin.ext (congrArg Prod.fst hr).symm, Fin.ext_iff, hy]
-          using q.vertical (ix p) (iy p) (by omega)
-  exact ⟨fun x y => f (x, y), (hf _).2.1 rfl, fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
+  constructor
+  · rintro ⟨f, hseed, hf⟩ n
+    exact ⟨{
+      tile := fun i j => f i.val j.val
+      mem := fun i j => (hf i.val j.val).1
+      horizontal := fun i j hi => (hf i.val j.val).2.1
+      vertical := fun i j hj => (hf i.val j.val).2.2
+      corner := hseed }⟩
+  · intro h
+    obtain ⟨f, hf⟩ := exists_matching I.tiles (fun p : ℕ × ℕ => (p.1 + 1, p.2))
+      (fun p => (p.1, p.2 + 1)) (fun p t => p = (0, 0) → t = I.seed) (by
+        intro s
+        let N := s.sup fun p => max p.1 p.2
+        let q := (h N).some
+        let ix (p : s) : Fin (N + 1) :=
+          ⟨p.val.1, Nat.lt_succ_of_le (Finset.le_sup_of_le p.property (Nat.le_max_left _ _))⟩
+        let iy (p : s) : Fin (N + 1) :=
+          ⟨p.val.2, Nat.lt_succ_of_le (Finset.le_sup_of_le p.property (Nat.le_max_right _ _))⟩
+        refine ⟨fun p => ⟨q.tile (ix p) (iy p), q.mem _ _⟩, ?_, ?_, ?_⟩
+        · intro p hp
+          have hx : ix p = 0 := Fin.ext (congrArg Prod.fst hp)
+          have hy : iy p = 0 := Fin.ext (congrArg Prod.snd hp)
+          simpa only [hx, hy] using q.corner
+        · intro p r hr
+          have hx : (ix p).val + 1 = (ix r).val := (congrArg Prod.fst hr).symm
+          have hy : iy p = iy r := Fin.ext (congrArg Prod.snd hr).symm
+          simpa only [hy, Fin.ext_iff, hx] using
+            q.horizontal (ix p) (iy p) (by omega : (ix p).val + 1 < N + 1)
+        · intro p r hr
+          have hx : ix p = ix r := Fin.ext (congrArg Prod.fst hr).symm
+          have hy : (iy p).val + 1 = (iy r).val := (congrArg Prod.snd hr).symm
+          simpa only [hx, Fin.ext_iff, hy] using
+            q.vertical (ix p) (iy p) (by omega : (iy p).val + 1 < N + 1))
+    exact ⟨fun x y => f (x, y), (hf _).2.1 rfl,
+      fun x y => ⟨(hf _).1, (hf _).2.2⟩⟩
 
 end Cslib.WangTile
