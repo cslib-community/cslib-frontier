@@ -232,36 +232,17 @@ theorem zeroBlockCode_spec {w : ℕ} (baseReg : Fin 28) (hbr : baseReg.val < 18)
   let x₁ := (x.set addr B).set jEndReg (B + N)
   have hprep : ExecWithin (B := .standard) w
       (ram[ addr ← baseReg; jEndReg ← baseReg + nVerts ]) x x₁ 2 := by
-    have hb_ne : baseReg ≠ addr := by reg_ne
-    have hn_ne : nVerts ≠ addr := by reg_ne
-    have heval : BinOp.add.eval ((x.set addr B).regs baseReg) ((x.set addr B).regs nVerts) =
-        B + N := by
-      rw [Data.set_regs_of_ne hb_ne, Data.set_regs_of_ne hn_ne, hB, hN]; rfl
-    have he1 : Exec (B := .standard) w (ram[ addr ← baseReg ]) x (x.set addr B) 1 := by
-      simpa [hB] using (Exec.copy (B := .standard) (w := w) (x := x) (d := addr) (s := baseReg))
-    have he2 : Exec (B := .standard) w (ram[ jEndReg ← baseReg + nVerts ]) (x.set addr B) x₁ 1 := by
-      have hfit' : Fits w (BinOp.add.eval ((x.set addr B).regs baseReg)
-          ((x.set addr B).regs nVerts)) := by rwa [heval]
-      have h : Exec (B := .standard) w (ram[ jEndReg ← baseReg + nVerts ]) (x.set addr B) _ 1 :=
-        Exec.bin hfit'
-      rwa [heval] at h
-    exact ⟨2, le_rfl, he1.seq he2⟩
-  have hx₁_addr : x₁.regs addr = B := by dsimp only [x₁]; wram_simp
-  have hx₁_stop : x₁.regs jEndReg = B + N := by dsimp only [x₁]; wram_simp
-  have hx₁_0 : x₁.regs cZero = 0 := by dsimp only [x₁]; wram_simp; exact hc0
-  have hx₁_1 : x₁.regs cOne = 1 := by dsimp only [x₁]; wram_simp; exact hc1
+    wram_exec [hB, hN, hfit]
+  have hx₁_addr : x₁.regs addr = B := by wram_simp [x₁]
+  have hx₁_stop : x₁.regs jEndReg = B + N := by wram_simp [x₁]
   have hzf := zeroFill_exec (w := w) (cur := addr) (stop := jEndReg) (zero := cZero) (one := cOne)
-    (x := x₁) (by decide) (by decide) (by decide) hx₁_0 hx₁_1
+    (x := x₁) (by decide) (by decide) (by decide) (by wram_simp [x₁, hc0]) (by wram_simp [x₁, hc1])
     (by rw [hx₁_addr, hx₁_stop]; omega) (by rw [hx₁_stop]; exact hfit)
   rw [hx₁_addr, hx₁_stop, Nat.add_sub_cancel_left] at hzf
-  have hzf_w : ExecWithin w (zeroFill addr jEndReg cZero cOne) x₁
-      ⟨Function.update x₁.regs addr (B + N), clear x₁.mem B N⟩ (4 * N + 2) :=
-    ⟨4 * N + 2, le_rfl, hzf⟩
-  refine ⟨_, (hprep.seq hzf_w).mono (by omega), fun i hi => ?_, fun a ha => ?_, fun r hr => ?_⟩
+  refine ⟨_, (hprep.seq hzf.within).mono (by omega), fun i hi => ?_, fun a ha => ?_, fun r hr => ?_⟩
   · exact clear_of_owns ⟨Nat.le_add_right B i, Nat.add_lt_add_left hi B⟩
   · exact clear_of_not_owns ha
-  · have hne1 : r ≠ addr := by reg_ne
-    simp only [x₁, Function.update_of_ne hne1]
+  · simp only [x₁, Function.update_of_ne (show r ≠ addr by reg_ne)]
     regs_lt
 
 /-- `zeroBlockCode baseReg` does not read the word width. -/
@@ -296,15 +277,13 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r) := by
   have hlt := src.isLt
   have hm_src := hmem src
-  have hf_addr : Fits w (curBase + src.val) := hfit.of_le (by omega)
-  have hf_val : Fits w (deg src + 1) := hfit.of_le (by omega)
   let IncPost (y : Data 28) : Prop :=
     (∀ u : Fin N, y.mem (curBase + u.val) = Function.update deg src (deg src + 1) u) ∧
       (∀ a, ¬ (curBase ≤ a ∧ a < curBase + N) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
   change ∃ y, ExecWithin w incCurCode x y 4 ∧ IncPost y
   unfold incCurCode
-  wram_exec [hc1, hcur, hsrc, hm_src, hf_addr, hf_val]
+  wram_exec [hc1, hcur, hsrc, hm_src]
   dsimp only [IncPost]
   refine ⟨fun u => ?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd
@@ -378,28 +357,18 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       ∃ z, ExecWithin w prefixSumBody y z 7 ∧
         P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1 := by
     intro y ⟨hy_fr, hy_p, hy_off, hy_deg, hy_out⟩ hlt
-    have hy1 : y.regs cOne = 1 := (hy_fr cOne (by decide)).trans hc1
-    have hyD : y.regs curB = degBase := (hy_fr curB (by decide)).trans hdegB
-    have hyO : y.regs offB = offBase := (hy_fr offB (by decide)).trans hoffB
     have hdeg_k : y.mem (degBase + y.regs iReg) = (targetAdj ⟨y.regs iReg, hlt⟩).length := by
-      have := hy_deg ⟨y.regs iReg, hlt⟩
-      simpa using this
+      simpa using hy_deg ⟨y.regs iReg, hlt⟩
     have hoff_succ : csrOffset targetAdj (y.regs iReg + 1) =
         csrOffset targetAdj (y.regs iReg) + (targetAdj ⟨y.regs iReg, hlt⟩).length :=
       csrOffset_succ targetAdj hlt
     have hoff_le : csrOffset targetAdj (y.regs iReg + 1) ≤ Mc :=
       (csrOffset_mono targetAdj (by omega : y.regs iReg + 1 ≤ N)).trans hmc
-    have hf_daddr : Fits w (degBase + y.regs iReg) := hfit.of_le (by omega)
-    have hf_psum : Fits w (csrOffset targetAdj (y.regs iReg) +
-        (targetAdj ⟨y.regs iReg, hlt⟩).length) :=
-      hfit.of_le (by omega)
-    have hf_k1 : Fits w (y.regs iReg + 1) := hfit.of_le (by omega)
-    have hf_oaddr : Fits w (offBase + (y.regs iReg + 1)) := hfit.of_le (by omega)
     let BodyPost (z : Data 28) : Prop :=
       P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1
     change ∃ z, ExecWithin w prefixSumBody y z 7 ∧ BodyPost z
     unfold prefixSumBody
-    wram_exec [hy1, hyD, hyO, hy_p, hdeg_k, hf_daddr, hf_psum, hf_k1, hf_oaddr]
+    wram_exec [hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
     dsimp only [BodyPost, P]
     refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
     · regs_lt; exact hy_fr r hr
@@ -594,8 +563,6 @@ theorem backfillStepCode_spec {N w : ℕ}
   have hc_pos : 1 ≤ x.mem (curBase + src.val) := by omega
   have hc_lt_N : c < csrOffset targetAdj N :=
     lt_of_lt_of_le (by omega : c < csrOffset targetAdj (src.val + 1)) hoff_le_N
-  have hf_caddr : Fits w (curBase + src.val) := hfit.of_le (by omega)
-  have hf_eaddr : Fits w (edgeBase + c) := hfit.of_le (by omega)
   have hstep := partialCSRAt_step targetAdj part curBase edgeBase Mc hdisj hmc src dst hroom
     x.mem hp
   let BfPost (y : Data 28) : Prop :=
@@ -605,7 +572,7 @@ theorem backfillStepCode_spec {N w : ℕ}
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
   change ∃ y, ExecWithin w backfillStepCode x y 6 ∧ BfPost y
   unfold backfillStepCode
-  wram_exec [hc1, hcurB, hedgeB, hsrc, hdst, hf_caddr, hf_eaddr]
+  wram_exec [hc1, hcurB, hedgeB, hsrc, hdst]
   dsimp only [BfPost]
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd; exact hstep.1
