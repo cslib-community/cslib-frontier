@@ -134,26 +134,22 @@ theorem trans {S₁ S₂ : State cfg n} {F₁ F₂ : Finset ℕ} {D₁ D₂ T₁
   subset := Finset.union_subset h₁.subset ((h₂.subset.trans h₁.params.le).trans sdiff_subset)
   params := by
     rw [h₂.params, h₁.params]
-    ext u
-    simp only [Finset.mem_sdiff, Finset.mem_union]
-    tauto
+    exact sdiff_sdiff_left
   pairs := by
     rw [h₂.pairs, h₁.pairs, Finset.filter_filter]
     exact Finset.filter_congr fun pr _ => by simp only [Finset.mem_union]; tauto
   size := by rw [List.length_append, ← h₁.size, ← h₂.size]; omega
   children u hu := by
     have hu₁ : u ∈ S₁.params := (h₂.params.le hu |> Finset.mem_sdiff.1).1
-    rcases h₂.children u hu with h₂' | ⟨N, hN, hNu⟩ <;> rcases h₁.children u hu₁ with h₁' | h₁'
-    · refine Or.inl fun N hN => ?_
-      have h₂N := Finset.mem_sdiff.1 (h₂' hN)
-      have h₁N := Finset.mem_sdiff.1 (h₁' h₂N.1)
-      simp only [Finset.mem_sdiff, List.toFinset_append, Finset.mem_union, not_or]
-      exact ⟨h₁N.1, h₁N.2, h₂N.2⟩
-    · obtain ⟨N, hN, hNu⟩ := h₁'
-      exact Or.inr ⟨N, List.mem_append_left _ hN, hNu⟩
-    · exact Or.inr ⟨N, List.mem_append_right _ hN, (Finset.mem_sdiff.1 (h₁' hNu)).1⟩
-    · obtain ⟨N, hN, hNu⟩ := h₁'
-      exact Or.inr ⟨N, List.mem_append_left _ hN, hNu⟩
+    rcases h₁.children u hu₁ with h₁' | ⟨N, hN, hNu⟩
+    · rcases h₂.children u hu with h₂' | ⟨N, hN, hNu⟩
+      · refine Or.inl fun N hN => ?_
+        have h₂N := Finset.mem_sdiff.1 (h₂' hN)
+        have h₁N := Finset.mem_sdiff.1 (h₁' h₂N.1)
+        simp only [Finset.mem_sdiff, List.toFinset_append, Finset.mem_union, not_or]
+        exact ⟨h₁N.1, h₁N.2, h₂N.2⟩
+      · exact Or.inr ⟨N, List.mem_append_right _ hN, (Finset.mem_sdiff.1 (h₁' hNu)).1⟩
+    · exact Or.inr ⟨N, List.mem_append_left _ hN, hNu⟩
   deletable N hN h := by
     rw [List.mem_append, not_or] at hN
     exact h₂.deletable N hN.2 (h₁.deletable N hN.1 h)
@@ -218,28 +214,22 @@ theorem mem_unpaired_iff (h : Reduction f S S' F D T) (hS : S.Valid f) {u : ℕ}
     unfold Paired at hp
     rw [h.pairs] at hp
     obtain ⟨hpu, hpart⟩ := (hS.paired_filter_iff huF).1 hp
-    rcases hc with hc | ⟨x, hx, hux⟩
-    · exact hc hpu
-    · exact hpart x hx hux.symm
+    exact hc.elim (· hpu) fun ⟨x, hx, hux⟩ => hpart x hx hux.symm
 
 /-- A paired parameter that is not the partner of a member of `F` stays paired. -/
 theorem wt_eq_zero (h : Reduction f S S' F D T) (hS : S.Valid f) {u : ℕ} (hu : u ∉ S.unpaired)
     (hpart : ∀ x ∈ F, ¬ S.IsPartner x u) : S'.wt u = 0 := by
   refine wt_of_notMem fun hu' => ?_
   obtain ⟨hup, -, hc⟩ := (h.mem_unpaired_iff hS).1 hu'
-  rcases hc with hc | ⟨x, hx, hxu⟩
-  · exact hu (mem_unpaired.2 ⟨hup, hc⟩)
-  · exact hpart x hx hxu
+  exact hc.elim (fun hc => hu (mem_unpaired.2 ⟨hup, hc⟩)) fun ⟨x, hx, hxu⟩ => hpart x hx hxu
 
 /-- A parameter that no deletion of `T` reroutes to keeps at most its children outside `D`. -/
 theorem wt_le_weight (h : Reduction f S S' F D T) {u : ℕ} (hT : ∀ N ∈ T, N ∉ S.children u) :
     S'.wt u ≤ cfg.weight (S.children u \ D.toFinset).card := by
   by_cases hu : u ∈ S'.unpaired
   · rw [wt_of_mem hu]
-    refine cfg.weight_mono (Finset.card_le_card ?_)
-    rcases h.children u (mem_unpaired.1 hu).1 with h' | ⟨N, hN, hNu⟩
-    · exact h'
-    · exact absurd hNu (hT N hN)
+    exact cfg.weight_mono (Finset.card_le_card ((h.children u (mem_unpaired.1 hu).1).resolve_right
+      fun ⟨N, hN, hNu⟩ => hT N hN hNu))
   · rw [wt_of_notMem hu]; exact Nat.zero_le _
 
 /-- A parameter that no deletion of `T` reroutes to keeps at most its children outside `D`. -/
@@ -481,16 +471,8 @@ theorem Valid.reduction_deleteConstraint {S : State cfg n} (hS : S.Valid f) {N :
       have hrest : ((S.eqn e).terms.erase v).card ≤ 1 := by
         rw [Finset.card_erase_of_mem hvA.1]; omega
       have hterms : (S.eqn e).terms = {v, U} := by
-        ext i
-        simp only [Finset.mem_insert, Finset.mem_singleton]
-        constructor
-        · intro hi
-          by_cases hiv : i = v
-          · exact Or.inl hiv
-          · exact Or.inr (Finset.card_le_one.1 hrest i (Finset.mem_erase.2 ⟨hiv, hi⟩) U hUmem)
-        · rintro (rfl | rfl)
-          · exact hvA.1
-          · exact Finset.mem_of_mem_erase hUmem
+        rw [← Finset.insert_erase hvA.1, Finset.eq_singleton_iff_unique_mem.2
+          ⟨hUmem, fun i hi => Finset.card_le_one.1 hrest i hi U hUmem⟩]
       refine hS.reduction_deleteEqn ⟨he, hvA.2, fun val => ?_, fun t ht => ?_⟩
         fun _ _ => List.mem_singleton_self _
       · unfold Equation.Holds
@@ -504,17 +486,14 @@ theorem Valid.reduction_deleteConstraint {S : State cfg n} (hS : S.Valid f) {N :
       set v := ((S.eqn e).terms.filter (· ∈ S.aux)).min' hA
       have hterms : (S.eqn e).terms = {v} := by
         rw [Finset.not_nonempty_iff_eq_empty, Finset.erase_eq_empty_iff] at hR
-        rcases hR with h | h
-        · rw [h] at hvA; exact absurd hvA.1 (Finset.notMem_empty _)
-        · exact h
+        exact hR.resolve_left fun h => by simp [h] at hvA
       refine hS.reduction_deleteEqn ⟨he, hvA.2, fun val => ?_, fun t ht => by cases ht⟩
         fun _ ht => by cases ht
       unfold Equation.Holds
       rw [hterms, Finset.sum_singleton, Lit.eval_const]
-    · have hsub : (S.eqn e).terms ⊆ S.params := fun i hi => by
-        rcases Finset.mem_union.1 (hS.wf.terms_subset e he hi) with hp | ha
-        · exact hp
-        · exact absurd ⟨i, Finset.mem_filter.2 ⟨hi, ha⟩⟩ hA
+    · have hsub : (S.eqn e).terms ⊆ S.params := fun i hi =>
+        (Finset.mem_union.1 (hS.wf.terms_subset e he hi)).resolve_right
+          fun ha => hA ⟨i, Finset.mem_filter.2 ⟨hi, ha⟩⟩
       exact (hS.reduction_dropTrivialEqn he (hS.terms_eq_empty_of_subset he hsub)).mono
         fun _ hN => absurd hN List.not_mem_nil
 
@@ -534,9 +513,7 @@ theorem Valid.exists_reduction_deleteAll {S : State cfg n} (hS : S.Valid f) (l :
     obtain ⟨S', h₂⟩ := ih h₁.valid hl'.2 fun N' hN' => h₁.deletable N'
       (by rw [List.mem_singleton]; rintro rfl; exact hl'.1 hN')
       (hdel N' (List.mem_cons_of_mem _ hN'))
-    have h := h₁.trans h₂
-    rw [Finset.empty_union] at h
-    exact ⟨S', h⟩
+    exact ⟨S', h₁.trans_delete h₂⟩
 
 end State
 
