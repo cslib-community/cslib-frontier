@@ -130,24 +130,18 @@ theorem lpNorm_two_le_exp_mul_lpNorm {p : ℝ} (hp₀ : 0 < p) (hp₂ : p ≤ 2)
           (1 - ε / (2 + ε - p)) * Real.log B) = ε * Real.log A + (2 - p) * Real.log B := by
         field_simp; ring
       linarith only [this, e]
-    have h2 : Real.log B ≤ (2 + ε) * (k * (Real.log (1 + ε) / 2) + Real.log m / 2) := by
-      have := mul_le_mul_of_nonneg_left hlog2 (by positivity : (0 : ℝ) ≤ 2 + ε)
-      rwa [← mul_assoc, mul_inv_cancel₀ (by positivity : (2 + ε : ℝ) ≠ 0), one_mul] at this
+    have h2 := (inv_mul_le_iff₀ (by positivity : (0 : ℝ) < 2 + ε)).1 hlog2
     have h2p : (0 : ℝ) ≤ 2 - p := by linarith only [hp₂]
     have h3 := mul_le_mul_of_nonneg_left h2 h2p
     have h4 := mul_le_mul_of_nonneg_left hlog3
       (mul_nonneg (mul_nonneg h2p (by positivity)) (Nat.cast_nonneg k) :
         (0 : ℝ) ≤ (2 - p) * (2 + ε) * k)
     exact le_of_mul_le_mul_left (by linarith only [h1, h3, h4]) hε
+  -- let `ε → 0⁺`
   have hkey : p / 2 * Real.log m ≤ Real.log A + (2 - p) * k := by
-    refine le_of_forall_pos_le_add fun δ hδ => ?_
-    have hc : 0 ≤ (2 - p) * k / 2 :=
-      div_nonneg (mul_nonneg (by linarith only [hp₂]) (Nat.cast_nonneg k)) two_pos.le
-    have h := key (δ / ((2 - p) * k / 2 + 1)) (by positivity)
-    have hcδ : (2 - p) * k / 2 * (δ / ((2 - p) * k / 2 + 1)) ≤ δ := by
-      rw [mul_div_assoc', div_le_iff₀ (by positivity)]
-      nlinarith only [hc, hδ]
-    linarith only [h, hcδ]
+    refine ge_of_tendsto ?_ (eventually_nhdsWithin_of_forall (s := Set.Ioi 0) (a := 0) key)
+    exact tendsto_nhdsWithin_of_tendsto_nhds
+      (Continuous.tendsto' (by fun_prop) _ _ (by simp only [mul_zero, add_zero]))
   have hlogm : Real.log m * (1 / 2) ≤ k * (2 / p - 1) + Real.log A * p⁻¹ := by
     have e : (k : ℝ) * (2 / p - 1) + Real.log A * p⁻¹ = (Real.log A + (2 - p) * k) / p := by
       field_simp; ring
@@ -177,12 +171,8 @@ theorem exp_neg_two_mul_le_of_sq_expect_abs_le {k : ℕ} {f : (ι → Bool) → 
   have hsq := pow_le_pow_left₀ (Real.sqrt_nonneg _) h22 2
   rw [Real.sq_sqrt hm.le, mul_pow, ← Real.exp_nat_mul, Nat.cast_ofNat] at hsq
   -- `𝔼 f ^ 2 ≤ e ^ (2 k) (𝔼 |f|) ^ 2 ≤ e ^ (2 k) C 𝔼 f ^ 2`, so `1 ≤ e ^ (2 k) C`
-  have h1 : 1 * 𝔼 x, f x ^ 2 ≤ (Real.exp (2 * k) * C) * 𝔼 x, f x ^ 2 := by
-    calc 1 * 𝔼 x, f x ^ 2 ≤ Real.exp (2 * k) * (𝔼 x, |f x|) ^ 2 := by rwa [one_mul]
-      _ ≤ Real.exp (2 * k) * (C * 𝔼 x, f x ^ 2) := by gcongr
-      _ = (Real.exp (2 * k) * C) * 𝔼 x, f x ^ 2 := (mul_assoc _ _ _).symm
   rw [Real.exp_neg, inv_le_iff_one_le_mul₀' (Real.exp_pos _)]
-  exact le_of_mul_le_mul_right h1 hm
+  nlinarith only [hsq, hC, hm, Real.exp_pos (2 * k)]
 
 /-- **The tail bound for low-degree functions**: if `f ≢ 0` has degree at most `k` and
 `t ≥ √(2 e) ^ k`, then `Pr[|f| ≥ t ‖f‖_2] ≤ exp (-(k / (2 e)) t ^ (2 / k))`
