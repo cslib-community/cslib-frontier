@@ -24,12 +24,14 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEv
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateCriticalLimit
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.RelativeValueSection
 import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
+import Mathlib.Order.Filter.AtTopBot.Ring
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
 
@@ -778,5 +780,23 @@ example : IsClopen {x : {x : ℝ // x ≠ 0} | 0 < x.val} := by
   · intro x hx
     filter_upwards [Filter.eventually_gt_atTop (0 : ℝ)] with v hv
     exact mul_neg_of_neg_of_pos (lt_of_le_of_ne (le_of_not_gt hx) x.property) hv
+
+-- The root branch of the relation u - t = 0 is t = v² at parameter u = v².
+example : ∀ᶠ v : ℝ in Filter.atTop, v < v ^ 2 := by
+  let P : Polynomial (Polynomial ℝ) := Polynomial.X - Polynomial.C Polynomial.X
+  have hP : P ≠ 0 := by
+    intro hz
+    simpa [P] using congrArg (fun Q : Polynomial (Polynomial ℝ) => Q.coeff 1) hz
+  have hdegree (j : ℕ) : (P.coeff j).natDegree ≤ 1 := by
+    by_cases h0 : j = 0
+    · subst j
+      simp [P]
+    by_cases h1 : j = 1
+    · subst j
+      simp [P]
+    · simp [P, Polynomial.coeff_X, Polynomial.coeff_C, h0, Ne.symm h1]
+  refine Polynomial.eventually_lt_of_eval₂_pow_eq_zero P hP hdegree Filter.tendsto_id
+    (Filter.tendsto_pow_atTop (by decide : (2 : ℕ) ≠ 0)) ?_
+  exact Filter.Eventually.of_forall fun v => by simp [P]
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation

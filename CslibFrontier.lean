@@ -6621,6 +6621,7 @@ public import CslibFrontier.Foundations.Algebra.Polynomial.LagrangeInversion
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.AlgebraicValueBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BitBounds
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.CoeffNormBound
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DegreePieceSeparation
