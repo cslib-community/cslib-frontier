@@ -45,38 +45,26 @@ private def rate (n : ℕ) : OpKind → ℕ
 private theorem charge_le_rate {n K V : ℕ} (s : (spec n K V).State)
     (o : (spec n K V).Op) (ho : kind o ≠ .inspect) :
     opCharge n K V s o ≤ rate n (kind o) := by
-  cases o with
-  | inl o =>
-    cases o with
-    | isEmpty => exact absurd rfl ho
-    | getKey _ => exact absurd rfl ho
-    | insert _ _ => exact le_rfl
-    | decreaseKey _ _ => exact le_rfl
+  rcases o with o | (_ | _) | (_ | _)
+  · cases o with
+    | isEmpty | getKey _ => exact absurd rfl ho
+    | insert _ _ | decreaseKey _ _ => exact le_rfl
     | extractMin =>
-      have hc : (IndexedMinPQ.dom s.1).card ≤ n :=
-        (Finset.card_le_card (Finset.subset_univ _)).trans (by simp)
-      exact Nat.mul_le_mul_left 92
-        (Nat.add_le_add_right (Nat.log_mono_right (b := 2) hc) 1)
-  | inr o => rcases o with (_ | _) | (_ | _) <;> exact le_rfl
+      exact Nat.mul_le_mul_left 92 (Nat.add_le_add_right
+        (Nat.log_mono_right ((Finset.card_le_card (Finset.subset_univ _)).trans (by simp))) 1)
+  all_goals exact le_rfl
 
 private theorem budget_le (n m : ℕ) (hn : 0 < n) :
     5 + rateBound (rate n) n m ≤
       400 * (m + min n (m + 1) * (Nat.log 2 n + 1)) := by
   have hL : 1 ≤ Nat.log 2 n + 1 := by omega
-  by_cases h : n ≤ m + 1
+  rcases le_total n (m + 1) with h | h
   · rw [Nat.min_eq_left h]
-    apply (Nat.add_le_add_left (min_le_left _ _) 5).trans
-    dsimp only [rate]
-    have hp : 1 ≤ n * (Nat.log 2 n + 1) := Nat.mul_pos hn hL
-    have hl := Nat.mul_le_mul_left n hL
-    nlinarith
-  · have hmn : m + 1 ≤ n := by omega
-    rw [Nat.min_eq_right hmn]
-    apply (Nat.add_le_add_left (min_le_right _ _) 5).trans
-    dsimp only [rate]
-    have hp : 1 ≤ (m + 1) * (Nat.log 2 n + 1) := Nat.mul_pos (by omega) hL
-    have hl := Nat.mul_le_mul_left (m + 1) hL
-    nlinarith
+    exact (Nat.add_le_add_left (min_le_left _ _) 5).trans
+      (by dsimp only [rate]; nlinarith [Nat.mul_pos hn hL, Nat.mul_le_mul_left n hL])
+  · rw [Nat.min_eq_right h]
+    exact (Nat.add_le_add_left (min_le_right _ _) 5).trans
+      (by dsimp only [rate]; nlinarith [Nat.mul_le_mul_left (m + 1) hL])
 
 /-- The actual Fibonacci memory program preserves the original admissibility and output
 contract. Its sharper bound includes the five header/allocation queries, and pays the heap's
@@ -96,17 +84,14 @@ theorem run_spec (G : ListInstance) {w : ℕ}
   let T : Block := ⟨f, G.n⟩
   let base := f + G.n
   let s₁ : Memory.State := ⟨s₀.mem, base + (9 * G.n + 5)⟩
-  have hf : (Memory.State.init G.encode).frontier = G.n + 2 * G.m + 4 := Memory.frontier_init G
+  have hf : s₀.frontier = G.n + 2 * G.m + 4 := Memory.frontier_init G
   have hn : Fits w G.n := hfit.of_le (by nlinarith)
   have hK : Fits w K := hfit.of_le (by dsimp only [K]; nlinarith)
   have hT : Dictionary.Memory.Valid T w G.n (K + 1) :=
     ⟨rfl, hfit.of_le (by dsimp only [K]; nlinarith)⟩
   have hA : (Memory.inputGraph G.n G.m).Valid G.n := ⟨rfl⟩
-  have hend : Fits w (base + (9 * G.n + 5)) := by
-    apply hfit.of_le
-    dsimp only [base, f, s₀]
-    rw [hf]
-    nlinarith
+  have hend : Fits w (base + (9 * G.n + 5)) :=
+    hfit.of_le (by dsimp only [base, f]; rw [hf]; nlinarith)
   let M := framed hn hK base hT hA G.adj
   obtain ⟨hinv, habs⟩ := inv_input G hn hK hT hA hend
   obtain ⟨hvalid, hdist⟩ := dijkstra_correct (K := K) (V := K + 1) G le_rfl (by omega)
@@ -117,57 +102,39 @@ theorem run_spec (G : ListInstance) {w : ℕ}
   have hcost' := totalCost_dijkstra_le (K := K) (V := K + 1) G le_rfl (by omega)
     (opCharge G.n K (K + 1)) (rate G.n) charge_le_rate
   rw [← habs] at hcost'
-  have hz : ZeroAbove s₀ := zeroAbove_init _
   have hp : (FibonacciHeap.potential G.n ((FibonacciHeap.layout G.n base).abs s₁) + 0) +
       (0 + 0) = 0 := by
-    change 24 * (s₀.mem (base + 9 * G.n + 2) +
-      2 * s₀.mem (base + 9 * G.n + 3)) + 0 + (0 + 0) = 0
-    rw [hz _ (by dsimp only [base, f]; omega), hz _ (by dsimp only [base, f]; omega)]
-  rw [hp] at hcost
-  have hprog : link (methods G.n 0 0 0 base T (Memory.inputGraph G.n G.m))
-      (dijkstra (K := 0) (V := 0) G.source) = link M.methods
-        (dijkstra (K := K) (V := K + 1) G.source) := by
-    rw [show M.methods = methods G.n K (K + 1) w base T (Memory.inputGraph G.n G.m) from rfl,
-      Memory.dijkstra_eq K (K + 1) 0 0, methods_eq G.n K (K + 1) w 0 0 0]
-    rfl
+    change 24 * (s₀.mem (base + 9 * G.n + 2) + 2 * s₀.mem (base + 9 * G.n + 3)) + 0 + (0 + 0) = 0
+    rw [zeroAbove_init G.encode _ (by dsimp only [base, f, s₀]; omega),
+      zeroAbove_init G.encode _ (by dsimp only [base, f, s₀]; omega)]
+  rw [hp, Nat.add_zero] at hcost
   have hclient : Triple w s₁ (link (methods G.n 0 0 0 base T (Memory.inputGraph G.n G.m))
       (dijkstra (K := 0) (V := 0) G.source)) (rateBound (rate G.n) G.n G.m)
       (fun _ s' => ∀ v : Fin G.n, s'.mem (G.outAddr v) = encodeDist (G.dist G.source v)) := by
-    rw [hprog]
-    refine triple_iff.mpr ⟨hvE, ?_, fun v => ?_⟩
-    · simp only [Nat.add_zero] at hcost
-      exact (Nat.le_add_right _ _).trans (hcost.trans hcost')
-    · obtain ⟨dist, hds, hdv⟩ := hdist
-      rw [← hstate] at hds
-      have hcell := congrArg (fun x => x.2.1 v) hds
-      change Dictionary.Memory.decode
-        (((Memory.spec w).clientState s₁ (link M.methods (dijkstra G.source))).mem
-          (f + v)) = dist v at hcell
-      have ha : G.outAddr v = f + v := by
-        dsimp only [ListInstance.outAddr, f, s₀]
-        rw [hf]
-      rw [ha]
-      refine Memory.eq_encodeDist fun d => ?_
-      rw [← hdv v d, ← hcell]
+    rw [show link (methods G.n 0 0 0 base T (Memory.inputGraph G.n G.m))
+        (dijkstra (K := 0) (V := 0) G.source) = link M.methods (dijkstra G.source) by
+      rw [show M.methods = methods G.n K (K + 1) w base T (Memory.inputGraph G.n G.m) from rfl,
+        Memory.dijkstra_eq K (K + 1) 0 0, methods_eq G.n K (K + 1) w 0 0 0]; rfl]
+    refine triple_iff.mpr ⟨hvE, (Nat.le_add_right _ _).trans (hcost.trans hcost'), fun v => ?_⟩
+    obtain ⟨dist, hds, hdv⟩ := hdist
+    have hcell : Dictionary.Memory.decode
+        (((Memory.spec w).clientState s₁ (link M.methods (dijkstra G.source))).mem (f + v)) =
+        dist v := congrArg (fun x => x.2.1 v) (hstate.trans hds)
+    have ha : G.outAddr v = f + v := by dsimp only [ListInstance.outAddr, f, s₀]; rw [hf]
+    exact ha ▸ Memory.eq_encodeDist fun d => by rw [← hdv v d, ← hcell]
   have htriple : Triple w s₀ run (rateBound (rate G.n) G.n G.m + 5)
       (fun _ s' => ∀ v : Fin G.n, s'.mem (G.outAddr v) = encodeDist (G.dist G.source v)) := by
-    have hn1 : s₀.mem 1 = G.n := rfl
-    have hsrc : s₀.mem 2 = G.source := rfl
-    have hm : s₀.mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
     unfold run
-    refine Triple.read_bind (by dsimp only [s₀]; rw [hf]; omega) <|
-      Triple.read_bind (by dsimp only [s₀]; rw [hf]; omega) ?_
-    rw [hn1, hsrc]
-    refine Triple.read_bind (by dsimp only [s₀]; rw [hf]; omega) ?_
-    rw [hm]
-    refine Triple.allocBlockDirty_bind (hfit.of_le (by dsimp only [s₀]; rw [hf]; nlinarith)) ?_
+    refine Triple.read_bind (by rw [hf]; omega) <| Triple.read_bind (by rw [hf]; omega) ?_
+    rw [show s₀.mem 1 = G.n from rfl, show s₀.mem 2 = G.source from rfl]
+    refine Triple.read_bind (by rw [hf]; omega) ?_
+    rw [Memory.init_mem_edgeCount G]
+    refine Triple.allocBlockDirty_bind (hfit.of_le (by rw [hf]; nlinarith)) ?_
     rw [triple_iff] at hclient ⊢
     simp only [dite_eq_left G.source.isLt]
     exact ⟨⟨hend, hclient.1⟩,
       (Nat.add_le_add_left hclient.2.1 1).trans_eq (Nat.add_comm 1 _), hclient.2.2⟩
   obtain ⟨hv, hc, hd⟩ := triple_iff.mp htriple
-  exact ⟨hv, hd, hc.trans (by
-    have h := budget_le G.n G.m (by have := G.source.isLt; omega)
-    omega)⟩
+  exact ⟨hv, hd, hc.trans (by have := budget_le G.n G.m (by have := G.source.isLt; omega); omega)⟩
 
 end Cslib.Algorithms.Lean.Dijkstra.Native.Fibonacci

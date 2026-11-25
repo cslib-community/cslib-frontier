@@ -107,10 +107,8 @@ theorem eval_relabel (sem : Rel → List D → Bool) (f : V → W) (σ : W → D
 /-- Constraint evaluation depends only on the values assigned to the variables in its scope. -/
 theorem eval_congr {sem : Rel → List D → Bool} {c : Constraint Rel V} {σ τ : V → D}
     (h : ∀ v ∈ c.scope, σ v = τ v) :
-    eval sem σ c = eval sem τ c := by
-  simp only [eval]
-  congr 1
-  exact List.map_congr_left h
+    eval sem σ c = eval sem τ c :=
+  congrArg (sem c.rel) (List.map_congr_left h)
 
 end Constraint
 
@@ -151,18 +149,11 @@ theorem eval_relabel (sem : Rel → List D → Bool) (f : V → W) (σ : W → D
 /-- CSP evaluation depends only on the values assigned to its occurring variables `F.vars`. -/
 theorem eval_congr {sem : Rel → List D → Bool} {F : CSP Rel V} {σ τ : V → D}
     (h : ∀ v ∈ F.vars, σ v = τ v) :
-    F.eval sem σ = F.eval sem τ := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    change (Constraint.eval sem σ c && eval sem σ F) =
-      (Constraint.eval sem τ c && eval sem τ F)
-    have hc := Constraint.eval_congr (sem := sem) (c := c) fun v hv =>
-      h v (List.mem_flatMap.mpr ⟨c, List.mem_cons_self, hv⟩)
-    have hF := ih fun v hv => by
-      rcases List.mem_flatMap.mp hv with ⟨c', hc', hv'⟩
-      exact h v (List.mem_flatMap.mpr ⟨c', List.mem_cons_of_mem c hc', hv'⟩)
-    rw [hc, hF]
+    F.eval sem σ = F.eval sem τ :=
+  Bool.eq_iff_iff.mpr <| by
+    simp only [eval, List.all_eq_true]
+    exact forall₂_congr fun c hc => by
+      rw [Constraint.eval_congr fun v hv => h v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)]
 
 /-- Auxiliary positive-clause CNF formula with the same variable-occurrence list `F.vars`. Used as a
 proof device to transfer `CNF` variable-accounting and polynomial-time lemmas to `CSP`. -/
@@ -176,9 +167,9 @@ theorem vars_varCNF (F : CSP Rel V) :
   induction F with
   | nil => rfl
   | cons c F ih =>
-    simp only [varCNF, List.map_cons, CNF.vars, List.flatten_cons, List.map_append,
-      List.map_map, Function.comp_def, List.map_id', vars, List.flatMap_cons]
-    exact congrArg (c.scope ++ ·) ih
+    simpa only [varCNF, List.map_cons, CNF.vars, List.flatten_cons, List.map_append,
+      List.map_map, Function.comp_def, List.map_id', vars, List.flatMap_cons] using
+      congrArg (c.scope ++ ·) ih
 
 variable [DecidableEq V]
 
@@ -233,13 +224,7 @@ theorem numVars_denseRelabel (F : CSP Rel V) :
 /-- Dense relabeling preserves any uniform upper bound on constraint scope lengths. -/
 theorem all_length_le_denseRelabel {k : ℕ} (F : CSP Rel V) :
     (∀ c ∈ F.denseRelabel, c.scope.length ≤ k) ↔ ∀ c ∈ F, c.scope.length ≤ k := by
-  simp only [denseRelabel, relabel, List.mem_map]
-  constructor
-  · intro h c hc
-    have := h (Constraint.relabel F.distinctVars.idxOf c) ⟨c, hc, rfl⟩
-    simpa [Constraint.relabel] using this
-  · rintro h _ ⟨c, hc, rfl⟩
-    simpa [Constraint.relabel] using h c hc
+  simp [denseRelabel, relabel, Constraint.relabel]
 
 /-- Count assignments to `declared : Finset V` (extended by `default` outside `declared`) that
 satisfy `F` under `sem`. -/
@@ -260,54 +245,27 @@ theorem modelCountOn_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List 
   classical
   let S := F.vars.toFinset
   let R := Finset.range F.numVars
-  have hinj : ∀ v ∈ S, ∀ w ∈ S, F.distinctVars.idxOf v = F.distinctVars.idxOf w → v = w := by
-    intro v hv w _ h
-    exact (List.idxOf_inj (mem_distinctVars.mpr (List.mem_toFinset.mp hv))).mp h
-  have hmem_range : ∀ v ∈ S, F.distinctVars.idxOf v ∈ R := by
-    intro v hv
-    rw [Finset.mem_range, ← length_distinctVars]
-    exact List.idxOf_lt_length_iff.mpr (mem_distinctVars.mpr (List.mem_toFinset.mp hv))
-  have hsurj : ∀ i ∈ R, ∃ v, ∃ hv : v ∈ S, F.distinctVars.idxOf v = i := by
-    intro i hi
-    have hi' : i ∈ F.denseRelabel.vars.toFinset := by
-      rwa [vars_denseRelabel_toFinset]
-    rw [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi'
-    rcases hi' with ⟨v, hv, rfl⟩
-    exact ⟨v, List.mem_toFinset.mpr hv, rfl⟩
-  let eVar : S ≃ R := Equiv.ofBijective
-    (fun v => ⟨F.distinctVars.idxOf v.1, hmem_range v.1 v.2⟩)
-    ⟨fun v w h => Subtype.ext (hinj v.1 v.2 w.1 w.2 (Subtype.mk.inj h)),
-     fun i => by
-       obtain ⟨v, hv, hvi⟩ := hsurj i.1 i.2
-       exact ⟨⟨v, hv⟩, Subtype.ext hvi⟩⟩
-  have heVar (v : V) (hvS : v ∈ S) :
-      eVar ⟨v, hvS⟩ = ⟨F.distinctVars.idxOf v, hmem_range v hvS⟩ := rfl
+  let f : S → R := fun v => ⟨F.distinctVars.idxOf v.1, Finset.mem_range.mpr
+    (F.length_distinctVars ▸ List.idxOf_lt_length_iff.mpr
+      (mem_distinctVars.mpr (List.mem_toFinset.mp v.2)))⟩
+  let eVar : S ≃ R := Equiv.ofBijective f
+    ⟨fun v w h => Subtype.ext ((List.idxOf_inj
+        (mem_distinctVars.mpr (List.mem_toFinset.mp v.2))).mp (Subtype.mk.inj h)),
+      fun i => by
+        have hi : i.1 ∈ F.denseRelabel.vars.toFinset := F.vars_denseRelabel_toFinset.symm ▸ i.2
+        rw [denseRelabel, vars_relabel, List.mem_toFinset, List.mem_map] at hi
+        obtain ⟨v, hv, hvi⟩ := hi
+        exact ⟨⟨v, List.mem_toFinset.mpr hv⟩, Subtype.ext hvi⟩⟩
   rw [modelCount, modelCountOn, modelCountOn]
-  refine Finset.card_bij (fun (σ : R → D) _ => fun v : S => σ (eVar v))
-    (fun σ hσ => ?_)
-    (fun σ₁ _ σ₂ _ h => funext fun i => by
-      have := congrFun h (eVar.symm i)
-      simpa using this)
-    (fun τ hτ => ⟨fun i => τ (eVar.symm i), ?_, funext fun v => by simp⟩)
-  · rw [Finset.mem_filter] at hσ ⊢
-    refine ⟨Finset.mem_univ _, ?_⟩
-    rw [denseRelabel, eval_relabel] at hσ
-    refine (eval_congr fun v hv => ?_).trans hσ.2
-    have hvS : v ∈ S := List.mem_toFinset.mpr hv
-    have hvR : F.distinctVars.idxOf v ∈ R := hmem_range v hvS
-    change (if h : v ∈ S then σ (eVar ⟨v, h⟩) else default) =
-      (if h : F.distinctVars.idxOf v ∈ R then σ ⟨F.distinctVars.idxOf v, h⟩ else default)
-    simp only [hvS, hvR, dite_true, heVar]
-  · rw [Finset.mem_filter] at hτ ⊢
-    refine ⟨Finset.mem_univ _, ?_⟩
-    rw [denseRelabel, eval_relabel]
-    refine (eval_congr fun v hv => ?_).trans hτ.2
-    have hvS : v ∈ S := List.mem_toFinset.mpr hv
-    have hvR : F.distinctVars.idxOf v ∈ R := hmem_range v hvS
-    change (if h : F.distinctVars.idxOf v ∈ R then
-        τ (eVar.symm ⟨F.distinctVars.idxOf v, h⟩) else default) =
-      (if h : v ∈ S then τ ⟨v, h⟩ else default)
-    simp only [hvR, hvS, dite_true, ← heVar v hvS, Equiv.symm_apply_apply]
+  refine Finset.card_equiv (eVar.symm.arrowCongr (Equiv.refl D)) fun σ => ?_
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  refine Eq.congr_left ?_
+  rw [denseRelabel, eval_relabel]
+  refine eval_congr fun v hv => ?_
+  simp only [Function.comp_apply, List.mem_toFinset.mpr hv,
+    show List.idxOf v F.distinctVars ∈ Finset.range F.numVars from
+      (f ⟨v, List.mem_toFinset.mpr hv⟩).2, dite_true]
+  rfl
 
 /-- Dense variable relabeling preserves `CSP.modelCount`. -/
 @[simp]
@@ -320,14 +278,8 @@ theorem modelCount_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List D 
 theorem modelCount_pos_iff [Fintype D] [Inhabited D] {sem : Rel → List D → Bool} {F : CSP Rel V} :
     0 < F.modelCount sem ↔ F.Satisfiable sem := by
   rw [modelCount, modelCountOn, Finset.card_pos, Finset.filter_nonempty_iff]
-  constructor
-  · rintro ⟨σ, -, hσ⟩
-    exact ⟨_, hσ⟩
-  · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩
-    refine (eval_congr fun v hv => ?_).trans hσ
-    have hv' : v ∈ F.vars.toFinset := List.mem_toFinset.mpr hv
-    simp [hv']
+  refine ⟨fun ⟨_, _, hσ⟩ => ⟨_, hσ⟩, fun ⟨σ, hσ⟩ => ⟨fun v => σ v.1, Finset.mem_univ _, ?_⟩⟩
+  exact (eval_congr fun v hv => by simp [List.mem_toFinset.mpr hv]).trans hσ
 
 /-- Guard checking that every constraint scope in `F` has length `≤ k` and every occurring variable
 lies in `< N`. -/
