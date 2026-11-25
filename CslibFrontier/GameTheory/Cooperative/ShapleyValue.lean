@@ -218,35 +218,11 @@ variable {A : Type*} [Fintype A] [DecidableEq A]
 
 private theorem card_fin_lt {n : ℕ} (m : Fin n) :
     (Finset.univ.filter (fun k : Fin n => k < m)).card = (m : ℕ) := by
-  let emb : Fin (m : ℕ) ↪ Fin n :=
-    ⟨fun x => ⟨x.1, x.2.trans m.2⟩, fun a b h => Fin.ext (Fin.mk.inj h)⟩
-  have heq : Finset.univ.filter (fun k : Fin n => k < m) =
-      (Finset.univ : Finset (Fin (m : ℕ))).map emb := by
-    ext k
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map, emb]
-    exact ⟨fun hk => ⟨⟨k.1, hk⟩, rfl⟩, fun ⟨x, hx⟩ => hx ▸ x.2⟩
-  rw [heq, Finset.card_map, Finset.card_univ, Fintype.card_fin]
+  rw [Finset.filter_gt_eq_Iio, Fin.card_Iio]
 
 private theorem card_fin_gt {n : ℕ} (m : Fin n) :
     (Finset.univ.filter (fun k : Fin n => m < k)).card = n - 1 - (m : ℕ) := by
-  have hpart : (Finset.univ : Finset (Fin n)) =
-      insert m (Finset.univ.filter (fun k : Fin n => k < m) ∪
-        Finset.univ.filter (fun k : Fin n => m < k)) := by
-    ext k
-    simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_union, Finset.mem_filter, true_and]
-    exact ⟨fun _ => lt_trichotomy k m |>.elim (Or.inr ∘ Or.inl)
-      (fun h => h.elim Or.inl (Or.inr ∘ Or.inr)), fun _ => trivial⟩
-  have hnot : m ∉ Finset.univ.filter (fun k : Fin n => k < m) ∪
-      Finset.univ.filter (fun k : Fin n => m < k) := by
-    simp
-  have hdisj : Disjoint (Finset.univ.filter (fun k : Fin n => k < m))
-      (Finset.univ.filter (fun k : Fin n => m < k)) :=
-    Finset.disjoint_filter.2 fun k _ h₁ h₂ => (h₁.trans h₂).false
-  have hcard := congr_arg Finset.card hpart
-  rw [Finset.card_univ, Fintype.card_fin, Finset.card_insert_of_notMem hnot,
-    Finset.card_union_of_disjoint hdisj, card_fin_lt] at hcard
-  have hm := m.2
-  omega
+  rw [Finset.filter_lt_eq_Ioi, Fin.card_Ioi]
 
 omit [DecidableEq A] in
 private theorem card_orderPredecessors (σ : Fin (Fintype.card A) ≃ A) (i : A) :
@@ -484,54 +460,15 @@ theorem example15_24_shapleyValue :
   refine ⟨?_, ?_, ?_⟩
   · rw [shapleyValue, hcardA, her0]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1}) +
-      (shapleyWeight 3 ({2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {2}) +
-      shapleyWeight 3 ({1, 2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 2}))) = 23 / 6
-    rw [huniv3]
+    rw [Finset.sum_singleton, Finset.insert_empty, huniv3]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
   · rw [shapleyValue, hcardA, her1]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({0} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0}) +
-      (shapleyWeight 3 ({2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {2}) +
-      shapleyWeight 3 ({0, 2} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {1, 0, 2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 2}))) = 11 / 6
-    rw [h10, h102]
+    rw [Finset.sum_singleton, Finset.insert_empty, h10, h102]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
   · rw [shapleyValue, hcardA, her2]
     repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    change shapleyWeight 3 (∅ : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost ∅) +
-      (shapleyWeight 3 ({0} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 0} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0}) +
-      (shapleyWeight 3 ({1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {1}) +
-      shapleyWeight 3 ({0, 1} : Finset (Fin 3)).card *
-        (FacilityLocationInstance.example15_2.toCostSharingGame.cost {2, 0, 1} -
-          FacilityLocationInstance.example15_2.toCostSharingGame.cost {0, 1}))) = 7 / 3
-    rw [h20, h21, h201]
+    rw [Finset.sum_singleton, Finset.insert_empty, h20, h21, h201]
     norm_num [hw0, hw1, hw2, hc0, h0, h1, h2, h01, h12, h02, huniv]
 
 /-- **Example 15.24** ([JainMahdian2007], p. 403): the Shapley value `(23 / 6, 11 / 6, 7 / 3)` of
@@ -1484,11 +1421,11 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     rw [nashBargainingSolution_isScaleInvariant]
     ext
     · change u₁⁻¹ * x.1 + -(u₁⁻¹ * d.1) = 1
-      have : u₁⁻¹ * x.1 + -(u₁⁻¹ * d.1) = u₁⁻¹ * u₁ := by dsimp only [u₁]; ring
-      rw [this, inv_mul_cancel₀ hu₁.ne']
+      rw [← sub_eq_add_neg, ← mul_sub]
+      exact inv_mul_cancel₀ hu₁.ne'
     · change u₂⁻¹ * x.2 + -(u₂⁻¹ * d.2) = 1
-      have : u₂⁻¹ * x.2 + -(u₂⁻¹ * d.2) = u₂⁻¹ * u₂ := by dsimp only [u₂]; ring
-      rw [this, inv_mul_cancel₀ hu₂.ne']
+      rw [← sub_eq_add_neg, ← mul_sub]
+      exact inv_mul_cancel₀ hu₂.ne'
   have hsum_le : ∀ y ∈ B'.feasible, y.1 + y.2 ≤ 2 :=
     fun _ hy => sum_le_two_of_unit_nashMax hd' hx' hy
   -- Enclose `B'.feasible` inside a compact, convex, symmetric triangle `H`.
@@ -1561,22 +1498,14 @@ theorem eq_nashBargainingSolution_of_axioms {φ : BargainingProblem → ℝ × �
     (hscale B a₁ a₂ ha₁ ha₂ b₁ b₂).symm.trans hφB'
   have hc₁ : u₁⁻¹ * (φ B).1 + -(u₁⁻¹ * d.1) = 1 := congr_arg Prod.fst hφB_scale
   have hc₂ : u₂⁻¹ * (φ B).2 + -(u₂⁻¹ * d.2) = 1 := congr_arg Prod.snd hφB_scale
-  have hu₁_ne : u₁ ≠ 0 := hu₁.ne'
-  have hu₂_ne : u₂ ≠ 0 := hu₂.ne'
   ext
-  · have hmul := congr_arg (u₁ * ·) hc₁
-    have hsimp : u₁ * (u₁⁻¹ * (φ B).1 + -(u₁⁻¹ * d.1)) = (φ B).1 - d.1 := by
-      field_simp
-      ring
-    rw [hsimp, mul_one] at hmul
-    dsimp only [u₁] at hmul
+  · have h := (inv_mul_eq_one₀ (b := (φ B).1 - d.1) hu₁.ne').1
+      (by rw [mul_sub, sub_eq_add_neg]; exact hc₁)
+    dsimp only [u₁] at h
     linarith
-  · have hmul := congr_arg (u₂ * ·) hc₂
-    have hsimp : u₂ * (u₂⁻¹ * (φ B).2 + -(u₂⁻¹ * d.2)) = (φ B).2 - d.2 := by
-      field_simp
-      ring
-    rw [hsimp, mul_one] at hmul
-    dsimp only [u₂] at hmul
+  · have h := (inv_mul_eq_one₀ (b := (φ B).2 - d.2) hu₂.ne').1
+      (by rw [mul_sub, sub_eq_add_neg]; exact hc₂)
+    dsimp only [u₂] at h
     linarith
 
 /-- **Theorem 15.28 (Nash's bargaining theorem, existence and uniqueness)** ([JainMahdian2007],
