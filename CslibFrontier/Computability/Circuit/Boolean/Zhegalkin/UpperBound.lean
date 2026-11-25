@@ -132,13 +132,9 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     have h0 := ((CostSynthesis.of_subset Set.Subset.rfl).union hconsts).union hxgroup
     refine h0.mono Set.Subset.rfl ?_ (by omega) (by simp)
     intro g hg
-    rcases hg with (((((hg_in | hg_c) | hg_x) | ⟨i, hi, _⟩) | ⟨cg, hcg, _⟩) | ⟨up, _, hq, _⟩)
-    · exact Or.inl (Or.inl hg_in)
-    · exact Or.inl (Or.inr hg_c)
-    · exact Or.inr hg_x
-    · exact (Nat.not_lt_zero _ hi).elim
-    · exact (Nat.not_lt_zero _ hcg).elim
-    · exact (Nat.not_lt_zero _ hq).elim
+    rcases hg with (((((hg | hg) | hg) | ⟨_, hi, _⟩) | ⟨_, hi, _⟩) | ⟨_, _, hi, _⟩)
+    exacts [Or.inl (Or.inl hg), Or.inl (Or.inr hg), Or.inr hg, (Nat.not_lt_zero _ hi).elim,
+      (Nat.not_lt_zero _ hi).elim, (Nat.not_lt_zero _ hi).elim]
   -- Inductive run across stages `q₀ = 0 .. M / s` (`Q = M / s + 1` stages).
   let Q := M / s + 1
   let stageTC (q₀ : ℕ) : ℕ :=
@@ -159,10 +155,9 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     | zero =>
       simpa only [range_zero, sum_empty] using CostSynthesis.of_subset Set.Subset.rfl
     | succ T ih =>
-      have hstep := ih.trans
-        ((synth_stage_step d hs hp T).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
       rw [sum_range_succ, sum_range_succ]
-      exact hstep
+      exact ih.trans
+        ((synth_stage_step d hs hp T).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   have hall_stages := hstage0.trans
     ((hstages Q).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   -- Final output linear form from `stageSet d s p Q`.
@@ -222,13 +217,13 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
       _ ≤ ((2 * M) ⌈/⌉ p) * (2 ^ s * ((n + M) ⌈/⌉ s)) :=
           Nat.mul_le_mul_left _ (card_zhegCol_le n M s hs)
       _ = ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by ring
+  have hmapsM : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
+    mem_range.mpr (hdiv_Q i.isLt.le)
   have hgates_sum :
       (∑ q₀ ∈ range Q,
         ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) ≤
       2 * M * (p + s + 1) := by
-    have hmaps : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
-      mem_range.mpr (hdiv_Q i.isLt.le)
-    rw [sum_fiberwise_of_maps_to hmaps, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+    rw [sum_fiberwise_of_maps_to hmapsM, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
   have hgblock_sum :
       (n * 2 ^ s) / s +
@@ -245,19 +240,13 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
       rw [hfilt, sum_const, card_range, smul_eq_mul]
     rw [hsub_sum]
     have hMs : (M / s) * (2 ^ s - s - 1) ≤ (M * 2 ^ s) / s := by
-      have hsub : 2 ^ s - s - 1 ≤ 2 ^ s := (Nat.sub_le _ _).trans (Nat.sub_le _ _)
-      apply (Nat.le_div_iff_mul_le hs).mpr
-      calc (M / s) * (2 ^ s - s - 1) * s
-          ≤ (M / s) * 2 ^ s * s :=
-            Nat.mul_le_mul_right s (Nat.mul_le_mul_left _ hsub)
-        _ = (s * (M / s)) * 2 ^ s := by ring
-        _ ≤ M * 2 ^ s := Nat.mul_le_mul_right _ (Nat.mul_div_le M s)
+      rw [mul_comm M, mul_comm (M / s)]
+      exact (Nat.mul_le_mul_right _ ((Nat.sub_le _ _).trans (Nat.sub_le _ _))).trans
+        (Nat.mul_div_le_mul_div_assoc _ _ _)
     exact (Nat.add_le_add_left hMs _).trans (add_mul n M (2 ^ s) ▸ Nat.div_add_div_le_add_div)
   have hwc_sum : (∑ q₀ ∈ range Q, stageWC q₀) ≤ k := by
-    have hmaps : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
-      mem_range.mpr (Nat.lt_succ_of_le (Nat.div_le_div_right i.isLt.le))
     dsimp only [stageWC]
-    rw [sum_fiberwise_of_maps_to hmaps, sum_boole, Nat.cast_id]
+    rw [sum_fiberwise_of_maps_to hmapsM, sum_boole, Nat.cast_id]
     have hinj : Set.InjOn Fin.val
         ((univ.filter fun i : Fin M => i.1 < k) : Set (Fin M)) :=
       fun _ _ _ _ h => Fin.ext h
