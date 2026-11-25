@@ -197,30 +197,11 @@ private theorem wordStep_neg (e : ℤ) (s : ℕ) (k : ℤ) (β : ℕ) :
 private theorem wordStep_inj {e : ℤ} {s : ℕ} {k : ℤ} {β β' t : ℕ} (h : wordStep e s k β = some t)
     (h' : wordStep e s k β' = some t) : β = β' := by
   unfold wordStep at h h'
-  by_cases h₁ : 0 ≤ e * k
-  · rw [ite_eq_left h₁, Option.some.injEq] at h h'
-    exact Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) (Nat.add_left_cancel (h.trans h'.symm))
-  rw [ite_eq_right h₁] at h h'
-  by_cases h₂ : k.natAbs ≤ e.natAbs
-  · rw [ite_eq_left h₂] at h h'
-    by_cases h₃ : s % 2 ^ k.natAbs = β
-    · by_cases h₄ : s % 2 ^ k.natAbs = β'
-      · exact h₃.symm.trans h₄
-      · rw [ite_eq_right h₄] at h'
-        cases h'
-    · rw [ite_eq_right h₃] at h
-      cases h
-  · rw [ite_eq_right h₂] at h h'
-    by_cases h₃ : β % 2 ^ e.natAbs = s
-    · by_cases h₄ : β' % 2 ^ e.natAbs = s
-      · rw [ite_eq_left h₃, Option.some.injEq] at h
-        rw [ite_eq_left h₄, Option.some.injEq] at h'
-        rw [← Nat.mod_add_div β (2 ^ e.natAbs), ← Nat.mod_add_div β' (2 ^ e.natAbs), h₃, h₄, h,
-          h']
-      · rw [ite_eq_right h₄] at h'
-        cases h'
-    · rw [ite_eq_right h₃] at h
-      cases h
+  split_ifs at h h' <;> simp only [Option.some.injEq] at h h'
+  · exact Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos _) (Nat.add_left_cancel (h.trans h'.symm))
+  · exact ‹s % _ = β›.symm.trans ‹_›
+  · rw [← Nat.mod_add_div β (2 ^ e.natAbs), ← Nat.mod_add_div β' (2 ^ e.natAbs), ‹β % _ = s›,
+      ‹β' % _ = s›, h, h']
 
 /-- **Appending a positive block**: comparing after appending `β` (length `k`) to the first string
 is one `wordStep` after comparing before. -/
@@ -700,6 +681,11 @@ private theorem card_le_rank_of_submatrix_eq_one {α β γ F : Type*} [Field F] 
   rw [← Matrix.rank_one (R := F) (n := γ), ← h]
   exact Matrix.rank_submatrix_le _ _ _
 
+private theorem sum_eq_wordStringLen_sub : (∑ i, w i) =
+    (wordStringLen (0 ≤ ·) (wordSeq w) d : ℤ) - wordStringLen (· < 0) (wordSeq w) d := by
+  rw [wordStringLen_sub, wordPrefixSum, ← Fin.sum_univ_eq_sum_range]
+  simp
+
 /-- **Full rank** (LST §2.2): the relative-rank matrix of the word polynomial with sink `τ` has
 rank equal to the smaller of its numbers of rows and columns, for every sink `τ` of the right
 length `|∑ i, w i|`. -/
@@ -708,12 +694,9 @@ theorem rank_relMatrix_wordPoly {K : Type*} [Field K] {τ : ℕ}
     (relMatrix Sigma.fst (wordPos w) (wordNeg w) (wordPoly K w τ)).rank =
       min (Fintype.card (BlockChoice (Sigma.fst : WordVar w → Fin d) (wordPos w)))
         (Fintype.card (BlockChoice (Sigma.fst : WordVar w → Fin d) (wordNeg w))) := by
+  rw [sum_eq_wordStringLen_sub] at hτ
   set a := wordStringLen (0 ≤ ·) (wordSeq w) d
   set b := wordStringLen (· < 0) (wordSeq w) d
-  have hsum : (∑ i, w i) = (a : ℤ) - b := by
-    rw [wordStringLen_sub, wordPrefixSum, ← Fin.sum_univ_eq_sum_range]
-    simp
-  rw [hsum] at hτ
   rw [card_blockChoice_wordBlocks, card_blockChoice_wordBlocks]
   refine le_antisymm (le_min ((Matrix.rank_le_card_height _).trans
     (card_blockChoice_wordBlocks _).le) ((Matrix.rank_le_card_width _).trans
@@ -759,13 +742,10 @@ largest value the imbalance bound allows. -/
 theorem relRank_wordPoly {K : Type*} [Field K] {τ : ℕ} (hτ : τ < 2 ^ (∑ i, w i).natAbs) :
     relRank Sigma.fst (wordPos w) (wordNeg w) (wordPoly K w τ) =
       (2 : ℝ) ^ (-((∑ i, w i).natAbs : ℝ) / 2) := by
+  rw [relRank, rank_relMatrix_wordPoly hτ, card_blockChoice_wordBlocks,
+    card_blockChoice_wordBlocks, sum_eq_wordStringLen_sub]
   set a := wordStringLen (0 ≤ ·) (wordSeq w) d
   set b := wordStringLen (· < 0) (wordSeq w) d
-  have hsum : (∑ i, w i) = (a : ℤ) - b := by
-    rw [wordStringLen_sub, wordPrefixSum, ← Fin.sum_univ_eq_sum_range]
-    simp
-  rw [relRank, rank_relMatrix_wordPoly hτ, card_blockChoice_wordBlocks,
-    card_blockChoice_wordBlocks, hsum]
   have h2 : (0 : ℝ) < 2 := two_pos
   have hsqrt : √(((2 ^ a * 2 ^ b : ℕ) : ℝ)) = (2 : ℝ) ^ (((a : ℝ) + b) / 2) := by
     rw [Real.sqrt_eq_rpow, ← pow_add, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast,
