@@ -1309,11 +1309,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     hreach.mTr (hexec.extract_mTr (Nat.zero_le k))
   -- Step 1: `p` stays trying forever, so `p` finishes its doorway and enters `inWaiting` at
   -- `t₀ ≥ N`.
-  have htry_all : ∀ k, (ss k).isTrying p := by
-    intro k
-    induction k with
-    | zero => exact htry
-    | succ k ih => exact isTrying_step_of_not_cs (hexec k) (hp_nofail k) ih (hno_cs (k + 1))
+  have htry_all : ∀ k, (ss k).isTrying p := fun k => Nat.rec htry
+    (fun k ih => isTrying_step_of_not_cs (hexec k) (hp_nofail k) ih (hno_cs (k + 1))) k
   obtain ⟨t₀, ht₀_ge, ht₀_zero⟩ := exists_nonBakeryMeasure_zero hexec hfair
     (q := p) (i := N) (fun k _ => hp_nofail k)
   have hw_t₀ : (ss t₀).inWaiting p := by
@@ -1322,14 +1319,10 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       simp [BakeryState.isTrying, BakeryState.inDoorway, BakeryState.inWaiting,
         BakeryPhase.isDoorway, BakeryPhase.isWaiting, hrem] at ht
     · exact hbak.resolve_right (hno_cs t₀)
-  have hw_p : ∀ k ≥ t₀, (ss k).inWaiting p ∧ (ss k).number p = (ss t₀).number p := by
-    intro k hk
-    induction k, hk using Nat.le_induction with
-    | base => exact ⟨hw_t₀, rfl⟩
-    | succ k hk ih =>
-      obtain ⟨hw', hnum'⟩ :=
-        inWaiting_step_of_not_cs (hexec k) (hp_nofail k) ih.1 (hno_cs (k + 1))
-      exact ⟨hw', hnum'.trans ih.2⟩
+  have hw_p : ∀ k ≥ t₀, (ss k).inWaiting p ∧ (ss k).number p = (ss t₀).number p :=
+    fun k hk => Nat.le_induction ⟨hw_t₀, rfl⟩ (fun k _ ih =>
+      have h := inWaiting_step_of_not_cs (hexec k) (hp_nofail k) ih.1 (hno_cs (k + 1))
+      ⟨h.1, h.2.trans ih.2⟩) k hk
   -- Step 2: Wait for every process currently mid-doorway at `t₀` to finish its doorway/recovery.
   have hex_drain : ∀ q, ∃ u ≥ t₀, (ss u).beforeDoorwayScan q ∨ (ss u).inBakery q := by
     intro q
@@ -1351,22 +1344,17 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       · exact Or.inl fun j hj₁ hj₂ => le_antisymm hj₂ hj₁ ▸ hbak
     | succ k hk ih =>
       have hu_ge_q := hu_ge q
-      have hp_k : (ss k).inBakery p := BakeryState.inBakery_of_inWaiting (hw_p k (by omega)).1
-      have hp_k1 : (ss (k + 1)).inBakery p :=
-        BakeryState.inBakery_of_inWaiting (hw_p (k + 1) (by omega)).1
       rcases ih with hall_bak | hda_k
       · by_cases hbak_next : (ss (k + 1)).inBakery q
-        · exact Or.inl fun j hj₁ hj₂ => by
-            by_cases hjk : j ≤ k
-            · exact hall_bak j hj₁ hjk
-            · exact (show j = k + 1 by omega) ▸ hbak_next
-        · have hbak_k : (ss k).inBakery q := hall_bak k hk le_rfl
-          have hbef_next := beforeDoorwayScan_of_exit_bakery (hexec k)
-            (hbound k (by omega) q) hbak_k hbak_next
-          exact Or.inr (doorwayAfter_of_beforeDoorwayScan hbef_next)
+        · exact Or.inl fun j hj₁ hj₂ =>
+            (Nat.le_succ_iff.mp hj₂).elim (hall_bak j hj₁) fun h => h ▸ hbak_next
+        · exact Or.inr (doorwayAfter_of_beforeDoorwayScan (beforeDoorwayScan_of_exit_bakery
+            (hexec k) (hbound k (by omega) q) (hall_bak k hk le_rfl) hbak_next))
       · rw [← (hw_p k (by omega)).2] at hda_k
         rw [← (hw_p (k + 1) (by omega)).2]
-        exact Or.inr (doorwayAfter_step (hexec k) hp_k hp_k1 hda_k)
+        exact Or.inr (doorwayAfter_step (hexec k)
+          (BakeryState.inBakery_of_inWaiting (hw_p k (by omega)).1)
+          (BakeryState.inBakery_of_inWaiting (hw_p (k + 1) (by omega)).1) hda_k)
   -- Step 3: Antitone stabilization of `B k = {q | inBakery q ∧ ticket q ≤ T_p}` for `k ≥ t₁`.
   let T_p := (ss t₀).ticket p
   let B : ℕ → Finset P := fun k =>
@@ -1378,14 +1366,10 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     have hu_le_k : u_of q ≤ k := ((Finset.le_sup (Finset.mem_univ q)).trans le_sup_left).trans hk
     rcases hda_from q (k + 1) (by omega) with hall_bak | hda1
     · have hq_bak0 : (ss k).inBakery q := hall_bak k hu_le_k (Nat.le_succ k)
-      have hnum_eq : (ss (k + 1)).number q = (ss k).number q :=
-        inBakery_number_preserved (hexec k) hq_bak0 hq_bak1
-      refine ⟨hq_bak0, ?_⟩
-      simpa [BakeryState.ticket, hnum_eq] using hq_le1
-    · have hlt : (ss t₀).number p < (ss (k + 1)).number q := hda1.2.2 (Or.inr hq_bak1)
-      have htk_lt : T_p < (ss (k + 1)).ticket q :=
-        (BakeryState.ticket_lt_iff _ _ p q).mpr (Or.inl hlt)
-      exact absurd hq_le1 (not_le_of_gt htk_lt)
+      have hnum_eq := inBakery_number_preserved (hexec k) hq_bak0 hq_bak1
+      exact ⟨hq_bak0, by simpa [BakeryState.ticket, hnum_eq] using hq_le1⟩
+    · exact absurd hq_le1 (not_le_of_gt ((BakeryState.ticket_lt_iff _ _ p q).mpr
+        (Or.inl (hda1.2.2 (Or.inr hq_bak1)))))
   obtain ⟨t_s, ht_s_ge, hB_stab⟩ := exists_forall_eq_of_antitone_finset hB_anti
   have ht₁_ge : t₀ ≤ t₁ := le_sup_right
   have hp_mem_Bs : p ∈ B t_s := by
@@ -1399,50 +1383,35 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
   obtain ⟨q_star, hq_star_mem, hq_star_min_eq⟩ :=
     Finset.mem_image.mp (Finset.min'_mem tickets_Bs htickets_ne)
   have hB_bak : ∀ r ∈ B t_s, ∀ k ≥ t_s,
-      (ss k).inBakery r ∧ (ss k).number r = (ss t_s).number r := by
-    intro r hr_mem k hk
-    induction k, hk using Nat.le_induction with
-    | base => exact ⟨(Finset.mem_filter.mp hr_mem).2.1, rfl⟩
-    | succ m hm ihm =>
+      (ss k).inBakery r ∧ (ss k).number r = (ss t_s).number r := fun r hr_mem k hk =>
+    Nat.le_induction ⟨(Finset.mem_filter.mp hr_mem).2.1, rfl⟩ (fun m hm ihm =>
       have hm1_mem : r ∈ B (m + 1) := hB_stab (m + 1) (Nat.le_succ_of_le hm) ▸ hr_mem
       have hbak1 := (Finset.mem_filter.mp hm1_mem).2.1
-      exact ⟨hbak1, (inBakery_number_preserved (hexec m) ihm.1 hbak1).trans ihm.2⟩
+      ⟨hbak1, (inBakery_number_preserved (hexec m) ihm.1 hbak1).trans ihm.2⟩) k hk
   have hq_star_bak : ∀ k ≥ t_s, (ss k).inBakery q_star :=
     fun k hk => (hB_bak q_star hq_star_mem k hk).1
-  have hq_star_wait : ∀ k ≥ t_s, (ss k).inWaiting q_star := by
-    intro k hk
-    rcases hq_star_bak k hk with hw | hcs
-    · exact hw
-    · have hstay_cs : ∀ j ≥ k, (ss j).phase q_star = .cs := by
-        intro j hj
-        induction j, hj using Nat.le_induction with
-        | base => exact hcs
-        | succ j hj ih =>
-          exact step_cs_stays_of_inBakery (hexec j) (hbound j (by omega) q_star) ih
-            (hq_star_bak (j + 1) (by omega))
+  have hq_star_wait : ∀ k ≥ t_s, (ss k).inWaiting q_star := fun k hk =>
+    (hq_star_bak k hk).resolve_right fun hcs => by
+      have hstay_cs : ∀ j ≥ k, (ss j).phase q_star = .cs := fun j hj =>
+        Nat.le_induction hcs (fun j hj ih => step_cs_stays_of_inBakery (hexec j)
+          (hbound j (by omega) q_star) ih (hq_star_bak (j + 1) (by omega))) j hj
       obtain ⟨m, hm_ge, hact_m⟩ := hfair q_star k (fun j hj => by simp [hstay_cs j hj])
-      exact False.elim (not_step_actor_from_staying_cs (hexec m) hact_m
-        (hbound m (by omega) q_star) (hstay_cs m hm_ge) (hstay_cs (m + 1) (by omega)))
+      exact not_step_actor_from_staying_cs (hexec m) hact_m
+        (hbound m (by omega) q_star) (hstay_cs m hm_ge) (hstay_cs (m + 1) (by omega))
   have hq_star_global_min : ∀ k ≥ t_s, ∀ r, (ss k).inBakery r → r ≠ q_star →
       (ss k).ticket q_star < (ss k).ticket r := by
     intro k hk r hr_bak hr_ne
-    have htk_q_eq : (ss k).ticket q_star = (ss t_s).ticket q_star := by
-      simp [BakeryState.ticket, (hB_bak q_star hq_star_mem k hk).2]
-    have hq_le_Tp : (ss t_s).ticket q_star ≤ T_p := (Finset.mem_filter.mp hq_star_mem).2.2
-    rw [htk_q_eq]
+    have htk : ∀ r ∈ B t_s, (ss k).ticket r = (ss t_s).ticket r := fun r hr => by
+      simp [BakeryState.ticket, (hB_bak r hr k hk).2]
+    rw [htk _ hq_star_mem]
     by_cases hr_le : (ss k).ticket r ≤ T_p
     · have hr_mem_Bk : r ∈ B k := Finset.mem_filter.mpr ⟨Finset.mem_univ r, hr_bak, hr_le⟩
       have hr_mem_Bs : r ∈ B t_s := hB_stab k hk ▸ hr_mem_Bk
-      have hr_tk_eq : (ss k).ticket r = (ss t_s).ticket r := by
-        simp [BakeryState.ticket, (hB_bak r hr_mem_Bs k hk).2]
-      rw [hr_tk_eq]
-      have hle_min : (ss t_s).ticket q_star ≤ (ss t_s).ticket r := by
-        rw [hq_star_min_eq]
-        exact Finset.min'_le tickets_Bs _ (Finset.mem_image_of_mem _ hr_mem_Bs)
-      have hne_tk : (ss t_s).ticket q_star ≠ (ss t_s).ticket r := fun heq =>
-        hr_ne (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2.symm
-      exact lt_of_le_of_ne hle_min hne_tk
-    · exact lt_of_le_of_lt hq_le_Tp (not_le.mp hr_le)
+      rw [htk _ hr_mem_Bs]
+      refine lt_of_le_of_ne ?_ fun heq => hr_ne (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2.symm
+      rw [hq_star_min_eq]
+      exact Finset.min'_le tickets_Bs _ (Finset.mem_image_of_mem _ hr_mem_Bs)
+    · exact lt_of_le_of_lt (Finset.mem_filter.mp hq_star_mem).2.2 (not_le.mp hr_le)
   have hno_cs_after : ∀ k ≥ t_s, ∀ r, ¬ (ss k).inCS r := by
     intro k hk r hr_cs
     by_cases hr_eq : r = q_star
@@ -1450,9 +1419,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       have hw := hq_star_wait k hk
       unfold BakeryState.inCS at hr_cs
       simp [BakeryState.inWaiting, BakeryPhase.isWaiting, hr_cs] at hw
-    · have h1 := bakery_cs_lt (hreach_all k) hr_cs (hq_star_bak k hk) hr_eq
-      have h2 := hq_star_global_min k hk r (BakeryState.inBakery_of_inCS hr_cs) hr_eq
-      exact lt_asymm h1 h2
+    · exact lt_asymm (bakery_cs_lt (hreach_all k) hr_cs (hq_star_bak k hk) hr_eq)
+        (hq_star_global_min k hk r (BakeryState.inBakery_of_inCS hr_cs) hr_eq)
   -- Step 4a: Drain all processes initially in `.failed` or `.writeNumberZero` at `t_s`.
   have hex_clean_rf : ∀ r, ∃ u ≥ t_s,
       (ss u).phase r ≠ .failed ∧ (ss u).phase r ≠ .writeNumberZero := by
@@ -1467,43 +1435,31 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       cases hph : (ss u).phase r <;> simp_all
   choose v_of hv_ge hv_clean using hex_clean_rf
   have hv_clean_from : ∀ r j, v_of r ≤ j →
-      (ss j).phase r ≠ .failed ∧ (ss j).phase r ≠ .writeNumberZero := by
-    intro r j hj
+      (ss j).phase r ≠ .failed ∧ (ss j).phase r ≠ .writeNumberZero := fun r j hj =>
     have hv_ge_r := hv_ge r
-    induction j, hj using Nat.le_induction with
-    | base => exact hv_clean r
-    | succ m hm ihm =>
-      exact step_clean_reset_fail (hexec m) (hbound m (by omega) r)
-        (hno_cs_after m (by omega) r) ihm
+    Nat.le_induction (hv_clean r) (fun m hm ihm => step_clean_reset_fail (hexec m)
+      (hbound m (by omega) r) (hno_cs_after m (by omega) r) ihm) j hj
   let t_A := Finset.univ.sup v_of ⊔ t_s
   have ht_A_ge : t_s ≤ t_A := le_sup_right
   have hclean_after_tA : ∀ k ≥ t_A, ∀ r,
-      (ss k).phase r ≠ .failed ∧ (ss k).phase r ≠ .writeNumberZero := by
-    exact fun k hk r =>
+      (ss k).phase r ≠ .failed ∧ (ss k).phase r ≠ .writeNumberZero :=
+    fun k hk r =>
       hv_clean_from r k (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
   -- Step 4b: From `t_A` onward, any doorway completion enters `inWaiting` permanently.
   have hstay_waiting_after_tA : ∀ r k, t_A ≤ k → (ss k).inWaiting r →
-      ∀ j ≥ k, (ss j).inWaiting r := by
-    intro r k hk hw_r j hj
-    induction j, hj using Nat.le_induction with
-    | base => exact hw_r
-    | succ m hm ihm =>
-      exact (inWaiting_step_of_not_cs (hexec m) (hbound m (by omega) r) ihm
-        (hno_cs_after (m + 1) (by omega) r)).1
+      ∀ j ≥ k, (ss j).inWaiting r := fun r k hk hw_r j hj =>
+    Nat.le_induction hw_r (fun m hm ihm => (inWaiting_step_of_not_cs (hexec m)
+      (hbound m (by omega) r) ihm (hno_cs_after (m + 1) (by omega) r)).1) j hj
   have hex_quiesce_r : ∀ r, ∃ w ≥ t_A, ∀ k ≥ w,
       (ss k).phase r = .remainder ∨ (ss k).inWaiting r := by
     intro r
     by_cases h_ever_dw : ∃ m ≥ t_A, (ss m).inDoorway r
     · obtain ⟨m, hm_ge, hdw_m⟩ := h_ever_dw
-      have hnot_rem_from_m : ∀ j ≥ m, (ss j).phase r ≠ .remainder := by
-        intro j hj
-        induction j, hj using Nat.le_induction with
-        | base =>
-          rintro hrem
-          simp [BakeryState.inDoorway, BakeryPhase.isDoorway, hrem] at hdw_m
-        | succ l hml ihl =>
-          exact step_not_rem_of_clean (hexec l) (hbound l (by omega) r)
-            (hclean_after_tA l (by omega) r) ihl
+      have hnot_rem_from_m : ∀ j ≥ m, (ss j).phase r ≠ .remainder := fun j hj =>
+        Nat.le_induction
+          (fun hrem => by simp [BakeryState.inDoorway, BakeryPhase.isDoorway, hrem] at hdw_m)
+          (fun l hml ihl => step_not_rem_of_clean (hexec l) (hbound l (by omega) r)
+            (hclean_after_tA l (by omega) r) ihl) j hj
       obtain ⟨w, hw_ge, hw_zero⟩ := exists_nonBakeryMeasure_zero hexec hfair (q := r) (i := m)
         (fun k hk => hbound k (by omega) r)
       have hw_wait : (ss w).inWaiting r := by
@@ -1517,8 +1473,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
   choose w_of hw_ge hw_quiesce using hex_quiesce_r
   let t₂ := Finset.univ.sup w_of ⊔ t_A
   have ht₂_ge : t_A ≤ t₂ := le_sup_right
-  have hquiesce_all : ∀ k ≥ t₂, ∀ r, (ss k).phase r = .remainder ∨ (ss k).inWaiting r := by
-    exact fun k hk r =>
+  have hquiesce_all : ∀ k ≥ t₂, ∀ r, (ss k).phase r = .remainder ∨ (ss k).inWaiting r :=
+    fun k hk r =>
       hw_quiesce r k (((Finset.le_sup (Finset.mem_univ r)).trans le_sup_left).trans hk)
   -- Step 5: From `t₂` onward, every step of `q_star` strictly decreases `waitMeasure`.
   obtain ⟨k, hk, hk_zero⟩ := exists_measure_zero hexec hfair (q := q_star) (i := t₂) waitMeasure
