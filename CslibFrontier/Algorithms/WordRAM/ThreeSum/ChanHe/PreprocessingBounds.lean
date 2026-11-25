@@ -28,6 +28,9 @@ namespace Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing
 
 open Cslib.WordRAM
 
+private theorem le_pow_succ {P c k x : ℕ} (hc : c ≤ P) (h : x ≤ c * P ^ k) : x ≤ P ^ (k + 1) :=
+  h.trans ((Nat.mul_le_mul_right _ hc).trans_eq (pow_succ' P k).symm)
+
 /-- The complete global envelope is a fixed power of the already bounded native parameter budget. -/
 theorem arena_envelope_le (κ n : ℕ) (retained : ℕ → ℕ) :
     let a := arena κ n retained
@@ -68,25 +71,18 @@ theorem arena_envelope_le (κ n : ℕ) (retained : ℕ → ℕ) :
   have hwork : Traversal.Math.work F ≤ P ^ 6 := by
     have hw := Traversal.work_fuel_le n
     change Traversal.Math.work F ≤ 3 * (2 * Nat.log 2 n + 2) ^ 5 at hw
-    calc Traversal.Math.work F ≤ 3 * P ^ 5 :=
-        hw.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 5))
-      _ ≤ P * P ^ 5 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 6 := by ring
+    exact le_pow_succ (by omega)
+      (hw.trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 5)))
   have hpower : 3 ^ (F + 1) ≤ P ^ 7 := by
     have he := Traversal.Math.work_eq F
     have hpow : 1 ≤ P ^ 6 := Nat.one_le_pow _ _ hP1
-    calc 3 ^ (F + 1) ≤ 3 * P ^ 6 := by omega
-      _ ≤ P * P ^ 6 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 7 := by ring
+    exact le_pow_succ (c := 3) (by omega) (by omega)
   have hD : l.count ≤ P ^ 3 := by
     have hsq := Nat.pow_le_pow_left hΛ 2
     have hpos : 1 ≤ P ^ 2 := Nat.one_le_pow _ _ hP1
-    calc
-      l.count ≤ 4 * P ^ 2 := by
-        dsimp only [Frontend.Layout.count, Frontend.Layout.splits]
-        omega
-      _ ≤ P * P ^ 2 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 3 := by ring
+    refine le_pow_succ (c := 4) (by omega) ?_
+    dsimp only [Frontend.Layout.count, Frontend.Layout.splits]
+    omega
   have hfront : l.endpoint ≤ P ^ 4 := by
     have hb := Frontend.array_budget_le n U
     change Frontend.Arrays.budget l U ≤ P ^ 4 at hb
@@ -101,24 +97,18 @@ theorem arena_envelope_le (κ n : ℕ) (retained : ℕ → ℕ) :
   have hstack : l.endpoint + m + 1 ≤ P ^ 5 := by
     have hp := powmono (show 1 ≤ 4 by decide)
     simp only [pow_one] at hp
-    calc l.endpoint + m + 1 ≤ 2 * P ^ 4 := by omega
-      _ ≤ P * P ^ 4 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 5 := by ring
+    exact le_pow_succ (c := 2) (by omega) (by omega)
   have hcap : 7 * (2 * F + 1) ≤ P ^ 2 := by nlinarith
   have htable : l.endpoint + m + 1 + 7 * (2 * F + 1) ≤ P ^ 6 := by
     have hp := powmono (show 2 ≤ 5 by decide)
-    calc _ ≤ 2 * P ^ 5 := by omega
-      _ ≤ P * P ^ 5 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 6 := by ring
+    exact le_pow_succ (c := 2) (by omega) (by omega)
   have houtcap : l.count * 3 ^ (F + 1) ≤ P ^ 10 := by
     calc _ ≤ P ^ 3 * P ^ 7 := Nat.mul_le_mul hD hpower
       _ = P ^ 10 := by ring
   have hfloor : (arena κ n retained).floor ≤ P ^ 11 := by
     have hp := powmono (show 6 ≤ 10 by decide)
     change l.endpoint + m + 1 + 7 * (2 * F + 1) + l.count * 3 ^ (F + 1) ≤ _
-    calc _ ≤ 2 * P ^ 10 := by omega
-      _ ≤ P * P ^ 10 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 11 := by ring
+    exact le_pow_succ (c := 2) (by omega) (by omega)
   have halloc : l.count * (Traversal.Math.work F *
       Traversal.allocationSize (n + 1) m N) ≤ P ^ 11 := by
     calc _ ≤ P ^ 3 * (P ^ 6 * P ^ 2) :=
@@ -127,9 +117,7 @@ theorem arena_envelope_le (κ n : ℕ) (retained : ℕ → ℕ) :
   have hceil : (arena κ n retained).ceiling ≤ P ^ 12 := by
     change (arena κ n retained).floor + l.count *
       (Traversal.Math.work F * Traversal.allocationSize (n + 1) m N) ≤ _
-    calc _ ≤ 2 * P ^ 11 := by omega
-      _ ≤ P * P ^ 11 := Nat.mul_le_mul_right _ (by omega)
-      _ = P ^ 12 := by ring
+    exact le_pow_succ (c := 2) (by omega) (by omega)
   have hsum : (arena κ n retained).ceiling + (n + 1) + m ^ 2 + l.digits + m +
       2 * U + N + 100 ≤ 2 * P ^ 12 := by
     have hpow : P ^ 2 ≤ P ^ 12 := powmono (by decide)
