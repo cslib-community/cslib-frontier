@@ -914,67 +914,23 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
     refine Finset.sum_congr rfl fun x _ => congrArg _ <|
       Finset.sum_congr rfl fun w _ => congrArg _ <|
         Finset.sum_congr rfl fun z_i _ => congrArg _ ?_
-    have hswap :
-        (∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-            (if T (D.extend i z_i w, fun j : Fin m =>
-                if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-                else if j = i then c else u j) = true then (1 : ℝ) else 0)) =
-        ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-          ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (if T (D.extend i z_i w, fun j : Fin m =>
-                if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-                else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0) := by
-      simp_rw [Finset.mul_sum]
-      have hbi (u : BitString m) :
-          (∑ c : Bool, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (((PMF.uniformOfFintype Bool) c).toReal *
-              (if T (D.extend i z_i w, fun j : Fin m =>
-                  if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-                  else if j = i then c else u j) = true then (1 : ℝ) else 0))) =
-          ∑ c : Bool, ((PMF.uniformOfFintype Bool) c).toReal *
-            (((PMF.uniformOfFintype (BitString m)) u).toReal *
-              (if T (D.extend i z_i w, fun j : Fin m =>
-                  if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-                  else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0)) := by
-        let shB : Bool ≃ Bool := Equiv.addLeft (u i)
-        refine Fintype.sum_equiv shB _ _ fun c => ?_
-        have hadd : u i + shB c = c := by
-          change u i + (u i + c) = c
-          cases u i <;> cases c <;> decide
-        change ((PMF.uniformOfFintype (BitString m)) u).toReal *
-            (((PMF.uniformOfFintype Bool) c).toReal * _) =
-          ((PMF.uniformOfFintype Bool) (shB c)).toReal *
-            (((PMF.uniformOfFintype (BitString m)) u).toReal * _)
-        rw [hadd]
-        simp only [PMF.uniformOfFintype_apply]
-        ring
-      exact (Finset.sum_congr rfl fun u _ => hbi u).trans Finset.sum_comm
-    rw [hswap]
-    have hconst (c : Bool) :
-        (∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          (if T (D.extend i z_i w, fun j : Fin m =>
-              if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-              else if j = i then (u i + c) else u j) = true then (1 : ℝ) else 0)) =
-        ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-          (if T (D.extend i z_i w, fun j : Fin m =>
-              if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j else u j) = true
-            then (1 : ℝ) else 0) := by
-      let delta : BitString m := Pi.single i c
-      let sh : BitString m ≃ BitString m := Equiv.addRight delta
-      refine Fintype.sum_equiv sh _ _ fun u => ?_
-      simp only [PMF.uniformOfFintype_apply]
-      congr 3
-      refine congrArg (fun v => T (D.extend i z_i w, v)) (funext fun j => ?_)
-      change (if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j
-          else if j = i then u i + c else u j) =
-        if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j else (u + delta) j
-      by_cases hlt : j.1 < i.1
-      · simp [hlt]
-      · by_cases heq : j = i
-        · subst heq; simp [delta]
-        · simp [hlt, heq, delta]
-    simp_rw [hconst, ← Finset.sum_mul, PMF.sum_toReal, one_mul]
+    -- `(u, c) ↦ (u[i ↦ c], u i)` is a weight-preserving bijection of `BitString m × Bool`.
+    let G (v : BitString m) : ℝ := if T (D.extend i z_i w, fun j : Fin m =>
+      if j.1 < i.1 then trevisanExt D enc x (D.extend i z_i w) j else v j) = true then 1 else 0
+    let e : BitString m × Bool ≃ BitString m × Bool :=
+      ⟨fun p => (Function.update p.1 i p.2, p.1 i), fun p => (Function.update p.1 i p.2, p.1 i),
+        fun p => by simp, fun p => by simp⟩
+    calc ∑ u, ((PMF.uniformOfFintype (BitString m)) u).toReal * G u
+        = ∑ p : BitString m × Bool, ((PMF.uniformOfFintype (BitString m)) p.1).toReal *
+            (((PMF.uniformOfFintype Bool) p.2).toReal * G p.1) := by
+          rw [Fintype.sum_prod_type]
+          simp_rw [← Finset.mul_sum, ← Finset.sum_mul, PMF.sum_toReal, one_mul]
+      _ = ∑ p : BitString m × Bool, ((PMF.uniformOfFintype (BitString m)) p.1).toReal *
+            (((PMF.uniformOfFintype Bool) p.2).toReal * G (Function.update p.1 i p.2)) :=
+          (Fintype.sum_equiv e _ _ fun p => by simp [e, PMF.uniformOfFintype_apply]).symm
+      _ = _ := by
+          rw [Fintype.sum_prod_type]
+          simp only [Finset.mul_sum, G, Function.update_apply]
   have hhyb_succ :
       ((trevHybrid D enc X (i.1 + 1)).map T true).toReal =
         ∑ x : BitString n, (X x).toReal *
@@ -992,16 +948,12 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
           Finset.sum_congr rfl fun u _ => ?_
     congr 3
     refine congrArg (fun v => T (D.extend i z_i w, v)) (funext fun j => ?_)
-    by_cases hlt : j.1 < i.1
-    · have hlt' : j.1 < i.1 + 1 := by omega
-      simp [hlt, hlt']
-    · by_cases heq : j = i
-      · subst heq
-        simp only [Nat.lt_succ_self, ↓reduceIte, lt_irrefl, trevisanExt, WeakDesign.restrict_extend]
-      · have hnot : ¬ j.1 < i.1 + 1 := by
-          have : j.1 ≠ i.1 := fun h => heq (Fin.ext h)
-          omega
-        simp [hlt, heq, hnot]
+    rcases lt_trichotomy j.1 i.1 with hlt | heq | hgt
+    · simp [hlt, Nat.lt_succ_of_lt hlt]
+    · obtain rfl := Fin.ext heq
+      simp only [Nat.lt_succ_self, ↓reduceIte, lt_irrefl, trevisanExt, WeakDesign.restrict_extend]
+    · simp [show ¬ j.1 < i.1 by omega, show ¬ j.1 < i.1 + 1 by omega,
+        Fin.ne_of_gt (show i < j from hgt)]
   -- Expand the LHS sum over `z_i` and commute sums to match `hinner_b`.
   have hcard_sum (x : BitString n) (w : BitString ℓ) (b : Bool) (u : BitString m) :
       ((#{z_i : BitString t |
