@@ -164,20 +164,19 @@ theorem eval_routeCircuit_value_eq_true_iff {h k o depth width : ℕ}
   let y := (routeCircuit.broadcast key tag depth width).eval interpretation x
   let z := (keyedSortCircuit
     (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true).eval interpretation y
-  change header z destination tag = true at htag
-  change value z destination bit = true ↔
-    ∃ source, header x source ∘ key = header z destination ∘ key ∧
-      header x source tag = false ∧ value x source bit = true
-  have perm := keyedSortCircuit_perm
-    (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true y
-  obtain ⟨d, hd⟩ := List.mem_ofFn.mp (perm.mem_iff.mp (List.mem_ofFn.mpr ⟨destination, rfl⟩))
+  obtain ⟨d, hd⟩ := List.mem_ofFn.mp ((keyedSortCircuit_perm
+    (order.comp (Circuit.wiring signature (Fin.castAdd width))) depth true y).mem_iff.mp
+    (List.mem_ofFn.mpr ⟨destination, rfl⟩))
   have hh : header z destination = header y d :=
     congrArg (fun row : BitString (h + width) => row ∘ Fin.castAdd width) hd.symm
   have hv : value z destination = value y d :=
     congrArg (fun row : BitString (h + width) => row ∘ Fin.natAdd h) hd.symm
-  rw [hh] at htag
+  change header z destination tag = true at htag
+  change value z destination bit = true ↔
+    ∃ source, header x source ∘ key = header z destination ∘ key ∧
+      header x source tag = false ∧ value x source bit = true
   rw [hv, hh]
-  exact routeCircuit.value_eq_true_iff key tag x d htag bit
+  exact routeCircuit.value_eq_true_iff key tag x d (hh ▸ htag) bit
 
 open scoped Classical in
 /-- A uniquely keyed destination header is restored to its rank in the original input. -/
@@ -196,10 +195,8 @@ theorem eval_routeCircuit_header_of_rank {h k o depth width : ℕ}
     (fun row => toLex (order.eval interpretation row)) (monotone_routeCircuit key tag order x)
     destination target (fun i h => unique i h) (by
       convert rank using 1
-      apply congrArg Finset.card
-      ext i
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      rfl)
+      refine congrArg Finset.card (Finset.ext fun _ => ?_)
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]; rfl)
 
 open scoped Classical in
 /-- At a fixed restored position, destination values are the OR of matching original sources. -/
@@ -235,14 +232,10 @@ theorem eval_routeCircuit_value_of_unique_source {h k o depth width : ℕ}
     value ((routeCircuit key tag order depth width).eval interpretation x) target =
       value x source := by
   funext bit
-  apply Bool.eq_iff_iff.mpr
-  rw [eval_routeCircuit_value_eq_true_iff_of_rank key tag order x destination target
-    uniqueDestination rank hdestination bit]
-  constructor
-  · rintro ⟨i, hi, ht, hv⟩
-    exact uniqueSource i (hi.trans hkey.symm) ht ▸ hv
-  · intro hv
-    exact ⟨source, hkey, hsource, hv⟩
+  rw [Bool.eq_iff_iff, eval_routeCircuit_value_eq_true_iff_of_rank key tag order x destination
+    target uniqueDestination rank hdestination bit]
+  exact ⟨fun ⟨i, hi, ht, hv⟩ => uniqueSource i (hi.trans hkey.symm) ht ▸ hv,
+    fun hv => ⟨source, hkey, hsource, hv⟩⟩
 
 /-- Exact additive weighted cost of the two sorting circuits and shared broadcast. -/
 theorem cost_program_routeCircuit {h k o : ℕ}
@@ -285,10 +278,9 @@ theorem four_mul_size_routeCircuit {h k o : ℕ}
         (12 * (k + 1 + o + h + width) + 4) +
       4 * (1 + (2 ^ depth - 1) * (6 * k + 1) + width * (1 + 4 * 2 ^ depth)) := by
   have positive : 0 < h := Nat.zero_lt_of_lt tag.isLt
-  have h₁ : k + 1 + (h + width) ≠ 0 := by lia
-  have h₂ : o + (h + width) ≠ 0 := by lia
   have hc := four_mul_cost_program_routeCircuit key tag order depth width (fun _ => 1)
-  simp only [Program.cost_const, one_mul, size_compareSwapCircuit, h₁, h₂, ↓reduceIte] at hc
+  simp only [Program.cost_const, one_mul, size_compareSwapCircuit,
+    show k + 1 + (h + width) ≠ 0 by lia, show o + (h + width) ≠ 0 by lia, ↓reduceIte] at hc
   convert hc using 1
   ring
 

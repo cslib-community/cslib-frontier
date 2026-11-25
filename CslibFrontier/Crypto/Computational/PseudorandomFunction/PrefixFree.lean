@@ -98,16 +98,12 @@ theorem map_fst_wordQueryRunDist {α : Type} (oracle : List Bool → List Bool)
   | pure a => simp [wordQueryRunDist, OracleComp.interpret, PFunctor.FreeM.liftM]
   | liftBind op cont ih =>
     cases op with
-    | inl k =>
-      simp only [wordQueryRunDist, PMF.map_bind, ih]
-      rfl
+    | inl k => simp only [wordQueryRunDist, PMF.map_bind, ih]; rfl
     | inr req =>
       simp only [wordQueryRunDist, PMF.map_comp, Function.comp_def, ih]
-      change _ = (PMF.pure (oracle req.2)).bind fun reply =>
-        OracleComp.interpret
-          (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (oracle q.2)))
-          (cont reply)
-      simp
+      exact (PMF.pure_bind _ fun reply => OracleComp.interpret
+        (OracleComp.sumHandler ProbComp.unifOracle (fun q => PMF.pure (oracle q.2)))
+        (cont reply)).symm
 
 /-- The probability of a particular output and query log depends only on how the oracle answers
 the queries in that log, even when further queries depend on earlier replies. -/
@@ -126,14 +122,11 @@ theorem wordQueryRunDist_apply_eq_of_agree {α : Type} {oracle oracle' : List Bo
         congrArg ((ProbComp.unifOracle k coin) * ·) (ih coin result hagree)
     | inr req =>
       simp only [wordQueryRunDist, PMF.map_apply]
-      apply tsum_congr
-      rintro ⟨answer, log⟩
+      refine tsum_congr fun ⟨answer, log⟩ => ?_
       by_cases heq : result = (answer, req.2 :: log)
       · subst result
-        simp only [↓reduceIte]
-        rw [hagree req.2 (List.mem_cons_self ..)]
-        exact ih (oracle' req.2) (answer, log) (fun q hq =>
-          hagree q (List.mem_cons_of_mem _ hq))
+        simp only [↓reduceIte, hagree req.2 (List.mem_cons_self ..)]
+        exact ih (oracle' req.2) (answer, log) fun q hq => hagree q (List.mem_cons_of_mem _ hq)
       · simp [heq]
 
 /-- Querying a fixed list of words records exactly that list. Against a deterministic oracle,
@@ -189,22 +182,20 @@ private theorem length_snd_le_of_mem_support_wordQueryRunDist {α : Type}
   induction program generalizing q result with
   | pure a =>
     simp only [wordQueryRunDist, PMF.mem_support_pure_iff] at hmem
-    subst hmem
-    exact Nat.zero_le q
+    exact hmem ▸ Nat.zero_le q
   | liftBind op cont ih =>
     obtain ⟨hle, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp hq
     cases op with
     | inl m =>
-      simp only [wordQueryRunDist, PMF.mem_support_bind_iff] at hmem
-      obtain ⟨c, _, hc⟩ := hmem
+      obtain ⟨c, _, hc⟩ := by
+        simpa only [wordQueryRunDist, PMF.mem_support_bind_iff] using hmem
       simpa only [Sum.elim_inl, Nat.sub_zero] using ih c (hcont c) hc
     | inr req =>
-      simp only [wordQueryRunDist, PMF.mem_support_map_iff] at hmem
-      obtain ⟨⟨a, log⟩, hc, rfl⟩ := hmem
+      obtain ⟨⟨a, log⟩, hc, rfl⟩ := by
+        simpa only [wordQueryRunDist, PMF.mem_support_map_iff] using hmem
       have hlen := ih (oracle req.2) (hcont (oracle req.2)) hc
       simp only [Sum.elim_inr] at hle hlen
-      simp only [List.length_cons]
-      omega
+      simp only [List.length_cons]; omega
 
 /-- Every program making at most one query is prefix-free on every domain. -/
 theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
@@ -214,10 +205,8 @@ theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → 
   have hlen := length_snd_le_of_mem_support_wordQueryRunDist oracle hq hmem
   rcases result with ⟨_, _ | ⟨w, _ | ⟨w', _⟩⟩⟩
   · cases hx
-  · simp only [List.mem_singleton] at hx hy
-    exact absurd (hx.trans hy.symm) hxy
-  · simp only [List.length_cons] at hlen
-    omega
+  · simp only [List.mem_singleton] at hx hy; exact absurd (hx.trans hy.symm) hxy
+  · simp only [List.length_cons] at hlen; omega
 
 /-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
 Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic

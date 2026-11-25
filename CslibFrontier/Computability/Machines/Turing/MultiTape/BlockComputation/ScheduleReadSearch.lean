@@ -46,9 +46,7 @@ theorem searchIterate_context (k c : ℕ) (a : SearchArgs) (j : ℕ) :
     ((searchStep k c)^[j] (a, 0, none)).1 = a := by
   induction j with
   | zero => rfl
-  | succ j ih =>
-    rw [Function.iterate_succ_apply']
-    simpa only [searchStep] using ih
+  | succ j ih => rw [Function.iterate_succ_apply']; simpa only [searchStep] using ih
 
 /-- The search cursor equals the number of completed iterations. -/
 theorem searchIterate_cursor (k c : ℕ) (a : SearchArgs) (j : ℕ) :
@@ -90,27 +88,22 @@ theorem searchIterate_spec (k c σ i δ j : ℕ) :
       | none =>
         simp only [hl] at ih ⊢
         intro m hm
-        by_cases hmj : m < j
+        rcases Nat.lt_or_ge m j with hmj | hmj
         · exact ih m hmj
-        · have : m = j := by omega
-          simpa only [this] using hp
+        · simpa only [show m = j by omega] using hp
       | some n =>
         simp only [hl] at ih ⊢
-        refine ⟨by omega, ih.2.1, ?_⟩
-        intro m hm hmatch
-        by_cases hmj : m < j
+        refine ⟨by omega, ih.2.1, fun m hm hmatch => ?_⟩
+        rcases Nat.lt_or_ge m j with hmj | hmj
         · exact ih.2.2 m hmj hmatch
-        · have : m = j := by omega
-          rw [this, hp] at hmatch
-          contradiction
+        · rw [show m = j by omega, hp] at hmatch; contradiction
 
 /-- A retained predecessor is always smaller than the number of visited intervals. -/
 theorem searchIterate_latest_bound (k c : ℕ) (a : SearchArgs) (j n : ℕ)
     (h : ((searchStep k c)^[j] (a, 0, none)).2.2 = some n) : n < j := by
   rcases a with ⟨σ, i, δ⟩
   have hs := searchIterate_spec k c σ i δ j
-  rw [h] at hs
-  exact hs.1
+  rw [h] at hs; exact hs.1
 
 /-- Streaming search computes the existing numeric last-provider operation. -/
 theorem search_eq_lastBeforeNum (k c σ i δ : ℕ) :
@@ -123,25 +116,20 @@ theorem search_eq_lastBeforeNum (k c σ i δ : ℕ) :
     symm
     simp only [lastBeforeNum, Option.map_eq_none_iff, List.find?_eq_none, List.mem_range]
     intro j hj hmatch
-    rw [← inWindow_eq, hs (i - 1 - j) (by omega)] at hmatch
-    contradiction
+    rw [← inWindow_eq, hs (i - 1 - j) (by omega)] at hmatch; contradiction
   | some n =>
     simp only [hl] at hs
     have hfind : ((List.range i).find? fun j =>
-        inWindowNum k σ c i δ (i - 1 - j)) = some (i - 1 - n) := by
-      rw [List.find?_range_eq_some]
-      refine ⟨?_, List.mem_range.mpr (by omega), ?_⟩
-      · rw [show i - 1 - (i - 1 - n) = n by omega, ← inWindow_eq]
-        exact hs.2.1
-      · intro j hj
-        rw [Bool.not_eq_true', Bool.eq_false_iff]
-        intro hmatch
-        rw [← inWindow_eq] at hmatch
-        have hm := hs.2.2 (i - 1 - j) (by omega) hmatch
-        omega
+        inWindowNum k σ c i δ (i - 1 - j)) = some (i - 1 - n) :=
+      List.find?_range_eq_some.mpr
+        ⟨by rw [show i - 1 - (i - 1 - n) = n by omega, ← inWindow_eq]; exact hs.2.1,
+          List.mem_range.mpr (by omega), fun j hj => by
+            rw [Bool.not_eq_true', Bool.eq_false_iff]
+            intro hmatch
+            have hm := hs.2.2 (i - 1 - j) (by omega) (inWindow_eq .. ▸ hmatch)
+            omega⟩
     simp only [lastBeforeNum, hfind, Option.map_some]
-    congr 1
-    omega
+    congr 1; omega
 
 /-- The native reader finds exactly the functional schedule's last earlier provider. -/
 theorem search_eq_lastBefore {k q : ℕ} (σ : ℕ) (i : Fin q) (h : Fin k) (δ : Fin 3) :

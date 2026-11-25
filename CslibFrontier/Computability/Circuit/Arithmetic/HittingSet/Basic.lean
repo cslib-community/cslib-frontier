@@ -95,15 +95,12 @@ private theorem X_pow_dvd_aeval_logCurve_sub (B : ℕ) (f : MvPolynomial (Fin n)
   | mul_X p i hp =>
     rw [map_mul, map_mul, MvPolynomial.aeval_X, MvPolynomial.aeval_X, Polynomial.coe_mul]
     have hi : (PowerSeries.X : F⟦X⟧) ^ B ∣
-        ((logCurve F n B i : F[X]) : F⟦X⟧) - logSeries F n i := by
-      rw [PowerSeries.X_pow_dvd_iff]
-      intro m hm
-      rw [map_sub, Polynomial.coeff_coe, logCurve, PowerSeries.coeff_trunc, ite_eq_left hm,
-        sub_self]
-    have h := dvd_add
-      (Dvd.dvd.mul_left hi ((MvPolynomial.aeval (logCurve F n B) p : F[X]) : F⟦X⟧))
-      (Dvd.dvd.mul_right hp (logSeries F n i))
-    convert h using 1
+        ((logCurve F n B i : F[X]) : F⟦X⟧) - logSeries F n i :=
+      PowerSeries.X_pow_dvd_iff.mpr fun m hm => by
+        rw [map_sub, Polynomial.coeff_coe, logCurve, PowerSeries.coeff_trunc, ite_eq_left hm,
+          sub_self]
+    convert dvd_add (hi.mul_left ((MvPolynomial.aeval (logCurve F n B) p : F[X]) : F⟦X⟧))
+      (hp.mul_right (logSeries F n i)) using 1
     ring
 
 variable {V : Submodule F (MvPolynomial (Fin n) F)}
@@ -119,9 +116,8 @@ theorem not_X_pow_dvd_aeval_logCurve (hV : ∀ i, ∀ p ∈ V, MvPolynomial.pder
   have h := X_pow_dvd_aeval_logCurve_sub (n * r ^ 2 + r) f
   rw [hq, Polynomial.coe_mul, Polynomial.coe_pow, Polynomial.coe_X,
     dvd_sub_right (dvd_mul_right _ _)] at h
-  refine not_X_pow_dvd_aeval_logSeries (algebraicIndependent_logSeries F n) hV hf hf0
-    ((pow_dvd_pow _ ?_).trans h)
-  gcongr
+  exact not_X_pow_dvd_aeval_logSeries (algebraicIndependent_logSeries F n) hV hf hf0
+    ((pow_dvd_pow _ (by gcongr)).trans h)
 
 /-- **Theorem 1.1 of the source.** A nonzero polynomial in a derivative-closed space of dimension
 at most `r` does not vanish on the logarithmic curve truncated below degree `n * r ^ 2 + r`. -/
@@ -133,9 +129,8 @@ theorem aeval_logCurve_ne_zero (hV : ∀ i, ∀ p ∈ V, MvPolynomial.pderiv i p
 
 /-- The logarithmic curve truncated below degree `B` has coordinates of degree at most `B`. -/
 theorem natDegree_logCurve_le (B : ℕ) (i : Fin n) : (logCurve F n B i).natDegree ≤ B := by
-  rw [logCurve]
   cases B with
-  | zero => simp
+  | zero => simp [logCurve]
   | succ B => exact (PowerSeries.natDegree_trunc_lt _ B).le
 
 /-- The points of the logarithmic curve form a hitting set for the polynomials of degree at most
@@ -147,19 +142,18 @@ theorem isHittingSet_logHittingSet (r d : ℕ) :
           Module.finrank F V ≤ r ∧ f ∈ V} := by
   rintro f ⟨hd, V, hV, hfin, hr, hf⟩ hf0
   classical
-  set B := n * r ^ 2 + r with hB
-  have hne := aeval_logCurve_ne_zero hV hr hf hf0
-  have hdeg : (MvPolynomial.aeval (logCurve F n B) f).natDegree < d * B + 1 :=
-    Nat.lt_succ_of_le ((MvPolynomial.natDegree_aeval_le_mul (natDegree_logCurve_le B) f).trans
-      (Nat.mul_le_mul_right _ hd))
+  set B := n * r ^ 2 + r
   by_contra hall
-  refine hne (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
-    ((range (d * B + 1)).image fun k : ℕ => (k : F)) ?_ ?_)
-  · intro x hx
-    obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
+  refine aeval_logCurve_ne_zero hV hr hf hf0
+    (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' _
+      ((range (d * B + 1)).image fun k : ℕ => (k : F)) (fun x hx => ?_) ?_)
+  · obtain ⟨k, hk, rfl⟩ := mem_image.1 hx
     rw [MvPolynomial.eval_polynomial_aeval]
     exact not_not.1 fun h => hall ⟨_, mem_image.2 ⟨k, hk, rfl⟩, h⟩
-  · rwa [card_image_of_injective _ Nat.cast_injective, card_range]
+  · rw [card_image_of_injective _ Nat.cast_injective, card_range]
+    exact Nat.lt_succ_of_le
+      ((MvPolynomial.natDegree_aeval_le_mul (natDegree_logCurve_le B) f).trans
+        (Nat.mul_le_mul_right _ hd))
 
 /-- Sums of `s` `d`-th powers of linear forms in `n` variables have a hitting set of
 `d * (n * (s * (d + 1)) ^ 2 + s * (d + 1)) + 1` points. -/
@@ -171,33 +165,30 @@ theorem isHittingSet_sum_pow (s d : ℕ) :
   classical
   set ℓ : Fin s → MvPolynomial (Fin n) F := fun k => ∑ i, a k i • MvPolynomial.X i with hℓ
   set b : Fin s × Fin (d + 1) → MvPolynomial (Fin n) F := fun ke => ℓ ke.1 ^ (ke.2 : ℕ) with hb
-  set V := Submodule.span F (Set.range b) with hVdef
+  set V := Submodule.span F (Set.range b)
   have hmem (k : Fin s) (e : ℕ) (he : e ≤ d) : ℓ k ^ e ∈ V :=
     Submodule.subset_span ⟨(k, ⟨e, Nat.lt_succ_of_le he⟩), rfl⟩
   have hpd (i : Fin n) (k : Fin s) : MvPolynomial.pderiv i (ℓ k) = MvPolynomial.C (a k i) := by
     simp only [hℓ, map_sum, MvPolynomial.smul_eq_C_mul, MvPolynomial.pderiv_C_mul,
       MvPolynomial.pderiv_X, Pi.single_apply, mul_ite, mul_one, mul_zero]
     simp
-  refine isHittingSet_logHittingSet (s * (d + 1)) d _ ⟨?_, V, ?_, ?_, ?_, ?_⟩ hf0
+  refine isHittingSet_logHittingSet (s * (d + 1)) d _ ⟨?_, V, fun i p hp => ?_,
+    Module.Finite.span_of_finite F (Set.finite_range b),
+    (finrank_range_le_card b).trans_eq (by simp),
+    V.sum_mem fun k _ => V.smul_mem _ (hmem k d le_rfl)⟩ hf0
   · refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun k _ => ?_)
     refine (MvPolynomial.totalDegree_smul_le _ _).trans
       ((MvPolynomial.totalDegree_pow _ _).trans ?_)
-    have h1 : (ℓ k).totalDegree ≤ 1 :=
-      (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun i _ =>
-        (MvPolynomial.totalDegree_smul_le _ _).trans (MvPolynomial.totalDegree_X i).le)
-    simpa using Nat.mul_le_mul_left d h1
-  · intro i p hp
-    refine Submodule.span_induction (p := fun q _ => MvPolynomial.pderiv i q ∈ V) ?_ ?_ ?_ ?_ hp
-    · rintro _ ⟨⟨k, e⟩, rfl⟩
-      simp only [hb, Derivation.leibniz_pow, hpd]
-      refine V.smul_of_tower_mem _ ?_
-      rw [smul_eq_mul, mul_comm, ← MvPolynomial.smul_eq_C_mul]
-      exact V.smul_mem _ (hmem k _ (by have := e.2; omega))
-    · simp
-    · intro x y _ _ hx hy; rw [map_add]; exact V.add_mem hx hy
-    · intro r x _ hx; rw [Derivation.map_smul]; exact V.smul_mem _ hx
-  · exact Module.Finite.span_of_finite F (Set.finite_range b)
-  · exact (finrank_range_le_card b).trans_eq (by simp)
-  · exact V.sum_mem fun k _ => V.smul_mem _ (hmem k d le_rfl)
+    simpa using Nat.mul_le_mul_left d
+      ((MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun i _ =>
+        (MvPolynomial.totalDegree_smul_le _ _).trans (MvPolynomial.totalDegree_X i).le))
+  · refine Submodule.span_induction ?_ (by simp)
+      (fun _ _ _ _ hx hy => by rw [map_add]; exact V.add_mem hx hy)
+      (fun _ _ _ hx => by rw [Derivation.map_smul]; exact V.smul_mem _ hx) hp
+    rintro _ ⟨⟨k, e⟩, rfl⟩
+    simp only [hb, Derivation.leibniz_pow, hpd]
+    refine V.smul_of_tower_mem _ ?_
+    rw [smul_eq_mul, mul_comm, ← MvPolynomial.smul_eq_C_mul]
+    exact V.smul_mem _ (hmem k _ (by have := e.2; omega))
 
 end Cslib.Circuits.Arithmetic
