@@ -177,9 +177,10 @@ private theorem GenPrefixTree.extract_mul_subtree {k a m b : ℕ}
       t.FanoutAtMost k →
       t.Valid (IL.intervals ∪ IR.intervals) →
       t.mulCount m = 1 →
-      (∃ Q₁ Q₂ : GenPrefixTree,
+      ∃ Q₁ Q₂ : GenPrefixTree,
+        ((Q₁.rootBudget + 1 = t.rootBudget ∧ Q₂.depth + 1 ≤ t.depth) ∨
+          (Q₁.rootBudget ≤ t.rootBudget ∧ Q₂.depth + 2 ≤ t.depth)) ∧
         Q₁.state = t.state ∧
-        Q₁.rootBudget + 1 = t.rootBudget ∧
         Q₁.depth ≤ t.depth ∧
         Q₁.FanoutAtMost k ∧
         Q₁.MaxStateLt m ∧
@@ -187,30 +188,12 @@ private theorem GenPrefixTree.extract_mul_subtree {k a m b : ℕ}
         (∀ x, Q₁.outAt x ≤ t.outAt x) ∧
         (∀ x, Q₁.mulCount x ≤ t.mulCount x) ∧
         Q₂.state = m ∧
-        Q₂.depth + 1 ≤ t.depth ∧
         Q₂.FanoutAtMost k ∧
         Q₂.MaxStateLt b ∧
         Q₂.Valid (IR.intervals.erase (m, b)) ∧
         (∀ x, Q₂.outAt x ≤ t.outAt x) ∧
         (∀ x, Q₂.mulCount x ≤ t.mulCount x) ∧
-        t.outCount = Q₁.outCount + Q₂.outCount) ∨
-      (∃ Q₁ Q₂ : GenPrefixTree,
-        Q₁.state = t.state ∧
-        Q₁.rootBudget ≤ t.rootBudget ∧
-        Q₁.depth ≤ t.depth ∧
-        Q₁.FanoutAtMost k ∧
-        Q₁.MaxStateLt m ∧
-        Q₁.Valid (IL.intervals.erase (a, m)) ∧
-        (∀ x, Q₁.outAt x ≤ t.outAt x) ∧
-        (∀ x, Q₁.mulCount x ≤ t.mulCount x) ∧
-        Q₂.state = m ∧
-        Q₂.depth + 2 ≤ t.depth ∧
-        Q₂.FanoutAtMost k ∧
-        Q₂.MaxStateLt b ∧
-        Q₂.Valid (IR.intervals.erase (m, b)) ∧
-        (∀ x, Q₂.outAt x ≤ t.outAt x) ∧
-        (∀ x, Q₂.mulCount x ≤ t.mulCount x) ∧
-        t.outCount = Q₁.outCount + Q₂.outCount)
+        t.outCount = Q₁.outCount + Q₂.outCount
   | .node _ _ 0 _ _, _, _, _, _, _, hmc1 => by
     simp only [GenPrefixTree.mulCount, Finset.univ_eq_empty, Finset.sum_empty] at hmc1
     omega
@@ -229,13 +212,13 @@ private theorem GenPrefixTree.extract_mul_subtree {k a m b : ℕ}
       GenPrefixTree.child_depth_lt i₀
     by_cases hhit : isMul i₀ = true ∧ (child i₀).state = m
     · -- The `mul` edge into `m` leaves the root: split off the child `i₀`.
-      left
-      refine ⟨.node st hasOut r' (isMul ∘ i₀.succAbove) (child ∘ i₀.succAbove), child i₀, rfl,
-        ?_, Finset.sup_le fun j _ => GenPrefixTree.child_depth_lt (i₀.succAbove j),
+      refine ⟨.node st hasOut r' (isMul ∘ i₀.succAbove) (child ∘ i₀.succAbove), child i₀,
+        Or.inl ⟨?_, hc0_d⟩, rfl,
+        Finset.sup_le fun j _ => GenPrefixTree.child_depth_lt (i₀.succAbove j),
         ⟨by omega, fun j => hch_fan (i₀.succAbove j)⟩,
         ⟨hst_lt, fun j => (hother_left _ (Fin.succAbove_ne i₀ j)).2.1⟩,
         ⟨fun j => (hother_left _ (Fin.succAbove_ne i₀ j)).1,
-          fun j => (hother_left _ (Fin.succAbove_ne i₀ j)).2.2⟩, ?_, ?_, hhit.2, hc0_d,
+          fun j => (hother_left _ (Fin.succAbove_ne i₀ j)).2.2⟩, ?_, ?_, hhit.2,
         hch_fan i₀, hch_max i₀,
         (child i₀).valid_suffix (fun x y hxy hx => (Finset.mem_union.mp hxy).resolve_left
           fun hL => by have := IL.mem_intervals_bounds hL; omega) hhit.2.ge (hch_max i₀)
@@ -248,52 +231,49 @@ private theorem GenPrefixTree.extract_mul_subtree {k a m b : ℕ}
           Function.comp_apply, Fin.sum_univ_succAbove _ i₀]
         omega
     · -- The edge lies deeper: split `child i₀` recursively and replace it by its left part.
-      right
       have hi₀_mc1 : (child i₀).mulCount m = 1 := by
         simpa only [hhit, ↓reduceIte, Nat.zero_add] using hi₀_one
       have hi₀_bounds := child_edge_left IL IR hst_ge hst_lt (hedges i₀) hhit
-      rcases (child i₀).extract_mul_subtree IL IR hi₀_bounds.1 hi₀_bounds.2.1
-          (hch_max i₀) (hch_fan i₀) (hch_val i₀) hi₀_mc1 with
-        ⟨Q₁, Q₂, hQ1_st, -, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
-          hQ2_st, hQ2_d, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ |
-        ⟨Q₁, Q₂, hQ1_st, -, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
-          hQ2_st, hQ2_d, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩
-      all_goals
-        let ch' := Function.update child i₀ Q₁
-        have hch' (P : Fin (r' + 1) → GenPrefixTree → Prop) (h₀ : P i₀ Q₁)
-            (h₁ : ∀ j ≠ i₀, P j (child j)) (j : Fin (r' + 1)) : P j (ch' j) := by
-          rcases eq_or_ne j i₀ with rfl | hj
-          · simpa only [ch', Function.update_self] using h₀
-          · simpa only [ch', Function.update_of_ne hj] using h₁ j hj
-        refine ⟨.node st hasOut (r' + 1) isMul ch', Q₂, rfl, le_rfl,
-          Finset.sup_le fun j _ => hch' (fun j t => t.depth + 1 ≤
-            (GenPrefixTree.node st hasOut (r' + 1) isMul child).depth)
-            ((Nat.add_le_add_right hQ1_d 1).trans hc0_d)
-            (fun j _ => GenPrefixTree.child_depth_lt j) j,
-          ⟨hr_bud, hch' (fun _ t => t.FanoutAtMost k) hQ1_fan fun j _ => hch_fan j⟩,
-          ⟨hst_lt, hch' (fun _ t => t.MaxStateLt m) hQ1_max fun j hj => (hother_left j hj).2.1⟩,
-          ⟨hch' (fun j t => if isMul j = true then
-              st < t.state ∧ (st, t.state) ∈ IL.intervals.erase (a, m) else t.state = st)
-            (by rw [hQ1_st]; exact hi₀_bounds.2.2) fun j hj => (hother_left j hj).1,
-          hch' (fun _ t => t.Valid (IL.intervals.erase (a, m))) hQ1_val
-            fun j hj => (hother_left j hj).2.2⟩,
-          fun x => Nat.add_le_add_left (Finset.sum_le_sum fun j _ =>
-            hch' (fun j t => t.outAt x ≤ (child j).outAt x) (hQ1_oa x) (fun _ _ => le_rfl) j) _,
-          fun x => Finset.sum_le_sum fun j _ => hch' (fun j t =>
-            (if isMul j = true ∧ t.state = x then 1 else 0) + t.mulCount x ≤
-              (if isMul j = true ∧ (child j).state = x then 1 else 0) + (child j).mulCount x)
-            (by rw [hQ1_st]; exact Nat.add_le_add_left (hQ1_mc x) _)
-            (fun _ _ => le_rfl) j,
-          hQ2_st, by omega, hQ2_fan, hQ2_max, hQ2_val, fun x => ?_, fun x => ?_, ?_⟩
-        · have := hQ2_oa x
-          simp only [GenPrefixTree.outAt, Fin.sum_univ_succAbove _ i₀]
-          omega
-        · have := hQ2_mc x
-          simp only [GenPrefixTree.mulCount, Fin.sum_univ_succAbove _ i₀]
-          omega
-        · simp only [GenPrefixTree.outCount, Fin.sum_univ_succAbove _ i₀, ch',
-            Function.update_self, Function.update_of_ne (Fin.succAbove_ne i₀ _)]
-          omega
+      obtain ⟨Q₁, Q₂, hsplit, hQ1_st, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
+        hQ2_st, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ :=
+        (child i₀).extract_mul_subtree IL IR hi₀_bounds.1 hi₀_bounds.2.1
+          (hch_max i₀) (hch_fan i₀) (hch_val i₀) hi₀_mc1
+      have hQ2_d : Q₂.depth + 1 ≤ (child i₀).depth :=
+        hsplit.elim And.right (fun h => (Nat.le_succ _).trans h.2)
+      let ch' := Function.update child i₀ Q₁
+      have hch' (P : Fin (r' + 1) → GenPrefixTree → Prop) (h₀ : P i₀ Q₁)
+          (h₁ : ∀ j ≠ i₀, P j (child j)) (j : Fin (r' + 1)) : P j (ch' j) :=
+        (Function.forall_update_iff child P).2 ⟨h₀, h₁⟩ j
+      refine ⟨.node st hasOut (r' + 1) isMul ch', Q₂,
+        Or.inr ⟨le_rfl, (Nat.add_le_add_right hQ2_d 1).trans hc0_d⟩, rfl,
+        Finset.sup_le fun j _ => hch' (fun j t => t.depth + 1 ≤
+          (GenPrefixTree.node st hasOut (r' + 1) isMul child).depth)
+          ((Nat.add_le_add_right hQ1_d 1).trans hc0_d)
+          (fun j _ => GenPrefixTree.child_depth_lt j) j,
+        ⟨hr_bud, hch' (fun _ t => t.FanoutAtMost k) hQ1_fan fun j _ => hch_fan j⟩,
+        ⟨hst_lt, hch' (fun _ t => t.MaxStateLt m) hQ1_max fun j hj => (hother_left j hj).2.1⟩,
+        ⟨hch' (fun j t => if isMul j = true then
+            st < t.state ∧ (st, t.state) ∈ IL.intervals.erase (a, m) else t.state = st)
+          (by rw [hQ1_st]; exact hi₀_bounds.2.2) fun j hj => (hother_left j hj).1,
+        hch' (fun _ t => t.Valid (IL.intervals.erase (a, m))) hQ1_val
+          fun j hj => (hother_left j hj).2.2⟩,
+        fun x => Nat.add_le_add_left (Finset.sum_le_sum fun j _ =>
+          hch' (fun j t => t.outAt x ≤ (child j).outAt x) (hQ1_oa x) (fun _ _ => le_rfl) j) _,
+        fun x => Finset.sum_le_sum fun j _ => hch' (fun j t =>
+          (if isMul j = true ∧ t.state = x then 1 else 0) + t.mulCount x ≤
+            (if isMul j = true ∧ (child j).state = x then 1 else 0) + (child j).mulCount x)
+          (by rw [hQ1_st]; exact Nat.add_le_add_left (hQ1_mc x) _)
+          (fun _ _ => le_rfl) j,
+        hQ2_st, hQ2_fan, hQ2_max, hQ2_val, fun x => ?_, fun x => ?_, ?_⟩
+      · have := hQ2_oa x
+        simp only [GenPrefixTree.outAt, Fin.sum_univ_succAbove _ i₀]
+        omega
+      · have := hQ2_mc x
+        simp only [GenPrefixTree.mulCount, Fin.sum_univ_succAbove _ i₀]
+        omega
+      · simp only [GenPrefixTree.outCount, Fin.sum_univ_succAbove _ i₀, ch',
+          Function.update_self, Function.update_of_ne (Fin.succAbove_ne i₀ _)]
+        omega
 
 /-- Any `GenPrefixTree` valid against `I.intervals.erase (a, b)` with root budget `≤ r ≤ k`,
 fanout `≤ k`, at most one output per state, and at most one `mul` transition per target state
@@ -404,15 +384,14 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
           exact (ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl r a m IL t hrk
             hdL hh_le hst hmax_L hbud hfan hval_L hout_at hmul_cnt).trans
             (W_mono_left k r d' (h' + 1))
-        rcases t.extract_mul_subtree IL IR (by omega) (by omega) hmax hfan hval (by omega) with
-          ⟨Q₁, Q₂, hQ1_st, hQ1_bud, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
-            hQ2_st, hQ2_d, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ |
-          ⟨Q₁, Q₂, hQ1_st, hQ1_bud, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
-            hQ2_st, hQ2_d, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩
-        all_goals
-          have hQ2_bud : Q₂.rootBudget ≤ k :=
-            match Q₂, hQ2_fan with | .node _ _ _ _ _, h => h.1
-          rw [hcnt_eq, Nat.cast_add]
+        obtain ⟨Q₁, Q₂, hsplit, hQ1_st, hQ1_d, hQ1_fan, hQ1_max, hQ1_val, hQ1_oa, hQ1_mc,
+          hQ2_st, hQ2_fan, hQ2_max, hQ2_val, hQ2_oa, hQ2_mc, hcnt_eq⟩ :=
+          t.extract_mul_subtree IL IR hst.symm.le (hst ▸ hIL) hmax hfan hval
+            (hmc_m.antisymm (Nat.pos_of_ne_zero hmc0))
+        have hQ2_bud : Q₂.rootBudget ≤ k :=
+          match Q₂, hQ2_fan with | .node _ _ _ _ _, h => h.1
+        rw [hcnt_eq, Nat.cast_add]
+        rcases hsplit with ⟨hQ1_bud, hQ2_d⟩ | ⟨hQ1_bud, hQ2_d⟩
         · have hb1 := ih (d' + (h' + 1)) (by omega) d' (h' + 1) rfl (r - 1) a m IL Q₁
             (by omega) hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (by omega)
             hQ1_fan hQ1_val (fun s => (hQ1_oa s).trans (hout_at s))
@@ -421,9 +400,8 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
             (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
             (fun s => (hQ2_oa s).trans (hout_at s))
             (fun x => (hQ2_mc x).trans (hmul_cnt x))
-          rw [W_eq_V (by omega)] at hb2
-          have hsp := W_split_depth_one (k := k) (d := d') (h := h') hr2
-          linarith
+          rw [W_eq_V (by lia)] at hb2
+          exact (add_le_add hb1 hb2).trans_eq (W_split_depth_one hr2)
         · obtain ⟨h'', rfl⟩ : ∃ h'', h' = h'' + 1 := ⟨h' - 1, by omega⟩
           have hb1 := ih (d' + (h'' + 2)) (by omega) d' (h'' + 2) rfl r a m IL Q₁ hrk
             hdL (hQ1_d.trans hh_le) (hQ1_st.trans hst) hQ1_max (hQ1_bud.trans hbud)
@@ -433,8 +411,7 @@ theorem GenPrefixTree.outCount_le_W {k : ℕ} (hk : 3 ≤ k) :
             (by omega) hQ2_st hQ2_max hQ2_bud hQ2_fan hQ2_val
             (fun s => (hQ2_oa s).trans (hout_at s))
             (fun x => (hQ2_mc x).trans (hmul_cnt x))
-          rw [W_eq_V (by omega)] at hb2
-          have hsp := W_split_depth_two (d := d') (h := h'') hk hr2 hrk
-          linarith
+          rw [W_eq_V (by lia)] at hb2
+          exact (add_le_add hb1 hb2).trans (W_split_depth_two hk hr2 hrk)
 
 end Cslib.Circuits.Prefix
