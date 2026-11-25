@@ -8,21 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
-public import CslibFrontier.Languages.Probabilistic.Oracle.Run
+public import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
 # Distribution of adaptive cascade child routing
 
 When child functions are independently sampled in channel order, the cascade router has
 the same law as sampling them by parent prefix. This is a distribution-level step of the
-adjacent-hybrid argument in [BonehShoup2023], v0.6, Sections 4.6.1 and 6.4.2.
+adjacent-hybrid argument in [BonehShoup2023], v0.6, Sections 4.6.1 (printed pp. 152–154)
+and 6.4.2 (printed pp. 229–230).
+
+## Main definitions
+
+* `Cslib.Crypto.cascadeChildChannelOracle`: assign child functions to successive channels.
+* `Cslib.Crypto.CascadeChildPrefixState`: the two caches of the prefix-indexed game.
+* `Cslib.Crypto.cascadeChildPrefixOracle`: answer a query using its prefix and these caches.
+* `Cslib.Crypto.cascadeChildPrefixGame`: run an adaptive client against this oracle.
 
 ## Main results
 
 * `Cslib.Crypto.runWith_cascadeChildRouter_eq_prefixGame`: assigning independent child functions
-  to first-use channel numbers preserves the acceptance law of the adaptive client.
+  to first-use channel numbers preserves the output law of the adaptive client.
 -/
 
 public section
@@ -45,37 +52,46 @@ noncomputable def cascadeChildChannelOracle {width n : ℕ}
       distribution.map fun row => (respond row, rows ++ [row])
     else PMF.pure ([], rows)
 
-private abbrev ShortLabels := List (List Bool × List Bool)
+/-- The cached assignments in the prefix-indexed child game.
+`width` is the input size of each child function and `n` is its output size. -/
+structure CascadeChildPrefixState (width n : ℕ) where
+  /-- Labels already assigned to valid queries at or before the cut. -/
+  shortLabels : List (List Bool × List Bool)
+  /-- Child functions already assigned to parents, keyed by the parent prefix word. -/
+  parentRows : RandomOracle.Cache (fun _ : List Bool => BitString width → BitString n)
 
-private abbrev ParentRows (width n : ℕ) := List Bool → Option (BitString width → BitString n)
-
-private noncomputable def prefixOracle (valid : List Bool → Bool) (inLen : ℕ → ℕ)
+/-- Read or sample a short label or the child function for a long query's parent.
+Invalid queries return the empty word and leave both caches untouched. -/
+@[expose]
+noncomputable def cascadeChildPrefixOracle (valid : List Bool → Bool) (inLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) (n depth : ℕ)
     (distribution : PMF (BitString (inLen n) → BitString n)) (query : List Bool) :
-    StateT (ShortLabels × ParentRows (inLen n) n) PMF (List Bool) := fun cache =>
+    StateT (CascadeChildPrefixState (inLen n) n) PMF (List Bool) := fun cache =>
   if valid query then
     let width := inLen n
     let cut := depth * width
     if cut < query.length then
       let suffix := query.drop cut
-      (RandomOracle.answer (fun _ => distribution) (query.take cut) cache.2).map
+      (RandomOracle.answer (fun _ => distribution) (query.take cut) cache.parentRows).map
         fun (row, rows) =>
           (cascadeFamily inLen family (List.ofFn (row (BitString.ofList width (suffix.take width))))
-            (suffix.drop width), (cache.1, rows))
+            (suffix.drop width), { cache with parentRows := rows })
     else
-      (cachedDistOracle (fun _ => true) (BitString.uniformList n) query cache.1).map
-        fun (label, short) => (label, (short, cache.2))
+      (cachedDistOracle (fun _ => true) (BitString.uniformList n) query cache.shortLabels).map
+        fun (label, short) => (label, { cache with shortLabels := short })
   else PMF.pure ([], cache)
 
 /-- Sample each valid short word's label independently, and each long query's child function
 independently at its parent prefix. Both assignments are retained for subsequent queries.
 The child's input is the next block padded to width if the caller allows a partial block. -/
+@[expose]
 noncomputable def cascadeChildPrefixGame (valid : List Bool → Bool) (inLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) (n depth : ℕ)
     (distribution : PMF (BitString (inLen n) → BitString n))
     (program : WordOracleComp Unit Bool) : PMF Bool :=
-  (ProbOracleComp.runWith (fun request => prefixOracle valid inLen family n depth distribution
-      request.2) program ([], fun _ => none)).map Prod.fst
+  (ProbOracleComp.runWith (fun request =>
+    cascadeChildPrefixOracle valid inLen family n depth distribution request.2)
+      program ⟨[], fun _ => none⟩).map Prod.fst
 
 private theorem cache_append {α : Type} (parents : List (List Bool)) (rows : List α)
     (hlen : parents.length = rows.length) (parent : List Bool) (hfresh : parent ∉ parents)
@@ -100,8 +116,8 @@ private abbrev RoutedState (width n : ℕ) :=
   CascadeChildRouterState × List (BitString width → BitString n)
 
 private def toPrefixState {width n : ℕ} (state : RoutedState width n) :
-    ShortLabels × ParentRows width n :=
-  (state.1.shortLabels, fun key => state.2[state.1.parents.idxOf key]?)
+    CascadeChildPrefixState width n :=
+  ⟨state.1.shortLabels, fun key => state.2[state.1.parents.idxOf key]?⟩
 
 private def alignedState {width n : ℕ} (state : RoutedState width n) : Prop :=
   state.1.parents.length = state.2.length
@@ -112,7 +128,7 @@ private noncomputable def routedOracle (valid : List Bool → Bool) (inLen : ℕ
     (query : List Bool) : StateT (RoutedState (inLen n) n) PMF (List Bool) := fun state =>
   (ProbOracleComp.runWith (cascadeChildChannelOracle distribution)
     (cascadeChildRoute valid inLen family n depth query state.1) state.2).map
-      (fun result => (result.1.1, result.1.2, result.2))
+      (fun ((reply, router), rows) => (reply, router, rows))
 
 private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) (n depth : ℕ)
@@ -120,7 +136,8 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
     (state : RoutedState (inLen n) n) (hstate : alignedState state) :
     ((routedOracle valid inLen family n depth distribution query state).map
       (fun (reply, next) => (reply, toPrefixState next)) =
-      prefixOracle valid inLen family n depth distribution query (toPrefixState state)) ∧
+      cascadeChildPrefixOracle valid inLen family n depth distribution query
+        (toPrefixState state)) ∧
     ∀ reply next, (reply, next) ∈
       (routedOracle valid inLen family n depth distribution query state).support →
         alignedState next := by
@@ -146,8 +163,8 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
             cascadeChildChannelOracle, pmf_norm, respond, List.take_of_length_le]
         rw [hroute]
         constructor
-        · simp [prefixOracle, hv, hl, toPrefixState, RandomOracle.answer, parent, suffix,
-            hrow, respond, pmf_norm]
+        · simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
+            parent, suffix, hrow, respond, pmf_norm]
         · intro reply next hnext
           simp only [PMF.mem_support_pure_iff] at hnext
           exact (Prod.mk.inj hnext).2 ▸ hstate
@@ -163,8 +180,8 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
         rw [hroute]
         constructor
         · have hcache := cache_append parents rows hstate parent hmem
-          simp [prefixOracle, hv, hl, toPrefixState, RandomOracle.answer, hrow, parent, suffix,
-            hcache, respond, PMF.map_comp, Function.comp_def]
+          simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
+            hrow, parent, suffix, hcache, respond, PMF.map_comp, Function.comp_def]
         · intro reply next hnext
           obtain ⟨row, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
           obtain rfl := (Prod.mk.inj heq).2
@@ -178,11 +195,12 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
           PMF.map_comp, Function.comp_def, pmf_norm]
       rw [hroute]
       constructor
-      · simp [prefixOracle, hv, hl, toPrefixState, PMF.map_comp, Function.comp_def]
+      · simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, PMF.map_comp, Function.comp_def]
       · intro reply next hnext
         obtain ⟨⟨label, short'⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
         exact (Prod.mk.inj heq).2 ▸ hstate
-  · simp [routedOracle, cascadeChildRoute, prefixOracle, hv, hstate, alignedState, PMF.pure_map]
+  · simp [routedOracle, cascadeChildRoute, cascadeChildPrefixOracle, hv, hstate, alignedState,
+      PMF.pure_map]
 
 /-- The first-use numbering of child functions preserves the output law for arbitrary adaptive
 cascade clients. The channel oracle is used in order even though its interface accepts any
@@ -197,7 +215,7 @@ theorem runWith_cascadeChildRouter_eq_prefixGame (valid : List Bool → Bool) (i
   have h := ProbOracleComp.runWith_map_state_of_invariant
     (fun (request : Unit × List Bool) state =>
       routedOracle valid inLen family n depth distribution request.2 state)
-    (fun request => prefixOracle valid inLen family n depth distribution request.2)
+    (fun request => cascadeChildPrefixOracle valid inLen family n depth distribution request.2)
     toPrefixState alignedState
     (fun request state hstate =>
       (routedOracle_step valid inLen family n depth distribution request.2 state hstate).2)

@@ -211,6 +211,19 @@ example :
   runWith_cascadeChildRouter_eq_prefixGame (boundedWords 2) (fun _ => 1) toggle 2 1
     (PMF.uniformOfFintype (BitString 1 → BitString 2)) visitBothParents
 
+-- The prefix-indexed oracle reads the next block and records the sampled row under its parent.
+example :
+    let row : BitString 1 → BitString 2 := fun block _ => block 0
+    let initial : CascadeChildPrefixState 1 2 := ⟨[], fun _ => none⟩
+    cascadeChildPrefixOracle (boundedWords 2) (fun _ => 1) toggle 2 1 (PMF.pure row)
+      [false, true] initial =
+      PMF.pure ([true, true], { initial with
+        parentRows := Function.update initial.parentRows [false] (some row) }) := by
+  have hword : List.ofFn (BitString.ofList 1 [true]) = [true] := BitString.ofFn_ofList rfl
+  have hbit : BitString.ofList 1 [true] 0 = true := by
+    simpa using congrArg (fun word : List Bool => word.headD false) hword
+  simp [cascadeChildPrefixOracle, boundedWords, RandomOracle.answer, hbit]
+
 -- An out-of-order channel leaves the table empty for the actual first request.
 example (distribution : PMF (BitString 1 → BitString 2)) :
     cascadeChildChannelOracle distribution (1, [true]) [] = PMF.pure ([], []) ∧
