@@ -263,39 +263,24 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
         swapInitKeySeed_delPerm, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
         liftDelPerm_apply_lt s.delPerm k.isLt, u] at heq
       have hinj := s.keys.injective heq
-      by_cases hk : s.delPerm k = i
-      · have hidx : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) =
-            ⟨i.val, by have := i.isLt; omega⟩ := Fin.ext (congrArg (Fin.val (n := n)) hk)
-        rw [hidx, Equiv.swap_apply_left] at hinj
-        have hv := congrArg Fin.val hinj; dsimp only at hv; omega
-      · have hne1 : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) ≠
-            ⟨i.val, by have := i.isLt; omega⟩ :=
-          fun h => hk (Fin.ext (congrArg (Fin.val (n := 2 * n)) h))
-        have hne2 : (⟨(s.delPerm k).val, by have := (s.delPerm k).isLt; omega⟩ : Fin (2 * n)) ≠
-            ⟨n + i.val, by have := i.isLt; omega⟩ := by
-          intro h; have hv := congrArg Fin.val h; dsimp only at hv
-          have := (s.delPerm k).isLt; omega
-        rw [Equiv.swap_apply_of_ne_of_ne hne1 hne2] at hinj
-        exact hne1 hinj
+      have := i.isLt; have := (s.delPerm k).isLt
+      rw [Equiv.swap_apply_def] at hinj
+      split_ifs at hinj with h1 h2
+      · simp only [Fin.ext_iff] at hinj; omega
+      · simp only [Fin.ext_iff] at h2; omega
+      · exact h1 hinj
     have hcon := (congrFun hdict_eq u).symm.trans hu1
     rw [hu2] at hcon; cases hcon
   have hstep_ge (i : Fin n) : (1 / 2 : ℝ) ≤ ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by
-    have hμ_const (s : HardKeyValSeed U V n) : (μ (swapInitKeySeed i s)).toReal = (μ s).toReal := by
-      simp only [μ, PMF.uniformOfFintype_apply]
     have hswap_sum : (∑ s, (μ s).toReal * (stepProbe (swapInitKeySeed i s) i.val : ℝ)) =
         ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by
       conv_rhs => rw [← Equiv.sum_comp (swapInitKeySeed i)]
-      exact Finset.sum_congr rfl fun s _ => by rw [hμ_const]
-    have h2 : (1 : ℝ) ≤ 2 * ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) :=
-      calc (1 : ℝ) = ∑ s, (μ s).toReal * 1 := by rw [← Finset.sum_mul, PMF.sum_toReal, one_mul]
-        _ ≤ ∑ s, (μ s).toReal *
-              ((stepProbe s i.val : ℝ) + (stepProbe (swapInitKeySeed i s) i.val : ℝ)) :=
-            Finset.sum_le_sum fun s _ =>
-              mul_le_mul_of_nonneg_left (by exact_mod_cast hone_le_pair i s) ENNReal.toReal_nonneg
-        _ = (∑ s, (μ s).toReal * (stepProbe s i.val : ℝ)) +
-              (∑ s, (μ s).toReal * (stepProbe (swapInitKeySeed i s) i.val : ℝ)) := by
-            simp_rw [mul_add, Finset.sum_add_distrib]
-        _ = 2 * ∑ s, (μ s).toReal * (stepProbe s i.val : ℝ) := by rw [hswap_sum]; ring
+      simp only [μ, PMF.uniformOfFintype_apply]
+    have h1 : (1 : ℝ) ≤ ∑ s, (μ s).toReal *
+        ((stepProbe s i.val : ℝ) + (stepProbe (swapInitKeySeed i s) i.val : ℝ)) :=
+      (PMF.sum_toReal μ).symm.le.trans (Finset.sum_le_sum fun s _ =>
+        le_mul_of_one_le_right ENNReal.toReal_nonneg (by exact_mod_cast hone_le_pair i s))
+    simp only [mul_add, Finset.sum_add_distrib, hswap_sum] at h1
     linarith
   calc ((n : ℝ) / 2) = ∑ _i : Fin n, (1 / 2 : ℝ) := by
         rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]; ring
