@@ -81,18 +81,17 @@ private theorem observer_disjoint_disk : Disjoint (Metric.closedBall (0 : ℂ) 1
   have hb : ‖w‖ ≤ 1 := by simpa only [Metric.mem_closedBall, dist_zero_right] using hball
   linarith
 
-/-- The orthogonal splice has no interior crossings in the disk and preserves its endpoints,
-outgoing directions, exterior support and intersection parity with an observer outside the disk. -/
+/-- The orthogonal splice strictly reduces the set of interior crossings. It preserves endpoints,
+outgoing directions, exterior support and parity against an exterior observer. -/
 theorem removes_orthogonal_crossing :
     let r := Route.line (((-3 / 2 : ℝ) : ℂ) - Complex.I) (((-3 / 2 : ℝ) : ℂ) + Complex.I)
-    ∃ p : Route, (0 : ℂ) ∈ openSegmentCrossings
-      (fun k : Fin p.segments => p.point k.castSucc) (fun k => p.point k.succ) ∧ ∃ q : Route,
+    let crossings (p : Route) := openSegmentCrossings
+      (fun k : Fin p.segments => p.point k.castSucc) (fun k => p.point k.succ)
+    ∃ p : Route, (0 : ℂ) ∈ crossings p ∧ ∃ q : Route,
       q.start = p.start ∧ q.finish = p.finish ∧ (0 : ℂ) ∉ q.support ∧
       q.support \ Metric.closedBall (0 : ℂ) 1 = p.support \ Metric.closedBall (0 : ℂ) 1 ∧
       (∀ b : Bool, (q.germ b).arg = (p.germ b).arg) ∧
-      Disjoint (Metric.closedBall (0 : ℂ) 1)
-        (openSegmentCrossings (fun k : Fin q.segments => q.point k.castSucc)
-          (fun k => q.point k.succ)) ∧
+      crossings q ⊂ crossings p ∧
       q.intersectionParity r = p.intersectionParity r := by
   have hx : (0 : ℂ) ∈ openSegment ℝ (route.point (0 : Fin route.segments).castSucc)
       (route.point (0 : Fin route.segments).succ) := by
@@ -116,13 +115,18 @@ theorem removes_orthogonal_crossing :
         (by norm_num [Complex.mul_re]) (by norm_num [Complex.mul_re]) hw
     intro x hx y hy
     exact Complex.ext ((hre hx.2).trans (hre hy.2).symm) ((him hx.1).trans (him hy.1).symm)
-  refine ⟨route, ⟨0, 3, by decide, hx, hy⟩, ?_⟩
+  intro r crossings
+  have hz : (0 : ℂ) ∈ crossings route := ⟨0, 3, by decide, hx, hy⟩
+  refine ⟨route, hz, ?_⟩
   obtain ⟨q, hstart, hfinish, hn, hout, hparity, hgerm, hcross, _⟩ :=
     route.exists_splice_of_isolated_crossing 0 3 (by decide) (by norm_num) hx hy hpair
       route_ends_outside connector_segments_outside
-  refine ⟨q, hstart, hfinish, hn, hout, ?_, hcross, hparity _ observer_disjoint_disk⟩
-  intro b
-  obtain ⟨c, hc, he⟩ := hgerm b
-  rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
+  refine ⟨q, hstart, hfinish, hn, hout, ?_, ?_, hparity r observer_disjoint_disk⟩
+  · intro b
+    obtain ⟨c, hc, he⟩ := hgerm b
+    rw [he, Complex.real_smul, Complex.arg_real_mul _ hc]
+  · exact Set.ssubset_iff_exists.mpr
+      ⟨fun _ hw => (hcross hw).1, 0, hz,
+        fun h => (hcross h).2 (Metric.mem_closedBall_self zero_le_one)⟩
 
 end CslibFrontierTests.PolygonalCrossingSplice
