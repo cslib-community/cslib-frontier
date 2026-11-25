@@ -2117,7 +2117,6 @@ private def mvFSCost {d comLen rowLen : ℕ} {Stmt Seed IV PreMsg : Type} :
 
 
 private noncomputable def mvToRO {d sdLen comLen rowLen : ℕ} {Stmt Seed IV PreMsg Chal : Type}
-    [Fintype Chal] [Nonempty Chal]
     (expand : BitString sdLen → BitString rowLen) (chalToIdx : Chal → Fin (2 ^ d))
     (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool) :
     (q : (Stmt × VOLEITHProof d comLen rowLen Seed IV PreMsg) ⊕
