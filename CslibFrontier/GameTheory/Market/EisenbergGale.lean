@@ -268,18 +268,6 @@ end Definitions
 
 /-! ### Logarithm helper inequalities -/
 
-private theorem log_eq_sub_one_iff_of_pos {r : ℝ} (hr : 0 < r) :
-    Real.log r = r - 1 ↔ r = 1 := by
-  constructor
-  · intro heq
-    by_contra hne
-    have hlog_ne : Real.log r ≠ 0 := Real.log_ne_zero_of_pos_of_ne_one hr hne
-    have hlt : Real.log r + 1 < Real.exp (Real.log r) := Real.add_one_lt_exp hlog_ne
-    rw [Real.exp_log hr] at hlt
-    linarith
-  · rintro rfl
-    simp
-
 private theorem directional_log_increase {m₁ m₂ U₁ U₂ u₁ u₂ c : ℝ}
     (hm₁ : 0 < m₁) (hm₂ : 0 < m₂) (hU₁ : 0 < U₁) (hU₂ : 0 < U₂)
     (hu₁ : 0 ≤ u₁) (hu₂ : 0 ≤ u₂) (hc : 0 < c)
@@ -490,35 +478,23 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
     M.IsEisenbergGaleKKT x p := by
   have hbpb := (isEquilibrium_iff_bangPerBuck hbuyer hgood).1 heq
   rcases hbpb with ⟨hp_pos, hx_nn, hclear, hexp, hmax⟩
-  have hex_buy : ∀ i : I, ∃ g₀ : G, 0 < x i g₀ := by
-    intro i
-    by_contra hall0
-    push Not at hall0
-    have hx0 : ∀ g, x i g = 0 := fun g => le_antisymm (hall0 g) (hx_nn i g)
-    have hexp0 : expenditure p (x i) = 0 := by simp [expenditure_eq_sum, hx0]
-    linarith [hbudget i, hexp i]
+  have hex_buy : ∀ i : I, ∃ g₀ : G, 0 < x i g₀ := fun i => by
+    have h : ∑ g : G, (0 : ℝ) < ∑ g : G, p g * x i g := by
+      rw [Finset.sum_const_zero, ← expenditure_eq_sum, hexp i]; exact hbudget i
+    obtain ⟨g, -, hg⟩ := Finset.exists_lt_of_sum_lt h
+    exact ⟨g, pos_of_mul_pos_right hg (hp_pos g).le⟩
   have hUi_eq : ∀ (i : I) {g₀ : G}, 0 < x i g₀ →
       M.buyerUtility x i = (M.utility i g₀ / p g₀) * M.budget i := by
     intro i g₀ hg₀
     have hterm : ∀ g : G, M.utility i g * x i g = (M.utility i g₀ / p g₀) * (p g * x i g) := by
       intro g
       rcases (hx_nn i g).eq_or_lt with hxg0 | hxg
-      · rw [← hxg0]
-        simp
-      · have h1 := hmax i g₀ hg₀ g
-        have h2 := hmax i g hxg g₀
-        have hratio : M.utility i g / p g = M.utility i g₀ / p g₀ := le_antisymm h1 h2
-        calc
-          M.utility i g * x i g = (M.utility i g / p g) * (p g * x i g) := by
-            field_simp [(hp_pos g).ne']
-          _ = (M.utility i g₀ / p g₀) * (p g * x i g) := by rw [hratio]
-    calc
-      M.buyerUtility x i = ∑ g : G, (M.utility i g₀ / p g₀) * (p g * x i g) := by
-          rw [buyerUtility_eq, linearUtility_eq_sum]
-          exact Finset.sum_congr rfl fun g _ => hterm g
-      _ = (M.utility i g₀ / p g₀) * expenditure p (x i) := by
-          rw [expenditure_eq_sum, Finset.mul_sum]
-      _ = (M.utility i g₀ / p g₀) * M.budget i := by rw [hexp i]
+      · simp [← hxg0]
+      · rw [← show M.utility i g / p g = M.utility i g₀ / p g₀ from
+          le_antisymm (hmax i g₀ hg₀ g) (hmax i g hxg g₀)]
+        field_simp [(hp_pos g).ne']
+    rw [buyerUtility_eq, linearUtility_eq_sum, Finset.sum_congr rfl fun g _ => hterm g,
+      ← Finset.mul_sum, ← expenditure_eq_sum, hexp i]
   have hUi_pos : ∀ i : I, 0 < M.buyerUtility x i := by
     intro i
     obtain ⟨g₀, hg₀⟩ := hex_buy i
@@ -551,6 +527,11 @@ theorem isEquilibrium_iff_isEisenbergGaleKKT {M : LinearFisherMarket I G}
     fun hkkt => hkkt.isEquilibrium hnd.budget_pos⟩
 
 /-! ### Global optimality, uniqueness, convexity, and existence -/
+
+private theorem eisenbergGaleObjective_sub (M : LinearFisherMarket I G) (x y : I → G → ℝ) :
+    M.eisenbergGaleObjective y - M.eisenbergGaleObjective x =
+      ∑ i : I, M.budget i * (Real.log (M.buyerUtility y i) - Real.log (M.buyerUtility x i)) := by
+  simp only [eisenbergGaleObjective, ← Finset.sum_sub_distrib, ← mul_sub]
 
 private theorem IsEisenbergGaleKKT.sum_budget_mul_div_sub_one_le_zero
     {M : LinearFisherMarket I G} {x y : I → G → ℝ} {p : G → ℝ}
@@ -601,16 +582,8 @@ theorem IsEisenbergGaleKKT.eisenbergGaleObjective_le {M : LinearFisherMarket I G
     {x y : I → G → ℝ} {p : G → ℝ}
     (hkkt : M.IsEisenbergGaleKKT x p) (hy : M.IsPositiveUtilityAllocation y) :
     M.eisenbergGaleObjective y ≤ M.eisenbergGaleObjective x := by
-  have hdiff : M.eisenbergGaleObjective y - M.eisenbergGaleObjective x ≤ 0 := by
-    calc
-      M.eisenbergGaleObjective y - M.eisenbergGaleObjective x
-        = ∑ i : I,
-            M.budget i * (Real.log (M.buyerUtility y i) - Real.log (M.buyerUtility x i)) := by
-              simp only [eisenbergGaleObjective, ← Finset.sum_sub_distrib, ← mul_sub]
-      _ ≤ ∑ i : I, M.budget i * (M.buyerUtility y i / M.buyerUtility x i - 1) :=
-            Finset.sum_le_sum fun i _ => hkkt.budget_mul_log_sub_le hy i
-      _ ≤ 0 := hkkt.sum_budget_mul_div_sub_one_le_zero hy.1
-  linarith
+  have := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hkkt.budget_mul_log_sub_le hy i
+  linarith [eisenbergGaleObjective_sub M x y, hkkt.sum_budget_mul_div_sub_one_le_zero hy.1]
 
 /-- Any positive-utility feasible allocation `y` attaining at least the Eisenberg–Gale objective
 value of a KKT allocation `x` (when budgets are positive) induces the **exact same buyer utilities**
@@ -621,38 +594,15 @@ theorem IsEisenbergGaleKKT.buyerUtility_eq_of_eisenbergGaleObjective_eq
     (hy : M.IsPositiveUtilityAllocation y)
     (hobj : M.eisenbergGaleObjective x ≤ M.eisenbergGaleObjective y) :
     M.buyerUtility y = M.buyerUtility x := by
-  classical
   ext i₀
-  have hlin_bound := hkkt.sum_budget_mul_div_sub_one_le_zero hy.1
-  have hsum_diff_nonneg : 0 ≤ ∑ i : I,
-      M.budget i * (Real.log (M.buyerUtility y i) - Real.log (M.buyerUtility x i)) := by
-    have heq_obj :
-        ∑ i : I, M.budget i * (Real.log (M.buyerUtility y i) - Real.log (M.buyerUtility x i)) =
-          M.eisenbergGaleObjective y - M.eisenbergGaleObjective x := by
-      simp only [eisenbergGaleObjective, ← Finset.sum_sub_distrib, ← mul_sub]
-    linarith
-  have hgap_zero :
-      M.budget i₀ * (M.buyerUtility y i₀ / M.buyerUtility x i₀ - 1) -
-        M.budget i₀ * (Real.log (M.buyerUtility y i₀) - Real.log (M.buyerUtility x i₀)) = 0 := by
-    set d : I → ℝ := fun i =>
-      M.budget i * (M.buyerUtility y i / M.buyerUtility x i - 1) -
-        M.budget i * (Real.log (M.buyerUtility y i) - Real.log (M.buyerUtility x i))
-    have hd_nn : ∀ i : I, 0 ≤ d i := fun i => sub_nonneg.2 (hkkt.budget_mul_log_sub_le hy i)
-    have hsum_d_le : ∑ i : I, d i ≤ 0 := by
-      simp only [d, Finset.sum_sub_distrib]
-      linarith
-    have hle : d i₀ ≤ ∑ i : I, d i :=
-      Finset.single_le_sum (fun i _ => hd_nn i) (Finset.mem_univ i₀)
-    exact le_antisymm (hle.trans hsum_d_le) (hd_nn i₀)
-  have hlog_eq : Real.log (M.buyerUtility y i₀ / M.buyerUtility x i₀) =
-      M.buyerUtility y i₀ / M.buyerUtility x i₀ - 1 := by
-    rw [Real.log_div (hy.2 i₀).ne' (hkkt.pos_alloc.2 i₀).ne']
-    have hmul_eq : M.budget i₀ * (Real.log (M.buyerUtility y i₀) - Real.log (M.buyerUtility x i₀)) =
-        M.budget i₀ * (M.buyerUtility y i₀ / M.buyerUtility x i₀ - 1) := by linarith
-    exact mul_left_cancel₀ (hbudget i₀).ne' hmul_eq
-  have hr_one : M.buyerUtility y i₀ / M.buyerUtility x i₀ = 1 :=
-    (log_eq_sub_one_iff_of_pos (div_pos (hy.2 i₀) (hkkt.pos_alloc.2 i₀))).1 hlog_eq
-  exact (div_eq_one_iff_eq (hkkt.pos_alloc.2 i₀).ne').1 hr_one
+  by_contra hne
+  have hx₀ := hkkt.pos_alloc.2 i₀
+  have hlt := Finset.sum_lt_sum (s := Finset.univ)
+    (fun i _ => hkkt.budget_mul_log_sub_le hy i) ⟨i₀, Finset.mem_univ _, by
+      rw [← Real.log_div (hy.2 i₀).ne' hx₀.ne']
+      exact mul_lt_mul_of_pos_left (Real.log_lt_sub_one_of_pos (div_pos (hy.2 i₀) hx₀)
+        fun h => hne ((div_eq_one_iff_eq hx₀.ne').1 h)) (hbudget i₀)⟩
+  linarith [eisenbergGaleObjective_sub M x y, hkkt.sum_budget_mul_div_sub_one_le_zero hy.1]
 
 /-- **Uniqueness of equilibrium buyer utilities** ([Vazirani2007], Theorem 5.1, p. 107): in a
 non-degenerate linear Fisher market, any two market equilibria yield identical buyer utility
@@ -681,13 +631,8 @@ theorem price_eq_of_isEquilibrium {M : LinearFisherMarket I G}
       buyerUtility_eq_of_isEquilibrium hnd hx₁ hx₂
     have hp₁_pos : 0 < p₁ g := hx₁.price_pos hnd.good_desired g
     have hsum_eq : ∑ i : I, x₁ i g = M.supply g := hx₁.sum_eq_supply_of_price_pos hp₁_pos
-    have hex_i : ∃ i : I, 0 < x₁ i g := by
-      by_contra hall0
-      push Not at hall0
-      have hx0 : ∀ i, x₁ i g = 0 := fun i => le_antisymm (hall0 i) (hkkt₁.pos_alloc.1.1 i g)
-      have hsum0 : ∑ i : I, x₁ i g = 0 := by simp [hx0]
-      linarith [hnd.supply_pos g]
-    obtain ⟨i, hi⟩ := hex_i
+    obtain ⟨i, -, hi⟩ := Finset.exists_lt_of_sum_lt (s := Finset.univ) (f := fun _ => (0 : ℝ))
+      (g := fun i => x₁ i g) (by simpa [hsum_eq] using hnd.supply_pos g)
     calc
       p₁ g = M.budget i * M.utility i g / M.buyerUtility x₁ i :=
         (hkkt₁.primal_slackness i g hi).symm
@@ -704,8 +649,7 @@ theorem convex_setOf_exists_isEquilibrium {M : LinearFisherMarket I G}
     (hnd : M.IsNonDegenerate) :
     Convex ℝ {x : I → G → ℝ | ∃ p : G → ℝ, M.IsEquilibrium x p} := by
   rintro x ⟨p, hx⟩ y ⟨q, hy⟩ a b ha hb hab
-  have hpq : q = p := price_eq_of_isEquilibrium hnd hy hx
-  rw [hpq] at hy
+  rw [price_eq_of_isEquilibrium hnd hy hx] at hy
   have hkkt_x := (isEquilibrium_iff_isEisenbergGaleKKT hnd x p).1 hx
   have hkkt_y := (isEquilibrium_iff_isEisenbergGaleKKT hnd y p).1 hy
   have hU_eq : M.buyerUtility y = M.buyerUtility x :=
@@ -715,20 +659,18 @@ theorem convex_setOf_exists_isEquilibrium {M : LinearFisherMarket I G}
     intro i
     have hlin : M.buyerUtility (a • x + b • y) i =
         a * M.buyerUtility x i + b * M.buyerUtility y i := by
-      simp only [buyerUtility_eq, linearUtility_eq_sum, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
-        mul_add, Finset.sum_add_distrib, Finset.mul_sum]
-      exact congrArg₂ (· + ·)
-        (Finset.sum_congr rfl fun g _ => by ring)
-        (Finset.sum_congr rfl fun g _ => by ring)
+      simp only [buyerUtility_eq, linearUtility_eq_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+      exact Finset.sum_congr rfl fun g _ => by
+        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; ring
     rw [hlin, congrFun hU_eq i, ← add_mul, hab, one_mul]
+  have hsum_combo : ∀ g, ∑ i : I, (a • x + b • y) i g =
+      a * (∑ i : I, x i g) + b * ∑ i : I, y i g := fun g => by
+    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib, ← Finset.mul_sum]
   have hfeas : M.toFisherMarket.IsFeasibleAllocation (a • x + b • y) := by
     refine ⟨fun i g => add_nonneg (mul_nonneg ha (hkkt_x.pos_alloc.1.1 i g))
       (mul_nonneg hb (hkkt_y.pos_alloc.1.1 i g)), fun g => ?_⟩
     calc
-      ∑ i : I, (a • x + b • y) i g
-        = a * (∑ i : I, x i g) + b * ∑ i : I, y i g := by
-            simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
-              ← Finset.mul_sum]
+      ∑ i : I, (a • x + b • y) i g = a * (∑ i : I, x i g) + b * ∑ i : I, y i g := hsum_combo g
       _ ≤ a * M.supply g + b * M.supply g :=
             add_le_add (mul_le_mul_of_nonneg_left (hkkt_x.pos_alloc.1.2 g) ha)
               (mul_le_mul_of_nonneg_left (hkkt_y.pos_alloc.1.2 g) hb)
@@ -745,21 +687,9 @@ theorem convex_setOf_exists_isEquilibrium {M : LinearFisherMarket I G}
       have hyg : 0 < y i g := pos_of_mul_pos_right hpos hb
       rw [← congrFun hU_eq i]
       exact hkkt_y.primal_slackness i g hyg
-  · have hsum_combo : ∑ i : I, (a • x + b • y) i g =
-        a * (∑ i : I, x i g) + b * ∑ i : I, y i g := by
-      simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib, ← Finset.mul_sum]
-    have hsplit : M.supply g - ∑ i : I, (a • x + b • y) i g =
-        a * (M.supply g - ∑ i : I, x i g) + b * (M.supply g - ∑ i : I, y i g) := by
-      rw [hsum_combo]
-      linear_combination (M.supply g) * hab.symm
-    calc
-      p g * (M.supply g - ∑ i : I, (a • x + b • y) i g)
-        = a * (p g * (M.supply g - ∑ i : I, x i g)) +
-            b * (p g * (M.supply g - ∑ i : I, y i g)) := by
-              rw [hsplit]
-              ring
-      _ = 0 := by
-            rw [hkkt_x.dual_slackness g, hkkt_y.dual_slackness g, mul_zero, mul_zero, add_zero]
+  · rw [hsum_combo]
+    linear_combination a * hkkt_x.dual_slackness g + b * hkkt_y.dual_slackness g +
+      p g * M.supply g * hab.symm
 
 /-- **Primal optimality implies Eisenberg–Gale KKT** ([EisenbergGale1959]; [Vazirani2007],
 Section 5.2, p. 106): in a non-degenerate linear Fisher market, any
@@ -772,26 +702,39 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
     M.IsEisenbergGaleKKT x (M.eisenbergGaleDualPrice x) := by
   classical
   set p : G → ℝ := M.eisenbergGaleDualPrice x
-  have hp_nonneg : ∀ g : G, 0 ≤ p g := by
-    intro g
-    by_cases hI : (Finset.univ : Finset I).Nonempty
-    · obtain ⟨i₀, hi₀⟩ := id hI
-      have h0 : 0 ≤ M.budget i₀ * M.utility i₀ g / M.buyerUtility x i₀ :=
-        div_nonneg (mul_nonneg (M.budget_nonneg i₀) (M.utility_nonneg i₀ g)) (hx.2 i₀).le
-      have hle := Finset.le_sup' (fun i => M.budget i * M.utility i g / M.buyerUtility x i) hi₀
-      simp only [p, eisenbergGaleDualPrice, hI, ↓reduceDIte]
-      exact h0.trans hle
-    · simp [p, eisenbergGaleDualPrice, hI]
   have hstat : ∀ (i : I) (g : G), M.budget i * M.utility i g / M.buyerUtility x i ≤ p g := by
     intro i g
     have hI : (Finset.univ : Finset I).Nonempty := ⟨i, Finset.mem_univ i⟩
     simpa only [p, eisenbergGaleDualPrice, hI, ↓reduceDIte] using
       Finset.le_sup' (fun k => M.budget k * M.utility k g / M.buyerUtility x k) (Finset.mem_univ i)
-  refine ⟨hp_nonneg, hx, hstat, ?_, ?_⟩
-  · intro i₁ g hxi₁
-    have hle := hstat i₁ g
-    refine le_antisymm hle ?_
-    by_contra hlt
+  have hp_nonneg : ∀ g : G, 0 ≤ p g := fun g => by
+    by_cases hI : (Finset.univ : Finset I).Nonempty
+    · obtain ⟨i, -⟩ := hI
+      exact (div_nonneg (mul_nonneg (M.budget_nonneg i) (M.utility_nonneg i g))
+        (hx.2 i).le).trans (hstat i g)
+    · simp [p, eisenbergGaleDualPrice, hI]
+  -- Giving each buyer `i` an extra amount `d i` of good `g` cannot raise the objective.
+  have hperturb : ∀ (g : G) (d : I → ℝ), (∀ i, 0 ≤ x i g + d i) →
+      ∑ i, x i g + ∑ i, d i ≤ M.supply g →
+      (∀ i, 0 < M.buyerUtility x i + M.utility i g * d i) →
+      ∑ i, M.budget i * (Real.log (M.buyerUtility x i + M.utility i g * d i) -
+        Real.log (M.buyerUtility x i)) ≤ 0 := by
+    intro g d hnn hsum hpos
+    set y : I → G → ℝ := fun i g' => x i g' + if g' = g then d i else 0
+    have hU : ∀ i, M.buyerUtility y i = M.buyerUtility x i + M.utility i g * d i := fun i => by
+      simp [y, buyerUtility_eq, linearUtility_eq_sum, mul_add, Finset.sum_add_distrib]
+    have hy : M.IsPositiveUtilityAllocation y := by
+      refine ⟨⟨fun i g' => ?_, fun g' => ?_⟩, fun i => by rw [hU]; exact hpos i⟩
+      · by_cases hg : g' = g
+        · simpa [y, hg] using hnn i
+        · simpa [y, hg] using hx.1.1 i g'
+      · by_cases hg : g' = g
+        · simpa [y, hg, Finset.sum_add_distrib] using hsum
+        · simpa [y, hg] using hx.1.2 g'
+    simp only [← hU]
+    linarith [eisenbergGaleObjective_sub M x y, isMaxOn_iff.1 hmax y hy]
+  refine ⟨hp_nonneg, hx, hstat, fun i₁ g hxi₁ => (hstat i₁ g).antisymm ?_, fun g => ?_⟩
+  · by_contra hlt
     push Not at hlt
     have hI : (Finset.univ : Finset I).Nonempty := ⟨i₁, Finset.mem_univ i₁⟩
     obtain ⟨i₂, -, hi₂_eq⟩ :=
@@ -799,180 +742,46 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
     have hpg : p g = M.budget i₂ * M.utility i₂ g / M.buyerUtility x i₂ := by
       simpa only [p, eisenbergGaleDualPrice, hI, ↓reduceDIte] using hi₂_eq
     rw [hpg] at hlt
-    have hne_i : i₁ ≠ i₂ := by
-      intro heq
-      subst heq
+    have hne : i₁ ≠ i₂ := by
+      rintro rfl
       exact lt_irrefl _ hlt
     obtain ⟨ε, hε_pos, hε_lt, hU₁', hU₂', hlog_inc⟩ :=
       directional_log_increase (hnd.budget_pos i₁) (hnd.budget_pos i₂) (hx.2 i₁) (hx.2 i₂)
         (M.utility_nonneg i₁ g) (M.utility_nonneg i₂ g) hxi₁ hlt
-    let y : I → G → ℝ := fun i' g' =>
-      if g' = g then
-        if i' = i₁ then x i₁ g - ε else if i' = i₂ then x i₂ g + ε else x i' g
-      else x i' g'
-    have hy_nn : ∀ i' g', 0 ≤ y i' g' := by
-      intro i' g'
-      simp only [y]
-      split_ifs with hg' hi₁' hi₂'
-      · linarith
-      · linarith [hx.1.1 i₂ g]
-      · exact hx.1.1 i' g
-      · exact hx.1.1 i' g'
-    have hy_sum : ∀ g', ∑ i' : I, y i' g' = ∑ i' : I, x i' g' := by
-      intro g'
-      by_cases hg' : g' = g
-      · subst hg'
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
-          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨Ne.symm hne_i, Finset.mem_univ i₂⟩)]
-        symm
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
-          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨Ne.symm hne_i, Finset.mem_univ i₂⟩)]
-        have hrest : ∑ i' ∈ (Finset.univ.erase i₁).erase i₂, y i' g' =
-            ∑ i' ∈ (Finset.univ.erase i₁).erase i₂, x i' g' := by
-          refine Finset.sum_congr rfl fun i' hi' => ?_
-          have hi₂' : i' ≠ i₂ := (Finset.mem_erase.1 hi').1
-          have hi₁' : i' ≠ i₁ := (Finset.mem_erase.1 (Finset.mem_erase.1 hi').2).1
-          simp [y, hi₁', hi₂']
-        rw [hrest]
-        simp only [y, ↓reduceIte, Ne.symm hne_i]
-        ring
-      · refine Finset.sum_congr rfl fun i' _ => ?_
-        simp [y, hg']
-    have hU_single_change : ∀ (i' : I) (δg : ℝ),
-        (∀ g', g' ≠ g → y i' g' = x i' g') → y i' g = x i' g + δg →
-        M.buyerUtility y i' = M.buyerUtility x i' + M.utility i' g * δg := by
-      intro i' δg hother hself
-      have hdiff : M.buyerUtility y i' - M.buyerUtility x i' = M.utility i' g * δg := by
-        simp only [buyerUtility_eq, linearUtility_eq_sum, ← Finset.sum_sub_distrib, ← mul_sub]
-        rw [Finset.sum_eq_single g]
-        · rw [hself, add_sub_cancel_left]
-        · intro g' _ hg'
-          rw [hother g' hg', sub_self, mul_zero]
-        · intro hmem
-          exact False.elim (hmem (Finset.mem_univ g))
-      linarith
-    have hy_U₁ : M.buyerUtility y i₁ = M.buyerUtility x i₁ - M.utility i₁ g * ε := by
-      have h := hU_single_change i₁ (-ε) (fun g' hg' => by simp [y, hg'])
-        (by simp [y]; ring)
-      linarith
-    have hy_U₂ : M.buyerUtility y i₂ = M.buyerUtility x i₂ + M.utility i₂ g * ε :=
-      hU_single_change i₂ ε (fun g' hg' => by simp [y, hg']) (by simp [y, Ne.symm hne_i])
-    have hy_U_other : ∀ i', i' ≠ i₁ → i' ≠ i₂ → M.buyerUtility y i' = M.buyerUtility x i' := by
-      intro i' hi₁' hi₂'
-      simp only [buyerUtility_eq, linearUtility_eq_sum]
-      refine Finset.sum_congr rfl fun g' _ => ?_
-      by_cases hg' : g' = g
-      · subst hg'
-        simp [y, hi₁', hi₂']
-      · simp [y, hg']
-    have hy_pos : M.IsPositiveUtilityAllocation y := by
-      refine ⟨⟨hy_nn, fun g' => by rw [hy_sum g']; exact hx.1.2 g'⟩, fun i' => ?_⟩
-      by_cases hi₁' : i' = i₁
-      · subst hi₁'
-        rwa [hy_U₁]
-      · by_cases hi₂' : i' = i₂
-        · subst hi₂'
-          rwa [hy_U₂]
-        · rw [hy_U_other i' hi₁' hi₂']
-          exact hx.2 i'
-    have hobj_lt : M.eisenbergGaleObjective x < M.eisenbergGaleObjective y := by
-      simp only [eisenbergGaleObjective]
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
-        ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨Ne.symm hne_i, Finset.mem_univ i₂⟩)]
-      conv_rhs =>
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
-          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨Ne.symm hne_i, Finset.mem_univ i₂⟩)]
-      have hrest : ∑ i' ∈ (Finset.univ.erase i₁).erase i₂,
-          M.budget i' * Real.log (M.buyerUtility y i') =
-        ∑ i' ∈ (Finset.univ.erase i₁).erase i₂,
-          M.budget i' * Real.log (M.buyerUtility x i') := by
-        refine Finset.sum_congr rfl fun i' hi' => ?_
-        have hi₂' : i' ≠ i₂ := (Finset.mem_erase.1 hi').1
-        have hi₁' : i' ≠ i₁ := (Finset.mem_erase.1 (Finset.mem_erase.1 hi').2).1
-        rw [hy_U_other i' hi₁' hi₂']
-      rw [hrest, hy_U₁, hy_U₂]
-      linarith
-    exact not_le_of_gt hobj_lt (hmax hy_pos)
-  · intro g
-    have hg_le : ∑ i : I, x i g ≤ M.supply g := by simpa only [toFisherMarket_supply] using hx.1.2 g
-    rcases hg_le.eq_or_lt with hfull | hslack
+    set d : I → ℝ := fun i => if i = i₁ then -ε else if i = i₂ then ε else 0 with hd
+    have hd0 : ∀ i, i ≠ i₁ ∧ i ≠ i₂ → d i = 0 := fun i hi => by simp [hd, hi.1, hi.2]
+    have h := hperturb g d
+      (fun i => by
+        simp only [hd]
+        split_ifs with h1
+        · subst h1; linarith
+        all_goals linarith [hx.1.1 i g])
+      (by
+        rw [Fintype.sum_eq_add (f := d) i₁ i₂ hne hd0]
+        simpa [hd, hne.symm] using hx.1.2 g)
+      (fun i => by
+        simp only [hd]
+        split_ifs with h1 h2
+        · subst h1; linarith
+        · subst h2; linarith
+        · simpa using hx.2 i)
+    rw [Fintype.sum_eq_add i₁ i₂ hne fun i hi => by simp [hd0 i hi]] at h
+    simp only [hd, ↓reduceIte, hne.symm, mul_neg, ← sub_eq_add_neg] at h
+    linarith
+  · rcases (show ∑ i, x i g ≤ M.supply g by simpa using hx.1.2 g).eq_or_lt with hfull | hslack
     · rw [hfull, sub_self, mul_zero]
-    · exfalso
-      set δ : ℝ := M.supply g - ∑ i : I, x i g
-      have hδ : 0 < δ := sub_pos.2 hslack
-      obtain ⟨i₀, hi₀⟩ := hnd.good_desired g
-      let y : I → G → ℝ := Function.update x i₀ (Function.update (x i₀) g (x i₀ g + δ))
-      have hy_nn : ∀ i' g', 0 ≤ y i' g' := by
-        intro i' g'
-        by_cases hi' : i' = i₀
-        · subst hi'
-          by_cases hg' : g' = g
-          · subst hg'
-            simp only [y, Function.update_self]
-            linarith [hx.1.1 i' g']
-          · simp only [y, Function.update_self, Function.update_of_ne hg']
-            exact hx.1.1 i' g'
-        · simp only [y, Function.update_of_ne hi']
-          exact hx.1.1 i' g'
-      have hy_feas : M.toFisherMarket.IsFeasibleAllocation y := by
-        refine ⟨hy_nn, fun g' => ?_⟩
-        simp only [toFisherMarket_supply]
-        by_cases hg' : g' = g
-        · subst hg'
-          rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
-          have hrest : ∑ i' ∈ Finset.univ.erase i₀, y i' g' =
-              ∑ i' ∈ Finset.univ.erase i₀, x i' g' := by
-            refine Finset.sum_congr rfl fun i' hi' => ?_
-            simp [y, Function.update_of_ne (Finset.mem_erase.1 hi').1]
-          rw [hrest]
-          simp only [y, Function.update_self]
-          have htot := Finset.add_sum_erase Finset.univ (fun i' => x i' g') (Finset.mem_univ i₀)
-          linarith
-        · have hsame : ∑ i' : I, y i' g' = ∑ i' : I, x i' g' := by
-            refine Finset.sum_congr rfl fun i' _ => ?_
-            by_cases hi' : i' = i₀
-            · subst hi'
-              simp [y, Function.update_of_ne hg']
-            · simp [y, Function.update_of_ne hi']
-          rw [hsame]
-          simpa only [toFisherMarket_supply] using hx.1.2 g'
-      have hy_Ui₀ : M.buyerUtility y i₀ = M.buyerUtility x i₀ + M.utility i₀ g * δ := by
-        simp only [buyerUtility_eq, linearUtility_eq_sum, y, Function.update_self]
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ g)]
-        symm
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ g)]
-        have hrest : ∑ g' ∈ Finset.univ.erase g,
-            M.utility i₀ g' * Function.update (x i₀) g (x i₀ g + δ) g' =
-          ∑ g' ∈ Finset.univ.erase g, M.utility i₀ g' * x i₀ g' := by
-          refine Finset.sum_congr rfl fun g' hg' => ?_
-          simp [Function.update_of_ne (Finset.mem_erase.1 hg').1]
-        rw [hrest, Function.update_self]
-        ring
-      have hy_U_other : ∀ i', i' ≠ i₀ → M.buyerUtility y i' = M.buyerUtility x i' := by
-        intro i' hi'
-        simp [buyerUtility, y, Function.update_of_ne hi']
-      have hy_pos : M.IsPositiveUtilityAllocation y := by
-        refine ⟨hy_feas, fun i' => ?_⟩
-        by_cases hi' : i' = i₀
-        · subst hi'
-          rw [hy_Ui₀]
-          linarith [hx.2 i', mul_pos hi₀ hδ]
-        · rw [hy_U_other i' hi']
-          exact hx.2 i'
-      have hobj_lt : M.eisenbergGaleObjective x < M.eisenbergGaleObjective y := by
-        simp only [eisenbergGaleObjective]
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
-        conv_rhs => rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
-        have hrest : ∑ i' ∈ Finset.univ.erase i₀, M.budget i' * Real.log (M.buyerUtility y i') =
-            ∑ i' ∈ Finset.univ.erase i₀, M.budget i' * Real.log (M.buyerUtility x i') := by
-          refine Finset.sum_congr rfl fun i' hi' => ?_
-          rw [hy_U_other i' (Finset.mem_erase.1 hi').1]
-        rw [hrest]
-        have hlog_lt : Real.log (M.buyerUtility x i₀) < Real.log (M.buyerUtility y i₀) :=
-          Real.log_lt_log (hx.2 i₀) (by rw [hy_Ui₀]; linarith [mul_pos hi₀ hδ])
-        have hmul_lt := mul_lt_mul_of_pos_left hlog_lt (hnd.budget_pos i₀)
-        linarith
-      exact not_le_of_gt hobj_lt (hmax hy_pos)
+    exfalso
+    obtain ⟨i₀, hi₀⟩ := hnd.good_desired g
+    have hδ := sub_pos.2 hslack
+    set d : I → ℝ := Pi.single i₀ (M.supply g - ∑ i, x i g)
+    have hd : ∀ i, 0 ≤ d i := fun i => by by_cases h : i = i₀ <;> simp [d, h, hδ.le]
+    have h := hperturb g d
+      (fun i => add_nonneg (hx.1.1 i g) (hd i)) (by simp [d])
+      (fun i => add_pos_of_pos_of_nonneg (hx.2 i) (mul_nonneg (M.utility_nonneg i g) (hd i)))
+    rw [Fintype.sum_eq_single i₀ fun i hi => by simp [d, hi]] at h
+    simp only [d, Pi.single_eq_same] at h
+    exact h.not_gt (mul_pos (hnd.budget_pos i₀) (sub_pos.2
+      (Real.log_lt_log (hx.2 i₀) (lt_add_of_pos_right _ (mul_pos hi₀ hδ)))))
 
 /-- **Eisenberg–Gale primal optimality equivalence** ([EisenbergGale1959]; [Vazirani2007],
 Section 5.2, Program `(5.1)`, pp. 105–107): in a non-degenerate linear Fisher market, an allocation
@@ -1007,17 +816,11 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
       simp only [toFisherMarket_supply, x₀, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
         mul_div_cancel₀ _ hcard_pos.ne']
       exact le_rfl
-    have hx₀_U : ∀ i : I, 0 < M.buyerUtility x₀ i := by
-      intro i
+    have hx₀_U : ∀ i : I, 0 < M.buyerUtility x₀ i := fun i => by
       obtain ⟨g₀, hg₀⟩ := hnd.buyer_nonsatiated i
-      have hterm_pos : 0 < M.utility i g₀ * x₀ i g₀ :=
-        mul_pos hg₀ (div_pos (hnd.supply_pos g₀) hcard_pos)
-      have hle : M.utility i g₀ * x₀ i g₀ ≤ M.buyerUtility x₀ i := by
-        rw [buyerUtility_eq, linearUtility_eq_sum]
-        exact Finset.single_le_sum
-          (fun g _ => mul_nonneg (M.utility_nonneg i g) (hx₀_feas.1 i g))
-          (Finset.mem_univ g₀)
-      exact hterm_pos.trans_le hle
+      rw [buyerUtility_eq, linearUtility_eq_sum]
+      exact (mul_pos hg₀ (div_pos (hnd.supply_pos g₀) hcard_pos)).trans_le (Finset.single_le_sum
+        (fun g _ => mul_nonneg (M.utility_nonneg i g) (hx₀_feas.1 i g)) (Finset.mem_univ g₀))
     have hx₀ : M.IsPositiveUtilityAllocation x₀ := ⟨hx₀_feas, hx₀_U⟩
     let Umax : I → ℝ := fun i => ∑ g : G, M.utility i g * M.supply g
     have hU_le_max : ∀ {y : I → G → ℝ}, M.toFisherMarket.IsFeasibleAllocation y →
@@ -1094,23 +897,9 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
               (Real.log_le_log (hy.2 k) (hU_le_max hy.1 k)) (M.budget_nonneg k)
           have hsplit := Finset.add_sum_erase Finset.univ
             (fun k => M.budget k * Real.log (M.buyerUtility y k)) (Finset.mem_univ i)
-          have hmi_log : M.eisenbergGaleObjective x₀ -
-              ∑ k ∈ Finset.univ.erase i, M.budget k * Real.log (Umax k) ≤
-                M.budget i * Real.log (M.buyerUtility y i) := by
-            have hobj_y : M.budget i * Real.log (M.buyerUtility y i) +
-                ∑ k ∈ Finset.univ.erase i, M.budget k * Real.log (M.buyerUtility y k) =
-                  M.eisenbergGaleObjective y := hsplit
-            linarith
-          have hdiv_le :
-              (M.eisenbergGaleObjective x₀ -
-                ∑ k ∈ Finset.univ.erase i, M.budget k * Real.log (Umax k)) / M.budget i ≤
-                  Real.log (M.buyerUtility y i) :=
-            (div_le_iff₀ (hnd.budget_pos i)).2 (by linarith)
-          calc
-            Real.exp ((M.eisenbergGaleObjective x₀ -
-              ∑ k ∈ Finset.univ.erase i, M.budget k * Real.log (Umax k)) / M.budget i)
-              ≤ Real.exp (Real.log (M.buyerUtility y i)) := Real.exp_le_exp.2 hdiv_le
-            _ = M.buyerUtility y i := Real.exp_log (hy.2 i)
+          rw [← Real.exp_log (hy.2 i)]
+          refine Real.exp_le_exp.2 ((div_le_iff₀ (hnd.budget_pos i)).2 ?_)
+          linarith [eisenbergGaleObjective_eq M y]
         exact hxStar_max hy_K
     obtain ⟨pStar, hpStar⟩ :=
       (isEquilibrium_iff_isMaxOn_eisenbergGaleObjective hnd xStar).2 ⟨hxStar_pos, hxStar_global⟩
