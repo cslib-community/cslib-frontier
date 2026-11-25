@@ -26,9 +26,8 @@ open Cslib.WordRAM Cslib.Matrix Cslib.Algorithms.ExactTriangle
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 open Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage
 
-private theorem productBank_injective : Function.Injective productBank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
+private theorem productBank_injective : Function.Injective productBank :=
+  fun _ _ h => Fin.ext (congrArg (fun k : Fin 400 => k.val) h)
 
 /-- Combined physical word/address envelope required by the product-and-verifier composition
 at heap base `heap`, query count `Q` and product-answer offset `offset`. -/
@@ -196,13 +195,12 @@ theorem exec_after_record_product {w U m n g p i : ℕ} (values : ℕ → ℤ)
       (T + 5 * Nat.sqrt (D m) + 8 * Q +
         (42 * min (pieceSize (D m) g) (n - idx.piece * pieceSize (D m) g) + 28) * S + 52) :=
     (hs.seq he).mono (by omega)
-  refine ⟨y, S, hexe, ys, yf, ?_, ?_, ?_, ?_, fun u hu => by rw [ym]; exact rmem u hu,
+  refine ⟨y, S, hexe, ys, yf, ?_, ?_,
+    fun j => by rw [frame _ (by decide), sout, ym]; exact rvalues j, ?_,
+    fun u hu => by rw [ym]; exact rmem u hu,
     fun j hj => (frame _ (by change j.val < 320; omega)).trans (snative j hj)⟩
   · simpa only [ym, frame (productBank RecordProduct.Reg.result) (by decide), sout] using hS
   · simpa only [ym, frame (productBank RecordProduct.Reg.result) (by decide), sout] using yiff
-  · intro j
-    rw [frame _ (by decide), sout, ym]
-    exact rvalues j
   · intro hy
     obtain ⟨j, hj, -, hwa, hwb, hlo, hhi, hz⟩ := yw hy
     obtain ⟨ha, hb⟩ := hcoords j hj
