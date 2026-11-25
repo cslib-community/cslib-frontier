@@ -57,6 +57,30 @@ namespace Flow
 @[expose] def IsFlowPath (f : N.Flow) (p : List V) : Prop :=
   p.Nodup ∧ p.head? = some N.s ∧ p.getLast? = some N.t ∧ ∀ e ∈ pathArcs p, 0 < f e.1 e.2
 
+/-- Net outflow at `v` after subtracting one unit along a simple `s`–`t` flow path `p`. -/
+private theorem netOut_subPath_sum [DecidableEq V] (f : N.Flow) {p : List V} (hp : f.IsFlowPath p)
+    (v : V) :
+    (∑ w : V, (((if (v, w) ∈ pathArcs p then f v w - 1 else f v w : ℕ) : ℤ) -
+        ((if (w, v) ∈ pathArcs p then f w v - 1 else f w v : ℕ) : ℤ))) =
+      f.netOut v - ((if N.s = v then 1 else 0) - (if N.t = v then 1 else 0)) := by
+  obtain ⟨hnd, hs, ht, hpos⟩ := hp
+  have hsub : ∀ u w : V,
+      ((if (u, w) ∈ pathArcs p then f u w - 1 else f u w : ℕ) : ℤ) =
+        (f u w : ℤ) - (if (u, w) ∈ pathArcs p then 1 else 0) := fun u w => by
+    split_ifs with h
+    · have : 0 < f u w := hpos (u, w) h
+      omega
+    · simp
+  simp only [hsub]
+  have hsplit : ∀ w : V,
+      ((f v w : ℤ) - (if (v, w) ∈ pathArcs p then 1 else 0)) -
+          ((f w v : ℤ) - (if (w, v) ∈ pathArcs p then 1 else 0)) =
+        ((f v w : ℤ) - (f w v : ℤ)) -
+          ((if (v, w) ∈ pathArcs p then (1 : ℤ) else 0) -
+            (if (w, v) ∈ pathArcs p then (1 : ℤ) else 0)) := fun _ => by omega
+  rw [Finset.sum_congr rfl fun w _ => hsplit w, Finset.sum_sub_distrib,
+    sum_pathArcs_sign hnd hs ht v, ← f.netOut_eq_sum_sub v]
+
 /-- Remove one unit of flow along a simple `s`-`t` path of positive-flow arcs. -/
 private def subPath [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.IsFlowPath p) : N.Flow where
   toFun u v := if (u, v) ∈ pathArcs p then f u v - 1 else f u v
@@ -65,35 +89,12 @@ private def subPath [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.IsFlowPath
     · exact le_trans (Nat.sub_le _ _) (f.le_cap u v)
     · exact f.le_cap u v
   conserve v hvs hvt := by
-    obtain ⟨hnd, hs, ht, hpos⟩ := hp
-    have hsub : ∀ u w : V,
-        ((if (u, w) ∈ pathArcs p then f u w - 1 else f u w : ℕ) : ℤ) =
-          (f u w : ℤ) - (if (u, w) ∈ pathArcs p then 1 else 0) := by
-      intro u w
-      split_ifs with h
-      · have := hpos (u, w) h
-        simp only at this
-        omega
-      · simp
-    have hsum : (∑ w : V, (((if (v, w) ∈ pathArcs p then f v w - 1 else f v w : ℕ) : ℤ) -
-        ((if (w, v) ∈ pathArcs p then f w v - 1 else f w v : ℕ) : ℤ))) = 0 := by
-      simp only [hsub]
-      have hsplit : ∀ w : V,
-          ((f v w : ℤ) - (if (v, w) ∈ pathArcs p then 1 else 0)) -
-              ((f w v : ℤ) - (if (w, v) ∈ pathArcs p then 1 else 0)) =
-            ((f v w : ℤ) - (f w v : ℤ)) -
-              ((if (v, w) ∈ pathArcs p then (1 : ℤ) else 0) -
-                (if (w, v) ∈ pathArcs p then (1 : ℤ) else 0)) := fun w => by omega
-      rw [Finset.sum_congr rfl fun w _ => hsplit w, Finset.sum_sub_distrib,
-        sum_pathArcs_sign hnd hs ht v, ← f.netOut_eq_sum_sub v, f.netOut_eq_zero hvs hvt]
-      have hsv : N.s ≠ v := hvs.symm
-      have htv : N.t ≠ v := hvt.symm
-      simp [hsv, htv]
-    rw [Finset.sum_sub_distrib] at hsum
+    have hsum := f.netOut_subPath_sum hp v
+    rw [f.netOut_eq_zero hvs hvt, ite_eq_right hvs.symm, ite_eq_right hvt.symm,
+      Finset.sum_sub_distrib] at hsum
     have heq : ((∑ u : V, (if (u, v) ∈ pathArcs p then f u v - 1 else f u v) : ℕ) : ℤ) =
         ((∑ w : V, (if (v, w) ∈ pathArcs p then f v w - 1 else f v w) : ℕ) : ℤ) := by
-      rw [Nat.cast_sum, Nat.cast_sum]
-      omega
+      rw [Nat.cast_sum, Nat.cast_sum]; omega
     exact Int.ofNat.inj heq
 
 private theorem subPath_apply [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.IsFlowPath p)
@@ -102,28 +103,10 @@ private theorem subPath_apply [DecidableEq V] (f : N.Flow) (p : List V) (hp : f.
 
 private theorem value_subPath [DecidableEq V] (f : N.Flow) (hst : N.s ≠ N.t) (p : List V)
     (hp : f.IsFlowPath p) : (f.subPath p hp).value = f.value - 1 := by
-  obtain ⟨hnd, hs, ht, hpos⟩ := id hp
-  have hts : N.t ≠ N.s := hst.symm
   rw [value, netOut_eq_sum_sub]
-  have hsub : ∀ u w : V, ((f.subPath p hp u w : ℕ) : ℤ) =
-      (f u w : ℤ) - (if (u, w) ∈ pathArcs p then 1 else 0) := by
-    intro u w
-    rw [subPath_apply]
-    split_ifs with h
-    · have := hpos (u, w) h
-      simp only at this
-      omega
-    · simp
-  simp only [hsub]
-  have hsplit : ∀ w : V,
-      ((f N.s w : ℤ) - (if (N.s, w) ∈ pathArcs p then 1 else 0)) -
-          ((f w N.s : ℤ) - (if (w, N.s) ∈ pathArcs p then 1 else 0)) =
-        ((f N.s w : ℤ) - (f w N.s : ℤ)) -
-          ((if (N.s, w) ∈ pathArcs p then (1 : ℤ) else 0) -
-            (if (w, N.s) ∈ pathArcs p then (1 : ℤ) else 0)) := fun w => by omega
-  rw [Finset.sum_congr rfl fun w _ => hsplit w, Finset.sum_sub_distrib,
-    sum_pathArcs_sign hnd hs ht N.s, ← f.netOut_eq_sum_sub N.s]
-  simp [hts, value]
+  change (∑ w : V, (((if (N.s, w) ∈ pathArcs p then f N.s w - 1 else f N.s w : ℕ) : ℤ) -
+      ((if (w, N.s) ∈ pathArcs p then f w N.s - 1 else f w N.s : ℕ) : ℤ))) = _
+  rw [f.netOut_subPath_sum hp N.s, ite_eq_left rfl, ite_eq_right hst.symm, sub_zero, value]
 
 /-- **A flow of positive value has a flow path.** If `f.value > 0`, some simple `s`-`t` path
 uses only arcs with positive flow. -/
@@ -135,11 +118,12 @@ theorem exists_isFlowPath (f : N.Flow) (hpos : 0 < f.value) : ∃ p, f.IsFlowPat
   · exfalso
     let R : Finset V :=
       Finset.univ.filter fun v => Relation.ReflTransGen (fun x y => 0 < f x y) N.s v
-    have hR : N.IsCut R := by
-      refine ⟨by simp [R, Relation.ReflTransGen.refl], ?_⟩
-      simpa [R] using hreach
+    have hR : N.IsCut R := ⟨by simp [R, Relation.ReflTransGen.refl], by simpa [R] using hreach⟩
     have hval := f.value_eq_netFlow_across_cut hR
-    have hzero : ∀ u ∈ R, ∀ v ∈ Finset.univ \ R, f u v = 0 := by grind
+    have hzero : ∀ u ∈ R, ∀ v ∈ Finset.univ \ R, f u v = 0 := fun u hu v hv => by
+      by_contra h
+      exact (Finset.mem_sdiff.mp hv).2
+        (Finset.mem_filter.mpr ⟨Finset.mem_univ v, (Finset.mem_filter.mp hu).2.tail (by omega)⟩)
     have hout : (∑ u ∈ R, ∑ v ∈ Finset.univ \ R, (f u v : ℤ)) = 0 :=
       Finset.sum_eq_zero fun u hu => Finset.sum_eq_zero fun v hv => by simp [hzero u hu v hv]
     have hin : 0 ≤ ∑ u ∈ R, ∑ v ∈ Finset.univ \ R, (f v u : ℤ) :=
