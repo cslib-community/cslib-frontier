@@ -280,15 +280,11 @@ private theorem modStep_foldl (l f p a : List Bool) (hp : p.length = l.length)
       ring
     · rw [List.foldl_cons, modStep, h4, map_add, map_mul, mk_polyOfBits_mulXMod l p hp,
         polyOfBits_cons]
-      split_ifs with hb
-      · subst hb
-        rw [polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
-        simp only [map_add, map_mul, map_one]
+      cases b
+      · simp only [Bool.false_eq_true, ↓reduceIte, bitEquiv_symm_false, map_add, map_mul, map_zero]
         ring
-      · rw [Bool.not_eq_true] at hb
-        subst hb
-        rw [bitEquiv_symm_false]
-        simp only [map_add, map_mul, map_zero]
+      · rw [ite_eq_left rfl, polyOfBits_zipWith_xor (by rw [ha, hp]), bitEquiv_symm_true]
+        simp only [map_add, map_mul, map_one]
         ring
 
 private theorem length_modBits (l f : List Bool) : (modBits (l ++ [true]) f).length = l.length := by
@@ -419,10 +415,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
       rintro rfl
       exact hq.ne_zero polyOfCode_zero
     rw [natDegree_polyOfCode hd0, Finset.mem_Ioc] at hdq
-    have hd2 : 2 ≤ d := by
-      have := Nat.pow_log_le_self 2 hd0
-      have : 2 ^ 1 ≤ 2 ^ Nat.log 2 d := Nat.pow_le_pow_right two_pos hdq.1
-      omega
+    have hd2 : 2 ≤ d := (Nat.pow_le_pow_right two_pos hdq.1).trans (Nat.pow_log_le_self 2 hd0)
     have hdm : d < m :=
       calc d < 2 ^ (Nat.log 2 d + 1) := Nat.lt_pow_succ_log_self one_lt_two d
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos (by omega)
@@ -441,9 +434,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     · rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
       exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
     · by_contra hndvd
-      rw [← any_modBits_bits_iff hd0] at hndvd
-      rw [hndvd] at hany
-      exact Bool.true_eq_false.mp hany
+      exact Bool.true_eq_false.mp (((any_modBits_bits_iff hd0 _).2 hndvd).symm.trans hany)
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/
