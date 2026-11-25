@@ -598,7 +598,8 @@ private theorem insert_same_bucket_checkSlot_some {cTab bChar rKey b loc_old loc
   have hb_old : tr.itemBucket (p.1.nodeLeafItem p.2 - 1) = b := by
     rw [← htr_eq]; injection hlk with hp; exact (Prod.mk.inj hp).1
   have buckets : (bufInsert cTab bChar tr rKey b loc_new).itemBucket = tr.itemBucket := by
-    simp only [bufInsert, ← hp, hid1_nz, ↓reduceIte]
+    dsimp only [bufInsert]
+    simp only [← hp, hid1_nz, ↓reduceIte]
     rw [← hb_old, htr_eq, Function.update_eq_self]
   have heq := (bucket_of_hit hchk1).symm.trans
     ((congrFun buckets id).symm.trans (bucket_of_hit hchk))
