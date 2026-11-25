@@ -216,16 +216,9 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
           subst hn0 hφ_nil
           rfl
       rw [hans]
-      refine ⟨?_, fun i => ?_⟩
-      · dsimp only [y_n0]
-        rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_self]
-        rfl
-      · rcases i with ⟨_ | k, hlt⟩
-        · dsimp only [Block.read, y_n0]
-          rw [Nat.add_zero, Data.write_mem_self]
-          rfl
-        · change k + 1 < 1 at hlt
-          omega
+      refine ⟨by wram_simp [y_n0]; rfl, fun ⟨i, hi⟩ => ?_⟩
+      obtain rfl : i = 0 := by simpa using hi
+      wram_simp [Block.read, y_n0]; rfl
     · -- `0 < G.n`: full Kosaraju + witness extraction
       have hn_pos : 0 < G.n := Nat.pos_of_ne_zero hn0
       have hN_pos : 0 < 2 * G.n := by omega
@@ -362,22 +355,13 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
             rw [hchk, hfold_eq, hok_all]
             rfl
           rw [hans]
-          refine ⟨?_, fun i => ?_⟩
-          · dsimp only [y_sat]
-            rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_self]
+          refine ⟨by wram_simp [y_sat]; simp, fun ⟨i, hi⟩ => ?_⟩
+          rcases i with _ | q
+          · wram_simp [Block.read, y_sat]; rfl
+          · have hq : q < G.n := by simpa using hi
+            rw [Block.read, show G.outAddrBase + 1 + (q + 1) = G.outAddrBase + 2 + q by omega]
+            wram_simp [y_sat, hs₈_bits ⟨q, hq⟩ (hdist_all ⟨q, hq⟩)]
             simp
-          · dsimp only [Block.read, y_sat]
-            cases hi_eq : i.val with
-            | zero =>
-              rw [Nat.add_zero, Data.write_mem_self]
-              simp [hi_eq]
-            | succ q =>
-              have hq_lt : q < G.n := by have := i.isLt; simp at this; omega
-              rw [show G.outAddrBase + 1 + (q + 1) = G.outAddrBase + 2 + q by omega,
-                Data.write_mem_of_ne (by omega), Data.set_mem,
-                Data.write_mem_of_ne (by omega), Data.set_mem,
-                hs₈_bits ⟨q, hq_lt⟩ (hdist_all ⟨q, hq_lt⟩)]
-              simp [hi_eq]
       obtain ⟨y, hy_br, hy_ob, hy_list⟩ := hfin_ext
       have hext_ex : ExecWithin w extractAssignmentCode s₇ y (16 * G.n + 9) :=
         (hp_ext.seq (hs₈_ex.seq hy_br)).mono (by omega)
