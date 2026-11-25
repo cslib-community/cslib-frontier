@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.Hungarian.Instance
 public import CslibFrontier.Algorithms.WordRAM.Hungarian.MemLayout
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Foundations.Data.Matrix.PairChunks
 import Mathlib.Algebra.BigOperators.Fin
@@ -88,42 +89,14 @@ theorem exec_setupCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) 
       BaseRegs inst.n (2 + inst.n * inst.n) 0 y₁ ∧
       y₁.mem = (Data.init inst.encode : Data 28).mem := by
   have hmem1 : (Data.init inst.encode : Data 28).mem 1 = inst.n := inst.init_mem_n
-  have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; omega)
-  have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; omega)
-  have hf_nn : Fits w (inst.n * inst.n) := hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bC : Fits w (2 + inst.n * inst.n) := hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bY : Fits w (2 + inst.n * inst.n + inst.n * inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bNZ : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bCM : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bU : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bT :
-      Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bM : Fits w
-      (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bB : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n +
-      inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_out : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n +
-      inst.n + inst.n + inst.n + inst.n) :=
-    hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hf_bRM : Fits w (2 + inst.n * inst.n + inst.n * inst.n + inst.n + inst.n + inst.n +
-      inst.n + inst.n + inst.n + inst.n + 1) :=
+  -- Every base address is at most `2 + 2 n² + 8 n + 1`, a linear bound in the atoms `n²` and `n`.
+  have hfit : Fits w (2 + inst.n * inst.n + inst.n * inst.n + 8 * inst.n + 1) :=
     hw.of_le (by unfold Instance.wordBound; nlinarith)
   refine WP.exists_execWithin ?_
   unfold setupCode
-  wram_exec [hmem1, hf1, hf2, hf_nn, hf_bC, hf_bY, hf_bNZ, hf_bCM, hf_bU, hf_bT, hf_bM,
-    hf_bB, hf_out, hf_bRM]
+  wram_exec [hmem1]
   refine ⟨?_, rfl⟩
-  exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-    by wram_simp, by wram_simp, by wram_simp, by wram_simp; omega,
-    by wram_simp; omega, by wram_simp; omega, by wram_simp; omega,
-    by wram_simp; omega, by wram_simp; omega, by wram_simp; omega⟩
+  constructor <;> wram_simp <;> omega
 
 theorem exec_scanMaxCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound)
     (y₁ : Data 28) (hb₁ : BaseRegs inst.n (2 + inst.n * inst.n) 0 y₁)
@@ -161,29 +134,20 @@ theorem exec_scanMaxCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
     have hdiv : Signed.encode (inst.cost (u, v)) / 2 = (inst.cost (u, v)).natAbs :=
       Signed.encode_div_two _
     have hmag_le : (inst.cost (u, v)).natAbs ≤ inst.maxMag := inst.natAbs_cost_le_maxMag u v
-    have hf1 : Fits w (2 + y.regs idx) :=
-      hw.of_le (by unfold Instance.wordBound; simp only [n] at hlt; nlinarith)
-    have hf2 : Fits w ((inst.cost (u, v)).natAbs) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf3 : Fits w (y.regs idx + 1) :=
-      hw.of_le (by unfold Instance.wordBound; simp only [n] at hlt; nlinarith)
+    have hfit : Fits w (2 + n * n + inst.maxMag) :=
+      hw.of_le (by unfold Instance.wordBound; simp only [n]; nlinarith)
     refine WP.exists_execWithin ?_
     unfold scanMaxBody
-    by_cases hcmp : y.regs rM < (inst.cost (u, v)).natAbs
-    · wram_exec [htwo_y, hzero_y, hone_y, hload, hdiv, hcmp, hf1, hf2, hf3]
-      refine ⟨⟨fun i hi hne => by wram_simp [hr i hi hne], hmem,
-        by wram_simp; exact hmag_le, fun q hq hq' => ?_⟩, by wram_simp⟩
-      wram_simp
-      rcases eq_or_ne q (y.regs idx) with rfl | hne
-      · exact le_rfl
-      · exact (hM_ge q (by omega) hq').trans (le_of_lt hcmp)
-    · wram_exec [htwo_y, hzero_y, hone_y, hload, hdiv, hcmp, hf1, hf2, hf3]
-      refine ⟨⟨fun i hi hne => by wram_simp [hr i hi hne], hmem,
-        by wram_simp; exact hM_le, fun q hq hq' => ?_⟩, by wram_simp⟩
-      wram_simp
-      rcases eq_or_ne q (y.regs idx) with rfl | hne
-      · exact le_of_not_gt hcmp
-      · exact hM_ge q (by omega) hq'
+    wram_exec [htwo_y, hzero_y, hone_y, hload, hdiv]
+    all_goals
+      refine ⟨⟨fun i hi hne => by wram_simp [hr i hi hne], hmem, ?_, fun q hq hq' => ?_⟩,
+        by wram_simp⟩ <;> wram_simp
+    · exact hmag_le
+    · rcases eq_or_ne q (y.regs idx) with rfl | hne
+      exacts [le_rfl, (hM_ge q (by omega) hq').trans (le_of_lt hc)]
+    · exact hM_le
+    · rcases eq_or_ne q (y.regs idx) with rfl | hne
+      exacts [le_of_not_gt hc, hM_ge q (by omega) hq']
   have hs₀ : ∃ s₀,
       ExecWithin w (ram[ rM ← #0; idx ← #0 ] : Code .standard 28) y₁ s₀ 2 ∧
       PM 0 s₀ ∧ s₀.regs idx = 0 := by
@@ -196,23 +160,7 @@ theorem exec_scanMaxCode {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
     (fun y hy => (hy.1 rnn (by decide) (by decide)).trans hb₁.hrnn) hbodyM
     (by omega) (hidxs₀ ▸ hPs₀)
   obtain ⟨hr₂, hm₂, hM_le₂, hM_ge₂⟩ := hPn₂
-  have hb₂ : BaseRegs n bC (y₂.regs rM) y₂ :=
-    ⟨(hr₂ zero (by decide) (by decide)).trans hb₁.hzero,
-     (hr₂ one (by decide) (by decide)).trans hb₁.hone,
-     (hr₂ two (by decide) (by decide)).trans hb₁.htwo,
-     (hr₂ rn (by decide) (by decide)).trans hb₁.hrn,
-     (hr₂ rnn (by decide) (by decide)).trans hb₁.hrnn,
-     rfl,
-     (hr₂ baseC (by decide) (by decide)).trans hb₁.hbaseC,
-     (hr₂ baseY (by decide) (by decide)).trans hb₁.hbaseY,
-     (hr₂ baseNZ (by decide) (by decide)).trans hb₁.hbaseNZ,
-     (hr₂ baseColMate (by decide) (by decide)).trans hb₁.hbaseColMate,
-     (hr₂ baseUsed (by decide) (by decide)).trans hb₁.hbaseUsed,
-     (hr₂ baseTree (by decide) (by decide)).trans hb₁.hbaseTree,
-     (hr₂ baseMinv (by decide) (by decide)).trans hb₁.hbaseMinv,
-     (hr₂ baseBestRow (by decide) (by decide)).trans hb₁.hbaseBestRow,
-     (hr₂ outBase (by decide) (by decide)).trans hb₁.houtBase,
-     (hr₂ baseRowMate (by decide) (by decide)).trans hb₁.hbaseRowMate⟩
+  have hb₂ : BaseRegs n bC (y₂.regs rM) y₂ := by struct_frame hb₁
   refine ⟨y₂, (hes₀.seq hl₂).mono (by rw [hidxs₀, Nat.sub_zero]; nlinarith),
     hb₂, hm₂, hM_le₂, fun u v => ?_⟩
   have hq : u.val * n + v.val < n * n := Cslib.Matrix.pairIndex_lt (u, v)
@@ -256,48 +204,22 @@ theorem exec_fillCCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBound
     have hmod : Signed.encode (inst.cost (u, v)) % 2 = if inst.cost (u, v) < 0 then 1 else 0 :=
       Signed.encode_mod_two _
     have hmag_M : (inst.cost (u, v)).natAbs ≤ M := hM_ge u v
-    have hf1 : Fits w (2 + y.regs idx) :=
-      hw.of_le (by unfold Instance.wordBound; simp only [n] at hlt; nlinarith)
-    have hf2 : Fits w ((inst.cost (u, v)).natAbs) :=
-      hw.of_le (by unfold Instance.wordBound; nlinarith)
-    have hf3 : Fits w (bC + y.regs idx) :=
-      hw.of_le (by unfold Instance.wordBound; simp only [bC, n] at hlt ⊢; nlinarith)
-    have hf4 : Fits w (y.regs idx + 1) :=
-      hw.of_le (by unfold Instance.wordBound; simp only [n] at hlt; nlinarith)
+    have hmag := inst.natAbs_cost_le_maxMag u v
+    have hCuv : eC (y.regs idx) = (inst.cost (u, v) + (M : ℤ)).toNat := by
+      simp only [eC, hlt, dite_true]; rfl
+    have hfitB : Fits w (bC + n * n) :=
+      hw.of_le (by unfold Instance.wordBound; simp only [bC, n]; nlinarith)
+    have hfitM : Fits w (2 * inst.maxMag) := hw.of_le (by unfold Instance.wordBound; nlinarith)
     have hstep : ∃ z, ExecWithin w fillCBody y z 10 ∧
         z.mem = Function.update y.mem (bC + y.regs idx) (eC (y.regs idx)) ∧
         (∀ i : Fin 28, i.val < 21 → z.regs i = y₂.regs i) ∧
         z.regs idx = y.regs idx + 1 := by
       refine WP.exists_execWithin ?_
       unfold fillCBody
-      by_cases hneg : inst.cost (u, v) < 0
-      · have hmod1 : (if inst.cost (u, v) < 0 then 1 else 0) = 1 := ite_eq_left hneg
-        have heq_e : M - (inst.cost (u, v)).natAbs = eC (y.regs idx) := by
-          simp only [eC, hlt, dite_true]
-          change _ = C (u, v)
-          simp only [C]
-          omega
-        have hsub_M : M - (inst.cost (u, v)).natAbs ≤ inst.maxMag :=
-          (Nat.sub_le _ _).trans hM_le
-        have hf_sub : Fits w (M - (inst.cost (u, v)).natAbs) :=
-          hw.of_le (by unfold Instance.wordBound; nlinarith)
-        wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
-          hload, hdiv, hmod, hmod1, hmag_M, hf1, hf2, hf3, hf4, hf_sub]
-        exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
-      · have hmod0 : (if inst.cost (u, v) < 0 then 1 else 0) = 0 := ite_eq_right hneg
-        have heq_e : M + (inst.cost (u, v)).natAbs = eC (y.regs idx) := by
-          simp only [eC, hlt, dite_true]
-          change _ = C (u, v)
-          simp only [C]
-          omega
-        have hadd_M : M + (inst.cost (u, v)).natAbs ≤ 2 * inst.maxMag := by
-          have := inst.natAbs_cost_le_maxMag u v
-          omega
-        have hf_add : Fits w (M + (inst.cost (u, v)).natAbs) :=
-          hw.of_le (by unfold Instance.wordBound; nlinarith)
-        wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC,
-          hload, hdiv, hmod, hmod0, hf1, hf2, hf3, hf4, hf_add]
-        exact ⟨by wram_simp [heq_e], fun i hi => by wram_simp [hr i hi], by wram_simp⟩
+      by_cases hneg : inst.cost (u, v) < 0 <;> simp only [hneg, ↓reduceIte] at hmod
+      all_goals
+        wram_exec [hby.htwo, hby.hzero, hby.hone, hby.hrM, hby.hbaseC, hload, hdiv, hmod]
+        exact ⟨by wram_simp [hCuv]; congr 1; omega, fun i hi => by wram_simp [hr i hi], by wram_simp⟩
     obtain ⟨z, he, hmz, hrz, hiz⟩ := hstep
     obtain ⟨hm', hf'⟩ := prefix_write_step hm hf hmz
     exact ⟨z, he, ⟨hrz, hm', hf'⟩, hiz⟩
@@ -353,10 +275,6 @@ theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBou
       rw [hmem]
       exact hC₄ u v
     have hC_uv_le : C (u, v) ≤ 2 * M := hC_le u v
-    have hf1 : Fits w (bC + n * n + 7 * n + 1 + y.regs idx) := hfit_core.of_le (by omega)
-    have hf2 : Fits w (y.regs idx * n) := hfit_core.of_le (by omega)
-    have hf3 : Fits w (y.regs idx * n + v.val) := hfit_core.of_le (by omega)
-    have hf4 : Fits w (bC + (y.regs idx * n + v.val)) := hfit_core.of_le (by omega)
     have hf5 : Fits w (y.regs acc + C (u, v)) :=
       hw.of_le (by
         have h1 : y.regs acc + C (u, v) ≤ (y.regs idx + 1) * (2 * M) := by nlinarith
@@ -365,11 +283,9 @@ theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBou
         unfold Instance.wordBound
         simp only [n] at h2
         nlinarith)
-    have hf6 : Fits w (y.regs idx + 1) := hfit_core.of_le (by omega)
     refine WP.exists_execWithin ?_
     unfold sumCostBody
-    wram_exec [hby.hbaseRowMate, hby.hrn, hby.hbaseC, hby.hone,
-      hrm_u, hC_uv, hf1, hf2, hf3, hf4, hf5, hf6]
+    wram_exec [hby.hbaseRowMate, hby.hrn, hby.hbaseC, hby.hone, hrm_u, hC_uv]
     refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_, ?_⟩, by wram_simp⟩
     · wram_simp
       rw [List.take_succ_finRange hlt, List.map_append, List.sum_append, List.map_singleton,
@@ -403,10 +319,10 @@ theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBou
     push_cast
     ring
   set opt := matchingCost inst.cost (hungarian inst.cost).matching
-  have hf_nM : Fits w (n * M) :=
-    hw.of_le (by
-      have : n * M ≤ n * inst.maxMag := Nat.mul_le_mul_left n hM_le
-      unfold Instance.wordBound; simp only [n] at this; nlinarith)
+  have hnM : n * M ≤ n * inst.maxMag := Nat.mul_le_mul_left n hM_le
+  have hacc_le : y₅.regs acc ≤ 2 * (n * M) := hacc₅_le.trans_eq (by ring)
+  have hfit_enc : Fits w (2 * (2 * (n * inst.maxMag)) + 1) :=
+    hw.of_le (by unfold Instance.wordBound; simp only [n]; nlinarith)
   have hstep_enc : ∃ y₆,
       ExecWithin w
         (ram[ val ← rn * rM;
@@ -418,39 +334,12 @@ theorem exec_sumCostCode {w M : ℕ} (inst : Instance) (hw : Fits w inst.wordBou
       y₆.mem = y₄.mem ∧
       y₆.regs acc = Signed.encode opt := by
     refine WP.exists_execWithin ?_
-    by_cases hlt_opt : y₅.regs acc < n * M
-    · have hopt_neg : opt < 0 := by omega
-      have hsub_le : y₅.regs acc ≤ n * M := le_of_lt hlt_opt
-      have habs : opt.natAbs = n * M - y₅.regs acc := by omega
-      have h_sub1 : n * M - y₅.regs acc ≤ n * inst.maxMag :=
-        (Nat.sub_le _ _).trans (Nat.mul_le_mul_left n hM_le)
-      have hf_d : Fits w (n * M - y₅.regs acc) :=
-        hw.of_le (by unfold Instance.wordBound; simp only [n] at h_sub1; nlinarith)
-      have hf_2d : Fits w (2 * (n * M - y₅.regs acc)) :=
-        hw.of_le (by unfold Instance.wordBound; simp only [n] at h_sub1; nlinarith)
-      have hf_2d1 : Fits w (2 * (n * M - y₅.regs acc) + 1) :=
-        hw.of_le (by unfold Instance.wordBound; simp only [n] at h_sub1; nlinarith)
-      wram_exec [hb₅.hrn, hb₅.hrM, hb₅.htwo, hb₅.hone, hlt_opt, hsub_le,
-        hf_nM, hf_d, hf_2d, hf_2d1]
+    wram_exec [hb₅.hrn, hb₅.hrM, hb₅.htwo, hb₅.hone]
+    all_goals
       refine ⟨fun i hi => by wram_simp, hmem₅, ?_⟩
       wram_simp
       unfold Signed.encode
-      rw [habs, ite_eq_left hopt_neg]
-    · have hopt_nonneg : ¬opt < 0 := by omega
-      have hsub_le : n * M ≤ y₅.regs acc := le_of_not_gt hlt_opt
-      have habs : opt.natAbs = y₅.regs acc - n * M := by omega
-      have h_sub2 : y₅.regs acc - n * M ≤ n * (2 * inst.maxMag) :=
-        (Nat.sub_le _ _).trans (hacc₅_le.trans (Nat.mul_le_mul_left n (by omega)))
-      have hf_d : Fits w (y₅.regs acc - n * M) :=
-        hw.of_le (by unfold Instance.wordBound; simp only [n] at h_sub2; nlinarith)
-      have hf_2d : Fits w (2 * (y₅.regs acc - n * M)) :=
-        hw.of_le (by unfold Instance.wordBound; simp only [n] at h_sub2; nlinarith)
-      wram_exec [hb₅.hrn, hb₅.hrM, hb₅.htwo, hb₅.hone, hlt_opt, hsub_le,
-        hf_nM, hf_d, hf_2d]
-      refine ⟨fun i hi => by wram_simp, hmem₅, ?_⟩
-      wram_simp
-      unfold Signed.encode
-      rw [habs, ite_eq_right hopt_nonneg, Nat.add_zero]
+      split_ifs <;> omega
   obtain ⟨y₆, he_enc, hr₆, hmem₆, hacc₆⟩ := hstep_enc
   exact ⟨y₆, (hes_sum.seq (hl_sum.seq he_enc)).mono (by rw [hidx_sum]; omega),
     hb₅.of_eq hr₆, hmem₆, hacc₆⟩
