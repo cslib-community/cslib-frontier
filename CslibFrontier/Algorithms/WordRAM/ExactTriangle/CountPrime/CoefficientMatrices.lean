@@ -56,7 +56,10 @@ theorem exec_coefficientMatrices {w n p k scratch a b c : ℕ} (x : Data 128)
   have h4 : 0 < 4 ^ k := by positivity
   have h2 : 0 < 2 ^ k := by positivity
   have harea : 0 < 4 ^ k * p := Nat.mul_pos h4 hp
-  have pair_lt (u v : Fin n) : u.val * n + v.val < n * n := by nlinarith [u.isLt, v.isLt]
+  have pair_lt (u v : Fin n) : u.val * n + v.val < n * n := by
+    have := Nat.mul_le_mul_right n (Nat.succ_le_of_lt u.isLt)
+    rw [Nat.succ_mul] at this
+    omega
   have hTP : x.regs Reg.spread + 2 ^ k = x.regs Reg.matrixP := by
     rw [ready.layout.spread_eq, ready.layout.matrixP_eq]
   have hPQ : x.regs Reg.matrixP + 4 ^ k * p = x.regs Reg.matrixQ := by
