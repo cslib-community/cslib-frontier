@@ -235,7 +235,7 @@ private theorem not_goodChain_of_cbcChainFlag (t : List (BitString n × BitStrin
     · obtain ⟨p, hp, hcp⟩ := List.lookup_isSome_iff.1 h
       exact hc (List.mem_map.2 ⟨p, hp, (beq_iff_eq.1 hcp).symm⟩)
     · exact ih h hg
-  | case2 => cases h
+  | case2 => cases h -- either list exhausted
 
 /-- Fresh sampling along the chain of `ms` draws `ms.length` uniform blocks, which are the
 ciphertext blocks. -/
