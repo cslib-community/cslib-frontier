@@ -71,7 +71,8 @@ theorem argumentSuccessor_probeOccurrence_reverse (F : CSP Rel V) (ports : List 
     argumentSuccessor (probeOccurrence F ports (finRotate ports.length i)) =
       probeOccurrence F ports i := by
   apply CSP.Occurrence.eq_of_positions
-  · exact (probeOccurrence_constraint F ports _).trans (probeOccurrence_constraint F ports i).symm
+  · exact (probeOccurrence_constraint F ports _).trans
+      (probeOccurrence_constraint F ports i).symm
   · change (finRotate _ (probeOccurrence F ports (finRotate ports.length i)).2).val = _
     have hlen : (probeBody F ports)[(probeOccurrence F ports
         (finRotate ports.length i)).1.val].2.length = ports.length :=
@@ -209,7 +210,8 @@ theorem exists_bodyOccurrence_or_probeOccurrence (F : CSP Rel V) (ports : List V
   by_cases hi : incidenceEdgeIndex p < F.occurrences.length
   · exact Or.inl (exists_bodyOccurrence_of_prefix F ports p hi)
   have hc := constraint_of_probe_occurrence F ports p (Nat.le_of_not_gt hi)
-  have harg : p.2.val < ports.length := by simpa [hc, probeBody] using p.2.isLt
+  have harg : p.2.val < ports.length := by
+    simpa [hc, probeBody] using p.2.isLt
   let i : Fin ports.length := ⟨ports.length - 1 - p.2.val, by omega⟩
   refine Or.inr ⟨i, CSP.Occurrence.eq_of_positions
     ((probeOccurrence_constraint F ports i).trans hc.symm) ?_⟩
@@ -234,13 +236,17 @@ theorem mem_probe_cycleBlock_iff (F : CSP Rel V) (ports : List V) (hn : ports.No
     obtain ⟨e, rfl, hv⟩ := (RotationCertificate.mem_cycleWord_iff_exists_dart hc
       (incidenceDart p false) j).mp (List.mem_of_mem_tail hj)
     obtain ⟨o, ho⟩ := exists_incidenceDart e
-    obtain ⟨hside, hvar⟩ := (vertex_incidenceDart_eq_iff o p e.2 false).mp (by rw [ho]; exact hv)
+    obtain ⟨hside, hvar⟩ := (vertex_incidenceDart_eq_iff o p e.2 false).mp <| by
+      rw [ho]
+      exact hv
     simp only [hside, Bool.false_eq_true, ite_false] at ho hvar
-    refine ⟨o, by rw [← ho]; simp [Graph.Dart.index, incidenceDart], hvar, ?_⟩
-    by_contra hout
-    have hop := probe_occurrence_eq_of_var_eq F ports hn o p (Nat.le_of_not_gt hout) hp hvar
-    exact ((RotationCertificate.mem_tail_cycleWord_iff hc (incidenceDart p false) e).mp hj).2
-      (by rw [← ho, hop])
+    refine ⟨o, ?_, hvar, ?_⟩
+    · rw [← ho]
+      simp [Graph.Dart.index, incidenceDart]
+    · by_contra hout
+      have hop := probe_occurrence_eq_of_var_eq F ports hn o p (Nat.le_of_not_gt hout) hp hvar
+      exact ((RotationCertificate.mem_tail_cycleWord_iff hc (incidenceDart p false) e).mp hj).2
+        (by rw [← ho, hop])
   · rintro ⟨o, rfl, hv, ho⟩
     refine List.mem_map.mpr ⟨(incidenceDart o false).index,
       (RotationCertificate.mem_tail_cycleWord_iff hc _ _).mpr

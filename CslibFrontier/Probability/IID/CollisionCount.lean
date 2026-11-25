@@ -111,14 +111,8 @@ omit [DecidableEq α] in
 private theorem sum_mul_quadratic (A B C : ℝ) :
     ∑ c, (μ c).toReal * (A + B * (μ c).toReal + C * (μ c).toReal ^ 2) =
       A + B * ∑ a, (μ a).toReal ^ 2 + C * ∑ a, (μ a).toReal ^ 3 := by
-  have h1 : ∑ c, (μ c).toReal * A = A := by rw [← sum_mul, sum_toReal, one_mul]
-  have h2 : ∑ c, (μ c).toReal * (B * (μ c).toReal) = B * ∑ a, (μ a).toReal ^ 2 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by ring
-  have h3 : ∑ c, (μ c).toReal * (C * (μ c).toReal ^ 2) = C * ∑ a, (μ a).toReal ^ 3 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by ring
-  simp only [mul_add, sum_add_distrib, h1, h2, h3]
+  simp only [mul_add, sum_add_distrib, ← sum_mul, sum_toReal, one_mul, mul_left_comm _ B,
+    mul_left_comm _ C, ← mul_sum, ← sq, ← pow_succ']
 
 private theorem sum_mul_ite_mul (b : α) (g : α → ℝ) :
     ∑ a, (μ a).toReal * ((if a = b then 1 else 0) * g a) = (μ b).toReal * g b := by
@@ -173,12 +167,8 @@ private theorem ex_collisionCount (k : ℕ) :
   | zero => simp [ex, collisionCount]
   | succ k ih =>
     rw [ex_succ]
-    have hinner (c : α) : ex μ k (fun x => (collisionCount (Fin.cons c x : Fin (k + 1) → α) : ℝ)) =
-        k * (μ c).toReal + k * (k - 1) / 2 * ∑ a, (μ a).toReal ^ 2 := by
-      simp only [collisionCount_cons]
-      rw [ex_add, ex_occ, ih]
-    simp only [hinner, mul_add, sum_add_distrib, ← sum_mul, sum_toReal, mul_left_comm _ (k : ℝ),
-      ← mul_sum, ← sq]
+    simp only [collisionCount_cons, ex_add, ex_occ, ih, mul_add, sum_add_distrib, ← sum_mul,
+      sum_toReal, mul_left_comm _ (k : ℝ), ← mul_sum, ← sq]
     push_cast
     ring
 
@@ -273,15 +263,15 @@ theorem sum_iid_mul_collisionCount_sub_sq (k : ℕ) :
 /-- **Mean of an occurrence count**: among `k` independent draws from `μ`, the value `b` occurs
 `k μ(b)` times on average. -/
 theorem sum_iid_mul_occurrenceCount (b : α) (k : ℕ) :
-    ∑ x, (iid μ k x).toReal * occurrenceCount x b = k * (μ b).toReal := by
-  exact ex_occ μ b k
+    ∑ x, (iid μ k x).toReal * occurrenceCount x b = k * (μ b).toReal :=
+  ex_occ μ b k
 
 /-- **Joint moment of two occurrence counts** among `k` independent draws from `μ`:
 `E[N_a N_b] = k (k - 1) μ(a) μ(b) + k [a = b] μ(a)`. -/
 theorem sum_iid_mul_occurrenceCount_mul_occurrenceCount (a b : α) (k : ℕ) :
     ∑ x, (iid μ k x).toReal * ((occurrenceCount x a : ℝ) * occurrenceCount x b) =
-      k * (k - 1) * (μ a).toReal * (μ b).toReal + k * (if a = b then (μ a).toReal else 0) := by
-  exact ex_occ_mul_occ μ a b k
+      k * (k - 1) * (μ a).toReal * (μ b).toReal + k * (if a = b then (μ a).toReal else 0) :=
+  ex_occ_mul_occ μ a b k
 
 /-- **Joint moment of the collision count and an occurrence count** among `k` independent draws
 from `μ`: `E[C N_b] = k (k - 1) (k - 2) ‖μ‖₂² μ(b) / 2 + k (k - 1) μ(b)²`. -/

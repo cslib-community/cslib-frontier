@@ -150,8 +150,7 @@ theorem isComputable_of_eval [Fintype K] [Finite Λ] [Finite σ] [∀ k, Finite 
   exact ComputableInTimeAndSpace.isComputable ⟨k, State, hState, tm, fun a => by
     have h := htm a
     dsimp only at h
-    rw [hval a] at h
-    exact h⟩
+    rwa [hval a] at h⟩
 
 end Turing.TM2
 
@@ -168,16 +167,10 @@ private theorem readDigits_halt (c : ToPartrec.Code) (n : ℕ)
   have hstk : cfg.stk K'.main = trList [n] := by
     simpa [halt, TM2.Cfg.mapLabel] using congrFun (congrArg TM2.Cfg.stk h) K'.main
   rw [readDigits, hstk, trList, trList, trNat_eq_map_bits]
-  simp only [List.filter_append, List.map_append, List.filter_map,
-    List.map_map]
-  have hfilter : ∀ l : List Bool,
-      List.filter ((fun x => x != Γ'.cons) ∘ fun b => if b then Γ'.bit1 else Γ'.bit0) l = l :=
-    fun l => List.filter_eq_self.2 fun b _ => by cases b <;> rfl
-  simp only [hfilter]
-  have hmap : ∀ l : List Bool,
-      List.map ((fun x => x == Γ'.bit1) ∘ fun b => if b then Γ'.bit1 else Γ'.bit0) l = l :=
-    fun l => by rw [List.map_congr_left (g := id) fun b _ => by cases b <;> rfl, List.map_id]
-  simp [hmap]
+  simp only [List.filter_append, List.map_append, List.filter_map, List.map_map]
+  rw [List.filter_eq_self.2 fun b _ => by cases b <;> rfl,
+    List.map_congr_left (g := id) fun b _ => by cases b <;> rfl]
+  simp
 
 /-- **Computable functions are computed by multi-tape Turing machines.** A function that is
 `Computable` in Mathlib's sense is computed by a total binary multi-tape Turing machine with

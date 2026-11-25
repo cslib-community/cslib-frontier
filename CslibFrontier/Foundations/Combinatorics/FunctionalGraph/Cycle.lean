@@ -75,9 +75,10 @@ theorem minimalPeriod_eq_of_periodic_iterates (x : α) {a b : ℕ}
     cycleLength f (f^[t] x) = cycleLength f x := by
   unfold cycleLength
   rw [← iterate_add_apply]
-  exact minimalPeriod_eq_of_periodic_iterates f x
-    (by rw [iterate_add_apply]; exact iterate_transientDepth_mem_periodicPts f _)
-    (iterate_transientDepth_mem_periodicPts f x)
+  apply minimalPeriod_eq_of_periodic_iterates
+  · rw [iterate_add_apply]
+    exact iterate_transientDepth_mem_periodicPts f _
+  · exact iterate_transientDepth_mem_periodicPts f x
 
 /-- Every periodic state on the orbit of `x` has the cycle length of `x` as minimal period. -/
 theorem minimalPeriod_at_periodic_iterate (x : α) {t : ℕ}
@@ -109,7 +110,8 @@ noncomputable def cycleSet (x : α) : Finset α :=
 /-- The eventual cycle of `x` is the periodic orbit of the state at its transient depth. -/
 @[simp] theorem mem_cycleSet_iff (x y : α) :
     y ∈ cycleSet f x ↔ y ∈ periodicOrbit f (f^[transientDepth f x] x) := by
-  classical exact Multiset.mem_toFinset
+  classical
+  exact Multiset.mem_toFinset
 
 /-- The eventual cycle is nonempty. -/
 theorem cycleSet_nonempty (x : α) : (cycleSet f x).Nonempty :=

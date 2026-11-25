@@ -88,7 +88,10 @@ private theorem component_constant (G : Graph)
   simpa only [hp, hq, extend, dite_eq_left a.property, dite_eq_left b.property] using
     Dart.eq_of_sameComponent (fun p : Dart G => extend G d.vertex s p.vertex)
       (fun _ _ => congrArg (extend G d.vertex s))
-      (fun ⟨i, side⟩ => by cases side; exacts [hedge i, (hedge i).symm])
+      (fun ⟨i, side⟩ => by
+        cases side
+        · exact hedge i
+        · exact (hedge i).symm)
       (d := p) (e := q) (by simpa only [hp, hq] using hda.symm.trans hdb)
 
 private noncomputable def primalMatrix (G : Graph)
@@ -152,10 +155,14 @@ private theorem dualMatrix_mulVec_sum {G : Graph} (r : RotationSystem G)
   have heq (i : Edge G d.vertex) (b : Bool) :
       v = dualEndpoint r hG d i b ↔ r.faceId (i.val, b) = v.val := by
     rw [Subtype.ext_iff, dualEndpoint_val, eq_comm]
-  simp only [dualMatrix, Matrix.endpointIncidence, Matrix.mulVec, dotProduct, add_mul, ite_mul,
-    one_mul, zero_mul, Finset.sum_add_distrib, heq, hsum false, hsum true, Dart,
-    Fintype.sum_prod_type, Fintype.sum_bool]
-  exact add_comm _ _
+  calc (dualMatrix r hG d).mulVec (fun i => x i.val) v
+      = (∑ i : Fin G.edges.length, if r.faceId (i, false) = v.val then x i else 0) +
+          ∑ i : Fin G.edges.length, if r.faceId (i, true) = v.val then x i else 0 := by
+        simp only [dualMatrix, Matrix.endpointIncidence, Matrix.mulVec, dotProduct, add_mul,
+          ite_mul, one_mul, zero_mul, Finset.sum_add_distrib, heq, hsum false, hsum true]
+    _ = ∑ a : Dart G, if r.faceId a = v.val then x a.1 else 0 := by
+        simp only [Dart, Fintype.sum_prod_type, Fintype.sum_bool, Finset.sum_add_distrib]
+        exact add_comm _ _
 
 private theorem dualMatrix_mulVec_bit {G : Graph} (r : RotationSystem G)
     (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (d : Dart G)
@@ -230,7 +237,8 @@ theorem exists_vertexSpins_on_component {G : Graph} (r : RotationSystem G)
       (List.mem_toFinset.mp (Finset.mem_filter.mp v.property).1)
     obtain ⟨a, rfl⟩ := r.dualDartEquiv.surjective a
     rw [Matrix.mulVecLin_apply, dualMatrix_mulVec_bit r hG d x v a
-      (by simpa only [vertex_dualDartEquiv] using ha), hx]; rfl
+      (by simpa only [vertex_dualDartEquiv] using ha), hx]
+    rfl
   obtain ⟨s, hs⟩ := heq ▸ hk
   exact ⟨fun v => BitString.bitEquiv (extend G d.vertex s v), fun i hi =>
     BitString.bitEquiv.symm.injective

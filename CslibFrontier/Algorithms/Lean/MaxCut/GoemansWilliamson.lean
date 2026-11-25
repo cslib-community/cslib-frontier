@@ -154,7 +154,8 @@ omit [InnerProductSpace ℝ F] in
 /-- Each vector of a cut's vector solution is a unit vector when `u` is. -/
 theorem norm_signVector {u : F} (hu : ‖u‖ = 1) (side : V → Bool) (i : V) :
     ‖signVector u side i‖ = 1 := by
-  unfold signVector; split <;> simp [hu]
+  unfold signVector
+  split <;> simp [hu]
 
 /-- **The relaxation's objective at a cut's vector solution is the cut's weight.** -/
 theorem sdpValue_signVector (ends : ι → V × V) (w : ι → ℝ) {u : F} (hu : ‖u‖ = 1)
@@ -271,10 +272,12 @@ vectors `u` and `w` [GoemansWilliamson1995, Lemma 3.4]. -/
 theorem goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos {u w : F}
     (hu : ‖u‖ = 1) (hw : ‖w‖ = 1) :
     goemansWilliamsonConstant * ((1 + ⟪u, w⟫) / 2) ≤ 1 - arccos ⟪u, w⟫ / π := by
-  have h := abs_le.1 (by simpa [hu, hw] using abs_real_inner_le_norm u w)
-  simpa only [arccos_neg, show (1 - -⟪u, w⟫) / 2 = (1 + ⟪u, w⟫) / 2 by ring, sub_div,
-    div_self pi_ne_zero] using
-    goemansWilliamsonConstant_mul_le_arccos (y := -⟪u, w⟫) (by linarith) (by linarith)
+  have h := abs_real_inner_le_norm u w
+  rw [hu, hw, mul_one, abs_le] at h
+  have hgw := goemansWilliamsonConstant_mul_le_arccos (y := -⟪u, w⟫) (by linarith) (by linarith)
+  rw [arccos_neg, show (1 - -⟪u, w⟫) / 2 = (1 + ⟪u, w⟫) / 2 by ring, sub_div,
+    div_self pi_ne_zero] at hgw
+  exact hgw
 
 /-- **Goemans–Williamson, Theorem 3.3.** For unit vectors `v` and nonnegative weights, the
 expected weight of the rounded cut is at least `α` times the relaxation's objective at `v`

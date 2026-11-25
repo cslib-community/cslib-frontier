@@ -156,10 +156,10 @@ theorem dualGraph_endpoints_declared :
   let j : Fin (2 * r.dualGraph.edges.length) :=
     ⟨i.val, i.isLt.trans_eq (incidenceVertices_length _)⟩
   have h := r.dual_vertex_mem ((Dart.indexEquiv r.dualGraph).symm j)
-  rwa [← Dart.vertex_index,
-    show ((Dart.indexEquiv r.dualGraph).symm j).index = i.val from
-      congrArg Fin.val ((Dart.indexEquiv r.dualGraph).apply_symm_apply j),
-    List.getD_eq_getElem _ _ i.isLt, show r.dualGraph.incidenceVertices[i.val] = v from hi] at h
+  have hj : ((Dart.indexEquiv r.dualGraph).symm j).index = i.val :=
+    congrArg Fin.val ((Dart.indexEquiv r.dualGraph).apply_symm_apply j)
+  have hi' : r.dualGraph.incidenceVertices[i.val] = v := hi
+  rwa [← Dart.vertex_index, hj, List.getD_eq_getElem _ _ i.isLt, hi'] at h
 
 /-- The dual rotation is the source face permutation, transported along the indexed dart
 identification. Its cycles are exactly the dual endpoint fibers. -/

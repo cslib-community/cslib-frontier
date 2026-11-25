@@ -75,31 +75,20 @@ only vertices in the same or consecutive blocks. -/
 
 private theorem dist_le_of_strictMono {m n : ℕ} (f : Fin m → Fin n) (hf : StrictMono f)
     (i j : Fin m) : Nat.dist i.val j.val ≤ Nat.dist (f i).val (f j).val := by
-  have hle (i j : Fin m) (hij : i ≤ j) : j.val - i.val ≤ (f j).val - (f i).val := by
-    have hsub : (Finset.Icc i j).image f ⊆ Finset.Icc (f i) (f j) := by
-      rintro x hx
-      obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp hx
-      exact Finset.mem_Icc.mpr ⟨hf.monotone (Finset.mem_Icc.mp hk).1,
-        hf.monotone (Finset.mem_Icc.mp hk).2⟩
-    have hc := Finset.card_le_card hsub
-    rw [Finset.card_image_of_injective _ hf.injective, Fin.card_Icc, Fin.card_Icc] at hc
-    have hfj := hf.monotone hij
-    change i.val ≤ j.val at hij
-    change (f i).val ≤ (f j).val at hfj
-    omega
-  rcases le_total i j with hij | hji
-  · have h := hle i j hij
-    have hfij := hf.monotone hij
-    change i.val ≤ j.val at hij
-    change (f i).val ≤ (f j).val at hfij
-    simp only [Nat.dist]
-    omega
-  · have h := hle j i hji
-    have hfji := hf.monotone hji
-    change j.val ≤ i.val at hji
-    change (f j).val ≤ (f i).val at hfji
-    simp only [Nat.dist]
-    omega
+  wlog hij : i ≤ j generalizing i j
+  · simpa only [Nat.dist_comm] using this j i (le_of_not_ge hij)
+  have hsub : (Finset.Icc i j).image f ⊆ Finset.Icc (f i) (f j) := by
+    rintro _ hx
+    obtain ⟨k, hk, rfl⟩ := Finset.mem_image.mp hx
+    exact Finset.mem_Icc.mpr ⟨hf.monotone (Finset.mem_Icc.mp hk).1,
+      hf.monotone (Finset.mem_Icc.mp hk).2⟩
+  have hc := Finset.card_le_card hsub
+  rw [Finset.card_image_of_injective _ hf.injective, Fin.card_Icc, Fin.card_Icc] at hc
+  have hfj := hf.monotone hij
+  change i.val ≤ j.val at hij
+  change (f i).val ≤ (f j).val at hfj
+  simp only [Nat.dist]
+  omega
 
 /-- Removing unused positions from an injective vertex layout cannot increase edge spans. -/
 noncomputable def BandwidthCertificate.ofInjection {V E : Type*} [Fintype V] {n bound : ℕ}

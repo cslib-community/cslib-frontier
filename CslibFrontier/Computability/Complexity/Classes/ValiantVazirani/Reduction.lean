@@ -124,7 +124,8 @@ theorem computableInPolyTime_stepClauses :
     ComputableInPolyTime (fun p : Bool × Var × Var × Var =>
       stepClauses p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encBool (encPair encVar (encPair encVar encVar))) (encCNFOver encVar) := by
-  unfold stepClauses encVar; fun_prop
+  unfold stepClauses encVar
+  fun_prop
 
 /-- Building the clauses of one equation is polynomial-time. -/
 @[fun_prop]
@@ -133,14 +134,16 @@ theorem computableInPolyTime_rowClauses :
       rowClauses p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair (encList encNat) (encPair encUnary (encPair encBits encBool)))
       (encCNFOver encVar) := by
-  unfold rowClauses encVar; fun_prop
+  unfold rowClauses encVar
+  fun_prop
 
 /-- Building all equations is polynomial-time, with the number of equations in unary. -/
 @[fun_prop]
 theorem computableInPolyTime_hashCNF :
     ComputableInPolyTime (fun p : List ℕ × ℕ × List Bool => hashCNF p.1 p.2.1 p.2.2)
       (encPair (encList encNat) (encPair encUnary encBits)) (encCNFOver encVar) := by
-  unfold hashCNF; fun_prop
+  unfold hashCNF
+  fun_prop
 
 /-- The selector ranges over the dyadic range of `φ.vars.length + 2`: the least power of two
 above it. -/
@@ -186,7 +189,8 @@ theorem computableInPolyTime_reduce :
       (encList (encList (encPair (encSum encNat (encPair encUnary encUnary)) encBool)))
       (encList (encList (encPair encNat encBool))) :=
     CNF.computableInPolyTime_relabel computableInPolyTime_splitVarToNat
-  rw [h]; unfold reduceWith encCNF
+  rw [h]
+  unfold reduceWith encCNF
   fun_prop
 
 /-! ### Semantics of the parity equations -/
@@ -290,7 +294,8 @@ private theorem eval_hashCNF_extend {vars : List ℕ} {k : ℕ} {w : List Bool} 
   refine (eval_hashCNF _ vars k w).2 fun i => ⟨by simp [auxValue], ?_, fun j hj => ?_⟩
   · simp only [Sum.elim_inr, i.2, dite_true, Fin.eta, auxValue_length, h]; rfl
   · simp only [Sum.elim_inr, Sum.elim_inl, i.2, dite_true, Fin.eta, auxValue,
-      Finset.sum_range_succ, hj, ← add_assoc]; rfl
+      Finset.sum_range_succ, hj, ← add_assoc]
+    rfl
 
 /-! ### Variables of the reduced formula -/
 
@@ -418,7 +423,8 @@ private theorem goodRows_le (φ : CNF ℕ) : goodRows φ ≤ φ.vars.length + 2 
     (Finset.card_le_univ _).trans_eq (by simp)
   have := Nat.log_mono_right (b := 2) hcard
   rw [Nat.log_pow (by decide)] at this
-  unfold goodRows; omega
+  unfold goodRows
+  omega
 
 /-- The selector bits can select `goodRows φ` equations. -/
 private theorem goodRows_lt_two_pow_hashBits (φ : CNF ℕ) : goodRows φ < 2 ^ hashBits φ :=
@@ -628,8 +634,10 @@ theorem two_pow_le_two_mul_card_exists_row {M W : ℕ} (hM : 0 < M) (good : List
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     linarith [show (3 * 2 ^ W : ℚ) ≤ 32 * M * s.card by exact_mod_cast hgood]
   have h11 : (1 : ℚ) ≤ (Fintype.card (Fin (11 * M)) : ℚ) * (3 / (32 * M)) := by
-    rw [Fintype.card_fin]; push_cast
-    field_simp; norm_num
+    rw [Fintype.card_fin]
+    push_cast
+    field_simp
+    norm_num
   have h := Fintype.half_le_dens_filter_exists_apply_mem (ι := Fin (11 * M)) (s := s) (𝕜 := ℚ)
     (by positivity) hq h11
   have hcard : (Finset.univ.filter fun r : Fin (11 * M * W) → Bool =>

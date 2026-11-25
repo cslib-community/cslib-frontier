@@ -192,7 +192,8 @@ theorem exists_acceptsWithin_boundaryCfg_of_live (a : α) (s : σ)
         ∃ b, τ b ≤ n ∧ R.atm.AcceptsWithin (n - τ b)
           (R.boundaryCfg a (M.step (enc a) s b) (Native.nextGuess g b)) := by
   have hb : R.boundaryCfg a s g =
-      wordsCfg (enc a) (some (.choose, g)) (R.boundary s true) [] := by simp [boundaryCfg, hh]
+      wordsCfg (enc a) (some (.choose, g)) (R.boundary s true) [] := by
+    simp [boundaryCfg, hh]
   have hnext (b : Bool) : R.atm.next b (R.boundaryCfg a s g) =
       wordsCfg (enc a) (some (.pass b (R.P b).q₀, Native.nextGuess g b)) (R.boundary s true)
         [] := by

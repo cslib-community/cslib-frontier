@@ -211,7 +211,9 @@ theorem forall_hadamardCode_tensor_equationCoeff_iff {C : α → α → Prop}
     · by_cases ha : σ b = a
       · simpa [← ha] using hσ b
       · simp only [oneHot_apply, decide_eq_false ha, Bool.eq_false_iff]
-        exact fun hx ↦ let ⟨_, _, hτ, hτ'⟩ := hboth hx (hσ b); ha (hτ'.symm.trans hτ)
+        intro hx
+        obtain ⟨_, _, hτ, hτ'⟩ := hboth hx (hσ b)
+        exact ha (hτ'.symm.trans hτ)
   · rintro ⟨σ, hσ, rfl⟩
     refine ⟨fun p p' hpp' ↦ Bool.eq_false_iff.2 fun h ↦ ?_, fun b ↦ ?_⟩
     · simp only [oneHot_apply, Bool.and_eq_true, decide_eq_true_eq] at h
@@ -231,9 +233,12 @@ the end `b`, read at `r`. -/
 private theorem hadamardCode_endEmbed (x : Fin 2 × α → Bool) (b : Fin 2) (r : α → Bool) :
     hadamardCode x (endEmbed b r) = hadamardCode (fun a ↦ x (b, a)) r := by
   rw [hadamardCode_apply, hadamardCode_apply, dotProduct, dotProduct, Fintype.sum_prod_type,
-    sum_eq_single b (fun b' _ hb' ↦ sum_eq_zero fun _ _ ↦ by
-      simp only [endEmbed, decide_eq_false hb', Bool.false_and]; exact mul_zero _) (by simp)]
-  simp [endEmbed]
+    sum_eq_single b]
+  · simp [endEmbed]
+  · intro b' _ hb'
+    simp only [endEmbed, decide_eq_false hb', Bool.false_and]
+    exact sum_eq_zero fun _ _ ↦ mul_zero _
+  · simp
 
 /-- The Hadamard encoding of the one-hot encoding of the labels `σ`, read at `endEmbed b r`, is the
 long code of the label of the end `b`, read at `r`. -/
@@ -511,19 +516,25 @@ private theorem acceptProb_le (π : Pos α → Bool) :
       (hadamardTester C).acceptProb π ≤
         (inputTest α).acceptProb (Sum.elim (fun p ↦ inputTable π p.1 p.2) (linTable π)) := by
   open LocalTest in
-  refine ⟨(acceptProb_and_le_left _ π).trans_eq
-      (by rw [acceptProb_map]; exact acceptProb_blrTest _),
-    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_left _ π).trans_eq
-      (by rw [acceptProb_map]; exact acceptProb_blrTest _)),
-    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
-      ((acceptProb_and_le_left _ π).trans_eq
-        (by rw [acceptProb_map, Sum.comp_elim]; exact acceptProb_tensorTest _ _))),
-    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
-      ((acceptProb_and_le_right _ π).trans ((acceptProb_and_le_left _ π).trans_eq
-        (by rw [acceptProb_map]; exact acceptProb_equationTest _ _ _)))),
-    (acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans
-      ((acceptProb_and_le_right _ π).trans ((acceptProb_and_le_right _ π).trans_eq
-        (by rw [acceptProb_map, Sum.comp_elim]; rfl))))⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · refine (acceptProb_and_le_left _ π).trans_eq ?_
+    rw [acceptProb_map]
+    exact acceptProb_blrTest _
+  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
+    rw [acceptProb_map]
+    exact acceptProb_blrTest _
+  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
+      (acceptProb_and_le_left _ π).trans_eq ?_
+    rw [acceptProb_map, Sum.comp_elim]
+    exact acceptProb_tensorTest _ _
+  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
+      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_left _ π).trans_eq ?_
+    rw [acceptProb_map]
+    exact acceptProb_equationTest _ _ _
+  · refine (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans <|
+      (acceptProb_and_le_right _ π).trans <| (acceptProb_and_le_right _ π).trans_eq ?_
+    rw [acceptProb_map, Sum.comp_elim]
+    rfl
 
 /-! ### Soundness -/
 
@@ -560,7 +571,8 @@ theorem hammingDist_inputTable_div_le (π : Pos α → Bool) (σ : Fin 2 → α)
     (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α ≤
       2 * inputDist π σ := by
   have h (b : Fin 2) :
-      0 ≤ (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α := by positivity
+      0 ≤ (hammingDist (inputTable π b) (longCode (σ b)) : ℝ) / 2 ^ Fintype.card α := by
+    positivity
   rw [inputDist_eq]
   fin_cases b <;> simp only [Fin.zero_eta, Fin.mk_one] <;> linarith [h 0, h 1]
 

@@ -126,9 +126,9 @@ private theorem expect_mul_noiseOp_le_of_isEmpty [IsEmpty ι] {p q ρ : ℝ} (hp
     (hq : q ≠ 0) (f g : (ι → Bool) → ℝ) :
     𝔼 x, f x * noiseOp ρ g x ≤ lpNorm p f * lpNorm q g := by
   let x₀ : ι → Bool := isEmptyElim
-  rw [show (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ from
-      funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty],
-    Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀, ← abs_mul]
+  have h : (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ :=
+    funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty]
+  rw [h, Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀, ← abs_mul]
   exact le_abs_self _
 
 /-- **The induction step**: two-function inequalities on the cubes over `ι` and over `κ` give
@@ -192,9 +192,9 @@ private theorem le_expect_mul_noiseOp_of_isEmpty [IsEmpty ι] {S T : Set ℝ}
     (hp : p ≠ 0) (hq : q ≠ 0) {f g : (ι → Bool) → ℝ} (hf : ∀ x, f x ∈ S) (hg : ∀ x, g x ∈ T) :
     lpNorm p f * lpNorm q g ≤ 𝔼 x, f x * noiseOp ρ g x := by
   let x₀ : ι → Bool := isEmptyElim
-  rw [show (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ from
-      funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty],
-    Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀,
+  have h : (fun x => f x * noiseOp ρ g x) = fun _ => f x₀ * g x₀ :=
+    funext fun x => by rw [Subsingleton.elim x x₀, noiseOp_of_isEmpty]
+  rw [h, Fintype.expect_const, lpNorm_of_isEmpty hp f x₀, lpNorm_of_isEmpty hq g x₀,
     abs_of_nonneg (nonneg_of_mem hS (hf x₀)), abs_of_nonneg (nonneg_of_mem hT (hg x₀))]
 
 /-- **The induction step for reverse inequalities**: reverse two-function inequalities on the

@@ -200,28 +200,22 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     ∑ n ∈ range (N + 1), (H * (1 - derivative G) * G ^ n).coeff n - H.eval f ∈ J ^ e := by
   have hG : HasWeight J 2 G := hasWeight_two_of_coeff_mem h0 h1
   -- `G - f = (y - f) D` with `D` of weight at least one
-  obtain ⟨D, hD⟩ : X - C f ∣ G - C f := by
-    have h := X_sub_C_dvd_sub_C_eval (a := f) (p := G)
-    rwa [hfix] at h
+  obtain ⟨D, hD⟩ : X - C f ∣ G - C f := hfix ▸ X_sub_C_dvd_sub_C_eval
   have hD0 : D.coeff 0 ∈ J := by
     have h := congrArg (fun Q : R[X] => Q.coeff 1) hD
     simp only [coeff_sub, coeff_C_succ, sub_zero, sub_mul, coeff_X_mul, coeff_C_mul] at h
-    have h' : D.coeff 0 = G.coeff 1 + f * D.coeff 1 := by rw [h]; ring
-    rw [h']
-    exact Ideal.add_mem _ h1 (Ideal.mul_mem_right _ _ hf)
+    have h' : D.coeff 0 = G.coeff 1 + f * D.coeff 1 := by linear_combination -h
+    exact h' ▸ Ideal.add_mem _ h1 (Ideal.mul_mem_right _ _ hf)
   have hDw : HasWeight J 1 D := hasWeight_one_of_coeff_mem hD0
   have hfac : X - G = (X - C f) * (1 - D) := by linear_combination -hD
   -- `H = H (f) + (y - f) K`
   obtain ⟨K, hK⟩ : X - C f ∣ H - C (H.eval f) := X_sub_C_dvd_sub_C_eval
-  set E := ∑ i ∈ range (2 * e), D ^ i with hE
+  set E := ∑ i ∈ range (2 * e), D ^ i
   have hgeom : (X - C f) * K * (1 - derivative G) =
       (X - G) * (K * (1 - derivative G) * E) +
         (X - C f) * K * (1 - derivative G) * D ^ (2 * e) := by
-    have h : (1 - D) * E = 1 - D ^ (2 * e) := by
-      rw [hE]
-      exact mul_neg_geom_sum D (2 * e)
     rw [hfac]
-    linear_combination (-((X - C f) * K * (1 - derivative G))) * h
+    linear_combination (-((X - C f) * K * (1 - derivative G))) * mul_neg_geom_sum D (2 * e)
   have hH : H * (1 - derivative G) = C (H.eval f) * (1 - derivative G) +
       ((X - G) * (K * (1 - derivative G) * E) +
         (X - C f) * K * (1 - derivative G) * D ^ (2 * e)) := by

@@ -106,12 +106,9 @@ private theorem portLoop_contact_forward {a b : ℝ} (hab : a ≠ b)
 theorem isSimple_portLoop {a b : ℝ} (hab : a ≠ b) : (portLoop a b).IsSimple := by
   intro i j s t hs ht heq
   by_cases hij : i.val ≤ j.val
-  · rcases portLoop_contact_forward hab i j s t hs ht heq hij with h | h
-    · exact Or.inl h
-    · exact Or.inr (Or.inl h)
-  · rcases portLoop_contact_forward hab j i t s ht hs heq.symm (by omega) with h | h
-    · exact Or.inl h.symm
-    · exact Or.inr (Or.inr ⟨h.2, h.1⟩)
+  · exact (portLoop_contact_forward hab i j s t hs ht heq hij).imp id Or.inl
+  · exact (portLoop_contact_forward hab j i t s ht hs heq.symm (by omega)).imp Eq.symm
+      fun h => Or.inr ⟨h.2, h.1⟩
 
 /-- Every point is either on a radial segment below the ports, or on the three-sided
 upper arc. The latter lies in its bounding rectangle and on its two sides or its top. -/
@@ -143,11 +140,10 @@ theorem eval_portLoop_cases (a b : ℝ) (i : Fin 5) {t : ℝ} (ht : t ∈ Set.Ic
 
 private theorem radial_contact {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (ha : z.re = z.im * a) (hb : z.re = z.im * b) : z = 0 := by
-  have hprod : z.im * (a - b) = 0 := by linear_combination hb - ha
-  have him : z.im = 0 := (mul_eq_zero.mp hprod).resolve_right (sub_ne_zero.mpr hab)
-  apply Complex.ext
-  · simpa only [him, zero_mul, Complex.zero_re] using ha
-  · exact him
+  have him : z.im = 0 :=
+    (mul_eq_zero.mp (by linear_combination hb - ha : z.im * (a - b) = 0)).resolve_right
+      (sub_ne_zero.mpr hab)
+  exact Complex.ext (by simpa [him] using ha) him
 
 private theorem radial_upper_ne {a b c : ℝ} (hab : a ≠ b) (hac : a ≠ c) {z : ℂ}
     (hz : z.im ≤ 1) (hr : z.re = z.im * a)
@@ -227,14 +223,10 @@ theorem re_eval_portLoop_mem {a b B : ℝ} (ha : a ∈ Set.Icc 0 B) (hb : b ∈ 
 theorem atEnd_of_eval_portLoop_eq_zero {a b : ℝ} (hab : a ≠ b) (i : Fin 5) {t : ℝ}
     (ht : t ∈ Set.Icc 0 1) (heq : (portLoop a b).eval i t = 0) :
     ∃ c, (portLoop a b).AtEnd i t c := by
-  have h := isSimple_portLoop hab i 0 t 0 ht (by simp) (by
-    rw [heq]
-    change (0 : ℂ) = AffineMap.lineMap (0 : ℂ) (⟨a, 1⟩ : ℂ) 0
-    simp)
-  rcases h with h | ⟨h, _⟩ | ⟨h, _⟩
-  · refine ⟨false, ?_⟩
-    simpa only [Route.AtEnd, Route.position, Fin.val_zero, Nat.cast_zero, zero_add,
-      Bool.false_eq_true, ↓reduceIte] using h
+  have h0 : (portLoop a b).eval i t = (portLoop a b).eval 0 0 :=
+    heq.trans (AffineMap.lineMap_apply_zero (0 : ℂ) ⟨a, 1⟩).symm
+  rcases isSimple_portLoop hab i 0 t 0 ht (by simp) h0 with h | ⟨h, _⟩ | ⟨h, _⟩
+  · exact ⟨false, by simpa [Route.AtEnd, Route.position] using h⟩
   · exact ⟨false, h⟩
   · exact ⟨true, h⟩
 

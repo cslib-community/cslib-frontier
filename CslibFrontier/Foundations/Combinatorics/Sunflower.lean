@@ -85,14 +85,11 @@ theorem isSunflower_empty_of_pairwise_disjoint {S : Finset (Finset α)}
 /-- Adding a point to every member and to the core of a sunflower gives a sunflower. -/
 theorem IsSunflower.image_insert {S : Finset (Finset α)} {K : Finset α} (h : IsSunflower S K)
     (x : α) : IsSunflower (S.image (insert x)) (insert x K) := by
-  refine ⟨?_, ?_⟩
-  · rintro _ hs'
-    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-    exact insert_subset_insert x (h.subset_of_mem hs)
-  · rintro _ hs' _ ht' hne
-    obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-    obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
-    rw [← insert_inter_distrib, h.2 hs ht fun e => hne (by rw [e])]
+  refine ⟨forall_mem_image.2 fun s hs => insert_subset_insert x (h.subset_of_mem hs), ?_⟩
+  rintro _ hs' _ ht' hne
+  obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
+  obtain ⟨t, ht, rfl⟩ := mem_image.1 ht'
+  rw [← insert_inter_distrib, h.2 hs ht (ne_of_apply_ne _ hne)]
 
 private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
     ∀ (w : ℕ) (F : Finset (Finset α)), (∀ s ∈ F, s.card ≤ w) →
@@ -175,8 +172,7 @@ private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
       rw [← insert_erase (mem_filter.1 hs).2, ← insert_erase (mem_filter.1 ht).2]
       exact congrArg (insert x) hst
     obtain ⟨S, hSG, hS, K, hSK⟩ := containsSunflower_aux hp w (G.image (·.erase x))
-      (fun s hs => by
-        obtain ⟨t, ht, rfl⟩ := mem_image.1 hs
+      (forall_mem_image.2 fun t ht => by
         rw [card_erase_of_mem (mem_filter.1 ht).2]
         have := hF t (mem_filter.1 ht).1
         omega)
@@ -184,11 +180,10 @@ private theorem containsSunflower_aux {p : ℕ} (hp : 2 ≤ p) :
     have hxS : ∀ s ∈ S, x ∉ s := fun s hs => by
       obtain ⟨t, -, rfl⟩ := mem_image.1 (hSG hs)
       exact notMem_erase x t
-    refine ⟨S.image (insert x), fun _ hs' => ?_, ?_, insert x K, hSK.image_insert x⟩
-    · obtain ⟨s, hs, rfl⟩ := mem_image.1 hs'
-      obtain ⟨t, ht, rfl⟩ := mem_image.1 (hSG hs)
-      rw [insert_erase (mem_filter.1 ht).2]
-      exact (mem_filter.1 ht).1
+    refine ⟨S.image (insert x), forall_mem_image.2 fun s hs => ?_, ?_, insert x K,
+      hSK.image_insert x⟩
+    · obtain ⟨t, ht, rfl⟩ := mem_image.1 (hSG hs)
+      simpa only [insert_erase (mem_filter.1 ht).2] using (mem_filter.1 ht).1
     · rw [card_image_of_injOn fun s hs t ht hst => by
         rw [← erase_insert (hxS s hs), ← erase_insert (hxS t ht)]
         exact congrArg (·.erase x) hst, hS]

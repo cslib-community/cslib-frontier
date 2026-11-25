@@ -96,17 +96,11 @@ theorem S_add_le {a b : ℕ} (l : Len (U (a + b))) :
     Len.S (l.comp (win (hl (a := a) (b := b)))) + Len.S (l.comp (win (hr (a := a) (b := b)))) ≤
       l.S := by
   unfold Len.S
-  have hinj {p n} (hp : p + n ≤ a + b) : Function.Injective (wt hp) :=
-    fun _ _ h => by simpa [wt, Fin.ext_iff] using h
-  rw [show ∑ j, (l.comp (win (hl (a := a) (b := b)))) (x a j) =
-        ∑ k ∈ univ.image (wt (hl (a := a) (b := b))), l (x _ k) by
-      rw [sum_image fun _ _ _ _ h => hinj hl h]
-      exact sum_congr rfl fun _ _ => congrArg l (win_x ..),
-    show ∑ j, (l.comp (win (hr (a := a) (b := b)))) (x b j) =
-        ∑ k ∈ univ.image (wt (hr (a := a) (b := b))), l (x _ k) by
-      rw [sum_image fun _ _ _ _ h => hinj hr h]
-      exact sum_congr rfl fun _ _ => congrArg l (win_x ..),
-    ← sum_union]
+  have hblock {p n} (hp : p + n ≤ a + b) :
+      ∑ j, (l.comp (win hp)) (x n j) = ∑ k ∈ univ.image (wt hp), l (x _ k) := by
+    rw [sum_image fun _ _ _ _ h => by simpa [wt, Fin.ext_iff] using h]
+    exact sum_congr rfl fun _ _ => congrArg l (win_x ..)
+  rw [hblock hl, hblock hr, ← sum_union]
   · exact sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => apply_nonneg l _
   · rw [disjoint_left]
     rintro k hk₁ hk₂
@@ -144,9 +138,9 @@ theorem tr_apply {n n' : ℕ} (h : n ≤ n') (A : U n') (i j : Fin n) :
 
 theorem tr_surjective {n n' : ℕ} (h : n ≤ n') : Function.Surjective (tr h) := by
   intro A
-  refine ⟨win (p := 0) (by omega : 0 + n ≤ n') A, mat_inj <| Matrix.ext fun i j => ?_⟩
-  have e (k : Fin n) : Fin.castLE h k = we (p := 0) (by omega : 0 + n ≤ n') k := by
-    simp [we, Fin.ext_iff]
+  have h0 : 0 + n ≤ n' := by omega
+  refine ⟨win h0 A, mat_inj <| Matrix.ext fun i j => ?_⟩
+  have e (k : Fin n) : Fin.castLE h k = we h0 k := by simp [we, Fin.ext_iff]
   rw [tr_apply, mat_win, e, e, wm, Matrix.add_apply, Matrix.sub_apply, wi_mul_we, wi_mul_we]
   simp [Matrix.one_apply, we_inj]
 
@@ -163,10 +157,12 @@ theorem bd_mono {m : ℕ} {s : ℝ} {n n' : ℕ} (h : n ≤ n') {κ : ℝ} (hκ 
     split_ifs with hj
     · refine congrArg l (mat_inj <| Matrix.ext fun a b => ?_)
       simp [tr_apply, mat_x, Matrix.one_apply, Matrix.single_apply, lo, hi, Fin.ext_iff]
-    · rw [show tr h (x n' j) = 1 from mat_inj <| Matrix.ext fun a b => by
-        have : ¬(j.1 = a.1 ∧ j.1 + 1 = b.1) := by have := b.2; omega
-        simp [tr_apply, mat_x, mat_one, Matrix.one_apply, lo, hi, Fin.ext_iff, this],
-        map_one_eq_zero l]
+    · have htr : tr h (x n' j) = 1 := mat_inj <| Matrix.ext fun a b => by
+        have : ¬(j.1 = a.1 ∧ j.1 + 1 = b.1) := by
+          have := b.2
+          omega
+        simp [tr_apply, mat_x, mat_one, Matrix.one_apply, lo, hi, Fin.ext_iff, this]
+      rw [htr, map_one_eq_zero l]
   rw [sum_congr rfl fun j _ => e j,
     ← sum_filter_add_sum_filter_not univ (fun j : Fin (n' - 1) => j.1 < n - 1),
     sum_eq_zero (s := univ.filter fun j : Fin (n' - 1) => ¬ j.1 < n - 1)

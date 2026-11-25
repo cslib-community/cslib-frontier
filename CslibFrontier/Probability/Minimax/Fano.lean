@@ -69,18 +69,12 @@ private theorem joint_error_eq_avg [Nonempty V] (P : V → PMF X) (ψ : X → V)
         ∑ v : V, ((P v).toOuterMeasure {x : X | ψ x ≠ v}).toReal := by
   classical
   let _ := Fintype.ofFinite X
-  have hjoint_apply (x : X) (v : V) :
-      (((uniformOfFintype V).bind fun v => (P v).map (·, v)) (x, v)).toReal =
-        (Fintype.card V : ℝ)⁻¹ * (P v x).toReal := by
-    rw [toReal_bind_map_prodMk_apply, uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast]
-  rw [toOuterMeasure_apply_toReal, Fintype.sum_prod_type, Finset.sum_comm]
-  simp only [Set.mem_ofPred_eq, hjoint_apply]
-  rw [Finset.mul_sum]
+  rw [toOuterMeasure_apply_toReal, Fintype.sum_prod_type, Finset.sum_comm, Finset.mul_sum]
   refine Finset.sum_congr rfl fun v _ => ?_
   rw [toOuterMeasure_apply_toReal, Finset.mul_sum]
   refine Finset.sum_congr rfl fun x _ => ?_
-  simp only [Set.mem_ofPred_eq]
+  simp only [Set.mem_ofPred_eq, toReal_bind_map_prodMk_apply, uniformOfFintype_apply,
+    ENNReal.toReal_inv, ENNReal.toReal_natCast]
   split_ifs <;> ring
 
 /-- **Sharp binary-entropy Fano bound** under a uniform prior on `V`: for a channel `P : V → PMF X`
@@ -177,19 +171,7 @@ theorem fano_avg_testing_error_ge_of_klDiv_pairwise [MeasurableSpace X] [Measura
     fun v _ w _ => hsupp v w).trans ?_
   have hunif (v : V) : (uniformOfFintype V v).toReal = (Fintype.card V : ℝ)⁻¹ := by
     rw [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-  have hpull : (∑ v : V, ∑ w : V,
-      (uniformOfFintype V v).toReal * (uniformOfFintype V w).toReal *
-        (klDiv (P v).toMeasure (P w).toMeasure).toReal) =
-      ((Fintype.card V : ℝ) ^ 2)⁻¹ *
-        ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal := by
-    simp only [hunif]
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun w _ => ?_
-    ring
-  rw [hpull]
-  exact hβ
+  simpa only [hunif, mul_assoc, ← Finset.mul_sum, sq, mul_inv] using hβ
 
 end Testing
 
@@ -348,10 +330,7 @@ theorem fano_iid_minimax_risk_ge_of_klDiv_pairwise [Fintype X] [MeasurableSpace 
   have hiid : (∑ v : V, ∑ w : V,
       (klDiv (iid (P v) n).toMeasure (iid (P w) n).toMeasure).toReal) =
       (n : ℝ) * ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal := by
-    simp only [toReal_klDiv_iid (hsupp _ _) n]
-    rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [Finset.mul_sum]
+    simp_rw [toReal_klDiv_iid (hsupp _ _) n, ← Finset.mul_sum]
   rw [hiid]
   calc ((Fintype.card V : ℝ) ^ 2)⁻¹ *
         ((n : ℝ) * ∑ v : V, ∑ w : V, (klDiv (P v).toMeasure (P w).toMeasure).toReal)

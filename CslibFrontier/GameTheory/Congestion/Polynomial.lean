@@ -194,16 +194,20 @@ theorem polynomialRoot_gt_one {d : ℕ} (hd : 1 ≤ d) : 1 < polynomialRoot d :=
 /-- For every `d ≥ 1`, the characteristic root satisfies `polynomialRoot d < d + 1`. -/
 theorem polynomialRoot_lt_succ {d : ℕ} (hd : 1 ≤ d) : polynomialRoot d < (d : ℝ) + 1 := by
   by_contra! hge
-  have hφ := polynomialRoot_pos d
-  have hlt := add_two_pow_lt_add_one_pow_succ hd
-  rcases eq_or_lt_of_le hge with heq | hgt
-  · have h := polynomialRoot_pow_eq hd
-    rw [← heq, show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring] at h
-    linarith
-  · have h := pow_succ_mul_one_add_pow_lt (d := d) (by positivity) hgt
-    rw [polynomialRoot_pow_eq hd, show 1 + ((d : ℝ) + 1) = (d : ℝ) + 2 by ring] at h
-    have : 0 < (1 + polynomialRoot d) ^ d := by positivity
-    nlinarith
+  set φ := polynomialRoot d
+  have hφ : 0 < φ := polynomialRoot_pos d
+  have hφ_eq : φ ^ (d + 1) = (1 + φ) ^ d := polynomialRoot_pow_eq hd
+  have hpow : (((d : ℝ) + 1) * (1 + φ)) ^ d ≤ (φ * ((d : ℝ) + 2)) ^ d :=
+    pow_le_pow_left₀ (by positivity) (by nlinarith) d
+  have hle : φ ^ (d + 1) * ((d : ℝ) + 1) ^ (d + 1) ≤ φ ^ (d + 1) * ((d : ℝ) + 2) ^ d :=
+    calc φ ^ (d + 1) * ((d : ℝ) + 1) ^ (d + 1)
+        = ((d : ℝ) + 1) * (((d : ℝ) + 1) ^ d * (1 + φ) ^ d) := by rw [hφ_eq]; ring
+      _ ≤ φ * (φ ^ d * ((d : ℝ) + 2) ^ d) := by
+          rw [mul_pow, mul_pow] at hpow
+          exact mul_le_mul hge hpow (by positivity) hφ.le
+      _ = φ ^ (d + 1) * ((d : ℝ) + 2) ^ d := by ring
+  exact (add_two_pow_lt_add_one_pow_succ hd).not_ge
+    (le_of_mul_le_mul_left hle (pow_pos hφ (d + 1)))
 
 theorem polynomialRoot_strictMono {j d : ℕ} (hj : 1 ≤ j) (hjd : j < d) :
     polynomialRoot j < polynomialRoot d := by
@@ -213,13 +217,18 @@ theorem polynomialRoot_strictMono {j d : ℕ} (hj : 1 ≤ j) (hjd : j < d) :
   set φd := polynomialRoot d
   have hφd_pos : 0 < φd := polynomialRoot_pos d
   have hφj_pos : 0 < φj := polynomialRoot_pos j
-  have hstep1 : φd ^ (j + 1) ≤ (1 + φd) ^ j := by
-    rcases eq_or_lt_of_le hge with heq | hlt
-    · rw [heq, polynomialRoot_pow_eq hj]
-    · have h := pow_succ_mul_one_add_pow_lt (d := j) hφd_pos hlt
-      rw [polynomialRoot_pow_eq hj] at h
-      have hpos : 0 < (1 + φj) ^ j := by positivity
-      exact le_of_mul_le_mul_right (by linarith) hpos
+  have hpow : (φd * (1 + φj)) ^ j ≤ (φj * (1 + φd)) ^ j :=
+    pow_le_pow_left₀ (by positivity) (by nlinarith) j
+  rw [mul_pow, mul_pow, ← polynomialRoot_pow_eq hj] at hpow
+  have hcancel : φd ^ j * φj ≤ (1 + φd) ^ j :=
+    le_of_mul_le_mul_left
+      (calc φj ^ j * (φd ^ j * φj) = φd ^ j * φj ^ (j + 1) := by ring
+        _ ≤ φj ^ j * (1 + φd) ^ j := hpow)
+      (pow_pos hφj_pos j)
+  have hstep1 : φd ^ (j + 1) ≤ (1 + φd) ^ j :=
+    calc φd ^ (j + 1) = φd ^ j * φd := by ring
+      _ ≤ φd ^ j * φj := mul_le_mul_of_nonneg_left hge (by positivity)
+      _ ≤ (1 + φd) ^ j := hcancel
   obtain ⟨m, hm, rfl⟩ : ∃ m, 1 ≤ m ∧ d = j + m := ⟨d - j, by omega, by omega⟩
   have hφd1 := polynomialRoot_gt_one hd
   have hlt_m : φd ^ m < (1 + φd) ^ m := pow_lt_pow_left₀ (by linarith) hφd_pos.le (by omega)

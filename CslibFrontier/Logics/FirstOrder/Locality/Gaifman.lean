@@ -106,11 +106,8 @@ theorem gaifmanGraph_structure {V : Type*} (G : SimpleGraph V) :
   ext x y
   rw [gaifmanGraph_adj]
   constructor
-  · rintro ⟨hne, l, R, t, hR, ⟨i, rfl⟩, j, rfl⟩
-    cases R
-    have h01 : ∀ p : Fin 2, p = 0 ∨ p = 1 := fun p => by fin_cases p <;> simp
-    change G.Adj (t 0) (t 1) at hR
-    rcases h01 i with rfl | rfl <;> rcases h01 j with rfl | rfl
+  · rintro ⟨hne, _, ⟨⟩, t, hR, ⟨i, rfl⟩, j, rfl⟩
+    fin_cases i <;> fin_cases j
     · exact absurd rfl hne
     · exact hR
     · exact hR.symm
@@ -249,8 +246,7 @@ theorem edist_le (H : IsNbhdIso L r a b h) :
     ∀ {s l : ℕ} {x y : M}, l + s ≤ r → x ∈ ball L a l → (gaifmanGraph L M).edist x y ≤ s →
       (gaifmanGraph L N).edist (h x) (h y) ≤ s
   | 0, _, x, y, _, _, hxy => by
-    have : x = y := SimpleGraph.edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast hxy))
-    subst this
+    obtain rfl := SimpleGraph.edist_eq_zero_iff.1 (nonpos_iff_eq_zero.1 (by exact_mod_cast hxy))
     simp
   | s + 1, l, x, y, hls, hx, hxy => by
     rcases exists_adj_of_edist_le_succ hxy with rfl | ⟨z, hxz, hzy⟩
@@ -276,10 +272,9 @@ theorem symm [Nonempty M] (H : IsNbhdIso L r a b h) :
   refine ⟨H.bijOn.symm hinv.symm, fun i => ?_, fun R t ht => ?_⟩
   · rw [← H.map_tuple i]
     exact hinv.1 (mem_ball_self a r i)
-  · have hmaps := (H.bijOn.symm hinv.symm).mapsTo
-    rw [← H.relMap_iff R (Function.invFunOn h (ball L a r) ∘ t) (fun i => hmaps (ht i))]
-    have : h ∘ (Function.invFunOn h (ball L a r) ∘ t) = t := funext fun i => hinv.2 (ht i)
-    rw [this]
+  · have hcomp : h ∘ (Function.invFunOn h (ball L a r) ∘ t) = t := funext fun i => hinv.2 (ht i)
+    rw [← H.relMap_iff R (Function.invFunOn h (ball L a r) ∘ t)
+      (fun i => (H.bijOn.symm hinv.symm).mapsTo (ht i)), hcomp]
 
 theorem refl (r : ℕ) (a : Fin k → M) : IsNbhdIso L r a a id :=
   ⟨Set.bijOn_id _, fun _ => rfl, fun _ _ _ => Iff.rfl⟩
@@ -328,12 +323,10 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
   set S' := ball L (fun _ : Fin 1 => c) r
   set T := ball L b r
   set T' := ball L (fun _ : Fin 1 => c') r
-  have farM : ∀ y ∈ S, ∀ z ∈ S', 1 < (gaifmanGraph L M).edist y z := by
-    rintro y ⟨i, hy⟩ z hz
-    exact one_lt_edist_of_far (hc i) hy (mem_ball_const.1 hz)
-  have farN : ∀ y ∈ T, ∀ z ∈ T', 1 < (gaifmanGraph L N).edist y z := by
-    rintro y ⟨i, hy⟩ z hz
-    exact one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
+  have farM : ∀ y ∈ S, ∀ z ∈ S', 1 < (gaifmanGraph L M).edist y z := fun _ ⟨i, hy⟩ _ hz =>
+    one_lt_edist_of_far (hc i) hy (mem_ball_const.1 hz)
+  have farN : ∀ y ∈ T, ∀ z ∈ T', 1 < (gaifmanGraph L N).edist y z := fun _ ⟨i, hy⟩ _ hz =>
+    one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
   have neM : ∀ y ∈ S, ∀ z ∈ S', y ≠ z := fun y hy z hz hyz => by
     simpa [hyz] using farM y hy z hz
   have neN : ∀ y ∈ T, ∀ z ∈ T', y ≠ z := fun y hy z hz hyz => by
@@ -365,10 +358,9 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     obtain ⟨j, hj⟩ := hS'
     have hi' : t i ∈ S' := (ht' i).resolve_left hi
     have hj' : t j ∈ S := (ht' j).resolve_right hj
-    have hHi : H (t i) ∈ T' := by rw [HS' hi']; exact H₂.bijOn.mapsTo hi'
-    have hHj : H (t j) ∈ T := by rw [HS hj']; exact H₁.bijOn.mapsTo hj'
-    exact iff_of_false (fun hR => (farN _ hHj _ hHi).not_ge (edist_le_one_of_relMap hR j i))
-      (fun hR => (farM _ hj' _ hi').not_ge (edist_le_one_of_relMap hR j i))
+    refine iff_of_false (fun hR => ?_) (fun hR => ?_)
+    · exact (farN _ (hb1.mapsTo hj') _ (hb2.mapsTo hi')).not_ge (edist_le_one_of_relMap hR j i)
+    · exact (farM _ hj' _ hi').not_ge (edist_le_one_of_relMap hR j i)
 
 end IsNbhdIso
 

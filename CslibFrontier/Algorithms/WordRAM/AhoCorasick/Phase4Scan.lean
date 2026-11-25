@@ -82,14 +82,12 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     rcases Nat.eq_zero_or_pos (x.regs r4) with hq0 | hqpos
   case zero.inr => omega
   case zero.inl | succ.inl =>
-    have hstop : ¬(Cond.lt zero r4).Holds x := by
-      simp only [Cond.holds_lt, hL.h_zero, hq0]; omega
+    have hstop : ¬(Cond.lt zero r4).Holds x := by simp [Cond.holds_lt, hL.h_zero, hq0]
     rw [hq0, followOut_zero_right]
     simp only [List.flatMap_nil, List.append_nil, List.length_nil, Nat.mul_zero, Nat.add_zero]
     exact ⟨x, ExecWithin.loop_exit hstop, hL, hM, hhold, hr2, rfl, rfl, rfl⟩
   case succ.inr fuel ih =>
-    have hc : (Cond.lt zero r4).Holds x := by
-      simp only [Cond.holds_lt, hL.h_zero]; exact hqpos
+    have hc : (Cond.lt zero r4).Holds x := by simpa [Cond.holds_lt, hL.h_zero] using hqpos
     rw [followOut_pos _ _ hqpos] at hbud ⊢
     simp only [List.length_cons] at hbud ⊢
     have hq_maxS : x.regs r4 < inp.maxS := lt_of_lt_of_le hq_lt hT_maxS
@@ -129,19 +127,15 @@ private theorem exec_emitLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     have hdq : inp.trie.depth (x.regs r4) < fuel + 1 := hfuel.resolve_left (by omega)
     obtain ⟨y, he_tl, hLy, hMy, hholdy, hy_r2, hy_rS, hy_r1, hy_r3⟩ :=
       ih (acc ++ [x.regs r3, inp.trie.depth (x.regs r4)]) x₁ hL₁ hM₁
-        (by rw [hx₁_r4]; exact hqn_lt) (by rw [hx₁_r4]; exact hqn_dec.imp_right fun _ => by omega)
-        (by rw [hx₁_r2, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
-        hhold₁
-        (by rw [hx₁_r4, List.length_append]; simp only [List.length_cons, List.length_nil]; omega)
+        (hx₁_r4 ▸ hqn_lt) (hx₁_r4 ▸ hqn_dec.imp_right fun _ => by omega)
+        (by simp [hx₁_r2]; omega) hhold₁
+        (by simp [hx₁_r4]; omega)
     rw [hx₁_r4] at he_tl hholdy hy_r2
     rw [hx₁_r3] at hholdy
     simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.append_assoc]
       at hholdy ⊢
-    refine ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hholdy, ?_,
-      hy_rS.trans hx₁_rS, hy_r1.trans hx₁_r1, hy_r3.trans hx₁_r3⟩
-    rw [hy_r2, List.length_append]
-    simp only [List.length_cons, List.length_nil]
-    omega
+    exact ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hholdy,
+      by simp [hy_r2]; omega, hy_rS.trans hx₁_rS, hy_r1.trans hx₁_r1, hy_r3.trans hx₁_r3⟩
 
 private theorem exec_emitCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) (acc : List ℕ) (x : Data 26)
@@ -225,21 +219,16 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   induction ts with
   | nil =>
     intro pref x hpt hL hM _ _ hr1 hr2 hhold
-    rw [List.append_nil] at hpt
-    subst hpt
-    have hstop : ¬(Cond.lt r1 textLen).Holds x := by
-      simp only [Cond.holds_lt, hr1, hL.h_textLen]; omega
+    obtain rfl : pref = inp.text := by simpa using hpt
+    have hstop : ¬(Cond.lt r1 textLen).Holds x := by simp [Cond.holds_lt, hr1, hL.h_textLen]
     exact ⟨x, (ExecWithin.loop_exit hstop).mono (by omega), hL, hM, hhold, hr2⟩
   | cons a ts ih =>
     intro pref x hpt hL hM hu_lt hu_str hr1 hr2 hhold
-    have ht_len : pref.length + (a :: ts).length = inp.text.length := by
-      rw [← List.length_append, hpt]
-    simp only [List.length_cons] at ht_len
-    have hc : (Cond.lt r1 textLen).Holds x := by
-      simp only [Cond.holds_lt, hr1, hL.h_textLen]; omega
-    have ha_mem : a ∈ inp.text := by
-      rw [← hpt]; exact List.mem_append_right _ List.mem_cons_self
-    have ha_lt : a < inp.alphabetSize := hvalid.2 a ha_mem
+    have ht_len : pref.length + (ts.length + 1) = inp.text.length := by
+      simpa using congrArg List.length hpt
+    have hc : (Cond.lt r1 textLen).Holds x := by simp [Cond.holds_lt, hr1, hL.h_textLen]; omega
+    have ha_lt : a < inp.alphabetSize :=
+      hvalid.2 a (hpt ▸ List.mem_append_right _ List.mem_cons_self)
     have ht_hold : Block.HoldsList inp.textBase (pref ++ a :: ts) x.mem := hpt ▸ hM.txt
     have ht_read : x.mem (inp.textBase + pref.length) = a :=
       (Block.holdsList_cons_iff.mp (Block.holdsList_append_iff.mp ht_hold).2).1
@@ -265,17 +254,13 @@ private theorem exec_scanLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       rw [hu'_str, hu_str, ← longestNodeSuffix_append_singleton_eq_nextMove]
     have hout_eq : output inp.patterns (inp.trie.strOf u') = output inp.patterns (pref ++ [a]) := by
       rw [hu'_lns, output_longestNodeSuffix]
-    have hocc_pref_le :
-        (occurrences inp.patterns (pref ++ [a])).length ≤
-          (occurrences inp.patterns inp.text).length := by
-      have hp := occurrences_prefix_append inp.patterns (pref ++ [a]) ts
-      rw [List.append_assoc, List.singleton_append, hpt] at hp
-      exact hp.length_le
-    have hocc_next_len :
-        (occurrences inp.patterns (pref ++ [a])).length =
-          (occurrences inp.patterns pref).length +
-            (output inp.patterns (pref ++ [a])).length := by
-      rw [occurrences_append_singleton, List.length_append, List.length_map]
+    have hocc_pref_le : (occurrences inp.patterns (pref ++ [a])).length ≤
+        (occurrences inp.patterns inp.text).length := by
+      simpa [List.append_assoc, hpt] using
+        (occurrences_prefix_append inp.patterns (pref ++ [a]) ts).length_le
+    have hocc_next_len : (occurrences inp.patterns (pref ++ [a])).length =
+        (occurrences inp.patterns pref).length + (output inp.patterns (pref ++ [a])).length := by
+      simp [occurrences_append_singleton]
     obtain ⟨x₃, he_em, hL₃, hM₃, hhold₃, hr2₃, hs3, _, hr3₃⟩ :=
       exec_emitCode inp w hvalid hw (encodeOccurrences (occurrences inp.patterns pref)) x₂
         hL₂ (by rwa [hm2, hm1]) (by rw [hs2]; exact hu'_lt)

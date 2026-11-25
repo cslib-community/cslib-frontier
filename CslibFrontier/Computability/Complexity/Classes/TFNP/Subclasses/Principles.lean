@@ -334,7 +334,8 @@ private theorem even_sum_undirectedEdge (n : α → ℕ) (N₁ N₂ : α × List
   have hpt (u v : Vertex (n a)) :
       (undirectedEdge N₁ N₂ a u.1 v.1).toNat = g u v + g v u := by
     by_cases huv : u = v
-    · subst huv; simp [g]
+    · subst huv
+      simp [g]
     · rcases lt_or_gt_of_ne (fun h =>
           huv (Subtype.ext (binaryValue_injective_of_length_eq (u.2.trans v.2.symm) h))) with
         hlt | hgt

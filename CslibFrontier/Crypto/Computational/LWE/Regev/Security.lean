@@ -264,8 +264,9 @@ theorem computableInPolyTime_encryptEntry
       (matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
         (snd input encUnary) (by fun_prop)) (const 0)
   have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput (f := fun a r => if (coins a).getD r false
-      then Cslib.Matrix.binaryEntry (n a + 1) (w a) (publicWord a) r (j a) else 0)
+    (mapWithInput
+      (f := fun a r => if (coins a).getD r false
+        then Cslib.Matrix.binaryEntry (n a + 1) (w a) (publicWord a) r (j a) else 0)
       (range.comp hm) hterm)
   have hmsg : ComputableInPolyTime
       (fun a => if j a = 0 then (message a).toNat * 2 ^ (w a - 1) else 0) input encNat := by
@@ -489,7 +490,8 @@ theorem eval_lorRunSerialized_toBinary (n m w : ℕ → ℕ) (adversary : Encryp
       lorRun (m := m security) (fun μ => ProbComp.eval (encrypt A μ))
         (typedLoRAdversary adversary security) bit q loopState := by
   induction q generalizing loopState with
-  | zero => simp [lorRunSerialized, Encryption.lorRun, Encryption.lorRunOn, lorRun]
+  | zero =>
+    simp [lorRunSerialized, Encryption.lorRun, Encryption.lorRunOn, lorRun]
   | succ q ih =>
     unfold lorRunSerialized Encryption.lorRun Encryption.lorRunOn
     rw [OracleComp.iterate_succ_bind]
@@ -497,10 +499,11 @@ theorem eval_lorRunSerialized_toBinary (n m w : ℕ → ℕ) (adversary : Encryp
       bind_assoc, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_map,
       PMF.pure_bind, Function.comp_def, eval_encryptSerialized_toBinary]
     refine congrArg (PMF.bind _ ·) (funext fun choice => ?_)
-    rw [show (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
+    have hsel : (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
         MessagePair Bool).select bit =
-      (if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice) by
-        cases bit <;> rfl]
+      (if bit then Encryption.ChoiceOut.msg₁ choice else Encryption.ChoiceOut.msg₀ choice) := by
+      cases bit <;> rfl
+    rw [hsel]
     exact congrArg (PMF.bind _ ·) (funext fun c =>
       ih (Encryption.ChoiceOut.state choice, serializeCiphertext c :: loopState.2))
 

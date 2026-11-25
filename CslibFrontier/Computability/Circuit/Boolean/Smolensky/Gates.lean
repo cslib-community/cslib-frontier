@@ -91,37 +91,31 @@ def modApprox (u : Fin m → R) : R :=
 theorem orApprox_comp_mem {D : ℕ} (T : Fin ℓ → Finset (Fin m)) {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => orApprox p T fun k => v k x) ∈ lowDegree R (Fin n) (ℓ * ((p - 1) * D)) := by
-  have hfun : (fun x => orApprox p T fun k => v k x) =
-      1 - ∏ j, (1 - (∑ i ∈ T j, v i) ^ (p - 1)) := by
-    ext x
-    simp [orApprox]
-  rw [hfun]
-  simpa using one_sub_mem_lowDegree (prod_mem_lowDegree (R := R) (ι := Fin n) univ
+  convert one_sub_mem_lowDegree (prod_mem_lowDegree (R := R) (ι := Fin n) univ
     (a := (p - 1) * D) (f := fun j => 1 - (∑ i ∈ T j, v i) ^ (p - 1)) fun j _ =>
-      one_sub_mem_lowDegree (pow_mem_lowDegree (sum_mem_lowDegree _ fun i _ => hv i) (p - 1)))
+      one_sub_mem_lowDegree (pow_mem_lowDegree (sum_mem_lowDegree (T j) fun i _ => hv i) (p - 1)))
+    using 2
+  · simp
+  · simp [orApprox]
 
 /-- Composing `andApprox p T` with degree-`D` polynomials yields a polynomial of degree at most
 `ℓ * ((p - 1) * D)`. -/
 theorem andApprox_comp_mem {D : ℕ} (T : Fin ℓ → Finset (Fin m)) {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => andApprox p T fun k => v k x) ∈ lowDegree R (Fin n) (ℓ * ((p - 1) * D)) := by
-  have hfun : (fun x => andApprox p T fun k => v k x) =
-      1 - fun x => orApprox p T fun k => (1 - v k) x := by
-    funext x
-    simp [andApprox]
-  rw [hfun]
-  exact one_sub_mem_lowDegree (orApprox_comp_mem p T fun k => one_sub_mem_lowDegree (hv k))
+  convert one_sub_mem_lowDegree (orApprox_comp_mem p T fun k => one_sub_mem_lowDegree (hv k))
+    using 1
+  funext x
+  simp [andApprox]
 
 /-- Composing `modApprox p` with degree-`D` polynomials yields a polynomial of degree at most
 `(p - 1) * D`. -/
 theorem modApprox_comp_mem {D : ℕ} {v : Fin m → BitString n → R}
     (hv : ∀ k, v k ∈ lowDegree R (Fin n) D) :
     (fun x => modApprox p fun k => v k x) ∈ lowDegree R (Fin n) ((p - 1) * D) := by
-  have hfun : (fun x => modApprox p fun k => v k x) = (∑ i, v i) ^ (p - 1) := by
-    funext x
-    simp [modApprox, Finset.sum_apply]
-  rw [hfun]
-  exact pow_mem_lowDegree (sum_mem_lowDegree _ fun i _ => hv i) (p - 1)
+  convert pow_mem_lowDegree (sum_mem_lowDegree univ fun i _ => hv i) (p - 1) using 1
+  funext x
+  simp [modApprox, Finset.sum_apply]
 
 end Approximators
 

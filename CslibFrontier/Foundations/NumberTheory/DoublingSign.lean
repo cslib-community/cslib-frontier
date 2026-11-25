@@ -135,7 +135,10 @@ theorem exists_first_doubling_magnitude {q a : ℚ} {K : ℕ}
           _ ≤ (2 : ℚ) ^ K * |q| :=
               mul_le_mul_of_nonneg_right (pow_le_pow_right₀ (by norm_num) (by omega)) hq0
           _ < 2 * a := by linarith
-      · simpa [pow_succ', mul_assoc, abs_mul] using mul_lt_mul_of_pos_left hlt two_pos
+      · calc |(2 : ℚ) ^ (K + 1) * q| = 2 * ((2 : ℚ) ^ K * |q|) := by
+              rw [pow_succ', mul_assoc, abs_mul, abs_of_pos two_pos, abs_mul,
+                abs_of_pos (by positivity : (0 : ℚ) < 2 ^ K)]
+          _ < 2 * a := mul_lt_mul_of_pos_left hlt two_pos
 
 /-- Mathematical correctness of first-flag sign recovery. Approximation, magnitude,
 precision, flag margin and cutoff conditions are independent explicit inputs. -/
@@ -151,7 +154,8 @@ theorem firstCircleFlag_sign {q a ε t : ℚ} {K : ℕ} (w : ℕ → ℚ)
   obtain ⟨_, hz₀⟩ := happrox k₀ hk₀
   have := (abs_nonneg _).trans_lt hz₀
   have hflag : CircleFlag t (w k₀) :=
-    (happrox k₀ hk₀).flag_of_magnitude (hw k₀ hk₀) hlo (by linarith) ht hreach (hbound k₀ le_rfl)
+    (happrox k₀ hk₀).flag_of_magnitude (hw k₀ hk₀) hlo (by linarith) ht
+      hreach (hbound k₀ le_rfl)
   have hex : ∃ k, CircleFlag t (w k) := ⟨k₀, hflag⟩
   let k := Nat.find hex
   have hk₀' : k ≤ k₀ := Nat.find_min' hex hflag

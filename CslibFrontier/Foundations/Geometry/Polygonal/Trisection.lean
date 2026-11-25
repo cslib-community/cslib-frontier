@@ -167,11 +167,7 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
       (p.position 0 (s * u) = 0 ↔ (line p.start (p.cutEnds s t).start).AtEnd 0 u false) ∧
       (p.position 0 (s * u) = s ↔ (line p.start (p.cutEnds s t).start).AtEnd 0 u true)
     rw [hpos, hline, hline]
-    refine ⟨⟨hlo, hhi⟩, ?_, ?_⟩
-    · change s * u = 0 ↔ u = 0
-      simpa only [mul_zero] using cancel s hs.ne' 0
-    · change s * u = s ↔ u = 1
-      simpa only [mul_one] using cancel s hs.ne' 1
+    exact ⟨⟨hlo, hhi⟩, by simpa using cancel s hs.ne' 0, by simpa using cancel s hs.ne' 1⟩
   · change Fin p.segments at i
     obtain ⟨hl, hL⟩ := p.middle_position_lower hs ht hst i hu
     obtain ⟨hh, hH⟩ := p.middle_position_upper hs ht hst i hu
@@ -196,13 +192,10 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
       (p.position (Fin.last p.bends) r = p.segments ↔
         (line (p.cutEnds s t).finish p.finish).AtEnd 0 u true)
     rw [hpos, hline, hline]
-    refine ⟨⟨by linarith, by linarith⟩, ?_, ?_⟩
-    · change (p.segments : ℝ) - t + t * u = (p.segments : ℝ) - t ↔ u = 0
-      rw [← cancel t ht.ne' 0, mul_zero]
-      constructor <;> intro <;> linarith
-    · change (p.segments : ℝ) - t + t * u = p.segments ↔ u = 1
-      rw [← cancel t ht.ne' 1, mul_one]
-      constructor <;> intro <;> linarith
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    exact ⟨⟨by linarith, by linarith⟩, add_eq_left.trans (mul_eq_zero_iff_left ht.ne'),
+      ⟨fun h => (cancel t ht.ne' 1).mp (by linarith),
+       fun h => by rw [h]; ring⟩⟩
 
 /-- Each of the three pieces is simple when the original route is simple.
 The original route may have the same start and finish. -/
@@ -326,20 +319,11 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
       r.cutLower s k = (if (e k).val = i then s else 0) ∧
       r.cutUpper (1 - t) k = (if (e k).val = j then t else 1) := by
     have hki : k.val = 0 ↔ (e k).val = i := by
-      constructor
-      · intro hk
-        exact Fin.ext (by change i.val + k.val = i.val; omega)
-      · intro h
-        have h' : i.val + k.val = i.val := congrArg Fin.val h
-        omega
+      rw [Fin.ext_iff]
+      dsimp [e, source]; omega
     have hkj : k.val + 1 = r.segments ↔ (e k).val = j := by
-      change k.val + 1 = j.val - i.val + 1 ↔ _
-      constructor
-      · intro hk
-        exact Fin.ext (by change i.val + k.val = j.val; omega)
-      · intro h
-        have h' : i.val + k.val = j.val := congrArg Fin.val h
-        omega
+      rw [Fin.ext_iff]
+      dsimp [e, source, r, segments]; omega
     exact ⟨by simp only [cutLower, hki], by simp only [cutUpper, hkj, sub_sub_cancel]⟩
   have hbounds (k : Fin q.segments) :
       0 ≤ r.cutLower s k ∧ r.cutLower s k < r.cutUpper (1 - t) k ∧

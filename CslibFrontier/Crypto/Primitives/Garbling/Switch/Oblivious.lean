@@ -305,6 +305,7 @@ private theorem interpret_reduceGate_real [DecidableEq R] (H : L → ℕ → L)
         (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ q))
         (reduceGate H col σ i A g) = pure ((garbleGate H col Δ i K g).1, A') ∧
       ∀ w ∈ g.define D, A' w = wireLabel Δ ((garbleGate H col Δ i K g).2 w) (σ w) := by
+  -- Away from a newly written wire, both label maps are unchanged.
   have hnew (y : Fin N) (a k : L) (ha : a = wireLabel Δ k (σ (.inr y))) (hy : Sum.inr y ∉ D) :
       ∀ w ∈ insert (Sum.inr y) D, Function.update A (.inr y) a w =
         wireLabel Δ (Function.update K (.inr y) k w) (σ w) := by
@@ -365,13 +366,18 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
     (H : L → ℕ → L) (col : L →+ ZMod 2) [Nonempty {Δ : L // col Δ = 1}]
     (D : SwitchView L n → ProbComp Bool) :
     CCR.Arithmetic.realGame H col (reduction S H col σ D) = realGame S H col x D := by
+  -- For each offset, the reduction from input labels `X` gives the material of the garbling
+  -- with input zero labels `X - x • Δ`.
   have hmat (Δ : {Δ : L // col Δ = 1}) (X : Fin n → L) :
       OracleComp.interpret
         (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.1 q))
         (reduceGates H col σ 0 S.gates (Sum.elim X 0)) =
       pure (garbleWith S H col Δ.1 fun i => X i - x i • Δ.1).material :=
     interpret_reduceGates_real H col Δ.2 0 S.gates _ _ _
-      (by rintro _ ⟨i, rfl⟩; simp [wireLabel, hσ.1 i]) hS hσ.2
+      (by
+        rintro _ ⟨i, rfl⟩
+        simp [wireLabel, hσ.1 i]) hS hσ.2
+  -- Shifting uniform input labels by `x • Δ` is a bijection.
   have hshift (Δ : L) : (PMF.uniformOfFintype (Fin n → L)).map (fun K i => K i + x i • Δ) =
       PMF.uniformOfFintype (Fin n → L) :=
     PMF.uniformOfFintype_map_equiv (Equiv.addRight fun i => x i • Δ)

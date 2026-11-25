@@ -452,9 +452,11 @@ theorem exchangeSampleInBall_retains (s : Level) (row : FixedBytes 221) (d : Tar
       toList_bytesOfList len, retainedCandidates, Success.decode_raw, Option.map_some,
       Option.some.injEq]
     refine ⟨?_, x.trace.pattern_move ..⟩
-    rw [← hr]; simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
+    rw [← hr]
+    simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
     refine List.ext_getElem (by simp only [List.length_drop, List.length_ofFn]) fun j _ _ => ?_
-    simp only [List.getElem_drop, List.getElem_ofFn]; exact dite_eq_right (by lia)
+    simp only [List.getElem_drop, List.getElem_ofFn]
+    exact dite_eq_right (by lia)
 
 /-- Joint law of the complete 221-byte raw row and its Algorithm 29 result. Start with uniform
 bytes and an independent uniform signed weight-τ challenge. Program the row and report the

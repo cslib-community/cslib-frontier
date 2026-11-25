@@ -60,15 +60,8 @@ theorem parts_bounds (L a : ℕ) :
     obtain ⟨hm, ho, hi⟩ := ih (a / 7)
     have hd : a % 7 < 7 := Nat.mod_lt _ (by decide)
     rw [parts]
-    split <;> dsimp only
-    · simp only [pow_succ]
-      constructor
-      · omega
-      constructor <;> omega
-    · simp only [pow_succ]
-      constructor
-      · omega
-      constructor <;> omega
+    split <;> simp only [pow_succ]
+    all_goals exact ⟨by omega, by omega, by omega⟩
 
 /-- A fixed number of digits, so that zero digits at the end are retained. -/
 def sevenDigits : ℕ → ℕ → List ℕ

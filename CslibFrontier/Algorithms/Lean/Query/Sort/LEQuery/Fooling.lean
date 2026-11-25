@@ -81,8 +81,10 @@ theorem isLinearOrder_moveToBot (r : α → α → Prop) [IsLinearOrder α r] (x
     · exact absurd hba hbx
     · exact antisymm hab hba
   total a b := by
-    by_cases ha : a = x; · exact Or.inl (Or.inl ha)
-    by_cases hb : b = x; · exact Or.inr (Or.inl hb)
+    by_cases ha : a = x
+    · exact Or.inl (Or.inl ha)
+    by_cases hb : b = x
+    · exact Or.inr (Or.inl hb)
     exact (total_of r a b).imp (fun h => Or.inr ⟨hb, h⟩) fun h => Or.inr ⟨ha, h⟩
 
 /-- Moving `x` to the top is moving it to the bottom of the reversed order, reversed. -/
@@ -213,10 +215,14 @@ theorem agreeOn_moveToBot {r : α → α → Prop} [Std.Refl r] {T : List (α ×
   · subst heq
     exact ⟨fun h => (eq_or_ne a x).elim Or.inl fun hax => Or.inr ⟨hax, h⟩, fun _ => refl_of r a⟩
   by_cases hbx : b = x
-  · subst hbx; simp [show ¬ r a b from fun h => hx ⟨a, b, hab, heq, Or.inl ⟨rfl, h⟩⟩, heq]
+  · subst hbx
+    have h : ¬ r a b := fun h => hx ⟨a, b, hab, heq, Or.inl ⟨rfl, h⟩⟩
+    simp only [h, heq, ne_eq, not_true_eq_false, false_and, or_self]
   by_cases hax : a = x
-  · subst hax; simp [show r a b from by_contra fun h => hx ⟨a, b, hab, heq, Or.inr ⟨rfl, h⟩⟩]
-  · simp [hax, hbx]
+  · subst hax
+    have h : r a b := by_contra fun h => hx ⟨a, b, hab, heq, Or.inr ⟨rfl, h⟩⟩
+    simp only [h, true_or]
+  · simp only [hax, hbx, ne_eq, not_false_eq_true, true_and, false_or]
 
 /-- Being found below is being found above in the reversed order, for the reversed comparisons. -/
 private theorem foundAbove_swap_iff {r : α → α → Prop} {T : List (α × α)} {x : α} :

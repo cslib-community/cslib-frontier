@@ -67,23 +67,16 @@ theorem SearchPath.vacant (s : State M (layout extra regs)) (cs : List (Frame M 
   | cons frame cs =>
     cases frame with
     | left label sibling =>
-      have less : s.data 0 < label.data 0 := path.1
-      have get := context.1
-      dsimp only [ContextRep, root] at get
       dsimp only
       rw [parent]
-      refine ⟨⟨record none (root sibling) (contextParent cs) label, get, ?_⟩, ?_⟩
-      · simp [record, compare, less]
-      · simp [State.deref, parent, contextParent, get, record, compare, less]
+      exact ⟨⟨_, context.1, by simp [root, record, compare, path.1]⟩,
+        by simp [State.deref, parent, contextParent, context.1, record, compare, path.1]⟩
     | right sibling label =>
       have less : ¬ s.data 0 < label.data 0 := not_lt_of_gt path.1
-      have get := context.1
-      dsimp only [ContextRep, root] at get
       dsimp only
       rw [parent]
-      refine ⟨⟨record (root sibling) none (contextParent cs) label, get, ?_⟩, ?_⟩
-      · simp [record, compare, less]
-      · simp [State.deref, parent, contextParent, get, record, compare, less]
+      exact ⟨⟨_, context.1, by simp [root, record, compare, less]⟩,
+        by simp [State.deref, parent, contextParent, context.1, record, compare, less]⟩
 
 private theorem left_steps (x : State M (layout extra regs)) (n : Record M (layout extra regs))
     (pc : x.pc = 2) (nil : x.ptr 5 = none) (addr : x.ptr 0 ≠ none)

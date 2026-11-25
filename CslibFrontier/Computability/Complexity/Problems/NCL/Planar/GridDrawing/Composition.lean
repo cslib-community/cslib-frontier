@@ -165,10 +165,14 @@ private theorem vertex_separation (P : DiagramDrawing I D₁) (Q : DiagramDrawin
   · exact P.vertex_separation v w (fun he => hvw (congrArg Sum.inl he))
   · have := (P.vertex_rows v).2
     have := (Q.vertex_rows w).1
-    exact .inl (by change (P.vertex v).2 + 1 < (Q.vertex w).2 + P.height; omega)
+    left
+    change (P.vertex v).2 + 1 < (Q.vertex w).2 + P.height
+    omega
   · have := (Q.vertex_rows v).1
     have := (P.vertex_rows w).2
-    exact .inr (by change (P.vertex w).2 + 1 < (Q.vertex v).2 + P.height; omega)
+    right
+    change (P.vertex w).2 + 1 < (Q.vertex v).2 + P.height
+    omega
   · have := Q.vertex_separation v w (fun he => hvw (congrArg Sum.inr he))
     simp only [vertex, Sum.elim_inr, Function.comp_def, shift]
     omega
@@ -181,8 +185,9 @@ private theorem path_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂
   rw [source_left, target_left]
   by_cases h : ∃ j, D₁.bottom j = e
   · have he : P.target e = shift P.height (Q.source (.inl h.choose)) := by
-      rw [← congrArg P.target h.choose_spec, P.target_bottom, Q.source_top]
-      simp [shift]
+      calc P.target e = P.target (D₁.bottom h.choose) := congrArg P.target h.choose_spec.symm
+        _ = (4 * h.choose.val, P.height) := P.target_bottom _
+        _ = shift P.height (Q.source (.inl h.choose)) := by simp [Q.source_top, shift]
     have hp := he ▸ (P.path e).mono (fun _ hp => trace_left P Q e hp)
     have hq : Connected (Trace P Q (compLeft D₁ D₂ e))
         (shift P.height (Q.source (.inl h.choose)))
@@ -356,8 +361,10 @@ private theorem meet (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
     obtain ⟨v, hv, ⟨de, hde⟩, ⟨df, hdf⟩⟩ := Q.meet e' f' _ hne hp hq
     have hpv : p = shift P.height (Q.vertex v) := by
       have hx := congrArg Prod.fst hv
+      refine Prod.ext hx ?_
       have hh : p.2 - P.height = (Q.vertex v).2 := congrArg Prod.snd hv
-      exact Prod.ext hx (by change p.2 = (Q.vertex v).2 + P.height; omega)
+      change p.2 = (Q.vertex v).2 + P.height
+      omega
     exact ⟨.inr v, hpv, he ▸ ⟨de, port_right hde⟩, hf ▸ ⟨df, port_right hdf⟩⟩
 
 /-- All false-direction ports remain first endpoints after stacking. -/

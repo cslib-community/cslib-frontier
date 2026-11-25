@@ -210,29 +210,24 @@ theorem computableInPolyTime_verifierMoves_dyn {γ : Type} {encIn : γ ↪ List 
       (by fun_prop) (by fun_prop) (by fun_prop)
   refine (computableInPolyTime_listSum hg _ hw fun x pre hpre => ?_).of_enc_eq fun x =>
     congrArg encUnary ?_
-  · have hle : ∀ l : List (IPMove × ℕ),
-        (l.map fun e => if e.1 = .verifier then 1 else 0).sum ≤ l.length := fun l => by
-      induction l with
+  · have hle : (pre.map fun e => if e.1 = .verifier then 1 else 0).sum ≤ pre.length := by
+      clear hpre
+      induction pre with
       | nil => simp
       | cons a l ih =>
         simp only [List.map_cons, List.sum_cons, List.length_cons]
         split_ifs <;> omega
-    exact (hle pre).trans (hpre.length_le.trans
+    exact hle.trans (hpre.length_le.trans
       (SizedListEncoding.length_le (encA := encPair encIPMove encUnary) (encL := encIPShape) _))
-  · have heq : ∀ l : List (IPMove × ℕ),
-        verifierMoves l = (l.map fun e => if e.1 = .verifier then 1 else 0).sum := fun l => by
-      induction l with
-      | nil => rfl
-      | cons a l ih =>
-        obtain ⟨_ | _, _⟩ := a
-        · rw [verifierMoves] at ih ⊢
-          simp only [List.map_cons, List.sum_cons, List.count_cons, beq_self_eq_true,
-            ↓reduceIte, ih]
-          exact Nat.add_comm _ 1
-        · rw [verifierMoves] at ih ⊢
-          simp only [List.map_cons, List.sum_cons, List.count_cons, reduceCtorEq,
-            beq_iff_eq, ↓reduceIte, add_zero, zero_add, ih]
-    exact heq (g x)
+  · induction g x with
+    | nil => rfl
+    | cons a l ih =>
+      rw [verifierMoves] at ih ⊢
+      rcases a with ⟨_ | _, _⟩
+      · simp only [List.map_cons, List.sum_cons, List.count_cons, beq_self_eq_true, ↓reduceIte, ih]
+        exact Nat.add_comm _ 1
+      · simp only [List.map_cons, List.sum_cons, List.count_cons, reduceCtorEq, beq_iff_eq,
+          ↓reduceIte, add_zero, zero_add, ih]
 
 /-- `moveLength` on a polynomial-time private-coin shape is polynomial-time. -/
 theorem computableInPolyTime_moveLength_dyn {γ : Type} {encIn : γ ↪ List Bool}
@@ -296,13 +291,8 @@ theorem bestCount_append_verifier {ρ : ℕ} (msg : BitString ρ → ℕ → Lis
     Bool.and_true, List.ofFn_inj, eq_comm (a := m)] at hag
   simp only [List.append_nil, mem_filter, mem_univ, true_and, Bool.and_eq_true,
     decide_eq_true_eq, hag]
-  constructor
-  · rintro ⟨⟨hg, hm⟩, hd⟩
-    refine ⟨⟨hg, ?_⟩, hm⟩
-    rwa [← hm] at hd
-  · rintro ⟨⟨hg, hd⟩, hm⟩
-    refine ⟨⟨hg, hm⟩, ?_⟩
-    rwa [hm] at hd
+  exact ⟨fun ⟨⟨hg, hm⟩, hd⟩ => ⟨⟨hg, hm ▸ hd⟩, hm⟩,
+    fun ⟨⟨hg, hd⟩, hm⟩ => ⟨⟨hg, hm⟩, hm.symm ▸ hd⟩⟩
 
 /-! ### Dynamic polynomial-time `agrees`, `repeatMsg`, and `repeatDec` -/
 
@@ -538,16 +528,12 @@ private theorem foldl_checkStep (B Z K : ℕ) (V : List Bool → Bool)
       st.ok && decide (st.κ = 0) && V st.p) =
       (ok && check B Z K V g κ p w) := by
   induction g generalizing κ p w ok with
-  | nil =>
-    dsimp only [List.foldl_nil, check]
-    exact Bool.and_assoc _ _ _
+  | nil => exact Bool.and_assoc _ _ _
   | cons a g ih =>
-    obtain ⟨_ | _, n⟩ := a
-    · dsimp only
-      rw [List.foldl_cons, checkStep, ih, check]
+    rcases a with ⟨_ | _, n⟩ <;> dsimp only
+    · rw [List.foldl_cons, checkStep, ih, check]
       simp only [Bool.and_assoc]
-    · dsimp only
-      rw [List.foldl_cons, checkStep, ih, check]
+    · rw [List.foldl_cons, checkStep, ih, check]
 
 private theorem computableInPolyTime_checkStep :
     ComputableInPolyTime
@@ -651,10 +637,9 @@ theorem computableInPolyTime_check_dyn {γ : Type} {encIn : γ ↪ List Bool}
         encBits_apply, encBool_apply, List.length_singleton]
       omega)
   have hst := hspec.1
-  have hok := encCheckState_ok_polyTime hst
-  have hzero := (encCheckState_κ_polyTime hst).decide_eq' (ComputableInPolyTime.const 0)
-  have hv := hV (encCheckState_p_polyTime hst)
-  exact ((hok.bool_and' hzero).bool_and' hv).of_enc_eq fun x => by
+  exact (((encCheckState_ok_polyTime hst).bool_and'
+    ((encCheckState_κ_polyTime hst).decide_eq' (.const 0))).bool_and'
+    (hV (encCheckState_p_polyTime hst))).of_enc_eq fun x => by
     simpa only [Bool.true_and] using
       congrArg encBool (foldl_checkStep (B x) (Z x) (K x) (V x) (g x) (κ x) (p x) (w x) true).symm
 
@@ -1111,21 +1096,20 @@ private theorem map_fst_mergeMerlin_emulation (B Z ρ : ℕ) :
     rfl
   | succ m ih =>
     intro g hg
-    rcases g with _ | ⟨⟨v, nV⟩, _ | ⟨⟨p, nP⟩, g'⟩⟩
-    · simp [show 2 * (m + 1) = 2 * m + 2 by omega, alternatingMoves] at hg
-    · simp [show 2 * (m + 1) = 2 * m + 2 by omega, alternatingMoves] at hg
-    · rw [show 2 * (m + 1) = 2 * m + 2 by omega] at hg ⊢
-      simp only [List.map_cons, alternatingMoves, AMMove.other, AMMove.toIP, List.cons.injEq] at hg
-      obtain ⟨rfl, rfl, hg'⟩ := hg
-      have ih' := ih g' hg'
-      cases h : AMGame.mergeMerlin (shape B Z (g' ++ [(.verifier, ρ)])) with
-      | nil => simp [h, alternatingMoves] at ih'
-      | cons y tail =>
-        rcases y with ⟨_ | _, nA⟩
-        · simp only [List.cons_append, shape, AMGame.mergeMerlin, h, List.map_cons]
-          change _ = .arthur :: .merlin :: alternatingMoves .arthur (2 * m + 2)
-          rw [← ih', h]; rfl
-        · simp [h, alternatingMoves] at ih'
+    rw [show 2 * (m + 1) = 2 * m + 2 by omega, alternatingMoves_add_two, List.map_cons,
+      List.map_cons] at hg
+    dsimp only [AMMove.other, AMMove.toIP] at hg
+    rw [show 2 * (m + 1) = 2 * m + 2 by omega]
+    obtain ⟨⟨_, nV⟩, g₁, rfl, rfl, hg₁⟩ := List.map_eq_cons_iff.1 hg
+    obtain ⟨⟨_, nP⟩, g', rfl, rfl, hg'⟩ := List.map_eq_cons_iff.1 hg₁
+    have ih' := ih g' hg'
+    rcases h : AMGame.mergeMerlin (shape B Z (g' ++ [(.verifier, ρ)])) with _ | ⟨⟨_ | _, nA⟩, tail⟩
+    · simp [h, alternatingMoves] at ih'
+    · simp only [List.cons_append, shape, AMGame.mergeMerlin, h, List.map_cons]
+      change _ = .arthur :: .merlin :: alternatingMoves .arthur (2 * m + 2)
+      rw [← ih', h]
+      rfl
+    · simp [h, alternatingMoves] at ih'
 
 private def truncShape (g₀ : ℕ → List (IPMove × ℕ)) (n : ℕ) : List (IPMove × ℕ) :=
   if (g₀ n).length % 2 = 1 then (g₀ n).take ((g₀ n).length - 1) else g₀ n
@@ -1393,11 +1377,7 @@ private theorem bestCount_truncDec {enc : α ↪ List Bool} {g₀ : ℕ → List
     have hlt : (truncShape g₀ n).length = (g₀ n).length - 1 := by
       simp only [truncShape, hodd, ite_true, List.length_take]; omega
     rw [ite_eq_left hodd, BitString.listRow_zero, hlt]
-  · change bestCount _ (fun c t => truncDec enc g₀ msg₀ dec₀ (a, List.ofFn c, t))
-      (truncShape g₀ n) = bestCount _ _ (g₀ n)
-    rw [truncShape, ite_eq_right hodd]
-    refine congrArg (fun f => bestCount _ f _) (funext₂ fun c t => ?_)
-    dsimp only [truncDec]; exact ite_eq_right hodd
+  · simp only [truncShape, truncDec, n, hodd, ↓reduceIte]
 
 private theorem gsAM_map_fst {g₀ : ℕ → List (IPMove × ℕ)} {k : ℕ → ℕ} (ρ₀ : ℕ → ℕ)
     (hg₀ : ∀ n, (g₀ n).map Prod.fst = (alternatingMoves .arthur (k n)).map AMMove.toIP) (n : ℕ) :
@@ -1411,14 +1391,12 @@ private theorem gsAM_map_fst {g₀ : ℕ → List (IPMove × ℕ)} {k : ℕ → 
       (repeatShape (gsR (truncShape g₀) ρ₀ n) (truncShape g₀ n))
       (by simp [repeatShape, List.map_map, Function.comp_def, truncShape_map_fst hg₀ n])
   by_cases hodd : (g₀ n).length % 2 = 1
-  · dsimp only [gsAM]; rw [ite_eq_left hodd, List.map_append, List.map_singleton]
-    change (AMGame.mergeMerlin (shape _ _ (gsRep _ _ _))).map Prod.fst ++ [.arthur] = _
-    rw [hbase]
-    conv_rhs => rw [show k n + 2 = 2 * (k n / 2 + 1) + 1 by omega, alternatingMoves_two_mul_add_one]
-    rw [show 2 * (k n / 2 + 1) = 2 * (k n / 2) + 2 by omega]
-  · dsimp only [gsAM]; rw [ite_eq_right hodd]
-    conv_rhs => rw [show k n = 2 * (k n / 2) by omega]
-    exact hbase
+  · simp only [gsAM, hodd, ↓reduceIte, List.map_append, List.map_singleton, hbase]
+    rw [show k n + 2 = 2 * (k n / 2 + 1) + 1 by omega, alternatingMoves_two_mul_add_one,
+      show 2 * (k n / 2 + 1) = 2 * (k n / 2) + 2 by omega]
+  · simp only [gsAM, hodd, ↓reduceIte, hbase]
+    congr 1
+    omega
 
 /-- **Goldwasser–Sipser for polynomially many rounds (`IP[k(n)] ⊆ AM[k(n) + 2]`)** without
 round collapse: odd-length patterns drop their trailing verifier move into `dec`, while parallel

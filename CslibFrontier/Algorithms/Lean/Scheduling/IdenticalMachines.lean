@@ -182,6 +182,7 @@ theorem optMakespan_le (p : Fin n → α) (σ : Fin n → Fin m) :
     optMakespan m p ≤ makespan p σ :=
   inf'_le _ (mem_univ σ)
 
+variable (m) in
 theorem exists_makespan_eq_optMakespan (p : Fin n → α) :
     ∃ σ : Fin n → Fin m, makespan p σ = optMakespan m p := by
   obtain ⟨σ, -, h⟩ := exists_mem_eq_inf' (univ_nonempty (α := Fin n → Fin m)) (makespan p)
@@ -210,14 +211,14 @@ theorem le_makespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (σ : Fin n → F
 
 /-- Average-load lower bound on the optimum, `∑ p ≤ m · OPT` ([WilliamsonShmoys2011], (2.4)). -/
 theorem sum_le_card_nsmul_optMakespan (p : Fin n → α) : ∑ j, p j ≤ m • optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact sum_le_card_nsmul_makespan p σ
 
 /-- Longest-job lower bound on the optimum ([WilliamsonShmoys2011], (2.3)). -/
 theorem le_optMakespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (j : Fin n) :
     p j ≤ optMakespan m p := by
-  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
   rw [← hσ]
   exact le_makespan p hp σ j
 
@@ -303,7 +304,7 @@ theorem IsListSchedule.card_mul_makespan_le {p : Fin n → α} {σ : Fin n → F
 theorem IsListSchedule.makespan_le_optMakespan {p : Fin n → α} {σ : Fin n → Fin m}
     (hσ : IsListSchedule p σ) (hp : ∀ j, 0 ≤ p j) :
     makespan p σ ≤ (2 - 1 / m) * optMakespan m p := by
-  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan (m := m) p
+  obtain ⟨τ, hτ⟩ := exists_makespan_eq_optMakespan m p
   have h := hσ.card_mul_makespan_le hp τ
   rw [hτ] at h
   have hmpos : (0 : α) < m := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne m)

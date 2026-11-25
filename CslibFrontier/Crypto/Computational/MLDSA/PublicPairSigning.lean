@@ -467,11 +467,12 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
   | none => rfl
   | some keys =>
     obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
+    have hrho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := funext fun i => by
+      simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
     dsimp only
     rw [C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂, _root_.PMF.map_comp]
     simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some,
-      show (fun i : Fin 32 => ρ.toList[i.val]!) = ρ from funext fun i => by
-        simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]]
+      hrho]
     rfl
 
 /-- A changed message representative in a real output of the public-pair simulator yields a

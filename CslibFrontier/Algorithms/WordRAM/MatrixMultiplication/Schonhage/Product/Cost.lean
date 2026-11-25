@@ -74,8 +74,8 @@ public theorem sum_traceWeight_le {L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N
         4096 * numBands L m N ^ 2 := by
   have h := Finset.sum_le_sum (s := tiles L m N) fun T _ => PrunedQuery.traceWeight_le
     (wantedStrings (MaskTable.layout hm) qs.toFinset T.1 T.2)
-  simp_rw [show ∀ v : ℕ, 4096 * (2 * (L + 1) * v + 1) = 8192 * (L + 1) * v + 4096 from
-    fun _ => by ring] at h
+  have heq (v : ℕ) : 4096 * (2 * (L + 1) * v + 1) = 8192 * (L + 1) * v + 4096 := by ring
+  simp_rw [heq] at h
   simpa only [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, smul_eq_mul,
     tiles, Finset.card_product, Finset.card_range, pow_two, Nat.mul_comm _ 4096] using h
 

@@ -290,8 +290,10 @@ theorem decode_ofRotation {G : Graph} (r : RotationSystem G)
 The bound depends on the encoded graph length, even for sparse, very large vertex labels. -/
 theorem length_enc_ofRotation_le {G : Graph} (r : RotationSystem G) :
     (encRotationCertificate (ofRotation r)).length ≤ 10 * ((encGraph G).length + 1) ^ 2 := by
-  have hm : G.edges.length ≤ (encGraph G).length :=
-    (length_le_length_encList (encPair encNat encNat) G.edges).trans (by enc_len [encGraph_apply])
+  have hm : G.edges.length ≤ (encGraph G).length := by
+    calc G.edges.length ≤ (encList (encPair encNat encNat) G.edges).length :=
+        length_le_length_encList _ _
+      _ ≤ (encGraph G).length := by enc_len [encGraph_apply]
   have hb : ∀ v ∈ (ofRotation r).successor, (encNat v).length ≤ 2 * G.edges.length := by
     intro v hv
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hv

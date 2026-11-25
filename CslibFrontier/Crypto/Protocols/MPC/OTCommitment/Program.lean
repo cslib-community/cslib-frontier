@@ -219,9 +219,11 @@ theorem eval_receiverClosedProgram
   refine congrArg (PMF.bind _) (funext fun ⟨transcript, final⟩ =>
     congrArg (PMF.bind _) (funext fun ⟨release, later⟩ => ?_))
   cases release <;> simp only [Bool.false_eq_true, ↓reduceIte]
-  all_goals change _ = PMF.map _ (StateT.run (m := PMF) _ _)
+  all_goals
+    change _ = PMF.map _ (StateT.run (m := PMF) _ _)
   all_goals simp only [StateT.run_bind, StateT.run_pure]
-  all_goals simp [StateT.run, StateT.lift, PMF.bind_bind, PMF.map_bind, equivocatePairs_ofFn]
+  all_goals simp [StateT.run, StateT.lift, PMF.bind_bind, PMF.map_bind,
+    equivocatePairs_ofFn]
 
 /-- End-to-end exact simulation of honest OT, with actual retained opening masks and arbitrary
 program callbacks. No final functionality state is exposed by either side. -/

@@ -133,8 +133,10 @@ private theorem apply_polynomial [NeZero W] (hW : ∀ k ≤ d, A.width k ≤ W)
         List.prod_singleton, ← Matrix.vecMul_vecMul, ← ih (by omega)]
       exact A.pad_succ (hW k (by omega)) _ _ _ (hφ k hk)
   have hd : (0 : ℕ) < A.width d := by simp [A.width_deg]
-  rw [show A.polynomial = A.pre d ⟨0, hd⟩ from Fintype.sum_eq_single _ fun j hj =>
-    absurd (Fin.ext (Nat.lt_one_iff.1 (j.2.trans_eq A.width_deg))) hj]
+  have hsum : A.polynomial = A.pre d ⟨0, hd⟩ :=
+    Fintype.sum_eq_single _ fun j hj =>
+      absurd (Fin.ext (Nat.lt_one_iff.1 (j.2.trans_eq A.width_deg))) hj
+  rw [hsum]
   simpa [pad, hd] using congrFun (key d le_rfl) 0
 
 private theorem range_map_eq {α : Type*} (N : ℕ → α) (N' : Fin d → α)
@@ -241,8 +243,7 @@ theorem exists_mem_noncommABPHittingSet_lift_ne_zero [CharZero F] {W : ℕ}
     simp
   obtain ⟨a, ha, hne⟩ := isHittingSet_roabpHittingSet (F := F) _
     ⟨List.finRange d, A.uniLayer W, 0, 0, List.nodup_finRange d, A.natDegree_uniLayer_le W, rfl⟩ hg
-  refine ⟨superdiagPoint a, by unfold noncommABPHittingSet; exact Finset.mem_image_of_mem _ ha,
-    fun h0 => hne ?_⟩
+  refine ⟨superdiagPoint a, Finset.mem_image_of_mem _ ha, fun h0 => hne ?_⟩
   have hev (k : Fin d) : (A.uniLayer W k).map (Polynomial.eval (a k)) =
       ∑ x : Fin n, a k ^ (x : ℕ) • A.layer W k x := Matrix.ext fun i j => by
     simp only [NoncommABP.uniLayer, Matrix.map_apply, Matrix.of_apply, Polynomial.eval_finsetSum,

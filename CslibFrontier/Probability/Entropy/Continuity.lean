@@ -109,15 +109,13 @@ theorem conditionalEntropy_bind_le [Fintype ι] [Finite β] [Finite α] (p : PMF
     conditionalEntropy (p.bind R) ≤ ∑ i, (p i).toReal * conditionalEntropy (R i) + entropy p := by
   set M := p.bind fun i => (R i).map (i, ·)
   set L := p.bind fun i => ((R i).map Prod.fst).map (i, ·)
-  have hW : M.map Prod.snd = p.bind R := map_snd_bind_tag p R
   have hMW := entropy_map_le M Prod.snd
+  rw [map_snd_bind_tag] at hMW
   have hLsub := entropy_le_entropy_map_fst_add_entropy_map_snd L
-  have hLfst : L.map Prod.fst = p := map_fst_bind_pair p _
   have hLsnd : L.map Prod.snd = (p.bind R).map Prod.fst := by
     simp only [L, PMF.map_bind, PMF.map_comp]
     rfl
-  rw [hLfst, hLsnd] at hLsub
-  rw [hW] at hMW
+  rw [map_fst_bind_pair, hLsnd] at hLsub
   have hM := entropy_bind_pair p R
   have hL := entropy_bind_pair p fun i => (R i).map Prod.fst
   simp only [conditionalEntropy, mul_sub, Finset.sum_sub_distrib]
@@ -201,17 +199,11 @@ private theorem conditionalEntropy_add_mul_le_of_mix_eq [Finite β] [Finite α] 
   simp only [Fintype.sum_bool, Bool.cond_true, Bool.cond_false, mixCoin_true, mixCoin_false]
     at hlow hup
   have h1 : (0 : ℝ) < 1 + d := by linarith
+  have hcancel (x y : ℝ) : (1 + d) * (d / (1 + d) * x + 1 / (1 + d) * y) = y + d * x := by
+    field_simp
+    ring
   have key := mul_le_mul_of_nonneg_left (hlow.trans hup) h1.le
-  rw [← mul_entropy_mixCoin d hd]
-  have e1 : (1 + d) * (d / (1 + d) * conditionalEntropy R₁ + 1 / (1 + d) * conditionalEntropy R₀) =
-      conditionalEntropy R₀ + d * conditionalEntropy R₁ := by
-    field_simp
-    ring
-  have e2 : (1 + d) * (d / (1 + d) * conditionalEntropy S₁ + 1 / (1 + d) * conditionalEntropy S₀ +
-      entropy (mixCoin d hd)) =
-      conditionalEntropy S₀ + d * conditionalEntropy S₁ + (1 + d) * entropy (mixCoin d hd) := by
-    field_simp
-    ring
+  rw [mul_add (1 + d) (_ + _), hcancel, hcancel, mul_entropy_mixCoin] at key
   linarith
 
 /-- The part of `p` exceeding `q`, normalized by `dist p q`. -/
@@ -311,11 +303,7 @@ private theorem condMutualInfo_eq_sub [Finite γ] [Finite α] [Finite β] (J : P
     entropy_map_of_injective J fun ⟨_, _, _⟩ ⟨_, _, _⟩ h => by cases h; rfl
   have hmap := condMutualInfo_map J Prod.fst (fun t => t.2.1) (fun t => t.2.2)
   rw [show (fun t : γ × α × β => (t.1, t.2.1, t.2.2)) = id from rfl, PMF.map_id] at hmap
-  simp only [hmap, conditionalEntropy, PMF.map_comp, hJ]
-  have e1 : (Prod.fst ∘ fun t : γ × α × β => (t.1, t.2.1)) = Prod.fst := rfl
-  have e2 : (Prod.fst ∘ fun t : γ × α × β => ((t.1, t.2.2), t.2.1)) =
-      fun t => (t.1, t.2.2) := rfl
-  rw [e1, e2]
+  simp only [hmap, conditionalEntropy, PMF.map_comp, Function.comp_def, hJ]
   ring
 
 /-- **Continuity of conditional mutual information**: for joint laws `P` and `Q` of `(C, A, B)`

@@ -207,7 +207,8 @@ theorem IsIdentical.expectedLoad_le_two_mul_optMakespan {G : LoadBalancingGame �
     have hsum : (Fintype.card M : ℝ) * G.expectedLoad p j ≤
         (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i :=
       calc (Fintype.card M : ℝ) * G.expectedLoad p j
-          = ∑ _k : M, G.expectedLoad p j := by rw [sum_const, card_univ, nsmul_eq_mul]
+          = ∑ _k : M, G.expectedLoad p j := by
+              rw [sum_const, card_univ, nsmul_eq_mul]
         _ ≤ ∑ k : M, (G.expectedLoad p k + G.weight i) := sum_le_sum fun k _ => hle_k k
         _ = (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i := by
               rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hload]

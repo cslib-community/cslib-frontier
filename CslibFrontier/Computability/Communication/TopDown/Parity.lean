@@ -53,12 +53,10 @@ private theorem parity_class_nonempty_deficit {n : ℕ} (hn : 0 < n) (b : Bool) 
     simpa only [Fintype.expect_eq_sum_div_card, sum_boole, Fintype.card_fun,
       Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using hbal
   have hcard : (X.card : ℝ) = (2 : ℝ) ^ n / 2 := by
-    have he := (div_eq_iff (show (2 : ℝ) ^ n ≠ 0 by positivity)).mp hratio
+    rw [div_eq_iff (by positivity)] at hratio
     linarith
-  have hX : X.Nonempty := by
-    apply card_pos.mp
-    have he : (0 : ℝ) < X.card := by rw [hcard]; positivity
-    exact_mod_cast he
+  have hX : X.Nonempty := card_pos.mp <| by
+    exact_mod_cast (show (0 : ℝ) < X.card by rw [hcard]; positivity)
   refine ⟨hX, (uniformDeficit_le_iff hX).mpr ?_⟩
   simp only [Fintype.card_fin]
   rw [Real.rpow_sub (by norm_num), Real.rpow_natCast, Real.rpow_one, ← hcard]
@@ -97,8 +95,7 @@ private theorem parity_isDensityLimit_four_div {n : ℕ} (hn : 4 ≤ n) (b : Boo
   have hp1 : (4 : ℝ) / n ≤ 1 := (div_le_one hnpos).mpr (by exact_mod_cast hn)
   apply parity_isDensityLimit (by positivity) hp1 _ b x
   have ht := Real.one_sub_pow_mul_one_add_mul_le_one hp1 n
-  have hnp : (n : ℝ) * (4 / n) = 4 := by field_simp
-  rw [hnp] at ht
+  rw [mul_div_cancel₀ _ hnpos.ne'] at ht
   linarith
 
 namespace RoundProtocol
@@ -134,9 +131,8 @@ theorem not_solvesKW_parity {n d : ℕ} (P : KWRoundProtocol (Fin n) M (d + 1))
     (hsize : 16 * (32768 * (194 : ℝ) ^ d * (m + 1)) ^ d ≤ (n : ℝ)) :
     ¬ P.SolvesKW (parity n) := by
   intro hsol
-  apply not_solves_parity_classes P hM hm hsize
-  intro x hx y hy
-  exact hsol x y (mem_filter.mp hx).2 (mem_filter.mp hy).2
+  exact not_solves_parity_classes P hM hm hsize fun x hx y hy =>
+    hsol x y (mem_filter.mp hx).2 (mem_filter.mp hy).2
 
 end RoundProtocol
 
@@ -179,10 +175,7 @@ theorem not_solvesKW_parity (rounds : ℕ) (hrounds : 2 ≤ rounds) :
   have hε : 0 < ε := by dsimp [ε]; positivity
   refine ⟨ε, hε, (32 * (32768 * 194 ^ d)) ^ d, fun n hn M _ hM P => ?_⟩
   have hm : 0 ≤ ε * (n : ℝ) ^ (((d + 1 - 1 : ℕ) : ℝ)⁻¹) := by positivity
-  have hc : ε * (n : ℝ) ^ (((d + 1 - 1 : ℕ) : ℝ)⁻¹) ≤
-      (n : ℝ) ^ ((d : ℝ)⁻¹) / (32 * (32768 * (194 : ℝ) ^ d)) := by
-    simp only [ε, Nat.add_sub_cancel]
-    exact le_of_eq (by ring)
-  exact P.not_solvesKW_parity hM hm (finite_budget_of_cost hd hn hm hc)
+  exact P.not_solvesKW_parity hM hm <| finite_budget_of_cost hd hn hm <|
+    le_of_eq (by simp only [ε, Nat.succ_sub_one]; ring)
 
 end Cslib.Communication

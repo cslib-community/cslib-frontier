@@ -106,9 +106,10 @@ theorem eval_runClosedConfigFrom_succ_of_step (N : MultiTapePTM k' Symbol S')
       ProbComp.eval (N.runClosedConfigFrom fuel c') := by
   rw [eval_runClosedConfigFrom_eq_map_coins, eval_runClosedConfigFrom_eq_map_coins,
     BitString.uniformList_succ, PMF.map_bind]
-  simp only [PMF.map_comp, Function.comp_def, show ∀ bit coins,
-    N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' from
-      fun bit coins => congrArg (N.runClosedConfigFromCoins coins) (h bit), PMF.bind_const]
+  have hcons (bit : Bool) (coins : List Bool) :
+      N.runClosedConfigFromCoins (bit :: coins) c = N.runClosedConfigFromCoins coins c' :=
+    congrArg (N.runClosedConfigFromCoins coins) (h bit)
+  simp only [PMF.map_comp, Function.comp_def, hcons, PMF.bind_const]
 
 
 end Simulation

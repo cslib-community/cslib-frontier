@@ -61,7 +61,8 @@ private theorem lookup_map_of_lookup (φ : M → Y) {cache : List (M × Z)} {m :
   | cons e t ih =>
     rcases e with ⟨m₀, z₀⟩
     by_cases hm : m = m₀
-    · subst hm; simpa using h
+    · subst hm
+      simpa using h
     · simp only [List.lookup_cons, show (m == m₀) = false by simpa using hm] at h
       have hφ : φ m ≠ φ m₀ := fun heq =>
         hgood ⟨(m, z), List.mem_cons_of_mem _ (List.mem_of_lookup_eq_some h),
@@ -75,8 +76,9 @@ private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M
     (hy : (cache.map (Prod.map φ id)).lookup (φ m) = some z) (z' : Z) :
     HasImageCollision φ ((m, z') :: cache) := by
   obtain ⟨e, he, heq⟩ := List.mem_map.1 (List.mem_of_lookup_eq_some hy)
-  exact ⟨(m, z'), List.mem_cons_self, e, List.mem_cons_of_mem _ he,
-    bne_iff_ne.mp (List.lookup_eq_none_iff.mp hm e he), (congrArg Prod.fst heq).symm⟩
+  refine ⟨(m, z'), by simp, e, List.mem_cons_of_mem _ he, fun hm_eq => ?_,
+    (congrArg Prod.fst heq).symm⟩
+  exact bne_iff_ne.mp (List.lookup_eq_none_iff.mp hm e he) hm_eq
 
 omit [LawfulBEq M] in
 private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
@@ -108,34 +110,46 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
   agree m s hs a s' hs' := by
     cases hm : s.lookup m with
     | some z =>
+      have hy := lookup_map_of_lookup φ hs hm
       rw [memoize_of_some _ _ _ z hm]
-      simp only [memoizeThrough, lookup_map_of_lookup φ hs hm, hm, Option.isSome_some, ite_true]
+      simp only [memoizeThrough, hy, hm, Option.isSome_some, ite_true]
       rfl
     | none =>
       cases hy : (s.map (Prod.map φ id)).lookup (φ m) with
-      | none => simp only [memoizeThrough, hy, memoize, hm]; rfl
+      | none =>
+        simp only [memoizeThrough, hy, memoize, hm]
+        rfl
       | some z =>
         have hbad := hasImageCollision_cons_of_lookup φ hm hy
-        rw [(PMF.apply_eq_zero_iff _ (a, s')).mpr fun h => by
-            simp only [memoizeThrough, hy, hm, Option.isSome_none, Bool.false_eq_true, ite_false,
-              PMF.support_pure, Set.mem_singleton_iff, Prod.mk.injEq] at h
-            exact hs' (h.2 ▸ hbad z),
-          (PMF.apply_eq_zero_iff _ (a, s')).mpr fun hmem => by
-            rcases (mem_support_memoize_iff _ _ _ _).mp hmem with ⟨h, -⟩ | ⟨-, -, hs_eq⟩
-            · simp [hm] at h
-            · dsimp only at hs_eq
-              exact hs' (hs_eq ▸ hbad a)]
-  absorb_first m s hs x hx := hs.mono fun p hp => by
+        have h1 : memoizeThrough φ dist m s (a, s') = 0 := by
+          simp only [memoizeThrough, hy, hm, Option.isSome_none, Bool.false_eq_true, ite_false]
+          rw [PMF.apply_eq_zero_iff, PMF.support_pure, Set.mem_singleton_iff]
+          intro h
+          have h' : s' = (m, z) :: s := (Prod.mk.inj h).2
+          exact hs' (h' ▸ hbad z)
+        have h2 : memoize (fun _ : M => dist) m s (a, s') = 0 := by
+          rw [PMF.apply_eq_zero_iff]
+          intro hmem
+          rcases (mem_support_memoize_iff _ _ _ _).mp hmem with ⟨h, -⟩ | ⟨-, -, h⟩
+          · rw [hm] at h; exact absurd h (by simp)
+          · have h' : s' = (m, a) :: s := h
+            exact hs' (h' ▸ hbad a)
+        rw [h1, h2]
+  absorb_first m s hs x hx := by
+    refine hs.mono fun p hp => ?_
     simp only [memoizeThrough] at hx
     split at hx
     · simp only [PMF.support_pure, Set.mem_singleton_iff] at hx
       subst hx
       dsimp only
-      split <;> [exact hp; exact List.mem_cons_of_mem _ hp]
+      split
+      · exact hp
+      · exact List.mem_cons_of_mem _ hp
     · simp only [PMF.support_map, Set.mem_image] at hx
-      obtain ⟨_, -, rfl⟩ := hx
+      obtain ⟨z, -, rfl⟩ := hx
       exact List.mem_cons_of_mem _ hp
-  absorb_second m s hs x hx := hs.mono fun p hp => by
+  absorb_second m s hs x hx := by
+    refine hs.mono fun p hp => ?_
     rcases (mem_support_memoize_iff _ _ _ _).mp hx with ⟨-, h⟩ | ⟨-, -, h⟩
     · exact h ▸ hp
     · exact h ▸ List.mem_cons_of_mem _ hp

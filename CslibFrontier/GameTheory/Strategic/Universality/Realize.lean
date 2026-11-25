@@ -102,9 +102,9 @@ theorem sum_productWeight_mul_eval_vertex {p : ∀ i, S i → ℝ} (hp : ∀ i, 
   simp only [map_sum, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun m hm => ?_
-  simp only [eval_monomial, Finsupp.prod_fintype _ _ fun _ => pow_zero _,
-    show ∀ x : (Σ i, S i) → ℝ, ∏ v, x v ^ m v = ∏ i, ∏ b, x ⟨i, b⟩ ^ m ⟨i, b⟩ from
-      fun _ => Fintype.prod_sigma _]
+  have key : ∀ x : (Σ i, S i) → ℝ, ∏ v, x v ^ m v = ∏ i, ∏ b, x ⟨i, b⟩ ^ m ⟨i, b⟩ :=
+    fun _ => Fintype.prod_sigma _
+  simp only [eval_monomial, Finsupp.prod_fintype _ _ fun _ => pow_zero _, key]
   calc ∑ s, productWeight p s * (f.coeff m * ∏ i, ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩)
       = f.coeff m * ∑ s, ∏ i, (p i (s i) * ∏ b, vertex s ⟨i, b⟩ ^ m ⟨i, b⟩) := by
         rw [mul_sum]

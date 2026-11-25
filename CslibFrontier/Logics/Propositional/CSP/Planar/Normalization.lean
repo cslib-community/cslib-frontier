@@ -337,23 +337,16 @@ theorem CyclicExchangeObstruction.cap {n : ℕ} {P : Set (Fin (n + 4) → Bool)}
       flipOn {0, 1, 2, k} (fun _ => false) ∉ cyclicDifferenceRelation P) :
     CyclicExchangeObstruction (capRelation P) (fun _ => true) := by
   refine ⟨?_, ?_, ?_, rfl, ?_⟩
-  · intro y
-    constructor
-    · rintro ⟨z, hz⟩
-      refine ⟨fun i => !z i, ?_⟩
-      rw [capPort_not]
-      exact (h.selfComplementary _).mp hz
-    · rintro ⟨z, hz⟩
-      refine ⟨fun i => !z i, ?_⟩
-      convert (h.selfComplementary _).mp hz using 1
+  · exact fun y =>
+      ⟨fun ⟨z, hz⟩ => ⟨fun i => !z i, capPort_not y z ▸ (h.selfComplementary _).mp hz⟩,
+        fun ⟨z, hz⟩ => ⟨fun i => !z i, by
+          convert (h.selfComplementary _).mp hz using 1
+          funext i
+          rcases hcp : capPort i with a | a <;> simp [hcp]⟩⟩
+  · exact ⟨fun _ => false, by
+      convert h.zero_mem using 1
       funext i
-      simp only [Function.comp_apply]
-      cases capPort i <;> simp
-  · refine ⟨fun _ => false, ?_⟩
-    convert h.zero_mem using 1
-    funext i
-    simp only [Function.comp_apply]
-    cases capPort i <;> rfl
+      simp⟩
   · exact (mem_cyclicDifferenceRelation_capRelation P _).mpr ⟨_, h.feasible, rfl, rfl⟩
   · intro j hj hd hp
     obtain ⟨s, hs, h12, hsd⟩ := (mem_cyclicDifferenceRelation_capRelation P _).mp hp
@@ -576,17 +569,11 @@ theorem Program.gadget_symbols {Rel : Type} {ar : Rel → ℕ} {s : Rel → List
   induction p with
   | done => rfl
   | rotate e rest ih =>
-    change (rest.gadget (g.relabelFree (finCycle e).symm)).body.map Constraint.rel = _
-    exact (ih _).trans (by
-      simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
+    exact (ih _).trans (by simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
   | zero i rest ih =>
-    change (rest.gadget (g.relabelFree (zeroPort i))).body.map Constraint.rel = _
-    exact (ih _).trans (by
-      simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
-  | cap large rest ih =>
-    change (rest.gadget (g.substitute capPort)).body.map Constraint.rel = _
-    exact (ih _).trans (by
-      simp [PPGadget.substitute, relabel, Constraint.relabel, List.map_map])
+    exact (ih _).trans (by simp [PPGadget.relabelFree, relabel, Constraint.relabel, List.map_map])
+  | cap _ rest ih =>
+    exact (ih _).trans (by simp [PPGadget.substitute, relabel, Constraint.relabel, List.map_map])
 
 /-- Scope relabeling keeps the exact total number of variable occurrences. -/
 theorem Program.gadget_width {Rel : Type} {ar : Rel → ℕ} {s : Rel → List Bool → Bool}
@@ -594,15 +581,9 @@ theorem Program.gadget_width {Rel : Type} {ar : Rel → ℕ} {s : Rel → List B
     (p.gadget g).body.vars.length = g.body.vars.length := by
   induction p with
   | done => rfl
-  | rotate e rest ih =>
-    change (rest.gadget (g.relabelFree (finCycle e).symm)).body.vars.length = _
-    exact (ih _).trans (by simp [PPGadget.relabelFree])
-  | zero i rest ih =>
-    change (rest.gadget (g.relabelFree (zeroPort i))).body.vars.length = _
-    exact (ih _).trans (by simp [PPGadget.relabelFree])
-  | cap large rest ih =>
-    change (rest.gadget (g.substitute capPort)).body.vars.length = _
-    exact (ih _).trans (by simp [PPGadget.substitute])
+  | rotate e rest ih => exact (ih _).trans (by simp [PPGadget.relabelFree])
+  | zero i rest ih => exact (ih _).trans (by simp [PPGadget.relabelFree])
+  | cap _ rest ih => exact (ih _).trans (by simp [PPGadget.substitute])
 
 /-- The cap adds precisely one fresh auxiliary label; all old auxiliaries survive. -/
 theorem Program.gadget_numAux {Rel : Type} {ar : Rel → ℕ} {s : Rel → List Bool → Bool}
@@ -610,17 +591,9 @@ theorem Program.gadget_numAux {Rel : Type} {ar : Rel → ℕ} {s : Rel → List 
     (p.gadget g).numAux = g.numAux + p.caps := by
   induction p with
   | done => simp [gadget, caps]
-  | rotate e rest ih =>
-    change (rest.gadget (g.relabelFree (finCycle e).symm)).numAux = _
-    simpa only [caps, PPGadget.relabelFree] using ih (g.relabelFree (finCycle e).symm)
-  | zero i rest ih =>
-    change (rest.gadget (g.relabelFree (zeroPort i))).numAux = _
-    simpa only [caps, PPGadget.relabelFree] using ih (g.relabelFree (zeroPort i))
-  | cap large rest ih =>
-    change (rest.gadget (g.substitute capPort)).numAux = _
-    rw [ih]
-    simp only [PPGadget.substitute, caps]
-    omega
+  | rotate e rest ih => simpa [gadget, caps, PPGadget.relabelFree] using ih _
+  | zero i rest ih => simpa [gadget, caps, PPGadget.relabelFree] using ih _
+  | cap _ rest ih => exact (ih _).trans (by simp only [PPGadget.substitute, caps]; omega)
 
 /-- The final gadget has at most `3n-4` auxiliaries, counting the redundant twist labels. -/
 theorem Construction.numAux_bound {n : ℕ} {R : Set (Fin n → Bool)}

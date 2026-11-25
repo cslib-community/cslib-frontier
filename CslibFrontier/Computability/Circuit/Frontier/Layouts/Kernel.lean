@@ -205,13 +205,10 @@ private theorem card_edist_eq_le {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degre
     (d : ℕ) : #{v | G.edist u v = d} ≤ D * (D - 1) ^ d := by
   cases d with
   | zero =>
-    have h0 : ({v | G.edist u v = ((0 : ℕ) : ℕ∞)} : Finset V) = {u} := by
-      ext v
-      simp only [mem_filter, mem_univ, true_and, mem_singleton, Nat.cast_zero,
-        SimpleGraph.edist_eq_zero_iff]
-      exact eq_comm
-    rw [h0, card_singleton, pow_zero, mul_one]
-    omega
+    refine (card_le_one.mpr fun v hv w hw => ?_).trans (by simpa using by omega)
+    simp only [mem_filter, mem_univ, true_and, Nat.cast_zero,
+      SimpleGraph.edist_eq_zero_iff] at hv hw
+    exact hv.symm.trans hw
   | succ d =>
     rw [Nat.cast_add, Nat.cast_one, pow_succ]
     exact (SimpleGraph.card_edist_eq_add_one_le hdeg u d).trans
@@ -235,14 +232,12 @@ theorem le_inner_kernelRow {D : ℕ} (hD : 2 ≤ D) (hdeg : ∀ v, G.degree v �
     simp only [mul_comm (kernelRow G q R v _)]
   have hle := (sum_le_sum fun z (_ : z ∈ univ) => kernelRow_defect_le (q := q) R huv z).trans_eq
     (by rw [← mul_sum, sum_add_distrib, sum_boole, sum_boole])
-  have hu : (#{z | G.edist u z = R} : ℝ) ≤ D * (D - 1) ^ R := by
+  have hsphere (x : V) : (#{z | G.edist x z = R} : ℝ) ≤ D * (D - 1) ^ R := by
     rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
-    exact_mod_cast card_edist_eq_le hD hdeg u R
-  have hv : (#{z | G.edist v z = R} : ℝ) ≤ D * (D - 1) ^ R := by
-    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
-    exact_mod_cast card_edist_eq_le hD hdeg v R
+    exact_mod_cast card_edist_eq_le hD hdeg x R
   rw [mul_pow]
-  nlinarith [mul_le_mul_of_nonneg_left (add_le_add hu hv) (by positivity : 0 ≤ (q ^ 2) ^ R)]
+  nlinarith [mul_le_mul_of_nonneg_left (add_le_add (hsphere u) (hsphere v))
+    (by positivity : 0 ≤ (q ^ 2) ^ R)]
 
 /-- **Correlation of adjacent unit kernel rows.** In a graph of maximum degree `D ≥ 2` and for a
 nonnegative ratio `q`, the unit kernel rows of adjacent vertices have inner product at least

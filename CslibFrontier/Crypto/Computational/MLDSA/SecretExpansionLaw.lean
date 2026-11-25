@@ -322,12 +322,12 @@ private theorem uniformPrefixes_secretRows (base : Xofs) (s : Level) (rho : Fixe
         vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j))) :=
     expandS_install s rho ha hb {base with h128 := install base.h128 u} t
   simp_rw [read]
+  let take (t : Table a b) := rowPair s (fun j => t (secretPoint s rho ha hb j))
+  have ignore (t : Table a b) : (PMF.uniformOfFintype (Table a b)).map
+      (fun _ => vectors s (take t)) = PMF.pure (vectors s (take t)) := PMF.map_const ..
   change (PMF.uniformOfFintype (Table a b)).bind (fun t =>
-    (PMF.uniformOfFintype (Table a b)).map fun _ =>
-      vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j)))) = _
-  simp_rw [show ∀ t : Table a b, (PMF.uniformOfFintype (Table a b)).map (fun _ =>
-    vectors s (rowPair s (fun j => t (secretPoint s rho ha hb j)))) = PMF.pure _ from
-      fun _ => PMF.map_const ..]
+    (PMF.uniformOfFintype (Table a b)).map fun _ => vectors s (take t)) = _
+  simp_rw [ignore]
   change (PMF.uniformOfFintype (Table a b)).map
     ((vectors s ∘ rowPair s) ∘ fun t j => t (secretPoint s rho ha hb j)) = _
   have eq := congrArg (PMF.map (vectors s ∘ rowPair s))

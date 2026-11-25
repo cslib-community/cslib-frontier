@@ -499,7 +499,8 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
   rintro _ hT₂q' rfl
   have hbij_p :=
     halfEdgeFun_bijective_of_acl hcard hT₁p hT₂p p.almostCompletelyLabeled (side := false) hk₀2
-  have hbij_q := halfEdgeFun_bijective_of_acl hcard hT₁q hT₂p hacl_q (side := false) hk₀2
+  have hbij_q :=
+    halfEdgeFun_bijective_of_acl hcard hT₁q hT₂p hacl_q (side := false) hk₀2
   rw [halfEdgeIndex, dite_eq_left hbij_q, halfEdgeIndex, dite_eq_left hbij_p]
   dsimp only
   let ord₁p := (T₁p.orderIsoOfFin hT₁p).toEquiv
@@ -540,6 +541,7 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
     simp [Units.val_mul]
   let M₁p := A₁.submatrix (fun i => (T₁p.orderIsoOfFin hT₁p i : κ)) e₁
   let M₁q := A₁.submatrix (fun i => (T₁q.orderIsoOfFin hT₁q i : κ)) e₁
+  let M₂ := A₂.submatrix (fun j => (T₂p.orderIsoOfFin hT₂p j : κ)) e₂
   let e₁' : ι₁ ≃ T₁p := e₁.symm.trans ord₁p
   let e₂' : ι₁ ≃ T₁q := e₁.symm.trans ord₁q
   have hdet_lt := p.isVertex_x.det_submatrix_pivot_mul_lt_zero q.isVertex_x hne hlp hl'q herase
@@ -561,19 +563,33 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
   rw [hM₁p_det, hM₁q_det, hperm_eq, Equiv.Perm.sign_permCongr] at hdet_lt
   have hsign_det : (Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det) = -1 := by
     have hneg1 : signOfK (((Equiv.Perm.sign σ₁ : ℤ) : K) * (M₁p.det * M₁q.det)) = -1 := by
-      rw [signOfK, sign_neg hdet_lt]; rfl
+      rw [signOfK, sign_neg hdet_lt]
+      rfl
     rwa [signOfK_mul, signOfK_mul, signOfK_intCast, units_coe_sign] at hneg1
+  have hM₂_ne : M₂.det ≠ 0 := det_tight_submatrix_ne_zero p.isVertex_y e₂ hT₂p
   have hM₁q_ne : M₁q.det ≠ 0 := hM₁q_det ▸ q.isVertex_x.det_submatrix_ne_zero e₂'
-  have h1 : signOfK M₁q.det = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) := by
-    calc signOfK M₁q.det
-        = -((Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det)) *
-            signOfK M₁q.det := by rw [hsign_det]; ring
-      _ = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) *
-            (signOfK M₁q.det * signOfK M₁q.det) := by ring
-      _ = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) := by rw [signOfK_sq hM₁q_ne, mul_one]
-  change (Equiv.Perm.sign π_q : ℤ) * signOfK M₁q.det * _ =
-    -((Equiv.Perm.sign π_p : ℤ) * signOfK M₁p.det * _)
-  rw [h1, hsign_pi]; ring
+  set idx_p : ℤ := (Equiv.Perm.sign π_p : ℤ) * signOfK M₁p.det * signOfK M₂.det
+  set idx_q : ℤ := (Equiv.Perm.sign π_q : ℤ) * signOfK M₁q.det * signOfK M₂.det
+  have hidx_q_sq : idx_q * idx_q = 1 := by
+    calc idx_q * idx_q
+        = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
+            (signOfK M₁q.det * signOfK M₁q.det) * (signOfK M₂.det * signOfK M₂.det) := by ring
+      _ = 1 * 1 * 1 := by rw [Int.units_coe_mul_self, signOfK_sq hM₁q_ne, signOfK_sq hM₂_ne]
+      _ = 1 := by ring
+  have hprod : idx_p * idx_q = -1 := by
+    calc idx_p * idx_q
+        = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
+            ((Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det)) *
+            (signOfK M₂.det * signOfK M₂.det) := by
+          dsimp only [idx_p, idx_q]
+          rw [hsign_pi]
+          ring
+      _ = 1 * (-1) * 1 := by rw [Int.units_coe_mul_self, hsign_det, signOfK_sq hM₂_ne]
+      _ = -1 := by ring
+  change idx_q = -idx_p
+  calc idx_q = -(idx_p * idx_q) * idx_q := by rw [hprod]; ring
+    _ = -idx_p * (idx_q * idx_q) := by ring
+    _ = -idx_p := by rw [hidx_q_sq, mul_one]
 
 /-- Moving across a right (`A₂`) pivot edge of `LemkeHowson.graph` reverses
 `halfEdgeIndex · true`. -/

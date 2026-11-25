@@ -239,7 +239,8 @@ theorem IsUniversalHash.collisionProbability_le {seed : PMF Seed} {hash : Seed �
         ((if x = y then (1 : ℝ) else 0) + ε.toReal) := by
       gcongr with x _ y _
       by_cases hxy : x = y
-      · subst y; simp [sum_toReal, ENNReal.toReal_nonneg]
+      · subst y
+        simp [sum_toReal, ENNReal.toReal_nonneg]
       · simpa [hxy] using hhash.sum_ite_toReal_le hε hxy
     _ = collisionProbability source + ε.toReal := by
       simp [mul_add, Finset.sum_add_distrib, mul_ite, ← Finset.sum_mul, ← Finset.mul_sum,
@@ -276,12 +277,15 @@ theorem IsUniversalHash.leftover_hash_sq [Nonempty Output] {seed : PMF Seed}
         simp only [Finset.mul_sum, mul_left_comm]
     _ ≤ ∑ s, (seed s).toReal *
         (Fintype.card Output * collisionProbability (source.map (hash s)) - 1) := by
-        gcongr with s _; exact dist_uniform_sq_le _
+        gcongr with s _
+        exact dist_uniform_sq_le _
     _ = Fintype.card Output *
         (∑ s, (seed s).toReal * collisionProbability (source.map (hash s))) - 1 := by
         simp only [mul_sub, mul_one, Finset.sum_sub_distrib, sum_toReal,
           Finset.mul_sum, mul_left_comm]
-    _ ≤ _ := by gcongr; exact hhash.collisionProbability_le hε source
+    _ ≤ _ := by
+        gcongr
+        exact hhash.collisionProbability_le hε source
 
 /-- **Leftover hash lemma** for `ε`-universal families: the seed stays public, and independent
 uniform bits replace the digest, with error at most `√(|Output| (CP + ε) - 1) / 2`. -/
@@ -291,8 +295,9 @@ theorem IsUniversalHash.leftover_hash [Nonempty Output] {seed : PMF Seed}
     dist (seededHash seed source hash)
         (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) ≤
       Real.sqrt (Fintype.card Output * (collisionProbability source + ε.toReal) - 1) / 2 := by
-  exact (le_div_iff₀ (by norm_num)).mpr <| Real.le_sqrt_of_sq_le <| by
-    nlinarith [hhash.leftover_hash_sq hε source]
+  apply (le_div_iff₀ (by norm_num : (0 : ℝ) < 2)).mpr
+  apply Real.le_sqrt_of_sq_le
+  nlinarith [hhash.leftover_hash_sq hε source]
 
 /-- The strong leftover hash lemma for universal families, in squared form without logarithms or
 square roots. -/
@@ -312,8 +317,9 @@ theorem IsTwoUniversal.leftover_hash [Nonempty Output] {seed : PMF Seed}
     dist (seededHash seed source hash)
         (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) ≤
       Real.sqrt (Fintype.card Output * collisionProbability source) / 2 := by
-  exact (le_div_iff₀ (by norm_num)).mpr <| Real.le_sqrt_of_sq_le <| by
-    nlinarith [hhash.leftover_hash_sq source]
+  apply (le_div_iff₀ (by norm_num : (0 : ℝ) < 2)).mpr
+  apply Real.le_sqrt_of_sq_le
+  nlinarith [hhash.leftover_hash_sq source]
 
 /-- A pointwise probability bound is sufficient for the leftover hash lemma. This is the
 min-entropy form: use `mass = 2⁻ᵏ` for a source with at least `k` bits of min-entropy. -/
@@ -359,7 +365,8 @@ theorem IsTwoUniversal.leftover_hash_conditional [Nonempty Output]
           (fun s => (PMF.uniformOfFintype Output).map (s, ·))).map (info, ·))) ≤
       Real.sqrt (Fintype.card Output *
         ∑ info, (side info).toReal * collisionProbability (source info)) / 2 := by
-  exact (le_div_iff₀ (by norm_num)).mpr <| Real.le_sqrt_of_sq_le <| by
-    nlinarith [hhash.leftover_hash_conditional_sq side source]
+  apply (le_div_iff₀ (by norm_num : (0 : ℝ) < 2)).mpr
+  apply Real.le_sqrt_of_sq_le
+  nlinarith [hhash.leftover_hash_conditional_sq side source]
 
 end Cslib.Probability

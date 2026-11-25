@@ -73,15 +73,10 @@ theorem bias_eq_sum {F : Finset (Fin n)} {Y : Finset (Fin n → Fin m)}
     (w : ParityTest F Y) (g : Fin m → Fin m → Bool) (x : Fin n → Fin m) :
     w.bias g x = |∑ y, ((PMF.uniformOfFinset (agreeOn Y w.conditioned w.assignment)
       w.supported) y).toReal * chi ℝ w.parity (fun i => g (x i) (y i))| := by
-  unfold ParityTest.bias
-  rw [PMF.sum_map_mul]
-  congr 1
-  apply sum_congr rfl
-  intro y _
-  congr 1
+  rw [ParityTest.bias, PMF.sum_map_mul]
+  refine congrArg abs (sum_congr rfl fun y _ => congrArg (_ * ·) ?_)
   rw [chi_eq_signVal_parityOn, parityOn_eq_sum]
-  congr 1
-  exact sum_coe_sort w.parity (fun i => g (x i) (y i))
+  exact congrArg _ (sum_coe_sort w.parity fun i => g (x i) (y i))
 
 /-- A parity of a gadget output law is exactly the corresponding conditional parity test. -/
 theorem bias_eq_outputLaw {F I J : Finset (Fin n)} {Y : Finset (Fin n → Fin m)}
@@ -117,23 +112,19 @@ theorem exists_canonical_parityTest [NeZero m] {F I J : Finset (Fin n)}
       w.conditioned = J ∧ J.restrict w.assignment = J.restrict α ∧
       w.bias g x = |bias (gadgetOutputLaw g (agreeOn Y J α) hA I x) S| := by
   let P := S.map (Function.Embedding.subtype (· ∈ I))
-  have hPI : P ⊆ I := by
-    intro i hi
+  have hPI : P ⊆ I := fun _ hi => by
     obtain ⟨j, _, rfl⟩ := mem_map.mp hi
     exact j.property
   have hJF : J ⊆ F := fun j hj => (mem_sdiff.mp (hJ hj)).1
-  have hd : Disjoint J P := by
-    apply disjoint_left.mpr
-    intro i hiJ hiP
-    exact (mem_sdiff.mp (hJ hiJ)).2 (hPI hiP)
+  have hd : Disjoint J P :=
+    disjoint_left.mpr fun _ hiJ hiP => (mem_sdiff.mp (hJ hiJ)).2 (hPI hiP)
   have ha : (agreeOn Y J (ParityTest.extendAssignment J (J.restrict α))).Nonempty := by
     simpa only [ParityTest.agreeOn_extend_restrict] using hA
   let w := ParityTest.ofPartial P J (J.restrict α) (hPI.trans hI) hJF hd ha
-  refine ⟨w, ParityTest.ofPartial_isCanonical _ _ _ _ _ _ _, rfl, rfl, ?_, ?_⟩
-  · funext j
-    simp [w, ParityTest.ofPartial, ParityTest.extendAssignment, j.property]
-  · apply ParityTest.bias_eq_outputLaw w g x S α hA rfl
-    exact ParityTest.agreeOn_extend_restrict Y J α
+  refine ⟨w, ParityTest.ofPartial_isCanonical _ _ _ _ _ _ _, rfl, rfl, ?_,
+    ParityTest.bias_eq_outputLaw w g x S α hA rfl (ParityTest.agreeOn_extend_restrict Y J α)⟩
+  funext j
+  simp [w, ParityTest.ofPartial, ParityTest.extendAssignment, j.property]
 
 /-- Every unsafe value has a canonical conditional parity witness. The integer order assigned
 to each conditioning slice must satisfy the explicit low-order-count budget. The witness is

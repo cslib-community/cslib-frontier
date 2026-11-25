@@ -280,8 +280,9 @@ private theorem exists_iterate_zig₀_of_call (k : ℕ)
   dsimp only [reingoldEvalStep]
   rw [hN₁]
   dsimp only [reingoldEvalStep]
-  rw [hN₂, show (reingold H e G (k + 1)).rot ((y, c), a) = _ from
-    reingoldStep_rot H e (reingold H e G k) y c a]
+  have hrot : (reingold H e G (k + 1)).rot ((y, c), a) = _ :=
+    reingoldStep_rot H e (reingold H e G k) y c a
+  rw [hN₂, hrot]
   rfl
 
 /-- A rotation of level `k + 1` pushes a frame for level `k + 1` and evaluates that level. -/

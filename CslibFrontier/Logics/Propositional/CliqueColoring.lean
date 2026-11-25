@@ -160,16 +160,8 @@ theorem eval_clique_eq_true_iff (σ : Fin (edgeCount n) ⊕ Fin k × Fin n → B
   · rintro ⟨hmem, hdist, hedge⟩ c hc
     rcases mem_clique.1 hc with ⟨u, rfl⟩ | ⟨u, v, huv, i, rfl⟩ | ⟨u, v, huv, i, j, hij, rfl⟩
     · exact (eval_cliqueMemberClause σ u).2 (hmem u)
-    · rw [eval_cliqueDistinctClause]
-      cases hu : σ (.inr (u, i))
-      · simp
-      · simp [hdist u v huv i hu]
-    · rw [eval_cliqueEdgeClause]
-      cases hu : σ (.inr (u, i))
-      · simp
-      cases hv : σ (.inr (v, j))
-      · simp
-      · simp [hedge u v huv i j hij hu hv]
+    · simpa [Classical.or_iff_not_imp_left] using hdist u v huv i
+    · simpa [or_assoc, Classical.or_iff_not_imp_left] using hedge u v huv i j hij
 
 /-- **Extendibility for the clique formula.** An assignment `x` of the edges extends to a model of
 the clique formula exactly when the graph of `x` has a `k`-clique. -/
@@ -292,16 +284,8 @@ theorem eval_coloring_eq_true_iff (σ : Fin (edgeCount n) ⊕ Fin n × Fin r →
   · rintro ⟨hcol, huniq, hedge⟩ c hc
     rcases mem_coloring.1 hc with ⟨i, rfl⟩ | ⟨i, a, b, hab, rfl⟩ | ⟨a, i, j, hij, rfl⟩
     · exact (eval_colorVertexClause σ i).2 (hcol i)
-    · rw [eval_colorUniqueClause]
-      cases ha : σ (.inr (i, a))
-      · simp
-      · simp [huniq i a b hab ha]
-    · rw [eval_colorEdgeClause]
-      cases hi : σ (.inr (i, a))
-      · simp
-      cases hj : σ (.inr (j, a))
-      · simp
-      · simp [hedge a i j hij hi hj]
+    · simpa [Classical.or_iff_not_imp_left] using huniq i a b hab
+    · simpa [or_assoc, Classical.or_iff_not_imp_left] using hedge a i j hij
 
 /-- **Extendibility for the colouring formula.** An assignment `x` of the edges extends to a model
 of the colouring formula exactly when the graph of `x` is `r`-colourable. -/

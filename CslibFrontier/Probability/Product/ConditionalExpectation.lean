@@ -182,11 +182,14 @@ theorem exists_condExpect_insert_le (p : ∀ i, PMF (α i)) (f : (∀ i, α i) �
       condExpect p f (insert i fixed) (Function.update x i a) ≤ condExpect p f fixed x := by
   obtain ⟨a, ha_supp, hle⟩ := Convexity.StdSimplex.exists_mem_support_le_sum_mul
     (toStdSimplex (p i)) (fun b => condExpect p f (insert i fixed) (Function.update x i b))
-  rw [Finsupp.mem_support_iff, weights_toStdSimplex] at ha_supp
-  refine ⟨a, by by_contra h; exact ha_supp (by simp [(PMF.apply_eq_zero_iff (p i) a).mpr h]),
-    hle.trans_eq ?_⟩
+  have ha : a ∈ (p i).support := by
+    rw [Finsupp.mem_support_iff, weights_toStdSimplex] at ha_supp
+    by_contra hnot
+    exact ha_supp (by simp [(PMF.apply_eq_zero_iff (p i) a).mpr hnot])
+  refine ⟨a, ha, hle.trans_eq ?_⟩
   rw [Finsupp.sum_fintype _ _ (fun _ => zero_mul _)]
-  simpa only [weights_toStdSimplex] using sum_mul_condExpect_insert p f hi x
+  simp only [weights_toStdSimplex]
+  exact sum_mul_condExpect_insert p f hi x
 
 /-- **Method of conditional expectations (maximization step)**: for any free coordinate `i ∉ fixed`,
 some supported value `a ∈ (p i).support` satisfies

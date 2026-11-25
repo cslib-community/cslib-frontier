@@ -77,20 +77,23 @@ theorem totalDegree_ryserPoly_le (n : ℕ) : (ryserPoly R n).totalDegree ≤ 3 *
   refine (totalDegree_mul _ _).trans ?_
   have h1 : (∏ j : Fin n, (2 * X (Fin.natAdd (n * n) j) - 1 :
       MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ n := by
-    refine (totalDegree_finsetProd _ _).trans
-      ((Finset.sum_le_sum (g := fun _ => 1) fun j _ => ?_).trans_eq (by simp))
-    rw [sub_eq_add_neg,
-      show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm,
-      ← map_one C, ← map_neg C]
-    exact (totalDegree_add _ _).trans (max_le
-      ((totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _))
-      (by rw [totalDegree_C]; omega))
+    refine (totalDegree_finsetProd _ _).trans ?_
+    calc _ ≤ ∑ _j : Fin n, 1 := Finset.sum_le_sum fun j _ => ?_
+      _ = n := by simp
+    rw [sub_eq_add_neg, show (2 : MvPolynomial (Fin (n * n + n)) R) = C 2 from (map_ofNat C 2).symm]
+    refine (totalDegree_add _ _).trans (max_le ?_ ?_)
+    · exact (totalDegree_mul _ _).trans (by simpa using totalDegree_X_le _)
+    · rw [← map_one C, ← map_neg C, totalDegree_C]
+      omega
   have h2 : (∏ i : Fin n, ∑ j : Fin n,
       (X (Fin.natAdd (n * n) j) * X (Fin.castAdd n (finProdFinEquiv (i, j))) :
-        MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ 2 * n :=
-    (totalDegree_finsetProd _ _).trans <| (Finset.sum_le_sum fun i _ =>
-      totalDegree_finsetSum_le fun j _ => (totalDegree_mul _ _).trans
-        (Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _))).trans_eq (by simp [mul_comm])
+        MvPolynomial (Fin (n * n + n)) R)).totalDegree ≤ 2 * n := by
+    refine (totalDegree_finsetProd _ _).trans ?_
+    calc _ ≤ ∑ _i : Fin n, 2 := Finset.sum_le_sum fun i _ => ?_
+      _ = 2 * n := by simp [mul_comm]
+    refine totalDegree_finsetSum_le fun j _ => ?_
+    refine (totalDegree_mul _ _).trans ?_
+    exact Nat.add_le_add (totalDegree_X_le _) (totalDegree_X_le _)
   omega
 
 /-- The polynomial family of Ryser inner polynomials over `R`. -/
@@ -183,12 +186,13 @@ theorem booleanSum_ryserPoly (n : ℕ) :
   rw [Matrix.permanent_eq_ryser_bool, booleanSum]
   refine Finset.sum_congr rfl fun e _ => ?_
   rw [ryserPoly, map_mul, map_prod, map_prod]
-  refine congrArg₂ (· * ·) (Finset.prod_congr rfl fun j _ => ?_)
-    (Finset.prod_congr rfl fun i _ => ?_)
-  · rw [map_sub, map_mul, map_ofNat, map_one, projection_X]
+  congr 1
+  · refine Finset.prod_congr rfl fun j _ => ?_
+    rw [map_sub, map_mul, map_ofNat, map_one, projection_X]
     simp only [booleanAssignment, Fin.append_right, Sum.elim_inr]
     cases e j <;> norm_num
-  · rw [map_sum]
+  · refine Finset.prod_congr rfl fun i _ => ?_
+    rw [map_sum]
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [map_mul, projection_X, projection_X]
     simp only [booleanAssignment, Fin.append_right, Fin.append_left, Sum.elim_inr, Sum.elim_inl]

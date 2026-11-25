@@ -166,22 +166,14 @@ theorem chainLabels_eq_foldl_rowMate {M : Finset (Fin n × Fin n)}
       cases rm i <;> rfl
     | cons j₀ js ih =>
       obtain ⟨hj₀, hnd'⟩ := List.nodup_cons.mp hnd
-      simp only [List.map_cons, chainLabels]
-      cases hrmi : rm i with
-      | none =>
-        have hnot : (i, j₀) ∉ M := fun hm => by simpa [hrmi] using (hrm i j₀).mpr hm
-        rw [ite_eq_right hnot]
-        simpa [hrmi] using ih hnd' lab
+      simp only [List.map_cons, chainLabels, ← hrm, ih hnd']
+      cases rm i with
+      | none => rfl
       | some j₁ =>
-        by_cases heq : j₀ = j₁
+        by_cases heq : j₁ = j₀
         · subst heq
-          have hin : (i, j₀) ∈ M := (hrm i j₀).mp hrmi
-          rw [ite_eq_left hin, ih hnd']
-          simp [hrmi, hj₀]
-        · have hnot : (i, j₀) ∉ M := fun hm =>
-            heq (Option.some.inj (((hrm i j₀).mpr hm).symm.trans hrmi))
-          rw [ite_eq_right hnot, ih hnd']
-          simp [hrmi, Ne.symm heq]
+          simp [hj₀]
+        · simp [heq]
   have houter : ∀ (is : List (Fin n)) (lab : Vector (Fin n) n),
       chainLabels M (is.flatMap fun i => (List.finRange n).map fun j => (i, j)) lab =
         is.foldl (fun lab i => match rm i with | some j => mergeChains lab (i, j) | none => lab)

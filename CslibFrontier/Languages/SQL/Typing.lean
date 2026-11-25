@@ -93,7 +93,8 @@ theorem evalUnOp_ok_of_typeOf {op : UnOp} {τ τ' : SqlType} (h : op.typeOf τ =
     exact ⟨t.not.toDatum, by simp [evalUnOp, ht], Truth.toDatum_hasType _⟩
   | .neg, .int, rfl =>
     obtain ⟨x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr hd
-    exact ⟨x.map fun z => .int (negInt z), by simp [evalUnOp, hx], by cases x <;> simp⟩
+    refine ⟨x.map fun z => .int (negInt z), by simp [evalUnOp, hx], ?_⟩
+    cases x <;> simp
   | .isNull, _, rfl | .isNotNull, _, rfl => exact ⟨_, rfl, rfl⟩
 
 /-- A well-typed binary operator succeeds with a result of its type, unless it divides by zero,
@@ -197,7 +198,8 @@ theorem eval_spec {Γ : Fin n → SqlType} {r : Row n} (hr : r.Conforms Γ) {e :
   | col i => cases he; exact hr i
   | unary op e ih =>
     obtain ⟨τ₀, h₀, hop⟩ := Option.bind_eq_some_iff.mp he
-    refine ((ih h₀).imp_error fun hs => by simp [divSafe, hs]).bind fun d _ hd => ?_
+    refine ((ih h₀).imp_error fun hs => by simp [divSafe, hs]).bind
+      fun d _ hd => ?_
     obtain ⟨d', hd', hd'τ⟩ := evalUnOp_ok_of_typeOf hop hd
     simpa [hd'] using hd'τ
   | binary op e₁ e₂ ih₁ ih₂ =>
@@ -213,18 +215,23 @@ theorem eval_spec {Γ : Fin n → SqlType} {r : Row n} (hr : r.Conforms Γ) {e :
       simp [hd, divSafe, hdiv, hlit]
   | inList e vs ih =>
     obtain ⟨τ₀, h₀, hvs⟩ := Option.bind_eq_some_iff.mp he
-    split_ifs at hvs with hall; cases hvs
-    refine ((ih h₀).imp_error fun hs => by simp [divSafe, hs]).bind fun d _ hd => ?_
+    split_ifs at hvs with hall
+    cases hvs
+    refine ((ih h₀).imp_error fun hs => by simp [divSafe, hs]).bind
+      fun d _ hd => ?_
     obtain ⟨t, ht⟩ := Datum.exists_inList_eq_ok hd (by simpa using hall)
     simp [ht]
   | caseWhen c a b ihc iha ihb =>
     obtain ⟨τ₀, ha, hcb⟩ := Option.bind_eq_some_iff.mp he
-    split_ifs at hcb with hcond; cases hcb
-    refine ((ihc hcond.1).imp_error fun hs => by simp [divSafe, hs]).bind fun d _ hd => ?_
+    split_ifs at hcb with hcond
+    cases hcb
+    refine ((ihc hcond.1).imp_error fun hs => by simp [divSafe, hs]).bind
+      fun d _ hd => ?_
     obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hd
     rw [ht, Except.ok_bind]
-    split <;> [exact (iha ha).imp_error (fun hs => by simp [divSafe, hs]);
-      exact (ihb hcond.2).imp_error (fun hs => by simp [divSafe, hs])]
+    split
+    · exact (iha ha).imp_error fun hs => by simp [divSafe, hs]
+    · exact (ihb hcond.2).imp_error fun hs => by simp [divSafe, hs]
 
 /-- Type soundness: on a row conforming to `Γ`, an expression of type `τ` returns `NULL` or a
 value of type `τ`, or divides by zero, which requires a division that is not `divSafe`. -/

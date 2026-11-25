@@ -332,11 +332,10 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
     rw [Finset.filter_false_of_mem fun c _ => by have := c.isLt; omega, Finset.sum_empty]
     rfl
   | succ t ih =>
-    obtain ⟨j, hj⟩ : ∃ j : Fin (n + 1), j = Fin.ofNat (n + 1) (n - t) := ⟨_, rfl⟩
-    have hjv : j.val = n - t := hj ▸ val_ofNat_sub (by omega)
+    let j : Fin (n + 1) := Fin.ofNat (n + 1) (n - t)
+    have hjv : j.val = n - t := val_ofNat_sub (by omega)
     have hj0 : j ≠ 0 := fun h => by rw [h, Fin.val_zero] at hjv; omega
-    have hstep : tables R w (t + 1) = step R w (tables R w t) j := by rw [hj]; rfl
-    rw [hstep]
+    change step R w (tables R w t) j i S = _
     unfold step
     obtain rfl | hi := eq_or_ne i (R.parent j)
     · rw [Function.update_self]
@@ -355,15 +354,13 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
           insert j ((R.children (R.parent j)).filter (fun c => n - t < c.val)) := by
         ext c
         simp only [Finset.mem_filter, Finset.mem_insert]
-        constructor
-        · rintro ⟨hc, hlt⟩
-          exact (eq_or_ne c j).imp_right fun hcj => ⟨hc, by have := Fin.val_ne_of_ne hcj; omega⟩
-        · rintro (rfl | ⟨hc, hlt⟩)
-          · exact ⟨hjmem, by omega⟩
-          · exact ⟨hc, by omega⟩
+        refine ⟨fun ⟨hc, _⟩ => (eq_or_ne c j).imp_right fun hcj =>
+            ⟨hc, by have := Fin.val_ne_of_ne hcj; omega⟩, ?_⟩
+        rintro (rfl | ⟨hc, _⟩)
+        · exact ⟨hjmem, by omega⟩
+        · exact ⟨hc, by omega⟩
       have hjnot : j ∉ (R.children (R.parent j)).filter (fun c => n - t < c.val) := by
-        rw [Finset.mem_filter]
-        omega
+        rw [Finset.mem_filter]; omega
       rw [hfilter, Finset.sum_insert hjnot, Nat.add_comm]
     · rw [Function.update_of_ne hi, ih (by omega) hSi hS]
       refine Finset.sum_congr ?_ fun _ _ => rfl
@@ -407,23 +404,19 @@ theorem isGreatest_mwisValue (R : G.RootedTreeDecomposition n) (w : V → ℕ) :
     refine ⟨J ∪ S, hJS, ?_⟩
     rw [hval, hSeq, hJeq, Finset.sum_union hdisj, Nat.add_comm]
   · rintro x ⟨I, hI, rfl⟩
-    have hsub : I ∩ R.bag 0 ⊆ R.bag 0 := Finset.inter_subset_right
-    have hSi : G.IsIndepSet (↑(I ∩ R.bag 0) : Set V) :=
-      isIndepSet_of_subset hI Finset.inter_subset_left
     have hJ : I \ R.bag 0 ⊆ below R 0 := fun x hx =>
       Finset.mem_sdiff.2 ⟨R.mem_subtreeVerts_zero x, (Finset.mem_sdiff.1 hx).2⟩
     have hJS : G.IsIndepSet (↑(I \ R.bag 0 ∪ I ∩ R.bag 0) : Set V) := by
       rwa [Finset.sdiff_union_inter]
-    have hmem : I ∩ R.bag 0 ∈
-        (R.bag 0).powerset.filter fun S : Finset V => G.IsIndepSet (↑S : Set V) :=
-      Finset.mem_filter.2 ⟨Finset.mem_powerset.2 hsub, hSi⟩
     calc ∑ v ∈ I, w v = (∑ v ∈ I ∩ R.bag 0, w v) + ∑ v ∈ I \ R.bag 0, w v :=
           (Finset.sum_inter_add_sum_sdiff I (R.bag 0) w).symm
       _ ≤ (∑ v ∈ I ∩ R.bag 0, w v) + opt R w 0 (I ∩ R.bag 0) :=
           Nat.add_le_add_left (sum_le_opt hJ hJS) _
       _ ≤ mwisValue R w := by
           rw [hval]
-          exact Finset.le_sup (f := fun S => (∑ v ∈ S, w v) + opt R w 0 S) hmem
+          exact Finset.le_sup (f := fun S => (∑ v ∈ S, w v) + opt R w 0 S)
+            (Finset.mem_filter.2 ⟨Finset.mem_powerset.2 Finset.inter_subset_right,
+              isIndepSet_of_subset hI Finset.inter_subset_left⟩)
 
 /-- With unit weights the dynamic program computes the independence number. -/
 theorem mwisValue_one_eq_indepNum (R : G.RootedTreeDecomposition n) :

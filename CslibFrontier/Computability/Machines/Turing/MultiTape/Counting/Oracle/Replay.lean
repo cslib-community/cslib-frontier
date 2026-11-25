@@ -76,12 +76,10 @@ theorem nodup_indexWords (bound fuel : ℕ) : (indexWords bound fuel).Nodup := b
   induction fuel with
   | zero => simp [indexWords]
   | succ fuel ih =>
-    change ((List.range bound).flatMap _).Nodup
-    refine List.nodup_flatMap.mpr ⟨fun _ _ => ih.map List.cons_injective, ?_⟩
-    apply List.nodup_range.imp
-    intro left right hne
-    simp only [List.disjoint_left, List.mem_map]
-    rintro word ⟨xs, _, rfl⟩ ⟨ys, _, heq⟩
+    refine List.nodup_flatMap.mpr ⟨fun _ _ => ih.map List.cons_injective,
+      List.nodup_range.imp fun hne => List.disjoint_left.mpr fun _ h1 h2 => ?_⟩
+    obtain ⟨_, _, rfl⟩ := List.mem_map.mp h1
+    obtain ⟨_, _, heq⟩ := List.mem_map.mp h2
     exact hne (List.cons.inj heq).1.symm
 
 variable {k : ℕ} {Symbol Control Operation : Type} [DecidableEq Operation]
@@ -320,16 +318,11 @@ private theorem interpret_runOccurrenceProgram_empty (machine : MultiTapeCTM k S
         (fun final => (Config.emptyOracleEquiv.symm final, s)) := by
   rw [runOccurrenceProgram_empty, OracleComp.interpret_interpret]
   simp only [OracleComp.interpret_query]
-  have heq := OracleComp.run_interpret_stateless
-    (fun n => List.ofFn (id : Fin n → Fin n))
-    (machine.runConfigFrom MultiTapeCTM.chooseOccurrence Empty.elim fuel cfg) s
   have hhandler : (fun n => occurrenceHandler (S := S)
-      (fun q : Empty × List Symbol => q.1.elim)
-      (.inl n)) = (fun n state => (fun index => (index, state)) <$>
-        List.ofFn (id : Fin n → Fin n)) := by
-    funext n state
-    simp [occurrenceHandler, List.map_ofFn]
-  rw [hhandler, heq, machine.interpret_runConfigFrom_eq_map_runList]
+      (fun q : Empty × List Symbol => q.1.elim) (.inl n)) =
+      fun n state => (·, state) <$> List.ofFn (id : Fin n → Fin n) :=
+    funext₂ fun _ _ => by simp [occurrenceHandler, List.map_ofFn]
+  rw [hhandler, OracleComp.run_interpret_stateless, machine.interpret_runConfigFrom_eq_map_runList]
   simp [List.map_map, Function.comp_def]
 
 /-- With no oracle channels, erasing the trace gives exactly the existing closed `runList`.

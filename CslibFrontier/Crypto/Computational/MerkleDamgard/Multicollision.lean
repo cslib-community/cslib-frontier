@@ -226,7 +226,8 @@ theorem isQueryBounded_jouxFinder {stage : T → M → ProbOracleComp spec T} {c
     ∀ (f b : ℕ) (t : T),
       ProbOracleComp.IsQueryBounded (jouxFinder stage sampler s f b t) (f * (s * c))
   | 0, 0, _ | 0, _ + 1, _ | _ + 1, 0, _ => by
-    rw [jouxFinder]; exact OracleComp.IsCostBounded.pure _ _
+    rw [jouxFinder]
+    exact OracleComp.IsCostBounded.pure _ _
   | f + 1, b + 1, t => by
     rw [jouxFinder]
     refine ((isQueryBounded_birthdayFinder (hstage t) sampler s).bind (m := f * (s * c)) ?_).mono
@@ -262,7 +263,8 @@ private theorem jouxFinder_failure_le {stage : T → M → ProbOracleComp spec T
         2 ^ b * ((1 + ε) / 2) ^ f / 2
   | f, 0, t, _ => by
     have hε0 : 0 ≤ ε := le_trans (by positivity) hε
-    have hmem : (some [] : Option (List (M × M))) ∈ jouxSuccess step 0 t := ⟨[], rfl, rfl, trivial⟩
+    have hmem : (some [] : Option (List (M × M))) ∈ jouxSuccess step 0 t :=
+      ⟨[], rfl, rfl, trivial⟩
     have h0 : (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f 0 t).run
         fun x => pure (O x))).toOuterMeasure (jouxSuccess step 0 t)ᶜ = 0 := by
       simp [jouxFinder, PMF.toOuterMeasure_pure_apply, hmem]
@@ -282,9 +284,9 @@ private theorem jouxFinder_failure_le {stage : T → M → ProbOracleComp spec T
     have hadd := Probability.PMF.toOuterMeasure_toReal_add_compl
       (ProbComp.eval ((birthdayFinder (stage t) (ProbComp.uniform M) s).run fun x => pure (O x)))
       (collisionOutputs (step t))
-    rw [jouxFinder, ProbOracleComp.run_bind, ProbComp.eval_bind,
-      show (2 : ℝ) ^ (b + 1) * ((1 + ε) / 2) ^ (f + 1) / 2 =
-        (1 + ε) * (2 ^ b * ((1 + ε) / 2) ^ f / 2) by ring]
+    have e : (2 : ℝ) ^ (b + 1) * ((1 + ε) / 2) ^ (f + 1) / 2 =
+        (1 + ε) * (2 ^ b * ((1 + ε) / 2) ^ f / 2) := by ring
+    rw [jouxFinder, ProbOracleComp.run_bind, ProbComp.eval_bind, e]
     refine (Probability.PMF.toOuterMeasure_bind_toReal_le_mul_add_mul _ _
       (collisionOutputs (step t)) _
       (a₁ := 2 ^ b * ((1 + ε) / 2) ^ f / 2) (a₂ := 2 * (2 ^ b * ((1 + ε) / 2) ^ f / 2))
@@ -327,7 +329,8 @@ private theorem half_le_one_sub_budget_bound (b : ℕ) :
     (1 / 2 : ℝ) ≤ 1 - 2 ^ b * ((1 + 1 / 2) / 2) ^ (3 * b) / 2 := by
   have h2 : (2 : ℝ) ^ b * ((1 + 1 / 2) / 2) ^ (3 * b) = (27 / 32) ^ b := by
     rw [pow_mul, ← mul_pow]; norm_num
-  linarith [pow_le_one₀ (by norm_num : (0 : ℝ) ≤ 27 / 32) (by norm_num) (n := b)]
+  have h3 : ((27 : ℝ) / 32) ^ b ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
+  linarith
 
 /-- The sample count `⌈2 √(2 ^ n)⌉ + 1` of Lemma 8.2 with messages at least seven bits longer than
 digests: one attempt finds no collision with probability at most `1/2`. -/
@@ -335,10 +338,10 @@ private theorem birthday_failure_le_half {n ℓ : ℕ} (hℓ : n + 7 ≤ ℓ) :
     Real.exp (-(((⌈2 * Real.sqrt ((2 ^ n : ℕ) : ℝ)⌉₊ + 1 : ℕ) : ℝ) *
         (((⌈2 * Real.sqrt ((2 ^ n : ℕ) : ℝ)⌉₊ + 1 : ℕ) : ℝ) - 1) / (2 * 2 ^ n))) +
       (⌈2 * Real.sqrt ((2 ^ n : ℕ) : ℝ)⌉₊ + 1).choose 2 * ((2 : ℝ) ^ ℓ)⁻¹ ≤ 1 / 2 := by
-  have hK : 100 * 2 ^ n ≤ 2 ^ ℓ :=
-    (Nat.mul_le_mul_right _ (by norm_num : 100 ≤ 2 ^ 7)).trans
-      ((by rw [pow_add, Nat.mul_comm] : 2 ^ 7 * 2 ^ n = 2 ^ (n + 7)) ▸
-        Nat.pow_le_pow_right (by norm_num) hℓ)
+  have hK : 100 * 2 ^ n ≤ 2 ^ ℓ := by
+    calc 100 * 2 ^ n ≤ 2 ^ 7 * 2 ^ n := by norm_num
+      _ = 2 ^ (n + 7) := by rw [pow_add, Nat.mul_comm]
+      _ ≤ 2 ^ ℓ := Nat.pow_le_pow_right (by norm_num) hℓ
   have hq := Probability.PMF.half_le_one_sub_exp_neg_sub_choose_of_hundred_mul_le (N := 2 ^ n)
     (K := 2 ^ ℓ) (by positivity) hK
   push_cast at hq ⊢

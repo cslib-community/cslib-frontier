@@ -130,9 +130,11 @@ theorem card_eq_sum_le {X : Type*} [Fintype X] (f : X → Bool) {M : X → ℝ}
       rw [natCast_card_filter]
       exact sum_congr rfl fun _ _ => if_congr (eq_add_iff_xor_eq' _ _ _) rfl rfl
     calc (#{t | G t = ∑ i, f (t i)} : ℝ)
-        = ∑ t, ∑ y, M y * A y t + ∑ y, (1 - M y) * ∑ t, A y t := by
-          rw [hsplit, show (∑ y, ∑ t, A y t) = ∑ y, (M y * ∑ t, A y t + (1 - M y) * ∑ t, A y t) from
-            sum_congr rfl fun y _ => by ring, sum_add_distrib]
+        = ∑ y, (M y * ∑ t, A y t + (1 - M y) * ∑ t, A y t) := by
+          rw [hsplit]
+          exact sum_congr rfl fun y _ => by ring
+      _ = ∑ t, ∑ y, M y * A y t + ∑ y, (1 - M y) * ∑ t, A y t := by
+          rw [sum_add_distrib]
           simp only [mul_sum]
           rw [sum_comm]
       _ ≤ ∑ _t : Fin k → X, (1 / 2 + ε) * ∑ y, M y + ∑ y, (1 - M y) * B :=

@@ -207,9 +207,11 @@ private theorem toOuterMeasure_eval_dlRerandomize_not
       1 - (dlAdvantage q g A : ℝ≥0∞) := by
   have hsum := Probability.PMF.toOuterMeasure_add_compl_ennreal
     (ProbComp.eval (dlRerandomize q g A (α • g))) {α}
-  rw [PMF.toOuterMeasure_apply_singleton, eval_dlRerandomize_smul_apply, ← coe_dlAdvantage] at hsum
-  rw [show {x : ZMod q | ¬x • g = α • g} = ({α} : Set (ZMod q))ᶜ from
-    Set.ext fun _ => not_congr hg.eq_iff]
+  rw [PMF.toOuterMeasure_apply_singleton, eval_dlRerandomize_smul_apply, ← coe_dlAdvantage]
+    at hsum
+  have hset : {x : ZMod q | ¬x • g = α • g} = ({α} : Set (ZMod q))ᶜ :=
+    Set.ext fun _ => not_congr hg.eq_iff
+  rw [hset]
   exact ENNReal.eq_sub_of_add_eq ENNReal.coe_ne_top (by rw [add_comm]; exact hsum)
 
 /-- When `c ↦ c • g` is injective on `ZMod q` (that is, `g` has order `q`), `k` attempts on `α • g`

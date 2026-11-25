@@ -238,14 +238,17 @@ theorem computableInPolyTime_markAccepts :
   let Cfg := FiniteCfg k Bool State
   have hfound : ComputableInPolyTime (Prod.fst : List Cfg × Cfg → List Cfg)
       (encPair (encList encFiniteCfg) encFiniteCfg) (encList encFiniteCfg) := .fst _ _
+  -- the number of rounds of marking
   have hcount : ComputableInPolyTime (fun p : List Cfg × Cfg => p.1.length + 1)
       (encPair (encList encFiniteCfg) encFiniteCfg) encUnary :=
     ComputableInPolyTime.unary_add.comp (((ComputableInPolyTime.length_list _).comp hfound).prod
       (.const 1))
+  -- a round of marking
   have hmark : ComputableInPolyTime (fun p : List Cfg × List Cfg => atm.markStep p.1 p.2)
       (encPair (encList encFiniteCfg) (encList encFiniteCfg)) (encList encFiniteCfg) :=
     .filterWithInput (.fst _ _) (computableInPolyTime_markGood.comp
       (((ComputableInPolyTime.snd _ _).comp (.fst _ _)).prod (.snd _ _)))
+  -- the marked views are a sublist of the found views
   refine .decide_mem (.iterateWith hfound hcount (.const []) hmark
     (hfound.polyBounded_length.add (.const 1)) fun p i _ =>
       (length_encList_sublist _ ?_).trans (Nat.le_succ _)) (.snd _ _)

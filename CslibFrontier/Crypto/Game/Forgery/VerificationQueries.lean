@@ -610,15 +610,15 @@ private theorem le_mul_add_of_le_sum {Q : ℕ} {p B c ε : ℝ≥0∞} {idx W : 
   by_cases hε1 : 1 ≤ ε
   · exact hp1.trans (hε1.trans le_add_self)
   have hε_le : ε ≤ 1 := (not_le.mp hε1).le
+  have hpt (j : ℕ) (hj : j ∈ Finset.range Q) : (1 - ε) * W j ≤ c * (idx j * W j) := calc
+    (1 - ε) * W j ≤ c * idx j * W j :=
+      mul_le_mul_left (tsub_le_iff_right.mpr (hidx j (Finset.mem_range.mp hj))) _
+    _ = c * (idx j * W j) := mul_assoc _ _ _
   have hmul : (1 - ε) * p ≤ c * B := calc
     (1 - ε) * p ≤ (1 - ε) * ∑ j ∈ Finset.range Q, W j := mul_le_mul_right hsum _
     _ = ∑ j ∈ Finset.range Q, (1 - ε) * W j := Finset.mul_sum _ _ _
-    _ ≤ ∑ j ∈ Finset.range Q, c * idx j * W j :=
-      Finset.sum_le_sum fun j hj =>
-        mul_le_mul_left (tsub_le_iff_right.mpr (hidx j (Finset.mem_range.mp hj))) _
-    _ = c * ∑ j ∈ Finset.range Q, idx j * W j := by
-      simp_rw [mul_assoc]
-      exact (Finset.mul_sum _ _ _).symm
+    _ ≤ ∑ j ∈ Finset.range Q, c * (idx j * W j) := Finset.sum_le_sum hpt
+    _ = c * ∑ j ∈ Finset.range Q, idx j * W j := (Finset.mul_sum _ _ _).symm
     _ ≤ c * B := mul_le_mul_right hB c
   calc
     p = (1 - ε + ε) * p := by rw [tsub_add_cancel_of_le hε_le, one_mul]

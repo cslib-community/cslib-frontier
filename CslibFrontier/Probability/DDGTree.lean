@@ -131,8 +131,8 @@ theorem run_succ (T : DDGTree α) (n : ℕ) :
 /-- A tree whose root is a leaf labelled `a` outputs `a` without reading any bit. -/
 theorem run_eq_pure_of_output_nil {T : DDGTree α} {a : α} (h : T.output [] = some a) (n : ℕ) :
     T.run n = PMF.pure (some a) := by
-  rw [run, show T.output = Function.const (List Bool) (some a) from
-    funext (output_eq_of_output_nil h), PMF.map_const]
+  have hT : T.output = Function.const (List Bool) (some a) := funext (output_eq_of_output_nil h)
+  rw [run, hT, PMF.map_const]
 
 /-- Probabilities of a fixed outcome increase with the number of bits. -/
 theorem run_le_run_succ (T : DDGTree α) (n : ℕ) (a : α) :

@@ -108,7 +108,8 @@ private theorem exists_maximal_matching [DecidableEq P] (H : Finset (Finset P))
   refine ⟨M, hM.1, hM.2, fun e he => ?_⟩
   by_contra! hmiss
   have hdisj : ∀ e' ∈ M, Disjoint e e' := fun e' he' =>
-    Finset.disjoint_left.mpr fun j hje hje' => hmiss j (mem_biUnion.mpr ⟨e', he', hje'⟩) hje
+    Finset.disjoint_left.mpr fun j hje hje' =>
+      hmiss j (mem_biUnion.mpr ⟨e', he', hje'⟩) hje
   have heM : e ∉ M := by
     intro heM
     obtain ⟨_, hj⟩ := hne e he

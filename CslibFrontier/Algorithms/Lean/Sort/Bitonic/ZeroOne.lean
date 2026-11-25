@@ -132,7 +132,8 @@ private theorem embedEight_strictMono {n : ℕ} (i j k l : Fin n)
   · rw [Fin.lt_def, Fin.val_castAdd, Fin.val_castAdd]
     exact hsel hlt
   · rw [Fin.lt_def, Fin.val_castAdd, Fin.val_natAdd]
-    have := (selectFour i j k l ⟨a.val, ha⟩).isLt; lia
+    have := (selectFour i j k l ⟨a.val, ha⟩).isLt
+    lia
   · lia
   · rw [Fin.lt_def, Fin.val_natAdd, Fin.val_natAdd]
     exact Nat.add_lt_add_left (hsel (Fin.mk_lt_mk.mpr (by lia))) n
@@ -147,13 +148,15 @@ theorem IsBitonic.min_halves [LinearOrder α] {n : ℕ}
     second i, second j, second k, second l]
   have hlocal : IsBitonic localSeq := by
     have heq : (fun idx => Fin.append first second (embedEight i j k l idx)) = localSeq := by
-      funext idx; fin_cases idx <;> simp [embedEight, selectFour, localSeq]
+      funext idx
+      fin_cases idx <;> simp [embedEight, selectFour, localSeq]
     have hm := embedEight_strictMono i j k l hij hjk hkl
     exact heq ▸ fun a b c d hab hbc hcd => hsequence _ _ _ _ (hm hab) (hm hbc) (hm hcd)
   have hhalf (pivot : α) :
       boolHalfMin (fun idx => threshold pivot (localSeq idx)) =
         fun idx => threshold pivot (min first second (selectFour i j k l idx)) := by
-    funext idx; fin_cases idx <;> simp [boolHalfMin, localSeq, selectFour]
+    funext idx
+    fin_cases idx <;> simp [boolHalfMin, localSeq, selectFour]
   have reflect {a b : α} (h : threshold a a ≤ threshold a b) : a ≤ b :=
     of_decide_eq_true (Bool.le_iff_imp.mp h (decide_eq_true le_rfl))
   have hbool (p : α) := bool_min_bitonic _ (bitonic_threshold hlocal p) 0 1 2 3

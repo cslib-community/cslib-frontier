@@ -114,14 +114,17 @@ theorem position_eq_of_eval_toPolygonalRoute_eq {r : Route} (hr : IsSimple r)
     (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1)
     (he : (toPolygonalRoute r h).eval i s = (toPolygonalRoute r h).eval j t) :
     (toPolygonalRoute r h).position i s = (toPolygonalRoute r h).position j t := by
+  have hinj := point_injective_toPolygonalRoute hr.1 h
   by_cases hij : i = j
   · subst j
     exact congrArg ((toPolygonalRoute r h).position i)
       (AffineMap.lineMap_injective ℝ (point_castSucc_ne_succ hr.1 h i) he)
   · have hic := segment_succ_lt r h i
     have hjc := segment_succ_lt r h j
-    have hpair : (r[i.val], r[i.val + 1]) ≠ (r[j.val], r[j.val + 1]) :=
-      fun hp => hij (Fin.ext (hr.1.getElem_inj_iff.mp (congrArg Prod.fst hp)))
+    have hpair : (r[i.val], r[i.val + 1]) ≠ (r[j.val], r[j.val + 1]) := by
+      intro hp
+      apply hij
+      exact Fin.ext (hr.1.getElem_inj_iff.mp (congrArg Prod.fst hp))
     obtain ⟨hi, hj⟩ := hr.2 _ (List.getElem_mem_consecutivePairs r _ hic)
       _ (List.getElem_mem_consecutivePairs r _ hjc) hpair
       _ (segment_mem_toPolygonalRoute r h i hs)
@@ -135,15 +138,17 @@ theorem position_eq_of_eval_toPolygonalRoute_eq {r : Route} (hr : IsSimple r)
           (toPolygonalRoute r h).eval k u = (toPolygonalRoute r h).point a ∧
           (toPolygonalRoute r h).position k u = a.val := by
       rcases hk with hk | hk
-      · have hq : (toPolygonalRoute r h).eval k u = (toPolygonalRoute r h).point k.castSucc :=
+      · have hq : (toPolygonalRoute r h).eval k u =
+            (toPolygonalRoute r h).point k.castSucc :=
           Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
         exact ⟨k.castSucc, hq, parameter_eq_of_eval_eq_point hr.1 h k _ u hq (.inl rfl)⟩
-      · have hq : (toPolygonalRoute r h).eval k u = (toPolygonalRoute r h).point k.succ :=
+      · have hq : (toPolygonalRoute r h).eval k u =
+            (toPolygonalRoute r h).point k.succ :=
           Complex.equivRealProdCLM.injective (hk.trans (equivRealProd_complexPoint _).symm)
         exact ⟨k.succ, hq, parameter_eq_of_eval_eq_point hr.1 h k _ u hq (.inr rfl)⟩
     obtain ⟨a, ha, hpa⟩ := hpoint i s hi
-    obtain ⟨b, hb, hpb⟩ := hpoint j t (he ▸ hj)
-    rw [hpa, hpb, point_injective_toPolygonalRoute hr.1 h (ha.symm.trans (he.trans hb))]
+    obtain ⟨b, hb, hpb⟩ := hpoint j t (by simpa only [he] using hj)
+    rw [hpa, hpb, hinj (ha.symm.trans (he.trans hb))]
 
 /-- The conversion meets the existing polygonal simplicity contract, with no extra
 identifications of endpoints. -/

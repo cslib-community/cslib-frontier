@@ -129,18 +129,22 @@ theorem wireExponent_comm (p q : I) : F.wireExponent p q = F.wireExponent q p :=
 /-- The unit exponent of two parties is their wire exponent. -/
 theorem unitExponent_pair (p q : I) :
     F.unitExponent (Subtype.val : ({p, q} : Finset I) → I) = F.wireExponent p q := by
-  rw [unitExponent, wireExponent, wire, F.congr (antisymmRel_push_unit_congr ![p, q]
-    (Subtype.val : ({p, q} : Finset I) → I) (by
-      simp only [Matrix.range_cons, Matrix.range_empty, Subtype.range_coe_subtype]
-      ext x
-      simp [or_comm]) 2)]
+  have h : Set.range ![p, q] = Set.range (Subtype.val : ({p, q} : Finset I) → I) := by
+    simp only [Matrix.range_cons, Matrix.range_empty, Subtype.range_coe_subtype]
+    ext x
+    simp [or_comm]
+  rw [unitExponent, wireExponent, wire, F.congr (antisymmRel_push_unit_congr _ _ h 2)]
 
 /-- The wire exponents of a pull-back are those of the images. -/
 @[simp] theorem pull_wireExponent (π : J → I) (p q : J) :
     (F.pull π).wireExponent p q = F.wireExponent (π p) (π q) := by
   rw [wireExponent, wireExponent, pull_apply, wire, wire]
-  refine congrArg _ (F.congr ((antisymmRel_push_push π ![p, q] (unit K (Fin 2) 2)).trans ?_))
-  rw [show π ∘ ![p, q] = ![π p, π q] by funext i; fin_cases i <;> rfl]
+  congr 1
+  refine F.congr ((antisymmRel_push_push π ![p, q] (unit K (Fin 2) 2)).trans ?_)
+  have : π ∘ ![p, q] = ![π p, π q] := by
+    funext i
+    fin_cases i <;> rfl
+  rw [this]
 
 /-- The power `F ^ s` of a spectral point, for `0 < s ≤ 1` (the last example after Definition
 A.1). -/
@@ -228,9 +232,10 @@ theorem wireExponent_le_one (p q : I) : F.wireExponent p q ≤ 1 := by
 /-- A wire from a party to itself is a restriction of `1`. -/
 theorem wireExponent_self (p : I) : F.wireExponent p p = 0 := by
   have : Nonempty I := ⟨p⟩
-  rw [wireExponent, show F (wire K 2 p p) = 1 from le_antisymm
-    (F.map_one ▸ F.monotone (wire_self_le_one 2 p)) (F.one_le_unit ![p, p] (by norm_num)),
-    Real.logb_one]
+  have h : F (wire K 2 p p) = 1 :=
+    le_antisymm (F.map_one ▸ F.monotone (wire_self_le_one 2 p))
+        (F.one_le_unit ![p, p] (by norm_num))
+  rw [wireExponent, h, Real.logb_one]
 
 /-- **Paper: Lemma A.2**, the triangle inequality. As in the paper's proof, contracting the two
 indices at `q` shows that the wire from `p` to `r` is a restriction of the product of the wires from
@@ -293,9 +298,11 @@ theorem apply_push_le (π π' : J → I) (t : PartyTensor K J) :
 /-- The support point has wire exponent `0`. -/
 theorem wireExponent_support (p q : I) : (support K I).wireExponent p q = 0 := by
   have : Nonempty I := ⟨p⟩
-  rw [wireExponent, show support K I (wire K 2 p q) = 1 from le_antisymm
-    (by rw [support_apply]; split_ifs <;> norm_num)
-    ((support K I).one_le_unit ![p, q] (by norm_num)), Real.logb_one]
+  have hle : support K I (wire K 2 p q) ≤ 1 := by
+    rw [support_apply]
+    split_ifs <;> norm_num
+  rw [wireExponent, le_antisymm hle ((support K I).one_le_unit ![p, q] (by norm_num)),
+    Real.logb_one]
 
 /-- The wire exponents of `F ^ s` are `s` times those of `F`. -/
 theorem wireExponent_rpow (s : ℝ) (h0 : 0 < s) (h1 : s ≤ 1) (p q : I) :

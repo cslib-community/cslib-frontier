@@ -179,11 +179,19 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
   rw [hrow]
   by_cases hnil : σ.1 = []
   · have hσ : σ = SeqVar.nil T i := Subtype.ext (by simp [hnil])
-    rw [hσ, seqMat_mulVec_none, Pi.single_eq_same, mul_one,
-      sum_congr rfl fun h _ => congrArg (p (some h) * ·) <|
-        hsome_no_ext (SeqVar.nil T i) h fun a heq =>
-          seqVar_infoSeqExt_ne_nil hpr h.2 a (by simpa using congrArg Subtype.val heq)]
-    simpa [p] using hbound (SeqVar.nil T i) univ
+    calc b σ = b (SeqVar.nil T i) := congrArg b hσ
+      _ ≤ M * r ^ (maxLen - (SeqVar.nil T i).1.length) +
+            ∑ h : S, p (some h) *
+              (if T.infoSeq i h.1 = (SeqVar.nil T i).1 then (-1 : ℝ) else 0) :=
+          hbound (SeqVar.nil T i) univ
+      _ = p none * (seqMat T i *ᵥ Pi.single σ (1 : ℝ)) none +
+            ∑ h : S, p (some h) * (seqMat T i *ᵥ Pi.single σ (1 : ℝ)) (some h) := by
+          rw [hσ, seqMat_mulVec_none, Pi.single_eq_same, mul_one]
+          have hp0 : M * r ^ (maxLen - (SeqVar.nil T i).1.length) = p none := by simp [p]
+          rw [hp0]
+          refine congrArg (p none + ·) (sum_congr rfl fun h _ => congrArg (p (some h) * ·) ?_)
+          exact (hsome_no_ext (SeqVar.nil T i) h fun a heq =>
+            seqVar_infoSeqExt_ne_nil hpr h.2 a (by simpa using congrArg Subtype.val heq)).symm
   · obtain ⟨h₀, a₀, rfl⟩ := exists_infoSeqExt_of_seqVar_ne_nil hpr σ hnil
     let σ₀ := SeqVar.infoSeqExt hpr h₀.2 a₀
     have hnone : (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) none = 0 := by
@@ -197,13 +205,21 @@ theorem exists_seqMat_transpose_mulVec_ge [DecidableEq ι] [∀ j h, Finite (Act
         sum_eq_single a₀ (fun a _ hne => Pi.single_eq_of_ne (fun heq =>
           hne (eq_of_heq (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj hpr heq)).2)) _)
           (fun h => absurd (mem_univ a₀) h), Pi.single_eq_same]
-    rw [hnone, mul_zero, zero_add, ← add_sum_erase univ _ (mem_univ h₀), hh₀_val, mul_one,
-      sum_congr rfl fun h hh => congrArg (p (some h) * ·) <|
-        hsome_no_ext σ₀ h fun a heq => (ne_of_mem_erase hh) <| by
-          simpa only [Sigma.ext_iff] using (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj hpr heq)).1]
     have hlen : σ₀.1.length = (T.infoSeq i h₀.1).length + 1 := by
       simp [σ₀, SeqVar.infoSeqExt_val]
-    simpa [p, hlen, eq_comm] using hbound σ₀ (univ.erase h₀)
+    calc b σ₀
+        ≤ M * r ^ (maxLen - σ₀.1.length) +
+            ∑ h ∈ univ.erase h₀, p (some h) * (if T.infoSeq i h.1 = σ₀.1 then (-1 : ℝ) else 0) :=
+          hbound σ₀ (univ.erase h₀)
+      _ = p none * (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) none +
+            ∑ h : S, p (some h) * (seqMat T i *ᵥ Pi.single σ₀ (1 : ℝ)) (some h) := by
+          rw [hnone, mul_zero, zero_add, ← add_sum_erase univ _ (mem_univ h₀), hh₀_val, mul_one]
+          have hp0 : M * r ^ (maxLen - σ₀.1.length) = p (some h₀) := by simp [p, hlen]
+          rw [hp0]
+          refine congrArg (p (some h₀) + ·) (sum_congr rfl fun h hh => congrArg (p (some h) * ·) ?_)
+          exact (hsome_no_ext σ₀ h fun a heq => (ne_of_mem_erase hh) <| by
+            simpa only [Sigma.ext_iff] using
+              (Sigma.mk.inj_iff.1 (seqVar_infoSeqExt_inj hpr heq)).1).symm
 
 @[simp]
 theorem seqRhs_dotProduct (T : ExtensiveTree ι H Act) (i : ι)

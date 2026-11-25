@@ -45,19 +45,14 @@ private def rate (n : ℕ) : OpKind → ℕ
 private theorem charge_le_rate {n K V : ℕ} (s : (spec n K V).State)
     (o : (spec n K V).Op) (ho : kind o ≠ .inspect) :
     opCharge n K V s o ≤ rate n (kind o) := by
-  cases o with
-  | inl o =>
-    cases o with
-    | isEmpty => exact absurd rfl ho
-    | getKey _ => exact absurd rfl ho
-    | insert _ _ => exact le_rfl
-    | decreaseKey _ _ => exact le_rfl
-    | extractMin =>
-      have hc : (IndexedMinPQ.dom s.1).card ≤ n :=
-        (Finset.card_le_card (Finset.subset_univ _)).trans (by simp)
-      exact Nat.mul_le_mul_left 92
-        (Nat.add_le_add_right (Nat.log_mono_right (b := 2) hc) 1)
-  | inr o => rcases o with (_ | _) | (_ | _) <;> exact le_rfl
+  rcases o with (_ | _ | _ | _ | _) | ((_ | _) | (_ | _))
+  · exact absurd rfl ho
+  · exact absurd rfl ho
+  · exact le_rfl
+  · exact le_rfl
+  · exact Nat.mul_le_mul_left 92 (Nat.add_le_add_right
+      (Nat.log_mono_right ((Finset.card_le_card (Finset.subset_univ _)).trans (by simp))) 1)
+  all_goals exact le_rfl
 
 private theorem budget_le (n m : ℕ) (hn : 0 < n) :
     5 + rateBound (rate n) n m ≤
@@ -146,19 +141,16 @@ theorem run_spec (G : ListInstance) {w : ℕ}
       change Dictionary.Memory.decode
         (((Memory.spec w).clientState s₁ (link M.methods (dijkstra G.source))).mem
           (f + v)) = dist v at hcell
-      have ha : G.outAddr v = f + v := by dsimp only [ListInstance.outAddr, f, s₀]; rw [hf]
-      rw [ha]
+      dsimp only [ListInstance.outAddr]
+      rw [← hf]
       exact Memory.eq_encodeDist fun d => by rw [← hdv v d, ← hcell]
   have htriple : Triple w s₀ run (rateBound (rate G.n) G.n G.m + 5)
       (fun _ s' => ∀ v : Fin G.n, s'.mem (G.outAddr v) = encodeDist (G.dist G.source v)) := by
-    have hn1 : s₀.mem 1 = G.n := rfl
-    have hsrc : s₀.mem 2 = G.source := rfl
-    have hm : s₀.mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
     unfold run
     refine Triple.read_bind (by rw [hf]; omega) <| Triple.read_bind (by rw [hf]; omega) ?_
-    rw [hn1, hsrc]
+    rw [show s₀.mem 1 = G.n from rfl, show s₀.mem 2 = G.source from rfl]
     refine Triple.read_bind (by rw [hf]; omega) ?_
-    rw [hm]
+    rw [Memory.init_mem_edgeCount G]
     refine Triple.allocBlockDirty_bind (hend.of_le (by dsimp only [base, f]; omega)) ?_
     rw [triple_iff] at hclient ⊢
     simp only [dite_eq_left G.source.isLt]
