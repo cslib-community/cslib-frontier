@@ -1346,12 +1346,14 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
     (updateHint iF ⟨u, d⟩ st).Valid iF (Function.update db u (d + db u)) where
   valid_regular j P p' hH := by
     dsimp only [updateHint] at hH ⊢
-    rcases hHj : st.H j with _ | ⟨P₀, p⟩ | _ <;> simp [hHj] at hH
+    rcases hHj : st.H j with _ | ⟨P₀, p⟩ | _ <;>
+      simp only [hHj, reduceCtorEq, Option.some.injEq, ActiveHint.regular.injEq] at hH
     obtain ⟨rfl, rfl⟩ := hH
     rw [hvalid.valid_regular j P₀ p hHj, blockParity_update_db_cand _ _ _ _ _ _ hcorr]
   valid_promoted j P y p' hH := by
     dsimp only [updateHint] at hH ⊢
-    rcases hHj : st.H j with _ | _ | ⟨P₀, y₀, p⟩ <;> simp [hHj] at hH
+    rcases hHj : st.H j with _ | _ | ⟨P₀, y₀, p⟩ <;>
+      simp only [hHj, reduceCtorEq, Option.some.injEq, ActiveHint.promoted.injEq] at hH
     obtain ⟨rfl, rfl, rfl⟩ := hH
     obtain ⟨hyP, hp, hcache⟩ := hvalid.valid_promoted j P₀ y₀ p hHj
     refine ⟨hyP, ?_, ?_⟩
@@ -1364,7 +1366,8 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
       · simp [Function.update_of_ne hyu, hcache]
   valid_backup j bk' hT := by
     dsimp only [updateHint] at hT ⊢
-    rcases hTj : st.T j with _ | ⟨B, p₁, p₂⟩ <;> simp [hTj] at hT
+    rcases hTj : st.T j with _ | ⟨B, p₁, p₂⟩ <;>
+      simp only [hTj, reduceCtorEq, Option.some.injEq] at hT
     subst hT
     obtain ⟨hin, hout, hHnone, hcache⟩ := hvalid.valid_backup j ⟨B, p₁, p₂⟩ hTj
     dsimp only at hin hout
