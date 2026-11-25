@@ -438,8 +438,8 @@ theorem bestSketchNeighbor_eq_none_iff {n w q : ℕ} {keys : Fin n → ℕ} :
   · obtain ⟨hleft, hright⟩ := (chooseByScore_eq_none_iff _ _ _).mp h
     by_cases ht : 0 < sketchRank w keys q
     · simp [sketchPredecessor, ht] at hleft
-    · simp [sketchSuccessor, show sketchRank w keys q = 0 by omega, Nat.pos_of_ne_zero hn]
-        at hright
+    · have ht : sketchRank w keys q = 0 := by omega
+      simp [sketchSuccessor, ht, Nat.pos_of_ne_zero hn] at hright
   · subst n
     simp [bestSketchNeighbor, sketchPredecessor, sketchSuccessor, sketchRank, upperRank,
       chooseByScore]
