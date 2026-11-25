@@ -187,33 +187,16 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
         rw [take_n_modeOps_eq_initInsertSeq, take_n_modeOps_eq_initInsertSeq]
         exact hget_eq k hk hne
       rwa [List.getElem?_take_of_lt hk, List.getElem?_take_of_lt hk] at h
-    have hlen_ge (s' : HardKeyValSeed U V n) : n ≤ (s'.modeOps withQueries).length := by
-      have h := congrArg List.length (take_n_modeOps_eq_initInsertSeq withQueries s')
-      rw [List.length_take, length_initInsertSeq] at h; omega
-    have htake_i : ops₁.take i.val = ops₂.take i.val := by
-      refine List.ext_getElem (by
-        simp only [List.length_take]
-        have := hlen_ge s; have := hlen_ge s₂; dsimp only [ops₁, ops₂]; omega) fun j hj₁ hj₂ => ?_
-      have hj_lt_i : j < i.val := by
-        simp only [List.length_take, lt_inf_iff] at hj₁; exact hj₁.1
-      have hj_lt_n : j < n := hj_lt_i.trans i.isLt
-      rw [List.getElem_take, List.getElem_take]
-      have hopt := hops_raw hj_lt_n hj_lt_i.ne
-      rw [List.getElem?_eq_getElem (hj_lt_n.trans_le (hlen_ge s)),
-        List.getElem?_eq_getElem (hj_lt_n.trans_le (hlen_ge s₂))] at hopt
-      exact Option.some.inj hopt
+    have htake_i : ops₁.take i.val = ops₂.take i.val := List.ext_getElem? fun j => by
+      rw [List.getElem?_take, List.getElem?_take]
+      split_ifs with hj
+      exacts [hops_raw (hj.trans i.isLt) hj.ne, rfl]
     have hslice_after : elemSlice 0 1 ops₁ (i.val + 1) n = elemSlice 0 1 ops₂ (i.val + 1) n := by
       simp only [elemSlice, Nat.zero_add, Nat.one_mul]
-      refine List.ext_getElem (by
-        simp only [List.length_take, List.length_drop]
-        have := hlen_ge s; have := hlen_ge s₂; dsimp only [ops₁, ops₂]; omega) fun k hk₁ hk₂ => ?_
-      have hk_lt : i.val + 1 + k < n := by
-        simp only [List.length_take, lt_inf_iff] at hk₁; omega
-      rw [List.getElem_take, List.getElem_take, List.getElem_drop, List.getElem_drop]
-      have hopt := hops_raw hk_lt (by omega)
-      rw [List.getElem?_eq_getElem (hk_lt.trans_le (hlen_ge s)),
-        List.getElem?_eq_getElem (hk_lt.trans_le (hlen_ge s₂))] at hopt
-      exact Option.some.inj hopt
+      refine List.ext_getElem? fun k => ?_
+      rw [List.getElem?_take, List.getElem?_take, List.getElem?_drop, List.getElem?_drop]
+      split_ifs with hk
+      exacts [hops_raw (by omega) (by omega), rfl]
     have hmem_step_zero (s' : HardKeyValSeed U V n) (hp : stepProbe s' i.val = 0) :
         memAt D_det (s'.modeOps withQueries) (i.val + 1) =
           memAt D_det (s'.modeOps withQueries) i.val := by
