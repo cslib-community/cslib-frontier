@@ -190,17 +190,12 @@ theorem controlled_circuit (g : BitString q → BitString q)
     obtain ⟨c, hc', hs⟩ := ha (e j)
     have h := Synthesis.circuit (I := interpretation) (s := src) c (fun i x => v x i)
       (fun i => Or.inl ⟨_, rfl⟩)
-    have heval : c.eval interpretation = a (e j) := funext hc'
-    rw [heval] at h
+    rw [show c.eval interpretation = a (e j) from funext hc'] at h
     have hav : wires (records j) ⊆ src ∪ wires (fun x => a (e j) (v x)) := by
       rintro _ ⟨i, rfl⟩
       induction i using Fin.addCases with
-      | left i =>
-        apply Or.inl
-        simpa only [records, Fin.append_left] using hc (g (e j) i)
-      | right i =>
-        apply Or.inr
-        exact ⟨i, by simp only [records, Fin.append_right]⟩
+      | left i => exact Or.inl (by simpa only [records, Fin.append_left] using hc (g (e j) i))
+      | right i => exact Or.inr ⟨i, by simp only [records, Fin.append_right]⟩
     exact (h.trans (Synthesis.of_subset hav)).mono Set.Subset.rfl Set.Subset.rfl
       (by simpa using hs)
   have hall := Synthesis.iUnion (fun j => {flags j} ∪ wires (records j))
