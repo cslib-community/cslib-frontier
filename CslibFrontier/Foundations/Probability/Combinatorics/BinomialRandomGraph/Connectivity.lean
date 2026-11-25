@@ -94,11 +94,8 @@ theorem binomialRandom_real_forall_not_adj [Fintype V] (p : I) (S : Finset V) :
     ext G
     simp only [Set.mem_ofPred_eq, Set.disjoint_left, Finset.mem_coe, t, Finset.mem_image,
       Finset.mem_product, Finset.mem_compl]
-    constructor
-    · rintro h _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩
-      exact h u hu v hv
-    · intro h u hu v hv huv
-      exact h ⟨(u, v), ⟨hu, hv⟩, rfl⟩ huv
+    exact ⟨by rintro h _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩; exact h u hu v hv,
+      fun h u hu v hv => h ⟨(u, v), ⟨hu, hv⟩, rfl⟩⟩
   have hdiag : ∀ e ∈ t, ¬e.IsDiag := by
     simp only [t, Finset.mem_image, Finset.mem_product, Finset.mem_compl]
     rintro _ ⟨⟨u, v⟩, ⟨hu, hv⟩, rfl⟩ huv
@@ -109,8 +106,7 @@ theorem binomialRandom_real_forall_not_adj [Fintype V] (p : I) (S : Finset V) :
       simp only [Finset.mem_coe, Finset.mem_product, Finset.mem_compl] at huv huv'
       have heq : s(u, v) = s(u', v') := h
       rcases Sym2.eq_iff.1 heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · rfl
-      · exact absurd huv.1 huv'.2
+      exacts [rfl, absurd huv.1 huv'.2]
     rw [Finset.card_image_of_injOn hinj, Finset.card_product, Finset.card_compl]
   rw [hset, binomialRandom_real_disjoint_edgeSet p t hdiag, hcard]
 
@@ -241,18 +237,13 @@ theorem binomialRandom_real_not_connected_le {n : ℕ} (hn : 0 < n) (p : I)
       rw [← Real.exp_nat_mul, ← Real.exp_add]; congr 1; push_cast; ring
     change ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k))) / k) ^ 2 ≤ 16 * y
     rw [div_pow, div_le_iff₀ (by positivity)]
-    calc ((n : ℝ) * Real.exp 1 * Real.exp (-(p * ((n : ℝ) - k)))) ^ 2
-        = y * (n * Real.exp 2 * Real.exp (-(p * (n - 2 * k)))) := by
+    calc _ = y * (n * Real.exp 2 * Real.exp (-(p * (n - 2 * k)))) := by
           rw [mul_pow, mul_pow, e1, e2, hydef]; ring
-      _ ≤ y * (16 * k ^ 2) := mul_le_mul_of_nonneg_left key hy0
-      _ = 16 * y * k ^ 2 := by ring
+      _ ≤ 16 * y * k ^ 2 := by linarith [mul_le_mul_of_nonneg_left key hy0]
   rcases Nat.eq_zero_or_pos m with hm0 | hm0
   · rw [hm0, Icc_eq_empty (by norm_num), sum_empty]; positivity
   have h1mem : 1 ∈ Icc 1 m := mem_Icc.2 ⟨le_rfl, hm0⟩
-  have hrest : (Icc 1 m).erase 1 = Icc 2 m := by
-    ext k
-    simp only [mem_erase, mem_Icc]
-    omega
+  have hrest : (Icc 1 m).erase 1 = Icc 2 m := by ext k; simp only [mem_erase, mem_Icc]; omega
   rw [← add_sum_erase _ _ h1mem, hrest]
   -- the term `k = 1`
   have hone : (n.choose 1 : ℝ) * (1 - p : ℝ) ^ (1 * (n - 1)) ≤ Real.exp 1 * y := by
