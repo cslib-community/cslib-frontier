@@ -621,21 +621,17 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
     exact validHistory_bind_step hv_fill hv_wd
   · rw [hsEnd_eq, hfr_wd, hs₃_fr]
     dsimp only [tblPtr, tblLen, bagLen, LB]
-    rw [hfr_er]
-    omega
+    rw [hfr_er]; omega
   · rw [hsEnd_eq]
     exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₃).trans hframe_wd
   · rw [hsEnd_eq]
-    have htbl_lo : a.dCur + 4 ≤ fillArgs.tblPtr := by
-      dsimp only [fillArgs, tblPtr]
+    have hFlo_tbl : F_lo ≤ tblPtr := by
+      dsimp only [tblPtr]
       rw [hfr_er]; omega
-    refine ⟨hdCur, hm0 ▸ hFlo, hm1,
-      hm0 ▸ hLB_s₃.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd, ?_, hm3,
-      hm2 ▸ htbl_fill.frame_outsideRange (.inr htbl_lo) hframe_wd⟩
-    rw [hm2]
-    dsimp only [tblPtr]
-    rw [hfr_er]
-    omega
+    exact ⟨hdCur, hm0 ▸ hFlo, hm1,
+      hm0 ▸ hLB_s₃.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd,
+      hm2 ▸ hFlo_tbl, hm3,
+      hm2 ▸ htbl_fill.frame_outsideRange (.inr (hdCur.trans hFlo_tbl)) hframe_wd⟩
   · unfold forgetNodeProg
     dsimp only
     iterate 3 rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
@@ -704,8 +700,6 @@ theorem forgetNodeProg_realizes :
     have hc_tbl := hch.tbl_holds.1
     rw [length_dpInstTree] at hc_tbl
     let cCap := if counting then d.q ^ child.size else 1
-    have hf_ch1 : Fits w (d.dChild + 1) := hdCh.of_le (by omega)
-    have hf_ch2 : Fits w (d.dChild + 2) := hdCh.of_le (by omega)
     have hex_er : ∃ xs : List ℕ,
         HoldsIn (s.mem d.dChild) xs s ∧
         xs.length = (bagList child).length ∧
@@ -713,14 +707,6 @@ theorem forgetNodeProg_realizes :
         (∀ u ∈ xs, Fits w u) ∧
         Fits w (s.frontier + (bagList child).length) :=
       ⟨bagList child, hch.bag_holds, rfl, hc_bag, hfit_elems, hfit_peak.of_le (by omega)⟩
-    have hf_bagEnd : Fits w (s.frontier + bagLen) :=
-      hfit_peak.of_le (by dsimp only [bagLen]; omega)
-    have hf_cbagEnd : Fits w (s.mem d.dChild + (bagList child).length) :=
-      hfit_peak.of_le (by omega)
-    have hf_ctblEnd : Fits w (s.mem (d.dChild + 2) + d.q ^ (bagList child).length) :=
-      hfit_peak.of_le (by omega)
-    have hf_tblLen : Fits w tblLen :=
-      hfit_peak.of_le (by dsimp only [tblLen, bagLen]; omega)
     have hf_tblEnd : Fits w (s₁.frontier + tblLen) :=
       hfit_peak.of_le (by rw [hfr_er]; dsimp only [bagLen, tblLen]; omega)
     have hex_fill (dLim : ℕ) (hdLim_le : dLim ≤ d.q) :
@@ -754,13 +740,9 @@ theorem forgetNodeProg_realizes :
       | exact hfit_q
       | exact hfit_vars
       | exact hdCur
-      | exact hf_ch1
-      | exact hf_ch2
       | exact hfit_cPow
-      | exact hf_bagEnd
-      | exact hf_cbagEnd
-      | exact hf_ctblEnd
-      | exact hf_tblLen
-      | exact hf_tblEnd)
+      | exact hf_tblEnd
+      | exact hdCh.of_le (by omega)
+      | exact hfit_peak.of_le (by omega))
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

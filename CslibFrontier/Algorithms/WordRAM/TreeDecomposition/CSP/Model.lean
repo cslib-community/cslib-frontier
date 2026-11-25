@@ -500,6 +500,10 @@ private theorem toRadix_join_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : V 
   rw [bagList_map hinj left, bagList_map hinj right, toRadix_map]
   exact toRadix_congr fun u _ => ofRadix_map_inj hinj q (bagList left) idx u
 
+private theorem getD_toList {α : Type*} (a : Array α) (i : ℕ) (d : α) :
+    a.toList.getD i d = a.getD i d := by
+  rw [List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, Array.getElem?_toList]
+
 private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q m : ℕ}
     (hq : 0 < q) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
     (vars : List V) (T : NiceTree V) :
@@ -517,8 +521,7 @@ private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [hbl]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn]
-    rw [all_ofConstraint_introduce, ih, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD,
-      Array.getElem?_toList]
+    rw [all_ofConstraint_introduce, ih, getD_toList]
     rfl
   | forget v child ih =>
     have herase := bagList_map hinj (.forget v child)
@@ -532,11 +535,9 @@ private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q
     by_cases hv : v ∈ vars
     · simp only [hmem.2 hv, hv, ↓reduceIte]
       refine dpAlgFold_congr fun d _ => ?_
-      rw [toRadix_forget_map, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD,
-        Array.getElem?_toList]
+      rw [toRadix_forget_map, getD_toList]
       rfl
-    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map,
-        Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
+    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map, getD_toList]
       rfl
   | join left right ihl ihr =>
     have hblL := bagList_map hinj left
@@ -544,8 +545,7 @@ private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q
     rw [Array.toList_ofFn, ihl, ihr]
     refine List.ext_getElem (by simp [hblL]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn]
-    rw [toRadix_join_map]
-    simp only [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD, Array.getElem?_toList]
+    rw [toRadix_join_map, getD_toList, getD_toList]
     rfl
 
 private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ}
@@ -558,8 +558,7 @@ private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {
   have hget_arr (C : NiceTree V) (k : ℕ) :
       ((cspDecideTree q hq sem F vars C).toList.map (fun b => if b then 1 else 0)).getD k 0 =
         if (cspDecideTree q hq sem F vars C).getD k false then 1 else 0 := by
-    rw [getD_map_boolToNat, List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?,
-      Array.getElem?_toList]
+    rw [getD_map_boolToNat, getD_toList]
   induction T with
   | leaf =>
     simp only [NiceTree.map, dpInstTree, cspDecideTree, dpTree, dpDecideAlg,
@@ -572,12 +571,7 @@ private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [hbl]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn, List.getElem_map]
-    rw [all_ofConstraint_introduce, ih]
-    change (if _ then ((cspDecideTree q hq sem F vars child).toList.map _).getD (idx / q) 0
-        else 0) =
-      if (if _ then (cspDecideTree q hq sem F vars child).getD (idx / q) false else false) = true
-      then 1 else 0
-    rw [hget_arr child (idx / q)]
+    rw [all_ofConstraint_introduce, ih, hget_arr child (idx / q)]
     cases F.all fun c =>
       !(decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) && decide (v ∈ c.scope)) ||
         c.eval sem (ofRadixFin q hq (v :: bagList child) idx) <;> rfl
@@ -593,13 +587,9 @@ private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {
     rw [ih]
     by_cases hv : v ∈ vars
     · simp only [hmem.2 hv, hv, ↓reduceIte]
-      change dpAlgFold 0 _ q (fun d =>
-          ((cspDecideTree q hq sem F vars child).toList.map _).getD _ 0) =
-        if dpAlgFold false (· || ·) q (fun d =>
-          (cspDecideTree q hq sem F vars child).getD _ false) = true then 1 else 0
       rw [dpAlgFold_bool_toNat]
       refine dpAlgFold_congr fun d _ => ?_
-      rw [toRadix_forget_map, hget_arr child]
+      rw [toRadix_forget_map, hget_arr child]; rfl
     · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map]
       exact hget_arr child _
   | join left right ihl ihr =>
@@ -608,12 +598,9 @@ private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {
     rw [Array.toList_ofFn, ihl, ihr]
     refine List.ext_getElem (by simp [hblL]) fun idx h1 h2 => ?_
     simp only [List.getElem_ofFn, List.getElem_map]
-    rw [toRadix_join_map]
-    change ((cspDecideTree q hq sem F vars left).toList.map _).getD idx 0 *
-        ((cspDecideTree q hq sem F vars right).toList.map _).getD _ 0 =
-      if ((cspDecideTree q hq sem F vars left).getD idx false &&
-          (cspDecideTree q hq sem F vars right).getD _ false) = true then 1 else 0
-    rw [hget_arr left, hget_arr right]
+    rw [toRadix_join_map, hget_arr left, hget_arr right]
+    change _ = if ((cspDecideTree q hq sem F vars left).getD idx false &&
+        (cspDecideTree q hq sem F vars right).getD _ false) = true then 1 else 0
     cases (cspDecideTree q hq sem F vars left).getD idx false <;>
       cases (cspDecideTree q hq sem F vars right).getD
         (toRadix q (bagList right) (ofRadix q (bagList left) idx)) false <;> rfl
@@ -639,34 +626,22 @@ private theorem maxTableExp_le_width_succ {T : NiceTree ℕ} (hval : T.LocalVali
   induction T with
   | leaf => simp [maxTableExp]
   | introduce v child ih =>
-    have hb : (v :: bagList child).length ≤ (NiceTree.introduce v child).width + 1 :=
-      length_bagList_le hval
-    have hc : maxTableExp child ≤ (NiceTree.introduce v child).width + 1 :=
-      (ih hval.2).trans (Nat.add_le_add_right (width_child_le_introduce v child) 1)
-    exact max_le hb hc
+    exact max_le (length_bagList_le hval)
+      ((ih hval.2).trans (Nat.add_le_add_right (width_child_le_introduce v child) 1))
   | forget v child ih =>
-    have hv_mem : v ∈ bagList child := by
-      have hfin := toFinset_bagList hval.2
-      exact List.mem_toFinset.1 (hfin.symm ▸ hval.1)
+    have hv_mem : v ∈ bagList child :=
+      List.mem_toFinset.1 ((toFinset_bagList hval.2).symm ▸ hval.1)
     have hlen_er : ((bagList child).erase v).length + 1 = (bagList child).length := by
-      have hpos : 0 < (bagList child).length := List.length_pos_of_mem hv_mem
-      have her := List.length_erase_of_mem hv_mem
+      have := List.length_pos_of_mem hv_mem
+      have := List.length_erase_of_mem hv_mem
       omega
-    have hb : ((bagList child).erase v).length + 1 ≤ (NiceTree.forget v child).width + 1 := by
-      rw [hlen_er]
-      exact (length_bagList_le hval.2).trans
-        (Nat.add_le_add_right (width_child_le_forget v child) 1)
-    have hc : maxTableExp child ≤ (NiceTree.forget v child).width + 1 :=
-      (ih hval.2).trans (Nat.add_le_add_right (width_child_le_forget v child) 1)
-    exact max_le hb hc
+    exact max_le (hlen_er.trans_le ((length_bagList_le hval.2).trans
+        (Nat.add_le_add_right (width_child_le_forget v child) 1)))
+      ((ih hval.2).trans (Nat.add_le_add_right (width_child_le_forget v child) 1))
   | join left right ihl ihr =>
-    have hb : (bagList left).length ≤ (NiceTree.join left right).width + 1 :=
-      length_bagList_le hval
-    have hl : maxTableExp left ≤ (NiceTree.join left right).width + 1 :=
-      (ihl hval.2.2.1).trans (Nat.add_le_add_right (width_left_le_join left right) 1)
-    have hr : maxTableExp right ≤ (NiceTree.join left right).width + 1 :=
-      (ihr hval.2.2.2).trans (Nat.add_le_add_right (width_right_le_join left right) 1)
-    exact max_le hb (max_le hl hr)
+    exact max_le (length_bagList_le hval)
+      (max_le ((ihl hval.2.2.1).trans (Nat.add_le_add_right (width_left_le_join left right) 1))
+        ((ihr hval.2.2.2).trans (Nat.add_le_add_right (width_right_le_join left right) 1)))
 
 /-- FPT `memoryCost` bound for CSP satisfiability or bounded-word model counting on a nice tree
 decomposition of size `numNodes` and width `≤ k`, domain size `q`, `numCons = |F|`,
@@ -788,8 +763,7 @@ theorem result_ofNiceTree_count {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq 
     (ofNiceTree true q hq e sem F T).result = cspCountNiceTree q hq sem F T := by
   unfold result ofNiceTree cspCountNiceTree
   dsimp only
-  rw [dpInstTree_ofConstraint_count hq e sem F F.vars T,
-    List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, Array.getElem?_toList]
+  rw [dpInstTree_ofConstraint_count hq e sem F F.vars T, getD_toList]
 
 theorem result_ofNiceTree_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq : 0 < q)
     (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) (T : NiceTree V) :
@@ -797,12 +771,7 @@ theorem result_ofNiceTree_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq
       if cspDecideNiceTree q hq sem F T then 1 else 0 := by
   unfold result ofNiceTree cspDecideNiceTree
   dsimp only
-  rw [dpInstTree_ofConstraint_decide hq e sem F F.vars T,
-    List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?, List.getElem?_map,
-    Array.getElem?_toList]
-  cases (cspDecideTree q hq sem F F.vars T)[0]? with
-  | none => rfl
-  | some b => cases b <;> rfl
+  rw [dpInstTree_ofConstraint_decide hq e sem F F.vars T, getD_map_boolToNat, getD_toList]
 
 theorem result_ofNice_count {Rel V : Type*} [DecidableEq V] {q m : ℕ} (hq : 0 < q)
     (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)
