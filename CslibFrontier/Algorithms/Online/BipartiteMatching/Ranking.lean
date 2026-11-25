@@ -180,9 +180,7 @@ theorem minByKey_eq_none_iff (key : L → ℕ) (hkey : Function.Injective key) (
   | empty => simp
   | insert a s ha ih =>
     rw [minByKey_insert key hkey ha]
-    cases hs : minByKey key hkey s with
-    | none => simp [minOpt]
-    | some b => simp [minOpt]
+    cases minByKey key hkey s <;> simp [minOpt]
 
 theorem minByKey_eq_some_iff (key : L → ℕ) (hkey : Function.Injective key) (U : Finset L) (u : L) :
     minByKey key hkey U = some u ↔ u ∈ U ∧ ∀ w ∈ U, key u ≤ key w := by
@@ -329,10 +327,8 @@ private theorem stepRel_step {key : L → ℕ} (hkey : Function.Injective key)
   intro c c'
   cases hrel with
   | same S hu =>
-    have hU' : N.erase u \ S = (N \ S).erase u := by
-      ext x
-      simp only [Finset.mem_sdiff, Finset.mem_erase]
-      tauto
+    have hU' : N.erase u \ S = (N \ S).erase u := Finset.ext fun _ => by
+      simp only [Finset.mem_sdiff, Finset.mem_erase]; tauto
     cases hc : c with
     | none =>
       have hU : N \ S = ∅ := (minByKey_eq_none_iff key hkey _).mp hc
@@ -352,51 +348,37 @@ private theorem stepRel_step {key : L → ℕ} (hkey : Function.Injective key)
           obtain ⟨hwU', _⟩ := (minByKey_eq_some_iff key hkey (N.erase a \ S) w).mp hc'
           rw [hU', Finset.mem_erase, Finset.mem_sdiff] at hwU'
           refine ⟨StepRel.shifted S w hu hwU'.2.2 hwU'.1, ?_⟩
-          intro w' hw'
-          rcases Option.some.inj hw' with rfl
+          rintro _ ⟨rfl⟩
           exact ⟨a, rfl, hamin w (Finset.mem_sdiff.mpr hwU'.2)⟩
-      · have hc' : c' = some a := by
-          refine (minByKey_eq_some_iff key hkey (N.erase u \ S) a).mpr ?_
+      · have hc' : c' = some a := (minByKey_eq_some_iff key hkey (N.erase u \ S) a).mpr <| by
           rw [hU']
           exact ⟨Finset.mem_erase.mpr ⟨hau, haU⟩,
             fun x hx => hamin x (Finset.mem_of_mem_erase hx)⟩
         rw [hc']
         refine ⟨StepRel.same (insert a S) (by simp [Ne.symm hau, hu]), ?_⟩
-        intro w hw
-        rcases Option.some.inj hw with rfl
+        rintro _ ⟨rfl⟩
         exact ⟨a, rfl, le_rfl⟩
   | justU S' hu =>
-    have hU : N \ insert u S' = N.erase u \ S' := by
-      ext x
-      simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]
-      tauto
-    have hcc' : c = c' := by
-      change minByKey key hkey (N \ insert u S') = minByKey key hkey (N.erase u \ S')
-      rw [hU]
+    have hU : N \ insert u S' = N.erase u \ S' := Finset.ext fun _ => by
+      simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]; tauto
+    have hcc' : c = c' := congrArg (minByKey key hkey) hU
     cases hc : c with
     | none =>
-      have hc' : c' = none := hcc'.symm.trans hc
-      rw [hc']
+      rw [← hcc', hc]
       exact ⟨StepRel.justU S' hu, fun _ h => by cases h⟩
     | some a =>
-      have hc' : c' = some a := hcc'.symm.trans hc
-      rw [hc']
+      rw [← hcc', hc]
       obtain ⟨haU, _⟩ := (minByKey_eq_some_iff key hkey (N \ insert u S') a).mp hc
       have hau : a ≠ u := by
         rw [hU, Finset.mem_sdiff, Finset.mem_erase] at haU
         exact haU.1.1
-      have hcomm : insert a (insert u S') = insert u (insert a S') := Finset.insert_comm a u S'
-      have hrel' : StepRel u (insert u (insert a S')) (insert a S') :=
-        StepRel.justU (insert a S') (by simp [Ne.symm hau, hu])
-      refine ⟨by simpa only [updateMatched, hcomm] using hrel', ?_⟩
-      intro w hw
-      rcases Option.some.inj hw with rfl
+      rw [updateMatched, updateMatched, Finset.insert_comm a u S']
+      refine ⟨StepRel.justU (insert a S') (by simp [Ne.symm hau, hu]), ?_⟩
+      rintro _ ⟨rfl⟩
       exact ⟨a, rfl, le_rfl⟩
   | shifted S₀ w hu hw hne =>
-    have hU' : N.erase u \ insert w S₀ = (N \ insert u S₀).erase w := by
-      ext x
-      simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]
-      tauto
+    have hU' : N.erase u \ insert w S₀ = (N \ insert u S₀).erase w := Finset.ext fun _ => by
+      simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]; tauto
     cases hc : c with
     | none =>
       have hU : N \ insert u S₀ = ∅ := (minByKey_eq_none_iff key hkey _).mp hc
@@ -413,40 +395,30 @@ private theorem stepRel_step {key : L → ℕ} (hkey : Function.Injective key)
       · subst haw
         cases hc' : c' with
         | none =>
-          have hcomm : insert a (insert u S₀) = insert u (insert a S₀) :=
-            Finset.insert_comm a u S₀
-          have hrel' : StepRel u (insert u (insert a S₀)) (insert a S₀) :=
-            StepRel.justU (insert a S₀) (by simp [Ne.symm ha_props.2.1, hu])
-          exact ⟨by simpa only [updateMatched, hcomm] using hrel', fun _ h => by cases h⟩
+          rw [updateMatched, updateMatched, Finset.insert_comm a u S₀]
+          exact ⟨StepRel.justU (insert a S₀) (by simp [Ne.symm ha_props.2.1, hu]),
+            fun _ h => by cases h⟩
         | some w' =>
           obtain ⟨hw'U', _⟩ :=
             (minByKey_eq_some_iff key hkey (N.erase u \ insert a S₀) w').mp hc'
           rw [hU', Finset.mem_erase] at hw'U'
           have hw'_props : w' ∈ N ∧ w' ≠ u ∧ w' ∉ S₀ := by
             simpa [Finset.mem_sdiff, Finset.mem_insert] using hw'U'.2
-          have hcomm₁ : insert a (insert u S₀) = insert u (insert a S₀) :=
-            Finset.insert_comm a u S₀
-          have hrel' : StepRel u (insert u (insert a S₀)) (insert w' (insert a S₀)) :=
-            StepRel.shifted (insert a S₀) w' (by simp [Ne.symm ha_props.2.1, hu])
-              (by simp [hw'U'.1, hw'_props.2.2]) hw'_props.2.1
-          refine ⟨by simpa only [updateMatched, hcomm₁] using hrel', ?_⟩
-          intro y hy
-          rcases Option.some.inj hy with rfl
+          rw [updateMatched, updateMatched, Finset.insert_comm a u S₀]
+          refine ⟨StepRel.shifted (insert a S₀) w' (by simp [Ne.symm ha_props.2.1, hu])
+            (by simp [hw'U'.1, hw'_props.2.2]) hw'_props.2.1, ?_⟩
+          rintro _ ⟨rfl⟩
           exact ⟨a, rfl, hamin w' hw'U'.2⟩
-      · have hc' : c' = some a := by
-          refine (minByKey_eq_some_iff key hkey (N.erase u \ insert w S₀) a).mpr ?_
-          rw [hU']
-          exact ⟨Finset.mem_erase.mpr ⟨haw, haU⟩,
-            fun x hx => hamin x (Finset.mem_of_mem_erase hx)⟩
-        rw [hc']
-        have hcomm₁ : insert a (insert u S₀) = insert u (insert a S₀) := Finset.insert_comm a u S₀
-        have hcomm₂ : insert a (insert w S₀) = insert w (insert a S₀) := Finset.insert_comm a w S₀
-        have hrel' : StepRel u (insert u (insert a S₀)) (insert w (insert a S₀)) :=
-          StepRel.shifted (insert a S₀) w (by simp [Ne.symm ha_props.2.1, hu])
-            (by simp [Ne.symm haw, hw]) hne
-        refine ⟨by simpa only [updateMatched, hcomm₁, hcomm₂] using hrel', ?_⟩
-        intro y hy
-        rcases Option.some.inj hy with rfl
+      · have hc' : c' = some a :=
+          (minByKey_eq_some_iff key hkey (N.erase u \ insert w S₀) a).mpr <| by
+            rw [hU']
+            exact ⟨Finset.mem_erase.mpr ⟨haw, haU⟩,
+              fun x hx => hamin x (Finset.mem_of_mem_erase hx)⟩
+        rw [hc', updateMatched, updateMatched, Finset.insert_comm a u S₀,
+          Finset.insert_comm a w S₀]
+        refine ⟨StepRel.shifted (insert a S₀) w (by simp [Ne.symm ha_props.2.1, hu])
+          (by simp [Ne.symm haw, hw]) hne, ?_⟩
+        rintro _ ⟨rfl⟩
         exact ⟨a, rfl, le_rfl⟩
 
 /-- **Monotonicity lemma** [DevanurJainKleinberg2013]: if online vertex `j` is matched to `w` when
@@ -490,30 +462,23 @@ private theorem rankingByKey_runChoices_eq_deleteOffline_of_notMem {key : L → 
         (rankingByKey key hkey).runChoicesFrom hist' S (deleteOffline u rest)
   | _, _, _, [], _ => rfl
   | hist, hist', S, N :: rest, hnot => by
-    have hnot_head : onlineStep S N ((rankingByKey key hkey).choose hist S N) ≠ some u := by
+    have hnot_head : minByKey key hkey (N \ S) ≠ some u := by
       intro heq
-      have hmem : u ∈ (rankingByKey key hkey).matchedLeftFrom hist S (N :: rest) := by
-        rw [DetAlg.mem_matchedLeftFrom_iff]
-        right
-        simp [DetAlg.runChoicesFrom, heq]
-      exact hnot hmem
-    rw [onlineStep_rankingByKey] at hnot_head
-    have hU' : N.erase u \ S = (N \ S).erase u := by
-      ext x
-      simp only [Finset.mem_sdiff, Finset.mem_erase]
-      tauto
+      apply hnot
+      rw [DetAlg.mem_matchedLeftFrom_iff]
+      exact Or.inr (by simp [DetAlg.runChoicesFrom, onlineStep_rankingByKey, heq])
+    have hU' : N.erase u \ S = (N \ S).erase u := Finset.ext fun _ => by
+      simp only [Finset.mem_sdiff, Finset.mem_erase]; tauto
     have hstep_eq : minByKey key hkey (N \ S) = minByKey key hkey (N.erase u \ S) := by
       cases hc : minByKey key hkey (N \ S) with
       | none =>
-        have hU : N \ S = ∅ := (minByKey_eq_none_iff key hkey _).mp hc
-        rw [hU', hU, Finset.erase_empty, minByKey_empty]
+        rw [hU', (minByKey_eq_none_iff key hkey _).mp hc, Finset.erase_empty, minByKey_empty]
       | some a =>
-        have hau : a ≠ u := fun h => hnot_head (h ▸ hc)
         obtain ⟨haU, hamin⟩ := (minByKey_eq_some_iff key hkey (N \ S) a).mp hc
         symm
-        refine (minByKey_eq_some_iff key hkey (N.erase u \ S) a).mpr ?_
-        rw [hU']
-        exact ⟨Finset.mem_erase.mpr ⟨hau, haU⟩, fun x hx => hamin x (Finset.mem_of_mem_erase hx)⟩
+        rw [minByKey_eq_some_iff, hU']
+        exact ⟨Finset.mem_erase.mpr ⟨fun h => hnot_head (h ▸ hc), haU⟩,
+          fun x hx => hamin x (Finset.mem_of_mem_erase hx)⟩
     have hnot_tail :
         u ∉ (rankingByKey key hkey).matchedLeftFrom (hist ++ [N])
           (updateMatched S (minByKey key hkey (N \ S))) rest := by
@@ -553,15 +518,12 @@ theorem rankingByKey_dominance {key : L → ℕ} (hkey : Function.Injective key)
       rw [(rankingByKey key hkey).runChoices_getElem arrivals j.2, onlineStep_rankingByKey]
       exact hc
     have hwu : w ≠ u := by
-      intro hwu
-      subst hwu
+      rintro rfl
       apply hnot
       rw [DetAlg.mem_matchedLeft_iff, List.mem_iff_getElem]
       exact ⟨j.1, by simp [j.2], hget⟩
-    have hle : key w ≤ key u := hwmin u (Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩)
-    have hlt : key w < key u := lt_of_le_of_ne hle (fun h => hwu (hkey h))
-    refine ⟨w, ?_, hlt⟩
-    simpa only [heq] using hget
+    exact ⟨w, by simpa only [heq] using hget,
+      lt_of_le_of_ne (hwmin u (Finset.mem_sdiff.mpr ⟨huj, hu_pre⟩)) (fun h => hwu (hkey h))⟩
 
 end DominanceMonotonicity
 
@@ -584,13 +546,9 @@ theorem djkWeight_le_one (K r : ℕ) : djkWeight K r ≤ 1 := by
   linarith
 
 theorem djkWeight_mono {K r₁ r₂ : ℕ} (h : r₁ ≤ r₂) :
-    djkWeight K r₁ ≤ djkWeight K r₂ := by
-  unfold djkWeight
-  have hq0 : 0 ≤ (K : ℝ) / ((K : ℝ) + 1) := by positivity
-  have hq1 : (K : ℝ) / ((K : ℝ) + 1) ≤ 1 := by
-    rw [div_le_one (by positivity)]
-    linarith
-  exact pow_le_pow_of_le_one hq0 hq1 (Nat.sub_le_sub_left h K)
+    djkWeight K r₁ ≤ djkWeight K r₂ :=
+  pow_le_pow_of_le_one (by positivity)
+    ((div_le_one (by positivity)).mpr (by linarith)) (Nat.sub_le_sub_left h K)
 
 private theorem sum_djkWeight_range {K t : ℕ} (ht : t ≤ K) :
     ∑ k ∈ Finset.range t, djkWeight K k =
@@ -626,26 +584,19 @@ deterministic tie-breaking `ord : L ≃ Fin (Fintype.card L)`. -/
 theorem gridKey_injective {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintype.card L)) :
     Function.Injective (gridKey y ord) := by
   intro u v h
-  simp only [gridKey] at h
-  have hu : (ord u).1 < Fintype.card L := (ord u).2
-  have hv : (ord v).1 < Fintype.card L := (ord v).2
-  have hord : (ord u).1 = (ord v).1 := by
-    have hmod := congrArg (· % Fintype.card L) h
-    rw [Nat.mul_add_mod, Nat.mul_add_mod, Nat.mod_eq_of_lt hu, Nat.mod_eq_of_lt hv] at hmod
-    exact hmod
-  exact ord.injective (Fin.ext hord)
+  have hmod := congrArg (· % Fintype.card L) h
+  simp only [gridKey, Nat.mul_add_mod, Nat.mod_eq_of_lt (ord u).2,
+    Nat.mod_eq_of_lt (ord v).2] at hmod
+  exact ord.injective (Fin.ext hmod)
 
 private theorem val_le_of_gridKey_le {K : ℕ} {y : L → Fin K} {ord : L ≃ Fin (Fintype.card L)}
     {u v : L} (h : gridKey y ord u ≤ gridKey y ord v) :
     (y u).1 ≤ (y v).1 := by
   simp only [gridKey] at h
-  have hu : (ord u).1 < Fintype.card L := (ord u).2
-  have hv : (ord v).1 < Fintype.card L := (ord v).2
-  by_contra hgt
-  push Not at hgt
-  have hmul : Fintype.card L * (y v).1 + Fintype.card L ≤ Fintype.card L * (y u).1 := by
-    rw [← Nat.mul_succ]
-    exact Nat.mul_le_mul_left _ hgt
+  by_contra! hgt
+  have hmul := Nat.mul_le_mul_left (Fintype.card L) hgt
+  rw [Nat.mul_succ] at hmul
+  have := (ord v).2
   omega
 
 end GridKey
@@ -706,37 +657,30 @@ theorem sum_djkDual_eq_card {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fintyp
   have hM := A.isMatching_runMatching arrivals
   have hleft : (∑ u : L, djkDualLeft y ord arrivals u) =
       ∑ e ∈ M, djkWeight K (y e.1).1 := by
-    have hfilt : (∑ u : L, djkDualLeft y ord arrivals u) =
-        ∑ u ∈ A.matchedLeft arrivals, djkWeight K (y u).1 := by
-      simp only [djkDualLeft]
-      rw [← Finset.sum_filter]
-      refine Finset.sum_congr ?_ fun _ _ => rfl
+    have hfilt : Finset.univ.filter (· ∈ (rankingGridDet y ord).matchedLeft arrivals) =
+        A.matchedLeft arrivals := by
       ext u
       simp [A]
+    simp only [djkDualLeft, ← Finset.sum_filter]
     rw [hfilt, ← A.image_fst_runMatching arrivals, Finset.sum_image]
     intro ⟨u₁, j₁⟩ h₁ ⟨u₂, j₂⟩ h₂ (hu : u₁ = u₂)
-    subst hu
-    exact Prod.ext rfl (hM.2.1 u₁ j₁ j₂ h₁ h₂)
+    exact Prod.ext hu (hM.2.1 u₁ j₁ j₂ h₁ (hu ▸ h₂))
   have hright : (∑ j : Fin arrivals.length, djkDualRight y ord arrivals j) =
       ∑ e ∈ M, (1 - djkWeight K (y e.1).1) := by
-    have hfilt : (∑ j : Fin arrivals.length, djkDualRight y ord arrivals j) =
-        ∑ j ∈ M.image Prod.snd, djkDualRight y ord arrivals j := by
-      rw [← Finset.sum_subset (Finset.subset_univ (M.image Prod.snd))]
-      intro j _ hnot
-      unfold djkDualRight
-      cases hc : ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
-      | none => rfl
-      | some a =>
-        exfalso
-        exact hnot (Finset.mem_image.mpr ⟨(a, j), (A.mem_runMatching_iff arrivals a j).mpr hc, rfl⟩)
-    rw [hfilt, Finset.sum_image]
+    rw [← Finset.sum_subset (Finset.subset_univ (M.image Prod.snd)), Finset.sum_image]
     · refine Finset.sum_congr rfl fun ⟨a, j⟩ haj => ?_
       have hc : ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) = some a :=
         (A.mem_runMatching_iff arrivals a j).mp haj
       simp [djkDualRight, hc]
     · intro ⟨u₁, j₁⟩ h₁ ⟨u₂, j₂⟩ h₂ (hv : j₁ = j₂)
-      subst hv
-      exact Prod.ext (hM.2.2 u₁ u₂ j₁ h₁ h₂) rfl
+      exact Prod.ext (hM.2.2 u₁ u₂ j₁ h₁ (hv ▸ h₂)) hv
+    · intro j _ hnot
+      unfold djkDualRight
+      cases hc : ((rankingGridDet y ord).runChoices arrivals)[j.1]'(by simp [j.2]) with
+      | none => rfl
+      | some a =>
+        exact absurd
+          (Finset.mem_image.mpr ⟨(a, j), (A.mem_runMatching_iff arrivals a j).mpr hc, rfl⟩) hnot
   rw [hleft, hright, ← Finset.sum_add_distrib]
   simp
 
@@ -848,15 +792,10 @@ theorem sum_djkDual_update_ge {K : ℕ} (y : L → Fin K) (ord : L ≃ Fin (Fint
       calc ∑ k ∈ Finset.range t, djkWeight K k
           = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.1 < t), djkWeight K k.1 := by
             refine Finset.sum_bij (fun k hk => ⟨k, by have := Finset.mem_range.mp hk; omega⟩)
-              ?_ ?_ ?_ ?_
-            · intro k hk
-              exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hk⟩
-            · intro k₁ _ k₂ _ h
-              exact congrArg Fin.val h
-            · intro k hk
-              exact ⟨k.1, Finset.mem_range.mpr (Finset.mem_filter.mp hk).2, Fin.ext rfl⟩
-            · intro k _
-              rfl
+              (fun k hk => Finset.mem_filter.mpr ⟨Finset.mem_univ _, Finset.mem_range.mp hk⟩)
+              (fun _ _ _ _ h => congrArg Fin.val h)
+              (fun k hk => ⟨k.1, Finset.mem_range.mpr (Finset.mem_filter.mp hk).2, Fin.ext rfl⟩)
+              (fun _ _ => rfl)
         _ = ∑ k ∈ Finset.univ.filter (fun k : Fin K => k.1 < t),
               djkDualLeft (Function.update y u k) ord arrivals u :=
             Finset.sum_congr rfl fun k hk => (hα_lt k (Finset.mem_filter.mp hk).2).symm
@@ -979,53 +918,34 @@ private theorem sum_injective_grid_eq (K : ℕ) (ord : L ≃ Fin (Fintype.card L
         (Finset.mem_powersetCard.mp (Finset.mem_product.mp hp₁).1).2
       have hc₂ : p₂.1.card = Fintype.card L :=
         (Finset.mem_powersetCard.mp (Finset.mem_product.mp hp₂).1).2
-      have hSset : (p₁.1 : Set (Fin K)) = (p₂.1 : Set (Fin K)) := by
+      have hS : p₁.1 = p₂.1 := Finset.coe_injective <| by
         rw [← Finset.range_orderEmbOfFin p₁.1 hc₁, ← Finset.range_orderEmbOfFin p₂.1 hc₂]
         ext x
-        simp only [Set.mem_range]
-        constructor
-        · rintro ⟨r, rfl⟩
-          refine ⟨p₂.2 (p₁.2.symm r), ?_⟩
-          have := congrFun heq (p₁.2.symm r)
-          simpa using this.symm
-        · rintro ⟨r, rfl⟩
-          refine ⟨p₁.2 (p₂.2.symm r), ?_⟩
-          have := congrFun heq (p₂.2.symm r)
-          simpa using this
-      have hS : p₁.1 = p₂.1 := Finset.coe_injective hSset
-      cases p₁ with | mk S₁ π₁ =>
-      cases p₂ with | mk S₂ π₂ =>
-      dsimp at hS
+        exact ⟨fun ⟨r, hr⟩ =>
+            ⟨p₂.2 (p₁.2.symm r), by simpa [← hr] using (congrFun heq (p₁.2.symm r)).symm⟩,
+          fun ⟨r, hr⟩ =>
+            ⟨p₁.2 (p₂.2.symm r), by simpa [← hr] using congrFun heq (p₂.2.symm r)⟩⟩
+      rcases p₁ with ⟨S₁, π₁⟩
+      rcases p₂ with ⟨S₂, π₂⟩
       subst hS
-      have hπ : π₁ = π₂ := by
-        ext u
-        exact congrArg Fin.val ((S₁.orderEmbOfFin hc₁).injective (congrFun heq u))
-      exact Prod.ext rfl hπ
+      exact Prod.ext rfl (Equiv.ext fun u =>
+        (S₁.orderEmbOfFin hc₁).injective (congrFun heq u))
     · intro y hy
       have hyinj : Function.Injective y := (Finset.mem_filter.mp hy).2
       let S : Finset (Fin K) := Finset.univ.image y
       have hScard : S.card = Fintype.card L := by
         rw [Finset.card_image_of_injective _ hyinj, Finset.card_univ]
-      let eS : Fin (Fintype.card L) ≃ S :=
-        Equiv.ofBijective (fun r => ⟨S.orderEmbOfFin hScard r, S.orderEmbOfFin_mem hScard r⟩)
-          ⟨fun r₁ r₂ h => (S.orderEmbOfFin hScard).injective (congrArg Subtype.val h),
-            fun ⟨x, hx⟩ => by
-              have hx' : x ∈ Set.range (S.orderEmbOfFin hScard) := by
-                rwa [Finset.range_orderEmbOfFin S hScard]
-              obtain ⟨r, hr⟩ := hx'
-              exact ⟨r, Subtype.ext hr⟩⟩
+      let eS : Fin (Fintype.card L) ≃ S := (S.orderIsoOfFin hScard).toEquiv
       let eY : L ≃ S :=
         Equiv.ofBijective (fun u => ⟨y u, Finset.mem_image_of_mem y (Finset.mem_univ u)⟩)
           ⟨fun u₁ u₂ h => hyinj (congrArg Subtype.val h),
             fun ⟨x, hx⟩ => by
               obtain ⟨u, _, rfl⟩ := Finset.mem_image.mp hx
               exact ⟨u, rfl⟩⟩
-      let π : L ≃ Fin (Fintype.card L) := eY.trans eS.symm
-      refine ⟨(S, π), Finset.mem_product.mpr ⟨Finset.mem_powersetCard.mpr
+      refine ⟨(S, eY.trans eS.symm), Finset.mem_product.mpr ⟨Finset.mem_powersetCard.mpr
         ⟨Finset.subset_univ _, hScard⟩, Finset.mem_univ _⟩, ?_⟩
       funext u
-      have hval : (eS (eS.symm (eY u))).1 = (eY u).1 := congrArg Subtype.val (eS.apply_symm_apply _)
-      exact hval
+      exact congrArg Subtype.val (eS.apply_symm_apply (eY u))
     · intro p hp
       have hc : p.1.card = Fintype.card L :=
         (Finset.mem_powersetCard.mp (Finset.mem_product.mp hp).1).2
@@ -1067,30 +987,22 @@ private theorem card_injective_grid (K : ℕ) :
       K.descFactorial (Fintype.card L) := by
   classical
   let hequiv : {y : L → Fin K // Function.Injective y} ≃ (L ↪ Fin K) :=
-    { toFun := fun y => ⟨y.1, y.2⟩
-      invFun := fun f => ⟨f, f.injective⟩
-      left_inv := fun _ => rfl
-      right_inv := fun _ => rfl }
+    ⟨fun y => ⟨y.1, y.2⟩, fun f => ⟨f, f.injective⟩, fun _ => rfl, fun _ => rfl⟩
   rw [← Fintype.card_subtype, Fintype.card_congr hequiv, Fintype.card_embedding_eq,
     Fintype.card_fin]
 
 private theorem tendsto_one_sub_div_pow_inv_exp :
     Tendsto (fun K : ℕ => 1 - ((K : ℝ) / ((K : ℝ) + 1)) ^ K) atTop
       (𝓝 (1 - Real.exp (-1))) := by
-  have h1 : Tendsto (fun K : ℕ => (1 + 1 / (K : ℝ)) ^ K) atTop (𝓝 (Real.exp 1)) :=
-    Real.tendsto_one_add_div_pow_exp 1
-  have h2 : Tendsto (fun K : ℕ => ((1 + 1 / (K : ℝ)) ^ K)⁻¹) atTop (𝓝 ((Real.exp 1)⁻¹)) :=
-    h1.inv₀ (Real.exp_ne_zero 1)
-  have h3 : Tendsto (fun K : ℕ => ((K : ℝ) / ((K : ℝ) + 1)) ^ K) atTop (𝓝 (Real.exp (-1))) := by
-    rw [Real.exp_neg]
-    refine h2.congr' ?_
-    filter_upwards [eventually_ge_atTop 1] with K hK
-    have hK0 : (K : ℝ) ≠ 0 := by positivity
-    have hK1 : (K : ℝ) + 1 ≠ 0 := by positivity
-    rw [← inv_pow]
-    congr 1
-    field_simp [hK0, hK1]
-  exact tendsto_const_nhds.sub h3
+  refine tendsto_const_nhds.sub ?_
+  rw [Real.exp_neg]
+  refine ((Real.tendsto_one_add_div_pow_exp 1).inv₀ (Real.exp_ne_zero 1)).congr' ?_
+  filter_upwards [eventually_ge_atTop 1] with K hK
+  have hK0 : (K : ℝ) ≠ 0 := by positivity
+  have hK1 : (K : ℝ) + 1 ≠ 0 := by positivity
+  rw [← inv_pow]
+  congr 1
+  field_simp [hK0, hK1]
 
 private theorem tendsto_descFactorial_div_pow (n : ℕ) :
     Tendsto (fun K : ℕ => (K.descFactorial n : ℝ) / ((K : ℝ) ^ n)) atTop (𝓝 1) := by
@@ -1098,20 +1010,14 @@ private theorem tendsto_descFactorial_div_pow (n : ℕ) :
   | zero => simp
   | succ n ih =>
     have hfac : Tendsto (fun K : ℕ => 1 - (n : ℝ) / (K : ℝ)) atTop (𝓝 1) := by
-      have hdiv : Tendsto (fun K : ℕ => (n : ℝ) / (K : ℝ)) atTop (𝓝 0) :=
-        tendsto_const_nhds.div_atTop tendsto_natCast_atTop_atTop
-      simpa using tendsto_const_nhds.sub hdiv
+      simpa using tendsto_const_nhds.sub
+        (tendsto_const_nhds.div_atTop (tendsto_natCast_atTop_atTop (R := ℝ)))
     have hmul := hfac.mul ih
     simp only [one_mul] at hmul
     refine hmul.congr' ?_
-    filter_upwards [eventually_ge_atTop (max (n + 1) 1)] with K hK
-    have hKn : n ≤ K := by
-      have := le_trans (le_max_left (n + 1) 1) hK
-      omega
-    have hK0 : (K : ℝ) ≠ 0 := by
-      have : 1 ≤ K := le_trans (le_max_right (n + 1) 1) hK
-      positivity
-    rw [Nat.descFactorial_succ, Nat.cast_mul, Nat.cast_sub hKn, pow_succ']
+    filter_upwards [eventually_ge_atTop (n + 1)] with K hK
+    have hK0 : (K : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
+    rw [Nat.descFactorial_succ, Nat.cast_mul, Nat.cast_sub (by omega), pow_succ']
     field_simp [hK0]
 
 /-- **Karp–Vazirani–Vazirani (1990) / Devanur–Jain–Kleinberg (2013) exact `1 - 1/e` theorem:**
@@ -1167,15 +1073,13 @@ theorem ranking_competitive_ratio (arrivals : List (Finset L))
         (n.factorial : ℝ) * ((K.choose n : ℕ) : ℝ) * (S_perm / (n.factorial : ℝ))
       field_simp [hfact_pos.ne']
     have hColl_card : (Coll.card : ℝ) = (K : ℝ) ^ n - (K.descFactorial n : ℝ) := by
-      have hsum_card : Inj.card + Coll.card = K ^ n := by
-        have h := Finset.card_filter_add_card_filter_not
-          (s := (Finset.univ : Finset (L → Fin K))) (p := fun y => Function.Injective y)
-        rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin] at h
-        exact h
-      have hInj_card : Inj.card = K.descFactorial n := card_injective_grid (L := L) K
-      have hle : K.descFactorial n ≤ K ^ n := Nat.descFactorial_le_pow K n
+      have h := Finset.card_filter_add_card_filter_not
+        (s := (Finset.univ : Finset (L → Fin K))) (p := fun y => Function.Injective y)
+      rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin] at h
+      change Inj.card + Coll.card = K ^ n at h
+      have hInj : Inj.card = K.descFactorial n := card_injective_grid (L := L) K
       have hnat : Coll.card = K ^ n - K.descFactorial n := by omega
-      rw [hnat, Nat.cast_sub hle, Nat.cast_pow]
+      rw [hnat, Nat.cast_sub (Nat.descFactorial_le_pow K n), Nat.cast_pow]
     set S_coll : ℝ := ∑ y ∈ Coll, (((rankingGridDet y ord).runMatching arrivals).card : ℝ)
     have hColl_le :
         S_coll ≤ ((K : ℝ) ^ n - (K.descFactorial n : ℝ)) * (arrivals.length : ℝ) := by
@@ -1282,18 +1186,9 @@ private theorem sum_matchedStep_eq_card {n : ℕ} (A : DetAlg (Fin n)) (σ : Equ
 private theorem activeSet_succ (n : ℕ) (σ : Equiv.Perm (Fin n)) (t : ℕ) (ht : t < n) :
     activeSet n σ (t + 1) = (activeSet n σ t).erase (σ ⟨t, ht⟩) := by
   ext u
-  simp only [activeSet, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-  constructor
-  · intro h
-    refine ⟨fun heq => ?_, by omega⟩
-    subst heq
-    simp only [Equiv.symm_apply_apply] at h
-    omega
-  · rintro ⟨hne, hle⟩
-    by_contra hlt
-    have heq : (σ.symm u).1 = t := by omega
-    have : σ.symm u = ⟨t, ht⟩ := Fin.ext heq
-    exact hne (by simp [← this])
+  simp only [activeSet, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase, ne_eq,
+    ← σ.symm_apply_eq, Fin.ext_iff]
+  omega
 
 private theorem activeSet_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t r : ℕ}
     (ht : t < n) {j : Fin n} (hj : t ≤ j.1) (hr : r ≤ t) :
@@ -1304,11 +1199,9 @@ private theorem activeSet_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t r : ℕ
     simp [Equiv.Perm.mul_def]
   rw [hsymm]
   by_cases hx₁ : σ.symm u = ⟨t, ht⟩
-  · rw [hx₁, Equiv.swap_apply_left]
-    constructor <;> intro _ <;> omega
+  · simp only [hx₁, Equiv.swap_apply_left]; omega
   · by_cases hx₂ : σ.symm u = j
-    · rw [hx₂, Equiv.swap_apply_right]
-      constructor <;> intro _ <;> omega
+    · simp only [hx₂, Equiv.swap_apply_right]; omega
     · rw [Equiv.swap_apply_of_ne_of_ne hx₁ hx₂]
 
 private theorem take_triArrivals_swap_eq (n : ℕ) (σ : Equiv.Perm (Fin n)) {t : ℕ}
@@ -1347,20 +1240,16 @@ private theorem triArrivals_step_split {n : ℕ} (A : DetAlg (Fin n)) (σ : Equi
     rfl
   cases hc : c with
   | none =>
-    have hm0 : matchedStep A σ t ht = 0 := by simp [matchedStep, arr, hc_eq, hc]
-    rw [hm0, hmatched_succ, hc, updateMatched]
-    exact ⟨Nat.zero_le _, by simp [availCount, pre, arr]⟩
+    simp [matchedStep, availCount, arr, pre, hmatched_succ, hc_eq, hc, updateMatched]
   | some u =>
-    have hm1 : matchedStep A σ t ht = 1 := by simp [matchedStep, arr, hc_eq, hc]
     have ⟨_, huN, hupre⟩ := onlineStep_eq_some_iff.mp hc
     have hu_mem : u ∈ activeSet n σ t \ pre := Finset.mem_sdiff.mpr ⟨huN, hupre⟩
-    have hcard_pos : 1 ≤ availCount A σ t := Finset.card_pos.mpr ⟨u, hu_mem⟩
-    have hsdiff : activeSet n σ t \ insert u pre = (activeSet n σ t \ pre).erase u := by
-      ext x
-      simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]
-      tauto
-    rw [hm1, hmatched_succ, hc, updateMatched, hsdiff, Finset.card_erase_of_mem hu_mem]
-    exact ⟨hcard_pos, rfl⟩
+    have hsdiff : activeSet n σ t \ insert u pre = (activeSet n σ t \ pre).erase u :=
+      Finset.ext fun _ => by
+        simp only [Finset.mem_sdiff, Finset.mem_insert, Finset.mem_erase]; tauto
+    simp only [matchedStep, arr, hc_eq, hc, Option.isSome_some, ↓reduceIte, hmatched_succ,
+      updateMatched, hsdiff, Finset.card_erase_of_mem hu_mem]
+    exact ⟨Finset.card_pos.mpr ⟨u, hu_mem⟩, rfl⟩
 
 /-- Exact telescoping recurrence for the expected number of remaining unmatched active offline
 vertices on `triArrivals n σ`. -/
@@ -1695,29 +1584,23 @@ theorem exists_rand_harmonic_upper_bound {n s : ℕ} (hn : 1 ≤ n) (hs : s ≤ 
 
 private theorem log_div_le_harmonic_sub {s n : ℕ} (hs : s ≤ n) :
     Real.log (((n : ℝ) + 1) / ((s : ℝ) + 1)) ≤ (harmonic n : ℝ) - (harmonic s : ℝ) := by
-  have hcast : ∀ m : ℕ, (harmonic m : ℝ) = ∑ k ∈ Finset.range m, ((k : ℝ) + 1)⁻¹ := fun m => by
-    simp [harmonic]
   have hH : (harmonic n : ℝ) - (harmonic s : ℝ) = ∑ k ∈ Finset.Ico s n, ((k : ℝ) + 1)⁻¹ := by
-    rw [hcast n, hcast s, ← Finset.sum_range_add_sum_Ico _ hs]
-    ring
-  have hterm : ∀ k : ℕ, Real.log ((k : ℝ) + 2) - Real.log ((k : ℝ) + 1) ≤ ((k : ℝ) + 1)⁻¹ := by
-    intro k
+    simp only [harmonic, ← Finset.sum_range_add_sum_Ico _ hs]
+    push_cast; ring
+  have hterm (k : ℕ) : Real.log ((k : ℝ) + 2) - Real.log ((k : ℝ) + 1) ≤ ((k : ℝ) + 1)⁻¹ := by
     have hk1 : (0 : ℝ) < (k : ℝ) + 1 := by positivity
     have hk2 : (0 : ℝ) < (k : ℝ) + 2 := by positivity
     rw [← Real.log_div hk2.ne' hk1.ne']
-    have hle := Real.log_le_sub_one_of_pos (div_pos hk2 hk1)
-    have hsub : ((k : ℝ) + 2) / ((k : ℝ) + 1) - 1 = ((k : ℝ) + 1)⁻¹ := by
-      field_simp [hk1.ne']
-      ring
-    linarith
+    refine (Real.log_le_sub_one_of_pos (div_pos hk2 hk1)).trans_eq ?_
+    field_simp [hk1.ne']
+    ring
   have htelesc :
       ∑ k ∈ Finset.Ico s n, (Real.log ((k : ℝ) + 2) - Real.log ((k : ℝ) + 1)) =
         Real.log ((n : ℝ) + 1) - Real.log ((s : ℝ) + 1) := by
-    have hfun : ∀ k : ℕ, Real.log ((k : ℝ) + 2) - Real.log ((k : ℝ) + 1) =
-        Real.log (((k + 1 : ℕ) : ℝ) + 1) - Real.log ((k : ℝ) + 1) := fun k => by
+    have hfun (k : ℕ) : Real.log ((k : ℝ) + 2) - Real.log ((k : ℝ) + 1) =
+        Real.log (((k + 1 : ℕ) : ℝ) + 1) - Real.log ((k : ℝ) + 1) := by
       congr 2
-      push_cast
-      ring
+      push_cast; ring
     simp_rw [hfun]
     exact Finset.sum_Ico_sub (fun k => Real.log ((k : ℝ) + 1)) hs
   rw [Real.log_div (by positivity) (by positivity), ← htelesc, hH]
@@ -1798,14 +1681,9 @@ theorem not_rand_competitive_of_gt_one_sub_exp_neg_one
   obtain ⟨σ, hle⟩ := exists_rand_exp_upper_bound hn1 μ
   refine ⟨triArrivals n σ, triPerfectMatching n σ, isMatching_triPerfectMatching n σ, ?_⟩
   rw [card_triPerfectMatching]
-  have hmul : b + 2 < (c - (1 - Real.exp (-1))) * (n : ℝ) := by
-    have h1 : b + 2 < (c - (1 - Real.exp (-1))) * (k : ℝ) := by
-      have := (div_lt_iff₀ hgap).mp hk
-      linarith
-    have h2 : (c - (1 - Real.exp (-1))) * (k : ℝ) ≤ (c - (1 - Real.exp (-1))) * (n : ℝ) :=
-      mul_le_mul_of_nonneg_left hkn hgap.le
-    linarith
-  linarith
+  have h1 := (div_lt_iff₀ hgap).mp hk
+  have h2 := mul_le_mul_of_nonneg_right hkn hgap.le
+  linarith [mul_comm (n : ℝ) (c - (1 - Real.exp (-1)))]
 
 end YaoUpperBound
 
