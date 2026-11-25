@@ -193,8 +193,7 @@ theorem Computable.isComputable {α β : Type} [Primcodable α] [Primcodable β]
       ((Computable.encode.comp hf).comp Computable.snd).to₂) (Computable.const 0)
   obtain ⟨c, hc⟩ := ToPartrec.Code.exists_code (Nat.Partrec'.part_iff₁.2 hg)
   have heval (a : α) : c.eval [Encodable.encode a] = pure [Encodable.encode (f a)] := by
-    have := hc ⟨[Encodable.encode a], rfl⟩
-    simpa [g, Encodable.encodek, List.Vector.head] using this
+    simpa [g, Encodable.encodek, List.Vector.head] using hc ⟨[Encodable.encode a], rfl⟩
   refine Turing.TM2.isComputable_of_eval (M := finProgram c)
     (start := fun a => finInit c [Encodable.encode a]) (read := readDigits c) ?_ ?_ fun a => ?_
   · have hbits : ComputableInPolyTime (fun a : α => (Encodable.encode a).bits)
@@ -223,9 +222,7 @@ theorem Computable.isComputable {α β : Type} [Primcodable α] [Primcodable β]
     rw [heval a] at h
     have hmem : halt [Encodable.encode (f a)] ∈
         TM2.Cfg.mapLabel Subtype.val <$> StateTransition.eval (TM2.step (finProgram c))
-          (finInit c [Encodable.encode a]) := by
-      rw [h]
-      exact Part.mem_map halt (Part.mem_some _)
+          (finInit c [Encodable.encode a]) := h ▸ Part.mem_map halt (Part.mem_some _)
     obtain ⟨b, hb, hbhalt⟩ := (Part.mem_map_iff _).1 hmem
     exact ⟨b, hb, readDigits_halt c _ b hbhalt⟩
 
