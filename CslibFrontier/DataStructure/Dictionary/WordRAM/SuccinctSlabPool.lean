@@ -125,10 +125,6 @@ private theorem gmSlabMeta_ge (n_max p : ℕ) :
   unfold gmSlabOwnerBIdx gmSlabOwnerSIdx gmSlabBelowIdx gmSlabAboveIdx
   exact ⟨by omega, by omega, by omega, by omega⟩
 
-private theorem gmSlabDirBase_le_metaBase (n_max : ℕ) :
-    gmSlabDirBase n_max ≤ gmSlabMetaBase n_max := by
-  unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase; omega
-
 private theorem readGM_eq {U V w n_max h_space base idx : ℕ} (s : Memory.State)
     (hidx : idx < globalMetaLen n_max) (val : ℕ)
     (hval : gmAt base U V w n_max h_space s.mem idx = val) :
@@ -1091,7 +1087,8 @@ theorem gmCompactSlabInv_of_slabBijection {U V w₀ n_max h_space base b : ℕ}
     gmUnlinkTopSlabProg_effect (U := U) (V := V) (h_space := h_space) hw hb_pos hb s hslab hq_pos
   set gm := gmAt base U V w₀ n_max h_space s.mem
   rcases gmUnlinkTopSlab_fields gm hb with ⟨hu0, _, _, huQ, _, huGe, _⟩
-  have hdir_le := gmSlabDirBase_le_metaBase n_max
+  have hdir_le : gmSlabDirBase n_max ≤ gmSlabMetaBase n_max := by
+    unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase; omega
   obtain ⟨hB, hS, hBel, hAbv⟩ := gmSlabMeta_ge n_max (gm 0 - 1)
   have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb hq_pos
   unfold GmCompactSlabInv GmMovedSlabInv

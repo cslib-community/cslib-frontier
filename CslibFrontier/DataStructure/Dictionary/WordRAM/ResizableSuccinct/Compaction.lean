@@ -528,9 +528,6 @@ theorem physOfDense_denseOfPhys_tail {N : ℕ} {gm td dt : ℕ → ℕ}
 abbrev epochTotalSlots (N : ℕ) (gm : ℕ → ℕ) : ℕ :=
   if bucketBits N = 0 then gm 0 else gm 0 * slabSize N + gm 1
 
-private theorem mul_add_lt_mul {q B r K : ℕ} (hq : q < B) (hr : r < K) : q * K + r < B * K :=
-  (Nat.add_lt_add_left hr _).trans_le ((Nat.succ_mul q K).symm ▸ Nat.mul_le_mul_right K hq)
-
 /-- Under `SlotStoreInv N gm` and `TailDenseInv N (gm 0) (gm 1) td dt`, every dense index
 `d < epochTotalSlots N gm` maps via `(ownerBucketOfDense, logicalIdxOfDense)` to a valid active
 bucket slot `(b, j)` with `denseOfPhys N gm td (slotOf N gm b j) = d`. -/
@@ -566,7 +563,9 @@ theorem ownerBucketOfDense_lt_and_slotOf {N : ℕ} {gm td dt : ℕ → ℕ}
       have hj_def : j = gm (gmSlabOwnerSIdx N (d / slabSize N)) * slabSize N +
           (slabSize N - 1 - d % slabSize N) := by simp [j, logicalIdxOfDense, hb_ne, hdS]
       have hj_slab : j < gm (gmQIdx b) * slabSize N := by
-        rw [hj_def, hb_def]; exact mul_add_lt_mul hs_lt (by omega)
+        rw [hj_def, hb_def]
+        simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hs_lt
+          (show slabSize N - 1 - d % slabSize N < slabSize N by omega)
       have hj_bc : j < bCount N gm b := by
         unfold bCount; rw [ite_eq_right hb_ne, ite_eq_left (by omega)]; omega
       have hj_div : j / slabSize N = gm (gmSlabOwnerSIdx N (d / slabSize N)) := by
@@ -626,7 +625,8 @@ private theorem slotOf_slab_lt_or_tail_eq {N : ℕ} {gm : ℕ → ℕ}
       hslab.nslabs_eq ▸ hslab.ptr_lt b hb _ hs_lt
     have hmod_lt : j % slabSize N < slabSize N := Nat.mod_lt j hK
     unfold slotOf; rw [ite_eq_right hb_ne, ite_eq_left hj_slab]
-    exact mul_add_lt_mul hp_lt (by omega)
+    simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hp_lt
+      (show slabSize N - 1 - j % slabSize N < slabSize N by omega)
   · right
     have hr_lt : j - gm (gmQIdx b) * slabSize N < gm (gmRIdx b) := by omega
     refine ⟨_, htail.ntails_eq ▸ htail.ptr_lt b hb _ hr_lt, ?_⟩

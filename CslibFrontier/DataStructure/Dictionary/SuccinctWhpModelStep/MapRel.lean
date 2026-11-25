@@ -36,48 +36,66 @@ theorem sliceIdx_inj {b₁ r₁ b₂ r₂ : ℕ} (hr₁ : r₁ < 3) (hr₂ : r�
     (heq : 3 * b₁ + r₁ = 3 * b₂ + r₂) : b₁ = b₂ ∧ r₁ = r₂ :=
   ⟨by omega, by omega⟩
 
-private theorem SliceMapRel.of_some_iff {f : ℕ → ℕ} {P : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
-    (hsome : ∀ fp loc, m fp = some loc ↔ loc < X ∧ P loc ∧ f loc = fp) :
-    SliceMapRel f P X m := by
-  refine ⟨fun fp => ?_, hsome⟩
-  rw [Option.eq_none_iff_forall_not_mem]
-  exact ⟨fun h loc hlt hp heq => h loc ((hsome fp loc).mpr ⟨hlt, hp, heq⟩),
-    fun h loc hmem => have ⟨hlt, hp, heq⟩ := (hsome fp loc).mp hmem; h loc hlt hp heq⟩
-
 theorem SliceMapRel.congr {f f' : ℕ → ℕ} {P P' : ℕ → Prop} {X : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P X m)
     (hf : ∀ loc < X, f' loc = f loc)
     (hP : ∀ loc < X, P' loc ↔ P loc) :
-    SliceMapRel f' P' X m :=
-  SliceMapRel.of_some_iff fun fp loc => by
-    rw [hrel.2 fp loc]
+    SliceMapRel f' P' X m := by
+  refine ⟨fun fp => ?_, fun fp loc => ?_⟩
+  · rw [hrel.1 fp]
+    exact ⟨fun h loc hlt hp' => hf loc hlt ▸ h loc hlt ((hP loc hlt).mp hp'),
+      fun h loc hlt hp => hf loc hlt ▸ h loc hlt ((hP loc hlt).mpr hp)⟩
+  · rw [hrel.2 fp loc]
     exact ⟨fun ⟨hlt, hp, heq⟩ => ⟨hlt, (hP loc hlt).mpr hp, (hf loc hlt).trans heq⟩,
       fun ⟨hlt, hp', heq⟩ => ⟨hlt, (hP loc hlt).mp hp', (hf loc hlt).symm.trans heq⟩⟩
 
 theorem SliceMapRel.step_true {f : ℕ → ℕ} {P : ℕ → Prop} {cur : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P cur m) (hp : P cur)
     (hfresh : ∀ loc < cur, P loc → f loc ≠ f cur) :
-    SliceMapRel f P (cur + 1) (Function.update m (f cur) (some cur)) :=
-  SliceMapRel.of_some_iff fun fp loc => by
-    by_cases hfp : fp = f cur
+    SliceMapRel f P (cur + 1) (Function.update m (f cur) (some cur)) := by
+  refine ⟨fun fp => ?_, fun fp loc => ?_⟩
+  · by_cases hfp : fp = f cur
+    · subst hfp
+      simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
+      exact ⟨cur, Nat.lt_succ_self cur, hp, rfl⟩
+    · rw [Function.update_of_ne hfp, hrel.1 fp]
+      refine ⟨fun hall loc hlt hpl => ?_, fun hall loc hlt hpl =>
+        hall loc (Nat.lt_succ_of_lt hlt) hpl⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+      · exact hall loc hlt' hpl
+      · exact Ne.symm hfp
+  · by_cases hfp : fp = f cur
     · subst hfp
       simp only [Function.update_self, Option.some.injEq]
-      refine ⟨by rintro rfl; exact ⟨Nat.lt_succ_self cur, hp, rfl⟩,
-        fun ⟨hlt, hpl, heq⟩ => (Nat.lt_succ_iff_lt_or_eq.mp hlt).elim
-          (fun hlt' => absurd heq (hfresh loc hlt' hpl)) Eq.symm⟩
+      refine ⟨?_, ?_⟩
+      · rintro rfl; exact ⟨Nat.lt_succ_self cur, hp, rfl⟩
+      · rintro ⟨hlt, hpl, heq⟩
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+        · exact absurd heq (hfresh loc hlt' hpl)
+        · rfl
     · rw [Function.update_of_ne hfp, hrel.2 fp loc]
-      exact ⟨fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩,
-        fun ⟨hlt, hpl, heq⟩ => (Nat.lt_succ_iff_lt_or_eq.mp hlt).elim
-          (fun hlt' => ⟨hlt', hpl, heq⟩) (fun h => absurd (h ▸ heq).symm hfp)⟩
+      refine ⟨fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩, ?_⟩
+      rintro ⟨hlt, hpl, heq⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+      · exact ⟨hlt', hpl, heq⟩
+      · exact absurd heq.symm hfp
 
 theorem SliceMapRel.step_false {f : ℕ → ℕ} {P : ℕ → Prop} {cur : ℕ} {m : ℕ → Option ℕ}
     (hrel : SliceMapRel f P cur m) (hnp : ¬P cur) :
-    SliceMapRel f P (cur + 1) m :=
-  SliceMapRel.of_some_iff fun fp loc => by
-    rw [hrel.2 fp loc]
-    exact ⟨fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩,
-      fun ⟨hlt, hpl, heq⟩ => (Nat.lt_succ_iff_lt_or_eq.mp hlt).elim
-        (fun hlt' => ⟨hlt', hpl, heq⟩) (fun h => absurd (h ▸ hpl) hnp)⟩
+    SliceMapRel f P (cur + 1) m := by
+  refine ⟨fun fp => ?_, fun fp loc => ?_⟩
+  · rw [hrel.1 fp]
+    refine ⟨fun hall loc hlt hpl => ?_, fun hall loc hlt hpl =>
+      hall loc (Nat.lt_succ_of_lt hlt) hpl⟩
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+    · exact hall loc hlt' hpl
+    · exact absurd hpl hnp
+  · rw [hrel.2 fp loc]
+    refine ⟨fun ⟨hlt, hpl, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, hpl, heq⟩, ?_⟩
+    rintro ⟨hlt, hpl, heq⟩
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
+    · exact ⟨hlt', hpl, heq⟩
+    · exact absurd hpl hnp
 
 /-- Helper producing a full `BufMapRel` from its `some`-characterization. -/
 theorem BufMapRel.of_some_iff {M tag : ℕ} {bktCnt : ℕ → ℕ} {locSt rKeyOf : ℕ → ℕ → ℕ}
