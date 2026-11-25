@@ -278,11 +278,8 @@ theorem redundancyRatio_bounds (h : ValidRegime U V n R p_min q_min p_max q_max)
     rw [min_eq_right (not_le.mp hR_le).le, max_eq_right hdiv_ge1] at hr_eq
     have hr_le_2M : redundancyRatio n R ≤ 2 * M := by
       rw [hr_eq]
-      refine Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul hdiv_ge1).mpr ?_)
-      have := Nat.div_add_mod n M
-      have := Nat.mod_lt n hM_pos
-      have : M ≤ M * (n / M) := Nat.le_mul_of_pos_right M hdiv_ge1
-      rw [Nat.succ_mul, Nat.mul_assoc 2]; omega
+      exact Nat.le_of_lt_succ ((Nat.div_lt_iff_lt_mul hdiv_ge1).mpr
+        (by nlinarith [Nat.div_add_mod n M, Nat.mod_lt n hM_pos]))
     calc (redundancyRatio n R) ^ 10 ≤ (2 ^ s) ^ 10 := Nat.pow_le_pow_left (by omega) 10
       _ = 2 ^ (s * 10) := (Nat.pow_mul 2 s 10).symm
       _ ≤ 2 ^ t := Nat.pow_le_pow_right Nat.two_pos (by omega)
@@ -340,11 +337,10 @@ theorem treeDepth_le_redundancyRatio (h : ValidRegime U V n R p_min q_min p_max 
   obtain ⟨_, hr_ls, _⟩ := h.redundancyRatio_bounds
   have hk_le := h.treeDepth_le_logStar_add_four
   rcases eq_or_lt_of_le h.three_le_logStar with h3 | hgt
-  · rw [← h3] at hk_le hr_ls; norm_num at hr_ls; omega
-  · have hsq := Nat.sq_le_two_pow (Nat.succ_le_of_lt hgt)
-    have : Nat.logStar n + 4 ≤ (Nat.logStar n) ^ 2 := by
-      rw [sq]; nlinarith
+  · rw [← h3] at hk_le hr_ls
     omega
+  · have := Nat.sq_le_two_pow (Nat.succ_le_of_lt hgt)
+    nlinarith
 
 theorem two_pow_eighteen_mul_log_univ_pow_le
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
@@ -702,15 +698,14 @@ private theorem canonical_conc_bound {U V n R p_min q_min p_max q_max : ℕ}
       (by decide : 8 ≤ 256 ^ 9).trans (canonical_nFloor_ge_pow_256 h hlt.le)
     have hd_cur := two_mul_delta_le_nFloor_of_eight_le hy8
     have hnh_le : max (P.nHigh ℓ) 2 ≤ 2 * max (nFloor n U r k ℓ) 1 := by
-      have : P.nHigh ℓ = nFloor n U r k ℓ + delta n U r k ℓ := by
-        change (if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ) = _
-        rw [ite_eq_right hpos.ne']
-      rw [this, max_eq_left (by omega : 1 ≤ nFloor n U r k ℓ)]; omega
-    have hcl_le : 4 * Nat.clog 2 (max (P.nHigh ℓ) 2) ≤ idBits n U r k ℓ := by
-      have := Nat.clog_mono_right 2 hnh_le; dsimp only [idBits]; omega
+      rw [show P.nHigh ℓ = nFloor n U r k ℓ + delta n U r k ℓ from ite_eq_right hpos.ne',
+        max_eq_left (by omega : 1 ≤ nFloor n U r k ℓ)]
+      omega
     have hm_le : m ≤ 112 * s := by
-      have hcl_eq : m = 3 * Nat.clog 2 (max (P.nHigh ℓ) 2) + 4 := by
-        simpa only [m] using FeistelPerm.childRouterHalfInd_eq (P.nHigh ℓ)
+      have := Nat.clog_mono_right 2 hnh_le
+      have : m = 3 * Nat.clog 2 (max (P.nHigh ℓ) 2) + 4 :=
+        FeistelPerm.childRouterHalfInd_eq (P.nHigh ℓ)
+      dsimp only [idBits] at hid_le
       omega
     have hcube_s : 2 * (150 * m) ^ 3 ≤ s ^ 9 := by
       have hcoeff : 2 * 16800 ^ 3 ≤ 256 ^ 6 := by decide
@@ -725,10 +720,8 @@ private theorem canonical_conc_bound {U V n R p_min q_min p_max q_max : ℕ}
     have h2mul : 2 * (2 ^ P.branchBits ℓ * (150 * m) ^ 3) ≤ nFloor n U r k ℓ := by
       rw [Nat.mul_left_comm]
       exact (Nat.mul_le_mul_left _ (hcube_s.trans hlo_next)).trans (P.nFloor_step_le ℓ hlt)
-    have hnl_eq : P.nLow ℓ = nFloor n U r k ℓ - delta n U r k ℓ := by
-      change (if ℓ = 0 then n - 1 else nFloor n U r k ℓ - delta n U r k ℓ) = _
-      rw [ite_eq_right hpos.ne']
-    rw [hnl_eq]; omega
+    rw [show P.nLow ℓ = nFloor n U r k ℓ - delta n U r k ℓ from ite_eq_right hpos.ne']
+    omega
 
 private theorem rpow_two_thirds_le_two_mul_succ {μ x : ℝ} {d : ℕ}
     (hμ_pos : 0 < μ) (hμ_le : μ ≤ 2 * x) (hx2 : x ^ 2 ≤ ((d : ℝ) + 1) ^ 3) :
