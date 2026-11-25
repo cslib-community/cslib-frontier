@@ -10,11 +10,13 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.BigOperators.Intervals
+import Mathlib.Tactic.Abel
 
 /-!
-# Truncating finite sums with a zero tail
+# Truncation and telescoping of finite sums
 
 A finite-vector sum agrees with a shorter range sum when all omitted summands vanish.
+`sum_univ_adjacent_differences` telescopes differences along a sequence of indexed pairs.
 -/
 
 public section
@@ -28,5 +30,15 @@ theorem sum_eq_sum_range_of_eq_zero {M : Type*} [AddCommMonoid M] {n k : ℕ} (h
     ∑ j : Fin n, f j = ∑ j ∈ range k, f j := by
   rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk]
   rw [Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
+
+/-- The differences within indexed pairs and across consecutive pairs telescope
+to the difference from the first entry to the last exit. -/
+theorem sum_univ_adjacent_differences {M : Type*} [AddCommGroup M] {n : ℕ}
+    (entry exit : Fin (n + 1) → M) :
+    (∑ i, (exit i - entry i)) + ∑ i : Fin n, (entry i.succ - exit i.castSucc) =
+      exit (Fin.last n) - entry 0 := by
+  rw [Finset.sum_sub_distrib, Finset.sum_sub_distrib,
+    Fin.sum_univ_castSucc exit, Fin.sum_univ_succ entry]
+  abel
 
 end Fin

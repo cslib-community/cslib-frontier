@@ -705,6 +705,12 @@ private theorem wordOracle_withOp_bitString {t n : ℕ} (f : Fin t → BitString
   rw [OracleCodec.wordOracle_withOp]
   exact congrFun (wordOracle_bitString n (f i)) ((), query)
 
+private theorem interpret_pure_eq_eval_run {t n : ℕ} (f : Fin t → BitString n → BitString n)
+    (program : PRF.MultiKeyAdversary t (BitString n) (BitString n)) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun q => PMF.pure (f q.1 q.2))
+      program = ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
+  (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
+
 /-- Against deterministic channel tables `f`, the word three-key adapter read on `n`-bit channels
 has the law of the finite three-key adapter of the adversary read on pairs of halves. -/
 private theorem interpret_adapt_lubyRackoffAdversary (adversary : OracleDistinguisher) (n : ℕ)
@@ -716,13 +722,8 @@ private theorem interpret_adapt_lubyRackoffAdversary (adversary : OracleDistingu
       OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
         fun q => PMF.pure (f q.1 q.2))
         (LubyRackoff.feistel3MultiKeyAdversary ((pairCodec n).adapt (adversary n []))) := by
-  have hrun (program : PRF.MultiKeyAdversary 3 (BitString n) (BitString n)) :
-      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        fun q => PMF.pure (f q.1 q.2)) program =
-        ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
-    (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
   rw [OracleCodec.interpret_adapt, wordOracle_withOp_bitString, interpret_lubyRackoffAdversary,
-    hrun, LubyRackoff.feistel3MultiKeyAdversary, ProbOracleComp.run_simulate]
+    interpret_pure_eq_eval_run, LubyRackoff.feistel3MultiKeyAdversary, ProbOracleComp.run_simulate]
   simp only [LubyRackoff.run_feistel3ChannelQuery, ProbOracleComp.eval_run, ProbComp.eval_pure,
     OracleCodec.interpret_adapt, pairCodec_wordOracle]
   congr 2; funext request; congr 1
@@ -780,6 +781,18 @@ theorem advantage_lubyRackoffRandomRounds_prpIdealGame_le (adversary : OracleDis
     Finset.card_univ, Nat.cast_pow, Nat.cast_ofNat] using
     LubyRackoff.advantage_feistel3RandomRounds_prpIdealExperiment_le hadaptedQ
 
+private theorem birthday_term_le (a b n Q : ℕ) :
+    (a : ℝ) * (Q.choose 2 : ℝ) * ((2 : ℝ) ^ n)⁻¹ +
+      (b : ℝ) * (Q.choose 2 : ℝ) * (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤
+      (((a + b : ℕ) : ℝ≥0) * (Q.choose 2 : ℝ≥0) * ((2 : ℝ≥0) ^ n)⁻¹ : ℝ≥0) := by
+  have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ :=
+    pow_le_of_le_one (by positivity) (inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num)))
+      (by decide)
+  have hterm : (b : ℝ) * (Q.choose 2 : ℝ) * (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤
+      (b : ℝ) * (Q.choose 2 : ℝ) * ((2 : ℝ) ^ n)⁻¹ := by gcongr
+  push_cast
+  linarith
+
 /-- **The Luby–Rackoff theorem** ([BonehShoup2023], Theorem 4.9; [LubyRackoff1988]): the
 three-round Luby–Rackoff cipher built from a pseudorandom function is a pseudorandom permutation
 against oracle-PPT distinguishers. -/
@@ -796,16 +809,9 @@ theorem PseudorandomFunction.prp_lubyRackoffCipher {family : List Bool → List 
       hfamily.multiKey_constantCount 3 (lubyRackoffAdversary adversary)
         (isOraclePPT_lubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
-    (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ => ?_)
-  have hrandom := advantage_lubyRackoffRandomRounds_prpIdealGame_le adversary n Q hQ
-  have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ := by
-    have h₀ : 0 ≤ ((2 : ℝ) ^ n)⁻¹ := by positivity
-    have h₁ : ((2 : ℝ) ^ n)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
-    nlinarith
-  have hchoose : (0 : ℝ) ≤ Q.choose 2 := Nat.cast_nonneg _
-  refine hrandom.trans ?_
-  push_cast
-  nlinarith
+    (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ =>
+    (advantage_lubyRackoffRandomRounds_prpIdealGame_le adversary n Q hQ).trans ?_)
+  simpa only [Nat.cast_ofNat, Nat.cast_one, one_mul, Nat.reduceAdd] using birthday_term_le 2 1 n Q
 
 
 /-! ### Four rounds: a strong pseudorandom permutation -/
@@ -1135,14 +1141,9 @@ private theorem interpret_adapt_strongLubyRackoffAdversary (adversary : StrongPR
         fun q => PMF.pure (f q.1 q.2))
         (LubyRackoff.feistel4StrongMultiKeyAdversary
           ((strongPermCodec n).adapt (adversary n []))) := by
-  have hrun (program : PRF.MultiKeyAdversary 4 (BitString n) (BitString n)) :
-      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        fun q => PMF.pure (f q.1 q.2)) program =
-        ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
-    (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
   rw [OracleCodec.interpret_adapt, wordOracle_withOp_bitString,
-    interpret_strongLubyRackoffAdversary, hrun, LubyRackoff.feistel4StrongMultiKeyAdversary,
-    ProbOracleComp.run_simulate]
+    interpret_strongLubyRackoffAdversary, interpret_pure_eq_eval_run,
+    LubyRackoff.feistel4StrongMultiKeyAdversary, ProbOracleComp.run_simulate]
   simp only [LubyRackoff.run_feistel4StrongChannelQuery, ProbOracleComp.eval_run,
     ProbComp.eval_pure, OracleCodec.interpret_adapt, strongPermCodec_wordOracle]
   congr 2; funext request; congr 1
@@ -1236,16 +1237,9 @@ theorem PseudorandomFunction.strongPRP_lubyRackoff4Cipher
       hfamily.multiKey_constantCount 4 (strongLubyRackoffAdversary adversary)
         (isOraclePPT_strongLubyRackoffAdversary hadversary)
   refine hreal.trans (Game.Indistinguishable.of_birthday_queryBounded_real
-    (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 4 (by negligible) fun n Q adversary hQ => ?_)
-  have hrandom := advantage_lubyRackoff4RandomRounds_strongPRPIdealGame_le adversary n Q hQ
-  have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ := by
-    have h₀ : 0 ≤ ((2 : ℝ) ^ n)⁻¹ := by positivity
-    have h₁ : ((2 : ℝ) ^ n)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
-    nlinarith
-  have hchoose : (0 : ℝ) ≤ Q.choose 2 := Nat.cast_nonneg _
-  refine hrandom.trans ?_
-  push_cast
-  nlinarith
+    (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 4 (by negligible) fun n Q adversary hQ =>
+    (advantage_lubyRackoff4RandomRounds_strongPRPIdealGame_le adversary n Q hQ).trans ?_)
+  simpa only [Nat.cast_ofNat, Nat.reduceAdd] using birthday_term_le 2 2 n Q
 
 /-- The four-round Luby–Rackoff cipher is in particular a pseudorandom permutation. -/
 theorem PseudorandomFunction.prp_lubyRackoff4Cipher

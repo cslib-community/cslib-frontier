@@ -181,51 +181,38 @@ theorem exists_good_sample_of_mean [Finite E] (hloop : G.Loopless)
       (hdev : ω ∉ deviation (edgeScoreEvent G q R p) c) :
       3 * ({e | ω ∈ edgeScoreEvent G q R p e}.ncard : ℝ) ≤ B := by
     have hcount := ncard_lt_of_notMem_deviation hdev
-    have hmean : ∑ e, P.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) := by
-      refine (Finset.sum_le_sum fun e _ => (measureReal_mono (μ := P) fun ω' hω' =>
-        hp _ hω').trans (measureReal_le_abs_le (unit e) hT)).trans_eq ?_
-      rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hE]
-    refine le_trans ?_ hB1
-    have : 3 / 2 * h * (1 / T ^ 2) * 3 = h * (9 / (2 * T ^ 2)) := by
-      field_simp
-      ring
-    nlinarith
-  obtain ⟨σ, hσ⟩ := Multigraph.exists_width_le_of_edgeScore h3 (edgeScore G q R ω) hδpos M
+    have hmean : ∑ e, P.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) :=
+      (Finset.sum_le_card_nsmul _ _ _ fun e _ => (measureReal_mono (μ := P) fun ω' hω' =>
+        hp _ hω').trans (measureReal_le_abs_le (unit e) hT)).trans_eq (by
+        rw [Finset.card_univ, nsmul_eq_mul, hE])
+    have : 3 / 2 * h * (1 / T ^ 2) * 3 = h * (9 / (2 * T ^ 2)) := by field_simp; ring
+    nlinarith [hB1]
+  exact Multigraph.exists_width_le_of_edgeScore h3 (edgeScore G q R ω) hδpos M
     (a := -T) (B := B)
-    (tail (· < -T) (fun x hx => by rw [abs_of_neg (by linarith)]; linarith) hlow) (by
-      have hT' : -T + M * δ = T := by
-        rw [hδ]
-        field_simp
-        ring
-      rw [hT']
-      exact tail (T ≤ ·) (fun x hx => hx.trans (le_abs_self x)) hhigh) (by
+    (tail (· < -T) (fun x hx => by rw [abs_of_neg (by linarith)]; linarith) hlow)
+    (by
+      rw [show -T + M * δ = T by rw [hδ]; field_simp; ring]
+      exact tail (T ≤ ·) (fun x hx => hx.trans (le_abs_self x)) hhigh)
+    (by
       intro i hi
-      have hthr : -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ := by ring
-      rw [hthr]
+      rw [show -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ by ring]
       have hS := ncard_lt_of_notMem_deviation (hmid i hi).1
       have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
       have hWmean : ∑ e, P.real (edgeScoreEvent G q R
-          (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) e) ≤ 3 / 2 * h * (δ / √(2 * π)) := by
-        refine (Finset.sum_le_sum fun e _ =>
-          measureReal_window_le (unit e) (-T + i * δ) hδpos.le).trans_eq ?_
-        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hE]
+          (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) e) ≤ 3 / 2 * h * (δ / √(2 * π)) :=
+        (Finset.sum_le_card_nsmul _ _ _ fun e _ =>
+          measureReal_window_le (unit e) (-T + i * δ) hδpos.le).trans_eq (by
+          rw [Finset.card_univ, nsmul_eq_mul, hE])
       have hSmean := hmean (-T + i * δ)
       calc ({v | G.EdgeStraddles (edgeScore G q R ω) (-T + i * δ) v}.ncard : ℝ) +
             3 * {e | -T + i * δ ≤ edgeScore G q R ω e ∧
               edgeScore G q R ω e < -T + i * δ + δ}.ncard
           ≤ (h * μ + c) + 3 * (3 / 2 * h * (δ / √(2 * π)) + c) := by
-            have h1 : ({v | G.EdgeStraddles (edgeScore G q R ω) (-T + i * δ) v}.ncard : ℝ) <
-                ∑ v, P.real (straddleEvent G q R (-T + i * δ) v) + c := hS
-            have h2 : ({e | -T + i * δ ≤ edgeScore G q R ω e ∧
-                edgeScore G q R ω e < -T + i * δ + δ}.ncard : ℝ) <
-                ∑ e, P.real (edgeScoreEvent G q R
-                  (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) e) + c := hW
-            linarith
-        _ = h * (μ + 9 / 2 * δ / √(2 * π) + 4 * ε) := by
-            rw [hc]
-            ring
+            gcongr
+            · exact (hS.trans_le (add_le_add hSmean le_rfl)).le
+            · exact (hW.trans_le (add_le_add hWmean le_rfl)).le
+        _ = h * (μ + 9 / 2 * δ / √(2 * π) + 4 * ε) := by rw [hc]; ring
         _ ≤ B := hB2)
-  exact ⟨σ, hσ⟩
 
 omit [Fintype V] in
 /-- **A good sample.** Let `G` be a loopless multigraph whose vertices have three edges, and let

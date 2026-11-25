@@ -48,7 +48,7 @@ namespace Cslib.Algorithms.WordRAM.OddCycleTransversal
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
 
 /-! ### Compression leaf, base-3 odometer, and outer iterative compression -/
 

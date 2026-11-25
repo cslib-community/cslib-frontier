@@ -18,6 +18,12 @@ required set, or two rejected sets covering the carrier. All pairs, including eq
 the fixed empty set, participate in these tests. A valid certificate extends to a semi-ultrafilter;
 if it also preserves every listed pair it contradicts a cover above a target point.
 
+Only the two component labels need to be guessed. Defining an intersection's label to be the
+conjunction of its component labels preserves that pair automatically. A rejected intersection's
+consistency violation is also a violation at a rejected component, since each kind of conflict
+persists when its set is enlarged. Thus the compressed test checks just the two components per
+pair and the fixed empty set. This compression is an original refinement of the construction.
+
 ## Main definitions
 
 * `Cslib.Circuits.Fusion.PairCertificate.size`,
@@ -31,10 +37,20 @@ if it also preserves every listed pair it contradicts a cover above a target poi
   extended certificate labels, and point-membership labels.
 * `Cslib.Circuits.Fusion.PairCertificate.Invalid`: the grouped consistency violations.
 * `Cslib.Circuits.Fusion.PairCertificate.BreaksPair`: failure of pair preservation.
+* `Cslib.Circuits.Fusion.PairCertificate.compactSize`,
+  `Cslib.Circuits.Fusion.PairCertificate.expandLabels`: two component bits per pair and their
+  extension by conjunctions at the intersections.
+* `Cslib.Circuits.Fusion.PairCertificate.conflicts`,
+  `Cslib.Circuits.Fusion.PairCertificate.compactInvalid`: consistency conflicts and the compressed
+  rejection test.
 
 ## Main results
 
 * `Cslib.Circuits.Fusion.PairCertificate.exists_filter_of_not_invalid`: realize a valid certificate.
+* `Cslib.Circuits.Fusion.PairCertificate.invalid_expandLabels_iff`: intersection rejection groups
+  are redundant for compressed labels.
+* `Cslib.Circuits.Fusion.PairCertificate.expandLabels_compactPointLabels`: compression preserves
+  every point-membership certificate.
 
 ## References
 
@@ -85,17 +101,117 @@ def label (y : Fin (size pairs) → Bool) : Option (Fin (size pairs)) → Bool
     sets pairs (some (inter pairs i)) = (pairs.get i).1 ∩ (pairs.get i).2 := by
   simp only [sets, inter, Fin.append_right]
 
+/-- Accepting a subset, rejecting a covering partner, or requiring a source contained in `s`
+prevents a consistent semi-ultrafilter certificate from rejecting `s`. -/
+def conflicts {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
+    (y : Fin (size pairs) → Bool) (s : Set U) : Prop :=
+  (∃ i, sets pairs i ⊆ s ∧ label pairs y i = true) ∨
+    (∃ k, s ∪ sets pairs k = Set.univ ∧ label pairs y k = false) ∨
+    (∃ l, sources l ⊆ s ∧ x l = true)
+
 /-- Consistency violations, grouped by a rejected set. The sources marked true must be accepted. -/
 def Invalid {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
     (y : Fin (size pairs) → Bool) : Prop :=
-  ∃ j, label pairs y j = false ∧
-    ((∃ i, sets pairs i ⊆ sets pairs j ∧ label pairs y i = true) ∨
-      (∃ k, sets pairs j ∪ sets pairs k = Set.univ ∧ label pairs y k = false) ∨
-      (∃ l, sources l ⊆ sets pairs j ∧ x l = true))
+  ∃ j, label pairs y j = false ∧ conflicts pairs sources x y (sets pairs j)
 
 /-- An accepted pair with rejected intersection. -/
 def BreaksPair (y : Fin (size pairs) → Bool) : Prop :=
   ∃ i, y (left pairs i) = true ∧ y (right pairs i) = true ∧ y (inter pairs i) = false
+
+/-- Two certificate bits per pair, ordered as all first components then all second components. -/
+abbrev compactSize := pairs.length + pairs.length
+
+/-- Extend component labels by assigning each intersection the conjunction of its two labels. -/
+def expandLabels (y : Fin (compactSize pairs) → Bool) : Fin (size pairs) → Bool :=
+  Fin.append (fun i => y (Fin.castAdd pairs.length i))
+    (Fin.append (fun i => y (Fin.natAdd pairs.length i))
+      (fun i => y (Fin.castAdd pairs.length i) && y (Fin.natAdd pairs.length i)))
+
+/-- Expansion preserves first-component labels. -/
+@[simp] theorem expandLabels_left (y : Fin (compactSize pairs) → Bool) (i : Fin pairs.length) :
+    expandLabels pairs y (left pairs i) = y (Fin.castAdd pairs.length i) :=
+  Fin.append_left ..
+
+/-- Expansion preserves second-component labels. -/
+@[simp] theorem expandLabels_right (y : Fin (compactSize pairs) → Bool) (i : Fin pairs.length) :
+    expandLabels pairs y (right pairs i) = y (Fin.natAdd pairs.length i) := by
+  simp only [expandLabels, right, Fin.append_left, Fin.append_right]
+
+/-- An expanded intersection label is the conjunction of its component labels. -/
+@[simp] theorem expandLabels_inter (y : Fin (compactSize pairs) → Bool) (i : Fin pairs.length) :
+    expandLabels pairs y (inter pairs i) =
+      (y (Fin.castAdd pairs.length i) && y (Fin.natAdd pairs.length i)) := by
+  simp only [expandLabels, inter, Fin.append_right]
+
+/-- Component labels expanded by conjunction never violate pair preservation. -/
+theorem not_breaksPair_expandLabels (y : Fin (compactSize pairs) → Bool) :
+    ¬ BreaksPair pairs (expandLabels pairs y) := by
+  rintro ⟨i, hi, hj, hk⟩
+  simp only [expandLabels_left, expandLabels_right] at hi hj
+  rw [expandLabels_inter, hi, hj] at hk
+  cases hk
+
+/-- Compressed consistency checks the fixed empty set and each rejected component, with
+intersection labels supplied by `expandLabels`. -/
+def compactInvalid {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
+    (y : Fin (compactSize pairs) → Bool) : Prop :=
+  conflicts pairs sources x (expandLabels pairs y) ∅ ∨
+    (∃ i, y (Fin.castAdd pairs.length i) = false ∧
+      conflicts pairs sources x (expandLabels pairs y) (pairs.get i).1) ∨
+    (∃ i, y (Fin.natAdd pairs.length i) = false ∧
+      conflicts pairs sources x (expandLabels pairs y) (pairs.get i).2)
+
+private theorem conflicts_mono {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
+    (y : Fin (size pairs) → Bool) {s t : Set U} (hst : s ⊆ t) :
+    conflicts pairs sources x y s → conflicts pairs sources x y t := by
+  rintro (⟨i, hi, hl⟩ | ⟨i, hi, hl⟩ | ⟨i, hi, hl⟩)
+  · exact Or.inl ⟨i, hi.trans hst, hl⟩
+  · refine Or.inr (Or.inl ⟨i, ?_, hl⟩)
+    apply Set.Subset.antisymm (Set.subset_univ _)
+    intro u _
+    have hu : u ∈ s ∪ sets pairs i := by rw [hi]; trivial
+    exact hu.elim (fun h => Or.inl (hst h)) Or.inr
+  · exact Or.inr (Or.inr ⟨i, hi.trans hst, hl⟩)
+
+/-- Checking rejected intersections adds no constraint: a rejected factor has the same conflict.
+No nonemptiness or distinctness assumption is imposed on the carrier or the cover pairs. -/
+theorem invalid_expandLabels_iff {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
+    (y : Fin (compactSize pairs) → Bool) :
+    Invalid pairs sources x (expandLabels pairs y) ↔ compactInvalid pairs sources x y := by
+  constructor
+  · rintro ⟨j, hj, h⟩
+    cases j with
+    | none => exact Or.inl h
+    | some j =>
+      induction j using Fin.addCases with
+      | left i =>
+        refine Or.inr (Or.inl ⟨i, ?_, ?_⟩)
+        · simpa only [label, expandLabels, Fin.append_left] using hj
+        · simpa only [sets, Fin.append_left] using h
+      | right j =>
+        induction j using Fin.addCases with
+        | left i =>
+          refine Or.inr (Or.inr ⟨i, ?_, ?_⟩)
+          · simpa only [label, expandLabels, Fin.append_left, Fin.append_right] using hj
+          · simpa only [sets, Fin.append_left, Fin.append_right] using h
+        | right i =>
+          have hconf : conflicts pairs sources x (expandLabels pairs y)
+              ((pairs.get i).1 ∩ (pairs.get i).2) := by
+            simpa only [sets, Fin.append_right] using h
+          have hab : y (Fin.castAdd pairs.length i) = false ∨
+              y (Fin.natAdd pairs.length i) = false := by
+            simpa only [label, expandLabels, Fin.append_right, Bool.and_eq_false_iff] using hj
+          rcases hab with ha | hb
+          · exact Or.inr (Or.inl ⟨i, ha,
+              conflicts_mono pairs sources x _ Set.inter_subset_left hconf⟩)
+          · exact Or.inr (Or.inr ⟨i, hb,
+              conflicts_mono pairs sources x _ Set.inter_subset_right hconf⟩)
+  · rintro (h | ⟨i, hi, h⟩ | ⟨i, hi, h⟩)
+    · exact ⟨none, rfl, h⟩
+    · exact ⟨some (left pairs i), by simpa only [label, expandLabels_left] using hi,
+        by simpa only [sets_left] using h⟩
+    · exact ⟨some (right pairs i), by simpa only [label, expandLabels_right] using hi,
+        by simpa only [sets_right] using h⟩
 
 /-- Every valid labeling is realized by a semi-ultrafilter accepting all required sources. -/
 theorem exists_filter_of_not_invalid {n : ℕ} (sources : Fin n → Set U) (x : Fin n → Bool)
@@ -123,6 +239,35 @@ theorem exists_filter_of_not_invalid {n : ℕ} (sources : Fin n → Set U) (x : 
 /-- A point supplies a consistent certificate, including when the pair list is empty. -/
 noncomputable def pointLabels (u : U) (i : Fin (size pairs)) : Bool :=
   @decide (u ∈ sets pairs (some i)) (Classical.propDecidable _)
+
+/-- A point's two component-membership labels per pair. -/
+noncomputable def compactPointLabels (u : U) : Fin (compactSize pairs) → Bool :=
+  Fin.append (fun i => pointLabels pairs u (left pairs i))
+    (fun i => pointLabels pairs u (right pairs i))
+
+/-- Conjunction expansion reconstructs the full point-membership certificate. -/
+@[simp] theorem expandLabels_compactPointLabels (u : U) :
+    expandLabels pairs (compactPointLabels pairs u) = pointLabels pairs u := by
+  funext j
+  induction j using Fin.addCases with
+  | left i =>
+    change expandLabels pairs (compactPointLabels pairs u) (left pairs i) =
+      pointLabels pairs u (left pairs i)
+    simp only [expandLabels_left, compactPointLabels, Fin.append_left]
+  | right j =>
+    induction j using Fin.addCases with
+    | left i =>
+      change expandLabels pairs (compactPointLabels pairs u) (right pairs i) =
+        pointLabels pairs u (right pairs i)
+      simp only [expandLabels_right, compactPointLabels, Fin.append_right]
+    | right i =>
+      change expandLabels pairs (compactPointLabels pairs u) (inter pairs i) =
+        pointLabels pairs u (inter pairs i)
+      rw [expandLabels_inter]
+      apply Bool.eq_iff_iff.mpr
+      simp only [compactPointLabels, Fin.append_left, Fin.append_right, pointLabels,
+        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq,
+        Set.mem_inter_iff]
 
 /-- The extended point certificate labels `i` by `true` if and only if `u ∈ sets pairs i`. -/
 @[simp] theorem label_pointLabels (u : U) (i : Option (Fin (size pairs))) :
@@ -194,3 +339,4 @@ theorem PairCover.invalid_or_breaksPair {X : Type*} {n : ℕ} {target : Set X}
   exact (not_or.mp h).2 ⟨i, hi, hj, hk⟩
 
 end Cslib.Circuits.Fusion
+

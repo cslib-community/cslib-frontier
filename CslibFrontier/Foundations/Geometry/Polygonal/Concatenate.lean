@@ -87,6 +87,20 @@ private theorem eval_right (p q : Route) (h : p.finish = q.start)
   · exact (by have := k.isLt; omega : False).elim
   · exact he.trans (congrArg (fun a => q.eval a t) (Fin.ext (by omega)))
 
+/-- Label the joined segments by the segment positions of the first and second routes. -/
+def concatSegmentEquiv (p q : Route) :
+    Fin p.segments ⊕ Fin q.segments ≃ Fin (p.concat q).segments :=
+  finSumFinEquiv.trans (finCongr (segments_concat p q).symm)
+
+/-- The segment labels of a concatenation preserve affine evaluation at every real time. -/
+theorem eval_concatSegmentEquiv (p q : Route) (h : p.finish = q.start)
+    (i : Fin p.segments ⊕ Fin q.segments) (t : ℝ) :
+    (p.concat q).eval (concatSegmentEquiv p q i) t =
+      i.elim (fun j => p.eval j t) (fun j => q.eval j t) := by
+  rcases i with i | i
+  · exact eval_left p q h _ i rfl t
+  · exact eval_right p q h _ i rfl t
+
 /-- A sum that assigns a value to each ordered pair of consecutive route points splits
 into the two original sums when the joined ends match. -/
 theorem sum_segments_concat {M : Type*} [AddCommMonoid M] (p q : Route)
@@ -95,8 +109,7 @@ theorem sum_segments_concat {M : Type*} [AddCommMonoid M] (p q : Route)
       ((p.concat q).point i.succ)) =
       (∑ i : Fin p.segments, f (p.point i.castSucc) (p.point i.succ)) +
         ∑ i : Fin q.segments, f (q.point i.castSucc) (q.point i.succ) := by
-  let e : Fin p.segments ⊕ Fin q.segments ≃ Fin (p.concat q).segments :=
-    finSumFinEquiv.trans (finCongr (segments_concat p q).symm)
+  let e := concatSegmentEquiv p q
   let value (r : Route) (i : Fin r.segments) := f (r.point i.castSucc) (r.point i.succ)
   have hvalue (r s : Route) (i : Fin r.segments) (j : Fin s.segments)
       (he : ∀ t, r.eval i t = s.eval j t) : value r i = value s j := by
@@ -110,10 +123,10 @@ theorem sum_segments_concat {M : Type*} [AddCommMonoid M] (p q : Route)
   congr 1
   · apply Finset.sum_congr rfl
     intro i _
-    exact hvalue _ _ _ _ (eval_left p q h (e (Sum.inl i)) i rfl)
+    exact hvalue _ _ _ _ (eval_concatSegmentEquiv p q h (Sum.inl i))
   · apply Finset.sum_congr rfl
     intro i _
-    exact hvalue _ _ _ _ (eval_right p q h (e (Sum.inr i)) i rfl)
+    exact hvalue _ _ _ _ (eval_concatSegmentEquiv p q h (Sum.inr i))
 
 private theorem eval_end_concat (p q : Route) (h : p.finish = q.start) (b : Bool) (t : ℝ) :
     (p.concat q).eval ((p.concat q).endSegment b) t =

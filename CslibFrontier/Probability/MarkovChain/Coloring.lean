@@ -14,6 +14,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 import CslibFrontier.Probability.StatisticalDistance.OptimalCoupling
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Glauber dynamics for proper colorings
@@ -147,12 +148,7 @@ theorem recolor_apply {x : V → Fin q} {w : V} (h : (G.allowedColors x w).Nonem
 /-- The heat-bath update at `w` changes only the color of `w`. -/
 theorem eq_of_mem_support_recolor {x y : V → Fin q} {w : V} (hy : y ∈ (recolor G x w).support)
     {u : V} (hu : u ≠ w) : y u = x u := by
-  unfold recolor at hy
-  split_ifs at hy with h
-  · obtain ⟨c, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hy
-    exact Function.update_of_ne hu _ _
-  · rw [PMF.support_pure, Set.mem_singleton_iff] at hy
-    rw [hy]
+  supp_cases hy [recolor] <;> simp [Function.update_of_ne hu]
 
 /-! ### Stationarity -/
 

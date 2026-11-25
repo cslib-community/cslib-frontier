@@ -32,7 +32,7 @@ namespace Cslib.Circuits.Arithmetic.Separation.Flag
 variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [Group G]
 
 /-- The growth allowed by the contraction. -/
-noncomputable def grow (m : ℕ) (s : ℝ) (r : ℕ) : ℝ :=
+@[expose] noncomputable def grow (m : ℕ) (s : ℝ) (r : ℕ) : ℝ :=
   m * (Nat.log m r + 1) * s ^ Nat.log m r
 
 theorem grow_nonneg (m : ℕ) {s : ℝ} (hs : 1 ≤ s) (r : ℕ) : 0 ≤ grow m s r := by
