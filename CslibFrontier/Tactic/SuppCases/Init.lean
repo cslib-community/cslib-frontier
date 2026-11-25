@@ -26,8 +26,9 @@ public meta section
 
 /-- The simp set `supp_norm` rewrites a membership in the support of a `PMF`, or in the possible
 results of an `OracleComp` program, built with `bind`, `map`, `pure` and `if`, into existentials
-over the supports of its parts and equations for its returned values. Uniform draws contribute no
-membership condition, and returned pairs are compared componentwise. -/
+over the supports of its parts and equations for its returned values. Between `PMF`s the `if` may
+be dependent. Uniform draws contribute no membership condition, and returned pairs are compared
+componentwise. -/
 register_simp_attr supp_norm
 
 end

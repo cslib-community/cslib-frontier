@@ -26,10 +26,6 @@ the supplied context, interpolation point and parameters. The limit is not a fre
   `Cslib.TreeEval.Ary.Packed.QueryGate.Input.alphabet`,
   `Cslib.TreeEval.Ary.Packed.QueryGate.Input.coords`,
   `Cslib.TreeEval.Ary.Packed.QueryGate.Input.point`: named components of `Input`.
-* `Cslib.TreeEval.Ary.Packed.QueryGate.Params.alphabet`,
-  `Cslib.TreeEval.Ary.Packed.QueryGate.Params.coords`,
-  `Cslib.TreeEval.Ary.Packed.QueryGate.Params.limit`: named grid-dimension and limit accessors on
-  `Params`.
 * `Cslib.TreeEval.Ary.Packed.QueryGate.prepare`,
   `Cslib.TreeEval.Ary.Packed.QueryGate.initializationSpace`: grid-limit preparation and its native
   space budget.
@@ -65,15 +61,6 @@ abbrev Input.coords {γ : Type} (q : Input γ) : ℕ := q.2.1.2.2
 
 /-- The interpolation point of `Input`. -/
 abbrev Input.point {γ : Type} (q : Input γ) : List ℕ := q.2.2
-
-/-- The alphabet size `s` of `Params`. -/
-abbrev Params.alphabet {γ : Type} (p : Params γ) : ℕ := p.2.1.2.1
-
-/-- The coordinate count `n` of `Params`. -/
-abbrev Params.coords {γ : Type} (p : Params γ) : ℕ := p.2.1.2.2
-
-/-- The assignment loop limit of `Params`. -/
-abbrev Params.limit {γ : Type} (p : Params γ) : ℕ := p.2.2.2
 
 /-- Compute the full grid limit, retaining the supplied parameters. -/
 @[expose] def prepare {γ : Type} (q : Input γ) : Params γ :=

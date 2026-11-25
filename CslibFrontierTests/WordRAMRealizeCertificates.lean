@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontierTests.WordRAMRealizeGraded
+public import CslibFrontier.DataStructure.Memory.Record
 
 /-!
 # Supplying method certificates to `realize`
@@ -41,6 +42,149 @@ example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop
       (fun w d s => P w d.2 s) (fun _ _ => 0) := by
   realize [hm trivial]
   exact h
+
+-- A mapped opaque call keeps its certificate, including its input-dependent work.
+-- The mapper also uses the caller's argument and must fit at the actual reply.
+example (m : ℕ → Memory.Prog ℕ) (hm : Realizes .exact m word word
+    (fun _ n _ => 0 < n) (fun n _ => n)) :
+    Realizes .exact (fun n => (fun a => n + a) <$> m n) word word
+      (fun w n s => 0 < n ∧ Fits w (n + (Memory.spec 0).clientResult s (m n)))
+      (fun n _ => n) := by
+  realize [hm]
+  all_goals first | exact h.1 | exact h.2
+
+-- The explicit free-monad map also works inside a bind. The selected field is a live word.
+example (m : ℕ → Memory.Prog (ℕ × ℕ))
+    (hm : RealizesBounded .exact m word pairWords (fun _ _ _ => True) (fun _ _ => 0)) :
+    RealizesBounded .exact (fun n => do Memory.read (← (m n).map Prod.snd)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
+
+-- A map over a `do` block is pushed to its return, so the intermediate answer, whose `Fin 3`
+-- component has no word encoding, is never stored.
+example : Realizes .exact
+    (fun a : ℕ => Prod.snd <$> (do
+      let v ← Memory.read a
+      pure ((0 : Fin 3), v))) word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
+-- A mapped optional answer is simplified at the return: the proof in the `Fin` handle is erased
+-- and the dependent `if` becomes a word comparison.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => (do
+      let v ← Memory.read d.1
+      if v = 0 then pure none else pure (if h : v < 3 then some ((⟨v, h⟩ : Fin 3), d.2) else none)
+      : Memory.Prog (Option (Fin 3 × ℕ))).map (Option.map fun p => (p.1.val, p.2)))
+    pairWords (WordEncoding.encode (α := Option (ℕ × ℕ))) (fun w _ _ => Fits w 3 ∧ Fits w 1)
+    (fun _ _ => 0) := by
+  realize
+  all_goals first | exact h.1 | exact h.2
+
+-- A map of a map of a certified call composes the two maps and keeps the certificate.
+example (m : ℕ → Memory.Prog (ℕ × ℕ))
+    (hm : Realizes .exact m word pairWords (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => (fun a => a) <$> (Prod.snd <$> m n)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
+
+-- A map over a conditional maps each alternative; only the chosen one must fit.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => (· + 1) <$> (if d.1 < d.2 then pure d.1 else Memory.read d.2))
+    pairWords word (fun w d s => if d.1 < d.2 then Fits w (d.1 + 1) else Fits w (s.mem d.2 + 1))
+    (fun _ _ => 0) := by
+  realize
+  all_goals simpa [hc] using h
+
+-- A map inside a loop body.
+example : Realizes .exact
+    (fun d : ℕ × ℕ => iterate (fun x : ℕ × ℕ => (fun v => v) <$> Memory.read x.2) d.1 d.2 d.1)
+    pairWords word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
+-- Record cells at consecutive addresses from `b`, as a linked source for the map tests below.
+private def offsetLayout (b : ℕ) : Record.Layout (fun _ : ℕ => True) :=
+  ⟨fun i => b + i, fun _ _ _ _ h => by omega⟩
+
+-- A map inside a linked source is pushed into the source, so the source's intermediate answer,
+-- whose `Fin 3` component has no word encoding, is never stored.
+example : Realizes .exact
+    (fun b : ℕ => link ((offsetLayout b).methods 0) (Prod.snd <$> (do
+      let v ← Record.read 1
+      pure ((0 : Fin 3), v) : Record.Prog ℕ (Fin 3 × ℕ))))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map of a linked client moves into the source and composes with the map there.
+example : Realizes .exact
+    (fun b : ℕ => (fun a => a) <$> link ((offsetLayout b).methods 0) (Prod.snd <$> (do
+      let v ← Record.read 1
+      pure ((0 : Fin 3), v) : Record.Prog ℕ (Fin 3 × ℕ))))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map over a source operation moves out of the link and maps the operation's answer.
+example : Realizes .exact
+    (fun b : ℕ => link ((offsetLayout b).methods 0) ((fun v => v) <$> Record.read 1))
+    word word (fun w b _ => Fits w (b + 1)) (fun _ _ => 0) := by
+  realize
+  exact h
+
+-- A map over a certified linked call moves out of the link and keeps the certificate.
+example (src : ℕ → Record.Prog ℕ ℕ)
+    (hm : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (src b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => link ((offsetLayout b).methods 0) ((fun v => v) <$> src b))
+      word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hm]
+
+-- A certificate for a whole mapped client is used before the map is traversed: there is none
+-- for `p` itself.
+example (p : ℕ → Memory.Prog ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+example (p : ℕ → Memory.Prog ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun n => f <$> p n) word word (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun n => do Memory.read (← f <$> p n)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+-- The same for a whole mapped linked client, also when its source unfolds to the map.
+example (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (f <$> p b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => do Memory.read (← link ((offsetLayout b).methods 0) (f <$> p b)))
+      word word (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+private def mappedSource (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ) (b : ℕ) : Record.Prog ℕ ℕ :=
+  f <$> p b
+
+example (p : ℕ → Record.Prog ℕ ℕ) (f : ℕ → ℕ)
+    (hmap : Realizes .exact (fun b => link ((offsetLayout b).methods 0) (f <$> p b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0)) :
+    Realizes .exact (fun b => link ((offsetLayout b).methods 0) (mappedSource p f b)) word word
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize [hmap]
+
+-- The client is restated before certification, here by unfolding a definition.
+private def readTwice (a : ℕ) : Memory.Prog ℕ := do
+  let _ ← Memory.read a
+  Memory.read a
+
+example : Realizes .exact (fun a => readTwice a) word word (fun _ _ _ => True)
+    (fun _ _ => 0) := by
+  realize rewriting [readTwice]
+
+-- At address zero an arbitrary fitting word can still overflow when incremented.
+example : True := by
+  fail_if_success
+    have _ : Realizes .exact (fun _ : ℕ => (· + 1) <$> Memory.read 0) word word
+        (fun _ _ _ => True) (fun _ _ => 0) := by realize
+  trivial
 
 -- Supplying a certificate leaves the actual fit and callee-domain conditions visible.
 example (m : ℕ → Memory.Prog ℕ) (P : ℕ → ℕ → Memory.State → Prop)
@@ -157,6 +301,9 @@ example (m : ℕ → Memory.Prog ℕ)
   fail_if_success
     have _ : Realizes .exact m word word (fun _ _ _ => True) (fun _ _ => 0) := by
       realize [_hm trivial]
+  fail_if_success
+    have _ : Realizes .exact (fun n => id <$> m n) word word (fun _ _ _ => True)
+        (fun _ _ => 0) := by realize [_hm trivial]
   trivial
 
 -- An ordinary certificate supplies no frontier-bounded witness for an opaque method.

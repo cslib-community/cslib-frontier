@@ -38,7 +38,8 @@ A coordinator does not start or commission new pull-request work, its own or a w
 more than ten of its fleet's open pull requests need the fleet's own action. A pull request needs
 the fleet's action when a review has requested changes and any requested item is still
 outstanding, when it conflicts with `main`, when a required check fails,
-or when it is approved for its current head, has no hold and is not queued. Drafts and pull
+or when it is approved for its current head, has no hold and is not queued. A draft converted
+for an unanswered request for changes (worker rule 6) still counts. Other drafts and pull
 requests waiting for someone else's review, including a delta review of a complete fix, do not
 count. The number is a ceiling, not a target;
 the point is that finishing work in flight comes before starting more.
@@ -46,9 +47,11 @@ the point is that finishing work in flight comes before starting more.
 A person running several coordinators names one of them the fleet's **tender**. The tender works
 the reactive loop in short turns, so that new requests reach it promptly: ready pull requests
 with no reviewer, outside contributors' first; the fleet's pull requests with changes requested
-and no fix; approved pull requests that are not queued; and pull requests ejected from the
-queue or conflicting with `main`. It skips anything another coordinator has claimed and does not
-take on long program work in the same session.
+and no fix; approved pull requests that are not queued; pull requests ejected from the
+queue or conflicting with `main`; and the sweeps of expired holds and claims and of heads waiting
+12 hours for a verdict ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)). It
+skips anything another coordinator has claimed and does not take on long program work in the same
+session.
 
 Use issues for substantial tasks, dependencies and remaining objectives; a small fix may use its
 PR as the durable task record. Search existing issues and PRs before creating a duplicate.
@@ -99,10 +102,11 @@ documentation progress.
    evidence, and notify the owner in the task record, naming what you intend to take over.
    Explicitly released work is available immediately. A claim with no open PR and no activity by
    its owner (a commit, push or comment) for 24 hours after that notice is released without
-   further action: record the takeover in the task and proceed. Work that has an open PR is not
-   released by silence, since awaiting review is not abandonment; when such a PR needs author
-   action (changes requested, a conflict or failing CI), a coordinator may reassign it after the
-   same notice and 24 hours. Where a human has given a session a stricter standing direction on
+   further action: record the takeover in the task and proceed. When the owner is an agent
+   session on your own GitHub account, the wait is 6 hours; other contributors keep 24. Work that
+   has an open PR is not released by silence, since awaiting review is not abandonment; when such a PR
+   needs author action (changes requested, a conflict or failing CI), a coordinator may reassign
+   it after the same notice and wait. Where a human has given a session a stricter standing direction on
    ownership, that direction controls for that session. Whoever takes over preserves the earlier work and its
    credit, builds on it where it is sound, and says what was carried over. A returning owner
    rebases onto the result and raises anything it lost.
@@ -114,7 +118,11 @@ documentation progress.
    coordinator review. Record the handoff once. Awaiting review is not abandoned work. Keep
    linked issues open until integration or an explicit disposition.
 6. Address requested changes on open PRs before starting more work. Request review of the delta
-   after fixes; release work explicitly if unavailable. Do not approve or merge your own PR.
+   after fixes; release work explicitly if unavailable. Do not approve or merge your own PR. When
+   48 hours pass after a request for changes with no response from the author (a push, reply or
+   comment on the PR), any coordinator converts the PR to draft with a comment linking the
+   request. The draft keeps its history and leaves review queues; the author, or whoever takes it
+   over under rule 3, marks it ready again with the fix.
 
 Plain comments such as `active`, `blocked`, `available`, `awaiting review` and `changes requested`
 are sufficient; no custom labels or recurring heartbeat comments are required.
@@ -147,20 +155,24 @@ tooling.
   not stall smaller PRs behind cold cache rebuilds, and diagnose and fix merge-queue or CI
   bottlenecks when the queue jams. The queue squash-merges: a stacked PR that edits lines a lower
   PR introduces conflicts with that PR's squashed commit and is ejected, so queue it once the
-  lower PRs land (GitHub then retargets it to `main`) and it has merged `main`. Close completed
+  lower PRs land (GitHub then retargets it to `main`) and it has merged `main`, or land approved
+  layers together as a rollup ([Stacked chains](review.md#stacked-chains)). Close completed
   issues and link any remaining work once the change lands.
 - For your own implementation, follow the worker rules and obtain non-author review under
   [Review cycle](review.md#review-cycle).
 
-If a shared GitHub account prevents formal approval, use one brief PR comment naming the reviewer
-agent/session, revision and verdict. This is agent review, not platform or human approval.
+If a shared GitHub account prevents formal approval, use one brief PR comment that opens with the
+verdict line ([Verdicts, claims and holds](review.md#verdicts-claims-and-holds)), which names the
+reviewer agent/session after `by`. This is agent review, not platform or human approval.
 
 ## Working on changes
 
 Use ordinary Git branches or isolated worktrees for substantial changes. Preserve other
 contributors' work and keep mutable build outputs separate between worktrees. Agree substantial
 scope through Issues or pull requests, and split large developments into independently useful,
-reviewable milestones. Record unfinished work in `ROADMAP.md` without claiming it complete.
+reviewable milestones, stacked within the limits of [Stacked chains](review.md#stacked-chains).
+Record unfinished work in `ROADMAP.md` without
+claiming it complete.
 
 ### Repository isolation
 

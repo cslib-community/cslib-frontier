@@ -296,7 +296,7 @@ example :
           v i ∂Measure.pi (fun _ : Fin 1 => unif) ≤
       ∫ v, ∑ j : Fin 2, (SingleParameter.Vickrey.mechanism (ι := Fin 2)).payment v j
         ∂Measure.pi (fun _ : Fin 2 => unif) :=
-  bulow_klemperer hasValueDensity_uniform isRegular_uniform
+  Vickrey.integral_sum_payment_le_vickrey_succ hasValueDensity_uniform isRegular_uniform
     (myerson_isDSIC
       (SingleParameter.Vickrey.isMonotone_reserveAllocation unifVirtualValue_monotoneOn))
     (myerson_isIR fun v _ => SingleParameter.Vickrey.reserveAllocation_nonneg _ v)
@@ -312,7 +312,7 @@ example :
           unif2VirtualValue)).payment v i ∂Measure.pi (fun _ : Fin 2 => unif2) ≤
       ∫ v, ∑ j : Fin 3, (SingleParameter.Vickrey.mechanism (ι := Fin 3)).payment v j
         ∂Measure.pi (fun _ : Fin 3 => unif2) :=
-  bulow_klemperer hasValueDensity_unif2 isRegular_unif2
+  Vickrey.integral_sum_payment_le_vickrey_succ hasValueDensity_unif2 isRegular_unif2
     (myerson_isDSIC (SingleParameter.Vickrey.isMonotone_reserveAllocation
       (isRegular_unif2.strictMonoOn_Ioi hasValueDensity_unif2).monotoneOn))
     (myerson_isIR fun v _ => SingleParameter.Vickrey.reserveAllocation_nonneg _ v)

@@ -113,6 +113,7 @@ private theorem size_tree_with_slack (h : ℕ) :
     nlinarith
 
 /-- The increasing word widths cost only a constant per leaf in total. -/
+@[circuit_bound]
 theorem size_tree_le (h : ℕ) : (tree h).size ≤ 231 * 2 ^ h := by
   have := size_tree_with_slack h
   omega
@@ -157,12 +158,11 @@ theorem val_eval_populationCountCircuit (n : ℕ) (x : BitString n) :
     ((Nat.le_succ n).trans (Nat.le_pow_clog Nat.one_lt_two _)) x
 
 /-- A uniform linear gate bound, with constants and padding included. -/
+@[circuit_bound]
 theorem size_populationCountCircuit_le (n : ℕ) :
     (populationCountCircuit n).size ≤ 463 * (n + 1) := by
-  have hs := PopulationCount.size_tree_le (Nat.clog 2 (n + 1))
-  have hp := Nat.pow_clog_le_mul Nat.one_lt_two (Nat.succ_ne_zero n)
-  rw [populationCountCircuit, Circuit.size_comp, PopulationCount.size_pad]
-  nlinarith
+  have := Nat.pow_clog_le_mul Nat.one_lt_two (Nat.succ_ne_zero n)
+  circuit_bound [populationCountCircuit, PopulationCount.size_pad]
 
 /-- Compare the population count with a cutoff. An impossible cutoff returns false. -/
 @[expose] def linearThresholdCircuit (n q : ℕ) : Circuit signature n 1 :=
@@ -191,14 +191,7 @@ theorem size_populationCountCircuit_le (n : ℕ) :
 @[circuit_bound]
 theorem size_linearThresholdCircuit_le (n q : ℕ) :
     (linearThresholdCircuit n q).size ≤ 476 * (n + 1) := by
-  simp only [linearThresholdCircuit]
-  split_ifs with hq
-  · rw [Circuit.size_comp, Circuit.size_append, size_leCircuit, size_wordConstCircuit]
-    have hs := size_populationCountCircuit_le n
-    have hl : Nat.clog 2 (n + 1) ≤ n + 1 :=
-      Nat.clog_le_of_le_pow (Nat.lt_two_pow_self.le)
-    omega
-  · simp only [Circuit.size_oneGate]
-    omega
+  have : Nat.clog 2 (n + 1) ≤ n + 1 := Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le
+  circuit_bound [linearThresholdCircuit, size_leCircuit, size_wordConstCircuit]
 
 end Cslib.Circuits.Boolean

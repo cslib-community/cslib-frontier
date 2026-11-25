@@ -30,7 +30,7 @@ that no longer matches the library fails the build.
 Names in the examples link to the [API documentation][api], which lists every declaration with its
 docstring and source. Other entry points:
 
-* The README's [Start here][start] table points to checked examples for each kind of task.
+* The [library map][map] links to reference chapters and examples by topic.
 * The [results inventory][results] collects named results with their theorem names and sources.
 * [ROADMAP.md][roadmap] records outstanding work, and [CONTRIBUTING.md][contributing] explains how
   to propose and review changes.
@@ -41,7 +41,7 @@ time, and each chapter's friction points are fixed in the library rather than do
 
 [cslib]: https://github.com/leanprover/cslib
 [api]: https://www.cslib.io/cslib-frontier/
-[start]: https://github.com/cslib-community/cslib-frontier#start-here
+[map]: https://github.com/cslib-community/cslib-frontier/blob/main/manual/README.md#library-map
 [results]: https://github.com/cslib-community/cslib-frontier/blob/main/results/README.md
 [roadmap]: https://github.com/cslib-community/cslib-frontier/blob/main/ROADMAP.md
 [contributing]: https://github.com/cslib-community/cslib-frontier/blob/main/CONTRIBUTING.md
