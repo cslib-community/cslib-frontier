@@ -1969,7 +1969,8 @@ private theorem permInnerLoop_spec {c U V w n_max base mode : ℕ}
             (htm.2.1 curDest hcd).1, (htm.2.2.1 curDest hcd).1,
             clientResult_bind, clientResult_bind, clientResult_bind,
             StateTransitionSpec.clientResult_pure]
-        rw [clientState_bind, hs1, hr1, show permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
+        rw [clientState_bind, hs1, hr1,
+          show permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
             (true, dest curDest, q curDest, v curDest, Function.update act curDest false,
               Function.update q curDest curQ, Function.update v curDest curV) by
           simp [permuteInnerStep, ha]]
@@ -1998,7 +1999,8 @@ private theorem permInnerLoop_spec {c U V w n_max base mode : ℕ}
           rw [clientResult_bind, clientState_readPackedGen, clientResult_readPackedGen]
           simp only [hpa0, Nat.zero_ne_one, ↓reduceIte]
           rw [clientResult_bind, clientResult_bind, StateTransitionSpec.clientResult_pure]
-        rw [clientState_bind, hs1, hr1, show permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
+        rw [clientState_bind, hs1, hr1,
+          show permuteInnerStep dest (true, curDest, curQ, curV, act, q, v) =
             (false, curDest, curQ, curV, act, Function.update q curDest curQ,
               Function.update v curDest curV) by simp [permuteInnerStep, haf]]
         exact ih _ _ (htm.writeQV hw hcd hcq hcv) hinv hcd hcq hcv
