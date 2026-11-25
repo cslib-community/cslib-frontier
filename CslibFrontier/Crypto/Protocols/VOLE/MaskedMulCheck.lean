@@ -212,25 +212,17 @@ theorem maskedMulCheck_complete (left right output : ι → Fin n) :
       ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
-    let oracle : (q : Unit ⊕ Unit) →
-        StateT (Option (VOLECorrelation F (n + 1))) PMF
-          ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
-      (voleWorld F (n + 1)).impl
     rw [← OracleComp.substitute_eq_interpret]
-    change (ProbOracleComp.runWith oracle
-      (ProbOracleComp.sample
-        (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
-        (ProbComp.uniform (ι → F))) (some c)).bind _ = _
-    rw [ProbOracleComp.runWith_sample, PMF.bind_map]
-    simp only [pmf_norm, ProbComp.eval_uniform]
+    change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
+    simp only [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform]
     congr 1 with r : 1
     simp only [VOLECorrelation.receiverView, MaskedMulCheckAccepts,
       maskedMulCheckReply_correct left right output w c
         (valid_of_mem_support_voleIdealDist hc) r h, ite_true]
   rw [hrun]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  simp only [PMF.toOuterMeasure_bind_apply]
-  simp only [PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, Interactive.Accept]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
+    Interactive.Accept]
   simp
 
 /-- Expanding the actual role-separated execution exposes exactly one ideal setup sample and
@@ -247,17 +239,9 @@ theorem maskedMulCheckView_eq (left right output : ι → Fin n) (w : Fin n → 
     ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
     pure_bind]
   congr 1 with c : 1
-  let oracle : (q : Unit ⊕ Unit) →
-      StateT (Option (VOLECorrelation F (n + 1))) PMF
-        ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
-    (voleWorld F (n + 1)).impl
   rw [← OracleComp.substitute_eq_interpret]
-  change (ProbOracleComp.runWith oracle
-    (ProbOracleComp.sample
-      (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
-      (ProbComp.uniform (ι → F))) (some c)).bind _ = _
-  rw [ProbOracleComp.runWith_sample, PMF.bind_map]
-  simp [PMF.bind_const, ProbComp.eval_uniform, Function.comp_def]
+  change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
+  simp [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform, PMF.bind_const]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedView_fixed (left right output : ι → Fin n) (w : Fin n → F)

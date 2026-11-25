@@ -334,48 +334,28 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
             if hk : k.val < j then hist ⟨k.val, hk⟩
             else rest ⟨k.val - j, by omega⟩)
   | 0, j, hjm, hist => by
-    have hr : j = r := by omega
-    subst hr
-    rw [iopRunRounds]
-    have hconst :
-        (fun rest : Fin 0 → Chal =>
-          causalPref P j le_rfl (fun k =>
-            if hk : k.val < j then hist ⟨k.val, hk⟩
-            else rest ⟨k.val - j, by omega⟩)) =
-        Function.const (Fin 0 → Chal) (causalPref P j le_rfl hist) := by
-      funext rest
-      dsimp only [Function.const]
-      congr 1
-      funext k
-      simp [k.isLt]
-    rw [hconst, PMF.map_const]
+    obtain rfl : j = r := by omega
+    rw [iopRunRounds, ← PMF.map_const (PMF.uniformOfFintype (Fin 0 → Chal))]
+    congr 1
+    funext _
+    dsimp only [Function.const]
+    congr 1
+    funext k
+    simp [k.isLt]
   | m + 1, j, hjm, hist => by
     have hj_lt : j < r := by omega
-    have hlen : (causalPref P j (by omega) hist).length = j := length_causalPref P j _ hist
     have hstep_P :
         InteractiveIOPProver.ofCausal P (causalPref P j (by omega) hist) =
           PMF.pure (P ⟨j, hj_lt⟩ hist) :=
-      ofCausal_eq_pure P _ hlen hj_lt hist fun k =>
+      ofCausal_eq_pure P _ (length_causalPref P j _ hist) hj_lt hist fun k =>
         congrArg Prod.snd (getElem_causalPref P j (by omega) hist k.val k.isLt)
+    have hcausal_succ (c : Chal) :
+        causalPref P j (by omega) hist ++ [(P ⟨j, hj_lt⟩ hist, c)] =
+          causalPref P (j + 1) (by omega) (@Fin.snoc j (fun _ => Chal) hist c) := by
+      simp only [causalPref, Fin.snoc_castSucc, Fin.snoc_last]
     rw [iopRunRounds, hstep_P, PMF.pure_bind]
-    have hexpr :
-        (fun c : Chal =>
-          iopRunRounds (InteractiveIOPProver.ofCausal P) m
-            (causalPref P j (by omega) hist ++ [(P ⟨j, hj_lt⟩ hist, c)])) =
-        fun c : Chal =>
-          (PMF.uniformOfFintype (Fin m → Chal)).map fun tail =>
-            causalPref P r le_rfl (fun k =>
-              if hk : k.val < j + 1 then
-                @Fin.snoc j (fun _ => Chal) hist c ⟨k.val, hk⟩
-              else tail ⟨k.val - (j + 1), by omega⟩) := by
-      funext c
-      have hcausal_succ :
-          causalPref P j (by omega) hist ++ [(P ⟨j, hj_lt⟩ hist, c)] =
-            causalPref P (j + 1) (by omega) (@Fin.snoc j (fun _ => Chal) hist c) := by
-        simp only [causalPref, Fin.snoc_castSucc, Fin.snoc_last]
-      rw [hcausal_succ]
-      exact iopRunRounds_ofCausal_aux P m (j + 1) (by omega) (@Fin.snoc j (fun _ => Chal) hist c)
-    rw [hexpr, Cslib.Probability.PMF.uniformOfFintype_bind_map,
+    simp_rw [hcausal_succ, iopRunRounds_ofCausal_aux P m (j + 1) (by omega)]
+    rw [Cslib.Probability.PMF.uniformOfFintype_bind_map,
       ← Cslib.Probability.PMF.uniformOfFintype_map_equiv
         (Fin.consEquiv (fun _ : Fin (m + 1) => Chal)).symm,
       PMF.map_comp]
@@ -384,25 +364,23 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
     simp only [Function.comp_apply, Fin.consEquiv_symm_apply]
     congr 1
     funext k
-    by_cases hk : k.val < j
+    rcases lt_trichotomy k.val j with hk | hkeq | hk
     · have hk1 : k.val < j + 1 := by omega
       simp only [hk, hk1, ↓reduceDIte]
-      have hcast : (⟨k.val, hk1⟩ : Fin (j + 1)) = (⟨k.val, hk⟩ : Fin j).castSucc := rfl
-      rw [hcast, Fin.snoc_castSucc]
-    · by_cases hkeq : k.val = j
-      · have hk1 : k.val < j + 1 := by omega
-        simp only [hk, hk1, ↓reduceDIte]
-        have hlast : (⟨k.val, hk1⟩ : Fin (j + 1)) = Fin.last j := Fin.ext hkeq
-        have hzero : (⟨k.val - j, by omega⟩ : Fin (m + 1)) = 0 := by
-          ext
-          simp [hkeq]
-        rw [hlast, Fin.snoc_last, hzero]
-      · have hk1 : ¬ k.val < j + 1 := by omega
-        simp only [hk, hk1, ↓reduceDIte, Fin.tail]
-        congr 1
-        ext
-        simp only [Fin.val_succ]
-        omega
+      exact Fin.snoc_castSucc (α := fun _ => Chal) (rest 0) hist ⟨k.val, hk⟩
+    · have hk1 : k.val < j + 1 := by omega
+      have hnot : ¬ k.val < j := by omega
+      simp only [hnot, hk1, ↓reduceDIte]
+      have hlast : (⟨k.val, hk1⟩ : Fin (j + 1)) = Fin.last j := Fin.ext hkeq
+      have hzero : (⟨k.val - j, by omega⟩ : Fin (m + 1)) = 0 := Fin.ext (by simp [hkeq])
+      rw [hlast, Fin.snoc_last, hzero]
+    · have hnot1 : ¬ k.val < j := by omega
+      have hnot2 : ¬ k.val < j + 1 := by omega
+      simp only [hnot1, hnot2, ↓reduceDIte, Fin.tail]
+      congr 1
+      ext
+      simp only [Fin.val_succ]
+      omega
 
 /-- For a deterministic causal prover `P`, the sequential `iopInteractiveGame` coincides with
 evaluating `iopVerify` under a single uniform draw of `chals : Fin r → Chal`. -/
@@ -421,24 +399,16 @@ theorem iopInteractiveGame_ofCausal_eq {r d : ℕ} {Stmt Wit Sym Chal : Type}
   rw [hrun, PMF.map_comp]
   congr 1
   funext chals
-  simp only [Function.comp_apply]
-  have hhist :
-      (fun k : Fin r =>
-        if hk : k.val < 0 then Fin.elim0 ⟨k.val, hk⟩
-        else chals ⟨k.val - 0, by omega⟩) = chals := by
-    funext k
-    simp
-  rw [hhist]
-  have hlen : (causalPref P r le_rfl chals).length = r := length_causalPref P r le_rfl chals
-  refine congrArg₂ (iopVerify iop x) ?_ ?_
-  · funext j
-    have hj : j.val < (causalPref P r le_rfl chals).length := by rw [hlen]; exact j.isLt
+  simp only [Function.comp_apply, Nat.not_lt_zero, ↓reduceDIte, Nat.sub_zero, Fin.eta]
+  have hget (j : Fin r) (d0 : OracleTable d Sym × Chal) :
+      (causalPref P r le_rfl chals)[j.val]?.getD d0 =
+        (P j (fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩), chals j) := by
+    have hj : j.val < (causalPref P r le_rfl chals).length := by
+      rw [length_causalPref]
+      exact j.isLt
     rw [List.getElem?_eq_getElem hj, Option.getD_some,
       getElem_causalPref P r le_rfl chals j.val j.isLt]
-  · funext j
-    have hj : j.val < (causalPref P r le_rfl chals).length := by rw [hlen]; exact j.isLt
-    rw [List.getElem?_eq_getElem hj, Option.getD_some,
-      getElem_causalPref P r le_rfl chals j.val j.isLt]
+  simp only [hget]
 
 /-- Bridge from per-round escape budgets `ε_round : Fin r → ℝ≥0∞` to the uniform all-prefix escape
 bound `≤ Finset.univ.sup ε_round` consumed by `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound`
