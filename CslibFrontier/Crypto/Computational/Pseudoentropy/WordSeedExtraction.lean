@@ -77,15 +77,11 @@ theorem isPPTOn_extractWordObservations {α : Type} {input : α ↪ List Bool}
     (hobservations : ComputableInPolyTime observations input (encList encBits)) :
     IsPPTOn input encBits
       (fun a => extractWordObservations (bound a) (outputBits a) (observations a)) := by
-  have hpad : ComputableInPolyTime
-      (fun p : α × List Bool => padWord (bound p.1) p.2) (encPair input encBits) encBits :=
-    ComputableInPolyTime.bitsPadWord
-      (hbound.comp (ComputableInPolyTime.fst input encBits))
-      (ComputableInPolyTime.snd input encBits)
-  have hmapped := ComputableInPolyTime.mapWithInput (f := fun a word => padWord (bound a) word)
-    hobservations hpad
-  have hwords := ComputableInPolyTime.bitsFlatten hmapped
-  exact LinearHash.isPPTOn_extract houtput hwords
+  exact LinearHash.isPPTOn_extract houtput (ComputableInPolyTime.bitsFlatten
+    (ComputableInPolyTime.mapWithInput (f := fun a word => padWord (bound a) word) hobservations
+      (ComputableInPolyTime.bitsPadWord
+        (hbound.comp (ComputableInPolyTime.fst input encBits))
+        (ComputableInPolyTime.snd input encBits))))
 
 attribute [program_certificate] isPPTOn_extractWordObservations
 
@@ -130,13 +126,10 @@ theorem SamplablePair.SeedRealization.extract_word_observations {pair : Samplabl
       entropy ((pair.joint n).map Prod.fst) := by
     rw [show ProbComp.eval (source n) = ((pair.joint n).map Prod.fst).map (observe n) by
       simp only [pmf_norm, source, pair.eval_latentSample]]
-    apply entropy_map_of_injOn
-    intro x hx y hy hxy
-    exact (pair.encode n).injective
+    exact entropy_map_of_injOn _ fun x hx y hy hxy => (pair.encode n).injective
       (word_eq_of_paddedBits_eq (hbound n x hx) (hbound n y hy) hxy)
-  have h := seededHash_replicate_indistinguishable source saved.length inverseSlack outputBits
-    (by
-      intro n value hvalue
+  refine (seededHash_replicate_indistinguishable source saved.length inverseSlack outputBits
+    (fun n value hvalue => by
       simp only [pmf_norm, source, pair.eval_latentSample, ← saved.output_distribution] at hvalue ⊢
       simpa [BitString, Real.logb_pow] using
         uniform_map_mass_ge (fun bits => observe n (saved.output n bits).1) value hvalue)
@@ -146,16 +139,12 @@ theorem SamplablePair.SeedRealization.extract_word_observations {pair : Samplabl
         (ofList (count n * (2 * bound n + 1)) (values.map List.ofFn).flatten))
     (fun n => isTwoUniversal_hash_flatten_blocks (count n) (2 * bound n + 1) (outputBits n))
     (by simpa only [hentropy] using hbudget)
-    (fun n result => test n (List.ofFn result.1 ++ List.ofFn result.2)) trivial
-  apply h.congr
-  intro n
+    (fun n result => test n (List.ofFn result.1 ++ List.ofFn result.2)) trivial).congr fun n => ?_
   have hpublic : ProbComp.eval (padWord (bound n) <$> (Prod.fst <$> pair.sample n)) =
       ProbComp.eval (List.ofFn <$> source n) := by
     simp only [pmf_norm, pair.eval_sample, source, pair.eval_latentSample]
-    apply map_congr_on_support
-    intro result hresult
-    exact (ofFn_ofList (length_padWord (hbound n result.1
-      ((PMF.mem_support_map_iff _ _ _).mpr ⟨result, hresult, rfl⟩)))).symm
+    exact map_congr_on_support _ _ _ fun result hresult => (ofFn_ofList (length_padWord
+      (hbound n result.1 ((PMF.mem_support_map_iff _ _ _).mpr ⟨result, hresult, rfl⟩)))).symm
   have hreal := LinearHash.eval_extract_replicate (source n) (count n) (outputBits n)
   rw [ProbComp.eval_bind, ← ProbComp.eval_replicate_congr hpublic] at hreal
   simp only [pmf_norm, OracleComp.replicate_map] at hreal
@@ -208,15 +197,14 @@ theorem SamplablePair.SeedRealization.extract_word_seeds {pair : SamplablePair}
   dsimp only
   intro test _
   let count := saved.sampleCount inverseSlack
-  have h := saved.remainingSeed_word_extraction inverseSlack outputBits
+  refine (saved.remainingSeed_word_extraction inverseSlack outputBits
     (fun n => ProbComp.uniform (BitString (outputBits n * (count n * saved.length n))))
     (fun n key values => LinearHash.hash
       (blocksEquiv (m := outputBits n) (k := count n * saved.length n) key)
         (ofList (count n * saved.length n) values.flatten))
     (fun n => isTwoUniversal_hash_flatten_blocks (count n) (saved.length n) (outputBits n)) hbudget
-    (fun n result => test n (result.1, List.ofFn result.2.1, List.ofFn result.2.2)) trivial
-  apply h.congr
-  intro n
+    (fun n result => test n (result.1, List.ofFn result.2.1, List.ofFn result.2.2)) trivial).congr
+    fun n => ?_
   simp only [pmf_norm, count, extractWordSeeds, eval_extractMatrixLabels,
     eval_extractMatrixLabelsIdeal]
 

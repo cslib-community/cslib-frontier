@@ -89,11 +89,10 @@ theorem medians_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) 
   fun_induction medians xs with
   | case1 => simp -- []
   | case2 x xs ih =>
-    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
     have hg := groupMedian_countQueries_le oracle x (xs.take 4)
     have h5 := five_mul_mergeSortCountBound_le (j := (xs.take 4).length) (by simp)
     have htake : (xs.take 4).length + (xs.drop 4).length = xs.length := by simp; omega
-    simp only [List.length_cons]
+    simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero, List.length_cons]
     omega
 
 /-- Lists of at most `selectCutoff` elements are sorted with at most `10` comparisons per
@@ -101,11 +100,9 @@ element. -/
 private theorem mergeSort_countQueries_le_of_le_selectCutoff
     (oracle : {ι : Type} → LEQuery α ι → ι) {xs : List α} (h : xs.length ≤ selectCutoff) :
     (mergeSort xs).countQueries oracle ≤ 10 * xs.length := by
-  have hlog : Nat.clog 2 xs.length ≤ 10 :=
-    Nat.clog_le_of_le_pow (h.trans (by decide))
   calc (mergeSort xs).countQueries oracle ≤ xs.length * Nat.clog 2 xs.length :=
         mergeSort_countQueries_le oracle xs
-    _ ≤ xs.length * 10 := Nat.mul_le_mul_left _ hlog
+    _ ≤ xs.length * 10 := Nat.mul_le_mul_left _ (Nat.clog_le_of_le_pow (h.trans (by decide)))
     _ = 10 * xs.length := Nat.mul_comm _ _
 
 /-- **Linear comparison bound for selection.** For every oracle, `select k xs` makes at most
@@ -119,20 +116,16 @@ theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (
     omega
   | case2 k xs hsmall ihM ihL ihG => -- median of medians
     have hmed := medians_countQueries_le oracle xs
-    have hMlen : ((medians xs).eval oracle).length = (xs.length + 4) / 5 :=
-      length_eval_medians oracle xs
+    have hMlen := length_eval_medians oracle xs
     have hM : ((medians xs).eval oracle).length < xs.length := by
-      simp only [selectCutoff] at hsmall
-      omega
+      simp only [selectCutoff] at hsmall; omega
     have ihM := ihM _ hM
     simp only [FreeM.countQueries_bind]
     rw [dite_eq_left hM]
     simp only [FreeM.countQueries_bind]
     rcases hp : (select ((((medians xs).eval oracle).length - 1) / 2)
       ((medians xs).eval oracle)).eval oracle with _ | p
-    · simp only [FreeM.countQueries_pure]
-      simp only [selectCutoff] at hsmall
-      omega
+    · simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢; omega
     have hpart := partition3_countQueries_le oracle p xs
     rcases hLEG : (partition3 p xs).eval oracle with ⟨L, E, G⟩
     simp only [FreeM.countQueries_bind, hLEG]
@@ -142,17 +135,14 @@ theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (
         rw [dite_eq_left hL, dite_eq_left hG]
         simp only [selectSideBound, selectCutoff] at hL hG hsmall
         split_ifs with hk
-        · have ihL := ihL [] L G hL hk
+        · have := ihL [] L G hL hk
           omega
-        · simp only [FreeM.countQueries_pure]
-          omega
+        · simp only [FreeM.countQueries_pure]; omega
         · omega
       · rw [dite_eq_left hL, dite_eq_right hG]
-        simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢
-        omega
+        simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢; omega
     · rw [dite_eq_right hL]
-      simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢
-      omega
+      simp only [FreeM.countQueries_pure, selectCutoff] at hsmall ⊢; omega
 
 /-- **Linear comparison bound for selection**, as a query upper bound: on lists of length at most
 `n`, `select k` makes at most `37 * n` comparisons for every oracle. -/

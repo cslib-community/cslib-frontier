@@ -75,18 +75,16 @@ theorem commutation_defect_card [Fintype α] (f g h : α → α)
   classical
   let E := disagreement f g
   let P := Finset.univ.filter fun x => h x ∈ E
-  have hP : P.card ≤ E.card := by
+  have hP : P.card ≤ E.card :=
     calc
       P.card = (P.image h).card := (Finset.card_image_of_injective P hi).symm
-      _ ≤ E.card := Finset.card_le_card (by
-        intro y hy
+      _ ≤ E.card := Finset.card_le_card fun _ hy => by
         obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hy
-        exact (Finset.mem_filter.mp hx).2)
-  have hsub : disagreement (h ∘ g) (g ∘ h) ⊆ E ∪ P := by
-    intro x hx
-    have hd := commutation_defect_subset f g h hc (mem_disagreement _ _ _ |>.mp hx)
+        exact (Finset.mem_filter.mp hx).2
+  have hsub : disagreement (h ∘ g) (g ∘ h) ⊆ E ∪ P := fun x hx => by
     simpa only [Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and,
-      mem_disagreement, Set.mem_union, Set.mem_ofPred_eq, Set.mem_preimage, E, P] using hd
+      mem_disagreement, Set.mem_union, Set.mem_ofPred_eq, Set.mem_preimage, E, P] using
+      commutation_defect_subset f g h hc ((mem_disagreement _ _ _).mp hx)
   calc
     _ ≤ (E ∪ P).card := Finset.card_le_card hsub
     _ ≤ E.card + P.card := Finset.card_union_le _ _
@@ -96,24 +94,17 @@ theorem commutation_defect_card [Fintype α] (f g h : α → α)
 theorem disagreement_image_eq [Fintype α] [DecidableEq α] (f g : Equiv.Perm α) :
     (disagreement f g).image f = (disagreement f g).image g := by
   classical
-  ext y
-  constructor
-  · rintro hy
+  have hsub (u v : Equiv.Perm α) : (disagreement u v).image u ⊆ (disagreement v u).image v := by
+    intro _ hy
     obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hy
-    refine Finset.mem_image.mpr ⟨g.symm (f x), ?_, by simp⟩
-    rw [mem_disagreement] at hx ⊢
-    intro he
-    have he' : f (g.symm (f x)) = f x := by simpa using he
-    have := f.injective he'
-    exact hx (by simpa [this] using g.apply_symm_apply (f x) |>.symm)
-  · intro hy
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hy
-    refine Finset.mem_image.mpr ⟨f.symm (g x), ?_, by simp⟩
-    rw [mem_disagreement] at hx ⊢
-    intro he
-    have he' : g (f.symm (g x)) = g x := by simpa using he.symm
-    have := g.injective he'
-    exact hx (by simpa [this] using f.apply_symm_apply (g x))
+    refine Finset.mem_image.mpr ⟨v.symm (u x), (mem_disagreement _ _ _).mpr fun he => ?_, by simp⟩
+    rw [v.apply_symm_apply] at he
+    exact (mem_disagreement _ _ _).mp hx
+      ((v.apply_symm_apply (u x)).symm.trans (congrArg v (u.injective he.symm)))
+  have hsymm : disagreement g f = disagreement f g := by
+    ext x
+    simp [ne_comm]
+  exact Finset.Subset.antisymm (hsymm ▸ hsub f g) (hsymm ▸ hsub g f)
 
 /-- Relabeling a finite universe preserves the number of edited successors. -/
 theorem disagreement_conjugate_card {β : Type*} [Fintype α] [Fintype β]
@@ -121,24 +112,18 @@ theorem disagreement_conjugate_card {β : Type*} [Fintype α] [Fintype β]
     (disagreement (e ∘ f ∘ e.symm) (e ∘ g ∘ e.symm)).card =
       (disagreement f g).card := by
   classical
-  symm
-  apply Finset.card_bij (fun x _ => e x)
-  · intro x hx
-    simpa only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply,
+  refine (Finset.card_bij (fun x _ => e x) (fun x hx => ?_) (fun _ _ _ _ h => e.injective h)
+    fun y hy => ⟨e.symm y, ?_, by simp⟩).symm
+  · simpa only [mem_disagreement, Function.comp_apply, Equiv.symm_apply_apply,
       e.injective.ne_iff] using hx
-  · intro x _ y _ he
-    exact e.injective he
-  · intro y hy
-    refine ⟨e.symm y, ?_, by simp⟩
-    simpa only [mem_disagreement, Function.comp_apply, e.injective.ne_iff] using hy
+  · simpa only [mem_disagreement, Function.comp_apply, e.injective.ne_iff] using hy
 
 /-- If the relabeling `e` carries `g` to `g'`, then relabeling `f` edits `g'` in as many
 places as `f` edits `g`. -/
 theorem disagreement_semiconj_card {β : Type*} [Fintype α] [Fintype β]
     (f g : α → α) (e : α ≃ β) (g' : β → β) (h : Function.Semiconj e g g') :
     (disagreement (e ∘ f ∘ e.symm) g').card = (disagreement f g).card := by
-  have hg : e ∘ g ∘ e.symm = g' := by
-    funext y
+  have hg : e ∘ g ∘ e.symm = g' := funext fun y => by
     simpa only [Function.comp_apply, Equiv.apply_symm_apply] using h (e.symm y)
   rw [← hg, disagreement_conjugate_card]
 

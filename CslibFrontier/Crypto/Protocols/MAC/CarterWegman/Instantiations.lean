@@ -306,27 +306,17 @@ theorem isDeltaUniversalHash_linearHashWordHash (msgLen : ℕ → ℕ) (n : ℕ)
       ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   let prepare (k : List Bool) : Fin n → BitString (msgLen n) :=
     BitString.block (BitString.ofList (n * msgLen n) k)
-  have hfn :
-      (fun k (m : BitString (msgLen n)) =>
-        BitString.ofList n (BitString.LinearHash.wordHash n k (List.ofFn m))) =
-      (fun k (m : BitString (msgLen n)) => BitString.LinearHash.hash (prepare k) m) := by
-    funext k m
-    rw [BitString.LinearHash.wordHash_eq_ofFn, BitString.ofList_ofFn]
-  have hmap :
-      (ProbComp.eval (BitString.sampleList (n * msgLen n))).map prepare =
-        PMF.uniformOfFintype (Fin n → BitString (msgLen n)) := by
-    rw [BitString.eval_sampleList, BitString.uniformList, PMF.map_comp]
-    have hcomp :
-        prepare ∘ List.ofFn =
-          (BitString.blocksEquiv (m := n) (k := msgLen n) :
-            BitString (n * msgLen n) ≃ (Fin n → BitString (msgLen n))) := by
-      funext s
-      simp [prepare, BitString.ofList_ofFn, BitString.blocksEquiv_apply]
-    rw [hcomp, PMF.uniformOfFintype_map_equiv]
-  rw [hfn]
+  rw [show (fun k (m : BitString (msgLen n)) =>
+      BitString.ofList n (BitString.LinearHash.wordHash n k (List.ofFn m))) =
+    fun k m => BitString.LinearHash.hash (prepare k) m from
+    funext₂ fun k m => by rw [BitString.LinearHash.wordHash_eq_ofFn, BitString.ofList_ofFn]]
   refine IsDeltaUniversalHash.precompose_seed
     (ProbComp.eval (BitString.sampleList (n * msgLen n))) prepare ?_
-  rw [hmap]
+  rw [BitString.eval_sampleList, BitString.uniformList, PMF.map_comp,
+    show prepare ∘ List.ofFn = (BitString.blocksEquiv (m := n) (k := msgLen n) :
+      BitString (n * msgLen n) ≃ (Fin n → BitString (msgLen n))) from
+      funext fun s => by simp [prepare, BitString.ofList_ofFn, BitString.blocksEquiv_apply],
+    PMF.uniformOfFintype_map_equiv]
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
     BitString.LinearHash.isDeltaUniversalHash (msgLen n) n
 
@@ -367,11 +357,10 @@ theorem sufCmaGame_linearHashNonceMAC_toReal_le
             (prfIdealGame id id
               (prfNonceToPrfDistinguisher msgLen (fun k => BitString.sampleList (k * msgLen k))
                 BitString.LinearHash.wordHash adversary) n)) : ℝ) := by
-  have h := sufCmaGame_carterWegmanNonceMAC_toReal_le hmsgLen (isPPTOn_linearHashSeed hmsgLen)
-    computableInPolyTime_linearHashWordHash hfamily
-    (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) adversary
   simpa only [linearHashNonceMAC, ENNReal.toReal_inv, ENNReal.toReal_pow,
-    ENNReal.toReal_ofNat] using h
+    ENNReal.toReal_ofNat] using sufCmaGame_carterWegmanNonceMAC_toReal_le hmsgLen
+      (isPPTOn_linearHashSeed hmsgLen) computableInPolyTime_linearHashWordHash hfamily
+      (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) adversary
 
 private theorem isDeltaUniversalHash_linearHashWordHash_nnreal (msgLen : ℕ → ℕ) (n : ℕ) :
     IsDeltaUniversalHash (ProbComp.eval (BitString.sampleList (n * msgLen n)))
@@ -461,10 +450,10 @@ theorem sufCmaGame_linearHashRandomMAC_toReal_le
                 (fun k => BitString.sampleList (k * msgLen k))
                 BitString.LinearHash.wordHash adversary) n)) : ℝ) := by
   dsimp only [linearHashRandomMAC]
-  have h := sufCmaGame_carterWegmanRandomMAC_toReal_le hmsgLen (isPPTOn_linearHashSeed hmsgLen)
-    computableInPolyTime_linearHashWordHash hfamily
-    (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) hq
-  simpa only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] using h
+  simpa only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] using
+    sufCmaGame_carterWegmanRandomMAC_toReal_le hmsgLen (isPPTOn_linearHashSeed hmsgLen)
+      computableInPolyTime_linearHashWordHash hfamily
+      (isDeltaUniversalHash_linearHashWordHash msgLen n) (by simp) hq
 
 /-- Step instance of [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270), for the Boolean-matrix
 linear hash, not the cited result, which holds for every DUF hash: asymptotic `MACScheme.SUFCMA`
