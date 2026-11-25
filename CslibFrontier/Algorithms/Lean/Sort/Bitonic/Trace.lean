@@ -162,10 +162,8 @@ def unrouteSort : (d : ℕ) → (Fin (sortTraceSize d) → Bool) →
   | zero => rfl
   | succ d ih =>
     dsimp only [mergeTraceSize, arity] at flags x
-    simp only [routeMerge, unrouteMerge, arity, mergeTraceSize]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
-    rw [Fin.append_castAdd_natAdd]
-    exact routeLayer_routeLayer _ x
+    simp only [routeMerge, unrouteMerge, arity, mergeTraceSize, Function.comp_def, Fin.append_left,
+      Fin.append_right, ih, Fin.append_castAdd_natAdd, routeLayer_routeLayer]
 
 /-- Routing a reversed bitonic merge recovers the payload. -/
 @[simp] theorem routeMerge_unrouteMerge (d : ℕ) (flags : Fin (mergeTraceSize d) → Bool)
@@ -174,9 +172,8 @@ def unrouteSort : (d : ℕ) → (Fin (sortTraceSize d) → Bool) →
   | zero => rfl
   | succ d ih =>
     dsimp only [mergeTraceSize, arity] at flags x
-    simp only [routeMerge, unrouteMerge, arity, mergeTraceSize, routeLayer_routeLayer]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
-    exact Fin.append_castAdd_natAdd
+    simp only [routeMerge, unrouteMerge, arity, mergeTraceSize, routeLayer_routeLayer,
+      Function.comp_def, Fin.append_left, Fin.append_right, ih, Fin.append_castAdd_natAdd]
 
 /-- Reversing a routed bitonic sort recovers the original payload. -/
 @[simp] theorem unrouteSort_routeSort (d : ℕ) (flags : Fin (sortTraceSize d) → Bool)
@@ -187,8 +184,7 @@ def unrouteSort : (d : ℕ) → (Fin (sortTraceSize d) → Bool) →
     dsimp only [sortTraceSize, arity] at flags x
     simp only [routeSort, unrouteSort, arity, sortTraceSize]
     erw [unrouteMerge_routeMerge]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
-    exact Fin.append_castAdd_natAdd
+    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih, Fin.append_castAdd_natAdd]
 
 /-- Routing a reversed bitonic sort recovers the payload. -/
 @[simp] theorem routeSort_unrouteSort (d : ℕ) (flags : Fin (sortTraceSize d) → Bool)
@@ -197,8 +193,8 @@ def unrouteSort : (d : ℕ) → (Fin (sortTraceSize d) → Bool) →
   | zero => rfl
   | succ d ih =>
     dsimp only [sortTraceSize, arity] at flags x
-    simp only [routeSort, unrouteSort, arity, sortTraceSize]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
+    simp only [routeSort, unrouteSort, arity, sortTraceSize, Function.comp_def, Fin.append_left,
+      Fin.append_right, ih]
     erw [Fin.append_castAdd_natAdd, routeMerge_unrouteMerge]
 
 private theorem routeMerge_mergeTrace [LinearOrder κ] (key : α → κ) (d : ℕ)
@@ -208,10 +204,8 @@ private theorem routeMerge_mergeTrace [LinearOrder κ] (key : α → κ) (d : �
   | zero => rfl
   | succ d ih =>
     dsimp only [arity] at x
-    simp only [routeMerge, mergeTrace, arity, mergeTraceSize, merge]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right]
-    rw [routeLayer_layerFlags]
-    simp only [ih]
+    simp only [routeMerge, mergeTrace, arity, mergeTraceSize, merge, Function.comp_def,
+      Fin.append_left, Fin.append_right, routeLayer_layerFlags, ih]
 
 /-- Routing a payload along its own sort trace computes `sort`. -/
 theorem routeSort_sortTrace [LinearOrder κ] (key : α → κ) (d : ℕ)
@@ -221,8 +215,8 @@ theorem routeSort_sortTrace [LinearOrder κ] (key : α → κ) (d : ℕ)
   | zero => rfl
   | succ d ih =>
     dsimp only [arity] at x
-    simp only [routeSort, sortTrace, arity, sortTraceSize, sort]
-    simp only [Function.comp_def, Fin.append_left, Fin.append_right, ih]
+    simp only [routeSort, sortTrace, arity, sortTraceSize, sort, Function.comp_def,
+      Fin.append_left, Fin.append_right, ih]
     exact routeMerge_mergeTrace _ _ _ _
 
 private theorem unrouteSort_sort [LinearOrder κ] (key : α → κ) (d : ℕ)
@@ -302,11 +296,8 @@ theorem two_mul_mergeTraceSize (d : ℕ) : 2 * mergeTraceSize d = d * 2 ^ d := b
   induction d with
   | zero => rfl
   | succ d ih =>
-    calc
-      2 * mergeTraceSize (d + 1) = 2 * 2 ^ d + 2 * (2 * mergeTraceSize d) := by
-        rw [mergeTraceSize, arity_eq_two_pow]
-        ring
-      _ = (d + 1) * 2 ^ (d + 1) := by rw [ih, pow_succ]; ring
+    rw [mergeTraceSize, arity_eq_two_pow, mul_add, mul_add, ih, pow_succ]
+    ring
 
 /-- A sort retains `d * (d + 1) * 2^d / 4` decisions. -/
 theorem four_mul_sortTraceSize (d : ℕ) :
@@ -314,13 +305,9 @@ theorem four_mul_sortTraceSize (d : ℕ) :
   induction d with
   | zero => rfl
   | succ d ih =>
-    calc
-      4 * sortTraceSize (d + 1) =
-          2 * (4 * sortTraceSize d) + 2 * (2 * mergeTraceSize (d + 1)) := by
-        rw [sortTraceSize]
-        ring
-      _ = (d + 1) * (d + 1 + 1) * 2 ^ (d + 1) := by
-        rw [ih, two_mul_mergeTraceSize, pow_succ]
-        ring
+    rw [sortTraceSize, show 4 * (sortTraceSize d + sortTraceSize d + mergeTraceSize (d + 1)) =
+      2 * (4 * sortTraceSize d) + 2 * (2 * mergeTraceSize (d + 1)) by ring,
+      ih, two_mul_mergeTraceSize, pow_succ]
+    ring
 
 end Cslib.BitonicSort
