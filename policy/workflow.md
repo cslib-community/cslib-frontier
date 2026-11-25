@@ -167,8 +167,8 @@ agent/session, revision and verdict. This is agent review, not platform or human
 Use ordinary Git branches or isolated worktrees for substantial changes. Preserve other
 contributors' work and keep mutable build outputs separate between worktrees. Agree substantial
 scope through Issues or pull requests, and split large developments into independently useful,
-reviewable milestones; a stacked chain has at most three open unlanded layers
-([Stacked chains](review.md#stacked-chains)). Record unfinished work in `ROADMAP.md` without
+reviewable milestones, stacked within the limits of [Stacked chains](review.md#stacked-chains).
+Record unfinished work in `ROADMAP.md` without
 claiming it complete.
 
 ### Repository isolation

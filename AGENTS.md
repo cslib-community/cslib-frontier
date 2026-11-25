@@ -330,7 +330,7 @@ and obtain non-author review.
 Full text: [policy/workflow.md](policy/workflow.md). Use ordinary branches or isolated worktrees,
 and split large developments into independently useful, reviewable milestones. A stacked chain
 has at most three open unlanded layers; reviewers skip layers above a root that cannot land, and
-approved contiguous layers land as a rollup ([details](policy/review.md#stacked-chains)).
+approved contiguous layers may land as a rollup ([details](policy/review.md#stacked-chains)).
 Preserve other contributors' work and source credit.
 
 ### Repository isolation
