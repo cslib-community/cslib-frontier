@@ -263,14 +263,8 @@ theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r) := by
   have hlt := src.isLt
   have hm_src := hmem src
-  let IncPost (y : Data 28) : Prop :=
-    (∀ u : Fin N, y.mem (curBase + u.val) = Function.update deg src (deg src + 1) u) ∧
-      (∀ a, ¬ (curBase ≤ a ∧ a < curBase + N) → y.mem a = x.mem a) ∧
-      (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
-  change ∃ y, ExecWithin w incCurCode x y 4 ∧ IncPost y
   unfold incCurCode
   wram_exec [hc1, hcur, hsrc, hm_src]
-  dsimp only [IncPost]
   refine ⟨fun u => ?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd
     by_cases hu : u = src
@@ -320,14 +314,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       x₀.mem = Function.update x.mem offBase 0 ∧
       x₀.regs pReg = 0 ∧ x₀.regs iReg = 0 ∧
       (∀ r : Fin 28, r.val < 18 → x₀.regs r = x.regs r) := by
-    let PrepPost (x₀ : Data 28) : Prop :=
-      x₀.mem = Function.update x.mem offBase 0 ∧
-        x₀.regs pReg = 0 ∧ x₀.regs iReg = 0 ∧
-        (∀ r : Fin 28, r.val < 18 → x₀.regs r = x.regs r)
-    change ∃ x₀, ExecWithin (B := .standard) w
-      (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]) x x₀ 3 ∧ PrepPost x₀
     wram_exec [hc0, hoffB]
-    dsimp only [PrepPost]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, fun r hr => by wram_simp⟩
   obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_p, hx₀_i, hx₀_fr⟩ := hprep
   let P (k : ℕ) (y : Data 28) : Prop :=
@@ -550,15 +537,8 @@ theorem backfillStepCode_spec {N w : ℕ}
     lt_of_lt_of_le (by omega : c < csrOffset targetAdj (src.val + 1)) hoff_le_N
   have hstep := partialCSRAt_step targetAdj part curBase edgeBase Mc hdisj hmc src dst hroom
     x.mem hp
-  let BfPost (y : Data 28) : Prop :=
-    PartialCSRAt targetAdj (Function.update part src (dst :: part src)) curBase edgeBase y.mem ∧
-      (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + N) ∨
-          (edgeBase ≤ a ∧ a < edgeBase + csrOffset targetAdj N)) → y.mem a = x.mem a) ∧
-      (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r)
-  change ∃ y, ExecWithin w backfillStepCode x y 6 ∧ BfPost y
   unfold backfillStepCode
   wram_exec [hc1, hcurB, hedgeB, hsrc, hdst]
-  dsimp only [BfPost]
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
   · mem_upd; exact hstep.1
   · mem_upd; exact hstep.2 a ha
