@@ -78,8 +78,7 @@ theorem runWeight_le {B : ℝ} {N : ℕ} (hc : ∀ t, 0 ≤ c t) (hB : 1 ≤ B) 
           B ^ switchCount τ j * ∏ t ∈ Ico i j, c t)) := by
     induction j with
     | zero =>
-      have h0 : switchCount τ 0 = 0 := by
-        rw [switchCount, sum_range_one]; simp
+      have h0 : switchCount τ 0 = 0 := by simp [switchCount]
       refine ⟨fun h => ⟨0, le_rfl, ?_⟩, fun h => ⟨?_, by simp⟩⟩ <;>
         simp [runWeight, h0, h, hB]
     | succ j ih =>
@@ -96,36 +95,30 @@ theorem runWeight_le {B : ℝ} {N : ℕ} (hc : ∀ t, 0 ≤ c t) (hB : 1 ≤ B) 
       rcases Bool.eq_false_or_eq_true (τ j) with hj' | hj' <;>
         rcases Bool.eq_false_or_eq_true (τ (j + 1)) with hj1 | hj1
       · -- a run of type `𝒟` continues
-        have hw' : switchCount τ (j + 1) = switchCount τ j := by simp [hw, hj', hj1]
-        have hg' : runWeight τ S c (j + 1) = runWeight τ S c j * c (j + 1) := by
-          simp [hg, hj', hj1]
-        refine ⟨fun _ => ?_, by simp [hj1]⟩
         obtain ⟨i, hi, h⟩ := ihT hj'
-        refine ⟨i, by omega, ?_⟩
-        rw [hw', hg', prod_Ico_succ_top (by omega), ← mul_assoc]
+        refine ⟨fun _ => ⟨i, by omega, ?_⟩, by simp [hj1]⟩
+        rw [show switchCount τ (j + 1) = switchCount τ j by simp [hw, hj', hj1],
+          show runWeight τ S c (j + 1) = runWeight τ S c j * c (j + 1) by simp [hg, hj', hj1],
+          prod_Ico_succ_top (by omega), ← mul_assoc]
         exact mul_le_mul_of_nonneg_right h (hc _)
       · -- a run of type `𝒟` ends
-        have hw' : switchCount τ (j + 1) = switchCount τ j + 1 := by simp [hw, hj', hj1]
-        have hg' : runWeight τ S c (j + 1) = runWeight τ S c j := by simp [hg, hj', hj1]
-        refine ⟨by simp [hj1], fun _ => ?_⟩
         obtain ⟨i, hi, h⟩ := ihT hj'
-        rw [hw', hg']
-        refine ⟨?_, fun _ _ => ⟨i, by omega, ?_⟩⟩
-        · calc runWeight τ S c j ≤ B ^ switchCount τ j * B ^ 2 :=
-                h.trans (mul_le_mul_of_nonneg_left (hM _ _ (by omega)) hpow.le)
-            _ = _ := by ring
-        · rw [pow_succ, mul_right_comm]
-          exact mul_le_mul_of_nonneg_right h hB0.le
+        refine ⟨by simp [hj1], fun _ => ?_⟩
+        rw [show switchCount τ (j + 1) = switchCount τ j + 1 by simp [hw, hj', hj1],
+          show runWeight τ S c (j + 1) = runWeight τ S c j by simp [hg, hj', hj1]]
+        refine ⟨(h.trans (mul_le_mul_of_nonneg_left (hM _ _ (by omega)) hpow.le)).trans_eq
+          (by ring), fun _ _ => ⟨i, by omega, ?_⟩⟩
+        rw [pow_succ, mul_right_comm]
+        exact mul_le_mul_of_nonneg_right h hB0.le
       · -- a run of type `𝒟` starts, possibly joined to the previous one by an isolated layer
         have hw' : switchCount τ (j + 1) = switchCount τ j + 1 := by simp [hw, hj', hj1]
         refine ⟨fun _ => ?_, by simp [hj1]⟩
         obtain ⟨hcl, hpend⟩ := ihF hj'
         by_cases hiso : 1 ≤ j ∧ S j ∧ τ (j - 1) = true
-        · have hg' : runWeight τ S c (j + 1) = runWeight τ S c j * c (j + 1) * (2 * c j) := by
-            simp [hg, hj', hj1, hiso]
-          obtain ⟨i, hi, h⟩ := hpend hiso.1 hiso.2.2
+        · obtain ⟨i, hi, h⟩ := hpend hiso.1 hiso.2.2
           refine ⟨i, by omega, ?_⟩
-          rw [hw', hg', prod_Ico_succ_top (by omega), prod_Ico_succ_top (by omega)]
+          rw [hw', show runWeight τ S c (j + 1) = runWeight τ S c j * c (j + 1) * (2 * c j) by
+            simp [hg, hj', hj1, hiso], prod_Ico_succ_top (by omega), prod_Ico_succ_top (by omega)]
           refine le_of_mul_le_mul_right ?_ hB0
           have hcc := mul_nonneg (hc j) (hc (j + 1))
           calc runWeight τ S c j * c (j + 1) * (2 * c j) * B
@@ -134,24 +127,20 @@ theorem runWeight_le {B : ℝ} {N : ℕ} (hc : ∀ t, 0 ≤ c t) (hB : 1 ≤ B) 
               mul_le_mul h (mul_le_mul_of_nonneg_right h2 hcc)
                 (mul_nonneg zero_le_two hcc) (mul_nonneg hpow.le (hP _ _))
             _ = _ := by ring
-        · have hg' : runWeight τ S c (j + 1) = runWeight τ S c j * c (j + 1) := by
-            rw [hg]
-            simp only [hj', hj1, and_true, ite_true]
-            rw [ite_eq_right_of_eq_false _ _ (eq_false hiso), mul_one]
-          refine ⟨j + 1, le_rfl, ?_⟩
-          rw [hw', hg', Nat.Ico_succ_singleton, prod_singleton]
+        · refine ⟨j + 1, le_rfl, ?_⟩
+          rw [hw', hg]
+          simp only [hj', hj1, and_true, ite_true, ite_eq_right_of_eq_false _ _ (eq_false hiso),
+            mul_one, Nat.Ico_succ_singleton, prod_singleton]
           exact mul_le_mul_of_nonneg_right hcl (hc _)
       · -- no run is open
-        have hw' : switchCount τ (j + 1) = switchCount τ j := by simp [hw, hj', hj1]
-        have hg' : runWeight τ S c (j + 1) = runWeight τ S c j := by simp [hg, hj', hj1]
-        rw [hw', hg']
+        rw [show switchCount τ (j + 1) = switchCount τ j by simp [hw, hj', hj1],
+          show runWeight τ S c (j + 1) = runWeight τ S c j by simp [hg, hj', hj1]]
         exact ⟨by simp [hj1], fun _ => ⟨(ihF hj').1, by simp [hj']⟩⟩
   obtain ⟨hT, hF⟩ := key N le_rfl
-  rcases h : τ N with _ | _
+  cases h : τ N
   · exact (hF h).1.trans (pow_le_pow_right₀ hB (by omega))
   · obtain ⟨i, -, hi⟩ := hT h
-    calc runWeight τ S c N ≤ B ^ switchCount τ N * B ^ 2 := by
-          refine hi.trans ?_; gcongr; exact hM _ _ le_rfl
-      _ = _ := by ring
+    exact (hi.trans (mul_le_mul_of_nonneg_left (hM _ _ le_rfl) (pow_nonneg hB0.le _))).trans_eq
+      (by ring)
 
 end Cslib.Circuits.DepthFive
