@@ -150,8 +150,7 @@ theorem migrateFinishCode_exec {U V w N_old n base : ℕ}
     rw [hpeak_eq]; exact Nat.le_add_right _ _
   obtain ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
       hrep_new_im, _, hpot_im, h_empty_im, hkeep_set_2, hz₂_not_im⟩ :=
-    exec_postResample_initMeta mNewMeta
-      (by simp only [List.mem_cons, List.not_mem_nil, or_false, mReg_inj]; decide)
+    exec_postResample_initMeta mNewMeta (by simp)
       hw hU hN_new_pos hNU_new hhdr_set.fits_U hV hy_set_b hy_set_fr hnm_le_peak hfit_nm
       hr_nm hr_fr hr_nhp hr_ncp hrs_fr hrs_seed hrs_mem hrs_reg
   set z₃ := z₂.set mZero 0

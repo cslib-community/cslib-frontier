@@ -462,11 +462,7 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
   have hs₃b : s₃.Bounded w := (hs₁b.set hfit63).set
     (hfit_ar.of_le (by dsimp only [arenaB, newMeta]; omega))
   have hms₃ : memoryState mFr s₃.toData = ⟨x.mem, x.frontier⟩ :=
-    Memory.State.ext hs₁m (by
-      dsimp only [memoryState, s₃, s₂, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA),
-        Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mCur)]
-      exact hs₁_fr)
+    Memory.State.ext hs₁m (by simp [memoryState, s₃, s₂, RData.set, RData.toData, hs₁_fr])
   have hin_wp1 : s₃.regs ∘ srcWriteParams =
       WordEncoding.encode (((base, base + 63), (N_new, (n, n)))) := by
     refine (regs_pairSrc

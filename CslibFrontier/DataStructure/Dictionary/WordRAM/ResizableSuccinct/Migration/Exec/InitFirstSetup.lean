@@ -125,10 +125,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     ((hx.set (hfit225.of_le (by decide))).set (hfit_off.of_le (by linarith only [h225_le]))).set
       hfit1
   have hms₃ : memoryState mFr s₃.toData = ⟨x.mem, x.frontier⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, s₃, s₂, s₁, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mCnt), Function.update_self]
-      exact hfr.symm)
+    Memory.State.ext rfl (by simp [memoryState, s₃, s₂, RData.set, RData.toData, hfr])
   have hin_tc : s₃.regs ∘ srcTargetCap = WordEncoding.encode (base, 1) :=
     (regs_pairSrc (regs_reg1_eq mBase (by simp [s₃, s₂, s₁, RData.set, hbase]))
       (regs_reg1_eq mCnt (by simp [s₃, RData.set]))).eq
@@ -192,9 +189,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     ((hs₆b.set (hfit225.of_le (by decide))).set hfit_b63).set
       (hfit_b63.of_le (Nat.le_add_right _ _))
   have hms₆c : memoryState mFr s₆c.toData = ⟨x.mem, base + 63⟩ :=
-    Memory.State.ext hs₆m (by
-      dsimp only [memoryState, s₆c, s₆b, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA), Function.update_self])
+    Memory.State.ext hs₆m (by simp [memoryState, s₆c, s₆b, RData.set, RData.toData])
   have hs₆c_s₄ : ∀ reg,
       reg ∉ ([mTmpA, mFr, mCur, mRes, mIdx, mZero, mOne, mK] : List (Fin rResize)) →
       s₆c.regs reg = s₄.regs reg := fun reg h => by

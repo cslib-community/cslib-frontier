@@ -211,10 +211,7 @@ theorem migrateSetupShiftCode_exec {U V w N_old n n_init base : ℕ}
   have hfit_dst2 : Fits w (newMeta + offNew) := hfit_ar.of_le (Nat.le_add_right _ _)
   have hs₁₂b : s₁₂.Bounded w := hs₁₁b.set (hfit_dst2.of_le (Nat.le_add_right _ _))
   have hms₁₂ : memoryState mFr s₁₂.toData = ⟨s₁₁.mem, peakF⟩ :=
-    Memory.State.ext rfl (by
-      dsimp only [memoryState, s₁₂, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mTmpA)]
-      exact hs₁₁_fr_reg)
+    Memory.State.ext rfl (by simp [memoryState, s₁₂, RData.set, RData.toData, hs₁₁_fr_reg])
   have hkeep_8_to_12 : ∀ reg : Fin rResize, reg.val < 160 →
       reg ∉ ([mFr, mTmpA, mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
       s₁₂.regs reg = s₈.regs reg := fun reg h160 hnot => by
