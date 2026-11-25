@@ -100,6 +100,13 @@ private theorem card_sub_le_filter_of_compl {P : Type*} [Fintype P] [DecidableEq
   (card_compl_ge_sub hF).trans (Finset.card_le_card fun j hj =>
     Finset.mem_filter.2 ⟨Finset.mem_univ j, h j (Finset.mem_sdiff.1 hj).2⟩)
 
+private theorem succ_le_card_filter_sdiff {P : Type*} [Fintype P] [DecidableEq P]
+    {F : Finset P} {t : ℕ} (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t) {p : P → Prop}
+    [DecidablePred p] (h : Fintype.card P - t ≤ (Finset.univ.filter p).card) :
+    t + 1 ≤ ((Finset.univ.filter p) \ F).card := by
+  have := Finset.le_card_sdiff F (Finset.univ.filter p)
+  omega
+
 private theorem findQuorumVal_of_compl {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) {F : Finset P} {t : ℕ} (hF : F.card ≤ t)
     (hn : 2 * t < Fintype.card P) {f : P → Option V} {v : V} (h : ∀ j ∉ F, f j = some v) :
@@ -127,7 +134,7 @@ private theorem subround0_lock_in_certPairs {F : Finset P}
   obtain ⟨hlt_r, hwit⟩ := byzState_locked_witness leader hprocs hn hF (6 * vStar) p hlk
   have hlt : lk.view < vStar := by omega
   refine ⟨hlt, fun i hi => ?_⟩
-  rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+  rw [byzQuorum_state_succ]
   simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega,
     show (6 * vStar) / 6 = vStar by omega, computeCertPairs, List.mem_filter, List.mem_dedup,
     List.mem_flatMap, decide_eq_true_eq, rawVoteCount, hlt, ↓reduceIte]
@@ -175,7 +182,7 @@ private theorem subround0_proper_complete {F : Finset P}
   by_cases hex : ∃ w₀ : V, t + 1 ≤ ((Finset.univ \ F).filter fun h => x h = w₀).card
   · obtain ⟨w₀, hw₀⟩ := hex
     refine Or.inl ⟨w₀, fun i hi => ?_⟩
-    rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+    rw [byzQuorum_state_succ]
     simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
       List.mem_filter, List.mem_dedup, List.mem_filterMap, decide_eq_true_eq]
     obtain ⟨h₀, hh₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hw₀)
@@ -187,7 +194,7 @@ private theorem subround0_proper_complete {F : Finset P}
       simp only [Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and] at hh ⊢
       rw [hH_init i hi h hh.1, hh.2]
   · refine Or.inr fun i hi => ?_
-    rw [show 6 * vStar + 1 = (6 * vStar) + 1 by rfl, byzQuorum_state_succ]
+    rw [byzQuorum_state_succ]
     simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
       decide_eq_true_eq]
     constructor
@@ -221,15 +228,17 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
     ∀ i ∉ F, ((byzQuorumProtocol P V procs leader t).byzantineDecision
       F deliver adv x (6 * (vStar + 1)) i).isSome = true := by
   have hlen : procs.dedup.length = Fintype.card P := dedup_length_eq_card hprocs
-  have hdel0 : ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar) j i = true :=
-    hsync (6 * vStar) (by omega) (by omega)
+  have hmod : ∀ k < 6, (6 * vStar + k) % 6 = k := fun k hk => by omega
+  have hdiv : ∀ k < 6, (6 * vStar + k) / 6 = vStar := fun k hk => by omega
+  have hdel : ∀ k < 6, ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar + k) j i = true :=
+    fun k hk => hsync _ (by omega) (by omega)
+  have hdel0 : ∀ j ∉ F, ∀ i ∉ F, deliver (6 * vStar) j i = true := hdel 0 (by omega)
   let st := (byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x
   -- Locked state of every process is unchanged from `6 * vStar` to `6 * vStar + 2`.
   have hlk_2_eq_0 : ∀ i, (st (6 * vStar + 2) i).locked = (st (6 * vStar) i).locked := by
     intro i
     dsimp only [st]
-    rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega,
-      byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega),
+    rw [byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar + 1) (by omega),
       byzState_locked_unchanged_of_ne_four leader F deliver adv x (6 * vStar) (by omega)]
   -- Step 1 (end of Subround 1): honest leader `leader vStar` prepares `some prop` accepted by
   -- every correct voter `i ∉ F`.
@@ -237,13 +246,14 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
       (st (6 * vStar + 2) (leader vStar)).leaderProposal = some prop ∧
       ∀ i ∉ F, acceptsProposal t (st (6 * vStar + 2) i) prop = true := by
     let m1 := byzIncoming procs leader t F deliver adv x (6 * vStar + 1)
+    have hm1_mod := hmod 1 (by omega)
+    have hm1_div := hdiv 1 (by omega)
     have hm1_honest : ∀ i ∉ F, ∀ j ∉ F,
         extractCertStatus (m1 i j) =
           some ((st (6 * vStar + 1) j).properReport, (st (6 * vStar + 1) j).certPairs) := by
       intro i hi j hj
-      simp only [m1, byzIncoming, hj, ↓reduceIte,
-        hsync (6 * vStar + 1) (by omega) (by omega) j hj i hi, byzSend,
-        show (6 * vStar + 1) % 6 = 1 by omega, extractCertStatus, st]
+      simp only [m1, byzIncoming, hj, ↓reduceIte, hdel 1 (by omega) j hj i hi, byzSend, hm1_mod,
+        extractCertStatus, st]
     let allCandsL := (procs.dedup.flatMap fun j =>
       ((extractCertStatus (m1 (leader vStar) j)).map Prod.snd).getD []).dedup
     let lCerts := allCandsL.filter fun lk =>
@@ -262,13 +272,11 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
         refine card_sub_le_filter_of_compl hF fun j hjF => ?_
         simp only [hm1_honest (leader vStar) hl j hjF, decide_eq_true_eq]
         exact hcp j hjF
-    have hm1_mod : (6 * vStar + 1) % 6 = 1 := by omega
-    have hm1_div : (6 * vStar + 1) / 6 = vStar := by omega
     cases hpm : pickMaxLock lCerts with
     | some best =>
       refine ⟨⟨best.val, some best.view⟩, ?_, fun i hi => ?_⟩
       · dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+        rw [byzQuorum_state_succ]
         simp only [byzUpdate, hm1_mod, hm1_div]
         dsimp only [lCerts, allCandsL, m1] at hpm
         rw [hpm]
@@ -283,10 +291,8 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
             (match extractCertStatus (m1 (leader vStar) j) with
               | some (_, cp) => decide (best ∈ cp)
               | none => false) = true
-          have hSL_card : t + 1 ≤ ((Finset.univ.filter predL) \ F).card := by
-            have hs := Finset.le_card_sdiff F (Finset.univ.filter predL)
-            have hc : Fintype.card P - t ≤ (Finset.univ.filter predL).card := hcntL
-            omega
+          have hSL_card : t + 1 ≤ ((Finset.univ.filter predL) \ F).card :=
+            succ_le_card_filter_sdiff hn hF hcntL
           have hSL_cp : ∀ j ∈ (Finset.univ.filter predL) \ F,
               best ∈ (st (6 * vStar + 1) j).certPairs := by
             intro j hj
@@ -296,7 +302,7 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
             exact of_decide_eq_true hj.1
           have hbest_vc : best ∈ (st (6 * vStar + 2) i).voterCerts := by
             dsimp only [st]
-            rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+            rw [byzQuorum_state_succ]
             simp only [byzUpdate, hm1_mod, hm1_div, List.mem_filter, List.mem_dedup,
               List.mem_flatMap, decide_eq_true_eq, certSupportCount, hbv_lt, ↓reduceIte]
             obtain ⟨j₀, hj₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hSL_card)
@@ -360,7 +366,7 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
         exact of_decide_eq_true hp
       refine ⟨⟨wStar, none⟩, ?_, fun i hi => ?_⟩
       · dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+        rw [byzQuorum_state_succ]
         simp only [byzUpdate, hm1_mod, hm1_div]
         dsimp only [lCerts, allCandsL, m1] at hpm
         rw [hpm]
@@ -375,12 +381,10 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
           (match extractCertStatus (m1 (leader vStar) j) with
             | some (rep, _) => rep.allProper || decide (wStar ∈ rep.freqVals)
             | none => false) = true
-        have hSP_card : t + 1 ≤ ((Finset.univ.filter predP) \ F).card := by
-          have hs := Finset.le_card_sdiff F (Finset.univ.filter predP)
-          have hc : Fintype.card P - t ≤ (Finset.univ.filter predP).card := hwStar_cnt
-          omega
+        have hSP_card : t + 1 ≤ ((Finset.univ.filter predP) \ F).card :=
+          succ_le_card_filter_sdiff hn hF hwStar_cnt
         dsimp only [st]
-        rw [show 6 * vStar + 2 = (6 * vStar + 1) + 1 by omega, byzQuorum_state_succ]
+        rw [byzQuorum_state_succ]
         simp only [byzUpdate, hm1_mod, hm1_div, properSupportCount, filterMap_fst_filter_length,
           length_filter_dedup_eq_card hprocs]
         refine le_trans hSP_card (Finset.card_le_card fun j hj => ?_)
@@ -398,57 +402,36 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
     intro i hi
     have hacc := hpropV i hi
     dsimp only [st] at hpropL hacc ⊢
-    rw [show 6 * vStar + 3 = (6 * vStar + 2) + 1 by omega, byzQuorum_state_succ]
-    have hm2 : (6 * vStar + 2) % 6 = 2 := by omega
-    have hd2 : (6 * vStar + 2) / 6 = vStar := by omega
-    simp only [byzUpdate, hm2, hd2, byzIncoming, hl, ↓reduceIte,
-      hsync (6 * vStar + 2) (by omega) (by omega) (leader vStar) hl i hi,
-      byzSend, hpropL, true_and, hacc]
-  -- Step 3 (Subround 3 → 4): every correct `i ∉ F` observes `≥ n - t` echoes and sets `myVote`.
-  have hvote4 : ∀ i ∉ F, (st (6 * vStar + 4) i).myVote = some prop.val := by
-    intro i hi
-    dsimp only [st]
-    rw [show 6 * vStar + 4 = (6 * vStar + 3) + 1 by omega, byzQuorum_state_succ]
-    have hm3 : (6 * vStar + 3) % 6 = 3 := by omega
-    have hd3 : (6 * vStar + 3) / 6 = vStar := by omega
-    simp only [byzUpdate, hm3, hd3, hlen]
-    rw [findQuorumVal_of_compl hprocs hF (by omega) ?_]
-    intro j hjF
-    have hej : ((byzQuorumProtocol P V procs leader t).byzantineState
-        F deliver adv x (6 * vStar + 3) j).myEcho = some prop.val := hecho3 j hjF
-    simp only [byzIncoming, hjF, ↓reduceIte, hsync (6 * vStar + 3) (by omega) (by omega) j hjF i hi,
-      byzSend, hm3, hd3, hej, extractEcho]
-  -- Step 4 (Subround 4 → 5): every correct `i ∉ F` observes `≥ n - t` votes and sets `myCommit`.
-  have hcommit5 : ∀ i ∉ F, (st (6 * vStar + 5) i).myCommit = some prop.val := by
-    intro i hi
-    dsimp only [st]
-    rw [show 6 * vStar + 5 = (6 * vStar + 4) + 1 by omega, byzQuorum_state_succ]
-    have hm4 : (6 * vStar + 4) % 6 = 4 := by omega
-    have hd4 : (6 * vStar + 4) / 6 = vStar := by omega
-    simp only [byzUpdate, hm4, hd4, hlen]
-    rw [findQuorumVal_of_compl hprocs hF (by omega) ?_]
-    intro j hjF
-    have hvj : ((byzQuorumProtocol P V procs leader t).byzantineState
-        F deliver adv x (6 * vStar + 4) j).myVote = some prop.val := hvote4 j hjF
-    simp only [byzIncoming, hjF, ↓reduceIte, hsync (6 * vStar + 4) (by omega) (by omega) j hjF i hi,
-      byzSend, hm4, hd4, hvj, extractVote]
-  -- Step 5 (Subround 5 → `6 * (vStar + 1)`): every correct `i ∉ F` observes `≥ n - t` commits and
-  -- decides.
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 2 (by omega), hdiv 2 (by omega), byzIncoming, hl, ↓reduceIte,
+      hdel 2 (by omega) (leader vStar) hl i hi, byzSend, hpropL, true_and, hacc]
+  -- Steps 3–5 (Subrounds 3 → 4 → 5 → `6 * (vStar + 1)`): every correct `i ∉ F` observes `≥ n - t`
+  -- echoes, votes and commits, setting `myVote`, `myCommit` and finally `decided`.
+  have hvote4 : ∀ i ∉ F, (st (6 * vStar + 4) i).myVote = some prop.val := fun i hi => by
+    dsimp only [st] at hecho3 ⊢
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 3 (by omega), hdiv 3 (by omega), hlen]
+    rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+      simp only [byzIncoming, hjF, ↓reduceIte, hdel 3 (by omega) j hjF i hi, byzSend,
+        hmod 3 (by omega), hdiv 3 (by omega), hecho3 j hjF, extractEcho]]
+  have hcommit5 : ∀ i ∉ F, (st (6 * vStar + 5) i).myCommit = some prop.val := fun i hi => by
+    dsimp only [st] at hvote4 ⊢
+    rw [byzQuorum_state_succ]
+    simp only [byzUpdate, hmod 4 (by omega), hdiv 4 (by omega), hlen]
+    rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+      simp only [byzIncoming, hjF, ↓reduceIte, hdel 4 (by omega) j hjF i hi, byzSend,
+        hmod 4 (by omega), hdiv 4 (by omega), hvote4 j hjF, extractVote]]
   intro i hi
+  dsimp only [st] at hcommit5
   change ((byzQuorumProtocol P V procs leader t).byzantineState
     F deliver adv x ((6 * vStar + 5) + 1) i).decided.isSome = true
   rw [byzQuorum_state_succ]
-  have hm5 : (6 * vStar + 5) % 6 = 5 := by omega
-  have hd5 : (6 * vStar + 5) / 6 = vStar := by omega
-  simp only [byzUpdate, hm5, hd5, hlen]
-  rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) ?_]
-  · cases ((byzQuorumProtocol P V procs leader t).byzantineState
-      F deliver adv x (6 * vStar + 5) i).decided <;> rfl
-  intro j hjF
-  have hcj : ((byzQuorumProtocol P V procs leader t).byzantineState
-      F deliver adv x (6 * vStar + 5) j).myCommit = some prop.val := hcommit5 j hjF
-  simp only [byzIncoming, hjF, ↓reduceIte, hsync (6 * vStar + 5) (by omega) (by omega) j hjF i hi,
-    byzSend, hm5, hd5, hcj, extractCommit]
+  simp only [byzUpdate, hmod 5 (by omega), hdiv 5 (by omega), hlen]
+  rw [findQuorumVal_of_compl hprocs hF (by omega) (v := prop.val) fun j hjF => by
+    simp only [byzIncoming, hjF, ↓reduceIte, hdel 5 (by omega) j hjF i hi, byzSend,
+      hmod 5 (by omega), hdiv 5 (by omega), hcommit5 j hjF, extractCommit]]
+  cases ((byzQuorumProtocol P V procs leader t).byzantineState
+    F deliver adv x (6 * vStar + 5) i).decided <;> rfl
 
 /-- **Post-GST bounded termination (`byzQuorum_terminates_after_gst`):** under
 `rotatingCoordinator`, once `IsGST deliver F gst` holds with `3 * t < Fintype.card P` and
@@ -546,7 +529,7 @@ theorem omission_terminates_in_honest_view {F : Finset P}
           | none => ⟨(st (3 * vStar) (leader vStar)).input, none⟩) := by
       dsimp only [m0] at hcnt
       dsimp only [st, locks, m0]
-      rw [show 3 * vStar + 1 = (3 * vStar) + 1 by rfl, omissionQuorum_state_succ]
+      rw [omissionQuorum_state_succ]
       simp only [omissionUpdate, show (3 * vStar) % 3 = 0 by omega, hcnt, ↓reduceIte]
       cases pickMaxLock _ <;> rfl
     refine ⟨_, hlProp_eq, fun i hi => ?_⟩
@@ -566,7 +549,7 @@ theorem omission_terminates_in_honest_view {F : Finset P}
     intro i hi
     have hacc := hpropV i hi
     dsimp only [st] at hpropL hacc ⊢
-    rw [show 3 * vStar + 2 = (3 * vStar + 1) + 1 by omega, omissionQuorum_state_succ]
+    rw [omissionQuorum_state_succ]
     have hm1 : (3 * vStar + 1) % 3 = 1 := by omega
     have hd1 : (3 * vStar + 1) / 3 = vStar := by omega
     simp only [omissionUpdate, hm1, hd1, omissionIncoming,
@@ -574,20 +557,18 @@ theorem omission_terminates_in_honest_view {F : Finset P}
       ↓reduceIte, omissionSend, hpropL, hacc]
   -- Subround 2 → `3 * (vStar + 1)`: every correct `i ∉ F` observes `≥ n - t` acks and decides.
   intro i hi
+  dsimp only [st] at hack2
   change ((omissionQuorumProtocol P V procs leader t).omissionState
     deliver x ((3 * vStar + 2) + 1) i).decided.isSome = true
   rw [omissionQuorum_state_succ]
   have hm2 : (3 * vStar + 2) % 3 = 2 := by omega
   have hd2 : (3 * vStar + 2) / 3 = vStar := by omega
   simp only [omissionUpdate, hm2, hd2, hlen]
-  rw [findQuorumVal_of_compl hprocs hF hn (v := prop.val) ?_]
-  · cases ((omissionQuorumProtocol P V procs leader t).omissionState
-      deliver x (3 * vStar + 2) i).decided <;> rfl
-  intro j hjF
-  have haj : ((omissionQuorumProtocol P V procs leader t).omissionState
-      deliver x (3 * vStar + 2) j).myAck = some prop.val := hack2 j hjF
-  simp only [omissionIncoming, hsync (3 * vStar + 2) (by omega) (by omega) j hjF i hi, ↓reduceIte,
-    omissionSend, hm2, hd2, haj, extractAck]
+  rw [findQuorumVal_of_compl hprocs hF hn (v := prop.val) fun j hjF => by
+    simp only [omissionIncoming, hsync (3 * vStar + 2) (by omega) (by omega) j hjF i hi,
+      ↓reduceIte, omissionSend, hm2, hd2, hack2 j hjF, extractAck]]
+  cases ((omissionQuorumProtocol P V procs leader t).omissionState
+    deliver x (3 * vStar + 2) i).decided <;> rfl
 
 /-- **Post-GST bounded omission termination (`omission_terminates_after_gst`):** under
 `rotatingCoordinator`, once `IsGST deliver F gst` holds with `2 * t < Fintype.card P` and
