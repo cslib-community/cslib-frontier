@@ -141,7 +141,6 @@ theorem rmEncode_zero_slope (b : Bool) : rmEncode ⟨b, 0⟩ = fun _ => b := by
 theorem rmEncode_eq_add_hadamardCode (m : RMMessage) :
     rmEncode m = (fun _ => m.sign) + hadamardCode m.slope := by
   funext x
-  rw [rmEncode]
   rfl
 
 /-- The 128 points of `RM(1, 7)`. -/
@@ -287,11 +286,9 @@ def drmPeakSlopes {μ : ℕ} (w : DRMWord μ) : Finset RMPoint :=
 
 theorem drmPeakSlopes_nonempty {μ : ℕ} (w : DRMWord μ) :
     (drmPeakSlopes w).Nonempty := by
-  let S := univ.image fun a : RMPoint => (drmHadamardCoeff w a).natAbs
-  have hS : S.Nonempty := by simp [S]
-  obtain ⟨a, ha, hvalue⟩ := mem_image.mp (max'_mem S hS)
-  refine ⟨a, mem_filter.2 ⟨ha, ?_⟩⟩
-  simpa only [drmPeakMagnitude, S] using hvalue
+  obtain ⟨a, ha, hval⟩ := mem_image.mp
+    (max'_mem (univ.image fun a : RMPoint => (drmHadamardCoeff w a).natAbs) (by simp))
+  exact ⟨a, mem_filter.2 ⟨ha, hval⟩⟩
 
 /-- The source's strict left-to-right peak scan: the smallest slope attaining maximum absolute
 coefficient. -/
@@ -443,15 +440,9 @@ theorem sixtyFour_le_hammingDist_rmEncode {m m' : RMMessage} (hmm' : m ≠ m') :
   by_cases haa' : a = a'
   · subst a'
     have htot : hammingDist (rmEncode ⟨true, a⟩) (rmEncode ⟨false, a⟩) = 128 := by
-      rw [rmEncode_true, rmEncode_false]
-      have h := hammingDist_not_left_add (hadamardCode a) (hadamardCode a)
-      rw [hammingDist_self, add_zero, card_rmPoint] at h
-      exact h
-    cases b <;> cases b'
-    · exact absurd rfl hmm'
-    · rw [hammingDist_comm, htot]; omega
-    · rw [htot]; omega
-    · exact absurd rfl hmm'
+      simpa [rmEncode_true, rmEncode_false, card_rmPoint] using
+        hammingDist_not_left_add (hadamardCode a) (hadamardCode a)
+    cases b <;> cases b' <;> simp_all [hammingDist_comm]
   · have := two_mul_hammingDist_rmEncode_of_slope_ne b b' haa'
     omega
 
@@ -469,13 +460,9 @@ bits.  Thus the lower bound is attained for every positive multiplicity. -/
 theorem hammingDist_drmEncode_of_slope_ne (μ : ℕ) {m m' : RMMessage}
     (hslopes : m.slope ≠ m'.slope) :
     hammingDist (drmEncode μ m) (drmEncode μ m') = 64 * μ := by
-  rcases m with ⟨b, a⟩
-  rcases m' with ⟨b', a'⟩
+  rcases m, m' with ⟨⟨b, a⟩, ⟨b', a'⟩⟩
   rw [hammingDist_drmEncode]
-  have h : 2 * hammingDist (rmEncode ⟨b, a⟩) (rmEncode ⟨b', a'⟩) = 128 :=
-    two_mul_hammingDist_rmEncode_of_slope_ne b b' hslopes
-  have hinner : hammingDist (rmEncode ⟨b, a⟩) (rmEncode ⟨b', a'⟩) = 64 := by omega
-  rw [hinner, mul_comm]
+  nlinarith [two_mul_hammingDist_rmEncode_of_slope_ne b b' hslopes]
 
 /-- Distinct messages in the multiplicity-`μ` code are at distance at least `64 * μ`. -/
 theorem sixtyFour_mul_le_hammingDist_drmEncode (μ : ℕ) {m m' : RMMessage} (hmm' : m ≠ m') :

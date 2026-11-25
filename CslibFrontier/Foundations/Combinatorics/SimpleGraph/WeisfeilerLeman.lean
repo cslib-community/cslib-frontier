@@ -226,7 +226,6 @@ theorem wlRefine_eq_wlRefine_iff [Fintype W] {χ : (Fin k → V) → β} {ψ : (
 theorem wlColoring_zero_eq_iff [Fintype W] {u : Fin k → V} {w : Fin k → W} :
     G.wlColoring 0 u = H.wlColoring 0 w ↔
       ∀ i j, (u i = u j ↔ w i = w j) ∧ (G.Adj (u i) (u j) ↔ H.Adj (w i) (w j)) := by
-  change G.tupleAtom u = H.tupleAtom w ↔ _
   exact tupleAtom_eq_iff
 
 theorem wlColoring_succ_eq_iff [Fintype W] {n : ℕ} {u : Fin k → V} {w : Fin k → W} :
@@ -234,7 +233,6 @@ theorem wlColoring_succ_eq_iff [Fintype W] {n : ℕ} {u : Fin k → V} {w : Fin 
       G.wlColoring n u = H.wlColoring n w ∧
         (univ : Finset V).val.map (G.wlStepProfile (G.wlColoring n) u) =
           (univ : Finset W).val.map (H.wlStepProfile (H.wlColoring n) w) := by
-  change G.wlRefine (G.wlColoring n) u = H.wlRefine (H.wlColoring n) w ↔ _
   exact wlRefine_eq_wlRefine_iff
 
 /-- If `χ₁ u = ψ₁ w` implies `χ₂ u = ψ₂ w` for all `k`-tuples, then the same implication holds
@@ -327,13 +325,11 @@ theorem ker_wlColoring_eq_of_succ_eq {n : ℕ}
     (h : Setoid.ker (G.wlColoring (k := k) (n + 1)) = Setoid.ker (G.wlColoring (k := k) n))
     {m : ℕ} (hm : n ≤ m) :
     Setoid.ker (G.wlColoring (k := k) m) = Setoid.ker (G.wlColoring (k := k) n) := by
-  have hsucc : ∀ t, n ≤ t → Setoid.ker (G.wlColoring (k := k) (t + 1)) =
-      Setoid.ker (G.wlColoring (k := k) t) := by
-    intro t hnt
+  have hsucc (t) (hnt : n ≤ t) :
+      Setoid.ker (G.wlColoring (k := k) (t + 1)) = Setoid.ker (G.wlColoring (k := k) t) := by
     induction t, hnt using Nat.le_induction with
     | base => exact h
-    | succ t _ ih =>
-      exact le_antisymm (ker_wlColoring_succ_le _) (ker_wlRefine_mono (G := G) ih.ge)
+    | succ t _ ih => exact le_antisymm (ker_wlColoring_succ_le _) (ker_wlRefine_mono ih.ge)
   induction m, hm using Nat.le_induction with
   | base => rfl
   | succ t hnt ih => rw [hsucc t hnt, ih]
@@ -388,13 +384,9 @@ theorem Iso.wlColoring_comp (e : G ≃g H) (n : ℕ) (u : Fin k → V) :
     rw [← Finset.map_univ_equiv e.toEquiv, Finset.map_val, Multiset.map_map]
     congr 1
     funext v
-    change H.wlStepProfile (H.wlColoring n) (e ∘ u) (e v) =
-      G.wlStepProfile (G.wlColoring n) u v
     refine wlStepProfile_eq_iff.2 ⟨?_, fun i => ?_⟩
-    · rw [← Fin.comp_snoc]
-      exact e.tupleAtom_comp (Fin.snoc u v)
-    · rw [← Function.comp_update]
-      exact ih (Function.update u i v)
+    · simpa only [RelIso.coe_toEmbedding, Fin.comp_snoc] using e.tupleAtom_comp (Fin.snoc u v)
+    · simpa only [RelIso.coe_toEmbedding, Function.comp_update] using ih (Function.update u i v)
 
 /-- Isomorphic finite graphs have the same `k`-WL histogram in every round. -/
 theorem Iso.wlHistogram_eq (e : G ≃g H) (k n : ℕ) :

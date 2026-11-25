@@ -1501,46 +1501,25 @@ theorem not_nonblocking_atomicCommit_of_partitionCut {P S M : Type*} [DecidableE
   -- Step 2: Walk the partition-free all-`.yes` commit execution (`AC3`) to find an adjacent
   -- single-site transition `c_prev →[p*] c_next` crossing from both-abort-only to some-can-commit.
   obtain ⟨cfg_m, hnorm_m, hcommit_m⟩ := hres.failureFreeCommit
+  have ⟨u₁, hu₁⟩ := hG₁
   have hcan_m : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ cfg_m) ∨
-      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) := by
-    obtain ⟨u₁, hu₁⟩ := hG₁
-    exact Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
-  have hcross_gen : ∀ {c : CommitConfig P S M},
-      π.NormalSteps (π.initConfig allYes) c →
-      (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c) ∨
-        CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c)) →
-      ∃ (c_prev c_next : CommitConfig P S M) (pStar : P)
-        (recv : Option (CommitEnvelope P M)),
-        π.NormalSteps (π.initConfig allYes) c_prev ∧
-        π.ConfigNormalStep pStar recv c_prev c_next ∧
-        ¬ CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∧
-        ¬ CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev) ∧
-        (CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_next) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next)) := by
-    intro c hsteps
-    induction hsteps with
-    | refl =>
-      intro hcan₀
-      exact False.elim (hcan₀.elim hno_commit_init₁ hno_commit_init₂)
-    | @tail c_prev c_next pStar recv hprev hstep ih =>
-      intro hcan_next
-      by_cases hprev_can : CommitProtocol.CanGroupCommit π G₁ (cutCfg G₁ G₂ c_prev) ∨
-          CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ c_prev)
-      · exact ih hprev_can
-      · push Not at hprev_can
-        exact ⟨c_prev, c_next, pStar, recv, hprev, hstep, hprev_can.1, hprev_can.2, hcan_next⟩
-  obtain ⟨c_prev, c_next, pStar, recv, hprev_steps, hstep_star, hn₁, hn₂, hnext_can⟩ :=
-    hcross_gen hnorm_m hcan_m
-  have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev_steps hstep_star
-  -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
-  -- directly or symmetrically via `hres.symm`.
-  by_cases hp₂ : pStar ∈ G₂
-  · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
-    rw [cutCfg_comm G₁ G₂] at hn₁ hnext_can
-    exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
-      hnext_steps hstep_star hp_not₁ hn₁ hnext_can.symm
-  · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
-      hnext_steps hstep_star hp₂ hn₂ hnext_can
+      CommitProtocol.CanGroupCommit π G₂ (cutCfg G₁ G₂ cfg_m) :=
+    Or.inl ⟨cutCfg G₁ G₂ cfg_m, .refl _, u₁, hu₁, hcommit_m u₁⟩
+  clear hcommit_m
+  induction hnorm_m with
+  | refl => exact hcan_m.elim hno_commit_init₁ hno_commit_init₂
+  | @tail c_prev c_next pStar recv hprev hstep ih =>
+    obtain ⟨hn₁, hn₂⟩ := not_or.mp ih
+    have hnext_steps : π.NormalSteps (π.initConfig allYes) c_next := .tail hprev hstep
+    -- Step 3: Because `Disjoint G₁ G₂`, `pStar ∉ G₂` or `pStar ∉ G₁`; apply the crossing lemma
+    -- directly or symmetrically via `hres.symm`.
+    by_cases hp₂ : pStar ∈ G₂
+    · have hp_not₁ : pStar ∉ G₁ := Finset.disjoint_right.mp hdisj hp₂
+      rw [cutCfg_comm G₁ G₂] at hn₁ hcan_m
+      exact CommitProtocol.contradiction_of_crossing_outside_right hG₁ hdisj.symm hres.symm
+        hnext_steps hstep hp_not₁ hn₁ hcan_m.symm
+    · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
+        hnext_steps hstep hp₂ hn₂ hcan_m
 
 /-- Partition-cut step after [SkeenStonebraker1983], §V-A, Theorem 4 (p. 225), not the cited
 crash-recovery endpoint (#7289): on any process set with `2 ≤ Fintype.card P`, there exists a

@@ -293,11 +293,8 @@ fields and erasing `.marker`s from every channel. -/
 
 @[simp]
 theorem project_liftState {P S M : Type*} (s : GlobalState P S M) :
-    project (liftState s) = s := by
-  apply GlobalState.ext
-  · rfl
-  · funext u v
-    exact unmarker_map_app (s.chan u v)
+    project (liftState s) = s :=
+  GlobalState.ext rfl (funext fun u => funext fun v => unmarker_map_app (s.chan u v))
 
 /-- Assemble the recorded global snapshot `S*` from `S_aug`: each process takes its recorded
 `snapState` (falling back to `appState` only if unrecorded) and each channel `(q, p)` takes the
@@ -502,18 +499,13 @@ theorem snapMTr_iff_validSnapTrace [DecidableEq P] [DecidableRel sys.graph.Adj]
     sys.snapLts.MTr S₁ xl S₂ ↔ sys.validSnapTrace S₁ xl ∧ S₂ = sys.runSnapEvents S₁ xl := by
   induction xl generalizing S₁ with
   | nil =>
-    constructor
-    · rintro ⟨⟩
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact .refl
+    refine ⟨?_, fun ⟨_, h⟩ => h ▸ .refl⟩
+    rintro ⟨⟩
+    exact ⟨trivial, rfl⟩
   | cons a xl ih =>
-    constructor
-    · rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
-      obtain ⟨hv, hr⟩ := ih.mp hrest
-      exact ⟨⟨hen, hv⟩, hr⟩
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, rfl⟩)
+    refine ⟨?_, fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, h⟩)⟩
+    rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
+    exact ⟨⟨hen, (ih.mp hrest).1⟩, (ih.mp hrest).2⟩
 
 instance instDecidableSnapMTr [Fintype P] [DecidableEq P] [DecidableEq S] [DecidableEq M]
     [DecidableRel sys.graph.Adj]
@@ -765,9 +757,7 @@ structure SnapInv (S_aug : SnapGlobalState P S M) : Prop where
 theorem snapInv_of_isPreSnapshot {S_aug : SnapGlobalState P S M}
     (hpre : sys.IsPreSnapshot S_aug) : sys.SnapInv S_aug where
   nonEdge u v huv := ⟨hpre.2.2 u v huv, by rw [hpre.1 v]; simp⟩
-  markerCount u v := by
-    rw [countP_isMarker_eq_zero_iff.mpr (hpre.2.1 u v)]
-    exact Nat.zero_le 1
+  markerCount u v := by simp [countP_isMarker_eq_zero_iff.mpr (hpre.2.1 u v)]
   unrecordedSrc u v _ := ⟨hpre.2.1 u v, by rw [hpre.1 v]; simp⟩
   recordedSrc u _ hu := by rw [hpre.1 u] at hu; simp at hu
 

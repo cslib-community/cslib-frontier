@@ -182,10 +182,9 @@ theorem numComponents_edgePartition_eq_one_iff_connected {n : ℕ} {W : Type}
     (edgePartition es).numComponents = 1 ↔ (toSimpleGraph es).Connected := by
   constructor
   · intro hcomp
-    have hn : 0 < n := by
-      rcases Nat.eq_zero_or_pos n with rfl | hpos
-      · simp at hcomp
-      · exact hpos
+    have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
+      subst h
+      simp at hcomp
     have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
     refine ⟨fun x y => ?_⟩
     rw [← rel_edgePartition_iff_reachable]
@@ -389,12 +388,8 @@ theorem nodup_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
   rcases Sym2.eq_iff.mp hsym with ⟨hu, hv⟩ | ⟨hu, hv⟩
   · cases e₁
     cases e₂
-    dsimp only at hu hv hw₁ hw₂
-    subst hu hv
-    rw [hw₁, hw₂]
-  · exfalso
-    rw [hu, hv] at hlt₁
-    exact lt_asymm hlt₁ hlt₂
+    simp_all
+  · exact absurd (hu ▸ hv ▸ hlt₁) (lt_asymm hlt₂)
 
 /-- `s(x, y)` appears in `(graphEdges G w).map sym2` iff `G.Adj x y`. -/
 theorem mem_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
@@ -515,20 +510,17 @@ theorem sum_edgeFinset_kruskalGraph_le_of_maximal_isAcyclic {n : ℕ} {W : Type}
     (∑ z ∈ (toSimpleGraph (kruskalGraph G w)).edgeFinset, w z) ≤
       ∑ z ∈ F.edgeFinset, w z := by
   classical
-  have hsf := isSpanningForest_graphEdges_of_maximal_isAcyclic w hF
-  have hmin := (kruskalEdges_isMinSpanningForest (graphEdges G w)).2 (graphEdges F w) hsf
   rw [sum_edgeFinset_toSimpleGraph_kruskalGraph, kruskalGraph, ← totalWeight_graphEdges F w]
-  exact hmin
+  exact (kruskalEdges_isMinSpanningForest (graphEdges G w)).2 (graphEdges F w)
+    (isSpanningForest_graphEdges_of_maximal_isAcyclic w hF)
 
 /-- When `G` is connected, `toSimpleGraph (kruskalGraph G w)` is a `SimpleGraph.IsTree` with
 `n - 1` edges (`(kruskalGraph G w).length + 1 = n`). -/
 theorem kruskalGraph_isTree {n : ℕ} {W : Type} [LE W] [DecidableLE W]
     {G : SimpleGraph (Fin n)} [DecidableRel G.Adj] (hconn : G.Connected)
     (w : Sym2 (Fin n) → W) :
-    (toSimpleGraph (kruskalGraph G w)).IsTree ∧ (kruskalGraph G w).length + 1 = n := by
-  have hconn' : (toSimpleGraph (graphEdges G w)).Connected := by
-    rwa [toSimpleGraph_graphEdges]
-  exact toSimpleGraph_kruskalEdges_isTree hconn'
+    (toSimpleGraph (kruskalGraph G w)).IsTree ∧ (kruskalGraph G w).length + 1 = n :=
+  toSimpleGraph_kruskalEdges_isTree (by rwa [toSimpleGraph_graphEdges])
 
 /-- **Simple-graph Kruskal minimum spanning tree optimality** ([Cormen et al., Section 23.2,
 p. 631][CLRS2009]): on a connected graph `G`, `toSimpleGraph (kruskalGraph G w)` minimizes
@@ -577,10 +569,8 @@ theorem eq_toSimpleGraph_kruskalGraph_of_injOn {n : ℕ} {W : Type}
       exact List.map_congr_left fun e he => ((mem_graphEdges G w e).mp he).2.2
     rw [hmap]
     refine (nodup_map_sym2_graphEdges G w).map_on fun z₁ hz₁ z₂ hz₂ hwz => ?_
-    have hm : ∀ z ∈ (graphEdges G w).map WeightedEdge.sym2, z ∈ G.edgeSet := by
-      rintro z hz
-      obtain ⟨e, he, rfl⟩ := List.mem_map.mp hz
-      simpa using ((mem_graphEdges G w e).mp he).2.1
+    have hm : ∀ z ∈ (graphEdges G w).map WeightedEdge.sym2, z ∈ G.edgeSet :=
+      Sym2.ind fun x y h => (mem_map_sym2_graphEdges G w x y).mp h
     exact hinj (hm z₁ hz₁) (hm z₂ hz₂) hwz
   have hmin_F : IsMinSpanningForest (graphEdges G w) (graphEdges F w) :=
     ⟨isSpanningForest_graphEdges_of_maximal_isAcyclic w hF, fun H hH =>

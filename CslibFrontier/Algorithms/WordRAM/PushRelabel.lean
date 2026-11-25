@@ -922,17 +922,13 @@ private theorem four_mul_sq (n : ℕ) : 4 * n * n = n * n + n * n + n * n + n * 
 private theorem min_reg_exec {r : ℕ} {w : ℕ} (c a b : Fin r) (x : Data r) :
     ExecWithin (B := .standard) w (ram[ if a < b then [ c ← a ] else [ c ← b ] ]) x
       (x.set c (min (x.regs a) (x.regs b))) 3 := by
-  have h : ∃ z, ExecWithin (B := .standard) w
-      (ram[ if a < b then [ c ← a ] else [ c ← b ] ]) x z 3 ∧
-      z = x.set c (min (x.regs a) (x.regs b)) := by
-    refine WP.exists_execWithin ?_
-    by_cases hlt : x.regs a < x.regs b
-    · wram_exec [hlt]
-      rw [min_eq_left (Nat.le_of_lt hlt)]
-    · wram_exec [hlt]
-      rw [min_eq_right (Nat.le_of_not_lt hlt)]
-  obtain ⟨z, hz_ex, rfl⟩ := h
-  exact hz_ex
+  by_cases hlt : x.regs a < x.regs b
+  · rw [min_eq_left hlt.le]
+    refine execWithin_branch_pos (by simp [Cond.holds_lt, hlt]) ?_ le_rfl
+    ram_eval
+  · rw [min_eq_right (not_lt.mp hlt)]
+    refine execWithin_branch_neg (by simp [Cond.holds_lt, hlt]) ?_ le_rfl
+    ram_eval
 
 private theorem cut_mono_le (n : ℕ) :
     4 + ((n - 1) * (8 * n + 8 + 2) + 2 + (6 + ((n - 0) * (8 + 2) + 2 +
@@ -978,20 +974,16 @@ private theorem CAMem.of_mem_eq {inst : Instance} {s : CAState inst.toNetwork} {
 
 private theorem caMem_unique {inst : Instance} {s₁ s₂ : CAState inst.toNetwork} {m : ℕ → ℕ}
     (h₁ : CAMem inst s₁ m) (h₂ : CAMem inst s₂ m) : s₁ = s₂ := by
-  have hfl : s₁.pr.flow = s₂.pr.flow :=
-    Preflow.ext (funext fun u => funext fun v => (h₁.hflow u v).symm.trans (h₂.hflow u v))
-  have hht : s₁.pr.height = s₂.pr.height :=
-    funext fun v => (h₁.hheight v).symm.trans (h₂.hheight v)
-  have hcu : s₁.cur = s₂.cur := funext fun v => by
-    obtain ⟨k₁, _, hm₁, hd₁⟩ := h₁.hcur v
-    obtain ⟨k₂, _, hm₂, hd₂⟩ := h₂.hcur v
-    have hk : k₁ = k₂ := hm₁.symm.trans hm₂
-    rw [hd₁, hd₂, hk]
   rcases s₁ with ⟨⟨f₁, h₁'⟩, c₁⟩
   rcases s₂ with ⟨⟨f₂, h₂'⟩, c₂⟩
-  dsimp only at hfl hht hcu
-  subst hfl hht hcu
-  rfl
+  congr 1
+  · congr 1
+    · exact Preflow.ext (funext fun u => funext fun v => (h₁.hflow u v).symm.trans (h₂.hflow u v))
+    · exact funext fun v => (h₁.hheight v).symm.trans (h₂.hheight v)
+  · exact funext fun v => by
+      obtain ⟨k₁, _, hm₁, hd₁⟩ := h₁.hcur v
+      obtain ⟨k₂, _, hm₂, hd₂⟩ := h₂.hcur v
+      exact (hd₁.trans (congrArg (List.drop · _) (hm₁.symm.trans hm₂))).trans hd₂.symm
 
 /-- In-memory representation of the active vertex list `done ++ todo` and cursor `rPos`. -/
 private structure OrderMem (inst : Instance) (done todo : List (Fin inst.n)) (x : Data 32) :
@@ -1021,19 +1013,15 @@ private structure RTFMem (inst : Instance) (st : RTFState inst.toNetwork) (x : D
 
 private theorem rtfMem_unique {inst : Instance} {st₁ st₂ : RTFState inst.toNetwork} {x : Data 32}
     (h₁ : RTFMem inst st₁ x) (h₂ : RTFMem inst st₂ x) : st₁ = st₂ := by
-  have hca := caMem_unique h₁.hca h₂.hca
-  have hcat : st₁.done ++ st₁.todo = st₂.done ++ st₂.todo :=
+  rcases st₁ with ⟨ca₁, done₁, todo₁, dis₁, adv₁⟩
+  rcases st₂ with ⟨ca₂, done₂, todo₂, dis₂, adv₂⟩
+  have hcat : done₁ ++ todo₁ = done₂ ++ todo₂ :=
     List.ext_getElem (h₁.hord.hlen.trans h₂.hord.hlen.symm) fun i hi₁ hi₂ =>
       Fin.ext ((h₁.hord.hmem i hi₁).symm.trans (h₂.hord.hmem i hi₂))
-  have hdlen : st₁.done.length = st₂.done.length :=
-    h₁.hord.hrPos.symm.trans h₂.hord.hrPos
-  obtain ⟨hd, ht⟩ := List.append_inj hcat hdlen
-  have hdis := h₁.hdis0.trans h₂.hdis0.symm
-  have hadv := h₁.hadv0.trans h₂.hadv0.symm
-  cases st₁; cases st₂
-  dsimp only at hca hd ht hdis hadv
-  subst hca hd ht hdis hadv
-  rfl
+  obtain ⟨hd, ht⟩ := List.append_inj hcat (h₁.hord.hrPos.symm.trans h₂.hord.hrPos)
+  simp only [RTFState.mk.injEq]
+  exact ⟨caMem_unique h₁.hca h₂.hca, hd, ht, h₁.hdis0.trans h₂.hdis0.symm,
+    h₁.hadv0.trans h₂.hadv0.symm⟩
 
 end Invariants
 
@@ -1233,25 +1221,25 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
     wram_exec [hx₂_ctx.hbaseH, hx₂_ctx.hrs, hx₂_ctx.hrn, hx₂_ctx.hzero, hf_hs, hf_sn]
     refine ⟨((hx₂_ctx.set (by decide)).write_ge (by omega)).set (by decide) |>.set (by decide),
       by wram_simp,
-      by wram_simp, fun u v => ?_, fun v => ?_, fun v => ?_, fun v => ?_⟩
-    · have := List.mul_add_lt_sq u.isLt v.isLt
-      rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
-      exact hx₂_zero _ (by omega) (by omega)
-    · have := v.isLt
-      rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
-      exact hx₂_zero _ (by omega) (by omega)
-    · have := v.isLt
-      unfold Preflow.initialHeight
-      simp only [Fintype.card_fin, Data.set_mem]
-      by_cases hvs : v = inst.s
-      · subst hvs
-        have hss : inst.s = inst.toNetwork.s := rfl
-        rw [ite_eq_left hss, Data.write_mem_self]
-      · rw [Data.write_mem_of_ne (fun h => hvs (Fin.ext (by omega))),
-          ite_eq_right (show v ≠ inst.toNetwork.s from hvs)]
-        exact hx₂_zero _ (by omega) (by omega)
-    · have := v.isLt
-      rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
+      by wram_simp,
+      fun u v => by
+        have := List.mul_add_lt_sq u.isLt v.isLt
+        exact (Data.write_mem_of_ne (by omega) _).trans (hx₂_zero _ (by omega) (by omega)),
+      fun v => by
+        have := v.isLt
+        exact (Data.write_mem_of_ne (by omega) _).trans (hx₂_zero _ (by omega) (by omega)),
+      fun v => ?_,
+      fun v => by
+        have := v.isLt
+        exact (Data.write_mem_of_ne (by omega) _).trans (hx₂_zero _ (by omega) (by omega))⟩
+    have := v.isLt
+    unfold Preflow.initialHeight
+    simp only [Fintype.card_fin, Data.set_mem]
+    by_cases hvs : v = inst.s
+    · subst hvs
+      exact (Data.write_mem_self _ _ _).trans (ite_eq_left rfl).symm
+    · rw [Data.write_mem_of_ne (fun h => hvs (Fin.ext (by omega))),
+        ite_eq_right (show v ≠ inst.toNetwork.s from hvs)]
       exact hx₂_zero _ (by omega) (by omega)
   obtain ⟨x₃, hx₃_ex, hx₃_ctx, hx₃_a2, hx₃_idx, hx₃_fl, hx₃_ex0, hx₃_ht, hx₃_cu⟩ := hmid
   -- Loop 1: saturate arcs leaving `s`
@@ -1304,42 +1292,32 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
       refine ⟨⟨((((hzc.set (by decide)).set (by decide)).set (by decide)).set (by decide)
           |>.write_ge (by omega)).set (by decide) |>.set (by decide),
         by wram_simp [hza2], fun u v => hflow_step u v, fun v hvs => ?_,
-        fun v => ?_, fun v => ?_⟩, by wram_simp⟩
-      · have := v.isLt
-        rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
-        simp only [Data.set_mem, hzex v hvs]
-        simp [le_iff_lt_or_eq, show v.val ≠ k from fun h => hvs (Fin.ext (h.trans hks))]
-      · have := v.isLt
-        rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
-        exact hzht v
-      · have := v.isLt
-        rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
-        exact hzcu v
+        fun v => (Data.write_mem_of_ne (by have := v.isLt; omega) _).trans (hzht v),
+        fun v => (Data.write_mem_of_ne (by have := v.isLt; omega) _).trans (hzcu v)⟩,
+        by wram_simp⟩
+      have := v.isLt
+      rw [Data.set_mem, Data.set_mem, Data.write_mem_of_ne (by omega)]
+      simp only [Data.set_mem, hzex v hvs]
+      simp [le_iff_lt_or_eq, show v.val ≠ k from fun h => hvs (Fin.ext (h.trans hks))]
     · wram_exec [hk_def, hza2, hzc.hrCapBase, hzc.hbaseF, hzc.hbaseE, hzc.hrs, hzc.hone,
         hcap_mem, hcap_fit, hks, hf_snk, hf_c, hf_f, hf_e, hf_k1]
       refine ⟨⟨((((((hzc.set (by decide)).set (by decide)).set (by decide)).set (by decide)
           |>.write_ge (by omega)).set (by decide)).write_ge (by omega)).set (by decide),
-        by wram_simp [hza2], fun u v => ?_, fun v hvs => ?_, fun v => ?_, fun v => ?_⟩,
+        by wram_simp [hza2],
+        fun u v => (Data.write_mem_of_ne (by have := List.mul_add_lt_sq u.isLt v.isLt; omega)
+          _).trans (hflow_step u v),
+        fun v hvs => ?_,
+        fun v => (Data.write_mem_of_ne (by have := v.isLt; omega) _).trans
+          ((Data.write_mem_of_ne (by have := v.isLt; omega) _).trans (hzht v)),
+        fun v => (Data.write_mem_of_ne (by have := v.isLt; omega) _).trans
+          ((Data.write_mem_of_ne (by have := v.isLt; omega) _).trans (hzcu v))⟩,
         by wram_simp⟩
-      · have := List.mul_add_lt_sq u.isLt v.isLt
-        rw [Data.set_mem, Data.write_mem_of_ne (by omega)]
-        exact hflow_step u v
-      · have := v.isLt
-        rw [Data.set_mem]
-        by_cases hvk : v.val = k
-        · have hveq : v = vk := Fin.ext hvk
-          subst hveq
-          simp [vk]
-        · rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_of_ne (by omega)]
-          simpa [le_iff_lt_or_eq, hvk] using hzex v hvs
-      · have := v.isLt
-        rw [Data.set_mem, Data.write_mem_of_ne (by omega), Data.set_mem,
-          Data.write_mem_of_ne (by omega)]
-        exact hzht v
-      · have := v.isLt
-        rw [Data.set_mem, Data.write_mem_of_ne (by omega), Data.set_mem,
-          Data.write_mem_of_ne (by omega)]
-        exact hzcu v
+      have := v.isLt
+      rw [Data.set_mem]
+      by_cases hvk : v.val = k
+      · simp [show v = vk from Fin.ext hvk, vk]
+      · rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_of_ne (by omega)]
+        simpa [le_iff_lt_or_eq, hvk] using hzex v hvs
   obtain ⟨x₄, hx₄_ex, hx₄_P, _⟩ := ExecWithin.loop_count P1
     (fun z hz => hz.1.hrn) hP1_body (by omega)
     ⟨hx₃_ctx, hx₃_a2, fun u v => by simpa [hx₃_idx] using hx₃_fl u v,
@@ -1362,13 +1340,7 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
   have hprep2 :
       ExecWithin w (ram[ rPos ← zero; rIdx ← zero ] : Code .standard 32) x₄
         ((x₄.set rPos 0).set rIdx 0) 2 := by
-    have h : ∃ z, ExecWithin w (ram[ rPos ← zero; rIdx ← zero ] : Code .standard 32) x₄ z 2 ∧
-        z = (x₄.set rPos 0).set rIdx 0 := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hx₄_P.1.hzero]
-      rfl
-    obtain ⟨z, hz_ex, rfl⟩ := h
-    exact hz_ex
+    ram_eval [hx₄_P.1.hzero]
   set x₅ := (x₄.set rPos 0).set rIdx 0
   have hx₅_ctx : CtxInv inst x₅ := (hx₄_P.1.set (by decide)).set (by decide)
   -- Loop 2: build `nonTermFin inst.toNetwork`
@@ -1417,33 +1389,25 @@ private theorem initNonTermCode_spec (inst : Instance) {w : ℕ} (hw : Fits w in
     have hf_o : Fits w (4 + 2 * inst.n * inst.n + 3 * inst.n + pfx.length) :=
       fits_of_addr hw (by omega)
     have hf_pos1 : Fits w (pfx.length + 1) := fits_of_addr hw (by omega)
+    have hskip (hnt : ¬ (vk ≠ inst.s ∧ vk ≠ inst.t)) :
+        P2 (k + 1) ((z.set rVal (z.regs rVal)).set rIdx (k + 1)) ∧
+          ((z.set rVal (z.regs rVal)).set rIdx (k + 1)).regs rIdx = k + 1 := by
+      rw [ite_eq_right hnt] at htake
+      refine ⟨⟨(hzc.set (by decide)).set (by decide), by omega, hzca,
+        by wram_simp [htake, hpos],
+        fun i hi => ?_⟩, by wram_simp⟩
+      change z.mem _ = _
+      rw [List.getElem_of_eq htake hi]
+      exact hmem_p i (by simpa only [htake] using hi)
     refine WP.exists_execWithin ?_
     unfold buildOrderBody
     have hk_def : z.regs rIdx = k := rfl
     by_cases hks : k = inst.s.val
-    · rw [ite_eq_right (by simp [show vk = inst.s from Fin.ext hks] :
-          ¬ (vk ≠ inst.s ∧ vk ≠ inst.t))] at htake
-      wram_exec [hk_def, hzc.hrs.trans hks.symm, hzc.hone, hf_k1]
-      refine ⟨⟨(hzc.set (by decide)).set (by decide), by omega, hzca, ?_, fun i hi => ?_⟩,
-        by wram_simp⟩
-      · rw [htake]
-        wram_simp [hpos]
-      · have hi' : i < pfx.length := htake ▸ hi
-        change z.mem _ = _
-        rw [List.getElem_of_eq htake hi]
-        exact hmem_p i hi'
+    · wram_exec [hk_def, hzc.hrs.trans hks.symm, hzc.hone, hf_k1]
+      exact hskip (by simp [show vk = inst.s from Fin.ext hks])
     · by_cases hkt : k = inst.t.val
-      · rw [ite_eq_right (by simp [show vk = inst.t from Fin.ext hkt] :
-            ¬ (vk ≠ inst.s ∧ vk ≠ inst.t))] at htake
-        wram_exec [hk_def, hzc.hrs, hzc.hrt.trans hkt.symm, hzc.hone, hks, hf_k1]
-        refine ⟨⟨(hzc.set (by decide)).set (by decide), by omega, hzca, ?_, fun i hi => ?_⟩,
-          by wram_simp⟩
-        · rw [htake]
-          wram_simp [hpos]
-        · have hi' : i < pfx.length := htake ▸ hi
-          change z.mem _ = _
-          rw [List.getElem_of_eq htake hi]
-          exact hmem_p i hi'
+      · wram_exec [hk_def, hzc.hrs, hzc.hrt.trans hkt.symm, hzc.hone, hks, hf_k1]
+        exact hskip (by simp [show vk = inst.t from Fin.ext hkt])
       · have hnt : vk ≠ inst.s ∧ vk ≠ inst.t :=
           ⟨fun h => hks (congrArg Fin.val h), fun h => hkt (congrArg Fin.val h)⟩
         rw [ite_eq_left hnt] at htake
@@ -2077,11 +2041,7 @@ private theorem dischargePot_eq (inst : Instance) (u : Fin inst.n) {s : CAState 
       56 * d.ops.length + 32 * d.advances + (25 * inst.n + 30) * s.pr.numRelabels d.ops := by
   have h : ∃ s' : CAState inst.toNetwork, CAInv (defaultAdj inst.n) s' ∧ CAMem inst s' y.mem :=
     ⟨s, hs, hca⟩
-  unfold dischargePot
-  rw [dite_eq_left h]
-  have heq : Classical.choose h = s :=
-    caMem_unique (Classical.choose_spec h).2 hca
-  rw [heq]
+  simp only [dischargePot, dite_eq_left h, caMem_unique (Classical.choose_spec h).2 hca]
 
 private theorem dischargeCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wordBound)
     {u : Fin inst.n} (hus : u ≠ inst.s) (hut : u ≠ inst.t)
@@ -2376,11 +2336,7 @@ private theorem outerPot_eq (inst : Instance) {st : RTFState inst.toNetwork} {y 
       56 * r.1.length + 32 * r.2.advances + 22 * r.2.discharges +
         (33 * inst.n + 38) * st.ca.pr.numRelabels r.1 := by
   have h : ∃ st' : RTFState inst.toNetwork, RTFMem inst st' y := ⟨st, hmem⟩
-  unfold outerPot
-  rw [dite_eq_left h]
-  have heq : Classical.choose h = st :=
-    rtfMem_unique (Classical.choose_spec h) hmem
-  rw [heq]
+  simp only [outerPot, dite_eq_left h, rtfMem_unique (Classical.choose_spec h) hmem]
 
 private theorem outerCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wordBound)
     (hst : inst.s ≠ inst.t) {x : Data 32} (hx : CtxInv inst x)
@@ -2462,40 +2418,28 @@ private theorem outerCode_spec (inst : Instance) {w : ℕ} (hw : Fits w inst.wor
         outerPot inst z + (2 + (2 + 56 * d.ops.length + 32 * d.advances +
           (25 * inst.n + 30) * st.ca.pr.numRelabels d.ops + 9 + T_branch)) ≤ outerPot inst y := by
       intro z T_br _ hz_mem hTbr
-      have hpot_z := outerPot_eq inst hz_mem
-      rw [hpot_y, hpot_z]
-      have hl1 :
-          (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st).1.length =
-            d.ops.length +
-              (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st').1.length := by
-        rw [hr1, List.length_append]
-      have hdis1 : (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st).2.discharges =
-          1 + (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st').2.discharges := by
-        rw [hrdis, hst_mem.hdis0]
-      have hadv1 :
-          (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st).2.advances =
-            d.advances +
-              (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st').2.advances := by
-        rw [hradv, hst_mem.hadv0, Nat.zero_add]
+      rw [hpot_y, outerPot_eq inst hz_mem]
       have hnr1 :
           st.ca.pr.numRelabels
               (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st).1 =
             st.ca.pr.numRelabels d.ops +
               st'.ca.pr.numRelabels
                 (rtfLoop (defaultAdj inst.n) id id (rtfFuel (Fin inst.n)) st').1 := by
-        rw [hr1, State.numRelabels_append, ← hdnr]
         have hst'_ca : st'.ca = d.ca := by dsimp only [st']; split_ifs <;> rfl
-        rw [hst'_ca]
+        rw [hr1, State.numRelabels_append, ← hdnr, hst'_ca]
       have hbr_rel : T_br ≤ 3 + (8 * inst.n + 7) * st.ca.pr.numRelabels d.ops := by
         by_cases hrel : d.relabeled = true
-        · have hpos : 1 ≤ st.ca.pr.numRelabels d.ops := hd_rel_iff.mp hrel
-          have h1 : T_br ≤ 8 * inst.n + 7 := by simpa [hrel] using hTbr
-          have hmul : 8 * inst.n + 7 ≤ (8 * inst.n + 7) * st.ca.pr.numRelabels d.ops :=
-            Nat.le_mul_of_pos_right _ hpos
+        · have h1 : T_br ≤ 8 * inst.n + 7 := by simpa [hrel] using hTbr
+          have hmul := Nat.le_mul_of_pos_right (8 * inst.n + 7)
+            (show 0 < st.ca.pr.numRelabels d.ops from hd_rel_iff.mp hrel)
           omega
         · have h2 : T_br ≤ 3 := by simpa [hrel] using hTbr
           omega
-      exact outerPot_step_le inst.n _ _ _ _ _ _ _ _ _ _ _ _ hl1 hdis1 hadv1 hnr1 hbr_rel
+      exact outerPot_step_le inst.n _ _ _ _ _ _ _ _ _ _ _ _
+        (by rw [hr1, List.length_append])
+        (by rw [hrdis, hst_mem.hdis0])
+        (by rw [hradv, hst_mem.hadv0, Nat.zero_add])
+        hnr1 hbr_rel
     by_cases hrel : d.relabeled = true
     · obtain ⟨z, hz_ex, hz_ctx, hz_ord, hz_low⟩ :=
         shiftOrderCode_spec inst hw hst (htodo ▸ hst_mem.hord.hlen) hy₂_ctx hy₂_ord hy₂_u

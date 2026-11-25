@@ -405,37 +405,36 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
         have : Fits w (4 + j * (L + 2) + 1) := hw.of_le (by omega)
         have : Fits w (k + 1) := hw.of_le (by omega)
         have hsub : g.edges.length - 1 - k = j := rfl
-        have hhead_exec : ∃ y1, ExecWithin w bucketsHead y y1 7 ∧
-            ConstRegs g y1 ∧ y1.regs rEdgeIdx = j ∧ y1.regs rSrc = g.edges[j].src ∧
-            y1.regs rDst = g.edges[j].dst ∧ y1.regs rNodeFree = y.regs rNodeFree ∧
-            y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
+        obtain ⟨y1, hy1, hy1C, hy1J, hy1Src, hy1Dst, hy1NF, hy1Idx, hy1m⟩ :
+            ∃ y1, ExecWithin w bucketsHead y y1 7 ∧
+              ConstRegs g y1 ∧ y1.regs rEdgeIdx = j ∧ y1.regs rSrc = g.edges[j].src ∧
+              y1.regs rDst = g.edges[j].dst ∧ y1.regs rNodeFree = y.regs rNodeFree ∧
+              y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
           unfold bucketsHead
           wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg, hsub, hsrc_mem, hdst_mem]
           exact ⟨by wram_simp [hyC], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
             by wram_simp [hk_reg], by wram_simp⟩
-        obtain ⟨y1, hy1, hy1C, hy1J, hy1Src, hy1Dst, hy1NF, hy1Idx, hy1m⟩ := hhead_exec
         obtain ⟨z1, hz1, hz1C, hz1Inp, hz1NF, hz1Idx, hz1J, hz1Src, hz1Dst, hz1Adj, hz1Zero⟩ :=
           prependToSlot_spec (w := w) g rSrc y1 (bsAt k) g.edges[j].src j (Or.inl rfl)
             hy1C (hy1m ▸ hyInp) hy1Src hy1J hlen_k hs_lt hj
             (by omega) (by simp only [visBase]; omega)
             (by rw [hy1NF, hy1m]; exact hyAdj) (by rw [hy1m]; exact hyZero) hw
         by_cases hsd : g.edges[j].src = g.edges[j].dst
-        · have htail : ∃ z2, ExecWithin w
-              (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ];
-                    rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z1 z2 4 ∧
-              ConstRegs g z2 ∧ z2.regs rNodeFree = z1.regs rNodeFree ∧
-              z2.regs rOuterIdx = k + 1 ∧ z2.mem = z1.mem := by
+        · obtain ⟨z2, hz2, hz2C, hz2NF, hz2Idx, hz2m⟩ :
+              ∃ z2, ExecWithin w
+                (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ];
+                      rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z1 z2 4 ∧
+                ConstRegs g z2 ∧ z2.regs rNodeFree = z1.regs rNodeFree ∧
+                z2.regs rOuterIdx = k + 1 ∧ z2.mem = z1.mem := by
             wram_exec [hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, hz1Idx, hy1Idx, hz1C.one]
             exact ⟨by wram_simp [hz1C], by wram_simp, by wram_simp, by wram_simp⟩
-          obtain ⟨z2, hz2, hz2C, hz2NF, hz2Idx, hz2m⟩ := htail
-          refine ⟨z2, ?_, ⟨hz2C, hz2m ▸ hz1Inp,
+          refine ⟨z2, (hy1.seq (hz1.seq hz2)).mono (by omega), ⟨hz2C, hz2m ▸ hz1Inp,
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             fun u hu => ?_, by rw [hz2m]; exact hz1Zero⟩, hz2Idx⟩
-          · exact (hy1.seq (hz1.seq hz2)).mono (by omega)
-          · rw [hbs_next, hz2NF, hz2m]
-            simp only [insertEdge, hsd, ↓reduceIte]
-            simpa only [hsd] using hz1Adj u hu
+          rw [hbs_next, hz2NF, hz2m]
+          simp only [insertEdge, hsd, ↓reduceIte]
+          simpa only [hsd] using hz1Adj u hu
         · have hlen_k1 : ((bsAt k).set g.edges[j].src
               (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).length = slots g := by
             rw [List.length_set, hlen_k]
@@ -449,37 +448,28 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
           have hbr : ExecWithin w
               (ram[ if rSrc = rDst then [ rOuterIdx ← rOuterIdx ] else [ ⟪prependToSlot rDst⟫ ] ] :
                 Code .standard 34)
-              z1 z2 9 := by
-            have hcond : ¬ (Cond.eq rSrc rDst).Holds z1 := by
-              simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, not_false_eq_true]
-            exact ExecWithin.branch_neg hcond hz2
-          have hinc : ∃ z3, ExecWithin w
-              (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧
-              ConstRegs g z3 ∧ z3.regs rNodeFree = z2.regs rNodeFree ∧
-              z3.regs rOuterIdx = k + 1 ∧ z3.mem = z2.mem := by
+              z1 z2 9 :=
+            ExecWithin.branch_neg
+              (by simp only [Cond.holds_eq, hz1Src, hy1Src, hz1Dst, hy1Dst, hsd, not_false_eq_true])
+              hz2
+          obtain ⟨z3, hz3, hz3C, hz3NF, hz3Idx, hz3m⟩ :
+              ∃ z3, ExecWithin w
+                (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z2 z3 1 ∧
+                ConstRegs g z3 ∧ z3.regs rNodeFree = z2.regs rNodeFree ∧
+                z3.regs rOuterIdx = k + 1 ∧ z3.mem = z2.mem := by
             wram_exec [hz2Idx, hz1Idx, hy1Idx, hz2C.one]
             exact ⟨by wram_simp [hz2C], by wram_simp, by wram_simp, by wram_simp⟩
-          obtain ⟨z3, hz3, hz3C, hz3NF, hz3Idx, hz3m⟩ := hinc
-          refine ⟨z3, ?_, ⟨hz3C, hz3m ▸ hz2Inp,
+          refine ⟨z3, (hy1.seq (hz1.seq (hbr.seq hz3))).mono (by omega), ⟨hz3C, hz3m ▸ hz2Inp,
             by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
             by rw [hz3NF, hz2NF, hz1NF, hy1NF]; omega,
             fun u hu => ?_, by rw [hz3m]; exact hz2Zero⟩, hz3Idx⟩
-          · exact (hy1.seq (hz1.seq (hbr.seq hz3))).mono (by omega)
-          · have hdst_get :
-                ((bsAt k).set g.edges[j].src
-                  (g.edges[j] :: (bsAt k).getD g.edges[j].src [])).getD g.edges[j].dst [] =
-                (bsAt k).getD g.edges[j].dst [] :=
-              List.getD_set_ne hsd
-            simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz3NF, hz3m, ← hdst_get]
-            exact hz2Adj u hu)
+          simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz3NF, hz3m]
+          simpa only [List.getD_set_ne hsd] using hz2Adj u hu)
       (by rw [hidx]; exact Nat.zero_le _)
       (by rwa [hidx])
   rw [hidx, Nat.sub_zero] at hy
   refine ⟨y, hy, hyC, hyInp, fun u hu => ?_, hyZero⟩
-  have hbsE : (bsAt g.edges.length).getD u [] = adj g u := by
-    change (buckets (slots g) (g.edges.drop (g.edges.length - g.edges.length))).getD u [] = adj g u
-    rw [Nat.sub_self, List.drop_zero, buckets_getD]
-  rw [← hbsE]
-  exact (hyAdj u hu).frame (by simp only [visBase]; omega) fun _ _ _ => rfl
+  simpa only [bsAt, Nat.sub_self, List.drop_zero, buckets_getD] using
+    (hyAdj u hu).frame (by simp only [visBase]; omega) fun _ _ _ => rfl
 
 end Cslib.Complexity.UniqueGames.Propagation

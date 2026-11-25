@@ -149,10 +149,7 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
         · rw [hν'_mem y hyO, (hO_fix y hyO).1]
           exact I.rank_topChoice_le (I.cycleAgents_subset R (hOC hyO)) y
         · have hnotO : ν y ∉ O := fun hm => hyO (ν.injective (hO_fix (ν y) hm).1 ▸ hm)
-          have hν'y : ν' y = ν y := by
-            simp only [ν', Equiv.trans_apply]
-            exact I.cyclePerm_apply_of_notMem hOC hOclosed hnotO
-          rw [hν'y]
+          rw [Equiv.trans_apply, I.cyclePerm_apply_of_notMem hOC hOclosed hnotO]
       · rw [hν'_mem a₀ ha₀O, (hO_fix a₀ ha₀O).1]
         exact lt_of_le_of_ne (I.rank_topChoice_le (I.cycleAgents_subset R ha₀) a₀)
           fun hr => (hO_fix a₀ ha₀O).2 (I.rank_injective a₀ hr)
@@ -234,10 +231,9 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
         · simpa only [I', I.updatePref_rank_of_ne π hji] using hle j hj
       · by_cases hji : j₀ = i
         · subst hji
-          have h1 := hlt
-          rw [hI'_ttc_rank, hI'_rank] at h1
+          rw [hI'_ttc_rank, hI'_rank] at hlt
           rwa [Instance.swap_eq_self_of_le hrk hkr
-            ((Instance.swap_le_iff_of_lt hrk hkr).1 h1.le)] at h1
+            ((Instance.swap_le_iff_of_lt hrk hkr).1 hlt.le)] at hlt
         · simpa only [I', I.updatePref_rank_of_ne π hji] using hlt
     -- The endowment-rank sum strictly drops, so the induction hypothesis gives `M I' = I.ttc`.
     have hsum_lt : (∑ j : Fin n, (I'.rank j j).val) < m := by
@@ -250,15 +246,12 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     have hMI' : M I' = I.ttc := (ih _ hsum_lt I' rfl).trans hI'_strictCore.eq_ttc.symm
     -- Strategy-proofness between `I` and `I'` forces `M I i = I.ttc i`.
     have hsp_fwd : I.rank i (M I i) ≤ r := by
-      have h1 := hSP I i π
-      rwa [show I.updatePref i π = I' from rfl, hMI'] at h1
+      simpa only [I', hMI'] using hSP I i π
     have hsp_bwd : r ≤ I.rank i (M I i) := by
       have h1 := hSP I' i (I.pref i)
-      have hback : I'.updatePref i (I.pref i) = I := by
-        simp [I']
-      rw [hback, hMI', hI'_ttc_rank, hI'_rank,
+      have hback : I'.updatePref i (I.pref i) = I := by simp [I']
+      rwa [hback, hMI', hI'_ttc_rank, hI'_rank,
         Instance.swap_eq_self_of_le hrk hkr hsp_fwd] at h1
-      exact h1
     exact Or.inr (le_antisymm hsp_fwd hsp_bwd).le
   · -- No house lies strictly between `I.ttc i` and `i`, so `hIR` suffices directly.
     have hir_i : (I.rank i (M I i)).val ≤ r₀.val := hIR I i
@@ -332,10 +325,7 @@ private theorem val_ge_of_ne {k : ℕ} (hk : k < n) {i : Fin n} (hi : n - (k + 1
 theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) {i : Fin n}
     (hi : n - k ≤ i.val) : I.sdSteps k R i ∈ R := by
   induction k generalizing R with
-  | zero =>
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact absurd i.isLt (by omega)
   | succ k ih =>
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
@@ -349,12 +339,7 @@ theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k 
 theorem sdSteps_injOn {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) :
     Set.InjOn (I.sdSteps k R) {i : Fin n | n - k ≤ i.val} := by
   induction k generalizing R with
-  | zero =>
-    intro x hx
-    exfalso
-    have : n ≤ x.val := hx
-    have := x.isLt
-    omega
+  | zero => exact fun x (hx : n - 0 ≤ x.val) => absurd x.isLt (by omega)
   | succ k ih =>
     intro x hx y hy hxy
     have hk : k < n := by omega
@@ -389,11 +374,7 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     (hle : ∀ i : Fin n, n - k ≤ i.val → I.rank i (ν i) ≤ I.rank i (I.sdSteps k R i)) :
     ∀ i : Fin n, n - k ≤ i.val → ν i = I.sdSteps k R i := by
   induction k generalizing R with
-  | zero =>
-    intro i hi
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact fun i hi => absurd i.isLt (by omega)
   | succ k ih =>
     intro i hi
     have hk : k < n := by omega
@@ -431,10 +412,7 @@ private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le
     (hcard : k ≤ R.card) (i : Fin n) (hi : n - k ≤ i.val) (π : Equiv.Perm (Fin n)) :
     I.rank i (I.sdSteps k R i) ≤ I.rank i ((I.updatePref i π).sdSteps k R i) := by
   induction k generalizing R with
-  | zero =>
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact absurd i.isLt (by omega)
   | succ k ih =>
     have hk : k < n := by omega
     let J := I.updatePref i π

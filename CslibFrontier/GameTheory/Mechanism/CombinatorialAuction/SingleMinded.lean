@@ -366,31 +366,22 @@ theorem isDSIC_of_isWeakMonotone [DecidableEq N] [DecidableEq M] {m : Mechanism 
     m.IsDSIC := by
   intro i b trueBid hb ht
   have hir : 0 ≤ m.utility i trueBid (Function.update b i trueBid) := by
-    have h := isIR_of_hasCriticalPayments h0 hcrit i (Function.update b i trueBid)
-      (update_value_nonneg hb i ht)
-    simpa only [Function.update_self] using h
+    simpa only [Function.update_self] using
+      isIR_of_hasCriticalPayments h0 hcrit i (Function.update b i trueBid)
+        (update_value_nonneg hb i ht)
   by_cases hwin : i ∈ m.winners b
   · by_cases hsub : trueBid.bundle ⊆ (b i).bundle
-    · have hpay : m.payment b i = criticalValue m.winners b i := hcrit b hb i hwin
-      have hcv_le : criticalValue m.winners (Function.update b i trueBid) i ≤
+    · have hcv_le : criticalValue m.winners (Function.update b i trueBid) i ≤
           criticalValue m.winners b i := by
-        have hwin' : i ∈ m.winners (Function.update b i ⟨(b i).bundle, (b i).value⟩) := by
-          change i ∈ m.winners (Function.update b i (b i))
-          rwa [Function.update_eq_self]
-        have h := criticalValue_mono_bundle hmono hb hsub (hb i) hwin' trueBid.value
-        have hbi : Function.update b i ⟨(b i).bundle, (b i).value⟩ = b :=
-          Function.update_eq_self i b
-        simpa only [hbi] using h
+        simpa only [Function.update_eq_self] using
+          criticalValue_mono_bundle (i := i) hmono hb hsub (hb i)
+            (by simpa only [Function.update_eq_self] using hwin) trueBid.value
       have hutil_dev : m.utility i trueBid b = trueBid.value - criticalValue m.winners b i := by
-        simp [utility, hwin, SingleMindedBid.eval, hsub, hpay]
+        simp [utility, hwin, SingleMindedBid.eval, hsub, hcrit b hb i hwin]
       rw [hutil_dev]
       by_cases htwin : i ∈ m.winners (Function.update b i trueBid)
-      · have hpay_t : m.payment (Function.update b i trueBid) i =
-            criticalValue m.winners (Function.update b i trueBid) i :=
-          hcrit _ (update_value_nonneg hb i ht) i htwin
-        have hutil_t : m.utility i trueBid (Function.update b i trueBid) =
-            trueBid.value - criticalValue m.winners (Function.update b i trueBid) i := by
-          simp [utility, htwin, Function.update_self, hpay_t]
+      · simp only [utility, htwin, ↓reduceIte, Function.update_self, SingleMindedBid.eval_self,
+          hcrit _ (update_value_nonneg hb i ht) i htwin]
         linarith
       · have hle_cv : trueBid.value ≤
             criticalValue m.winners (Function.update b i trueBid) i := by
@@ -409,17 +400,13 @@ theorem isDSIC_of_isWeakMonotone [DecidableEq N] [DecidableEq M] {m : Mechanism 
             (by simp) (by simpa only [Function.update_self] using hzt)
           simp only [Function.update_idem] at hstep
           exact htwin hstep
-        have hutil_t : m.utility i trueBid (Function.update b i trueBid) = 0 := by
-          have hp := h0 _ (update_value_nonneg hb i ht) i htwin
-          simp [utility, htwin, hp]
+        simp only [utility, htwin, ↓reduceIte, h0 _ (update_value_nonneg hb i ht) i htwin]
         linarith
-    · have hnp : 0 ≤ m.payment b i := hasNonnegPayment_of_hasCriticalPayments h0 hcrit b hb i
-      have hutil_dev : m.utility i trueBid b = -m.payment b i := by
+    · have hutil_dev : m.utility i trueBid b = -m.payment b i := by
         simp [utility, hwin, SingleMindedBid.eval, hsub]
-      linarith
-  · have hp : m.payment b i = 0 := h0 b hb i hwin
-    have hutil_dev : m.utility i trueBid b = 0 := by simp [utility, hwin, hp]
-    linarith
+      linarith [hasNonnegPayment_of_hasCriticalPayments h0 hcrit b hb i]
+  · simp only [utility, hwin, ↓reduceIte, h0 b hb i hwin, sub_zero]
+    exact hir
 
 /-- Necessity of weak monotonicity in [BlumrosenNisan2007], Lemma 11.9 (p. 274): every DSIC
 mechanism in which losers pay `0` has a weakly monotone allocation rule. Neither `IsIR` nor
@@ -427,24 +414,17 @@ mechanism in which losers pay `0` has a weakly monotone allocation rule. Neither
 theorem isWeakMonotone_of_isDSIC [DecidableEq N] [DecidableEq M] {m : Mechanism N M}
     (h0 : m.LosersPayZero) (hdsic : m.IsDSIC) : IsWeakMonotone m.winners := by
   intro i b S' v' hb hwin hsub hlt
-  have hv' : 0 ≤ v' := le_trans (hb i) hlt.le
+  have hv' : 0 ≤ v' := (hb i).trans hlt.le
   set b' := Function.update b i ⟨S', v'⟩
   have hb' : ∀ j, 0 ≤ (b' j).value := update_value_nonneg hb i hv'
   by_contra hlose
   have h1 := hdsic i b' (b i) hb' (hb i)
-  have h1' : Function.update b' i (b i) = b := by
+  have h2 : m.utility i ⟨S', v'⟩ b ≤ m.utility i ⟨S', v'⟩ b' := hdsic i b ⟨S', v'⟩ hb hv'
+  have hupd : Function.update b' i (b i) = b := by
     simp [b', Function.update_idem, Function.update_eq_self]
-  rw [h1'] at h1
-  have hp' : m.payment b' i = 0 := h0 b' hb' i hlose
-  have hpay_le : m.payment b i ≤ (b i).value := by
-    have hu_b' : m.utility i (b i) b' = 0 := by simp [utility, hlose, hp']
-    have hu_b : m.utility i (b i) b = (b i).value - m.payment b i := by
-      simp [utility, hwin]
-    linarith
-  have h2 := hdsic i b ⟨S', v'⟩ hb hv'
-  have hu_dev : m.utility i ⟨S', v'⟩ b = v' - m.payment b i := by
-    simp [utility, hwin, SingleMindedBid.eval, hsub]
-  have hu_t : m.utility i ⟨S', v'⟩ b' = 0 := by simp [utility, hlose, hp']
+  rw [hupd] at h1
+  simp only [utility, hwin, hlose, ↓reduceIte, SingleMindedBid.eval, Finset.Subset.rfl,
+    hsub, h0 b' hb' i hlose] at h1 h2
   linarith
 
 /-- Necessity of critical payments in [BlumrosenNisan2007], Lemma 11.9 (p. 274): in a DSIC,
@@ -460,37 +440,28 @@ theorem hasCriticalPayments_of_isDSIC [DecidableEq N] [DecidableEq M] {m : Mecha
     rintro x ⟨hx0, hxwin⟩
     set bx := Function.update b i ⟨(b i).bundle, x⟩
     have hbx : ∀ j, 0 ≤ (bx j).value := update_value_nonneg hb i hx0
-    have h_eq : m.payment b i = m.payment bx i := by
-      have h1 := hdsic i b ⟨(b i).bundle, x⟩ hb hx0
-      have h2 := hdsic i bx (b i) hbx (hb i)
-      have hupd : Function.update bx i (b i) = b := by
-        simp [bx, Function.update_idem, Function.update_eq_self]
-      rw [hupd] at h2
-      have h1' : x - m.payment b i ≤ x - m.payment bx i := by
-        simpa [utility, hwin, hxwin, bx, SingleMindedBid.eval] using h1
-      have h2' : (b i).value - m.payment bx i ≤ (b i).value - m.payment b i := by
-        simpa [utility, hwin, hxwin, bx, SingleMindedBid.eval] using h2
-      linarith
+    have h1 : m.utility i ⟨(b i).bundle, x⟩ b ≤ m.utility i ⟨(b i).bundle, x⟩ bx :=
+      hdsic i b ⟨(b i).bundle, x⟩ hb hx0
+    have h2 := hdsic i bx (b i) hbx (hb i)
     have hir_x := hir i bx hbx
-    have hir_x' : 0 ≤ x - m.payment bx i := by
-      simpa [utility, hxwin, bx, SingleMindedBid.eval] using hir_x
+    have hupd : Function.update bx i (b i) = b := by
+      simp [bx, Function.update_idem, Function.update_eq_self]
+    rw [hupd] at h2
+    have hbxi : bx i = ⟨(b i).bundle, x⟩ := Function.update_self i _ b
+    simp only [utility, hwin, hxwin, ↓reduceIte, hbxi, SingleMindedBid.eval, Finset.Subset.rfl]
+      at h1 h2 hir_x
     linarith
   · refine le_of_forall_pos_le_add fun ε hε => ?_
     set p := m.payment b i
-    have hp0 : 0 ≤ p := hnn b hb i
-    have hpe : 0 ≤ p + ε := by linarith
-    have hwin_pe : i ∈ m.winners (Function.update b i ⟨(b i).bundle, p + ε⟩) := by
-      by_contra hlose
-      set b' := Function.update b i ⟨(b i).bundle, p + ε⟩
-      have hb' : ∀ j, 0 ≤ (b' j).value := update_value_nonneg hb i hpe
-      have hds := hdsic i b ⟨(b i).bundle, p + ε⟩ hb hpe
-      have hpay' : m.payment b' i = 0 := h0 b' hb' i hlose
-      have hu_b : m.utility i ⟨(b i).bundle, p + ε⟩ b = p + ε - p := by
-        simp [utility, hwin, SingleMindedBid.eval, p]
-      have hu_b' : m.utility i ⟨(b i).bundle, p + ε⟩ b' = 0 := by
-        simp [utility, hlose, hpay']
-      linarith
-    exact criticalValue_le_of_mem hpe hwin_pe
+    have hpe : 0 ≤ p + ε := by linarith [hnn b hb i]
+    refine criticalValue_le_of_mem hpe ?_
+    by_contra hlose
+    set b' := Function.update b i ⟨(b i).bundle, p + ε⟩
+    have hds : m.utility i ⟨(b i).bundle, p + ε⟩ b ≤ m.utility i ⟨(b i).bundle, p + ε⟩ b' :=
+      hdsic i b ⟨(b i).bundle, p + ε⟩ hb hpe
+    simp only [utility, hwin, hlose, ↓reduceIte, SingleMindedBid.eval, Finset.Subset.rfl,
+      h0 b' (update_value_nonneg hb i hpe) i hlose, p] at hds
+    linarith
 
 /-- **Characterization of truthful single-minded mechanisms** ([BlumrosenNisan2007], Lemma 11.9,
 pp. 274–275): a mechanism in which losers pay `0` is DSIC, individually rational, and has
@@ -1072,27 +1043,22 @@ theorem losPayment_eq_criticalValue {N M : Type*} [Fintype N] [LinearOrder N] [D
         simpa only [Function.update_self,
           Function.update_of_ne (losWinnersWithout_subset_ne b hj)] using hnd
       have hsc_le : losScore (b j) ≤ sMax :=
-        Finset.le_max' ((losBlockers b i).image fun k => losScore (b k)) (losScore (b j))
-          (Finset.mem_image_of_mem (fun k => losScore (b k)) hjb)
-      have hsc_lt : losScore (b j) < z / Real.sqrt (b i).bundle.card := by
-        have hlt' : sMax < z / Real.sqrt (b i).bundle.card := (lt_div_iff₀ hsq_pos).2 hz
-        exact lt_of_le_of_lt hsc_le hlt'
+        Finset.le_max' _ _ (Finset.mem_image_of_mem (fun k => losScore (b k)) hjb)
       have hj_le := losScore_le_of_losLt hlt
       simp only [Function.update_self,
         Function.update_of_ne (losWinnersWithout_subset_ne b hj)] at hj_le
-      change z / Real.sqrt (b i).bundle.card ≤ losScore (b j) at hj_le
+      have hlt' : sMax < losScore ⟨(b i).bundle, z⟩ := (lt_div_iff₀ hsq_pos).2 hz
       linarith
     · intro z _ hwin_z
       by_contra hlt
       push Not at hlt
       have hjStar_w : jStar ∈ losWinnersWithout b i := (Finset.mem_filter.1 hjStar_mem).1
       have hjStar_ne : jStar ≠ i := losWinnersWithout_subset_ne b hjStar_w
-      have hscore_lt : z / Real.sqrt (b i).bundle.card < losScore (b jStar) := by
-        rw [hjStar_eq]
-        exact (div_lt_iff₀ hsq_pos).2 hlt
+      have hscore_lt : losScore ⟨(b i).bundle, z⟩ < losScore (b jStar) :=
+        hjStar_eq ▸ (div_lt_iff₀ hsq_pos).2 hlt
       have hlt_ji : losLt (Function.update b i ⟨(b i).bundle, z⟩) jStar i := by
         left
-        simpa only [Function.update_self, Function.update_of_ne hjStar_ne, losScore] using hscore_lt
+        simpa only [Function.update_self, Function.update_of_ne hjStar_ne] using hscore_lt
       have hdisj := (mem_losWinners_iff _ i).1 hwin_z jStar
         (by rwa [losWinnersWithout_update]) hlt_ji
       simp only [Function.update_self, Function.update_of_ne hjStar_ne] at hdisj
@@ -1175,6 +1141,13 @@ theorem losPayment_eq_first_blocked {N M : Type*} [Fintype N] [LinearOrder N] [D
         losPayment b i = 0) := by
   classical
   have hwf : WellFounded (losLt b) := losLt_wf b
+  have hmem_block : ∀ j', j' ≠ i → ¬ Disjoint (b i).bundle (b j').bundle →
+      (∀ x ∈ losBlockers b i, ¬ losLt b x j') →
+      (∀ k ∈ losWinners b, k ≠ i → losLt b k j' → Disjoint (b k).bundle (b j').bundle) →
+      j' ∈ losBlockers b i := fun j' hj'i hnd' hno' hcond' =>
+    Finset.mem_filter.2
+      ⟨(winners_agree_before_blocker b j' hj'i hno').2 fun k hk hki hlt =>
+        (hcond' k hk hki hlt).symm, hnd'⟩
   by_cases hne : (losBlockers b i).Nonempty
   · left
     obtain ⟨j, hj_mem, hj_min⟩ := hwf.has_min (losBlockers b i : Set N) hne
@@ -1182,10 +1155,9 @@ theorem losPayment_eq_first_blocked {N M : Type*} [Fintype N] [LinearOrder N] [D
     have hj_w : j ∈ losWinnersWithout b i := (Finset.mem_filter.1 hj_mem).1
     have hnd_ij : ¬ Disjoint (b i).bundle (b j).bundle := (Finset.mem_filter.1 hj_mem).2
     have hji : j ≠ i := losWinnersWithout_subset_ne b hj_w
-    have hno_j : ∀ x ∈ losBlockers b i, ¬ losLt b x j := fun x hx hlt => hj_min x hx hlt
     have hcond_j : ∀ k ∈ losWinners b, k ≠ i → losLt b k j →
         Disjoint (b k).bundle (b j).bundle := fun k hk hki hlt =>
-      ((winners_agree_before_blocker b j hji hno_j).1 hj_w k hk hki hlt).symm
+      ((winners_agree_before_blocker b j hji (fun x hx => hj_min x hx)).1 hj_w k hk hki hlt).symm
     have hmin_j : ∀ j', j' ≠ i → ¬ Disjoint (b i).bundle (b j').bundle →
         (∀ k ∈ losWinners b, k ≠ i → losLt b k j' → Disjoint (b k).bundle (b j').bundle) →
         j = j' ∨ losLt b j j' := by
@@ -1194,47 +1166,27 @@ theorem losPayment_eq_first_blocked {N M : Type*} [Fintype N] [LinearOrder N] [D
       · exact Or.inl heq
       · rcases losLt_total b heq with h | h
         · exact Or.inr h
-        · exfalso
-          have hno' : ∀ x ∈ losBlockers b i, ¬ losLt b x j' :=
-            fun x hx hxj' => hj_min x hx (losLt_trans b hxj' h)
-          have hj'w : j' ∈ losWinnersWithout b i :=
-            (winners_agree_before_blocker b j' hj'i hno').2
-              (fun k hk hki hlt => (hcond' k hk hki hlt).symm)
-          exact hj_min j' (Finset.mem_filter.2 ⟨hj'w, hnd'⟩) h
-    have hij_lt : losLt b i j := by
-      rcases losLt_total b hji.symm with h | h
-      · exact h
-      · exfalso
-        exact hnd_ij ((mem_losWinners_iff b i).1 hwin j hj_w h)
+        · exact (hj_min j' (hmem_block j' hj'i hnd'
+            (fun x hx hxj' => hj_min x hx (losLt_trans b hxj' h)) hcond') h).elim
+    have hij_lt : losLt b i j :=
+      (losLt_total b hji.symm).resolve_right fun h =>
+        hnd_ij ((mem_losWinners_iff b i).1 hwin j hj_w h)
     have hmax_eq : ((losBlockers b i).image fun x => losScore (b x)).max' (hne.image _) =
         losScore (b j) := by
       refine le_antisymm ?_
-        (Finset.le_max' ((losBlockers b i).image fun x => losScore (b x)) (losScore (b j))
-          (Finset.mem_image_of_mem (fun x => losScore (b x)) hj_mem))
+        (Finset.le_max' _ _ (Finset.mem_image_of_mem (fun x => losScore (b x)) hj_mem))
       refine Finset.max'_le _ _ _ fun r hr => ?_
       rcases Finset.mem_image.1 hr with ⟨x, hx, rfl⟩
       by_cases hxj : x = j
       · subst hxj; exact le_rfl
-      · rcases losLt_total b hxj with hlt | hlt
-        · exact (hj_min x hx hlt).elim
-        · exact losScore_le_of_losLt hlt
-    have hpay : losPayment b i =
-        (b j).value / Real.sqrt (((b j).bundle.card : ℝ) / ((b i).bundle.card : ℝ)) := by
-      simp only [losPayment, hwin, ↓reduceIte, hne, ↓reduceDIte, hmax_eq]
-      exact eq_div_sqrt_div (Nat.cast_nonneg _)
-    exact ⟨j, hji, hnd_ij, hcond_j, hmin_j, hij_lt, hpay⟩
-  · right
-    refine ⟨?_, ?_⟩
-    · intro j hji hnd
-      by_contra hall
-      push Not at hall
-      have hno : ∀ x ∈ losBlockers b i, ¬ losLt b x j :=
-        fun x hx => (hne ⟨x, hx⟩).elim
-      have hjw : j ∈ losWinnersWithout b i :=
-        (winners_agree_before_blocker b j hji hno).2
-          (fun k hk hki hlt => (hall k hk hki hlt).symm)
-      exact hne ⟨j, Finset.mem_filter.2 ⟨hjw, hnd⟩⟩
-    · simp only [losPayment, hwin, ↓reduceIte, hne, ↓reduceDIte]
+      · exact (losLt_total b hxj).elim (fun hlt => (hj_min x hx hlt).elim) losScore_le_of_losLt
+    refine ⟨j, hji, hnd_ij, hcond_j, hmin_j, hij_lt, ?_⟩
+    simp only [losPayment, hwin, ↓reduceIte, hne, ↓reduceDIte, hmax_eq]
+    exact eq_div_sqrt_div (Nat.cast_nonneg _)
+  · refine Or.inr ⟨fun j hji hnd => ?_, by simp [losPayment, hwin, hne]⟩
+    by_contra hall
+    push Not at hall
+    exact hne ⟨j, hmem_block j hji hnd (fun x hx => (hne ⟨x, hx⟩).elim) hall⟩
 
 /-- The LOS greedy mechanism is dominant-strategy incentive compatible ([BlumrosenNisan2007],
 Theorem 11.8 / Lemma 11.9, pp. 273–275). -/

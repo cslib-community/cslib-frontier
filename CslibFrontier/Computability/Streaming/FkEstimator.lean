@@ -355,19 +355,15 @@ private theorem fkCell_eq (s : List α) (a : α) (p : ℕ) :
     fkCell s.length a p (s[p]?, suffixCount s p) =
       ((s ++ [a])[p]?, suffixCount (s ++ [a]) p) := by
   rcases lt_trichotomy p s.length with hp | rfl | hp
-  · have hp2 : p < (s ++ [a]).length := by
-      simp only [List.length_append, List.length_singleton]
-      omega
+  · have hp2 : p < (s ++ [a]).length := by simp [hp.trans_le (Nat.le_succ _)]
     rw [suffixCount_eq_of_lt hp, suffixCount_eq_of_lt hp2, List.getElem?_eq_getElem hp,
       List.getElem?_eq_getElem hp2, List.getElem_append_left hp,
       List.drop_append_of_le_length hp.le, List.count_append]
-    rcases eq_or_ne s[p] a with h | h
-    · simp [fkCell, h, hp.ne]
+    rcases eq_or_ne s[p] a with rfl | h
+    · simp [fkCell, hp.ne]
     · simp [fkCell, h, hp.ne, h.symm]
   · simp [fkCell, suffixCount_eq_of_lt (show s.length < (s ++ [a]).length by simp)]
-  · have hp2 : (s ++ [a]).length ≤ p := by
-      simp only [List.length_append, List.length_singleton]
-      omega
+  · have hp2 : (s ++ [a]).length ≤ p := by simpa using hp
     simp [fkCell, hp.ne', suffixCount_eq_zero_of_le hp.le, suffixCount_eq_zero_of_le hp2,
       List.getElem?_eq_none hp.le, List.getElem?_eq_none hp2]
 
@@ -417,12 +413,11 @@ theorem dens_fkSketch_error_le {n : ℕ} (hk : k ≠ 0) {η : ℝ} (hη : 0 < η
       NNRat.cast_zero]
     positivity
   have hne : Nonempty (Fin s.length) := ⟨⟨0, List.length_pos_iff.2 hs⟩⟩
-  have hn1 : 1 ≤ n :=
+  have hn1 : 0 < n :=
     (Finset.card_pos.2 ⟨_, List.mem_toFinset.2 (List.head_mem hs)⟩).trans_le hn
   have hK0 : NeZero K := ⟨by
     rintro rfl
-    have : (0 : ℝ) < k := Nat.cast_pos.2 (Nat.pos_of_ne_zero hk)
-    have : (0 : ℝ) < n := Nat.cast_pos.2 hn1
+    have hk0 : 0 < k := Nat.pos_of_ne_zero hk
     have : (0 : ℝ) < (3 * k : ℝ) ^ k * n ^ (k - 1) := by positivity
     simp only [Nat.cast_zero, zero_mul, zero_pow hk] at hK
     linarith⟩
@@ -432,9 +427,8 @@ theorem dens_fkSketch_error_le {n : ℕ} (hk : k ≠ 0) {η : ℝ} (hη : 0 < η
     rw [Fintype.expect_sub_expect_sq]
     nlinarith [expect_fkBasicEstimate_sq_le hk s, three_mul_length_mul_freqMoment_le hk hK hn,
       sq_nonneg (𝔼 p, g p)]
-  have := dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
-  rw [expect_fkBasicEstimate hk s] at this
-  simpa only [run_fkSketch_eq_medianOfMeans] using this
+  simpa only [g, expect_fkBasicEstimate hk s, run_fkSketch_eq_medianOfMeans] using
+    dens_abs_medianOfMeans_sub_gt_le (r := r) g (by positivity) hvar
 
 /-- The error of the randomized `F_k` sketch is the fraction of bad sampled positions. -/
 theorem errorProb_fkEstimator [NeZero m] (R : List α → ℝ → Prop) (s : List α)

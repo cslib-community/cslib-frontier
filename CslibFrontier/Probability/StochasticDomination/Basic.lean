@@ -94,10 +94,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
       Set.univ_inter, one_mul]
     by_cases htop : f x = ⊤
     · rw [show Tx = Set.Ioi 0 by ext t; simp [Tx, htop], Real.volume_Ioi, htop]
-    · have hset : Tx = Set.Ioo 0 (f x).toReal := by
-        ext t
-        simp only [Tx, Set.mem_ofPred_eq, Set.mem_Ioo, and_congr_right_iff]
-        exact fun ht0 => ENNReal.ofReal_lt_iff_lt_toReal ht0.le htop
+    · have hset : Tx = Set.Ioo 0 (f x).toReal := Set.ext fun t =>
+        and_congr_right fun ht0 => ENNReal.ofReal_lt_iff_lt_toReal ht0.le htop
       rw [hset, Real.volume_Ioo, sub_zero, ENNReal.ofReal_toReal htop]
   calc
     ∫⁻ x, f x ∂μ
@@ -111,9 +109,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
           ext t
           by_cases ht : 0 < t
           · have hslice : (fun x => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
-                {x | ENNReal.ofReal t < f x}.indicator (1 : α → ℝ≥0∞) := by
-              ext x
-              by_cases hx : ENNReal.ofReal t < f x <;> simp [S, ht, hx]
+                {x | ENNReal.ofReal t < f x}.indicator (1 : α → ℝ≥0∞) :=
+              funext fun x => by by_cases hx : ENNReal.ofReal t < f x <;> simp [S, ht, hx]
             rw [Set.indicator_of_mem ht, hslice,
               lintegral_indicator (measurableSet_lt measurable_const hf)]
             simp
@@ -465,10 +462,8 @@ theorem StochasticallyDominates.antisymm_nat {μ ν : Measure ℕ}
   refine Measure.ext_of_singleton fun n => ?_
   have hIci (m : ℕ) : μ (Set.Ici m) = ν (Set.Ici m) :=
     le_antisymm (h₂.Ici_le m) (h₁.Ici_le m)
-  have hset : ({n} : Set ℕ) = Set.Ici n \ Set.Ici (n + 1) := by
-    ext k
-    simp only [Set.mem_singleton_iff, Set.mem_sdiff, Set.mem_Ici, not_le]
-    omega
+  have hset : ({n} : Set ℕ) = Set.Ici n \ Set.Ici (n + 1) := Set.ext fun k => by
+    simp only [Set.mem_singleton_iff, Set.mem_sdiff, Set.mem_Ici, not_le]; omega
   have hsub : Set.Ici (n + 1) ⊆ Set.Ici n := Set.Ici_subset_Ici.mpr (Nat.le_succ n)
   rw [hset, measure_sdiff hsub measurableSet_Ici.nullMeasurableSet (measure_ne_top μ _),
     measure_sdiff hsub measurableSet_Ici.nullMeasurableSet (measure_ne_top ν _),
@@ -518,8 +513,7 @@ theorem stochasticallyDominates_real_iff_Ioi {μ ν : Measure ℝ}
   rw [stochasticallyDominates_real_iff_Ici]
   intro a
   obtain ⟨u, hmono, hlt, hlim⟩ := exists_seq_strictMono_tendsto a
-  have hIeq : Set.Ici a = ⋂ n, Set.Ioi (u n) := by
-    ext y
+  have hIeq : Set.Ici a = ⋂ n, Set.Ioi (u n) := Set.ext fun y => by
     simp only [Set.mem_Ici, Set.mem_iInter, Set.mem_Ioi]
     exact ⟨fun hy n => (hlt n).trans_le hy, fun hy => le_of_tendsto' hlim fun n => (hy n).le⟩
   have hanti : Antitone fun n => Set.Ioi (u n) :=
@@ -554,11 +548,9 @@ theorem stochasticallyDominates_real_iff_cdf {μ ν : Measure ℝ}
 theorem StochasticallyDominates.antisymm_real {μ ν : Measure ℝ}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
     (h₁ : StochasticallyDominates μ ν) (h₂ : StochasticallyDominates ν μ) :
-    μ = ν := by
-  refine Measure.eq_of_cdf μ ν ?_
-  ext x
-  exact le_antisymm (stochasticallyDominates_real_iff_cdf.mp h₁ x)
-    (stochasticallyDominates_real_iff_cdf.mp h₂ x)
+    μ = ν :=
+  Measure.eq_of_cdf μ ν (StieltjesFunction.ext fun x => le_antisymm
+    (stochasticallyDominates_real_iff_cdf.mp h₁ x) (stochasticallyDominates_real_iff_cdf.mp h₂ x))
 
 end Characterizations
 
@@ -677,10 +669,10 @@ theorem tsum_toReal_mul_le (h : StochasticallyDominates p q) {f : α → ℝ} (h
     (hq : Summable fun x => (q x).toReal * |f x|) :
     ∑' x, (q x).toReal * f x ≤ ∑' x, (p x).toReal * f x := by
   let _ : MeasurableSpace α := ⊤
-  have hintp : Integrable f p.toMeasure := integrable_toMeasure_of_summable p measurable_from_top hp
-  have hintq : Integrable f q.toMeasure := integrable_toMeasure_of_summable q measurable_from_top hq
-  have hinteg := h.toMeasure.integral_le measurable_from_top hf hintp hintq
-  simpa [PMF.integral_eq_tsum _ _ hintp, PMF.integral_eq_tsum _ _ hintq, smul_eq_mul] using hinteg
+  have hintp := integrable_toMeasure_of_summable p measurable_from_top hp
+  have hintq := integrable_toMeasure_of_summable q measurable_from_top hq
+  simpa [PMF.integral_eq_tsum _ _ hintp, PMF.integral_eq_tsum _ _ hintq, smul_eq_mul] using
+    h.toMeasure.integral_le measurable_from_top hf hintp hintq
 
 /-- Real-valued expectation inequality for bounded monotone functions under stochastically ordered
 `PMF`s. -/
@@ -813,9 +805,7 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
           let _ : MeasurableSpace Bool := ⊤
           rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply r MeasurableSet.univ, measure_univ]
         rw [hUuniv, huniv p, huniv q]
-      · have hUs : U = {true} := by
-          ext b
-          cases b <;> simp [ht, hf]
+      · have hUs : U = {true} := Set.ext fun b => by cases b <;> simp [ht, hf]
         simpa [hUs, PMF.toOuterMeasure_apply_singleton] using h
     · by_cases hf : false ∈ U
       · exact absurd (hU (by decide : false ≤ true) hf) ht

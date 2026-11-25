@@ -219,15 +219,12 @@ theorem IsQueryBounded.length_runLogWith_le [Inhabited R] {A : ProbOracleComp (f
 `n`. -/
 theorem IsQueryBounded.length_runLog_le {A : ProbOracleComp (fun _ : Q => R) α} {n : ℕ}
     (h : A.IsQueryBounded n) (O : Q → ProbComp R) :
-    ∀ z ∈ (ProbComp.eval (A.runLog O)).support, z.2.length ≤ n := by
-  intro z hz
-  have hbound := measure_runState_le (cost := fun _ => 1) h
-    (fun q log => (fun r => (r, log ++ [(q, r)])) <$> O q) List.length
-    (fun q log z hz => ?_) [] z hz
-  · simpa using hbound
-  · simp only [StateT.run, ProbComp.eval_map, PMF.support_map, Set.mem_image] at hz
-    obtain ⟨r, -, rfl⟩ := hz
-    simp
+    ∀ z ∈ (ProbComp.eval (A.runLog O)).support, z.2.length ≤ n := fun z hz => by
+  rcases hlog : z.2 with _ | ⟨p, _⟩
+  · simp
+  · have : Inhabited R := ⟨p.2⟩
+    rw [← runLogWith_some] at hz
+    exact hlog ▸ h.length_runLogWith_le (fun _ q => some (O q)) z hz
 
 /-- **Every logged pair is a possible reply**: a property of query-reply pairs that holds for
 every reply of every program the oracle runs holds for every pair in the log of `runLogWith`. -/
@@ -258,15 +255,9 @@ every reply of a memoryless oracle `O` holds for every pair in the log of `runLo
 theorem forall_mem_runLog {Q R α : Type} {O : Q → ProbComp R} {P : Q × R → Prop}
     (hO : ∀ q, ∀ r ∈ (ProbComp.eval (O q)).support, P (q, r))
     (A : ProbOracleComp (fun _ : Q => R) α) {z : α × List (Q × R)}
-    (hz : z ∈ (ProbComp.eval (A.runLog O)).support) : ∀ p ∈ z.2, P p := by
-  rw [runLog, eval_runState] at hz
-  refine runWith_invariant _ (fun log => ∀ p ∈ log, P p) ?_ A [] (by simp) z.1 z.2 hz
-  intro q log hlog r log' hstep
-  simp only [ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hstep
-  obtain ⟨r', hr', rfl, rfl⟩ := hstep
-  intro p hp
-  rcases List.mem_append.mp hp with hp | hp
-  · exact hlog p hp
-  · exact List.mem_singleton.mp hp ▸ hO q r' hr'
+    (hz : z ∈ (ProbComp.eval (A.runLog O)).support) : ∀ p ∈ z.2, P p := fun p hp => by
+  have : Inhabited R := ⟨p.2⟩
+  rw [← runLogWith_some] at hz
+  exact forall_mem_runLogWith (fun _ q _ h => Option.some.inj h ▸ hO q) A hz p hp
 
 end Cslib.ProbOracleComp

@@ -158,12 +158,8 @@ theorem classIndex_lt_occupancy (e : E) :
     classIndex rowOf colOf ρ κ e <
       occupancy (pairLabel rowOf colOf ρ κ) (pairLabel rowOf colOf ρ κ e) := by
   rw [occupancy, Fintype.card_subtype, classIndex]
-  refine Finset.card_lt_card ⟨fun e' he' => ?_, fun h => ?_⟩
-  · simp only [mem_filter, mem_univ, true_and] at he' ⊢
-    exact he'.2
-  · have he := h (by simp : e ∈ ({e' | pairLabel rowOf colOf ρ κ e' =
-      pairLabel rowOf colOf ρ κ e} : Finset E))
-    simp at he
+  exact Finset.card_lt_card ⟨fun _ he' => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp he').2.2⟩,
+    fun h => by simpa using h (mem_filter.mpr ⟨mem_univ e, rfl⟩)⟩
 
 /-- Distinct edges in the same class have distinct numbers. -/
 theorem classIndex_injective {e e' : E}
@@ -171,14 +167,11 @@ theorem classIndex_injective {e e' : E}
     (hindex : classIndex rowOf colOf ρ κ e = classIndex rowOf colOf ρ κ e') : e = e' := by
   -- An earlier edge of the class has strictly fewer predecessors in it.
   have key : ∀ {x y : E}, pairLabel rowOf colOf ρ κ x = pairLabel rowOf colOf ρ κ y → x < y →
-      classIndex rowOf colOf ρ κ x < classIndex rowOf colOf ρ κ y := by
-    intro x y hxy hlt
-    refine Finset.card_lt_card ⟨fun z hz => ?_, fun h => ?_⟩
-    · simp only [mem_filter, mem_univ, true_and] at hz ⊢
-      exact ⟨hz.1.trans hlt, hz.2.trans hxy⟩
-    · have hx := h (by simpa using ⟨hlt, hxy⟩ : x ∈ ({z | z < y ∧
-        pairLabel rowOf colOf ρ κ z = pairLabel rowOf colOf ρ κ y} : Finset E))
-      simp at hx
+      classIndex rowOf colOf ρ κ x < classIndex rowOf colOf ρ κ y := fun hxy hlt =>
+    Finset.card_lt_card ⟨fun z hz => by
+        simp only [mem_filter, mem_univ, true_and] at hz ⊢
+        exact ⟨hz.1.trans hlt, hz.2.trans hxy⟩,
+      fun h => by simpa using h (mem_filter.mpr ⟨mem_univ _, hlt, hxy⟩)⟩
   rcases lt_trichotomy e e' with hlt | heq | hgt
   · exact absurd hindex (key hlabel hlt).ne
   · exact heq
@@ -283,11 +276,10 @@ private theorem orient_injective {α : Type*} [LinearOrder α] {x y x' y' : α} 
   by_cases h : x = y
   · simpa only [h, ↓reduceIte] using hs
   · have hne : min x y ≠ max x y := ne_of_lt (min_lt_max.mpr h)
-    cases b <;> cases b'
-    · rfl
-    · exact absurd (Prod.mk.inj hp).1 hne
-    · exact absurd (Prod.mk.inj hp).1.symm hne
-    · rfl
+    cases b <;> cases b' <;> first
+      | rfl
+      | exact absurd (Prod.mk.inj hp).1 hne
+      | exact absurd (Prod.mk.inj hp).1.symm hne
 
 /-- **The packing for given labels.** -/
 @[expose] def Packing.ofLabels : Packing rowOf colOf a r where
@@ -354,14 +346,9 @@ private theorem card_filter_mem_mul_le {α : Type*} [DecidableEq α] (γ : E →
     #{e | γ e ∈ S} * D ≤ #S * B := by
   rw [Finset.card_eq_sum_card_fiberwise (f := γ) (s := ({e | γ e ∈ S} : Finset E)) (t := S)
     (fun e he => (mem_filter.mp he).2), Finset.sum_mul, ← smul_eq_mul, ← Finset.sum_const]
-  refine Finset.sum_le_sum fun u _ => ?_
-  refine le_trans (Nat.mul_le_mul_right _ (le_of_eq ?_)) (hocc u)
+  refine Finset.sum_le_sum fun u hu => le_trans (Nat.mul_le_mul_right _ (le_of_eq ?_)) (hocc u)
   rw [occupancy, Fintype.card_subtype]
-  congr 1
-  ext e
-  simp only [mem_filter, mem_univ, true_and, and_iff_right_iff_imp]
-  rintro rfl
-  assumption
+  exact congrArg Finset.card (Finset.ext fun e => by simp +contextual [hu])
 
 /-- The words in `[r]^a` with a given symbol in a given coordinate number `r ^ (a - 1)`. -/
 private theorem card_filter_apply_eq (i : Fin a) (σ : Fin r) :
@@ -476,15 +463,11 @@ theorem potential_labels_le {Δ : ℕ} (hrow : ∀ v, #{e | rowOf e = v} ≤ Δ)
   have hv (v : R) : ∃ word, assigned.1 v = some word := hfill (.inl v) (by simp [slots])
   have hf (w : C) : ∃ word, assigned.2 w = some word := hfill (.inr w) (by simp [slots])
   have hvar (x : R → Fin a → Fin r) :
-      completeLabels assigned.1 x = completeLabels assigned.1 (fun _ _ => 0) := by
-    funext v
-    obtain ⟨word, hword⟩ := hv v
-    simp only [completeLabels, hword, Option.getD_some]
+      completeLabels assigned.1 x = completeLabels assigned.1 (fun _ _ => 0) :=
+    funext fun v => (hv v).elim fun _ hw => by simp only [completeLabels, hw, Option.getD_some]
   have hfac (y : C → Fin a → Fin r) :
-      completeLabels assigned.2 y = completeLabels assigned.2 (fun _ _ => 0) := by
-    funext w
-    obtain ⟨word, hword⟩ := hf w
-    simp only [completeLabels, hword, Option.getD_some]
+      completeLabels assigned.2 y = completeLabels assigned.2 (fun _ _ => 0) :=
+    funext fun w => (hf w).elim fun _ hw => by simp only [completeLabels, hw, Option.getD_some]
   have hout := partialIncidencePotential_eq_expect edge assigned.1 assigned.2
   simp only [hvar, hfac, Fintype.expect_const] at hout
   have hin := partialIncidencePotential_eq_expect (L := Fin a → Fin r) edge
@@ -493,12 +476,11 @@ theorem potential_labels_le {Δ : ℕ} (hrow : ∀ v, #{e | rowOf e = v} ≤ Δ)
   have hexp := expect_incidence_potential_le (L := Fin a → Fin r) rowOf colOf
     (fun e => hrow (rowOf e)) (fun e => hcol (colOf e))
   unfold incidenceLabel at hexp
-  have hle := hscore
   change partialIncidencePotential edge assigned.1 assigned.2 ≤
-    partialIncidencePotential edge (fun _ => none) (fun _ => none) at hle
-  rw [hout, hin] at hle
+    partialIncidencePotential edge (fun _ => none) (fun _ => none) at hscore
+  rw [hout, hin] at hscore
   calc potential (pairLabel rowOf colOf (rowLabels rowOf colOf a r) (colLabels rowOf colOf a r))
-      ≤ (Fintype.card E : ℚ) * (Δ + Δ) := hle.trans hexp
+      ≤ (Fintype.card E : ℚ) * (Δ + Δ) := hscore.trans hexp
     _ = 2 * Fintype.card E * Δ := by ring
 
 /-- **Class sizes of the chosen labels.** Under the size hypothesis `2 Δ D² ≤ M` of (D.6), where

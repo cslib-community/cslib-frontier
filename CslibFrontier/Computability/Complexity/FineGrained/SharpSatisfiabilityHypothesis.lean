@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingExponents
 public import CslibFrontier.Computability.Complexity.FineGrained.PowerTime
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -33,6 +35,7 @@ over occurring variables. For a declared finite superset of those variables,
 ## Main results
 
 * `Cslib.Complexity.SharpSH_iff_SharpKSAT`: the fixed-width size formulation.
+* `Cslib.Complexity.SH.sharpSH`: the decision hypothesis implies the counting hypothesis.
 
 ## References
 
@@ -126,5 +129,20 @@ theorem SharpSH_iff_SharpKSAT {k : ℕ} (hk : 3 ≤ k) :
     refine ⟨D, e', ?_⟩
     delta SharpKSAT
     exact hguard
+
+/-- The Satisfiability Hypothesis implies its counting counterpart
+[MITHardnessGroup2026SH, v2, §2, p. 5]. Testing the binary model count for positivity preserves
+the exponent power because the count has polynomially bounded bit length. -/
+theorem SH.sharpSH (h : SH) : SharpSH := by
+  intro p hp hp₁ hcount
+  obtain ⟨C, e, hcount⟩ := hcount
+  obtain ⟨d, hdec⟩ := DecidableInTimeO.of_computableInTimeO_polyBounded
+    (fun _ => by positivity) hcount polyBounded_length_encNat_SharpSAT
+    ComputableInPolyTime.binary_pos
+  have hset : {φ : CNF ℕ | decide (0 < SharpSAT φ) = true} = SAT := by
+    ext φ
+    simp only [Set.mem_ofPred_eq, decide_eq_true_eq, SharpSAT.mem_SAT_iff]
+  rw [hset] at hdec
+  exact h p hp hp₁ ⟨C, d, hdec⟩
 
 end Cslib.Complexity

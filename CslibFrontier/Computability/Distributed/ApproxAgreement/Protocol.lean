@@ -213,17 +213,14 @@ private lemma exists_three_group_fn {P : Type*} [Fintype P] {t : ℕ}
         ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3) ?_ ?_
       _ = t := Finset.card_range t
     · intro i _
-      have hi := (e i).isLt
-      simp only [Finset.coe_range, Set.mem_Iio]
-      omega
+      dsimp only
+      exact Finset.mem_coe.2 (Finset.mem_range.2 (by have := (e i).isLt; omega))
     · intro i hi j hj hij
       simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hi hj
-      apply e.injective
       have hi' := congrArg Fin.val hi
       have hj' := congrArg Fin.val hj
       simp only [g] at hi' hj' hij
-      ext
-      omega
+      exact e.injective (Fin.ext (by omega))
   · exact Fin.ext (by simp only [g, Equiv.apply_symm_apply, Fin.val_zero, Nat.mul_zero])
   · exact Fin.ext (by simp only [g, Equiv.apply_symm_apply]; omega)
 
@@ -757,21 +754,15 @@ theorem solvesUnitAsyncApproxAgreement_ownInput.{u, v} {P : Type u} {K : Type v}
       simp only [State.ProcDecided, recvCore, updateProc, ownInput]
       split_ifs with hp hnone
       · subst hp
-        exact ⟨(ih _ hpF).1, fun v hv => by cases hv; exact (ih _ hpF).1⟩
-      · subst hp
-        exact ih _ hpF
+        exact ⟨(ih _ hpF).1, fun v hv => Option.some.inj hv ▸ (ih _ hpF).1⟩
+      · exact hp ▸ ih _ hpF
       · exact ih p hpF
-    refine LTS.mtrInv_of_trInv htrInv _ _ _ hxl (fun p _ => ⟨rfl, fun v hv => ?_⟩)
-    simp only [State.ProcDecided, start] at hv
-    cases hv
+    exact LTS.mtrInv_of_trInv htrInv _ _ _ hxl fun _ _ => ⟨rfl, by simp [State.ProcDecided, start]⟩
   refine ⟨?_, ?_, ?_⟩
   · intro F _ x _ ss xs ha i hiF
     let e : Envelope P PUnit.{v + 1} := ⟨i, i, .unit⟩
-    have he0 : e ∈ (ss 0).msgs := by
-      simp only [ha.1, start, ownInput, Multiset.mem_bind, Finset.mem_val, Finset.mem_univ,
-        true_and]
-      exact ⟨i, by simp only [hiF, ↓reduceIte, Multiset.map_singleton, Multiset.mem_singleton,
-        tagSender, e]⟩
+    have he0 : e ∈ (ss 0).msgs := ha.1 ▸ Multiset.mem_bind.2
+      ⟨i, Finset.mem_univ _, by simp [hiF, ownInput, tagSender, e]⟩
     obtain ⟨j, _, hj⟩ := ha.2.2 e hiF 0 he0
     have htr : ((ownInput P K).lts F).Tr (ss j) (.deliver e) (ss (j + 1)) := hj ▸ ha.2.1 j
     obtain ⟨_, _, hnext⟩ := htr
@@ -1252,19 +1243,14 @@ private lemma asyncInv_start (F : Finset P) (t R : ℕ) (x : P → K) :
     simp only [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit] at hv
     cases hv
   · intro h1 p _
-    refine Or.inr ?_
-    have hemp : roundSenders (asyncApproxInit P (x p)) 0 = ∅ :=
-      Finset.filter_eq_empty_iff.mpr fun _ _ => by simp [asyncApproxInit]
-    change (roundSenders (asyncApproxInit P (x p)) 0).card < Fintype.card P - t
-    rw [hemp, Finset.card_empty]
-    exact h1
+    exact Or.inr (by
+      simp [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, roundSenders]; omega)
   · intro p _
-    refine ⟨fun v hv => ?_, fun hR => ?_⟩
-    · simp only [State.ProcDecided, AsyncProtocol.start] at hv
-      cases hv
-    · simp only [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, Option.isSome_none,
-        Bool.false_eq_true, iff_false]
-      omega
+    exact ⟨by simp [State.ProcDecided, AsyncProtocol.start],
+      fun hR => by
+        simp only [AsyncProtocol.start, asyncApproxProtocol, asyncApproxInit, Option.isSome_none,
+          Bool.false_eq_true, iff_false]
+        omega⟩
 
 /-- Single-message reception helper preserving `AsyncInv` across both `deliver` and `byzRecv`. -/
 private lemma asyncInv_recvCore {F : Finset P} {t R : ℕ} {x : P → K}
@@ -1619,13 +1605,9 @@ theorem asyncApproxProtocol_terminates {t R : ℕ} (ht : t < Fintype.card P)
     obtain ⟨K_R, hK_R⟩ := hall_reach R le_rfl
     have hinv_KR := asyncInv_reachable
       ((asyncApproxProtocol P K t R).admissibleRun_reachable ha K_R)
-    have hround_eq : ((ss K_R).proc i).state.round = R := by
-      have hge := hK_R K_R le_rfl i hiF
-      have hle := (hinv_KR.wf i hiF).round_le
-      omega
-    have hisSome : ((ss K_R).proc i).out.isSome :=
-      ((hinv_KR.out_spec i hiF).2 hR).mp hround_eq
-    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hisSome
+    have hround_eq : ((ss K_R).proc i).state.round = R :=
+      le_antisymm (hinv_KR.wf i hiF).round_le (hK_R K_R le_rfl i hiF)
+    obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp (((hinv_KR.out_spec i hiF).2 hR).mp hround_eq)
     exact ⟨K_R, v, hv⟩
 
 section AsyncOrderedField

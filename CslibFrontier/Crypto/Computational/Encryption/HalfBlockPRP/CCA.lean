@@ -756,18 +756,13 @@ private theorem advantage_forgetful_ccaToStrongPRPAdversary_le (adversary : CCAA
     Game.coe_advantage]
   have habs := (identicalUntilBad_coupledHandler n).abs_sub_le (adversary n [])
     (([], []), false) (fun x => PMF.pure x.1) true
-  have hbad := toOuterMeasure_runWith_coupledHandler_flag_le n false hQ
   have hne : (Q.choose 2 : ENNReal) * ((1 : ENNReal) / 2 ^ n) ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
       (ENNReal.div_ne_top ENNReal.one_ne_top (by positivity))
-  have hreal := ENNReal.toReal_mono hne hbad
-  have hval : ((Q.choose 2 : ENNReal) * ((1 : ENNReal) / 2 ^ n)).toReal =
-      (Q.choose 2 : ℝ) * ((2 : ℝ) ^ n)⁻¹ := by
-    simp [ENNReal.toReal_mul]
-  rw [hval] at hreal
-  refine le_trans ?_ (habs.trans hreal)
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-  exact le_of_eq rfl
+  have hreal := ENNReal.toReal_mono hne
+    (toOuterMeasure_runWith_coupledHandler_flag_le n false hQ)
+  simpa [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, ENNReal.toReal_mul] using
+    habs.trans hreal
 
 open scoped NNReal
 
@@ -875,10 +870,9 @@ theorem BlockCipher.StrongPRP.indcca_halfBlockCipher {F : BlockCipher} (hF : F.S
         (ccaToStrongPRPAdversary bit adversary) n))
       (IsOraclePPT encBool) := by
     intro adversary hadversary
-    have h := hF (ccaToStrongPRPAdversary bit adversary)
-      (isOraclePPT_ccaToStrongPRPAdversary hadversary bit)
-    rw [hbl] at h
-    simpa only [eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock] using h
+    simpa only [← hbl, eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock] using
+      hF (ccaToStrongPRPAdversary bit adversary)
+        (isOraclePPT_ccaToStrongPRPAdversary hadversary bit)
   have hideal : Game.Indistinguishable
       (fun (adversary : CCAAdversary) n => ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
         (ccaToStrongPRPAdversary false adversary) n))

@@ -44,6 +44,21 @@ register_result "sharp-sh-fixed-width-size" where
     allow polynomial overhead in encoded input length, and the width-guarded counter returns \
     zero on inputs outside the width bound."
 
+register_result "sh-implies-sharp-sh" where
+  title := "The Satisfiability Hypothesis implies its counting counterpart"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Decision-to-counting implication",
+      locator := "arXiv:2611.02650v2, §2, p. 5" }
+  ]
+  theorems := [Cslib.Complexity.SH.sharpSH]
+  scope := "For deterministic multitape machines on native binary CNF inputs (encCNF), \
+    a positive binary model count (encNat) decides satisfiability. Both hypotheses measure \
+    occurring variables plus clauses plus literal occurrences and allow polynomial overhead in \
+    the encoded input length. The polynomial bit-length bound for the count lets the positivity \
+    test preserve the exponent power."
+
 register_result "sh-exponent-transfer" where
   title := "Exponent transfer under the Satisfiability Hypothesis"
   topic := "fine-grained complexity"

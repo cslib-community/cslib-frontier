@@ -135,9 +135,8 @@ theorem mem_interior_iff_exists_lt [Finite A] (G : NTUGame A) {S : Finset A} (hS
   · obtain ⟨ε, hεpos, hball⟩ := Metric.isOpen_iff.1 isOpen_interior x hx
     refine ⟨fun i => x i + ε / 2, interior_subset (hball ?_),
       fun _ _ => lt_add_of_pos_right _ (half_pos hεpos)⟩
-    rw [Metric.mem_ball, dist_pi_lt_iff hεpos]
-    intro i
-    simp [Real.dist_eq, abs_of_pos (half_pos hεpos), half_lt_self hεpos]
+    simp [Metric.mem_ball, dist_pi_lt_iff hεpos, Real.dist_eq, abs_of_pos (half_pos hεpos),
+      half_lt_self hεpos]
   · let δ : ℝ := S.inf' hS fun i => y i - x i
     have hδ_pos : 0 < δ := (Finset.lt_inf'_iff hS).2 fun i hi => sub_pos.2 (hlt i hi)
     refine mem_interior.2 ⟨Metric.ball x δ, fun z hz => ?_, Metric.isOpen_ball,
@@ -235,11 +234,8 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
     ⟨{i}, Finset.singleton_nonempty i, (hv i _).2 (by dsimp only [base]; linarith)⟩
   have hT_closed (q : A → ℝ) : IsClosed (TSet q) := by
     have hUnion : TSet q = ⋃ S : {S : Finset A // S.Nonempty},
-        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.1} := by
-      ext
-      simp [TSet]
-    rw [hUnion]
-    exact isClosed_iUnion_of_finite fun S =>
+        {t : ℝ | (fun i => base q i + t) ∈ G.feasible S.1} := Set.ext fun _ => by simp [TSet]
+    exact hUnion ▸ isClosed_iUnion_of_finite fun S =>
       (G.isClosed S.2).preimage (continuous_pi fun _ => continuous_const.add continuous_id)
   have hT_bdd (q : A → ℝ) : BddAbove (TSet q) := by
     let qmax : ℝ := Finset.univ.sup' Finset.univ_nonempty q
@@ -248,8 +244,7 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
     refine ⟨max (M * qmax) (B - vmin + M * qmax), fun t ht => ?_⟩
     rcases le_or_gt t (M * qmax) with hle | hgt
     · exact hle.trans (le_max_left _ _)
-    · obtain ⟨S, hSne, hS⟩ := ht
-      obtain ⟨i₀, hi₀⟩ := hSne
+    · obtain ⟨S, ⟨i₀, hi₀⟩, hS⟩ := ht
       have hiB := hB ⟨i₀, hi₀⟩ hS (fun i _ => by dsimp only [base]; linarith [hqmax i]) i₀ hi₀
       dsimp only [base] at hiB
       exact (by linarith [hqmax i₀, hvmin i₀] : t ≤ _).trans (le_max_right _ _)
@@ -262,10 +257,8 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
       have hdist := (abs_le.1 (Real.dist_eq (p i) (q i) ▸ dist_le_pi_dist p q i)).1
       dsimp only [base]
       nlinarith
-    have h1 := hstep q₁ q₂
-    have h2 := hstep q₂ q₁
-    rw [dist_comm q₂ q₁] at h2
-    exact abs_le.2 ⟨by linarith, by linarith⟩
+    exact abs_le.2 ⟨by linarith [hstep q₁ q₂],
+      by linarith [dist_comm q₂ q₁ ▸ hstep q₂ q₁]⟩
   have hcont : Continuous (fun q => sSup (TSet q)) :=
     Metric.continuous_iff.2 fun q ε hε => ⟨ε / M, div_pos hε hM_pos, fun q' hq' => by
       rw [Real.dist_eq]
@@ -282,18 +275,14 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
     have hq_eq : q j = 0 := le_antisymm (not_lt.1 hj0) (hq0 j)
     obtain ⟨imax, -, himax⟩ := Finset.exists_max_image Finset.univ q Finset.univ_nonempty
     have hsum_le : 1 ≤ (Fintype.card A : ℝ) * q imax := by
-      have h := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => himax i (Finset.mem_univ i)
-      simpa [hq1, nsmul_eq_mul] using h
-    have hle_t : M * q imax ≤ sSup (TSet q) := le_csSup (hT_bdd q) (hsing_mem q imax)
-    have hdiv_le : max 1 (B - vmin + 1) ≤ sSup (TSet q) := by
-      have hM_val : M / Fintype.card A = max 1 (B - vmin + 1) := by
-        dsimp only [M]
-        field_simp [hcardA.ne']
-      rw [← hM_val, div_le_iff₀ hcardA]
-      nlinarith [hM_pos]
+      simpa [hq1, nsmul_eq_mul] using
+        Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => himax i (Finset.mem_univ i)
+    have hdiv_le : max 1 (B - vmin + 1) ≤ sSup (TSet q) :=
+      (le_mul_of_one_le_right (zero_le_one.trans (le_max_left _ _)) hsum_le).trans <|
+        ((mul_left_comm _ _ _).trans (mul_assoc _ _ _).symm).trans_le
+          (le_csSup (hT_bdd q) (hsing_mem q imax))
     have hj_bound := hB hSne hS (fun i _ => hv_le q hq0 hq1 i) j hjS
-    dsimp only [base] at hj_bound
-    rw [hq_eq, mul_zero, sub_zero] at hj_bound
+    simp only [base, hq_eq, mul_zero, sub_zero] at hj_bound
     linarith [hvmin j, le_max_right (1 : ℝ) (B - vmin + 1)]
   exact ⟨M, hM_pos, hT_bdd, hsSup_mem, hcont, hv_le, hpos_of_mem⟩
 
@@ -467,21 +456,17 @@ private theorem bddAbove_toNTUGame_singleton (C : NTUCostSharingGame A) (i : A)
 theorem mem_feasible_singleton_iff (C : NTUCostSharingGame A) (i : A)
     (hbdd : BddBelow ((fun α : A → ℝ => α i) '' C.feasible {i})) (α : A → ℝ) :
     α ∈ C.feasible {i} ↔ C.individualCost i ≤ α i := by
-  have hiff := C.toNTUGame.mem_feasible_singleton_iff i
-    (C.bddAbove_toNTUGame_singleton i hbdd) (-α)
-  rw [mem_toNTUGame_feasible, neg_neg, Pi.neg_apply, C.individualValue_toNTUGame i,
-    neg_le_neg_iff] at hiff
-  exact hiff
+  simpa [mem_toNTUGame_feasible, Pi.neg_apply, C.individualValue_toNTUGame i] using
+    C.toNTUGame.mem_feasible_singleton_iff i (C.bddAbove_toNTUGame_singleton i hbdd) (-α)
 
 /-- Every core cost allocation charges each player at most `C.individualCost i`. -/
 theorem InCore.le_individualCost [Fintype A] {C : NTUCostSharingGame A} {α : A → ℝ}
     (hα : C.InCore α) (i : A)
     (hbdd : BddBelow ((fun β : A → ℝ => β i) '' C.feasible {i})) :
     α i ≤ C.individualCost i := by
-  have hle := ((C.inCore_toNTUGame_iff α).2 hα).individualValue_le i
-    (C.bddAbove_toNTUGame_singleton i hbdd)
-  rw [Pi.neg_apply, C.individualValue_toNTUGame i, neg_le_neg_iff] at hle
-  exact hle
+  simpa [Pi.neg_apply, C.individualValue_toNTUGame i] using
+    ((C.inCore_toNTUGame_iff α).2 hα).individualValue_le i
+      (C.bddAbove_toNTUGame_singleton i hbdd)
 
 end
 

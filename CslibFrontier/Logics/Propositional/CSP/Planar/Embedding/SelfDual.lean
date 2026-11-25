@@ -69,25 +69,14 @@ theorem exists_disequality_of_common_not
     obtain ⟨k, he⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
     subst n
     let i : Fin (k + 2 + 1) := ⟨2, by omega⟩
-    have hunit : (Pi.single i true : Fin (k + 2 + 1) → Bool) ∈ S := hu i
     have heq : Fin.cons ((Fin.tail (Pi.single i true : Fin (k + 2 + 1) → Bool)) 0 ^^ false)
         (Fin.tail (Pi.single i true : Fin (k + 2 + 1) → Bool)) =
           (Pi.single i true : Fin (k + 2 + 1) → Bool) := by
-      rw [Bool.xor_false]
-      have he0 : (Fin.tail (Pi.single i true : Fin (k + 2 + 1) → Bool)) 0 =
-          (Pi.single i true : Fin (k + 2 + 1) → Bool) 0 := by
-        simp [i, Fin.tail, Fin.ext_iff]
-      rw [he0, Fin.cons_self_tail]
+      simpa [i, Fin.tail] using Fin.cons_self_tail (Pi.single i true : Fin (k + 2 + 1) → Bool)
     have hne : (adjacent S false).Nonempty :=
-      ⟨Fin.tail (Pi.single i true : Fin (k + 2 + 1) → Bool), by
-      change Fin.cons _ _ ∈ S
-      rwa [heq]⟩
-    have hzero : (0 : Fin (k + 2) → Bool) ∉ adjacent S false := by
-      intro hm
-      apply hz
-      change Fin.cons (false ^^ false) (0 : Fin (k + 2) → Bool) ∈ S at hm
-      rwa [show Fin.cons (false ^^ false) (0 : Fin (k + 2) → Bool) =
-        (0 : Fin (k + 2 + 1) → Bool) from Fin.cons_self_tail (0 : Fin (k + 2 + 1) → Bool)] at hm
+      ⟨Fin.tail (Pi.single i true : Fin (k + 2 + 1) → Bool), heq.symm ▸ hu i⟩
+    have hzero : (0 : Fin (k + 2) → Bool) ∉ adjacent S false := fun hm =>
+      hz (Fin.cons_self_tail (0 : Fin (k + 2 + 1) → Bool) ▸ hm)
     have hnew : Q (k + 2) := ⟨adjacent S false, g.equalDrop, ⟨w.equalDrop⟩, hne, hzero⟩
     exact (Nat.find_min hex (by omega : k + 2 < Nat.find hex)) hnew
   have hself := g.isPolymorphism hnot

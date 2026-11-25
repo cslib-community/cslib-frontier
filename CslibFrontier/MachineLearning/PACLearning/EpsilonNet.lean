@@ -99,13 +99,11 @@ private theorem card_filter_swap_mul_two_pow_le {m k : ℕ} (a b : Fin m → Boo
   · simp [h]
   obtain ⟨h0, hk⟩ := (Finset.mem_filter.1 hσ₀).2
   have hfilt : (Finset.univ.filter fun i => (if σ₀ i then a i else b i) = true) =
-      Finset.univ.filter fun i => (a i || b i) = true := by
-    refine Finset.filter_congr fun i _ => ?_
-    have hlabels : ((if σ₀ i then a i else b i) || (if σ₀ i then b i else a i)) =
-        (a i || b i) := by
-      cases σ₀ i <;> simp [Bool.or_comm]
-    rw [h0 i, Bool.or_false] at hlabels
-    rw [hlabels]
+      Finset.univ.filter fun i => (a i || b i) = true :=
+    Finset.filter_congr fun i _ => by
+      have := h0 i
+      revert this
+      cases σ₀ i <;> cases a i <;> cases b i <;> decide
   rw [hfilt] at hk
   -- Count the swaps compatible with the first sample coordinate by coordinate.
   let A (i : Fin m) : Finset Bool := Finset.univ.filter fun bit =>
@@ -167,19 +165,14 @@ private theorem card_filter_swapSamples_mem_mul_two_pow_le (G : ConceptClass Z B
     intro σ hσ
     obtain ⟨hσG, rfl⟩ := Finset.mem_filter.1 hσ
     obtain ⟨-, h1, h2⟩ := (hw σ hσG).choose_spec
-    have hva : ∀ i, v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := fun i => by
+    have hva (i : Fin m) : v σ (Fin.castAdd m i) = (hw σ hσG).choose (z.1 i) := by
       simp only [v, hσG, ↓reduceDIte, x, Fin.append_left]
-    have hvb : ∀ i, v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := fun i => by
+    have hvb (i : Fin m) : v σ (Fin.natAdd m i) = (hw σ hσG).choose (z.2 i) := by
       simp only [v, hσG, ↓reduceDIte, x, Fin.append_right]
-    generalize (hw σ hσG).choose = g at h1 h2 hva hvb
-    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_, ?_⟩
-    · have := h1 i
-      rw [fst_swapSamples_apply] at this
-      rw [hva, hvb]
-      cases hσi : σ i <;> simpa [hσi] using this
-    · refine h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))
-      rw [hva, hvb, snd_swapSamples_apply]
-      cases σ i <;> rfl
+    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, fun i => ?_,
+      h2.trans_eq (congrArg Finset.card (Finset.filter_congr fun i _ => ?_))⟩
+    · simpa only [hva, hvb, fst_swapSamples_apply, apply_ite (hw σ hσG).choose] using h1 i
+    · rw [snd_swapSamples_apply, apply_ite (hw σ hσG).choose, hva, hvb]
   have himg : (Good.image v).card ≤ growthFunction G (m + m) := by
     calc (Good.image v).card = ((Good.image v : Finset _) : Set (Fin (m + m) → Bool)).ncard :=
           (Set.ncard_coe_finset _).symm

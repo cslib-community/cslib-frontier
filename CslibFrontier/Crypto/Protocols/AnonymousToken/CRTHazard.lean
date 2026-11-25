@@ -286,24 +286,21 @@ theorem honestCRTMaskTable_reconstruct_true {IV : Type} {nMult lam nMask : ℕ}
         h5 ⟨iv, e, candidateLabel tbl wPrefix e⟩ mask =
       (F *ᵥ maskInput mask) e := by
   intro tbl
-  have hcand_false : active e = false → candidateLabel tbl wPrefix e = L0 e + uPrefix := by
-    intro hact
-    simp only [candidateLabel, tbl, honestCRTMaskTable, hact, Bool.false_eq_true, ↓reduceIte]
-    rw [add_assoc (L0 e), add_assoc wPrefix uPrefix wPrefix, add_comm uPrefix wPrefix,
-      ← add_assoc wPrefix wPrefix uPrefix, zmod2_vec_add_self, zero_add]
-  have hcand_true : active e = true → candidateLabel tbl wPrefix e = L0 e := by
-    intro hact
-    simp only [candidateLabel, tbl, honestCRTMaskTable, hact, ↓reduceIte]
-    rw [add_assoc (L0 e) uPrefix (wPrefix + uPrefix), add_comm wPrefix uPrefix, ← add_assoc uPrefix,
-      zmod2_vec_add_self, zero_add, add_assoc, zmod2_vec_add_self, add_zero]
   cases hact : active e
-  · have hlabel : tbl.activeLabel e = L0 e := by simp [tbl, honestCRTMaskTable, hact]
-    rw [hlabel, hcand_false hact]
+  · have hcand : candidateLabel tbl wPrefix e = L0 e + uPrefix := by
+      simp only [candidateLabel, tbl, honestCRTMaskTable, hact, Bool.false_eq_true, ↓reduceIte]
+      rw [add_comm wPrefix uPrefix, ← add_assoc, zmod2_vec_add_cancel_right]
+    have hlabel : tbl.activeLabel e = L0 e := by simp [tbl, honestCRTMaskTable, hact]
+    rw [hlabel, hcand]
     simp only [tbl, honestCRTMaskTable]
     ring_nf
     simp [CharTwo.two_eq_zero]
-  · have hlabel : tbl.activeLabel e = L0 e + uPrefix := by simp [tbl, honestCRTMaskTable, hact]
-    rw [hlabel, hcand_true hact]
+  · have hcand : candidateLabel tbl wPrefix e = L0 e := by
+      simp only [candidateLabel, tbl, honestCRTMaskTable, hact, ↓reduceIte]
+      rw [add_comm wPrefix uPrefix, ← add_assoc (L0 e + uPrefix), zmod2_vec_add_cancel_right,
+        zmod2_vec_add_cancel_right]
+    have hlabel : tbl.activeLabel e = L0 e + uPrefix := by simp [tbl, honestCRTMaskTable, hact]
+    rw [hlabel, hcand]
     simp only [tbl, honestCRTMaskTable]
     ring_nf
     simp [CharTwo.two_eq_zero]
@@ -323,33 +320,21 @@ theorem candidateLabel_ne_of_ne {IV : Type} {nMult lam nMask : ℕ}
     let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
     candidateLabel tbl wStar e ≠ L0 e ∧ candidateLabel tbl wStar e ≠ L0 e + uPrefix := by
   intro tbl
-  have hact_diff : candidateLabel tbl wStar e ≠ tbl.activeLabel e := fun heq => hnonzero <| by
-    simpa only [candidateLabel, add_assoc, ← add_assoc (tbl.activeLabel e) (tbl.activeLabel e),
-      zmod2_vec_add_self, zero_add] using congrArg (tbl.activeLabel e + ·) heq
-  have hother : candidateLabel tbl wStar e ≠ tbl.activeLabel e + uPrefix := by
-    intro heq
-    have hw : tbl.dPrefix + wStar = uPrefix := by
-      have hsub := congrArg (tbl.activeLabel e + ·) heq
-      rw [candidateLabel, add_assoc, ← add_assoc (tbl.activeLabel e) (tbl.activeLabel e),
-        zmod2_vec_add_self, zero_add, ← add_assoc (tbl.activeLabel e) (tbl.activeLabel e),
-        zmod2_vec_add_self, zero_add] at hsub
-      exact hsub
-    have hdiff : wStar + wPrefix = 0 := by
-      have h0 : wPrefix + uPrefix + wStar = uPrefix := hw
-      have h0' : wPrefix + wStar + uPrefix = uPrefix := by
-        rw [add_assoc, add_comm wStar uPrefix, ← add_assoc]
-        exact h0
-      have h1 := congrArg (· + uPrefix) h0'
-      rw [zmod2_vec_add_cancel_right, zmod2_vec_add_self] at h1
-      rwa [add_comm]
-    exact hne ((zmod2_vec_add_eq_zero_iff wStar wPrefix).mp hdiff)
+  have hact_diff : candidateLabel tbl wStar e ≠ tbl.activeLabel e := fun heq => by
+    rw [candidateLabel, add_assoc] at heq
+    exact hnonzero (add_left_cancel (heq.trans (add_zero _).symm))
+  have hother : candidateLabel tbl wStar e ≠ tbl.activeLabel e + uPrefix := fun heq => by
+    rw [candidateLabel, add_assoc] at heq
+    have hw : wPrefix + uPrefix + wStar = uPrefix := add_left_cancel heq
+    rw [add_comm wPrefix uPrefix, add_assoc] at hw
+    have hdiff : wPrefix + wStar = 0 := add_left_cancel (hw.trans (add_zero _).symm)
+    exact hne ((zmod2_vec_add_eq_zero_iff wPrefix wStar).mp hdiff).symm
   cases hact : active e
   · have hlab : tbl.activeLabel e = L0 e := by simp [tbl, honestCRTMaskTable, hact]
     rw [hlab] at hact_diff hother
     exact ⟨hact_diff, hother⟩
   · have hlab : tbl.activeLabel e = L0 e + uPrefix := by simp [tbl, honestCRTMaskTable, hact]
-    have h2 : tbl.activeLabel e + uPrefix = L0 e := by rw [hlab, zmod2_vec_add_cancel_right]
-    rw [h2] at hother
+    rw [hlab, zmod2_vec_add_cancel_right] at hother
     rw [hlab] at hact_diff
     exact ⟨hother, hact_diff⟩
 
@@ -913,94 +898,56 @@ theorem crtSpendPrefixTest_wrong_t_le {IV : Type} [Fintype IV] [DecidableEq IV]
           (fun q => pure (h5 q)))) true ≤
       (guesses.length : ℝ≥0∞) *
         ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) := by
+  let wPrefix := packBalancePrefix tReal rReal
+  let H5T := H5Query IV nMult (wBal + wRand) → Fin nMask → ZMod 2
+  let UT := Fin (wBal + wRand) → ZMod 2
+  let evalProg (c : H5T → UT → ProbOracleComp (H5Spec IV nMult (wBal + wRand) nMask) Bool) :
+      Game :=
+    (uniformOfFintype H5T).bind fun h5 =>
+      (uniformOfFintype UT).bind fun uPrefix =>
+        ProbComp.eval ((c h5 uPrefix).run (fun q => pure (h5 q)))
+  let tbl (h5 : H5T) (uPrefix : UT) :=
+    honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
+  let hAct (h5 : H5T) (uPrefix : UT) : Fin kGates → Fin nMask → ZMod 2 :=
+    fun i => h5 ⟨iv, sub i, (tbl h5 uPrefix).activeLabel (sub i)⟩
+  change evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) guesses) true ≤ _
   induction guesses with
   | nil =>
-      simp [crtSpendPrefixTest, ProbOracleComp.run_pure, ProbComp.eval_pure]
+      simp [evalProg, crtSpendPrefixTest, ProbOracleComp.run_pure, ProbComp.eval_pure]
   | cons w ws ih =>
-      have hw : w ≠ packBalancePrefix tReal rReal := hguesses w (List.mem_cons_self)
-      have hws : ∀ u ∈ ws, u ≠ packBalancePrefix tReal rReal :=
-        fun u hu => hguesses u (List.mem_cons_of_mem w hu)
-      have ih_ws := ih hws
-      have hpt_le : ∀ h5 uPrefix,
-          (ProbComp.eval ((crtSpendPrefixTest sub Hsub
-            (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput h5)
-            (fun i => h5 ⟨iv, sub i,
-              (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal)
-                active F maskInput h5).activeLabel (sub i)⟩)
-            (w :: ws)).run (fun q => pure (h5 q)))) true ≤
-          (ProbComp.eval ((crtPrefixTest sub Hsub
-            (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput h5)
-            (fun i => h5 ⟨iv, sub i,
-              (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal)
-                active F maskInput h5).activeLabel (sub i)⟩)
-            w).run (fun q => pure (h5 q)))) true +
-          (ProbComp.eval ((crtSpendPrefixTest sub Hsub
-            (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput h5)
-            (fun i => h5 ⟨iv, sub i,
-              (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal)
-                active F maskInput h5).activeLabel (sub i)⟩)
-            ws).run (fun q => pure (h5 q)))) true := by
-        intro h5 uPrefix
+      have hw : w ≠ wPrefix := hguesses w List.mem_cons_self
+      have ih_ws := ih fun u hu => hguesses u (List.mem_cons_of_mem w hu)
+      have hpt_le (h5 : H5T) (u : UT) :
+          (ProbComp.eval ((crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws)).run
+            (fun q => pure (h5 q)))) true ≤
+          (ProbComp.eval ((crtPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) w).run
+            (fun q => pure (h5 q)))) true +
+          (ProbComp.eval ((crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) ws).run
+            (fun q => pure (h5 q)))) true := by
         rw [crtSpendPrefixTest_run, crtPrefixTest_run, crtSpendPrefixTest_run,
           ProbComp.eval_pure, ProbComp.eval_pure, ProbComp.eval_pure]
         simp only [List.any_cons, PMF.pure_apply]
         cases crtPrefixEval sub Hsub _ _ h5 w <;>
           cases List.any ws _ <;> simp
-      have hw_bound :
-          ((uniformOfFintype (H5Query IV nMult (wBal + wRand) → Fin nMask → ZMod 2)).bind
-            fun h5 =>
-            (uniformOfFintype (Fin (wBal + wRand) → ZMod 2)).bind fun uPrefix =>
-              let wPrefix := packBalancePrefix tReal rReal
-              let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
-              let hActive : Fin kGates → Fin nMask → ZMod 2 :=
-                fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
-              ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive w).run
-                (fun q => pure (h5 q)))) true ≤
-            (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand) :=
-        crtPrefixTest_wrong_guess_le sub Hsub hsurj iv L0 (packBalancePrefix tReal rReal) w active F
-          maskInput hw
-      let H5T := H5Query IV nMult (wBal + wRand) → Fin nMask → ZMod 2
-      let UT := Fin (wBal + wRand) → ZMod 2
       have hterm_le :
-          ((uniformOfFintype H5T).bind fun h5 => (uniformOfFintype UT).bind fun uPrefix =>
-              ProbComp.eval ((crtSpendPrefixTest sub Hsub
-                (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput
-                  h5)
-                (fun i => h5 ⟨iv, sub i, (honestCRTMaskTable iv L0 uPrefix
-                  (packBalancePrefix tReal rReal) active F maskInput h5).activeLabel (sub i)⟩)
-                (w :: ws)).run (fun q => pure (h5 q)))) true ≤
-            ((uniformOfFintype H5T).bind fun h5 => (uniformOfFintype UT).bind fun uPrefix =>
-              ProbComp.eval ((crtPrefixTest sub Hsub
-                (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput
-                  h5)
-                (fun i => h5 ⟨iv, sub i, (honestCRTMaskTable iv L0 uPrefix
-                  (packBalancePrefix tReal rReal) active F maskInput h5).activeLabel (sub i)⟩)
-                w).run (fun q => pure (h5 q)))) true +
-            ((uniformOfFintype H5T).bind fun h5 => (uniformOfFintype UT).bind fun uPrefix =>
-              ProbComp.eval ((crtSpendPrefixTest sub Hsub
-                (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput
-                  h5)
-                (fun i => h5 ⟨iv, sub i, (honestCRTMaskTable iv L0 uPrefix
-                  (packBalancePrefix tReal rReal) active F maskInput h5).activeLabel (sub i)⟩)
-                ws).run (fun q => pure (h5 q)))) true := by
-        simp only [PMF.bind_apply]
+          evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws))
+            true ≤
+          evalProg (fun h5 u => crtPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) w) true +
+          evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) ws) true := by
+        simp only [evalProg, PMF.bind_apply]
         rw [← tsum_add]
         refine tsum_le_tsum fun h5 => ?_
         rw [← mul_add, ← tsum_add]
-        refine mul_le_mul_of_nonneg_left (tsum_le_tsum fun uPrefix => ?_) zero_le
+        refine mul_le_mul_of_nonneg_left (tsum_le_tsum fun u => ?_) zero_le
         rw [← mul_add]
-        exact mul_le_mul_of_nonneg_left (hpt_le h5 uPrefix) zero_le
-      calc ((uniformOfFintype H5T).bind fun h5 => (uniformOfFintype UT).bind fun uPrefix =>
-              ProbComp.eval ((crtSpendPrefixTest sub Hsub
-                (honestCRTMaskTable iv L0 uPrefix (packBalancePrefix tReal rReal) active F maskInput
-                  h5)
-                (fun i => h5 ⟨iv, sub i, (honestCRTMaskTable iv L0 uPrefix
-                  (packBalancePrefix tReal rReal) active F maskInput h5).activeLabel (sub i)⟩)
-                (w :: ws)).run (fun q => pure (h5 q)))) true
+        exact mul_le_mul_of_nonneg_left (hpt_le h5 u) zero_le
+      have hw_bound :=
+        crtPrefixTest_wrong_guess_le sub Hsub hsurj iv L0 wPrefix w active F maskInput hw
+      calc evalProg (fun h5 u => crtSpendPrefixTest sub Hsub (tbl h5 u) (hAct h5 u) (w :: ws)) true
           ≤ ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) +
               (ws.length : ℝ≥0∞) *
                 ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) :=
-            le_trans hterm_le (add_le_add hw_bound ih_ws)
+            hterm_le.trans (add_le_add hw_bound ih_ws)
         _ = ((w :: ws).length : ℝ≥0∞) *
               ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand)) := by
             simp [List.length_cons, Nat.cast_add, add_mul, one_mul, add_comm]
@@ -1207,17 +1154,8 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
               cmultSim mask (sub i) + base mask i := fun mask i => by
           simp only [candidateLabel, actL, base, add_assoc]
         simp only [crtPrefixEval, hcol]
-      rw [show ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmultSim =>
-            let actL : Fin nMult → Fin lam → ZMod 2 :=
-              fun e => if active e then L0 e + uPrefix else L0 e
-            let tbl : CRTMaskTable IV nMult lam nMask := ⟨iv, actL, dSim, cmultSim⟩
-            let hActive : Fin kGates → Fin nMask → ZMod 2 :=
-              fun i => h5 ⟨iv, sub i, actL (sub i)⟩
-            ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive r).run (fun q => pure (h5 q)))) =
-            (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmultSim =>
-              PMF.pure
-                (decide (∀ mask, Hsub *ᵥ (fun i => cmultSim mask (sub i) + base mask i) = 0))
-        from congrArg (PMF.bind (uniformOfFintype _)) (funext hres)]
+      dsimp only [actL, hActive] at hres ⊢
+      simp_rw [hres]
       have hmap :
           ((uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmultSim =>
             PMF.pure
@@ -1280,23 +1218,16 @@ theorem rFirst_breaks_witnessKnowingZK {IV : Type} [Fintype IV] [DecidableEq IV]
       rw [PMF.bind_comm]
       congr 1 with dSim : 1
       rw [PMF.bind_comm]
-    rw [hreorder, PMF.bind_apply]
-    have hconst' : ∀ dSim : Fin lam → ZMod 2,
-        ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-          (uniformOfFintype (Fin nMask → Fin nMult → ZMod 2)).bind fun cmultSim =>
-            let actL : Fin nMult → Fin lam → ZMod 2 :=
-              fun e => if active e then L0 e + uPrefix else L0 e
-            let tbl : CRTMaskTable IV nMult lam nMask := ⟨iv, actL, dSim, cmultSim⟩
-            let hActive : Fin kGates → Fin nMask → ZMod 2 :=
-              fun i => h5 ⟨iv, sub i, actL (sub i)⟩
-            ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive r).run (fun q => pure (h5 q))))
-          true = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) := by
-      intro dSim
+    rw [hreorder]
+    refine le_of_eq ?_
+    rw [PMF.bind_apply]
+    trans ∑' dSim : Fin lam → ZMod 2,
+      (uniformOfFintype (Fin lam → ZMod 2)) dSim * (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub)
+    · refine tsum_congr fun dSim => congrArg _ ?_
       rw [PMF.bind_apply]
       simp_rw [hinner dSim]
       rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    simp_rw [hconst']
-    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   have hsim_succR : (Game.succProbability gSim : ℝ) ≤ (2 : ℝ)⁻¹ ^ (nMask * rSub) := by
     rw [Game.coe_succProbability]
     simpa [ENNReal.toReal_pow] using

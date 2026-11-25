@@ -244,13 +244,10 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   have hρ : ∀ v j, ρ v = some j → blk' j = (e v).1 := by
     intro v j hv
     simp only [ρ, immSubst] at hv
-    rcases h : wordSubst w 0 n K (e v) with x | a
-    · rw [h] at hv
-      obtain rfl := (Option.some.inj hv).symm
-      simp only [blk', Equiv.symm_apply_apply]
-      exact wordSubst_eq_inl h
-    · rw [h] at hv
-      exact absurd hv (by simp)
+    rcases h : wordSubst w 0 n K (e v) with x | a <;>
+      simp only [h, Sum.elim_inl, Sum.elim_inr, Option.some.injEq, reduceCtorEq] at hv
+    · subst hv
+      simpa only [blk', Equiv.symm_apply_apply] using wordSubst_eq_inl h
   have hG : G.IsSetMultilinear blk' Finset.univ := hF.subst hρ
   -- The substituted formula computes the word polynomial, renamed.
   have hGP : G.polynomial = rename f (wordPoly K w 0) := by
@@ -264,8 +261,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
       immSubst]
     rcases h : wordSubst w 0 n K (e v) with x | a
     · simp
-    · obtain rfl := wordSubst_eq_inr h
-      simp
+    · simp [wordSubst_eq_inr h]
   -- Block `i` of the renamed variables has `2 ^ |w i|` variables.
   have hblk : ∀ i, Fintype.card {x // blk' x = i} = 2 ^ (w i).natAbs := by
     intro i
@@ -283,8 +279,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   have hsplit : (2 : ℝ) ^ ((k : ℝ) * (D / 20 - 1 / 2)) * 2 ^ (-(k * D / 20)) =
       2 ^ (-(k : ℝ) / 2) := by
     rw [← Real.rpow_add two_pos]
-    congr 1
-    ring
+    ring_nf
   have hx : (0 : ℝ) < 2 ^ (-(k * D / 20)) := Real.rpow_pos_of_pos two_pos _
   exact le_of_mul_le_mul_right (hsplit.trans_le (hsum.trans hup)) hx
 

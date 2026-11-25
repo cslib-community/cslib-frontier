@@ -75,14 +75,12 @@ theorem mainLoop_spec (φ : CNF ℕ) (N T : ℕ) (hfit : Fits w (T + 5 * N + 2))
       have hone : y.regs one = 1 := (hy.regs_eq (by decide)).trans h1
       have hx : ¬(Cond.eq go one).Holds y := by simp [Cond.holds_eq, hgo', hone]
       refine ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono ?_, hout, hlist⟩
-      simp only [Nat.add_one_mul]
-      omega
+      simp only [Nat.add_one_mul]; omega
     · rename_i t' hst
       rw [hst] at hys hy
       obtain ⟨z, hz, hzo, hzl⟩ := mainLoop_spec φ N T hfit k t' y a hys h
       refine ⟨z, (ExecWithin.loop_iter hc hy hz).mono ?_, hzo, hzl⟩
-      simp only [Nat.add_one_mul]
-      omega
+      simp only [Nat.add_one_mul]; omega
 
 theorem answerList_answer (N : ℕ) (φ : CNF ℕ) :
     answerList N (Trail.answer φ) = answerWords N φ := by
@@ -106,7 +104,7 @@ theorem memAt_init (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.1
     simp [encode]; omega
   have hF : HoldsList 2 (φ.flatMap encodeClause) (Data.init (encode N φ) : Data 32).mem := by
     have h := Data.init_realizes_append (r := 32) [N] (φ.flatMap encodeClause) []
-    simp only [List.length_singleton, List.append_nil, List.singleton_append] at h
+    rw [List.length_singleton, List.append_nil, List.singleton_append] at h
     exact h
   exact ⟨hF, by omega, hN,
     fun l hl => by rw [Data.init_mem_of_length_lt (by omega)]; simp [Trail.lits],
@@ -127,11 +125,9 @@ theorem solver_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.
   have hLF : L = 1 + (φ.flatMap encodeClause).length := by simp [hL, hinputeq]; omega
   rw [← hL] at hfit ⊢
   have hfit' : Fits w (T + 5 * N + 2) := hfit.of_le (by omega)
-  have hm0 : (Data.init input : Data 32).mem 0 = L := by rw [Data.init_mem_zero, hL]
-  have hm1 : (Data.init input : Data 32).mem 1 = N := by
-    rw [Data.init_mem_succ]; simp [hinputeq]
-  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := by
-    rw [hT, hL]; exact memAt_init N φ hN
+  have hm0 : (Data.init input : Data 32).mem 0 = L := hL ▸ Data.init_mem_zero input
+  have hm1 : (Data.init input : Data 32).mem 1 = N := by simp [Data.init_mem_succ, hinputeq]
+  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := hT ▸ hL ▸ memAt_init N φ hN
   obtain ⟨k, hk, hrun⟩ := Trail.run_answer φ
   refine WP.exists_execWithin ?_
   unfold solver setup
@@ -139,9 +135,7 @@ theorem solver_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l.
   wram_call (mainLoop_spec φ N T hfit' k [] _ (Trail.answer φ) ..) framed
     [hmem, Data.init_regs, List.length_nil] with v m ⟨ho, hl⟩
   refine ⟨?_, by omega, by rw [ho, hl, answerList_answer]⟩
-  have : k * (37 * (φ.flatMap encodeClause).length + 62) ≤
-      2 ^ (depth φ + 1) * (37 * L + 62) :=
-    Nat.mul_le_mul hk (by omega)
+  have := Nat.mul_le_mul hk (by omega : 37 * (φ.flatMap encodeClause).length + 62 ≤ 37 * L + 62)
   omega
 
 end Specs

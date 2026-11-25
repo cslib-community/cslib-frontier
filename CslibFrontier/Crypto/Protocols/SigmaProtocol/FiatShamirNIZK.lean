@@ -793,12 +793,8 @@ private theorem fork_plain_le_extractGame [DecidableEq Y] [DecidableEq T] [Finty
     simp only [FiatShamirNIZK.check, Prod.mk.injEq, Bool.and_eq_true, decide_eq_true_eq]
       at hpt hv hv'
     obtain ⟨hy, ht⟩ := hpt
-    have hacc : P.Accepts y o.commitment o.challenge o.response := by
-      simpa only [SigmaProtocol.Accepts, hv.1] using hv.2
-    have hacc' : P.Accepts y o.commitment o'.challenge o'.response := by
-      simpa only [SigmaProtocol.Accepts, hv'.1, ht] using hv'.2
-    have hR := hsound _ _ _ _ _ hne hacc hacc'
-    simp [hR]
+    simp [hsound _ _ _ _ _ hne (by simpa only [SigmaProtocol.Accepts, hv.1] using hv.2)
+      (by simpa only [SigmaProtocol.Accepts, hv'.1, ht] using hv'.2)]
 
 /-- Concrete extraction bound for one Sigma protocol and statement, a step toward
 [BonehShoup2023], Theorem 20.2, not the cited result (proved via the general forking inequality of
@@ -909,16 +905,13 @@ theorem succProbability_fiatShamirNIZKPokGame_le_of_false [DecidableEq Y] [Decid
     (Game.succProbability (fiatShamirNIZKPokGame P A y) : ℝ) ≤
       (Qro + 1) / Fintype.card C := by
   classical
-  have h := succProbability_fiatShamirNIZKPokGame_le hsound A y hQro
   have hzero :
       (Game.succProbability
         (fiatShamirNIZKExtractGame R (fiatShamirNIZKExtract P extract A Qro y) y) : ℝ) = 0 :=
-    succProbability_bind_pure_eq_zero _ _ fun res => by
-      cases res with
+    succProbability_bind_pure_eq_zero _ _ fun
       | none => rfl
-      | some w => simp [hfalse w]
-  rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
-  exact h
+      | some w => by simp [hfalse w]
+  simpa [hzero] using succProbability_fiatShamirNIZKPokGame_le hsound A y hQro
 
 /-! ### Simulation-extractability (adaptive multi-theorem proof of knowledge) -/
 
@@ -1164,12 +1157,8 @@ private theorem fork_sim_le_simExtractGame [DecidableEq Y] [DecidableEq T] [Fint
       (fun s => A.prove s.1) (fun s => s.2) hresult
     simp only [FiatShamirNIZK.check, Prod.mk.injEq, Bool.and_eq_true] at hpt hv hv'
     obtain ⟨hy, ht⟩ := hpt
-    have hacc' :
-        P.Accepts o.message o.commitment o'.challenge o'.response := by
-      simpa only [SigmaProtocol.Accepts, hy, ht] using hv'.2
-    have hR := hsound _ _ _ _ _ _ hne hv.2 hacc'
-    have hadm := hv.1
-    simp [hadm, hR]
+    simp [hv.1, hsound _ _ _ _ _ _ hne hv.2
+      (by simpa only [SigmaProtocol.Accepts, hy, ht] using hv'.2)]
 
 /-- Concrete simulation-extraction bound against simulated proofs for one Sigma protocol, derived
 here and not a result of [BonehShoup2023] (general `SimCoinSource` and `admissible` form, via
@@ -1344,20 +1333,18 @@ theorem succProbability_fiatShamirNIZKRealExtGameOn_le_of_false [DecidableEq Y] 
     (Game.succProbability (fiatShamirNIZKRealExtGameOn admissible P valid A) : ℝ) ≤
       Qp * (Qp + Qro) * δ + (Qro + 1) / Fintype.card C := by
   classical
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred src
-    admissible hA
   have hzero :
       (Game.succProbability
         (fiatShamirNIZKSimExtractGame R admissible
           (fiatShamirNIZKSimExtractWith P src extract valid admissible A Qp Qro)) : ℝ) = 0 :=
-    succProbability_bind_pure_eq_zero _ _ fun res => by
-      rcases res with _ | ⟨y, w⟩
-      · rfl
-      · cases hadm : admissible y with
-        | false => simp [hadm]
-        | true => simp [hadm, hfalse y hadm w]
-  rw [hzero, mul_zero, Real.sqrt_zero, add_zero] at h
-  exact h
+    succProbability_bind_pure_eq_zero _ _ fun
+      | none => rfl
+      | some (y, w) => by
+        cases hadm : admissible y
+        · simp [hadm]
+        · simp [hadm, hfalse y hadm w]
+  simpa [hzero] using succProbability_fiatShamirNIZKRealExtGameOn_le hvalid hsound hHVZK hUnpred
+    src admissible hA
 
 /-! ### Specializations to `SigmaProtocol.linear` and `SigmaProtocol.schnorr` -/
 
@@ -1411,13 +1398,12 @@ theorem linear_advantage_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [Fint
       (fiatShamirNIZKRealGame (linear ψ u ι) (fun x y => decide (ψ y x = u y)) D)
       (fiatShamirNIZKSimGame (linearSimulate ψ u ι) (fun x y => decide (ψ y x = u y)) D) : ℝ) ≤
       Qp * (Qp + Qro) / Fintype.card M := by
-  have h := NNReal.coe_le_coe.mpr
-    (advantage_fiatShamirNIZKRealGame_simGame_le
-      (fun x y h => of_decide_eq_true h)
-      (linear_specialHVZK ψ u ι)
-      (linear_unpredictableCommitments_of_injective ψ u ι hinj) hD)
   simpa only [NNReal.coe_mul, NNReal.coe_add, NNReal.coe_inv, NNReal.coe_natCast,
-    div_eq_mul_inv] using h
+    div_eq_mul_inv] using NNReal.coe_le_coe.mpr
+      (advantage_fiatShamirNIZKRealGame_simGame_le
+        (fun x y h => of_decide_eq_true h)
+        (linear_specialHVZK ψ u ι)
+        (linear_unpredictableCommitments_of_injective ψ u ι hinj) hD)
 
 /-- Plain ROM proof-of-knowledge bound for `SigmaProtocol.linear` when `q` is prime. -/
 theorem linear_succProbability_fiatShamirNIZKPokGame_le [Fact q.Prime] [DecidableEq Y]
@@ -1448,13 +1434,13 @@ theorem linear_succProbability_fiatShamirNIZKRealExtGame_le [Fact q.Prime] [Deci
           (fiatShamirNIZKSimExtractGame (fun x y => ψ y x = u y) admissible
             (fiatShamirNIZKSimExtractWith (linear ψ u ι) (linearSimCoinSource ψ u ι)
               (linearExtract ι) (fun x y => decide (ψ y x = u y)) admissible A Qp Qro))) := by
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le
-    (fun x y hv => of_decide_eq_true hv)
-    (linear_specialSoundness ψ u ι)
-    (linear_specialHVZK ψ u ι)
-    (linear_unpredictableCommitments_of_injective ψ u ι hinj)
-    (linearSimCoinSource ψ u ι) admissible hA
-  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using h
+  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using
+    succProbability_fiatShamirNIZKRealExtGameOn_le
+      (fun x y hv => of_decide_eq_true hv)
+      (linear_specialSoundness ψ u ι)
+      (linear_specialHVZK ψ u ι)
+      (linear_unpredictableCommitments_of_injective ψ u ι hinj)
+      (linearSimCoinSource ψ u ι) admissible hA
 
 end Linear
 
@@ -1495,13 +1481,12 @@ theorem schnorr_advantage_fiatShamirNIZKRealGame_simGame_le [Fintype C] [Nonempt
         (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
         (fun α u => decide (α • g = u)) D) : ℝ) ≤
       Qp * (Qp + Qro) / q := by
-  have h := NNReal.coe_le_coe.mpr
-    (advantage_fiatShamirNIZKRealGame_simGame_le
-      (fun α u hv => of_decide_eq_true hv)
-      schnorr_specialHVZK
-      (schnorr_unpredictableCommitments (ι := ι) hg) hD)
   simpa only [NNReal.coe_mul, NNReal.coe_add, NNReal.coe_inv, NNReal.coe_natCast,
-    div_eq_mul_inv] using h
+    div_eq_mul_inv] using NNReal.coe_le_coe.mpr
+      (advantage_fiatShamirNIZKRealGame_simGame_le
+        (fun α u hv => of_decide_eq_true hv)
+        schnorr_specialHVZK
+        (schnorr_unpredictableCommitments (ι := ι) hg) hD)
 
 /-- Plain ROM proof-of-knowledge bound for Schnorr Fiat–Shamir NIZK proofs. -/
 theorem schnorr_succProbability_fiatShamirNIZKPokGame_le [Fintype C] [Nonempty C] [DecidableEq C]
@@ -1529,14 +1514,14 @@ theorem schnorr_succProbability_fiatShamirNIZKRealExtGame_le [Fintype C] [Nonemp
             (fiatShamirNIZKSimExtractWith (schnorr ι g)
               (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
               (linearExtract ι) (fun α u => decide (α • g = u)) admissible A Qp Qro))) := by
-  have h := succProbability_fiatShamirNIZKRealExtGameOn_le
-    (fun α u hv => of_decide_eq_true hv)
-    schnorr_specialSoundness
-    schnorr_specialHVZK
-    (schnorr_unpredictableCommitments (ι := ι) hg)
-    (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
-    admissible hA
-  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using h
+  simpa only [NNReal.coe_inv, NNReal.coe_natCast, div_eq_mul_inv] using
+    succProbability_fiatShamirNIZKRealExtGameOn_le
+      (fun α u hv => of_decide_eq_true hv)
+      schnorr_specialSoundness
+      schnorr_specialHVZK
+      (schnorr_unpredictableCommitments (ι := ι) hg)
+      (linearSimCoinSource (fun _ => LinearMap.toSpanSingleton (ZMod q) G g) id ι)
+      admissible hA
 
 end Schnorr
 

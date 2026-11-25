@@ -427,13 +427,12 @@ theorem exists_scale_effort_incentive [Nontrivial S]
         (M.isMixedStrategy_peerPosterior s₀) (M.isMixedStrategy_peerPosterior s)
         (M.peerPosterior_pos s₀) (M.peerPosterior_pos s) fun heq => hne (hrel heq))
     rw [informedExpectedLogScore, uninformedExpectedLogScore, ← sum_sub_distrib]
-    refine sum_pos' (fun s _ => ?_) ⟨s₁, mem_univ s₁, ?_⟩
-    · rw [← mul_sub]
-      rcases eq_or_ne s₀ s with rfl | hs
-      · simp
-      · exact (hterm s hs).le
-    · rw [← mul_sub]
-      exact hterm s₁ hs₁.symm
+    refine sum_pos' (fun s _ => ?_)
+      ⟨s₁, mem_univ s₁, (mul_sub (M.signalProb s₁) _ _).symm ▸ hterm s₁ hs₁.symm⟩
+    rw [← mul_sub]
+    rcases eq_or_ne s₀ s with rfl | hs
+    · simp
+    · exact (hterm s hs).le
   obtain ⟨s_bar⟩ : Nonempty S := inferInstance
   let gapSet : Finset ℝ := univ.image fun s₀ : S =>
     M.informedExpectedLogScore - M.uninformedExpectedLogScore s₀
@@ -459,12 +458,9 @@ theorem exists_scale_effort_incentive [Nontrivial S]
           mul_le_mul_of_nonneg_left hle hα.le
     linarith
   · simp only [logPeerTransfer, β]
-    have hmem : Real.log (M.peerPosterior (x i) (x (r i))) ∈
-        (univ ×ˢ univ).image fun p : S × S => Real.log (M.peerPosterior p.1 p.2) :=
-      mem_image.mpr ⟨(x i, x (r i)), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, rfl⟩
-    have hle : minLog ≤ Real.log (M.peerPosterior (x i) (x (r i))) := min'_le _ _ hmem
-    have hmul := mul_le_mul_of_nonneg_left hle hα.le
-    linarith
+    have hle : minLog ≤ Real.log (M.peerPosterior (x i) (x (r i))) :=
+      min'_le _ _ (mem_image.mpr ⟨(x i, x (r i)), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, rfl⟩)
+    linarith [mul_le_mul_of_nonneg_left hle hα.le]
 
 /-- **Budget-balanced peer-prediction transfer** (Equation `(4)` of
 [MillerResnickZeckhauser2005, §2.3, p. 10]; [FriedmanResnickSami2007, §27.4.2, p. 688]):
@@ -505,8 +501,7 @@ theorem truthful_isStrictBayesNash_balancedLogPeerTransfer [DecidableEq S]
     congr 1
     simp only [logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
   rw [hsplit report, hsplit (truthfulStrategy I i s_i)]
-  have hbase := M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne
-  linarith
+  linarith [M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne]
 
 /-! ### Uninformative constant equilibria & sequential manipulation (Footnote 2 & Exercise 27.6) -/
 

@@ -403,17 +403,11 @@ theorem foldl_add_eq {β : Type} (g : β → ℕ) (xs : List β) (acc : CappedNa
     xs.foldl (fun s b => s.add (g b)) acc =
       ⟨acc.cap, min acc.cap (acc.total + (xs.map g).sum)⟩ := by
   induction xs generalizing acc with
-  | nil =>
-    ext
-    · rfl
-    · simp [Nat.min_eq_right hacc]
+  | nil => exact CappedNatAcc.ext rfl (Nat.min_eq_right hacc).symm
   | cons b xs ih =>
     simp only [List.foldl_cons, List.map_cons, List.sum_cons]
     rw [ih (acc.add (g b)) (acc.add_total_le_cap (g b))]
-    ext
-    · rfl
-    · simp only [add_cap, add_total]
-      omega
+    exact CappedNatAcc.ext rfl (by simp only [add_cap, add_total]; omega)
 
 /-- Folding `CappedNatAcc.add` from `init c` yields `min c ((xs.map g).sum)`. -/
 theorem foldl_add_init_total {β : Type} (g : β → ℕ) (xs : List β) (c : ℕ) :
@@ -792,11 +786,7 @@ theorem decidableInExpTime_or (r : DisjointBatchReduction encA encB μA μB)
     (perItem := fun a => c * ((encA a).length + 1) ^ ef)
     (by growth_poly) (by growth_poly) ht
   exact DecidableInExpTime.of_computableInO hfold
-    (fun a => by
-      rw [hAB a, hfold_eq, Bool.false_or, List.any_eq_true]
-      exact ⟨fun ⟨b, hb, hB'⟩ => ⟨b, hb, (hgB b).mp hB'⟩,
-        fun ⟨b, hb, hg'⟩ => ⟨b, hb, (hgB b).mpr hg'⟩⟩)
-    C₀ E hT
+    (fun a => by simp only [hAB a, hfold_eq, Bool.false_or, List.any_eq_true, ← hgB]) C₀ E hT
 
 /-- **Subexponential-time OR transfer over a summed-measure disjoint-instance batch.** -/
 theorem decidableInSubexpTime_or (r : DisjointBatchReduction encA encB μA μB)
@@ -843,12 +833,9 @@ theorem exists_computableInO_cappedSum (r : DisjointBatchReduction encA encB μA
   obtain ⟨cf, ef, S₀, hS₀, hfold⟩ := r.exists_computableInO_foldl hinit
     CappedNatAcc.computableInPolyTime_add hg hSg haccPoly haccBound
   obtain ⟨dtot, Space, hSpacePoly, hout, hps⟩ := computableInO_cappedAcc_total hfold hS₀ haccPoly
-    (fun a => by
-      have ha := haccBound a (r.toBatch a).items.length le_rfl
-      rwa [List.take_length] at ha)
-    (fun a => by
-      rw [CappedNatAcc.foldl_add_init_total_eq_sum countB (r.toBatch a).items
-        (by rw [← hsum a]; exact hle a), ← hsum a])
+    (fun a => List.take_length (l := (r.toBatch a).items) ▸ haccBound a _ le_rfl)
+    (fun a => (CappedNatAcc.foldl_add_init_total_eq_sum countB _ (hsum a ▸ hle a)).trans
+      (hsum a).symm)
   obtain ⟨C₀, E, hT⟩ := r.batch_poly_exp_le hδ
     (base := fun a => cf * ((encA a).length + 1) ^ ef + (3 * (capBits a + 1) + 2 + 1) ^ dtot)
     (perItem := fun a => cf * ((encA a).length + 1) ^ ef)
@@ -1718,19 +1705,15 @@ theorem run_cappedSum_eq_root
     S.run_eq_foldl_leafWords g a T hT hinit hleaf hexp hh hrounds
   have hcomb_eq : (fun (d : CappedNatAcc) (s : σ) =>
       S.combine ⟨S.initCtx a, d, g (S.leafInstance ⟨S.initCtx a, s⟩)⟩) =
-      fun d s => d.add (g (S.leafInstance ⟨S.initCtx a, s⟩)) := by
-    funext d s
-    exact hcombine d _
-  rw [hrun_eq, hinitAcc, hcomb_eq, CappedNatAcc.foldl_add_init_total]
-  have hsum_eq : ((L.map (T.walk root)).map (fun s => g (S.leafInstance ⟨S.initCtx a, s⟩))).sum =
-      val root := by
-    rw [List.map_map]
-    have hcongr : List.map ((fun s => g (S.leafInstance ⟨S.initCtx a, s⟩)) ∘ T.walk root) L =
-        L.map (fun w => val (T.walk root w)) :=
-      List.map_congr_left fun w hw => hval_leaf _ ((hL w).mp hw).isLeaf_walk
-    rw [hcongr, ← List.sum_toFinset _ hnd]
-    exact T.sum_leafWords_eq hT hadd root fun w => by rw [List.mem_toFinset, hL]
-  rw [hsum_eq, Nat.min_eq_right hcap]
+      fun d s => d.add (g (S.leafInstance ⟨S.initCtx a, s⟩)) :=
+    funext fun d => funext fun _ => hcombine d _
+  have hcongr : List.map ((fun s => g (S.leafInstance ⟨S.initCtx a, s⟩)) ∘ T.walk root) L =
+      L.map (fun w => val (T.walk root w)) :=
+    List.map_congr_left fun w hw => hval_leaf _ ((hL w).mp hw).isLeaf_walk
+  rw [hrun_eq, hinitAcc, hcomb_eq, CappedNatAcc.foldl_add_init_total, List.map_map, hcongr,
+    ← List.sum_toFinset _ hnd,
+    T.sum_leafWords_eq hT hadd root fun w => by rw [List.mem_toFinset, hL],
+    Nat.min_eq_right hcap]
 
 end StackAccumulationSpec
 

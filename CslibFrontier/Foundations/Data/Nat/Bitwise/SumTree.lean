@@ -74,15 +74,7 @@ theorem sumTree_eq_sum (f : ℕ → Bool) (j q : ℕ) :
   | zero => simp [sumTree]
   | succ j ih =>
     rw [sumTree, ih, ih, pow_succ, Nat.mul_two, sum_range_add]
-    congr 1
-    · apply sum_congr rfl
-      intro i _
-      congr 2
-      ring
-    · apply sum_congr rfl
-      intro i _
-      congr 2
-      ring
+    congr 1 <;> refine sum_congr rfl fun _ _ => congrArg (fun n => (f n).toNat) (by ring)
 
 /-- Counting all the bit positions containing a numeral gives its number of set bits. -/
 theorem _root_.Nat.sum_testBit_eq_length_bitIndices {x k : ℕ} (hx : x < 2 ^ k) :
@@ -90,12 +82,8 @@ theorem _root_.Nat.sum_testBit_eq_length_bitIndices {x k : ℕ} (hx : x < 2 ^ k)
   have hbits : (range k).filter (fun i => x.testBit i = true) = x.bitIndices.toFinset := by
     ext i
     simp only [mem_filter, mem_range, List.mem_toFinset, Nat.mem_bitIndices]
-    constructor
-    · exact And.right
-    · intro hi
-      refine ⟨?_, hi⟩
-      have := Nat.ge_two_pow_of_testBit hi
-      exact (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (lt_of_le_of_lt this hx)
+    exact ⟨And.right, fun hi => ⟨(Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp
+      ((Nat.ge_two_pow_of_testBit hi).trans_lt hx), hi⟩⟩
   calc
     (∑ i ∈ range k, (x.testBit i).toNat) =
         ∑ i ∈ range k, if x.testBit i = true then 1 else 0 := by

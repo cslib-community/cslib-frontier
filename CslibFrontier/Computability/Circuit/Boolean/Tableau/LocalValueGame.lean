@@ -476,8 +476,7 @@ private theorem step_localMachine_of_outcome_none (lc₀ : LocalClaim) {x : List
       (Claim.next tm ⟨x, T, w, v⟩ b).toLocal :=
     (toLocal_next (tm := tm) ⟨x, T, w, v⟩ b).symm
   simp only [localMachine_step_none, localNext, hout, ho, hloc, Claim.toLocal]
-  rw [show (Claim.next tm ⟨x, T, w, v⟩ b).input = x by rw [Claim.next_eq],
-    show (Claim.next tm ⟨x, T, w, v⟩ b).steps = T by rw [Claim.next_eq]]
+  congr 2 <;> rw [Claim.next_eq]
 
 /-- **The local machine plays the circuit-value game.** On an input `x`, from the local data of a
 claim about a wire of the tableau of `T` steps, the local machine accepts exactly when the
@@ -510,9 +509,8 @@ theorem acceptsFrom_localMachine_iff (lc₀ : LocalClaim) (x : List Bool) (T : �
       rw [step_localMachine_of_outcome_none lc₀ ho b]
       conv_rhs => rw [hcn]
       exact ih _ hlt (hlt.trans hw) _
-    have huniv : localUniversal tm (⟨x.length, T, w, v⟩, none) = Claim.player tm ⟨x, T, w, v⟩ :=
-      localUniversal_toLocal (tm := tm) ⟨x, T, w, v⟩ none
-    simp only [wins_position_nonterminal ho, hstep, huniv]
+    rw [← Claim.toLocal_mk, localUniversal_toLocal]
+    simp only [Claim.toLocal_mk, wins_position_nonterminal ho, hstep]
 
 /-- **The local machine decides the run**: on an input `x` with `x.length < 2 * T`, the local
 machine started on the local claim that the output wire of the tableau of `T` steps is true accepts
@@ -556,21 +554,17 @@ theorem replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T : ℕ} :
   | nil => exact fun w v o hw => ⟨w, v, o, hw, rfl, fun _ => by simp⟩
   | cons b choices ih =>
     intro w v o hw
-    have hcons : (localMachine tm lc₀).replay x (b :: choices) (⟨x.length, T, w, v⟩, o) =
-        (localMachine tm lc₀).replay x choices
-          ((localMachine tm lc₀).step x (⟨x.length, T, w, v⟩, o) b) := rfl
-    have hhalted (r : Bool) : (localMachine tm lc₀).halted (⟨x.length, T, w, v⟩, some r) = true :=
-      rfl
     cases o with
     | some r =>
-      exact ⟨w, v, some r, hw, (localMachine tm lc₀).replay_of_halted x (hhalted r) _,
-        fun h => by simp at h⟩
+      exact ⟨w, v, some r, hw, (localMachine tm lc₀).replay_of_halted x rfl _, nofun⟩
     | none =>
       rcases step_localMachine_live (tm := tm) lc₀ (v := v) hw b with ⟨r, hr⟩ | ⟨w₁, v₁, hlt, h₁⟩
-      · refine ⟨w, v, some r, hw, ?_, fun h => by simp at h⟩
-        rw [hcons, hr, (localMachine tm lc₀).replay_of_halted x (hhalted r)]
+      · refine ⟨w, v, some r, hw, ?_, nofun⟩
+        exact (congrArg ((localMachine tm lc₀).replay x choices) hr).trans
+          ((localMachine tm lc₀).replay_of_halted x (s := (⟨x.length, T, w, v⟩, some r)) rfl _)
       · obtain ⟨w', v', o', hw', heq, hle⟩ := ih w₁ v₁ none (hlt.trans hw)
-        refine ⟨w', v', o', hw', by rw [hcons, h₁, heq], fun h => ?_⟩
+        refine ⟨w', v', o', hw', (congrArg ((localMachine tm lc₀).replay x choices) h₁).trans heq,
+          fun h => ?_⟩
         have := hle h
         simp only [List.length_cons]
         omega
@@ -584,10 +578,8 @@ theorem halted_replay_localMachine (lc₀ : LocalClaim) {x : List Bool} {T w : �
   obtain ⟨w', v', o', -, heq, hle⟩ := replay_localMachine (tm := tm) lc₀ choices w v none hw
   rw [heq, localMachine_halted]
   cases o' with
-  | some r => rfl
-  | none =>
-    have := hle rfl
-    omega
+  | some _ => rfl
+  | none => exact absurd (hle rfl) (by omega)
 
 /-- **States of logarithmic length.** On an input `x` of length `n`, every state reached by the
 local machine from the local data of a claim about a wire of the tableau of `T` steps has an

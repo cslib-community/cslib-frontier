@@ -98,11 +98,8 @@ theorem intToEuclidean_eq_ratToEuclidean (v : Fin m → ℤ) :
     intToEuclidean v = ratToEuclidean fun k => (v k : ℚ) := by
   ext k; simp [intToEuclidean]
 
-theorem intToEuclidean_injective : Function.Injective (intToEuclidean (m := m)) := by
-  intro v w h
-  funext k
-  have := congrArg (fun x : EuclideanSpace ℝ (Fin m) => x k) h
-  simpa [intToEuclidean] using this
+theorem intToEuclidean_injective : Function.Injective (intToEuclidean (m := m)) :=
+  fun _ _ h => funext fun k => by simpa [intToEuclidean] using congrArg (· k) h
 
 /-- The rows of `B` as vectors of `ℝᵐ`. -/
 noncomputable def realRows (B : Vector (Vector ℤ m) n) : Fin n → EuclideanSpace ℝ (Fin m) :=
@@ -138,10 +135,9 @@ theorem span_realRows (B : Vector (Vector ℤ m) n) :
 theorem mem_span_realRows_of_eq_sum {B : Vector (Vector ℤ m) n} {v : Fin m → ℤ} {e : Fin n → ℤ}
     (h : v = ∑ i, e i • rows B i) :
     intToEuclidean v ∈ Submodule.span ℤ (Set.range (realRows B)) := by
-  rw [span_realRows]
-  refine Submodule.mem_map_of_mem ?_
-  rw [h]
-  exact Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩)
+  rw [span_realRows, h]
+  exact Submodule.mem_map_of_mem
+    (Submodule.sum_mem _ fun i _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩))
 
 /-- The rows of `B` cast to `ℚ`. -/
 def castRows (B : Vector (Vector ℤ m) n) : Vector (Vector ℚ m) n :=
@@ -163,10 +159,8 @@ theorem IsGramSchmidtRows.ratToEuclidean_eq {G : Vector (Vector ℚ m) n}
 theorem isGramSchmidtRows_gramSchmidtRows (B : Vector (Vector ℤ m) n) :
     IsGramSchmidtRows (gramSchmidtRows B) B := by
   intro j
-  have h : (fun l : Fin n => ratToEuclidean fun k : Fin m => (castRows B)[l][k]) = realRows B := by
-    funext l
-    rw [realRows_apply]
-    simp [castRows]
+  have h : (fun l : Fin n => ratToEuclidean fun k : Fin m => (castRows B)[l][k]) = realRows B :=
+    funext fun l => by simp [realRows_apply, castRows]
   rw [gramSchmidtRows, gramSchmidtRowsAux_spec _ n j j.isLt, h]
 
 theorem IsGramSchmidtRows.of_isSizeStep {G : Vector (Vector ℚ m) n} {B C : Vector (Vector ℤ m) n}
@@ -263,9 +257,8 @@ theorem reduceRow_spec (G : Vector (Vector ℚ m) n) (i : Fin n) :
       fun _ _ _ => rfl⟩
   | succ t ih =>
     intro B ht hG hli
-    have htn : t < n := by omega
-    have hti : (⟨t, htn⟩ : Fin n) < i := by
-      change t < (i : ℕ); omega
+    have htn : t < n := by have := i.isLt; omega
+    have hti : (⟨t, htn⟩ : Fin n) < i := by simp only [Fin.lt_def]; omega
     simp only [reduceRow, htn, dite_true]
     have hstep := isSizeStep_reduceStep G B hti
     obtain ⟨h1, h2, h3, h4⟩ := ih (reduceStep G B i ⟨t, htn⟩) (by omega) (hG.of_isSizeStep hstep)
@@ -275,12 +268,11 @@ theorem reduceRow_spec (G : Vector (Vector ℚ m) n) (i : Fin n) :
     · rw [h2 i' hi', rows_reduceStep_of_ne G B hi']
     · rcases Nat.lt_succ_iff_lt_or_eq.1 hl with hl | hl
       · exact h3 l hl
-      · have hlt : (⟨t, htn⟩ : Fin n) = l := Fin.ext hl.symm
-        subst hlt
+      · obtain rfl : l = ⟨t, htn⟩ := Fin.ext hl
         rw [h4 _ le_rfl hti]
         exact hG.abs_gramSchmidtCoeff_reduceStep_le hti hli
     · rw [h4 l (by omega) hli']
-      exact gramSchmidtCoeff_reduceStep_of_lt G B hti (by change t < (l : ℕ); omega)
+      exact gramSchmidtCoeff_reduceStep_of_lt G B hti (by simp only [Fin.lt_def]; omega)
 
 theorem reflTransGen_isSizeStep {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
     {b c : Fin n → E} (h : Relation.ReflTransGen IsSizeStep b c) :
@@ -652,10 +644,9 @@ theorem lll_eq_lllWith (B : Vector (Vector ℤ m) n) : lll B = lllWith (3 / 4) B
 independent. -/
 theorem isReduced_lll (B : Vector (Vector ℤ m) n) (hB : LinearIndependent ℝ (realRows B)) :
     IsReduced (3 / 4) (realRows (lll B)) ∧ LinearIndependent ℝ (realRows (lll B)) := by
-  have h := isReduced_lllWith (δ := 3 / 4) (by norm_num) (by norm_num) B hB
-  have hδ : ((3 / 4 : ℚ) : ℝ) = 3 / 4 := by norm_num
-  rw [hδ, ← lll_eq_lllWith] at h
-  exact h
+  have hδ : (3 / 4 : ℝ) = ((3 / 4 : ℚ) : ℝ) := by norm_num
+  rw [lll_eq_lllWith, hδ]
+  exact isReduced_lllWith (by norm_num) (by norm_num) B hB
 
 /-- LLL preserves the lattice. -/
 theorem span_lll (B : Vector (Vector ℤ m) n) :

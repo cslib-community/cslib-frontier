@@ -93,8 +93,7 @@ theorem le_two_pow_mul (c k : ℕ) (hk : 1 ≤ k) : c ≤ 2 ^ (c * k) :=
 theorem mul_add_one_pow_le {R M d : ℕ} (h : (R + 1) * d ≤ M) :
     R * (M + 1) ^ d ≤ (R + 1) * M ^ d := by
   -- `(M + 1) ^ d * (M - d) ≤ M ^ (d + 1)` by induction.
-  have key : ∀ e : ℕ, e ≤ M → (M + 1) ^ e * (M - e) ≤ M ^ (e + 1) := by
-    intro e
+  have key (e : ℕ) : e ≤ M → (M + 1) ^ e * (M - e) ≤ M ^ (e + 1) := by
     induction e with
     | zero => intro _; simp
     | succ e ih =>
@@ -147,9 +146,7 @@ theorem sq_le_two_pow : ∀ {s : ℕ}, 4 ≤ s → s ^ 2 ≤ 2 ^ s
     induction n with
     | zero => decide
     | succ n ih =>
-      have hnn : 0 ≤ n * n := Nat.zero_le _
-      have hlin : (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := by nlinarith
-      calc (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := hlin
+      calc (n + 1 + 4) ^ 2 ≤ 2 * (n + 4) ^ 2 := by nlinarith [Nat.zero_le (n * n)]
         _ ≤ 2 * 2 ^ (n + 4) := Nat.mul_le_mul_left 2 ih
         _ = 2 ^ (n + 1 + 4) := by rw [← pow_succ']
 
@@ -163,11 +160,9 @@ theorem pow_le_two_pow {D b : ℕ} (hD : 1 ≤ D) (hb : 4 * D ^ 2 ≤ b) :
       _ ≤ b := hb
   have hs4 : 4 ≤ s := by nlinarith
   have hb_le_sq : b ≤ s ^ 2 := by
-    have hdiv : b < (s + 1) * D := by
-      have hmod := Nat.div_add_mod b D
-      have hlt := Nat.mod_lt b hD
-      calc b = D * s + b % D := hmod.symm
-        _ < D * s + D := Nat.add_lt_add_left hlt _
+    have hdiv : b < (s + 1) * D :=
+      calc b = D * s + b % D := (Nat.div_add_mod b D).symm
+        _ < D * s + D := Nat.add_lt_add_left (Nat.mod_lt b hD) _
         _ = (s + 1) * D := by ring
     nlinarith
   calc b ^ D ≤ (s ^ 2) ^ D := Nat.pow_le_pow_left hb_le_sq D

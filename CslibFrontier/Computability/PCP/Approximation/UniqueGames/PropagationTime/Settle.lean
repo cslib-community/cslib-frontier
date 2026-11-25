@@ -150,29 +150,21 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
           rw [hok] at hzOpt
           have hck_mem : z.mem (candBase g + k) = (S.cand ⟨k, hk⟩).toNat := by
             rw [hzMem]; exact hS.cand_mem k hk
-          cases hck : S.cand ⟨k, hk⟩ with
-          | true =>
-            have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
-            have hnext : optAt (k + 1) = some ⟨k, hk⟩ := by
-              simp only [optAt, htake_succ, List.find?_append,
-                show ((List.finRange L).take k).find? S.cand = none from hok, Option.none_or,
-                List.find?_cons, hck]
-            unfold pickChosenBody
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck1]
-            refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
-              by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-            rw [hnext]; exact ⟨by wram_simp, by wram_simp⟩
-          | false =>
-            have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp only [hck, Bool.toNat_false]
-            have hnext : optAt (k + 1) = none := by
-              simp only [optAt, htake_succ, List.find?_append,
-                show ((List.finRange L).take k).find? S.cand = none from hok, Option.none_or,
-                List.find?_cons, hck, List.find?_nil]
-            unfold pickChosenBody
-            wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem, hck0]
-            refine ⟨⟨by wram_simp [hzC], by wram_simp [hzCL], by wram_simp [hzIdx],
-              by wram_simp [hzMem], ?_⟩, by wram_simp⟩
-            rw [hnext]; exact ⟨by wram_simp [hzOpt.1], by wram_simp [hzOpt.2]⟩)
+          have hnext : optAt (k + 1) = if S.cand ⟨k, hk⟩ then some ⟨k, hk⟩ else none := by
+            simp only [optAt, htake_succ, List.find?_append,
+              show ((List.finRange L).take k).find? S.cand = none from hok, Option.none_or,
+              List.find?_cons, List.find?_nil]
+            cases S.cand ⟨k, hk⟩ <;> rfl
+          unfold pickChosenBody
+          cases hck : S.cand ⟨k, hk⟩ <;>
+            simp only [hck, Bool.toNat_true, Bool.toNat_false, ite_true,
+              Bool.false_eq_true, ite_false] at hck_mem hnext
+          · wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
+            simp only [Ppick, hnext]
+            and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem, hzOpt.1, hzOpt.2]
+          · wram_exec [hzC.zero, hzC.one, hzC.candB, hk_reg, hzOpt.1, hck_mem]
+            simp only [Ppick, hnext]
+            and_intros <;> wram_simp [hzC, hzCL, hzIdx, hzMem])
       (by rw [hlab1]; exact Nat.zero_le _)
       (by rw [hlab1]; refine ⟨hc1, hcl1, hidx1, hm1, ?_⟩
           simp only [optAt, List.take_zero, List.find?_nil, ht3_1, hch1, and_self])
@@ -331,27 +323,23 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             by rw [htab_next, List.length_set, hlen_k],
             fun u hu hun => ?_, fun u hu fn' huf => ?_⟩
           · rw [hfr_low _ (by wram_omega)]
+            dsimp only [State.get] at hun
             have huv : u ≠ v := by
               rintro rfl
-              change (tabAt (k + 1)).getD v none = none at hun
               rw [htab_next, List.getD_set_self (hlen_k ▸ hv_lt), hgv'] at hun
               nomatch hun
-            have hun' : ({ S with table := tabAt k } : State (Fin L)).get u = none := by
-              change (tabAt (k + 1)).getD u none = none at hun
-              rwa [htab_next, List.getD_set_ne (Ne.symm huv)] at hun
-            exact hzT.vis_none u hu hun'
-          · by_cases huv : u = v
+            rw [htab_next, List.getD_set_ne (Ne.symm huv)] at hun
+            exact hzT.vis_none u hu hun
+          · dsimp only [State.get] at huf
+            by_cases huv : u = v
             · subst huv
-              change (tabAt (k + 1)).getD v none = some fn' at huf
               rw [htab_next, List.getD_set_self (hlen_k ▸ hv_lt), hgv'] at huf
               simp only [freeze, Option.map_some, Option.some.injEq] at huf
               subst huf
               exact ⟨by rw [hfr_low _ (by wram_omega)]; exact hvis1,
                 fun a ha => by rw [hz4m]; exact hz3Row a ha⟩
-            · have huf' : ({ S with table := tabAt k } : State (Fin L)).get u = some fn' := by
-                change (tabAt (k + 1)).getD u none = some fn' at huf
-                rwa [htab_next, List.getD_set_ne (Ne.symm huv)] at huf
-              obtain ⟨hu1, hutab⟩ := hzT.vis_some u hu fn' huf'
+            · rw [htab_next, List.getD_set_ne (Ne.symm huv)] at huf
+              obtain ⟨hu1, hutab⟩ := hzT.vis_some u hu fn' huf
               exact ⟨by rw [hfr_low _ (by wram_omega)]; exact hu1,
                 fun a ha => by rw [hz4m, hz3Fr _ (not_in_tabRow huv ha)]; exact hutab a ha⟩)
       (by rw [hrem3]; exact Nat.zero_le _)

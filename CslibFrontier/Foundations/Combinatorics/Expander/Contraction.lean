@@ -115,11 +115,8 @@ include h in
 /-- Distinct original darts remain distinct after moving the slot into the label. -/
 private theorem contractDart_injective : Function.Injective (contractDart (D := D) encode) := by
   rintro ⟨v, d⟩ ⟨v', d'⟩ he
-  apply Prod.ext
-  · apply h.injective
-    exact Prod.ext (congrArg (fun p : W × (I × D) => p.1) he)
-      (congrArg (fun p : W × (I × D) => p.2.1) he)
-  · exact congrArg (fun p => p.2.2) he
+  exact Prod.ext (h.injective (Prod.ext (congrArg (fun p : W × (I × D) => p.1) he)
+    (congrArg (fun p : W × (I × D) => p.2.1) he))) (congrArg (fun p => p.2.2) he)
 
 variable [Fintype V] [Fintype I] [Fintype D] [DecidableEq V] [DecidableEq W]
 
@@ -168,9 +165,8 @@ theorem le_card_interedges_compl_contract
       lia
     have hc : #S ≤ #Aᶜ := by rw [hAc]; exact hSS.trans (hcard Sᶜ)
     rw [G.card_interedges_comm A Aᶜ]
-    have hb := G.le_card_interedges_compl_of_two_mul_card_le hA'
-    rw [compl_compl] at hb
-    refine le_trans ?_ hb
+    refine le_trans ?_
+      (compl_compl A ▸ G.le_card_interedges_compl_of_two_mul_card_le hA')
     gcongr
 
 omit [DecidableEq V] [DecidableEq W] in
@@ -242,12 +238,8 @@ theorem spectralExpansion_contractFin_lazy_le [Nonempty D] (G : RotationMap (Fin
     (hcap : m ≤ k * n) (hsize : n ≤ m) (hn : 2 ≤ n) :
     (G.contractFin hcap).lazy.spectralExpansion ≤
       1 - (1 - G.spectralExpansion) ^ 2 / (16 * k ^ 2) := by
-  have hk : 0 < k := by
-    by_contra h
-    have hk := Nat.eq_zero_of_not_pos h
-    subst k
-    simp only [zero_mul] at hcap
-    lia
+  have hk : 0 < k :=
+    Nat.pos_of_mul_pos_right ((Nat.zero_lt_of_lt hn).trans_le (hsize.trans hcap))
   have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
   have : Nontrivial (Fin n) := Fin.nontrivial_iff_two_le.mpr hn
   simpa only [contractFin, Fintype.card_fin] using

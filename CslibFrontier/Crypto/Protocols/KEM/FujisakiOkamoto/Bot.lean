@@ -218,9 +218,7 @@ theorem eagerBotHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M �
         (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
         (S.botDecaps pk sk c) := by
     simp only [botDecaps, interpret_decapsBotM, OracleComp.interpret_query]
-    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) pk sk c
-    rw [decapsBotM_pure]
-    rfl
+    exact (S.decapsBotM_pure (m := PMF) G (fun mc => H (false, mc)) pk sk c).symm
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
   simp only [eagerBotHandler, hd]
@@ -305,10 +303,8 @@ private theorem eagerBotHandler_coupledH (S : Scheme PK SK M R CT K) (G : M → 
       cases hd : decT S.pke G pk sk c with
       | none => rfl
       | some m' =>
-        have henc := encT_of_decT_eq_some hd
-        have hdec := dec_of_decT_eq_some hd
-        simp only [encT] at henc
-        simp [coupledH, henc, hdec]
+        have henc : S.pke.encDet pk m' (G m') = c := encT_of_decT_eq_some hd
+        simp [coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracle `H` of `FO^⊥`**: `eagerCoupledBotGame` and
 `eagerIndCcaBotGame` have the exact same output distribution. -/
@@ -406,14 +402,10 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
             rw [RandomOracle.complete, PMF.pi_map_eval]
             simp only [SimState.coupledCache, RandomOracle.Cache.sum_inl, RandomOracle.ofList,
               hlook, Option.elim_none]
-          have hmeas : (RandomOracle.complete S.coupledDistribution st.coupledCache).toOuterMeasure
-              {T | S.pke.encDet pk m' (T (.inl (.inl m'))) = c} =
-              (ProbComp.eval S.pke.sampleCoins).toOuterMeasure {r | S.pke.encDet pk m' r = c} := by
-            rw [← hmap, PMF.toOuterMeasure_map_apply]
-            rfl
-          rw [hmeas]
-          exact (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _)
-            (by positivity)).mpr (hγ pk sk hpk m' c)
+          refine le_of_eq_of_le ?_ ((ENNReal.le_ofReal_iff_toReal_le
+            (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mpr (hγ pk sk hpk m' c))
+          rw [← hmap, PMF.toOuterMeasure_map_apply]
+          rfl
 
 /-- Running a decapsulation-bounded program under the handler of `cachedCoupledBotGame` is within
 `d · 2^{-γ}` of completing the three caches into tables `G`, `Hraw` and `Hq` and running it under
@@ -643,8 +635,7 @@ private theorem simBotCheck_ens (S : Scheme PK SK M R CT K) (pk : PK) (mStar : M
     · subst hm
       simp only [↓reduceIte, Option.some.injEq] at hlook
       exact absurd (hlook ▸ henc).symm hc
-    · simp only [hm, ↓reduceIte] at hlook
-      exact ⟨m, r, hlook, henc⟩
+    · exact ⟨m, r, by simpa only [hm, ↓reduceIte] using hlook, henc⟩
   · rintro ⟨m, r, hlook, henc⟩
     have hm : m ≠ mStar := by
       rintro rfl

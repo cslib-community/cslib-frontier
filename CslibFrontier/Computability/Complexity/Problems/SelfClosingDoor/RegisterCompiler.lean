@@ -433,21 +433,16 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     rw [← selectedMarkers_false p j]
     exact Certified.entry source hr j (Place.external.inj hloc) false
   case entry.approach source hr j hp m k =>
-    have he : j = k := Fin.ext (Place.entry.inj hloc)
-    subst k
-    exact Certified.ready source hr j hp m
+    exact Fin.ext (Place.entry.inj hloc) ▸ Certified.ready source hr j hp m
   case entry.openMarker source hr j hp m k hb =>
-    have he : j = k := Fin.ext (Place.entry.inj hloc)
-    subst k
-    simpa only [selectedMarkers, List.set_set] using Certified.entry source hr j hp true
+    simpa only [← Fin.ext (Place.entry.inj hloc), selectedMarkers, List.set_set] using
+      Certified.entry source hr j hp true
   case ready.register source hr j hp m r b hb =>
     obtain ⟨hri, hbi⟩ := Place.input.inj hloc
     have hg : source.bits.getD p.instructions[j].register false = p.instructions[j].guard := by
       simpa only [hri, hbi] using hb
     have hreg : p.instructions[j].register < source.bits.length := by
-      have hlen := hr.length rfl
-      rw [hri, hlen]
-      exact r.isLt
+      simpa only [hri, hr.length rfl] using r.isLt
     simpa only [hri, hbi] using
       Certified.output source hr j hp hg hreg m p.instructions[j].guard
   case input.register source hr j hp hg hreg m b₀ r b hb =>
@@ -457,9 +452,8 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     obtain ⟨hri, hbi⟩ := Place.output.inj hloc
     simpa only [hri, hbi] using Certified.input source hr j hp hg hreg m (!b₀)
   case output.returnMarker source hr j hp hg hreg m b k hb =>
-    obtain ⟨he, hm⟩ := selectedMarkers_true hb
+    obtain ⟨he, rfl⟩ := selectedMarkers_true hb
     subst k
-    subst m
     have hbit : b = !p.instructions[j].write := (Place.output.inj hloc).2
     let next : State := ⟨p.instructions[j].target, source.bits.set p.instructions[j].register
       p.instructions[j].write⟩
@@ -573,13 +567,11 @@ theorem compile_reachability_iff (p : Program) :
   constructor
   · rintro ⟨t, hr, hp⟩
     obtain ⟨u, hu, he⟩ := actual_reachable_complete hs hr
-    apply (certified_reachable hu).accepts
-    apply Place.code_injective
-    exact (congrArg State.location he).trans hp
+    exact (certified_reachable hu).accepts
+      (Place.code_injective ((congrArg State.location he).trans hp))
   · rintro ⟨t, hr, hp⟩
-    refine ⟨(boundary p t).toState, ?_, ?_⟩
-    · exact machine_reachable_actual hs (machine_program_path rfl hr)
-    · simp only [boundary, MachineState.toState, Place.code, hp]
+    exact ⟨(boundary p t).toState, machine_reachable_actual hs (machine_program_path rfl hr),
+      by simp only [boundary, MachineState.toState, Place.code, hp]⟩
 
 open _root_.Turing.MultiTapeTM Compiler
 

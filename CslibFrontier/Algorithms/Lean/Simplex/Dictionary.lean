@@ -256,6 +256,14 @@ private theorem pivot_elim_row {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.bas
   field_simp
   ring
 
+private theorem eq_div_of_isSolution {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
+    (ha : D.coeff r s ≠ 0) {x : ι → K} (hx : D.IsSolution x) :
+    x s = (x r - D.rhs r - ∑ j ∈ D.basisᶜ.erase s, D.coeff r j * x j) / D.coeff r s := by
+  have hxr := hx r hr
+  rw [D.sum_compl_eq_add hs] at hxr
+  rw [eq_div_iff ha]
+  linear_combination -hxr
+
 /-- A pivot on a nonzero coefficient preserves the solutions. -/
 theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
     (ha : D.coeff r s ≠ 0) {x : ι → K} : (D.pivot r s).IsSolution x ↔ D.IsSolution x := by
@@ -275,9 +283,8 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
     · simp only [pivot, ↓reduceIte, neg_div]
     · refine Finset.sum_congr rfl fun j hj => ?_
       rw [Finset.mem_compl, mem_pivot_basis] at hj
-      have hjs : j ≠ s := fun h => hj (.inl h)
-      simp only [pivot, hj, ite_false, ite_true]
-      simp only [hjs, ite_false, zero_sub, neg_div]
+      simp only [pivot, (not_or.1 hj).1, (not_or.1 hj).2, or_self, ite_false, ite_true, zero_sub,
+        neg_div]
   have hnew_i : ∀ i ∈ D.basis, i ≠ r →
       (D.pivot r s).rhs i + ∑ j ∈ (D.pivot r s).basisᶜ, (D.pivot r s).coeff i j * x j =
       D.rhs i + D.coeff i s * ((x r - D.rhs r - R r) / D.coeff r s) + R i := by
@@ -301,11 +308,7 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
     · rw [hold, hxs, ← hnew_i i hi hir]
       exact h i (D.mem_pivot_basis.2 (.inr ⟨hi, hir⟩))
   · intro h i hi
-    have hxr := h r hr
-    rw [hold] at hxr
-    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := by
-      field_simp
-      linear_combination -hxr
+    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := D.eq_div_of_isSolution hr hs ha h
     rcases D.mem_pivot_basis.1 hi with rfl | ⟨hi, hir⟩
     · rw [hnew_s, ← hxs]
     · rw [hnew_i i hi hir, ← hxs, ← hold]
@@ -314,22 +317,16 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
 /-- A pivot on a nonzero coefficient preserves the objective on solutions. -/
 theorem value_pivot {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis) (ha : D.coeff r s ≠ 0)
     {x : ι → K} (hx : D.IsSolution x) : (D.pivot r s).value x = D.value x := by
-  have hxr := hx r hr
-  rw [D.sum_compl_eq_add hs] at hxr
-  have hxs : x s = (x r - D.rhs r - ∑ j ∈ D.basisᶜ.erase s, D.coeff r j * x j) / D.coeff r s := by
-    rw [eq_div_iff ha]
-    linear_combination -hxr
-  have hcongr : (D.pivot r s).value x = (D.objConst - D.objCoeff s * D.rhs r / D.coeff r s) +
+  have hsum : ∑ j ∈ (D.pivot r s).basisᶜ, (D.pivot r s).objCoeff j * x j =
       ∑ j ∈ (D.pivot r s).basisᶜ,
         (if j = r then D.objCoeff s / D.coeff r s
-         else D.objCoeff j - D.objCoeff s * D.coeff r j / D.coeff r s) * x j := by
-    rw [value]
-    congr 1
-    refine Finset.sum_congr rfl fun j hj => ?_
-    rw [Finset.mem_compl, mem_pivot_basis] at hj
-    simp only [pivot, hj, ite_false]
-  rw [hcongr, D.pivot_elim_row hr hs ha x D.objConst D.objCoeff, ← hxs,
-    value, D.sum_compl_eq_add hs, add_assoc]
+         else D.objCoeff j - D.objCoeff s * D.coeff r j / D.coeff r s) * x j :=
+    Finset.sum_congr rfl fun j hj => by
+      rw [Finset.mem_compl, mem_pivot_basis] at hj
+      simp only [pivot, hj, ite_false]
+  rw [value, hsum]
+  exact (D.pivot_elim_row hr hs ha x D.objConst D.objCoeff).trans (by
+    rw [← D.eq_div_of_isSolution hr hs ha hx, value, D.sum_compl_eq_add hs, add_assoc])
 
 /-- **Pivoting yields an equivalent dictionary** ([Chvatal1983], Chapter 2): a pivot on a basic
 `r`, a nonbasic `s` and a nonzero coefficient `D.coeff r s` preserves the solutions and the
@@ -421,13 +418,8 @@ theorem mem_feasibleSet {x : ι → K} : x ∈ D.feasibleSet ↔ D.IsSolution x 
 
 omit [Fintype ι] [IsStrictOrderedRing K] in
 theorem feasible_iff_nonneg_basicSolution : D.Feasible ↔ 0 ≤ D.basicSolution := by
-  constructor
-  · intro h i
-    by_cases hi : i ∈ D.basis
-    · rw [D.basicSolution_of_mem hi]; exact h i hi
-    · rw [D.basicSolution_of_notMem hi]; rfl
-  · intro h i hi
-    rw [← D.basicSolution_of_mem hi]; exact h i
+  refine ⟨fun h i => ?_, fun h i hi => D.basicSolution_of_mem hi ▸ h i⟩
+  by_cases hi : i ∈ D.basis <;> simp [basicSolution, hi, h i]
 
 omit [Fintype ι] [DecidableEq ι] in
 theorem ratio_nonneg (hD : D.Feasible) {s r : ι} (hr : r ∈ D.basis) (har : D.coeff r s < 0) :
@@ -484,11 +476,9 @@ omit [Fintype ι] in
 theorem ray_nonneg {s : ι} (hs : s ∉ D.basis) (h : ∀ i ∈ D.basis, 0 ≤ D.coeff i s) :
     0 ≤ D.ray s := by
   intro i
-  by_cases his : i = s
-  · rw [his, ray_self]; exact zero_le_one
   by_cases hi : i ∈ D.basis
-  · rw [D.ray_of_mem hi hs]; exact h i hi
-  · rw [D.ray_of_notMem hi his]; rfl
+  · exact D.ray_of_mem hi hs ▸ h i hi
+  · by_cases his : i = s <;> simp [ray, his, hi]
 
 /-- **Unboundedness certificate** ([Chvatal1983], Chapters 2–3): if a nonbasic variable of a
 feasible dictionary has a positive reduced cost and no row bounds its increase, the objective is

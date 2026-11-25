@@ -178,16 +178,14 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
   rcases hv with rfl | rfl
   · refine hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    have hx' : x = .a ∨ x = .b ∨ x = .c := by
-      rw [hw₁] at hx
-      simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
-      rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl; tauto
-      · simp
-    rcases hx' with rfl | rfl | rfl <;> simp_all [kind]
+    rw [hw₁] at hx
+    simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
+    rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl <;> simp_all [kind]
+    · simp_all [kind]
   · refine hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    rw [hw₂] at hx
-    obtain ⟨-, rfl⟩ := List.mem_replicate.mp hx
+    obtain ⟨-, rfl⟩ := List.mem_replicate.mp (hw₂ ▸ hx)
     simp_all [kind]
 
 /-! ## `L'` is not hole-bounded -/
@@ -455,15 +453,6 @@ private theorem accepts_of_mem_phaseLanguage {w : List Letter} (h : w ∈ phaseL
     (List.replicate (m + 1) ()) m []
   have hds := configLTS_mTr_replicate_pop_one (M := phaseAutomaton) PhaseStep.ds_d [] m []
   simp only [List.append_nil] at hcs hds
-  have hc : phaseAutomaton.configLTS.MTr
-      ⟨.x, Stacks.pair (List.replicate (m + 1) ()) (List.replicate (m + 1) ())⟩
-      ((Letter.c, Op.pop 0 ()) :: List.replicate m (.c, .pop 0 ()))
-      ⟨.cs, Stacks.pair [] (List.replicate (m + 1) ())⟩ :=
-    .stepL (phaseStep_iff.mpr ⟨.x_c, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩) hcs
-  have hd : phaseAutomaton.configLTS.MTr ⟨.cs, Stacks.pair [] (List.replicate (m + 1) ())⟩
-      ((Letter.d, Op.pop 1 ()) :: List.replicate m (.d, .pop 1 ()))
-      ⟨.ds, Stacks.pair [] []⟩ :=
-    .stepL (phaseStep_iff.mpr ⟨.cs_d, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩) hds
   refine ⟨.x, rfl, .ds, .inr rfl,
     (List.replicate (m + 1) [(Letter.a, Op.push 0 ()), (.b, .push 1 ())]).flatten ++
     ((Letter.c, Op.pop 0 ()) ::
@@ -471,7 +460,9 @@ private theorem accepts_of_mem_phaseLanguage {w : List Letter} (h : w ∈ phaseL
     (.d, .pop 1 ())), ?_, ?_⟩
   · simp [phaseWord, List.replicate_succ, List.append_assoc]
   · rw [Stacks.empty_eq_pair]
-    exact (hab.comp _ hc).comp _ hd
+    exact (hab.comp _
+      (.stepL (phaseStep_iff.mpr ⟨.x_c, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩) hcs)).comp _
+      (.stepL (phaseStep_iff.mpr ⟨.cs_d, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩) hds)
 
 /-- `phaseAutomaton` recognizes exactly `L'`. -/
 theorem language_phaseAutomaton : Acceptor.language phaseAutomaton = phaseLanguage :=

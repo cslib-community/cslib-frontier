@@ -38,37 +38,23 @@ private theorem remaining_zero (ys xs : List Wire) : remaining ys xs 0 = xs := b
 private theorem remaining_cons (ys xs : List Wire) (hx : xs.Nodup) (y : Wire) (i : ℕ) :
     remaining (y :: ys) xs (i + 1) = remaining ys (xs.erase y) i := by
   simp only [remaining, List.take_succ_cons, hx.erase_eq_filter, List.filter_filter]
-  apply List.filter_congr
-  intro w _hw
-  by_cases he : w = y
-  · subst w
-    simp
-  · simp [he]
+  exact List.filter_congr fun w _ => by by_cases he : w = y <;> simp [he]
 
 private theorem program_cons (ys xs : List Wire) (hx : xs.Nodup) (y : Wire) (k : ℕ) :
     RoutingData.program ⟨y :: ys, xs, k⟩ = pull k y (before y xs) ++
       RoutingData.program ⟨ys, xs.erase y, k + 1⟩ := by
   simp only [RoutingData.program, List.zipIdx_cons', List.flatMap_cons, List.flatMap_map,
     Nat.add_zero, remaining_zero]
-  congr 1
-  apply List.flatMap_congr
-  rintro ⟨w, i⟩ _hp
-  change pull (k + (i + 1)) w (before w (remaining (y :: ys) xs (i + 1))) = _
-  rw [remaining_cons ys xs hx y i]
-  congr 1
-  omega
+  refine congrArg (_ ++ ·) (List.flatMap_congr fun ⟨w, i⟩ _ => ?_)
+  dsimp only [Prod.map_apply, id_eq]
+  rw [remaining_cons ys xs hx y i, ← Nat.add_assoc k i 1, Nat.add_right_comm k i 1]
 
 private theorem pull_cons (k : ℕ) (y x : Wire) (xs : List Wire) :
     pull k y (x :: xs) = pull (k + 1) y xs ++
       [(k, Opcode.cross x.color y.color x.bit y.bit)] := by
   simp only [pull, List.zipIdx_cons', List.reverse_cons, ← List.map_reverse,
     List.map_append, List.map_cons, List.map_nil, List.map_map, Nat.add_zero]
-  congr 1
-  apply List.map_congr_left
-  rintro ⟨w, i⟩ _hp
-  change (k + (i + 1), _) = (k + 1 + i, _)
-  congr 1
-  omega
+  exact congrArg (· ++ _) (List.map_congr_left fun ⟨w, i⟩ _ => Prod.ext (by dsimp; omega) rfl)
 
 private theorem expand_pull {Label : Type} (wire : Label → Wire) (xs : List Label)
     (y : Label) (post : List Color) (k : ℕ) :

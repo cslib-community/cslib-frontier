@@ -47,11 +47,9 @@ private theorem intersectionParity_eq_sum_lines (p r : Route) :
   classical
   simp only [eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
   unfold intersectionParity
-  apply Finset.sum_congr rfl
-  intro k _
+  refine Finset.sum_congr rfl fun k _ => ?_
   change _ = ∑ l : Fin 1, _
-  rw [Fin.sum_univ_one]
-  rfl
+  rw [Fin.sum_univ_one]; rfl
 
 open Classical in
 private noncomputable def intervalParity (p : Route) (i j : Fin p.segments) (s t : ℝ)
@@ -131,15 +129,10 @@ private theorem exists_point_at_end_parameter {p : Route} (k : Fin p.segments) {
 private theorem position_ne_nat_of_mem_Ioo {p : Route} (k : Fin p.segments) {u : ℝ}
     (hu : u ∈ Set.Ioo 0 1) (n : ℕ) : p.position k u ≠ (n : ℝ) := by
   intro he
-  have hlo : (k.val : ℝ) < n := by
-    rw [← he]
-    exact lt_add_of_pos_right _ hu.1
-  have hhi : (n : ℝ) < (k.val : ℝ) + 1 := by
-    rw [← he]
-    exact add_lt_add_right hu.2 _
-  have hlo' : k.val < n := by exact_mod_cast hlo
-  have hhi' : n < k.val + 1 := by exact_mod_cast hhi
-  exact hhi'.not_ge (Nat.succ_le_of_lt hlo')
+  dsimp only [position] at he
+  have hlo : k.val < n := mod_cast (by linarith [hu.1] : (k.val : ℝ) < n)
+  have hhi : n < k.val + 1 := mod_cast (by linarith [hu.2] : (n : ℝ) < k.val + 1)
+  omega
 
 private noncomputable abbrev intervalTime {p q : Route} {i j : Fin p.segments} (s t : ℝ)
     (e : Fin q.segments ≃o Set.Icc i j) (k : Fin q.segments) (u : ℝ) : ℝ :=
@@ -158,16 +151,13 @@ private theorem interval_source_position_bounds {p : Route} {i j : Fin p.segment
   constructor
   · by_cases h : k.val = i
     · simpa only [position, h, add_le_add_iff_left, ↓reduceIte] using hv.1
-    · have hlt := lt_of_le_of_ne k.property.1 (Ne.symm h)
-      have hstep : (i.val : ℝ) + 1 ≤ k.val.val := by
-        exact_mod_cast (show i.val < k.val.val from hlt)
+    · have hstep : (i.val : ℝ) + 1 ≤ k.val.val :=
+        mod_cast lt_of_le_of_ne k.property.1 (Ne.symm h)
       dsimp only [position]
       linarith only [hi, hv₀.1, hstep]
   · by_cases h : k.val = j
     · simpa only [position, h, add_le_add_iff_left, ↓reduceIte] using hv.2
-    · have hlt := lt_of_le_of_ne k.property.2 h
-      have hstep : (k.val.val : ℝ) + 1 ≤ j.val := by
-        exact_mod_cast (show k.val.val < j.val from hlt)
+    · have hstep : (k.val.val : ℝ) + 1 ≤ j.val := mod_cast lt_of_le_of_ne k.property.2 h
       dsimp only [position]
       linarith only [hj, hv₀.2, hstep]
 
@@ -213,17 +203,13 @@ private theorem interval_exterior_interior_iff {p q : Route} {i j : Fin p.segmen
       have he := htime
       simp only [intervalTime, h, AffineMap.lineMap_apply_zero] at he
       split_ifs at he with hk
-      · rcases hstart with hs | hs
-        · exact he.trans hs
-        · exact (hout (by simpa only [hk, he] using hs)).elim
+      · exact hstart.elim (he.trans ·) fun hs => (hout (by simpa only [hk, he] using hs)).elim
       · exact he
     have hone (h : u = 1) : v = 1 := by
       have he := htime
       simp only [intervalTime, h, AffineMap.lineMap_apply_one] at he
       split_ifs at he with hk
-      · rcases hfinish with ht | ht
-        · exact he.trans ht
-        · exact (hout (by simpa only [hk, he] using ht)).elim
+      · exact hfinish.elim (he.trans ·) fun ht => (hout (by simpa only [hk, he] using ht)).elim
       · exact he
     exact ⟨lt_of_le_of_ne hu.1 (fun h => hv.1.ne' (hzero h.symm)),
       lt_of_le_of_ne hu.2 (fun h => hv.2.ne (hone h))⟩
@@ -313,13 +299,9 @@ private theorem exists_route_support_between (p : Route) (i j : Fin p.segments) 
       let l := e.symm ⟨k, hk⟩
       have hel : (e l).val = k := congrArg Subtype.val (e.apply_symm_apply ⟨k, hk⟩)
       obtain ⟨_, hlt, _, he⟩ := hspec l
-      rw [← hel] at hu hwu
-      have hu' : u ∈ segment ℝ (if (e l).val = i then s else 0)
-          (if (e l).val = j then t else 1) := by
-        rw [segment_eq_Icc hlt.le]
-        exact hu
-      rw [segment_eq_image_lineMap] at hu'
-      obtain ⟨v, hv, rfl⟩ := hu'
+      rw [← hel, ← segment_eq_Icc hlt.le, segment_eq_image_lineMap] at hu
+      obtain ⟨v, hv, rfl⟩ := hu
+      rw [← hel] at hwu
       exact ⟨l, v, hv, (he v).trans hwu⟩
 
 private theorem intervalSupport_subset (p : Route) (i j : Fin p.segments) {s t : ℝ}
@@ -333,9 +315,7 @@ private theorem intersectionParity_eq_zero_of_disjoint {p r : Route}
     (h : Disjoint p.support r.support) : p.intersectionParity r = 0 := by
   classical
   unfold intersectionParity
-  refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => ?_
-  change decide _ = false
-  apply decide_eq_false
+  refine Finset.sum_eq_zero fun i _ => Finset.sum_eq_zero fun j _ => decide_eq_false ?_
   rintro ⟨z, hi, hj⟩
   exact Set.disjoint_left.mp h
     (Set.mem_iUnion.mpr ⟨i, openSegment_subset_segment ℝ _ _ hi⟩)
@@ -511,11 +491,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       rw [image_segment, AffineEquiv.coe_toAffineMap, hfb, hfd]
     rintro (h | h)
     · exact Set.disjoint_left.mp hdisjoint h (hreflect ▸ ⟨z, h, hfz⟩)
-    · have himg := h
-      rw [← hreflect] at himg
-      obtain ⟨w, hw, he⟩ := himg
-      have hwz : w = z := f.injective (he.trans hfz.symm)
-      exact Set.disjoint_left.mp hdisjoint (hwz ▸ hw) h
+    · obtain ⟨w, hw, he⟩ := hreflect ▸ h
+      exact Set.disjoint_left.mp hdisjoint (f.injective (he.trans hfz.symm) ▸ hw) h
   have hq : q.support = E ∪ N := by
     dsimp only [q]
     rw [support_concat _ _ hjoinS, support_concat _ _ hjoinR, support_concat _ _ hjoinM,
@@ -1004,11 +981,8 @@ theorem exists_splice_of_isolated_crossing (p : Route) (i j : Fin p.segments) (h
       · exact Or.inr (he.symm ▸ lineMap_mem_segment ℝ _ _ hv)
     · intro hw
       exact ⟨hq.symm ▸ Or.inr hw, hNew hw⟩
-  have hNoCenter : z ∉ q.support := by
-    intro hz
-    have hzB : z ∈ q.support ∩ B := ⟨hz, Metric.mem_closedBall_self hρ.le⟩
-    rw [hDisk] at hzB
-    exact hcenter hzB
+  have hNoCenter : z ∉ q.support := fun hz =>
+    hcenter (hDisk ▸ ⟨hz, Metric.mem_closedBall_self (x := z) hρ.le⟩)
   refine ⟨q, hstart, hfinish, hNoCenter, ?_, ?_, ?_, hCross, hpositions, hExteriorContact, hnondeg,
     hExteriorVisit, hPoints, hAvoid, hexterior_open, li, ui, lj, uj,
     hli, hi₀, hui, hlj, hj₀, huj, ha, hb, hc, hd, hDisk, hdisjoint⟩

@@ -214,8 +214,7 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     split_ifs at hr' with heq
     · subst heq
       refine ⟨mul_tailCapPerBucket_add_lt_maxTailItems hb' (by omega), fun hne => ?_⟩
-      have : r' ≠ gm (gmRIdx b') := fun h => hne (by simp [d_new, h])
-      omega
+      exact Nat.lt_of_le_of_ne (by omega) fun h => hne (by simp [d_new, h])
     · exact ⟨mul_tailCapPerBucket_add_lt_maxTailItems hb' (hr'.trans_le (htail.r_le b' hb')),
         fun _ => hr'⟩
   refine ⟨rfl, by rw [hpres.2.1]; omega,
@@ -233,8 +232,7 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · obtain ⟨hd'_lt, hold⟩ := hslot_info b' hb' r' hr'
     rw [gmTailPtrIdx, hptr_val _ hd'_lt]
     split_ifs with hdeq
-    · rw [hown_val (gm 1) ht]
-      simp [hdeq]
+    · simp [hown_val (gm 1) ht, hdeq]
     · have ht'_lt := htail.ptr_lt b' hb' r' (hold hdeq)
       rw [← gmTailPtrIdx, hown_val _ (lt_trans ht'_lt ht), ite_eq_right (by omega)]
       exact htail.owner_ptr b' hb' r' (hold hdeq)
@@ -390,10 +388,8 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
         gmRemoveTail n_max gm b (gmRIdx (d / tailCapPerBucket n_max)) := by
     rw [hr_fn _ hbd]
     split_ifs with hbeq
-    · rw [hbeq] at hrd
-      have : d % tailCapPerBucket n_max ≠ r_del :=
-        fun h => hne (by rw [← Nat.div_add_mod' d (tailCapPerBucket n_max), hbeq, h])
-      omega
+    · exact Nat.lt_of_le_of_ne (by rw [hbeq] at hrd; omega) fun h =>
+        hne (by rw [← Nat.div_add_mod' d (tailCapPerBucket n_max), hbeq, h])
     · exact hrd
   refine ⟨rfl, by rw [hpres.2.1]; have := htail.ntails_le; omega,
     fun b' hb' => by
@@ -413,8 +409,7 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · obtain ⟨hr'_old, hd'_lt, hne_del⟩ := hslot_info hb' hr'
     rw [gmTailPtrIdx, hptr_val _ hd'_lt]
     split_ifs with hdeq
-    · rw [hown_val t_del ht_del_max]
-      simp [hdeq]
+    · simp [hown_val t_del ht_del_max, hdeq]
     · have ht'_lt := htail.ptr_lt b' hb' r' hr'_old
       have ht'_ne : gm (gmTailPtrIdx n_max b' r') ≠ t_del := fun h =>
         hne_del (by rw [← htail.owner_ptr b' hb' r' hr'_old, h, hown_del])
@@ -425,19 +420,15 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     have ht_old : t < gm 1 := by omega
     rw [hown_val t (ht_old.trans_le htail.ntails_le)]
     split_ifs with hteq
-    · have hne : d_last ≠ d_del := fun heq => by
-        have : t_last = t_del :=
-          hptr_last.symm.trans (congrArg (fun x => gm (gmTailPtrFlatIdx n_max x)) heq)
-        omega
+    · have hne : d_last ≠ d_del := fun heq =>
+        (hteq ▸ ht').ne' (hptr_last.symm.trans (congrArg (gm ∘ gmTailPtrFlatIdx n_max) heq))
       exact ⟨hb_last, howner_r d_last hb_last hr_last hne,
         by rw [hptr_val d_last (htail.owner_lt_maxTailItems ht_last_lt)]; simp [hteq.symm]⟩
     · obtain ⟨hb_t, hr_t, hptr_t⟩ := htail.owner_valid t ht_old
       set d_t := gm (gmTailOwnerIdx n_max t)
       have hne_del : d_t ≠ d_del := fun heq =>
         hteq (hptr_t.symm.trans (congrArg (fun x => gm (gmTailPtrFlatIdx n_max x)) heq))
-      have hne_last : d_t ≠ d_last := fun heq => by
-        have : t = t_last := by rw [← hptr_t, heq, hptr_last]
-        omega
+      have hne_last : d_t ≠ d_last := fun heq => ht'.ne (by rw [← hptr_t, heq, hptr_last])
       exact ⟨hb_t, howner_r d_t hb_t hr_t hne_del,
         by rw [hptr_val d_t (htail.owner_lt_maxTailItems ht_old), ite_eq_right hne_last, hptr_t]⟩
 

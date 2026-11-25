@@ -285,11 +285,9 @@ private theorem length_ite_bool {b : Bool} {l₁ l₂ : List Bool} {n : ℕ}
 private theorem plsPpadsPotential_jump_lt {k m B c₁ c₂ : ℕ}
     (hstep : c₁ < c₂) (hB : c₂ < B) :
     (B - c₂) * 2 ^ (k + m) + (2 ^ (k + m) - 2 ^ m) < (B - c₁) * 2 ^ (k + m) := by
-  have hle : (B - c₂ + 1) * 2 ^ (k + m) ≤ (B - c₁) * 2 ^ (k + m) :=
-    Nat.mul_le_mul_right _ (by omega)
-  have hadd : (B - c₂) * 2 ^ (k + m) + 2 ^ (k + m) = (B - c₂ + 1) * 2 ^ (k + m) := by
-    rw [Nat.add_mul, Nat.one_mul]
-  have hsub := two_pow_sub_lt k m
+  have hle := Nat.mul_le_mul_right (2 ^ (k + m)) (show B - c₂ + 1 ≤ B - c₁ by omega)
+  rw [Nat.add_mul, Nat.one_mul] at hle
+  have := two_pow_sub_lt k m
   omega
 
 /-- Every moved vertex under `plsPpadsSucc` has a consistent predecessor, avoids `0 ^ W`, and
@@ -328,12 +326,9 @@ private theorem plsPpadsSucc_spec (hx : x.length = n₁ a) (hz : z.length = n₁
           (B a - C₁ (a, x)) * 2 ^ (n₁ a + n₂ a) + binaryValue r <
             plsPpadsPotential n₁ C₁ n₂ B
               (a, x ++ (z' ++ binaryWord (n₁ a + n₂ a) (binaryValue r + 1))) := by
-        refine ⟨?_, ?_⟩
-        · rw [ne_eq, append_three_eq_zeroVertex_iff hx hz']
-          intro h0
-          have hv := congrArg binaryValue h0.2.2
-          rw [binaryValue_binaryWord, binaryValue_zeroVertex] at hv
-          exact hk1_ne hv
+        refine ⟨fun h0 => hk1_ne ?_, ?_⟩
+        · simpa only [binaryValue_binaryWord, binaryValue_zeroVertex] using
+            congrArg binaryValue ((append_three_eq_zeroVertex_iff hx hz').mp h0).2.2
         · rw [plsPpadsPotential_append hx hz', binaryValue_binaryWord]
           omega
       by_cases hαK : binaryValue z < 2 ^ n₂ a
@@ -528,9 +523,9 @@ theorem hasPotentialOut_plsPpads
       plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ (a, w) ≠ w := by
   obtain ⟨x, z, r, rfl, hx, hz, hr⟩ := exists_append_three hw
   rw [hasPotentialOut_eq_true_iff]
-  refine ⟨fun h => h.2.1, fun h => ?_⟩
-  obtain ⟨h₁, h₂, h₃⟩ := plsPpadsSucc_spec hx hz hr hN₁ hS₂ hB h
-  exact ⟨h₁, h, h₂, h₃⟩
+  exact ⟨fun h => h.2.1, fun h =>
+    let ⟨h₁, h₂, h₃⟩ := plsPpadsSucc_spec hx hz hr hN₁ hS₂ hB h
+    ⟨h₁, h, h₂, h₃⟩⟩
 
 /-- No edge of the combined instance is pruned: `hasPotentialIn` holds iff `plsPpadsPred` moves
 the vertex. -/
@@ -580,14 +575,12 @@ theorem plsPpads_sink
     have hw : (x ++ (z ++ r)).length = plsPpadsWidth n₁ n₂ a := by
       simp only [plsPpadsWidth, List.length_append, hx, hz, hr]; omega
     have hout_false : plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ (a, x ++ (z ++ r)) = x ++ (z ++ r) :=
-      not_ne_iff.mp fun hne => by
-        have ht := (hasPotentialOut_plsPpads hN₁ hS₂ hB hw).mpr hne
-        rw [h.2.1] at ht; cases ht
+      not_ne_iff.mp fun hne => Bool.false_ne_true
+        (h.2.1.symm.trans ((hasPotentialOut_plsPpads hN₁ hS₂ hB hw).mpr hne))
     rw [plsPpadsSucc_append hx hz] at hout_false
     have hn₁_pos : 0 < n₁ a := Nat.pos_of_ne_zero fun hn0 => by
-      have h1 : x = [] := List.length_eq_zero_iff.mp (hx.trans hn0)
-      have h2 : N₁ (a, x) = [] := List.length_eq_zero_iff.mp ((hN₁ x hx).trans hn0)
-      rw [h2, h1] at hstep
+      rw [List.length_eq_zero_iff.mp ((hN₁ x hx).trans hn0),
+        List.length_eq_zero_iff.mp (hx.trans hn0)] at hstep
       exact Nat.lt_irrefl _ hstep
     have hM_pos : 0 < 2 ^ (n₁ a + n₂ a) - 2 ^ n₂ a :=
       Nat.sub_pos_of_lt (Nat.pow_lt_pow_right (by decide) (by omega))
@@ -629,10 +622,8 @@ theorem plsPpads_sink
     have no_step_r (z' : List Bool) (hz' : z'.length = n₁ a + n₂ a)
         (heq : x ++ (z' ++ binaryWord (n₁ a + n₂ a) (binaryValue r + 1)) = x ++ (z ++ r)) :
         False := by
-      have hr_eq := (append_three_inj hx hz' hx hz heq).2.2
-      have hval := congrArg binaryValue hr_eq
-      rw [binaryValue_binaryWord] at hval
-      omega
+      have hval := congrArg binaryValue (append_three_inj hx hz' hx hz heq).2.2
+      rw [binaryValue_binaryWord] at hval; omega
     dsimp only [plsPpadsSuccCore] at hout_false
     simp only [decide_eq_true hstep, decide_eq_true hkM, ↓reduceIte] at hout_false
     -- Step 2: `α < K` must hold, else the shift branch advances `k` to `k + 1`.
@@ -798,8 +789,7 @@ theorem mem_SOPL_of_localOpt_sinkOfLine (hR : R ∈ FNP enc)
   obtain ⟨m₀, hm₀, hB⟩ := exists_potentialBound hn₁ hC₁
   have hBpt : ComputableInPolyTime (fun a => 2 ^ m₀ a) enc encNat := by fun_prop
   have hW : ComputableInPolyTime (plsPpadsWidth n₁ n₂) enc encUnary := by
-    unfold plsPpadsWidth
-    fun_prop
+    fun_prop [plsPpadsWidth]
   let optTest (p : α × List Bool) : Bool :=
     decide (C₁ (p.1, p.2.take (n₁ p.1)) ≤ C₁ (p.1, N₁ (p.1, p.2.take (n₁ p.1))))
   let g (p : α × List Bool) : List Bool :=

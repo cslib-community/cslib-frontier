@@ -191,8 +191,7 @@ private theorem exists_sep_node (hP : P.Solves R U V) (rules : Rules I R)
         (Nat.zero_le 1)⟩
   · obtain ⟨f, hf, hs⟩ := rules.rect (A ∩ (P.step j).leafAlice ℓ) (B ∩ (P.step j).leafBob ℓ) o
       fun x hx y hy => by
-        have := hP.2 j x (hA hx.1) y (hB hy.1) (.inr o) ((hrun x hx y hy).trans hout)
-        simpa using this
+        simpa using hP.2 j x (hA hx.1) y (hB hy.1) (.inr o) ((hrun x hx y hy).trans hout)
     exact ⟨f, hf, hs.mono Set.subset_union_left Set.Subset.rfl le_rfl⟩
 
 /-- A tree protocol at an inner node, of depth at most that of the dag-like protocol, gives a
@@ -229,9 +228,8 @@ private theorem exists_gates (hP : P.Solves R U V) (rules : Rules I R) :
       · obtain ⟨f, hf, hs⟩ := exists_sep_node hP rules (j := Fin.castLE j.isLt.le i)
           (hgated _ (by simpa [hj] using i.isLt)) Set.inter_subset_left Set.inter_subset_left
           fun x hx y hy => by
-            have := hP.2 j x hx.1 y hy.1 (.inl i)
+            simpa using hP.2 j x hx.1 y hy.1 (.inl i)
               ((Protocol.run_eq_leafOutput hx.2 hy.2).trans hout)
-            simpa using this
         exact ⟨f, fun _ _ => hf,
           hs.mono Set.Subset.rfl Set.Subset.rfl (two_mul_leafCount_sub_one_le _)⟩
       · exact ⟨fun _ => false, by simp,
@@ -247,12 +245,10 @@ private theorem exists_gates (hP : P.Solves R U V) (rules : Rules I R) :
       rw [Nat.succ_mul]
       omega
     · rcases Nat.lt_succ_iff_lt_or_eq.1 hj' with hlt | heq
-      · intro ℓ i h
-        obtain ⟨f, hf, hsep⟩ := hgated j' hlt ℓ i h
-        exact ⟨f, Or.inl hf, hsep⟩
+      · exact fun ℓ i h => let ⟨f, hf, hsep⟩ := hgated j' hlt ℓ i h
+          ⟨f, Or.inl hf, hsep⟩
       · obtain rfl : j' = j := Fin.ext (heq.trans hj.symm)
-        intro ℓ i h
-        exact ⟨g ℓ, Or.inr ⟨ℓ, rfl⟩, (hg ℓ).1 i h⟩
+        exact fun ℓ i h => ⟨g ℓ, Or.inr ⟨ℓ, rfl⟩, (hg ℓ).1 i h⟩
 
 /-- **The separator.** A dag-like protocol solving `R` on `U × V` gives a function that is true on
 `U` and false on `V`, synthesized with at most `(k · 2 ^ t + 1) · 2 ^ (t + 1)` gates, where `t` is
@@ -261,15 +257,14 @@ private theorem exists_sep (hP : P.Solves R U V) (rules : Rules I R) :
     ∃ f, Sep f U V ∧
       Synthesis I (inputs n) {f} ((k * 2 ^ P.depth + 1) * 2 ^ (P.depth + 1)) := by
   obtain ⟨T, hT, hgated⟩ := exists_gates hP rules k le_rfl
-  have hroot := hP.1
   rcases hr : P.root with j | o
   · obtain ⟨f, hf, hs⟩ := exists_sep_node hP rules (hgated j j.isLt) Set.Subset.rfl
-      Set.Subset.rfl fun x hx y hy => by simpa [hr] using hroot x hx y hy
+      Set.Subset.rfl fun x hx y hy => by simpa [hr] using hP.1 x hx y hy
     refine ⟨f, hf, (hT.trans hs).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
     have := two_mul_leafCount_sub_one_le (P := P) j
     rw [Nat.add_mul, one_mul, Nat.mul_assoc]
     omega
-  · obtain ⟨f, hf, hs⟩ := rules.rect U V o fun x hx y hy => by simpa [hr] using hroot x hx y hy
+  · obtain ⟨f, hf, hs⟩ := rules.rect U V o fun x hx y hy => by simpa [hr] using hP.1 x hx y hy
     exact ⟨f, hf, hs.mono Set.Subset.rfl Set.Subset.rfl
       (Nat.mul_pos (Nat.succ_pos _) (Nat.two_pow_pos _))⟩
 

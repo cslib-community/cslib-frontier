@@ -974,24 +974,19 @@ theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable
           · subst hx; simp [Ne.symm hqp₁, hp₁_not_cl]
           · simp [hx, hex x hx]
       have hlv_q := hlv_lt_all q hqp₁
-      by_cases hall_cl : insert q cl₁ = Finset.univ.erase p₁
-      · refine ⟨.checkLevel p₁ q,
-          { s with phase := Function.update s.phase p₁ (nextAfterRoom r_max) }, ?_, ?_, ?_⟩
-        · simp [FilterAction.actor, FilterState.isTrying, hp₁_ph, FilterPhase.isTrying]
-        · simp only [filterLock, filterStep?, hp₁_ph, hqp₁, hlv_q, hall_cl, ne_eq,
+      let nextPh := if insert q cl₁ = Finset.univ.erase p₁ then nextAfterRoom r_max
+        else .waitRoom r_max (insert q cl₁)
+      refine ⟨.checkLevel p₁ q, { s with phase := Function.update s.phase p₁ nextPh },
+        ?_, ?_, potential_update_gt rfl ?_⟩
+      · simp [FilterAction.actor, FilterState.isTrying, hp₁_ph, FilterPhase.isTrying]
+      · dsimp only [nextPh]
+        split_ifs with hall_cl <;>
+          simp only [filterLock, filterStep?, hp₁_ph, hqp₁, hlv_q, hall_cl, ne_eq,
             not_false_eq_true, ↓reduceIte]
-        · apply potential_update_gt rfl
-          simp only [hp₁_ph, FilterPhase.potential]
-          exact nextAfterRoom_potential_gt r_max cl₁.card (hcl_lt_of_wait p₁ cl₁ hp₁_ph)
-      · refine ⟨.checkLevel p₁ q,
-          { s with phase := Function.update s.phase p₁ (.waitRoom r_max (insert q cl₁)) },
-          ?_, ?_, ?_⟩
-        · simp [FilterAction.actor, FilterState.isTrying, hp₁_ph, FilterPhase.isTrying]
-        · simp only [filterLock, filterStep?, hp₁_ph, hqp₁, hlv_q, hall_cl, ne_eq,
-            not_false_eq_true, ↓reduceIte]
-        · apply potential_update_gt rfl
-          simp only [hp₁_ph, FilterPhase.potential,
-            Finset.card_insert_of_notMem (hq.resolve_right hall_cl)]
+      · dsimp only [nextPh]
+        split_ifs with hall_cl <;> simp only [hp₁_ph, FilterPhase.potential]
+        · exact nextAfterRoom_potential_gt r_max cl₁.card (hcl_lt_of_wait p₁ cl₁ hp₁_ph)
+        · rw [Finset.card_insert_of_notMem (hq.resolve_right hall_cl)]
           omega
 
 private theorem trying_step_leads_to_trying_or_cs {n : ℕ} {s s' : FilterState n}
@@ -1454,19 +1449,17 @@ private theorem solo_enters_cs_from_init {π : MutexProtocol P Reg Val State}
         · simp [MutexConfig.inCS, hoth i q hqp, π.init_remainder q] at hcs
       let ss : ωSequence (MutexConfig P Reg Val State) := ⟨fun m => soloIter π p m c_enter⟩
       let μs : ωSequence (MutexAction P) := ⟨fun _ => .step p⟩
-      have hss : ∀ m, ss m = soloIter π p m c_enter := fun _ => rfl
-      have hμs : ∀ m, μs m = .step p := fun _ => rfl
-      have hexec : π.lts.OmegaExecution ss μs := by
-        intro m
-        rw [hss, hss, hμs, soloIter_succ_right]
+      have hexec : π.lts.OmegaExecution ss μs := fun m => by
+        change π.lts.Tr (soloIter π p m c_enter) (.step p) (soloIter π p (m + 1) c_enter)
+        rw [soloIter_succ_right]
         have hact : (soloIter π p m c_enter).isActive π p := Or.inl (hall_try m)
         simp [MutexProtocol.lts, MutexProtocol.step?, hact]
       have hfair : π.WeakFair ss μs := by
         intro q i hact_all
         by_cases hqp : q = p
-        · subst hqp; exact ⟨i, le_rfl, rfl⟩
+        · exact hqp ▸ ⟨i, le_rfl, rfl⟩
         · have hact_i := hact_all i le_rfl
-          simp [hss, MutexConfig.isActive, hoth i q hqp, π.init_remainder q] at hact_i
+          simp [ss, MutexConfig.isActive, hoth i q hqp, π.init_remainder q] at hact_i
       have hcs_exit : π.CSEventuallyExits ss μs := fun q i hcs_i => (hno_cs i q hcs_i).elim
       obtain ⟨k, q, hcs_kq⟩ := hdf ss μs hr_enter hexec hfair hcs_exit ⟨p, htry_enter⟩
       exact hno_cs k q hcs_kq
@@ -1540,8 +1533,7 @@ theorem not_deadlockFreeMutex_of_single_register
       (hr_enter₀.mTr hmtr_d₀) hp_ne
       (soloIter_mem_of_no_write π p₀ k₀ c_enter₀ hnw_all)
       (hoth₀ p₁ hp_ne.symm)
-    have hcs_d₂_0 : d₂.inCS π p₀ := by
-      unfold MutexConfig.inCS at hcs₀ ⊢; rwa [hp₀_eq]
+    have hcs_d₂_0 : d₂.inCS π p₀ := by simpa only [MutexConfig.inCS, hp₀_eq] using hcs₀
     exact hp_ne (hme d₂ hr_d₂ p₀ p₁ hcs_d₂_0 hcs_d₂_1)
   -- Pick the first write index `j < k₀` along `p₀`'s solo entry.
   let j := Nat.find hex_write
@@ -1561,9 +1553,7 @@ theorem not_deadlockFreeMutex_of_single_register
     (soloIter_mem_of_no_write π p₀ j c_enter₀ hnw_pre) hc₀_p₁
   -- Fire `p₀`'s poised write from `c₁`, covering `p₁`'s traces in the single register!
   have hc₁_try₀ : c₁.isTrying π p₀ := by
-    have htry_c₀ := htry₀ j hj_lt
-    unfold MutexConfig.isTrying at htry_c₀ ⊢
-    rwa [hc₁_p₀]
+    simpa only [MutexConfig.isTrying, hc₁_p₀] using htry₀ j hj_lt
   let c₂ := π.execRegStep c₁ p₀
   have htr_c₂ : π.lts.Tr c₁ (.step p₀) c₂ := by
     have hact : c₁.isActive π p₀ := Or.inl hc₁_try₀
@@ -1571,20 +1561,16 @@ theorem not_deadlockFreeMutex_of_single_register
     rfl
   have hr_c₂ : π.Reachable c₂ := hr_c₁.step_tr htr_c₂
   have hc₂_cs₁ : c₂.inCS π p₁ := by
-    unfold MutexConfig.inCS at hc₁_cs₁ ⊢
-    rwa [show c₂.localState p₁ = c₁.localState p₁ from execRegStep_other hp_ne.symm]
+    simpa only [MutexConfig.inCS, execRegStep_other hp_ne.symm, c₂] using hc₁_cs₁
   let a₂ := soloIter π p₀ (j + 1) c_enter₀
-  have ha₂_eq : a₂ = π.execRegStep c₀ p₀ := soloIter_succ_right π p₀ j c_enter₀
   have hcover : a₂.mem = c₂.mem ∧ a₂.localState p₀ = c₂.localState p₀ := by
-    rw [ha₂_eq]
+    rw [show a₂ = π.execRegStep c₀ p₀ from soloIter_succ_right π p₀ j c_enter₀]
     dsimp only [c₂, MutexProtocol.execRegStep]
     rw [hc₁_p₀]
     cases hstep₀ : π.step p₀ (c₀.localState p₀) with
-    | localStep _ => rw [hstep₀] at hj_write; cases hj_write
-    | read _ _ => rw [hstep₀] at hj_write; cases hj_write
+    | localStep _ | read _ _ => simp [hstep₀, RegStep.isWrite] at hj_write
     | write r val next₀ =>
-      refine ⟨funext fun r' => ?_, by simp⟩
-      rcases Subsingleton.elim r' r with rfl
+      refine ⟨funext fun r' => by simp [Subsingleton.elim r' r], ?_⟩
       simp
   -- Replay `p₀`'s remaining `k₀ - (j + 1)` solo steps into `.cs` while `p₁` stays in `.cs`!
   let rem := k₀ - (j + 1)
@@ -1596,14 +1582,9 @@ theorem not_deadlockFreeMutex_of_single_register
   let c₃ := soloIter π p₀ rem c₂
   have hr_c₃ : π.Reachable c₃ := hr_c₂.mTr hmtr_c₃
   have hc₃_cs₀ : c₃.inCS π p₀ := by
-    have ha₃_eq : soloIter π p₀ rem a₂ = soloIter π p₀ k₀ c_enter₀ := by
-      rw [← soloIter_add π p₀ (j + 1) rem c_enter₀, hrem_add]
-    unfold MutexConfig.inCS at hcs₀ ⊢
-    rw [← hloc_c₃_0, ha₃_eq]
-    exact hcs₀
+    simpa only [MutexConfig.inCS, c₃, a₂, ← hloc_c₃_0, ← soloIter_add, hrem_add] using hcs₀
   have hc₃_cs₁ : c₃.inCS π p₁ := by
-    unfold MutexConfig.inCS at hc₂_cs₁ ⊢
-    rwa [soloIter_other π p₀ hp_ne.symm]
+    simpa only [MutexConfig.inCS, soloIter_other π p₀ hp_ne.symm, c₃] using hc₂_cs₁
   exact hp_ne (hme c₃ hr_c₃ p₀ p₁ hc₃_cs₀ hc₃_cs₁)
 
 end SingleRegisterImpossibility

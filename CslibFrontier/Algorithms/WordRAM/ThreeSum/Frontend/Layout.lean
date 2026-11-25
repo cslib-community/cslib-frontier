@@ -190,13 +190,10 @@ theorem array_magnitude {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
     |Signed.decode u| ≤ (2 * U : ℕ) := by
   rcases array_values hkeys U Λ j u hu with rfl | ⟨z, hz, rfl | rfl⟩
   · simp [Signed.decode]
-  · rw [Signed.decode_encode]
-    have := hvalues z hz
-    omega
-  · rw [Signed.decode_encode]
+  · simpa only [Signed.decode_encode] using (hvalues z hz).trans (by omega)
+  · rw [Signed.decode_encode, abs_le]
     have := abs_le.mp (hvalues z hz)
-    apply abs_le.mpr
-    constructor <;> omega
+    omega
 
 /-- The compact root lists before their native layout is assigned. -/
 def roots (U : ℕ) (rs : List (ℕ × ℕ)) : List (List ℕ × List ℕ × List ℕ) :=
@@ -304,12 +301,8 @@ theorem Output.read_array {l : Layout} {U : ℕ} {rs : List (ℕ × ℕ)} {mem :
     (h : Output l U rs mem) {j : ℕ} (hj : j < l.arrays) :
     readArray mem (l.descriptors + 2 * j) = Math.array U l.digits rs j := by
   obtain ⟨hl, hp, hm⟩ := h j hj
-  unfold readArray
-  rw [hl, hp]
-  apply List.ext_getElem
-  · simp
-  · intro i hi hi'
-    simpa only [List.getElem_map, List.getElem_range] using hm.get i hi'
+  refine List.ext_getElem (by simp [readArray, hl]) fun i _ hi' => ?_
+  simpa only [readArray, hp, List.getElem_map, List.getElem_range] using hm.get i hi'
 
 /-- The descriptor table reads back as exactly the existing finite frontend list, in order. -/
 theorem Output.readback {n U : ℕ} {input : List ℤ} {rs : List (ℕ × ℕ)} {mem : ℕ → ℕ}

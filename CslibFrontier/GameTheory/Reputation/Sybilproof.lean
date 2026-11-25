@@ -493,9 +493,7 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             rw [TrustGraph.contract_weight_of_ne _ _ hab, hflt a, hflt b]
             rcases eq_or_ne a v with rfl | hav <;> rcases eq_or_ne b v with rfl | hbv
             · exact absurd rfl hab
-            · simp [hbv, TrustGraph.disjointUnion]
-            · simp [hav, TrustGraph.disjointUnion]
-            · simp [hav, hbv, TrustGraph.disjointUnion] }
+            all_goals simp [*, TrustGraph.disjointUnion] }
     have hcard : S₀.sybils.card ≤ 2 := by
       have hsub : S₀.sybils ⊆ {Sum.inl v, Sum.inr 0} := fun x hx => by
         rw [SybilStrategy.mem_sybils] at hx
@@ -537,10 +535,7 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
             collapse_honestEmbed := fun ⟨w, hw⟩ => by
               rcases w with i | j
               · rfl
-              · have hne : j.1 ≠ m - 1 := fun hv =>
-                  hw <| congrArg Sum.inr <| Fin.ext <| by
-                    dsimp
-                    exact hv
+              · have hne : j.1 ≠ m - 1 := fun hv => hw (congrArg Sum.inr (Fin.ext hv))
                 simp [πStep, stepFin, Nat.min_eq_left (by omega : j.1 ≤ m - 1)]
             honestEmbed_collapse := fun x hx => by
               rcases x with i | j
@@ -581,10 +576,8 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
           (Sum.inl lastIdx) (by simp [target]) hprev
   have hfinal := hind n (by omega) le_rfl
   have hHn : H n (by omega) = G := by
-    have hclamp_id : clampFin (n := n) (k := n) (by omega) = id := by
-      ext i
-      simp [clampFin]
-      omega
+    have hclamp_id : clampFin (n := n) (k := n) (by omega) = id :=
+      funext fun i => Fin.ext (Nat.min_eq_left (by omega))
     simp [H, hclamp_id]
   rw [hHn] at hfinal
   let swapSum := Equiv.sumComm (Fin n) (Fin n)
@@ -633,9 +626,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
       have hrel : (G_pref 0).relabel (Equiv.swap x y) = G_pref 0 := by
         ext
         simp [G_pref]
-      have h := hSym (G_pref 0) (Equiv.swap x y) x
-      rw [hrel, Equiv.swap_apply_left] at h
-      exact h.symm
+      simpa [hrel] using (hSym (G_pref 0) (Equiv.swap x y) x).symm
     | succ k ih =>
       intro hkn x y
       have ihk := ih (Nat.le_of_succ_le hkn)
@@ -652,9 +643,7 @@ theorem not_isRankStrategyproof_of_isSymmetric {F : GlobalRepFn} (hSym : F.IsSym
   have hGn : G_pref n = G := by
     ext u v
     simp [G_pref, u.2]
-  have heq := hconst n le_rfl (e v₀) (e w₀)
-  rw [hGn] at heq
-  exact hlt.ne heq
+  exact hlt.ne (hGn ▸ hconst n le_rfl (e v₀) (e w₀))
 
 end GlobalRepFn
 
@@ -820,23 +809,19 @@ private theorem maxFlowRep_maxFlowCounterexampleGraph :
     · simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
     · simpa [maxFlowCounterexampleGraph] using
         weight_le_cutWeight maxFlowCounterexampleGraph hs ht
-  · refine maxFlowRep_eq_of_cut _ (by decide) (X₀ := {0, 1}) (by decide) (by decide) ?_
+  · have hc01 : cutWeight maxFlowCounterexampleGraph.weight {0, 1} = 6 / 5 := by
+      simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
+      norm_num
+    refine maxFlowRep_eq_of_cut _ (by decide) (X₀ := {0, 1}) (by decide) (by decide) hc01
       fun X hs ht => ?_
+    have hX : X = if (1 : Fin 3) ∈ X then {0, 1} else {0} := by
+      ext z
+      fin_cases z <;> by_cases h1 : (1 : Fin 3) ∈ X <;> simp [hs, h1, ht]
+    rw [hX]
+    split_ifs
+    · exact hc01.ge
     · simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
       norm_num
-    · by_cases h1 : (1 : Fin 3) ∈ X
-      · have hX : X = {0, 1} := by
-          ext z
-          fin_cases z <;> simp [hs, h1, ht]
-        rw [hX]
-        simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
-        norm_num
-      · have hX : X = {0} := by
-          ext z
-          fin_cases z <;> simp [hs, h1, ht]
-        rw [hX]
-        simp [cutWeight, Fin.sum_univ_three, maxFlowCounterexampleGraph]
-        norm_num
 
 private theorem maxFlowRep_maxFlowCounterexampleSybilGraph :
     maxFlowRep maxFlowCounterexampleSybilGraph 0 1 = 1 ∧

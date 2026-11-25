@@ -408,15 +408,7 @@ theorem realizes_promoteStepGen :
       promoteStep_bounds hw ⟨hinv, hbp⟩
     first
     | exact hdict
-    | with_reducible exact hk
-    | with_reducible exact hpu
-    | with_reducible exact hpt
-    | with_reducible exact h0
-    | with_reducible exact htu
-    | with_reducible exact httop
-    | with_reducible exact hgu
-    | with_reducible exact hgtop
-    | with_reducible exact hgslab
+    | with_reducible assumption
     | exact ⟨hdict, htail', hinv.1, hr1, hbp⟩
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpu.le
     | exact fits_of_le_globalMetaLen hdict hbp hw hnU hU hpt.le

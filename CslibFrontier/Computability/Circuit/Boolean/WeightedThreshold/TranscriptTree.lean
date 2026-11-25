@@ -362,9 +362,7 @@ theorem prefixBank_inputWeight_natAdd (p : Program signature n g) (reads : Fin d
     (patterns : Fin m → Fin d → Bool) (i : Fin n) : ∀ j : Fin m,
     inputWeight (prefixBank p reads m patterns) (Fin.natAdd g j) i = 0 := by
   induction m with
-  | zero =>
-    intro i
-    exact i.elim0
+  | zero => exact fun j => j.elim0
   | succ m ih =>
     refine Fin.lastCases ?_ fun j => ?_
     · change inputWeight ((prefixBank p reads m _).gate _) (Fin.last (g + m)) i = 0
@@ -451,13 +449,12 @@ theorem eval_append_of_match (p : Program signature n g) (reads : Fin d → Fin 
     (hmatch : (fun j => p.eval interpretation x (reads j)) = patterns a) :
     (append p reads patterns w thresholds baseline).eval interpretation x (Fin.last (g + m)) =
       decide (thresholds a ≤ ∑ i, w i * (x i).toNat) := by
-  have hne (b : Fin m) (hba : b ≠ a) :
-      (fun j => p.eval interpretation x (reads j)) ≠ patterns b :=
-    fun h => hba (hinj (h.symm.trans hmatch))
   have hsum : (∑ b, (baseline - thresholds b) *
       (decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat) =
         baseline - thresholds a := by
-    rw [sum_eq_single a (fun b _ hba => by simp [hne b hba]) (fun h => (h (mem_univ a)).elim)]
+    rw [sum_eq_single a (fun b _ hba => by
+        simp [show _ ≠ patterns b from fun h => hba (hinj (h.symm.trans hmatch))])
+      (fun h => (h (mem_univ a)).elim)]
     simp [hmatch]
   rw [eval_append_last, hsum, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   exact ⟨fun h => by linarith, fun h => by linarith⟩
@@ -485,18 +482,11 @@ theorem eval_append_readout (p : Program signature n g) (reads : Fin d → Fin g
   classical
   rw [eval_append_last, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
   simp only [zero_mul, sum_const_zero, zero_add, sub_zero, one_mul]
-  constructor
-  · intro hs
-    by_contra hn
-    have hmiss (a : Fin m) : (fun j => p.eval interpretation x (reads j)) ≠ patterns a :=
-      fun ha => hn ⟨a, ha⟩
-    norm_num [hmiss] at hs
-  · rintro ⟨a, ha⟩
-    have hle := single_le_sum
-      (f := fun b : Fin m =>
-        ((decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat : ℝ))
+  refine ⟨fun hs => by_contra fun hn => ?_, fun ⟨a, ha⟩ => ?_⟩
+  · norm_num [show ∀ a, _ ≠ patterns a from fun a ha => hn ⟨a, ha⟩] at hs
+  · simpa [ha] using single_le_sum (f := fun b : Fin m =>
+      ((decide ((fun j => p.eval interpretation x (reads j)) = patterns b)).toNat : ℝ))
       (fun _ _ => Nat.cast_nonneg _) (mem_univ a)
-    simpa [ha] using hle
 
 /-- The scalar stage preserves all prior direct input coefficients. -/
 theorem inputWeight_append_castSucc (p : Program signature n g) (reads : Fin d → Fin g)
@@ -532,9 +522,7 @@ theorem card_inputGates_append (p : Program signature n g) (reads : Fin d → Fi
   classical
   rw [append, card_inputGates_gate, card_inputGates_prefixBank]
   simp only [queryLine_inputWeight]
-  by_cases h : w = 0
-  · simp [h]
-  · simp [h, show ∃ i, w i ≠ 0 from Function.ne_iff.mp h]
+  by_cases h : w = 0 <;> simp [h, ← Function.ne_iff, ← Pi.zero_def]
 
 end ScalarStage
 

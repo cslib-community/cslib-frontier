@@ -566,15 +566,18 @@ section MosselRoch
 private noncomputable def reflectUnit (c z : ℝ) : ℝ :=
   if z ∈ Ioo c 1 then 1 + c - z else z
 
+private theorem sub_mem_Ioo {c z : ℝ} (hz : z ∈ Ioo c 1) : 1 + c - z ∈ Ioo c 1 :=
+  ⟨by linarith [hz.2],
+    by linarith [hz.1]⟩
+
+private theorem sub_mem_Ioo_iff {c z : ℝ} : 1 + c - z ∈ Ioo c 1 ↔ z ∈ Ioo c 1 :=
+  ⟨fun h => sub_sub_cancel (1 + c) z ▸ sub_mem_Ioo h, sub_mem_Ioo⟩
+
 private theorem reflectUnit_involutive (c : ℝ) : Function.Involutive (reflectUnit c) := by
   intro z
   unfold reflectUnit
   by_cases hz : z ∈ Ioo c 1
-  · have hz' : 1 + c - z ∈ Ioo c 1 := by
-      rcases hz with ⟨h1, h2⟩
-      exact ⟨by linarith, by linarith⟩
-    simp only [hz, ↓reduceIte, hz']
-    ring
+  · simp only [hz, ↓reduceIte, sub_mem_Ioo_iff]; ring
   · simp [hz]
 
 private theorem measurable_reflectUnit (c : ℝ) : Measurable (reflectUnit c) :=
@@ -589,22 +592,11 @@ private theorem measurePreserving_reflectUnit {c : ℝ} (hc0 : 0 ≤ c) :
     let J := Ioo c 1
     have hJ_sub : J ⊆ Icc 0 1 := fun z hz => ⟨hc0.trans hz.1.le, hz.2.le⟩
     have hpre_inJ : (fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J) ⊆ J :=
-      fun _ ⟨_, h1, h2⟩ => ⟨by linarith, by linarith⟩
+      fun _ ⟨_, hz⟩ => sub_mem_Ioo_iff.mp hz
     have hpre : reflectUnit c ⁻¹' s = (fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J) ∪ (s \ J) := by
       ext z
-      simp only [mem_preimage, reflectUnit, J, mem_union, mem_inter_iff, mem_sdiff]
-      by_cases hz : z ∈ Ioo c 1
-      · have hz' : (1 + c) - z ∈ Ioo c 1 := by
-          refine ⟨?_, ?_⟩
-          · linarith [hz.2]
-          · linarith [hz.1]
-        simp [hz, hz']
-      · have hz' : (1 + c) - z ∉ Ioo c 1 := fun h => by
-          apply hz
-          refine ⟨?_, ?_⟩
-          · linarith [h.2]
-          · linarith [h.1]
-        simp [hz, hz']
+      simp only [mem_preimage, reflectUnit, J, mem_union, mem_inter_iff, mem_sdiff, sub_mem_Ioo_iff]
+      by_cases hz : z ∈ Ioo c 1 <;> simp [hz]
     rw [hpre]
     have hdisj1 : Disjoint ((fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J)) (s \ J) :=
       Disjoint.mono_left hpre_inJ disjoint_sdiff_right
@@ -631,6 +623,12 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 `U v ∈ (g_v(K), 1)` to `1 + g_v(K) - U v` for `v ∉ K`. -/
 private noncomputable def reflectMap (K : Finset V) (U : V → ℝ) : V → ℝ :=
   fun v => if v ∈ K then U v else reflectUnit (M.thresholdFn v K) (U v)
+
+private theorem reflectMap_of_notMem {K : Finset V} {U : V → ℝ} {v : V} (hv : v ∉ K)
+    (h1 : M.thresholdFn v K < U v) (h2 : U v < 1) :
+    M.reflectMap K U v = 1 + M.thresholdFn v K - U v := by
+  have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨h1, h2⟩
+  simp [reflectMap, hv, reflectUnit, hmem]
 
 private theorem reflectMap_involutive (K : Finset V) :
     Function.Involutive (M.reflectMap K) := by
@@ -689,26 +687,20 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
       · simp [Finset.piecewise_eq_of_notMem _ _ _ hv]
     refine ⟨(M.thresholdFinal_eq_iff_piecewise _ X K).mpr ⟨hpiece_eq ▸ hpiece, fun v hvK => ?_⟩,
       fun v => ?_⟩
-    · have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨hsurv v hvK, hlt1 v⟩
-      simp only [reflectMap, hvK, ↓reduceIte, reflectUnit, hmem]
-      linarith [hmem.2]
+    · rw [M.reflectMap_of_notMem hvK (hsurv v hvK) (hlt1 v)]
+      linarith [hlt1 v]
     · by_cases hvK : v ∈ K
       · simp [reflectMap, hvK, hlt1 v]
-      · have hmem : U v ∈ Ioo (M.thresholdFn v K) 1 := ⟨hsurv v hvK, hlt1 v⟩
-        simp only [reflectMap, hvK, ↓reduceIte, reflectUnit, hmem]
-        linarith [hmem.1]
+      · rw [M.reflectMap_of_notMem hvK (hsurv v hvK) (hlt1 v)]
+        linarith [hsurv v hvK]
   have hsum_ae : ∀ ψ : (V → ℝ) → ℝ, ∀ᵐ U ∂thresholdMeasure V,
       ψ U = ∑ K : Finset V, (E K).indicator ψ U := by
     intro ψ
     filter_upwards [ae_mem_Ioo_thresholdMeasure V] with U hU
     rw [Finset.sum_eq_single (M.thresholdFinal U X)]
-    · have hmem : U ∈ E (M.thresholdFinal U X) := ⟨rfl, fun v => (hU v).2⟩
-      rw [indicator_of_mem hmem]
-    · intro K _ hne
-      have hnot : U ∉ E K := fun h => hne h.1.symm
-      rw [indicator_of_notMem hnot]
-    · intro habs
-      exact absurd (Finset.mem_univ _) habs
+    · exact (indicator_of_mem (⟨rfl, fun v => (hU v).2⟩ : U ∈ E _) _).symm
+    · exact fun K _ hne => indicator_of_notMem (fun (h : U ∈ E K) => hne h.1.symm) _
+    · exact fun habs => absurd (Finset.mem_univ _) habs
   have hsum_lhs := hsum_ae fun U' => φ (M.reflectCouple X Y U')
   have hsum_rhs := hsum_ae fun U' => φ (M.thresholdFinal U' Y)
   have hint_piece_rhs : ∀ K : Finset V,
@@ -797,38 +789,20 @@ theorem isSubmodular_integral_thresholdFinal
   have hC_inter : Cstar ⊆ Astar ∩ Bstar := Finset.subset_inter hCA hCB
   -- Show `Dstar ⊆ Astar ∪ Bstar` via the least post-fixed point property of `thresholdFinal`.
   have hD_union : Dstar ⊆ Astar ∪ Bstar := by
-    have hD_eq : Dstar = M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ B) := by
-      have hunion : Astar ∪ (A ∪ B) = Astar ∪ B := by
-        have hAsub : A ⊆ Astar := M.subset_thresholdFinal U A
-        ext v
-        simp only [Finset.mem_union]
-        exact ⟨fun h => h.elim Or.inl fun h' => h'.elim (fun hvA => Or.inl (hAsub hvA)) Or.inr,
-          fun h => h.elim Or.inl (Or.inr ∘ Or.inr)⟩
-      change M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ (A ∪ B)) = _
-      rw [hunion]
-    rw [hD_eq]
+    change M.thresholdFinal (M.reflectMap Astar U) (Astar ∪ (A ∪ B)) ⊆ _
+    rw [← Finset.union_assoc, Finset.union_eq_left.mpr (M.subset_thresholdFinal U A)]
     have hB_sub : B ⊆ Bstar :=
       Finset.subset_union_right.trans (M.subset_thresholdFinal (M.reflectMap Cstar U) (Cstar ∪ B))
     refine M.thresholdFinal_subset_of_lt (Finset.union_subset_union_right hB_sub) fun v hvAB => ?_
     have hvA : v ∉ Astar := fun h => hvAB (Finset.mem_union_left _ h)
     have hvB : v ∉ Bstar := fun h => hvAB (Finset.mem_union_right _ h)
     have hvC : v ∉ Cstar := fun h => hvA (hCA h)
-    have hA_lt : M.thresholdFn v Astar < U v := M.thresholdFn_lt_of_notMem_thresholdFinal hvA
-    have hC_lt : M.thresholdFn v Cstar < U v := M.thresholdFn_lt_of_notMem_thresholdFinal hvC
     have hB_lt : M.thresholdFn v Bstar < M.reflectMap Cstar U v :=
       M.thresholdFn_lt_of_notMem_thresholdFinal hvB
-    have hRA : M.reflectMap Astar U v = 1 + M.thresholdFn v Astar - U v := by
-      have hmem : U v ∈ Ioo (M.thresholdFn v Astar) 1 := ⟨hA_lt, hlt1 v⟩
-      simp [reflectMap, hvA, reflectUnit, hmem]
-    have hRC : M.reflectMap Cstar U v = 1 + M.thresholdFn v Cstar - U v := by
-      have hmem : U v ∈ Ioo (M.thresholdFn v Cstar) 1 := ⟨hC_lt, hlt1 v⟩
-      simp [reflectMap, hvC, reflectUnit, hmem]
-    have hsub_v := hlocal v Astar Bstar
-    have hC_le_inter : M.thresholdFn v Cstar ≤ M.thresholdFn v (Astar ∩ Bstar) :=
-      M.monotone v hC_inter
-    rw [hRA]
-    rw [hRC] at hB_lt
-    linarith
+    rw [M.reflectMap_of_notMem hvC (M.thresholdFn_lt_of_notMem_thresholdFinal hvC) (hlt1 v)]
+      at hB_lt
+    rw [M.reflectMap_of_notMem hvA (M.thresholdFn_lt_of_notMem_thresholdFinal hvA) (hlt1 v)]
+    linarith [hlocal v Astar Bstar, M.monotone v hC_inter]
   calc φ Dstar + φ Cstar
       ≤ φ (Astar ∪ Bstar) + φ (Astar ∩ Bstar) :=
         add_le_add (hφ_mono hD_union) (hφ_mono hC_inter)

@@ -250,8 +250,7 @@ theorem Valid.card_isolated_le {S : State n} (hS : S.Valid f) {G : ℕ} (hG : G 
     (fun u => if hu : ∃ N ∈ S.children G, N ∈ S.children u then hu.choose else .inl G)
     (fun u hu => ?_) (fun u hu u' hu' heq => ?_)
   · obtain ⟨-, -, -, hex⟩ := Finset.mem_filter.1 hu
-    simp only [dite_eq_left hex]
-    exact hex.choose_spec.1
+    simpa only [dite_eq_left hex, Finset.mem_coe] using hex.choose_spec.1
   · obtain ⟨hus, -, -, hex⟩ := Finset.mem_filter.1 (Finset.mem_coe.1 hu)
     obtain ⟨hus', -, -, hex'⟩ := Finset.mem_filter.1 (Finset.mem_coe.1 hu')
     simp only [dite_eq_left hex, dite_eq_left hex'] at heq
@@ -370,9 +369,7 @@ private theorem MinimalAnd.not_isolatedBelow {S : State n} (hS : S.Valid f) {G x
   have hcG : S.children G = {.inl K} := children_eq_singleton hG1.le hNG
   refine ⟨K, u, fun K' hK' => ⟨fun hr => ?_, fun he => he ▸ hKG⟩, hK, hu1, hu2,
     ((SemiCircuit.inl_mem_children _).1 hNu).2⟩
-  have : Sum.inl K' ∈ S.children G := (SemiCircuit.inl_mem_children _).2 ⟨hK', hr⟩
-  rw [hcG, Finset.mem_singleton] at this
-  exact Sum.inl.inj this
+  exact Sum.inl.inj (Finset.mem_singleton.1 (hcG ▸ (SemiCircuit.inl_mem_children _).2 ⟨hK', hr⟩))
 
 /-- **Case 8** of [Mishra and Santhanam, Section 4.3][MishraSanthanam2026]: outside Case 7 and
 the bottleneck configuration, fix the input `x` of the minimal AND `G` so that `G` becomes
@@ -391,9 +388,8 @@ theorem Valid.step_fixInput {S : State n} (hS : S.Valid f) (hN : S.Normal) {G x 
       Reduction.wt_add_le_fixInput hS hN h h7 hred (by simpa using (Finset.mem_sdiff.1 hu).2)
   have hgain := Valid.card_isolated_le hS h.mem (S.params \ {x}) Finset.sdiff_subset
   rw [Finset.card_filter] at hgain
-  have hk : 1 ≤ S.deg G := by
-    obtain ⟨K, hK, hKG⟩ := h.has_child
-    exact Finset.card_pos.2 ⟨_, (SemiCircuit.inl_mem_children _).2 ⟨hK, hKG⟩⟩
+  obtain ⟨K, hK, hKG⟩ := h.has_child
+  have hk : 1 ≤ S.deg G := Finset.card_pos.2 ⟨_, (SemiCircuit.inl_mem_children _).2 ⟨hK, hKG⟩⟩
   have hym : y ∈ S.params \ {x} := Finset.mem_sdiff.2 ⟨h.mem_params_y, by simpa using h.ne.symm⟩
   have hloss : ∑ u ∈ S.params \ {x}, (if u = y ∧ S.deg x = 2 then 1 else 0) =
       if S.deg x = 2 then 1 else 0 := by
@@ -448,15 +444,13 @@ private theorem QuadOK.wt_add_le {S : State n} (hS : S.Valid f) {x y z G D : ℕ
   · rw [ite_eq_right huD]
     by_cases hu' : u ∈ (S.quad x y z G D α β γ c).unpaired
     · obtain ⟨hup, hun⟩ := mem_unpaired.1 hu'
-      have hup' : u ∈ S.params := by grind
-      have hus : u ∈ S.unpaired := mem_unpaired.2 ⟨hup', fun ⟨pr, hpr, hu⟩ =>
+      have hus : u ∈ S.unpaired := mem_unpaired.2 ⟨by grind, fun ⟨pr, hpr, hu⟩ =>
         hun ⟨pr, Finset.mem_insert_of_mem hpr, hu⟩⟩
       rw [wt_of_mem hu', wt_of_mem hus, config_weight]
       exact Nat.add_le_add_right (weight_mono (Finset.card_le_card
         ((quad_children_subset S x y z G D α β γ c u).trans
           ((Finset.erase_subset _ _).trans (Finset.erase_subset _ _))))) _
-    · rw [wt_of_notMem hu']
-      omega
+    · rw [wt_of_notMem hu']; omega
 
 /-- The quadratic reparameterisation of the bottleneck configuration, when `x` and `y` have
 degree at least two, is a step of gate elimination: `Δa = -1`, `ΔW ≤ -14`. -/
@@ -465,13 +459,11 @@ private theorem Valid.step_quad {S : State n} (hS : S.Valid f) {x y z G D : ℕ}
     Step f S (S.quad x y z G D α β γ c) := by
   set S' := S.quad x y z G D α β γ c
   have hDp := hS.wf.notMem_params_of_mem_gates h.mem_D
-  have hm : S'.m = S.m := by
-    change (insert D (S.params.erase z)).card = S.params.card
-    rw [Finset.card_insert_of_notMem fun h' => hDp (Finset.mem_of_mem_erase h'),
-      Finset.card_erase_add_one h.mem_z]
-  have hq : S'.q = S.q + 1 := by
-    change (insert (x, y) S.pairs).card = S.pairs.card + 1
-    exact Finset.card_insert_of_notMem fun h' => h.unpaired_x ⟨_, h', Or.inl rfl⟩
+  have hm : S'.m = S.m :=
+    (Finset.card_insert_of_notMem fun h' => hDp (Finset.mem_of_mem_erase h')).trans
+      (Finset.card_erase_add_one h.mem_z)
+  have hq : S'.q = S.q + 1 :=
+    Finset.card_insert_of_notMem fun h' => h.unpaired_x ⟨_, h', Or.inl rfl⟩
   have hs : S'.s + 2 = S.s := quad_size h
   have hqm := (Valid.quad hS h).q_le_m
   have hW := W_add_le (S := S) (S' := S') (N := insert D S.params) (Finset.subset_insert _ _)

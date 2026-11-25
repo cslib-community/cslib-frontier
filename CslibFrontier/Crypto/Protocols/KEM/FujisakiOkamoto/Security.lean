@@ -903,25 +903,18 @@ theorem simFilterHandler_gCache_length_le (S : Scheme PK SK M R CT K)
       filterDecaps] at hmem ⊢
     by_cases hc : c = cStar
     · simp only [hc, ↓reduceIte] at hmem
-      change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
-      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-      obtain ⟨-, rfl⟩ := hmem
-      simp
+      simp [(Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hmem)).2]
     · simp only [hc, ↓reduceIte] at hmem
       cases hd : d st.gCache c
       · simp only [hd, filterDecaps, Bool.cond_false] at hmem
-        change (res, st') ∈ (ProbComp.eval (pure (none, st))).support at hmem
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-        obtain ⟨-, rfl⟩ := hmem
-        simp
+        simp [(Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hmem)).2]
       · simp only [hd, filterDecaps, Bool.cond_true] at hmem
         change (res, st') ∈ (ProbComp.eval (simHashHq S.sampleKey c st >>= fun a =>
           pure (some a.fst, a.snd))).support at hmem
         rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hmem
         obtain ⟨z, hz, hmem₂⟩ := hmem
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem₂
-        obtain ⟨-, rfl⟩ := hmem₂
-        rw [simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
+        rw [(Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hmem₂)).2,
+          simHashHq_gCache_eq S.sampleKey c st z hz, Nat.add_zero]
 
 /-- Each query `q` to `S.simHandler pk cStar` increases `gCache.length` by at most
 `ROQuery.ghCost q`. -/

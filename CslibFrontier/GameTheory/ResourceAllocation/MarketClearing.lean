@@ -752,6 +752,20 @@ private theorem IsRegularMarketClearing.clearingPrice_eq_iff_priceScale {ι : Ty
       exact Finset.sum_congr rfl fun i _ => hD_eq p hp (θ i) (hθ i)
     rw [hsum', hBp, div_div_cancel₀ hW_pos.ne']
 
+private theorem vec2_zero_nonneg_and_ne {x : ℝ} (hx : 0 < x) :
+    (∀ i : Fin 2, 0 ≤ (![x, 0] : Fin 2 → ℝ) i) ∧ ∃ i : Fin 2, (![x, 0] : Fin 2 → ℝ) i ≠ 0 :=
+  ⟨fun i => by fin_cases i <;> simp [hx.le],
+    ⟨0, by simp [hx.ne']⟩⟩
+
+private theorem update_nonneg_and_sum {ι : Type*} [Fintype ι] [DecidableEq ι]
+    {θ : ι → ℝ} (hθ : ∀ j, 0 ≤ θ j) (i : ι) {t : ℝ} (ht : 0 ≤ t) :
+    (∀ j, 0 ≤ Function.update θ i t j) ∧
+      ∑ j, Function.update θ i t j = t + ∑ j ∈ Finset.univ.erase i, θ j := by
+  refine ⟨fun j => by by_cases hj : j = i <;> simp [hj, ht, hθ], ?_⟩
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
+  exact congrArg (t + ·) (Finset.sum_congr rfl fun j hj =>
+    Function.update_of_ne (Finset.ne_of_mem_erase hj) _ _)
+
 private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → ℝ}
     (hD : IsRegularMarketClearing D) :
     BijOn (priceScale D) (Ioi 0) (Ioi 0) ∧
@@ -779,24 +793,14 @@ private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → �
       (hD.demand_eq_mul_unit hp).1.ne'
   have hB_diff : DifferentiableOn ℝ B (Ioi 0) :=
     fun p hp => (hB_diff_at p hp).differentiableWithinAt
-  have hΛ_spec : ∀ μ, 0 < μ → 0 < Λ μ ∧ B (Λ μ) = μ := by
-    intro μ hμ
-    have hθ0 : ∀ i : Fin 2, 0 ≤ (![μ, 0] : Fin 2 → ℝ) i := fun i => by
-      fin_cases i <;> simp [hμ.le]
-    have hne : ∃ i : Fin 2, (![μ, 0] : Fin 2 → ℝ) i ≠ 0 := ⟨0, by simp [hμ.ne']⟩
-    have hiff :=
-      (hD.clearingPrice_eq_iff_priceScale le_rfl zero_lt_one hθ0 hne (p := Λ μ)).mp rfl
-    simpa only [Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one, add_zero,
-      div_one] using hiff
-  have hΛB : ∀ p, 0 < p → Λ (B p) = p := by
-    intro p hp
-    have hBp : 0 < B p := hB_pos p hp
-    have hθ0 : ∀ i : Fin 2, 0 ≤ (![B p, 0] : Fin 2 → ℝ) i := fun i => by
-      fin_cases i <;> simp [hBp.le]
-    have hne : ∃ i : Fin 2, (![B p, 0] : Fin 2 → ℝ) i ≠ 0 := ⟨0, by simp [hBp.ne']⟩
-    rw [show Λ (B p) = clearingPrice D 1 ![B p, 0] from rfl]
-    rw [hD.clearingPrice_eq_iff_priceScale le_rfl zero_lt_one hθ0 hne]
-    simp [hp, B]
+  have hΛ_spec : ∀ μ, 0 < μ → 0 < Λ μ ∧ B (Λ μ) = μ := fun μ hμ => by
+    obtain ⟨hθ0, hne⟩ := vec2_zero_nonneg_and_ne hμ
+    simpa only [Fin.sum_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one, add_zero, div_one]
+      using (hD.clearingPrice_eq_iff_priceScale le_rfl zero_lt_one hθ0 hne (p := Λ μ)).mp rfl
+  have hΛB : ∀ p, 0 < p → Λ (B p) = p := fun p hp => by
+    obtain ⟨hθ0, hne⟩ := vec2_zero_nonneg_and_ne (hB_pos p hp)
+    exact (hD.clearingPrice_eq_iff_priceScale le_rfl zero_lt_one hθ0 hne).mpr
+      ⟨hp, by simp [B]⟩
   have hB_bij : BijOn B (Ioi 0) (Ioi 0) :=
     ⟨fun p hp => hB_pos p hp,
       fun p₁ hp₁ p₂ hp₂ heq => by rw [← hΛB p₁ hp₁, ← hΛB p₂ hp₂, heq],
@@ -814,11 +818,8 @@ private theorem IsRegularMarketClearing.priceScale_props {D : ℝ → ℝ → �
       · simp [θ', hθ1]
     have hsum_θ' : ∑ i : Fin 2, θ' i = t + θ 1 := by
       simp [Fin.sum_univ_two, θ']
-    have hθ'_ne : ∃ i : Fin 2, θ' i ≠ 0 := by
-      by_contra hall
-      push Not at hall
-      have h0 : ∑ i : Fin 2, θ' i = 0 := Finset.sum_eq_zero fun i _ => hall i
-      linarith
+    obtain ⟨i₀, -, hi₀⟩ := Finset.exists_ne_zero_of_sum_ne_zero (hsum_θ'.symm ▸ hsum_pos.ne')
+    have hθ'_ne : ∃ i : Fin 2, θ' i ≠ 0 := ⟨i₀, hi₀⟩
     set μ := (t + θ 1) / C
     have hμ_pos : 0 < μ := div_pos hsum_pos hC
     have hp_eq : clearingPrice D C θ' = Λ μ := by
@@ -1012,12 +1013,9 @@ theorem IsRegularMarketClearing.exists_isMarketCompetitiveEquilibrium {ι : Type
     have hdiv_sum : ∑ i, w i / μ = G.capacity := by
       rw [← Finset.sum_div, hsum_w, mul_div_cancel_left₀ _ hμ_pos.ne']
     simp only [θ, ← Finset.mul_sum, hdiv_sum]
-  have hθ_ne : ∃ i, θ i ≠ 0 := by
-    by_contra hall
-    push Not at hall
-    have h0 : ∑ i, θ i = 0 := Finset.sum_eq_zero fun i _ => hall i
-    have hpos : 0 < B μ * G.capacity := mul_pos hBμ_pos hC
-    linarith
+  obtain ⟨i₀, -, hi₀⟩ :=
+    Finset.exists_ne_zero_of_sum_ne_zero (hsum_θ.symm ▸ (mul_pos hBμ_pos hC).ne')
+  have hθ_ne : ∃ i, θ i ≠ 0 := ⟨i₀, hi₀⟩
   have hp_eq : clearingPrice D G.capacity θ = μ := by
     rw [hD.clearingPrice_eq_iff_priceScale hcard hC hθ_nonneg hθ_ne, hsum_θ]
     exact ⟨hμ_pos, (mul_div_cancel_right₀ _ hC.ne').symm⟩
@@ -1097,14 +1095,10 @@ private theorem monotoneOn_and_continuousOn_deriv_of_convexOn_Ioi {f : ℝ → �
   have huL_x : deriv f x - ε / 2 < uL x := by
     have : slope f x x₁ = uL x := by rw [slope_comm, slope_def_field]
     linarith
-  have hnhds : {t : ℝ | x₁ < t ∧ t < x₂ ∧ uR t < deriv f x + ε ∧ deriv f x - ε < uL t} ∈ 𝓝 x := by
-    have h1 : ∀ᶠ t in 𝓝 x, x₁ < t := Ioi_mem_nhds hx₁_lt
-    have h2 : ∀ᶠ t in 𝓝 x, t < x₂ := Iio_mem_nhds hx₂_gt
-    have h3 : ∀ᶠ t in 𝓝 x, uR t < deriv f x + ε :=
-      huR_cont.eventually (Iio_mem_nhds (by linarith))
-    have h4 : ∀ᶠ t in 𝓝 x, deriv f x - ε < uL t :=
-      huL_cont.eventually (Ioi_mem_nhds (by linarith))
-    exact h1.and (h2.and (h3.and h4))
+  have hnhds : {t : ℝ | x₁ < t ∧ t < x₂ ∧ uR t < deriv f x + ε ∧ deriv f x - ε < uL t} ∈ 𝓝 x :=
+    Filter.Eventually.and (Ioi_mem_nhds hx₁_lt) (Filter.Eventually.and (Iio_mem_nhds hx₂_gt)
+      ((huR_cont.eventually (Iio_mem_nhds (by linarith))).and
+        (huL_cont.eventually (Ioi_mem_nhds (by linarith)))))
   obtain ⟨δ, hδ_pos, hδ_ball⟩ := Metric.mem_nhds_iff.mp hnhds
   refine ⟨δ, hδ_pos, fun t ht => ?_⟩
   obtain ⟨ht_gt, ht_lt, ht_uR, ht_uL⟩ := hδ_ball ht
@@ -1176,14 +1170,11 @@ private theorem IsAdmissibleUtility.continuousOn_derivWithin {u : ℝ → ℝ}
       have : slope u x x₁ = uL x := by rw [slope_comm, slope_def_field]
       linarith
     have hnhds : {t : ℝ | x₁ < t ∧ t < x₂ ∧ derivWithin u (Ici 0) x - ε < uR t ∧
-        uL t < derivWithin u (Ici 0) x + ε} ∈ 𝓝[Ici 0] x := by
-      have h1 : ∀ᶠ t in 𝓝[Ici 0] x, x₁ < t := nhdsWithin_le_nhds (Ioi_mem_nhds hx₁_lt)
-      have h2 : ∀ᶠ t in 𝓝[Ici 0] x, t < x₂ := nhdsWithin_le_nhds (Iio_mem_nhds hx₂_gt)
-      have h3 : ∀ᶠ t in 𝓝[Ici 0] x, derivWithin u (Ici 0) x - ε < uR t :=
-        huR_cont.eventually (Ioi_mem_nhds (by linarith))
-      have h4 : ∀ᶠ t in 𝓝[Ici 0] x, uL t < derivWithin u (Ici 0) x + ε :=
-        huL_cont.eventually (Iio_mem_nhds (by linarith))
-      exact h1.and (h2.and (h3.and h4))
+        uL t < derivWithin u (Ici 0) x + ε} ∈ 𝓝[Ici 0] x :=
+      Filter.Eventually.and (nhdsWithin_le_nhds (Ioi_mem_nhds hx₁_lt))
+        (Filter.Eventually.and (nhdsWithin_le_nhds (Iio_mem_nhds hx₂_gt))
+          ((huR_cont.eventually (Ioi_mem_nhds (by linarith))).and
+            (huL_cont.eventually (Iio_mem_nhds (by linarith)))))
     obtain ⟨δ, hδ_pos, hδ_sub⟩ := Metric.mem_nhdsWithin_iff.mp hnhds
     refine ⟨δ, hδ_pos, fun t ht_mem ht_dist => ?_⟩
     obtain ⟨ht_gt, ht_lt, ht_uR, ht_uL⟩ := hδ_sub ⟨ht_dist, ht_mem⟩
@@ -1259,22 +1250,15 @@ private theorem IsMarketNashEquilibrium.sum_erase_pos {ι : Type*} [Fintype ι] 
       ⟨j₀, Finset.mem_univ _, (hne.nonneg j₀).lt_of_ne' hj₀⟩
     linarith
   set θ' := Function.update θ i (θ i / 2)
-  have hθ'_nonneg : ∀ j, 0 ≤ θ' j := fun j => by
-    by_cases hj : j = i
-    · subst hj; simp [θ', (half_pos hθi_pos).le]
-    · simp [θ', hj, hne.nonneg j]
+  obtain ⟨hθ'_nonneg, hsum_θ'⟩ := update_nonneg_and_sum hne.nonneg i (half_pos hθi_pos).le
+  rw [hzero, add_zero] at hsum_θ'
   have hθ'_ne : ∃ j, θ' j ≠ 0 := ⟨i, by simp [θ', (half_pos hθi_pos).ne']⟩
-  have hsum_θ' : ∑ j, θ' j = θ i / 2 := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-    have hrest : ∑ j ∈ Finset.univ.erase i, θ' j = ∑ j ∈ Finset.univ.erase i, θ j :=
-      Finset.sum_congr rfl fun j hj => Function.update_of_ne (Finset.ne_of_mem_erase hj) _ _
-    simp only [θ', Function.update_self, hrest, hzero, add_zero]
   have halloc_θ : marketAllocation D G.capacity θ i = G.capacity := by
     rw [hD.marketAllocation_eq_kellyAllocation hcard hC hne.nonneg hne.exists_ne_zero]
     simp only [KellyGame.allocation, hsum_eq, mul_div_cancel_right₀ _ hθi_pos.ne']
   have halloc_θ' : marketAllocation D G.capacity θ' i = G.capacity := by
     rw [hD.marketAllocation_eq_kellyAllocation hcard hC hθ'_nonneg hθ'_ne]
-    simp only [KellyGame.allocation, hsum_θ', θ', Function.update_self,
+    simp only [KellyGame.allocation, hsum_θ', Function.update_self,
       mul_div_cancel_right₀ _ (half_pos hθi_pos).ne']
   have hp_θ : clearingPrice D G.capacity θ = invPriceScale D (θ i / G.capacity) := by
     rw [hD.clearingPrice_eq_iff_priceScale hcard hC hne.nonneg hne.exists_ne_zero, hsum_eq]
@@ -1322,18 +1306,10 @@ private theorem IsRegularMarketClearing.isMarketNashEquilibrium_iff_kkt
         marketPayoff D G (Function.update θ i t) i =
           G.utility i (C * t / (t + s)) - (C * t / (t + s)) * Λ ((t + s) / C) := by
     intro i hθ0 hs s t ht0
-    have hupd_nonneg : ∀ j, 0 ≤ Function.update θ i t j := fun j => by
-      by_cases hj : j = i <;> simp [hj, ht0, hθ0]
-    have hsum_upd : ∑ j, Function.update θ i t j = t + s := by
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i), Function.update_self]
-      congr 1
-      exact Finset.sum_congr rfl fun j hj => Function.update_of_ne (Finset.ne_of_mem_erase hj) _ _
+    obtain ⟨hupd_nonneg, hsum_upd⟩ := update_nonneg_and_sum hθ0 i ht0
     have hts_pos : 0 < t + s := by linarith
-    have hupd_ne : ∃ j, Function.update θ i t j ≠ 0 := by
-      by_contra hall
-      push Not at hall
-      have h0 : ∑ j, Function.update θ i t j = 0 := Finset.sum_eq_zero fun j _ => hall j
-      linarith
+    obtain ⟨j₀, -, hj₀⟩ := Finset.exists_ne_zero_of_sum_ne_zero (hsum_upd.symm ▸ hts_pos.ne')
+    have hupd_ne : ∃ j, Function.update θ i t j ≠ 0 := ⟨j₀, hj₀⟩
     have halloc := congrFun
       (hD.marketAllocation_eq_kellyAllocation hcard hC hupd_nonneg hupd_ne) i
     simp only [KellyGame.allocation, Function.update_self, hsum_upd] at halloc
@@ -2528,12 +2504,7 @@ theorem isRegularMarketClearing_powerElasticity {c : ℝ} (hc : 1 ≤ c) :
       linarith
     refine hpay_conc.congr fun t ht => ?_
     have ht0 : 0 ≤ t := mem_Ici.mp ht
-    have hupd0 : ∀ s, 0 ≤ Function.update θ r t s := fun s => by
-      by_cases hs : s = r <;> simp [hs, ht0, hθ]
-    have hsum_t : ∑ s, Function.update θ r t s = t + S := by
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ r), Function.update_self]
-      congr 1
-      exact Finset.sum_congr rfl fun s hs => Function.update_of_ne (Finset.ne_of_mem_erase hs) _ _
+    obtain ⟨hupd0, hsum_t⟩ := update_nonneg_and_sum hθ r ht0
     have htS_pos : 0 < t + S := by linarith
     have hp_eq := clearingPrice_powerElasticity hc_pos (by simpa using hR) hC hupd0
       ⟨s₀, by simp [Function.update_of_ne hs₀_ne, hs₀_nz]⟩
@@ -2558,13 +2529,9 @@ theorem isRegularMarketClearing_powerElasticity {c : ℝ} (hc : 1 ≤ c) :
 
 private theorem invPriceScale_powerElasticity {c μ : ℝ} (hc : 1 ≤ c) (hμ : 0 < μ) :
     invPriceScale (powerElasticityMechanism c) μ = μ ^ c := by
-  have hc_pos : 0 < c := lt_of_lt_of_le zero_lt_one hc
-  have hθ0 : ∀ i : Fin 2, 0 ≤ (![μ, 0] : Fin 2 → ℝ) i := fun i => by
-    fin_cases i <;> simp [hμ.le]
-  have hne : ∃ i : Fin 2, (![μ, 0] : Fin 2 → ℝ) i ≠ 0 := ⟨0, by simp [hμ.ne']⟩
-  dsimp only [invPriceScale]
-  rw [clearingPrice_powerElasticity hc_pos le_rfl zero_lt_one hθ0 hne]
-  simp
+  obtain ⟨hθ0, hne⟩ := vec2_zero_nonneg_and_ne hμ
+  simp [invPriceScale, clearingPrice_powerElasticity (lt_of_lt_of_le zero_lt_one hc) le_rfl
+    zero_lt_one hθ0 hne]
 
 private theorem deriv_invPriceScale_powerElasticity {c μ : ℝ} (hc : 1 ≤ c) (hμ : 0 < μ) :
     deriv (invPriceScale (powerElasticityMechanism c)) μ = c * μ ^ (c - 1) := by

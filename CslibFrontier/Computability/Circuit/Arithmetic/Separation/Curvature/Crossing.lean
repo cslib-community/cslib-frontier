@@ -147,12 +147,11 @@ private theorem prop_crossing_some {J : Type} [Fintype J] (Ψ : J → α → β 
     ∃ j, (Fintype.card α : ℝ) ^ F.wireExponent x v * (Fintype.card β : ℝ) ^ F.wireExponent y u ≤
       Fintype.card J * F (push ![x, y, v, u] (four (Ψ j))) := by
   have h1 := prop_crossing_cover F Ψ hΨ x y v u
-  have : Nonempty J := by
-    by_contra hne
-    rw [not_nonempty_iff] at hne
-    rw [Finset.univ_eq_empty, Finset.sum_empty] at h1
-    exact h1.not_gt (mul_pos (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _)
-      (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _))
+  have : Nonempty J :=
+    Finset.univ_nonempty_iff.mp <| Finset.nonempty_of_ne_empty fun h => by
+      simp only [h, Finset.sum_empty] at h1
+      exact h1.not_gt (mul_pos (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _)
+        (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _))
   obtain ⟨j, -, hj⟩ := Finset.exists_max_image (Finset.univ : Finset J)
     (fun j => F (push ![x, y, v, u] (four (Ψ j)))) Finset.univ_nonempty
   exact ⟨j, h1.trans ((Finset.sum_le_sum hj).trans_eq (by simp [nsmul_eq_mul]))⟩
@@ -446,17 +445,13 @@ theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPri
       p * (d x o + d v o' + d x w + d v w') + q * (d y o + d u o' + d u w + d y w') +
         τ * (p ^ 2 + q ^ 2) + (d o o' ^ 2 + d w w' ^ 2) / (2 * τ) := by
   obtain ⟨r, l, hr, hl, hrl, h1, h2⟩ := isPrice_crossing hd x v y u o o' w w' hp hq
-  have am : ∀ a b : ℝ, a * b ≤ τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by
-    intro a b
+  have am (a b : ℝ) : a * b ≤ τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by
     have e : τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) - a * b = (τ * a - b) ^ 2 / (2 * τ) := by
       field_simp
       ring
-    nlinarith [div_nonneg (sq_nonneg (τ * a - b)) (by positivity : (0 : ℝ) ≤ 2 * τ)]
-  have a1 := am r (d o o')
-  have a2 := am l (d w w')
-  have a3 : τ / 2 * (r ^ 2 + l ^ 2) ≤ τ / 2 * (2 * (p ^ 2 + q ^ 2)) :=
-    mul_le_mul_of_nonneg_left hrl (by positivity)
+    linarith [div_nonneg (sq_nonneg (τ * a - b)) (mul_nonneg zero_le_two hτ.le)]
   rw [add_div]
-  nlinarith
+  linarith [am r (d o o'), am l (d w w'),
+    mul_le_mul_of_nonneg_left hrl (div_nonneg hτ.le zero_le_two)]
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

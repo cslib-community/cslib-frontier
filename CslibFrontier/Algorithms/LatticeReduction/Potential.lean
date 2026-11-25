@@ -315,11 +315,9 @@ theorem gramPrefixDet_succ (b : Fin n → E) (l : Fin n) :
 
 /-- Swapping `bᵢ` and `bᵢ₊₁` leaves `dₘ` unchanged for `m ≤ i`. -/
 theorem gramPrefixDet_swap_of_le {b : Fin n → E} {i j : Fin n} (hij : (j : ℕ) = i + 1)
-    {m : ℕ} (hm : m ≤ i) : gramPrefixDet (b ∘ Equiv.swap i j) m = gramPrefixDet b m := by
-  refine Finset.prod_congr rfl fun l hl => ?_
-  have hl' : l < i := by
-    rw [Fin.lt_def]; exact lt_of_lt_of_le (Finset.mem_filter.1 hl).2 hm
-  rw [gramSchmidt_swap_of_lt hij hl']
+    {m : ℕ} (hm : m ≤ i) : gramPrefixDet (b ∘ Equiv.swap i j) m = gramPrefixDet b m :=
+  Finset.prod_congr rfl fun _ hl => congrArg (‖·‖ ^ 2)
+    (gramSchmidt_swap_of_lt hij (Fin.lt_def.2 ((Finset.mem_filter.1 hl).2.trans_le hm)))
 
 /-- Swapping `bᵢ` and `bᵢ₊₁` leaves `dₘ` unchanged for `i + 1 < m ≤ n`. -/
 theorem gramPrefixDet_swap_of_lt {b : Fin n → E} {i j : Fin n} (hij : (j : ℕ) = i + 1)
@@ -329,8 +327,7 @@ theorem gramPrefixDet_swap_of_lt {b : Fin n → E} {i j : Fin n} (hij : (j : ℕ
   let σ := Equiv.swap (⟨i, by omega⟩ : Fin m) ⟨j, hjm⟩
   have hcomp : (b ∘ Equiv.swap i j) ∘ Fin.castLE hm = (b ∘ Fin.castLE hm) ∘ σ :=
     funext fun l => congrArg b (((Fin.castLE_injective hm).map_swap ⟨i, by omega⟩ ⟨j, hjm⟩ l).symm)
-  rw [hcomp]
-  exact Matrix.det_submatrix_equiv_self σ (Matrix.gram ℝ (b ∘ Fin.castLE hm))
+  exact hcomp ▸ Matrix.det_submatrix_equiv_self σ (Matrix.gram ℝ (b ∘ Fin.castLE hm))
 
 /-- An exchange step decreases the potential by a factor less than `δ`
 ([LenstraLenstraLovasz1982], (1.23)). -/
@@ -391,21 +388,17 @@ private theorem run_invariant {δ : ℝ} (hδ : 0 < δ) {b : ℕ → Fin n → E
     obtain ⟨hliT, hintT, hpotT⟩ := ih fun t ht => hstep t (Nat.lt_succ_of_lt ht)
     rw [swapCount_succ]
     by_cases hs : IsSwapStep δ (b T) (b (T + 1))
-    · simp only [hs, ↓reduceIte]
-      rw [pow_succ]
+    · simp only [hs, ↓reduceIte, pow_succ]
       refine ⟨hs.linearIndependent hliT, hintT.of_isSwapStep hs, ?_⟩
-      have hlt := hs.potential_lt hliT
       have hinv : potential (b (T + 1)) * δ⁻¹ ≤ potential (b T) := by
-        rw [← div_eq_mul_inv, div_le_iff₀ hδ]
-        linarith
+        rw [← div_eq_mul_inv, div_le_iff₀ hδ]; linarith [hs.potential_lt hliT]
       calc potential (b (T + 1)) * (δ⁻¹ ^ swapCount δ b T * δ⁻¹)
           = potential (b (T + 1)) * δ⁻¹ * δ⁻¹ ^ swapCount δ b T := by ring
         _ ≤ potential (b T) * δ⁻¹ ^ swapCount δ b T :=
           mul_le_mul_of_nonneg_right hinv (pow_nonneg (inv_nonneg.2 hδ.le) _)
         _ ≤ potential (b 0) := hpotT
     · have hsz : IsSizeStep (b T) (b (T + 1)) := (hstep T (Nat.lt_succ_self T)).resolve_right hs
-      simp only [hs, ↓reduceIte, add_zero]
-      rw [hsz.potential_eq]
+      simp only [hs, ↓reduceIte, add_zero, hsz.potential_eq]
       exact ⟨hsz.linearIndependent hliT, hintT.of_isSizeStep hsz, hpotT⟩
 
 /-- Bound on the number of exchange steps ([LenstraLenstraLovasz1982], proof of (1.26)): along

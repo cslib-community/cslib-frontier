@@ -130,13 +130,9 @@ private theorem ncard_setOf_ecomplexity_pair_le_eq (k u : ℕ) :
       {z ∈ {z | M.ecomplexity z ≤ k} | z.unpair.1 = u}.ncard := by
   rw [← Set.ncard_image_of_injective _
     (fun a b h => (Nat.pair_eq_pair.mp h).2 : Function.Injective (Nat.pair u))]
-  congr 1
-  ext z
-  constructor
-  · rintro ⟨v, hv, rfl⟩
-    exact ⟨hv, by simp⟩
-  · rintro ⟨hz, rfl⟩
-    exact ⟨z.unpair.2, by simpa using hz, by simp⟩
+  exact congrArg Set.ncard <| Set.ext fun z =>
+    ⟨fun ⟨v, hv, hz⟩ => ⟨hz ▸ hv, by simp [← hz]⟩,
+      fun ⟨hz, hu⟩ => ⟨z.unpair.2, by simpa [← hu] using hz, by simp [← hu]⟩⟩
 
 /-- Only finitely many `u` have at least `2 ^ l` partners `v` with `C(u, v) ≤ k`. -/
 theorem finite_setOf_two_pow_le_ncard (k l : ℕ) :
@@ -192,13 +188,12 @@ private theorem exists_sectionEvent_eq_some_iff {k x v : ℕ} :
     (∃ n, sectionEvent (k, x) n = some v) ↔ universal.ecomplexity (Nat.pair x v) ≤ k := by
   constructor
   · rintro ⟨n, hn⟩
-    simp only [sectionEvent, Option.bind_eq_some_iff] at hn
-    obtain ⟨p, -, hn⟩ := hn
+    obtain ⟨p, -, hn⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hn with hlen
     obtain ⟨z, hz, hv⟩ := Option.bind_eq_some_iff.mp hn
     split_ifs at hv with hx
     obtain rfl := Option.some.inj hv
-    rw [show Nat.pair x z.unpair.2 = z by rw [← hx, Nat.pair_unpair]]
+    rw [← id (α := z.unpair.1 = x) hx, Nat.pair_unpair]
     exact (ecomplexity_le_length (Produces.of_mem_runFor hz)).trans (by exact_mod_cast hlen)
   · intro h
     obtain ⟨p, hp, hlen⟩ :=
@@ -297,9 +292,8 @@ theorem exists_complexity_universal_add_condUniversal_le :
   set l := Nat.log 2 S.ncard with hl
   have hlm : 2 ^ l ≤ S.ncard := Nat.pow_log_le_self 2 hm0
   have hml : S.ncard < 2 ^ (l + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two _
-  have hlk : l ≤ k := by
-    have h := (Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (hlm.trans_lt hSlt)
-    omega
+  have hlk : l ≤ k :=
+    Nat.le_of_lt_succ ((Nat.pow_lt_pow_iff_right Nat.one_lt_two).mp (hlm.trans_lt hSlt))
   -- describing `y` given `x`, by its index `j` among the partners of `x`
   obtain ⟨n, hn⟩ := exists_sectionEvent_eq_some_iff.mpr hxy
   obtain ⟨j, hj, hjy⟩ :=
@@ -336,9 +330,7 @@ theorem exists_complexity_universal_add_condUniversal_le :
   rw [← natCast_complexity_universal] at hX
   rw [← natCast_complexity_condUniversal] at hY
   norm_cast at hX hY
-  rw [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX
-  rw [List.length_append, length_selfDelimitingCode, Nat.size_eq_bits_len,
-    Nat.size_eq_bits_len] at hY
+  simp only [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX hY
   omega
 
 /-- **Kolmogorov–Levin theorem**, two-sided form [Shen, Uspensky and Vereshchagin, Section

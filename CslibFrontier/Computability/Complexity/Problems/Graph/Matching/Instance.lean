@@ -49,23 +49,18 @@ theorem mem_matchingScope_even (G : Graph) (v i : ℕ) :
     2 * i ∈ G.matchingScope v ↔
       i < G.edgeList.length ∧ incident (G.edgeList.getD i (0, 0)) v = true := by
   simp only [matchingScope, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, hj, he⟩)
-    · omega
-    · have : j = i := by omega
-      subst j
-      exact hj
-  · exact fun h => Or.inr ⟨i, h, rfl⟩
+  refine ⟨?_, fun h => .inr ⟨i, h, rfl⟩⟩
+  rintro (h | ⟨j, hj, he⟩)
+  · omega
+  · obtain rfl : j = i := by omega
+    exact hj
 
 /-- An unmatched port appears in exactly its own vertex's choice scope. -/
 theorem mem_matchingScope_odd (G : Graph) (v w : ℕ) :
     2 * w + 1 ∈ G.matchingScope v ↔ w = v := by
   simp only [matchingScope, List.mem_cons, List.mem_map, List.mem_filter, List.mem_range]
-  constructor
-  · rintro (h | ⟨j, _, he⟩) <;> omega
-  · intro h
-    subst w
-    exact Or.inl rfl
+  refine ⟨fun h => ?_, fun h => .inl (by omega)⟩
+  rcases h with h | ⟨_, _, _⟩ <;> omega
 
 /-- All generated choice scopes are duplicate-free, for arbitrary raw graph data. -/
 theorem nodup_matchingScope (G : Graph) (v : ℕ) : (G.matchingScope v).Nodup := by
@@ -91,27 +86,19 @@ theorem count_vars_matchingInstance_even (G : Graph) (i : ℕ) :
     rw [matchingScope, List.count_cons]
     simp only [beq_iff_eq, show 2 * v + 1 ≠ 2 * i by omega, ↓reduceIte, Nat.add_zero]
     exact List.count_map_of_injective _ _ (fun a b h => by omega) _
+  have hp (v : ℕ) : ([2 * v + 1] : List ℕ).count (2 * i) = 0 := by
+    simp only [List.count_singleton, beq_iff_eq]
+    split_ifs <;> omega
   simp only [matchingInstance, perfectMatchingInstance, CSP.vars, List.flatMap_append,
-    List.flatMap_map, List.count_append, List.count_flatMap, Function.comp_def, hc]
-  have hz : (G.distinctVertices.map fun v => ([2 * v + 1] : List ℕ).count (2 * i)).sum = 0 := by
-    apply List.sum_eq_zero
-    intro n hn
-    obtain ⟨v, _, rfl⟩ := List.mem_map.mp hn
-    simp only [List.count_singleton, beq_iff_eq,
-      show 2 * v + 1 ≠ 2 * i by omega, ↓reduceIte]
-  rw [hz, Nat.add_zero]
+    List.flatMap_map, List.count_append, List.count_flatMap, Function.comp_def, hc, hp,
+    List.map_const', List.sum_replicate, smul_zero, Nat.add_zero]
 
 /-- Each declared vertex's private port occurs exactly twice. -/
 theorem count_vars_matchingInstance_odd (G : Graph) (w : ℕ) :
     G.matchingInstance.vars.count (2 * w + 1) = if w ∈ G.vertices then 2 else 0 := by
   have hc (v : ℕ) : (G.matchingScope v).count (2 * w + 1) = if v = w then 1 else 0 := by
-    have he : (((List.range G.edgeList.length).filter fun i =>
-        incident (G.edgeList.getD i (0, 0)) v).map fun i => 2 * i).count (2 * w + 1) = 0 := by
-      apply List.count_eq_zero_of_not_mem
-      simp only [List.mem_map, List.mem_filter, List.mem_range, not_exists, not_and]
-      intro i _ h
-      omega
-    simp only [matchingScope, List.count_cons, beq_iff_eq, he, Nat.zero_add]
+    rw [matchingScope, List.count_cons, List.count_eq_zero_of_not_mem (by simp; omega)]
+    simp only [beq_iff_eq, Nat.zero_add]
     split_ifs <;> omega
   have hp (v : ℕ) : ([2 * v + 1] : List ℕ).count (2 * w + 1) = if v = w then 1 else 0 := by
     simp only [List.count_singleton, beq_iff_eq]

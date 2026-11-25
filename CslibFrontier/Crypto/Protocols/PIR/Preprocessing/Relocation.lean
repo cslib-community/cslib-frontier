@@ -966,29 +966,19 @@ private theorem stateToIdealArray_init {m m' : ℕ} (perm : Equiv.Perm (Fin m'))
   ext p
   have hstart : startOfChain (init (m := m) perm) p = p := by
     simp [startOfChain, init, walk, inEdge?]
+  have hiff (e : Fin m) : access (init (m := m) perm) p = some e ↔ emb e = p := by
+    rw [access_eq_some_iff (init (m := m) perm) p e hm, hstart]
+    rfl
   have hp : p ∉ (init (m := m) perm).history := by simp [init]
   simp only [stateToIdealArray, hp, ↓reduceIte]
   cases hacc : access (init (m := m) perm) p with
-  | some e =>
-    dsimp only
-    have hemb : emb e = p := by
-      have := (access_eq_some_iff (init (m := m) perm) p e hm).mp hacc
-      rw [hstart] at this
-      simpa [emb, init] using this
-    exact ((initIdealArray_eq_elem_iff emb p e).mpr hemb).symm
+  | some e => exact ((initIdealArray_eq_elem_iff emb p e).mpr ((hiff e).mp hacc)).symm
   | none =>
-    dsimp only
     simp only [initIdealArray]
     cases hfind : (List.finRange m).find? (fun e => emb e == p) with
     | none => rfl
     | some e =>
-      exfalso
-      have hemb : emb e = p := by simpa using List.find?_some hfind
-      have hacc' : access (init (m := m) perm) p = some e :=
-        (access_eq_some_iff (init (m := m) perm) p e hm).mpr
-          (by rw [hstart]; simpa [emb, init] using hemb)
-      rw [hacc] at hacc'
-      nomatch hacc'
+      exact absurd ((hiff e).mpr (by simpa using List.find?_some hfind)) (by simp [hacc])
 
 private theorem locate_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m') :
     (fun e => locate (init (m := m) perm) e hm) =
@@ -1007,17 +997,13 @@ theorem mem_emptyPositions_stateToIdealArray_iff {m m' : ℕ} {s : RelocationSta
   simp only [Finset.mem_univ, true_and, stateToIdealArray]
   split_ifs with hp
   · simp [hp]
-  · simp only [hp, not_false_eq_true, true_and]
-    cases hacc : access s p with
+  · cases hacc : access s p with
     | some e =>
-      simp only [reduceCtorEq, false_iff, not_le]
-      have hlt : (s.perm.symm (startOfChain s p)).val < m := by
-        by_contra hge
-        have hcontra := hacc.symm.trans ((access_eq_none_iff s p).mpr (Nat.le_of_not_lt hge))
-        nomatch hcontra
-      omega
+      simp only [hp, not_false_eq_true, true_and, reduceCtorEq, false_iff, not_le]
+      exact Nat.lt_of_not_ge fun hle =>
+        nomatch hacc.symm.trans ((access_eq_none_iff s p).mpr (le_trans (Nat.le_add_right _ _) hle))
     | none =>
-      simp only [true_iff]
+      simp only [hp, not_false_eq_true, true_and, true_iff]
       exact le_symm_of_inEdge?_eq_none
         (inEdge?_startOfChain_eq_none hv.1 (outEdge?_eq_none_of_not_mem hp))
         ((access_eq_none_iff s p).mp hacc)
@@ -1204,15 +1190,13 @@ private theorem realRunSteps_snd_congr {m m' : ℕ} {π₁ π₂ : Equiv.Perm (F
   | cons c cs ih =>
     simp only [List.length_cons] at hpre
     simp only [realRunSteps, realStep, relocate]
-    have hpre₀ : ∀ i : Fin m', i.val < m + hist.length → π₁ i = π₂ i := fun i hi =>
-      hpre i (by omega)
-    have hpre₁ : ∀ i : Fin m', i.val < m + (hist ++ [c]).length → π₁ i = π₂ i := fun i hi =>
-      hpre i (by simp only [List.length_append, List.length_singleton] at hi; omega)
     have hpre₂ : ∀ i : Fin m', i.val < m + ((hist ++ [c]).length + cs.length) → π₁ i = π₂ i :=
       fun i hi => hpre i (by simp only [List.length_append, List.length_singleton] at hi; omega)
-    rw [access_congr hpre₀ hm, ih (hist ++ [c]) hpre₂]
+    rw [access_congr (fun i hi => hpre i (by omega)) hm, ih (hist ++ [c]) hpre₂]
     congr 1
-    exact Option.map_congr fun e _ => locate_congr hpre₁ e hm
+    refine Option.map_congr fun e _ => locate_congr (fun i hi => hpre i ?_) e hm
+    simp only [List.length_append, List.length_singleton] at hi
+    omega
 
 /-! ### Lemma 3.16 and Theorem 3.3: Perfect Security and Main Guarantee -/
 
@@ -1328,11 +1312,9 @@ private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) 
         (∀ i : Fin m', i.val < m + cs.length → π₁ i = π₂ i) → f π₁ = f π₂ := by
       intro π₁ π₂ hpre
       ext u
-      have hpre₀ : ∀ i : Fin m', i.val < m + ([] : List (Fin m')).length → π₁ i = π₂ i :=
-        fun i hi => hpre i (by simp only [List.length_nil] at hi; omega)
       have hloc : (fun e => locate (init (m := m) π₁) e hm) =
           (fun e => locate (init (m := m) π₂) e hm) :=
-        funext fun e => locate_congr hpre₀ e hm
+        funext fun e => locate_congr (fun i hi => hpre i (by simp at hi; omega)) e hm
       simp only [f, stateToIdealArray_congr hpre hm, endOfChain_congr hpre, hloc]
       simp only [init, realRunSteps_snd_congr [] cs hm (by simpa using hpre)]
     change (PMF.uniformOfFintype (Equiv.Perm (Fin m'))).bind

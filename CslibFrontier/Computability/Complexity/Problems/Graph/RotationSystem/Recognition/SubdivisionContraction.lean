@@ -51,13 +51,7 @@ private theorem piece_vertex_cases {I : FixedRotationInput} (i : Edge I.graph) (
     ∃ c : Bool, Dart.vertex (pieceEdge I i k, b) =
       I.graph.vertices.length + 2 * i.val + c.toNat := by
   have hv := Dart.edge_eq_vertices i
-  fin_cases k <;> cases b
-  · exact Or.inl ⟨rfl, rfl, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints, hv]⟩
-  · exact Or.inr (Or.inr ⟨false, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints]⟩)
-  · exact Or.inr (Or.inr ⟨false, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints]⟩)
-  · exact Or.inr (Or.inr ⟨true, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints]⟩)
-  · exact Or.inr (Or.inr ⟨true, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints]⟩)
-  · exact Or.inr (Or.inl ⟨rfl, rfl, by simp [piece_vertex, SubdivisionEdgeIndex.endpoints, hv]⟩)
+  fin_cases k <;> cases b <;> simp [piece_vertex, SubdivisionEdgeIndex.endpoints, hv]
 
 private theorem piece_ne {I : FixedRotationInput} {i j : Edge I.graph} {k l : Fin 3}
     (h : i ≠ j ∨ k ≠ l) : pieceEdge I i k ≠ pieceEdge I j l := by
@@ -239,14 +233,12 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
     route := joinedRoute F
     endpoint_eq := by
       intro i b
-      let p := F.route (pieceEdge I i 0)
-      let q := F.route (pieceEdge I i 1)
-      let r := F.route (pieceEdge I i 2)
       obtain ⟨hs, hpq, hjoin, ht⟩ := piece_endpoints F i
-      change ((p.concat q).concat r).endpoint b = _
+      change (((F.route (pieceEdge I i 0)).concat (F.route (pieceEdge I i 1))).concat
+        (F.route (pieceEdge I i 2))).endpoint b = _
       rw [Route.endpoint_concat _ _ hjoin]
       cases b
-      · exact (Route.endpoint_concat p q hpq false).trans hs
+      · exact (Route.endpoint_concat _ _ hpq false).trans hs
       · exact ht
   }
   have hnames : I.graph.vertices = List.range I.graph.vertices.length := hI.1
@@ -301,15 +293,9 @@ theorem exists_contracted_subdivision_embedding {I : FixedRotationInput} (hI : V
     obtain ⟨w, hw, hwv⟩ := hvertex j b t ht v hv (he.symm.trans hx)
     exact ⟨u, w, hu, hw, huv.trans hwv.symm⟩
   · rintro ⟨i, b⟩
-    let p := F.route (pieceEdge I i 0)
-    let q := F.route (pieceEdge I i 1)
-    let r := F.route (pieceEdge I i 2)
     obtain ⟨_, hpq, hjoin, _⟩ := piece_endpoints F i
     cases b
-    · change ((p.concat q).concat r).germ false = p.germ false
-      rw [Route.germ_concat _ _ hjoin false]
-      exact Route.germ_concat p q hpq false
-    · change ((p.concat q).concat r).germ true = r.germ true
-      exact Route.germ_concat _ _ hjoin true
+    · exact (Route.germ_concat _ _ hjoin false).trans (Route.germ_concat _ _ hpq false)
+    · exact Route.germ_concat _ _ hjoin true
 
 end Cslib.Complexity.Graph.RotationRecognition

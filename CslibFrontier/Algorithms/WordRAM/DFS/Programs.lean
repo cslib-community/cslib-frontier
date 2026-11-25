@@ -471,14 +471,13 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hy_out : y.regs outReg = P := by wram_simp [y]
   refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega), ?_, ?_⟩
   · rw [hy_out, outputList_eq_iff]
-    refine ⟨?_, fun i => ?_⟩
-    · rw [hlen]; simp only [y]; mem_upd; rw [Function.update_self]
-    · change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-      have hi : i.val < G.n := hlen ▸ i.isLt
-      simp only [y]; mem_upd
-      rw [Function.update_of_ne (by omega), ← hC,
-        show C + i.val = C + (⟨i.val, hi⟩ : Fin G.n).val from rfl, hs₁_comp ⟨i.val, hi⟩]
-      simp [sccWords]
+    refine ⟨by simp [y, hlen], fun i => ?_⟩
+    change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
+    have hi : i.val < G.n := hlen ▸ i.isLt
+    simp only [y]; mem_upd
+    rw [Function.update_of_ne (by omega), ← hC,
+      show C + i.val = C + (⟨i.val, hi⟩ : Fin G.n).val from rfl, hs₁_comp ⟨i.val, hi⟩]
+    simp [sccWords]
   · rw [hy_out, hlen]; exact hP_fit.of_le (by omega)
 
 /-- `topoProgram` computes `topoWords` in `O(n + m)` instructions
@@ -500,23 +499,19 @@ theorem computesListInTime_sccProgram :
   exact ⟨steps + 1, hylist ▸ hexec.executesList outReg (by rwa [hylist]), by dsimp only; omega⟩
 
 /-- `topoProgram` does not read the word width. -/
-theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+theorem not_readsWidth_topoProgram : ¬ topoProgram.ReadsWidth :=
+  Code.not_readsWidth_program (c := topoCode) (by decide +kernel) outReg
 
 /-- `topoProgram` is `rand`-free. -/
-theorem isRandFree_topoProgram : topoProgram.IsRandFree := by
-  rw [topoProgram, Code.isRandFree_program]
-  decide +kernel
+theorem isRandFree_topoProgram : topoProgram.IsRandFree :=
+  Code.isRandFree_program.2 (by decide +kernel)
 
 /-- `sccProgram` does not read the word width. -/
-theorem not_readsWidth_sccProgram : ¬ sccProgram.ReadsWidth := by
-  apply Code.not_readsWidth_program
-  decide +kernel
+theorem not_readsWidth_sccProgram : ¬ sccProgram.ReadsWidth :=
+  Code.not_readsWidth_program (c := sccCode) (by decide +kernel) outReg
 
 /-- `sccProgram` is `rand`-free. -/
-theorem isRandFree_sccProgram : sccProgram.IsRandFree := by
-  rw [sccProgram, Code.isRandFree_program]
-  decide +kernel
+theorem isRandFree_sccProgram : sccProgram.IsRandFree :=
+  Code.isRandFree_program.2 (by decide +kernel)
 
 end Cslib.Algorithms.WordRAM.DFS

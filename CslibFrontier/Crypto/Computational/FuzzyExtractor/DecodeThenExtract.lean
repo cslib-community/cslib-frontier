@@ -203,13 +203,11 @@ theorem uniform_bind_decode_bind_apply_false_le {m n q : ℕ} [NeZero q]
       decodeGame decode s e false := by
   simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
-  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  refine PMF.bind_apply_mono_on_support _ false fun A _ =>
+    PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
   by_cases h : sOpt = some s
-  · subst h
-    simp [hk]
-  · rw [decide_eq_false h, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  · simp [h, hk]
+  · simp [h, PMF.coe_le_one]
 
 /-- `uniform_bind_decode_bind_apply_false_le` with the decoding failure probability bounded by
 `δ`. -/
@@ -261,11 +259,9 @@ theorem correctHammingWithError_decodeThenExtract_of_decoderCorrectWithError
     {t : ℕ} {δ : ℝ≥0}
     (hdec : DecoderCorrectWithError decode t δ)
     (ext : (Fin n → ZMod q) → Seed → Key) :
-    (decodeThenExtract m n q decode ext).CorrectHammingWithError t δ := by
-  intro w w' hdis
-  refine failProbability_reproduceGame_decodeThenExtract_le decode ext fun s => ?_
-  refine hdec s (w - w') ?_
-  rwa [hammingNorm_sub_eq_hammingDist]
+    (decodeThenExtract m n q decode ext).CorrectHammingWithError t δ :=
+  fun w w' hdis => failProbability_reproduceGame_decodeThenExtract_le decode ext fun s =>
+    hdec s (w - w') ((hammingNorm_sub_eq_hammingDist w w').trans_le hdis)
 
 /-! ### Exact uniformity for a uniform source -/
 
@@ -414,12 +410,10 @@ private theorem realGame_hardcoreKeyReduction
     (D : (Fin k → ZMod q) → DecodeHelper m (k + l) q Unit → Experiment) :
     LWE.realGame (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreKeyReduction D) =
       (lweFuzzyExtractor m k l q decode).realGame W D := by
-  have h := realGame_embed (k := k) W fun x₁ A c => ProbComp.eval (D x₁ ⟨A, c, ()⟩)
   simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreKeyReduction,
-    ProbComp.eval_uniform]
-  refine h.trans ?_
-  simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup,
-    realExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
+    lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup, realExperiment,
+    ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
+  exact realGame_embed (k := k) W fun x₁ A c => ProbComp.eval (D x₁ ⟨A, c, ()⟩)
 
 /-- The LWE real game of `hardcoreUniformReduction D` (uniform secret, error law `W`) is the
 ideal fuzzy-extractor game of `lweFuzzyExtractor`. -/
@@ -430,13 +424,11 @@ private theorem realGame_hardcoreUniformReduction
     (D : (Fin k → ZMod q) → DecodeHelper m (k + l) q Unit → Experiment) :
     LWE.realGame (PMF.uniformOfFintype (Fin l → ZMod q)) W (hardcoreUniformReduction D) =
       (lweFuzzyExtractor m k l q decode).idealGame W D := by
-  have h := realGame_embed (k := k) W fun _ A c =>
-    (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun r => ProbComp.eval (D r ⟨A, c, ()⟩)
   simp only [pmf_norm, LWE.realGame, LWE.eval_realExperiment, hardcoreUniformReduction,
-    ProbComp.eval_uniform]
-  refine h.trans ?_
-  simp only [pmf_norm, lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup,
-    idealExperiment, ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
+    lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup, idealExperiment,
+    ProbComp.eval_uniform, Probability.PMF.uniformOfFintype_unit]
+  exact realGame_embed (k := k) W fun _ A c =>
+    (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun r => ProbComp.eval (D r ⟨A, c, ()⟩)
 
 /-- On uniform dimension-`l` samples the two reductions agree: `A₁ x₁ + u` is uniform and
 independent of `x₁`, so the key `x₁` is distributed exactly like a fresh uniform key. -/

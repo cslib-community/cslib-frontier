@@ -382,8 +382,7 @@ theorem one_le_norm_weightedKernelRow (R : ℕ) (v : V) :
 theorem unitWeightedKernelRow_apply (R : ℕ) (v z : V) :
     unitWeightedKernelRow H deg θ R v z =
       ‖weightedKernelRow H deg θ R v‖⁻¹ * weightedKernelRow H deg θ R v z := by
-  rw [unitWeightedKernelRow]
-  rfl
+  simp [unitWeightedKernelRow]
 
 /-- Unit weighted kernel rows have norm `1`. -/
 @[simp]
@@ -722,11 +721,10 @@ private theorem sub_two_mul_div_bounds {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 :
   have hden : (0 : ℝ) < (1 + q₀ ^ 2) * (1 + q ^ 2) := by positivity
   have hnum : 2 * q₀ * (1 + q ^ 2) - (1 + q₀ ^ 2) * (2 * q) =
       2 * (q₀ - q) * (1 - q₀ * q) := by ring
-  have hdiff : q₀ - q ≤ 1 - θ := by nlinarith
-  have h1 : 1 - q₀ * q ≤ 1 := by nlinarith
-  have ha : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) := by nlinarith
   rw [div_sub_div _ _ (by positivity) (by positivity), hnum]
   refine ⟨div_nonneg (mul_nonneg (by linarith) (by nlinarith)) hden.le, (div_le_iff₀ hden).mpr ?_⟩
+  have ha : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) :=
+    (mul_le_of_le_one_right (by linarith) (by nlinarith)).trans (by nlinarith)
   nlinarith [sq_nonneg q₀, sq_nonneg q, mul_nonneg (sq_nonneg q₀) (sq_nonneg q)]
 
 private theorem exists_delta_arccos {α : Type*} (s : Finset α) (g : α → ℝ) {ε : ℝ} (hε : 0 < ε) :
@@ -975,13 +973,10 @@ theorem pairCorrelation_self {d : ℕ} (hd : 1 ≤ d) :
   have hs : √((d : ℝ) - 1) ^ 2 = (d : ℝ) - 1 := sq_sqrt (by linarith)
   unfold pairCorrelation pairWeight Gaussian.vertexCorrelation
   rw [hss]
-  by_cases h1 : d = 1
-  · subst d
-    norm_num
-  · have hpos : (0 : ℝ) < √((d : ℝ) - 1) := sqrt_pos.mpr (by
-      have : (2 : ℝ) ≤ d := by exact_mod_cast (show 2 ≤ d by omega)
-      linarith)
-    have hne : √((d : ℝ) - 1) ≠ 0 := hpos.ne'
+  rcases eq_or_lt_of_le hd with rfl | h1
+  · norm_num
+  · have hne : √((d : ℝ) - 1) ≠ 0 :=
+      (sqrt_pos.mpr (by linarith [show (2 : ℝ) ≤ d from mod_cast h1])).ne'
     have hdne : (d : ℝ) ≠ 0 := by linarith
     field_simp
     nlinarith [hs]
@@ -1047,7 +1042,6 @@ theorem one_add_inv_fiveCoefficient :
     1 + 1 / fiveCoefficient = 1 + 3 * π / (5 * arccos (4 / 5)) := by
   have ha : 0 < arccos (4 / 5) := arccos_pos.mpr (by norm_num)
   unfold fiveCoefficient
-  congr 1
   field_simp
 
 /-- Rational lower bound `3929 / 1000 ≤ 1 + 3 π / (5 arccos (4 / 5)) ≈ 3.929219`. -/
@@ -1106,7 +1100,6 @@ theorem one_add_inv_sixCoefficient :
   have hs5 : √5 < 3 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
   have ha : 0 < arccos (√5 / 3) := arccos_pos.mpr (by linarith)
   unfold sixCoefficient
-  congr 1
   field_simp
 
 /-- Rational lower bound `387 / 100 ≤ 1 + 2 π / (3 arccos (√5 / 3)) ≈ 3.870105`. -/

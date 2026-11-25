@@ -265,25 +265,21 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
     rw [hfilt, sum_pair (by simp)]
     dsimp only
     simp only [Bool.false_eq_true, ↓reduceIte]
-    by_cases hm1 : m = 1
-    · subst hm1
-      simp only [show j.val = 0 by omega, show prev.val = 0 by omega, ↓reduceIte, Nat.cast_one]
-    · by_cases hj0 : j.val = 0
-      · have hp : prev.val = m - 1 := by
-          simp only [prev, hj0, zero_add]
-          exact Nat.mod_eq_of_lt (by omega)
-        rw [ite_eq_left hj0, ite_eq_right (by omega : prev.val ≠ 0), hp,
-          show m - (m - 1) = 1 by omega, Nat.cast_one]
-      · by_cases hj1 : j.val = 1
-        · have hp : prev.val = 0 := by
-            simp only [prev, hj1, show 1 + m - 1 = m by omega, Nat.mod_self]
-          rw [ite_eq_right hj0, ite_eq_left hp, hj1, Nat.cast_one]; ring
-        · have hp : prev.val = j.val - 1 := by
-            simp only [prev, show j.val + m - 1 = (j.val - 1) + m by omega, Nat.add_mod_right]
-            exact Nat.mod_eq_of_lt (by omega)
-          rw [ite_eq_right hj0, ite_eq_right (by omega : prev.val ≠ 0), hp,
-            show m - (j.val - 1) = m + 1 - j.val by omega, Nat.cast_sub (by omega)]
-          push_cast; ring
+    have hprev_eq : (if prev.val = 0 then (m : ℝ) else ((m - prev.val : ℕ) : ℝ)) =
+        ((m - prev.val : ℕ) : ℝ) := by
+      split_ifs with hp <;> simp [hp]
+    rw [hprev_eq]
+    by_cases hj0 : j.val = 0
+    · have hp : prev.val = m - 1 := by
+        simp only [prev, hj0, zero_add]
+        exact Nat.mod_eq_of_lt (by omega)
+      rw [ite_eq_left hj0, hp, show m - (m - 1) = 1 by omega, Nat.cast_one]
+    · have hp : prev.val = j.val - 1 := by
+        simp only [prev, show j.val + m - 1 = (j.val - 1) + m by omega, Nat.add_mod_right]
+        exact Nat.mod_eq_of_lt (by omega)
+      rw [ite_eq_right hj0, hp, show m - (j.val - 1) = m + 1 - j.val by omega,
+        Nat.cast_sub (by omega)]
+      push_cast; ring
   have hsum : ∑ p : Bool × Fin m, (finnHorowitzTight m).weight p = (m : ℝ) * ((m : ℝ) + 1) := by
     rw [← (isIdentical_finnHorowitzTight m).sum_load Aopt]
     simp only [hload_opt, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -349,10 +345,8 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
     · have hA_all : ∀ i : Fin 3, A i = jstar := fun i =>
         (mem_filter.mp (show i ∈ S from eq_univ_of_card S (by simpa using hcard3) ▸ mem_univ i)).2
       have hload_other : G.load A jother = 0 := by
-        have hempty : (univ.filter fun i : Fin 3 => A i = jother) = ∅ := by
-          ext i
-          simp [hA_all i, hjne.symm]
-        rw [G.load_eq_sum_div, hId jother, div_one, hempty, sum_empty]
+        rw [G.load_eq_sum_div, sum_eq_zero fun i hi =>
+          absurd (mem_filter.mp hi).2 (hA_all i ▸ hjne.symm), zero_div]
       have hNE := (G.isPureNash_iff A).mp hA 0 jother (hA_all 0 ▸ hjne)
       rw [hA_all 0, hload_other, hId jother, div_one, zero_add] at hNE
       exact hNE.trans (hw_le 0)
@@ -416,11 +410,10 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
         (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
       field_simp
     nlinarith
-  · have hempty : (univ.filter fun i => A i = jstar) = ∅ := not_nonempty_iff_eq_empty.mp hSne
-    rw [← hjstar, G.load_eq_sum_div, hempty, sum_empty, zero_div]
-    have hcoef : 0 ≤ 1 - 1 / (Fintype.card M : ℝ) :=
-      sub_nonneg.mpr ((div_le_one hm_pos).mpr hm_ge1)
-    linarith [G.optMakespan_nonneg, mul_nonneg hcoef hB]
+  · rw [← hjstar, G.load_eq_sum_div,
+      (not_nonempty_iff_eq_empty.mp hSne : (univ.filter fun i => A i = jstar) = ∅),
+      sum_empty, zero_div]
+    nlinarith [G.optMakespan_nonneg, (div_le_one hm_pos).mpr hm_ge1]
 
 end IdenticalPurePoA
 
@@ -561,8 +554,7 @@ theorem optMakespan_goldenRatioTight : goldenRatioTight.optMakespan = 1 := by
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
   have hload_id : ∀ j : Fin 2, goldenRatioTight.load id j = 1 := fun j => by
     rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
-    rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;>
-      simp [goldenRatioTight, div_self hφ_pos.ne']
+    fin_cases j <;> simp [goldenRatioTight, div_self hφ_pos.ne']
   refine le_antisymm
     ((goldenRatioTight.optMakespan_le id).trans
       ((goldenRatioTight.makespan_le_iff id).mpr fun j => (hload_id j).le)) ?_

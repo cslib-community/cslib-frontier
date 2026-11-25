@@ -550,20 +550,15 @@ theorem isTreePassOutput_treePassUpstream {M : GraphicalGame ι S} (hT : M.graph
     cases hc_par
     rfl
   refine ⟨?_, fun v hv => ?_⟩
-  · rw [treePassUpstream_root, hwit_fun r]
-    have hnr : treePassNode hT hroot r =
-        ⟨xr, Classical.choose hroot, (Classical.choose_spec hroot).1,
-          (Classical.choose_spec hroot).2.1⟩ := by
-      rw [treePassNode]
-      simp
-    rw [hnr]
+  · rw [treePassUpstream_root, hwit_fun r, treePassNode]
+    simp only [↓reduceDIte, NodeChoice.ofEq_rfl]
     exact Classical.choose_spec hroot
   · rw [hwit_fun v]
     unfold treePassUpstream
-    let parChoice := treePassNode hT hroot (hT.parent r v)
-    let hex := (treePassTable_iff_exists_witness hv).mp (parChoice.valid ⟨v, hv, rfl⟩)
+    let hex := (treePassTable_iff_exists_witness hv).mp
+      ((treePassNode hT hroot (hT.parent r v)).valid ⟨v, hv, rfl⟩)
     have hnv : treePassNode hT hroot v =
-        ⟨parChoice.witness ⟨v, hv, rfl⟩, Classical.choose hex, (Classical.choose_spec hex).2.1,
+        ⟨_, Classical.choose hex, (Classical.choose_spec hex).2.1,
           (Classical.choose_spec hex).2.2.1⟩ := by
       conv_lhs =>
         rw [treePassNode]
@@ -774,11 +769,9 @@ theorem sum_abs_prod_sub_prod_le.{u₁, u₂} {α : Type u₁} [Fintype α] [Dec
     have hcard' : Fintype.card α' = n := by
       have hc := Fintype.card_subtype_compl (fun j : α => j = j₀)
       rw [Fintype.card_subtype_eq] at hc
-      dsimp [α']
+      dsimp only [α', Ne] at hc ⊢
       omega
-    have herase : univ.erase j₀ = univ.filter (fun j : α => j ≠ j₀) := by
-      ext j
-      simp
+    have herase : univ.erase j₀ = univ.filter (fun j : α => j ≠ j₀) := Finset.ext fun _ => by simp
     let e := (Equiv.piSplitAt j₀ T).symm
     have hprod_split : ∀ (r : ∀ j, T j → ℝ) (a : T j₀) (v : ∀ j : α', T j.1),
         ∏ j : α, r j (e (a, v) j) = r j₀ a * ∏ j : α', r j.1 (v j) := fun r a v => by
@@ -825,13 +818,10 @@ private theorem sum_sub_mul_le_half_sum_abs {Ω : Type*} [Fintype Ω] {P Q f : �
     (hP : ∑ ω, P ω = 1) (hQ : ∑ ω, Q ω = 1) (hf : ∀ ω, 0 ≤ f ω ∧ f ω ≤ 1) :
     ∑ ω, (Q ω - P ω) * f ω ≤ (1 / 2 : ℝ) * ∑ ω, |Q ω - P ω| := by
   have hshift : ∑ ω, (Q ω - P ω) * f ω = ∑ ω, (Q ω - P ω) * (f ω - 1 / 2) := by
-    have hzero : ∑ ω, (Q ω - P ω) * (1 / 2 : ℝ) = 0 := by
-      rw [← sum_mul, sum_sub_distrib, hQ, hP, sub_self, zero_mul]
-    have hdiff : ∑ ω, (Q ω - P ω) * f ω - ∑ ω, (Q ω - P ω) * (f ω - 1 / 2) =
-        ∑ ω, (Q ω - P ω) * (1 / 2 : ℝ) := by
-      rw [← sum_sub_distrib]
-      exact sum_congr rfl fun ω _ => by ring
-    linarith [hdiff]
+    have : ∑ ω, ((Q ω - P ω) * f ω - (Q ω - P ω) * (f ω - 1 / 2)) =
+        ∑ ω, (Q ω - P ω) * (1 / 2 : ℝ) := sum_congr rfl fun _ _ => by ring
+    rw [sum_sub_distrib, ← sum_mul, sum_sub_distrib, hQ, hP, sub_self, zero_mul] at this
+    linarith
   rw [hshift]
   calc ∑ ω, (Q ω - P ω) * (f ω - 1 / 2)
       ≤ ∑ ω, |Q ω - P ω| * (1 / 2) := sum_le_sum fun ω _ => (le_abs_self _).trans <| by
@@ -1045,11 +1035,8 @@ theorem pos_of_nearestGridStrategy_pos {m : ℕ} (hm : 1 ≤ m) {x : Bool → �
         zero_div, lt_self_iff_false] at hb
     · -- `b = true`: `x true = 0` implies `x false = 1`, so `⌊m + 1 / 2⌋₊ = m` and `q true = 0`.
       have hxf1 : x false = 1 := by linarith
-      have hm_le : m ≤ ⌊(m : ℝ) * x false + 1 / 2⌋₊ := by
-        rw [hxf1, mul_one]
-        exact Nat.le_floor (by linarith)
       have hrm : ⌊(m : ℝ) * x false + 1 / 2⌋₊ = m :=
-        le_antisymm (floor_mul_add_half_le hx) hm_le
+        le_antisymm (floor_mul_add_half_le hx) (Nat.le_floor (by rw [hxf1]; linarith))
       simp only [nearestGridStrategy, ↓reduceIte, hrm, min_self, div_self hm_pos.ne', sub_self,
         lt_self_iff_false] at hb
   · exact hb_pos

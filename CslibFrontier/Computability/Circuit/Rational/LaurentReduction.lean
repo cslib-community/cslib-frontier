@@ -182,9 +182,8 @@ private lemma span_finCons_eq_of_proj_eq_one {ι : Type*}
     (hv : Submodule.span (F K) (Set.range v) = U ⊓ LinearMap.ker (LinearMap.proj c)) :
     Submodule.span (F K) (Set.range (Fin.cons x v)) = U := by
   apply le_antisymm
-  · refine Submodule.span_le.mpr ?_
-    rintro _ ⟨j, rfl⟩
-    exact Fin.cases hxU (fun i => (hv.le (Submodule.subset_span ⟨i, rfl⟩)).1) j
+  · exact Submodule.span_le.mpr fun _ ⟨j, hj⟩ =>
+      hj ▸ Fin.cases hxU (fun i => (hv.le (Submodule.subset_span ⟨i, rfl⟩)).1) j
   · intro y hy
     have hr : y - y c • x ∈ Submodule.span (F K) (Set.range (Fin.cons x v)) :=
       Submodule.span_mono (Fin.range_cons x v ▸ Set.subset_insert x _) <| hv.ge
@@ -340,13 +339,11 @@ lemma reducedSet_eq_span {ι : Type*} {U : Submodule (F K) (ι → F K)}
     obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
     refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j, ?_, ?_, ?_⟩
     · exact U.sum_mem fun j _ => U.smul_mem _ (b.vector_mem j)
-    · intro i
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
-      apply Finset.sum_induction _ _ (fun _ _ => Integral.add) integral_zero
-      intro j _
-      exact (integral_C _).mul (b.vector_integral j i)
-    · rw [reduce_sum]
-      simp_rw [reduce_C_smul]
+    · exact fun i => by
+        simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using
+          Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
+            fun j _ => (integral_C _).mul (b.vector_integral j i)
+    · simp only [reduce_sum, reduce_C_smul]
 
 /-- For any integral frame `b` of `U`, `reducedSubspace U` is the `K`-span of the reduced frame
 vectors. -/
@@ -555,12 +552,9 @@ private lemma liftMap_id : liftMap (LinearMap.id : (ι → K) →ₗ[K] (ι → 
 
 omit [Fintype κ] [DecidableEq κ] in
 private lemma liftMap_integral (P : (ι → K) →ₗ[K] (κ → K)) {x : ι → F K}
-    (hx : IntegralVector x) : IntegralVector (liftMap P x) := by
-  intro j
-  rw [liftMap_apply]
-  apply Finset.sum_induction _ _ (fun _ _ => Integral.add) integral_zero
-  intro i _
-  exact (integral_C _).mul (hx i)
+    (hx : IntegralVector x) : IntegralVector (liftMap P x) := fun _ =>
+  Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
+    fun i _ => (integral_C _).mul (hx i)
 
 omit [Fintype κ] [DecidableEq κ] in
 private lemma reduction_liftMap (P : (ι → K) →ₗ[K] κ → K) (x : ι → F K) :
@@ -604,10 +598,7 @@ lemma liftEquiv_symm (E : (ι → K) ≃ₗ[K] (κ → K)) :
 /-- `liftEquiv E` preserves and reflects `IntegralVector`. -/
 lemma integral_liftEquiv_iff (E : (ι → K) ≃ₗ[K] (κ → K)) (x : ι → F K) :
     IntegralVector (liftEquiv E x) ↔ IntegralVector x :=
-  ⟨fun h => by
-      have hh : IntegralVector ((liftEquiv E).symm (liftEquiv E x)) :=
-        liftMap_integral E.symm.toLinearMap h
-      simpa using hh,
+  ⟨fun h => (liftEquiv E).symm_apply_apply x ▸ liftMap_integral E.symm.toLinearMap h,
     liftMap_integral E.toLinearMap⟩
 
 private lemma reducedSubspace_liftEquiv (E : (ι → K) ≃ₗ[K] (κ → K))
@@ -651,8 +642,7 @@ theorem conjugated_filtration_rank {ι : Type*} [Fintype ι] [DecidableEq ι]
   have hh : (U.map (liftEquiv Ein).toLinearMap).map (weightMap w) ≤
       W.map (liftEquiv Eout).toLinearMap := by
     rintro y ⟨z, ⟨x, hxU, rfl⟩, rfl⟩
-    refine ⟨conjugatedWeight Ein Eout w x, hW ⟨x, hxU, rfl⟩, ?_⟩
-    exact (liftEquiv Eout).apply_symm_apply _
+    exact ⟨conjugatedWeight Ein Eout w x, hW ⟨x, hxU, rfl⟩, (liftEquiv Eout).apply_symm_apply _⟩
   have h := weighted_filtration_rank w A (U.map (liftEquiv Ein).toLinearMap)
     (W.map (liftEquiv Eout).toLinearMap) hh
   rwa [reducedSubspace_liftEquiv, reducedSubspace_liftEquiv] at h

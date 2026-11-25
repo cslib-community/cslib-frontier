@@ -196,10 +196,8 @@ private theorem parityAmplifier_eval_modEq_one_of_dvd_of_pos {ℓ : ℕ} (hℓ :
   rw [Int.modEq_iff_dvd]
   obtain ⟨q, hq⟩ := X_pow_dvd_one_sub_parityAmplifier hℓ
   have heval : 1 - (parityAmplifier ℓ).eval y = y ^ ℓ * q.eval y := by
-    have := congr_arg (eval y) hq
-    simpa only [eval_sub, eval_one, eval_mul, eval_pow, eval_X] using this
-  rw [heval]
-  exact dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd hy ℓ) _
+    simpa only [eval_sub, eval_one, eval_mul, eval_pow, eval_X] using congr_arg (eval y) hq
+  exact heval ▸ dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd hy ℓ) _
 
 /-- If `m ∣ y`, then `p_ℓ(y) ≡ 1 (mod m ^ ℓ)`. -/
 theorem parityAmplifier_eval_modEq_one_of_dvd (ℓ : ℕ) {m y : ℤ} (hy : m ∣ y) :
@@ -214,13 +212,8 @@ theorem parityAmplifier_eval_modEq_zero_of_dvd_sub_one (ℓ : ℕ) {m y : ℤ} (
   rw [Int.modEq_iff_dvd, zero_sub, dvd_neg]
   obtain ⟨q, hq⟩ := one_sub_X_pow_dvd_parityAmplifier ℓ
   have heval : (parityAmplifier ℓ).eval y = (1 - y) ^ ℓ * q.eval y := by
-    have := congr_arg (eval y) hq
-    simpa only [eval_mul, eval_pow, eval_sub, eval_one, eval_X] using this
-  rw [heval]
-  have h1 : m ∣ 1 - y := by
-    rw [← neg_sub]
-    exact dvd_neg.2 hy
-  exact dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd h1 ℓ) _
+    simpa only [eval_mul, eval_pow, eval_sub, eval_one, eval_X] using congr_arg (eval y) hq
+  exact heval ▸ dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd (neg_sub y 1 ▸ dvd_neg.2 hy) ℓ) _
 
 /-- At any even integer `y`, `parityAmplifier ℓ` (`ℓ ≥ 1`) evaluates to `1` modulo `2 ^ ℓ`. -/
 theorem parityAmplifier_eval_modEq_one_of_even {ℓ : ℕ} (hℓ : 1 ≤ ℓ) {y : ℤ} (hy : Even y) :
@@ -475,10 +468,8 @@ theorem coeff_divByMonic_hPoly_sum (p : ℤ[X]) (n m : ℕ) :
   induction m with
   | zero => simp only [range_zero, sum_empty, add_zero, zero_add]
   | succ m ih =>
-    rw [sum_range_succ, ih, coeff_divByMonic_hPoly_rec p (n + m)]
-    have hidx : n + m + 2 = n + 2 + m := by omega
-    have hidx2 : n + (m + 1) = n + m + 1 := by omega
-    rw [hidx, hidx2]
+    rw [sum_range_succ, ih, coeff_divByMonic_hPoly_rec p (n + m),
+      show n + m + 2 = n + 2 + m by omega, show n + (m + 1) = n + m + 1 by omega]
     ring
 
 /-- The constant coefficient of `p %ₘ hPoly` equals `p.coeff 0`. -/
@@ -669,12 +660,8 @@ theorem sumCoeffsBelow_prod_parityFactor_modEq {ι : Type*} (I : Finset ι) (ℓ
   obtain rfl | hℓ := Nat.eq_zero_or_pos ℓ
   · simp only [pow_zero, Int.modEq_one]
   refine (sumCoeffsBelow_modEq_eval_one (two_pow_dvd_coeff_prod_parityFactor I ℓ y)).trans ?_
-  rw [eval_prod]
-  have heval : (∏ i ∈ I, (parityFactor ℓ (y i)).eval 1) =
-      ∏ i ∈ I, (parityAmplifier ℓ).eval (y i) := by
-    refine prod_congr rfl fun i _ => ?_
-    rw [eval_one_parityFactor, evalInt_int]
-  rw [heval]
+  rw [eval_prod, prod_congr rfl fun i _ =>
+    (eval_one_parityFactor ℓ (y i)).trans (evalInt_int (y i) _)]
   exact Int.ModEq.prod fun i _ => parityAmplifier_eval_modEq_two_pow hℓ (y i)
 
 /-- Evaluating an affine integer polynomial (`natDegree ≤ 1`) at `y : MvPolynomial σ R` preserves
@@ -710,10 +697,8 @@ theorem totalDegree_coeff_parityFactor_le {σ R : Type*} [CommRing R] (ℓ : ℕ
   split_ifs with hs
   · refine (MvPolynomial.totalDegree_mul _ _).trans (add_le_add ?_ ?_)
     · exact totalDegree_evalInt_of_natDegree_le_one (natDegree_parityBaseDigit_le ℓ s) hy
-    · refine (MvPolynomial.totalDegree_pow _ s).trans ?_
-      have h1 := Nat.mul_le_mul_left s (totalDegree_evalInt_hPoly_le hy)
-      have h2 : s * (2 * d) = 2 * d * s := by ring
-      omega
+    · exact (MvPolynomial.totalDegree_pow _ s).trans
+        ((Nat.mul_le_mul_left s (totalDegree_evalInt_hPoly_le hy)).trans_eq (by ring))
   · simp only [MvPolynomial.totalDegree_zero, zero_le]
 
 /-- Graded total-degree bounds `totalDegree (coeff s) ≤ M + 2 * d * s` add in the offset `M`
@@ -727,12 +712,8 @@ theorem totalDegree_coeff_mul_le {σ R : Type*} [CommRing R] {P Q : (MvPolynomia
   refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun ij hij => ?_)
   rw [mem_antidiagonal] at hij
   refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-  have h1 := hP ij.1
-  have h2 := hQ ij.2
-  have hsum : 2 * d * ij.1 + 2 * d * ij.2 = 2 * d * s := by
-    rw [← hij]
-    ring
-  linarith
+  have hsum : 2 * d * ij.1 + 2 * d * ij.2 = 2 * d * s := by rw [← hij]; ring
+  linarith [hP ij.1, hQ ij.2]
 
 /-- **Lemma 5.2 (graded total-degree bound)**: if every `y i` (`i ∈ I`) has multivariate total
 degree at most `d`, then the `V ^ s`-coefficient of `∏ i ∈ I, parityFactor ℓ (y i)` has total

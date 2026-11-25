@@ -233,9 +233,8 @@ theorem value_append (b : Bool) (g h : List (AMMove × ℕ)) (f : List Bool → 
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
     · simp only [List.cons_append, value_arthur, ih, List.append_assoc]
-    · cases b
-      · simp only [List.cons_append, value_merlin_false, ih, List.append_assoc]
-      · simp only [List.cons_append, value_merlin_true, ih, List.append_assoc]
+    · cases b <;>
+        simp only [List.cons_append, value_merlin_false, value_merlin_true, ih, List.append_assoc]
 
 private theorem one_sub_inf' {ι : Type} [Fintype ι] [Nonempty ι] (φ : ι → ℚ) :
     1 - univ.inf' univ_nonempty φ = univ.sup' univ_nonempty fun y => 1 - φ y := by
@@ -266,13 +265,10 @@ theorem value_one_sub (b : Bool) (g : List (AMMove × ℕ)) (f : List Bool → �
       field_simp
       push_cast
       ring
-    · cases b
-      · rw [value_merlin_false, Bool.not_false, value_merlin_true]
-        simp only [ih, Bool.not_false]
-        exact (one_sub_sup' _).symm
-      · rw [value_merlin_true, Bool.not_true, value_merlin_false]
-        simp only [ih, Bool.not_true]
-        exact (one_sub_inf' _).symm
+    · cases b <;> simp only [value_merlin_false, value_merlin_true, Bool.not_false,
+        Bool.not_true, ih]
+      · exact (one_sub_sup' _).symm
+      · exact (one_sub_inf' _).symm
 
 theorem value_merge_arthur (b : Bool) (σ τ : List (AMMove × ℕ)) (n₁ n₂ : ℕ)
     (f : List Bool → ℚ) :
@@ -315,17 +311,11 @@ theorem value_insert_zero (b : Bool) (σ τ : List (AMMove × ℕ)) (x : AMMove)
     value b (σ ++ (x, 0) :: τ) f = value b (σ ++ τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  have h0 (y : Fin 0 → Bool) : List.ofFn y = [] := List.ofFn_zero
   cases x
-  · rw [value_arthur]
-    simp
+  · simp [value_arthur]
   · cases b
-    · rw [value_merlin_false]
-      simp only [h0, List.nil_append]
-      exact inf'_const _ _
-    · rw [value_merlin_true]
-      simp only [h0, List.nil_append]
-      exact sup'_const _ _
+    · simpa only [value_merlin_false, List.ofFn_zero, List.nil_append] using inf'_const _ _
+    · simpa only [value_merlin_true, List.ofFn_zero, List.nil_append] using sup'_const _ _
 
 theorem count_eq (g : List (AMMove × ℕ)) (V : List Bool → Bool) :
     (count g V : ℚ) = 2 ^ arthurBits g * value true g (fun t => ((V t).toNat : ℚ)) := by
@@ -563,11 +553,7 @@ theorem isAMGameVerifier_arthur_merlin_iff {enc : α ↪ List Bool} {p q : Polyn
   simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, not_exists,
     Bool.not_eq_true] at hsum
   rw [hc, hb]
-  constructor <;> rintro ⟨h₁, h₂⟩ <;> refine ⟨fun ha => ?_, fun ha => ?_⟩
-  · exact h₁ ha
-  · have := h₂ ha; omega
-  · exact h₁ ha
-  · have := h₂ ha; omega
+  exact and_congr_right fun _ => imp_congr_right fun _ => by omega
 
 theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polynomial ℕ}
     {V : α × List Bool → Bool} {A : Set α} :

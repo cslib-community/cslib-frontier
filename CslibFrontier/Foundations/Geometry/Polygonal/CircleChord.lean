@@ -104,14 +104,8 @@ theorem exists_closedBall_lineMap_cuts {a b z : ℂ} {ρ : ℝ} (hρ : 0 < ρ)
       (hclosed 1).mpr ⟨by linarith [hs.2], h⟩
   refine ⟨s - δ, s + δ, hleft, by linarith, hright, hclosed, ?_, ?_⟩
   · intro t
-    have habs : |t - s| = ρ / dist a b ↔ t - s = δ ∨ t - s = -δ := by
-      rw [show ρ / dist a b = δ from rfl, ← abs_eq_abs, abs_of_pos hδ]
-    rw [Metric.mem_sphere, hdist, ← eq_div_iff hd.ne', habs]
-    constructor
-    · rintro (h | h)
-      exacts [.inr (by linarith), .inl (by linarith)]
-    · rintro (rfl | rfl)
-      exacts [.inr (by ring), .inl (by ring)]
+    rw [Metric.mem_sphere, hdist, ← eq_div_iff hd.ne', abs_eq hδ.le, sub_eq_iff_eq_add,
+      sub_eq_iff_eq_add, add_comm δ s, ← sub_eq_neg_add, or_comm]
   · rw [← AffineMap.map_midpoint]
     congr 1
     rw [midpoint_eq_smul_add, smul_eq_mul, invOf_eq_inv]
@@ -347,13 +341,12 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
       ((left_eq_midpoint_iff (R := ℝ)).mp (sub_eq_zero.mp he))
     change ((a - midpoint ℝ a b) / (a - midpoint ℝ a b)).im = 0
     rw [div_self hd, Complex.one_im]
-  have hf₀ : f p = 0 := left_zero hpq
   have hf₁ : f q = 0 := by
     have h := left_zero hpq.symm
     rw [chordCoordinate_swap] at h
     exact neg_eq_zero.mp h
   have himage : f '' openSegment ℝ p q = {0} := by
-    rw [image_openSegment ℝ f, hf₀, hf₁, openSegment_same]
+    rw [image_openSegment ℝ f, left_zero hpq, hf₁, openSegment_same]
   change _ ↔ Xor (0 < f x) (0 < f y)
   rw [← Cslib.zero_mem_openSegment_iff_xor_pos (f_ne_zero hx hpx hxq)
     (f_ne_zero hy hpy hyq), ← image_openSegment ℝ f]

@@ -224,7 +224,6 @@ theorem andreevSubcubeEval_self (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
   have hreal : ((∑ S : Finset (Fin b),
       andreevTableScore b m S w * chi ℤ S (andreevParities b m w) : ℤ) : ℝ) =
       (2 ^ b : ℝ) * signVal (andreev b m w) := by
-    push_cast
     simpa [chi] using sum_andreevTableScore_mul_chi b m w
   rw [Bool.eq_iff_iff, decide_eq_true_eq, ← @Int.cast_nonpos ℝ, hreal]
   cases andreev b m w <;> simp
@@ -329,9 +328,8 @@ theorem eval_andreevWindowedCircuit_eq_evalInt (b m r B : ℕ)
         (andreevWindowedTopWeightInt b m B S τ k : ℝ) *
           (andreevWindowedBottomEvalInt b m B S τ k w).toNat := by
     rw [← (andreevWindowedBottomEquiv b r B).sum_comp]
-    simp only [Equiv.symm_apply_apply]
-    rw [← (AndreevWindowedBottomIndex.equivProd b r B).symm.sum_comp]
-    simp only [Fintype.sum_prod_type]
+    simp only [Equiv.symm_apply_apply,
+      ← (AndreevWindowedBottomIndex.equivProd b r B).symm.sum_comp, Fintype.sum_prod_type]
     exact sum_coe_sort (andreevPrefixSubsets b r) (fun S =>
       ∑ τ : Bool, ∑ k : Fin (2 * B),
         (andreevWindowedTopWeightInt b m B S τ k : ℝ) *
@@ -379,9 +377,8 @@ most `2`. -/
 theorem abs_weight_andreevWindowedBottomOp_le (b m r B : ℕ)
     (j : Fin (4 * #(andreevPrefixSubsets b r) * B)) (i : Fin (2 ^ b + b * m)) :
     |(andreevWindowedBottomOp b m r B j).weight i| ≤ 2 := by
-  let idx := (andreevWindowedBottomEquiv b r B).symm j
-  unfold andreevWindowedBottomOp; dsimp only
-  exact_mod_cast abs_andreevStairWeightInt_le b m idx.subset idx.staircase i
+  dsimp only [andreevWindowedBottomOp]
+  exact_mod_cast abs_andreevStairWeightInt_le b m _ _ i
 
 /-- Every integer top-gate weight in `andreevWindowedCircuit b m r B` has absolute value at most
 `b * m + 2 * B + 1`. -/
@@ -402,9 +399,8 @@ theorem abs_andreevWindowedTopWeightInt_le (b m B : ℕ) (S : Finset (Fin b)) (�
 theorem abs_weight_andreevWindowedTopOp_le (b m r B : ℕ)
     (j : Fin (4 * #(andreevPrefixSubsets b r) * B)) :
     |(andreevWindowedTopOp b m r B).weight j| ≤ b * m + 2 * B + 1 := by
-  let idx := (andreevWindowedBottomEquiv b r B).symm j
-  unfold andreevWindowedTopOp; dsimp only
-  exact_mod_cast abs_andreevWindowedTopWeightInt_le b m B idx.subset idx.staircase idx.step
+  dsimp only [andreevWindowedTopOp]
+  exact_mod_cast abs_andreevWindowedTopWeightInt_le b m B _ _ _
 
 /-! ### Hoeffding concentration bounds -/
 
@@ -444,10 +440,9 @@ theorem card_filter_le_abs_andreevBlockSum_sub_half (b m : ℕ) (S : Finset (Fin
     (#{w : BitString (2 ^ b + b * m) |
       t ≤ |(andreevBlockSum b m S w : ℝ) - (#S * m : ℝ) / 2|} : ℝ) ≤
       2 * 2 ^ (2 ^ b + b * m) * exp (-(2 * t ^ 2 / (#S * m))) := by
-  have h := Cslib.BitString.card_filter_le_abs_card_filter_sub_half_le
-    (andreevBlockSupport m S) ht
   simpa [cast_andreevBlockSum_eq_card_filter, card_andreevBlockSupport, Fintype.card_fin,
-    Nat.cast_mul] using h
+    Nat.cast_mul] using
+    Cslib.BitString.card_filter_le_abs_card_filter_sub_half_le (andreevBlockSupport m S) ht
 
 /-- Uniform Hoeffding tail bound for `andreevBlockSum` with denominator `b * m` in the exponent,
 valid for all `S : Finset (Fin b)` (including `S = ∅` or `m = 0`). -/
@@ -512,9 +507,7 @@ private theorem cast_andreevTableScore_flipTable (b m : ℕ) (S : Finset (Fin b)
       Int.cast_ofNat, Int.cast_natCast]
     refine sum_congr rfl fun c _ => ?_
     have hchi : ((chi ℤ S c : ℤ) : ℝ) = (-1 : ℝ) ^ (parityOn S c).toNat := by
-      rw [chi_eq_neg_one_pow_parityOn]
-      push_cast
-      rfl
+      simp [chi_eq_neg_one_pow_parityOn]
     rw [hchi]
     simpa [andreevFlipTable, andreevFlipTableFun, andreevTable, andreevTableIndex] using
       hxor (parityOn S c) (andreevTable b m w c)

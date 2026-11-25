@@ -604,21 +604,13 @@ theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq
     (hn : 3 * t < Fintype.card P) {R : ℕ} (hR : (t + 1) * epochLen P ≤ R) :
     (purifiedOM t routes).SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) =
-      strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve j ((purifiedOM t routes).state F adv x R j).omTree t [c]
-    congr 1 with c : 1
+    refine congrArg (strictMajorityOn Finset.univ) (funext fun c => ?_)
     rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
       omResolve_purifiedOM_eq_frozenTree routes F adv x hR j c]
     exact Byzantine.omResolve_eq_omResolve
       (fun _ hp _ hq τ => frozenTree_cons routes F adv x hF hp hq τ) t c [] List.not_mem_nil
       (by simpa using hF) (by simpa using hn) i hi j hj
   validity F hF adv x v hv i hi := by
-    dsimp only [GraphProtocol.decision]
-    change (strictMajorityOn Finset.univ fun c =>
-        Byzantine.omResolve i ((purifiedOM t routes).state F adv x R i).omTree t [c]) = v
     refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun c _ hc => ?_) ?_
     · rw [omResolve_purifiedOM_eq_frozenTree routes F adv x hR i c,
         Byzantine.omResolve_eq_of_notMem
@@ -687,10 +679,8 @@ private theorem uliftProtocol_state.{u, s₀, m₀, v, w} {P : Type u} [Decidabl
     congr 1
     · exact uliftProtocol_state π F adv x r i
     · funext j hji
-      by_cases hj : j ∈ F
-      · simp only [hj, ↓reduceIte]
-      · simp only [hj, ↓reduceIte]
-        exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
+      by_cases hj : j ∈ F <;> simp only [hj, ↓reduceIte]
+      exact congrArg (fun s => π.send r j s i hji) (uliftProtocol_state π F adv x r j)
 
 private theorem solvesByzantineAgreement_ulift.{u, s₀, m₀, v, w} {P : Type u} [DecidableEq P]
     {G : SimpleGraph P} {S : Type s₀} {M : Type m₀} {π : GraphProtocol G S M} {t R : ℕ}

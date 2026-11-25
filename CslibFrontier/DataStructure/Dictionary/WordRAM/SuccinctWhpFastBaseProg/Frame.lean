@@ -78,11 +78,9 @@ theorem large_index_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
   have hps_eq : numBucketsWhp n_max * capFrontWhp n_max + poolSizeWhp n_max = n_max := by
     unfold poolSizeWhp; omega
   have h2tl : 2 * totalLocalCoordsWhp n_max + 32 ≤ n_max := by
-    have htl3 : totalLocalCoordsWhp n_max ≤ 3 * (slabScale n_max) ^ 12 :=
-      totalLocalCoordsWhp_le_three_mul
-    have h1024L12 : 1024 * (slabScale n_max) ^ 12 ≤ n_max :=
-      (Nat.mul_le_mul_right _ hM_ge).trans hML12
-    have hL12_pos : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
+    have := totalLocalCoordsWhp_le_three_mul (n_max := n_max)
+    have := (Nat.mul_le_mul_right _ hM_ge).trans hML12
+    have := Nat.one_le_pow 12 (slabScale n_max) (by omega)
     omega
   exact ⟨hmcb, hps_eq, h2tl, by omega, by omega, h6q⟩
 
@@ -208,11 +206,11 @@ theorem bind {β : Type} {C₁ C₂ : ℕ} {s₁ s₂ : Memory.State} {f : Memor
     (hg : CostBoundedStep w F s₁ (g x) s₂ y C₂) :
     CostBoundedStep w F s (f >>= g) s₂ y (C₁ + C₂) where
   clientState_eq := by
-    rw [StateTransitionSpec.clientState_bind, hf.clientState_eq, hf.clientResult_eq]
-    exact hg.clientState_eq
+    rw [StateTransitionSpec.clientState_bind, hf.clientState_eq, hf.clientResult_eq,
+      hg.clientState_eq]
   clientResult_eq := by
-    rw [StateTransitionSpec.clientResult_bind, hf.clientState_eq, hf.clientResult_eq]
-    exact hg.clientResult_eq
+    rw [StateTransitionSpec.clientResult_bind, hf.clientState_eq, hf.clientResult_eq,
+      hg.clientResult_eq]
   memoryCost_le := by
     rw [memoryCost_bind', hf.clientState_eq, hf.clientResult_eq]
     exact Nat.add_le_add hf.memoryCost_le hg.memoryCost_le
@@ -229,9 +227,7 @@ theorem mono {p : Memory.Prog α} {r : α} (h : CostBoundedStep w F s p s' r C) 
 theorem ite {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r₁ r₂ : α}
     (h₁ : CostBoundedStep w F s p₁ s' r₁ C) (h₂ : CostBoundedStep w F s p₂ s' r₂ C) :
     CostBoundedStep w F s (if c then p₁ else p₂) s' (if c then r₁ else r₂) C := by
-  split_ifs
-  · exact h₁
-  · exact h₂
+  split_ifs <;> assumption
 
 /-- Positive branch of a conditional cost-bounded step. -/
 theorem if_pos {c : Prop} [Decidable c] {p₁ p₂ : Memory.Prog α} {r : α} (hc : c)

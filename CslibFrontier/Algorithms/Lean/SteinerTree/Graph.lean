@@ -211,14 +211,10 @@ theorem reachable_expandEdges (P : ∀ u v : V, G.Walk u v) {T : List (V × V)} 
 /-- The expanded edges cost at most the walks: shared edges are paid for once. -/
 theorem sum_expandEdges_le (P : ∀ u v : V, G.Walk u v) (T : List (V × V)) :
     (expandEdges P T).sum w ≤ edgeCost (fun u v => walkWeight w (P u v)) T := by
-  have hL : ∀ T : List (V × V), ((T.flatMap fun e => (P e.1 e.2).edges).map w).sum =
+  have hL : ((T.flatMap fun e => (P e.1 e.2).edges).map w).sum =
       edgeCost (fun u v => walkWeight w (P u v)) T := by
-    intro T
-    induction T with
-    | nil => rfl
-    | cons e T ih =>
-      rw [List.flatMap_cons, List.map_append, List.sum_append, ih]
-      rfl
+    simp only [edgeCost, walkWeight, List.flatMap_def, List.map_flatten, List.sum_flatten,
+      List.map_map, Function.comp_def]
   unfold expandEdges
   rw [← hL, ← List.toFinset_dedup, List.sum_toFinset _ (List.nodup_dedup _)]
   exact List.Sublist.sum_le_sum ((List.dedup_sublist _).map w) fun _ _ => Nat.zero_le _
@@ -253,12 +249,9 @@ private theorem edgeCost_out_le {P : ∀ u v : V, G.Walk u v} (hP : IsShortestWa
   rw [List.map_map, ← Finset.sum_map_toList F w]
   refine List.sum_le_sum fun e he => ?_
   have hq := Sym2.mk_fst_out_snd_out e
-  have hadj : G.Adj (Quot.out e).1 (Quot.out e).2 := by
-    rw [← mem_edgeSet, hq]
-    exact hF (Finset.mem_toList.1 he)
-  have := hP.le_of_adj hadj
-  rw [hq] at this
-  exact this
+  have hadj : G.Adj (Quot.out e).1 (Quot.out e).2 :=
+    G.mem_edgeSet.mp (hq.symm ▸ hF (Finset.mem_toList.1 he))
+  exact (hP.le_of_adj hadj).trans_eq (congrArg w hq)
 
 /-! ### The Kou–Markowsky–Berman heuristic -/
 

@@ -392,14 +392,12 @@ private theorem Good.underfull {c : BPlusTree α β} {h : ℕ} (hc : Good t h c)
 private theorem Underfull.good {c : BPlusTree α β} {h : ℕ} (hc : Underfull t h c)
     (hu : underflows t c = false) : Good t h c := by
   have hw : t - 1 ≤ c.width := by simpa [underflows] using hu
-  have ho := hc.children_occupied
-  have hk := hc.width_le
   refine ⟨hc.balanced, hc.height_eq, ?_⟩
   cases c with
-  | leaf es => exact .leaf hw hk
+  | leaf es => exact .leaf hw hc.width_le
   | node f r =>
-    exact .node hw hk (ho f List.mem_cons_self)
-      fun e he => ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+    exact .node hw hc.width_le (hc.children_occupied f List.mem_cons_self)
+      fun e he => hc.children_occupied _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- A subtree one item short that underflows has exactly `t - 2` items at its root. -/
 private theorem Underfull.width_eq_of_underflows {c : BPlusTree α β} {h : ℕ}
@@ -469,20 +467,16 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
       simp only [width_leaf] at hlo hhi
       exact mended_ofLeaf (by simp; omega) (by simp; omega)
     | node rf rr =>
-      have h₁ := hl.height_eq
-      have h₂ := hr.height_eq
-      rw [hr.balanced.height_node] at h₂
       have := rf.height_pos
-      simp only [height_leaf] at h₁
+      have : rf.height + 1 = 1 :=
+        hr.balanced.height_node.symm.trans (hr.height_eq.trans hl.height_eq.symm)
       omega
   | node lf lr =>
     cases r with
     | leaf re =>
-      have h₁ := hl.height_eq
-      have h₂ := hr.height_eq
-      rw [hl.balanced.height_node] at h₁
       have := lf.height_pos
-      simp only [height_leaf] at h₂
+      have : lf.height + 1 = 1 :=
+        hl.balanced.height_node.symm.trans (hl.height_eq.trans hr.height_eq.symm)
       omega
     | node rf rr =>
       obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 :=
@@ -632,9 +626,7 @@ private theorem eraseRest_spec {rest : List (Branch α β)}
           (lt_of_lt_of_le (hprev (s, c) List.mem_cons_self p hp) hk).ne
       simp only [hk, ↓reduceIte]
       rcases rest with _ | ⟨e, rest⟩
-      · simp only
-        rw [toList_rebalanceLast]
-        simp [hpre, hcc]
+      · simp [toList_rebalanceLast, hpre, hcc]
       · have ih := ih (fun e he => hle e (List.mem_cons_of_mem _ he))
           (fun e he => hne e (List.mem_cons_of_mem _ he)) hpw₂
           (fun e he => hc e (List.mem_cons_of_mem _ he)) c (eraseSubtree t k c)
@@ -937,12 +929,8 @@ theorem toList_erase (h : IsWF t tr) (k : α) :
 theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   have ht := h.two_le
   have hw := h.width_le
-  have hfit := eraseFits_eraseSubtree ht k tr h.balanced h.occupied_of_mem_children h.width_pos
-    h.sorted
-  have hb := hfit.balanced
-  have hco := hfit.children_occupied
-  have hk₁ := hfit.width_le
-  clear hfit
+  obtain ⟨hb, -, hco, hk₁, -⟩ :=
+    eraseFits_eraseSubtree ht k tr h.balanced h.occupied_of_mem_children h.width_pos h.sorted
   have hp := separated_eraseSubtree k tr h.searchInvariant h.balanced h.width_pos
   have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc := by
     rw [toList_erase h]
@@ -960,11 +948,8 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
 /-- On a well-formed tree, erasure either keeps the height or lowers it by one. -/
 theorem height_erase (h : IsWF t tr) (k : α) :
     (erase t k tr).height = tr.height ∨ (erase t k tr).height + 1 = tr.height := by
-  have hfit := eraseFits_eraseSubtree h.two_le k tr h.balanced h.occupied_of_mem_children
-    h.width_pos h.sorted
-  have hb := hfit.balanced
-  have hh := hfit.height_eq
-  clear hfit
+  obtain ⟨hb, hh, -, -, -⟩ := eraseFits_eraseSubtree h.two_le k tr h.balanced
+    h.occupied_of_mem_children h.width_pos h.sorted
   rw [erase_eq_collapse]
   generalize eraseSubtree t k tr = c at *
   rcases c with es | ⟨f, _ | ⟨e, r⟩⟩

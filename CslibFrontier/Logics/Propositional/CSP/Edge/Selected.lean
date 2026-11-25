@@ -50,13 +50,8 @@ theorem EdgeInstance.mem_selectedVariables_iff (hF : EdgeInstance F)
     (f : OccurrenceLabeling F Bool) (o : Occurrence F) :
     o.var ∈ selectedVariables f ↔ f o = true ∧ f (hF.partner o) = true := by
   rw [mem_selectedVariables, and_iff_right o.var_mem]
-  constructor
-  · intro h
-    exact ⟨h o rfl, h _ (hF.partner_variable o).symm⟩
-  · intro h p hp
-    rcases hF.eq_or_eq_partner hp with rfl | rfl
-    · exact h.1
-    · exact h.2
+  exact ⟨fun h => ⟨h o rfl, h _ (hF.partner_variable o).symm⟩, fun h p hp =>
+    (hF.eq_or_eq_partner hp).elim (· ▸ h.1) (· ▸ h.2)⟩
 
 /-- True endpoints split into twice the mutually selected edges and the defective edges. -/
 theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) :
@@ -73,11 +68,8 @@ theorem EdgeInstance.card_true_eq (hF : EdgeInstance F) (f : OccurrenceLabeling 
         ({o, hF.partner o} : Finset (Occurrence F)).filter fun p => f p = true := by
       ext p
       simp only [T, mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
-      constructor
-      · exact fun ⟨hp, hv⟩ => ⟨hF.eq_or_eq_partner hv, hp⟩
-      · rintro ⟨rfl | rfl, hp⟩
-        · exact ⟨hp, rfl⟩
-        · exact ⟨hp, (hF.partner_variable o).symm⟩
+      exact and_comm.trans (and_congr_left' ⟨hF.eq_or_eq_partner, fun h =>
+        h.elim (congrArg Occurrence.var) (·.symm ▸ (hF.partner_variable o).symm)⟩)
     rw [he]
     simp only [hF.mem_selectedVariables_iff, mem_defects, hF.inconsistent_iff]
     have hn := hF.partner_ne o

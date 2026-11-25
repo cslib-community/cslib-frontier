@@ -165,10 +165,8 @@ private theorem width_le_vStar {N k : ℕ} (hk : 3 ≤ k) (hN : 1 ≤ N)
     (N : ℝ) ≤ vStar k c.depth := by
   obtain ⟨T, hT0, hTD, hseg⟩ := optimal_segment_decomposition hN hopt hfan
   set D := c.depth
-  have hN_eq : (N : ℝ) = 1 + ∑ d ∈ Finset.range D, ((T (d + 1) - T d : ℕ) : ℝ) := by
-    rw [← hTD, eq_one_add_sum_sub hT0 fun d hd => (hseg d hd).1, Nat.cast_add, Nat.cast_one,
-      Nat.cast_sum]
-  rw [hN_eq]
+  rw [← hTD, eq_one_add_sum_sub hT0 fun d hd => (hseg d hd).1, Nat.cast_add, Nat.cast_one,
+    Nat.cast_sum]
   unfold vStar
   rw [Finset.sum_range_succ, Nat.sub_self, V_zero_right, add_comm (1 : ℝ)]
   have h1 : (1 : ℝ) ≤ (3 / 2 : ℝ) ^ D := one_le_pow₀ (by norm_num)
@@ -266,8 +264,8 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
             2 * (maxCircuitWidthUpper 2 m : ℝ) + 2 := by exact_mod_cast hrec
         rw [hcast, pow_add, hα_sq]
         linarith only [ih]
-    have hN_w : N ≤ maxCircuitWidthUpper 2 c.depth := width_le_maxCircuitWidthUpper_two hN hopt hfan
-    have hN_r : (N : ℝ) ≤ (maxCircuitWidthUpper 2 c.depth : ℝ) := by exact_mod_cast hN_w
+    have hN_r : (N : ℝ) ≤ maxCircuitWidthUpper 2 c.depth :=
+      mod_cast width_le_maxCircuitWidthUpper_two hN hopt hfan
     linarith only [hN_r, hu_bound c.depth]
   · have hk3 : 3 ≤ k := by omega
     set α := alphaRoot k
@@ -288,12 +286,9 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
       induction D using Nat.strong_induction_on with
       | _ D ih =>
         by_cases hD : D < k
-        · have hmem : D ∈ Finset.range k := Finset.mem_range.mpr hD
-          have hle_A : vStar k D + b * (3 / 2 : ℝ) ^ D + 1 ≤ A := by
-            have := Finset.single_le_sum (fun m _ => hterm_nn m) hmem
-            linarith
-          have hpow1 : 1 ≤ α ^ D := one_le_pow₀ hα1.le
-          have hA_le : A ≤ A * α ^ D := le_mul_of_one_le_right (by linarith) hpow1
+        · have hle_A : vStar k D + b * (3 / 2 : ℝ) ^ D + 1 ≤ A := by
+            linarith [Finset.single_le_sum (fun m _ => hterm_nn m) (Finset.mem_range.mpr hD)]
+          have hA_le : A ≤ A * α ^ D := le_mul_of_one_le_right (by linarith) (one_le_pow₀ hα1.le)
           dsimp only [B]
           linarith
         · have hkD : k ≤ D := le_of_not_gt hD
@@ -323,18 +318,14 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
             linear_combination A * hrec_α - b * hrec_32 + hb_mul
           have hV_rec := vStar_recurrence hk3 hkD
           have hsum_le : ∑ j ∈ Finset.Ico 2 k, vStar k (D - j) ≤
-              ∑ j ∈ Finset.Ico 2 k, B (D - j) := by
-            refine Finset.sum_le_sum fun j hj => ?_
-            simp only [Finset.mem_Ico] at hj
-            exact ih (D - j) (by omega)
-          have hlast_le := ih (D - k) (by omega)
-          linarith
+              ∑ j ∈ Finset.Ico 2 k, B (D - j) :=
+            Finset.sum_le_sum fun j hj => ih (D - j) (by simp only [Finset.mem_Ico] at hj; omega)
+          linarith [ih (D - k) (by omega)]
     refine ⟨A, hA1, fun {N} hN {c} hopt hfan => ?_⟩
-    have hNV := width_le_vStar hk3 hN hopt hfan
     have hVB := hV_le_B c.depth
-    have hbm : 0 ≤ b * (3 / 2 : ℝ) ^ c.depth := mul_nonneg hb_pos.le (by positivity)
     dsimp only [B] at hVB
-    linarith
+    linarith [width_le_vStar hk3 hN hopt hfan,
+      mul_nonneg hb_pos.le (pow_nonneg (by norm_num : (0 : ℝ) ≤ 3 / 2) c.depth)]
 
 /-- Minimal depth `D(N, k)` of an optimal (zero-deficiency) universal prefix circuit on `N` inputs
 with wire fanout bounded by `k` ([Sergeev2025PrefixDepth], p. 2). -/
@@ -348,10 +339,8 @@ theorem exists_optimalPrefixCircuit_depth_eq {N k : ℕ} (hk : 2 ≤ k) (hN : 1 
     ∃ c : PrefixCircuit N,
       IsOptimalPrefixCircuit c ∧ FanoutAtMost c k ∧ c.depth = optimalPrefixDepth N k := by
   obtain ⟨c₀, _, hopt₀, hfan₀, _⟩ := exists_rippleOptimalPrefixCircuit hk hN
-  have hne : {D : ℕ | ∃ c : PrefixCircuit N,
-      IsOptimalPrefixCircuit c ∧ FanoutAtMost c k ∧ c.depth = D}.Nonempty :=
-    ⟨c₀.depth, c₀, hopt₀, hfan₀, rfl⟩
-  exact Nat.sInf_mem hne
+  exact Nat.sInf_mem (s := {D : ℕ | ∃ c : PrefixCircuit N,
+    IsOptimalPrefixCircuit c ∧ FanoutAtMost c k ∧ c.depth = D}) ⟨c₀.depth, c₀, hopt₀, hfan₀, rfl⟩
 
 /-- On a single input `N = 1`, the minimal depth of an optimal fanout-`k` prefix circuit is `0`. -/
 theorem optimalPrefixDepth_one {k : ℕ} (hk : 2 ≤ k) : optimalPrefixDepth 1 k = 0 := by

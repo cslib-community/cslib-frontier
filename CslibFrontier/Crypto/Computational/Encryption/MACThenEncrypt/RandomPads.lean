@@ -257,12 +257,8 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
     fun q => ProbOracleComp.query (spec := OracleSpec.sum (fun _ : Unit × List Bool => List Bool)
       (fun _ : List Bool => List Bool)) (.inl q)
   have hmin : ∀ req : Unit × List Bool, (req.2.length == n) = true → ∀ r,
-      ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := by
-    intro req _ r
-    have hmap : ((mteCoins M m km req).map fun coins => coins.2) = BitString.uniformList m := by
-      simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def]
-      exact (congrArg _ (funext fun _ => PMF.map_id _)).trans (PMF.bind_const _ _)
-    rw [hmap]
+      ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := fun req _ r => by
+    simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.map_id', PMF.bind_const]
     exact BitString.uniformList_apply_le m r
   have hqS : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       (ProbOracleComp.simulate embed program) Q :=
@@ -374,8 +370,7 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
     rcases Bool.and_eq_false_iff.mp (Bool.eq_false_iff.mpr hcond) with hfresh | hlenCt
     · simp only [hfresh, Bool.false_and]
-    · simp only [hlenCt, Bool.false_eq_true, ↓reduceIte, Option.elim,
-        Option.isSome_none, Bool.and_false]
+    · simp [hlenCt, Option.elim]
 
 /-- The ideal PRF game of `mteCIToPrfDistinguisher` is the ciphertext-integrity game over a lazily
 sampled random function. -/
@@ -477,9 +472,8 @@ theorem eval_ciGame_macThenEncrypt_prfCipher_le_freshPads
     rw [eval_prfIdealGame_mteCIToPrfDistinguisher M ptLen hmono adversary n]
     exact PMF.bind_apply_le_add_const_on_support _ true fun km _ =>
       mteFaithful_bind_apply_le M n (ptLen n) km hq (mteIdealFinal M n (ptLen n) km)
-  refine ((Game.apply_true_le_of_advantage_le le_rfl).1.trans
-    (add_le_add hideal le_rfl)).trans (le_of_eq ?_)
-  ring
+  exact ((Game.apply_true_le_of_advantage_le le_rfl).1.trans
+    (add_le_add hideal le_rfl)).trans_eq (by ring)
 
 /-! ## Efficiency of `B_prf` -/
 

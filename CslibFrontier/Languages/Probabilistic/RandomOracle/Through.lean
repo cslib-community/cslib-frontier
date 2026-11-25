@@ -110,9 +110,8 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
   agree m s hs a s' hs' := by
     cases hm : s.lookup m with
     | some z =>
-      have hy := lookup_map_of_lookup φ hs hm
       rw [memoize_of_some _ _ _ z hm]
-      simp only [memoizeThrough, hy, hm, Option.isSome_some, ite_true]
+      simp only [memoizeThrough, lookup_map_of_lookup φ hs hm, hm, Option.isSome_some, ite_true]
       rfl
     | none =>
       cases hy : (s.map (Prod.map φ id)).lookup (φ m) with
@@ -122,18 +121,16 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
       | some z =>
         have hbad := hasImageCollision_cons_of_lookup φ hm hy
         have h1 : memoizeThrough φ dist m s (a, s') = 0 := by
-          simp only [memoizeThrough, hy, hm, Option.isSome_none, Bool.false_eq_true, ite_false]
-          rw [PMF.apply_eq_zero_iff, PMF.support_pure, Set.mem_singleton_iff]
-          intro h
-          have h' : s' = (m, z) :: s := (Prod.mk.inj h).2
-          exact hs' (h' ▸ hbad z)
+          simp only [memoizeThrough, hy, hm, Option.isSome_none, Bool.false_eq_true, ite_false,
+            PMF.apply_eq_zero_iff, PMF.support_pure, Set.mem_singleton_iff]
+          exact fun h => hs' ((Prod.mk.inj h).2 ▸ hbad z)
         have h2 : memoize (fun _ : M => dist) m s (a, s') = 0 := by
           rw [PMF.apply_eq_zero_iff]
-          intro hmem
+          rintro hmem
           rcases (mem_support_memoize_iff _ _ _ _).mp hmem with ⟨h, -⟩ | ⟨-, -, h⟩
-          · rw [hm] at h; exact absurd h (by simp)
-          · have h' : s' = (m, a) :: s := h
-            exact hs' (h' ▸ hbad a)
+          · cases hm.symm.trans h
+          · rw [show s' = (m, a) :: s from h] at hs'
+            exact hs' (hbad a)
         rw [h1, h2]
   absorb_first m s hs x hx := by
     refine hs.mono fun p hp => ?_
@@ -141,7 +138,6 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
     split at hx
     · simp only [PMF.support_pure, Set.mem_singleton_iff] at hx
       subst hx
-      dsimp only
       split
       · exact hp
       · exact List.mem_cons_of_mem _ hp

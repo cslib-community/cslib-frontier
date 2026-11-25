@@ -250,11 +250,7 @@ private theorem exec_dfsLevel {w bOff k : ℕ} {inst : SparseInstance}
             rw [hrw] at hchild hcov_child
             dsimp only
             obtain ⟨z, he_child, hr_z, hal_z, hvis_z, haug_z, hf_z⟩ := hchild
-            have hpath_assoc :
-                augPairs ++ ((path ++ [(u, v)]) ++ qw) =
-                  augPairs ++ (path ++ ((u, v) :: qw)) := by
-              simp [List.append_assoc]
-            rw [hpath_assoc] at hal_z haug_z
+            simp only [List.append_assoc, List.singleton_append] at hal_z haug_z
             exact ⟨z, (ExecWithin.loop_iter hc_loop he_push he_child).mono
               (by simp only [List.length_cons]; omega),
               fun i hi => (hr_z i hi).trans (hr_p i hi), hal_z, hvis_z, haug_z,
@@ -446,7 +442,8 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
         exact hcsr.hoff (le_of_lt u.isLt)
       have hqh_chk : x_chk.regs qHead = pre.length := by dsimp only [x_chk]; wram_simp [hqh]
       have hal_chk : x_chk.regs augLen = augPairs.length := by dsimp only [x_chk]; wram_simp [hal]
-      have hset : ∃ x_in, ExecWithin w dfsRootSetup x_chk x_in 8 ∧
+      obtain ⟨x_in, he_in, hr_in, hrd_in, hal_in, hact_in, hmem_in⟩ :
+          ∃ x_in, ExecWithin w dfsRootSetup x_chk x_in 8 ∧
           (∀ i : Fin 34, i.val < 25 → x_in.regs i = x.regs i) ∧
           x_in.regs rd = 0 ∧ x_in.regs augLen = augPairs.length ∧ x_in.regs active = 1 ∧
           x_in.mem = Function.update
@@ -462,7 +459,6 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           by wram_simp [hal_chk], by wram_simp, ?_⟩
         rw [← hu_val]
         rfl
-      obtain ⟨x_in, he_in, hr_in, hrd_in, hal_in, hact_in, hmem_in⟩ := hset
       have hin_out {a} (ha : ¬(bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 3 * inst.m ≤ a ∧
           a < bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 5 * inst.m + 5)) :
           x_in.mem a = x.mem a := by
@@ -584,10 +580,8 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           hkDfsRoots inst.graph inst.adj mate dist k us
             (hkDfs inst.graph inst.adj mate dist k 0 u vis []).1
             ((hkDfs inst.graph inst.adj mate dist k 0 u vis pureAcc).2.getD pureAcc) := by
-        have h1 : (hkDfs inst.graph inst.adj mate dist k 0 u vis pureAcc).1 =
-            (hkDfs inst.graph inst.adj mate dist k 0 u vis []).1 := by
-          rw [hkDfs_acc]
-        simp only [hkDfsRoots, ite_eq_left hdu0, h1]
+        simp only [hkDfsRoots, ite_eq_left hdu0,
+          congrArg Prod.fst (hkDfs_acc inst.graph inst.adj mate dist k 0 u vis pureAcc)]
       refine ⟨y, augPairs', (ExecWithin.loop_iter hc_loop he_body he_rest).mono ?_,
         hlen_le₁.trans hlen_le₂,
         fun i hi => (hr₂ i hi).trans (hr₁ i (by omega)),
@@ -653,12 +647,10 @@ private theorem exec_applyAugCode {w bOff : ℕ} {inst : SparseInstance}
       MateMem inst bOff (hkApplyEdges mate augPairs) y.mem ∧
       (∀ a, ¬(bOff + inst.m + 1 + inst.numEdges ≤ a ∧
           a < bOff + inst.m + 1 + inst.numEdges + inst.r) → y.mem a = x.mem a) := by
-  have hs₀ : ∃ s₀, ExecWithin w (ram[ idx ← #0 ] : Code .standard 34) x s₀ 1 ∧
-      s₀ = x.set idx 0 := by
-    refine WP.exists_execWithin ?_
+  have he₀ : ExecWithin w (ram[ idx ← #0 ] : Code .standard 34) x (x.set idx 0) 1 := by
+    refine WP.execWithin ?_
     wram_exec
     rfl
-  obtain ⟨s₀, he₀, rfl⟩ := hs₀
   let P (t : ℕ) (y : Data 34) : Prop :=
     t ≤ augPairs.length ∧
       (∀ i : Fin 34, i.val < 20 → y.regs i = x.regs i) ∧
@@ -766,10 +758,7 @@ theorem exec_dfsPhaseCode {w bOff k : ℕ} {inst : SparseInstance}
         (Vector.replicate inst.r false) []).map Prod.snd).Nodup :=
     hkDfsRoots_nodup_snd mate dist k (List.finRange inst.m)
       (Vector.replicate inst.r false) [] hcov₀
-  have heq_apply :
-      hkApplyEdges mate augPairs' = hkPhase inst.graph inst.adj mate dist k :=
-    hkApplyEdges_eq_of_toFinset_eq mate hcov₃.1 hnd_es hfin₃
-  rw [heq_apply] at hmate₄
+  rw [hkApplyEdges_eq_of_toFinset_eq mate hcov₃.1 hnd_es hfin₃] at hmate₄
   have hsum_roots :
       ((List.finRange inst.m).map (fun u => 38 * (inst.adj u).length + 49)).sum =
         38 * inst.numEdges + 49 * inst.m := by

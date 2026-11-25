@@ -166,14 +166,11 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
       · rintro ⟨p, hp, h1, h2⟩
         rw [hf1] at h1
         rw [(hRs p hp).1] at h2
-        have hmem := mem_anti.1 (Finset.mem_filter.1 hp).1
         funext z
-        rw [← hmem z, h1]
-        exact congrArg _ (congrFun h2 z)
+        rw [← (mem_anti.1 (Finset.mem_filter.1 hp).1) z, h1, congrFun h2 z]
       · intro h
-        have hp : (em x, fun z => l.flatMap fun x => em x z) ∈ A := by
-          rw [Finset.mem_filter, mem_anti]
-          exact ⟨fun z => congrFun h z, hne x⟩
+        have hp : (em x, fun z => l.flatMap fun x => em x z) ∈ A :=
+          Finset.mem_filter.2 ⟨mem_anti.2 (congrFun h), hne x⟩
         exact ⟨_, hp, (hf1 _ _).2 rfl, ((hRs _ hp).1 _).2 rfl⟩
     let C : Finset (List X) :=
       B.map ⟨fun p => p.1 :: p.2, by rintro ⟨a, b⟩ ⟨c, d⟩ h; simpa using h⟩
@@ -204,11 +201,7 @@ theorem IsRuns.kstar {f : Series F (Z × Γ)} {X : Type*} {em : X → Z → List
             rw [Finset.mem_product, hf1] at h h'
             exact hpq (Prod.ext (h.1.symm.trans h'.1)
               (((hRs p hp).1 y |>.1 h.2).symm.trans ((hRs q hq).1 y |>.1 h'.2)))
-      · rw [Finset.disjoint_left]
-        intro l hl hl'
-        split_ifs at hl
-        · exact (hC l |>.1 hl').1 (Finset.mem_singleton.1 hl)
-        · exact (Finset.notMem_empty _ hl).elim
+      · split_ifs <;> simp [hC]
 
 end RunsDef
 
@@ -236,11 +229,7 @@ private theorem proj_map_mk (z z' : Z) (w : List Γ) :
 
 theorem proj_chanWord [Fintype Z] (w : Z → List Γ) : proj (chanWord w) = w := by
   funext z
-  rw [chanWord, proj_flatMap]
-  have hf : (fun i => proj ((w i).map fun a => (i, a)) z) =
-      fun i => if i = z then w i else [] := by
-    funext i; rw [proj_map_mk]
-  rw [hf]
+  simp_rw [chanWord, proj_flatMap, proj_map_mk]
   exact List.flatMap_ite_key_eq _ id w (by simpa using Finset.nodup_toList _) (by simp)
 
 omit [DecidableEq Z] in
@@ -327,8 +316,7 @@ theorem pick {κ : Type*} [Fintype κ] (w : κ → Z → List Γ) (c : κ → F)
 /-- Fixed channel words `w` with weight `1`. -/
 theorem const (w : Z → List Γ) :
     Runs (2 * ∑ z, (w z).length + 1) (fun (_ : Unit) => w) (fun _ => (1 : F)) := by
-  have hp := pick (F := F) (fun _ : Unit => w) (fun _ => 1)
-  simpa using hp
+  simpa using pick (F := F) (fun _ : Unit => w) (fun _ => 1)
 
 /-- A sequence of `k` independent run choices. -/
 theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
@@ -340,10 +328,12 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
   induction k with
   | zero =>
     refine Runs.mono (n := 1) ((one (F := F) (Z := Z) (Γ := Γ)).congr
-      ⟨fun _ => (), fun _ i => i.elim0, fun x => ?_, fun _ => rfl⟩ ?_ ?_) (by omega)
-    · funext i; exact i.elim0
-    · intro _ _; simp
-    · intro _; simp
+      ⟨fun _ => (), fun _ i => i.elim0, fun _ => Subsingleton.elim _ _, fun _ => rfl⟩
+      ?_ ?_) (by omega)
+    · intro _ _
+      simp
+    · intro _
+      simp
   | succ k ih =>
     have h1 := (h 0).mul
       (ih (n := fun i => n i.succ) (X := fun i => X i.succ)

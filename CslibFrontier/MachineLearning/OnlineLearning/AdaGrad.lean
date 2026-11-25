@@ -177,18 +177,14 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
   set x := adaGradNorm proj grad γ ε x₀
   set S := adaGradNormSqSum proj grad γ ε x₀
   have hSn : 0 ≤ S t := by
-    change 0 ≤ adaGradNormSqSum _ _ _ _ _ t
-    rw [adaGradNormSqSum_eq]
+    rw [show S t = adaGradNormSqSum proj grad γ ε x₀ t from rfl, adaGradNormSqSum_eq]
     exact add_nonneg hε (sum_nonneg fun _ _ => sq_nonneg _)
-  have hS1_nn : 0 ≤ S (t + 1) := by
-    change 0 ≤ S t + ‖grad t (x t)‖ ^ 2
-    exact add_nonneg hSn (sq_nonneg _)
+  have hS1_nn : 0 ≤ S (t + 1) := add_nonneg hSn (sq_nonneg _)
   rcases hS1_nn.eq_or_lt with hzero | hpos
   · have hg0 : ‖grad t (x t)‖ ^ 2 = 0 := by
       have : S t + ‖grad t (x t)‖ ^ 2 = 0 := hzero.symm
       linarith [sq_nonneg ‖grad t (x t)‖]
-    have hg : grad t (x t) = 0 := norm_eq_zero.mp (sq_eq_zero_iff.mp hg0)
-    simp [hg, ← hzero]
+    simp [norm_eq_zero.mp (sq_eq_zero_iff.mp hg0), ← hzero]
   · set r := √(S (t + 1))
     have hr : 0 < r := sqrt_pos.mpr hpos
     set η := γ / r
@@ -205,14 +201,12 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
     have hdiv := div_le_div_of_nonneg_right
       (by linarith : 2 * η * ⟪grad t (x t), x t - u⟫ ≤
         ‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) hη.le
-    have hL : 2 * η * ⟪grad t (x t), x t - u⟫ / η = 2 * ⟪grad t (x t), x t - u⟫ := by
-      field_simp
     have hR : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2 + η ^ 2 * ‖grad t (x t)‖ ^ 2) / η =
         r / γ * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) +
           γ * (‖grad t (x t)‖ ^ 2 / r) := by
       simp only [η]
       field_simp
-    rwa [hL, hR] at hdiv
+    rwa [mul_div_right_comm, mul_div_cancel_right₀ _ hη.ne', hR] at hdiv
 
 /-- Linearized dynamic regret bound for scalar `AdaGrad-Norm` against any sequence of comparators
 `u : ℕ → E` in `K`. -/
@@ -431,12 +425,9 @@ private theorem adaGradBox_coord_eq {ι : Type*} (l r : ι → ℝ)
   induction t with
   | zero => exact ⟨rfl, rfl⟩
   | succ t ih =>
-    constructor
-    · simp only [adaGradBoxState, adaGradNorm_succ, adaGradNormSqSum_succ, ← ih.1, ← ih.2,
-        Real.norm_eq_abs, sq_abs, smul_eq_mul]
-      rfl
-    · simp only [adaGradBoxState, adaGradNormSqSum_succ, ← ih.2, Real.norm_eq_abs, sq_abs]
-      rfl
+    simp only [adaGradBoxState, adaGradNorm_succ, adaGradNormSqSum_succ, ← ih.1, ← ih.2,
+      Real.norm_eq_abs, sq_abs, smul_eq_mul]
+    exact ⟨rfl, rfl⟩
 
 /-- **Diagonal `AdaGrad` regret on an axis-aligned box** [Hazan2022]: each coordinate runs an
 independent adaptive step size `γ / √(ε + ∑ s ≤ t, (grad s (x s) i) ^ 2)`. With no prior bound

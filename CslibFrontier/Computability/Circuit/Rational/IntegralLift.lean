@@ -55,9 +55,8 @@ open Polynomial Matrix Module
 
 private lemma root_degree (e : ℕ) : AdjoinRoot.root (modulus e) ^ degree e = -1 := by
   have h := AdjoinRoot.eval₂_root (modulus e)
-  change Polynomial.eval₂ (AdjoinRoot.of (modulus e)) (AdjoinRoot.root (modulus e))
-    ((X : ℚ[X]) ^ degree e + 1) = 0 at h
-  rw [Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X, Polynomial.eval₂_one] at h
+  rw [modulus, Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X,
+    Polynomial.eval₂_one] at h
   exact eq_neg_of_add_eq_zero_left h
 
 private lemma root_pow_reduce (e k : ℕ) :
@@ -160,8 +159,8 @@ private lemma full_cast {K : Type*} [Field K] (M : ℕ) (a t : ℤ) (i j : Fin M
     Polynomial.eval (t : K) (TestPolynomial.full M (a : K) i j) =
       (full M a t i j : K) := by
   simp only [TestPolynomial.full, full, coeff_X_add_C_pow, Polynomial.eval_finsetSum,
-    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X]
-  simp only [Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
+    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X,
+    Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
 
 private lemma padded_cast {K : Type*} [Field K] (M N : ℕ) (a t : ℤ) (i j : Fin M) :
     Polynomial.eval (t : K) (TestPolynomial.padded M N (a : K) i j) =
@@ -193,8 +192,7 @@ lemma eval_lift (χ : AddChar (ZMod d) K) (R : Matrix (ZMod d) (ZMod d) K[X])
         χ (-a * k) * Polynomial.eval (x 0) (R k (k - b)) * QuantumMatrices.weyl χ a b i j *
           (x 1) ^ a.val * (x 2) ^ b.val := by
   simp only [lift, map_sum, map_mul, map_pow, eval_uni, MvPolynomial.eval_C, MvPolynomial.eval_X,
-    coeffP, Polynomial.eval_C]
-  simp only [Finset.mul_sum, Finset.sum_mul]
+    coeffP, Polynomial.eval_C, Finset.mul_sum, Finset.sum_mul]
   exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
     Finset.sum_congr rfl fun _ _ => by ring
 
@@ -388,12 +386,10 @@ lemma tupleAt_integer (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N 
 /-- If `(rationalLift n N e x 0).det ≠ 0`, then `(integralLift n N e x 0).det ≠ 0`. -/
 lemma U_det_ne_zero (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N e x 0).det ≠ 0) :
     (integralLift n N e x 0).det ≠ 0 := by
-  have hu : ((integralLift n N e x 0).det : ℚ) ≠ 0 := by
-    rw [Int.cast_det]
-    change ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0
-    rw [U_cast, Matrix.det_smul]
-    exact mul_ne_zero (pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')) hz
-  exact_mod_cast hu
+  rw [← Int.cast_ne_zero (α := ℚ), Int.cast_det]
+  change ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0
+  rw [U_cast, Matrix.det_smul]
+  exact mul_ne_zero (pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')) hz
 
 end Rational.Generator
 

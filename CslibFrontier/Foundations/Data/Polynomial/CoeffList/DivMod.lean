@@ -225,17 +225,15 @@ theorem length_mod_lt {a b : List K} (hb : ofCoeffList b ≠ 0) :
       rw [Function.iterate_succ_apply']
       obtain ⟨hinv', _, h2', hstay, hdrop⟩ := divModStep_spec hbt_tr _ ih.1 ih.2.1
       refine ⟨hinv', h2', ?_⟩
+      have hih := ih.2.2
       by_cases hlt : ((divModStep bt)^[k] ([], trim a)).2.length < bt.length
       · rw [hstay (Or.inl hlt)]
-        have := ih.2.2
         omega
       · have := hdrop (by omega) hbt_ne
-        have := ih.2.2
         omega
   have hlen := (hiter a.length).2.2
   rw [Nat.sub_self] at hlen
-  change ((divModStep bt)^[a.length] ([], trim a)).2.length < bt.length
-  omega
+  exact lt_of_le_of_lt hlen (by omega)
 
 private theorem divMod_eq_zero_divisor {a b : List K} (hb : ofCoeffList b = 0) :
     div a b = [] ∧ mod a b = trim a := by
@@ -398,9 +396,9 @@ theorem length_gcd_le (a b : List K) : (gcd a b).length ≤ max a.length b.lengt
 /-- `gcd a b` computes `EuclideanDomain.gcd (ofCoeffList b) (ofCoeffList a)` in `K[X]`. -/
 @[simp] theorem ofCoeffList_gcd (a b : List K) :
     ofCoeffList (gcd a b) = EuclideanDomain.gcd (ofCoeffList b) (ofCoeffList a) := by
-  have h := (gcdStep_iterate_spec (a.length + b.length + 1) (trim a) (trim b)
-    (isTrimmed_trim a) (isTrimmed_trim b) (by have := length_trim_le b; omega)).2.2
-  simpa only [gcd, ofCoeffList_trim] using h
+  simpa only [gcd, ofCoeffList_trim] using (gcdStep_iterate_spec (a.length + b.length + 1)
+    (trim a) (trim b) (isTrimmed_trim a) (isTrimmed_trim b)
+    ((length_trim_le b).trans (by omega))).2.2
 
 /-- `ofCoeffList (gcd a b)` divides `ofCoeffList a`. -/
 theorem ofCoeffList_gcd_dvd_left (a b : List K) :
@@ -424,10 +422,7 @@ theorem dvd_ofCoeffList_gcd {a b : List K} {u : K[X]}
 /-- `ofCoeffList (gcd a b) ≠ 0` whenever either input represents a nonzero polynomial. -/
 theorem ofCoeffList_gcd_ne_zero {a b : List K} (h : ofCoeffList a ≠ 0 ∨ ofCoeffList b ≠ 0) :
     ofCoeffList (gcd a b) ≠ 0 := by
-  intro h0
-  have ha := ofCoeffList_gcd_dvd_left a b
-  have hb := ofCoeffList_gcd_dvd_right a b
-  rw [h0, zero_dvd_iff] at ha hb
-  exact h.elim (· ha) (· hb)
+  rw [ofCoeffList_gcd, ne_eq, EuclideanDomain.gcd_eq_zero_iff]
+  exact h.elim (fun ha ⟨_, ha0⟩ => ha ha0) (fun hb ⟨hb0, _⟩ => hb hb0)
 
 end Polynomial.CoeffList

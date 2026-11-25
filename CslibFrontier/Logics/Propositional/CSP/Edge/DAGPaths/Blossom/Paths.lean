@@ -38,10 +38,7 @@ theorem IsWalk.start_mem_vars {w : Walk F} (hw : w.IsWalk) (hn : w.steps ≠ [])
   cases he : w.steps with
   | nil => exact (hn he).elim
   | cons s ss =>
-    have hl := hw.1
-    rw [he] at hl
-    have ho : s.1 ∈ w.edges := by simp [edges, he, edgesOf]
-    exact List.mem_map.mpr ⟨s.1, ho, hl.1⟩
+    exact List.mem_map.mpr ⟨s.1, by simp [edges, he, edgesOf], (he ▸ hw.1).1⟩
 
 end Walk
 
@@ -120,10 +117,8 @@ theorem blossomTime_eq [DecidableEq V] {sem : Rel → List Bool → Bool}
   | none =>
     exact (List.find?_eq_none.mp he a ha (by simp)).elim
   | some b =>
-    have hb := List.mem_of_find?_eq_some he
-    have ho : b.occurrence = a.occurrence := by simpa using List.find?_some he
-    have hab := h.unique b (List.mem_toFinset.mpr hb) a (List.mem_toFinset.mpr ha) ho
-    subst b
+    obtain rfl := h.unique b (List.mem_toFinset.mpr (List.mem_of_find?_eq_some he)) a
+      (List.mem_toFinset.mpr ha) (by simpa using List.find?_some he)
     simp [blossomTime, he]
 
 end DAG
@@ -250,10 +245,7 @@ theorem blossomArcs_take_subset (ss : List (Occurrence F × Occurrence F))
       | succ n =>
         intro a ha
         simp only [List.take_succ_cons, blossomArcs, List.mem_cons] at ha ⊢
-        rcases ha with ha | ha | ha
-        · exact Or.inl ha
-        · exact Or.inr (Or.inl ha)
-        · exact Or.inr (Or.inr (ih ts (pivot - 1) n a ha))
+        exact ha.imp id (Or.imp id (ih ts (pivot - 1) n a))
 
 /-- Dropping whole steps retains actual arcs, with the meeting index shifted by their count. -/
 theorem blossomArcs_drop_subset (ss : List (Occurrence F × Occurrence F))
@@ -367,16 +359,11 @@ theorem blossomDAG_drop_subgraph [DecidableEq V] {w : Walk F} {ts : List ℕ} {p
     rw [blossomDAG_vars w ts pivot hl]
     change (w.take n).finish ∈ _
     by_cases he : (w.take n).steps = []
-    · have hf : (w.take n).finish = w.start := by
-        change Walk.finishFrom w.start (w.take n).steps = w.start
-        rw [he]
-        rfl
-      exact Finset.mem_insert.mpr (Or.inl hf)
+    · exact Finset.mem_insert.mpr (Or.inl
+        (show Walk.finishFrom w.start (w.take n).steps = w.start by simp [Walk.finishFrom, he]))
     · obtain ⟨s, hsm, heq⟩ := Walk.finish_step (w.take n) he
-      apply Finset.mem_insert_of_mem
-      apply List.mem_toFinset.mpr
-      exact List.mem_map.mpr ⟨s.2, List.mem_flatMap.mpr
-        ⟨s, List.mem_of_mem_take hsm, by simp⟩, heq⟩
+      exact Finset.mem_insert_of_mem (List.mem_toFinset.mpr (List.mem_map.mpr
+        ⟨s.2, List.mem_flatMap.mpr ⟨s, List.mem_of_mem_take hsm, by simp⟩, heq⟩))
   exact blossomDAG_subgraph_of_arcs _ _ _ hstart hs (fun a ha =>
     List.mem_toFinset.mpr (blossomArcs_drop_subset w.steps ts pivot n a ha))
 
@@ -385,10 +372,7 @@ theorem blossomDAG_occurrences [DecidableEq V] (w : Walk F) (ts : List ℕ) (piv
     (hl : ts.length = w.steps.length) :
     (blossomDAG w ts pivot).arcs.image Arc.occurrence = w.edges.toFinset := by
   ext o
-  have hh := blossomArcs_map_occurrence w.steps ts pivot hl
-  change o ∈ (blossomArcs w.steps ts pivot).toFinset.image Arc.occurrence ↔ o ∈ _
-  rw [← show Walk.edgesOf w.steps = w.edges from rfl, ← hh]
-  simp
+  simp [blossomDAG, Walk.edges, ← blossomArcs_map_occurrence w.steps ts pivot hl]
 
 /-- Forgetting timestamps in a blossom graph gives the actual incidence flip. -/
 theorem blossomDAG_flip [DecidableEq V] (w : Walk F) (ts : List ℕ) (pivot : ℕ)

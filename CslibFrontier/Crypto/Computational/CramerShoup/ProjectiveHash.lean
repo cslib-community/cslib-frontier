@@ -510,10 +510,6 @@ theorem uniform_projHash2_fiber_any_le (d : F.Desc)
   | nil =>
     simp
   | cons q qs ih =>
-    have hq_tail : ∀ q' ∈ qs,
-        let (β', γ', ρ', _) := q'
-        γ' ≠ α * β' ∧ ρ' ≠ ρ :=
-      fun q' hmem => hq q' (List.mem_cons_of_mem q hmem)
     have hor :
         (μ.map (fun τ₂ => (q :: qs).any (fun q' => hit q' τ₂))) true ≤
           (μ.map (hit q)) true + (μ.map (fun τ₂ => qs.any (fun q' => hit q' τ₂))) true := by
@@ -529,11 +525,11 @@ theorem uniform_projHash2_fiber_any_le (d : F.Desc)
       dsimp only [μ, hit]
       by_cases h : projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ'
           (β' • F.generator d) (γ' • F.generator d) = z'
-      · simp [h]
+      · simp only [h, decide_true, ↓reduceIte]
       · simp only [h, decide_false, Bool.true_eq_false, ↓reduceIte, ite_eq_right (Ne.symm h)]
     refine hor.trans ?_
     rw [hsingle, List.length_cons, Nat.cast_add, Nat.cast_one, ENNReal.add_div, one_div, add_comm]
-    exact add_le_add_left (ih hq_tail) _
+    exact add_le_add_left (ih fun q' hmem => hq q' (List.mem_cons_of_mem _ hmem)) _
 
 /-- Explicit 4-tuple linear equivalence
 `(σ₁, τ₁, σ₂, τ₂) ↦ ((σ₁ + α * τ₁, σ₂ + α * τ₂), (z, z'))`
@@ -684,14 +680,11 @@ theorem isDHTriple_generator_smul_iff (d : F.Desc) (α β γ : ZMod (F.order d))
     IsDHTriple F d (α • F.generator d) (β • F.generator d) (γ • F.generator d) ↔ γ = α * β := by
   constructor
   · rintro ⟨β', hv, hw⟩
-    have hβ : β = β' := (F.smul_generator_injective d) hv
-    subst hβ
-    rw [smul_smul] at hw
-    rw [mul_comm]
-    exact (F.smul_generator_injective d) hw
-  · intro hγ
-    refine ⟨β, rfl, ?_⟩
-    rw [hγ, mul_comm, smul_smul]
+    obtain rfl := F.smul_generator_injective d hv
+    exact (F.smul_generator_injective d (hw.trans (smul_smul β α (F.generator d)))).trans
+      (mul_comm β α)
+  · rintro rfl
+    exact ⟨β, rfl, by rw [mul_comm, smul_smul]⟩
 
 /-- For every `(v, w) ∈ L_u` with `u = α • g`, `projHash` on the `δ`-fiber `(δ - α * τ, τ)`
 agrees with `projHash` at `(δ, 0)` (independent of `τ`). -/

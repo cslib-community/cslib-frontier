@@ -51,9 +51,7 @@ theorem postcompose (hh : IsDeltaUniversalHash seed hash ε) (f : Y →+ Z)
   by_cases hd : ∃ d', f d' = d
   · obtain ⟨d', rfl⟩ := hd
     simpa only [← map_sub, hf.eq_iff] using hh x x' hx d'
-  · have hempty : {i | f (hash i x) - f (hash i x') = d} = ∅ :=
-      Set.eq_empty_iff_forall_notMem.mpr fun i hi => hd ⟨_, (map_sub f _ _).trans hi⟩
-    simp [hempty]
+  · simp [← map_sub, not_exists.mp hd]
 
 private theorem intCast_val_sub {p q : ℕ} (a b : ZMod p) :
     (((a.val : ℤ) - b.val : ℤ) : ZMod q) = (a.val : ZMod q) - b.val := by
@@ -92,9 +90,7 @@ theorem zmod_cast {p N : ℕ} [NeZero p] {hash : ι → X → ZMod p}
     have heq : diff i = diff j := (sub_eq_zero.mp (Int.eq_zero_of_abs_lt_dvd hdiv hlt)).symm
     simpa only [diff, Set.mem_ofPred_eq, intCast_val_sub, ZMod.natCast_zmod_val] using
       congrArg (fun z : ℤ => (z : ZMod p)) heq
-  · have hempty : {i | (diff i : ZMod N) = d} = ∅ :=
-      Set.eq_empty_iff_forall_notMem.mpr fun i hi => hd ⟨i, hi⟩
-    simp [hempty]
+  · simp [not_exists.mp hd]
 
 /-- Reducing canonical residues modulo `N` scales the difference bound by at most
 `2 * (p / N + 1)`. This is the first bound of Exercise 7.22(b) ([BonehShoup2023], v0.6,
@@ -127,7 +123,6 @@ theorem zmod_cast_bound {p N : ℕ} [NeZero p] [NeZero N] {hash : ι → X → Z
       rw [hrem, Int.mul_ediv_add_emod]
       simp only [diff, intCast_val_sub, ZMod.natCast_zmod_val]
   have hcard : quotients.card = 2 * q := by
-    dsimp only [quotients]
     rw [Int.card_Ico]
     omega
   have hdiv : ((p / N : ℕ) : ℝ≥0∞) ≤ (p : ℝ≥0∞) / N := by

@@ -211,34 +211,28 @@ private theorem good_middle {x : Input} {s : State} (hg : Good x s)
     Candidate x s.bits ∧ Passed x s.bits v ∧
       (localVertex (vertex x v)).checkSat (pattern k) = true ∧ Matched x s.bits v k p := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, l, q, hw, hq, hlq, he, hc, hpassed, hsat, hm⟩ | ⟨i, hi, he, _⟩ | ⟨he, _⟩
-  · simp only [middle] at hl; omega
-  · simp only [check, middle] at he hl; omega
-  · simp only [middle] at he hl
-    obtain ⟨rfl, rfl, rfl⟩ : w = v ∧ l = k ∧ q = p := ⟨by omega, by omega, by omega⟩
-    exact ⟨hc, hpassed, hsat, hm⟩
-  all_goals simp only [target, middle] at he hl; omega
+    ⟨w, l, q, hw, hq, hlq, he, hc, hpassed, hsat, hm⟩ | ⟨i, hi, he, _⟩ | ⟨he, _⟩ <;>
+    simp only [check, target, middle] at he hl
+  all_goals try omega
+  obtain ⟨rfl, rfl, rfl⟩ : w = v ∧ l = k ∧ q = p := ⟨by omega, by omega, by omega⟩
+  exact ⟨hc, hpassed, hsat, hm⟩
 
 private theorem good_target {x : Input} {s : State} (hg : Good x s)
     {i : ℕ} (hi : i ≤ x.initial.length) (hl : s.location = target x i) :
     Origin x s.bits ∧ TargetPrefix x s.bits i := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, hr, hm⟩ | ⟨he, _⟩
-  · simp only [target] at hl; omega
-  · simp only [check, target] at he hl; omega
-  · simp only [target, middle] at he hl; omega
-  · exact (show j = i by simp only [target] at he hl; omega) ▸ ⟨hr, hm⟩
-  · simp only [target] at hl; omega
+    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, hr, hm⟩ | ⟨he, _⟩ <;>
+    simp only [check, target, middle] at he hl
+  all_goals try omega
+  exact (show j = i by omega) ▸ ⟨hr, hm⟩
 
 private theorem good_accept {x : Input} {s : State} (hg : Good x s)
     (hl : s.location = 1) : Origin x x.target := by
   rcases hg.2 with ⟨he, _⟩ | ⟨w, hw, he, _⟩ |
-    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, _⟩ | ⟨_, hr, hm⟩
-  · omega
-  · simp only [check] at he; omega
-  · simp only [middle] at he; omega
-  · simp only [target] at he; omega
-  · exact hm ▸ hr
+    ⟨w, k, p, hw, hk, hp, he, _⟩ | ⟨j, hj, he, _⟩ | ⟨he, hr, hm⟩ <;>
+    try simp only [check, target, middle] at he
+  all_goals try omega
+  exact hm ▸ hr
 
 private theorem vertex_mem {x : Input} {v : ℕ} (hv : v < x.graph.vertices.length) :
     vertex x v ∈ x.graph.vertices := by
