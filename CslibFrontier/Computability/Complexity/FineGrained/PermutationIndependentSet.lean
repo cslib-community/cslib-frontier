@@ -479,7 +479,7 @@ private theorem searchBits_le_three_quarters (N : ℕ) :
     calc
       (s : ℝ) ^ 3 = ((s : ℝ) ^ 4) ^ (3 / 4 : ℝ) := by
         rw [← Real.rpow_natCast (s : ℝ) 4, ← Real.rpow_mul (by positivity)]
-        rw [show (4 : ℝ) * (3 / 4) = (3 : ℕ) by norm_num, Real.rpow_natCast]
+        rw [show ((4 : ℕ) : ℝ) * (3 / 4) = (3 : ℕ) by norm_num, Real.rpow_natCast]
       _ ≤ _ := Real.rpow_le_rpow (by positivity) (by exact_mod_cast hs) (by norm_num)
   have hsize : (searchBits N : ℝ) ≤ ((48 : ℕ) : ℝ) * (s : ℝ) ^ 3 := by
     exact_mod_cast searchBits_le_block_power N

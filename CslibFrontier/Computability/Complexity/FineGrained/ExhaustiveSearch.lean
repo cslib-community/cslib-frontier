@@ -309,7 +309,7 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   have hbranch (a : α) : (ν a : ℝ) ≤ (1 / M : ℝ) * μA a + K := by
     rw [one_div_mul_eq_div]
     have hcast : (ν a : ℝ) ≤ ((μA a / M : ℕ) : ℝ) + K := by exact_mod_cast hνM a
-    exact hcast.trans (add_le_add_right Nat.cast_div_le _)
+    exact hcast.trans (add_le_add Nat.cast_div_le le_rfl)
   have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := by
     have hbound : (μB (f (a, r)) : ℝ) ≤ c * μA a + c := by exact_mod_cast hμ a r
     calc
@@ -363,7 +363,7 @@ theorem DecidableInPowerExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν :
         (mul_le_mul_of_nonneg_left hp' hR)
     _ ≤ _ := by
       rw [← add_mul]
-      exact mul_le_mul_of_nonneg_right (add_le_add_left (Nat.le_ceil R) _) (by positivity)
+      exact mul_le_mul_of_nonneg_right (add_le_add le_rfl (Nat.le_ceil R)) (by positivity)
 
 /-- **Subexponential-time transfer along an exhaustive search with sublinear branch exponent.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in
