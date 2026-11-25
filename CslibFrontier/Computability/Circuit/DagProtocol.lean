@@ -116,51 +116,29 @@ private theorem exists_sep_of_leaves
     obtain ⟨f, hf, hs⟩ := hleaf ⟨0, Nat.zero_lt_one⟩
     exact ⟨f, hf.mono (fun x hx => ⟨hx, Set.mem_univ x⟩) fun y hy => ⟨hy, Set.mem_univ y⟩, hs⟩
   | alice send p₀ p₁ ih₀ ih₁ =>
-    obtain ⟨f₀, hf₀, hs₀⟩ := ih₀ (A := {x ∈ A | send x = false}) (B := B) fun ℓ => by
-      obtain ⟨f, hf, hs⟩ := hleaf (Fin.castAdd _ ℓ)
-      refine ⟨f, hf.mono ?_ ?_, hs⟩
-      · rintro x ⟨⟨hx, hsx⟩, hℓ⟩
-        simp [hx, hsx, hℓ]
-      · simp
-    obtain ⟨f₁, hf₁, hs₁⟩ := ih₁ (A := {x ∈ A | send x = true}) (B := B) fun ℓ => by
-      obtain ⟨f, hf, hs⟩ := hleaf (Fin.natAdd _ ℓ)
-      refine ⟨f, hf.mono ?_ ?_, hs⟩
-      · rintro x ⟨⟨hx, hsx⟩, hℓ⟩
-        simp [hx, hsx, hℓ]
-      · simp
-    refine ⟨fun x => f₀ x || f₁ x, ⟨fun x hx => ?_, fun y hy => ?_⟩,
+    obtain ⟨f₀, hf₀, hs₀⟩ := ih₀ (A := {x ∈ A | send x = false}) (B := B) fun ℓ =>
+      let ⟨f, hf, hs⟩ := hleaf (Fin.castAdd _ ℓ)
+      ⟨f, hf.mono (by rintro x ⟨⟨hx, hsx⟩, hℓ⟩; simp [hx, hsx, hℓ]) (by simp), hs⟩
+    obtain ⟨f₁, hf₁, hs₁⟩ := ih₁ (A := {x ∈ A | send x = true}) (B := B) fun ℓ =>
+      let ⟨f, hf, hs⟩ := hleaf (Fin.natAdd _ ℓ)
+      ⟨f, hf.mono (by rintro x ⟨⟨hx, hsx⟩, hℓ⟩; simp [hx, hsx, hℓ]) (by simp), hs⟩
+    refine ⟨fun x => f₀ x || f₁ x, ⟨fun x hx => ?_, fun y hy => by simp [hf₀.2 y hy, hf₁.2 y hy]⟩,
       (hor hs₀ hs₁).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
-    · cases h : send x
-      · simp [hf₀.1 x ⟨hx, h⟩]
-      · simp [hf₁.1 x ⟨hx, h⟩]
-    · simp [hf₀.2 y hy, hf₁.2 y hy]
-    · have := p₀.leafCount_pos
-      have := p₁.leafCount_pos
-      simp only [Protocol.leafCount_alice]
-      omega
+    · cases h : send x <;> simp [hf₀.1, hf₁.1, hx, h]
+    · have := p₀.leafCount_pos; have := p₁.leafCount_pos
+      simp only [Protocol.leafCount_alice]; omega
   | bob send p₀ p₁ ih₀ ih₁ =>
-    obtain ⟨f₀, hf₀, hs₀⟩ := ih₀ (A := A) (B := {y ∈ B | send y = false}) fun ℓ => by
-      obtain ⟨f, hf, hs⟩ := hleaf (Fin.castAdd _ ℓ)
-      refine ⟨f, hf.mono ?_ ?_, hs⟩
-      · simp
-      · rintro y ⟨⟨hy, hsy⟩, hℓ⟩
-        simp [hy, hsy, hℓ]
-    obtain ⟨f₁, hf₁, hs₁⟩ := ih₁ (A := A) (B := {y ∈ B | send y = true}) fun ℓ => by
-      obtain ⟨f, hf, hs⟩ := hleaf (Fin.natAdd _ ℓ)
-      refine ⟨f, hf.mono ?_ ?_, hs⟩
-      · simp
-      · rintro y ⟨⟨hy, hsy⟩, hℓ⟩
-        simp [hy, hsy, hℓ]
-    refine ⟨fun x => f₀ x && f₁ x, ⟨fun x hx => ?_, fun y hy => ?_⟩,
+    obtain ⟨f₀, hf₀, hs₀⟩ := ih₀ (A := A) (B := {y ∈ B | send y = false}) fun ℓ =>
+      let ⟨f, hf, hs⟩ := hleaf (Fin.castAdd _ ℓ)
+      ⟨f, hf.mono (by simp) (by rintro y ⟨⟨hy, hsy⟩, hℓ⟩; simp [hy, hsy, hℓ]), hs⟩
+    obtain ⟨f₁, hf₁, hs₁⟩ := ih₁ (A := A) (B := {y ∈ B | send y = true}) fun ℓ =>
+      let ⟨f, hf, hs⟩ := hleaf (Fin.natAdd _ ℓ)
+      ⟨f, hf.mono (by simp) (by rintro y ⟨⟨hy, hsy⟩, hℓ⟩; simp [hy, hsy, hℓ]), hs⟩
+    refine ⟨fun x => f₀ x && f₁ x, ⟨fun x hx => by simp [hf₀.1 x hx, hf₁.1 x hx], fun y hy => ?_⟩,
       (hand hs₀ hs₁).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
-    · simp [hf₀.1 x hx, hf₁.1 x hx]
-    · cases h : send y
-      · simp [hf₀.2 y ⟨hy, h⟩]
-      · simp [hf₁.2 y ⟨hy, h⟩]
-    · have := p₀.leafCount_pos
-      have := p₁.leafCount_pos
-      simp only [Protocol.leafCount_bob]
-      omega
+    · cases h : send y <;> simp [hf₀.2, hf₁.2, hy, h]
+    · have := p₀.leafCount_pos; have := p₁.leafCount_pos
+      simp only [Protocol.leafCount_bob]; omega
 
 end Core
 
@@ -245,19 +223,19 @@ private theorem exists_gates (hP : P.Solves R U V) (rules : Rules I R) :
           Sep f (U ∩ (P.step j).leafAlice ℓ) (V ∩ (P.step j).leafBob ℓ)) ∧
         Synthesis I (inputs n ∪ T) {f} (2 ^ (P.depth + 1)) := by
       intro ℓ
-      have hconst : Synthesis I (inputs n ∪ T) {fun _ => false} (2 ^ (P.depth + 1)) :=
-        (rules.const false).mono Set.subset_union_left Set.Subset.rfl Nat.one_le_two_pow
       rcases hout : (P.step j).leafOutput ℓ with _ | i | o
-      · exact ⟨fun _ => false, by simp, hconst⟩
+      · exact ⟨fun _ => false, by simp,
+          (rules.const false).mono Set.subset_union_left Set.Subset.rfl Nat.one_le_two_pow⟩
       · obtain ⟨f, hf, hs⟩ := exists_sep_node hP rules (j := Fin.castLE j.isLt.le i)
           (hgated _ (by simpa [hj] using i.isLt)) Set.inter_subset_left Set.inter_subset_left
           fun x hx y hy => by
             have := hP.2 j x hx.1 y hy.1 (.inl i)
               ((Protocol.run_eq_leafOutput hx.2 hy.2).trans hout)
             simpa using this
-        refine ⟨f, fun i' hi' => hf, hs.mono Set.Subset.rfl Set.Subset.rfl ?_⟩
-        exact two_mul_leafCount_sub_one_le _
-      · exact ⟨fun _ => false, by simp, hconst⟩
+        exact ⟨f, fun _ _ => hf,
+          hs.mono Set.Subset.rfl Set.Subset.rfl (two_mul_leafCount_sub_one_le _)⟩
+      · exact ⟨fun _ => false, by simp,
+          (rules.const false).mono Set.subset_union_left Set.Subset.rfl Nat.one_le_two_pow⟩
     choose g hg using hleaf
     refine ⟨T ∪ Set.range g, ?_, fun j' hj' => ?_⟩
     · refine (hT.comp (Synthesis.family g (fun _ => 2 ^ (P.depth + 1)) fun ℓ => (hg ℓ).2)).mono
@@ -295,6 +273,18 @@ private theorem exists_sep (hP : P.Solves R U V) (rules : Rules I R) :
     exact ⟨f, hf, hs.mono Set.Subset.rfl Set.Subset.rfl
       (Nat.mul_pos (Nat.succ_pos _) (Nat.two_pow_pos _))⟩
 
+/-- **The separating circuit.** A dag-like protocol solving `R` on `U × V` gives a circuit with at
+most `(k · 2 ^ t + 1) · 2 ^ (t + 1)` gates that is true on `U` and false on `V`, where `t` is the
+communication complexity. -/
+private theorem exists_circuit_of_rules (hP : P.Solves R U V) (rules : Rules I R) :
+    ∃ C : Circuit σ n 1,
+      C.size ≤ (k * 2 ^ P.depth + 1) * 2 ^ (P.depth + 1) ∧
+      (∀ u ∈ U, C.eval I u 0 = true) ∧ ∀ v ∈ V, C.eval I v 0 = false := by
+  obtain ⟨f, hf, hs⟩ := exists_sep hP rules
+  obtain ⟨C, hC, hsize⟩ := hs.exists_circuit
+  exact ⟨C, hsize, fun u hu => (congrFun (hC u) 0).trans (hf.1 u hu),
+    fun v hv => (congrFun (hC v) 0).trans (hf.2 v hv)⟩
+
 end Build
 
 /-! ### The De Morgan and monotone circuits -/
@@ -309,14 +299,12 @@ private theorem exists_sep_differsAt (A B : Set (BitString n)) (i : Fin n)
     Synthesis.of_mem ⟨i, rfl⟩
   cases hxi : x₀ i
   · have hyi : y₀ i = true := by simpa [hxi] using (h x₀ hx₀ y₀ hy₀).symm
-    refine ⟨fun x => !x i, ⟨fun x hx => ?_, fun y hy => ?_⟩, hinput.not⟩
-    · simpa [hyi] using h x hx y₀ hy₀
-    · simpa [hxi] using (h x₀ hx₀ y hy).symm
+    exact ⟨fun x => !x i, ⟨fun x hx => by simpa [hyi] using h x hx y₀ hy₀,
+      fun y hy => by simpa [hxi] using (h x₀ hx₀ y hy).symm⟩, hinput.not⟩
   · have hyi : y₀ i = false := by simpa [hxi] using (h x₀ hx₀ y₀ hy₀).symm
-    refine ⟨fun x => x i, ⟨fun x hx => ?_, fun y hy => ?_⟩,
+    exact ⟨fun x => x i, ⟨fun x hx => by simpa [hyi] using h x hx y₀ hy₀,
+      fun y hy => by simpa [hxi] using (h x₀ hx₀ y hy).symm⟩,
       hinput.mono Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1)⟩
-    · simpa [hyi] using h x hx y₀ hy₀
-    · simpa [hxi] using (h x₀ hx₀ y hy).symm
 
 /-- A rectangle on which every pair of inputs has `xᵢ = 1` and `yᵢ = 0` is separated by a
 constant or the literal `xᵢ`. -/
@@ -339,12 +327,9 @@ theorem Solves.exists_circuit (hP : P.Solves DiffersAt U V) :
     ∃ C : Circuit Boolean.signature n 1,
       C.size ≤ (k * 2 ^ P.depth + 1) * 2 ^ (P.depth + 1) ∧
       (∀ u ∈ U, C.eval Boolean.interpretation u 0 = true) ∧
-      ∀ v ∈ V, C.eval Boolean.interpretation v 0 = false := by
-  obtain ⟨f, hf, hs⟩ := exists_sep hP
+      ∀ v ∈ V, C.eval Boolean.interpretation v 0 = false :=
+  exists_circuit_of_rules hP
     ⟨Synthesis.const, exists_sep_differsAt, Synthesis.or, Synthesis.and⟩
-  obtain ⟨C, hC, hsize⟩ := hs.exists_circuit
-  exact ⟨C, hsize, fun u hu => (congrFun (hC u) 0).trans (hf.1 u hu),
-    fun v hv => (congrFun (hC v) 0).trans (hf.2 v hv)⟩
 
 /-- **Monotone circuits from monotone dag-like protocols** [Krajíček, Theorem 2.3][Krajicek1997],
 which Krajíček credits to Razborov [Razborov1995b]. A dag-like protocol for the monotone
@@ -355,12 +340,9 @@ theorem Solves.exists_monotone_circuit (hP : P.Solves ExceedsAt U V) :
     ∃ C : Circuit Monotone.signature n 1,
       C.size ≤ (k * 2 ^ P.depth + 1) * 2 ^ (P.depth + 1) ∧
       (∀ u ∈ U, C.eval Monotone.interpretation u 0 = true) ∧
-      ∀ v ∈ V, C.eval Monotone.interpretation v 0 = false := by
-  obtain ⟨f, hf, hs⟩ := exists_sep hP
+      ∀ v ∈ V, C.eval Monotone.interpretation v 0 = false :=
+  exists_circuit_of_rules hP
     ⟨Synthesis.monotone_const, exists_sep_exceedsAt, Synthesis.monotone_or,
       Synthesis.monotone_and⟩
-  obtain ⟨C, hC, hsize⟩ := hs.exists_circuit
-  exact ⟨C, hsize, fun u hu => (congrFun (hC u) 0).trans (hf.1 u hu),
-    fun v hv => (congrFun (hC v) 0).trans (hf.2 v hv)⟩
 
 end Cslib.Communication.DagProtocol
