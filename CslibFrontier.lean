@@ -42,6 +42,7 @@ public import CslibFrontier.Computability.PointerMachine.SimpAttr
 public import CslibFrontier.Probability.ApproxEq
 public import CslibFrontier.Computability.PCP.ParallelRepetition.CoordinateModel
 public import CslibFrontier.Crypto.Computational.Encryption.Unpredictable
+public import CslibFrontier.DataStructure.Rope.Basic
 public import CslibFrontier.Foundations.Data.BitString.BlockPower
 public import CslibFrontier.Computability.Circuit.FullArithmetic
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
