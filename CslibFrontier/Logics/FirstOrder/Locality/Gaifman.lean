@@ -335,13 +335,9 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     rintro y ⟨i, hy⟩ z hz
     exact one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
   have neM : ∀ y ∈ S, ∀ z ∈ S', y ≠ z := fun y hy z hz hyz => by
-    have := farM y hy z hz
-    rw [hyz, SimpleGraph.edist_self] at this
-    exact absurd this (by simp)
+    simpa [hyz] using farM y hy z hz
   have neN : ∀ y ∈ T, ∀ z ∈ T', y ≠ z := fun y hy z hz hyz => by
-    have := farN y hy z hz
-    rw [hyz, SimpleGraph.edist_self] at this
-    exact absurd this (by simp)
+    simpa [hyz] using farN y hy z hz
   let H : M → N := fun x => if x ∈ S then h₁ x else h₂ x
   have HS : Set.EqOn H h₁ S := fun x hx => by simp [H, hx]
   have HS' : Set.EqOn H h₂ S' := fun x hx => by
@@ -355,22 +351,14 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     exact ⟨hb1.injOn, hb2.injOn, fun x hx y hy hxy =>
       neN _ (hb1.mapsTo hx) _ (hb2.mapsTo hy) hxy⟩
   · induction i using Fin.lastCases with
-    | last =>
-      simp only [Fin.snoc_last]
-      rw [HS' (mem_ball_self _ r 0)]
-      exact H₂.map_tuple 0
-    | cast i =>
-      simp only [Fin.snoc_castSucc]
-      rw [HS (mem_ball_self _ r i)]
-      exact H₁.map_tuple i
+    | last => simpa only [Fin.snoc_last, HS' (mem_ball_self _ r 0)] using H₂.map_tuple 0
+    | cast i => simpa only [Fin.snoc_castSucc, HS (mem_ball_self _ r i)] using H₁.map_tuple i
   · have ht' : ∀ i, t i ∈ S ∨ t i ∈ S' := fun i => mem_ball_snoc.1 (ht i)
     by_cases hS : ∀ i, t i ∈ S
-    · have : H ∘ t = h₁ ∘ t := funext fun i => HS (hS i)
-      rw [this]
+    · rw [show H ∘ t = h₁ ∘ t from funext fun i => HS (hS i)]
       exact H₁.relMap_iff R t hS
     by_cases hS' : ∀ i, t i ∈ S'
-    · have : H ∘ t = h₂ ∘ t := funext fun i => HS' (hS' i)
-      rw [this]
+    · rw [show H ∘ t = h₂ ∘ t from funext fun i => HS' (hS' i)]
       exact H₂.relMap_iff R t hS'
     simp only [not_forall] at hS hS'
     obtain ⟨i, hi⟩ := hS
@@ -379,11 +367,8 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     have hj' : t j ∈ S := (ht' j).resolve_right hj
     have hHi : H (t i) ∈ T' := by rw [HS' hi']; exact H₂.bijOn.mapsTo hi'
     have hHj : H (t j) ∈ T := by rw [HS hj']; exact H₁.bijOn.mapsTo hj'
-    constructor
-    · intro hR
-      exact absurd (edist_le_one_of_relMap hR j i) (not_le.2 (farN _ hHj _ hHi))
-    · intro hR
-      exact absurd (edist_le_one_of_relMap hR j i) (not_le.2 (farM _ hj' _ hi'))
+    exact iff_of_false (fun hR => (farN _ hHj _ hHi).not_ge (edist_le_one_of_relMap hR j i))
+      (fun hR => (farM _ hj' _ hi').not_ge (edist_le_one_of_relMap hR j i))
 
 end IsNbhdIso
 
