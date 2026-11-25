@@ -577,8 +577,8 @@ theorem bufEnsureLoop_spec {c U V w n_max base ep : ℕ}
         (hres_k.trans hres_a)
       rw [hst, hres]
       exact ⟨hsafe hpre hsafe_r, hfr_r.trans hfr_a, hres_r,
-        hmc (hmc_k.trans_le (Nat.add_le_add_left hmc_a.le 2)) hmc_r, hvp (hvp_k hvp_a) hvp_r, hrep_r,
-        hbfr_a.trans hbfr_r, hlf_lt, hia_r, hli_r⟩
+        hmc (hmc_k.trans_le (Nat.add_le_add_left hmc_a.le 2)) hmc_r, hvp (hvp_k hvp_a) hvp_r,
+        hrep_r, hbfr_a.trans hbfr_r, hlf_lt, hia_r, hli_r⟩
     · rw [ite_eq_right hn0, bufEnsurePath_add_off]
       rw [ite_eq_right hn0] at hst_k hres_k hmc_k hvp_k
       obtain ⟨hsafe_r, hfr_r, hres_r, hmc_r, hvp_r, hrep_r, hbfr_r, hlf_lt, hia_r, hli_r⟩ :=
