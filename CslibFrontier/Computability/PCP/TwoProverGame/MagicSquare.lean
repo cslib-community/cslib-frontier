@@ -109,43 +109,15 @@ private theorem not_magic_grid : ∀ a₀₀ a₀₁ a₀₂ a₁₀ a₁₁ a�
 parity cannot agree on all nine cells. -/
 theorem exists_not_accepts_magicSquare (ha hb : Fin 3 → Bool × Bool × Bool) :
     ∃ r c, ¬ magicSquare.accepts r c (ha r) (hb c) := by
-  by_contra h
-  simp only [not_exists, not_not] at h
-  have h₀₀ := h 0 0
-  have h₀₁ := h 0 1
-  have h₀₂ := h 0 2
-  have h₁₀ := h 1 0
-  have h₂₀ := h 2 0
-  have h₁₁ := h 1 1
-  have h₂₁ := h 2 1
-  have h₁₂ := h 1 2
-  have h₂₂ := h 2 2
-  clear h
-  generalize ha 0 = A₀ at *
-  generalize ha 1 = A₁ at *
-  generalize ha 2 = A₂ at *
-  generalize hb 0 = B₀ at *
-  generalize hb 1 = B₁ at *
-  generalize hb 2 = B₂ at *
-  obtain ⟨a₀₀, a₀₁, a₀₂⟩ := A₀
-  obtain ⟨a₁₀, a₁₁, a₁₂⟩ := A₁
-  obtain ⟨a₂₀, a₂₁, a₂₂⟩ := A₂
-  obtain ⟨b₀₀, b₀₁, b₀₂⟩ := B₀
-  obtain ⟨b₁₀, b₁₁, b₁₂⟩ := B₁
-  obtain ⟨b₂₀, b₂₁, b₂₂⟩ := B₂
-  simp only [magicSquare, xor₃, entry₃, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one,
-    Matrix.cons_val_two, Matrix.head_cons, Matrix.tail_cons] at *
-  obtain ⟨r₀, c₀, e₀₀⟩ := h₀₀
-  obtain ⟨-, c₁, e₀₁⟩ := h₀₁
-  obtain ⟨-, c₂, e₀₂⟩ := h₀₂
-  obtain ⟨r₁, -, e₁₀⟩ := h₁₀
-  obtain ⟨r₂, -, e₂₀⟩ := h₂₀
-  obtain ⟨-, -, e₁₁⟩ := h₁₁
-  obtain ⟨-, -, e₂₁⟩ := h₂₁
-  obtain ⟨-, -, e₁₂⟩ := h₁₂
-  obtain ⟨-, -, e₂₂⟩ := h₂₂
-  subst e₀₀ e₀₁ e₀₂ e₁₀ e₂₀ e₁₁ e₂₁ e₁₂ e₂₂
-  exact not_magic_grid _ _ _ _ _ _ _ _ _ r₀ r₁ r₂ c₀ c₁ c₂
+  by_contra! h
+  have hxor (x : Bool × Bool × Bool) : ((entry₃ x 0 ^^ entry₃ x 1) ^^ entry₃ x 2) = xor₃ x := by
+    rcases x with ⟨_, _, _⟩; rfl
+  have hrow (r : Fin 3) : ((entry₃ (ha r) 0 ^^ entry₃ (ha r) 1) ^^ entry₃ (ha r) 2) = false :=
+    (hxor _).trans (h r 0).1
+  have hcol (c : Fin 3) : ((entry₃ (ha 0) c ^^ entry₃ (ha 1) c) ^^ entry₃ (ha 2) c) = true := by
+    rw [(h 0 c).2.2, (h 1 c).2.2, (h 2 c).2.2]
+    exact (hxor _).trans (h 0 c).2.1
+  exact not_magic_grid _ _ _ _ _ _ _ _ _ (hrow 0) (hrow 1) (hrow 2) (hcol 0) (hcol 1) (hcol 2)
 
 /-- Every deterministic strategy wins the magic square with probability at most `8/9`. -/
 theorem winProb_magicSquare_le (ha hb : Fin 3 → Bool × Bool × Bool) :
