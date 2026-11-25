@@ -64,9 +64,20 @@ private theorem exists_matchingMass_of_complete {n d : ℕ}
 private theorem loss_mem_Icc {n : ℕ}
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) Joint) (d D : ℕ) (b : Branch) :
-    1 - (branchGameWithDiagonalCap (F := F) n d D b).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 := by
-  exact ⟨sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _),
+    1 - (branchGameWithDiagonalCap (F := F) n d D b).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 :=
+  ⟨sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _),
     sub_le_self _ (TwoProverGame.commutingWinProb_nonneg _ _)⟩
+
+private theorem losses_mem_Icc {n : ℕ}
+    (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
+      (Answer F (n + 1)) (Answer F (n + 1)) Joint) (d D : ℕ) :
+    1 - (branchGame (F := F) n d .axis).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 ∧
+      1 - (branchGame (F := F) n d .consistency).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 ∧
+      1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S ∈
+        Set.Icc (0 : ℝ) 1 :=
+  ⟨by simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc S d D .axis,
+    by simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc S d D .consistency,
+    loss_mem_Icc S d D .diagonal⟩
 
 /-- For a symmetric projective tensor strategy, the measurement supplied by the
 induction agrees with Alice's decoded point answers up to the explicit
@@ -92,11 +103,7 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
             (decodedPoint C.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   intro C ε δ γ r
-  have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-  have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-  have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+  obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos (α := F)
   have hdq : d ≤ Fintype.card F := by
     have h : d ≤ 400 * (n + 1) * d := Nat.le_mul_of_pos_left d (by positivity)
@@ -118,11 +125,7 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     obtain ⟨G, hG⟩ := exists_one_coordinate_polynomial_POVM S hM hψ d
     refine ⟨G, ?_⟩
     apply le_trans ?_ hG
-    have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-    have hδ := loss_mem_Icc C d D .consistency
-    have hγ := loss_mem_Icc C d D .diagonal
-    rw [consistencyWinProbAtDegrees_eq] at hδ
+    obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hr : 0 ≤ r := div_nonneg (Nat.cast_nonneg _) hq.le
     have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1 hr
     rw [show (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε by
@@ -192,11 +195,7 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
       sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
     have hg (x : F) : 0 ≤ g x :=
       sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-    have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-    have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+    obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hav := mul_expect_inductionLossTerm_le (show 0 < m by linarith) hmM hε.1 hδ.1 hγ.1 hr.1
       he hf hg haxis hcons hdiag
     have hσ : (𝔼 x, σ x) ≤ m ^ 2 * (100000 * (k : ℝ) ^ 2 * M * inductionLossTerm ε δ γ r +
@@ -292,11 +291,7 @@ theorem exists_polynomial_POVM_of_symmetric
   let m := (n + 1 : ℝ)
   let q := (Fintype.card F : ℝ)
   let B := dimensionInductionError m k ε δ γ r
-  have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-  have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-  have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+  obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
   have hm : 1 ≤ m := by dsimp [m]; linarith [Nat.cast_nonneg (α := ℝ) n]
   have hq : 0 < q := by dsimp [q]; exact_mod_cast Fintype.card_pos (α := F)
   have hr : 0 ≤ r := div_nonneg (Nat.cast_nonneg _) hq.le
