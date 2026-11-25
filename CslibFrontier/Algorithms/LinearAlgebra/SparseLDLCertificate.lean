@@ -756,13 +756,20 @@ private theorem envShape_spec :
       obtain ⟨h₁, h₂⟩ := envShape_spec hrest p (by simpa using hp)
       exact ⟨by simp only [List.getElem_cons_succ, h₁]; omega, by simpa using h₂⟩
 
-/-- What is kept of a row above the current one: its first column, its entries of `L` scaled
-to integers, their scale, and `d`. -/
-abbrev RowData := ℕ × List ℤ × ℕ × ℚ
+/-- What is kept of a row above the current one. -/
+structure RowData where
+  /-- The first column of the row's envelope. -/
+  first : ℕ
+  /-- The row's entries of `L`, scaled to integers. -/
+  scaled : List ℤ
+  /-- Their scale, the lcm of the denominators. -/
+  scale : ℕ
+  /-- The pivot `d i`. -/
+  pivot : ℚ
 
 /-- The data kept of row `(f, r)` with pivot `di`. -/
 @[expose] def rowData (fr : ℕ × List ℚ) (di : ℚ) : RowData :=
-  (fr.1, scaleRow (denLcm fr.2) fr.2, denLcm fr.2, di)
+  ⟨fr.1, scaleRow (denLcm fr.2) fr.2, denLcm fr.2, di⟩
 
 /-- The check of row `i`, with data `rd`, entries `r` of `L` and stored row `mrow` of `M`, given
 the data `prev` of the rows above, nearest first. The window `win` is the data of the rows
@@ -771,12 +778,12 @@ its lcm `t`; entry `(i, fᵢ + p)` is checked against the row `fᵢ + p` of the 
 @[expose] def rowCheck (prev : List RowData) (rd : RowData) (r : List ℚ)
     (mrow : List (ℕ × ℚ)) : Bool :=
   let win := (prev.take (r.length - 1)).reverse ++ [rd]
-  let u := List.zipWith (· * ·) r (win.map (·.2.2.2))
+  let u := List.zipWith (· * ·) r (win.map (·.pivot))
   let t := denLcm u
   let b := scaleRow t u
-  mrow.all (fun e => Nat.ble rd.1 e.1 || e.2 == 0) &&
-    (((List.range' rd.1 r.length).map (sparseGet mrow)).zip win).all fun x =>
-      x.1.num * ((t * x.2.2.2.1 : ℕ) : ℤ) == alignDot rd.1 b x.2.1 x.2.2.1 * x.1.den
+  mrow.all (fun e => Nat.ble rd.first e.1 || e.2 == 0) &&
+    (((List.range' rd.first r.length).map (sparseGet mrow)).zip win).all fun x =>
+      x.1.num * ((t * x.2.scale : ℕ) : ℤ) == alignDot rd.first b x.2.first x.2.scaled * x.1.den
 
 /-- The check of every row, keeping the data of the rows above. -/
 @[expose] def checkGo : List RowData → List (ℕ × List ℚ) → List ℚ → List (List (ℕ × ℚ)) → Bool
@@ -930,7 +937,7 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
       c.diag.length), ← List.getD_eq_getElem _ [] (by omega : (i : ℕ) < rows.length),
       ← hDget i (by omega)] at hc
     set fr := c.lower.getD i (0, []) with hfr
-    have hrd : (D[(i : ℕ)]'(by omega)).1 = fr.1 := by rw [hDget]; rfl
+    have hrd : (D[(i : ℕ)]'(by omega)).first = fr.1 := by rw [hDget]; rfl
     simp only [rowCheck, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, Nat.ble_eq,
       beq_iff_eq, hrd, show fr.2.length - 1 = i - fr.1 by omega,
       window_eq (by omega : (i : ℕ) < D.length) (by omega : fr.1 ≤ i)] at hc
@@ -984,9 +991,9 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
           rw [List.getD_eq_getElem _ _ (by simp; omega), List.getElem_map, hWget q (by omega)]
           rfl)] at hq
       rw [ofSparse_apply, hMapply]
-      have hS : ((denLcm (List.zipWith (· * ·) fr.2 (W.map (·.2.2.2))) *
+      have hS : ((denLcm (List.zipWith (· * ·) fr.2 (W.map (·.pivot))) *
           denLcm (c.lower.getD j (0, [])).2 : ℕ) : ℚ) ≠ 0 := by
-        have := Nat.mul_pos (denLcm_pos (List.zipWith (· * ·) fr.2 (W.map (·.2.2.2))))
+        have := Nat.mul_pos (denLcm_pos (List.zipWith (· * ·) fr.2 (W.map (·.pivot))))
           (denLcm_pos (c.lower.getD j (0, [])).2)
         exact_mod_cast this.ne'
       apply mul_right_cancel₀ hS
