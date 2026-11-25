@@ -206,10 +206,7 @@ public theorem transformsTapesAt_streamLoop_encoded_after_of_round {α : Type u}
     simp [cont, List.getElem?_eq_getElem hj]
   have hlift (f : σ × α → ℕ) (j : ℕ) (hj : j < l.length) : lift f j = f (st j, l[j]) := by
     simp [lift, List.getElem?_eq_getElem hj]
-  have htoks : ∀ t ∈ toks, t ≠ [] := by
-    rintro t ht
-    obtain ⟨a, _, rfl⟩ := List.mem_map.mp ht
-    exact htok a
+  have htoks : ∀ t ∈ toks, t ≠ [] := List.forall_mem_map.2 fun a _ => htok a
   have hread' : ∀ j (hj : j < toks.length), r.read r.q₀ (toks.flatten.drop
       ((toks.take j).flatten).length) = (cont j, toks[j].length) := by
     intro j hj
@@ -646,20 +643,13 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold {α : Type u} {σ : Typ
         lMax x + 1)) := by
   obtain ⟨c, h⟩ := streamFold_sum r tok htok hread elems hL hinit hnext hemit hfinish hg
     (roundCost := fun x _ => tMax x + 3 * lMax x + 1) (sMax := sMax) (lMax := lMax)
-    (fun x j hj => by
-      have ht := htMax x j hj
-      have h₀ := hS x j hj.le
-      have h₁ := hS x (j + 1) hj
-      have ha := hA x j hj
-      lia) hsMax hS hA
-  refine ⟨c * 3, h.mono (fun x => ?_) (fun x => ?_)⟩
+    (fun x j hj => by linarith [htMax x j hj, hS x j hj.le, hS x (j + 1) hj, hA x j hj])
+    hsMax hS hA
+  refine ⟨c * 3, h.mono (fun x => ?_) (fun x => ?_)⟩ <;> rw [Nat.mul_assoc] <;>
+    refine Nat.mul_le_mul_left c ?_
   · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
     nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    lia
+  · lia
 
 -- upstream: candidate
 /-- **Streaming folds from a framed initial state prefix.** When `encIn x` consists of the framed
@@ -708,16 +698,13 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_pair_sum {α : Type u} 
     (sI := fun x => (frame (encS (init x))).length + 2) (fun e x => ?_)
     hnext hemit hfinish hg hcost hsMax hS hA
   · obtain ⟨c, h⟩ := hsum
-    refine ⟨c * 5, h.mono (fun x => ?_) (fun x => ?_)⟩
-    · have hpre : (frame (encS (init x))).length ≤ (encIn x).length := by
-        rw [hL x, List.length_append]
-        omega
-      rw [Nat.mul_assoc]
-      exact Nat.mul_le_mul_left c (by omega)
+    refine ⟨c * 5, h.mono (fun x => ?_) (fun x => ?_)⟩ <;> rw [Nat.mul_assoc] <;>
+      refine Nat.mul_le_mul_left c ?_
+    · have hpre : (frame (encS (init x))).length ≤ (encIn x).length := by simp [hL x]
+      omega
     · have h₀ : (encS (init x)).length ≤ lMax x := hS x 0 (Nat.zero_le _)
       simp only [length_frame]
-      rw [Nat.mul_assoc]
-      exact Nat.mul_le_mul_left c (by omega)
+      omega
   · have hread_init : rawFrameReader.read rawFrameReader.q₀ ((encIn x).drop 0) =
         (frame (encS (init x)), (frame (encS (init x))).length) := by
       rw [List.drop_zero, hL x]
