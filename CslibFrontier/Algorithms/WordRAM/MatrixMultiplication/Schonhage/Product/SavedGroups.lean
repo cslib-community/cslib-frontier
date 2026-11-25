@@ -50,17 +50,12 @@ public theorem SavedGroups.reframe {L m N Q : ℕ} {old μ ν : ℕ → ℕ}
     (hf : ∀ a, offsetBase L m N Q ≤ a → a < groupedBase L m N Q → ν a = μ a) :
     SavedGroups L m N Q old ν := by
   have hc : offsetBase L m N Q + numBands L m N ^ 2 + 1 = codeBase L m N Q := by
-    unfold codeBase
-    omega
+    unfold codeBase; omega
   have ho : codeBase L m N Q + Q = originalBase L m N Q := rfl
   have hg : originalBase L m N Q + Q = groupedBase L m N Q := rfl
-  constructor
-  · intro t ht
-    exact (hf _ (by omega) (by omega)).trans (h.offsets t ht)
-  · intro j hj
-    exact (hf _ (by omega) (by omega)).trans (h.codes j hj)
-  · intro j hj
-    exact (hf _ (by omega) (by omega)).trans (h.originals j hj)
+  exact ⟨fun t ht => (hf _ (by omega) (by omega)).trans (h.offsets t ht),
+    fun j hj => (hf _ (by omega) (by omega)).trans (h.codes j hj),
+    fun j hj => (hf _ (by omega) (by omega)).trans (h.originals j hj)⟩
 
 /-- Stable scatter covers every grouped cell, so every stored code is a valid query index.
 The proof uses the existing permutation theorem rather than a supplied inverse table. -/
@@ -75,11 +70,9 @@ public theorem router_code_lt {L m N : ℕ} (hm : m ≤ L) (qs : List (Fin N × 
     old (Wanted.codeAddress L m N qs.length + j) < 10 ^ L := by
   obtain ⟨i, hi⟩ := (CountingSort.position_bijective
     (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) qs.length).surjective ⟨j, hj⟩
-  have hp := congrArg (fun k : Fin qs.length => k.val) hi
-  change CountingSort.position (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) qs.length i = j at hp
-  have hv := hvalues i
-  rw [hp] at hv
-  rw [hv]
+  have hp : CountingSort.position (Wanted.tileKey L m N ∘ Wanted.inputPairs qs) qs.length i = j :=
+    (congrArg Fin.val hi :)
+  rw [← hp, hvalues i]
   exact (PrunedQuery.queryIndex _).isLt
 
 /-- The actual protected offset words satisfy the kernel's monotone span and count bounds.
@@ -131,15 +124,13 @@ public theorem SavedGroups.span_queries {L m N : ℕ} (hm : m ≤ L)
       (T.1 * numBands L m N + T.2) + 1 = offsetBase L m N qs.length +
         (T.1 * numBands L m N + T.2 + 1) by omega, hb] using hs
   have hword (i : Fin (b - a)) : old (Wanted.codeAddress L m N qs.length + (a + i.val)) =
-      (PrunedQuery.queryIndex (queries i)).val := by
-    rw [← h.codes (a + i.val) (by have hi := i.isLt; omega)]
-    exact hinput i
+      (PrunedQuery.queryIndex (queries i)).val :=
+    (h.codes (a + i.val) (by have hi := i.isLt; omega)).symm.trans (hinput i)
   have hspan := Wanted.code_span_eq_wantedStrings hm qs old T hT hvalues hoffsets
   rw [has, hbs] at hspan
-  have hinj : Function.Injective (fun v : OutStr L => (PrunedQuery.queryIndex v).val) := by
-    intro u v he
-    simpa only [PrunedQuery.queryAt_queryIndex] using
-      congrArg PrunedQuery.queryAt (Fin.ext he)
+  have hinj : Function.Injective (fun v : OutStr L => (PrunedQuery.queryIndex v).val) :=
+    fun u v he => by
+      simpa only [PrunedQuery.queryAt_queryIndex] using congrArg PrunedQuery.queryAt (Fin.ext he)
   ext w
   constructor
   · intro hw
@@ -159,10 +150,8 @@ public theorem SavedGroups.span_queries {L m N : ℕ} (hm : m ≤ L)
       exact Finset.mem_image.mpr ⟨w, hw, rfl⟩
     obtain ⟨j, hj, he⟩ := Finset.mem_image.mp hcode
     have hj' := Finset.mem_Ico.mp hj
-    let i : Fin (b - a) := ⟨j - a, by omega⟩
-    have hai : a + i.val = j := by dsimp [i]; omega
-    have hread := hword i
-    rw [hai] at hread
-    exact Finset.mem_image.mpr ⟨i, Finset.mem_univ _, hinj (hread.symm.trans he)⟩
+    have hread := hword ⟨j - a, by omega⟩
+    rw [show a + (j - a) = j by omega] at hread
+    exact Finset.mem_image.mpr ⟨_, Finset.mem_univ _, hinj (hread.symm.trans he)⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
