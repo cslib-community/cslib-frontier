@@ -107,10 +107,7 @@ theorem initialize_forest {r κ n w d : ℕ} (rs : List (ℕ × ℕ))
     exec_initializeEnvelope b hw ((hc _).trans hlen)
   have hys := hprep.saved.congr (y := y.comap (preprocessingRegisters r))
     (fun i _ _ => by simpa only [Data.comap_regs] using hyp i)
-  have hbc := hprep.controls
-  have hbb := hprep.bitmap
-  have hbh := hprep.heap
-  have hbf := hprep.frontend
+  obtain ⟨-, hbc, hbb, hbh, hbf⟩ := hprep
   simp only [Data.comap_mem, Data.comap_regs] at hbc hbb hbh hbf
   have yah : y.regs (preprocessingRegisters r ChanHe.Traversal.heap) = (arena κ n y.mem).floor := by
     rw [hyp, hbh, hym]
@@ -140,8 +137,7 @@ theorem initialize_forest {r κ n w d : ℕ} (rs : List (ℕ × ℕ))
   · simpa only [hym] using hbc.congr (fun i _ => by simpa only [Data.comap_regs] using hyp i)
   · simpa only [hym] using hbf
   · simpa only [hym] using hbb
-  · rw [yah]
-    exact le_rfl
+  · rw [yah]; exact le_rfl
   · have hh : y.regs (preprocessingRegisters r packedLength) =
         8 * Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * (n + 2) ^ κ) ^ 2 := hys.length
     change y.regs (preprocessingRegisters r packedLength) =

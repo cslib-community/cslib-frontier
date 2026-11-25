@@ -70,18 +70,15 @@ theorem exec {w p A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
     have hro := hregs Reg.output (by decide)
     have readA (i : ℕ) (hip : i < p) :
         y.mem (y.regs Reg.inputA + i) = encode (u i) := by
-      rw [hra, hframe _ (by omega)]
-      exact hA i hip
+      rw [hra, hframe _ (by omega)]; exact hA i hip
     have readB (i : ℕ) (hip : i < p) :
         y.mem (y.regs Reg.inputB + i) = encode (v i) := by
-      rw [hrb, hframe _ (by omega)]
-      exact hB i hip
+      rw [hrb, hframe _ (by omega)]; exact hB i hip
     obtain ⟨z, hz, hzrow, hzmem, hzregs⟩ := exec_coefficient y u v hl rfl hlt h1
       hbound hu hv readA readB h2p (by simpa only [hra] using ha)
       (by simpa only [hrb] using hb) (by rw [hro]; exact hout.of_le (by omega))
     have hmem : z.mem = Function.update y.mem (x.regs Reg.output + y.regs Reg.coefficient)
-        (encode (convolution p u v (y.regs Reg.coefficient))) := by
-      simpa only [hro] using hzmem
+        (encode (convolution p u v (y.regs Reg.coefficient))) := by simpa only [hro] using hzmem
     obtain ⟨hvalues', hframe'⟩ :=
       prefix_write_step (e := fun r => encode (convolution p u v r)) hvalues hframe hmem
     exact ⟨z, hz, ⟨fun i hip => (hzregs i (by omega)).trans (hregs i hip),
@@ -91,9 +88,8 @@ theorem exec {w p A B : ℕ} (x : Data 32) (u v : ℕ → ℤ)
   have hinit : ExecWithin (B := .standard) (w + 2)
       (ram[ Reg.coefficient ← #0; Reg.one ← #1 ]) x x₀ 2 := by wram_exec
   have hx₀ : P (x₀.regs Reg.coefficient) x₀ := by
-    refine ⟨fun i hi => hinit.regs_eq (init_preserves i hi), ?_, ?_, fun _ _ => rfl⟩
-    · simp [x₀]
-    · simp +decide [x₀, Reg.one, Reg.coefficient]
+    exact ⟨fun i hi => hinit.regs_eq (init_preserves i hi), by simp [x₀],
+      by simp +decide [x₀, Reg.one, Reg.coefficient], fun _ _ => rfl⟩
   obtain ⟨y, hy, ⟨hregs, _, hvalues, hframe⟩, _⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 Reg.length (by decide)).trans hlen) hbody
     (by simp +decide [x₀, Reg.one, Reg.coefficient]) hx₀
