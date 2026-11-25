@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModel
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpPermHealProg
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -200,44 +201,32 @@ private theorem realizes_initOmRoleLoop :
 
 private theorem initOmRoleLoop_safe {c U V w n_max base : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) :
-    let rt := mkInitFastRt c U V w n_max base
-    ∀ rem b₀ (s : Memory.State),
-      b₀ + rem ≤ numBucketsWhp n_max →
-      iterationSafe initOmRoleStepProg InitOmRoleStepPre w rt rem b₀ s := by
-  intro rt rem
-  induction rem with
-  | zero => intro _ _ _; exact trivial
-  | succ rem ih =>
-    intro b₀ s hle
-    refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, by dsimp [rt, mkInitFastRt, ifrM]; omega⟩, ?_⟩
-    rw [clientState_width, clientResult_width]
-    have hr : (Memory.spec 0).clientResult s (initOmRoleStepProg (rt, b₀)) = b₀ + 1 := by
+    ∀ rem b₀ (s : Memory.State), b₀ + rem ≤ numBucketsWhp n_max →
+      iterationSafe initOmRoleStepProg InitOmRoleStepPre w (mkInitFastRt c U V w n_max base) rem
+        b₀ s :=
+  iterationSafe_of_stateless_step _ _ (fun _ hb _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hb⟩)
+    fun _ _ _ => by
       unfold initOmRoleStepProg; simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    rw [hr]
-    exact ih (b₀ + 1) _ (by omega)
 
+/-- From zeroed `offBktMeta`, `initOmRoleLoopProg` sets `overmarsRole b := 1` for every bucket in
+`4 * numBucketsWhp n_max` charges, writing only inside `offBktMeta`. -/
 private theorem initOmRoleLoop_spec {c U V w n_max base : ℕ}
-    (henv : WhpLargeEnv c U V w n_max w base) :
-    let rt := mkInitFastRt c U V w n_max base
+    (henv : WhpLargeEnv c U V w n_max w base) (s : Memory.State)
+    (hz : ∀ idx < 16 * numBucketsWhp n_max,
+      readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx = 0) :
     let M := numBucketsWhp n_max
-    ∀ rem b₀ (s : Memory.State),
-      b₀ + rem ≤ M →
-      (∀ idx < 16 * M,
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx =
-          if idx % 16 = 4 ∧ idx / 16 < b₀ then 1 else 0) →
-      let prog := initOmRoleLoopProg ((rt, b₀), rem)
-      let s' := (Memory.spec 0).clientState s prog
-      s'.frontier = s.frontier ∧
-      memoryCost prog s = 4 * rem ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
-      (∀ idx < 16 * M,
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
-          if idx % 16 = 4 ∧ idx / 16 < b₀ + rem then 1 else 0) ∧
-      (∀ a, (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
-        s'.mem a = s.mem a) := by
-  intro rt M rem
+    let prog := initOmRoleLoopProg ((mkInitFastRt c U V w n_max base, 0), M)
+    let s' := (Memory.spec 0).clientState s prog
+    s'.frontier = s.frontier ∧
+    memoryCost prog s = 4 * M ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
+    (∀ idx < 16 * M,
+      readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
+        if idx % 16 = 4 ∧ idx / 16 < M then 1 else 0) ∧
+    (∀ a, (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
+      s'.mem a = s.mem a) := by
+  intro M
   have hw := henv.2.1
-  have hth := henv.2.2.2.1
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.1
   have hbm_b : base + offBktMeta c U V w n_max +
       packedWords (16 * M) (globalPtrBits n_max) w ≤ base + largeSpaceWhp c U V w n_max := by
@@ -246,68 +235,45 @@ private theorem initOmRoleLoop_spec {c U V w n_max base : ℕ}
       packedWords (16 * M) (globalPtrBits n_max) w = offFbStart c U V w n_max := rfl
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
   have h1_lt : 1 < 2 ^ globalPtrBits n_max :=
-    Nat.one_lt_two_pow (globalPtrBits_pos_of_large hth).ne'
-  induction rem with
-  | zero =>
-    intro b₀ s _ hbm
-    unfold initOmRoleLoopProg iterate
-    rw [Nat.add_zero, Nat.mul_zero]
-    exact ⟨rfl, rfl, validProg_pure _, hbm, fun _ _ => rfl⟩
-  | succ rem ih =>
-    intro b₀ s hle hbm
-    have hb_lt : b₀ < M := by omega
-    have hidx_lt : 16 * b₀ + 4 < 16 * M := by omega
-    set p1 := initOmRoleStepProg (rt, b₀)
-    set m1 := writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem
-      (16 * b₀ + 4) 1
-    have hs1 : (Memory.spec 0).clientState s p1 = { mem := m1, frontier := s.frontier } := by
-      dsimp only [p1]; unfold initOmRoleStepProg
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp]
-      rfl
-    have hr1 : (Memory.spec 0).clientResult s p1 = b₀ + 1 := by
-      dsimp only [p1]; unfold initOmRoleStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    have hmc1 : memoryCost p1 s = 4 := by
-      dsimp only [p1]; unfold initOmRoleStepProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-        memoryCost_writePackedGen, memoryCost_pure]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold initOmRoleStepProg; simp only [pure_bind]
-      exact validProg_bind (validProg_writePacked hw hgk hidx_lt hbm_b) (validProg_pure _)
-    set s1 : Memory.State := { mem := m1, frontier := s.frontier }
-    have hbm1 : ∀ idx < 16 * M,
-        readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s1.mem idx =
-          if idx % 16 = 4 ∧ idx / 16 < b₀ + 1 then 1 else 0 := by
-      intro idx hidx
-      dsimp only [s1, m1]
-      by_cases heq : idx = 16 * b₀ + 4
-      · subst heq
-        rw [readPacked_writePacked_self _ _ _ _ _ h1_lt]
-        have hmod : (16 * b₀ + 4) % 16 = 4 := by omega
-        have hdiv : (16 * b₀ + 4) / 16 < b₀ + 1 := by omega
-        rw [ite_eq_left ⟨hmod, hdiv⟩]
-      · rw [readPacked_writePacked_of_ne hw _ heq, hbm idx hidx]
-        have hiff : (idx % 16 = 4 ∧ idx / 16 < b₀) ↔ (idx % 16 = 4 ∧ idx / 16 < b₀ + 1) := by
+    Nat.one_lt_two_pow (globalPtrBits_pos_of_large henv.2.2.2.1).ne'
+  set rt := mkInitFastRt c U V w n_max base
+  unfold initOmRoleLoopProg
+  obtain ⟨-, hvp, -, hf, hbm, hout⟩ := validProg_iterate_of_inv (n := M)
+    (safe := InitOmRoleStepPre) (F := base + largeSpaceWhp c U V w n_max) (d := rt)
+    (fun k b t => b = k ∧ t.frontier = s.frontier ∧
+      (∀ idx < 16 * M, readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
+        t.mem idx = if idx % 16 = 4 ∧ idx / 16 < k then 1 else 0) ∧
+      ∀ a, (a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a) →
+        t.mem a = s.mem a)
+    (fun k hk b t ⟨hb, hf, hbm, hout⟩ => by
+      subst hb
+      have hidx_lt : 16 * b + 4 < 16 * M := by omega
+      have hst : (Memory.spec 0).clientState t (initOmRoleStepProg (rt, b)) =
+          { mem := writePacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w t.mem
+              (16 * b + 4) 1, frontier := t.frontier } := by
+        unfold initOmRoleStepProg
+        simp only [pure_bind]
+        rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp]
+        rfl
+      have hres : (Memory.spec 0).clientResult t (initOmRoleStepProg (rt, b)) = b + 1 := by
+        unfold initOmRoleStepProg; simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
+      rw [hst, hres]
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk⟩, ?_, rfl, hf, fun idx hidx => ?_,
+        fun a ha => ?_⟩
+      · unfold initOmRoleStepProg; simp only [pure_bind]
+        exact validProg_bind (validProg_writePacked hw hgk hidx_lt hbm_b) (validProg_pure _)
+      · by_cases heq : idx = 16 * b + 4
+        · subst heq
+          rw [readPacked_writePacked_self _ _ _ _ _ h1_lt, ite_eq_left ⟨by omega, by omega⟩]
+        · rw [readPacked_writePacked_of_ne hw _ heq, hbm idx hidx]
           have hdm := Nat.div_add_mod idx 16
-          omega
-        by_cases hc : idx % 16 = 4 ∧ idx / 16 < b₀
-        · rw [ite_eq_left hc, ite_eq_left (hiff.mp hc)]
-        · rw [ite_eq_right hc, ite_eq_right (fun h => hc (hiff.mpr h))]
-    obtain ⟨hf_r, hmc_r, hvp_r, hbm_r, hout_r⟩ := ih (b₀ + 1) s1 (by omega) hbm1
-    have hadd : b₀ + 1 + rem = b₀ + (rem + 1) := by omega
-    rw [hadd] at hbm_r
-    unfold initOmRoleLoopProg at hf_r hmc_r hvp_r hbm_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, fun a ha => ?_⟩
-    · rw [clientState_bind, hs1, hr1]; exact hf_r
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost p1 s + _ = _
-      rw [hmc1, hs1, hr1, hmc_r]; omega
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
-    · intro idx hidx; rw [clientState_bind, hs1, hr1]; exact hbm_r idx hidx
-    · rw [clientState_bind, hs1, hr1, hout_r a ha]
-      exact writePacked_outside hw _ hidx_lt _ (by omega)
+          split_ifs <;> omega
+      · rw [← hout a ha]; exact writePacked_outside hw _ hidx_lt _ (by omega))
+    ⟨rfl, rfl, fun idx hidx => by rw [hz idx hidx, ite_eq_right (by omega)], fun _ _ => rfl⟩
+  refine ⟨hf, memoryCost_iterate_eq_of _ 4 rt (fun b t => ?_) M 0 s, hvp, hbm, hout⟩
+  unfold initOmRoleStepProg
+  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    memoryCost_writePackedGen, memoryCost_pure]
 
 /-- Step writing `poolFreeStack j := j` in `offPoolFreeStack` (`d = (rt, j)`). -/
 @[irreducible] private def initFreeStackStepProg : InitFastRt × ℕ → Memory.Prog ℕ
@@ -372,43 +338,31 @@ private theorem realizes_initFreeStackLoop :
 
 private theorem initFreeStackLoop_safe {c U V w n_max base : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base) :
-    let rt := mkInitFastRt c U V w n_max base
-    ∀ rem j₀ (s : Memory.State),
-      j₀ + rem ≤ poolSizeWhp n_max →
-      iterationSafe initFreeStackStepProg InitFreeStackStepPre w rt rem j₀ s := by
-  intro rt rem
-  induction rem with
-  | zero => intro _ _ _; exact trivial
-  | succ rem ih =>
-    intro j₀ s hle
-    refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, by dsimp [rt, mkInitFastRt, ifrPoolSize]; omega⟩, ?_⟩
-    rw [clientState_width, clientResult_width]
-    have hr : (Memory.spec 0).clientResult s (initFreeStackStepProg (rt, j₀)) = j₀ + 1 := by
-      unfold initFreeStackStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    rw [hr]
-    exact ih (j₀ + 1) _ (by omega)
+    ∀ rem j₀ (s : Memory.State), j₀ + rem ≤ poolSizeWhp n_max →
+      iterationSafe initFreeStackStepProg InitFreeStackStepPre w (mkInitFastRt c U V w n_max base)
+        rem j₀ s :=
+  iterationSafe_of_stateless_step _ _ (fun _ hj _ => ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hj⟩)
+    fun _ _ _ => by
+      unfold initFreeStackStepProg; simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
 
+/-- From zeroed `offPoolFreeStack`, `initFreeStackLoopProg` sets `poolFreeStack j := j` for every
+pool slot in `4 * poolSizeWhp n_max` charges, writing only inside `offPoolFreeStack`. -/
 private theorem initFreeStackLoop_spec {c U V w n_max base : ℕ}
-    (henv : WhpLargeEnv c U V w n_max w base) :
-    let rt := mkInitFastRt c U V w n_max base
+    (henv : WhpLargeEnv c U V w n_max w base) (s : Memory.State)
+    (hz : ∀ idx < poolSizeWhp n_max,
+      readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s.mem idx = 0) :
     let ps := poolSizeWhp n_max
-    ∀ rem j₀ (s : Memory.State),
-      j₀ + rem ≤ ps →
-      (∀ idx < ps,
-        readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s.mem idx =
-          if idx < j₀ then idx else 0) →
-      let prog := initFreeStackLoopProg ((rt, j₀), rem)
-      let s' := (Memory.spec 0).clientState s prog
-      s'.frontier = s.frontier ∧
-      memoryCost prog s = 4 * rem ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
-      (∀ idx < ps,
-        readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
-          if idx < j₀ + rem then idx else 0) ∧
-      (∀ a, (a < base + offPoolFreeStack c U V w n_max ∨
-          base + offPoolOwner c U V w n_max ≤ a) → s'.mem a = s.mem a) := by
-  intro rt ps rem
+    let prog := initFreeStackLoopProg ((mkInitFastRt c U V w n_max base, 0), ps)
+    let s' := (Memory.spec 0).clientState s prog
+    s'.frontier = s.frontier ∧
+    memoryCost prog s = 4 * ps ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
+    (∀ idx < ps,
+      readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s'.mem idx =
+        idx) ∧
+    (∀ a, (a < base + offPoolFreeStack c U V w n_max ∨
+        base + offPoolOwner c U V w n_max ≤ a) → s'.mem a = s.mem a) := by
+  intro ps
   have hw := henv.2.1
   have hps_le : ps ≤ n_max := Nat.sub_le _ _
   have hseg := (WhpLargeEnv.seg_end_le c U V w n_max).2.2.2.2.2.2.2.1
@@ -418,60 +372,47 @@ private theorem initFreeStackLoop_spec {c U V w n_max base : ℕ}
   have hps_end : offPoolFreeStack c U V w n_max +
       packedWords ps (globalPtrBits n_max) w = offPoolOwner c U V w n_max := rfl
   have hgk := globalPtrBits_le_w henv.2.2.2.2.1 henv.2.2.2.2.2.1
-  induction rem with
-  | zero =>
-    intro j₀ s _ hps_rep
-    unfold initFreeStackLoopProg iterate
-    rw [Nat.add_zero, Nat.mul_zero]
-    exact ⟨rfl, rfl, validProg_pure _, hps_rep, fun _ _ => rfl⟩
-  | succ rem ih =>
-    intro j₀ s hle hps_rep
-    have hj_lt : j₀ < ps := by omega
-    have hj_pow : j₀ < 2 ^ globalPtrBits n_max :=
-      lt_two_pow_globalPtrBits_of_le_n_max (hj_lt.le.trans hps_le)
-    set p1 := initFreeStackStepProg (rt, j₀)
-    set m1 := writePacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s.mem
-      j₀ j₀
-    have hs1 : (Memory.spec 0).clientState s p1 = { mem := m1, frontier := s.frontier } := by
-      dsimp only [p1]; unfold initFreeStackStepProg
-      simp only [pure_bind]
-      rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp]
-      rfl
-    have hr1 : (Memory.spec 0).clientResult s p1 = j₀ + 1 := by
-      dsimp only [p1]; unfold initFreeStackStepProg
-      simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
-    have hmc1 : memoryCost p1 s = 4 := by
-      dsimp only [p1]; unfold initFreeStackStepProg
-      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-        memoryCost_writePackedGen, memoryCost_pure]
-    have hvp1 : ValidProg w (base + largeSpaceWhp c U V w n_max) s p1 := by
-      dsimp only [p1]; unfold initFreeStackStepProg; simp only [pure_bind]
-      exact validProg_bind (validProg_writePacked hw hgk hj_lt hps_b) (validProg_pure _)
-    set s1 : Memory.State := { mem := m1, frontier := s.frontier }
-    have hps1 : ∀ idx < ps,
-        readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s1.mem idx =
-          if idx < j₀ + 1 then idx else 0 := by
-      intro idx hidx
-      dsimp only [s1, m1]
-      by_cases heq : idx = j₀
-      · subst idx
-        rw [readPacked_writePacked_self _ _ _ _ _ hj_pow, ite_eq_left (Nat.lt_succ_self j₀)]
-      · rw [readPacked_writePacked_of_ne hw _ heq, hps_rep idx hidx]
-        split_ifs <;> omega
-    obtain ⟨hf_r, hmc_r, hvp_r, hps_r, hout_r⟩ := ih (j₀ + 1) s1 (by omega) hps1
-    have hadd : j₀ + 1 + rem = j₀ + (rem + 1) := by omega
-    rw [hadd] at hps_r
-    unfold initFreeStackLoopProg at hf_r hmc_r hvp_r hps_r hout_r ⊢
-    dsimp only [iterate]
-    refine ⟨?_, ?_, ?_, ?_, fun a ha => ?_⟩
-    · rw [clientState_bind, hs1, hr1]; exact hf_r
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost p1 s + _ = _
-      rw [hmc1, hs1, hr1, hmc_r]; omega
-    · refine validProg_bind hvp1 ?_; rw [hs1, hr1]; exact hvp_r
-    · intro idx hidx; rw [clientState_bind, hs1, hr1]; exact hps_r idx hidx
-    · rw [clientState_bind, hs1, hr1, hout_r a ha]
-      exact writePacked_outside hw _ hj_lt _ (by omega)
+  set rt := mkInitFastRt c U V w n_max base
+  unfold initFreeStackLoopProg
+  obtain ⟨-, hvp, -, hf, hps_r, hout⟩ := validProg_iterate_of_inv (n := ps)
+    (safe := InitFreeStackStepPre) (F := base + largeSpaceWhp c U V w n_max) (d := rt)
+    (fun k j t => j = k ∧ t.frontier = s.frontier ∧
+      (∀ idx < ps, readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w
+        t.mem idx = if idx < k then idx else 0) ∧
+      ∀ a, (a < base + offPoolFreeStack c U V w n_max ∨ base + offPoolOwner c U V w n_max ≤ a) →
+        t.mem a = s.mem a)
+    (fun k hk j t ⟨hj, hf, hps, hout⟩ => by
+      subst hj
+      have hj_pow : j < 2 ^ globalPtrBits n_max :=
+        lt_two_pow_globalPtrBits_of_le_n_max (hk.le.trans hps_le)
+      have hst : (Memory.spec 0).clientState t (initFreeStackStepProg (rt, j)) =
+          { mem := writePacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w
+              t.mem j j, frontier := t.frontier } := by
+        unfold initFreeStackStepProg
+        simp only [pure_bind]
+        rw [clientState_bind, clientState_writePackedGen, clientState_pure_whp]
+        rfl
+      have hres : (Memory.spec 0).clientResult t (initFreeStackStepProg (rt, j)) = j + 1 := by
+        unfold initFreeStackStepProg
+        simp only [pure_bind, clientResult_bind, clientResult_pure_whp]
+      rw [hst, hres]
+      refine ⟨⟨⟨c, U, V, w, n_max, henv, rfl⟩, hk⟩, ?_, rfl, hf, fun idx hidx => ?_,
+        fun a ha => ?_⟩
+      · unfold initFreeStackStepProg; simp only [pure_bind]
+        exact validProg_bind (validProg_writePacked hw hgk hk hps_b) (validProg_pure _)
+      · by_cases heq : idx = j
+        · subst idx
+          rw [readPacked_writePacked_self _ _ _ _ _ hj_pow, ite_eq_left (Nat.lt_succ_self _)]
+        · rw [readPacked_writePacked_of_ne hw _ heq, hps idx hidx]
+          split_ifs <;> omega
+      · rw [← hout a ha]; exact writePacked_outside hw _ hk _ (by omega))
+    ⟨rfl, rfl, fun idx hidx => by rw [hz idx hidx, ite_eq_right (Nat.not_lt_zero _)],
+      fun _ _ => rfl⟩
+  refine ⟨hf, memoryCost_iterate_eq_of _ 4 rt (fun j t => ?_) ps 0 s, hvp,
+    fun idx hidx => (hps_r idx hidx).trans (ite_eq_left hidx), hout⟩
+  unfold initFreeStackStepProg
+  simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    memoryCost_writePackedGen, memoryCost_pure]
 
 /-- Write the five non-zero initial fast-state header words (`d = (base, poolSize)`). -/
 @[irreducible] private def initFastHdrsProg : ℕ × ℕ → Memory.Prog Unit
@@ -606,25 +547,15 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
     mkInitFastRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max)
       (base := base) hth s
   -- Step 1: `initOmRoleLoopProg`
-  have hbm0 : ∀ idx < 16 * M,
-      readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx =
-        if idx % 16 = 4 ∧ idx / 16 < 0 then 1 else 0 := by
-    intro idx hidx
-    simp only [Nat.not_lt_zero, and_false, ↓reduceIte]
-    exact readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 => hz_body a (by omega) (by omega)
-  obtain ⟨hf1, hmc1, hvp1, hbm1, hout1⟩ := initOmRoleLoop_spec henv M 0 s (by omega) hbm0
-  rw [Nat.zero_add] at hbm1
+  obtain ⟨hf1, hmc1, hvp1, hbm1, hout1⟩ :=
+    initOmRoleLoop_spec henv s fun idx (hidx : idx < 16 * M) =>
+      readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 => hz_body a (by omega) (by omega)
   set s1 := (Memory.spec 0).clientState s (initOmRoleLoopProg ((rt, 0), M))
   -- Step 2: `initFreeStackLoopProg`
-  have hps0 : ∀ idx < ps,
-      readPacked (base + offPoolFreeStack c U V w n_max) (globalPtrBits n_max) w s1.mem idx =
-        if idx < 0 then idx else 0 := by
-    intro idx hidx
-    simp only [Nat.not_lt_zero, ↓reduceIte]
-    exact readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 =>
-      (hout1 a (Or.inr (by omega))).trans (hz_body a (by omega) (by omega))
-  obtain ⟨hf2, hmc2, hvp2, hps2, hout2⟩ := initFreeStackLoop_spec henv ps 0 s1 (by omega) hps0
-  rw [Nat.zero_add] at hps2
+  obtain ⟨hf2, hmc2, hvp2, hps2, hout2⟩ :=
+    initFreeStackLoop_spec henv s1 fun idx (hidx : idx < ps) =>
+      readPacked_eq_zero_of_zero_range hw hidx fun a ha1 ha2 =>
+        (hout1 a (Or.inr (by omega))).trans (hz_body a (by omega) (by omega))
   set s2 := (Memory.spec 0).clientState s1 (initFreeStackLoopProg ((rt, 0), ps))
   -- Step 3: `initFastHdrsProg`
   have hps_fit : Fits w ps := henv.fits_of_le_n_max (Nat.sub_le _ _)
@@ -703,7 +634,7 @@ theorem initFastGenProg_spec {c U V w n_max base : ℕ} {θ : SeedWhp c U n_max}
           (globalPtrBits n_max) w s3.mem j = j := by
       intro j hj
       rw [readPacked_congr hw (fun a ⟨ha1, ha2⟩ => hs3_ge32 a (Or.inr (by omega))) hj,
-        hps2 j hj, ite_eq_left hj]
+        hps2 j hj]
     have hmt_pos : 1 ≤ maxTrieNodesWhp c n_max := by unfold maxTrieNodesWhp; omega
     dsimp only [FastMemRep, emptyFastState]
     refine ⟨Nat.zero_le _, hhdr0, hhdr1,
