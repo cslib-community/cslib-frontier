@@ -64,12 +64,6 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
       ∃ z, ExecWithin (w + 2) (cellBody side) y z 205 ∧ Inv (y.regs cell + 1) z ∧
         z.regs cell = y.regs cell + 1 := by
     obtain ⟨hr, hm, hf⟩ := hy
-    have hys : y.regs src = s := by regs_frame
-    have hyd : y.regs dst = d := by regs_frame
-    have hyn : y.regs stride = n := by regs_frame
-    have hy7 : y.regs seven = 7 := by regs_frame
-    have hy10 : y.regs ten = 10 := by regs_frame
-    have hy1 : y.regs one = 1 := by regs_frame
     have hyinput (a : Fin 7) :
         y.mem (s + (y.regs cell / (10 * n) * 7 + a.val) * n + y.regs cell % n) =
           encode (v (y.regs cell) a) := by
@@ -87,19 +81,14 @@ theorem exec_cells {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
       · exact hmem _ hi a
       · rcases hdisj with h | h <;> dsimp only [N] at hi <;> omega
     obtain ⟨z, he, hzmem, hzcell, hzreg⟩ := exec_cell hw side y P n s d (y.regs cell)
-      hP hnpos hi hys hyd rfl hyn hy7 hy10 hy1 (v (y.regs cell)) B hB (hv _ hi)
-      hyinput hval haddr
+      hP hnpos hi (by regs_frame) (by regs_frame) rfl (by regs_frame) (by regs_frame)
+      (by regs_frame) (by regs_frame) (v (y.regs cell)) B hB (hv _ hi) hyinput hval haddr
     obtain ⟨hm', hf'⟩ :=
       prefix_write_step (e := fun i => encode (stageResult side n v i)) hm hf hzmem
     exact ⟨z, he, ⟨fun a ha hl => (hzreg a ha hl).trans (hr a ha hl), hm', hf'⟩, hzcell⟩
-  have hx : Inv (x.regs cell) x := by
-    refine ⟨fun _ _ _ => rfl, ?_, ?_⟩
-    · simp only [hcell, Nat.not_lt_zero, false_implies, implies_true]
-    · intro a _
-      rfl
   obtain ⟨y, he, ⟨hr, hm, hf⟩, _⟩ := ExecWithin.loop_count Inv
     (fun _ hy => (hy.1 stageSize (by decide) (by decide)).trans hsize) hbody
-    (by simp [hcell]) hx
+    (by simp [hcell]) ⟨fun _ _ _ => rfl, by simp [hcell], fun _ _ => rfl⟩
   refine ⟨y, ?_, hm, hf, hr⟩
   simpa only [hcell, N, Nat.sub_zero, Nat.add_comm, Nat.mul_comm] using he
 
