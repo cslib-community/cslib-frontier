@@ -512,8 +512,8 @@ private theorem tsum_gaussianWeight_inner_sub_ge_le
     _ ≤ Real.exp (-2 * Real.pi * t ^ 2) *
           (∑' z : L, gaussianWeight s ((z : E) - c) * Real.exp (lam * ⟪(z : E) - c, u⟫)) := by
       gcongr
-      exact Summable.tsum_subtype_le _ S
-        (fun _ ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) hsum_full
+      exact (Summable.tsum_subtype_le _ S
+        (fun _ ↦ mul_nonneg (gaussianWeight_pos _ _).le (Real.exp_pos _).le) hsum_full :)
     _ = Real.exp (-Real.pi * t ^ 2) *
           gaussianMass L s (c + (lam * s ^ 2 / (2 * Real.pi)) • u) := by
       rw [tsum_gaussianWeight_mul_exp_inner L s hs c u lam, ← mul_assoc, ← Real.exp_add]
