@@ -80,7 +80,8 @@ private theorem shortCache_cons {cut n : ℕ} (cache : List (List Bool × List B
       Function.update (shortCache cache) query (some label) := by
   funext word
   by_cases h : word = query
-  · subst word; simp [shortCache, BitString.ofList_ofFn]
+  · subst word
+    simp [shortCache, BitString.ofList_ofFn]
   · simp [shortCache, Function.update_of_ne h, List.lookup_cons,
       beq_eq_false_iff_ne.mpr fun hv => h (Subtype.ext hv)]
 

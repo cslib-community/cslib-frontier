@@ -97,10 +97,11 @@ theorem entropy_map_restrict_eq_sum [LinearOrder ι] (P : PMF (∀ i, α i)) (s 
       funext fun i => absurd i.2 (notMem_empty _)
   | insert a s hlt ih =>
     have ha : a ∉ s := fun h => lt_irrefl a (hlt a h)
-    rw [entropy_map_restrict_insert P ha, sum_insert ha, ih, add_comm,
-      show (insert a s).filter (· < a) = s by
-        ext i; simp only [mem_filter, mem_insert]
-        exact ⟨fun ⟨h, hia⟩ => h.resolve_left (ne_of_lt hia), fun hi => ⟨.inr hi, hlt i hi⟩⟩]
+    have hself : (insert a s).filter (· < a) = s := by
+      ext i
+      simp only [mem_filter, mem_insert]
+      exact ⟨fun ⟨h, hia⟩ => h.resolve_left (ne_of_lt hia), fun hi => ⟨.inr hi, hlt i hi⟩⟩
+    rw [entropy_map_restrict_insert P ha, sum_insert ha, ih, add_comm, hself]
     congr 1
     refine sum_congr rfl fun i hi => ?_
     rw [filter_insert, ite_eq_right_iff.mpr fun h => absurd h (not_lt.mpr (hlt i hi).le)]
@@ -148,8 +149,10 @@ theorem sub_one_mul_entropy_le_sum_entropy_map_restrict_erase [Fintype ι] [Deci
     exact (neg_nonpos.mpr (entropy_nonneg P)).trans (sum_nonneg fun _ _ => entropy_nonneg _)
   have h := mul_entropy_le_sum_entropy_map_restrict P (fun i => univ.erase i)
     (k := Fintype.card ι - 1) fun i => by
-      rw [show (univ.filter fun j => i ∈ univ.erase j) = univ.erase i by ext; simp [eq_comm],
-        card_erase_of_mem (mem_univ i), card_univ]
+      have hf : (univ.filter fun j => i ∈ univ.erase j) = univ.erase i := by
+        ext
+        simp [eq_comm]
+      rw [hf, card_erase_of_mem (mem_univ i), card_univ]
   rwa [Nat.cast_sub hcard, Nat.cast_one] at h
 
 /-- **Subadditivity of entropy**: the entropy of a tuple is at most the sum of the entropies of
@@ -158,15 +161,20 @@ theorem entropy_le_sum_entropy_map_eval [Fintype ι] (P : PMF (∀ i, α i)) :
     entropy P ≤ ∑ i, entropy (P.map fun x => x i) := by
   classical
   have h := mul_entropy_le_sum_entropy_map_restrict P (fun i => {i}) (k := 1) fun i => by
-    rw [show (univ.filter fun j => i ∈ ({j} : Finset ι)) = {i} by ext; simp [eq_comm],
-      card_singleton]
+    have hf : (univ.filter fun j => i ∈ ({j} : Finset ι)) = {i} := by
+      ext
+      simp [eq_comm]
+    rw [hf, card_singleton]
   have heval (i : ι) :
       entropy (P.map ({i} : Finset ι).restrict) = entropy (P.map fun x => x i) := by
-    rw [show P.map (fun x => x i) =
-        (P.map ({i} : Finset ι).restrict).map (fun y => y ⟨i, mem_singleton_self i⟩) by
-      rw [PMF.map_comp]; rfl]
-    exact (entropy_map_of_injective _ fun _ _ hyz =>
-      funext fun ⟨_, hj⟩ => by obtain rfl := mem_singleton.mp hj; exact hyz).symm
+    have hmap : P.map (fun x => x i) =
+        (P.map ({i} : Finset ι).restrict).map (fun y => y ⟨i, mem_singleton_self i⟩) := by
+      rw [PMF.map_comp]
+      rfl
+    rw [hmap]
+    refine (entropy_map_of_injective _ fun _ _ hyz => funext fun ⟨_, hj⟩ => ?_).symm
+    obtain rfl := mem_singleton.mp hj
+    exact hyz
   simpa only [Nat.cast_one, one_mul, heval] using h
 
 end Cslib.Probability.PMF

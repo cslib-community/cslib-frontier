@@ -119,7 +119,8 @@ theorem freshBase_gt {v : ℕ} (hv : v ∈ F.vars) : v < freshBase F := by
 theorem connector_not_mem (i : Fin F.length) : connector F i ∉ F.vars := by
   intro hi
   have := freshBase_gt hi
-  unfold connector at this; omega
+  unfold connector at this
+  omega
 
 /-- Connectors distinguish constraint positions even for identical original constraints. -/
 theorem connector_injective (F : CSP Table ℕ) : Function.Injective (connector F) :=
@@ -184,8 +185,9 @@ theorem localTuple_labels (G : CSP Table ℕ) (rows : List (List Bool)) (i : Fin
 theorem valid_labels (G : CSP Table ℕ) (rows : List (List Bool))
     (hw : ∀ i : Fin G.length, (rows.getD i.val []).length = G[i.val].scope.length)
     (hv : ∀ i : Fin G.length, G[i.val].rel.sem (rows.getD i.val []) = true) :
-    ValidLabeling sem (labels G rows) :=
-  fun i => by rw [localTuple_labels G rows i (hw i)]; exact hv i
+    ValidLabeling sem (labels G rows) := fun i => by
+  rw [localTuple_labels G rows i (hw i)]
+  exact hv i
 
 /-- Every retained output constraint has its original list index. -/
 theorem get_contract_old (f : OccurrenceLabeling F Bool) (vs : List ℕ)

@@ -114,15 +114,21 @@ theorem average_pastedLineMismatch_le [Fintype F] (k : ℕ) [Nonempty (Fin k ↪
   let sliceProb (u : Fin m → F) (x : Fin k → F) (i : Fin k) :=
     ((law u x).toOuterMeasure (sliceLineMismatch u x lineValue i)).toReal
   let score (u : Fin m → F) (x : Fin k → F) := min 1 (∑ i, sliceProb u x i)
-  refine (Finset.expect_le_expect fun u _ => (Finset.expect_le_expect fun x _ =>
-    Finset.expect_le univ_nonempty fun t _ => le_min (toOuterMeasure_toReal_le_one _ _)
-      (pastedLineMismatch_le x u t lineValue hline (law u x))).trans
-    ((expect_embedding_le_expect_add k (score u)
-      (fun _ => le_min zero_le_one (sum_nonneg fun _ _ => ENNReal.toReal_nonneg))
-      fun _ => min_le_left _ _).trans
-      (add_le_add_left (Finset.expect_le_expect fun _ _ => min_le_right _ _) _))).trans_eq ?_
-  rw [Finset.expect_add_distrib, Fintype.expect_const, add_comm]
-  simp only [Finset.expect_sum_comm, sliceProb]
+  calc
+    _ ≤ 𝔼 u, 𝔼 x : Fin k ↪ F, score u x :=
+      Finset.expect_le_expect fun u _ => Finset.expect_le_expect fun x _ =>
+        Finset.expect_le univ_nonempty fun t _ => le_min (toOuterMeasure_toReal_le_one _ _)
+          (pastedLineMismatch_le x u t lineValue hline (law u x))
+    _ ≤ 𝔼 u, ((𝔼 x, score u x) + (k.choose 2 : ℝ) / Fintype.card F) :=
+      Finset.expect_le_expect fun u _ => expect_embedding_le_expect_add k (score u)
+        (fun _ => le_min zero_le_one (sum_nonneg fun _ _ => ENNReal.toReal_nonneg))
+        fun _ => min_le_left _ _
+    _ ≤ 𝔼 u, ((𝔼 x, ∑ i, sliceProb u x i) + (k.choose 2 : ℝ) / Fintype.card F) :=
+      Finset.expect_le_expect fun _ _ =>
+        add_le_add_left (Finset.expect_le_expect fun _ _ => min_le_right _ _) _
+    _ = _ := by
+      rw [Finset.expect_add_distrib, Fintype.expect_const, add_comm]
+      simp only [Finset.expect_sum_comm, sliceProb]
 
 section Strategy
 
@@ -201,7 +207,8 @@ theorem pastedLineMismatch_eq_successfulMismatch [Fintype F] [DecidableEq F] {k 
   have h := (T.sequential k hM).successfulMismatch_map_map_eq_event x u
     (Option.map (fun q => eval (Fin.snoc u t) q.val) ∘ pasteOutcome x) (fun b => lineValue b t)
   refine Eq.trans ?_ h.symm
-  congr 2; ext ⟨a, b⟩
+  congr 2
+  ext ⟨a, b⟩
   change (∃ p, pasteOutcome x a = some p ∧ eval (Fin.snoc u t) p.val ≠ lineValue b t) ↔
     (∃ z, Option.map (fun p => eval (Fin.snoc u t) p.val) (pasteOutcome x a) = some z ∧
       z ≠ lineValue b t)

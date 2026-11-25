@@ -119,7 +119,8 @@ theorem decidableInTimeO_iff_exists_computableInTimeO {A : Set α} :
     DecidableInTimeO A encIn T ↔
       ∃ g : α → Bool, (∀ a, a ∈ A ↔ g a = true) ∧ ComputableInTimeO g encIn encBool T :=
   ⟨fun ⟨c, t, s, ht, h⟩ =>
-    let ⟨g, hg, hA⟩ := decidableInTimeAndSpace_iff.mp h; ⟨g, hA, c, t, s, ht, hg⟩,
+    let ⟨g, hg, hA⟩ := decidableInTimeAndSpace_iff.mp h
+    ⟨g, hA, c, t, s, ht, hg⟩,
    fun ⟨g, hA, c, t, s, ht, hg⟩ => ⟨c, t, s, ht, decidableInTimeAndSpace_iff.mpr ⟨g, hg, hA⟩⟩⟩
 
 end FunctionBounds

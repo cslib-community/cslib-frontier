@@ -217,9 +217,11 @@ private theorem lorRun_map_eq {γ : Type} [Finite γ] (D : PMF γ) (answer : Boo
       (pi fun _ : Fin q => D).bind fun rows => lorRunRows answer adversary bit q rows state := by
   induction q generalizing state with
   | zero =>
-    rw [show (pi fun _ : Fin 0 => D) = PMF.pure finZeroElim from
-      PMF.ext fun rows => by rw [Subsingleton.elim rows finZeroElim]; simp]
-    simp [lorRun, lorRunRows]
+    have hpi : (pi fun _ : Fin 0 => D) = PMF.pure finZeroElim :=
+      PMF.ext fun rows => by
+        rw [Subsingleton.elim rows finZeroElim]
+        simp
+    simp [lorRun, lorRunRows, hpi]
   | succ q ih =>
     rw [pi_fin_succ]
     simp only [lorRun, lorRunRows, PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, ih,
@@ -282,11 +284,12 @@ private theorem lorGame_uniform_eq_bind (Q : ℕ) (adversary : LoRAdversary n m 
       pi fun _ : Fin Q => PMF.uniformOfFintype (Fin m → Bool) from PMF.pi_uniformOfFintype.symm,
     lorRun_map_eq, PMF.bind_bind]
   congr 1 with X : 1
-  rw [show _root_.Matrix.map (X : Matrix (Fin Q) (Fin m) Bool)
-      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A = fun i => coinVector w (X i) ᵥ* A by
+  have hmul : _root_.Matrix.map (X : Matrix (Fin Q) (Fin m) Bool)
+      (fun bit => (bit.toNat : ZMod (2 ^ w))) * A = fun i => coinVector w (X i) ᵥ* A := by
     ext i j
     simp only [Matrix.mul_apply, Matrix.vecMul, dotProduct, coinVector]
-    rfl]
+    rfl
+  rw [hmul]
   exact congrArg (fun dist : PMF State => dist.bind adversary.guess)
     (lorRunRows_comp (fun μ c => c + Pi.single 0 (LWE.encodeBit w μ))
       (fun x => coinVector w x ᵥ* A) adversary bit Q X state)

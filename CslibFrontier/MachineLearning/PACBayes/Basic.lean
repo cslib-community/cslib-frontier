@@ -133,12 +133,14 @@ theorem measure_ofReal_div_le_lintegral_le_of_measurable (μ : Measure Ω) [SFin
     μ {ω | ENNReal.ofReal (B / δ) ≤ ∫⁻ i, F ω i ∂P} ≤ ENNReal.ofReal δ := by
   have hswap : ∫⁻ ω, ∫⁻ i, F ω i ∂P ∂μ ≤ ENNReal.ofReal B := by
     rw [lintegral_lintegral_swap hFm.aemeasurable]
-    exact (lintegral_mono hB).trans_eq (by simp)
+    calc ∫⁻ i, ∫⁻ ω, F ω i ∂μ ∂P ≤ ∫⁻ _, ENNReal.ofReal B ∂P := lintegral_mono hB
+      _ = ENNReal.ofReal B := by simp
   refine (meas_ge_le_lintegral_div hFm.lintegral_prod_right.aemeasurable
     (ENNReal.ofReal_pos.2 (div_pos hB0 hδ)).ne' ENNReal.ofReal_ne_top).trans ?_
   refine (ENNReal.div_le_div_right hswap _).trans_eq ?_
   rw [← ENNReal.ofReal_div_of_pos (div_pos hB0 hδ)]
-  congr 1; field_simp
+  congr 1
+  field_simp
 
 /-- **Markov's inequality over a prior** [ShalevShwartzBenDavid2014, (31.4)–(31.5)] on a
 countable hypothesis space: specializes `measure_ofReal_div_le_lintegral_le_of_measurable` via
@@ -259,7 +261,8 @@ theorem measure_pi_exists_integral_risk_gt_of_measurable
   have hg (i : ι) : |trueRisk ℓ D i - empiricalRisk ℓ S i| ≤ 1 := by
     have h1 := trueRisk_mem_Icc ℓ D (hℓ01 i)
     have h2 := empiricalRisk_mem_Icc ℓ S (hℓ01 i)
-    exact abs_le.2 ⟨by linarith [h1.1, h2.2], by linarith [h1.2, h2.1]⟩
+    rw [abs_le]
+    constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
   have hbound := integral_le_sqrt_klDiv_add_log (g := fun i => trueRisk ℓ D i - empiricalRisk ℓ S i)
     hQP (htr_meas.sub (measurable_empiricalRisk_arg hℓ S)) hg hlam hB.le
   rw [integral_sub (integrable_trueRisk_of_measurable hℓ hℓ01 Q)

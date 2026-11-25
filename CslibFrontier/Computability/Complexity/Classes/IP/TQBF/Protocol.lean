@@ -350,7 +350,9 @@ theorem acceptProb_le_of_notMem_TQBF [IsDomain F] [Fintype F] {φ : QBF ℕ} (h�
   gcongr
   have := QBF.length_vars_le_size φ
   have := QBF.one_le_size φ
-  exact (QBF.roundDegree_arithmetize_le fun _ hv => hv).trans
-    ((Nat.mul_le_mul_right _ (by omega : 2 * φ.vars.length + 1 ≤ 3 * φ.size)).trans_eq (by ring))
+  refine (QBF.roundDegree_arithmetize_le fun _ hv => hv).trans ?_
+  calc (2 * φ.vars.length + 1) * φ.size ^ 2 ≤ (3 * φ.size) * φ.size ^ 2 :=
+        Nat.mul_le_mul_right _ (by omega)
+    _ = 3 * φ.size ^ 3 := by ring
 
 end Cslib.Complexity.QBFProtocol

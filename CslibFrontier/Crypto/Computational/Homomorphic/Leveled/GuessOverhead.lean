@@ -121,11 +121,10 @@ theorem eval_modLinkAdversary_guess_eq_map_coins_of_bounds (E : Scheme)
     have := (hkey predecessor (hkeys predecessor (by simp))).2
     have hpos : 1 ≤ depth n * capacity n :=
       Nat.mul_le_mul (by omega : 1 ≤ depth n) (by omega : 1 ≤ capacity n)
-    rw [hlength, show (depth n * capacity n - 1) * ctBound +
-        (chooseCoins + (ctBound + guessCoins)) =
-      ((depth n * capacity n - 1) + 1) * ctBound + chooseCoins + guessCoins by ring,
-      Nat.sub_add_cancel hpos]
-    rfl
+    rw [hlength]
+    calc
+      _ = ((depth n * capacity n - 1) + 1) * ctBound + chooseCoins + guessCoins := by ring
+      _ = _ := by rw [Nat.sub_add_cancel hpos]; rfl
   simpa only [modLinkAdversary, hsize] using
     E.eval_guessLink_active_eq_map_coins (Leveled.publicKeyGame E adversary bit)
       evaluateEncrypt
@@ -188,11 +187,16 @@ theorem exists_modLinkAdversary_guess_coin_evaluator {E : Scheme}
       (chooseCoins input.1) (ctBound input.1) input seed) n (ctBound n) (capacity n)
       state challenge tape
   have hctBound : ComputableInPolyTime ctBound encUnary encUnary := by
-    dsimp only [ctBound, pkBound]; fun_prop
+    dsimp only [ctBound, pkBound]
+    fun_prop
   have hchooseCoins : ComputableInPolyTime chooseCoins encUnary encUnary := by
-    dsimp only [chooseCoins, pubLen, Leveled.publicKeyLengthBound, ctBound, pkBound]; fun_prop
-  refine ⟨ctBound, chooseCoins, guessCoins, evaluate, hctBound, hchooseCoins,
-    by dsimp only [guessCoins]; fun_prop, ?_, hpoly, ?_⟩
+    dsimp only [chooseCoins, pubLen, Leveled.publicKeyLengthBound, ctBound, pkBound]
+    fun_prop
+  have hguessCoins : ComputableInPolyTime guessCoins encUnary encUnary := by
+    dsimp only [guessCoins]
+    fun_prop
+  refine ⟨ctBound, chooseCoins, guessCoins, evaluate, hctBound, hchooseCoins, hguessCoins,
+    ?_, hpoly, ?_⟩
   · apply computableInPolyTime_modLinkGuessCoins hevalChoose hevalEncrypt hevalGuess bit
       hchooseCoins hctBound hcapacity
     all_goals fun_prop

@@ -124,15 +124,20 @@ relative to `m`. -/
 theorem order_nonneg {L m : ℕ} {w : OutStr L} (hw : (innerSetO w).card = m) {τ : Leaf L}
     (h : Leaf.Contributes τ w) : 0 ≤ order m τ := by
   have := card_le_card (P0Levels_subset h)
-  unfold order; omega
+  unfold order
+  omega
 
 /-- The order relative to `m` of any leaf is at most `m`, regardless of which outputs it
 contributes to. -/
-theorem order_le {L : ℕ} (m : ℕ) (τ : Leaf L) : order m τ ≤ m := by unfold order; omega
+theorem order_le {L : ℕ} (m : ℕ) (τ : Leaf L) : order m τ ≤ m := by
+  unfold order
+  omega
 
 /-- A leaf has order `d` exactly if it chooses `P₀` at `m - d` levels. -/
 theorem order_eq_iff {L : ℕ} (m d : ℕ) (τ : Leaf L) :
-    order m τ = d ↔ (P0Levels τ).card + d = m := by unfold order; omega
+    order m τ = d ↔ (P0Levels τ).card + d = m := by
+  unfold order
+  omega
 
 /-! ### The counts -/
 
@@ -149,9 +154,9 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
     (d : ℕ) :
     (univ.filter fun τ : Leaf L => Leaf.Contributes τ w ∧ order m τ = d).card = alpha m d := by
   by_cases hd : d ≤ m
-  -- Sort the strings of terms that contribute to `w` level by level and have `P₀` at exactly
-  -- `m - d` levels by the set `S` of these levels.
-  · have hcount := Finset.card_pi_places_card
+  · -- Sort the strings of terms that contribute to `w` level by level and have `P₀` at exactly
+    -- `m - d` levels by the set `S` of these levels.
+    have hcount := Finset.card_pi_places_card
       (fun ℓ => univ.filter fun lam : Term => lam.Contributes (w ℓ)) (fun lam => lam = Term.P0)
       (m - d)
     simp only [card_contributing_P0, card_contributing_ne_P0] at hcount
@@ -168,10 +173,10 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
     -- These strings are the leaves of order `d` that contribute to `w`.
     rw [alpha, ← hcount]
     refine congrArg card (Finset.ext fun τ => ?_)
-    simp only [mem_filter, mem_univ, true_and, order_eq_iff]
-    exact and_congr_right fun _ => by unfold P0Levels; omega
-  -- No leaf has order more than `m`.
-  · rw [alpha, Nat.choose_eq_zero_of_lt (by omega), zero_mul, card_eq_zero]
+    simp only [mem_filter, mem_univ, true_and, order_eq_iff, P0Levels]
+    exact and_congr_right fun _ => by omega
+  · -- No leaf has order more than `m`.
+    rw [alpha, Nat.choose_eq_zero_of_lt (by omega), zero_mul, card_eq_zero]
     exact filter_eq_empty_iff.mpr fun τ _ _ => by have := order_le m τ; omega
 
 /-- If `d ≤ m ≤ L`, the full leaf index type contains exactly `beta L m d` leaves of order
@@ -179,11 +184,10 @@ theorem card_contributing_of_order {L m : ℕ} (w : OutStr L) (hw : (innerSetO w
 theorem card_filter_order_eq {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd : d ≤ m) :
     (univ.filter fun τ : Leaf L => order m τ = d).card = beta L m d := by
   -- The leaves of order `d` are the strings of terms with `P₀` at exactly `m - d` levels.
-  rw [show (univ.filter fun τ : Leaf L => order m τ = d) =
-      univ.filter fun τ : Leaf L => (univ.filter fun ℓ => τ ℓ = Term.P0).card = m - d from
-    Finset.ext fun τ => by
-      simp only [mem_filter, mem_univ, true_and, order_eq_iff, P0Levels]; omega,
-    Finset.card_places_card (fun lam : Term => lam = Term.P0) (m - d), card_term_P0,
+  have hsort : (univ.filter fun τ : Leaf L => order m τ = d) =
+      univ.filter fun τ : Leaf L => (univ.filter fun ℓ => τ ℓ = Term.P0).card = m - d :=
+    Finset.ext fun τ => by simp only [mem_filter, mem_univ, true_and, order_eq_iff, P0Levels]; omega
+  rw [hsort, Finset.card_places_card (fun lam : Term => lam = Term.P0) (m - d), card_term_P0,
     card_term_ne_P0, one_pow, one_mul, Fintype.card_fin, beta,
     show L - (m - d) = L - m + d by omega]
 
@@ -234,9 +238,9 @@ theorem Equation5.ratio_nat {L m : ℕ} (hmL : m ≤ L) (d : ℕ) (hd1 : 1 ≤ d
   -- With `k = m - d` this is `binom(L, k) (L - k) = binom(L, k + 1) (k + 1)`, times a power of 9.
   have hchoose : L.choose (m - d + 1) * (m - d + 1) = L.choose (m - d) * (L - m + d) := by
     rw [Nat.choose_succ_right_eq, show L - (m - d) = L - m + d by omega]
-  rw [beta, beta, show m - (d - 1) = m - d + 1 by omega,
-    show 9 ^ (L - m + d) = 9 * 9 ^ (L - m + (d - 1)) by
-      rw [show L - m + d = L - m + (d - 1) + 1 by omega, pow_succ, mul_comm]]
+  have hpow : 9 ^ (L - m + d) = 9 * 9 ^ (L - m + (d - 1)) := by
+    rw [show L - m + d = L - m + (d - 1) + 1 by omega, pow_succ, mul_comm]
+  rw [beta, beta, show m - (d - 1) = m - d + 1 by omega, hpow]
   calc L.choose (m - d) * (9 * 9 ^ (L - m + (d - 1))) * (L - m + d)
       = 9 * 9 ^ (L - m + (d - 1)) * (L.choose (m - d) * (L - m + d)) := by ring
     _ = 9 * 9 ^ (L - m + (d - 1)) * (L.choose (m - d + 1) * (m - d + 1)) := by rw [hchoose]
@@ -262,10 +266,13 @@ theorem beta_ratio_lt_half (m d : ℕ) (hd1 : 1 ≤ d) (hd : d ≤ m) :
       ∧ 9 * (m : ℚ) / (18 * (m : ℚ) + 1) < 1 / 2 := by
   have hm : (1 : ℚ) ≤ m := mod_cast hd1.trans hd
   have hd0 : (1 : ℚ) ≤ d := mod_cast hd1
-  refine ⟨?_, by rw [div_lt_div_iff₀ (by positivity) (by norm_num)]; linarith⟩
-  rw [beta_ratio (by omega) d hd1 hd]
-  push_cast
-  exact div_le_div₀ (by positivity) (by linarith) (by positivity) (by linarith)
+  refine ⟨?_, ?_⟩
+  · -- The numerator is at most `9m` and the denominator at least `18m + 1`, because `d ≥ 1`.
+    rw [beta_ratio (by omega) d hd1 hd]
+    push_cast
+    exact div_le_div₀ (by positivity) (by linarith) (by positivity) (by linarith)
+  · rw [div_lt_div_iff₀ (by positivity) (by norm_num)]
+    linarith
 
 /-- For `d ≤ m` and `L = 19 * m`, the order count satisfies `2 ^ d * beta L m d ≤ M L m`. This
 is the division-free geometric bound from [AlmanWilliams2026, equation (5)]. -/
@@ -279,9 +286,9 @@ theorem two_pow_mul_beta_le (m d : ℕ) (hd : d ≤ m) : 2 ^ d * beta (19 * m) m
     have hq := (div_lt_iff₀ hbeta).mp ((Nat.add_sub_cancel d 1 ▸ hle).trans_lt hlt)
     have hhalf : 2 * beta (19 * m) m (d + 1) ≤ beta (19 * m) m d := mod_cast (by
       linarith : (2 * beta (19 * m) m (d + 1) : ℚ) ≤ beta (19 * m) m d)
-    exact (by ring : 2 ^ (d + 1) * beta (19 * m) m (d + 1) =
-      2 ^ d * (2 * beta (19 * m) m (d + 1))).trans_le
-      ((Nat.mul_le_mul_left _ hhalf).trans (ih (by omega)))
+    calc 2 ^ (d + 1) * beta (19 * m) m (d + 1) = 2 ^ d * (2 * beta (19 * m) m (d + 1)) := by ring
+      _ ≤ 2 ^ d * beta (19 * m) m d := Nat.mul_le_mul_left _ hhalf
+      _ ≤ M (19 * m) m := ih (by omega)
 
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage

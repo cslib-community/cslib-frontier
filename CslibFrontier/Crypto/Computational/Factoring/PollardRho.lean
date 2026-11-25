@@ -145,7 +145,8 @@ theorem rhoFactorLoop_eq_none_iff (N : ℕ) (F : (ZMod N)ˣ → (ZMod N)ˣ) :
   | B + 1, x, y => by
     rw [rhoFactorLoop]
     split_ifs with h1
-    · exact ⟨by rintro ⟨⟩, fun h => (h 1 le_rfl (by omega) ⟨Nat.gcd_dvd_right _ _, h1⟩).elim⟩
+    · refine ⟨?_, fun h => (h 1 le_rfl (by omega) ⟨Nat.gcd_dvd_right _ _, h1⟩).elim⟩
+      rintro ⟨⟩
     · rw [rhoFactorLoop_eq_none_iff N F B (F x) (F (F y))]
       refine ⟨fun hB t ht1 htB => ?_, fun h k hk1 hkB => ?_⟩
       · rcases t with _ | _ | k
@@ -213,7 +214,9 @@ theorem floyd_cycle_modEq {N p : ℕ} {F : (ZMod N)ˣ → (ZMod N)ˣ}
   have period (c) : ∀ m,
       (F^[i + m] x : ZMod N).val ≡ (F^[i + m + L * c] x : ZMod N).val [MOD p] := by
     induction c with
-    | zero => intro _; simp [Nat.ModEq.refl]
+    | zero =>
+      intro _
+      simp [Nat.ModEq.refl]
     | succ c ih =>
       intro m
       refine (ih m).trans ?_

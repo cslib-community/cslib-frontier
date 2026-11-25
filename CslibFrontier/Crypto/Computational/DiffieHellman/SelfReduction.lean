@@ -144,18 +144,19 @@ of `A`, whatever `α`: substituting `a = α + σ`, a bijection of `ZMod q`, turn
 hypothesis on `G`, `q` or `g` is needed. -/
 theorem eval_dlRerandomize_smul_apply (A : G → ProbComp (ZMod q)) (α : ZMod q) :
     ProbComp.eval (dlRerandomize q g A (α • g)) α = ProbComp.eval (dlExperiment q g A) true := by
-  rw [show ProbComp.eval (dlRerandomize q g A (α • g)) =
+  have hlaw : ProbComp.eval (dlRerandomize q g A (α • g)) =
       (PMF.uniformOfFintype (ZMod q)).bind fun a =>
-        (ProbComp.eval (A (a • g))).bind fun α₁ => PMF.pure (α₁ - (a - α)) by
+        (ProbComp.eval (A (a • g))).bind fun α₁ => PMF.pure (α₁ - (a - α)) := by
     rw [← PMF.uniformOfFintype_bind_equiv (Equiv.addLeft α)]
     simp only [dlRerandomize, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-      Equiv.coe_addLeft, add_smul, add_sub_cancel_left]]
-  simp only [dlExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+      Equiv.coe_addLeft, add_smul, add_sub_cancel_left]
+  simp only [hlaw, dlExperiment, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
     PMF.bind_apply, PMF.pure_apply]
   refine tsum_congr fun a => congrArg (_ * ·) (tsum_congr fun x => congrArg (_ * ·) ?_)
   congr 1
   rw [eq_comm (a := true), decide_eq_true_iff]
-  exact propext ⟨fun h => by linear_combination -h, fun h => by linear_combination -h⟩
+  exact propext ⟨fun h => by linear_combination -h,
+    fun h => by linear_combination -h⟩
 
 /-- **Soundness of the discrete-logarithm self-reduction.** Every answer `some x` that
 `dlSelfReduce` can return is a discrete logarithm of its input: `x • g = u`. This is the claim of
@@ -266,9 +267,10 @@ theorem eval_dlSelfReduce_smul_none_le_exp_mul [DecidableEq G] (A : G → ProbCo
 /-- `n ≤ n ⌈1 / ε⌉ ε` for `0 < ε`. -/
 private theorem natCast_le_mul_ceil_inv_mul {ε : ℝ≥0} (hε : 0 < ε) (n : ℕ) :
     (n : ℝ) ≤ ((n * ⌈ε⁻¹⌉₊ : ℕ) : ℝ) * ε := by
+  have hc : (ε : ℝ)⁻¹ ≤ ⌈ε⁻¹⌉₊ := by exact_mod_cast Nat.le_ceil ε⁻¹
   have hpos : (0 : ℝ) < ε := by exact_mod_cast hε
   calc (n : ℝ) = n * ((ε : ℝ)⁻¹ * ε) := by rw [inv_mul_cancel₀ hpos.ne', mul_one]
-    _ ≤ n * ((⌈ε⁻¹⌉₊ : ℝ) * ε) := by gcongr; exact_mod_cast Nat.le_ceil ε⁻¹
+    _ ≤ n * (⌈ε⁻¹⌉₊ * ε) := by gcongr
     _ = ((n * ⌈ε⁻¹⌉₊ : ℕ) : ℝ) * ε := by push_cast; ring
 
 /-- **The remark after [BonehShoup2023], Theorem 10.2** (p. 412), failure form: when `0 < ε`,
@@ -325,8 +327,11 @@ theorem eval_cdhSelfReduce_smul_apply [DecidableEq G] (A : G → G → ProbComp 
     congrArg (_ * ·) (tsum_congr fun w => congrArg (_ * ·) ?_))
   congr 1
   rw [eq_comm (a := true), decide_eq_true_iff]
-  refine propext ⟨fun h => ?_, fun h => by rw [h]; module⟩
-  rw [eq_sub_iff_add_eq, eq_sub_iff_add_eq, eq_sub_iff_add_eq] at h
-  rw [← h]; module
+  refine propext ⟨fun h => ?_, fun h => ?_⟩
+  · rw [eq_sub_iff_add_eq, eq_sub_iff_add_eq, eq_sub_iff_add_eq] at h
+    rw [← h]
+    module
+  · rw [h]
+    module
 
 end Cslib.Crypto

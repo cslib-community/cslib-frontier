@@ -96,13 +96,14 @@ theorem generate_eq_sum (count seedBits outputBits : ℕ) (generator : ℕ → L
       List.ofFn (∑ i : Fin count,
         ofList outputBits
           (generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i)))) := by
-  rw [generate, show (List.range count).map (fun i => generator i (listRow seedBits i seed)) =
+  have hrows : (List.range count).map (fun i => generator i (listRow seedBits i seed)) =
       List.ofFn (fun i : Fin count =>
-        generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i))) from
-    List.ext_getElem (by simp) fun i _ hi' => by
-      simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
-        congrArg (generator i) (listRow_eq_ofFn seedBits ⟨i, by simpa using hi'⟩ seed),
-    listXor_eq_ofFn_sum]
+        generator i.val (List.ofFn (block (ofList (count * seedBits) seed) i))) :=
+    List.ext_getElem (by simp)
+      fun i _ hi' => by
+        simpa only [List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+          congrArg (generator i) (listRow_eq_ofFn seedBits ⟨i, by simpa using hi'⟩ seed)
+  rw [generate, hrows, listXor_eq_ofFn_sum]
 
 /-- Uniform seed blocks are independent; the combiner's law is a sum over their finite tuple. -/
 theorem generate_distribution (count seedBits outputBits : ℕ)
@@ -131,7 +132,8 @@ theorem real_distribution (count seedBits outputBits : ℕ) (generator : ℕ →
     (PMF.uniformOfFintype_update (γ := BitString seedBits) i)
   simp only [pmf_norm] at h
   refine Eq.trans ?_ h
-  congr 1 with fresh : 1; congr 1 with seeds : 1
+  congr 1 with fresh : 1
+  congr 1 with seeds : 1
   exact congrArg List.ofFn (Finset.sum_congr rfl fun j _ => by
     rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *])
 
@@ -146,16 +148,18 @@ theorem ideal_distribution (count seedBits outputBits : ℕ) (generator : ℕ �
   simp_rw [generate_distribution]
   simp only [pmf_norm, uniformList, PMF.map]
   rw [PMF.bind_comm]
-  refine Eq.trans ?_ (PMF.bind_const (PMF.uniformOfFintype (Fin count → BitString seedBits))
-    ((PMF.uniformOfFintype (BitString outputBits)).map List.ofFn))
-  congr 1 with seeds : 1
-  have h := congrArg (PMF.map List.ofFn) (PMF.uniformOfFintype_map_sum_update
-    (fun j : Fin count => ofList outputBits (generator j.val (List.ofFn (seeds j)))) i)
-  simp only [PMF.map_comp, Function.comp_def] at h
-  refine Eq.trans ?_ h
-  congr 1 with challenge : 1
-  exact congrArg (PMF.pure ∘ List.ofFn) (Finset.sum_congr rfl fun j _ => by
-    rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *])
+  calc
+    _ = (PMF.uniformOfFintype (Fin count → BitString seedBits)).bind
+        (fun _ => (PMF.uniformOfFintype (BitString outputBits)).map List.ofFn) := by
+      congr 1 with seeds : 1
+      have h := congrArg (PMF.map List.ofFn) (PMF.uniformOfFintype_map_sum_update
+        (fun j : Fin count => ofList outputBits (generator j.val (List.ofFn (seeds j)))) i)
+      simp only [PMF.map_comp, Function.comp_def] at h
+      refine Eq.trans ?_ h
+      congr 1 with challenge : 1
+      exact congrArg (PMF.pure ∘ List.ofFn) (Finset.sum_congr rfl fun j _ => by
+        rcases eq_or_ne j i with rfl | hji <;> simp [Fin.val_inj, *])
+    _ = _ := PMF.bind_const _ _
 
 /-- Simulate every other candidate and insert the supplied challenge at the chosen index. -/
 noncomputable def test (count seedBits outputBits : ℕ) (generator : ℕ → List Bool → List Bool)

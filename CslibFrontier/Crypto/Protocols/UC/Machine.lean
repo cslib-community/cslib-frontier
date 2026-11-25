@@ -461,7 +461,9 @@ theorem closeEval_runFrom_le_intertwine (M₁ M₂ : Machine OracleSpec.empty E)
   simpa only [sumHandler_query_eq, OracleComp.interpret_query_eq_self] using
     closeEval_runFrom_interpret_le_intertwine M₁ M₂ ProbOracleComp.query ProbOracleComp.query
       Inv R Trap prog hinv s₁ s₂ hR f g y hfg htrap_f
-      (fun q s₁' _ hq hT hz => htrap_step q s₁' hq hT (by erw [runFrom_query] at hz; exact hz))
+      (fun q s₁' _ hq hT hz => htrap_step q s₁' hq hT (by
+        erw [runFrom_query] at hz
+        exact hz))
       fun q s₁' s₂' k₁ k₂ hq hR' hcont htrap_k => by
         erw [runFrom_query, runFrom_query]; exact hstep q s₁' s₂' k₁ k₂ hq hR' hcont htrap_k
 

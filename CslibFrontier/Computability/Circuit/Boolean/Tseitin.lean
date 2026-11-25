@@ -155,8 +155,9 @@ private theorem getD_lt_of_isCodeFrom {n : ℕ} {gates : List (Op × List ℕ)}
     (1 ≤ signature.Arity gates[g].1 → gates[g].2.getD 0 0 < n + g) ∧
       (2 ≤ signature.Arity gates[g].1 → gates[g].2.getD 1 0 < n + g) := by
   obtain ⟨hlen, hlt⟩ := h.getElem g hg
-  refine ⟨fun h₁ => ?_, fun h₂ => ?_⟩ <;>
-    (rw [List.getD_eq_getElem _ _ (by omega)]; simpa using hlt _ (List.getElem_mem (by omega)))
+  refine ⟨fun h₁ => ?_, fun h₂ => ?_⟩ <;> (
+    rw [List.getD_eq_getElem _ _ (by omega)]
+    simpa using hlt _ (List.getElem_mem (by omega)))
 
 /-- **The satisfying assignments of the Tseitin formula** of a well-formed gate list are its
 evaluations: every wire carries the value that the list computes from the inputs. -/
@@ -215,7 +216,9 @@ theorem eval_mapIdx_unitClause_eq_true_iff (x : List Bool) (σ : ℕ → Bool) :
       ∀ i (hi : i < x.length), σ i = x[i] := by
   simp only [CNF.eval_eq_true_iff, List.mem_mapIdx, forall_exists_index]
   exact ⟨fun h i hi => by simpa using h _ i hi rfl,
-    fun h _ i hi hc => by subst hc; simpa using h i hi⟩
+    fun h _ i hi hc => by
+      subst hc
+      simpa using h i hi⟩
 
 /-- An assignment satisfies `tseitinSatCNF` when it makes wire `o` true, agrees with `x` on the
 first inputs and satisfies the Tseitin formula. -/
@@ -238,7 +241,8 @@ theorem satisfiable_tseitinSatCNF_iff {x : List Bool} {n : ℕ} {gates : List (O
   · rintro ⟨σ, hσ⟩
     obtain ⟨hσo, hσx, hσφ⟩ := (eval_tseitinSatCNF_eq_true_iff x n gates o σ).1 hσ
     refine ⟨List.ofFn fun i : Fin n => σ i, List.length_ofFn, List.prefix_iff_eq_take.2
-      (List.ext_getElem (by simp; omega) fun i h₁ _ => by simpa using (hσx i h₁).symm), ?_⟩
+      (List.ext_getElem (by simp; omega)
+        fun i h₁ _ => by simpa using (hσx i h₁).symm), ?_⟩
     rw [evalOutput, ← (eval_tseitinCNF_eq_true_iff_evalCode h σ).1 hσφ o ho, hσo]
   · rintro ⟨y, hy, hxy, hout⟩
     let σ : ℕ → Bool := fun w => (evalCode interpretation false y gates).getD w false

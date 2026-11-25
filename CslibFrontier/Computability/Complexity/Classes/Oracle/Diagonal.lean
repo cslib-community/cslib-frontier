@@ -83,7 +83,8 @@ private theorem stage {D : ℕ → WordQueryComp Operation Bool} {bound : ℕ �
     split_ifs
     exacts [le_rfl, Set.subset_insert _ _]
   refine ⟨m', S', by omega, hSS', fun v hv => ?_,
-    fun v hv hvm => (hS'sub v hv).resolve_left (by rintro rfl; omega), n, fun B hB => ?_⟩
+    fun v hv hvm => (hS'sub v hv).resolve_left fun h => absurd (h ▸ hvm) (by omega),
+    n, fun B hB => ?_⟩
   · rcases hS'sub v hv with rfl | hv
     · omega
     · exact (hS v hv).trans (by omega)
