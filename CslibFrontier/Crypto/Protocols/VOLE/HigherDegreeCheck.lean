@@ -1469,7 +1469,7 @@ producing an `(n + 1)`-byte message in `ByteMsg (n + 1)`. -/
 /-- Embed a FAEST / `vole-mole` tagged message `(msg, b)` into `ByteMsg (n + 1)` by appending its
 trailing separator byte `b.1`. -/
 @[expose] def appendFaestDomainByteFin {n : ℕ} : FaestTaggedMsg n ↪ ByteMsg (n + 1) where
-  toFun p := Fin.snoc (α := fun _ => Fin 256) p.1 p.2.1
+  toFun | ⟨msg, b, _⟩ => Fin.snoc (α := fun _ => Fin 256) msg b
   inj' p₁ p₂ h := by
     rcases p₁ with ⟨m₁, b₁, hb₁⟩
     rcases p₂ with ⟨m₂, b₂, hb₂⟩
