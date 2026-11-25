@@ -1546,8 +1546,7 @@ theorem oligopolyTightness_isOligopolyEquilibrium (n : ℕ) :
       (oligopolyTightnessPrice n) (oligopolyTightnessFlow n) := by
   have hn1 : (0 : ℝ) < (n : ℝ) + 1 := by positivity
   have hcard_er : ((Finset.univ : Finset (Fin (n + 2))).erase 0).card = n + 1 := by
-    rw [Finset.card_erase_of_mem (Finset.mem_univ 0)]
-    simp
+    rw [Finset.card_erase_of_mem (Finset.mem_univ 0)]; simp
   have hsum : ∑ i : Fin (n + 2), oligopolyTightnessFlow n i = 1 := by
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 2)))]
     have hconst : ∀ i ∈ (Finset.univ : Finset (Fin (n + 2))).erase 0,
@@ -1589,9 +1588,7 @@ theorem oligopolyTightness_isOligopolyEquilibrium (n : ℕ) :
       rcases (hw'.1.1 0).eq_or_lt with hx0_z | hx0_pos
       · rw [← hx0_z, mul_zero]; positivity
       have hp'0_le_one : p' 0 ≤ 1 := by
-        have h1 := hw'.2.2.1 0 hx0_pos
-        simp only [oligopolyTightnessLatency, ↓reduceIte, zero_add] at h1
-        exact h1
+        simpa only [oligopolyTightnessLatency, ↓reduceIte, zero_add] using hw'.2.2.1 0 hx0_pos
       rcases le_or_gt (p' 0) (1 / 2) with hp_le_half | hp_gt_half
       · have hx0_le_one : x' 0 ≤ 1 :=
           (Finset.single_le_sum (fun k _ => hw'.1.1 k) (Finset.mem_univ 0)).trans hw'.1.2
@@ -1601,9 +1598,7 @@ theorem oligopolyTightness_isOligopolyEquilibrium (n : ℕ) :
             (2 / (3 * ((n : ℝ) + 1))) * (p' 0 - 1 / 2) ≤ x' j := fun j hj => by
           have hj0 : j ≠ 0 := (Finset.mem_erase.mp hj).1
           have hward := hw'.2.1 0 j hx0_pos
-          have hpj : p' j = 1 / 2 := by
-            rw [hp'comp j hj0]
-            simp [oligopolyTightnessPrice, hj0]
+          have hpj : p' j = 1 / 2 := by rw [hp'comp j hj0]; simp [oligopolyTightnessPrice, hj0]
           simp only [oligopolyTightnessLatency, ↓reduceIte, hj0, hpj, zero_add] at hward
           rw [div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
           linarith
@@ -1616,15 +1611,10 @@ theorem oligopolyTightness_isOligopolyEquilibrium (n : ℕ) :
             push_cast
             field_simp
           linarith
-        have htot_le : x' 0 + ∑ j ∈ (Finset.univ : Finset (Fin (n + 2))).erase 0, x' j ≤ 1 := by
-          rw [Finset.add_sum_erase _ _ (Finset.mem_univ 0)]
-          exact hw'.1.2
-        have hx0_ub : x' 0 ≤ 4 / 3 - (2 / 3) * p' 0 := by linarith
-        have hmul_ub : p' 0 * x' 0 ≤ p' 0 * (4 / 3 - (2 / 3) * p' 0) :=
-          mul_le_mul_of_nonneg_left hx0_ub (hp'0 0)
-        have hquad : p' 0 * (4 / 3 - (2 / 3) * p' 0) = 2 / 3 - (2 / 3) * (p' 0 - 1) ^ 2 := by
-          ring
-        nlinarith [sq_nonneg (p' 0 - 1)]
+        have htot_le : x' 0 + ∑ j ∈ (Finset.univ : Finset (Fin (n + 2))).erase 0, x' j ≤ 1 :=
+          (Finset.add_sum_erase _ _ (Finset.mem_univ 0)).trans_le hw'.1.2
+        linarith [mul_le_mul_of_nonneg_left (by linarith : x' 0 ≤ 4 / 3 - 2 / 3 * p' 0) (hp'0 0),
+          sq_nonneg (p' 0 - 1)]
     · -- Provider s ≠ 0 best response: original profit is 1 / (6 * (n + 1)).
       have hprof_s : oligopolyTightnessPrice n s * oligopolyTightnessFlow n s =
           1 / (6 * ((n : ℝ) + 1)) := by
@@ -1635,22 +1625,17 @@ theorem oligopolyTightness_isOligopolyEquilibrium (n : ℕ) :
       rcases (hw'.1.1 s).eq_or_lt with hxs_z | hxs_pos
       · rw [← hxs_z, mul_zero]; positivity
       have hward_s0 := hw'.2.1 s 0 hxs_pos
-      have hp'0_eq : p' 0 = 1 := by
-        rw [hp'comp 0 (Ne.symm hs)]
-        simp [oligopolyTightnessPrice]
+      have hp'0_eq : p' 0 = 1 := by rw [hp'comp 0 (Ne.symm hs)]; simp [oligopolyTightnessPrice]
       simp only [oligopolyTightnessLatency, hs, ↓reduceIte, hp'0_eq, zero_add] at hward_s0
       have hxs_ub : x' s ≤ (1 - p' s) * (2 / (3 * ((n : ℝ) + 1))) := by
         rw [mul_div_assoc', le_div_iff₀ (by positivity)]
         linarith
-      have hmul_ub : p' s * x' s ≤ p' s * ((1 - p' s) * (2 / (3 * ((n : ℝ) + 1)))) :=
-        mul_le_mul_of_nonneg_left hxs_ub (hp'0 s)
       have hquad : p' s * ((1 - p' s) * (2 / (3 * ((n : ℝ) + 1)))) =
           1 / (6 * ((n : ℝ) + 1)) - (p' s - 1 / 2) ^ 2 * (2 / (3 * ((n : ℝ) + 1))) := by
         field_simp
         ring
-      have hsq_nn : 0 ≤ (p' s - 1 / 2) ^ 2 * (2 / (3 * ((n : ℝ) + 1))) :=
-        mul_nonneg (sq_nonneg _) (by positivity)
-      linarith
+      linarith [mul_le_mul_of_nonneg_left hxs_ub (hp'0 s),
+        mul_nonneg (sq_nonneg (p' s - 1 / 2)) (by positivity : (0 : ℝ) ≤ 2 / (3 * ((n : ℝ) + 1)))]
 
 /-- `oligopolyTightnessOptFlow n` (`(1, 0, ..., 0)`) is a social optimum with social surplus `1`. -/
 theorem oligopolyTightness_isSocialOptimum (n : ℕ) :
@@ -1690,8 +1675,7 @@ theorem oligopolyTightness_surplus_eq_five_sixths (n : ℕ) :
   rw [(oligopolyTightness_isSocialOptimum n).2, mul_one]
   have hn1 : ((n : ℝ) + 1) ≠ 0 := by positivity
   have hcard_er : ((Finset.univ : Finset (Fin (n + 2))).erase 0).card = n + 1 := by
-    rw [Finset.card_erase_of_mem (Finset.mem_univ 0)]
-    simp
+    rw [Finset.card_erase_of_mem (Finset.mem_univ 0)]; simp
   simp only [socialSurplus]
   rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 2)))]
   have hconst : ∀ i ∈ (Finset.univ : Finset (Fin (n + 2))).erase 0,
