@@ -113,12 +113,8 @@ private theorem add_midTrim [Field K] [LinearOrder K] [IsStrictOrderedRing K]
 
 private theorem add_multisetMidTrim [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     (a : K) (t : ℕ) {s : Multiset K} (h2t : 2 * t < s.card) :
-    a + multisetMidTrim t s = multisetMidTrim t (s.map (a + ·)) := by
-  obtain ⟨xs, hxs⟩ := Quot.exists_rep s
-  have hxs' : Multiset.ofList xs = s := hxs
-  rw [← hxs'] at h2t ⊢
-  rw [Multiset.coe_card] at h2t
-  exact add_midTrim a t h2t
+    a + multisetMidTrim t s = multisetMidTrim t (s.map (a + ·)) :=
+  Quot.inductionOn s (fun _ h2t => add_midTrim a t h2t) h2t
 
 private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List α} {f g : α → K}
     (hfg : ∀ x ∈ xs, f x ≤ g x) {k : ℕ} (hk : k < xs.length) :
@@ -126,16 +122,15 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
       (sortLE (xs.map g))[k]'(by rw [length_sortLE, List.length_map]; exact hk) := by
   set sf := sortLE (xs.map f)
   set sg := sortLE (xs.map g)
-  have hsf_len : sf.length = xs.length := by simp only [sf, length_sortLE, List.length_map]
   have hsg_len : sg.length = xs.length := by simp only [sg, length_sortLE, List.length_map]
-  have hsf_sort : sf.SortedLE := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsg_sort : sg.SortedLE := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.sortedLE_mergeSort
-  have hsf_perm : sf.Perm (xs.map f) := by
-    dsimp only [sf]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
-  have hsg_perm : sg.Perm (xs.map g) := by
-    dsimp only [sg]; rw [sortLE_eq_mergeSort]; exact List.mergeSort_perm _ _
+  have hsf_sort : sf.SortedLE :=
+    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
+  have hsg_sort : sg.SortedLE :=
+    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
+  have hsf_perm : sf.Perm (xs.map f) :=
+    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map f))).trans (List.mergeSort_perm _ _)
+  have hsg_perm : sg.Perm (xs.map g) :=
+    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map g))).trans (List.mergeSort_perm _ _)
   set B := sg[k]'(by omega)
   have hcnt_g : k + 1 ≤ (xs.map g).countP (· ≤ B) := by
     rw [← hsg_perm.countP_eq]
@@ -171,22 +166,18 @@ private theorem multisetMidTrim_map_mono {α : Type*} [Field K] [LinearOrder K]
   refine Quot.inductionOn s (fun xs hfg => ?_) hfg
   change midTrim t (xs.map f) ≤ midTrim t (xs.map g)
   by_cases h2t : 2 * t < xs.length
-  · have hf_len : 2 * t < (xs.map f).length := by rwa [List.length_map]
-    have hg_len : 2 * t < (xs.map g).length := by rwa [List.length_map]
-    rw [midTrim_eq_endpoints hf_len, midTrim_eq_endpoints hg_len]
+  · rw [midTrim_eq_endpoints (by rwa [List.length_map]),
+      midTrim_eq_endpoints (by rwa [List.length_map])]
     have h1 := sortLE_getElem_map_mono (fun x hx => hfg x (Multiset.mem_coe.mpr hx))
       (k := t) (by omega)
     have h2 := sortLE_getElem_map_mono (fun x hx => hfg x (Multiset.mem_coe.mpr hx))
       (k := xs.length - 1 - t) (by omega)
     simp only [List.length_map]
     linarith
-  · have hf_not : ¬ 2 * t < (xs.map f).length := by rwa [List.length_map]
-    have hg_not : ¬ 2 * t < (xs.map g).length := by rwa [List.length_map]
-    have hf_nil : trimmed t (xs.map f) = [] := by
-      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]; omega
-    have hg_nil : trimmed t (xs.map g) = [] := by
-      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]; omega
-    simp only [midTrim, hf_nil, hg_nil, le_rfl]
+  · have hnil (h : α → K) : trimmed t (xs.map h) = [] := by
+      rw [← List.length_eq_zero_iff, length_trimmed, List.length_map]
+      omega
+    simp only [midTrim, hnil, le_rfl]
 
 end MidTrimOrder
 
@@ -368,14 +359,10 @@ theorem lockstepDriftFreeByzantineOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < 
     exact hc p hp q hq
   | succ r ih =>
     intro p q hp hq
-    have hstep := lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r)
-      (lockstepDriftFreeByzantineOffsetIter t d_min d_max F adv c δ r) (δ r)
-      (fun a ha b hb => ih ha hb) (hδ r) hp hq
-    have halg : (δ₀ / 2 ^ r + 2 * (1 - 1 / 2 ^ r) * (d_max - d_min)) / 2 + (d_max - d_min) =
-        δ₀ / 2 ^ (r + 1) + 2 * (1 - 1 / 2 ^ (r + 1)) * (d_max - d_min) := by
-      rw [pow_succ]
-      ring
-    simpa only [lockstepDriftFreeByzantineOffsetIter, halg] using hstep
+    refine (lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r) _ (δ r)
+      (fun a ha b hb => ih ha hb) (hδ r) hp hq).trans_eq ?_
+    rw [pow_succ]
+    ring
 
 end ByzantineProtocol
 

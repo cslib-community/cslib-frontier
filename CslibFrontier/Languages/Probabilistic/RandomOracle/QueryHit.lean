@@ -113,19 +113,15 @@ theorem runWith_memoize_mem_eq_eager_runLog {Q V α : Type} [Fintype Q] [Decidab
     PMF.map_bind, Function.comp_def, Option.isSome_none]
   -- Step 3: for each fixed eager `table`, `hitOracle` matches `runLog` membership.
   refine congrArg ((uniformOfFintype (Q → V)).bind ·) (funext fun table => ?_)
-  have hlog : ProbComp.eval (M.runLog fun q => pure (table q)) =
-      ProbOracleComp.runWith (fun q log => PMF.pure (table q, log ++ [(q, table q)])) M [] := by
-    rw [ProbOracleComp.runLog, ProbOracleComp.eval_runState]
-    simp only [ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map]
-  rw [hlog]
-  have hstate := ProbOracleComp.runWith_map_state
-    (fun q (log : List (Q × V)) => PMF.pure (table q, log ++ [(q, table q)]))
-    hitOracle (fun log => (table, decide (s ∈ log.map Prod.fst)))
-    (fun q log => by
-      simp only [hitOracle, PMF.pure_map, List.map_append, List.map_cons, List.map_nil,
-        List.mem_append, List.mem_singleton, Bool.decide_or, eq_comm (a := s)])
-    M []
+  rw [ProbOracleComp.runLog, ProbOracleComp.eval_runState]
+  simp only [ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map]
   simpa only [PMF.map_comp, Function.comp_def, List.map_nil, List.not_mem_nil, decide_false] using
-    (congrArg (PMF.map fun (_, _, hit) => hit) hstate).symm
+    (congrArg (PMF.map fun (_, _, hit) => hit) <| ProbOracleComp.runWith_map_state
+      (fun q (log : List (Q × V)) => PMF.pure (table q, log ++ [(q, table q)]))
+      hitOracle (fun log => (table, decide (s ∈ log.map Prod.fst)))
+      (fun q log => by
+        simp only [hitOracle, PMF.pure_map, List.map_append, List.map_cons, List.map_nil,
+          List.mem_append, List.mem_singleton, Bool.decide_or, eq_comm (a := s)])
+      M []).symm
 
 end Cslib.RandomOracle

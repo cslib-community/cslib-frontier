@@ -81,16 +81,12 @@ theorem accepted_transposeTail (I : State Rel) (hI : I.Accepted) :
   unfold transposeTail
   split_ifs with h
   · exact hI
-  · have h0 := accepted_insert g w I hI
-    have h1 := accepted_rotateRight _ h0
-    have h2 := accepted_rotateRight _ h1
-    have h3 := accepted_rotateRight _ h2
-    have h4 := accepted_rotateRight _ h3
-    have h5 := accepted_rotateRight _ h4
-    have h6 := accepted_hideHead _ (accepted_fuseHead _ h5)
-    have h7 := accepted_rotateRight _ h6
-    have h8 := accepted_hideHead _ (accepted_fuseHead _ h7)
-    exact accepted_rotateLeft _ (accepted_rotateLeft _ h8)
+  · exact accepted_rotateLeft _ (accepted_rotateLeft _
+      (accepted_hideHead _ (accepted_fuseHead _
+        (accepted_rotateRight _ (accepted_hideHead _ (accepted_fuseHead _
+          (accepted_rotateRight _ (accepted_rotateRight _ (accepted_rotateRight _
+            (accepted_rotateRight _ (accepted_rotateRight _
+              (accepted_insert g w I hI))))))))))))
 
 attribute [local fun_prop] computableInPolyTime_insert computableInPolyTime_rotateRight
   computableInPolyTime_rotateLeft computableInPolyTime_fuseHead computableInPolyTime_hideHead
@@ -165,22 +161,16 @@ private theorem long_fields (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
       rfl
   have hE0 : E.map u0 = E := hE Y rfl
   have hp6 : J6.ports = [3, 5, 7] ++ E ++ [X] := by
-    have hp := h6.2
-    change J6.ports = ([3, 5, 7] ++ E ++ [X]).map u0 at hp
-    rw [hp]
-    simp only [List.map_append, List.map_cons, List.map_nil, hE0]
-    simp [u0, X]
+    rw [h6.2]
+    simp [u0, X, hE0]
   have h7 := right_fields J6 ([3, 5, 7] ++ E) X
     (by simpa only [List.append_assoc] using hp6)
   have h8 := seam_fields J7 X 3 ([5, 7] ++ E)
     (by simpa only [J7, List.append_assoc, List.cons_append, List.nil_append] using h7.2)
   have hE1 : E.map u1 = E := hE X rfl
   have hp8 : J8.ports = [5, 7] ++ E := by
-    have hp := h8.2
-    change J8.ports = ([5, 7] ++ E).map u1 at hp
-    rw [hp]
-    simp only [List.map_append, List.map_cons, List.map_nil, hE1]
-    rfl
+    rw [h8.2]
+    simp [u1, hE1]
   have hb8 : J8.body = (J0.body.relabel u0).relabel u1 := by
     rw [show J8.body = _ from h8.1, show J7.body = _ from h7.1,
       show J6.body = _ from h6.1, show J5.body = _ from h5.1,
@@ -380,50 +370,27 @@ theorem emitted_rotation_lengths_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     ∀ K ∈ [J0, J1, J2, J3, J4, J5, J6, J7, J8, J9, J10, J11, J12],
       K.rotation.successor.length ≤
         2 * (F.occurrences.length + g.body.occurrences.length + (L.length + 2) + 4) := by
-  dsimp only
-  let I : State Rel := ⟨F, L ++ [x, y], c⟩
+  intro I J0 J1 J2 J3 J4 J5 J6 J7 J8 J9 J10 J11 J12
   let M := F.occurrences.length + g.body.occurrences.length
   let P := L.length + 2 + 4
-  have h0 : (insert g w I).body.occurrences.length = M ∧
-      (insert g w I).ports.length ≤ P ∧
-      (insert g w I).rotation.successor.length ≤ 2 * (M + P) := by
-    simp only [length_insert_occurrences, length_insert_ports, length_insert_rotation,
+  let Inv (J : State Rel) : Prop :=
+    J.body.occurrences.length = M ∧ J.ports.length ≤ P ∧
+      J.rotation.successor.length ≤ 2 * (M + P)
+  have h0 : Inv J0 := by
+    simp only [Inv, J0, length_insert_occurrences, length_insert_ports, length_insert_rotation,
       I, List.length_append, List.length_cons, List.length_nil]
     dsimp only [M, P]
     omega
-  have step (J : State Rel) (h : J.body.occurrences.length = M ∧ J.ports.length ≤ P ∧
-      J.rotation.successor.length ≤ 2 * (M + P)) := primitive_bounds J M P h.1 h.2.1 h.2.2
-  let J0 := insert g w I
-  let J1 := rotateRight J0
-  have h1 := step J0 h0 J1 (by simp [J1])
-  let J2 := rotateRight J1
-  have h2 := step J1 h1 J2 (by simp [J2])
-  let J3 := rotateRight J2
-  have h3 := step J2 h2 J3 (by simp [J3])
-  let J4 := rotateRight J3
-  have h4 := step J3 h3 J4 (by simp [J4])
-  let J5 := rotateRight J4
-  have h5 := step J4 h4 J5 (by simp [J5])
-  let J6 := fuseHead J5
-  have h6 := step J5 h5 J6 (by simp [J6])
-  let J7 := hideHead J6
-  have h7 := step J6 h6 J7 (by simp [J7])
-  let J8 := rotateRight J7
-  have h8 := step J7 h7 J8 (by simp [J8])
-  let J9 := fuseHead J8
-  have h9 := step J8 h8 J9 (by simp [J9])
-  let J10 := hideHead J9
-  have h10 := step J9 h9 J10 (by simp [J10])
-  let J11 := rotateLeft J10
-  have h11 := step J10 h10 J11 (by simp [J11])
-  let J12 := rotateLeft J11
-  have h12 := step J11 h11 J12 (by simp [J12])
-  intro K hK
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hK
-  rcases hK with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
-    first | exact h0.2.2 | exact h1.2.2 | exact h2.2.2 | exact h3.2.2 | exact h4.2.2 |
-      exact h5.2.2 | exact h6.2.2 | exact h7.2.2 | exact h8.2.2 | exact h9.2.2 |
-      exact h10.2.2 | exact h11.2.2 | exact h12.2.2
+  have cons {J J' : State Rel} {Js : List (State Rel)}
+      (hJ' : J' ∈ [rotateRight J, rotateLeft J, fuseHead J, hideHead J])
+      (hk : Inv J' → ∀ K ∈ J' :: Js, K.rotation.successor.length ≤ 2 * (M + P))
+      (hJ : Inv J) : ∀ K ∈ J :: J' :: Js, K.rotation.successor.length ≤ 2 * (M + P) :=
+    fun K hK => (List.mem_cons.mp hK).elim (fun h => h ▸ hJ.2.2)
+      (hk (primitive_bounds J M P hJ.1 hJ.2.1 hJ.2.2 J' hJ') K)
+  revert h0
+  repeat apply cons (by simp +zetaDelta)
+  intro h _ hK
+  simpa using List.mem_singleton.mp hK ▸ h.2.2
 
 /-- A safe single-insertion label-width bound. Fusion only selects an existing old label;
 rotation/hiding introduce no names. This width lemma is not a premise of native runtime. -/
@@ -508,24 +475,21 @@ private theorem left_storage (J : State Rel) (B : ℕ)
         2 * ((rotateLeft J).body.occurrences.length + (rotateLeft J).ports.length) ∧
       ∀ v ∈ (rotateLeft J).rotation.successor, v.size ≤ B := by
   rcases J with ⟨F, ps, c⟩
-  cases ps with
-  | nil => exact ⟨hl, he⟩
-  | cons x ps =>
-    cases ps with
-    | nil => exact ⟨hl, he⟩
-    | cons y ps =>
-      have hn : 0 < (x :: y :: ps).length := by simp
-      constructor
-      · simp [rotateLeft, rotateBoundaryCertificate, Graph.RotationCertificate.length_reindex]
-      · intro v hv
-        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-        have hr (j : ℕ) : (c.successor.getD j 0).size ≤ B := by
-          by_cases hi : j < c.successor.length
-          · rw [List.getD_eq_getElem _ _ hi]
-            exact he _ (List.getElem_mem hi)
-          · rw [List.getD_eq_default _ _ (by omega)]; simp
-        exact (size_boundaryIndexMap_le _ _ _
-          (fun _ => Nat.mod_lt _ hn) _).trans (max_le (hr _) hb)
+  match ps with
+  | [] | [_] => exact ⟨hl, he⟩
+  | x :: y :: ps =>
+    have hn : 0 < (x :: y :: ps).length := by simp
+    constructor
+    · simp [rotateLeft, rotateBoundaryCertificate, Graph.RotationCertificate.length_reindex]
+    · intro v hv
+      obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
+      have hr (j : ℕ) : (c.successor.getD j 0).size ≤ B := by
+        by_cases hi : j < c.successor.length
+        · rw [List.getD_eq_getElem _ _ hi]
+          exact he _ (List.getElem_mem hi)
+        · rw [List.getD_eq_default _ _ (by omega)]; simp
+      exact (size_boundaryIndexMap_le _ _ _
+        (fun _ => Nat.mod_lt _ hn) _).trans (max_le (hr _) hb)
 
 /-- Every long raw tail output has exactly its actual dart count and bounded entry widths.
 The last executed hiding restriction supplies this bound even for malformed source data. -/

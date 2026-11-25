@@ -414,11 +414,7 @@ theorem isRestriction_reindex [Fintype X] [Fintype Y] [Fintype Z] (e₁ : X ≃ 
 theorem isRestriction_of_reindex [Fintype X'] [Fintype Y'] [Fintype Z'] (e₁ : X ≃ X')
     (e₂ : Y ≃ Y') (e₃ : Z ≃ Z') (T : Tensor R X Y Z) :
     IsRestriction T (reindex e₁ e₂ e₃ T) := by
-  classical
-  refine ⟨incl e₁, incl e₂, (incl e₃)ᵀ, ?_⟩
-  rw [restrict_incl]
-  funext
-  simp
+  simpa using isRestriction_reindex e₁.symm e₂.symm e₃.symm (reindex e₁ e₂ e₃ T)
 
 /-- Restriction transfers along reindexings of the source. -/
 theorem IsRestriction.reindex_source [Fintype X'] [Fintype Y'] [Fintype Z'] [Fintype X'']
@@ -544,10 +540,7 @@ theorem restrict_dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [F
   rw [Fintype.sum_eq_single i (fun i' hi' => by simp [hi']),
     Fintype.sum_eq_single j (fun j' hj' => by simp [hj']),
     Fintype.sum_eq_single k (fun k' hk' => by simp [Ne.symm hk'])]
-  by_cases h : i = j ∧ j = k
-  · obtain ⟨rfl, rfl⟩ := h
-    simp
-  · simp [h]
+  by_cases h : i = j ∧ j = k <;> simp_all
 
 theorem IsRestriction.dsum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [Fintype Y']
     [Fintype Z'] {T : ι → Tensor R X Y Z} {S : ι → Tensor R X' Y' Z'}
@@ -567,10 +560,7 @@ theorem restrict_slSum {ι : Type*} [Fintype ι] [DecidableEq ι] [Fintype X'] [
     Finset.sum_comm (γ := X') (α := ι), Finset.sum_comm (γ := Y') (α := ι)]
   rw [Fintype.sum_eq_single j (fun j' hj' => by simp [hj']),
     Fintype.sum_eq_single k (fun k' hk' => by simp [Ne.symm hk'])]
-  by_cases h : j = k
-  · subst h
-    simp
-  · simp [h]
+  by_cases h : j = k <;> simp_all
 
 /-- Deleting and reordering summands of a direct sum is a restriction, along an injection of the
 index sets. -/
@@ -794,22 +784,19 @@ theorem Rank.dsum {T : Tensor R X Y Z} {r : ℕ} (n : ℕ) (h : Rank r T) :
 theorem Rank.swap12 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap12 T) := by
   have hu : Tensor.swap12 (unit r : Tensor R _ _ _) = unit r := by
     funext
-    simp only [swap12_apply, unit_apply]
-    grind
+    simp; grind
   simpa only [Rank, hu] using IsRestriction.swap12 h
 
 theorem Rank.swap23 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap23 T) := by
   have hu : Tensor.swap23 (unit r : Tensor R _ _ _) = unit r := by
     funext
-    simp only [swap23_apply, unit_apply]
-    grind
+    simp; grind
   simpa only [Rank, hu] using IsRestriction.swap23 h
 
 theorem Rank.swap13 {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) : Rank r (swap13 T) := by
   have hu : Tensor.swap13 (unit r : Tensor R _ _ _) = unit r := by
     funext
-    simp only [swap13_apply, unit_apply]
-    grind
+    simp; grind
   simpa only [Rank, hu] using IsRestriction.swap13 h
 
 theorem Rank.reindex {T : Tensor R X Y Z} {r : ℕ} (h : Rank r T) (e₁ : X ≃ X') (e₂ : Y ≃ Y')

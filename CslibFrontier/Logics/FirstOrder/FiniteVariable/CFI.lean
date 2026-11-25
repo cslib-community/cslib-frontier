@@ -115,14 +115,10 @@ private theorem isBijPebbleBackAndForth_cfiInvariant {d m : ℕ} (hm : 2 * d + 4
     · rw [φ.map_adj_iff, cfiGraph_adj_castAway_iff hui huj]
   · obtain ⟨u, φ, hsupp, hmap⟩ := hI
     let T : Finset (Fin m) := (Finset.univ.erase j).biUnion fun i => (a i).support
-    have hcard_erase : (Finset.univ.erase j).card = d := by
-      rw [Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ, Fintype.card_fin]
-      omega
     have hcard_T : T.card ≤ 2 * d := by
-      have h2 : ∑ i ∈ Finset.univ.erase j, (a i).support.card ≤ (Finset.univ.erase j).card • 2 :=
-        Finset.sum_le_card_nsmul _ _ 2 fun i _ => (a i).card_support_le_two
-      rw [hcard_erase, smul_eq_mul] at h2
-      exact Finset.card_biUnion_le.trans (by omega)
+      refine Finset.card_biUnion_le.trans ?_
+      refine (Finset.sum_le_card_nsmul _ _ 2 fun i _ => (a i).card_support_le_two).trans ?_
+      simp [Finset.card_erase_of_mem (Finset.mem_univ j), Nat.mul_comm]
     have hgt : 1 < (Finset.univ \ insert u T).card := by
       have := Finset.card_insert_le u T
       rw [Finset.card_sdiff_of_subset (Finset.subset_univ _), Finset.card_univ, Fintype.card_fin]
@@ -225,10 +221,9 @@ theorem bijPebbleWins_cfiEven_cfiOdd (k n : ℕ)
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; letI := (cfiOdd k).structure
       BijPebbleWins Language.graph n ∅ a b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.bijPebbleWins n
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).bijPebbleWins n
 
 /-- Duplicator wins the infinite ordinary `(k + 1)`-pebble game from `∅` between `cfiEven k` and
 `cfiOdd k`. -/
@@ -237,10 +232,9 @@ theorem pebbleWinsForever_cfiEven_cfiOdd (k : ℕ)
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; letI := (cfiOdd k).structure
       PebbleWinsForever Language.graph ∅ a b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.pebbleWinsForever
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).pebbleWinsForever
 
 /-- **Cai–Fürer–Immerman `C^{k+1}` lower bound** ([CaiFurerImmerman1992], Section 6): the
 non-isomorphic graphs `cfiEven k` and `cfiOdd k` satisfy the same `(k + 1)`-variable counting
@@ -251,10 +245,9 @@ theorem realize_countingFormula_cfiEven_iff_cfiOdd {k : ℕ}
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; φ.Realize a) ↔
       (letI := (cfiOdd k).structure; φ.Realize b) := by
-  have h := bijPebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.realize_iff (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
+  exact (bijPebbleWinsForever_cfiEven_cfiOdd k a b).realize_iff (by simp [hφ])
 
 /-- The non-isomorphic graphs `cfiEven k` and `cfiOdd k` satisfy the same `(k + 1)`-variable
 first-order sentences (`FO^{k+1}`). -/
@@ -264,10 +257,9 @@ theorem realize_formula_cfiEven_iff_cfiOdd {k : ℕ}
     (b : Fin (k + 1) → CFIVertex (2 * k + 4) (Pi.single 0 1)) :
     (letI := (cfiEven k).structure; φ.Realize a) ↔
       (letI := (cfiOdd k).structure; φ.Realize b) := by
-  have h := pebbleWinsForever_cfiEven_cfiOdd k a b
   let := (cfiEven k).structure
   let := (cfiOdd k).structure
-  exact h.realize_iff (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
+  exact (pebbleWinsForever_cfiEven_cfiOdd k a b).realize_iff (by simp [hφ])
 
 private theorem wlHistogram_cfiGraph_eq_zero {d m : ℕ} (hm : 2 * d + 4 ≤ m)
     (f : Fin m → ZMod 2) (n : ℕ) :
@@ -280,16 +272,11 @@ private theorem wlHistogram_cfiGraph_eq_zero {d m : ℕ} (hm : 2 * d + 4 ≤ m)
       (b := fun _ : Fin (d + 1) => x₁)).1
       (bijPebbleWinsForever_cfiGraph_zero_single hm u₀ _ _) n
   by_cases hsum0 : ∑ v, f v = 0
-  · have hsum : ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v := by
-      simp only [hsum0, Pi.zero_apply, Finset.sum_const_zero]
+  · have hsum : ∑ v, f v = ∑ v, (0 : Fin m → ZMod 2) v := by simp [hsum0]
     obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
     exact (e.wlHistogram_eq d n).symm
-  · have hsum1 : ∑ v, f v = 1 := by
-      generalize ∑ v, f v = s at hsum0 ⊢
-      revert s hsum0
-      decide
-    have hsum : ∑ v, f v = ∑ v, (Pi.single u₀ 1 : Fin m → ZMod 2) v := by
-      simp only [hsum1, Fintype.sum_pi_single']
+  · have hsum : ∑ v, f v = ∑ v, (Pi.single u₀ 1 : Fin m → ZMod 2) v := by
+      simp [Fin.eq_one_of_ne_zero _ hsum0]; rfl
     obtain ⟨e⟩ := (nonempty_iso_cfiGraph_iff_sum_eq (by omega)).2 hsum
     exact (e.wlHistogram_eq d n).symm.trans h01.symm
 

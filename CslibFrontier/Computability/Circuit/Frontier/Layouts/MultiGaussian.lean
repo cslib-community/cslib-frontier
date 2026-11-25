@@ -100,8 +100,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
   have hball_succ (v : V) :
       closedBall G.toSimpleGraph v R ⊆ closedBall G.toSimpleGraph v (R + 1) :=
     fun _ (hz : G.toSimpleGraph.edist v _ ≤ R) =>
-      (show G.toSimpleGraph.edist v _ ≤ ((R + 1 : ℕ) : ℕ∞) from
-        hz.trans (by exact_mod_cast Nat.le_succ R))
+      hz.trans (Nat.cast_le.mpr (Nat.le_succ R))
   have hdep_v (f : ℝ → Prop) (v : V) :
       DependsOn (· ∈ vEvent f v) (closedBall G.toSimpleGraph v (R + 1)) := by
     intro ω ω' hω
@@ -113,18 +112,16 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     simp only [cEvent, mem_ofPred_eq]
     rw [hcongr_score fun z hz => hω z (hball_succ _ hz),
       hcongr_score fun z hz => hω z (closedBall_tgt_subset e R hz)]
-  have crossDev (t : ℝ) : P.real (deviation (cEvent t) c) ≤ m * D / c ^ 2 := by
-    have := measureReal_deviation_le
+  have crossDev (t : ℝ) : P.real (deviation (cEvent t) c) ≤ m * D / c ^ 2 :=
+    hcardE ▸ measureReal_deviation_le
       (fun e => measurableSet_setOf_mem_uIoc (hmeas_score _) (hmeas_score _) t)
       (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) (hdep_c t)
       (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hcpos
-    rwa [hcardE] at this
   have vertexDev {f : ℝ → Prop} (hf : MeasurableSet {x | f x}) :
-      P.real (deviation (vEvent f) c) ≤ h * D / c ^ 2 := by
-    have := measureReal_deviation_le (fun v => hmeas_score v hf)
+      P.real (deviation (vEvent f) c) ≤ h * D / c ^ 2 :=
+    hcardV ▸ measureReal_deviation_le (fun v => hmeas_score v hf)
       (fun v => closedBall G.toSimpleGraph v (R + 1)) (hdep_v f)
       (fun v => card_not_disjoint_closedBall_le hdeg (by omega) R v) hcpos
-    rwa [hcardV] at this
   have hsmall : M * (m * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 < 1 := by
     calc _ ≤ M * (d * h * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 := by gcongr
       _ = (M * (d + 1) + 2) * D * h / c ^ 2 := by ring
@@ -151,7 +148,6 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     have hnonneg : 0 ≤ S_cross + h * (d * δ / √(2 * π) + ε) := by positivity
     have hidentity : B = d * (h / T ^ 2 + c) + (S_cross + h * (d * δ / √(2 * π) + ε)) := by
       simp only [B, hc]; ring
-    rw [hidentity]
     linarith [mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg (α := ℝ) d)]
   have crossCount (t : ℝ) : (G.edgeCut {v | score ω v < t}).ncard =
       {e | ω ∈ cEvent t e}.ncard := by
@@ -184,14 +180,10 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
         rw [crossCount]
         linarith
       have h2 : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) ≤
-          h * (δ / √(2 * π)) + c := by
-        have : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) <
-            ∑ v, P.real (vEvent (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) v) + c := hW
-        linarith
+          h * (δ / √(2 * π)) + c := by dsimp [vEvent] at hW; linarith
       have hnonneg : 0 ≤ h * (d / T ^ 2) := by positivity
       have hidentity : B = (S_cross + c) + d * (h * (δ / √(2 * π)) + c) + h * (d / T ^ 2) := by
         simp only [B, hc]; ring
-      rw [hidentity]
       linarith [mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) d)])
   exact ⟨σ, hσ⟩
 
@@ -305,15 +297,12 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
     (norm_unitKernelRow q R) (fun _ _ h => unitKernelRow_eq_zero_of_lt h) (fun _ => ρ)
     (fun e => hcorr.trans (le_inner_unitKernelRow_src_tgt hl hd hdeg hq R e))
   refine ⟨σ, hσ.trans ?_⟩
-  have hsum : (∑ _e : E, arccos ρ / π) = arccos ρ / π * Nat.card E := by
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
-  rw [hsum]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
   have hE : (Nat.card E : ℝ) ≤ D * Nat.card V := by
     simp only [D]
     exact_mod_cast G.card_le_mul_card hdeg
   have herror : ξ / (4 * D) * Nat.card E ≤ ξ / 4 * Nat.card V := by
-    have h := mul_le_mul_of_nonneg_left hE (by positivity : 0 ≤ ξ / (4 * D))
-    convert h using 1
+    refine (mul_le_mul_of_nonneg_left hE (by positivity)).trans_eq ?_
     field_simp
   have h1 := mul_le_mul_of_nonneg_right hcoef (Nat.cast_nonneg (α := ℝ) (Nat.card E))
   nlinarith

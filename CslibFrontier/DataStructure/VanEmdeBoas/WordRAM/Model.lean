@@ -144,10 +144,7 @@ theorem header_congr {d p : ℕ} {b : Option (ℕ × ℕ)} {m m' : ℕ → ℕ}
     (h : ∀ a < 5, m (p + a) = m' (p + a)) :
     Header d b p m ↔ Header d b p m' := by
   have h0 : m p = m' p := by simpa only [Nat.add_zero] using h 0 (by decide)
-  cases b with
-  | none => simp only [Header, h0, h 3 (by decide), h 4 (by decide)]
-  | some b =>
-    cases b
+  rcases b with _ | ⟨_, _⟩ <;>
     simp only [Header, h0, h 1 (by decide), h 2 (by decide), h 3 (by decide), h 4 (by decide)]
 
 /-- Representation depends only on the allocated recursive interval. -/
@@ -224,12 +221,10 @@ theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
       simpa only [Function.update_self] using ht
     · rw [Function.update_of_ne hji]
       refine rep_frame (hr.2.2 j) fun a hlo hhi => ?_
-      have hne : j.val ≠ i.val := fun h => hji (Fin.ext h)
-      rcases lt_or_gt_of_ne hne with hlt | hlt
-      · have := cluster_end_le_clusterOffset d hlt
-        exact hf a (Or.inl (by omega))
-      · have := cluster_end_le_clusterOffset d hlt
-        exact hf a (Or.inr (by omega))
+      rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hji) with hlt | hlt <;>
+        have := cluster_end_le_clusterOffset d hlt
+      · exact hf a (Or.inl (by omega))
+      · exact hf a (Or.inr (by omega))
 
 /-- Replacing the summary interval preserves the parent header and every cluster. -/
 theorem rep_replace_summary {d p : ℕ} {b : Option (ℕ × ℕ)} {s s' : Tree d}

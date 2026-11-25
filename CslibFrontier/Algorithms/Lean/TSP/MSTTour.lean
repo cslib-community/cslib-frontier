@@ -129,11 +129,8 @@ theorem exists_eq_insertAfter {u : α} (v : α) {t : List α} (hu : u ∈ t) :
 theorem insertAfter_perm {u : α} (v : α) {t : List α} (hu : u ∈ t) :
     (insertAfter u v t).Perm (v :: t) := by
   obtain ⟨A, B, rfl, h⟩ := exists_eq_insertAfter v hu
-  rw [h]
-  have h1 : A ++ u :: v :: B = (A ++ [u]) ++ v :: B := by simp
-  have h2 : A ++ u :: B = (A ++ [u]) ++ B := by simp
-  rw [h1, h2]
-  exact List.perm_middle
+  simpa only [h, List.append_assoc, List.singleton_append] using
+    (List.perm_middle (l₁ := A ++ [u]) (l₂ := B) (a := v))
 
 /-- **The insertion bound** ([WilliamsonShmoys2011], proof of Theorem 2.11): inserting `v` after a
 vertex `u` of a closed walk raises its cost by at most `δ u v + δ v u`. -/
@@ -231,13 +228,11 @@ theorem mem_growTour {W : Type} {F : List (WeightedEdge n W)}
     obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
     have hperm := insertAfter_perm b ha
     rw [heq] at ih ⊢
-    refine ih (hperm.nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩)) ?_ ?_
-    · intro h0
-      have := hperm.length_eq
-      simp [h0] at this
-    · have := hperm.length_eq
-      simp only [List.length_cons] at this
-      omega
+    refine ih (hperm.nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
+      (fun h0 => List.cons_ne_nil _ _ (h0 ▸ hperm).symm.eq_nil) ?_
+    have := hperm.length_eq
+    simp only [List.length_cons] at this
+    omega
 
 /-! ### The charging argument -/
 
@@ -305,12 +300,10 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
         have := ht h2
         omega
       · obtain rfl : t = [a] := by
-          cases t with
-          | nil => simp at ha
-          | cons x t' =>
-            cases t' with
-            | nil => simpa [eq_comm] using ha
-            | cons _ _ => simp at h2
+          rcases t with _ | ⟨x, _ | ⟨_, _⟩⟩
+          · cases ha
+          · rw [List.mem_singleton.1 ha]
+          · simp only [List.length_cons] at h2; omega
         simp only [insertAfter, ↓reduceIte, cycleCost_pair]
         omega
     rw [← heq] at hcost

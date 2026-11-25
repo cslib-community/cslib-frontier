@@ -655,6 +655,28 @@ private lemma leftmost_rightmost_two_plus_mid [DecidableEq ι] {i₁ i₂ : ι} 
     · subst hj2; simp [hj1, ham.trans hmb]
     · simp [hj1, hj2, ham, hmb]
 
+private lemma leftmost_rightmost_update_first [DecidableEq ι] {i₁ i₂ : ι} (h12 : i₁ ≠ i₂)
+    {a₀ a b m : ℝ} (ham : a ≤ m) (hmb : m ≤ b) :
+    leftmost (Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a) = a ∧
+      rightmost (Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a) =
+        b := by
+  have heq : Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a =
+      fun j => if j = i₁ then a else if j = i₂ then b else m := by
+    funext j
+    by_cases h : j = i₁ <;> simp [h]
+  exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
+
+private lemma leftmost_rightmost_update_second [DecidableEq ι] {i₁ i₂ : ι} (h12 : i₁ ≠ i₂)
+    {a b₀ b m : ℝ} (ham : a ≤ m) (hmb : m ≤ b) :
+    leftmost (Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b) = a ∧
+      rightmost (Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b) =
+        b := by
+  have heq : Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b =
+      fun j => if j = i₁ then a else if j = i₂ then b else m := by
+    funext j
+    by_cases h : j = i₂ <;> simp [h, h12.symm]
+  exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
+
 /-- For `2 ≤ Fintype.card ι`, the midpoint mechanism `centerMechanism` is not strategyproof
 ([ProcacciaTennenholtz2013] §3.2, p. 18:8): on the profile with agent `i₁` at `0` and all other
 agents (including `i₂`) at `1`, agent `i₂` moves the facility from `1/2` to its true location `1`
@@ -668,12 +690,8 @@ theorem not_isStrategyProof_centerMechanism [DecidableEq ι] (hcard : 2 ≤ Fint
   have hx : leftmost x = 0 ∧ rightmost x = 1 :=
     leftmost_rightmost_two_plus_mid h12 zero_le_one le_rfl
   let x' : ι → ℝ := Function.update x i₂ 2
-  have hx'_eq : x' = fun j => if j = i₁ then 0 else if j = i₂ then 2 else 1 := by
-    funext j
-    by_cases h : j = i₂ <;> simp [x', x, h, h12.symm]
-  have hx' : leftmost x' = 0 ∧ rightmost x' = 2 := by
-    rw [hx'_eq]
-    exact leftmost_rightmost_two_plus_mid h12 zero_le_one (by norm_num)
+  have hx' : leftmost x' = 0 ∧ rightmost x' = 2 :=
+    leftmost_rightmost_update_second h12 zero_le_one one_le_two
   have hle := hsp x i₂ 2
   rw [show x i₂ = 1 by simp [x, h12.symm], show Function.update x i₂ 2 = x' from rfl,
     center, hx.1, hx.2, center, hx'.1, hx'.2, Real.dist_eq, Real.dist_eq] at hle
@@ -686,9 +704,8 @@ theorem not_isStrategyProof_centerMechanism [DecidableEq ι] (hcard : 2 ≤ Fint
 theorem maxCost_le_two_mul_optMaxCost_of_mem_Icc {x : ι → ℝ} {y : ℝ}
     (hy : y ∈ Set.Icc (leftmost x) (rightmost x)) :
     maxCost x y ≤ 2 * optMaxCost x := by
-  rw [maxCost_real_eq, optMaxCost_real_eq]
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  have habs : |y - center x| ≤ (rightmost x - leftmost x) / 2 := by
+  rw [maxCost_real_eq, optMaxCost_real_eq, center]
+  have habs : |y - (leftmost x + rightmost x) / 2| ≤ (rightmost x - leftmost x) / 2 := by
     rw [abs_le]
     constructor <;> linarith [hy.1, hy.2]
   linarith
@@ -750,12 +767,8 @@ theorem two_le_of_deterministic_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ 
     exact (dist_le_zero.mp h).symm
   rcases le_total (1 / 2) y with hy | hy
   · let x' := Function.update x i₂ y
-    have hx'_eq : x' = fun j => if j = i₁ then 0 else if j = i₂ then y else 1 / 2 := by
-      funext j
-      by_cases h : j = i₂ <;> simp [x', x, h, h12.symm]
-    have hx' : leftmost x' = 0 ∧ rightmost x' = y := by
-      rw [hx'_eq]
-      exact leftmost_rightmost_two_plus_mid h12 (by norm_num) hy
+    have hx' : leftmost x' = 0 ∧ rightmost x' = y :=
+      leftmost_rightmost_update_second h12 (by norm_num) hy
     have hbd := hdet x'
     rw [hfix i₂ 1 (by simp [x, h12.symm]), maxCost_real_eq, optMaxCost_real_eq, center,
       hx'.1, hx'.2, abs_of_nonneg (by linarith)] at hbd
@@ -763,12 +776,8 @@ theorem two_le_of_deterministic_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ 
     calc (2 : ℝ) = y / (y / 2) := by field_simp [hy_ne]
       _ ≤ α := (div_le_iff₀ (by linarith)).mpr (by linarith)
   · let x' := Function.update x i₁ y
-    have hx'_eq : x' = fun j => if j = i₁ then y else if j = i₂ then 1 else 1 / 2 := by
-      funext j
-      by_cases h : j = i₁ <;> simp [x', x, h]
-    have hx' : leftmost x' = y ∧ rightmost x' = 1 := by
-      rw [hx'_eq]
-      exact leftmost_rightmost_two_plus_mid h12 hy (by norm_num)
+    have hx' : leftmost x' = y ∧ rightmost x' = 1 :=
+      leftmost_rightmost_update_first h12 hy (by norm_num)
     have hbd := hdet x'
     rw [hfix i₁ 0 (by simp [x]), maxCost_real_eq, optMaxCost_real_eq, center,
       hx'.1, hx'.2, abs_of_nonpos (by linarith)] at hbd
@@ -797,30 +806,22 @@ theorem lrmPMF_apply_of_lt {x : ι → ℝ} (hlt : leftmost x < rightmost x) :
     lrmPMF x (leftmost x) = 1 / 4 ∧
       lrmPMF x (rightmost x) = 1 / 4 ∧
       lrmPMF x (center x) = 1 / 2 := by
-  have hlc : ¬ leftmost x = center x := by rw [center]; intro h; linarith
-  have hrc : ¬ rightmost x = center x := by rw [center]; intro h; linarith
-  have hcl : ¬ center x = leftmost x := fun h => hlc h.symm
-  have hcr : ¬ center x = rightmost x := fun h => hrc h.symm
-  have hlr : ¬ leftmost x = rightmost x := hlt.ne
-  have hrl : ¬ rightmost x = leftmost x := hlt.ne'
+  have hlc : leftmost x < center x := by rw [center]; linarith
+  have hcr : center x < rightmost x := by rw [center]; linarith
+  have happly (y : ℝ) : lrmPMF x y =
+      (if y = leftmost x then 4⁻¹ else 0) + (if y = rightmost x then 4⁻¹ else 0) +
+        (if y = center x then 4⁻¹ else 0) + (if y = center x then 4⁻¹ else 0) := by
+    rw [lrmPMF, PMF.map_apply, tsum_fintype, Fin.sum_univ_four]
+    simp only [Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
+      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
+      Matrix.head_cons, Matrix.tail_cons]
+    rfl
   refine ⟨?_, ?_, ?_⟩
-  · rw [lrmPMF, PMF.map_apply, tsum_fintype, Fin.sum_univ_four]
-    simp only [Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
-      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
-      Matrix.head_cons, Matrix.tail_cons, ↓reduceIte, hlr, hlc, add_zero]
-    norm_num
-  · rw [lrmPMF, PMF.map_apply, tsum_fintype, Fin.sum_univ_four]
-    simp only [Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
-      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
-      Matrix.head_cons, Matrix.tail_cons, ↓reduceIte, hrl, hrc, zero_add, add_zero]
-    norm_num
-  · rw [lrmPMF, PMF.map_apply, tsum_fintype, Fin.sum_univ_four]
-    simp only [Cslib.Probability.PMF.uniformOfFintype_apply, Fintype.card_fin,
-      Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
-      Matrix.head_cons, Matrix.tail_cons, ↓reduceIte, hcl, hcr, zero_add]
-    change (4 : ℝ≥0∞)⁻¹ + (4 : ℝ≥0∞)⁻¹ = 1 / 2
+  · simp only [happly, ↓reduceIte, hlt.ne, hlc.ne, add_zero]; norm_num
+  · simp only [happly, ↓reduceIte, hlt.ne', hcr.ne', zero_add, add_zero]; norm_num
+  · simp only [happly, ↓reduceIte, hlc.ne', hcr.ne, zero_add]
     rw [show (4 : ℝ≥0∞) = 2 * 2 by norm_num,
-      ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)),
+      ENNReal.mul_inv (Or.inl two_ne_zero) (Or.inl ENNReal.ofNat_ne_top),
       ← mul_add, ENNReal.inv_two_add_inv_two, mul_one, one_div]
 
 theorem lrmMechanism_hasFiniteCost (x : ι → ℝ) : HasFiniteCost (lrmMechanism x) :=
@@ -900,16 +901,12 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
   have hleft_mem : l < l' → ∃ i ∈ A, x i = l := fun _ => by
     obtain ⟨i, hi⟩ := exists_eq_leftmost x
     refine ⟨i, by_contra fun hni => ?_, hi⟩
-    have heq : x' i = l := by
-      dsimp only [x']
-      rw [Finset.piecewise_eq_of_notMem _ _ _ hni, hi]
+    have heq : x' i = l := (Finset.piecewise_eq_of_notMem A z x hni).trans hi
     linarith [leftmost_le x' i]
   have hright_mem : r' < r → ∃ i ∈ A, x i = r := fun _ => by
     obtain ⟨i, hi⟩ := exists_eq_rightmost x
     refine ⟨i, by_contra fun hni => ?_, hi⟩
-    have heq : x' i = r := by
-      dsimp only [x']
-      rw [Finset.piecewise_eq_of_notMem _ _ _ hni, hi]
+    have heq : x' i = r := (Finset.piecewise_eq_of_notMem A z x hni).trans hi
     linarith [le_rightmost x' i]
   have hcL : l ≤ l' → expectedCost (lrmMechanism x') l = (l' + r') / 2 - l := fun _ => by
     rw [expectedCost_lrmMechanism, abs_of_nonpos (by linarith), abs_of_nonpos (by linarith),
@@ -1016,41 +1013,24 @@ theorem three_halves_le_of_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ Finty
   let x : ι → ℝ := fun j => if j = i₁ then 0 else if j = i₂ then 1 else 1 / 2
   have hhalf := exists_expectedCost_ge_half_dist (hfin x) (0 : ℝ) 1
   rw [show dist (0 : ℝ) 1 / 2 = 1 / 2 by rw [Real.dist_eq]; norm_num] at hhalf
+  have hdev (i : ι) (z : ℝ) {c l r : ℝ}
+      (hx' : leftmost (Function.update x i z) = l ∧ rightmost (Function.update x i z) = r)
+      (hxi : x i = c) (hge : 1 / 2 ≤ expectedCost (M x) c)
+      (hlr : r - l = 2 ∧ (l + r) / 2 = c) : 3 / 2 ≤ α := by
+    set x' := Function.update x i z
+    have hsp' : expectedCost (M x) c ≤ expectedCost (M x') c := hxi ▸ hsp_real x i z
+    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
+    have hbd := happrox_real x'
+    rw [center, optMaxCost_real_eq, hx'.1, hx'.2, hlr.1, hlr.2] at hmc
+    rw [optMaxCost_real_eq, hx'.1, hx'.2, hlr.1] at hbd
+    linarith
   rcases hhalf with h0 | h1
   · -- `1/2 ≤ expectedCost (M x) 0`: deviate agent `i₁` from `0` to `-1` (center `0`, opt `1`).
-    let x' := Function.update x i₁ (-1)
-    have hx'_eq : x' = fun j => if j = i₁ then -1 else if j = i₂ then 1 else 1 / 2 := by
-      funext j
-      by_cases h : j = i₁ <;> simp [x', x, h]
-    have hx' : leftmost x' = -1 ∧ rightmost x' = 1 := by
-      rw [hx'_eq]
-      exact leftmost_rightmost_two_plus_mid h12 (by norm_num) (by norm_num)
-    have hcen : center x' = 0 := by rw [center, hx'.1, hx'.2]; norm_num
-    have hopt : optMaxCost x' = 1 := by rw [optMaxCost_real_eq, hx'.1, hx'.2]; norm_num
-    have hsp1 : expectedCost (M x) 0 ≤ expectedCost (M x') 0 := by
-      simpa only [show x i₁ = 0 by simp [x]] using hsp_real x i₁ (-1)
-    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
-    have hbd := happrox_real x'
-    rw [hcen, hopt] at hmc
-    rw [hopt] at hbd
-    linarith
+    refine hdev i₁ (-1) (leftmost_rightmost_update_first h12 ?_ ?_) (by simp [x]) h0 ?_
+    all_goals norm_num
   · -- `1/2 ≤ expectedCost (M x) 1`: deviate agent `i₂` from `1` to `2` (center `1`, opt `1`).
-    let x' := Function.update x i₂ 2
-    have hx'_eq : x' = fun j => if j = i₁ then 0 else if j = i₂ then 2 else 1 / 2 := by
-      funext j
-      by_cases h : j = i₂ <;> simp [x', x, h, h12.symm]
-    have hx' : leftmost x' = 0 ∧ rightmost x' = 2 := by
-      rw [hx'_eq]
-      exact leftmost_rightmost_two_plus_mid h12 (by norm_num) (by norm_num)
-    have hcen : center x' = 1 := by rw [center, hx'.1, hx'.2]; norm_num
-    have hopt : optMaxCost x' = 1 := by rw [optMaxCost_real_eq, hx'.1, hx'.2]; norm_num
-    have hsp2 : expectedCost (M x) 1 ≤ expectedCost (M x') 1 := by
-      simpa only [show x i₂ = 1 by simp [x, h12.symm]] using hsp_real x i₂ 2
-    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
-    have hbd := happrox_real x'
-    rw [hcen, hopt] at hmc
-    rw [hopt] at hbd
-    linarith
+    refine hdev i₂ 2 (leftmost_rightmost_update_second h12 ?_ ?_) (by simp [x, h12.symm]) h1 ?_
+    all_goals norm_num
 
 end RealMaxCost
 

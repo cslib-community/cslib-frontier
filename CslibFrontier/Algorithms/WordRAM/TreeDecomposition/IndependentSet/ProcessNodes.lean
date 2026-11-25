@@ -445,24 +445,11 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
         by have : (inst.bagAt jFin).length * inst.maxWeight ≤ B :=
              Nat.mul_le_mul_right _ hj_len_le
            dsimp only [cpArgs, capB, B, W, M, MWISInstance.maxWeight] at *; omega,
-        hfit_tfr.of_le (by
-          have h := hlay.adj_holds.1
-          rw [inst.adjMatrix_len] at h
-          dsimp only [cpArgs, m]; omega),
-        hfit_tfr.of_le (by
-          have h := hlay.wt_holds.1
-          rw [inst.weights_len] at h
-          dsimp only [cpArgs]; omega),
-        hfit_tfr.of_le (by
-          have := hj_bag.1
-          dsimp only [cpArgs, jFin]; omega),
-        hfit_tfr.of_le (by
-          have h := hj_tbl.1
-          rw [hj_tlen] at h
-          dsimp only [cpArgs, jFin]; omega),
-        hfit_tfr.of_le (by
-          have := hp_bag.1
-          dsimp only [cpArgs]; omega),
+        hfit_tfr.of_le (inst.adjMatrix_len ▸ hlay.adj_holds.1),
+        hfit_tfr.of_le (inst.weights_len ▸ hlay.wt_holds.1),
+        hfit_tfr.of_le hj_bag.1,
+        hfit_tfr.of_le (by simpa only [hj_tlen] using hj_tbl.1),
+        hfit_tfr.of_le hp_bag.1,
         hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
         hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _), hfit_capB⟩
     have hpp_safe : ParentPassPre w ppArgs t_c :=
@@ -477,16 +464,9 @@ private theorem processNodeStep_full {w : ℕ} (inst : MWISInstance) (descBase :
         hp_tbl.mono_frontier (hp_a.trans hp_cp), hp_tlen, rfl,
         by simpa only [hp_tlen] using hp_tbl.1,
         hbest_cp, hbestL_len, le_rfl, List.foldl_max_le (Nat.zero_le _) hbestL_le,
-        hfit_tfr.of_le (by
-          have := hj_bag.1
-          dsimp only [ppArgs, jFin]; omega),
-        hfit_tfr.of_le (by
-          have := hp_bag.1
-          dsimp only [ppArgs]; omega),
-        hfit_tfr.of_le (by
-          have h := hp_tbl.1
-          rw [hp_tlen] at h
-          dsimp only [ppArgs, tblPLen]; omega),
+        hfit_tfr.of_le hj_bag.1,
+        hfit_tfr.of_le hp_bag.1,
+        hfit_tfr.of_le (by simpa only [hp_tlen] using hp_tbl.1),
         hfit_fr.of_le (le_trans hp_pow_le (Nat.le_add_left _ _)),
         hfit_fr.of_le (Nat.add_le_add_left hp_pow_le _),
         hfit_sum⟩

@@ -198,39 +198,29 @@ theorem IsPrice.smul (h : IsPrice K w) {c : ℝ} (hc : 0 ≤ c) : IsPrice K fun 
 variable (K) in
 /-- The set of prices is closed under pointwise convergence. -/
 theorem isClosed_setOf_isPrice : IsClosed {w : Y → Y → ℝ | IsPrice K w} := by
-  have : {w : Y → Y → ℝ | IsPrice K w} = ⋂ (n : ℕ) (f : Fin n → Y),
-      (fun (w : Y → Y → ℝ) i j => w (f i) (f j)) ⁻¹' prices K (Fin n) := by
-    ext w
-    simp [IsPrice]
-  rw [this]
-  exact isClosed_iInter fun n => isClosed_iInter fun f =>
+  simp only [IsPrice, prices, Set.ofPred_forall]
+  exact isClosed_iInter fun _ => isClosed_iInter fun f =>
     isClosed_closure.preimage (continuous_comp f)
 
 /-- Pointwise limits of prices are prices. -/
 theorem isPrice_of_tendsto {ι : Type*} {l : Filter ι} [l.NeBot] {d : ι → Y → Y → ℝ}
     (h : ∀ a b, Tendsto (fun i => d i a b) l (nhds (w a b))) (hd : ∀ᶠ i in l, IsPrice K (d i)) :
-    IsPrice K w := by
-  refine (isClosed_setOf_isPrice K).mem_of_tendsto ?_ hd
-  rw [tendsto_pi_nhds]
-  intro a
-  rw [tendsto_pi_nhds]
-  exact h a
+    IsPrice K w :=
+  (isClosed_setOf_isPrice K).mem_of_tendsto
+    (tendsto_pi_nhds.2 fun a => tendsto_pi_nhds.2 (h a)) hd
 
 variable (K) in
 /-- The prices below a given function form a compact set, by Tychonoff's theorem. -/
 theorem isCompact_setOf_isPrice_le (C : Y → Y → ℝ) :
     IsCompact {w : Y → Y → ℝ | IsPrice K w ∧ ∀ a b, w a b ≤ C a b} := by
   have h1 : IsCompact {w : Y → Y → ℝ | ∀ a, w a ∈ {v : Y → ℝ | ∀ b, v b ∈ Set.Icc 0 (C a b)}} :=
-    isCompact_pi_infinite fun a => isCompact_pi_infinite fun b => isCompact_Icc
+    isCompact_pi_infinite fun _ => isCompact_pi_infinite fun _ => isCompact_Icc
   have h2 : IsClosed {w : Y → Y → ℝ | ∀ a b, w a b ≤ C a b} := by
-    have : {w : Y → Y → ℝ | ∀ a b, w a b ≤ C a b} = ⋂ (a : Y) (b : Y), {w | w a b ≤ C a b} := by
-      ext w; simp
-    rw [this]
-    exact isClosed_iInter fun a => isClosed_iInter fun b =>
-      isClosed_le (by fun_prop) continuous_const
-  refine h1.of_isClosed_subset ((isClosed_setOf_isPrice K).inter h2) ?_
-  rintro w ⟨hw, hC⟩ a b
-  exact ⟨hw.nonneg a b, hC a b⟩
+    simpa only [Set.ofPred_forall] using
+      isClosed_iInter fun _ => isClosed_iInter fun _ =>
+        isClosed_le (by fun_prop) continuous_const
+  exact h1.of_isClosed_subset ((isClosed_setOf_isPrice K).inter h2)
+    fun _ ⟨hw, hC⟩ a b => ⟨hw.nonneg a b, hC a b⟩
 
 end General
 

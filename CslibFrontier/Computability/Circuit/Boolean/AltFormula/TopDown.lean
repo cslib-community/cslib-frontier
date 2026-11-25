@@ -130,25 +130,20 @@ theorem one_le_size {d : ℕ} (f : AltFormula n (d + 1)) : 1 ≤ size f := by
 private theorem exists_child_eq_witness {d : ℕ} (op : AltOp) (fs : List (AltFormula n d))
     {z : BitString n} (hz : eval (d := d + 1) op fs z = witness op) :
     ∃ j : Fin fs.length, eval op.dual (fs.get j) z = witness op := by
-  cases op
-  · simp only [eval, witness, List.all_eq_false] at hz
-    obtain ⟨g, hg, hgz⟩ := hz
-    obtain ⟨j, rfl⟩ := List.get_of_mem hg
-    exact ⟨j, by simpa [AltOp.dual, witness] using hgz⟩
-  · simp only [eval, witness, List.any_eq_true] at hz
-    obtain ⟨g, hg, hgz⟩ := hz
-    obtain ⟨j, rfl⟩ := List.get_of_mem hg
-    exact ⟨j, by simpa [AltOp.dual, witness] using hgz⟩
+  have ⟨g, hg, hgz⟩ : ∃ g ∈ fs, eval op.dual g z = witness op := by
+    cases op <;>
+      simpa only [eval, witness, AltOp.dual, List.all_eq_false, List.any_eq_true,
+        Bool.not_eq_true] using hz
+  obtain ⟨j, rfl⟩ := List.get_of_mem hg
+  exact ⟨j, hgz⟩
 
 /-- A gate with root `op` without the witness value has no argument with it. -/
 private theorem eval_child_eq_not_witness {d : ℕ} (op : AltOp) (fs : List (AltFormula n d))
     {z : BitString n} (hz : eval (d := d + 1) op fs z = !witness op) :
     ∀ g ∈ fs, eval op.dual g z = !witness op := by
-  cases op
-  · simp only [eval, witness, Bool.not_false, List.all_eq_true] at hz
-    exact fun g hg => by simpa [AltOp.dual, witness] using hz g hg
-  · simp only [eval, witness, Bool.not_true, List.any_eq_false] at hz
-    exact fun g hg => by simpa [AltOp.dual, witness] using hz g hg
+  cases op <;>
+    simpa only [eval, witness, AltOp.dual, Bool.not_false, Bool.not_true, List.all_eq_true,
+      List.any_eq_false, Bool.not_eq_true] using hz
 
 /-- The speaker's input has the witness value, the other input its negation. -/
 private theorem witness_of_speaker {op : AltOp} {s : Bool} :

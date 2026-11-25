@@ -132,13 +132,10 @@ private theorem fastCutThresholdAux_spec {k fuel t : ℕ} (hk : 4 ≤ k) (ht : t
     dsimp only [fastCutThresholdAux]
     by_cases hlt : 2 * t * (t - 1) < k * (k - 1)
     · simp only [hlt, ↓reduceIte]
-      have ht_lt : t < k - 1 := by
-        by_contra hge
-        have heq : t = k - 1 := by omega
+      have ht_lt : t < k - 1 := lt_of_le_of_ne ht fun heq => by
         subst heq
         have hsub2 : k - 1 - 1 = k - 2 := by omega
-        rw [hsub2] at hlt
-        exact absurd (mul_pred_le_two_mul_pred_sub_two hk) (not_le_of_gt hlt)
+        exact (mul_pred_le_two_mul_pred_sub_two hk).not_gt (hsub2 ▸ hlt)
       rcases ih (t := t + 1) (by omega) (by omega) with ⟨h1, h2, h3, h4⟩
       refine ⟨by omega, h2, h3, fun m htm hmr => ?_⟩
       rcases eq_or_lt_of_le htm with rfl | hgt
@@ -160,8 +157,7 @@ theorem fastCutThreshold_le_pred {k : ℕ} (hk : 4 ≤ k) :
 /-- Strict decrease `fastCutThreshold k < k` for `k ≥ 4`. -/
 theorem fastCutThreshold_lt {k : ℕ} (hk : 4 ≤ k) :
     fastCutThreshold k < k := by
-  have := fastCutThreshold_le_pred hk
-  omega
+  exact (fastCutThreshold_le_pred hk).trans_lt (by omega)
 
 /-- Defining threshold inequality
 `k * (k - 1) ≤ 2 * fastCutThreshold k * (fastCutThreshold k - 1)`. -/
@@ -361,9 +357,8 @@ theorem fastCutScratch_le_pot {k : ℕ} (hk : 7 ≤ k) :
 theorem fastCutScratch_le {n : ℕ} (hn : 2 ≤ n) :
     fastCutScratch n ≤ 26 * (n * n) := by
   by_cases hn7 : 7 ≤ n
-  · have hpot := fastCutScratch_le_pot hn7
-    have hle := (Nat.pow_le_pow_left (Nat.sub_le n 4) 2).trans_eq (sq n)
-    omega
+  · exact (fastCutScratch_le_pot hn7).trans
+      (Nat.mul_le_mul_left 26 ((Nat.pow_le_pow_left (Nat.sub_le n 4) 2).trans_eq (sq n)))
   · rw [fastCutScratch_of_lt_seven (by omega)]
     interval_cases n <;> decide
 
@@ -505,10 +500,8 @@ theorem half_le_threshold_survival {k : ℕ} (hk : 7 ≤ k) :
 with probability `2 / (k * (k - 1)) ≥ 2 / 30`. -/
 theorem base_survival_ge {k : ℕ} (hk2 : 2 ≤ k) (hk6 : k ≤ 6) :
     (2 : ℝ≥0∞) / (30 : ℝ≥0∞) ≤ (2 : ℝ≥0∞) / ((k * (k - 1) : ℕ) : ℝ≥0∞) := by
-  apply ENNReal.div_le_div_left
-  have hle : k * (k - 1) ≤ 30 := by
-    interval_cases k <;> decide
-  exact_mod_cast hle
+  refine ENNReal.div_le_div_left (Nat.cast_le.mpr ?_) _
+  interval_cases k <;> decide
 
 /-- `(1 / 2) * (2 / s) = 1 / s` in `ℝ≥0∞` for `1 ≤ s`. -/
 theorem half_mul_two_div_eq {s : ℕ} (hs : 1 ≤ s) :
@@ -522,10 +515,9 @@ theorem root_hit_prob_eq (n : ℕ) :
     (2 : ℝ≥0∞) / ((2 * Nat.log 2 n + 30 : ℕ) : ℝ≥0∞) =
       (1 : ℝ≥0∞) / ((Nat.log 2 n + 15 : ℕ) : ℝ≥0∞) := by
   have hmul : 2 * Nat.log 2 n + 30 = 2 * (Nat.log 2 n + 15) := by omega
-  have h20 : (2 : ℝ≥0∞) ≠ 0 := by norm_num
-  have h2t : (2 : ℝ≥0∞) ≠ ⊤ := by norm_num
   rw [hmul, Nat.cast_mul, Nat.cast_ofNat]
-  simpa using ENNReal.mul_div_mul_left (1 : ℝ≥0∞) ((Nat.log 2 n + 15 : ℕ) : ℝ≥0∞) h20 h2t
+  simpa using ENNReal.mul_div_mul_left (1 : ℝ≥0∞) ((Nat.log 2 n + 15 : ℕ) : ℝ≥0∞)
+    two_ne_zero ENNReal.ofNat_ne_top
 
 /-- Concrete `O(log ^ 2 n)` trial schedule `(Nat.log 2 n + 15) * (Nat.log 2 n + 2)` used by
 `fastCutHighProbProgram` to achieve failure probability `≤ 1 / (2 * n)` (instantiating the
@@ -553,8 +545,7 @@ theorem fastCutHighProb_failure_le (n : ℕ) :
 theorem fastCutHighProb_failure_le_inv_n (n : ℕ) :
     ((1 : ℝ≥0∞) - (1 : ℝ≥0∞) / ((Nat.log 2 n + 15 : ℕ) : ℝ≥0∞)) ^ fastCutTrials n ≤
       (1 : ℝ≥0∞) / (n : ℝ≥0∞) := by
-  refine (fastCutHighProb_failure_le n).trans ?_
-  apply ENNReal.div_le_div_left
-  exact_mod_cast (by omega : n ≤ 2 * n)
+  exact (fastCutHighProb_failure_le n).trans
+    (ENNReal.div_le_div_left (Nat.cast_le.mpr (Nat.le_mul_of_pos_left n two_pos)) _)
 
 end Cslib.Algorithms.Karger

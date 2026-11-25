@@ -195,16 +195,10 @@ theorem exists_admissibleFDNetwork_of_strongCompleteness {P : Type*} [Fintype P]
   · by_cases hqk : q ∈ F (T_sc + k)
     · exact Or.inr (hT_sc q ⟨T_sc + k, hqk⟩ p hp (T_sc + k) (by omega))
     · exact Or.inl ⟨hqk, rfl⟩
-  · have hsub : F (T_sc + k) ⊆ Finset.univ := subset_univ _
-    have hcard := card_sdiff_add_card_eq_card hsub
-    have hle := hF (T_sc + k)
-    have heq : (Finset.univ.filter fun q => decide (q ∉ F (T_sc + k) ∧ true = true)) =
-        Finset.univ \ F (T_sc + k) := by
-      ext q
-      simp only [mem_filter, mem_univ, true_and, and_true, decide_eq_true_eq, mem_sdiff]
-    rw [heq]
-    simp only [card_univ] at hcard
-    omega
+  · have heq : (Finset.univ.filter fun q => decide (q ∉ F (T_sc + k) ∧ true = true)) =
+        (F (T_sc + k))ᶜ := Finset.ext fun _ => by simp
+    rw [heq, card_compl]
+    exact Nat.sub_le_sub_left (hF (T_sc + k)) _
 
 /-- Asynchronous-round step for #7503: if any process crashes in `F` while `F.Correct.Nonempty`,
 the blind detector `fun _ _ => ∅` admits no `AdmissibleFDNetwork` (every correct process eventually
@@ -216,10 +210,8 @@ theorem not_admissibleFDNetwork_emptyDetector_of_crashed {P : Type*} [Fintype P]
   intro hadm
   obtain ⟨p, hp⟩ := hcorr
   obtain ⟨q, t_c, hq_c⟩ := hcrash
-  have hge : t_c ≤ tick t_c := hadm.tick_strictMono.id_le t_c
-  have hq_dead : q ∈ F (tick t_c) := F.mem_of_le hge hq_c
   rcases hadm.wait_or_suspect t_c p hp q with ⟨hq_alive, _⟩ | hsusp
-  · exact hq_alive hq_dead
+  · exact hq_alive (F.mem_of_le (hadm.tick_strictMono.id_le t_c) hq_c)
   · exact notMem_empty q hsusp
 
 namespace FDAsyncRoundProtocol
@@ -321,18 +313,15 @@ theorem solvesFDAsyncRoundConsensus_ownInput {P V : Type*} [Fintype P] [Decidabl
     [Subsingleton P] (t : ℕ) (DetPred : FailurePattern P → DetectorHistory P → Prop) :
     (ownInputFDProtocol P V).SolvesFDAsyncRoundConsensus t DetPred where
   irrevocable F _ H tick deliver x _ _ k₁ k₂ _ p _ v hdec := by
-    rw [ownInputFDProtocol_decision] at hdec ⊢
-    exact hdec
+    simpa only [ownInputFDProtocol_decision] using hdec
   agreement F _ H tick deliver x _ _ k₁ k₂ p₁ _ p₂ _ v₁ v₂ h₁ h₂ := by
     rw [ownInputFDProtocol_decision, Option.some.injEq] at h₁ h₂
     rw [← h₁, ← h₂, Subsingleton.elim p₁ p₂]
   validity F _ H tick deliver x _ _ k p _ v hdec := by
     rw [ownInputFDProtocol_decision, Option.some.injEq] at hdec
     exact ⟨p, hdec⟩
-  termination F _ H tick deliver x _ _ p _ := by
-    refine ⟨0, ?_⟩
-    rw [ownInputFDProtocol_decision]
-    rfl
+  termination F _ H tick deliver x _ _ p _ :=
+    ⟨0, by simp [ownInputFDProtocol_decision]⟩
 
 /-! ### Maximum-timestamp selector -/
 
@@ -750,35 +739,24 @@ theorem ctRoundProtocol_lock_preservation {r : ℕ} {v : V}
     obtain ⟨Q_est, ts_max, j₀, hQ_est_card, hj₀_mem, hj₀_est, hj₀_ts, hQ_est_max⟩ :=
       ctSt_roundProposal_quorum F H tick deliver x hprop_r'
     -- Strict-majority quorum intersection: `|Q_ack| ≥ |P|/2 + 1` and `|Q_est| ≥ |P|/2 + 1`.
-    have hinter_nonempty : (Q_ack ∩ Q_est).Nonempty := by
+    obtain ⟨jStar, hjStar⟩ : (Q_ack ∩ Q_est).Nonempty := by
       have hunion := card_union_add_card_inter Q_ack Q_est
       have hle_univ : (Q_ack ∪ Q_est).card ≤ Fintype.card P := card_le_univ _
-      have hpos : 0 < (Q_ack ∩ Q_est).card := by omega
-      exact card_pos.mp hpos
-    obtain ⟨jStar, hjStar⟩ := hinter_nonempty
+      exact card_pos.mp (by omega)
     obtain ⟨hj_ack, hj_est⟩ := mem_inter.mp hjStar
     obtain ⟨_, hts_jStar⟩ := ctSt_reply_origin F H tick deliver x (4 * r + 2) jStar r
       (hQ_ack jStar hj_ack)
     have hts_mono := ctSt_ts_mono F H tick deliver x (procs := procs) (fallback := fallback)
       (show 4 * r + 2 ≤ 4 * r' by omega) jStar
-    have hts_ge : r + 1 ≤ ts_max := by
-      have hmax := hQ_est_max jStar hj_est
-      omega
-    have hts_le_r' : ts_max ≤ r' := by
-      have hle := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback)
-        (4 * r') j₀
-      omega
+    have hmax := hQ_est_max jStar hj_est
+    have hle := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (4 * r') j₀
     obtain ⟨r₀, hr₀_eq⟩ : ∃ r₀, ts_max = r₀ + 1 := ⟨ts_max - 1, by omega⟩
-    have hr_le_r₀ : r ≤ r₀ := by omega
-    have hr₀_lt_r' : r₀ < r' := by omega
     have hprop_r₀ := (ctSt_est_ts_origin F H tick deliver x (4 * r') j₀).2 r₀
       (hj₀_ts.trans hr₀_eq)
     rw [hj₀_est] at hprop_r₀
-    rcases eq_or_lt_of_le hr_le_r₀ with rfl | hr_lt_r₀
-    · rw [hprop_r] at hprop_r₀
-      simp only [Option.some.injEq, Prod.mk.injEq, true_and] at hprop_r₀
-      exact hprop_r₀.symm
-    · exact ih r₀ hr₀_lt_r' hr_lt_r₀ hprop_r₀
+    rcases eq_or_lt_of_le (by omega : r ≤ r₀) with rfl | hr_lt_r₀
+    · simpa [hprop_r] using hprop_r₀.symm
+    · exact ih r₀ (by omega) hr_lt_r₀ hprop_r₀
 
 /-- Every decided value in `ctRoundProtocol` originates from a `LockedInRound` event. -/
 private theorem ctSt_decided_locked :
@@ -847,9 +825,7 @@ theorem ctRoundProtocol_uniform_agreement
   obtain ⟨r₂, hlock₂⟩ := ctSt_decided_locked F H tick deliver x k₂ p₂ v₂ h₂
   rcases lt_trichotomy r₁ r₂ with hlt | rfl | hgt
   · exact (ctRoundProtocol_lock_preservation F H tick deliver x hlock₁ hlt hlock₂.1).symm
-  · have heq := hlock₁.1.symm.trans hlock₂.1
-    simp only [Option.some.injEq, Prod.mk.injEq, true_and] at heq
-    exact heq
+  · simpa [hlock₁.1] using hlock₂.1
   · exact ctRoundProtocol_lock_preservation F H tick deliver x hlock₂ hgt hlock₁.1
 
 end Safety
@@ -900,20 +876,17 @@ theorem ctRoundProtocol_decides_in_good_round
           (π.incoming F tick deliver (st k) k p) := rfl
   have hsend (k : ℕ) (q : P) (s : CTState V) (p : P) : π.send k q s p = ctSend k q s p := rfl
   -- Subround `0` (`4 * rStar`): `qStar` gathers `≥ |P|/2 + 1` estimates and sets `proposal`.
-  have hprop : ∃ vStar, (st (4 * rStar + 1) qStar).proposal = some (rStar, vStar) := by
-    have hq_alive : qStar ∉ F (tick (4 * rStar)) := hqStar (tick (4 * rStar))
+  obtain ⟨vStar, hvStar⟩ : ∃ vStar, (st (4 * rStar + 1) qStar).proposal = some (rStar, vStar) := by
     have hm0 : (4 * rStar) % 4 = 0 := by omega
     have hd0 : (4 * rStar) / 4 = rStar := by omega
     let m₀ := π.incoming F tick deliver (st (4 * rStar)) (4 * rStar) qStar
     let pairs := procs.dedup.filterMap fun j => extractPhase1 (m₀ j)
-    let S₀ := Finset.univ.filter fun j =>
-      decide (j ∉ F (tick (4 * rStar)) ∧ deliver (4 * rStar) j qStar = true)
-    have hS₀_card : Fintype.card P - t ≤ S₀.card := hadm.quorum_delivery (4 * rStar) qStar hqStar
     have hpairs_len : Fintype.card P / 2 + 1 ≤ pairs.length := by
       rw [length_filterMap_eq_length_filter]
       refine (show Fintype.card P / 2 + 1 ≤ Fintype.card P - t by omega).trans
-        (hS₀_card.trans (length_filter_ge_card fun j hj => ?_))
-      simp only [S₀, mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
+        ((hadm.quorum_delivery (4 * rStar) qStar hqStar).trans
+          (length_filter_ge_card fun j hj => ?_))
+      simp only [mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
       simp only [m₀, FDAsyncRoundProtocol.incoming, hj, not_false_eq_true, and_self, ↓reduceIte,
         hsend, ctSend, hm0, extractPhase1, Option.isSome_some]
@@ -921,10 +894,9 @@ theorem ctRoundProtocol_decides_in_good_round
       (selectMaxTs_isSome_of_ne_nil (List.ne_nil_of_length_pos (by omega) : pairs ≠ []))
     refine ⟨vStar, ?_⟩
     rw [hstate_succ]
-    simp only [hq_alive, ↓reduceIte, ctUpdate, hm0, hd0, hcoord]
+    simp only [hqStar (tick (4 * rStar)), ↓reduceIte, ctUpdate, hm0, hd0, hcoord]
     simp only [pairs, m₀] at hpairs_len hsel
     simp only [hpairs_len, ↓reduceIte, hsel]
-  obtain ⟨vStar, hvStar⟩ := hprop
   -- Subround `1` (`4 * rStar + 1`): `qStar`'s proposal stays `some (rStar, vStar)` and every
   -- `j ∈ F.Correct` receives it (since `qStar ∉ H j`) and sets `reply = some (rStar, true)`.
   have hm1 : (4 * rStar + 1) % 4 = 1 := by omega
@@ -937,33 +909,28 @@ theorem ctRoundProtocol_decides_in_good_round
     all_goals exact hvStar
   have hack_all : ∀ j ∈ F.Correct, (st (4 * rStar + 2) j).reply = some (rStar, true) := by
     intro j hj
-    have hj_alive : j ∉ F (tick (4 * rStar + 1)) := hj (tick (4 * rStar + 1))
-    have hq_alive : qStar ∉ F (tick (4 * rStar + 1)) := hqStar (tick (4 * rStar + 1))
     have hdel : deliver (4 * rStar + 1) qStar j = true :=
       hadm.deliver_of_notMem hj (hunsusp (4 * rStar + 1) (by omega) j hj)
     have hinc1 : π.incoming F tick deliver (st (4 * rStar + 1)) (4 * rStar + 1) j qStar =
         some (.phase2 (some (rStar, vStar))) := by
-      simp only [FDAsyncRoundProtocol.incoming, hq_alive, not_false_eq_true, hdel, and_self,
-        ↓reduceIte, hsend, ctSend, hm1, hvStar]
+      simp only [FDAsyncRoundProtocol.incoming, hqStar (tick (4 * rStar + 1)), not_false_eq_true,
+        hdel, and_self, ↓reduceIte, hsend, ctSend, hm1, hvStar]
     change (st ((4 * rStar + 1) + 1) j).reply = some (rStar, true)
     rw [hstate_succ]
-    simp only [hj_alive, ↓reduceIte, ctUpdate, hm1, hd1, hcoord, hinc1, Nat.reduceEqDiff]
+    simp only [hj (tick (4 * rStar + 1)), ↓reduceIte, ctUpdate, hm1, hd1, hcoord, hinc1,
+      Nat.reduceEqDiff]
   -- Subround `2` (`4 * rStar + 2`): every alive sender is in `F.Correct`, so `qStar` receives
   -- `≥ |P|/2 + 1` `ack`s and sets `decided.isSome = true`.
   have hm2 : (4 * rStar + 2) % 4 = 2 := by omega
   have hd2 : (4 * rStar + 2) / 4 = rStar := by omega
   have hq_dec : (st (4 * rStar + 3) qStar).decided.isSome = true := by
-    have hq_alive : qStar ∉ F (tick (4 * rStar + 2)) := hqStar (tick (4 * rStar + 2))
     let m₂ := π.incoming F tick deliver (st (4 * rStar + 2)) (4 * rStar + 2) qStar
-    let S₂ := Finset.univ.filter fun j =>
-      decide (j ∉ F (tick (4 * rStar + 2)) ∧ deliver (4 * rStar + 2) j qStar = true)
-    have hS₂_card : Fintype.card P - t ≤ S₂.card :=
-      hadm.quorum_delivery (4 * rStar + 2) qStar hqStar
     have hacks_len : Fintype.card P / 2 + 1 ≤
         (procs.dedup.filter fun j => isRoundAck rStar (m₂ j)).length := by
       refine (show Fintype.card P / 2 + 1 ≤ Fintype.card P - t by omega).trans
-        (hS₂_card.trans (length_filter_ge_card fun j hj => ?_))
-      simp only [S₂, mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
+        ((hadm.quorum_delivery (4 * rStar + 2) qStar hqStar).trans
+          (length_filter_ge_card fun j hj => ?_))
+      simp only [mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
       have hj_corr : j ∈ F.Correct := hstab (4 * rStar + 2) (by omega) j hj.1
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
       simp only [m₂, FDAsyncRoundProtocol.incoming, hj, not_false_eq_true, and_self, ↓reduceIte,
@@ -971,21 +938,19 @@ theorem ctRoundProtocol_decides_in_good_round
     change (st ((4 * rStar + 2) + 1) qStar).decided.isSome = true
     rw [hstate_succ]
     simp only [m₂] at hacks_len
-    simp only [hq_alive, ↓reduceIte, ctUpdate, hm2, hd2, hcoord, hprop_2, hacks_len, and_self,
-      Nat.reduceEqDiff, Option.isSome_or, Option.isSome_some, Bool.or_true]
+    simp only [hqStar (tick (4 * rStar + 2)), ↓reduceIte, ctUpdate, hm2, hd2, hcoord, hprop_2,
+      hacks_len, and_self, Nat.reduceEqDiff, Option.isSome_or, Option.isSome_some, Bool.or_true]
   -- Subround `3` (`4 * rStar + 3`): `qStar` broadcasts `decided` and every `p ∈ F.Correct`
   -- receives it (`qStar ∉ H p`) and decides!
   obtain ⟨dStar, hdStar⟩ := Option.isSome_iff_exists.mp hq_dec
   have hm3 : (4 * rStar + 3) % 4 = 3 := by omega
   intro p hp
-  have hp_alive : p ∉ F (tick (4 * rStar + 3)) := hp (tick (4 * rStar + 3))
-  have hq_alive : qStar ∉ F (tick (4 * rStar + 3)) := hqStar (tick (4 * rStar + 3))
   have hdel : deliver (4 * rStar + 3) qStar p = true :=
     hadm.deliver_of_notMem hp (hunsusp (4 * rStar + 3) (by omega) p hp)
   let m₃ := π.incoming F tick deliver (st (4 * rStar + 3)) (4 * rStar + 3) p
   have hq_extract : extractDecide (m₃ qStar) = some dStar := by
-    simp only [m₃, FDAsyncRoundProtocol.incoming, hq_alive, not_false_eq_true, hdel, and_self,
-      ↓reduceIte, hsend, ctSend, hm3, hdStar, extractDecide]
+    simp only [m₃, FDAsyncRoundProtocol.incoming, hqStar (tick (4 * rStar + 3)), not_false_eq_true,
+      hdel, and_self, ↓reduceIte, hsend, ctSend, hm3, hdStar, extractDecide]
   have hinc_some : (procs.dedup.findSome? fun j => extractDecide (m₃ j)).isSome = true :=
     List.findSome?_isSome_iff.mpr
       ⟨qStar, List.mem_dedup.mpr (hprocs qStar), by rw [hq_extract]; rfl⟩
@@ -993,8 +958,8 @@ theorem ctRoundProtocol_decides_in_good_round
   change (st ((4 * rStar + 3) + 1) p).decided.isSome = true
   rw [hstate_succ]
   simp only [m₃] at hinc_some
-  simp only [hp_alive, ↓reduceIte, ctUpdate, hm3, Nat.reduceEqDiff, Option.isSome_or, hinc_some,
-    Bool.or_true]
+  simp only [hp (tick (4 * rStar + 3)), ↓reduceIte, ctUpdate, hm3, Nat.reduceEqDiff,
+    Option.isSome_or, hinc_some, Bool.or_true]
 
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): under `2 * t < Fintype.card P` and
@@ -1011,20 +976,14 @@ theorem ctRoundProtocol_terminates_of_isEventuallyStrong
         true := by
   obtain ⟨t_stab, hstab⟩ := F.exists_stabilize
   obtain ⟨t_ewa, qStar, hqStar, h_unsusp⟩ := hES.2
-  let r₀ := max t_stab t_ewa
-  obtain ⟨rStar, hr₀_le, _, hcoord⟩ := exists_rotatingCoordinator_eq hprocs fallback qStar r₀
+  obtain ⟨rStar, hr₀_le, _, hcoord⟩ :=
+    exists_rotatingCoordinator_eq hprocs fallback qStar (max t_stab t_ewa)
   refine ⟨4 * (rStar + 1), ctRoundProtocol_decides_in_good_round hprocs fallback ht hadm x hqStar
     hcoord (fun k hk j hj => ?_) (fun k hk p hp => ?_)⟩
-  · have htk : t_stab ≤ tick k := by
-      have hid : k ≤ tick k := hadm.tick_strictMono.id_le k
-      have h1 : t_stab ≤ r₀ := le_max_left t_stab t_ewa
-      omega
-    exact (hstab (tick k) htk).2 j |>.mp hj
-  · have htk : t_ewa ≤ tick k := by
-      have hid : k ≤ tick k := hadm.tick_strictMono.id_le k
-      have h2 : t_ewa ≤ r₀ := le_max_right t_stab t_ewa
-      omega
-    exact h_unsusp (tick k) htk p hp
+  · have : k ≤ tick k := hadm.tick_strictMono.id_le k
+    exact (hstab (tick k) (by omega)).2 j |>.mp hj
+  · have : k ≤ tick k := hadm.tick_strictMono.id_le k
+    exact h_unsusp (tick k) (by omega) p hp
 
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Theorem 6.2.3, p. 246][ChandraToueg1996]): the `t`-oblivious protocol
@@ -1095,11 +1054,9 @@ private theorem fdState_eq_of_prefix {P V State Msg : Type*} [DecidableEq P]
       obtain ⟨hiff, hclosed⟩ := hdel q
       simp only [FDAsyncRoundProtocol.incoming]
       by_cases hq₂ : q ∉ F₂ (tick k) ∧ d₂ k q p = true
-      · have hq₁ : q ∉ F₁ (tick k) ∧ d₁ k q p = true := hiff.mpr hq₂
-        simp only [hq₁, hq₂, not_false_eq_true, and_self, ↓reduceIte]
-        rw [fdState_eq_of_prefix π hx hstep k (by omega) q (hclosed hq₂)]
-      · have hq₁ : ¬ (q ∉ F₁ (tick k) ∧ d₁ k q p = true) := fun h1 => hq₂ (hiff.mp h1)
-        simp only [hq₁, hq₂, ↓reduceIte]
+      · simp only [hiff.mpr hq₂, hq₂, not_false_eq_true, and_self, ↓reduceIte,
+          fdState_eq_of_prefix π hx hstep k (by omega) q (hclosed hq₂)]
+      · simp only [mt hiff.mp hq₂, hq₂, ↓reduceIte]
     rw [hprev, hH, hinc]
 
 /-- In a partitioned `◇P` scenario where `C = univ \ A` crashes at `t = 0`, `H = fun _ _ => C`, and
@@ -1167,21 +1124,15 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
     exact ⟨fun ⟨p, hp, hpm⟩ => hpm ▸ hp, fun hm => ⟨e.symm ⟨m, by omega⟩, by simpa using hm,
       by simp⟩⟩
   have hA₁_card : A₁.card = n - half := by
-    have hs := Finset.card_sdiff_add_card_eq_card (Finset.subset_univ A₀)
-    simp only [A₁, Finset.card_univ, n] at hs ⊢
-    omega
+    rw [show A₁ = A₀ᶜ from (compl_eq_univ_sdiff A₀).symm, card_compl, hA₀_card]
   have hA₀_le : A₀.card ≤ t := by omega
   have hA₁_le : A₁.card ≤ t := by omega
   have hA₀_quorum : n - t ≤ A₀.card := by omega
   have hA₁_quorum : n - t ≤ A₁.card := by omega
   let a₀ : P := e.symm ⟨0, by omega⟩
   let a₁ : P := e.symm ⟨n - 1, by omega⟩
-  have ha₀ : a₀ ∈ A₀ := by
-    simp only [a₀, A₀, mem_filter, mem_univ, Equiv.apply_symm_apply, true_and]
-    omega
-  have ha₁_not_A₀ : a₁ ∉ A₀ := by
-    simp only [a₁, A₀, mem_filter, mem_univ, Equiv.apply_symm_apply, true_and]
-    omega
+  have ha₀ : a₀ ∈ A₀ := by simp [a₀, A₀]; omega
+  have ha₁_not_A₀ : a₁ ∉ A₀ := by simp [a₁, A₀]; omega
   have ha₁ : a₁ ∈ A₁ := mem_sdiff.mpr ⟨mem_univ a₁, ha₁_not_A₀⟩
   let partDeliver : ℕ → P → P → Bool := fun _ q p => decide (q ∈ A₀ ↔ p ∈ A₀)
   -- Scenario 0 (`A₁` crashes at `t = 0`, inputs `v₀`) and Scenario 1 (`A₀` crashes, inputs `v₁`):
@@ -1206,11 +1157,9 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
   let deliver_A : ℕ → P → P → Bool := fun k q p =>
     if k < G then partDeliver k q p else true
   let x_A : P → V := fun p => if p ∈ A₀ then v₀ else v₁
-  have hEP_A : IsEventuallyPerfect F_A H_A := by
-    refine ⟨⟨0, fun p hp => ?_⟩, ⟨G, fun s hs p _ q _ => ?_⟩⟩
-    · simp only [F_A, FailurePattern.crashed_const, coe_empty, Set.mem_empty_iff_false] at hp
-    · have hlt : ¬ s < G := by omega
-      simp only [H_A, hlt, ↓reduceIte, notMem_empty, not_false_eq_true]
+  have hEP_A : IsEventuallyPerfect F_A H_A :=
+    ⟨⟨0, fun _ hp => by simp [F_A] at hp⟩,
+      ⟨G, fun s hs _ _ _ _ => by simp [H_A, Nat.not_lt.mpr hs]⟩⟩
   have hadm_A : AdmissibleFDNetwork F_A H_A t id deliver_A := by
     refine ⟨strictMono_id, fun k p _ q => ?_, fun k p _ => ?_⟩
     · by_cases hk : k < G <;> by_cases hp : p ∈ A₀ <;> by_cases hq : q ∈ A₀ <;>

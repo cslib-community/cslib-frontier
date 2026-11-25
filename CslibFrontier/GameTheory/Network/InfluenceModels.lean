@@ -208,10 +208,8 @@ private theorem unitMeasure_real_Iic {a : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) :
 
 private theorem unitMeasure_real_Ioi {a : ℝ} (ha0 : 0 ≤ a) (ha1 : a ≤ 1) :
     unitMeasure.real (Ioi a) = 1 - a := by
-  have hcompl : unitMeasure.real (Ioi a) = 1 - unitMeasure.real (Iic a) := by
-    have hu := probReal_compl_eq_one_sub (μ := unitMeasure) (s := Iic a) measurableSet_Iic
-    simpa only [compl_Iic] using hu
-  rw [hcompl, unitMeasure_real_Iic ha0 ha1]
+  simpa only [compl_Iic, unitMeasure_real_Iic ha0 ha1] using
+    probReal_compl_eq_one_sub (μ := unitMeasure) (s := Iic a) measurableSet_Iic
 
 private theorem unitMeasure_real_Ioc {a b : ℝ} (ha0 : 0 ≤ a) (hab : a ≤ b) (hb1 : b ≤ 1) :
     unitMeasure.real (Ioc a b) = b - a := by
@@ -242,11 +240,8 @@ theorem ae_mem_Ioo_thresholdMeasure (V : Type*) [Fintype V] :
 
 private theorem insert_inter_inNeighbors_of_not_adj {V : Type*} [DecidableEq V] [Fintype V]
     {G : Digraph V} [DecidableRel G.Adj] {u v : V} (hadj : ¬ G.Adj u v) (X : Finset V) :
-    insert u X ∩ inNeighbors G v = X ∩ inNeighbors G v := by
-  ext w
-  simp only [Finset.mem_inter, Finset.mem_insert, mem_inNeighbors]
-  exact ⟨fun ⟨h1, h2⟩ => ⟨h1.resolve_left fun hwu => hadj (hwu ▸ h2), h2⟩,
-    fun ⟨h1, h2⟩ => ⟨Or.inr h1, h2⟩⟩
+    insert u X ∩ inNeighbors G v = X ∩ inNeighbors G v :=
+  Finset.insert_inter_of_notMem (mt mem_inNeighbors.mp hadj)
 
 /-! ## Progressive Threshold Dynamics and Outcome Distribution -/
 
@@ -430,10 +425,7 @@ private theorem measurableSet_thresholdStep_eq (A B : Finset V) :
   rw [heq]
   exact MeasurableSet.univ_pi fun v => by
     split_ifs
-    · exact MeasurableSet.univ
-    · exact MeasurableSet.empty
-    · exact measurableSet_Iic
-    · exact measurableSet_Ioi
+    exacts [.univ, .empty, measurableSet_Iic, measurableSet_Ioi]
 
 theorem measurableSet_thresholdFinal_eq (S A : Finset V) :
     MeasurableSet {θ : V → ℝ | M.thresholdFinal θ S = A} := by
@@ -621,13 +613,6 @@ theorem _root_.Cslib.GameTheory.Network.IndependentCascadeModel.hasDiminishingRe
     (IC : IndependentCascadeModel G) : IC.toCascadeModel.HasDiminishingReturns :=
   fun _ _ _ _ _ _ => le_rfl
 
-private theorem seqSurvival_congr_ext {v : V} :
-    ∀ (us : List V) {X₁ X₂ : Finset V}, X₁ = X₂ →
-      seqSurvival C.prob v us X₁ = seqSurvival C.prob v us X₂ := by
-  intro us _ _ h
-  subst h
-  rfl
-
 /-- `seqSurvival C.prob v us X` is invariant under permuting any duplicate-free list `us` disjoint
 from `X`, confirming multi-step order-independence ([Kleinberg2007], Section 24.3, pp. 620–621). -/
 theorem seqSurvival_perm (v : V) {us₁ us₂ : List V} (hp : us₁.Perm us₂) :
@@ -650,9 +635,7 @@ theorem seqSurvival_perm (v : V) {us₁ us₂ : List V} (hp : us₁.Perm us₂) 
     have hu₁ : u₁ ∉ X := hdisj u₁ List.mem_cons_self
     have hu₂ : u₂ ∉ X := hdisj u₂ (List.mem_cons_of_mem u₁ List.mem_cons_self)
     simp only [seqSurvival, ← mul_assoc]
-    rw [C.swap_survival v u₁ u₂ X hne hu₁ hu₂]
-    have hins : insert u₁ (insert u₂ X) = insert u₂ (insert u₁ X) := Finset.insert_comm u₁ u₂ X
-    rw [hins]
+    rw [C.swap_survival v u₁ u₂ X hne hu₁ hu₂, Finset.insert_comm u₁ u₂ X]
   | @trans l₁ l₂ l₃ hp₁ _ ih₁ ih₂ =>
     intro X hnd hdisj
     exact (ih₁ hnd hdisj).trans
@@ -667,8 +650,7 @@ private theorem seqSurvival_append (v : V) (us₁ us₂ : List V) :
   | cons u us₁ ih =>
     intro X
     simp only [List.cons_append, seqSurvival, ih (insert u X), mul_assoc]
-    congr 2
-    refine C.seqSurvival_congr_ext us₂ ?_
+    congr 3
     ext w
     simp
 
@@ -691,15 +673,9 @@ private theorem survivalProb_eq_seqSurvival (v : V) {us : List V} (hnd : us.Nodu
 
 theorem survivalProb_insert (v : V) {u : V} {X : Finset V} (hu : u ∉ X) :
     C.survivalProb v (insert u X) = C.survivalProb v X * (1 - C.prob v u X) := by
-  have hnd : (X.toList ++ [u]).Nodup := by
-    rw [List.nodup_append]
-    refine ⟨Finset.nodup_toList X, List.nodup_singleton u, fun a ha b hb hab => ?_⟩
-    rw [List.mem_singleton] at hb
-    subst hb hab
-    exact hu (Finset.mem_toList.mp ha)
-  have hfin : (X.toList ++ [u]).toFinset = insert u X := by
-    ext x
-    simp
+  have hnd : (X.toList ++ [u]).Nodup := List.nodup_append_comm.mp
+    (List.nodup_cons.mpr ⟨mt Finset.mem_toList.mp hu, Finset.nodup_toList X⟩)
+  have hfin : (X.toList ++ [u]).toFinset = insert u X := Finset.ext fun _ => by simp
   rw [← hfin, C.survivalProb_eq_seqSurvival v hnd, C.seqSurvival_append, Finset.toList_toFinset,
     Finset.union_empty]
   simp [survivalProb, seqSurvival]
@@ -740,15 +716,9 @@ private theorem survivalProb_inNeighbors_inter (v : V) (X : Finset V) :
   | empty => simp
   | insert u X hu ih =>
     by_cases hadj : G.Adj u v
-    · have hins : insert u X ∩ inNeighbors G v = insert u (X ∩ inNeighbors G v) := by
-        ext w
-        simp only [Finset.mem_inter, Finset.mem_insert, mem_inNeighbors]
-        exact ⟨fun ⟨h1, h2⟩ => h1.elim (fun hwu => Or.inl hwu) (fun hwX => Or.inr ⟨hwX, h2⟩),
-          fun h => h.elim (fun hwu => ⟨Or.inl hwu, hwu ▸ hadj⟩)
-            fun ⟨hwX, h2⟩ => ⟨Or.inr hwX, h2⟩⟩
-      have hu' : u ∉ X ∩ inNeighbors G v := fun h => hu (Finset.mem_inter.mp h).1
-      rw [hins, C.survivalProb_insert v hu', C.survivalProb_insert v hu, ih,
-        C.inNeighbors_congr v u X]
+    · have hu' : u ∉ X ∩ inNeighbors G v := fun h => hu (Finset.mem_inter.mp h).1
+      rw [Finset.insert_inter_of_mem (mem_inNeighbors.mpr hadj), C.survivalProb_insert v hu',
+        C.survivalProb_insert v hu, ih, C.inNeighbors_congr v u X]
     · rw [insert_inter_inNeighbors_of_not_adj hadj X, C.survivalProb_insert v hu,
         C.prob_eq_zero_of_not_adj v u X hadj, sub_zero, mul_one, ih]
 
@@ -1206,9 +1176,7 @@ theorem activeSetProb_eq_toGeneralThresholdModel
             Function.update_of_ne (fun h => hw (Finset.mem_insert.mpr (Or.inl h))) _ _]
           refine and_congr_left' (forall_congr' fun w => imp_congr_right fun hw => ?_)
           rw [Function.update_of_ne fun h => hw (Finset.mem_insert.mpr (Or.inl h))]
-        by_cases hθ : θ ∈ S_succ
-        · rw [indicator_of_mem hθ, indicator_of_mem (hmem_iff.mpr hθ)]
-        · rw [indicator_of_notMem hθ, indicator_of_notMem (mt hmem_iff.mp hθ)]
+        by_cases hθ : θ ∈ S_succ <;> simp [hθ, hmem_iff]
       have hE1_eq : E1 = {θ | θ v ∈ Ioc g0 g1 ∧ θ ∈ S_succ} := by
         ext θ
         simp only [E1, S_succ, survEvent, mem_Ioc, mem_ofPred_eq]
@@ -1334,12 +1302,7 @@ theorem mem_seedLayer0 {V : Type*} {T : ℕ} {S : Finset V} {x : V × Fin (T + 1
   rcases x with ⟨v, t⟩
   rw [seedLayer0, Finset.mem_map]
   change (∃ u ∈ S, (u, (0 : Fin (T + 1))) = (v, t)) ↔ t = 0 ∧ v ∈ S
-  constructor
-  · rintro ⟨u, huS, hpair⟩
-    cases hpair
-    exact ⟨rfl, huS⟩
-  · rintro ⟨rfl, hvS⟩
-    exact ⟨v, hvS, rfl⟩
+  simp [and_comm, eq_comm]
 
 theorem seedLayer0_union {V : Type*} [DecidableEq V] (T : ℕ) (A B : Finset V) :
     seedLayer0 T (A ∪ B) = seedLayer0 T A ∪ seedLayer0 T B := by
@@ -1499,18 +1462,14 @@ theorem nonprogStepInfluence_eq_toTimeLayered (T : ℕ) (t : Fin (T + 1)) (S : F
   filter_upwards [ae_mem_Ioo_thresholdMeasure (V × Fin (T + 1))] with θ hθ
   congr 1
   let emb : V ↪ V × Fin (T + 1) := ⟨fun v => (v, t), fun _ _ h => congrArg Prod.fst h⟩
-  have hmap : (M.nonprogActive θ S t).map emb =
-      ((M.toTimeLayered T).thresholdFinal θ (seedLayer0 T S)).filter (·.2 = t) := by
-    ext ⟨v, s⟩
-    rw [Finset.mem_map, Finset.mem_filter]
-    exact ⟨fun ⟨u, hu, hpair⟩ => by
-        cases hpair
-        exact ⟨(M.mem_thresholdFinal_toTimeLayered_iff (fun w => (hθ (w, 0)).1) S v t).mpr hu, rfl⟩,
-      fun ⟨hmem, hst⟩ => by
-        subst hst
-        exact ⟨v, (M.mem_thresholdFinal_toTimeLayered_iff (fun w => (hθ (w, 0)).1) S v s).mp hmem,
-          rfl⟩⟩
-  rw [← hmap, Finset.card_map]
+  have hemb : ∀ a, emb a = (a, t) := fun _ => rfl
+  rw [← Finset.card_map emb]
+  congr 2
+  ext ⟨v, s⟩
+  by_cases hst : s = t
+  · subst hst
+    simp [hemb, M.mem_thresholdFinal_toTimeLayered_iff fun w => (hθ (w, 0)).1]
+  · simp [hemb, hst, Ne.symm hst]
 
 end GeneralThresholdModel
 

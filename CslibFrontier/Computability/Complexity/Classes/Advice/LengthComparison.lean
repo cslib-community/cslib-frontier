@@ -77,14 +77,10 @@ private def decodePattern (p : List Bool × List Bool) : Bool :=
 
 private theorem computableInPolyTime_decodePattern :
     ComputableInPolyTime decodePattern (encPair encBits encBits) encBool := by
-  have he : ComputableInPolyTime (List.isEmpty (α := Bool)) encBits encBool :=
-    ComputableInPolyTime.bitsIsEmpty
-  have hh : ComputableInPolyTime (fun l : List Bool => l.headD false) encBits encBool :=
-    (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
+  have he := ComputableInPolyTime.bitsIsEmpty
+  have hh := (ListEncoding.headD (enc₁ := encBool) (enc := encBits) false).computableInPolyTime
   unfold decodePattern
-  exact (he.comp (ComputableInPolyTime.fst encBits encBits)).ite (ComputableInPolyTime.const false)
-    ((hh.comp (ComputableInPolyTime.fst encBits encBits)).ite
-      (hh.comp (ComputableInPolyTime.snd encBits encBits)) (ComputableInPolyTime.const true))
+  fun_prop
 
 private theorem decodePattern_code (c : Fin 3) (x : List Bool) :
     decodePattern (patternCode c, x) =
@@ -183,11 +179,8 @@ theorem exists_nonmonotone_advice_bounds :
     split_ifs
     · exact (Nat.lt_two_pow_self (n := n)).le
     · exact Nat.two_pow_pos n
-  have hunbounded (b : ℕ) : ∃ n, b < gap n := by
-    refine ⟨2 * (b + 1), ?_⟩
-    have hn : (2 * (b + 1)) % 2 = 0 := by omega
-    simp only [gap, upper, lower, heven _ hn, hn, ↓reduceIte, List.length_nil, Nat.sub_zero]
-    omega
+  have hunbounded (b : ℕ) : ∃ n, b < gap n :=
+    ⟨2 * (b + 1), by simp [gap, upper, lower, advice]; omega⟩
   have hL : L ∈ PWithAdvice lower :=
     ⟨advice, fun _ => rfl, {p | decodePattern p = true},
       ⟨decodePattern, computableInPolyTime_decodePattern, fun _ => Iff.rfl⟩, fun _ => Iff.rfl⟩
@@ -200,13 +193,11 @@ theorem exists_nonmonotone_advice_bounds :
     have hadvice : advice n = patternCode (color j) := by simp [advice, n, hodd]
     have hrep (c : Bool) : (if c then (pattern (color j)).2 else (pattern (color j)).1) =
         decide (([b], List.replicate n c) ∈ predicates j) := by
-      have h : decodePattern (advice n, List.replicate n c) =
-          decide (([b], List.replicate n c) ∈ predicates j) :=
-        Bool.eq_iff_iff.mpr (by
-          simpa only [L, Set.mem_ofPred_eq, List.length_replicate, hb, ← hj, decide_eq_true_eq]
-            using hLA (List.replicate n c))
-      rw [hadvice, decodePattern_code] at h
-      exact h
+      have hc := decodePattern_code (color j) (List.replicate n c)
+      rw [← hadvice, show (List.replicate n c).headD false = c from rfl] at hc
+      rw [← hc, Bool.eq_iff_iff]
+      simpa only [L, Set.mem_ofPred_eq, List.length_replicate, hb, ← hj, decide_eq_true_eq]
+        using hLA (List.replicate n c)
     exact hcolor j b (Prod.ext (hrep false) (hrep true))
   refine ⟨lower, gap, L, hlowPoly, hgapPoly, hcap, ?_, hunbounded, hL, hsum ▸ hnot⟩
   intro n

@@ -233,9 +233,7 @@ private theorem prop_identity_exchange_det {x z : R} (h : x * z = 1) (sa : Word 
         ((matM x sa sd sc sb).submatrix (exchangeBD μ ν) (exchangeBD μ ν)),
     ← det_mul_column (multiplier' x) (of fun i j => multiplier' x j *
       (matM x sa sd sc sb).submatrix (exchangeBD μ ν) (exchangeBD μ ν) i j)]
-  congr 1
-  ext i j
-  exact prop_identity_exchange h sa sb sc sd i j
+  exact congrArg det (Matrix.ext (prop_identity_exchange h sa sb sc sd))
 
 /-- Proof of Proposition B.2, reflection: the multipliers at `a, c, d, b` contain `X` to the powers
 `e₁, e₁, e₂ - 2ν, e₂ + 2ν`, `Θ` in all, and the factors `(y - 1)^(2ν)` and `(1 - y)^(2ν)` cancel.
@@ -249,28 +247,19 @@ private theorem prop_identity_reflection [IsDomain R] {x z : R} (h : x * z = 1) 
     x ^ (2 * (e₁ + e₂)) * psi z sa sb sc sd = psi x sa sd sc sb := by
   have key := prop_identity_exchange_det h sa sb sc sd
   rw [prod_multiplier, prod_multiplier, prod_multiplier'] at key
-  have hne : (1 - x ^ 2) ^ ν * (1 - x ^ 2) ^ ν ≠ 0 := by
-    have : (1 - x ^ 2) ≠ 0 := sub_ne_zero.2 (Ne.symm h1)
-    exact mul_ne_zero (pow_ne_zero _ this) (pow_ne_zero _ this)
+  have hne : (1 - x ^ 2) ^ ν * (1 - x ^ 2) ^ ν ≠ 0 :=
+    mul_ne_zero (pow_ne_zero _ (sub_ne_zero.2 h1.symm)) (pow_ne_zero _ (sub_ne_zero.2 h1.symm))
   refine mul_left_cancel₀ hne ?_
   have hs : (x ^ 2 - 1) ^ ν * (x ^ 2 - 1) ^ ν = (1 - x ^ 2) ^ ν * (1 - x ^ 2) ^ ν := by
     rw [← mul_pow, ← mul_pow]
-    congr 1
-    ring
-  have hν1 : ∀ f : Fin ν → ℕ, ∑ i, 2 * f i + ν = ∑ i, (2 * f i + 1) := fun f => by
-    simp [Finset.sum_add_distrib]
-  have hν2 : ∀ f : Fin ν → ℕ, ∑ i, (2 * f i + 2) = ∑ i, (2 * f i + 1) + ν := fun f => by
-    simp [Finset.sum_add_distrib]
-    ring
+    exact congrArg (· ^ ν) (by ring)
   have hexp : (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
       (∑ i, (2 * sb.row i + 2)) +
           ((∑ i, (2 * sa.col i + 1)) + (∑ i, (2 * sc.col i + 1)) + (∑ i, 2 * sd.col i) +
       ∑ i, (2 * sb.col i + 2)) = 2 * (e₁ + e₂) := by
     unfold wordEnergy at ha hb hc hd
-    have := hν1 sd.row
-    have := hν1 sd.col
-    have := hν2 sb.row
-    have := hν2 sb.col
+    simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+      smul_eq_mul] at ha hb hc hd ⊢
     omega
   generalize (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
     (∑ i, (2 * sb.row i + 2)) = a at key hexp
@@ -358,9 +347,7 @@ private theorem exists_products {β γ κ : Type} [Fintype κ] {f : β → γ �
   · have hlt : ¬ t.1 < Fintype.card κ :=
       fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, by simp, by simp [Fin.castLE]⟩
     simp [hlt]
-  · have hlt : (Fin.castLE hr (e t)).1 < Fintype.card κ := (e t).2
-    simp only [dite_eq_left hlt]
-    simp
+  · simp [(e t).2]
 
 section Expansion
 
@@ -447,14 +434,10 @@ private theorem prop_identity_term_count (K N : ℕ) : (goodT K N).card ≤ stat
       unfold enT energy
       rw [Finset.sum_disjSum, Finset.sum_map, Finset.sum_map]
       rfl
-    refine mem_coe.2 (mem_lowStates.2 ⟨?_, ?_⟩)
-    · simpa using hT'.1
-    · rw [← e1]
-      exact hT'.2
+    exact mem_coe.2 (mem_lowStates.2 ⟨by simpa using hT'.1, e1 ▸ hT'.2⟩)
   · intro T _ T' _ h
-    have h1 := Finset.map_injective _ (Prod.ext_iff.1 h).1
-    have h2 := Finset.map_injective _ (Prod.ext_iff.1 h).2
-    rw [← T.toLeft_disjSum_toRight, ← T'.toLeft_disjSum_toRight, h1, h2]
+    rw [← T.toLeft_disjSum_toRight, ← T'.toLeft_disjSum_toRight,
+      Finset.map_injective _ (Prod.ext_iff.1 h).1, Finset.map_injective _ (Prod.ext_iff.1 h).2]
 
 open Polynomial in
 /-- Proof of Proposition B.2, the coefficients: the degree `N - E(T)` can be split between the two
@@ -573,14 +556,11 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
   let φ : ℤ[X] →+* F := eval₂RingHom (Int.castRingHom F) x⁻¹
   let _ : Invertible (x⁻¹ : F) := ⟨x, hxz, mul_comm x x⁻¹ ▸ hxz⟩
   have hrev : ι P.reverse * (x⁻¹) ^ P.natDegree = φ P := by
-    have := eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
-    rwa [hi, coe_eval₂RingHom]
+    rw [hi, coe_eval₂RingHom]
+    exact eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
   have key := prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
-  have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by
-    rw [hP, map_psi]
-    simp [φ]
-  have hιQ : psi x sa sd sc sb = ι Q := by rw [hQ, map_psi]
-  rw [hφP, hιQ, ← hrev] at key
+  have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by simp [hP, map_psi, φ]
+  rw [hφP, show psi x sa sd sc sb = ι Q by rw [hQ, map_psi], ← hrev] at key
   apply hι
   rw [map_mul, map_mul, map_pow, map_pow, ← key]
   change ι P.reverse * x ^ _ = _ * x ^ _

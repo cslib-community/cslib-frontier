@@ -122,49 +122,30 @@ private theorem read_header (hB : I.graph.n ≤ B) :
       (encBoundedSTCON I)[2 * (I.graph.n + 1 + I.graph.s + 1 + i) + 1]? =
         some (decide (i < I.graph.t)) := by
     rw [I.input_graph (by rw [I.graph.length_encode]; omega), I.graph.getElem?_encode_t hi]
+  have hfalse {x : Option Bool} {n : ℕ} (hx : x = some (decide (n < n))) : x ≠ some true := by
+    simp [hx]
   have hn := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.n) (u := 0) (c := 0) (fun j => [j, 0, 0, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb hj (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_zero]
-      rw [hN j hj.le]
-      simp [hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_zero]
-      rw [hN _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+    (fun j hj => by exact decide_eq_true hj ▸ hN j hj.le)
+    (by exact hfalse (hN _ le_rfl))
+    0 (Nat.zero_le _)
   have hs' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.s) (u := 1) (c := 2) (fun j => [I.graph.n, j, 0, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hS j hj.le]
-      simp [hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hS _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+    (fun j hj => by exact decide_eq_true hj ▸ hS j hj.le)
+    (by exact hfalse (hS _ le_rfl))
+    0 (Nat.zero_le _)
   have ht' := reachesOut_count (P := writer) (w := encBoundedSTCON I)
     (n := I.graph.t) (u := 2) (c := 4)
     (fun j => [I.graph.n, I.graph.s, j, 0, 0, 0, 0, 0])
     (by rfl) (by rfl) (fun _ _ => by simp)
     (fun j hj => hb le_rfl (by omega) (by omega))
-    (fun j hj => by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hT j hj.le]
-      simp [hj])
-    (by
-      simp only [framed, eval_add, eval_mul, eval_const, eval_reg,
-        List.getD_cons_succ, List.getD_cons_zero]
-      rw [hT _ le_rfl]
-      simp) 0 (Nat.zero_le _)
+    (fun j hj => by exact decide_eq_true hj ▸ hT j hj.le)
+    (by exact hfalse (hT _ le_rfl))
+    0 (Nat.zero_le _)
   exact hn.trans (hs'.trans ht')
 
 
@@ -379,19 +360,11 @@ theorem computableInLogSpace_layered :
   have hcap := Nat.min_le_right I.bound I.graph.n
   have hnB : I.graph.n ≤ B := by dsimp [B]; nlinarith
   have hLB : L ≤ B := by dsimp [B]; nlinarith
-  have hNB : I.layered.n ≤ B := by
-    change (I.cap + 1) * I.graph.n ≤ B
-    change min I.bound I.graph.n ≤ I.graph.n at hcap
-    dsimp [B, cap]
-    nlinarith
-  have hsource : (I.graph.s : ℕ) ≤ I.layered.n := by
-    have := I.graph.s.isLt
-    change (I.graph.s : ℕ) ≤ (I.cap + 1) * I.graph.n
-    nlinarith
+  have hNB : I.layered.n ≤ B := by dsimp [layered, B, cap]; nlinarith
+  have hsource : (I.graph.s : ℕ) ≤ I.layered.n := by dsimp [layered]; nlinarith [I.graph.s.isLt]
   have htarget : I.cap * I.graph.n + I.graph.t ≤ I.layered.n := by
-    have := I.graph.t.isLt
-    change I.cap * I.graph.n + I.graph.t ≤ (I.cap + 1) * I.graph.n
-    nlinarith
+    dsimp [layered]
+    nlinarith [I.graph.t.isLt]
   obtain ⟨p, hp, hparse⟩ := I.read_bound_loop I.bound.bits (j := 2 * I.graph.encode.length + 1)
     (a := 0) (p := 1) I.input_bound hnB (by omega) (Nat.zero_le _)
     (by have := I.graph.n_pos; omega)

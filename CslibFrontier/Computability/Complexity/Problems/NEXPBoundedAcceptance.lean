@@ -153,12 +153,8 @@ theorem accepts_desc_iff {k : ℕ} {State : Type} [Fintype State] (eS : State �
     (⟨desc eS eBit tm, x, T⟩ : NEXPBoundedAcceptanceInstance).Accepts c ↔
       (tm.runFrom (tm.initCfg (encPair encBits encBits (x, c))) T).Halted ∧
         (tm.runFrom (tm.initCfg (encPair encBits encBits (x, c))) T).output = [true] := by
-  rw [Accepts, universal_desc, Prod.mk.injEq, Cfg.Halted, Option.isNone_iff_eq_none]
-  constructor
-  · rintro ⟨hout, hhalt⟩
-    exact ⟨hhalt, List.map_injective_iff.mpr eBit.injective (hout.trans List.map_singleton.symm)⟩
-  · rintro ⟨hhalt, hout⟩
-    exact ⟨by rw [hout, List.map_singleton], hhalt⟩
+  rw [Accepts, universal_desc, Prod.mk.injEq, Cfg.Halted, Option.isNone_iff_eq_none, and_comm,
+    ← List.map_singleton (f := eBit), (List.map_injective_iff.mpr eBit.injective).eq_iff]
 
 end NEXPBoundedAcceptanceInstance
 
@@ -224,14 +220,10 @@ theorem computableInPolyTime_verifier :
   have hinput : ComputableInPolyTime
       (fun q : NEXPBoundedAcceptanceInstance × List Bool =>
         (encPair encBits encBits (q.1.input, unframe q.2)).map eBit)
-      (encPair encNEXPBoundedAcceptanceInstance encBits) (encList encUnary) := by
-    have hin : ComputableInPolyTime
-        (fun q : NEXPBoundedAcceptanceInstance × List Bool =>
-          encPair encBits encBits (q.1.input, unframe q.2))
-        (encPair encNEXPBoundedAcceptanceInstance encBits) encBits :=
-      hpair.comp ((encNEXPBoundedAcceptanceInstance_input_polyTime (.fst _ _)).prod
-        (ComputableInPolyTime.unframe.comp (.snd _ _)))
-    exact computableInPolyTime_map_eBit.comp hin
+      (encPair encNEXPBoundedAcceptanceInstance encBits) (encList encUnary) :=
+    computableInPolyTime_map_eBit.comp
+      (hpair.comp ((encNEXPBoundedAcceptanceInstance_input_polyTime (.fst _ _)).prod
+        (ComputableInPolyTime.unframe.comp (.snd _ _))))
   have hmin : ComputableInPolyTime
       (fun q : NEXPBoundedAcceptanceInstance × List Bool => min q.2.length q.1.steps)
       (encPair encNEXPBoundedAcceptanceInstance encBits) encUnary :=
@@ -334,9 +326,8 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
   have htV (q : List Bool × List Bool) :
       tV q ≤ cV * ((encPair encBits encBits q).length + 1) := le_rfl
   refine ⟨fun a => ⟨desc eSV eBit tm, enc a, stepBound a⟩, ?_, fun a => ?_⟩
-  · have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
-    have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary := by fun_prop
-    have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary := hp.comp hlen
+  · have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
+      hp.comp (by fun_prop)
     have hexp : ComputableInPolyTime (fun a => p (enc a).length + (enc a).length + C)
         enc encUnary := by fun_prop
     have hsteps : ComputableInPolyTime stepBound enc encNat :=
@@ -376,10 +367,8 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
         [ntm.checkChoices encBits (enc a, c)] at hout
-      have hcheck : ntm.checkChoices encBits (enc a, c) = true := hc_acc
-      refine ⟨c, hc_step, ?_⟩
-      rw [NEXPBoundedAcceptanceInstance.accepts_desc_iff, hout, hcheck]
-      exact ⟨hhalt, rfl⟩
+      exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
+        (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
     · rintro ⟨c, -, hacc⟩
       rw [NEXPBoundedAcceptanceInstance.accepts_desc_iff] at hacc
       rcases hacc with ⟨hhalt, hout⟩

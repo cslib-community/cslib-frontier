@@ -140,9 +140,7 @@ private theorem sum_sum_mul (f g : (Fin k → α) → ℝ) :
     ∑ x, ∑ y, (iid p k x).toReal * (iid q k y).toReal * (f x * g y) =
       (∑ x, (iid p k x).toReal * f x) * ∑ y, (iid q k y).toReal * g y := by
   rw [sum_mul]
-  refine sum_congr rfl fun x _ => ?_
-  rw [mul_sum]
-  exact sum_congr rfl fun y _ => by ring
+  exact sum_congr rfl fun x _ => (sum_congr rfl fun y _ => by ring).trans (mul_sum ..).symm
 
 omit [DecidableEq α] in
 private theorem sum_sum_const (c : ℝ) :
@@ -402,11 +400,8 @@ private theorem setup {p : PMF α} {k : ℕ} {ε δ b : ℝ} (hδ : 0 < δ)
   have hK : 0 < (k : ℝ) - 1 := by
     by_contra! h
     linarith [mul_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonpos_of_nonneg h (sq_nonneg ε)) hδ.le]
-  refine ⟨hK, ?_, (sq_nonneg ε).lt_of_ne' fun h => ?_⟩
-  · rintro rfl
-    norm_num at hK
-  · rw [h] at hk
-    linarith
+  refine ⟨hK, fun h => by norm_num [h] at hK, (sq_nonneg ε).lt_of_ne' fun h => ?_⟩
+  linarith [h ▸ hk]
 
 /-- **Completeness of the `ℓ₂` closeness tester**: if `‖p‖₂², ‖q‖₂² ≤ b`, `‖p - q‖₂² ≤ ε² / 4`
 (that is, `‖p - q‖₂ ≤ ε / 2` for `0 < ε`) and `36 √b ≤ (k - 1) ε² δ`, the tester accepts with
@@ -426,11 +421,9 @@ theorem le_acceptProb₂_closenessTester {p q : PMF α} {k : ℕ} {ε δ b : ℝ
   have h0 : (0 : ℝ) ≤ k.choose 2 := Nat.cast_nonneg _
   unfold closenessTester
   rw [acceptProb₂_pure_eq_one_sub]
-  suffices h : ∑ x, ∑ y, (iid p k x).toReal * (iid q k y).toReal *
-      (if !decide (closenessStatistic x y ≤ closenessThreshold k ε) then 1 else 0) ≤ δ by
-    linarith
-  refine mass_le p q _ closenessStatistic _ (k.choose 2 * ε ^ 2 / 4) δ _ (by rw [hN]; positivity)
-    ?_ (sum_sum_iid_mul_closenessStatistic_sub_sq_le p q hk0 hp hq) ?_
+  refine sub_le_sub_left (mass_le p q _ closenessStatistic _ (k.choose 2 * ε ^ 2 / 4) δ _
+    (by rw [hN]; positivity) ?_
+    (sum_sum_iid_mul_closenessStatistic_sub_sq_le p q hk0 hp hq) ?_) 1
   · intro x y hxy
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_le, closenessThreshold_eq] at hxy
     exact le_abs.mpr (Or.inl (by linarith [mul_le_mul_of_nonneg_left hpq h0]))
@@ -480,10 +473,9 @@ theorem isClosenessTester_closenessTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
         4 / 3 * (((k : ℝ) - 1) * ε ^ 2) / Fintype.card α by ring, le_div_iff₀ hn]
     linarith
   refine ⟨fun p => ?_, fun p q hpq => ?_⟩
-  · have h0 : ∑ a, ((p a).toReal - (p a).toReal) ^ 2 = 0 := by simp
-    linarith [le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)
+  · linarith [le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)
       (collisionProbability_le_one p) (collisionProbability_le_one p) (key p)
-      (h0.trans_le (by positivity))]
+      (by simp; nlinarith)]
   · have hn := card_pos p
     refine acceptProb₂_closenessTester_le (by norm_num) (collisionProbability_le_one p)
       (collisionProbability_le_one q) (key p) ?_

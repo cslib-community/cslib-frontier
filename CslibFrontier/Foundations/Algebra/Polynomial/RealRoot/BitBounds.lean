@@ -157,8 +157,7 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
         _ = (2 : ℚ) ^ (2 * B) := by rw [two_mul, pow_add]
     have hb_le : b ≤ ((2 ^ (2 * B) + 1 : ℕ) : ℚ) := by
       dsimp only [b]
-      push_cast
-      linarith
+      push_cast; linarith
     have hfloor_le : ((Int.natAbs b.num / b.den : ℕ) : ℚ) ≤ b := by
       have hnum_eq : (Int.natAbs b.num : ℚ) / b.den = b :=
         calc (Int.natAbs b.num : ℚ) / b.den
@@ -234,8 +233,7 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   have hsq : sqNormList ns ≤ t.length * 4 ^ ((cs.length + 1) * B) := by
     have h1 := foldl_sqNorm_le_of_bound ns (2 ^ ((cs.length + 1) * B)) 0 hns_bound
     have h4 : (2 ^ ((cs.length + 1) * B)) ^ 2 = 4 ^ ((cs.length + 1) * B) := by
-      rw [← pow_mul, mul_comm _ 2, pow_mul]
-      rfl
+      rw [← pow_mul, mul_comm _ 2, pow_mul]; rfl
     simpa only [sqNormList, zero_add, h4, ns, clearDenomsList, List.length_map] using h1
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
@@ -261,10 +259,9 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
     have hsn := clog4_sqNormList_le_of_bitBound hB
     have hd_le_n : (ofCoeffList cs).natDegree ≤ cs.length :=
       (natDegree_ofCoeffList_le cs).trans (Nat.sub_le _ _)
-    have hclog_d : Nat.clog 4 (ofCoeffList cs).natDegree ≤ cs.length := by
-      refine Nat.clog_le_of_le_pow ?_
-      exact hd_le_n.trans
-        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide : 2 ≤ 4) cs.length))
+    have hclog_d : Nat.clog 4 (ofCoeffList cs).natDegree ≤ cs.length :=
+      Nat.clog_le_of_le_pow (hd_le_n.trans
+        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide : 2 ≤ 4) cs.length)))
     have h1 : ((ofCoeffList cs).natDegree + 2) * Nat.clog 4 (ofCoeffList cs).natDegree ≤
         (cs.length + 2) * cs.length :=
       Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2) hclog_d
@@ -272,10 +269,7 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
           Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
         cs.length * (cs.length + (cs.length + 1) * B) :=
       Nat.mul_le_mul ((Nat.sub_le _ _).trans hd_le_n) hsn
-    have hsum : 1 + 2 * (B + 1) + (cs.length + 2) * cs.length +
-        cs.length * (cs.length + (cs.length + 1) * B) ≤ (cs.length + 2) ^ 2 * (B + 2) := by
-      nlinarith
-    omega
+    nlinarith
   · rw [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (by omega)]
     exact Nat.zero_le _
 
@@ -285,13 +279,11 @@ def DyadicBounded (b e : ℕ) (q : ℚ) : Prop :=
 
 /-- Any natural number `(b : ℚ)` satisfies `DyadicBounded b 0`. -/
 theorem DyadicBounded.of_nat (b : ℕ) : DyadicBounded b 0 (b : ℚ) :=
-  ⟨(b : ℤ), by simp only [pow_zero, div_one, Int.cast_natCast], by simp only [Int.natAbs_natCast,
-    pow_zero, mul_one, le_refl]⟩
+  ⟨b, by simp, by simp⟩
 
 /-- `-(b : ℚ)` satisfies `DyadicBounded b 0`. -/
 theorem DyadicBounded.of_neg_nat (b : ℕ) : DyadicBounded b 0 (-(b : ℚ)) :=
-  ⟨-(b : ℤ), by simp only [pow_zero, div_one, Int.cast_neg, Int.cast_natCast],
-    by simp only [Int.natAbs_neg, Int.natAbs_natCast, pow_zero, mul_one, le_refl]⟩
+  ⟨-b, by simp, by simp⟩
 
 /-- Monotonicity of `DyadicBounded` in the exponent `e ≤ e'`. -/
 theorem DyadicBounded.mono {b e e' : ℕ} {q : ℚ} (hq : DyadicBounded b e q) (he : e ≤ e') :
@@ -321,18 +313,15 @@ theorem DyadicBounded.mid {b e : ℕ} {u v : ℚ}
   · calc Int.natAbs (zu + zv)
         ≤ Int.natAbs zu + Int.natAbs zv := Int.natAbs_add_le _ _
       _ ≤ b * 2 ^ e + b * 2 ^ e := Nat.add_le_add hzu hzv
-      _ = b * 2 ^ (e + 1) := by
-          rw [pow_succ]
-          ring
+      _ = b * 2 ^ (e + 1) := by ring
 
 /-- Denominator bound `q.den ≤ 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.den_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :
     q.den ≤ 2 ^ e := by
-  obtain ⟨z, hq_eq, _⟩ := hq
-  have hdiv : q = Rat.divInt z ((2 : ℤ) ^ e) := by
-    simpa [Rat.divInt_eq_div] using hq_eq
-  have hdvd : q.den ∣ 2 ^ e := by exact_mod_cast (hdiv ▸ Rat.den_dvd z ((2 : ℤ) ^ e))
-  exact Nat.le_of_dvd (Nat.pow_pos zero_lt_two) hdvd
+  obtain ⟨z, rfl, _⟩ := hq
+  have hdvd : (((z : ℚ) / (2 : ℚ) ^ e).den : ℤ) ∣ (2 : ℤ) ^ e := by
+    simpa [Rat.divInt_eq_div] using Rat.den_dvd z ((2 : ℤ) ^ e)
+  exact Nat.le_of_dvd (Nat.pow_pos zero_lt_two) (by exact_mod_cast hdvd)
 
 /-- Numerator magnitude bound `Int.natAbs q.num ≤ b * 2 ^ e` for any `DyadicBounded b e q`. -/
 theorem DyadicBounded.natAbs_num_le {b e : ℕ} {q : ℚ} (hq : DyadicBounded b e q) :

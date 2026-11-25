@@ -214,12 +214,8 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     simp only [ite_true]
     congr 1
     cases hi : x i
-    · simp only [Bool.false_eq_true, ite_false, hc]
-      field_simp [hunmarked i hi]
-      rfl
-    · simp only [ite_true, hs]
-      field_simp [hmarked i hi]
-      rfl
+    · simp [hc, div_div_cancel_left₀ (hunmarked i hi), sN]
+    · simp [hs, div_div_cancel_left₀ (hmarked i hi), sN]
   | succ k ih =>
     set S := Real.sin ((2 * k + 1) * θ) with hS
     set C := Real.cos ((2 * k + 1) * θ) with hC
@@ -257,28 +253,22 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     simp only [groverControl_mk, Bool.true_and, ite_true]
     cases hi : x i
     · have hsu0 := hunmarked i hi
-      have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
-          Real.cos ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / su := by
-        rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
-        field_simp
-        rw [← hsN2]
-        ring
-      simp only [Bool.false_eq_true, ite_false]
-      rw [← hreal]
-      push_cast
+      suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) - C / su =
+          Real.cos ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / su by
+        simpa [hi] using congrArg (Complex.ofReal : ℝ → ℂ) this
+      rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
+      field_simp
+      rw [← hsN2]
       ring
     · have hst0 := hmarked i hi
-      have hreal : 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
-          Real.sin ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / st := by
-        have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
-        rw [harg, Real.sin_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
-        field_simp
-        rw [← hsN2]
-        linear_combination (2 * S * sN ^ 2) * hrel
-      simp only [ite_true]
-      rw [← hreal]
-      push_cast
-      ring
+      have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
+      suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
+          Real.sin ((2 * ((k + 1 : ℕ) : ℝ) + 1) * θ) / st by
+        simpa [hi, sub_neg_eq_add] using congrArg (Complex.ofReal : ℝ → ℂ) this
+      rw [harg, Real.sin_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
+      field_simp
+      rw [← hsN2]
+      linear_combination (2 * S * sN ^ 2) * hrel
 
 variable [DecidableEq (Fin N)]
 
@@ -330,26 +320,19 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
     set y := (2 * (T : ℝ) + 1) * θ
     -- `y` lies within `θ` of `π / 2`.
     have hy1 : y ≤ Real.pi / 2 + θ := by
-      have : (T : ℝ) * (4 * θ) ≤ Real.pi := (le_div_iff₀ (by positivity)).mp hT1
-      simp only [y]
-      nlinarith
+      nlinarith [(le_div_iff₀ (by positivity)).mp hT1, show y = (2 * (T : ℝ) + 1) * θ from rfl]
     have hy2 : Real.pi / 2 - θ < y := by
-      have : Real.pi < ((T : ℝ) + 1) * (4 * θ) := (div_lt_iff₀ (by positivity)).mp hT2
-      simp only [y]
-      nlinarith
+      nlinarith [(div_lt_iff₀ (by positivity)).mp hT2, show y = (2 * (T : ℝ) + 1) * θ from rfl]
     -- So `|cos y| = |sin (π/2 - y)| ≤ sin θ`.
     have hcos : Real.cos y ^ 2 ≤ Real.sin θ ^ 2 := by
       rw [← Real.sin_pi_div_two_sub]
-      have hu1 : -θ ≤ Real.pi / 2 - y := by linarith
-      have hu2 : Real.pi / 2 - y ≤ θ := by linarith
       have h1 : Real.sin (Real.pi / 2 - y) ≤ Real.sin θ :=
-        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) hθpi hu2
-      have h2 : Real.sin (-θ) ≤ Real.sin (Real.pi / 2 - y) :=
-        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) (by linarith) hu1
-      rw [Real.sin_neg] at h2
+        Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) hθpi (by linarith)
+      have h2 : -Real.sin θ ≤ Real.sin (Real.pi / 2 - y) := by
+        rw [← Real.sin_neg]
+        exact Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) (by linarith) (by linarith)
       nlinarith
-    have hsq : Real.sin θ ^ 2 = (N : ℝ)⁻¹ := by
-      rw [hs, inv_pow, Real.sq_sqrt hN0.le]
+    rw [hs, inv_pow, Real.sq_sqrt hN0.le] at hcos
     nlinarith [Real.sin_sq_add_cos_sq y]
   · calc
       (T : ℝ) ≤ Real.pi / (4 * θ) := hT1

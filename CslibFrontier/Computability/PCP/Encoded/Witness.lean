@@ -169,10 +169,8 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
   have hsatMath : ∀ edge,
       (ConstraintGraph.ofCNF ψ.compact).Satisfies
         (ConstraintGraph.cnfLabelling ψ.compact τc) edge := by
-    have hle := ConstraintGraph.card_unsatEdges_cnfLabelling_le (φ := ψ.compact) hc3 τc
-    rw [CNF.countUnsat_eq_zero_iff.mpr hceval, Nat.mul_zero, Nat.le_zero, Finset.card_eq_zero,
-      ConstraintGraph.unsatEdges_eq_empty_iff] at hle
-    exact hle
+    simpa [CNF.countUnsat_eq_zero_iff.mpr hceval, ConstraintGraph.unsatEdges_eq_empty_iff] using
+      ConstraintGraph.card_unsatEdges_cnfLabelling_le (φ := ψ.compact) hc3 τc
   have hlabel (u : ℕ ⊕ Fin ψ.compact.length)
       (hu : Graph.cnfVertexNumber u < 2 * (ψ.vars.length + ψ.length)) :
       (ofCompactCNFLabels φ w).getD (Graph.cnfVertexNumber u) (fun _ => false) =
@@ -200,7 +198,8 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
         have hmemVar : lit.1 ∈ ψ.vars := List.mem_map.mpr
           ⟨lit, List.mem_flatten.mpr ⟨ψ[j.val], List.getElem_mem hj, List.mem_of_getElem? hq⟩, rfl⟩
         simp only [Option.map_some, Option.elim_some, Prod.map_fst]
-        rw [@List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]; rfl
+        rw [@List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
+        rfl
   have hedge := Graph.wellFormed_ofCompactCNF ψ _ (List.getElem_mem e.isLt)
   change ((Graph.ofCompactCNF ψ).toGraph id).Satisfies
     (fun v => (ofCompactCNFLabels φ w).getD v (fun _ => false)) e
@@ -755,28 +754,15 @@ theorem satisfies_amplifyIterLabels (fallback : Constraint)
     ((amplifyIter fallback rotate T q k g).toGraph id).Satisfies
       (fun v => (amplifyIterLabels fallback rotate T q k g labels).getD v defaultSelectedAlphabet)
       e := by
-  have hmain : ∀ m g₀ labels₀,
-      (∀ e, (g₀.toGraph id).Satisfies (fun v => labels₀.getD v defaultSelectedAlphabet) e) →
-      ∀ e : Fin ((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).1.edges.length,
-        (((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).1.toGraph id).Satisfies
-          (fun v => (((amplifyIterStep fallback rotate T q)^[m] (g₀, labels₀)).2).getD v
-            defaultSelectedAlphabet)
-          e := by
-    intro m
-    induction m with
-    | zero => exact fun g₀ labels₀ h => h
-    | succ m ih =>
-      intro g₀ labels₀ h
-      rw [Function.iterate_succ_apply]
-      exact ih _ _ (satisfies_amplifyLabels fallback family rotate hrotate T q h)
-  unfold amplifyIterLabels
-  have hfst := (fst_amplifyIterStep fallback rotate T q k g labels).symm
-  have hcov := hmain k g labels hsat
-  generalize hres : (amplifyIterStep fallback rotate T q)^[k] (g, labels) = res at hfst hcov ⊢
-  rcases res with ⟨g', labels'⟩
-  dsimp only at hfst hcov ⊢
-  subst g'
-  exact hcov e
+  revert e
+  unfold amplifyIter amplifyIterLabels
+  induction k generalizing g labels with
+  | zero => exact hsat
+  | succ k ih =>
+    simp only [Function.iterate_succ_apply]
+    exact @ih (g.amplify id fallback rotate T q)
+      (amplifyLabels fallback rotate T q g labels)
+      (satisfies_amplifyLabels fallback family rotate hrotate T q hsat)
 
 private theorem polyBounded_amplifyStateBound {Input : Type} {input : Input ↪ List Bool}
     {graph : Input → Graph Constraint}
@@ -972,16 +958,11 @@ theorem proofOfLabelList_eq_proofOfLabels {α : Type} {width : ℕ}
     (encode : α → Fin width → Bool) (default : α) (labels : List α) :
     proofOfLabelList encode labels =
       proofOfLabels width labels.length encode (fun v => labels.getD v default) := by
-  rw [proofOfLabelList, proofOfLabels, BitString.ofFn_blocksEquiv_symm]
-  have hofFn : (List.ofFn fun i : Fin labels.length =>
-      List.ofFn (encode (labels.getD i.val default))) =
-      labels.map (fun a => List.ofFn (encode a)) := by
-    apply List.ext_getElem (by simp)
-    intro i hi₁ hi₂
-    have hi₃ : i < labels.length := by simpa using hi₂
-    simp only [List.getElem_ofFn, List.getElem_map, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem hi₃, Option.getD_some]
-  rw [hofFn, List.flatMap_def]
+  rw [proofOfLabelList, proofOfLabels, BitString.ofFn_blocksEquiv_symm, List.flatMap_def]
+  congr 1
+  symm
+  refine List.ext_getElem (by simp) fun i hi₁ _ => ?_
+  simp [List.getD_eq_getElem?_getD]
 
 /-- Bit-packing a list of labels from a fixed finite alphabet runs in polynomial time. -/
 theorem isPolyTime_proofOfLabelList {α Input : Type} [Finite α] {width : ℕ}

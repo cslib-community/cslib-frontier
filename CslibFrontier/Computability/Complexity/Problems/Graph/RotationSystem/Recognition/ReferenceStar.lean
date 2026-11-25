@@ -96,18 +96,17 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
           List.getD_eq_getElem _ _ i.isLt] using hf
   · rintro ⟨⟨i, b⟩, rfl, hf⟩
     cases b
-    · have hlookup := subdivide_getElem? I i 0
-      have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
+    · have hbound : 3 * i.val < (subdivide I).length := by rw [length_subdivide]; omega
       have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans
-        (by simpa only [Fin.val_zero, Nat.add_zero] using hlookup))
+        (by simpa only [Fin.val_zero, Nat.add_zero] using subdivide_getElem? I i 0))
       change ((subdivide I)[3 * i.val]).frozen = true
       rw [hget]
       change (I.orders.getD I.graph.edges[i].1 none).isSome = true
       simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, Bool.false_eq_true, ↓reduceIte,
         List.getD_eq_getElem _ _ i.isLt] using hf
-    · have hlookup := subdivide_getElem? I i 2
-      have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
-      have hget := Option.some.inj ((List.getElem?_eq_getElem hbound).symm.trans hlookup)
+    · have hbound : 3 * i.val + 2 < (subdivide I).length := by rw [length_subdivide]; omega
+      have hget := Option.some.inj
+        ((List.getElem?_eq_getElem hbound).symm.trans (subdivide_getElem? I i 2))
       change ((subdivide I)[3 * i.val + 2]).frozen = true
       rw [hget]
       change (I.orders.getD I.graph.edges[i].2 none).isSome = true
@@ -157,24 +156,20 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
         (fun d => I.graph.vertices.length + d)).filter
         (fun x => !(centerBlocks I).any fun y => decide (y = x)) = _
     rw [hcenters, List.flatMap_append, List.flatMap_cons]
-    have hblock : block v = v :: word.reverse.map (fun d => I.graph.vertices.length + d) := by
-      simp only [block, fixedWord, hw, Option.getD_some]
-    rw [hblock]
-    simp only [blockPrefix, blockSuffix, List.append_assoc, List.cons_append]
+    simp only [block, fixedWord, hw, Option.getD_some, blockPrefix, blockSuffix,
+      List.append_assoc, List.cons_append]
   have hn := (referenceOrder_enumerates hI).1
   have hvpos : blockPrefix.length < (referenceOrder I).length := by rw [hshape]; simp
   have hvget : (referenceOrder I)[blockPrefix.length] = v := by
     rw [List.getElem_of_eq hshape hvpos, List.getElem_append_right (by omega)]
     simp
-  have hvrank : (referenceOrder I).idxOf v = blockPrefix.length := by
-    rw [← hvget]
-    exact hn.idxOf_getElem _ hvpos
-  refine ⟨hvget ▸ List.getElem_mem hvpos, ?_⟩
-  intro d hd
+  have hvrank : (referenceOrder I).idxOf v = blockPrefix.length :=
+    hvget ▸ hn.idxOf_getElem _ hvpos
+  refine ⟨hvget ▸ List.getElem_mem hvpos, fun d hd => ?_⟩
   let i := word.idxOf d
   have hi : i < word.length := List.idxOf_lt_length_of_mem hd
   let k := word.length - 1 - i
-  have hk : k < word.reverse.length := by simp only [List.length_reverse]; dsimp [k]; omega
+  have hk : k < word.reverse.length := by simp only [List.length_reverse]; omega
   have hpos : blockPrefix.length + (k + 1) < (referenceOrder I).length := by
     rw [hshape]
     simp only [List.length_append, List.length_cons, List.length_map, List.length_reverse]
@@ -185,14 +180,10 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
     simp only [Nat.add_sub_cancel_left, List.getElem_cons_succ]
     rw [List.getElem_append_left (by simpa only [List.length_map] using hk),
       List.getElem_map, List.getElem_reverse]
-    have heq : word.length - 1 - k = i := by dsimp [k]; omega
-    simp only [heq]
-    exact congrArg (fun x : ℕ => I.graph.vertices.length + x)
-      (List.getElem_idxOf (x := d) (xs := word) hi)
+    simp only [show word.length - 1 - k = i by omega]
+    exact congrArg (I.graph.vertices.length + ·) (List.getElem_idxOf hi)
   have hrank : (referenceOrder I).idxOf (I.graph.vertices.length + d) =
-      blockPrefix.length + (k + 1) := by
-    rw [← hget]
-    exact hn.idxOf_getElem _ hpos
+      blockPrefix.length + (k + 1) := hget ▸ hn.idxOf_getElem _ hpos
   refine ⟨hget ▸ List.getElem_mem hpos, ?_, ?_⟩ <;> rw [hvrank, hrank] <;> dsimp only [k, i] <;>
     omega
 

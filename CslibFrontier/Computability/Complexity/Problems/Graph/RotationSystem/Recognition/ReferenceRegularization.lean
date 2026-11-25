@@ -225,12 +225,10 @@ private theorem patch_word_pair_cases {ι : Type*} (L : List ι) (a b : ℂ)
   · dsimp only [tags] at hp
     cases hL : L with
     | nil =>
-      rw [hL] at hp
-      have ht : tag = .inl false ∧ next = .inl true := by
-        simpa only [List.map_nil, List.cons_append, List.nil_append,
+      obtain ⟨rfl, rfl⟩ : tag = .inl false ∧ next = .inl true := by
+        simpa only [hL, List.map_nil, List.cons_append, List.nil_append,
           List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
           List.mem_singleton, Prod.mk.injEq] using hp
-      rcases ht with ⟨rfl, rfl⟩
       exact Or.inr (Or.inl ⟨rfl, hx, hy⟩)
     | cons z zs =>
       rw [hL] at hp
@@ -393,12 +391,10 @@ private theorem assembled_support_cases {I : FixedRotationInput}
     obtain ⟨i, t, ht, heq⟩ := ((A.drawing.route e).mem_support_iff w).mp hw
     have hnodes : ∃ x y : ℂ, (x, y) ∈ List.consecutivePairs word ∧
         (A.drawing.route e).eval i t = AffineMap.lineMap x y t := by
-      have hr := hroute
-      simp only [hf, Bool.false_eq_true, ↓reduceIte] at hr
-      suffices h : ∀ j : Fin (A.drawing.route e).segments,
-          ∃ x y : ℂ, (x, y) ∈ List.consecutivePairs word ∧
-            (A.drawing.route e).eval j t = AffineMap.lineMap x y t from h i
-      rw [hr]
+      simp only [hf, Bool.false_eq_true, ↓reduceIte] at hroute
+      clear heq
+      revert i
+      rw [hroute]
       cases hL : A.centers e with
       | nil =>
         exact fun j => ⟨(D.route e).start, (D.route e).finish,
@@ -603,12 +599,8 @@ private theorem incident_gap_excludes_other_patch {I : FixedRotationInput} (hI :
       (hwe : w = AffineMap.lineMap ((referenceDrawing I).route e.val).start
         ((referenceDrawing I).route e.val).finish p)
       (habs : (A.patch z e).start.re = w.re ∨ (A.patch z e).finish.re = w.re) : False := by
-    have he : w ∈ ((referenceDrawing I).route e.val).support := by
-      rw [hwe]
-      change _ ∈ (Route.line ((referenceDrawing I).route e.val).start
-        ((referenceDrawing I).route e.val).finish).support
-      rw [Route.support_line]
-      exact lineMap_mem_segment ℝ _ _ hp
+    have he : w ∈ ((referenceDrawing I).route e.val).support :=
+      hwe ▸ Route.support_line _ _ ▸ lineMap_mem_segment ℝ _ _ hp
     have hwz := old_support_pair_eq_center hI z e f hef he hf hwv
     have hends := patch_real_ends A z e
     rcases habs with h | h <;> [have := hends.1; have := hends.2] <;>

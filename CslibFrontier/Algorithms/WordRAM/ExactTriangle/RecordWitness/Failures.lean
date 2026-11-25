@@ -78,42 +78,33 @@ theorem actual_success_iff {m n g p : ℕ} (values : ℕ → ℤ)
       ∃ c, first ≤ c ∧ c < first + length ∧ AB (a i) (b i) + BC (b i) c + AC (a i) c = 0) ↔
       ∃ q ∈ chunkOf wAB (D m) p idx.residue idx.chunk,
         ∃ c ∈ piece n (D m) g idx.piece, weightSum wAB wBC wAC q.1 q.2 c = 0 := by
-  let first := idx.piece * pieceSize (D m) g
-  let length := min (pieceSize (D m) g) (n - first)
   have pair_mem (i : Fin qs.length) : qs.get i ∈ chunkOf wAB (D m) p idx.residue idx.chunk := by
     rw [← hset, List.mem_toFinset]; exact List.get_mem _ _
   constructor
   · rintro ⟨i, hi, -, c, hlo, hhi, hz⟩
     let j : Fin qs.length := ⟨i, hi⟩
-    have hl := min_le_right (pieceSize (D m) g) (n - first)
-    have hn : c < n := by change first ≤ c at hlo; change c < first + length at hhi; omega
+    have hn : c < n := by omega
     let vertex : Fin n := ⟨c, hn⟩
     have hc : vertex ∈ piece n (D m) g idx.piece :=
       (mem_piece_iff_interval hD hg vertex).mpr ⟨hlo, hhi⟩
     obtain ⟨ha, hb⟩ := hcoords j
     have he : AB (a i) (b i) + BC (b i) c + AC (a i) c =
         weightSum wAB wBC wAC (qs.get j).1 (qs.get j).2 vertex := by
-      rw [ha, hb]
-      change AB (qs.get j).1.val (qs.get j).2.val +
-        BC (qs.get j).2.val vertex.val + AC (qs.get j).1.val vertex.val = _
-      rw [hAB, hBC, hAC]
-      rfl
+      rw [ha, hb, show c = vertex.val from rfl, hAB, hBC, hAC]; rfl
     exact ⟨qs.get j, pair_mem j, vertex, hc, he.symm.trans hz⟩
   · rintro ⟨q, hq, c, hc, hz⟩
     have hmem : q ∈ qs := by rw [← List.mem_toFinset, hset]; exact hq
     obtain ⟨j, hj⟩ := List.mem_iff_get.mp hmem
     obtain ⟨ha, hb⟩ := hcoords j
-    have hpair : (lopInstance wAB wBC wAC (D m) g p idx).HasCommonNeighbor q.1 q.2 := by
-      apply (hasCommonNeighbor_lopInstance_iff wAB wBC wAC
-        (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero hq).mpr
-      exact ⟨c, hc, by rw [hz]⟩
+    have hpair : (lopInstance wAB wBC wAC (D m) g p idx).HasCommonNeighbor q.1 q.2 :=
+      (hasCommonNeighbor_lopInstance_iff wAB wBC wAC
+        (Nat.mem_sqrtPrimeWindow_iff_sq.mp hp).1.ne_zero hq).mpr ⟨c, hc, by rw [hz]⟩
     have hprod := (RecordProduct.product_ne_zero_iff values wAB wBC wAC hD hg hp
       hvaluesBC hvaluesAC idx q.1 q.2).mpr hpair
     obtain ⟨hlo, hhi⟩ := (mem_piece_iff_interval hD hg c).mp hc
     refine ⟨j.val, j.isLt, fun hzero => hprod (Signed.encode_injective ?_), c.val, hlo, hhi, ?_⟩
-    · have he := hanswer j
-      rw [hj] at he
-      exact he.symm.trans hzero
+    · rw [← hj]
+      exact (hanswer j).symm.trans hzero
     · rw [ha, hb, hj, hAB, hBC, hAC]; exact hz
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

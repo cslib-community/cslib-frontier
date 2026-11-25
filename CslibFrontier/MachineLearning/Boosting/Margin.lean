@@ -171,13 +171,11 @@ theorem convexHull_uniform_empirical_margin_bound {α : Type*} [Finite α] (D : 
           3 * √(Real.log (Real.logb 2 (2 * r / ρ)) / m) +
           3 * √(Real.log (4 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
-  have hconv : ∀ f ∈ convexHull ℝ H, ∀ x, |f x| ≤ B := fun f hf x =>
-    abs_le_of_mem_convexHull hH hf x
-  have h := uniform_empiricalRademacherComplexity_margin_bound D hm hconv hr hδ
-  refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_) h
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
+    (uniform_empiricalRademacherComplexity_margin_bound D hm
+      (fun _ => abs_le_of_mem_convexHull hH) hr hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]
+  exact ⟨f, hf, ρ, hρ, by rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]⟩
 
 /-- **Uniform VC-dimension margin bound for convex combinations of binary classifiers**
 [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Section 7.3.3,
@@ -201,18 +199,14 @@ theorem convexHull_signClass_vc_uniform_margin_bound {α : Type*} [Finite α] (D
           √(Real.log (2 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
   have := Fintype.ofFinite α
-  have hB : ∀ h ∈ signClass C, ∀ x, |h x| ≤ 1 := fun _ hf => abs_le_one_of_mem_signClass hf
-  have hR : rademacherComplexity (D.map Prod.fst) (signClass C) m ≤
-      √(2 * (d * Real.log (Real.exp 1 * m / d)) / m) :=
-    rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm
   refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
-    (convexHull_uniform_margin_bound D hm hB zero_lt_one hδ)
+    (convexHull_uniform_margin_bound (H := signClass C) D hm
+      (fun _ hf => abs_le_one_of_mem_signClass hf) zero_lt_one hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  have hcoef : 0 ≤ 4 / ρ := div_nonneg (by norm_num) hρ.1.le
-  have hmul := mul_le_mul_of_nonneg_left hR hcoef
-  rw [mul_one]
-  linarith
+  have hmul := mul_le_mul_of_nonneg_left
+    (rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm)
+    (div_nonneg (by norm_num : (0 : ℝ) ≤ 4) hρ.1.le)
+  exact ⟨f, hf, ρ, hρ, by rw [mul_one]; linarith⟩
 
 /-! ### Normalized AdaBoost score and convex-hull membership -/
 
@@ -371,11 +365,8 @@ theorem adaBoost_uniform_margin_bound_vc {α : Type*} [Finite α] (D : PMF (α �
   have hZ : (¬ ∃ t < T, (rounds S A t).error S = 0) → 0 < totalVote S A T := fun hz =>
     totalVote_pos S A hT
       (fun t ht => (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht, h.symm⟩) hε
-  have hmono : (D.toOuterMeasure {p | adaBoost S A T p.1 ≠ p.2}).toReal ≤
-      (D.toOuterMeasure {p | signVal p.2 * normalizedScore S A T p.1 ≤ 0}).toReal :=
-    Probability.PMF.toOuterMeasure_toReal_mono D fun _ hp =>
-      signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ hp
-  exact lt_of_lt_of_le hlt hmono
+  exact lt_of_lt_of_le hlt (Probability.PMF.toOuterMeasure_toReal_mono D fun _ =>
+    signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ)
 
 end AdaBoostScore
 
@@ -451,50 +442,33 @@ private theorem two_mul_log_lt_sub_inv {y : ℝ} (hy : 1 < y) : 2 * Real.log y <
 private theorem log_margin_factor_neg {x : ℝ} (hx₀ : 0 < x) (hx₁ : x < 1) :
     (1 - x / 2) * Real.log (1 - x) + (1 + x / 2) * Real.log (1 + x) < 0 := by
   let f : ℝ → ℝ := fun t => (1 - t / 2) * Real.log (1 - t) + (1 + t / 2) * Real.log (1 + t)
-  have hf_cont : ContinuousOn f (Set.Icc 0 x) := by
-    have h1 : ∀ t ∈ Set.Icc 0 x, 1 - t ≠ 0 := fun t ht => by linarith [ht.2]
-    have h2 : ∀ t ∈ Set.Icc 0 x, 1 + t ≠ 0 := fun t ht => by linarith [ht.1]
-    exact ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
-          fun t ht => h1 t ht))).add
-      ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
-          fun t ht => h2 t ht)))
+  have hf_cont : ContinuousOn f (Set.Icc 0 x) :=
+    ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
+        fun t ht => show 1 - t ≠ 0 by linarith [ht.2]))).add
+    ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
+        fun t ht => show 1 + t ≠ 0 by linarith [ht.1])))
   have hanti : StrictAntiOn f (Set.Icc 0 x) := by
-    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont ?_
-    intro t ht
+    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont fun t ht => ?_
     rw [interior_Icc] at ht
-    have ht₀ : 0 < t := ht.1
-    have ht₁ : t < 1 := lt_trans ht.2 hx₁
-    have h1m : 0 < 1 - t := by linarith
-    have h1p : 0 < 1 + t := by linarith
-    have hd1 : HasDerivAt (fun u : ℝ => (1 - u / 2) * Real.log (1 - u))
-        ((0 - 1 / 2) * Real.log (1 - t) + (1 - t / 2) * ((1 - t)⁻¹ * (0 - 1))) t :=
-      ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
-        ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
-    have hd2 : HasDerivAt (fun u : ℝ => (1 + u / 2) * Real.log (1 + u))
-        ((0 + 1 / 2) * Real.log (1 + t) + (1 + t / 2) * ((1 + t)⁻¹ * (0 + 1))) t :=
-      ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
-        ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
-    have hsum : HasDerivAt f
-        ((0 - 1 / 2) * Real.log (1 - t) + (1 - t / 2) * ((1 - t)⁻¹ * (0 - 1)) +
-          ((0 + 1 / 2) * Real.log (1 + t) + (1 + t / 2) * ((1 + t)⁻¹ * (0 + 1)))) t := hd1.add hd2
-    simp only [zero_sub, zero_add, show (1 - t)⁻¹ * -1 = -1 / (1 - t) by ring,
-      show (1 + t)⁻¹ * 1 = 1 / (1 + t) by ring] at hsum
-    rw [hsum.deriv]
-    have hlin : -(1 / 2) * Real.log (1 - t) + (1 - t / 2) * (-1 / (1 - t)) +
-        (1 / 2 * Real.log (1 + t) + (1 + t / 2) * (1 / (1 + t))) =
+    have h1m : 0 < 1 - t := by linarith [ht.2]
+    have h1p : 0 < 1 + t := by linarith [ht.1]
+    have hd1 := ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
+    have hd2 := ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
+    have hderiv : deriv f t =
         (2 * Real.log ((1 + t) / (1 - t)) -
           ((1 + t) / (1 - t) - ((1 + t) / (1 - t))⁻¹)) / 4 := by
-      rw [Real.log_div h1p.ne' h1m.ne']
+      rw [(show HasDerivAt f _ t from hd1.add hd2).deriv, Real.log_div h1p.ne' h1m.ne']
+      simp only [Function.comp_apply, Pi.sub_apply, Pi.add_apply, id_eq]
       field_simp
       ring
-    rw [hlin]
-    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith)
+    rw [hderiv]
+    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith [ht.1])
     exact div_neg_of_neg_of_pos (sub_neg.mpr (two_mul_log_lt_sub_inv hy)) (by norm_num)
-  have hf0 : f 0 = 0 := by simp [f]
-  have hlt : f x < f 0 := hanti ⟨le_refl 0, hx₀.le⟩ ⟨hx₀.le, le_refl x⟩ hx₀
-  rwa [hf0] at hlt
+  simpa [f] using hanti ⟨le_rfl, hx₀.le⟩ ⟨hx₀.le, le_rfl⟩ hx₀
 
 /-- Rewrite `((1 - 2 γ) ^ (1 - ρ)) * ((1 + 2 γ) ^ (1 + ρ))` as `exp` of a log combination. -/
 private theorem exp_log_marginFactor {γ ρ : ℝ} (h1m : 0 < 1 - 2 * γ) (h1p : 0 < 1 + 2 * γ) :
@@ -576,11 +550,9 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
   have hprod_nonneg : 0 ≤ ∏ t ∈ range T,
       2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2) :=
-    prod_nonneg fun t ht => by
-      have he0 : 0 ≤ (rounds S A t).error S := rounds_error_nonneg S A t
-      have he1 : 0 ≤ 1 - (rounds S A t).error S := by linarith [hε t (mem_range.mp ht)]
-      exact mul_nonneg (mul_nonneg zero_le_two (Real.rpow_nonneg he0 _))
-        (Real.rpow_nonneg he1 _)
+    prod_nonneg fun t ht => mul_nonneg
+      (mul_nonneg zero_le_two (Real.rpow_nonneg (rounds_error_nonneg S A t) _))
+      (Real.rpow_nonneg (by linarith [hε t (mem_range.mp ht)]) _)
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
   · rw [card_eq_zero.mpr (filter_eq_empty_iff.mpr fun i _ hle => ?_), Nat.cast_zero, zero_div]
     · exact hprod_nonneg

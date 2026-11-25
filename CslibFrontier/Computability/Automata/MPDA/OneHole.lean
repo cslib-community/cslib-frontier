@@ -316,12 +316,9 @@ theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
     have := hk k
     simp only [P] at *
     omega
-  have hKlt : K < u.length := by
-    rcases Nat.lt_or_ge K u.length with h | h
-    · exact h
-    · have : K = u.length := by omega
-      simp only [P, this, List.take_length] at hPK
-      omega
+  have hKlt : K < u.length := lt_of_le_of_ne hKle fun h => by
+    simp only [P, h, List.take_length] at hPK
+    omega
   obtain ⟨μ, hμ⟩ : ∃ μ, u[K]? = some μ := ⟨u[K], List.getElem?_eq_getElem hKlt⟩
   have hstep : net j (u.take (K + 1)) = net j (u.take K) + μ.2.net j := by
     rw [take_eq_extract, take_eq_extract,
@@ -333,19 +330,15 @@ theorem exists_pending_push {j : Fin n} {u : List (α × Op n Γ)}
   · simp only [h] at h1
     omega
   · refine ⟨K, hKlt, ⟨a, γ, hμ⟩, fun k => ?_⟩
-    have hsplit : u.take (K + 1 + k) = u.take (K + 1) ++ (u.drop (K + 1)).take k := List.take_add
     have hK1 : net j (u.take (K + 1)) = 1 := by rw [hstep, hPK, h]; rfl
     by_cases hk' : K + 1 + k ≤ u.length
     · have := hgt (K + 1 + k) (by omega) hk'
-      rw [hsplit, net_append, hK1] at this
+      rw [List.take_add, net_append, hK1] at this
       omega
-    · have hdrop : (u.drop (K + 1)).take k = u.drop (K + 1) :=
-        List.take_of_length_le (by simp; omega)
-      have hu := hgt u.length hKlt le_rfl
-      rw [List.take_length] at hu
+    · rw [List.take_of_length_le (by simp; omega)]
+      have hu := List.take_length (l := u) ▸ hgt u.length hKlt le_rfl
       have hsum : net j u = net j (u.take (K + 1)) + net j (u.drop (K + 1)) := by
         rw [← net_append, List.take_append_drop]
-      rw [hdrop]
       omega
   · simp only [h] at h1
     omega
@@ -437,17 +430,12 @@ private theorem configLTS_mTr_length {M : MPDA n State α Γ} {c c' : Config n S
 theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
     {w : List (α × Op n Γ)}
     (h : M.configLTS.MTr ⟨s, Stacks.empty⟩ w ⟨s', Stacks.empty⟩) : Balanced w := by
-  intro i
-  constructor
-  · have := configLTS_mTr_length h i
-    simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
-    exact this.symm
-  · intro k
-    rw [← List.take_append_drop k w] at h
-    obtain ⟨c, h₁, -⟩ := LTS.MTr.split h
-    have := configLTS_mTr_length h₁ i
-    simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
-    omega
+  refine fun i => ⟨by simpa [Stacks.empty] using (configLTS_mTr_length h i).symm, fun k => ?_⟩
+  rw [← List.take_append_drop k w] at h
+  obtain ⟨c, h₁, -⟩ := LTS.MTr.split h
+  have := configLTS_mTr_length h₁ i
+  simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
+  omega
 
 /-! ## Complete runs without crossings are well-nested -/
 
@@ -470,10 +458,9 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
           zero_add] at this
     | pop j γ => simpa [Op.net] using (hbal j).2 1
     | push i γ =>
-      have hpushi : (Op.push i γ : Op n Γ).net i = 1 := by simp [Op.net]
       have hw'i : net i w' = -1 := by
         have := (hbal i).1
-        rw [net_cons, hpushi] at this
+        simp only [net_cons, Op.net, Op.kind, OpKind.net, ↓reduceIte] at this
         omega
       obtain ⟨u, b, δ, u', rfl, hu0, huk⟩ := exists_first_pop i w' 0 (by simp [hw'i])
       simp only [Nat.cast_zero, zero_add] at hu0 huk
@@ -502,9 +489,8 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
             simp [List.extract]
           have hqu : PendingAt u q (u.length - 1) := by
             refine ⟨by omega, by omega, j, hqj, fun k => ?_⟩
-            rw [show u.length - 1 + 1 = u.length by omega]
-            unfold List.extract
-            rw [List.take_of_length_le (l := u.drop (q + 1)) (by simp)]
+            rw [show u.length - 1 + 1 = u.length by omega, List.extract,
+              List.take_of_length_le (l := u.drop (q + 1)) (by simp)]
             exact hqk k
           have hqw := (hqu.append_right ((b, .pop i δ) :: u')).cons (a, .push i γ)
           rw [show u.length - 1 + 1 = u.length by omega] at hqw
@@ -513,22 +499,18 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
               by rwa [hfu]⟩,
             hqw.succ (μ := (b, .pop i δ)) ((hqj.append_right _).cons _) (by simp) ?_⟩
           simp [Op.net, hij]
-      have hpopnet : ∀ j, (Op.pop i δ : Op n Γ).net j + (Op.push i γ : Op n Γ).net j = 0 :=
-        fun j => by rw [Op.net_pop j i δ γ]; omega
       -- `u'` is balanced as well.
       have hL : ∀ j, net j ((a, Op.push i γ) :: (u ++ [(b, Op.pop i δ)])) = 0 := fun j => by
         rw [net_cons, net_append, net_cons, net_nil, hunet j]
-        have := hpopnet j
+        have := Op.net_pop j i δ γ
         dsimp only
         omega
       have e : (a, Op.push i γ) :: (u ++ (b, Op.pop i δ) :: u') =
           ((a, Op.push i γ) :: (u ++ [(b, Op.pop i δ)])) ++ u' := by simp
       have hbal' : Balanced u' := fun j => by
-        have h₁ := (hbal j).1
-        have h₂ := (hbal j).2
-        rw [e, net_append, hL j, zero_add] at h₁
-        rw [e] at h₂
-        exact ⟨h₁, net_take_nonneg_of_append_left h₂ (hL j)⟩
+        have h₁ := e ▸ (hbal j).1
+        rw [net_append, hL j, zero_add] at h₁
+        exact ⟨h₁, net_take_nonneg_of_append_left (e ▸ (hbal j).2) (hL j)⟩
       -- The runs on `u` and `u'`.
       obtain ⟨c₂, hrunu, hrest⟩ := LTS.MTr.split hrun'
       obtain ⟨c₃, hν, hrunu'⟩ := LTS.MTr.cons_iff.mp hrest
@@ -539,10 +521,9 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
           fun h => hcr ((h.append_right ((b, .pop i δ) :: u')).append_left [(a, .push i γ)])
       -- Hence the pop matches the symbol of the push.
       have hδ : δ = γ := by
-        have h₁ := Op.apply_push.mp (configLTS_tr.mp htr).2
-        have h₂ := Op.apply_pop.mp (configLTS_tr.mp hν).2
         have := congrFun (hwu.contents_eq hrunu) i
-        rw [h₁, h₂] at this
+        rw [Op.apply_push.mp (configLTS_tr.mp htr).2,
+          Op.apply_pop.mp (configLTS_tr.mp hν).2] at this
         simp only [Function.update_self, List.cons.injEq] at this
         exact this.1
       subst hδ

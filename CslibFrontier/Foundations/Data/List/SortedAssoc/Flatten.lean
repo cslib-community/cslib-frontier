@@ -68,22 +68,19 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
     | nil => exact fun _ h => absurd h List.not_mem_nil
     | cons p₀ ps =>
       have hp₀ : range lo hi p₀ = [] := by
-        have hne' : R.dropWhile (fun l => !P l) ≠ [] := hpost ▸ hpo ▸ List.cons_ne_nil p₀ ps
-        have hhead := List.head_dropWhile_not (fun l => !P l) hne'
-        simp only [hpost, hpo, List.head_cons] at hhead
-        exact List.isEmpty_iff.1 ((Bool.not_eq_false' _).mp hhead)
+        have hhead := List.head_dropWhile_not (fun l => !P l) (l := R) (by simp [hpost, hpo])
+        simp only [hpost, hpo, List.head_cons, Bool.not_eq_false'] at hhead
+        exact List.isEmpty_iff.1 hhead
       obtain ⟨r, hr⟩ : ∃ r, r ∈ run := by
         cases hR : R with
         | nil =>
           rw [hR, List.dropWhile_nil] at hpost
           exact absurd (hpo.symm.trans hpost.symm) (List.cons_ne_nil p₀ ps)
         | cons r₀ R' =>
-          have hR' : L.dropWhile P ≠ [] := show R ≠ [] from hR ▸ List.cons_ne_nil r₀ R'
+          dsimp only [R] at hR
           have h₀ : P r₀ = false := by
-            have hhead := List.head_dropWhile_not P hR'
-            change P (R.head _) = false at hhead
-            simpa only [hR, List.head_cons] using hhead
-          exact ⟨r₀, by simp [← hrun, hR, h₀]⟩
+            simpa only [hR, List.head_cons] using List.head_dropWhile_not P (l := L) (by simp [hR])
+          exact ⟨r₀, by simp [← hrun, R, hR, h₀]⟩
       obtain ⟨x, hx, hlo, -⟩ := exists_mem_of_range_ne_nil (hrun' r hr)
       obtain ⟨y, hy⟩ := List.exists_mem_of_ne_nil p₀ (hne p₀ (by simp [hL, hpo]))
       have hxy : x.1 < y.1 := hrp r hr p₀ (hpo ▸ List.mem_cons_self) x hx y hy
@@ -96,14 +93,12 @@ theorem exists_run_range_flatten {L : List (List (α × β))} (hs : L.flatten.Is
       · exact range_eq_nil_iff.2 fun q hq =>
           Or.inr (hhi.trans ((List.pairwise_cons.1 hpp).1 l hl y hy q hq))
   refine ⟨pre, run, post, by rw [hL, List.append_assoc], ?_, hrun', ?_⟩
-  · have h₁ : (pre.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpre')
-    have h₂ : (post.map (range lo hi)).flatten = [] :=
-      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpost')
-    have hf : range lo hi (pre ++ (run ++ post)).flatten =
+  · have hf : range lo hi (pre ++ (run ++ post)).flatten =
         ((pre ++ (run ++ post)).map (range lo hi)).flatten := List.filter_flatten ..
     rw [hL, hf, List.map_append, List.map_append, List.flatten_append, List.flatten_append,
-      h₁, h₂, List.nil_append, List.append_nil]
+      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpre'),
+      List.flatten_eq_nil_iff.2 (List.forall_mem_map.2 hpost'),
+      List.nil_append, List.append_nil]
   · intro l hl
     cases hT : run with
     | nil => simp [hT] at hl

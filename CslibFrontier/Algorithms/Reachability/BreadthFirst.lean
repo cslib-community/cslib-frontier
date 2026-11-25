@@ -94,17 +94,11 @@ private theorem mem_foldl_insertNew {l found : List α} {a : α} :
   induction l generalizing found with
   | nil => simp
   | cons b l ih =>
-    rw [List.foldl_cons, ih, List.mem_cons]
-    unfold insertNew
+    rw [List.foldl_cons, ih, List.mem_cons, insertNew]
     split_ifs with hb
-    · constructor
-      · tauto
-      · rintro (h | rfl | h)
-        · exact .inl h
-        · exact .inl hb
-        · exact .inr h
+    · grind
     · simp only [List.mem_append, List.mem_singleton]
-      tauto
+      grind
 
 private theorem nodup_foldl_insertNew {l found : List α} (h : found.Nodup) :
     (l.foldl insertNew found).Nodup := by
@@ -204,9 +198,9 @@ private theorem succ_le_length_search_or_closed (rounds : ℕ) (start : α) :
     have hsucc := search_succ (succ := succ) rounds start
     by_cases hfix : expand succ (search succ rounds start) = search succ rounds start
     · exact .inr (by rw [hsucc, hfix, hfix])
-    · rcases ih with ih | ih
-      · exact .inl (by rw [hsucc]; have := length_lt_expand hfix; omega)
-      · exact absurd ih hfix
+    · have := ih.resolve_right hfix
+      have := length_lt_expand hfix
+      exact .inl (by rw [hsucc]; omega)
 
 /-- **A closed round finds every reachable element**: once a round adds nothing, the found elements
 are exactly those reachable from `start`. -/

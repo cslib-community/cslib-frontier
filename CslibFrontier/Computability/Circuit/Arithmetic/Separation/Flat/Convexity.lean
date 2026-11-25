@@ -121,16 +121,12 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
     have h := sq_dist_midpoint_le hw (x := Sum.inl (a v)) (y := Sum.inl (b v)) (v := Sum.inr v)
       (z := Sum.inl (m v)) (δ := δ) ?_ ?_ ?_ ?_
     · simpa only [he] using h
-    · have h1 := hd (Sum.inl (a v)) (Sum.inr v)
-      simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self] at h1
-      have := mul_le_mul_of_nonneg_left h1 hc
-      simp only [he]
+    · have := mul_le_mul_of_nonneg_left (hd (Sum.inl (a v)) (Sum.inr v)) hc
+      simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self, he] at this ⊢
       linarith
-    · have h1 := hd (Sum.inl (b v)) (Sum.inr v)
+    · have := mul_le_mul_of_nonneg_left (hd (Sum.inl (b v)) (Sum.inr v)) hc
       simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self,
-        F.wireExponent_comm (b v) (a v)] at h1
-      have := mul_le_mul_of_nonneg_left h1 hc
-      simp only [he]
+        F.wireExponent_comm (b v) (a v), he] at this ⊢
       linarith
     · simpa only [he] using ha v
     · simpa only [he] using hb v
@@ -290,10 +286,7 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
       c * F.unitExponent (fun x : P => (⟨x.1, hPV x.2⟩ : V)) ≤ √k + ε := by
   classical
   have : Nonempty P := hP.coe_sort
-  have hk : 0 < k := by
-    obtain ⟨x₀, hx₀⟩ := hP
-    obtain ⟨j₀, -, -⟩ := hc x₀ hx₀
-    exact j₀.pos
+  have hk : 0 < k := (hc hP.choose hP.choose_spec).choose.pos
   have hk' : (0 : ℝ) < k := Nat.cast_pos.2 hk
   choose j b hjb using fun x : P => hc x.1 x.2
   -- add the points `½ u` of the cube
@@ -306,8 +299,7 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
   obtain ⟨F, c, hc0, hF⟩ := (hK k V' fun x => x.1).exists_spectralPoint id
     (show 0 < min δ (ε / 2) by positivity)
   have hF' (x y : V') : |c * F.wireExponent x y - dist x y| < min δ (ε / 2) := by
-    rw [abs_sub_comm, Subtype.dist_eq]
-    exact hF x y
+    simpa only [abs_sub_comm, Subtype.dist_eq, id_eq] using hF x y
   let α : ℕ → (Fin k → Bool) → P → V' := fun i χ x => pt (cubeSign i χ (j x) (b x))
   have hlevel : ∀ i ≤ k, ∀ χ, c * F.unitExponent (α i χ) ≤ √k + ε / 2 + i * (ε / (2 * k)) := by
     intro i
@@ -315,10 +307,8 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
     | zero =>
       intro _ χ
       have h1 := F.unitExponent_le_of_two (α 0 χ) (pt fun x => boolSign (χ x))
-        (pt fun x => -boolSign (χ x)) fun x => by
-          rcases cubeSign_zero χ (j x) (b x) with h | h
-          · exact Or.inl (congrArg pt h)
-          · exact Or.inr (congrArg pt h)
+        (pt fun x => -boolSign (χ x)) fun x =>
+          (cubeSign_zero χ (j x) (b x)).imp (congrArg pt) (congrArg pt)
       have h2 := (abs_lt.1 (hF' (pt fun x => boolSign (χ x)) (pt fun x => -boolSign (χ x)))).2
       rw [Subtype.dist_eq, dist_cubePoint_neg] at h2
       have h3 := mul_le_mul_of_nonneg_left h1 hc0

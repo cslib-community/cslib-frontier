@@ -251,26 +251,25 @@ private theorem WalkState.extend (h : EdgeInstance F)
     · exact fun hh => hp (hw.start_cleared he p hh)
   have hvp := hw.prefix_valid.snoc hov hc hne hno hnp hw.internal_endpoint hv
   have hflip := Walk.flip_snoc w f o p hw.prefix_valid.1 hno hnp hne
-  have hused : ∀ a ∈ (w.snoc o p).edges, (w.snoc o p).flip f a = g a := by
-    intro a ha
-    have he : (w.snoc o p).edges = w.edges ++ [o, p] := Walk.edgesOf_append _ _
-    rw [he, List.mem_append] at ha
+  have hflip_o : flipOn {o, p} (w.flip f) o = g o := by
+    cases hx : w.flip f o <;> cases hy : g o <;> simp_all [flipOn_apply]
+  have hflip_p : flipOn {o, p} (w.flip f) p = g p := by
+    cases hx : w.flip f p <;> cases hy : g p <;> simp_all [flipOn_apply]
+  have hused (a : Occurrence F) (ha : a ∈ (w.snoc o p).edges) :
+      (w.snoc o p).flip f a = g a := by
     rw [hflip]
+    rw [show (w.snoc o p).edges = w.edges ++ [o, p] from Walk.edgesOf_append _ _,
+      List.mem_append] at ha
     rcases ha with ha | ha
-    · have hao : a ≠ o := fun he => hno (he ▸ ha)
-      have hap : a ≠ p := fun he => hnp (he ▸ ha)
-      simpa only [flipOn_apply, mem_insert, mem_singleton, hao, hap, or_self,
-        ite_eq_right, not_false_eq_true] using hw.used_agrees a ha
+    · rw [flipOn_apply, ite_eq_right (by simp [ne_of_mem_of_not_mem ha hno,
+        ne_of_mem_of_not_mem ha hnp])]
+      exact hw.used_agrees a ha
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at ha
-      rcases ha with ha | ha
-      · subst a
-        cases hx : w.flip f o <;> cases hy : g o <;> simp_all [flipOn_apply]
-      · subst a
-        cases hx : w.flip f p <;> cases hy : g p <;> simp_all [flipOn_apply]
-  refine ⟨hvp, hps, ?_⟩
-  intro hpf
-  refine ⟨hvp, ?_, ?_, Or.inr (by simpa only [Walk.finish_snoc] using hpf),
-    hw.start_defect, hw.target_start, hused, ?_⟩
+      rcases ha with rfl | rfl
+      exacts [hflip_o, hflip_p]
+  refine ⟨hvp, hps, fun hpf =>
+    ⟨hvp, ?_, ?_, Or.inr (Walk.finish_snoc w o p ▸ hpf),
+      hw.start_defect, hw.target_start, hused, ?_⟩⟩
   · rw [Walk.finish_snoc, ← mem_defects, hvp.1.defects_flip h, Walk.finish_snoc]
     change p.var ∈ defects f ∆ {w.start} ∆ {p.var}
     simp [mem_symmDiff, mem_defects, hps, hpf]
@@ -278,20 +277,17 @@ private theorem WalkState.extend (h : EdgeInstance F)
     exact fun he => hpf (mem_defects.mp (hsub (mem_defects.mpr he)))
   · intro _ a ha
     rw [hflip]
-    have hap : a ≠ p := fun he => hps ((congrArg Occurrence.var he).symm.trans ha)
+    have hap : a ≠ p := fun he => hps (he ▸ ha)
     by_cases he : w.steps = []
     · have hfin : w.finish = w.start := by simp [Walk.finish, he, Walk.finishFrom]
-      have hao : a.var = o.var := ha.trans (hov.trans hfin).symm
-      by_cases heo : a = o
-      · subst a
-        cases hx : w.flip f o <;> cases hy : g o <;> simp_all [flipOn_apply]
-      · have hother := other_endpoint_eq h
-          (by simpa only [hov] using hw.endpoint_defect)
-          (by simpa only [hov] using hw.target_endpoint) ho hao heo
-        simpa [flipOn_apply, heo, hap] using hother
-    · have hao : a ≠ o := fun hao =>
-        ho (hw.start_cleared he o ((congrArg Occurrence.var hao).symm.trans ha))
-      simpa [flipOn_apply, hao, hap] using hw.start_cleared he a ha
+      rcases eq_or_ne a o with rfl | heo
+      · exact hflip_o
+      · rw [flipOn_apply, ite_eq_right (by simp [heo, hap])]
+        exact other_endpoint_eq h (hov ▸ hw.endpoint_defect) (hov ▸ hw.target_endpoint)
+          ho (ha.trans (hov.trans hfin).symm) heo
+    · have hao : a ≠ o := fun hao => ho (hw.start_cleared he o (hao ▸ ha))
+      rw [flipOn_apply, ite_eq_right (by simp [hao, hap])]
+      exact hw.start_cleared he a ha
 
 /-- The second phase returns an augmenting prefix-valid incidence trail. Its clock counts
 exchanges, and each appended step removes exactly two remaining occurrence disagreements. -/

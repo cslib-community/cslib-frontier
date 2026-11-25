@@ -122,15 +122,10 @@ private theorem val_wire {t c : ℕ} {l : Loc k State} (hl : l.ColOK T c) (ht : 
   have hw : wire x.length T t l c = x.length + (wire x.length T t l c - x.length) := by
     simp only [wire]; omega
   rw [hw, val_add tm hg, gateCode_wire tm hl]
-  by_cases ht0 : t = 0
-  · have h : gateAt tm x.length T t c l = (.const (initBit tm T c l), []) := by
-      simp [gateAt, ht0]
-    rw [h]
-    simp [ht0, interpretation]
-  · have h : gateAt tm x.length T t c l = ((table tm l).1, argsOf (table tm l).1
-        ((table tm l).2.1.resolve x.length T t c) ((table tm l).2.2.resolve x.length T t c)) := by
-      simp [gateAt, ht0]
-    rw [h, ite_eq_right ht0]
+  rcases eq_or_ne t 0 with rfl | ht0
+  · rfl
+  · have hg0 : gateAt tm x.length T t c l = _ := ite_eq_right ht0
+    rw [hg0, ite_eq_right ht0]
     exact interpretation_argsOf _ _ _ _
 
 /-! ### The features of configurations -/
@@ -381,23 +376,13 @@ private theorem val_acc_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (q : Sc
   rcases q with s | ⟨i, s⟩
   · simp only [termSem, readSem, Cfg.inputSymbol_eq_inputAt]
     have := cfg.inputPos.isLt
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      exact ⟨cfg.inputPos.val, by omega, rfl, h⟩
+    exact ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨cfg.inputPos.val, by omega, rfl, h⟩⟩
   · simp only [termSem, readSem, Cfg.workTapeSymbols]
     have hb : |cfg.workTapePos i| ≤ t := abs_workTapePos_runFrom_le (tm := tm) x t i
     rw [abs_le] at hb
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      refine ⟨(cfg.workTapePos i + T).toNat, ?_, ?_, ?_⟩
-      · omega
-      · omega
-      · rw [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
-        exact h
+    refine ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨(cfg.workTapePos i + T).toNat,
+      by omega, by omega, ?_⟩⟩
+    rwa [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
 
 /-! ### Situations and attributes -/
 
@@ -483,12 +468,9 @@ private theorem val_act (hn : x.length < 2 * T) (htT : t + 1 ≤ T) {c : ℕ} (v
   rcases hq : cfg.state with _ | q
   · simp [actSem, hq, Feature.not_holds_sit hq]
   · simp only [actSem, hq, Feature.holds_sit_iff_eq hq]
-    constructor
-    · rintro ⟨j', hj', h⟩
-      rwa [hj'] at h
-    · intro h
-      exact ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
-        rw [sitOf_equivFin]; exact h⟩
+    exact ⟨fun ⟨_, hj', h⟩ => by rwa [hj'] at h,
+      fun h => ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
+        rwa [sitOf_equivFin]⟩⟩
 
 /-! ### The gadgets of the features -/
 
@@ -711,9 +693,7 @@ theorem evalOutput_gates (hn : x.length < 2 * T) :
 /-- The output wire of the tableau circuit. -/
 private theorem toNat_outputs_circuit (n T : ℕ) :
     ((circuit tm n T).outputs 0).toNat = outWire k State n T := by
-  have h := congrArg Prod.snd (code_circuit tm n T)
-  simp only [Circuit.code] at h
-  simpa using congrArg (fun l => l.headD 0) h
+  simpa [Circuit.code] using congrArg (fun p => p.2.headD 0) (code_circuit tm n T)
 
 /-- **The tableau circuit outputs the answer**: on inputs `y` of length `n < 2 T`, it outputs
 whether `tm`, started on `y`, has written exactly `[true]` after `T` steps. -/
@@ -721,9 +701,7 @@ theorem eval_circuit {n T : ℕ} (hn : n < 2 * T) (y : BitString n) :
     (circuit tm n T).eval interpretation y 0 =
       decide (OutView.ofList (tm.runFrom (tm.initCfg (List.ofFn y)) T).output = .one true) := by
   rw [Circuit.eval_eq_evalOutput, code_circuit, toNat_outputs_circuit]
-  have h := evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
-  simp only [List.length_ofFn] at h
-  exact h
+  simpa using evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
 
 end Boolean.Tableau
 

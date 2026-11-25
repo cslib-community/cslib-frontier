@@ -134,10 +134,8 @@ pays `1 - q`, and opposite behaviors pay `0` ([Kleinberg2007], Section 24.2, pp.
 
 /-- The normalized coordination game with `0 < q < 1` satisfies `IsCoordination`. -/
 theorem isCoordination_normalized {q : ℝ} (hq0 : 0 < q) (hq1 : q < 1) :
-    (normalized q).IsCoordination := by
-  refine ⟨hq0, ?_⟩
-  change (0 : ℝ) < 1 - q
-  linarith
+    (normalized q).IsCoordination :=
+  ⟨hq0, sub_pos.mpr hq1⟩
 
 /-- The equivalent adoption threshold `q = (uAA - uBA) / ((uAA - uBA) + (uBB - uAB))` of a general
 symmetric coordination game ([Kleinberg2007], Exercise 24.2, p. 632). -/
@@ -152,11 +150,8 @@ theorem threshold_def (p : CoordinationPayoffs) :
   simp only [threshold, normalized]
   ring
 
-theorem threshold_pos {p : CoordinationPayoffs} (hp : p.IsCoordination) : 0 < p.threshold := by
-  rw [threshold]
-  have h1 : 0 < p.uAA - p.uBA := sub_pos.mpr hp.1
-  have h2 : 0 < p.uBB - p.uAB := sub_pos.mpr hp.2
-  positivity
+theorem threshold_pos {p : CoordinationPayoffs} (hp : p.IsCoordination) : 0 < p.threshold :=
+  div_pos (sub_pos.mpr hp.1) (add_pos (sub_pos.mpr hp.1) (sub_pos.mpr hp.2))
 
 theorem threshold_lt_one {p : CoordinationPayoffs} (hp : p.IsCoordination) : p.threshold < 1 := by
   rw [threshold, div_lt_one]
@@ -307,26 +302,17 @@ theorem isPureNash_of_bestResponseStep_eq [DecidableEq V] {s : V → Bool}
     (p.toCostGame G).IsPureNash s := by
   intro v a
   simp only [toCostGame_cost, neg_le_neg_iff]
-  cases ha : a <;> cases hsv : s v
-  · rw [← hsv, Function.update_eq_self]
-  · have hmem : v ∈ p.bestResponseStep G {w | s w = true} := by
-      rw [h]
-      exact hsv
-    rw [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s]
-      at hmem
-    have hself : Function.update s v true = s := by
-      rw [← hsv, Function.update_eq_self]
-    rwa [hself] at hmem
-  · have hnot : v ∉ p.bestResponseStep G {w | s w = true} := by
-      rw [h]
-      simp only [Set.mem_ofPred_eq, hsv, Bool.false_eq_true, not_false_eq_true]
+  have hup : Function.update s v (s v) = s := Function.update_eq_self _ _
+  cases ha : a <;> cases hsv : s v <;> rw [hsv] at hup
+  · rw [hup]
+  · have hmem : v ∈ p.bestResponseStep G {w | s w = true} := h.symm ▸ hsv
+    rwa [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s,
+      hup] at hmem
+  · have hnot : v ∉ p.bestResponseStep G {w | s w = true} := by simp [h, hsv]
     rw [mem_bestResponseStep_iff, ← p.payoff_update_false G v s, ← p.payoff_update_true G v s,
-      not_le] at hnot
-    have hself : Function.update s v false = s := by
-      rw [← hsv, Function.update_eq_self]
-    rw [hself] at hnot
+      hup, not_le] at hnot
     exact hnot.le
-  · rw [← hsv, Function.update_eq_self]
+  · rw [hup]
 
 end GraphPayoffs
 
@@ -476,12 +462,10 @@ the union of all iterates `⋃ j, (progressiveStep G q)^[j] S` is `Set.univ`. -/
 theorem isContagious_progressiveStep_iff_iUnion_eq_univ (q : ℝ) (S : Set V) :
     IsContagious (progressiveStep G q) S ↔ (⋃ j, (progressiveStep G q)^[j] S) = Set.univ := by
   rw [Set.eq_univ_iff_forall]
-  constructor
-  · intro h w
-    obtain ⟨k, hk⟩ := h w
+  refine ⟨fun h w => ?_, fun h w => ?_⟩
+  · obtain ⟨k, hk⟩ := h w
     exact Set.mem_iUnion.mpr ⟨k, hk k le_rfl⟩
-  · intro h w
-    obtain ⟨k, hk⟩ := Set.mem_iUnion.mp (h w)
+  · obtain ⟨k, hk⟩ := Set.mem_iUnion.mp (h w)
     exact ⟨k, fun j hj => progressiveStep_iterate_mono G q S hj hk⟩
 
 theorem isContagious_bestResponseStep_of_le {q₁ q₂ : ℝ} (hq : q₁ ≤ q₂) {S : Set V}
@@ -672,22 +656,16 @@ private def edgeBoundaryCard [DecidableEq V] (X : Finset V) : ℕ :=
 private theorem sum_card_inter_neighborFinset_comm [DecidableEq V] (X D : Finset V) :
     ∑ v ∈ X, (G.neighborFinset v ∩ D).card = ∑ u ∈ D, (G.neighborFinset u ∩ X).card := by
   classical
-  have hlhs : ∑ v ∈ X, (G.neighborFinset v ∩ D).card =
-      ∑ v ∈ X, ∑ u ∈ D, if G.Adj v u then 1 else 0 := by
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [← Finset.card_filter]
-    congr 1
-    ext u
-    simp only [Finset.mem_inter, SimpleGraph.mem_neighborFinset, Finset.mem_filter, and_comm]
-  have hrhs : ∑ u ∈ D, (G.neighborFinset u ∩ X).card =
-      ∑ u ∈ D, ∑ v ∈ X, if G.Adj v u then 1 else 0 := by
-    refine Finset.sum_congr rfl fun u _ => ?_
-    rw [← Finset.card_filter]
-    congr 1
-    ext v
-    simp only [Finset.mem_inter, SimpleGraph.mem_neighborFinset, Finset.mem_filter,
-      SimpleGraph.adj_comm, and_comm]
-  rw [hlhs, hrhs, Finset.sum_comm]
+  have hcard (A B : Finset V) :
+      ∑ v ∈ A, (G.neighborFinset v ∩ B).card = ∑ v ∈ A, ∑ u ∈ B, if G.Adj v u then 1 else 0 :=
+    Finset.sum_congr rfl fun v _ => by
+      rw [← Finset.card_filter]
+      congr 1
+      ext u
+      simp only [Finset.mem_inter, SimpleGraph.mem_neighborFinset, Finset.mem_filter, and_comm]
+  rw [hcard X D, hcard D X, Finset.sum_comm]
+  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => ?_
+  simp only [SimpleGraph.adj_comm]
 
 private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdisj : Disjoint X D) :
     edgeBoundaryCard G (X ∪ D) + ∑ u ∈ D, (G.neighborFinset u ∩ X).card =
@@ -713,11 +691,8 @@ private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdi
       by_cases hwD : w ∈ D
       · exact Or.inr ⟨hnb, hwD⟩
       · exact Or.inl ⟨hnb, fun h => h.elim hnotX hwD⟩
-  have hsum_split :
-      (∑ v ∈ X, (G.neighborFinset v \ (X ∪ D)).card) + ∑ v ∈ X, (G.neighborFinset v ∩ D).card =
-        ∑ v ∈ X, (G.neighborFinset v \ X).card := by
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl hsplit
+  have := Finset.sum_congr rfl hsplit
+  rw [Finset.sum_add_distrib] at this
   omega
 
 private theorem progressiveStep_iterate_finite {q : ℝ} (hq0 : 0 < q)
@@ -757,13 +732,9 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro u hu
       have huD : u ∈ Sfin (j + 1) ∧ u ∉ Sfin j := Finset.mem_sdiff.mp hu
       have hbr : u ∈ bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) := by
-        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by
-          rw [← hSfin_coe]
-          exact huD.1
+        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := hSfin_coe (j + 1) ▸ huD.1
         rw [Function.iterate_succ_apply', progressiveStep] at h1
-        refine h1.resolve_left ?_
-        rw [← hSfin_coe]
-        exact huD.2
+        exact h1.resolve_left (hSfin_coe j ▸ huD.2)
       rw [mem_bestResponseStep_iff, ← hSfin_coe] at hbr
       have hncard : (G.neighborSet u ∩ (X : Set V)).ncard = (G.neighborFinset u ∩ X).card := by
         rw [← G.coe_neighborFinset, ← Finset.coe_inter, Set.ncard_coe_finset]
@@ -805,17 +776,13 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
     induction m with
     | zero => exact (hSfin_coe k).symm
     | succ m ih =>
-        have hstep : (progressiveStep G q)^[k + 1] (S : Set V) =
-            (progressiveStep G q)^[k] (S : Set V) := by
-          rw [← hSfin_coe, ← hSfin_coe, hk]
-        rw [← Nat.add_assoc, Function.iterate_succ_apply', ih, hSfin_coe,
-          ← Function.iterate_succ_apply' (progressiveStep G q) k (S : Set V), hstep, ← hSfin_coe]
+        rw [← Nat.add_assoc, Function.iterate_succ_apply', ih, hSfin_coe k,
+          ← Function.iterate_succ_apply' (progressiveStep G q) k (S : Set V),
+          ← hSfin_coe (k + 1), ← hSfin_coe k, hk]
   intro hcont
   obtain ⟨w, hw⟩ := Set.Infinite.exists_notMem_finset Set.infinite_univ (Sfin k)
   obtain ⟨k', hk'⟩ := hcont w
-  have hwmem : w ∈ (progressiveStep G q)^[k + k'] (S : Set V) := hk' (k + k') (Nat.le_add_left k' k)
-  rw [hconst k'] at hwmem
-  exact hw.2 hwmem
+  exact hw.2 (hconst k' ▸ hk' (k + k') (Nat.le_add_left k' k) : w ∈ (Sfin k : Set V))
 
 /-- **Theorem 24.2 (nonprogressive form)** ([Kleinberg2007], Section 24.2, p. 618; [Morris2000]):
 on any infinite locally finite graph with no isolated vertices, no finite set is contagious for
@@ -879,19 +846,10 @@ theorem intPathGraph_connected : intPathGraph.Connected := by
     intro a n
     induction n with
     | zero => simp only [Nat.cast_zero, add_zero, SimpleGraph.Reachable.refl]
-    | succ n ih =>
-        refine ih.trans (SimpleGraph.Adj.reachable ?_)
-        rw [intPathGraph_adj_iff]
-        left
-        omega
+    | succ n ih => exact ih.trans (SimpleGraph.Adj.reachable (Or.inl (by omega)))
   by_cases hxy : x ≤ y
-  · have heq : x + (y - x).toNat = y := by omega
-    rw [← heq]
-    exact hstep x (y - x).toNat
-  · have heq : y + (x - y).toNat = x := by omega
-    refine SimpleGraph.Reachable.symm ?_
-    rw [← heq]
-    exact hstep y (x - y).toNat
+  · exact (by omega : x + (y - x).toNat = y) ▸ hstep x (y - x).toNat
+  · exact ((by omega : y + (x - y).toNat = x) ▸ hstep y (x - y).toNat).symm
 
 private theorem mem_bestResponseStep_intPathGraph_half_iff (S : Set ℤ) (x : ℤ) :
     x ∈ bestResponseStep intPathGraph (1 / 2) S ↔ x - 1 ∈ S ∨ x + 1 ∈ S := by
@@ -911,14 +869,8 @@ private theorem mem_bestResponseStep_intPathGraph_half_iff (S : Set ℤ) (x : �
     · exact Or.inl hy2
     · exact Or.inr hy2
   · rintro (h | h)
-    · refine ⟨x - 1, ?_, h⟩
-      rw [SimpleGraph.mem_neighborSet, intPathGraph_adj_iff]
-      right
-      omega
-    · refine ⟨x + 1, ?_, h⟩
-      rw [SimpleGraph.mem_neighborSet, intPathGraph_adj_iff]
-      left
-      omega
+    · exact ⟨x - 1, Or.inr (by omega), h⟩
+    · exact ⟨x + 1, Or.inl (by omega), h⟩
 
 /-- On `intPathGraph` at threshold `q = 1 / 2`, one nonprogressive step expands any integer
 interval `[a, b]` with at least two vertices (`a < b`) to `[a - 1, b + 1]`

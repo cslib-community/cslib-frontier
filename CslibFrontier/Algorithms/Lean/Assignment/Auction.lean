@@ -282,13 +282,10 @@ theorem AuctionInv.bidStep {s : AuctionState n} (hε : 0 ≤ ε) (h : AuctionInv
   have hi : ∀ j, s.owner j ≠ some i := (h.mem_free i).1 (hs ▸ List.mem_cons_self ..)
   have hnd := h.free_nodup
   rw [hs, List.nodup_cons] at hnd
-  have hup : ∀ k, s.price k ≤ Function.update s.price j (bidPrice c ε s.price i j) k := by
-    intro k
-    by_cases hk : k = j
-    · have := le_bidPrice (ε := ε) hj
-      simp only [hk, Function.update_self]
-      omega
-    · rw [Function.update_of_ne hk]
+  have hup (k : Fin n) : s.price k ≤ Function.update s.price j (bidPrice c ε s.price i j) k := by
+    rcases eq_or_ne k j with rfl | hk
+    · simpa only [Function.update_self] using (le_add_of_nonneg_right hε).trans (le_bidPrice hj)
+    · simp only [Function.update_of_ne hk, le_rfl]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> dsimp only
   · intro j₁ j₂ i' h₁ h₂
     by_cases e₁ : j₁ = j <;> by_cases e₂ : j₂ = j <;>
@@ -300,10 +297,8 @@ theorem AuctionInv.bidStep {s : AuctionState n} (hε : 0 ≤ ε) (h : AuctionInv
     · exact h.owner_inj j₁ j₂ i' h₁ h₂
   · rcases ho : s.owner j with _ | i'
     · simpa using hnd.2
-    · simp only [Option.toList_some, List.singleton_append, List.nodup_cons]
-      refine ⟨fun hmem => ?_, hnd.2⟩
-      have : i' ∈ s.free := hs ▸ List.mem_cons_of_mem _ hmem
-      exact (h.mem_free i').1 this j ho
+    · exact List.nodup_cons.2 ⟨fun hmem =>
+        (h.mem_free i').1 (hs ▸ List.mem_cons_of_mem _ hmem) j ho, hnd.2⟩
   · intro x
     simp only [List.mem_append, Option.mem_toList]
     constructor
@@ -465,12 +460,8 @@ theorem sub_le_costSpread (i j k : Fin n) : c (i, k) - c (i, j) ≤ costSpread c
     (single_le_sum (fun j _ => abs_nonneg (c (i, j))) (mem_univ j)).trans
       (single_le_sum (f := fun i => ∑ j, |c (i, j)|)
         (fun i _ => sum_nonneg fun j _ => abs_nonneg _) (mem_univ i))
-  have h1 := hrow k
-  have h2 := hrow j
-  have h3 := le_abs_self (c (i, k))
-  have h4 := neg_abs_le (c (i, j))
   unfold costSpread
-  linarith
+  linarith [hrow k, hrow j, le_abs_self (c (i, k)), neg_abs_le (c (i, j))]
 
 /-- With fuel `bidBound n C ε` for any bound `C` on the row cost ranges, the auction completes the
 assignment and maintains the invariant. -/
@@ -494,13 +485,12 @@ theorem auction_free (hε : 0 < ε) : (auction c ε).free = [] :=
 theorem bids_auction_le (hε : 0 < ε) {C : ℤ} (hC : ∀ i j k, c (i, k) - c (i, j) ≤ C) :
     (auction c ε).bids ≤ bidBound n C ε := by
   unfold auction
+  have h0 (f : ℕ) : (auctionLoop c ε f (auctionInit n)).bids ≤ f := by
+    simpa only [auctionInit, zero_add] using bids_auctionLoop_le (c := c) (ε := ε) f (auctionInit n)
   rcases le_total (bidBound n C ε) (bidBound n (costSpread c) ε) with hle | hle
   · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auctionLoop_bidBound hε hC).2]
-    have := bids_auctionLoop_le (c := c) (ε := ε) (bidBound n C ε) (auctionInit n)
-    rwa [show (auctionInit n).bids = 0 from rfl, zero_add] at this
-  · have := bids_auctionLoop_le (c := c) (ε := ε) (bidBound n (costSpread c) ε) (auctionInit n)
-    rw [show (auctionInit n).bids = 0 from rfl, zero_add] at this
-    omega
+    exact h0 _
+  · exact (h0 _).trans hle
 
 /-! ### The output permutation -/
 
@@ -698,17 +688,14 @@ theorem auction_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε
     auction (fun e => c e + d) ε = auction c ε := by
   unfold auction
   rw [auctionLoop_add_const]
-  have hf1 : (auctionLoop c ε (bidBound n (costSpread c) ε) (auctionInit n)).free = [] :=
-    auction_free hε
   have hf2 :
       (auctionLoop c ε (bidBound n (costSpread fun e => c e + d) ε) (auctionInit n)).free = [] := by
     rw [← auctionLoop_add_const c d ε]
     exact auction_free (c := fun e => c e + d) hε
   rcases le_total (bidBound n (costSpread c) ε)
       (bidBound n (costSpread fun e => c e + d) ε) with hle | hle
-  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf1]
-  · symm
-    rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
+  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hε)]
+  · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hf2]
 
 /-- Shifting every cost by a constant `d` leaves `auctionPerm` unchanged. -/
 theorem auctionPerm_add_const (c : Fin n × Fin n → ℤ) (d : ℤ) {ε : ℤ} (hε : 0 < ε) :

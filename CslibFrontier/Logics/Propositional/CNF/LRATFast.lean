@@ -227,8 +227,7 @@ private theorem propagateFast_eq {db : Array (Option (Clause ℕ))} {L : List (�
     intro asg trail hasg
     have hfind : db.getD h none = (L.find? (·.1 == h)).map (·.2) := by
       rw [hdb, List.lookup_eq_map_find?]
-      congr 2
-      funext e
+      congr 2 with e
       simp [eq_comm]
     rw [propagateHints_cons]
     simp only [propagateFast, hfind]
@@ -254,14 +253,10 @@ private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List
   | case3 db asg id c hints rest cl neg r ih => -- addRup
     have hp := propagateFast_eq hdb hints.toList (assignAll asg neg) neg
       (fun l => by rw [isTrue_assignAll, hasg, Bool.false_or])
-    simp only [checkLRATAux]
-    congr 1
-    · exact hp.1
-    refine ih (fun n => ?_) hp.2
-    rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]
+    exact congrArg₂ (· && ·) hp.1
+      (ih (fun n => by rw [Array.getD_setGrow, hdb, List.lookup_cons_eq_ite]) hp.2)
   | case5 db asg ids rest ih => -- del
-    refine ih (fun n => ?_) hasg
-    rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]
+    exact ih (fun n => by rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]) hasg
 
 /-- **The array-based checker agrees with the reference checker** on every formula and
 certificate. -/

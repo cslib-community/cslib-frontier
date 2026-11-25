@@ -135,19 +135,13 @@ theorem pairKey_mem {α : Type*} [LinearOrder α] (a b c d : α) :
   unfold pairKey
   rcases min_choice (max a b) (max (min a b) (min c d)) with h | h
   · rw [h]
-    rcases max_choice a b with h' | h'
-    · exact Or.inl h'
-    · exact Or.inr (Or.inl h')
+    exact (max_choice a b).imp id Or.inl
   · rw [h]
     rcases max_choice (min a b) (min c d) with h' | h'
     · rw [h']
-      rcases min_choice a b with h'' | h''
-      · exact Or.inl h''
-      · exact Or.inr (Or.inl h'')
+      exact (min_choice a b).imp id Or.inl
     · rw [h']
-      rcases min_choice c d with h'' | h''
-      · exact Or.inr (Or.inr (Or.inl h''))
-      · exact Or.inr (Or.inr (Or.inr h''))
+      exact Or.inr (Or.inr (min_choice c d))
 
 /-- Disagreement count at a single cubic vertex with three incident edge colors `a, b, c` and
 vertex color `x`. -/
@@ -299,12 +293,9 @@ private theorem eq_of_mem_isMatching {M : Set E} (hM : G.IsMatching M) {e f : E}
     (he : e ∈ M) (hf : f ∈ M) {v : V} (hev : e ∈ G.incidenceSet v) (hfv : f ∈ G.incidenceSet v) :
     e = f := by
   by_contra hne
-  have hdis := hM he hf hne
-  have hv1 : v ∈ ({G.src e, G.tgt e} : Set V) := by
-    rcases hev with h | h <;> simp [h]
-  have hv2 : v ∈ ({G.src f, G.tgt f} : Set V) := by
-    rcases hfv with h | h <;> simp [h]
-  exact disjoint_left.mp hdis hv1 hv2
+  exact disjoint_left.mp (hM he hf hne)
+    (by rcases hev with h | h <;> simp [h] : v ∈ _)
+    (by rcases hfv with h | h <;> simp [h])
 
 /-- Mate of a vertex `v` under matching `M` (returning `v` when `v` is unmatched). -/
 noncomputable def mate (G : Multigraph V E) (M : Set E) (v : V) : V :=
@@ -362,20 +353,10 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     (h2 : S₂ = {c, d}) (h2' : S₂ = {c', d'}) (hcd' : c' ≠ d') :
     pairKey (score a) (score b) (score c) (score d) =
       pairKey (score a') (score b') (score c') (score d') := by
-  have hset1 : ({a, b} : Set E) = {a', b'} := h1.symm.trans h1'
-  have hset2 : ({c, d} : Set E) = {c', d'} := h2.symm.trans h2'
-  have ha' : a' = a ∨ a' = b := by
-    have : a' ∈ ({a, b} : Set E) := hset1 ▸ by simp
-    simpa using this
-  have hb' : b' = a ∨ b' = b := by
-    have : b' ∈ ({a, b} : Set E) := hset1 ▸ by simp
-    simpa using this
-  have hc' : c' = c ∨ c' = d := by
-    have : c' ∈ ({c, d} : Set E) := hset2 ▸ by simp
-    simpa using this
-  have hd' : d' = c ∨ d' = d := by
-    have : d' ∈ ({c, d} : Set E) := hset2 ▸ by simp
-    simpa using this
+  have hmem1 {x} (hx : x ∈ ({a', b'} : Set E)) : x = a ∨ x = b := by
+    simpa [← h1', h1] using hx
+  have hmem2 {x} (hx : x ∈ ({c', d'} : Set E)) : x = c ∨ x = d := by
+    simpa [← h2', h2] using hx
   have hcd_case : ∀ x y, (x = c ∨ x = d) → (y = c ∨ y = d) → x ≠ y →
       ∀ u v : α, pairKey u v (score c) (score d) = pairKey u v (score x) (score y) := by
     intro x y hx hy hxy u v
@@ -384,11 +365,11 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     · rfl
     · exact pairKey_comm_right u v (score y) (score x)
     · exact (hxy rfl).elim
-  rcases ha' with rfl | rfl <;> rcases hb' with rfl | rfl
+  rcases hmem1 (Or.inl rfl) with rfl | rfl <;> rcases hmem1 (Or.inr rfl) with rfl | rfl
   · exact (hab' rfl).elim
-  · exact hcd_case c' d' hc' hd' hcd' (score a') (score b')
+  · exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · rw [pairKey_comm_left (score b') (score a')]
-    exact hcd_case c' d' hc' hd' hcd' (score a') (score b')
+    exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · exact (hab' rfl).elim
 
 private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
@@ -460,18 +441,10 @@ private theorem starCost_eq_ite_edgeStraddles {α : Type*} [LinearOrder α]
     starCost (decide (score e₀ < t)) (decide (score e₁ < t)) (decide (score e₂ < t)) =
       letI := Classical.propDecidable
       if G.EdgeStraddles score t v then 1 else 0 := by
-  have hiff : G.EdgeStraddles score t v ↔
-      ¬(decide (score e₀ < t) = decide (score e₁ < t) ∧
-        decide (score e₁ < t) = decide (score e₂ < t)) := by
-    simp only [EdgeStraddles, StraddlesOn, hs, mem_insert_iff, mem_singleton_iff]
-    by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;> by_cases h2 : score e₂ < t <;>
-      simp [h0, h1, h2, not_lt.mp]
-  simp only [starCost]
-  split_ifs with h1 h2 h2
-  · exact (hiff.mp h2 h1).elim
-  · rfl
-  · rfl
-  · exact (h2 (hiff.mpr h1)).elim
+  simp only [starCost, EdgeStraddles, StraddlesOn, hs, mem_insert_iff, mem_singleton_iff,
+    or_and_right, exists_or, exists_eq_left]
+  by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;> by_cases h2 : score e₂ < t <;>
+    simp [h0, h1, h2, not_lt.mp, not_le.mpr]
 
 /-- Helper expressing `twoVertexCost` in terms of `PairStraddlesAny` and `PairStraddlesBoth`. -/
 private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
@@ -483,41 +456,11 @@ private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
       letI := Classical.propDecidable
       (if G.PairStraddlesAny score t e then 1 else 0) +
         (if G.PairStraddlesBoth score t e then 1 else 0) := by
-  have hany : G.PairStraddlesAny score t e ↔
-      ¬(decide (score a < t) = decide (score b < t) ∧
-        decide (score b < t) = decide (score c < t) ∧
-        decide (score c < t) = decide (score d < t)) := by
-    simp only [PairStraddlesAny, StraddlesOn, hsrc, htgt, mem_union, mem_insert_iff,
-      mem_singleton_iff]
-    have hex (p : E → Prop) : (∃ f, ((f = a ∨ f = b) ∨ f = c ∨ f = d) ∧ p f) ↔
-        p a ∨ p b ∨ p c ∨ p d := by
-      constructor
-      · rintro ⟨f, (rfl | rfl) | (rfl | rfl), h⟩ <;> simp [h]
-      · rintro (h | h | h | h)
-        · exact ⟨a, Or.inl (Or.inl rfl), h⟩
-        · exact ⟨b, Or.inl (Or.inr rfl), h⟩
-        · exact ⟨c, Or.inr (Or.inl rfl), h⟩
-        · exact ⟨d, Or.inr (Or.inr rfl), h⟩
-    rw [hex (score · < t), hex (t ≤ score ·)]
-    by_cases ha : score a < t <;> by_cases hb : score b < t <;>
-      by_cases hc : score c < t <;> by_cases hd : score d < t <;>
-      simp [ha, hb, hc, hd, not_lt.mp]
-  have hboth : G.PairStraddlesBoth score t e ↔
-      (decide (score a < t) ≠ decide (score b < t) ∧
-        decide (score c < t) ≠ decide (score d < t)) := by
-    simp only [PairStraddlesBoth, hsrc, htgt, straddlesOn_pair_iff]
-  simp only [twoVertexCost]
-  congr 1
-  · split_ifs with h1 h2 h2
-    · exact (hany.mp h2 h1).elim
-    · rfl
-    · rfl
-    · exact (h2 (hany.mpr h1)).elim
-  · split_ifs with h1 h2 h2
-    · rfl
-    · exact (h2 (hboth.mpr h1)).elim
-    · exact (h1 (hboth.mp h2)).elim
-    · rfl
+  simp only [twoVertexCost, PairStraddlesAny, PairStraddlesBoth, hsrc, htgt, StraddlesOn,
+    mem_union, mem_insert_iff, mem_singleton_iff, or_and_right, exists_or, exists_eq_left]
+  by_cases ha : score a < t <;> by_cases hb : score b < t <;>
+    by_cases hc : score c < t <;> by_cases hd : score d < t <;>
+    simp [ha, hb, hc, hd, not_lt.mp, not_le.mpr]
 
 /-- Extract the two outer incident edges at each endpoint of `e` in a cubic multigraph. -/
 private theorem exists_outer_edges [Finite E] (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
@@ -794,14 +737,10 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
     · obtain ⟨e, heM, hev⟩ := hmat
       obtain ⟨a, b, c, d, _, _, hsrc, htgt⟩ := exists_outer_edges h3 e
       obtain ⟨hks, hkt⟩ := matchingKey_matched hM hloop h3 score heM hsrc htgt
-      have hinc_a : a ∈ G.incidenceSet (G.src e) :=
-        ((show a ∈ G.incidenceSet (G.src e) \ {e} by rw [hsrc]; simp)).1
-      have hinc_b : b ∈ G.incidenceSet (G.src e) :=
-        ((show b ∈ G.incidenceSet (G.src e) \ {e} by rw [hsrc]; simp)).1
-      have hinc_c : c ∈ G.incidenceSet (G.tgt e) :=
-        ((show c ∈ G.incidenceSet (G.tgt e) \ {e} by rw [htgt]; simp)).1
-      have hinc_d : d ∈ G.incidenceSet (G.tgt e) :=
-        ((show d ∈ G.incidenceSet (G.tgt e) \ {e} by rw [htgt]; simp)).1
+      have hinc_s {x} (hx : x ∈ ({a, b} : Set E)) : x ∈ G.incidenceSet (G.src e) :=
+        (hsrc ▸ hx).1
+      have hinc_t {x} (hx : x ∈ ({c, d} : Set E)) : x ∈ G.incidenceSet (G.tgt e) :=
+        (htgt ▸ hx).1
       have hmem_s (f : E) (hf : f ∈ G.incidenceSet (G.src e)) : G.src e ∈ hit f := by
         rcases hf with h | h <;> simp [hit, h]
       have hmem_t (f : E) (hf : f ∈ G.incidenceSet (G.tgt e)) : G.tgt e ∈ hit f := by
@@ -813,16 +752,16 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
       rcases hev with rfl | rfl
       · rw [hks] at hpv
         rcases pairKey_mem (score a) (score b) (score c) (score d) with h | h | h | h
-        · exact hmem a (h ▸ hpv) (hmem_s a hinc_a)
-        · exact hmem b (h ▸ hpv) (hmem_s b hinc_b)
-        · exact hmem c (h ▸ hpv) (hmem_ms c hinc_c)
-        · exact hmem d (h ▸ hpv) (hmem_ms d hinc_d)
+        · exact hmem a (h ▸ hpv) (hmem_s a (hinc_s (Or.inl rfl)))
+        · exact hmem b (h ▸ hpv) (hmem_s b (hinc_s (Or.inr rfl)))
+        · exact hmem c (h ▸ hpv) (hmem_ms c (hinc_t (Or.inl rfl)))
+        · exact hmem d (h ▸ hpv) (hmem_ms d (hinc_t (Or.inr rfl)))
       · rw [hkt] at hpv
         rcases pairKey_mem (score c) (score d) (score a) (score b) with h | h | h | h
-        · exact hmem c (h ▸ hpv) (hmem_t c hinc_c)
-        · exact hmem d (h ▸ hpv) (hmem_t d hinc_d)
-        · exact hmem a (h ▸ hpv) (hmem_mt a hinc_a)
-        · exact hmem b (h ▸ hpv) (hmem_mt b hinc_b)
+        · exact hmem c (h ▸ hpv) (hmem_t c (hinc_t (Or.inl rfl)))
+        · exact hmem d (h ▸ hpv) (hmem_t d (hinc_t (Or.inr rfl)))
+        · exact hmem a (h ▸ hpv) (hmem_mt a (hinc_s (Or.inl rfl)))
+        · exact hmem b (h ▸ hpv) (hmem_mt b (hinc_s (Or.inr rfl)))
     · obtain ⟨e₀, e₁, e₂, _, _, _, hinc, hkey⟩ := matchingKey_unmatched h3 score hmat
       rw [hkey] at hpv
       have hmed : median3 (score e₀) (score e₁) (score e₂) = score e₀ ∨
@@ -831,13 +770,11 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
         unfold median3
         rcases max_choice (min (score e₀) (score e₁)) (min (max (score e₀) (score e₁)) (score e₂))
           with h | h
-        · rw [h]; rcases min_choice (score e₀) (score e₁) with h' | h'
-          · exact Or.inl h'
-          · exact Or.inr (Or.inl h')
-        · rw [h]; rcases min_choice (max (score e₀) (score e₁)) (score e₂) with h' | h'
-          · rw [h']; rcases max_choice (score e₀) (score e₁) with h'' | h''
-            · exact Or.inl h''
-            · exact Or.inr (Or.inl h'')
+        · rw [h]
+          exact (min_choice (score e₀) (score e₁)).imp id Or.inl
+        · rw [h]
+          rcases min_choice (max (score e₀) (score e₁)) (score e₂) with h' | h'
+          · exact h'.symm ▸ (max_choice (score e₀) (score e₁)).imp id Or.inl
           · exact Or.inr (Or.inr h')
       have hmem_v (f : E) (hf : f ∈ G.incidenceSet v) : v ∈ hit f := by
         rcases hf with h | h <;> simp [hit, h]

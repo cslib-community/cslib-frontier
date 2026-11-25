@@ -135,9 +135,7 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
         refine ⟨?_, topChoice_iterate_ne_self_of_ne ha₀ hf_ne₀ t⟩
         change ν (f^[t] a₀) = f^[t] a₀
         rw [← Function.iterate_mod_minimalPeriod_eq (f := f) (x := a₀) (n := t)]
-        have hrem : t % p < p := Nat.mod_lt t hp_pos
-        rw [show t % p = p - (p - t % p) by omega]
-        exact hfix_back (p - t % p) (by omega)
+        exact Nat.sub_sub_self (Nat.mod_lt t hp_pos).le ▸ hfix_back (p - t % p) (Nat.sub_le p _)
       -- Trading along `O` strictly improves all of `O` without hurting anyone outside `O`.
       let ν' : Allocation n := ν.trans (I.cyclePerm hOC hOclosed)
       have hν'_mem (y : Fin n) (hy : y ∈ O) : ν' y = f y := by
@@ -149,10 +147,7 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
         · rw [hν'_mem y hyO, (hO_fix y hyO).1]
           exact I.rank_topChoice_le (I.cycleAgents_subset R (hOC hyO)) y
         · have hnotO : ν y ∉ O := fun hm => hyO (ν.injective (hO_fix (ν y) hm).1 ▸ hm)
-          have hν'y : ν' y = ν y := by
-            simp only [ν', Equiv.trans_apply]
-            exact I.cyclePerm_apply_of_notMem hOC hOclosed hnotO
-          rw [hν'y]
+          rw [Equiv.trans_apply, I.cyclePerm_apply_of_notMem hOC hOclosed hnotO]
       · rw [hν'_mem a₀ ha₀O, (hO_fix a₀ ha₀O).1]
         exact lt_of_le_of_ne (I.rank_topChoice_le (I.cycleAgents_subset R ha₀) a₀)
           fun hr => (hO_fix a₀ ha₀O).2 (I.rank_injective a₀ hr)
@@ -225,20 +220,15 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     -- `I.ttc` remains in the strict core of `I'`, so `I'.ttc = I.ttc`.
     have hI'_strictCore : I'.InStrictCore I.ttc := by
       rintro S ⟨ν, hS, hle, j₀, hj₀, hlt⟩
-      refine I.inStrictCore_ttc S ⟨ν, hS, fun j hj => ?_, j₀, hj₀, ?_⟩
-      · by_cases hji : j = i
+      have hle' (j : Fin n) (hj : j ∈ S) : I.rank j (ν j) ≤ I.rank j (I.ttc j) := by
+        by_cases hji : j = i
         · subst hji
           have h1 := hle j hj
           rw [hI'_ttc_rank, hI'_rank] at h1
           exact (Instance.swap_le_iff_of_lt hrk hkr).1 h1
         · simpa only [I', I.updatePref_rank_of_ne π hji] using hle j hj
-      · by_cases hji : j₀ = i
-        · subst hji
-          have h1 := hlt
-          rw [hI'_ttc_rank, hI'_rank] at h1
-          rwa [Instance.swap_eq_self_of_le hrk hkr
-            ((Instance.swap_le_iff_of_lt hrk hkr).1 h1.le)] at h1
-        · simpa only [I', I.updatePref_rank_of_ne π hji] using hlt
+      exact I.inStrictCore_ttc S ⟨ν, hS, hle', j₀, hj₀, lt_of_le_of_ne (hle' j₀ hj₀)
+        fun hr => hlt.ne (congrArg (I'.rank j₀) (I.rank_injective j₀ hr))⟩
     -- The endowment-rank sum strictly drops, so the induction hypothesis gives `M I' = I.ttc`.
     have hsum_lt : (∑ j : Fin n, (I'.rank j j).val) < m := by
       rw [← hm]
@@ -250,15 +240,12 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
     have hMI' : M I' = I.ttc := (ih _ hsum_lt I' rfl).trans hI'_strictCore.eq_ttc.symm
     -- Strategy-proofness between `I` and `I'` forces `M I i = I.ttc i`.
     have hsp_fwd : I.rank i (M I i) ≤ r := by
-      have h1 := hSP I i π
-      rwa [show I.updatePref i π = I' from rfl, hMI'] at h1
+      simpa only [I', hMI'] using hSP I i π
     have hsp_bwd : r ≤ I.rank i (M I i) := by
       have h1 := hSP I' i (I.pref i)
-      have hback : I'.updatePref i (I.pref i) = I := by
-        simp [I']
-      rw [hback, hMI', hI'_ttc_rank, hI'_rank,
+      have hback : I'.updatePref i (I.pref i) = I := by simp [I']
+      rwa [hback, hMI', hI'_ttc_rank, hI'_rank,
         Instance.swap_eq_self_of_le hrk hkr hsp_fwd] at h1
-      exact h1
     exact Or.inr (le_antisymm hsp_fwd hsp_bwd).le
   · -- No house lies strictly between `I.ttc i` and `i`, so `hIR` suffices directly.
     have hir_i : (I.rank i (M I i)).val ≤ r₀.val := hIR I i
@@ -332,10 +319,7 @@ private theorem val_ge_of_ne {k : ℕ} (hk : k < n) {i : Fin n} (hi : n - (k + 1
 theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) {i : Fin n}
     (hi : n - k ≤ i.val) : I.sdSteps k R i ∈ R := by
   induction k generalizing R with
-  | zero =>
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact absurd i.isLt (by omega)
   | succ k ih =>
     have hk : k < n := by omega
     let a : Fin n := ⟨n - 1 - k, by omega⟩
@@ -349,12 +333,7 @@ theorem sdSteps_mem {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k 
 theorem sdSteps_injOn {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n) (hcard : k ≤ R.card) :
     Set.InjOn (I.sdSteps k R) {i : Fin n | n - k ≤ i.val} := by
   induction k generalizing R with
-  | zero =>
-    intro x hx
-    exfalso
-    have : n ≤ x.val := hx
-    have := x.isLt
-    omega
+  | zero => exact fun x (hx : n - 0 ≤ x.val) => absurd x.isLt (by omega)
   | succ k ih =>
     intro x hx y hy hxy
     have hk : k < n := by omega
@@ -389,11 +368,7 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
     (hle : ∀ i : Fin n, n - k ≤ i.val → I.rank i (ν i) ≤ I.rank i (I.sdSteps k R i)) :
     ∀ i : Fin n, n - k ≤ i.val → ν i = I.sdSteps k R i := by
   induction k generalizing R with
-  | zero =>
-    intro i hi
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact fun i hi => absurd i.isLt (by omega)
   | succ k ih =>
     intro i hi
     have hk : k < n := by omega
@@ -431,10 +406,7 @@ private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le
     (hcard : k ≤ R.card) (i : Fin n) (hi : n - k ≤ i.val) (π : Equiv.Perm (Fin n)) :
     I.rank i (I.sdSteps k R i) ≤ I.rank i ((I.updatePref i π).sdSteps k R i) := by
   induction k generalizing R with
-  | zero =>
-    exfalso
-    have := i.isLt
-    omega
+  | zero => exact absurd i.isLt (by omega)
   | succ k ih =>
     have hk : k < n := by omega
     let J := I.updatePref i π
@@ -448,6 +420,17 @@ private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le
         (card_sdiff_singleton_ge hcard (I.topChoice_mem (Finset.card_pos.1 (by omega)) a))
         (val_ge_of_ne hk hi hia)
 
+private theorem sdSteps_succ_congr {J : Instance n} {k : ℕ} (hk : k < n) (R : Finset (Fin n))
+    (htop : J.topChoice R ⟨n - 1 - k, by omega⟩ = I.topChoice R ⟨n - 1 - k, by omega⟩)
+    {j : Fin n}
+    (hrec : j ≠ ⟨n - 1 - k, by omega⟩ →
+      J.sdSteps k (R \ {I.topChoice R ⟨n - 1 - k, by omega⟩}) j =
+        I.sdSteps k (R \ {I.topChoice R ⟨n - 1 - k, by omega⟩}) j) :
+    J.sdSteps (k + 1) R j = I.sdSteps (k + 1) R j := by
+  by_cases hja : j = ⟨n - 1 - k, by omega⟩
+  · rw [hja, J.sdSteps_succ_of_eq hk R, I.sdSteps_succ_of_eq hk R, htop]
+  · rw [J.sdSteps_succ_of_ne hk R hja, I.sdSteps_succ_of_ne hk R hja, htop, hrec hja]
+
 private theorem sdSteps_eq_of_val_lt {k : ℕ} (hk_le : k ≤ n) (R : Finset (Fin n))
     (i : Fin n) (hi : i.val < n - k) (π : Equiv.Perm (Fin n)) (j : Fin n) :
     (I.updatePref i π).sdSteps k R j = I.sdSteps k R j := by
@@ -455,16 +438,12 @@ private theorem sdSteps_eq_of_val_lt {k : ℕ} (hk_le : k ≤ n) (R : Finset (Fi
   | zero => rfl
   | succ k ih =>
     have hk : k < n := by omega
-    let J := I.updatePref i π
     let a : Fin n := ⟨n - 1 - k, by omega⟩
     have hai : a ≠ i := fun h0 => by
       have : n - 1 - k = i.val := congrArg Fin.val h0
       omega
-    have htop := I.updatePref_topChoice_of_ne π hai R
-    by_cases hja : j = a
-    · rw [hja, J.sdSteps_succ_of_eq hk R, I.sdSteps_succ_of_eq hk R, htop]
-    · rw [J.sdSteps_succ_of_ne hk R hja, I.sdSteps_succ_of_ne hk R hja, htop]
-      exact ih (by omega) _ (by omega)
+    exact I.sdSteps_succ_congr hk R (I.updatePref_topChoice_of_ne π hai R) fun _ =>
+      ih (by omega) _ (by omega)
 
 private theorem sdSteps_updatePref_eq_of_apply_eq {k : ℕ} (hk_le : k ≤ n) (R : Finset (Fin n))
     (i : Fin n) (π : Equiv.Perm (Fin n))
@@ -474,29 +453,18 @@ private theorem sdSteps_updatePref_eq_of_apply_eq {k : ℕ} (hk_le : k ≤ n) (R
   | zero => rfl
   | succ k ih =>
     have hk : k < n := by omega
-    let J := I.updatePref i π
     let a : Fin n := ⟨n - 1 - k, by omega⟩
     by_cases hia : i = a
-    · have htop : J.topChoice R a = I.topChoice R a := by
-        have h1 : J.sdSteps (k + 1) R a = I.sdSteps (k + 1) R a :=
-          (congrArg (J.sdSteps (k + 1) R) hia.symm).trans
-            (heq_i.trans (congrArg (I.sdSteps (k + 1) R) hia))
-        rwa [J.sdSteps_succ_of_eq hk R, I.sdSteps_succ_of_eq hk R] at h1
-      by_cases hja : j = a
-      · rw [hja, J.sdSteps_succ_of_eq hk R, I.sdSteps_succ_of_eq hk R, htop]
-      · rw [J.sdSteps_succ_of_ne hk R hja, I.sdSteps_succ_of_ne hk R hja, htop]
-        have hi_lt : i.val < n - k := by
-          have : i.val = n - 1 - k := congrArg Fin.val hia
-          omega
-        exact I.sdSteps_eq_of_val_lt (by omega) _ i hi_lt π j
+    · have htop : (I.updatePref i π).topChoice R a = I.topChoice R a := by
+        simpa only [hia, a, sdSteps_succ_of_eq hk R] using heq_i
+      have hi_lt : i.val < n - k := by
+        have : i.val = n - 1 - k := congrArg Fin.val hia
+        omega
+      exact I.sdSteps_succ_congr hk R htop fun _ => I.sdSteps_eq_of_val_lt hk.le _ i hi_lt π j
     · have htop := I.updatePref_topChoice_of_ne π (Ne.symm hia) R
-      have heq_i' : J.sdSteps k (R \ {I.topChoice R a}) i =
-          I.sdSteps k (R \ {I.topChoice R a}) i := by
-        rwa [J.sdSteps_succ_of_ne hk R hia, I.sdSteps_succ_of_ne hk R hia, htop] at heq_i
-      by_cases hja : j = a
-      · rw [hja, J.sdSteps_succ_of_eq hk R, I.sdSteps_succ_of_eq hk R, htop]
-      · rw [J.sdSteps_succ_of_ne hk R hja, I.sdSteps_succ_of_ne hk R hja, htop]
-        exact ih (by omega) _ heq_i'
+      rw [(I.updatePref i π).sdSteps_succ_of_ne hk R hia, I.sdSteps_succ_of_ne hk R hia,
+        htop] at heq_i
+      exact I.sdSteps_succ_congr hk R htop fun _ => ih (by omega) _ heq_i
 
 end Instance
 

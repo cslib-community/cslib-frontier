@@ -108,10 +108,8 @@ theorem minOpt_eq_none_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} :
     minOpt s = none ↔ s = ∅ := by
   unfold minOpt
   split_ifs with h
-  · simp only [false_iff]
-    exact h.ne_empty
-  · simp only [true_iff]
-    exact Finset.not_nonempty_iff_eq_empty.1 h
+  · simp [h.ne_empty]
+  · simp [Finset.not_nonempty_iff_eq_empty.1 h]
 
 theorem minOpt_eq_some_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} {a : ι} :
     minOpt s = some a ↔ a ∈ s ∧ ∀ b ∈ s, a ≤ b := by
@@ -181,11 +179,8 @@ theorem exists_pivot_of_runWith_eq_outOfFuel {fuel : ℕ} {D' : Dictionary ι K}
     obtain ⟨E, hE0, hE⟩ := ih h
     refine ⟨fun k => if k = 0 then D else E (k - 1), rfl, fun k hk => ?_⟩
     rcases k with _ | k
-    · simp only [↓reduceIte, Nat.zero_add, one_ne_zero]
-      rw [Nat.sub_self, hE0]
-      exact ⟨r, s, hstep, rfl⟩
-    · simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte, Nat.add_sub_cancel]
-      exact hE k (by omega)
+    · exact ⟨r, s, hstep, hE0⟩
+    · exact hE k (by omega)
 
 omit [IsStrictOrderedRing K] in
 /-- **Soundness of a pivoting rule, optimal case.** If the rule stops only at dictionaries with no
@@ -546,10 +541,8 @@ theorem exists_blandPivot_of_run_eq_outOfFuel {fuel : ℕ} {D' : Dictionary ι K
 suffice. -/
 theorem run_ne_outOfFuel (hD : D.Feasible) {fuel : ℕ}
     (hfuel : (Fintype.card ι).choose #D.basis ≤ fuel + 1) (D' : Dictionary ι K) :
-    run D fuel ≠ .outOfFuel D' := by
-  intro h
-  obtain ⟨E, hE0, hE⟩ := exists_blandPivot_of_run_eq_outOfFuel D h
-  subst hE0
+    run D fuel ≠ .outOfFuel D' := fun h => by
+  obtain ⟨E, rfl, hE⟩ := exists_blandPivot_of_run_eq_outOfFuel D h
   have := add_one_le_choose_of_blandPivot hD hE
   omega
 
@@ -603,13 +596,11 @@ theorem simplex_spec (hD : D.Feasible) :
     ((∃ D' s, D.simplex = .unbounded D' s) ∧ ¬BddAbove (D.value '' D.feasibleSet)) := by
   rcases h : D.simplex with D' | ⟨D', s⟩ | D'
   · obtain ⟨h1, h2, -, h4⟩ := D.run_eq_optimal hD h
-    refine .inl ⟨D', rfl, h1, h2, ?_⟩
-    rw [D.image_value_feasibleSet_eq h1]
-    exact D'.isGreatest_value h2 h4
+    exact .inl ⟨D', rfl, h1, h2,
+      (D.image_value_feasibleSet_eq h1).symm ▸ D'.isGreatest_value h2 h4⟩
   · obtain ⟨h1, h2, h3, h4, h5⟩ := D.run_eq_unbounded hD h
-    refine .inr ⟨⟨D', s, rfl⟩, ?_⟩
-    rw [D.image_value_feasibleSet_eq h1]
-    exact D'.not_bddAbove_value h2 h3 h4 h5
+    exact .inr ⟨⟨D', s, rfl⟩,
+      (D.image_value_feasibleSet_eq h1).symm ▸ D'.not_bddAbove_value h2 h3 h4 h5⟩
   · exact absurd h (D.simplex_ne_outOfFuel hD D')
 
 end Dictionary

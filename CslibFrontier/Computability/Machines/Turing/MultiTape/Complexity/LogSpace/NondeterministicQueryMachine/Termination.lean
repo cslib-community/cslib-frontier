@@ -47,17 +47,15 @@ theorem finish_haltsFrom {input : List Bool} {ws : Fin k → List Bool} (out : L
   obtain ⟨ws', e, _, q₀, hqhead, hqlast, htime, _⟩ := hF input ws out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', hlen, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
   intro p hhead hp
-  have hmap : p.head = q.head.mapState finishState := by
-    rw [hhead', hqhead, mapState_wordsCfg]
-    exact hhead
   have hq : q.length < p.length + 1 := by
     change q₀.length ≤ t at htime
     omega
-  have heq := follows_finish I P F C p q hmap q.length hq (Nat.lt_succ_self _)
-  change p ⟨q.length, hq⟩ = q.last.mapState finishState at heq
+  have heq := follows_finish I P F C p q
+    (by simp [hhead, hhead', hqhead, mapState_wordsCfg, finishState])
+    q.length hq (Nat.lt_succ_self _)
   have hhalt : (p ⟨q.length, hq⟩).Halted := by
-    rw [heq, hlast', hqlast]
-    rfl
+    change p ⟨q.length, hq⟩ = q.last.mapState finishState at heq
+    simp [heq, hlast', hqlast, Cfg.Halted, finishState]
   exact (MultiTapeNTM.RunPath.last_eq_of_halted p _ hhalt) ▸ hhalt
 
 private theorem HaltsFrom.of_drop {input : List Bool}
@@ -80,10 +78,8 @@ private theorem haltsFrom_check_dispatch {input : List Bool} {ws : Fin k → Lis
     exact ⟨t, HaltsFrom.of_drop I P F C ht fun p hhead hp => by
       simpa [Fin.succ] using head_drop_check I P F C p ⟨0, by omega⟩ hhead⟩
   by_cases hblank : ws C = []
-  · obtain ⟨t, ht⟩ := hFinish hblank
-    exact ⟨t, by simpa [hblank] using ht⟩
-  · obtain ⟨t, ht⟩ := hChoose hblank
-    exact ⟨t, by simpa [hblank] using ht⟩
+  · simpa [hblank] using hFinish hblank
+  · simpa [hblank] using hChoose hblank
 
 /-- The native pass loop halts on every branch when continuation strictly decreases a natural
 rank. The proof takes maxima of two branch bounds; the machine stores neither rank nor clock. -/
@@ -108,9 +104,9 @@ theorem choose_haltsFrom {input : List Bool} (Inv : (Fin k → List Bool) → Pr
         (fun _ => let ⟨tF, _, htF⟩ := hF ws' hpost.1; ⟨tF, finish_haltsFrom I P F C (out ++ e) htF⟩)
         (fun hne => ih (rank ws') (hn ▸ hpost.2 hne) hpost.1 (out ++ e) rfl)
       refine ⟨q.length + (1 + tNext), HaltsFrom.of_drop I P F C hCheck fun p hhead hp => ?_⟩
-      have hmap : p.head = q.head.mapState (passState b) := by
-        rw [hhead', hqhead, mapState_wordsCfg]; exact hhead
-      have heq := follows_pass I P F C b p q hmap q.length (by omega) (Nat.lt_succ_self _)
+      have heq := follows_pass I P F C b p q
+        (by simp [hhead, hhead', hqhead, mapState_wordsCfg, passState])
+        q.length (by omega) (Nat.lt_succ_self _)
       change p ⟨q.length, by omega⟩ = q.last.mapState (passState b) at heq
       simpa [hlast', hqlast, passState] using heq
     choose time htime using branches

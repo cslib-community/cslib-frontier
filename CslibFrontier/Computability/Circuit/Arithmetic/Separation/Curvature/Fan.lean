@@ -115,17 +115,13 @@ theorem thm_cn_segments (hw : IsPrice K w) {Q : Type} (a b : Q → Y) {M : ℕ} 
     ring
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (a q) (if (l : ℕ) < j then b q else a q) =
-        if (l : ℕ) < j then w (a q) (b q) else 0 := by
-          split_ifs
-          exacts [rfl, hw.self _]
+        if (l : ℕ) < j then w (a q) (b q) else 0 := by split_ifs <;> simp [hw.self]
     simp only [hEq, sum_fin_ite_lt hj]
     field_simp
     ring
   · simp only [Sum.elim_inl, Sum.elim_inr, id, ← Finset.mul_sum]
     have hEq (l : Fin M) : w (b q) (if (l : ℕ) < j then b q else a q) =
-        if (l : ℕ) < j then 0 else w (a q) (b q) := by
-          split_ifs
-          exacts [hw.self _, hw.symm _ _]
+        if (l : ℕ) < j then 0 else w (a q) (b q) := by split_ifs <;> simp [hw.self, hw.symm]
     simp only [hEq, sum_fin_ite_lt hj]
     field_simp
     ring
@@ -199,8 +195,7 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
   have hm (b : Bool) : w1 (Sum.inr (b, n ^ 2)) (Sum.inl m) = 0 := by
     have h := a4 b (n ^ 2) le_rfl
     push_cast at h
-    rw [div_self (by positivity), sub_self, zero_mul] at h
-    rw [hw1.symm]
+    rw [div_self (by positivity), sub_self, zero_mul, ← hw1.symm] at h
     exact le_antisymm h (hw1.nonneg _ _)
   have hγ (b : Bool) (i : ℕ) (hi : i < n ^ 2) :
       w1 (Sum.inr (b, i)) (Sum.inr (b, i + 1)) ≤ D / n ^ 2 := by
@@ -212,10 +207,7 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     rw [sub_nonneg, div_le_one (by positivity)]
     exact_mod_cast hj
   refine ⟨w2, hw2, fun a b => by rw [old, old, e2, e1], fun b => by rw [γ, old, e2, hx],
-    fun b => by rw [γ, old, e2, hm],
-    fun b i hi => by
-      rw [γ, γ, e2]
-      exact hγ b i hi,
+    fun b => by rw [γ, old, e2, hm], fun b i hi => e2 _ _ ▸ hγ b i hi,
     fun b i j hj => ?_, fun b i j hj => ?_, fun b i j hi hj => ?_, fun b i j hj => ?_,
     fun j hj => ?_⟩
   · dsimp only [old, γ, G]
@@ -240,10 +232,8 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     exact b3 (b, i) j hj
   · dsimp only [G]
     have h := b1 (true, n ^ 2) (false, n ^ 2) j hj
-    have h7 : w1 (Sum.inr (true, n ^ 2)) (Sum.inr (false, n ^ 2)) = 0 := by
-      rw [dist_congr_of_zero hw1 (hm true), hw1.symm]
-      exact hm false
-    rw [hw1.self, mul_zero, add_zero, h7, mul_zero] at h
+    rw [hw1.self, dist_congr_of_zero hw1 (hm true), hw1.symm, hm false, mul_zero, mul_zero,
+      add_zero] at h
     exact le_antisymm h (hw2.nonneg _ _)
 
 /-! ### The fan in the coordinates of the windows -/
@@ -562,20 +552,16 @@ theorem fanP_sub_le (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) 
     (P P' : ℤ × ℤ) :
     (n : ℝ) ^ 2 * (fanP d x T n b P - fanP d x T n b P') ≤ fanWs d T n b P P' := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have h0 : 0 ≤ fanWs d T 0 b P P' := (fanW_price hd 0).nonneg (b, P) (b, P')
-    simpa using h0
-  · have : ((max n 1 : ℕ) : ℝ) ^ 2 * (fanP d x T n b P - fanP d x T n b P') ≤
-        fanWs d T n b P P' := (hd n).fanPot_sub_le b P P'
-    rwa [max_eq_left hn] at this
+  · simpa [fanWs] using (fanW_price hd 0).nonneg (b, P) (b, P')
+  · simpa [fanP, fanWs, fanW, max_eq_left (Nat.one_le_cast.mpr hn)] using
+      (hd n).fanPot_sub_le b P P'
 
 theorem fanL_step (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (i : ℤ) :
     |(n : ℝ) ^ 2 * (fanL d z n b (i + 1) - fanL d z n b i)| ≤ D := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simpa using fan_D_nonneg hd
-  · have : |((max n 1 : ℕ) : ℝ) ^ 2 * (fanL d z n b (i + 1) - fanL d z n b i)| ≤ D :=
-      (hd n).fanLen_step ((by simp : 0 < max n 1)) b i
-    rwa [max_eq_left hn] at this
+  · simpa [fanL, max_eq_left (Nat.one_le_cast.mpr hn)] using (hd n).fanLen_step (by simp) b i
 
 theorem fanL_nonneg (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : ℕ) (b : Bool)
     (i : ℤ) :
@@ -686,10 +672,7 @@ theorem thm_cn_ii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ 
     rw [e] at g
     have g := g (by positivity) (by exact_mod_cast (by omega : i + k + n ≤ n ^ 2 * T))
     push_cast at g
-    have h2 :
-        translateDist (fanWs d T) 0 (1, -1) n b i k = fanWs d T n b (i, k) (i + 1, k - 1) := by
-      simp [translateDist, sub_eq_add_neg]
-    rw [h2]
+    simp only [translateDist, add_zero, Prod.mk_add_mk, ← sub_eq_add_neg]
     refine g.trans ?_
     rw [mul_comm]
     refine mul_le_mul_of_nonneg_left ?_ hD0
@@ -732,21 +715,15 @@ theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
     have g : _ → _ → fanWs d T n b (i, k) (i, k + 1) ≤ fanL d z n b i / T :=
       (hd n).step_iii ((by simp : 0 < max n 1)) b i k
     rw [e] at g
-    have h2 : translateDist (fanWs d T) 0 (0, 1) n b i k = fanWs d T n b (i, k) (i, k + 1) := by
-      simp [translateDist]
-    rw [h2]
+    simp only [translateDist, add_zero, Prod.mk_add_mk]
     exact (g (by positivity) (by exact_mod_cast (by omega : i + k + 1 + n ≤ n ^ 2 * T))).trans_eq
       (by simp only [Pi.smul_apply, smul_eq_mul, hθ]; ring)
   have h2 : rms (θ • (fun n b i _ => fanL d z n b i : WindowFn)) ^ 2 = θ ^ 2 * fanΛ₂ d z := by
-    have hsmul : (θ • (fun n b i _ => fanL d z n b i : WindowFn) : WindowFn) *
-        (θ • (fun n b i _ => fanL d z n b i : WindowFn)) =
-        (θ ^ 2) •
-            ((fun n b i _ => fanL d z n b i : WindowFn) *
-                (fun n b i _ => fanL d z n b i : WindowFn)) := by
-      funext n b i k
-      simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]
-      ring
-    rw [rms_sq (hLf.smul θ), hsmul, mean_smul (hLf.mul hLf), fanΛ₂]
+    rw [rms_sq (hLf.smul θ), fanΛ₂, ← mean_smul (hLf.mul hLf)]
+    congr 1
+    funext n b i k
+    simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]
+    ring
   rw [← h2]
   exact pow_le_pow_left₀ (meanNorm_nonneg _ _) ((meanNorm_le_meanLength _ _).trans h1) 2
 
@@ -947,11 +924,9 @@ theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
       2 * N (1, -1 - ((j + 1 : ℕ) : ℤ)) ^ 2 + 2 * (θ ^ 2 * Λ₂) := by
     have h := par (1, -1 - ((j + 1 : ℕ) : ℤ)) (0, 1)
     have e1 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) + (0, 1) = (1, -1 - (j : ℤ)) :=
-      Prod.ext (by simp)
-        (by simp; ring)
+      Prod.ext rfl (by simp; ring)
     have e2 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) - (0, 1) = (1, -1 - ((j + 2 : ℕ) : ℤ)) :=
-      Prod.ext (by simp)
-        (by simp; ring)
+      Prod.ext rfl (by simp; ring)
     rw [e1, e2] at h
     linarith
   have c2 := le_of_second_diff_le (f := fun j : ℕ => N (1, -1 - (j : ℤ)) ^ 2)

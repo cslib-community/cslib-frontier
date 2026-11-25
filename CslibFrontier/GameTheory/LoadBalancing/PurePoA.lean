@@ -234,29 +234,21 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
     (finnHorowitzTight m).optMakespan = (m : ℝ) + 1 := by
   have hm_pos : 0 < m := Nat.pos_of_ne_zero (NeZero.ne m)
   let Aopt : Bool × Fin m → Fin m := fun p =>
-    if p.1 then ⟨(p.2.val + 1) % m, Nat.mod_lt _ hm_pos⟩ else p.2
+    if p.1 then (if h : p.2.val + 1 < m then ⟨p.2.val + 1, h⟩ else ⟨0, hm_pos⟩) else p.2
   have hload_opt : ∀ j : Fin m, (finnHorowitzTight m).load Aopt j = (m : ℝ) + 1 := by
     intro j
-    let prev : Fin m := ⟨(j.val + m - 1) % m, Nat.mod_lt _ hm_pos⟩
-    have hprev_succ : (prev.val + 1) % m = j.val := by
-      simp only [prev, Nat.mod_add_mod]
-      rw [show j.val + m - 1 + 1 = j.val + m by omega, Nat.add_mod_right, Nat.mod_eq_of_lt j.isLt]
+    let prev : Fin m := if j.val = 0 then ⟨m - 1, by omega⟩ else ⟨j.val - 1, by omega⟩
     have hfilt : (univ.filter fun p : Bool × Fin m => Aopt p = j) =
         {(false, j), (true, prev)} := by
       ext ⟨b, k⟩
+      simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton, Prod.mk.injEq, Aopt]
       cases b with
-      | false => simp [Aopt]
+      | false => simp
       | true =>
-        simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton, Prod.mk.injEq,
-          Bool.true_eq_false, false_and, true_and, false_or, Aopt, ↓reduceIte]
-        refine ⟨fun hk => Fin.ext ?_, fun h => h ▸ Fin.ext hprev_succ⟩
-        have hval : (k.val + 1) % m = j.val := congrArg Fin.val hk
-        simp only [prev]
-        by_cases hk1 : k.val + 1 < m
-        · rw [Nat.mod_eq_of_lt hk1] at hval
-          rw [show j.val + m - 1 = k.val + m by omega, Nat.add_mod_right, Nat.mod_eq_of_lt k.isLt]
-        · rw [show k.val + 1 = m by omega, Nat.mod_self] at hval
-          rw [← hval, zero_add, Nat.mod_eq_of_lt (by omega)]; omega
+        have hk_lt := k.isLt
+        have hj_lt := j.isLt
+        simp only [Bool.true_eq_false, false_and, true_and, false_or, prev, ↓reduceIte, Fin.ext_iff]
+        split_ifs <;> simp only <;> omega
     rw [LoadBalancingGame.load_eq_sum_div]
     simp only [finnHorowitzTight, identical, div_one]
     change ∑ p ∈ univ.filter (fun p : Bool × Fin m => Aopt p = j),
@@ -265,25 +257,15 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
     rw [hfilt, sum_pair (by simp)]
     dsimp only
     simp only [Bool.false_eq_true, ↓reduceIte]
-    by_cases hm1 : m = 1
-    · subst hm1
-      simp only [show j.val = 0 by omega, show prev.val = 0 by omega, ↓reduceIte, Nat.cast_one]
-    · by_cases hj0 : j.val = 0
-      · have hp : prev.val = m - 1 := by
-          simp only [prev, hj0, zero_add]
-          exact Nat.mod_eq_of_lt (by omega)
-        rw [ite_eq_left hj0, ite_eq_right (by omega : prev.val ≠ 0), hp,
-          show m - (m - 1) = 1 by omega, Nat.cast_one]
-      · by_cases hj1 : j.val = 1
-        · have hp : prev.val = 0 := by
-            simp only [prev, hj1, show 1 + m - 1 = m by omega, Nat.mod_self]
-          rw [ite_eq_right hj0, ite_eq_left hp, hj1, Nat.cast_one]; ring
-        · have hp : prev.val = j.val - 1 := by
-            simp only [prev, show j.val + m - 1 = (j.val - 1) + m by omega, Nat.add_mod_right]
-            exact Nat.mod_eq_of_lt (by omega)
-          rw [ite_eq_right hj0, ite_eq_right (by omega : prev.val ≠ 0), hp,
-            show m - (j.val - 1) = m + 1 - j.val by omega, Nat.cast_sub (by omega)]
-          push_cast; ring
+    have hprev_eq : (if prev.val = 0 then (m : ℝ) else ((m - prev.val : ℕ) : ℝ)) =
+        ((m - prev.val : ℕ) : ℝ) := by
+      split_ifs with hp <;> simp [hp]
+    rw [hprev_eq]
+    by_cases hj0 : j.val = 0
+    · simp only [prev, hj0, ↓reduceIte, Nat.sub_sub_self hm_pos, Nat.cast_one]
+    · simp only [prev, hj0, ↓reduceIte, Nat.cast_sub (by omega : j.val - 1 ≤ m),
+        Nat.cast_sub (by omega : 1 ≤ j.val), Nat.cast_one]
+      ring
   have hsum : ∑ p : Bool × Fin m, (finnHorowitzTight m).weight p = (m : ℝ) * ((m : ℝ) + 1) := by
     rw [← (isIdentical_finnHorowitzTight m).sum_load Aopt]
     simp only [hload_opt, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -349,16 +331,18 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
     · have hA_all : ∀ i : Fin 3, A i = jstar := fun i =>
         (mem_filter.mp (show i ∈ S from eq_univ_of_card S (by simpa using hcard3) ▸ mem_univ i)).2
       have hload_other : G.load A jother = 0 := by
-        have hempty : (univ.filter fun i : Fin 3 => A i = jother) = ∅ := by
-          ext i
-          simp [hA_all i, hjne.symm]
-        rw [G.load_eq_sum_div, hId jother, div_one, hempty, sum_empty]
+        rw [G.load_eq_sum_div, sum_eq_zero fun i hi =>
+          absurd (mem_filter.mp hi).2 (hA_all i ▸ hjne.symm), zero_div]
       have hNE := (G.isPureNash_iff A).mp hA 0 jother (hA_all 0 ▸ hjne)
       rw [hA_all 0, hload_other, hId jother, div_one, zero_add] at hNE
       exact hNE.trans (hw_le 0)
     · have hcard2 : #S = 2 := by omega
       obtain ⟨i₁, i₂, hi₁₂, hS_eq⟩ := card_eq_two.mp hcard2
       -- Find the unique third job `i₃ ∉ S`, which must sit on `jother`.
+      have hfilt_other : (univ.filter fun i : Fin 3 => A i = jother) = univ \ S := by
+        ext i
+        simp only [mem_filter, mem_univ, true_and, mem_sdiff, S]
+        exact ⟨fun hi h => hjne (hi.symm.trans h), hne_eq (A i)⟩
       have hcard_comp : #(univ \ S) = 1 := by
         rw [card_sdiff_of_subset (subset_univ S), card_univ, Fintype.card_fin, hcard2]
       obtain ⟨i₃, hi₃_eq⟩ := card_eq_one.mp hcard_comp
@@ -370,12 +354,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
       have hload_jstar : G.load A jstar = G.weight i₁ + G.weight i₂ := by
         rw [hload_S, hS_eq, sum_pair hi₁₂]
       have hload_other : G.load A jother = G.weight i₃ := by
-        have hfilt : (univ.filter fun i : Fin 3 => A i = jother) = {i₃} := by
-          rw [← hi₃_eq]
-          ext i
-          simp only [mem_filter, mem_univ, true_and, mem_sdiff, S]
-          exact ⟨fun hi h => hjne (hi.symm.trans h), hne_eq (A i)⟩
-        rw [G.load_eq_sum_div, hId jother, div_one, hfilt, sum_singleton]
+        rw [G.load_eq_sum_div, hId jother, div_one, hfilt_other, hi₃_eq, sum_singleton]
       have hNE₁ := (G.isPureNash_iff A).mp hA i₁ jother (hAi₁ ▸ hjne)
       have hNE₂ := (G.isPureNash_iff A).mp hA i₂ jother (hAi₂ ▸ hjne)
       rw [hAi₁, hload_jstar, hload_other, hId jother, div_one] at hNE₁
@@ -384,9 +363,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
       have hi₂₃ : i₂ ≠ i₃ := fun h =>
         hi₃_notS (h ▸ hS_eq ▸ mem_insert_of_mem (mem_singleton_self i₂))
       have hpig : τ i₁ = τ i₂ ∨ τ i₁ = τ i₃ ∨ τ i₂ = τ i₃ := by
-        generalize τ i₁ = a
-        generalize τ i₂ = b
-        generalize τ i₃ = c
+        generalize τ i₁ = a, τ i₂ = b, τ i₃ = c
         fin_cases a <;> fin_cases b <;> fin_cases c <;> decide
       rw [hload_jstar]
       rcases hpig with h | h | h
@@ -416,11 +393,10 @@ theorem IsIdentical.makespan_le_optMakespan_add_of_weight_le {G : LoadBalancingG
         (Fintype.card M : ℝ) * G.optMakespan + ((Fintype.card M : ℝ) - 1) * B := by
       field_simp
     nlinarith
-  · have hempty : (univ.filter fun i => A i = jstar) = ∅ := not_nonempty_iff_eq_empty.mp hSne
-    rw [← hjstar, G.load_eq_sum_div, hempty, sum_empty, zero_div]
-    have hcoef : 0 ≤ 1 - 1 / (Fintype.card M : ℝ) :=
-      sub_nonneg.mpr ((div_le_one hm_pos).mpr hm_ge1)
-    linarith [G.optMakespan_nonneg, mul_nonneg hcoef hB]
+  · rw [← hjstar, G.load_eq_sum_div,
+      (not_nonempty_iff_eq_empty.mp hSne : (univ.filter fun i => A i = jstar) = ∅),
+      sum_empty, zero_div]
+    nlinarith [G.optMakespan_nonneg, (div_le_one hm_pos).mpr hm_ge1]
 
 end IdenticalPurePoA
 
@@ -561,8 +537,7 @@ theorem optMakespan_goldenRatioTight : goldenRatioTight.optMakespan = 1 := by
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
   have hload_id : ∀ j : Fin 2, goldenRatioTight.load id j = 1 := fun j => by
     rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
-    rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;>
-      simp [goldenRatioTight, div_self hφ_pos.ne']
+    fin_cases j <;> simp [goldenRatioTight, div_self hφ_pos.ne']
   refine le_antisymm
     ((goldenRatioTight.optMakespan_le id).trans
       ((goldenRatioTight.makespan_le_iff id).mpr fun j => (hload_id j).le)) ?_
@@ -773,11 +748,9 @@ theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι �
     rw [hjstar]; nlinarith
   obtain ⟨i₀, hi₀⟩ : ∃ i₀ : ι, A i₀ = jstar := by
     by_contra! hnone
-    have hempty : (univ.filter fun i => A i = jstar) = ∅ := by
-      ext i
-      simp [hnone i]
-    have : G.load A jstar = 0 := by rw [G.load_eq_sum_div, hempty, sum_empty, zero_div]
-    linarith
+    rw [G.load_eq_sum_div, filter_false_of_mem fun i _ => hnone i, sum_empty, zero_div]
+      at hpos_load
+    exact hpos_load.false
   exact factorial_le_card_of_prefix_step (G.speedPrefix A) (G.card_speedPrefix_ge hA hopt)
     (card_pos.mpr ⟨Aopt i₀, G.mem_speedPrefix_of_load_ge hA hAopt (by rwa [hi₀, hjstar])⟩)
 

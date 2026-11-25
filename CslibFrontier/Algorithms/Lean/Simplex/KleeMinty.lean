@@ -613,10 +613,7 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     rw [hd, show (j : ℕ) + (d + 1) - j = d + 1 by omega] at hneg ⊢
     rw [bitSign_of_testBit_false hj, mul_one] at hneg ⊢
     set X : K := 10 ^ (d + 1) with hX
-    have hX10 : (10 : K) ≤ X := by
-      rw [hX, pow_succ]
-      have : (1 : K) ≤ 10 ^ d := one_le_pow₀ (by norm_num)
-      nlinarith
+    have hX10 : (10 : K) ≤ X := le_self_pow₀ (by norm_num) (Nat.succ_ne_zero d)
     have h100 : (100 : K) ^ ((j : ℕ) + (d + 1)) = 100 ^ (j : ℕ) * X * X := by
       rw [hX, pow_add, show (100 : K) = 10 * 10 by norm_num, mul_pow, mul_pow]
       ring
@@ -710,23 +707,16 @@ end Ordered
 theorem eq_of_dict_basis_eq {N M : ℕ} (hN : N < 2 ^ n) (hM : M < 2 ^ n)
     (h : (dict n N : Dictionary (Fin (n + n)) K).basis =
       (dict n M : Dictionary (Fin (n + n)) K).basis) : N = M := by
-  have hfl : ∀ k < n, flipped N k = flipped M k := by
-    intro k hk
-    have := congrArg (var (⟨k, hk⟩ : Fin n) true ∈ ·) h
-    simp only [mem_dict_basis, Basic, isX_var, pair_var, eq_iff_iff] at this
-    cases hN' : flipped N k <;> cases hM' : flipped M k <;> simp_all
-  have hbit : ∀ d ≤ n, N.testBit (n - d) = M.testBit (n - d) := by
-    intro d hd
+  have hfl (k : ℕ) (hk : k < n) : flipped N k = flipped M k :=
+    Bool.eq_iff_iff.mpr (by
+      simpa [mem_dict_basis, Basic] using congrArg (var ⟨k, hk⟩ true ∈ ·) h)
+  have hbit (d : ℕ) (hd : d ≤ n) : N.testBit (n - d) = M.testBit (n - d) := by
     induction d with
     | zero => rw [Nat.sub_zero, Nat.testBit_lt_two_pow hN, Nat.testBit_lt_two_pow hM]
     | succ d ih =>
-      have h1 := hfl (n - (d + 1)) (by omega)
       have h2 := ih (by omega)
       rw [show n - d = n - (d + 1) + 1 by omega] at h2
-      unfold flipped at h1
-      rw [h2] at h1
-      revert h1
-      cases N.testBit (n - (d + 1)) <;> cases M.testBit (n - (d + 1)) <;> simp
+      simpa [flipped, h2] using hfl (n - (d + 1)) (by omega)
   refine Nat.eq_of_testBit_eq fun k => ?_
   rcases lt_or_ge k n with hk | hk
   · have := hbit (n - k) (by omega)

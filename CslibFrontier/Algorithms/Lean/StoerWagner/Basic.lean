@@ -106,9 +106,7 @@ private theorem exists_eq_append_lastTwo {α : Type*} (d : α) {l : List α} (hl
     ∃ p, l = p ++ [(lastTwo d l).1, (lastTwo d l).2] := by
   unfold lastTwo
   rcases h : l.reverse with _ | ⟨t, _ | ⟨s, r⟩⟩
-  · rw [List.reverse_eq_nil_iff] at h
-    subst h
-    simp at hl
+  · simp [List.reverse_eq_nil_iff.mp h] at hl
   · have := congrArg List.length h
     simp only [List.length_reverse, List.length_singleton] at this
     omega
@@ -154,9 +152,7 @@ theorem run_succ {n k : ℕ} (W : Fin (k + 3) → Fin (k + 3) → ℕ) (part : F
     simp [lastTwo, hp]
   rw [run]
   dsimp only
-  generalize hst' : lastTwo 0 (maOrder W) = st
-  rw [hlast] at hst'
-  subst hst'
+  rw [hlast]
   simp only [hst, ↓reduceDIte]
 
 /-- **The Stoer–Wagner algorithm** [StoerWagner1997]: one side of a minimum cut of the multigraph
@@ -268,9 +264,7 @@ two vertices it answers a non-trivial cut of minimum weight, and the weight of t
 theorem stoerWagner_spec {n : ℕ} (hn : 2 ≤ n) {W : Fin n → Fin n → ℕ} (hW : IsMultigraph W) :
     IsNonTrivialCut (stoerWagner W).side ∧ cutWeight W (stoerWagner W).side = minCut W ∧
       (stoerWagner W).weight = minCut W := by
-  obtain _ | _ | n := n
-  · omega
-  · omega
+  obtain _ | _ | n := n <;> try omega
   obtain ⟨h1, h2, h3⟩ := run_spec n (isContractionOf_id hW)
   exact ⟨h1, h2.trans h3, h3⟩
 

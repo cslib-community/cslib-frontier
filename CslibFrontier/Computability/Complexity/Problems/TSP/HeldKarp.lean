@@ -122,11 +122,9 @@ theorem mem_TSP_iff_heldKarp_le {x : TSPInstance} {n : ℕ} (hn : x.dist.length 
       rw [List.map_pmap]
       refine List.pmap_eq_self.2 fun v hv => ?_
       have := hpos v hv
-      simp only
-      omega
-    have hLnd : L.Nodup := by
-      have h : (L.map fun i : Fin n => (i : ℕ) + 1).Nodup := hLmap ▸ (List.nodup_cons.1 hnd).2
-      exact h.of_map _
+      dsimp only; omega
+    have hLnd : L.Nodup :=
+      (hLmap ▸ (List.nodup_cons.1 hnd).2 : (L.map _).Nodup).of_map _
     have hLuniv : L.toFinset = Finset.univ := by
       ext i
       simp only [List.mem_toFinset, Finset.mem_univ, iff_true]
@@ -135,32 +133,26 @@ theorem mem_TSP_iff_heldKarp_le {x : TSPInstance} {n : ℕ} (hn : x.dist.length 
         exact (List.mem_cons.1 this).resolve_left (by omega)
       rw [← hLmap, List.mem_map] at hi
       obtain ⟨j, hj, hji⟩ := hi
-      have hij : j = i := Fin.ext (by omega)
-      exact hij ▸ hj
+      exact Fin.ext (by omega : (j : ℕ) = i) ▸ hj
     calc heldKarp d ≤ walkCost d 0 (L.map Fin.succ) 0 :=
           (isLeast_heldKarp d).2 ⟨L, hLnd, hLuniv, rfl⟩
       _ = tourLength x.dist (A ++ 0 :: B) := by rw [walkCost_succ_eq_tourLength, hLmap, hrot]
       _ ≤ x.bound := hb
   · intro h
     obtain ⟨⟨L, hnd, hL, hc⟩, -⟩ := isLeast_heldKarp d
-    refine ⟨0 :: L.map fun i : Fin n => (i : ℕ) + 1, ?_, ?_⟩
-    · rw [hn]
-      refine (List.perm_ext_iff_of_nodup ?_ List.nodup_range).2 fun v => ?_
-      · refine List.nodup_cons.2 ⟨by simp, hnd.map fun i j h => Fin.ext (by simpa using h)⟩
-      · simp only [List.mem_cons, List.mem_map, List.mem_range]
-        constructor
-        · rintro (rfl | ⟨i, -, rfl⟩)
-          · omega
-          · have := i.isLt
-            omega
-        · intro hv
-          rcases v with _ | v
-          · exact Or.inl rfl
-          · refine Or.inr ⟨⟨v, by omega⟩, ?_, rfl⟩
-            rw [← List.mem_toFinset, hL]
-            exact Finset.mem_univ _
-    · rw [← walkCost_succ_eq_tourLength, hc]
-      exact h
+    refine ⟨0 :: L.map fun i : Fin n => (i : ℕ) + 1, ?_,
+      walkCost_succ_eq_tourLength x.dist L ▸ (hc ▸ h)⟩
+    rw [hn]
+    refine (List.perm_ext_iff_of_nodup ?_ List.nodup_range).2 fun v => ?_
+    · exact List.nodup_cons.2 ⟨by simp, hnd.map fun i j h => Fin.ext (by simpa using h)⟩
+    · simp only [List.mem_cons, List.mem_map, List.mem_range]
+      refine ⟨?_, fun hv => ?_⟩
+      · rintro (rfl | ⟨i, -, rfl⟩)
+        · omega
+        · exact Nat.succ_lt_succ i.isLt
+      · rcases v with _ | v
+        · exact Or.inl rfl
+        · exact Or.inr ⟨⟨v, by omega⟩, List.mem_toFinset.1 (hL.symm ▸ Finset.mem_univ _), rfl⟩
 
 /-- Decide `TSP` by the Bellman–Held–Karp algorithm [HeldKarp1962]: run `heldKarp` on the
 distance matrix and compare the optimal tour length with the budget. The empty matrix is a
@@ -176,12 +168,10 @@ theorem heldKarpDecide_eq_true_iff (x : TSPInstance) :
   unfold heldKarpDecide
   split
   · rename_i h
-    simp only [true_iff]
-    refine ⟨[], ?_, by simp [tourLength]⟩
-    rw [h, List.range_zero]
+    exact iff_of_true rfl ⟨[], by simp [h],
+      by simp [tourLength]⟩
   · rename_i n h
-    simp only [decide_eq_true_eq]
-    exact (mem_TSP_iff_heldKarp_le h).symm
+    exact decide_eq_true_iff.trans (mem_TSP_iff_heldKarp_le h).symm
 
 /-! ## Multi-tape Turing-machine exponential-time realization -/
 
@@ -318,12 +308,6 @@ private theorem zipWith_tabulateLSB {α : Type*} (m : ℕ) (f : α → α → α
   induction m generalizing g₁ g₂ with
   | zero => rfl
   | succ m ih =>
-    have hlen1 : (tabulateLSB m fun bs => g₁ (false :: bs)).length =
-        (tabulateLSB m fun bs => g₁ (true :: bs)).length := by
-      simp [length_tabulateLSB]
-    have hlen2 : (tabulateLSB m fun bs => g₂ (false :: bs)).length =
-        (tabulateLSB m fun bs => g₂ (true :: bs)).length := by
-      simp [length_tabulateLSB]
     have key : ∀ (a₁ b₁ a₂ b₂ : List α), a₁.length = b₁.length → a₂.length = b₂.length →
         a₁.length = a₂.length →
         List.zipWith f (interleave a₁ b₁) (interleave a₂ b₂) =
@@ -335,7 +319,9 @@ private theorem zipWith_tabulateLSB {α : Type*} (m : ℕ) (f : α → α → α
       · simp only [interleave, List.zipWith_cons_cons, List.cons.injEq, true_and]
         apply_assumption <;> omega
     rw [tabulateLSB, tabulateLSB, tabulateLSB,
-      key _ _ _ _ hlen1 hlen2 (by simp [length_tabulateLSB]), ih, ih]
+      key _ _ _ _ (by simp [length_tabulateLSB])
+        (by simp [length_tabulateLSB])
+        (by simp [length_tabulateLSB]), ih, ih]
 
 private theorem tabulateLSB_append_eq {α : Type*} (m : ℕ) (g : List Bool → α) :
     tabulateLSB m (fun bs => g (bs ++ [false])) ++
@@ -352,28 +338,14 @@ private theorem tabulateLSB_append_eq {α : Type*} (m : ℕ) (g : List Bool → 
 private theorem getLast?_interleave {α : Type*} (xs ys : List α)
     (h : xs.length = ys.length) (hne : ys ≠ []) :
     (interleave xs ys).getLast? = ys.getLast? := by
-  induction xs generalizing ys with
-  | nil => cases ys with
-    | nil => exact absurd rfl hne
-    | cons _ _ => simp at h
-  | cons x xs ih =>
-    cases ys with
-    | nil => exact absurd rfl hne
-    | cons y ys =>
-      cases ys with
-      | nil =>
-        cases xs with
-        | nil => simp [interleave]
-        | cons _ _ => simp at h
-      | cons y' ys' =>
-        cases xs with
-        | nil => simp at h
-        | cons x' xs' =>
-          have hlen : (x' :: xs').length = (y' :: ys').length := by
-            simp only [List.length_cons] at h ⊢
-            omega
-          have ih' := ih (y' :: ys') hlen (List.cons_ne_nil _ _)
-          simpa [interleave] using ih'
+  match xs, ys with
+  | _, [] => exact absurd rfl hne
+  | [], _ :: _ | [_], _ :: _ :: _ | _ :: _ :: _, [_] => simp at h
+  | [_], [_] => simp [interleave]
+  | _ :: x' :: xs', _ :: y' :: ys' =>
+    have hlen : (x' :: xs').length = (y' :: ys').length := by
+      simp only [List.length_cons] at h ⊢; omega
+    simpa [interleave] using getLast?_interleave (x' :: xs') (y' :: ys') hlen (List.cons_ne_nil _ _)
 
 private theorem getLast?_tabulateLSB {α : Type*} (m : ℕ) (g : List Bool → α) :
     (tabulateLSB m g).getLast? = some (g (List.replicate m true)) := by
@@ -386,23 +358,16 @@ private theorem getLast?_tabulateLSB {α : Type*} (m : ℕ) (g : List Bool → �
 
 private theorem foldl_last_tabulateLSB {α : Type*} (m : ℕ) (g : List Bool → α) (d : α) :
     (tabulateLSB m g).foldl (fun _ x => x) d = g (List.replicate m true) := by
-  have hne : tabulateLSB m g ≠ [] := by
-    intro he
-    have := congrArg List.length he
-    simp [length_tabulateLSB] at this
-  have hfl (l : List α) (hne : l ≠ []) (d : α) :
-      some (l.foldl (fun _ x => x) d) = l.getLast? := by
-    induction l generalizing d with
-    | nil => exact absurd rfl hne
+  have hfl (l : List α) : ∀ d, l ≠ [] → some (l.foldl (fun _ x => x) d) = l.getLast? := by
+    induction l with
+    | nil => exact fun _ hne => absurd rfl hne
     | cons a t ih =>
       cases t with
-      | nil => simp
-      | cons b t =>
-        simp only [List.foldl_cons, List.getLast?_cons_cons]
-        exact ih (List.cons_ne_nil _ _) a
-  have h := hfl (tabulateLSB m g) hne d
-  rw [getLast?_tabulateLSB] at h
-  exact Option.some.inj h
+      | nil => exact fun _ _ => rfl
+      | cons b t => exact fun _ _ => ih a (List.cons_ne_nil _ _)
+  refine Option.some.inj ((hfl (tabulateLSB m g) d ?_).trans (getLast?_tabulateLSB m g))
+  intro he
+  simpa [length_tabulateLSB] using congrArg List.length he
 
 private def setOfBits (n : ℕ) (bs : List Bool) : Finset (Fin n) :=
   Finset.univ.filter fun j => bs.getD j.val false = true
@@ -466,20 +431,16 @@ private theorem setOfBits_rotate_true {n i : ℕ} (hi : i < n) (r : List Bool)
       insert ⟨i, hi⟩ (setOfBits n ((false :: r).rotate (n - i))) := by
   ext j
   simp only [setOfBits, Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and,
-    Fin.ext_iff]
-  rw [getD_rotate_cons hi true r hr false j]
-  by_cases hji : j.val = i
-  · simp [hji]
-  · simp [hji]
+    Fin.ext_iff, getD_rotate_cons hi true r hr false j]
+  by_cases hji : j.val = i <;> simp [hji]
 
 private theorem setOfBits_rotate_true_erase {n i : ℕ} (hi : i < n) (r : List Bool)
     (hr : r.length + 1 = n) :
     (setOfBits n ((true :: r).rotate (n - i))).erase ⟨i, hi⟩ =
       setOfBits n ((false :: r).rotate (n - i)) := by
   rw [setOfBits_rotate_true hi r hr, Finset.erase_insert]
-  simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and]
-  rw [getD_rotate_cons hi false r hr false ⟨i, hi⟩]
-  simp
+  simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and,
+    getD_rotate_cons hi false r hr false ⟨i, hi⟩, ↓reduceIte, Bool.false_eq_true, not_false_eq_true]
 
 private theorem passStep_tabulateLSB_rotate {n i : ℕ} (hn : 0 < n) (hi : i < n)
     (f : Row → Row → Row) (G : Finset (Fin n) → Row) :
@@ -493,20 +454,17 @@ private theorem passStep_tabulateLSB_rotate {n i : ℕ} (hn : 0 < n) (hi : i < n
     passOddsList_interleave _ _ _ (by simp [length_tabulateLSB]),
     zipWith_tabulateLSB, ← tabulateLSB_append_eq]
   refine congrArg₂ (· ++ ·) (tabulateLSB_congr fun r hr => ?_) (tabulateLSB_congr fun r hr => ?_)
-  · have hlen : r.length + 1 = m + 1 := by omega
-    rw [rotate_cons_rotate_sub hi false r hlen]
+  · rw [rotate_cons_rotate_sub hi false r (by omega)]
     have hnot : (⟨i, hi⟩ : Fin (m + 1)) ∉ setOfBits (m + 1) ((false :: r).rotate (m + 1 - i)) := by
-      simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and]
-      rw [getD_rotate_cons hi false r hlen false ⟨i, hi⟩]
-      simp
+      simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and,
+        getD_rotate_cons hi false r (by omega) false ⟨i, hi⟩, ↓reduceIte, Bool.false_eq_true,
+        not_false_eq_true]
     simp [hnot]
-  · have hlen : r.length + 1 = m + 1 := by omega
-    rw [rotate_cons_rotate_sub hi true r hlen]
+  · rw [rotate_cons_rotate_sub hi true r (by omega)]
     have hmem : (⟨i, hi⟩ : Fin (m + 1)) ∈ setOfBits (m + 1) ((true :: r).rotate (m + 1 - i)) := by
-      simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and]
-      rw [getD_rotate_cons hi true r hlen false ⟨i, hi⟩]
-      simp
-    simp [hmem, setOfBits_rotate_true_erase hi r hlen]
+      simp only [setOfBits, Finset.mem_filter, Finset.mem_univ, true_and,
+        getD_rotate_cons hi true r (by omega) false ⟨i, hi⟩, ↓reduceIte]
+    simp [hmem, setOfBits_rotate_true_erase hi r (by omega)]
 
 /-! ### Streaming list-pass combinator and DP correctness -/
 
@@ -671,18 +629,10 @@ private theorem streamState_oddNext_mem (L : List Row) (j : ℕ) (p : OddParams)
       cases s with
       | none =>
         obtain ⟨h1, h2⟩ := ih hsub' (some a)
-        refine ⟨h1, ?_⟩
-        rcases h2 with h2 | h2 | ⟨r, hr, h2⟩
-        · exact Or.inl h2
-        · exact Or.inr (Or.inr ⟨a, ha, h2⟩)
-        · exact Or.inr (Or.inr ⟨r, hr, h2⟩)
-      | some s₀ =>
+        exact ⟨h1, h2.imp_right fun h => h.elim (fun h => Or.inr ⟨a, ha, h⟩) Or.inr⟩
+      | some _ =>
         obtain ⟨h1, h2⟩ := ih hsub' none
-        refine ⟨h1, ?_⟩
-        rcases h2 with h2 | h2 | ⟨r, hr, h2⟩
-        · exact Or.inl h2
-        · exact Or.inl h2
-        · exact Or.inr (Or.inr ⟨r, hr, h2⟩)
+        exact ⟨h1, h2.elim Or.inl fun h => h.elim Or.inl (Or.inr ∘ Or.inr)⟩
   exact htake (L.take j) (List.take_subset j L) o
 
 private theorem computableInPolyTime_optMin :
@@ -832,17 +782,10 @@ private theorem computableInO_passOdds :
     · exact (hpow q).trans (Nat.mul_le_mul_left _ (Nat.le_succ_of_le
         ((Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans (Nat.le_add_left _ _))))
   refine ⟨d, (haux.comp hwrap).mono 4 (fun p => ?_) (fun p => ?_)⟩
-  · have hlen_p : (encPair encOddParams (encList encRow) p).length =
-        2 * (encOddParams p.1).length + 1 + (encList encRow p.2).length :=
-      length_encPair p
-    simp only [encOption_none, List.length_nil, add_zero]
-    rw [add_comm (listMax (fun r => (encRow r).length) p.2) ((encOddParams p.1).length)]
-    omega
-  · have hlen_p : (encPair encOddParams (encList encRow) p).length =
-        2 * (encOddParams p.1).length + 1 + (encList encRow p.2).length :=
-      length_encPair p
-    simp only [encOption_none, List.length_nil, add_zero]
-    omega
+  · rw [length_encPair, add_comm (listMax _ p.2) (encOddParams p.1).length]
+    simp only [encOption_none, List.length_nil, add_zero]; omega
+  · rw [length_encPair]
+    simp only [encOption_none, List.length_nil, add_zero]; omega
 
 private theorem length_encRow_foldl_last_le (L : List Row) :
     (encRow (L.foldl (fun _ r => r) [])).length ≤ listMax (fun r => (encRow r).length) L := by
@@ -1136,18 +1079,13 @@ private theorem validFun_pass {D : List (List ℕ)} {n i : ℕ} (hi : i < n)
         cases hcur : (G S).getD t.val none with
         | none =>
           rw [hcur] at hv
-          unfold optMin at hv
-          obtain rfl := Option.some.inj hv
-          exact hcand_mem
+          exact Option.some.inj hv ▸ hcand_mem
         | some cur =>
           rw [hcur] at hv
-          unfold optMin at hv
           obtain rfl := Option.some.inj hv
           rcases min_cases cur (u + (D.getD (i + 1) []).getD t.val 0) with ⟨he, -⟩ | ⟨he, -⟩
-          · rw [he]
-            exact (hG S).2 t cur hcur
-          · rw [he]
-            exact hcand_mem
+          · exact he.symm ▸ (hG S).2 t cur hcur
+          · exact he.symm ▸ hcand_mem
     · simp only [G', hmem, ↓reduceIte]
       exact hG S
   · by_cases hmem : (⟨i, hi⟩ : Fin n) ∈ S
@@ -1245,41 +1183,26 @@ private theorem stage_complete_succ {D : List (List ℕ)} {n r : ℕ} (_hn : 0 <
     refine ⟨v, hv, (hVG S).2 t v hv, fun w hw => (hvu.trans (hu_least.2 hw))⟩
   · have hpos : 0 < S.card := by omega
     obtain ⟨a₀, ha₀⟩ := Finset.card_pos.1 hpos
-    have hcard_er : (S.erase a₀).card ≤ r := by
-      rw [Finset.card_erase_of_mem ha₀, heq]
-      simp
+    have hcard_er : (S.erase a₀).card ≤ r := by simp [Finset.card_erase_of_mem ha₀, heq]
     obtain ⟨v, hv, hle_v⟩ := hdone a₀.val a₀.isLt a₀.isLt S ha₀ hcard_er t
     refine ⟨v, hv, (hVG S).2 t v hv, fun w hw => ?_⟩
     obtain ⟨L, hLnd, hLset, rfl⟩ := hw
     have hLne : L ≠ [] := by
-      intro hnil
-      subst hnil
-      simp only [List.toFinset_nil] at hLset
-      rw [← hLset] at hpos
-      simp at hpos
+      rintro rfl
+      simp [← hLset] at hpos
     let L' := L.dropLast
     let j := L.getLast hLne
     have hLsplit : L = L' ++ [j] := (List.dropLast_append_getLast hLne).symm
     have hnd_split : (L' ++ [j]).Nodup := hLsplit ▸ hLnd
-    have hj_mem : j ∈ S := by
-      rw [← hLset, List.mem_toFinset]
-      exact List.getLast_mem hLne
+    have hj_mem : j ∈ S := hLset ▸ List.mem_toFinset.2 (List.getLast_mem hLne)
     have hnd' : L'.Nodup := (List.nodup_append.1 hnd_split).1
     have hj_nmem : j ∉ L' := fun h =>
       (List.nodup_append.1 hnd_split).2.2 j h j List.mem_cons_self rfl
     have hL'_set : L'.toFinset = S.erase j := by
-      ext z
-      simp only [← hLset, hLsplit, List.mem_toFinset, List.mem_append, List.mem_singleton,
-        Finset.mem_erase]
-      constructor
-      · intro hz
-        exact ⟨fun hzeq => hj_nmem (hzeq ▸ hz), Or.inl hz⟩
-      · rintro ⟨hne, hz | rfl⟩
-        · exact hz
-        · exact absurd rfl hne
-    have hcard_er' : (S.erase j).card ≤ r := by
-      rw [Finset.card_erase_of_mem hj_mem, heq]
-      simp
+      rw [← hLset, hLsplit, List.toFinset_append, List.toFinset_cons, List.toFinset_nil,
+        Finset.union_comm, Finset.insert_union, Finset.empty_union,
+        Finset.erase_insert (mt List.mem_toFinset.1 hj_nmem)]
+    have hcard_er' : (S.erase j).card ≤ r := by simp [Finset.card_erase_of_mem hj_mem, heq]
     obtain ⟨u, hu, hu_least⟩ := hG₀.2 (S.erase j) hcard_er' j.succ
     obtain ⟨v', hv', hle_v'⟩ := hdone j.val j.isLt j.isLt S hj_mem hcard_er' t
     rw [hv] at hv'
@@ -1408,13 +1331,9 @@ private theorem hkStep_invariant (x : TSPInstance) {n : ℕ} (hn_eq : x.dist.len
           stage_complete_succ hn_pos G_r hSr G_end hVG hmono hdone
         obtain ⟨hs1, hs2⟩ := hsync r G_r h1 h2 hSr n le_rfl
         simp only [↓reduceIte] at hs1
-        have heq_mul : (r + 1) * n = r * n + n := by ring
-        rw [heq_mul, hs1, hs2, hsnd]
-        have hrot0 : (fun bs : List Bool => G_end (setOfBits n (bs.rotate (n - n)))) =
-            fun bs => G_end (setOfBits n bs) := by
-          funext bs
-          simp
-        exact ⟨G_end, rfl, by rw [hrot0], hSr1⟩
+        simp only [Nat.sub_self, List.rotate_zero] at hsnd
+        rw [(by ring : (r + 1) * n = r * n + n)]
+        exact ⟨G_end, hs1, hs2.trans hsnd, hSr1⟩
     refine ⟨?_, fun k hk => ?_⟩
     · obtain ⟨G_end, -, h2, hSn⟩ := hstage n le_rfl
       exact ⟨G_end, h2, hSn⟩
@@ -1951,6 +1870,7 @@ private theorem computableInO_tmOptCost :
 @[growth_poly]
 private theorem length_encNat_tmOptCost_le (x : TSPInstance) :
     (encNat (tmOptCost x)).length ≤ 4 * ((encTSP x).length + 1) ^ 2 + 2 := by
+  have h0 : (encNat 0).length ≤ 1 := by simp [encNat_apply]
   unfold tmOptCost
   cases hx : x.dist.length with
   | zero =>
@@ -1958,34 +1878,23 @@ private theorem length_encNat_tmOptCost_le (x : TSPInstance) :
     simp only [Nat.zero_sub, Nat.zero_mul, Function.iterate_zero_apply, hkInit, initTable,
       hxnil, row0, List.length_nil, List.range_zero, List.map_nil, noneRow, List.replicate_zero,
       List.foldl_cons, List.foldl_nil, List.headD_nil, Option.getD_none]
-    have h0 : (encNat 0).length ≤ 1 := by simp [encNat_apply]
     omega
   | succ n =>
+    dsimp only
     rw [Nat.add_sub_cancel]
     obtain ⟨-, -, hrow, -, -⟩ := hkState_size_bound x hx le_rfl
     set fin := (hkStep^[n * n] (hkInit x)).2
     have hlast_max : (encRow (fin.foldl (fun _ r => r) [])).length ≤
         4 * ((encTSP x).length + 1) ^ 2 :=
       (length_encRow_foldl_last_le fin).trans (listMax_le hrow)
-    set last := fin.foldl (fun _ r => r) []
-    rcases hhead : last.headD none with _ | v
-    · change (encNat ((last.headD none).getD 0)).length ≤ _
-      rw [hhead, Option.getD_none]
-      have h0 : (encNat 0).length ≤ 1 := by simp [encNat_apply]
+    rcases hlast : fin.foldl (fun _ r => r) [] with _ | ⟨_ | v, rest⟩
+    · simp
+    · simp
+    · rw [hlast] at hlast_max
+      simp only [encRow, encList_cons, encOption_some, List.length_append, length_frame,
+        List.length_cons] at hlast_max
+      simp only [List.headD_cons, Option.getD_some]
       omega
-    · change (encNat ((last.headD none).getD 0)).length ≤ _
-      rw [hhead, Option.getD_some]
-      cases hlast : last with
-      | nil => simp [hlast] at hhead
-      | cons a rest =>
-        rw [hlast, List.headD_cons] at hhead
-        cases hhead
-        have hv : (encNat v).length ≤ (encRow (some v :: rest)).length := by
-          simp only [encRow, encList_cons, encOption_some, List.length_append, length_frame,
-            List.length_cons]
-          omega
-        rw [hlast] at hlast_max
-        omega
 
 private theorem computableInO_tmDecide :
     ∃ e, ComputableInO tmDecide encTSP encBool

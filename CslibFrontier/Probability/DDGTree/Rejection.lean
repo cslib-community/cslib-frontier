@@ -240,10 +240,8 @@ theorem runTrials_succ (spec : BlockRejectionSpec α) (t : ℕ) :
   rw [PMF.bind_map]
   congr 1
   funext front
-  simp only [Function.comp_apply]
-  cases spec.attempt front with
-  | some a => simp [PMF.bind_const]
-  | none => rfl
+  dsimp only [Function.comp_apply]
+  cases spec.attempt front <;> simp [PMF.bind_const, PMF.map, Function.comp_def]
 
 /-- Failure probability after `t` trials is `rejectProb ^ t`. -/
 theorem runTrials_none (spec : BlockRejectionSpec α) (t : ℕ) :
@@ -304,10 +302,8 @@ theorem runCapped_apply [DecidableEq α] {spec : BlockRejectionSpec α} {target 
   classical
   rw [runCapped, PMF.map_apply, tsum_option_eq]
   simp only [Option.getD_none, Option.getD_some, runTrials_none]
-  rw [tsum_eq_single a]
-  · simp only [↓reduceIte, runTrials_some_of_singleLaw h t a, add_comm]
-  · intro b hb
-    simp [hb.symm]
+  rw [tsum_eq_single a fun b hb => by simp [hb.symm]]
+  simp only [↓reduceIte, runTrials_some_of_singleLaw h t a, add_comm]
 
 /-- Statistical distance between the capped fallback sampler and the target distribution is
 `(rejectProb ^ t).toReal * (1 - (target fallback).toReal)`, hence at most
@@ -342,8 +338,7 @@ theorem dist_runCapped_le [Fintype α] {spec : BlockRejectionSpec α} {target : 
     (fallback : α) (t : ℕ) :
     dist (spec.runCapped fallback t) target ≤ (spec.rejectProb ^ t).toReal := by
   rw [dist_runCapped_eq h fallback t]
-  have h0 : 0 ≤ (target fallback).toReal := ENNReal.toReal_nonneg
-  exact mul_le_of_le_one_right ENNReal.toReal_nonneg (by linarith)
+  exact mul_le_of_le_one_right ENNReal.toReal_nonneg (sub_le_self _ ENNReal.toReal_nonneg)
 
 /-- Without any `Fintype` assumption, `spec.runCapped fallback t` lies within `CloseTo` statistical
 distance `spec.rejectProb ^ t` of `target`. -/
@@ -354,8 +349,7 @@ theorem closeTo_runCapped {α : Type} {spec : BlockRejectionSpec α} {target : P
   classical
   refine CloseTo.of_one_sub_mul_le fun a => ?_
   rw [← spec.runTrials_some_of_singleLaw h t a, runCapped, PMF.map_apply]
-  refine le_trans ?_ (le_tsum _ (some a))
-  simp
+  exact le_trans (by simp) (le_tsum _ (some a))
 
 /-! ### Unbounded `DDGTree` realization -/
 
@@ -373,16 +367,12 @@ blocks. -/
 /-- Running `toDDGTree` on `n` fair bits has the exact law of `n / width` rejection trials. -/
 theorem run_toDDGTree (spec : BlockRejectionSpec α) (n : ℕ) :
     spec.toDDGTree.run n = spec.runTrials (n / spec.width) := by
-  set t := n / spec.width
-  have ht : t * spec.width ≤ n := Nat.div_mul_le_self n spec.width
   unfold DDGTree.run runTrials
-  rw [← BitString.uniformList_take ht, PMF.map_comp]
+  rw [← BitString.uniformList_take (Nat.div_mul_le_self n spec.width), PMF.map_comp]
   apply PMF.map_congr_on_support
   intro w hw
-  have hlen : w.length = n := BitString.length_of_mem_support_uniformList hw
-  change spec.decodeTrials (w.length / spec.width) w =
-    spec.decodeTrials t (w.take (t * spec.width))
-  rw [hlen, decodeTrials_take]
+  dsimp only [toDDGTree, Function.comp_apply]
+  rw [BitString.length_of_mem_support_uniformList hw, decodeTrials_take]
 
 /-- If `0 < width`, `acceptProb ≠ 0`, and accepted trials follow `target`, `toDDGTree` generates
 `target` exactly. -/
@@ -562,12 +552,9 @@ theorem uniformFinTree_generates (n : ℕ) [NeZero n] :
     obtain rfl : i = ⟨0, NeZero.pos 1⟩ := Subsingleton.elim _ _
     simp [DDGTree.outputProb, DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl,
       PMF.uniformOfFintype_apply]
-  · have hn_gt : 1 < n := by have := NeZero.pos n; omega
-    have hw : 0 < (uniformFinRejectionSpec n).width :=
-      Nat.clog_pos Nat.one_lt_two hn_gt
-    have hacc : (uniformFinRejectionSpec n).acceptProb ≠ 0 :=
-      ne_of_gt (lt_of_lt_of_le (by norm_num) (one_half_le_acceptProb_uniformFinRejectionSpec n))
-    exact BlockRejectionSpec.toDDGTree_generates hw hacc
+  · exact BlockRejectionSpec.toDDGTree_generates
+      (Nat.clog_pos Nat.one_lt_two (by have := NeZero.pos n; omega))
+      (ne_of_gt (lt_of_lt_of_le (by norm_num) (one_half_le_acceptProb_uniformFinRejectionSpec n)))
       (singleLaw_uniformFinRejectionSpec_some n)
 
 theorem expectedFlips_uniformFinTree_of_two_le {n : ℕ} [NeZero n] (hn : 2 ≤ n) :
@@ -599,11 +586,10 @@ theorem expectedFlips_uniformFinTree_le (n : ℕ) [NeZero n] :
     (uniformFinTree n).expectedFlips ≤ 2 * (Nat.clog 2 n : ℝ≥0∞) := by
   unfold uniformFinTree
   split_ifs with hn1
-  · rw [expectedFlips_constZeroFinTree]
-    exact zero_le
-  · have hn_gt : 1 < n := by have := NeZero.pos n; omega
-    exact BlockRejectionSpec.expectedFlips_toDDGTree_le_two_mul
-      (Nat.clog_pos Nat.one_lt_two hn_gt) (one_half_le_acceptProb_uniformFinRejectionSpec n)
+  · simp [expectedFlips_constZeroFinTree]
+  · exact BlockRejectionSpec.expectedFlips_toDDGTree_le_two_mul
+      (Nat.clog_pos Nat.one_lt_two (by have := NeZero.pos n; omega))
+      (one_half_le_acceptProb_uniformFinRejectionSpec n)
 
 theorem singleLaw_dyadicFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) :
     (dyadicFinRejectionSpec n).singleLaw (some i) =

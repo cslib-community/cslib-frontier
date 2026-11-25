@@ -98,27 +98,19 @@ theorem crownShift_ne_self {n : ℕ} (hn : 2 ≤ n) (p : Fin n) : crownShift hn 
   intro heq
   have hval : (p.val + 1) % n = p.val := congrArg Fin.val heq
   by_cases hlt : p.val + 1 < n
-  · rw [Nat.mod_eq_of_lt hlt] at hval
-    omega
-  · have hp : p.val + 1 = n := by omega
-    rw [hp, Nat.mod_self] at hval
-    omega
+  · rw [Nat.mod_eq_of_lt hlt] at hval; omega
+  · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)] at hval; omega
 
 /-- `crownShift hn` is injective on `Fin n`. -/
 theorem crownShift_injective {n : ℕ} (hn : 2 ≤ n) : Function.Injective (crownShift hn) := by
   intro p₁ p₂ heq
+  have hm (p : Fin n) : (p.val + 1) % n = if p.val + 1 < n then p.val + 1 else 0 := by
+    split_ifs with h
+    · exact Nat.mod_eq_of_lt h
+    · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]; omega
   have hval : (p₁.val + 1) % n = (p₂.val + 1) % n := congrArg Fin.val heq
-  ext
-  by_cases h₁ : p₁.val + 1 < n <;> by_cases h₂ : p₂.val + 1 < n
-  · rw [Nat.mod_eq_of_lt h₁, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · have hp₂ : p₂.val + 1 = n := by omega
-    rw [Nat.mod_eq_of_lt h₁, hp₂, Nat.mod_self] at hval
-    omega
-  · have hp₁ : p₁.val + 1 = n := by omega
-    rw [hp₁, Nat.mod_self, Nat.mod_eq_of_lt h₂] at hval
-    omega
-  · omega
+  rw [hm p₁, hm p₂] at hval
+  split_ifs at hval <;> exact Fin.ext (by omega)
 
 /-- Step `i` (`0 ≤ i < 2 * n + 2 * (n * n)`) of the 4-block crown execution `crownFin` on `Fin n`:
 * `[0, n)`: Phase-1 initial internal step `a_p` on each `p`,
@@ -394,16 +386,11 @@ theorem exists_unicast_execution_dim_lower_bound (P : Type u) [Fintype P] :
     refine ⟨E, fun {α} _ {d} f hf => ?_⟩
     let e₀ : E.Event := ⟨⟨0, Nat.zero_lt_succ 1⟩⟩
     let e₁ : E.Event := ⟨⟨1, Nat.lt_succ_self 1⟩⟩
-    have hnot : ¬ E.HappensBeforeLe e₁ e₀ := by
-      intro hle
-      have hidx : e₁.idx.val ≤ e₀.idx.val := E.happensBeforeLe_idx_le hle
-      exact Nat.not_succ_le_zero 0 hidx
-    have hnot_le : ¬ f e₁ ≤ f e₀ := mt (hf e₁ e₀).mpr hnot
-    rw [Pi.le_def] at hnot_le
-    push Not at hnot_le
-    obtain ⟨i, _⟩ := hnot_le
-    have hi := i.isLt
-    omega
+    have hnot : ¬ E.HappensBeforeLe e₁ e₀ := fun hle =>
+      Nat.not_succ_le_zero 0 (E.happensBeforeLe_idx_le hle)
+    obtain ⟨i, _⟩ : ∃ i, ¬ f e₁ i ≤ f e₀ i := by
+      simpa [Pi.le_def] using mt (hf e₁ e₀).mpr hnot
+    exact Nat.zero_lt_of_lt i.isLt
   · have hn : 2 ≤ k + 2 := by omega
     let equiv : Fin (k + 2) ≃ P := (Fintype.equivOfCardEq (by simp [hcard])).symm
     let E : Execution P := (crownFin (k + 2) hn).map equiv
@@ -444,15 +431,9 @@ theorem exists_unicast_orderEmbedding_clock_iff {P : Type u} [Fintype P] {d : �
     · intro hle i
       dsimp only
       split_ifs with hi
-      · exact hle _
-      · exact le_rfl
+      exacts [hle _, le_rfl]
     · intro hle p
-      let j : Fin d := ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩
-      have hj : j.val < Fintype.card P := (equiv p).isLt
-      have hval := hle j
-      dsimp only at hval
-      simp only [hj, ↓reduceDIte] at hval
-      have hjp : equiv.symm ⟨j.val, hj⟩ = p := equiv.symm_apply_apply p
-      rwa [hjp] at hval
+      simpa only [(equiv p).isLt, ↓reduceDIte, equiv.symm_apply_apply] using
+        hle ⟨(equiv p).val, (equiv p).isLt.trans_le hd⟩
 
 end Cslib.Distributed.VectorClock

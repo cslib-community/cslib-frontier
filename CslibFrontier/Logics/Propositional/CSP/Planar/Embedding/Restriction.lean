@@ -36,12 +36,7 @@ private theorem find?_map_range_succ {α : Type*} (f : ℕ → α) (p : α → B
     ((List.range (n + 1)).map f).find? p =
       if p (f 0) then some (f 0) else ((List.range n).map fun k => f (k + 1)).find? p := by
   rw [List.range_succ_eq_map, List.map_cons, List.map_map]
-  cases hp : p (f 0)
-  · rw [List.find?_cons_of_neg (by simp only [hp, Bool.false_eq_true, not_false_eq_true])]
-    simp only [Bool.false_eq_true, ↓reduceIte]
-    rfl
-  · rw [List.find?_cons_of_pos hp]
-    simp only [↓reduceIte]
+  cases hp : p (f 0) <;> simp [hp, Function.comp_def]
 
 /-- A retained immediate successor is the first return, provided the table funds one step. -/
 theorem getD_restrictPrefix_one (c : Graph.RotationCertificate) (darts i : ℕ)
@@ -57,9 +52,8 @@ private theorem rotationCertificate_eq_of_getD {a b : Graph.RotationCertificate}
     (hget : ∀ i < a.successor.length, a.successor.getD i 0 = b.successor.getD i 0) : a = b := by
   cases a; cases b
   congr 1
-  refine List.ext_getElem hlen fun i hi hj => ?_
-  rw [← List.getD_eq_getElem _ 0 hi, ← List.getD_eq_getElem _ 0 hj]
-  exact hget i hi
+  exact List.ext_getElem hlen fun i hi hj => by
+    simpa only [List.getD_eq_getElem _ 0 hi, List.getD_eq_getElem _ 0 hj] using hget i hi
 
 /-- Restriction to the full table is literal identity when every successor stays within
 its length. This includes the empty table, without inventing a positive scan clock. -/

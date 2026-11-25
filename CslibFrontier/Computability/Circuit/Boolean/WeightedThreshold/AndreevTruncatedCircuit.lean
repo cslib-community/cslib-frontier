@@ -217,20 +217,14 @@ theorem eval_andreevTruncatedCircuit (b m r R : ℕ) (w : BitString (2 ^ b + b *
     simp only [andreevTruncatedInputWeight, Fin.addCases_left, Fin.addCases_right, zero_mul,
       sum_const_zero, add_zero, ← mul_sum]
     ring
-  rw [htop, hinput, decide_eq_decide]
-  constructor
-  · intro h
-    have h' : ((1 - andreevVoteThreshold b r : ℤ) : ℝ) ≤
-        (-andreevTruncatedScore b m r R w : ℤ) := by
-      push_cast at h ⊢
-      linarith only [h]
-    have := Int.cast_le.mp h'
-    omega
-  · intro h
-    have h' : (1 - andreevVoteThreshold b r : ℤ) ≤ -andreevTruncatedScore b m r R w := by omega
-    have := (Int.cast_le (R := ℝ)).mpr h'
-    push_cast at this ⊢
-    linarith only [this]
+  have hlin : (((1 - andreevVoteThreshold b r + 2 * 2 ^ b : ℤ) : ℝ) ≤
+      -((andreevTruncatedScore b m r R w - 2 * andreevTableScore b m ∅ w : ℤ) : ℝ) +
+        (2 * 2 ^ b - 2 * (andreevTableScore b m ∅ w : ℝ))) ↔
+      ((1 - andreevVoteThreshold b r : ℤ) : ℝ) ≤ (-andreevTruncatedScore b m r R w : ℤ) := by
+    push_cast
+    constructor <;> intro h <;> linarith only [h]
+  rw [htop, hinput, decide_eq_decide, hlin, Int.cast_le]
+  omega
 
 /-- `andreevTruncatedCircuit b m r R` has `4 (2 ^ r - 1) (R + 1)` bottom gates and one output
 gate. -/
@@ -260,21 +254,17 @@ gate are all `1`, all `-1` or all `0`. -/
 theorem isSignCoherent_andreevTruncatedBottomOp (b m r R : ℕ)
     (j : Fin (4 * #(andreevPrefixSubsetsNonempty b r) * (R + 1))) :
     IsSignCoherent (andreevBlockVar b m) (argWeight (andreevTruncatedBottomOp b m r R j) id) := by
-  set idx := (andreevTruncatedBottomEquiv b r R).symm j
-  have hw : argWeight (andreevTruncatedBottomOp b m r R j) id =
-      andreevReflectedWeight b m idx.subset idx.form := argWeight_id _ _
-  rw [hw]
+  set idx := (andreevTruncatedBottomEquiv b r R).symm j with hidx
+  rw [argWeight_id]
   intro i
   have hblock (t : Fin m) :
       andreevReflectedWeight b m idx.subset idx.form (andreevBlockVar b m i t) =
         if i ∈ idx.subset then (if idx.form then 1 else -1) else 0 := by
     simp only [andreevReflectedWeight, andreevBlockVar, Fin.addCases_right, Equiv.symm_apply_apply]
-  simp only [hblock]
-  by_cases hi : i ∈ idx.subset
-  · cases idx.form
-    · exact .inr fun t => by simp [hi]
-    · exact .inl fun t => by simp [hi]
-  · exact .inl fun t => by simp [hi]
+  simp only [← hidx, hblock]
+  by_cases hi : i ∈ idx.subset <;> cases idx.form
+  · exact .inr fun _ => by simp [hi]
+  all_goals exact .inl fun _ => by simp [hi]
 
 /-! ### Theorem 7 -/
 
@@ -506,16 +496,12 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
       2600 * ε ^ 2 * n * Real.sqrt (n * L) := by gcongr
   refine ⟨hsize.trans hsize', ?_⟩
   -- Wires: `(G + 1) n + G + 1 + n ≤ (G + 1) (n + 1) + n`.
-  have hw := wireCount_andreevTruncatedCircuit_le hrb.le m R
-  have hsz := size_andreevTruncatedCircuit hrb.le m R
   have hw' : (C.wireCount : ℝ) ≤ (C.size : ℝ) * n + C.size + n := by
-    have : C.wireCount ≤ C.size * (2 ^ b + b * m) + C.size + (2 ^ b + b * m) := by
-      have h1 : C.wireCount ≤ _ := hw
-      have h2 : C.size = _ := hsz
-      rw [h2]
-      omega
+    have hnat : C.wireCount ≤ C.size * (2 ^ b + b * m) + C.size + (2 ^ b + b * m) := by
+      rw [size_andreevTruncatedCircuit hrb.le m R, add_assoc (_ * _)]
+      exact wireCount_andreevTruncatedCircuit_le hrb.le m R
     simp only [n]
-    exact_mod_cast this
+    exact_mod_cast hnat
   have hn1 : 1 ≤ n := hN.trans hn
   have hεn : 1 ≤ ε ^ 2 * n := hεN.trans (by gcongr)
   have hX' : 1 ≤ Real.sqrt (n * L) := hX.trans hsqrt

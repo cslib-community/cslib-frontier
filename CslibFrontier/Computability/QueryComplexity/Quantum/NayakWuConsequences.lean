@@ -132,21 +132,11 @@ theorem IsApproxKthSmallest.relaxed {X : ι → α} {k : ℕ} {Δ : ℝ} {y : α
     (h : IsApproxKthSmallest X k Δ y) : IsApproxKthSmallestRelaxed X k Δ y := by
   obtain ⟨j, hj1, hjn, hkd, hjk, hlt, hle⟩ := h
   have hpart : #{i | y < X i} + #{i | X i ≤ y} = Fintype.card ι := by
-    have hs := card_filter_add_card_filter_not (s := univ) (fun i => y < X i)
-    simp only [card_univ] at hs
-    have h2 : #{i | X i ≤ y} = #{i | ¬ y < X i} :=
-      congrArg card (filter_congr fun i _ => not_lt.symm)
-    rw [h2]
-    exact hs
+    simpa only [not_lt, card_univ] using
+      card_filter_add_card_filter_not (s := univ) (fun i => y < X i)
   refine ⟨lt_of_lt_of_le hlt hjn, by omega, ?_, ?_⟩
-  · have hlt1 : (#{i | X i < y} : ℝ) + 1 ≤ j := by
-      exact_mod_cast (by omega : #{i | X i < y} + 1 ≤ j)
-    linarith
-  · have hgt : (#{i | y < X i} : ℝ) ≤ Fintype.card ι - j := by
-      have : #{i | y < X i} ≤ Fintype.card ι - j := by omega
-      have hjR : (j : ℝ) ≤ Fintype.card ι := by exact_mod_cast hjn
-      exact_mod_cast this
-    linarith
+  · linarith [show (#{i | X i < y} : ℝ) + 1 ≤ j from mod_cast Nat.succ_le_of_lt hlt]
+  · linarith [show (#{i | y < X i} : ℝ) + j ≤ Fintype.card ι from mod_cast (by omega)]
 
 /-- Converts an `ENNReal` lower bound on `(measureOut ψ hψ out).toOuterMeasure {b | P b}` into a
 `measureProb` lower bound on `univ.filter fun y => P (out y)`. -/
@@ -294,10 +284,7 @@ theorem one_sub_mul_approxCount_le {n : ℕ} {W : Type*} [Fintype W]
   have hΔ : 0 < Δ := by linarith
   have hd_pos : (0 : ℝ) < d := Nat.cast_pos.mpr (Nat.ceil_pos.mpr (by linarith))
   have hd_lt : (d : ℝ) < 2 * Δ + 1 := Nat.ceil_lt_add_one (by linarith)
-  have h2d : 2 * d ≤ n + 1 := by
-    have : (2 * d : ℝ) < n + 2 := by linarith
-    have : (2 * d : ℕ) < n + 2 := by exact_mod_cast this
-    omega
+  have h2d : 2 * d ≤ n + 1 := Nat.lt_succ_iff.mp (mod_cast (by linarith : (2 * d : ℝ) < n + 2))
   have hstep : t + d ≤ n ∨ d ≤ t := by omega
   have hcore := one_sub_mul_add_le_of_approxCount_aux U hψ₀ T out ht hΔ hstep h hε
   have hbound := approx_scale_le (one_sub_two_mul_sqrt_nonneg ε) (Nat.cast_nonneg n) hΔ hd_pos
@@ -337,32 +324,24 @@ private theorem card_filter_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrde
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (_ha : a₀ < a₁) (b : BitString n) (y : α)
     (hy : a₀ < y) :
     n - weight b ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
-  have hsub : univ.filter (fun i : ι => b (e i) = false) ⊆
-      univ.filter (fun i : ι => embedSeq e a₀ a₁ b i < y) := by
-    intro i hi
-    rw [mem_filter] at hi ⊢
-    exact ⟨mem_univ i, by simp [embedSeq, hi.2, hy]⟩
+  have hnot := weight_not b
+  simp only [Fintype.card_fin] at hnot
   have hcard : #{i : ι | b (e i) = false} = n - weight b := by
-    rw [card_filter_comp_equiv e b false]
-    have hnot := weight_not b
-    simp only [Fintype.card_fin] at hnot
-    rw [← hnot]
-    refine congrArg card (filter_congr fun j _ => ?_)
-    cases hb : b j <;> simp [hb]
-  exact hcard ▸ card_le_card hsub
+    rw [card_filter_comp_equiv e b false, ← hnot]
+    exact congrArg card (filter_congr fun j _ => by cases hb : b j <;> simp [hb])
+  refine hcard ▸ card_le_card fun i hi => ?_
+  rw [mem_filter] at hi ⊢
+  exact ⟨mem_univ i, by simp [embedSeq, hi.2, hy]⟩
 
 private theorem card_filter_embedSeq_gt {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) (y : α)
     (hy : y ≤ a₀) :
     weight b ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by
-  have hsub : univ.filter (fun i : ι => b (e i) = true) ⊆
-      univ.filter (fun i : ι => y < embedSeq e a₀ a₁ b i) := by
-    intro i hi
-    rw [mem_filter] at hi ⊢
-    exact ⟨mem_univ i, by simp [embedSeq, hi.2, lt_of_le_of_lt hy ha]⟩
-  have hcard : #{i : ι | b (e i) = true} = weight b := by
-    rw [card_filter_comp_equiv e b true, weight]
-  exact hcard ▸ card_le_card hsub
+  unfold weight
+  rw [← card_filter_comp_equiv e b true]
+  refine card_le_card fun i hi => ?_
+  rw [mem_filter] at hi ⊢
+  exact ⟨mem_univ i, by simp [embedSeq, hi.2, lt_of_le_of_lt hy ha]⟩
 
 private theorem measureProb_le_of_sep {ι V W α : Type*} [Fintype ι] [Fintype V] [Fintype W]
     [LinearOrder α]
@@ -547,13 +526,8 @@ private theorem one_sub_mul_kthSmallest_le_of_sim {ι V W α : Type*}
     intro t₁ t₂ hne ht₁ ht₂ hmin hmax hsep₁ hsep₂ hgap
     have hsep := measureProb_sim_sep e step U hψ₀ T out
       (fun X y => IsApproxKthSmallestRelaxed X k Δ y) Vsim φ₀ T_bool hsim hgood
-      (fun b hb y hy => kthSmallest_le_of_weight_le e hn ha hkn b
-        (Or.elim hsep₁ (fun h0 => Or.inl (hb.trans h0)) (fun hle => Or.inr (by rw [hb]; exact hle)))
-        hy)
-      (fun b hb y hy => kthSmallest_gt_of_weight_ge e hn ha b
-        (Or.elim hsep₂ (fun hn' => Or.inl (hb.trans hn'))
-          (fun hge => Or.inr (by rw [hb]; exact hge)))
-        hy)
+      (fun b hb y hy => kthSmallest_le_of_weight_le e hn ha hkn b (by rwa [hb]) hy)
+      (fun b hb y hy => kthSmallest_gt_of_weight_ge e hn ha b (by rwa [hb]) hy)
     have hcore := one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight Vsim hφ₀ T_bool
       ((univ.filter fun p => out p ≤ a₀).map (embedOutcome e)) hne ht₁ ht₂
       hsep.1 hsep.2 hε hmin hmax
@@ -967,15 +941,11 @@ theorem median_inv_delta_lower_bound {ι V W α : Type*}
     (hgood : ∀ X : ι → α, 1 - (1 / 3 : ℝ) ≤ (open Classical in
       measureProb (runValue step U ψ₀ X T) (univ.filter fun p => IsApproxMedian X δ (out p)))) :
     1 / δ ≤ 432 * T := by
-  have hn1 : 1 ≤ Fintype.card ι := by
-    by_contra h
-    have h0 : Fintype.card ι = 0 := by omega
-    rw [h0, Nat.cast_zero, mul_zero] at hδn
+  rcases Nat.eq_zero_or_pos (Fintype.card ι) with h0 | hn1
+  · simp only [h0, Nat.cast_zero, mul_zero] at hδn
     linarith
-  have hle : 1 / δ ≤ Fintype.card ι := (div_le_iff₀ hδ₀).2 (by linarith)
-  have hm := median_lower_bound step U hψ₀ T out hn1 hδ₀ hδ₁ hgood
-  rw [min_eq_left hle] at hm
-  exact hm
+  simpa only [min_eq_left ((div_le_iff₀' hδ₀).2 hδn)] using
+    median_lower_bound step U hψ₀ T out hn1 hδ₀ hδ₁ hgood
 
 /-- Bounded-error (`ε = 1 / 3`) form of Corollary 1.6 ([NayakWu1999]) for involutive-difference
 oracles: `min (1 / δ) |ι| ≤ 216 T`. -/

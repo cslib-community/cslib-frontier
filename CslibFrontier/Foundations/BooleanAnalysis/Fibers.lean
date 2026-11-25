@@ -322,11 +322,8 @@ theorem card_coordinateFiber (X : Finset (ι → Bool)) (s x : ι → Bool) :
 /-- Conditioning at a point of `X` leaves a nonempty fiber. -/
 theorem coordinateFiber_nonempty {X : Finset (ι → Bool)} (s : ι → Bool) {x : ι → Bool}
     (hx : x ∈ X) : (coordinateFiber X s x).Nonempty := by
-  refine ⟨fun i => x i, mem_filter.mpr ⟨mem_univ _, ?_⟩⟩
-  have he : completePattern s x (fun i => x i) = x := by
-    funext i
-    simp [completePattern]
-  rwa [he]
+  have he : completePattern s x (fun i => x i) = x := funext fun i => by simp [completePattern]
+  exact ⟨fun i => x i, mem_filter.mpr ⟨mem_univ _, he.symm ▸ hx⟩⟩
 
 /-- Fiber densities are nonnegative, including for empty fibers. -/
 theorem coordinateDensity_nonneg (X : Finset (ι → Bool)) (s x : ι → Bool) :
@@ -349,10 +346,7 @@ theorem coordinateDensity_resample_union (X : Finset (ι → Bool)) (P Q x y : �
     coordinateDensity X Q (resample P x y) =
       coordinateDensity X Q (resample (fun i => P i || Q i) x y) := by
   rw [coordinateDensity_eq_expect, coordinateDensity_eq_expect]
-  apply expect_congr rfl
-  intro z _
-  apply congrArg (fun t => if t ∈ X then (1 : ℝ) else 0)
-  funext i
+  refine expect_congr rfl fun z _ => congrArg (if · ∈ X then (1 : ℝ) else 0) (funext fun i => ?_)
   cases hp : P i <;> cases hq : Q i <;> simp [resample, hp, hq]
 
 end Gluing
@@ -473,21 +467,17 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
       𝔼 x ∈ X, Real.log (X.filter (fun y => g y = g x)).card := by
   let m : β → ℝ := fun b => (X.filter fun x => g x = b).card
   have hsum : (∑ b, m b) = (X.card : ℝ) := by
-    dsimp [m]
-    exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (t := univ)
-      (f := g) (by intro x hx; exact mem_univ _) ).symm
+    dsimp only [m]
+    exact_mod_cast (card_eq_sum_card_fiberwise (s := X) (f := g) fun _ _ => mem_univ _).symm
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
   have hB : (0 : ℝ) < Fintype.card β := by exact_mod_cast Fintype.card_pos
-  have h := Real.sum_mul_log_div_card_le univ (x := m) (by intro b _; dsimp [m]; positivity)
-  rw [card_univ] at h
-  rw [hsum, Real.log_div hN.ne' hB.ne'] at h
+  have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
+  rw [card_univ, hsum, Real.log_div hN.ne' hB.ne'] at h
   have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
       ∑ b, m b * Real.log (m b) := by
-    rw [← sum_fiberwise' X g (fun b => Real.log (m b))]
-    simp only [sum_const, nsmul_eq_mul]
-    rfl
-  rw [expect_eq_sum_div_card, he]
-  exact (le_div_iff₀ hN).mpr (by nlinarith)
+    simp [← sum_fiberwise' X g (fun b => Real.log (m b)), m]
+  rw [expect_eq_sum_div_card, he, le_div_iff₀ hN]
+  nlinarith
 
 /-- Korten's entropy lemma (Lemma 4): conditioning on the unselected bits
 does not increase the average deficit in the selected-coordinate cube. -/
@@ -498,9 +488,8 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
   have hl : 0 < Real.log 2 := Real.log_pos (by norm_num)
   have hc : (Fintype.card {i // s i = true} : ℝ) + Fintype.card {i // s i ≠ true} =
       Fintype.card ι := by
-    have := Fintype.card_subtype_le (fun i => s i = true)
-    exact_mod_cast (by rw [Fintype.card_subtype_compl]; omega :
-      Fintype.card {i // s i = true} + Fintype.card {i // s i ≠ true} = Fintype.card ι)
+    rw [← Nat.cast_add, Fintype.card_subtype_compl,
+      Nat.add_sub_of_le (Fintype.card_subtype_le _)]
   simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
     Real.log_pow] at h
   have hd := div_le_div_of_nonneg_right h hl.le

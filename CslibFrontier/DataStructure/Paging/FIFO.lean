@@ -303,9 +303,7 @@ theorem length_lifoNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α
   split
   · exact hq
   · split
-    · next hlt =>
-      rw [List.length_cons]
-      omega
+    · next hlt => exact Nat.succ_le_of_lt hlt
     · exact List.length_take_le k _
 
 private theorem lifoNext_cons_of_length_eq {k : Nat} {e p : α} {rest : List α}
@@ -327,11 +325,8 @@ theorem validStep_lifoNext {k : Nat} (hk : 0 < k) {q : List α} (hnodup : q.Nodu
     · simp only [lifoNext, hp, hlt, ↓reduceIte, List.toFinset_cons]
       exact validStep_insert ((List.toFinset_card_le q).trans_lt hlt) hps
     · rcases q with _ | ⟨e, rest⟩
-      · simp only [List.length_nil] at hlt
-        omega
-      · have hlen' : rest.length = k - 1 := by
-          simp only [List.length_cons] at hlen hlt
-          omega
+      · exact absurd hk hlt
+      · have hlen' : rest.length = k - 1 := by simp only [List.length_cons] at hlen hlt; omega
         have herase : ((e :: rest).toFinset).erase e = rest.toFinset := by
           rw [List.toFinset_cons, Finset.erase_insert
             (by simpa only [List.mem_toFinset] using (List.nodup_cons.mp hnodup).1)]
@@ -415,13 +410,10 @@ private theorem lifoRun_warmup {k : Nat} :
   | x :: xs, q, hnodup, hlen => by
     rw [List.reverse_cons, List.append_assoc, List.singleton_append] at hnodup
     have hxq : x ∉ q := (List.nodup_cons.mp (List.nodup_append.mp hnodup).2.1).1
-    have hlt : q.length < k := by
-      simp only [List.length_cons] at hlen
-      omega
+    have hlt : q.length < k := by simp only [List.length_cons] at hlen; omega
     have hstep : lifoNext k q x = x :: q := by simp only [lifoNext, hxq, hlt, ↓reduceIte]
     have hlen' : xs.length + (x :: q).length ≤ k := by
-      simp only [List.length_cons] at hlen ⊢
-      omega
+      simp only [List.length_cons] at hlen ⊢; omega
     obtain ⟨hrun, hfault⟩ := lifoRun_warmup xs (x :: q) hnodup hlen'
     refine ⟨?_, ?_⟩
     · rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
@@ -488,15 +480,11 @@ private theorem exists_validSchedule_insertAll {k : Nat} :
     have hxs : x ∉ s := hdisj x List.mem_cons_self
     have hlt : s.card < k := by simp only [List.length_cons] at hcard; omega
     have hstep : ValidStep k s x (insert x s) := validStep_insert hlt hxs
-    have hdisj' : ∀ y ∈ xs, y ∉ insert x s := by
-      intro y hy hmem
-      rcases Finset.mem_insert.mp hmem with rfl | hys
-      · exact hxxs hy
-      · exact hdisj y (List.mem_cons_of_mem x hy) hys
+    have hdisj' : ∀ y ∈ xs, y ∉ insert x s := fun y hy hmem =>
+      (Finset.mem_insert.mp hmem).elim (hxxs <| · ▸ hy) (hdisj y (List.mem_cons_of_mem x hy))
     have hcard' : (insert x s).card + xs.length ≤ k := by
       rw [Finset.card_insert_of_notMem hxs]
-      simp only [List.length_cons] at hcard
-      omega
+      simp only [List.length_cons] at hcard; omega
     obtain ⟨ss, hv, hfin, hcost⟩ := exists_validSchedule_insertAll xs (insert x s) hdisj' hnodup'
       hcard'
     refine ⟨insert x s :: ss, ⟨hstep, hv⟩, ?_, ?_⟩
@@ -542,11 +530,8 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
   have hmem_tail : ∀ p ∈ tailReqs, p ∈ s_pair := by
     intro p hp
     rcases List.mem_flatten.mp hp with ⟨l, hl, hpl⟩
-    rw [List.mem_replicate.mp hl |>.2] at hpl
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hpl
-    rcases hpl with rfl | rfl
-    · exact ha_pair
-    · exact hb_pair
+    simp only [(List.mem_replicate.mp hl).2, List.mem_cons, List.not_mem_nil, or_false] at hpl
+    exact hpl.elim (· ▸ ha_pair) (· ▸ hb_pair)
   have hv_tail := validSchedule_replicate_of_forall_mem hcard_pair hmem_tail
   have hcost_tail := scheduleCost_replicate_of_forall_mem (k := k) hmem_tail
   set afterInitReqs := a :: b :: tailReqs
@@ -563,11 +548,9 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
     simp only [lifoCounterexample, afterInitReqs, tailReqs, List.replicate_succ, List.flatten_cons,
       List.cons_append, List.nil_append]
   rw [hreq_eq]
-  refine ⟨ss₀ ++ afterInitStates, ?_, ?_⟩
-  · apply (problem α k).validSchedule_append hv₀
-    rwa [hfin₀]
-  · rw [(problem α k).scheduleCost_append hv₀.length_eq, hfin₀, hcost₀, hcost_after, hinit]
-    omega
+  refine ⟨ss₀ ++ afterInitStates, (problem α k).validSchedule_append hv₀ (hfin₀ ▸ hv_after), ?_⟩
+  rw [(problem α k).scheduleCost_append hv₀.length_eq, hfin₀, hcost₀, hcost_after, hinit]
+  omega
 
 /-- **LIFO is not competitive for `2 ≤ k`** ([SleatorTarjan1985], Section 4, p. 208): over any
 `k + 1` distinct pages (`pages.Nodup`, `pages.length = k + 1`), `lifoStrategy` from `∅` fails

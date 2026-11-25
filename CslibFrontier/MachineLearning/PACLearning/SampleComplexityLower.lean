@@ -106,11 +106,8 @@ theorem pi_map_sampleOf
     Measurable.prodMk measurable_id (measurable_decide_mem hc)
   -- vendored: the pinned Mathlib makes `IsProbabilityMeasure (P.map f)` a global instance and
   -- removes `Measure.isProbabilityMeasure_map`, so the local instances are dropped.
-  have hsampleOf_eq : (sampleOf c : (Fin m → α) → LabeledSample α Bool m) =
-      (fun xs i => (fun x : α => (x, decide (x ∈ c))) (xs i)) := by
-    funext xs i; rfl
-  rw [hsampleOf_eq]
-  exact (Measure.pi_map_pi (fun _ => hmeasf.aemeasurable)).symm
+  exact (Measure.pi_map_pi (f := fun _ (x : α) => (x, decide (x ∈ c)))
+    (fun _ => hmeasf.aemeasurable)).symm
 
 open Classical in
 /-- The realizable joint distribution `P.map (x ↦ (x, c x))` has zero error
@@ -282,13 +279,11 @@ theorem sample_complexity_lower_bound_randomized
   set δE : ℝ≥0∞ := (δ.val : ℝ≥0∞) with hδE_def
   have hε'_pos : 0 < ε.val.toReal := NNReal.coe_pos.mpr ε.property.1
   have hεE_pos : 0 < εE := by rw [hεE_def]; exact_mod_cast ε.property.1
-  have nnreal_eq_ofReal_toReal : ∀ (x : NNReal),
-      (x : ℝ≥0∞) = ENNReal.ofReal x.toReal := fun _ => ENNReal.ofReal_coe_nnreal.symm
   have hεE_le : εE ≤ ENNReal.ofReal (1 / 8) := by
-    rw [hεE_def, nnreal_eq_ofReal_toReal]
+    rw [hεE_def, ← ENNReal.ofReal_coe_nnreal]
     exact ENNReal.ofReal_le_ofReal hε_le
   have hδE_lt : δE < ENNReal.ofReal (1 / 14) := by
-    rw [hδE_def, nnreal_eq_ofReal_toReal]
+    rw [hδE_def, ← ENNReal.ofReal_coe_nnreal]
     exact (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hδ_lt
   have h32ε_pos : (0 : ℝ) < 32 * ε.val.toReal := by positivity
   have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 := by
@@ -439,10 +434,9 @@ theorem sampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsPACLearnerFor n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 := by
-  have hmem : IsPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
-    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} hmem)
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} (Nat.sInf_mem hlearnable))
 
 /-- Lower bound on randomized sample complexity in terms of `vcDim`. -/
 theorem rsampleComplexity_lower_bound_vcDim
@@ -455,9 +449,9 @@ theorem rsampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsRPACLearnerFor.{_, _, 0} n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 := by
-  have hmem : IsRPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real hmem
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (Nat.sInf_mem hlearnable)
 
 end EHKVLowerBound
 

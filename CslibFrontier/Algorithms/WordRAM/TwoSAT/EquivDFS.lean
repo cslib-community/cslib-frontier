@@ -151,31 +151,21 @@ private theorem transposeAdj_mapAdj {α β : Type*} [DecidableEq α] [DecidableE
     (g : α → List α) (vs : List α) :
     transposeAdj (mapAdj e g) (vs.map e) = mapAdj e (transposeAdj g vs) := by
   unfold transposeAdj
-  have hinner : ∀ (u : α) (l : List α) (rev : α → List α),
+  have hinner (u : α) (l : List α) : ∀ rev : α → List α,
       (l.map e).foldl (fun r w => Function.update r w (e u :: r w)) (mapAdj e rev) =
         mapAdj e (l.foldl (fun r v => Function.update r v (u :: r v)) rev) := by
-    intro u l
     induction l with
-    | nil => intro _; rfl
-    | cons v l ih =>
-      intro rev
-      simp only [List.map_cons, List.foldl_cons, mapAdj_update_cons]
-      exact ih _
-  have houter : ∀ (l : List α) (rev : α → List α),
+    | nil => exact fun _ => rfl
+    | cons v l ih => exact fun rev => by simp [mapAdj_update_cons, ih]
+  have houter (l : List α) : ∀ rev : α → List α,
       (l.map e).foldl
           (fun r u => (mapAdj e g u).foldl (fun r w => Function.update r w (u :: r w)) r)
           (mapAdj e rev) =
         mapAdj e (l.foldl
           (fun r u => (g u).foldl (fun r v => Function.update r v (u :: r v)) r) rev) := by
-    intro l
     induction l with
-    | nil => intro _; rfl
-    | cons u l ih =>
-      intro rev
-      simp only [List.map_cons, List.foldl_cons, mapAdj_apply, hinner]
-      exact ih _
-  have h0 : (fun _ : β => ([] : List β)) = mapAdj e (fun _ => []) := rfl
-  rw [h0]
+    | nil => exact fun _ => rfl
+    | cons u l ih => exact fun rev => by simp [mapAdj_apply, hinner, ih]
   exact houter vs (fun _ => [])
 
 private theorem peelSCCs_mapAdj {α β : Type*} [DecidableEq α] [DecidableEq β] (e : α ≃ β)

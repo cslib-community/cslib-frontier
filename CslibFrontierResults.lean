@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
+import CslibFrontierResults.Entries.ODonnellKhintchineKahane
 import CslibFrontierResults.Entries.ExtensiveGames
 import CslibFrontierResults.Entries.ODonnellUncertainty
 import CslibFrontierResults.Entries
@@ -12,6 +13,7 @@ import CslibFrontierResults.Entries.VeriPBSubgraphIso
 import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
+import CslibFrontierResults.Entries.ODonnellBribery
 import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.DeterminantalUniversality
 import CslibFrontierResults.Entries.SponsoredSearch
@@ -19,6 +21,7 @@ import CslibFrontierResults.Entries.AdWords
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.ODonnellStableInfluenceBound
+import CslibFrontierResults.Entries.ODonnellHastadTest
 import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.SinglePeaked
 import CslibFrontierResults.Entries.ODonnellSpectralConcentration
@@ -68,6 +71,7 @@ import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.IndirectRevelation
 import CslibFrontierResults.Entries.PotentialPolymatrix
 import CslibFrontierResults.Entries.EvolutionaryStability
+import CslibFrontierResults.Entries.ODonnellFriedgutConcentration
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.ExternalRegret

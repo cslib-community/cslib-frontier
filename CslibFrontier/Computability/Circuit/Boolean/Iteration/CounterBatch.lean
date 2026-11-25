@@ -188,12 +188,11 @@ def residueValues (k T : ℕ) (j : Fin (2 ^ k - 1)) : BitString k :=
 injective. -/
 theorem residueKeys_injective (k : ℕ) : Function.Injective (residueKeys k) := by
   intro i j h
-  have hw : BitVec.ofNat k (i.val + 1) = BitVec.ofNat k (j.val + 1) :=
-    BitVec.eq_of_getLsbD_eq fun b hb => congrFun h ⟨b, hb⟩
-  have hn := congrArg BitVec.toNat hw
-  have hi : i.val + 1 < 2 ^ k := by have := i.isLt; omega
-  have hj : j.val + 1 < 2 ^ k := by have := j.isLt; omega
-  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt hi, Nat.mod_eq_of_lt hj] at hn
+  have hn := congrArg BitVec.toNat
+    (BitVec.eq_of_getLsbD_eq fun b hb => congrFun h ⟨b, hb⟩ :
+      BitVec.ofNat k (i.val + 1) = BitVec.ofNat k (j.val + 1))
+  simp only [BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : i.val + 1 < 2 ^ k),
+    Nat.mod_eq_of_lt (by omega : j.val + 1 < 2 ^ k)] at hn
   exact Fin.ext (by omega)
 
 private theorem clog_two_pow_add_le (hr : r ≤ 2 ^ (k + k)) :
@@ -223,18 +222,14 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     ModulusCounter.rightWord (counterBlock x member)
   let rem := fun (member : Fin r) (x : BitString (r * (k + k))) =>
     BitString.equivBitVec (lookupOr (residueKeys k) (residueValues k T) (queries x member))
-  have ha (member : Fin r) : wordWires (a member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    refine .inl ⟨finProdFinEquiv (member, Fin.castAdd k i), funext fun x => ?_⟩
-    simp [a, ModulusCounter.leftWord, counterBlock]
-  have hb (member : Fin r) : wordWires (b member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    refine .inl ⟨finProdFinEquiv (member, Fin.natAdd k i), funext fun x => ?_⟩
-    simp [b, ModulusCounter.rightWord, counterBlock]
-  have hrem (member : Fin r) : wordWires (rem member) ⊆ s1 := by
-    rintro _ ⟨i, rfl⟩
-    right
-    exact Set.mem_iUnion.mpr ⟨member, i, by funext x; simp [rem]⟩
+  have ha (member : Fin r) : wordWires (a member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inl ⟨finProdFinEquiv (member, Fin.castAdd k i),
+      funext fun x => by simp [a, ModulusCounter.leftWord, counterBlock]⟩
+  have hb (member : Fin r) : wordWires (b member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inl ⟨finProdFinEquiv (member, Fin.natAdd k i),
+      funext fun x => by simp [b, ModulusCounter.rightWord, counterBlock]⟩
+  have hrem (member : Fin r) : wordWires (rem member) ⊆ s1 := fun _ ⟨i, h⟩ =>
+    h ▸ .inr (Set.mem_iUnion.mpr ⟨member, i, funext fun x => by simp [rem]⟩)
   have hadd (member : Fin r) := synthesis_addResidue s1 (a member) (b member) (rem member)
     (ha member) (hb member) (hrem member)
   have hfam := Synthesis.iUnion (fun member => wordWires fun x =>
@@ -278,17 +273,15 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
   refine ⟨out, ho, hsize.trans ?_⟩
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
     Nat.zero_add]
-  have hN : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-  have hM : r + (2 ^ k - 1) + 1 = 2 ^ k + r := by omega
+  have hM : r + (2 ^ k - 1) + 1 = 2 ^ k + r := by have := @Nat.one_le_two_pow k; omega
   rw [hM]
   have hc := clog_two_pow_add_le hr
   have hw : (Nat.clog 2 (r + (2 ^ k - 1)) + 1) ^ 2 * (k + k + 1) ≤ 8 * (k + 1) ^ 3 :=
     calc _ ≤ (2 * (k + 1)) ^ 2 * (2 * (k + 1)) := by gcongr <;> omega
       _ = 8 * (k + 1) ^ 3 := by ring
-  have hl := Nat.mul_le_mul_left (48 * (2 ^ k + r)) hw
-  have hk : k + 1 ≤ (k + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
-  have hr' := Nat.mul_le_mul_left (100 * r) hk
-  nlinarith [Nat.zero_le (2 ^ k * (k + 1) ^ 3), Nat.zero_le (r * (k + 1) ^ 3)]
+  nlinarith [Nat.mul_le_mul_left (48 * (2 ^ k + r)) hw,
+    Nat.mul_le_mul_left (100 * r) (Nat.le_self_pow (by norm_num : 3 ≠ 0) (k + 1)),
+    Nat.zero_le (2 ^ k * (k + 1) ^ 3), Nat.zero_le (r * (k + 1) ^ 3)]
 
 /-- One block of a batched circuit computes the single power with no extra gates: feed the same
 state to every block. -/
@@ -320,20 +313,18 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
   obtain ⟨y, bit, hy⟩ : ∃ y : BitString (k + k), ∃ bit, ModulusCounter.power T y bit ≠ y bit := by
     by_contra! hn
     exact hT (funext fun y => funext (hn y))
-  have hright : ∃ j : Fin k, bit = Fin.natAdd k j := by
+  obtain ⟨j, rfl⟩ : ∃ j : Fin k, bit = Fin.natAdd k j := by
     induction bit using Fin.addCases with
     | left i => exact absurd (counterStep_iterate_left T y i) hy
     | right j => exact ⟨j, rfl⟩
-  obtain ⟨j, rfl⟩ := hright
   let g : BitString (k + k) → Bool := fun z => ModulusCounter.power T z (Fin.natAdd k j)
   let e : BitVec k := BitVec.twoPow k j.val
   have he (i : Fin k) : e[i.val] = decide (i = j) := by
     simp [e, Fin.val_inj, eq_comm]
-  have hge : g (ModulusCounter.pack 0 e) = true := by
-    change ModulusCounter.power T (ModulusCounter.pack 0 e) (Fin.natAdd k j) = true
-    rw [counterStep_iterate_joinState_zero]
-    simp only [ModulusCounter.pack, Fin.append_right, BitString.equivBitVec_symm_apply, he,
-      decide_true]
+  have hge : g (ModulusCounter.pack 0 e) = true :=
+    (congrFun (counterStep_iterate_joinState_zero T e) (Fin.natAdd k j)).trans
+      (by simp only [ModulusCounter.pack, Fin.append_right, BitString.equivBitVec_symm_apply, he,
+        decide_true])
   have hgz : g (fun _ => false) = false := by
     change ModulusCounter.power T (fun _ => false) (Fin.natAdd k j) = false
     rw [← joinState_zero_zero, counterStep_iterate_joinState_zero, joinState_zero_zero]
@@ -341,13 +332,11 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
     if (finProdFinEquiv.symm i).1 = member then
       ModulusCounter.pack 0 e (finProdFinEquiv.symm i).2
     else false
-  have hxe_same (member : Fin r) : counterBlock (xe member) member = ModulusCounter.pack 0 e := by
-    funext b
-    simp [xe, counterBlock]
+  have hxe_same (member : Fin r) : counterBlock (xe member) member = ModulusCounter.pack 0 e :=
+    funext fun b => by simp [xe, counterBlock]
   have hxe_other {member other : Fin r} (h : other ≠ member) :
-      counterBlock (xe member) other = fun _ => false := by
-    funext b
-    simp [xe, counterBlock, h]
+      counterBlock (xe member) other = fun _ => false :=
+    funext fun b => by simp [xe, counterBlock, h]
   let o : Fin r → Fin (r * (k + k)) := fun member => finProdFinEquiv (member, Fin.natAdd k j)
   have heval (member : Fin r) (x : BitString (r * (k + k))) :
       c.program.trace interpretation x (c.outputs (o member)) = g (counterBlock x member) := by

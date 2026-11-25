@@ -307,17 +307,12 @@ theorem one_le_edges_of_active (h : active x = true) : 1 ≤ x.edges := by
 `λ ≥ 1`, `a ≤ λ / 32768` (`ContractionSchedule.slotBits_le`), and
 `M > leafSize s = ⌊s / ⌊√λ⌋⌋ ≥ 2 ^ (6 ⌊λ / 32768⌋)`, since `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`. -/
 theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.edges := by
-  have h' := h
-  simp only [active, decide_eq_true_eq] at h'
-  obtain ⟨hleaf, hu, -, -, -, -, -⟩ := h'
+  obtain ⟨hleaf, hu, -, -, -, -, -⟩ := of_decide_eq_true h
   set L := Nat.log 2 x.scale with hL
-  have hL1 : 1 ≤ L := by
-    have : levels x = L / 2 ^ (17 + x.depth) := rfl
-    rcases Nat.eq_zero_or_pos L with h0 | h0
-    · rw [this, h0, Nat.zero_div] at hu; omega
-    · exact h0
-  have hs0 : x.scale ≠ 0 := by
-    intro h0; rw [hL, h0, Nat.log_zero_right] at hL1; omega
+  have hL1 : 1 ≤ L := Nat.pos_of_ne_zero fun h0 => by
+    change 1 ≤ L / 2 ^ (17 + x.depth) at hu
+    simp [h0] at hu
+  have hs0 : x.scale ≠ 0 := fun h0 => by simp [hL, h0] at hL1
   have hsL : 2 ^ L ≤ x.scale := Nat.pow_log_le_self 2 hs0
   have ha : slots x ≤ L / 32768 := slotBits_le _ _
   -- `⌊√λ⌋ ≤ 2 ^ ((λ + 1) / 2)`.
@@ -343,25 +338,19 @@ theorem pow_slots_le_edges_of_active (h : active x = true) : 64 ^ slots x ≤ x.
 
 /-- An active call has a node of positive multiplicity: the index `2 ^ a + 1`, of level `0`. -/
 theorem nodes_ne_nil_of_active (h : active x = true) : nodes x ≠ [] := by
-  have h' := h
-  simp only [active, decide_eq_true_eq] at h'
-  obtain ⟨-, hu, huM, hua, -, -, -⟩ := h'
+  obtain ⟨-, hu, huM, hua, -, -, -⟩ := of_decide_eq_true h
   have hL : 2 ≤ 2 ^ slots x :=
     (pow_one 2).symm.le.trans (Nat.pow_le_pow_right (by norm_num) (hu.trans hua))
   have hlt : 2 ^ slots x + 1 < 2 ^ (slots x + 1) := by rw [pow_succ]; linarith
-  have hk : 2 ^ slots x + 1 ∈ nodes x := by
-    simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
-    refine ⟨hlt, Nat.succ_ne_self _, ?_⟩
-    rw [mult_eq _ _ hlt]
-    have h3 : 3 * x.edges ≤ step x * levels x := le_taperStep_mul hu
-    have hh : 0 < step x := by grind
-    have hv : padicValInt 2 (node (slots x) (2 ^ slots x + 1)) = 0 := by
-      simp [node]
-    simp only [taperMult, hv, Nat.sub_zero]
-    positivity
-  intro hn
-  rw [hn] at hk
-  simp at hk
+  refine List.ne_nil_of_mem (a := 2 ^ slots x + 1) ?_
+  simp only [nodes, List.mem_filter, List.mem_range, decide_eq_true_eq]
+  refine ⟨hlt, Nat.succ_ne_self _, ?_⟩
+  rw [mult_eq _ _ hlt]
+  have h3 : 3 * x.edges ≤ step x * levels x := le_taperStep_mul hu
+  have hh : 0 < step x := by grind
+  have hv : padicValInt 2 (node (slots x) (2 ^ slots x + 1)) = 0 := by simp [node]
+  simp only [taperMult, hv, Nat.sub_zero]
+  positivity
 
 end Walk
 

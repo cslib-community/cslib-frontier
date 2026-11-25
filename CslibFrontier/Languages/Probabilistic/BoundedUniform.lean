@@ -220,10 +220,8 @@ theorem eval_sampleUniformInterval_some (bound attempts value : ℕ) :
   | succ attempts ih =>
     rw [eval_sampleUniformInterval_succ, retry_some, ih]
     by_cases hv : value < bound
-    · simp only [hv, ↓reduceIte, div_eq_mul_inv]
-      rw [Finset.sum_range_succ']
-      simp only [pow_zero, pow_succ']
-      rw [← Finset.mul_sum]
+    · simp only [hv, ↓reduceIte, div_eq_mul_inv, Finset.sum_range_succ', pow_zero, pow_succ',
+        ← Finset.mul_sum]
       ring
     · simp [hv]
 
@@ -339,12 +337,9 @@ private theorem expectedCost_sampleList (width : ℕ) :
   | zero => simp [BitString.sampleList]
   | succ k ih =>
     rw [BitString.sampleList, OracleComp.expectedCost_bind, hu]
-    have htail : ∀ b : Bool,
-        OracleComp.expectedCost ProbComp.unifOracle (fun _ => 1)
-          (BitString.sampleList k >>= fun xs => pure (b :: xs)) = k := by
-      intro b
-      rw [OracleComp.expectedCost_bind, ih]
-      simp
+    have htail (b : Bool) : OracleComp.expectedCost ProbComp.unifOracle (fun _ => 1)
+        (BitString.sampleList k >>= fun xs => pure (b :: xs)) = k := by
+      simp [ih]
     simp_rw [htail]
     rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_comm]
 
@@ -362,8 +357,7 @@ theorem expectedCost_sampleUniformIntervalRetry_le (bound attempts : ℕ) :
   rcases Nat.eq_zero_or_pos bound with rfl | hbound
   · simp [OracleComp.expectedCost_retry, hcost]
   have hset : {o : Option ℕ | ¬o.isSome = true} = {none} := by
-    ext o
-    cases o <;> simp
+    ext (_ | _) <;> simp
   have hfail : (ProbComp.eval (sampleUniformIntervalAttempt bound)).toOuterMeasure
       {o : Option ℕ | ¬o.isSome = true} ≤ 2⁻¹ := by
     rw [hset, PMF.toOuterMeasure_apply_singleton, eval_sampleUniformIntervalAttempt]
@@ -577,15 +571,10 @@ theorem eval_sampleIntegerBox_some (radius dimension attempts : ℕ) (out : List
   by_cases hlen : out.length = dimension
   · subst dimension
     have h := gather_iid_apply μ out.get
-    simp only [List.ofFn_get] at h
-    rw [h]
-    simp_rw [hdensity]
-    rw [Finset.prod_mul_distrib]
-    simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
     have href := iid_list_apply ν out.get
-    simp only [List.ofFn_get] at href
-    rw [← href]
-    rfl
+    simp only [List.ofFn_get] at h href
+    rw [h, integerBoxLaw, href]
+    simp [hdensity, Finset.prod_mul_distrib]
   · rw [gather_off_length μ dimension out hlen]
     change 0 = _ * ((PMF.iid ν dimension).map List.ofFn) out
     rw [iid_off_length ν dimension out hlen, mul_zero]
@@ -653,11 +642,8 @@ theorem sampleIntegerBox_conditional (radius dimension attempts : ℕ) (hattempt
     rw [intervalSuccess_coe]
     linarith
   rw [option_success_toReal, eval_sampleIntegerBox_none, eval_sampleIntegerBox_some,
-    ENNReal.toReal_mul, ENNReal.toReal_pow, ENNReal.coe_toReal]
-  rw [← intervalSuccess_coe]
-  have hcancel : 1 - (1 - (intervalSuccess (2 * radius + 1) attempts : ℝ) ^ dimension) =
-      (intervalSuccess (2 * radius + 1) attempts : ℝ) ^ dimension := by ring
-  rw [hcancel]
+    ENNReal.toReal_mul, ENNReal.toReal_pow, ENNReal.coe_toReal, ← intervalSuccess_coe,
+    sub_sub_cancel]
   exact mul_div_cancel_left₀ _ (pow_pos hpositive _).ne'
 
 private theorem optional_test {α : Type} (μ : PMF (Option α)) (ν : PMF α)
@@ -755,14 +741,12 @@ theorem integerBoxLaw_support {radius dimension : ℕ} {out : List ℤ}
     (h : out ∈ (integerBoxLaw radius dimension).support) :
     out.length = dimension ∧ ∀ z ∈ out, -(radius : ℤ) ≤ z ∧ z ≤ radius := by
   obtain ⟨v, hv, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
-  refine ⟨List.length_ofFn, ?_⟩
-  intro z hz
+  refine ⟨List.length_ofFn, fun z hz => ?_⟩
   obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hz
-  have hi := (PMF.mem_support_iid_iff _ _).mp hv i
-  obtain ⟨value, _, hvalue⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  rw [← hvalue]
+  obtain ⟨value, _, hvalue⟩ := (PMF.mem_support_map_iff _ _ _).mp
+    ((PMF.mem_support_iid_iff _ _).mp hv i)
   have hlt := value.isLt
-  constructor <;> omega
+  exact ⟨by omega, by omega⟩
 
 /-- Every successful bounded sample lies in the intended integer box with the exact dimension. -/
 theorem sampleIntegerBox_support {radius dimension attempts : ℕ} {out : List ℤ}

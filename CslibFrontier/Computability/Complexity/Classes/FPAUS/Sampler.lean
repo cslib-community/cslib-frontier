@@ -230,10 +230,8 @@ private theorem card_coinOutcome_some_false (k g₀ g₁ : ℕ) :
     unfold coinOutcome
     split_ifs <;> simp_all <;> omega
   have hdisj : Disjoint (Finset.univ.filter fun i : Fin (2 ^ k) => i.val < g₁)
-      (Finset.univ.filter fun i : Fin (2 ^ k) => coinOutcome g₀ g₁ i.val = some false) := by
-    rw [Finset.disjoint_filter]
-    intro i _ h
-    simp [coinOutcome, h]
+      (Finset.univ.filter fun i : Fin (2 ^ k) => coinOutcome g₀ g₁ i.val = some false) :=
+    Finset.disjoint_filter.2 fun i _ h => by simp [coinOutcome, h]
   have hcard := Finset.card_union_of_disjoint hdisj
   rw [← hsplit, Fin.card_filter_val_lt, Fin.card_filter_val_lt] at hcard
   omega
@@ -271,10 +269,8 @@ section Choose
 
 private theorem natCast_div_div_le (u D K : ℕ) :
     (((u * K / D : ℕ) : ℝ) / (K : ℝ)) ≤ (u : ℝ) / D := by
-  rcases Nat.eq_zero_or_pos K with hK | hK
-  · subst hK
-    simp only [Nat.cast_zero, div_zero]
-    positivity
+  rcases Nat.eq_zero_or_pos K with rfl | hK
+  · simpa using div_nonneg (Nat.cast_nonneg u) (Nat.cast_nonneg D)
   have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   rw [div_le_iff₀ hK']
   calc ((u * K / D : ℕ) : ℝ) ≤ ((u * K : ℕ) : ℝ) / D := Nat.cast_div_le
@@ -290,9 +286,8 @@ private theorem le_natCast_div_div {u D s x : ℕ} (hD : 0 < D) (hs : D < 2 ^ s)
   have hpos : (0 : ℝ) < ((2 ^ (s + x) : ℕ) : ℝ) := by positivity
   rw [le_div_iff₀ hpos]
   have hN' : (N : ℝ) = u * 2 ^ s * 2 ^ x := by rw [← hN]; push_cast; ring
-  have hlt : (N : ℝ) < D * ((N / D : ℕ) : ℝ) + D := by
-    have : N < D * (N / D) + D := by omega
-    exact_mod_cast this
+  have hlt : (N : ℝ) < D * ((N / D : ℕ) : ℝ) + D :=
+    mod_cast (show N < D * (N / D) + D by omega)
   have hs' : (D : ℝ) + 1 ≤ 2 ^ s := by exact_mod_cast hs
   have hu' : (1 : ℝ) ≤ u := by exact_mod_cast hu
   have hcast : (((2 ^ (s + x) : ℕ) : ℝ)) = 2 ^ s * 2 ^ x := by push_cast; ring
@@ -367,12 +362,7 @@ private theorem eval_bind_descend_some_nil (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) :
     (μ.bind fun o => ProbComp.eval (descend next o)) (some []) = 0 := by
   rw [PMF.bind_apply]
-  refine tsum_eq_zero_iff.2 fun o => ?_
-  cases o with
-  | none => simp [descend]
-  | some c =>
-    rw [descend, ProbComp.eval_map, PMF.map_apply]
-    simp
+  exact tsum_eq_zero_iff.2 fun o => by cases o <;> simp [descend, ProbComp.eval_map]
 
 /-- One level of a walk: estimate both children, run the branching coin, and descend. -/
 theorem eval_walk_succ (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbComp (ℕ × ℕ))
@@ -445,15 +435,13 @@ private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc �
 private theorem ratio_le {M' M a b ac bc bc' : ℝ} (hM' : 0 ≤ M') (hM : 0 ≤ M) (ha : 0 ≤ a)
     (hb : 0 ≤ b) :
     M' * ac * bc' * b / (M * a * bc * bc') * (bc / ac) ≤ M' / M * (b / a) := by
-  by_cases hac : ac = 0
-  · simp only [hac, mul_zero, zero_mul, zero_div, div_zero]
-    positivity
-  by_cases hbc : bc = 0
-  · simp only [hbc, mul_zero, zero_div]
-    positivity
-  by_cases hbc' : bc' = 0
-  · simp only [hbc', mul_zero, zero_mul, div_zero]
-    positivity
+  have h0 : 0 ≤ M' / M * (b / a) := by positivity
+  rcases eq_or_ne ac 0 with rfl | hac
+  · simpa using h0
+  rcases eq_or_ne bc 0 with rfl | hbc
+  · simpa using h0
+  rcases eq_or_ne bc' 0 with rfl | hbc'
+  · simpa using h0
   exact (ratio_eq hac hbc hbc').le
 
 private theorem total_cast (m : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
@@ -547,17 +535,11 @@ theorem nodeEstimate_good (R : SelfReducible enc W) {A : α → ℕ → ℕ → 
   · have hgood : R.GoodEstimate p y (if [] ∈ W y then 1 else 0, 1) := by
       rcases Finset.subset_singleton_iff.1 (R.subset_singleton_nil hy) with h | h <;>
         simp [GoodEstimate, ApproxWithin, h]
-    have hone : (ProbComp.eval (R.nodeEstimate A p t y)).toOuterMeasure
-        {e | R.GoodEstimate p y e} = 1 := by
-      simp only [nodeEstimate, hy, ↓reduceIte, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-        Set.mem_ofPred_eq, hgood]
-    rw [hone, ENNReal.toReal_one]
+    simp only [nodeEstimate, hy, ↓reduceIte, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
+      Set.mem_ofPred_eq, hgood, ENNReal.toReal_one]
     exact sub_le_self _ (by positivity)
-  · have hset : {e | R.GoodEstimate p y e} = {out | ApproxWithin (W y).card p out.1 out.2} := by
-      ext e
-      simp only [GoodEstimate, Set.mem_ofPred_eq, hy, IsEmpty.forall_iff, and_true]
-    simp only [nodeEstimate, hy, ↓reduceIte, hset]
-    exact hA y
+  · simpa only [nodeEstimate, hy, ↓reduceIte, GoodEstimate, IsEmpty.forall_iff, and_true] using
+      hA y
 
 private theorem lower_of_approx {c p num den : ℕ} (h : ApproxWithin c p num den) :
     (c : ℝ) * (1 - 1 / p) * den ≤ num := by
@@ -755,16 +737,13 @@ private theorem half_le_levelFactor_pow (ℓ : ℕ) : 1 / 2 ≤ levelFactor (dam
     field_simp
     ring
   have hpos : (0 : ℝ) < ((2 * ℓ + 2 : ℕ) : ℝ) := by positivity
-  have hle : 1 / ((2 * ℓ + 2 : ℕ) : ℝ) ≤ 1 := by
-    rw [div_le_one hpos]
-    push_cast
-    linarith only [(Nat.cast_nonneg ℓ : (0 : ℝ) ≤ ℓ)]
+  have hle : 1 / ((2 * ℓ + 2 : ℕ) : ℝ) ≤ 1 :=
+    (div_le_one hpos).2 (mod_cast (show 1 ≤ 2 * ℓ + 2 by omega))
   have hbern := one_add_mul_le_pow (a := -(1 / ((2 * ℓ + 2 : ℕ) : ℝ))) (by linarith only [hle]) ℓ
   rw [← hm] at hbern
   have hfrac : (ℓ : ℝ) * (1 / ((2 * ℓ + 2 : ℕ) : ℝ)) ≤ 1 / 2 := by
-    rw [mul_one_div, div_le_iff₀ hpos]
-    push_cast
-    linarith only [(Nat.cast_nonneg ℓ : (0 : ℝ) ≤ ℓ)]
+    rw [mul_one_div, div_le_div_iff₀ hpos two_pos]
+    exact_mod_cast (by omega : ℓ * 2 ≤ 1 * (2 * ℓ + 2))
   linarith only [hbern, hfrac, mul_neg (ℓ : ℝ) (1 / ((2 * ℓ + 2 : ℕ) : ℝ))]
 
 private theorem final_aux (ℓ q : ℕ) :
@@ -966,16 +945,14 @@ theorem sampler_eq_zero_of_notMem (R : SelfReducible enc W) (A : α → ℕ → 
   rw [sampler, ProbComp.eval_bind]
   refine Probability.PMF.bind_apply_of_forall _ fun e => ?_
   rw [ProbComp.eval_map, PMF.map_apply]
-  refine tsum_eq_zero_iff.2 fun o => ?_
-  rcases o with _ | _ | w
-  · simp
-  · simp
-  · by_cases hvw : v = w
-    · subst hvw
-      rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
-        eval_trial_eq_zero R A x q e hv]
-      simp
-    · simp [hvw]
+  refine tsum_eq_zero_iff.2 fun
+    | none | some none => by simp
+    | some (some w) => by
+      rcases eq_or_ne v w with rfl | hvw
+      · rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
+          eval_trial_eq_zero R A x q e hv]
+        simp
+      · simp [hvw]
 
 /-- **Approximate counting gives almost uniform sampling** (output law). If `A` estimates the
 number of witnesses within relative error `1 / p` with probability at least `1 - 2 ^ (-t)`, for

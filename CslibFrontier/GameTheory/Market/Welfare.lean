@@ -119,16 +119,13 @@ theorem convex_negOrthant : Convex ℝ (negOrthant G) := by
   rw [mem_negOrthant] at hx hy
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
   rcases eq_or_lt_of_le ha with rfl | ha_pos
-  · have hb1 : b = 1 := by linarith
-    simp [hb1, hy g]
-  · have hax : a * x g < 0 := mul_neg_of_pos_of_neg ha_pos (hx g)
-    have hby : b * y g ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hb (hy g).le
-    linarith
+  · obtain rfl : b = 1 := by linarith
+    simpa using hy g
+  · linarith [mul_neg_of_pos_of_neg ha_pos (hx g), mul_nonpos_of_nonneg_of_nonpos hb (hy g).le]
 
 theorem isOpen_negOrthant [Finite G] : IsOpen (negOrthant G) := by
-  have hrep : negOrthant G = ⋂ g : G, (fun z : G → ℝ => z g) ⁻¹' Set.Iio (0 : ℝ) := by
-    ext z
-    simp [mem_negOrthant]
+  have hrep : negOrthant G = ⋂ g : G, (fun z : G → ℝ => z g) ⁻¹' Set.Iio (0 : ℝ) :=
+    Set.ext fun z => by simp [mem_negOrthant]
   rw [hrep]
   exact isOpen_iInter_of_finite fun g => isOpen_Iio.preimage (continuous_apply g)
 
@@ -147,19 +144,18 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
   let p : G → ℝ := fun g => f (Pi.single g 1)
   have hf_eq : ∀ z : G → ℝ, f z = expenditure p z := by
     intro z
-    have hz_sum : z = ∑ g : G, z g • Pi.single g (1 : ℝ) := by
-      funext k
-      simp [Pi.single_apply]
+    have hz_sum : z = ∑ g : G, z g • Pi.single g (1 : ℝ) :=
+      funext fun k => by simp [Pi.single_apply]
     conv_lhs => rw [hz_sum]
     rw [map_sum, expenditure_eq_sum]
     refine sum_congr rfl fun g _ => ?_
     rw [f.map_smul, smul_eq_mul, mul_comm]
+  set S : ℝ := ∑ g : G, |p g|
+  have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
   -- Step 1: `0 ≤ u` via small uniform negative vectors `fun _ => -ε ∈ negOrthant G`.
   have hu_nn : 0 ≤ u := by
     by_contra hu_neg
     push Not at hu_neg
-    set S : ℝ := ∑ g : G, |p g|
-    have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
     set ε : ℝ := (-u) / (2 * (1 + S))
     have hε_pos : 0 < ε := div_pos (neg_pos.2 hu_neg) (by positivity)
     have ha_lt : expenditure p (fun _ => -ε) < u := by
@@ -177,8 +173,6 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     intro g₀
     by_contra hpg_neg
     push Not at hpg_neg
-    set S : ℝ := ∑ g : G, |p g|
-    have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
     set M : ℝ := (|u| + S + 1) / (-p g₀)
     have hM_pos : 0 < M := div_pos (by positivity) (neg_pos.2 hpg_neg)
     let a : G → ℝ := (fun _ => (-1 : ℝ)) - M • Pi.single g₀ 1
@@ -240,13 +234,9 @@ theorem HasConvexPreferences.of_quasiconcaveOn {u : (G → ℝ) → ℝ}
     (hq : QuasiconcaveOn ℝ {b : G → ℝ | ∀ g, 0 ≤ b g} u) :
     HasConvexPreferences u := by
   intro x _ b₁ hb₁ b₂ hb₂ a c ha hc hac
-  have hnn : ∀ g, 0 ≤ (a • b₁ + c • b₂) g := fun g =>
-    add_nonneg (mul_nonneg ha (hb₁.1 g)) (mul_nonneg hc (hb₂.1 g))
-  refine ⟨hnn, ?_⟩
-  set r := min (u b₁) (u b₂)
-  have hr_gt : u x < r := lt_min hb₁.2 hb₂.2
-  have hcomb := hq r ⟨hb₁.1, min_le_left _ _⟩ ⟨hb₂.1, min_le_right _ _⟩ ha hc hac
-  exact lt_of_lt_of_le hr_gt hcomb.2
+  exact ⟨fun g => add_nonneg (mul_nonneg ha (hb₁.1 g)) (mul_nonneg hc (hb₂.1 g)),
+    (lt_min hb₁.2 hb₂.2).trans_le
+      (hq _ ⟨hb₁.1, min_le_left _ _⟩ ⟨hb₂.1, min_le_right _ _⟩ ha hc hac).2⟩
 
 theorem HasConvexPreferences.of_concaveOn {u : (G → ℝ) → ℝ}
     (hc : ConcaveOn ℝ {b : G → ℝ | ∀ g, 0 ≤ b g} u) :
@@ -256,16 +246,13 @@ theorem HasConvexPreferences.of_concaveOn {u : (G → ℝ) → ℝ}
   refine ⟨hc.1 hb₁.1 hb₂.1 ha hcc hac, ?_⟩
   simp only [smul_eq_mul] at hcomb
   rcases eq_or_lt_of_le ha with rfl | ha_pos
-  · have hc1 : c = 1 := by linarith
-    subst hc1
+  · obtain rfl : c = 1 := by linarith
     linarith [hb₂.2, hcomb]
   · have : u x = a * u x + c * u x := by
       calc
         u x = (a + c) * u x := by rw [hac, one_mul]
         _ = a * u x + c * u x := add_mul a c (u x)
-    have h1 : a * u x < a * u b₁ := mul_lt_mul_of_pos_left hb₁.2 ha_pos
-    have h2 : c * u x ≤ c * u b₂ := mul_le_mul_of_nonneg_left hb₂.2.le hcc
-    linarith
+    linarith [mul_lt_mul_of_pos_left hb₁.2 ha_pos, mul_le_mul_of_nonneg_left hb₂.2.le hcc]
 
 theorem hasConvexPreferences_linearUtility [Fintype G] (v : G → ℝ) :
     HasConvexPreferences (linearUtility v) := by
@@ -365,10 +352,8 @@ variable [Fintype G]
   IsBudgetFeasible p m x ∧ ∀ b : G → ℝ, (∀ g, 0 ≤ b g) → u x < u b → m ≤ expenditure p b
 
 theorem IsQuasiDemand.of_mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ} {x : G → ℝ}
-    (hx : x ∈ demandSet u p m) : IsQuasiDemand u p m x := by
-  rw [mem_demandSet] at hx
-  exact ⟨hx.1, fun b hb hub => (lt_expenditure_of_mem_demandSet
-    ((mem_demandSet).2 hx) hb hub).le⟩
+    (hx : x ∈ demandSet u p m) : IsQuasiDemand u p m x :=
+  ⟨(mem_demandSet.1 hx).1, fun _ hb hub => (lt_expenditure_of_mem_demandSet hx hb hub).le⟩
 
 /-- Under local nonsatiation and nonnegative prices `p`, every nonnegative bundle `x` admits a
 strictly preferred nonnegative bundle whose expenditure is strictly less than `expenditure p x + δ`
@@ -609,16 +594,13 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
       ∀ g, (∑ i : I, y i g) - E.totalSupply g ≤ z g}
   have hK_conv : Convex ℝ K := by
     rintro z₁ ⟨y₁, hy₁_nn, hy₁_gt, hz₁⟩ z₂ ⟨y₂, hy₂_nn, hy₂_gt, hz₂⟩ a b ha hb hab
-    refine ⟨fun i => a • y₁ i + b • y₂ i, ?_, ?_, fun g => ?_⟩
-    · intro i g
-      exact add_nonneg (mul_nonneg ha (hy₁_nn i g)) (mul_nonneg hb (hy₂_nn i g))
-    · intro i
-      exact (hconv i (hpo.1.1 i) ⟨hy₁_nn i, hy₁_gt i⟩ ⟨hy₂_nn i, hy₂_gt i⟩ ha hb hab).2
-    · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum]
-      have h1 := hz₁ g
-      have h2 := hz₂ g
-      have hW : E.totalSupply g = (a + b) * E.totalSupply g := by rw [hab, one_mul]
-      nlinarith
+    refine ⟨fun i => a • y₁ i + b • y₂ i,
+      fun i g => add_nonneg (mul_nonneg ha (hy₁_nn i g)) (mul_nonneg hb (hy₂_nn i g)),
+      fun i => (hconv i (hpo.1.1 i) ⟨hy₁_nn i, hy₁_gt i⟩ ⟨hy₂_nn i, hy₂_gt i⟩ ha hb hab).2,
+      fun g => ?_⟩
+    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, sum_add_distrib, ← mul_sum]
+    have hW : E.totalSupply g = (a + b) * E.totalSupply g := by rw [hab, one_mul]
+    nlinarith [hz₁ g, hz₂ g]
   have hK_ne : K.Nonempty := by
     obtain ⟨y, hy_nn, hy_gt, -⟩ :=
       hpo.1.exists_forall_utility_lt_sum_sub_totalSupply_le hlns zero_lt_one
@@ -651,9 +633,8 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
     obtain ⟨y, hy_nn, hy_gt, hy_sum⟩ :=
       exists_forall_lt_sum_expenditure_sub_le hlns hp_nn hpo.1.1
         (half_pos (sub_pos.2 (not_le.1 hlt)))
-    have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
+    have hge0 := hexp_excess y ▸ hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
     have hsub := hy_sum univ
-    rw [hexp_excess] at hge0
     rw [sum_sub_distrib] at hsub
     linarith
   have hsum_eq : ∑ i : I, expenditure p (x i) = expenditure p E.totalSupply :=
@@ -672,12 +653,10 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
         (half_pos (sub_pos.2 (not_le.1 hlt)))
     let y : I → G → ℝ := Function.update yNear i b
     have hy_nn : ∀ j g, 0 ≤ y j g := fun j g => by
-      by_cases hj : j = i
-      · subst hj; simp [y, hb_nn g]
-      · simp [y, hj, hyNear_nn j g]
+      rcases eq_or_ne j i with rfl | hj <;> simp [y, *, hb_nn g, hyNear_nn _ g]
     have hy_gt : ∀ j, E.utility j (x j) < E.utility j (y j) := fun j => by
-      by_cases hj : j = i
-      · subst hj; simpa [y] using hub
+      rcases eq_or_ne j i with rfl | hj
+      · simpa [y] using hub
       · simpa [y, hj] using hyNear_gt j
     have hge0 := hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
     rw [hexp_excess, ← hsum_eq] at hge0
@@ -686,14 +665,13 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
           ∑ j ∈ univ.erase i, (expenditure p (yNear j) - expenditure p (x j)) := by
       rw [← sum_sub_distrib, ← add_sum_erase univ _ (mem_univ i)]
       simp only [y, Function.update_self]
-      congr 1
-      refine sum_congr rfl fun j hj => ?_
-      rw [Function.update_of_ne (mem_erase.1 hj).1]
+      exact congrArg _ (sum_congr rfl fun j hj =>
+        congrArg₂ (· - ·) (congrArg _ (Function.update_of_ne (mem_erase.1 hj).1 b yNear)) rfl)
     linarith [hyNear_sum (univ.erase i)]
-  refine ⟨p, ⟨hp_nn, hp_pos, fun i => ?_, fun g => ?_, fun g => ?_⟩, hcs⟩
-  · simpa only [reendow_utility, reendow_income] using hquasi i
-  · simp [reendow_excessDemand]
-  · simp [reendow_excessDemand]
+  refine ⟨p, ⟨hp_nn, hp_pos,
+    fun i => by simpa only [reendow_utility, reendow_income] using hquasi i,
+    fun g => by simp [reendow_excessDemand],
+    fun g => by simp [reendow_excessDemand]⟩, hcs⟩
 
 /-- **Second Fundamental Theorem of Welfare Economics (full competitive equilibrium with lump-sum
 transfers)** ([Arrow1951Welfare]; [ArrowDebreu1954]): if utilities are locally nonsatiated,
@@ -784,11 +762,8 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
     · -- Since `expenditure p (x j) = 0`, `x i + x j` is budget-feasible for buyer `i`.
       have hexp0 : expenditure p (x j) = 0 :=
         le_antisymm (by simpa [← hbj0] using hdem_j.1.2) (expenditure_nonneg heq.1 hdem_j.1.1)
-      have hfeas_ij : Market.IsBudgetFeasible p (M.budget i) (x i + x j) := by
-        refine ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g), ?_⟩
-        rw [expenditure_add, hexp0, add_zero]
-        exact hdem_i.1.2
-      have hle := hdem_i.2 (x i + x j) hfeas_ij
+      have hle := hdem_i.2 (x i + x j) ⟨fun g => add_nonneg (hdem_i.1.1 g) (hdem_j.1.1 g), by
+        simpa only [expenditure_add, hexp0, add_zero] using hdem_i.1.2⟩
       simp only [linearUtility_eq_sum, Pi.add_apply, mul_add, sum_add_distrib] at hle ⊢
       have hnn : 0 ≤ ∑ g, M.utility i g * x j g :=
         sum_nonneg fun g _ => mul_nonneg (M.utility_nonneg i g) (hdem_j.1.1 g)
@@ -802,13 +777,9 @@ theorem IsEquilibrium.budget_mul_utility_le {M : LinearFisherMarket I G}
           ≤ (M.budget i / M.budget j) * M.budget j :=
             mul_le_mul_of_nonneg_left hdem_j.1.2 (div_nonneg (M.budget_nonneg i) hbj_pos.le)
         _ = M.budget i := div_mul_cancel₀ _ hbj_pos.ne'
-    have hopt := hdem_i.2 scaled hfeas
-    rw [linearUtility_smul] at hopt
-    have hmul := mul_le_mul_of_nonneg_left hopt hbj_pos.le
-    have hcancel : M.budget j * ((M.budget i / M.budget j) * linearUtility (M.utility i) (x j)) =
-        M.budget i * linearUtility (M.utility i) (x j) := by
-      field_simp [hbj_pos.ne']
-    linarith
+    have hmul := mul_le_mul_of_nonneg_left
+      (linearUtility_smul (M.utility i) _ (x j) ▸ hdem_i.2 scaled hfeas) hbj_pos.le
+    rwa [← mul_assoc, mul_div_cancel₀ _ hbj_pos.ne'] at hmul
 
 /-- **Equal-budget envy-freeness of linear Fisher equilibria:** when `M.budget i = M.budget j`,
 every linear Fisher equilibrium allocation is envy-free between `i` and `j`. -/

@@ -227,10 +227,8 @@ theorem unitPath_ne_nil (G : Graph)
     (hG : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices)
     (hloop : ∀ edge ∈ G.edges, edge.1 ≠ edge.2) {i : ℕ} (hi : i < G.edges.length) :
     G.unitPath i ≠ [] := by
-  intro h
-  have he := (unitPath_endpoints G hG hloop hi).1
-  rw [h] at he
-  cases he
+  rintro h
+  simpa [h] using (unitPath_endpoints G hG hloop hi).1
 
 /-- A source grid center lies on a canonical unit path exactly when its position index is one
 of that graph edge's two endpoint indices. -/
@@ -309,11 +307,9 @@ theorem unitPath_neighbor_lengths (G : Graph)
   have hprev : k - 1 < (G.unitPath i).length := by omega
   rw [List.getD_eq_getElem _ _ hprev, List.getD_eq_getElem _ _ hlast]
   constructor
-  · have hpair := pair_mem_at (r := G.unitPath i) (k := k - 1) (by omega)
-    have h := unitPath_unit G hG hloop hi hpair
-    simpa only [Nat.sub_add_cancel (show 1 ≤ k by omega), heq] using h
-  · have h := unitPath_unit G hG hloop hi (pair_mem_at hlast)
-    simpa only [heq] using h
+  · simpa only [Nat.sub_add_cancel h0, heq] using
+      unitPath_unit G hG hloop hi (pair_mem_at (k := k - 1) (by omega))
+  · simpa only [heq] using unitPath_unit G hG hloop hi (pair_mem_at hlast)
 
 /-- A nonvertex cell's predecessor and successor are distinct, so its two ports differ. -/
 theorem unitPath_neighbors_distinct (G : Graph)
@@ -401,12 +397,9 @@ theorem unitPath_contact (G : Graph)
     (canonical_index_port_ne G hG hdeg hi hj hij true false)
     (canonical_index_port_ne G hG hdeg hi hj hij true true) hp' hq'
   rcases hc with ⟨w, hw, _, heq⟩ | h | h | h | h
-  · apply Or.inl
-    have hw' : w < G.vertices.length := by
-      rcases hw with rfl | rfl
-      · exact hindex i hi false
-      · exact hindex i hi true
-    exact List.mem_map.2 ⟨w, List.mem_range.2 hw', (realPoint_injective heq).symm⟩
+  · exact Or.inl (List.mem_map.2 ⟨w, List.mem_range.2
+      (hw.elim (fun h => h ▸ hindex i hi false) (fun h => h ▸ hindex i hi true)),
+      (realPoint_injective heq).symm⟩)
   · exact Or.inr (Or.inl ⟨false, h⟩)
   · exact Or.inr (Or.inl ⟨true, h⟩)
   · exact Or.inr (Or.inr ⟨false, h⟩)
@@ -439,22 +432,16 @@ theorem unitPath_on_column_track (G : Graph)
         (portAt G.canonicalPorts k b)) : k = i ∨ k = j := by
     by_cases hkj : k = j
     · exact Or.inr hkj
-    · have hx := (Layout.mem_stem.1 hs).1
-      change (G.pathColumn j side : ℝ) = (G.pathColumn k b : ℝ) at hx
-      have hx' : G.pathColumn j side = G.pathColumn k b := by exact_mod_cast hx
-      unfold pathColumn at hx'
-      have heq := Layout.column_injective hx'
+    · have heq := Layout.column_injective (Int.cast_inj.1 (Layout.mem_stem.1 hs).1)
       exact False.elim (canonical_index_port_ne G hG hdeg hj hk (Ne.symm hkj) side b
         (Prod.ext heq.1 heq.2))
   simp only [Set.mem_union] at hp'
   rcases hp' with (((hp' | hp') | hp') | hp') | hp'
   · exact False.elim (hfan false hp')
   · exact hstem false hp'
-  · have hy := (Layout.mem_bridge.1 hp').1
-    change (Layout.track G.vertices.length i : ℝ) = (Layout.track G.vertices.length k : ℝ) at hy
-    have hy' : Layout.track G.vertices.length i = Layout.track G.vertices.length k :=
-      by exact_mod_cast hy
-    simp only [Layout.track] at hy'
+  · have hy : Layout.track G.vertices.length i = Layout.track G.vertices.length k :=
+      Int.cast_inj.1 (Layout.mem_bridge.1 hp').1
+    simp only [Layout.track] at hy
     exact Or.inl (by omega)
   · exact hstem true hp'
   · exact False.elim (hfan true hp')
@@ -503,20 +490,12 @@ private theorem listed_on_upper_track {n e f u v : ℕ} (hu : u < n) (hv : v < n
     (s t : Fin 3) {p : Point} (hp : p ∈ Layout.route n f u v s t)
     (hy : p.2 = Layout.track n e) :
     p = (Layout.column u s, Layout.track n f) ∨ p = (Layout.column v t, Layout.track n f) := by
-  have hcu : (Layout.center u).2 < Layout.track n e := by
-    simp only [Layout.center, Layout.track]; omega
-  have hcv : (Layout.center v).2 < Layout.track n e := by
-    simp only [Layout.center, Layout.track]; omega
   have heu := Layout.elbow_below_track (e := e) hu s
   have hev := Layout.elbow_below_track (e := e) hv t
   simp only [Layout.route, List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl
-  · exact False.elim (by omega)
-  · exact False.elim (by omega)
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-  · exact False.elim (by omega)
-  · exact False.elim (by omega)
+  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl <;>
+    simp_all only [Layout.center, Layout.track, or_true, true_or] <;>
+    omega
 
 /-- A crossing is not any listed point of either original polygonal route, including its
 elbows and upper endpoints. Thus no crossing occurs at a bend. -/

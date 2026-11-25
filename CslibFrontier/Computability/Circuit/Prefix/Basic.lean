@@ -134,9 +134,8 @@ private theorem computes_of_eval_freeSemigroup {N : ℕ} {c : PrefixCircuit N}
     c.Computes (semigroupInterp S) prefixProd := by
   intro x
   have hmap := c.map_eval (mulHomToInterpHom (FreeSemigroup.lift x)) FreeSemigroup.of
-  have hlift : (FreeSemigroup.lift x : FreeSemigroup (Fin N) → S) ∘ FreeSemigroup.of = x := by
-    funext i
-    exact FreeSemigroup.lift_of x i
+  have hlift : (FreeSemigroup.lift x : FreeSemigroup (Fin N) → S) ∘ FreeSemigroup.of = x :=
+    funext (FreeSemigroup.lift_of x)
   change (FreeSemigroup.lift x : FreeSemigroup (Fin N) → S) ∘
       c.eval (semigroupInterp (FreeSemigroup (Fin N))) FreeSemigroup.of =
     c.eval (semigroupInterp S) ((FreeSemigroup.lift x : FreeSemigroup (Fin N) → S) ∘
@@ -283,10 +282,7 @@ private theorem rank_lt_of_lines_eq {N g : ℕ} (p : Program prefixSignature N g
   cases hw : wires a with
   | input _ => exact Nat.zero_lt_succ _
   | gate j =>
-    have hex : ∃ s, (p.lines k).wires s = .gate j := by
-      rw [h]
-      exact ⟨a, hw⟩
-    rcases hex with ⟨s, hs⟩
+    obtain ⟨s, hs⟩ : ∃ s, (p.lines k).wires s = .gate j := h ▸ ⟨a, hw⟩
     exact Nat.succ_lt_succ (p.lt_of_lines_wires_eq_gate k s j hs)
 
 @[elab_as_elim]
@@ -330,15 +326,9 @@ theorem IsIntervalPrefixCircuit.isUniversalPrefixCircuit {N : ℕ} {c : PrefixCi
     · obtain ⟨hlo, hhi⟩ := hin i
       rw [hlo, hhi, Nat.add_sub_cancel_left]
       exact ⟨Nat.lt_succ_self _, rfl⟩
-    · have hg := hgate g
-      rw [hline] at hg
-      rcases hg with ⟨hglo, hghi⟩
-      refine ⟨by omega, ?_⟩
-      rw [programWord_gate_id c.program g wires hline, hglo, hghi]
-      exact ih0.2
-    · have hg := hgate g
-      rw [hline] at hg
-      rcases hg with ⟨h0, h01, h1, hglo, hghi⟩
+    · obtain ⟨hglo, hghi⟩ := hline ▸ hgate g
+      rwa [programWord_gate_id c.program g wires hline, hglo, hghi]
+    · obtain ⟨h0, h01, h1, hglo, hghi⟩ := hline ▸ hgate g
       refine ⟨by omega, ?_⟩
       rw [programWord_gate_mul c.program g wires hline, ih0.2, ih1.2, hglo, hghi]
       have hsum : lo (wires 0) + (hi (wires 0) - lo (wires 0)) = lo (wires 1) := by omega
@@ -347,9 +337,8 @@ theorem IsIntervalPrefixCircuit.isUniversalPrefixCircuit {N : ℕ} {c : PrefixCi
       omega
   funext j
   apply freeFinWord_injective
-  have hj := (hword (c.outputs j)).2
-  rw [(hout j).1, (hout j).2, Nat.sub_zero] at hj
-  exact hj.trans (freeFinWord_prefixProd j).symm
+  simpa [programWord, Circuit.eval, (hout j).1, (hout j).2, freeFinWord_prefixProd] using
+    (hword (c.outputs j)).2
 
 /-- Binary gate complexity of a prefix circuit: the total number of binary `mul` gates
 ([Sergeev2025PrefixDepth], p. 1). -/
@@ -411,27 +400,22 @@ private theorem card_mulGates_eq_cost {N g : ℕ} (p : Program prefixSignature N
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Program.lines_gate_last,
           Line.mapWires_op, Finset.mem_union, Finset.mem_map, Function.Embedding.coeFn_mk,
           Fin.castSucc_ne_last, and_false, exists_false, false_or]
-        split_ifs with h
-        · simp only [h, Finset.mem_singleton]
-        · simp only [h, Finset.notMem_empty]
+        split_ifs with h <;> simp only [h, Finset.mem_singleton, Finset.notMem_empty]
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and, Program.lines_gate_castSucc,
           Line.mapWires_op, Finset.mem_union, Finset.mem_map, Function.Embedding.coeFn_mk,
           Fin.castSucc_inj, exists_eq_right]
-        split_ifs
-        · simp only [Finset.mem_singleton, Fin.castSucc_ne_last, or_false]
-        · simp only [Finset.notMem_empty, or_false]
+        split_ifs <;> simp only [Finset.mem_singleton, Fin.castSucc_ne_last, Finset.notMem_empty,
+          or_false]
     rw [hbij, Finset.card_union_of_disjoint]
     · rw [Finset.card_map]
       cases line.op <;> simp only [reduceCtorEq, ↓reduceIte, Finset.card_singleton,
         Finset.card_empty]
     · rw [Finset.disjoint_right]
       intro k hk
-      split_ifs at hk with h
-      · rw [Finset.mem_singleton] at hk
-        subst hk
-        simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Fin.castSucc_ne_last, and_false,
-          exists_false, not_false_eq_true]
-      · exact False.elim (Finset.notMem_empty k hk)
+      split_ifs at hk <;> simp only [Finset.mem_singleton, Finset.notMem_empty] at hk
+      subst hk
+      simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Fin.castSucc_ne_last, and_false,
+        exists_false, not_false_eq_true]
 
 private def ancMul {N g : ℕ} (p : Program prefixSignature N g) : Wire N g → Finset (Fin g)
   | .input _ => ∅
@@ -470,18 +454,12 @@ private theorem ancMul_op_eq_mul_and_rank_le {N g : ℕ} (p : Program prefixSign
     (fun k wires hline ih0 j hj => ?_)
     (fun k wires hline ih0 ih1 j hj => ?_) w
   · rw [ancMul_gate_id p k wires hline] at hj
-    obtain ⟨hop, hrk⟩ := ih0 j hj
-    have hlt := rank_lt_of_lines_eq p k hline 0
-    exact ⟨hop, by simp only [Wire.rank_gate]; omega⟩
+    exact ⟨(ih0 j hj).1, (ih0 j hj).2.trans (rank_lt_of_lines_eq p k hline 0).le⟩
   · rw [ancMul_gate_mul p k wires hline, Finset.mem_insert, Finset.mem_union] at hj
     rcases hj with rfl | hj0 | hj1
     · exact ⟨by rw [hline], le_rfl⟩
-    · obtain ⟨hop, hrk⟩ := ih0 j hj0
-      have hlt := rank_lt_of_lines_eq p k hline 0
-      exact ⟨hop, by simp only [Wire.rank_gate]; omega⟩
-    · obtain ⟨hop, hrk⟩ := ih1 j hj1
-      have hlt := rank_lt_of_lines_eq p k hline 1
-      exact ⟨hop, by simp only [Wire.rank_gate]; omega⟩
+    · exact ⟨(ih0 j hj0).1, (ih0 j hj0).2.trans (rank_lt_of_lines_eq p k hline 0).le⟩
+    · exact ⟨(ih1 j hj1).1, (ih1 j hj1).2.trans (rank_lt_of_lines_eq p k hline 1).le⟩
 
 /-- A gate is not a multiplication ancestor of its own arguments. -/
 private theorem notMem_ancMul_wires {N g : ℕ} (p : Program prefixSignature N g) {k : Fin g}
@@ -719,11 +697,8 @@ private theorem universal_mul_sets {N : ℕ} (hN : 1 ≤ N) {c : PrefixCircuit N
     | gate g =>
       exact ⟨g, rfl, hop g hs, hs ▸ hword⟩
   choose lastMul hlastStrip hlastOp hlastWord using hlastMul
-  have hlastInj : Function.Injective lastMul := by
-    intro r₁ r₂ heq
-    have hw1 := hlastWord r₁
-    rw [heq, hlastWord r₂] at hw1
-    have hlen := congrArg List.length hw1
+  have hlastInj : Function.Injective lastMul := fun r₁ r₂ heq => by
+    have hlen := congrArg List.length ((hlastWord r₁).symm.trans (heq ▸ hlastWord r₂))
     simp only [List.length_range'] at hlen
     exact Fin.ext (by omega)
   have hOut_sub : Finset.univ.image lastMul ⊆ B := by

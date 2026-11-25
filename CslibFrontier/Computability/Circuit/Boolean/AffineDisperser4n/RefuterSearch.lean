@@ -92,21 +92,15 @@ private theorem isFstOfAnyPair_eq_true_iff {f : BooleanFunction n} {S : State n}
     · simp
   · rintro ⟨pr, hpr, hx⟩
     obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl hx))
-    have := eq_of_findPair_eq_some hS h' hpr hx
-    subst this
-    unfold isFstOfAnyPair
-    rw [h']
-    simpa using hx
+    obtain rfl := eq_of_findPair_eq_some hS h' hpr hx
+    simpa [isFstOfAnyPair, h'] using hx
 
 private theorem terminalVal_fst {f : BooleanFunction n} {S : State n} (hS : S.Valid f) (L : List ℕ)
     (A : List Bool) {pr : ZeroPair} (hpr : pr ∈ S.pairs) :
     terminalVal S L A pr.fst = pr.fstBias := by
   obtain ⟨pr', h'⟩ := Option.isSome_iff_exists.1 (findPair_isSome hS hpr (Or.inl rfl))
-  have := eq_of_findPair_eq_some hS h' hpr rfl
-  subst this
-  unfold terminalVal
-  rw [h']
-  simp
+  obtain rfl := eq_of_findPair_eq_some hS h' hpr rfl
+  simp [terminalVal, h']
 
 private theorem findIdx?_eq_some_of_nodup {L : List ℕ} (hL : L.Nodup) {j : ℕ} (hj : j < L.length) :
     L.findIdx? (· = L[j]) = some j := by
@@ -120,13 +114,10 @@ private theorem terminalVal_of_getElem {S : State n} {L : List ℕ} (hL : L.Nodu
     terminalVal S L A L[j] = A.getD j false := by
   unfold terminalVal
   rw [findIdx?_eq_some_of_nodup hL hj]
-  unfold isFstOfAnyPair at hfst
-  split
-  · rename_i pr h
-    rw [h] at hfst
-    have : pr.fst ≠ L[j] := by simpa using hfst
-    simp [this]
+  rcases h : findPair S L[j] with _ | pr
   · rfl
+  · simp only [isFstOfAnyPair, h, decide_eq_false_iff_not] at hfst
+    simp [hfst]
 
 private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
     IsAffine fun u : BitString d => (List.ofFn u).getD i false := by
@@ -223,14 +214,13 @@ private theorem findSome_isSome_of_family {d : ℕ} (C : Circuit (fullSignature 
   have hx : ∀ w, (S.phi fun y => if decide (y ∈ S.params) then σ (List.ofFn w) y else
       evaluateAux S y (σ (List.ofFn w))) = g w :=
     fun w => hS.phi_congr _ _ fun j hj => by simp [hj]
-  have key : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) := by
-    by_cases hu : C.eval fullInterpretation (g u) 0 = f (g u)
-    · exact ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
-    · exact ⟨u, hu⟩
-  obtain ⟨w, hw⟩ := key
+  obtain ⟨w, hw⟩ : ∃ w, C.eval fullInterpretation (g w) 0 ≠ f (g w) :=
+    if hu : C.eval fullInterpretation (g u) 0 = f (g u) then
+      ⟨v, fun hv => huv (by rw [← hu, ← hv, hval, hval])⟩
+    else ⟨u, hu⟩
   refine List.findSome?_isSome_iff.2
     ⟨List.ofFn w, mem_allAssignments (A := List.ofFn w) (by simp), ?_⟩
-  simp only [hx w]
+  rw [hx w]
   simp [hw]
 
 private theorem terminalVal_coord {S : State n} {L : List ℕ} (hLn : L.Nodup)
@@ -335,26 +325,12 @@ theorem fixArg_spec {g : Gate} (hg : ¬ IsAffineOp g.op) {a w : ℕ} (haw : a �
   obtain ⟨α, β, γ, H⟩ := exists_and_form hg
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩
   · simp only [fixArg, hr, ite_true] at hw ⊢
-    rw [Gate.eval_of_args hl hr, hw]
-    have hβ : β = !decide (g.op false false = g.op true false) := by
-      rw [H false false, H true false]
-      cases α <;> cases β <;> cases γ <;> rfl
-    have H2 : g.op false β = γ := by
-      rw [H]
-      cases α <;> cases β <;> cases γ <;> rfl
-    rw [← hβ, H, H2]
-    cases α <;> cases β <;> cases γ <;> cases val a <;> rfl
+    rw [Gate.eval_of_args hl hr, hw, H false false, H true false, H, H]
+    cases α <;> cases β <;> cases γ <;> cases val a <;> decide
   · have hr' : g.right ≠ .node w := by rw [hr]; simpa using haw
     simp only [fixArg, hr', ite_false] at hw ⊢
-    rw [Gate.eval_of_args hl hr, hw]
-    have hα : α = !decide (g.op false false = g.op false true) := by
-      rw [H false false, H false true]
-      cases α <;> cases β <;> cases γ <;> rfl
-    have H2 : g.op α false = γ := by
-      rw [H]
-      cases α <;> cases β <;> cases γ <;> rfl
-    rw [← hα, H, H2]
-    cases α <;> cases β <;> cases γ <;> cases val a <;> rfl
+    rw [Gate.eval_of_args hl hr, hw, H false false, H false true, H, H]
+    cases α <;> cases β <;> cases γ <;> cases val a <;> decide
 
 /-- Inversion of `findAndOnPair S = some (G, p)`. -/
 theorem findAndOnPair_eq_some {S : State n} {G p : ℕ} (h : findAndOnPair S = some (G, p)) :
@@ -617,11 +593,8 @@ private theorem findSome_neq {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)
       if C.eval fullInterpretation (g A) 0 != f (g A) then some (g A) else none) = some x) :
     C.eval fullInterpretation x 0 ≠ f x := by
   obtain ⟨A, -, hA⟩ := List.exists_of_findSome?_eq_some h
-  split at hA
-  · rename_i hne
-    cases hA
-    simpa using hne
-  · cases hA
+  split_ifs at hA with hne
+  simpa [← Option.some_inj.mp hA] using hne
 
 /-- Every input returned by `findCounterexample` is a counterexample. -/
 theorem findCounterexample_spec {d : ℕ} (C : Circuit (fullSignature 2 Bool) n 1)

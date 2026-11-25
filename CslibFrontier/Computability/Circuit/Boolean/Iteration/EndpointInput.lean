@@ -162,15 +162,12 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
       rw [BitVec.toNat_setWidth_of_le (by lia), BitVec.toNat_ofNat,
         Nat.mod_eq_of_lt (hdLt.trans_le hLN)]
     dsimp only [remTime]
-    rw [htime, hoff, BitVec.toNat_sub_of_le, htw, hdw']
-    rw [BitVec.le_def, htw, hdw']
-    lia
-  change out.eval interpretation y = _
-  rw [ho y]
+    rw [htime, hoff, BitVec.toNat_sub_of_le (by rw [BitVec.le_def, htw, hdw']; omega), htw, hdw']
+  refine (ho y).trans ?_
   change query.eval interpretation
     (Fin.append (mark y) (BitString.equivBitVec.symm (remTime y))) = _
   rw [hmark, hq _ ((hd x).2 hinj), hsub, ← Function.iterate_add_apply,
-    Nat.sub_add_cancel (by lia)]
+    Nat.sub_add_cancel (by omega)]
 
 /-- Select the state returned by a flagged branch or the value of the fallback circuit. -/
 private theorem exists_branch {a b : ℕ} (branch : Circuit signature a b)
@@ -258,12 +255,10 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
     · rw [ite_eq_left (hs.1.mpr ready)]
       exact hs.2 ready
     · rw [ite_eq_right (fun he => ready (hs.1.mp he))]
-      have hh := hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
-        (injective_of_not_liveShortReady ready)
-      have hy : Fin.append x (BitString.equivBitVec.symm t) = y := by
-        rw [show BitString.equivBitVec.symm t = bits from Equiv.symm_apply_apply _ _]
-        exact Fin.append_castAdd_natAdd
-      rwa [hy] at hh
+      simpa only [inputTimeIterate, t, x, bits, Equiv.symm_apply_apply,
+        Fin.append_castAdd_natAdd] using
+        hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
+          (injective_of_not_liveShortReady ready)
   · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := by
       apply Nat.le_of_lt
       apply Nat.lt_of_mul_lt_mul_right (a := L)

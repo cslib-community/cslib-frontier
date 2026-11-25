@@ -754,11 +754,9 @@ private lemma eval_orP_orQ_complete :
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
         | pushPop _ sub =>
           have := sub.size_pos
-          simp only [RealTree.size, growthBound] at hsz
-          omega
-        | trans l r =>
+          simp only [RealTree.size, growthBound] at hsz; omega
+        | trans l _ =>
           have := l.size_pos
-          have := r.size_pos
           simp only [RealTree.size, growthBound] at hsz; omega,
      fun Ctx hsz => by
         cases Ctx with
@@ -767,14 +765,12 @@ private lemma eval_orP_orQ_complete :
           cases rest with
           | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inr h)
           | pushPop _ _ => simp [RealCtx.size, growthBound] at hsz
-          | transLeft l _ =>
-            have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-          | transRight _ r =>
-            have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transLeft l _ =>
-          have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transRight _ r =>
-          have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega⟩
+          | transLeft l _ | transRight _ l =>
+            have := l.size_pos
+            simp only [RealCtx.size, growthBound] at hsz; omega
+        | transLeft l _ | transRight _ l =>
+          have := l.size_pos
+          simp only [RealCtx.size, growthBound] at hsz; omega⟩
   | k + 1, hk => by
     obtain ⟨ihP, ihQ⟩ := eval_orP_orQ_complete k (by omega)
     have hP1 {u v} (T : RealTree stay pushPop u v) (hsz : T.size ≤ growthBound (k + 1)) :
@@ -919,18 +915,15 @@ theorem balancedGateCount_le (S R : ℕ) :
   unfold balancedGateCount
   have hd (d : ℕ) (hd6 : d ≤ 6) : S ^ d ≤ (S + 1) ^ 6 :=
     (Nat.pow_le_pow_left (Nat.le_succ S) d).trans (Nat.pow_le_pow_right (Nat.succ_pos S) hd6)
+  have h2 : S * S ≤ (S + 1) ^ 6 := by simpa only [sq] using hd 2 (by decide)
+  have h4 : (S * S) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show (S * S) * (S * S) = S ^ 4 by ring] using hd 4 (by decide)
+  have h5 : ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * S = S ^ 5 by ring] using hd 5 (by decide)
+  have h6 : ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring] using hd 6 le_rfl
   nlinarith [Nat.one_le_pow 6 (S + 1) (Nat.succ_pos S),
-    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1)),
-    show S * S ≤ (S + 1) ^ 6 by simpa only [sq] using hd 2 (by decide),
-    show (S * S) * (S * S) ≤ (S + 1) ^ 6 by
-      rw [show (S * S) * (S * S) = S ^ 4 by ring]
-      exact hd 4 (by decide),
-    show ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 by
-      rw [show ((S * S) * (S * S)) * S = S ^ 5 by ring]
-      exact hd 5 (by decide),
-    show ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 by
-      rw [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring]
-      exact hd 6 le_rfl]
+    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1))]
 
 /-- The `Fin N`-indexed balanced-depth normal-form semi-unbounded circuit over `Fin S`. -/
 def balancedCircuitFin {S : ℕ} (start : Fin S) (accept : Fin S → Prop)
@@ -960,10 +953,9 @@ theorem balancedCircuitFin_andLevel_le {S : ℕ} (start : Fin S) (accept : Fin S
     (stay : Fin S → Fin S → Prop) (pushPop : Fin S → Fin S → Fin S → Fin S → Prop) (R : ℕ)
     (g : Fin (balancedGateCount S R)) :
     (balancedCircuitFin start accept stay pushPop R).andLevel g ≤ R + 2 := by
-  have h := balancedCircuit_andLevel_le start accept stay pushPop R
-    ((balancedGateEquivFin S R).symm g)
   simpa only [balancedCircuitFin, LayeredSemiUnboundedCircuit.andLevel,
-    LayeredSemiUnboundedCircuit.reindex] using h
+    LayeredSemiUnboundedCircuit.reindex] using
+    balancedCircuit_andLevel_le start accept stay pushPop R ((balancedGateEquivFin S R).symm g)
 
 theorem balancedCircuitFin_eval_output_sound {S : ℕ} {start : Fin S} {accept : Fin S → Prop}
     {stay : Fin S → Fin S → Prop} {pushPop : Fin S → Fin S → Fin S → Fin S → Prop} {R : ℕ}

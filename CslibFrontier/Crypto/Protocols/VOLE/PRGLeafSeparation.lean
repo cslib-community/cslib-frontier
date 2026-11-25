@@ -265,19 +265,16 @@ private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
     simp [Cslib.memoize]
   rw [hfs]
   simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+  have hne_chal {vIdx : Fin (2 ^ d)} (hv : vIdx ≠ 0) :
+      FAEST.xorIndex vIdx (chalToIdx delta) ≠ chalToIdx delta := fun h =>
+    hv (Fin.ext (by
+      simpa [FAEST.xorIndex, Nat.xor_assoc, Nat.xor_self] using
+        congrArg (fun x : Fin (2 ^ d) => x.val ^^^ (chalToIdx delta).val) h))
   have hopen : ∀ vIdx : Fin (2 ^ d), vIdx = 0 ∨
       (prgLeaf (prf.openKeys (FAEST.xorIndex vIdx (chalToIdx delta))) prf.iv
         (FAEST.xorIndex vIdx (chalToIdx delta))).com =
-        prf.coms (FAEST.xorIndex vIdx (chalToIdx delta)) := by
-    intro vIdx
-    by_cases hv : vIdx = 0
-    · exact Or.inl hv
-    · right
-      have hne : FAEST.xorIndex vIdx (chalToIdx delta) ≠ chalToIdx delta := fun h =>
-        hv (Fin.ext (by
-          simpa [FAEST.xorIndex, Nat.xor_assoc, Nat.xor_self] using
-            congrArg (fun x : Fin (2 ^ d) => x.val ^^^ (chalToIdx delta).val) h))
-      simp [prf, prgLeafProofOfDelta, hne]
+        prf.coms (FAEST.xorIndex vIdx (chalToIdx delta)) := fun vIdx =>
+    (eq_or_ne vIdx 0).imp_right fun hv => by simp [prf, prgLeafProofOfDelta, hne_chal hv]
   have hrows : prgLeafOpenRows expand prgLeaf prf.iv prf.openKeys prf.coms (chalToIdx delta) =
       some (FAEST.verifierRows (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)
         (chalToIdx delta)) := by
@@ -288,11 +285,7 @@ private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
     by_cases hv : vIdx = 0
     · subst hv
       simp [FAEST.verifierRows]
-    · have hne : FAEST.xorIndex vIdx (chalToIdx delta) ≠ chalToIdx delta := fun h =>
-        hv (Fin.ext (by
-          simpa [FAEST.xorIndex, Nat.xor_assoc, Nat.xor_self] using
-            congrArg (fun x : Fin (2 ^ d) => x.val ^^^ (chalToIdx delta).val) h))
-      simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne]
+    · simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne_chal hv]
   rw [hrows]
   dsimp only
   simp only [ProbOracleComp.runWith_pure]
@@ -714,17 +707,8 @@ theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
                       (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
                 decide (ok = true ∧ Rel stmt wExt = false)).toOuterMeasure {true} = 1 := by
   have hkeys_ne : keys₀ ≠ keys₁ := by
-    intro h
-    subst h
-    have henc_eq : encWit w₀ = encWit w₁ := by
-      funext i
-      have hi := congrFun hdCorrEq i
-      simp only [Pi.add_apply, Bool.add_eq_xor] at hi
-      have hi' := congrArg (fun b => xor b ((FAEST.convertExpandedRows d
-        (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u i)) hi
-      simpa [Bool.xor_assoc] using hi'
-    have hw_eq : w₀ = w₁ := hEncInj henc_eq
-    exact hDisj w₀ ⟨hValid₀, hw_eq ▸ hValid₁⟩
+    rintro rfl
+    exact hDisj w₀ ⟨hValid₀, hEncInj (add_right_cancel hdCorrEq) ▸ hValid₁⟩
   refine ⟨hkeys_ne, fun extPre => ?_⟩
   let coms₀ : Fin (2 ^ d) → BitString comLen := fun j => (prgLeaf (keys₀ j) iv j).com
   let coms₁ : Fin (2 ^ d) → BitString comLen := fun j => (prgLeaf (keys₁ j) iv j).com

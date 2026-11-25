@@ -72,16 +72,12 @@ private theorem natAbs_workTapePos_replay_le (M : MultiTapePTM k Bool State)
     simpa only [hzero j, Int.natAbs_zero, Nat.zero_add] using this coins c
   intro cs
   induction cs with
-  | nil =>
-    intro cfg
-    simp only [runClosedConfigFromCoins, List.foldl_nil, List.length_nil, Nat.add_zero, le_refl]
+  | nil => simp [runClosedConfigFromCoins]
   | cons bit rest ih =>
     intro cfg
-    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons]
     have h1 := natAbs_workTapePos_step_le M bit cfg j
     have h2 := ih ((M.withCoin bit).step cfg)
-    change ((M.runClosedConfigFromCoins rest ((M.withCoin bit).step cfg)).tapes.workTapePos
-      j).natAbs ≤ _
+    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons] at h2 ⊢
     omega
 
 private theorem replay_cons (M : MultiTapePTM k Bool State) (bit : Bool) (rest : List Bool)
@@ -221,11 +217,10 @@ theorem step_withCoin_repeatUntilBlank_check_nil (i : Fin k)
     ((repeatUntilBlank i body).withCoin bit).step c =
       { tapes := wordsCfg x none ws out₀, channels := Empty.elim } := by
   rw [Config.eq_iff_tapes_eq]
-  have hstate : c.tapes.state = some (.inr ()) := by rw [hc]; rfl
   have hsym : c.tapes.workTapeSymbols i = none := by
-    rw [hc]
-    simp only [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hi, List.head?_nil]
-  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate,
+    simp only [hc, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hi, List.head?_nil]
+  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank,
+    (hc ▸ rfl : c.tapes.state = some (.inr ())),
     RepeatUntilBlank.checkAction, hsym, Option.map_none, Config.step]
   rw [hc, RepeatUntilBlank.apply_idle_wordsCfg]
 
@@ -239,11 +234,10 @@ theorem step_withCoin_repeatUntilBlank_check_ne_nil (i : Fin k)
         { tapes := wordsCfg x (some body.initial) ws out₀, channels := Empty.elim } := by
   obtain ⟨b, _, hb⟩ := List.exists_cons_of_ne_nil hi
   rw [Config.eq_iff_tapes_eq]
-  have hstate : c.tapes.state = some (.inr ()) := by rw [hc]; rfl
   have hsym : c.tapes.workTapeSymbols i = some b := by
-    rw [hc]
-    simp only [Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hb, List.head?_cons]
-  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank, hstate,
+    simp only [hc, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, hb, List.head?_cons]
+  simp only [MultiTapeMachine.step, withCoin, repeatUntilBlank,
+    (hc ▸ rfl : c.tapes.state = some (.inr ())),
     RepeatUntilBlank.checkAction, hsym, Option.map_some, Config.step, RepeatUntilBlank.runConfig]
   rw [hc, RepeatUntilBlank.apply_idle_wordsCfg]
   simp only [mapState_wordsCfg, handOver, Option.elim_some]

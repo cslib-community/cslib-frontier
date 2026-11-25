@@ -293,11 +293,8 @@ fields and erasing `.marker`s from every channel. -/
 
 @[simp]
 theorem project_liftState {P S M : Type*} (s : GlobalState P S M) :
-    project (liftState s) = s := by
-  apply GlobalState.ext
-  · rfl
-  · funext u v
-    exact unmarker_map_app (s.chan u v)
+    project (liftState s) = s :=
+  GlobalState.ext rfl (funext fun u => funext fun v => unmarker_map_app (s.chan u v))
 
 /-- Assemble the recorded global snapshot `S*` from `S_aug`: each process takes its recorded
 `snapState` (falling back to `appState` only if unrecorded) and each channel `(q, p)` takes the
@@ -502,18 +499,13 @@ theorem snapMTr_iff_validSnapTrace [DecidableEq P] [DecidableRel sys.graph.Adj]
     sys.snapLts.MTr S₁ xl S₂ ↔ sys.validSnapTrace S₁ xl ∧ S₂ = sys.runSnapEvents S₁ xl := by
   induction xl generalizing S₁ with
   | nil =>
-    constructor
-    · rintro ⟨⟩
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact .refl
+    refine ⟨?_, fun ⟨_, h⟩ => h ▸ .refl⟩
+    rintro ⟨⟩
+    exact ⟨trivial, rfl⟩
   | cons a xl ih =>
-    constructor
-    · rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
-      obtain ⟨hv, hr⟩ := ih.mp hrest
-      exact ⟨⟨hen, hv⟩, hr⟩
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, rfl⟩)
+    refine ⟨?_, fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, h⟩)⟩
+    rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
+    exact ⟨⟨hen, (ih.mp hrest).1⟩, (ih.mp hrest).2⟩
 
 instance instDecidableSnapMTr [Fintype P] [DecidableEq P] [DecidableEq S] [DecidableEq M]
     [DecidableRel sys.graph.Adj]
@@ -573,28 +565,21 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
   | app e =>
     cases e with
     | internal p st' sent =>
-      refine ⟨hen, ?_⟩
-      apply GlobalState.ext
-      · funext r
-        simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
+      refine ⟨hen, GlobalState.ext (funext fun r => ?_) (funext fun u => funext fun v => ?_)⟩
+      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
           GlobalState.applyLocal]
         rcases eq_or_ne r p with rfl | hr <;> simp_all
-      · funext u v
-        simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
+      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
           GlobalState.applyLocal]
         rcases eq_or_ne u p with rfl | hu <;> simp_all
     | recv src dest msg st' sent =>
       obtain ⟨t, ht⟩ := List.head?_eq_some_iff.mp hen.2.1
-      have hproj_head : ((project S₁).chan src dest).head? = some msg := by
-        simp [project, ht]
-      refine ⟨⟨hen.1, hproj_head, hen.2.2.1, hen.2.2.2⟩, ?_⟩
-      apply GlobalState.ext
-      · funext r
-        simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
+      refine ⟨⟨hen.1, by simp [project, ht], hen.2.2.1, hen.2.2.2⟩,
+        GlobalState.ext (funext fun r => ?_) (funext fun u => funext fun v => ?_)⟩
+      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
           GlobalState.applyLocal, GlobalState.popChan]
         rcases eq_or_ne r dest with rfl | hr <;> simp_all
-      · funext u v
-        simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
+      · simp only [project, stepSnap, SnapGlobalState.applyApp, GlobalState.applyEvent,
           GlobalState.applyLocal, GlobalState.popChan]
         by_cases hp : u = src ∧ v = dest
         · rcases hp with ⟨rfl, rfl⟩
@@ -603,22 +588,18 @@ theorem snapTr_project [DecidableEq P] [DecidableRel sys.graph.Adj]
         · simp only [hp, ↓reduceIte]
           by_cases hu : u = dest <;> simp [hu]
   | initiateSnapshot p =>
-    apply GlobalState.ext
-    · funext r
-      simp only [project, stepSnap, applyInitiate]
+    refine GlobalState.ext (funext fun r => ?_) (funext fun u => funext fun v => ?_)
+    · simp only [project, stepSnap, applyInitiate]
       rcases eq_or_ne r p with rfl | hr <;> simp_all
-    · funext u v
-      simp only [project, stepSnap, applyInitiate]
+    · simp only [project, stepSnap, applyInitiate]
       by_cases h : u = p ∧ sys.graph.Adj p v <;> simp [h]
   | recvMarker src dest =>
     obtain ⟨t, ht⟩ := List.head?_eq_some_iff.mp hen.2
-    apply GlobalState.ext
-    · funext r
-      simp only [project, stepSnap, applyRecvMarker]
+    refine GlobalState.ext (funext fun r => ?_) (funext fun u => funext fun v => ?_)
+    · simp only [project, stepSnap, applyRecvMarker]
       cases hsnap : (S₁.proc dest).snapState <;>
         (simp only; rcases eq_or_ne r dest with rfl | hr <;> simp_all)
-    · funext u v
-      have hpop : (if u = src ∧ v = dest then unmarker (S₁.chan u v).tail
+    · have hpop : (if u = src ∧ v = dest then unmarker (S₁.chan u v).tail
           else unmarker (S₁.chan u v)) = unmarker (S₁.chan u v) := by
         split_ifs with h₂
         · obtain ⟨rfl, rfl⟩ := h₂; simp [ht]
@@ -653,11 +634,7 @@ theorem snapTr_appInternal_of_tr [DecidableEq P] [DecidableRel sys.graph.Adj]
       (S_aug.applyApp (.internal p st' sent)) ∧
       project (S_aug.applyApp (.internal p st' sent)) = s' := by
   obtain ⟨hen, rfl⟩ := htr
-  have hsnap : sys.snapLts.Tr S_aug (.app (.internal p st' sent))
-      (S_aug.applyApp (.internal p st' sent)) := ⟨hen, rfl⟩
-  have hproj := sys.snapTr_project hsnap
-  simp only [SnapEvent.toAppEvent] at hproj
-  exact ⟨hsnap, hproj.2⟩
+  exact ⟨⟨hen, rfl⟩, (sys.snapTr_project (a := .app (.internal p st' sent)) ⟨hen, rfl⟩).2⟩
 
 /-! ### Pre-snapshot condition and single-marker FIFO cut invariant -/
 
@@ -780,9 +757,7 @@ structure SnapInv (S_aug : SnapGlobalState P S M) : Prop where
 theorem snapInv_of_isPreSnapshot {S_aug : SnapGlobalState P S M}
     (hpre : sys.IsPreSnapshot S_aug) : sys.SnapInv S_aug where
   nonEdge u v huv := ⟨hpre.2.2 u v huv, by rw [hpre.1 v]; simp⟩
-  markerCount u v := by
-    rw [countP_isMarker_eq_zero_iff.mpr (hpre.2.1 u v)]
-    exact Nat.zero_le 1
+  markerCount u v := by simp [countP_isMarker_eq_zero_iff.mpr (hpre.2.1 u v)]
   unrecordedSrc u v _ := ⟨hpre.2.1 u v, by rw [hpre.1 v]; simp⟩
   recordedSrc u _ hu := by rw [hpre.1 u] at hu; simp at hu
 
@@ -1037,12 +1012,9 @@ theorem isSnapshotComplete_no_markers {S_aug : SnapGlobalState P S M}
   by_cases hadj : sys.graph.Adj u v
   · rcases hinv.recordedSrc u v (hcomp.1 u) hadj with ⟨_, hrec⟩ | ⟨hnotm, _, _⟩
     · obtain ⟨buf, hbuf⟩ := hrec (hcomp.1 v)
-      have hdone := hcomp.2 u v
-      rw [hbuf] at hdone
-      simp [ChannelRec.isDone] at hdone
+      simpa [hbuf, ChannelRec.isDone] using hcomp.2 u v
     · exact hnotm
-  · rw [(hinv.nonEdge u v hadj).1]
-    simp
+  · simp [(hinv.nonEdge u v hadj).1]
 
 /-- Under `SnapInv S_aug`, any underlying `recv` transition enabled in `project S_aug` can execute
 in `sys.snapLts` in at most two steps (optionally delivering a single leading `.marker` on
@@ -1059,9 +1031,7 @@ theorem snapMTr_appRecv_of_tr [DecidableEq P] [DecidableRel sys.graph.Adj]
   obtain ⟨⟨hadj, hhead, hrecv, hsent⟩, rfl⟩ := htr
   simp only [project] at hhead hrecv
   cases hch : S_aug.chan src dest with
-  | nil =>
-    rw [hch] at hhead
-    simp at hhead
+  | nil => simp [hch] at hhead
   | cons w ws =>
     cases w with
     | app m' =>
@@ -1070,10 +1040,8 @@ theorem snapMTr_appRecv_of_tr [DecidableEq P] [DecidableRel sys.graph.Adj]
       let e := Event.recv src dest m' st' sent
       have htr_app : sys.snapLts.Tr S_aug (.app e) (S_aug.applyApp e) :=
         ⟨⟨hadj, by simp [hch], hrecv, hsent⟩, rfl⟩
-      have hproj := sys.snapTr_project htr_app
-      simp only [SnapEvent.toAppEvent] at hproj
       exact ⟨[.app e], S_aug.applyApp e, by simp, rfl,
-        LTS.MTr.single sys.snapLts htr_app, hproj.2⟩
+        LTS.MTr.single sys.snapLts htr_app, (sys.snapTr_project htr_app).2⟩
     | marker =>
       have hnotm_ws : .marker ∉ ws := by
         simpa [hch] using notMem_tail_of_head_marker_of_countP_le_one

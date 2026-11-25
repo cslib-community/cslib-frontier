@@ -144,9 +144,8 @@ private theorem decoded_tr {s : Level} (sk v : PrivateKey s) (rhoLen : sk.rho.le
   rw [sk.length_encode rhoLen keyLen trLen] at hv
   simp only [guard, ↓reduceIte,
     Option.pure_def, Option.bind_eq_bind, Option.bind_some, Option.some.injEq] at hv
-  rw [← hv]
-  simp only [PrivateKey.encode, List.drop_left' rhoLen, List.drop_left' keyLen,
-    List.take_left' trLen]
+  simpa only [PrivateKey.encode, List.drop_left' rhoLen, List.drop_left' keyLen,
+    List.take_left' trLen] using congrArg PrivateKey.tr hv.symm
 
 private abbrev signDecoded (H : Xofs) (s : Level) (m : List Bool) (r : Row) (v : PrivateKey s) :=
   H.runSigning s (H.startDecodedSigning s v m fun μ => (r (BitString.ofList 512 μ)).toList)
@@ -366,8 +365,7 @@ guesses for an independent uniform 32-byte private signing seed. -/
 theorem keySeedDeviceGame_false_le (C : QuantumSigningForger) (s : Level) (base : Xofs)
     (a b n j : ℕ) :
     (Game.succProbability (C.keySeedDeviceGame s base a b n j false) : ℝ) ≤ 2 / 2 ^ 256 := by
-  let B := 2 * (2 ^ 256 : ℝ≥0∞)⁻¹
-  have bound : C.keySeedDeviceGame s base a b n j false true ≤ B := by
+  have bound : C.keySeedDeviceGame s base a b n j false true ≤ 2 * (2 ^ 256 : ℝ≥0∞)⁻¹ := by
     simp only [keySeedDeviceGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       Bool.false_eq_true, ↓reduceIte, PMF.bind_const]
     iterate 3
@@ -378,10 +376,9 @@ theorem keySeedDeviceGame_false_le (C : QuantumSigningForger) (s : Level) (base 
     apply PMF.bind_apply_le_on_support
     intro addr _
     exact two_guesses _ addr
-  have r := ENNReal.toReal_mono
-    (ENNReal.mul_ne_top (by simp) (ENNReal.inv_ne_top.mpr (by positivity))) bound
-  simpa only [B, Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using r
+  simpa only [Game.coe_succProbability, ENNReal.toReal_mul, ENNReal.toReal_inv,
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv] using
+    ENNReal.toReal_mono (ENNReal.mul_ne_top (by simp) (by simp)) bound
 
 private theorem queriesKeySeed_of_change {C : QuantumSigningForger} (s : Level) (H : Xofs)
     (seed : FixedBytes 32) (out : FixedBytes 128) (addr : Option (Address C))
@@ -404,9 +401,8 @@ private theorem changed_keySeed_le (C : QuantumSigningForger) (s : Level) (H : X
         (2 ^ 256 : ℝ≥0∞)⁻¹ := by
   apply FixedBytes.uniform_test_le (n := 32)
   intro x hx y hy
-  have hx := queriesKeySeed_of_change (C := C) s _ x _ addr hx
-  have hy := queriesKeySeed_of_change (C := C) s _ y _ addr hy
-  have eq := Option.some.inj (hx.symm.trans hy)
+  have eq := Option.some.inj ((queriesKeySeed_of_change (C := C) s _ x _ addr hx).symm.trans
+    (queriesKeySeed_of_change (C := C) s _ y _ addr hy))
   exact List.ofFn_inj.mp (List.append_cancel_right (Keccak.bytesToBitsLE_injective eq))
 
 /-- Measure the selected coherent address of the background device. Test whether the XOR
@@ -448,11 +444,10 @@ theorem mean_keySeedQueryDisturbance_le (C : QuantumSigningForger) (s : Level) (
         (H.queryTable C.addressBits C.responseBytes) A st.density ≤ 4 / 2 ^ 256 := by
   intro A
   rw [div_eq_mul_inv]
-  apply mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix
-  intro x
-  have h := changed_keySeed_le C s H out (some x)
+  refine mean_xorQueryDisturbance_le _ _ _ A st.isDensityMatrix fun x => ?_
   simpa only [Option.any_some, ← PMF.bind_pure_comp, Function.comp_def, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using ENNReal.toReal_mono (by simp) h
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using
+    ENNReal.toReal_mono (by simp) (changed_keySeed_le C s H out (some x))
 
 /-- Apply any binary measurement after the native query, allowing the measurement to depend on
 the hidden seed. For a seed-independent input state, the mean square change in the square root

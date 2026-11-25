@@ -104,17 +104,10 @@ private theorem init_decode (inst : MWISInstance) :
   have hfr : s₀.frontier = inst.encode.length + 1 := by
     simp [s₀, Memory.State.init, Nat.add_comm]
   have hall : HoldsIn 1 inst.encode s₀ := holdsIn_init inst.encode
-  simp only [MWISInstance.encode, List.cons_append, List.nil_append, List.append_assoc] at hall
-  rw [HoldsIn.cons_iff] at hall
-  obtain ⟨_, hm1, hall⟩ := hall
-  rw [HoldsIn.cons_iff] at hall
-  obtain ⟨_, hm2, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.weights_len] at hall
-  obtain ⟨hwt, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.adjMatrix_len] at hall
-  obtain ⟨hadj, hall⟩ := hall
-  rw [HoldsIn.append_iff, inst.parents_len] at hall
-  obtain ⟨hpar, hbags⟩ := hall
+  simp only [MWISInstance.encode, List.cons_append, List.nil_append, List.append_assoc,
+    HoldsIn.cons_iff, HoldsIn.append_iff, inst.weights_len, inst.adjMatrix_len,
+    inst.parents_len] at hall
+  obtain ⟨_, hm1, _, hm2, hwt, hadj, hpar, hbags⟩ := hall
   have hlen_eq : 3 + inst.numVerts + inst.numVerts * inst.numVerts + (inst.numNodes + 1) +
       (inst.bags.flatMap encodeBag).length = s₀.frontier := by
     rw [hfr]

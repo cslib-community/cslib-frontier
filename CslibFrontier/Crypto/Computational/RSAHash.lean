@@ -162,11 +162,9 @@ private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hy : y < N)
   have hN : 0 < N := Nat.zero_lt_of_lt hy
   set f := b' - b with hf_def
   set w := a * BinaryGcd.modInv a' N % N with hw_def
-  have hcancel : a ^ e ≡ a' ^ e * y ^ f [MOD N] := by
-    refine Nat.ModEq.cancel_right_of_coprime (c := y ^ b) ?_ ?_
-    · exact Nat.Coprime.symm (Nat.Coprime.pow_left b hyN)
-    · rw [mul_assoc, ← pow_add, hf_def, Nat.sub_add_cancel hbb']
-      exact h
+  have hcancel : a ^ e ≡ a' ^ e * y ^ f [MOD N] :=
+    Nat.ModEq.cancel_right_of_coprime (hyN.pow_left b).symm
+      (by simpa only [mul_assoc, ← pow_add, hf_def, Nat.sub_add_cancel hbb'] using h)
   have hinv : a' * BinaryGcd.modInv a' N ≡ 1 [MOD N] := BinaryGcd.mul_modInv_modEq_one hN ha'
   have hwe : w ^ e ≡ y ^ f [MOD N] :=
     calc w ^ e ≡ (a * BinaryGcd.modInv a' N) ^ e [MOD N] := (Nat.mod_modEq _ _).pow e
@@ -178,9 +176,8 @@ private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hy : y < N)
   have hw : Nat.Coprime w N :=
     (ZMod.coprime_mod_iff_coprime _ _).mpr
       (ha.mul_left (Nat.coprime_of_mul_modEq_one a' (by rwa [mul_comm])))
-  have hroot := commonRoot_pow_modEq_right hN hef hw hwe
   rw [rsaEval]
-  exact Eq.trans hroot (Nat.mod_eq_of_lt hy)
+  exact Eq.trans (commonRoot_pow_modEq_right hN hef hw hwe) (Nat.mod_eq_of_lt hy)
 
 /-- **The root from a collision** ([BonehShoup2023], proof of Theorem 10.7, p. 417). For `e`
 coprime to `b.dist b'` (`b' - b` if `b ≤ b'`, else `b - b'`), units `y`, `a` and `a'` modulo `N`
@@ -271,13 +268,10 @@ theorem computableInPolyTime_validRSAHashInput :
     (ComputableInPolyTime.snd (encPair encUnary encRSAHashKey) encBits)
   have hN : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.N)
       (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
-  have he : ComputableInPolyTime (fun p : (ℕ × RSAHashKey) × List Bool => p.1.2.publicKey.e)
-      (encPair (encPair encUnary encRSAHashKey) encBits) encNat := by fun_prop
-  have hcanon := hd.encoding_comp.beq (ComputableInPolyTime.snd _ _)
-  have hcop := ComputableInPolyTime.decide_eq'
-    (hd.fst'.binary_gcd' hN) (ComputableInPolyTime.const 1)
-  exact ((hcanon.bool_and' (hd.fst'.binary_lt' hN)).bool_and' hcop).bool_and'
-    (hd.snd'.binary_lt' he)
+  exact (((hd.encoding_comp.beq (ComputableInPolyTime.snd _ _)).bool_and'
+    (hd.fst'.binary_lt' hN)).bool_and'
+    (ComputableInPolyTime.decide_eq' (hd.fst'.binary_gcd' hN) (.const 1))).bool_and'
+    (hd.snd'.binary_lt' (by fun_prop))
 
 /-- A collision of the RSA hash at a key with prime `e` and a unit base `y < N` decodes to pairs
 from which `rsaHashRoot` computes an `e`-th root of `y`. -/

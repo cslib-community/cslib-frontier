@@ -511,11 +511,8 @@ theorem cfiBaseEquiv_eq_castAway {u w : Fin m} (hwu : w ≠ u)
   cases x with
   | gadget v α hα =>
     have hvu : v ≠ u := by rintro rfl; simp at hu
-    unfold cfiBaseEquiv
-    dsimp only [Equiv.coe_fn_mk]
-    rw [cfiBaseMap, dite_eq_right hvu, CFIVertex.castAway]
-  | edge _ _ _ => rfl
-  | apex _ _ => rfl
+    simp only [cfiBaseEquiv, Equiv.coe_fn_mk, cfiBaseMap, dite_eq_right hvu, CFIVertex.castAway]
+  | edge _ _ _ | apex _ _ => rfl
 
 /-- On vertices whose support avoids both `u` and `w`, `cfiSingleFlipIso huw` commutes with
 `CFIVertex.castAway`. -/
@@ -528,14 +525,12 @@ theorem cfiSingleFlipIso_castAway_of_notMem {u w : Fin m} (huw : u ≠ w)
   | gadget v α hα =>
     have hvu : v ≠ u := by rintro rfl; simp at hu
     have hvw : v ≠ w := by rintro rfl; simp at hw
-    unfold cfiSingleFlipIso cfiFlipIso
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, CFIVertex.castAway]
+    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw]
   | edge e he b =>
     have hne : e ≠ s(u, w) := by rintro rfl; simp at hu
-    unfold cfiSingleFlipIso cfiFlipIso
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, ite_eq_right hne, CFIVertex.castAway]
+    simp only [cfiSingleFlipIso, cfiFlipIso, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, ite_eq_right hne]
   | apex _ _ => rfl
 
 /-- On any vertex `x` with `w ∉ x.support`, `cfiSingleFlipIso huw` carries `x.castAway w` to
@@ -546,18 +541,16 @@ theorem cfiSingleFlipIso_castAway_eq_cfiBaseEquiv {u w : Fin m} (huw : u ≠ w)
     cfiSingleFlipIso huw (x.castAway w hfw hw) = cfiBaseEquiv u w huw.symm x := by
   cases x with
   | gadget v α hα =>
-    unfold cfiSingleFlipIso cfiFlipIso cfiBaseEquiv
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
     by_cases hvu : v = u
-    · rw [CFIVertex.castAway, cfiFlipMap, dite_eq_left hvu, cfiBaseMap, dite_eq_left hvu]
+    · simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_left hvu]
     · have hvw : v ≠ w := by rintro rfl; simp at hw
-      rw [CFIVertex.castAway, cfiFlipMap, dite_eq_right hvu, dite_eq_right hvw, cfiBaseMap,
-        dite_eq_right hvu]
+      simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+        CFIVertex.castAway, cfiFlipMap, cfiBaseMap, dite_eq_right hvu, dite_eq_right hvw]
   | edge e he b =>
     have hne : e ≠ s(u, w) := by rintro rfl; simp at hw
-    unfold cfiSingleFlipIso cfiFlipIso cfiBaseEquiv
-    dsimp only [RelIso.coe_fn_mk, Equiv.coe_fn_mk]
-    rw [CFIVertex.castAway, cfiFlipMap, ite_eq_right hne, cfiBaseMap]
+    simp only [cfiSingleFlipIso, cfiFlipIso, cfiBaseEquiv, RelIso.coe_fn_mk, Equiv.coe_fn_mk,
+      CFIVertex.castAway, cfiFlipMap, cfiBaseMap, ite_eq_right hne]
   | apex _ _ => rfl
 
 /-- When both `u` and `w` (`u ≠ w`) lie in `x.support` and `w'` is distinct from `u` and `w`,
@@ -625,21 +618,11 @@ private theorem not_inTriangle_gadget {f : Fin m → ZMod 2} (v : Fin m)
     (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     ¬ InTriangle (cfiGraph m f) (.gadget v α hα) := by
   rintro ⟨y, z, hxy, hyz, hxz⟩
-  cases y with
-  | gadget _ _ _ => exact not_cfiGraph_adj_gadget_gadget _ _ _ _ _ _ hxy
-  | apex _ _ => exact not_cfiGraph_adj_gadget_apex _ _ _ _ _ hxy
-  | edge e₁ he₁ b₁ =>
-    cases z with
-    | gadget _ _ _ => exact not_cfiGraph_adj_gadget_gadget _ _ _ _ _ _ hxz
-    | apex _ _ => exact not_cfiGraph_adj_gadget_apex _ _ _ _ _ hxz
-    | edge e₂ he₂ b₂ =>
-      rw [cfiGraph_adj_gadget_edge] at hxy hxz
-      rw [cfiGraph_adj_edge_edge] at hyz
-      obtain ⟨w₁, rfl, rfl⟩ := hxy
-      obtain ⟨w₂, rfl, rfl⟩ := hxz
-      obtain ⟨heq, hne⟩ := hyz
-      have hw : w₁ = w₂ := Subtype.ext (Sym2.congr_right.1 heq)
-      exact hne (congrArg α hw)
+  cases y <;> cases z <;> simp only [cfiGraph_adj_gadget_edge, cfiGraph_adj_edge_edge,
+    not_cfiGraph_adj_gadget_gadget, not_cfiGraph_adj_gadget_apex] at hxy hyz hxz
+  obtain ⟨w₁, rfl, rfl⟩ := hxy
+  obtain ⟨w₂, rfl, rfl⟩ := hxz
+  exact hyz.2 (congrArg α (Subtype.ext (Sym2.congr_right.1 hyz.1)))
 
 private theorem zmod_two_add_one_ne_self (b : ZMod 2) : b + 1 ≠ b := by
   decide +revert
@@ -881,10 +864,8 @@ private theorem iso_apply_edge (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   have hne : edgeBit (φ (.edge e he 0)) ≠ edgeBit (φ (.edge e he 1)) := hadj01.2
   rw [hbit b]
   congr 1
-  have hb : edgeBit (φ (.edge e he b)) =
-      if b = 0 then edgeBit (φ (.edge e he 0)) else edgeBit (φ (.edge e he 1)) := by
-    fin_cases b <;> rfl
-  rw [hb, zmod_two_eq_add_of_ne hne b]
+  exact (by fin_cases b <;> rfl : edgeBit (φ (.edge e he b)) = _).trans
+    (zmod_two_eq_add_of_ne hne b)
 
 private theorem sum_symm_zero_diag : ∀ {n : ℕ} (F : Fin n → Fin n → ZMod 2),
     (∀ i j, F i j = F j i) → (∀ i, F i i = 0) → ∑ i, ∑ j, F i j = 0

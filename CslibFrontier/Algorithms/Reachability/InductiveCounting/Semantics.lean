@@ -99,18 +99,14 @@ theorem mem_roundSet_succ (hsource : source < N) (hv : v < N) :
     v ∈ roundSet N edge source (k + 1) ↔
       ∃ u ∈ roundSet N edge source k, u = v ∨ edge u v = true := by
   rw [mem_roundSet hsource, ← Relation.mem_reachableWithin, Relation.mem_reachableWithin_succ]
-  constructor
-  · rintro ⟨u, hu, huv⟩
-    refine ⟨u, (mem_roundSet hsource).mpr hu, ?_⟩
-    cases huv with
-    | refl => exact Or.inl rfl
-    | single h => exact Or.inr h.2.2
-  · rintro ⟨u, hu, huv⟩
-    have hu' := (mem_roundSet hsource).mp hu
-    refine ⟨u, hu', ?_⟩
-    rcases huv with rfl | huv
-    · exact .refl
-    · exact .single ⟨within_lt hsource hu', hv, huv⟩
+  refine ⟨?_, ?_⟩
+  · rintro ⟨u, hu, _ | h⟩
+    · exact ⟨v, (mem_roundSet hsource).mpr hu, Or.inl rfl⟩
+    · exact ⟨u, (mem_roundSet hsource).mpr hu, Or.inr h.2.2⟩
+  · rintro ⟨u, hu, rfl | huv⟩
+    · exact ⟨u, (mem_roundSet hsource).mp hu, .refl⟩
+    · have hu' := (mem_roundSet hsource).mp hu
+      exact ⟨u, hu', .single ⟨within_lt hsource hu', hv, huv⟩⟩
 
 /-- Round `N - 1` is already the entire reachable set. -/
 theorem mem_roundSet_final (hsource : source < N) (hk : k + 1 = N) :
@@ -131,19 +127,14 @@ theorem filter_lt_succ_of_mem {S : Finset ℕ} {x : ℕ} (hx : x ∈ S) :
     S.filter (· < x + 1) = insert x (S.filter (· < x)) := by
   ext c
   simp only [Finset.mem_filter, Finset.mem_insert]
-  refine ⟨fun ⟨hc, hcx⟩ => ?_, ?_⟩
-  · rcases Nat.lt_succ_iff_lt_or_eq.mp hcx with h | rfl
-    exacts [Or.inr ⟨hc, h⟩, Or.inl rfl]
-  · rintro (rfl | ⟨hc, h⟩)
-    exacts [⟨hx, Nat.lt_succ_self _⟩, ⟨hc, by omega⟩]
+  grind
 
 /-- Raising a prefix bound past a non-member `x` changes nothing. -/
 theorem filter_lt_succ_of_notMem {S : Finset ℕ} {x : ℕ} (hx : x ∉ S) :
     S.filter (· < x + 1) = S.filter (· < x) := by
   ext c
   simp only [Finset.mem_filter]
-  exact ⟨fun ⟨hc, hcx⟩ => ⟨hc, lt_of_le_of_ne (Nat.lt_succ_iff.mp hcx) fun h => hx (h ▸ hc)⟩,
-    fun ⟨hc, h⟩ => ⟨hc, by omega⟩⟩
+  grind
 
 /-- Counting the members of a set of numbers below `x + 1`. -/
 theorem card_filter_lt_succ (S : Finset ℕ) (x : ℕ) :

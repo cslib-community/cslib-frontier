@@ -137,9 +137,8 @@ private theorem productSum_cast (x : BitString (inputWidth n w)) (hw : 0 < w) :
         (selectedRow n w hw) j.succ * inputSecret x j := by
   rw [productSum, Circuit.eval_comp, Circuit.eval_wiring, append_comp_productInputs,
     Modular.val_eval_innerProduct, ZMod.natCast_mod, Nat.cast_sum]
-  apply Finset.sum_congr rfl
-  intro j _
-  rw [Nat.cast_mul, ← inputSecret_apply, block_rowTail, rowWord_cast, mul_comm]
+  refine Finset.sum_congr rfl fun j _ => by
+    rw [Nat.cast_mul, ← inputSecret_apply, block_rowTail, rowWord_cast, mul_comm]
 
 /-- Subtract the selected row's inner product from its leading word, modulo `2 ^ w`. -/
 private def phase (n w : ℕ) (hw : 0 < w) : Circuit signature (inputWidth n w) w :=
@@ -172,18 +171,13 @@ private theorem eval_decodeWord (x : BitString w) :
       LWE.decode w ((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)) := by
   have hv : ((BitString.equivFin w x : ℕ) : ZMod (2 ^ w)).val = BitString.equivFin w x := by
     rw [ZMod.val_natCast, Nat.mod_eq_of_lt (BitString.equivFin w x).isLt]
-  by_cases h₀ : w = 0
-  · subst w
-    simp [decodeWord, interpretation]
-  · by_cases h₁ : w = 1
-    · subst w
-      simp only [decodeWord, Nat.one_ne_zero, ↓reduceDIte, Circuit.eval_wiring,
-        Function.comp_apply, LWE.decode_one, hv]
-      exact (BitString.testBit_equivFin x 0).symm
-    · rw [LWE.decode_eq_xor_highBits (by omega), hv]
-      simp only [circuit_simps, decodeWord, h₀, h₁, ↓reduceDIte]
-      rw [BitString.testBit_equivFin x ⟨w - 1, by omega⟩,
-        BitString.testBit_equivFin x ⟨w - 2, by omega⟩]
+  rcases w with _ | _ | w
+  · simp [decodeWord, interpretation]
+  · simpa [decodeWord, LWE.decode_one, hv] using (BitString.testBit_equivFin x 0).symm
+  · rw [LWE.decode_eq_xor_highBits (by omega), hv,
+      BitString.testBit_equivFin x ⟨w + 1 + 1 - 1, by omega⟩,
+      BitString.testBit_equivFin x ⟨w + 1 + 1 - 2, by omega⟩]
+    simp [circuit_simps, decodeWord]
 
 @[circuit_bound]
 private theorem depth_decodeWord_le (w : ℕ) : (decodeWord w).depth ≤ 3 := by
@@ -205,8 +199,7 @@ private theorem eval_circuit (x : BitString (inputWidth n w)) :
   · rw [circuit, dite_eq_left hw, Circuit.eval_comp, eval_decodeWord, phase_cast x hw,
       decrypt_eq_decode_decryptionPhase hw]
     rfl
-  · have hz : w = 0 := by omega
-    subst w
+  · obtain rfl : w = 0 := by omega
     simp [circuit, interpretation]
 
 /-- The selected-row construction has logarithmic depth in both parameter dimensions. -/

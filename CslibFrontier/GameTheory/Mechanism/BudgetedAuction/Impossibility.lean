@@ -82,12 +82,9 @@ private theorem fin_sum_telescope : ∀ {n : ℕ} (f : Fin (n + 1) → ℝ),
   | n + 1, f => by
     have ih := fin_sum_telescope fun k : Fin (n + 1) => f k.castSucc
     have hsucc (k : Fin n) : k.castSucc.succ = k.succ.castSucc := rfl
-    have hlast : (Fin.last n).succ = Fin.last (n + 1) := rfl
-    have hzero : (0 : Fin (n + 1)).castSucc = 0 := rfl
-    rw [Fin.sum_univ_castSucc, hlast]
-    simp only [hsucc]
-    rw [hzero] at ih
-    linarith
+    rw [Fin.sum_univ_castSucc]
+    simp only [hsucc, Fin.castSucc_zero, Fin.succ_last] at ih ⊢
+    linarith [ih]
 
 private theorem payment_le_of_ir {ι : Type*} {M : BudgetedMechanism ι} (hir : M.IsIROnPos)
     {θ : ι → BidderType} (hθ : ∀ k, (θ k).IsPos) (k : ι) :
@@ -347,9 +344,8 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       push Not at hlt
       let x := (M.outcome θ).alloc j
       have hx_pos : 0 < x := lt_of_le_of_ne (hfeas.1 j) fun h0 => by
-        have h := payment_le_of_ir hir hθ j
-        change (M.outcome θ).payment j ≤ (θ j).val * x at h
-        rw [← h0, mul_zero] at h
+        have hirj : (M.outcome θ).payment j ≤ (θ j).val * x := payment_le_of_ir hir hθ j
+        rw [← h0, mul_zero] at hirj
         linarith
       let w := (θ i).val + ((θ j).budget - x * (θ i).val) / (2 * x)
       have hw : (θ i).val < w := by
@@ -373,9 +369,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       have hpj_eq : (M.outcome θ).payment j = (θ j).budget :=
         hce.2 i j (by linarith) hlt_ij
       have hxj_pos : 0 < (M.outcome θ).alloc j := lt_of_le_of_ne (hfeas.1 j) fun h0 => by
-        have h := payment_le_of_ir hir hθ j
-        rw [← h0, mul_zero] at h
-        linarith
+        linarith [h0 ▸ payment_le_of_ir hir hθ j]
       -- Pick `w` just above `v_i` with `w * alloc j < v_i * m = budget`.
       let w := (θ i).val + ((θ i).val * (m - (M.outcome θ).alloc j)) / (2 * (M.outcome θ).alloc j)
       have hw : (θ i).val < w := by
@@ -468,13 +462,9 @@ private theorem payoff_at_overreport_budget {M : BudgetedMechanism ι} {m : ℝ}
       ⟨div_pos (by positivity) (by positivity), by norm_num⟩
       (by simpa only [prof, Function.update_idem, Function.update_self] using
             hbf _ (hprof_pos k.castSucc) i)
-    have hupd : Function.update (prof k.succ) i ⟨t k.castSucc, 10⟩ = prof k.castSucc := by
-      dsimp only [prof]; rw [Function.update_idem]
-    rw [hupd] at hic_k
-    dsimp only [Outcome.utility] at hic_k
-    simp only [prof, Function.update_self] at hic_k
-    dsimp only [prof] at halloc_i
-    rw [halloc_i k.succ, halloc_i k.castSucc] at hic_k
+    dsimp only [prof, Outcome.utility] at hic_k halloc_i
+    simp only [Function.update_idem, Function.update_self,
+      halloc_i k.succ, halloc_i k.castSucc] at hic_k
     have hdiff : t k.succ * ((m - 1 / t k.succ) - (m - 1 / t k.castSucc)) =
         1 / ((k.val : ℝ) + 6) := by
       dsimp only [t]

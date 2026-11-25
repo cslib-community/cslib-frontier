@@ -147,14 +147,8 @@ theorem atomicCompiler_correct {a : EncodedStructure} (ha : v.WellFormed a)
   · let x := (ts 0).realize (Sum.elim val xs)
     let y := (ts 1).realize (Sum.elim val xs)
     refine ⟨decide (x ≤ y), by simp only [decide_eq_true_eq]; rfl, Reaches.lt hinstr hB ?_⟩
-    simp only [ht]
-    change P.Reaches _ _ (if y.val < x.val then F else T, regs)
-      (if decide (x ≤ y) then T else F, regs)
-    by_cases h : x ≤ y
-    · simp only [Nat.not_lt.mpr h, h, decide_true, ↓reduceIte]
-      exact Reaches.refl _
-    · simp only [Nat.lt_of_not_ge h, h, decide_false, ↓reduceIte]
-      exact Reaches.refl _
+    simp only [ht, ← not_le, ite_not, decide_eq_true_eq]
+    exact Reaches.refl _
   · refine ⟨((ts 0).realize (Sum.elim val xs) : Fin a.1).val.testBit
       ((ts 1).realize (Sum.elim val xs)).val, Iff.rfl, Reaches.lt hinstr hB ?_⟩
     simp only [eval_const, eval_bit, ht]

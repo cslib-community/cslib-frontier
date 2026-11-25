@@ -379,11 +379,9 @@ theorem rainbowAttack_sound {h : P → Y} {lookup : P → Option P} {g : ℕ →
     h pw = y := by
   rw [evalPure_rainbowAttack] at heval
   obtain ⟨k, -, hk⟩ := List.exists_of_findSome?_eq_some heval
-  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
-  | none => simp [hlk] at hk
-  | some pw₀ =>
-    rw [hlk] at hk
-    dsimp only at hk
+  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;> rw [hlk] at hk
+  · cases hk
+  · dsimp only at hk
     split_ifs at hk with hcheck
     exact Option.some.inj hk ▸ hcheck
 
@@ -598,16 +596,11 @@ private theorem exists_evalPure_hellmanLoop_of_lookup_eq_some {h : P → Y} {loo
   induction d generalizing rem z with
   | zero =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    simp only [Function.iterate_zero_apply] at hlookup
-    simp only [Nat.add_sub_cancel, Nat.sub_zero] at hy
-    rw [evalPure_hellmanLoop_succ, hlookup]
-    simp only [hy, ↓reduceIte]
-    exact ⟨_, rfl, hy⟩
+    simp_all [evalPure_hellmanLoop_succ]
   | succ d ih =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    rw [show m + 1 - 1 - (d + 1) = m - 1 - d by omega] at hy
-    rw [Function.iterate_succ_apply] at hlookup
-    have hrec := ih (rem := m) (by omega) hy hlookup
+    have hrec := ih (rem := m) (by omega)
+      (by rwa [show m - 1 - d = m + 1 - 1 - (d + 1) by omega]) hlookup
     rw [evalPure_hellmanLoop_succ]
     cases lookup z with
     | none => exact hrec

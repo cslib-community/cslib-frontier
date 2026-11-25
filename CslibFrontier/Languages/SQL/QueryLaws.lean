@@ -392,10 +392,7 @@ theorem join_comm (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
     Equiv .bag (join θ q₁ q₂)
       (project (fun i => col (finAddFlip i)) (join (θ.rename finAddFlip) q₂ q₁)) := fun D _ => by
   simp only [eval_join, eval_project]
-  rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss
-  · exact .none
-  · exact .none
-  · exact .none
+  rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss <;> try exact .none
   have hcols : ∀ ts : List (Row (m + n)),
       ts.mapM (Expr.evalRow fun i => col (finAddFlip i)) = .ok (ts.map (· ∘ finAddFlip)) :=
     fun ts => Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp _ t
@@ -403,12 +400,9 @@ theorem join_comm (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
       θ.evalTruth (t ∘ finAddFlip) = (θ.rename finAddFlip).evalTruth t :=
     fun t _ => by simp only [Expr.evalTruth, Expr.eval_rename]
   simp only [Except.ok_bind, Except.toOption_bind, hcols, Except.toOption_ok]
-  have hrhs : (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
-      fun ts => some (ts.map (· ∘ finAddFlip))) =
-      (θ.filterRows ((Row.product ss rs).map (· ∘ finAddFlip))).toOption := by
-    rw [Expr.toOption_filterRows_map hflip]
-    rcases ((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption <;> rfl
-  rw [hrhs]
+  rw [show (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
+      fun ts => some (ts.map (· ∘ finAddFlip))) = _ from Option.map_eq_bind.symm,
+    ← Expr.toOption_filterRows_map hflip]
   refine EquivLevel.Rel.filterRows (ℓ := .bag) ?_ fun _ _ => rfl
   simp only [EquivLevel.rel_bag, Row.product, List.map_map]
   refine ((List.perm_map_swap_product ss rs).map _).symm.trans (List.Perm.of_eq ?_)

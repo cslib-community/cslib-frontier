@@ -140,10 +140,9 @@ private theorem nodup_foldl_elim {α β : Type*} [DecidableEq β] (f : α → Op
   | nil => exact h
   | cons r l ih =>
     rw [List.foldl_cons]
-    refine ih ?_
     cases f r with
-    | none => exact h
-    | some c => exact h.insert
+    | none => exact ih h
+    | some _ => exact ih h.insert
 
 omit [DecidableEq T] in
 /-- A scan adds exactly the matches of the rules. -/
@@ -159,18 +158,15 @@ theorem nodup_scan {f : ChomskyNormalFormRule T G.NT → Option G.NT} {acc : Lis
 
 theorem mem_leafCell {i : ℕ} {A : G.NT} :
     A ∈ leafCell G w i ↔ ∃ a, w[i]? = some a ∧ leaf A a ∈ G.rules := by
-  rw [leafCell, mem_scan]
+  simp only [leafCell, mem_scan, List.not_mem_nil, false_or]
   constructor
-  · rintro (h | ⟨r, hr, h⟩)
-    · simp at h
-    · cases r with
-      | leaf B a =>
-        simp only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
-        obtain ⟨h, rfl⟩ := h
-        exact ⟨a, h, hr⟩
-      | node => simp [leafMatch] at h
+  · rintro ⟨⟨B, a⟩ | ⟨_, _, _⟩, hr, h⟩
+    · obtain ⟨ha, rfl⟩ := by
+        simpa only [leafMatch, Option.ite_none_right_eq_some, Option.some.injEq] using h
+      exact ⟨a, ha, hr⟩
+    · cases h
   · rintro ⟨a, h, hr⟩
-    exact Or.inr ⟨leaf A a, hr, by simp [leafMatch, h]⟩
+    exact ⟨leaf A a, hr, by simp [leafMatch, h]⟩
 
 omit [DecidableEq T] in
 theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
@@ -228,14 +224,9 @@ theorem level_apply (tbl : Table G) (l i' l' : ℕ) :
 /-- Once level `l` has been filled (`l ≤ L`), cells of length `l` are unchanged by later levels. -/
 theorem table_eq_of_le {l L : ℕ} (hl : l ≤ L) (i : ℕ) :
     table G w L i l = table G w l i l := by
-  induction L with
-  | zero =>
-    obtain rfl : l = 0 := by omega
-    rfl
-  | succ L ih =>
-    rcases eq_or_lt_of_le hl with rfl | hlt
-    · rfl
-    · rw [table, level_apply, ite_eq_right (fun h => by omega), ih (by omega)]
+  induction hl with
+  | refl => rfl
+  | step hm ih => rw [table, level_apply, ite_eq_right (fun h => (Nat.lt_succ_of_le hm).ne h.1), ih]
 
 /-- The cell of length `L + 1` at `i` lists exactly the nonterminals deriving the subword, given
 that the table is correct for all shorter subwords. -/
@@ -313,20 +304,15 @@ theorem mem_table_iff {L i l : ℕ} (hl : 0 < l) (hlL : l ≤ L) (hi : i + l ≤
     split_ifs with h
     · obtain ⟨rfl, -⟩ := h
       exact mem_cell_iff hi (fun i l hl hlL hi A => ih hl hlL hi A) A
-    · have : l ≤ L := by
-        by_contra h'
-        exact h ⟨by omega, by omega⟩
-      exact ih hl this hi A
+    · exact ih hl (by omega) hi A
 
 /-- **Correctness of CYK** [Hopcroft, Motwani and Ullman, Section 7.4.4][Hopcroft2006]: the test
 accepts exactly the words of the language of the grammar. -/
 theorem cyk_eq_true_iff : cyk G w = true ↔ w ∈ G.toCFG.language := by
   rw [cyk]
   split_ifs with hw
-  · subst hw
-    exact mem_language_nil_iff.symm
-  · rw [decide_eq_true_iff, mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (by simp)]
-    simp
+  · exact hw ▸ mem_language_nil_iff.symm
+  · simp [mem_table_iff (List.length_pos_of_ne_nil hw) le_rfl (Nat.zero_add _).le]
 
 /-- Membership in the language of a grammar in Chomsky normal form is decidable, by CYK. -/
 instance decidableMemLanguage : DecidablePred (· ∈ G.toCFG.language) :=

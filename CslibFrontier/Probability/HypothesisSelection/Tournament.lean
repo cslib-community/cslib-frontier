@@ -215,11 +215,9 @@ private theorem toOuterMeasure_scheffe_bad_union_le (p : _root_.PMF α)
   refine (toOuterMeasure_toReal_biUnion_finset_le (iid p n) s.offDiag _).trans ?_
   refine (Finset.sum_le_card_nsmul _ _ _ fun jk _ =>
     abs_empiricalMass_sub_ge_le p (scheffeSet (models jk.1) (models jk.2)) n hγ).trans_eq ?_
-  have hcard : (s.offDiag.card : ℝ) = (s.card * (s.card - 1) : ℝ) := by
-    have hnat : s.offDiag.card = s.card * (s.card - 1) := by
-      rw [Finset.offDiag_card, Nat.mul_sub_left_distrib, mul_one]
-    rw [hnat, Nat.cast_mul, Nat.cast_sub hs.card_pos, Nat.cast_one]
-  rw [nsmul_eq_mul, hcard]
+  have hnat : s.offDiag.card = s.card * (s.card - 1) := by
+    rw [Finset.offDiag_card, Nat.mul_sub_left_distrib, mul_one]
+  rw [nsmul_eq_mul, hnat, Nat.cast_mul, Nat.cast_sub hs.card_pos, Nat.cast_one]
   ring
 
 private theorem toOuterMeasure_le_scheffe_bad_union (p : _root_.PMF α)
@@ -315,15 +313,9 @@ theorem scheffeSelect_of_cover (s : Finset ι) (hs : s.Nonempty) (models : ι �
       {x | 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x))}).toReal ≤
       2 * (s.card * (s.card - 1) : ℝ) * Real.exp (-2 * (n : ℝ) * γ ^ 2) := by
   rcases hcov p hp with ⟨i₀, hi₀, hdist⟩
-  have hsub :
-      {x : Fin n → α | 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x))} ⊆
-        {x : Fin n → α |
-          3 * dist p (models i₀) + 2 * γ < dist p (models (scheffeSelect s hs models x))} := by
-    intro x hx
-    have hlt : 3 * r + 2 * γ < dist p (models (scheffeSelect s hs models x)) := hx
-    exact lt_of_le_of_lt (by linarith) hlt
-  exact (toOuterMeasure_toReal_mono _ hsub).trans
+  refine le_trans (toOuterMeasure_toReal_mono _ fun x hx => ?_)
     (scheffeSelect_prob_gt_le p s hs models hi₀ n hγ)
+  exact (by linarith : 3 * dist p (models i₀) + 2 * γ ≤ 3 * r + 2 * γ).trans_lt hx
 
 end ScheffeTournament
 
@@ -509,14 +501,8 @@ private theorem toOuterMeasure_le_birge_bad_union [Finite α] {p : _root_.PMF α
     simp only [Set.mem_iUnion, Set.mem_union, Set.mem_ofPred_eq, Finset.mem_erase, not_exists,
       not_and, not_or] at hnot
     exact hgood x
-      (fun j hj hji hsep => by
-        cases hres : leCamBirgeTest (models i₀) (models j) x
-        · exact False.elim ((hnot j ⟨hji, hj⟩).1 hsep hres)
-        · rfl)
-      (fun j hj hji hsep => by
-        cases hres : leCamBirgeTest (models j) (models i₀) x
-        · rfl
-        · exact False.elim ((hnot j ⟨hji, hj⟩).2 hsep hres)) hx
+      (fun j hj hji hsep => Bool.eq_true_of_not_eq_false ((hnot j ⟨hji, hj⟩).1 hsep))
+      (fun j hj hji hsep => Bool.eq_false_iff.mpr ((hnot j ⟨hji, hj⟩).2 hsep)) hx
   exact (toOuterMeasure_toReal_mono _ hsub).trans
     (toOuterMeasure_birge_bad_union_le s models hi₀ n hr hp)
 

@@ -192,11 +192,9 @@ theorem Valid.exclusive {S : State n} (hS : S.Valid f) (hmov : ∀ J, ¬ S.Movab
     obtain ⟨-, hGz'⟩ := (SemiCircuit.inl_mem_children _).1 hN'
     have hargs := Gate.args_of_reads (Ne.symm hzz) hGz hGz'
     by_cases haff : IsAffineOp (S.gate G).op
-    · refine hmov G ⟨hG, haff, fun i hi hig => ?_⟩
-      have hip : i ∈ S.params := by
-        rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi <;>
-          simp only [hl, hr] at hi <;> cases hi <;> assumption
-      exact hS.wf.notMem_gates_of_mem_params hip hig
+    · refine hmov G ⟨hG, haff, fun i hi => hS.wf.notMem_gates_of_mem_params ?_⟩
+      rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi <;>
+        simp only [hl, hr] at hi <;> cases hi <;> assumption
     · exact h2 ⟨G, hG, z, z', haff, hargs, hz, hz1, hz', Ne.symm hzz⟩
   · exact hdel (Or.inr (Or.inr (Or.inr ⟨z, hz, e, hcz⟩)))
 
@@ -315,10 +313,8 @@ private theorem notMem_children_of_isPartner {S : State n} (h4 : ¬ S.PartnersSh
     (hpr : S.IsPartner p r) {N : ℕ ⊕ ℕ} (hNp : N ∈ S.children p) : N ∉ S.children r :=
   fun hNr => by
     obtain ⟨pr, hpr', ⟨h1, h2⟩ | ⟨h1, h2⟩⟩ := hpr
-    · obtain ⟨h1, h2⟩ : pr.1 = p ∧ pr.2 = r := ⟨h1, h2⟩
-      exact h4 ⟨pr, hpr', N, h1 ▸ hNp, h2 ▸ hNr⟩
-    · obtain ⟨h1, h2⟩ : pr.1 = r ∧ pr.2 = p := ⟨h2, h1⟩
-      exact h4 ⟨pr, hpr', N, h1 ▸ hNr, h2 ▸ hNp⟩
+    · exact h4 ⟨pr, hpr', N, (show pr.1 = p from h1) ▸ hNp, (show pr.2 = r from h2) ▸ hNr⟩
+    · exact h4 ⟨pr, hpr', N, (show pr.1 = r from h2) ▸ hNr, (show pr.2 = p from h1) ▸ hNp⟩
 
 /-- **Case 4** of the preliminary reductions: if partners `p` and `r` have a common child `H`,
 impose `p = r + c` so that `H` becomes constant and delete it; `r` becomes unused:
@@ -405,10 +401,9 @@ theorem Valid.step_of_pairInSystem {S : State n} {d : ℕ} (hS : S.Valid f)
     exact ⟨S₂, h₁.trans h₂⟩
   have hpu₂ : p ∈ S₂.unpaired :=
     (h.mem_unpaired_iff hS).2 ⟨hp, by simpa using hrp.symm, Or.inr ⟨r, by simp, hpr.symm⟩⟩
-  have hcp₂ : S₂.children p ⊆ {.inr e} := by
-    have := h.children_subset (mem_unpaired.1 hpu₂).1 (by simpa using hHrp)
-    rw [hcp] at this
-    exact this.trans Finset.sdiff_subset
+  have hcp₂ : S₂.children p ⊆ {.inr e} :=
+    (hcp ▸ h.children_subset (mem_unpaired.1 hpu₂).1 (by simpa using hHrp)).trans
+      Finset.sdiff_subset
   have hW := h.W_le (fun _ => 0) (fun u => if u = p then weight (S₂.deg p) else 0) fun u hu => by
     obtain ⟨-, hur⟩ := Finset.mem_sdiff.1 hu
     rcases eq_or_ne u p with rfl | hup
@@ -476,9 +471,8 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
   obtain ⟨Hg, rfl⟩ : ∃ Hg, Hr = .inl Hg := by
     rcases Hr with Hg | e
     exacts [⟨Hg, rfl⟩, (h5 ⟨r, hrpaired, e, (SemiCircuit.inr_mem_children _).1 hHr⟩).elim]
-  have hHgG : Hg ≠ G := by rintro rfl; exact hGr hHr
-  have hwr : w ≠ r := by
-    rintro rfl; exact hGr ((SemiCircuit.inl_mem_children _).2 ⟨hG, hGw⟩)
+  have hHgG : Hg ≠ G := fun e => hGr (e ▸ hHr)
+  have hwr : w ≠ r := fun e => hGr (e ▸ (SemiCircuit.inl_mem_children _).2 ⟨hG, hGw⟩)
   have hwpart : ¬ S.IsPartner r w := fun h' => hpw (hS.isPartner_unique hpr.symm h')
   -- an unpaired `w` is not isolated, else Case 2 applies
   have hwdeg : w ∈ S.unpaired → 2 ≤ S.deg w := fun hwu =>
@@ -570,13 +564,8 @@ theorem Valid.step_or_normal {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAf
     fun G hG hand x y hargs hx hy hxy => ?_⟩
   · have hxu : x ∈ S.unpaired := mem_unpaired.2 ⟨hx, fun hp => h5 ⟨x, hp, e, he, hxe⟩⟩
     have hex : Sum.inr e ∈ S.children x := (SemiCircuit.inr_mem_children _).2 ⟨he, hxe⟩
-    refine ⟨hxu, ?_⟩
-    by_contra hlt
-    have h1 : S.deg x = 1 := by
-      have := Finset.card_pos.2 ⟨_, hex⟩
-      change 0 < S.deg x at this
-      omega
-    exact hdel (Or.inr (Or.inr (Or.inr ⟨x, hxu, e, children_eq_singleton h1.le hex⟩)))
+    exact ⟨hxu, by_contra fun hlt => hdel (Or.inr (Or.inr (Or.inr
+      ⟨x, hxu, e, children_eq_singleton (Nat.le_of_not_lt hlt) hex⟩)))⟩
   · have hxu : x ∈ S.unpaired :=
       mem_unpaired.2 ⟨hx, fun hp => h6 ⟨G, hG, x, y, hand, hargs, hp, hy, hxy⟩⟩
     exact ⟨hxu, two_le_deg_of_not_andOnIsolated h2 hG hand hargs hxu hy hxy⟩

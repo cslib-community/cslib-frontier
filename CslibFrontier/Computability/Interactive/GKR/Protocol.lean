@@ -249,10 +249,7 @@ theorem lineStep_rbrSound (W : (Fin (C.width i) → Bool) → F) :
         q.eval t = (restrictLine x.left x.right W).eval t),
     fun x hx h => hx h, fun x => ⟨fun hS _ h => hS h, fun q => ⟨?_, fun t => ?_⟩⟩⟩
   · intro hS
-    change x ∉ C.endLang i W at hS
-    change (ProbComp.eval (ProbComp.uniform F)).toOuterMeasure {t | x ∈ C.endLang i W ∨
-      (C.lineAccepts i x q ∧ q.eval t = (restrictLine x.left x.right W).eval t)} ≤
-          (C.width i : ℝ≥0∞) / Fintype.card F
+    dsimp only [lineStep] at hS ⊢
     by_cases hacc : C.lineAccepts i x q
     · set q' := restrictLine x.left x.right W
       have hne : q ≠ q' := fun h => hS <| by
@@ -334,10 +331,9 @@ theorem sumcheckStage_complete (W : (Fin (C.width i) → Bool) → F) :
     (rel₁ := fun z => Sumcheck.rel (C.summand i W z) 0)
     (rel₂ := fun z => Sumcheck.rel (C.summand i W z) (C.sumcheckVars i)) (ε := 0)
     fun z => by
-      have := Reduction.Complete.iterate (rel := Sumcheck.rel (C.summand i W z))
+      simpa using Reduction.Complete.iterate (rel := Sumcheck.rel (C.summand i W z))
         (ε := fun _ => 0) (C.sumcheckVars i)
         fun j hj => Sumcheck.round_complete 2 _ (C.degreeOf_summand_le i W z) hj
-      simpa using this
   intro x w hxw
   refine le_trans (le_of_eq (congrArg _ (Set.ext fun r => ?_))) (h x w ?_)
   · simp only [Set.mem_ofPred_eq, endLang, language]
@@ -348,7 +344,7 @@ theorem sumcheckStage_complete (W : (Fin (C.width i) → Bool) → F) :
 theorem sumcheckStage_rbrSound (W : (Fin (C.width i) → Bool) → F) :
     (C.sumcheckStage i W).verifier.RbrSound (C.layerLang (i + 1) (C.step i W)) (C.endLang i W)
       (PerChallenge.iterate (fun _ => ((2 : ℝ≥0∞) / Fintype.card F, ())) (C.sumcheckVars i)) := by
-  have h := Verifier.RbrSound.bundle
+  convert Verifier.RbrSound.bundle
     (smp := sumcheckSamplers (F := F) (C.sumcheckVars i))
     (V := fun z => (Reduction.iterate (s := fun _ => Sumcheck.roundSpec F)
       (S := Sumcheck.Claim F) (W := fun _ => Unit) (Sumcheck.round 2 (C.summand i W z))
@@ -358,11 +354,10 @@ theorem sumcheckStage_rbrSound (W : (Fin (C.width i) → Bool) → F) :
     (L₂ := fun z => language (Sumcheck.rel (C.summand i W z) (C.sumcheckVars i)))
     fun z => Verifier.RbrSound.iterate (L := fun j => language (Sumcheck.rel (C.summand i W z) j))
       (C.sumcheckVars i) fun j hj =>
-        Sumcheck.round_rbrSound 2 _ (C.degreeOf_summand_le i W z) hj
-  have hL : {x : LayerClaim C F (i + 1) |
-      x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0)} =
-      C.layerLang (i + 1) (C.step i W) := Set.ext (C.mem_language_rel_zero i W)
-  rwa [hL] at h
+        Sumcheck.round_rbrSound 2 _ (C.degreeOf_summand_le i W z) hj using 2
+  · rfl
+  · exact funext fun x => propext (C.mem_language_rel_zero i W x).symm
+  · rfl
 
 /-! ### The output and input steps -/
 
@@ -466,12 +461,8 @@ theorem outputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     | some (r, _) => eval r (multilinearExtension D) = eval r (multilinearExtension (C.output x)),
     fun D hD h => hD h, fun D => ⟨?_, fun r => ?_⟩⟩
   · intro hD
-    have hset : {r : Fin (C.width C.depth) → F | eval r (multilinearExtension D) =
-        eval r (multilinearExtension (C.output x))} =
-        {r | eval r (multilinearExtension D - multilinearExtension (C.output x)) = 0} := by
-      ext
-      simp [sub_eq_zero]
-    exact hset ▸ toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
+    simp only [← sub_eq_zero (a := eval _ (multilinearExtension D)), ← eval_sub]
+    exact toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
       (totalDegree_multilinearExtension_sub_le _ _)
   · rintro hS ⟨y, hy, hout⟩
     rw [outputStep_outputOn] at hout

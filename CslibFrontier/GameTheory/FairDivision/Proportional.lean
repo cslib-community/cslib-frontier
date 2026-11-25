@@ -272,14 +272,11 @@ private theorem countQueries_dubinsSpanierAux (n : ℕ)
       rw [countQueries_mOfFn_const oracle _ (fun _ => RWQuery.countQueries_cutIn _ _ _ _ _),
         Nat.mul_one]
       rw [countQueries_dubinsSpanierAux n oracle (k + 1) (by omega)]
-      have heven : ∃ q, (k + 1) * (k + 1 + 1) = 2 * q := by
-        rcases Nat.even_or_odd k with ⟨t, rfl⟩ | ⟨t, rfl⟩
-        · exact ⟨(2 * t + 1) * (t + 1), by ring⟩
-        · exact ⟨(t + 1) * (2 * t + 3), by ring⟩
-      obtain ⟨q, hq⟩ := heven
+      obtain ⟨q, hq⟩ := Nat.even_mul_succ_self (k + 1)
       have hq_pos : 1 ≤ q := by nlinarith
-      have hnext : (k + 2) * (k + 2 + 1) = 2 * (q + (k + 2)) := by linarith
-      rw [hq, hnext, Nat.mul_div_right q (by omega), Nat.mul_div_right (q + (k + 2)) (by omega)]
+      have h1 : (k + 1) * (k + 1 + 1) = 2 * q := by omega
+      have h2 : (k + 2) * (k + 2 + 1) = 2 * (q + (k + 2)) := by linarith
+      rw [h1, h2, Nat.mul_div_right q (by omega), Nat.mul_div_right (q + (k + 2)) (by omega)]
       omega
 
 /-- Exact Robertson–Webb query count of `dubinsSpanierQ n` for `1 ≤ n`:
@@ -386,9 +383,7 @@ private theorem dubinsSpanierAux_proportional {n : ℕ} {v : Fin n → CakeValua
       have hmarks_get : marks.get = markFn := funext fun j => List.Vector.get_ofFn markFn j
       set σ : Equiv.Perm (Fin (k + 2)) := Tuple.sort marks.get
       set c : ℝ := marks.get (σ 0)
-      have hc_bounds : a ≤ c ∧ c ≤ 1 := by
-        rw [show c = markFn (σ 0) by rw [← hmarks_get]]
-        exact (hmark_spec (σ 0)).1
+      have hc_bounds : a ≤ c ∧ c ≤ 1 := by simpa [c, hmarks_get] using (hmark_spec (σ 0)).1
       have hrem_next : ∀ s : Fin (k + 1),
           ((k + 1 : ℕ) : ℝ) / (n : ℝ) ≤ v (agents (σ s.succ)) c 1 := by
         intro s
@@ -467,20 +462,14 @@ private theorem ofFn_sumElim_splitFinEquiv {α : Type} {m k : ℕ} (hk : k ≤ m
     (fL : Fin k → α) (fR : Fin (m - k) → α) :
     List.ofFn (Sum.elim fL fR ∘ (splitFinEquiv k hk).symm) =
       List.ofFn fL ++ List.ofFn fR := by
-  refine List.ext_getElem ?_ fun i hi1 hi2 => ?_
-  · simp only [List.length_ofFn, List.length_append]
-    omega
-  · simp only [List.length_ofFn] at hi1
-    rw [List.getElem_ofFn]
-    by_cases hik : i < k
-    · rw [List.getElem_append_left (by simp only [List.length_ofFn]; exact hik),
-        List.getElem_ofFn]
-      simp only [Function.comp_apply, splitFinEquiv, Equiv.coe_fn_symm_mk, hik, ↓reduceDIte,
-        Sum.elim_inl]
-    · rw [List.getElem_append_right (by simp only [List.length_ofFn]; omega),
-        List.getElem_ofFn]
-      simp only [Function.comp_apply, splitFinEquiv, Equiv.coe_fn_symm_mk, hik, ↓reduceDIte,
-        Sum.elim_inr, List.length_ofFn]
+  refine List.ext_getElem (by simp only [List.length_ofFn, List.length_append]; omega)
+    fun i hi1 hi2 => ?_
+  simp only [List.length_ofFn] at hi1
+  by_cases hik : i < k
+  · rw [List.getElem_append_left (by rw [List.length_ofFn]; omega)]
+    simp [splitFinEquiv, hik]
+  · rw [List.getElem_append_right (by rw [List.length_ofFn]; omega)]
+    simp [splitFinEquiv, hik]
 
 private noncomputable def evenPazAux (n : ℕ) (m : ℕ) (a b : ℝ) (agents : Fin m → Fin n) :
     FreeM (RWQuery (Fin n)) (SubDivision m) :=
@@ -691,9 +680,7 @@ private theorem evenPazAux_proportional {n : ℕ} {v : Fin n → CakeValuation}
       set σ : Equiv.Perm (Fin m) := Tuple.sort marks.get
       set pivotIdx : Fin m := ⟨k - 1, by omega⟩
       set c : ℝ := marks.get (σ pivotIdx)
-      have hc_bounds : a ≤ c ∧ c ≤ b := by
-        rw [show c = markFn (σ pivotIdx) by rw [← hmarks_get]]
-        exact (hmark_spec (σ pivotIdx)).1
+      have hc_bounds : a ≤ c ∧ c ≤ b := by simpa [c, hmarks_get] using (hmark_spec (σ pivotIdx)).1
       set e := splitFinEquiv k hk_le
       set s := e.symm (σ.symm r)
       have hr : agents r = agents (σ (e s)) := by simp only [s, Equiv.apply_symm_apply]

@@ -216,9 +216,7 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
   · rw [mem_yes_GapExactThreeLin] at hF
     rw [mem_yes_GapLin]
     rcases eq_or_ne F [] with rfl | he
-    · refine ⟨fun _ => false, ?_⟩
-      change c ≤ ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ)
-      simpa using hc1
+    · exact ⟨fun _ => false, hc1.trans_eq (by norm_num : (1 : ℝ) = ((1 : ℕ) : ℝ) / ((1 : ℕ) : ℝ))⟩
     · obtain ⟨σ, hσ⟩ := CSP.exists_countUnsat_div_eq_unsatVal CSP.paritySem F
       refine ⟨σ, ?_⟩
       simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
@@ -226,10 +224,8 @@ theorem polyTimeReducible_GapExactThreeLin_GapLin {c s s' : ℝ} (hc1 : c ≤ 1)
       linarith [countSat_div_add_countUnsat_div (List.length_pos_of_ne_nil he) σ]
   · rw [mem_no_GapExactThreeLin (hs.trans_le hs'c)] at hF
     rw [mem_no_GapLin]
-    have he : F ≠ [] := by
-      rintro rfl
-      simp only [CSP.unsatVal_nil, sub_zero] at hF
-      linarith
+    have he : F ≠ [] := fun h0 => by
+      simp only [h0, CSP.unsatVal_nil, sub_zero] at hF; linarith
     refine ⟨hs'c, fun σ => ?_⟩
     simp only [toGapLin, List.isEmpty_eq_false_iff.mpr he, Bool.false_eq_true, ↓reduceIte,
       countSat_map_affine, List.length_map]
@@ -296,15 +292,12 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
       (Graph.encoding (encPi (encPi (encPair encBool (encPi encBool)))))
       (GapLabelCover β γ 1 η) := by
     refine (GapLabelCover_npHard_pow (by positivity : 0 < k)).mono (fun _ hg => hg) fun g hg => ?_
-    have hpow : baseLC ^ ((k : ℝ) / 21) = baseLC ^ n := by
-      rw [← Real.rpow_natCast]
-      congr 1
-      dsimp only [k]
-      push_cast
+    have hk : (k : ℝ) / 21 = n := by
+      push_cast [k]
       ring
     rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢
     change 1 - (g.toGraph projectionEval).unsatVal ≤ baseLC ^ ((k : ℝ) / 21) ∧ _ at hg
-    rw [hpow] at hg
+    rw [hk, Real.rpow_natCast] at hg
     exact ⟨hg.1.trans <| (pow_le_pow_of_le_one (by norm_num) (by norm_num)
       ((le_max_left n₁ n₂).trans (Nat.le_succ _))).trans hn₁.le, hη1⟩
   -- Bound the degenerate-equation share `w = (1 - 1 / m) ^ |β| < wMax`.
@@ -475,9 +468,7 @@ theorem P_eq_NP_of_maxExactThreeLin_approx {A : CSP Bool ℕ → List ℕ} {ρ :
       (fun F hF => by
         rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
         exact CSP.unsatVal_le CSP.paritySem F _)
-      (fun F _ hpos => Nat.pos_of_ne_zero fun h0 => by
-        rw [List.length_eq_zero_iff.1 h0, CSP.unsatVal_nil] at hpos
-        exact lt_irrefl _ hpos)
+      (fun _ _ hpos => List.length_pos_of_ne_nil fun h0 => hpos.ne' (by simp [h0]))
       (fun F hF => by
         rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
         exact happrox F hF)

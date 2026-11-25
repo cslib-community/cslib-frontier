@@ -228,11 +228,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
       push_cast
       rfl
     have ht : ((∑ i ∈ S, s i : ℕ) : ℝ) = ∑ c, st c * (parityOn S c).toNat := by
-      have h := oddForm_onSingles (fun i => (s i : ℝ)) S
-      rw [oddForm] at h
-      rw [hst, h]
-      push_cast
-      rfl
+      simpa [hst, oddForm] using (oddForm_onSingles (fun i => (s i : ℝ)) S).symm
     simp only [oddForm, hg, add_mul, sum_add_distrib, hδ, ite_mul, one_mul, zero_mul,
       sum_ite_eq', mem_univ, ite_true]
     push_cast
@@ -259,10 +255,9 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     have h4 : (4 : ℝ) * (andreevRidge (andreevSharpKappa b m S) (u : ℤ) : ℝ) =
         -8 * ((u + u % 2 : ℕ) : ℝ) ^ 2 +
           2 * (andreevSharpKappa b m S : ℝ) * ((u + u % 2 : ℕ) : ℝ) := by
-      have h := congrArg (fun z : ℤ => (z : ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
-      simp only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
-        Int.cast_natCast] at h
-      exact h
+      simpa only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
+        Int.cast_natCast] using
+        congrArg (Int.cast (R := ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
     rw [hu, h4, hG S, hkappa]
     ring
   rw [two_mul_sum_oddForm, four_mul_sum_oddForm_mul_oddForm,
@@ -293,15 +288,12 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
   have hsum_δ (F : BitString b → ℝ) : ∑ c, F c * δ c = F p := by
     simp [hδ]
   have hsst : ∑ c, st c = σ := by
-    have := sum_onSingles_mul (fun i => (s i : ℝ)) fun _ => 1
-    simpa [hσ] using this
+    simpa [hst, hσ] using sum_onSingles_mul (fun i => (s i : ℝ)) fun _ => 1
   have hsstst : ∑ c, st c * st c = ∑ i, (s i : ℝ) ^ 2 := by
-    rw [hst, sum_onSingles_mul]
-    simp [sq]
+    simp [hst, sum_onSingles_mul, sq]
   have hsδ : ∑ c, δ c = 1 := by simp [hδ]
   have hsε : ∑ c, ε c = b := by
-    have := sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
-    simpa [hε] using this
+    simpa [hε] using sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
   have hsεa : ∑ c, ε c * a c = (1 + α) * E := by
     rw [hε, sum_onSingles_mul]
     simp [ha, hE, mul_sum, hα]

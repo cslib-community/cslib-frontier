@@ -81,25 +81,20 @@ theorem blackPebblable_pyramid {h : ℕ} (v : PyramidVertex h) :
   obtain ⟨k, j, hkj⟩ := v
   induction k generalizing j with
   | zero =>
-    refine BlackPebblable.of_forall_adj (s := 1) ∅ (fun u hu => ?_) (by simp) (by simp)
-      (by simp)
-    simp only [pyramid_adj] at hu
-    omega
+    exact BlackPebblable.of_forall_adj (s := 1) ∅ (fun _ hu => by simp [pyramid_adj] at hu)
+      (by simp) (by simp) (by simp)
   | succ k ih =>
     let y : PyramidVertex h := ⟨k, j, by omega⟩
     let z : PyramidVertex h := ⟨k, j + 1, by omega⟩
     have hyz := Finset.card_le_two (a := y) (b := z)
     change BlackPebblable _ (k + 1 + 2) _
-    refine BlackPebblable.of_forall_adj (s := k + 2) {y, z} (fun u hu => ?_) ?_
+    refine BlackPebblable.of_forall_adj (s := k + 2) {y, z} (fun u hu => ?_)
+      ((Finset.forall_mem_insert _ _ _).2
+        ⟨ih j _, fun _ hu => Finset.mem_singleton.1 hu ▸ ih (j + 1) _⟩)
       (by omega) (by omega)
-    · simp only [pyramid_adj] at hu
-      simp only [Finset.mem_insert, Finset.mem_singleton, PyramidVertex.ext_iff, y, z]
-      omega
-    · intro u hu
-      simp only [Finset.mem_insert, Finset.mem_singleton] at hu
-      rcases hu with rfl | rfl
-      · exact ih j _
-      · exact ih (j + 1) _
+    simp only [pyramid_adj, Finset.mem_insert, Finset.mem_singleton, PyramidVertex.ext_iff, y, z]
+      at hu ⊢
+    omega
 
 /-- The vertices of the sub-pyramid with sink `v`. -/
 def PyramidVertex.below {h : ℕ} (v : PyramidVertex h) : Set (PyramidVertex h) :=
@@ -122,11 +117,9 @@ private theorem pyramid_unblocked_column {h : ℕ} {P : Finset (PyramidVertex h)
   | zero =>
     exact .source (by simp [pyramid_adj]) fun hv => lt_irrefl _ (hP _ hv rfl)
   | succ k ih =>
-    refine .step (u := ⟨k, j, by omega⟩) (ih (by omega) fun w hw hwj => ?_)
+    exact .step (u := ⟨k, j, by omega⟩)
+      (ih (by omega) fun w hw hwj => Nat.lt_of_succ_lt (hP w hw hwj))
       (pyramid_adj.2 ⟨rfl, .inl rfl⟩) fun hv => lt_irrefl _ (hP _ hv rfl)
-    have := hP w hw hwj
-    dsimp only at this ⊢
-    omega
 
 /-- The diagonal path into `v` is open when `P` has no pebble on it. -/
 private theorem pyramid_unblocked_diagonal {h : ℕ} {P : Finset (PyramidVertex h)}
@@ -137,11 +130,10 @@ private theorem pyramid_unblocked_diagonal {h : ℕ} {P : Finset (PyramidVertex 
   | zero =>
     exact .source (by simp [pyramid_adj]) fun hv => lt_irrefl _ (hP _ hv rfl)
   | succ k ih =>
-    refine .step (u := ⟨k, j + 1, by omega⟩) (ih (j + 1) (by omega) fun w hw hwj => ?_)
+    exact .step (u := ⟨k, j + 1, by omega⟩)
+      (ih (j + 1) (by omega) fun w hw hwj =>
+        Nat.lt_of_succ_lt (hP w hw (by dsimp only at hwj ⊢; omega)))
       (pyramid_adj.2 ⟨rfl, .inr rfl⟩) fun hv => lt_irrefl _ (hP _ hv rfl)
-    have := hP w hw (by dsimp only at hwj ⊢; omega)
-    dsimp only at this ⊢
-    omega
 
 private theorem forcesPebbles_pyramid_aux {h : ℕ} (k j : ℕ) (hkj : k + 1 + j ≤ h) :
     ForcesPebbles (pyramid h) (PyramidVertex.below ⟨k + 1, j, hkj⟩) ⟨k + 1, j, hkj⟩ (k + 3) := by

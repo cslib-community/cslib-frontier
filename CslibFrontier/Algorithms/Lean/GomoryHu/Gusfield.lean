@@ -602,6 +602,7 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     · exact Relation.ReflTransGen.single (Or.inl hqz)
   have hfUX : f U = f X :=
     le_antisymm (U0.le hX.left_mem hX.right_notMem) (hX.le U0.left_mem U0.right_notMem)
+  have hne_s : ∀ {i}, i ∈ P → i ≠ s := fun hi h => hsP (h ▸ hi)
   by_cases hswap : p t ∈ X
   · -- `s` takes the place of `t`.
     have htr : t ≠ r := fun htr => hX.right_notMem (by rwa [htr, ← I.parent_root, ← htr])
@@ -610,60 +611,53 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     have qt' : q t = s := by rw [qt, ite_eq_left hswap]
     refine ⟨Function.update (Function.update S s (S t)) t Uᶜ,
       ⟨Finset.mem_insert_of_mem I.root_mem, hqr, hmem, ?_, ?_, ?_, ?_⟩, ?_⟩
-    · intro i hi hir
-      by_cases his : i = s
-      · rw [his, qs', Function.update_of_ne hst, Function.update_self]
+    · rintro i hi hir
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [qs', Function.update_of_ne hst, Function.update_self]
         exact isMinCutBetween_swap hsym hct U0 ((hsS t htP htr).mpr hct.left_mem) (U2.mpr hswap)
-      by_cases hit : i = t
-      · rw [hit, qt', Function.update_self]
+      rcases eq_or_ne i t with rfl | hit
+      · rw [qt', Function.update_self]
         exact U0.compl hsym
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne hit, Function.update_of_ne his]
-      exact hcut_other i hiP hir his hit
-    · intro i hi hir z hzi
-      by_cases his : i = s
-      · rw [his, Function.update_of_ne hst, Function.update_self]
-        rw [his] at hzi
-        by_cases hzt : z = t
-        · rw [hzt, qt']
-          exact iff_of_true hct.left_mem ((hsS t htP htr).mpr hct.left_mem)
+      rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP)]
+      exact hcut_other i hiP hir (hne_s hiP) hit
+    · rintro i hi hir z hzi
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [Function.update_of_ne hst, Function.update_self]
+        rcases eq_or_ne z t with rfl | hzt
+        · rw [qt']
+          exact iff_of_true hct.left_mem ((hsS _ htP htr).mpr hct.left_mem)
         · exact hgen (S t) (hsS t htP htr) z hzi hzt (I.lam t htP htr z hzt)
-      by_cases hit : i = t
-      · rw [hit, Function.update_self]
-        rw [hit] at hzi
-        by_cases hzs : z = s
-        · rw [hzs, qs', Finset.mem_compl, Finset.mem_compl]
+      rcases eq_or_ne i t with rfl | hit
+      · rw [Function.update_self]
+        rcases eq_or_ne z s with rfl | hzs
+        · rw [qs', Finset.mem_compl, Finset.mem_compl]
           exact iff_of_false (not_not.mpr U0.left_mem) (not_not.mpr (U2.mpr hswap))
         · simp only [Finset.mem_compl]
           exact not_congr (hgenU z hzs hzi)
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne hit, Function.update_of_ne his]
-      by_cases hzs : z = s
-      · rw [hzs, qs', hsS i hiP hir]
-        exact I.lam i hiP hir t (Ne.symm hit)
-      by_cases hzt : z = t
-      · rw [hzt, qt', hsS i hiP hir]
+      rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP)]
+      rcases eq_or_ne z s with rfl | hzs
+      · rw [qs', hsS i hiP hir]
+        exact I.lam i hiP hir t hit.symm
+      rcases eq_or_ne z t with rfl | hzt
+      · rw [qt', hsS i hiP hir]
       exact hgen (S i) (hsS i hiP hir) z hzs hzt (I.lam i hiP hir z hzi)
-    · intro i hi hir
-      by_cases his : i = s
-      · rw [his, Function.update_of_ne hst, Function.update_self, gusfieldStepWeight, ht,
+    · rintro i hi hir
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [Function.update_of_ne hst, Function.update_self, gusfieldStepWeight, ht,
           ite_eq_left hswap, ite_eq_left rfl]
         exact I.weight t htP htr
-      by_cases hit : i = t
-      · rw [hit, Function.update_self, gusfieldStepWeight, ht, ite_eq_left hswap,
+      rcases eq_or_ne i t with rfl | hit
+      · rw [Function.update_self, gusfieldStepWeight, ht, ite_eq_left hswap,
           ite_eq_right hst.symm, ite_eq_left rfl, hval, ← hfUX, hsym U]
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne hit, Function.update_of_ne his, gusfieldStepWeight, ht,
-        ite_eq_left hswap, ite_eq_right his, ite_eq_right hit]
+      rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP), gusfieldStepWeight, ht,
+        ite_eq_left hswap, ite_eq_right (hne_s hiP), ite_eq_right hit]
       exact I.weight i hiP hir
     · refine reflTransGen_tAdj_of_step I.conn fun z => ?_
-      by_cases hzs : z = s
-      · rw [hzs, ht]
-        exact Relation.ReflTransGen.single (Or.inr qt')
-      by_cases hzt : z = t
-      · rw [hzt]
-        exact (Relation.ReflTransGen.single (show TAdj q t s from Or.inl qt')).tail
-          (show TAdj q s (p t) from Or.inl qs')
+      rcases eq_or_ne z s with rfl | hzs
+      · exact ht ▸ Relation.ReflTransGen.single (Or.inr qt')
+      rcases eq_or_ne z t with rfl | hzt
+      · exact (Relation.ReflTransGen.single (show TAdj q _ s from Or.inl qt')).tail
+          (show TAdj q s _ from Or.inl qs')
       exact hconn_other z hzs hzt (Or.inr qt')
     · rw [gusfieldStepWeight, ht, ite_eq_left hswap, ite_eq_right (Ne.symm hsr),
         ite_eq_right (Ne.symm htr)]
@@ -672,48 +666,39 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     have qt' : q t = p t := by rw [qt, ite_eq_right hswap]
     refine ⟨Function.update S s U,
       ⟨Finset.mem_insert_of_mem I.root_mem, hqr, hmem, ?_, ?_, ?_, ?_⟩, ?_⟩
-    · intro i hi hir
-      by_cases his : i = s
-      · rw [his, qs', Function.update_self]
+    · rintro i hi hir
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [qs', Function.update_self]
         exact U0
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne his]
-      by_cases hit : i = t
-      · rw [hit] at hir hiP ⊢
-        rw [qt']
-        exact I.cut t hiP hir
-      exact hcut_other i hiP hir his hit
-    · intro i hi hir z hzi
-      by_cases his : i = s
-      · rw [his, Function.update_self]
-        rw [his] at hzi
-        by_cases hzt : z = t
-        · rw [hzt, qt']
+      rw [Function.update_of_ne (hne_s hiP)]
+      rcases eq_or_ne i t with rfl | hit
+      · exact qt' ▸ I.cut i hiP hir
+      exact hcut_other i hiP hir (hne_s hiP) hit
+    · rintro i hi hir z hzi
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [Function.update_self]
+        rcases eq_or_ne z t with rfl | hzt
+        · rw [qt']
           exact iff_of_false U0.right_notMem (fun h => hswap (U2.mp h))
         · exact hgenU z hzi hzt
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne his]
-      by_cases hzs : z = s
-      · rw [hzs, qs']
-        exact hsS i hiP hir
-      by_cases hzt : z = t
-      · rw [hzt, qt']
-        exact I.lam i hiP hir t (fun h => hzi (hzt.trans h))
+      rw [Function.update_of_ne (hne_s hiP)]
+      rcases eq_or_ne z s with rfl | hzs
+      · exact qs' ▸ hsS i hiP hir
+      rcases eq_or_ne z t with rfl | hzt
+      · exact qt' ▸ I.lam i hiP hir _ hzi
       exact hgen (S i) (hsS i hiP hir) z hzs hzt (I.lam i hiP hir z hzi)
-    · intro i hi hir
-      by_cases his : i = s
-      · rw [his, Function.update_self, gusfieldStepWeight, ht, ite_eq_right hswap,
+    · rintro i hi hir
+      rcases Finset.mem_insert.mp hi with rfl | hiP
+      · rw [Function.update_self, gusfieldStepWeight, ht, ite_eq_right hswap,
           ite_eq_left rfl, hval, ← hfUX]
-      have hiP : i ∈ P := (Finset.mem_insert.mp hi).resolve_left his
-      rw [Function.update_of_ne his, gusfieldStepWeight, ht, ite_eq_right hswap, ite_eq_right his]
+      rw [Function.update_of_ne (hne_s hiP), gusfieldStepWeight, ht, ite_eq_right hswap,
+        ite_eq_right (hne_s hiP)]
       exact I.weight i hiP hir
     · refine reflTransGen_tAdj_of_step I.conn fun z => ?_
-      by_cases hzs : z = s
-      · rw [hzs, ht]
-        exact Relation.ReflTransGen.single (Or.inl qs')
-      by_cases hzt : z = t
-      · rw [hzt]
-        exact Relation.ReflTransGen.single (Or.inl qt')
+      rcases eq_or_ne z s with rfl | hzs
+      · exact ht ▸ Relation.ReflTransGen.single (Or.inl qs')
+      rcases eq_or_ne z t with rfl | hzt
+      · exact Relation.ReflTransGen.single (Or.inl qt')
       exact hconn_other z hzs hzt (Or.inl qs')
     · rw [gusfieldStepWeight, ht, ite_eq_right hswap, ite_eq_right (Ne.symm hsr)]
 

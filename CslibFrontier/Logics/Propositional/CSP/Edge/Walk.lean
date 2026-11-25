@@ -193,9 +193,7 @@ theorem nodup_edges_snoc (w : Walk F) (o p : Occurrence F)
   rw [snoc, edges, edgesOf_append, List.nodup_append]
   refine ⟨hw, by simp [edgesOf, hop], fun a ha b hb => ?_⟩
   rintro rfl
-  simp only [edgesOf, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.mem_cons,
-    List.not_mem_nil, or_false] at hb
-  rcases hb with rfl | rfl
+  rcases (by simpa [edgesOf] using hb : a = o ∨ a = p) with rfl | rfl
   · exact ho ha
   · exact hp ha
 
@@ -238,11 +236,9 @@ theorem InternallyConsistent.snoc {f : OccurrenceLabeling F Bool}
   induction s generalizing v with
   | nil => exact ⟨.inl rfl, trivial⟩
   | cons a s ih =>
-    have hend' := hend.resolve_left (List.cons_ne_nil _ _)
-    refine ⟨.inr ?_, ih hi.2 a.2.var (.inr hend')⟩
-    rcases hi.1 with rfl | h
-    · exact hend'
-    · exact h
+    have hend' : ¬ Inconsistent f (finishFrom a.2.var s) := hend.resolve_left fun h => nomatch h
+    exact ⟨.inr (hi.1.elim (fun hs => (hs ▸ hend' : ¬ Inconsistent f (finishFrom a.2.var [])))
+      id), ih hi.2 a.2.var (.inr hend')⟩
 
 omit [DecidableEq V] in
 /-- Append a fresh locally valid step to a prefix-valid trail. -/
@@ -320,9 +316,7 @@ theorem IsWalk.partner_transition (h : EdgeInstance F) {w : Walk F} (hw : w.IsWa
     (he : w.steps = s ++ (a, b) :: (o, p) :: t) : o = h.partner b := by
   obtain ⟨hl, hn⟩ := hw
   rw [he, linked_append_iff] at hl
-  change (edgesOf w.steps).Nodup at hn
-  rw [he, edgesOf_append, List.nodup_append] at hn
-  have ht := hn.2.1
+  have ht := (List.nodup_append.mp (by simpa only [edges, he, edgesOf_append] using hn)).2.1
   simp only [edgesOf_cons, List.nodup_cons, List.mem_cons, not_or] at ht
   exact (h.eq_or_eq_partner hl.2.2.2.1).resolve_left (Ne.symm ht.2.1.1)
 

@@ -85,19 +85,14 @@ theorem exists_subdivision_embedding_with_scaled_reference_spokes
   have hsε := hs.2.trans_le (min_le_left ε 1)
   have hsball : s ∈ Metric.ball (0 : ℝ) ε :=
     Metric.mem_ball.mpr (by simpa only [Real.dist_eq, sub_zero, abs_of_pos hs.1] using hsε)
-  have htime (d : Dart I.graph) : s / factor d ∈ Set.Ioo (0 : ℝ) (1 / 2) := by
-    refine ⟨div_pos hs.1 (hfactor_pos d), (div_lt_iff₀ (hfactor_pos d)).mpr ?_⟩
-    have h := hball hsball d
-    linarith only [h]
+  have htime (d : Dart I.graph) : s / factor d ∈ Set.Ioo (0 : ℝ) (1 / 2) :=
+    ⟨div_pos hs.1 (hfactor_pos d),
+      (div_lt_iff₀ (hfactor_pos d)).mpr (by linarith [hball hsball d])⟩
   obtain ⟨E, hE, hkeep, hends⟩ :=
     exists_subdivision_embedding_at_endTimes hI hA (fun d => s / factor d) htime
-  refine ⟨E, hE, fun v hv => (hkeep v hv).trans (hAcenter v hv), ?_⟩
-  intro d hd
-  have hv := RotationSystem.vertex_mem hdecl d
-  have h := hends d
-  dsimp only at h ⊢
-  rw [hAcenter _ hv, hfactor_eq d hd, smul_smul, div_mul_cancel₀ _ (hfactor_pos d).ne'] at h
-  exact h
+  refine ⟨E, hE, fun v hv => (hkeep v hv).trans (hAcenter v hv), fun d hd => ?_⟩
+  simpa only [hAcenter _ (RotationSystem.vertex_mem hdecl d), hfactor_eq d hd, smul_smul,
+    div_mul_cancel₀ _ (hfactor_pos d).ne'] using hends d
 
 /-- A realization of the prescribed rotation admits a subdivision embedding at the original
 reference centers with every frozen edge equal to its complete literal reference route.
@@ -160,16 +155,9 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
     · have hp := (hspoke d hd).2
       change P.route f = _ at hp ⊢
       rw [hp, ha, hb, hg, hT a, hT b]
-      cases htag : d.2
-      · have hae : a = o := by
-          simpa only [htag, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using ho
-        change Route.line o (o + s • (b - a)) =
-          Route.line (o + s • (a - o)) (o + s • (b - o))
-        rw [hae, sub_self, smul_zero, add_zero]
-      · have hbe : b = o := by simpa only [htag, Route.endpoint, ↓reduceIte] using ho
-        change Route.line (o + s • (a - b)) o =
-          Route.line (o + s • (a - o)) (o + s • (b - o))
-        rw [hbe, sub_self, smul_zero, add_zero]
+      cases htag : d.2 <;>
+        simp only [htag, Route.endpoint, Bool.false_eq_true, ↓reduceIte, a, b] at ho ⊢ <;>
+        simp [ho, o]
     · calc
         F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := hFt t ht
         _ = AffineMap.lineMap (T a) (T b) t := AffineMap.apply_lineMap T a b t
@@ -180,14 +168,11 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       route e := if frozen e then Q.route e else M.route e
       endpoint_eq := fun e side => by
         by_cases he : frozen e
-        · have h := (hparam e he).1
-          have heq := P.endpoint_eq e side
-          rw [h] at heq
+        · have heq := (hparam e he).1 ▸ P.endpoint_eq e side
           have hx : F ((Q.route e).endpoint side) = P.vertex (Dart.vertex (e, side)) := by
             cases side <;> exact heq
-          change (if frozen e then Q.route e else M.route e).endpoint side =
-            F.symm (P.vertex (Dart.vertex (e, side)))
-          rw [ite_eq_left he, ← hx, F.symm_apply_apply]
+          rw [ite_eq_left he]
+          exact (F.symm_apply_apply _).symm.trans (congrArg F.symm hx)
         · simpa only [ite_eq_right he] using M.endpoint_eq e side }
   have hSimple (e : Fin (subdivisionGraph I).edges.length) : (E.route e).IsSimple := by
     by_cases he : frozen e

@@ -133,16 +133,12 @@ theorem isAffineFun_iff {g : F → F} : IsAffineFun g ↔ ∀ t, g t = (g 1 - g 
 /-- Affine functions of one variable are the underlying functions of Mathlib's affine maps. -/
 theorem isAffineFun_iff_exists_affineMap {g : F → F} :
     IsAffineFun g ↔ ∃ φ : F →ᵃ[F] F, ⇑φ = g := by
-  constructor
-  · rintro ⟨a, b, h⟩
-    refine ⟨a • AffineMap.id F F + AffineMap.const F F b, funext fun t => ?_⟩
-    simp [h t]
-  · rintro ⟨φ, rfl⟩
-    refine ⟨φ.linear 1, φ 0, fun t => ?_⟩
-    have hl : φ.linear t = φ.linear 1 * t := by
-      simpa [mul_comm] using φ.linear.map_smul t (1 : F)
-    rw [← hl]
-    exact congrFun φ.decomp t
+  refine ⟨fun ⟨a, b, h⟩ =>
+    ⟨a • AffineMap.id F F + AffineMap.const F F b, funext fun t => by simp [h t]⟩, ?_⟩
+  rintro ⟨φ, rfl⟩
+  refine ⟨φ.linear 1, φ 0, fun t => ?_⟩
+  have hl : φ.linear t = φ.linear 1 * t := by simpa [mul_comm] using φ.linear.map_smul t (1 : F)
+  exact hl ▸ congrFun φ.decomp t
 
 /-- A constant function is affine. -/
 theorem isAffineFun_const (c : F) : IsAffineFun fun _ : F => c :=
@@ -198,14 +194,11 @@ theorem IsAffineFun.eq_of_eq_of_eq {g h : F → F} (hg : IsAffineFun g) (hh : Is
   obtain ⟨a, b, hg⟩ := hg
   obtain ⟨c, d, hh⟩ := hh
   rw [hg, hh] at hs hu
-  have hac : a = c := by
-    have : (a - c) * (s - u) = 0 := by linear_combination hs - hu
-    exact sub_eq_zero.mp ((mul_eq_zero.mp this).resolve_right (sub_ne_zero.mpr hsu))
-  subst hac
-  have hbd : b = d := by linear_combination hs
-  subst hbd
-  funext t
-  rw [hg, hh]
+  obtain rfl : a = c := sub_eq_zero.mp
+    ((mul_eq_zero.mp (by linear_combination hs - hu : (a - c) * (s - u) = 0)).resolve_right
+      (sub_ne_zero.mpr hsu))
+  obtain rfl : b = d := by linear_combination hs
+  exact funext fun t => (hg t).trans (hh t).symm
 
 /-! ### Multilinear functions -/
 
@@ -244,11 +237,8 @@ private theorem IsMultilinear.eq_zero_aux [Fintype ι] {h : (ι → F) → F} (h
   induction k with
   | zero =>
     intro x hx
-    refine h0 x fun i => by_contra fun hi => ?_
-    push Not at hi
-    have hmem : i ∈ ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι) := by simp [hi]
-    have := card_pos.2 ⟨i, hmem⟩
-    omega
+    refine h0 x fun i => Classical.or_iff_not_imp_left.2 fun h0i => by_contra fun h1i => ?_
+    exact Nat.not_lt_zero _ ((card_pos.2 ⟨i, by simp [h0i, h1i]⟩).trans_le hx)
   | succ k ih =>
     intro x hx
     by_cases hb : ∃ i, x i ≠ 0 ∧ x i ≠ 1
@@ -280,11 +270,9 @@ theorem IsMultilinear.eq_zero_of_forall_bitPoint [Finite ι] {h : (ι → F) →
   have := Fintype.ofFinite ι
   funext x
   refine hh.eq_zero_aux (fun y hy => ?_) _ x le_rfl
-  have : y = bitPoint fun i => decide (y i = 1) := by
-    funext i
-    rcases hy i with h | h <;> simp [h, bitVal]
-  rw [this]
-  exact h0 _
+  exact (congrArg h (funext fun i => by
+    rcases hy i with hi | hi <;> simp [hi, bitPoint, bitVal])).trans
+    (h0 fun i => decide (y i = 1))
 
 /-- The multilinear extension of a function on the cube is multilinear. -/
 theorem isMultilinear_eval_multilinearExtension [Fintype ι] (g : (ι → Bool) → F) :
@@ -447,12 +435,7 @@ private theorem lineRestrict_succ (f : (Fin (n + 1) → F) → F) (x : Fin (n + 
 `j`. -/
 theorem card_wrongPoints_succ (f : (Fin (n + 1) → F) → F) (j : Fin n) :
     #(wrongPoints f j.succ) = ∑ t, #(wrongPoints (fun y => f (Fin.cons t y)) j) := by
-  have : wrongPoints f j.succ = ({x | ¬IsAffineFun (lineRestrict (fun y => f (Fin.cons (x 0) y))
-      (Fin.tail x) j)} : Finset (Fin (n + 1) → F)) := by
-    ext x
-    simp only [wrongPoints, mem_filter, mem_univ, true_and, lineRestrict_succ]
-  rw [this]
-  exact Fin.card_filter_zero_tail
+  simpa only [wrongPoints, lineRestrict_succ] using Fin.card_filter_zero_tail
     (fun t y => ¬IsAffineFun (lineRestrict (fun y => f (Fin.cons t y)) y j))
 
 omit [DecidableEq F] in

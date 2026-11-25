@@ -75,8 +75,7 @@ theorem Program.dag_adj {p : Program σ n g} {u v : Wire n g} :
 @[simp] theorem Program.dag_adj_gate {p : Program σ n g} {u : Wire n g} {j : Fin g} :
     p.dag.Adj u (.gate j) ↔ ∃ k, (p.lines j).wires k = u := by
   constructor
-  · rintro ⟨j', k, hj, rfl⟩
-    cases hj
+  · rintro ⟨_, k, ⟨⟩, rfl⟩
     exact ⟨k, rfl⟩
   · rintro ⟨k, rfl⟩
     exact ⟨j, k, rfl, rfl⟩
@@ -95,19 +94,14 @@ theorem Program.wellFounded_dag (p : Program σ n g) : WellFounded p.dag.Adj :=
 theorem Program.ncard_dag_adj_le {p : Program σ n g} {r : ℕ} (hp : p.FanInAtMost r)
     (v : Wire n g) : {u | p.dag.Adj u v}.ncard ≤ r := by
   cases v with
-  | input i =>
-    have hset : {u | p.dag.Adj u (.input i)} = ∅ :=
-      Set.eq_empty_of_forall_notMem fun u hu => p.not_dag_adj_input u i hu
-    rw [hset, Set.ncard_empty]
-    exact Nat.zero_le r
+  | input i => simp
   | gate j =>
-    have hset : {u | p.dag.Adj u (.gate j)} = (p.lines j).wires '' Set.univ := by
+    have hset : {u | p.dag.Adj u (.gate j)} = Set.range (p.lines j).wires := by
       ext u
-      simp only [Set.mem_ofPred_eq, Program.dag_adj_gate, Set.image_univ, Set.mem_range]
-    rw [hset]
-    refine le_trans (Set.ncard_image_le (Set.toFinite _)) ?_
-    rw [Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]
-    exact Program.fanInAtMost_iff.1 hp j
+      simp only [Set.mem_ofPred_eq, Program.dag_adj_gate, Set.mem_range]
+    rw [hset, ← Set.image_univ]
+    refine (Set.ncard_image_le (Set.toFinite _)).trans ?_
+    simpa [Set.ncard_univ] using Program.fanInAtMost_iff.1 hp j
 
 end Cslib.Circuits
 
@@ -215,15 +209,11 @@ theorem Program.exists_registerLTS_mTr {s : ℕ} {C D : Finset (Wire n g)}
     cases hstep with
     | @place w hw =>
       cases w with
-      | input i =>
-        obtain ⟨r', hr'⟩ := ih _
-        exact ⟨r', .stepL ⟨.load i, hcard⟩ hr'⟩
+      | input i => exact (ih _).imp fun _ => .stepL ⟨.load i, hcard⟩
       | gate j =>
-        obtain ⟨r', hr'⟩ := ih _
-        exact ⟨r', .stepL ⟨.compute j fun k => hw _ (Program.dag_adj_gate.2 ⟨k, rfl⟩), hcard⟩ hr'⟩
-    | remove =>
-      obtain ⟨r', hr'⟩ := ih r
-      exact ⟨r', .stepL ⟨.free _, hcard⟩ hr'⟩
+        exact (ih _).imp fun _ =>
+          .stepL ⟨.compute j fun k => hw _ (Program.dag_adj_gate.2 ⟨k, rfl⟩), hcard⟩
+    | remove => exact (ih r).imp fun _ => .stepL ⟨.free _, hcard⟩
 
 /-- `p` evaluates wire `w` with at most `s` registers, from the initial contents `r₀`. -/
 def Program.EvaluatesInRegisters (p : Program σ n g) (I : Interpretation σ U) (x : Fin n → U)

@@ -122,13 +122,9 @@ private theorem eventually_mul_sqrt_add_le_of_mul_add_le_sq {f g : ℕ → ℕ}
   filter_upwards [h (2 * c ^ 2)] with n hn
   refine (Nat.pow_le_pow_iff_left (by decide : (2 : ℕ) ≠ 0)).mp ?_
   have hsqrt : Nat.sqrt (f n) ^ 2 ≤ f n := by simpa only [sq] using Nat.sqrt_le (f n)
-  have hsq : (c * Nat.sqrt (f n) + c) ^ 2 ≤ 2 * (c * Nat.sqrt (f n)) ^ 2 + 2 * c ^ 2 := by
+  have hsq : (c * Nat.sqrt (f n) + c) ^ 2 ≤ 2 * c ^ 2 * Nat.sqrt (f n) ^ 2 + 2 * c ^ 2 := by
     rcases le_total (c * Nat.sqrt (f n)) c with hle | hle <;> nlinarith
-  have hsq' : 2 * (c * Nat.sqrt (f n)) ^ 2 + 2 * c ^ 2 =
-      2 * c ^ 2 * Nat.sqrt (f n) ^ 2 + 2 * c ^ 2 := by ring
-  have hmul : 2 * c ^ 2 * Nat.sqrt (f n) ^ 2 ≤ 2 * c ^ 2 * f n :=
-    Nat.mul_le_mul_left _ hsqrt
-  nlinarith
+  nlinarith [Nat.mul_le_mul_left (2 * c ^ 2) hsqrt]
 
 /-- If `Nat.log2 n ≤ s n` holds eventually, adding `Nat.log2 N` preserves `SpaceConstructible`,
 preserves `DSPACE`, and ensures the logarithmic lower bound holds pointwise. -/
@@ -168,10 +164,7 @@ private theorem tendsto_of_eventually_log2_le {s : ℕ → ℕ} (hlog : ∀ᶠ n
     Tendsto s atTop atTop :=
   tendsto_atTop_atTop.mpr fun k => by
     obtain ⟨M, hM⟩ := eventually_atTop.mp ((Nat.eventually_le_log k one_lt_two).and hlog)
-    refine ⟨M, fun n hn => ?_⟩
-    have h₁ := (hM n hn).1
-    rw [← Nat.log2_eq_log_two] at h₁
-    exact h₁.trans (hM n hn).2
+    exact ⟨M, fun n hn => (Nat.log2_eq_log_two.symm ▸ (hM n hn).1).trans (hM n hn).2⟩
 
 /-! ### General time–space separation theorems -/
 
@@ -301,11 +294,9 @@ private theorem eventually_rpow_sub_mul_log2_le_sq {s : ℕ → ℕ} (hn : ∀�
     · simpa only [Real.rpow_one] using Real.rpow_le_rpow_of_exponent_le hsR1 hα1
     · exact Real.rpow_le_rpow_of_exponent_le hsR1 (le_max_right 1 (2 - ε))
   have hm_le_sq : m ≤ s n ^ 2 := by
-    have h1 : (m : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) := by
-      refine hm_le_rpow.trans ?_
-      rw [Nat.cast_pow, ← Real.rpow_natCast (s n : ℝ) 2]
-      exact Real.rpow_le_rpow_of_exponent_le hsR1 hα2.le
-    exact_mod_cast h1
+    suffices (m : ℝ) ≤ ((s n ^ 2 : ℕ) : ℝ) from mod_cast this
+    rw [Nat.cast_pow, ← Real.rpow_natCast (s n : ℝ) 2]
+    exact hm_le_rpow.trans (Real.rpow_le_rpow_of_exponent_le hsR1 hα2.le)
   have hlogR : ((Nat.log2 m : ℝ) + 1) ≤ 2 * ((Nat.log 2 (s n) : ℝ) + 2) := by
     have hlog_sq := log2_le_two_mul_log2_add_one (by omega) hm_le_sq
     simp only [Nat.log2_eq_log_two] at hlog_sq ⊢
@@ -359,19 +350,16 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
       c * (max n (s n ^ 2 / (Nat.log2 (s n) + 1) ^ 2) *
           (Nat.log2 (max n (s n ^ 2 / (Nat.log2 (s n) + 1) ^ 2)) + 1)) + c ≤ s n ^ 2 := by
   have hten : Tendsto s atTop atTop := tendsto_atTop_mono' atTop hn tendsto_id
-  have hlog2 : ∀ k : ℕ, ∀ᶠ n in atTop, k ≤ Nat.log2 (s n) := fun k => by
-    have h := hten.eventually (Nat.eventually_le_log k one_lt_two)
-    refine h.mono fun n hn' => ?_
-    simpa only [Nat.log2_eq_log_two] using hn'
+  have hlog2 : ∀ k : ℕ, ∀ᶠ n in atTop, k ≤ Nat.log2 (s n) := fun k =>
+    (hten.eventually (Nat.eventually_le_log k one_lt_two)).mono fun _ => by
+      simp only [Nat.log2_eq_log_two, imp_self]
   have hsq_vs_log : ∀ᶠ n in atTop, (Nat.log2 (s n) + 1) ^ 2 ≤ s n := by
     have hr := hten.eventually
       (Nat.eventually_mul_log_add_pow_le_rpow (b := 2) one_lt_two 0 1 2 one_pos one_pos)
     filter_upwards [hr] with n h'
+    simp only [add_zero, one_mul, Real.rpow_one] at h'
     rw [Nat.log2_eq_log_two]
-    have hR : ((Nat.log 2 (s n) + 1 : ℕ) : ℝ) ^ 2 ≤ (s n : ℝ) := by
-      simpa only [add_zero, one_mul, Nat.cast_add, Nat.cast_one, Nat.cast_ofNat,
-        Real.rpow_one] using h'
-    exact_mod_cast hR
+    exact_mod_cast h'
   intro c
   filter_upwards [hn, hlog2 (8 * c + 8), hsq_vs_log, hten.eventually_ge_atTop (4 * c + 4)]
     with n hns hL hL2 hsmin
@@ -387,26 +375,19 @@ private theorem eventually_sq_div_log2_sq_mul_log2_le_sq {s : ℕ → ℕ}
     have hpow := log2_le_two_mul_log2_add_one (by omega) ht_le_sq
     dsimp only [L]
     omega
-  have ht_mul_L : t * L ≤ s n ^ 2 / L := by
-    have : t * L = (s n ^ 2 / L) / L * L := by
-      dsimp only [t]
-      rw [sq L, Nat.div_div_eq_div_mul]
-    rw [this]
-    exact Nat.div_mul_le_self _ L
-  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) :=
-    (Nat.mul_le_mul_left _ hlogt).trans (by linarith)
+  have ht_log : t * (Nat.log2 t + 1) ≤ 2 * (s n ^ 2 / L) := by
+    have ht_mul_L : t * L ≤ s n ^ 2 / L := by
+      rw [show t = s n ^ 2 / L ^ 2 from rfl, sq L, ← Nat.div_div_eq_div_mul]
+      exact Nat.div_mul_le_self _ L
+    linarith [Nat.mul_le_mul_left t hlogt]
   have hc_mul : (c + 1) * (2 * (s n ^ 2 / L)) ≤ s n ^ 2 := by
     linarith [Nat.mul_le_mul_right (s n ^ 2 / L) (show 2 * (c + 1) ≤ L by omega),
       Nat.mul_div_le (s n ^ 2) L]
+  have hsdiv : c ≤ s n ^ 2 / L := (Nat.le_div_iff_mul_le hLpos).mpr
+    ((Nat.mul_le_mul_right _ (by omega)).trans
+      ((sq L).symm.trans_le (hL2.trans (Nat.le_self_pow (by decide) _))))
   have hlast : c * (t * (Nat.log2 t + 1)) + c ≤ s n ^ 2 := by
-    have hc1 : c * (t * (Nat.log2 t + 1)) ≤ c * (2 * (s n ^ 2 / L)) :=
-      Nat.mul_le_mul_left c ht_log
-    have hone : c ≤ 2 * (s n ^ 2 / L) := by
-      have hsdiv : c ≤ s n ^ 2 / L := (Nat.le_div_iff_mul_le hLpos).mpr
-        ((Nat.mul_le_mul_right _ (by omega)).trans
-          ((sq L).symm.trans_le (hL2.trans (Nat.le_self_pow (by decide) _))))
-      omega
-    nlinarith
+    nlinarith [Nat.mul_le_mul_left c ht_log]
   simpa only [hmax] using hlast
 
 /-- **Logarithmic-factor sharpening for constructible space**: for any space-constructible `s`
@@ -429,23 +410,18 @@ theorem DSPACE_not_subset_DTIME_sq_div_log2_sq {s : ℕ → ℕ} (hs : SpaceCons
 (`a = 1`, `b = 1`) is strictly contained in linear space. -/
 theorem DTIME_pow_ssubset_DSPACE_pow {a b : ℕ} (hb : 1 ≤ b) (hab : a < 2 * b) :
     DTIME encBits (· ^ a) ⊂ DSPACE encBits (· ^ b) := by
-  have hsub1 : DSPACE encBits (fun n => (n + 1) ^ b) ⊆ DSPACE encBits (· ^ b) :=
-    DSPACE_mono_of_le_mul_add (Nat.add_one_pow_le_two_pow_mul_add b)
-  have hsub2 : DSPACE encBits (· ^ b) ⊆ DSPACE encBits (fun n => (n + 1) ^ b) :=
-    DSPACE_mono fun n => Nat.pow_le_pow_left (Nat.le_succ n) b
   have hEq : DSPACE encBits (fun n => (n + 1) ^ b) = DSPACE encBits (· ^ b) :=
-    Set.Subset.antisymm hsub1 hsub2
+    Set.Subset.antisymm (DSPACE_mono_of_le_mul_add (Nat.add_one_pow_le_two_pow_mul_add b))
+      (DSPACE_mono fun n => Nat.pow_le_pow_left (Nat.le_succ n) b)
   have hε : (0 : ℝ) < 1 / (b : ℝ) := by positivity
   have hsep := DTIME_rpow_sub_ssubset_DSPACE (spaceConstructible_succ_pow b)
     (Eventually.of_forall fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _)) hε
   rw [hEq] at hsep
   refine (DTIME_mono_of_eventually_le ?_).trans_ssubset hsep
-  filter_upwards [eventually_ge_atTop 2] with n hn2
-  have hb0 : (b : ℝ) ≠ 0 := by positivity
+  filter_upwards [eventually_ge_atTop 2] with n _
   have hexp : (a : ℝ) ≤ (b : ℝ) * (2 - 1 / (b : ℝ)) := by
-    have : (b : ℝ) * (2 - 1 / (b : ℝ)) = 2 * b - 1 := by field_simp [hb0]
-    have ha1 : (a : ℝ) + 1 ≤ 2 * (b : ℝ) := by exact_mod_cast hab
-    linarith
+    rw [mul_sub, mul_div_cancel₀ _ (by positivity : (b : ℝ) ≠ 0)]
+    linarith [show (a : ℝ) + 1 ≤ 2 * (b : ℝ) from mod_cast hab]
   have hn1 : (1 : ℝ) ≤ (n + 1 : ℕ) := by exact_mod_cast (by omega : 1 ≤ n + 1)
   have hreal : ((n ^ a : ℕ) : ℝ) ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) := by
     calc ((n ^ a : ℕ) : ℝ) = (n : ℝ) ^ (a : ℝ) := by rw [Nat.cast_pow, ← Real.rpow_natCast]
@@ -454,11 +430,9 @@ theorem DTIME_pow_ssubset_DSPACE_pow {a b : ℕ} (hb : 1 ≤ b) (hab : a < 2 * b
               (Nat.cast_nonneg a)
       _ ≤ ((n + 1 : ℕ) : ℝ) ^ ((b : ℝ) * (2 - 1 / (b : ℝ))) :=
             Real.rpow_le_rpow_of_exponent_le hn1 hexp
-  have hreal' : ((n ^ a : ℕ) : ℝ) ≤ (((n + 1) ^ b : ℕ) : ℝ) ^ (2 - 1 / (b : ℝ)) := by
-    refine hreal.trans_eq ?_
-    push_cast
-    rw [← Real.rpow_natCast ((n : ℝ) + 1) b, ← Real.rpow_mul (by positivity)]
-  exact Nat.le_floor hreal'
+  refine Nat.le_floor (hreal.trans_eq ?_)
+  push_cast
+  rw [← Real.rpow_natCast ((n : ℝ) + 1) b, ← Real.rpow_mul (by positivity)]
 
 /-- **Polynomial containment failure**: deterministic space `n ^ b` (`b ≥ 1`) is not contained in
 deterministic time `n ^ a` when `a < 2 * b`. -/

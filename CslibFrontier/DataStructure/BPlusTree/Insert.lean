@@ -166,9 +166,7 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Branch α β)) :
   · split
     · rfl
     · next s c right heq =>
-      have : rest = rest.take t ++ (s, c) :: right := by
-        rw [← heq, List.take_append_drop]
-      conv_rhs => rw [this]
+      conv_rhs => rw [← List.take_append_drop t rest, heq]
       simp only [toList_split, toList_node, List.flatMap_append, List.flatMap_cons,
         Branch.child_mk, List.append_assoc]
 
@@ -249,10 +247,8 @@ theorem exists_good_split_ofNode {first : BPlusTree α β} {rest : List (Branch 
     have hmem : (s, c) ∈ rest := List.mem_of_mem_drop (heq ▸ List.mem_cons_self ..)
     have hright : ∀ e ∈ right, e ∈ rest := fun e he =>
       List.mem_of_mem_drop (heq ▸ List.mem_cons_of_mem _ he)
-    have hrl : right.length = rest.length - t - 1 := by
-      have := congrArg List.length heq
-      simp only [List.length_drop, List.length_cons] at this
-      omega
+    have hrl := congrArg List.length heq
+    simp only [List.length_drop, List.length_cons] at hrl
     have htl : (rest.take t).length = t := by rw [List.length_take]; omega
     exact ⟨_, s, _, rfl,
       good_node hf (fun e he => hr e (List.mem_of_mem_take he)) (by omega) (by omega),
@@ -574,14 +570,12 @@ private theorem insertRest_spec {rest : List (Branch α β)} (pre : List (α × 
         hpw₂ (fun e he => hc e (List.mem_cons_of_mem _ he))
       simp only [hk, ↓reduceIte]
       refine ⟨fun h => by split at h <;> simp at h, fun r hr => ?_⟩
-      cases hr' : insertRest t k v rest with
-      | some r' =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
+      split at hr
+      · next r' hr' =>
+        cases hr
         simpa only [List.flatMap_cons, Branch.child_mk, List.append_assoc] using ih.2 r' hr'
-      | none =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
+      · next hr' =>
+        cases hr
         have hlt : ∀ p ∈ pre, p.1 < k := fun p hp =>
           lt_of_lt_of_le (hpre p hp (s, c) List.mem_cons_self) hk
         rw [← List.append_assoc, SortedAssoc.insert_append_of_forall_gt (ih.1 hr'),
@@ -634,27 +628,19 @@ private theorem fits_insertRest {rest : List (Branch α β)} {h : ℕ}
   | nil => simp at hr
   | cons e rest ih =>
     obtain ⟨s, c⟩ := e
-    have hcc : Good t h c ∧ (insertOrSplit t k v c).Fits t c := hc _ List.mem_cons_self
-    have hrest : ∀ e ∈ rest, Good t h e.child := fun e he =>
-      (hc e (List.mem_cons_of_mem _ he)).1
-    have ih := fun r (hr : insertRest t k v rest = some r) =>
-      ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr
+    obtain ⟨hcg, hcf⟩ := hc (s, c) List.mem_cons_self
     rw [insertRest_cons] at hr
-    by_cases hk : s ≤ k
-    · simp only [hk, ↓reduceIte] at hr
-      cases hr' : insertRest t k v rest with
-      | some r' =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
-        obtain ⟨h₁, h₂, h₃⟩ := ih r' hr'
-        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
-      | none =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
-        obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
-          InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
-        exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
-    · simp [hk] at hr
+    split_ifs at hr with hk
+    split at hr
+    · next r' hr' =>
+      cases hr
+      obtain ⟨h₁, h₂, h₃⟩ := ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr'
+      exact ⟨List.forall_mem_cons.2 ⟨hcg, h₁⟩, by simpa using h₂, by simpa using h₃⟩
+    · next hr' =>
+      cases hr
+      obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ := InsertResult.fits_withRest hcf hcg.occupied hcg.height_eq
+        fun e he => (hc e (List.mem_cons_of_mem _ he)).1
+      exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
 
 /-- Shape invariant of the bottom-up insertion. -/
 private theorem fits_insertOrSplit (ht : 1 ≤ t) (k : α) (v : β) (tr : BPlusTree α β)
@@ -867,15 +853,13 @@ private theorem linked_insertRest {prev : BPlusTree α β} {rest : List (Branch 
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
       refine ⟨fun h => by split at h <;> simp at h, fun r hr' => ?_⟩
-      cases hrs : insertRest t k v rest with
-      | some r' =>
-        simp only [hrs, Option.some.injEq] at hr'
-        subst hr'
+      split at hr'
+      · next r' hrs =>
+        cases hr'
         obtain ⟨hl', hs'⟩ := ihs r' hrs
         exact ⟨⟨h₁, h₂, hl'⟩, List.forall_mem_cons.2 ⟨hsc, hs'⟩⟩
-      | none =>
-        simp only [hrs, Option.some.injEq] at hr'
-        subst hr'
+      · next hrs =>
+        cases hr'
         obtain ⟨hsx, hkx⟩ := hc (s, c) List.mem_cons_self
         obtain ⟨hlw, hsw₁, hsw₂⟩ := linked_withRest hsx hkx h₃ hrr (ihn hrs)
         refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, List.forall_mem_cons.2 ⟨hsw₁, hsw₂⟩⟩

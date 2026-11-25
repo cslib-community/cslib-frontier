@@ -63,33 +63,24 @@ private theorem integrable_badCount {Q : Multigraph W F} (hdeg : Q.MaxDegreeLE 3
         if ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then (1 : ℝ) else 0 := by
     funext ω
     unfold badCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _]
-    rw [Finset.card_filter, Nat.cast_sum]
+    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _, Finset.card_filter, Nat.cast_sum]
     exact Finset.sum_congr rfl fun e _ => by split_ifs <;> simp
   have hm_bad : Measurable (fun ω : W → BlockSample => (badCount Q q R ω B : ℝ)) := by
     rw [hfn]
     refine Finset.measurable_sum _ fun e _ => ?_
     have hm_in : MeasurableSet
         {ω : W → BlockSample | inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e)} := by
-      have hsplit : {ω : W → BlockSample |
-          inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e)} =
-          ⋃ c : Fin 3, {ω | blockColor Q q R ω B = c} ∩
-            {ω | inOpenSector c (edgeVec2 Q q R ω e)} := by
-        ext ω
-        simp only [mem_ofPred_eq, mem_iUnion, mem_inter_iff]
-        exact ⟨fun h => ⟨_, rfl, h⟩, fun ⟨_, hc, h⟩ => hc ▸ h⟩
-      rw [hsplit]
-      refine MeasurableSet.iUnion fun c => (measurableSet_blockColor_eq Q q R B c).inter ?_
-      exact measurableSet_inOpenSector_edgeVec2 Q q R e c
+      convert MeasurableSet.iUnion fun c => (measurableSet_blockColor_eq Q q R B c).inter
+        (measurableSet_inOpenSector_edgeVec2 Q q R e c) using 1
+      ext ω
+      simp only [mem_ofPred_eq, mem_iUnion, mem_inter_iff, exists_eq_left']
     exact Measurable.ite hm_in.compl measurable_const measurable_const
   refine Integrable.of_bound hm_bad.aestronglyMeasurable 3
     (Filter.Eventually.of_forall fun ω => ?_)
-  rw [Real.norm_of_nonneg (Nat.cast_nonneg _)]
-  have hle : badCount Q q R ω B ≤ 3 := by
-    unfold badCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _]
-    exact (Finset.card_filter_le _ _).trans (by rw [← Set.ncard_eq_toFinset_card']; exact hdeg B)
-  exact_mod_cast hle
+  rw [Real.norm_of_nonneg (Nat.cast_nonneg _), badCount,
+    toFinset_eq_of_fintype (Q.incidenceSet B) _]
+  exact_mod_cast (Finset.card_filter_le _ _).trans
+    (Set.ncard_eq_toFinset_card' (Q.incidenceSet B) ▸ hdeg B)
 
 open Classical in
 /-- **Pointwise degree-`3` mismatch inequality.** Suppose `s = {e₀, e₁, e₂}` has size `3`, equals
@@ -153,12 +144,10 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
   obtain ⟨s₂, hs₂⟩ := exists_inOpenSector_of_ne_zero (hray e₂ he₂)
   have hsec_eq (c : Fin 3) :
       secCount Q q R ω B c = (s.filter fun e => inOpenSector c (z e)).card := by
-    unfold secCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _, ← hinc]
+    rw [secCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, ← hinc]
   have hbad_eq : badCount Q q R ω B =
       (s.filter fun e => ¬inOpenSector (blockColor Q q R ω B) (z e)).card := by
-    unfold badCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _, ← hinc]
+    rw [badCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, ← hinc]
   have hbad_compl : badCount Q q R ω B + secCount Q q R ω B (blockColor Q q R ω B) = 3 := by
     rw [hbad_eq, hsec_eq, add_comm, Finset.card_filter_add_card_filter_not, hs_card]
   have hadj : ∀ i j : Fin 3, i ≠ j → j = i + 1 ∨ i = j + 1 := by decide
@@ -267,15 +256,13 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
           · linarith [hsum_s fun _ => 1]
           · rw [hsum_s fun e => (z e).1, hx']
           · rw [hsum_s fun e => (z e).2, hy']
-        · have h4 : 4 ≤ fn (u₀, u₁) + fn (u₁, u₂) + fn (u₂, u₀) := by
-            rcases lt_or_gt_of_ne hd01 with hn | hp0
-            · have := hr0_2 hn; omega
-            rcases lt_or_gt_of_ne hd12 with hn | hp1
-            · have := hr1_2 hn; omega
-            rcases lt_or_gt_of_ne hd20 with hn | hp2
-            · have := hr2_2 hn; omega
-            exact absurd ⟨hp0, hp1, hp2⟩ hall_pos
-          omega
+        · rcases lt_or_gt_of_ne hd01 with hn | hp0
+          · have := hr0_2 hn; omega
+          rcases lt_or_gt_of_ne hd12 with hn | hp1
+          · have := hr1_2 hn; omega
+          rcases lt_or_gt_of_ne hd20 with hn | hp2
+          · have := hr2_2 hn; omega
+          exact absurd ⟨hp0, hp1, hp2⟩ hall_pos
 
 
 open Classical in
@@ -293,14 +280,13 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
     rw [Finset.card_filter]
     refine Finset.sum_le_sum fun e _ => ?_
     by_cases hcut : ω ∈ cutAnyEvent Q q R e
+    · by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
+      · have ht : ¬inOpenSector (blockColor Q q R ω (Q.tgt e)) (edgeVec2 Q q R ω e) :=
+          fun ht => hcut (inOpenSector_unique hs ht)
+        simp [hcut, hs, ht]
+      · simp [hcut, hs]
     · simp only [hcut, ↓reduceIte]
-      by_contra! h0
-      have hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e) := by
-        by_contra h; simp only [h, not_false_eq_true, ↓reduceIte] at h0; omega
-      have ht : inOpenSector (blockColor Q q R ω (Q.tgt e)) (edgeVec2 Q q R ω e) := by
-        by_contra h; simp only [h, not_false_eq_true, ↓reduceIte] at h0; omega
-      exact hcut (inOpenSector_unique hs ht)
-    · simp only [hcut, ↓reduceIte]; omega
+      omega
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,
@@ -312,7 +298,6 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
     congr 1; ext e; simp [Multigraph.mem_incidenceSet]
   rw [hbad_sum, Finset.sum_comm]
   refine Finset.sum_le_sum fun e _ => ?_
-  have hsub : ({Q.src e, Q.tgt e} : Finset W) ⊆ Finset.univ := Finset.subset_univ _
   calc ((if ¬inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e) then 1 else 0) +
         (if ¬inOpenSector (blockColor Q q R ω (Q.tgt e)) (edgeVec2 Q q R ω e) then 1 else 0))
       = ∑ B ∈ ({Q.src e, Q.tgt e} : Finset W),
@@ -323,7 +308,7 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
     _ ≤ ∑ B : W,
           if (Q.src e = B ∨ Q.tgt e = B) ∧
             ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then 1 else 0 :=
-        Finset.sum_le_sum_of_subset hsub
+        Finset.sum_le_sum_of_subset (Finset.subset_univ _)
 
 
 end BadCountPointwise

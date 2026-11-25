@@ -135,18 +135,11 @@ equality (`Z p = 0`). -/
 theorem SatisfiesWalrasLaw.eq_zero_of_isWalrasianEquilibrium [Fintype G] {Z : (G → ℝ) → G → ℝ}
     (hW : SatisfiesWalrasLaw Z) {p : G → ℝ} (heq : IsWalrasianEquilibrium Z p) :
     Z p = 0 := by
-  classical
   funext g
-  have hwalras : ∑ k : G, p k * Z p k = 0 := by
-    rw [← expenditure_eq_sum]
-    exact hW heq.1
-  have hnonpos : ∀ k ∈ (univ : Finset G), p k * Z p k ≤ 0 :=
-    fun k _ => mul_nonpos_of_nonneg_of_nonpos (heq.1 k).le (heq.2 k)
-  have hrest : ∑ k ∈ univ.erase g, p k * Z p k ≤ 0 :=
-    sum_nonpos fun k hk => hnonpos k (mem_of_mem_erase hk)
-  have hsplit := add_sum_erase univ (fun k => p k * Z p k) (mem_univ g)
-  have hpg0 : p g * Z p g = 0 := by linarith [hnonpos g (mem_univ g)]
-  exact (mul_eq_zero.1 hpg0).resolve_left (heq.1 g).ne'
+  have h0 := (sum_eq_zero_iff_of_nonpos fun k _ =>
+    mul_nonpos_of_nonneg_of_nonpos (heq.1 k).le (heq.2 k)).1
+      ((expenditure_eq_sum _ _).symm.trans (hW heq.1)) g (mem_univ g)
+  exact (mul_eq_zero.1 h0).resolve_left (heq.1 g).ne'
 
 theorem SatisfiesWalrasLaw.isWalrasianEquilibrium_iff_eq_zero [Fintype G] {Z : (G → ℝ) → G → ℝ}
     (hW : SatisfiesWalrasLaw Z) {p : G → ℝ} :
@@ -183,9 +176,7 @@ theorem IsGrossSubstitutes.isWeakGrossSubstitutes {Z : (G → ℝ) → G → ℝ
   intro p p' hp hle g hfg
   by_cases hex : ∃ j, p j < p' j
   · exact (hGS hp hle hex g hfg).le
-  · push Not at hex
-    have heq : p = p' := funext fun j => le_antisymm (hle j) (hex j)
-    rw [heq]
+  · rw [funext fun j => le_antisymm (hle j) (not_lt.1 fun hj => hex ⟨j, hj⟩)]
 
 /-- Weak gross substitutability is closed under finite aggregation ([CodenottiVaradarajan2007],
 Section 6.1.4, p. 138). -/
@@ -225,19 +216,12 @@ theorem IsGrossSubstitutes.eq_smul_of_isWalrasianEquilibrium [Fintype G] [Nonemp
   set c : ℝ := p' g₀ / p g₀
   have hc : 0 < c := div_pos (hp'.1 g₀) (hp.1 g₀)
   refine ⟨c, hc, ?_⟩
-  have hle : ∀ g, p' g ≤ (c • p) g := by
-    intro g
-    simp only [Pi.smul_apply, smul_eq_mul]
-    exact (div_le_iff₀ (hp.1 g)).1 (hg₀_max g (mem_univ g))
-  have hfix : (c • p) g₀ = p' g₀ := by
-    simp only [Pi.smul_apply, smul_eq_mul, c]
-    exact div_mul_cancel₀ (p' g₀) (hp.1 g₀).ne'
+  have hle : ∀ g, p' g ≤ (c • p) g := fun g =>
+    (div_le_iff₀ (hp.1 g)).1 (hg₀_max g (mem_univ g))
+  have hfix : (c • p) g₀ = p' g₀ := div_mul_cancel₀ (p' g₀) (hp.1 g₀).ne'
   by_contra hne
-  have hex : ∃ j, p' j < (c • p) j := by
-    by_contra hall
-    push Not at hall
-    exact hne (funext fun j => le_antisymm (hle j) (hall j))
-  have hlt := hGS hp'.1 hle hex g₀ hfix
+  obtain ⟨j, hj⟩ := Function.ne_iff.1 hne
+  have hlt := hGS hp'.1 hle ⟨j, lt_of_le_of_ne (hle j) hj⟩ g₀ hfix
   have hz' : Z p' g₀ = 0 := congrFun (hW.eq_zero_of_isWalrasianEquilibrium hp') g₀
   have hz : Z (c • p) g₀ = 0 := by
     rw [hH hc hp.1]
@@ -299,24 +283,14 @@ theorem hybridPrice_sorted_of_le {pHat p : G → ℝ} (hpHat : ∀ g, 0 < pHat g
     let σ := sortedPriceRatioEquiv pHat p
     hybridPrice pHat p (p (σ s) / pHat (σ s)) (σ t) = p (σ t) := by
   intro σ
-  rw [hybridPrice_apply]
-  have hmono : p (σ t) / pHat (σ t) ≤ p (σ s) / pHat (σ s) :=
-    monotone_sortedPriceRatio pHat p ht
-  have hle : p (σ t) ≤ (p (σ s) / pHat (σ s)) * pHat (σ t) :=
-    (div_le_iff₀ (hpHat (σ t))).1 hmono
-  exact min_eq_right hle
+  exact min_eq_right ((div_le_iff₀ (hpHat (σ t))).1 (monotone_sortedPriceRatio pHat p ht))
 
 theorem hybridPrice_sorted_of_ge {pHat p : G → ℝ} (hpHat : ∀ g, 0 < pHat g)
     {s t : Fin (Fintype.card G)} (ht : s ≤ t) :
     let σ := sortedPriceRatioEquiv pHat p
     hybridPrice pHat p (p (σ s) / pHat (σ s)) (σ t) = (p (σ s) / pHat (σ s)) * pHat (σ t) := by
   intro σ
-  rw [hybridPrice_apply]
-  have hmono : p (σ s) / pHat (σ s) ≤ p (σ t) / pHat (σ t) :=
-    monotone_sortedPriceRatio pHat p ht
-  have hle : (p (σ s) / pHat (σ s)) * pHat (σ t) ≤ p (σ t) :=
-    (le_div_iff₀ (hpHat (σ t))).1 hmono
-  exact min_eq_left hle
+  exact min_eq_left ((le_div_iff₀ (hpHat (σ t))).1 (monotone_sortedPriceRatio pHat p ht))
 
 theorem hybridPrice_zero_eq_smul {pHat p : G → ℝ} (hpHat : ∀ g, 0 < pHat g)
     (h0 : 0 < Fintype.card G) :
@@ -432,10 +406,7 @@ private theorem hybridPrice_step_identity {Z : (G → ℝ) → G → ℝ} (hW : 
         (α s' * pHat (σ t) * Z (q s') (σ t) - α s * pHat (σ t) * Z (q s) (σ t)) := by
     refine sum_congr rfl fun t ht => ?_
     have hst : s < t := (mem_filter.1 ht).2
-    have hs't : s' ≤ t := by
-      rw [Fin.le_def]
-      have : s.val < t.val := hst
-      omega
+    have hs't : s' ≤ t := Fin.le_def.2 (hsucc ▸ Nat.succ_le_of_lt hst)
     have h1 : q s' (σ t) = α s' * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hs't
     have h2 : q s (σ t) = α s * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hst.le
     rw [h1, h2]
@@ -565,16 +536,13 @@ theorem expenditure_eq_sum_hybridPrice_steps {Z : (G → ℝ) → G → ℝ}
     have hk0 : k.val < Fintype.card G := by omega
     simp [F, hk1, hk0]
   rw [hsum, telescope_nat_diff F (Fintype.card G - 1)]
-  have hn1 : Fintype.card G - 1 < Fintype.card G := Nat.sub_lt h0 Nat.zero_lt_one
   have hF0 : F 0 = 0 := by
-    simp only [F, h0, ↓reduceDIte]
-    have hq0 : q ⟨0, h0⟩ = α ⟨0, h0⟩ • pHat := hybridPrice_zero_eq_smul heq.1 h0
-    have hα0 : 0 < α ⟨0, h0⟩ := div_pos (hp (σ ⟨0, h0⟩)) (heq.1 (σ ⟨0, h0⟩))
-    rw [hq0, hH hα0 heq.1, hW.eq_zero_of_isWalrasianEquilibrium heq, expenditure_zero_right]
+    simp only [F, q, α, σ, h0, ↓reduceDIte, hybridPrice_zero_eq_smul heq.1 h0]
+    rw [hH (div_pos (hp _) (heq.1 _)) heq.1, hW.eq_zero_of_isWalrasianEquilibrium heq,
+      expenditure_zero_right]
   have hFlast : F (Fintype.card G - 1) = expenditure pHat (Z p) := by
-    simp only [F, hn1, ↓reduceDIte]
-    have hqlast : q ⟨Fintype.card G - 1, hn1⟩ = p := hybridPrice_last_eq heq.1 h0
-    rw [hqlast]
+    simp only [F, q, α, σ, Nat.sub_lt h0 Nat.zero_lt_one, ↓reduceDIte,
+      hybridPrice_last_eq heq.1 h0]
   linarith
 
 /-- In any WGS excess-demand system satisfying homogeneity and Walras's law, every positive
@@ -670,11 +638,8 @@ theorem IsWeakGrossSubstitutes.expenditure_pos_of_not_isWalrasianEquilibrium
             · have hsub0 := (mul_eq_zero.1 ((sum_eq_zero_iff_of_nonneg hhead_nn).1 hhead0 t
                 (mem_filter.2 ⟨mem_univ t, hts⟩))).resolve_left (heq.1 (σ t)).ne'
               linarith [show Z (q s) (σ t) = 0 from congrFun hprev (σ t)]
-            · have hs't : s' ≤ t := by
-                change k + 1 ≤ t.val
-                have : ¬ t.val ≤ k := hts
-                omega
-              exact excessDemand_hybridPrice_nonpos_of_ge hH hW hWGS heq hp hs't
+            · exact excessDemand_hybridPrice_nonpos_of_ge hH hW hWGS heq hp
+                (Nat.succ_le_of_lt (lt_of_not_ge hts))
           have hq_s'_pos : ∀ g, 0 < q s' g := hybridPrice_pos heq.1 hp hαs'
           exact hW.eq_zero_of_isWalrasianEquilibrium ⟨hq_s'_pos, hq_s'_le0⟩
     have hn1 : n - 1 < n := Nat.sub_lt h0 Nat.zero_lt_one
@@ -706,12 +671,10 @@ theorem IsWeakGrossSubstitutes.convex_setOf_isWalrasianEquilibrium
     Convex ℝ {p : G → ℝ | IsWalrasianEquilibrium Z p} := by
   intro p₁ hp₁ p₂ hp₂ a b ha hb hab
   rcases eq_or_lt_of_le ha with rfl | ha_pos
-  · have hb1 : b = 1 := by linarith
-    subst hb1
+  · obtain rfl : b = 1 := by linarith
     simpa using hp₂
   · rcases eq_or_lt_of_le hb with rfl | hb_pos
-    · have ha1 : a = 1 := by linarith
-      subst ha1
+    · obtain rfl : a = 1 := by linarith
       simpa using hp₁
     · set p := a • p₁ + b • p₂
       have hp_pos : ∀ g, 0 < p g := fun g =>
@@ -806,20 +769,14 @@ theorem cobbDouglasDemand_mem_demandSet {α p : G → ℝ} {m : ℝ}
     rw [hb.eq_zero_of_zero hp, hx0]
   · by_cases hzero_supp : ∃ g : G, 0 < α g ∧ b g = 0
     · obtain ⟨g₀, hαg₀, hbg₀⟩ := hzero_supp
-      have hub0 : cobbDouglasUtility α b = 0 := by
-        rw [cobbDouglasUtility_eq_prod]
-        refine prod_eq_zero (mem_univ g₀) ?_
-        rw [hbg₀]
-        exact Real.zero_rpow hαg₀.ne'
-      rw [hub0]
+      rw [cobbDouglasUtility_eq_prod,
+        prod_eq_zero (mem_univ g₀) ((congrArg (· ^ α g₀) hbg₀).trans (Real.zero_rpow hαg₀.ne'))]
       exact cobbDouglasUtility_nonneg hx_nn
     · push Not at hzero_supp
       set S : Finset G := univ.filter (fun g => 0 < α g)
       have hS_sum : ∑ g ∈ S, α g = 1 := by
-        rw [← hα_sum, ← sum_filter_add_sum_filter_not univ (fun g => 0 < α g) α]
-        have hrest : ∑ g ∈ univ.filter (fun g => ¬ 0 < α g), α g = 0 :=
-          sum_eq_zero fun g hg => le_antisymm (not_lt.1 (mem_filter.1 hg).2) (hα_nn g)
-        linarith
+        rw [← hα_sum, ← sum_filter_add_sum_filter_not univ (fun g => 0 < α g) α,
+          sum_eq_zero fun g hg => le_antisymm (not_lt.1 (mem_filter.1 hg).2) (hα_nn g), add_zero]
       have hprod_eq : ∀ y : G → ℝ, cobbDouglasUtility α y = ∏ g ∈ S, (y g) ^ (α g) := by
         intro y
         rw [cobbDouglasUtility_eq_prod, ← prod_filter_mul_prod_filter_not univ (fun g => 0 < α g)]
@@ -881,9 +838,7 @@ theorem demandSet_cobbDouglasUtility_eq {α p : G → ℝ} {m : ℝ}
           cobbDouglasUtility α b / cobbDouglasUtility α xStar := by
         simp only [cobbDouglasUtility_eq_prod, ← prod_div_distrib]
         exact prod_congr rfl fun g _ => Real.div_rpow (hb.1.1 g) (hx_pos g).le (α g)
-      have h1_le_gm : 1 ≤ ∏ g : G, (z g) ^ (α g) := by
-        rw [hprod_z]
-        exact (one_le_div hux_pos).2 hge_x
+      have h1_le_gm : 1 ≤ ∏ g : G, (z g) ^ (α g) := hprod_z ▸ (one_le_div hux_pos).2 hge_x
       have hgm_le_am := Real.geom_mean_le_arith_mean_weighted univ α z
         (fun g _ => hα_nn g) hα_sum hz_nn
       have ham_eq : ∑ g : G, α g * z g = expenditure p b / m := by
@@ -892,11 +847,7 @@ theorem demandSet_cobbDouglasUtility_eq {α p : G → ℝ} {m : ℝ}
         dsimp only [z, xStar]
         rw [cobbDouglasDemand_apply]
         field_simp [(hα_pos g).ne', hm_pos.ne', (hp g).ne']
-      have ham_le_1 : ∑ g : G, α g * z g ≤ 1 := by
-        rw [ham_eq]
-        exact (div_le_one hm_pos).2 hb.1.2
-      have hgm_eq_am : ∏ g : G, (z g) ^ (α g) = ∑ g : G, α g * z g :=
-        le_antisymm hgm_le_am (ham_le_1.trans h1_le_gm)
+      have ham_le_1 : ∑ g : G, α g * z g ≤ 1 := ham_eq ▸ (div_le_one hm_pos).2 hb.1.2
       have ham_eq_1 : ∑ g : G, α g * z g = 1 :=
         le_antisymm ham_le_1 (h1_le_gm.trans hgm_le_am)
       have hz_const : ∀ j ∈ (univ : Finset G), z j = ∑ g : G, α g * z g := by
@@ -1013,12 +964,9 @@ theorem isGrossSubstitutes_excessDemandFn
   have hj_ne_g : j ≠ g := fun heq => (ne_of_lt hj_lt) (heq ▸ hfg).symm
   obtain ⟨i₀, hwi₀, hei₀⟩ := hconn g j hj_ne_g
   refine sum_lt_sum (fun i _ => ?_) ⟨i₀, mem_univ i₀, ?_⟩
-  · simp only [cobbDouglasDemand_apply, hfg]
-    have hexp_le : expenditure p (E.endowment i) ≤ expenditure p' (E.endowment i) := by
-      simp only [expenditure_eq_sum]
-      exact sum_le_sum fun k _ => mul_le_mul_of_nonneg_right (hle k) (E.endowment_nonneg i k)
-    exact div_le_div_of_nonneg_right
-      (mul_le_mul_of_nonneg_left hexp_le (E.weight_nonneg i g)) (hp g).le
+  · have hw := isWeakGrossSubstitutes_cobbDouglasExcessDemand (E.weight_nonneg i)
+      (E.endowment_nonneg i) hp hle g hfg
+    linarith
   · simp only [cobbDouglasDemand_apply, hfg]
     have hexp_lt : expenditure p (E.endowment i₀) < expenditure p' (E.endowment i₀) := by
       simp only [expenditure_eq_sum]
@@ -1036,17 +984,12 @@ theorem isWalrasianEquilibrium_iff_linearInequalities {p : G → ℝ} (hp : ∀ 
     IsWalrasianEquilibrium E.excessDemandFn p ↔
       ∀ g : G, ∑ i : I, E.weight i g * expenditure p (E.endowment i) ≤
         p g * E.toExchangeMarket.totalSupply g := by
-  constructor
-  · intro heq g
-    have hz := heq.2 g
+  refine ⟨fun heq g => ?_, fun hlin => ⟨hp, fun g => ?_⟩⟩
+  · have hz := heq.2 g
     rw [excessDemandFn_eq, sub_nonpos, ← sum_div] at hz
-    have h := (div_le_iff₀ (hp g)).1 hz
-    linarith
-  · intro hlin
-    refine ⟨hp, fun g => ?_⟩
-    rw [excessDemandFn_eq, sub_nonpos, ← sum_div]
-    refine (div_le_iff₀ (hp g)).2 ?_
-    linarith [hlin g]
+    linarith [(div_le_iff₀ (hp g)).1 hz]
+  · rw [excessDemandFn_eq, sub_nonpos, ← sum_div]
+    exact (div_le_iff₀ (hp g)).2 (by linarith [hlin g])
 
 theorem isWalrasianEquilibrium_iff_linearEquations {p : G → ℝ} (hp : ∀ g, 0 < p g) :
     IsWalrasianEquilibrium E.excessDemandFn p ↔

@@ -56,30 +56,21 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
       Function.Injective (fun i => (path i).1) ∧
       Function.Injective site ∧ ∀ i, site i ∈ S k := by
     rcases hpath k with hDirect | ⟨ha', hb', hr⟩
-    · have zero (i : Fin (0 + 1)) : i = 0 := by
-        apply Fin.ext
-        have := i.isLt
-        omega
-      refine ⟨0, fun _ => a k, Fin.elim0, rfl, hDirect.symm, ?_, ?_,
-        fun i j _ => (zero i).trans (zero j).symm, fun i => Fin.elim0 i, fun i => Fin.elim0 i⟩
-      · intro i
-        have he : i = 0 := zero i
-        subst i
-        exact ha k
-      · intro i
-        have he : i = Fin.last 0 := zero i
-        subst i
-        rw [Fin.lastCases_last, ← hDirect]
-        exact hb k
+    · refine ⟨0, fun _ => a k, Fin.elim0, rfl, hDirect.symm,
+        fun i => Fin.eq_zero i ▸ ha k,
+        fun i => by
+          rw [show i = Fin.last 0 from Fin.eq_zero i, Fin.lastCases_last, ← hDirect]
+          exact hb k,
+        fun i j _ => (Fin.eq_zero i).trans (Fin.eq_zero j).symm,
+        fun i => i.elim0, fun i => i.elim0⟩
     · have haOutside : (a k).vertex ∉ S k := ha k ▸ (havoid k).1
       have hbOutside : (b k).vertex ∉ S k := hb k ▸ (havoid k).2
       have hab : a k ≠ b k := fun h => huv ((ha k).symm.trans
         ((congrArg Dart.vertex h).trans (hb k)))
       obtain ⟨n, path, site, hfirst, hlast, hs, ht, hi, hj, hre⟩ :=
         Dart.exists_path_of_induced_reachable (a k) (b k) haOutside hbOutside hab ha' hb' hr
-      refine ⟨n, path, site, hfirst, hlast, ?_, ?_, hi, hj, fun i => (hre i).choose⟩
-      · simpa only [ha k] using hs
-      · simpa only [hb k] using ht
+      exact ⟨n, path, site, hfirst, hlast, by simpa only [ha k] using hs,
+        by simpa only [hb k] using ht, hi, hj, fun i => (hre i).choose⟩
   choose length path site first last start finish injectiveEdges injectiveSite siteMem
     using chooseArm
   have outside (k : Fin 3) (i : Fin (length k)) : site k i ≠ u ∧ site k i ≠ v :=
@@ -123,22 +114,15 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
     rw [hi, hj, first, first] at he
     exact hkl (haInj he)
   have allEdges : Function.Injective (fun p : (k : Fin 3) × Fin (length k + 1) =>
-      (path p.1 p.2).1) := by
-    rintro ⟨k, i⟩ ⟨l, j⟩ he
-    change (path k i).1 = (path l j).1 at he
-    by_cases hkl : k = l
-    · subst l
-      obtain rfl := injectiveEdges k he
-      rfl
+      (path p.1 p.2).1) := fun ⟨k, i⟩ ⟨l, j⟩ he => by
+    rcases eq_or_ne k l with rfl | hkl
+    · exact congrArg (Sigma.mk k) (injectiveEdges k he)
     · exact (edgeNe hkl i j he).elim
   have allSites : Function.Injective (fun p : (k : Fin 3) × Fin (length k) =>
-      site p.1 p.2) := by
-    rintro ⟨k, i⟩ ⟨l, j⟩ he
-    change site k i = site l j at he
-    by_cases hkl : k = l
-    · subst l
-      obtain rfl := injectiveSite k he
-      rfl
+      site p.1 p.2) := fun ⟨k, i⟩ ⟨l, j⟩ he => by
+    dsimp only at he
+    rcases eq_or_ne k l with rfl | hkl
+    · exact congrArg (Sigma.mk k) (injectiveSite k he)
     · exact (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k i) (he.symm ▸ siteMem l j)).elim
   have even (k l : Fin 3) (hkl : k ≠ l) (i : Fin (length k + 1)) (j : Fin (length l + 1)) :
       (D.route (path k i).1).intersectionParity (D.route (path l j).1) = false := by
@@ -192,14 +176,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
     cases hc : component k with
     | none => simp [S, hc]
     | some C =>
-      change u ∉ (component k).elim ∅ (fun C => projection '' C.supp) ∧
-        v.val ∉ (component k).elim ∅ (fun C => projection '' C.supp)
-      rw [hc]
-      refine ⟨?_, ?_⟩
-      · rintro ⟨w, _, he⟩
-        exact w.val.property he
-      · rintro ⟨w, _, he⟩
-        exact w.property (Subtype.ext he)
+      simp only [S, hc, Option.elim_some]
+      exact ⟨fun ⟨w, _, he⟩ => w.val.property he, fun ⟨w, _, he⟩ => w.property (Subtype.ext he)⟩
   have disjoint : Pairwise fun i j => Disjoint (S i) (S j) := by
     intro x y hxy
     cases hc : component x with
@@ -250,16 +228,8 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
   let triple : Fin 3 → ι := ![o, i, j]
   have htriple : Function.Injective triple := by
     intro x y he
-    fin_cases x <;> fin_cases y
-    all_goals
-      first
-      | rfl
-      | exact (hoi he).elim
-      | exact (hoi he.symm).elim
-      | exact (hoj he).elim
-      | exact (hoj he.symm).elim
-      | exact (hij he).elim
-      | exact (hij he.symm).elim
+    fin_cases x <;> fin_cases y <;> dsimp [triple] at he
+    all_goals first | rfl | exact absurd he ‹_› | exact absurd he.symm ‹_›
   have compare :
       a i ∈ r.rotationInterval (a o) (a j) ↔ b i ∉ r.rotationInterval (b o) (b j) :=
     hD.opposite_orders_of_induced_reachable hsimple hR hG heven (Ne.symm v.property) hu hv

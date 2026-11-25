@@ -405,18 +405,14 @@ private theorem offset_children (depth index : ℕ) :
       if index = 0 then 4 * offset depth 0
       else if index = 1 then 4 * offset depth 0 + 1
       else 4 * offset depth (index - 1) + 3 := by
-  by_cases hz : index = 0
-  · simp [offset, hz, pow_succ]; omega
-  · by_cases ho : index = 1
-    · simp [offset, ho, pow_succ]; omega
-    · have hpow : 4 ^ (index - 1) = 4 ^ (index - 1 - 1) * 4 := by
-        simpa only [Nat.sub_add_cancel (show 1 ≤ index - 1 by omega)] using
-          pow_succ 4 (index - 1 - 1)
-      have hp : 0 < 4 ^ depth := pow_pos (by decide) _
-      have hq : 0 < 4 ^ (index - 1 - 1) := pow_pos (by decide) _
-      simp only [offset, ite_eq_right hz, ite_eq_right ho, ↓reduceIte,
-        ite_eq_right (show index - 1 ≠ 0 by omega), pow_succ, hpow]
-      omega
+  rcases index with _ | _ | index
+  · simp [offset, pow_succ]; omega
+  · simp [offset, pow_succ]; omega
+  · have hp : 0 < 4 ^ depth := pow_pos (by decide) _
+    have hq : 0 < 4 ^ index := pow_pos (by decide) _
+    simp only [offset, Nat.add_eq_zero_iff, one_ne_zero, and_false, ↓reduceIte,
+      Nat.reduceEqDiff, Nat.add_sub_cancel, pow_succ]
+    omega
 
 /-- The geometric axis of a free-line scan. -/
 private inductive LineAxis where
@@ -612,8 +608,7 @@ private theorem odd_transitions : ∀ axis : LineAxis, ∀ which : StripStep, �
         (classChild axis node ⟨along.val + 1, by omega⟩ step.fixed).code.val ∈
         interiorClass axis step.new) := by
   intro axis which ⟨⟨k, hk⟩⟩
-  have hmem : which ∈ [StripStep.evenToEven, .evenToOdd, .oddToOdd] := by cases which <;> decide
-  have h := odd_transitions_mem axis which hmem
+  have h := odd_transitions_mem axis which (by cases which <;> decide)
   exact ⟨fun hi => h.1 k hi hk, fun hb => h.2 k hb hk⟩
 
 private theorem odd_base (axis : LineAxis) :
@@ -715,8 +710,6 @@ private theorem even_refine {axis : LineAxis} {root : Node} {depth old child fix
   intro along lower upper
   have hlocal : along % 8 < 8 := Nat.mod_lt _ (by decide)
   simp only [Nat.one_mul, pow_succ] at lower upper
-  have hlo : 4 ^ depth ≤ along / 8 := by omega
-  have hhi : along / 8 < 3 * 4 ^ depth := by omega
   rw [show along = 8 * (along / 8) + along % 8 by omega, hchild]
   apply (clearAt_succ_block axis true (depth + 1) root _ _ _ _ hlocal (by omega)).2
   by_cases hb : along / 8 = 4 ^ depth
@@ -845,15 +838,10 @@ private theorem odd_classified (axis : LineAxis) (depth index : ℕ) (hi : index
           (hoff : offset (depth + 1) index =
             4 * offset depth prev + (transition which).fixed.val) :=
         hnew ▸ strip_step (which := which) (hodd ▸ ih prev hp) hoff
-      by_cases hz : index = 0
-      · subst index
-        exact go .evenToEven 0 (by omega) rfl rfl (by simp [offset_children, transition])
-      · by_cases ho : index = 1
-        · subst index
-          exact go .evenToOdd 0 (by omega) rfl rfl (by simp [offset_children, transition])
-        · exact go .oddToOdd (index - 1) (by omega)
-            (by simp [transition, show index - 1 ≠ 0 by omega]) (by simp [transition, hz])
-            (by simp [offset_children, transition, hz, ho])
+      rcases index with _ | _ | index
+      · exact go .evenToEven 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .evenToOdd 0 (Nat.zero_le _) rfl rfl (by simp [offset_children, transition])
+      · exact go .oddToOdd (index + 1) (by omega) rfl rfl (by simp [offset_children, transition])
 
 private theorem odd_free (axis : LineAxis) (depth index : ℕ) (hi : index ≤ depth) :
     LineFree axis 2 depth false seedNode (coordinate 2 depth index) := by
@@ -882,8 +870,6 @@ private theorem state_eq_of_present_eq {grid other : ℕ → ℕ → Index}
         cases side <;> simp only [portPresent] <;> rw [geometry]
       have ha := value_isSome_eq_portPresent valid ⟨x, y, side⟩
       have hc := value_isSome_eq_portPresent_of_allowed ⟨x, y, side⟩ allowed
-      have hf := Bool.eq_false_of_not_eq_true hp
-      rw [hf] at ha; rw [hg, hf] at hc
       cases hactual : value actual ⟨x, y, side⟩ <;>
         cases hcanonical : value canonical ⟨x, y, side⟩ <;> simp_all
   have hw := values .west; have he := values .east
@@ -953,12 +939,11 @@ private theorem RefinementComparison.agreement_sparse (C : RefinementComparison)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega) oldGlobalPresent
-  have pathEq := (livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine
   have sparseActual : value actual (sparsePort oldGlobal) = value (C.states d) oldGlobal :=
-    Eq.trans pathEq ((value_coarsen actual oldGlobal).symm.trans previous)
-  have sourceGlobalEq := sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2
+    Eq.trans ((livePortPath (C.grid d) oldGlobal oldGlobalPresent).sound validFine)
+      ((value_coarsen actual oldGlobal).symm.trans previous)
   have blockValue := C.block d bx by₀ (sparsePort old) sourceBounds.1 sourceBounds.2
-  rw [← sourceGlobalEq] at blockValue ⊢
+  rw [← sparse_block (bx := bx) (by₀ := by₀) oldBounds.1 oldBounds.2] at blockValue ⊢
   exact sparseActual.trans ((C.sparse d oldGlobal).symm.trans blockValue)
 
 private theorem RefinementComparison.agreement (C : RefinementComparison) :
@@ -1133,11 +1118,9 @@ private theorem phase_source (flipped : Bool) (depth : ℕ) (coarse : ℕ → �
   have h := root_descendant_source k g' valid' (by simpa only [scaleEq] using shaded) bx by₀
     (by rw [scaleEq, phaseScale_succ]; omega) (by rw [scaleEq, phaseScale_succ]; omega)
   have invol : Function.Involutive Shade.opposite := Shade.opposite_opposite
-  cases flipped
-  · simp only [k, Bool.false_eq_true, ↓reduceIte] at h
-    rw [invol.iterate_two_mul_add_one] at h; exact h
-  · simp only [k, ↓reduceIte] at h
-    rw [invol.iterate_two_mul] at h; exact h
+  cases flipped <;> simp only [k, Bool.false_eq_true, ↓reduceIte] at h
+  · rwa [invol.iterate_two_mul_add_one] at h
+  · rwa [invol.iterate_two_mul] at h
 
 private def phaseComparison (flipped : Bool) (coarse : ℕ → ℕ → Index)
     (rootEq : coarse 0 0 = 0) : RefinementComparison where

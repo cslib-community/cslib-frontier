@@ -66,8 +66,7 @@ theorem contr_len_transAct {K : Type} [Field K] {μ : ℕ} {s : ℝ}
   set f := fun M => (transAct G Y).len z (τ M)
   set w : G → Mt μ → Mt μ → ℝ := fun k a b => dist (z (τ a * k)) (z (τ b * k))
   have e : ∀ a W, ∑ k, w k a (a + W) ^ 2 = f W ^ 2 := fun a W => by
-    simp only [w, f]
-    rw [IsoAct.len_apply, transAct_dist]
+    simp only [w, f, IsoAct.len_apply, transAct_dist]
     exact Fintype.sum_equiv (Equiv.mulLeft (τ a)) _ _ fun k => by
       rw [Equiv.coe_mulLeft, add_comm, hτ, mul_assoc, dist_comm]
   have key : ∀ r, rankMean f r = ∑ k, meanSq (w k) r := fun r => by
@@ -106,18 +105,17 @@ private theorem le_grow {D : ℕ → ℝ} {μ k : ℕ} {s : ℝ} (hμ : 2 ≤ μ
     have hmod := le_grow hμ hs h0 h1 hadd hmul ((Nat.mod_le r μ).trans hr)
     rw [grow, Nat.log_of_lt (Nat.mod_lt r (by omega))] at hmod
     simp only [CharP.cast_eq_zero, zero_add, mul_one, pow_zero] at hmod
-    have h3 := hmul (r / μ) ((Nat.mul_div_le r μ).trans hr)
-    have h4 := hadd (μ * (r / μ)) (r % μ) (by rw [Nat.div_add_mod]; exact hr)
+    have h4 := hadd (μ * (r / μ)) (r % μ) ((Nat.div_add_mod r μ).symm ▸ hr)
     rw [Nat.div_add_mod] at h4
     rw [grow] at hdiv
     rw [Nat.log_of_one_lt_of_le (by omega) (by omega)]
     push_cast
-    have hp : 1 ≤ s ^ (Nat.log μ (r / μ) + 1) := one_le_pow₀ hs
-    calc D r ≤ s * D (r / μ) + D (r % μ) := by linarith
+    calc D r ≤ s * D (r / μ) + D (r % μ) := by
+          linarith [hmul (r / μ) ((Nat.mul_div_le r μ).trans hr)]
       _ ≤ s * (μ * (Nat.log μ (r / μ) + 1) * s ^ Nat.log μ (r / μ) * D 1) +
           μ * D 1 * s ^ (Nat.log μ (r / μ) + 1) :=
         add_le_add (mul_le_mul_of_nonneg_left hdiv (by linarith))
-          (hmod.trans (le_mul_of_one_le_right (by positivity) hp))
+          (hmod.trans (le_mul_of_one_le_right (by positivity) (one_le_pow₀ hs)))
       _ = _ := by ring
 termination_by r
 decreasing_by
@@ -168,18 +166,15 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
   by_cases h0 : (∃ i, u i ≠ 0) ∧ ∃ j, φ j ≠ 0
   swap
   · have : A = 1 := mat_inj <| by
-      rw [hA, mat_one, add_eq_left]
       ext i j
-      push Not at h0
-      by_cases hi : u i = 0
-      · simp [vecMulVec_apply, hi]
-      · simp [vecMulVec_apply, h0 ⟨i, hi⟩ j]
+      rcases not_and_or.1 h0 with h0 | h0 <;> push Not at h0 <;>
+        simp [hA, mat_one, vecMulVec_apply, h0]
     rw [this, map_one_eq_zero]
     linarith
   obtain ⟨⟨i0, hi0⟩, j0, hj0⟩ := h0
   obtain ⟨a, ha, hmax⟩ := exists_max_image (univ.filter fun i => u i ≠ 0) id
     ⟨i0, by simpa using hi0⟩
-  have ha0 : u a ≠ 0 := by simpa using ha
+  have ha0 : u a ≠ 0 := (mem_filter.1 ha).2
   have hak := hu a ha0
   have hjk := hφ j0 hj0
   set j : Fin (n - 1) := ⟨a.1, by omega⟩
@@ -192,11 +187,9 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
       · rw [h, zero_mul]
       · rw [hψ c (lt_of_le_of_lt hci ((not_lt.1 fun hi => h (hu' i hi)).trans_lt
           (Cslib.SLTower.lo_lt_hi j))), mul_zero]
-  have hφ' : ∀ i, i < hi j → φ i = 0 := fun i hi => by
+  have hφ' : ∀ i, i < hi j → φ i = 0 := fun i hlt => by
     by_contra h
-    have := hφ i h
-    have : i.1 < a.1 + 1 := Fin.lt_def.1 hi
-    omega
+    exact absurd (hφ i h) (by have : i.1 < a.1 + 1 := Fin.lt_def.1 hlt; omega)
   -- `1 + u ψᵀ` is an element of length at most `9 ∑_j |x_j|`
   have key : ∀ ψ : Fin n → F2, (∀ i, i < hi j → ψ i = 0) → ψ (hi j) = 1 →
       ∃ B : U n, mat B = 1 + vecMulVec u ψ ∧ l B ≤ 9 * l.S := fun ψ h1 h2 =>
@@ -322,11 +315,9 @@ private theorem bd_add_self (hμ : 2 ≤ μ) (hs : 1 ≤ s) {a : ℕ} {κ : ℝ}
   rw [e0, eA, eB] at key
   have h1 : l.rms ≤ Len.rms B + (grow μ s a * (18 * l.S) + Len.rms A) :=
     le_of_mul_le_mul_left (by linarith) (Real.sqrt_pos.2 hN)
-  have := mul_le_mul_of_nonneg_left (S_add_le l) hκ
-  have := h A (hC.comp _)
-  have := h B (hC.comp _)
-  rw [mul_add] at *
-  linarith
+  have hS := mul_le_mul_of_nonneg_left (S_add_le l) hκ
+  rw [mul_add] at hS
+  linarith [h A (hC.comp _), h B (hC.comp _)]
 
 /-- **Lemma F.3** (p. 38): every contracting length on `U_n` has root mean square length at most
 `kappa μ s n ∑_j |x_j|`. The proof treats `n = 2^i` by induction (`bd_add_self`), and `U_n` is a

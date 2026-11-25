@@ -100,15 +100,11 @@ theorem mem_anti {Z Γ : Type*} [Fintype Z] [DecidableEq Z] [DecidableEq Γ]
     {v : Z → List Γ} {p : (Z → List Γ) × (Z → List Γ)} :
     p ∈ anti v ↔ ∀ z, p.1 z ++ p.2 z = v z := by
   simp only [anti, Finset.mem_image, Fintype.mem_piFinset, Finset.mem_range]
-  constructor
+  refine ⟨?_, fun h => ⟨fun z => (p.1 z).length, fun z => ?_, ?_⟩⟩
   · rintro ⟨k, -, rfl⟩ z
     simp
-  · intro h
-    refine ⟨fun z => (p.1 z).length, fun z => ?_, ?_⟩
-    · rw [← h z]; simp; omega
-    · ext1
-      · funext z; simp only; rw [← h z]; simp
-      · funext z; simp only; rw [← h z]; simp
+  · simp [← h z]; omega
+  · refine Prod.ext (funext fun z => ?_) (funext fun z => ?_) <;> simp [← h z]
 
 theorem hat_add (f g : Series F (Z × Γ)) (v : Z → List Γ) :
     hat (f + g) v = hat f v + hat g v := by
@@ -166,18 +162,14 @@ theorem kstar_eq (f : Series F (Z × Γ)) :
 theorem hat_ne [DecidableEq Γ] (f : Series F (Z × Γ)) (v : Z → List Γ) :
     hat (Series.ne f) v = if v = fun _ => [] then 0 else hat f v := by
   split_ifs with h
-  · rw [hat]
-    refine Finset.sum_eq_zero fun o ho => ?_
-    rw [mem_fib, h] at ho
-    have ho_nil : o = [] := by
-      have hlen := sum_length_proj o
-      rw [ho] at hlen
-      simpa using hlen.symm
-    simp [Series.ne, ho_nil]
-  · rw [hat, hat]
-    refine Finset.sum_congr rfl fun o ho => ?_
-    rw [mem_fib] at ho
-    have ho_ne : o ≠ [] := by rintro rfl; exact h (by rw [← ho]; rfl)
+  · refine Finset.sum_eq_zero fun o ho => ?_
+    have hlen := sum_length_proj o
+    rw [mem_fib.mp ho, h] at hlen
+    simp [Series.ne, List.eq_nil_of_length_eq_zero (by simpa using hlen.symm)]
+  · refine Finset.sum_congr rfl fun o ho => ?_
+    have ho_ne : o ≠ [] := by
+      rintro rfl
+      exact h (mem_fib.mp ho).symm
     simp [Series.ne, ho_ne]
 
 /-- The convolution recursion for `hat` of a Kleene star. -/

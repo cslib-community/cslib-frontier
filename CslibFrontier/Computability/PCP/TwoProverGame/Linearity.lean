@@ -158,9 +158,8 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
   have hdist (k : Fin 3) (a b : n → Bool) :
       φ.norm (A (linearityQuery k a b) - N k a b) ^ 2 ≤ 2 - 2 * C k a b := by
     let c := linearityQuery k a b
-    have ha := φ.norm_sq_le_of_star_mul_le (hA c)
-    have hb := φ.norm_sq_le_of_star_mul_le (hN k a b)
-    rw [AlgState.map_one, Complex.one_re] at ha hb
+    have ha : φ.norm (A c) ^ 2 ≤ 1 := by simpa using φ.norm_sq_le_of_star_mul_le (hA c)
+    have hb : φ.norm (N k a b) ^ 2 ≤ 1 := by simpa using φ.norm_sq_le_of_star_mul_le (hN k a b)
     change ‖φ.toPreGNS (A c - N k a b)‖ ^ 2 ≤ 2 - 2 * C k a b
     rw [map_sub, norm_sub_sq (𝕜 := ℂ), AlgState.inner_toPreGNS,
       (S.alice c).isSelfAdjoint_observable.star_eq, RCLike.re_to_complex]
@@ -194,13 +193,11 @@ theorem one_sub_le_expect_re_apply_mul_mul_of_linearityTest
     simp only [e]
     linarith [hE 0, hE 1, hE 2]
   have h₁ : 𝔼 a, 𝔼 b, φ.norm (A a - N 0 a b) ^ 2 ≤ 12 * ε := by
-    have := hdistE 0
-    simp only [linearityQuery, ite_true] at this
-    linarith [hE 0, hE 1, hE 2]
+    linarith [hE 0, hE 1, hE 2, show 𝔼 a, 𝔼 b, φ.norm (A a - N 0 a b) ^ 2 ≤
+      2 - 2 * 𝔼 a, 𝔼 b, C 0 a b from hdistE 0]
   have h₂ : 𝔼 a, 𝔼 b, φ.norm (A b - N 1 a b) ^ 2 ≤ 12 * ε := by
-    have := hdistE 1
-    simp only [linearityQuery, Fin.reduceEq, ite_true, ite_false] at this
-    linarith [hE 0, hE 1, hE 2]
+    linarith [hE 0, hE 1, hE 2, show 𝔼 a, 𝔼 b, φ.norm (A b - N 1 a b) ^ 2 ≤
+      2 - 2 * 𝔼 a, 𝔼 b, C 1 a b from hdistE 1]
   exact one_sub_le_expect_re_apply_mul_mul φ A (N 0) (N 1) hA (hN 0) (hc 0) (hc 1) hL h₁ h₂
 
 end CStar
@@ -230,8 +227,6 @@ theorem commutingWinProb_linearityGame {𝒜 : Type*} [Ring 𝒜] [StarRing 𝒜
     (linearityGame n).commutingWinProb S = S.linearityTestProb := by
   rw [SeededGame.commutingWinProb_eq_expect_of_uniform _ rfl, CommutingStrategy.linearityTestProb]
   simp only [Fintype.expect_prod_type, linearityGame]
-  refine expect_congr rfl fun k _ => expect_congr rfl fun a _ => expect_congr rfl fun b _ =>
-    sum_congr rfl fun γ _ => sum_congr rfl fun r _ => ?_
-  by_cases h : γ = linearityCheck k r <;> simp only [h, ite_true, ite_false]
+  congr!
 
 end Cslib.PCP

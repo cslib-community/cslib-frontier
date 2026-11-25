@@ -136,11 +136,9 @@ private noncomputable def topChoice (u : Fin 3 → ℝ) : Fin 3 :=
   Tuple.sortDesc u 0
 
 private theorem le_topChoice (u : Fin 3 → ℝ) (k : Fin 3) :
-    u k ≤ u (topChoice u) := by
-  let σ := Tuple.sortDesc u
-  have hk : u k = u (σ (σ.symm k)) := by rw [Equiv.apply_symm_apply]
-  rw [hk, topChoice]
-  exact Tuple.antitone_sortDesc u (Fin.zero_le (σ.symm k))
+    u k ≤ u (topChoice u) :=
+  Equiv.apply_symm_apply (Tuple.sortDesc u) k ▸
+    Tuple.antitone_sortDesc u (Fin.zero_le _)
 
 /-- Best index maximizing `u : Fin 3 → ℝ` among `{k | k ≠ taken}`. -/
 private noncomputable def bestOther (u : Fin 3 → ℝ) (taken : Fin 3) : Fin 3 :=
@@ -153,10 +151,7 @@ private theorem bestOther_ne (u : Fin 3 → ℝ) (taken : Fin 3) :
   set σ := Tuple.sortDesc u
   split_ifs with h0
   · exact h0
-  · push Not at h0
-    intro h1
-    have heq : (1 : Fin 3) = 0 := σ.injective (h1.trans h0.symm)
-    exact absurd heq (by decide)
+  · exact fun h1 => absurd (σ.injective (h1.trans (not_ne_iff.mp h0).symm)) (by decide)
 
 private theorem le_bestOther_of_ne (u : Fin 3 → ℝ) {taken k : Fin 3} (hk : k ≠ taken) :
     u k ≤ u (bestOther u taken) := by
@@ -164,18 +159,10 @@ private theorem le_bestOther_of_ne (u : Fin 3 → ℝ) {taken k : Fin 3} (hk : k
   set σ := Tuple.sortDesc u
   split_ifs with h0
   · exact le_topChoice u k
-  · push Not at h0
-    have hsymm_ne : σ.symm k ≠ 0 := by
-      intro hz
-      apply hk
-      rw [← h0, ← hz, Equiv.apply_symm_apply]
-    have h1_le : (1 : Fin 3) ≤ σ.symm k := by
-      revert hsymm_ne
-      generalize σ.symm k = j
-      fin_cases j <;> decide
-    have hk_eq : u k = u (σ (σ.symm k)) := by rw [Equiv.apply_symm_apply]
-    rw [hk_eq]
-    exact Tuple.antitone_sortDesc u h1_le
+  · have hsymm_ne : σ.symm k ≠ 0 := fun hz =>
+      hk (by rw [← not_ne_iff.mp h0, ← hz, Equiv.apply_symm_apply])
+    exact Equiv.apply_symm_apply σ k ▸
+      Tuple.antitone_sortDesc u (Nat.succ_le_of_lt (Fin.pos_iff_ne_zero.mpr hsymm_ne))
 
 private theorem perm_interleave_three {α : Type} (a0 b0 a1 b1 a2 b2 : α) :
     [a0, b0, a1, b1, a2, b2].Perm [a0, a1, a2, b0, b1, b2] := by
@@ -210,20 +197,13 @@ private theorem cutIntoThirds_spec {v : Fin 3 → CakeValuation}
   obtain ⟨⟨hu1_a, hu1_b⟩, hvu1⟩ :=
     ho.eval_cutIn_spec i (α := α) ha hab hb (by linarith) (by linarith)
   set u1 := (RWQuery.cutIn i a b α).eval oracle
-  have hrem : v i u1 b = 2 * α := by
-    have hadd := (v i).val_add ha hu1_a hu1_b hb
-    linarith
+  have hrem : v i u1 b = 2 * α := by linarith [(v i).val_add ha hu1_a hu1_b hb]
   obtain ⟨⟨hu2_u1, hu2_b⟩, hvu2⟩ :=
     ho.eval_cutIn_spec i (α := α) (ha.trans hu1_a) hu1_b hb (by linarith) (by linarith)
   set u2 := (RWQuery.cutIn i u1 b α).eval oracle
-  have hvu3 : v i u2 b = α := by
-    have hadd := (v i).val_add (ha.trans hu1_a) hu2_u1 hu2_b hb
-    linarith
+  have hvu3 : v i u2 b = α := by linarith [(v i).val_add (ha.trans hu1_a) hu2_u1 hu2_b hb]
   refine ⟨hu1_a, hu2_u1, hu2_b, fun k => ?_⟩
-  fin_cases k
-  · exact hvu1
-  · exact hvu2
-  · exact hvu3
+  fin_cases k <;> assumption
 
 private noncomputable def scBuildUntrimmed (c1 c2 : ℝ) (u1 u2 : Fin 3 → ℝ) : DividedCake 3 :=
   let X := scInitialPieces c1 c2
@@ -563,14 +543,10 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
       split_ifs
       · rfl
       · exact hu1_tie_eq.symm
-    have h1_fav : ∀ k : Fin 3, (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
-      intro k
-      have hk : u1 k ≤ u1 q1 := hq1_val ▸ hu1_top k
-      simpa only [u1, hu1_eq] using hk
-    have h2_fav : ∀ k : Fin 3, (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) := by
-      intro k
-      have hk : u2 k ≤ u2 q2 := le_topChoice u2 k
-      simpa only [u2, hu2_eq] using hk
+    have h1_fav (k : Fin 3) : (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
+      simpa only [hu1_eq] using (hq1_val ▸ hu1_top k : u1 k ≤ u1 q1)
+    have h2_fav (k : Fin 3) : (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) :=
+      (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     intro i j
     fin_cases i <;> fin_cases j <;> simp only [scBuildUntrimmed, Fin.zero_eta, Fin.mk_one,
       Fin.reduceFinMk, Fin.isValue, hbundle1]
@@ -595,35 +571,22 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set Y := scTrimmedPieces c1 c2 p0 t
     -- Player 1 values Y p0 and Y p1 equally at u1 p1, dominating every Y k.
     have hv1_Y_p0 : (v 1).pieceVal (Y p0) = u1 p1 := by
-      dsimp only [Y, scTrimmedPieces]
-      simp only [↓reduceIte, CakeValuation.pieceVal]
-      exact hvt1
-    have hv1_Y_p1 : (v 1).pieceVal (Y p1) = u1 p1 := by
-      dsimp only [Y, scTrimmedPieces]
-      simp only [hp0_ne_p1.symm, ↓reduceIte]
-      rw [show u1 p1 = (v 1).pieceVal (X p1) by rw [hu1_eq]]
-    have hv1_Y_le : ∀ k : Fin 3, (v 1).pieceVal (Y k) ≤ u1 p1 := by
-      intro k
+      simpa only [Y, scTrimmedPieces, ↓reduceIte, CakeValuation.pieceVal] using hvt1
+    have hv1_Y_p1 : (v 1).pieceVal (Y p1) = u1 p1 :=
+      (congrArg (v 1).pieceVal (ite_eq_right hp0_ne_p1.symm)).trans (congrFun hu1_eq p1).symm
+    have hv1_Y_le (k : Fin 3) : (v 1).pieceVal (Y k) ≤ u1 p1 := by
       by_cases hk0 : k = p0
       · rw [hk0, hv1_Y_p0]
-      · dsimp only [Y, scTrimmedPieces]
-        simp only [hk0, ↓reduceIte]
-        change (v 1).pieceVal (X k) ≤ u1 p1
-        rw [← congrFun hu1_eq k]
-        have h := le_bestOther_of_ne u1 hk0
-        have hbo : bestOther u1 p0 = p1 := by
-          dsimp only [bestOther, p0, p1, σ1]
-          simp only [ne_eq, not_true_eq_false, ↓reduceIte]
-        rwa [hbo] at h
+      · have hbo : bestOther u1 p0 = p1 := ite_eq_right (not_not.mpr rfl)
+        simpa only [Y, scTrimmedPieces, hk0, ↓reduceIte, hu1_eq] using
+          (hbo ▸ le_bestOther_of_ne u1 hk0 : u1 k ≤ u1 p1)
     -- Player 2 chooses favorite Y q2.
     have hu2_eq : (evalThree 2 Y).eval oracle = fun k => (v 2).pieceVal (Y k) :=
       eval_evalThree ho 2 Y
     set u2 := (evalThree 2 Y).eval oracle
     set q2 := topChoice u2
-    have hv2_Y_le : ∀ k : Fin 3, (v 2).pieceVal (Y k) ≤ (v 2).pieceVal (Y q2) := by
-      intro k
-      have hk : u2 k ≤ u2 q2 := le_topChoice u2 k
-      exact congrFun hu2_eq k ▸ congrFun hu2_eq q2 ▸ hk
+    have hv2_Y_le (k : Fin 3) : (v 2).pieceVal (Y k) ≤ (v 2).pieceVal (Y q2) :=
+      (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     set q1 : Fin 3 := if q2 = p0 then p1 else p0
     have hq21 : q2 ≠ q1 := by
       by_cases hq : q2 = p0
@@ -671,10 +634,8 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set s_0 := bestOther w_0 s_pa
     have hspa0 : s_pa ≠ s_0 := (bestOther_ne w_0 s_pa).symm
     set s_pd := thirdFin3 s_pa s_0
-    have hv_pa_T_le : ∀ m : Fin 3, (v pa).pieceVal (T_sub m) ≤ (v pa).pieceVal (T_sub s_pa) := by
-      intro m
-      have hm : w_pa m ≤ w_pa s_pa := le_topChoice w_pa m
-      exact congrFun hw_pa_eq m ▸ congrFun hw_pa_eq s_pa ▸ hm
+    have hv_pa_T_le (m : Fin 3) : (v pa).pieceVal (T_sub m) ≤ (v pa).pieceVal (T_sub s_pa) :=
+      (congrFun hw_pa_eq m).symm.le.trans ((le_topChoice w_pa m).trans (congrFun hw_pa_eq s_pa).le)
     have hv0_T_pd_le_0 : (v 0).pieceVal (T_sub s_pd) ≤ (v 0).pieceVal (T_sub s_0) := by
       have hm := le_bestOther_of_ne w_0 (thirdFin3_ne_left hspa0)
       simpa only [w_0, hw_0_eq, s_0, s_pd] using hm

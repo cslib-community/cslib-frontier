@@ -115,15 +115,14 @@ private theorem step_prefactor_le {rQ Q r S M G L : ℕ} (hrQ : rQ ≤ L) (hQ : 
     (hrL : r ≤ L) (hS : 1 ≤ S) (hM : 1 ≤ M) (hG : 1 ≤ G) :
     (rQ + 1) + (Q + 1) * (S + 1) * (M + 1) * (r * (G + 1) + 1) ≤
       64 * (L + 1) ^ 3 * (S * M * G) := by
-  have hE : 1 ≤ S * M * G := Nat.mul_pos (Nat.mul_pos hS hM) hG
   have hGp1 : r * (G + 1) + 1 ≤ 4 * (L + 1) * G := by nlinarith
   have hprod4 : (Q + 1) * (S + 1) * (M + 1) * (r * (G + 1) + 1) ≤
       16 * (L + 1) ^ 2 * (S * M * G) :=
     (Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul (by omega : Q + 1 ≤ L + 1)
       (by omega : S + 1 ≤ 2 * S)) (by omega : M + 1 ≤ 2 * M)) hGp1).trans_eq (by ring)
-  have hL3 : L + 1 ≤ (L + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
-  have hL23 : (L + 1) ^ 2 ≤ (L + 1) ^ 3 := Nat.pow_le_pow_right (Nat.succ_pos L) (by omega)
-  nlinarith
+  nlinarith [Nat.mul_pos (Nat.mul_pos hS hM) hG,
+    Nat.le_self_pow (by norm_num : 3 ≠ 0) (L + 1),
+    Nat.pow_le_pow_right (Nat.succ_pos L) (by omega : 2 ≤ 3)]
 
 private theorem nat_pow_le_exp_of_le {b e : ℕ} {r u : ℝ}
     (hb : 1 ≤ (b : ℝ)) (he : (e : ℝ) ≤ r) (hu : Real.log b * r ≤ u) :
@@ -387,19 +386,14 @@ private theorem measFold_run_eq (dc : SubsetPairFold.DecodedPair × SubsetStepCt
   change (MeasurementFold.runPrefix measurementStepBody dc.2.2.1 j
     (mkMeasCtx dc, zeroJet dc.2.jetOrder dc.2.precision)).2.2 = _
   rw [MeasurementFold.prefix_accumulator]; simp only [measurementStepBody_eq]
-  have hstep : (fun (acc : MeasStepCtx × JetRows) (i : ℕ) =>
-      (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, acc.1)).elim acc
-        fun y => (acc.1, addJet acc.1.2.1.1 acc.1.2.1.2.1 acc.2 y)) =
-    fun pa i => (pa.1,
-      (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, pa.1)).elim pa.2
-        fun y => addJet pa.1.2.1.1 pa.1.2.1.2.1 pa.2 y) :=
-    funext fun pa => funext fun i => by cases evalMeasPayload _ <;> rfl
-  rw [hstep]
-  exact List.foldl_keep_fst
+  refine Eq.trans ?_ (List.foldl_keep_fst
     (fun (m : MeasStepCtx) (acc : JetRows) (i : ℕ) =>
       (evalMeasPayload (Cslib.Radix.measurementValues dc.2.2.1.1 dc.2.2.1.2 i, m)).elim acc
         (fun y => addJet m.2.1.1 m.2.1.2.1 acc y))
-    (mkMeasCtx dc) (List.range j) (zeroJet dc.2.jetOrder dc.2.precision)
+    (mkMeasCtx dc) (List.range j) (zeroJet dc.2.jetOrder dc.2.precision))
+  congr 1
+  funext pa i
+  cases evalMeasPayload _ <;> rfl
 
 private theorem exists_measVisit_cert
     (cPay : Cert evalMeasPayload (encPair (encList encIntBin) encMeasStepCtx) (encOption encJet))
@@ -884,11 +878,9 @@ private theorem exists_computableInO_mkDesignPair :
         (1 * poly (BalancedSchedules.encScheduleParams (prepScheduleParams inp)).length +
           cPrep.time inp)) cMid.space :=
     cMid.computes.mono_le (fun inp => by
-      have h1 := (hB (prepScheduleParams inp)).1
-      have h2 := Nat.le_mul_of_pos_left (cPrep.time inp)
-        (Nat.succ_pos (branchr_u inp ^ branchQ_u inp))
-      rw [one_mul, Nat.mul_add]
-      exact (Nat.add_comm _ _).le.trans (Nat.add_le_add h1 h2))
+      rw [one_mul, Nat.mul_add, Nat.add_comm]
+      exact Nat.add_le_add (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
+        (hB (prepScheduleParams inp)).1)
       fun _ => le_rfl
   obtain ⟨P, hP, hcomp⟩ := exists_computableInO_pairPost hmid hcS hpoly_pb hcPrep.1
     (fun _ => Nat.succ_pos _) (fun _ => le_rfl) hbuild
@@ -1083,8 +1075,7 @@ private theorem exists_boundedIncidenceBranch_cert :
   let P12 (inp : BranchEvalInput) : ℕ := P_stg1 inp + P_stg2 (mkDesignPair inp) + c12.space inp
   have hP12_pb : PolyBounded (fun inp => (encBranchEvalInput inp).length) P12 := by
     have hsp1 : HasPolySpace cStg1 := hPstg1_pb
-    have hsp2 : HasPolySpace cStg2 := hPstg2_pb
-    have h2sp : HasPolySpace c12 := hasPolySpace_comp hsp2 hsp1
+    have h2sp : HasPolySpace c12 := hasPolySpace_comp (hPstg2_pb : HasPolySpace cStg2) hsp1
     growth_poly [hPstg2_pb.comp (polyBounded_length_of_hasPolySpace hsp1), h2sp]
   have hcomp12 : ComputableInO (fun inp => evalDesignStage (mkDesignPair inp)) encBranchEvalInput
       encNat (fun inp => K inp * P12 inp) P12 :=
@@ -1164,9 +1155,8 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     (T := fun ns => boundedIncidenceBranchCertificate.time (prepareBranchEvalInput ns))
     fun n' sys' hfeas _ => by
     intro β' r Q R q
-    have hex := exists_refines_prepare_of_feasible hfeas
-    dsimp only [prepareBranchEvalInput, ParameterCheck.computeScheduleParams] at hex
-    obtain ⟨hQn, hRn, hrn, _, haux, _, D, href, hmeas_len, _⟩ := hex
+    obtain ⟨hQn, hRn, hrn, _, haux, _, D, href, hmeas_len, _⟩ :=
+      exists_refines_prepare_of_feasible hfeas
     let inp := prepareBranchEvalInput (n', sys')
     let A₀ := ReplacementParams.intervalStart β' n'
     have hQu_eq : branchQ_u inp = Q := Nat.min_eq_right hQn
@@ -1182,19 +1172,16 @@ public theorem exists_boundedIncidenceBranchCertificate_time_bound
     let d_max := maxAllGroupDim n' Q r data.varGroups
     refine ⟨c_meas, d_max, ?_, ?_, ?_⟩
     · have hc_le : c_meas ≤ r * (D.h * #(measurementIndices Q r A₀ R)) :=
-        (Nat.min_le_right _ _).trans (le_of_eq (congrArg (r * ·) hmeas_len))
-      have hrat_r : (((r * (D.h * #(measurementIndices Q r A₀ R)) : ℕ) : ℚ) : ℝ) ≤
-          ((2 * ReplacementParams.tauRat n' * (n' : ℚ) : ℚ) : ℝ) :=
-        Rat.cast_le.mpr D.total_measurement_rows_le
-      simp only [Rat.cast_natCast, Rat.cast_mul, Rat.cast_ofNat,
-        ReplacementParams.cast_tauRat] at hrat_r
-      exact (Nat.cast_le.mpr hc_le).trans hrat_r
+        (Nat.min_le_right _ _).trans (hmeas_len ▸ le_rfl)
+      exact (Nat.cast_le.mpr hc_le).trans (by
+        simpa only [Rat.cast_natCast, Rat.cast_mul, Rat.cast_ofNat, ReplacementParams.cast_tauRat]
+          using Rat.cast_le (K := ℝ).mpr D.total_measurement_rows_le)
     · exact listMax_range_le fun t ht => listMax_range_le fun g hg =>
         (Nat.min_le_right _ _).trans (href.2.2.1 ⟨t, ht⟩ ⟨g, hg⟩).2.1
-    · have ht := htime inp; have hp := hCp (n', sys')
-      change boundedIncidenceBranchCertificate.time inp ≤ _
-      dsimp only [boundedIncidenceBranchCertificate]; rw [hQu_eq, hru_eq, hDcap_eq, hq_eq] at ht
-      exact ht.trans (Nat.mul_le_mul_left _ hp)
+    · have ht := htime inp
+      dsimp only [boundedIncidenceBranchCertificate]
+      rw [hQu_eq, hru_eq, hDcap_eq, hq_eq] at ht
+      exact ht.trans (Nat.mul_le_mul_left _ (hCp (n', sys')))
 
 /-- **Instantiation of `BranchPolylogTimeBound`**: `boundedIncidenceBranchCertificate` satisfies
 `Cslib.Complexity.BranchedSparseCNFCounter.BranchPolylogTimeBound` for every `N₀_branch`. -/

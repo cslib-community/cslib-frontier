@@ -245,11 +245,8 @@ theorem eval_zero_clearedMonomialPoly (d_den : ℤ) {k : ℕ} (θ : ι → Polyn
     {M : Finset ι} (x : ι → Bool) (hM : #M ≤ k)
     (hθ : ∀ v ∈ M, (θ v).eval 0 = d_den * bitVal ℤ (x v)) :
     (clearedMonomialPoly d_den k θ M).eval 0 = d_den ^ k * monomial ℤ M x := by
-  rw [eval_clearedMonomialPoly, monomial]
-  have hprod : (∏ v ∈ M, (θ v).eval 0) = d_den ^ #M * ∏ v ∈ M, bitVal ℤ (x v) := by
-    rw [← prod_const, ← prod_mul_distrib]
-    exact prod_congr rfl fun v hv => hθ v hv
-  rw [hprod, ← mul_assoc, ← pow_add, Nat.sub_add_cancel hM]
+  rw [eval_clearedMonomialPoly, monomial, prod_congr rfl hθ, prod_mul_distrib, prod_const,
+    ← mul_assoc, ← pow_add, Nat.sub_add_cancel hM]
 
 /-- **§5.3–5.4 ($T = 0$ evaluation of cleared equation polynomial)**: at `T = 0`, if every
 `M ∈ 𝓜` has `#M ≤ k` and every `θ v` (`v ∈ M`) evaluates to `d_den * bitVal ℤ (x v)`, then
@@ -270,13 +267,8 @@ theorem map_clearedMonomialPoly [CommRing R] (d_den : ℤ) {k : ℕ} (θ : ι �
     (clearedMonomialPoly d_den k θ M).map (Int.castRingHom R) =
       Polynomial.C ((d_den : R) ^ k) * univariateMonomialPoly R q M := by
   rw [clearedMonomialPoly, Polynomial.map_mul, Polynomial.map_C, eq_intCast, Int.cast_pow,
-    Polynomial.map_prod]
-  have hprod :
-      (∏ v ∈ M, (θ v).map (Int.castRingHom R)) =
-        Polynomial.C ((d_den : R) ^ #M) * univariateMonomialPoly R q M := by
-    rw [univariateMonomialPoly, Polynomial.C_pow, ← prod_const, ← prod_mul_distrib]
-    exact prod_congr rfl fun v hv => hq v hv
-  rw [hprod, ← mul_assoc, ← Polynomial.C_mul, ← pow_add, Nat.sub_add_cancel hM]
+    Polynomial.map_prod, prod_congr rfl hq, prod_mul_distrib, prod_const, ← Polynomial.C_pow,
+    ← mul_assoc, ← Polynomial.C_mul, ← pow_add, Nat.sub_add_cancel hM, univariateMonomialPoly]
 
 /-- **§5.4 (ring homogenization of cleared equation polynomial)**: mapping
 `clearedMonomialSumPoly d_den k θ 𝓜` into `R[X]` when `∀ M ∈ 𝓜, #M ≤ k` and
@@ -412,25 +404,17 @@ theorem map_univariateClearedParityCoord [Fintype ι] [DecidableEq ι] [CommRing
     (univariateClearedParityCoord I P d_den k ℓ θ s).map (Int.castRingHom R) =
       Polynomial.C (clearedProductDenom d_den k ℓ #I : R) * univariateParityCoord I P ℓ q s := by
   let φ : Polynomial ℤ →+* Polynomial R := Polynomial.mapRingHom (Int.castRingHom R)
+  have hC : φ (Polynomial.C (d_den ^ k)) = Polynomial.C ((d_den : R) ^ k) := by
+    change (Polynomial.C (d_den ^ k)).map (Int.castRingHom R) = _
+    rw [Polynomial.map_C, eq_intCast, Int.cast_pow]
   change φ (univariateClearedParityCoord I P d_den k ℓ θ s) = _
   rw [univariateClearedParityCoord_eq_sum, univariateParityCoord_eq_sum, map_sum, mul_sum]
   refine sum_congr rfl fun x _ => ?_
-  rw [← Polynomial.coeff_map, Polynomial.map_prod]
-  have hprod :
-      (∏ i ∈ I,
-        (parityFactorCleared ℓ (Polynomial.C (d_den ^ k))
-          (clearedMonomialSumPoly d_den k (θ x i) (P i))).map φ) =
-        ∏ i ∈ I,
-          parityFactorCleared ℓ (Polynomial.C ((d_den : R) ^ k))
-            (Polynomial.C ((d_den : R) ^ k) * univariateMonomialSumPoly R (q x i) (P i)) := by
-    refine prod_congr rfl fun i hi => ?_
-    rw [map_parityFactorCleared]
-    congr 1
-    · change (Polynomial.C (d_den ^ k)).map (Int.castRingHom R) = _
-      rw [Polynomial.map_C, eq_intCast, Int.cast_pow]
-    · exact map_clearedMonomialSumPoly d_den (θ x i) (q x i) (hk i hi) (hq x i hi)
-  rw [hprod, prod_parityFactorCleared_mul I hℓ (Polynomial.C ((d_den : R) ^ k))
-    (fun i => univariateMonomialSumPoly R (q x i) (P i)), Polynomial.coeff_C_mul]
+  have hprod := prod_congr (rfl : I = I) fun i hi => (map_parityFactorCleared φ ℓ _ _).trans
+    (congrArg₂ _ hC (map_clearedMonomialSumPoly d_den (θ x i) (q x i) (hk i hi) (hq x i hi)))
+  rw [← Polynomial.coeff_map, Polynomial.map_prod, hprod,
+    prod_parityFactorCleared_mul I hℓ (Polynomial.C ((d_den : R) ^ k))
+      (fun i => univariateMonomialSumPoly R (q x i) (P i)), Polynomial.coeff_C_mul]
   congr 1
   simp only [clearedProductDenom, Int.cast_pow, Polynomial.C_pow]
 
@@ -514,16 +498,10 @@ theorem eval_zero_univariateClearedParityCoord [Fintype ι] [DecidableEq ι] (I 
           (∏ i ∈ I, Polynomial.parityFactor ℓ (monomialSum ℤ (P i) x)).coeff s := by
   rw [univariateClearedParityCoord_eq_sum, Polynomial.eval_finsetSum, mul_sum]
   refine sum_congr rfl fun x _ => ?_
-  rw [eval_coeff_prod_parityFactorCleared, Polynomial.eval_C]
-  have hprod :
-      (∏ i ∈ I,
-        parityFactorCleared ℓ (d_den ^ k)
-          ((clearedMonomialSumPoly d_den k (θ x i) (P i)).eval 0)) =
-        ∏ i ∈ I,
-          parityFactorCleared ℓ (d_den ^ k) (d_den ^ k * monomialSum ℤ (P i) x) := by
-    refine prod_congr rfl fun i hi => ?_
-    rw [eval_zero_clearedMonomialSumPoly d_den (θ x i) x (hk i hi) (hθ x i hi)]
-  rw [hprod, prod_parityFactorCleared_mul I hℓ (d_den ^ k) (fun i => monomialSum ℤ (P i) x),
+  have hprod := prod_congr (rfl : I = I) fun i hi => congrArg (parityFactorCleared ℓ (d_den ^ k))
+    (eval_zero_clearedMonomialSumPoly d_den (θ x i) x (hk i hi) (hθ x i hi))
+  rw [eval_coeff_prod_parityFactorCleared, Polynomial.eval_C, hprod,
+    prod_parityFactorCleared_mul I hℓ (d_den ^ k) (fun i => monomialSum ℤ (P i) x),
     Polynomial.coeff_C_mul, clearedProductDenom]
 
 /-- **§5.4 & Appendix B.3 (exact integer factorization of $S_\ell(\tilde{H})(0)$ at $T = 0$)**:
@@ -666,11 +644,8 @@ theorem commonZeroCount_eq_sum_branch_emod_ediv_cleared {ι' : Type*} [Fintype �
   rw [commonZeroCount_eq_sum_relabelRestrictedMonomials S e I P, Nat.cast_sum]
   refine sum_congr rfl fun b hb => ?_
   have hlt : Fintype.card ι' < branchPrecision (Fintype.card ι) := by
-    have hle : Fintype.card ι' ≤ Fintype.card ι := by
-      rw [← Fintype.card_congr e, Fintype.card_coe]
-      exact card_le_univ _
-    rw [branchPrecision]
-    omega
+    rw [← Fintype.card_congr e, Fintype.card_coe, branchPrecision]
+    exact Nat.lt_succ_of_le (card_le_univ _)
   have hk_branch : ∀ i ∈ I, ∀ M ∈ relabelRestrictedMonomials S e b (P i), #M ≤ k :=
     fun i hi M hM => card_mem_relabelRestrictedMonomials_le (hk i hi) M hM
   exact (emod_ediv_eval_zero_univariateClearedParityTruncatedSum_eq_commonZeroCount I
@@ -687,12 +662,10 @@ theorem bivariateCoeffNorm1_parityFactorCleared_le (ℓ : ℕ) (Δ : ℤ)
     (hE : ∀ s < ℓ, (Polynomial.parityBaseDigit ℓ s).coeffNorm1 ≤ E_ℓ) :
     (parityFactorCleared ℓ (Polynomial.C Δ) A_i).bivariateCoeffNorm1 ≤
       ℓ * E_ℓ * (B + Δ.natAbs) ^ (2 * ℓ - 1) := by
-  have hsub : (parityFactorCleared ℓ (Polynomial.C Δ) A_i).support ⊆ range ℓ := by
-    intro s hs
-    rw [Polynomial.mem_support_iff, coeff_parityFactorCleared] at hs
-    by_contra hns
-    rw [mem_range] at hns
-    exact hs (ite_eq_right hns)
+  have hsub : (parityFactorCleared ℓ (Polynomial.C Δ) A_i).support ⊆ range ℓ := fun s hs => by
+    simp only [Polynomial.mem_support_iff, coeff_parityFactorCleared, ne_eq, ite_eq_right_iff,
+      Classical.not_imp] at hs
+    exact mem_range.2 hs.1
   rw [Polynomial.bivariateCoeffNorm1_eq_sum_of_support_subset hsub]
   calc
     (∑ s ∈ range ℓ, ((parityFactorCleared ℓ (Polynomial.C Δ) A_i).coeff s).coeffNorm1)

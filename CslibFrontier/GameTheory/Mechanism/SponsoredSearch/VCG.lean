@@ -245,32 +245,20 @@ private theorem shiftUp_isAssortative [DecidableEq ι] {v : ι → ℝ} {σ : Fi
   · change Function.update v (σ t) 0 (shiftUp σ t tail htail b) ≤
       Function.update v (σ t) 0 (shiftUp σ t tail htail a)
     rw [shiftUp_value v σ t tail htail a, shiftUp_value v σ t tail htail b]
-    by_cases ha1 : a.val < t.val
-    · simp only [ha1, ↓reduceIte]
-      by_cases hb1 : b.val < t.val
-      · simp only [hb1, ↓reduceIte]; exact hσ.antitone hab
-      · by_cases hb2 : b.val + 1 < k
-        · simp only [hb1, hb2, ↓reduceIte, ↓reduceDIte]
-          exact hσ.antitone (show a ≤ ⟨b.val + 1, hb2⟩ by change a.val ≤ b.val + 1; omega)
-        · simp only [hb1, hb2, ↓reduceIte, ↓reduceDIte]; exact htail_le a
-    · by_cases ha2 : a.val + 1 < k
-      · have hb1 : ¬(b.val < t.val) := by have : a.val ≤ b.val := hab; omega
-        simp only [ha1, ha2, hb1, ↓reduceIte, ↓reduceDIte]
-        by_cases hb2 : b.val + 1 < k
-        · simp only [hb2, ↓reduceDIte]
-          exact hσ.antitone (show (⟨a.val + 1, ha2⟩ : Fin k) ≤ ⟨b.val + 1, hb2⟩ by
-            change a.val + 1 ≤ b.val + 1; exact Nat.succ_le_succ hab)
-        · simp only [hb2, ↓reduceDIte]; exact htail_le ⟨a.val + 1, ha2⟩
-      · have hb1 : ¬(b.val < t.val) := by have : a.val ≤ b.val := hab; omega
-        have hb2 : ¬(b.val + 1 < k) := by have : a.val ≤ b.val := hab; omega
-        simp only [ha1, ha2, hb1, hb2, ↓reduceIte, ↓reduceDIte, le_rfl]
+    have hab' : a.val ≤ b.val := hab
+    split_ifs <;> try omega
+    · exact hσ.antitone hab
+    · exact hσ.antitone (Nat.le_succ_of_le hab')
+    · exact hσ.antitone (Nat.succ_le_succ hab')
+    · exact htail_le a
+    · exact htail_le ⟨a.val + 1, ‹_›⟩
+    · exact le_rfl
   · have hle := hunassigned j hj
     rw [shiftUp_value v σ t tail htail i]
-    by_cases hi1 : i.val < t.val
-    · simp only [hi1, ↓reduceIte]; exact hle.trans (htail_le i)
-    · by_cases hi2 : i.val + 1 < k
-      · simp only [hi1, hi2, ↓reduceIte, ↓reduceDIte]; exact hle.trans (htail_le ⟨i.val + 1, hi2⟩)
-      · simp only [hi1, hi2, ↓reduceIte, ↓reduceDIte]; exact hle
+    split_ifs with hi1 hi2
+    · exact hle.trans (htail_le i)
+    · exact hle.trans (htail_le ⟨i.val + 1, hi2⟩)
+    · exact hle
 
 private theorem mem_range_shiftUp_of_ne {σ : Fin k ↪ ι} {t : Fin k} {tail : ι}
     {htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r} {r : Fin k} (hrt : r ≠ t) :

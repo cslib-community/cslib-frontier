@@ -196,9 +196,7 @@ theorem forced_eq {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : φ.eval σ = t
     have := hall l hl
     split_ifs at this with hx
     · rw [← hx, hls, this]
-    · have := hτ _ _ this
-      rw [hls] at this
-      cases l.2 <;> simp at this
+    · exact absurd (hτ _ _ this) (by simp [hls])
   unfold forced at h
   split_ifs at h with h1 h2 <;> cases h
   exacts [key true h1, key false h2]
@@ -256,8 +254,7 @@ theorem apply_notMem_prefixSet_self (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i 
 theorem prefixSet_succ (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
     prefixSet π (i + 1) = insert (π ⟨i, hi⟩) (prefixSet π i) := by
   ext x
-  rw [mem_insert, mem_prefixSet, mem_prefixSet, ← Equiv.symm_apply_eq, Fin.ext_iff]
-  have : ((⟨i, hi⟩ : Fin n) : ℕ) = i := rfl
+  simp only [mem_insert, mem_prefixSet, ← Equiv.symm_apply_eq, Fin.ext_iff]
   omega
 
 /-- The first `i ≤ n` steps process `i` variables. -/
@@ -330,19 +327,15 @@ theorem eq_none_of_mem_support_runWith {O : (Fin n → Option Bool) → Fin n �
     {π : Equiv.Perm (Fin n)} {i : ℕ} {τ : Fin n → Option Bool} (hτ : τ ∈ (runWith O π i).support)
     {y : Fin n} (hy : y ∉ prefixSet π i) : τ y = none := by
   induction i generalizing τ with
-  | zero =>
-    rw [runWith_zero, PMF.support_pure, Set.mem_singleton_iff] at hτ
-    rw [hτ]
+  | zero => simp_all [runWith_zero]
   | succ i ih =>
     have hy' : y ∉ prefixSet π i := fun h' => hy (by rw [mem_prefixSet] at h' ⊢; omega)
     by_cases h : i < n
     · rw [runWith_succ O π h, PMF.mem_support_bind_iff] at hτ
       obtain ⟨τ', hτ', hmap⟩ := hτ
       obtain ⟨b, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hmap
-      have hyx : y ≠ π ⟨i, h⟩ := by
-        rintro rfl
-        simp [mem_prefixSet] at hy
-      exact (Function.update_of_ne hyx _ _).trans (ih hτ' hy')
+      exact (Function.update_of_ne (fun e => hy (by simp [e, mem_prefixSet])) _ _).trans
+        (ih hτ' hy')
     · rw [runWith_succ_of_le O π (by omega)] at hτ
       exact ih hτ hy'
 
@@ -401,9 +394,7 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
       set T' := restrict σ (prefixSet π (i + 1))
       have hxi : x ∉ prefixSet π i := apply_notMem_prefixSet_self π h
       have hT'x : T' = Function.update T x (some (σ x)) := by
-        change restrict σ (prefixSet π (i + 1)) =
-          Function.update (restrict σ (prefixSet π i)) (π ⟨i, h⟩) (some (σ (π ⟨i, h⟩)))
-        rw [prefixSet_succ π h, restrict_insert]
+        simp only [T', T, x, prefixSet_succ π h, restrict_insert]
       rw [runWith_succ O π h, PMF.bind_apply, tsum_eq_single T]
       · rw [PMF.map_apply, tsum_eq_single (σ x)]
         · rw [ite_eq_left hT'x, ih, unforcedCountWith_succ O σ π h, pow_add]
@@ -425,9 +416,7 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
           rcases eq_or_ne y x with rfl | hy
           · rw [eq_none_of_mem_support_runWith hsupp hxi]
             simp [T, restrict, hxi]
-          · have := congrFun e y
-            rw [Function.update_of_ne hy, hT'x, Function.update_of_ne hy] at this
-            exact this.symm
+          · simpa only [hT'x, x, Function.update_of_ne hy] using (congrFun e y).symm
         · rw [(PMF.apply_eq_zero_iff _ _).mpr hsupp, zero_mul]
     · have hle : n ≤ i := not_lt.mp h
       have hpref : prefixSet π (i + 1) = prefixSet π i := by
@@ -739,19 +728,14 @@ theorem round_success_of_satisfiable {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)}
     rw [← Real.rpow_natCast 2 (Cslib.BitString.isolation S σ), ← Real.rpow_natCast 2 n,
       ← Real.rpow_sub two_pos, ← Real.rpow_add two_pos, hiso]
     apply Real.rpow_le_rpow_of_exponent_le one_le_two
-    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k := by
-      rw [le_div_iff₀ (by linarith)]
-      nlinarith
-    have hrw : -((n : ℝ) - I.card / k) = -((1 - 1 / (k : ℝ)) * n) + ((I.card : ℝ) - n) / k := by
-      field_simp
-      ring
-    rw [hrw]
+    have : ((I.card : ℝ) - n) ≤ ((I.card : ℝ) - n) / k :=
+      (le_div_iff₀ (by linarith)).2 (by nlinarith)
+    rw [show -((n : ℝ) - I.card / k) = -((1 - 1 / (k : ℝ)) * n) + ((I.card : ℝ) - n) / k by ring]
     linarith
   -- The isolation inequality.
-  have hiso := Cslib.BitString.two_pow_le_sum_two_pow_isolation S hS
   have hisoR : (1 : ℝ) ≤ ∑ σ ∈ S, (2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n := by
     rw [← sum_div, le_div_iff₀ (by positivity), one_mul]
-    exact_mod_cast hiso
+    exact_mod_cast Cslib.BitString.two_pow_le_sum_two_pow_isolation S hS
   calc
     (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) ≤ (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) *
         ∑ σ ∈ S, (2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n :=

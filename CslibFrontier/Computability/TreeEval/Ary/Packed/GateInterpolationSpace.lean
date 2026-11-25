@@ -72,10 +72,6 @@ attribute [local fun_prop] basisWeight_inSpace mulMod_inSpace
 private theorem gridWeightStateStep_inSpace :
     ComputableInSpace gridWeightStateStep encGridWeightState encGridWeightState
       fun q => (encGridWeightState q).length := by
-  have hcell : ComputableInSpace (fun q : GridWeightState => q.1.2.getD q.2.1 0)
-      encGridWeightState encNat (fun q => (encGridWeightState q).length) := by
-    apply budget_comp_lin (f := fun q : GridWeightState => (q.1.2, q.2.1)) getD (linear_mul 8)
-    space
   space [gridWeightStateStep, gridWeightStep]
 
 private theorem iterate_gridWeightStateStep (p s k : ℕ) (x : List ℕ) (n : ℕ) :

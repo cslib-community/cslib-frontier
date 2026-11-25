@@ -167,10 +167,8 @@ def Rep : {h : ℕ} → Tree h → ℕ → (ℕ → ℕ) → Prop
     mem b = l.total + r.total ∧ l.Rep (b + 1) mem ∧ r.Rep (b + 2 * 2 ^ h) mem
 
 /-- The root word at base address `b` stores `t.total`. -/
-theorem Rep.root {t : Tree h} (ht : t.Rep b mem) : mem b = t.total := by
-  cases t with
-  | leaf => exact ht
-  | node => exact ht.1
+theorem Rep.root {t : Tree h} (ht : t.Rep b mem) : mem b = t.total :=
+  match t, ht with | .leaf _, h => h | .node _ _, h => h.1
 
 /-- A frame rule for the tree representation: only its contiguous footprint matters. -/
 theorem Rep.congr {t : Tree h} (ht : t.Rep b mem)
@@ -181,12 +179,9 @@ theorem Rep.congr {t : Tree h} (ht : t.Rep b mem)
     have := Nat.two_pow_pos h
     refine ⟨(he b le_rfl (by rw [words_succ]; omega)).trans ht.1,
       ihl ht.2.1 fun a ha ha' => ?_, ihr ht.2.2 fun a ha ha' => ?_⟩
-    · refine he a (by omega) ?_
-      rw [words_succ]
-      omega
-    · refine he a (by omega) ?_
-      simp only [words, pow_succ] at ha' ⊢
-      omega
+    · exact he a (Nat.le_of_succ_le ha) (by rw [words_succ]; omega)
+    · exact he a (Nat.le_trans (Nat.le_add_right _ _) ha)
+        (by simp only [words, pow_succ] at ha' ⊢; omega)
 
 /-- Writing outside the representation's region preserves it. -/
 theorem Rep.update_of_outside {t : Tree h} (ht : t.Rep b mem)

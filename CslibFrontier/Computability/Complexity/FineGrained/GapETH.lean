@@ -152,10 +152,7 @@ clauses (`1 - φ.unsatVal ≤ P.soundness`). -/
 theorem mem_yes_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
     φ ∈ (GapKSAT P).yes ↔ (∀ c ∈ φ, c.length ≤ P.width) ∧ φ.unsatVal ≤ 1 - P.completeness := by
   rw [GapKSAT, PromiseProblem.yes_restrict, Set.mem_inter_iff, PromiseProblem.mem_yes_gapMax]
-  change (P.completeness ≤ 1 - φ.unsatVal) ∧ (∀ c ∈ φ, c.length ≤ P.width) ↔ _
-  constructor <;> rintro ⟨h1, h2⟩
-  · exact ⟨h2, by linarith⟩
-  · exact ⟨by linarith, h1⟩
+  exact ⟨fun ⟨h1, h2⟩ => ⟨h2, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, h1⟩⟩
 
 /-- No-instances of `GapKSAT P` are `≤ P.width`-CNFs with `1 - P.soundness ≤ φ.unsatVal`. -/
 theorem mem_no_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
@@ -163,10 +160,7 @@ theorem mem_no_GapKSAT {P : GapKSATSpec} {φ : CNF ℕ} :
   rw [GapKSAT, PromiseProblem.no_restrict, Set.mem_inter_iff,
     PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => P.completeness) (s := fun _ => P.soundness)
       P.soundness_lt_completeness]
-  change (1 - φ.unsatVal ≤ P.soundness) ∧ (∀ c ∈ φ, c.length ≤ P.width) ↔ _
-  constructor <;> rintro ⟨h1, h2⟩
-  · exact ⟨h2, by linarith⟩
-  · exact ⟨by linarith, h1⟩
+  exact ⟨fun ⟨h1, h2⟩ => ⟨h2, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, h1⟩⟩
 
 /-- At perfect completeness `1`, the yes-instances of `GapKSAT` are `KSAT k`. -/
 theorem yes_GapKSAT_perfect (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
@@ -181,10 +175,8 @@ theorem yes_GapKSAT_perfect (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
 theorem no_GapKSAT_perfect_subset_compl (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1 : s < 1) :
     (GapKSAT (GapKSATSpec.perfect k s hs0 hs1)).no ⊆ (KSAT k)ᶜ := by
   intro φ hno hsat
-  rw [mem_no_GapKSAT] at hno
-  simp only [GapKSATSpec.perfect] at hno
-  have hzero : φ.unsatVal = 0 := (CNF.unsatVal_eq_zero_iff φ).mpr hsat.2
-  linarith [hno.2]
+  simp only [mem_no_GapKSAT, GapKSATSpec.perfect] at hno
+  linarith [hno.2, (CNF.unsatVal_eq_zero_iff φ).mpr hsat.2]
 
 /-- Enlarging clause width (`width₁ ≤ width₂`) or narrowing the gap
 (`completeness₂ ≤ completeness₁`, `soundness₁ ≤ soundness₂`) enlarges both `yes` and `no`, so
@@ -192,12 +184,10 @@ theorem no_GapKSAT_perfect_subset_compl (k : ℕ) {s : ℝ} (hs0 : 0 ≤ s) (hs1
 theorem GapKSAT_subset_of_le {P₁ P₂ : GapKSATSpec} (hw : P₁.width ≤ P₂.width)
     (hc : P₂.completeness ≤ P₁.completeness) (hs : P₁.soundness ≤ P₂.soundness) :
     (GapKSAT P₁).yes ⊆ (GapKSAT P₂).yes ∧ (GapKSAT P₁).no ⊆ (GapKSAT P₂).no := by
-  constructor
-  · intro φ hφ
-    rw [mem_yes_GapKSAT] at hφ ⊢
+  refine ⟨fun φ hφ => ?_, fun φ hφ => ?_⟩
+  · rw [mem_yes_GapKSAT] at hφ ⊢
     exact ⟨fun c hmem => (hφ.1 c hmem).trans hw, by linarith [hφ.2]⟩
-  · intro φ hφ
-    rw [mem_no_GapKSAT] at hφ ⊢
+  · rw [mem_no_GapKSAT] at hφ ⊢
     exact ⟨fun c hmem => (hφ.1 c hmem).trans hw, by linarith [hφ.2]⟩
 
 /-- **Width-`0` `GapKSAT` lies in `PromiseP`** for all thresholds `0 ≤ s < c ≤ 1`: a width-`0`
@@ -208,28 +198,23 @@ theorem GapKSAT_zero_mem_PromiseP {P : GapKSATSpec} (h0 : P.width = 0) :
   have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encUnary :=
     CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
   have hdec : ComputableInPolyTime (fun φ : CNF ℕ => decide (φ.length = 0)) encCNF encBool := by
-    have heq : (fun φ : CNF ℕ => decide (φ.length = 0)) = fun φ => φ.length == 0 := rfl
-    rw [heq]
+    change ComputableInPolyTime (fun φ : CNF ℕ => φ.length == 0) encCNF encBool
     fun_prop
   refine mem_PromiseP_iff.mpr ⟨fun φ => decide (φ.length = 0), hdec,
     fun φ hφ => ?_, fun φ hφ => ?_⟩
   · rw [mem_yes_GapKSAT, h0] at hφ
     rw [decide_eq_true_eq]
     by_contra hne
-    have hpos : 0 < φ.length := Nat.pos_of_ne_zero hne
     have hall_one : 1 ≤ φ.unsatVal := by
       refine (CNF.le_unsatVal_iff φ).mpr fun σ => ?_
-      have hcount : φ.countUnsat σ = φ.length := by
-        refine List.countP_eq_length.mpr fun c hc => ?_
-        have hc0 : c = [] := List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc))
-        subst hc0
-        rfl
+      have hcount : φ.countUnsat σ = φ.length :=
+        List.countP_eq_length.mpr fun c hc =>
+          congrArg (!Clause.eval σ ·) (List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc)))
       rw [hcount, div_self (Nat.cast_ne_zero.mpr hne)]
     linarith [hφ.2, P.completeness_pos]
   · rw [mem_no_GapKSAT] at hφ
-    rw [decide_eq_false_iff_not]
-    have hpos_val : 0 < φ.unsatVal := by linarith [hφ.2, P.soundness_lt_one]
-    exact (CNF.length_pos_of_unsatVal_pos hpos_val).ne'
+    exact decide_eq_false
+      (CNF.length_pos_of_unsatVal_pos (by linarith [hφ.2, P.soundness_lt_one])).ne'
 
 /-! ### 2. Threshold MAX-`k`-SAT and rational-midpoint reduction -/
 
@@ -297,24 +282,17 @@ theorem computableInPolyTime_leafAccepts :
   rw [heq]
   have hlen : ComputableInPolyTime (fun q : Leaf => q.formula.length) encLeaf encUnary :=
     CNF.computableInPolyTime_length (encV := encNat) (by fun_prop)
-  have hcl : ComputableInPolyTime (fun p : Leaf × Clause ℕ => p.2)
-      (encPair encLeaf (encClause encNat)) (encClause encNat) := snd _ _
   have hbit : ComputableInPolyTime
       (fun p : (Leaf × Clause ℕ) × ℕ =>
         p.1.1.index.bits.getD (p.1.1.varsList.idxOf p.2) false)
-      (encPair (encPair encLeaf (encClause encNat)) encNat) encBool := by
-    fun_prop
-  have heval : ComputableInPolyTime
-      (fun p : Leaf × Clause ℕ =>
-        !Clause.eval (fun v => p.1.index.bits.getD (p.1.varsList.idxOf v) false) p.2)
-      (encPair encLeaf (encClause encNat)) encBool :=
-    bool_not.comp (Clause.computableInPolyTime_eval hcl hbit)
+      (encPair (encPair encLeaf (encClause encNat)) encNat) encBool := by fun_prop
   have hcnt : ComputableInPolyTime
       (fun q : Leaf =>
         q.formula.countP fun c =>
           !Clause.eval (fun v => q.index.bits.getD (q.varsList.idxOf v) false) c)
       encLeaf encUnary :=
-    countPWithInput (encA := encClause encNat) (by fun_prop) heval
+    countPWithInput (encA := encClause encNat) (by fun_prop)
+      (bool_not.comp (Clause.computableInPolyTime_eval (snd _ _) hbit))
   fun_prop
 
 end MaxSATThresholdSearch

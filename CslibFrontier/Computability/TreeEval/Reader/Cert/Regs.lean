@@ -139,16 +139,7 @@ theorem modifyAt_inSpace {l : α → List ℕ} {i p c : α → ℕ}
     (hc : ComputableInSpace c encIn encNat Bs) :
     ComputableInSpace (fun x => modifyAt (l x) (i x) (addMod (p x) (c x))) encIn
       (encList encNat) Bs := by
-  have hv := budget_comp_lin getD (linear_mul _) (budget_prod hl hi)
-  have hv' := budget_comp_linear addMod_inSpace (budget_prod hp (budget_prod hc hv))
-  refine (budget_comp set (budget_prod hl (budget_prod hi hv')) ?_).of_enc_eq fun x => rfl
-  obtain ⟨c₁, h₁⟩ := length_le (budget_prod hl hi)
-  obtain ⟨c₂, h₂⟩ := length_le hv'
-  refine ⟨256 * (c₁ + c₂ + 1), fun x => ?_⟩
-  have h₁x := h₁ x
-  have h₂x := h₂ x
-  simp only [length_encPair] at h₁x h₂x ⊢
-  nlinarith
+  space [modifyAt, addMod]
 
 /-- A coordinate of subtracting `c` times a sum `a` from a register, with parameters `(p, c)`. -/
 private def subElem (q : ℕ × ℕ) (v : ℕ) (a : Option ℕ) : ℕ :=

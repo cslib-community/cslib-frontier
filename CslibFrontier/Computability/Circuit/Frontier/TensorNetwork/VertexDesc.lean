@@ -148,11 +148,10 @@ theorem map_val_entry_inr {S : Type*} [CommRing S] (ev : T → List Bool → Lis
       packetEntry (p := d.1.nb) κ (ψ (val d.1.p d.1.fl d.1.ζ)) d.1.a d.1.i d.1.t d.1.e₁ d.1.e₂
         d.1.differ (fun Z => d.2.2.getD (finProdFinEquiv Z) 0) (sidePorts d.2.1 bs true)
         (sidePorts d.2.1 bs false) := by
-  have hside (side : Bool) : ∀ r ∈ sidePorts d.2.1 bs side, r.1 < 2 ^ d.1.a := by
-    intro r hr
+  have hside (side : Bool) : ∀ r ∈ sidePorts d.2.1 bs side, r.1 < 2 ^ d.1.a := fun r hr => by
     obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hr
-    have hj' := List.mem_range.mp (List.mem_filter.mp hj).1
-    exact hports _ (by rw [List.getD_eq_getElem _ _ hj']; exact List.getElem_mem _)
+    exact hports _ (List.getD_eq_getElem _ _ (List.mem_range.mp (List.mem_filter.mp hj).1) ▸
+      List.getElem_mem _)
   exact map_val_packetEntryNative { d.1 with cols := sidePorts d.2.1 bs false } ψ hn κ hL hia
     htiles ht hti hti' (hside true) (hside false) d.2.2
 
@@ -282,14 +281,7 @@ theorem entryCertificate_le
     obtain ⟨hEt, hEs⟩ : ce.time (t, bs) ≤ E ∧ ce.space (t, bs) ≤ ES := hE t rfl
     have hlenI : (encPair (encPair (enc encT) encBits) encT ((.inl t, bs), t)).length + 1 ≤
         3 * Z := by
-      have h1 : (encPair (encPair (enc encT) encBits) encT ((.inl t, bs), t)).length =
-          2 * (encPair (enc encT) encBits (.inl t, bs)).length + 1 + (encT t).length :=
-        length_encPair _
-      have h2 : (encPair (enc encT) encBits (Sum.inl t, bs)).length =
-          2 * ((enc encT) (.inl t)).length + 1 + (encBits bs).length := length_encPair _
-      have h3 : ((enc encT) (Sum.inl t : VertexDesc T)).length = (encT t).length + 1 := by
-        rw [length_encSum]; rfl
-      omega
+      simp only [hZ, hn, length_encPair, encSum_inl, List.length_cons]; omega
     have hpow3 {c e : ℕ} (he : e ≤ D) : c * (3 * Z) ^ e ≤ c * 3 ^ e * Z ^ D := by
       rw [Nat.mul_pow, ← Nat.mul_assoc]
       exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) he)
@@ -315,11 +307,7 @@ theorem entryCertificate_le
     have hps' : packetInput.space (.inr d, bs) ≤ cp' * Z ^ D :=
       (hps _).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
     have hlen : (encPair encPacketDesc encBits (d, bs)).length ≤ n := by
-      have h1 : n = 2 * ((encPacketDesc d).length + 1) + 1 + (encBits bs).length := by
-        rw [hn]; exact length_encPair _
-      have h3 : (encPair encPacketDesc encBits (d, bs)).length =
-          2 * (encPacketDesc d).length + 1 + (encBits bs).length := length_encPair _
-      omega
+      simp only [hn, length_encPair, encSum_inr, List.length_cons]; omega
     obtain ⟨hvt, hvs⟩ := hK₀ (d, bs) Rv hRv
     have hZ' : (encPair encPacketDesc encBits (d, bs)).length + (targetModes d.1).length + Rv + 2
         ≤ Z := by rw [hZ]; simp only [modes]; omega

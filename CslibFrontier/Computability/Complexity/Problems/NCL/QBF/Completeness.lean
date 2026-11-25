@@ -112,13 +112,10 @@ private theorem legal_dormant (p : ℕ) (qs : List Quantifier) (ms : List (List 
   refine legal_top_mono Gate.interp_forward _ (initial p qs ms).legal ?_ (fun e => (hinner e).symm)
   intro i
   rw [Realization.orient_top]
-  cases hi : i.val with
-  | zero =>
-    have he : i = ⟨0, by simp⟩ := Fin.ext hi
-    rw [he, hsat]
+  rcases i with ⟨_ | n, hi⟩
+  · rw [hsat]
     simp [Initial.controls]
-  | succ n =>
-    simp only [Initial.controls, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
+  · simp only [Initial.controls, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
       ← List.replicate_succ, List.getElem?_replicate]
     split <;> simp
 
@@ -198,11 +195,8 @@ private theorem attach_dormant_legal (p : ℕ) (q : Quantifier) (qs : List Quant
     (((head p q).comp (circuit (p + 1) qs ms)).graph Gate.interp).Legal
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient) := by
   refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
-  · have he : attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
-        compLeft (head p q) (circuit (p + 1) qs ms) =
-        glueTensor q.gadget (.id (colors p)) u (wires p ls hl).orient :=
-      funext (glueComp_compLeft _ _ _ _)
-    rw [he]
+  · rw [show attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
+        compLeft (head p q) (circuit (p + 1) qs ms) = _ from funext (glueComp_compLeft _ _ _ _)]
     exact legal_glueTensor hu (wires p ls hl).legal
   · apply legal_dormant (p + 1) qs ms
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
@@ -455,27 +449,20 @@ private theorem length_literalValues (values : List Bool) :
     (Chain.literalValues values).length = 2 * values.length := by
   induction values with
   | nil => rfl
-  | cons value values ih =>
-    have hc : Chain.literalValues (value :: values) =
-        Chain.literalValues values ++ [value, !value] := by simp [Chain.literalValues]
-    rw [hc]
-    simp only [List.length_append, List.length_cons, List.length_nil, ih]
-    omega
+  | cons _ _ _ => simp [Chain.literalValues]; omega
 
 private theorem execute : ∀ (qs : List Quantifier) (values : List Bool)
     (ms : List (List Bool)), Chain.Truth (Matrix.Satisfies ms) qs values →
       Succeeds values.length qs ms (Chain.literalValues values) (length_literalValues values)
   | [], values, ms, h => succeeds_nil _ _ _ _ h
-  | .ex :: qs, values, ms, h => by
-    obtain ⟨value, hv⟩ := h
-    apply succeeds_ex values.length qs ms _ _ value
-    have ih := execute qs (values ++ [value]) ms hv
-    simpa only [List.length_append, List.length_singleton, literalValues_snoc] using ih
-  | .all :: qs, values, ms, h => by
-    apply succeeds_all values.length qs ms _ _
-    intro value
-    have ih := execute qs (values ++ [value]) ms (h value)
-    simpa only [List.length_append, List.length_singleton, literalValues_snoc] using ih
+  | .ex :: qs, values, ms, ⟨value, hv⟩ =>
+    succeeds_ex values.length qs ms _ _ value <| by
+      simpa only [List.length_append, List.length_singleton, literalValues_snoc] using
+        execute qs (values ++ [value]) ms hv
+  | .all :: qs, values, ms, h =>
+    succeeds_all values.length qs ms _ _ fun value => by
+      simpa only [List.length_append, List.length_singleton, literalValues_snoc] using
+        execute qs (values ++ [value]) ms (h value)
 
 private theorem activate_body (qs : List Quantifier) (ms : List (List Bool)) :
     ((Matrix.body qs ms).graph Gate.interp).Step (Initial.body qs ms).orient

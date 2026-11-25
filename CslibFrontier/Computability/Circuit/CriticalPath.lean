@@ -106,18 +106,14 @@ abbrev Circuit.Slot (C : Circuit σ n m) : Type :=
 
 /-- Each gate input slot occurs at most once in `C.allSlots`. -/
 theorem Circuit.nodup_allSlots (C : Circuit σ n m) : C.allSlots.Nodup := by
-  unfold Circuit.allSlots
-  rw [List.nodup_flatMap]
-  refine ⟨fun k _ => (List.nodup_finRange _).map fun a₁ a₂ h => ?_, ?_⟩
-  · exact Sigma.mk.inj_iff.mp h |>.2 |> eq_of_heq
-  · refine (List.nodup_finRange C.size).pairwise_of_forall_ne fun k₁ _ k₂ _ hne => ?_
-    dsimp only [Function.onFun]
-    rw [List.disjoint_left]
-    intro s hs₁ hs₂
-    simp only [List.mem_map] at hs₁ hs₂
-    obtain ⟨_, _, rfl⟩ := hs₁
-    obtain ⟨_, _, heq⟩ := hs₂
-    exact hne (congrArg Sigma.fst heq).symm
+  refine List.nodup_flatMap.mpr ⟨fun k _ => (List.nodup_finRange _).map fun _ _ h =>
+    eq_of_heq (Sigma.mk.inj_iff.mp h).2,
+    (List.nodup_finRange C.size).pairwise_of_forall_ne fun k₁ _ k₂ _ hne => ?_⟩
+  rw [Function.onFun, List.disjoint_left]
+  intro s hs₁ hs₂
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp hs₁
+  obtain ⟨_, _, heq⟩ := List.mem_map.mp hs₂
+  exact hne (congrArg Sigma.fst heq).symm
 
 /-- The gate input slots of `C` that read wire `v`. -/
 @[expose] def Circuit.slotReaders (C : Circuit σ n m) (v : Wire n C.size) : List C.Slot :=
@@ -169,13 +165,8 @@ theorem Circuit.outDeg_eq_one_iff (C : Circuit σ n m) {v : Wire n C.size} :
 theorem Circuit.sum_outDeg (C : Circuit σ n m) :
     (∑ v : Wire n C.size, C.outDeg v) = ∑ k : Fin C.size, σ.Arity (C.program.lines k).op := by
   simp_rw [C.outDeg_eq_card_filter]
-  have hcard : (∑ v : Wire n C.size,
-      (Finset.univ.filter fun s : C.Slot => C.slotWire s = v).card) =
-      (Finset.univ : Finset C.Slot).card := by
-    simpa using (Finset.card_eq_sum_card_fiberwise
-      (f := C.slotWire) (s := Finset.univ) (t := Finset.univ)
-      (fun s _ => Finset.mem_univ (C.slotWire s))).symm
-  rw [hcard, Finset.card_univ, Fintype.card_sigma]
+  rw [← Finset.card_eq_sum_card_fiberwise (fun s _ => Finset.mem_univ (C.slotWire s)),
+    Finset.card_univ, Fintype.card_sigma]
   simp
 
 /-- Under fan-in bound `r`, the sum of wire out-degrees is at most `r * C.size`. -/
@@ -344,13 +335,7 @@ theorem Circuit.eval_update_of_outDeg_input_eq_zero {U : Type u} [DecidableEq (F
 theorem Circuit.uniqueReaderSlot_eq_some_iff (C : Circuit σ n m) {v : Wire n C.size} {s : C.Slot} :
     C.uniqueReaderSlot v = some s ↔ C.slotReaders v = [s] := by
   unfold Circuit.uniqueReaderSlot
-  split
-  · rename_i s' hs'
-    simp [hs']
-  · rename_i hnot
-    simp only [reduceCtorEq, false_iff]
-    intro hs
-    exact hnot s hs
+  split <;> simp_all
 
 theorem Circuit.uniqueReaderSlot_eq_none_iff (C : Circuit σ n m) {v : Wire n C.size} :
     C.uniqueReaderSlot v = none ↔ C.outDeg v ≠ 1 := by
@@ -359,10 +344,7 @@ theorem Circuit.uniqueReaderSlot_eq_none_iff (C : Circuit σ n m) {v : Wire n C.
   · rename_i s hs
     simp [Circuit.outDeg, hs]
   · rename_i hnot
-    simp only [true_iff]
-    intro h1
-    obtain ⟨s, hs⟩ := C.outDeg_eq_one_iff.mp h1
-    exact hnot s hs
+    exact iff_of_true rfl fun h1 => (C.outDeg_eq_one_iff.mp h1).elim hnot
 
 /-- Follow unique outgoing gate slots starting from `v` for at most `fuel` steps. -/
 @[expose] def Circuit.criticalPathAux (C : Circuit σ n m) :
@@ -446,30 +428,22 @@ theorem Circuit.rank_lt_criticalPathAux_getElem (C : Circuit σ n m) :
       simp only [Circuit.criticalPathAux, h, List.length_singleton] at hi hj
       omega
     | some s =>
-      cases i with
-      | zero =>
-        cases j with
-        | zero => omega
-        | succ j' =>
-          have hj' : j' < (C.criticalPathAux fuel (.gate s.1)).length := by
-            grind [Circuit.criticalPathAux, List.length_cons]
-          have hmem : (C.criticalPathAux fuel (.gate s.1))[j'] ∈
-              (C.criticalPathAux (fuel + 1) v).tail := by
-            simp only [Circuit.criticalPathAux, h, List.tail_cons]
-            exact List.getElem_mem hj'
-          have hlt := C.rank_lt_of_mem_tail_criticalPathAux (fuel + 1) v _ hmem
-          simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero,
-            List.getElem_cons_succ] using hlt
-      | succ i' =>
-        cases j with
-        | zero => omega
-        | succ j' =>
-          have hi' : i' < (C.criticalPathAux fuel (.gate s.1)).length := by
-            grind [Circuit.criticalPathAux, List.length_cons]
-          have hj' : j' < (C.criticalPathAux fuel (.gate s.1)).length := by
-            grind [Circuit.criticalPathAux, List.length_cons]
-          simpa only [Circuit.criticalPathAux, h, List.getElem_cons_succ] using
-            C.rank_lt_criticalPathAux_getElem fuel (.gate s.1) hi' hj' (by omega)
+      rcases i, j with ⟨_ | i', _ | j'⟩
+      · omega
+      · have hj' : j' < (C.criticalPathAux fuel (.gate s.1)).length := by
+          grind [Circuit.criticalPathAux, List.length_cons]
+        have hmem : (C.criticalPathAux fuel (.gate s.1))[j'] ∈
+            (C.criticalPathAux (fuel + 1) v).tail := by
+          simp only [Circuit.criticalPathAux, h, List.tail_cons]
+          exact List.getElem_mem hj'
+        simpa only [Circuit.criticalPathAux, h, List.getElem_cons_zero,
+          List.getElem_cons_succ] using C.rank_lt_of_mem_tail_criticalPathAux (fuel + 1) v _ hmem
+      · omega
+      · simpa only [Circuit.criticalPathAux, h, List.getElem_cons_succ] using
+          C.rank_lt_criticalPathAux_getElem fuel (.gate s.1)
+            (by grind [Circuit.criticalPathAux, List.length_cons])
+            (by grind [Circuit.criticalPathAux, List.length_cons])
+            (by omega)
 
 /-- Every consecutive pair `(p[i], p[i + 1])` in `C.criticalPathAux fuel v` witnesses a unique
 outgoing slot reading `p[i]` at gate `p[i + 1]`. -/
@@ -599,9 +573,7 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
   have hlowCompl : C.size ≤ ∑ v ∈ Eᶜ, (C.outDeg v + bonus v) := by
     simpa [hcardCompl] using Finset.card_nsmul_le_sum Eᶜ _ 1 fun v _ => hge1 v
   have hsumBonus : (∑ v : Wire n C.size, bonus v) ≤ 2 * m := by
-    have hfilter : (∑ v : Wire n C.size, bonus v) = 2 * C.outputsFinset.card := by
-      simp [bonus, Nat.mul_comm]
-    exact hfilter.trans_le (Nat.mul_le_mul_left 2 C.card_outputsFinset_le)
+    simpa [bonus, Nat.mul_comm] using Nat.mul_le_mul_left 2 C.card_outputsFinset_le
   have htotalLow : 2 * n + C.size ≤ ∑ v : Wire n C.size, (C.outDeg v + bonus v) := by
     rw [← Finset.sum_add_sum_compl E]
     exact Nat.add_le_add hlowE hlowCompl
@@ -637,10 +609,8 @@ theorem Circuit.outDeg_output_eq_zero_of_noDeadGates (C : Circuit σ n 1) (hnoDe
     (C.program.lt_of_lines_wires_eq_gate s.1 s.2 kMax hs).not_ge (Finset.le_max' S s.1
       (Finset.mem_filter.mpr ⟨Finset.mem_univ _, Relation.TransGen.tail hkMaxMem ⟨s, hs, rfl⟩⟩))
   obtain ⟨j, hj⟩ := C.mem_outputsFinset.mp (hnoDead kMax hkMaxOut0)
-  obtain rfl := Subsingleton.elim j 0
-  have hlt := hrank _ _ hkMaxMem
-  rw [hj] at hlt
-  exact Nat.lt_irrefl _ hlt
+  rw [Subsingleton.elim j 0] at hj
+  exact Nat.lt_irrefl _ (hj ▸ hrank _ _ hkMaxMem)
 
 /-- An input wire lies on the critical path from input `y` only if it is `y` itself: every later
 wire of the path is a gate. -/
@@ -799,12 +769,10 @@ theorem Circuit.exists_bottleneck_of_not_disjoint_criticalPath {U : Type u} [Dec
     induction w using C.program.wire_induction with
     | input z =>
       intro hzPx hzPy p q _
-      have hzx : z ≠ x := by
-        rintro rfl
-        exact hzPx (List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem z⟩)
-      have hzy : z ≠ y := by
-        rintro rfl
-        exact hzPy (List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem z⟩)
+      have hzx : z ≠ x := fun h =>
+        hzPx (h ▸ List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem x⟩)
+      have hzy : z ≠ y := fun h =>
+        hzPy (h ▸ List.mem_take_iff_getElem.mpr ⟨0, by omega, C.criticalPath_zero_getElem y⟩)
       simp only [T, Program.trace_input, hassign p z hzx hzy, hassign q z hzx hzy]
     | gate k ih =>
       intro hkx hky p q hpq

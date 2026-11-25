@@ -106,12 +106,9 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     split_ifs <;> omega
   · dsimp only [S, P]
     split_ifs <;> omega
-  · dsimp only
-    split_ifs with hx
-    · have hvalid' : CNF.validDeclaredInput k (g' x).1 (g' x).2 = true := hvalid_imp x hx
-      simp only [hspec₀ (g' x), hvalid']
-      rfl
-    · rfl
+  · by_cases hx : valid x = true
+    · simp [hx, hspec₀ (g' x), hvalid_imp x hx, g']
+    · simp [hx]
   · have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have hX1 : (1 : ℝ) ≤ (2 : ℝ) ^ ((A : ℝ) * interpolationScale (g x).numVars) :=
       Real.one_le_rpow (by norm_num) (mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg _))
@@ -169,9 +166,8 @@ public theorem exists_modelCounter (k : ℕ) :
     have hv : CNF.validDeclaredInput k φ.denseRelabel.numVars φ.denseRelabel = true :=
       CNF.validDeclaredInput_eq_true_iff.mpr
         ⟨hw, by rw [CNF.vars_denseRelabel_toFinset, CNF.numVars_denseRelabel]⟩
-    simp only [g]
-    rw [hspec, hv]
-    simp only [↓reduceIte, CNF.numVars_denseRelabel, CNF.modelCountOn_denseRelabel]
+    dsimp only [g]
+    rw [hspec, ite_eq_left hv, CNF.numVars_denseRelabel, CNF.modelCountOn_denseRelabel]
   all_goals
     set Y := (encCNF φ).length + 1 with hY
     have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
@@ -184,14 +180,12 @@ public theorem exists_modelCounter (k : ℕ) :
     have hTg : T (g φ) ≤ c * (p + 1) ^ e * (N * Y ^ (q * e)) + c := by
       have h : (T (g φ) : ℝ) ≤
           c * (X * (((encPair encUnary encCNF (g φ)).length : ℝ) + 1) ^ e) + c := by
-        have h := hT (g φ)
-        rwa [show (g φ).1 = φ.numVars from CNF.numVars_denseRelabel φ] at h
+        simpa only [g, CNF.numVars_denseRelabel, X] using hT (g φ)
       have hpowR : (((encPair encUnary encCNF (g φ)).length : ℝ) + 1) ^ e ≤
           (p + 1) ^ e * Y ^ (q * e) := by exact_mod_cast hpow e
       have h1 := mul_le_mul hXN hpowR (by positivity) (by positivity)
       have h2 := mul_le_mul_of_nonneg_left h1 (Nat.cast_nonneg c)
-      have : (T (g φ) : ℝ) ≤ c * (p + 1) ^ e * (N * Y ^ (q * e)) + c := by nlinarith
-      exact_mod_cast this
+      exact_mod_cast (by nlinarith : (T (g φ) : ℝ) ≤ c * (p + 1) ^ e * (N * Y ^ (q * e)) + c)
     have hqe : Y ^ (q * e) ≤ Y ^ (q * e + d) := Nat.pow_le_pow_right hY1 (by omega)
     have hd' : Y ^ d ≤ N * Y ^ (q * e + d) :=
       (Nat.pow_le_pow_right hY1 (by omega)).trans (Nat.le_mul_of_pos_left _ hN1)

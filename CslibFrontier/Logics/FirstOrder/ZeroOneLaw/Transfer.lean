@@ -151,11 +151,8 @@ theorem tendsto_structProb_forall_finset (T₀ : Finset L.Sentence)
     (h : ∀ φ ∈ T₀, Tendsto (fun n => sentenceProb (μ n) φ) atTop (nhds 1)) :
     Tendsto (fun n => structProb (μ n) fun S => ∀ φ ∈ T₀, @Sentence.Realize L _ S φ)
       atTop (nhds 1) := by
-  have hfail : ∀ φ ∈ T₀, Tendsto (fun n => sentenceProb (μ n) φ.not) atTop (nhds 0) := by
-    intro φ hφ
-    have := (h φ hφ).const_sub 1
-    simp only [sub_self, ← sentenceProb_not] at this
-    exact this
+  have hfail (φ) (hφ : φ ∈ T₀) : Tendsto (fun n => sentenceProb (μ n) φ.not) atTop (nhds 0) := by
+    simpa only [sub_self, ← sentenceProb_not] using (h φ hφ).const_sub 1
   have hsum := tendsto_finsetSum T₀ hfail
   simp only [Finset.sum_const_zero] at hsum
   have hbad : Tendsto
@@ -166,9 +163,7 @@ theorem tendsto_structProb_forall_finset (T₀ : Finset L.Sentence)
     push Not at hS
     obtain ⟨φ, hφ, hS⟩ := hS
     exact ⟨φ, hφ, (@Sentence.realize_not L _ S φ).2 hS⟩
-  have := hbad.const_sub 1
-  simp only [sub_zero, structProb_not, sub_sub_cancel] at this
-  exact this
+  simpa only [sub_zero, structProb_not, sub_sub_cancel] using hbad.const_sub 1
 
 /-- **Compactness.** If every sentence of `T` holds with probability tending to `1`, then `T` is
 satisfiable. -/
@@ -261,9 +256,7 @@ theorem not_tendsto_structProb_even (c : ℝ) :
     ¬Tendsto (fun n => structProb (μ n) fun _ => Even n) atTop (nhds c) := by
   intro h
   have hval (n : ℕ) : structProb (μ n) (fun _ => Even n) = if Even n then 1 else 0 := by
-    by_cases hn : Even n
-    · simp only [hn, ↓reduceIte, structProb_true]
-    · simp only [hn, ↓reduceIte, structProb_false]
+    by_cases hn : Even n <;> simp [hn]
   have hev : Tendsto (2 * ·) atTop atTop := tendsto_id.const_mul_atTop' two_pos
   -- Along even `n` the probability is `1`, along odd `n` it is `0`.
   have h1 := h.comp hev

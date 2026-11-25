@@ -300,9 +300,7 @@ theorem sum_unitsAt_relay_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node)
   have h0 : (∑ x, if hx : x.Occurs R ch then unitsAt lhat n o P (.relay x hx) else 0) =
       ∑ x, relayAt lhat n o P x := sum_congr rfl fun x _ => by
     by_cases hx : x.Occurs R ch
-    · rw [dite_eq_left hx]
-      simp only [unitsAt, relayAt, relayAlive_eq_moveCount hg hx]
-      rfl
+    · simp only [hx, ↓reduceDIte, unitsAt, relayAt, relayAlive_eq_moveCount hg hx]; rfl
     · simp [hx, relayAt, relayAlive_of_not_occurs hx]
   have hI : ∑ j, ∑ i, ∑ e, relayAt lhat n o P (.inner j i e) ≤ ∑ j : Fin J,
       ((∑ c : T.X j, if Tower.Node.ofChamber j.2.le c = P then
@@ -355,10 +353,8 @@ of a near pair. -/
 private theorem exists_channelEnd (hnr : ∀ f : T.Fl, ∃ ν, T.cN ν = f ∨ T.dN ν = f)
     (d : FL.Kind) (p : (FL.law d).Role) : ∃ ν b, (FL.law d).channelEnd ν b = p := by
   obtain ⟨ν, hν⟩ := hnr (FL.place d p)
-  have h1 := FL.place_channelEnd d ((FL.nearPair d).symm ν)
-  rw [Equiv.apply_symm_apply] at h1
   have h2 : FL.place d p ∈ s(T.cN ν, T.dN ν) := by rcases hν with hν | hν <;> simp [hν]
-  rw [← h1, Sym2.mem_iff] at h2
+  rw [← Equiv.apply_symm_apply (FL.nearPair d) ν, ← FL.place_channelEnd, Sym2.mem_iff] at h2
   rcases h2 with h2 | h2
   exacts [⟨_, false, (FL.place d).injective h2.symm⟩,
     ⟨_, true, (FL.place d).injective h2.symm⟩]
@@ -403,11 +399,9 @@ theorem sum_unitsAt_vertex_le (hg : ∀ mv, GoodOutcome lhat n o mv)
     split_ifs with hi
     · refine sum_le_sum fun p _ => ?_
       split_ifs with hp
-      · have := moveCount_vertex_le_lift hg hnr l p
-        rwa [hp] at this
+      · simpa only [hp, V] using moveCount_vertex_le_lift hg hnr l p
       · exact le_rfl
-    · rw [unitsAt, moveCount_vertex_eq_zero (.inl hi)]
-      simp
+    · simp [unitsAt, moveCount_vertex_eq_zero (.inl hi)]
   have h2 (j : Fin J) (i : Fin h) (d : FL.Kind) :
       ∑ ω, ∑ p : (FL.law d).Role, (if Tower.Node.ofChamber j.2 ((T.chamberEquiv j.2 i).symm
         (ω, FL.place d p)) = P then V else 0) =

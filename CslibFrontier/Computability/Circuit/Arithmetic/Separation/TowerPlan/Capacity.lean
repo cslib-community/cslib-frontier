@@ -73,9 +73,7 @@ private theorem load_edge_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (j : Fin 
     exact_mod_cast Nat.mul_pos hρ.r_pos (Fintype.card_pos_iff.2 ⟨T.e0 e⟩)
   have h1 : (load lhat n o (.edge j e) : ℝ) ^ 2 ≤
       ∑ e', (edgeLoads (load lhat n o) j e' : ℝ) ^ 2 := by
-    have hedge_eq : load lhat n o (.edge j e) = edgeLoads (load lhat n o) j e :=
-      (edgeLoads_of_lt _ j.2 e).symm
-    rw [hedge_eq]
+    rw [← edgeLoads_of_lt (load lhat n o) j.2 e]
     exact single_le_sum (f := fun e' => (edgeLoads (load lhat n o) j e' : ℝ) ^ 2)
       (fun _ _ => sq_nonneg _) (mem_univ e)
   have h3 := sum_nonneg fun e' (_ : e' ∈ univ) => sq_nonneg (edgeLoads (load lhat n o) j e' : ℝ)
@@ -89,10 +87,10 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
     (l.minUnits (load lhat n o) : ℝ) ≤ 3 * b * normBound FL Uu A lhat + 1 := by
   obtain ⟨j, i, ω, d⟩ := l
   set nf : T.Ed j → ℕ := fun e => load lhat n o (.edge j.castSucc e)
-  have hk : T.kap nf ≤ normBound FL Uu A lhat := by
-    rw [show nf = edgeLoads (load lhat n o) j from
-      funext fun e => (edgeLoads_of_lt (load lhat n o) (by omega) e).symm]
-    exact kap_le_normBound hρ hρ1 j.2.le
+  have hk : T.kap nf ≤ normBound FL Uu A lhat :=
+    (show nf = edgeLoads (load lhat n o) j from
+      funext fun e => (edgeLoads_of_lt (load lhat n o) (Nat.lt_succ_of_lt j.2) e).symm) ▸
+        kap_le_normBound hρ hρ1 j.2.le
   have hb : (1 : ℝ) ≤ b := by exact_mod_cast hρ.b_pos
   have ha : (1 : ℝ) ≤ FL.scale := by exact_mod_cast FL.scale_pos
   have hX : (1 : ℝ) ≤ Fintype.card (T.X (j + 1)) := by
@@ -210,9 +208,7 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
     (edgeUnitBound FL Uu A lhat ρ : ℝ) ^ q * (Fintype.card (T.X 0) : ℝ) ^ p ≤
       (2 * (h : ℝ)) ^ q * normBound FL Uu A lhat ^ q := by
   have hD1 : (1 : ℝ) ≤ D := by exact_mod_cast hD
-  have h2h : (1 : ℝ) ≤ 2 * h := by
-    have : (1 : ℝ) ≤ h := by exact_mod_cast hh
-    linarith
+  have h2h : (1 : ℝ) ≤ 2 * h := by exact_mod_cast (by omega : 1 ≤ 2 * h)
   have hk := normBound_nonneg (FL := FL) (Uu := Uu) (A := A) (lhat := lhat)
   have hDJ : (D : ℝ) ^ J ≤ Fintype.card (T.X 0) := by
     rw [show (Fintype.card (T.X 0) : ℝ) = D ^ J * Fintype.card (T.X J) by

@@ -335,23 +335,18 @@ theorem two_mul_card_filter_run_oneRun_le {x y : BitString m} {ℓ : Fin m} (h�
     simp only [relabel, τ, Prod.fst_mul, Prod.snd_mul, Equiv.Perm.mul_def, Equiv.symm_trans_apply,
       Equiv.symm_swap]
   have hA (σ : Relabeling m e) : (fun k => aliceGraph x (relabel h (σ * τ) k)) =
-      fun k => aliceGraph x (relabel h σ k) := funext fun k => by
-    rw [hrel]
-    exact aliceGraph_swap_swap _ _
+      fun k => aliceGraph x (relabel h σ k) :=
+    funext fun k => by rw [hrel, aliceGraph_swap_swap]
   have hB (σ : Relabeling m e) : (fun k => bobGraph i₀ y (relabel h (σ * τ) k)) =
-      fun k => bobGraph i₀ y (relabel h σ k) := funext fun k => by
-    rw [hrel]
-    exact bobGraph_swap_swap hx hy _ _
+      fun k => bobGraph i₀ y (relabel h σ k) :=
+    funext fun k => by rw [hrel, bobGraph_swap_swap hx hy]
   set E := (univ : Finset (Relabeling m e)).filter fun σ => (oneRun p h i₀ σ).run x y = true
-  have hsub : E.image (· * τ) ⊆ Eᶜ := by
-    rintro _ hσ'
-    obtain ⟨σ, hσ, rfl⟩ := mem_image.mp hσ'
+  have hsub : E.image (· * τ) ⊆ Eᶜ := forall_mem_image.2 fun σ hσ => by
     have h₁ := (mem_filter.mp hσ).2
-    rw [run_oneRun] at h₁
-    simp only [bobAnswer, Bool.and_eq_true, decide_eq_true_eq] at h₁
-    rw [mem_compl, mem_filter, not_and, run_oneRun, hA, hB, hrel]
-    intro _
-    simp [bobAnswer, h₁.1, τ, hℓ]
+    simp only [run_oneRun, bobAnswer, Bool.and_eq_true, decide_eq_true_eq] at h₁
+    simp only [E, mem_compl, mem_filter, mem_univ, true_and, run_oneRun, hA, hB]
+    simp only [hrel, bobAnswer, h₁.1]
+    simp [τ, hℓ]
   have hle := card_le_card hsub
   rw [card_image_of_injective _ (mul_left_injective τ), card_compl] at hle
   have := card_le_univ E

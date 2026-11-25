@@ -581,9 +581,7 @@ theorem isQueryBounded_cca2MultiToSingle {Msg : Type} [Inhabited Msg]
     (cca2MultiToSingle valid encrypt decBound Q adversary).IsQueryBounded Q₁ Q₂ := by
   have hat := isQueryBounded_cca2MultiToSingleAt valid encrypt decBound hQ
   refine ⟨fun n pk => ?_, fun n state ct => (hat 0).2 n state ct⟩
-  unfold cca2MultiToSingle
-  dsimp only
-  simpa only [Nat.zero_add] using
+  simpa only [cca2MultiToSingle, Nat.zero_add] using
     (ProbOracleComp.IsQueryBounded.sample (ProbComp.sampleDyadicIndex (Q n))).bind
       fun split => (hat split).1 n pk
 
@@ -782,28 +780,15 @@ theorem cca2MultiGameOn_gap {Msg Out : Type} [Inhabited Msg]
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingle valid encrypt decBound Q adversary) true n))) := by
   have : NeZero (dyadicSize (Q n)) := ⟨(dyadicSize_pos (Q n)).ne'⟩
-  have h0 := eval_cca2MultiHybridGameOn_zero valid encOut keyGen encrypt decrypt adversary n
   have htop := eval_cca2MultiHybridGameOn_of_le valid encOut keyGen encrypt decrypt adversary
     (dyadicSize (Q n)) n fun keys hkeys challenges stateA hchoice =>
       (hQ keys hkeys challenges stateA hchoice).trans (Nat.le_of_lt (lt_dyadicSize (Q n)))
-  have hred := Game.succProbability_hybrid_reduction
-    (games := fun split =>
-      ProbComp.eval (cca2MultiHybridGameOn valid encOut keyGen encrypt decrypt adversary split n))
-    (game1 := fun split =>
-      ProbComp.eval
-        (cca2GameOn valid encOut keyGen encrypt decrypt
-          (cca2MultiToSingleAt valid encrypt decBound adversary split) false n))
-    (game2 := fun split =>
-      ProbComp.eval
-        (cca2GameOn valid encOut keyGen encrypt decrypt
-          (cca2MultiToSingleAt valid encrypt decBound adversary split) true n))
-    (dyadicSize (Q n)) (dyadicSize (Q n)) le_rfl 1
-    (fun split _ => by
-      rw [one_mul]
-      exact cca2MultiHybridGameOn_step_gap valid encOut keyGen encrypt decrypt decBound adversary
-        split n hdecBound)
-  rw [← h0, ← htop, hred, mul_one, eval_cca2GameOn_cca2MultiToSingle,
-    eval_cca2GameOn_cca2MultiToSingle]
+  have hred := Game.succProbability_hybrid_reduction _ _ _
+    (dyadicSize (Q n)) (dyadicSize (Q n)) le_rfl 1 fun split _ =>
+      (cca2MultiHybridGameOn_step_gap valid encOut keyGen encrypt decrypt decBound adversary
+        split n hdecBound).trans (one_mul _).symm
+  rw [← eval_cca2MultiHybridGameOn_zero valid encOut keyGen encrypt decrypt adversary n, ← htop,
+    hred, mul_one, eval_cca2GameOn_cca2MultiToSingle, eval_cca2GameOn_cca2MultiToSingle]
   simp only [Fin.is_lt, ↓reduceIte]
 
 /-- Hybrid advantage identity for batch-challenge multi-challenge CCA, a step toward

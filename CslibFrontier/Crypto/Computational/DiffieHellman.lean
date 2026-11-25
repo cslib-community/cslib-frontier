@@ -530,27 +530,12 @@ theorem ddhRerandomizeLaw_real (d : F.Desc) (α β : ZMod (F.order d)) :
       F.ddhRealTupleLaw d := by
   simp only [ddhRerandomizeLaw, ddhRealTupleLaw, ddhRerandomize_smul_generator, sub_self, mul_zero,
     add_zero, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  have hs₂ (α' : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-        PMF.pure (α' • F.generator d, (β + s₂) • F.generator d,
-          (α' * (β + s₂)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d)) :=
-    PMF.uniformOfFintype_bind_add_left β
-      (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
-  have hs₁ (r : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-          PMF.pure ((r * α + s₁) • F.generator d, (β + s₂) • F.generator d,
-            ((r * α + s₁) * (β + s₂)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α' =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-          PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d)) := by
-    simp_rw [hs₂]
-    exact PMF.uniformOfFintype_bind_add_left (r * α)
-      (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
-  simp_rw [hs₁, PMF.bind_const]
+  have hs₂ (α' : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left β
+    (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
+  have hs₁ (r : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left (r * α)
+    (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
+      PMF.pure (α' • F.generator d, β' • F.generator d, (α' * β') • F.generator d))
+  simp_rw [hs₂, hs₁, PMF.bind_const]
 
 /-- **Random self-reducibility of DDH (random case)**: re-randomizing any fixed non-DDH tuple
 `(α • g, β • g, γ • g)` with `γ ≠ α * β` yields the exact uniform random DDH tuple distribution. -/
@@ -559,31 +544,14 @@ theorem ddhRerandomizeLaw_random (d : F.Desc) {α β γ : ZMod (F.order d)} (hγ
       F.ddhRandomTupleLaw d := by
   simp only [ddhRerandomizeLaw, ddhRandomTupleLaw, ddhRerandomize_smul_generator,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  have hs₂ (r α' : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-        PMF.pure (α' • F.generator d, (β + s₂) • F.generator d,
-          (α' * (β + s₂) + r * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d,
-          (α' * β' + r * (γ - α * β)) • F.generator d)) :=
-    PMF.uniformOfFintype_bind_add_left β
-      (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d,
+  have hs₂ (r α' : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left β
+    (fun β' => PMF.pure (α' • F.generator d, β' • F.generator d,
+      (α' * β' + r * (γ - α * β)) • F.generator d))
+  have hs₁ (r : ZMod (F.order d)) := PMF.uniformOfFintype_bind_add_left (r * α)
+    (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
+      PMF.pure (α' • F.generator d, β' • F.generator d,
         (α' * β' + r * (γ - α * β)) • F.generator d))
-  have hs₁ (r : ZMod (F.order d)) :
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₁ =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun s₂ =>
-          PMF.pure ((r * α + s₁) • F.generator d, (β + s₂) • F.generator d,
-            ((r * α + s₁) * (β + s₂) + r * (γ - α * β)) • F.generator d)) =
-      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α' =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-          PMF.pure (α' • F.generator d, β' • F.generator d,
-            (α' * β' + r * (γ - α * β)) • F.generator d)) := by
-    simp_rw [hs₂]
-    exact PMF.uniformOfFintype_bind_add_left (r * α)
-      (fun α' => (PMF.uniformOfFintype (ZMod (F.order d))).bind fun β' =>
-        PMF.pure (α' • F.generator d, β' • F.generator d,
-          (α' * β' + r * (γ - α * β)) • F.generator d))
-  simp_rw [hs₁]
+  simp_rw [hs₂, hs₁]
   rw [PMF.bind_comm]
   refine congrArg (PMF.bind _) (funext fun α' => ?_)
   rw [PMF.bind_comm]

@@ -64,10 +64,9 @@ private theorem exists_markerPayload (f : BitString n → BitString n)
   let src := s ∪ (Set.range (fun j x => decide (repKey j = rep x)) ∪
     Set.range (fun j x => decide (blockKey j = BitString.equivBitVec.symm (address x))))
   have hm : Synthesis interpretation src (Set.range marked) (Fintype.card ↥rows) := by
-    have h := Synthesis.family (I := interpretation) (s := src) marked (fun _ => 1) fun j =>
+    simpa using Synthesis.family (I := interpretation) (s := src) marked (fun _ => 1) fun j =>
       (Synthesis.of_mem (Or.inr (Or.inl ⟨j, rfl⟩))).and
         (Synthesis.of_mem (Or.inr (Or.inr ⟨j, rfl⟩)))
-    simpa using h
   have hv := synthesis_tablePayload (src ∪ Set.range marked) marked (fun j => Or.inr ⟨j, rfl⟩)
     stored
   refine ⟨value, ((hr'.union hb').trans (hm.trans hv)).mono
@@ -221,29 +220,24 @@ theorem exists_checkpointCyclePower {n : ℕ} (c : Circuit signature n n)
   have htime : time x = BitString.equivBitVec.symm u := funext fun i => Fin.append_right _ _ i
   have hvalid : key x ∈ H := hkey ▸ hh
   have hl' : (ell x).toNat = cycleLength f h := by
-    change (BitString.equivBitVec (lengthBits x)).toNat = _
-    rw [hl_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_cycleLength]
+    simp only [ell, hl_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_cycleLength]
   have hp' : (phi x).toNat = phase f h := by
-    change (BitString.equivBitVec (phaseBits x)).toNat = _
-    rw [hp_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_phase]
+    simp only [phi, hp_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_phase]
   have hr' := (hr_spec x hvalid).trans (congrArg (canonicalCycle f) hkey)
   have hroom : 2 * (ell x).toNat ≤ 2 ^ (n + 3) := by
     rw [hl', pow_add]
     have := cycleLength_le_two_pow f h
     lia
   have hrem' : (rem x).toNat = u.toNat % cycleLength f h := by
-    have hremnat := toNat_streamRemainder (ell x) (time x) (hl' ▸ cycleLength_pos f h) hroom
-    change (rem x).toNat = (BitString.equivBitVec (time x)).toNat % (ell x).toNat at hremnat
-    simpa only [htime, Equiv.apply_symm_apply, hl'] using hremnat
+    simpa only [rem, htime, Equiv.apply_symm_apply, hl'] using
+      toNat_streamRemainder (ell x) (time x) (hl' ▸ cycleLength_pos f h) hroom
   have ht : (target x).toNat = (phase f h + u.toNat) % cycleLength f h := by
     unfold target
     rw [toNat_addResidue _ _ _ (by simpa only [hp', hl'] using phase_lt f h)
       (by simpa only [hrem', hl'] using Nat.mod_lt u.toNat (cycleLength_pos f h)),
       hp', hrem', hl', Nat.add_mod_mod]
-  change d.eval interpretation x = _
-  rw [hd x]
-  change out x = _
-  rw [hout_spec x h hh hr' (ht ▸ Nat.mod_lt _ (cycleLength_pos f h)), hr', ht]
-  exact (iterate_eq_iterate_phase f h hcyc).symm
+  exact (hd x).trans <| by
+    simpa only [hout_spec x h hh hr' (ht ▸ Nat.mod_lt _ (cycleLength_pos f h)), hr', ht] using
+      (iterate_eq_iterate_phase f h hcyc).symm
 
 end Cslib.Circuits.Boolean.Iteration

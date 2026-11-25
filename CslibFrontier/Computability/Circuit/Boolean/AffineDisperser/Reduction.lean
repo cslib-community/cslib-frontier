@@ -63,8 +63,7 @@ theorem Exclusive.two_le_deg {S : State n} (h : S.Exclusive) {u x : ℕ} {N : �
     (hu : u ∈ S.unpaired) (hNu : N ∈ S.children u) (hx : x ∈ S.params) (hxu : x ≠ u)
     (hNx : N ∈ S.children x) : 2 ≤ S.deg u := by
   have : 1 ≤ S.deg u := Finset.card_pos.2 ⟨N, hNu⟩
-  by_contra hlt
-  exact h u hu (by omega) N hNu x hx hxu hNx
+  exact by_contra fun hlt => h u hu (by omega) N hNu x hx hxu hNx
 
 /-! ### `0/6/7` weight accounting and single-deletion step -/
 
@@ -151,9 +150,7 @@ theorem Valid.reduction_restrict {S : State n} (hS : S.Valid f) {x : ℕ} (hx : 
       subset := Finset.filter_subset _ _
       avoid := fun _ hpr => not_or.1 (Finset.mem_filter.1 hpr).2
       drop := fun pr hpr hP => by
-        have hprx : pr.1 = x ∨ pr.2 = x := by
-          by_contra hc
-          exact hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
+        have hprx : pr.1 = x ∨ pr.2 = x := by_contra fun hc => hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
         refine ⟨hprx, fun y hy => ?_⟩
         obtain ⟨pr', hpr', hxy⟩ := (hℓ y hy).2.2.2 ⟨pr, hpr, hprx⟩
         cases hS.pair_unique hpr hpr' hprx (hxy.imp And.left And.left)
@@ -173,10 +170,8 @@ theorem Valid.fixConst {S : State n} (hS : S.Valid f) {w : ℕ} (hw : w ∈ S.pa
       reads := fun y hy => by simp [Lit.Reads, Lit.const] at hy
       subset := Finset.filter_subset _ _
       avoid := fun _ hpr => not_or.1 (Finset.mem_filter.1 hpr).2
-      drop := fun pr hpr hP => by
-        refine ⟨?_, fun y hy => by simp [Lit.Reads, Lit.const] at hy⟩
-        by_contra h
-        exact hP (Finset.mem_filter.2 ⟨hpr, h⟩) }
+      drop := fun pr hpr hP => ⟨by_contra fun h => hP (Finset.mem_filter.2 ⟨hpr, h⟩),
+        fun y hy => by simp [Lit.Reads, Lit.const] at hy⟩ }
 
 /-- Fixing a parameter to a constant is a reduction. -/
 theorem Valid.reduction_fixConst {S : State n} (hS : S.Valid f) {w : ℕ} (hw : w ∈ S.params)

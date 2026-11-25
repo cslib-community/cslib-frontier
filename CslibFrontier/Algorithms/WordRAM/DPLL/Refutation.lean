@@ -526,18 +526,16 @@ theorem mainLoopLog_spec (φ : CNF ℕ) (N T : ℕ) :
       obtain ⟨hgo', hout, hlist⟩ := hys
       have hone : y.regs one = 1 := (hy.regs_eq (by decide)).trans h1
       have hx : ¬(Cond.eq go one).Holds y := by simp [Cond.holds_eq, hgo', hone]
-      refine ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono ?_, hout, ?_⟩
-      · simp only
-        nlinarith
-      · simpa [hst] using hlist
+      refine ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono ?_,
+        hout, by simpa [hst] using hlist⟩
+      simp only; nlinarith
     · rename_i t' hst
       rw [hst] at hys hy
       obtain ⟨hs', hl'⟩ := hys
       obtain ⟨z, hz, hzo, hzl⟩ := mainLoopLog_spec φ N T k t' _ y a hs' hl'
         (hfit.of_le (by simp only [List.length_append]; omega)) h
       refine ⟨z, (ExecWithin.loop_iter hc hy hz).mono ?_, hzo, by simpa [hst] using hzl⟩
-      simp only
-      nlinarith
+      simp only; nlinarith
 
 /-- The run of the search, `nodes` steps long, ends with the answer of the search, and its log is
 the output of the variant. -/
@@ -576,29 +574,22 @@ theorem solverLog_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c,
         (2 ^ (depth φ + 1) * (60 * (encode N φ).length + 78) + 10 * N + 14) ∧
       y.regs out = (encode N φ).length + 1 + 4 * N ∧
       outputList y.mem (y.regs out) = refutationWords N φ := by
-  set input := encode N φ with hinput
-  obtain ⟨L, hL⟩ : ∃ L, L = input.length := ⟨_, rfl⟩
-  obtain ⟨T, hT⟩ : ∃ T, T = L + 1 := ⟨_, rfl⟩
-  have hinputeq : input = N :: φ.flatMap encodeClause := rfl
-  have hLF : L = 1 + (φ.flatMap encodeClause).length := by simp [hL, hinputeq]; omega
-  rw [← hL] at hfit ⊢
+  have hLF : (encode N φ).length = 1 + (φ.flatMap encodeClause).length := Nat.add_comm _ 1
   have hnodes := Trail.nodes_lt φ (depth φ) []
-  have hfit' : Fits w (T + 5 * N + 3 + ([] : List ℕ).length + Trail.nodes φ (depth φ) []) :=
+  have hfit' : Fits w
+      ((encode N φ).length + 1 + 5 * N + 3 + ([] : List ℕ).length + Trail.nodes φ (depth φ) []) :=
     hfit.of_le (by simp only [List.length_nil]; omega)
-  have hm0 : (Data.init input : Data 32).mem 0 = L := by rw [Data.init_mem_zero, hL]
-  have hm1 : (Data.init input : Data 32).mem 1 = N := by
-    rw [Data.init_mem_succ]; simp [hinputeq]
-  have hmem : MemAt φ N T (Data.init input : Data 32).mem [] := by
-    rw [hT, hL]; exact memAt_init N φ hN
+  have hm1 : (Data.init (encode N φ) : Data 32).mem 1 = N := by
+    rw [Data.init_mem_succ]; rfl
   obtain ⟨hrun, hwords⟩ := run_nodes N φ
   refine WP.exists_execWithin ?_
   unfold solverLog setup
-  wram_exec [Data.init_regs, hm0, hm1]
-  wram_call (mainLoopLog_spec φ N T _ [] [] _ (Trail.answer φ) ..) framed
-    [hmem, Data.init_regs, List.length_nil, holdsList_nil] with v m ⟨ho, hl⟩
+  wram_exec [Data.init_regs, Data.init_mem_zero, hm1]
+  wram_call (mainLoopLog_spec φ N ((encode N φ).length + 1) _ [] [] _ (Trail.answer φ) ..)
+    framed [memAt_init N φ hN, Data.init_regs, List.length_nil, holdsList_nil] with v m ⟨ho, hl⟩
   refine ⟨?_, by omega, by rw [ho, hl, List.nil_append, hwords]⟩
   have : Trail.nodes φ (depth φ) [] * (60 * (φ.flatMap encodeClause).length + 78) ≤
-      2 ^ (depth φ + 1) * (60 * L + 78) :=
+      2 ^ (depth φ + 1) * (60 * (encode N φ).length + 78) :=
     Nat.mul_le_mul hnodes.le (by omega)
   omega
 

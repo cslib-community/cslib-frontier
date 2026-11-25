@@ -243,17 +243,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hB2_b : φ pB 2 1 = 1 / 2 := by linarith only [hB2_ab, hB2_a0]
   have hBcol := hclass (p := pB) 0 2 fun k hk => by
     fin_cases k <;> first | exact absurd rfl hk | rfl
-  have hB_ete01 : φ pB 0 = φ pB 1 := hete pB 0 1 rfl
-  have hB_ete03 : φ pB 0 = φ pB 3 := hete pB 0 3 rfl
   have hB0_a : φ pB 0 0 = 1 / 3 := by linarith only [hBcol 0, hB2_a0]
   have hB0_b : φ pB 0 1 = 1 / 6 := by linarith only [hBcol 1, hB2_b]
   have hB0_c : φ pB 0 2 = 1 / 4 := by linarith only [hBcol 2, hB2_c]
-  have hB3_a : φ pB 3 0 = 1 / 3 := by rw [← congrFun hB_ete03 0, hB0_a]
-  have hB3_b : φ pB 3 1 = 1 / 6 := by rw [← congrFun hB_ete03 1, hB0_b]
-  have hB3_c : φ pB 3 2 = 1 / 4 := by rw [← congrFun hB_ete03 2, hB0_c]
-  have hB1_a : φ pB 1 0 = 1 / 3 := by rw [← congrFun hB_ete01 0, hB0_a]
-  have hB1_b : φ pB 1 1 = 1 / 6 := by rw [← congrFun hB_ete01 1, hB0_b]
-  have hB1_c : φ pB 1 2 = 1 / 4 := by rw [← congrFun hB_ete01 2, hB0_c]
   -- 3. Profile pC = (abcd, abcd, abcd, acbd): row 3 = (1/4, 0, 1/2, 1/4).
   have hC3_sw := inv_bc_swap hsp pA 3 rfl
   rw [huAC] at hC3_sw
@@ -274,9 +266,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   rw [huBR] at hR3_sw
   have hR2_sw := inv_ab_swap hsp pC 2 rfl
   rw [huCR] at hR2_sw
-  have hR3_a : φ pR 3 0 = 1 / 3 := by rw [hR3_sw.1, hB3_a]
+  have hR3_a : φ pR 3 0 = 1 / 3 := by rw [hR3_sw.1, hete pB 3 0 rfl, hB0_a]
   have hR3_bc : φ pR 3 1 + φ pR 3 2 = 5 / 12 := by
-    rw [hR3_sw.2.2, hB3_b, hB3_c]; norm_num
+    rw [hR3_sw.2.2, hete pB 3 0 rfl, hB0_b, hB0_c]; norm_num
   have hR2_ab : φ pR 2 0 + φ pR 2 1 = 7 / 12 := by
     rw [hR2_sw.2.2, hC2_a, hC2_b]; norm_num
   have hR2_c : φ pR 2 2 = 1 / 6 := by rw [hR2_sw.1, hC2_c]
@@ -297,9 +289,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   -- 5. Profile pP2 = (abcd, bacd, bacd, abcd): rows 0,3 = (1/2, 0, 1/4, 1/4).
   have hP2_sw := inv_ab_swap hsp pB 1 rfl
   rw [huBP2] at hP2_sw
-  have hP2_1c : φ pP2 1 2 = 1 / 4 := by rw [hP2_sw.1, hB1_c]
+  have hP2_1c : φ pP2 1 2 = 1 / 4 := by rw [hP2_sw.1, hete pB 1 0 rfl, hB0_c]
   have hP2_1ab : φ pP2 1 0 + φ pP2 1 1 = 1 / 2 := by
-    rw [hP2_sw.2.2, hB1_a, hB1_b]; norm_num
+    rw [hP2_sw.2.2, hete pB 1 0 rfl, hB0_a, hB0_b]; norm_num
   have hP2_ete12 : φ pP2 1 = φ pP2 2 := hete pP2 1 2 rfl
   have hP2_ete03 : φ pP2 0 = φ pP2 3 := hete pP2 0 3 rfl
   have hP2_1a0 : φ pP2 1 0 = 0 := hz pP2 1 0 fun hpos => by
@@ -388,15 +380,11 @@ private lemma padProfile_update {n : ℕ} (hn : 4 ≤ n) (p : Profile 4) (i : Fi
       Function.update (padProfile hn p) ⟨i.val, by omega⟩ (padPerm hn π') := by
   funext j
   by_cases hj : j.val < 4
-  · by_cases heq : j = ⟨i.val, by omega⟩
-    · rw [heq]
-      simp only [padProfile, i.isLt, ↓reduceDIte, Function.update_self]
-    · have hne : (⟨j.val, hj⟩ : Fin 4) ≠ i := fun h => by
-        have hv : j.val = i.val := congrArg Fin.val h
-        exact heq (Fin.ext hv)
-      rw [Function.update_of_ne heq]
-      simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne hne]
-  · have hne : j ≠ ⟨i.val, by omega⟩ := fun h => hj (by rw [h]; exact i.isLt)
+  · rcases Decidable.eq_or_ne j ⟨i.val, i.isLt.trans_le hn⟩ with rfl | heq
+    · simp only [padProfile, i.isLt, ↓reduceDIte, Function.update_self]
+    · have hne : (⟨j.val, hj⟩ : Fin 4) ≠ i := fun h => heq (Fin.ext (congrArg (·.val) h))
+      simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne heq, Function.update_of_ne hne]
+  · have hne : j ≠ ⟨i.val, i.isLt.trans_le hn⟩ := fun h => hj (h ▸ i.isLt)
     simp only [padProfile, hj, ↓reduceDIte, Function.update_of_ne hne]
 
 /-- Under any `sd`-efficient assignment `M` for `padProfile hn p`, every dummy agent `k ≥ 4`

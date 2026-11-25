@@ -237,38 +237,26 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       omega
     simp only [packedWords, Nat.mul_one]
     omega
-  · have hw1 : w = 1 := by omega
-    subst hw1
-    have hU2 : U ≤ 2 := hU
-    have hn2 : n_max ≤ 2 := hnU.trans hU2
+  · obtain rfl : w = 1 := by omega
     have hq1 : qBits U n_max = 1 := by
       unfold qBits quotientBits keyBits
       have : Nat.clog 2 U ≤ 1 := by
-        calc Nat.clog 2 U ≤ Nat.clog 2 2 := Nat.clog_mono_right 2 hU2
+        calc Nat.clog 2 U ≤ Nat.clog 2 2 := Nat.clog_mono_right 2 hU
           _ = 1 := by decide
       omega
     have htm1 : totalMicroBits n_max ≤ 1 := by
       rw [totalMicroBits_eq_log]
-      calc Nat.log 2 n_max ≤ Nat.log 2 2 := Nat.log_mono_right hn2
+      calc Nat.log 2 n_max ≤ Nat.log 2 2 := Nat.log_mono_right (hnU.trans hU)
         _ = 1 := by decide
-    have hB : reducedTargetBits (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 1 := by
-      unfold reducedTargetBits
-      rw [hq1]
-      omega
     have ht0 :
         reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max) = 0 := by
-      unfold reducedTrinomialStep trinomialStepAux
-      rw [ite_eq_left (by omega)]
-    have hc1 :
-        reducedChunkBits
-          (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) = 1 := by
-      rw [ht0]
-      decide
+      unfold reducedTrinomialStep trinomialStepAux reducedTargetBits
+      rw [hq1, ite_eq_left (by omega)]
     have htw4 :
         ReducedKWise.tableWords 1 (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 4 := by
       unfold ReducedKWise.tableWords reducedTableWords
-      rw [hc1]
-      exact Nat.pow_le_pow_right two_pos (Nat.sub_le 2 _)
+      rw [ht0]
+      decide
     omega
 
 theorem hashSpace_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
@@ -388,10 +376,9 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
         _ = (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by ring
     simpa [ReducedTopSeed] using
       Nat.le_of_mul_le_mul_right hmul (Nat.two_pow_pos (3 * hashB n_max))
-  have hmain := tsum_uniform_probeExcess_twoStage_le
+  simpa using tsum_uniform_probeExcess_twoStage_le
     (qOf := qStage1 U n_max) (H := polyStage2 U n_max) (C_bad := 2)
     (isKWiseIndependentHash_polyStage2 U n_max) S u hS G hG hbad
-  simpa using hmain
 
 /-! ## Section 3: `bucketMapOfState`, `DictStateInv`, and probe-excess cardinality bounds -/
 
@@ -467,20 +454,9 @@ theorem bucketMapOfState_feistelBucket {U n_max : ℕ} (hnU : n_max ≤ U) (h1 :
       (keyQuotient (bucketBits n_max) u.val) = s_abs u := by
   unfold bucketMapOfState
   have hrec := feistelReconstruct_feistelBucket (bucketBits n_max) h1 u.val
-  have hb : feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max :=
-    feistelBucket_lt (bucketBits n_max) h1 u.val
-  have hq : keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max :=
-    keyQuotient_lt_two_pow_quotientBits hnU u.isLt
-  have hcond : feistelReconstruct (bucketBits n_max) h1
-      (feistelBucket (bucketBits n_max) h1 u.val)
-      (keyQuotient (bucketBits n_max) u.val) < U ∧
-      feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max ∧
-      keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max := by
-    rw [hrec]
-    exact ⟨u.isLt, hb, hq⟩
-  rw [dite_eq_left hcond]
-  congr 1
-  exact Fin.ext hrec
+  rw [dite_eq_left ⟨hrec.symm ▸ u.isLt, feistelBucket_lt (bucketBits n_max) h1 u.val,
+    keyQuotient_lt_two_pow_quotientBits hnU u.isLt⟩]
+  exact congrArg s_abs (Fin.ext hrec)
 
 theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ → ℕ)
     (s_abs : Dictionary.State U) (u : Fin U) (v_opt : Option ℕ) :
@@ -505,12 +481,10 @@ theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ �
       rw [Function.update_of_ne hne_u]
     · rfl
   funext b' q'
-  by_cases hbeq : b' = b
-  · subst hbeq
-    rw [Function.update_self]
-    by_cases hqeq : q' = q
-    · subst hqeq
-      rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
+  rcases eq_or_ne b' b with rfl | hbeq
+  · rw [Function.update_self]
+    rcases eq_or_ne q' q with rfl | hqeq
+    · rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
     · rw [Function.update_of_ne hqeq]
       exact hne_pair b q' (Or.inr hqeq)
   · rw [Function.update_of_ne hbeq]
@@ -608,10 +582,7 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
   have hlen : (L b m).length ≤
       1 + microCollCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
         (Dictionary.dom s_abs) u := by
-    have hnodup : (L b m).Nodup := (hinv.hchains.1 b hb m hm).nodup
-    have hcard_eq : (L b m).length = #(L b m).toFinset :=
-      (List.toFinset_card_of_nodup hnodup).symm
-    rw [hcard_eq]
+    rw [← List.toFinset_card_of_nodup (hinv.hchains.1 b hb m hm).nodup]
     refine card_microSlots_le (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u (L b m).toFinset keyAt ?_ ?_
     · intro j₁ hj₁ j₂ hj₂ heq
@@ -621,10 +592,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     · intro j hj
       obtain ⟨hj_lt, _, hm_j⟩ := (hinv.hchain_mem b hb m hm j).mp (List.mem_toFinset.mp hj)
       obtain ⟨hdom, hb_eq, hq_eq⟩ := hkeyAt_props j hj_lt
-      refine ⟨hdom, (feistelMicroHash_eq_iff n_max _ _ θ.2 (keyAt j) u).mpr ⟨hb_eq, ?_⟩⟩
-      apply Fin.ext
-      rw [feistelLocalMicro_val_eq_mOfSeed, feistelLocalMicro_val_eq_mOfSeed, hq_eq]
-      exact hm_j
+      refine ⟨hdom, (feistelMicroHash_eq_iff n_max _ _ θ.2 (keyAt j) u).mpr ⟨hb_eq, Fin.ext ?_⟩⟩
+      simpa only [feistelLocalMicro_val_eq_mOfSeed, hq_eq] using hm_j
   -- Bound 2: bucket overflow
   have hovf : bCount n_max gm b - effBucketCap n_max ≤
       1 + bucketOvfCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2

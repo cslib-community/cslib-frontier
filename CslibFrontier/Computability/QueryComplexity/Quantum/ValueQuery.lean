@@ -711,12 +711,9 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
     intro t ht
     induction t with
     | zero =>
-      simp only [mul_zero, run, Vsim, ite_true]
-      by_cases hT : 0 < T
-      · simp [hT, pre, liftValueIso_embedState, runValue]
-      · have hT0 : T = 0 := by omega
-        subst hT0
-        simp [liftValueIso_embedState, runValue]
+      rcases Nat.eq_zero_or_pos T with rfl | hT
+      · simp [run, Vsim, liftValueIso_embedState, runValue]
+      · simp [run, Vsim, hT, pre, liftValueIso_embedState, runValue]
     | succ t ih =>
       have ht' : t < T := by omega
       have hprev := ih ht'.le
@@ -750,9 +747,7 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
           else (liftValueIso e (U T)).comp (liftBoolV Gpost).toLinearIsometry := by
         dsimp only [Vsim]
         simp only [hne, ite_false, hmod, hdiv]
-        by_cases hlt : t + 1 < T
-        · simp only [hlt, ite_true]
-        · simp only [eq_false hlt, ite_false, eq_true (show t + 1 = T by omega), ite_true]
+        split_ifs <;> first | rfl | omega
       rw [hq, run, hiter (stride - 1) (by omega), ← hq, hVend]
       split_ifs with hlt <;> simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
         LinearIsometryEquiv.coe_toLinearIsometry]
@@ -873,24 +868,18 @@ private theorem prepY_rotBool_gadget (c s μ ν : ℝ) (hcs : c ^ 2 + s ^ 2 = 1)
   have hcs' : (c : ℂ) ^ 2 + (s : ℂ) ^ 2 = 1 := by exact_mod_cast hcs
   have hmu' : (c : ℂ) ^ 2 - (s : ℂ) ^ 2 = μ := by exact_mod_cast hmu
   have hnu' : 2 * (c : ℂ) * s = ν := by exact_mod_cast hnu
-  have hI : Complex.I ^ 2 = -1 := Complex.I_sq
-  have hc2 : (c : ℂ) ^ 2 = (1 + (μ : ℂ)) / 2 := by linear_combination (1 / 2 : ℂ) * hcs' +
-    (1 / 2 : ℂ) * hmu'
-  have hs2 : (s : ℂ) ^ 2 = (1 - (μ : ℂ)) / 2 := by linear_combination (1 / 2 : ℂ) * hcs' -
-    (1 / 2 : ℂ) * hmu'
-  have hcs2 : (c : ℂ) * s = (ν : ℂ) / 2 := by linear_combination (1 / 2 : ℂ) * hnu'
+  have hc2 : (c : ℂ) ^ 2 = (1 + (μ : ℂ)) / 2 := by linear_combination (hcs' + hmu') / 2
+  have hs2 : (s : ℂ) ^ 2 = (1 - (μ : ℂ)) / 2 := by linear_combination (hcs' - hmu') / 2
   ext b
   cases flag <;> cases b <;>
     simp only [LinearIsometryEquiv.trans_apply, prepYBool_symm_apply, rotBool_apply,
       phaseStep_apply, prepYBool_apply, ite_true, Bool.false_eq_true, ite_false,
-      Complex.ofReal_neg, Bool.and_self, Bool.and_false, Bool.false_and]
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]
-    rw [show (1 / 2 : ℂ) * (c : ℂ) * z * (s : ℂ) * Complex.I * 4 =
-      2 * Complex.I * z * ((c : ℂ) * s) by ring, hcs2]
-    ring
-  · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
+      Complex.ofReal_neg, Bool.and_self, Bool.and_false, Bool.false_and] <;>
+    ring_nf <;> simp only [inv_sqrt_two_sq, Complex.I_sq, hc2, hs2]
+  · ring
+  · ring
+  · linear_combination Complex.I * z * hnu'
+  · ring
 
 private noncomputable def liftBasis {B₁ B₂ : Type*} [Fintype B₁] [Fintype B₂]
     (U : EuclideanSpace ℂ B₁ ≃ₗᵢ[ℂ] EuclideanSpace ℂ B₂) :
@@ -955,19 +944,8 @@ theorem exists_sim_value {N : ℕ}
       Gpost (ctrlZ flag (Gmid (ctrlZ flag (Gpre (embedBoolFalse φ))))) =
         embedBoolFalse (if flag then R φ else φ) := by
     intro flag φ
-    have hBpre : Bchg (Gpre (embedBoolFalse φ)) = Qpre (Bchg (embedBoolFalse φ)) := by
-      simp [Gpre]
-    have hBmid : Bchg (Gmid (ctrlZ flag (Gpre (embedBoolFalse φ)))) =
-        Qmid (ctrlZ flag (Qpre (Bchg (embedBoolFalse φ)))) := by
-      dsimp only [Gmid]
-      rw [LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.trans_apply,
-        liftBasis_ctrlZ, hBpre, Bchg.apply_symm_apply]
-    have hBpost : Gpost (ctrlZ flag (Gmid (ctrlZ flag (Gpre (embedBoolFalse φ))))) =
-        Bchg.symm (Qpost (ctrlZ flag (Qmid (ctrlZ flag (Qpre (Bchg (embedBoolFalse φ))))))) := by
-      dsimp only [Gpost]
-      rw [LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.trans_apply,
-        liftBasis_ctrlZ, hBmid]
-    rw [hBpost, liftBasis_embedBoolFalse]
+    simp only [Gpost, Gmid, Gpre, Bchg, LinearIsometryEquiv.trans_apply, liftBasis_ctrlZ,
+      LinearIsometryEquiv.apply_symm_apply, liftBasis_embedBoolFalse]
     have hQ : Qpost (ctrlZ flag (Qmid (ctrlZ flag (Qpre (embedBoolFalse (bas.repr φ)))))) =
         embedBoolFalse (WithLp.toLp 2 fun k =>
           (if flag then (μ k : ℂ) + Complex.I * ν k else 1) * (bas.repr φ).ofLp k) := by
@@ -990,7 +968,7 @@ theorem exists_sim_value {N : ℕ}
         simp only [map_sum, map_smul, heig, bas.repr_self, WithLp.ofLp_sum, Finset.sum_apply,
           PiLp.smul_apply, EuclideanSpace.single, PiLp.single_apply, smul_eq_mul]
         simp [mul_comm]
-    rw [hQ, hRbas, ← liftBasis_embedBoolFalse bas.repr, Bchg.symm_apply_apply]
+    rw [hQ, hRbas, ← liftBasis_embedBoolFalse bas.repr, LinearIsometryEquiv.symm_apply_apply]
   have hstep : ∀ (b : Fin N → Bool) (y : ValueState ι V W),
       liftBoolV Gpost (phaseOracle b ((liftBoolV Gmid).toLinearIsometry (phaseOracle b
         (liftBoolV Gpre (liftValueIso e (valueOracle step fun _ => a₀).toLinearIsometry
@@ -1129,10 +1107,8 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       simp only [ht', ite_true] at hprev
       rw [runValue, hprev, hvo]
       by_cases hlt : t + 1 < T
-      · simp only [hlt, ite_true, U', liftFalse_embedFalse]
-        rfl
-      · have heq : t + 1 = T := by omega
-        subst heq
+      · simp only [hlt, ite_true, U', liftFalse_embedFalse]; rfl
+      · obtain rfl : t + 1 = T := by omega
         simp only [lt_irrefl, ite_false, ite_true, U', LinearIsometry.coe_comp,
           Function.comp_apply, LinearIsometryEquiv.coe_toLinearIsometry, liftFalse_embedFalse]
         rfl

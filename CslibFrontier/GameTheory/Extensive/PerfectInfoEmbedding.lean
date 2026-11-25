@@ -240,10 +240,8 @@ private theorem exists_infoSet_of_isDecisionOf {ι : Type u} {H : ι → Type v}
       obtain ⟨h, hh⟩ := exists_infoSet_of_isDecisionOf (T := next c) hv
       exact ⟨.chance c h, hh⟩
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, i, h₀, .here, hv => by
-      have hp : p = i := (Sigma.mk.inj_iff.1 hv).1
-      cases hp
-      have hf : f p .here = h₀ := eq_of_heq (Sigma.mk.inj_iff.1 hv).2
-      exact ⟨.here, hf⟩
+      obtain ⟨rfl, hh⟩ := Sigma.mk.inj_iff.1 hv
+      exact ⟨.here, eq_of_heq hh⟩
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, i, h₀, .decision a sub, hv => by
       obtain ⟨h, hh⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a)) hv
       exact ⟨.decision (eqv p .here a) h, hh⟩
@@ -265,43 +263,29 @@ theorem eq_of_isDecisionOf_toExtensiveTreeOn {ι : Type u} {H : ι → Type v}
       .chance c₁ sub₁, .chance c₂ sub₂, hv₁, hv₂ => by
       obtain ⟨h₁, hh₁⟩ := exists_infoSet_of_isDecisionOf (T := next c₁) hv₁
       obtain ⟨h₂, hh₂⟩ := exists_infoSet_of_isDecisionOf (T := next c₂) hv₂
-      have hinj := hf i (hh₁.trans hh₂.symm)
-      cases hinj
-      have hsub := eq_of_isDecisionOf_toExtensiveTreeOn (T := next c₁)
-        (fun j _ _ he => by
-          have := hf j he
-          exact (InfoSet.chance.inj this).2 |> eq_of_heq) hv₁ hv₂
-      subst hsub
-      rfl
+      cases hf i (hh₁.trans hh₂.symm)
+      exact congrArg (Node.chance c₁) (eq_of_isDecisionOf_toExtensiveTreeOn (T := next c₁)
+        (fun j _ _ he => eq_of_heq (InfoSet.chance.inj (hf j he)).2) hv₁ hv₂)
   | @PerfectInfoTree.decision _ p _ _ _ _, _, _, _, _, _, .here, .here, _, _ => rfl
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, hf, i, h₀,
       .here, .decision a₂ sub₂, hv₁, hv₂ => by
-      have hp : p = i := (Sigma.mk.inj_iff.1 hv₁).1
-      cases hp
-      have hh₁ : f p .here = h₀ := eq_of_heq (Sigma.mk.inj_iff.1 hv₁).2
+      obtain ⟨rfl, hh₁⟩ := Sigma.mk.inj_iff.1 hv₁
       obtain ⟨h₂, hh₂⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a₂)) hv₂
-      exact absurd (hf p (hh₁.trans hh₂.symm)) (by simp)
+      exact absurd (hf p ((eq_of_heq hh₁).trans hh₂.symm)) nofun
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, hf, i, h₀,
       .decision a₁ sub₁, .here, hv₁, hv₂ => by
-      have hp : p = i := (Sigma.mk.inj_iff.1 hv₂).1
-      cases hp
-      have hh₂ : f p .here = h₀ := eq_of_heq (Sigma.mk.inj_iff.1 hv₂).2
+      obtain ⟨rfl, hh₂⟩ := Sigma.mk.inj_iff.1 hv₂
       obtain ⟨h₁, hh₁⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a₁)) hv₁
-      exact absurd (hf p (hh₁.trans hh₂.symm)) (by simp)
+      exact absurd (hf p (hh₁.trans (eq_of_heq hh₂).symm)) nofun
   | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, hf, i, h₀,
       .decision a₁ sub₁, .decision a₂ sub₂, hv₁, hv₂ => by
       obtain ⟨h₁, hh₁⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a₁)) hv₁
       obtain ⟨h₂, hh₂⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a₂)) hv₂
-      have hinj := hf i (hh₁.trans hh₂.symm)
-      have ha' : eqv p .here a₁ = eqv p .here a₂ := (InfoSet.decision.inj hinj).1
-      have ha : a₁ = a₂ := (eqv p .here).injective ha'
-      subst ha
-      have hsub := eq_of_isDecisionOf_toExtensiveTreeOn (T := next (eqv p .here a₁))
-        (fun j _ _ he => by
-          have := hf j he
-          exact (InfoSet.decision.inj this).2 |> eq_of_heq) hv₁ hv₂
-      subst hsub
-      rfl
+      obtain rfl : a₁ = a₂ := (eqv p .here).injective
+        (InfoSet.decision.inj (hf i (hh₁.trans hh₂.symm))).1
+      exact congrArg (Node.decision a₁) (eq_of_isDecisionOf_toExtensiveTreeOn
+        (T := next (eqv p .here a₁))
+        (fun j _ _ he => eq_of_heq (InfoSet.decision.inj (hf j he)).2) hv₁ hv₂)
 
 /-- Every information set of `T.toExtensiveTree` contains at most one decision node. -/
 theorem toExtensiveTree_isSingletonInfoSet {ι : Type u} (T : PerfectInfoTree ι)
@@ -492,6 +476,26 @@ private def terminalToLeafPathOn {ι : Type u} {H : ι → Type v} {Act : ∀ i,
   | @PerfectInfoTree.decision _ p _ _ _ next, _, eqv, .decision a sub =>
       .decision (eqv p .here a) (terminalToLeafPathOn (T := next (eqv p .here a)) sub)
 
+private theorem leafPathToTerminalOn_decision_apply {ι : Type u} {H : ι → Type v}
+    {Act : ∀ i, H i → Type} {p : ι} {A : Type} [Fintype A] [Nonempty A]
+    {next : A → PerfectInfoTree ι} (f : ∀ j, (PerfectInfoTree.decision p next).InfoSet j → H j)
+    (eqv : ∀ j (h : (PerfectInfoTree.decision p next).InfoSet j), Act j (f j h) ≃ h.Act)
+    (b : Act p (f p .here)) (sub : LeafPath (next (eqv p .here b))) :
+    leafPathToTerminalOn f eqv (.decision (eqv p .here b) sub) =
+      .decision b (leafPathToTerminalOn (T := next (eqv p .here b))
+        (fun j h => f j (.decision (eqv p .here b) h))
+        (fun j h => eqv j (.decision (eqv p .here b) h)) sub) := by
+  rw [leafPathToTerminalOn]
+  have haux : ∀ (b' : Act p (f p .here)) (_ : b' = b) (heq : eqv p .here b' = eqv p .here b),
+      (Terminal.decision b' (heq.symm ▸ leafPathToTerminalOn (T := next (eqv p .here b))
+          (fun j h => f j (.decision (eqv p .here b) h))
+          (fun j h => eqv j (.decision (eqv p .here b) h)) sub) :
+        Terminal ((PerfectInfoTree.decision p next).toExtensiveTreeOn f eqv)) =
+        .decision b (leafPathToTerminalOn (T := next (eqv p .here b)) _ _ sub) := by
+    rintro _ rfl _
+    rfl
+  exact haux _ ((eqv p .here).symm_apply_apply b) ((eqv p .here).apply_symm_apply _)
+
 private theorem terminalToLeafPathOn_leafPathToTerminalOn {ι : Type u} {H : ι → Type v}
     {Act : ∀ i, H i → Type} :
     ∀ {T : PerfectInfoTree ι} (f : ∀ j, T.InfoSet j → H j)
@@ -502,19 +506,10 @@ private theorem terminalToLeafPathOn_leafPathToTerminalOn {ι : Type u} {H : ι 
       congrArg (LeafPath.chance c)
         (terminalToLeafPathOn_leafPathToTerminalOn (T := next c) _ _ sub)
   | @PerfectInfoTree.decision _ p A _ _ next, f, eqv, .decision a sub => by
-      have ih := terminalToLeafPathOn_leafPathToTerminalOn (T := next a)
-        (fun j h => f j (.decision a h)) (fun j h => eqv j (.decision a h)) sub
-      have haux : ∀ (b : Act p (f p .here)) (heq : eqv p .here b = a),
-          (LeafPath.decision (eqv p .here b)
-              (terminalToLeafPathOn (heq.symm ▸
-                leafPathToTerminalOn (T := next a) (fun j h => f j (.decision a h))
-                  (fun j h => eqv j (.decision a h)) sub)) :
-            LeafPath (.decision p next)) =
-            LeafPath.decision a sub := by
-        intro b heq
-        cases heq
-        exact congrArg (LeafPath.decision _) ih
-      exact haux ((eqv p .here).symm a) ((eqv p .here).apply_symm_apply a)
+      rcases (eqv p .here).surjective a with ⟨b, rfl⟩
+      rw [leafPathToTerminalOn_decision_apply]
+      exact congrArg (LeafPath.decision _)
+        (terminalToLeafPathOn_leafPathToTerminalOn (T := next _) _ _ sub)
 
 private theorem leafPathToTerminalOn_terminalToLeafPathOn {ι : Type u} {H : ι → Type v}
     {Act : ∀ i, H i → Type} :
@@ -526,23 +521,10 @@ private theorem leafPathToTerminalOn_terminalToLeafPathOn {ι : Type u} {H : ι 
   | @PerfectInfoTree.chance _ _ _ _ _ next, f, eqv, .chance c sub =>
       congrArg (Terminal.chance c)
         (leafPathToTerminalOn_terminalToLeafPathOn (T := next c) _ _ sub)
-  | @PerfectInfoTree.decision _ p A _ _ next, f, eqv, .decision b sub => by
-      have ih := leafPathToTerminalOn_terminalToLeafPathOn (T := next (eqv p .here b))
-        (fun j h => f j (.decision (eqv p .here b) h))
-        (fun j h => eqv j (.decision (eqv p .here b) h)) sub
-      have haux : ∀ (b' : Act p (f p .here)) (hb' : b' = b)
-          (heq : eqv p .here b' = eqv p .here b),
-          (Terminal.decision b' (heq.symm ▸
-              leafPathToTerminalOn (T := next (eqv p .here b))
-                (fun j h => f j (.decision (eqv p .here b) h))
-                (fun j h => eqv j (.decision (eqv p .here b) h))
-                (terminalToLeafPathOn sub)) :
-            Terminal ((@PerfectInfoTree.decision ι p A _ _ next).toExtensiveTreeOn f eqv)) =
-            Terminal.decision b sub := by
-        rintro _ rfl heq
-        rw [ih]
-      exact haux ((eqv p .here).symm (eqv p .here b)) ((eqv p .here).symm_apply_apply b)
-        ((eqv p .here).apply_symm_apply (eqv p .here b))
+  | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, .decision b sub =>
+      (leafPathToTerminalOn_decision_apply f eqv b _).trans
+        (congrArg (Terminal.decision b)
+          (leafPathToTerminalOn_terminalToLeafPathOn (T := next (eqv p .here b)) _ _ sub))
 
 /-- Bijection between root-to-leaf paths of `T` and terminal paths of `T.toExtensiveTree`. -/
 def leafPathEquivTerminal {ι : Type u} (T : PerfectInfoTree ι) :
@@ -564,22 +546,11 @@ private theorem leafPathToTerminalOn_payoff {ι : Type u} {H : ι → Type v}
         ((leafPathToTerminalOn_payoff (T := next c) _ _ sub).trans
           (LeafPath.payoff_chance c sub).symm)
   | @PerfectInfoTree.decision _ p A instF instN next, f, eqv, .decision a sub => by
-      have ih := leafPathToTerminalOn_payoff (T := next a)
-        (fun j h => f j (.decision a h)) (fun j h => eqv j (.decision a h)) sub
-      have haux : ∀ (b : Act p (f p .here)) (heq : eqv p .here b = a),
-          (Terminal.decision b (heq.symm ▸
-              leafPathToTerminalOn (T := next a) (fun j h => f j (.decision a h))
-                (fun j h => eqv j (.decision a h)) sub) :
-            Terminal (ExtensiveTree.decision p (f p .here) fun c =>
-              (next (eqv p .here c)).toExtensiveTreeOn
-                (fun j h => f j (.decision (eqv p .here c) h))
-                (fun j h => eqv j (.decision (eqv p .here c) h)))).payoff =
-            sub.payoff := by
-        intro b heq
-        cases heq
-        exact (Terminal.payoff_decision b _).trans ih
-      exact (haux ((eqv p .here).symm a) ((eqv p .here).apply_symm_apply a)).trans
-        (LeafPath.payoff_decision (p := p) (instF := instF) (instN := instN) a sub).symm
+      rcases (eqv p .here).surjective a with ⟨b, rfl⟩
+      rw [leafPathToTerminalOn_decision_apply,
+        LeafPath.payoff_decision (p := p) (instF := instF) (instN := instN)]
+      exact (Terminal.payoff_decision b _).trans
+        (leafPathToTerminalOn_payoff (T := next _) _ _ sub)
 
 @[simp]
 theorem leafPathEquivTerminal_payoff {ι : Type u} {T : PerfectInfoTree ι} (z : LeafPath T) :
@@ -631,9 +602,8 @@ theorem toExtensiveTree_evalPure_ofExtensive {ι : Type u} [DecidableEq ι] (T :
       (fun _ h => h.Act) i) :
     T.toExtensiveTree.evalPure sE =
       T.expectedPayoff (fun i => PureStrategy.ofExtensive T (sE i)) := by
-  have heq : sE = fun i => (PureStrategy.ofExtensive T (sE i)).toExtensive := by
-    ext i h
-    exact (congrFun ((PureStrategy.toExtensiveEquiv T i).right_inv (sE i)) h).symm
+  have heq : sE = fun i => (PureStrategy.ofExtensive T (sE i)).toExtensive :=
+    funext fun i => ((PureStrategy.toExtensiveEquiv T i).apply_symm_apply (sE i)).symm
   conv_lhs => rw [heq]
   exact toExtensiveTree_evalPure T (fun i => PureStrategy.ofExtensive T (sE i))
 
@@ -643,25 +613,19 @@ theorem toExtensiveTree_isPureNash_iff {ι : Type u} [DecidableEq ι] (T : Perfe
     (s : ∀ i, PureStrategy i T) :
     T.toExtensiveTree.toCostGame.IsPureNash (fun i => (s i).toExtensive) ↔
       T.toCostGame.IsPureNash s := by
-  have hupd : ∀ i (σ' : PureStrategy i T),
+  have hupd (i : ι) (σ' : PureStrategy i T) :
       Function.update (fun j => (s j).toExtensive) i σ'.toExtensive =
-        fun j => (Function.update s i σ' j).toExtensive := fun i σ' => by
-    funext j
-    by_cases hj : j = i
-    · subst hj
-      simp
-    · simp [hj]
+        fun j => (Function.update s i σ' j).toExtensive :=
+    (funext (Function.apply_update (fun _ => PureStrategy.toExtensive) s i σ')).symm
   constructor
   · intro h i σ'
     simpa [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost, hupd,
       toExtensiveTree_evalPure] using h i σ'.toExtensive
   · intro h i sE'
-    let σ' := PureStrategy.ofExtensive T sE'
-    have hdev := h i σ'
-    rw [show sE' = σ'.toExtensive from (PureStrategy.toExtensiveEquiv T i).right_inv sE' |>.symm]
-    simp only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost] at hdev ⊢
-    rw [hupd, toExtensiveTree_evalPure, toExtensiveTree_evalPure]
-    exact hdev
+    rw [← (PureStrategy.toExtensiveEquiv T i).apply_symm_apply sE']
+    simpa only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost,
+      PureStrategy.toExtensiveEquiv_apply, PureStrategy.toExtensiveEquiv_symm_apply,
+      hupd, toExtensiveTree_evalPure] using h i (PureStrategy.ofExtensive T sE')
 
 /-- Backward induction constructs a pure Nash equilibrium of the embedded game
 `(T.toExtensiveTree).toCostGame`. -/
@@ -715,14 +679,11 @@ theorem toExtensiveTree_isMixedNash_iff {ι : Type u} [Fintype ι] [DecidableEq 
     have hupd : ∀ sE' : ∀ j,
         Cslib.GameTheory.Extensive.PureStrategy (fun j => T.InfoSet j) (fun _ h => h.Act) j,
         T.toExtensiveTree.evalPure (Function.update sE' i sE) i =
-          T.expectedPayoff (Function.update (fun j => (e j).symm (sE' j)) i ((e i).symm sE)) i := by
-      intro sE'
-      rw [toExtensiveTree_evalPure_ofExtensive]
-      congr 1
-      ext j
-      by_cases hj : j = i
-      · subst hj; simp [e, PureStrategy.toExtensiveEquiv]
-      · simp [hj, e, PureStrategy.toExtensiveEquiv]
+          T.expectedPayoff (Function.update (fun j => (e j).symm (sE' j)) i ((e i).symm sE)) i :=
+      fun sE' => by
+        rw [toExtensiveTree_evalPure_ofExtensive]
+        exact congrArg (fun p => T.expectedPayoff p i)
+          (funext (Function.apply_update (fun j => (e j).symm) sE' i sE))
     simp_rw [hupd]
     exact hprof q fun s => -T.expectedPayoff (Function.update s i ((e i).symm sE)) i
   have hpush : (fun i sE => μ i (PureStrategy.ofExtensive T sE)) =

@@ -234,11 +234,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     obtain ⟨hk', -, rfl⟩ := replicate_eq_cons ht
     refine ⟨_, _, rfl, n, k, gs ++ [group p 0], grouped_append_singleton hg ⟨p, 0, rfl⟩,
       by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-    · rw [← pre_append_group]
-      simp
-    all_goals
-      simp only [List.length_append, List.length_singleton]
-      congr 1
+    · simp [← pre_append_group]
+    all_goals simp [Nat.sub_sub]
   | gB_b =>
     obtain ⟨n, k, gs, p, q, hg, hn, hk, hq, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_one_pair.mp happ, n, k, gs, p, q + 1, hg, hn, hk, by omega,
@@ -265,11 +262,8 @@ private theorem inv_step {q q' : State} {s₀ s₁ : List Sym} {u : List Letter}
     · obtain rfl : r = q := by omega
       refine ⟨_, _, rfl, n, k, gs ++ [group p r], grouped_append_singleton hg ⟨p, r, rfl⟩,
         by simp; omega, by simp; omega, ?_, ?_, ?_⟩
-      · rw [← pre_append_group]
-        simp [List.replicate_succ', List.append_assoc]
-      all_goals
-        simp only [List.length_append, List.length_singleton]
-        congr 1
+      · simp [← pre_append_group, List.replicate_succ', List.append_assoc]
+      all_goals simp [Nat.sub_sub]
   | ge_a =>
     obtain ⟨n, k, gs, hg, hn, hk, rfl, rfl, rfl⟩ := hinv
     exact ⟨_, _, Op.apply_push_zero_pair.mp happ, n, k, gs, 1, hg, hn, hk, le_rfl, rfl, by simp,

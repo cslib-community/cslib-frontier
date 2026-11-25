@@ -36,40 +36,15 @@ attribute [local client_simps] runClient_read runClient_write StateTransitionSpe
 private theorem memoryCost_readSplitCap_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readSplitCap d) s ≤ 2 := by
   unfold readSplitCap
-  have hbody : ∀ t, memoryCost
-      (if d.1.2 = 0 then
-        if 2 ≤ d.2 ∧ d.2 < d.1.1.1 + 2 then
-          do let a ← Memory.read (keepBase d.1.1.1 + (d.2 - 2))
-             if a = 1 then pure (d.1.1.1 + 1) else pure 0
-        else pure 0
-      else if d.2 = 1 then
-        if d.1.1.1 + 2 ≤ d.1.2 ∧ d.1.2 < splitCount d.1.1.1 then
-          do let b ← Memory.read (flipBase d.1.1.1 + (d.1.2 - (d.1.1.1 + 2)))
-             if b = 1 then pure (d.1.1.1 + 1) else pure 0
-        else pure 0
-      else if 2 ≤ d.1.2 ∧ d.1.2 < d.1.1.1 + 2 then
-        if d.2 = d.1.2 + d.1.1.1 then
-          do let z ← Memory.read (wBase d.1.1.1 + (d.1.2 - 2))
-             if z = 0 then pure 1 else pure 0
-        else pure 0
-      else if d.1.1.1 + 2 ≤ d.1.2 ∧ d.1.2 < splitCount d.1.1.1 ∧
-          2 ≤ d.2 ∧ d.2 < d.1.1.1 + 2 then
-        if d.1.2 - (d.1.1.1 + 2) < d.1.1.2 ∧ d.2 - 2 < d.1.1.2 then
-          do let e ← Memory.read (3 + (d.1.2 - (d.1.1.1 + 2)) * d.1.1.1 + (d.2 - 2))
-             if e = 1 then pure (d.1.1.1 + 1) else pure 0
-        else pure 0
-      else pure 0) t ≤ 1 := by
-    intro t
-    have hleaf : ∀ a c1 c2,
-        memoryCost (do let e ← Memory.read a; if e = c1 then pure c2 else pure 0) t ≤ 1 := by
-      intro a c1 c2
-      exact le_trans (memoryCost_bind_le (memoryCost_read a t).le fun _ t' =>
-        memoryCost_ite_le (memoryCost_pure _ t').le (memoryCost_pure 0 t').le) (by decide)
-    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
-    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
-    refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
-    exact memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) (Nat.zero_le _)
-  exact le_trans (memoryCost_bind_le (memoryCost_read 0 s).le fun _ t => hbody t) (by decide)
+  refine le_trans (memoryCost_bind_le (memoryCost_read 0 s).le fun _ t => (?_ : _ ≤ 1)) (by decide)
+  have hleaf (a c1 c2 : ℕ) :
+      memoryCost (Memory.read a >>= fun e => if e = c1 then pure c2 else pure 0) t ≤ 1 :=
+    le_trans (memoryCost_bind_le (memoryCost_read a t).le fun _ t' =>
+      memoryCost_ite_le (memoryCost_pure _ t').le (memoryCost_pure 0 t').le) (by decide)
+  refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+  refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+  refine memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) ?_
+  exact memoryCost_ite_le (memoryCost_ite_le (hleaf _ _ _) (Nat.zero_le _)) (Nat.zero_le _)
 
 private theorem memoryCost_readResCap_le (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (readResCap d) s ≤ 4 := by
@@ -120,11 +95,9 @@ private theorem memoryCost_bfsProg_le (d : ℕ × ℕ) (s : Memory.State) :
           m) hlayer (M - 1) 0 t3)
           fun _ t4 => (memoryCost_pure () t4).le) ?_
   dsimp only
-  have hsub : M - 1 ≤ M := Nat.sub_le _ _
-  have hmul : 9 * M * M * (M - 1) ≤ 9 * M * M * M := Nat.mul_le_mul_left _ hsub
-  have hM3 : 9 * M * M * M = 72 * (n + 1) ^ 3 := by rw [hM]; ring
-  have hp1 : n + 1 ≤ (n + 1) ^ 3 := by
-    simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 3)
+  have hp1 : n + 1 ≤ (n + 1) ^ 3 := Nat.le_self_pow (by decide) _
+  have hmul : 9 * M * M * (M - 1) ≤ 72 * (n + 1) ^ 3 :=
+    (Nat.mul_le_mul_left _ (Nat.sub_le M 1)).trans_eq (by rw [hM]; ring)
   omega
 
 private theorem memoryCost_minSepProg_le (d : ℕ × ℕ) (s : Memory.State) :
@@ -133,8 +106,7 @@ private theorem memoryCost_minSepProg_le (d : ℕ × ℕ) (s : Memory.State) :
   dsimp only
   let M := splitCount n
   have hM : M = 2 * (n + 1) := by dsimp only [M, splitCount]; omega
-  have hp1 : n + 1 ≤ (n + 1) ^ 4 := by
-    simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 4)
+  have hp1 : n + 1 ≤ (n + 1) ^ 4 := Nat.le_self_pow (by decide) _
   have hp2 : (n + 1) ^ 2 ≤ (n + 1) ^ 4 :=
     Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 2 ≤ 4)
   have hp3 : (n + 1) ^ 3 ≤ (n + 1) ^ 4 :=
@@ -160,20 +132,18 @@ private theorem memoryCost_minSepProg_le (d : ℕ × ℕ) (s : Memory.State) :
     intro r t
     unfold augRoundStep
     dsimp only
-    have hpow : n + 1 ≤ (n + 1) ^ 3 := by
-      simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 3)
+    have hpow : n + 1 ≤ (n + 1) ^ 3 := Nat.le_self_pow (by decide) _
     have hbranch : ∀ d1 t'',
         memoryCost (if d1 < splitCount n then do let _ ← iterate pushUnitStep n d1 1; pure (r + 1)
           else pure (r + 1)) t'' ≤ 5 * M := by
       intro d1 t''
-      rw [memoryCost_ite]
       split_ifs with hd1
-      · refine le_trans (memoryCost_bind_le (memoryCost_iterate_le_of pushUnitStep 5 n hpush d1 1
-        t'')
+      · refine le_trans (memoryCost_bind_le
+          (memoryCost_iterate_le_of pushUnitStep 5 n hpush d1 1 t'')
           fun _ t3 => (memoryCost_pure _ t3).le) ?_
-        have : 5 * d1 ≤ 5 * M := Nat.mul_le_mul_left 5 (le_of_lt hd1)
+        have := Nat.mul_le_mul_left 5 hd1.le
         omega
-      · exact Nat.zero_le _
+      · simp [memoryCost_pure]
     refine le_trans (memoryCost_bind_le (memoryCost_bfsProg_le (n, m) t) fun _ t' =>
       memoryCost_bind_le (memoryCost_read _ t').le fun d1 t'' => hbranch d1 t'') ?_
     dsimp only
@@ -202,8 +172,7 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
     memoryCost (leafProg d) s ≤ 210 * (d.1.1.1 + 1) ^ 4 := by
   rcases d with ⟨⟨⟨n, k⟩, m⟩, L⟩
   dsimp only at hL ⊢
-  have hp1 : n + 1 ≤ (n + 1) ^ 4 := by
-    simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 4)
+  have hp1 : n + 1 ≤ (n + 1) ^ 4 := Nat.le_self_pow (by decide) _
   have hp2 : (n + 1) ^ 2 ≤ (n + 1) ^ 4 :=
     Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 2 ≤ 4)
   have hunp : ∀ t, memoryCost (unpackGuessProg (n, L)) t ≤ 4 * (n + 1) := by
@@ -283,31 +252,20 @@ private theorem memoryCost_leafProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ} (hL : 
     unfold commitLeafProg
     have hstep : ∀ v t2, memoryCost (commitStep (n, v)) t2 ≤ 7 := fun v t2 => by
       unfold commitStep
-      have hcol : ∀ t7 : Memory.State, ∀ c1 c2 c3 c4 c5 : Prop,
-          [Decidable c1] → [Decidable c2] → [Decidable c3] → [Decidable c4] → [Decidable c5] →
-          memoryCost
-            (if c1 then
-              if c2 then (fun _ => v + 1) <$> Memory.write (colBase n + v) 1
-              else (fun _ => v + 1) <$> Memory.write (colBase n + v) 0
-            else if c3 then
-              if c4 then (fun _ => v + 1) <$> Memory.write (colBase n + v) 1
-              else (fun _ => v + 1) <$> Memory.write (colBase n + v) 0
-            else if c5 then (fun _ => v + 1) <$> Memory.write (colBase n + v) 0
-            else (fun _ => v + 1) <$> Memory.write (colBase n + v) 1) t7 ≤ 1 := by
-        intro t7 c1 c2 c3 c4 c5 _ _ _ _ _
-        exact memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
-          (memoryCost_ite_le (memoryCost_ite_le ((le_refl 1)) ((le_refl 1)))
-            (memoryCost_ite_le ((le_refl 1)) ((le_refl 1))))
+      have hite1 {α : Type} {c : Prop} [Decidable c] {p q : Memory.Prog α} {t : Memory.State}
+          (hp : memoryCost p t ≤ 1) (hq : memoryCost q t ≤ 1) :
+          memoryCost (if c then p else q) t ≤ 1 := memoryCost_ite_le hp hq
       exact le_trans (memoryCost_bind_le (memoryCost_read _ t2).le fun _ t3 =>
         memoryCost_bind_le (memoryCost_read _ t3).le fun _ t4 =>
           memoryCost_bind_le (memoryCost_read _ t4).le fun _ t5 =>
             memoryCost_bind_le (memoryCost_read _ t5).le fun _ t6 =>
               memoryCost_bind_le (memoryCost_read _ t6).le fun _ t7 =>
+                let htail : ∀ t8, memoryCost _ t8 ≤ 1 := fun _ =>
+                  hite1 (hite1 le_rfl le_rfl) (hite1 (hite1 le_rfl le_rfl) (hite1 le_rfl le_rfl))
                 memoryCost_ite_le
-                  (memoryCost_bind_le (memoryCost_write _ _ t7).le fun _ t8 =>
-                    hcol t8 _ _ _ _ _)
-                  (memoryCost_bind_le (memoryCost_write _ _ t7).le fun _ t8 =>
-                    hcol t8 _ _ _ _ _)) (by decide)
+                  (memoryCost_bind_le (memoryCost_write _ _ t7).le fun _ t8 => htail t8)
+                  (memoryCost_bind_le (memoryCost_write _ _ t7).le fun _ t8 => htail t8))
+        (by decide)
     exact le_trans (memoryCost_bind_le (memoryCost_read 0 t).le fun _ t1 =>
       memoryCost_bind_le (memoryCost_iterate_le_of commitStep 7 n hstep n 0 t1)
         fun _ t2 => (memoryCost_pure () t2).le) (by omega)
@@ -332,8 +290,7 @@ theorem memoryCost_compressProg_le {d : ((ℕ × ℕ) × ℕ) × ℕ}
     memoryCost (compressProg d) s ≤ 215 * 3 ^ d.2 * (CompressCfg.n d + 1) ^ 4 := by
   rcases d with ⟨⟨⟨n, k⟩, m⟩, L⟩
   dsimp only [CompressCfg.n] at hL ⊢
-  have hp1 : n + 1 ≤ (n + 1) ^ 4 := by
-    simpa using Nat.pow_le_pow_right (Nat.succ_pos n) (by decide : 1 ≤ 4)
+  have hp1 : n + 1 ≤ (n + 1) ^ 4 := Nat.le_self_pow (by decide) _
   have hpow : 1 ≤ 3 ^ L := Nat.one_le_pow L 3 (by decide)
   have hodom : ∀ t', memoryCost (incOdomProg (n, L)) t' ≤ 3 * (n + 1) := by
     intro t'

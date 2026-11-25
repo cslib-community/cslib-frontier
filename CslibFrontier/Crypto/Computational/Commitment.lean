@@ -969,9 +969,8 @@ theorem naorMaskBits_append {flags₁ flags₂ bits₁ bits₂ : List Bool}
   induction bits₁ generalizing flags₁ with
   | nil => cases flags₁ <;> simp_all [naorMaskBits]
   | cons b bits₁ ih =>
-    cases flags₁ with
-    | nil => simp at h
-    | cons f flags₁ => simp [naorMaskBits, ih (Nat.succ.inj h)]
+    match flags₁, h with
+    | f :: flags₁, h => simp [naorMaskBits, ih (Nat.succ.inj h)]
 
 /-- `naorCommitSplit` distributes over list append when the first segments have equal length. -/
 theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List Bool)
@@ -985,13 +984,9 @@ theorem naorCommitSplit_append (generator : List Bool → List Bool) (r : List B
   induction bits₁ generalizing flags₁ seeds₁ pads₁ with
   | nil => cases flags₁ <;> cases seeds₁ <;> cases pads₁ <;> simp_all [naorCommitSplit]
   | cons b bits₁ ih =>
-    rcases flags₁ with _ | ⟨f, flags₁⟩
-    · simp at hflags
-    rcases seeds₁ with _ | ⟨s, seeds₁⟩
-    · simp at hseeds
-    rcases pads₁ with _ | ⟨p, pads₁⟩
-    · simp at hpads
-    simp [naorCommitSplit, ih (Nat.succ.inj hflags) (Nat.succ.inj hseeds) (Nat.succ.inj hpads)]
+    match flags₁, seeds₁, pads₁, hflags, hseeds, hpads with
+    | f :: flags₁, s :: seeds₁, p :: pads₁, hflags, hseeds, hpads =>
+      simp [naorCommitSplit, ih (Nat.succ.inj hflags) (Nat.succ.inj hseeds) (Nat.succ.inj hpads)]
 
 /-- Select seeds of width `s` at opened coordinates and pad unopened coordinates with `s` false
 bits. -/

@@ -189,9 +189,8 @@ theorem ogd_dynamic_sum_inner_le_pathLength (hP : IsPythagoreanProjection K proj
   have hD0 : 0 ≤ D := (norm_nonneg (x₀ - u 0)).trans (hD _ hx₀ _ (hu 0))
   have hdrift : ∑ t ∈ range T, ‖u (t + 1) - u t‖ / η t ≤ pathLength u (T + 1) / η T := by
     simp only [pathLength, Nat.add_sub_cancel, sum_div]
-    refine sum_le_sum fun t ht => ?_
-    have hlt : t ≤ T := (mem_range.mp ht).le
-    exact div_le_div_of_nonneg_left (norm_nonneg _) (hη T) (hanti hlt)
+    exact sum_le_sum fun t ht =>
+      div_le_div_of_nonneg_left (norm_nonneg _) (hη T) (hanti (mem_range.mp ht).le)
   have hmul := mul_le_mul_of_nonneg_left hdrift hD0
   have heq1 : (D ^ 2 / 2 + D * pathLength u (T + 1)) / η T =
       D ^ 2 / (2 * η T) + D * (pathLength u (T + 1) / η T) := by ring
@@ -220,12 +219,8 @@ theorem ogd_dynamic_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) 
       induction k with
       | zero =>
         have h := ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP (hu 0) 0 hc
-        simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, add_zero]
-        have hx0_eq : x 0 = x₀ := ogd_zero ..
-        change 2 * ⟪grad 0 (x 0), x 0 - u 0⟫ ≤
-          (‖x 0 - u 0‖ ^ 2 - ‖x 1 - u 0‖ ^ 2) / c + c * ‖grad 0 (x 0)‖ ^ 2 at h
-        rw [hx0_eq, sub_div] at h
-        rw [hx0_eq]
+        simp only [zero_add, range_one, sum_singleton, pathLength_one, mul_zero, add_zero, x,
+          ogd_zero, sub_div] at h ⊢
         linarith
       | succ k ih =>
         have h := ogd_two_mul_inner_le (η := fun _ => c) (x₀ := x₀) (grad := grad) hP
@@ -265,9 +260,9 @@ private theorem ogd_dynamic_regret_le_of_const {f : ℕ → E → ℝ}
   have hx0 : ‖x₀ - u 0‖ ^ 2 / (2 * c) ≤ D ^ 2 / (2 * c) :=
     div_le_div_of_nonneg_right
       (pow_le_pow_left₀ (norm_nonneg _) (hD _ hx₀ _ (hu 0)) 2) (by positivity)
-  have hgs := sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T
-  have hgrad :=
-    div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hgs hc.le) (by norm_num : (0 : ℝ) ≤ 2)
+  have hgrad := div_le_div_of_nonneg_right
+    (mul_le_mul_of_nonneg_left
+      (sum_ogd_grad_norm_sq_le (grad := grad) hP hx₀ hG (fun _ => c) T) hc.le) zero_le_two
   linarith
 
 /-- **Dynamic regret of OGD with standard fixed step size** `η = D / (G * √T)`:

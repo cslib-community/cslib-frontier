@@ -127,8 +127,7 @@ private theorem gaussianReal_prod_map_affine (ρ c : ℝ) :
   have h2 := Measure.map_prod_map (gaussianReal 0 1) (gaussianReal 0 1) (f := id)
     (g := fun x : ℝ => c * x) measurable_id (by fun_prop)
   rw [Measure.map_id] at h2
-  rw [h, h2, Measure.map_map (by fun_prop) (by fun_prop)]
-  rfl
+  rw [h, h2, Measure.map_map (by fun_prop) (by fun_prop)]; rfl
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
   [MeasurableSpace E] [BorelSpace E]
@@ -155,11 +154,8 @@ theorem stdGaussian_map_inner_prod_eq_correlatedGaussian {u v : E} (hu : ‖u‖
     funext x
     simp only [Function.comp_apply, hw, inner_sub_left, real_inner_smul_left]
     ring_nf
-  have h1 : ‖u‖₊ ^ 2 = 1 := by
-    ext
-    simp [hu]
-  have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := by
-    ext
+  have h1 : ‖u‖₊ ^ 2 = 1 := NNReal.eq (by simp [hu])
+  have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := NNReal.eq <| by
     simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk, hww]
     exact (sq_sqrt (by nlinarith [sq_nonneg ‖w‖])).symm
   rw [hpair, ← Measure.map_map (by fun_prop) (by fun_prop), stdGaussian_map_inner_prod huw, h1,
@@ -185,9 +181,7 @@ theorem correlatedGaussian_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   obtain ⟨u, v, hu, hv, rfl⟩ := exists_norm_eq_one_inner_eq hρ
   rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map measurable_snd (by fun_prop)]
-  refine (stdGaussian_map_inner v).trans ?_
-  congr
-  ext
+  refine (stdGaussian_map_inner v).trans (congrArg _ (NNReal.eq ?_))
   simp [hv]
 
 /-- A `ρ`-correlated pair is symmetric: `(z', z)` has the same law as `(z, z')`. -/
@@ -413,8 +407,7 @@ theorem integral_correlatedGaussian_indicator_Iic_mul {ρ : ℝ} (hρ : |ρ| ≤
       zero_le_one).trans_eq (one_mul 1)
   have hpt (p : ℝ × ℝ) : (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
       1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) := by
-    rw [signPos_eq, signPos_eq]
-    ring
+    rw [signPos_eq, signPos_eq]; ring
   have hfst : ∫ p, signPos p.1 ∂correlatedGaussian ρ = 0 := by
     rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_fst ρ,
       integral_map (by fun_prop) (by fun_prop)]
@@ -430,8 +423,7 @@ theorem integral_correlatedGaussian_indicator_Iic_mul {ρ : ℝ} (hρ : |ρ| ≤
     integral_sub (f := fun p : ℝ × ℝ => 1 - signPos p.1) ((integrable_const _).sub h1) h2,
     integral_sub (integrable_const _) h1, integral_const, probReal_univ, smul_eq_mul, mul_one,
     hfst, hsnd, hstab]
-  field_simp
-  ring
+  field_simp; ring
 
 /-! ### `n`-dimensional correlated Gaussians and noise stability -/
 
