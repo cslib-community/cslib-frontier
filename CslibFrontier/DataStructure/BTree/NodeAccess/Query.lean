@@ -82,6 +82,14 @@ level. -/
     | some p => pure (some p)
     | none => pure (page.rest.head?.map fun e => (e.key, e.val))
 
+/-- The within-page step of `minR`: recurse into the first child and fall back to the page's first
+entry when that subtree is empty. -/
+private def minStep (rec : Option H → NodeM α β H (Option (α × β))) (page : NodeView α β H) :
+    NodeM α β H (Option (α × β)) := do
+  match ← rec page.first with
+  | some p => pure (some p)
+  | none => pure (page.rest.head?.map fun e => (e.key, e.val))
+
 /-- Within-page scan for `maxR`: walks to the last entry of an already-read page without issuing
 extra reads, then recurses into the rightmost child. -/
 @[expose] def maxScan (rec : Option H → NodeM α β H (Option (α × β))) :
@@ -102,16 +110,13 @@ extra reads, then recurses into the rightmost child. -/
     maxScan (maxR fuel) page.first page.rest
 
 theorem countQueries_minR_le_fuel (s : Store α β H) (fuel : ℕ) (root : Option H) :
-    countQueries s (minR fuel root) ≤ fuel := by
-  induction fuel generalizing root with
-  | zero => simp [minR]
-  | succ fuel ih =>
-    cases root with
-    | none => simp [minR]
-    | some h =>
-      simp only [minR, countQueries_bind, countQueries_readNode, eval_readNode]
-      have hsub := ih (s h).first
-      split <;> simp only [countQueries_pure] <;> omega
+    countQueries s (minR fuel root) ≤ fuel :=
+  countQueries_descent_le_fuel s minR minStep (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (fun rec _ hrec page => by
+      have := hrec page.first
+      simp only [minStep, countQueries_bind]
+      split <;> simp only [countQueries_pure] <;> omega)
+    fuel root
 
 private theorem countQueries_maxScan_le (s : Store α β H)
     (rec : Option H → NodeM α β H (Option (α × β))) {B : ℕ}
@@ -142,55 +147,6 @@ private theorem head_map_eq_of_denotesRest {s : Store α β H} {rs : List (PageE
       (rest.head?.map fun (e : BTree.Triple α β) => (e.1, e.val)) := by
   cases hd using DenotesRest.induction <;> rfl
 
-/-- `minR` evaluates to `BTree.min?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
-theorem eval_minR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
-    (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
-    eval s (minR fuel root) = BTree.min? tr := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> rfl
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ _ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hpos : 1 ≤ (BTree.node first rest).height := by
-        have := BTree.height_first_succ_le (first := first) (rest := rest)
-        omega
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hf₁ : first.height ≤ fuel := by
-          have := BTree.height_first_succ_le (first := first) (rest := rest)
-          omega
-        simp only [minR, eval_bind, eval_readNode, ih₁ hdf hf₁, BTree.min?_node,
-          head_map_eq_of_denotesRest hdr]
-        cases BTree.min? first <;> simp only [eval_pure] <;> rfl
-
-/-- `minR` reads at most `tr.height` pages when `root` denotes `tr` and `tr.height ≤ fuel`. -/
-theorem countQueries_minR_le {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
-    (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
-    countQueries s (minR fuel root) ≤ tr.height := by
-  induction tr generalizing fuel root with
-  | leaf =>
-    cases root with
-    | none => cases fuel <;> simp [minR]
-    | some h => exact (denotes_some_leaf s h hd).elim
-  | node first rest ih₁ _ =>
-    cases root with
-    | none => exact (denotes_none_node s first rest hd).elim
-    | some h =>
-      have hle := BTree.height_first_succ_le (first := first) (rest := rest)
-      cases fuel with
-      | zero => omega
-      | succ fuel =>
-        obtain ⟨hdf, _⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hsub := ih₁ (fuel := fuel) hdf (by omega)
-        simp only [minR, countQueries_bind, countQueries_readNode, eval_readNode]
-        split <;> simp only [countQueries_pure] <;> omega
-
 /-- In a descent step at `.node first rest`, the recursive call on `first` returns the expected
 result, and together with the node's page read stays within the node's height. -/
 private theorem first_spec {V γ : Type} {s : H → V} {D : Option H → BTree α β → Prop}
@@ -203,6 +159,33 @@ private theorem first_spec {V γ : Type} {s : H → V} {D : Option H → BTree �
   have hle := BTree.height_first_succ_le (first := first) (rest := rest)
   obtain ⟨he, hq⟩ := hrec first List.mem_cons_self r₀ hdf (by omega)
   exact ⟨he, by omega⟩
+
+private theorem minR_spec {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
+    (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
+    eval s (minR fuel root) = BTree.min? tr ∧ countQueries s (minR fuel root) ≤ tr.height :=
+  descent_spec_of_step minR minStep (fun _ => rfl) (fun _ => rfl) (fun _ _ => rfl)
+    (denotes_some_leaf s) (denotes_none_node s)
+    (fun tr e q => e = BTree.min? tr ∧ q ≤ tr.height) ⟨BTree.min?_leaf.symm, Nat.zero_le _⟩
+    (fun _ h first rest hd hrec hf => by
+      obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
+      obtain ⟨he, hq⟩ := first_spec hrec hdf hf
+      simp only [minStep, eval_bind, countQueries_bind, he, BTree.min?_node,
+        head_map_eq_of_denotesRest hdr]
+      cases BTree.min? first <;> simp only [eval_pure, countQueries_pure] <;>
+        exact ⟨rfl, by omega⟩)
+    hd hf
+
+/-- `minR` evaluates to `BTree.min?` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
+theorem eval_minR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
+    (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
+    eval s (minR fuel root) = BTree.min? tr :=
+  (minR_spec hd hf).1
+
+/-- `minR` reads at most `tr.height` pages when `root` denotes `tr` and `tr.height ≤ fuel`. -/
+theorem countQueries_minR_le {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
+    (hd : Denotes s root tr) (hf : tr.height ≤ fuel) :
+    countQueries s (minR fuel root) ≤ tr.height :=
+  (minR_spec hd hf).2
 
 private theorem maxScan_spec {s : Store α β H} {fuel : ℕ}
     {r₀ : Option H} {first : BTree α β}
