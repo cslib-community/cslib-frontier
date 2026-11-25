@@ -704,20 +704,7 @@ theorem hammingDist_rsHadamardCode_ge (n w : ℕ) (hw : w ≠ 0) {x y : BitStrin
       have hdist := Nat.cast_le.mp (Code.le_minDist_iff.mp hmin _ (hmem x) _ (hmem y) hne_eval)
       rw [BinaryField.card hw] at hdist
       omega
-    · rw [Nat.sub_eq_zero_of_le (le_of_not_ge hdeg)]
-      exact Nat.zero_le _
-  have hprod : 2 ^ (w - 1) * (2 ^ w - rsDeg n w) ≤
-      hammingDist (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-        (rsEval n w hw x))
-        (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-          (rsEval n w hw y)) :=
-    (Nat.mul_le_mul_left _ houter).trans hconcat
-  have hprod_r : ((2 ^ (w - 1) * (2 ^ w - rsDeg n w) : ℕ) : ℝ) ≤
-      (hammingDist (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-        (rsEval n w hw x))
-        (Code.concat (fun a : BinaryField w => hadamardCode (BinaryField.equivBits hw a))
-          (rsEval n w hw y)) : ℝ) := by exact_mod_cast hprod
-  refine le_trans ?_ hprod_r
+    · omega
   have h2w : (2 : ℝ) ^ (w - 1) * 2 = (2 : ℝ) ^ w := by
     conv_rhs => rw [show w = (w - 1) + 1 by omega, pow_succ]
   have hsub_le : (2 : ℝ) ^ w - (rsDeg n w : ℝ) ≤ ((2 ^ w - rsDeg n w : ℕ) : ℝ) := by
@@ -733,7 +720,7 @@ theorem hammingDist_rsHadamardCode_ge (n w : ℕ) (hw : w ≠ 0) {x y : BitStrin
         nlinarith [h2w]
     _ ≤ (2 : ℝ) ^ (w - 1) * ((2 ^ w - rsDeg n w : ℕ) : ℝ) :=
         mul_le_mul_of_nonneg_left hsub_le (by positivity)
-    _ = ((2 ^ (w - 1) * (2 ^ w - rsDeg n w) : ℕ) : ℝ) := by push_cast; rfl
+    _ ≤ _ := by exact_mod_cast (Nat.mul_le_mul_left _ houter).trans hconcat
 
 /-- **Binary Johnson list-decoding bound for `rsHadamardCode`**: whenever `0 ≤ δ` and
 `rsDeg n w / (2 * 2 ^ w) ≤ δ ^ 2`, every received word `recv : BitString (w + w) → Bool` agrees
@@ -1055,66 +1042,14 @@ private theorem strongGuess_avg_eq {ℓ t m n : ℕ} {r : ℝ} (D : WeakDesign �
               ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
                 (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
                   then (1 : ℝ) else 0) := by
-    have hlhs (w : BitString ℓ) :
-        ((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
-          ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-            ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-              ∑ x : BitString n, (X x).toReal *
-                ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0) =
-        ∑ x : BitString n, (X x).toReal *
-          (((PMF.uniformOfFintype (BitString ℓ)) w).toReal *
-            ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-              ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-                ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0)) := by
-      have hcomm :
-          (∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-            ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-              ∑ x : BitString n, (X x).toReal *
-                ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0)) =
-          ∑ x : BitString n, (X x).toReal *
-            ∑ z_i : BitString t, ((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-              ∑ u : BitString m, ((PMF.uniformOfFintype (BitString m)) u).toReal *
-                ∑ b : Bool, ((PMF.uniformOfFintype Bool) b).toReal *
-                  (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                    then (1 : ℝ) else 0) := by
-        calc _ = ∑ b : Bool, ∑ u : BitString m, ∑ x : BitString n, ∑ z_i : BitString t,
-                ((PMF.uniformOfFintype Bool) b).toReal *
-                  (((PMF.uniformOfFintype (BitString m)) u).toReal *
-                    ((X x).toReal *
-                      (((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                        (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                          then (1 : ℝ) else 0)))) := by
-              simp only [Finset.mul_sum]
-          _ = ∑ x : BitString n, ∑ z_i : BitString t, ∑ u : BitString m, ∑ b : Bool,
-                ((PMF.uniformOfFintype Bool) b).toReal *
-                  (((PMF.uniformOfFintype (BitString m)) u).toReal *
-                    ((X x).toReal *
-                      (((PMF.uniformOfFintype (BitString t)) z_i).toReal *
-                        (if strongGuess D T i w b u (overlapTables D enc i w x) z_i = enc x z_i
-                          then (1 : ℝ) else 0)))) := by
-              rw [Finset.sum_comm]
-              refine (Finset.sum_congr rfl fun u _ => Finset.sum_comm).trans ?_
-              rw [Finset.sum_comm]
-              refine Finset.sum_congr rfl fun x _ => ?_
-              rw [Finset.sum_comm]
-              refine (Finset.sum_congr rfl fun b _ => Finset.sum_comm).trans ?_
-              rw [Finset.sum_comm]
-              refine Finset.sum_congr rfl fun z_i _ => Finset.sum_comm
-          _ = _ := by
-              simp only [Finset.mul_sum]
-              refine Finset.sum_congr rfl fun x _ => Finset.sum_congr rfl fun z_i _ =>
-                Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun b _ => by ring
-      rw [hcomm, Finset.mul_sum]
-      refine Finset.sum_congr rfl fun x _ => by ring
-    simp_rw [hlhs]
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun x _ => (Finset.mul_sum ..).symm
+    simp only [Finset.mul_sum, ← Fintype.sum_prod_type']
+    refine Fintype.sum_equiv
+      { toFun := fun p => (p.2.2.2.1, (p.1, (p.2.2.2.2, (p.2.2.1, p.2.1))))
+        invFun := fun q => (q.2.1, (q.2.2.2.2, (q.2.2.2.1, (q.1, q.2.2.1))))
+        left_inv := fun _ => rfl
+        right_inv := fun _ => rfl } _ _ fun p => ?_
+    simp only [Equiv.coe_fn_mk]
+    ring
   rw [hreord, hhyb_succ, hhyb_i]
   simp_rw [hinner_b]
   have hsum_const : ∀ (c : ℝ),
@@ -1158,25 +1093,16 @@ theorem isLinearStrongExtractor_trevisan {ℓ t m n : ℕ} {r k ε L : ℝ}
     rw [dist_eq_sum_filter_lt, map_apply_toReal, map_apply_toReal, ← Finset.sum_sub_distrib,
       Finset.sum_filter]
     refine Finset.sum_congr rfl fun p _ => ?_
-    by_cases h : (UnifDist p).toReal < (RealDist p).toReal
-    · simp [T, h]
-    · simp [T, h]
+    by_cases h : (UnifDist p).toReal < (RealDist p).toReal <;> simp [T, h]
   have htele : ((RealDist.map T) true).toReal - ((UnifDist.map T) true).toReal =
       ∑ i : Fin m, (((trevHybrid D enc X (i.1 + 1)).map T true).toReal -
         ((trevHybrid D enc X i.1).map T true).toReal) := by
     have h1 : RealDist = trevHybrid D enc X m := (trevHybrid_m D enc X).symm
     have h0 : UnifDist = trevHybrid D enc X 0 := (trevHybrid_zero D enc X).symm
     rw [h1, h0]
-    have hsum_sub : ∀ (f : ℕ → ℝ) (k : ℕ),
-        ∑ i : Fin k, (f (i.1 + 1) - f i.1) = f k - f 0 := fun f k => by
-      induction k with
-      | zero => simp
-      | succ k ih =>
-        rw [Fin.sum_univ_castSucc]
-        simp only [Fin.val_castSucc, Fin.val_last]
-        rw [ih]
-        ring
-    exact (hsum_sub (fun j => ((trevHybrid D enc X j).map T true).toReal) m).symm
+    rw [Fin.sum_univ_eq_sum_range (fun j => ((trevHybrid D enc X (j + 1)).map T true).toReal -
+      ((trevHybrid D enc X j).map T true).toReal)]
+    exact (Finset.sum_range_sub (fun j => ((trevHybrid D enc X j).map T true).toReal) m).symm
   have hm_pos : (0 : ℝ) < m := by exact_mod_cast hm
   -- Pigeonhole over the `m` hybrid gaps to pick `i : Fin m` with gap `> ε / m`.
   obtain ⟨i, hi_gap⟩ : ∃ i : Fin m,
