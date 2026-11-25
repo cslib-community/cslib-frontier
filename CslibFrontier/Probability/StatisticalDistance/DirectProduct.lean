@@ -94,18 +94,10 @@ theorem one_sub_two_mul_exp_le_dist_iid (μ ν : PMF α) (k : ℕ) :
       intro x hx
       simp only [hE, Set.mem_compl_iff, Set.mem_ofPred_eq, not_le] at hx
       simp only [Set.mem_ofPred_eq]
-      have : k * q + k * (d / 2) = k * p - k * (d / 2) := by
-        rw [← hpq]
-        ring
+      have : k * q + k * (d / 2) = k * p - k * (d / 2) := by rw [← hpq]; ring
       linarith
-    have hmono : ((iid μ k).toOuterMeasure Eᶜ).toReal ≤
-        ((iid μ k).toOuterMeasure
-          {x : Fin k → α | ∑ i, score i (x i) ≤ k * p - k * (d / 2)}).toReal :=
-      toOuterMeasure_toReal_mono (iid μ k) hsub
-    have hc := toOuterMeasure_toReal_add_compl (iid μ k) E
-    linarith
-  have hdist := abs_toOuterMeasure_toReal_sub_le_dist (iid μ k) (iid ν k) E
-  linarith [le_abs_self (((iid μ k).toOuterMeasure E).toReal -
-    ((iid ν k).toOuterMeasure E).toReal)]
+    linarith [toOuterMeasure_toReal_mono (iid μ k) hsub,
+      toOuterMeasure_toReal_add_compl (iid μ k) E]
+  linarith [(le_abs_self _).trans (abs_toOuterMeasure_toReal_sub_le_dist (iid μ k) (iid ν k) E)]
 
 end Cslib.Probability.PMF
