@@ -3324,6 +3324,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.PartialDeriva
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.PowerProductCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientCharacteristicEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.RelativeWordCriterion
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ResidueEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelPrecision
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness

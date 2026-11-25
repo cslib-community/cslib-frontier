@@ -24,6 +24,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCo
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficientSign
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RelativeWordCriterion
 import CslibFrontier.Computability.Complexity.RealAlgebraic.WordCoordinateFingerprintLabels
 import CslibFrontier.Foundations.Algebra.Polynomial.BivariateSwap
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchGrowth
@@ -960,5 +961,21 @@ example :
   simp only [W, Controlled.wordDegreePiece, Controlled.cutoff_boundedDegreePiece,
     Controlled.degreeBound_boundedDegreePiece]
   exact ⟨rfl, rfl⟩
+
+-- The constant polynomial 1 has an empty zero fiber even when both blocks have arity zero.
+example :
+    let P : MvPolynomial (Fin (0 + 0)) ℤ := 1
+    let E := finiteRelativeValueSection (n := 0) (m := 0) (ell := 1) (by decide) P (by simp [P])
+    let N := E.totalDegree
+    ∃ word : List Bool, word.length = N.size +
+      coordinateFingerprintWitnessWidth (2 * (2 * (N + 1) + 1) + 1) 1 := by
+  intro P E N
+  have hpos (x z : Fin 0 → ℝ) : 0 ≤ eval₂ (Int.castRingHom ℝ) (Fin.addCases z x) P := by
+    simp [P]
+  obtain ⟨word, hlength, _⟩ := (exists_emptyFiber_iff_selectionWord
+    (n := 0) (m := 0) (ell := 1) (by decide) (by decide) P (by simp [P]) hpos
+    N E.coeffNorm1.size le_rfl (Nat.lt_size_self _).le).mp
+      ⟨Fin.elim0, fun _ => by simp [P]⟩
+  exact ⟨word, by simpa only [Nat.zero_add, pow_one] using hlength⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
