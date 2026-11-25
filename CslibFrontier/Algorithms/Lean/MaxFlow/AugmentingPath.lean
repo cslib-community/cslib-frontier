@@ -423,10 +423,7 @@ private theorem isChain_mem_compat {p : List (L × R)} (hc : p.IsChain fun a b =
     (hv : e.2 = v) : (∃ e' ∈ p.getLast?, e'.2 = v) ∨ u ∈ p.map Prod.fst := by
   induction hc with
   | nil => simp at he
-  | singleton a =>
-    rw [List.mem_singleton] at he
-    subst he
-    exact .inl ⟨e, rfl, hv⟩
+  | singleton a => exact .inl ⟨a, rfl, List.mem_singleton.mp he ▸ hv⟩
   | @cons_cons a b l hab _ ih =>
     rcases List.mem_cons.mp he with rfl | he'
     · have hb : b.1 = u := hM.2.2 _ _ _ (hv ▸ hab) huv
@@ -460,16 +457,12 @@ private theorem isChain_fst_mem {p : List (L × R)} (hc : p.IsChain fun a b => (
     {e : L × R} (he : e ∈ p) : (∃ h ∈ p.head?, h = e) ∨ ∃ a ∈ p, (e.1, a.2) ∈ M := by
   induction hc with
   | nil => simp at he
-  | singleton a =>
-    rw [List.mem_singleton] at he
-    exact .inl ⟨a, rfl, he.symm⟩
+  | singleton a => exact .inl ⟨a, rfl, (List.mem_singleton.mp he).symm⟩
   | @cons_cons a b l hab _ ih =>
     rcases List.mem_cons.mp he with rfl | he
     · exact .inl ⟨e, rfl, rfl⟩
     · rcases ih he with ⟨h, hh, rfl⟩ | ⟨a', ha', hM'⟩
-      · simp only [List.head?_cons, Option.mem_def, Option.some.injEq] at hh
-        subst hh
-        exact .inr ⟨a, List.mem_cons_self, hab⟩
+      · exact .inr ⟨a, List.mem_cons_self, Option.some.inj hh ▸ hab⟩
       · exact .inr ⟨a', List.mem_cons_of_mem _ ha', hM'⟩
 
 /-- Every left vertex of an augmenting path other than its first is already matched. -/
@@ -632,9 +625,7 @@ theorem IsLayeredPath.mem_layers {u : L} {i : ℕ} {p : List (L × R)}
   induction h with
   | last hu _ hv _ =>
     intro e he
-    rw [List.mem_singleton] at he
-    subst he
-    exact ⟨_, le_rfl, hu, .inl ⟨hv, rfl⟩⟩
+    exact List.mem_singleton.mp he ▸ ⟨_, le_rfl, hu, .inl ⟨hv, rfl⟩⟩
   | @cons u u' v i p hu _ huv _ hp ih =>
     intro e he
     rcases List.mem_cons.mp he with rfl | he
@@ -665,9 +656,7 @@ theorem IsLayeredPath.nodup_right (hM : IsMatching G M) {u : L} {i : ℕ} {p : L
     rw [hsnd] at hr
     rcases hr with ⟨hfree, _⟩ | ⟨w, hw, hwl⟩
     · exact hfree (mem_matchedRight.mpr ⟨u', huv⟩)
-    · have hwu : w = u' := hM.2.2 _ _ _ hw huv
-      subst hwu
-      have := hp.isLayer.unique hwl
+    · have := hp.isLayer.unique (hM.2.2 _ _ _ hw huv ▸ hwl)
       omega
 
 theorem IsLayeredPath.chain {u : L} {i : ℕ} {p : List (L × R)}
@@ -979,10 +968,8 @@ theorem noShortAug_augment (hk : NoShortAug G M k) (hN : IsMaximalLayeredAugment
   have hi₀k : k ≤ i₀ := by
     by_contra hlt
     exact hfM (hk i₀ (by omega) (mem_altRight_of_isLayer hwi₀ le_rfl hG))
-  have hi : i = k := by omega
-  have hi₀' : i₀ = k := by omega
-  rw [hi] at hwi'
-  rw [hi₀'] at hwi₀
+  rw [show i = k by omega] at hwi'
+  rw [show i₀ = k by omega] at hwi₀
   obtain ⟨r, hr, q, hq⟩ := hN.exists_prefix hk le_rfl hwi' hwi₀
   exact hN.maximal r hr _ (hq.append (.last hwi₀ hG hfM hfN))
 
@@ -1064,14 +1051,9 @@ theorem mul_card_sub_le_of_noShortAug (hM : IsMatching G M) {M' : Finset (L × R
     (hM' : IsMatching G M') {t : ℕ} (ht : NoShortAug G M t) :
     t * (M'.card - M.card) ≤ M.card := by
   have h := card_mul_le_of_noShortAug hM hM' ht
-  rcases Nat.lt_or_ge M.card M'.card with hlt | hle
-  · obtain ⟨g, hg⟩ := Nat.exists_eq_add_of_lt hlt
-    rw [hg] at h ⊢
-    rw [show M.card + g + 1 - M.card = g + 1 by omega]
-    simp only [Nat.mul_add, Nat.add_mul, Nat.one_mul, Nat.mul_one] at h ⊢
-    omega
-  · rw [Nat.sub_eq_zero_of_le hle, Nat.mul_zero]
-    exact Nat.zero_le _
+  rw [Nat.add_one_mul] at h
+  rw [Nat.mul_sub]
+  omega
 
 /-- `IsPhaseRun G M n`: starting from `M`, `n` Hopcroft–Karp phases are performed. Each phase
 follows a breadth-first search that found the shortest augmenting path parameter `k` (no free

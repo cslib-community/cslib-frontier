@@ -141,11 +141,8 @@ theorem Clause.toIneq_toPB (c : Clause ℕ) : c.toPB.toIneq = c.toIneq := by
   rw [show Clause.toIneq c = Clause.toIneq c.dedup by
       simp only [Clause.toIneq, List.toFinset_dedup],
     Clause.toIneq_of_nodup (List.nodup_dedup c)]
-  simp only [Clause.toPB, PBConstr.toIneq, List.map_map]
-  rw [add_comm]
-  congr 1
-  congr 1
-  exact List.map_congr_left fun l _ => by simp only [Function.comp_apply, termIneq, one_nsmul]
+  simp only [Clause.toPB, PBConstr.toIneq, List.map_map, Function.comp_def, termIneq, one_nsmul]
+  exact add_comm _ _
 
 /-! ### Coefficients and bounds of term lists -/
 
@@ -501,12 +498,8 @@ theorem Der.weaken' {c : PBConstr} (hc : Der Γ c.toIneq) (v : ℕ) :
     rw [toIneq_eq, toIneq_eq, toIneq_eq]
     refine Ineq.ext ?_ ?_
     · simp only [coeff_add, cf_map_negate, ← hcf, rem, rest]; abel
-    · simp only [bound_add]
-      have : ((negSum rest : ℕ) : ℤ) + negSum rem = negSum ts := mod_cast hns
-      have : ((negSum rem : ℕ) : ℤ) +
-          negSum (rem.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum rem :=
-        mod_cast hneg
-      push_cast [hd]; linarith
+    · simp only [bound_add, rem, rest] at hneg hd ⊢
+      omega
   · rw [Nat.sub_eq_zero_of_le (le_of_not_ge hd)]
     exact Der.degree_zero _
 
@@ -521,11 +514,7 @@ theorem Der.contra {c : PBConstr} (hc : Der Γ c.toIneq) (h : c.IsContradiction)
     simp only [coeff_add, cf_map_negate, add_neg_cancel, coeff_contra]
   · rw [toIneq_eq, toIneq_eq]
     simp only [bound_add, bound_contra]
-    have : ((negSum c.terms : ℕ) : ℤ) +
-        negSum (c.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum c.terms :=
-      mod_cast hneg
-    have : (coeffSum c.terms : ℤ) + 1 ≤ c.degree := mod_cast h
-    push_cast; linarith
+    omega
 
 /-! ### Proofs made of cutting-planes steps -/
 
@@ -625,9 +614,8 @@ theorem exists_isProof_contra_of_check {F : List PBConstr} {P : Proof} (h : chec
     obtain ⟨⟨c, i⟩, hci, rfl⟩ := List.mem_map.mp he
     refine Der.normalize (Der.hyp ⟨c, ?_, rfl⟩)
     obtain ⟨j, hj, hji⟩ := List.mem_iff_getElem.1 hci
-    rw [List.getElem_zipIdx] at hji
-    simp only [Prod.mk.injEq] at hji
-    exact List.mem_iff_getElem.2 ⟨j, by simpa only [List.length_zipIdx] using hj, hji.1⟩
+    rw [List.getElem_zipIdx, Prod.mk.injEq] at hji
+    exact hji.1 ▸ List.getElem_mem (by simpa only [List.length_zipIdx] using hj)
   unfold check at h
   split at h
   · rename_i db n hrun
