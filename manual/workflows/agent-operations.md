@@ -83,16 +83,18 @@ the snapshot. The check fetches missing Git objects, leaves branches and the que
 and exits 0 for a clean textual merge, 1 for a conflict and 2 for an incomplete check.
 
 On every run, just before enqueueing, `queue_pr.py` also reads the PR's comments and submitted
-reviews for the review-record lines of [policy/review.md](../../policy/review.md). It refuses
-while a `HOLD owner=<id> until=<time> reason=<text>` line is in force (its owner has posted no
-later `HOLD-RELEASED by=<id>` line and `until` has not passed); while another reviewer's
-`CLAIM review head=<approved-head> by=<id> until=<time>` is unexpired (never more than 45
-minutes after it was posted) and that reviewer has posted no verdict at the head since; and when
-a `**REQUEST_CHANGES** at <approved-head>` verdict is not followed by a later `**APPROVE**` at
-that head. Pass `--reviewer <your-id>` so that your own claim does not block. Free-text holds
-cannot be parsed, so comments since the newest approval at the head that mention a hold are
-listed as an advisory to read before relying on the enqueue. These refusals are a backstop, not
-the reviewer's check of the discussion.
+reviews for review records: whole lines, outside fenced code blocks, with times written
+`YYYY-MM-DDTHH:MMZ`. It refuses while a `HOLD owner=<id> until=<time> reason=<text>` line is in
+force (`until` has not passed and its owner has posted no later `HOLD-RELEASED by=<id>
+reason=<text>` line; `by=maintainer` or `by=SamuelSchlesinger` releases an `owner=maintainer`
+hold); while another reviewer's `CLAIM review head=<approved-head> by=<id> until=<time>` is
+unexpired (never more than 45 minutes after it was posted) and that reviewer has posted no
+verdict at the head since; and when a `**REQUEST_CHANGES** at <approved-head>` verdict is not
+followed by a later `**APPROVE**` at that head. A verdict is a post whose first non-empty line
+begins with one of those two prefixes. Pass `--reviewer <your-id>` so that your own claim does
+not block. Free-text holds cannot be parsed, so comments since the newest approval at the head
+that say "hold" or "holding" outside a record are listed as an advisory to read before relying
+on the enqueue. These refusals are a backstop, not the reviewer's check of the discussion.
 
 For a dependency upgrade, a tender holding several approved heads can start one watcher at the
 first new-pin `main` commit. Supply the individual PR numbers and the SHAs their reviews cover:

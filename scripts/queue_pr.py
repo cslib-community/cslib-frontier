@@ -25,12 +25,19 @@ and rereads it on the mutation side just before enqueueing. A changed body, comm
 review or inline thread stops the enqueue so the reviewer can reread and rerun. Check events and
 reactions are not discussion changes.
 
-On every run, just before enqueueing, it reads the review records in the PR's comments and
-submitted reviews (policy/review.md, "Verdicts, claims and holds") and refuses while a `HOLD` line
-is in force, while another reviewer's `CLAIM review head=SHA` is unexpired without a verdict from
-that reviewer, or when a `**REQUEST_CHANGES** at SHA` is not followed by a later `**APPROVE** at
-SHA`. `--reviewer ID` exempts your own claim. Free-text holds cannot be parsed: comments since the
-approval that mention a hold without a `HOLD` line are listed as an advisory.
+On every run, just before enqueueing, it reads the PR's comments and submitted reviews for review
+records, each a whole line outside fenced code blocks:
+- `HOLD owner=ID until=YYYY-MM-DDTHH:MMZ reason=TEXT`, in force until `until` passes or its owner
+  posts a later `HOLD-RELEASED by=ID reason=TEXT` (for `owner=maintainer`, `by=maintainer` or
+  `by=SamuelSchlesinger`);
+- `CLAIM review head=SHA by=ID until=YYYY-MM-DDTHH:MMZ`, a review lease of at most 45 minutes after
+  it is posted, which the same reviewer's verdict at SHA ends;
+- verdicts: posts whose first non-empty line begins `**APPROVE** at SHA` or
+  `**REQUEST_CHANGES** at SHA`, naming the reviewer as ` by ID`.
+It refuses while a hold is in force, while another reviewer's claim on the head is unexpired, or
+when a `**REQUEST_CHANGES**` at the head is not followed by a later `**APPROVE**` there.
+`--reviewer ID` exempts your own claim. Free-text holds cannot be parsed: comments since the
+approval that say "hold" or "holding" outside a record are listed as an advisory.
 
 It does not judge the approval itself or a free-text hold; the reviewer checks those before
 running it. The discussion read is not atomic with enqueue and does not inspect linked issues. Its
@@ -417,8 +424,9 @@ def queue_estimate(pr: dict, number: int) -> str | None:
             "build fails.")
 
 
-# Review records (policy/review.md, "Verdicts, claims and holds"): lines in a PR comment or review
-# body. Matching is case-sensitive; leading whitespace and a leading `**` are tolerated.
+# Review records (see the module docstring): whole lines of a PR comment or review body, outside
+# fenced code blocks. Matching is case-sensitive; leading whitespace and a leading `**` are
+# tolerated.
 RECORD_TIME = r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z"
 HOLD_LINE = re.compile(rf"HOLD owner=(\S+) until=({RECORD_TIME}) reason=(.*)")
 RELEASE_LINE = re.compile(r"HOLD-RELEASED by=(\S+) reason=(.*)")
@@ -427,7 +435,9 @@ CLAIM_LINE = re.compile(rf"CLAIM review head=([0-9a-f]{{40}}) by=(\S+) until=({R
 VERDICT_LINE = re.compile(r"\*\*(APPROVE|REQUEST_CHANGES)\*\* at `?([0-9a-f]{7,40})`?"
                           r"(?: by `?([^\s`]+)`?)?")
 CLAIM_LEASE = datetime.timedelta(minutes=45)  # the longest lease a claim line can hold
-LEGACY_HOLD = re.compile(r"\bhold", re.IGNORECASE)
+# `owner=maintainer` names Samuel, whose GitHub login may release it as well; so may `maintainer`.
+MAINTAINER_IDS = frozenset({"maintainer", "SamuelSchlesinger"})
+LEGACY_HOLD = re.compile(r"\bhold(?:ing)?\b", re.IGNORECASE)
 
 
 class ReviewPost(NamedTuple):
@@ -438,16 +448,26 @@ class ReviewPost(NamedTuple):
 
 
 def gh_rest_items(endpoint: str) -> list:
-    """Every item of a paginated REST list endpoint."""
-    result = subprocess.run(["gh", "api", "--paginate", "--slurp", endpoint],
-                            capture_output=True, text=True)
+    """Every item of a paginated REST list endpoint.
+
+    `gh api --paginate` prints each page's JSON array in turn (`[...][...]`). Its `--slurp`, which
+    would join them, needs gh 2.48, newer than some machines that run this script have.
+    """
+    result = subprocess.run(["gh", "api", "--paginate", endpoint], capture_output=True, text=True)
     if result.returncode != 0:
         raise GhError(result.stderr.strip() or result.stdout.strip())
-    try:
-        pages = json.loads(result.stdout)
-    except ValueError as error:
-        raise GhError("GitHub returned invalid JSON") from error
-    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+    decoder, text, index, pages = json.JSONDecoder(), result.stdout, 0, []
+    while True:
+        while index < len(text) and text[index].isspace():
+            index += 1
+        if index == len(text):
+            break
+        try:
+            page, index = decoder.raw_decode(text, index)
+        except ValueError as error:
+            raise GhError("GitHub returned invalid JSON") from error
+        pages.append(page)
+    if not pages or any(not isinstance(page, list) for page in pages):
         raise GhError(f"GitHub returned no list for {endpoint}")
     return [item for page in pages for item in page]
 
@@ -493,11 +513,32 @@ def _record_line(line: str) -> str:
     return line[2:] if line.startswith("**") else line
 
 
+def _unfenced_lines(body: str) -> list[str]:
+    """The lines of `body` outside fenced code blocks, where examples of records are quoted."""
+    lines, fence = [], None
+    for raw in body.splitlines():
+        stripped = raw.strip()
+        if fence is not None:
+            if stripped.startswith(fence):
+                fence = None
+        elif stripped.startswith(("```", "~~~")):
+            fence = stripped[:3]
+        else:
+            lines.append(raw)
+    return lines
+
+
+def _releases(owner: str, by: str) -> bool:
+    return by == owner or (owner in MAINTAINER_IDS and by in MAINTAINER_IDS)
+
+
 def _verdict(post: ReviewPost) -> tuple[str, str, str | None] | None:
     """`(verdict, sha prefix, reviewer or None)` when the post's first non-empty line is one."""
     first = next((line.strip() for line in post.body.splitlines() if line.strip()), "")
     match = VERDICT_LINE.match(first)
-    return (match[1], match[2], match[3]) if match else None
+    if not match:
+        return None
+    return match[1], match[2], match[3].rstrip(".,;:)") if match[3] else None
 
 
 def review_record_check(posts: list[ReviewPost], sha: str, *, now: datetime.datetime,
@@ -532,7 +573,7 @@ def review_record_check(posts: list[ReviewPost], sha: str, *, now: datetime.date
     advisories: list[str] = []
     for index, post in enumerate(posts):
         free_text = []
-        for number, raw in enumerate(post.body.splitlines()):
+        for number, raw in enumerate(_unfenced_lines(post.body)):
             line = _record_line(raw)
             if hold := HOLD_LINE.fullmatch(line):
                 holds.append(((index, number), hold[1], hold[2], hold[3].strip(), post))
@@ -549,7 +590,7 @@ def review_record_check(posts: list[ReviewPost], sha: str, *, now: datetime.date
             advisories.append(f"{post.url}: {excerpt}")
 
     for position, owner, until, reason, post in holds:
-        released = any(by == owner and later > position for later, by in releases)
+        released = any(_releases(owner, by) and later > position for later, by in releases)
         if not released and _record_time(until) > now:
             refusals.append(f"HOLD owner={owner} until={until} is in force ({post.url}): {reason}; "
                             f"its owner releases it with `HOLD-RELEASED by={owner} reason=...`")
