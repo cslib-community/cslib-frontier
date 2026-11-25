@@ -1324,7 +1324,8 @@ theorem IsReversible.distToStationary_le_exp {P : MarkovChain S} {π : PMF S}
   have hpow : P.spectralContraction π ^ t ≤ Real.exp (-(P.absSpectralGap π * t)) := by
     rw [← one_sub_absSpectralGap, show -(P.absSpectralGap π * t) = t * -P.absSpectralGap π by ring,
       Real.exp_nat_mul]
-    exact pow_le_pow_left₀ (by linarith [P.spectralContraction_nonneg π, one_sub_absSpectralGap P π])
+    exact pow_le_pow_left₀
+      (by linarith [P.spectralContraction_nonneg π, one_sub_absSpectralGap P π])
       (by linarith [Real.add_one_le_exp (-P.absSpectralGap π)]) t
   calc (1 / 2) * Real.sqrt ((1 - π_min) / π_min) * P.spectralContraction π ^ t
       ≤ (1 / 2) * (1 / Real.sqrt π_min) * Real.exp (-(P.absSpectralGap π * t)) :=
