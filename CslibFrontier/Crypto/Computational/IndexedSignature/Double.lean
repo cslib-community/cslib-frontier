@@ -512,9 +512,7 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
           !(pair.2.2.any fun e => (requestDecoder.decode pair.2.1.2).1 == e.1) := by
       funext pair; rw [Bool.eq_iff_iff]
       simp only [decide_eq_true_eq, Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false,
-        List.mem_map, not_exists, not_and, beq_iff_eq]
-      exact ⟨fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩,
-        fun ⟨h1, h2⟩ => ⟨h1, fun e he h => h2 e he h.symm⟩⟩
+        List.mem_map, not_exists, not_and, beq_iff_eq, eq_comm (a := (requestDecoder.decode _).1)]
     rw [heq]; polytime
   have hslotDec : ComputableInPolyTime
       (fun pair : DoubleHandlerIn =>
