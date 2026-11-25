@@ -109,23 +109,28 @@ private def rotIntegrand (ψ : ℝ) (p : ℝ × ℝ) : ℝ :=
   indA I si h p.1 p.2 * Phi (beta J sj h ψ p.1 p.2) -
     indB I si h p.1 p.2 * (1 - Phi (beta J sj h ψ p.1 p.2))
 
-private theorem measurable_rotIntegrand (ψ : ℝ) :
-    Measurable (rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ) := by
-  unfold rotIntegrand
-  have hb : Measurable fun p : ℝ × ℝ => Phi (beta J sj h ψ p.1 p.2) :=
+private theorem integrable_rotTerms (ψ : ℝ) :
+    Integrable (fun p : ℝ × ℝ => indA I si h p.1 p.2 * Phi (beta J sj h ψ p.1 p.2)) (γ1.prod γ1) ∧
+      Integrable (fun p : ℝ × ℝ => indB I si h p.1 p.2 * (1 - Phi (beta J sj h ψ p.1 p.2)))
+        (γ1.prod γ1) := by
+  have hPsi : Measurable (fun p : ℝ × ℝ => Phi (beta J sj h ψ p.1 p.2)) :=
     (continuous_Phi.comp (by unfold beta; fun_prop)).measurable
-  exact (measurable_indA.mul hb).sub (measurable_indB.mul (measurable_const.sub hb))
+  have integrable_product {f g : ℝ × ℝ → ℝ} (hf : Measurable f) (hg : Measurable g)
+      (hf01 : ∀ p, 0 ≤ f p ∧ f p ≤ 1) (hg01 : ∀ p, 0 ≤ g p ∧ g p ≤ 1) :
+      Integrable (fun p => f p * g p) (γ1.prod γ1) := by
+    refine (integrable_const (1 : ℝ)).mono' (hf.mul hg).aestronglyMeasurable
+      (ae_of_all _ fun p => ?_)
+    rw [Real.norm_eq_abs, abs_of_nonneg (mul_nonneg (hf01 p).1 (hg01 p).1)]
+    exact (mul_le_of_le_one_left (hg01 p).1 (hf01 p).2).trans (hg01 p).2
+  exact ⟨integrable_product measurable_indA hPsi (fun p => indA_mem p.1 p.2)
+      (fun p => Phi_mem (beta J sj h ψ p.1 p.2)),
+    integrable_product measurable_indB (measurable_const.sub hPsi) (fun p => indB_mem p.1 p.2)
+      (fun p => let hp := Phi_mem (beta J sj h ψ p.1 p.2)
+        ⟨sub_nonneg.mpr hp.2, sub_le_self _ hp.1⟩)⟩
 
 private theorem integrable_rotIntegrand (ψ : ℝ) :
-    Integrable (rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ) (γ1.prod γ1) := by
-  refine (integrable_const (2 : ℝ)).mono' (measurable_rotIntegrand ψ).aestronglyMeasurable
-    (ae_of_all _ fun p => ?_)
-  unfold rotIntegrand
-  have := indA_mem (I := I) (si := si) (h := h) p.1 p.2
-  have := indB_mem (I := I) (si := si) (h := h) p.1 p.2
-  have := Phi_mem (beta J sj h ψ p.1 p.2)
-  rw [Real.norm_eq_abs, abs_le]
-  constructor <;> nlinarith
+    Integrable (rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ) (γ1.prod γ1) :=
+  (integrable_rotTerms ψ).1.sub (integrable_rotTerms ψ).2
 
 /-- `rotF` as a product integral. -/
 private theorem rotF_eq {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) :
@@ -134,22 +139,7 @@ private theorem rotF_eq {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) :
   unfold rotF
   rw [fubini3 (measurableSet_lowSet I J si sj h ψ), fubini3 (measurableSet_highSet I J si sj h ψ)]
   simp only [slice_low I J si sj h hs, slice_high I J si sj h hs]
-  have hA : Integrable (fun p : ℝ × ℝ => indA I si h p.1 p.2 * Phi (beta J sj h ψ p.1 p.2))
-      (γ1.prod γ1) := by
-    refine (integrable_const (1 : ℝ)).mono' ((measurable_indA).mul
-      (continuous_Phi.comp (by unfold beta; fun_prop)).measurable).aestronglyMeasurable
-      (ae_of_all _ fun p => ?_)
-    have := indA_mem (I := I) (si := si) (h := h) p.1 p.2
-    have := Phi_mem (beta J sj h ψ p.1 p.2)
-    rw [Real.norm_eq_abs, abs_le]; constructor <;> nlinarith
-  have hB : Integrable (fun p : ℝ × ℝ => indB I si h p.1 p.2 * (1 - Phi (beta J sj h ψ p.1 p.2)))
-      (γ1.prod γ1) := by
-    refine (integrable_const (1 : ℝ)).mono' ((measurable_indB).mul (measurable_const.sub
-      (continuous_Phi.comp (by unfold beta; fun_prop)).measurable)).aestronglyMeasurable
-      (ae_of_all _ fun p => ?_)
-    have := indB_mem (I := I) (si := si) (h := h) p.1 p.2
-    have := Phi_mem (beta J sj h ψ p.1 p.2)
-    rw [Real.norm_eq_abs, abs_le]; constructor <;> nlinarith
+  obtain ⟨hA, hB⟩ := integrable_rotTerms (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ
   rw [← integral_prod _ hA, ← integral_prod _ hB, ← integral_sub hA hB]
   rfl
 
@@ -177,7 +167,8 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
       Measurable fun x₁ : ℝ => (x₀, x₁))).aestronglyMeasurable
       (ae_of_all _ fun x₁ => by
         have := hg1 x₀ x₁
-        rw [Real.norm_eq_abs, abs_le]; constructor <;> linarith)
+        rw [Real.norm_eq_abs, abs_of_nonneg this.1]
+        exact this.2)
   have hinner : ∀ x₀, ∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ ∂γ1 =
       -((if x₀ < h then (1 : ℝ) else -1) *
