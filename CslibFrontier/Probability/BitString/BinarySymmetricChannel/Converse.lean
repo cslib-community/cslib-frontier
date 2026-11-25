@@ -161,6 +161,7 @@ theorem logb_card_le_add_fano [Fintype M] [Nonempty M] (p : I) (E : M → ι →
           (𝔼 m, decodingError p E D m) * Real.logb 2 (Fintype.card M - 1) := by
   classical
   set J := (Probability.PMF.uniformOfFintype M).bind fun m => (bsc p (E m)).map (m, ·)
+  -- the probability that `D` misdecodes a uniform message is the average error
   have hPe : ((J.map Prod.swap).toOuterMeasure {z | D z.1 ≠ z.2}).toReal =
       𝔼 m, decodingError p E D m := by
     rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_bind_apply, tsum_fintype]

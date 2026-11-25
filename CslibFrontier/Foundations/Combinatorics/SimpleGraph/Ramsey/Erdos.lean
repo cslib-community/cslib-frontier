@@ -92,6 +92,7 @@ theorem exists_cliqueFree_indepSetFree_of_choose {n k l : ℕ}
   set N := Fintype.card (Sym2 (Fin n))
   let bad (j : ℕ) (b : Bool) : Finset (Sym2 (Fin n) → Bool) :=
     (powersetCard j univ).biUnion fun t => {x | ∀ e ∈ pairs t, x e = b}
+  -- the colorings making some `j`-set monochromatic of color `b`, counted by a union bound
   have hcount (j : ℕ) (b : Bool) : #(bad j b) * 2 ^ j.choose 2 ≤ n.choose j * 2 ^ N := by
     refine (Nat.mul_le_mul_right _ card_biUnion_le).trans (le_of_eq ?_)
     rw [sum_mul, sum_congr rfl fun t ht => by

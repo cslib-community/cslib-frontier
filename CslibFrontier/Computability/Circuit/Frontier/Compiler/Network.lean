@@ -510,12 +510,14 @@ theorem eval_splice {P : Set (Vertex c)} {x y z : Fin n → U}
     (satisfies_trace (I := I) (Acc := fun _ => univ) (x := x) fun _ => mem_univ _).splice
       (satisfies_trace fun _ => mem_univ _) hcut hzx hzy
   have htgt : (network c I fun _ => univ).tgt (outEdge c o) = .output o := tgt_deliverEdge _
+  -- Every value at the output `o` is read off the edge delivering it.
   have hval (v) : c.eval I v o = c.program.trace I v (outEdge c o).signal.1 := by
     rw [signal_deliverEdge]; rfl
   simp only [hval, ← eq_trace hγ]
   refine ⟨fun ho => hγx (Or.inr (htgt ▸ ho)), fun ho => ?_⟩
   by_cases ht : outEdge c o ∈ (network c I fun _ => univ).touching P
-  · exact (hγx ht).trans (hcut _ fun h => ho (htgt ▸ h.mp (ht.resolve_right (mt (htgt ▸ ·) ho))))
+  · -- The edge reaches into `P` from outside, so it lies on the cut.
+    exact (hγx ht).trans (hcut _ fun h => ho (htgt ▸ h.mp (ht.resolve_right (mt (htgt ▸ ·) ho))))
   · exact hγy ht
 
 end Cslib.Circuits.Frontier.Compiler

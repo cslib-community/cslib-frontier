@@ -157,7 +157,8 @@ theorem not_falsifies_of_isProof (S : DuplicatorStrategy φ (w + 1)) {ls : List 
     intro c' hc' σ d hσ hf
     have ih' := ih (fun c h => hw c (List.mem_cons_of_mem _ h))
     rcases List.mem_cons.1 hc' with rfl | hc'
-    · set R := c₁.resolvent c₂ v
+    · -- restrict to the variables of the resolvent and extend to `v`
+      set R := c₁.resolvent c₂ v
       set d₀ := R.toFinset.image Prod.fst
       have hd₀ : d₀ ⊆ d :=
         Finset.image_subset_iff.2 fun l hl => (hf l (List.mem_toFinset.1 hl)).1
@@ -228,6 +229,7 @@ would be a derivable clause of width at most `w` falsified by the original assig
 private theorem Good.extend {σ : V → Bool} {d : Finset V} (h : Good φ w σ d) (hd : #d ≤ w)
     (x : V) : ∃ b, Good φ w (Function.update σ x b) (insert x d) := by
   by_contra hne
+  -- each clause contains the literal of `x` that its extension falsifies
   have hb (b : Bool) : ∃ c, WDerives φ w c ∧
       Falsifies (Function.update σ x b) (insert x d) c ∧ (x, !b) ∈ c := by
     by_contra hc
@@ -236,6 +238,7 @@ private theorem Good.extend {σ : V → Bool} {d : Finset V} (h : Good φ w σ d
     exact h c hwc fun l hl => falsifies_update hf hl fun he => hx (he ▸ hl)
   obtain ⟨c₀, ⟨ls₀, hp₀, hc₀, hw₀⟩, hf₀, hx₀⟩ := hb false
   obtain ⟨c₁, ⟨ls₁, hp₁, hc₁, hw₁⟩, hf₁, hx₁⟩ := hb true
+  -- so their resolvent is a derivable clause falsified by `σ` on `d`
   have hf : Falsifies σ d (c₀.resolvent c₁ x) := fun l hl =>
     (Clause.mem_resolvent.1 hl).elim (fun ⟨hl, hne⟩ => falsifies_update hf₀ hl hne)
       fun ⟨hl, hne⟩ => falsifies_update hf₁ hl hne

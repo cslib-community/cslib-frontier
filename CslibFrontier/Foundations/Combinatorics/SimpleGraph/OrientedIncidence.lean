@@ -169,33 +169,14 @@ private theorem weighted_gram {R : Type*} [CommRing R] (w : Sym2 V → R) :
 `N * Nᵀ = G.lapMatrix ℤ`, for the orientation of `SimpleGraph.orientedIncMatrix`. -/
 theorem orientedIncMatrix_mul_transpose :
     G.orientedIncMatrix * G.orientedIncMatrixᵀ = G.lapMatrix ℤ := by
-  ext u w
-  rw [Matrix.mul_apply]
-  simp only [transpose_apply]
-  by_cases huw : u = w
-  · subst huw
-    simp only [orientedIncMatrix_mul_self, lapMatrix, degMatrix, Matrix.sub_apply,
-      diagonal_apply_eq, adjMatrix_apply, G.loopless.irrefl, ite_false, sub_zero,
-      Finset.sum_boole]
-    rw [← card_incidenceFinset_eq_degree]
-    norm_cast
-    refine Finset.card_bij (fun e _ => (e : Sym2 V)) (fun e he => ?_)
-      (fun _ _ _ _ h => Subtype.ext h) (fun e he => ?_)
-    · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at he
-      simp [mem_incidenceFinset, incidenceSet, he]
-    · simp only [mem_incidenceFinset, incidenceSet, Set.mem_ofPred_eq] at he
-      exact ⟨⟨e, he.1⟩, by simp [he.2], rfl⟩
-  · simp only [orientedIncMatrix_mul_of_ne huw, lapMatrix, degMatrix, Matrix.sub_apply,
-      diagonal_apply_ne _ huw, adjMatrix_apply, zero_sub]
-    by_cases hadj : G.Adj u w
-    · have : ∀ x : G.edgeSet, ((x : Sym2 V) = s(u, w)) ↔ x = ⟨s(u, w), hadj⟩ :=
-        fun x => ⟨fun h => Subtype.ext h, fun h => h ▸ rfl⟩
-      simp [this, hadj]
-    · rw [Finset.sum_eq_zero fun x _ => ?_]
-      · simp [hadj]
-      · rw [ite_eq_right_iff]
-        intro hx
-        exact absurd (hx ▸ x.2 : s(u, w) ∈ G.edgeSet) hadj
+  have h := weighted_gram (G := G) fun _ => (1 : ℤ)
+  have hmap : G.orientedIncMatrix.map (Int.cast : ℤ → ℤ) = G.orientedIncMatrix := by
+    ext
+    simp
+  rw [hmap, diagonal_one, Matrix.mul_one] at h
+  refine h.trans (Matrix.ext fun u v => ?_)
+  simp [laplacian_apply, lapMatrix, degMatrix, weightedAdjMatrix_apply, diagonal_apply,
+    Finset.sum_boole, ← card_neighborFinset_eq_degree, neighborFinset_eq_filter]
 
 omit [Fintype V] [DecidableEq V] in
 /-- The adjacency matrix of `G` is its weighted adjacency matrix with all weights `1`. -/
