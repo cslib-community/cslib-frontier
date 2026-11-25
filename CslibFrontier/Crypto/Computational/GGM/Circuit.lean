@@ -165,9 +165,8 @@ theorem complexity_evalBits_le (G : PRG.Generator (BitString k) (BitString (2 * 
     let w : BitString (2 * k) → BitString k :=
       fun y => y ∘ fun i : Fin k => finProdFinEquiv (finTwoEquiv.symm (x 0), i)
     have hw : complexity interpretation (w ∘ ⇑G) ≤ complexity interpretation ⇑G := by
-      have hstep := complexity_comp_le (I := interpretation) ⇑G w
-      dsimp only [w] at hstep
-      rwa [complexity_wiring, add_zero] at hstep
+      simpa only [w, complexity_wiring, add_zero] using
+        complexity_comp_le (I := interpretation) ⇑G w
     calc complexity interpretation (fun seed : BitString k => evalBits G seed x)
         ≤ complexity interpretation (w ∘ ⇑G) +
             complexity interpretation (fun seed => evalBits G seed (Fin.tail x)) :=
@@ -188,8 +187,7 @@ theorem complexity_evalBits_block_le (G : PRG.Generator (BitString k) (BitString
     (fun z => z ∘ fun _ : Fin 1 => i)).trans ?_
   rw [complexity_wiring, add_zero]
   refine (complexity_comp_le _ _).trans ?_
-  rw [complexity_wiring, zero_add]
-  exact complexity_evalBits_le G x
+  simpa only [complexity_wiring, zero_add] using complexity_evalBits_le G x
 
 /-- **Circuits for tree evaluation.** If the bits of a seed and of a query of length `n` are
 available, the bits of the label reached are synthesized with, per query bit, a smallest circuit
@@ -317,15 +315,10 @@ private theorem abs_hybridProb_sub_le (G : PRG.Generator (BitString k) (BitStrin
         𝔼 b, (if D (truthTable n fun x =>
           leaves G (j + 1) m (by omega) (reshape (update c q b)) x 0) then 1 else 0 : ℝ)| ≤ ε) :
     |hybridProb G D j (m + 1) h - hybridProb G D (j + 1) m (by omega)| ≤ 2 ^ j * ε := by
-  have h0 : hybridProb G D j (m + 1) h = 𝔼 labels : BitString j → BitString k,
-      (if D (truthTable n fun x => leaves G (j + 1) m (by omega)
-        (reshape fun q => G (labels q)) x 0) then 1 else 0 : ℝ) := by
-    simp only [hybridProb, leaves_succ G h]
-  have h1 : hybridProb G D (j + 1) m (by omega) = 𝔼 Y : BitString j → BitString (2 * k),
-      (if D (truthTable n fun x => leaves G (j + 1) m (by omega) (reshape Y) x 0)
-        then 1 else 0 : ℝ) :=
-    (Fintype.expect_equiv reshape _ _ fun _ => rfl).symm
-  rw [h0, h1]
+  rw [hybridProb, hybridProb, ← Fintype.expect_equiv reshape
+    (fun Y => (if D (truthTable n fun x => leaves G (j + 1) m (by omega) (reshape Y) x 0)
+      then 1 else 0 : ℝ)) _ fun _ => rfl]
+  simp only [leaves_succ G h]
   simpa [BitString, Fintype.card_fun] using PRG.abs_expect_comp_sub_expect_le ⇑G
     (fun Y => (if D (truthTable n fun x => leaves G (j + 1) m (by omega) (reshape Y) x 0)
       then 1 else 0 : ℝ)) hε
@@ -416,16 +409,16 @@ theorem secure_truthTableGenerator_booleanFamily [NeZero k]
       |hybridProb G D j m h - hybridProb G D n 0 (add_zero n)| ≤ (2 ^ n - 2 ^ j) * ε := by
     induction m with
     | zero =>
-      intro j h
-      subst h
+      rintro j rfl
       simp
     | succ m ih =>
       intro j h
       have hstep := abs_hybridProb_sub_le G D h (ε := ε) fun c q => by
-        have hslice := complexity_slice_le G D (j := j) (m := m) (by omega) c q
         have hadv := hG (fun y => PMF.pure (D (truthTable n fun x =>
           leaves G (j + 1) m (by omega) (reshape (update c q y)) x 0)))
-          ⟨_, hslice.trans (by rw [add_comm]; gcongr; omega), rfl⟩
+          ⟨_, (complexity_slice_le G D (j := j) (m := m) (by omega) c q).trans
+            ((add_comm _ _).trans_le (add_le_add hD (Nat.mul_le_mul_left _
+              (Nat.succ_le_succ (Nat.mul_le_mul_right _ (by omega)))))), rfl⟩
         rwa [PRG.Generator.advantage, PRG.Generator.toReal_realExperiment_pure,
           PRG.Generator.toReal_idealExperiment_pure, ← Fintype.expect_boole,
           ← Fintype.expect_boole] at hadv
@@ -434,11 +427,9 @@ theorem secure_truthTableGenerator_booleanFamily [NeZero k]
             abs_sub_le _ _ _
         _ ≤ 2 ^ j * ε + (2 ^ n - 2 ^ (j + 1)) * ε := add_le_add hstep (ih (j + 1) (by omega))
         _ = (2 ^ n - 2 ^ j) * ε := by ring
-  have h := htel n 0 (zero_add n)
-  rw [hybridProb_zero, hybridProb_self, pow_zero] at h
-  rw [PRG.Generator.advantage, NNReal.coe_mul, NNReal.coe_sub (one_le_pow₀ one_le_two),
-    NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_one]
-  exact h
+  simpa only [hybridProb_zero, hybridProb_self, pow_zero, PRG.Generator.advantage, NNReal.coe_mul,
+    NNReal.coe_sub (one_le_pow₀ one_le_two), NNReal.coe_pow, NNReal.coe_ofNat, NNReal.coe_one] using
+    htel n 0 (zero_add n)
 
 /-! ### Asymptotic security -/
 

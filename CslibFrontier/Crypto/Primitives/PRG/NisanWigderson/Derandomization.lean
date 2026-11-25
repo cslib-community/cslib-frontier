@@ -122,15 +122,11 @@ theorem count_true_eq_card_maskBlock_of_length {w : List Bool} (h : w.length = �
 /-- Two masks of length `ℓ` have as many common ones as their blocks have common elements. -/
 theorem overlapCount_eq_card_inter {v w : List Bool} (hv : v.length = ℓ) (hw : w.length = ℓ) :
     overlapCount v w = #(maskBlock ℓ v ∩ maskBlock ℓ w) := by
-  have hlen : (v.zipWith (· && ·) w).length = ℓ := by simp [hv, hw]
-  rw [overlapCount, count_true_eq_card_maskBlock_of_length hlen]
+  rw [overlapCount, count_true_eq_card_maskBlock_of_length (ℓ := ℓ) (by simp [hv, hw])]
   refine congrArg card (ext fun k => ?_)
-  have hkv : (k : ℕ) < v.length := hv ▸ k.isLt
-  have hkw : (k : ℕ) < w.length := hw ▸ k.isLt
-  have hkz : (k : ℕ) < (v.zipWith (· && ·) w).length := hlen ▸ k.isLt
-  simp only [mem_maskBlock, mem_inter, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hkv,
-    List.getElem?_eq_getElem hkw, List.getElem?_eq_getElem hkz, Option.getD_some,
-    List.getElem_zipWith, Bool.and_eq_true]
+  simp [List.getD_eq_getElem?_getD, List.getElem?_zipWith,
+    List.getElem?_eq_getElem (hv ▸ k.isLt : (k : ℕ) < v.length),
+    List.getElem?_eq_getElem (hw ▸ k.isLt : (k : ℕ) < w.length)]
 
 /-- A mask shares all its ones with itself. -/
 theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := by
@@ -443,10 +439,9 @@ theorem abs_card_div_sub_card_div_lt (D : Design ℓ n a m) {f : BooleanFunction
     |(#{z | test (generator D f z) = true} : ℝ) / 2 ^ ℓ - #{r | test r = true} / 2 ^ m| < ε := by
   have hcardSeed : (Fintype.card (Fin ℓ → Bool) : ℝ) = 2 ^ ℓ := by simp
   have hcardOut : (Fintype.card (Fin m → Bool) : ℝ) = 2 ^ m := by simp
-  have hεs : 0 < ε * s := (Nat.cast_nonneg m).trans_lt hm
-  have hs0 : (0 : ℝ) < s := (Nat.cast_nonneg s : (0 : ℝ) ≤ s).lt_or_eq.elim id fun h => by
-    rw [← h, mul_zero] at hεs; linarith
-  have hε : 0 < ε := pos_of_mul_pos_left hεs hs0.le
+  have hs0 : (0 : ℝ) < s := Nat.cast_pos.2
+    (Nat.pos_of_ne_zero fun h => (Nat.cast_nonneg m).not_gt (hm.trans_eq (by simp [h])))
+  have hε : 0 < ε := pos_of_mul_pos_left ((Nat.cast_nonneg m).trans_lt hm) hs0.le
   rcases Nat.eq_zero_or_pos m with rfl | hm0
   · -- with no output bits, the test sees the same empty string on every seed
     have hr (r : Fin 0 → Bool) : test r = test Fin.elim0 := congrArg test (Subsingleton.elim _ _)

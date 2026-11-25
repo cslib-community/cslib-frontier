@@ -380,14 +380,10 @@ private theorem computableInPolyTime_keyedEvenMansourEncryptWord {P : ℕ → Li
       (fun t : ℕ × List Bool × List Bool =>
         evenMansourEncryptWord (P t.1) (sub₁ t.1 t.2.1) (sub₂ t.1 t.2.1) t.2.2)
       (encKeyedInput encBits) encBits := by
-  let E := encPair encUnary (encPair encBits encBits)
-  have hn : ComputableInPolyTime (fun t : ℕ × List Bool × List Bool => t.1) E encUnary := by
-    polytime
-  have hblk : ComputableInPolyTime (fun t : ℕ × List Bool × List Bool => t.2.2) E encBits := by
-    polytime
   exact computableInPolyTime_evenMansourPostKeyWord.comp
-    (hsub₂.prod (hP.comp (hn.prod (computableInPolyTime_evenMansourPreKeyWord.comp
-      (hsub₁.prod hblk)))))
+    (hsub₂.prod (hP.comp ((ComputableInPolyTime.fst _ _).prod
+      (computableInPolyTime_evenMansourPreKeyWord.comp
+        (hsub₁.prod ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.snd _ _)))))))
 
 /-- Parameterized two-key Even–Mansour encryption is computable in polynomial time whenever `P`
 is. -/
@@ -901,15 +897,12 @@ private theorem eval_evenMansourWordRealGame (adversary : EvenMansourDistinguish
         List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).1) ++
           List.ofFn (BitString.ofList n (splitTwoKeys n (List.ofFn z)).2) = List.ofFn z := by
       have hz : (List.ofFn z).length = 2 * n := List.length_ofFn
-      have hdrop : ((List.ofFn z).drop n).length ≤ n := by
-        simp only [List.length_drop, hz]; omega
       rw [BitString.ofFn_ofList (length_splitTwoKeys_fst hz),
         BitString.ofFn_ofList (length_splitTwoKeys_snd hz), splitTwoKeys_fst_eq_take]
-      simp only [splitTwoKeys, keyBlock, one_mul, List.take_of_length_le hdrop,
+      simp only [splitTwoKeys, keyBlock, one_mul]
+      rw [List.take_of_length_le (l := (List.ofFn z).drop n) (by simp [two_mul]),
         List.take_append_drop]
-    have hL : List.ofFn z₁ = List.ofFn z₂ := by
-      rw [← h1 z₁, ← h1 z₂, (Prod.mk.inj h).1, (Prod.mk.inj h).2]
-    simpa [BitString.ofList_ofFn] using congrArg (BitString.ofList (2 * n)) hL
+    exact List.ofFn_injective (by rw [← h1 z₁, ← h1 z₂, (Prod.mk.inj h).1, (Prod.mk.inj h).2])
   · simp [Fintype.card_prod, two_mul, pow_add]
   · simp only [evalProbTwoPerms_evenMansourWordAdapter]
     congr 2 with request : 1

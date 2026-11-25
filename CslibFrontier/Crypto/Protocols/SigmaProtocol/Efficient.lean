@@ -578,10 +578,8 @@ theorem extractorRealizedBy_orExtractWord [∀ i, AddCommGroup (C i)] [∀ i, De
   simp only [orExtractWord, Encoding.orProof, unframe_encPair, dropFrame_encPair, hbeq, hsub_eq,
     orExtract]
   by_cases hc₀ : c₀ = c₀'
-  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr]
-    rw [hC i, h₁]
-  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl]
-    rw [h₀]
+  · simp only [hc₀, decide_true, ↓reduceIte, encSum_inr, hC i, h₁ i]
+  · simp only [hc₀, decide_false, Bool.false_eq_true, ↓reduceIte, encSum_inl, h₀ i]
 
 /-- **Efficient special soundness of `orProof`.** -/
 theorem EfficientSpecialSoundness.orProof
@@ -839,15 +837,12 @@ theorem extractorRealizedBy_parallelExtractWord
     simp only [Option.map_none, Option.elim_none]
     by_cases hk : 0 < k i
     · simp only [Nat.ne_of_gt hk, ↓reduceIte, hk, ↓reduceDIte, List.map_ofFn,
-        List.getD_ofFn_of_lt _ hk]
-      exact hf i y (t ⟨0, hk⟩) (c ⟨0, hk⟩) (z ⟨0, hk⟩) (c' ⟨0, hk⟩) (z' ⟨0, hk⟩)
-    · have hk0 := Nat.eq_zero_of_not_pos hk
-      simp only [hk0, ↓reduceIte]
-      exact hdef_eq i hk0
+        List.getD_ofFn_of_lt _ hk, Function.comp_apply, hf i]
+    · simp only [Nat.eq_zero_of_not_pos hk, lt_self_iff_false, ↓reduceIte, ↓reduceDIte,
+        hdef_eq i (Nat.eq_zero_of_not_pos hk)]
   | some j =>
     simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
-      Function.comp_apply]
-    exact hf i y (t j) (c j) (z j) (c' j) (z' j)
+      Function.comp_apply, hf i]
 
 /-- Polynomial-time extraction for arbitrary repetition counts, including zero, when the encoded
 default witness is polynomial-time computable. Positive repetition uses

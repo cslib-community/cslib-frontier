@@ -337,13 +337,11 @@ theorem micaliVerifyRawBoundedPure_enc_eq_of_root_le
       micaliVerifyPure hTree hFS V x prf := by
   have hch : ((hFS (x, prf.root)).length == m &&
       (hFS (x, prf.root)).all fun ρ => ρ.length == V.coins x) = true := by
-    simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true]
-    exact ⟨hm, hρs⟩
+    simpa [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] using ⟨hm, hρs⟩
   have hk := kilianVerifyRawBounded_enc_eq_of_root_le (fun _ => hTree) V
     ⟨List.replicate σ false, x, hFS (x, prf.root)⟩ prf.root prf.response
     (by simpa [List.length_replicate] using hroot)
   unfold micaliVerifyRawBoundedPure micaliVerifyPure
-  dsimp only
   rw [unframe_take_encMicaliProof prf hroot, micaliHasRootPrefix_encMicaliProof prf hroot]
   simp only [hch, Bool.true_and]
   rw [show encMicaliProof prf = encPair encBits encKilianResponse (prf.root, prf.response) from rfl,
@@ -910,11 +908,11 @@ private theorem runWith_merkleVerifyWord_eq {State : Type}
   have hind : ∀ (n : ℕ) (hist rem : List (List Bool)) (pos : ℕ),
       rem.length = n → ∀ st : State,
         ProbOracleComp.runWith ((micaliWordCodec enc).wordOracle oracle)
-            ((fun stp => (stp.2.1, stp.2.2)) <$>
+            ((fun stp => stp.2.1) <$>
               OracleComp.iterate n (merkleWordStep σ) (rem, hist.headD [], pos)) st =
           OracleComp.runWith oracle
             (OracleComp.liftLeft (spec₂ := MicaliFSSpec α)
-              ((fun res => (res.1.headD [], res.2)) <$>
+              ((fun res => res.1.headD []) <$>
                 rem.foldlM merkleInputsStepProg (hist, pos))) st := by
     intro n
     induction n with
@@ -956,33 +954,22 @@ private theorem runWith_merkleVerifyWord_eq {State : Type}
       simpa only [Function.comp_def, List.headD_cons] using ih (_ :: hist) rem' (pos / 2) hlen s'
   have hfold := hind path.length [leaf] path i rfl s
   simp only [List.headD_cons] at hfold
-  have hlhs :
-      merkleVerifyWord σ depth root i leaf path =
-      ((fun stp : List (List Bool) × List Bool × ℕ => (stp.2.1, stp.2.2)) <$>
-          OracleComp.iterate path.length (merkleWordStep σ) (path, leaf, i)) >>=
-        fun fp => do
-          let cand ← List.take σ <$> ProbOracleComp.query
-            (spec := fun _ : MicaliWordOp × List Bool => List Bool) (.merkle, fp.1)
-          return path.length == depth && decide (i < 2 ^ depth) &&
-            path.all (fun s => s.length == root.length) && cand == root := by
-    simp only [merkleVerifyWord, bind_map_left]
-  have hrhs :
-      OracleComp.liftLeft (spec₂ := MicaliFSSpec α) (merkleVerifyProg depth root i leaf path) =
-      OracleComp.liftLeft (spec₂ := MicaliFSSpec α)
-        (((fun res : List (List Bool) × ℕ => (res.1.headD [], res.2)) <$>
-            path.foldlM merkleInputsStepProg ([leaf], i)) >>=
-          fun fp => do
-            let cand ← OracleComp.query (spec := MerkleHashSpec) fp.1
-            return path.length == depth && decide (i < 2 ^ depth) &&
-              path.all (fun s => s.length == root.length) && cand == root) := by
-    simp only [merkleVerifyProg, merkleRootOfPathProg, merkleInputsProg, bind_assoc, pure_bind,
-      bind_map_left]
-  rw [hlhs, hrhs, ProbOracleComp.runWith_bind, OracleComp.liftLeft_bind, OracleComp.runWith_bind,
-    hfold]
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨fp, s₁⟩ _ => ?_
-  rw [ProbOracleComp.runWith_bind, runWith_wordOracle_merkle_take oracle hMT fp.1 s₁,
+  have hrhs : merkleRootOfPathProg leaf i path =
+      ((fun res : List (List Bool) × ℕ => res.1.headD []) <$>
+        path.foldlM merkleInputsStepProg ([leaf], i)) >>= OracleComp.query := by
+    simp only [merkleRootOfPathProg, merkleInputsProg, bind_assoc, pure_bind, bind_map_left]
+  unfold merkleVerifyWord merkleVerifyProg
+  rw [← bind_assoc,
+    ← bind_map_left (fun stp : List (List Bool) × List Bool × ℕ => stp.2.1)
+      (OracleComp.iterate path.length (merkleWordStep σ) (path, leaf, i))
+      (fun finalIn => List.take σ <$> ProbOracleComp.query
+        (spec := fun _ : MicaliWordOp × List Bool => List Bool) (.merkle, finalIn)),
+    hrhs, bind_assoc, bind_assoc, ProbOracleComp.runWith_bind, OracleComp.liftLeft_bind,
+    OracleComp.runWith_bind, hfold]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨finalIn, s₁⟩ _ => ?_
+  rw [ProbOracleComp.runWith_bind, runWith_wordOracle_merkle_take oracle hMT finalIn s₁,
     OracleComp.liftLeft_bind, OracleComp.runWith_bind]
-  refine PMF.bind_congr_on_support _ _ _ fun ⟨_, _⟩ _ => by simp
+  exact PMF.bind_congr_on_support _ _ _ fun ⟨_, _⟩ _ => by simp
 
 private theorem runWith_kilianCheckWord_eq {State : Type}
     (oracle : (q : List Bool ⊕ (α × List Bool)) → StateT State PMF (MicaliSpec α q))
@@ -1835,41 +1822,39 @@ private theorem map_fst_runWith_micaliVerifyRawBounded_le {State : Type}
       OracleComp.liftRight_query, OracleComp.runWith_query, PMF.map_bind, PMF.bind_apply]
     refine tsum_le_tsum fun ⟨ρs, s₁⟩ => mul_le_mul_right ?_ _
     split_ifs <;> simp
-  · have hzero : ∀ s', (true, s') ∉
-        (OracleComp.runWith oracle (micaliVerifyRawBounded V σ m x rawProof) s).support := by
-      intro s' hmem
-      apply hsan
-      unfold micaliVerifyRawBounded at hmem
-      split_ifs at hmem with hhas
-      · simp at hmem
-      · have hhas' : micaliHasRootPrefix σ rawProof = true := by simpa using hhas
-        simp only [OracleComp.runWith_bind, OracleComp.liftRight_query, OracleComp.runWith_query,
-          PMF.mem_support_bind_iff] at hmem
-        obtain ⟨⟨ρs, s₁⟩, _, hrest⟩ := hmem
-        dsimp only at hrest
+  · suffices (OracleComp.runWith oracle
+        (micaliVerifyRawBounded V σ m x rawProof) s).map Prod.fst true = 0 by
+      rw [this]
+      exact bot_le
+    rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
+    rintro ⟨⟨_, s'⟩, hmem, rfl⟩
+    apply hsan
+    unfold micaliVerifyRawBounded at hmem
+    split_ifs at hmem with hhas
+    · simp at hmem
+    · have hhas' : micaliHasRootPrefix σ rawProof = true := by simpa using hhas
+      simp only [OracleComp.runWith_bind, OracleComp.liftRight_query, OracleComp.runWith_query,
+        PMF.mem_support_bind_iff] at hmem
+      obtain ⟨⟨ρs, s₁⟩, _, hrest⟩ := hmem
+      dsimp only at hrest
+      have ⟨hch', hle, hst'⟩ :
+          (ρs.length = m ∧ ∀ ρ ∈ ρs, ρ.length = V.coins x) ∧
+            rawProof.length ≤ kilianRawProverCap V (List.replicate σ false) x ρs ∧
+            kilianStructValid V x (unframe (rawProof.take (2 * σ + 1))) ρs
+              (micaliProofDecoder.decode rawProof).response = true := by
         split_ifs at hrest with hch hgt hst
         · simp at hrest
         · simp at hrest
         · simp at hrest
-        · have hch' : ρs.length = m ∧ ∀ ρ ∈ ρs, ρ.length = V.coins x := by
-            simpa [Bool.not_eq_true, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] using hch
-          have hcap := kilianRawProverCap_le_micaliMaxProofCap V (σ := σ) hch'.1 fun ρ hρ =>
-            hq x ρ (hch'.2 ρ hρ)
-          have hst' : kilianStructValid V x (unframe (rawProof.take (2 * σ + 1))) ρs
-              (micaliProofDecoder.decode rawProof).response = true := by
-            simpa using hst
-          simp only [kilianStructValid, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hst'
-          refine ⟨hhas', by omega, hst'.1.trans hch'.1, fun ans hans => ?_⟩
-          obtain ⟨ρ, hρ, hmemZip⟩ := mem_zip_of_mem_right hst'.1 hans
-          have hpair := hst'.2 _ hmemZip
-          exact ⟨hpair.1 ▸ hq x ρ (hch'.2 ρ hρ), fun o ho => (hpair.2 o ho).1⟩
-    have hL : (OracleComp.runWith oracle
-        (micaliVerifyRawBounded V σ m x rawProof) s).map Prod.fst true = 0 := by
-      rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-      rintro ⟨⟨_, s'⟩, hmem, rfl⟩
-      exact hzero s' hmem
-    rw [hL]
-    exact bot_le
+        · exact ⟨by simpa [Bool.and_eq_true, beq_iff_eq] using hch, not_lt.mp hgt,
+            by simpa using hst⟩
+      have hcap := kilianRawProverCap_le_micaliMaxProofCap V (σ := σ) hch'.1 fun ρ hρ =>
+        hq x ρ (hch'.2 ρ hρ)
+      simp only [kilianStructValid, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hst'
+      refine ⟨hhas', hle.trans hcap, hst'.1.trans hch'.1, fun ans hans => ?_⟩
+      obtain ⟨ρ, hρ, hmemZip⟩ := mem_zip_of_mem_right hst'.1 hans
+      have hpair := hst'.2 _ hmemZip
+      exact ⟨hpair.1 ▸ hq x ρ (hch'.2 ρ hρ), fun o ho => (hpair.2 o ho).1⟩
 
 /-- **Adaptive two-channel ROM soundness for bounded-prefix raw Micali proofs**: for any PCP
 verifier `V` with per-repetition soundness error `≤ 1 / 2` outside `L` and query complexity `≤ d`,
@@ -1974,8 +1959,7 @@ theorem exists_micaliRawCSProof_of_npRelation [DecidableEq α] {enc : α ↪ Lis
           micaliProofBits (micaliProvePure hTree hFS V x table) ≤
             C * (σ + m + 1) ^ 2 * (Nat.log 2 (enc x).length + 1) := by
   obtain ⟨V, compile, c, d, hV, hpcp, hcompile, hacc⟩ := exists_pcpVerifier_of_npRelation enc R
-  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := by
-    intro x ρ hρ
+  have hq : ∀ x ρ, ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ d := fun x ρ hρ => by
     simpa using hpcp.length_queries_le x ρ hρ
   obtain ⟨tWordBound, ht_pb, hword⟩ :=
     computesOracleInTimeAndQueriesOn_micaliVerifyRawWord hV hpcp.coins_le hq
