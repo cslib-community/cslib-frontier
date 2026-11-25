@@ -772,7 +772,8 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
     intro m' hm'
     split_ifs with hm1
     · nlinarith [R.prefs.uMinus_lt_uPlus, hq_pos ⟨m', hm'⟩]
-    · have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, Nat.sub_lt (by omega) zero_lt_one⟩ : Fin T) := by
+    · have hT_lt : T - 1 < T := Nat.sub_lt (by omega) zero_lt_one
+      have hm_eq : ⟨m', hm'⟩ = (⟨T - 1, hT_lt⟩ : Fin T) := by
         ext
         dsimp
         omega
@@ -1355,7 +1356,8 @@ private theorem summable_geometricExpectedUtility_term (prefs : SecretSharingPre
       ((1 - q r) * p * prefs.uAll + q r * (p * prefs.uPlus + (1 - p) * prefs.uMinus))) =
       fun r => reachProb p q r * ((1 - q r) * p + q r) * prefs.uAll -
         (prefs.uAll - (p * prefs.uPlus + (1 - p) * prefs.uMinus)) * (reachProb p q r * q r) := by
-    funext r; ring
+    funext r
+    ring
   rw [hrewrite]
   exact ((hasSum_reachProb_termination hp0 hp1 hq0 hq1).mul_right prefs.uAll).summable.sub
     ((summable_reachProb_mul_q hp0 hp1 hq0 hq1).mul_left _)
@@ -1818,10 +1820,19 @@ private theorem stage_le_of_eq (d : PMF (ι → Bool)) {L : (ι → Bool) → Fi
     have := Finset.add_sum_erase Finset.univ (fun b => (d b).toReal)
       (Finset.mem_univ (fun _ : ι => true))
     linarith [sum_toReal d]
-  rw [← Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true)), hL,
-    SecretSharingPrefs.outcomeUtility_univ, ← herase_sum, Finset.sum_mul]
-  gcongr with b hb
-  exact proto.prefs.outcomeUtility_le_uPlus _ i
+  calc ∑ b : ι → Bool, (d b).toReal * proto.prefs.outcomeUtility (L b) i
+      = (d (fun _ => true)).toReal * proto.prefs.outcomeUtility (L (fun _ => true)) i +
+          ∑ b ∈ Finset.univ.erase (fun _ : ι => true),
+            (d b).toReal * proto.prefs.outcomeUtility (L b) i :=
+        (Finset.add_sum_erase Finset.univ _ (Finset.mem_univ (fun _ : ι => true))).symm
+    _ ≤ (d (fun _ => true)).toReal * proto.prefs.uAll +
+          ∑ b ∈ Finset.univ.erase (fun _ : ι => true), (d b).toReal * proto.prefs.uPlus := by
+        rw [hL, SecretSharingPrefs.outcomeUtility_univ]
+        gcongr with b hb
+        exact proto.prefs.outcomeUtility_le_uPlus _ i
+    _ = (d (fun _ => true)).toReal * proto.prefs.uAll +
+          (1 - (d (fun _ => true)).toReal) * proto.prefs.uPlus := by
+        rw [← Finset.sum_mul, herase_sum]
 
 private theorem summable_evalHorizon (dGen dDum : ℕ → PMF (ι → Bool))
     (L : (ι → Bool) → Finset ι) (i : ι) :

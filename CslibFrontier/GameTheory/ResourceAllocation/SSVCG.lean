@@ -211,7 +211,8 @@ theorem allocation_eq_of_isSocialOptimum {M : SSVCGMechanism ι} (hC : 0 ≤ M.c
 theorem clarkePivot_update_self [DecidableEq ι] (θ : ι → ℝ) (i : ι) (t : ℝ) :
     M.clarkePivot (Function.update θ i t) i = M.clarkePivot θ i := by
   unfold clarkePivot
-  congr 1; ext y
+  congr 1
+  ext y
   simp only [mem_image, Set.mem_ofPred_eq, KellyGame.IsFeasibleAllocation, reportedGame]
   constructor <;> rintro ⟨x, hx, rfl⟩ <;> exact ⟨x, hx, Finset.sum_congr rfl fun j hj => by
     rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]⟩
@@ -285,10 +286,12 @@ private theorem hybridGame_admissible {M : SSVCGMechanism ι}
     (hfam : IsSSVCGSurrogateFamily M.surrogate) {U : ι → ℝ → ℝ}
     {θ : ι → ℝ} (hθ : ∀ j, 0 < θ j) {i : ι} (hUi : IsAdmissibleUtility (U i)) (j : ι) :
     IsAdmissibleUtility ((M.hybridGame U θ i).utility j) := by
-  unfold hybridGame; dsimp only
+  unfold hybridGame
+  dsimp only
   rcases eq_or_ne j i with rfl | hji
   · rwa [Function.update_self]
-  · rw [Function.update_of_ne hji]; exact hfam.admissible (θ j) (hθ j)
+  · rw [Function.update_of_ne hji]
+    exact hfam.admissible (θ j) (hθ j)
 
 omit [Fintype ι] in
 private theorem hybridGame_strictMonoOn {M : SSVCGMechanism ι}
@@ -297,7 +300,8 @@ private theorem hybridGame_strictMonoOn {M : SSVCGMechanism ι}
     ∀ j, StrictMonoOn ((M.hybridGame U θ i).utility j) (Icc 0 M.capacity) := fun j => by
   unfold hybridGame; dsimp only
   rcases eq_or_ne j i with rfl | hji
-  · rw [Function.update_self]; exact hUi.mono Icc_subset_Ici_self
+  · rw [Function.update_self]
+    exact hUi.mono Icc_subset_Ici_self
   · rw [Function.update_of_ne hji]
     exact (hfam.admissible (θ j) (hθ j)).strictMonoOn.mono Icc_subset_Ici_self
 
@@ -340,10 +344,13 @@ theorem isNashEquilibrium_iff {M : SSVCGMechanism ι} (hC : 0 < M.capacity)
       rcases eq_or_ne j i with rfl | hji
       · simp [reportedGame, hybridGame, θ', ht_deriv]
       · simp [reportedGame, hybridGame, θ', hji]
-    have hrep_opt : (M.reportedGame θ').IsSocialOptimum xStar :=
-      (KellyGame.isSocialOptimum_iff_kkt hC (fun j => hfam.admissible (θ' j) (hθ' j))).mpr
-        ⟨hx_feas, hx_sum, μ, hμ, fun j => by rw [hd_eq]; exact hle j,
-          fun j hj => by rw [hd_eq]; exact heq j hj⟩
+    have hrep_opt : (M.reportedGame θ').IsSocialOptimum xStar := by
+      rw [KellyGame.isSocialOptimum_iff_kkt hC (fun j => hfam.admissible (θ' j) (hθ' j))]
+      refine ⟨hx_feas, hx_sum, μ, hμ, fun j => ?_, fun j hj => ?_⟩
+      · rw [hd_eq]
+        exact hle j
+      · rw [hd_eq]
+        exact heq j hj
     exact hybridGame_isSocialOptimum_of_reported_update hC.le hfam hθ hne ht_pos hθ' hxStar hrep_opt
   · intro hopt
     refine ⟨hθ, fun i t ht => ?_⟩
@@ -369,10 +376,13 @@ theorem exists_efficient_isNashEquilibrium [Nonempty ι] {M : SSVCGMechanism ι}
     (KellyGame.isSocialOptimum_iff_kkt (G := G) hC hU).mp hdS
   choose θ hθ hθ_deriv using fun i =>
     hfam.surjective_derivWithin _ ((hU i).derivWithin_pos (hdS_feas.1 i)) (dS i) (hdS_feas.1 i)
-  have hrep_opt : (M.reportedGame θ).IsSocialOptimum dS :=
-    (KellyGame.isSocialOptimum_iff_kkt hC (fun i => hfam.admissible (θ i) (hθ i))).mpr
-      ⟨hdS_feas, hdS_sum, μ, hμ, fun i => by simp only [reportedGame, hθ_deriv i]; exact hle i,
-        fun i hi => by simp only [reportedGame, hθ_deriv i]; exact heq i hi⟩
+  have hrep_opt : (M.reportedGame θ).IsSocialOptimum dS := by
+    rw [KellyGame.isSocialOptimum_iff_kkt hC (fun i => hfam.admissible (θ i) (hθ i))]
+    refine ⟨hdS_feas, hdS_sum, μ, hμ, fun i => ?_, fun i hi => ?_⟩
+    · simp only [reportedGame, hθ_deriv i]
+      exact hle i
+    · simp only [reportedGame, hθ_deriv i]
+      exact heq i hi
   have halloc_eq : M.allocation θ = dS :=
     allocation_eq_of_isSocialOptimum hC.le hfam hθ hrep_opt
   have hne : M.IsNashEquilibrium U θ := by
@@ -384,8 +394,11 @@ theorem exists_efficient_isNashEquilibrium [Nonempty ι] {M : SSVCGMechanism ι}
       rcases eq_or_ne j i with rfl | hji
       · simp [hybridGame]
       · simp [hybridGame, hji, hθ_deriv]
-    exact ⟨hdS_feas, hdS_sum, μ, hμ, fun j => by rw [hd_eq]; exact hle j,
-      fun j hj => by rw [hd_eq]; exact heq j hj⟩
+    refine ⟨hdS_feas, hdS_sum, μ, hμ, fun j => ?_, fun j hj => ?_⟩
+    · rw [hd_eq]
+      exact hle j
+    · rw [hd_eq]
+      exact heq j hj
   exact ⟨θ, hne, halloc_eq ▸ hdS⟩
 
 private theorem hybrid_opt_pos_of_infiniteSlope {M : SSVCGMechanism ι} (hC : 0 < M.capacity)
@@ -641,10 +654,13 @@ private theorem isSocialOptimum_finTwo_one_zero {u : Fin 2 → ℝ → ℝ}
     (h0 : derivWithin (u 0) (Ici 0) 1 = μ) (h1 : derivWithin (u 1) (Ici 0) 0 ≤ μ) :
     (⟨1, u⟩ : KellyGame (Fin 2)).IsSocialOptimum ![1, 0] := by
   rw [KellyGame.isSocialOptimum_iff_kkt one_pos hadm]
-  refine ⟨⟨fun j => by fin_cases j <;> norm_num, by simp⟩, by simp, μ, hμ,
-    fun j => ?_, fun j hj => ?_⟩
-  · fin_cases j; exacts [h0.le, h1]
-  · fin_cases j; exacts [h0, absurd hj (lt_irrefl 0)]
+  refine ⟨⟨fun j => by fin_cases j <;> norm_num,
+      by simp⟩,
+    by simp, μ, hμ, fun j => ?_, fun j hj => ?_⟩
+  · fin_cases j
+    exacts [h0.le, h1]
+  · fin_cases j
+    exacts [h0, absurd hj (lt_irrefl 0)]
 
 /-- **Bluff equilibrium in SSVCG** ([Johari2007], §21.4, Example 21.13): with two identical users
 having finite-initial-slope utility `U(x) = log (1 + x)` and capacity `1`, the logarithmic SSVCG
@@ -667,16 +683,21 @@ theorem exists_bluff_isNashEquilibrium :
     rw [((hasDerivAt_log_one_add hx).const_mul c).hasDerivWithinAt.derivWithin
       (uniqueDiffOn_Ici 0 x hx)]
     ring
-  have hrep_opt : (M.reportedGame θ).IsSocialOptimum ![1, 0] :=
-    isSocialOptimum_finTwo_one_zero (fun i => hfam.admissible (θ i) (hθ i))
-      (by norm_num : (0 : ℝ) < 3 / 2)
-      (by dsimp [M, θ, SSVCGMechanism.reportedGame]; rw [hderiv_scaled 3 1 zero_le_one]; norm_num)
-      (by dsimp [M, θ, SSVCGMechanism.reportedGame]; rw [hderiv_scaled (1 / 4) 0 le_rfl]; norm_num)
+  have hrep_opt : (M.reportedGame θ).IsSocialOptimum ![1, 0] := by
+    refine isSocialOptimum_finTwo_one_zero (fun i => hfam.admissible (θ i) (hθ i))
+      (by norm_num : (0 : ℝ) < 3 / 2) ?_ ?_
+    · dsimp [M, θ, SSVCGMechanism.reportedGame]
+      rw [hderiv_scaled 3 1 zero_le_one]
+      norm_num
+    · dsimp [M, θ, SSVCGMechanism.reportedGame]
+      rw [hderiv_scaled (1 / 4) 0 le_rfl]
+      norm_num
   have halloc : M.allocation θ = ![1, 0] :=
     SSVCGMechanism.allocation_eq_of_isSocialOptimum (by simp [M]) hfam hθ hrep_opt
   have hne : M.IsNashEquilibrium U θ := by
     rw [SSVCGMechanism.isNashEquilibrium_iff (by simp [M]) hfam (fun _ => hadm) hθ]
-    intro i; rw [halloc]
+    intro i
+    rw [halloc]
     have hadm_h := SSVCGMechanism.hybridGame_admissible (M := M) hfam hθ (U := U) (i := i) hadm
     fin_cases i
     · exact isSocialOptimum_finTwo_one_zero hadm_h (by norm_num : (0 : ℝ) < 1 / 2)

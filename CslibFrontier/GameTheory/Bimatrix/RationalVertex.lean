@@ -371,8 +371,12 @@ private lemma eq_zero_of_sum_pert_weights {n B : ℕ} {K_B : ℤ}
     Finset.sum_nbij' (fun k => if hk : k < n then ⟨n - 1 - k, by omega⟩ else ⟨0, hn⟩)
       (fun j => n - 1 - j.1) (fun _ _ => Finset.mem_univ _)
       (fun _ _ => Finset.mem_range.2 (by omega))
-      (fun k hk => by simp only [Finset.mem_range] at hk; simp only [hk, ↓reduceDIte]; omega)
-      (fun j _ => Fin.ext (by simp only [show n - 1 - j.1 < n by omega, ↓reduceDIte]; omega))
+      (fun k hk => by
+        simp only [Finset.mem_range] at hk
+        simp only [hk, ↓reduceDIte]; omega)
+      (fun j _ => Fin.ext (by
+        have hj : n - 1 - j.1 < n := by omega
+        simp only [hj, ↓reduceDIte]; omega))
       fun k hk => by
         simp only [Finset.mem_range] at hk
         simp only [a, hk, ↓reduceDIte]
@@ -424,8 +428,9 @@ theorem isNondegenerateSystem_pertP {m n H : ℕ} {B : Matrix (Fin m) (Fin n) �
         rw [Finset.sum_comm]
         exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
     _ = 0 := Finset.sum_eq_zero fun i _ => by
-        rw [show ∑ r : T, (M i r : K) * (c r : K) = 0 by
-          simpa [mulVec, dotProduct] using congrArg (Int.cast : ℤ → K) (congrFun hMc i), mul_zero]
+        have hi : ∑ r : T, (M i r : K) * (c r : K) = 0 := by
+          simpa [mulVec, dotProduct] using congrArg (Int.cast : ℤ → K) (congrFun hMc i)
+        rw [hi, mul_zero]
   let cFull : Fin m ⊕ Fin n → ℤ := fun r => if hr : r ∈ T then c ⟨r, hr⟩ else 0
   have hsum_lift (f : Fin m ⊕ Fin n → ℤ) :
       ∑ r : T, c r * f r.1 = ∑ r : Fin m ⊕ Fin n, cFull r * f r := by
@@ -717,7 +722,8 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
       (∀ r : κ, M_int r ⬝ᵥ basisSignNum M_int b_unpert T hT ≤
         basisAbsDet M_int T hT * b_unpert r) := by
   have hdet := hfb.1
-  have hK_pos : 0 < K_B := lt_of_le_of_lt (by positivity : (0 : ℤ) ≤ _) hK
+  have hK_pos : 0 < K_B :=
+    lt_of_le_of_lt (by positivity : (0 : ℤ) ≤ _) hK
   have hK_posQ : (0 : ℚ) < K_B := by exact_mod_cast hK_pos
   have hKp_pos : (0 : ℚ) < (K_B : ℚ) ^ p := pow_pos hK_posQ p
   have hpert_div_le (r : κ) :
@@ -749,9 +755,10 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
       rw [mulVec_smul, Pi.smul_apply, smul_eq_mul, inv_mul_eq_div]
       simpa only [Rat.cast_id] using congr_arg₂ (fun a b => a / (K_B : ℚ) ^ p - b)
         (ratBasisSol_tight hdet hri (K := ℚ)) (ratBasisSol_tight hdet hri (K := ℚ))
-    rw [hδ, abs_of_nonneg (sub_nonneg.2 <| (le_div_iff₀ hKp_pos).2 <| by
-      linarith [show (0 : ℚ) ≤ (b_pert ri : ℚ) - (K_B : ℚ) ^ p * b_unpert ri from
-        by exact_mod_cast (hb_pert_diff ri).1]), sub_le_iff_le_add']
+    have hlo : (0 : ℚ) ≤ (b_pert ri : ℚ) - (K_B : ℚ) ^ p * b_unpert ri := by
+      exact_mod_cast (hb_pert_diff ri).1
+    rw [hδ, abs_of_nonneg (sub_nonneg.2 <| (le_div_iff₀ hKp_pos).2 (by linarith)),
+      sub_le_iff_le_add']
     exact hpert_div_le ri
   have hdiff_bd := cramer_pert_le hH hK_pos hdet (fun _ c => hM _ c) hres
   refine ⟨hdet, fun r hr => Int.cast_injective (α := ℚ) ?_, fun r => ?_⟩
@@ -773,15 +780,16 @@ theorem unperturbed_feasible_of_pert {k H p : ℕ} {M_int : Matrix κ (Fin k) �
           ((1 + k * k.factorial * H ^ (k + 1) : ℕ) : ℚ) / K_B := by
         push_cast; rw [pow_succ']; field_simp [hK_posQ.ne']
       linarith [(abs_sub_le_iff.1 hrow_diff).1, hu_le r]
+    have hD_le : (basisAbsDet M_int T hT : ℚ) ≤ ((k.factorial * H ^ k : ℕ) : ℚ) := by
+      exact_mod_cast abs_det_basisMat_le hM T hT
     have hD_pos : (0 : ℚ) < basisAbsDet M_int T hT := by exact_mod_cast abs_pos.2 hdet
     have hlt : ((M_int r ⬝ᵥ basisSignNum M_int b_unpert T hT -
         basisAbsDet M_int T hT * b_unpert r : ℤ) : ℚ) < 1 := by
       rw [Int.cast_sub, Int.cast_mul, ← basisAbsDet_mul_ratBasisSol hdet r, ← mul_sub]
-      have hD_bd : (basisAbsDet M_int T hT : ℚ) ≤ ((k.factorial * H ^ k : ℕ) : ℚ) := by
-        unfold basisAbsDet; exact_mod_cast abs_det_basisMat_le hM T hT
-      refine (mul_le_mul_of_nonneg_left hv_le hD_pos.le).trans_lt ?_
-      refine (mul_le_mul_of_nonneg_right hD_bd (by positivity)).trans_lt ?_
-      rw [mul_div_assoc', div_lt_one hK_posQ]; exact_mod_cast hK
+      calc (basisAbsDet M_int T hT : ℚ) * (_ - _)
+          ≤ (basisAbsDet M_int T hT : ℚ) * _ := mul_le_mul_of_nonneg_left hv_le hD_pos.le
+        _ ≤ ((k.factorial * H ^ k : ℕ) : ℚ) * _ := by gcongr
+        _ < 1 := by rw [mul_div_assoc', div_lt_one hK_posQ]; exact_mod_cast hK
     have hZ : M_int r ⬝ᵥ basisSignNum M_int b_unpert T hT -
         basisAbsDet M_int T hT * b_unpert r < 1 := by exact_mod_cast hlt
     omega
@@ -839,11 +847,12 @@ private lemma exists_mixed_of_partition {m n : ℕ} {T₁ T₂ : Finset (Fin m �
     (hT₁ : T₁.card = m) (hT₂ : T₂.card = n) (huniv : T₁ ∪ T₂ = Finset.univ)
     (hne0 : (T₁, T₂) ≠ (Finset.univ.image Sum.inl, Finset.univ.image Sum.inr)) :
     (∃ j : Fin n, Sum.inr j ∈ T₁) ∧ (∃ i : Fin m, Sum.inl i ∈ T₂) := by
-  have hdisj : Disjoint T₁ T₂ := Finset.disjoint_iff_inter_eq_empty.2 <| Finset.card_eq_zero.1 <| by
-    have huc := Finset.card_union_add_card_inter T₁ T₂
-    rw [hT₁, hT₂, huniv, Finset.card_univ, Fintype.card_sum, Fintype.card_fin,
-      Fintype.card_fin] at huc
-    omega
+  have hdisj : Disjoint T₁ T₂ := Finset.disjoint_iff_inter_eq_empty.2 <|
+    Finset.card_eq_zero.1 <| by
+      have huc := Finset.card_union_add_card_inter T₁ T₂
+      rw [hT₁, hT₂, huniv, Finset.card_univ, Fintype.card_sum, Fintype.card_fin,
+        Fintype.card_fin] at huc
+      omega
   have hT₁_ne : T₁ ≠ Finset.univ.image Sum.inl := fun h1 => hne0 (Prod.ext h1 <|
     finset_eq_image_of_forall_mem Sum.inr_injective (by simpa using hT₂) fun
       | .inl i, hr => absurd hr (Finset.disjoint_left.1 hdisj (h1 ▸ by simp))

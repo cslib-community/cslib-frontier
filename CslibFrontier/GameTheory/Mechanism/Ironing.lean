@@ -1845,6 +1845,8 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
         ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) *
           ∑ r : Fin (m i + 1), (D i).prob r * G k r := by
     intro i G hG
+    -- Split k into (k i, k_{-i}) by summing over r' = k i on LHS!
+    -- Equivalently, introduce `x.2` via `(D i).sum_prob = 1` and swap `(x.1 i, x.2)`.
     have hinv : Function.Involutive fun x : (∀ j, Fin (m j + 1)) × Fin (m i + 1) =>
         (Function.update x.1 i x.2, x.1 i) := fun x => by simp
     calc ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) * G k (k i)

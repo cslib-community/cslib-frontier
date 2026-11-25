@@ -648,7 +648,8 @@ theorem toExtensiveTree_isPureNash_iff {ι : Type u} [DecidableEq ι] (T : Perfe
         fun j => (Function.update s i σ' j).toExtensive := fun i σ' => by
     funext j
     by_cases hj : j = i
-    · subst hj; simp
+    · subst hj
+      simp
     · simp [hj]
   constructor
   · intro h i σ'
