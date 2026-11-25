@@ -17,8 +17,8 @@ import Mathlib.Tactic.NormNum
 Every acceptance and rejection below is closed by `decide +kernel`, so the kernel evaluates the
 checker. The cases are those of #8319: the positive-definite example `P`, a singular positive
 semidefinite matrix, corrupted factors, an indefinite and a nonsymmetric matrix, mismatched
-certificate dimensions, the empty dimension, a residual `N - M ⪰ 0`, the Lyapunov client for
-`A = !![0, 1; -2, -3]`, and a dense `8 × 8` regression case.
+certificate dimensions, the empty dimension, traces, a residual `N - M ⪰ 0`, the Lyapunov client
+for `A = !![0, 1; -2, -3]`, and a dense `8 × 8` regression case.
 -/
 
 public section
@@ -165,6 +165,37 @@ example : ((ofLists 2 2 N).map ((↑) : ℚ → ℝ) - (ofLists 2 2 I₂).map ((
   convert h using 1
   ext i j
   simp
+
+/-! ### Traces -/
+
+/-- `tr P = 5/4 + 1/4`, read off the rows. -/
+example : rowsTrace 2 P = 3/2 := by decide +kernel
+
+example : (ofLists 2 2 P).trace = 3/2 := by
+  rw [trace_ofLists]
+  decide +kernel
+
+/-- The Gramian-energy shape `tr (Bᵀ * W * B)` of #8322, for the `2 × 1` matrix `B = !![1; 2]`
+and `W = P`: `5/4 + 2 * (1/4) + 2 * (1/4) + 4 * (1/4) = 13/4`. -/
+def B : List (List ℚ) := [[1], [2]]
+
+theorem gramian_trace :
+    ((ofLists 2 1 B)ᵀ * ofLists 2 2 P * ofLists 2 1 B).trace = 13/4 := by
+  rw [Matrix.mul_assoc, ← ofLists_transpose, ← ofLists_rowsMul, trace_mul_ofLists]
+  decide +kernel
+
+/-- The trace reads a ragged list padded with zeros, as `ofLists` does; a client that must reject
+it checks `isShape` first. -/
+example : rowsTrace 2 [[1], [2]] = 1 := by decide +kernel
+
+example : isShape 2 2 [[1], [2]] = false := by decide +kernel
+
+/-- The empty dimension has trace `0`, whatever the rows. -/
+example : rowsTrace 0 ([[5]] : List (List ℚ)) = 0 := by decide +kernel
+
+example : (ofLists 0 0 ([] : List (List ℚ))).trace = 0 := by
+  rw [trace_ofLists]
+  decide +kernel
 
 /-! ### The Lyapunov client -/
 

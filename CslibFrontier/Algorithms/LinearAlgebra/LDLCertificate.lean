@@ -40,8 +40,10 @@ rows of exactly `n` entries (`Cslib.LinearAlgebra.isShape`).
 
 Matrices are combined on rows by `Mathlib.Tactic.Matrix.ListMatrix.transpose`,
 `Cslib.LinearAlgebra.rowsMul` (a product the kernel evaluates; Mathlib's `ListMatrix.mul` seals
-its dot product) and `Cslib.LinearAlgebra.rowsMap₂` (entrywise sums, differences, negations and
-scalings), each interpreted by an `ofLists` lemma without any shape hypothesis. A positive
+its dot product), `Cslib.LinearAlgebra.rowsMap₂` (entrywise sums, differences, negations and
+scalings) and `Cslib.LinearAlgebra.rowsTrace`, each interpreted by an `ofLists` lemma without any
+shape hypothesis. A trace of a product, such as the Gramian energy `tr (Bᵀ * W * B)` of #8322, is
+`rowsTrace` of `rowsMul` (`Cslib.LinearAlgebra.trace_mul_ofLists`). A positive
 semidefinite residual `N - M ⪰ 0` is checked on `rowsMap₂ (· - ·) n n N M`, and the Lyapunov
 client `Cslib.LinearAlgebra.LyapunovCert` recomputes `-(Aᵀ * P + P * A)` from `A` and `P`
 (`Cslib.LinearAlgebra.lyapunovResidual`) instead of taking it as input.
@@ -66,8 +68,8 @@ dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithmetic.
 
 ## Main definitions
 
-* `Cslib.LinearAlgebra.rowDot`, `Cslib.LinearAlgebra.rowsMul`, `Cslib.LinearAlgebra.rowsMap₂`:
-  operations on lists of rows that the kernel evaluates.
+* `Cslib.LinearAlgebra.rowDot`, `Cslib.LinearAlgebra.rowsMul`, `Cslib.LinearAlgebra.rowsMap₂`,
+  `Cslib.LinearAlgebra.rowsTrace`: operations on lists of rows that the kernel evaluates.
 * `Cslib.LinearAlgebra.LDLCert`: an `LDLᵀ` witness, with its factors `LDLCert.L` and `LDLCert.d`.
 * `Cslib.LinearAlgebra.LDLCert.factors`, `LDLCert.checkPosDef`, `LDLCert.checkPosSemidef`: the
   checkers.
@@ -77,6 +79,7 @@ dimensions, and the kernel's GMP-accelerated `Nat` operations do the arithmetic.
 ## Main results
 
 * `Cslib.LinearAlgebra.ofLists_rowsMul`, `Cslib.LinearAlgebra.ofLists_rowsMap₂`,
+  `Cslib.LinearAlgebra.trace_ofLists`, `Cslib.LinearAlgebra.trace_mul_ofLists`,
   `Cslib.LinearAlgebra.ofLists_lyapunovResidual`: the row operations compute the matrix ones.
 * `Cslib.LinearAlgebra.LDLCert.eq_of_factors`: an accepted witness factors `M`.
 * `Cslib.LinearAlgebra.LDLCert.posDef_of_checkPosDef`,
@@ -177,6 +180,42 @@ theorem ofLists_rowsMap₂ [Zero α] [Zero β] [Zero γ] (f : α → β → γ) 
   ext i j
   simp only [ofLists_apply, ofList_apply, of_apply, getD_rowsMap₂ f n A B i.is_lt,
     getD_rowMap₂ f _ _ j.is_lt]
+
+/-- The sum of the first `n` diagonal entries of `rows`, read as an `n × n` matrix padded with
+zeros: entry `(0, 0)`, then the trace of the rows below with their first entries dropped. -/
+@[expose] def rowsTrace [Add α] [Zero α] : ℕ → List (List α) → α
+  | 0, _ => 0
+  | n + 1, rows => (rows.headD []).headD 0 + rowsTrace n (rows.tail.map List.tail)
+
+private theorem getD_map_tail (rows : List (List α)) (i : ℕ) :
+    (rows.map List.tail).getD i [] = (rows.getD i []).tail := by
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
+  cases rows[i]? <;> rfl
+
+private theorem getD_tail [Zero α] (r : List α) (i : ℕ) : r.tail.getD i 0 = r.getD (i + 1) 0 := by
+  cases r <;> simp
+
+/-- `rowsTrace` computes the trace, with no shape hypothesis on `rows`. -/
+theorem trace_ofLists [AddCommMonoid α] (n : ℕ) (rows : List (List α)) :
+    (ofLists n n rows).trace = rowsTrace n rows := by
+  induction n generalizing rows with
+  | zero => simp [rowsTrace]
+  | succ n ih =>
+    rw [rowsTrace, ← ih, trace, trace, Fin.sum_univ_succ]
+    congr 1
+    · rcases rows with _ | ⟨r, rows⟩
+      · simp [ofLists_apply, ofList_apply]
+      · cases r <;> simp [ofLists_apply, ofList_apply]
+    · refine Finset.sum_congr rfl fun i _ => ?_
+      simp only [diag_apply, ofLists_apply, ofList_apply, Fin.val_succ, getD_map_tail,
+        getD_tail]
+      cases rows <;> simp
+
+/-- The trace of a product computed on rows, such as `tr (Bᵀ * W * B)`: `rowsTrace` of
+`rowsMul`. -/
+theorem trace_mul_ofLists [NonUnitalNonAssocSemiring α] (l m : ℕ) (A B : List (List α)) :
+    (ofLists l m A * ofLists m l B).trace = rowsTrace l (rowsMul l m l A B) := by
+  rw [← ofLists_rowsMul, trace_ofLists]
 
 /-- Whether `rows` has exactly `m` rows of exactly `n` entries. -/
 @[expose] def isShape (m n : ℕ) (rows : List (List α)) : Bool :=
