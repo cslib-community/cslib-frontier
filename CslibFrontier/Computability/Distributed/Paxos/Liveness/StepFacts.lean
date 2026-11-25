@@ -44,19 +44,12 @@ lemma mem_msgs_synodStep_of_mem {Proposer Acceptor Learner V : Type*}
   | prepare _ _ => exact Finset.mem_insert_of_mem hm
   | recvPhase1a _ _ | recvPhase2a _ _ _ =>
     dsimp only [synodStep, synodStepCore]
-    split_ifs
-    · exact Finset.mem_insert_of_mem hm
-    · exact hm
+    split_ifs <;> first | exact Finset.mem_insert_of_mem hm | exact hm
   | recvPhase1b p _ _ _ =>
     dsimp only [synodStep, synodStepCore]
-    cases (s.proposers p).round with
-    | none => exact hm
-    | some _ =>
-      dsimp only []
-      split_ifs
-      · exact Finset.mem_insert_of_mem hm
-      · exact hm
-      · exact hm
+    cases (s.proposers p).round
+    · exact hm
+    · dsimp only []; split_ifs <;> first | exact Finset.mem_insert_of_mem hm | exact hm
   | drop m' =>
     exact Finset.mem_erase.mpr ⟨fun heq => hne (heq ▸ rfl), hm⟩
   | _ => exact hm
@@ -98,11 +91,9 @@ lemma mem_msgs_synodStep_cases {Proposer Acceptor Learner V : Type*}
       split_ifs at hm with hg hq
       · rcases Finset.mem_insert.mp hm with rfl | hold
         · refine Or.inr (Or.inr (Or.inr (Or.inl ⟨p, a, b, mv, r, _, rfl, hround, hg.1, ?_, rfl⟩)))
-          rw [ite_eq_left hg, ite_eq_left hq]
-          simp only [↓reduceIte]
+          rw [ite_eq_left hg, ite_eq_left hq]; simp only [↓reduceIte]
         · exact Or.inl hold
-      · exact Or.inl hm
-      · exact Or.inl hm
+      all_goals exact Or.inl hm
   | recvPhase2a a b v =>
     dsimp only [synodStep, synodStepCore] at hm
     split_ifs at hm with hal
@@ -276,11 +267,7 @@ lemma maxVoted_none_of_mTr {Proposer Acceptor Learner V : Type*}
       (fun u => (u.acceptors a).maxVoted ≠ none) := by
     rintro u₁ act _ ⟨_, rfl⟩ hne
     rcases acceptors_synodStep_cases qs u₁ act a with heq | ⟨_, _, _, heq, _⟩ |
-        ⟨_, _, _, _, heq⟩ | ⟨_, heq⟩ <;> rw [heq]
-    · exact hne
-    · exact hne
-    · exact nofun
-    · exact hne
+        ⟨_, _, _, _, heq⟩ | ⟨_, heq⟩ <;> rw [heq] <;> first | exact hne | exact nofun
   by_contra h₁
   exact LTS.mtrInv_of_trInv htr_inv _ _ _ hmtr h₁ h₂
 
@@ -298,9 +285,7 @@ lemma learned_none_of_mTr {Proposer Acceptor Learner V : Type*}
     rcases learners_synodStep_cases qs u₁ act l with heq | ⟨_, _, _, _, heq⟩ | ⟨_, heq⟩ <;>
       rw [heq]
     · exact hne
-    · cases hcur : (u₁.learners l).learned with
-      | none => exact absurd hcur hne
-      | some _ => exact nofun
+    · split <;> first | exact hne | exact nofun
     · exact hne
   by_contra h₁
   exact LTS.mtrInv_of_trInv htr_inv _ _ _ hmtr h₁ h₂
