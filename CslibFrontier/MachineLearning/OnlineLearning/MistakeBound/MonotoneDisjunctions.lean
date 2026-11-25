@@ -85,7 +85,8 @@ theorem setShatters_monotoneDisjunctions {k r : ℕ} (hkr : k * 2 ^ r ≤ n) :
   have hinj : Function.Injective pt := by
     intro a b hab
     have h := congrFun hab (e (a.1, {a.2}))
-    simp [hpt] at h
+    simp only [hpt, Finset.mem_singleton, and_self, decide_true, Bool.decide_and, Bool.true_eq,
+      Bool.and_eq_true, decide_eq_true_eq] at h
     exact Prod.ext h.1.symm h.2.symm
   refine ⟨Finset.univ.image pt, ?_, ?_⟩
   · rw [Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_prod,
