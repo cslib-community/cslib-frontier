@@ -94,18 +94,23 @@ theorem intBox_nonempty (γ : ℕ) : (intBox ι γ).Nonempty :=
 /-- The box `[-γ, γ]^ι` has `(2 γ + 1) ^ |ι|` points. -/
 theorem card_intBox (γ : ℕ) : (intBox ι γ).card = (2 * γ + 1) ^ Fintype.card ι := by
   rw [intBox, Fintype.card_piFinset, Finset.prod_const, Finset.card_univ, Int.card_Icc]
-  exact congrArg (· ^ _) (by omega)
+  congr 1
+  omega
 
 /-- Boxes grow with their radius. -/
 theorem intBox_mono {γ γ' : ℕ} (h : γ ≤ γ') : intBox ι γ ⊆ intBox ι γ' := fun z hz => by
-  exact mem_intBox.mpr fun i => (mem_intBox.mp hz i).trans (by exact_mod_cast h)
+  simp only [mem_intBox] at hz ⊢
+  exact fun i => (hz i).trans (by exact_mod_cast h)
 
 /-- Removing a vector of sup norm at most `β` from the inner box `[-(γ - β), γ - β]^ι` stays in
 the outer box `[-γ, γ]^ι`. -/
 theorem sub_mem_intBox {γ β : ℕ} (hβ : β ≤ γ) {z v : ι → ℤ} (hz : z ∈ intBox ι (γ - β))
     (hv : v ∈ intBox ι β) : z - v ∈ intBox ι γ := by
   simp only [mem_intBox, Pi.sub_apply, Nat.cast_sub hβ] at hz hv ⊢
-  exact fun i => (abs_sub _ _).trans ((add_le_add (hz i) (hv i)).trans_eq (sub_add_cancel _ _))
+  intro i
+  calc |z i - v i| ≤ |z i| + |v i| := abs_sub _ _
+    _ ≤ (γ - β) + β := add_le_add (hz i) (hv i)
+    _ = γ := sub_add_cancel _ _
 
 end IntBox
 
@@ -137,11 +142,13 @@ theorem shiftReject_apply_some (hv : ∀ z ∈ S, z - v ∈ B) (z : α) :
     shiftReject B S hB v (some z) = if z ∈ S then (B.card : ℝ≥0∞)⁻¹ else 0 := by
   rw [shiftReject, PMF.map_apply]
   split_ifs with hz
-  · refine (tsum_eq_single (z - v) fun y hy => ?_).trans (by simp [hz, hv z hz])
-    have : y + v ≠ z := fun h => hy (eq_sub_of_add_eq h)
-    split_ifs <;> simp_all [eq_comm]
+  · rw [tsum_eq_single (z - v)]
+    · simp [hz, hv z hz]
+    · intro y hy
+      have hyz : y + v ≠ z := fun h => hy (eq_sub_of_add_eq h)
+      split_ifs <;> simp_all [eq_comm]
   · refine tsum_eq_zero_iff.mpr fun y => ?_
-    split_ifs <;> simp_all
+    split_ifs with h₁ h₂ <;> simp_all
 
 /-- **Rejection sampling, aborts.** Under the same hypothesis, the sampler aborts with
 probability exactly `1 - |S| / |B|`, whatever the shift. -/
@@ -264,22 +271,26 @@ theorem boxReject_apply_none_le (hβ : β ≤ γ) (hv : v ∈ intBox ι β) :
   rw [boxReject_apply_none hβ hv, tsub_le_iff_right]
   set m := Fintype.card ι
   have hb : (0 : ℝ) < 2 * γ + 1 := by positivity
-  have hx : ((2 * (γ - β) + 1 : ℕ) : ℝ) / (2 * γ + 1) = 1 + -(2 * β / (2 * γ + 1)) := by
-    rw [Nat.cast_add, Nat.cast_mul, Nat.cast_sub hβ]
-    field_simp
-    ring
-  have hbern := one_add_mul_le_pow (a := -(2 * (β : ℝ) / (2 * γ + 1)))
-    (by rw [neg_le_neg_iff, div_le_iff₀ hb]; linarith [(Nat.cast_le (α := ℝ)).mpr hβ]) m
   have hreal : (1 : ℝ) ≤ 2 * m * β / (2 * γ + 1) +
       (((2 * (γ - β) + 1 : ℕ) : ℝ) / (2 * γ + 1)) ^ m := by
-    rw [hx]; linarith [show (m : ℝ) * -(2 * β / (2 * γ + 1)) = -(2 * m * β / (2 * γ + 1)) by ring]
+    have hx : ((2 * (γ - β) + 1 : ℕ) : ℝ) / (2 * γ + 1) = 1 + -(2 * β / (2 * γ + 1)) := by
+      rw [Nat.cast_add, Nat.cast_mul, Nat.cast_sub hβ]
+      field_simp
+      ring
+    have hbern := one_add_mul_le_pow (a := -(2 * (β : ℝ) / (2 * γ + 1))) (by
+      rw [neg_le_neg_iff, div_le_iff₀ hb]
+      linarith [(Nat.cast_le (α := ℝ)).mpr hβ]) m
+    rw [hx]
+    have : (m : ℝ) * -(2 * β / (2 * γ + 1)) = -(2 * m * β / (2 * γ + 1)) := by ring
+    linarith
   have hlhs : ENNReal.ofReal (2 * m * β / (2 * γ + 1) +
       (((2 * (γ - β) + 1 : ℕ) : ℝ) / (2 * γ + 1)) ^ m) =
       2 * m * β / (2 * γ + 1) + ((2 * (γ - β) + 1 : ℕ) / (2 * γ + 1 : ℝ≥0∞)) ^ m := by
     rw [ENNReal.ofReal_add (by positivity) (by positivity), ENNReal.ofReal_div_of_pos hb,
       ENNReal.ofReal_pow (by positivity), ENNReal.ofReal_div_of_pos hb]
     norm_cast
-  exact hlhs ▸ ENNReal.ofReal_one ▸ ENNReal.ofReal_le_ofReal hreal
+  rw [← hlhs, ← ENNReal.ofReal_one]
+  exact ENNReal.ofReal_le_ofReal hreal
 
 end Box
 

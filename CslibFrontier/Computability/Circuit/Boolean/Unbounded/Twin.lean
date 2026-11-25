@@ -224,8 +224,10 @@ theorem eval_twinCircuit (C : Circuit signature n m) (x : BitString n) :
 /-- The translated circuit has the same depth. -/
 @[simp] theorem depth_twinCircuit (C : Circuit signature n m) :
     (twinCircuit C).depth = C.depth := by
-  simp only [Circuit.depth, show (twinCircuit C).outputDepths = C.outputDepths from
-    funext fun j => wireDepths_twinProgram C.program true (C.outputs j)]
+  have : (twinCircuit C).outputDepths = C.outputDepths := by
+    funext j
+    exact wireDepths_twinProgram C.program true (C.outputs j)
+  simp only [Circuit.depth, this]
 
 /-- The translated circuit has no negation gates. -/
 theorem op_lines_twinCircuit_ne_not (C : Circuit signature n m) (k : Fin (twinCircuit C).size) :

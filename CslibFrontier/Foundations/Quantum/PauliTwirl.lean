@@ -84,22 +84,27 @@ theorem pauliXPow_apply (a y z : ι → Bool) : pauliXPow a y z = if z = y + a t
 omit [DecidableEq ι] in
 theorem pauliZPow_apply (b y z : ι → Bool) :
     pauliZPow b y z = if y = z then (signVal (b ⬝ᵥ z) : ℂ) else 0 := by
-  rw [pauliZPow, diagonal_apply]; split_ifs with h <;> simp [h]
+  rw [pauliZPow, diagonal_apply]
+  split_ifs with h <;> simp [h]
 
 theorem pauliString_apply (a b y z : ι → Bool) :
     pauliString a b y z = if z = y + a then (signVal (b ⬝ᵥ z) : ℂ) else 0 := by
-  rw [pauliString, Matrix.mul_apply, Finset.sum_eq_single (y + a)
-    (fun w _ hw => by simp [pauliXPow_apply, hw]) (by simp)]
-  by_cases h : z = y + a <;> simp [pauliXPow_apply, pauliZPow_apply, h, eq_comm]
+  rw [pauliString, Matrix.mul_apply, Finset.sum_eq_single (y + a)]
+  · by_cases h : z = y + a <;> simp [pauliXPow_apply, pauliZPow_apply, h, eq_comm]
+  · intro w _ hw
+    simp [pauliXPow_apply, hw]
+  · simp
 
 theorem conjTranspose_pauliString_apply (a b y z : ι → Bool) :
     (pauliString a b)ᴴ y z = if y = z + a then (signVal (b ⬝ᵥ y) : ℂ) else 0 := by
-  rw [conjTranspose_apply, pauliString_apply]; split_ifs <;> simp [Complex.conj_ofReal]
+  rw [conjTranspose_apply, pauliString_apply]
+  split_ifs <;> simp [Complex.conj_ofReal]
 
 omit [DecidableEq ι] in
 theorem pauliXPow_isHermitian (a : ι → Bool) : (pauliXPow a).IsHermitian := by
   ext y z
-  have : (y = z + a) ↔ (z = y + a) := ⟨fun h => by simp [h], fun h => by simp [h]⟩
+  have : (y = z + a) ↔ (z = y + a) := by
+    constructor <;> rintro rfl <;> simp
   by_cases h : z = y + a <;> simp [conjTranspose_apply, pauliXPow_apply, h, this]
 
 omit [DecidableEq ι] in
@@ -115,12 +120,14 @@ theorem pauliXPow_mul (a a' : ι → Bool) : pauliXPow a * pauliXPow a' = pauliX
 omit [DecidableEq ι] in
 private theorem signVal_add_dotProduct (b b' z : ι → Bool) :
     (signVal ((b + b') ⬝ᵥ z) : ℂ) = signVal (b ⬝ᵥ z) * signVal (b' ⬝ᵥ z) := by
-  rw [add_dotProduct]; exact_mod_cast signVal_xor _ _
+  rw [add_dotProduct]
+  exact_mod_cast signVal_xor _ _
 
 private theorem mul_pauliZPow_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ} (b y z : ι → Bool) :
     (M * pauliZPow b) y z = M y z * signVal (b ⬝ᵥ z) := by
   rw [Matrix.mul_apply, sum_eq_single z (fun w _ hw => by
-    rw [pauliZPow_apply, ite_eq_right hw, mul_zero]) (by simp), pauliZPow_apply, ite_eq_left rfl]
+    rw [pauliZPow_apply, ite_eq_right hw, mul_zero]) (by simp)]
+  rw [pauliZPow_apply, ite_eq_left rfl]
 
 private theorem pauliZPow_mul_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ} (b y z : ι → Bool) :
     (pauliZPow b * M) y z = signVal (b ⬝ᵥ y) * M y z := by
@@ -129,19 +136,25 @@ private theorem pauliZPow_mul_apply {M : Matrix (ι → Bool) (ι → Bool) ℂ}
     pauliZPow_apply, ite_eq_left rfl]
 
 theorem pauliZPow_mul (b b' : ι → Bool) : pauliZPow b * pauliZPow b' = pauliZPow (b + b') := by
-  ext y z; rw [mul_pauliZPow_apply, pauliZPow_apply, pauliZPow_apply]
-  split_ifs <;> simp only [signVal_add_dotProduct, zero_mul]
+  ext y z
+  rw [mul_pauliZPow_apply, pauliZPow_apply, pauliZPow_apply]
+  split_ifs with h
+  · rw [signVal_add_dotProduct]
+  · rw [zero_mul]
 
 omit [DecidableEq ι] in
 theorem pauliXPow_zero : pauliXPow (0 : ι → Bool) = 1 := by
-  classical ext y z
-  rw [pauliXPow_apply, add_zero, Matrix.one_apply]; exact if_congr eq_comm rfl rfl
+  classical
+  ext y z
+  rw [pauliXPow_apply, add_zero, Matrix.one_apply]
+  exact if_congr eq_comm rfl rfl
 
 omit [DecidableEq ι] in
 theorem pauliZPow_zero : pauliZPow (0 : ι → Bool) = 1 := by
-  classical ext y z
-  rw [pauliZPow_apply, Matrix.one_apply, zero_dotProduct, show (0 : Bool) = false from rfl,
-    signVal_false, Complex.ofReal_one]
+  classical
+  ext y z
+  have h0 : signVal (0 : Bool) = 1 := signVal_false
+  rw [pauliZPow_apply, Matrix.one_apply, zero_dotProduct, h0, Complex.ofReal_one]
 
 theorem pauliZPow_mul_pauliXPow (a b : ι → Bool) :
     pauliZPow b * pauliXPow a = (signVal (a ⬝ᵥ b) : ℂ) • (pauliXPow a * pauliZPow b) := by
@@ -189,10 +202,14 @@ private theorem sum_signVal_mul_mul_signVal (u u' : ι → Bool) (c : ℂ) :
       if u = u' then 2 ^ Fintype.card ι * c else 0 := by
   have h := sum_signVal_dotProduct_mul_signVal_dotProduct u u'
   simp only [dotProduct_comm u, dotProduct_comm u'] at h
-  have hsum : ∑ b : ι → Bool, (signVal (b ⬝ᵥ u) : ℂ) * c * signVal (b ⬝ᵥ u') =
-      ((∑ b : ι → Bool, signVal (b ⬝ᵥ u) * signVal (b ⬝ᵥ u') : ℝ) : ℂ) * c := by
-    push_cast; rw [sum_mul]; exact sum_congr rfl fun _ _ => by ring
-  rw [hsum, h]; split_ifs <;> simp
+  calc ∑ b : ι → Bool, (signVal (b ⬝ᵥ u) : ℂ) * c * signVal (b ⬝ᵥ u')
+      = ((∑ b : ι → Bool, signVal (b ⬝ᵥ u) * signVal (b ⬝ᵥ u') : ℝ) : ℂ) * c := by
+        push_cast
+        rw [sum_mul]
+        exact sum_congr rfl fun b _ => by ring
+    _ = _ := by
+        rw [h]
+        split_ifs <;> simp
 
 /-- **The Pauli twirl** is completely depolarizing:
 `∑_{a, b} X^a Z^b ρ (X^a Z^b)ᴴ = 2ⁿ tr ρ • 1` on `n = |ι|` qubits. -/
@@ -204,8 +221,11 @@ theorem sum_pauliTwirl (ρ : Matrix (ι → Bool) (ι → Bool) ℂ) :
     sum_signVal_mul_mul_signVal, add_left_inj, Matrix.smul_apply, Matrix.one_apply, smul_eq_mul,
     mul_ite, mul_one, mul_zero]
   by_cases h : y = y'
-  · subst h; simp only [ite_true, ← mul_sum, trace]
-    exact congrArg _ (Fintype.sum_equiv (Equiv.addRight y) _ _ fun _ => by simp [add_comm])
+  · subst h
+    simp only [ite_true]
+    rw [← mul_sum, trace]
+    congr 1
+    exact Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm]
   · simp [h]
 
 /-- **The Pauli twirl with a reference system**: twirling the first system of `ρ` on
@@ -229,8 +249,11 @@ theorem sum_pauliTwirl_kronecker_one [Fintype κ] [DecidableEq κ]
     Matrix.smul_apply, kroneckerMap_apply, Matrix.one_apply, partialTraceLeft_apply, smul_eq_mul,
     ite_mul, one_mul, zero_mul]
   by_cases h : y = y'
-  · subst h; simp only [ite_true, ← mul_sum]
-    exact congrArg _ (Fintype.sum_equiv (Equiv.addRight y) _ _ fun _ => by simp [add_comm])
+  · subst h
+    simp only [ite_true]
+    rw [← mul_sum]
+    congr 1
+    exact Fintype.sum_equiv (Equiv.addRight y) _ _ fun a => by simp [add_comm]
   · simp [h]
 
 end Cslib.Quantum

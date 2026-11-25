@@ -136,9 +136,10 @@ theorem integral_mul_gaussianNoiseOp_comm {ρ : ℝ} (hρ : |ρ| ≤ 1) {f g : (
   have hsw : MeasurePreserving (MeasurableEquiv.prodComm (α := ι → ℝ) (β := ι → ℝ))
       (correlatedGaussianPi ι ρ) (correlatedGaussianPi ι ρ) :=
     ⟨MeasurableEquiv.measurable _, correlatedGaussianPi_map_swap ι hρ⟩
-  simp only [mul_comm (gaussianNoiseOp ρ f _), integral_mul_gaussianNoiseOp hρ hf hg,
-    integral_mul_gaussianNoiseOp hρ hg hf, ← hsw.integral_comp' (fun p => g p.1 * f p.2)]
-  exact integral_congr_ae (ae_of_all _ fun _ => mul_comm _ _)
+  simp only [mul_comm (gaussianNoiseOp ρ f _)]
+  rw [integral_mul_gaussianNoiseOp hρ hf hg, integral_mul_gaussianNoiseOp hρ hg hf,
+    ← hsw.integral_comp' (fun p => g p.1 * f p.2)]
+  exact integral_congr_ae (ae_of_all _ fun p => mul_comm _ _)
 
 /-- The noise operator fixes the constants. -/
 @[simp] theorem gaussianNoiseOp_const (ρ c : ℝ) (z : ι → ℝ) :

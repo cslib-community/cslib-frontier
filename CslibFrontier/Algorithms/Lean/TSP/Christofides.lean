@@ -140,8 +140,10 @@ private theorem even_degree_append {W : Type} {T : List (WeightedEdge n W)}
     Even (degree (T.map WeightedEdge.endpoints ++ M) x) := by
   rw [degree_append, degree_eq_count_endpoints M, hM.count_eq, (nodup_oddVertices T).count]
   by_cases h : Odd (degree (T.map WeightedEdge.endpoints) x)
-  · rw [ite_eq_left (mem_oddVertices.2 h)]; exact h.add_one
-  · rw [ite_eq_right (mt mem_oddVertices.1 h), Nat.add_zero]; exact Nat.not_odd_iff_even.1 h
+  · rw [ite_eq_left (mem_oddVertices.2 h)]
+    exact h.add_one
+  · rw [ite_eq_right (mt mem_oddVertices.1 h), Nat.add_zero]
+    exact Nat.not_odd_iff_even.1 h
 
 private theorem eqvGen_append {W : Type} {T : List (WeightedEdge n W)}
     (hT : ∀ a b : Fin n, Relation.EqvGen (fun x y => ∃ e ∈ T, x = e.u ∧ y = e.v) a b)
@@ -186,7 +188,9 @@ theorem cycleCost_shortcutTour_le {δ : Fin n → Fin n → ℕ} (hsymm : ∀ x 
           (hab : Relation.EqvGen (fun x y => ∃ e ∈ ([] : List (WeightedEdge n ℕ)),
             x = e.u ∧ y = e.v) a b) : a = b := by
         induction hab with
-        | rel _ _ h => let ⟨_, h, _⟩ := h; nomatch h
+        | rel _ _ h =>
+          let ⟨_, h, _⟩ := h
+          nomatch h
         | refl => rfl
         | symm _ _ _ ih => exact ih.symm
         | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
@@ -210,9 +214,10 @@ private theorem eq_of_perm_of_length_le_one {α : Type*} {l₁ l₂ : List α} (
 /-- With at most one vertex there is only one tour. -/
 private theorem eq_of_perm_finRange {l₁ q : List (Fin n)} (hn : n < 2)
     (h : l₁.Perm (List.finRange n)) (hq : q.Nodup) (hcov : ∀ x, x ∈ q) : l₁ = q := by
-  have hlen : (List.finRange n).length ≤ 1 := (List.length_finRange).trans_le (by omega)
-  rw [eq_of_perm_of_length_le_one h hlen, eq_of_perm_of_length_le_one
-    ((List.perm_ext_iff_of_nodup hq (List.nodup_finRange n)).2 (by simp [hcov])) hlen]
+  have hperm : q.Perm (List.finRange n) :=
+    (List.perm_ext_iff_of_nodup hq (List.nodup_finRange n)).2 (by simp [hcov])
+  rw [eq_of_perm_of_length_le_one h (by simp; omega),
+    eq_of_perm_of_length_le_one hperm (by simp; omega)]
 
 private theorem rel_eq_true_of_numComponents_eq_one {p : Partition n} (hp : p.numComponents = 1)
     (x y : Fin n) : p.rel x y = true := by
@@ -226,7 +231,8 @@ theorem numComponents_edgePartition_completeEdges (δ : Fin n → Fin n → ℕ)
     (edgePartition (completeEdges δ)).numComponents = 1 := by
   set p := edgePartition (completeEdges δ)
   have hcomp : p.components = {p.classOf ⟨0, hn⟩} := by
-    ext c; simp only [Partition.mem_components, Finset.mem_singleton]
+    ext c
+    simp only [Partition.mem_components, Finset.mem_singleton]
     exact ⟨fun ⟨x, hx⟩ => hx ▸ Partition.classOf_eq_iff.mpr ((rel_edgePartition_iff_eqvGen _ x _).2
       (.rel _ _ ⟨⟨x, _, δ x _⟩, mem_completeEdges.2 rfl, rfl, rfl⟩)), fun h => ⟨_, h.symm⟩⟩
   rw [Partition.numComponents, hcomp, Finset.card_singleton]

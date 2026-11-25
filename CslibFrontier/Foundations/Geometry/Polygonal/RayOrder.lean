@@ -42,10 +42,10 @@ theorem turnArg_mem {z : ℂ} (hz : z.im ≠ 0) :
   have h := arg_mem_half_turn hz
   unfold turnArg
   split_ifs with hneg
-  · simp only [hneg, ↓reduceIte] at h
-    exact ⟨by linarith only [h.1, Real.pi_pos], by linarith only [h.2]⟩
-  · simp only [hneg, ↓reduceIte] at h
-    exact ⟨h.1, by linarith only [h.2, Real.pi_pos]⟩
+  · rw [ite_eq_left hneg] at h
+    constructor <;> linarith [h.1, h.2, Real.pi_pos]
+  · rw [ite_eq_right hneg] at h
+    exact ⟨h.1, h.2.trans (by linarith [Real.pi_pos])⟩
 
 /-- Changing the cut does not change the actual direction as a circular angle. -/
 @[simp] theorem turnArg_coe_angle (z : ℂ) :
@@ -59,20 +59,28 @@ theorem arg_lt_arg_iff_det_pos {u v : ℂ} (hu : u.im ≠ 0) (hv : v.im ≠ 0)
     u.arg < v.arg ↔ 0 < u.re * v.im - u.im * v.re := by
   have hu0 : u ≠ 0 := fun h => hu (congrArg Complex.im h)
   have hv0 : v ≠ 0 := fun h => hv (congrArg Complex.im h)
+  have huarg := arg_mem_half_turn hu
+  have hvarg := arg_mem_half_turn hv
   have hspan : u.arg - v.arg ∈ Set.Ioc (-Real.pi) Real.pi := by
-    have huarg := arg_mem_half_turn hu
-    have hvarg := arg_mem_half_turn hv
     by_cases hneg : u.im < 0
-    · simp only [hneg, hsame.mp hneg, ↓reduceIte] at huarg hvarg
-      exact ⟨by linarith only [huarg.1, hvarg.2], by linarith only [huarg.2, hvarg.1]⟩
-    · simp only [hneg, mt hsame.mpr hneg, ↓reduceIte] at huarg hvarg
-      exact ⟨by linarith only [huarg.1, hvarg.2], by linarith only [huarg.2, hvarg.1]⟩
+    · rw [ite_eq_left hneg] at huarg
+      rw [ite_eq_left (hsame.mp hneg)] at hvarg
+      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
+    · rw [ite_eq_right hneg] at huarg
+      rw [ite_eq_right (fun h => hneg (hsame.mpr h))] at hvarg
+      constructor <;> linarith [huarg.1, huarg.2, hvarg.1, hvarg.2]
   have hdiv : (u / v).arg = u.arg - v.arg := by
-    simpa only [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
-      Real.Angle.toReal_coe_eq_self_iff_mem_Ioc.mpr hspan] using
-      congrArg Real.Angle.toReal (Complex.arg_div_coe_angle hu0 hv0)
-  rw [← sub_lt_zero, ← hdiv, Complex.arg_neg_iff, Complex.div_im, ← sub_div,
-    div_lt_iff₀ (Complex.normSq_pos.mpr hv0), zero_mul, sub_lt_zero, ← sub_pos]
+    have h := congrArg Real.Angle.toReal (Complex.arg_div_coe_angle hu0 hv0)
+    rw [Complex.arg_coe_angle_toReal_eq_arg, ← Real.Angle.coe_sub,
+      Real.Angle.toReal_coe_eq_self_iff_mem_Ioc.mpr hspan] at h
+    exact h
+  have hnorm : 0 < Complex.normSq v := Complex.normSq_pos.mpr hv0
+  calc
+    u.arg < v.arg ↔ (u / v).arg < 0 := by rw [hdiv, sub_lt_zero]
+    _ ↔ (u / v).im < 0 := Complex.arg_neg_iff
+    _ ↔ 0 < u.re * v.im - u.im * v.re := by
+      rw [Complex.div_im, ← sub_div, div_lt_iff₀ hnorm, zero_mul]
+      constructor <;> intro h <;> linarith
 
 /-- Comparison from the positive horizontal cut: upper rays precede lower rays,
 and within either half-plane the determinant gives the order. -/
