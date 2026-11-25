@@ -11,12 +11,13 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Tape.RunWord
 
 /-!
-# Renaming the inputs of an automaton
+# Renaming the inputs of an automaton, and change of rings
 
 An equivalence `φ : J ≃ J'` of the input names renames the channels (`Tape.Ch.congr`) and the
 letters (`Tape.Letter.congr`). Renaming keeps what a run emits (`Tape.emit_congr`), so the value of
 an automaton does not change when its letters and its inputs are renamed together
-(`Tape.runVal_congr`).
+(`Tape.runVal_congr`). A ring homomorphism applied to the matrices maps the value
+(`Tape.runVal_map`).
 
 ## Main definitions
 
@@ -24,12 +25,12 @@ an automaton does not change when its letters and its inputs are renamed togethe
 
 ## Main results
 
-* `Tape.emit_congr`, `Tape.runVal_congr`.
+* `Tape.emit_congr`, `Tape.runVal_congr`, `Tape.runVal_map`.
 
 ## References
 
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
-  module `Nc.RunOne`
+  modules `Nc.RunOne` and `Nc.End.Run`
 -/
 
 public section
@@ -104,5 +105,17 @@ theorem runVal_congr (φ : J ≃ J') (mu : Letter S J' Γ → Matrix Q Q F) (i e
   · rw [ite_eq_left h, ite_eq_left (hm.1 h), List.map_map]
     rfl
   · rw [ite_eq_right h, ite_eq_right fun h' => h (hm.2 h')]
+
+/-- **Change of rings**: the value of an automaton with the matrices mapped by a ring
+homomorphism is the image of its value. -/
+theorem runVal_map {K : Type*} [CommRing K] (f : F →+* K) (mu : Letter S J Γ → Matrix Q Q F)
+    (i e : Q) (t : ℕ) (u : J → List Γ) :
+    runVal (fun a => (mu a).map f) i e t u = f (runVal mu i e t u) := by
+  unfold runVal
+  rw [map_sum]
+  refine Finset.sum_congr rfl fun o _ => ?_
+  rw [apply_ite f, map_zero, ← Matrix.map_apply (f := f), ← RingHom.mapMatrix_apply, map_list_prod,
+    List.map_map]
+  rfl
 
 end Cslib.Circuits.Arithmetic.Separation.Tape

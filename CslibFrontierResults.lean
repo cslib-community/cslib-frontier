@@ -40,6 +40,7 @@ import CslibFrontierResults.Entries.NetworkContagion
 import CslibFrontierResults.Entries.NetworkFormation
 import CslibFrontierResults.Entries.ODonnellDNFWidth
 import CslibFrontierResults.Entries.ODonnellLargeCoefficient
+import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
 import CslibFrontierResults.Entries.ODonnellMargulisRusso
