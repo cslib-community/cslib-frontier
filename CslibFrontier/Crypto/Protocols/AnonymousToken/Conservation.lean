@@ -1112,7 +1112,7 @@ end
 
 /-- Convert a binding witness for `Credit.target com Prod.mk` into a commitment binding
 collision over `(nullifier, context, credit)` triples. -/
-private def noteBindingCollision
+@[expose] def noteBindingCollision
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (w : BindingWitness (Credit.Note Nullifier Context) Opening) :
     Crypto.Commitment.BindingCollision (Nullifier × Context × ℕ) Commitment Opening :=
@@ -1147,7 +1147,7 @@ private theorem isBindingCollision_noteBindingCollision
 
 /-- `noteBindingCollision` on a found witness. With no witness it returns a trivial pair that
 opens `com default default 0 default` twice to the same message, which is never a collision. -/
-private def noteBindingCollisionOrTrivial
+@[expose] def noteBindingCollisionOrTrivial
     [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening]
     (com : Nullifier → Context → ℕ → Opening → Commitment) :
     Option (BindingWitness (Credit.Note Nullifier Context) Opening) →
@@ -1178,6 +1178,18 @@ def commitmentBindingReduction
   fun _ =>
     noteBindingCollisionOrTrivial com <$>
       bindingReduction S (Credit.target com Prod.mk) (noteForger com Prod.mk S A)
+
+/-- Unfolding specification for `commitmentBindingReduction` at any key `k`. -/
+theorem commitmentBindingReduction_eq
+    {K : Type} [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    [Inhabited Nullifier] [Inhabited Context] [Inhabited Opening] [Inhabited Sig]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (S : Signature.Scheme PK SK (Commitment × ℕ) Sig)
+    (A : ExtractedAdversary Nullifier Context Opening Commitment PK Sig) (k : K) :
+    commitmentBindingReduction com S A k =
+      noteBindingCollisionOrTrivial com <$>
+        bindingReduction S (Credit.target com Prod.mk) (noteForger com Prod.mk S A) := by
+  rfl
 
 /-- Extracted-model reduction step, original to this library: the target-binding success
 probability of `noteForger` under `Credit.target com Prod.mk` is at most the commitment-binding

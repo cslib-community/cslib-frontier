@@ -29,7 +29,14 @@ For Proposition 3.40, the empirical bucket weight of the parity of the first of 
 with respect to `∅`, whose bucket weight is `0`, is at least `γ` in absolute value with
 probability at most `2 exp (-m γ² / 2)`; and `⌈8 log 4⌉` samples estimate its bucket weight on
 `{0}` with respect to `{0}`, which is `1`, within `1 / 2` except with probability `1 / 2`. The
-step from a tail bound to a sample size gives `2 exp (-log 4) ≤ 1 / 2`. -/
+step from a tail bound to a sample size gives `2 exp (-log 4) ≤ 1 / 2`.
+
+For the query and sample step toward the Goldreich–Levin Theorem, with no samples the found sets
+of a parity and of a constant agree, since nothing is queried; with threshold `1`, on samples
+accurate at precision `1 / 4` at most four sets are found, and for a parity exactly its own set
+is found, also by the query tree, which on two bits makes at most `7 m` queries; on two bits
+`⌈32 log 64⌉` samples make the query tree output exactly that set except with probability
+`1 / 2`. -/
 
 public section
 
@@ -161,5 +168,78 @@ theorem uniform_abs_bucketEstimate_parityOn_ge_le :
 `c = K = 2`, `a = 1` and `δ = 1 / 2`. -/
 theorem two_mul_exp_neg_log_four_le : 2 * Real.exp (-(1 * Real.log 4)) ≤ 1 / 2 :=
   Real.mul_exp_neg_le_of_log le_rfl two_pos one_pos (by norm_num) (by norm_num)
+
+/-- With no samples nothing is queried, so the found sets do not depend on the target: the sets
+found for a parity and for the constant `false` function agree. -/
+theorem kmCandidates_parityOn_fin_zero {n : ℕ} (U : Finset (Fin n)) (θ : ℝ)
+    (ω : Fin 0 → (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool)) :
+    kmCandidates (parityOn U) θ ω = kmCandidates (fun _ => false) θ ω := by
+  refine kmCandidates_congr θ ω fun x hx => ?_
+  have h := length_kmQueries ω
+  rw [zero_mul, List.length_eq_zero_iff] at h
+  simp [h] at hx
+
+/-- With threshold `1`, on samples accurate at precision `1 / 4`, at most four sets are found. -/
+theorem card_kmCandidates_le_four {n m : ℕ} (f : (Fin n → Bool) → Bool)
+    (ω : Fin m → (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool))
+    (hω : KMAccurate f (1 ^ 2 / 4) ω) : #(kmCandidates f 1 ω) ≤ 4 := by
+  have h := mul_card_kmCandidates_le_one f hω
+  have h' : (#(kmCandidates f 1 ω) : ℝ) ≤ 4 := by linarith
+  exact_mod_cast h'
+
+/-- A list of sets that contains the set of a parity, and only sets where the parity has a
+nonzero coefficient, is that set alone. -/
+theorem eq_singleton_of_fourierCoeff_parityOn_ne_zero {n : ℕ} (U : Finset (Fin n))
+    {L : Finset (Finset (Fin n))} (hU : U ∈ L)
+    (hL : ∀ V ∈ L, fourierCoeff (fun x => signVal (parityOn U x)) V ≠ 0) : L = {U} := by
+  refine eq_singleton_iff_unique_mem.2 ⟨hU, fun V hV => ?_⟩
+  by_contra hVU
+  exact hL V hV (by simp [fourierCoeff_signVal_parityOn, hVU])
+
+/-- With threshold `1`, on samples accurate at precision `1 / 4`, the only set found for a parity
+is its own set. -/
+theorem kmCandidates_parityOn_eq {n m : ℕ} (U : Finset (Fin n))
+    (ω : Fin m → (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool))
+    (hω : KMAccurate (parityOn U) (1 ^ 2 / 4) ω) : kmCandidates (parityOn U) 1 ω = {U} := by
+  refine eq_singleton_of_fourierCoeff_parityOn_ne_zero U
+    (mem_kmCandidates_of_sq_le_sq _ hω (by simp [fourierCoeff_signVal_parityOn]))
+    fun V hV h => ?_
+  have h' := lt_sq_of_mem_kmCandidates _ hω hV
+  rw [h] at h'
+  norm_num at h'
+
+/-- With threshold `1`, on samples accurate at precision `1 / 4`, the query tree run on a parity
+outputs its own set. -/
+theorem eval_kmCandidatesTree_parityOn_eq {n m : ℕ} (U : Finset (Fin n))
+    (ω : Fin m → (Fin n → Bool) × (Fin n → Bool) × (Fin n → Bool))
+    (hω : KMAccurate (parityOn U) (1 ^ 2 / 4) ω) :
+    (kmCandidatesTree 1 ω).eval (parityOn U) = {U} := by
+  rw [eval_kmCandidatesTree, kmCandidates_parityOn_eq U ω hω]
+
+/-- On two bits, the query tree makes at most `7 m` queries. -/
+theorem depth_kmCandidatesTree_fin_two_le {m : ℕ} (θ : ℝ)
+    (ω : Fin m → (Fin 2 → Bool) × (Fin 2 → Bool) × (Fin 2 → Bool)) :
+    (kmCandidatesTree θ ω).depth ≤ 7 * m := by
+  have h := depth_kmCandidatesTree_le θ ω
+  simp only [Fintype.card_fin] at h
+  omega
+
+/-- The query and sample step toward the Goldreich–Levin Theorem for a parity on two bits:
+`⌈32 log 64⌉` samples find exactly its own set, as the output of the query tree, except with
+probability `1 / 2`. -/
+theorem uniform_eval_kmCandidatesTree_parityOn_ne_le (U : Finset (Fin 2)) :
+    (PMF.uniformOfFintype (Fin ⌈32 * Real.log 64⌉₊ →
+        (Fin 2 → Bool) × (Fin 2 → Bool) × (Fin 2 → Bool))).toOuterMeasure
+      {ω | (kmCandidatesTree 1 ω).eval (parityOn U) ≠ {U}} ≤ ENNReal.ofReal (1 / 2) := by
+  refine ((PMF.uniformOfFintype _).toOuterMeasure.mono ?_).trans
+    (uniform_not_kmCandidatesTree_heavy_le_of_log (parityOn U) one_pos
+      (by norm_num : (0 : ℝ) < 1 / 2)
+      ((le_of_eq (by norm_num)).trans (Nat.le_ceil _)))
+  rintro ω hω ⟨hmem, hlt, _⟩
+  refine hω (eq_singleton_of_fourierCoeff_parityOn_ne_zero U
+    (hmem U (by simp [fourierCoeff_signVal_parityOn])) fun V hV h => ?_)
+  have h' := hlt V hV
+  rw [h] at h'
+  norm_num at h'
 
 end CslibFrontierTests.KushilevitzMansourConcentrated

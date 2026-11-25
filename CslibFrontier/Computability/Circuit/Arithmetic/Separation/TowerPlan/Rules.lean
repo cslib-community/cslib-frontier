@@ -42,14 +42,6 @@ variable {F : Type*} [CommSemiring F] {h b D J r m Uu A A' U0 U1 : ℕ} {T : Tow
   {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T} {Pl : Placement T ch A'}
   {lhat : ℕ}
 
-private theorem VertexMove.kind_eq_of_isPicked {L : Target T m A → ℕ} {l : VertexMove FL}
-    {d : FL.Kind} (h1 : l.IsPicked L) (h2 : (l.withKind d).IsPicked L) : l.kind = d := by
-  rcases lt_trichotomy (Fintype.equivFin FL.Kind d) (Fintype.equivFin FL.Kind l.kind)
-    with hlt | heq | hlt
-  · exact absurd h2.1 (h1.2 d hlt)
-  · exact ((Fintype.equivFin FL.Kind).injective heq).symm
-  · exact absurd h1.1 (h2.2 l.kind hlt)
-
 /-- Relays that are used are determined by their inputs. -/
 private theorem Relay.eq_of_input_eq {L : Target T m A → ℕ} {x x' : Relay T m A}
     (hx : x.Occurs R ch) (hx' : x'.Occurs R ch) (ha : x.Active L) (ha' : x'.Active L)
@@ -57,7 +49,7 @@ private theorem Relay.eq_of_input_eq {L : Target T m A → ℕ} {x x' : Relay T 
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e <;>
     rcases x' with ⟨a', c', γ', s'⟩ | ⟨j', i', e'⟩ | ⟨j', e', s'⟩ | e' <;>
     simp only [Relay.input] at he <;> (try split_ifs at he) <;>
-    grind [Relay.Active, Relay.Occurs, IsChosenType, IsLeast.unique, Fin.castSucc_inj,
+    grind [Relay.Active, Relay.Occurs, Tower.IsChosenType, IsLeast.unique, Fin.castSucc_inj,
       Fin.castSucc_ne_last]
 
 private theorem slotRank_inj {d : FL.Kind} {e e' : (FL.law d).Slot}

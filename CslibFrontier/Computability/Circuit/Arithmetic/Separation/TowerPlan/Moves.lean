@@ -99,7 +99,7 @@ variable {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T}
   | .vertex l => FL.law l.kind
 
 /-- The nodes at the roles of a move. -/
-@[expose] noncomputable def party : (mv : Move R ch FL) → mv.law.Role → Node T
+@[expose] noncomputable def party : (mv : Move R ch FL) → mv.law.Role → T.Node
   | .relay x _ => x.party R ch
   | .vertex l => fun p => .ofChamber l.stage.2
       ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, FL.place l.kind p))
@@ -109,7 +109,7 @@ theorem party_injective (mv : Move R ch FL) : Function.Injective mv.party := by
   rcases mv with ⟨x, hx⟩ | l
   · exact Relay.party_injective hx
   · intro p q hpq
-    have h1 := Node.ofChamber_inj (hj := l.stage.2) (hj' := l.stage.2) |>.1 hpq
+    have h1 := Tower.Node.ofChamber_inj (hj := l.stage.2) (hj' := l.stage.2) |>.1 hpq
     exact (FL.place l.kind).injective (by simpa using congrArg (T.co l.type) h1)
 
 /-- The time of a move: the law moves of a stage come after its relays. -/
@@ -145,7 +145,7 @@ end Move
 the base parties. -/
 structure Placement (T : Tower h b D J r) (ch : Fin A ↪ T.X 0) (A' : ℕ) where
   /-- The party of a node. -/
-  party : Node T ≃ Fin (A + A')
+  party : T.Node ≃ Fin (A + A')
   party_base : ∀ a, party (.ofChamber (Nat.zero_le J) (ch a)) = Fin.castAdd A' a
 
 section Moves
