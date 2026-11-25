@@ -116,26 +116,28 @@ theorem wordStructure.partialIso_iff {u v : List α} {k : ℕ} {a : Fin k → Fi
   constructor
   · intro h
     refine ⟨fun i j => ?_, fun i => ?_⟩
-    · simpa only [wordStructure.relMap_ltSymb, Function.comp_apply, Matrix.cons_val_zero,
-        Matrix.cons_val_one] using
-        @FO.PartialIso.relMap_iff (wordLanguage α) _ _ (wordStructure u) (wordStructure v)
-          k a b h 2 wordLanguage.ltSymb ![i, j]
+    · have := @FO.PartialIso.relMap_iff (wordLanguage α) _ _ (wordStructure u) (wordStructure v)
+        k a b h 2 wordLanguage.ltSymb ![i, j]
+      rwa [wordStructure.relMap_ltSymb, wordStructure.relMap_ltSymb] at this
     · have := @FO.PartialIso.relMap_iff (wordLanguage α) _ _ (wordStructure u) (wordStructure v)
         k a b h 1 (wordLanguage.letterSymb u[a i]) ![i]
-      simpa only [wordStructure.relMap_letterSymb, Function.comp_apply, Matrix.cons_val_zero,
-        true_iff, eq_comm] using this
+      rw [wordStructure.relMap_letterSymb, wordStructure.relMap_letterSymb] at this
+      exact (this.1 rfl).symm
   · rintro ⟨hlt, hlet⟩
     refine @FO.PartialIso.mk (wordLanguage α) _ _ (wordStructure u) (wordStructure v) k a b
-      (fun i j => by simp only [le_antisymm_iff, ← not_lt, hlt]) fun {l} R f => ?_
-    cases R with
-    | lt =>
-      exact (wordStructure.relMap_ltSymb u (a ∘ f)).trans
-        ((hlt (f 0) (f 1)).trans (wordStructure.relMap_ltSymb v (b ∘ f)).symm)
-    | letter c =>
-      refine (wordStructure.relMap_letterSymb u c (a ∘ f)).trans
-        (Iff.trans ?_ (wordStructure.relMap_letterSymb v c (b ∘ f)).symm)
-      change u[a (f 0)] = c ↔ v[b (f 0)] = c
-      rw [hlet]
+      (fun i j => ?_) (fun {l} R f => ?_)
+    · simp only [le_antisymm_iff, ← not_lt, hlt]
+    · cases R with
+      | lt =>
+        have h1 := wordStructure.relMap_ltSymb u (a ∘ f)
+        have h2 := wordStructure.relMap_ltSymb v (b ∘ f)
+        exact h1.trans ((hlt (f 0) (f 1)).trans h2.symm)
+      | letter c =>
+        have h1 := wordStructure.relMap_letterSymb u c (a ∘ f)
+        have h2 := wordStructure.relMap_letterSymb v c (b ∘ f)
+        refine h1.trans (Iff.trans ?_ h2.symm)
+        change u[a (f 0)] = c ↔ v[b (f 0)] = c
+        rw [hlet]
 
 namespace WordDuplicatorWins
 
@@ -231,16 +233,20 @@ theorem partialIso_append {u₁ u₂ v₁ v₂ : List α} {k₁ k₂ k : ℕ}
   refine ⟨fun i j => ?_, fun i => ?_⟩
   · rw [hA, hA, hB, hB, List.appendIndexEquiv_lt_iff, List.appendIndexEquiv_lt_iff]
     rcases σ i with i' | i' <;> rcases σ j with j' | j'
-    · simpa only [Sum.map_inl, Sum.lex_inl_inl] using h₁.1 i' j'
+    · simp only [Sum.map_inl, Sum.lex_inl_inl]
+      exact h₁.1 i' j'
     · exact iff_of_true (Sum.Lex.sep _ _) (Sum.Lex.sep _ _)
     · exact iff_of_false Sum.lex_inr_inl Sum.lex_inr_inl
-    · simpa only [Sum.map_inr, Sum.lex_inr_inr] using h₂.1 i' j'
+    · simp only [Sum.map_inr, Sum.lex_inr_inr]
+      exact h₂.1 i' j'
   · simp only [hA, hB]
-    exact (σ i).casesOn
-      (motive := fun x => (u₁ ++ u₂)[List.appendIndexEquiv u₁ u₂ (x.map a₁ a₂)] =
-        (v₁ ++ v₂)[List.appendIndexEquiv v₁ v₂ (x.map b₁ b₂)])
-      (fun i' => by simpa only [Sum.map_inl, List.getElem_appendIndexEquiv_inl] using h₁.2 i')
-      (fun i' => by simpa only [Sum.map_inr, List.getElem_appendIndexEquiv_inr] using h₂.2 i')
+    have key : ∀ x : Fin k₁ ⊕ Fin k₂, (u₁ ++ u₂)[List.appendIndexEquiv u₁ u₂ (x.map a₁ a₂)] =
+        (v₁ ++ v₂)[List.appendIndexEquiv v₁ v₂ (x.map b₁ b₂)]
+      | .inl i' => by
+        simpa only [Sum.map_inl, List.getElem_appendIndexEquiv_inl] using h₁.2 i'
+      | .inr i' => by
+        simpa only [Sum.map_inr, List.getElem_appendIndexEquiv_inr] using h₂.2 i'
+    exact key (σ i)
 
 /-- Bookkeeping for a move in the first factor: the extended combined position puts the new pebble
 on the new pebble of the first factor. -/
@@ -330,20 +336,13 @@ theorem append_cons {n : ℕ} {u₁ u₂ v₁ v₂ : List α} (c : α)
   have hmid : WordDuplicatorWins n (c :: u₂) (c :: v₂) ![0] ![0] :=
     WordDuplicatorWins.append n (u₁ := [c]) (v₁ := [c]) (a₂ := Fin.elim0) (b₂ := Fin.elim0)
       (fun _ => .inl 0)
-      (fun i => Fin.ext (by
-        rw [Sum.map_inl, List.val_appendIndexEquiv_inl]
-        simp))
-      (fun i => Fin.ext (by
-        rw [Sum.map_inl, List.val_appendIndexEquiv_inl]
-        simp))
+      (fun i => Fin.ext (by simp only [Sum.map_inl]; rw [List.val_appendIndexEquiv_inl]; simp))
+      (fun i => Fin.ext (by simp only [Sum.map_inl]; rw [List.val_appendIndexEquiv_inl]; simp))
       (refl n [c] ![0]) h₂
   exact WordDuplicatorWins.append n (a₁ := Fin.elim0) (b₁ := Fin.elim0) (fun _ => .inr 0)
-    (fun i => Fin.ext (by
-      rw [Sum.map_inr, List.val_appendIndexEquiv_inr]
-      simp))
-    (fun i => Fin.ext (by
-      rw [Sum.map_inr, List.val_appendIndexEquiv_inr]
-      simp)) h₁ hmid
+    (fun i => Fin.ext (by simp only [Sum.map_inr]; rw [List.val_appendIndexEquiv_inr]; simp))
+    (fun i => Fin.ext (by simp only [Sum.map_inr]; rw [List.val_appendIndexEquiv_inr]; simp))
+    h₁ hmid
 
 end WordDuplicatorWins
 
