@@ -453,42 +453,18 @@ theorem exp3_regret_le_sq {η : ℝ} (hη : 0 < η) {ℓ : ℕ → ι → ℝ} {
       unfold exp3EstLossSeq
       have hI : 0 ≤ ℓ s (I s) := hℓ s hs (I s)
       exact importanceWeightedEst_nonneg (exp3Prob_nonneg η _ _) hI j
+    have hest (t : Fin T) : exp3EstLossSeq η ℓ I t =
+        importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
+          ⟨traj t, ℓ t (traj t)⟩ := by
+      rw [exp3EstLossSeq, hpre t, show I t.1 = traj t by simp [I, t.isLt]]
+    have hprob (t : Fin T) : Experts.prob (Experts.hedgeFactor η) (exp3EstLossSeq η ℓ I) t =
+        exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) := by
+      rw [← exp3Prob_eq_experts_prob, hpre t]
+    have hp (hist : List (BanditStep ι)) (a : ι) : exp3Prob η hist a ≠ 0 :=
+      (exp3Prob_pos η hist a).ne'
     have hhedge := Experts.hedge_regret_le_of_nonneg (T := T) hη hest_nonneg i
-    have hlhs : (∑ t ∈ range T,
-        ∑ j, Experts.prob (Experts.hedgeFactor η) (exp3EstLossSeq η ℓ I) t j *
-          exp3EstLossSeq η ℓ I t j) = ∑ t : Fin T, ℓ t (traj t) := by
-      rw [← Fin.sum_univ_eq_sum_range]
-      refine sum_congr rfl fun t _ => ?_
-      rw [← exp3Prob_eq_experts_prob, hpre t]
-      unfold exp3EstLossSeq
-      rw [hpre t]
-      have hIt : I t.1 = traj t := by simp [I, t.isLt]
-      rw [hIt]
-      exact sum_mul_importanceWeightedEst (exp3Prob_pos η _ _).ne'
-    have hcomp : (∑ t ∈ range T, exp3EstLossSeq η ℓ I t i) =
-        ∑ t : Fin T, importanceWeightedEst (exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le))
-          ⟨traj t, ℓ t (traj t)⟩ i := by
-      rw [← Fin.sum_univ_eq_sum_range]
-      refine sum_congr rfl fun t _ => ?_
-      unfold exp3EstLossSeq
-      rw [hpre t]
-      have hIt : I t.1 = traj t := by simp [I, t.isLt]
-      rw [hIt]
-    have hvar : (∑ t ∈ range T,
-        ∑ j, Experts.prob (Experts.hedgeFactor η) (exp3EstLossSeq η ℓ I) t j *
-          exp3EstLossSeq η ℓ I t j ^ 2) =
-      ∑ t : Fin T,
-        ℓ t (traj t) ^ 2 / exp3Prob η (prefixHistory ℓ traj t.1 t.isLt.le) (traj t) := by
-      rw [← Fin.sum_univ_eq_sum_range]
-      refine sum_congr rfl fun t _ => ?_
-      rw [← exp3Prob_eq_experts_prob, hpre t]
-      unfold exp3EstLossSeq
-      rw [hpre t]
-      have hIt : I t.1 = traj t := by simp [I, t.isLt]
-      rw [hIt]
-      exact sum_mul_sq_importanceWeightedEst (exp3Prob_pos η _ _).ne'
-    rw [hlhs, hcomp, hvar] at hhedge
-    exact hhedge
+    simpa only [← Fin.sum_univ_eq_sum_range, hprob, hest, sum_mul_importanceWeightedEst (hp _ _),
+      sum_mul_sq_importanceWeightedEst (hp _ _)] using hhedge
   rw [expectedTotal_def]
   calc ∑ traj : Fin T → ι, (trajectoryPMF (exp3Policy η) ℓ T traj).toReal *
         ∑ t : Fin T, ℓ t (traj t)
@@ -523,13 +499,7 @@ theorem exp3_pseudoRegret_le [Nonempty ι] (E : ObliviousBandit ι) {η : ℝ} (
           nlinarith [h01.1, h01.2]
       _ = T * Fintype.card ι := by simp
   have hmain := exp3_regret_le_sq (T := T) hη (fun s _ a => (E.mem_unitInterval s a).1) i
-  have hmul : (η / 2) * ∑ t ∈ range T, ∑ a : ι, E.loss t a ^ 2 ≤
-      η * T * Fintype.card ι / 2 := by
-    calc (η / 2) * ∑ t ∈ range T, ∑ a : ι, E.loss t a ^ 2
-        ≤ (η / 2) * (T * Fintype.card ι) :=
-          mul_le_mul_of_nonneg_left hsq_le (by positivity)
-      _ = η * T * Fintype.card ι / 2 := by ring
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hsq_le (by positivity : (0 : ℝ) ≤ η / 2)]
 
 /-- Horizon-tuned learning rate `√(2 ln K / (T K))` for loss-based `EXP3` (`1` in the trivial cases
 `K ≤ 1` or `T = 0`). -/
@@ -647,14 +617,17 @@ private theorem sum_exp3GammaWeight_pos [Nonempty ι] (γ : ℝ) (hist : List (B
     0 < ∑ k, exp3GammaWeight γ hist k :=
   sum_pos (fun k _ => exp3GammaWeight_pos γ hist k) univ_nonempty
 
+private theorem exp3GammaWeight_div_nonneg [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι))
+    (i : ι) : 0 ≤ exp3GammaWeight γ hist i / ∑ k, exp3GammaWeight γ hist k :=
+  div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
+
 private theorem exp3GammaProb_nonneg [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) (i : ι) :
     0 ≤ exp3GammaProb γ hist i := by
   unfold exp3GammaProb exp3GammaMix
   set γ' := max 0 (min 1 γ)
   have hγ0 : 0 ≤ γ' := le_max_left _ _
   have hγ1 : γ' ≤ 1 := max_le zero_le_one (min_le_left _ _)
-  have hw0 : 0 ≤ exp3GammaWeight γ hist i / ∑ k, exp3GammaWeight γ hist k :=
-    div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
+  have hw0 := exp3GammaWeight_div_nonneg γ hist i
   exact add_nonneg (mul_nonneg (sub_nonneg.mpr hγ1) hw0) (div_nonneg hγ0 (Nat.cast_nonneg _))
 
 private theorem exp3GammaProb_pos_of_pos [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ)
@@ -664,8 +637,7 @@ private theorem exp3GammaProb_pos_of_pos [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ
   set γ' := max 0 (min 1 γ)
   have hγ' : 0 < γ' := lt_max_of_lt_right (lt_min zero_lt_one hγ0)
   have hγ1 : γ' ≤ 1 := max_le zero_le_one (min_le_left _ _)
-  have hw0 : 0 ≤ exp3GammaWeight γ hist i / ∑ k, exp3GammaWeight γ hist k :=
-    div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
+  have hw0 := exp3GammaWeight_div_nonneg γ hist i
   have hK : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.mpr Fintype.card_pos
   exact add_pos_of_nonneg_of_pos (mul_nonneg (sub_nonneg.mpr hγ1) hw0) (div_pos hγ' hK)
 
@@ -675,8 +647,7 @@ private theorem exp3GammaProb_ge_div_card [Nonempty ι] {γ : ℝ} (hγ0 : 0 ≤
   unfold exp3GammaProb exp3GammaMix
   have hclamp : max 0 (min 1 γ) = γ := by rw [min_eq_right hγ1, max_eq_right hγ0]
   rw [hclamp]
-  have hw0 : 0 ≤ exp3GammaWeight γ hist i / ∑ k, exp3GammaWeight γ hist k :=
-    div_nonneg (exp3GammaWeight_pos γ hist i).le (sum_exp3GammaWeight_pos γ hist).le
+  have hw0 := exp3GammaWeight_div_nonneg γ hist i
   linarith [mul_nonneg (sub_nonneg.mpr hγ1) hw0]
 
 private theorem sum_exp3GammaProb [Nonempty ι] (γ : ℝ) (hist : List (BanditStep ι)) :
@@ -913,27 +884,8 @@ private theorem exp3Gamma_pathwise_bound [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ
           ∑ t : Fin T,
             g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t) :=
     by linarith
-  have hfac : 0 < K * (1 - γ) / γ := div_pos (mul_pos hK h1γ) hγ0
-  have hmul := mul_le_mul_of_nonneg_left hcomb hfac.le
-  have hsimp1 : (K * (1 - γ) / γ) *
-      ((γ / K) * (∑ t : Fin T,
-        importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
-          ⟨traj t, g t (traj t)⟩ i) - log K) =
-      (1 - γ) * (∑ t : Fin T,
-        importanceWeightedEst (exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le))
-          ⟨traj t, g t (traj t)⟩ i) - (1 - γ) * K * log K / γ := by
+  convert mul_le_mul_of_nonneg_left hcomb (div_pos (mul_pos hK h1γ) hγ0).le using 1 <;>
     field_simp
-  have hsimp2 : (K * (1 - γ) / γ) *
-      (((γ / K) / (1 - γ)) * (∑ t : Fin T, g t (traj t)) +
-        ((exp 1 - 2) * (γ / K) ^ 2 / (1 - γ)) *
-          ∑ t : Fin T,
-            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t)) =
-      (∑ t : Fin T, g t (traj t)) +
-        (exp 1 - 2) * (γ / K) *
-          ∑ t : Fin T,
-            g t (traj t) ^ 2 / exp3GammaProb γ (prefixHistory g traj t.1 t.isLt.le) (traj t) := by
-    field_simp
-  linarith
 
 /-- **Expected weak regret of `Exp3`** ([AuerCesaBianchiFreundSchapire2002, Theorem 3.1], locator
 not re-verified against primary PDF): for `γ ∈ (0, 1]` and `[0, 1]` rewards `g`,
@@ -1006,11 +958,9 @@ theorem exp3Gamma_rewardRegret_le [Nonempty ι] {γ : ℝ} (hγ0 : 0 < γ) (hγ1
           ≤ (exp 1 - 2) * (γ / K) * (K * bestCumReward g T) :=
             mul_le_mul_of_nonneg_left hsq_le_Gmax (by positivity)
         _ = (exp 1 - 2) * γ * bestCumReward g T := by field_simp
-    have hKL_le : (1 - γ) * K * log K / γ ≤ K * log K / γ := by
-      have : (1 - γ) * (K * log K) ≤ 1 * (K * log K) :=
-        mul_le_mul_of_nonneg_right (by linarith) (by positivity)
-      rw [mul_assoc]
-      exact div_le_div_of_nonneg_right (by linarith) hγ0.le
+    have hKL_le : (1 - γ) * K * log K / γ ≤ K * log K / γ :=
+      div_le_div_of_nonneg_right (by nlinarith [mul_nonneg (mul_nonneg hγ0.le hK.le) hlogK])
+        hγ0.le
     have hGstar : ∑ t ∈ range T, g t iStar = bestCumReward g T := hiStar.symm
     rw [hGstar] at havg
     nlinarith
