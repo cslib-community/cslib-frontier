@@ -1075,14 +1075,12 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
     have h_ite := ComputableInPolyTime.ite' hcond
       (encShoupPackAcc_mk_polyTime hrem hrem hnextS hrep)
       (encShoupPackAcc_mk_polyTime hrem hown hactS hmsk)
-    exact (show _ = (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => iterF q.1 q.2) from
-      funext fun _ => rfl) ▸ h_ite
+    exact h_ite
   have hT0 : ComputableInPolyTime T0 encIn encBits :=
     ComputableInPolyTime.bitsRowWithInput
       (computableInPolyTime_shoupMasksLen hb ht) (.const 0) hT
-  have hpar : ComputableInPolyTime (fun a : γ => (a, iStar a, x a, T0 a)) encIn encPar :=
-    (by fun_prop : ComputableInPolyTime (fun a : γ => a) encIn encIn).prod
-      (hi.prod (hx.prod hT0))
+  have hpar : ComputableInPolyTime (fun a : γ => (a, iStar a, x a, T0 a)) encIn encPar := by
+    fun_prop
   obtain ⟨heff, _⟩ := ComputableInPolyTime.iterateWith_spec hpar hi
     (encShoupPackAcc_mk_polyTime hi hi
       (ComputableInPolyTime.bitsRowWithInput hb
@@ -1106,8 +1104,7 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
     fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
       simp only [encShoupPackAcc_apply, length_encPair, encUnary_apply, encBits_apply,
         List.length_replicate, h3, h4]; omega
-  exact (show _ = (fun a => shoupPackMasks (b a) (s a) (t a) (iStar a) (step a) (x a) (T a)) from
-    funext fun _ => rfl) ▸ encShoupPackAcc_masks_polyTime heff
+  exact encShoupPackAcc_masks_polyTime heff
 
 /-! ### Standalone Shoup composition (`[Shoup2000]`, `[HHRVW2020]` Lemma 5.7) -/
 
