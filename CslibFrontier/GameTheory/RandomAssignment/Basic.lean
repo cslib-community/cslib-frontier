@@ -104,16 +104,7 @@ lemma upperContourSum_add {n : ℕ} (π : Equiv.Perm (Fin n)) (x y : Fin n → �
 lemma upperContourSum_eq_sum_filter {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → ℝ)
     (k : Fin n) :
     upperContourSum π x k = ∑ o : Fin n with π.symm o ≤ k, x o := by
-  unfold upperContourSum
-  refine Finset.sum_nbij π ?_ ?_ ?_ (fun _ _ => rfl)
-  · intro r hr
-    rw [Finset.mem_filter]
-    exact ⟨Finset.mem_univ _, by simpa using Finset.mem_Iic.mp hr⟩
-  · intro a _ b _ hab
-    exact π.injective hab
-  · intro o ho
-    rw [Finset.mem_coe, Finset.mem_filter] at ho
-    exact ⟨π.symm o, Finset.mem_Iic.mpr ho.2, π.apply_symm_apply o⟩
+  exact Finset.sum_nbij' π π.symm (by simp) (by simp) (by simp) (by simp) (by simp)
 
 lemma upperContourSum_succ {n : ℕ} (π : Equiv.Perm (Fin n)) (x : Fin n → ℝ)
     {k : Fin n} (hk : 0 < k.val) :
@@ -210,19 +201,7 @@ lemma sdDominates_single_iff {n : ℕ} (π : Equiv.Perm (Fin n)) (a b : Fin n)
       upperContourSum π (fun o => if o = z then c else 0) k =
         if π.symm z ≤ k then c else 0 := by
     intro z k
-    rw [upperContourSum_eq_sum_filter]
-    by_cases h : π.symm z ≤ k
-    · rw [Finset.sum_eq_single z]
-      · simp [h]
-      · intro o _ ho; simp [ho]
-      · intro hz
-        exfalso
-        exact hz (Finset.mem_filter.mpr ⟨Finset.mem_univ _, h⟩)
-    · rw [ite_eq_right_iff.mpr fun hc' => absurd hc' h]
-      refine Finset.sum_eq_zero fun o ho => ?_
-      have ho' := (Finset.mem_filter.mp ho).2
-      have hne : o ≠ z := fun heq => h (heq ▸ ho')
-      simp [hne]
+    simp [upperContourSum_eq_sum_filter]
   constructor
   · intro h
     have hk := h (π.symm b)
@@ -696,65 +675,29 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
           ∑ o ∈ Finset.univ.filter (fun o => (p i).symm o ≤ k),
               (if agent j = i ∧ f j = o then ε else 0) =
             if agent j = i ∧ (p i).symm (f j) ≤ k then ε else 0 := fun f j => by
-        by_cases hji : agent j = i
-        · subst hji
-          by_cases hfk : (p (agent j)).symm (f j) ≤ k
-          · simp only [hfk, and_self, ↓reduceIte]
-            rw [Finset.sum_eq_single (f j)]
-            · simp
-            · intro o _ ho; simp [ho.symm]
-            · intro hmem
-              exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ (f j), hfk⟩) hmem
-          · simp only [hfk, and_false, ↓reduceIte]
-            refine Finset.sum_eq_zero fun o ho => ?_
-            have hne : f j ≠ o := fun heq => hfk (heq ▸ (Finset.mem_filter.mp ho).2)
-            simp [hne]
-        · simp only [hji, false_and, ↓reduceIte, Finset.sum_const_zero]
+        by_cases hji : agent j = i <;> simp [hji]
       refine Finset.sum_congr rfl fun j _ => ?_
       rw [Finset.sum_sub_distrib, hterm_uc next j, hterm_uc c j]
     have hterm_nonneg : ∀ (i k : Fin n) (j : Fin m),
         0 ≤ (if agent j = i ∧ (p i).symm (next j) ≤ k then ε else 0) -
             (if agent j = i ∧ (p i).symm (c j) ≤ k then ε else 0) := by
       intro i k j
-      by_cases hji : agent j = i
-      · subst hji
-        by_cases hck : (p (agent j)).symm (c j) ≤ k
-        · have hnk : (p (agent j)).symm (next j) ≤ k := (hpref j).le.trans hck
-          simp [hnk, hck]
-        · simp only [hck, and_false, ↓reduceIte, sub_zero]
-          split_ifs
-          · exact hε_pos.le
-          · exact le_rfl
-      · simp [hji]
+      by_cases hck : agent j = i ∧ (p i).symm (c j) ≤ k
+      · obtain ⟨rfl, h⟩ := hck
+        simp [show (p (agent j)).symm (next j) ≤ k from (hpref j).le.trans h, h]
+      · simp only [hck, ↓reduceIte, sub_zero]
+        split_ifs <;> linarith
     have hweak : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k => by
       have hge : 0 ≤ upperContourSum (p i) (Q i) k - upperContourSum (p i) (P i) k := by
         rw [hdiff i k]
         exact Finset.sum_nonneg fun j _ => hterm_nonneg i k j
       linarith
     refine ⟨Q, hQds, hweak, agent j₀, hweak (agent j₀), (p (agent j₀)).symm (next j₀), ?_⟩
-    have hterm_pos :
-        (if agent j₀ = agent j₀ ∧ (p (agent j₀)).symm (next j₀) ≤
-            (p (agent j₀)).symm (next j₀) then ε else 0) -
-          (if agent j₀ = agent j₀ ∧ (p (agent j₀)).symm (c j₀) ≤
-            (p (agent j₀)).symm (next j₀) then ε else 0) = ε := by
-      have hnot : ¬ (p (agent j₀)).symm (c j₀) ≤ (p (agent j₀)).symm (next j₀) :=
-        (hpref j₀).not_ge
-      simp [hnot]
-    have hsum_ge : ε ≤ upperContourSum (p (agent j₀)) (Q (agent j₀))
-        ((p (agent j₀)).symm (next j₀)) -
-        upperContourSum (p (agent j₀)) (P (agent j₀)) ((p (agent j₀)).symm (next j₀)) := by
-      rw [hdiff]
-      calc ε = (if agent j₀ = agent j₀ ∧ (p (agent j₀)).symm (next j₀) ≤
-                  (p (agent j₀)).symm (next j₀) then ε else 0) -
-                (if agent j₀ = agent j₀ ∧ (p (agent j₀)).symm (c j₀) ≤
-                  (p (agent j₀)).symm (next j₀) then ε else 0) := hterm_pos.symm
-        _ ≤ _ := Finset.single_le_sum
-            (f := fun j =>
-              (if agent j = agent j₀ ∧
-                  (p (agent j₀)).symm (next j) ≤ (p (agent j₀)).symm (next j₀) then ε else 0) -
-              (if agent j = agent j₀ ∧
-                  (p (agent j₀)).symm (c j) ≤ (p (agent j₀)).symm (next j₀) then ε else 0))
-            (fun j _ => hterm_nonneg _ _ j) (Finset.mem_univ j₀)
+    have h := Finset.single_le_sum
+      (fun j _ => hterm_nonneg (agent j₀) ((p (agent j₀)).symm (next j₀)) j) (Finset.mem_univ j₀)
+    rw [← hdiff] at h
+    have hnot : ¬ (p (agent j₀)).symm (c j₀) ≤ (p (agent j₀)).symm (next j₀) := (hpref j₀).not_ge
+    simp only [true_and, le_refl, ↓reduceIte, hnot, sub_zero] at h
     linarith
   · rintro ⟨hP, hacyc⟩
     refine ⟨hP, ?_⟩
@@ -824,102 +767,27 @@ theorem IsSDEfficient.isExPostEfficient {n : ℕ} {p : Profile n} {P : Matrix (F
   intro μ hwμ ⟨ν, hweak, i₀, hstrict⟩
   let Q : Matrix (Fin n) (Fin n) ℝ :=
     P + w μ • (ν.permMatrix ℝ - μ.permMatrix ℝ)
-  have hQ_eq : Q =
-      ∑ σ : Equiv.Perm (Fin n),
-        (if σ = μ then 0 else w σ) • σ.permMatrix ℝ + w μ • ν.permMatrix ℝ := by
-    have hsplit : ∑ σ : Equiv.Perm (Fin n), w σ • σ.permMatrix ℝ =
-        ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) • σ.permMatrix ℝ +
-          w μ • μ.permMatrix ℝ := by
-      have h1 : ∀ σ : Equiv.Perm (Fin n),
-          w σ • σ.permMatrix ℝ =
-            (if σ = μ then 0 else w σ) • σ.permMatrix ℝ +
-              (if σ = μ then w μ • μ.permMatrix ℝ else 0) := by
-        intro σ
-        by_cases h : σ = μ <;> simp [h]
-      calc ∑ σ : Equiv.Perm (Fin n), w σ • σ.permMatrix ℝ
-          = ∑ σ : Equiv.Perm (Fin n),
-              ((if σ = μ then 0 else w σ) • σ.permMatrix ℝ +
-                (if σ = μ then w μ • μ.permMatrix ℝ else 0)) :=
-            Finset.sum_congr rfl fun σ _ => h1 σ
-        _ = ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) • σ.permMatrix ℝ +
-              ∑ σ : Equiv.Perm (Fin n), (if σ = μ then w μ • μ.permMatrix ℝ else 0) :=
-            Finset.sum_add_distrib
-        _ = ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) • σ.permMatrix ℝ +
-              w μ • μ.permMatrix ℝ := by
-            congr 1
-            rw [Finset.sum_ite_eq']
-            simp [Finset.mem_univ]
-    simp only [Q, ← hw_eq, hsplit, smul_sub]
-    abel
+  have hPds := mem_doublyStochastic_iff_sum.mp heff.1
+  have hperm (σ : Equiv.Perm (Fin n)) :=
+    mem_doublyStochastic_iff_sum.mp (permMatrix_mem_doublyStochastic (R := ℝ) (σ := σ))
   have hQds : Q ∈ doublyStochastic ℝ (Fin n) := by
     rw [mem_doublyStochastic_iff_sum]
-    have hperm_row : ∀ σ : Equiv.Perm (Fin n), ∀ i, ∑ j, σ.permMatrix ℝ i j = 1 :=
-      fun σ i => sum_row_of_mem_doublyStochastic (permMatrix_mem_doublyStochastic (σ := σ)) i
-    have hperm_col : ∀ σ : Equiv.Perm (Fin n), ∀ j, ∑ i, σ.permMatrix ℝ i j = 1 :=
-      fun σ j => sum_col_of_mem_doublyStochastic (permMatrix_mem_doublyStochastic (σ := σ)) j
-    have hperm_nn : ∀ σ : Equiv.Perm (Fin n), ∀ i j, 0 ≤ σ.permMatrix ℝ i j :=
-      fun σ i j => nonneg_of_mem_doublyStochastic (permMatrix_mem_doublyStochastic (σ := σ))
-    have hsum_rest : ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) = 1 - w μ := by
-      have h2 : ∑ σ : Equiv.Perm (Fin n), w σ =
-          ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) + w μ := by
-        have h1 : ∀ σ : Equiv.Perm (Fin n),
-            w σ = (if σ = μ then 0 else w σ) + (if σ = μ then w μ else 0) := fun σ => by
-          by_cases h : σ = μ <;> simp [h]
-        calc ∑ σ : Equiv.Perm (Fin n), w σ
-            = ∑ σ : Equiv.Perm (Fin n),
-                ((if σ = μ then 0 else w σ) + (if σ = μ then w μ else 0)) :=
-              Finset.sum_congr rfl fun σ _ => h1 σ
-          _ = ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) +
-                ∑ σ : Equiv.Perm (Fin n), (if σ = μ then w μ else 0) :=
-              Finset.sum_add_distrib
-          _ = ∑ σ : Equiv.Perm (Fin n), (if σ = μ then 0 else w σ) + w μ := by
-              congr 1
-              rw [Finset.sum_ite_eq']
-              simp [Finset.mem_univ]
-      linarith
-    refine ⟨fun i j => ?_, fun i => ?_, fun j => ?_⟩
-    · rw [hQ_eq]
-      simp only [Matrix.add_apply, Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul]
-      refine add_nonneg (Finset.sum_nonneg fun σ _ => mul_nonneg ?_ (hperm_nn σ i j))
-        (mul_nonneg hwμ.le (hperm_nn ν i j))
-      split_ifs
-      · exact le_rfl
-      · exact hw_nn σ
-    · rw [hQ_eq]
-      simp only [Matrix.add_apply, Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul,
-        Finset.sum_add_distrib]
-      rw [Finset.sum_comm (f := fun j σ => (if σ = μ then 0 else w σ) * σ.permMatrix ℝ i j)]
-      simp only [← Finset.mul_sum, hperm_row, mul_one, hsum_rest]
-      linarith
-    · rw [hQ_eq]
-      simp only [Matrix.add_apply, Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul,
-        Finset.sum_add_distrib]
-      rw [Finset.sum_comm (f := fun i σ => (if σ = μ then 0 else w σ) * σ.permMatrix ℝ i j)]
-      simp only [← Finset.mul_sum, hperm_col, mul_one, hsum_rest]
-      linarith
+    simp only [Q, Matrix.add_apply, Matrix.smul_apply, Matrix.sub_apply, smul_eq_mul,
+      Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_sub_distrib, hPds.2.1, hPds.2.2,
+      (hperm ν).2.1, (hperm μ).2.1, (hperm ν).2.2, (hperm μ).2.2, sub_self, mul_zero, add_zero,
+      implies_true, and_true]
+    intro i j
+    -- `P` dominates the `μ`-summand of its Birkhoff–von Neumann decomposition.
+    have hμ : w μ * μ.permMatrix ℝ i j ≤ P i j := by
+      rw [← hw_eq, Matrix.sum_apply]
+      exact Finset.single_le_sum (f := fun σ => (w σ • σ.permMatrix ℝ) i j)
+        (fun σ _ => mul_nonneg (hw_nn σ) ((hperm σ).1 i j)) (Finset.mem_univ μ)
+    linarith [mul_nonneg hwμ.le ((hperm ν).1 i j)]
   have hperm_uc : ∀ (π σ : Equiv.Perm (Fin n)) (i k : Fin n),
       upperContourSum π (σ.permMatrix ℝ i) k =
         if π.symm (σ i) ≤ k then 1 else 0 := by
     intro π σ i k
-    rw [upperContourSum_eq_sum_filter]
-    have hentry : ∀ o : Fin n, σ.permMatrix ℝ i o = if σ i = o then 1 else 0 := by
-      intro o
-      by_cases h : σ i = o
-      · subst h; simp [Equiv.Perm.permMatrix, PEquiv.toMatrix_apply, Equiv.toPEquiv_apply]
-      · simp [Equiv.Perm.permMatrix, PEquiv.toMatrix_apply, Equiv.toPEquiv_apply, h]
-    simp_rw [hentry]
-    by_cases h : π.symm (σ i) ≤ k
-    · simp only [h, ↓reduceIte]
-      rw [Finset.sum_eq_single (σ i)]
-      · simp
-      · intro o _ ho; simp [ho.symm]
-      · intro hmem
-        exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ (σ i), h⟩) hmem
-    · simp only [h, ↓reduceIte]
-      refine Finset.sum_eq_zero fun o ho => ?_
-      have ho' := (Finset.mem_filter.mp ho).2
-      have hne : σ i ≠ o := fun heq => h (heq ▸ ho')
-      simp [hne]
+    simp [upperContourSum_eq_sum_filter]
   have hQ_uc : ∀ i k : Fin n,
       upperContourSum (p i) (Q i) k = upperContourSum (p i) (P i) k +
         w μ * ((if (p i).symm (ν i) ≤ k then 1 else 0) -
