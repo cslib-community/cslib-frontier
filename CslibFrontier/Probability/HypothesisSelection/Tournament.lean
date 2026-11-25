@@ -408,7 +408,7 @@ private theorem le_maxDefeatRadius_of_ne_true {s : Finset ι} {hs : s.Nonempty}
   · exact absurd hc htest
   · exact hterm
 
-private theorem birgeTournamentSelect_pair_le_zero_or_lt [Finite α]
+private theorem birgeTournamentSelect_pair_le_zero_or_lt
     (s : Finset ι) (hs : s.Nonempty) (models : ι → _root_.PMF α) {n : ℕ} {x : Fin n → α} {r : ℝ}
     {i₀ : ι} (hi₀ : i₀ ∈ s)
     (hwin : ∀ j ∈ s, j ≠ i₀ → 10 * r ≤ hellingerDist (models i₀) (models j) →
