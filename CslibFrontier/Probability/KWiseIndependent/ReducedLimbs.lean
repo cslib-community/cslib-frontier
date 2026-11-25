@@ -391,14 +391,13 @@ theorem getLimb_xor (c a b m : ℕ) :
     getLimb c (a ^^^ b) m = getLimb c a m ^^^ getLimb c b m := by
   simp only [getLimb, Nat.shiftRight_xor_distrib, Nat.and_xor_distrib_right]
 
-private theorem mul_add_lt_mul {m s c k : ℕ} (hm : m < s) (hk : k < c) : m * c + k < s * c :=
-  (Nat.add_lt_add_left hk _).trans_le ((Nat.succ_mul m c).symm ▸ Nat.mul_le_mul_right c hm)
-
 theorem getLimb_and_low {c a m s : ℕ} (hm : m < s) :
     getLimb c (a &&& (2 ^ (s * c) - 1)) m = getLimb c a m := by
   apply Nat.eq_of_testBit_eq; intro k
   by_cases hk : k < c
-  · simp [testBit_getLimb, hk, mul_add_lt_mul hm hk]
+  · have hlt : m * c + k < s * c := by
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, hk, hlt]
   · simp [testBit_getLimb, hk]
 
 theorem getLimb_and_high (c a : ℕ) {s m : ℕ} (hm : s ≤ m) :
@@ -418,7 +417,9 @@ theorem getLimb_shiftLeft_mul_low (c a : ℕ) {s m : ℕ} (hm : m < s) :
     getLimb c (a <<< (s * c)) m = 0 := by
   apply Nat.eq_of_testBit_eq; intro k
   by_cases hk : k < c
-  · simp [testBit_getLimb, Nat.testBit_shiftLeft, hk, not_le.mpr (mul_add_lt_mul hm hk)]
+  · have hlt : m * c + k < s * c := by
+      simpa [Nat.mul_comm] using Nat.mul_add_lt_mul_of_lt_of_lt hm hk
+    simp [testBit_getLimb, Nat.testBit_shiftLeft, hk, not_le.mpr hlt]
   · simp [testBit_getLimb, hk]
 
 theorem getLimb_shiftLeft_mul_add (c a s m : ℕ) :

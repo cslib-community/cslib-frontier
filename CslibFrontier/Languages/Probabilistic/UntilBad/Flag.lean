@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.Support
 
 /-!
 # Stateful `ProbOracleComp` identical-until-bad hops and monotone bad-flag combinators
@@ -128,12 +129,6 @@ theorem IdenticalUntilBad.closeTo_bind (h : IdenticalUntilBad first second bad)
       (((interpret first program).run s).toOuterMeasure {x | bad x.2}) :=
   (h.closeTo_run program s).bind_left next
 
-private theorem snd_eq_of_mem_support_lift {γ σ : Type} {μ : PMF γ} {s : σ} {x : γ × σ}
-    (hx : x ∈ (StateT.lift (σ := σ) μ s).support) : x.2 = s := by
-  change x ∈ (μ.map (·, s)).support at hx
-  obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-  rfl
-
 /-- Lifting a memoryless handler on the left of `sumHandler` preserves `IdenticalUntilBad` on the
 right. -/
 theorem IdenticalUntilBad.sumHandler_lift_left {ι₁ : Type} {spec₁ : ι₁ → Type}
@@ -147,11 +142,11 @@ theorem IdenticalUntilBad.sumHandler_lift_left {ι₁ : Type} {spec₁ : ι₁ �
     | inr q₂ => exact h.agree q₂ s hs a s' hs'
   absorb_first q s hs x hx := by
     cases q with
-    | inl q₁ => exact (snd_eq_of_mem_support_lift hx).symm ▸ hs
+    | inl q₁ => exact (Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_first q₂ s hs x hx
   absorb_second q s hs x hx := by
     cases q with
-    | inl q₁ => exact (snd_eq_of_mem_support_lift hx).symm ▸ hs
+    | inl q₁ => exact (Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx).symm ▸ hs
     | inr q₂ => exact h.absorb_second q₂ s hs x hx
 
 end CloseToAndSum
@@ -403,14 +398,6 @@ theorem runWith_withBadFlag_map_fst (step : (q : Query) → State → PMF (spec 
 
 /-! ### Bad-event union bounds for `ProbOracleComp.runWith` -/
 
-private theorem toOuterMeasure_lift_unif_bad_eq_zero {bad : State → Prop} {s : State}
-    (hs : ¬bad s) (m : ℕ) :
-    (StateT.lift (σ := State) (ProbComp.unifOracle m) s).toOuterMeasure
-      {x : Fin (m + 1) × State | bad x.2} = 0 := by
-  rw [PMF.toOuterMeasure_apply_eq_zero_iff]
-  exact Set.disjoint_left.mpr fun x hx hbad =>
-    hs (OracleComp.snd_eq_of_mem_support_lift hx ▸ hbad)
-
 /-- **Accumulated probability of a bad state under `ProbOracleComp.runWith`.** Let each external
 call `q` from a good state turn bad with probability at most `cost q * budget s` and raise `budget`
 by at most `δ` (while private coin draws cost nothing and leave state unchanged). Then a program
@@ -429,11 +416,11 @@ theorem toOuterMeasure_bad_le {handler : (q : Query) → StateT State PMF (spec 
     (Sum.elim (fun _ => 0) cost) (Sum.elim (fun _ => 0) (fun _ => 1)) budget 0 δ 0
     (fun q st hst => by
       cases q with
-      | inl m => simp [toOuterMeasure_lift_unif_bad_eq_zero hst m]
+      | inl m => simp [Cslib.Probability.PMF.toOuterMeasure_lift_eq_zero _ _ hst]
       | inr q => simpa only [Sum.elim_inr, mul_zero, add_zero] using hstep q st hst)
     (fun q st hst x hx hgood => by
       cases q with
-      | inl m => simp [OracleComp.snd_eq_of_mem_support_lift hx]
+      | inl m => simp [Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx]
       | inr q =>
         simpa only [Sum.elim_inr, mul_zero, add_zero, Nat.cast_one, one_mul] using
           hgrow q st hst x hx hgood)
@@ -466,11 +453,11 @@ theorem toOuterMeasure_bad_choose_two_cost_le {handler : (q : Query) → StateT 
     (Sum.elim (fun _ => 0) cost₁) (Sum.elim (fun _ => 0) cost₂) size δ
     (fun q st hst => by
       cases q with
-      | inl m => simp [toOuterMeasure_lift_unif_bad_eq_zero hst m]
+      | inl m => simp [Cslib.Probability.PMF.toOuterMeasure_lift_eq_zero _ _ hst]
       | inr q => exact hstep q st hst)
     (fun q st hst x hx hgood => by
       cases q with
-      | inl m => simp [OracleComp.snd_eq_of_mem_support_lift hx]
+      | inl m => simp [Cslib.Probability.PMF.snd_eq_of_mem_support_lift hx]
       | inr q => exact hgrow q st hst x hx hgood)
     hk₁ hk₂ hs
 
