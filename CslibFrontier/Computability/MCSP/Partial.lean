@@ -116,7 +116,8 @@ def Instance.definedFinset (x : Instance) : Finset (BitString x.arity) :=
     (x.definedFinset : Set (BitString x.arity)) = x.definedInputs := by
   ext y
   simp only [Instance.definedFinset, Instance.definedInputs, Finset.mem_coe, Finset.mem_filter,
-    Finset.mem_univ, true_and, Set.mem_ofPred_eq]
+    Finset.mem_univ, true_and]
+  rfl
 
 /-- The canonical total completion of `x.partialFunction` that maps undefined (`*`) entries to
 `false`. On `x.definedInputs`, a circuit agrees with `x` if and only if it agrees with
@@ -133,12 +134,10 @@ def Instance.AgreesWith (x : Instance) (f : BooleanFunction x.arity) : Prop :=
 /-- Agreement stated directly in terms of the table indices `Fin (2 ^ x.arity)`. -/
 theorem Instance.agreesWith_iff_table {x : Instance} {f : BooleanFunction x.arity} :
     x.AgreesWith f ↔
-      ∀ i b, x.table i = some b → f ((BitString.equivFin x.arity).symm i) = b := by
-  constructor
-  · intro h i b hi
-    exact h ((BitString.equivFin x.arity).symm i) b (by simp [Instance.partialFunction, hi])
-  · intro h y b hy
-    simpa using h (BitString.equivFin x.arity y) b hy
+      ∀ i b, x.table i = some b → f ((BitString.equivFin x.arity).symm i) = b :=
+  ⟨fun h i b hi => h ((BitString.equivFin x.arity).symm i) b
+      (by simp [Instance.partialFunction, hi]),
+    fun h y b hy => by simpa using h (BitString.equivFin x.arity y) b hy⟩
 
 /-- A total function agrees with `x` iff it equals `x.completion` on `x.definedInputs`. -/
 theorem Instance.agreesWith_iff_eqOn_completion {x : Instance} {f : BooleanFunction x.arity} :
@@ -149,12 +148,8 @@ theorem Instance.agreesWith_iff_eqOn_completion {x : Instance} {f : BooleanFunct
     rw [Instance.completion, hb, Option.getD_some]
     exact h y b hb
   · intro h y b hb
-    have hy : y ∈ x.definedInputs := by
-      change (x.partialFunction y).isSome = true
-      rw [hb]
-      rfl
-    have hcy := h hy
-    rw [hcy, Instance.completion, hb, Option.getD_some]
+    have hy : y ∈ x.definedInputs := show (x.partialFunction y).isSome = true by rw [hb]; rfl
+    rw [h hy, Instance.completion, hb, Option.getD_some]
 
 /-- The canonical completion `x.completion` agrees with `x`. -/
 theorem Instance.agreesWith_completion (x : Instance) : x.AgreesWith x.completion :=
@@ -165,8 +160,7 @@ output `0` agrees with `x`. -/
 theorem Instance.computesOn_definedInputs_iff {x : Instance} {c : Circuit signature x.arity 1} :
     c.ComputesOn interpretation x.definedInputs (single x.completion) ↔
       x.AgreesWith fun y => c.eval interpretation y 0 := by
-  rw [Circuit.computesOn_single_iff, Instance.agreesWith_iff_eqOn_completion]
-  rfl
+  rw [Circuit.computesOn_single_iff, Instance.agreesWith_iff_eqOn_completion]; rfl
 
 end PartialMCSP
 
@@ -204,9 +198,7 @@ theorem mem_iff_exists_circuit {x : Instance} :
       c.size ≤ x.threshold ∧
         ∀ y b, x.partialFunction y = some b → c.eval interpretation y 0 = b := by
   rw [mem_iff, complexityOn_le_iff]
-  exact exists_congr fun c => by
-    rw [Instance.computesOn_definedInputs_iff, and_comm]
-    rfl
+  exact exists_congr fun _ => by rw [Instance.computesOn_definedInputs_iff, and_comm]; rfl
 
 /-- Circuit characterization of `PartialMCSP` indexed by `Fin (2 ^ x.arity)`. -/
 theorem mem_iff_exists_circuit_table {x : Instance} :
@@ -225,15 +217,13 @@ theorem mem_iff_exists_total_extension {x : Instance} :
     x ∈ PartialMCSP ↔ ∃ f : BooleanFunction x.arity,
       x.AgreesWith f ∧ complexity interpretation (single f) ≤ x.threshold := by
   rw [mem_iff_exists_circuit]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨c, hsize, hagree⟩
-    refine ⟨fun y => c.eval interpretation y 0, hagree, ?_⟩
-    exact complexity_le_iff.mpr ⟨c, Circuit.computes_single_iff.mpr fun _ => rfl, hsize⟩
+    exact ⟨fun y => c.eval interpretation y 0, hagree,
+      complexity_le_iff.mpr ⟨c, Circuit.computes_single_iff.mpr fun _ => rfl, hsize⟩⟩
   · rintro ⟨f, hagree, hcomp⟩
     obtain ⟨c, hc, hsize⟩ := complexity_le_iff.mp hcomp
-    refine ⟨c, hsize, fun y b hy => ?_⟩
-    rw [Circuit.computes_single_iff.mp hc y]
-    exact hagree y b hy
+    exact ⟨c, hsize, fun y b hy => (Circuit.computes_single_iff.mp hc y).trans (hagree y b hy)⟩
 
 /-- An instance is in `PartialMCSP` if and only if some function in
 `computableFunctions x.arity x.threshold` agrees with `x`. -/
@@ -276,9 +266,7 @@ theorem Instance.EssentialAt.essentialAt_of_agreesWith {x : Instance} {i : Fin x
     {f : BooleanFunction x.arity} (hi : x.EssentialAt i) (hf : x.AgreesWith f) :
     Circuits.EssentialAt f i := by
   obtain ⟨y₀, y₁, b₀, b₁, hdiff, hy₀, hy₁, hne⟩ := hi
-  refine ⟨y₀, y₁, hdiff, ?_⟩
-  rw [hf y₀ b₀ hy₀, hf y₁ b₁ hy₁]
-  exact hne
+  exact ⟨y₀, y₁, hdiff, by rwa [hf y₀ b₀ hy₀, hf y₁ b₁ hy₁]⟩
 
 /-- If coordinate `i` is essential for `x`, then `i` belongs to `c.inputSupport` for every circuit
 `c` whose output agrees with `x`. -/
@@ -286,10 +274,9 @@ theorem Instance.EssentialAt.mem_inputSupport {x : Instance} {i : Fin x.arity}
     {c : Circuit signature x.arity 1} (hi : x.EssentialAt i)
     (hc : x.AgreesWith fun y => c.eval interpretation y 0) :
     i ∈ c.inputSupport := by
-  have hess : Circuits.EssentialAt (c.eval interpretation) i := by
-    obtain ⟨y₀, y₁, hdiff, hne⟩ := hi.essentialAt_of_agreesWith hc
-    exact ⟨y₀, y₁, hdiff, fun h => hne (congrFun h 0)⟩
-  exact hess.mem_support (c.dependsOn_eval interpretation)
+  obtain ⟨y₀, y₁, hdiff, hne⟩ := hi.essentialAt_of_agreesWith hc
+  exact (show Circuits.EssentialAt (c.eval interpretation) i from
+    ⟨y₀, y₁, hdiff, fun h => hne (congrFun h 0)⟩).mem_support (c.dependsOn_eval interpretation)
 
 /-- When all `x.arity` input coordinates are essential for `x`, every circuit agreeing with `x` has
 full input support `c.inputSupport = Finset.univ`. -/
@@ -351,10 +338,8 @@ theorem mem_of_exists_all_isBinary {x : Instance}
       x.AgreesWith fun y => c.eval interpretation y 0) :
     x ∈ PartialMCSP := by
   obtain ⟨c, hbin, hcost, hagree⟩ := h
-  rw [mem_iff_exists_circuit]
-  have hsz : c.program.cost binaryCost = c.size :=
-    Program.cost_binaryCost_eq_iff_forall_isBinary.mpr hbin
-  exact ⟨c, hsz ▸ hcost, hagree⟩
+  exact mem_iff_exists_circuit.mpr
+    ⟨c, Program.cost_binaryCost_eq_iff_forall_isBinary.mpr hbin ▸ hcost, hagree⟩
 
 /-- When all `x.arity` coordinates are essential for `x`, `1 ≤ x.arity`, and
 `x.threshold = x.arity - 1`, `x ∈ PartialMCSP` if and only if there is a circuit of size
@@ -401,8 +386,7 @@ def Instance.ofTotal (x : MCSP.Instance) : Instance where
 
 @[simp] theorem Instance.definedInputs_ofTotal (x : MCSP.Instance) :
     (Instance.ofTotal x).definedInputs = Set.univ := by
-  ext y
-  simp [Instance.definedInputs, Instance.ofTotal]
+  ext; simp [Instance.definedInputs, Instance.ofTotal]
 
 @[simp] theorem Instance.completion_ofTotal (x : MCSP.Instance) :
     (Instance.ofTotal x).completion = x.function :=
@@ -448,9 +432,7 @@ def Instance.restrictTable {n : ℕ} (T : BitString (2 ^ n)) (S : Finset (BitStr
     (S : Finset (BitString n)) (s : ℕ) (y : BitString n) :
     (Instance.restrictTable T S s).partialFunction y =
       if y ∈ S then some (T (BitString.equivFin n y)) else none := by
-  change (if (BitString.equivFin n).symm (BitString.equivFin n y) ∈ S then
-    some (T (BitString.equivFin n y)) else none) = _
-  rw [Equiv.symm_apply_apply]
+  simp [Instance.restrictTable]
 
 @[simp] theorem Instance.definedFinset_restrictTable {n : ℕ} (T : BitString (2 ^ n))
     (S : Finset (BitString n)) (s : ℕ) :
@@ -470,9 +452,7 @@ yields `SuccinctMCSP.Instance.ofFunction ((MCSP.truthTable n).symm T) S s`. -/
   simp only [Instance.arity_restrictTable, Instance.definedFinset_restrictTable,
     Instance.threshold_restrictTable]
   congr 1
-  refine Finset.image_congr fun y hy => ?_
-  have hyS : y ∈ S := Finset.mem_coe.mp hy
-  simp [Instance.completion, hyS]
+  exact Finset.image_congr fun y hy => by simp [Instance.completion, Finset.mem_coe.mp hy]
 
 /-- The partial truth table `Instance.restrictTable T S s` is in `PartialMCSP` if and only if
 `SuccinctMCSP.Instance.ofFunction ((MCSP.truthTable n).symm T) S s` is in `SuccinctMCSP`. -/

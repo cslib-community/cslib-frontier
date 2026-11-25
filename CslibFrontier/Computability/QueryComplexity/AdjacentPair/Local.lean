@@ -51,20 +51,16 @@ theorem adjacentPair_eq_true_iff {n : ℕ} {x : BitString n} :
 theorem weight_eq_two_of_adjacentPair {n : ℕ} {x : BitString n}
     (h : adjacentPair n x = true) : weight x = 2 := by
   obtain ⟨a, b, hab, hx⟩ := adjacentPair_eq_true_iff.mp h
-  have hne : a ≠ b := by
-    intro he
-    subst b
-    omega
-  have hs : ({i | x i = true} : Finset (Fin n)) = {a, b} := by
-    ext i
-    simp [hx]
-  simp only [weight, hs, card_pair hne]
+  rw [weight, show ({i | x i = true} : Finset (Fin n)) = {a, b} by ext; simp [hx]]
+  exact card_pair fun he => by subst he; omega
 
 /-- The all-false word is not an adjacent pair, including lengths zero and one. -/
 @[simp] theorem adjacentPair_zero (n : ℕ) : adjacentPair n (fun _ => false) = false := by
   cases h : adjacentPair n (fun _ => false) with
   | false => rfl
-  | true => have hw := weight_eq_two_of_adjacentPair h; simp [weight] at hw
+  | true =>
+    have hw := weight_eq_two_of_adjacentPair h
+    simp [weight] at hw
 
 /-- One true bit does not meet the two-bit acceptance condition. -/
 @[simp] theorem adjacentPair_singleton {n : ℕ} (a : Fin n) :
@@ -73,10 +69,8 @@ theorem weight_eq_two_of_adjacentPair {n : ℕ} {x : BitString n}
   | false => rfl
   | true =>
     have hw := weight_eq_two_of_adjacentPair h
-    have hs : ({i : Fin n | i = a} : Finset (Fin n)) = {a} := by
-      ext i
-      simp
-    simp only [weight, decide_eq_true_eq, hs, card_singleton] at hw
+    rw [weight, show ({i : Fin n | decide (i = a) = true} : Finset (Fin n)) = {a} by ext; simp,
+      card_singleton] at hw
     omega
 
 /-- Every pair of consecutive positions gives an accepted input. -/
@@ -89,14 +83,12 @@ theorem weight_eq_one_or_three_of_update_adjacentPair {n : ℕ} {x : BitString n
     (h : adjacentPair n (Function.update x i (!x i)) = true) :
     weight x = 1 ∨ weight x = 3 := by
   have hw := weight_eq_two_of_adjacentPair h
-  cases hi : x i with
-  | false =>
-    simp only [hi, Bool.not_false] at hw
+  cases hi : x i
+  · simp only [hi, Bool.not_false] at hw
     rw [weight_update_true hi] at hw
     omega
-  | true =>
+  · have := weight_update_false hi
     simp only [hi, Bool.not_true] at hw
-    have ht := weight_update_false hi
     omega
 
 /-- Changing any single bit of an accepted pair destroys acceptance. -/
@@ -112,25 +104,17 @@ theorem adjacentPair_update_of_true {n : ℕ} {x : BitString n}
 /-- Every coordinate is sensitive at an accepted adjacent pair. -/
 theorem sensitivityAt_adjacentPair_of_true {n : ℕ} {x : BitString n}
     (hx : adjacentPair n x = true) : sensitivityAt (adjacentPair n) x = n := by
-  apply le_antisymm (sensitivityAt_le_card _ _)
+  refine le_antisymm (sensitivityAt_le_card _ _) ?_
   simpa only [card_univ, Fintype.card_fin] using
-    (card_le_sensitivityAt (S := univ) (f := adjacentPair n) (x := x) (fun i _ => by
-      change adjacentPair n (Function.update x i (!x i)) ≠ adjacentPair n x
-      rw [adjacentPair_update_of_true hx i, hx]
-      decide))
+    card_le_sensitivityAt (S := univ) (f := adjacentPair n) (x := x) fun i _ => by
+      simp [IsSensitiveCoord, adjacentPair_update_of_true hx i, hx]
 
 private theorem card_neighbors_le_two {n : ℕ} (a : Fin n) :
     #{i : Fin n | i.val + 1 = a.val ∨ a.val + 1 = i.val} ≤ 2 := by
-  have hl : #{i : Fin n | i.val + 1 = a.val} ≤ 1 := by
-    refine card_le_one.mpr fun i hi j hj => Fin.ext ?_
-    simp only [mem_filter, mem_univ, true_and] at hi hj
-    omega
-  have hr : #{i : Fin n | a.val + 1 = i.val} ≤ 1 := by
-    refine card_le_one.mpr fun i hi j hj => Fin.ext ?_
-    simp only [mem_filter, mem_univ, true_and] at hi hj
-    omega
   rw [filter_or]
-  exact (card_union_le _ _).trans (Nat.add_le_add hl hr)
+  exact (card_union_le _ _).trans (Nat.add_le_add
+    (card_le_one.mpr fun i hi j hj => Fin.ext (by simp only [mem_filter] at hi hj; omega))
+    (card_le_one.mpr fun i hi j hj => Fin.ext (by simp only [mem_filter] at hi hj; omega)))
 
 /-- At a rejected word, at most three single-bit changes can create an adjacent pair.
 A change into weight two starts at weight one or three. In the former case only the two
@@ -139,51 +123,35 @@ theorem sensitivityAt_adjacentPair_le_three {n : ℕ} {x : BitString n}
     (hx : adjacentPair n x = false) : sensitivityAt (adjacentPair n) x ≤ 3 := by
   have hacc (i : Fin n) (hi : i ∈ sensitiveCoords (adjacentPair n) x) :
       adjacentPair n (Function.update x i (!x i)) = true := by
-    have h := mem_sensitiveCoords.mp hi
-    simpa only [IsSensitiveCoord, hx, Bool.not_eq_false] using h
-  by_cases hs : (sensitiveCoords (adjacentPair n) x).Nonempty
-  · obtain ⟨j, hj⟩ := hs
-    rcases weight_eq_one_or_three_of_update_adjacentPair (hacc j hj) with hw | hw
-    · obtain ⟨a, ha⟩ := card_eq_one.mp hw
-      have hxtrue (i : Fin n) : x i = true ↔ i = a := by
-        have hh := Finset.ext_iff.mp ha i
-        simpa only [mem_filter, mem_univ, true_and, mem_singleton] using hh
-      refine (card_le_card (t := {i : Fin n | i.val + 1 = a.val ∨ a.val + 1 = i.val})
-        (fun i hi => ?_)).trans ((card_neighbors_le_two a).trans (by decide))
-      have hxi : x i = false := by
-        cases ht : x i with
-        | false => rfl
-        | true =>
-          have ht' := weight_update_false ht
-          have hw' := weight_eq_two_of_adjacentPair (hacc i hi)
-          simp only [ht, Bool.not_true] at hw'
-          omega
-      have hai : a ≠ i := by
-        intro he
-        have ht : x i = true := (hxtrue i).mpr he.symm
-        rw [hxi] at ht
-        exact Bool.false_ne_true ht
-      obtain ⟨p, q, hpq, hp⟩ := adjacentPair_eq_true_iff.mp (hacc i hi)
-      have hpa : a = p ∨ a = q := by
-        have hh := hp a
-        rw [Function.update_of_ne hai, (hxtrue a).mpr rfl] at hh
-        exact of_decide_eq_true hh.symm
-      have hpi : i = p ∨ i = q := by
-        have hh := hp i
-        rw [Function.update_self, hxi] at hh
-        exact of_decide_eq_true hh.symm
-      simp only [mem_filter, mem_univ, true_and]
-      rcases hpa with rfl | rfl <;> rcases hpi with rfl | rfl <;> simp_all
-    · refine (card_le_card (t := {i | x i = true}) (fun i hi => ?_)).trans hw.le
-      have ht := weight_eq_two_of_adjacentPair (hacc i hi)
-      have hxi : x i = true := by
-        cases hi' : x i with
-        | true => rfl
-        | false =>
-          simp only [hi', Bool.not_false] at ht
-          rw [weight_update_true hi'] at ht
-          omega
-      exact mem_filter.mpr ⟨mem_univ i, hxi⟩
-  · simp [sensitivityAt, not_nonempty_iff_eq_empty.mp hs]
+    simpa only [mem_sensitiveCoords, IsSensitiveCoord, hx, Bool.not_eq_false] using hi
+  rcases (sensitiveCoords (adjacentPair n) x).eq_empty_or_nonempty with hs | ⟨j, hj⟩
+  · simp [sensitivityAt, hs]
+  rcases weight_eq_one_or_three_of_update_adjacentPair (hacc j hj) with hw | hw
+  · obtain ⟨a, ha⟩ := card_eq_one.mp hw
+    have hxtrue (i : Fin n) : x i = true ↔ i = a := by
+      simpa only [mem_filter, mem_univ, true_and, mem_singleton] using Finset.ext_iff.mp ha i
+    refine (card_le_card (t := {i : Fin n | i.val + 1 = a.val ∨ a.val + 1 = i.val})
+      fun i hi => ?_).trans ((card_neighbors_le_two a).trans (by decide))
+    have hxi : x i = false := by
+      cases ht : x i
+      · rfl
+      · have := weight_update_false ht
+        have hw' := weight_eq_two_of_adjacentPair (hacc i hi)
+        simp only [ht, Bool.not_true] at hw'
+        omega
+    have hai : a ≠ i := fun he => by simpa [hxi] using (hxtrue i).mpr he.symm
+    obtain ⟨p, q, hpq, hp⟩ := adjacentPair_eq_true_iff.mp (hacc i hi)
+    have hpa : a = p ∨ a = q := of_decide_eq_true
+      (by simpa [Function.update_of_ne hai, (hxtrue a).mpr rfl] using (hp a).symm)
+    have hpi : i = p ∨ i = q := of_decide_eq_true (by simpa [hxi] using (hp i).symm)
+    simp only [mem_filter, mem_univ, true_and]
+    rcases hpa with rfl | rfl <;> rcases hpi with rfl | rfl <;> simp_all
+  · refine (card_le_card (t := {i | x i = true}) fun i hi => ?_).trans hw.le
+    have ht := weight_eq_two_of_adjacentPair (hacc i hi)
+    cases hi' : x i
+    · simp only [hi', Bool.not_false] at ht
+      rw [weight_update_true hi'] at ht
+      omega
+    · exact mem_filter.mpr ⟨mem_univ i, hi'⟩
 
 end Cslib.BitString

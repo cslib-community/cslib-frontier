@@ -88,8 +88,7 @@ private theorem mergeLabel_eq_mergeLabel [DecidableEq γ] {f : α → γ} {u v x
     mergeLabel f (u, v) x = mergeLabel f (u, v) y →
       f x = f y ∨ (f x = f u ∧ f y = f v) ∨ (f x = f v ∧ f y = f u) := by
   unfold mergeLabel
-  dsimp only
-  split_ifs <;> intro h <;> grind
+  split_ifs <;> grind
 
 variable [PartialOrder α] [Fintype α] [DecidableEq α] [DecidableEq γ]
 
@@ -136,18 +135,15 @@ private theorem ChainInv.merge {f : α → γ} {M : Finset (α × α)} (h : Chai
   · have himage : Finset.univ.image (mergeLabel f (u, v)) = (Finset.univ.image f).erase (f v) := by
       ext c
       simp only [Finset.mem_image, Finset.mem_univ, true_and, Finset.mem_erase, mergeLabel]
-      constructor
-      · rintro ⟨x, rfl⟩
-        split_ifs with hx
-        · exact ⟨hne, u, rfl⟩
-        · exact ⟨hx, x, rfl⟩
-      · rintro ⟨hc, x, rfl⟩
-        exact ⟨x, ite_eq_right_iff.mpr fun h => absurd h hc⟩
-    rw [himage, Finset.card_insert_of_notMem huvM, Finset.card_erase_of_mem
-      (Finset.mem_image_of_mem f (Finset.mem_univ v))]
+      refine ⟨?_, by rintro ⟨hc, x, rfl⟩; exact ⟨x, ite_eq_right hc⟩⟩
+      rintro ⟨x, rfl⟩
+      split_ifs with hx
+      · exact ⟨hne, u, rfl⟩
+      · exact ⟨hx, x, rfl⟩
+    have hmem := Finset.mem_image_of_mem f (Finset.mem_univ v)
+    rw [himage, Finset.card_insert_of_notMem huvM, Finset.card_erase_of_mem hmem]
     have := h.card
-    have hpos : 0 < (Finset.univ.image f).card :=
-      Finset.card_pos.mpr ⟨f v, Finset.mem_image_of_mem f (Finset.mem_univ v)⟩
+    have := Finset.card_pos.mpr ⟨f v, hmem⟩
     omega
 
 private theorem ChainInv.foldl [DecidableLT α] {M : Finset (α × α)} {f : α → γ} (h : ChainInv f M)
@@ -158,21 +154,18 @@ private theorem ChainInv.foldl [DecidableLT α] {M : Finset (α × α)} {f : α 
   | nil => simpa using h
   | cons e l ih =>
     obtain ⟨u, v⟩ := e
-    have hmem : (u, v) ∈ M ∪ (List.toFinset ((u, v) :: l)) := by simp
-    have huv : u < v := (ltGraph_apply _).mp (hML.1 _ hmem)
+    obtain ⟨hnotmem, hl'⟩ := List.nodup_cons.mp hl
+    have hmem : (u, v) ∈ M ∪ List.toFinset ((u, v) :: l) := by simp
     have huvM : (u, v) ∉ M := hdisj _ (List.mem_cons_self ..)
-    have hu : ∀ y, (u, y) ∉ M := fun y hy =>
-      huvM (hML.2.1 u y v (Finset.mem_union_left _ hy) hmem ▸ hy)
-    have hv : ∀ y, (y, v) ∉ M := fun y hy =>
-      huvM (hML.2.2 y u v (Finset.mem_union_left _ hy) hmem ▸ hy)
     have hunion : M ∪ ((u, v) :: l).toFinset = insert (u, v) M ∪ l.toFinset := by
       rw [List.toFinset_cons, Finset.union_insert, Finset.insert_union]
     rw [List.foldl_cons, hunion]
-    rw [hunion] at hML
-    refine ih (h.merge huv hu hv huvM) (List.nodup_cons.mp hl).2 (fun e he heM => ?_) hML
-    rcases Finset.mem_insert.mp heM with rfl | heM
-    · exact (List.nodup_cons.mp hl).1 he
-    · exact hdisj e (List.mem_cons_of_mem _ he) heM
+    refine ih (h.merge ((ltGraph_apply _).mp (hML.1 _ hmem))
+      (fun y hy => huvM (hML.2.1 u y v (Finset.mem_union_left _ hy) hmem ▸ hy))
+      (fun y hy => huvM (hML.2.2 y u v (Finset.mem_union_left _ hy) hmem ▸ hy)) huvM)
+      hl' (fun e he heM => ?_) (hunion ▸ hML)
+    exact (Finset.mem_insert.mp heM).elim (fun heq => hnotmem (heq ▸ he))
+      (hdisj e (List.mem_cons_of_mem _ he))
 
 /-- **Fulkerson's chain construction.** Folding `mergeLabel` over the edges of a matching of
 `ltGraph`, starting from an injective labelling, leaves chain fibres, and the number of labels
@@ -202,12 +195,10 @@ theorem exists_chain_coloring_of_isMatching [DecidableLT α] {M : Finset (α × 
     M.nodup_toList (by simpa using hM)
   set g := M.toList.foldl (mergeLabel ·) (id : α → α)
   have hk : (Finset.univ.image g).card = Fintype.card α - M.card := by
-    rw [Finset.length_toList] at hcard
-    omega
+    rw [Finset.length_toList] at hcard; omega
   let e := (Finset.univ.image g).equivFin.trans (finCongr hk)
-  refine ⟨fun x => e ⟨g x, Finset.mem_image_of_mem g (Finset.mem_univ x)⟩, fun i x hx y hy => ?_⟩
-  have : g x = g y := congrArg Subtype.val (e.injective (hx.trans hy.symm))
-  exact hchain (g y) this rfl
+  exact ⟨fun x => e ⟨g x, Finset.mem_image_of_mem g (Finset.mem_univ x)⟩,
+    fun _ _ hx y hy => hchain (g y) (congrArg Subtype.val (e.injective (hx.trans hy.symm))) rfl⟩
 
 variable [DecidableEq α]
 
@@ -235,13 +226,11 @@ omit [PartialOrder α] in
 /-- A vertex cover of size `|C|` misses at least `|α| - |C|` elements on both sides. -/
 theorem card_sub_size_le_card_uncovered (C : VertexCover α α) :
     Fintype.card α - C.size ≤ C.uncovered.card := by
-  have h : C.uncovered = Finset.univ \ (C.left ∪ C.right) := by
-    ext x
-    simp [VertexCover.uncovered]
+  rw [show C.uncovered = Finset.univ \ (C.left ∪ C.right) by ext; simp [VertexCover.uncovered],
+    VertexCover.size]
   have h1 := Finset.card_union_le C.left C.right
   have h2 := Finset.card_sdiff_add_card_inter Finset.univ (C.left ∪ C.right)
   rw [Finset.univ_inter, Finset.card_univ] at h2
-  rw [h, VertexCover.size]
   omega
 
 end Covers
@@ -265,9 +254,7 @@ theorem exists_isAntichain_and_chain_coloring :
   have hle : Fintype.card α - M.card ≤ C.uncovered.card :=
     hMC ▸ card_sub_size_le_card_uncovered C
   refine ⟨C.uncovered, fun x => Fin.castLE hle (f x), isAntichain_uncovered hC.1,
-    fun i x hx y hy => ?_⟩
-  have hxy : f x = f y := Fin.castLE_injective _ (hx.trans hy.symm)
-  exact hf (f y) hxy rfl
+    fun _ _ hx y hy => hf (f y) (Fin.castLE_injective _ (hx.trans hy.symm)) rfl⟩
 
 /-- **Dilworth's decomposition theorem**, min–max form ([Schrijver2017], Theorem 7.6): a finite
 poset can be covered by `k` chains if and only if every antichain has at most `k` elements. -/
@@ -279,9 +266,8 @@ theorem exists_chain_coloring_iff {k : ℕ} :
     simpa using hA.card_le_of_isChain_fibre hf
   · intro hk
     obtain ⟨A, f, hA, hf⟩ := exists_isAntichain_and_chain_coloring (α := α)
-    refine ⟨fun x => Fin.castLE (hk A hA) (f x), fun i x hx y hy => ?_⟩
-    have hxy : f x = f y := Fin.castLE_injective _ (hx.trans hy.symm)
-    exact hf (f y) hxy rfl
+    exact ⟨fun x => Fin.castLE (hk A hA) (f x),
+      fun _ _ hx y hy => hf (f y) (Fin.castLE_injective _ (hx.trans hy.symm)) rfl⟩
 
 end Dilworth
 
