@@ -126,19 +126,6 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
   have hna_u : base + u * (6 * t) + 1 + 1 = au := by
     rw [← hau_def]; simp only [nodeAddr, nodeStride]; omega
   have hau2_eq : au + 1 + 1 = au + 2 := by omega
-  have hf_umul : Fits w (u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub0 : Fits w (base + u * (6 * t)) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub1 : Fits w (base + u * (6 * t) + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_ub2 : Fits w (base + u * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hau_def] at hau_le; simp only [nodeAddr, nodeStride] at hau_le; omega)
-  have hf_au : Fits w au := hfit.of_le (by omega)
-  have hf_au1 : Fits w (au + 1) := hfit.of_le (by omega)
-  have hf_au11 : Fits w (au + 1 + 1) := hfit.of_le (by omega)
-  have hf_au2 : Fits w (au + 2) := hfit.of_le (by omega)
-  have hf_auks : Fits w (au + 2 + slot) := hfit.of_le (by omega)
   have hks_eq : x.mem (au + 2 + slot) = keyAt base t x.mem u slot := by
     simp only [keyAt, hau_def]
   by_cases heq_k : keyAt base t x.mem u slot = k
@@ -149,16 +136,9 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
         y'.regs rKey = k ∧ y'.regs rVal = v ∧ y'.regs rCnt = cnt₁ ∧ y'.regs rActive = 0 := by
       unfold insertDescendAfterSplit overwriteValCode
       have h2t_u : au + t + t + 1 = au + (2 * t + 1) := by omega
-      have hf_aut1 : Fits w (au + t) := hfit.of_le (by omega)
-      have hf_aut2 : Fits w (au + t + t) := hfit.of_le (by omega)
-      have hf_aut21 : Fits w (au + t + t + 1) := hfit.of_le (by omega)
-      have hf_au2t1 : Fits w (au + (2 * t + 1)) := hfit.of_le (by omega)
-      have hf_auvs : Fits w (au + (2 * t + 1) + slot) := hfit.of_le (by omega)
-      have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
       apply WP.exists_execWithin
       wram_exec [ho, hbase, hdeg, hstride, hcur, hslot_reg, hkey, hval, hna_u, hau2_eq, h2t_u,
-        hks_eq, heq_k, hf_umul, hf_ub0, hf_ub1, hf_ub2, hf_au, hf_au1, hf_au11, hf_au2, hf_auks,
-        hf_aut1, hf_aut2, hf_aut21, hf_au2t1, hf_auvs, hf0]
+        hks_eq, heq_k]
       wram_simp [ho, hbase, hdeg, hstride, hkey, hval, hcnt]
       simp only [memOverwriteVal, hau_def]
     obtain ⟨y', he', hymem', hz', ho', hb', hd', hst', hk', hv', hcnt', hact'⟩ := he_full
@@ -180,8 +160,7 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
         unfold insertDescendAfterSplit
         apply WP.exists_execWithin
         wram_exec [ho, hbase, hdeg, hstride, hcur, hslot_reg, hchild, hkey, hna_u, hau2_eq,
-          hks_eq, heq_k, hlt_k, hf_umul, hf_ub0, hf_ub1, hf_ub2, hf_au, hf_au1, hf_au11,
-          hf_au2, hf_auks]
+          hks_eq, heq_k, hlt_k]
         wram_simp [ho, hbase, hdeg, hstride, hkey, hval, hcnt]
       refine ⟨y, he, he.bounded hbdd, hymem ▸ Modifies.refl _ _, hz_y, ho_y, hb_y, hd_y, hst_y,
         hk_y, hv_y, hcnt_y, ?_⟩
@@ -197,8 +176,7 @@ private theorem insertDescendAfterSplit_spec {w base capNodes t u slot c cnt₁ 
         unfold insertDescendAfterSplit
         apply WP.exists_execWithin
         wram_exec [ho, hbase, hdeg, hstride, hcur, hslot_reg, hcnt, hkey, hna_u, hau2_eq,
-          hks_eq, heq_k, hlt_k, hf_umul, hf_ub0, hf_ub1, hf_ub2, hf_au, hf_au1, hf_au11,
-          hf_au2, hf_auks, hf_cm1]
+          hks_eq, heq_k, hlt_k, hf_cm1]
         wram_simp [ho, hbase, hdeg, hstride, hkey, hval, hcnt]
       refine ⟨y, he, he.bounded hbdd, hymem ▸ Modifies.refl _ _, hz_y, ho_y, hb_y, hd_y, hst_y,
         hk_y, hv_y, hcnt_y, ?_⟩
@@ -253,31 +231,6 @@ private theorem insertDescendOrLeaf_int_spec
     rw [hmz, ← hau_def, ← hcid]; rfl
   have hnkc_z : z.mem (ac + 1) = numKeys base t mem₀ c := by
     rw [hmz, ← hac_def]; rfl
-  have hcap_le : capNodes ≤ capNodes * nodeStride t :=
-    Nat.le_mul_of_pos_right _ (by simp only [nodeStride]; omega)
-  have hf_au1 : Fits w (au + 2 - 1) := hfit.of_le (by omega)
-  have hf_au22 : Fits w (au + 2 - 1 - 1) := hfit.of_le (by omega)
-  have hf_au : Fits w au := hfit.of_le (by omega)
-  have hf_t1 : Fits w (au + t) := hfit.of_le (by omega)
-  have hf_t2 : Fits w (au + t + t) := hfit.of_le (by omega)
-  have hf_t3 : Fits w (au + t + t + t) := hfit.of_le (by omega)
-  have hf_t40 : Fits w (au + t + t + t + t) := hfit.of_le (by omega)
-  have hf_t4 : Fits w (au + 4 * t) := hfit.of_le (by omega)
-  have hf_cs : Fits w (au + 4 * t + slot) := hfit.of_le (by omega)
-  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_cb2 : Fits w (base + c * (6 * t) + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_ac10 : Fits w (base + c * (6 * t) + 1 + 1 + 1) := hfit.of_le (by
-    rw [← hac_def] at hac_le'; simp only [nodeAddr, nodeStride] at hac_le'; omega)
-  have hf_ac1 : Fits w (ac + 1) := hfit.of_le (by omega)
-  have hf_2t : Fits w (t + t) := hfit.of_le (by omega)
-  have hf_2tm10 : Fits w (t + t - 1) := hfit.of_le (by omega)
-  have hf_2tm1 : Fits w (2 * t - 1) := hfit.of_le (by omega)
   have h2tm1_eq : t + t - 1 = 2 * t - 1 := by omega
   by_cases hfull_c : numKeys base t mem₀ c = 2 * t - 1
   · let z₁ : Data 20 :=
@@ -288,12 +241,9 @@ private theorem insertDescendOrLeaf_int_spec
         (base + c * (6 * t) + 1)).set rTmp1
         (base + c * (6 * t) + 1 + 1)).set rTmp1 (ac + 1)).set rTmp2
         (2 * t - 1)).set rTmp1 (t + t)).set rTmp1 (2 * t - 1)
+    have hc_le : c ≤ c * (6 * t) := Nat.le_mul_of_pos_right _ (by omega)
     have hbz₁ : z₁.Bounded w := by
-      dsimp only [z₁]
-      exact ((((((((((((((((hbz.set hf_au1).set hf_au).set
-        (hfit.of_le (Nat.zero_le _))).set hf_t1).set hf_t2).set hf_t3).set hf_t4).set
-        hf_cs).set (hfit.of_le (by simp only [arenaWords]; omega))).set hf_cmul).set
-        hf_cb0).set hf_cb1).set hf_cb2).set hf_ac1).set hf_2tm1).set hf_2t).set hf_2tm1
+      dsimp only [z₁]; wram_bounded <;> fits
     obtain ⟨z₂, hsc_exec, hbz₂, hmem_z₂, hmod_sc, hz_z₂, ho_z₂, hb_z₂, hd_z₂, hst_z₂,
         hk_z₂, hv_z₂, hact_z₂, hcur_z₂, hsl_z₂, hch_z₂, _, hcnt_z₂⟩ :=
       splitChildCode_spec (x := z₁) (c := c) ht hu_lt_cnt hc_lt_cnt huc hcap_cnt1 hnonfull
@@ -311,9 +261,7 @@ private theorem insertDescendOrLeaf_int_spec
       unfold insertDescendOrLeaf
       apply WP.execWithin
       wram_exec [hzz, hoz, hbaz, hdz, hstz, hslz, hsrcz_au, hsub2, hadd4, hna_c,
-        hlfz, hcidz, hnkc_z, hfull_c, h2tm1_eq,
-        hf_au1, hf_au22, hf_au, hf_t1, hf_t2, hf_t3, hf_t40, hf_t4, hf_cs,
-        hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac10, hf_ac1, hf_2t, hf_2tm10, hf_2tm1]
+        hlfz, hcidz, hnkc_z, hfull_c, h2tm1_eq]
       refine WP.of_execWithin hsc_exec ?_
       exact WP.of_execWithin hdas ⟨by omega, rfl⟩
     have hmod_all : Modifies (Block.mk base (arenaWords t capNodes)).footprint mem₀ x₃.mem :=
@@ -335,9 +283,7 @@ private theorem insertDescendOrLeaf_int_spec
       unfold insertDescendOrLeaf
       apply WP.exists_execWithin
       wram_exec [hzz, hoz, hbaz, hdz, hstz, hslz, hsrcz_au, hsub2, hadd4, hna_c,
-        hlfz, hcidz, hnkc_z, hfull_c, h2tm1_eq,
-        hf_au1, hf_au22, hf_au, hf_t1, hf_t2, hf_t3, hf_t40, hf_t4, hf_cs,
-        hf_cmul, hf_cb0, hf_cb1, hf_cb2, hf_ac10, hf_ac1, hf_2t, hf_2tm10, hf_2tm1]
+        hlfz, hcidz, hnkc_z, hfull_c, h2tm1_eq]
       wram_simp [hzz, hoz, hbaz, hdz, hstz, hkz, hvz, hcntz, hactz]
     refine ⟨x₃, he_dl, he_dl.bounded hbz, (hmx₃.trans hmz) ▸ Modifies.refl _ _, hzx₃,
       hox₃, hbx₃, hdx₃, hstx₃, hkx₃, hvx₃, ?_⟩
