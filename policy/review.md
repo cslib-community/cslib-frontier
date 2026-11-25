@@ -256,10 +256,7 @@ and passes only when the new head's tree is exactly that replay. The one excepti
 `mk_all` import aggregates, which must instead be exactly what `lake exe mk_all` writes for the new
 head's tree. A conflict in the replay elsewhere, and any other difference, fails it. The replay
 merges `references.bib` entry by entry, as `scripts/resolve_bib_conflict.py` does, so a
-bibliography merge written by that script, with nothing else changed, passes. A restack whose
-only differences from the approved head are entry-wise merges of `references.bib` or
-`manual/sources.md` keeps its approval whenever the script reports it identical (its docstring
-names the files it merges by entry): nobody reviews it again. After
+bibliography merge written by that script, with nothing else changed, passes. After
 `git fetch origin`, run the script from a checkout of current `origin/main`, not of the PR's
 branch, which could change it.
 An approval given while a PR is based on another branch also names that branch's head, and the
@@ -269,5 +266,8 @@ when the approved head had also merged a newer `main`: the script then replays f
 the lower head and that `main`, and names it in the result. Anyone, including
 the author, may post the script's result line, which names both heads and the exact command. The
 non-author who queues the new head runs that command again rather than relying on the posted line.
+A restack whose only differences from the approved head are entry-wise merges of `references.bib`
+or `manual/sources.md` keeps its approval whenever the script reports it identical (its docstring
+names the files it merges by entry): nobody reviews it again.
 When the script reports differences, review the paths and diffs it prints as a delta, under the
 carry-forward rule above.
