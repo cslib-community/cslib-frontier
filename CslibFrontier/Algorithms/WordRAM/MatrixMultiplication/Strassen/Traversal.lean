@@ -38,8 +38,8 @@ The five double updates and two single updates account for exactly twelve coeffi
 
 private theorem suffixBudget_next (p k : ℕ) (phase : Fin 6) :
     traceBudget p k + (receiveBudget ⟨phase.val, by omega⟩ (4 ^ k * p) +
-      52 * (4 ^ k * p) + 92) + 2 + suffixBudget p k ⟨phase.val + 1, by omega⟩ =
-      suffixBudget p k ⟨phase.val, by omega⟩ := by
+      52 * (4 ^ k * p) + 92) + 2 + suffixBudget p k phase.succ =
+      suffixBudget p k phase.castSucc := by
   fin_cases phase <;> norm_num [suffixBudget, receiveBudget] <;> omega
 
 private abbrev Continues (w : ℕ) (x y : Data 64) (T : ℕ) : Prop :=
@@ -85,81 +85,60 @@ theorem exec_ready (k : ℕ) {w p A B a b out scratch frames frame : ℕ}
         exact child_magnitudeBound_le p A B k)
     have childAddr : Fits (w + 2) (addressBound frames (frame + 7) k) := by
       simpa only [addressBound_child] using haddr
-    have childLayout := hl.child
-    have remaining : ∀ remainingCount : ℕ, ∀ phase : Fin 7,
-        6 - phase.val = remainingCount → ∀ child : Data 64,
+    have runChild (phase : Fin 7) (child : Data 64)
+        (pending : PendingChild p k a b out scratch frames frame phase u v x child) :
+        ∃ returned, NodeResult p k (scratch + 2 * (4 ^ k * p)) (scratch + 3 * (4 ^ k * p))
+            frames (frame + 7)
+            (Cslib.Algorithms.MatrixMultiplication.Strassen.leftOperand p k u phase)
+            (Cslib.Algorithms.MatrixMultiplication.Strassen.rightOperand p k v phase)
+            child returned ∧
+          Continues (w + 2) child returned (traceBudget p k) ∧
+          (Cond.lt Reg.zero Reg.active).Holds returned := by
+      obtain ⟨returned, childResult, childExecution⟩ := ih child _ _ pending.ready hl.child
+        (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
+          u phase hu hj).1)
+        (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
+          v phase hv hj).2) pending.left pending.right childFits childAddr
+      refine ⟨returned, childResult, childExecution, ?_⟩
+      have hf := hl.frames_before
+      simp only [Cond.holds_lt, childResult.zero_eq, childResult.active_eq,
+        ite_eq_left (by omega : frames < frame + 7)]
+      decide
+    have remaining (phase : Fin 7) : ∀ child : Data 64,
         PendingChild p k a b out scratch frames frame phase u v x child →
         ∃ y, NodeResult p (k + 1) out scratch frames frame u v child y ∧
           Continues (w + 2) child y (suffixBudget p k phase) := by
-      intro remainingCount
-      induction remainingCount with
-      | zero =>
-        intro phase hphase child pending
-        have hphase' : phase = 6 := Fin.ext (by omega)
-        subst phase
-        obtain ⟨returned, childResult, childExecution⟩ := ih child _ _ pending.ready childLayout
-          (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
-            u 6 hu hj).1)
-          (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
-            v 6 hv hj).2) pending.left pending.right childFits childAddr
+      refine Fin.reverseInduction ?_ ?_ phase
+      · intro child pending
+        obtain ⟨returned, childResult, childExecution, active⟩ := runChild 6 child pending
         obtain ⟨y, stepRun, finalResult⟩ := exec_step_resume_finish x child returned u v
           hx.toNodeHeader hl pending childResult hu hv hmag haddr
-        have active : (Cond.lt Reg.zero Reg.active).Holds returned := by
-          have hf := hl.frames_before
-          simp only [Cond.holds_lt, childResult.zero_eq, childResult.active_eq]
-          rw [ite_eq_left (by omega)]
-          decide
-        have cont := continues_trans childExecution (continues_step active stepRun)
-        refine ⟨y, { finalResult with outside := ?_ }, ?_⟩
-        · intro d hd
-          exact (finalResult.outside d hd).trans
-            (childResult.outside d (fun h => hd (NodeWrites.child_subset hl h)))
-        · simpa [suffixBudget, Nat.add_assoc] using cont
-      | succ remainingCount inductionRemaining =>
-        intro phase hphase child pending
-        have hlt : phase.val < 6 := by omega
-        let current : Fin 6 := ⟨phase.val, hlt⟩
-        let next : Fin 7 := ⟨phase.val + 1, by omega⟩
-        obtain ⟨returned, childResult, childExecution⟩ := ih child _ _ pending.ready childLayout
-          (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
-            u phase hu hj).1)
-          (fun j hj => (Cslib.Algorithms.MatrixMultiplication.Strassen.operands_natAbs_le
-            v phase hv hj).2) pending.left pending.right childFits childAddr
+        refine ⟨y, { finalResult with outside := (fun d hd =>
+            (finalResult.outside d hd).trans
+              (childResult.outside d (fun h => hd (NodeWrites.child_subset hl h)))) }, ?_⟩
+        simpa [suffixBudget, Nat.add_assoc] using
+          continues_trans childExecution (continues_step active stepRun)
+      · intro current inductionRemaining child pending
+        obtain ⟨returned, childResult, childExecution, active⟩ :=
+          runChild current.castSucc child pending
         obtain ⟨nextChild, stepRun, nextPending, stepOutside⟩ := exec_step_resume_next current
           x child returned u v hx.toNodeHeader hl pending childResult hu hv hmag haddr
-        obtain ⟨y, result, rest⟩ := inductionRemaining next (by dsimp [next]; omega)
-          nextChild nextPending
-        have active : (Cond.lt Reg.zero Reg.active).Holds returned := by
-          have hf := hl.frames_before
-          simp only [Cond.holds_lt, childResult.zero_eq, childResult.active_eq]
-          rw [ite_eq_left (by omega)]
-          decide
-        have cont := continues_trans childExecution
-          (continues_trans (continues_step active stepRun) rest)
-        refine ⟨y, { result with outside := ?_ }, ?_⟩
-        · intro d hd
-          exact ((result.outside d hd).trans (stepOutside d hd)).trans
-            (childResult.outside d (fun h => hd (NodeWrites.child_subset hl h)))
-        · intro z T hz
-          have hc := cont z T hz
-          apply hc.mono
-          have hb := suffixBudget_next p k current
-          have heq : (⟨phase.val, by omega⟩ : Fin 7) = phase := Fin.ext rfl
-          dsimp only [current, next] at *
-          rw [heq] at hb hc
-          rw [heq]
-          omega
+        obtain ⟨y, result, rest⟩ := inductionRemaining nextChild nextPending
+        refine ⟨y, { result with outside := (fun d hd =>
+            ((result.outside d hd).trans (stepOutside d hd)).trans
+              (childResult.outside d (fun h => hd (NodeWrites.child_subset hl h)))) }, ?_⟩
+        have hb := suffixBudget_next p k current
+        exact fun z T hz => (continues_trans childExecution
+          (continues_trans (continues_step active stepRun) rest) z T hz).mono (by omega)
     obtain ⟨first, firstStep, firstPending, firstOutside⟩ :=
       exec_first_pending x u v hx hl hu hv hleft hright hmag haddr
-    obtain ⟨y, result, rest⟩ := remaining 6 0 (by decide) first firstPending
+    obtain ⟨y, result, rest⟩ := remaining 0 first firstPending
     have active : (Cond.lt Reg.zero Reg.active).Holds x := by
       simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]
       decide
-    have cont := continues_trans (continues_step active firstStep) rest
-    refine ⟨y, { result with outside := ?_ }, ?_⟩
-    · intro d hd
-      exact (result.outside d hd).trans (firstOutside d hd)
-    · intro z T hz
-      exact (cont z T hz).mono (by simp only [traceBudget, suffixBudget]; omega)
+    refine ⟨y, { result with outside := (fun d hd =>
+        (result.outside d hd).trans (firstOutside d hd)) },
+      fun z T hz => (continues_trans (continues_step active firstStep) rest z T hz).mono
+        (by simp only [traceBudget, suffixBudget]; omega)⟩
 
 end Cslib.Algorithms.WordRAM.Strassen
