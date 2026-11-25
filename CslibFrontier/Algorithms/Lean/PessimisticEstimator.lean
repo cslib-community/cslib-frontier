@@ -112,23 +112,16 @@ private theorem scanCandidates_spec (fixedNext : Finset ι) (x : ∀ i, α i) (i
   | a :: cs, best, hbest => by
     let val := D.condExp fixedNext (Function.update x i a)
     let next : α i × M := if val ≤ best.2 then (a, val) else best
-    have hnext_eq : next.2 = D.condExp fixedNext (Function.update x i next.1) := by
+    have hnext : next.2 = D.condExp fixedNext (Function.update x i next.1) ∧
+        next.2 ≤ best.2 ∧ next.2 ≤ val := by
       dsimp only [next, val]
-      split_ifs <;> simp [hbest]
-    have hnext_le_best : next.2 ≤ best.2 := by
-      dsimp only [next]
       split_ifs with hle
-      · exact hle
-      · exact le_rfl
-    have hnext_le_a : next.2 ≤ val := by
-      dsimp only [next]
-      split_ifs with hle
-      · exact le_rfl
-      · exact le_of_not_ge hle
-    obtain ⟨heq_out, hle_next, hforall_cs⟩ := scanCandidates_spec fixedNext x i cs next hnext_eq
-    refine ⟨heq_out, hle_next.trans hnext_le_best, fun b hb => ?_⟩
+      · exact ⟨rfl, hle, le_rfl⟩
+      · exact ⟨hbest, le_rfl, le_of_not_ge hle⟩
+    obtain ⟨heq_out, hle_next, hforall_cs⟩ := scanCandidates_spec fixedNext x i cs next hnext.1
+    refine ⟨heq_out, hle_next.trans hnext.2.1, fun b hb => ?_⟩
     rcases List.mem_cons.mp hb with rfl | hb'
-    · exact hle_next.trans hnext_le_a
+    · exact hle_next.trans hnext.2.2
     · exact hforall_cs b hb'
 
 private theorem runFrom_spec [Fintype ι] [∀ i, Fintype (α i)]
@@ -141,51 +134,37 @@ private theorem runFrom_spec [Fintype ι] [∀ i, Fintype (α i)]
       (D.runFrom order fixed x).1 = fixed ∪ order.toFinset ∧
         PMF.condExpect p f (D.runFrom order fixed x).1
           (D.runFrom order fixed x).2 ≤ PMF.condExpect p f fixed x
-  | [], fixed, x, _, _ => by
-    simp [runFrom]
+  | [], fixed, x, _, _ => by simp [runFrom]
   | i :: rs, fixed, x, hnd, hdisj => by
     obtain ⟨hi_rs, hnd_rs⟩ := List.nodup_cons.mp hnd
-    have hi_fix : i ∉ fixed := hdisj i List.mem_cons_self
-    obtain ⟨a_star, ha_supp, ha_le⟩ := PMF.exists_condExpect_insert_le p f hi_fix x
+    obtain ⟨a_star, ha_supp, ha_le⟩ :=
+      PMF.exists_condExpect_insert_le p f (hdisj i List.mem_cons_self) x
     have ha_mem : a_star ∈ D.choices i := hchoices i a_star ha_supp
     cases hcs : D.choices i with
-    | nil =>
-      rw [hcs] at ha_mem
-      cases ha_mem
+    | nil => simp [hcs] at ha_mem
     | cons a₀ cs =>
       let fixedNext := insert i fixed
       let v₀ := D.condExp fixedNext (Function.update x i a₀)
       obtain ⟨heq_best, hle_v₀, hle_cs⟩ := scanCandidates_spec D fixedNext x i cs (a₀, v₀) rfl
       set best := D.scanCandidates fixedNext x i cs (a₀, v₀)
       have hbest_le_star : best.2 ≤ D.condExp fixedNext (Function.update x i a_star) := by
-        rw [hcs] at ha_mem
-        rcases List.mem_cons.mp ha_mem with rfl | hmem_cs
+        rcases List.mem_cons.mp (hcs ▸ ha_mem) with rfl | hmem_cs
         · exact hle_v₀
         · exact hle_cs a_star hmem_cs
       have hstep_exp : PMF.condExpect p f fixedNext (Function.update x i best.1) ≤
-          PMF.condExpect p f fixed x := by
-        have hm := hmono hbest_le_star
-        rw [heq_best, heval, heval] at hm
-        exact hm.trans ha_le
-      have hdisj_next : ∀ j ∈ rs, j ∉ fixedNext := by
-        intro j hj hmem
-        rcases Finset.mem_insert.mp hmem with rfl | hj_fix
-        · exact hi_rs hj
-        · exact hdisj j (List.mem_cons_of_mem i hj) hj_fix
-      have hstep_eq : D.stepCoord (fixed, x) i = (fixedNext, Function.update x i best.1) := by
-        simp [stepCoord, hcs, fixedNext, best, v₀]
-      obtain ⟨hset_end, hexp_end⟩ :=
-        runFrom_spec p f hmono heval hchoices rs fixedNext
-          (Function.update x i best.1) hnd_rs hdisj_next
+          PMF.condExpect p f fixed x :=
+        LE.le.trans (by simpa only [heq_best, heval] using hmono hbest_le_star) ha_le
+      have hdisj_next (j) (hj : j ∈ rs) : j ∉ fixedNext := by
+        simp [fixedNext, show j ≠ i from fun h => hi_rs (h ▸ hj),
+          hdisj j (List.mem_cons_of_mem i hj)]
+      obtain ⟨hset_end, hexp_end⟩ := runFrom_spec p f hmono heval hchoices rs fixedNext
+        (Function.update x i best.1) hnd_rs hdisj_next
       have hrun : D.runFrom (i :: rs) fixed x =
           D.runFrom rs fixedNext (Function.update x i best.1) := by
-        simp [runFrom, hstep_eq]
-      refine ⟨?_, ?_⟩
-      · rw [hrun, hset_end]
-        ext j
-        simp [fixedNext]
-      · rw [hrun]
-        exact hexp_end.trans hstep_exp
+        simp [runFrom, stepCoord, hcs, fixedNext, best, v₀]
+      refine ⟨by rw [hrun, hset_end]; ext; simp [fixedNext], ?_⟩
+      rw [hrun]
+      exact hexp_end.trans hstep_exp
 
 /-- **Method of conditional expectations on a finite product space**: if `order` visits every
 coordinate without repetition, `D.choices i` covers `(p i).support`, and `D.condExp` computes
@@ -198,8 +177,7 @@ theorem derandomize_spec [Fintype ι] [∀ i, Fintype (α i)]
     (hchoices : ∀ i a, a ∈ (p i).support → a ∈ D.choices i)
     (order : List ι) (hnd : order.Nodup) (hcov : ∀ i, i ∈ order) (init : ∀ i, α i) :
     f (D.derandomize order init) ≤ ∑ y, (PMF.pi p y).toReal * f y := by
-  obtain ⟨hset, hexp⟩ :=
-    runFrom_spec D p f hmono heval hchoices order ∅ init hnd (by simp)
+  obtain ⟨hset, hexp⟩ := runFrom_spec D p f hmono heval hchoices order ∅ init hnd (by simp)
   have huniv : (D.runFrom order ∅ init).1 = Finset.univ := by
     rw [hset]
     ext i

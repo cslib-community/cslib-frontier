@@ -95,13 +95,11 @@ private theorem map_segment {j : ℕ} (hj : j < J) (i : Fin h) (c : T.X j) :
     (s(T.co i (T.hostOf i c), T.co i c) : Sym2 T.Fl).map (fun f =>
       Tower.Node.ofChamber hj ((T.chamberEquiv hj i).symm (T.πV (T.vx i c), f))) =
         s(.ofChamber hj (T.hostOf i c), .ofChamber hj (T.π c)) := by
-  have h1 : (T.chamberEquiv hj i).symm (T.πV (T.vx i c), T.co i (T.hostOf i c)) = T.hostOf i c := by
-    rw [← T.host_vx hj i (T.vx i c)]
-    exact T.chamberEquiv_symm_vx_co hj i _
-  have h2 : (T.chamberEquiv hj i).symm (T.πV (T.vx i c), T.co i c) = T.π c := by
-    rw [← T.π_vx hj i c, ← T.π_co hj i c]
-    exact T.chamberEquiv_symm_vx_co hj i _
-  rw [Sym2.map_mk, h1, h2]
+  rw [Sym2.map_mk,
+    show (T.chamberEquiv hj i).symm (T.πV (T.vx i c), T.co i (T.hostOf i c)) = T.hostOf i c by
+      rw [← T.host_vx hj i (T.vx i c)]; exact T.chamberEquiv_symm_vx_co hj i _,
+    show (T.chamberEquiv hj i).symm (T.πV (T.vx i c), T.co i c) = T.π c by
+      rw [← T.π_vx hj i c, ← T.π_co hj i c]; exact T.chamberEquiv_symm_vx_co hj i _]
 
 private theorem Relay.holders_target {x : Relay T m A} (hx : x.Occurs R ch) {d : Bool}
     (hd : x.target R ch d ≠ .done) : (x.target R ch d).holders R ch =
@@ -125,9 +123,8 @@ private theorem Relay.holders_target {x : Relay T m A} (hx : x.Occurs R ch) {d :
     · exact congrArg (Sym2.map (Tower.Node.ofChamber j.2)) (T.π_ends j.2 e)
     · exact (map_segment j.2 (T.ty e) (T.e1 e)).trans Sym2.eq_swap
     · by_cases hh : T.hostOf (T.ty e) (T.e0 e) = T.π (T.e0 e)
-      · refine (congrArg (Target.holders R ch) (ite_eq_right (not_not.2 hh))).trans ?_
-        exact congrArg (fun c => s(Tower.Node.ofChamber j.2 c, .ofChamber j.2.le (T.e1 e)))
-          hh.symm
+      · exact (congrArg (Target.holders R ch) (ite_eq_right (not_not.2 hh))).trans
+          (congrArg (fun c => s(Tower.Node.ofChamber j.2 c, .ofChamber j.2.le (T.e1 e))) hh.symm)
       · exact congrArg (Target.holders R ch) (ite_eq_left hh)
     · rfl
     · by_cases hh : T.π (T.e1 e) = T.hostOf (T.ty e) (T.e1 e)
@@ -142,24 +139,21 @@ private theorem holders_target_vertex (l : VertexMove FL) (ν : (FL.law l.kind).
   set p := (T.nr l.stage.2 l.type).symm (l.vertex, FL.nearPair l.kind ν)
   have hp : T.nr l.stage.2 l.type p = (l.vertex, FL.nearPair l.kind ν) :=
     Equiv.apply_symm_apply _ _
-  have h0 : T.vx l.type (T.e0 p.1) = l.vertex :=
-    (T.nr_vx0 l.stage.2 l.type p).trans (congrArg Prod.fst hp)
-  have h1 : T.vx l.type (T.e1 p.1) = l.vertex :=
-    (T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp)
   have h2 := (FL.place_channelEnd l.kind ν).trans
     ((T.nr_co l.stage.2 l.type p).trans (by rw [hp])).symm
-  have h3 := congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
-    ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2
   have e0 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e0 p.1)) =
       T.e0 p.1 := by
-    rw [← h0]
+    rw [← ((T.nr_vx0 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e0 p.1) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
   have e1 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e1 p.1)) =
       T.e1 p.1 := by
-    rw [← h1]
+    rw [← ((T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp) :
+      T.vx l.type (T.e1 p.1) = l.vertex)]
     exact T.chamberEquiv_symm_vx_co _ _ _
   exact (congrArg₂ (fun x y => s(Tower.Node.ofChamber l.stage.2 x, .ofChamber l.stage.2 y))
-    e0 e1).symm.trans h3.symm
+    e0 e1).symm.trans (congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
+      ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2).symm
 
 /-- The units of a channel of a move are held by the nodes of their target. -/
 theorem holders_target (ν : MoveChannel R ch FL) (hd : ν.1.target ν.2 ≠ .done) :

@@ -57,18 +57,16 @@ theorem ofRotation_deleteLastArgumentRotation (F : CSP Rel V) (r : Rel) (scope :
     RotationCertificate.ofRotation (deleteLastArgumentRotation F r scope v ρ) =
       restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length)
         (RotationCertificate.ofRotation ρ) := by
-  have he : (lastArgumentPrefixGraph F r scope v).2.length =
-      (F ++ [Constraint.mk r scope]).occurrences.length := by
-    simp [lastArgumentPrefixGraph]
   change RotationCertificate.ofRotation
     (((lastArgumentSourceRotation F r scope v ρ).deleteLastEdge
       (G := lastArgumentPrefixGraph F r scope v)
       (u := (F ++ [Constraint.mk r (scope ++ [v])]).distinctVars.idxOf v)
       (v := (F ++ [Constraint.mk r (scope ++ [v])]).numVars + F.length)).transport
         (lastArgumentDartEquiv F r scope v) (lastArgumentDartEquiv_vertex_eq_iff F r scope v)) = _
-  rw [ofRotation_transport _ _ _ (by intro a; rfl)]
-  rw [← restrictPrefix_ofRotation_deleteLastEdge, he]
-  rw [lastArgumentSourceRotation, ofRotation_graphEqDartEquiv]
+  rw [ofRotation_transport _ _ _ fun _ => rfl, ← restrictPrefix_ofRotation_deleteLastEdge,
+    show (lastArgumentPrefixGraph F r scope v).2.length =
+      (F ++ [Constraint.mk r scope]).occurrences.length by simp [lastArgumentPrefixGraph],
+    lastArgumentSourceRotation, ofRotation_graphEqDartEquiv]
 
 /-- On an accepted raw numerical source certificate, the literal boundary restriction
 passes the actual target numerical checker. Dense renaming, repeated variables and
@@ -80,19 +78,12 @@ theorem verifyGenusZero_restrictPrefix_lastArgument (F : CSP Rel V) (r : Rel)
     RotationCertificate.verifyGenusZero (incidenceGraph (F ++ [Constraint.mk r scope]))
       (restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length) c) = true := by
   obtain ⟨hrot, hgenus⟩ := (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mp h
-  let ρ :=
-    RotationCertificate.decode (incidenceGraph (F ++ [Constraint.mk r (scope ++ [v])])) c hrot
-  let τ := deleteLastArgumentRotation F r scope v ρ
-  have hτ : τ.NumericalGenusZero :=
-    numericalGenusZero_deleteLastArgumentRotation F r scope v ρ hgenus
-  have hout : RotationCertificate.ofRotation τ =
-      restrictPrefix (2 * (F ++ [Constraint.mk r scope]).occurrences.length) c := by
-    rw [ofRotation_deleteLastArgumentRotation, RotationCertificate.ofRotation_decode hrot]
-  rw [← hout]
-  apply (RotationCertificate.verifyGenusZero_eq_true_iff _ _).mpr
+  let τ := deleteLastArgumentRotation F r scope v (RotationCertificate.decode _ c hrot)
+  rw [← RotationCertificate.ofRotation_decode hrot, ← ofRotation_deleteLastArgumentRotation,
+    RotationCertificate.verifyGenusZero_eq_true_iff]
   refine ⟨RotationCertificate.verifyRotation_ofRotation τ (incidenceVertices_declared _), ?_⟩
   rw [RotationCertificate.decode_ofRotation _ (incidenceVertices_declared _)]
-  exact hτ
+  exact numericalGenusZero_deleteLastArgumentRotation F r scope v _ hgenus
 
 omit [DecidableEq V] in
 private theorem argumentOrder_restrictPrefix_lastArgument_of_clock (F : CSP Rel V)
@@ -106,39 +97,28 @@ private theorem argumentOrder_restrictPrefix_lastArgument_of_clock (F : CSP Rel 
         [((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length)] := by
     simp [CSP.occurrences_append_last_argument, List.zipIdx_append]
   rw [verifyArgumentOrder, List.all_eq_true] at ho ⊢
-  intro entry he
-  rcases entry with ⟨⟨i, j, w⟩, k⟩
+  rintro ⟨⟨i, j, w⟩, k⟩ he
   apply decide_eq_true
-  have hsrc := of_decide_eq_true (ho ((i, j, w), k) (by
-    rw [hpre]
-    exact List.mem_append_left _ he))
+  have hsrc := of_decide_eq_true (ho ((i, j, w), k) (hpre ▸ List.mem_append_left _ he))
   change c.successor.getD (2 * k + 1) 0 =
     2 * argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) i j + 1 at hsrc
   obtain ⟨hk, hrec⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
-  have hm : (i, j, w) ∈ (F ++ [Constraint.mk r scope]).occurrences :=
-    List.mem_iff_getElem.mpr ⟨k, hk, hrec⟩
-  obtain ⟨o, hrecord⟩ := CSP.mem_occurrences.mp hm
-  have hcoords : o.1.val = i ∧ o.2.val = j ∧ o.var = w := by
+  obtain ⟨o, hrecord⟩ := CSP.mem_occurrences.mp (List.mem_iff_getElem.mpr ⟨k, hk, hrec⟩)
+  obtain ⟨rfl, rfl, rfl⟩ : o.1.val = i ∧ o.2.val = j ∧ o.var = w := by
     simpa only [CSP.Occurrence.record, Prod.mk.injEq] using hrecord
-  rcases hcoords with ⟨hi, hj, hw⟩
-  subst i
-  subst j
-  subst w
   have hn := argumentNextIndex_lt_occurrences o
   by_cases hlast : o.1.val = F.length ∧ o.2.val + 1 = scope.length
   · rw [argumentNextIndex_append_last_argument, ite_eq_left hlast] at hsrc
     have hwrap := of_decide_eq_true (ho
-      ((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length) (by
-        rw [hpre]
-        exact List.mem_append_right _ (by simp)))
+      ((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length)
+      (hpre ▸ List.mem_append_right _ (by simp)))
     change c.successor.getD (2 * (F ++ [Constraint.mk r scope]).occurrences.length + 1) 0 =
       2 * argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) F.length scope.length + 1
       at hwrap
     rw [argumentNextIndex_append_last_argument_wrap F r scope v o hlast.1 hlast.2] at hwrap
-    have hr := getD_restrictPrefix_two c (2 * (F ++ [Constraint.mk r scope]).occurrences.length)
-      (2 * k + 1) (by omega) hc (by rw [hsrc]; omega) (by rw [hsrc, hwrap]; omega)
-    rw [hsrc, hwrap] at hr
-    exact hr
+    simpa only [hsrc, hwrap] using getD_restrictPrefix_two c
+      (2 * (F ++ [Constraint.mk r scope]).occurrences.length) (2 * k + 1) (by omega) hc
+      (by rw [hsrc]; omega) (by rw [hsrc, hwrap]; omega)
   · rw [argumentNextIndex_append_last_argument, ite_eq_right hlast] at hsrc
     rw [getD_restrictPrefix_one c _ _ (by omega) (by omega) (by rw [hsrc]; omega), hsrc]
 

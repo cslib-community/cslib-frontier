@@ -113,17 +113,12 @@ theorem actual_walk_prefix_support {E : Type*} [Fintype E]
   dsimp only
   have hp (i : ℕ) := conditionalWalk_zero_off (retainedMask s Ls D sourceSuffix)
     (retainedMask t Lt D suffix) (graphs i) (times i) (child i) σ x y hy
-  constructor
-  · intro i
-    have ht := uncompressed_second_telescope
-      (fun j z => conditionalWalk (retainedMask s Ls D sourceSuffix)
-        (retainedMask t Lt D suffix) (graphs j) (times j) (child j) σ x z)
-      (fun j z => first j σ x z) (raw σ x) (hzero σ x) i y
-    exact ht.trans (hp (i + 1))
-  · intro S n K ρ m
-    apply iterate_second_zero_off S n K ρ _ _ y (hzero σ x y) _ m
-    intro i
-    simp only [Fin.isValue, one_ne_zero, ↓reduceIte, hp, ite_self, sub_self]
+  refine ⟨fun i => (uncompressed_second_telescope
+    (fun j z => conditionalWalk (retainedMask s Ls D sourceSuffix)
+      (retainedMask t Lt D suffix) (graphs j) (times j) (child j) σ x z)
+    (fun j z => first j σ x z) (raw σ x) (hzero σ x) i y).trans (hp (i + 1)),
+    fun S n K ρ m => iterate_second_zero_off S n K ρ _ _ y (hzero σ x y)
+      (fun i => by simp only [Fin.isValue, one_ne_zero, ↓reduceIte, hp, ite_self, sub_self]) m⟩
 
 open Classical in
 /-- Explicit full-rank client for the four-max split, using the genuine target. -/
@@ -156,12 +151,12 @@ theorem actual_two_mask_row_max
   have hd : 0 ≤ G x y / rate k := div_nonneg (hG x y) (rate_pos k).le
   have hb : 0 ≤ min 1 (|twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 0 - G x y / rate k| /
     (1 + G x y / rate k)) := le_min (by norm_num) (by positivity)
-  have hc : 0 ≤ min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 1-
+  have hc : 0 ≤ min 1 |twoMaskMean s t Ls La Lt D sourceSuffix suffix F x y 1 -
     ζ * genuineMean HP s t Ls Lt (CopyPadding.identifier D sourceSuffix x) D suffix k G x y| :=
     le_min (by norm_num) (abs_nonneg _)
   simpa only [genuineTarget, Fin.isValue, ↓reduceIte, mem_filter, mem_univ, true_and,
-    abs_of_nonneg hb, abs_of_nonneg hc, abs_of_nonneg (div_nonneg (abs_nonneg _) (by linarith : 0
-      ≤ 1 + G x y / rate k)),
+    abs_of_nonneg hb, abs_of_nonneg hc,
+    abs_of_nonneg (div_nonneg (abs_nonneg _) (by linarith : 0 ≤ 1 + G x y / rate k)),
     abs_abs] using hh
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments
@@ -275,9 +270,7 @@ theorem integrated_two_mask_clipped_means_capacity
   have hC : 0 ≤ 2 + 256 * M / η := by positivity
   have hh (ν : Fin 2) := integrated_mean_tail_capacity s t hst Ls
     (if ν = 0 then side P k else Lt) D hD sourceSuffix suffix H hk
-    (by split_ifs
-        · exact side_le P k
-        · exact hLt) G hG hη (hε ν) hNu hmass m n K hn Δ raw
+    (by split_ifs; exacts [side_le P k, hLt]) G hG hη (hε ν) hNu hmass m n K hn Δ raw
     (actualClippedMean HP s t Ls (side P k) Lt D sourceSuffix suffix k G ζ Δ raw ν)
     (B ν) (hB ν) (hμ ν) (hbudget ν)
   have hh' := vertex_add_budget (retainedMask s Ls D sourceSuffix) hNu
@@ -322,10 +315,8 @@ theorem integrated_two_mask_envelope_capacity
       (((2 + 256 * M / η) * (εμ 0 + εμ 1)) / 63 + (εz 0 + εz 1) * (7 / 9)) ^ 4 := by
   dsimp only
   have hM : 0 ≤ M := (sum_nonneg (fun y _ => hG 0 y)).trans (hmass 0)
-  have hm0 := hεμ 0
-  have hm1 := hεμ 1
-  have hz0 := hεz 0
-  have hz1 := hεz 1
+  have hm0 := hεμ 0; have hm1 := hεμ 1
+  have hz0 := hεz 0; have hz1 := hεz 1
   exact vertex_add_budget (retainedMask s Ls D sourceSuffix) hNu (by positivity) (by positivity) _ _
     (integrated_two_mask_clipped_means_capacity HP s t hst Ls Lt D hD sourceSuffix suffix H hk hLt
       G hG ζ hη hNu hmass m n K hn Δ raw εμ hεμ B hB hμ hbudget)
