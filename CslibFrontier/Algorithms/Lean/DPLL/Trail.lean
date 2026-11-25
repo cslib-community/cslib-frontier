@@ -363,8 +363,7 @@ theorem model?_search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)
             (‹OpenVars φ π []›.covers x hx).resolve_left List.not_mem_nil) hsat
         · omega
         · rename_i x xs fuel' hvs' hlen' hfe _
-          have hf : fuel = fuel' := by omega
-          subst hf
+          obtain rfl : fuel = fuel' := by omega
           have hst : status φ π = .branch (nextLiteral φ π) := by simp [status, hfind, hsat]
           have hbl := branchLiteral_eq hvo
           split
@@ -376,39 +375,29 @@ theorem model?_search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)
             rw [dfs, hst, ← hbl]; rfl
           have hun := (assigned_of_status_eq_branch hst).2
           rw [← hbl] at hun
-          have hc₁ : Consistent ((v, b) :: π) := hπ.cons hun
-          have hc₂ : Consistent ((v, !b) :: π) := hπ.cons (l := (v, !b)) hun
-          have hvo₁ : (x :: xs).erase v = openVars φ ((v, b) :: π) := by rw [hvo, openVars_cons]
-          have hvo₂ : (x :: xs).erase v = openVars φ ((v, !b) :: π) := by rw [hvo, openVars_cons]
           have hl : ((x :: xs).erase v).length ≤ fuel := by
             rw [List.length_erase_of_mem hv]; simp only [List.length_cons] at hlen' ⊢; omega
-          have ih₁ := ih _ _ (hvs'.erase v b) hl hvo₁ hc₁
-          have ih₂ := ih _ _ (hvs'.erase v !b) hl hvo₂ hc₂
+          have ih₁ := ih _ _ (hvs'.erase v b) hl (by rw [hvo, openVars_cons]) (hπ.cons hun)
+          have hc₂ : Consistent ((v, !b) :: π) := hπ.cons (l := (v, !b)) hun
+          have ih₂ := ih _ _ (hvs'.erase v !b) hl (by rw [hvo, openVars_cons]) hc₂
           rw [hdfs]
           dsimp only
           split
           · rename_i σ h hs₁
             rw [hs₁] at ih₁
-            cases hd : dfs φ fuel ((v, b) :: π) with
-            | none => simp [hd, Outcome.model?] at ih₁
-            | some π' =>
-              simp only [hd, Outcome.model?, Option.map_some, Option.some_or] at ih₁ ⊢
-              exact ih₁
+            cases hd : dfs φ fuel ((v, b) :: π) <;>
+              simp only [hd, Outcome.model?, Option.map_some, Option.map_none, Option.some_or,
+                reduceCtorEq] at ih₁ ⊢
+            exact ih₁
           · rename_i c₁ d₁ h₁ hs₁
             rw [hs₁] at ih₁
-            have hd₁ : dfs φ fuel ((v, b) :: π) = none := by
-              cases hd : dfs φ fuel ((v, b) :: π) with
-              | none => rfl
-              | some π' => simp [hd, Outcome.model?] at ih₁
+            have hd₁ : dfs φ fuel ((v, b) :: π) = none :=
+              Option.eq_none_iff_forall_ne_some.2 fun π' hd => by simp [hd, Outcome.model?] at ih₁
             rw [hd₁, Option.none_or]
             split
-            · split
-              · rename_i σ h hs₂
-                rw [hs₂] at ih₂
-                exact ih₂
-              · rename_i c₂ d₂ h₂ hs₂
-                rw [hs₂] at ih₂
-                split
+            · split <;> rename_i hs₂ <;> rw [hs₂] at ih₂
+              · exact ih₂
+              · split
                 · rw [model?_resolveBranches]; exact ih₂
                 · exact ih₂
             · rename_i hn
