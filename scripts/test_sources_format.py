@@ -41,6 +41,10 @@ class CanonicalTest(unittest.TestCase):
                           "t</span> stay. Done.",
                           "See `a. B` and ``x. `Y` z`` here.",
                           "Math $x. Y$ and <span title=\"a. B\">t</span> stay.", "Done.")
+        self.assertSplits("See $$ a. B $$ and $c. D$ here. Next.",
+                          "See $$ a. B $$ and $c. D$ here.", "Next.")
+        self.assertSplits("$$a = 1$$ is proved. Next.",
+                          "$$a = 1$$ is proved.", "Next.")
 
     def test_no_line_starts_another_block(self) -> None:
         for text in ("Ends. * not a list item", "Ends. 1. not a list", "Ends. # Not a heading",
@@ -83,6 +87,73 @@ class CanonicalTest(unittest.TestCase):
                          ("- One.\n- Two.\n", "- One. - Two.\n")):
             with self.subTest((old, new)):
                 self.assertTrue(any("block " in d for d in sf.compare(old, new)))
+
+    def test_multiline_html_display_math_and_pipe_tables_are_kept(self) -> None:
+        cases = (
+            # CommonMark §4.6 Type 1 (`<pre>`, `<script>`, `<style>`, `<textarea>`) across blanks.
+            (
+                "<pre>\nSource note. Keep it on one physical line.\n\n"
+                "Second block. Also kept.\n</pre>\n",
+                "<pre>\nSource note.\nKeep it on one physical line.\n\n"
+                "Second block. Also kept.\n</pre>\n",
+            ),
+            (
+                "<SCRIPT>\nvar x = 1. Y = 2.\n</SCRIPT>\n",
+                "<SCRIPT>\nvar x = 1.\nY = 2.\n</SCRIPT>\n",
+            ),
+            # CommonMark §4.6 Types 3–5 (`<?...?>`, `<![A-Za-z]...>` declarations, `<![CDATA[...]>`).
+            (
+                "<?xml version=\"1.0\"\nfoo. Bar.\n?>\n",
+                "<?xml version=\"1.0\"\nfoo.\nBar.\n?>\n",
+            ),
+            (
+                "<!DOCTYPE\nhtml. Here.\n>\n",
+                "<!DOCTYPE\nhtml.\nHere.\n>\n",
+            ),
+            (
+                "<![CDATA[\nSource note. Keep it.\n\nAcross blank lines.\n]]>\n",
+                "<![CDATA[\nSource note.\nKeep it.\n\nAcross blank lines.\n]]>\n",
+            ),
+            # CommonMark §4.6 Types 6–7 (block/standalone HTML tags up to the next blank line).
+            (
+                "<div>\nSource note. Keep HTML block.\n</div>\n",
+                "<div>\nSource note.\nKeep HTML block.\n</div>\n",
+            ),
+            (
+                "<widget>\nSource note. Keep standalone tag block.\n</widget>\n",
+                "<widget>\nSource note.\nKeep standalone tag block.\n</widget>\n",
+            ),
+            # Display-math `$$...$$` blocks.
+            (
+                "$$\nf(x) = 1. G(x) = 2.\n$$\n",
+                "$$ f(x) = 1. G(x) = 2. $$\n",
+            ),
+            (
+                "$$\nf(x) = 1. G(x) = 2.\n$$\n",
+                "$$\nf(x) = 1.\nG(x) = 2.\n$$\n",
+            ),
+            # GFM pipe tables without a leading `|` (and body rows without a leading `|`).
+            (
+                "Col A | Col B\n--- | ---\nCell 1. More. | Cell 2\n",
+                "Col A | Col B --- | --- Cell 1.\nMore. | Cell 2\n",
+            ),
+            (
+                "| Col A | Col B |\n| --- | --- |\nCell 1. More. | Cell 2\n",
+                "| Col A | Col B |\n| --- | --- |\nCell 1.\nMore. | Cell 2\n",
+            ),
+        )
+        for original, mutated in cases:
+            with self.subTest(original=original):
+                self.assertEqual(sf.canonical(original), original)
+                self.assertEqual(sf.compare(original, sf.canonical(original)), [])
+                self.assertTrue(any("block " in d for d in sf.compare(original, mutated)))
+        # Paragraphs preceding a multi-line block still split cleanly while keeping the block.
+        self.assertSplits(
+            "Intro. More.\nCol A | Col B\n--- | ---\nCell 1. More. | Cell 2\n",
+            "Intro.", "More.", "Col A | Col B", "--- | ---", "Cell 1. More. | Cell 2")
+        self.assertSplits(
+            '<a id="key"></a>\n## key\n\nFirst. Second.\n',
+            '<a id="key"></a>', "## key", "", "First.", "Second.")
 
     def test_formatting_is_idempotent_and_keeps_the_words(self) -> None:
         text = sf.SOURCES.read_text(encoding="utf-8")
@@ -128,6 +199,15 @@ class CommandTest(unittest.TestCase):
             status, output = self.run_main("--compare", str(old), str(path))
             self.assertEqual(status, 1)
             self.assertIn("block 3 differs", output)
+            old_pre = pathlib.Path(tmp) / "pre_old.md"
+            new_pre = pathlib.Path(tmp) / "pre_new.md"
+            old_pre.write_text("<pre>\nSource note. Keep it on one physical line.\n</pre>\n",
+                               encoding="utf-8")
+            new_pre.write_text("<pre>\nSource note.\nKeep it on one physical line.\n</pre>\n",
+                               encoding="utf-8")
+            status, output = self.run_main("--compare", str(old_pre), str(new_pre))
+            self.assertEqual(status, 1)
+            self.assertIn("block 1 differs", output)
 
 
 if __name__ == "__main__":
