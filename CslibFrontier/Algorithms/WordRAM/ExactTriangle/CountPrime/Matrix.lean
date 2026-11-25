@@ -95,10 +95,7 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
     obtain ⟨z, he, zi, newValues, cellFrame, zr⟩ := exec_matrixStep transpose y
       (by regs_frame) (by regs_frame) (by regs_frame) rfl hlt
       ysource ydestination (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
-      (by
-        intro j hj
-        rw [memory _ (Or.inl (by omega))]
-        exact htable j hj) hw
+      (fun j hj => (memory _ (Or.inl (by omega))).trans (htable j hj)) hw
     have keyFrame : cellKey transpose n p N source y.mem (y.regs Reg.index) =
         cellKey transpose n p N source x.mem (y.regs Reg.index) := by
       unfold cellKey
@@ -112,18 +109,15 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       rw [zi] at hj
       by_cases hjnew : j = y.regs Reg.index
       · subst j
-        rw [← keyFrame]
-        exact newValues r hrp
+        exact keyFrame ▸ newValues r hrp
       · have hne : cellPosition N j ≠
             Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) :=
           fun h => hjnew (cellPosition_injective N h)
-        rw [cellFrame _ (by stride_omega)]
-        exact values j (by omega) r hrp
+        exact (cellFrame _ (by stride_omega)).trans (values j (by omega) r hrp)
     · intro d hd
       have hm : Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) < 4 ^ k :=
         cellPosition_lt hlt
-      rw [cellFrame _ (by stride_omega)]
-      exact memory d hd
+      exact (cellFrame _ (by stride_omega)).trans (memory d hd)
   refine WP.exists_execWithin ?_
   unfold matrix
   wram_exec [hsrc, hdst, hdstReg]
