@@ -176,7 +176,9 @@ theorem AllowanceBound.comp_child {Op₂ : Type u'} {Struct : Type v} {d a₁ a�
   cases evChild with
   | digit _ _ _ =>
     refine ⟨by rw [Nat.add_mul]; have := hChild.1; omega, ?_⟩
-    have h2 := hChild.2; push_cast at hw h2 hret ⊢; linarith
+    have h2 := hChild.2
+    push_cast at hw h2 hret ⊢
+    linarith
   | struct _ L =>
     dsimp only [AllowanceBound, QueryEvent.addBits] at hChild ⊢
     push_cast at hw hChild hret ⊢; linarith
