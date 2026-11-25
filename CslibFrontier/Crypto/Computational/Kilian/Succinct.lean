@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.Kilian
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -32,14 +33,15 @@ of the PCP verifier's parameters, kept separate from them: `r = V.coins x` rando
   of queries, as for the verifier of the PCP theorem, this is `O(n² · (log₂ |enc x| + 1))`
   (`kilianCommunication_honest_le_log`).
 
-Verifier time is certified separately by `computableInPolyTime_kilianVerify`, assuming a
-polynomial-time hash with key-length digests, `V.PolyTime enc` and logarithmically many random
-bits. Its bound is polynomial in the encoded verifier input; on honest transcripts that input
-has length linear in `|enc x|` and polynomial in `n` and the PCP parameters
-(`length_kilianVerifierInput_honest_le`). With a polynomial query bound (in particular, the
-constant query bound of the PCP-theorem verifier), these hypotheses give polynomial time in
-`n + |enc x|`. The verifier does not truncate oversized messages, so against a cheating prover
-its time is polynomial in the received encoded input length.
+Verifier time is certified by `computableInPolyTime_kilianVerify`, assuming a polynomial-time
+hash with key-length digests, `V.PolyTime enc` and logarithmically many random bits. On honest
+transcripts, the encoded verifier input has length linear in `|enc x|` and polynomial in `n` and
+the PCP parameters (`length_kilianVerifierInput_honest_le`); combining the two under a constant
+(or polynomial) query bound yields a single binary multi-tape Turing machine computing
+`kilianVerify` whose step and space counts on every honest transcript are polynomially bounded in
+`n + |enc x|` (`computableInTimeAndSpace_kilianVerify_honest_le`). The verifier does not truncate
+oversized raw messages, so on arbitrary malformed inputs its time is polynomial in the received
+encoded input length.
 
 ## Main definitions
 
@@ -56,6 +58,8 @@ its time is polynomial in the received encoded input length.
   logarithmic randomness and constant query complexity.
 * `Cslib.Crypto.length_kilianVerifierInput_honest_le`: the encoded verifier input of an honest
   transcript is linear in the statement and polynomial in `n` and the PCP parameters.
+* `Cslib.Crypto.computableInTimeAndSpace_kilianVerify_honest_le`: machine-level time and space
+  bounds polynomial in `n + |enc x|` on every honest transcript.
 
 ## References
 
@@ -245,5 +249,76 @@ theorem length_kilianVerifierInput_honest_le {enc : α ↪ List Bool}
   have hchallenges : (encList encBits ρs).length ≤ n * (2 * V.coins x + 1) :=
     (length_encList_le _ _ (b := V.coins x) fun ρ hρ => (hρs ρ hρ).le).trans (by rw [hn])
   enc_len [encKilianView_apply, encKilianClaim_apply, hk]
+
+/-- **Honest-transcript verifier runtime and space**: under a polynomial-time hash with
+key-length digests and a polynomial-time PCP verifier `V` using `O(log |enc x|)` coins and at most
+`q` queries per random string, there is a fixed binary multi-tape Turing machine computing
+`kilianVerify` on every `KilianView α` in polynomial time and space in the encoded view, whose step
+and space bounds on every honest transcript at security parameter `n` are bounded by polynomially
+bounded functions of `n + |enc x|`. -/
+theorem computableInTimeAndSpace_kilianVerify_honest_le {enc : α ↪ List Bool} {c q : ℕ}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    (hV : V.PolyTime enc)
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
+    (hq : ∀ x (ρ : List Bool), ρ.length = V.coins x → (V.queries (x, ρ)).length ≤ q) :
+    ∃ (k : ℕ) (State : Type) (_ : Finite State) (tm : Turing.MultiTapeTM k Bool State)
+      (t s tHonest sHonest : ℕ → ℕ),
+      PolynomiallyBounded t ∧ PolynomiallyBounded s ∧
+      PolynomiallyBounded tHonest ∧ PolynomiallyBounded sHonest ∧
+      tm.ComputesFunInTimeAndSpace (encKilianView enc) encBool
+        (fun v => kilianVerify H V v.key v.stmt v.root v.challenges v.response)
+        (fun v => t (encKilianView enc v).length)
+        (fun v => s (encKilianView enc v).length) ∧
+      (∀ (n : ℕ) (key : List Bool) (x : α) (table : List Bool) (ρs : List (List Bool)),
+        key.length = n → ρs.length = n → (∀ ρ ∈ ρs, ρ.length = V.coins x) →
+          let view : KilianView α :=
+            { key := key, stmt := x, root := kilianCommit H V key x table,
+              challenges := ρs, response := kilianRespond H V key x table ρs }
+          t (encKilianView enc view).length ≤ tHonest (n + (enc x).length) ∧
+          s (encKilianView enc view).length ≤ sHonest (n + (enc x).length) ∧
+          tm.ComputesInTimeAndSpace (encKilianView enc view)
+            (encBool (kilianVerify H V key x view.root ρs view.response))
+            (tHonest (n + (enc x).length)) (sHonest (n + (enc x).length))) := by
+  let inBound : ℕ → ℕ := fun u =>
+    4 * u + 6 * u + 6 + 2 * (u * (2 * (c * (u + 1)) + 1)) +
+      u * (2 * (q * (2 * (3 + (c * (u + 1) + Nat.clog 2 q) * (2 * u + 1)) + 1)) + 1)
+  have hin_pb : PolynomiallyBounded inBound := by
+    dsimp only [inBound]
+    fun_prop
+  obtain ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm', hbound⟩ :=
+    computableInTimeAndSpace_kilianVerify_of_bound hH hlen hV hcoins
+      (fun v => ∃ n table, v.key.length = n ∧ v.challenges.length = n ∧
+        (∀ ρ ∈ v.challenges, ρ.length = V.coins v.stmt) ∧
+        v.root = kilianCommit H V v.key v.stmt table ∧
+        v.response = kilianRespond H V v.key v.stmt table v.challenges)
+      (fun v => v.key.length + (enc v.stmt).length) inBound hin_pb fun view hview => by
+        rcases hview with ⟨n, table, hk, hn, hρs, hroot, hresp⟩
+        have hcoins_le : V.coins view.stmt ≤ c * ((n + (enc view.stmt).length) + 1) :=
+          (hcoins view.stmt).trans
+            (Nat.mul_le_mul_left c (Nat.succ_le_succ
+              ((Nat.log_le_self 2 _).trans (Nat.le_add_left _ _))))
+        have hview_eq : view =
+            { key := view.key, stmt := view.stmt, root := kilianCommit H V view.key view.stmt table,
+              challenges := view.challenges,
+              response := kilianRespond H V view.key view.stmt table view.challenges } := by
+          rcases view with ⟨⟨k, stmt, root⟩, challenges, response⟩
+          dsimp only at hroot hresp
+          subst hroot hresp
+          rfl
+        conv_lhs => rw [hview_eq]
+        rw [hk]
+        refine (length_kilianVerifierInput_honest_le hlen hk hn hρs (hq view.stmt)).trans ?_
+        have hn_le : n ≤ n + (enc view.stmt).length := Nat.le_add_right _ _
+        have hx_le : (enc view.stmt).length ≤ n + (enc view.stmt).length := Nat.le_add_left _ _
+        dsimp only [inBound]
+        gcongr
+  refine ⟨kTM, State, hfin, tm, t, s, tHonest, sHonest, ht_pb, hs_pb, htH, hsH, htm',
+    fun n key x table ρs hk hn hρs => ?_⟩
+  simpa [hk] using hbound
+    { key := key, stmt := x, root := kilianCommit H V key x table,
+      challenges := ρs, response := kilianRespond H V key x table ρs }
+    ⟨n, table, hk, hn, hρs, rfl, rfl⟩
 
 end Cslib.Crypto

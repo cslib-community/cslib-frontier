@@ -69,15 +69,13 @@ private theorem length_bits (n : ℕ) (word : List (Fin q)) :
 /-- Actual explicit AND/OR graph and configuration emission is polynomial-time. -/
 theorem computableInPolyTime_toAndOr : ComputableInPolyTime (toAndOr H hq) (encInstance q)
     encAndOrNCL := by
-  have hs := encInstance_source_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
-  have ht := encInstance_target_polyTime q
-    (ComputableInPolyTime.id' (encIn := encInstance q))
-  have hn : ComputableInPolyTime (fun x : Instance q => x.source.length)
-      (encInstance q) encUnary := by fun_prop
-  have hg := (computableInPolyTime_graph H hq).comp hn
-  have hi := (computableInPolyTime_bits H hq).comp (hn.prod hs)
-  have hf := (computableInPolyTime_bits H hq).comp (hn.prod ht)
+  open scoped Instance in
+  have hg := (computableInPolyTime_graph H hq).comp
+    (g := fun x : Instance q => x.source.length) (by fun_prop)
+  have hi := (computableInPolyTime_bits H hq).comp
+    (g := fun x : Instance q => (x.source.length, x.source)) (by fun_prop)
+  have hf := (computableInPolyTime_bits H hq).comp
+    (g := fun x : Instance q => (x.source.length, x.target)) (by fun_prop)
   unfold toAndOr
   fun_prop
 

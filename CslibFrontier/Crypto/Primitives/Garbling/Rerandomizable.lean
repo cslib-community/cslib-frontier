@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.Basic
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Tactic.PMFSwap
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # Rerandomizable garbling schemes
@@ -560,71 +561,6 @@ theorem RandomnessComposition.Invertible.explainGb_bijective {rc : G.RandomnessC
 
 /-! ### Reindexing uniform samples -/
 
-section Reindex
-
-variable {α β γ δ : Type} [Fintype α] [Nonempty α] [Fintype β] [Nonempty β]
-  [Fintype δ] [Nonempty δ]
-
-/-- Move the first of three uniform samples innermost and swap the other two. -/
-private theorem bind_uniform_rotate (M : α → δ → β → PMF γ) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype δ).bind fun d =>
-        (PMF.uniformOfFintype β).bind fun c => M a d c) =
-      (PMF.uniformOfFintype β).bind fun c => (PMF.uniformOfFintype δ).bind fun d =>
-        (PMF.uniformOfFintype α).bind fun a => M a d c := by
-  pmf_swap
-
-/-- Two-sample change of variables `(a, b) ↦ (g b a, h b)`. -/
-private theorem bind_bind_uniform_reindex (g : β → α → α) (hg : ∀ b, Function.Bijective (g b))
-    (h : β ≃ β) {K K' : α → β → PMF γ} (hK : ∀ a b, K' a b = K (g b a) (h b)) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind (K' a)) =
-      (PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind (K a) := by
-  calc ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind (K' a))
-      = (PMF.uniformOfFintype β).bind fun b => (PMF.uniformOfFintype α).bind fun a => K' a b :=
-        PMF.bind_comm _ _ _
-    _ = (PMF.uniformOfFintype β).bind fun b => (PMF.uniformOfFintype α).bind fun a => K a (h b) :=
-        congrArg _ (funext fun b => PMF.uniformOfFintype_bind_bijective (hg b) fun a => hK a b)
-    _ = (PMF.uniformOfFintype β).bind fun b => (PMF.uniformOfFintype α).bind fun a => K a b :=
-        PMF.uniformOfFintype_bind_bijective h.bijective fun _ => rfl
-    _ = _ := (PMF.bind_comm _ _ _).symm
-
-/-- Change of the first of three samples, `a ↦ g c a`, depending on the third. -/
-private theorem bind_bind_bind_uniform_reindex_fst (g : β → α → α)
-    (hg : ∀ c, Function.Bijective (g c)) {K K' : α → δ → β → PMF γ}
-    (hK : ∀ a d c, K' a d c = K (g c a) d c) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype δ).bind fun d =>
-        (PMF.uniformOfFintype β).bind fun c => K' a d c) =
-      (PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype δ).bind fun d =>
-        (PMF.uniformOfFintype β).bind fun c => K a d c := by
-  rw [bind_uniform_rotate K', bind_uniform_rotate K]
-  exact congrArg _ (funext fun c => congrArg _ (funext fun d =>
-    PMF.uniformOfFintype_bind_bijective (hg c) fun a => hK a d c))
-
-/-- Three-sample change of variables `(a, b, c) ↦ (g (k b c) a, h c, k b c)`. -/
-private theorem bind_bind_bind_uniform_reindex (g : β → α → α)
-    (hg : ∀ c, Function.Bijective (g c)) (k : β → β → β) (hk : ∀ c, Function.Bijective (k · c))
-    (h : β ≃ β) {K K' : α → β → β → PMF γ}
-    (hK : ∀ a b c, K' a b c = K (g (k b c) a) (h c) (k b c)) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b =>
-        (PMF.uniformOfFintype β).bind fun c => K' a b c) =
-      (PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b =>
-        (PMF.uniformOfFintype β).bind fun c => K a b c := by
-  rw [bind_uniform_rotate K', bind_uniform_rotate K]
-  calc ((PMF.uniformOfFintype β).bind fun c => (PMF.uniformOfFintype β).bind fun b =>
-          (PMF.uniformOfFintype α).bind fun a => K' a b c)
-      = (PMF.uniformOfFintype β).bind fun c => (PMF.uniformOfFintype β).bind fun b =>
-          (PMF.uniformOfFintype α).bind fun a => K a (h c) (k b c) :=
-        congrArg _ (funext fun c => congrArg _ (funext fun b =>
-          PMF.uniformOfFintype_bind_bijective (hg (k b c)) fun a => hK a b c))
-    _ = (PMF.uniformOfFintype β).bind fun c => (PMF.uniformOfFintype β).bind fun s =>
-          (PMF.uniformOfFintype α).bind fun a => K a (h c) s :=
-        congrArg _ (funext fun c => PMF.uniformOfFintype_bind_bijective (hk c) fun _ => rfl)
-    _ = (PMF.uniformOfFintype β).bind fun c => (PMF.uniformOfFintype β).bind fun s =>
-          (PMF.uniformOfFintype α).bind fun a => K a c s :=
-        PMF.uniformOfFintype_bind_bijective h.bijective fun _ => rfl
-    _ = _ := PMF.bind_comm _ _ _
-
-end Reindex
-
 /-! ### Explainability from rerandomization privacy -/
 
 /-- **Explainable garbling from rerandomization privacy.** For every distinguisher `D`, the
@@ -638,11 +574,15 @@ theorem explainGbAdvantage_eq (rc : G.RandomnessComposition) (hinv : rc.Invertib
     simp only [explainGbRealExperiment, explainGbRealView, explainGbFixedRealView,
       rerandRealExperiment, rerandRealView, explainGbReduction, bind_assoc, pure_bind,
       ProbComp.eval_bind, ProbComp.eval_uniform]
-    refine bind_bind_uniform_reindex (fun r' r => rc.explainGb r r') hinv.explainGb_bijective
-      hinv.invRerand fun r r' => ?_
-    rw [rc.garble_explainGb]
-    dsimp only [rerandGarbled]
-    rw [hinv.rerand_invRerand, encode_permEncoding, hinv.permInput_invRerand]
+    relabel_uniform
+        (fun p : G.Coins × G.RerandCoins => (rc.explainGb p.1 p.2, hinv.invRerand p.2)) with p
+    · rintro ⟨r₁, r'₁⟩ ⟨r₂, r'₂⟩ h
+      simp only [Prod.mk.injEq] at h
+      have h₂ := hinv.invRerand.injective h.2
+      exact Prod.ext ((hinv.explainGb_bijective r'₂).injective (h₂ ▸ h.1)) h₂
+    · rw [rc.garble_explainGb]
+      dsimp only [rerandGarbled]
+      rw [hinv.rerand_invRerand, encode_permEncoding, hinv.permInput_invRerand]
   have hideal : ProbComp.eval (G.explainGbIdealExperiment f x D) =
       ProbComp.eval (G.rerandIdealExperiment f x (G.explainGbReduction f D)) := by
     simp only [explainGbIdealExperiment, explainGbIdealView, explainGbFixedIdealView,
@@ -676,22 +616,35 @@ theorem explainRerandAdvantage_le (rc : G.RandomnessComposition) (hinv : rc.Inve
     simp only [explainRerandRealExperiment, explainRerandRealView, explainRerandFixedRealView,
       rerandRealExperiment, rerandRealView, explainRerandReductionLeft, bind_assoc, pure_bind,
       ProbComp.eval_bind, ProbComp.eval_uniform]
-    refine bind_bind_bind_uniform_reindex (fun s r => rc.explainGb r s) hinv.explainGb_bijective
-      rc.explainRerand hinv.explainRerand_bijective hinv.invRerand fun r r₁ r₂ => ?_
-    rw [hinv.unexplainGb_explainGb, rc.garble_explainGb]
-    dsimp only [rerandGarbled]
-    rw [rc.rerand_explainRerand]
-    dsimp only [rerandTwice]
-    rw [hinv.rerand_invRerand, encode_permEncoding, permInput_comp hcomp,
-      hinv.permInput_invRerand]
+    relabel_uniform (fun p : G.Coins × G.RerandCoins × G.RerandCoins =>
+      (rc.explainGb p.1 (rc.explainRerand p.2.1 p.2.2),
+       hinv.invRerand p.2.2, rc.explainRerand p.2.1 p.2.2)) with p
+    · rintro ⟨r₀, r₁, r₂⟩ ⟨r₀', r₁', r₂'⟩ h
+      simp only [Prod.mk.injEq] at h
+      rcases h with ⟨hgb, hinvEq, hrer⟩
+      have h₂ := hinv.invRerand.injective hinvEq
+      subst h₂
+      have h₁ := (hinv.explainRerand_bijective r₂).injective hrer
+      subst h₁
+      exact Prod.ext ((hinv.explainGb_bijective (rc.explainRerand r₁ r₂)).injective hgb) rfl
+    · rw [hinv.unexplainGb_explainGb, rc.garble_explainGb]
+      dsimp only [rerandGarbled]
+      rw [rc.rerand_explainRerand]
+      dsimp only [rerandTwice]
+      rw [hinv.rerand_invRerand, encode_permEncoding, permInput_comp hcomp,
+        hinv.permInput_invRerand]
   have hhyb : ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D)) =
       ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionLeft hinv f D)) := by
     simp only [rerandIdealExperiment, rerandIdealView, explainRerandReductionRight,
       explainRerandReductionLeft, bind_assoc, pure_bind, ProbComp.eval_bind,
       ProbComp.eval_uniform]
-    refine bind_bind_bind_uniform_reindex_fst (fun s r => rc.explainGb r s)
-      hinv.explainGb_bijective fun r t s => ?_
-    rw [hinv.unexplainGb_explainGb]
+    relabel_uniform (fun p : G.Coins × G.Coins × G.RerandCoins =>
+      (rc.explainGb p.1 p.2.2, p.2.1, p.2.2)) with p
+    · rintro ⟨r₁, t₁, s₁⟩ ⟨r₂, t₂, s₂⟩ h
+      simp only [Prod.mk.injEq] at h
+      rcases h with ⟨hr, rfl, rfl⟩
+      exact Prod.ext ((hinv.explainGb_bijective _).injective hr) rfl
+    · rw [hinv.unexplainGb_explainGb]
   calc G.explainRerandAdvantage rc f x D
       ≤ Game.advantage (ProbComp.eval (G.explainRerandRealExperiment rc f x D))
           (ProbComp.eval (G.rerandIdealExperiment f x (G.explainRerandReductionRight f D))) +
@@ -712,7 +665,9 @@ theorem eval_rerandRealView (rc : G.RandomnessComposition)
     ProbComp.eval (G.rerandRealView f x) = ProbComp.eval (G.rerandIdealView f x) := by
   simp only [rerandRealView, rerandIdealView, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbComp.eval_pure]
-  refine congrArg _ (funext fun r => PMF.uniformOfFintype_bind_bijective (h r) fun r' => ?_)
+  congr 1
+  funext r
+  relabel_uniform (rc.explainGb r) with r'
   rw [rc.garble_explainGb]
   dsimp only [rerandGarbled]
   rw [encode_permEncoding]
@@ -725,7 +680,7 @@ theorem eval_explainGbFixedRealView (rc : G.RandomnessComposition) (f : F) (x : 
       ProbComp.eval (G.explainGbFixedIdealView f x r) := by
   simp only [explainGbFixedRealView, explainGbFixedIdealView, ProbComp.eval_bind,
     ProbComp.eval_uniform, ProbComp.eval_pure]
-  refine PMF.uniformOfFintype_bind_bijective h fun r' => ?_
+  relabel_uniform (rc.explainGb r) with r'
   rw [rc.garble_explainGb]
   rfl
 
@@ -738,7 +693,7 @@ theorem eval_explainRerandFixedRealView (rc : G.RandomnessComposition) (f : F)
       ProbComp.eval (G.explainRerandFixedIdealView f x r r₁) := by
   simp only [explainRerandFixedRealView, explainRerandFixedIdealView, ProbComp.eval_bind,
     ProbComp.eval_uniform, ProbComp.eval_pure]
-  refine PMF.uniformOfFintype_bind_bijective h fun r₂ => ?_
+  relabel_uniform (rc.explainRerand r₁) with r₂
   rw [rc.rerand_explainRerand]
   rfl
 

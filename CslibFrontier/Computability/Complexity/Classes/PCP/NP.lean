@@ -37,6 +37,8 @@ in the soundness argument, never by the polynomial-time verifier.
   by `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList_of_le_mul_log`.
 * `PCPVerifier.isPolyTime_queryTable`: the complete address table is computable in polynomial
   time under the logarithmic coin bound.
+* `PCPVerifier.isPolyTime_answers`: extracting compact query-table answers from a proof string is
+  polynomial-time under the logarithmic coin bound.
 * `PCPVerifier.isPolyTime_tableWordVerdict`, `PCPVerifier.isPolyTime_tableVerifier`: uniform
   efficiency, including malformed tables.
 * `PCPVerifier.mem_queryTable`: the table records every address queried on a valid random word.
@@ -95,6 +97,20 @@ theorem isPolyTime_queryTable (hV : V.PolyTime enc)
   have hq := hV.queries
   unfold queryTable
   fun_prop
+
+/-- Extracting the compact table `answers proof (V.queryTable a)` from `(a, proof)` is
+polynomial-time under a logarithmic coin bound, using capped binary lookup on `proof`. -/
+theorem isPolyTime_answers (hV : V.PolyTime enc)
+    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
+    ComputableInPolyTime (fun p : α × List Bool => answers p.2 (V.queryTable p.1))
+      (encPair enc encBits) encBits := by
+  have ht := (isPolyTime_queryTable hV hcoins).comp (ComputableInPolyTime.fst enc encBits)
+  have hget := ComputableInPolyTime.listGetD_binary (encA := encBool) (encL := encBits) false
+    ((ComputableInPolyTime.snd enc encBits).comp
+      (ComputableInPolyTime.fst (encPair enc encBits) encNat))
+    (ComputableInPolyTime.snd (encPair enc encBits) encNat)
+  simpa only [answers, Function.comp_def] using
+    ComputableInPolyTime.mapToBitsWithInput (f := fun p q => p.2.getD q false) ht hget
 
 /-- Evaluating `V.verdict` on a candidate table `(a, table)` and a random word `word` using
 first-occurrence lookup in `V.queryTable a` is polynomial-time under a logarithmic coin bound. -/

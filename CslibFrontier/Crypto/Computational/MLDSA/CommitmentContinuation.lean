@@ -9,21 +9,14 @@ module
 
 public import CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
 public import CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `prob_response_changes` and unexposed `maskCommitmentAddress`.
 import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
+-- Reads private `ExpansionRow`, `freshExpansionTranscript`, and unexposed `freshExpansionGame`.
 import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskExpansion
-import all CslibFrontier.Crypto.Computational.MLDSA.PrivateMaskSeedGame
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningROM
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
 import CslibFrontier.Computability.Circuit.Quantum.Oracle.QueryDisturbance
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.ToReal
 import Mathlib.Analysis.MeanInequalitiesPow
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.MaskSeedQuery
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 
 /-!
 # Changing one commitment digest during a quantum ML-DSA execution

@@ -67,7 +67,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 | 7 | 24 | 16 | 10 | 1 | — |
 | 8 | 44 | 22 | 19 | 3 | — |
 | 9 | 29 | 18 | 12 | 1 | — |
-| 10 | 29 | 23 | 4 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
+| 10 | 29 | 22 | 5 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
 
 The 2026-11-17 follow-up to [#5940](https://github.com/cslib-community/cslib-frontier/issues/5940)
 covers 6.22 and both parts of 6.36 (part (a) with the padded SAT relation of 6.35), so 6.36 is
@@ -127,6 +127,9 @@ The 2026-11-17 uniform small-bias construction and gap reduction cover 10.6 (now
 
 The 2026-11-18 randomized query lower bound for majority moves 10.8 from T to C; the Chapter 10
 totals are recounted from its rows.
+
+The 2026-11-24 samplable-ensemble update moves 10.26 from T to C; the Chapter 10 totals are
+recounted from its rows.
 
 The 2026-11-17 statistical-distance update ([#6088](https://github.com/cslib-community/cslib-frontier/issues/6088))
 moves 8.7, 8.8 and 8.34 from T to C; the Chapter 8 totals are recounted from its rows.
@@ -488,7 +491,7 @@ condition) and dyadic "simple" ensembles are not modelled.
 | 10.23 | 501 / 119 | **T** | Each of Karp's 21 NP-complete problems is monotonically markable (starting with SAT, Clique, 3-Colorability). Ingredient of Theorem 10.19 (audit row 10.19 Endpoint not located). Not located. |
 | 10.24 | 501–502 / 119–120 | **T** | Define randomized reductions among distributional problems (per §10.2.1.3); prove (1) they preserve tpcBPP; (2) they preserve solvability with error ≤ 1/3 per input in typical polynomial time; (3) transitivity; (4) error reduction preserving domination; and the extension to distributional search problems. Referenced in §10.2.1.3 and §10.2.2. Not located (randomized distributional reductions absent). |
 | 10.25 | 502 / 120 | **T** | Every simple ensemble is polynomial-time sampleable (distNP ⊆ sampNP). Referenced in §10.2.2.2. Not located; recorded as a remaining objective ("`PComp ⊆ PSamp`") of #2865 (open). Model note as in 10.14: with rational CDFs and exact strict-PPT sampling the inclusion needs dyadic CDFs or approximate sampling. |
-| 10.26 | 502 / 120 | **T** | If #P ⊄ FP then some polynomial-time sampleable ensemble is not simple. Referenced in §10.2.2.2. Not located. |
+| 10.26 | 502 / 120 | **C** | If #P ⊄ FP then some polynomial-time sampleable ensemble is not simple. Referenced in §10.2.2.2. Covered: `Cslib.Complexity.Ensemble.exists_pSamp_not_pComp_of_not_SharpP_subset` in [AverageCase/SharpP](../CslibFrontier/Computability/Complexity/Classes/AverageCase/SharpP.lean), with #P as `SharpP encBits` (exact-length certificates of a native polynomial-time verifier on words) and binary output. On length $m+1$ the ensemble samples $x\leftarrow U_m$, $w\leftarrow U_{p(m)}$ and outputs $x$ followed by $V(x,w)$, so $x1$ has probability $\#R(x)/2^{m+p(m)}$ and directly follows $x0$. Its exact strict-PPT sampler gives `Ensemble.PSamp`; the conclusion is `¬ Ensemble.PComp` (exact rational cumulative distribution), which excludes the source's binary-fraction outputs as well. Registered as `samplable-not-computable-unless-sharp-p-easy`; the outside-fleet source check is pending. |
 | 10.27 | 502 / 120 | **T** | If S_u ≤_Karp S via a non-shrinking map, then some sampleable X makes every distNP problem reducible to (S,X). Referenced in §10.2.2.2. Not located. |
 | 10.28 | 502–503 / 120–121 | **T** | Proof of Theorem 10.25 (same hypothesis; every sampNP problem reducible to (S,X), X a convex combination of n-step samplers). Points at audit row 10.25 (**Partial**: `Cslib.Complexity.SampNP` exists, completeness theorem not located); #2865 records the samplable extension as remaining work. |
 | 10.29 | 503 / 121 | **T** | Every sampNP problem reduces to some sampPC problem, and every sampPC problem randomly reduces to some sampNP problem. Part of the Theorem 10.23 / 10.26 machinery (audit rows Partial). Not located. |
