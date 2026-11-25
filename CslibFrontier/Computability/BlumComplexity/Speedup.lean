@@ -224,12 +224,10 @@ private theorem computablePred_costOK :
     (Computable.succ.comp (hi.comp Computable.fst)) (hd.comp Computable.fst))
     (hy.comp Computable.fst) Computable.snd
 
-private theorem primrec_ovOf : Primrec₂ ovOf := by
-  unfold ovOf
-  have h := Primrec.option_bind (Primrec.list_getElem?.comp
+private theorem primrec_ovOf : Primrec₂ ovOf :=
+  (Primrec.option_bind (Primrec.list_getElem?.comp
     ((Primrec.ofNat (List (Option ℕ))).comp Primrec.fst) Primrec.snd)
-    (Primrec₂.right (α := ℕ × ℕ) (β := Option ℕ))
-  exact h.of_eq fun _ => rfl
+    (Primrec₂.right (α := ℕ × ℕ) (β := Option ℕ))).of_eq fun _ => rfl
 
 private theorem computable_costOK : Computable fun x : ((Code × ℕ) × ℕ) × ℕ =>
     costOK Φ x.1.1.1 x.1.1.2 x.1.2 x.2 :=
@@ -405,15 +403,11 @@ private theorem costOK_of_fixed {e : Code} (he : e.eval = master Φ r e) :
     ∀ n u x, x + 1 - u ≤ n → ∃ B, CostOK Φ e u x B := by
   intro n
   induction n with
-  | zero =>
-    intro u x hn
-    exact exists_costOK fun i y d hui hiy hyx _ => by omega
+  | zero => exact fun u x hn => exists_costOK fun i y d hui hiy hyx _ => by omega
   | succ n ih =>
-    intro u x hn
-    refine exists_costOK fun i y d hui hiy hyx _ => ?_
+    refine fun u x hn => exists_costOK fun i y d hui hiy hyx _ => ?_
     rw [Φ.dom_cost_iff, eval_vers he]
-    obtain ⟨B, hB⟩ := ih (i + 1) y (by omega)
-    exact dom_run_of_costOK hB
+    exact (ih (i + 1) y (by omega)).elim fun _ => dom_run_of_costOK
 
 /-- At the fixed point, membership in the run is membership in the selected evaluation. -/
 private theorem mem_run {e : Code} (he : e.eval = master Φ r e) {u d x w : ℕ}
@@ -432,10 +426,8 @@ private theorem ovOf_encode_map (g : ℕ → Option ℕ) (N y : ℕ) :
   unfold ovOf
   rw [ofNat_encode, List.getElem?_map]
   split_ifs with hy
-  · rw [List.getElem?_range hy]
-    rfl
-  · rw [List.getElem?_eq_none (by simpa using hy)]
-    rfl
+  · simp [List.getElem?_range hy]
+  · simp [List.getElem?_eq_none (l := List.range N) (by simpa using hy)]
 
 end Speedup
 
@@ -518,16 +510,12 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
     rw [eval_vers he]
     by_cases hlow : ∃ j < i + 1, C₀ y = some j
     · have hg : ovOf D y = some (f y) := by rw [hovD]; simp only [g, hlow, ↓reduceIte]
-      cases hcy : canc (elig Φ r e) (ovB D) (i + 1) y with
-      | none =>
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
-          (by rw [hcy]; exact Part.mem_some 0)
-        rwa [hg, Option.getD_some] at h
-      | some k =>
-        obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := w)
-          (by simpa [hcy] using hw)
-        rwa [hg, Option.getD_some] at h
+      have hdom' : ((((canc (elig Φ r e) (ovB D) (i + 1) y).map
+          (ofNat Code)).getD Code.zero).eval y).Dom := by
+        cases hcy : canc (elig Φ r e) (ovB D) (i + 1) y
+        exacts [trivial, dom_eval_of_canc hcy]
+      obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 hdom'
+      simpa only [hg, Option.getD_some] using mem_run he (u := i + 1) (d := D) (x := y) hw
     · have hg : ovOf D y = none := by rw [hovD]; simp only [g, hlow, ↓reduceIte]
       cases hcy : C₀ y with
       | none =>
@@ -574,8 +562,6 @@ theorem exists_no_fastest {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   obtain ⟨n, hn, hn'⟩ := ((hfast c' hc').and hev).exists
   obtain ⟨m, hm⟩ := Part.dom_iff_mem.1 (Φ.dom_cost_of_total hc n)
   obtain ⟨m', hm'⟩ := Part.dom_iff_mem.1 (Φ.dom_cost_of_total hc' n)
-  have h1 := hn m hm m' hm'
-  have h2 := hn' m' hm' m hm
-  omega
+  exact absurd (hn m hm m' hm') (not_le_of_gt (hn' m' hm' m hm))
 
 end Cslib.BlumComplexity.BlumMeasure

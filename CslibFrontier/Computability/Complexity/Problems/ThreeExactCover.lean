@@ -200,10 +200,8 @@ private theorem check_iff (C l : List (List ℕ)) (hl : l.Nodup) :
       ∀ u ∈ C.flatten, (l.toFinset.filter (u ∈ ·)).card = 1 := by
   simp only [check, Bool.and_eq_true, List.all_eq_true, isTriple_iff, beq_iff_eq]
   refine and_congr Iff.rfl (forall₂_congr fun u _ => ?_)
-  have h := List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S))
-  rw [List.toFinset_filter] at h
-  simp only [decide_eq_true_eq] at h
-  rw [h]
+  rw [← List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S)), List.toFinset_filter]
+  simp
 
 /-! ### The shape of the reduced instance -/
 
@@ -254,8 +252,7 @@ private theorem append_range_mem_gadget {m off : ℕ} {O : List ℕ} (h₁ : 1 �
   · have h₁₂ : (O.length == 1 || O.length == 2) = true := by
       simp only [Bool.or_eq_true, beq_iff_eq]
       omega
-    have h3 : (O.length == 3) = false := by simpa using h
-    simp only [h3, h₁₂, Bool.false_eq_true, ↓reduceIte]
+    simp only [beq_eq_false_iff_ne.mpr h, h₁₂, Bool.false_eq_true, ↓reduceIte]
     refine List.mem_map.mpr ⟨_, mem_windows.mpr ⟨off, ?_, rfl⟩, rfl⟩
     have := hoff (3 - O.length - 1) (by omega)
     omega
@@ -429,9 +426,8 @@ theorem oneSatisfiable_of_mem {φ : CNF ℕ}
   have hjocc : j ∈ occ φ (Nat.find hP) := by
     rw [hvocc, ← hS₀occ]
     exact List.mem_filter.mpr ⟨hjS₀, by simpa using hj⟩
-  have hvj : Nat.find hP ∈ φ[j].map Prod.fst := by
-    have := (mem_occ.mp hjocc).2
-    rwa [List.getD_eq_getElem _ _ hj] at this
+  have hvj : Nat.find hP ∈ φ[j].map Prod.fst :=
+    List.getD_eq_getElem φ [] hj ▸ (mem_occ.mp hjocc).2
   refine countP_eq_one_of_unique (hcl _ hc).2 hvj ?_ fun v hv hσv => ?_
   · refine decide_eq_true ⟨S₀, hS₀D, hS₀occ.trans hvocc.symm, fun u hu hocc => ?_⟩
     exact Nat.find_min' hP ⟨hu, hocc.trans hvocc⟩
@@ -600,10 +596,8 @@ private theorem noInstance_notMem : noInstance ∉ ThreeExactCover := by
   rw [Finset.filter_true_of_mem fun S hS => by rcases hmem S hS with rfl | rfl <;> simp] at h0
   obtain ⟨S, rfl⟩ := Finset.card_eq_one.mp h0
   rcases hmem S (Finset.mem_singleton_self S) with rfl | rfl
-  · have h := hD 3 (by simp [noInstance])
-    simp [Finset.filter_singleton] at h
-  · have h := hD 2 (by simp [noInstance])
-    simp [Finset.filter_singleton] at h
+  · simpa [Finset.filter_singleton] using hD 3 (by simp [noInstance])
+  · simpa [Finset.filter_singleton] using hD 2 (by simp [noInstance])
 
 /-- The reduction is correct. -/
 theorem reduce_mem_iff (φ : CNF ℕ) :
@@ -611,9 +605,7 @@ theorem reduce_mem_iff (φ : CNF ℕ) :
   rw [PositiveOneInExactThreeSATThree.mem_iff_syntaxCheck]
   by_cases hs : PositiveOneInExactThreeSATThree.syntaxCheck φ = true
   · exact ⟨fun h => ⟨hs, oneSatisfiable_of_mem hs h⟩, fun h => mem_of_oneSatisfiable hs h.2⟩
-  · rw [Bool.not_eq_true] at hs
-    simp only [reduce, hs, Bool.false_eq_true, ↓reduceIte, false_and, iff_false]
-    exact noInstance_notMem
+  · simpa [reduce, hs] using noInstance_notMem
 
 end ThreeExactCover
 

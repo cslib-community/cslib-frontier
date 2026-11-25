@@ -177,12 +177,9 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
     lia
   have hrA : r * arity d ≤ 12 * 2 ^ D * W * (s + 1) := by
     have h1 := Nat.mul_le_mul_left r hA
-    have h2 : r * (2 * (arity p * s) + 1) = 2 * ((r * arity p) * s) + r := by ring
     have h3 := Nat.mul_le_mul_right s hrk
-    have hr : r ≤ r * arity p := Nat.le_mul_of_pos_right r hk1
-    have h4 : 4 * 2 ^ D * W * (s + 1) = 4 * 2 ^ D * W * s + 4 * 2 ^ D * W := by ring
-    have h5 : 12 * 2 ^ D * W * (s + 1) = 12 * 2 ^ D * W * s + 12 * 2 ^ D * W := by ring
-    lia
+    have hr := le_trans (Nat.le_mul_of_pos_right r hk1) hrk
+    ring_nf at h1 h3 hr ⊢; omega
   calc r * ((duplicateFlagsCircuit (id : Fin (L + 1) → Fin (L + 1)) d).size + 2)
       ≤ r * (22 * W ^ 3 * arity d) := Nat.mul_le_mul_left r hsize
     _ = 22 * W ^ 3 * (r * arity d) := by ring
@@ -203,38 +200,21 @@ theorem phaseCost_le {D L b s p a r : ℕ} (hk : a + arity p = 2 ^ D)
   have hk1 : 1 ≤ arity p := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hW1 : 1 ≤ D + L + b + 2 := by lia
   have hrk : r * arity p ≤ 4 * 2 ^ D * (D + L + b + 2) := by
-    have h1 : 2 ^ D * (2 + 3 * L) + 2 * arity p ≤ 2 ^ D * (4 + 3 * L) := by
-      have : 2 ^ D * (4 + 3 * L) = 2 ^ D * (2 + 3 * L) + 2 * 2 ^ D := by ring
-      lia
-    have h2 : 2 ^ D * (4 + 3 * L) ≤ 2 ^ D * (4 * (D + L + b + 2)) :=
-      Nat.mul_le_mul_left _ (by lia)
-    have h3 : 2 ^ D * (4 * (D + L + b + 2)) = 4 * 2 ^ D * (D + L + b + 2) := by ring
-    have h4 : r * arity p = arity p * r := Nat.mul_comm _ _
-    lia
+    ring_nf at hr ⊢; omega
   have hr' : r ≤ 4 * 2 ^ D * (D + L + b + 2) := le_trans (Nat.le_mul_of_pos_right r hk1) hrk
   have hS1 : 1 ≤ s + 1 := by lia
   -- Stage 2 operands.
-  have hrks : r * arity p * s ≤ 4 * 2 ^ D * (D + L + b + 2) * (s + 1) :=
-    Nat.mul_le_mul hrk (by lia)
-  have has : a * s ≤ 2 ^ D * (s + 1) := Nat.mul_le_mul (by lia) (by lia)
+  have hrks := Nat.mul_le_mul_right s hrk
+  have has : a * s ≤ 2 ^ D * s := Nat.mul_le_mul_right s (by omega)
+  ring_nf at hrks has
   have hX : r * arity p * s + a * s + 1 ≤ 6 * 2 ^ D * (s + 1) * (D + L + b + 2) := by
-    have h1 : 2 ^ D * (s + 1) ≤ 2 ^ D * (s + 1) * (D + L + b + 2) :=
-      Nat.le_mul_of_pos_right _ hW1
-    have h2 : 1 ≤ 2 ^ D * (s + 1) := Nat.mul_le_mul Nat.one_le_two_pow hS1
-    have h3 : 4 * 2 ^ D * (D + L + b + 2) * (s + 1) = 4 * (2 ^ D * (s + 1) * (D + L + b + 2)) :=
-      by ring
-    have h4 : 6 * 2 ^ D * (s + 1) * (D + L + b + 2) = 6 * (2 ^ D * (s + 1) * (D + L + b + 2)) :=
-      by ring
-    lia
+    have hP1 : 1 ≤ 2 ^ D := Nat.one_le_two_pow
+    ring_nf; omega
   have hY : Nat.clog 2 (r * arity p * s + a * s) + 1 ≤ 7 * (D + L + b + 2) := by
     have hfour : 4 * (D + L + b + 2) < 2 ^ (4 * (D + L + b + 2)) := Nat.lt_two_pow_self
     have hle : r * arity p * s + a * s ≤ 2 ^ (D + b + 4 * (D + L + b + 2)) := by
       have h1 : r * arity p * s + a * s ≤ 2 ^ D * s * (4 * (D + L + b + 2) + 1) := by
-        have h5 := Nat.mul_le_mul_right s hrk
-        have h6 := Nat.mul_le_mul_right s (show a ≤ 2 ^ D by lia)
-        have h7 : 2 ^ D * s * (4 * (D + L + b + 2) + 1) =
-            4 * 2 ^ D * (D + L + b + 2) * s + 2 ^ D * s := by ring
-        lia
+        ring_nf; omega
       calc r * arity p * s + a * s ≤ 2 ^ D * s * (4 * (D + L + b + 2) + 1) := h1
         _ ≤ 2 ^ D * 2 ^ b * 2 ^ (4 * (D + L + b + 2)) :=
             Nat.mul_le_mul (Nat.mul_le_mul_left _ hs.le) hfour

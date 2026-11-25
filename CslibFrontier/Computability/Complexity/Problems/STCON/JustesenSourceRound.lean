@@ -110,19 +110,18 @@ theorem justesenRetainedSourceRound_parts_inSpace {k : ℕ} {State : Type} [Fint
   let start := justesenRoundCallbackStart r.context.adjacency
   obtain ⟨hq, hn, hh, hf⟩ := justesenRoundCallback_parts_inSpace ntm c
   have hsnd := snd encJustesenSourceContext (SourceRound.encMachineState _ C)
-  have hadj := encJustesenSourceContext_adjacency_budget
-    (fst encJustesenSourceContext SourceRound.encState)
   have hentry := budget_comp_linear justesenRoundCallbackStart_inSpace
-    (budget_prod hadj (snd encJustesenSourceContext SourceRound.encState))
-  have hquery := budget_comp_linear
-    (SourceRound.machine_query_inSpace C ctx N start justesenRoundCallbackReply hq) hsnd
-  have hnext := SourceRoundLoop.retainedRound_next_inSpace JustesenSourceContext.size
-    JustesenSourceContext.sourceID N (fun k => justesenRoundCallbackStart k.adjacency)
-    justesenRoundCallbackReply r encJustesenSourceContext C hentry hf hh hn
-  have hhalt := budget_comp_linear
-    (SourceRound.machine_halted_inSpace C ctx N start justesenRoundCallbackReply) hsnd
-  have hreply := budget_comp_linear (SourceRound.answer_inSpace C) hsnd
-  exact ⟨hquery, hnext, hhalt, hreply⟩
+    (budget_prod (encJustesenSourceContext_adjacency_budget
+      (fst encJustesenSourceContext SourceRound.encState))
+      (snd encJustesenSourceContext SourceRound.encState))
+  exact ⟨(budget_comp_linear
+      (SourceRound.machine_query_inSpace C ctx N start justesenRoundCallbackReply hq) hsnd : _),
+    (SourceRoundLoop.retainedRound_next_inSpace JustesenSourceContext.size
+      JustesenSourceContext.sourceID N (fun k => justesenRoundCallbackStart k.adjacency)
+      justesenRoundCallbackReply r encJustesenSourceContext C hentry hf hh hn : _),
+    (budget_comp_linear
+      (SourceRound.machine_halted_inSpace C ctx N start justesenRoundCallbackReply) hsnd : _),
+    (budget_comp_linear (SourceRound.answer_inSpace C) hsnd : _)⟩
 
 private theorem justesenRetainedSourceRound_firstHalting_iff_scalar
     {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
@@ -137,18 +136,11 @@ private theorem justesenRetainedSourceRound_firstHalting_iff_scalar
       scalar.FirstHalting w bits scalar.init ∧
         SourceRound.answer (scalar.run w bits) = some update := by
   intro M ctx scalar
-  let N := justesenRoundCallback ntm c
-  let start := fun ctx : JustesenSourceContext => justesenRoundCallbackStart ctx.adjacency
-  change (SourceRoundLoop.retainedRound _ _ N start justesenRoundCallbackReply r).FirstHalting
-      w bits (SourceRoundLoop.retainedRoundEntry JustesenSourceContext.size
-        JustesenSourceContext.sourceID r) ∧ _ ↔ _
-  rw [SourceRoundLoop.retainedRound_firstHalting]
-  have hrun := SourceRoundLoop.retainedRound_run JustesenSourceContext.size
-    JustesenSourceContext.sourceID N start justesenRoundCallbackReply r w bits
-  change _ ∧ justesenRetainedSourceRoundReply
-    ((SourceRoundLoop.retainedRound _ _ N start justesenRoundCallbackReply r).run w bits) =
-      some update ↔ _
-  rw [hrun]
+  change (SourceRoundLoop.retainedRound _ _ _ _ _ r).FirstHalting w bits
+      (SourceRoundLoop.retainedRoundEntry _ _ r) ∧
+    justesenRetainedSourceRoundReply
+      ((SourceRoundLoop.retainedRound _ _ _ _ _ r).run w bits) = some update ↔ _
+  rw [SourceRoundLoop.retainedRound_firstHalting, SourceRoundLoop.retainedRound_run]
   rfl
 
 /-- The retained round consumes exactly the selectors of the corresponding scalar replay. -/
@@ -210,10 +202,8 @@ theorem configurationJustesenRetainedSourceRound_correct
   refine SourceRound.replayScan_correct ctx source edge (justesenRoundCallback ntm c)
     (justesenRoundCallbackStart adj) justesenRoundCallbackReply w rfl hpass ?_ ?_ hscan
   · intro u v call hit rest hcall
-    have h := configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
-      (.edge u.val v.val) ⟨u.isLt, v.isLt⟩ call hit rest hcall
-    change hit = configurationJustesenSubdivisionAdjacent ntm c w seed u v at h
-    rw [h]
+    rw [(configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
+      (.edge u.val v.val) ⟨u.isLt, v.isLt⟩ call hit rest hcall : hit = _)]
   · intro v call hit rest hcall
     exact (configurationJustesenRoundCallback_readReply_correct ntm c w seed source radius
       (.member v.val) v.isLt call hit rest hcall).trans mem_round.symm
@@ -470,14 +460,10 @@ theorem configurationJustesenRetainedSourceRound_exact_advance
     seed source target fuel radius (hgood radius le_rfl) bits update hfirst hreply
   rw [hnext] at hgrew
   have hradius : radius + 1 < n := radius_succ_lt_of_expected_count_ne hgrew
-  refine ⟨rfl, ?_, ?_, hnext, ?_⟩
-  · change fuel - 1 + (radius + 1) = n
-    omega
-  · change 0 < fuel - 1
-    omega
-  · intro j hj
-    change j ≤ radius + 1 at hj
-    rcases Nat.eq_or_lt_of_le hj with rfl | hj
+  refine ⟨rfl, ?_, ?_, hnext, fun j hj => ?_⟩
+  · dsimp only [SourceRoundLoop.Registers.advance]; omega
+  · dsimp only [SourceRoundLoop.Registers.advance]; omega
+  · rcases Nat.eq_or_lt_of_le (hj : j ≤ radius + 1) with rfl | hj
     · exact hpass.mp hgoodUpdate
     · exact hgood j (Nat.lt_succ_iff.mp hj)
 

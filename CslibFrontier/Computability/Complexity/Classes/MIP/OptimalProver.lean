@@ -251,16 +251,10 @@ private theorem mapM_lookup_eq [BEq α] [LawfulBEq α] (f : α → PMF β) (quer
       Function.comp_def]
     by_cases hma : m = a
     · subst hma
-      have hhead (b : β) (tbl : List (α × β)) : List.lookup m ((m, b) :: tbl) = some b := by
-        rw [List.lookup, beq_self_eq_true]
-      simp only [hhead, PMF.bind_const]
+      simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
       rfl
-    · have htail (b : β) (tbl : List (α × β)) :
-          List.lookup m ((a, b) :: tbl) = List.lookup m tbl := by
-        rw [List.lookup, beq_false_of_ne hma]
-      have hm' : m ∈ rest := List.mem_of_ne_of_mem hma hm
-      simp only [htail, PMF.bind_const]
-      exact ih hm'
+    · simp only [List.lookup, beq_false_of_ne hma, PMF.bind_const]
+      exact ih (List.mem_of_ne_of_mem hma hm)
 
 /-- Stepping a presampled tree of depth `d + 1` on `m ∈ queries` has the exact same distribution
 as running `Q.respond ((), m)` once, truncating the reply to `L` bits, and presampling a depth-`d`
@@ -319,10 +313,8 @@ private theorem listPiPMF_extract [DecidableEq ι] (default : α) (μ : ι → P
     by_cases h : i₀ = i
     · subst h
       simp [listPiPMF]
-    · have hi₀_rest : i₀ ∈ rest := List.mem_of_ne_of_mem h hi₀
-      have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by
-        simp [Ne.symm h]
-      rw [herase, listPiPMF, ih hl_rest hi₀_rest]
+    · have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by simp [Ne.symm h]
+      rw [herase, listPiPMF, ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
       simp only [listPiPMF, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.map_comp,
         Function.comp_def]
       rw [PMF.bind_comm]
@@ -358,16 +350,12 @@ private theorem piPresample_step [Fintype ι] [DecidableEq ι] (P : ι → Prove
   have hl : (Finset.univ : Finset ι).toList.Nodup := Finset.nodup_toList Finset.univ
   have hi₀ : i₀ ∈ (Finset.univ : Finset ι).toList := Finset.mem_toList.mpr (Finset.mem_univ i₀)
   change (listPiPMF defaultTree (μ d s) (Finset.univ : Finset ι).toList).map _ = _
-  rw [listPiPMF_extract defaultTree (μ d s) (Finset.univ : Finset ι).toList hl hi₀]
-  have hμi₀ : μ d s i₀ =
-      (presampleTree (P i₀) L queries (d' + 1) (s i₀)).map fun t => ⟨d' + 1, t⟩ := by
-    change mkLayer i₀ (d i₀) (s i₀) = mkLayer i₀ (d' + 1) (s i₀)
-    rw [hd]
-  rw [hμi₀]
+  rw [listPiPMF_extract defaultTree (μ d s) (Finset.univ : Finset ι).toList hl hi₀,
+    show μ d s i₀ = mkLayer i₀ (d' + 1) (s i₀) from congrArg (mkLayer i₀ · (s i₀)) hd]
   have hupd (x : ι → Sigma TreeStrategy) (a : TreeStrategy (d' + 1)) :
       (Function.update x i₀ (Sigma.mk (d' + 1) a) i₀).2.step m = a.step m := by
     rw [Function.update_self]
-  simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def,
+  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def,
     hupd, Function.update_idem]
   have hstep := congrArg (PMF.bind · fun (res : List Bool × Sigma TreeStrategy) =>
       (listPiPMF defaultTree (μ d s) ((Finset.univ : Finset ι).toList.erase i₀)).map fun f =>
@@ -378,23 +366,16 @@ private theorem piPresample_step [Fintype ι] [DecidableEq ι] (P : ι → Prove
   congr 1 with ys : 1
   have hcongr : listPiPMF defaultTree (μ d s) ((Finset.univ : Finset ι).toList.erase i₀) =
       listPiPMF defaultTree (μ (Function.update d i₀ d') (Function.update s i₀ ys.2))
-        ((Finset.univ : Finset ι).toList.erase i₀) := by
-    refine listPiPMF_congr defaultTree _ fun j hj => ?_
-    have hjne : j ≠ i₀ := (List.Nodup.mem_erase_iff hl).mp hj |>.1
-    simp only [μ, Function.update_of_ne hjne]
-  rw [hcongr]
-  have hextract2 := listPiPMF_extract defaultTree
-    (μ (Function.update d i₀ d') (Function.update s i₀ ys.2)) (Finset.univ : Finset ι).toList hl hi₀
-  have hμ' : μ (Function.update d i₀ d') (Function.update s i₀ ys.2) i₀ =
-      (presampleTree (P i₀) L queries d' ys.2).map fun child => ⟨d', child⟩ := by
-    change mkLayer i₀ (Function.update d i₀ d' i₀) (Function.update s i₀ ys.2 i₀) =
-      mkLayer i₀ d' ys.2
-    rw [Function.update_self, Function.update_self]
+        ((Finset.univ : Finset ι).toList.erase i₀) :=
+    listPiPMF_congr defaultTree _ fun j hj => by
+      simp only [μ, Function.update_of_ne ((List.Nodup.mem_erase_iff hl).mp hj).1]
+  have hμ' : μ (Function.update d i₀ d') (Function.update s i₀ ys.2) i₀ = mkLayer i₀ d' ys.2 := by
+    simp only [μ, Function.update_self]
   change _ = (listPiPMF defaultTree
     (μ (Function.update d i₀ d') (Function.update s i₀ ys.2)) (Finset.univ : Finset ι).toList).map
       fun f' => (ys.1.take L, f')
-  rw [hextract2, hμ']
-  simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def]
+  rw [hcongr, listPiPMF_extract defaultTree _ _ hl hi₀, hμ']
+  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def]
 
 theorem independent_respond [DecidableEq ι] (P : ι → Prover Unit) (q : ι × List Bool)
     (s : ∀ i, (P i).State) :
@@ -718,13 +699,10 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
         exact hmem
     have hmem_match : (r, rest) ∈ cand.filterMap filterFn := hmemF.mpr hh
     cases hm : cand.filterMap filterFn with
-    | nil =>
-      rw [hm] at hmem_match
-      cases hmem_match
+    | nil => simp [hm] at hmem_match
     | cons first more =>
       obtain ⟨r₀, rest₀⟩ := first
-      have hfirst_mem : (r₀, rest₀) ∈ cand.filterMap filterFn := by grind
-      have hc := hcons _ (hmemF.mp hfirst_mem) _ hh
+      have hc := hcons _ (hmemF.mp (hm ▸ List.mem_cons_self)) _ hh
       simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
         beq_iff_eq] at hc
       have hstep : (candidateProver H).respond q cand =

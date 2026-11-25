@@ -267,17 +267,13 @@ theorem bddAbove_generalAdversary {α : Type*} (P : BitString N → Prop) (f : B
     BddAbove {r : ℝ | ∃ Γ : Matrix (BitString N) (BitString N) ℝ,
       Γ.IsSymm ∧ IsAdversaryMatrix P f Γ ∧
         r = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ} :=
-  ⟨Fintype.card (BitString N), by
-    rintro r ⟨Γ, -, hΓ, rfl⟩
-    exact norm_div_maxDiffNorm_le_card hΓ⟩
+  ⟨Fintype.card (BitString N), fun _ ⟨_, _, hΓ, h⟩ => h ▸ norm_div_maxDiffNorm_le_card hΓ⟩
 
 theorem bddAbove_spectralAdversary {α : Type*} (P : BitString N → Prop) (f : BitString N → α) :
     BddAbove {r : ℝ | ∃ Γ : Matrix (BitString N) (BitString N) ℝ,
       Γ.IsSymm ∧ (∀ x y, 0 ≤ Γ x y) ∧ IsAdversaryMatrix P f Γ ∧
         r = ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ / maxDiffNorm Γ} :=
-  ⟨Fintype.card (BitString N), by
-    rintro r ⟨Γ, -, -, hΓ, rfl⟩
-    exact norm_div_maxDiffNorm_le_card hΓ⟩
+  ⟨Fintype.card (BitString N), fun _ ⟨_, _, _, hΓ, h⟩ => h ▸ norm_div_maxDiffNorm_le_card hΓ⟩
 
 theorem spectralAdversary_nonneg {α : Type*} (P : BitString N → Prop) (f : BitString N → α) :
     0 ≤ spectralAdversary P f :=
@@ -321,24 +317,21 @@ theorem spectralAdversary_le_iff {α : Type*} {P : BitString N → Prop} {f : Bi
     {K : ℝ} (hK : 0 ≤ K) :
     spectralAdversary P f ≤ K ↔
       ∀ Γ : Matrix (BitString N) (BitString N) ℝ, Γ.IsSymm → (∀ x y, 0 ≤ Γ x y) →
-        IsAdversaryMatrix P f Γ → ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ := by
-  refine ⟨fun hle Γ hsym hnonneg hΓ =>
-    mul_maxDiffNorm_of_div_le hΓ ((le_spectralAdversary hsym hnonneg hΓ).trans hle), fun h => ?_⟩
-  refine Real.sSup_le ?_ hK
-  rintro r ⟨Γ, hsym, hnonneg, hΓ, rfl⟩
-  exact div_maxDiffNorm_le_of_mul hK (h Γ hsym hnonneg hΓ)
+        IsAdversaryMatrix P f Γ → ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ :=
+  ⟨fun hle _ hsym hnonneg hΓ =>
+    mul_maxDiffNorm_of_div_le hΓ ((le_spectralAdversary hsym hnonneg hΓ).trans hle),
+    fun h => Real.sSup_le (fun _ ⟨Γ, hsym, hnonneg, hΓ, hr⟩ =>
+      hr ▸ div_maxDiffNorm_le_of_mul hK (h Γ hsym hnonneg hΓ)) hK⟩
 
 /-- Upper-bound characterization of `generalAdversary` (`ADV±(f) ≤ K` for `K ≥ 0`). -/
 theorem generalAdversary_le_iff {α : Type*} {P : BitString N → Prop} {f : BitString N → α}
     {K : ℝ} (hK : 0 ≤ K) :
     generalAdversary P f ≤ K ↔
       ∀ Γ : Matrix (BitString N) (BitString N) ℝ, Γ.IsSymm →
-        IsAdversaryMatrix P f Γ → ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ := by
-  refine ⟨fun hle Γ hsym hΓ =>
-    mul_maxDiffNorm_of_div_le hΓ ((le_generalAdversary hsym hΓ).trans hle), fun h => ?_⟩
-  refine Real.sSup_le ?_ hK
-  rintro r ⟨Γ, hsym, hΓ, rfl⟩
-  exact div_maxDiffNorm_le_of_mul hK (h Γ hsym hΓ)
+        IsAdversaryMatrix P f Γ → ‖Matrix.toEuclideanCLM (𝕜 := ℝ) Γ‖ ≤ K * maxDiffNorm Γ :=
+  ⟨fun hle _ hsym hΓ => mul_maxDiffNorm_of_div_le hΓ ((le_generalAdversary hsym hΓ).trans hle),
+    fun h => Real.sSup_le (fun _ ⟨Γ, hsym, hΓ, hr⟩ =>
+      hr ▸ div_maxDiffNorm_le_of_mul hK (h Γ hsym hΓ)) hK⟩
 
 /-- `ADV(f) ≤ ADV±(f)`: the negative-weight adversary bound is at least the nonnegative spectral
 adversary bound. -/
@@ -370,13 +363,11 @@ private theorem advForm_step_eq (Γ : Matrix (BitString N) (BitString N) ℝ)
         RCLike.re (inner ℂ (run U ψ₀ x (t + 1)) (run U ψ₀ y (t + 1))) =
       2 * ∑ i : Fin N, diffMatrix i x y *
         RCLike.re (inner ℂ (ctrlProj i (run U ψ₀ x t)) (ctrlProj i (run U ψ₀ y t))) := by
-    have hrun : inner ℂ (run U ψ₀ x (t + 1)) (run U ψ₀ y (t + 1)) =
-        inner ℂ (phaseOracle x (run U ψ₀ x t)) (phaseOracle y (run U ψ₀ y t)) :=
-      (U (t + 1)).inner_map_map _ _
-    have hre2 (z : ℂ) : RCLike.re (2 * z) = 2 * RCLike.re z := by
-      simp [RCLike.re_to_complex]
-    rw [hrun, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel, hre2, map_sum,
-      Finset.sum_filter]
+    have hre2 (z : ℂ) : RCLike.re (2 * z) = 2 * RCLike.re z := by simp [RCLike.re_to_complex]
+    rw [show run U ψ₀ x (t + 1) = U (t + 1) (phaseOracle x (run U ψ₀ x t)) from rfl,
+      show run U ψ₀ y (t + 1) = U (t + 1) (phaseOracle y (run U ψ₀ y t)) from rfl,
+      (U (t + 1)).inner_map_map, inner_phaseOracle_phaseOracle, ← map_sub, sub_sub_cancel, hre2,
+      map_sum, Finset.sum_filter]
     congr 1
     exact sum_congr rfl fun i _ => by
       simp only [diffMatrix_apply, ne_eq]; split_ifs <;> simp only [one_mul, zero_mul]
@@ -508,13 +499,12 @@ private theorem abs_advForm_final_le_of_proj {α : Type*} {P : BitString N → P
     if P x then projOutcomes (fun k => ¬(k ∈ S_out (f x))) (run U ψ₀ x T) else 0
   have hnorm_sq (x : BitString N) : ‖αs x‖ ^ 2 + ‖βs x‖ ^ 2 ≤ 1 ∧ ‖βs x‖ ^ 2 ≤ ε := by
     by_cases hx : P x
-    · have hα : ‖αs x‖ ^ 2 = measureProb (run U ψ₀ x T) (S_out (f x)) := by
-        simp only [αs, hx, ↓reduceIte, norm_projOutcomes_sq_mem]
-      have hcomp : univ.filter (fun k => ¬(k ∈ S_out (f x))) = (S_out (f x))ᶜ := by
-        ext k; simp only [mem_filter, mem_univ, true_and, mem_compl]
-      have hβ : ‖βs x‖ ^ 2 = 1 - measureProb (run U ψ₀ x T) (S_out (f x)) := by
-        simp only [βs, hx, ↓reduceIte, norm_projOutcomes_sq, hcomp, measureProb_compl, norm_run,
-          hψ₀, one_pow]
+    · have hcomp : univ.filter (fun k => ¬(k ∈ S_out (f x))) = (S_out (f x))ᶜ := by
+        ext k
+        simp only [mem_filter, mem_univ, true_and, mem_compl]
+      simp only [αs, βs, hx, ↓reduceIte]
+      rw [norm_projOutcomes_sq_mem, norm_projOutcomes_sq, hcomp, measureProb_compl, norm_run,
+        hψ₀, one_pow]
       exact ⟨by linarith, by linarith [herr x hx]⟩
     · simp only [αs, βs, hx, ↓reduceIte, norm_zero, zero_pow two_ne_zero, add_zero, zero_le_one,
         hε0, and_self]

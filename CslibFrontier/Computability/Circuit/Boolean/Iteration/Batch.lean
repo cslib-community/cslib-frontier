@@ -159,9 +159,7 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
         fun i => Or.inl (Or.inl (hi member i)))
   have hcorrect (member : Fin r) (x : BitString a) (hx : init x member ∈ S) :
       finished member x = f^[T] (init x member) := by
-    have hfit : K < 2 ^ (n + 2) := by
-      simp only [K, Nat.pow_succ]
-      omega
+    have hfit : K < 2 ^ (n + 2) := by simp only [K, Nat.pow_succ]; omega
     apply finishHit_correct f T K _ _ _ _ hfit hT
     · intro j hj
       obtain ⟨h, hh, -⟩ := (decide_eq_true_iff.mp hj : ∃ h, cp h = _ ∧ stored h 0 = true)
@@ -178,17 +176,8 @@ private theorem synthesis_batched_power_on (c : Circuit signature n n)
   have hfam := Synthesis.iUnion (fun member => wires (finished member)) _ hfinish
   refine ⟨finished, hcorrect,
     (hall.trans (hdict.trans hfam)).mono Set.Subset.rfl Set.Subset.rfl ?_⟩
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  have hm : (K + 1) * (4 * ((n + 2) + n + 1)) + K * c.size +
-      200 * (K + 1) * (n + (n + 2) + 1) ^ 2 + fallback.size + 4 * n ≤
-        (2 * L + 1) * (4 * ((n + 2) + n + 1)) + 2 * L * c.size +
-          200 * (2 * L + 1) * (n + (n + 2) + 1) ^ 2 + 40000 * powerBudget n c.size 0 L +
-            4 * n := by
-    simp only [K]
-    omega
-  have := Nat.mul_le_mul_left r hm
-  simp only [K] at this ⊢
-  omega
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, K, ← add_assoc]
+  gcongr
 
 /-- **Shared-dictionary powers.** Let `cp` be injective checkpoints such that every orbit repeats
 among its first `L` states or reaches a checkpoint in fewer than `2 L` steps, and let
@@ -393,16 +382,10 @@ theorem batched_fixed_power_on (c : Circuit signature n n) (S : Finset (BitStrin
         (blockMap (c.eval interpretation)^[T] r) ∧
       out.size ≤ 100000 * batchBudget n c.size S.card r L := by
   obtain ⟨out, hout, hs⟩ := batched_fixed_power_on_prefixes c S r T L hrN hL
-  refine ⟨out, ?_, hs⟩
-  intro x hx
-  apply hout
-  intro member i
-  have hiter : ∀ t, (c.eval interpretation)^[t] (BitString.block x member) ∈ S := by
-    intro t
-    induction t with
-    | zero => exact hx member
-    | succ t ih => simpa only [Function.iterate_succ_apply'] using hS _ ih
-  exact hiter i.val
+  refine ⟨out, fun x hx => hout fun member i => ?_, hs⟩
+  induction i.val with
+  | zero => exact hx member
+  | succ t ih => simpa only [Function.iterate_succ_apply'] using hS _ ih
 
 /-- **Batched fixed powers.** For `r ≤ 2 ^ n` and `0 < L`, some circuit of size at most
 `100000 * batchBudget n c.size (2 ^ n) r L` applies `T` steps of `c` to each of `r` independent

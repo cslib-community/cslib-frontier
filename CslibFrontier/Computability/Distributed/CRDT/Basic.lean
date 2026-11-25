@@ -194,16 +194,8 @@ theorem evalHistory_le_iff {init : S} {post : UId → S}
   | cons u H hu ih =>
     rw [evalHistory, Finset.fold_cons hu]
     change post u ⊔ evalHistory init post H ≤ b ↔ _
-    rw [sup_le_iff, ih]
-    constructor
-    · rintro ⟨hpu, hinit, hall⟩
-      refine ⟨hinit, fun x hx => ?_⟩
-      rcases Finset.mem_cons.mp hx with rfl | hxH
-      · exact hpu
-      · exact hall x hxH
-    · rintro ⟨hinit, hall⟩
-      exact ⟨hall u (Finset.mem_cons_self u H), hinit,
-        fun x hx => hall x (Finset.mem_cons_of_mem hx)⟩
+    simp only [sup_le_iff, ih, Finset.mem_cons, forall_eq_or_imp]
+    tauto
 
 theorem init_le_evalHistory (init : S) (post : UId → S) (H : Finset UId) :
     init ≤ evalHistory init post H :=
@@ -423,22 +415,17 @@ theorem CvRDT.gossipLTS_mTr_iff (C : CvRDT S Op Q) (G : Digraph P)
     (C.gossipLTS G).MTr s₀ xl s ↔ C.gossipValidTrace G s₀ xl ∧ s = C.gossipRun s₀ xl := by
   induction xl generalizing s₀ with
   | nil =>
-    constructor
-    · intro h
-      cases h
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact LTS.MTr.refl
+    refine ⟨fun h => ?_, fun ⟨_, h⟩ => h ▸ LTS.MTr.refl⟩
+    cases h
+    exact ⟨trivial, rfl⟩
   | cons act xl ih =>
-    constructor
-    · intro h
-      cases h with
-      | stepL htr hmtr =>
-        rcases htr with ⟨hen, rfl⟩
-        obtain ⟨hv, hs⟩ := (ih (C.gossipStep s₀ act)).mp hmtr
-        exact ⟨⟨hen, hv⟩, hs⟩
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact LTS.MTr.stepL ⟨hen, rfl⟩ ((ih (C.gossipStep s₀ act)).mpr ⟨hv, rfl⟩)
+    refine ⟨fun h => ?_, fun ⟨⟨hen, hv⟩, h⟩ =>
+      LTS.MTr.stepL ⟨hen, rfl⟩ ((ih (C.gossipStep s₀ act)).mpr ⟨hv, h⟩)⟩
+    cases h with
+    | stepL htr hmtr =>
+      rcases htr with ⟨hen, rfl⟩
+      obtain ⟨hv, hs⟩ := (ih (C.gossipStep s₀ act)).mp hmtr
+      exact ⟨⟨hen, hv⟩, hs⟩
 
 private structure GossipInv (C : CvRDT S Op Q) (s : GossipState P UId S) : Prop where
   hist_sub : ∀ p, s.history p ⊆ s.generated
@@ -668,23 +655,17 @@ theorem CvRDT.converge_of_allPairsReachable [Fintype P] [Nonempty P]
       (∀ p : P, s'.replica p = Finset.univ.sup' Finset.univ_nonempty s.replica) ∧
       (∀ p : P, s'.history p = Finset.univ.biUnion s.history) := by
   let allPairs : List (P × P) := ((Finset.univ : Finset P) ×ˢ (Finset.univ : Finset P)).toList
+  have hmem (q p : P) : (q, p) ∈ allPairs :=
+    Finset.mem_toList.mpr (Finset.mem_product.mpr ⟨Finset.mem_univ q, Finset.mem_univ p⟩)
   obtain ⟨xl, s', hmtr, hgen, _, _, hpairs, hub_rep, hub_hist⟩ :=
     gossip_propagate_list C hreach allPairs s
-  refine ⟨xl, s', hmtr, hgen, fun p => ?_, fun p => ?_⟩
-  · apply le_antisymm
-    · exact hub_rep _ (fun w => Finset.le_sup' s.replica (Finset.mem_univ w)) p
-    · rw [Finset.sup'_le_iff]
-      intro q _
-      have hmem : (q, p) ∈ allPairs :=
-        Finset.mem_toList.mpr (Finset.mem_product.mpr ⟨Finset.mem_univ q, Finset.mem_univ p⟩)
-      exact (hpairs q p hmem).1
-  · apply Finset.Subset.antisymm
-    · exact hub_hist _ (fun w => Finset.subset_biUnion_of_mem s.history (Finset.mem_univ w)) p
-    · rw [Finset.biUnion_subset]
-      intro q _
-      have hmem : (q, p) ∈ allPairs :=
-        Finset.mem_toList.mpr (Finset.mem_product.mpr ⟨Finset.mem_univ q, Finset.mem_univ p⟩)
-      exact (hpairs q p hmem).2
+  exact ⟨xl, s', hmtr, hgen,
+    fun p => le_antisymm
+      (hub_rep _ (fun w => Finset.le_sup' s.replica (Finset.mem_univ w)) p)
+      (Finset.sup'_le _ _ fun q _ => (hpairs q p (hmem q p)).1),
+    fun p => Finset.Subset.antisymm
+      (hub_hist _ (fun w => Finset.subset_biUnion_of_mem s.history (Finset.mem_univ w)) p)
+      (Finset.biUnion_subset.mpr fun q _ => (hpairs q p (hmem q p)).2)⟩
 
 end CvRDTGossip
 
@@ -1101,12 +1082,9 @@ theorem CmRDT.evalCausalSet_eq_foldl {S Op Eff Q Ev : Type*} [DecidableEq Ev]
 theorem CmRDT.evalCausalSet_empty {S Op Eff Q Ev : Type*} [DecidableEq Ev]
     (C : CmRDT S Op Eff Q) (prec : Ev → Ev → Prop) [IsStrictOrder Ev prec]
     (effOf : Ev → Eff) :
-    C.evalCausalSet prec effOf (∅ : Finset Ev) = C.init := by
-  have hempty_lin : IsCausalLinearization prec (∅ : Finset Ev) [] :=
+    C.evalCausalSet prec effOf (∅ : Finset Ev) = C.init :=
+  C.evalCausalSet_eq_foldl prec effOf (fun _ h => by simp at h)
     ⟨List.nodup_nil, by simp, by simp⟩
-  have hcomm : ConcurrentCommute C.effect prec effOf ((∅ : Finset Ev) : Set Ev) := by
-    intro _ h; simp at h
-  exact C.evalCausalSet_eq_foldl prec effOf hcomm hempty_lin
 
 /-- Adding a fresh causally maximal event `e ∉ H` (`∀ x ∈ H, ¬ prec e x`) advances
 `C.evalCausalSet` by applying `C.effect (effOf e)` directly to `C.evalCausalSet prec effOf H`. -/
@@ -1119,19 +1097,13 @@ theorem CmRDT.evalCausalSet_insert_max {S Op Eff Q Ev : Type*} [DecidableEq Ev]
       C.effect (effOf e) (C.evalCausalSet prec effOf H) := by
   obtain ⟨l, hl⟩ := exists_causalLinearization prec H
   have he_not_l : e ∉ l := fun h => he_not ((hl.2.1 e).mp h)
-  have hnodup_app : (l ++ [e]).Nodup := by
-    rw [List.nodup_append]
-    refine ⟨hl.1, List.nodup_singleton e, fun x hx y hy hxy => ?_⟩
-    have hy_eq : y = e := List.mem_singleton.mp hy
-    subst hy_eq hxy
-    exact he_not_l hx
-  have hpw_l : l.Pairwise (fun a b => ¬ prec b a) :=
-    pairwise_not_prec_of_idxOf_lt hl.1 hl.2.2
-  have hpw_app : (l ++ [e]).Pairwise (fun a b => ¬ prec b a) := by
-    rw [List.pairwise_append]
-    refine ⟨hpw_l, List.pairwise_singleton _ e, fun x hx y hy => ?_⟩
-    rw [List.mem_singleton.mp hy]
-    exact hmax x ((hl.2.1 x).mp hx)
+  have hnodup_app : (l ++ [e]).Nodup :=
+    List.nodup_append.mpr ⟨hl.1, List.nodup_singleton e,
+      fun _ hx _ hy hxy => he_not_l (List.mem_singleton.mp hy ▸ (hxy ▸ hx))⟩
+  have hpw_app : (l ++ [e]).Pairwise (fun a b => ¬ prec b a) :=
+    List.pairwise_append.mpr ⟨pairwise_not_prec_of_idxOf_lt hl.1 hl.2.2,
+      List.pairwise_singleton _ e,
+      fun x hx _ hy => List.mem_singleton.mp hy ▸ hmax x ((hl.2.1 x).mp hx)⟩
   have hlin_app : IsCausalLinearization prec (insert e H) (l ++ [e]) := by
     refine ⟨hnodup_app, fun x => ?_, idxOf_lt_of_pairwise_not_prec hpw_app⟩
     rw [List.mem_append, List.mem_singleton, hl.2.1 x, Finset.mem_insert]

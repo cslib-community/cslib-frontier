@@ -330,13 +330,9 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
     set y := (2 * (T : ℝ) + 1) * θ
     -- `y` lies within `θ` of `π / 2`.
     have hy1 : y ≤ Real.pi / 2 + θ := by
-      have : (T : ℝ) * (4 * θ) ≤ Real.pi := (le_div_iff₀ (by positivity)).mp hT1
-      simp only [y]
-      nlinarith
+      nlinarith [(le_div_iff₀ (by positivity)).mp hT1, show y = (2 * (T : ℝ) + 1) * θ from rfl]
     have hy2 : Real.pi / 2 - θ < y := by
-      have : Real.pi < ((T : ℝ) + 1) * (4 * θ) := (div_lt_iff₀ (by positivity)).mp hT2
-      simp only [y]
-      nlinarith
+      nlinarith [(div_lt_iff₀ (by positivity)).mp hT2, show y = (2 * (T : ℝ) + 1) * θ from rfl]
     -- So `|cos y| = |sin (π/2 - y)| ≤ sin θ`.
     have hcos : Real.cos y ^ 2 ≤ Real.sin θ ^ 2 := by
       rw [← Real.sin_pi_div_two_sub]
@@ -348,8 +344,7 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
         Real.sin_le_sin_of_le_of_le_pi_div_two (by linarith) (by linarith) hu1
       rw [Real.sin_neg] at h2
       nlinarith
-    have hsq : Real.sin θ ^ 2 = (N : ℝ)⁻¹ := by
-      rw [hs, inv_pow, Real.sq_sqrt hN0.le]
+    rw [hs, inv_pow, Real.sq_sqrt hN0.le] at hcos
     nlinarith [Real.sin_sq_add_cos_sq y]
   · calc
       (T : ℝ) ≤ Real.pi / (4 * θ) := hT1

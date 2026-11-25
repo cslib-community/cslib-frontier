@@ -312,14 +312,11 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       exact hm₆_2
     · rw [hmy_ne (base + 3) (hne_add (by decide))]
       exact hm₇_3
-  have hrep_empty : EpochRep U V w base (EpochState.empty U) (LatentSeed.empty U) y_fin := by
-    refine ⟨LatentSeed.empty_cap U, ?_, hy_base, fun hpos => ?_⟩
-    · dsimp only [EpochState.empty]
-      rw [Dictionary.dom_empty, Finset.card_empty]
-      exact compactedRep_empty hyb hy_fin_fr hhdr
-    · dsimp only [EpochState.empty] at hpos
-      rw [Dictionary.dom_empty, Finset.card_empty] at hpos
-      exact absurd hpos (Nat.not_lt_zero 0)
+  have hrep_empty : EpochRep U V w base (EpochState.empty U) (LatentSeed.empty U) y_fin :=
+    ⟨LatentSeed.empty_cap U, by
+      simpa only [EpochState.empty, Dictionary.dom_empty, Finset.card_empty] using
+        compactedRep_empty hyb hy_fin_fr hhdr,
+      hy_base, fun hpos => by simp [EpochState.empty] at hpos⟩
   exact ⟨y_fin, hex_all, hrep_empty, hbelow⟩
 
 /-- Relocatable `Resizable.SubroutineCode` over `Basis.exact` for the resizable succinct dynamic
@@ -363,15 +360,11 @@ theorem epochSpaceBound_le_succinctWords {U V w : ℕ}
     epochSpaceBound U V w prefOps ≤ Dynamic.succinctWords 1355 441 U V w n_t := by
   intro n_t
   have hanc := epochAnchorInv_run hU_pos (epochAnchorInv_empty U) hvh
-  have hd : (EpochState.run V (EpochState.empty U) prefOps).dict =
-      ((Dynamic.spec U V U).run (Dictionary.empty U) prefOps).1 :=
-    EpochState.dict_run V (EpochState.empty U) prefOps
-  have hev : EpochValid U n_t (EpochState.run V (EpochState.empty U) prefOps).cap := by
-    dsimp only [n_t]; rw [← hd]; exact hanc.1
+  have hd := EpochState.dict_run V (EpochState.empty U) prefOps
   unfold epochSpaceBound
-  dsimp only
+  dsimp only [n_t]
   rw [hd]
-  exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos hev
+  exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (hd ▸ hanc.1)
 
 /-- **`1 · OPT` Resting Bit-Space Bound (`w_mul_epochSpaceBound_le_bits`):**
 After any admissible prefix `prefOps` reaching `n_t` active keys, `w * epochSpaceBound U V w

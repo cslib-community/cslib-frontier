@@ -66,13 +66,11 @@ private theorem choose_twentyone_mul_le (m : ℕ) : (21 * m).choose m ≤ 64 ^ m
       (fun _ _ => Nat.zero_le _) (show m ∈ range (21 * m + 1) by simp; omega)
     have hp := add_pow (1 : ℕ) 20 (21 * m)
     simp only [Nat.cast_id] at hp
-    rw [← hp] at h
-    rw [show 21 * m - m = 20 * m by omega] at h
+    rw [← hp, show 21 * m - m = 20 * m by omega] at h
     simpa only [one_pow, one_mul, show (1 : ℕ) + 20 = 21 by decide, Nat.mul_comm] using h
-  have hbase : 21 ^ 21 ≤ 64 * 20 ^ 20 := by norm_num
-  have hpow := Nat.pow_le_pow_left hbase m
   have hbig : 21 ^ (21 * m) ≤ 64 ^ m * 20 ^ (20 * m) := by
-    simpa only [pow_mul, mul_pow] using hpow
+    simpa only [pow_mul, mul_pow] using
+      Nat.pow_le_pow_left (by norm_num : 21 ^ 21 ≤ 64 * 20 ^ 20) m
   exact Nat.le_of_mul_le_mul_right (hterm.trans hbig) (Nat.pow_pos (by decide))
 
 /-- A band at the improved depth `L=21m` fits under the source's original size condition.
@@ -99,8 +97,7 @@ theorem boxes_ninth_blocks_of_size (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
         ((boxes (189 * k) (9 * k) k).card : ℝ) ≤
       32 * ((9 * k : ℕ) + 1 : ℝ) * (9 / 20 : ℝ) ^ k * (N : ℝ) ^ 2 := by
   apply boxes_ninth_blocks
-  have h := (bandSize_twentyone_le (9 * k)).trans hN
-  simpa only [show 21 * (9 * k) = 189 * k by omega] using h
+  simpa only [← Nat.mul_assoc] using (bandSize_twentyone_le (9 * k)).trans hN
 
 /-- One encoding of `10 ^ (189 * k)` entries for each of the `numBands (189 * k) (9 * k) N`
 bands retains the same finite saving as the boxes and queries. This counts one of the two
@@ -175,10 +172,9 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
 inner dimension. This integer-power inequality needs no logarithm approximation. -/
 theorem decay_sixteenth (k : ℕ) :
     ((9 / 20 : ℝ) ^ k) ^ 16 * (D (9 * k) : ℝ) ≤ 1 := by
-  have hbase : (9 / 20 : ℝ) ^ 16 * (4 : ℝ) ^ 9 ≤ 1 := by norm_num
-  have h := pow_le_pow_left₀ (by positivity) hbase k
-  rw [D, Nat.cast_pow, Nat.cast_ofNat]
-  simpa only [mul_pow, ← pow_mul, Nat.mul_comm, one_pow] using h
+  simpa only [D, Nat.cast_pow, Nat.cast_ofNat, mul_pow, ← pow_mul, Nat.mul_comm, one_pow] using
+    pow_le_pow_left₀ (by positivity)
+      (by norm_num : (9 / 20 : ℝ) ^ 16 * (4 : ℝ) ^ 9 ≤ 1) k
 
 private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     (N : ℝ) * (D (9 * k) : ℝ) ≤ (9 / 20 : ℝ) ^ k * (N : ℝ) ^ 2 := by

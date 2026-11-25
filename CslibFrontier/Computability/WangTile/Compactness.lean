@@ -48,11 +48,9 @@ private theorem exists_matching {α : Type} (τ : List WangTile) (east north : �
   have hp : p ∈ s := hs (by simp)
   have he : east p ∈ s := hs (by simp)
   have hn : north p ∈ s := hs (by simp)
-  have ep : f p = g s ⟨p, hp⟩ := heq ⟨p, by simp⟩
-  have ee : f (east p) = g s ⟨east p, he⟩ := heq ⟨east p, by simp⟩
-  have en : f (north p) = g s ⟨north p, hn⟩ := heq ⟨north p, by simp⟩
-  dsimp only
-  rw [ep, ee, en]
+  simp only [heq ⟨p, by simp⟩,
+    heq ⟨east p, by simp⟩,
+    heq ⟨north p, by simp⟩]
   exact ⟨(hg s).1 ⟨p, hp⟩, (hg s).2.1 ⟨p, hp⟩ ⟨east p, he⟩ rfl,
     (hg s).2.2 ⟨p, hp⟩ ⟨north p, hn⟩ rfl⟩
 
@@ -85,10 +83,7 @@ theorem tilesPlane_iff_squares (τ : List WangTile) :
         let q := (h (2 * N)).some
         have bounds (p : s) : -(N : ℤ) ≤ p.val.1 ∧ p.val.1 ≤ N ∧
             -(N : ℤ) ≤ p.val.2 ∧ p.val.2 ≤ N := by
-          have hx : p.val.1.natAbs ≤ N :=
-            Finset.le_sup_of_le p.property (Nat.le_max_left _ _)
-          have hy : p.val.2.natAbs ≤ N :=
-            Finset.le_sup_of_le p.property (Nat.le_max_right _ _)
+          have := Finset.le_sup (f := fun q : ℤ × ℤ => max q.1.natAbs q.2.natAbs) p.property
           omega
         let ix (p : s) : Fin (2 * N + 1) :=
           ⟨(p.val.1 + N).toNat, by have := bounds p; omega⟩

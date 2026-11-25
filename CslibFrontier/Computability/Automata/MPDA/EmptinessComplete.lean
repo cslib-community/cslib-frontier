@@ -164,10 +164,8 @@ theorem chainFrom_spec {i : Fin n} :
       · have hspec := Nat.find_spec h
         obtain ⟨hle, hhole⟩ := chainFrom_spec (Nat.find h) r hr
         refine ⟨by have := hspec.1; omega, fun _ => ?_⟩
-        by_cases hrf : r = Nat.find h
-        · rw [hrf]
-          exact hspec.2.1
-        · exact hhole hrf
+        rcases eq_or_ne r (Nat.find h) with rfl | hrf
+        exacts [hspec.2.1, hhole hrf]
     · obtain rfl := List.mem_singleton.mp hr
       exact ⟨le_rfl, fun h' => absurd rfl h'⟩
 termination_by q => w.length - q
@@ -803,9 +801,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
     obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
     have hlt : e.1 < t := htake_len ▸ (List.getElem?_eq_some_iff.mp hb).1
     refine ⟨hlt, ?_⟩
-    have := (pendingAt_append_iff (v := w.drop t)
-      (show t - 1 < (w.take t).length by omega)).mpr hpend
-    rwa [List.take_append_drop] at this
+    simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend
   -- The counting guard.
   have hguard : C.length + 1 ≤ openHoles w t := by
     refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
@@ -834,17 +830,14 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
     rw [w.take_eq_take_append_extract htlt.le]
     exact hd.hole hClt (by rw [htake_len]; exact hblock)
   -- The step of the search.
-  have hlen : μ.holes.length = C.length := hstk.length_eq.symm
-  have hHS : (μ.last, c'.state) ∈ M.holeSegments i := by
-    rw [← hst]
-    exact mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
-  have hif : μ.holes.length < K := by omega
-  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩ := by
-    refine .step hμ ?_
-    unfold successors
-    simp only [hif, ↓reduceIte]
-    exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
-      Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩)
+  have hHS : (μ.last, c'.state) ∈ M.holeSegments i :=
+    hst ▸ mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
+  have hif : μ.holes.length < K := hstk.length_eq.symm ▸ hClt
+  have hnext : M.Reachable K M.initialLists ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩ :=
+    .step hμ (by
+      simp only [successors, hif, ↓reduceIte]
+      exact Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨i, Finset.mem_univ _,
+        Finset.mem_image.mpr ⟨(μ.last, c'.state), Finset.mem_filter.mpr ⟨hHS, rfl⟩, rfl⟩⟩))
   refine ⟨htlt, ⟨μ.holes ++ [⟨i, μ.last, c'.state⟩], c'.state⟩, C ++ [⟨i, ps⟩], rs ++ [r], c',
     hnext, hd', hrun', rfl, ?_, List.rel_append hstk (.cons rfl .nil),
     List.rel_append hreal (.cons (by rw [← hst]; exact hr) .nil),
@@ -921,18 +914,11 @@ answers `true` exactly when no word has a `K`-hole-bounded accepting run. It hol
 including `K = 0`; the source states Theorem 1 for positive `K`. -/
 theorem isEmpty_iff [DecidablePred (· ∈ M.accept)] {K : ℕ} :
     M.isEmpty K = true ↔ M.boundedLanguage (HoleBounded K) = 0 := by
-  constructor
-  · intro h
-    change _ = (∅ : Set _)
-    refine Set.eq_empty_iff_forall_notMem.mpr fun x hx => ?_
-    rw [isEmpty_eq_false_of_mem_boundedLanguage hx] at h
-    exact Bool.false_ne_true h
-  · intro h
-    by_contra h'
-    obtain ⟨x, hx⟩ := exists_mem_boundedLanguage_of_isEmpty_eq_false
-      (Bool.eq_false_iff.mpr h')
-    rw [h] at hx
-    exact hx
+  refine ⟨fun h => Set.eq_empty_iff_forall_notMem.mpr fun x hx =>
+      Bool.false_ne_true (isEmpty_eq_false_of_mem_boundedLanguage hx ▸ h),
+    fun h => Bool.eq_true_of_not_eq_false fun h' => ?_⟩
+  obtain ⟨x, hx⟩ := exists_mem_boundedLanguage_of_isEmpty_eq_false h'
+  exact cast (congrArg (x ∈ ·) h) hx
 
 end Complete
 

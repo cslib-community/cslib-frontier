@@ -83,15 +83,12 @@ noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
 /-- Complementing the first set negates the correlation. -/
 @[simp]
 theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
-  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
+  have hs (A : Set (ι → U)) : {x | x ∈ Sᶜ ↔ x ∈ A} = {x | x ∈ S ↔ x ∈ Aᶜ} := by
     ext x
     simp only [mem_compl_iff, mem_ofPred_eq]
     tauto
-  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
-  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
+  rw [correlation, correlation, agreement, agreement, hs T, hs Tᶜ, compl_compl, ← agreement,
+    ← agreement, neg_sub]
 
 /-- Complementing the second set negates the correlation. -/
 @[simp]
@@ -279,15 +276,13 @@ theorem agreement_le_of_unread {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
     (hu : K ≤ Nat.card U ^ (Compiler.network c I fun _ => Acc).readᶜ.ncard) :
     agreement S {x | c.eval I x 0 ∈ Acc} ≤
       1 / 2 + b + (Nat.card U * K ^ 2 : ℕ) / (Nat.card U : ℝ) ^ n := by
-  have bound (A : Set U) := hS.abs_signedCount_le_of_dependsOn hb
-    (Compiler.network c I fun _ => A).dependsOn_read hK hu
-  have h₁ := bound Acc
-  have h₂ := bound Accᶜ
-  rw [accepted_network_eq_eval] at h₁ h₂
-  have hN : (0 : ℝ) < (Nat.card U : ℝ) ^ n := by
-    have : 0 < Nat.card U := Nat.card_pos
-    positivity
-  refine (agreement_le h₁ h₂).trans (le_of_eq ?_)
+  have bound (A : Set U) : |signedCount S {x | c.eval I x 0 ∈ A}| ≤
+      2 * b * {x | c.eval I x 0 ∈ A}.ncard + (Nat.card U * K ^ 2 : ℕ) := by
+    rw [← accepted_network_eq_eval]
+    exact hS.abs_signedCount_le_of_dependsOn hb
+      (Compiler.network c I fun _ => A).dependsOn_read hK hu
+  have hN : (0 : ℝ) < (Nat.card U : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
+  refine (agreement_le (bound Acc) (bound Accᶜ)).trans_eq ?_
   rw [card_input_eq]
   field_simp
   ring
@@ -387,8 +382,7 @@ theorem MultiaryAverageCaseBound.mono {L L' : ℝ} (h : MultiaryAverageCaseBound
   intro ε hε
   obtain ⟨γ, hγ, H⟩ := h ε hε
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn
-  intro σ I Acc c hfan hs
+  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
@@ -424,8 +418,7 @@ theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL :
   intro ε hε
   obtain ⟨γ, hγ, H⟩ := h ε hε
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn
-  intro σ I Acc c hfan hs
+  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 

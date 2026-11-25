@@ -461,14 +461,11 @@ private theorem state_nbrUIDs_of_pos (Δ C : ℕ) (x : V → ℕ) {r : ℕ} (hr 
   | zero =>
     change ((deltaPlusOneColoring Δ C).state G x (0 + 1) u).nbrUIDs = nbrList G x u
     rw [deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep, nbrList]
-    simp only [↓reduceIte, Multiset.map_map]
-    rfl
+    simp only [deltaPlusOneStep, nbrList, ↓reduceIte, Multiset.map_map]; rfl
   | succ t ih =>
     have hpos : 1 + t ≠ 0 := by omega
     rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-    dsimp only [deltaPlusOneStep]
-    simp only [hpos, ↓reduceIte]
+    simp only [deltaPlusOneStep, hpos, ↓reduceIte]
     split_ifs <;> exact ih u
 
 private theorem two_le_iterate_cvBound {C : ℕ} (hC : 2 ≤ C) (s : ℕ) :
@@ -589,16 +586,15 @@ private theorem slotColor_after_cv {Δ C : ℕ} {x : V → ℕ} (hx : Function.I
     ∀ (i : Fin Δ) (u : V),
       ((deltaPlusOneColoring Δ C).state G x (1 + Nat.logStar C) u).slotColor i < 6 := by
   obtain ⟨hcv_ne, hcv_lt, _⟩ := state_cv_phase G hx hC le_rfl
-  refine ⟨fun t => ?_, hcv_ne, fun i u => ?_⟩
-  · induction t with
-    | zero => intro u; rfl
+  refine ⟨?_, hcv_ne, fun i u => ?_⟩
+  · intro t u
+    induction t generalizing u with
+    | zero => rfl
     | succ t ih =>
-      intro u
       have hnz : 1 + Nat.logStar C + t ≠ 0 := by omega
       have hnlt : ¬ 1 + Nat.logStar C + t < 1 + Nat.logStar C := by omega
       rw [← Nat.add_assoc, deltaPlusOneColoring_state_succ]
-      dsimp only [deltaPlusOneStep]
-      simp only [hnz, ↓reduceIte, hnlt, ↓reduceDIte]
+      simp only [deltaPlusOneStep, hnz, ↓reduceIte, hnlt, ↓reduceDIte]
       split_ifs <;> exact ih u
   · have h := hcv_lt i u
     split_ifs at h with hs0
@@ -775,12 +771,10 @@ theorem deltaPlusOneColoring_isProperColoring {Δ C : ℕ} (hΔ : G.maxDegree �
   rw [hR] at hprop hlt
   rw [SimpleGraph.isProperColoring_iff]
   intro u v huv heq
-  rw [deltaPlusOneColoring_run_eq, deltaPlusOneColoring_run_eq] at heq
-  have hst_u := deltaPlusOneColoring_state_add G Δ C x t u
-  have hst_v := deltaPlusOneColoring_state_add G Δ C x t v
   have hval := congrArg Fin.val heq
-  rw [hst_u, hst_v, Fin.coe_clamp, Fin.coe_clamp,
-    Nat.min_eq_left (Nat.le_of_lt_succ (hlt u)),
+  rw [deltaPlusOneColoring_run_eq, deltaPlusOneColoring_run_eq,
+    deltaPlusOneColoring_state_add G Δ C x t u, deltaPlusOneColoring_state_add G Δ C x t v,
+    Fin.coe_clamp, Fin.coe_clamp, Nat.min_eq_left (Nat.le_of_lt_succ (hlt u)),
     Nat.min_eq_left (Nat.le_of_lt_succ (hlt v))] at hval
   exact hprop u v ((partialGraph_eq_self G hΔ hx).2 huv) hval
 

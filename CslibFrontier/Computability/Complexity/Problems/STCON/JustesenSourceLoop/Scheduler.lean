@@ -326,15 +326,10 @@ private theorem configurationJustesenSeedSchedulerScan_firstHalting_correct
   have hcorrect := configurationJustesenSourceLoop_correct ntm c w seed source target
     bits verdict hfirst hrun
   refine ⟨source, hsource, ?_⟩
-  have hedge : (fun u v => configurationJustesenSubdivisionAdjacent ntm c w seed u v = true) =
-      edge := by
-    funext u v
-    have hbits : (Cslib.BitString.equivFin _).symm seed =
-        fun j => frame.request.seed.testBit j.val :=
-      funext fun j => by rw [Cslib.BitString.equivFin_symm_apply, hseed]
-    simp only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq, hbits, edge]
-    rfl
-  simpa only [hedge] using hcorrect
+  have hbits : (Cslib.BitString.equivFin _).symm seed =
+      fun j => frame.request.seed.testBit j.val :=
+    funext fun j => by rw [Cslib.BitString.equivFin_symm_apply, hseed]
+  simpa only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq, hbits] using hcorrect
 
 /-- A parsed scanner reply gives the first radius without a unique passing transcript,
 or gives the correct reachability answer with unique transcripts at every radius.
@@ -587,14 +582,11 @@ theorem configurationJustesenSeedScheduler_exists_routines {k : ℕ} {State : Ty
   intro M entry S
   obtain ⟨hq, hh, ha⟩ := justesenSeedScheduler_observations_inSpace ntm c
   obtain ⟨C, hprefix⟩ := configurationJustesenSeedScheduler_length_run_le_log ntm c
-  have hsize : ∀ w bits, (encJustesenSeedSchedulerState
-      ((M.withInit (entry w)).run (encBits w) bits)).length ≤ C * S w := by
-    intro w bits
-    simpa only [run_withInit, encBits_apply] using hprefix w bits
   obtain ⟨R⟩ : Nonempty (Routines M entry encBits S) :=
     M.exists_routines hq (justesenSeedScheduler_next_inSpace ntm c) hh ha entry S
       (fun w => by simp only [encBits_apply, S, le_refl])
-      (configurationJustesenSeedSchedulerEntry_inSpace ntm c) ⟨C, hsize⟩
+      (configurationJustesenSeedSchedulerEntry_inSpace ntm c)
+      ⟨C, fun w bits => by simpa only [run_withInit, encBits_apply] using hprefix w bits⟩
   obtain ⟨L, d, hbounds⟩ := R.exists_logSpace_polyClock
     (time := configurationJustesenSeedSchedulerClock ntm c)
     (fun w => by simpa only [encBits_apply] using

@@ -168,27 +168,22 @@ theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Bl
       let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
       OracleComp.interpret (fun (q : Query Key Block) => PMF.pure (evalPerm (P q.1) q.2)) program) =
     ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst := by
-  have h := OracleComp.run_interpret_simulation_of_invariant answer
-    lazyEvalPerm complete (fun s => ∀ k, IsPartialBijection (s k))
-    (fun q s hs a s' hmem => answer_preserve_isPartialBijection q s hs a s' hmem)
-    (fun q s hs => answer_complete q s hs)
-    program (fun _ => []) (fun _ => isPartialBijection_nil)
-  have h2 := congrArg (PMF.map Prod.fst) h
-  have h3 : ((complete (fun _ : Key => [])).bind fun t =>
-      (OracleComp.interpret lazyEvalPerm program).run t).map Prod.fst =
-    (do let P ← PMF.pi (fun _ : Key => PMF.uniformOfFintype (Equiv.Perm Block))
-        OracleComp.interpret (fun (q : Query Key Block) =>
-          PMF.pure (evalPerm (P q.1) q.2)) program) := by
-    simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
-    apply congrArg
-    ext1 P
-    refine (congrArg (PMF.map Prod.fst) (OracleComp.run_interpret_readOnly
-      (fun (q : Query Key Block) (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2))
-      program P)).trans ?_
-    rw [PMF.monad_map_eq_map, PMF.map_comp]
-    exact PMF.map_id _
-  rw [← h3]
-  simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using h2.symm
+  have h := congrArg (PMF.map Prod.fst) <|
+    OracleComp.run_interpret_simulation_of_invariant answer lazyEvalPerm complete
+      (fun s => ∀ k, IsPartialBijection (s k)) answer_preserve_isPartialBijection
+      answer_complete program (fun _ => []) (fun _ => isPartialBijection_nil)
+  have h2 : ((OracleComp.interpret answer program).run (fun _ => [])).map Prod.fst =
+      ((complete (fun _ : Key => [])).bind fun t =>
+        (OracleComp.interpret lazyEvalPerm program).run t).map Prod.fst := by
+    simpa only [pmf_norm, complete, PMF.map, PMF.bind_const] using h
+  rw [h2]
+  simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
+  refine congrArg _ (funext fun P => ?_)
+  refine ((congrArg (PMF.map Prod.fst) (OracleComp.run_interpret_readOnly
+    (fun (q : Query Key Block) (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2))
+    program P)).trans ?_).symm
+  rw [PMF.monad_map_eq_map, PMF.map_comp]
+  exact PMF.map_id _
 
 omit [Fintype Key] in
 /-- `exactWithBad` and `forgetfulWithBad` are identical until the bad flag becomes `true`. -/
@@ -296,20 +291,18 @@ every key's cache in `st.1` is a partial bijection. -/
 theorem exactWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool)
     (hcache : ∀ k, IsPartialBijection (st.1 k)) :
     (exactWithBad q st).map (fun (a, st') => (a, st'.1)) = answer q st.1 := by
-  simp only [exactWithBad, answer, PMF.map_comp]
-  have h := congrArg (PMF.map (fun (b, c) => (b, Function.update st.1 q.1 c)))
-    (RandomPermutation.exactWithBad_map_fst q.2 (st.1 q.1, st.2) (hcache q.1))
-  rwa [PMF.map_comp] at h
+  simpa only [exactWithBad, answer, PMF.map_comp, Function.comp_def] using
+    congrArg (PMF.map fun x => (x.1, Function.update st.1 q.1 x.2))
+      (RandomPermutation.exactWithBad_map_fst q.2 (st.1 q.1, st.2) (hcache q.1))
 
 omit [Fintype Key] in
 /-- Dropping the bad flag after a step of `forgetfulWithBad` recovers the law of
 `forgetfulAnswer`. -/
 theorem forgetfulWithBad_map_fst (q : Query Key Block) (st : (Key → Cache Block) × Bool) :
     (forgetfulWithBad q st).map (fun (a, st') => (a, st'.1)) = forgetfulAnswer q st.1 := by
-  simp only [forgetfulWithBad, forgetfulAnswer, PMF.map_comp]
-  have h := congrArg (PMF.map (fun (b, c) => (b, Function.update st.1 q.1 c)))
-    (RandomPermutation.forgetfulWithBad_map_fst q.2 (st.1 q.1, st.2))
-  rwa [PMF.map_comp] at h
+  simpa only [forgetfulWithBad, forgetfulAnswer, PMF.map_comp, Function.comp_def] using
+    congrArg (PMF.map fun x => (x.1, Function.update st.1 q.1 x.2))
+      (RandomPermutation.forgetfulWithBad_map_fst q.2 (st.1 q.1, st.2))
 
 omit [Fintype Key] in
 /-- Dropping the final bad flag after running `program` under `exactWithBad` recovers the run
