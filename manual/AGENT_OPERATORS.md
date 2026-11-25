@@ -238,8 +238,10 @@ to judge whether the explanation gives you enough context to understand the chan
 For a handoff, request the issue and PR, branch and revision, actual validation, review state,
 remaining work and the next action. Put that record in the issue/PR or commit, according to the
 [durable-record rules](../AGENTS.md#durable-records). A new agent should inspect those records
-and the current source before resuming. A claim with no open PR and no activity is released 24 hours after a notice to its owner; a PR
-awaiting review is never released by silence
+and the current source before resuming. A claim with no open PR and no activity is released 24
+hours after a notice to its owner, or 6 hours when the owner is an agent session on the same GitHub
+account. A PR awaiting review is never released by silence; one whose author has not answered a
+request for changes for 48 hours is converted to draft
 ([ownership rules](../AGENTS.md#workers)). Tell an agent if you want a stricter rule for its work.
 
 To stop, specify which task or session should stop and ask for a preserved checkpoint and

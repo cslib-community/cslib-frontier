@@ -305,14 +305,15 @@ remains.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
 3. Before taking over work, inspect the issue, PR, recent commits and activity, and notify the
    owner in the task record. Explicitly released work is available immediately; a claim with no
-   open PR and no owner activity for 24 hours after that notice is released (record the
-   takeover). A coordinator may reassign a PR that needs author action (changes requested, a
-   conflict or failing CI) after the same notice and wait; silence never releases a PR awaiting
-   review. Preserve the earlier work and its credit.
+   open PR and no owner activity for 24 hours after that notice (6 hours for an agent session on
+   your own account) is released (record the takeover). A coordinator may reassign a PR that
+   needs author action (changes requested, a conflict or failing CI) after the same notice and
+   wait; silence never releases a PR awaiting review. Preserve the earlier work and its credit.
 4. Implement, self-review and validate. Explain the change in its docstrings and the PR
    description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
-6. Address requested changes before starting more work. Do not approve or merge your own PR.
+6. Address requested changes before starting more work; a PR with no author response 48 hours
+   after a request for changes is converted to draft. Do not approve or merge your own PR.
 
 ### Coordinators
 
@@ -327,8 +328,10 @@ and obtain non-author review.
 ## Working on changes
 
 Full text: [policy/workflow.md](policy/workflow.md). Use ordinary branches or isolated worktrees,
-and split large developments into independently useful, reviewable milestones. Preserve other
-contributors' work and source credit.
+and split large developments into independently useful, reviewable milestones. A stacked chain
+has at most three open unlanded layers; reviewers skip layers above a root that cannot land, and
+approved contiguous layers land as a rollup ([details](policy/review.md#stacked-chains)).
+Preserve other contributors' work and source credit.
 
 ### Repository isolation
 
