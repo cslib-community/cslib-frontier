@@ -411,13 +411,9 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
   have hgap (v : ℕ) : right v < right v + 1 / 8 := by linarith
   have hband {u v : ℕ} {x : ℝ} (hu : u ∈ V) (hv : v ∈ V) (hne : u ≠ v)
       (hxu : x ∈ band u) (hxv : x ∈ band v) : False := by
-    change a u - 1 / 8 < x ∧ x < right u + 1 / 8 at hxu
-    change a v - 1 / 8 < x ∧ x < right v + 1 / 8 at hxv
     rcases lt_or_gt_of_ne hne with h | h
-    · have h' : right u + 1 / 4 < a v := hsep u (hmem.mp hu) v (hmem.mp hv) h
-      linarith only [h', hxu.2, hxv.1]
-    · have h' : right v + 1 / 4 < a u := hsep v (hmem.mp hv) u (hmem.mp hu) h
-      linarith only [h', hxv.2, hxu.1]
+    · linarith only [hsep u (hmem.mp hu) v (hmem.mp hv) h, hxu.2, hxv.1]
+    · linarith only [hsep v (hmem.mp hv) u (hmem.mp hu) h, hxv.2, hxu.1]
   have hramp {v : ℕ} (hv : v ∈ V) {x : ℝ} (hx : x ∉ band v) : ramp v x = 0 :=
     stripRamp_eq_zero (hright v (hmem.mp hv)) (hgap v)
       (fun h => hx ⟨by linarith only [h.1], h.2⟩)
@@ -465,22 +461,13 @@ theorem exists_frozen_reference_compression {I : FixedRotationInput} (hI : Valid
   obtain ⟨hi, hhi⟩ := (V.image fun v => right v + 1 / 8).finite_toSet.bddAbove
   have hsurj : Function.Surjective f := by
     intro x
-    have hl : min lo x ≤ x := min_le_right _ _
-    have hu : x ≤ max hi x := le_max_right _ _
-    have hfl : f (min lo x) = min lo x := by
-      apply hfix
-      intro v hv hx
-      have hlv : lo ≤ a v - 1 / 8 := hlo (Finset.mem_image.mpr ⟨v, hv, rfl⟩)
-      exact (not_lt_of_ge ((min_le_left lo x).trans hlv)) hx.1
-    have hfu : f (max hi x) = max hi x := by
-      apply hfix
-      intro v hv hx
-      have huv : right v + 1 / 8 ≤ hi := hhi (Finset.mem_image.mpr ⟨v, hv, rfl⟩)
-      exact (not_lt_of_ge (huv.trans (le_max_left hi x))) hx.2
-    have hx : x ∈ Set.Icc (f (min lo x)) (f (max hi x)) := by
-      rw [hfl, hfu]
-      exact ⟨hl, hu⟩
-    obtain ⟨y, _, hy⟩ := intermediate_value_Icc (hl.trans hu) hf.continuousOn hx
+    have hfl : f (min lo x) = min lo x := hfix _ fun v hv hx =>
+      not_lt_of_ge ((min_le_left lo x).trans (hlo (Finset.mem_image.mpr ⟨v, hv, rfl⟩))) hx.1
+    have hfu : f (max hi x) = max hi x := hfix _ fun v hv hx =>
+      not_lt_of_ge ((hhi (Finset.mem_image.mpr ⟨v, hv, rfl⟩)).trans (le_max_left hi x)) hx.2
+    obtain ⟨y, _, hy⟩ := intermediate_value_Icc (min_le_right lo x |>.trans (le_max_right hi x))
+      hf.continuousOn (show x ∈ Set.Icc (f (min lo x)) (f (max hi x)) by
+        rw [hfl, hfu]; exact ⟨min_le_right lo x, le_max_right hi x⟩)
     exact ⟨y, hy⟩
   let e : ℝ ≃o ℝ := hmono.orderIsoOfSurjective f hsurj
   let F : ℂ ≃ₜ ℂ :=
