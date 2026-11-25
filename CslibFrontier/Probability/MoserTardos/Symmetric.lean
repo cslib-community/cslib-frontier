@@ -63,7 +63,7 @@ private theorem div_one_sub_le_div_one_sub {a b : ℝ} (_ha : 0 ≤ a) (hab : a 
   have ha1 : 0 < 1 - a := by linarith
   have hb1 : 0 < 1 - b := by linarith
   rw [div_le_div_iff₀ ha1 hb1]
-  nlinarith
+  linarith [show a * (1 - b) - b * (1 - a) = a - b by ring]
 
 /-- Convert the symmetric Local Lemma hypothesis `Real.exp 1 * q * (d + 1) ≤ 1` into asymmetric
 weights `x i ∈ [0, 1)`: constant `1 / (d + 1)` when `1 ≤ d` (using
@@ -159,12 +159,11 @@ theorem exists_slack_weights_of_symmetric (vbl : ι → Finset V)
     obtain ⟨x, hx, hP', hx1, hx0⟩ := exists_weights_of_symmetric (symNbhd vbl)
       (symNbhd_card_le vbl hd) (fun i => div_nonneg (hb0 i) hr_pos.le)
       (fun i => div_le_div_of_nonneg_right (hq i) hr_pos.le) hlll'
-    refine ⟨symNbhd vbl, x, mem_symNbhd vbl, hx, fun i => ?_, fun hdpos => ?_, ?_⟩
+    have hsum_pos (hdpos : 1 ≤ d) : ∑ i : ι, x i / (1 - x i) = (Fintype.card ι : ℝ) / d := by
+      simp_rw [hx1 hdpos, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one_div]
+    refine ⟨symNbhd vbl, x, mem_symNbhd vbl, hx, fun i => ?_, fun hdpos => (hsum_pos hdpos).le, ?_⟩
     · have := mul_le_mul_of_nonneg_left (hP' i) hr_pos.le
       rwa [mul_div_cancel₀ _ hr_pos.ne'] at this
-    · have hsum : ∑ i : ι, x i / (1 - x i) = (Fintype.card ι : ℝ) / d := by
-        simp_rw [hx1 hdpos, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one_div]
-      exact hsum.le
     · rcases Nat.eq_zero_or_pos d with rfl | hdpos
       · have hle1 : ∀ i, x i / (1 - x i) ≤ 1 := fun i => by
           have hexp : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
@@ -172,11 +171,8 @@ theorem exists_slack_weights_of_symmetric (vbl : ι → Finset V)
           exact (hx0 rfl i).2.trans hinv
         calc ∑ i : ι, x i / (1 - x i) ≤ ∑ _i : ι, (1 : ℝ) := Finset.sum_le_sum fun i _ => hle1 i
           _ = (Fintype.card ι : ℝ) := by simp
-      · have hsum : ∑ i : ι, x i / (1 - x i) = (Fintype.card ι : ℝ) / d := by
-          simp_rw [hx1 hdpos, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one_div]
-        rw [hsum]
-        have hd1 : (1 : ℝ) ≤ d := by exact_mod_cast hdpos
-        exact div_le_self (by positivity) hd1
+      · rw [hsum_pos hdpos]
+        exact div_le_self (by positivity) (by exact_mod_cast hdpos)
 
 variable [Fintype V] {α : V → Type*} [∀ v, MeasurableSpace (α v)]
   (μ : ∀ v, Measure (α v)) [∀ v, IsProbabilityMeasure (μ v)] (vbl : ι → Finset V)
