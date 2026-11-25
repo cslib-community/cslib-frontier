@@ -324,11 +324,8 @@ private lemma affineMap_lineMap (ℓ : E →ᵃ[ℝ] ℝ) (x y : E) (t : ℝ) :
 
 theorem IsHPolytope.isClosed {P : Set E} (hP : IsHPolytope P) : IsClosed P := by
   rcases hP with ⟨_, L, _, rfl⟩
-  have hsub : {x : E | ∀ ℓ ∈ L, ℓ x ≤ 0} = ⋂ ℓ ∈ L, {x : E | ℓ x ≤ 0} := by
-    ext x; simp
-  rw [hsub]
-  refine isClosed_biInter fun ℓ _ => ?_
-  exact isClosed_le ℓ.continuous_of_finiteDimensional continuous_const
+  simp only [Set.ofPred_forall]
+  exact isClosed_biInter fun ℓ _ => isClosed_le ℓ.continuous_of_finiteDimensional continuous_const
 
 theorem IsHPolytope.isCompact {P : Set E} (hP : IsHPolytope P) : IsCompact P :=
   Metric.isCompact_of_isClosed_isBounded hP.isClosed hP.1
@@ -360,9 +357,7 @@ private lemma exists_lineMap_mem_setOf_le {L : Set (E →ᵃ[ℝ] ℝ)} (hL : L.
     have h1 : |t| * (|ℓ y - ℓ x| + 1) ≤ -ℓ x :=
       (mul_le_mul_of_nonneg_right (ht.trans hε_le) (by positivity)).trans_eq
         (div_mul_cancel₀ _ (by positivity))
-    have hle_abs : t * (ℓ y - ℓ x) ≤ |t| * |ℓ y - ℓ x| := by
-      rw [← abs_mul]; exact le_abs_self _
-    linarith [abs_nonneg t]
+    linarith [abs_nonneg t, (le_abs_self (t * (ℓ y - ℓ x))).trans_eq (abs_mul _ _)]
   · rw [hx0, heq ℓ hℓ hx0, sub_zero, mul_zero, add_zero]
 
 omit [FiniteDimensional ℝ E] in
@@ -609,8 +604,8 @@ theorem IsPolytopeFace.extremePoints_eq {P F : Set E} (hPF : IsPolytopeFace P F)
   rw [hPF.isExtreme.extremePoints_eq, inter_comm]
 
 theorem IsPolytope.extremePoints_nonempty {P : Set E} (hP : IsPolytope P) (hne : P.Nonempty) :
-    (P.extremePoints ℝ).Nonempty := by
-  exact convexHull_nonempty_iff.1 (by rwa [← hP.eq_convexHull_extremePoints])
+    (P.extremePoints ℝ).Nonempty :=
+  convexHull_nonempty_iff.1 (by rwa [← hP.eq_convexHull_extremePoints])
 
 theorem vertexCentroid_eq_centroid {P : Set E} (hP : IsPolytope P) :
     vertexCentroid P = hP.finite_extremePoints.toFinset.centroid ℝ id := by
@@ -643,9 +638,7 @@ theorem vertexCentroid_notMem_of_ssubset {P F : Set E} (hP : IsPolytope P)
     hP.finite_extremePoints.toFinset_nonempty.2 (hP.extremePoints_nonempty hne)
   have hVF : (V : Set E) ⊆ F := isExtreme_mem_of_sum_pos hPF.isExtreme hP.convex hVne
     (fun _ hv => (hP.finite_extremePoints.mem_toFinset.1 hv).1) (V.centroidWeights ℝ)
-    (fun _ _ => by
-      simp only [Finset.centroidWeights_apply, inv_pos, Nat.cast_pos]
-      exact Finset.card_pos.2 hVne)
+    (fun _ _ => by simpa using Finset.card_pos.2 hVne)
     (Finset.sum_centroidWeights_eq_one_of_nonempty _ _ hVne)
     (vertexCentroid_eq_sum hP hne ▸ hbF)
   exact hss.not_subset (by
