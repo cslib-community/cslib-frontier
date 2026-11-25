@@ -135,8 +135,7 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Triple α β)) :
   · split
     · rfl
     · next k v c right heq =>
-      have : rest = rest.take t ++ (k, v, c) :: right := by
-        rw [← heq, List.take_append_drop]
+      have : rest = rest.take t ++ (k, v, c) :: right := by rw [← heq, List.take_append_drop]
       conv_rhs => rw [this]
       simp only [toList_split, toList_node, toListRest_append, toListRest_cons, List.append_assoc,
         List.cons_append]
@@ -243,8 +242,7 @@ theorem fits_ofNode {tr first : BTree α β} {rest : List (Triple α β)}
     simp only [ofNode, hle, ↓reduceIte]
     exact ⟨htr, hb, hhn.trans hh.symm, hco, hk, hle⟩
   · -- the node overflowed by exactly one key
-    obtain ⟨l, k, v, r, heq, hl, hr'⟩ :=
-      exists_good_split_ofNode hf hr (by omega) (by omega)
+    obtain ⟨l, k, v, r, heq, hl, hr'⟩ := exists_good_split_ofNode hf hr (by omega) (by omega)
     rw [heq]
     exact ⟨hh ▸ hl, hh ▸ hr'⟩
 
@@ -438,8 +436,7 @@ theorem insert_def (tr : BTree α β) : insert t k v tr = Id.run (insertM t leI 
   (rfl)
 
 /-- Insertion is the bottom-up insertion with an overflow grown into a new root. -/
-theorem insert_eq_toTree (tr : BTree α β) : insert t k v tr = (insertOrSplit t k v tr).toTree :=
-  rfl
+theorem insert_eq_toTree (tr : BTree α β) : insert t k v tr = (insertOrSplit t k v tr).toTree := rfl
 
 /-- Inserting into the empty tree overflows at once. -/
 @[simp] theorem insertOrSplit_leaf :
