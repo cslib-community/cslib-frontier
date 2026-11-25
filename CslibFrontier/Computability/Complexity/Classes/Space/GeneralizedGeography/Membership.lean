@@ -342,8 +342,10 @@ theorem alternation_foldl_step (G : Graph) :
             (legal G vis v (choice y) = true →
               G.GeographyWins ((arc G (choice y)).2 :: vis) (arc G (choice y)).2) := by
         by_cases hl : legal G vis v (choice y) = true
-        · simpa [hl] using hlegal y hl
-        · simpa [hl] using hillegal y hl
+        · rw [hlegal y hl]
+          simp [hl]
+        · rw [hillegal y hl]
+          simp [hl]
       simp only [hy]
       rw [forall_legal_iff (R := fun w => G.GeographyWins (w :: vis) w),
         ← Graph.not_geographyWins_iff]
@@ -355,8 +357,10 @@ theorem alternation_foldl_step (G : Graph) :
             (legal G vis v (choice x) = true ∧
               ¬G.GeographyWins ((arc G (choice x)).2 :: vis) (arc G (choice x)).2) := by
         by_cases hl : legal G vis v (choice x) = true
-        · simpa [hl] using hlegal x hl
-        · simpa [hl] using hillegal x hl
+        · rw [hlegal x hl]
+          simp [hl]
+        · rw [hillegal x hl]
+          simp [hl]
       simp only [hx]
       rw [exists_legal_iff (R := fun w => ¬G.GeographyWins (w :: vis) w),
         ← Graph.geographyWins_iff]
@@ -394,8 +398,10 @@ theorem isGameVerifier_verifier :
   have hle : 2 * G.edges.length * (G.vertices.length + 1) ≤
       2 * ((Polynomial.X + 1) ^ 2 : Polynomial ℕ).eval n := by
     simp only [Polynomial.eval_pow, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
-    rw [Nat.mul_assoc, sq]
-    exact Nat.mul_le_mul_left 2 (Nat.mul_le_mul (by omega) (by omega))
+    rw [Nat.mul_assoc]
+    refine Nat.mul_le_mul_left 2 ?_
+    rw [sq]
+    exact Nat.mul_le_mul (by omega) (by omega)
   have hcount : (G.vertices.toFinset \ [s].toFinset).card < G.vertices.length + 1 :=
     Nat.lt_succ_of_le ((Finset.card_le_card Finset.sdiff_subset).trans (List.toFinset_card_le _))
   rw [mem_GeneralizedGeography, ← Nat.add_sub_cancel' hle, List.replicate_add,

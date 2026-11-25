@@ -103,10 +103,11 @@ private theorem iterate_searchStep_bounds (test : C × ℕ → Bool)
   | succ k ih =>
     rw [Function.iterate_succ_apply']
     let s := (searchStep test)^[k] ⟨c, start, count, none⟩
-    obtain ⟨hc, hi, hr, ha⟩ : s.context = c ∧ s.cursor ≤ start + k ∧ s.remaining ≤ count ∧
-        s.answer.getD 0 ≤ start + k := ih
+    change s.context = c ∧ s.cursor ≤ start + k ∧ s.remaining ≤ count ∧
+      s.answer.getD 0 ≤ start + k at ih
     change (searchStep test s).context = c ∧ (searchStep test s).cursor ≤ start + (k + 1) ∧
       (searchStep test s).remaining ≤ count ∧ (searchStep test s).answer.getD 0 ≤ start + (k + 1)
+    obtain ⟨hc, hi, hr, ha⟩ := ih
     by_cases hdone : searchDone s = true
     · rw [searchStep_of_done test hdone]
       exact ⟨hc, hi.trans (Nat.le_succ _), hr, ha.trans (Nat.le_succ _)⟩

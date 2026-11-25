@@ -384,15 +384,15 @@ theorem localOptRel_mem_PLS {n : α → ℕ} {N : α × List Bool → List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
     (hN : ComputableInPolyTime N (encPair enc encBits) encBits)
     (hC : ComputableInPolyTime C (encPair enc encBits) encNat)
-    (hlen : PreservesWidth n N) : localOptRel n N C ∈ PLS enc :=
-  mem_PLS.mpr ⟨localOptRel_mem_FNP hn hN hC, n, N, C, hn, hN, hC, hlen, .refl _ _⟩
+    (hlen : PreservesWidth n N) : localOptRel n N C ∈ PLS enc := by
+  exact mem_PLS.mpr ⟨localOptRel_mem_FNP hn hN hC, n, N, C, hn, hN, hC, hlen, .refl _ _⟩
 
 /-- Every uniform polynomial-time pigeonhole family is in `PPP`. -/
 theorem pigeonRel_mem_PPP {n : α → ℕ} {F : α × List Bool → List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
     (hF : ComputableInPolyTime F (encPair enc encBits) encBits)
-    (hlen : PreservesWidth n F) : pigeonRel n F ∈ PPP enc :=
-  mem_PPP.mpr ⟨pigeonRel_mem_FNP hn hF, n, F, hn, hF, hlen, .refl _ _⟩
+    (hlen : PreservesWidth n F) : pigeonRel n F ∈ PPP enc := by
+  exact mem_PPP.mpr ⟨pigeonRel_mem_FNP hn hF, n, F, hn, hF, hlen, .refl _ _⟩
 
 /-- Every uniform polynomial-time directed end-of-line family is in `PPAD`. -/
 theorem endOfLineRel_mem_PPAD {n : α → ℕ} {P S : α × List Bool → List Bool}
@@ -400,8 +400,9 @@ theorem endOfLineRel_mem_PPAD {n : α → ℕ} {P S : α × List Bool → List B
     (hP : ComputableInPolyTime P (encPair enc encBits) encBits)
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hP_len : PreservesWidth n P) (hS_len : PreservesWidth n S) :
-    endOfLineRel n P S ∈ PPAD enc :=
-  mem_PPAD.mpr ⟨endOfLineRel_mem_FNP hn hP hS, n, P, S, hn, hP, hS, hP_len, hS_len, .refl _ _⟩
+    endOfLineRel n P S ∈ PPAD enc := by
+  exact mem_PPAD.mpr
+    ⟨endOfLineRel_mem_FNP hn hP hS, n, P, S, hn, hP, hS, hP_len, hS_len, .refl _ _⟩
 
 /-- Every uniform polynomial-time undirected parity family is in `PPA`. -/
 theorem leafRel_mem_PPA {n : α → ℕ} {N₁ N₂ : α × List Bool → List Bool}
@@ -409,8 +410,9 @@ theorem leafRel_mem_PPA {n : α → ℕ} {N₁ N₂ : α × List Bool → List B
     (hN₁ : ComputableInPolyTime N₁ (encPair enc encBits) encBits)
     (hN₂ : ComputableInPolyTime N₂ (encPair enc encBits) encBits)
     (hN₁_len : PreservesWidth n N₁) (hN₂_len : PreservesWidth n N₂) :
-    leafRel n N₁ N₂ ∈ PPA enc :=
-  mem_PPA.mpr ⟨leafRel_mem_FNP hn hN₁ hN₂, n, N₁, N₂, hn, hN₁, hN₂, hN₁_len, hN₂_len, .refl _ _⟩
+    leafRel n N₁ N₂ ∈ PPA enc := by
+  exact mem_PPA.mpr
+    ⟨leafRel_mem_FNP hn hN₁ hN₂, n, N₁, N₂, hn, hN₁, hN₂, hN₁_len, hN₂_len, .refl _ _⟩
 
 /-! ### Closure under search reductions -/
 
@@ -449,23 +451,24 @@ theorem SearchReducible.mem_PPA (h : SearchReducible enc encB R T) (hR : R ∈ F
 /-! ### Inclusions in `TFNP` and between subclasses -/
 
 /-- **`PLS ⊆ TFNP`**: every problem in `PLS` is total and in `FNP`. -/
-theorem PLS_subset_TFNP : PLS enc ⊆ TFNP enc :=
-  fun _ ⟨hR, _, _, _, _, _, _, hlen, hred⟩ =>
-    ⟨hR, hred.isTotalSearch (isTotalSearch_localOptRel hlen)⟩
+theorem PLS_subset_TFNP : PLS enc ⊆ TFNP enc := by
+  rintro R ⟨hR, n, N, C, -, -, -, hlen, hred⟩
+  exact ⟨hR, hred.isTotalSearch (isTotalSearch_localOptRel hlen)⟩
 
 /-- **`PPP ⊆ TFNP`**: every problem in `PPP` is total and in `FNP`. -/
-theorem PPP_subset_TFNP : PPP enc ⊆ TFNP enc :=
-  fun _ ⟨hR, _, _, _, _, hlen, hred⟩ => ⟨hR, hred.isTotalSearch (isTotalSearch_pigeonRel hlen)⟩
+theorem PPP_subset_TFNP : PPP enc ⊆ TFNP enc := by
+  rintro R ⟨hR, n, F, -, -, hlen, hred⟩
+  exact ⟨hR, hred.isTotalSearch (isTotalSearch_pigeonRel hlen)⟩
 
 /-- **`PPAD ⊆ TFNP`**: every problem in `PPAD` is total and in `FNP`. -/
-theorem PPAD_subset_TFNP : PPAD enc ⊆ TFNP enc :=
-  fun _ ⟨hR, _, _, _, _, _, _, _, hS_len, hred⟩ =>
-    ⟨hR, hred.isTotalSearch (isTotalSearch_endOfLineRel hS_len)⟩
+theorem PPAD_subset_TFNP : PPAD enc ⊆ TFNP enc := by
+  rintro R ⟨hR, n, P, S, -, -, -, -, hS_len, hred⟩
+  exact ⟨hR, hred.isTotalSearch (isTotalSearch_endOfLineRel hS_len)⟩
 
 /-- **`PPA ⊆ TFNP`**: every problem in `PPA` is total and in `FNP`. -/
-theorem PPA_subset_TFNP : PPA enc ⊆ TFNP enc :=
-  fun _ ⟨hR, _, _, _, _, _, _, hN₁_len, hN₂_len, hred⟩ =>
-    ⟨hR, hred.isTotalSearch (isTotalSearch_leafRel hN₁_len hN₂_len)⟩
+theorem PPA_subset_TFNP : PPA enc ⊆ TFNP enc := by
+  rintro R ⟨hR, n, N₁, N₂, -, -, -, hN₁_len, hN₂_len, hred⟩
+  exact ⟨hR, hred.isTotalSearch (isTotalSearch_leafRel hN₁_len hN₂_len)⟩
 
 /-- Every directed end-of-line family search-reduces to its associated bipartite undirected parity
 family. -/

@@ -123,14 +123,16 @@ theorem heapifyDownF_eq : ∀ (fuel : Nat) {sz : Nat} (a : Vector α sz) (i : Fi
     split
     · rename_i hn
       rw [maxChildF_eq] at hn
-      exact (heapifyDown_eq_of_maxChild_none hn).symm
+      rw [heapifyDown_eq_of_maxChild_none hn]
     · rename_i j hj
       rw [maxChildF_eq] at hj
       have := maxChild_gt hj
-      split <;> rename_i hlt
-      · rw [heapifyDown_eq_of_lt_child hj hlt]
+      split
+      · rename_i hlt
+        rw [heapifyDown_eq_of_lt_child hj hlt]
         exact heapifyDownF_eq fuel _ _ (by omega)
-      · exact (heapifyDown_eq_of_not_lt_child hj hlt).symm
+      · rename_i hlt
+        rw [heapifyDown_eq_of_not_lt_child hj hlt]
 
 /-- **Insertion** by structural recursion. The size is read before the push, so that the array is
 updated in place when the heap is not shared. -/
@@ -252,11 +254,14 @@ theorem topDown_heapifyUp_of_isGE {o₁ o₂ : Ord α} [h₁ : @Std.TransOrd α 
         rw [Std.ReflOrd.compare_self]; rfl
       · exact hbu i (by omega)
     obtain ⟨hl, hr⟩ := hwf i
-    exact ⟨fun hl' => h ⟨_, by omega⟩ ⟨_, hl'⟩
-        (fun e => Nat.ne_of_gt (by omega : i.val < 2 * i.val + 1) (congrArg Fin.val e))
-        (@Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hl hl')),
-      fun hr' => h ⟨_, by omega⟩ ⟨_, hr'⟩
-        (fun e => Nat.ne_of_gt (by omega : i.val < 2 * i.val + 1 + 1) (congrArg Fin.val e))
-        (@Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hr hr'))⟩
+    constructor
+    · intro hl'
+      refine h ⟨_, by omega⟩ ⟨_, hl'⟩
+        (fun e => by have := congrArg Fin.val e; simp at this; omega) ?_
+      exact @Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hl hl')
+    · intro hr'
+      refine h ⟨_, by omega⟩ ⟨_, hr'⟩
+        (fun e => by have := congrArg Fin.val e; simp at this; omega) ?_
+      exact @Std.TransOrd.isGE_trans α o₁ h₁ _ _ _ hpi (hr hr')
 
 end Batteries.BinaryHeap

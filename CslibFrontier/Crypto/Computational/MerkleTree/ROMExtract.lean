@@ -156,7 +156,8 @@ instance [DecidableEq Query] [DecidableEq Digest] (tr : List (Query × Digest)) 
 @[simp]
 theorem traceConsistentWith_nil (h : Query → Digest) :
     TraceConsistentWith h ([] : List (Query × Digest)) := by
-  simp [TraceConsistentWith]
+  intro _ hp
+  cases hp
 
 @[simp]
 theorem traceConsistentWith_cons {h : Query → Digest} {p : Query × Digest}
@@ -166,7 +167,8 @@ theorem traceConsistentWith_cons {h : Query → Digest} {p : Query × Digest}
 
 @[simp]
 theorem traceCollisionFree_nil : TraceCollisionFree ([] : List (Query × Digest)) := by
-  simp [TraceCollisionFree]
+  intro _ hp
+  cases hp
 
 theorem traceCollisionFree_cons_iff {q : Query} {ans : Digest} {tr : List (Query × Digest)} :
     TraceCollisionFree ((q, ans) :: tr) ↔

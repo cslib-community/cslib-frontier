@@ -70,13 +70,16 @@ theorem listDrop {α : Type} (enc : α ↪ List Bool) :
     of_inO (.of_linear (ListEncoding.tail (enc₁ := enc)))
   have hlen (q : List α × ℕ) (k : ℕ) :
       (encList enc (List.tail^[k] q.1)).length ≤ (encList enc q.1).length := by
-    rw [List.tail_iterate, ← q.1.take_append_drop k, encList_append, List.length_append]
+    rw [List.tail_iterate]
+    rw [← q.1.take_append_drop k, encList_append, List.length_append]
     simp
   have h := iterate (snd (encList enc) encNat) (fst (encList enc) encNat) htail
     (Q := fun q => (encList enc q.1).length) (B := fun q => (encList enc q.1).length)
     (fun q k _ => hlen q k) (fun q k _ => hlen q k)
-  exact (h.weaken (.of_le_linear 8 8 fun _ => by enc_len)).of_enc_eq fun q =>
-    congrArg (encList enc) (List.tail_iterate q.1 q.2).symm
+  refine h.weaken (.of_le_linear 8 8 fun q => ?_) |>.of_enc_eq ?_
+  · enc_len
+  · intro q
+    rw [List.tail_iterate]
 
 /-- Take a binary-counted prefix using space linear in the actual framed list and counter. -/
 theorem listTake {α : Type} (enc : α ↪ List Bool) :

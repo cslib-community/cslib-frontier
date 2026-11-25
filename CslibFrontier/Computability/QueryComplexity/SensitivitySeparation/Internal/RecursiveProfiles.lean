@@ -91,8 +91,10 @@ open scoped Classical in
 /-- If `F q x = b`, then `sensitivityAt (F q) x ≤ sideSensitivity F b`. -/
 theorem sensitivityAt_le_sideSensitivity {h : ℕ} {I : Type} [Fintype I]
     (F : Fin h → (I → Bool) → Bool) (b : Bool) (q : Fin h) (x : I → Bool)
-    (hx : F q x = b) : sensitivityAt (F q) x ≤ sideSensitivity F b :=
-  Finset.le_sup_of_le (Finset.mem_univ q) (Finset.le_sup_of_le (Finset.mem_univ x) (by simp [hx]))
+    (hx : F q x = b) : sensitivityAt (F q) x ≤ sideSensitivity F b := by
+  apply Finset.le_sup_of_le (Finset.mem_univ q)
+  apply Finset.le_sup_of_le (Finset.mem_univ x)
+  simp [hx]
 
 open scoped Classical in
 /-- If `sensitivityAt (F q) x ≤ B` whenever `F q x = b`, then `sideSensitivity F b ≤ B`. -/
@@ -100,7 +102,10 @@ theorem sideSensitivity_le {h : ℕ} {I : Type} [Fintype I]
     (F : Fin h → (I → Bool) → Bool) (b : Bool) (B : ℕ)
     (hB : ∀ q x, F q x = b → sensitivityAt (F q) x ≤ B) :
     sideSensitivity F b ≤ B := by
-  refine Finset.sup_le fun q _ => Finset.sup_le fun x _ => ?_
+  apply Finset.sup_le
+  intro q _
+  apply Finset.sup_le
+  intro x _
   split_ifs with hx
   · exact hB q x hx
   · exact Nat.zero_le _
@@ -111,9 +116,11 @@ open scoped Classical in
 theorem jointSensitivityAt_le_jointSensitivity {h : ℕ} {I : Type} [Fintype I]
     (F : Fin h → (I → Bool) → Bool) (b : Bool) (q q' : Fin h) (x : I → Bool)
     (hqq : q < q') (hx : F q x = b) (hx' : F q' x = b) :
-    jointSensitivityAt (F q) (F q') x ≤ jointSensitivity F b :=
-  Finset.le_sup_of_le (Finset.mem_univ q) <| Finset.le_sup_of_le (Finset.mem_univ q') <|
-    Finset.le_sup_of_le (Finset.mem_univ x) (by simp [hqq, hx, hx'])
+    jointSensitivityAt (F q) (F q') x ≤ jointSensitivity F b := by
+  apply Finset.le_sup_of_le (Finset.mem_univ q)
+  apply Finset.le_sup_of_le (Finset.mem_univ q')
+  apply Finset.le_sup_of_le (Finset.mem_univ x)
+  simp [hqq, hx, hx']
 
 open scoped Classical in
 /-- If `jointSensitivityAt (F q) (F q') x ≤ B` whenever `q < q'` and `F q x = F q' x = b`, then
@@ -122,7 +129,12 @@ theorem jointSensitivity_le {h : ℕ} {I : Type} [Fintype I]
     (F : Fin h → (I → Bool) → Bool) (b : Bool) (B : ℕ)
     (hB : ∀ q q' x, q < q' → F q x = b → F q' x = b →
       jointSensitivityAt (F q) (F q') x ≤ B) : jointSensitivity F b ≤ B := by
-  refine Finset.sup_le fun q _ => Finset.sup_le fun q' _ => Finset.sup_le fun x _ => ?_
+  apply Finset.sup_le
+  intro q _
+  apply Finset.sup_le
+  intro q' _
+  apply Finset.sup_le
+  intro x _
   split_ifs with hx
   · exact hB q q' x hx.1 hx.2.1 hx.2.2
   · exact Nat.zero_le _

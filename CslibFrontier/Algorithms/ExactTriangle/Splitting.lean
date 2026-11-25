@@ -319,7 +319,8 @@ variable (wAB wBC wAC : Fin n → Fin n → ℤ)
 /-- A pair lies in `W_ϱ` exactly if `ϱ` is the residue of its weight. -/
 theorem mem_residueClass (hp : p ≠ 0) (ϱ : Fin p) (q : Fin n × Fin n) :
     q ∈ residueClass wAB p ϱ ↔ ϱ = resFin hp (wAB q.1 q.2) := by
-  simp only [residueClass, Finset.mem_filter, Finset.mem_univ, true_and, ← modEq_iff_eq_resFin]
+  rw [← modEq_iff_eq_resFin]
+  simp only [residueClass, Finset.mem_filter, Finset.mem_univ, true_and]
   exact ⟨Int.ModEq.symm, Int.ModEq.symm⟩
 
 /-- Proof of Theorem 17, the sets `W_ϱ` for `ϱ ∈ ℤ_p`: every pair `(a,b) ∈ A × B` lies in exactly
@@ -461,7 +462,9 @@ theorem card_instanceIndices (D g p : ℕ) :
   rw [Finset.card_biUnion, Finset.sum_mul]
   · refine Finset.sum_congr rfl fun ϱ _ => ?_
     have hinj : Function.Injective fun jk : ℕ × ℕ => (⟨ϱ, jk.1, jk.2⟩ : InstanceIndex p) :=
-      fun _ _ h => Prod.ext (InstanceIndex.mk.inj h).2.1 (InstanceIndex.mk.inj h).2.2
+      fun a b h => by
+        obtain ⟨-, h1, h2⟩ := InstanceIndex.mk.inj h
+        exact Prod.ext h1 h2
     rw [Finset.card_image_of_injective _ hinj, Finset.card_product,
       Finset.card_range, Finset.card_range]
   · intro ϱ _ ϱ' _ hne

@@ -285,8 +285,12 @@ theorem nodup_gridList (L : ℕ) : (gridList L).Nodup :=
 
 theorem mem_gridList {L : ℕ} {q : ℤ} : q ∈ gridList L ↔ q ∈ cauchyGrid L := by
   rw [gridList, List.mem_map, mem_cauchyGrid]
-  exact ⟨fun ⟨j, hj, hq⟩ => by rw [List.mem_range] at hj; omega,
-    fun ⟨h1, h2⟩ => ⟨(q + L).toNat, List.mem_range.mpr (by omega), by omega⟩⟩
+  constructor
+  · rintro ⟨j, hj, rfl⟩
+    rw [List.mem_range] at hj
+    omega
+  · rintro ⟨h1, h2⟩
+    refine ⟨(q + L).toNat, List.mem_range.mpr ?_, ?_⟩ <;> omega
 
 /-- The odd part of `C'(0) = ∏_{q ≠ 0} (0 - q)`, as a coefficient list. -/
 def kernelUnitDen (p : ℕ) (fl : List ℕ) (L : ℕ) : List ℕ :=

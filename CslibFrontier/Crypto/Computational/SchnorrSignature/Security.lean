@@ -503,12 +503,13 @@ theorem succProbability_oneWayGame_schnorrWordROMSchemeReduction_le (n : ℕ) (d
     unfold oneWayGame
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
     refine CloseTo.bind_right _ fun key _ => CloseTo.bind_left ?_ _
-    simpa only [ENNReal.coe_mul, ENNReal.coe_natCast] using
-      closeTo_schnorrWordROMSchemeReduction n d hm A Qs Qro key.2
+    have := closeTo_schnorrWordROMSchemeReduction n d hm A Qs Qro key.2
+    simpa only [ENNReal.coe_mul, ENNReal.coe_natCast] using this
   have hle := Game.coe_succProbability_le_add_of_advantage_le
     (NNReal.coe_le_coe.mpr (Game.closeTo_iff_advantage_le.mp h))
   have hδ : ((((Qs + Qro : ℕ) : ℝ≥0) * (1 / 2 ^ n : ℝ≥0) : ℝ≥0) : ℝ) = (Qs + Qro) / 2 ^ n := by
-    push_cast; ring
+    push_cast
+    ring
   rwa [hδ] at hle
 
 /-- **The native adversary's discrete-log game is the typed one-way game** of the forking
