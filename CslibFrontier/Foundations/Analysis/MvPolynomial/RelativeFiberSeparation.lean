@@ -86,12 +86,6 @@ theorem isClopen_relative_emptyFibers_of_fixed_degree (hell : 1 ≤ ell) (he : E
     rw [← Polynomial.eval_map, relativeValueBivariate_map]
     exact isRoot_valuePolynomial_criticalMinimumValue hell he _ (fun _ => le_rfl)
       (fiber x) (hfiber x) (hpos x) u hu
-  have hsection (x : A) (v : ℝ) :
-      (specializedRelativeValueSection hell P hP (r x)).eval v =
-        (Q x).eval₂ (Polynomial.evalRingHom (v ^ (D + 1))) v := by
-    dsimp only [Q]
-    rw [eval_specializedRelativeValueSection, eval₂_finiteRelativeValueSection,
-      ← Polynomial.eval_map, relativeValueBivariate_map]
   have hcoeff (i : ℕ) :
       Continuous (fun x => (specializedRelativeValueSection hell P hP (r x)).coeff i) := by
     simp only [coeff_specializedRelativeValueSection_eq_eval₂]
@@ -123,7 +117,7 @@ theorem isClopen_relative_emptyFibers_of_fixed_degree (hell : 1 ≤ ell) (he : E
     have hEq : μ x ((max v 0) ^ (D + 1)) = v := sub_eq_zero.mp h
     have hv : 0 ≤ v := hEq ▸ hμ_nonneg _ (pow_nonneg (le_max_right v 0) _)
     rw [max_eq_left hv] at hEq
-    exact (hsection x v).trans
+    exact (eval_specializedRelativeValueSection_eq_bivariate hell P hP (r x) v).trans
       ((congrArg ((Q x).eval₂ (Polynomial.evalRingHom (v ^ (D + 1)))) hEq).symm.trans
         (hroot x _ (pow_nonneg hv _)))
   · intro x hx
