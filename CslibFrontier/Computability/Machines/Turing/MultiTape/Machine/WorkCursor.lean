@@ -99,8 +99,7 @@ theorem workTapePos_runFrom_forwardWork {input : List Symbol}
         fun _ => (p : ℤ), out⟩ steps).workTapePos 0 ∈ Set.Icc (p : ℤ) w.length := by
   rcases Nat.lt_or_ge steps (w.length - p + 1) with hlt | hge
   · rw [ForwardWork.runFrom_walk steps (by lia)]
-    simp only [Set.mem_Icc]
-    constructor <;> lia
+    exact ⟨by lia, by lia⟩
   · have hrun := runFrom_forwardWork (Symbol := Symbol) inpos w out (Nat.add_sub_cancel' hp)
     rw [(forwardWork Symbol).toTM.runFrom_eq_of_halt _ hge (by rw [hrun]), hrun]
     simp [hp]
@@ -165,8 +164,7 @@ private theorem runFrom_scan {w : List Symbol} (hw : tape = Turing.tapeOfList w)
         ((l : ℤ) - 1 - n) = some (w[l - 1 - n]'(by omega)) := by
       dsimp only
       rw [ite_eq_right (by omega), hw,
-        show (l : ℤ) - 1 - n = ((l - 1 - n : ℕ) : ℤ) by omega,
-        Turing.tapeOfList_ofNat]
+        show (l : ℤ) - 1 - n = ((l - 1 - n : ℕ) : ℤ) by omega, Turing.tapeOfList_ofNat]
       exact List.getElem?_eq_getElem (by omega)
     rw [MultiTapeTM.runFrom, Function.iterate_succ_apply', ← MultiTapeTM.runFrom,
       ih (by omega), step_scan_some hsym]
@@ -177,8 +175,7 @@ private theorem runFrom_scan {w : List Symbol} (hw : tape = Turing.tapeOfList w)
         funext _ z
         simp only [Option.elim_some, Function.update_apply, Option.getD_some]
         split_ifs <;> first | rfl | omega
-    · funext _
-      omega
+    · exact funext fun _ => by omega
 
 end RewindWork
 
@@ -217,8 +214,7 @@ theorem runFrom_rewindWork_erase {input : List Symbol} (ip : Fin (input.length +
           fun _ => (w.length : ℤ), out⟩ (w.length + 2) =
       ⟨none, ip, fun _ _ => none, fun _ => 0, out⟩ := by
   rw [runFrom_rewindWork (Symbol := Symbol) _ ip tape out hw le_rfl]
-  congr 2
-  funext _ z
+  congr 2 with _ z : 2
   split_ifs with h
   · rfl
   · rw [hw, Turing.tapeOfList_eq_none_iff]
@@ -238,8 +234,8 @@ theorem workTapePos_runFrom_rewindWork {input : List Symbol}
   · rw [show (rewindWork Symbol write).initial = .start from rfl, MultiTapeTM.runFrom,
       Function.iterate_succ_apply, RewindWork.step_start, ← MultiTapeTM.runFrom,
       RewindWork.runFrom_scan hw hp steps (by omega)]
-    simp only [Set.mem_Icc]
-    constructor <;> omega
+    dsimp only
+    exact ⟨by omega, by omega⟩
   · have hrun := runFrom_rewindWork (Symbol := Symbol) write ip tape out hw hp
     rw [(rewindWork Symbol write).toTM.runFrom_eq_of_halt _
       (by omega : p + 2 ≤ steps + 1) (by rw [hrun]), hrun]
@@ -272,20 +268,12 @@ theorem runFrom_markWork {input : List Symbol} (write : Option Symbol)
     (markWork Symbol write).toTM.runFrom
         ⟨some (markWork Symbol write).initial, ip, fun _ => tape, fun _ => p, out⟩ 2 =
       ⟨none, ip, fun _ => Function.update tape (p - 1) write, fun _ => p, out⟩ := by
-  have hstart : (markWork Symbol write).toTM.step
-      ⟨some .start, ip, fun _ => tape, fun _ => p, out⟩ =
-      ⟨some .put, ip, fun _ => tape, fun _ => p - 1, out⟩ := by
-    rw [MultiTapeTM.step_of_state rfl, markWork_transition]
-    simp [Turing.Action.apply, sub_eq_add_neg]
-  have hput : (markWork Symbol write).toTM.step
-      ⟨some .put, ip, fun _ => tape, fun _ => p - 1, out⟩ =
-      ⟨none, ip, fun _ => Function.update tape (p - 1) write, fun _ => p, out⟩ := by
-    rw [MultiTapeTM.step_of_state rfl, markWork_transition]
-    simp [Turing.Action.apply]
   change (markWork Symbol write).toTM.step
-    ((markWork Symbol write).toTM.step
-      ⟨some .start, ip, fun _ => tape, fun _ => p, out⟩) = _
-  rw [hstart, hput]
+    ((markWork Symbol write).toTM.step ⟨some .start, ip, fun _ => tape, fun _ => p, out⟩) = _
+  conv_lhs => arg 1; rw [MultiTapeTM.step_of_state rfl, markWork_transition]
+  dsimp only [Turing.Action.apply]
+  rw [MultiTapeTM.step_of_state rfl, markWork_transition]
+  simp [Turing.Action.apply, sub_eq_add_neg]
 
 /-- The explicit table that scans to the word frontier and erases while rewinding. -/
 def clearWork (Symbol : Type) :
