@@ -125,28 +125,21 @@ theorem sourceChild_mul_denseChild_mean
     (hdsource ▸ ht) z
   have hleft := source_request_mean_canonical HP D ident r hr hD hid H hsH hks
     hs ht (husage ▸ ht) C hC hC1 hCf hi x z
-  change (𝔼 σ ∈ ({σ : Environment P J |
-    r.source.retains (channels D) σ (ident x)} : Finset _),
+  change (𝔼 σ ∈ ({σ : Environment P J | r.source.retains (channels D) σ (ident x)} : Finset _),
     (r.terminal.rate / (dens {τ : Environment P J |
       r.usage.retains (channels D) τ (ident z)} : ℝ)) *
       sourceChild HP D ident r hr C i σ x z) = _ at hleft
   rw [husage, ← mul_expect] at hleft
-  have hmid : (dens {τ : Environment P J |
-      r.terminal.retains (channels D) τ (ident z)} : ℝ) =
-      dens {τ : Environment P J | r.terminal.retains (channels D) τ (ident y)} := by
-    rw [channel_density D r.terminal k ht, channel_density D r.terminal k ht]
-  rw [hmid] at hleft
+  rw [show (dens {τ : Environment P J | r.terminal.retains (channels D) τ (ident z)} : ℝ) =
+      dens {τ : Environment P J | r.terminal.retains (channels D) τ (ident y)} by
+    rw [channel_density D r.terminal k ht, channel_density D r.terminal k ht]] at hleft
   have hrow : ∑ w, C z w ≤ 1 := by simpa [Matrix.mulVec, dotProduct] using hC1 z
   have hright := dense_terminal_mean D ident d hd hD hid H hbH hb hu
     cutoff h ρ K C q z y hsub hkh hρ0 hρ1 hη hρη (hC z) hrow (by simpa only [mul_one] using hK)
-  rw [← mul_expect] at hright
-  have hq : (dens {τ : Environment P J | q (τ d.terminal.role)} : ℝ) =
-      dens {A | q A} := by rw [dens_filter_pi_eval d.terminal.role q]
-  have hdu : (dens {τ : Environment P J |
-      d.usage.retains (channels D) τ (ident y)} : ℝ) =
-      dens {A | splitUsage D ident d A y} := by
-    rw [channel_density D d.usage u hu, split_usage_density D ident d hu]
-  rw [← hq, ← hdu] at hright
+  rw [← mul_expect, ← dens_filter_pi_eval d.terminal.role q,
+    ← show (dens {τ : Environment P J | d.usage.retains (channels D) τ (ident y)} : ℝ) =
+      dens {A | splitUsage D ident d A y} by
+      rw [channel_density D d.usage u hu, split_usage_density D ident d hu]] at hright
   have hfactor := sourceChild_mul_denseChild_factor HP D ident r hr d hd hst hmt
     C C i cutoff h ρ K q x z y hz
   let a := r.terminal.rate / (dens {τ : Environment P J |
@@ -159,17 +152,13 @@ theorem sourceChild_mul_denseChild_mean
         sourceChild HP D ident r hr C i σ x z *
           denseChild D ident d cutoff h ρ K C σ z y) := by
       rw [mul_expect]
-      apply expect_congr rfl
-      intro σ _
-      dsimp only [a, c]
-      ring
-    _ = _ := by rw [hfactor]; calc
-      _ = (a * (𝔼 σ ∈ ({σ : Environment P J |
+      exact expect_congr rfl fun σ _ => by dsimp only [a, c]; ring
+    _ = (a * (𝔼 σ ∈ ({σ : Environment P J |
           r.source.retains (channels D) σ (ident x)} : Finset _),
           sourceChild HP D ident r hr C i σ x z)) *
         (c * (𝔼 A ∈ ({A | q A} : Finset _),
           denseAtom (splitTerminal D ident d) (splitUsage D ident d)
-            cutoff h ρ K d.terminal.rate C A z y)) := by ring
-      _ = _ := by rw [hleft, hright]
+            cutoff h ρ K d.terminal.rate C A z y)) := by rw [hfactor]; ring
+    _ = _ := by rw [hleft, hright]
 
 end Matrix.HierarchyParams.H4RankEnvironment
