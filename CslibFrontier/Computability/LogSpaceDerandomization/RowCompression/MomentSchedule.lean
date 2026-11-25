@@ -54,7 +54,6 @@ lemma mean_schedule_term {η M ε : ℝ} (hη : 0 < η) (hM : 0 ≤ M) (d : ℕ)
     (add_le_add (mul_le_mul_of_nonneg_left h1 (by norm_num : (0 : ℝ) ≤ 2))
       (mul_le_mul_of_nonneg_left h2 (show 0 ≤ 256 * M / η by positivity)))
     (show 0 ≤ ε ^ 4 by positivity)).trans_eq (by ring)
-
 open Classical in
 /-- A slope-one prefix mean envelope pays for the actual factor-28 tail propagation.
 This deliberately coarse estimate has no horizon or row-width factor. -/
