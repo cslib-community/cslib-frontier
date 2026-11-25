@@ -356,9 +356,8 @@ private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
         then s else st.mem (parBase n + y))
     (fun rem z u ⟨hsum, hfr, hpar⟩ => by
       have hz : z < n := by omega
-      have hpz : u.mem (parBase n + z) = st.mem (parBase n + z) := by
-        rw [hpar z hz, ite_eq_right_iff]
-        exact fun h => absurd h.1 (lt_irrefl z)
+      have hpz : u.mem (parBase n + z) = st.mem (parBase n + z) :=
+        (hpar z hz).trans (ite_eq_right fun h => absurd h.1 (lt_irrefl z))
       have hdz : u.mem (distBase n + z) = st.mem (distBase n + z) :=
         hfr _ (Or.inr (by dsimp only [distBase, parBase]; omega))
       unfold rehangStep
@@ -369,23 +368,18 @@ private theorem rehang_spec (n s t : ℕ) (st : Memory.State) :
       · rw [ite_eq_left hc, clientResult_bind_write, clientState_bind_write,
           StateTransitionSpec.clientResult_pure, StateTransitionSpec.clientState_pure]
         refine ⟨by omega, fun a ha => ?_, fun y hy => ?_⟩
+        · dsimp only; rw [Function.update_of_ne (by omega)]; exact hfr a ha
         · dsimp only
-          rw [Function.update_of_ne (by omega)]
-          exact hfr a ha
-        · dsimp only
-          by_cases hyz : y = z
-          · subst hyz
-            rw [Function.update_self, ite_eq_left ⟨Nat.lt_succ_self y, hc⟩]
+          obtain rfl | hyz := eq_or_ne y z
+          · rw [Function.update_self, ite_eq_left ⟨Nat.lt_succ_self _, hc⟩]
           · rw [Function.update_of_ne (by omega), hpar y hy]
             split_ifs <;> omega
       · rw [ite_eq_right hc, StateTransitionSpec.clientResult_pure,
           StateTransitionSpec.clientState_pure]
         refine ⟨by omega, hfr, fun y hy => ?_⟩
         rw [hpar y hy]
-        by_cases hyz : y = z
-        · subst hyz
-          rw [ite_eq_right (fun h => absurd h.1 (lt_irrefl y)),
-            ite_eq_right (fun h => hc h.2)]
+        obtain rfl | hyz := eq_or_ne y z
+        · rw [ite_eq_right (fun h => absurd h.1 (lt_irrefl _)), ite_eq_right (fun h => hc h.2)]
         · split_ifs <;> omega)
     (n := n) (a := 0) (s := st) ⟨Nat.zero_add _, fun _ _ => rfl, fun y _ =>
       (ite_eq_right (fun h => absurd h.1 (Nat.not_lt_zero y))).symm⟩
@@ -998,9 +992,7 @@ private theorem gusfieldAt_ghProg {n : ℕ} {W : Fin n → Fin n → ℕ} (r : F
       obtain ⟨h1, h2⟩ := gusfieldAt_ghStep (by omega) hWM hW hG
       exact ⟨by omega, h1, h2⟩)
     (n := n) (a := 0) (s := s_w) ⟨Nat.zero_add _, hWw, hG0⟩
-  rw [Nat.add_zero] at hsum
-  rw [hsum] at hG
-  exact hG
+  rw [Nat.add_zero] at hsum; rwa [hsum] at hG
 
 /-! ### The uniform program -/
 
@@ -1055,14 +1047,11 @@ theorem exists_gomoryHu_program :
       _ ≤ C₀ * (40 * (n + 1) ^ 6 + 1) + 1 :=
           Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 1
       _ ≤ (41 * C₀ + 2) * (n + 1) ^ 6 := by nlinarith
-  · rw [hymem]
-    exact (hcells u).1
-  · rw [hymem]
-    refine (hcells u).2.trans ?_
+  · rw [hymem]; exact (hcells u).1
+  · rw [hymem]; refine (hcells u).2.trans ?_
     change (gusfieldWithWeights C val r 0 (List.finRange n)).2 u = _
-    by_cases hur : u = r
-    · subst hur
-      rw [hwroot, hroot, minCutBetween_self]
+    obtain rfl | hur := eq_or_ne u r
+    · rw [hwroot, hroot, minCutBetween_self]
     · obtain ⟨hcut, hwt⟩ := hside u hur
       rw [hwt]
       exact ((isMinCutBetween_cutWeight_iff W).mp hcut).2.2
