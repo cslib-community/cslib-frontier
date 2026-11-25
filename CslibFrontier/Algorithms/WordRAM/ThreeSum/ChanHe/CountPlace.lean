@@ -175,21 +175,12 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
       a.mem = Count.memory x.mem values (x.regs len) M (x.regs scratch) (x.regs hist) := by
     wram_simp [CountCall.length, CountCall.scratch, CountCall.histogram] at ham
     exact ham
-  have ar (i : Fin 64) (hi : 32 ≤ i.val) (hm : i ≠ CountCall.modulus)
-      (hc : i ≠ CountCall.result 2) : a.regs i = x.regs i := by
+  have ar (i : Fin 64) (hi : 32 ≤ i.val := by decide) (hm : i ≠ CountCall.modulus := by decide)
+      (hc : i ≠ CountCall.result 2 := by decide) : a.regs i = x.regs i := by
     rw [har i (by omega) hc]
     wram_simp [hm]
-  wram_exec [ar src (by decide) (by decide) (by decide),
-    ar scratch (by decide) (by decide) (by decide),
-    ar len (by decide) (by decide) (by decide),
-    ar hist (by decide) (by decide) (by decide),
-    ar heavy (by decide) (by decide) (by decide),
-    ar packed (by decide) (by decide) (by decide),
-    ar modulus (by decide) (by decide) (by decide),
-    ar tag (by decide) (by decide) (by decide),
-    ar column (by decide) (by decide) (by decide),
-    ar distance (by decide) (by decide) (by decide),
-    ar negative (by decide) (by decide) (by decide)]
+  wram_exec [ar src, ar scratch, ar len, ar hist, ar heavy, ar packed, ar modulus, ar tag,
+    ar column, ar distance, ar negative]
   wram_call (Place.exec _ values neg hM hN
       (by wram_simp [Data.comap_regs]; exact hc)
       (by wram_simp [Data.comap_regs]; exact hd) ht
@@ -226,7 +217,7 @@ theorem exec {w M N U t : ℕ} (x : Data 64) (values : ℕ → ℤ) (neg : Bool)
   have yd : y.regs descriptor = x.regs descriptor := by
     rw [hframe descriptor (hb descriptor (by decide))]
     wram_simp
-    exact ar descriptor (by decide) (by decide) (by decide)
+    exact ar descriptor
   wram_exec [yd]
   have hlen : CountCall.length 2 = len := rfl
   wram_simp [hlen, Data.comap_regs, Data.comap_mem] at hbm hbc ⊢
