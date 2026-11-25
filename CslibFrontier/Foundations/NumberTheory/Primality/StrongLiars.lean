@@ -120,10 +120,8 @@ theorem exists_pow_eq_neg_one_forall_isStrongLiar {n : ℕ} (hodd : Odd n) (h1 :
   have hst : 2 ^ (n - 1).factorization 2 * ordCompl[2] (n - 1) = n - 1 :=
     Nat.ordProj_mul_ordCompl_eq_self (n - 1) 2
   have htodd : ¬ 2 ∣ ordCompl[2] (n - 1) := Nat.not_dvd_ordCompl Nat.prime_two (by omega)
-  have hs0 : 0 < (n - 1).factorization 2 := by
-    refine Nat.Prime.factorization_pos_of_dvd Nat.prime_two (by omega) ?_
-    obtain ⟨k, rfl⟩ := hodd
-    exact ⟨k, by omega⟩
+  have hs0 : 0 < (n - 1).factorization 2 :=
+    Nat.prime_two.factorization_pos_of_dvd (by omega) (Nat.Odd.sub_odd hodd odd_one).two_dvd
   set s := (n - 1).factorization 2 with hs
   set t := ordCompl[2] (n - 1) with ht
   let S := (Finset.range s).filter fun i => ∃ b : (ZMod n)ˣ, b ^ (2 ^ i * t) = -1
@@ -134,7 +132,6 @@ theorem exists_pow_eq_neg_one_forall_isStrongLiar {n : ℕ} (hodd : Odd n) (h1 :
     exact Odd.neg_one_pow (Nat.odd_iff.2 (Nat.two_dvd_ne_zero.1 htodd))
   set j := S.max' ⟨0, h0S⟩
   have hjS : j ∈ S := S.max'_mem _
-  have hjmax : ∀ i ∈ S, i ≤ j := fun i hi => S.le_max' i hi
   obtain ⟨hjs, b, hb⟩ : j < s ∧ ∃ b : (ZMod n)ˣ, b ^ (2 ^ j * t) = -1 := by
     simpa [S] using hjS
   refine ⟨2 ^ j * t, ?_, ⟨b, hb⟩, fun a ha => ?_⟩
@@ -145,17 +142,14 @@ theorem exists_pow_eq_neg_one_forall_isStrongLiar {n : ℕ} (hodd : Odd n) (h1 :
       have : a ^ t = 1 := Units.ext (by simpa using ha)
       rw [mul_comm, pow_mul, this, one_pow]
     · have hi' : a ^ (2 ^ i * t) = -1 := Units.ext (by simpa using hi)
-      have hij : i ≤ j := hjmax i (by
-        simp only [S, Finset.mem_filter, Finset.mem_range]
-        exact ⟨his, a, hi'⟩)
+      have hij : i ≤ j := S.le_max' i (Finset.mem_filter.2 ⟨Finset.mem_range.2 his, a, hi'⟩)
       rcases hij.lt_or_eq with hlt | rfl
       · left
         obtain ⟨d, hd⟩ : ∃ d, j = i + 1 + d := ⟨j - (i + 1), by omega⟩
         rw [hd, show 2 ^ (i + 1 + d) * t = (2 ^ i * t) * (2 * 2 ^ d) by ring, pow_mul, hi',
           pow_mul]
         simp
-      · right
-        exact hi'
+      · exact Or.inr hi'
 
 /-- **Strong liars of a composite**: modulo an odd composite `n`, the strong liars lie in a proper
 subgroup of the units, namely `powEqOneOrNegOne n m` for the exponent `m` of
@@ -208,8 +202,7 @@ theorem card_isStrongLiar_le_card {n : ℕ} [NeZero n] (h1 : 1 < n) {H : Subgrou
   let f : {a // IsStrongLiar n a} → H := fun a =>
     ⟨(a.2.isUnit h1).unit, hsub _ (by simpa using a.2)⟩
   have hf : Function.Injective f := fun a b h => Subtype.ext (by
-    have := congrArg (fun x : H => ((x : (ZMod n)ˣ) : ZMod n)) h
-    simpa [f] using this)
+    simpa [f] using congrArg (fun x : H => ((x : (ZMod n)ˣ) : ZMod n)) h)
   have hle := Nat.card_le_card_of_injective f hf
   rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at hle
   convert hle using 2
