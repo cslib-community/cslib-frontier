@@ -33,25 +33,25 @@ open Turing Turing.MultiTapeTM Turing.MultiTapeTM.Feature
 
 variable {m B : ℕ} {State : Type} {input : List Bool} {cfg : Cfg m Bool State input}
 
+private theorem exists_offset_eq {B : ℕ} {z : ℤ} (hz : |z| < B) :
+    ∃ (s : Bool) (a : Fin B), offset s a = z := by
+  rw [abs_lt] at hz
+  by_cases hp : 0 ≤ z
+  · exact ⟨true, ⟨z.toNat, by omega⟩, by simp only [offset, ↓reduceIte]; omega⟩
+  · exact ⟨false, ⟨(-z).toNat, by omega⟩,
+      by simp only [offset, Bool.false_eq_true, ↓reduceIte]; omega⟩
+
 /-- The positive read rule recovers the symbol under a head inside the finite domain. -/
 theorem read_row (hb : ∀ i, |cfg.workTapePos i| < B) (i : Fin m) (s : Option Bool) :
     read (row (B := B) cfg) i s ↔ (Feature.read i s).Holds cfg := by
-  simp only [read, row, Tag.feature, Feature.Holds, offset, ↓reduceIte,
-    Bool.false_eq_true, Cfg.workTapeSymbols]
+  simp only [read, row, Tag.feature, Feature.Holds, Cfg.workTapeSymbols]
   constructor
   · rintro ⟨a, ⟨hh, hc⟩ | ⟨hh, hc⟩⟩ <;> rwa [hh]
   · intro hs
-    have hbi := hb i
-    rw [abs_lt] at hbi
-    by_cases hp : 0 ≤ cfg.workTapePos i
-    · let a : Fin B := ⟨(cfg.workTapePos i).toNat, by omega⟩
-      refine ⟨a, Or.inl ⟨by dsimp [a]; omega, ?_⟩⟩
-      have he : (a.val : ℤ) = cfg.workTapePos i := by dsimp [a]; omega
-      rwa [he]
-    · let a : Fin B := ⟨(-cfg.workTapePos i).toNat, by omega⟩
-      refine ⟨a, Or.inr ⟨by dsimp [a]; omega, ?_⟩⟩
-      have he : -(a.val : ℤ) = cfg.workTapePos i := by dsimp [a]; omega
-      rwa [he]
+    obtain ⟨sign, a, ha⟩ := exists_offset_eq (hb i)
+    cases sign
+    · exact ⟨a, .inr ⟨ha.symm, ha ▸ hs⟩⟩
+    · exact ⟨a, .inl ⟨ha.symm, ha ▸ hs⟩⟩
 
 /-- Positive situation predicates agree with the native situation. -/
 theorem situation_row (hn : input.length + 1 < B) (hb : ∀ i, |cfg.workTapePos i| < B)
@@ -71,40 +71,25 @@ theorem situation_row (hn : input.length + 1 < B) (hb : ∀ i, |cfg.workTapePos 
 theorem elsewhere_row (hb : ∀ i, |cfg.workTapePos i| < B)
     (i : Fin m) (sign : Bool) (a : Fin B) :
     elsewhere (row cfg) i sign a ↔ ¬(Feature.head i (offset sign a)).Holds cfg := by
-  have hbi := hb i
-  rw [abs_lt] at hbi
   simp only [elsewhere, row, Tag.feature, Feature.Holds]
   constructor
   · rintro ⟨b, ⟨hb', hba⟩ | ⟨hb', hba⟩⟩ hpos
-    · apply hba
-      apply Fin.ext
-      cases sign <;> simp only [offset, Bool.false_eq_true, ↓reduceIte] at * <;>
-        omega
+    · apply hba; apply Fin.ext
+      cases sign <;> simp only [offset, Bool.false_eq_true, ↓reduceIte] at hb' hpos <;> omega
     · apply hba
       cases sign <;> simp only [offset, Bool.false_eq_true, Bool.not_true,
-        Bool.not_false, ↓reduceIte] at * <;> omega
+        Bool.not_false, ↓reduceIte] at hb' hpos <;> omega
   · intro hne
-    by_cases hp : 0 ≤ cfg.workTapePos i
-    · let b : Fin B := ⟨(cfg.workTapePos i).toNat, by omega⟩
-      have hb' : (b.val : ℤ) = cfg.workTapePos i := by dsimp [b]; omega
-      refine ⟨b, ?_⟩
-      cases sign
-      · right
-        simp only [offset, Bool.not_false, Bool.false_eq_true, ↓reduceIte] at *
-        exact ⟨hb'.symm, by omega⟩
-      · left
-        simp only [offset, ↓reduceIte] at *
-        exact ⟨hb'.symm, fun h => hne (by simpa [h] using hb'.symm)⟩
-    · let b : Fin B := ⟨(-cfg.workTapePos i).toNat, by omega⟩
-      have hb' : -(b.val : ℤ) = cfg.workTapePos i := by dsimp [b]; omega
-      refine ⟨b, ?_⟩
-      cases sign
-      · left
-        simp only [offset, Bool.false_eq_true, ↓reduceIte] at *
-        exact ⟨hb'.symm, fun h => hne (by simpa [h] using hb'.symm)⟩
-      · right
-        simp only [offset, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at *
-        exact ⟨hb'.symm, by omega⟩
+    obtain ⟨s, b, hb'⟩ := exists_offset_eq (hb i)
+    refine ⟨b, ?_⟩
+    by_cases hs : s = sign
+    · subst hs
+      exact .inl ⟨hb'.symm, fun h => hne (by rw [← h, hb'])⟩
+    · have hns : s = !sign := by cases s <;> cases sign <;> simp_all
+      subst hns
+      refine .inr ⟨hb'.symm, fun h0 => hne ?_⟩
+      cases sign <;> simp only [offset, Bool.not_false, Bool.not_true, Bool.false_eq_true,
+        ↓reduceIte] at hb' ⊢ <;> omega
 
 /-- The positive input-head predecessor rule describes the native clamped move. -/
 theorem inputPrev_row (hn : input.length + 1 < B) (d : SignType) (a : Fin B) :
@@ -123,17 +108,31 @@ theorem inputPrev_row (hn : input.length + 1 < B) (d : SignType) (a : Fin B) :
       · exact Or.inr ⟨⟨cfg.inputPos.val, by omega⟩, by dsimp; omega, rfl⟩
   · simp only [ne_eq, inputAt_eq_none_iff, not_or]
     constructor
-    · rintro (⟨ha, hh, hp'⟩ | ⟨b, hb, hp', hx⟩)
-      · omega
-      · omega
+    · rintro (⟨ha, hh, hp'⟩ | ⟨b, hb, hp', hx⟩) <;> omega
     · intro hmove
       by_cases he : cfg.inputPos.val = input.length + 1
-      · left
-        exact ⟨by omega, Or.inr (by omega), by omega⟩
-      · right
-        refine ⟨⟨cfg.inputPos.val, by omega⟩, by dsimp; omega, rfl, ?_⟩
-        dsimp
-        omega
+      · exact Or.inl ⟨by omega, Or.inr (by omega), by omega⟩
+      · exact Or.inr ⟨⟨cfg.inputPos.val, by omega⟩, by dsimp; omega, rfl, by dsimp; omega⟩
+
+private theorem headPrev_out {B : ℕ} {z : ℤ} (hz : |z| + 1 < B) (a : Fin B) :
+    ((a.val = 0 ∧ ∃ b : Fin B, b.val = 1 ∧ z = -(b.val : ℤ)) ∨
+      ∃ b : Fin B, b.val + 1 = a.val ∧ z = (b.val : ℤ)) ↔ z + 1 = (a.val : ℤ) := by
+  have hz' : |z| < (B : ℤ) - 1 := by omega
+  rw [abs_lt] at hz'
+  constructor
+  · rintro (⟨ha, b, hb, hp⟩ | ⟨b, hb, hp⟩) <;> omega
+  · intro hmove
+    by_cases ha : a.val = 0
+    · exact Or.inl ⟨ha, ⟨1, by omega⟩, rfl, by dsimp; omega⟩
+    · exact Or.inr ⟨⟨a.val - 1, by omega⟩, by dsimp; omega, by dsimp; omega⟩
+
+private theorem headPrev_in {B : ℕ} {z : ℤ} (hz : |z| + 1 < B) (a : Fin B) :
+    (∃ b : Fin B, a.val + 1 = b.val ∧ z = (b.val : ℤ)) ↔ z + -1 = (a.val : ℤ) := by
+  have hz' : |z| < (B : ℤ) - 1 := by omega
+  rw [abs_lt] at hz'
+  constructor
+  · rintro ⟨b, hb, hp⟩; omega
+  · intro hmove; exact ⟨⟨a.val + 1, by omega⟩, rfl, by dsimp; omega⟩
 
 /-- The positive work-head predecessor rule describes the native signed move. -/
 theorem headPrev_row (hb : ∀ i, |cfg.workTapePos i| + 1 < B)
@@ -141,36 +140,19 @@ theorem headPrev_row (hb : ∀ i, |cfg.workTapePos i| + 1 < B)
     headPrev (row cfg) i sign d a ↔
       cfg.workTapePos i + (d : ℤ) = offset sign a := by
   have hbi := hb i
-  have hbi' : |cfg.workTapePos i| < (B : ℤ) - 1 := by omega
-  rw [abs_lt] at hbi'
+  have hneg : |-cfg.workTapePos i| + 1 < B := by rwa [abs_neg]
   cases sign <;> cases d <;>
     simp only [headPrev, row, Tag.feature, Feature.Holds, offset, Bool.false_eq_true,
       Bool.not_false, Bool.not_true, ↓reduceIte,
       SignType.zero_eq_zero, SignType.neg_eq_neg_one, SignType.pos_eq_one,
       SignType.coe_zero, SignType.coe_neg_one, SignType.coe_one, neg_zero, neg_neg,
       add_zero]
-  · constructor
-    · rintro (⟨ha, b, hb', hp⟩ | ⟨b, hb', hp⟩) <;> omega
-    · intro hmove
-      by_cases ha : a.val = 0
-      · exact Or.inl ⟨ha, ⟨1, by omega⟩, rfl, by dsimp; omega⟩
-      · exact Or.inr ⟨⟨a.val - 1, by omega⟩, by dsimp; omega, by dsimp; omega⟩
-  · constructor
-    · rintro ⟨b, hb', hp⟩
-      omega
-    · intro hmove
-      exact ⟨⟨a.val + 1, by omega⟩, rfl, by dsimp; omega⟩
-  · constructor
-    · rintro ⟨b, hb', hp⟩
-      omega
-    · intro hmove
-      exact ⟨⟨a.val + 1, by omega⟩, rfl, by dsimp; omega⟩
-  · constructor
-    · rintro (⟨ha, b, hb', hp⟩ | ⟨b, hb', hp⟩) <;> omega
-    · intro hmove
-      by_cases ha : a.val = 0
-      · exact Or.inl ⟨ha, ⟨1, by omega⟩, rfl, by dsimp; omega⟩
-      · exact Or.inr ⟨⟨a.val - 1, by omega⟩, by dsimp; omega, by dsimp; omega⟩
+  · simpa only [neg_eq_iff_eq_neg, neg_neg, show -cfg.workTapePos i + 1 = a.val ↔
+      cfg.workTapePos i + -1 = -a.val by omega] using headPrev_out hneg a
+  · simpa only [neg_eq_iff_eq_neg, show -cfg.workTapePos i + -1 = a.val ↔
+      cfg.workTapePos i + 1 = -a.val by omega] using headPrev_in hneg a
+  · exact headPrev_in hbi a
+  · exact headPrev_out hbi a
 
 variable [Finite State] (tm : MultiTapeTM m Bool State)
 
