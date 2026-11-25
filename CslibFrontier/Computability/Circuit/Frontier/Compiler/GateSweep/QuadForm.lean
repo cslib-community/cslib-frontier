@@ -604,8 +604,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
         linarith
       have hs_prod : D_r * Nat.card (Compiler.InnerGate c) ≤ (k₀ + 1 : ℝ) * n - D_r * ε * n := by
         have h2 := mul_le_mul_of_nonneg_left (hG_le_s.trans hsize) hDr_pos.le
-        rw [show D_r * ((Q_c - ε) * n) = D_r * Q_c * n - D_r * ε * n by ring, hDr_Qc] at h2
-        exact h2
+        rwa [show D_r * ((Q_c - ε) * n) = D_r * Q_c * n - D_r * ε * n by ring, hDr_Qc] at h2
       have hdiv_eq : μ₀ * n - 1 / (2 : ℝ) ^ k₀ = ((D_r * ε / 2) * n - 1) / (2 : ℝ) ^ k₀ := by
         dsimp only [μ₀]
         field_simp
@@ -616,9 +615,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
       linarith
     -- Bound the `O(√n)` deviation term.
     have herr_ub : 2 * ((r + 1 : ℝ) * √(3 * (Nat.card (Compiler.Node c) : ℝ))) ≤ (μ / 8) * n := by
-      have hs_qc : (c.innerSize : ℝ) ≤ Q_c * n := by
-        have hεn : 0 ≤ ε * n := by positivity
-        linarith
+      have hs_qc : (c.innerSize : ℝ) ≤ Q_c * n := by linarith [mul_nonneg hε.le hn0]
       have hnode_le : (Nat.card (Compiler.Node c) : ℝ) ≤ (Q_c + 1) * n := by
         have hnat : (Nat.card (Compiler.Node c) : ℝ) ≤ c.innerSize + 1 := by
           exact_mod_cast (Compiler.card_node_le c)
@@ -645,9 +642,6 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     have hmin_LR :
         μ₀ * n - 1 / (2 : ℝ) ^ k₀ - (μ / 8) * n ≤
           (min L.ncard R'.ncard : ℝ) - G_cut.ncard := by
-      have hmin_real : (min L.ncard R'.ncard : ℝ) = min (L.ncard : ℝ) (R'.ncard : ℝ) := by
-        exact_mod_cast rfl
-      rw [hmin_real]
       rcases min_choice (L.ncard : ℝ) (R'.ncard : ℝ) with hm | hm <;> rw [hm]
       · linarith [hLA, hGA, hexp_diff, hnum_lb, herr_ub]
       · linarith [hRA, hGA, hexp_diff, hnum_lb, herr_ub]
@@ -662,8 +656,7 @@ theorem exists_eventually_abs_correlation_quadForm_le_gateSweep {r k₀ : ℕ} (
     refine hstep.trans (Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_)
     have hpow2_le : 1 / (2 : ℝ) ^ k₀ ≤ 1 := div_le_one_of_le₀
       (one_le_pow₀ (by norm_num : (1 : ℝ) ≤ 2)) (by positivity)
-    have hμ_le_μ₀ : μ ≤ μ₀ := min_le_right _ _
-    have hμn_le : μ * n ≤ μ₀ * n := mul_le_mul_of_nonneg_right hμ_le_μ₀ hn0
+    have hμn_le : μ * n ≤ μ₀ * n := mul_le_mul_of_nonneg_right (min_le_right _ _) hn0
     dsimp only [L, R', G_cut] at hmin_LR
     linarith
 
