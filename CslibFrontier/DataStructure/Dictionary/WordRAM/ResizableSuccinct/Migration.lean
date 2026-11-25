@@ -110,15 +110,14 @@ private theorem argMatch_comp_epochEmb {U : ℕ} (o : Dynamic.Op U) (regs : Fin 
     (h : resizableArgMatch o regs) : argMatch o (regs ∘ epochEmb) := by
   cases o with
   | query u =>
-    exact ⟨by change regs (epochEmb rTag) = 0; rw [epochEmb_rTag]; exact h.1,
-      by change regs (epochEmb rArgU) = u.val; rw [epochEmb_rArgU]; exact h.2⟩
+    simpa only [argMatch, resizableArgMatch, Function.comp_apply, epochEmb_rTag, epochEmb_rArgU]
+      using h
   | insert u v =>
-    exact ⟨by change regs (epochEmb rTag) = 1; rw [epochEmb_rTag]; exact h.1,
-      by change regs (epochEmb rArgU) = u.val; rw [epochEmb_rArgU]; exact h.2.1,
-      by change regs (epochEmb rArgV) = v; rw [epochEmb_rArgV]; exact h.2.2⟩
+    simpa only [argMatch, resizableArgMatch, Function.comp_apply, epochEmb_rTag, epochEmb_rArgU,
+      epochEmb_rArgV] using h
   | delete u =>
-    exact ⟨by change regs (epochEmb rTag) = 2; rw [epochEmb_rTag]; exact h.1,
-      by change regs (epochEmb rArgU) = u.val; rw [epochEmb_rArgU]; exact h.2⟩
+    simpa only [argMatch, resizableArgMatch, Function.comp_apply, epochEmb_rTag, epochEmb_rArgU]
+      using h
 
 /-- Output decoder on `Fin rResize`, delegating to `decode` along `epochEmb`. -/
 @[expose]
@@ -131,18 +130,10 @@ theorem resizableArgMatch_prepare {U : ℕ} (o : Dynamic.Op U) (regs : Fin rResi
   have ht : resizableInput mTag = true := by simp [resizableInput, mTag]
   have hu : resizableInput mArgU = true := by simp [resizableInput, mArgU]
   have hv : resizableInput mArgV = true := by simp [resizableInput, mArgV]
-  cases o with
-  | query u =>
-    exact ⟨by simp [resizableEncode, ht],
-      by simp [resizableEncode, hu, show mArgU ≠ mTag from mReg_ne (by decide)]⟩
-  | insert u v =>
-    exact ⟨by simp [resizableEncode, ht],
-      by simp [resizableEncode, hu, show mArgU ≠ mTag from mReg_ne (by decide)],
-      by simp [resizableEncode, hv, show mArgV ≠ mTag from mReg_ne (by decide),
-          show mArgV ≠ mArgU from mReg_ne (by decide)]⟩
-  | delete u =>
-    exact ⟨by simp [resizableEncode, ht],
-      by simp [resizableEncode, hu, show mArgU ≠ mTag from mReg_ne (by decide)]⟩
+  have hUT : mArgU ≠ mTag := mReg_ne (by decide)
+  have hVT : mArgV ≠ mTag := mReg_ne (by decide)
+  have hVU : mArgV ≠ mArgU := mReg_ne (by decide)
+  cases o <;> simp [resizableArgMatch, resizableEncode, ht, hu, hv, hUT, hVT, hVU]
 
 theorem fits_resizableEncode {U V w : ℕ} {s_abs : Dictionary.State U} {o : Dynamic.Op U}
     (hw2 : Fits w 2) (hU : Fits w U) (hV : V ≤ 2 ^ w)
@@ -358,21 +349,15 @@ theorem EpochState.dict_run {U : ℕ} (V : ℕ) (st : EpochState U) (ops : List 
 theorem epochAnchorInv_empty (U : ℕ) :
     EpochAnchorInv U (Dictionary.dom (EpochState.empty U).dict).card
       (EpochState.empty U).cap (EpochState.empty U).initCount := by
-  refine ⟨Or.inl ⟨?_, rfl⟩, ?_, ⟨fun _ => rfl, fun _ => ?_⟩, Nat.zero_le U⟩
-  · simp [EpochState.empty, Dictionary.dom_empty]
-  · simp [EpochState.empty, targetCap]
-  · simp [EpochState.empty, Dictionary.dom_empty]
+  simp [EpochAnchorInv, EpochValid, EpochState.empty, Dictionary.dom_empty, targetCap]
 
 private theorem dict_eq_empty_of_card_zero {U : ℕ} {s_abs : Dictionary.State U}
     (h0 : (Dictionary.dom s_abs).card = 0) :
     s_abs = Dictionary.empty U := by
-  have hdom : Dictionary.dom s_abs = ∅ := Finset.card_eq_zero.mp h0
   funext u
   by_contra hne
-  have hmem : u ∈ Dictionary.dom s_abs :=
-    Dictionary.mem_dom_iff_isSome.mpr (Option.ne_none_iff_isSome.mp hne)
-  rw [hdom] at hmem
-  exact Finset.notMem_empty u hmem
+  exact Finset.card_ne_zero_of_mem
+    (Dictionary.mem_dom_iff_isSome.mpr (Option.ne_none_iff_isSome.mp hne)) h0
 
 private theorem card_dom_insert_bounds {U : ℕ} (s_abs : Dictionary.State U) (u : Fin U) (v : ℕ) :
     (Dictionary.dom s_abs).card ≤ (Dictionary.dom (Function.update s_abs u (some v))).card ∧
@@ -548,18 +533,11 @@ private theorem migratePeakWords_le_succinctWords_succ {U V w N_old n : ℕ}
     (hw : 0 < w) (hU : Fits w U) (hn : 1 ≤ n) (hn_eq : n = N_old) (hN_lt : N_old < U) :
     migratePeakWords U V w N_old n ≤ Dynamic.succinctWords 2699 888 U V w (n + 1) := by
   subst hn_eq
-  have hn1_U : n + 1 ≤ U := hN_lt
   set N_new := targetCap U n
-  have hN_new_ge : n + 1 ≤ N_new := by
-    unfold N_new targetCap; rw [ite_eq_right (by omega)]; exact le_min (by omega) hN_lt
-  have hN_new_2n : N_new ≤ 2 * n := by
-    unfold N_new targetCap; rw [ite_eq_right (by omega)]; exact min_le_left _ _
-  have hN_new_U : N_new ≤ U := by
-    unfold N_new targetCap; rw [ite_eq_right (by omega)]; exact min_le_right _ _
-  have hll_mono : Dynamic.logLogFactor n ≤ Dynamic.logLogFactor (n + 1) :=
-    Dynamic.logLogFactor_mono (Nat.le_succ n)
-  have hm_le : 1344 * n * Dynamic.logLogFactor n ≤ 1344 * (n + 1) * Dynamic.logLogFactor (n + 1) :=
-    Nat.mul_le_mul (by omega) hll_mono
+  have hN_eq : N_new = min (2 * n) U := targetCap_of_ne_zero (by omega)
+  have hN_new_ge : n + 1 ≤ N_new := hN_eq ▸ le_min (by omega) hN_lt
+  have hN_new_2n : N_new ≤ 2 * n := hN_eq ▸ min_le_left _ _
+  have hN_new_U : N_new ≤ U := hN_eq ▸ min_le_right _ _
   have hq_old : quotientBits U n ≤ quotientBits U (n + 1) + 6 :=
     (quotientBits_le_succ_add_one U hn).trans (by omega)
   have hq_new : quotientBits U N_new ≤ quotientBits U (n + 1) + 6 :=
@@ -583,37 +561,29 @@ private theorem migratePeakWords_le_succinctWords_succ {U V w N_old n : ℕ}
     have hnum0 : n * (quotientBits U N_k + valBits V) ≤
         Dynamic.optBits U V (n + 1) + 11 * (n + 1) * Dynamic.logLogFactor (n + 1) := by
       linarith only [hm1, hqv_opt, h6]
-    have hnum : n * (quotientBits U N_k + valBits V) + w - 1 ≤
-        Dynamic.optBits U V (n + 1) + 11 * (n + 1) * Dynamic.logLogFactor (n + 1) + w - 1 := by
-      omega
     unfold compactedItemWords
-    exact Nat.add_le_add_right (Nat.div_le_div_right hnum) 2
+    exact Nat.add_le_add_right (Nat.div_le_div_right (Nat.sub_le_sub_right
+      (Nat.add_le_add_right hnum0 w) 1)) 2
   have har : migrateArenaWords U V w n N_new n ≤
       (Dynamic.optBits U V (n + 1) + 11 * (n + 1) * Dynamic.logLogFactor (n + 1) + w - 1) / w +
         8 := by
     unfold migrateArenaWords
     have hmax := max_le (h_ibits n hq_old) (h_ibits N_new hq_new)
     omega
-  have h_meta_div : ∀ N_k, N_k ≤ 4 * n → N_k ≤ U →
-      offCompItems U w N_k ≤
-        (1344 * (n + 1) * Dynamic.logLogFactor (n + 1) + w - 1) / w + 439 :=
-    fun N_k hN4 hNU =>
-      offCompItems_le_div_metaBits hw hNU hU.le (by omega : N_k ≤ 4 * (n + 1))
-  have hm_old := h_meta_div n (by omega) hN_lt.le
-  have hm_new := h_meta_div N_new (by omega) hN_new_U
+  have hm_old := offCompItems_le_div_metaBits hw hN_lt.le hU.le (by omega : n ≤ 4 * (n + 1))
+  have hm_new := offCompItems_le_div_metaBits hw hN_new_U hU.le (by omega : N_new ≤ 4 * (n + 1))
   set M := 1344 * (n + 1) * Dynamic.logLogFactor (n + 1)
   set I := Dynamic.optBits U V (n + 1) + 11 * (n + 1) * Dynamic.logLogFactor (n + 1)
-  have hc1 := div_add_div_le (a := M + w - 1) (b := M + w - 1) hw
-  have hc1' : (M + w - 1) / w + (M + w - 1) / w ≤ (M + M + w - 1) / w + 1 :=
-    hc1.trans ((Nat.div_le_div_right (b := M + M + w - 1 + 1 * w) (by omega)).trans_eq
-      (Nat.add_mul_div_right (M + M + w - 1) 1 hw))
-  have hc2 := div_add_div_le (a := M + M + w - 1) (b := I + w - 1) hw
-  have hc2' : (M + M + w - 1) / w + (I + w - 1) / w ≤ (M + M + I + w - 1) / w + 1 :=
-    hc2.trans ((Nat.div_le_div_right (b := M + M + I + w - 1 + 1 * w) (by omega)).trans_eq
-      (Nat.add_mul_div_right (M + M + I + w - 1) 1 hw))
+  have hdiv_add (A B : ℕ) : (A + w - 1) / w + (B + w - 1) / w ≤ (A + B + w - 1) / w + 1 :=
+    (div_add_div_le hw).trans
+      ((Nat.div_le_div_right (b := A + B + w - 1 + 1 * w) (by omega)).trans_eq
+        (Nat.add_mul_div_right (A + B + w - 1) 1 hw))
+  have hc1' := hdiv_add M M
+  have hc2' := hdiv_add (M + M) I
   have htot : M + M + I =
       Dynamic.optBits U V (n + 1) + 2699 * (n + 1) * Dynamic.logLogFactor (n + 1) := by
-    dsimp only [M, I]; ring
+    dsimp only [M, I]
+    ring
   rw [htot] at hc2'
   unfold migratePeakWords Dynamic.succinctWords
   dsimp only [N_new] at hm_new har
@@ -870,6 +840,25 @@ private theorem delete_mig_le_two_dist {U n N n_init : ℕ}
   have hlt : 4 * (n - 1) < 2 * n_init := lt_of_lt_of_le hmig hN_2ni
   unfold Nat.dist; omega
 
+private theorem compactedSplitRep_seedAt_mk {U V w N C n n_init base : ℕ}
+    {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} {ms : Memory.State} (hC : C = N)
+    (hsp : CompactedSplitRep base (base + offCompItems U w N) U V w N n n_init θ s_abs ms) :
+    CompactedSplitRep base (base + offCompItems U w C) U V w C n n_init
+      ((LatentSeed.mk N θ).seedAt C) s_abs ms := by
+  subst hC
+  simpa only [LatentSeed.seedAt_mk] using hsp
+
+private theorem map_seedAt_uniform_of_cap_eq {U N C : ℕ} {α : Type*}
+    (mkOut : QuotHashSeed U N → StepROutcome (LatentSeed U) α rResize)
+    (hlat : ∀ θ, (mkOut θ).latent = ⟨N, θ⟩) (hC : C = N) :
+    (((PMF.uniformOfFintype (QuotHashSeed U N)).map mkOut).map fun q => q.latent.seedAt C) =
+      PMF.uniformOfFintype (QuotHashSeed U C) := by
+  subst hC
+  rw [PMF.map_comp]
+  have hid : (fun q => q.latent.seedAt C) ∘ mkOut = id :=
+    funext fun θ => by simp only [Function.comp_apply, hlat, LatentSeed.seedAt_mk, id_eq]
+  rw [hid, PMF.map_id]
+
 /-- Execute `migrateActiveCode` followed by `inEpochOpCode.rename epochEmb` when an active insert
 or delete triggers single-tape `1 · OPT` capacity migration. -/
 private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
@@ -1016,22 +1005,8 @@ private theorem exec_migrate_then_inEpoch {U V w base overhead : ℕ}
     · rw [hcap_eq_N, hinit_eq_n]
       exact compactedRep_of_split hzb hzf hval_tc.2 hsp_fin
     · rw [hinit_eq_n]
-      have htr : ∀ (C : ℕ), C = N_new →
-          CompactedSplitRep base (base + offCompItems U w C) U V w C n' n
-            ((mkOut θ_new).latent.seedAt C) st'.dict ⟨(zFin θ_new).mem, (zFin θ_new).frontier⟩ := by
-        rintro _ rfl
-        simpa only [mkOut, LatentSeed.seedAt_mk] using hsp_fin
-      exact htr st'.cap hcap_eq_N
-  · have htr : ∀ (C : ℕ), C = N_new →
-        μ_out.map (fun q => q.latent.seedAt C) = PMF.uniformOfFintype (QuotHashSeed U C) := by
-      rintro _ rfl
-      dsimp only [μ_out]
-      rw [PMF.map_comp]
-      have hid_fn : (fun q : StepROutcome (LatentSeed U) o.Result rResize =>
-          q.latent.seedAt N_new) ∘ mkOut = id :=
-        funext fun θ_new => LatentSeed.seedAt_mk _ θ_new
-      rw [hid_fn, PMF.map_id]
-    exact htr st'.cap hst'_cap
+      exact compactedSplitRep_seedAt_mk hcap_eq_N hsp_fin
+  · exact map_seedAt_uniform_of_cap_eq mkOut (fun _ => rfl) hst'_cap
   · rw [htsum_op]
     have htsum_pot : (∑' q, μ_out q *
         (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) =
@@ -1161,6 +1136,29 @@ private theorem execRCodeDist_of_demonic_outcome {U : ℕ} {α : Type*} {w L_pea
 private theorem tsum_pmf_pure_mul {α : Type*} (a : α) (f : α → ℝ≥0∞) :
     ∑' x, PMF.pure a x * f x = f a := by
   rw [tsum_eq_single a fun b hb => by simp [PMF.pure_apply, hb], PMF.pure_apply_self, one_mul]
+
+private theorem epochRep_of_empty_step {U V w base : ℕ} {st' : EpochState U}
+    {ls : LatentSeed U} {z : RData rResize}
+    (hdict : st'.dict = Dictionary.empty U) (hcap : st'.cap = 0) (hinit : st'.initCount = 0)
+    (hl : ls.cap = 0) (hrep : CompactedRep U V w 0 0 0 base (Dictionary.empty U) z)
+    (hbase : z.regs mBase = base) :
+    EpochRep U V w base st' ls z :=
+  ⟨hl.trans hcap.symm, by rwa [hcap, hinit, hdict, Dictionary.dom_empty], hbase,
+    fun hpos => absurd (by simp [hdict, Dictionary.dom_empty] : (Dictionary.dom st'.dict).card = 0)
+      hpos.ne'⟩
+
+private theorem pure_empty_step_cost_le {U w base : ℕ} {α : Type*}
+    {st' : EpochState U} (q_out : StepROutcome (LatentSeed U) α rResize)
+    {steps : ℕ} {P₀ extra : ℝ≥0∞}
+    (hdict : st'.dict = Dictionary.empty U) (hcap : st'.cap = 0) (hinit : st'.initCount = 0)
+    (hsteps : steps ≤ resizableBaseCharge) :
+    (steps : ℝ≥0∞) + (∑' q, PMF.pure q_out q *
+        (resizablePotential U w st'.cap (Dictionary.dom st'.dict).card st'.initCount base
+          q.data : ℝ≥0∞)) ≤
+      P₀ + ((resizableBaseCharge : ℝ≥0∞) + extra) := by
+  rw [tsum_pmf_pure_mul, hdict, Dictionary.dom_empty, Finset.card_empty, hcap, hinit,
+    resizablePotential_zero, Nat.cast_zero, add_zero]
+  exact ((Nat.cast_le.mpr hsteps).trans le_self_add).trans le_add_self
 
 private theorem package_active_inEpoch_step {U V w base overhead stepsOp : ℕ}
     {st : EpochState U} {ls : LatentSeed U} {o : Dynamic.Op U} {x : RData rResize}
@@ -1360,20 +1358,14 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
       have hres_none : ((Dynamic.spec U V U).stepFn st.dict (.query u)).2 = none := by
         change st.dict u = none; rw [hs_emp]; rfl
       refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all, fun q hq => ?_,
-        fun hn'_pos => absurd hn0 hn'_pos.ne', ?_⟩
-      · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-        refine ⟨⟨hrep.cap_eq, ?_, by simp [q_out, z, RData.set, hx₂_base],
-          fun hn'_pos => absurd hn0 hn'_pos.ne'⟩, hres_none.symm,
-          by simp [q_out, z, resizableDecode, decode, RData.set], fun _ _ => rfl⟩
-        dsimp only [st', EpochState.step, nextEpochCap, nextEpochInit]
-        rw [hN0, hinit0, hs_emp, Dictionary.dom_empty]
-        exact compactedRep_empty hzb hfr8 hhdr0
-      · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
-        rw [tsum_pmf_pure_mul]
-        dsimp only [st', EpochState.step, nextEpochCap, nextEpochInit, n']
-        rw [hN0, hinit0, show (Dictionary.dom st.dict).card = 0 from hn0,
-          resizablePotential_zero, Nat.cast_zero, add_zero]
-        exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by unfold resizableBaseCharge; omega)
+        fun hn'_pos => absurd hn0 hn'_pos.ne',
+        pure_empty_step_cost_le q_out hs_emp hN0 hinit0
+          (by simp only [resizableBaseCharge]; omega)⟩
+      obtain rfl := Set.mem_singleton_iff.mp (PMF.support_pure q_out ▸ hq)
+      refine ⟨epochRep_of_empty_step hs_emp hN0 hinit0 (hrep.cap_eq.trans hN0)
+        (compactedRep_empty hzb hfr8 hhdr0) (by simp [q_out, z, RData.set, hx₂_base]),
+        hres_none.symm, ?_, fun _ _ => rfl⟩
+      simp [q_out, z, resizableDecode, decode, RData.set]
     | insert u v =>
       have hnc_t0 : ¬(Cond.eq mTag mZero).Holds x₂.toData := by
         change x₂.regs mTag ≠ x₂.regs mZero; rw [hx₂_arg.1, hx₂_z]; decide
@@ -1425,23 +1417,9 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         · rw [hst'_cap, hst'_init, hs_eq, hcard1]
           exact compactedRep_of_split hzb hzf (epochValid_targetCap hhdr.pos_U) hsp
         · rw [hst'_init, hs_eq, hcard1]
-          have htr : ∀ (C : ℕ), C = targetCap U 1 →
-              CompactedSplitRep base (base + offCompItems U w C) U V w C 1 1
-                ((mkOut θ').latent.seedAt C) (Function.update (Dictionary.empty U) u (some v))
-                ⟨(zOf θ').mem, (zOf θ').frontier⟩ := by
-            rintro _ rfl
-            simpa only [mkOut, LatentSeed.seedAt_mk] using hsp
-          exact htr st'.cap hst'_cap
+          exact compactedSplitRep_seedAt_mk hst'_cap hsp
       · rw [ite_eq_right hcap_ne]
-        have htr : ∀ (C : ℕ), C = targetCap U 1 →
-            μ_out.map (fun q => q.latent.seedAt C) = PMF.uniformOfFintype (QuotHashSeed U C) := by
-          rintro _ rfl
-          dsimp only [μ_out]; rw [PMF.map_comp]
-          have hid_fn : (fun q : StepROutcome (LatentSeed U) Unit rResize =>
-              q.latent.seedAt (targetCap U 1)) ∘ mkOut = id :=
-            funext fun θ' => LatentSeed.seedAt_mk _ θ'
-          rw [hid_fn, PMF.map_id]
-        exact htr st'.cap hst'_cap
+        exact map_seedAt_uniform_of_cap_eq mkOut (fun _ => rfl) hst'_cap
       · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
         have htsum_pot : (∑' q, μ_out q *
             (resizablePotential U w st'.cap n' st'.initCount base q.data : ℝ≥0∞)) =
@@ -1480,17 +1458,13 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
       have hinit0' : st'.initCount = 0 := by
         dsimp only [st', EpochState.step, nextEpochInit]; rw [ite_eq_left hn0]
       refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all, fun q hq => ?_,
-        fun hn'_pos => absurd hn'0 hn'_pos.ne', ?_⟩
-      · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-        refine ⟨⟨hrep.cap_eq.trans (hN0.trans hcap0.symm), ?_,
-          by simp [q_out, z, RData.set, hx₂_base],
-          fun hn'_pos => absurd hn'0 hn'_pos.ne'⟩, rfl, rfl, fun _ _ => rfl⟩
-        rw [hcap0, hinit0', hs'_emp, Dictionary.dom_empty]
-        exact compactedRep_empty hzb hfr8 hhdr0
-      · rw [ite_eq_right (by omega : ¬0 < n), add_zero, hpot_x_zero, Nat.cast_zero, zero_add]
-        rw [tsum_pmf_pure_mul]
-        rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
-        exact (Nat.cast_le (α := ℝ≥0∞)).mpr (by unfold resizableBaseCharge; omega)
+        fun hn'_pos => absurd hn'0 hn'_pos.ne',
+        pure_empty_step_cost_le q_out hs'_emp hcap0 hinit0'
+          (by simp only [resizableBaseCharge]; omega)⟩
+      obtain rfl := Set.mem_singleton_iff.mp (PMF.support_pure q_out ▸ hq)
+      exact ⟨epochRep_of_empty_step hs'_emp hcap0 hinit0' (hrep.cap_eq.trans hN0)
+        (compactedRep_empty hzb hfr8 hhdr0) (by simp [q_out, z, RData.set, hx₂_base]),
+        rfl, rfl, fun _ _ => rfl⟩
   · -- Active epoch: `1 ≤ n`
     have hn_pos : 1 ≤ n := Nat.pos_of_ne_zero hn0
     have hnc_n0 : ¬(Cond.eq mCnt mZero).Holds x₂.toData := by
@@ -1644,8 +1618,7 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
                 (RDemonicExec.branch_neg hnc_t1
                   (RDemonicExec.branch_pos hc_n1 hex_d1_L)))).mono
             (by omega) (fun _ h => h)
-        have hle_b : ((12 + steps_d1 : ℕ) : ℝ≥0∞) ≤ (resizableBaseCharge : ℝ≥0∞) := by
-          refine (Nat.cast_le (α := ℝ≥0∞)).mpr ?_
+        have hle_b_nat : 12 + steps_d1 ≤ resizableBaseCharge := by
           unfold resizableBaseCharge
           have := le_max_of_le_right (b := initFirstCharge)
             (le_max_left deleteLastOneCharge (inEpochCharge + 2 * migLinearFactor))
@@ -1653,8 +1626,8 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
         by_cases hsome : (st.dict u).isSome
         · rw [ite_eq_left hsome] at hd1_cases
           obtain ⟨hs_empty, hrep_z, _⟩ := hd1_cases
-          have hs'_emp : st'.dict = Dictionary.empty U := hs_empty
-          have hn'0 : n' = 0 := by dsimp only [n']; rw [hs'_emp, Dictionary.dom_empty]; rfl
+          have hs'_empty : st'.dict = Dictionary.empty U := hs_empty
+          have hn'0 : n' = 0 := by simp [n', hs'_empty, Dictionary.dom_empty]
           have hcap0 : st'.cap = 0 := by
             dsimp only [st', EpochState.step, nextEpochCap]
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_left hsome]
@@ -1663,15 +1636,11 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
             rw [ite_eq_right hn0, ite_eq_left hn1, ite_eq_left hsome]
           let q_out : StepROutcome (LatentSeed U) Unit rResize := ⟨LatentSeed.empty U, z, ()⟩
           refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
-            fun q hq => ?_, fun hn'_pos => absurd hn'0 hn'_pos.ne', ?_⟩
-          · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
-            refine ⟨⟨hcap0.symm, ?_, hz_base, fun hn'_pos => absurd hn'0 hn'_pos.ne'⟩,
-              rfl, rfl, hbel_z⟩
-            rw [hcap0, hinit0', hs'_emp, Dictionary.dom_empty]
-            exact hrep_z
-          · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
-            rw [hcap0, hinit0', hn'0, resizablePotential_zero, Nat.cast_zero, add_zero]
-            exact hle_b.trans (le_self_add.trans le_add_self)
+            fun q hq => ?_, fun hn'_pos => absurd hn'0 hn'_pos.ne',
+            pure_empty_step_cost_le q_out hs'_empty hcap0 hinit0' hle_b_nat⟩
+          obtain rfl := Set.mem_singleton_iff.mp (PMF.support_pure q_out ▸ hq)
+          exact ⟨epochRep_of_empty_step hs'_empty hcap0 hinit0' rfl hrep_z hz_base,
+            rfl, rfl, hbel_z⟩
         · rw [ite_eq_right hsome] at hd1_cases
           obtain ⟨hs_same, hzf_same, hsplit_z, hpot_eq, _⟩ := hd1_cases
           have hs'_same : st'.dict = st.dict := hs_same
@@ -1686,13 +1655,15 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
           refine ⟨PMF.pure q_out, _, execRCodeDist_of_demonic_outcome q_out hex_all,
             fun q hq => ?_, fun _ => ?_, ?_⟩
           · rw [PMF.support_pure, Set.mem_singleton_iff] at hq; subst hq
+            have hcard1 : (Dictionary.dom st.dict).card = 1 := hn1
             refine ⟨⟨hrep.cap_eq.trans hcap_same.symm, ?_, hz_base, fun _ => ?_⟩,
               rfl, rfl, hbel_z⟩
-            · rw [hcap_same, hinit_same, hs'_same, show (Dictionary.dom st.dict).card = 1 from hn1]
+            · rw [hcap_same, hinit_same, hs'_same, hcard1]
               exact compactedRep_of_split hzb hzf_same hev1 hsplit_z
-            · rw [hcap_same, hinit_same, hs'_same, show (Dictionary.dom st.dict).card = 1 from hn1]
+            · rw [hcap_same, hinit_same, hs'_same, hcard1]
               exact hsplit_z
-          · rw [ite_eq_left hcap_same]; exact ⟨hn_pos, by simp [q_out, θ]⟩
+          · rw [ite_eq_left hcap_same]
+            exact ⟨hn_pos, PMF.pure_map _ _⟩
           · rw [ite_eq_left (show 0 < n from hn_pos), tsum_pmf_pure_mul]
             have hpot_full : resizablePotential U w st'.cap n' st'.initCount base q_out.data =
                 resizablePotential U w st.cap n st.initCount base x := by
@@ -1702,7 +1673,8 @@ theorem resizableOpCode_step_pointwise {U V w base : ℕ}
               rw [hpot_eq]
               rfl
             rw [hpot_full]
-            exact (add_comm _ _).le.trans (add_le_add le_rfl (hle_b.trans le_self_add))
+            exact (add_comm _ _).le.trans
+              (add_le_add le_rfl ((Nat.cast_le.mpr hle_b_nat).trans le_self_add))
       · -- `2 ≤ n`: `resizableDeleteGeTwoCode`
         have hn2 : 2 ≤ n := by omega
         have hnc_n1 : ¬(Cond.eq mCnt mOne).Holds x₂.toData := by

@@ -527,6 +527,14 @@ private theorem ofReal_div_pers_le_of_le_add_mul {B : ℝ} {p L : ℕ} {T : ℝ�
 
 /-! ### 2. Generic Dictionary Cell-Probe-to-Word-RAM Lower-Bound Transfer Bridges -/
 
+private theorem modeHorizon_false (n : ℕ) : modeHorizon false n = 3 * n := by
+  simp only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte]
+  ring
+
+private theorem modeHorizon_true (n : ℕ) : modeHorizon true n = 4 * n := by
+  simp only [modeHorizon, modeStride, ↓reduceIte]
+  ring
+
 private theorem modeDist_support_spec (withQueries : Bool) {U V n : ℕ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
     ∀ {ops}, ops ∈ (modeDist withQueries U V n hU hV).support →
@@ -537,12 +545,12 @@ private theorem modeDist_support_spec (withQueries : Bool) {U V n : ℕ}
   cases withQueries
   · rw [modeDist_false] at hops
     obtain ⟨hv, halph⟩ := validHistory_of_mem_support_insertDeleteDist hops
-    exact ⟨hv, (length_of_mem_support_insertDeleteDist hops).trans
-      (by simp only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte]; ring), halph⟩
+    exact ⟨hv, (length_of_mem_support_insertDeleteDist hops).trans (modeHorizon_false n).symm,
+      halph⟩
   · rw [modeDist_true] at hops
     obtain ⟨hv, halph⟩ := validHistory_of_mem_support_insertQueryDeleteDist hops
-    exact ⟨hv, (length_of_mem_support_insertQueryDeleteDist hops).trans
-      (by simp only [modeHorizon, modeStride, ↓reduceIte]; ring), halph⟩
+    exact ⟨hv, (length_of_mem_support_insertQueryDeleteDist hops).trans (modeHorizon_true n).symm,
+      halph⟩
 
 private theorem totalCost_ge_of_flat_fn
     {B : Basis} {U V n M r_ds k_init w base : ℕ}
@@ -717,13 +725,10 @@ theorem expectedFlatTime_ge_of_indexedScheme
       ∑' ops, insertQueryDeleteDist U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have h := le_expectedFlatTime_mode_of_det_indexedScheme true hn hU hV hspace p_op encode decode
-    ν₀ hsupp₀
-    (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-      show n + 3 * n = 4 * n by ring] using hex_corr)
-    (LB := LB) fun hcorr => by
+    ν₀ hsupp₀ (by rwa [modeHorizon_true]) (LB := LB)
+    fun hcorr => by
       rw [modeDist_true]
-      exact hlb (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-        show n + 3 * n = 4 * n by ring] using hcorr)
+      exact hlb (by rwa [modeHorizon_true] at hcorr)
   rwa [modeDist_true] at h
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over `insertDeleteDist`
@@ -752,13 +757,10 @@ theorem expectedFlatTime_update_ge_of_indexedScheme
       ∑' ops, insertDeleteDist U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have h := le_expectedFlatTime_mode_of_det_indexedScheme false hn hU hV hspace p_op encode decode
-    ν₀ hsupp₀
-    (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-      show n + 2 * n = 3 * n by ring] using hex_corr)
-    (LB := LB) fun hcorr => by
+    ν₀ hsupp₀ (by rwa [modeHorizon_false]) (LB := LB)
+    fun hcorr => by
       rw [modeDist_false]
-      exact hlb (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-        show n + 2 * n = 3 * n by ring] using hcorr)
+      exact hlb (by rwa [modeHorizon_false] at hcorr)
   rwa [modeDist_false] at h
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over
@@ -788,8 +790,7 @@ theorem expectedTotalCost_ge_of_indexedScheme
   have h := le_expectedTotalCost_mode_of_det_indexedScheme true hU hV C hbase hparams_fit
     hparams_fr hparams_agree hspace (LB := LB) fun hcorr => by
       rw [modeDist_true]
-      exact hlb (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-        show n + 3 * n = 4 * n by ring] using hcorr)
+      exact hlb (by rwa [modeHorizon_true] at hcorr)
   rwa [modeDist_true] at h
 
 /-- Transfer any deterministic step-indexed `IndexedScheme` lower bound over `insertDeleteDist` to
@@ -819,8 +820,7 @@ theorem expectedTotalCost_update_ge_of_indexedScheme
   have h := le_expectedTotalCost_mode_of_det_indexedScheme false hU hV C hbase hparams_fit
     hparams_fr hparams_agree hspace (LB := LB) fun hcorr => by
       rw [modeDist_false]
-      exact hlb (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-        show n + 2 * n = 3 * n by ring] using hcorr)
+      exact hlb (by rwa [modeHorizon_false] at hcorr)
   rwa [modeDist_false] at h
 
 /-! ### 3. Primary Word-RAM Headline Lower Bounds: Actual Expected Running Time -/
@@ -890,14 +890,10 @@ private theorem expectedFlatTime_scaled_iqd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_true, mul_assoc] using
     expectedFlatTime_scaled_of_mode true hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀
-      (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-        show n + 3 * n = 4 * n by ring] using hex_corr)
+      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_true])
       fun hcorr => by
         rw [modeDist_true]
-        simpa only [mul_assoc] using hlb
-          (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-            show n + 3 * n = 4 * n by ring] using hcorr)
+        simpa only [mul_assoc] using hlb (by rwa [modeHorizon_true] at hcorr)
 
 private theorem expectedFlatTime_scaled_upd
     {B : Basis} {U V n r w base space r_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
@@ -923,14 +919,10 @@ private theorem expectedFlatTime_scaled_upd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_false, mul_assoc] using
     expectedFlatTime_scaled_of_mode false hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀
-      (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-        show n + 2 * n = 3 * n by ring] using hex_corr)
+      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_false])
       fun hcorr => by
         rw [modeDist_false]
-        simpa only [mul_assoc] using hlb
-          (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-            show n + 2 * n = 3 * n by ring] using hcorr)
+        simpa only [mul_assoc] using hlb (by rwa [modeHorizon_false] at hcorr)
 
 /-- Word-RAM **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 and footnote 1 /
 PDF p. 2, and Section 3, pp. 10–13 / PDF pp. 11–14; [Yao1977]): for any `α > 0`, `c_R ≥ 0`,
@@ -1202,9 +1194,7 @@ theorem expectedTotalCost_ge_of_iterLog_redundancy {α c_R c_w : ℝ} (r_max : �
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hU_poly hV hk_lo hk_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hU_poly hV hk_lo hk_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 /-- Certified-budget corollary of `expectedFlatTime_ge_of_sublinear_redundancy` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` for any zero-error
@@ -1237,9 +1227,7 @@ theorem expectedTotalCost_ge_of_sublinear_redundancy {α c_w : ℝ} (r_max : ℕ
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 /-- Certified-budget corollary of `expectedFlatTime_ge_iterLogStar_add_log_div` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` across all `R ≤ c_R * n` on
@@ -1273,9 +1261,7 @@ theorem expectedTotalCost_ge_iterLogStar_add_log_div {α c_R c_w : ℝ} (r_max :
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertQueryDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hU_poly hV hR_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_iterLog` ([CLRS2009], Section 17.3):
 lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only `insertDeleteDist` for any
@@ -1308,9 +1294,7 @@ theorem expectedTotalCost_update_ge_iterLog {α_V c_R c_w : ℝ} (r_max : ℕ)
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hV hV_lo hk_lo hk_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hV hV_lo hk_lo hk_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_sublinear` ([CLRS2009], Section
 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only `insertDeleteDist`
@@ -1343,9 +1327,7 @@ theorem expectedTotalCost_update_ge_sublinear {α_V c_w : ℝ} (r_max : ℕ)
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 /-- Certified-budget corollary of `expectedFlatTime_update_ge_iterLogStar_add_log_div` ([CLRS2009],
 Section 17.3): lower-bounds `C.initPotential + E[totalCost C.charge]` on update-only
@@ -1379,8 +1361,6 @@ theorem expectedTotalCost_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ}
   rw [persistentRegCount_eq_persCount] at hpers hspace
   exact totalCost_ge_of_flat_fn _ (fun _ hops =>
       (validHistory_of_mem_support_insertDeleteDist hops).1) C hbase hpf hpfr hpag
-    fun ν₀ hsupp₀ hcorr =>
-      hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode
-        (fun o _ regs => C.decode o regs) ν₀ hsupp₀ hcorr
+    (hflat hn hU hV hV_lo hR_hi hpers hw hspace _ C.encode fun o _ regs => C.decode o regs)
 
 end Cslib.DataStructure.Dictionary.WordRAM
