@@ -273,12 +273,7 @@ theorem tablesInv_push {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     refine followOut_congr_on (fun x hx hxp => (htab.outNext_spec x hx hxp).1) ?_
     intro x hx
     rw [houtNext', Function.update_of_ne (by rintro rfl; exact hs_not hx)]
-  refine
-    { zero_vals := ?_
-      fail_spec := ?_
-      outHead_spec := ?_
-      outNext_spec := ?_
-      follow_spec := ?_ }
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · rw [hfail', houtHead', houtNext', Function.update_of_ne hs_ne0.symm,
       Function.update_of_ne hs_ne0.symm, Function.update_of_ne hs_ne0.symm]
     exact htab.zero_vals
