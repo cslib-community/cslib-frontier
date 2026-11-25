@@ -236,7 +236,9 @@ or a lower stacked PR has landed; refreshing an approved PR only replaces the ap
 Dequeue a queued PR before pushing to it. A restack keeps its approval when
 `python3 scripts/check_restack.py <approved head> <new head>` passes, run from a checkout of
 current `origin/main`, and CI passes at the new head; the non-author who queues reruns the
-command. `scripts/restack_mechanical.py` performs aggregate-only and bibliography-only restacks.
+command. This covers a restack that only merges entries of `references.bib` or
+`manual/sources.md`: it needs no fresh review when the script reports it identical.
+`scripts/restack_mechanical.py` performs aggregate-only and bibliography-only restacks.
 Never trust a `merge=union` result for the import aggregates; regenerate them with
 `lake exe mk_all`.
 
