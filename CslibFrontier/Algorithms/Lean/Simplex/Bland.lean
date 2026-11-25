@@ -336,38 +336,39 @@ def BlandPivot (D D' : Dictionary ι K) : Prop :=
 
 variable {D}
 
-theorem BlandPivot.feasible {D' : Dictionary ι K} (h : D.BlandPivot D') (hD : D.Feasible) :
-    D'.Feasible := by
+omit [IsStrictOrderedRing K] in
+/-- A Bland pivot, unpacked: the entering variable `s` and the leaving variable `r` satisfy
+`blandEntering_eq_some_iff` and `blandLeaving_eq_some_iff`. -/
+private theorem BlandPivot.exists_pivot {D' : Dictionary ι K} (h : D.BlandPivot D') :
+    ∃ r s, D' = D.pivot r s ∧
+      (s ∉ D.basis ∧ 0 < D.objCoeff s ∧ ∀ j ∉ D.basis, 0 < D.objCoeff j → s ≤ j) ∧
+      r ∈ D.basis ∧ D.coeff r s < 0 ∧
+      (∀ i ∈ D.basis, D.coeff i s < 0 → D.ratio s r ≤ D.ratio s i) ∧
+      ∀ i ∈ D.basis, D.coeff i s < 0 → D.ratio s i = D.ratio s r → r ≤ i := by
   obtain ⟨r, s, hstep, rfl⟩ := h
   obtain ⟨hs, hr⟩ := D.blandStep_eq_pivot_iff.1 hstep
-  obtain ⟨hs, -, -⟩ := D.blandEntering_eq_some_iff.1 hs
-  obtain ⟨hr, har, hmin, -⟩ := D.blandLeaving_eq_some_iff.1 hr
+  exact ⟨r, s, rfl, D.blandEntering_eq_some_iff.1 hs, D.blandLeaving_eq_some_iff.1 hr⟩
+
+theorem BlandPivot.feasible {D' : Dictionary ι K} (h : D.BlandPivot D') (hD : D.Feasible) :
+    D'.Feasible := by
+  obtain ⟨r, s, rfl, ⟨hs, -⟩, hr, har, hmin, -⟩ := h.exists_pivot
   exact D.feasible_pivot hD hr hs har hmin
 
 omit [IsStrictOrderedRing K] in
 theorem BlandPivot.equivalent {D' : Dictionary ι K} (h : D.BlandPivot D') :
     D.Equivalent D' := by
-  obtain ⟨r, s, hstep, rfl⟩ := h
-  obtain ⟨hs, hr⟩ := D.blandStep_eq_pivot_iff.1 hstep
-  obtain ⟨hs, -, -⟩ := D.blandEntering_eq_some_iff.1 hs
-  obtain ⟨hr, har, -, -⟩ := D.blandLeaving_eq_some_iff.1 hr
+  obtain ⟨r, s, rfl, ⟨hs, -⟩, hr, har, -⟩ := h.exists_pivot
   exact D.equivalent_pivot hr hs har.ne
 
 theorem BlandPivot.objConst_le {D' : Dictionary ι K} (h : D.BlandPivot D')
     (hD : D.Feasible) : D.objConst ≤ D'.objConst := by
-  obtain ⟨r, s, hstep, rfl⟩ := h
-  obtain ⟨hs, hr⟩ := D.blandStep_eq_pivot_iff.1 hstep
-  obtain ⟨-, hc, -⟩ := D.blandEntering_eq_some_iff.1 hs
-  obtain ⟨hr, har, -, -⟩ := D.blandLeaving_eq_some_iff.1 hr
+  obtain ⟨r, s, rfl, ⟨-, hc, -⟩, hr, har, -⟩ := h.exists_pivot
   exact D.objConst_le_pivot hD hr har hc.le
 
 omit [IsStrictOrderedRing K] in
 theorem BlandPivot.card_basis {D' : Dictionary ι K} (h : D.BlandPivot D') :
     #D'.basis = #D.basis := by
-  obtain ⟨r, s, hstep, rfl⟩ := h
-  obtain ⟨hs, hr⟩ := D.blandStep_eq_pivot_iff.1 hstep
-  obtain ⟨hs, -, -⟩ := D.blandEntering_eq_some_iff.1 hs
-  obtain ⟨hr, -, -, -⟩ := D.blandLeaving_eq_some_iff.1 hr
+  obtain ⟨r, s, rfl, ⟨hs, -⟩, hr, -⟩ := h.exists_pivot
   exact D.card_pivot_basis hr hs
 
 /-- A discrete intermediate value property. -/
@@ -422,17 +423,11 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     induction k, hik using Nat.le_induction with
     | base => rfl
     | succ k hik ih =>
-      obtain ⟨r, s, hstep, hEk⟩ := hE k (by omega)
-      obtain ⟨hs, hr⟩ := (E k).blandStep_eq_pivot_iff.1 hstep
-      obtain ⟨hs, hc, -⟩ := (E k).blandEntering_eq_some_iff.1 hs
-      obtain ⟨hr, har, -, -⟩ := (E k).blandLeaving_eq_some_iff.1 hr
+      obtain ⟨r, s, hEk, ⟨hs, hc, -⟩, hr, har, -⟩ := (hE k (by omega)).exists_pivot
       have h0 : (E k).ratio s r = 0 := by
-        have h1 := hconst k hik (by omega)
         have h2 := hconst (k + 1) (by omega) hkj
-        rw [hEk, objConst_pivot, h1] at h2
-        rcases mul_eq_zero.1 (by linarith : (E k).objCoeff s * (E k).ratio s r = 0) with h | h
-        · exact absurd h hc.ne'
-        · exact h
+        rw [hEk, objConst_pivot, hconst k hik (by omega), add_eq_left] at h2
+        exact (mul_eq_zero.1 h2).resolve_left hc.ne'
       rw [hEk, (E k).basicSolution_pivot hr hs har.ne, h0, zero_smul, add_zero, ih (by omega)]
   -- the fickle variables: basic somewhere in the cycle and nonbasic somewhere else
   set F : Finset ι := Finset.univ.filter fun v =>
@@ -442,9 +437,7 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
     intro v
     simp only [hF, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_Icc, and_assoc]
   have hFne : F.Nonempty := by
-    obtain ⟨r, s, hstep, hEk⟩ := hE i (by omega)
-    obtain ⟨hs, -⟩ := (E i).blandStep_eq_pivot_iff.1 hstep
-    obtain ⟨hs, -, -⟩ := (E i).blandEntering_eq_some_iff.1 hs
+    obtain ⟨r, s, hEk, ⟨hs, -⟩, -⟩ := (hE i (by omega)).exists_pivot
     refine ⟨s, (hFmem s).2 ⟨i + 1, by omega, by omega, i, le_rfl, hij.le, ?_, hs⟩⟩
     rw [hEk, mem_pivot_basis]
     exact .inl rfl
@@ -468,30 +461,17 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
         exists_flip (P := fun k => t ∈ (E k).basis) hk₀j hk₀ (by rw [← hB]; exact hti)
       exact ⟨p, q, by omega, hpj, hiq, by omega, hp, hp', hq, not_not.1 hq'⟩
   -- at step `p`, `s` enters and `t` leaves
-  obtain ⟨r, s, hstepp, hEp⟩ := hE p (by omega)
-  obtain ⟨hsp, hrp⟩ := (E p).blandStep_eq_pivot_iff.1 hstepp
-  obtain ⟨hs, hcs, -⟩ := (E p).blandEntering_eq_some_iff.1 hsp
-  have hrt : t = r := by
-    by_contra hrt
-    rw [hEp, mem_pivot_basis] at htp'
-    exact htp' (.inr ⟨htp, hrt⟩)
-  subst r
-  obtain ⟨hr, har, hmin, htie⟩ := (E p).blandLeaving_eq_some_iff.1 hrp
+  obtain ⟨r, s, hEp, ⟨hs, hcs, -⟩, hr, har, hmin, htie⟩ := (hE p (by omega)).exists_pivot
+  rw [hEp, mem_pivot_basis] at htp'
+  obtain rfl : t = r := of_not_not fun hrt => htp' (.inr ⟨htp, hrt⟩)
   have hsF : s ∈ F :=
     (hFmem s).2 ⟨p + 1, by omega, by omega, p, hip, hpj.le,
       by rw [hEp, mem_pivot_basis]; exact .inl rfl, hs⟩
   have hsr : s < t := lt_of_le_of_ne (hleT s hsF) fun h => hs (h ▸ hr)
   -- at step `q`, `t` enters
-  obtain ⟨r', s', hstepq, hEq⟩ := hE q (by omega)
-  obtain ⟨hsq, -⟩ := (E q).blandStep_eq_pivot_iff.1 hstepq
-  have hs't : s' = t := by
-    by_contra hs't
-    rw [hEq, mem_pivot_basis] at htq'
-    rcases htq' with h | ⟨h, -⟩
-    · exact hs't h.symm
-    · exact htq h
-  subst s'
-  obtain ⟨-, hcq, hminq⟩ := (E q).blandEntering_eq_some_iff.1 hsq
+  obtain ⟨r', s', hEq, ⟨-, hcq, hminq⟩, -⟩ := (hE q (by omega)).exists_pivot
+  rw [hEq, mem_pivot_basis] at htq'
+  obtain rfl : t = s' := htq'.resolve_right fun h => htq h.1
   -- compare the objective rows of `E p` and `E q` along the edge of `s`
   set x := (E p).basicSolution + (1 : K) • (E p).ray s with hx
   have hxp : (E p).IsSolution x :=
@@ -526,15 +506,11 @@ theorem basis_ne_of_blandPivot {E : ℕ → Dictionary ι K} {n : ℕ} (hE0 : (E
   have hvF : v ∈ F := (hFmem v).2 ⟨p, hip, hpj.le, q, hiq, hqj.le, hvp, hvq⟩
   have hvr : v ≠ t := by
     rintro rfl
-    exact absurd hpos (not_lt.2 (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le))
+    exact hpos.not_ge (mul_nonpos_of_nonneg_of_nonpos hcq.le har.le)
   have hvlt : v < t := lt_of_le_of_ne (hleT v hvF) hvr
-  have hcv : (E q).objCoeff v ≤ 0 := by
-    by_contra h
-    exact absurd (hminq v hvq (not_le.1 h)) (not_le.2 hvlt)
-  have hav : (E p).coeff v s < 0 := by
-    rcases mul_pos_iff.1 hpos with ⟨h, -⟩ | ⟨-, h⟩
-    · exact absurd h (not_lt.2 hcv)
-    · exact h
+  have hcv : (E q).objCoeff v ≤ 0 := not_lt.1 fun h => (hminq v hvq h).not_gt hvlt
+  have hav : (E p).coeff v s < 0 :=
+    ((mul_pos_iff.1 hpos).resolve_left fun h => hcv.not_gt h.1).2
   -- `v` is basic at value `0` in `E p`, so it ties with `t` in the ratio test
   have hv0 : (E p).ratio s v = 0 := by
     have : (E p).rhs v = 0 := by
