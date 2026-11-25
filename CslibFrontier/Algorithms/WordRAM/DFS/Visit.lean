@@ -641,8 +641,10 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
     have hoff_r0 : x.mem (offAddr + r.val) = csrOffset adj r.val := hcsr.1 r.val (by omega)
     have hoff_r1 : x.mem (offAddr + r.val + 1) = csrOffset adj (r.val + 1) := by
       simpa [Nat.add_assoc] using hcsr.1 (r.val + 1) (by omega)
-    let PushRootPost (x₁ : Data 28) : Prop :=
-      DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+    obtain ⟨x₁, hx₁_ex, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2,
+      hx₁_out, hx₁_fr⟩ : ∃ x₁, ExecWithin w dfsPushRoot
+        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧
+        DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
         CSRAt adj offAddr edgeAddr x₁.mem ∧
         VisAt vis₁ visAddr x₁.mem ∧
         x₁.regs pReg = 1 ∧
@@ -653,12 +655,9 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         (∀ a, ¬ (a = visAddr + r.val ∨ (stkAddr ≤ a ∧ a < stkAddr + 3 * N)) →
           x₁.mem a = x.mem a) ∧
         (∀ reg : Fin 28, (reg.val < 19 ∨ reg = compIdxReg ∨ reg = oldFinReg) →
-          x₁.regs reg = x.regs reg)
-    have hpush : ∃ x₁, ExecWithin w dfsPushRoot
-        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧ PushRootPost x₁ := by
+          x₁.regs reg = x.regs reg) := by
       unfold dfsPushRoot
       wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1]
-      dsimp only [PushRootPost]
       refine ⟨dfsRegs_of_frame hregs fun reg hreg => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
         by wram_simp [hfc], by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
         fun reg hreg => by rcases hreg with hreg | rfl | rfl <;> wram_simp⟩
@@ -670,8 +669,6 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         mem_upd
         repeat rw [Function.update_of_ne (by omega)]
         exact visAt_insert hvis r w_v
-    obtain ⟨x₁, hx₁_ex, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2,
-      hx₁_out, hx₁_fr⟩ := hpush
     have hs_eq : visit adj N r ⟨vis, []⟩ =
         ⟨(foldEmpty adj k' (adj r) vis₁).visited,
           r :: (foldEmpty adj k' (adj r) vis₁).finished⟩ :=
@@ -705,6 +702,5 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
     refine WP.of_execWithin hx₁_ex ?_
     refine WP.of_execWithin ⟨t_loop, le_rfl, he_loop⟩ ?_
     exact ⟨by omega, hRz⟩
-
 
 end Cslib.Algorithms.WordRAM.DFS
