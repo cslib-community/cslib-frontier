@@ -105,14 +105,9 @@ private theorem primrec_enumList : Primrec Cslib.BitString.enumList := by
           (Primrec.const []))
     exact Primrec₂.mk <| Primrec.list_flatMap Primrec.snd hcons
   refine (Primrec.nat_rec₁ [[]] hh).of_eq fun k => ?_
-  have hrec : ∀ m : ℕ, Nat.rec [[]]
-      (fun _ IH => IH.flatMap fun word => [false :: word, true :: word]) m =
-      Cslib.BitString.enumList m := by
-    intro m
-    induction m with
-    | zero => rfl
-    | succ m ih => rw [Cslib.BitString.enumList_succ, ← ih]
-  exact hrec k
+  induction k with
+  | zero => rfl
+  | succ m ih => rw [Cslib.BitString.enumList_succ, ← ih]
 
 private theorem primrec_binaryValue : Primrec Cslib.BitString.binaryValue := by
   have hbool : Primrec fun b : Bool => b.toNat :=
@@ -147,17 +142,10 @@ theorem getElem_realPrefix {x : ℝ} {n i : ℕ} (hi : i < (realPrefix x n).leng
 
 private theorem floor_two_mul_eq (r : ℝ) :
     ⌊2 * r⌋ = 2 * ⌊r⌋ + (if ⌊2 * r⌋ % 2 = 1 then 1 else 0) := by
-  have hr1 : (⌊r⌋ : ℝ) ≤ r := Int.floor_le r
-  have hr2 : r < ⌊r⌋ + 1 := Int.lt_floor_add_one r
-  have hbound : 2 * ⌊r⌋ ≤ ⌊2 * r⌋ ∧ ⌊2 * r⌋ ≤ 2 * ⌊r⌋ + 1 := by
-    refine ⟨?_, ?_⟩
-    · exact Int.le_floor.mpr (by push_cast; linarith)
-    · have hlt : (⌊2 * r⌋ : ℝ) < (2 * ⌊r⌋ + 2 : ℤ) := by
-        calc (⌊2 * r⌋ : ℝ) ≤ 2 * r := Int.floor_le (2 * r)
-          _ < 2 * (⌊r⌋ + 1) := by linarith
-          _ = ((2 * ⌊r⌋ + 2 : ℤ) : ℝ) := by push_cast; ring
-      have hltZ : ⌊2 * r⌋ < 2 * ⌊r⌋ + 2 := by exact_mod_cast hlt
-      omega
+  have hr1 := Int.floor_le r
+  have hr2 := Int.lt_floor_add_one r
+  have h1 : 2 * ⌊r⌋ ≤ ⌊2 * r⌋ := Int.le_floor.mpr (by push_cast; linarith)
+  have h2 : ⌊2 * r⌋ < 2 * ⌊r⌋ + 2 := Int.floor_lt.mpr (by push_cast; linarith)
   omega
 
 theorem binaryValue_realPrefix_eq_floor {x : ℝ} (hx0 : 0 ≤ x) (hx1 : x < 1) (n : ℕ) :
@@ -168,42 +156,24 @@ theorem binaryValue_realPrefix_eq_floor {x : ℝ} (hx0 : 0 ≤ x) (hx1 : x < 1) 
       List.foldl_nil, Nat.cast_zero, pow_zero, mul_one]
     exact (Int.floor_eq_zero_iff.mpr ⟨hx0, hx1⟩).symm
   | succ n ih =>
-    rw [realPrefix_succ, Cslib.BitString.binaryValue_snoc]
-    have hm := floor_two_mul_eq (x * (2 : ℝ) ^ n)
     have hrw : x * (2 : ℝ) ^ (n + 1) = 2 * (x * (2 : ℝ) ^ n) := by rw [pow_succ]; ring
+    have hm := floor_two_mul_eq (x * (2 : ℝ) ^ n)
     rw [← hrw] at hm
-    rw [hrw]
+    rw [realPrefix_succ, Cslib.BitString.binaryValue_snoc]
     push_cast
-    rw [ih, realBit, ← hrw]
-    by_cases hmod : ⌊x * (2 : ℝ) ^ (n + 1)⌋ % 2 = 1
-    · simp only [hmod, decide_true, Bool.toNat_true, Nat.cast_one]
-      split_ifs at hm
-      linarith
-    · simp only [hmod, decide_false, Bool.toNat_false, Nat.cast_zero]
-      split_ifs at hm
-      linarith
+    rw [ih, realBit]
+    split_ifs at hm with hmod <;> simp [hmod] <;> linarith
 
 /-- For `x ∈ [0, 1)`, the dyadic interval of `realPrefix x n` contains `x`. -/
 theorem realPrefix_bounds {x : ℝ} (hx0 : 0 ≤ x) (hx1 : x < 1) (n : ℕ) :
     (Cslib.BitString.binaryValue (realPrefix x n) : ℝ) * (2 : ℝ)⁻¹ ^ n ≤ x ∧
       x < ((Cslib.BitString.binaryValue (realPrefix x n) : ℝ) + 1) * (2 : ℝ)⁻¹ ^ n := by
-  have hpow_pos : (0 : ℝ) < (2 : ℝ) ^ n := by positivity
   have hfloor : (Cslib.BitString.binaryValue (realPrefix x n) : ℝ) =
       ((⌊x * (2 : ℝ) ^ n⌋ : ℤ) : ℝ) := by
     exact_mod_cast binaryValue_realPrefix_eq_floor hx0 hx1 n
-  have h1 : (⌊x * (2 : ℝ) ^ n⌋ : ℝ) ≤ x * (2 : ℝ) ^ n := Int.floor_le _
-  have h2 : x * (2 : ℝ) ^ n < (⌊x * (2 : ℝ) ^ n⌋ : ℝ) + 1 := Int.lt_floor_add_one _
-  constructor
-  · calc (Cslib.BitString.binaryValue (realPrefix x n) : ℝ) * (2 : ℝ)⁻¹ ^ n
-      _ = (⌊x * (2 : ℝ) ^ n⌋ : ℝ) * ((2 : ℝ) ^ n)⁻¹ := by rw [hfloor, inv_pow]
-      _ ≤ (x * (2 : ℝ) ^ n) * ((2 : ℝ) ^ n)⁻¹ := by
-          gcongr
-      _ = x := by rw [mul_assoc, mul_inv_cancel₀ hpow_pos.ne', mul_one]
-  · calc x = (x * (2 : ℝ) ^ n) * ((2 : ℝ) ^ n)⁻¹ := by
-          rw [mul_assoc, mul_inv_cancel₀ hpow_pos.ne', mul_one]
-      _ < ((⌊x * (2 : ℝ) ^ n⌋ : ℝ) + 1) * ((2 : ℝ) ^ n)⁻¹ := by gcongr
-      _ = ((Cslib.BitString.binaryValue (realPrefix x n) : ℝ) + 1) * (2 : ℝ)⁻¹ ^ n := by
-          rw [hfloor, inv_pow]
+  rw [hfloor, inv_pow, ← div_eq_mul_inv, ← div_eq_mul_inv]
+  exact ⟨(div_le_iff₀ (by positivity)).2 (Int.floor_le _),
+    (lt_div_iff₀ (by positivity)).2 (Int.lt_floor_add_one _)⟩
 
 namespace DescriptionMethod
 
@@ -229,12 +199,9 @@ theorem chaitinOmega_universalPrefixBits :
 
 theorem chaitinOmega_universalPrefix_pos : 0 < chaitinOmega universalPrefix := by
   obtain ⟨p, hp⟩ := ecomplexity_ne_top_iff.mp (ecomplexity_universalPrefix_ne_top 0)
-  have hp_mem : p ∈ universalPrefix.haltingSet := ⟨0, hp⟩
-  have hle : (2 : ℝ)⁻¹ ^ p.length ≤ chaitinOmega universalPrefix := by
-    have hs := isPrefixFree_universalPrefix.summable_two_inv_pow_length
-    simpa [chaitinOmega] using
-      hs.le_tsum ⟨p, hp_mem⟩ fun q _ => by positivity
-  exact lt_of_lt_of_le (by positivity) hle
+  refine lt_of_lt_of_le (by positivity) (?_ : (2 : ℝ)⁻¹ ^ p.length ≤ _)
+  simpa [chaitinOmega] using isPrefixFree_universalPrefix.summable_two_inv_pow_length.le_tsum
+    (⟨p, 0, hp⟩ : universalPrefix.haltingSet) fun q _ => by positivity
 
 theorem chaitinOmega_universalPrefix_lt_one : chaitinOmega universalPrefix < 1 := by
   obtain ⟨q, hq⟩ := universalPrefix_exists_incomparable_prefix
@@ -354,61 +321,36 @@ private theorem universalPrefixApprox_eq_finsetSum (n : ℕ) :
   rw [universalPrefixApprox, listWeight, hcast,
     ← List.sum_toFinset (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) hnodup]
 
+private theorem universalPrefixApprox_eq_sum_subtype
+    [DecidablePred (· ∈ universalPrefix.haltingSet)] (n : ℕ) :
+    (universalPrefixApprox n : ℝ) =
+      ∑ w ∈ ((universalPrefixTable n).map Prod.fst).toFinset.subtype
+        (· ∈ universalPrefix.haltingSet), (2 : ℝ)⁻¹ ^ (w : List Bool).length := by
+  rw [universalPrefixApprox_eq_finsetSum,
+    Finset.sum_subtype_of_mem (fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length) fun w hw =>
+      haltingSet_iff_exists_mem_universalPrefixTable.mpr ⟨n, List.mem_toFinset.mp hw⟩]
+
 theorem universalPrefixApprox_le_chaitinOmega (n : ℕ) :
     (universalPrefixApprox n : ℝ) ≤ chaitinOmega universalPrefix := by
   classical
-  rw [universalPrefixApprox_eq_finsetSum]
-  let T := ((universalPrefixTable n).map Prod.fst).toFinset
-  have hT : (T : Set (List Bool)) ⊆ universalPrefix.haltingSet := fun w hw =>
-    haltingSet_iff_exists_mem_universalPrefixTable.mpr ⟨n, List.mem_toFinset.mp hw⟩
-  let fEmbed : {w : List Bool // w ∈ T} ↪ universalPrefix.haltingSet :=
-    ⟨fun x => ⟨x.1, hT x.2⟩,
-      fun a b h => Subtype.ext (congrArg (fun z : universalPrefix.haltingSet => z.1) h)⟩
-  let F : Finset universalPrefix.haltingSet := T.attach.map fEmbed
-  have hF : ∑ w ∈ F, (2 : ℝ)⁻¹ ^ (w : List Bool).length = ∑ w ∈ T, (2 : ℝ)⁻¹ ^ w.length := by
-    rw [Finset.sum_map]
-    exact Finset.sum_attach T fun w => (2 : ℝ)⁻¹ ^ w.length
-  rw [← hF]
-  exact isPrefixFree_universalPrefix.summable_two_inv_pow_length.sum_le_tsum F
+  rw [universalPrefixApprox_eq_sum_subtype]
+  exact isPrefixFree_universalPrefix.summable_two_inv_pow_length.sum_le_tsum _
     fun _ _ => by positivity
 
 /-- `universalPrefixApprox` converges from below to `chaitinOmega universalPrefix`. -/
 theorem tendsto_universalPrefixApprox :
     Tendsto (fun n => (universalPrefixApprox n : ℝ)) atTop (𝓝 (chaitinOmega universalPrefix)) := by
   classical
-  rw [Metric.tendsto_atTop]
-  intro ε hε
-  have hs := isPrefixFree_universalPrefix.summable_two_inv_pow_length
-  have htend : ∃ F₀ : Finset universalPrefix.haltingSet,
-      chaitinOmega universalPrefix - ε <
-        ∑ w ∈ F₀, (2 : ℝ)⁻¹ ^ (w : List Bool).length := by
-    by_contra! hall
-    have hle := hs.tsum_le_of_sum_le hall
-    change chaitinOmega universalPrefix ≤ chaitinOmega universalPrefix - ε at hle
-    linarith
-  obtain ⟨F₀, hF₀⟩ := htend
-  have hex_n : ∀ q : universalPrefix.haltingSet,
-      ∃ n, q.1 ∈ (universalPrefixTable n).map Prod.fst := fun q =>
-    haltingSet_iff_exists_mem_universalPrefixTable.mp q.2
-  let N : ℕ := F₀.sup fun q => Nat.find (hex_n q)
-  refine ⟨N, fun n hn => ?_⟩
-  have hsub : F₀.image Subtype.val ⊆ ((universalPrefixTable n).map Prod.fst).toFinset := by
-    intro w hw
-    obtain ⟨q, hqF, rfl⟩ := Finset.mem_image.mp hw
-    have hqn : Nat.find (hex_n q) ≤ n := (Finset.le_sup hqF).trans hn
-    exact List.mem_toFinset.mpr
-      (mem_map_fst_universalPrefixTable_mono hqn (Nat.find_spec (hex_n q)))
-  have hsum_F₀ : ∑ w ∈ F₀, (2 : ℝ)⁻¹ ^ (w : List Bool).length =
-      ∑ w ∈ F₀.image Subtype.val, (2 : ℝ)⁻¹ ^ w.length :=
-    (Finset.sum_image (f := fun w : List Bool => (2 : ℝ)⁻¹ ^ w.length)
-      fun _ _ _ _ h => Subtype.ext h).symm
-  have hle_approx : ∑ w ∈ F₀, (2 : ℝ)⁻¹ ^ (w : List Bool).length ≤
-      (universalPrefixApprox n : ℝ) := by
-    rw [hsum_F₀, universalPrefixApprox_eq_finsetSum]
-    exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
-  have hle_omega := universalPrefixApprox_le_chaitinOmega n
-  rw [Real.dist_eq, abs_lt]
-  constructor <;> linarith
+  have hF : Tendsto (fun n => ((universalPrefixTable n).map Prod.fst).toFinset.subtype
+      (· ∈ universalPrefix.haltingSet)) atTop atTop :=
+    tendsto_atTop_finset_of_monotone (fun m n hmn => by
+      intro w hw
+      simp only [Finset.mem_subtype, List.mem_toFinset] at hw ⊢
+      exact mem_map_fst_universalPrefixTable_mono hmn hw)
+    fun q => (haltingSet_iff_exists_mem_universalPrefixTable.mp q.2).imp fun n hn => by
+      simpa using hn
+  exact (Tendsto.comp isPrefixFree_universalPrefix.summable_two_inv_pow_length.hasSum hF).congr
+    fun n => (universalPrefixApprox_eq_sum_subtype n).symm
 
 -- Maximum program length occurring in `universalPrefixTable n`.
 private def universalPrefixMaxLen (n : ℕ) : ℕ :=
@@ -1235,72 +1177,37 @@ private theorem primrec₂_mlExpand : Primrec₂ mlExpand := by
       refine Primrec₂.mk <| (Primrec.ite hpred
         (Primrec.snd.comp Primrec.snd)
         (Primrec.list_cons.comp (Primrec.fst.comp Primrec.snd)
-          (Primrec.snd.comp Primrec.snd))).of_eq fun ⟨⟨w, seen⟩, ⟨v, acc⟩⟩ => ?_
-      have hiff : (seen.any fun u => decide (u <+: v)) = true ↔ ∃ u ∈ seen, u <+: v := by
-        simp [List.any_eq_true]
-      by_cases h : ∃ u ∈ seen, u <+: v
-      · simp [h, hiff.mpr h]
-      · have hf : (seen.any fun u => decide (u <+: v)) = false :=
-          Bool.eq_false_iff.mpr (mt hiff.mp h)
-        simp [h, hf]
+          (Primrec.snd.comp Primrec.snd))).of_eq fun _ => by simp [List.any_eq_true]
     exact Primrec₂.mk <| Primrec.list_foldr (hext.comp Primrec.fst Primrec.snd)
       (Primrec.const []) hh
   exact hfold.of_eq fun _ _ => rfl
+
+private theorem foldr_ite_eq_filter {β : Type*} (p : β → Bool) (E : List β) :
+    E.foldr (fun v acc => if p v then acc else v :: acc) [] = E.filter fun v => !p v := by
+  induction E with
+  | nil => rfl
+  | cons a rest ih => cases h : p a <;> simp [h, ih]
 
 private theorem foldr_filter_not_mem_prefix {E : List (List Bool)} {seen : List (List Bool)} :
     ∀ v ∈ E.foldr (fun v acc => if seen.any (fun u => decide (u <+: v)) then acc else v :: acc) [],
       v ∈ E ∧ ∀ u ∈ seen, ¬ (u <+: v) := by
   intro v hv
-  induction E with
-  | nil => simp at hv
-  | cons a rest ih =>
-    simp only [List.foldr_cons] at hv
-    by_cases ha : seen.any (fun u => decide (u <+: a)) = true
-    · simp only [ha, ↓reduceIte] at hv
-      have ⟨h1, h2⟩ := ih hv
-      exact ⟨List.mem_cons_of_mem a h1, h2⟩
-    · have haf : seen.any (fun u => decide (u <+: a)) = false := Bool.eq_false_iff.mpr ha
-      simp only [haf, Bool.false_eq_true, ↓reduceIte, List.mem_cons] at hv
-      rcases hv with rfl | hv'
-      · refine ⟨List.mem_cons_self, fun u hu huv => ?_⟩
-        apply ha
-        exact List.any_eq_true.mpr ⟨u, hu, decide_eq_true huv⟩
-      · have ⟨h1, h2⟩ := ih hv'
-        exact ⟨List.mem_cons_of_mem a h1, h2⟩
+  rw [foldr_ite_eq_filter] at hv
+  simpa using hv
 
 private theorem mem_foldr_filter_not_mem_prefix {E seen : List (List Bool)} {v : List Bool}
     (hvE : v ∈ E) (hvnot : ∀ u ∈ seen, ¬ (u <+: v)) :
     v ∈ E.foldr (fun s acc =>
       if seen.any (fun u => decide (u <+: s)) then acc else s :: acc) [] := by
-  induction E with
-  | nil => simp at hvE
-  | cons a rest ih =>
-    simp only [List.foldr_cons]
-    by_cases ha : seen.any (fun u => decide (u <+: a)) = true
-    · simp only [ha, ↓reduceIte]
-      rcases List.mem_cons.mp hvE with rfl | hv'
-      · obtain ⟨u, hu, huv⟩ := List.any_eq_true.mp ha
-        exact absurd (decide_eq_true_eq.mp huv) (hvnot u hu)
-      · exact ih hv'
-    · have haf : seen.any (fun u => decide (u <+: a)) = false := Bool.eq_false_iff.mpr ha
-      simp only [haf, Bool.false_eq_true, ↓reduceIte, List.mem_cons]
-      rcases List.mem_cons.mp hvE with rfl | hv'
-      · exact Or.inl rfl
-      · exact Or.inr (ih hv')
+  rw [foldr_ite_eq_filter]
+  exact List.mem_filter.mpr ⟨hvE, by simpa using hvnot⟩
 
 private theorem nodup_foldr_filter {E : List (List Bool)} (hE : E.Nodup)
     (seen : List (List Bool)) :
     (E.foldr (fun s acc =>
       if seen.any (fun u => decide (u <+: s)) then acc else s :: acc) []).Nodup := by
-  induction E with
-  | nil => simp
-  | cons a rest ih =>
-    rcases List.nodup_cons.mp hE with ⟨ha_not, hrest⟩
-    simp only [List.foldr_cons]
-    split_ifs with h
-    · exact ih hrest
-    · refine List.nodup_cons.mpr ⟨fun hmem => ha_not ?_, ih hrest⟩
-      exact (foldr_filter_not_mem_prefix a hmem).1
+  rw [foldr_ite_eq_filter]
+  exact hE.filter _
 
 /-- Stage enumeration for level `2 * k + 2` of a code `e`. -/
 private def levelStageWord (e : Code) (k j : ℕ) : Option (List Bool) :=
@@ -1405,22 +1312,11 @@ private theorem mlExpand_spec (w : List Bool) (seen : List (List Bool)) :
     refine nodup_foldr_filter ?_ seen
     exact ((Cslib.BitString.nodup_enum (L - w.length)).map List.ofFn_injective).map
       (List.append_right_injective w)
-  have hpair : (mlExpand w seen).Pairwise PrefixDisjoint := by
-    have hpair_eq : ∀ L0 : List (List Bool), L0.Nodup → (∀ a ∈ L0, a.length = L) →
-        L0.Pairwise PrefixDisjoint := by
-      intro L0 hnd hlen
-      induction L0 with
-      | nil => simp
-      | cons a t iht =>
-        rcases List.nodup_cons.mp hnd with ⟨hant, htnd⟩
-        refine List.pairwise_cons.mpr ⟨fun b hbt => ?_,
-          iht htnd fun b hbt => hlen b (List.mem_cons_of_mem a hbt)⟩
-        have hne : a ≠ b := fun heq => hant (heq ▸ hbt)
-        have hal := hlen a List.mem_cons_self
-        have hbl := hlen b (List.mem_cons_of_mem a hbt)
-        exact ⟨fun h => hne (h.eq_of_length (hal.trans hbl.symm)),
-          fun h => hne (h.eq_of_length (hbl.trans hal.symm)).symm⟩
-    exact hpair_eq (mlExpand w seen) hnodup fun v hv => (hprop v hv).2.1
+  have hpair : (mlExpand w seen).Pairwise PrefixDisjoint :=
+    List.Pairwise.imp_of_mem (fun {a b} ha hb hne =>
+      ⟨fun h => hne (h.eq_of_length ((hprop a ha).2.1.trans (hprop b hb).2.1.symm)),
+        fun h => hne (h.eq_of_length ((hprop b hb).2.1.trans (hprop a ha).2.1.symm)).symm⟩)
+      hnodup
   have hcross : ∀ u ∈ seen, ∀ v ∈ mlExpand w seen, PrefixDisjoint u v := by
     intro u hu v hv
     have ⟨_, hvlen, hvnot⟩ := hprop v hv
@@ -1552,22 +1448,9 @@ private theorem mlLevelTrace_level_bound (T : MartinLofTest) {e : Code}
     (∀ v ∈ F, 2 * k + 2 ≤ v.length) ∧
       ∑ v ∈ F, (2 : ℝ)⁻¹ ^ v.length ≤ (2 : ℝ)⁻¹ ^ (2 * k + 2) := by
   have htrace := mlLevelTrace_pairwise_and_dom e k J
-  have hp_list : ∀ S : List (List Bool), S.Pairwise PrefixDisjoint →
-      ∀ v₁ ∈ S, ∀ v₂ ∈ S, v₁ ≠ v₂ → PrefixDisjoint v₁ v₂ := by
-    intro S hS v₁ hv₁ v₂ hv₂ hne
-    induction S with
-    | nil => simp at hv₁
-    | cons a t iht =>
-      rw [List.pairwise_cons] at hS
-      rcases List.mem_cons.mp hv₁ with rfl | h1 <;>
-        rcases List.mem_cons.mp hv₂ with rfl | h2
-      · exact absurd rfl hne
-      · exact hS.1 v₂ h2
-      · exact (hS.1 v₁ h1).symm
-      · exact iht hS.2 h1 h2
+  have : Std.Symm PrefixDisjoint := ⟨fun _ _ h => h.symm⟩
   have hdisj : (F : Set (List Bool)).PairwiseDisjoint prefixCylinderList := fun v₁ hv₁ v₂ hv₂ hne =>
-    disjoint_prefixCylinderList_of_prefixDisjoint
-      (hp_list (mlLevelTrace e k J).1 htrace.1 v₁ (hF v₁ hv₁) v₂ (hF v₂ hv₂) hne)
+    disjoint_prefixCylinderList_of_prefixDisjoint (htrace.1.forall (hF v₁ hv₁) (hF v₂ hv₂) hne)
   have hsub : (⋃ v ∈ F, prefixCylinderList v) ⊆
       ⋃ w ∈ T.cover (2 * k + 2), prefixCylinderList w := by
     refine Set.iUnion₂_subset fun v hv => ?_
@@ -1587,15 +1470,10 @@ private theorem mlLevelTrace_level_bound (T : MartinLofTest) {e : Code}
       _ ≤ (2 : ℝ≥0∞)⁻¹ ^ (2 * k + 2) := T.measure_le (2 * k + 2)
   have hlen_ge : ∀ v ∈ F, 2 * k + 2 ≤ v.length := by
     intro v hv
-    have hsingle : (2 : ℝ≥0∞)⁻¹ ^ v.length ≤ (2 : ℝ≥0∞)⁻¹ ^ (2 * k + 2) :=
-      (Finset.single_le_sum (fun _ _ => by positivity) hv).trans hmeas_F
     have hreal_s : (2 : ℝ)⁻¹ ^ v.length ≤ (2 : ℝ)⁻¹ ^ (2 * k + 2) := by
-      have hm := ENNReal.toReal_mono (by simp) hsingle
-      simpa using hm
-    by_contra! hlt
-    have hpow_lt : (2 : ℝ)⁻¹ ^ (2 * k + 2) < (2 : ℝ)⁻¹ ^ v.length :=
-      pow_lt_pow_right_of_lt_one₀ (by norm_num) (by norm_num) hlt
-    linarith
+      simpa using ENNReal.toReal_mono (by simp)
+        ((Finset.single_le_sum (fun _ _ => by positivity) hv).trans hmeas_F)
+    exact (pow_le_pow_iff_right_of_lt_one₀ (by norm_num) (by norm_num)).mp hreal_s
   refine ⟨hlen_ge, ?_⟩
   have hreal : (∑ v ∈ F, (2 : ℝ≥0∞)⁻¹ ^ v.length).toReal ≤
       ((2 : ℝ≥0∞)⁻¹ ^ (2 * k + 2)).toReal :=
@@ -1718,40 +1596,19 @@ private theorem mlReq_sum_le_one (T : MartinLofTest) {e : Code}
             fun i₁ hi₁ i₂ hi₂ => hinj hi₁ hi₂).symm
       _ = ∑ v ∈ F, (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ v.length := by
           refine Finset.sum_congr rfl fun v hv => ?_
-          have hk_le : k ≤ v.length := by have := hlen_ge v hv; omega
-          have hv_split : (v.length - k) + k = v.length := Nat.sub_add_cancel hk_le
-          have hmul : (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ v.length = (2 : ℝ)⁻¹ ^ (v.length - k) := by
-            conv_lhs => rw [← hv_split]
-            rw [pow_add, inv_pow, inv_pow]
-            field_simp
-          exact hmul.symm
+          obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le (show k ≤ v.length by
+            have := hlen_ge v hv; omega)
+          rw [hd, Nat.add_sub_cancel_left, pow_add, ← mul_assoc, ← mul_pow,
+            mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
       _ = (2 : ℝ) ^ k * ∑ v ∈ F, (2 : ℝ)⁻¹ ^ v.length := by rw [Finset.mul_sum]
       _ ≤ (2 : ℝ) ^ k * (2 : ℝ)⁻¹ ^ (2 * k + 2) := by gcongr
       _ = (2 : ℝ)⁻¹ ^ (k + 2) := by
-          have hpow : (2 : ℝ)⁻¹ ^ (2 * k + 2) = (2 : ℝ)⁻¹ ^ k * (2 : ℝ)⁻¹ ^ (k + 2) := by
-            rw [← pow_add]
-            ring_nf
-          rw [hpow, ← mul_assoc, inv_pow, mul_inv_cancel₀ (by positivity), one_mul]
-  have hgeom : ∀ m : ℕ, ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ (k + 2) ≤ 1 := by
-    intro m
-    have hlt : ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ k < 2 := by
-      induction m with
-      | zero => norm_num
-      | succ m ihm =>
-        have hstep : ∑ k ∈ Finset.range (m + 1), (2 : ℝ)⁻¹ ^ k =
-            1 + (2 : ℝ)⁻¹ * ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ k := by
-          rw [Finset.sum_range_succ', Finset.mul_sum]
-          simp [pow_zero, pow_succ, mul_comm]
-          ring
-        linarith
-    have hmul4 : ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ (k + 2) =
-        (4 : ℝ)⁻¹ * ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ k := by
-      rw [Finset.mul_sum]
-      refine Finset.sum_congr rfl fun k _ => ?_
-      rw [pow_add]
-      norm_num
-      ring
-    rw [hmul4]
+          rw [show 2 * k + 2 = k + (k + 2) by ring, pow_add, ← mul_assoc, ← mul_pow,
+            mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
+  have hgeom : ∀ m : ℕ, ∑ k ∈ Finset.range m, (2 : ℝ)⁻¹ ^ (k + 2) ≤ 1 := fun m => by
+    have h := sum_geometric_two_le m
+    simp only [pow_add, ← Finset.sum_mul, one_div] at h ⊢
+    norm_num at h ⊢
     linarith
   exact (Finset.sum_le_sum hfiber).trans (hgeom K)
 
@@ -2107,51 +1964,10 @@ theorem finite_of_rePred_of_sound_realBit_chaitinOmega {S : Set (ℕ × Bool)}
       (bitMissingIdx L).Nodup ∧
       (∀ idx ∈ bitMissingIdx L, idx < M ∧ ∀ ib ∈ L, ib.1 ≠ idx) ∧
       (∀ idx < M, (∃ ib ∈ L, ib.1 = idx) ∨ idx ∈ bitMissingIdx L) := by
-    have hnd_range : (List.range M).Nodup := List.nodup_range
-    suffices hgen : ∀ R : List ℕ, R.Nodup → (∀ idx ∈ R, idx < M) →
-        (R.foldr (fun idx acc => if L.any (fun ib => decide (ib.1 = idx)) then acc else idx :: acc)
-          []).Nodup ∧
-        (∀ idx ∈ R.foldr
-            (fun idx acc => if L.any (fun ib => decide (ib.1 = idx)) then acc else idx :: acc) [],
-          idx ∈ R ∧ idx < M ∧ ∀ ib ∈ L, ib.1 ≠ idx) ∧
-        (∀ idx ∈ R, (∃ ib ∈ L, ib.1 = idx) ∨ idx ∈ R.foldr
-          (fun idx acc => if L.any (fun ib => decide (ib.1 = idx)) then acc else idx :: acc)
-          []) by
-      have hg := hgen (List.range M) hnd_range fun idx h => List.mem_range.mp h
-      refine ⟨hg.1, fun idx hidx => (hg.2.1 idx hidx).2, fun idx hidx => ?_⟩
-      exact hg.2.2 idx (List.mem_range.mpr hidx)
-    intro R hRnd hRlt
-    induction R with
-    | nil => simp
-    | cons a t iht =>
-      rcases List.nodup_cons.mp hRnd with ⟨hat, htnd⟩
-      obtain ⟨ihnd, ihsub, ihcov⟩ := iht htnd fun idx h => hRlt idx (List.mem_cons_of_mem a h)
-      simp only [List.foldr_cons]
-      by_cases ha : L.any (fun ib => decide (ib.1 = a)) = true
-      · simp only [ha, ↓reduceIte]
-        refine ⟨ihnd, fun idx hidx => ?_, fun idx hidx => ?_⟩
-        · obtain ⟨h1, h2⟩ := ihsub idx hidx
-          exact ⟨List.mem_cons_of_mem a h1, h2⟩
-        · rcases List.mem_cons.mp hidx with rfl | ht
-          · obtain ⟨ib, hib, heq⟩ := List.any_eq_true.mp ha
-            exact Or.inl ⟨ib, hib, decide_eq_true_eq.mp heq⟩
-          · exact ihcov idx ht
-      · have haf : L.any (fun ib => decide (ib.1 = a)) = false := Bool.eq_false_iff.mpr ha
-        simp only [haf, Bool.false_eq_true, ↓reduceIte]
-        have ha_no : ∀ ib ∈ L, ib.1 ≠ a := fun ib hib heq => by
-          apply ha
-          exact List.any_eq_true.mpr ⟨ib, hib, decide_eq_true heq⟩
-        refine ⟨List.nodup_cons.mpr ⟨fun hm => hat (ihsub a hm).1, ihnd⟩, fun idx hidx => ?_,
-          fun idx hidx => ?_⟩
-        · rcases List.mem_cons.mp hidx with rfl | ht
-          · exact ⟨List.mem_cons_self, hRlt idx List.mem_cons_self, ha_no⟩
-          · obtain ⟨h1, h2⟩ := ihsub idx ht
-            exact ⟨List.mem_cons_of_mem a h1, h2⟩
-        · rcases List.mem_cons.mp hidx with rfl | ht
-          · exact Or.inr List.mem_cons_self
-          · rcases ihcov idx ht with hL | hacc
-            · exact Or.inl hL
-            · exact Or.inr (List.mem_cons_of_mem a hacc)
+    rw [bitMissingIdx, foldr_ite_eq_filter]
+    refine ⟨List.nodup_range.filter _, fun idx hidx => by simpa [M] using hidx,
+      fun idx hidx => or_iff_not_imp_left.mpr fun h => List.mem_filter.mpr
+        ⟨List.mem_range.mpr hidx, by push Not at h; simpa using h⟩⟩
   have hmissing_len : (bitMissingIdx L).length + k = M := by
     have hdisj : Disjoint (bitMissingIdx L).toFinset (L.map Prod.fst).toFinset := by
       rw [Finset.disjoint_left]
