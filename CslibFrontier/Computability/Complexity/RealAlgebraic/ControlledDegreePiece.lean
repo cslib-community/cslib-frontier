@@ -13,8 +13,10 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.DegreePiecePolynomial
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledBoundedSum
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoordinateLift
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFirstCoefficient
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 
 /-!
@@ -23,10 +25,13 @@ import CslibFrontier.Foundations.Data.MvPolynomial.FirstVariable
 The inverse equation and the guarded sum of higher coefficient squares operate on the
 same controlled family. Coefficient extraction costs one counting level and the bounded
 sum costs one more. The inverse coordinate is prepended to the original parameter point.
+A witness word selects the degree with a fixed-width prefix and leaves its suffix
+available for the coordinate witnesses.
 
 Adapted from `ControlledLiftedCoefficient` and `ControlledDegreePiece` in lean-canny
 at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. The common budgets adapt
-`ControlledBoundedDegreePiece` at the same revision.
+`ControlledBoundedDegreePiece` at the same revision. The word interface adapts
+`ControlledWordDegreePiece` by encoding the degree as a fixed-width binary prefix.
 -/
 
 public section
@@ -176,5 +181,41 @@ variable (C : Controlled P enc a) (E : Decoder enc)
   simp only [boundedDegreePiece]
 
 end BoundedDegreePiece
+
+/-- The first `N.size` bits encode a most-significant-first degree choice modulo `N + 1`.
+Short words are decoded from the bits present. The suffix has no effect on the choice. -/
+@[expose] def decodeDegreeChoice (N : ℕ) (word : List Bool) : Fin (N + 1) :=
+  ⟨BitString.binaryValue (word.take N.size) % (N + 1), Nat.mod_lt _ (Nat.succ_pos _)⟩
+
+/-- Each bounded degree can be prefixed to any suffix using exactly `N.size` bits. -/
+theorem exists_degreeChoiceWord {N : ℕ} (k : Fin (N + 1)) (suffix : List Bool) :
+    ∃ word : List Bool, word.length = N.size + suffix.length ∧
+      decodeDegreeChoice N word = k ∧ word.drop N.size = suffix := by
+  let degreeBits := BitString.binaryWord N.size k.val
+  have hlen : degreeBits.length = N.size :=
+    BitString.length_binaryWord (k.isLt.trans_le (Nat.lt_size_self N))
+  refine ⟨degreeBits ++ suffix, by rw [List.length_append, hlen], ?_, List.drop_left' hlen⟩
+  apply Fin.ext
+  change BitString.binaryValue ((degreeBits ++ suffix).take N.size) % (N + 1) = k.val
+  rw [List.take_left' hlen, BitString.binaryValue_binaryWord, Nat.mod_eq_of_lt k.isLt]
+
+/-- Degree selection takes polynomial time on a binary bound and a raw witness word. -/
+theorem decodeDegreeChoice_polyTime {N : α → ℕ} {word : α → List Bool}
+    (hN : ComputableInPolyTime N enc encNat) (hword : ComputableInPolyTime word enc encBits) :
+    ComputableInPolyTime (fun w => (decodeDegreeChoice (N w) (word w)).val) enc encNat :=
+  binary_mod' (bitsBinaryValue.comp (bitsTakeWithInput hword (binary_size.comp hN)))
+    (binary_add' hN (.const 1))
+
+/-- A witness word selects a bounded degree piece at two additional counting levels.
+The arity and all three access bounds are determined by the source family. -/
+@[expose] noncomputable def wordDegreePiece (C : Controlled P enc a) (E : Decoder enc)
+    (hn : ComputableInPolyTime n enc encUnary) :
+    Controlled (fun q : α × List Bool => degreePiecePolynomial (P q.1) (C.degreeBound q.1)
+      (decodeDegreeChoice (C.degreeBound q.1) q.2).val) (encPair enc encBits) (a + 2) :=
+  have hinput := fst enc encBits
+  (C.preprocess Prod.fst hinput).boundedDegreePiece (Decoder.pair E Decoder.bits) (hn.comp hinput)
+    (fun q => (decodeDegreeChoice (C.degreeBound q.1) q.2).val)
+    (decodeDegreeChoice_polyTime (C.degree_computable.comp hinput) (snd enc encBits))
+    (fun q => Nat.le_of_lt_succ (decodeDegreeChoice (C.degreeBound q.1) q.2).isLt)
 
 end Cslib.Complexity.RealAlgebraic.Controlled
