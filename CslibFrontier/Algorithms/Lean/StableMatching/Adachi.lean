@@ -327,7 +327,8 @@ theorem isFixedPt_ofMatching_iff (μ : Matching n) :
     exact not_lt_of_ge hle hp
   · intro hstab
     refine PreMatching.ext (funext fun p => ?_) (funext fun r => ?_)
-    · rw [adachiMap_propPartner]
+    · -- propPartner fixed
+      rw [adachiMap_propPartner]
       have hle1 := I.propOptRank_bestWillingReceiver_le (ν := PreMatching.ofMatching I μ) (p := p)
         (r := μ p) (by simp [willingReceivers, PreMatching.ofMatching])
       cases hbest : I.bestWillingReceiver (PreMatching.ofMatching I μ) p with
@@ -345,7 +346,8 @@ theorem isFixedPt_ofMatching_iff (μ : Matching n) :
         rw [hbest, propOptRank_some] at hle1
         simp only [PreMatching.ofMatching,
           I.propRank_injective p (le_antisymm (Fin.castSucc_le_castSucc_iff.1 hle1) hge)]
-    · rw [adachiMap_recvPartner]
+    · -- recvPartner fixed
+      rw [adachiMap_recvPartner]
       have hle1 := I.recvOptRank_bestWillingProposer_le (ν := PreMatching.ofMatching I μ) (r := r)
         (p := μ.symm r) (by simp [willingProposers, PreMatching.ofMatching])
       cases hbest : I.bestWillingProposer (PreMatching.ofMatching I μ) r with

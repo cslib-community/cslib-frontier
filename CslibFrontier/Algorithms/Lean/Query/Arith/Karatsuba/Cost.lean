@@ -203,9 +203,9 @@ theorem mulCount_add_addCount_le (n : ℕ) :
 /-- At least `3 ^ ⌊log₂ n⌋` multiplications for `n ≠ 0`. -/
 theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCount n := by
   fun_induction mulCount n with
-  | case1 => exact absurd rfl hn
-  | case2 => simp
-  | case3 n ih₁ ih₂ =>
+  | case1 => exact absurd rfl hn -- 0
+  | case2 => simp -- 1
+  | case3 n ih₁ ih₂ => -- n + 2
     have hlog : Nat.log 2 (n + 2) = Nat.log 2 ((n + 2) / 2) + 1 := by
       have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n + 2)
       rw [Nat.log_div_base]; omega
@@ -216,8 +216,8 @@ theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCo
 /-- At most `n ^ 2` multiplications. -/
 theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
   fun_induction mulCount n with
-  | case1 | case2 => simp
-  | case3 n ih₁ ih₂ =>
+  | case1 | case2 => simp -- 0, 1
+  | case3 n ih₁ ih₂ => -- n + 2
     set m := (n + 2) / 2; set k := n + 2 - m
     have hkm : k ≤ m + 1 := by omega
     have hm1 : 1 ≤ m := by omega

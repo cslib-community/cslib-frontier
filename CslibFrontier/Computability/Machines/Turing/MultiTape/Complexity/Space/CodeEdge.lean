@@ -93,7 +93,8 @@ theorem computableInO_viewStepB :
     rcases tag with ⟨_ | state, symbol, work⟩
     · refine (ComputableInO.eq' hsnd hfst).mono 4 (fun p => by nlinarith [h₁ p, h₂ p]) fun p => ?_
       simp only [length_encPair]; nlinarith [h₁ p, h₂ p]
-    · dsimp only [branch]
+    · -- a fixed finite list of actions, each compared by its own certificate
+      dsimp only [branch]
       refine (ComputableInO.list_any _ (T := fun p =>
           ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2)
         (S := fun p => ((encPair encFiniteCfg encFiniteCfg p).length + 1) ^ 2) fun action _ => ?_)
