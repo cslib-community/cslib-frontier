@@ -145,6 +145,8 @@ CI_ONLY = {
         "advisory; never fails the job. Run `scripts/check_hub_impact.py --base REF` to see it",
     "lake lint (affected modules)":
         "pull requests only (#5163); local full_check runs whole-library `lake lint` above",
+    "lake build (merge group, fail fast)":
+        "merge groups only; the `lake build` step with `--fail-fast`, so a failing group ends sooner",
     "Sample runner disk use": "hosted-runner disk telemetry",
     "Report runner disk use": "hosted-runner disk telemetry",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",

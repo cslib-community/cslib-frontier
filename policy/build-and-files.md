@@ -62,7 +62,9 @@ when a PR modifies an existing module with `>= 500` transitive importers, and th
 in `CslibFrontierGuide`'s transitive import closure. Merge groups, pushes to `main`, and manual
 runs continue to run whole-library `lake lint` so non-local linters check the combined library
 environment, while the whole-library advisory security-premise and reduction-witness reports run on
-`main` pushes (PRs check changed modules).
+`main` pushes (PRs check changed modules). Merge groups build the same targets with Lake's
+`--fail-fast`, so the first failed module ends the build and a breaking entry is ejected sooner;
+pull requests, pushes and manual runs build every target and report every error.
 
 During development, check affected modules and representative clients before requesting review;
 a PR may use CI for the full run. For documentation-only changes, check consistency, links and
