@@ -212,9 +212,10 @@ theorem coalitionInfluence_le_of_independence_le {D : PMF (BitString n)} {d p t 
     ((fanInAtMost_undeterminedCircuit hfan Q).mono (max_le le_rfl (by omega)))
     (by rw [size_undeterminedCircuit]; exact hsize)
     ((depth_undeterminedCircuit_le C Q).trans (by omega)) ht hD
-  rw [show coalitionInfluence D Q (fun x => C.eval Unbounded.interpretation x 0) =
-    ∑ x, (D x).toReal * bitVal ℝ (E.eval Unbounded.interpretation x 0) from
-    sum_congr rfl fun x _ => by rw [hE]]
+  have hX : coalitionInfluence D Q (fun x => C.eval Unbounded.interpretation x 0) =
+      ∑ x, (D x).toReal * bitVal ℝ (E.eval Unbounded.interpretation x 0) :=
+    sum_congr rfl fun x _ => by rw [hE]
+  rw [hX]
   rw [coalitionInfluence_uniformOfFintype, expect_congr rfl fun x _ => hE x] at hQ
   linarith [(abs_le.1 hfools).2]
 

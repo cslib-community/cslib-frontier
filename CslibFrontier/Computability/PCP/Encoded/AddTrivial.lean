@@ -112,12 +112,14 @@ theorem toGraph_append (vertices : ℕ) (left right : List (Edge C))
 theorem satisfiable_addTrivial_iff (g : Graph C) (eval : C → α → α → Bool)
     (truth : C) (htruth : ∀ a b, eval truth a b = true) (extra : List (ℕ × ℕ)) :
     ((g.addTrivial truth extra).toGraph eval).Satisfiable ↔ (g.toGraph eval).Satisfiable := by
+  have hcomap : ((g.addTrivial truth extra).toGraph eval).comap
+      (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)) =
+      (g.toGraph eval).union
+        ((Graph.mk g.vertices (extra.map fun p => ⟨p.1, p.2, truth⟩)).toGraph eval) :=
+    toGraph_append g.vertices g.edges _ eval
   rw [← ConstraintGraph.satisfiable_comap_iff ((g.addTrivial truth extra).toGraph eval)
       (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)).surjective,
-    show ((g.addTrivial truth extra).toGraph eval).comap
-        (List.appendIndexEquiv g.edges (extra.map fun p => ⟨p.1, p.2, truth⟩)) = _ from
-      toGraph_append g.vertices g.edges _ eval,
-    ConstraintGraph.satisfiable_union_iff]
+    hcomap, ConstraintGraph.satisfiable_union_iff]
   exact ⟨fun ⟨σ, hσ, _⟩ => ⟨σ, hσ⟩, fun ⟨σ, hσ⟩ => ⟨σ, hσ, fun _ => by
     simp [ConstraintGraph.Satisfies, toGraph, List.get_eq_getElem, htruth]⟩⟩
 
