@@ -166,10 +166,8 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
   have hSfin : ∑ j : Fin (n + 1), α ^ (n - (j : ℕ)) = S := by
     rw [Fin.sum_univ_eq_sum_range (fun j => α ^ (n - j)) (n + 1), hS,
       ← Finset.sum_range_reflect]
-    refine Finset.sum_congr rfl fun j hj => ?_
-    rw [Finset.mem_range] at hj
-    congr 1
-    omega
+    exact Finset.sum_congr rfl fun j hj =>
+      congrArg (α ^ ·) (by have := Finset.mem_range.1 hj; omega)
   set g := gramSchmidt ℝ b with hg
   let T : E → Fin (n + 1) → ℝ := fun z j => inner ℝ (g j) z ^ 2 / ‖g j‖ ^ 2
   have hT0 : ∀ z j, 0 ≤ T z j := fun z j => div_nonneg (sq_nonneg _) (sq_nonneg _)
@@ -201,13 +199,11 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
   have habove : ∀ i, k < i → e i = 0 := fun i hi => by_contra fun h =>
     hi.not_ge (Finset.le_max' _ i (Finset.mem_filter.2 ⟨Finset.mem_univ i, h⟩))
   -- inner products of `d'` in terms of those of `d`
-  have hinner : ∀ j, k ≤ j → inner ℝ (g j) d' = inner ℝ (g j) d + e j * ‖g j‖ ^ 2 := by
-    intro j hj
+  have hinner : ∀ j, k ≤ j → inner ℝ (g j) d' = inner ℝ (g j) d + e j * ‖g j‖ ^ 2 := fun j hj => by
     rw [hdd', inner_add_right, ← he, hg,
       inner_gramSchmidt_sum_zsmul b e fun i hi => habove i (lt_of_le_of_lt hj hi)]
     rfl
-  have hTabove : ∀ j, k < j → T d' j = T d j := by
-    intro j hj
+  have hTabove : ∀ j, k < j → T d' j = T d j := fun j hj => by
     simp only [T]
     rw [hinner j hj.le, habove j hj, Int.cast_zero, zero_mul, add_zero]
   -- the coordinate `k` of `d'` is at least `1/2` in absolute value
@@ -226,8 +222,7 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
     rw [le_div_iff₀ hN, ← sq_abs (inner ℝ (g k) d')]
     nlinarith [abs_nonneg (inner ℝ (g k) d')]
   -- the coordinates of `d` are at most `1/2` in absolute value
-  have hTle : ∀ j, T d j ≤ ‖g j‖ ^ 2 / 4 := by
-    intro j
+  have hTle : ∀ j, T d j ≤ ‖g j‖ ^ 2 / 4 := fun j => by
     simp only [T]
     rcases eq_or_ne (g j) 0 with h0 | h0
     · simp [h0]
@@ -236,8 +231,7 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
     rw [← hg, ← hd] at hu
     rw [div_le_iff₀ hN, ← sq_abs (inner ℝ (g j) d)]
     nlinarith [abs_nonneg (inner ℝ (g j) d)]
-  have hTbelow : ∀ j, j ≤ k → T d j ≤ α ^ (n - (j : ℕ)) * T d' k := by
-    intro j hj
+  have hTbelow : ∀ j, j ≤ k → T d j ≤ α ^ (n - (j : ℕ)) * T d' k := fun j hj => by
     have hjk : (j : ℕ) + ((k : ℕ) - j) < n + 1 := by have := k.isLt; omega
     have hchain := hb.norm_sq_gramSchmidt_chain hδ j ((k : ℕ) - j) hjk
     have hidx : (⟨(j : ℕ) + ((k : ℕ) - j), hjk⟩ : Fin (n + 1)) = k := by
@@ -251,8 +245,7 @@ theorem IsNearestPlane.norm_sq_le {δ : ℝ} {b : Fin (n + 1) → E} (hb : IsRed
       _ ≤ α ^ (n - (j : ℕ)) * T d' k := by gcongr
   -- sum the termwise bounds
   let V : Fin (n + 1) → ℝ := fun j => if k < j then T d' j else 0
-  have hterm : ∀ j, T d j ≤ α ^ (n - (j : ℕ)) * T d' k + V j := by
-    intro j
+  have hterm : ∀ j, T d j ≤ α ^ (n - (j : ℕ)) * T d' k + V j := fun j => by
     by_cases hj : k < j
     · simp only [V, hj, ↓reduceIte, hTabove j hj]
       linarith [mul_nonneg (pow_nonneg hα0 (n - (j : ℕ))) (hT0 d' k)]
