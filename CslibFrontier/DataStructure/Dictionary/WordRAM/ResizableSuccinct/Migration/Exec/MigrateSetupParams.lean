@@ -607,10 +607,10 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     hex₁.seq_eq (hex₂.seq_eq (hex₃.seq_eq
       ((hex_wp1.mono hc_wp1_mul (fun _ h => h)).seq_eq
         (hex_nhp.seq_eq (hex_ncp.seq_eq (hex_niw.seq_eq hex_ca))))))
-  have hkeep_6_to_8 : ∀ reg : Fin rResize, reg.val < 160 → reg ≠ mFr → reg ≠ mIwNew →
-      reg ∉ ([mArenaWords, mCur, mArena, mPeakFront, mK, mOldItemDst] : List (Fin rResize)) →
-      s₈.regs reg = s₆.regs reg := fun reg h160 hfr' hiwn hnot =>
-    (hs₈_keep reg hnot).trans (hs₇_keep6 reg hfr' h160 hiwn)
+  have hs₈_new : ∀ reg : Fin rResize, 16 ≤ reg.val ∧ reg.val < 146 → s₈.regs reg = s₆.regs reg :=
+    fun reg h => (hs₈_keep reg (by clear * - h; simp [Fin.ext_iff]; omega)).trans <|
+      hs₇_keep6 reg (by clear * - h; simp [Fin.ext_iff]; omega) (by omega)
+        (by clear * - h; simp [Fin.ext_iff]; omega)
   have hs₈_s₁ : ∀ reg : Fin rResize, reg.val < 160 → (reg.val < 90 ∨ 146 ≤ reg.val) →
       reg ∉ ([mFr, mIwNew, mArenaWords, mCur, mArena, mPeakFront, mK, mOldItemDst, mOffNew,
         mHSpaceNew, mTmpA] : List (Fin rResize)) → s₈.regs reg = s₁.regs reg :=
@@ -622,6 +622,8 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
         hs₅_r reg hcur (fun i h => by clear * - h hr; rw [← h, val_mNewHp] at hr; omega),
         hs₄_keep reg h1 h160 hoff hhs]
       exact (Function.update_of_ne hta _ _).trans (Function.update_of_ne hcur _ _)
+  have hs₈_old : ∀ reg : Fin rResize, 16 ≤ reg.val ∧ reg.val < 90 → s₈.regs reg = s₁.regs reg :=
+    fun reg h => hs₈_s₁ reg (by omega) (Or.inl h.2) (by clear * - h; simp [Fin.ext_iff]; omega)
   have hs₈_base : s₈.regs mBase = base :=
     (hs₈_s₁ _ (mReg_lt_160 _) (by simp) (by simp)).trans hs₁_base
   refine ⟨s₈, _, hex_params, by nlinarith only [hn, hf1], hs₈b, hs₈f_eq,
@@ -640,16 +642,10 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
     (hs₈_keep _ (by simp)).trans hs₇_iwo, (hs₈_keep _ (by simp)).trans hs₇_iwn,
     hs₈_ar, hs₈_pf.trans hpeak_eq.symm,
     hs₈_k.trans (by dsimp only [peakF]; rw [hpeak_raw]; rfl), hs₈_oid,
-    fun i => (hs₈_s₁ _ (mOldHp_lt_160 i) (Or.inl (by rw [val_mOldHp]; omega))
-      (by clear * -; simp [Fin.ext_iff]; omega)).trans (hs₁_ohp i),
-    fun i => (hs₈_s₁ _ (mOldCp_lt_160 i) (Or.inl (by rw [val_mOldCp]; omega))
-      (by clear * -; simp [Fin.ext_iff]; omega)).trans (hs₁_ocp i),
-    fun i => (hkeep_6_to_8 _ (mNewHp_lt_160 i) (mNewHp_ne_mReg i (Or.inl (by decide)))
-      (mNewHp_ne_mReg i (Or.inr (by decide))) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₆_nhp_all i),
-    fun i => (hkeep_6_to_8 _ (mNewCp_lt_160 i) (mNewCp_ne_mReg i (Or.inl (by decide)))
-      (mNewCp_ne_mReg i (Or.inr (by decide))) (by clear * -; simp [Fin.ext_iff]; omega)).trans
-      (hs₆_ncp_all i)⟩
+    fun i => (hs₈_old _ (by simp only [val_mOldHp]; omega)).trans (hs₁_ohp i),
+    fun i => (hs₈_old _ (by simp only [val_mOldCp]; omega)).trans (hs₁_ocp i),
+    fun i => (hs₈_new _ (by simp only [val_mNewHp]; omega)).trans (hs₆_nhp_all i),
+    fun i => (hs₈_new _ (by simp only [val_mNewCp]; omega)).trans (hs₆_ncp_all i)⟩
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
