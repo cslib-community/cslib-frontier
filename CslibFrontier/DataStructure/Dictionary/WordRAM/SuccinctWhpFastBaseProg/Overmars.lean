@@ -61,6 +61,124 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+/-! ### Bundled read-only and fast-step specifications -/
+
+/-- From `s`, `p` leaves the state unchanged, returns `r`, issues exactly `C` memory operations,
+and is valid below frontier `F`. -/
+private structure ReadSpec {α : Type} (w F : ℕ) (s : Memory.State) (p : Memory.Prog α) (r : α)
+    (C : ℕ) : Prop where
+  state : (Memory.spec 0).clientState s p = s
+  result : (Memory.spec 0).clientResult s p = r
+  cost : memoryCost p s = C
+  valid : ValidProg w F s p
+
+private theorem ReadSpec.of {α : Type} {w F C : ℕ} {s : Memory.State} {p : Memory.Prog α}
+    {r : α} (h : (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r ∧
+      memoryCost p s = C ∧ ValidProg w F s p) : ReadSpec w F s p r C :=
+  ⟨h.1, h.2.1, h.2.2.1, h.2.2.2⟩
+
+private theorem ReadSpec.toAnd {α : Type} {w F C C' : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} {r r' : α} (h : ReadSpec w F s p r C) (hr : r = r') (hC : C = C') :
+    (Memory.spec 0).clientState s p = s ∧ (Memory.spec 0).clientResult s p = r' ∧
+      memoryCost p s = C' ∧ ValidProg w F s p :=
+  ⟨h.state, hr ▸ h.result, hC ▸ h.cost, h.valid⟩
+
+private theorem ReadSpec.pure {α : Type} {w F : ℕ} {s : Memory.State} (a : α) :
+    ReadSpec w F s (pure a) a 0 :=
+  ⟨rfl, rfl, rfl, validProg_pure a⟩
+
+private theorem ReadSpec.bind {α β : Type} {w F C₁ C₂ : ℕ} {s : Memory.State}
+    {m : Memory.Prog α} {k : α → Memory.Prog β} {a : α} {b : β}
+    (hm : ReadSpec w F s m a C₁) (hk : ReadSpec w F s (k a) b C₂) :
+    ReadSpec w F s (m >>= k) b (C₁ + C₂) where
+  state := by rw [clientState_bind, hm.state, hm.result, hk.state]
+  result := by rw [clientResult_bind, hm.state, hm.result, hk.result]
+  cost := by rw [memoryCost_bind', hm.state, hm.result, hm.cost, hk.cost]
+  valid := validProg_bind hm.valid (by rw [hm.state, hm.result]; exact hk.valid)
+
+/-- From `s`, `p` issues exactly `C` memory operations, is valid below the large-mode frontier,
+and is a `FastStateStep` to `fs'`. -/
+private structure StepSpec {α : Type} (base c U V w n_max : ℕ) (θ : SeedWhp c U n_max)
+    (fs' : FastState) (s : Memory.State) (p : Memory.Prog α) (C : ℕ) : Prop where
+  cost : memoryCost p s = C
+  valid : ValidProg w (base + largeSpaceWhp c U V w n_max) s p
+  step : FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p)
+
+private theorem StepSpec.of {α : Type} {base c U V w n_max C : ℕ} {θ : SeedWhp c U n_max}
+    {fs' : FastState} {s : Memory.State} {p : Memory.Prog α}
+    (h : memoryCost p s = C ∧ ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p)) :
+    StepSpec base c U V w n_max θ fs' s p C :=
+  ⟨h.1, h.2.1, h.2.2⟩
+
+/-- Record the exact cost of a step known only to be bounded; the bound stays with the caller. -/
+private theorem StepSpec.of_le {α : Type} {base c U V w n_max C : ℕ} {θ : SeedWhp c U n_max}
+    {fs' : FastState} {s : Memory.State} {p : Memory.Prog α}
+    (h : memoryCost p s ≤ C ∧ ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p)) :
+    StepSpec base c U V w n_max θ fs' s p (memoryCost p s) :=
+  ⟨rfl, h.2.1, h.2.2⟩
+
+private theorem StepSpec.toAnd {α : Type} {base c U V w n_max C C' : ℕ}
+    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State} {p : Memory.Prog α}
+    (h : StepSpec base c U V w n_max θ fs' s p C) (hC : C = C') :
+    memoryCost p s = C' ∧ ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p) :=
+  ⟨hC ▸ h.cost, h.valid, h.step⟩
+
+private theorem StepSpec.toAnd_le {α : Type} {base c U V w n_max C C' : ℕ}
+    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State} {p : Memory.Prog α}
+    (h : StepSpec base c U V w n_max θ fs' s p C) (hC : C ≤ C') :
+    memoryCost p s ≤ C' ∧ ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p) :=
+  ⟨h.cost ▸ hC, h.valid, h.step⟩
+
+private theorem StepSpec.toAnd_le_and {α : Type} {base c U V w n_max C C' : ℕ}
+    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State} {p : Memory.Prog α} {P : Prop}
+    (h : StepSpec base c U V w n_max θ fs' s p C) (hC : C ≤ C') (hP : P) :
+    memoryCost p s ≤ C' ∧ ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+      FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p) ∧ P :=
+  ⟨h.cost ▸ hC, h.valid, h.step, hP⟩
+
+private theorem StepSpec.pure {α : Type} {base c U V w n_max : ℕ} {θ : SeedWhp c U n_max}
+    {fs : FastState} {s : Memory.State} (hseed : SeedWhpMemRep base c U w n_max θ s.mem)
+    (hrep : FastMemRep base c U V w n_max fs s.mem) (a : α) :
+    StepSpec base c U V w n_max θ fs s (pure a) 0 :=
+  ⟨rfl, validProg_pure a, FastStateStep.refl hseed hrep⟩
+
+private theorem StepSpec.bind {α β : Type} {base c U V w n_max C₁ C₂ : ℕ}
+    {θ : SeedWhp c U n_max} {fs₁ fs₂ : FastState} {s : Memory.State}
+    {m : Memory.Prog α} {k : α → Memory.Prog β}
+    (hm : StepSpec base c U V w n_max θ fs₁ s m C₁)
+    (hk : StepSpec base c U V w n_max θ fs₂ ((Memory.spec 0).clientState s m)
+      (k ((Memory.spec 0).clientResult s m)) C₂) :
+    StepSpec base c U V w n_max θ fs₂ s (m >>= k) (C₁ + C₂) where
+  cost := by rw [memoryCost_bind', hm.cost, hk.cost]
+  valid := validProg_bind hm.valid hk.valid
+  step := by rw [clientState_bind]; exact hm.step.trans hk.step
+
+private theorem ReadSpec.thenStep {α β : Type} {base c U V w n_max C₁ C₂ : ℕ}
+    {θ : SeedWhp c U n_max} {fs' : FastState} {s : Memory.State}
+    {m : Memory.Prog α} {k : α → Memory.Prog β} {a : α}
+    (hm : ReadSpec w (base + largeSpaceWhp c U V w n_max) s m a C₁)
+    (hk : StepSpec base c U V w n_max θ fs' s (k a) C₂) :
+    StepSpec base c U V w n_max θ fs' s (m >>= k) (C₁ + C₂) where
+  cost := by rw [memoryCost_bind', hm.state, hm.result, hk.cost, hm.cost]
+  valid := validProg_bind hm.valid (by rw [hm.state, hm.result]; exact hk.valid)
+  step := by rw [clientState_bind, hm.state, hm.result]; exact hk.step
+
+private theorem StepSpec.if_pos {α : Type} {base c U V w n_max C : ℕ} {θ : SeedWhp c U n_max}
+    {fs' : FastState} {s : Memory.State} {q : Prop} [Decidable q] {p₁ p₂ : Memory.Prog α}
+    (hq : q) (h : StepSpec base c U V w n_max θ fs' s p₁ C) :
+    StepSpec base c U V w n_max θ fs' s (if q then p₁ else p₂) C := by
+  rwa [ite_eq_left hq]
+
+private theorem StepSpec.if_neg {α : Type} {base c U V w n_max C : ℕ} {θ : SeedWhp c U n_max}
+    {fs' : FastState} {s : Memory.State} {q : Prop} [Decidable q] {p₁ p₂ : Memory.Prog α}
+    (hq : ¬q) (h : StepSpec base c U V w n_max θ fs' s p₂ C) :
+    StepSpec base c U V w n_max θ fs' s (if q then p₁ else p₂) C := by
+  rwa [ite_eq_right hq]
+
 /-! ## Section 1: `BktMetaRt` Descriptor and Role/Activation Substeps -/
 
 /-- Compact 4-word runtime descriptor `((base, offBktMeta), (globalPtrBits, w))` for `bktMeta`
@@ -146,40 +264,17 @@ private theorem readTwoBktFields_if_fastStep {c U V w n_max base b f1 f2 C : ℕ
     memoryCost prog s ≤ C + 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ fs' s s' := by
-  obtain ⟨h1_st, h1_res, h1_mc, h1_vp⟩ := readBktFieldGenProg_spec henv hb hf1 hrep (s := s)
-  obtain ⟨h2_st, h2_res, h2_mc, h2_vp⟩ := readBktFieldGenProg_spec henv hb hf2 hrep (s := s)
+  have h1 := ReadSpec.of (readBktFieldGenProg_spec henv hb hf1 hrep (s := s))
+  have h2 := ReadSpec.of (readBktFieldGenProg_spec henv hb hf2 hrep (s := s))
   dsimp only
   by_cases hcond : P (getBktField fs b f1) (getBktField fs b f2)
-  · obtain ⟨hb_mc, hb_vp, hb_step⟩ := hbody hcond
+  · have hbd := hbody hcond
     rw [ite_eq_left hcond]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), f1) >>= fun v1 =>
-          readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), f2) >>= fun v2 =>
-            if P v1 v2 then body else pure ()) =
-        (Memory.spec 0).clientState s body := by
-      rw [clientState_bind, h1_st, h1_res, clientState_bind, h2_st, h2_res, ite_eq_left hcond]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, hb_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [h1_st, h1_res, h1_mc, h2_st, h2_res, h2_mc, ite_eq_left hcond]; omega
-    · refine validProg_bind h1_vp ?_; rw [h1_st, h1_res]
-      refine validProg_bind h2_vp ?_; rw [h2_st, h2_res, ite_eq_left hcond]
-      exact hb_vp
+    exact StepSpec.toAnd_le (h1.thenStep <| h2.thenStep <| .if_pos hcond (.of_le hbd))
+      (by have := hbd.1; omega)
   · rw [ite_eq_right hcond]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), f1) >>= fun v1 =>
-          readBktFieldGenProg (((mkWhpCoreParams c U V w n_max, base), b), f2) >>= fun v2 =>
-            if P v1 v2 then body else pure ()) = s := by
-      rw [clientState_bind, h1_st, h1_res, clientState_bind, h2_st, h2_res,
-        ite_eq_right hcond]; rfl
-    rw [hs'_eq]
-    refine ⟨?_, ?_, FastStateStep.refl hseed hrep⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [h1_st, h1_res, h1_mc, h2_st, h2_res, h2_mc, ite_eq_right hcond]
-      simp only [memoryCost_pure]; omega
-    · refine validProg_bind h1_vp ?_; rw [h1_st, h1_res]
-      refine validProg_bind h2_vp ?_; rw [h2_st, h2_res, ite_eq_right hcond]
-      exact validProg_pure _
+    exact StepSpec.toAnd_le (h1.thenStep <| h2.thenStep <| .if_neg hcond (.pure hseed hrep ()))
+      (by omega)
 
 /-- Set `(overmarsActive b, overmarsCursor b, overmarsInsCount b) := (actVal, 0, 0)` on `BktMetaRt`
 (`d = ((bm, b), actVal)`). -/
@@ -231,32 +326,16 @@ theorem setOvermarsActRtProg_fastStep {c U V w n_max base b actVal : ℕ}
         overmarsActive := Function.update fs.overmarsActive b actVal
         overmarsCursor := Function.update fs.overmarsCursor b 0
         overmarsInsCount := Function.update fs.overmarsInsCount b 0 } s s' := by
-  have hth := henv.2.2.2.1
-  obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 5 < 10) hact_le hseed hrep (s := s)
-  set cp := mkWhpCoreParams c U V w n_max
-  set s1 := (Memory.spec 0).clientState s (writeBktFieldGenProg ((((cp, base), b), 5), actVal))
-  obtain ⟨hw2_mc, hw2_vp, hw2_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10) (Nat.zero_le n_max)
-      hw1_step.2.1 hw1_step.2.2.1 (s := s1)
-  set s2 := (Memory.spec 0).clientState s1 (writeBktFieldGenProg ((((cp, base), b), 6), 0))
-  obtain ⟨hw3_mc, hw3_vp, hw3_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 7 < 10) (Nat.zero_le n_max)
-      hw2_step.2.1 hw2_step.2.2.1 (s := s2)
+  have h1 := StepSpec.of
+    (writeBktFieldGenProg_fastStep henv hb (by decide : 5 < 10) hact_le hseed hrep (s := s))
+  have h2 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
+    (Nat.zero_le n_max) h1.step.2.1 h1.step.2.2.1)
+  have h3 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 7 < 10)
+    (Nat.zero_le n_max) h2.step.2.1 h2.step.2.2.1)
+  dsimp only
   unfold setOvermarsActRtProg
-  simp only [pure_bind, writePacked_mkBktMetaRt_eq hth]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (writeBktFieldGenProg ((((cp, base), b), 5), actVal) >>= fun _ =>
-        writeBktFieldGenProg ((((cp, base), b), 6), 0) >>= fun _ =>
-        writeBktFieldGenProg ((((cp, base), b), 7), 0)) =
-      (Memory.spec 0).clientState s2 (writeBktFieldGenProg ((((cp, base), b), 7), 0)) := by
-    rw [clientState_bind, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, validProg_bind hw1_vp (validProg_bind hw2_vp hw3_vp),
-    (hw1_step.trans hw2_step).trans hw3_step⟩
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-  dsimp only [s1, s2, cp] at hw1_mc hw2_mc hw3_mc ⊢
-  omega
+  simp only [pure_bind, writePacked_mkBktMetaRt_eq henv.2.2.2.1]
+  exact StepSpec.toAnd (h1.bind (h2.bind h3)) rfl
 
 /-- Swap `liveRole b` and `overmarsRole b` and set `liveInsCount b := overmarsInsCount b` on
 `BktMetaRt` (`d = (bm, b)`). -/
@@ -314,50 +393,21 @@ private theorem overmarsSwapRolesRtProg_fastStep {c U V w n_max base b : ℕ}
         liveRole := Function.update fs.liveRole b (fs.overmarsRole b)
         overmarsRole := Function.update fs.overmarsRole b (fs.liveRole b)
         liveInsCount := Function.update fs.liveInsCount b (fs.overmarsInsCount b) } s s' := by
-  have hth := henv.2.2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨h2_st, h2_res, h2_mc, h2_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep (s := s)
-  obtain ⟨h4_st, h4_res, h4_mc, h4_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s)
-  obtain ⟨h7_st, h7_res, h7_mc, h7_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 7 < 10) hrep (s := s)
-  simp only [getBktField] at h2_res h4_res h7_res
-  obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 2 < 10) hor hseed hrep (s := s)
-  set s1 := (Memory.spec 0).clientState s
-    (writeBktFieldGenProg ((((cp, base), b), 2), fs.overmarsRole b))
-  obtain ⟨hw2_mc, hw2_vp, hw2_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 4 < 10) hlr
-      hw1_step.2.1 hw1_step.2.2.1 (s := s1)
-  set s2 := (Memory.spec 0).clientState s1
-    (writeBktFieldGenProg ((((cp, base), b), 4), fs.liveRole b))
-  obtain ⟨hw3_mc, hw3_vp, hw3_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 3 < 10) hins
-      hw2_step.2.1 hw2_step.2.2.1 (s := s2)
+  have hw1 := StepSpec.of
+    (writeBktFieldGenProg_fastStep henv hb (by decide : 2 < 10) hor hseed hrep (s := s))
+  have hw2 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 4 < 10) hlr
+    hw1.step.2.1 hw1.step.2.2.1)
+  have hw3 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 3 < 10) hins
+    hw2.step.2.1 hw2.step.2.2.1)
+  dsimp only
   unfold overmarsSwapRolesRtProg
-  simp only [pure_bind, readPacked_mkBktMetaRt_eq hth, writePacked_mkBktMetaRt_eq hth]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (readBktFieldGenProg (((cp, base), b), 2) >>= fun oldLive =>
-        readBktFieldGenProg (((cp, base), b), 4) >>= fun oldOm =>
-        readBktFieldGenProg (((cp, base), b), 7) >>= fun omIns =>
-        writeBktFieldGenProg ((((cp, base), b), 2), oldOm) >>= fun _ =>
-        writeBktFieldGenProg ((((cp, base), b), 4), oldLive) >>= fun _ =>
-        writeBktFieldGenProg ((((cp, base), b), 3), omIns)) =
-      (Memory.spec 0).clientState s2
-        (writeBktFieldGenProg ((((cp, base), b), 3), fs.overmarsInsCount b)) := by
-    rw [clientState_bind, h2_st, h2_res, clientState_bind, h4_st, h4_res,
-      clientState_bind, h7_st, h7_res, clientState_bind, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, (hw1_step.trans hw2_step).trans hw3_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h2_st, h2_res, h2_mc, h4_st, h4_res, h4_mc, h7_st, h7_res, h7_mc]
-    dsimp only [s1, s2, cp] at hw1_mc hw2_mc hw3_mc ⊢
-    omega
-  · refine validProg_bind h2_vp ?_; rw [h2_st, h2_res]
-    refine validProg_bind h4_vp ?_; rw [h4_st, h4_res]
-    refine validProg_bind h7_vp ?_; rw [h7_st, h7_res]
-    exact validProg_bind hw1_vp (validProg_bind hw2_vp hw3_vp)
+  simp only [pure_bind, readPacked_mkBktMetaRt_eq henv.2.2.2.1,
+    writePacked_mkBktMetaRt_eq henv.2.2.2.1]
+  exact StepSpec.toAnd
+    (ReadSpec.thenStep (.of (readBktFieldGenProg_spec henv hb (by decide : 2 < 10) hrep)) <|
+      ReadSpec.thenStep (.of (readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep)) <|
+      ReadSpec.thenStep (.of (readBktFieldGenProg_spec henv hb (by decide : 7 < 10) hrep)) <|
+      hw1.bind (hw2.bind hw3)) rfl
 
 /-- Inner activation action of `overmarsStep` (`d = ((cp, base), b)`). -/
 @[irreducible] private def overmarsDoActivateGenProg : (WhpCoreParams × ℕ) × ℕ → Memory.Prog Unit
@@ -482,46 +532,23 @@ private theorem overmarsActivateGenProg_fastStep {c U V w n_max base b : ℕ}
     FastStateStep base c U V w n_max θ fs0 s s' := by
   have hth := henv.2.2.2.1
   have hn1 : 1 ≤ n_max := by have := four_le_of_whpThreshold_le hth; omega
-  set cp := mkWhpCoreParams c U V w n_max
-  unfold overmarsActivateGenProg
-  simp only [cp, wp_large_overmarsThresh hth, pure_bind]
-  refine readTwoBktFields_if_fastStep henv hb (by decide : 5 < 10) (by decide : 3 < 10)
-    hseed hrep (fun act lic => act = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ lic)
-    (overmarsDoActivateGenProg ((cp, base), b)) ?_
-  intro _
-  obtain ⟨h4_st, h4_res, h4_mc, h4_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s)
-  simp only [getBktField] at h4_res
-  obtain ⟨hmb_st, hmb_res, hmb_mc, hmb_vp⟩ :=
-    mkBktMetaRtProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
   have homIdx : fs.overmarsSliceIdx b < 3 * numBucketsWhp n_max := by
     unfold FastState.overmarsSliceIdx; omega
-  obtain ⟨hsa_mc, hsa_vp, hsa_step⟩ :=
-    setOvermarsActRtProg_fastStep henv hb hn1 hseed hrep (s := s)
-  set s1 := (Memory.spec 0).clientState s
-    (setOvermarsActRtProg ((mkBktMetaRt c U V w n_max base, b), 1))
-  obtain ⟨hrs_mc, hrs_vp, hrs_step⟩ :=
-    resetBTreeSliceGenProg_fastStep henv homIdx hsa_step.2.1 hsa_step.2.2.1 (s := s1)
-  have homIdx_def : 3 * b + fs.overmarsRole b = fs.overmarsSliceIdx b := rfl
+  unfold overmarsActivateGenProg
+  simp only [wp_large_overmarsThresh hth, pure_bind]
+  refine readTwoBktFields_if_fastStep henv hb (by decide : 5 < 10) (by decide : 3 < 10)
+    hseed hrep (fun act lic => act = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ lic)
+    (overmarsDoActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b)) fun _ => ?_
+  have hsa := StepSpec.of (setOvermarsActRtProg_fastStep henv hb hn1 hseed hrep (s := s))
+  have hrs := StepSpec.of
+    (resetBTreeSliceGenProg_fastStep henv homIdx hsa.step.2.1 hsa.step.2.2.1)
   unfold overmarsDoActivateGenProg
   simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (readBktFieldGenProg (((cp, base), b), 4) >>= fun omRole =>
-        mkBktMetaRtProg (cp, base) >>= fun bm =>
-        setOvermarsActRtProg ((bm, b), 1) >>= fun _ =>
-        resetBTreeSliceGenProg ((cp, base), 3 * b + omRole)) =
-      (Memory.spec 0).clientState s1
-        (resetBTreeSliceGenProg ((cp, base), fs.overmarsSliceIdx b)) := by
-    rw [clientState_bind, h4_st, h4_res, homIdx_def, clientState_bind, hmb_st, hmb_res,
-      clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hsa_step.trans hrs_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h4_st, h4_res, h4_mc, homIdx_def, hmb_st, hmb_res, hmb_mc]
-    dsimp only [s1, cp] at hsa_mc hrs_mc ⊢; omega
-  · refine validProg_bind h4_vp ?_; rw [h4_st, h4_res, homIdx_def]
-    refine validProg_bind hmb_vp ?_; rw [hmb_st, hmb_res]
-    exact validProg_bind hsa_vp hrs_vp
+  exact StepSpec.toAnd_le
+    (ReadSpec.thenStep (.of (readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep)) <|
+      ReadSpec.thenStep
+        (.of (mkBktMetaRtProg_spec (U := U) (V := V) (w := w) (base := base) hth s)) <|
+      hsa.bind hrs) (by omega)
 
 /-! ## Section 2: Coordinate Scan Step and Bounded-Fuel Scan Loop -/
 
@@ -608,35 +635,16 @@ private theorem checkCoordInLiveGenProg_spec {c U V w n_max base b loc : ℕ}
       (if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b loc) then 1 else 0) ∧
     memoryCost prog s = 6 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  obtain ⟨hst_st, hst_res, hst_mc, hst_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
-    (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
-  rw [hrep.2.2.2.2.2.1] at hst_res
-  obtain ⟨hro_st, hro_res, hro_mc, hro_vp⟩ := readOldEpProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max)
-    (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
-  obtain ⟨hd8_st, hd8_res, hd8_mc, hd8_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep (s := s)
-  simp only [getBktField] at hd8_res
-  obtain ⟨hlc_st, hlc_res, hlc_mc, hlc_vp⟩ := readFastLocGenProg_spec henv hb hloc hrep (s := s)
-  obtain ⟨hil_st, hil_res, hil_mc, hil_vp⟩ := inLiveTreeProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (rebStage := fs.rebStage) (oldEp := fs.oldEp)
-    (rebDoneB := fs.rebDoneFlag b) (st := fs.locState b loc) (s := s)
+  have hst := readHdrProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max) (base := base)
+    (hdrOff := hdrRebStage) (s := s) (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
+  rw [hrep.2.2.2.2.2.1] at hst
   dsimp only
   unfold checkCoordInLiveGenProg
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst_st, hst_res, clientState_bind, hro_st, hro_res,
-      clientState_bind, hd8_st, hd8_res, clientState_bind, hlc_st, hlc_res, hil_st]
-  · rw [clientResult_bind, hst_st, hst_res, clientResult_bind, hro_st, hro_res,
-      clientResult_bind, hd8_st, hd8_res, clientResult_bind, hlc_st, hlc_res, hil_res]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst_st, hst_res, hst_mc, hro_st, hro_res, hro_mc, hd8_st, hd8_res, hd8_mc,
-      hlc_st, hlc_res, hlc_mc, hil_mc]
-  · refine validProg_bind hst_vp ?_; rw [hst_st, hst_res]
-    refine validProg_bind hro_vp ?_; rw [hro_st, hro_res]
-    refine validProg_bind hd8_vp ?_; rw [hd8_st, hd8_res]
-    refine validProg_bind hlc_vp ?_; rw [hlc_st, hlc_res]
-    exact hil_vp
+  exact ReadSpec.toAnd ((ReadSpec.of hst).bind <|
+    .bind (.of (readOldEpProg_spec (by dsimp only [largeSpaceWhp, hdrCurEp]; omega) hce_or
+      hrep.2.2.2.1)) <|
+    .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 8 < 10) hrep)) <|
+    .bind (.of (readFastLocGenProg_spec henv hb hloc hrep)) <| .of inLiveTreeProg_spec) rfl rfl
 
 /-- Read `(bktSalt b, (3 * b + overmarsRole b, overmarsInsCount b))` (`d = ((cp, base), b)`). -/
 @[irreducible] private def overmarsReadScanInfoGenProg :
@@ -698,25 +706,13 @@ private theorem overmarsReadScanInfoGenProg_spec {c U V w n_max base b : ℕ}
       (fs.bktSalt b, (fs.overmarsSliceIdx b, fs.overmarsInsCount b)) ∧
     memoryCost prog s = 6 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  obtain ⟨h1_st, h1_res, h1_mc, h1_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
-  obtain ⟨h4_st, h4_res, h4_mc, h4_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep (s := s)
-  obtain ⟨h7_st, h7_res, h7_mc, h7_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 7 < 10) hrep (s := s)
-  simp only [getBktField] at h1_res h4_res h7_res
+  dsimp only
   unfold overmarsReadScanInfoGenProg
   simp only [pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, h1_st, clientState_bind, h4_st, clientState_bind, h7_st]; rfl
-  · rw [clientResult_bind, h1_st, h1_res, clientResult_bind, h4_st, h4_res,
-      clientResult_bind, h7_st, h7_res]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h1_st, h1_mc, h4_st, h4_mc, h7_st, h7_mc]; rfl
-  · refine validProg_bind h1_vp ?_; rw [h1_st]
-    refine validProg_bind h4_vp ?_; rw [h4_st]
-    refine validProg_bind h7_vp ?_; rw [h7_st]
-    exact validProg_pure _
+  exact ReadSpec.toAnd
+    (ReadSpec.bind (.of (readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep)) <|
+      .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 4 < 10) hrep)) <|
+      .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 7 < 10) hrep)) <| .pure _) rfl rfl
 
 /-- Write `(overmarsCursor b, overmarsInsCount b) := (cur1, omIns1)` via `BktMetaRt`. -/
 @[irreducible] private def overmarsWriteCurInsRtProg :
@@ -764,21 +760,14 @@ private theorem overmarsWriteCurInsRtProg_fastStep {c U V w n_max base b cur1 om
       { fs with
         overmarsCursor := Function.update fs.overmarsCursor b cur1
         overmarsInsCount := Function.update fs.overmarsInsCount b omIns1 } s s' := by
-  have hth := henv.2.2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨hw1_mc, hw1_vp, hw1_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10) hcur_le hseed hrep (s := s)
-  set s1 := (Memory.spec 0).clientState s (writeBktFieldGenProg ((((cp, base), b), 6), cur1))
-  obtain ⟨hw2_mc, hw2_vp, hw2_step⟩ :=
-    writeBktFieldGenProg_fastStep henv hb (by decide : 7 < 10) hins_le
-      hw1_step.2.1 hw1_step.2.2.1 (s := s1)
+  have h1 := StepSpec.of
+    (writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10) hcur_le hseed hrep (s := s))
+  have h2 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 7 < 10) hins_le
+    h1.step.2.1 h1.step.2.2.1)
+  dsimp only
   unfold overmarsWriteCurInsRtProg
-  simp only [pure_bind, writePacked_mkBktMetaRt_eq hth]
-  rw [clientState_bind]
-  refine ⟨?_, validProg_bind hw1_vp hw2_vp, hw1_step.trans hw2_step⟩
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-  dsimp only [s1, cp] at hw1_mc hw2_mc ⊢
-  omega
+  simp only [pure_bind, writePacked_mkBktMetaRt_eq henv.2.2.2.1]
+  exact StepSpec.toAnd (h1.bind h2) rfl
 
 /-- Precondition for one Overmars scan step (`p = (((wp, base), b), ())`). -/
 private def OvermarsScanOnePre (w : ℕ) (p : ((WhpParams × ℕ) × ℕ) × Unit)
@@ -965,21 +954,12 @@ private theorem overmarsReadCurCntGenProg_spec {c U V w n_max base b : ℕ}
     (Memory.spec 0).clientResult s prog = (fs.overmarsCursor b, fs.bktCount b) ∧
     memoryCost prog s = 4 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
-  obtain ⟨h6_st, h6_res, h6_mc, h6_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 6 < 10) hrep (s := s)
-  obtain ⟨h0_st, h0_res, h0_mc, h0_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep (s := s)
-  simp only [getBktField] at h6_res h0_res
+  dsimp only
   unfold overmarsReadCurCntGenProg
   simp only [pure_bind]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, h6_st, clientState_bind, h0_st]; rfl
-  · rw [clientResult_bind, h6_st, h6_res, clientResult_bind, h0_st, h0_res]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [h6_st, h6_mc, h0_st, h0_mc]; rfl
-  · refine validProg_bind h6_vp ?_; rw [h6_st]
-    refine validProg_bind h0_vp ?_; rw [h0_st]
-    exact validProg_pure _
+  exact ReadSpec.toAnd
+    (ReadSpec.bind (.of (readBktFieldGenProg_spec henv hb (by decide : 6 < 10) hrep)) <|
+      .bind (.of (readBktFieldGenProg_spec henv hb (by decide : 0 < 10) hrep)) <| .pure _) rfl rfl
 
 /-- In-bounds coordinate helper for `overmarsScanOneProg` (`d = (((wp, base), b), cur)`). -/
 @[irreducible] private def overmarsScanInBoundsProg :
@@ -1136,190 +1116,56 @@ private theorem overmarsScanOneProg_fastStep {c U V w n_max base b : ℕ}
   have hM_ge := (large_bounds_lt_n_max hth).1
   have h8L12_n : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
     (Nat.mul_le_mul_right _ (by omega : 8 ≤ numBucketsWhp n_max)).trans hML12
-  set cp := mkWhpCoreParams c U V w n_max
-  obtain ⟨hcc_st, hcc_res, hcc_mc, hcc_vp⟩ :=
-    overmarsReadCurCntGenProg_spec henv hb hrep (s := s)
+  have hcc := ReadSpec.of (overmarsReadCurCntGenProg_spec henv hb hrep (s := s))
   set cur := fs.overmarsCursor b
-  have hinc_only : ∀ (hncond : ¬(cur < fs.bktCount b ∧
-        inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b cur) = true))
-      (hbranch :
-        let prog := overmarsReadCurCntGenProg ((cp, base), b) >>= fun cc =>
-          if cc.1 < cc.2 then
-            overmarsScanInBoundsProg (((mkWhpParams c U V w n_max, base), b), cc.1)
-          else
-            overmarsIncCurGenProg (((cp, base), b), cc.1)
-        (Memory.spec 0).clientState s prog =
-          (Memory.spec 0).clientState s (writeBktFieldGenProg ((((cp, base), b), 6), cur + 1)) ∧
-        memoryCost prog s ≤ 14 ∧
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s prog),
-      let prog := overmarsReadCurCntGenProg ((cp, base), b) >>= fun cc =>
-        if cc.1 < cc.2 then
-          overmarsScanInBoundsProg (((mkWhpParams c U V w n_max, base), b), cc.1)
-        else
-          overmarsIncCurGenProg (((cp, base), b), cc.1)
-      let fs1 := if cur < fs.bktCount b ∧
-          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b cur) = true then
-        { fs with
-          slices := Function.update fs.slices (fs.overmarsSliceIdx b)
-            (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              (fs.slices (fs.overmarsSliceIdx b))
-              (fs.fpAt c U n_max θ (fs.bktSalt b) b cur) cur)
-          overmarsCursor := Function.update fs.overmarsCursor b (cur + 1)
-          overmarsInsCount := Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1) }
-      else { fs with overmarsCursor := Function.update fs.overmarsCursor b (cur + 1) }
-      memoryCost prog s ≤ 2 * hashEvalCostWhp c + 2454 ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
-      FastStateStep base c U V w n_max θ fs1 s ((Memory.spec 0).clientState s prog) ∧
-      fs1.curEp = fs.curEp ∧ fs1.overmarsRole b = fs.overmarsRole b ∧
-      fs1.bktCount b = fs.bktCount b ∧ fs1.quotArr = fs.quotArr ∧
-      fs1.backPtr = fs.backPtr ∧ fs1.overmarsCursor b = cur + 1 ∧
-      fs1.overmarsInsCount b ≤ fs.overmarsInsCount b + 1 ∧
-      ∃ omMap1, ValidWhpSlice n_max (fs1.overmarsInsCount b)
-        (fs1.slices (fs1.overmarsSliceIdx b)) omMap1 := by
-    intro hncond ⟨hst_eq, hmc_le, hvp_ok⟩
-    obtain ⟨_, _, hw6_step⟩ :=
-      writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
-        (by omega : cur + 1 ≤ n_max) hseed hrep (s := s)
-    dsimp only
-    rw [ite_eq_right hncond, hst_eq]
-    exact ⟨by omega, hvp_ok, hw6_step, rfl, rfl, rfl, rfl, rfl,
-      Function.update_self _ _ _, Nat.le_succ _, ⟨omMap, hv_om⟩⟩
+  have hw6 := StepSpec.of (writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
+    (by omega : cur + 1 ≤ n_max) hseed hrep (s := s))
   dsimp only
-  unfold overmarsScanOneProg
-  dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+  unfold overmarsScanOneProg overmarsScanInBoundsProg overmarsInsertCoordGenProg
+    overmarsIncCurGenProg
+  simp only [hwp1, pure_bind]
   dsimp only [overmarsScanSteps]
   by_cases hcur_lt : cur < fs.bktCount b
   · have hcur_tot : cur < totalLocalCoordsWhp n_max := hcur_lt.trans_le hcnt_le
-    have hcur_val : cur < 2 ^ valLaneBitsWhp n_max := by
-      have htl3 := totalLocalCoordsWhp_le_three_mul (n_max := n_max)
-      rw [two_pow_valLaneBitsWhp]; omega
-    obtain ⟨hcl_st, hcl_res, hcl_mc, hcl_vp⟩ :=
-      checkCoordInLiveGenProg_spec henv hrep hce_or hb hcur_tot (s := s)
+    have hcl := ReadSpec.of (checkCoordInLiveGenProg_spec henv hrep hce_or hb hcur_tot (s := s))
     by_cases hinL : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b cur) = true
-    · have hcond : cur < fs.bktCount b ∧
-          inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fs.locState b cur) = true :=
-        ⟨hcur_lt, hinL⟩
-      rw [ite_eq_left hcond]
-      rw [ite_eq_left hinL] at hcl_res
-      obtain ⟨hri_st, hri_res, hri_mc, hri_vp⟩ :=
-        overmarsReadScanInfoGenProg_spec henv hb hrep (s := s)
-      have hbp_cur : capFrontWhp n_max ≤ cur → fs.backPtr b (cur - capFrontWhp n_max) <
-          poolSizeWhp n_max := fun hcf => hbp_v _ (by omega)
-      obtain ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ :=
-        fpAtGenProg_spec henv hseed hrep hb hcur_tot hbp_cur (salt := fs.bktSalt b) (s := s)
+    · rw [ite_eq_left (⟨hcur_lt, hinL⟩ : _ ∧ _)]
+      have hcur_val : cur < 2 ^ valLaneBitsWhp n_max := by
+        have htl3 := totalLocalCoordsWhp_le_three_mul (n_max := n_max)
+        rw [two_pow_valLaneBitsWhp]; omega
+      have hfp := fpAtGenProg_spec henv hseed hrep hb hcur_tot
+        (fun hcf => hbp_v _ (by omega)) (salt := fs.bktSalt b) (s := s)
       have homIdx : fs.overmarsSliceIdx b < 3 * numBucketsWhp n_max := by
         unfold FastState.overmarsSliceIdx; omega
-      set fp := fs.fpAt c U n_max θ (fs.bktSalt b) b cur
-      obtain ⟨hbi_mc, hbi_vp, hbi_step⟩ :=
-        btreeInsertGenProg_fastStep henv homIdx hins_lt.le hseed hrep hv_om
-          (fpAt_lt θ fs (fs.bktSalt b) b cur) hcur_val (s := s)
-      set s_bi := (Memory.spec 0).clientState s
-        (btreeInsertGenProg ((((cp, base), fs.overmarsSliceIdx b), fp), cur))
-      obtain ⟨hmb_st, hmb_res, hmb_mc, hmb_vp⟩ :=
-        mkBktMetaRtProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base)
-          hth s_bi
-      obtain ⟨hwc_mc, hwc_vp, hwc_step⟩ :=
-        overmarsWriteCurInsRtProg_fastStep henv hb (by omega : cur + 1 ≤ n_max)
-          (by omega : fs.overmarsInsCount b + 1 ≤ n_max) hbi_step.2.1 hbi_step.2.2.1 (s := s_bi)
+      have hbi := btreeInsertGenProg_fastStep henv homIdx hins_lt.le hseed hrep hv_om
+        (fpAt_lt θ fs (fs.bktSalt b) b cur) hcur_val (s := s)
+      have hbi' := StepSpec.of_le hbi
+      have hwc := StepSpec.of (overmarsWriteCurInsRtProg_fastStep henv hb
+        (by omega : cur + 1 ≤ n_max) (by omega : fs.overmarsInsCount b + 1 ≤ n_max)
+        hbi'.step.2.1 hbi'.step.2.2.1)
       have hv_om1 := (hv_om.insert_spec hth hins_lt.le
         (fpAt_lt θ fs (fs.bktSalt b) b cur) hcur_val).2
-      have hs'_eq : (Memory.spec 0).clientState s
-          (overmarsReadCurCntGenProg ((cp, base), b) >>= fun cc =>
-            if cc.1 < cc.2 then
-              overmarsScanInBoundsProg (((mkWhpParams c U V w n_max, base), b), cc.1)
-            else
-              overmarsIncCurGenProg (((cp, base), b), cc.1)) =
-          (Memory.spec 0).clientState s_bi
-            (overmarsWriteCurInsRtProg
-              (((mkBktMetaRt c U V w n_max base, b), cur + 1), fs.overmarsInsCount b + 1)) := by
-        rw [clientState_bind, hcc_st, hcc_res]; dsimp only
-        rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-        simp only [pure_bind]
-        rw [clientState_bind, hcl_st, hcl_res]; simp only [↓reduceIte]
-        unfold overmarsInsertCoordGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-        simp only [pure_bind]
-        rw [clientState_bind, hri_st, hri_res]; dsimp only
-        rw [clientState_bind, hfp_st, hfp_res, clientState_bind]
-        dsimp only [s_bi, cp] at hmb_st hmb_res ⊢
-        rw [clientState_bind, hmb_st, hmb_res]
-      rw [hs'_eq]
-      refine ⟨?_, ?_, hbi_step.trans hwc_step, rfl, rfl, rfl, rfl, rfl,
-        Function.update_self _ _ _, (Function.update_self _ _ _).le,
-        ⟨_, by
-          change ValidWhpSlice n_max
-            (Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1) b)
-            (Function.update fs.slices (fs.overmarsSliceIdx b) _ (fs.overmarsSliceIdx b)) _
-          rw [Function.update_self, Function.update_self]
-          exact hv_om1⟩⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hcc_st, hcc_res, hcc_mc]; dsimp only; rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hcl_st, hcl_res, hcl_mc]; simp only [↓reduceIte]
-        unfold overmarsInsertCoordGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hri_st, hri_res, hri_mc]; dsimp only
-        rw [hfp_st, hfp_res]
-        have hfp_mc' : memoryCost
-            (fpAtGenProg ((((mkWhpParams c U V w n_max, base), fs.bktSalt b), b), cur)) s ≤
-            2 * hashEvalCostWhp c + 4 := hfp_mc
-        dsimp only [fp, s_bi, cp] at hmb_st hmb_res hmb_mc hbi_mc hwc_mc ⊢
-        rw [hmb_st, hmb_res, hmb_mc]
-        omega
-      · refine validProg_bind hcc_vp ?_; rw [hcc_st, hcc_res]; dsimp only
-        rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]; simp only [pure_bind]
-        refine validProg_bind hcl_vp ?_; rw [hcl_st, hcl_res]; simp only [↓reduceIte]
-        unfold overmarsInsertCoordGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]; simp only [pure_bind]
-        refine validProg_bind hri_vp ?_; rw [hri_st, hri_res]; dsimp only
-        refine validProg_bind hfp_vp ?_; rw [hfp_st, hfp_res]
-        refine validProg_bind hbi_vp ?_
-        refine validProg_bind hmb_vp ?_; rw [hmb_st, hmb_res]
-        exact hwc_vp
-    · rw [ite_eq_right hinL] at hcl_res
-      obtain ⟨hw6_mc, hw6_vp, _⟩ :=
-        writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
-          (by omega : cur + 1 ≤ n_max) hseed hrep (s := s)
-      refine hinc_only (fun ⟨_, h⟩ => hinL h) ⟨?_, ?_, ?_⟩
-      · rw [clientState_bind, hcc_st, hcc_res]; dsimp only; rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg overmarsIncCurGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]; simp only [pure_bind]
-        rw [clientState_bind, hcl_st, hcl_res]; simp only [zero_ne_one, ↓reduceIte]
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hcc_st, hcc_res, hcc_mc]; dsimp only; rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg overmarsIncCurGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-        simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hcl_st, hcl_res, hcl_mc]; simp only [zero_ne_one, ↓reduceIte]
-        dsimp only [cp] at hw6_mc ⊢; omega
-      · refine validProg_bind hcc_vp ?_; rw [hcc_st, hcc_res]; dsimp only
-        rw [ite_eq_left hcur_lt]
-        unfold overmarsScanInBoundsProg overmarsIncCurGenProg; dsimp only
-        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]; simp only [pure_bind]
-        refine validProg_bind hcl_vp ?_; rw [hcl_st, hcl_res]
-        simp only [zero_ne_one, ↓reduceIte]; exact hw6_vp
-  · obtain ⟨hw6_mc, hw6_vp, _⟩ :=
-      writeBktFieldGenProg_fastStep henv hb (by decide : 6 < 10)
-        (by omega : cur + 1 ≤ n_max) hseed hrep (s := s)
-    refine hinc_only (fun ⟨h, _⟩ => hcur_lt h) ⟨?_, ?_, ?_⟩
-    · rw [clientState_bind, hcc_st, hcc_res]; dsimp only; rw [ite_eq_right hcur_lt]
-      unfold overmarsIncCurGenProg; simp only [pure_bind]
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hcc_st, hcc_res, hcc_mc]; dsimp only; rw [ite_eq_right hcur_lt]
-      unfold overmarsIncCurGenProg; simp only [pure_bind]
-      dsimp only [cp] at hw6_mc ⊢; omega
-    · refine validProg_bind hcc_vp ?_; rw [hcc_st, hcc_res]; dsimp only
-      rw [ite_eq_right hcur_lt]
-      unfold overmarsIncCurGenProg; simp only [pure_bind]
-      exact hw6_vp
+      exact StepSpec.toAnd_le_and (hcc.thenStep <| .if_pos hcur_lt <| hcl.thenStep <|
+        .if_pos (ite_eq_left hinL) <|
+        ReadSpec.thenStep (.of (overmarsReadScanInfoGenProg_spec henv hb hrep)) <|
+        ReadSpec.thenStep ⟨hfp.1, hfp.2.1, rfl, hfp.2.2.2⟩ <| hbi'.bind <|
+        ReadSpec.thenStep
+          (.of (mkBktMetaRtProg_spec (U := U) (V := V) (w := w) (base := base) hth _)) hwc)
+        (by dsimp only; have := hfp.2.2.1; have := hbi.1; omega)
+        ⟨rfl, rfl, rfl, rfl, rfl, Function.update_self _ _ _, (Function.update_self _ _ _).le,
+          _, by
+            change ValidWhpSlice n_max
+              (Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1) b)
+              (Function.update fs.slices (fs.overmarsSliceIdx b) _ (fs.overmarsSliceIdx b)) _
+            rw [Function.update_self, Function.update_self]
+            exact hv_om1⟩
+    · rw [ite_eq_right (fun h : _ ∧ _ => hinL h.2)]
+      exact StepSpec.toAnd_le_and (hcc.thenStep <| .if_pos hcur_lt <| hcl.thenStep <|
+        .if_neg (by rw [ite_eq_right hinL]; decide) hw6) (by omega)
+        ⟨rfl, rfl, rfl, rfl, rfl, Function.update_self _ _ _, Nat.le_succ _, omMap, hv_om⟩
+  · rw [ite_eq_right (fun h : _ ∧ _ => hcur_lt h.1)]
+    exact StepSpec.toAnd_le_and (hcc.thenStep <| .if_neg hcur_lt hw6) (by omega)
+      ⟨rfl, rfl, rfl, rfl, rfl, Function.update_self _ _ _, Nat.le_succ _, omMap, hv_om⟩
 
 /-- Bounded-fuel Overmars scan loop via `Realizes.iterate₀`. -/
 @[irreducible] private def overmarsScanLoopGenProg (p : (((WhpParams × ℕ) × ℕ) × Unit) × ℕ) :
@@ -1514,38 +1360,19 @@ private theorem overmarsFinishSwapGenProg_fastStep {c U V w n_max base b : ℕ}
     memoryCost prog s ≤ 34 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ fs2 s s' := by
-  have hth := henv.2.2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
   unfold overmarsFinishSwapGenProg
   refine readTwoBktFields_if_fastStep henv hb (by decide : 0 < 10) (by decide : 6 < 10)
     hseed hrep (fun cnt cur => cnt ≤ cur)
-    (overmarsDoSwapGenProg ((cp, base), b)) ?_
-  intro _
-  obtain ⟨hmb_st, hmb_res, hmb_mc, hmb_vp⟩ :=
-    mkBktMetaRtProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
-  obtain ⟨hsr_mc, hsr_vp, hsr_step⟩ :=
-    overmarsSwapRolesRtProg_fastStep henv hb hlr hor hins hseed hrep (s := s)
-  set s1 := (Memory.spec 0).clientState s
-    (overmarsSwapRolesRtProg (mkBktMetaRt c U V w n_max base, b))
-  obtain ⟨hsa_mc, hsa_vp, hsa_step⟩ :=
-    setOvermarsActRtProg_fastStep henv hb (Nat.zero_le n_max)
-      hsr_step.2.1 hsr_step.2.2.1 (s := s1)
+    (overmarsDoSwapGenProg ((mkWhpCoreParams c U V w n_max, base), b)) fun _ => ?_
+  have hsr := StepSpec.of
+    (overmarsSwapRolesRtProg_fastStep henv hb hlr hor hins hseed hrep (s := s))
+  have hsa := StepSpec.of (setOvermarsActRtProg_fastStep henv hb (Nat.zero_le n_max)
+    hsr.step.2.1 hsr.step.2.2.1)
   unfold overmarsDoSwapGenProg
   simp only [pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (mkBktMetaRtProg (cp, base) >>= fun bm =>
-        overmarsSwapRolesRtProg (bm, b) >>= fun _ =>
-        setOvermarsActRtProg ((bm, b), 0)) =
-      (Memory.spec 0).clientState s1
-        (setOvermarsActRtProg ((mkBktMetaRt c U V w n_max base, b), 0)) := by
-    rw [clientState_bind, hmb_st, hmb_res, clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hsr_step.trans hsa_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hmb_st, hmb_res, hmb_mc]
-    dsimp only [s1, cp] at hsr_mc hsa_mc ⊢; omega
-  · refine validProg_bind hmb_vp ?_; rw [hmb_st, hmb_res]
-    exact validProg_bind hsr_vp hsa_vp
+  exact StepSpec.toAnd_le (ReadSpec.thenStep
+    (.of (mkBktMetaRtProg_spec (U := U) (V := V) (w := w) (base := base) henv.2.2.2.1 s)) <|
+    hsr.bind hsa) (by omega)
 
 /-- Complete `overmarsStep` `Memory.Prog` subroutine (`d = ((wp, base), b)`). -/
 @[irreducible] def overmarsStepGenProg : (WhpParams × ℕ) × ℕ → Memory.Prog Unit
@@ -1640,36 +1467,18 @@ private theorem overmarsScanSteps_roles_and_ins (c U n_max : ℕ) (θ : SeedWhp 
       (overmarsScanSteps c U n_max θ b k st).overmarsInsCount b ≤ st.overmarsInsCount b + k := by
   intro k
   induction k with
-  | zero =>
-    intro st
-    dsimp only [overmarsScanSteps]
-    exact ⟨rfl, rfl, Nat.le_add_right _ _⟩
+  | zero => exact fun st => ⟨rfl, rfl, Nat.le_add_right _ _⟩
   | succ k ih =>
     intro st
     dsimp only [overmarsScanSteps]
-    by_cases hcond : st.overmarsCursor b < st.bktCount b ∧
-        inLiveTree st.rebStage st.oldEp (st.rebDoneFlag b) (st.locState b (st.overmarsCursor b)) =
-          true
-    · rw [ite_eq_left hcond]
-      set st1 : FastState :=
-        { st with
-          slices := Function.update st.slices (st.overmarsSliceIdx b)
-            (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-              (st.slices (st.overmarsSliceIdx b))
-              (st.fpAt c U n_max θ (st.bktSalt b) b (st.overmarsCursor b))
-              (st.overmarsCursor b))
-          overmarsCursor := Function.update st.overmarsCursor b (st.overmarsCursor b + 1)
-          overmarsInsCount := Function.update st.overmarsInsCount b (st.overmarsInsCount b + 1) }
-      obtain ⟨r1, r2, r3⟩ := ih st1
-      dsimp only [st1] at r1 r2 r3 ⊢
+    split
+    · obtain ⟨r1, r2, r3⟩ := ih _
+      refine ⟨r1, r2, ?_⟩
+      dsimp only at r3
       rw [Function.update_self] at r3
-      exact ⟨r1, r2, by omega⟩
-    · rw [ite_eq_right hcond]
-      set st1 : FastState :=
-        { st with overmarsCursor := Function.update st.overmarsCursor b (st.overmarsCursor b + 1) }
-      obtain ⟨r1, r2, r3⟩ := ih st1
-      dsimp only [st1] at r1 r2 r3 ⊢
-      exact ⟨r1, r2, by omega⟩
+      omega
+    · obtain ⟨r1, r2, r3⟩ := ih _
+      exact ⟨r1, r2, by dsimp only at r3; omega⟩
 
 theorem realizes_overmarsStepGen :
     Realizes .exact overmarsStepGenProg
@@ -1762,13 +1571,12 @@ theorem overmarsStepGenProg_fastStep {c U V w n_max base b : ℕ}
   rcases hbnds with ⟨hb, hce_or, hlr, hor, hcnt_le, hq_all, hbp_v, hscan16⟩
   obtain ⟨hoa_mc, hoa_vp, hoa_step⟩ :=
     overmarsActivateGenProg_fastStep henv hb hor hseed hrep (s := s)
-  set cp := mkWhpCoreParams c U V w n_max
-  set s0 := (Memory.spec 0).clientState s (overmarsActivateGenProg ((cp, base), b))
-  have hrep0 : FastMemRep base c U V w n_max (overmarsAfterActivate n_max b fs) s0.mem :=
-    hoa_step.2.2.1
-  obtain ⟨h5_st, h5_res, h5_mc, h5_vp⟩ :=
-    readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep0 (s := s0)
-  simp only [getBktField] at h5_res
+  have hoa := StepSpec.of_le ⟨hoa_mc, hoa_vp, hoa_step⟩
+  have hrep0 : FastMemRep base c U V w n_max (overmarsAfterActivate n_max b fs)
+      ((Memory.spec 0).clientState s
+        (overmarsActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b))).mem :=
+    hoa.step.2.2.1
+  have h5 := ReadSpec.of (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep0)
   dsimp only
   unfold overmarsStepGenProg
   rw [overmarsStep_eq]
@@ -1776,73 +1584,28 @@ theorem overmarsStepGenProg_fastStep {c U V w n_max base b : ℕ}
   have hk16 : k16 ≤ 16 := hk16_eq ▸ le_rfl
   clear hk16_eq
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  simp only [pure_bind]
-  set fs0 := overmarsAfterActivate n_max b fs
-  by_cases ha1 : fs0.overmarsActive b = 1
+  simp only [hwp1, pure_bind]
+  by_cases ha1 : (overmarsAfterActivate n_max b fs).overmarsActive b = 1
   · rw [ite_eq_left ha1]
     obtain ⟨hcur16, hins16, omMap0, hv0⟩ := hscan16 ha1
     obtain ⟨hce0, hor0, hlr0, hcnt0, hq0, hbp0⟩ := overmarsAfterActivate_preserves n_max b fs
     obtain ⟨_, hsl_mc, hsl_vp, hsl_step⟩ :=
-      overmarsScanLoopGenProg_spec henv hb k16 fs0 omMap0 s0
+      overmarsScanLoopGenProg_spec henv hb k16 (overmarsAfterActivate n_max b fs) omMap0 _
         (hce0 ▸ hce_or) (hor0 ▸ hor) (hcnt0 ▸ hcnt_le)
         (by omega) (by omega) (fun i hi => hq0 ▸ hq_all i hi)
         (fun k' hk' => hbp0 ▸ hbp_v k' (hcnt0 ▸ hk'))
-        hv0 hoa_step.2.1 hrep0
-    obtain ⟨r1, r2, r3⟩ := overmarsScanSteps_roles_and_ins c U n_max θ b k16 fs0
-    obtain ⟨hfs_mc, hfs_vp, hfs_step⟩ :=
-      overmarsFinishSwapGenProg_fastStep henv hb
-        (by rw [r1]; dsimp only [fs0]; omega) (by rw [r2]; dsimp only [fs0]; omega) (by omega)
-        hsl_step.2.1 hsl_step.2.2.1
-        (s := (Memory.spec 0).clientState s0
-          (overmarsScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), k16)))
-    have hs'_eq : (Memory.spec 0).clientState s
-        (overmarsActivateGenProg ((cp, base), b) >>= fun _ =>
-          readBktFieldGenProg (((cp, base), b), 5) >>= fun act =>
-          if act = 1 then
-            overmarsScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), k16) >>= fun _ =>
-            overmarsFinishSwapGenProg ((cp, base), b)
-          else pure ()) =
-        (Memory.spec 0).clientState
-          ((Memory.spec 0).clientState s0
-            (overmarsScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), k16)))
-          (overmarsFinishSwapGenProg ((cp, base), b)) := by
-      rw [clientState_bind, clientState_bind, h5_st, h5_res, ite_eq_left ha1,
-        clientState_bind]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, (hoa_step.trans hsl_step).trans hfs_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost (overmarsActivateGenProg ((cp, base), b)) s +
-        (memoryCost (readBktFieldGenProg (((cp, base), b), 5)) s0 + _) ≤ _
-      rw [h5_st, h5_res, h5_mc, ite_eq_left ha1]
-      simp only [memoryCost_bind]
-      dsimp only [cp, s0] at hoa_mc hsl_mc hfs_mc ⊢
-      have hk_mul : k16 * (2 * hashEvalCostWhp c + 2454) ≤
-          16 * (2 * hashEvalCostWhp c + 2454) := Nat.mul_le_mul_right _ hk16
-      omega
-    · refine validProg_bind hoa_vp ?_
-      refine validProg_bind h5_vp ?_; rw [h5_st, h5_res, ite_eq_left ha1]
-      exact validProg_bind hsl_vp hfs_vp
+        hv0 hoa.step.2.1 hrep0
+    obtain ⟨r1, r2, r3⟩ :=
+      overmarsScanSteps_roles_and_ins c U n_max θ b k16 (overmarsAfterActivate n_max b fs)
+    have hfs := overmarsFinishSwapGenProg_fastStep henv hb (by rw [r1]; omega)
+      (by rw [r2]; omega) (by omega) hsl_step.2.1 hsl_step.2.2.1
+    exact StepSpec.toAnd_le (hoa.bind <| h5.thenStep <| .if_pos ha1 <|
+      (StepSpec.of_le ⟨hsl_mc, hsl_vp, hsl_step⟩).bind (.of_le hfs)) (by
+        have := Nat.mul_le_mul_right (2 * hashEvalCostWhp c + 2454) hk16
+        have := hfs.1; omega)
   · rw [ite_eq_right ha1]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (overmarsActivateGenProg ((cp, base), b) >>= fun _ =>
-          readBktFieldGenProg (((cp, base), b), 5) >>= fun act =>
-          if act = 1 then
-            overmarsScanLoopGenProg ((((mkWhpParams c U V w n_max, base), b), ()), k16) >>= fun _ =>
-            overmarsFinishSwapGenProg ((cp, base), b)
-          else pure ()) = s0 := by
-      rw [clientState_bind, clientState_bind, h5_st, h5_res, ite_eq_right ha1]; rfl
-    rw [hs'_eq]
-    refine ⟨?_, ?_, hoa_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost (overmarsActivateGenProg ((cp, base), b)) s +
-        (memoryCost (readBktFieldGenProg (((cp, base), b), 5)) s0 + _) ≤ _
-      rw [h5_st, h5_res, h5_mc, ite_eq_right ha1]
-      simp only [memoryCost_pure]
-      dsimp only [cp] at hoa_mc ⊢; omega
-    · refine validProg_bind hoa_vp ?_
-      refine validProg_bind h5_vp ?_; rw [h5_st, h5_res, ite_eq_right ha1]
-      exact validProg_pure _
+    exact StepSpec.toAnd_le (hoa.bind <| h5.thenStep <| .if_neg ha1 <|
+      .pure hoa.step.2.1 hrep0 ()) (by omega)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
