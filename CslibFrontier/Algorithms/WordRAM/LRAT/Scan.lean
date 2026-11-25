@@ -123,23 +123,14 @@ theorem litBody_spec (F : Literal ℕ → Bool) (l : Literal ℕ) (st : ScanStat
   simp only at hhas hunit hbad
   refine WP.exists_execWithin ?_
   unfold litBody
-  by_cases hF : F l = true
-  · have hv := hFl.mpr hF
-    wram_exec [hlit, hone, litCodeBy_xor_one, hv]
-    wram_simp
-    simp [scanStep, hF, hhas, hunit, hbad, hzero, hone]
-  · have hv : ¬ _ := mt hFl.mp hF
-    cases h0
-    · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero]
-      wram_simp
-      simp [scanStep, hF, hbad, hzero, hone]
-    · by_cases hu : u0 = litCode l
-      · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit, hu]
-        wram_simp
-        simp [scanStep, hF, hbad, hzero, hhas, hu, hunit, hone]
-      · wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit]
-        wram_simp
-        simp [scanStep, hF, hzero, hhas, hu, hunit, hone]
+  wram_exec [hlit, hone, litCodeBy_xor_one, hhas, hzero, hunit]
+  all_goals wram_simp
+  · simp [scanStep, hFl.mp ‹_›, hhas, hunit, hbad, hzero, hone]
+  · simp [scanStep, mt hFl.mpr ‹_›, Bool.toNat_eq_zero.mp ‹_›, hbad, hzero, hone]
+  · have h0t : h0 = true := by cases h0 <;> [exact absurd rfl ‹_›; rfl]
+    simp [scanStep, mt hFl.mpr ‹_›, h0t, hhas, hunit, hbad, hzero, hone, ‹u0 = litCode l›]
+  · have h0t : h0 = true := by cases h0 <;> [exact absurd rfl ‹_›; rfl]
+    simp [scanStep, mt hFl.mpr ‹_›, h0t, hhas, hunit, hzero, hone, ‹¬u0 = litCode l›]
 
 /-- **The literal loop** computes the fold `scanLits F` of the clause at `lptr`, where `F l` says
 that the cell of the complement of `l` holds the stamp, and leaves memory unchanged. -/

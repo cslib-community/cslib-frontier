@@ -130,16 +130,14 @@ theorem add_extend {w : Array α} {c k : ℕ} (hk : k ≤ radius w.toList c) :
       omega
     · by_contra hne
       have hpr := isPalRadius_succ_of_lt_radius (w := w.toList) (c := c) (k := k) (by omega)
-      have hc : c ≤ 2 * w.toList.length := by
-        have := hpr.2.1; omega
-      rw [isPalRadius_succ_iff ((isPalRadius_iff_le_radius hc).mpr hk) (by omega)
-          (by have := hpr.2.1; omega),
+      have hlen := hpr.2.1
+      rw [isPalRadius_succ_iff ((isPalRadius_iff_le_radius (by omega)).mpr hk)
+          (by omega) (by omega),
         show c / 2 - k - 1 = l by omega, Array.getElem?_toList, Array.getElem?_toList,
         Array.getElem?_eq_getElem h.2, Array.getElem?_eq_getElem h.1] at hpr
       exact hEq (Option.some_inj.mp hpr)
     · by_contra hne
-      have hpr := isPalRadius_succ_of_lt_radius (w := w.toList) (c := c) (k := k) (by omega)
-      have h1 := hpr.2.1
+      have h1 := (isPalRadius_succ_of_lt_radius (w := w.toList) (c := c) (k := k) (by omega)).2.1
       simp only [Array.length_toList] at h1
       omega
 
@@ -181,42 +179,33 @@ private theorem loop_spec (w : Array α) (fuel c C R : ℕ) (rad : Array ℕ)
     have hm : rad.getD (2 * C - c) 0 = radius w.toList (2 * C - c) := by
       rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem (by omega), Option.getD_some,
         hrad]
+    have hpush {v : ℕ} (hv : v = radius w.toList c) :
+        ∀ i (hi : i < (rad.push v).size), (rad.push v)[i] = radius w.toList i := by
+      intro i hi
+      rw [Array.getElem_push]
+      split_ifs with hi'
+      · exact hrad i hi'
+      · simp only [Array.size_push] at hi
+        rw [show i = c by omega, hv]
     simp only [loop]
     split_ifs with hlt
     · rw [hm] at hlt ⊢
-      have heq : radius w.toList c = radius w.toList (2 * C - c) := by omega
-      refine ih (c + 1) C R _ (by omega) (by simp only [Array.size_push]; omega) ?_ (by omega) hR
-      intro i hi
-      rw [Array.getElem_push]
-      split_ifs with hi'
-      · exact hrad i hi'
-      · simp only [Array.size_push] at hi
-        rw [show i = c by omega, heq]
+      exact ih (c + 1) C R _ (by omega) (by simp only [Array.size_push]; omega)
+        (hpush (by omega)) (by omega) hR
     · rw [hm] at hlt
-      have hb : R - (c + 1) / 2 ≤ radius w.toList c := by omega
-      have hext := add_extend (w := w) (c := c) hb
-      refine ih (c + 1) c _ _ (by omega) (by simp only [Array.size_push]; omega) ?_ (by omega)
-        (by omega)
-      intro i hi
-      rw [Array.getElem_push]
-      split_ifs with hi'
-      · exact hrad i hi'
-      · simp only [Array.size_push] at hi
-        rw [show i = c by omega, hext]
+      have hext := add_extend (w := w) (c := c) (by omega : R - (c + 1) / 2 ≤ radius w.toList c)
+      exact ih (c + 1) c _ _ (by omega) (by simp only [Array.size_push]; omega)
+        (hpush hext) (by omega) (by omega)
 
 /-- **Correctness of Manacher's algorithm**: it returns the maximal palindromic radii about all
 `2 * w.size + 1` centers of `w`. -/
 theorem manacher_eq (w : Array α) :
     manacher w = Array.ofFn (n := 2 * w.size + 1) (radius w.toList ·) := by
-  refine loop_spec w _ 1 0 0 #[0] (by omega) rfl ?_ Nat.zero_lt_one ?_
-  · intro i hi
-    have hi0 : i = 0 := by simp only [List.size_toArray, List.length_singleton] at hi; omega
-    subst hi0
-    have := radius_le_half w.toList 0
-    simp only [List.getElem_toArray, List.getElem_singleton]
-    omega
-  · have := radius_le_half w.toList 0
-    omega
+  have h0 : radius w.toList 0 = 0 := Nat.eq_zero_of_le_zero (radius_le_half w.toList 0)
+  refine loop_spec w _ 1 0 0 #[0] (by omega) rfl (fun i hi => ?_) Nat.zero_lt_one (by omega)
+  have hi0 : i = 0 := by simp only [List.size_toArray, List.length_singleton] at hi; omega
+  subst hi0
+  simpa only [List.getElem_toArray, List.getElem_singleton] using h0.symm
 
 theorem size_manacher (w : Array α) : (manacher w).size = 2 * w.size + 1 := by
   rw [manacher_eq, Array.size_ofFn]

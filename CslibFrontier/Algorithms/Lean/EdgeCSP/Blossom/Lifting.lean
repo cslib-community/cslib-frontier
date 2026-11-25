@@ -48,12 +48,10 @@ theorem lift_entering_augmentation (hF : EdgeInstance F) {f : OccurrenceLabeling
     exact (mem_union.mp hm).resolve_right (by simpa only [mem_singleton] using hx)
   have hroot : Inconsistent f p.start := mem_defects.mp (mem_sdiff.mp hrootset).1
   have hstart : p.start ∉ vs := by simpa only [List.mem_toFinset] using (mem_sdiff.mp hrootset).2
-  have hstartconn : p.start ∉ connectors F vs := by
-    intro hm
+  have hstartconn : p.start ∉ connectors F vs := fun hm => by
     obtain ⟨i, _, hi⟩ := List.mem_map.mp hm
     obtain ⟨o, _, ho, _, _⟩ := hroot
-    have hmem : p.start ∈ F.vars := ho ▸ o.var_mem
-    exact connector_not_mem i (hi.symm ▸ hmem)
+    exact connector_not_mem i (hi.symm ▸ ho ▸ o.var_mem)
   obtain ⟨hk, hbin, hno⟩ := Walk.boundaryIndex_spec hp.1.1.1
     (connectors F vs) hstartconn hex
   let k := p.boundaryIndex (connectors F vs)
@@ -80,14 +78,11 @@ theorem lift_entering_augmentation (hF : EdgeInstance F) {f : OccurrenceLabeling
       hconnector).symm))
   have hot : o.1 ∈ touched F vs := hoi.symm ▸ hit
   have hcp : connectorPort f vs o.1 hot = b := by simpa only [hoi] using hconnector
-  have hr := restoreWalk_isFPrefix hF hf vs fallback (hp.1.1.take k) hqno
+  have hr : r.IsFPrefix sem f := restoreWalk_isFPrefix hF hf vs fallback (hp.1.1.take k) hqno
   have hrv := (restoreWalk_spec hF f vs fallback (hp.1.1.1.take k) hqno).2
   have hcurrent : ValidLabeling sem (r.flip f) := by
-    have hh := hr.valid_take r.steps.length le_rfl
-    change ValidLabeling sem ((r.take r.steps.length).flip f) at hh
-    simpa only [Walk.take, List.take_length] using hh
-  have hinside : ∀ e : Occurrence F, e.var ∈ vs → r.flip f e = f e := by
-    intro e he
+    simpa only [Walk.take, List.take_length] using hr.valid_take r.steps.length le_rfl
+  have hinside : ∀ e : Occurrence F, e.var ∈ vs → r.flip f e = f e := fun e he => by
     have hn : e ∉ r.edges := fun hm => hrv.2 e hm he
     simp [Walk.flip, BitString.flipOn_apply, hn]
   obtain ⟨hbits, hcentral⟩ := flip_reference_connectors f vs q hqno
@@ -98,32 +93,22 @@ theorem lift_entering_augmentation (hF : EdgeInstance F) {f : OccurrenceLabeling
   have hnew : ValidLabeling sem (pairFlip
       (transport f vs (r.flip f) (fun _ => false) (listSingle (connectors F vs).length 0))
       (oldPort f vs o hout) (connectorPort f vs o.1 hot)) := by
-    rw [htransport, himage, hcp]
-    have hv := hp.1.1.valid_take (k + 1) (by omega)
-    rw [hp.1.1.1.flip_take_succ _ hk] at hv
-    exact hv
+    rw [htransport, himage, hcp, ← hp.1.1.1.flip_take_succ _ hk]
+    exact hp.1.1.valid_take (k + 1) (by omega)
   obtain ⟨e, hei, hevs, hevalid⟩ := exchange_of_connector hF hf hcurrent vs hinside
     o hout hot _ hnew
   have hecycle : e ∈ w.edges := (var_mem_internal_iff hF hb.1 hb.2.1 e).mp hevs
   have hunused : o ∉ r.edges := by
     intro hm
-    have haa := (mem_restoreWalk_edges hF f vs fallback q hqno o hout).mp hm
-    rw [himage] at haa
+    have haa := himage ▸ (mem_restoreWalk_edges hF f vs fallback q hqno o hout).mp hm
     have hn := (hp.1.1.1.take (k + 1)).2
-    change (Walk.edgesOf (p.steps.take (k + 1))).Nodup at hn
-    rw [List.take_succ_eq_append_getElem hk, Walk.edgesOf_append] at hn
-    have ham : a ∈ Walk.edgesOf [p.steps[k]] := by
-      change a ∈ [a, b]
-      exact List.mem_cons_self
-    exact (List.nodup_append.mp hn).2.2 _ haa _ ham rfl
+    rw [Walk.edges, Walk.take, List.take_succ_eq_append_getElem hk, Walk.edgesOf_append] at hn
+    exact (List.nodup_append.mp hn).2.2 _ haa _ List.mem_cons_self rfl
   have hend : r.steps = [] ∨ r.start ≠ r.finish := by
     by_cases hk0 : k = 0
     · exact Or.inl (by simp [r, q, hk0, restoreWalk, Walk.mapPorts, Walk.take])
-    · apply Or.inr
-      have hc := hp.1.1.not_inconsistent_finish_take (n := k) (by omega) hk
-      intro he
-      have he' : p.start = q.finish := he.trans hrv.1
-      exact hc (he' ▸ hp.2.1)
+    · exact Or.inr fun he =>
+        hp.1.1.not_inconsistent_finish_take (n := k) (by omega) hk ((he.trans hrv.1) ▸ hp.2.1)
   apply liftPrefix_spec hF hb hM hr hend hroot hstart hrv.2
   refine ⟨r.steps.length, le_rfl, ?_⟩
   apply List.ne_nil_of_mem ((mem_exitsAt f w r r.steps.length o e).mpr ?_)
@@ -156,19 +141,13 @@ theorem liftWalk_spec (hF : EdgeInstance F) {f : OccurrenceLabeling F Bool}
   | cons s ss =>
     rcases s with ⟨fallback, output⟩
     by_cases hall : p.edges.all (fun o => !(connectors F (internal w)).contains o.var) = true
-    · have hno : ∀ o ∈ p.edges, o.var ∉ connectors F (internal w) := by
-        intro o ho
-        have hh := List.all_eq_true.mp hall o ho
-        simpa using hh
+    · have hno : ∀ o ∈ p.edges, o.var ∉ connectors F (internal w) := fun o ho => by
+        simpa using List.all_eq_true.mp hall o ho
       obtain ⟨hv, hc⟩ := restore_augmentation hF hb hf fallback hp hno
       exact ⟨_, by simp only [liftWalk, he, hall, ↓reduceIte], hv, hc⟩
     · have hex : ∃ o ∈ p.edges, o.var ∈ connectors F (internal w) := by
-        by_contra hn
-        apply hall
-        apply List.all_eq_true.mpr
-        intro o ho
-        have hnot : o.var ∉ connectors F (internal w) := fun hv => hn ⟨o, ho, hv⟩
-        simpa using hnot
+        simpa only [List.all_eq_true, Bool.not_eq_true', not_forall, Bool.not_eq_false,
+          List.contains_iff_mem, exists_prop] using hall
       obtain ⟨g, hg, hv, hc⟩ := lift_entering_augmentation hF hb hf hM fallback hp hx hex
       exact ⟨g, by simpa only [liftWalk, he, hall, Bool.false_eq_true, ↓reduceIte] using hg,
         hv, hc⟩

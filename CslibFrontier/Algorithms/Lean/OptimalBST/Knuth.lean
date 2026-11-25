@@ -315,21 +315,16 @@ theorem Window.valid_knuth {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
   intro d T i hT hj
   have hopt := mem_Ioc.1 (optRoot_mem w (show i < i + d + 1 by omega))
   rcases d with _ | e
-  · have h : optRoot w i (i + 0 + 1) = i + 0 + 1 := by omega
-    simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte]
-    simp only [add_zero] at h
+  · simp only [Window.knuth, add_zero, lt_irrefl, ↓reduceIte]
+    simp only [add_zero] at hopt
     omega
   · have hmon := optRoot_mono hqi hmono (show i + 1 < i + (e + 1) + 1 by omega)
-    rw [show i + (e + 1) + 1 - 1 = i + e + 1 by omega] at hmon
-    have hlo : (T i (i + (e + 1))).root = optRoot w i (i + e + 1) := by
-      rw [hT i (i + (e + 1)) (by omega) (by omega)]
-      rfl
-    have hhi : (T (i + 1) (i + (e + 1) + 1)).root = optRoot w (i + 1) (i + (e + 1) + 1) := by
-      rw [hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
-    have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + e + 1 by omega))
+    have h₁ := mem_Ioc.1 (optRoot_mem w (show i < i + (e + 1) by omega))
     have h₂ := mem_Ioc.1 (optRoot_mem w (show i + 1 < i + (e + 1) + 1 by omega))
     simp only [Window.knuth, show i + 1 < i + (e + 1) + 1 by omega, ↓reduceIte,
-      show i + (e + 1) + 1 - 1 = i + (e + 1) by omega, hlo, hhi]
+      show i + (e + 1) + 1 - 1 = i + (e + 1) by omega] at hmon ⊢
+    rw [hT i (i + (e + 1)) (by omega) (by omega), hT (i + 1) (i + (e + 1) + 1) hj (by omega)]
+    dsimp only
     omega
 
 /-- **Correctness of Knuth's algorithm** when the weight satisfies the quadrangle inequality and
@@ -355,48 +350,31 @@ theorem sum_knuth_window_le {w : ℕ → ℕ → β} (hqi : QuadrangleIneq w)
       ((Window.knuth : Window β).hi T i (i + (d + 1)) -
         (Window.knuth : Window β).lo T i (i + (d + 1)) + 1) ≤ 2 * n := by
   rcases d with _ | e
-  · calc ∑ i ∈ range (n + 1 - (0 + 1)),
-          ((Window.knuth : Window β).hi T i (i + (0 + 1)) -
-            (Window.knuth : Window β).lo T i (i + (0 + 1)) + 1)
-        = ∑ _i ∈ range (n + 1 - (0 + 1)), 1 :=
-          sum_congr rfl fun i _ => by simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte,
-            Nat.sub_self]
-      _ ≤ 2 * n := by rw [sum_const, card_range]; simp only [Nat.nsmul_eq_mul, mul_one]; omega
-  · obtain ⟨m, hm⟩ : ∃ m, m = n + 1 - (e + 1 + 1) := ⟨_, rfl⟩
-    rw [← hm]
+  · simp only [Window.knuth, zero_add, lt_irrefl, ↓reduceIte, Nat.sub_self,
+      sum_const, card_range, Nat.nsmul_eq_mul, mul_one]
+    omega
+  · set m := n + 1 - (e + 1 + 1) with hm
     let a : ℕ → ℕ := fun i => optRoot w i (i + e + 1)
     have hterm : ∀ i ∈ range m, (Window.knuth : Window β).hi T i (i + (e + 1 + 1)) -
         (Window.knuth : Window β).lo T i (i + (e + 1 + 1)) + 1 = a (i + 1) - a i + 1 := by
       intro i hi
       rw [mem_range] at hi
-      have hlo : (T i (i + (e + 1 + 1) - 1)).root = a i := by
-        rw [show i + (e + 1 + 1) - 1 = i + (e + 1) by omega, hT i (i + (e + 1)) (by omega)
-          (by omega)]
-        simp only [a]
-        congr 1
-      have hhi : (T (i + 1) (i + (e + 1 + 1))).root = a (i + 1) := by
-        rw [hT (i + 1) (i + (e + 1 + 1)) (by omega) (by omega)]
-        simp only [a]
-        congr 1
-        omega
-      simp only [Window.knuth, show i + 1 < i + (e + 1 + 1) by omega, ↓reduceIte, hlo, hhi]
+      rw [show i + (e + 1 + 1) = (i + 1) + e + 1 by omega]
+      simp only [Window.knuth, show i + 1 < (i + 1) + e + 1 by omega, ↓reduceIte,
+        show (i + 1) + e + 1 - 1 = i + e + 1 by omega]
+      rw [hT i (i + e + 1) (by omega) (by omega),
+        hT (i + 1) ((i + 1) + e + 1) (by omega) (by omega)]
     rw [sum_congr rfl hterm]
-    have ha : ∀ i < m, a i ≤ a (i + 1) := by
-      intro i hi
-      have hmon := optRoot_mono hqi hmono (show i + 1 < i + e + 2 by omega)
-      rw [show i + e + 2 - 1 = i + e + 1 by omega] at hmon
-      calc a i = optRoot w i (i + e + 1) := rfl
-        _ ≤ optRoot w i (i + e + 2) := hmon.1
-        _ ≤ optRoot w (i + 1) (i + e + 2) := hmon.2
-        _ = a (i + 1) := by simp only [a]; congr 1; omega
+    have ha : ∀ i < m, a i ≤ a (i + 1) := fun i _ => by
+      have hmon := optRoot_mono hqi hmono (show i + 1 < (i + 1) + e + 1 by omega)
+      rw [show (i + 1) + e + 1 - 1 = i + e + 1 by omega] at hmon
+      exact hmon.1.trans hmon.2
     have htel := sum_telescope a m ha
-    have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
-    rcases Nat.eq_zero_or_pos m with rfl | hm₀
-    · rw [sum_range_zero]
-      omega
-    · have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
-      change (∑ i ∈ range m, (a (i + 1) - a i + 1)) + optRoot w 0 (0 + e + 1) =
-        optRoot w m (m + e + 1) + m at htel
+    rcases Nat.eq_zero_or_pos m with hm0 | hm₀
+    · rw [hm0, sum_range_zero]; omega
+    · have h₀ := mem_Ioc.1 (optRoot_mem w (show 0 < 0 + e + 1 by omega))
+      have hm' := mem_Ioc.1 (optRoot_mem w (show m < m + e + 1 by omega))
+      dsimp only [a] at htel ⊢
       omega
 
 end Knuth
@@ -437,21 +415,16 @@ variable [IsOrderedAddMonoid β]
 theorem optCost_le_nsmul {w : ℕ → ℕ → β} {M : β} {i j : ℕ}
     (hw : ∀ a b, i ≤ a → a < b → b ≤ j → w a b ≤ M) :
     optCost w i j ≤ (j - i) • M := by
-  suffices H : ∀ d i j, j - i = d → (∀ a b, i ≤ a → a < b → b ≤ j → w a b ≤ M) →
-      optCost w i j ≤ d • M from H (j - i) i j rfl hw
-  intro d
-  induction d with
-  | zero =>
-    intro i j hd _
-    rw [optCost_of_le w (by omega), zero_nsmul]
+  generalize hd : j - i = d
+  induction d generalizing i j with
+  | zero => rw [optCost_of_le w (by omega), zero_nsmul]
   | succ d ih =>
-    intro i j hd hw'
     have hij : i < j := by omega
     have hle := optCost_le w (k := i + 1) (mem_Ioc.2 ⟨Nat.lt_succ_self i, hij⟩)
     rw [splitCost, Nat.add_sub_cancel, optCost_of_le w le_rfl, zero_add] at hle
-    have hih := ih (i + 1) j (by omega) fun a b h₁ h₂ h₃ => hw' a b (by omega) h₂ h₃
+    have hih := ih (i := i + 1) (j := j) (fun a b h₁ h₂ h₃ => hw a b (by omega) h₂ h₃) (by omega)
     calc optCost w i j ≤ w i j + optCost w (i + 1) j := hle
-      _ ≤ M + d • M := add_le_add (hw' i j le_rfl hij le_rfl) hih
+      _ ≤ M + d • M := add_le_add (hw i j le_rfl hij le_rfl) hih
       _ = (d + 1) • M := (succ_nsmul' M d).symm
 
 /-- A solution for the keys `1, …, n` is optimal for the weight `w` if its tree is a binary search
