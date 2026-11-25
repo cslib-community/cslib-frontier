@@ -372,9 +372,7 @@ theorem check_witness (A : ι → Set (∀ v, α v))
     have h0 : depthUses vbl {(i, 0)} (i, 0) v = 0 := by
       unfold depthUses
       rw [card_eq_zero, filter_eq_empty_iff]
-      intro q hq hlt
-      rw [mem_singleton.1 hq] at hlt
-      exact lt_irrefl _ hlt.1
+      exact fun q hq hlt => by rw [mem_singleton.1 hq] at hlt; exact lt_irrefl _ hlt.1
     simp only [current, uses, List.filter_nil, List.length_nil]
     rw [witness, witnessRel_nil, h0]
   | append_singleton w j ih =>
@@ -549,10 +547,8 @@ structure RootedRel (R : ι → ι → Prop) (i : ι) (S : Finset (ι × ℕ)) :
 theorem exists_of_levelRel_ne_zero {R : ι → ι → Prop} [DecidableRel R] {j : ι}
     {S : Finset (ι × ℕ)} (h : levelRel R j S ≠ 0) :
     ∃ q ∈ S, q.2 + 1 = levelRel R j S ∧ R q.1 j := by
-  have hne : (S.filter fun p => R p.1 j).Nonempty := by
-    by_contra hc
-    rw [not_nonempty_iff_eq_empty] at hc
-    exact h (by rw [levelRel, hc, sup_empty]; rfl)
+  have hne : (S.filter fun p => R p.1 j).Nonempty :=
+    nonempty_iff_ne_empty.2 fun hc => h (by rw [levelRel, hc, sup_empty]; rfl)
   obtain ⟨q, hq, he⟩ := exists_mem_eq_sup _ hne fun p : ι × ℕ => p.2 + 1
   rw [mem_filter] at hq
   exact ⟨q, hq.1, he.symm, hq.2⟩
@@ -575,10 +571,8 @@ theorem rooted_witnessRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq
       · exact absurd hp0 h0
       · exact ih.zero p hp hp0
     · rcases mem_insert.1 hp with rfl | hp
-      · obtain ⟨q, hq, he, ha⟩ := exists_of_levelRel_ne_zero h0
-        exact ⟨q, mem_insert_of_mem hq, he, ha⟩
-      · obtain ⟨q, hq, he, ha⟩ := ih.parent p hp hp0
-        exact ⟨q, mem_insert_of_mem hq, he, ha⟩
+      · exact (exists_of_levelRel_ne_zero h0).imp fun q h => ⟨mem_insert_of_mem h.1, h.2⟩
+      · exact (ih.parent p hp hp0).imp fun q h => ⟨mem_insert_of_mem h.1, h.2⟩
 
 theorem witnessRel_le (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι] (i : ι) (w : List ι) :
     ∀ p ∈ witnessRel R i w, p.2 ≤ w.length := by
@@ -627,15 +621,12 @@ theorem mem_shapesRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
       simp only [mem_union, mem_image, lvl, mem_filter, hS']
       constructor
       · rintro (h | ⟨j, ⟨q, ⟨hq, hq2⟩, rfl⟩, rfl⟩)
-        · exact h.1
-        · rw [← hq2]
-          exact hq
+        exacts [h.1, hq2 ▸ hq]
       · intro hp
+        have := hH p hp
         by_cases h : p.2 ≤ H
         · exact Or.inl ⟨hp, h⟩
-        · refine Or.inr ⟨p.1, ⟨p, ⟨hp, by have := hH p hp; omega⟩, rfl⟩, ?_⟩
-          have := hH p hp
-          exact Prod.ext rfl (show H + 1 = p.2 by omega)
+        · exact Or.inr ⟨p.1, ⟨p, ⟨hp, by omega⟩, rfl⟩, Prod.ext rfl (show H + 1 = p.2 by omega)⟩
 
 /-- Given a reflexive, symmetric relation `R` and any tail-closed predicate `P` on logs, the
 steps labelled `i` of a log `w` of length at most `H` yield `w.count i` distinct `R`-proper
@@ -651,23 +642,18 @@ theorem exists_witnessesRel (R : ι → ι → Prop) [DecidableRel R] [Decidable
         (∀ S ∈ W, labelCount i S ≤ w.count i) ∧
         ∀ S ∈ W, S ∈ shapesRel R i H ∧ ProperRel R S ∧
           ∃ u : List ι, S = witnessRel R i u ∧ P (i :: u) by
-    obtain ⟨W, hcard, -, hW⟩ := h w hw hl
-    exact ⟨W, hcard, hW⟩
+    exact (h w hw hl).imp fun W h => ⟨h.1, h.2.2⟩
   intro w
   induction w with
   | nil => exact fun _ _ => ⟨∅, by simp, by simp, by simp⟩
   | cons j w ih =>
     intro h hl
-    have hl' : w.length ≤ H := by
-      simp only [List.length_cons] at hl
-      omega
+    have hl' : w.length ≤ H := (Nat.le_succ _).trans hl
     obtain ⟨W, hcard, hlab, hsub⟩ := ih (hP_tail j w h) hl'
     by_cases hj : j = i
     · subst hj
       have hnew : witnessRel R j w ∉ W := fun hm => by
-        have := hlab _ hm
-        rw [labelCount_witnessRel hRr] at this
-        omega
+        have := hlab _ hm; rw [labelCount_witnessRel hRr] at this; omega
       refine ⟨insert (witnessRel R j w) W, ?_, fun S hS => ?_, fun S hS => ?_⟩
       · rw [card_insert_of_notMem hnew, hcard, List.count_cons_self]
       · rw [List.count_cons_self]
@@ -681,8 +667,7 @@ theorem exists_witnessesRel (R : ι → ι → Prop) [DecidableRel R] [Decidable
         · exact hsub S hS
     · refine ⟨W, ?_, fun S hS => ?_, hsub⟩
       · rw [hcard, List.count_cons_of_ne hj]
-      · rw [List.count_cons_of_ne hj]
-        exact hlab S hS
+      · rw [List.count_cons_of_ne hj]; exact hlab S hS
 
 /-- **Witness structures of a log.** If `w` is a valid log on `T` of length at most `H`, there
 are `w.count i` distinct structures in `shapes vbl i H`, all proper and passing their checks on
@@ -751,19 +736,15 @@ private theorem lvl_union_image [DecidableEq ι] {S : Finset (ι × ℕ)} {H : �
   simp only [lvl, mem_image, mem_filter, mem_union]
   constructor
   · rintro ⟨p, ⟨hp | ⟨j', hj', rfl⟩, hp2⟩, rfl⟩
-    · have := hS p hp
-      omega
+    · have := hS p hp; omega
     · exact hj'
-  · intro hj
-    exact ⟨(j, H + 1), ⟨Or.inr ⟨j, hj, rfl⟩, rfl⟩, rfl⟩
+  · exact fun hj => ⟨(j, H + 1), ⟨Or.inr ⟨j, hj, rfl⟩, rfl⟩, rfl⟩
 
 private theorem disjoint_image_level [DecidableEq ι] {S : Finset (ι × ℕ)} {H : ℕ}
-    (hS : ∀ p ∈ S, p.2 ≤ H) (J : Finset ι) : Disjoint S (J.image fun j => (j, H + 1)) := by
-  rw [Finset.disjoint_left]
-  intro p hp hq
-  obtain ⟨j, -, rfl⟩ := mem_image.1 hq
-  have := hS _ hp
-  omega
+    (hS : ∀ p ∈ S, p.2 ≤ H) (J : Finset ι) : Disjoint S (J.image fun j => (j, H + 1)) :=
+  Finset.disjoint_left.2 fun p hp hq => by
+    obtain ⟨j, -, rfl⟩ := mem_image.1 hq
+    have := hS _ hp; omega
 
 /-- `∏ B ∈ Γ⁺ C, (1 - x B)⁻¹`, the weight charged to a label `C` on the deepest level. -/
 private noncomputable def zfRel (R : ι → ι → Prop) [DecidableRel R] [Fintype ι]
@@ -771,11 +752,8 @@ private noncomputable def zfRel (R : ι → ι → Prop) [DecidableRel R] [Finty
   ∏ B ∈ nbrRel R {C}, (1 - x B)⁻¹
 
 private theorem one_le_inv_one_sub {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1) (B : ι) :
-    1 ≤ (1 - x B)⁻¹ := by
-  have h0 := (hx B).1
-  have h1 := (hx B).2
-  rw [one_le_inv₀ (by linarith)]
-  linarith
+    1 ≤ (1 - x B)⁻¹ :=
+  (one_le_inv₀ (sub_pos.2 (hx B).2)).2 (sub_le_self _ (hx B).1)
 
 private theorem one_le_zfRel (R : ι → ι → Prop) [DecidableRel R] [Fintype ι]
     {x : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1) (C : ι) : 1 ≤ zfRel R x C :=
@@ -786,9 +764,7 @@ private theorem one_add_le_inv (R : ι → ι → Prop) [DecidableRel R] [Fintyp
     (hyz : ∀ B, y B * zfRel R x B ≤ x B / (1 - x B)) (B : ι) :
     1 + y B * zfRel R x B ≤ (1 - x B)⁻¹ := by
   have h1 := (hx B).2
-  have : 1 + x B / (1 - x B) = (1 - x B)⁻¹ := by
-    field_simp
-    ring
+  have : 1 + x B / (1 - x B) = (1 - x B)⁻¹ := by field_simp; ring
   linarith [hyz B]
 
 /-- The generating-function induction behind [MoserTardos2010, Section 3, Section 6]: charging
@@ -841,10 +817,7 @@ private def nbhdRel (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι] [
 private theorem nbrRel_singleton (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι] [Fintype ι]
     (hRr : ∀ i, R i i) (B : ι) : nbrRel R {B} = insert B (nbhdRel R B) := by
   ext C
-  by_cases h : C = B
-  · subst h
-    simp [nbrRel, nbhdRel, hRr]
-  · simp [nbrRel, nbhdRel, h]
+  by_cases h : C = B <;> simp [nbrRel, nbhdRel, h, hRr]
 
 private theorem mul_zfRel_le (R : ι → ι → Prop) [DecidableRel R] [Fintype ι]
     (hRr : ∀ i, R i i) {x y : ι → ℝ} (hx : ∀ i, x i ∈ Set.Ico 0 1) (Γ : ι → Finset ι)
@@ -853,9 +826,7 @@ private theorem mul_zfRel_le (R : ι → ι → Prop) [DecidableRel R] [Fintype 
     y B * zfRel R x B ≤ x B / (1 - x B) := by
   classical
   have hpos : ∀ C, 0 < 1 - x C := fun C => by linarith [(hx C).2]
-  have hsub : nbhdRel R B ⊆ Γ B := fun C hC => by
-    simp only [nbhdRel, mem_filter, mem_univ, true_and] at hC
-    exact hΓ B C hC.1 hC.2
+  have hsub : nbhdRel R B ⊆ Γ B := fun C hC => (mem_filter.1 hC).2.elim (hΓ B C)
   have hΓle : ∏ C ∈ Γ B, (1 - x C) ≤ ∏ C ∈ nbhdRel R B, (1 - x C) :=
     prod_le_prod_of_subset_of_le_one₀ hsub (fun C _ => (hpos C).le)
       fun C _ _ => by linarith [(hx C).1]
