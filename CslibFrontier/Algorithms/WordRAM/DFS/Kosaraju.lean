@@ -291,14 +291,8 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
             dsimp only [s, kVisAddr, kFinAddr, kStkAddr, kCompAddr] at hFL ⊢
             omega)]
           exact hf_vis u huv
-        · dsimp only [y₂]
-          have hne1 : reg ≠ iReg := by reg_ne
-          have hne2 : reg ≠ compIdxReg := by reg_ne
-          simp [Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
-      · have hpos : 0 < s.finished.length := by
-          cases hs_eq : s.finished with
-          | nil => simp [hs_eq] at hempty
-          | cons _ _ => simp
+        · dsimp only [y₂]; regs_lt
+      · have hpos : 0 < s.finished.length := List.length_pos_iff.2 (mt List.isEmpty_iff.2 hempty)
         have hlt_br : (Cond.lt oldFinReg finCnt).Holds y₁ := by
           change y₁.regs oldFinReg < y₁.regs finCnt
           omega
@@ -368,15 +362,8 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
             rw [hy₁_out (kCompAddr wb N Mc + u.val) (by
               have := u.isLt; dsimp only [kVisAddr, kFinAddr, kStkAddr, kCompAddr]; omega)]
             exact hf_vis u huv
-        · dsimp only [y₂]
-          have hne1 : reg ≠ iReg := by reg_ne
-          have hne2 : reg ≠ compIdxReg := by reg_ne
-          have hne3 : reg ≠ addr := by reg_ne
-          have hne4 : reg ≠ vReg := by reg_ne
-          have hne5 : reg ≠ pReg := by reg_ne
-          rw [Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2, hz₁_fr reg hne3 hne4 hne5]
-          dsimp only [z₀]
-          exact Data.set_regs_of_ne hne5 _
+        · dsimp only [y₂]; regs_lt
+          rw [hz₁_fr reg (by reg_ne) (by reg_ne) (by reg_ne)]; dsimp only [z₀]; regs_lt
     obtain ⟨y₂, hy₂_ex, hy₂_i, hy₂_fc, hy₂_cIdx, hy₂_comp, hy₂_out, hy₂_fr⟩ := hbranch
     have hy₂_fr0 : ∀ reg : Fin 28, reg.val < 18 → y₂.regs reg = x.regs reg :=
       fun reg hreg => (hy₂_fr reg hreg).trans (hy₁_fr0 reg hreg)
@@ -396,11 +383,7 @@ private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List 
       dsimp only [cIdx']
       split_ifs with he
       · omega
-      · have hpos : 0 < s.finished.length := by
-          cases hs_eq : s.finished with
-          | nil => simp [hs_eq] at he
-          | cons _ _ => simp
-        omega
+      · have := List.length_pos_iff.2 (mt List.isEmpty_iff.2 he); omega
     obtain ⟨y, hy_ex, hy_comp, hy_out, hy_fr⟩ :=
       peelLoop_spec hN revAdj ord hord_len wb Mc hmc hfit rs (idx + 1)
         (F₀ + s.finished.length) cIdx' s.visited f' y₂ (by omega)
