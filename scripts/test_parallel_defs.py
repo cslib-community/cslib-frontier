@@ -338,6 +338,27 @@ class DriverTests(unittest.TestCase):
                       "CslibFrontier/MCSP/Basic.lean#L40", self.summary.read_text())
         self.assertIn("Record the disposition in the PR", self.summary.read_text())
 
+    def test_summary_file_captures_pure_markdown_without_workflow_commands_and_records_skips(self) -> None:
+        (self.build / "CslibFrontier").mkdir(parents=True)
+        (self.build / "CslibFrontier/New.olean").write_text("")
+        artifact_copy = self.root / "lean-advisory-notices.md"
+        rows = [ALIAS, {"examined": 3, "modules": 2, "missing": ["CslibFrontier.Missing"]}]
+        with mock.patch.object(p, "run_reader", return_value=rows):
+            code, out = self.run_main("--github", "--summary-file", str(artifact_copy))
+        self.assertEqual(code, 0)
+        self.assertIn("::notice ", out)
+        copied = artifact_copy.read_text()
+        self.assertIn("1 candidate(s) among the 3 examined declarations.", copied)
+        self.assertIn("**Incomplete comparison:** 1 library module(s)", copied)
+        self.assertNotIn("::notice", copied)
+
+        with mock.patch.object(p, "run_reader", side_effect=RuntimeError("reader crashed")):
+            code, _ = self.run_main("--theorems", "--github", "--summary-file", str(artifact_copy))
+        self.assertEqual(code, 0)
+        copied = artifact_copy.read_text()
+        self.assertIn("Duplicate-statement notice skipped: the tool failed (reader crashed)", copied)
+        self.assertNotIn("::notice", copied)
+
     def test_theorems_mode(self) -> None:
         (self.build / "CslibFrontier").mkdir(parents=True)
         (self.build / "CslibFrontier/New.olean").write_text("")

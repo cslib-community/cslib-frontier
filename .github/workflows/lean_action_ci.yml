@@ -336,13 +336,37 @@ jobs:
         env:
           RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
-          BASE=${BASE:-$RECORDED_BASE}
-          git fetch --no-tags --depth=1 origin "$BASE"
           SUMMARY_COPY="$RUNNER_TEMP/lean-advisory-notices.md"
           : > "$SUMMARY_COPY"
-          python3 -B scripts/parallel_defs.py --base "$BASE" --github --no-build-check | tee -a "$SUMMARY_COPY"
-          python3 -B scripts/parallel_defs.py --theorems --base "$BASE" --github --no-build-check | tee -a "$SUMMARY_COPY"
+          record_incomplete() {
+            printf '%s\n' "$1" >> "$SUMMARY_COPY"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              printf '%s\n' "$1" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            printf '%s\n' "$1"
+          }
+          status=0
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          fetch_status=0
+          git fetch --no-tags --depth=1 origin "$BASE" || fetch_status=$?
+          if [ "$fetch_status" -ne 0 ]; then
+            record_incomplete "$(printf '### Parallel-definition and duplicate-statement notices (incomplete)\n\n**Incomplete advisory check:** `git fetch` of comparison base `%s` failed (exit %s); neither duplication scan ran.\n' "$BASE" "$fetch_status")"
+            exit "$fetch_status"
+          fi
+          defs_status=0
+          python3 -B scripts/parallel_defs.py --base "$BASE" --github --no-build-check --summary-file "$SUMMARY_COPY" || defs_status=$?
+          if [ "$defs_status" -ne 0 ]; then
+            status=$defs_status
+            record_incomplete "$(printf '\n**Incomplete advisory check:** `parallel_defs.py` exited with status %s.\n' "$defs_status")"
+          fi
+          thms_status=0
+          python3 -B scripts/parallel_defs.py --theorems --base "$BASE" --github --no-build-check --summary-file "$SUMMARY_COPY" || thms_status=$?
+          if [ "$thms_status" -ne 0 ]; then
+            status=$thms_status
+            record_incomplete "$(printf '\n**Incomplete advisory check:** `parallel_defs.py --theorems` exited with status %s.\n' "$thms_status")"
+          fi
+          exit "$status"
       - name: Upload early Lean advisory notices
         if: github.event_name == 'pull_request'
         continue-on-error: true

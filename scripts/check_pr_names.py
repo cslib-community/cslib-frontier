@@ -340,10 +340,10 @@ SAFE_IDENT = re.compile(r"[A-Za-z0-9_.-]+")
 SAFE_URL = re.compile(r"(?:https?|file)://[^\s-]+[^\s]*")
 
 
-def _safe_rel_subdir(sub_dir: str | None) -> Path | None:
-    if not sub_dir:
+def _safe_rel_subdir(sub_dir: object) -> Path | None:
+    if sub_dir is None or sub_dir == "":
         return Path()
-    if "\\" in sub_dir or sub_dir.startswith("/"):
+    if not isinstance(sub_dir, str) or "\\" in sub_dir or sub_dir.startswith("/"):
         return None
     parts = sub_dir.split("/")
     if any(part in ("", ".", "..") for part in parts):
@@ -387,30 +387,38 @@ def fetch_dependency_sources(root: Path, temp_dir: Path, core: bool = True) -> l
     manifest_path = root / "lake-manifest.json"
     if manifest_path.is_file() and not (root / ".lake" / "packages").is_dir():
         try:
-            packages = json.loads(manifest_path.read_text(encoding="utf-8")).get("packages", [])
-        except (OSError, ValueError, AttributeError):
+            raw_manifest = json.loads(manifest_path.read_text(encoding="utf-8", errors="replace"))
+            raw_packages = raw_manifest.get("packages") if isinstance(raw_manifest, dict) else []
+            packages = raw_packages if isinstance(raw_packages, list) else []
+        except (OSError, ValueError):
             packages = []
+        seen_names: set[str] = set()
         for pkg in packages:
             if not isinstance(pkg, dict) or pkg.get("type") != "git":
                 continue
             name, url, rev = pkg.get("name", ""), pkg.get("url", ""), pkg.get("rev", "")
             sub = _safe_rel_subdir(pkg.get("subDir"))
             if (not isinstance(name, str) or name in (".", "..") or not SAFE_IDENT.fullmatch(name)
+                    or name in seen_names
                     or not isinstance(url, str) or not SAFE_URL.fullmatch(url)
                     or not isinstance(rev, str) or not re.fullmatch(r"[0-9a-f]{40}", rev)
                     or sub is None):
                 continue
+            seen_names.add(name)
             dest = temp_dir / "packages" / name
             jobs.append((url, rev, dest, (), (dest / sub,)))
     toolchain_path = root / "lean-toolchain"
     if core and not shutil.which("lean") and toolchain_path.is_file():
-        spec = toolchain_path.read_text(encoding="utf-8", errors="replace").strip()
+        try:
+            spec = toolchain_path.read_text(encoding="utf-8", errors="replace").strip()
+        except OSError:
+            spec = ""
         repo, sep, tag = spec.partition(":")
         if not sep:
             repo, tag = "leanprover/lean4", spec
         core_url = os.environ.get("LEAN_CORE_GIT_URL") or f"https://github.com/{repo}"
         repo_ok = all(SAFE_IDENT.fullmatch(p) and p not in (".", "..") for p in repo.split("/"))
-        if (len(repo.split("/")) == 2 and repo_ok and SAFE_URL.fullmatch(core_url)
+        if (spec and len(repo.split("/")) == 2 and repo_ok and SAFE_URL.fullmatch(core_url)
                 and SAFE_IDENT.fullmatch(tag) and not tag.startswith("-")):
             dest = temp_dir / "lean-core"
             core_dirs = tuple(dest / "src" / d for d in ("Init", "Std", "Lean"))
