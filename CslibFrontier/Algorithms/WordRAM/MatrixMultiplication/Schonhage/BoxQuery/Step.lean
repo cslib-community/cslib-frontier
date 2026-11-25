@@ -46,8 +46,7 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
   have hpending := hx.pending_le hη
   simp only [List.length_cons] at hpending
   have hTpos : 0 < 10 ^ L := by positivity
-  have hL : L ≤ (L + 1) * 10 ^ L := (Nat.le_succ L).trans
-    (Nat.le_mul_of_pos_right _ hTpos)
+  have hL : L ≤ (L + 1) * 10 ^ L := (Nat.le_succ L).trans (Nat.le_mul_of_pos_right _ hTpos)
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
   have hquery := (PrunedQuery.queryIndex η).isLt
   have hVK : V + (boxes L m t).card ≤ F := by rw [← hK]; omega
@@ -64,15 +63,11 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
     obtain ⟨y, hy, yn, ystack, yframe, yf⟩ := exec_expand η xs rest u hxs hk ustack
       up.stack un up.query up.threshold uk uc uu ue upow up.five up.one up.ten up.nine up.nil
       (hfit.of_le (by unfold queryAddressBound; omega))
-    have he : ExecWithin (w + 2) body x y 256 :=
-      (hu.seq (hy.branch_pos (by simpa only [Cond.holds_lt, uk, up.levels] using hk))).mono
-        (by omega)
-    have hframe (q : ℕ) (hq : ¬(F ≤ q ∧ q < F + 5 * stackCapacity L)) :
-        y.mem q = x.mem q := by
-      rw [yframe q (by
-        have hc := children_length_le η t xs
-        unfold stackCapacity at hq
-        omega), um]
+    have he : ExecWithin (w + 2) body x y 256 := (hu.seq (hy.branch_pos
+      (by simpa only [Cond.holds_lt, uk, up.levels] using hk))).mono (by omega)
+    have hframe (q : ℕ) (hq : ¬(F ≤ q ∧ q < F + 5 * stackCapacity L)) : y.mem q = x.mem q := by
+      have hc := children_length_le η t xs
+      rw [yframe q (by unfold stackCapacity at hq; omega), um]
     have hready : Ready η m t AA BB D V K F a b finished
         (children η t xs ++ rest) y := by
       refine ⟨hp.after_body he, hx.frontier.expand hk, ?_, ystack, ?_, ?_⟩
@@ -88,16 +83,13 @@ theorem exec_step {w L m t AA BB D V K F A B : ℕ} (x : Data registers)
     obtain ⟨y, hy, yanswer, ym, yf⟩ := exec_fullLeaf u η hη xs hxs hlen a b ha hb up uc uu ue
       utable z uanswer (hx.answer_natAbs_le hη ha hb)
       (hfit.of_le (by unfold queryAddressBound; omega)) hmag
-    have he : ExecWithin (w + 2) body x y 256 :=
-      (hu.seq (hy.branch_neg (by simpa only [Cond.holds_lt, uk, up.levels] using hk))).mono
-        (by omega)
+    have he : ExecWithin (w + 2) body x y 256 := (hu.seq (hy.branch_neg
+      (by simpa only [Cond.holds_lt, uk, up.levels] using hk))).mono (by omega)
     have hyμ : y.mem = x.mem := ym.trans um
     have hτ : Good η t (List.ofFn τ) := by simpa only [τ, ofFn_completeLeaf] using hxs
-    have hfront : FrontierInvariant η t (leafQueryValue m t η a b)
-        (finished ++ [τ]) rest := by
-      have hf : FrontierInvariant η t (leafQueryValue m t η a b) finished
-          (List.ofFn τ :: rest) := by simpa only [τ, ofFn_completeLeaf] using hx.frontier
-      exact hf.finish
+    have hfront : FrontierInvariant η t (leafQueryValue m t η a b) (finished ++ [τ]) rest :=
+      (by simpa only [τ, ofFn_completeLeaf] using hx.frontier :
+        FrontierInvariant η t (leafQueryValue m t η a b) finished (List.ofFn τ :: rest)).finish
     have hready : Ready η m t AA BB D V K F a b (finished ++ [τ]) rest y := by
       refine ⟨hp.after_body he, hfront, ?_, ?_, ?_, ?_⟩
       · regs_frame
