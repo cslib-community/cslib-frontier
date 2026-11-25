@@ -444,7 +444,8 @@ private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial 
           · exact hu.le.trans (Nat.le_mul_of_pos_right _ hq1)
       _ = K ^ 3 * (V + 1) * q ^ (w + (3 * r + 2)) := by ring
   refine (agreement_le_of_forall_bias bound Acc).trans
-    (add_le_add le_rfl (div_le_div_of_nonneg_right ?_ (pow_pos (Nat.cast_pos.mpr Nat.card_pos) n).le))
+    (add_le_add le_rfl
+      (div_le_div_of_nonneg_right ?_ (pow_pos (Nat.cast_pos.mpr Nat.card_pos) n).le))
   exact_mod_cast hres
 
 /-- Narrow-unread branch of the average-case hypergraph bound at a fixed input length `n`. -/

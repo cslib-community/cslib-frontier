@@ -255,7 +255,8 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
           have hw1 : wt u₁ = w₁' := by simp [wt, hu01.symm, hu12]
           have hw2 : wt u₂ = w₂' := by simp [wt, hu20, hu12.symm]
           have hsum_s (g : F → ℝ) :
-              wt e₀ * g e₀ + wt e₁ * g e₁ + wt e₂ * g e₂ = w₀' * g u₀ + w₁' * g u₁ + w₂' * g u₂ := by
+              wt e₀ * g e₀ + wt e₁ * g e₁ + wt e₂ * g e₂ =
+                w₀' * g u₀ + w₁' * g u₁ + w₂' * g u₂ := by
             have h1 : ∑ x ∈ s, wt x * g x = wt e₀ * g e₀ + (wt e₁ * g e₁ + wt e₂ * g e₂) := by
               dsimp only [s]
               rw [Finset.sum_insert (by simp [h01, h02]), Finset.sum_pair h12]
