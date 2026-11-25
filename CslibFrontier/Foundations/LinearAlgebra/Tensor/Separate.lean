@@ -161,9 +161,7 @@ private theorem rightPoly_natDegree_le {w : ℕ} (i j : Fin w) :
     (rightPoly (K := K) i j).natDegree ≤ w - 1 := by
   refine (natDegree_prod_le _ _).trans
     ((sum_le_sum (g := fun _ => 1) fun j' _ => ?_).trans ?_)
-  · refine natDegree_mul_le.trans ?_
-    rw [natDegree_C, add_zero]
-    exact natDegree_X_sub_C_le _
+  · exact (natDegree_mul_C_le _ _).trans (natDegree_X_sub_C_le _)
   · rw [sum_const, card_erase_of_mem (mem_univ j), card_univ, Fintype.card_fin, smul_eq_mul,
       mul_one]
 
@@ -180,8 +178,7 @@ private theorem rightPoly_eval {w : ℕ} (i j j' : Fin w) :
       sub_ne_zero.mpr fun h => (mem_erase.mp hj'').1 (node_injective (K := K) w h).symm
     rw [eval_mul, eval_sub, eval_X, eval_C, eval_C, add_sub_add_left_eq_sub, ← mul_sub, ← C_sub,
       mul_assoc, ← C_mul, mul_inv_cancel₀ hne, C_1, mul_one]
-  · refine prod_eq_zero (mem_erase.mpr ⟨Ne.symm hj, mem_univ j'⟩) ?_
-    simp
+  · exact prod_eq_zero (mem_erase.mpr ⟨Ne.symm hj, mem_univ j'⟩) (by simp)
 
 /-! ### The encoders and the decoder -/
 
@@ -289,8 +286,7 @@ private theorem exists_restrict_dsum_slSum [Fintype X] [Fintype Y] [Fintype Z] {
     refine ⟨if j = j' then C (F i' x y z) * r else 0, ?_⟩
     rw [hsum, hθ, rightPoly_eval, ← hθ, hr, lag_eval, Nat.add_sub_cancel]
     split_ifs <;> subst_vars <;> simp only [C_0, C_1, mul_zero, mul_one, add_zero] <;> ring
-  · refine ⟨0, ?_⟩
-    simp [hi]
+  · exact ⟨0, by simp [hi]⟩
 
 /-- **From shared-left to independent left inputs** ([Pass][Pass2026], Lemma 3.4): a shared-left
 degeneration of order `h` of `u` copies of `S` to the targets `F i`, `i < w`, gives a
