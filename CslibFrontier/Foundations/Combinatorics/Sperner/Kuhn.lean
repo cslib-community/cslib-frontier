@@ -119,10 +119,8 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
   · simp only [hf, iff_false, Nat.not_odd_iff_even]
     by_cases hD : ∃ k, ∀ b ≠ b₀, ∃ j ≠ k, f j = b
     · obtain ⟨k, hk⟩ := hD
-      have hninj : ¬Function.Injective f := fun hi =>
+      obtain ⟨j₁, j₂, h12, hne⟩ := Function.not_injective_iff.1 fun hi =>
         hf ((Fintype.bijective_iff_injective_and_card f).mpr ⟨hi, hcard⟩).2
-      simp only [Function.Injective, not_forall] at hninj
-      obtain ⟨j₁, j₂, h12, hne⟩ := hninj
       -- every door `l` makes `f` injective away from `l`
       have hdoor_inj : ∀ l, (∀ b ≠ b₀, ∃ j ≠ l, f j = b) →
           Set.InjOn f ((univ.erase l : Finset α) : Set α) := by
@@ -131,12 +129,8 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
           intro b hb
           obtain ⟨j, hj, rfl⟩ := hl b (ne_of_mem_erase hb)
           exact mem_image.mpr ⟨j, mem_erase.mpr ⟨hj, mem_univ _⟩, rfl⟩
-        apply card_image_iff.mp
-        apply le_antisymm card_image_le
-        calc #(univ.erase l) = #(univ.erase b₀) := by
-              rw [card_erase_of_mem (mem_univ _), card_erase_of_mem (mem_univ _), card_univ,
-                card_univ, hcard]
-          _ ≤ _ := card_le_card hsub
+        refine card_image_iff.mp (le_antisymm card_image_le ?_)
+        simpa [card_erase_of_mem, hcard] using card_le_card hsub
       have hD : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = {j₁, j₂} := by
         ext l
         simp only [mem_filter, mem_univ, true_and, mem_insert, mem_singleton]
@@ -157,12 +151,7 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
           · exact key _ _ (Ne.symm hne) h12.symm
       rw [hD, card_pair hne]
       exact ⟨1, rfl⟩
-    · have : ({k | ∀ b ≠ b₀, ∃ j ≠ k, f j = b} : Finset α) = ∅ := by
-        ext k
-        simp only [mem_filter, mem_univ, true_and, Finset.notMem_empty, iff_false]
-        intro h
-        exact hD ⟨k, h⟩
-      rw [this, card_empty]
+    · rw [filter_false_of_mem fun k _ h => hD ⟨k, h⟩, card_empty]
       exact ⟨0, rfl⟩
 
 end Parity
@@ -707,8 +696,7 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
       · rintro ⟨s, k⟩ hp
         simp only [D, mem_filter, mem_product, mem_univ, and_true] at hp
         simp only [across_across hp.2, mate_mate]
-      · rintro ⟨s, k⟩ -
-        exact across_ne s k
+      · exact fun p _ => across_ne p.1 p.2
     · -- boundary doors are the panchromatic simplices of the face `x 0 = 0`
       have hN := hc.pos 0
       have hface := isHypergridSperner_faceColoring hc
@@ -731,8 +719,7 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
           Set.mem_ofPred_eq] at hp
         obtain ⟨rfl, hr, hb⟩ := eq_zero_of_isDoor_of_not_isInteriorFacet hc hp.1.1 hp.1.2 hp.2
         simp only [ofFace_face hr hb]
-      · intro t _
-        exact face_ofFace t
+      · exact fun t _ => face_ofFace t
 
 /-- **Sperner's lemma on the Kuhn-triangulated hypergrid**: a colouring satisfying the Sperner
 boundary condition has a panchromatic Kuhn simplex. -/

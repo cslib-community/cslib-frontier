@@ -70,8 +70,7 @@ theorem computableInPolyTime_coinBudget {α : Type} {encode : α ↪ List Bool}
     (hlength : ComputableInPolyTime length encode encUnary) :
     ComputableInPolyTime (fun a => coinBudget c d (parameter a) (length a))
       encode encUnary := by
-  unfold coinBudget
-  fun_prop
+  unfold coinBudget; fun_prop
 
 /-- Call the saved-coin predictor on the complete public observation. -/
 def predictWithCoins (evaluate : (ℕ × List Bool) → List Bool → Bool) (n : ℕ)
@@ -95,14 +94,9 @@ theorem computableInPolyTime_predictWithCoins {α : Type} {encode : α ↪ List 
     (hcoins : ComputableInPolyTime coins encode encBits)
     (hquery : ComputableInPolyTime query encode encBits) :
     ComputableInPolyTime (fun a => predictWithCoins (evaluate a) (parameter a) (image a)
-      (index a) (matrix a) (digest a) (coins a) (query a)) encode encBool := by
-  unfold predictWithCoins
-  have harg : ComputableInPolyTime (fun a => ((a, (parameter a, wordObservation (image a)
-      (index a) (matrix a) (digest a) (query a))), coins a)) encode
-      (encPair (encPair encode (encPair encUnary encBits)) encBits) :=
-    ((ComputableInPolyTime.of_eq fun _ => rfl).prod
-      (hparameter.prod (by fun_prop))).prod hcoins
-  exact hevaluate.comp harg
+      (index a) (matrix a) (digest a) (coins a) (query a)) encode encBool :=
+  hevaluate.comp <| ((ComputableInPolyTime.of_eq fun _ => rfl).prod
+    (hparameter.prod (by fun_prop))).prod hcoins
 
 /-- Guess the unknown hash value and decode, using the same predictor coins for every query. -/
 noncomputable def wordInverter (f : List Bool → List Bool)
@@ -129,7 +123,6 @@ theorem isPPTOn_wordInverter {α : Type} {input : α ↪ List Bool} {f : List Bo
     (himage : ComputableInPolyTime image input encBits) (c d degree : ℕ) :
     IsPPTOn input encBits
       (fun a => wordInverter f (evaluate a) c d degree (parameter a) (image a)) := by
-  -- The five sampled values (coins, index, matrix, digest, masks) are kept alongside the input.
   let e₅ := encPair (encPair (encPair (encPair (encPair input encBits) encUnary) encBits) encBits)
     encBits
   have hhash : ComputableInPolyTime hashCount encUnary encUnary :=
@@ -137,40 +130,33 @@ theorem isPPTOn_wordInverter {α : Type} {input : α ↪ List Bool} {f : List Bo
   have hinput : ComputableInPolyTime
       (fun q : ((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool => q.1.1.1.1.1)
       e₅ input := by fun_prop
+  have hevaluate' : ComputableInPolyTime
+      (fun ((p, obs), tape) => evaluate p.1.1.1.1.1.1 obs tape :
+        ((((((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool) × List Bool) ×
+          (ℕ × List Bool)) × List Bool) → Bool)
+      (encPair (encPair (encPair e₅ encBits) (encPair encUnary encBits)) encBits) encBool :=
+    hevaluate.comp (show ComputableInPolyTime
+      (fun ((p, obs), tape) => ((p.1.1.1.1.1.1, obs), tape) :
+        ((((((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool) × List Bool) ×
+          (ℕ × List Bool)) × List Bool) → (α × (ℕ × List Bool)) × List Bool)
+      (encPair (encPair (encPair e₅ encBits) (encPair encUnary encBits)) encBits)
+      (encPair (encPair input (encPair encUnary encBits)) encBits) by fun_prop)
   have hpredictor : ComputableInPolyTime
       (fun p : (((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool) × List Bool =>
         predictWithCoins (evaluate p.1.1.1.1.1.1) (parameter p.1.1.1.1.1.1)
           (image p.1.1.1.1.1.1) p.1.1.1.1.2 p.1.1.1.2 p.1.1.2 p.1.1.1.1.1.2 p.2)
-      (encPair e₅ encBits) encBool := by
-    have hevaluate' : ComputableInPolyTime
-        (fun ((p, observation), tape) => evaluate p.1.1.1.1.1.1 observation tape :
-          ((((((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool) × List Bool) ×
-            (ℕ × List Bool)) × List Bool) → Bool)
-        (encPair (encPair (encPair e₅ encBits) (encPair encUnary encBits)) encBits) encBool :=
-      hevaluate.comp (show ComputableInPolyTime
-        (fun ((p, observation), tape) => ((p.1.1.1.1.1.1, observation), tape) :
-          ((((((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool) × List Bool) ×
-            (ℕ × List Bool)) × List Bool) → (α × (ℕ × List Bool)) × List Bool)
-        (encPair (encPair (encPair e₅ encBits) (encPair encUnary encBits)) encBits)
-        (encPair (encPair input (encPair encUnary encBits)) encBits) by fun_prop)
-    exact computableInPolyTime_predictWithCoins hevaluate' (by fun_prop) (by fun_prop)
+      (encPair e₅ encBits) encBool :=
+    computableInPolyTime_predictWithCoins hevaluate' (by fun_prop) (by fun_prop)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-  have hdecode : ComputableInPolyTime
-      (fun q : ((((α × List Bool) × ℕ) × List Bool) × List Bool) × List Bool =>
-        wordDecode f (predictWithCoins (evaluate q.1.1.1.1.1) (parameter q.1.1.1.1.1)
-          (image q.1.1.1.1.1) q.1.1.1.2 q.1.1.2 q.1.2 q.1.1.1.1.2) degree
-          (parameter q.1.1.1.1.1) (image q.1.1.1.1.1) q.2) e₅ encBits :=
-    polyTime_wordDecode degree hf hpredictor (hparameter.comp hinput) (himage.comp hinput)
-      (ComputableInPolyTime.snd _ _)
-  unfold wordInverter
-  refine IsPPTOn.bind_with (left := encBits)
-    (isPPTOn_sampleList.preprocess (computableInPolyTime_coinBudget c d hparameter
-      (by fun_prop))) ?_
-  refine IsPPTOn.bind_with (left := encUnary) (isPPTOn_sampleDyadicIndex (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop)) ?_
-  exact hdecode.isPPTOn
+  exact IsPPTOn.bind_with (left := encBits)
+    (isPPTOn_sampleList.preprocess
+      (computableInPolyTime_coinBudget c d hparameter (by fun_prop))) <|
+    IsPPTOn.bind_with (left := encUnary) (isPPTOn_sampleDyadicIndex (by fun_prop)) <|
+    IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop)) <|
+    IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop)) <|
+    IsPPTOn.bind_with (left := encBits) (isPPTOn_sampleList.preprocess (by fun_prop))
+      (polyTime_wordDecode degree hf hpredictor (hparameter.comp hinput)
+        (himage.comp hinput) (ComputableInPolyTime.snd _ _)).isPPTOn
 
 /-- The tape budget covers every well-formed public observation at this dimension. -/
 theorem observation_coinBudget_le (c d n : ℕ) (image : List Bool)
@@ -179,9 +165,7 @@ theorem observation_coinBudget_le (c d n : ℕ) (image : List Bool)
     c * ((encPair encUnary encBits (n, wordObservation image index.val (List.ofFn matrix)
       (List.ofFn digest) (List.ofFn query))).length + 1) ^ d ≤
         coinBudget c d n image.length := by
-  unfold coinBudget
-  apply Nat.mul_le_mul_left
-  apply Nat.pow_le_pow_left
+  refine Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d)
   simp only [wordObservation, length_encPair, encBits_apply, encUnary_apply, List.length_replicate,
     List.length_ofFn]
   have := index.isLt
@@ -213,10 +197,8 @@ theorem fixedPredictor_distribution {Image : Type*} (encodeImage : Image → Lis
       ProbComp.eval (adversary n (wordObservation (encodeImage image) index.val
         (List.ofFn ((blocksEquiv (m := hashCount n) (k := n)).symm rows))
         (List.ofFn digest) (List.ofFn query))) := by
-  have hbudget := observation_coinBudget_le c d n (encodeImage image) index
-    ((blocksEquiv (m := hashCount n) (k := n)).symm rows) digest query
-  rw [hlength] at hbudget
-  rw [hrealize _ _ _ hbudget]
+  rw [hrealize _ _ _ (hlength ▸ observation_coinBudget_le c d n (encodeImage image) index
+    ((blocksEquiv (m := hashCount n) (k := n)).symm rows) digest query)]
   simp only [uniformList, PMF.map_comp, Function.comp_def, fixedPredictor, predictWithCoins]
 
 /-- The word inverter agrees exactly with the finite inverter after encoding its output.
@@ -232,26 +214,22 @@ theorem wordInverter_eval {n imageLength : ℕ} {Image : Type*} [DecidableEq Ima
         let coins ← PMF.uniformOfFintype (BitString (coinBudget c d n imageLength))
         matrixInverter finiteFunction (fixedPredictor encodeImage evaluate c d n imageLength coins)
           (precision degree n) image).map List.ofFn := by
-  have hindex : ProbComp.eval (sampleDyadicIndex (n + 6)) =
-      (PMF.uniformOfFintype (Fin (hashCount n))).map Fin.val := eval_sampleDyadicIndex (n + 6)
   have hmatrix : uniformList (hashCount n * n) =
       (PMF.uniformOfFintype (Fin (hashCount n) → BitString n)).map
         (fun rows => List.ofFn ((blocksEquiv (m := hashCount n) (k := n)).symm rows)) := by
     rw [uniformList,
       ← PMF.uniformOfFintype_map_equiv (blocksEquiv (m := hashCount n) (k := n)).symm, PMF.map_comp]
     rfl
-  have hfunction : (fun bits => f (List.ofFn bits)) = encodeImage ∘ finiteFunction :=
-    funext hf
   have hdecode (predictor : List Bool → Bool) :
       (uniformList (maskCount n (precision degree n) * n)).bind
         (fun masks => PMF.pure (wordDecode f predictor degree n (encodeImage image) masks)) =
       (invertFixed finiteFunction (fun query => predictor (List.ofFn query))
         (maskCount n (precision degree n)) image).map List.ofFn := by
-    change (uniformList _).map (wordDecode f predictor degree n (encodeImage image)) = _
-    rw [uniform_wordDecode, hfunction,
-      invertFixed_comp_injective finiteFunction encodeImage encodeImage.injective]
+    change (uniformList _).map _ = _
+    rw [uniform_wordDecode, show (fun bits => f (List.ofFn bits)) = encodeImage ∘ finiteFunction
+      from funext hf, invertFixed_comp_injective finiteFunction encodeImage encodeImage.injective]
   simp only [wordInverter, ProbComp.eval_bind, ProbComp.eval_pure,
-    eval_sampleList, hindex, hlength]
+    eval_sampleList, eval_sampleDyadicIndex, hlength]
   simp_rw [hdecode, hmatrix]
   simp only [pmf_norm, uniformList, matrixInverter, guessInverter]
   rfl

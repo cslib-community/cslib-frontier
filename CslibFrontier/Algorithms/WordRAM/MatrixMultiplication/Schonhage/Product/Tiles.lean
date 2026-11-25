@@ -94,8 +94,7 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
   let Φ (z : Data 160) := ∑ t ∈ Finset.Ico (z.regs Reg.index) T, tileCharge hm qs t
   have hout : groupedBase L m N qs.length + qs.length = outputBase L m N qs.length := rfl
   have hfree : outputBase L m N qs.length ≤ scratchBase L m N qs.length := by
-    unfold scratchBase
-    omega
+    unfold scratchBase; omega
   have hstart : I x := ⟨hp, by rw [hi]; omega, by rw [hi, hE]; simp,
     hg, he, by intro j hj; rw [hmarks j hj, hE],
     by intro i hk; rw [hi] at hk; omega, by intro p _ _; rfl⟩
@@ -103,20 +102,15 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
       ∃ y C, ExecWithin (w + 2) tileStep z y C ∧ I y ∧ C + 2 + Φ y ≤ Φ z := by
     have ht : z.regs Reg.index < T := by simpa only [Cond.holds_lt, hz.fixed.tiles, T] using hc
     have hepoch : z.regs Reg.epoch ≤ epochBound L m N := by
-      have h := hz.epoch_le.trans
-        (Nat.mul_le_mul_right (1 + PrunedQuery.epochAllowance L) hz.index_le)
-      simpa only [epochBound] using h
+      simpa only [epochBound] using hz.epoch_le.trans (Nat.mul_le_mul_right _ hz.index_le)
     obtain ⟨y, hr, yp, yi, _, yeu, yg, ye, ym, yvalues, yf⟩ := exec_tileStep hw hm X Y qs old z
       hz.fixed rfl ht rfl hepoch hz.groups hz.catalogue hvalues hoffsets hz.marks hX hY hmag hfit
     have ha := (hz.groups.offsets _ ht.le).trans (hoffsets _ ht.le)
-    have hb := (hz.groups.offsets _ (Nat.succ_le_of_lt ht)).trans
-      (hoffsets _ (Nat.succ_le_of_lt ht))
+    have hb := (hz.groups.offsets _ ht).trans (hoffsets _ ht)
     have hdiff : z.mem (offsetBase L m N qs.length + z.regs Reg.index + 1) -
         z.mem (offsetBase L m N qs.length + z.regs Reg.index) =
       Nat.count (fun k => key k = z.regs Reg.index) qs.length := by
-      rw [show offsetBase L m N qs.length + z.regs Reg.index + 1 =
-          offsetBase L m N qs.length + (z.regs Reg.index + 1) by omega, hb, ha,
-        CountingSort.count_lt_succ]
+      rw [Nat.add_assoc, hb, ha, CountingSort.count_lt_succ]
       dsimp only [key]
       omega
     rw [hdiff] at hr
@@ -136,12 +130,10 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
             Nat.count_mono_left (fun k _ hk => by omega)
           have hpos := CountingSort.position_lt key i.isLt
           dsimp only [key] at hs hmcount hpos
-          rw [yf _ (by omega) (by omega)]
-          exact hz.answers i hold
+          exact (yf _ (by omega) (by omega)).trans (hz.answers i hold)
       · intro p ho hf
         have hbQ := (hz.groups.span_bounds key hoffsets ht).2
-        rw [yf p (by omega) hf]
-        exact hz.frame p ho hf
+        exact (yf p (by omega) hf).trans (hz.frame p ho hf)
     · have hsplit := Finset.sum_eq_sum_Ico_succ_bot ht (tileCharge hm qs)
       dsimp only [Φ]
       rw [yi, hsplit]
@@ -153,13 +145,9 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
     simp only [Cond.holds_lt, hy.fixed.tiles] at hc
     dsimp only [T] at *
     omega
-  refine ⟨y, ?_, hy.fixed, hy.groups, hy.catalogue, ?_, hy.frame⟩
-  · simpa only [Φ, hi, Nat.Ico_zero_eq_range, T, evaluateTiles] using hr
-  · intro i
-    apply hy.answers i
-    rw [hlast]
-    have hk := Wanted.tileKey_lt hm (Wanted.inputPairs qs i.val)
-      (Wanted.inputPairs_lt qs i i.isLt).1 (Wanted.inputPairs_lt qs i i.isLt).2
-    exact hk
+  refine ⟨y, by simpa only [Φ, hi, Nat.Ico_zero_eq_range, T, evaluateTiles] using hr,
+    hy.fixed, hy.groups, hy.catalogue, fun i => hy.answers i ?_, hy.frame⟩
+  obtain ⟨h1, h2⟩ := Wanted.inputPairs_lt qs i i.isLt
+  exact hlast ▸ Wanted.tileKey_lt hm _ h1 h2
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

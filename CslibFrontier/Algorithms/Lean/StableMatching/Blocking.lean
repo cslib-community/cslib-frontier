@@ -64,10 +64,8 @@ theorem recvRank_deferredAcceptance_lt {q r : Fin n}
     rw [← propRank_deferredAcceptance]; exact h
   obtain ⟨y, hy, hyq⟩ := I.inv_finalState.rejected q _ hk
   rw [propPref_propRank] at hy hyq
-  have hy' : I.deferredAcceptance y = r := hy
-  subst hy'
-  rw [Equiv.symm_apply_apply]
-  exact hyq
+  obtain rfl : I.deferredAcceptance y = r := hy
+  rwa [Equiv.symm_apply_apply]
 
 /-- First case of the blocking lemma: some proposer that prefers `μ` is matched in `μ` to the
 deferred-acceptance partner of a proposer that does not. -/
@@ -136,8 +134,7 @@ private theorem exists_last_change (B : Finset (Fin n)) {p₀ : Fin n} (hp₀ : 
         exact ⟨by omega, q, hq, hne⟩
       have := T.le_max' k hmem
       omega
-  rw [stable N (by omega) le_rfl]
-  rfl
+  exact stable N (by omega) le_rfl
 
 /-- The step taken at a time when proposer `p₀` changes is the one turning `p₀` down. -/
 private theorem run_succ_eq_update_of_ne {t : ℕ} {p₀ : Fin n}
@@ -146,13 +143,8 @@ private theorem run_succ_eq_update_of_ne {t : ℕ} {p₀ : Fin n}
       I.run (t + 1) = Function.update (I.run t) p₀ (I.run t p₀ + 1) := by
   rw [run_succ] at h ⊢
   rcases I.step_cases (I.run t) with ⟨hs, -⟩ | ⟨p, hp, hs⟩
-  · rw [hs] at h
-    exact absurd rfl h
-  · have hpp : p₀ = p := by
-      by_contra hne
-      rw [hs, Function.update_of_ne hne] at h
-      exact h rfl
-    subst hpp
+  · rw [hs] at h; exact absurd rfl h
+  · obtain rfl : p₀ = p := of_not_not fun hne => h (by rw [hs, Function.update_of_ne hne])
     exact ⟨hp, hs⟩
 
 /-- Proposer `p` currently proposes to its choice of rank `s p`. -/
@@ -193,11 +185,7 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
     (fun a b h => μ.injective (D.symm.injective h)) (B := {q | q ∈ B})
     (fun q hq => (hB _).2 (hcl q ((hB q).1 hq))) (p := p₀) hp₀B
   have hμq : μ q = D p₀ := by rw [← hq]; exact (D.apply_symm_apply _).symm
-  have hqp : q ≠ p₀ := by
-    intro hqp
-    have h := (hB q).1 hqB
-    rw [hμq, hqp] at h
-    exact lt_irrefl _ h
+  have hqp : q ≠ p₀ := by rintro rfl; exact ((hB q).1 hqB).ne (by rw [hμq])
   have hDeq : ∀ y, D y = I.target I.finalState y := fun y => by
     rw [hD, deferredAcceptance_apply]
   have hrun : ∀ y, y ≠ p₀ → I.run (t + 1) y = I.run t y := fun y hy => by
@@ -220,11 +208,8 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
     rw [← hDp₀, h1, hupd, Function.update_self] at h2
     omega
   have hx' : I.target (I.run (t + 1)) x = D p₀ := by rw [htarget x hxp, hx]
-  have hxB : x ∉ B := by
-    intro hxB
-    refine hxp (D.injective ?_)
-    rw [hDeq x, ← hx']
-    simp only [target, hfin x hxB]
+  have hxB : x ∉ B := fun hxB =>
+    hxp (D.injective (by rw [hDeq x, ← hx']; simp only [target, hfin x hxB]))
   have hxle : I.propRank x (D x) ≤ I.propRank x (μ x) :=
     le_of_not_gt (mt (hB x).2 hxB)
   have hxlt : I.propRank x (D p₀) < I.propRank x (D x) := by
@@ -236,12 +221,8 @@ private theorem blocking_of_closed {μ : Matching n} {q₀ : Fin n}
     refine lt_of_le_of_ne (I.run_le_finalState (t + 1) x) fun heq => hxp (D.injective ?_)
     rw [hDeq x, ← hx']
     simp only [target, heq]
-  have hμsymm : μ.symm (μ q) = q := μ.symm_apply_apply q
-  refine ⟨x, q, (hB q).1 hqB, hxle, ?_, ?_⟩
-  · rw [PropPrefers, hμq]
-    exact lt_of_lt_of_le hxlt hxle
-  · rw [RecvPrefers, hμsymm, hμq]
-    exact hxq
+  exact ⟨x, q, (hB q).1 hqB, hxle, by rw [PropPrefers, hμq]; exact hxlt.trans_le hxle,
+    by rw [RecvPrefers, μ.symm_apply_apply, hμq]; exact hxq⟩
 
 /-- The blocking lemma (Hwang; [GaleSotomayor1985]): if some proposer strictly prefers a matching
 `μ` to its deferred-acceptance partner, then `μ` is blocked by a pair `(x, μ q)` where `q`
@@ -291,12 +272,8 @@ theorem not_forall_mem_propRank_lt_of_isStable {J : Instance n} {C : Set (Fin n)
     rw [propRank, propRank, hprop x hxC]
   have hrq : ∀ p, J.recvRank (μ q) p = I.recvRank (μ q) p := fun p => by
     rw [recvRank, recvRank, hrecv]
-  obtain ⟨h1, h2⟩ := hblock
-  refine ⟨?_, ?_⟩
-  · rw [PropPrefers, hpx, hpx]
-    exact h1
-  · rw [RecvPrefers, hrq, hrq]
-    exact h2
+  exact ⟨by rw [PropPrefers, hpx, hpx]; exact hblock.1,
+    by rw [RecvPrefers, hrq, hrq]; exact hblock.2⟩
 
 /-- Individual strategy-proofness of deferred acceptance for the proposers ([DubinsFreedman1981],
 [Roth1982]): if proposer `p` reports the list `π` instead of its true list, then in every matching

@@ -145,8 +145,7 @@ theorem Forger.eval_eufCmaExperiment_toTyped
       return !queried.contains msg && S.verify pk msg sig) := by
   simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
   congr 1
-  funext keys
-  obtain ⟨pk, sk⟩ := keys
+  funext ⟨pk, sk⟩
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w) (Signer.ofSign S.sign sk)
     (SignatureScheme.signingOracleOf S.sign sk) fun request log => by
@@ -154,8 +153,7 @@ theorem Forger.eval_eufCmaExperiment_toTyped
         SignatureScheme.signingOracleOn, ProbComp.eval_map, PMF.map_comp, Function.comp_def]]
   rw [PMF.bind_map]
   congr 1
-  funext x
-  obtain ⟨⟨msg, sig⟩, log⟩ := x
+  funext ⟨⟨msg, sig⟩, log⟩
   simp only [Function.comp_apply, freshMessage, List.contains_reverse]
   cases S.verify pk msg sig <;> simp
 
@@ -202,13 +200,11 @@ theorem Forger.eval_eufCmaExperiment_restrict_toTyped
   simp only [forgeExperiment, Signature.Scheme.restrict_keyGen, ProbComp.eval_bind,
     ProbComp.eval_pure]
   congr 1
-  funext keys
-  obtain ⟨pk, sk⟩ := keys
+  funext ⟨pk, sk⟩
   dsimp only
   rw [← eval_runLogWith_restrict S adm (adversary n pk) sk, PMF.bind_map]
   congr 1
-  funext x
-  obtain ⟨⟨msg, sig⟩, log⟩ := x
+  funext ⟨⟨msg, sig⟩, log⟩
   -- On an admissible message, the filtered log names it exactly when the full log does.
   have hfilter : (adm msg && !((log.filter (fun p => adm p.1)).map Prod.fst).contains msg) =
       (adm msg && !(log.map Prod.fst).contains msg) := by
@@ -270,8 +266,7 @@ theorem eufOneTimeGame_eq_forgeExperiment (S : SignatureScheme) (adversary : For
         (fun pk _ => (S.toScheme n).verify pk) freshMessage (adversary.toTyped n)) := by
   simp only [eufOneTimeGame, forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
   congr 1
-  funext keys
-  obtain ⟨pk, sk⟩ := keys
+  funext ⟨pk, sk⟩
   dsimp only
   rw [← eval_runLogWith_rename (adversary n pk) (fun w => w)
     (((Signer.ofSign S.sign).restrict (·.length == n)).oneTime sk) (S.oneTimeSigningOracle n sk)
@@ -290,8 +285,7 @@ theorem eufOneTimeGame_eq_forgeExperiment (S : SignatureScheme) (adversary : For
             show (default : List Bool) = [] from rfl]]
   rw [PMF.bind_map]
   congr 1
-  funext x
-  obtain ⟨⟨msg, sig⟩, log⟩ := x
+  funext ⟨⟨msg, sig⟩, log⟩
   simp only [Function.comp_apply, post_eq]
 
 /-- The success probability of the word-level EUF-CMA game at `n` is that of the typed
@@ -366,8 +360,7 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
   simp only [indexedEufCmaGame, forgeExperiment, toScheme_keyGen, ProbComp.eval_bind,
     ProbComp.eval_pure]
   congr 1
-  funext keys
-  obtain ⟨pk, sk⟩ := keys
+  funext ⟨pk, sk⟩
   dsimp only
   rw [IndexedForger.toTyped, ProbOracleComp.runLogWith_map, ProbComp.eval_map, PMF.bind_map,
     ← eval_runLogWith_rename (adversary n pk) requestDecoder.decode
@@ -390,8 +383,7 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
           rfl]
   rw [PMF.bind_map]
   congr 1
-  funext x
-  obtain ⟨⟨u, msg, sig⟩, log⟩ := x
+  funext ⟨⟨u, msg, sig⟩, log⟩
   simp only [Function.comp_apply, Prod.map, id, toScheme_verify, freshMessage,
     List.contains_reverse]
   rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
@@ -471,8 +463,7 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
   simp only [counterEufCmaGame, forgeExperiment, toScheme_keyGen, ProbComp.eval_bind,
     ProbComp.eval_pure]
   congr 1
-  funext keys
-  obtain ⟨pk, sk⟩ := keys
+  funext ⟨pk, sk⟩
   dsimp only
   let post : (List Bool × ℕ × List Bool) × List (List Bool) → PMF Bool :=
     fun ((m, u, σ), signed) =>

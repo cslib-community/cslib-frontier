@@ -257,6 +257,18 @@ theorem replay_checked {B : ℕ} (c : Cslib.InductiveCounting.State) (choices : 
     rw [NondeterministicQueryMachine.replay_cons, step_counting ntm input (by simp) (by simp), ih]
     rfl
 
+/-- From an overflowing final count check, any non-empty unchecked controller replay rejects. -/
+private theorem ctlReplay_cons_of_overflowed {B : ℕ} {c : Cslib.InductiveCounting.State}
+    (ho : overflowed c = true) (choice : Bool) (choices : List Bool) :
+    ctlReplay ntm input B false c (choice :: choices) = Cslib.InductiveCounting.reject := by
+  simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
+  have hstep : ctlStep ntm input B false c choice = Cslib.InductiveCounting.reject := by
+    simp only [ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance,
+      Cslib.InductiveCounting.halted, ho.1.1.1]
+    simp [Cslib.InductiveCounting.instruction, ho]
+  change ctlReplay ntm input B false (ctlStep ntm input B false c choice) choices = _
+  rw [hstep, halted_ctlReplay ntm input rfl]
+
 /-- On an unchecked radix, a controller replay ending at the final count check is also a replay of
 the machine: no earlier state can move to another radix or check this one. -/
 theorem replay_unchecked_of_done {B : ℕ} (c : Cslib.InductiveCounting.State)
@@ -268,28 +280,17 @@ theorem replay_unchecked_of_done {B : ℕ} (c : Cslib.InductiveCounting.State)
   induction choices generalizing c with
   | nil => rfl
   | cons choice choices ih =>
-    have hd' : (ctlReplay ntm input B false (ctlStep ntm input B false c choice) choices).phase =
-        .done ∧ (ctlReplay ntm input B false (ctlStep ntm input B false c choice)
-          choices).finalScan = true := hd
     have hna : c.phase ≠ .accept := fun hp => by
       have hh : Cslib.InductiveCounting.halted c = true := by
         simp [Cslib.InductiveCounting.halted, hp]
-      have := Cslib.InductiveCounting.replay_halted (N := vertexBound (k := k) B)
-        (width := vertexWidth k B) (source := startID ntm B) (edge := graphEdge ntm B input)
-        (bad := graphBad ntm input B false) hh (choice :: choices)
-      rw [ctlReplay, this, hp] at hd
+      rw [halted_ctlReplay ntm input hh, hp] at hd
       exact absurd hd.1 (by decide)
     have hno : overflowed c = false := by
       by_contra hc
-      have hc : overflowed c = true := by simpa using hc
-      simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at hc
-      have hh := halted_ctlStep_of_done ntm input (B := B) (checked := false) hc.1.1.1 hc.1.1.2
-        choice
-      rw [halted_ctlReplay ntm input hh] at hd'
-      simp only [Cslib.InductiveCounting.halted, Bool.or_eq_true, beq_iff_eq] at hh
-      rcases hh with h | h <;> rw [h] at hd' <;> exact absurd hd'.1 (by decide)
+      rw [ctlReplay_cons_of_overflowed ntm input (by simpa using hc)] at hd
+      exact absurd hd.1 (by decide)
     rw [NondeterministicQueryMachine.replay_cons,
-      step_counting ntm input (by simp [hno]) (by simp [hna]), ih _ hd']
+      step_counting ntm input (by simp [hno]) (by simp [hna]), ih _ hd]
     rfl
 
 /-- On an unchecked radix, a controller replay ending in acceptance has a prefix that is a replay
@@ -305,18 +306,7 @@ theorem exists_replay_unchecked_of_accept {B : ℕ} (c : Cslib.InductiveCounting
     · exact ⟨[], c, rfl, hp⟩
     have hno : overflowed c = false := by
       by_contra hc
-      have hc : overflowed c = true := by simpa using hc
-      simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at hc
-      have hstep : ctlStep ntm input B false c choice = Cslib.InductiveCounting.reject := by
-        simp only [ctlStep, Cslib.InductiveCounting.step, Cslib.InductiveCounting.advance,
-          Cslib.InductiveCounting.halted, hc.1.1.1]
-        simp [Cslib.InductiveCounting.instruction, hc]
-      have hh : Cslib.InductiveCounting.halted Cslib.InductiveCounting.reject = true := rfl
-      have : ctlReplay ntm input B false c (choice :: choices) =
-          Cslib.InductiveCounting.reject := by
-        change ctlReplay ntm input B false (ctlStep ntm input B false c choice) choices = _
-        rw [hstep, halted_ctlReplay ntm input hh]
-      rw [this] at ha
+      rw [ctlReplay_cons_of_overflowed ntm input (by simpa using hc)] at ha
       exact absurd ha (by decide)
     obtain ⟨choices', t, h, ht⟩ := ih (ctlStep ntm input B false c choice) ha
     refine ⟨choice :: choices', t, ?_, ht⟩
@@ -389,6 +379,22 @@ def RuntimeInvariant (s : Runtime) : Prop :=
       Cslib.InductiveCounting.Bounded (vertexBound (k := k) s.radix) (vertexWidth k s.radix) c ∧
       (s.checked = true → Closed ntm s.radix input)
 
+/-- At a complete final count check for overflow detection, `hit` certifies non-closure. -/
+private theorem hit_eq_true_iff_not_closed {B : ℕ} (hB : Fintype.card (Option State) + 1 < B)
+    {c : Cslib.InductiveCounting.State}
+    (hi : Cslib.InductiveCounting.Invariant (vertexBound (k := k) B) (graphEdge ntm B input)
+      (graphOverflow ntm B input) (startID ntm B) c)
+    (hp : c.phase = .done) (hf : c.finalScan = true) (hsel : c.selected = c.count) :
+    c.hit = true ↔ ¬ Closed ntm B input := by
+  simp only [Cslib.InductiveCounting.Invariant, hp] at hi
+  obtain ⟨⟨hc, hk⟩, hs, -⟩ := hi
+  simp only [hf, ↓reduceIte] at hk
+  rw [Cslib.InductiveCounting.scan_exhaustive hc hs hsel]
+  simp only [Closed, Cslib.InductiveCounting.Safe, not_forall, exists_prop,
+    Cslib.InductiveCounting.Observed, hf, ↓reduceIte, Bool.not_eq_false]
+  exact exists_congr fun u =>
+    and_congr_left' (Cslib.InductiveCounting.mem_roundSet_final (startID_lt hB) hk)
+
 /-- A complete final count check meeting an overflowing vertex shows that the radix is not
 closed. -/
 theorem not_closed_of_overflowed {B : ℕ} (hB : Fintype.card (Option State) + 1 < B)
@@ -397,16 +403,7 @@ theorem not_closed_of_overflowed {B : ℕ} (hB : Fintype.card (Option State) + 1
       (graphOverflow ntm B input) (startID ntm B) c)
     (ho : overflowed c = true) : ¬ Closed ntm B input := by
   simp only [overflowed, Bool.and_eq_true, beq_iff_eq] at ho
-  obtain ⟨⟨⟨hp, hf⟩, hsel⟩, hhit⟩ := ho
-  simp only [Cslib.InductiveCounting.Invariant, hp] at hi
-  obtain ⟨⟨hc, hk⟩, hs, -⟩ := hi
-  simp only [hf, ↓reduceIte] at hk
-  obtain ⟨u, hu, hob⟩ := (Cslib.InductiveCounting.scan_exhaustive hc hs hsel).mp hhit
-  simp only [Cslib.InductiveCounting.Observed, hf, ↓reduceIte] at hob
-  intro hcl
-  have := hcl u ((Cslib.InductiveCounting.mem_roundSet_final (startID_lt hB) hk).mp hu)
-  rw [hob] at this
-  exact Bool.false_ne_true this.symm
+  exact (hit_eq_true_iff_not_closed hB hi ho.1.1.1 ho.1.1.2 ho.1.2).mp ho.2
 
 theorem runtimeInvariant_install {j : ℕ}
     (hj : ∀ i < j, ¬ Closed ntm (roundRadix State input.length i) input) :
@@ -533,16 +530,8 @@ private theorem exists_accepting_from_round (hJ : ∃ j, Closed ntm (roundRadix 
         (graphOverflow ntm B input) (startID ntm B) t :=
       Cslib.InductiveCounting.invariant_replay (startID_lt hB)
         (Cslib.InductiveCounting.invariant_initial (startID_lt hB)) bs
-    have hhit : t.hit = true := by
-      have hi := hinv
-      simp only [Cslib.InductiveCounting.Invariant, hd] at hi
-      obtain ⟨⟨hc, hk⟩, hs, -⟩ := hi
-      simp only [hf, ↓reduceIte] at hk
-      refine (Cslib.InductiveCounting.scan_exhaustive hc hs hsel).mpr ?_
-      simp only [Closed, Cslib.InductiveCounting.Safe, not_forall] at hncl
-      obtain ⟨u, hu, hov⟩ := hncl
-      refine ⟨u, (Cslib.InductiveCounting.mem_roundSet_final (startID_lt hB) hk).mpr hu, ?_⟩
-      simpa only [Cslib.InductiveCounting.Observed, hf, ↓reduceIte, Bool.not_eq_false] using hov
+    have hhit : t.hit = true :=
+      (hit_eq_true_iff_not_closed hB hinv hd hf hsel).mpr hncl
     have ho : overflowed t = true := by simp [overflowed, hd, hf, hsel, hhit]
     have hrep := replay_unchecked_of_done ntm input (B := B) (install ntm B) bs ⟨hd, hf⟩
     refine ⟨bs ++ false :: cs, ?_⟩

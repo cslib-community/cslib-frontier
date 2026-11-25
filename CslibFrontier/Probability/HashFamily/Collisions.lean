@@ -96,14 +96,10 @@ theorem orderedCollisionCount_eq_sum (h : X → Y) (S : Finset X) :
 /-- `h` is injective on `S` exactly when no ordered pair of distinct elements collides. -/
 theorem orderedCollisionCount_eq_zero_iff {h : X → Y} {S : Finset X} :
     orderedCollisionCount h S = 0 ↔ Set.InjOn h S := by
-  rw [orderedCollisionCount, card_eq_zero, filter_eq_empty_iff]
-  constructor
-  · intro hS x hx y hy hxy
-    by_contra hne
-    exact hS (x := (x, y)) (mem_offDiag.mpr ⟨hx, hy, hne⟩) hxy
-  · rintro hS ⟨x, y⟩ hp hxy
-    obtain ⟨hx, hy, hne⟩ := mem_offDiag.mp hp
-    exact hne (hS hx hy hxy)
+  simp only [orderedCollisionCount, card_eq_zero, filter_eq_empty_iff, Prod.forall, mem_offDiag,
+    Set.InjOn, and_imp]
+  exact ⟨fun hS x hx y hy hxy => by_contra fun hne => hS x y hx hy hne hxy,
+    fun hS x y hx hy hne hxy => hne (hS hx hy hxy)⟩
 
 /-- A collision of `x ≠ y` is counted as `(x, y)` and as `(y, x)`. -/
 theorem two_le_orderedCollisionCount {h : X → Y} {S : Finset X} (hS : ¬ Set.InjOn h S) :
@@ -112,48 +108,36 @@ theorem two_le_orderedCollisionCount {h : X → Y} {S : Finset X} (hS : ¬ Set.I
   simp only [Set.InjOn, not_forall] at hS
   obtain ⟨x, hx, y, hy, hxy, hne⟩ := hS
   rw [orderedCollisionCount, ← card_pair (a := (x, y)) (b := (y, x)) (by simp [hne])]
-  apply card_le_card
-  intro p hp
-  simp only [mem_insert, mem_singleton] at hp
-  rcases hp with rfl | rfl
+  refine card_le_card fun p hp => ?_
+  rcases mem_insert.mp hp with rfl | hp
   · exact mem_filter.mpr ⟨mem_offDiag.mpr ⟨hx, hy, hne⟩, hxy⟩
-  · exact mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, Ne.symm hne⟩, hxy.symm⟩
+  · rw [mem_singleton.mp hp]
+    exact mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, Ne.symm hne⟩, hxy.symm⟩
 
 /-- The sum of the squared bucket sizes counts each key with itself and every ordered colliding
 pair: `∑ⱼ bⱼ² = |S| + #{(x, y) : x ≠ y, h x = h y}`. -/
 theorem sum_card_filter_sq [Fintype Y] (h : X → Y) (S : Finset X) :
     ∑ j, (S.filter fun x => h x = j).card ^ 2 = S.card + orderedCollisionCount h S := by
   classical
-  have hsq : ∀ j, (S.filter fun x => h x = j).card ^ 2 =
+  have hsq (j) : (S.filter fun x => h x = j).card ^ 2 =
       ((S ×ˢ S).filter fun p => h p.1 = j ∧ h p.2 = j).card := by
-    intro j
-    rw [sq, ← card_product]
-    congr 1
+    rw [sq, ← card_product]; congr 1; ext ⟨x, y⟩; simp only [mem_product, mem_filter]; tauto
+  simp_rw [hsq]
+  rw [← card_biUnion (fun j _ j' _ hjj' => disjoint_left.mpr fun p hp hp' =>
+    hjj' ((mem_filter.mp hp).2.1.symm.trans (mem_filter.mp hp').2.1))]
+  have hsplit : (univ : Finset Y).biUnion
+        (fun j => (S ×ˢ S).filter fun p => h p.1 = j ∧ h p.2 = j) =
+      S.diag ∪ S.offDiag.filter fun p => h p.1 = h p.2 := by
     ext ⟨x, y⟩
-    simp only [mem_product, mem_filter]
-    tauto
-  simp only [hsq]
-  rw [← card_biUnion]
-  · have hsplit : (univ : Finset Y).biUnion
-          (fun j => (S ×ˢ S).filter fun p => h p.1 = j ∧ h p.2 = j) =
-        S.diag ∪ S.offDiag.filter fun p => h p.1 = h p.2 := by
-      ext ⟨x, y⟩
-      simp only [mem_biUnion, mem_univ, mem_filter, mem_product, true_and, mem_union, mem_diag,
-        mem_offDiag]
-      constructor
-      · rintro ⟨j, ⟨hx, hy⟩, hxj, hyj⟩
-        by_cases hxy : x = y
-        · exact Or.inl ⟨hx, hxy⟩
-        · exact Or.inr ⟨⟨hx, hy, hxy⟩, hxj.trans hyj.symm⟩
-      · rintro (⟨hx, rfl⟩ | ⟨⟨hx, hy, _⟩, hxy⟩)
-        · exact ⟨h x, ⟨hx, hx⟩, rfl, rfl⟩
-        · exact ⟨h x, ⟨hx, hy⟩, rfl, hxy.symm⟩
-    rw [hsplit, card_union_of_disjoint, diag_card, orderedCollisionCount]
-    exact disjoint_left.mpr fun p hp hp' =>
-      (mem_offDiag.mp (mem_filter.mp hp').1).2.2 (mem_diag.mp hp).2
-  · intro j _ j' _ hjj'
-    exact disjoint_left.mpr fun p hp hp' =>
-      hjj' ((mem_filter.mp hp).2.1.symm.trans (mem_filter.mp hp').2.1)
+    simp only [mem_biUnion, mem_univ, mem_filter, mem_product, true_and, mem_union, mem_diag,
+      mem_offDiag]
+    exact ⟨fun ⟨j, ⟨hx, hy⟩, hxj, hyj⟩ => (em (x = y)).imp (⟨hx, ·⟩)
+        (⟨⟨hx, hy, ·⟩, hxj.trans hyj.symm⟩),
+      by rintro (⟨hx, rfl⟩ | ⟨⟨hx, hy, _⟩, hxy⟩)
+         exacts [⟨h x, ⟨hx, hx⟩, rfl, rfl⟩, ⟨h x, ⟨hx, hy⟩, rfl, hxy.symm⟩]⟩
+  rw [hsplit, card_union_of_disjoint, diag_card, orderedCollisionCount]
+  exact disjoint_left.mpr fun p hp hp' =>
+    (mem_offDiag.mp (mem_filter.mp hp').1).2.2 (mem_diag.mp hp).2
 
 end Deterministic
 
@@ -166,14 +150,11 @@ theorem IsUniversalHash.tsum_orderedCollisionCount_le {seed : PMF ι} {hash : ι
     {ε : ℝ≥0∞} (hh : IsUniversalHash seed hash ε) (S : Finset X) :
     ∑' i, seed i * orderedCollisionCount (hash i) S ≤ (S.card * (S.card - 1) : ℕ) * ε := by
   have hpair : ∀ p ∈ S.offDiag,
-      ∑' i, seed i * ((if hash i p.1 = hash i p.2 then 1 else 0 : ℕ) : ℝ≥0∞) ≤ ε := by
-    intro p hp
+      ∑' i, seed i * ((if hash i p.1 = hash i p.2 then 1 else 0 : ℕ) : ℝ≥0∞) ≤ ε := fun p hp => by
     have hcoll := hh p.1 p.2 (mem_offDiag.mp hp).2.2
     rw [PMF.toOuterMeasure_apply] at hcoll
-    refine le_of_eq_of_le (tsum_congr fun i => ?_) hcoll
-    by_cases hi : hash i p.1 = hash i p.2
-    · simp [hi]
-    · simp [hi]
+    exact le_of_eq_of_le
+      (tsum_congr fun i => by by_cases hi : hash i p.1 = hash i p.2 <;> simp [hi]) hcoll
   calc ∑' i, seed i * (orderedCollisionCount (hash i) S : ℝ≥0∞)
       = ∑ p ∈ S.offDiag,
           ∑' i, seed i * ((if hash i p.1 = hash i p.2 then 1 else 0 : ℕ) : ℝ≥0∞) := by
@@ -201,21 +182,14 @@ theorem IsUniversalHash.toOuterMeasure_not_injOn_le {seed : PMF ι} {hash : ι �
     {ε : ℝ≥0∞} (hh : IsUniversalHash seed hash ε) (S : Finset X) :
     seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤ (S.card.choose 2 : ℕ) * ε := by
   classical
-  have hsub : {i | ¬ Set.InjOn (hash i) S} ⊆
-      {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := fun i hi => by
-    have := two_le_orderedCollisionCount hi
-    exact_mod_cast this
   have h2 : 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} ≤
       ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * ε :=
-    calc 2 * seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S}
-        ≤ 2 * seed.toOuterMeasure
-            {i | (2 : ℝ≥0∞) ≤ (orderedCollisionCount (hash i) S : ℝ≥0∞)} := by gcongr
-      _ ≤ ∑' i, seed i * (orderedCollisionCount (hash i) S : ℝ≥0∞) :=
-          PMF.mul_toOuterMeasure_le_tsum seed _ 2
-      _ ≤ _ := hh.tsum_orderedCollisionCount_le S
-  have hch : S.card * (S.card - 1) = 2 * S.card.choose 2 := by
-    rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self _).two_dvd]
-  rw [hch, Nat.cast_mul, Nat.cast_ofNat, mul_assoc] at h2
+    (mul_le_mul_right (seed.toOuterMeasure.mono fun i hi => by
+      exact_mod_cast two_le_orderedCollisionCount hi) _).trans
+      ((PMF.mul_toOuterMeasure_le_tsum seed _ 2).trans (hh.tsum_orderedCollisionCount_le S))
+  rw [show S.card * (S.card - 1) = 2 * S.card.choose 2 by
+    rw [Nat.choose_two_right, Nat.mul_div_cancel' (Nat.even_mul_pred_self _).two_dvd],
+    Nat.cast_mul, Nat.cast_ofNat, mul_assoc] at h2
   exact (ENNReal.mul_le_mul_iff_right two_ne_zero ENNReal.ofNat_ne_top).mp h2
 
 omit [DecidableEq Y] in
@@ -230,10 +204,9 @@ theorem IsTwoUniversal.toOuterMeasure_not_injOn_le [Fintype Y] {seed : PMF ι} {
   rw [ENNReal.le_inv_iff_mul_le, mul_right_comm, ← div_eq_mul_inv]
   refine ENNReal.div_le_of_le_mul ?_
   rw [one_mul]
-  have h2 : S.card.choose 2 * 2 ≤ Fintype.card Y := by
+  exact_mod_cast (show S.card.choose 2 * 2 ≤ Fintype.card Y by
     rw [Nat.choose_two_right, Nat.div_mul_cancel (Nat.even_mul_pred_self _).two_dvd]
-    exact (Nat.mul_le_mul_left _ (Nat.sub_le _ _)).trans (sq S.card ▸ hS)
-  exact_mod_cast h2
+    exact (Nat.mul_le_mul_left _ (Nat.sub_le _ _)).trans (sq S.card ▸ hS))
 
 /-- **Linear total secondary space** ([CLRS2009], Section 11.5): with a universal family into at
 least `n` values, the expected sum of squared bucket sizes is at most `2n - 1`. -/
@@ -246,15 +219,9 @@ theorem IsTwoUniversal.tsum_sum_card_filter_sq_le [Fintype Y] {seed : PMF ι} {h
   have hle : ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * (Fintype.card Y : ℝ≥0∞)⁻¹ ≤
       (S.card - 1 : ℕ) := by
     rw [← div_eq_mul_inv]
-    refine ENNReal.div_le_of_le_mul ?_
-    rw [mul_comm S.card]
-    exact_mod_cast Nat.mul_le_mul_left _ hS
-  calc (S.card : ℝ≥0∞) + ((S.card * (S.card - 1) : ℕ) : ℝ≥0∞) * (Fintype.card Y : ℝ≥0∞)⁻¹
-      ≤ (S.card : ℝ≥0∞) + (S.card - 1 : ℕ) := add_le_add le_rfl hle
-    _ = (2 * S.card - 1 : ℕ) := by
-        rw [← Nat.cast_add]
-        congr 1
-        omega
+    exact ENNReal.div_le_of_le_mul
+      (by rw [mul_comm S.card]; exact_mod_cast Nat.mul_le_mul_left _ hS)
+  exact (add_le_add le_rfl hle).trans_eq (by rw [← Nat.cast_add]; congr 1; omega)
 
 /-- **Markov bound for the top level** ([CLRS2009], Section 11.5): with a universal family into
 at least `n` values, the sum of squared bucket sizes exceeds `4n` with probability at most
@@ -266,24 +233,19 @@ theorem IsTwoUniversal.toOuterMeasure_four_mul_lt_sum_card_filter_sq_le [Fintype
     seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2} ≤
       2⁻¹ := by
   classical
-  set P := seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2}
-  have hset : {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2} =
-      {i | ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≤
-        ((∑ j, (S.filter fun x => hash i x = j).card ^ 2 : ℕ) : ℝ≥0∞)} := by
-    ext i
-    simp only [Set.mem_ofPred_eq, Nat.cast_le]
-    omega
-  have hmarkov : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) * P ≤ (2 * S.card - 1 : ℕ) := by
-    rw [show P = _ from congrArg seed.toOuterMeasure hset]
-    exact (PMF.mul_toOuterMeasure_le_tsum seed _ _).trans (hh.tsum_sum_card_filter_sq_le S hS)
+  have hmarkov : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) *
+      seed.toOuterMeasure {i | 4 * S.card < ∑ j, (S.filter fun x => hash i x = j).card ^ 2} ≤
+      (2 * S.card - 1 : ℕ) :=
+    (mul_le_mul_right (seed.toOuterMeasure.mono
+      (s₂ := {i | ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≤
+        ((∑ j, (S.filter fun x => hash i x = j).card ^ 2 : ℕ) : ℝ≥0∞)})
+      fun i hi => by simp only [Set.mem_ofPred_eq, Nat.cast_le] at hi ⊢; omega) _).trans
+      ((PMF.mul_toOuterMeasure_le_tsum seed _ _).trans (hh.tsum_sum_card_filter_sq_le S hS))
   have hne0 : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
-  have hnetop : ((4 * S.card + 1 : ℕ) : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  rw [ENNReal.le_inv_iff_mul_le, ← ENNReal.mul_le_mul_iff_right hne0 hnetop, mul_one]
-  calc ((4 * S.card + 1 : ℕ) : ℝ≥0∞) * (P * 2) = 2 * (((4 * S.card + 1 : ℕ) : ℝ≥0∞) * P) := by
-        ring
-    _ ≤ 2 * (2 * S.card - 1 : ℕ) := by gcongr
-    _ ≤ ((4 * S.card + 1 : ℕ) : ℝ≥0∞) := by
-        exact_mod_cast (show 2 * (2 * S.card - 1) ≤ 4 * S.card + 1 by omega)
+  rw [ENNReal.le_inv_iff_mul_le, ← ENNReal.mul_le_mul_iff_right hne0 (ENNReal.natCast_ne_top _),
+    mul_one, ← mul_assoc]
+  refine (mul_le_mul_left hmarkov 2).trans ?_
+  exact_mod_cast show (2 * S.card - 1) * 2 ≤ 4 * S.card + 1 by omega
 
 omit [DecidableEq Y] in
 open Classical in
@@ -293,17 +255,9 @@ theorem IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp [Fintype ι] [Fintype Y
     {hash : ι → X → Y} (hh : IsTwoUniversal seed hash) (S : Finset X) (x : X) {P : ι → Prop}
     {_ : DecidablePred P} (hP : ∀ i, P i → ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x) :
     (∑ i, if P i then (seed i).toReal else 0) ≤ (#S : ℝ) / Fintype.card Y := by
-  calc (∑ i, if P i then (seed i).toReal else 0)
-      ≤ ∑ i, if ∃ y ∈ S, y ≠ x ∧ hash i y = hash i x then (seed i).toReal else 0 :=
-        sum_le_sum fun i _ => by
-          split_ifs with h₁ h₂
-          · exact le_rfl
-          · exact absurd (hP i h₁) h₂
-          · exact ENNReal.toReal_nonneg
-          · exact le_rfl
-    _ ≤ (#(S.erase x) : ℝ) / Fintype.card Y := hh.collision_with_set_le S x
-    _ ≤ (#S : ℝ) / Fintype.card Y := by
-      gcongr
-      exact erase_subset _ _
+  refine (sum_le_sum fun i _ => ?_).trans
+    ((hh.collision_with_set_le S x).trans (by gcongr; exact erase_subset _ _))
+  split_ifs with h₁ h₂
+  exacts [le_rfl, absurd (hP i h₁) h₂, ENNReal.toReal_nonneg, le_rfl]
 
 end Cslib.Probability

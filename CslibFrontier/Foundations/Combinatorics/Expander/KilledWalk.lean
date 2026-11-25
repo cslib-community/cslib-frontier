@@ -126,6 +126,24 @@ theorem killTime_cons (a : Fin q) (c : Fin T → Fin q) :
     exact congrArg (· + 1) (Nat.find_congr' fun {n} ↦
       ⟨fun h hn ↦ h (Nat.succ_lt_succ hn), fun h hn ↦ h (Nat.lt_of_succ_lt_succ hn)⟩)
 
+private theorem card_filter_cons (P : ℕ → Prop) [DecidablePred P] :
+    #{c : Fin (T + 1) → Fin q | P (killTime c)} =
+      (if P 0 then q ^ T else 0) + (q - 1) * #{c : Fin T → Fin q | P (killTime c + 1)} := by
+  rw [card_filter, ← Fintype.sum_equiv (Fin.consEquiv fun _ ↦ Fin q)
+    (fun x ↦ if P (killTime (Fin.cons x.1 x.2 : Fin (T + 1) → Fin q)) then 1 else 0) _
+    fun _ ↦ rfl, Fintype.sum_prod_type, ← add_sum_erase _ _ (mem_univ (0 : Fin q))]
+  have h0 : (∑ c : Fin T → Fin q,
+      if P (killTime (Fin.cons 0 c : Fin (T + 1) → Fin q)) then 1 else 0) =
+      if P 0 then q ^ T else 0 := by
+    simp [killTime_cons, sum_ite_irrel]
+  have hne {a : Fin q} (ha : a ∈ univ.erase 0) :
+      (∑ c : Fin T → Fin q, if P (killTime (Fin.cons a c : Fin (T + 1) → Fin q)) then 1 else 0) =
+        #{c : Fin T → Fin q | P (killTime c + 1)} := by
+    simp only [killTime_cons, ne_of_mem_erase ha, ↓reduceIte, ← card_filter]
+  dsimp only
+  rw [h0, sum_congr rfl fun _ ha ↦ hne ha, sum_const,
+    card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin, smul_eq_mul]
+
 /-- Under uniformly random signals, a walk of length `T` is killed at its step `m < T` with
 probability `(1 - 1 / q) ^ m / q`: the signals that kill it there number
 `(q - 1) ^ m * q ^ (T - (m + 1))`. -/
@@ -134,20 +152,11 @@ theorem card_filter_killTime_eq {m : ℕ} (hm : m < T) :
   induction T generalizing m with
   | zero => omega
   | succ T ih =>
-    rw [card_filter, ← Fintype.sum_equiv (Fin.consEquiv fun _ ↦ Fin q)
-      (fun x ↦ if killTime (Fin.cons x.1 x.2 : Fin (T + 1) → Fin q) = m then 1 else 0) _
-      fun _ ↦ rfl, Fintype.sum_prod_type]
-    simp only [killTime_cons]
+    rw [card_filter_cons (· = m)]
     rcases m with _ | m
-    · simp [sum_ite_irrel]
-    · have h (a : Fin q) (c : Fin T → Fin q) :
-          (if (if a = 0 then 0 else killTime c + 1) = m + 1 then 1 else 0) =
-            if a = 0 then 0 else if killTime c = m then 1 else 0 := by
-        split_ifs <;> simp_all
-      simp only [h, sum_ite_irrel, sum_const_zero, ← card_filter, ih (by omega : m < T)]
-      rw [sum_ite, sum_const_zero, zero_add, sum_const, filter_ne' univ (0 : Fin q),
-        card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin, smul_eq_mul,
-        show T + 1 - (m + 1 + 1) = T - (m + 1) by omega]
+    · simp
+    · simp only [ite_eq_right (by omega : ¬(0 = m + 1)), zero_add, add_left_inj,
+        ih (by omega : m < T), show T + 1 - (m + 1 + 1) = T - (m + 1) by omega]
       ring
 
 /-- Under uniformly random signals, a walk of length `T` survives its first `m ≤ T` steps with
@@ -157,20 +166,11 @@ theorem card_filter_le_killTime {m : ℕ} (hm : m ≤ T) :
   induction T generalizing m with
   | zero => simp [Nat.le_zero.1 hm]
   | succ T ih =>
-    rw [card_filter, ← Fintype.sum_equiv (Fin.consEquiv fun _ ↦ Fin q)
-      (fun x ↦ if m ≤ killTime (Fin.cons x.1 x.2 : Fin (T + 1) → Fin q) then 1 else 0) _
-      fun _ ↦ rfl, Fintype.sum_prod_type]
-    simp only [killTime_cons]
     rcases m with _ | m
-    · simp [pow_succ']
-    · have h (a : Fin q) (c : Fin T → Fin q) :
-          (if m + 1 ≤ (if a = 0 then 0 else killTime c + 1) then 1 else 0) =
-            if a = 0 then 0 else if m ≤ killTime c then 1 else 0 := by
-        split_ifs <;> simp_all
-      simp only [h, sum_ite_irrel, sum_const_zero, ← card_filter, ih (by omega : m ≤ T)]
-      rw [sum_ite, sum_const_zero, zero_add, sum_const, filter_ne' univ (0 : Fin q),
-        card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin, smul_eq_mul,
-        show T + 1 - (m + 1) = T - m by omega]
+    · simp
+    · rw [card_filter_cons (m + 1 ≤ ·)]
+      simp only [ite_eq_right (by omega : ¬(m + 1 ≤ 0)), zero_add, Nat.add_le_add_iff_right,
+        ih (by omega : m ≤ T), show T + 1 - (m + 1) = T - m by omega]
       ring
 
 end KillTime
@@ -240,12 +240,11 @@ probability `(1 - 1 / q) ^ m`. -/
 theorem expect_le_killTime {m : ℕ} (hm : m ≤ T) :
     𝔼 c : Fin T → Fin q, (if m ≤ killTime c then 1 else 0 : ℝ) = (1 - (q : ℝ)⁻¹) ^ m := by
   have hq : (q : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (NeZero.ne q)
-  have hT : (q : ℝ) ^ T = q ^ m * q ^ (T - m) := by
-    rw [← pow_add, Nat.add_sub_cancel' hm]
   rw [Fintype.expect_eq_sum_div_card, sum_boole, card_filter_le_killTime hm]
   simp only [Fintype.card_pi, prod_const, card_univ, Fintype.card_fin]
   push_cast [Nat.cast_sub (NeZero.one_le : 1 ≤ q)]
-  rw [hT, mul_div_mul_right _ _ (pow_ne_zero _ hq), ← div_pow, sub_div, div_self hq, one_div]
+  rw [show (q : ℝ) ^ T = q ^ m * q ^ (T - m) by rw [← pow_add, Nat.add_sub_cancel' hm],
+    mul_div_mul_right _ _ (pow_ne_zero _ hq), ← div_pow, sub_div, div_self hq, one_div]
 
 /-- Under uniformly random kill signals, a walk of length `T` is killed at its step `m < T` with
 probability `(1 - 1 / q) ^ m / q`: it survives its first `m` steps but not its first `m + 1`. -/
@@ -268,10 +267,8 @@ theorem expect_ite_killTime_eq [Nonempty D] {ℓ : ℕ} (hℓ : ℓ < T) (f : (F
       (if killTime x.2 = ℓ then f (Fin.take ℓ hℓ.le x.1) else 0) =
         f (Fin.take ℓ hℓ.le x.1) * if killTime x.2 = ℓ then 1 else 0 := by
     split_ifs <;> simp
-  simp only [h]
-  rw [Fintype.expect_prod_type]
-  simp only [← mul_expect, expect_killTime_eq hℓ]
-  rw [← expect_mul, expect_comp_take, mul_comm]
+  simp only [h, Fintype.expect_prod_type, ← mul_expect, expect_killTime_eq hℓ, ← expect_mul,
+    expect_comp_take, mul_comm]
 
 /-- **The law of a killed walk**, with a uniformly random start: a function of the walk along the
 first `ℓ < T` labels, on the event that the walk is killed at step `ℓ`, averages to

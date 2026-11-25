@@ -94,9 +94,8 @@ theorem exchange_of_connector (hF : EdgeInstance F) {f current : OccurrenceLabel
   refine ⟨e, rfl, hev, ?_⟩
   -- The following pointwise row comparison identifies the stored witness with the actual
   -- original two-port exchange; it retains every outside coordinate of the changed current row.
-  apply (validLabeling_pairFlip_iff hcurrent i oj ⟨j, hjb⟩ (by
-    intro hh
-    exact hoe (congrArg (Sigma.mk i) hh))).mpr
+  apply (validLabeling_pairFlip_iff hcurrent i oj ⟨j, hjb⟩
+    fun hh => hoe (congrArg (Sigma.mk i) hh)).mpr
   have heq : List.ofFn (BitString.flipOn {oj, (⟨j, hjb⟩ : Fin F[i.val].scope.length)}
       (fun k => current ⟨i, k⟩)) = old := by
     apply List.ext_getElem
@@ -108,17 +107,10 @@ theorem exchange_of_connector (hF : EdgeInstance F) {f current : OccurrenceLabel
       by_cases hkp : k ∈ ps
       · have hqv := (mem_positions vs i ⟨k, hkb⟩).mp hkp
         have hqcur := hinside q hqv
-        have hko0 : k ≠ oj.val := by
-          intro hh
-          have hqo : q = o := congrArg (Sigma.mk i) (Fin.ext hh)
-          exact ho (congrArg Occurrence.var hqo ▸ hqv)
         have hfinO : (⟨k, hkb⟩ : Fin F[i.val].scope.length) ≠ oj := fun hh =>
-          hko0 (congrArg Fin.val hh)
+          ho (congrArg Occurrence.var (congrArg (Sigma.mk i) hh : q = o) ▸ hqv)
         by_cases hkj : k = j
-        · have hdiff : old.getD k false ≠ f q := by
-            have hh := hjdiff
-            rw [← hkj, hqref] at hh
-            exact hh
+        · rw [← hkj, hqref] at hjdiff
           have hmem : (⟨k, hkb⟩ : Fin F[i.val].scope.length) ∈
               ({oj, ⟨j, hjb⟩} : Finset (Fin F[i.val].scope.length)) :=
             mem_insert.mpr (Or.inr (mem_singleton.mpr (Fin.ext hkj)))
@@ -134,8 +126,7 @@ theorem exchange_of_connector (hF : EdgeInstance F) {f current : OccurrenceLabel
             exact ⟨hfinO, fun hh => hkj (congrArg Fin.val hh)⟩
           simp only [List.getElem_ofFn, BitString.flipOn_apply, hmem, ↓reduceIte]
           exact hqcur.trans ((List.getD_eq_getElem old false hko).symm.trans heold).symm
-      · have hqout : q.var ∉ vs := by
-          exact (mem_positions vs i ⟨k, hkb⟩).not.mp hkp
+      · have hqout : q.var ∉ vs := (mem_positions vs i ⟨k, hkb⟩).not.mp hkp
         have hkos : k ∈ os := (mem_outsidePositions vs F[i.val].scope k).mpr
           ⟨hkb, by simpa only [List.getD_eq_getElem _ _ hkb, Occurrence.var] using hqout⟩
         have hidx := List.idxOf_lt_length_iff.mpr hkos
@@ -151,16 +142,9 @@ theorem exchange_of_connector (hF : EdgeInstance F) {f current : OccurrenceLabel
         rw [hread] at hh
         have hqc := oldPort_ne_connector f vs q hqout i ht
         change oldPort f vs q hqout ≠ c at hqc
-        have hqa : oldPort f vs q hqout = a ↔ k = oj.val := by
-          constructor
-          · intro hh
-            have hqo := oldPort_injective hF f vs hqout ho hh
-            exact congrArg (fun o : Occurrence F => o.2.val) hqo
-          · intro hh
-            have hqo : q = o := congrArg (Sigma.mk i) (Fin.ext hh)
-            exact congrArg (fun p : {a : Occurrence F // a.var ∉ vs} =>
-              oldPort f vs p.val p.property) (Subtype.ext hqo :
-                (⟨q, hqout⟩ : {a : Occurrence F // a.var ∉ vs}) = ⟨o, ho⟩)
+        have hqa : oldPort f vs q hqout = a ↔ k = oj.val :=
+          ⟨fun hh => congrArg (fun o : Occurrence F => o.2.val)
+            (oldPort_injective hF f vs hqout ho hh), by rintro rfl; rfl⟩
         have hkj : k ≠ j := fun heq => hkp (heq ▸ hj)
         change old.getD k false = pairFlip before a c (oldPort f vs q hqout) at hh
         rw [pairFlip_eq _ hac] at hh

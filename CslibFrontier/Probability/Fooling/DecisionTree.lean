@@ -86,14 +86,11 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
   induction t generalizing P a k with
   | leaf b =>
     obtain ⟨hA, -, hg⟩ := h a fun _ _ => rfl
-    simp only [queries_leaf, union_empty, eval_leaf] at hA hg
-    have hε := (abs_nonneg _).trans (hd P hA a)
+    simp only [queries_leaf, union_empty, eval_leaf] at hA hg ⊢
     have hC := (abs_nonneg _).trans hg
-    simp only [eval_leaf]
     rw [← sum_mul, abs_mul, mul_comm]
-    calc |g b| * |∑ z with ∀ i ∈ P, z i = a i, d z| ≤ C * ε :=
-          mul_le_mul hg (hd P hA a) (abs_nonneg _) hC
-      _ ≤ 2 ^ k * (C * ε) := le_mul_of_one_le_left (mul_nonneg hC hε) (one_le_pow₀ one_le_two)
+    exact (mul_le_mul hg (hd P hA a) (abs_nonneg _) hC).trans (le_mul_of_one_le_left
+      (mul_nonneg hC ((abs_nonneg _).trans (hd P hA a))) (one_le_pow₀ one_le_two))
   | node i t₀ t₁ ih₀ ih₁ =>
     by_cases hi : i ∈ P
     · -- the queried coordinate is fixed on the subcube, so the node follows one branch
@@ -113,8 +110,7 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
         obtain ⟨hA, hk, hg⟩ := h z hz
         rw [(hbranch z hz).2, union_insert, insert_eq_of_mem (mem_union_left _ hi)] at hA
         rw [(hbranch z hz).2, insert_sdiff_of_mem _ hi] at hk
-        rw [(hbranch z hz).1] at hg
-        exact ⟨hA, hk, hg⟩
+        exact ⟨hA, hk, (hbranch z hz).1 ▸ hg⟩
       rw [hsum]
       cases ha : a i
       · simpa [ha] using ih₀ P a k (by simpa [ha] using hsub)
@@ -130,11 +126,9 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
           ((∀ j ∈ P, z j = a j) ∧ z i = b) ↔
             ∀ j ∈ insert i P, z j = Function.update a i b j := by
         rw [forall_mem_insert, Function.update_self]
-        refine ⟨fun ⟨hz, hzi⟩ => ⟨hzi, fun j hj => ?_⟩, fun ⟨hzi, hz⟩ => ⟨fun j hj => ?_, hzi⟩⟩
-        · rw [Function.update_of_ne (ne_of_mem_of_not_mem hj hi)]
-          exact hz j hj
-        · rw [← Function.update_of_ne (ne_of_mem_of_not_mem hj hi) b a]
-          exact hz j hj
+        refine ⟨fun ⟨hz, hzi⟩ => ⟨hzi, fun j hj => (hz j hj).trans ?_⟩,
+          fun ⟨hzi, hz⟩ => ⟨fun j hj => (hz j hj).trans ?_, hzi⟩⟩ <;>
+        simp only [Function.update_of_ne (ne_of_mem_of_not_mem hj hi)]
       have hpiece (b : Bool) :
           ∑ z with (∀ j ∈ P, z j = a j) ∧ z i = b, d z * g ((node i t₀ t₁).eval z) =
             ∑ z with ∀ j ∈ insert i P, z j = Function.update a i b j,
@@ -151,16 +145,13 @@ private theorem abs_sum_filter_mul_eval_le (A : Finset ι → Prop) (d : (ι →
         intro z hz
         have hz' := (hcube b z).2 hz
         obtain ⟨hA, hk, hg⟩ := h z hz'.1
-        have hq : (node i t₀ t₁).queries z = insert i ((cond b t₁ t₀).queries z) := by
-          simp only [queries_node, hz'.2]
-          cases b <;> rfl
-        have he : (node i t₀ t₁).eval z = (cond b t₁ t₀).eval z := by
-          simp only [eval_node, hz'.2]
-          cases b <;> rfl
-        rw [hq, union_insert, ← insert_union] at hA
-        rw [he] at hg
-        refine ⟨hA, ?_, hg⟩
-        rw [hq, insert_sdiff_of_notMem _ hi] at hk
+        have hq : (node i t₀ t₁).queries z = insert i ((cond b t₁ t₀).queries z) ∧
+            (node i t₀ t₁).eval z = (cond b t₁ t₀).eval z := by
+          simp only [queries_node, eval_node, hz'.2]
+          cases b <;> exact ⟨rfl, rfl⟩
+        rw [hq.1, union_insert, ← insert_union] at hA
+        refine ⟨hA, ?_, hq.2 ▸ hg⟩
+        rw [hq.1, insert_sdiff_of_notMem _ hi] at hk
         have hsd : insert i ((cond b t₁ t₀).queries z \ P) =
             insert i ((cond b t₁ t₀).queries z \ insert i P) := by
           ext j

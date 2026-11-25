@@ -222,14 +222,10 @@ theorem accepts_kilianExtractTableFromRuns_or_breaksBinding
         let (addr, opening) := pair
         ({ position := kilianPosition V x addr,
            opening := ⟨[opening.leaf], opening.path⟩ } : MerkleIndexedOpening)
-  have hleaf : ∀ entry ∈ merkleVerifiedOpenings H k (kilianDepth V x) (V.queryTable x).length
-      root raw, (fun _ (leaf : List Bool) => leaf.length == 1) n entry.opening.leaf = true := by
-    intro entry hent
-    have hent' : entry ∈ kilianRunsToOpenings H V k x root runs := hent
-    simp [mem_kilianRunsToOpenings_leaf_len hent']
   rcases getD_merkleExtractVector_or_merkleBreaksBinding (H := H)
       (leafSpace := fun _ leaf => leaf.length == 1) (n := n) (k := k) (d := kilianDepth V x)
-      (len := (V.queryTable x).length) (root := root) [false] (openings := raw) hleaf with
+      (len := (V.queryTable x).length) (root := root) [false] (openings := raw)
+      (fun entry hent => by simp [mem_kilianRunsToOpenings_leaf_len hent]) with
     hbreak | hcons
   · exact Or.inl hbreak
   · refine Or.inr fun run hrun hver ρ hρ hρlen => ?_
@@ -242,43 +238,36 @@ theorem accepts_kilianExtractTableFromRuns_or_breaksBinding
       List.mem_iff_getElem.mpr ⟨i, by simp [hi, hi'], by simp⟩
     have hc := hacc.2 _ hmem
     simp only [kilianCheck, Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hc
-    obtain ⟨⟨hlenA, hopen⟩, hverdict⟩ := hc
-    convert hverdict using 3
-    refine List.ext_getElem (by simp [hlenA]) fun m h₁ h₂ => ?_
+    convert hc.2 using 3
+    refine List.ext_getElem (by simp [hc.1.1]) fun m h₁ h₂ => ?_
     have hmq : m < (V.queries (x, run.challenges[i])).length := by simpa using h₁
-    have hm : m < run.response[i].length := by simpa using h₂
     set q := (V.queries (x, run.challenges[i]))[m]
-    have hzip : (q, run.response[i][m]) ∈ (V.queries (x, run.challenges[i])).zip run.response[i] :=
-      List.mem_iff_getElem.mpr ⟨m, by simp [hmq, hm], by simp [q]⟩
-    have hko : (q, run.response[i][m]) ∈ kilianOpenings V x run.challenges run.response :=
-      List.mem_flatMap.mpr ⟨_, hmem, hzip⟩
+    have hko : (q, run.response[i][m]'(by simpa using h₂)) ∈
+        kilianOpenings V x run.challenges run.response :=
+      List.mem_flatMap.mpr ⟨_, hmem,
+        List.mem_iff_getElem.mpr ⟨m, by simp [hmq, by simpa using h₂], by simp [q]⟩⟩
     have hqlt : kilianPosition V x q < (V.queryTable x).length :=
       kilianPosition_lt hρlen (List.getElem_mem hmq)
-    have hmv : merkleVerify H k (kilianDepth V x) root (kilianPosition V x q)
-        [run.response[i][m].leaf] run.response[i][m].path = true :=
-      merkleVerify_of_mem_kilianOpenings hver hko
     let entry : MerkleIndexedOpening :=
       { position := kilianPosition V x q,
         opening := ⟨[run.response[i][m].leaf], run.response[i][m].path⟩ }
-    have hentRaw : entry ∈ raw := by
-      refine List.mem_flatMap.mpr ⟨run, List.mem_filter.mpr ⟨hrun, hver⟩, ?_⟩
-      exact List.mem_map.mpr ⟨(q, run.response[i][m]), hko, rfl⟩
     have hentVer : entry ∈ merkleVerifiedOpenings H k (kilianDepth V x) (V.queryTable x).length
         root raw :=
-      mem_merkleVerifiedOpenings.mpr ⟨hentRaw, hqlt, by simpa [entry] using hmv⟩
-    have hvec := hcons entry hentVer
-    change (merkleExtractVector (V.queryTable x).length [false]
+      mem_merkleVerifiedOpenings.mpr
+        ⟨List.mem_flatMap.mpr ⟨run, List.mem_filter.mpr ⟨hrun, hver⟩,
+          List.mem_map.mpr ⟨_, hko, rfl⟩⟩, hqlt, merkleVerify_of_mem_kilianOpenings hver hko⟩
+    have hvec : (merkleExtractVector (V.queryTable x).length [false]
         (kilianRunsToOpenings H V k x root runs)).getD (kilianPosition V x q) [false] =
-      [run.response[i][m].leaf] at hvec
+      [run.response[i][m].leaf] := hcons entry hentVer
     have hltVec : kilianPosition V x q <
         (merkleExtractVector (V.queryTable x).length [false]
           (kilianRunsToOpenings H V k x root runs)).length := by
       simpa [length_merkleExtractVector] using hqlt
     rw [List.getElem_map, List.getElem_map]
     dsimp only [kilianExtractTableFromRuns, kilianPosition] at hvec hltVec ⊢
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hltVec] at hvec
-    rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hltVec]
-    simp only [Option.map_some, Option.getD_some] at hvec ⊢
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hltVec, Option.getD_some] at hvec
+    rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hltVec,
+      Option.map_some, Option.getD_some]
     exact congrArg (fun l => l.headD false) hvec
 
 /-! ### Rewinding table extractor and strict-PPT certificates -/
@@ -382,76 +371,47 @@ private theorem computableInPolyTime_kilianRunsToOpenings {H : List Bool → Lis
       (fun a => kilianRunsToOpenings H V (k a) (x a) (root a) (runs a))
       encIn (encList encMerkleIndexedOpening) := by
   have htable := (PCPVerifier.isPolyTime_queryTable hV hcoins).comp hx
-  have hlenVec : ComputableInPolyTime (fun a => (V.queryTable (x a)).length) encIn encUnary :=
-    (ComputableInPolyTime.length_list encNat).comp htable
-  have hd : ComputableInPolyTime (fun a => kilianDepth V (x a)) encIn encUnary :=
-    (ComputableInPolyTime.unary_clog_const 2).comp hlenVec
+  have hlenVec := (ComputableInPolyTime.length_list encNat).comp htable
+  have hd := (ComputableInPolyTime.unary_clog_const 2).comp hlenVec
+  have ha := ComputableInPolyTime.fst encIn encKilianChallengeRun
+  have hb := ComputableInPolyTime.snd encIn encKilianChallengeRun
+  have hview : ComputableInPolyTime
+      (fun p : γ × KilianChallengeRun =>
+        ({ key := k p.1, stmt := x p.1, root := root p.1,
+           challenges := p.2.challenges, response := p.2.response } : KilianView α))
+      (encPair encIn encKilianChallengeRun) (encKilianView enc) := by fun_prop
   have hverRuns : ComputableInPolyTime
       (fun p : γ × KilianChallengeRun =>
         kilianVerify H V (k p.1) (x p.1) (root p.1) p.2.challenges p.2.response)
-      (encPair encIn encKilianChallengeRun) encBool := by
-    have ha := ComputableInPolyTime.fst encIn encKilianChallengeRun
-    have hb := ComputableInPolyTime.snd encIn encKilianChallengeRun
-    have hview : ComputableInPolyTime
-        (fun p : γ × KilianChallengeRun =>
-          ({ key := k p.1, stmt := x p.1, root := root p.1,
-             challenges := p.2.challenges, response := p.2.response } : KilianView α))
-        (encPair encIn encKilianChallengeRun) (encKilianView enc) := by fun_prop
-    exact (computableInPolyTime_kilianVerify hH hlen hV hcoins).comp hview
+      (encPair encIn encKilianChallengeRun) encBool :=
+    (computableInPolyTime_kilianVerify hH hlen hV hcoins).comp hview
   have hfiltered := ComputableInPolyTime.filterWithInput
     (test := fun a run => kilianVerify H V (k a) (x a) (root a) run.challenges run.response)
     hruns hverRuns
+  have hko := (computableInPolyTime_kilianOpenings hV).comp
+    ((hx.comp ha).prod ((encKilianChallengeRun_challenges_polyTime hb).prod
+      (encKilianChallengeRun_response_polyTime hb)))
+  have hq₁ := ComputableInPolyTime.fst (encPair encIn encKilianChallengeRun)
+    (encPair encNat encKilianOpening)
+  have hq₂ := ComputableInPolyTime.snd (encPair encIn encKilianChallengeRun)
+    (encPair encNat encKilianOpening)
+  have hop := (ComputableInPolyTime.snd encNat encKilianOpening).comp hq₂
   have hopenRuns : ComputableInPolyTime
       (fun p : γ × KilianChallengeRun =>
         (kilianOpenings V (x p.1) p.2.challenges p.2.response).map fun pair =>
           let (addr, opening) := pair
           ({ position := kilianPosition V (x p.1) addr,
              opening := ⟨[opening.leaf], opening.path⟩ } : MerkleIndexedOpening))
-      (encPair encIn encKilianChallengeRun) (encList encMerkleIndexedOpening) := by
-    have ha := ComputableInPolyTime.fst encIn encKilianChallengeRun
-    have hb := ComputableInPolyTime.snd encIn encKilianChallengeRun
-    have hko : ComputableInPolyTime
-        (fun p : γ × KilianChallengeRun =>
-          kilianOpenings V (x p.1) p.2.challenges p.2.response)
-        (encPair encIn encKilianChallengeRun)
-        (encList (encPair encNat encKilianOpening)) :=
-      (computableInPolyTime_kilianOpenings hV).comp
-        ((hx.comp ha).prod ((encKilianChallengeRun_challenges_polyTime hb).prod
-          (encKilianChallengeRun_response_polyTime hb)))
-    refine ComputableInPolyTime.mapWithInput hko ?_
-    have hq₁ := ComputableInPolyTime.fst (encPair encIn encKilianChallengeRun)
-      (encPair encNat encKilianOpening)
-    have hq₂ := ComputableInPolyTime.snd (encPair encIn encKilianChallengeRun)
-      (encPair encNat encKilianOpening)
-    have hxInner := hx.comp (ha.comp hq₁)
-    have haddr := (ComputableInPolyTime.fst encNat encKilianOpening).comp hq₂
-    have hop := (ComputableInPolyTime.snd encNat encKilianOpening).comp hq₂
-    have hpos : ComputableInPolyTime
-        (fun q : (γ × KilianChallengeRun) × (ℕ × MerkleOpening Bool) =>
-          kilianPosition V (x q.1.1) q.2.1)
-        (encPair (encPair encIn encKilianChallengeRun) (encPair encNat encKilianOpening))
-        encUnary :=
-      ComputableInPolyTime.idxOfWithInput (htable.comp (ha.comp hq₁)) haddr
-    have hleaf : ComputableInPolyTime
-        (fun q : (γ × KilianChallengeRun) × (ℕ × MerkleOpening Bool) => [q.2.2.leaf])
-        (encPair (encPair encIn encKilianChallengeRun) (encPair encNat encKilianOpening))
-        encBits :=
-      ComputableInPolyTime.bitsCons (encKilianOpening_leaf_polyTime hop)
-        (ComputableInPolyTime.const [])
-    have hpath := encKilianOpening_path_polyTime hop
-    have hmk := encMerkleOpening_mk_polyTime hleaf hpath
-    exact encMerkleIndexedOpening_mk_polyTime hpos hmk
-  have hraw : ComputableInPolyTime
-      (fun a =>
-        ((runs a).filter fun run =>
-          kilianVerify H V (k a) (x a) (root a) run.challenges run.response).flatMap fun run =>
-            (kilianOpenings V (x a) run.challenges run.response).map fun pair =>
-              let (addr, opening) := pair
-              ({ position := kilianPosition V (x a) addr,
-                 opening := ⟨[opening.leaf], opening.path⟩ } : MerkleIndexedOpening))
-      encIn (encList encMerkleIndexedOpening) :=
-    ComputableInPolyTime.flatMapWithInput hfiltered hopenRuns
-  exact computableInPolyTime_merkleVerifiedOpenings hH hlen hk hd hlenVec hroot hraw
+      (encPair encIn encKilianChallengeRun) (encList encMerkleIndexedOpening) :=
+    ComputableInPolyTime.mapWithInput hko
+      (encMerkleIndexedOpening_mk_polyTime
+        (ComputableInPolyTime.idxOfWithInput (htable.comp (ha.comp hq₁))
+          ((ComputableInPolyTime.fst encNat encKilianOpening).comp hq₂))
+        (encMerkleOpening_mk_polyTime
+          (ComputableInPolyTime.bitsCons (encKilianOpening_leaf_polyTime hop) (.const []))
+          (encKilianOpening_path_polyTime hop)))
+  exact computableInPolyTime_merkleVerifiedOpenings hH hlen hk hd hlenVec hroot
+    (ComputableInPolyTime.flatMapWithInput hfiltered hopenRuns)
 
 private theorem computableInPolyTime_kilianExtractTableFromRuns
     {H : List Bool → List Bool → List Bool} {V : PCPVerifier α} {enc : α ↪ List Bool} {c : ℕ}
@@ -750,28 +710,17 @@ private theorem eval_kilianChallenges_set (V : PCPVerifier α) (n i : ℕ) (hi :
       pure (ρs.set i ρ₀)) =
       ProbComp.eval (kilianChallenges V n x) := by
   let src := BitString.sampleList (V.coins x)
-  have hn : n = i + ((n - 1 - i) + 1) := by omega
   have hsp := ProbComp.eval_replicate_splice src i (n - 1 - i)
-  rw [kilianChallenges, hn]
+  rw [kilianChallenges, show n = i + ((n - 1 - i) + 1) by omega]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure]
-  conv_lhs =>
-    arg 2
-    ext ρ₀
-    rw [← hsp]
+  conv_lhs => arg 2; ext ρ₀; rw [← hsp]
   rw [← hsp]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   refine congrArg (PMF.bind (ProbComp.eval src)) (funext fun ρ₀ => ?_)
   rw [PMF.bind_comm (ProbComp.eval src) (ProbComp.eval (OracleComp.replicate i src))]
-  apply Probability.PMF.bind_congr_on_support
-  intro front hfront
-  have hlen : front.length = i :=
-    ((ProbComp.mem_support_replicate_iff i src front).mp hfront).1
-  have hset : ∀ (middle : List Bool) (back : List (List Bool)),
-      (front ++ middle :: back).set i ρ₀ = front ++ ρ₀ :: back := by
-    intro middle back
-    rw [← hlen]
-    exact listSet_append_cons front middle back ρ₀
-  simp only [hset, PMF.bind_const]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
+  have hlen : front.length = i := ((ProbComp.mem_support_replicate_iff i src front).mp hfront).1
+  simp only [← hlen, listSet_append_cons, PMF.bind_const]
 
 private theorem eval_kilianSingleRun_eq_bind_planted (V : PCPVerifier α) (P : KilianProver α)
     (n i : ℕ) (hi : i < n) (cm : KilianCommitment α) :
@@ -802,7 +751,7 @@ private theorem toOuterMeasure_kilianSingleRun_getElem_le (V : PCPVerifier α) (
       ((1 : ℝ≥0∞) / 2 ^ V.coins cm.stmt) *
         (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i)).toOuterMeasure {run | acc run = true} := by
   rw [eval_kilianSingleRun_eq_bind_planted V P n i hi cm, PMF.toOuterMeasure_bind_apply]
-  have hsingle : ∀ ρ' : List Bool,
+  have hsingle (ρ' : List Bool) :
       ProbComp.eval (BitString.sampleList (V.coins cm.stmt)) ρ' *
           (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).toOuterMeasure
             {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} =
@@ -811,30 +760,17 @@ private theorem toOuterMeasure_kilianSingleRun_getElem_le (V : PCPVerifier α) (
             (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i)).toOuterMeasure
               {run | run.challenges[i]? = some ρ₀ ∧ acc run = true}
         else 0 := by
-    intro ρ'
-    by_cases h : ρ' = ρ₀
-    · subst h
-      simp
-    · simp only [h, ↓reduceIte]
-      have hzero : (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).toOuterMeasure
-          {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} = 0 := by
-        rw [← PMF.toOuterMeasure_apply_inter_support]
-        have hempty : {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} ∩
-            (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).support = ∅ :=
+    split_ifs with h
+    · subst h; rfl
+    · rw [← PMF.toOuterMeasure_apply_inter_support,
+        show {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} ∩
+            (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).support = ∅ from
           Set.eq_empty_iff_forall_notMem.mpr fun run ⟨⟨hget, _⟩, hsup⟩ =>
-            h (Option.some.inj ((mem_of_mem_support_kilianPlantedRun hi hsup).1.symm.trans hget))
-        rw [hempty, MeasureTheory.measure_empty]
-      rw [hzero, mul_zero]
-  rw [tsum_congr hsingle, tsum_ite_eq]
-  have hp : ProbComp.eval (BitString.sampleList (V.coins cm.stmt)) ρ₀ ≤
-      (1 : ℝ≥0∞) / 2 ^ V.coins cm.stmt := by
-    rw [BitString.eval_sampleList]
-    exact BitString.uniformList_apply_le _ _
-  have hm : (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i)).toOuterMeasure
-      {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} ≤
-      (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i)).toOuterMeasure {run | acc run = true} :=
-    MeasureTheory.measure_mono fun _ h => h.2
-  exact mul_le_mul' hp hm
+            h (Option.some.inj ((mem_of_mem_support_kilianPlantedRun hi hsup).1.symm.trans hget)),
+        MeasureTheory.measure_empty, mul_zero]
+  rw [tsum_congr hsingle, tsum_ite_eq, BitString.eval_sampleList]
+  exact mul_le_mul' (BitString.uniformList_apply_le _ _)
+    (MeasureTheory.measure_mono fun _ h => h.2)
 
 private theorem toOuterMeasure_mapM_all_le {β γ : Type} (bs : List β) (m : β → ProbComp γ)
     (Q : γ → Prop) {b₀ : β} (hb₀ : b₀ ∈ bs) :
@@ -849,29 +785,18 @@ private theorem toOuterMeasure_mapM_all_le {β γ : Type} (bs : List β) (m : β
       simp [List.mapM_cons, ProbComp.eval_bind, ProbComp.eval_map, PMF.map, Function.comp_def]
     rw [hmap, PMF.toOuterMeasure_bind_apply]
     rcases List.mem_cons.mp hb₀ with rfl | hmem
-    · calc ∑' y, ProbComp.eval (m b₀) y *
-            ((ProbComp.eval (bs.mapM m)).map (List.cons y)).toOuterMeasure {ys | ∀ z ∈ ys, Q z}
-          ≤ ∑' y, ProbComp.eval (m b₀) y * {y | Q y}.indicator 1 y := by
-            refine tsum_le_tsum fun y => mul_le_mul_of_nonneg_left ?_ zero_le
-            by_cases hy : Q y
-            · simpa [Set.indicator_of_mem hy] using
-                Probability.PMF.toOuterMeasure_le_one
-                  ((ProbComp.eval (bs.mapM m)).map (List.cons y)) {ys | ∀ z ∈ ys, Q z}
-            · have hempty : ((ProbComp.eval (bs.mapM m)).map (List.cons y)).toOuterMeasure
-                  {ys | ∀ z ∈ ys, Q z} = 0 := by
-                rw [PMF.toOuterMeasure_map_apply]
-                have hpre : List.cons y ⁻¹' {ys | ∀ z ∈ ys, Q z} = ∅ := by
-                  ext ys
-                  simp [hy]
-                rw [hpre, MeasureTheory.measure_empty]
-              simp [Set.indicator_of_notMem hy, hempty]
-        _ = (ProbComp.eval (m b₀)).toOuterMeasure {y | Q y} :=
-            (Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator _ _).symm
+    · rw [Probability.PMF.toOuterMeasure_eq_tsum_mul_indicator]
+      refine tsum_le_tsum fun y => mul_le_mul_of_nonneg_left ?_ zero_le
+      by_cases hy : Q y
+      · simpa [Set.indicator_of_mem hy] using Probability.PMF.toOuterMeasure_le_one
+          ((ProbComp.eval (bs.mapM m)).map (List.cons y)) {ys | ∀ z ∈ ys, Q z}
+      · rw [PMF.toOuterMeasure_map_apply,
+          show List.cons y ⁻¹' {ys | ∀ z ∈ ys, Q z} = ∅ by ext ys; simp [hy],
+          MeasureTheory.measure_empty, Set.indicator_of_notMem hy]
     · refine Probability.PMF.tsum_mul_le_of_forall_le _ fun y => ?_
       rw [PMF.toOuterMeasure_map_apply]
-      have hsub : List.cons y ⁻¹' {ys | ∀ z ∈ ys, Q z} ⊆ {ys | ∀ z ∈ ys, Q z} := by
-        intro ys hys z hz
-        exact hys z (List.mem_cons_of_mem y hz)
+      have hsub : List.cons y ⁻¹' {ys | ∀ z ∈ ys, Q z} ⊆ {ys | ∀ z ∈ ys, Q z} :=
+        fun _ hys z hz => hys z (List.mem_cons_of_mem y hz)
       exact (MeasureTheory.measure_mono hsub).trans (ih hmem)
 
 open Classical in
@@ -907,23 +832,14 @@ private theorem kilianSingleRun_bound_of_threshold
       push Not at hgood
       obtain ⟨ρ₀, hρ₀mem, hρ₀not⟩ := hgood
       obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hρ₀mem
-      dsimp only [run] at hysup
-      supp_cases hysup [kilianSingleRun] with ⟨ρs, hρs, resp, -, hrunEq⟩
-      have hρslen : ρs.length = n ∧ ∀ ρ ∈ ρs, ρ.length = r := by
-        rw [kilianChallenges, ProbComp.mem_support_replicate_iff] at hρs
-        exact ⟨hρs.1, fun ρ hρ =>
-          BitString.length_of_mem_support_uniformList (by simpa using hρs.2 ρ hρ)⟩
-      have hyc : y.challenges = ρs := by
-        cases hrunEq
-        rfl
-      have hin : i < n := by
-        simpa [hyc, hρslen.1] using hi
-      have hbad : y.challenges[i] ∈ bad.toFinset := by
-        rw [List.mem_toFinset]
-        exact List.mem_filter.mpr ⟨BitString.mem_enumList.mpr (hρslen.2 _ (hyc ▸ hρ₀mem)),
+      supp_cases hysup [run, kilianSingleRun] with ⟨ρs, hρs, resp, -, rfl⟩
+      rw [kilianChallenges, ProbComp.mem_support_replicate_iff] at hρs
+      have hbad : ρs[i] ∈ bad.toFinset := List.mem_toFinset.mpr <|
+        List.mem_filter.mpr ⟨BitString.mem_enumList.mpr
+          (BitString.length_of_mem_support_uniformList (by simpa using hρs.2 _ hρ₀mem)),
           decide_eq_true hρ₀not⟩
-      exact Set.mem_iUnion.mpr ⟨⟨i, hin⟩, Set.mem_iUnion.mpr ⟨y.challenges[i],
-        Set.mem_iUnion.mpr ⟨hbad, ⟨List.getElem?_eq_getElem hi, hyacc⟩⟩⟩⟩
+      exact Set.mem_iUnion.mpr ⟨⟨i, hρs.1 ▸ hi⟩, Set.mem_iUnion.mpr ⟨ρs[i],
+        Set.mem_iUnion.mpr ⟨hbad, List.getElem?_eq_getElem hi, hyacc⟩⟩⟩
   have hsplit : run.toOuterMeasure {y | acc y = true} ≤
       run.toOuterMeasure {y | ∀ ρ ∈ y.challenges, ρ ∈ good} +
         ∑ i : Fin n, ∑ ρ₀ ∈ bad.toFinset,
@@ -935,78 +851,61 @@ private theorem kilianSingleRun_bound_of_threshold
             ⋃ i : Fin n, ⋃ ρ₀ ∈ bad.toFinset,
               {y | y.challenges[i.val]? = some ρ₀ ∧ acc y = true}) :=
           MeasureTheory.measure_mono hcov
-      _ ≤ run.toOuterMeasure {y | ∀ ρ ∈ y.challenges, ρ ∈ good} +
-            run.toOuterMeasure (⋃ i : Fin n, ⋃ ρ₀ ∈ bad.toFinset,
-              {y | y.challenges[i.val]? = some ρ₀ ∧ acc y = true}) :=
-          MeasureTheory.measure_union_le _ _
-      _ ≤ _ := by
-          gcongr
-          exact (MeasureTheory.measure_iUnion_fintype_le _ _).trans
-            (Finset.sum_le_sum fun i _ => MeasureTheory.measure_biUnion_finset_le _ _)
+      _ ≤ _ := (MeasureTheory.measure_union_le _ _).trans <| add_le_add le_rfl
+          ((MeasureTheory.measure_iUnion_fintype_le _ _).trans
+            (Finset.sum_le_sum fun _ _ => MeasureTheory.measure_biUnion_finset_le _ _))
   have hmap : run.map (fun y => y.challenges) = ProbComp.eval (kilianChallenges V n cm.stmt) := by
     simp only [run, kilianSingleRun, ProbComp.eval_bind, PMF.map_bind, ProbComp.eval_pure,
       PMF.pure_map, PMF.bind_const, PMF.bind_pure]
   have hpart1 : run.toOuterMeasure {y | ∀ ρ ∈ y.challenges, ρ ∈ good} ≤
       ((good.length : ℝ≥0∞) / 2 ^ r) ^ n := by
     calc run.toOuterMeasure {y | ∀ ρ ∈ y.challenges, ρ ∈ good}
-        = run.toOuterMeasure ((fun y : KilianChallengeRun => y.challenges) ⁻¹'
-            {ρs | ∀ ρ ∈ ρs, decide (ρ ∈ good) = true}) := by
+        = (ProbComp.eval (kilianChallenges V n cm.stmt)).toOuterMeasure
+            {ρs | ∀ ρ ∈ ρs, decide (ρ ∈ good) = true} := by
+            rw [← hmap, PMF.toOuterMeasure_map_apply]
             congr 1
             ext y
             simp
-      _ = (ProbComp.eval (kilianChallenges V n cm.stmt)).toOuterMeasure
-            {ρs | ∀ ρ ∈ ρs, decide (ρ ∈ good) = true} := by
-            rw [← PMF.toOuterMeasure_map_apply, hmap]
       _ = ((ProbComp.eval (BitString.sampleList r)).toOuterMeasure
             {ρ | decide (ρ ∈ good) = true}) ^ n :=
             ProbComp.toOuterMeasure_replicate_forall _ _ n
       _ ≤ ((good.length : ℝ≥0∞) / 2 ^ r) ^ n := by
             refine pow_le_pow_left' ?_ n
-            have hset : {ρ | decide (ρ ∈ good) = true} = (good.toFinset : Set (List Bool)) := by
-              ext ρ
-              simp
-            rw [BitString.eval_sampleList, hset]
+            rw [BitString.eval_sampleList,
+              show {ρ | decide (ρ ∈ good) = true} = (good.toFinset : Set (List Bool)) by ext; simp]
             refine (BitString.toOuterMeasure_uniformList_finset_le r good.toFinset).trans ?_
             rw [one_div, ← div_eq_mul_inv]
-            gcongr
-            exact_mod_cast List.toFinset_card_le good
+            gcongr; exact_mod_cast List.toFinset_card_le good
   have hpart2 : ∑ i : Fin n, ∑ ρ₀ ∈ bad.toFinset,
       run.toOuterMeasure {y | y.challenges[i.val]? = some ρ₀ ∧ acc y = true} ≤
       (n : ℝ≥0∞) * ENNReal.ofReal θ := by
-    have hterm : ∀ i : Fin n, ∀ ρ₀ ∈ bad.toFinset,
+    have hterm (i : Fin n) {ρ₀ : List Bool} (hρ₀ : ρ₀ ∈ bad.toFinset) :
         run.toOuterMeasure {y | y.challenges[i.val]? = some ρ₀ ∧ acc y = true} ≤
           ((1 : ℝ≥0∞) / 2 ^ r) * ENNReal.ofReal θ := by
-      intro i ρ₀ hρ₀
-      have hnot : ρ₀ ∉ good := by
-        have h' := List.mem_filter.mp (List.mem_toFinset.mp hρ₀)
-        exact of_decide_eq_true h'.2
-      have hmemEnum : ρ₀ ∈ BitString.enumList r := (List.mem_filter.mp (List.mem_toFinset.mp hρ₀)).1
+      obtain ⟨hmemEnum, hnot⟩ := List.mem_filter.mp (List.mem_toFinset.mp hρ₀)
       have hlt : ((ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
           {y | acc y = true}).toReal < θ := by
         by_contra hge
-        exact hnot (List.mem_filter.mpr ⟨hmemEnum, decide_eq_true ⟨i, not_lt.mp hge⟩⟩)
-      have hleENN : (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
-          {y | acc y = true} ≤ ENNReal.ofReal θ :=
-        (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _) hθ0).mpr hlt.le
-      refine (toOuterMeasure_kilianSingleRun_getElem_le V P n i.val i.isLt cm ρ₀ acc).trans ?_
-      exact mul_le_mul_of_nonneg_left hleENN zero_le
+        exact of_decide_eq_true hnot
+          (List.mem_filter.mpr ⟨hmemEnum, decide_eq_true ⟨i, not_lt.mp hge⟩⟩)
+      exact (toOuterMeasure_kilianSingleRun_getElem_le V P n i.val i.isLt cm ρ₀ acc).trans
+        (mul_le_mul_of_nonneg_left
+          ((ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _) hθ0).mpr
+            hlt.le) zero_le)
     calc ∑ i : Fin n, ∑ ρ₀ ∈ bad.toFinset,
             run.toOuterMeasure {y | y.challenges[i.val]? = some ρ₀ ∧ acc y = true}
         ≤ ∑ _ : Fin n, ∑ _ ∈ bad.toFinset, ((1 : ℝ≥0∞) / 2 ^ r) * ENNReal.ofReal θ :=
-          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun ρ₀ hρ₀ => hterm i ρ₀ hρ₀
+          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun _ hρ₀ => hterm i hρ₀
       _ = (n : ℝ≥0∞) *
             ((bad.toFinset.card : ℝ≥0∞) * (((1 : ℝ≥0∞) / 2 ^ r) * ENNReal.ofReal θ)) := by
           simp [Finset.sum_const, nsmul_eq_mul]
       _ ≤ (n : ℝ≥0∞) * ((2 ^ r : ℝ≥0∞) * (((1 : ℝ≥0∞) / 2 ^ r) * ENNReal.ofReal θ)) := by
           gcongr
-          have hcard : bad.toFinset.card ≤ 2 ^ r :=
-            (List.toFinset_card_le bad).trans
-              ((List.length_filter_le _ _).trans (by rw [BitString.length_enumList]))
-          exact_mod_cast hcard
+          exact_mod_cast (List.toFinset_card_le bad).trans
+            ((List.length_filter_le _ _).trans (by rw [BitString.length_enumList]))
       _ = (n : ℝ≥0∞) * ENNReal.ofReal θ := by
-          have hpow0 : (2 : ℝ≥0∞) ^ r ≠ 0 := by positivity
-          have hpowTop : (2 : ℝ≥0∞) ^ r ≠ ⊤ := by finiteness
-          rw [← mul_assoc (2 ^ r : ℝ≥0∞), one_div, ENNReal.mul_inv_cancel hpow0 hpowTop, one_mul]
+          rw [← mul_assoc (2 ^ r : ℝ≥0∞), one_div,
+            ENNReal.mul_inv_cancel (by positivity) (by finiteness), one_mul]
   exact hsplit.trans (add_le_add hpart1 hpart2)
 
 open Classical in
@@ -1028,21 +927,13 @@ private theorem kilianCollectRuns_cover_failure_le
           ∃ ρ₀ ∈ good, ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} =
         ⋃ ρ₀ ∈ good.toFinset,
           {(runs : List KilianChallengeRun) |
-            ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} := by
-    ext runs
-    simp
+            ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} := by ext; simp
   rw [hcovSet]
-  have hsingle : ∀ ρ₀ ∈ good.toFinset,
+  have hsingle (ρ₀ : List Bool) (hρ₀ : ρ₀ ∈ good.toFinset) :
       collected.toOuterMeasure {runs | ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} ≤
         ENNReal.ofReal ((1 - θ) ^ T n) := by
-    intro ρ₀ hρ₀
-    have hmem : ρ₀ ∈ BitString.enumList r :=
-      (List.mem_filter.mp (List.mem_toFinset.mp hρ₀)).1
-    have hex : ∃ i : Fin n, θ ≤
-        ((ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
-          {y | acc y = true}).toReal :=
-      of_decide_eq_true (List.mem_filter.mp (List.mem_toFinset.mp hρ₀)).2
-    obtain ⟨i, hi⟩ := hex
+    obtain ⟨hmem, hhex⟩ := List.mem_filter.mp (List.mem_toFinset.mp hρ₀)
+    obtain ⟨i, hi⟩ := of_decide_eq_true hhex
     have hfailOne : (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
         {y | !(acc y && decide (ρ₀ ∈ y.challenges)) = true} ≤ ENNReal.ofReal (1 - θ) := by
       have heqSupp : (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
@@ -1052,35 +943,16 @@ private theorem kilianCollectRuns_cover_failure_le
         rw [← PMF.toOuterMeasure_apply_inter_support (s := {y | acc y = true}),
           ← PMF.toOuterMeasure_apply_inter_support
             (s := {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true})]
-        refine congrArg (PMF.toOuterMeasure _) (Set.ext fun y => ?_)
-        constructor
-        · rintro ⟨hy, hsup⟩
-          refine ⟨?_, hsup⟩
-          have hmem := (mem_of_mem_support_kilianPlantedRun i.isLt hsup).2
-          have hy' : acc y = true := hy
-          simpa [Bool.and_eq_true] using And.intro hy' hmem
-        · rintro ⟨hy, hsup⟩
-          have hy' : (acc y && decide (ρ₀ ∈ y.challenges)) = true := hy
-          rw [Bool.and_eq_true] at hy'
-          exact ⟨hy'.1, hsup⟩
-      have hgeENN : ENNReal.ofReal θ ≤
-          (ProbComp.eval (kilianPlantedRun V P n cm ρ₀ i.val)).toOuterMeasure
-            {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true} := by
-        rw [← heqSupp]
-        exact ENNReal.ofReal_le_of_le_toReal hi
-      have hcompl : {y : KilianChallengeRun | !(acc y && decide (ρ₀ ∈ y.challenges)) = true} =
-          {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true}ᶜ := by
-        ext y
-        by_cases hacc : acc y = true <;> simp [hacc]
-      rw [hcompl]
-      refine (Probability.PMF.toOuterMeasure_compl_le_one_sub _ _ hgeENN).trans_eq ?_
+        refine congrArg (PMF.toOuterMeasure _) (Set.ext fun y => ⟨fun ⟨hy, hsup⟩ =>
+          ⟨by simpa [Bool.and_eq_true] using
+            And.intro hy (mem_of_mem_support_kilianPlantedRun i.isLt hsup).2, hsup⟩,
+          fun ⟨hy, hsup⟩ => ⟨(Bool.and_eq_true _ _ |>.mp hy).1, hsup⟩⟩)
+      rw [show {y : KilianChallengeRun | !(acc y && decide (ρ₀ ∈ y.challenges)) = true} =
+          {y | (acc y && decide (ρ₀ ∈ y.challenges)) = true}ᶜ by
+        ext y; by_cases hacc : acc y = true <;> simp [hacc]]
+      refine (Probability.PMF.toOuterMeasure_compl_le_one_sub _ _
+        (heqSupp ▸ ENNReal.ofReal_le_of_le_toReal hi)).trans_eq ?_
       rw [← ENNReal.ofReal_one, ← ENNReal.ofReal_sub 1 hθ0]
-    have hflat : ProbComp.eval (kilianCollectRuns V P T n cm) =
-        (ProbComp.eval ((BitString.enumList r).mapM fun ρ =>
-          (List.range n).mapM fun j =>
-            OracleComp.replicate (T n) (kilianPlantedRun V P n cm ρ j))).map
-          (fun nested => nested.flatten.flatten) := by
-      simp [kilianCollectRuns, ProbComp.eval_map, r]
     have hpre :
         ((fun nested : List (List (List KilianChallengeRun)) => nested.flatten.flatten) ⁻¹'
             {runs | ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))}) =
@@ -1090,6 +962,12 @@ private theorem kilianCollectRuns_cover_failure_le
       simp only [Set.mem_preimage, Set.mem_ofPred_eq, List.mem_flatten]
       exact ⟨fun h x hx z hz run hrun => h run ⟨z, ⟨x, hx, hz⟩, hrun⟩,
         fun h run ⟨z, ⟨x, hx, hz⟩, hrun⟩ => h x hx z hz run hrun⟩
+    have hflat : collected =
+        (ProbComp.eval ((BitString.enumList r).mapM fun ρ =>
+          (List.range n).mapM fun j =>
+            OracleComp.replicate (T n) (kilianPlantedRun V P n cm ρ j))).map
+          (fun nested => nested.flatten.flatten) := by
+      simp [collected, kilianCollectRuns, ProbComp.eval_map, r]
     calc collected.toOuterMeasure
           {runs | ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))}
         = (ProbComp.eval ((BitString.enumList r).mapM fun ρ =>
@@ -1097,8 +975,7 @@ private theorem kilianCollectRuns_cover_failure_le
               OracleComp.replicate (T n) (kilianPlantedRun V P n cm ρ j))).toOuterMeasure
             {nested | ∀ x ∈ nested, ∀ z ∈ x, ∀ run ∈ z,
               !(acc run && decide (ρ₀ ∈ run.challenges))} := by
-          rw [show collected = ProbComp.eval (kilianCollectRuns V P T n cm) from rfl, hflat,
-            PMF.toOuterMeasure_map_apply, hpre]
+          rw [hflat, PMF.toOuterMeasure_map_apply, hpre]
       _ ≤ (ProbComp.eval ((List.range n).mapM fun j =>
             OracleComp.replicate (T n) (kilianPlantedRun V P n cm ρ₀ j))).toOuterMeasure
             {x | ∀ z ∈ x, ∀ run ∈ z, !(acc run && decide (ρ₀ ∈ run.challenges))} :=
@@ -1118,16 +995,13 @@ private theorem kilianCollectRuns_cover_failure_le
       ≤ ∑ ρ₀ ∈ good.toFinset, collected.toOuterMeasure
           {runs | ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} :=
         MeasureTheory.measure_biUnion_finset_le _ _
-    _ ≤ ∑ _ ∈ good.toFinset, ENNReal.ofReal ((1 - θ) ^ T n) :=
-        Finset.sum_le_sum fun ρ₀ hρ₀ => hsingle ρ₀ hρ₀
+    _ ≤ ∑ _ ∈ good.toFinset, ENNReal.ofReal ((1 - θ) ^ T n) := Finset.sum_le_sum hsingle
     _ = (good.toFinset.card : ℝ≥0∞) * ENNReal.ofReal ((1 - θ) ^ T n) := by
         simp [Finset.sum_const, nsmul_eq_mul]
     _ ≤ (M : ℝ≥0∞) * ENNReal.ofReal ((1 - θ) ^ T n) := by
         gcongr
-        have hcard : good.toFinset.card ≤ M :=
-          (List.toFinset_card_le good).trans
-            ((List.length_filter_le _ _).trans (by simpa [BitString.length_enumList] using hM))
-        exact_mod_cast hcard
+        exact_mod_cast (List.toFinset_card_le good).trans
+          ((List.length_filter_le _ _).trans (by simpa [BitString.length_enumList] using hM))
 
 /-- **Exact finite-parameter rewinding extraction bound** for Kilian's protocol: for any rational
 threshold `num / den` (`0 < den`), per-coin attempt budget `T n`, per-instance acceptance threshold
@@ -1176,25 +1050,19 @@ theorem succProbability_kilianAcceptGame_le_extracted
     let good := kilianGoodCoins H V P n s.1 s.2 θ
     rw [map_apply_true]
     by_cases hcase : den * good.length ≤ num * 2 ^ r
-    · have hsingle := kilianSingleRun_bound_of_threshold H V P n s.1 s.2 hθ0
-      have hfrac : (good.length : ℝ≥0∞) / 2 ^ r ≤ (num : ℝ≥0∞) / den := by
-        have hpow0 : (2 : ℝ≥0∞) ^ r ≠ 0 := by positivity
-        have hpowTop : (2 : ℝ≥0∞) ^ r ≠ ⊤ := by finiteness
-        have hden0 : (den : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hden.ne'
-        have hdenTop : (den : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top den
-        rw [ENNReal.div_le_iff_le_mul (Or.inl hpow0) (Or.inl hpowTop),
+    · have hfrac : (good.length : ℝ≥0∞) / 2 ^ r ≤ (num : ℝ≥0∞) / den := by
+        rw [ENNReal.div_le_iff_le_mul (Or.inl (by positivity)) (Or.inl (by finiteness)),
           div_eq_mul_inv, mul_right_comm, ← div_eq_mul_inv,
-          ENNReal.le_div_iff_mul_le (Or.inl hden0) (Or.inl hdenTop), mul_comm _ (den : ℝ≥0∞)]
+          ENNReal.le_div_iff_mul_le (Or.inl (Nat.cast_ne_zero.mpr hden.ne'))
+            (Or.inl (ENNReal.natCast_ne_top den)), mul_comm _ (den : ℝ≥0∞)]
         exact_mod_cast hcase
-      have h1 : ((good.length : ℝ≥0∞) / 2 ^ r) ^ n ≤ ((num : ℝ≥0∞) / den) ^ n :=
-        pow_le_pow_left' hfrac n
       calc (ProbComp.eval (kilianSingleRun V P n s.2)).toOuterMeasure {y | acc y = true}
-          ≤ ((good.length : ℝ≥0∞) / 2 ^ r) ^ n + (n : ℝ≥0∞) * ENNReal.ofReal θ := hsingle
+          ≤ ((good.length : ℝ≥0∞) / 2 ^ r) ^ n + (n : ℝ≥0∞) * ENNReal.ofReal θ :=
+            kilianSingleRun_bound_of_threshold H V P n s.1 s.2 hθ0
         _ ≤ ((num : ℝ≥0∞) / den) ^ n + (n : ℝ≥0∞) * ENNReal.ofReal θ := by gcongr
         _ ≤ errConst := le_add_of_nonneg_right zero_le
         _ ≤ errConst + bKernel s true + eKernel s true := by
-            rw [add_assoc]
-            exact le_add_of_nonneg_right zero_le
+            rw [add_assoc]; exact le_add_of_nonneg_right zero_le
     · have hlt : num * 2 ^ r < den * good.length := lt_of_not_ge hcase
       let collected := ProbComp.eval (kilianCollectRuns V P T n s.2)
       let Ecov : Set (List KilianChallengeRun) :=
@@ -1216,75 +1084,56 @@ theorem succProbability_kilianAcceptGame_le_extracted
               (H := H) (V := V) (n := n) (k := s.1) (x := s.2.stmt) (root := s.2.root)
               (runs := runs) with hbrk | hcons
           · exact Or.inl hbrk
-          · refine Or.inr (decide_eq_true ?_)
-            let tab := kilianExtractTableFromRuns H V s.1 s.2.stmt s.2.root runs
-            have hgoodAcc : ∀ ρ₀ ∈ good,
-                V.accepts s.2.stmt (V.proofOfTable s.2.stmt tab) ρ₀ = true := by
-              intro ρ₀ hρ₀
-              obtain ⟨run, hrun, hrunAcc, hρ₀in⟩ := hcov ρ₀ hρ₀
-              have hlen : ρ₀.length = r :=
-                BitString.mem_enumList.mp (List.mem_filter.mp hρ₀).1
-              exact hcons run hrun hrunAcc ρ₀ hρ₀in hlen
-            have hcnt : good.length ≤ acceptCount
-                (fun y => V.accepts y.1 (V.proofOfTable s.2.stmt tab) y.2) s.2.stmt r := by
-              have hfilter : good.length = (BitString.enumList r).countP (fun ρ₀ =>
-                  decide (∃ i : Fin n, θ ≤
-                    ((ProbComp.eval (kilianPlantedRun V P n s.2 ρ₀ i.val)).toOuterMeasure
-                      {y | acc y = true}).toReal)) := by
-                simp only [good, kilianGoodCoins, r, acc, List.countP_eq_length_filter]
-              have hac : acceptCount
-                  (fun y => V.accepts y.1 (V.proofOfTable s.2.stmt tab) y.2) s.2.stmt r =
-                  (BitString.enumList r).countP fun ρ₀ =>
-                    V.accepts s.2.stmt (V.proofOfTable s.2.stmt tab) ρ₀ :=
-                (BitString.countP_enumList r
-                  (fun ρ₀ => V.accepts s.2.stmt (V.proofOfTable s.2.stmt tab) ρ₀)).symm
-              rw [hfilter, hac]
-              refine List.countP_mono_left fun ρ₀ hρ₀enum hpred => ?_
-              exact hgoodAcc ρ₀ (List.mem_filter.mpr ⟨hρ₀enum, hpred⟩)
-            exact hlt.trans_le (Nat.mul_le_mul_left den hcnt)
+          · refine Or.inr (decide_eq_true (hlt.trans_le (Nat.mul_le_mul_left den ?_)))
+            have hfilter : good.length = (BitString.enumList r).countP (fun ρ₀ =>
+                decide (∃ i : Fin n, θ ≤
+                  ((ProbComp.eval (kilianPlantedRun V P n s.2 ρ₀ i.val)).toOuterMeasure
+                    {y | acc y = true}).toReal)) := by
+              simp only [good, kilianGoodCoins, r, acc, List.countP_eq_length_filter]
+            have hac : acceptCount
+                (fun y => V.accepts y.1 (V.proofOfTable s.2.stmt
+                  (kilianExtractTableFromRuns H V s.1 s.2.stmt s.2.root runs)) y.2) s.2.stmt r =
+                (BitString.enumList r).countP fun ρ₀ =>
+                  V.accepts s.2.stmt (V.proofOfTable s.2.stmt
+                    (kilianExtractTableFromRuns H V s.1 s.2.stmt s.2.root runs)) ρ₀ :=
+              (BitString.countP_enumList r fun ρ₀ =>
+                V.accepts s.2.stmt (V.proofOfTable s.2.stmt
+                  (kilianExtractTableFromRuns H V s.1 s.2.stmt s.2.root runs)) ρ₀).symm
+            rw [hfilter, hac]
+            refine List.countP_mono_left fun ρ₀ hρ₀enum hpred => ?_
+            obtain ⟨run, hrun, hrunAcc, hρ₀in⟩ := hcov ρ₀ (List.mem_filter.mpr ⟨hρ₀enum, hpred⟩)
+            exact hcons run hrun hrunAcc ρ₀ hρ₀in (BitString.mem_enumList.mp hρ₀enum)
         · exact Or.inl hcov
       have hcompCov : Ecovᶜ =
           {runs | ∃ ρ₀ ∈ good, ∀ run ∈ runs, !(acc run && decide (ρ₀ ∈ run.challenges))} := by
         ext runs
         simp only [Set.mem_compl_iff, Ecov, Set.mem_ofPred_eq, Bool.not_and,
           not_forall, not_exists, not_and]
-        constructor
-        · rintro ⟨ρ₀, hρ₀, hno⟩
-          refine ⟨ρ₀, hρ₀, fun run hrun => ?_⟩
-          by_cases hacc : acc run = true <;> simp [hacc, hno run hrun]
-        · rintro ⟨ρ₀, hρ₀, hno⟩
-          refine ⟨ρ₀, hρ₀, fun run hrun hacc hmem => ?_⟩
-          simpa [hacc, hmem] using hno run hrun
+        exact ⟨fun ⟨ρ₀, hρ₀, hno⟩ => ⟨ρ₀, hρ₀, fun run hrun => by
+            by_cases hacc : acc run = true <;> simp [hacc, hno run hrun]⟩,
+          fun ⟨ρ₀, hρ₀, hno⟩ => ⟨ρ₀, hρ₀, fun run hrun hacc hmem => by
+            simpa [hacc, hmem] using hno run hrun⟩⟩
       have hfail := kilianCollectRuns_cover_failure_le H V P T n M s.1 s.2 hθ0 hθ1 hMs
       have h1 : (1 : ℝ≥0∞) ≤ collected.toOuterMeasure Ecovᶜ +
           collected.toOuterMeasure Ebind + collected.toOuterMeasure Eext := by
-        have htot : collected.toOuterMeasure Set.univ = 1 := by
-          rw [PMF.toOuterMeasure_apply]
-          simp
-        calc (1 : ℝ≥0∞) = collected.toOuterMeasure Set.univ := htot.symm
-          _ ≤ collected.toOuterMeasure (Ecovᶜ ∪ (Ebind ∪ Eext)) :=
-              MeasureTheory.measure_mono huniv
-          _ ≤ collected.toOuterMeasure Ecovᶜ + collected.toOuterMeasure (Ebind ∪ Eext) :=
-              MeasureTheory.measure_union_le _ _
+        calc (1 : ℝ≥0∞) = collected.toOuterMeasure Set.univ := by
+                rw [PMF.toOuterMeasure_apply]; simp
+          _ ≤ collected.toOuterMeasure (Ecovᶜ ∪ (Ebind ∪ Eext)) := MeasureTheory.measure_mono huniv
           _ ≤ collected.toOuterMeasure Ecovᶜ +
-                (collected.toOuterMeasure Ebind + collected.toOuterMeasure Eext) := by
-              gcongr
-              exact MeasureTheory.measure_union_le _ _
-          _ = collected.toOuterMeasure Ecovᶜ +
-                collected.toOuterMeasure Ebind + collected.toOuterMeasure Eext := by ring
-      have hb : collected.toOuterMeasure Ebind = bKernel s true := by
-        change collected.toOuterMeasure Ebind = (collected.map _ ) true
-        rw [map_apply_true]
-      have he : collected.toOuterMeasure Eext = eKernel s true := by
-        change collected.toOuterMeasure Eext = (collected.map _ ) true
-        rw [map_apply_true]
+                (collected.toOuterMeasure Ebind + collected.toOuterMeasure Eext) :=
+              (MeasureTheory.measure_union_le _ _).trans
+                (add_le_add le_rfl (MeasureTheory.measure_union_le _ _))
+          _ = _ := by ring
       calc (ProbComp.eval (kilianSingleRun V P n s.2)).toOuterMeasure {y | acc y = true}
           ≤ 1 := Probability.PMF.toOuterMeasure_le_one _ _
         _ ≤ collected.toOuterMeasure Ecovᶜ + collected.toOuterMeasure Ebind +
               collected.toOuterMeasure Eext := h1
         _ ≤ (M : ℝ≥0∞) * ENNReal.ofReal ((1 - θ) ^ T n) + bKernel s true + eKernel s true := by
-            rw [hcompCov, hb, he]
-            exact add_le_add (add_le_add hfail le_rfl) le_rfl
+            rw [hcompCov, show collected.toOuterMeasure Ebind = bKernel s true from
+                (map_apply_true collected _).symm,
+              show collected.toOuterMeasure Eext = eKernel s true from
+                (map_apply_true collected _).symm]
+            gcongr
         _ ≤ errConst + bKernel s true + eKernel s true := by
             simp only [errConst]
             gcongr
@@ -1305,42 +1154,30 @@ theorem succProbability_kilianAcceptGame_le_extracted
         ≤ ∑' s, (first s * errConst + (first s * bKernel s true + first s * eKernel s true)) := by
           refine tsum_le_tsum fun s => ?_
           by_cases hs : s ∈ first.support
-          · calc first s * ((ProbComp.eval (kilianSingleRun V P n s.2)).map fun run =>
-                    kilianVerify H V s.1 s.2.stmt s.2.root run.challenges run.response) true
-                ≤ first s * (errConst + bKernel s true + eKernel s true) :=
+          · calc first s * _ ≤ first s * (errConst + bKernel s true + eKernel s true) :=
                   mul_le_mul_of_nonneg_left (hpoint s hs) zero_le
-              _ = first s * errConst + (first s * bKernel s true + first s * eKernel s true) := by
-                  ring
-          · have hz : first s = 0 := by simpa [PMF.mem_support_iff] using hs
-            simp [hz]
-      _ = (∑' s, first s * errConst) +
-            ((∑' s, first s * bKernel s true) + (∑' s, first s * eKernel s true)) := by
-          rw [tsum_add, tsum_add]
+              _ = _ := by ring
+          · simp [show first s = 0 by simpa [PMF.mem_support_iff] using hs]
       _ = errConst + ((∑' s, first s * bKernel s true) + (∑' s, first s * eKernel s true)) := by
-          rw [ENNReal.tsum_mul_right, first.tsum_coe, one_mul]
-  have hpowTop : (((num : ℝ≥0∞) / den) ^ n) ≠ ⊤ := by
-    have hden0 : (den : ℝ≥0∞) ≠ 0 := Nat.cast_ne_zero.mpr hden.ne'
-    exact ENNReal.pow_ne_top (ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hden0)
-  have herrTop : errConst ≠ ⊤ := by
-    refine ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨hpowTop, ?_⟩, ?_⟩
-    · exact ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
-    · exact ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
-  have hbTop : ProbComp.eval (merkleBindingGame H (fun _ leaf => leaf.length == 1)
-      (kilianExtractorBindingAdversary H V P T) n) true ≠ ⊤ := PMF.apply_ne_top _ _
-  have heTop : ProbComp.eval (kilianExtractionFracGame H V P T num den n) true ≠ ⊤ :=
-    PMF.apply_ne_top _ _
+          rw [tsum_add, tsum_add, ENNReal.tsum_mul_right, first.tsum_coe, one_mul]
+  have hpowTop : (((num : ℝ≥0∞) / den) ^ n) ≠ ⊤ :=
+    ENNReal.pow_ne_top (ENNReal.div_ne_top (ENNReal.natCast_ne_top _)
+      (Nat.cast_ne_zero.mpr hden.ne'))
+  have hmulTop {k : ℕ} {a : ℝ} : (k : ℝ≥0∞) * ENNReal.ofReal a ≠ ⊤ :=
+    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
+  have herrTop : errConst ≠ ⊤ :=
+    ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨hpowTop, hmulTop⟩, hmulTop⟩
   have hreal := ENNReal.toReal_mono
-    (ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨herrTop, hbTop⟩, heTop⟩) hENN
-  rw [ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨herrTop, hbTop⟩) heTop,
-    ENNReal.toReal_add herrTop hbTop] at hreal
+    (ENNReal.add_ne_top.mpr ⟨ENNReal.add_ne_top.mpr ⟨herrTop, PMF.apply_ne_top _ _⟩,
+      PMF.apply_ne_top _ _⟩) hENN
+  rw [ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨herrTop, PMF.apply_ne_top _ _⟩)
+      (PMF.apply_ne_top _ _),
+    ENNReal.toReal_add herrTop (PMF.apply_ne_top _ _)] at hreal
   have herrEq : errConst.toReal =
       ((num : ℝ) / den) ^ n + (n : ℝ) * θ + (M : ℝ) * (1 - θ) ^ T n := by
     simp only [errConst]
-    rw [ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨hpowTop,
-        ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top⟩)
-      (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top),
-      ENNReal.toReal_add hpowTop
-        (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top)]
+    rw [ENNReal.toReal_add (ENNReal.add_ne_top.mpr ⟨hpowTop, hmulTop⟩) hmulTop,
+      ENNReal.toReal_add hpowTop hmulTop]
     simp [ENNReal.toReal_pow, ENNReal.toReal_div, ENNReal.toReal_mul,
       ENNReal.toReal_ofReal hθ0, ENNReal.toReal_ofReal (pow_nonneg (sub_nonneg.mpr hθ1) (T n))]
   rwa [herrEq] at hreal

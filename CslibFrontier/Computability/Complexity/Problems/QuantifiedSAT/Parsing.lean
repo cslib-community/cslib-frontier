@@ -56,12 +56,8 @@ theorem formula_parse (q : Bool) (i : ℕ) (φ : QBF ℕ) :
   | zero => rfl
   | succ i ih =>
     cases q
-    · change QBF.alls (initialVars false φ) ((parse true i _).formula true) = φ
-      rw [ih]
-      exact initial_reconstruct false φ
-    · change QBF.exs (initialVars true φ) ((parse false i _).formula false) = φ
-      rw [ih]
-      exact initial_reconstruct true φ
+    · exact (congrArg (QBF.alls _) (ih true _)).trans (initial_reconstruct false φ)
+    · exact (congrArg (QBF.exs _) (ih false _)).trans (initial_reconstruct true φ)
 
 /-- Parsing produces the requested number of blocks, padding by empty blocks as necessary. -/
 theorem length_parse (q : Bool) (i : ℕ) (φ : QBF ℕ) : (parse q i φ).blocks.length = i := by
@@ -78,23 +74,22 @@ private theorem initial_tokens (q : Bool) (φ : QBF ℕ) :
   induction φ generalizing q <;> cases q <;>
     simp_all [initialVars, initialBody, QBF.tokens, isInitial]
 
+private theorem isInitial_polyTime (q : Bool) :
+    ComputableInPolyTime (isInitial q) encToken encBool :=
+  (of_finite (encIn := encKind) (encOut := encBool)
+    (fun k => if q then k == .ex else k == .all)).comp (fst _ _)
+
 private theorem initialVars_polyTime (q : Bool) :
     ComputableInPolyTime (initialVars q) encQBF (encList encNat) := by
-  change ComputableInPolyTime (fun φ => initialVars q φ) encQBF (encList encNat)
-  have h (φ : QBF ℕ) := (initial_tokens q φ).1
-  simp_rw [h]
-  have ht : ComputableInPolyTime (isInitial q) encToken encBool := by
-    exact (of_finite (encIn := encKind) (encOut := encBool)
-      (fun k => if q then k == .ex else k == .all)).comp (fst _ _)
+  have := isInitial_polyTime q
+  rw [show initialVars q = fun φ => (φ.tokens.takeWhile (isInitial q)).map Prod.snd from
+    funext fun φ => (initial_tokens q φ).1]
   fun_prop
 
 private theorem initialBody_polyTime (q : Bool) :
-    ComputableInPolyTime (initialBody q) encQBF encQBF := by
-  have ht : ComputableInPolyTime (isInitial q) encToken encBool := by
-    exact (of_finite (encIn := encKind) (encOut := encBool)
-      (fun k => if q then k == .ex else k == .all)).comp (fst _ _)
-  exact TQBF.computableInPolyTime_of_tokens (by fun_prop)
-    (fun φ => (initial_tokens q φ).2)
+    ComputableInPolyTime (initialBody q) encQBF encQBF :=
+  have := isInitial_polyTime q
+  TQBF.computableInPolyTime_of_tokens (by fun_prop) fun φ => (initial_tokens q φ).2
 
 /-- Bounded-prefix extraction is polynomial-time, for each fixed level. -/
 theorem parse_polyTime (q : Bool) (i : ℕ) :
@@ -102,11 +97,11 @@ theorem parse_polyTime (q : Bool) (i : ℕ) :
   induction i generalizing q with
   | zero => change ComputableInPolyTime (fun φ => PrenexQBF.mk [] φ) _ _; fun_prop
   | succ i ih =>
-    have ht := (ih (!q)).comp (initialBody_polyTime q)
-    have hv := initialVars_polyTime q
-    change ComputableInPolyTime
-      (fun φ => PrenexQBF.mk (initialVars q φ :: (parse (!q) i (initialBody q φ)).blocks)
-        (parse (!q) i (initialBody q φ)).matrix) _ _
+    have := (ih (!q)).comp (initialBody_polyTime q)
+    have := initialVars_polyTime q
+    change ComputableInPolyTime (fun φ => PrenexQBF.mk
+      (initialVars q φ :: (parse (!q) i (initialBody q φ)).blocks)
+      (parse (!q) i (initialBody q φ)).matrix) _ _
     fun_prop
 
 private theorem initial_matrix {φ : QBF ℕ} (h : φ.QuantifierFree) (q : Bool) :
@@ -127,9 +122,7 @@ private theorem initial_block (q : Bool) (vs : List ℕ) {φ : QBF ℕ}
       initialBody q (if q then QBF.exs vs φ else QBF.alls vs φ) = φ := by
   induction vs with
   | nil => simpa only [QBF.exs, QBF.alls, List.foldr_nil, ite_self] using h
-  | cons v vs ih => cases q <;> simpa only [QBF.exs, QBF.alls, List.foldr_cons,
-      initialVars, initialBody, Bool.false_eq_true, Bool.true_eq, ite_false, ite_true,
-      List.cons.injEq, true_and] using ih
+  | cons v vs ih => cases q <;> simpa [QBF.exs, QBF.alls, initialVars, initialBody] using ih
 
 /-- Nonempty alternating blocks with a quantifier-free matrix are recovered exactly.
 This is used on the nonempty blocks produced by the hardness reduction. -/
@@ -140,20 +133,17 @@ theorem parse_formula (q : Bool) (a : PrenexQBF) (hqf : a.matrix.QuantifierFree)
   induction bs generalizing q with
   | nil => rfl
   | cons vs bs ih =>
+    have hne' : ∀ b ∈ bs, b ≠ [] := fun b hb => hne b (.tail _ hb)
     have htail : initialVars q (QBF.blocks (!q) bs φ) = [] ∧
-        initialBody q (QBF.blocks (!q) bs φ) = QBF.blocks (!q) bs φ := by
-      cases bs with
-      | nil => exact initial_matrix hqf q
-      | cons b bs =>
-        exact initial_opposite q (bs := b :: bs) (by simp)
-          (fun b hb => hne b (.tail _ hb)) φ
+        initialBody q (QBF.blocks (!q) bs φ) = QBF.blocks (!q) bs φ :=
+      match bs, hne' with
+      | [], _ => initial_matrix hqf q
+      | _ :: _, hne' => initial_opposite q (List.cons_ne_nil _ _) hne' φ
     have hb := initial_block q vs htail
-    have hh := ih (!q) hqf (fun b hb => hne b (.tail _ hb))
-    change parse (!q) bs.length (QBF.blocks (!q) bs φ) = ⟨bs, φ⟩ at hh
+    have hh : parse (!q) bs.length (QBF.blocks (!q) bs φ) = ⟨bs, φ⟩ := ih (!q) hqf hne'
+    have hs : QBF.blocks q (vs :: bs) φ = if q then QBF.exs vs (QBF.blocks (!q) bs φ)
+        else QBF.alls vs (QBF.blocks (!q) bs φ) := by cases q <;> rfl
     change parse q (bs.length + 1) (QBF.blocks q (vs :: bs) φ) = ⟨vs :: bs, φ⟩
-    have hs : QBF.blocks q (vs :: bs) φ =
-        if q then QBF.exs vs (QBF.blocks (!q) bs φ)
-          else QBF.alls vs (QBF.blocks (!q) bs φ) := by cases q <;> rfl
     rw [hs, parse, hb.1, hb.2, hh]
 
 /-- Writing a prefix of fixed block count is polynomial-time. -/
@@ -161,34 +151,29 @@ theorem formula_polyTime {α : Type} {enc : α ↪ List Bool} {f : α → Prenex
     (hf : ComputableInPolyTime f enc encPrenexQBF) (q : Bool) (i : ℕ)
     (hlen : ∀ a, (f a).blocks.length = i) :
     ComputableInPolyTime (fun a => (f a).formula q) enc encQBF := by
-  have hbs := encPrenexQBF_blocks_polyTime hf
-  have hm := encPrenexQBF_matrix_polyTime hf
   suffices ∀ (bs : α → List (List ℕ)) (φ : α → QBF ℕ),
       ComputableInPolyTime bs enc (encList (encList encNat)) →
       ComputableInPolyTime φ enc encQBF → (∀ a, (bs a).length = i) →
       ComputableInPolyTime (fun a => QBF.blocks q (bs a) (φ a)) enc encQBF from
-    this _ _ hbs hm hlen
-  clear hf hbs hm hlen f
+    this _ _ (encPrenexQBF_blocks_polyTime hf) (encPrenexQBF_matrix_polyTime hf) hlen
+  clear hf hlen f
   induction i generalizing q with
   | zero =>
-    intro bs φ hb hm hl
-    have heq a : bs a = [] := List.length_eq_zero_iff.mp (hl a)
-    simpa only [heq, QBF.blocks] using hm
+    intro bs φ _ hm hl
+    simpa only [show ∀ a, bs a = [] from fun a => List.length_eq_zero_iff.mp (hl a),
+      QBF.blocks] using hm
   | succ i ih =>
     intro bs φ hb hm hl
-    have ht := ih (!q) (fun a => (bs a).tail) φ (by fun_prop) hm
-      (fun a => by simp only [List.length_tail, hl]; omega)
-    have hhead : ComputableInPolyTime (fun a => (bs a).headD [])
-        enc (encList encNat) := by fun_prop
-    have heq a : bs a = (bs a).headD [] :: (bs a).tail := by
-      cases ha : bs a with
-      | nil => have := hl a; simp [ha] at this
-      | cons b bs => rfl
+    have ht := ih (!q) (fun a => (bs a).tail) φ (by fun_prop) hm fun a => by
+      simp only [List.length_tail, hl, Nat.add_sub_cancel]
+    have hhead : ComputableInPolyTime (fun a => (bs a).headD []) enc (encList encNat) := by
+      fun_prop
     have hsplit a : QBF.blocks q (bs a) (φ a) =
         if q then QBF.exs ((bs a).headD []) (QBF.blocks (!q) (bs a).tail (φ a))
           else QBF.alls ((bs a).headD []) (QBF.blocks (!q) (bs a).tail (φ a)) := by
-      conv_lhs => rw [heq a]
-      cases q <;> rfl
+      cases ha : bs a with
+      | nil => exact absurd (ha ▸ hl a) (by simp)
+      | cons _ _ => cases q <;> rfl
     simp_rw [hsplit]
     cases q <;> simp only [Bool.not_true, Bool.not_false] at ht ⊢ <;> fun_prop
 
@@ -200,10 +185,9 @@ formula has no first quantifier and is allowed. -/
 /-- Testing the initial quantifier polarity is polynomial-time. -/
 theorem startsCorrectly_polyTime (q : Bool) :
     ComputableInPolyTime (startsCorrectly q) encQBF encBool := by
-  have hq := computableInPolyTime_decide_quantifierFree
-  have hv := initialVars_polyTime q
-  unfold startsCorrectly
-  fun_prop
+  have := computableInPolyTime_decide_quantifierFree
+  have := initialVars_polyTime q
+  unfold startsCorrectly; fun_prop
 
 /-- A nonempty initial block starts with the declared polarity. -/
 theorem startsCorrectly_formula (a : PrenexQBF) (q : Bool) (h : a.blocks ≠ [])

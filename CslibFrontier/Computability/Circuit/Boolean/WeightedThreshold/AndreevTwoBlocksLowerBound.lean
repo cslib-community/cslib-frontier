@@ -81,13 +81,11 @@ noncomputable def andreevGateGrid (c : Circuit signature (2 ^ 2 + 2 * m) 1) (k :
 
 private theorem monotone_decide_le {f : ℕ → ℝ} (θ : ℝ) (hf : Monotone f) :
     Monotone fun i => decide (θ ≤ f i) := fun _ _ h => by
-  simp only [Bool.le_iff_imp, decide_eq_true_eq]
-  exact fun hi => hi.trans (hf h)
+  simp only [Bool.le_iff_imp, decide_eq_true_eq]; exact fun hi => hi.trans (hf h)
 
 private theorem antitone_decide_le {f : ℕ → ℝ} (θ : ℝ) (hf : Antitone f) :
     Antitone fun i => decide (θ ≤ f i) := fun _ _ h => by
-  simp only [Bool.le_iff_imp, decide_eq_true_eq]
-  exact fun hi => hi.trans (hf h)
+  simp only [Bool.le_iff_imp, decide_eq_true_eq]; exact fun hi => hi.trans (hf h)
 
 /-- **Orientation**: with the table fixed, a sign-coherent gate is monotone or antitone in each
 block count, uniformly in the other one. -/
@@ -102,19 +100,13 @@ theorem andreevGateGrid_orientation {c : Circuit signature (2 ^ 2 + 2 * m) 1} {k
           else 0) +
           ∑ t : Fin m, if (t : ℕ) < j then inputWeight c.program k (andreevBlockVar 2 m 1 t)
             else 0)) := by
-    rw [andreevGateGrid, ltfEval, sum_mul_andreevCubePoint, Fin.sum_univ_two]
-    rfl
-  refine ⟨?_, ?_⟩
-  · rcases monotone_or_antitone_blockForm hk 0 with h | h
-    · exact Or.inl fun j => (funext fun i => hval i j) ▸
-        monotone_decide_le _ ((h.add_const _).const_add _)
-    · exact Or.inr fun j => (funext fun i => hval i j) ▸
-        antitone_decide_le _ ((h.add_const _).const_add _)
-  · rcases monotone_or_antitone_blockForm hk 1 with h | h
-    · exact Or.inl fun i => (funext (hval i)) ▸
-        monotone_decide_le _ ((h.const_add _).const_add _)
-    · exact Or.inr fun i => (funext (hval i)) ▸
-        antitone_decide_le _ ((h.const_add _).const_add _)
+    rw [andreevGateGrid, ltfEval, sum_mul_andreevCubePoint, Fin.sum_univ_two]; rfl
+  exact ⟨(monotone_or_antitone_blockForm hk 0).imp
+      (fun h j => (funext fun i => hval i j) ▸ monotone_decide_le _ ((h.add_const _).const_add _))
+      (fun h j => (funext fun i => hval i j) ▸ antitone_decide_le _ ((h.add_const _).const_add _)),
+    (monotone_or_antitone_blockForm hk 1).imp
+      (fun h i => (funext (hval i)) ▸ monotone_decide_le _ ((h.const_add _).const_add _))
+      (fun h i => (funext (hval i)) ▸ antitone_decide_le _ ((h.const_add _).const_add _))⟩
 
 /-! ### Every square needs a corner-cutting gate -/
 
@@ -126,8 +118,7 @@ theorem exists_cutsCorner_andreevGateGrid (c : Circuit signature (2 ^ 2 + 2 * m)
     (hi : i < m) (hj : j < m) :
     ∃ k ∈ outputBottomGates c 0, CutsCorner (andreevGateGrid c k andreevXorTable) i j := by
   classical
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   let q : Fin 2 → Fin m := ![⟨i, hi⟩, ⟨j, hj⟩]
   obtain ⟨τ, hτ⟩ := isUpperLevelSet_eval_embedUpdate c hd 0 (andreevLiveVar_injective 2 m q)
     (andreevCubePoint 2 m andreevXorTable fun l => q l)
@@ -147,22 +138,17 @@ theorem exists_cutsCorner_andreevGateGrid (c : Circuit signature (2 ^ 2 + 2 * m)
     rw [← andreevCubePoint_add, hpt, andreevGateGrid]
   have heval (u : Fin 2 → Bool) : decide (τ ≤ F u) =
       (decide ((i + (u 0).toNat) % 2 = 1) ^^ decide ((j + (u 1).toNat) % 2 = 1)) := by
-    have hs (l : Fin 2) : (q l : ℕ) + (u l).toNat ≤ m := by
-      have := (q l).isLt; have := Bool.toNat_le (u l); omega
-    rw [← hτ u]
-    dsimp only
+    rw [← hτ u]; dsimp only
     rw [← andreevCubePoint_add, congrFun (hcomp _) 0]
-    exact andreev_andreevCubePoint_xorTable hs
-  have hmix : F ![false, false] + F ![true, true] = F ![true, false] + F ![false, true] := by
-    refine circuitLiveForm_mixed_eq c 0 _ _ _ fun k hk => ?_
-    have := hno k (circuitSplitGates_subset c 0 _ _ hk)
-    rw [CutsCorner, not_not] at this
-    simpa only [hgate, Matrix.cons_val_zero, Matrix.cons_val_one, Bool.toNat_false,
-      Bool.toNat_true, add_zero] using this
-  have h00 := heval ![false, false]
-  have h11 := heval ![true, true]
-  have h10 := heval ![true, false]
-  have h01 := heval ![false, true]
+    exact andreev_andreevCubePoint_xorTable fun l => by
+      have := (q l).isLt; have := Bool.toNat_le (u l); omega
+  have hmix : F ![false, false] + F ![true, true] = F ![true, false] + F ![false, true] :=
+    circuitLiveForm_mixed_eq c 0 _ _ _ fun k hk => by
+      simpa only [CutsCorner, not_not, hgate, Matrix.cons_val_zero, Matrix.cons_val_one,
+        Bool.toNat_false, Bool.toNat_true, add_zero] using
+        hno k (circuitSplitGates_subset c 0 _ _ hk)
+  have h00 := heval ![false, false]; have h11 := heval ![true, true]
+  have h10 := heval ![true, false]; have h01 := heval ![false, true]
   simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Bool.toNat_false, Bool.toNat_true,
     add_zero] at h00 h11 h10 h01
   rcases Nat.mod_two_eq_zero_or_one i with hi2 | hi2 <;>
@@ -181,20 +167,19 @@ theorem sub_one_le_card_outputBottomGates_andreev_two (c : Circuit signature (2 
     m - 1 ≤ #(outputBottomGates c 0) := by
   classical
   have hcover : gridBorder m ⊆ (outputBottomGates c 0).biUnion fun k =>
-      (gridBorder m).filter fun p => CutsCorner (andreevGateGrid c k andreevXorTable) p.1 p.2 := by
-    intro p hp
-    obtain ⟨hp1, hp2, -⟩ := mem_gridBorder.mp hp
-    obtain ⟨k, hk, hcut⟩ := exists_cutsCorner_andreevGateGrid c hd hcomp hp1 hp2
-    exact mem_biUnion.mpr ⟨k, hk, mem_filter.mpr ⟨hp, hcut⟩⟩
+      (gridBorder m).filter fun p => CutsCorner (andreevGateGrid c k andreevXorTable) p.1 p.2 :=
+    fun p hp => by
+      obtain ⟨hp1, hp2, -⟩ := mem_gridBorder.mp hp
+      obtain ⟨k, hk, hcut⟩ := exists_cutsCorner_andreevGateGrid c hd hcomp hp1 hp2
+      exact mem_biUnion.mpr ⟨k, hk, mem_filter.mpr ⟨hp, hcut⟩⟩
   have hring : ∑ k ∈ outputBottomGates c 0,
       #((gridBorder m).filter fun p => CutsCorner (andreevGateGrid c k andreevXorTable) p.1 p.2) ≤
-        ∑ _k ∈ outputBottomGates c 0, 4 := sum_le_sum fun k hk => by
-    obtain ⟨h₁, h₂⟩ := andreevGateGrid_orientation (hcoh k hk) andreevXorTable
-    exact card_filter_cutsCorner_gridBorder_le h₁ h₂ m
-  rw [sum_const, smul_eq_mul] at hring
-  have := (card_le_card hcover).trans card_biUnion_le
-  have := le_card_gridBorder m
-  omega
+        #(outputBottomGates c 0) * 4 := by
+    simpa using sum_le_sum (g := fun _ => 4) fun k hk =>
+      have ⟨h₁, h₂⟩ := andreevGateGrid_orientation (hcoh k hk) andreevXorTable
+      card_filter_cutsCorner_gridBorder_le h₁ h₂ m
+  have := (card_le_card hcover).trans (card_biUnion_le.trans hring)
+  have := le_card_gridBorder m; omega
 
 /-- **Two address blocks, lower bound for `depthTwoInputs`**: if a sign-coherent circuit
 `depthTwoInputs bottom args u v θ` with `G` bottom gates computes `andreev 2 m`, then
@@ -209,8 +194,7 @@ theorem sub_one_le_of_depthTwoInputs_andreev_two {G : ℕ} (bottom : Fin G → O
   obtain ⟨top, htop⟩ : ∃ top, c.outputs 0 = .gate top := ⟨_, rfl⟩
   have hB : #(outputBottomGates c 0) ≤ G := by
     have := card_outputBottomGates_lt_size htop
-    have hs : c.size = G + 1 := size_depthTwoInputs ..
-    omega
+    have : c.size = G + 1 := size_depthTwoInputs ..; omega
   exact (sub_one_le_card_outputBottomGates_andreev_two c (depth_depthTwoInputs_le ..) hcomp
     fun k hk => isSignCoherent_inputWeight_depthTwoInputs bottom args u v θ hcoh htop
       (by rwa [outputBottomGates_of_gate htop] at hk)).trans hB

@@ -121,10 +121,8 @@ theorem bennettMoves_mTr (k : ℕ) {a : ℕ} {C : Finset ℕ} (hC : ∀ x ∈ C,
       (insert (a + 2 ^ k - 1) C) := by
   induction k generalizing a C with
   | zero =>
-    have hnot : a ∉ C := fun h => by
-      have := hC a h
-      rw [pow_zero] at this
-      omega
+    rw [pow_zero] at hC
+    have hnot : a ∉ C := fun h => by have := hC a h; omega
     rw [pow_zero, Nat.add_sub_cancel]
     exact LTS.MTr.single _ ⟨.place hnot ha, (Finset.card_insert_le _ _).trans (by omega)⟩
   | succ k ih =>
@@ -151,8 +149,6 @@ theorem bennettMoves_mTr (k : ℕ) {a : ℕ} {C : Finset ℕ} (hC : ∀ x ∈ C,
     rw [Finset.card_insert_of_notMem htopC] at h₃
     have e₂ : a + 2 ^ k + 2 ^ k - 1 = top := by omega
     rw [e₂, Finset.insert_comm] at h₂
-    rw [show bennettMoves a (k + 1) = bennettMoves a k ++ bennettMoves (a + 2 ^ k) k ++
-      (bennettMoves a k).reverse.map Move.swap from rfl]
     exact LTS.MTr.comp _ (LTS.MTr.comp _ (reversiblePebbleGame_mTr_mono (by omega) h₁)
       (reversiblePebbleGame_mTr_mono (by omega) h₂)) (reversiblePebbleGame_mTr_mono (by omega) h₃)
 
@@ -277,12 +273,8 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
         simp only [mem_shiftDown, Finset.mem_insert]
         exact or_congr_left (by omega)
       rw [e]
-      refine .place (fun hm => hv ?_) fun u hu => ?_
-      · rw [mem_shiftDown, Nat.sub_add_cancel hdv] at hm
-        exact hm
-      · rw [pathDigraph_adj] at hu
-        rw [mem_shiftDown]
-        exact h _ (by rw [pathDigraph_adj]; omega)
+      exact .place (fun hm => hv (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv] at hm))
+        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
     · refine .inl ?_
       ext x
       simp only [mem_shiftDown, Finset.mem_insert, or_iff_right_iff_imp]
@@ -295,10 +287,8 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
         simp only [mem_shiftDown, Finset.mem_erase]
         exact and_congr_left' (by omega)
       rw [e]
-      refine .remove (by rw [mem_shiftDown, Nat.sub_add_cancel hdv]; exact hv) fun u hu => ?_
-      rw [pathDigraph_adj] at hu
-      rw [mem_shiftDown]
-      exact h _ (by rw [pathDigraph_adj]; omega)
+      exact .remove (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv])
+        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
     · refine .inl ?_
       ext x
       simp only [mem_shiftDown, Finset.mem_erase, and_iff_right_iff_imp]
@@ -389,7 +379,7 @@ private theorem maxBound_succ {k : ℕ}
   by_cases hxk : x < 2 ^ k
   · omega
   · have := hmax ms₁ _ (x - 2 ^ k) h₁
-      (by rw [mem_shiftDown, Nat.sub_add_cancel (by omega)]; exact hx)
+      (by rwa [mem_shiftDown, Nat.sub_add_cancel (by omega)])
     omega
 
 /-- **The lower bound.** Every pebble of a configuration reachable with `k` pebbles on the

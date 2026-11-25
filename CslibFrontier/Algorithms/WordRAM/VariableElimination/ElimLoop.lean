@@ -123,163 +123,102 @@ def elimOrderLoop (args : ElimOrderArgs) : Memory.Prog ElimLoopState :=
   iterate elimOrderStep ⟨args.dom, args.orderPtr⟩ args.orderLen
     ⟨0, args.scalar, args.livePtr, args.liveLen, args.remPtr, args.remLen⟩
 
-private theorem elimOrderLoop_aux {w : ℕ} (env : ElimLoopEnv)
-    {R M SW W B : ℕ} (hW_SW : W ≤ SW) (hB : Fits w B) (h1 : Fits w 1)
-    (hpowSW : Fits w ((max 1 env.dom) ^ SW)) :
-    ∀ (ord : List ℕ) (idx : ℕ) (st0 : ElimStepState) (es : ElimState ℕ ℕ) (t : Memory.State),
-      Memory.WellFormed w t →
-      HoldsIn (env.orderPtr + idx) ord t →
-      HoldsElimState st0 es t →
-      es.live.length ≤ M →
-      es.remaining.length ≤ R →
-      (∀ f ∈ es.live, f.scope.length ≤ SW) →
-      (∀ s_st ∈ traceOrder env.dom ord es, s_st.jointScopeVars ≤ W) →
-      (max 1 env.dom) ^ ord.length * stateCap es ≤ B →
-      Fits w (t.frontier + ord.length * stepMemDelta R M SW env.dom W) →
-      let st_in : ElimLoopState :=
-        ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩
-      let p := iterate elimOrderStep env ord.length st_in
+private theorem cap_split {d n c B : ℕ} (h : (max 1 d) ^ (n + 1) * c ≤ B) :
+    max 1 d * c ≤ B ∧ (max 1 d) ^ n * (max 1 d * c) ≤ B := by
+  rw [Nat.pow_succ, mul_assoc] at h
+  exact ⟨(Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (le_max_left 1 d))).trans h, h⟩
+
+/-- Invariant of `elimOrderLoop` at loop state `st` with the order suffix `ord` still to run. -/
+private structure LoopInv (w : ℕ) (env : ElimLoopEnv) (R M SW W B : ℕ) (ord : List ℕ)
+    (st : ElimLoopState) (es : ElimState ℕ ℕ) (t : Memory.State) : Prop where
+  wf : Memory.WellFormed w t
+  holds : HoldsIn (env.orderPtr + st.idx) ord t
+  elim : HoldsElimState ⟨st.scalar, st.livePtr, st.liveLen, st.remPtr, st.remLen⟩ es t
+  live : es.live.length ≤ M
+  rem : es.remaining.length ≤ R
+  scope : ∀ f ∈ es.live, f.scope.length ≤ SW
+  joint : ∀ s_st ∈ traceOrder env.dom ord es, s_st.jointScopeVars ≤ W
+  cap : (max 1 env.dom) ^ ord.length * stateCap es ≤ B
+  fit : Fits w (t.frontier + ord.length * stepMemDelta R M SW env.dom W)
+
+private theorem elimOrderStep_spec {w : ℕ} (env : ElimLoopEnv) {R M SW W B x : ℕ}
+    {xs : List ℕ} {st : ElimLoopState} {es : ElimState ℕ ℕ} {t : Memory.State}
+    (hW_SW : W ≤ SW) (hB : Fits w B) (h1 : Fits w 1) (hpowSW : Fits w ((max 1 env.dom) ^ SW))
+    (hinv : LoopInv w env R M SW W B (x :: xs) st es t) :
+    let p := elimOrderStep (env, st)
+    let t' := (Memory.spec 0).clientState t p
+    let r := (Memory.spec 0).clientResult t p
+    (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
+      PreservesBelow t.frontier t t' ∧
+      t'.frontier ≤ t.frontier + stepMemDelta R M SW env.dom W ∧ r.idx = st.idx + 1 ∧
+      LoopInv w env R M SW W B xs r (elimVar env.dom x es) t' ∧
+      memoryCost p t ≤ 1 + stepFixedCost R M SW env.dom W +
+        (stepStats env.dom x es).bucketFactors * stepBucketUnitCost SW env.dom W := by
+  obtain ⟨hwf, hord, hes, hM, hR, hSW, hW, hcap, hfit⟩ := hinv
+  obtain ⟨hrd_lt, hm_x, hord_tail⟩ := holdsIn_cons_shift hord
+  simp only [traceOrder, List.forall_mem_cons, List.length_cons] at hW hcap hfit
+  obtain ⟨hcap_step, hcap₁⟩ := cap_split hcap
+  have hvp := elimVarProg_spec (w := w)
+    (args := ⟨env.dom, x, st.scalar, st.livePtr, st.liveLen, st.remPtr, st.remLen⟩) hwf hes hM
+    hR hSW hW.1 hW_SW hcap_step hB h1 hpowSW
+    (hfit.of_le (by dsimp only; rw [Nat.add_one_mul]; omega))
+  dsimp only at hvp ⊢
+  obtain ⟨hvp_val, hvp_pres, hvp_fr, hvp_es, hvp_cost⟩ := hvp
+  unfold elimOrderStep
+  dsimp only
+  refine ⟨validHistory_read_bind hrd_lt ?_, ?_⟩
+  · rw [hm_x]
+    exact validHistory_bind_step hvp_val (validHistory_pure w _ _)
+  rw [clientState_bind_read, clientResult_bind_read, hm_x, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_pure,
+    StateTransitionSpec.clientResult_pure, memoryCost_bind', memoryCost_read, clientState_read,
+    clientResult_read, hm_x, memoryCost_bind', memoryCost_pure]
+  refine ⟨hvp_pres, hvp_fr, rfl, ⟨wellFormed_clientState hwf hvp_val, ?_, hvp_es,
+    (length_elimVar_live_le env.dom x es).trans hM,
+    (length_elimVar_remaining_le env.dom x es).trans hR,
+    scope_elimVar_le_of_le env.dom x es hSW hW.1 hW_SW, hW.2,
+    (Nat.mul_le_mul_left _ (stateCap_elimVar_le env.dom x es)).trans hcap₁,
+    hfit.of_le (by rw [Nat.add_one_mul]; omega)⟩, by omega⟩
+  rw [show env.orderPtr + (st.idx + 1) = env.orderPtr + st.idx + 1 by omega]
+  exact hord_tail.mono_frontier hvp_pres
+
+private theorem elimOrderLoop_aux {w : ℕ} (env : ElimLoopEnv) {R M SW W B : ℕ}
+    (hW_SW : W ≤ SW) (hB : Fits w B) (h1 : Fits w 1) (hpowSW : Fits w ((max 1 env.dom) ^ SW)) :
+    ∀ (ord : List ℕ) (st : ElimLoopState) (es : ElimState ℕ ℕ) (t : Memory.State),
+      LoopInv w env R M SW W B ord st es t →
+      let p := iterate elimOrderStep env ord.length st
       let r := (Memory.spec 0).clientResult t p
       let t' := (Memory.spec 0).clientState t p
-      let es' := eliminateOrder env.dom ord es
       (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
         PreservesBelow t.frontier t t' ∧
         t'.frontier ≤ t.frontier + ord.length * stepMemDelta R M SW env.dom W ∧
-        HoldsElimState ⟨r.scalar, r.livePtr, r.liveLen, r.remPtr, r.remLen⟩ es' t' ∧
+        HoldsElimState ⟨r.scalar, r.livePtr, r.liveLen, r.remPtr, r.remLen⟩
+          (eliminateOrder env.dom ord es) t' ∧
         memoryCost p t ≤
           ord.length * (1 + stepFixedCost R M SW env.dom W) +
             ((traceOrder env.dom ord es).map ElimStepStats.bucketFactors).sum *
               stepBucketUnitCost SW env.dom W
-  | [], idx, st0, es, t, _, _, hes, _, _, _, _, _, _ => by
+  | [], st, es, t, hinv => by
+      have h0 : iterate elimOrderStep env ([] : List ℕ).length st = pure st := rfl
       dsimp only
-      have h0 : iterate elimOrderStep env 0
-          ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩ =
-          pure ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩ := rfl
-      simp only [List.length_nil]
-      rw [h0]
-      exact ⟨validHistory_pure w t _, PreservesBelow.refl le_rfl, Nat.le_add_right _ _, hes,
-        by simp [memoryCost_pure, traceOrder]⟩
-  | x :: xs, idx, st0, es, t, hwf, hord, hes, hM, hR, hSW, hW_all, hcap, hfit_fr => by
+      rw [h0, memoryCost_pure]
+      exact ⟨validHistory_pure w t _, PreservesBelow.refl le_rfl, Nat.le_add_right _ _, hinv.elim,
+        Nat.zero_le _⟩
+  | x :: xs, st, es, t, hinv => by
+      obtain ⟨hval, hpres, hfr, -, hinv₁, hcost⟩ :=
+        elimOrderStep_spec env hW_SW hB h1 hpowSW hinv
+      obtain ⟨ih_val, ih_pres, ih_fr, ih_es, ih_cost⟩ :=
+        elimOrderLoop_aux env hW_SW hB h1 hpowSW xs _ _ _ hinv₁
+      have hiter : iterate elimOrderStep env (x :: xs).length st =
+          elimOrderStep (env, st) >>= iterate elimOrderStep env xs.length := rfl
       dsimp only
-      obtain ⟨hrd_lt, hm_x, hord_tail⟩ := holdsIn_cons_shift hord
-      have hW_head : (stepStats env.dom x es).jointScopeVars ≤ W :=
-        hW_all _ (by simp [traceOrder])
-      have hW_tail : ∀ s_st ∈ traceOrder env.dom xs (elimVar env.dom x es),
-          s_st.jointScopeVars ≤ W :=
-        fun s_st hs => hW_all s_st (by simp [traceOrder, hs])
-      simp only [List.length_cons] at hcap hfit_fr ⊢
-      have hpow_pos : 1 ≤ (max 1 env.dom) ^ xs.length :=
-        Nat.one_le_pow _ _ (le_max_left 1 env.dom)
-      have hcap_step : max 1 env.dom * stateCap es ≤ B := by
-        have hmul : 1 * (max 1 env.dom * stateCap es) ≤
-            (max 1 env.dom) ^ xs.length * (max 1 env.dom * stateCap es) :=
-          Nat.mul_le_mul_right _ hpow_pos
-        have heq : (max 1 env.dom) ^ xs.length * (max 1 env.dom * stateCap es) =
-            (max 1 env.dom) ^ (xs.length + 1) * stateCap es := by rw [Nat.pow_succ]; ring
-        omega
-      have hdelta_one : t.frontier + stepMemDelta R M SW env.dom W ≤
-          t.frontier + (xs.length + 1) * stepMemDelta R M SW env.dom W := by
-        rw [Nat.succ_mul]; omega
-      let vpArgs : ElimVarArgs :=
-        ⟨env.dom, x, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩
-      have hvp := elimVarProg_spec (w := w) (args := vpArgs) hwf hes hM hR hSW hW_head hW_SW
-        hcap_step hB h1 hpowSW (hfit_fr.of_le hdelta_one)
-      dsimp only at hvp
-      generalize ht₁ : (Memory.spec 0).clientState t (elimVarProg vpArgs) = t₁ at hvp
-      generalize hst₁ : (Memory.spec 0).clientResult t (elimVarProg vpArgs) = st₁ at hvp
-      obtain ⟨hvp_val, hvp_pres, hvp_fr, hvp_es, hvp_cost⟩ := hvp
-      dsimp only [vpArgs] at hvp_fr hvp_es hvp_cost
-      have hwf₁ : Memory.WellFormed w t₁ :=
-        by rw [← ht₁]; exact wellFormed_clientState hwf hvp_val
-      have hord_t₁ : HoldsIn (env.orderPtr + (idx + 1)) xs t₁ := by
-        rw [show env.orderPtr + (idx + 1) = env.orderPtr + idx + 1 by omega]
-        exact hord_tail.mono_frontier hvp_pres
-      have hM₁ : (elimVar env.dom x es).live.length ≤ M :=
-        (length_elimVar_live_le env.dom x es).trans hM
-      have hR₁ : (elimVar env.dom x es).remaining.length ≤ R :=
-        (length_elimVar_remaining_le env.dom x es).trans hR
-      have hSW₁ : ∀ f ∈ (elimVar env.dom x es).live, f.scope.length ≤ SW :=
-        scope_elimVar_le_of_le env.dom x es hSW hW_head hW_SW
-      have hcap₁ : (max 1 env.dom) ^ xs.length * stateCap (elimVar env.dom x es) ≤ B := by
-        calc (max 1 env.dom) ^ xs.length * stateCap (elimVar env.dom x es)
-            ≤ (max 1 env.dom) ^ xs.length * (max 1 env.dom * stateCap es) :=
-              Nat.mul_le_mul_left _ (stateCap_elimVar_le env.dom x es)
-          _ = (max 1 env.dom) ^ (xs.length + 1) * stateCap es := by rw [Nat.pow_succ]; ring
-          _ ≤ B := hcap
-      have hfit₁ : Fits w (t₁.frontier + xs.length * stepMemDelta R M SW env.dom W) := by
-        refine hfit_fr.of_le ?_
-        rw [Nat.succ_mul]
-        omega
-      have hih := elimOrderLoop_aux env hW_SW hB h1 hpowSW xs (idx + 1) st₁
-        (elimVar env.dom x es) t₁ hwf₁ hord_t₁ hvp_es hM₁ hR₁ hSW₁ hW_tail hcap₁ hfit₁
-      dsimp only at hih
-      obtain ⟨hih_val, hih_pres, hih_fr, hih_es, hih_cost⟩ := hih
-      have hr_st (addr : ℕ) : (Memory.spec 0).clientState t (Memory.read addr) = t := rfl
-      have hr_res (addr : ℕ) : (Memory.spec 0).clientResult t (Memory.read addr) = t.mem addr := rfl
-      have hpure_st {α : Type} (y : α) (u : Memory.State) :
-          (Memory.spec 0).clientState u (pure y) = u := rfl
-      have hpure_res {α : Type} (y : α) (u : Memory.State) :
-          (Memory.spec 0).clientResult u (pure y) = y := rfl
-      have hstep_st : (Memory.spec 0).clientState t
-          (elimOrderStep (env, ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr,
-            st0.remLen⟩)) = t₁ := by
-        unfold elimOrderStep
-        dsimp only
-        rw [StateTransitionSpec.clientState_bind, hr_st, hr_res, hm_x,
-          StateTransitionSpec.clientState_bind, ht₁, hst₁, hpure_st]
-      have hstep_res : (Memory.spec 0).clientResult t
-          (elimOrderStep (env, ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr,
-            st0.remLen⟩)) =
-          ⟨idx + 1, st₁.scalar, st₁.livePtr, st₁.liveLen, st₁.remPtr, st₁.remLen⟩ := by
-        unfold elimOrderStep
-        dsimp only
-        rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm_x,
-          StateTransitionSpec.clientResult_bind, ht₁, hst₁, hpure_res]
-      have hstep_val : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t (elimOrderStep
-            (env, ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩))) := by
-        unfold elimOrderStep
-        dsimp only
-        refine validHistory_read_bind hrd_lt ?_
-        rw [hm_x]
-        refine validHistory_bind_step hvp_val ?_
-        rw [ht₁, hst₁]
-        exact validHistory_pure w t₁ _
-      have hstep_cost : memoryCost (elimOrderStep
-          (env, ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩)) t ≤
-          1 + stepFixedCost R M SW env.dom W +
-            (stepStats env.dom x es).bucketFactors * stepBucketUnitCost SW env.dom W := by
-        unfold elimOrderStep
-        dsimp only
-        rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm_x,
-          memoryCost_bind', ht₁, hst₁, memoryCost_pure, Nat.add_zero]
-        omega
-      have hiter_eq : iterate elimOrderStep env (xs.length + 1)
-          ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩ =
-          (elimOrderStep
-            (env, ⟨idx, st0.scalar, st0.livePtr, st0.liveLen, st0.remPtr, st0.remLen⟩) >>=
-            iterate elimOrderStep env xs.length) := rfl
-      rw [hiter_eq, StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-        hstep_st, hstep_res]
-      refine ⟨validHistory_bind_step hstep_val ?_,
-        hvp_pres.trans (hih_pres.mono_bound hvp_pres.2.1),
-        by rw [Nat.succ_mul]; omega,
-        hih_es, ?_⟩
-      · rw [hstep_st, hstep_res]
-        exact hih_val
-      · rw [memoryCost_bind', hstep_st, hstep_res]
-        simp only [traceOrder, List.map_cons, List.sum_cons]
-        calc memoryCost _ t + _
-            ≤ (1 + stepFixedCost R M SW env.dom W +
-                (stepStats env.dom x es).bucketFactors * stepBucketUnitCost SW env.dom W) +
-              (xs.length * (1 + stepFixedCost R M SW env.dom W) +
-                ((traceOrder env.dom xs (elimVar env.dom x es)).map
-                  ElimStepStats.bucketFactors).sum * stepBucketUnitCost SW env.dom W) :=
-              Nat.add_le_add hstep_cost hih_cost
-          _ = (xs.length + 1) * (1 + stepFixedCost R M SW env.dom W) +
-                ((stepStats env.dom x es).bucketFactors +
-                  ((traceOrder env.dom xs (elimVar env.dom x es)).map
-                    ElimStepStats.bucketFactors).sum) * stepBucketUnitCost SW env.dom W := by ring
+      rw [hiter, validHistory_bind', StateTransitionSpec.clientResult_bind,
+        StateTransitionSpec.clientState_bind, memoryCost_bind']
+      simp only [List.length_cons, traceOrder, List.map_cons, List.sum_cons]
+      refine ⟨⟨hval, ih_val⟩, hpres.trans (ih_pres.mono_bound hpres.2.1),
+        by rw [Nat.add_one_mul]; omega, ih_es, ?_⟩
+      rw [Nat.add_one_mul, Nat.add_mul]
+      omega
 
 theorem elimOrderLoop_spec {w : ℕ} {args : ElimOrderArgs}
     {ord : List ℕ} {es : ElimState ℕ ℕ} {R M SW W B : ℕ} {s : Memory.State}
@@ -305,17 +244,14 @@ theorem elimOrderLoop_spec {w : ℕ} {args : ElimOrderArgs}
   dsimp only
   unfold elimOrderLoop
   rw [← hord_len] at hcap hfit_fr ⊢
-  have hord0 : HoldsIn (args.orderPtr + 0) ord s := by simpa using hord
   obtain ⟨hval, hpres, hfr, hes', hcost⟩ :=
-    elimOrderLoop_aux (w := w) ⟨args.dom, args.orderPtr⟩ hW_SW hB h1 hpowSW ord 0
-      ⟨args.scalar, args.livePtr, args.liveLen, args.remPtr, args.remLen⟩ es s
-      hwf hord0 hes hM hR hSW hW hcap hfit_fr
-  refine ⟨hval, hpres, hfr, hes', ?_⟩
-  have hbk_sum : ((traceOrder args.dom ord es).map ElimStepStats.bucketFactors).sum ≤
-      M + ord.length := by
-    have hsb := sum_bucketFactors_le args.dom ord es
-    omega
-  exact hcost.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hbk_sum) _)
+    elimOrderLoop_aux (w := w) ⟨args.dom, args.orderPtr⟩ hW_SW hB h1 hpowSW ord
+      ⟨0, args.scalar, args.livePtr, args.liveLen, args.remPtr, args.remLen⟩ es s
+      ⟨hwf, by simpa using hord, hes, hM, hR, hSW, hW, hcap, hfit_fr⟩
+  dsimp only at hcost
+  refine ⟨hval, hpres, hfr, hes', hcost.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ ?_) _)⟩
+  have := sum_bucketFactors_le args.dom ord es
+  omega
 
 theorem elimOrderLoop_realizes :
     Realizes .exact elimOrderLoop WordEncoding.encode WordEncoding.encode
@@ -342,89 +278,25 @@ theorem elimOrderLoop_realizes :
     hW₀, hW_SW, hcap₀, hB, hpowSW, hfit_fr⟩ := h
   refine iterationSafe_of_stepInv _ _ w _
     (fun (j : ℕ) (st : ElimLoopState) (t : Memory.State) =>
-      Memory.WellFormed w t ∧
-      st.idx + j = d.orderLen ∧
-      ∃ ord es,
-        ord.length = j ∧
-        HoldsIn (d.orderPtr + st.idx) ord t ∧
-        HoldsElimState ⟨st.scalar, st.livePtr, st.liveLen, st.remPtr, st.remLen⟩ es t ∧
-        es.live.length ≤ M ∧
-        es.remaining.length ≤ R ∧
-        (∀ f ∈ es.live, f.scope.length ≤ SW) ∧
-        (∀ s_st ∈ traceOrder d.dom ord es, s_st.jointScopeVars ≤ W) ∧
-        (max 1 d.dom) ^ j * stateCap es ≤ B ∧
-        Fits w (t.frontier + j * stepMemDelta R M SW d.dom W))
-    (fun j st t ⟨hwf_t, hidx_sum, ord, es, hlen_j, hord_t, hes_t, hM_t, hR_t, hSW_t,
-      hW_t, hcap_t, hfit_t⟩ => ?_)
-    ⟨hmem, Nat.zero_add _, ord₀, es₀, hord_len, by simpa using hord₀, hes₀, hM₀, hR₀, hSW₀,
-      hW₀, hcap₀, hfit_fr⟩
+      st.idx + j = d.orderLen ∧ ∃ ord es, ord.length = j ∧
+        LoopInv w ⟨d.dom, d.orderPtr⟩ R M SW W B ord st es t)
+    (fun j st t ⟨hidx_sum, ord, es, hlen_j, hinv⟩ => ?_)
+    ⟨Nat.zero_add _, ord₀, es₀, hord_len,
+      ⟨hmem, by simpa using hord₀, hes₀, hM₀, hR₀, hSW₀, hW₀, by rwa [hord_len], by rwa [hord_len]⟩⟩
   dsimp only
   rcases ord with _ | ⟨x, xs⟩
   · cases hlen_j
   simp only [List.length_cons, Nat.add_right_cancel_iff] at hlen_j
   subst hlen_j
-  obtain ⟨hrd_lt, hm_x, hord_tail⟩ := holdsIn_cons_shift hord_t
-  have hW_head : (stepStats d.dom x es).jointScopeVars ≤ W := hW_t _ (by simp [traceOrder])
-  have hW_tail : ∀ s_st ∈ traceOrder d.dom xs (elimVar d.dom x es), s_st.jointScopeVars ≤ W :=
-    fun s_st hs => hW_t s_st (by simp [traceOrder, hs])
-  have hpow_pos : 1 ≤ (max 1 d.dom) ^ xs.length := Nat.one_le_pow _ _ (le_max_left 1 d.dom)
-  have hcap_step : max 1 d.dom * stateCap es ≤ B := by
-    have hmul : 1 * (max 1 d.dom * stateCap es) ≤
-        (max 1 d.dom) ^ xs.length * (max 1 d.dom * stateCap es) :=
-      Nat.mul_le_mul_right _ hpow_pos
-    have heq : (max 1 d.dom) ^ xs.length * (max 1 d.dom * stateCap es) =
-        (max 1 d.dom) ^ (xs.length + 1) * stateCap es := by rw [Nat.pow_succ]; ring
-    omega
-  have hfit_one : Fits w (t.frontier + stepMemDelta R M SW d.dom W) :=
-    hfit_t.of_le (by rw [Nat.succ_mul]; omega)
-  have hr_st (addr : ℕ) : (Memory.spec 0).clientState t (Memory.read addr) = t := rfl
-  have hr_res (addr : ℕ) : (Memory.spec 0).clientResult t (Memory.read addr) = t.mem addr := rfl
-  have hpure_st {α : Type} (y : α) (u : Memory.State) :
-      (Memory.spec 0).clientState u (pure y) = u := rfl
-  have hpure_res {α : Type} (y : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure y) = y := rfl
-  refine ⟨?_, ?_⟩
-  · refine ⟨hwf_t.frontier_fits.of_le hrd_lt.le, ?_, ?_⟩
-    · simp only [hm_x]
-      exact ⟨h1, es, R, M, SW, W, B, hes_t, hM_t, hR_t, hSW_t, hW_head, hW_SW,
-        hcap_step, hB, hpowSW, hfit_one⟩
-    · have hidx_lt : st.idx + 1 ≤ t.frontier := by
-        have hbd := hord_t.1
-        simp only [List.length_cons] at hbd
-        omega
-      exact hwf_t.frontier_fits.of_le hidx_lt
-  · let vpArgs : ElimVarArgs :=
-      ⟨d.dom, x, st.scalar, st.livePtr, st.liveLen, st.remPtr, st.remLen⟩
-    have hvp := elimVarProg_spec (w := w) (args := vpArgs) hwf_t hes_t hM_t hR_t hSW_t
-      hW_head hW_SW hcap_step hB h1 hpowSW hfit_one
-    dsimp only at hvp
-    generalize ht₁ : (Memory.spec 0).clientState t (elimVarProg vpArgs) = t₁ at hvp
-    generalize hst₁ : (Memory.spec 0).clientResult t (elimVarProg vpArgs) = st₁ at hvp
-    obtain ⟨hvp_val, hvp_pres, hvp_fr, hvp_es, _⟩ := hvp
-    dsimp only [vpArgs] at hvp_fr hvp_es
-    have hwf₁ : Memory.WellFormed w t₁ :=
-      by rw [← ht₁]; exact wellFormed_clientState hwf_t hvp_val
-    unfold elimOrderStep
-    dsimp only
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      hr_st, hr_res, hm_x,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      ht₁, hst₁, hpure_st, hpure_res]
-    refine ⟨hwf₁, by dsimp only; omega, xs, elimVar d.dom x es, rfl, ?_, hvp_es,
-      (length_elimVar_live_le d.dom x es).trans hM_t,
-      (length_elimVar_remaining_le d.dom x es).trans hR_t,
-      scope_elimVar_le_of_le d.dom x es hSW_t hW_head hW_SW,
-      hW_tail, ?_, ?_⟩
-    · dsimp only
-      rw [show d.orderPtr + (st.idx + 1) = d.orderPtr + st.idx + 1 by omega]
-      exact hord_tail.mono_frontier hvp_pres
-    · calc (max 1 d.dom) ^ xs.length * stateCap (elimVar d.dom x es)
-          ≤ (max 1 d.dom) ^ xs.length * (max 1 d.dom * stateCap es) :=
-            Nat.mul_le_mul_left _ (stateCap_elimVar_le d.dom x es)
-        _ = (max 1 d.dom) ^ (xs.length + 1) * stateCap es := by rw [Nat.pow_succ]; ring
-        _ ≤ B := hcap_t
-    · refine hfit_t.of_le ?_
-      rw [Nat.succ_mul]
-      omega
+  obtain ⟨-, -, -, hidx, hinv₁, -⟩ := elimOrderStep_spec _ hW_SW hB h1 hpowSW hinv
+  obtain ⟨hwf_t, hord_t, hes_t, hM_t, hR_t, hSW_t, hW_t, hcap_t, hfit_t⟩ := hinv
+  obtain ⟨hrd_lt, hm_x, -⟩ := holdsIn_cons_shift hord_t
+  have hbd := hord_t.1
+  simp only [traceOrder, List.forall_mem_cons, List.length_cons] at hW_t hcap_t hfit_t hbd
+  refine ⟨⟨hwf_t.frontier_fits.of_le hrd_lt.le, ?_, hwf_t.frontier_fits.of_le (by omega)⟩,
+    by omega, xs, _, rfl, hinv₁⟩
+  simp only [hm_x]
+  exact ⟨h1, es, R, M, SW, W, B, hes_t, hM_t, hR_t, hSW_t, hW_t.1, hW_SW, (cap_split hcap_t).1, hB,
+    hpowSW, hfit_t.of_le (by rw [Nat.add_one_mul]; omega)⟩
 
 end Cslib.Algorithms.WordRAM.VariableElimination

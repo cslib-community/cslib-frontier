@@ -62,10 +62,10 @@ theorem runsInTime_toNTM_iff {input : List Bool} {t : ℕ} :
       ∀ final ∈ (ProbComp.eval (machine.runClosedConfigFrom t
         (machine.initialConfig input))).support, final.tapes.state = none := by
   refine ⟨fun ht final hfinal => ?_, machine.runsInTime_toNTM⟩
-  rw [eval_runClosedConfigFrom_eq_map_coins] at hfinal
-  obtain ⟨coins, hcoins, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-  rw [tapes_runClosedConfigFromCoins]
-  exact machine.halted_stepCoins ht (BitString.length_of_mem_support_uniformList hcoins).ge
+  obtain ⟨coins, hcoins, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp
+    (eval_runClosedConfigFrom_eq_map_coins _ _ _ ▸ hfinal)
+  exact tapes_runClosedConfigFromCoins _ _ _ ▸
+    machine.halted_stepCoins ht (BitString.length_of_mem_support_uniformList hcoins).ge
 
 /-- **The accepting coin strings measure the acceptance probability**: once every branch halts
 within `t` steps, `acceptCoins input t / 2 ^ t` is the probability that the closed fair-coin run
@@ -76,10 +76,8 @@ theorem acceptCoins_eq_mul_eval {input : List Bool} {t : ℕ}
       2 ^ t * ProbComp.eval (machine.runClosed t input) [true] := by
   classical
   rw [eval_runClosed_eq_map_coins, BitString.uniformList_map_apply,
-    ENNReal.mul_div_cancel (by simp) (by simp)]
-  unfold acceptCoins
-  congr 2
-  ext w
+    ENNReal.mul_div_cancel (by simp) (by simp), acceptCoins]
+  congr 2; ext w
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, runClosedCoins,
     tapes_runClosedConfigFromCoins]
   exact and_iff_right_of_imp fun _ =>
@@ -111,22 +109,16 @@ theorem eval_runClosed_orElse_apply (h₁ : first.toNTM.RunsInTime input t₁)
         ProbComp.eval (first.runClosed t₁ input) [true] *
           (1 - ProbComp.eval (second.runClosed t₂ input) [true]) := by
   set q := ProbComp.eval (second.runClosed t₂ input) [true]
-  have hq : q ≤ 1 := PMF.coe_le_one _ _
   rw [eval_runClosed_orElse first second input t₁ t₂ ((runsInTime_toNTM_iff _).mp h₁)
     ((runsInTime_toNTM_iff _).mp h₂), Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
-  calc ∑' word, ProbComp.eval (first.runClosed t₁ input) word *
-        (if word = [true] then pure [true] else ProbComp.eval (second.runClosed t₂ input)) [true]
-      = ∑' word, (ProbComp.eval (first.runClosed t₁ input) word * q +
-          if word = [true] then ProbComp.eval (first.runClosed t₁ input) [true] * (1 - q)
-          else 0) := by
-        refine tsum_congr fun word => ?_
-        split_ifs with h
-        · subst h
-          rw [← mul_add, add_tsub_cancel_of_le hq]
-          exact congrArg _ (PMF.pure_apply_self _)
-        · rw [add_zero]
-    _ = q + ProbComp.eval (first.runClosed t₁ input) [true] * (1 - q) := by
-        rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq]
+  refine (tsum_congr (g := fun word => ProbComp.eval (first.runClosed t₁ input) word * q +
+      if word = [true] then ProbComp.eval (first.runClosed t₁ input) [true] * (1 - q) else 0)
+      fun word => ?_).trans
+    (by rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq])
+  split_ifs with h
+  · subst h; rw [← mul_add, add_tsub_cancel_of_le (PMF.coe_le_one _ _)]
+    exact congrArg _ (PMF.pure_apply_self _)
+  · rw [add_zero]
 
 /-- **Rejections multiply under `orElse`.** Counted on coin strings, the probability that
 `first.orElse second` does not accept is the product of the probabilities that `first` and
@@ -139,25 +131,18 @@ theorem acceptCoins_orElse (h₁ : first.toNTM.RunsInTime input t₁)
         (2 ^ t₁ * 2 ^ t₂) =
       (2 ^ t₁ - first.acceptCoins input t₁) * (2 ^ t₂ - second.acceptCoins input t₂) *
         2 ^ (t₁ + (input.length + 2 + t₂)) := by
-  set T := t₁ + (input.length + 2 + t₂)
-  have hN := runsInTime_toNTM_orElse first second h₁ h₂
-  set p := ProbComp.eval (first.runClosed t₁ input) [true]
-  set q := ProbComp.eval (second.runClosed t₂ input) [true]
-  have hq : q ≤ 1 := PMF.coe_le_one _ _
   have hreal {k : ℕ} {S : Type} (M : MultiTapePTM k Bool S) {t : ℕ}
       (ht : M.toNTM.RunsInTime input t) :
       (M.acceptCoins input t : ℝ) =
         2 ^ t * (ProbComp.eval (M.runClosed t input) [true]).toReal := by
-    have := congrArg ENNReal.toReal (M.acceptCoins_eq_mul_eval ht)
-    simpa [ENNReal.toReal_mul] using this
+    simpa [ENNReal.toReal_mul] using congrArg ENNReal.toReal (M.acceptCoins_eq_mul_eval ht)
   have hpN := congrArg ENNReal.toReal (eval_runClosed_orElse_apply first second h₁ h₂)
   rw [ENNReal.toReal_add (by simp [PMF.apply_ne_top]) (ENNReal.mul_ne_top (PMF.apply_ne_top _ _)
-    (by simp)), ENNReal.toReal_mul, ENNReal.toReal_sub_of_le hq (by simp),
+    (by simp)), ENNReal.toReal_mul, ENNReal.toReal_sub_of_le (PMF.coe_le_one _ _) (by simp),
     ENNReal.toReal_one] at hpN
   apply Nat.cast_injective (R := ℝ)
   push_cast [Nat.cast_sub (acceptCoins_le _ _ _)]
-  rw [hreal _ hN, hreal _ h₁, hreal _ h₂, hpN]
-  ring
+  rw [hreal _ (runsInTime_toNTM_orElse first second h₁ h₂), hreal _ h₁, hreal _ h₂, hpN]; ring
 
 end Turing.MultiTapePTM
 
@@ -178,40 +163,30 @@ private theorem exists_rejectCoins_le_of_mem_RL (h : A ∈ RL enc) (r : ℕ) :
   obtain ⟨k, State, hfin, M, c, hM⟩ := h
   induction r with
   | zero =>
-    refine ⟨k, State, hfin, M, c, fun a => ⟨(hM a).1, ?_⟩⟩
-    obtain ⟨t, ht, -, hnot⟩ := (hM a).2
-    exact ⟨t, ht, fun _ => by simp, hnot⟩
+    exact ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, _, hnot⟩ := (hM a).2
+      ⟨(hM a).1, t, ht, fun _ => by simp, hnot⟩⟩
   | succ r ih =>
     obtain ⟨k', State', hfin', M', c', hM'⟩ := ih
-    refine ⟨k + k' + 1, _, by infer_instance, M.orElse M', (k + k' + 1) * (2 * max c c' + 1),
+    refine ⟨k + k' + 1, _, inferInstance, M.orElse M', (k + k' + 1) * (2 * max c c' + 1),
       fun a => ⟨?_, ?_⟩⟩
-    · have hspace := MultiTapePTM.runsInSpace_toNTM_orElse M M' (hM a).1 (hM' a).1
-      refine hspace.mono ?_
+    · refine (MultiTapePTM.runsInSpace_toNTM_orElse M M' (hM a).1 (hM' a).1).mono ?_
       set L := Nat.log2 (enc a).length + 1
       have hL : 1 ≤ L := Nat.le_add_left 1 _
-      have hmax : max (c * L) (c' * L) ≤ max c c' * L :=
-        max_le (Nat.mul_le_mul_right L (le_max_left c c'))
-          (Nat.mul_le_mul_right L (le_max_right c c'))
-      rw [Nat.mul_assoc]
-      refine Nat.mul_le_mul_left _ ?_
-      nlinarith
-    · obtain ⟨t, ht, hmem, hnot⟩ := (hM a).2
-      obtain ⟨t', ht', hmem', hnot'⟩ := (hM' a).2
+      have hmax : max (c * L) (c' * L) ≤ max c c' * L := max_le
+        (Nat.mul_le_mul_right L (le_max_left c c')) (Nat.mul_le_mul_right L (le_max_right c c'))
+      rw [Nat.mul_assoc]; exact Nat.mul_le_mul_left _ (by nlinarith)
+    · obtain ⟨t, ht, hmem, hnot⟩ := (hM a).2; obtain ⟨t', ht', hmem', hnot'⟩ := (hM' a).2
       have hpos : 0 < 2 ^ t * 2 ^ t' := Nat.mul_pos (Nat.two_pow_pos t) (Nat.two_pow_pos t')
       have hprod := MultiTapePTM.acceptCoins_orElse M M' ht ht'
       have hle := (M.orElse M').acceptCoins_le (enc a) (t + ((enc a).length + 2 + t'))
       refine ⟨_, MultiTapePTM.runsInTime_toNTM_orElse M M' ht ht', fun ha => ?_, fun ha => ?_⟩ <;>
         generalize t + ((enc a).length + 2 + t') = T at hprod hle ⊢
       · have h₁ : 2 * (2 ^ t - M.acceptCoins (enc a) t) ≤ 2 ^ t := by grind
-        refine Nat.le_of_mul_le_mul_right ?_ hpos
-        calc 2 ^ (r + 1) * (2 ^ T - (M.orElse M').acceptCoins (enc a) T) * (2 ^ t * 2 ^ t')
-            = (2 * (2 ^ t - M.acceptCoins (enc a) t)) *
-                (2 ^ r * (2 ^ t' - M'.acceptCoins (enc a) t')) * 2 ^ T := by
-              rw [Nat.mul_assoc, hprod]
-              ring
-          _ ≤ 2 ^ t * 2 ^ t' * 2 ^ T :=
-              Nat.mul_le_mul_right _ (Nat.mul_le_mul h₁ (hmem' ha))
-          _ = 2 ^ T * (2 ^ t * 2 ^ t') := by ring
+        exact Nat.le_of_mul_le_mul_right ((by rw [Nat.mul_assoc, hprod]; ring :
+            2 ^ (r + 1) * (2 ^ T - (M.orElse M').acceptCoins (enc a) T) * (2 ^ t * 2 ^ t') =
+              (2 * (2 ^ t - M.acceptCoins (enc a) t)) *
+                (2 ^ r * (2 ^ t' - M'.acceptCoins (enc a) t')) * 2 ^ T).trans_le
+          ((Nat.mul_le_mul_right _ (Nat.mul_le_mul h₁ (hmem' ha))).trans_eq (by ring))) hpos
       · rw [hnot ha, hnot' ha, Nat.sub_zero, Nat.sub_zero, ← Nat.mul_comm (2 ^ T)] at hprod
         have := Nat.eq_of_mul_eq_mul_right hpos hprod
         have := Nat.two_pow_pos T
@@ -232,37 +207,27 @@ theorem mem_RL_iff_error_le {r : ℕ} (hr : 1 ≤ r) :
   constructor
   · intro h
     obtain ⟨k, State, hfin, M, c, hM⟩ := exists_rejectCoins_le_of_mem_RL h r
-    refine ⟨k, State, hfin, M, c, fun a => ⟨(hM a).1, ?_⟩⟩
-    obtain ⟨t, ht, hmem, hnot⟩ := (hM a).2
-    refine ⟨t, ht, fun ha => ?_, hnot⟩
-    have h₁ := hmem ha
-    have hle := Nat.mul_le_mul_left (2 ^ r) (M.acceptCoins_le (enc a) t)
+    refine ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, hmem, hnot⟩ := (hM a).2
+      ⟨(hM a).1, t, ht, fun ha => ?_, hnot⟩⟩
+    have h₁ := hmem ha; have := Nat.mul_le_mul_left (2 ^ r) (M.acceptCoins_le (enc a) t)
     rw [Nat.mul_sub] at h₁
     rw [Nat.sub_mul, Nat.one_mul]
     omega
   · rintro ⟨k, State, hfin, M, c, hM⟩
-    refine ⟨k, State, hfin, M, c, fun a => ⟨(hM a).1, ?_⟩⟩
-    obtain ⟨t, ht, hmem, hnot⟩ := (hM a).2
-    refine ⟨t, ht, fun ha => ?_, hnot⟩
+    refine ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, hmem, hnot⟩ := (hM a).2
+      ⟨(hM a).1, t, ht, fun ha => ?_, hnot⟩⟩
     have h₁ := hmem ha
-    have h₂ : 2 * 2 ^ t ≤ 2 ^ r * 2 ^ t :=
-      Nat.mul_le_mul_right _ (Nat.le_self_pow (by omega) 2 |>.trans' (by norm_num) |>.trans
-        (Nat.pow_le_pow_right (by norm_num) hr))
+    have : 2 * 2 ^ t ≤ 2 ^ r * 2 ^ t :=
+      Nat.mul_le_mul_right _ (by simpa using Nat.pow_le_pow_right (by norm_num) hr)
     rw [Nat.sub_mul, Nat.one_mul] at h₁
-    refine Nat.le_of_mul_le_mul_left ?_ (Nat.two_pow_pos r)
-    rw [Nat.mul_left_comm]
-    omega
+    exact Nat.le_of_mul_le_mul_left (by rw [Nat.mul_left_comm]; omega) (Nat.two_pow_pos r)
 
 /-- **`RL` is within `BPL`**: amplifying an `RL` machine to error at most `1/4` gives acceptance
 probability at least `3/4 ≥ 2/3` on members, and `0 ≤ 1/3` on non-members. -/
-theorem RL_subset_BPL : RL enc ⊆ BPL enc := by
-  intro A h
+theorem RL_subset_BPL : RL enc ⊆ BPL enc := fun _ h => by
   obtain ⟨k, State, hfin, M, c, hM⟩ := (mem_RL_iff_error_le (r := 2) (by norm_num)).mp h
-  refine ⟨k, State, hfin, M, c, fun a => ⟨(hM a).1, ?_⟩⟩
-  obtain ⟨t, ht, hmem, hnot⟩ := (hM a).2
-  refine ⟨t, ht, fun ha => ?_, fun ha => by simp [hnot ha]⟩
-  have := hmem ha
-  norm_num at this
-  omega
+  exact ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, hmem, hnot⟩ := (hM a).2
+    ⟨(hM a).1, t, ht, fun ha => by have := hmem ha; norm_num at this; omega,
+      fun ha => by simp [hnot ha]⟩⟩
 
 end Cslib.Complexity

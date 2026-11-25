@@ -206,16 +206,12 @@ theorem uniformList_threshold_accept_ge {t : ℕ → ℕ} {m : ℕ} (ht : m + 1 
     mul_le_mul_of_nonneg_left (hpoint x)
       (ENNReal.toReal_nonneg (a := PMF.uniformOfFintype (BitString m) x))
   simp only [mul_add, Finset.sum_add_distrib] at hsum
-  have hbind_approx :
-      (((BitString.uniformList m).bind approx) true).toReal =
-        ∑ x : BitString m, (PMF.uniformOfFintype (BitString m) x).toReal *
-          (approx (List.ofFn x) true).toReal := by
+  have hbind (f : List Bool → PMF Bool) : (((BitString.uniformList m).bind f) true).toReal =
+      ∑ x : BitString m, (PMF.uniformOfFintype (BitString m) x).toReal *
+        (f (List.ofFn x) true).toReal := by
     simp only [BitString.uniformList, PMF.bind_map, bind_apply_toReal, Function.comp_apply]
-  have hbind_accept :
-      (((BitString.uniformList m).bind accept) true).toReal =
-        ∑ x : BitString m, (PMF.uniformOfFintype (BitString m) x).toReal *
-          (accept (List.ofFn x) true).toReal := by
-    simp only [BitString.uniformList, PMF.bind_map, bind_apply_toReal, Function.comp_apply]
+  have hbind_approx := hbind approx
+  have hbind_accept := hbind accept
   have hcount := sum_uniform_timeBoundedNat_lt_le ht k
   linarith
 
@@ -261,25 +257,18 @@ theorem generator_threshold_accept_le {t : ℕ → ℕ} {m : ℕ} (hm : 1 ≤ m)
         (2 : ℝ) ^ (-(B - 3)) * ∑ x : BitString m, fail x := by
     calc
       ∑ x ∈ S, (pG x).toReal * (accept (List.ofFn x) true).toReal
-        ≤ ∑ x ∈ S, (pG x).toReal * fail x := Finset.sum_le_sum fun x _ => hpoint x
-      _ ≤ ∑ x ∈ S, (2 : ℝ) ^ (-(B - 3)) * fail x := by
-        refine Finset.sum_le_sum fun x hx => ?_
-        simp only [S, Finset.mem_filter, Finset.mem_univ, true_and] at hx
-        exact mul_le_mul_of_nonneg_right hx (hfail_nonneg x)
-      _ ≤ ∑ x : BitString m, (2 : ℝ) ^ (-(B - 3)) * fail x := by
-        refine Finset.sum_le_univ_sum_of_nonneg fun x => ?_
-        exact mul_nonneg (by positivity) (hfail_nonneg x)
-      _ = (2 : ℝ) ^ (-(B - 3)) * ∑ x : BitString m, fail x := by
-        rw [← Finset.mul_sum]
+        ≤ ∑ x ∈ S, (2 : ℝ) ^ (-(B - 3)) * fail x := Finset.sum_le_sum fun x hx =>
+          (hpoint x).trans (mul_le_mul_of_nonneg_right (Finset.mem_filter.mp hx).2 (hfail_nonneg x))
+      _ ≤ (2 : ℝ) ^ (-(B - 3)) * ∑ x : BitString m, fail x := by
+        rw [Finset.mul_sum]
+        exact Finset.sum_le_univ_sum_of_nonneg fun x => mul_nonneg (by positivity) (hfail_nonneg x)
   have hSc_sum :
       ∑ x ∈ Sᶜ, (pG x).toReal * (accept (List.ofFn x) true).toReal ≤ 1 - 1 / (m : ℝ) := by
     have hcompl : (∑ x ∈ S, (pG x).toReal) + ∑ x ∈ Sᶜ, (pG x).toReal = 1 := by
       rw [Finset.sum_add_sum_compl, sum_toReal]
     have hle1 : ∑ x ∈ Sᶜ, (pG x).toReal * (accept (List.ofFn x) true).toReal ≤
-        ∑ x ∈ Sᶜ, (pG x).toReal * 1 := by
-      refine Finset.sum_le_sum fun x _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-      exact toReal_apply_le_one _ true
-    simp only [mul_one] at hle1
+        ∑ x ∈ Sᶜ, (pG x).toReal := Finset.sum_le_sum fun x _ =>
+      mul_le_of_le_one_right ENNReal.toReal_nonneg (toReal_apply_le_one _ true)
     linarith
   have hfail_sum :
       (2 : ℝ) ^ (-(B - 3)) * ∑ x : BitString m, fail x =

@@ -364,10 +364,8 @@ private theorem rebalance_correct [LinearOrder M.Value]
         refine WP.op ⟨by omega, cs.length, by simp, cs, nodeAt d label before sib, tree, _, rfl,
           om, pm, pv, ?_, pathTail, rt, dt, ?_, by simpa [pm_simps] using ct,
           by simpa [pm_simps] using rootT, by simp [pm_simps]⟩
-        · rw [insert_nodeSide d _ h C S query pathHere]
-          exact mt
-        · rw [addresses_plug, at', ← addresses_plug]
-          exact fp
+        · rwa [insert_nodeSide d _ h C S query pathHere]
+        · rwa [addresses_plug, at', ← addresses_plug]
     · -- The loop ends at the root: no ancestor is left, and the focus is the whole tree.
       obtain ⟨cs', before', after', focused', -, om, fm, fv, cm, -, rep', dist', fp, cur, top,
         nil⟩ := hy
@@ -514,8 +512,7 @@ theorem insert_correct [LinearOrder M.Value]
   have rootA : a.ptr 1 = root tree :=
     (ra.ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans rootReg
   have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight := by
-    rw [matched.keys]
-    exact searchVisits_le_cachedHeight valid.heightConsistent _
+    rw [matched.keys]; exact searchVisits_le_cachedHeight valid.heightConsistent _
   have endpoint : ∃ t result,
       ExecWithin (insert zero maxSucc lt heavy le field source) s t
         (105 * original.cachedHeight + extra + 20) ∧
@@ -524,8 +521,7 @@ theorem insert_correct [LinearOrder M.Value]
     | nil =>
       let cleared := a.setPtr 5 none
       have complete : Represents cleared.heap none (plug cs .nil) := by
-        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]
-        exact rep
+        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
       have separated : AddressesDistinct (plug cs .nil) := ra.reconstruction ▸ distinct
       have m : Matches encode field (plug cs .nil) original := ra.reconstruction ▸ matched
       have path : SearchPath (cleared.data 0) cs := by
@@ -540,8 +536,7 @@ theorem insert_correct [LinearOrder M.Value]
       have run := ExecWithin.seq ea
         (afterSeek_missing zero maxSucc lt heavy le field source a ra.cursor b _ eb)
       have before : InsertResult encode field source s b tree result original := by
-        rw [ra.reconstruction]
-        exact InsertResult.before rb ra.heap (fun i h1 _ => ra.data i h1) safe
+        rw [ra.reconstruction]; exact rb.before ra.heap (fun i h1 _ => ra.data i h1) safe
       have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
       rw [← ra.reconstruction, matched.shape_height,
         ← cachedHeight_eq_height valid.heightConsistent] at depth
@@ -555,14 +550,12 @@ theorem insert_correct [LinearOrder M.Value]
       have run := ExecWithin.seq ea
         (afterSeek_found zero maxSucc lt heavy le field source a nonempty)
       let t := a.setPtr 5 none
-      refine ⟨t, tree, run.mono (by omega), ?_⟩
-      refine ⟨?_, ?_, distinct, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      refine ⟨t, tree, run.mono (by omega), ?_, ?_, distinct, ?_, ?_,
+        ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩, fun i h1 _ => ra.data i h1, ?_, ?_⟩
       · simpa only [t, State.setPtr, ra.heap] using rep
       · simpa only [unchanged] using matched
       · simpa [t, State.setPtr] using rootA
       · simp [t, State.setPtr, ra.heap]
-      · exact ⟨Finset.Subset.refl _, Finset.subset_insert _ _⟩
-      · intro i h1 _; exact ra.data i h1
       · intro z f _ _; simp only [t, State.setPtr, ra.heap]
       · intro grows; simp [t, State.setPtr, ra.heap] at grows
   obtain ⟨t, result, exec, outcome⟩ := endpoint

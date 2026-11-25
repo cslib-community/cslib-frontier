@@ -75,14 +75,14 @@ theorem mainLoop_spec (φ : CNF ℕ) (N T : ℕ) (hfit : Fits w (T + 5 * N + 2))
       have hone : y.regs one = 1 := (hy.regs_eq (by decide)).trans h1
       have hx : ¬(Cond.eq go one).Holds y := by simp [Cond.holds_eq, hgo', hone]
       refine ⟨y, (ExecWithin.loop_iter hc hy (ExecWithin.loop_exit hx)).mono ?_, hout, hlist⟩
-      simp only
-      nlinarith
+      simp only [Nat.add_one_mul]
+      omega
     · rename_i t' hst
       rw [hst] at hys hy
       obtain ⟨z, hz, hzo, hzl⟩ := mainLoop_spec φ N T hfit k t' y a hys h
       refine ⟨z, (ExecWithin.loop_iter hc hy hz).mono ?_, hzo, hzl⟩
-      simp only
-      nlinarith
+      simp only [Nat.add_one_mul]
+      omega
 
 theorem answerList_answer (N : ℕ) (φ : CNF ℕ) :
     answerList N (Trail.answer φ) = answerWords N φ := by
@@ -162,10 +162,8 @@ theorem program_spec (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ c, l
       ExecutesList w program (State.init (encode N φ)) (answerWords N φ) n := by
   obtain ⟨y, ⟨n, hn, he⟩, hyo, hyl⟩ := solver_spec N φ hN hfit
   have hlen := length_answerWords_le N φ
-  refine ⟨n + 1, by omega, ?_⟩
-  have := he.executesList out (by rw [hyl, hyo]; exact hfit.of_le (by omega))
-  rw [hyl] at this
-  exact this
+  exact ⟨n + 1, by omega,
+    hyl ▸ he.executesList out (by rw [hyl, hyo]; exact hfit.of_le (by omega))⟩
 
 theorem depth_le {N : ℕ} {φ : CNF ℕ} (hN : ∀ c ∈ φ, ∀ l ∈ c, l.1 < N) : depth φ ≤ N := by
   have := ((List.nodup_eraseDups φ.vars).subperm (l₂ := List.range N) fun v hv => by
@@ -185,18 +183,12 @@ theorem program_spec_pow (N : ℕ) (φ : CNF ℕ) (hN : ∀ c ∈ φ, ∀ l ∈ 
   have hE : 1 ≤ E := by simp [E, encode]
   have hd : 2 ^ (depth φ + 1) ≤ 2 * 2 ^ N := by
     rw [Nat.pow_succ, Nat.mul_comm]
-    exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_right (by norm_num) (depth_le hN))
-  have hp : 1 ≤ 2 ^ N := Nat.one_le_two_pow
+    exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_right (by decide) (depth_le hN))
+  have h₁ : 2 ^ (depth φ + 1) * (37 * E + 62) ≤ 198 * (2 ^ N * E) :=
+    (Nat.mul_le_mul hd (by omega : 37 * E + 62 ≤ 99 * E)).trans_eq (by ring)
+  have hNE : 2 ^ N ≤ 2 ^ N * E := Nat.le_mul_of_pos_right _ hE
   have hNp : N < 2 ^ N := Nat.lt_two_pow_self
-  have h₁ : 2 ^ (depth φ + 1) * (37 * E + 62) ≤ 2 * 2 ^ N * (99 * E) :=
-    Nat.mul_le_mul hd (by omega)
-  have h₂ : 10 * N ≤ 10 * (2 ^ N * E) := by
-    have : 2 ^ N ≤ 2 ^ N * E := Nat.le_mul_of_pos_right _ hE
-    omega
-  have h₃ : 14 ≤ 14 * (2 ^ N * E) := by
-    have : 1 ≤ 2 ^ N * E := Nat.mul_pos hp hE
-    omega
-  have : 2 * 2 ^ N * (99 * E) = 198 * (2 ^ N * E) := by ring
+  have h1 : 1 ≤ 2 ^ N * E := Nat.mul_pos Nat.one_le_two_pow hE
   have : 222 * 2 ^ N * E = 222 * (2 ^ N * E) := by ring
   omega
 

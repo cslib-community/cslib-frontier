@@ -394,39 +394,24 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
       insCheckRKeyGuardsGenProg_spec henv hv.curEp_or hv_cur hbo_fn hrep (rKey := rKey) (s := s)
     set progCap := insAfterCapGenProg
       ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), u.val)
-    have hstep1_st : (Memory.spec 0).clientState s
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) =
-        (Memory.spec 0).clientState s progCap := by
-      rw [clientState_bind, hcp_st, hcp_res]; rfl
-    have hstep1_res : (Memory.spec 0).clientResult s
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) =
-        (Memory.spec 0).clientResult s progCap := by
-      rw [clientResult_bind, hcp_st, hcp_res]; rfl
-    have hstep1_mc : memoryCost
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) s =
+    set P1 : Memory.Prog ℕ :=
+      insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
+        if cpRes.1 = 1 then
+          insAfterCapGenProg
+            ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
+        else pure 0 with hP1
+    have hstep1_st : (Memory.spec 0).clientState s P1 = (Memory.spec 0).clientState s progCap := by
+      rw [hP1, clientState_bind, hcp_st, hcp_res]; rfl
+    have hstep1_res :
+        (Memory.spec 0).clientResult s P1 = (Memory.spec 0).clientResult s progCap := by
+      rw [hP1, clientResult_bind, hcp_st, hcp_res]; rfl
+    have hstep1_mc : memoryCost P1 s =
         memoryCost (insCheckCapPoolGenProg ((cp, base), b)) s + memoryCost progCap s := by
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+      simp only [hP1, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
       rw [hcp_st, hcp_res]; rfl
     have hstep1_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s progCap →
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-            if cpRes.1 = 1 then
-              insAfterCapGenProg
-                ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-            else pure 0) := by
-      intro hvp_c; refine validProg_bind hcp_vp ?_; rw [hcp_st, hcp_res]; exact hvp_c
+        ValidProg w (base + largeSpaceWhp c U V w n_max) s P1 := by
+      intro hvp_c; rw [hP1]; refine validProg_bind hcp_vp ?_; rw [hcp_st, hcp_res]; exact hvp_c
     rw [hstep1_st, hstep1_res, hstep1_mc]
     have hcap_all :
         memoryCost (insCheckCapPoolGenProg ((cp, base), b)) s + memoryCost progCap s ≤
@@ -481,45 +466,28 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
             (rKey := rKey) (s := s)
         set progRK := insAfterRKeyGenProg
           ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rKey))
-        have hstep2_st : (Memory.spec 0).clientState s
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) =
-            (Memory.spec 0).clientState s progRK := by
-          rw [clientState_bind, her_st, her_res, clientState_bind, hcg_st, hcg_res]; rfl
-        have hstep2_res : (Memory.spec 0).clientResult s
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) =
-            (Memory.spec 0).clientResult s progRK := by
-          rw [clientResult_bind, her_st, her_res, clientResult_bind, hcg_st, hcg_res]; rfl
-        have hstep2_mc : memoryCost
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) s =
+        set P2 : Memory.Prog ℕ :=
+          insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
+            insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
+            if ok2 = 1 then
+              insAfterRKeyGenProg
+                ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
+            else pure 0 with hP2
+        have hstep2_st :
+            (Memory.spec 0).clientState s P2 = (Memory.spec 0).clientState s progRK := by
+          rw [hP2, clientState_bind, her_st, her_res, clientState_bind, hcg_st, hcg_res]; rfl
+        have hstep2_res :
+            (Memory.spec 0).clientResult s P2 = (Memory.spec 0).clientResult s progRK := by
+          rw [hP2, clientResult_bind, her_st, her_res, clientResult_bind, hcg_st, hcg_res]; rfl
+        have hstep2_mc : memoryCost P2 s =
             memoryCost (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val)) s +
             memoryCost (insCheckRKeyGuardsGenProg ((cp, base), rKey)) s +
             memoryCost progRK s := by
-          simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+          simp only [hP2, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
           rw [her_st, her_res, hcg_st, hcg_res]; simp only [↓reduceIte, Nat.add_assoc]; rfl
         have hstep2_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s progRK →
-            ValidProg w (base + largeSpaceWhp c U V w n_max) s
-              (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-                insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-                if ok2 = 1 then
-                  insAfterRKeyGenProg
-                    ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-                else pure 0) := by
-          intro hvp_r
+            ValidProg w (base + largeSpaceWhp c U V w n_max) s P2 := by
+          intro hvp_r; rw [hP2]
           refine validProg_bind her_vp ?_; rw [her_st, her_res]
           refine validProg_bind hcg_vp ?_; rw [hcg_st, hcg_res]; exact hvp_r
         rw [hstep2_st, hstep2_res, hstep2_mc]

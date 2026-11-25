@@ -533,21 +533,7 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     IsOraclePPT encBool (mteCIToPrfDistinguisher M ptLen adversary) := by
   have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
     GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
-  let ECaller := encPair encUnary encBits
-  let EStateCaller := encPair ECaller encBits
-  have hhandler := isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly
-  have hprepare : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × List Bool =>
-        (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
-      EStateCaller ECaller := by
-    dsimp only [EStateCaller, ECaller]
-    exact ((hparam.comp ((ComputableInPolyTime.fst encUnary encBits).comp
-      (ComputableInPolyTime.fst ECaller encBits))).prod
-      (ComputableInPolyTime.const ([] : List Bool)))
-  have hres : ComputableInPolyTime
-      (fun pair : ((ℕ × List Bool) × List Bool) × List Bool => 4 * pair.1.1.1 + 2)
-      (encPair EStateCaller encBits) encUnary := by
-    dsimp only [EStateCaller, ECaller]; fun_prop
+  let EStateCaller := encPair (encPair encUnary encBits) encBits
   have hrun : IsOraclePPTOn (Operation := Unit) EStateCaller (encPair encBits (encList encBits))
       (fun p : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
@@ -563,18 +549,17 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
         (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
       (initial := fun _ => ([] : List (List Bool)))
       (resources := fun p _ => 4 * p.1.1 + 2)
-      hprepare hhandler (ComputableInPolyTime.const [])
-      (fun _ _ => True) (fun _ => trivial) hres
+      (by dsimp only [EStateCaller]; fun_prop) (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly)
+      (ComputableInPolyTime.const []) (fun _ _ => True) (fun _ => trivial)
+      (by dsimp only [EStateCaller]; fun_prop)
     intro p request log _ result hresult
     unfold mteCIToPrfHandler at hresult
     dsimp only at hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨tag, _, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support
-        (ProbOracleComp.sample (BitString.sampleList p.1.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = p.1.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨pad, hpad, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawPad, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hpad
       cases OracleComp.eq_of_mem_supportWith_pure hresult
@@ -587,49 +572,11 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
         lia
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
-  have hkm : IsOraclePPTOn (Operation := Unit) ECaller encBits
-      (fun caller : ℕ × List Bool =>
-        ProbOracleComp.sample (M.keyGen (GeneratorReindex.parameter ptLen caller.1))) :=
-    (M.keyGen_ppt.preprocess
-      (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn
-  have hpost := isOraclePPTOn_mteCIToPrfPost M ptLen hptLenPoly
-  have hinner : IsOraclePPTOn (Operation := Unit) EStateCaller encBool
-      (fun p : (ℕ × List Bool) × List Bool => do
-        let out ← (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun u => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin u)))
-            (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2))
-          (adversary (GeneratorReindex.parameter ptLen p.1.1) [])).run []
-        if !out.2.contains out.1 && out.1.length == 2 * p.1.1 then do
-          let pad ← List.take p.1.1 <$> ProbOracleComp.query ((), out.1.take p.1.1)
-          pure (mtePlaintextValid M (GeneratorReindex.parameter ptLen p.1.1) p.2
-            (List.zipWith xor pad (out.1.drop p.1.1)))
-        else
-          pure false) :=
-    hrun.bind_with hpost
-  have hbody : IsOraclePPTOn (Operation := Unit) ECaller encBool
-      (fun caller : ℕ × List Bool => do
-        let km ← ProbOracleComp.sample (M.keyGen (GeneratorReindex.parameter ptLen caller.1))
-        let out ← (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun u => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin u)))
-            (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen caller.1) caller.1 km))
-          (adversary (GeneratorReindex.parameter ptLen caller.1) [])).run []
-        if !out.2.contains out.1 && out.1.length == 2 * caller.1 then do
-          let pad ← List.take caller.1 <$> ProbOracleComp.query ((), out.1.take caller.1)
-          pure (mtePlaintextValid M (GeneratorReindex.parameter ptLen caller.1) km
-            (List.zipWith xor pad (out.1.drop caller.1)))
-        else
-          pure false) :=
-    hkm.bind_with hinner
-  have houterCond : ComputableInPolyTime
-      (fun caller : ℕ × List Bool => ptLen (GeneratorReindex.parameter ptLen caller.1) == caller.1)
-      ECaller encBool := by
-    polytime
-  have houterNo : IsOraclePPTOn (Operation := Unit) ECaller encBool
-      (fun _ : ℕ × List Bool => (pure false : WordOracleComp Unit Bool)) :=
-    (ComputableInPolyTime.const false).isOraclePPTOn (Operation := Unit)
   unfold mteCIToPrfDistinguisher
-  exact (IsOraclePPTOn.cond houterCond hbody houterNo).isOraclePPT
+  exact (IsOraclePPTOn.cond (by polytime)
+    ((M.keyGen_ppt.preprocess
+        (hparam.comp (ComputableInPolyTime.fst encUnary encBits))).isOraclePPTOn.bind_with
+      (hrun.bind_with (isOraclePPTOn_mteCIToPrfPost M ptLen hptLenPoly)))
+    (ComputableInPolyTime.const false).isOraclePPTOn).isOraclePPT
 
 end Cslib.Crypto

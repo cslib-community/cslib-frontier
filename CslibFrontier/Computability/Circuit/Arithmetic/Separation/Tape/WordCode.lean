@@ -76,32 +76,17 @@ private theorem wordCode_eq {u : List Γ} {p : Fin N} {y : Option Γ}
 private theorem le_length_of_wordCode {u : List Γ} {p : Fin N} {y : Option Γ}
     (h : wordCode N u (p, y) = true) : p.1 ≤ u.length := by
   have := (List.getElem?_eq_some_iff.1 (wordCode_eq h)).1
-  simp only [List.length_append, List.length_map, List.length_singleton] at this
-  omega
-
-private theorem eq_length_of_wordCode {u : List Γ} {p : Fin N} (h : wordCode N u (p, none) = true) :
-    p.1 = u.length := by
-  have h1 := wordCode_eq h
-  rcases (le_length_of_wordCode h).lt_or_eq with h3 | h3
-  · rw [List.getElem?_append_left (by simpa using h3)] at h1
-    simp at h1
-  · exact h3
-
-private theorem exists_wordCode (u : List Γ) {p : Fin N} (h : p.1 ≤ u.length) :
-    ∃ y, wordCode N u (p, y) = true := by
-  have hlt : p.1 < (u.map some ++ [none]).length := by simp; omega
-  exact ⟨(u.map some ++ [none])[p.1], by simp [wordCode, List.getElem?_eq_getElem hlt]⟩
+  simp only [List.length_append, List.length_map, List.length_singleton] at this; omega
 
 private theorem wordCode_unique {u : List Γ} {p : Fin N} {y y' : Option Γ}
-    (h : wordCode N u (p, y) = true) (h' : wordCode N u (p, y') = true) : y = y' := by
-  have h1 := wordCode_eq h
-  rw [wordCode_eq h'] at h1
-  exact (Option.some.inj h1).symm
+    (h : wordCode N u (p, y) = true) (h' : wordCode N u (p, y') = true) : y = y' :=
+  Option.some.inj <| (wordCode_eq h).symm.trans (wordCode_eq h')
 
 theorem isWordCode_wordCode (u : List Γ) : IsWordCode (wordCode N u) := by
-  refine ⟨fun p y y' h h' => wordCode_unique h h', fun p => ?_⟩
+  refine ⟨fun _ _ _ => wordCode_unique, fun p => ?_⟩
   by_cases hp : p.1 ≤ u.length
-  · exact Or.inl (exists_wordCode u hp)
+  · have hlt : p.1 < (u.map some ++ [none]).length := by simp; omega
+    exact Or.inl ⟨(u.map some ++ [none])[p.1], by simp [wordCode, List.getElem?_eq_getElem hlt]⟩
   · exact Or.inr ⟨⟨u.length, by omega⟩, show u.length < p.1 by omega, by simp [wordCode]⟩
 
 /-- Below the code of a word only this code is a code. -/
@@ -109,17 +94,13 @@ theorem eq_wordCode {x : Fin N × Option Γ → Bool} (hx : IsWordCode x) {u : L
     (hle : ∀ b, x b = true → wordCode N u b = true) : x = wordCode N u := by
   funext ⟨p, y⟩
   rcases hc : wordCode N u (p, y) with _ | _
-  · by_contra h
-    rw [Bool.not_eq_false] at h
-    rw [hle _ h] at hc
-    cases hc
+  · exact Bool.eq_false_iff.2 fun h => by rw [hle _ h] at hc; cases hc
   · rcases hx.exists_of_le p with ⟨y', hy'⟩ | ⟨p', hp', h'⟩
-    · rw [wordCode_unique hc (hle _ hy')]
-      exact hy'
-    · have h1 := eq_length_of_wordCode (hle _ h')
-      have h2 := le_length_of_wordCode hc
-      rw [Fin.lt_def] at hp'
-      omega
+    · exact wordCode_unique hc (hle _ hy') ▸ hy'
+    · have h1 := wordCode_eq (hle _ h')
+      rcases (le_length_of_wordCode (hle _ h')).lt_or_eq with hlt | heq
+      · rw [List.getElem?_append_left (by simpa using hlt)] at h1; simp at h1
+      · have := le_length_of_wordCode hc; rw [Fin.lt_def] at hp'; omega
 
 variable [Fintype Γ]
 
@@ -127,36 +108,25 @@ omit [DecidableEq Γ] in
 /-- A code has at most one set bit per place. -/
 theorem card_ones_le {x : Fin N × Option Γ → Bool} (hx : IsWordCode x) :
     #{b | x b = true} ≤ N := by
-  have : #{b | x b = true} ≤ #(univ : Finset (Fin N)) := by
-    refine card_le_card_of_injOn Prod.fst (fun _ _ => mem_univ _) ?_
-    rintro ⟨p, y⟩ h ⟨p', y'⟩ h' e
-    simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at h h' e
-    subst e
-    rw [hx.unique p y y' h h']
-  simpa using this
+  simpa using card_le_card_of_injOn (s := {b | x b = true}) (t := univ) Prod.fst
+    (fun _ _ => mem_univ _) fun ⟨p, y⟩ h ⟨p', y'⟩ h' e => by
+      simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at h h' e
+      subst e; exact Prod.ext rfl (hx.unique p y y' h h')
 
 theorem card_ones_wordCode (u : List Γ) (hu : u.length + 1 ≤ N) :
     #{b | wordCode N u b = true} = u.length + 1 := by
-  have : #(univ : Finset (Fin (u.length + 1))) = #{b | wordCode N u b = true} := by
-    refine card_bij (fun k _ => (⟨k.1, by omega⟩, (u.map some ++ [none])[k.1]'(by
-      simp))) ?_ ?_ ?_
-    · intro k _
-      have hlt : k.1 < (u.map some ++ [none]).length := by
-        have := k.2
-        simp only [List.length_append, List.length_map, List.length_singleton]
-        omega
-      simp [wordCode]
-    · intro k _ k' _ e
-      exact Fin.ext (congrArg (fun b => b.1.1) e)
-    · rintro ⟨p, y⟩ h
+  symm
+  simpa using card_bij (s := univ (α := Fin (u.length + 1)))
+    (t := {b : Fin N × Option Γ | wordCode N u b = true})
+    (fun k _ => (⟨k.1, by omega⟩, (u.map some ++ [none])[k.1]'(by simp)))
+    (fun k _ => by simp [wordCode])
+    (fun k _ k' _ e => Fin.ext (congrArg (fun b => b.1.1) e))
+    fun ⟨p, y⟩ h => by
       simp only [mem_filter, mem_univ, true_and] at h
       have h2 := le_length_of_wordCode h
-      have h1 := wordCode_eq h
-      refine ⟨⟨p.1, by omega⟩, mem_univ _, ?_⟩
       have hlt : p.1 < (u.map some ++ [none]).length := by simp; omega
-      rw [List.getElem?_eq_getElem hlt] at h1
-      simp [Option.some.inj h1]
-  simpa using this.symm
+      have h1 := wordCode_eq h; rw [List.getElem?_eq_getElem hlt] at h1
+      exact ⟨⟨p.1, by omega⟩, mem_univ _, by simp [Option.some.inj h1]⟩
 
 end Code
 
@@ -209,39 +179,28 @@ theorem prod_codeLits (x : Fin N × Option Γ → Bool)
     · intro p _
       refine ite_eq_right fun h => ?_
       rcases hx.exists_of_le p with ⟨y, hy⟩ | ⟨p', hp', h'⟩
-      · have := h (.inl (p, y), false) (by simp [codeLits])
-        simp [hy] at this
-      · have := h (.inl (p', none), false) (by simp [codeLits, hp'])
-        simp [h'] at this
+      · simpa [hy] using h (.inl (p, y), false) (by simp [codeLits])
+      · simpa [h'] using h (.inl (p', none), false) (by simp [codeLits, hp'])
     · rintro ⟨p, y, y'⟩ _
       by_cases h : ∀ l ∈ codeLits (S := S) (Q := Q) (n := n) (t := t) (M := M)
           (CodeRule.symbol p y y'), Sum.elim x (Pi.oneHot g) l.1 = l.2
-      · refine (ite_eq_left h).trans ?_
-        simp only [codeLits, List.forall_mem_cons, Sum.elim_inl] at h
-        exact ite_eq_left (hx.unique p y y' h.1 h.2.1)
+      · simp only [codeLits, List.forall_mem_cons, Sum.elim_inl] at h
+        exact (ite_eq_left (by simp [codeLits, h.1, h.2.1])).trans
+          (ite_eq_left (hx.unique p y y' h.1 h.2.1))
       · exact ite_eq_right h
   · by_cases h1 : ∀ p y y', x (p, y) = true → x (p, y') = true → y = y'
     · have h2 : ¬ ∀ p, (∃ y, x (p, y) = true) ∨ ∃ p' < p, x (p', none) = true :=
         fun h => hx ⟨h1, h⟩
-      push Not at h2
-      obtain ⟨p, h3, h4⟩ := h2
+      push Not at h2; obtain ⟨p, h3, h4⟩ := h2
       refine mul_eq_zero_of_right _ (prod_eq_zero (mem_univ p) ((ite_eq_left ?_).trans rfl))
-      · intro l hl
-        simp only [codeLits, List.mem_append, List.mem_map, mem_toList, mem_univ, true_and,
-          mem_filter] at hl
-        rcases hl with ⟨y, rfl⟩ | ⟨p', hp', rfl⟩
-        · simpa using h3 y
-        · simpa using h4 p' hp'
-    · push Not at h1
-      obtain ⟨p, y, y', h3, h4, hne⟩ := h1
+      intro l hl
+      simp only [codeLits, List.mem_append, List.mem_map, mem_toList, mem_univ, true_and,
+        mem_filter] at hl
+      rcases hl with ⟨y, rfl⟩ | ⟨p', hp', rfl⟩ <;> [simpa using h3 y; simpa using h4 p' hp']
+    · push Not at h1; obtain ⟨p, y, y', h3, h4, hne⟩ := h1
       refine mul_eq_zero_of_left ?_ _
-      refine prod_eq_zero (mem_univ (p, y, y'))
-        ((ite_eq_left ?_).trans (ite_eq_right hne))
-      · intro l hl
-        simp only [codeLits, List.mem_cons, List.not_mem_nil, or_false] at hl
-        rcases hl with rfl | rfl
-        · simpa using h3
-        · simpa using h4
+      exact prod_eq_zero (mem_univ (p, y, y'))
+        ((ite_eq_left (by simp [codeLits, h3, h4])).trans (ite_eq_right hne))
 
 /-- **Adding the clauses on the input bits restricts a clause sum to codes.** -/
 theorem domainClauseSum_codeLits [Fintype S] [Fintype Q] {Θ : Type} [Fintype Θ]
@@ -250,8 +209,7 @@ theorem domainClauseSum_codeLits [Fintype S] [Fintype Q] {Θ : Type} [Fintype Θ
       if IsWordCode x then domainClauseSum lits w x else 0 := by
   rw [domainClauseSum_sumElim lits w codeLits codeWeights x (if IsWordCode x then 1 else 0)]
   · split_ifs <;> simp
-  · intro g
-    rw [← prod_codeLits (F := F) x g]
+  · exact prod_codeLits (F := F) x
 
 end Rules
 

@@ -439,14 +439,10 @@ private theorem table_write_framed {w n K v z : ℕ} {e : M.Handle} (hV : M.Vali
         (M.framed hV).abs s := by
   have ha : T.base + v ∈ T.footprint := Block.mem_footprint.mpr (Block.owns_add hv)
   have he : ∀ a ∈ (M.framed hV).footprint s,
-      Function.update s.mem (T.base + v) z a = s.mem a := by
-    intro a h
-    apply Function.update_of_ne
-    intro hEq
-    exact (Finset.disjoint_left.mp hd) (hEq ▸ h) ha
-  obtain ⟨hinv', habs', -⟩ := (M.framed hV).congr
-    (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he le_rfl hroom
-  exact ⟨hinv', habs'⟩
+      Function.update s.mem (T.base + v) z a = s.mem a := fun a h =>
+    Function.update_of_ne (fun hEq => Finset.disjoint_left.mp hd (hEq ▸ h) ha) _ _
+  exact ((M.framed hV).congr (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he
+    le_rfl hroom).imp_right And.left
 
 private theorem table_write_op {w n K v z : ℕ} {e : M.Handle} (hV : M.Valid w n K e)
     {T : Block} {s : Memory.State} (hi : (M.framed hV).inv s)
@@ -548,20 +544,14 @@ theorem target_realizes : Realizes .exact
       hmem.fits_of_lt_frontier (hT.lt_frontier (hlen ▸ hv))
     refine ⟨⟨hAddrFit, hsum.of_le (by omega)⟩, ?_⟩
     change if s.mem (d.2.table.base + d.2.vertex) = 0 then _ else _
-    by_cases hx0 : s.mem (d.2.table.base + d.2.vertex) = 0
-    · rw [ite_eq_left hx0]
-      refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
+    split_ifs with hx0 hlt
+    · refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
         (fun u => .insert u (d.2.dist + d.2.weight)) ?_⟩
       simpa only [hx0, Dictionary.Memory.decode_zero] using hop
-    · rw [ite_eq_right hx0]
-      refine ⟨Nat.one_le_iff_ne_zero.mpr hx0, ?_⟩
-      change if d.2.dist + d.2.weight < s.mem (d.2.table.base + d.2.vertex) - 1 then _ else _
-      by_cases hlt : d.2.dist + d.2.weight < s.mem (d.2.table.base + d.2.vertex) - 1
-      · rw [ite_eq_left hlt]
-        rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
-        exact ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
-          (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
-      · rw [ite_eq_right hlt]; trivial
+    · rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
+      exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, ⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv
+        hlen hd (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
+    · exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, trivial⟩
 
 /-- Entry domain for `relaxWord` over `M`. -/
 @[expose] def relaxSafe (w : ℕ) (d : M.Handle × RelaxData) (s : Memory.State) : Prop :=
@@ -624,7 +614,7 @@ theorem relax_realizes : Realizes .exact
   · intro w d s _ hmem ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du, idx⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv ⊢
-    subst hn; subst hm; subst hu
+    subst hn hm hu
     have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
     have hi : idx < (G.adj u).length := hv.1
     obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hA u hi
@@ -738,7 +728,7 @@ theorem scan_realizes : Realizes .exact
   · intro w d s _ hmem hvHist ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv hvHist ⊢
-    subst hn; subst hm; subst hu
+    subst hn hm hu
     have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
     obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hA u
     have hdegEq : s.mem (3 + (u.val + 1)) - s.mem (3 + u.val) = (G.adj u).length := by omega
@@ -884,7 +874,7 @@ theorem loop_realizes : Realizes .exact
   · intro w d s _ _ hvHist ⟨G, hV, hT, hn, hm, hf, hb, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, a0⟩⟩
     dsimp only at hV hT hn hm hf hb hv hvHist ⊢
-    subst hn; subst hm
+    subst hn hm
     refine ⟨trivial, ?_, trivial⟩
     let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
     have heqStep (a : ℕ) : loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e) T

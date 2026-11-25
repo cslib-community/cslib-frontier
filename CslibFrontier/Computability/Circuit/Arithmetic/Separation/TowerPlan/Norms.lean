@@ -114,7 +114,8 @@ theorem moveCount_vertex_le (l : VertexMove FL) :
 
 private theorem relayAlive_middle_le_load (j : Fin J) (e : T.Ed j) (s : Fin 4) (d : Bool) :
     relayAlive lhat n o (.middle j e s) d ≤ load lhat n o (.edge j.castSucc e) :=
-  (relayAlive_middle_le j e s d).trans (by split_ifs <;> simp)
+  (relayAlive_middle_le j e s d).trans
+    (by split_ifs; exacts [(edgeLoads_of_lt _ (by omega) e).le, Nat.zero_le _])
 
 /-- The relays whose channels give units to end segments: the second and the fourth step of the
 way of an edge of the type of the vertex, on their channels `false`. -/

@@ -97,12 +97,10 @@ theorem averagePotential_add_le (source : PMF α) {rate : ℝ} (hrate : 0 < rate
         (∑ x, (source x).toReal * (weight rate (margin x) * step x)) + rate / 2 := by
   have hpoint (x : α) : potential rate (margin x + step x) ≤
       potential rate (margin x) - weight rate (margin x) * step x + rate / 2 := by
-    have hsq : step x ^ 2 ≤ 1 := by
-      obtain ⟨hlower, hupper⟩ := abs_le.mp (hstep x)
-      nlinarith
+    obtain ⟨hlower, hupper⟩ := abs_le.mp (hstep x)
     have h := potential_le_quadratic hrate (margin x) (margin x + step x)
     simp only [add_sub_cancel_left] at h
-    linarith [mul_le_mul_of_nonneg_left hsq hrate.le]
+    linarith [mul_le_mul_of_nonneg_left (show step x ^ 2 ≤ 1 by nlinarith) hrate.le]
   simpa only [one_mul, mul_sub, Finset.sum_sub_distrib, averagePotential, add_comm] using
     sum_le_affine source (a := rate / 2) (b := 1)
       (bound := fun x => potential rate (margin x) - weight rate (margin x) * step x)
@@ -130,10 +128,9 @@ theorem averagePotential_shift_le (source : PMF α) {rate : ℝ} (hrate : 0 < ra
   let below (x : α) : ℝ := if margin x ≤ 0 then 1 else 0
   have hbelow : (∑ x, (source x).toReal * below x) =
       (source.toOuterMeasure {x | margin x ≤ 0}).toReal := by
-    rw [PMF.toOuterMeasure_apply_fintype, ENNReal.toReal_sum]
-    · simp [below, Set.indicator_apply, apply_ite]
-    · intro x _
-      by_cases hx : margin x ≤ 0 <;> simp [hx, source.apply_ne_top]
+    rw [PMF.toOuterMeasure_apply_fintype, ENNReal.toReal_sum
+      (fun x _ => by by_cases hx : margin x ≤ 0 <;> simp [hx, source.apply_ne_top])]
+    simp [below, Set.indicator_apply, apply_ite]
   have hpoint (x : α) : potential rate (margin x - 1) ≤
       potential rate (margin x) + weight rate (margin x) + (1 - below x) * rate / 2 := by
     by_cases hx : margin x ≤ 0
@@ -141,9 +138,8 @@ theorem averagePotential_shift_le (source : PMF α) {rate : ℝ} (hrate : 0 < ra
     · simpa [below, hx] using potential_sub_one_le hrate (margin x)
   simpa only [mul_add, mul_div_assoc, ← mul_assoc, mul_sub, mul_one, Finset.sum_add_distrib,
     ← Finset.sum_mul, Finset.sum_sub_distrib, sum_toReal, hbelow, averagePotential, density] using
-    Finset.sum_le_sum (s := Finset.univ) (fun x _ =>
-      mul_le_mul_of_nonneg_left (hpoint x)
-        (show (0 : ℝ) ≤ (source x).toReal from ENNReal.toReal_nonneg))
+    Finset.sum_le_sum (s := Finset.univ) fun x _ =>
+      mul_le_mul_of_nonneg_left (hpoint x) (ENNReal.toReal_nonneg (a := source x))
 
 /-- The threshold guard and the failure of the stopping test give the cost in Claim 2.11. -/
 theorem shift_progress (source : PMF α) {γ δ : ℝ} (hγ : 0 < γ) (hδ : 0 < δ)
@@ -172,9 +168,8 @@ theorem step_progress (source : PMF α) {γ δ : ℝ} (hγ : 0 < γ) (hδ : 0 < 
   cases shift
   · simp only [Bool.false_eq_true, ite_false, sub_zero, add_zero] at h ⊢
     nlinarith [mul_nonneg (mul_pos hγ hδ).le (sub_nonneg.mpr hδone)]
-  · have hshift := shift_progress source hγ hδ margin (hguard rfl) (hbelow rfl)
-    simp only [↓reduceIte] at h ⊢
-    linarith
+  · simp only [↓reduceIte] at h ⊢
+    linarith [shift_progress source hγ hδ margin (hguard rfl) (hbelow rfl)]
 
 /-- A low potential forces a large signed margin on every dense soft set. This form of
 Claim 2.13 uses soft sets and arbitrary finite sources, avoiding any rounding of set sizes. -/
@@ -186,16 +181,12 @@ theorem dense_margin_lower_bound (source : PMF α) {rate : ℝ} (hrate : 0 < rat
         averagePotential source rate (fun x => margin x - threshold) := by
   have hpoint (x : α) : softSet x * (1 / (2 * rate) + threshold) ≤
       softSet x * margin x + potential rate (margin x - threshold) := by
-    have hlower := mul_le_mul_of_nonneg_left
-      (potential_lower_bound hrate (margin x - threshold)) (hsoftSet x).1
-    have hupper := mul_le_mul_of_nonneg_right (hsoftSet x).2
-      (potential_nonneg hrate (margin x - threshold))
-    nlinarith
-  simpa only [averagePotential, mul_add, Finset.sum_add_distrib,
-    ← mul_assoc, ← Finset.sum_mul] using
-    Finset.sum_le_sum (s := Finset.univ) (fun x _ =>
-      mul_le_mul_of_nonneg_left (hpoint x)
-        (show (0 : ℝ) ≤ (source x).toReal from ENNReal.toReal_nonneg))
+    nlinarith [mul_le_mul_of_nonneg_left
+      (potential_lower_bound hrate (margin x - threshold)) (hsoftSet x).1,
+      mul_le_mul_of_nonneg_right (hsoftSet x).2 (potential_nonneg hrate (margin x - threshold))]
+  simpa only [averagePotential, mul_add, Finset.sum_add_distrib, ← mul_assoc, ← Finset.sum_mul]
+    using Finset.sum_le_sum (s := Finset.univ) fun x _ =>
+      mul_le_mul_of_nonneg_left (hpoint x) (ENNReal.toReal_nonneg (a := source x))
 
 /-- Once the accumulated decrease pays for the initial potential, every `δ`-dense soft set
 has average signed margin at least that decrease. At `steps` rounds with decrease `γδ² / 8`,
@@ -236,31 +227,23 @@ theorem dense_margin_of_iterations (source : PMF α) {γ δ : ℝ} (hγ : 0 < γ
     (hdensity : δ ≤ ∑ x, (source x).toReal * softSet x) :
     (∑ x, (source x).toReal * softSet x) * (steps * (γ * δ ^ 2 / 8)) ≤
       ∑ x, (source x).toReal * (softSet x * margin steps x) := by
-  have hrate := mul_pos hγ hδ
   have hprogress (i : ℕ) (hi : i ≤ steps) :
       averagePotential source (γ * δ) (fun x => margin i x - threshold i) ≤
         1 / (2 * (γ * δ)) + δ * threshold i - i * (γ * δ ^ 2 / 8) := by
     induction i with
     | zero => simp [hmargin, hthreshold]
-    | succ i ih =>
-      have hprev := ih (by lia)
-      have hnext := hstep i (by lia)
-      push_cast
-      linarith
-  apply dense_margin_of_budget source hrate hthreshold_nonneg (margin steps) softSet
-    hsoftSet hdensity ?_ (hprogress steps le_rfl)
-  apply (div_le_iff₀ (by positivity : 0 < 2 * (γ * δ))).mpr
-  nlinarith
+    | succ i ih => push_cast; linarith [ih (by lia), hstep i (by lia)]
+  exact dense_margin_of_budget source (mul_pos hγ hδ) hthreshold_nonneg (margin steps) softSet
+    hsoftSet hdensity ((div_le_iff₀ (by positivity : 0 < 2 * (γ * δ))).mpr (by nlinarith))
+    (hprogress steps le_rfl)
 
 /-- Integer upper bounds on the inverse advantage and density give a polynomial round count. -/
 theorem clock_sufficient (inverseGamma inverseDelta : ℕ) {γ δ : ℝ}
     (hγ : 1 ≤ inverseGamma * γ) (hδ : 1 ≤ inverseDelta * δ) :
     4 ≤ (4 * inverseGamma ^ 2 * inverseDelta ^ 3 : ℕ) * γ ^ 2 * δ ^ 3 := by
-  have hg : 1 ≤ (inverseGamma * γ) ^ 2 := one_le_pow₀ hγ
-  have hd : 1 ≤ (inverseDelta * δ) ^ 3 := one_le_pow₀ hδ
-  calc
-    (4 : ℝ) ≤ 4 * ((inverseGamma * γ) ^ 2 * (inverseDelta * δ) ^ 3) := by
-      linarith [one_le_mul_of_one_le_of_one_le hg hd]
+  calc (4 : ℝ) ≤ 4 * ((inverseGamma * γ) ^ 2 * (inverseDelta * δ) ^ 3) := by
+        linarith [one_le_mul_of_one_le_of_one_le (one_le_pow₀ hγ (n := 2))
+          (one_le_pow₀ hδ (n := 3))]
     _ = _ := by push_cast; ring
 
 end Cslib.Crypto.Pseudoentropy.Boosting

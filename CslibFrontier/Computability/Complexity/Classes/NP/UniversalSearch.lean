@@ -487,29 +487,17 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     have hbase : l + (enc a).length + 1 ≤ 4 * (K + (enc a).length + 1) := by
       dsimp only [l]
       omega
-    have hpow : (l + (enc a).length + 1) ^ d ≤ 4 ^ d * (K + (enc a).length + 1) ^ d := by
-      calc (l + (enc a).length + 1) ^ d
-          ≤ (4 * (K + (enc a).length + 1)) ^ d := Nat.pow_le_pow_left hbase d
-        _ = 4 ^ d * (K + (enc a).length + 1) ^ d := Nat.mul_pow _ _ _
+    have hpow : (l + (enc a).length + 1) ^ d ≤ 4 ^ d * (K + (enc a).length + 1) ^ d :=
+      (Nat.pow_le_pow_left hbase d).trans_eq (Nat.mul_pow _ _ _)
     have hr : K₀ + 1 + 1 ≤ 2 * (K + (enc a).length + 1) := by omega
     obtain ⟨hcomp, htime, hspace⟩ := hrun
     refine ⟨w₀, verifier_of_levinStage_eq_some hw₀, hcomp, htime.mono ?_, hspace.mono ?_⟩
-    · calc c * (K₀ + 1 + 1) * (l + (enc a).length + 1) ^ d
-          ≤ c * (2 * (K + (enc a).length + 1)) * (4 ^ d * (K + (enc a).length + 1) ^ d) :=
+    · calc _ ≤ c * (2 * (K + (enc a).length + 1)) * (4 ^ d * (K + (enc a).length + 1) ^ d) :=
             Nat.mul_le_mul (Nat.mul_le_mul_left c hr) hpow
-        _ = C * (K + (enc a).length + 1) ^ D := by
-            dsimp only [C, D]
-            rw [pow_succ']
-            ring
-    · have h1 : 1 ≤ 2 * (K + (enc a).length + 1) := by omega
-      calc c * (l + (enc a).length + 1) ^ d
-          ≤ c * (4 ^ d * (K + (enc a).length + 1) ^ d) := Nat.mul_le_mul_left c hpow
-        _ ≤ (2 * (K + (enc a).length + 1)) * (c * (4 ^ d * (K + (enc a).length + 1) ^ d)) :=
-            Nat.le_mul_of_pos_left _ (by omega)
-        _ = C * (K + (enc a).length + 1) ^ D := by
-            dsimp only [C, D]
-            rw [pow_succ']
-            ring
+        _ = C * (K + (enc a).length + 1) ^ D := by dsimp only [C, D]; ring
+    · calc _ ≤ (2 * (K + (enc a).length + 1)) * (c * (4 ^ d * (K + (enc a).length + 1) ^ d)) :=
+            (Nat.mul_le_mul_left c hpow).trans (Nat.le_mul_of_pos_left _ (by omega))
+        _ = C * (K + (enc a).length + 1) ^ D := by dsimp only [C, D]; ring
   have hno : ∀ a, (¬∃ w, V (a, w) = true) → ¬tm.Halts (enc a) := by
     intro a hna
     have hnone : ∀ m, levinStage enc V a m = none := fun m => by
@@ -519,22 +507,16 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
     refine hdiv a fun n => ?_
     rw [searchStep_iterate_of_none (n + 1) fun m _ => hnone m]
     simp [encSearchState]
-  have hhalts : ∀ a, tm.Halts (enc a) ↔ ∃ w, V (a, w) = true := by
-    intro a
-    constructor
-    · intro hh
-      by_contra hna
-      exact hno a hna hh
-    · intro hex
+  have hhalts : ∀ a, tm.Halts (enc a) ↔ ∃ w, V (a, w) = true := fun a =>
+    ⟨fun hh => Classical.byContradiction fun hna => hno a hna hh, fun hex => by
       obtain ⟨K, w, hK⟩ := exists_levinStage_eq_some_iff.mpr hex
       obtain ⟨w', -, hrun⟩ := hstage a K (by rw [hK]; rfl)
-      exact hrun.1.halts
+      exact hrun.1.halts⟩
   have hsound : ∀ a w, tm.Computes (enc a) w → V (a, w) = true := by
     intro a w hw
     obtain ⟨K, _, hK⟩ := exists_levinStage_eq_some_iff.mpr ((hhalts a).mp hw.halts)
     obtain ⟨w', hv', hrun⟩ := hstage a K (by rw [hK]; rfl)
-    have heq : w = w' := hw.unique hrun.1
-    exact heq ▸ hv'
+    exact hw.unique hrun.1 ▸ hv'
   refine ⟨k, State, hfin, tm, C, D, hsound, hhalts, hstage, ?_⟩
   intro k' State' hfin' M
   obtain ⟨i₀, hi₀⟩ := exists_index_levinStage_isSome (enc := enc) (V := V) M
@@ -542,21 +524,13 @@ theorem exists_native_levinSearch {enc : α ↪ List Bool} {V : α × List Bool 
   obtain ⟨w, hv, hcomp, htime, hspace⟩ :=
     hstage a (max (i₀ + 1) T) (hi₀ a T (max (i₀ + 1) T) hhaltM hvM le_rfl)
   have hbound : max (i₀ + 1) T + (enc a).length + 1 ≤
-      (i₀ + 2) * (T + (enc a).length + 1) := by
-    have h1 : i₀ + 1 ≤ (i₀ + 1) * (T + (enc a).length + 1) :=
-      Nat.le_mul_of_pos_right _ (by omega)
-    have h2 : T + (enc a).length + 1 ≤ 1 * (T + (enc a).length + 1) := by omega
-    have : max (i₀ + 1) T + (enc a).length + 1 ≤ (i₀ + 1) + (T + (enc a).length + 1) := by omega
-    nlinarith
-  have hpow : (max (i₀ + 1) T + (enc a).length + 1) ^ D ≤
-      (i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D := by
-    calc _ ≤ ((i₀ + 2) * (T + (enc a).length + 1)) ^ D := Nat.pow_le_pow_left hbound D
-      _ = (i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D := Nat.mul_pow _ _ _
+      (i₀ + 1 + 1) * (T + (enc a).length + 1) := by
+    have := Nat.le_mul_of_pos_right (i₀ + 1) (show 0 < T + (enc a).length + 1 by omega)
+    rw [add_one_mul]
+    omega
   have hmul : C * (max (i₀ + 1) T + (enc a).length + 1) ^ D ≤
-      C * (i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D := by
-    calc C * (max (i₀ + 1) T + (enc a).length + 1) ^ D
-        ≤ C * ((i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D) := Nat.mul_le_mul_left C hpow
-      _ = C * (i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D := by ring
+      C * (i₀ + 2) ^ D * (T + (enc a).length + 1) ^ D :=
+    (Nat.mul_le_mul_left C (Nat.pow_le_pow_left hbound D)).trans_eq (by rw [mul_pow]; ring)
   exact ⟨w, hv, hcomp, htime.mono hmul, hspace.mono hmul⟩
 
 end General
@@ -636,23 +610,15 @@ theorem exists_poly_levinStage_iff :
   constructor
   · rintro ⟨p, hp⟩
     refine mem_P.mpr ⟨fun φ => (levinStage φ (p.eval (encCNF φ).length)).isSome, ?_, fun φ => ?_⟩
-    · have hp_poly : ComputableInPolyTime (fun φ : CNF ℕ => p.eval (encCNF φ).length)
-          encCNF encUnary :=
-        (unary_eval p).comp (encoding_length encCNF)
-      have hpair : ComputableInPolyTime (fun φ : CNF ℕ => (φ, p.eval (encCNF φ).length))
+    · have hpair : ComputableInPolyTime (fun φ : CNF ℕ => (φ, p.eval (encCNF φ).length))
           encCNF (encPair encCNF encUnary) :=
-        (ComputableInPolyTime.id' (encIn := encCNF)).prod hp_poly
-      have hstage : ComputableInPolyTime
-          (fun φ : CNF ℕ => levinStage φ (p.eval (encCNF φ).length))
-          encCNF (encOption encBits) := by
-        simpa only [Function.comp_def] using
-          (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp hpair
-      exact optionIsSome hstage
-    · constructor
-      · exact hp φ
-      · intro hs
-        obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hs
-        exact ⟨assignment φ w, verifier_of_levinStage_eq_some hw⟩
+        (ComputableInPolyTime.id' (encIn := encCNF)).prod
+          ((unary_eval p).comp (encoding_length encCNF))
+      exact optionIsSome (by simpa only [Function.comp_def] using
+        (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp hpair)
+    · refine ⟨hp φ, fun hs => ?_⟩
+      obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hs
+      exact ⟨assignment φ w, verifier_of_levinStage_eq_some hw⟩
   · intro hSAT
     obtain ⟨g, ⟨t, s, ht, -, k, State, hfin, tm, htm⟩, hg⟩ := exists_search hSAT
     obtain ⟨c, e, hle⟩ := polynomiallyBounded_iff_le.mp ht

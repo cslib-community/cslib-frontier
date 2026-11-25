@@ -383,8 +383,7 @@ theorem closeTo_eval_sampleGridGaussian_pi
         discreteGaussianInt qs hqs_pos
           ((inp.modulus : ℝ) * (inp.target.getD i.val 0 : ℝ)) := by
       congr 1
-    rw [hdgInt_eq] at h
-    exact h
+    rwa [hdgInt_eq] at h
   have hpi := CloseTo.piFin hcoord
   have hmul_eq : (inp.dim : ℝ≥0∞) * ENNReal.ofReal Δ = ENNReal.ofReal ((inp.dim : ℝ) * Δ) := by
     rw [ENNReal.ofReal_mul (Nat.cast_nonneg _), ENNReal.ofReal_natCast]

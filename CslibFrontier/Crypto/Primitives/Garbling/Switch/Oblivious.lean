@@ -200,17 +200,15 @@ private theorem isCostBounded_reduceGate [DecidableEq R] (H : L → ℕ → L) (
       (Sum.elim (fun _ => 0) fun q : CCR.Arithmetic.Query L R => if q.tweak = t then 1 else 0)
       (reduceGate H col σ i A g) (if i = t then 1 else 0) := by
   cases g with
-  | affine terms b y => exact .pure _ _
   | switch x y c =>
     by_cases hc : σ c = 0
     · simp only [reduceGate, hc, ite_true]
       exact .pure _ _
     · simp only [reduceGate, hc, ite_false]
-      refine ((ProbOracleComp.isCostBounded_query
+      exact ((ProbOracleComp.isCostBounded_query
         (spec := fun _ : CCR.Arithmetic.Query L R => L) _ ⟨A c, i, σ (.inr y) - σ x⟩).bind (m := 0)
-          fun r => OracleComp.IsCostBounded.pure _ 0).mono ?_
-      simp
-  | join x y => exact .pure _ _
+          fun _ => .pure _ 0).mono (by simp)
+  | _ => exact .pure _ _
 
 private theorem isCostBounded_reduceGates [DecidableEq R] (H : L → ℕ → L)
     (col : L →+ ZMod 2) (σ : Fin n ⊕ Fin N → R) (t : ℕ) :
@@ -245,16 +243,11 @@ private theorem interpret_reduceGate_ideal [DecidableEq R] [Fintype L] (H : L �
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifFin fun _ => ProbComp.uniform L)
       (reduceGate H col σ i A g) = simGate H col i A g (g.isOpen σ) := by
   cases g with
-  | affine terms b y => rfl
   | switch x y c =>
     by_cases hc : σ c = 0
-    · simp only [reduceGate, SwitchGate.isOpen, hc, ite_true, ne_eq, not_true_eq_false,
-        decide_false, simGate]
-      rfl
-    · simp only [reduceGate, SwitchGate.isOpen, hc, ite_false, ne_eq, not_false_eq_true,
-        decide_true, simGate, OracleComp.interpret_bind, ProbOracleComp.interpret_query]
-      rfl
-  | join x y => rfl
+    · simp [reduceGate, SwitchGate.isOpen, hc, simGate]
+    · simp [reduceGate, SwitchGate.isOpen, hc, simGate, ProbOracleComp.interpret_query]
+  | _ => rfl
 
 private theorem interpret_reduceGates_ideal [DecidableEq R] [Fintype L] (H : L → ℕ → L)
     (col : L →+ ZMod 2) (σ : Fin n ⊕ Fin N → R) :
@@ -312,55 +305,43 @@ private theorem interpret_reduceGate_real [DecidableEq R] (H : L → ℕ → L)
         (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ q))
         (reduceGate H col σ i A g) = pure ((garbleGate H col Δ i K g).1, A') ∧
       ∀ w ∈ g.define D, A' w = wireLabel Δ ((garbleGate H col Δ i K g).2 w) (σ w) := by
-  -- Away from a newly written wire, both label maps are unchanged.
-  have hkeep : ∀ (y : Fin N) (a k : L), Sum.inr y ∉ D →
-      ∀ w ∈ D, Function.update A (.inr y) a w =
-        wireLabel Δ (Function.update K (.inr y) k w) (σ w) := by
-    intro y a k hy w hw
-    have hne : w ≠ .inr y := fun h => hy (h ▸ hw)
-    rw [Function.update_of_ne hne, Function.update_of_ne hne]
-    exact hA w hw
-  have hnew : ∀ (y : Fin N) (a k : L), a = wireLabel Δ k (σ (.inr y)) → Sum.inr y ∉ D →
+  have hnew (y : Fin N) (a k : L) (ha : a = wireLabel Δ k (σ (.inr y))) (hy : Sum.inr y ∉ D) :
       ∀ w ∈ insert (Sum.inr y) D, Function.update A (.inr y) a w =
         wireLabel Δ (Function.update K (.inr y) k w) (σ w) := by
-    intro y a k ha hy w hw
-    rcases hw with rfl | hw
+    rintro w (rfl | hw)
     · rw [Function.update_self, Function.update_self, ha]
-    · exact hkeep y a k hy w hw
+    · have hne : w ≠ .inr y := fun h => hy (h ▸ hw)
+      rw [Function.update_of_ne hne, Function.update_of_ne hne, hA w hw]
   cases g with
   | affine terms b y =>
     refine ⟨_, rfl, hnew y _ _ ?_ hg.2⟩
-    have hsum : termSum A terms = termSum (fun w => wireLabel Δ (K w) (σ w)) terms :=
-      termSum_congr terms fun p hp => hA p.1 (hg.1 p hp)
-    rw [hsum, termSum_wireLabel, wireLabel, hσ, add_smul]
+    rw [termSum_congr (a' := fun w => wireLabel Δ (K w) (σ w)) terms fun p hp => hA p.1 (hg.1 p hp),
+      termSum_wireLabel, wireLabel, hσ, add_smul]
     abel
   | switch x y c =>
-    have hx := hA x hg.1
-    have hc := hA c hg.2.1
     by_cases hc0 : σ c = 0
-    · have hxy := hσ.2 hc0
-      have hAc : A c = K c := by rw [hc, hc0, wireLabel, zero_smul, add_zero]
+    · have hAc : A c = K c := by rw [hA c hg.2.1, hc0, wireLabel, zero_smul, add_zero]
       refine ⟨Function.update A (.inr y) (A x + H (K c) i), by simp only [reduceGate, hc0,
         ite_true, OracleComp.interpret_pure, garbleGate, hAc], hnew y _ _ ?_ hg.2.2⟩
-      rw [hx, wireLabel, wireLabel, hxy]
+      rw [hA x hg.1, wireLabel, wireLabel, hσ.2 hc0]
       abel
     · have hc1 : σ c = 1 := hσ.1.resolve_left hc0
-      have hAc : A c - Δ = K c := by rw [hc, hc1, wireLabel, one_smul, add_sub_cancel_right]
+      have hAc : A c - Δ = K c := by
+        rw [hA c hg.2.1, hc1, wireLabel, one_smul, add_sub_cancel_right]
       have hcol : col (A c) + 1 = col (K c) := by
-        rw [hc, hc1, wireLabel, one_smul, map_add, hΔ, add_assoc, CharTwo.add_self_eq_zero,
-          add_zero]
+        rw [hA c hg.2.1, hc1, wireLabel, one_smul, map_add, hΔ, add_assoc,
+          CharTwo.add_self_eq_zero, add_zero]
       refine ⟨Function.update A (.inr y)
           (A x + CCR.Arithmetic.oracle H Δ ⟨A c, i, σ (.inr y) - σ x⟩),
         by simp only [reduceGate, hc0, ite_false, interp_norm, pure_bind, garbleGate, hcol],
         hnew y _ _ ?_ hg.2.2⟩
-      rw [CCR.Arithmetic.oracle_apply, hAc, hx, wireLabel, wireLabel, sub_smul]
+      rw [CCR.Arithmetic.oracle_apply, hAc, hA x hg.1, wireLabel, wireLabel, sub_smul]
       abel
   | join x y =>
     refine ⟨A, ?_, hA⟩
     simp only [reduceGate, OracleComp.interpret_pure, garbleGate]
     rw [hA x hg.1, hA y hg.2, wireLabel, wireLabel, hσ]
-    congr 3
-    abel
+    exact congrArg (fun z => pure (Material.shift z, A)) (by abel)
 
 private theorem interpret_reduceGates_real [DecidableEq R] (H : L → ℕ → L)
     (col : L →+ ZMod 2) {Δ : L} (hΔ : col Δ = 1) {σ : Fin n ⊕ Fin N → R} :
@@ -384,31 +365,23 @@ private theorem realGame_reduction [DecidableEq R] [Fintype L] {S : SwitchSystem
     (H : L → ℕ → L) (col : L →+ ZMod 2) [Nonempty {Δ : L // col Δ = 1}]
     (D : SwitchView L n → ProbComp Bool) :
     CCR.Arithmetic.realGame H col (reduction S H col σ D) = realGame S H col x D := by
-  -- For each offset, the reduction from input labels `X` gives the material of the garbling
-  -- with input zero labels `X - x • Δ`.
-  have hmat : ∀ (Δ : {Δ : L // col Δ = 1}) (X : Fin n → L),
+  have hmat (Δ : {Δ : L // col Δ = 1}) (X : Fin n → L) :
       OracleComp.interpret
         (OracleComp.sumHandler ProbComp.unifFin fun q => pure (CCR.Arithmetic.oracle H Δ.1 q))
         (reduceGates H col σ 0 S.gates (Sum.elim X 0)) =
-      pure (garbleWith S H col Δ.1 fun i => X i - x i • Δ.1).material := by
-    intro Δ X
-    refine interpret_reduceGates_real H col Δ.2 0 S.gates _ _ _ ?_ hS hσ.2
-    rintro _ ⟨i, rfl⟩
-    simp only [Sum.elim_inl, wireLabel, hσ.1 i, sub_add_cancel]
-  -- Shifting uniform input labels by `x • Δ` is a bijection.
-  have hshift : ∀ Δ : L, (PMF.uniformOfFintype (Fin n → L)).map (fun K i => K i + x i • Δ) =
-      PMF.uniformOfFintype (Fin n → L) := fun Δ =>
+      pure (garbleWith S H col Δ.1 fun i => X i - x i • Δ.1).material :=
+    interpret_reduceGates_real H col Δ.2 0 S.gates _ _ _
+      (by rintro _ ⟨i, rfl⟩; simp [wireLabel, hσ.1 i]) hS hσ.2
+  have hshift (Δ : L) : (PMF.uniformOfFintype (Fin n → L)).map (fun K i => K i + x i • Δ) =
+      PMF.uniformOfFintype (Fin n → L) :=
     PMF.uniformOfFintype_map_equiv (Equiv.addRight fun i => x i • Δ)
   simp only [CCR.Arithmetic.realGame, PRF.realExperiment, ProbOracleComp.run, realGame, garble,
     reduction, interp_norm, hmat, pure_bind, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
-  congr 1
-  funext Δ
-  conv_lhs => rw [← hshift Δ.1]
-  rw [PMF.bind_map]
-  congr 1
-  funext K
-  simp only [Function.comp_apply, add_sub_cancel_right, garbleWith]
-  rfl
+  refine congrArg _ (funext fun Δ => ?_)
+  conv_lhs => rw [← hshift Δ.1, PMF.bind_map]
+  exact congrArg _ (funext fun K => by
+    simp only [Function.comp_apply, add_sub_cancel_right, garbleWith]
+    rfl)
 
 /-! ### The main theorem -/
 

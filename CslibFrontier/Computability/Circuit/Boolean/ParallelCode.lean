@@ -82,6 +82,14 @@ the common input and output width. -/
     compCode inputCount ([], List.range outputCount)
       (compCode inputCount combined ([], List.range inputCount)))
 
+/-- The empty-gate code `([], List.range (f a))` is polynomial-time computable from a unary `f`. -/
+private theorem computableInPolyTime_rangeCode {α : Type} {enc : α ↪ List Bool} {f : α → ℕ}
+    (hf : ComputableInPolyTime f enc encUnary) :
+    ComputableInPolyTime (fun a => (([] : List (Op × List ℕ)), List.range (f a))) enc encCode :=
+  (const (encOut := encList encGate) []).prod (by
+    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
+      unary_to_binary.map.comp (range.comp hf))
+
 /-- The compiler's single extension step is polynomial-time computable under the fold encoding. -/
 @[fun_prop] theorem computableInPolyTime_parallelFamilyCodeStep :
     ComputableInPolyTime
@@ -92,12 +100,6 @@ the common input and output width. -/
   let stepEnc := encPair (encPair (encPair encUnary encUnary) (encPair encUnary encCode)) encCode
   have hn : ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hm : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.1.2)
-      stepEnc encUnary := by fun_prop
-  have hk : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.1)
       stepEnc encUnary := by fun_prop
   have hstate : ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) => p.1.2.2)
@@ -120,24 +122,9 @@ the common input and output width. -/
   have houtputCount : ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
         (p.1.2.1 + 1) * p.1.1.2) stepEnc encUnary := by fun_prop
-  have hprefixRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range (p.1.2.1 * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hprefixInputs))
-  have hinputRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hinputCount))
-  have houtputRange : ComputableInPolyTime
-      (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.2))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp houtputCount))
+  have hprefixRange := computableInPolyTime_rangeCode hprefixInputs
+  have hinputRange := computableInPolyTime_rangeCode hinputCount
+  have houtputRange := computableInPolyTime_rangeCode houtputCount
   have hshiftedRange : ComputableInPolyTime
       (fun p : (((ℕ × ℕ) × (ℕ × Code)) × Code) =>
         ([], (List.range p.1.1.1).map (p.1.2.1 * p.1.1.1 + ·))) stepEnc encCode := by

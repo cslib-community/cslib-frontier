@@ -90,9 +90,7 @@ private theorem sum_dite_mul {m : ℕ} (hm : m ≤ W) (f : Fin m → F) (g : Fin
     ∑ i : Fin W, (if h : (i : ℕ) < m then f ⟨i, h⟩ else 0) * g i =
       ∑ i : Fin m, f i * g (Fin.castLE hm i) :=
   (Fintype.sum_of_injective (Fin.castLE hm) (Fin.castLE_injective hm) _ _
-    (fun i hi => by
-      have : ¬ (i : ℕ) < m := fun h => hi ⟨⟨i, h⟩, rfl⟩
-      simp [this])
+    (fun i hi => by simp [show ¬(i : ℕ) < m from fun h => hi ⟨⟨i, h⟩, rfl⟩])
     (fun i => by simp)).symm
 
 variable {W} in
@@ -123,25 +121,20 @@ private theorem apply_polynomial [NeZero W] (hW : ∀ k ≤ d, A.width k ≤ W)
     (hφ : ∀ k < d, ∀ i x, φ (k + 1) (A.pre k i * ι F x) = φ k (A.pre k i) * c k x) :
     φ d A.polynomial =
       ((List.range d).map fun k => ∑ x, c k x • A.layer W k x).prod 0 0 := by
-  have key : ∀ k ≤ d, A.pad W k (fun j => φ k (A.pre k j)) =
+  have key (k : ℕ) (hk : k ≤ d) : A.pad W k (fun j => φ k (A.pre k j)) =
       Matrix.vecMul (Pi.single 0 1)
         ((List.range k).map fun k => ∑ x, c k x • A.layer W k x).prod := by
-    intro k
     induction k with
     | zero =>
-      intro _
       ext i
       simp [pad, pre_zero, h0, A.width_zero, Pi.single_apply, Fin.val_eq_zero_iff]
     | succ k ih =>
-      intro hk
       rw [List.range_succ, List.map_append, List.prod_append, List.map_singleton,
         List.prod_singleton, ← Matrix.vecMul_vecMul, ← ih (by omega)]
       exact A.pad_succ (hW k (by omega)) _ _ _ (hφ k hk)
   have hd : (0 : ℕ) < A.width d := by simp [A.width_deg]
-  have hsum : A.polynomial = A.pre d ⟨0, hd⟩ :=
-    Fintype.sum_eq_single _ fun j hj =>
-      absurd (Fin.ext (Nat.lt_one_iff.1 (j.2.trans_eq A.width_deg))) hj
-  rw [hsum]
+  rw [show A.polynomial = A.pre d ⟨0, hd⟩ from Fintype.sum_eq_single _ fun j hj =>
+    absurd (Fin.ext (Nat.lt_one_iff.1 (j.2.trans_eq A.width_deg))) hj]
   simpa [pad, hd] using congrFun (key d le_rfl) 0
 
 private theorem range_map_eq {α : Type*} (N : ℕ → α) (N' : Fin d → α)
@@ -160,16 +153,11 @@ private theorem coeff_polynomial [NeZero W] (hW : ∀ k ≤ d, A.width k ≤ W) 
     (fun k x => if h : k < d then (if x = u ⟨k, h⟩ then 1 else 0) else 0)
     (by simp [coeff_one]) fun k hk i x => ?_
   · rw [range_map_eq _ (fun k : Fin d => A.layer W k (u k)) fun k => by simp] at h
-    have ht : (List.ofFn u).take d = List.ofFn u := List.take_of_length_le (by simp)
-    rw [← h]
-    change coeff (FreeMonoid.ofList (List.ofFn u)) _ =
-      coeff (FreeMonoid.ofList ((List.ofFn u).take d)) _
-    rw [ht]
-  · have hlen : (FreeMonoid.ofList ((List.ofFn u).take k)).toList.length = k := by
-      simp [hk.le]
-    rw [List.take_succ_eq_append_getElem (by simpa using hk), FreeMonoid.ofList_append,
+    change coeff (FreeMonoid.ofList (List.ofFn u)) _ = _
+    rwa [← List.take_of_length_le (by simp : (List.ofFn u).length ≤ d)]
+  · rw [List.take_succ_eq_append_getElem (by simpa using hk), FreeMonoid.ofList_append,
       FreeMonoid.ofList_singleton, coeff_mul_mul_of_isHomogeneous _ _ _
-        (by rw [hlen]; exact A.isHomogeneous_pre k i), coeff_ι]
+        (by simpa [hk.le] using A.isHomogeneous_pre k i), coeff_ι]
     simp [hk, Finsupp.single_apply, FreeMonoid.of_injective.eq_iff]
 
 end NoncommABP
@@ -200,12 +188,10 @@ private theorem lift_superdiagPoint_polynomial [NeZero W] (hW : ∀ k ≤ d, A.w
   · have hk' : k + 1 ≤ d := hk
     simp only [hk.le, hk', hk, dite_true, LinearMap.comp_apply, AlgHom.toLinearMap_apply,
       Matrix.entryLinearMap_apply, map_mul, lift_ι_apply, Matrix.mul_apply]
-    rw [Finset.sum_eq_single ⟨k, by omega⟩]
+    rw [Finset.sum_eq_single_of_mem ⟨k, by omega⟩ (Finset.mem_univ _)]
     · simp [superdiagPoint]
     · intro c _ hc
-      have : k ≠ (c : ℕ) := fun h => hc (Fin.ext h.symm)
-      simp [superdiagPoint, this]
-    · simp
+      simp [superdiagPoint, show k ≠ (c : ℕ) from fun h => hc (Fin.ext h.symm)]
 
 /-- The layers of the read-once oblivious program of a non-commutative program: the `k`-th is
 `∑ x, layer k x * X ^ x`. -/
@@ -229,13 +215,6 @@ noncomputable def noncommABPHittingSet (F : Type*) [Field F] (n d W : ℕ) :
     Finset (Fin n → Matrix (Fin (d + 1)) (Fin (d + 1)) F) :=
   (roabpHittingSet F d W (n - 1)).image superdiagPoint
 
-private theorem superdiagPoint_mem {W : ℕ} {a : Fin d → F}
-    (ha : a ∈ roabpHittingSet F d W (n - 1)) :
-    superdiagPoint a ∈ noncommABPHittingSet F n d W := by
-  classical
-  unfold noncommABPHittingSet
-  exact Finset.mem_image.2 ⟨a, ha, rfl⟩
-
 /-- **Hitting sets of matrices for non-commutative branching programs** (the reduction of
 [ForbesShpilka2013] to read-once oblivious programs, with the hitting set of
 [AgrawalGurjarKorwarSaxena2015]). Over a field of characteristic zero, a nonzero polynomial
@@ -246,42 +225,32 @@ theorem exists_mem_noncommABPHittingSet_lift_ne_zero [CharZero F] {W : ℕ}
     (A : NoncommABP F (Fin n) d) (hW : ∀ k ≤ d, A.width k ≤ W) (hA : A.polynomial ≠ 0) :
     ∃ P ∈ noncommABPHittingSet F n d W, FreeAlgebra.lift F P A.polynomial ≠ 0 := by
   classical
-  have : NeZero W := ⟨fun h => by
-    have h0 := hW 0 (Nat.zero_le d)
-    rw [A.width_zero, h] at h0
-    exact absurd h0 (by decide)⟩
+  have : NeZero W := ⟨fun h => absurd (h ▸ A.width_zero ▸ hW 0 (Nat.zero_le d)) (by decide)⟩
   have hg : roabpProd (A.uniLayer W) (List.finRange d) 0 0 ≠ 0 := by
     obtain ⟨w, hw⟩ := exists_coeff_ne_zero hA
     obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq w (A.isHomogeneous_polynomial w hw)
-    intro h0
-    refine hw ?_
-    have hc := coeff_roabpProd (A.uniLayer W) (List.nodup_finRange d)
-      (Finsupp.equivFunOnFinite.symm fun k => (u k : ℕ))
-      (fun i hi => absurd (List.mem_finRange i) hi) 0 0
+    refine fun h0 => hw ?_
     have hl : ((List.finRange d).map fun k : Fin d => A.layer W k (u k)) =
         (List.finRange d).map fun k => layerCoeff (A.uniLayer W) k
           (Finsupp.equivFunOnFinite.symm (fun k => (u k : ℕ)) k) :=
-      List.map_congr_left fun k _ => by
-        ext i j
+      List.map_congr_left fun k _ => Matrix.ext fun i j => by
         simp [layerCoeff, NoncommABP.uniLayer, Polynomial.coeff_X_pow, Fin.val_inj]
-    rw [A.coeff_polynomial W hW u, hl, ← hc, h0]
+    rw [A.coeff_polynomial W hW u, hl, ← coeff_roabpProd (A.uniLayer W) (List.nodup_finRange d)
+      (Finsupp.equivFunOnFinite.symm fun k => (u k : ℕ))
+      (fun i hi => absurd (List.mem_finRange i) hi) 0 0, h0]
     simp
-  have hR : IsROABP W (n - 1) (roabpProd (A.uniLayer W) (List.finRange d) 0 0) :=
-    ⟨List.finRange d, A.uniLayer W, 0, 0, List.nodup_finRange d,
-      A.natDegree_uniLayer_le W, rfl⟩
-  obtain ⟨a, ha, hne⟩ := isHittingSet_roabpHittingSet (F := F) _ hR hg
-  refine ⟨superdiagPoint a, superdiagPoint_mem ha, fun h0 => hne ?_⟩
-  have hev : ∀ k : Fin d, (A.uniLayer W k).map (Polynomial.eval (a k)) =
-      ∑ x : Fin n, a k ^ (x : ℕ) • A.layer W k x := fun k => by
-    ext i j
+  obtain ⟨a, ha, hne⟩ := isHittingSet_roabpHittingSet (F := F) _
+    ⟨List.finRange d, A.uniLayer W, 0, 0, List.nodup_finRange d, A.natDegree_uniLayer_le W, rfl⟩ hg
+  refine ⟨superdiagPoint a, by unfold noncommABPHittingSet; exact Finset.mem_image_of_mem _ ha,
+    fun h0 => hne ?_⟩
+  have hev (k : Fin d) : (A.uniLayer W k).map (Polynomial.eval (a k)) =
+      ∑ x : Fin n, a k ^ (x : ℕ) • A.layer W k x := Matrix.ext fun i j => by
     simp only [NoncommABP.uniLayer, Matrix.map_apply, Matrix.of_apply, Polynomial.eval_finsetSum,
       Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X,
       Matrix.sum_apply, Matrix.smul_apply, smul_eq_mul]
-    exact Finset.sum_congr rfl fun x _ => mul_comm _ _
+    exact Finset.sum_congr rfl fun _ _ => mul_comm _ _
   rw [eval_roabpProd]
-  simp only [hev]
-  rw [← A.lift_superdiagPoint_polynomial W hW a, h0]
-  exact Matrix.zero_apply _ _
+  simp only [hev, ← A.lift_superdiagPoint_polynomial W hW a, h0, Matrix.zero_apply]
 
 /-- The hitting set for non-commutative branching programs is no larger than the hitting set for
 read-once oblivious programs it is built from, which `card_roabpHittingSet_le` bounds by

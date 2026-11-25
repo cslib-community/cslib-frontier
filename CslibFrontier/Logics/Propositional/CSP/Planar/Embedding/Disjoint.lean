@@ -68,6 +68,32 @@ private theorem append_var_inr (F H : CSP Rel V) (o : H.Occurrence) :
     (appendOccurrenceEquiv F H (Sum.inr o)).var = o.var :=
   congrArg (fun record => record.2.2) (record_appendOccurrenceEquiv_inr F H o)
 
+private theorem appendDartEquiv_vertex_eq_iff_inl_inr (F H : CSP Rel V)
+    (hd : List.Disjoint F.vars H.vars)
+    (a : Dart (incidenceGraph F)) (b : Dart (incidenceGraph H)) :
+    let e := disjointDartEquiv (incidenceGraph F) (incidenceGraph H)
+    (appendDartEquiv F H (e (Sum.inl a))).vertex = (appendDartEquiv F H (e (Sum.inr b))).vertex ↔
+      (e (Sum.inl a)).vertex = (e (Sum.inr b)).vertex := by
+  dsimp only
+  obtain ⟨⟨o, side⟩, rfl⟩ := (incidenceDartEquiv F).surjective a
+  obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv H).surjective b
+  rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
+    appendDartEquiv_inl, appendDartEquiv_inr,
+    vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inr,
+    vertex_incidenceDart_eq_iff, append_var_inl, append_var_inr]
+  have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 ≠
+      (appendOccurrenceEquiv F H (Sum.inr p)).1 := by
+    intro he
+    have he' : o.1.val = F.length + p.1.val := congrArg Fin.val he
+    omega
+  have hv : o.var ≠ p.var := fun he => List.disjoint_left.mp hd o.var_mem (he ▸ p.var_mem)
+  change (side = other ∧ if side then
+    (appendOccurrenceEquiv F H (Sum.inl o)).1 = (appendOccurrenceEquiv F H (Sum.inr p)).1
+    else o.var = p.var) ↔
+      2 * (incidenceDart o side).vertex = 2 * (incidenceDart p other).vertex + 1
+  simp only [hc, hv, ite_self, and_false, false_iff]
+  omega
+
 /-- Endpoint fibers match precisely when the actual occurring variable supports are disjoint.
 No condition is placed on repetitions inside either body or on its graph degrees. -/
 theorem appendDartEquiv_vertex_eq_iff (F H : CSP Rel V) (hd : List.Disjoint F.vars H.vars)
@@ -75,85 +101,40 @@ theorem appendDartEquiv_vertex_eq_iff (F H : CSP Rel V) (hd : List.Disjoint F.va
     (appendDartEquiv F H a).vertex = (appendDartEquiv F H b).vertex ↔ a.vertex = b.vertex := by
   obtain ⟨a, rfl⟩ := (disjointDartEquiv _ _).surjective a
   obtain ⟨b, rfl⟩ := (disjointDartEquiv _ _).surjective b
-  cases a with
-  | inl a =>
+  match a, b with
+  | .inl a, .inl b =>
     obtain ⟨⟨o, side⟩, rfl⟩ := (incidenceDartEquiv F).surjective a
-    cases b with
-    | inl b =>
-      obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv F).surjective b
-      rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
-        appendDartEquiv_inl, appendDartEquiv_inl,
-        vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inl]
-      have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 =
-          (appendOccurrenceEquiv F H (Sum.inl p)).1 ↔ o.1 = p.1 := by
-        simp only [Fin.ext_iff]
-        rfl
-      rw [vertex_incidenceDart_eq_iff]
-      rw [append_var_inl, append_var_inl, hc]
-      change _ ↔ 2 * (incidenceDart o side).vertex = 2 * (incidenceDart p other).vertex
-      rw [show (2 * (incidenceDart o side).vertex = 2 * (incidenceDart p other).vertex) ↔
-        (incidenceDart o side).vertex = (incidenceDart p other).vertex by omega,
-        vertex_incidenceDart_eq_iff]
-    | inr b =>
-      obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv H).surjective b
-      rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
-        appendDartEquiv_inl, appendDartEquiv_inr,
-        vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inr,
-        vertex_incidenceDart_eq_iff, append_var_inl, append_var_inr]
-      have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 ≠
-          (appendOccurrenceEquiv F H (Sum.inr p)).1 := by
-        intro he
-        have he' := congrArg Fin.val he
-        change o.1.val = F.length + p.1.val at he'
-        have := o.1.isLt
-        omega
-      have hv : o.var ≠ p.var := fun he => List.disjoint_left.mp hd o.var_mem (he ▸ p.var_mem)
-      change (side = other ∧ if side then
-        (appendOccurrenceEquiv F H (Sum.inl o)).1 = (appendOccurrenceEquiv F H (Sum.inr p)).1
-        else o.var = p.var) ↔
-          2 * (incidenceDart o side).vertex = 2 * (incidenceDart p other).vertex + 1
-      simp only [hc, hv, ite_self, and_false, false_iff]
-      omega
-  | inr a =>
+    obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv F).surjective b
+    rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
+      appendDartEquiv_inl, appendDartEquiv_inl,
+      vertex_disjointDartEquiv_inl, vertex_disjointDartEquiv_inl,
+      vertex_incidenceDart_eq_iff, append_var_inl, append_var_inl]
+    have hc : (appendOccurrenceEquiv F H (Sum.inl o)).1 =
+        (appendOccurrenceEquiv F H (Sum.inl p)).1 ↔ o.1 = p.1 := by
+      simp only [Fin.ext_iff]; rfl
+    rw [hc, ← vertex_incidenceDart_eq_iff]
+    change _ ↔ 2 * _ = 2 * _
+    dsimp only
+    omega
+  | .inl a, .inr b => exact appendDartEquiv_vertex_eq_iff_inl_inr F H hd a b
+  | .inr a, .inl b =>
+    exact eq_comm.trans ((appendDartEquiv_vertex_eq_iff_inl_inr F H hd b a).trans eq_comm)
+  | .inr a, .inr b =>
     obtain ⟨⟨o, side⟩, rfl⟩ := (incidenceDartEquiv H).surjective a
-    cases b with
-    | inl b =>
-      obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv F).surjective b
-      rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
-        appendDartEquiv_inr, appendDartEquiv_inl,
-        vertex_disjointDartEquiv_inr, vertex_disjointDartEquiv_inl,
-        vertex_incidenceDart_eq_iff, append_var_inr, append_var_inl]
-      have hc : (appendOccurrenceEquiv F H (Sum.inr o)).1 ≠
-          (appendOccurrenceEquiv F H (Sum.inl p)).1 := by
-        intro he
-        have he' := congrArg Fin.val he
-        change F.length + o.1.val = p.1.val at he'
-        have := p.1.isLt
-        omega
-      have hv : o.var ≠ p.var := fun he => List.disjoint_left.mp hd (he ▸ p.var_mem) o.var_mem
-      change (side = other ∧ if side then
-        (appendOccurrenceEquiv F H (Sum.inr o)).1 = (appendOccurrenceEquiv F H (Sum.inl p)).1
-        else o.var = p.var) ↔
-          2 * (incidenceDart o side).vertex + 1 = 2 * (incidenceDart p other).vertex
-      simp only [hc, hv, ite_self, and_false, false_iff]
+    obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv H).surjective b
+    rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
+      appendDartEquiv_inr, appendDartEquiv_inr,
+      vertex_disjointDartEquiv_inr, vertex_disjointDartEquiv_inr,
+      vertex_incidenceDart_eq_iff, append_var_inr, append_var_inr]
+    have hc : (appendOccurrenceEquiv F H (Sum.inr o)).1 =
+        (appendOccurrenceEquiv F H (Sum.inr p)).1 ↔ o.1 = p.1 := by
+      simp only [Fin.ext_iff]
+      change F.length + o.1.val = F.length + p.1.val ↔ o.1.val = p.1.val
       omega
-    | inr b =>
-      obtain ⟨⟨p, other⟩, rfl⟩ := (incidenceDartEquiv H).surjective b
-      rw [incidenceDartEquiv_apply, incidenceDartEquiv_apply,
-        appendDartEquiv_inr, appendDartEquiv_inr,
-        vertex_disjointDartEquiv_inr, vertex_disjointDartEquiv_inr]
-      have hc : (appendOccurrenceEquiv F H (Sum.inr o)).1 =
-          (appendOccurrenceEquiv F H (Sum.inr p)).1 ↔ o.1 = p.1 := by
-        simp only [Fin.ext_iff]
-        change F.length + o.1.val = F.length + p.1.val ↔ o.1.val = p.1.val
-        omega
-      rw [vertex_incidenceDart_eq_iff]
-      rw [append_var_inr, append_var_inr, hc]
-      change _ ↔ 2 * (incidenceDart o side).vertex + 1 = 2 * (incidenceDart p other).vertex + 1
-      rw [show (2 * (incidenceDart o side).vertex + 1 =
-        2 * (incidenceDart p other).vertex + 1) ↔
-          (incidenceDart o side).vertex = (incidenceDart p other).vertex by omega,
-        vertex_incidenceDart_eq_iff]
+    rw [hc, ← vertex_incidenceDart_eq_iff]
+    change _ ↔ 2 * _ + 1 = 2 * _ + 1
+    dsimp only
+    omega
 
 /-- Positional concatenation commutes with actual edge reversal. -/
 theorem reverse_appendDartEquiv (F H : CSP Rel V)

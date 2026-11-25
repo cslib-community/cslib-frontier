@@ -114,10 +114,7 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
     (hab : List.Forall₂ (fun a b : ℝ => a - s ≤ b ∧ b ≤ a + s) as bs) (T : ℝ) (o : Option ℕ) :
     aboveThresholdAux ν T as o ≤ c * aboveThresholdAux ν (T + s) bs o := by
   induction hab generalizing o with
-  | nil =>
-    calc aboveThresholdAux ν T [] o = 1 * aboveThresholdAux ν (T + s) [] o := by
-          rw [one_mul]; rfl
-      _ ≤ c * aboveThresholdAux ν (T + s) [] o := by gcongr
+  | nil => exact le_mul_of_one_le_left' hc
   | @cons a b as bs hab' _ ih =>
     classical
     have hsplit (U x : ℝ) (l : List ℝ) (v : ℤ) :
@@ -138,9 +135,7 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
           push_cast
           linarith [hab'.1]
         simp only [hv, hv', ↓reduceIte]
-        calc ν v * PMF.pure (some 0) o ≤ (c * ν (v + 2 * s)) * PMF.pure (some 0) o := by
-              gcongr; exact hν v
-          _ = c * (ν (v + 2 * s) * PMF.pure (some 0) o) := by ring
+        exact (mul_le_mul_left (hν v) _).trans_eq (mul_assoc _ _ _)
       · simp only [hv, ↓reduceIte, mul_zero, zero_le]
     · rw [← ENNReal.tsum_mul_left]
       refine tsum_le_tsum fun v => ?_
@@ -150,10 +145,8 @@ theorem aboveThresholdAux_apply_le {ν : PMF ℤ} {c : ℝ≥0∞} {s : ℤ} (hc
           intro h
           linarith [hab'.2]
         simp only [hv, hv', ↓reduceIte]
-        calc ν v * (aboveThresholdAux ν T as).map (Option.map Nat.succ) o
-            ≤ ν v * (c * (aboveThresholdAux ν (T + s) bs).map (Option.map Nat.succ) o) := by
-              gcongr; exact Probability.PMF.map_apply_le_mul ih _ o
-          _ = c * (ν v * (aboveThresholdAux ν (T + s) bs).map (Option.map Nat.succ) o) := by ring
+        exact (mul_le_mul_right (Probability.PMF.map_apply_le_mul ih _ o) _).trans_eq
+          (mul_left_comm _ _ _)
 
 /-- AboveThreshold is `(ε₁ + ε₂, 0)`-differentially private for queries of sensitivity `s`
 whenever shifting the threshold noise by `s` changes its masses by at most `exp ε₁` and shifting
@@ -180,16 +173,10 @@ theorem DifferentiallyPrivate.aboveThresholdMechanism {D : Type*} {Adj : D → D
   rw [← ENNReal.tsum_mul_left]
   refine tsum_le_tsum fun r => ?_
   simp only [Equiv.coe_addRight]
-  have haux := aboveThresholdAux_apply_le hc hν hab (T + r) o
   have hT : T + ((r + s : ℤ) : ℝ) = T + r + s := by push_cast; ring
   rw [hT]
-  calc ρ r * aboveThresholdAux ν (T + r) (fs.map fun f => f x) o
-      ≤ (ENNReal.ofReal (Real.exp ε₁) * ρ (r + s)) *
-          (ENNReal.ofReal (Real.exp ε₂) * aboveThresholdAux ν (T + r + s)
-            (fs.map fun f => f y) o) := by
-        exact mul_le_mul' (hρ r) haux
-    _ = ENNReal.ofReal (Real.exp ε₁) * ENNReal.ofReal (Real.exp ε₂) *
-          (ρ (r + s) * aboveThresholdAux ν (T + r + s) (fs.map fun f => f y) o) := by ring
+  exact (mul_le_mul' (hρ r) (aboveThresholdAux_apply_le hc hν hab (T + r) o)).trans_eq
+    (mul_mul_mul_comm _ _ _ _)
 
 private theorem discreteLaplace_pair_shift {s₁ s₂ a : ℝ} (hs₁ : 0 < s₁) (hs₂ : 0 < s₂)
     {Δ : ℕ} (h₁ : (Δ : ℝ) / s₁ = a) (h₂ : (2 * Δ : ℝ) / s₂ = a) :
@@ -238,11 +225,8 @@ theorem ThresholdAccurate.length_le {T α : ℝ} {as : List ℝ} {i : ℕ}
   | cons a as ih =>
     cases i with
     | zero =>
-      simp only [ThresholdAccurate] at h
       by_contra hlt
-      have := has 0 (by simp only [List.length_cons] at hlt ⊢; omega)
-      simp only [List.getElem_cons_zero] at this
-      linarith
+      exact (has 0 (by simp only [List.length_cons] at hlt ⊢; omega)).not_ge h
     | succ i =>
       simp only [ThresholdAccurate] at h
       have := ih h.2 fun j hj => by
@@ -283,9 +267,7 @@ theorem aboveThresholdAux_toOuterMeasure_not_thresholdAccurate_le (ν : PMF ℤ)
         simp only [Set.mem_preimage, Set.mem_ofPred_eq] at ho ⊢
         intro hacc
         apply ho
-        cases o with
-        | none => exact ⟨ha, hacc⟩
-        | some n => exact ⟨ha, hacc⟩
+        cases o <;> exact ⟨ha, hacc⟩
     · rw [compl_compl, List.length_cons, Nat.cast_succ, add_mul, one_mul, add_comm]
 
 /-- AboveThreshold on `k` answers fails to be `(α₁ + α₂)`-accurate with probability at most
@@ -411,8 +393,7 @@ theorem DifferentiallyPrivate.sparse {Adj : D → D → Prop} {ρ ν : PMF ℤ} 
     (M := fun history => Privacy.aboveThresholdMechanism ρ ν T (qs history))
     (ε := fun _ => ε₁ + ε₂) (δ := fun _ => 0)
     (fun history => DifferentiallyPrivate.aboveThresholdMechanism hε₂ (hqs history) hρ hν) c
-  rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, Finset.sum_const_zero] at this
-  exact this
+  rwa [Finset.sum_const, Finset.card_range, nsmul_eq_mul, Finset.sum_const_zero] at this
 
 /-- Sparse with cutoff `c ≥ 1` on an adaptively chosen stream, with discrete Laplace noise of
 scales `2 c Δ / ε` and `4 c Δ / ε`, is `(ε, 0)`-differentially private for queries of sensitivity

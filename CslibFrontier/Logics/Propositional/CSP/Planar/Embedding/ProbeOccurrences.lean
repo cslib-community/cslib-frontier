@@ -71,14 +71,12 @@ theorem argumentSuccessor_probeOccurrence_reverse (F : CSP Rel V) (ports : List 
     argumentSuccessor (probeOccurrence F ports (finRotate ports.length i)) =
       probeOccurrence F ports i := by
   apply CSP.Occurrence.eq_of_positions
-  · exact (probeOccurrence_constraint F ports _).trans
-      (probeOccurrence_constraint F ports i).symm
+  · exact (probeOccurrence_constraint F ports _).trans (probeOccurrence_constraint F ports i).symm
   · change (finRotate _ (probeOccurrence F ports (finRotate ports.length i)).2).val = _
-    rw [val_finRotate, probeOccurrence_argument]
-    have hlen := length_scope_probeOccurrence F ports (finRotate ports.length i)
-    change (probeBody F ports)[(probeOccurrence F ports (finRotate ports.length i)).1.val].2.length
-      = ports.length at hlen
-    rw [hlen, probeOccurrence_argument, val_finRotate]
+    have hlen : (probeBody F ports)[(probeOccurrence F ports
+        (finRotate ports.length i)).1.val].2.length = ports.length :=
+      length_scope_probeOccurrence F ports _
+    rw [val_finRotate, probeOccurrence_argument, hlen, probeOccurrence_argument, val_finRotate]
     split_ifs <;> omega
 
 /-- Probe positions follow the actual body prefix and the literal reversed port word. -/
@@ -95,7 +93,7 @@ theorem probeOccurrence_injective (F : CSP Rel V) (ports : List V) :
     Function.Injective (probeOccurrence F ports) := by
   intro i j he
   have hj := congrArg (fun p => p.2.val) he
-  rw [probeOccurrence_argument, probeOccurrence_argument] at hj
+  simp only [probeOccurrence_argument] at hj
   exact Fin.ext (by omega)
 
 omit [DecidableEq V] in
@@ -105,10 +103,8 @@ theorem var_probeOccurrence (F : CSP Rel V) (ports : List V) (i : Fin ports.leng
   have hbound : ports.length - 1 - i.val < ports.reverse.length := by
     simp only [List.length_reverse]
     omega
-  have h := CSP.record_appendScopeOccurrenceEquiv_inr
-    (F.map fun ⟨r, scope⟩ => ⟨some r, scope⟩) none ports.reverse
-    (⟨ports.length - 1 - i.val, hbound⟩ : Fin _)
-  have hv := congrArg (fun record : ℕ × ℕ × V => record.2.2) h
+  have hv := congrArg (fun r : ℕ × ℕ × V => r.2.2) (CSP.record_appendScopeOccurrenceEquiv_inr
+    (F.map fun ⟨r, scope⟩ => ⟨some r, scope⟩) none ports.reverse ⟨ports.length - 1 - i.val, hbound⟩)
   change (probeOccurrence F ports i).var = ports.reverse[ports.length - 1 - i.val]'hbound at hv
   rw [hv, List.getElem_reverse]
   congr 1
@@ -139,10 +135,9 @@ theorem scope_bodyOccurrence (F : CSP Rel V) (ports : List V) (o : F.Occurrence)
 omit [DecidableEq V] in
 /-- Appending the structural probe retains every original positional occurrence identity. -/
 theorem bodyOccurrence_injective (F : CSP Rel V) (ports : List V) :
-    Function.Injective (bodyOccurrence F ports) := by
-  intro o p he
-  apply CSP.Occurrence.record_injective
-  rw [← record_bodyOccurrence F ports o, ← record_bodyOccurrence F ports p, he]
+    Function.Injective (bodyOccurrence F ports) := fun o p he =>
+  CSP.Occurrence.record_injective <| by
+    rw [← record_bodyOccurrence F ports o, ← record_bodyOccurrence F ports p, he]
 
 /-- Probe augmentation leaves every original incidence edge index unchanged. -/
 theorem incidenceEdgeIndex_bodyOccurrence (F : CSP Rel V) (ports : List V)
@@ -179,11 +174,10 @@ theorem argumentSuccessor_bodyOccurrence (F : CSP Rel V) (ports : List V) (o : F
 theorem exists_bodyOccurrence_of_prefix (F : CSP Rel V) (ports : List V)
     (p : (probeBody F ports).Occurrence) (hp : incidenceEdgeIndex p < F.occurrences.length) :
     ∃ o : F.Occurrence, bodyOccurrence F ports o = p := by
-  have hprefix : F.occurrences <+: (probeBody F ports).occurrences := by
+  have hpre : F.occurrences <+: (probeBody F ports).occurrences := by
     rw [occurrences_probeBody]
     exact List.prefix_append _ _
-  have hm := (hprefix.mem_iff_idxOf_lt_length p.record).mpr hp
-  obtain ⟨o, ho⟩ := CSP.mem_occurrences.mp hm
+  obtain ⟨o, ho⟩ := CSP.mem_occurrences.mp ((hpre.mem_iff_idxOf_lt_length p.record).mpr hp)
   exact ⟨o, CSP.Occurrence.record_injective ((record_bodyOccurrence F ports o).trans ho)⟩
 
 /-- A body-prefix occurrence with a given variable and edge index is an original-body
@@ -194,16 +188,15 @@ theorem exists_probe_prefix_occurrence_iff (F : CSP Rel V) (ports : List V)
       p.var = v ∧ incidenceEdgeIndex p < F.occurrences.length) ↔
       ∃ o : F.Occurrence, incidenceEdgeIndex o = index ∧ o.var = v := by
   constructor
-  · rintro ⟨p, hi, hv, hp⟩
+  · rintro ⟨p, rfl, rfl, hp⟩
     obtain ⟨o, rfl⟩ := exists_bodyOccurrence_of_prefix F ports p hp
-    exact ⟨o, by simpa only [incidenceEdgeIndex_bodyOccurrence] using hi,
-      by simpa only [var_bodyOccurrence] using hv⟩
-  · rintro ⟨o, hi, hv⟩
-    refine ⟨bodyOccurrence F ports o, ?_, ?_, ?_⟩
-    · simpa only [incidenceEdgeIndex_bodyOccurrence] using hi
-    · simpa only [var_bodyOccurrence] using hv
-    · rw [incidenceEdgeIndex_bodyOccurrence]
-      simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
+    exact ⟨o, (incidenceEdgeIndex_bodyOccurrence F ports o).symm,
+      (var_bodyOccurrence F ports o).symm⟩
+  · rintro ⟨o, rfl, rfl⟩
+    refine ⟨bodyOccurrence F ports o, incidenceEdgeIndex_bodyOccurrence F ports o,
+      var_bodyOccurrence F ports o, ?_⟩
+    rw [incidenceEdgeIndex_bodyOccurrence]
+    simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
 
 omit [DecidableEq V] in
 /-- Every actual probe-augmented occurrence is an original body occurrence or one literal
@@ -216,8 +209,7 @@ theorem exists_bodyOccurrence_or_probeOccurrence (F : CSP Rel V) (ports : List V
   by_cases hi : incidenceEdgeIndex p < F.occurrences.length
   · exact Or.inl (exists_bodyOccurrence_of_prefix F ports p hi)
   have hc := constraint_of_probe_occurrence F ports p (Nat.le_of_not_gt hi)
-  have harg : p.2.val < ports.length := by
-    simpa [hc, probeBody] using p.2.isLt
+  have harg : p.2.val < ports.length := by simpa [hc, probeBody] using p.2.isLt
   let i : Fin ports.length := ⟨ports.length - 1 - p.2.val, by omega⟩
   refine Or.inr ⟨i, CSP.Occurrence.eq_of_positions
     ((probeOccurrence_constraint F ports i).trans hc.symm) ?_⟩
@@ -239,35 +231,23 @@ theorem mem_probe_cycleBlock_iff (F : CSP Rel V) (ports : List V) (hn : ports.No
   constructor
   · intro hm
     obtain ⟨j, hj, rfl⟩ := List.mem_map.mp hm
-    have hwhole := List.mem_of_mem_tail hj
-    obtain ⟨e, he, hv⟩ :=
-      (RotationCertificate.mem_cycleWord_iff_exists_dart hc (incidenceDart p false) j).mp hwhole
+    obtain ⟨e, rfl, hv⟩ := (RotationCertificate.mem_cycleWord_iff_exists_dart hc
+      (incidenceDart p false) j).mp (List.mem_of_mem_tail hj)
     obtain ⟨o, ho⟩ := exists_incidenceDart e
-    have hf := (vertex_incidenceDart_eq_iff o p e.2 false).mp (by rw [ho]; exact hv)
-    have hside : e.2 = false := hf.1
-    have hvar : o.var = p.var := by simpa only [hside, Bool.false_eq_true, ite_false] using hf.2
-    have heq : incidenceDart o false = e := by simpa only [hside] using ho
-    have hindex : j / 2 = incidenceEdgeIndex o := by
-      rw [← he, ← heq]
-      simp [Graph.Dart.index, incidenceDart]
-    refine ⟨o, hindex.symm, hvar, ?_⟩
+    obtain ⟨hside, hvar⟩ := (vertex_incidenceDart_eq_iff o p e.2 false).mp (by rw [ho]; exact hv)
+    simp only [hside, Bool.false_eq_true, ite_false] at ho hvar
+    refine ⟨o, by rw [← ho]; simp [Graph.Dart.index, incidenceDart], hvar, ?_⟩
     by_contra hout
     have hop := probe_occurrence_eq_of_var_eq F ports hn o p (Nat.le_of_not_gt hout) hp hvar
-    have hepd : e = incidenceDart p false := by rw [← heq, hop]
-    have htail := (RotationCertificate.mem_tail_cycleWord_iff hc (incidenceDart p false) e).mp
-      (by simpa only [he] using hj)
-    exact htail.2 hepd
+    exact ((RotationCertificate.mem_tail_cycleWord_iff hc (incidenceDart p false) e).mp hj).2
+      (by rw [← ho, hop])
   · rintro ⟨o, rfl, hv, ho⟩
-    have hvertex : (incidenceDart o false).vertex = (incidenceDart p false).vertex :=
-      (vertex_incidenceDart_eq_iff o p false false).mpr ⟨rfl, hv⟩
-    have hne : incidenceDart o false ≠ incidenceDart p false := by
-      intro he
-      have hi := congrArg (fun d : Dart (incidenceGraph (probeBody F ports)) => d.1.val) he
-      change incidenceEdgeIndex o = incidenceEdgeIndex p at hi
-      omega
-    apply List.mem_map.mpr
-    refine ⟨(incidenceDart o false).index,
-      (RotationCertificate.mem_tail_cycleWord_iff hc _ _).mpr ⟨hvertex, hne⟩, ?_⟩
-    simp [Graph.Dart.index, incidenceDart]
+    refine List.mem_map.mpr ⟨(incidenceDart o false).index,
+      (RotationCertificate.mem_tail_cycleWord_iff hc _ _).mpr
+        ⟨(vertex_incidenceDart_eq_iff o p false false).mpr ⟨rfl, hv⟩, fun he => ?_⟩,
+      by simp [Graph.Dart.index, incidenceDart]⟩
+    have hi : incidenceEdgeIndex o = incidenceEdgeIndex p :=
+      congrArg (fun d : Dart (incidenceGraph (probeBody F ports)) => d.1.val) he
+    omega
 
 end Cslib.Complexity.CSP.OrderedBoundary

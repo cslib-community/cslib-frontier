@@ -24,7 +24,7 @@ statements.
   own code word.
 * The entries of the equality law over `ℚ` are among `0` and `1`, finitely many; so its tables lie
   in the smallest subring of `ℚ`, and restricted to that subring it is a law with the same tables.
-  -/
+* The equality law over `ℤ`, mapped to `ℚ`, has the tables of the equality law over `ℚ`. -/
 
 set_option linter.privateModule false
 
@@ -104,5 +104,12 @@ example (p : Bool) (X g) :
 
 /-- The restriction is a law over the subring with its own ring structure. -/
 example : Law (⊥ : Subring ℚ) := (equalityLaw ℚ).restrict ⊥ table_mem_bot
+
+/-- The equality law over `ℤ`, mapped to `ℚ`: a law over `ℚ` with the tables of the equality law
+over `ℚ`. -/
+example (p : Bool) (X g) :
+    ((equalityLaw ℤ).map (Int.castRingHom ℚ)).table p () X g = (equalityLaw ℚ).table p () X g := by
+  simp only [Law.map, equalityLaw]
+  split_ifs <;> simp
 
 end CslibFrontierTests.SeparationLaws

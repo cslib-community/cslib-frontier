@@ -50,10 +50,8 @@ theorem exists_tail_quantile (μ : PMF ℝ≥0) {q : ℝ≥0∞} (hq : 0 < q) (h
   have hlim : Tendsto (fun n : ℕ => ν (Ioi (n : ℝ≥0))) atTop (nhds 0) := by
     have hanti : Antitone fun n : ℕ => Ioi (n : ℝ≥0) := fun m n hmn =>
       Ioi_subset_Ioi (by exact_mod_cast hmn)
-    have hinter : (⋂ n : ℕ, Ioi (n : ℝ≥0)) = ∅ := by
-      ext x
-      simp only [mem_iInter, mem_Ioi, mem_empty_iff_false, iff_false, not_forall, not_lt]
-      exact exists_nat_ge x
+    have hinter : (⋂ n : ℕ, Ioi (n : ℝ≥0)) = ∅ :=
+      iInter_eq_empty_iff.2 fun x => (exists_nat_ge x).imp fun _ hn => not_lt.2 hn
     have := tendsto_measure_iInter_atTop (μ := ν) (fun _ => measurableSet_Ioi.nullMeasurableSet)
       hanti ⟨0, measure_ne_top _ _⟩
     rwa [hinter, measure_empty] at this
@@ -65,14 +63,9 @@ theorem exists_tail_quantile (μ : PMF ℝ≥0) {q : ℝ≥0∞} (hq : 0 < q) (h
     have hU : Ioi (sInf S) = ⋃ n : ℕ, Ioi (sInf S + 1 / (n + 1)) := by
       ext x
       simp only [mem_Ioi, mem_iUnion]
-      constructor
-      · intro hx
-        obtain ⟨n, hn⟩ := exists_nat_one_div_lt (tsub_pos_of_lt hx)
-        refine ⟨n, ?_⟩
-        calc sInf S + 1 / (n + 1) < sInf S + (x - sInf S) := by gcongr
-          _ = x := add_tsub_cancel_of_le hx.le
-      · rintro ⟨n, hn⟩
-        exact lt_of_le_of_lt le_self_add hn
+      refine ⟨fun hx => ?_, fun ⟨n, hn⟩ => le_self_add.trans_lt hn⟩
+      obtain ⟨n, hn⟩ := exists_nat_one_div_lt (tsub_pos_of_lt hx)
+      exact ⟨n, lt_tsub_iff_left.1 hn⟩
     have hmono : Monotone fun n : ℕ => Ioi (sInf S + 1 / ((n : ℝ≥0) + 1)) := fun m n hmn =>
       Ioi_subset_Ioi (by gcongr)
     rw [hU, hmono.measure_iUnion]
@@ -82,32 +75,22 @@ theorem exists_tail_quantile (μ : PMF ℝ≥0) {q : ℝ≥0∞} (hq : 0 < q) (h
     exact (measure_mono fun x hx => lt_of_le_of_lt htlt.le hx).trans ht
   · rcases eq_or_ne (sInf S) 0 with h0 | h0
     · have huniv : Ici (0 : ℝ≥0) = univ := eq_univ_of_forall fun x => by simp
-      rw [h0, huniv, measure_univ]
-      exact hq1
+      rwa [h0, huniv, measure_univ]
     -- continuity from above: `[τ, ∞)` is the decreasing intersection of `(τ - 1/(n+1), ∞)`
     have hpos : 0 < sInf S := pos_iff_ne_zero.mpr h0
     have hI : Ici (sInf S) = ⋂ n : ℕ, Ioi (sInf S - 1 / (n + 1)) := by
       ext x
       simp only [mem_Ici, mem_iInter, mem_Ioi]
-      constructor
-      · intro hx n
-        exact lt_of_lt_of_le (tsub_lt_self hpos (by positivity)) hx
-      · intro hx
-        by_contra hlt
-        push Not at hlt
-        obtain ⟨n, hn⟩ := exists_nat_one_div_lt (tsub_pos_of_lt hlt)
-        have h2 : x + 1 / ((n : ℝ≥0) + 1) < sInf S := by
-          calc x + 1 / ((n : ℝ≥0) + 1) < x + (sInf S - x) := by gcongr
-            _ = sInf S := add_tsub_cancel_of_le hlt.le
-        exact absurd (hx n) (not_lt.mpr (lt_tsub_iff_right.mpr h2).le)
+      refine ⟨fun hx n => (tsub_lt_self hpos (by positivity)).trans_le hx, fun hx => ?_⟩
+      by_contra! hlt
+      obtain ⟨n, hn⟩ := exists_nat_one_div_lt (tsub_pos_of_lt hlt)
+      exact lt_asymm (hx n) (lt_tsub_iff_right.2 (lt_tsub_iff_left.1 hn))
     have hanti : Antitone fun n : ℕ => Ioi (sInf S - 1 / ((n : ℝ≥0) + 1)) := fun m n hmn =>
       Ioi_subset_Ioi (by gcongr)
     rw [hI, hanti.measure_iInter (fun _ => measurableSet_Ioi.nullMeasurableSet)
       ⟨0, measure_ne_top _ _⟩]
     refine le_iInf fun n => ?_
     have hlt : sInf S - 1 / ((n : ℝ≥0) + 1) < sInf S := tsub_lt_self hpos (by positivity)
-    have := notMem_of_lt_csInf hlt (OrderBot.bddBelow S)
-    simp only [S, mem_ofPred_eq, not_le] at this
-    exact this.le
+    exact (not_le.1 (notMem_of_lt_csInf hlt (OrderBot.bddBelow S))).le
 
 end Cslib.Probability.PMF

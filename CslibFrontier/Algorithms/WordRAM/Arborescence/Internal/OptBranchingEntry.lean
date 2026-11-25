@@ -30,7 +30,7 @@ open Cslib.WordRAM.Realization.Signed
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite
 
 @[local client_simps] private theorem local_fst_snd_signedNegProg (w : ℕ)
@@ -221,187 +221,103 @@ private theorem fillSuperRootRowProg_spec {w n ws : ℕ} (xFin : Fin (n + 1))
       curCostBase ws m + xFin.1 * m ≤ addr ∧ addr < curCostBase ws m + xFin.1 * m + m)
     (fun y hy idxR sr ⟨hidxR, hfr_r, ha_r, hwt_r, hdone_r⟩ => by
       subst idxR
-      set yFin : Fin m := ⟨y, hy⟩
+      have hcell_xy := List.mul_add_lt_sq hx_lt hy
+      have ha_yx (hy_n : y < n) (hx_n : xFin.1 < n) : sr.mem (2 + y * n + xFin.1) =
+          if decide (G.Adj ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) then 1 else 0 := by
+        simpa [Nat.add_assoc] using ha_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
+      have hw_yx (hy_n : y < n) (hx_n : xFin.1 < n) : sr.mem (2 + n * n + y * n + xFin.1) =
+          Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) := by
+        simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
+      -- The step writes the two cells `(x, y)` of the super-root tables and nothing else.
+      have hstep : (Memory.spec 0).clientResult sr (superRootRowStep (ra, y)) = y + 1 ∧
+          (Memory.spec 0).clientState sr (superRootRowStep (ra, y)) =
+            ⟨Function.update (Function.update sr.mem (curAdjBase ws m + xFin.1 * m + y)
+                (if (superRootAdjFin G)[xFin.1][y] then 1 else 0))
+              (curCostBase ws m + xFin.1 * m + y) (Signed.encode (superRootCostFin wt)[xFin.1][y]),
+              sr.frontier⟩ := by
+        unfold superRootRowStep
+        dsimp only [ra, m]
+        by_cases hx_n : xFin.1 < n
+        · by_cases hy_n : y < n
+          · simp only [hx_n, hy_n, ↓reduceIte, client_simps, hw_yx hy_n hx_n, ha_yx hy_n hx_n,
+              clientResult_signedNegProg]
+            simp [superRootAdjFin, superRootCostFin, initAdjTable, initCostTable, hx_n, hy_n]
+          · simp [hx_n, hy_n, client_simps, superRootAdjFin, superRootCostFin, initAdjTable,
+              initCostTable, Signed.encode]
+        · simp [hx_n, client_simps, superRootAdjFin, superRootCostFin, initAdjTable,
+            initCostTable, Signed.encode]
+      have hfr_step : ((Memory.spec 0).clientState sr (superRootRowStep (ra, y))).frontier =
+          sr.frontier := by rw [hstep.2]
+      have hout : ∀ addr, ¬(curAdjBase ws m + xFin.1 * m ≤ addr ∧
+          addr < curAdjBase ws m + xFin.1 * m + m ∨ curCostBase ws m + xFin.1 * m ≤ addr ∧
+          addr < curCostBase ws m + xFin.1 * m + m) →
+          ((Memory.spec 0).clientState sr (superRootRowStep (ra, y))).mem addr = sr.mem addr :=
+        fun addr h => by
+          rw [hstep.2]
+          dsimp only
+          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      have hwr (a c : ℕ) (ha : Fits w a) (hc : Fits w c) :
+          (Memory.spec w).ValidHistory sr ((Memory.spec w).clientHistory sr
+            (do Memory.write (curAdjBase ws m + xFin.1 * m + y) a
+                Memory.write (curCostBase ws m + xFin.1 * m + y) c
+                pure (y + 1))) :=
+        validHistory_write_bind
+          (by dsimp only [wsSize, curAdjBase, m] at hf hfr_r hcell_xy ⊢; omega) ha
+          (validHistory_write_bind
+            (by dsimp only [wsSize, curCostBase, m] at hf hfr_r hcell_xy ⊢; omega) hc
+            (validHistory_pure w _ _))
       refine ⟨by
           dsimp only [SuperRootRowStepSafe, ra]
           refine ⟨hx_lt, hy, hws, hin_fit, fun hx_n hy_n => ?_⟩
-          have hw_yx : sr.mem (2 + n * n + y * n + xFin.1) =
-              Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) := by
-            simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
-          rw [hw_yx]
+          rw [hw_yx hy_n hx_n]
           exact hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩,
-        ?_, ?_, ?_, ?_, ?_⟩
+        ?_, ?_, hfr_step, hout, hstep.1, hfr_step.trans hfr_r,
+        fun u v => ?_, fun u v => ?_, fun y0 hy0 => ?_⟩
       · unfold superRootRowStep
         dsimp only [ra]
-        have hcell_xy := List.mul_add_lt_sq hx_lt hy
         refine validHistory_read_bind (by dsimp only [wsSize, m] at hf hfr_r ⊢; omega) ?_
         by_cases hx_n : xFin.1 < n
         · simp only [hx_n, ↓reduceIte]
           by_cases hy_n : y < n
           · simp only [hy_n, ↓reduceIte]
             have hcell_in := List.mul_add_lt_sq hy_n hx_n
-            have ha_yx : sr.mem (2 + y * n + xFin.1) =
-                if decide (G.Adj ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) then 1 else 0 := by
-              simpa [Nat.add_assoc] using ha_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
-            have hw_yx : sr.mem (2 + n * n + y * n + xFin.1) =
-                Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) := by
-              simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
             refine validHistory_read_bind
               (by dsimp only [wsSize, m] at hf hfr_r hws_lo hcell_in ⊢; omega)
               (validHistory_read_bind
                 (by dsimp only [wsSize, m] at hf hfr_r hws_lo hcell_in ⊢; omega) ?_)
             refine validHistory_bind_step (validHistory_signedNegProg w _ _) ?_
-            rw [clientState_signedNegProg, hw_yx, clientResult_signedNegProg]
-            refine validHistory_write_bind
-              (by dsimp only [wsSize, curAdjBase, m] at hf hfr_r hcell_xy ⊢; omega)
-              (by rw [ha_yx]; split_ifs <;> first | exact h1 | exact fits_zero w)
-              (validHistory_write_bind
-                (by dsimp only [wsSize, curCostBase, m] at hf hfr_r hcell_xy ⊢; omega)
-                ?_ (validHistory_pure w _ _))
+            rw [clientState_signedNegProg, hw_yx hy_n hx_n, clientResult_signedNegProg]
+            refine hwr _ _
+              (by rw [ha_yx hy_n hx_n]; split_ifs <;> first | exact h1 | exact fits_zero w) ?_
             have hfit1 := hfit_wt1 ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
             unfold Signed.encode at hfit1 ⊢
             rw [Int.natAbs_neg]
             exact hfit1.of_le (by split_ifs <;> omega)
           · simp only [hy_n, ↓reduceIte]
-            exact validHistory_write_bind
-              (by dsimp only [wsSize, curAdjBase, m] at hf hfr_r hcell_xy ⊢; omega) h1
-              (validHistory_write_bind
-                (by dsimp only [wsSize, curCostBase, m] at hf hfr_r hcell_xy ⊢; omega)
-                (fits_zero w) (validHistory_pure w _ _))
+            exact hwr _ _ h1 (fits_zero w)
         · simp only [hx_n, ↓reduceIte]
-          exact validHistory_write_bind
-            (by dsimp only [wsSize, curAdjBase, m] at hf hfr_r hcell_xy ⊢; omega) (fits_zero w)
-            (validHistory_write_bind
-              (by dsimp only [wsSize, curCostBase, m] at hf hfr_r hcell_xy ⊢; omega)
-              (fits_zero w) (validHistory_pure w _ _))
+          exact hwr _ _ (fits_zero w) (fits_zero w)
       · unfold superRootRowStep
         dsimp only [ra]
-        rw [memoryCost_bind', memoryCost_read, clientState_read]
-        by_cases hx_n : xFin.1 < n
-        · simp only [hx_n, ↓reduceIte]
-          by_cases hy_n : y < n
-          · simp only [hy_n, ↓reduceIte]
-            rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-              memoryCost_bind', memoryCost_read, clientResult_read, clientState_read,
-              memoryCost_bind', memoryCost_signedNegProg, clientState_signedNegProg,
-              memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write]
-            simp [client_simps]
-          · simp only [hy_n, ↓reduceIte]
-            rw [memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write]
-            simp [client_simps]
-        · simp only [hx_n, ↓reduceIte]
-          rw [memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write]
-          simp [client_simps]
-      · unfold superRootRowStep
-        dsimp only [ra]
-        by_cases hx_n : xFin.1 < n
-        · simp only [hx_n, ↓reduceIte]
-          by_cases hy_n : y < n <;> simp [hy_n, client_simps, hfr_r]
-        · simp [hx_n, client_simps, hfr_r]
-      · intro addr haddr
-        have hneC : addr ≠ curCostBase ws m + xFin.1 * m + y := by omega
-        have hneA : addr ≠ curAdjBase ws m + xFin.1 * m + y := by omega
-        unfold superRootRowStep
-        dsimp only [ra]
-        by_cases hx_n : xFin.1 < n
-        · simp only [hx_n, ↓reduceIte]
-          by_cases hy_n : y < n
-          · simp only [hy_n, ↓reduceIte, client_simps]
-            rw [Function.update_of_ne hneC, Function.update_of_ne hneA]
-          · simp only [hy_n, ↓reduceIte, client_simps]
-            rw [Function.update_of_ne hneC, Function.update_of_ne hneA]
-        · simp only [hx_n, ↓reduceIte, client_simps]
-          rw [Function.update_of_ne hneC, Function.update_of_ne hneA]
-      · unfold superRootRowStep
-        dsimp only [ra]
-        have hcell_xy := List.mul_add_lt_sq hx_lt hy
-        by_cases hx_n : xFin.1 < n
-        · simp only [hx_n, ↓reduceIte]
-          by_cases hy_n : y < n
-          · have ha_yx : sr.mem (2 + y * n + xFin.1) =
-                if decide (G.Adj ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) then 1 else 0 := by
-              simpa [Nat.add_assoc] using ha_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
-            have hw_yx : sr.mem (2 + n * n + y * n + xFin.1) =
-                Signed.encode (wt ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩) := by
-              simpa [Nat.add_assoc] using hwt_r ⟨y, hy_n⟩ ⟨xFin.1, hx_n⟩
-            simp only [hy_n, ↓reduceIte, client_simps, hw_yx, clientResult_signedNegProg]
-            refine ⟨trivial, hfr_r, ?_, ?_, ?_⟩
-            · intro u v
-              have := List.mul_add_lt_sq u.isLt v.isLt
-              rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-              exact ha_r u v
-            · intro u v
-              have := List.mul_add_lt_sq u.isLt v.isLt
-              rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-              exact hwt_r u v
-            · intro y0 hy0
-              by_cases heq : y0.1 = y
-              · have hy0_eq : y0 = yFin := Fin.ext heq
-                subst hy0_eq
-                simp only [m, yFin, Function.update_self]
-                rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase]; omega),
-                  Function.update_self]
-                simp [ha_yx, superRootAdjFin, superRootCostFin, initAdjTable, initCostTable,
-                  hx_n, hy_n]
-              · rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega)]
-                exact hdone_r y0 (by omega)
-          · simp only [hy_n, ↓reduceIte, client_simps]
-            refine ⟨trivial, hfr_r, ?_, ?_, ?_⟩
-            · intro u v
-              have := List.mul_add_lt_sq u.isLt v.isLt
-              rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-              exact ha_r u v
-            · intro u v
-              have := List.mul_add_lt_sq u.isLt v.isLt
-              rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-              exact hwt_r u v
-            · intro y0 hy0
-              by_cases heq : y0.1 = y
-              · have hy0_eq : y0 = yFin := Fin.ext heq
-                subst hy0_eq
-                simp only [m, yFin, Function.update_self]
-                rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase]; omega),
-                  Function.update_self]
-                simp [superRootAdjFin, superRootCostFin, initAdjTable, initCostTable,
-                  hx_n, hy_n, Signed.encode]
-              · rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                  Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega)]
-                exact hdone_r y0 (by omega)
-        · simp only [hx_n, ↓reduceIte, client_simps]
-          refine ⟨trivial, hfr_r, ?_, ?_, ?_⟩
-          · intro u v
-            have := List.mul_add_lt_sq u.isLt v.isLt
-            rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-              Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-            exact ha_r u v
-          · intro u v
-            have := List.mul_add_lt_sq u.isLt v.isLt
-            rw [Function.update_of_ne (by dsimp only [curCostBase, m]; omega),
-              Function.update_of_ne (by dsimp only [curAdjBase, m]; omega)]
-            exact hwt_r u v
-          · intro y0 hy0
-            by_cases heq : y0.1 = y
-            · have hy0_eq : y0 = yFin := Fin.ext heq
-              subst hy0_eq
-              simp only [m, yFin, Function.update_self]
-              rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase]; omega),
-                Function.update_self]
-              simp [superRootAdjFin, superRootCostFin, initAdjTable, initCostTable,
-                hx_n, Signed.encode]
-            · rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
-                Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega)]
-              exact hdone_r y0 (by omega))
+        by_cases hx_n : xFin.1 < n <;> by_cases hy_n : y < n <;>
+          simp only [hx_n, hy_n, ↓reduceIte, client_simps] <;> omega
+      · have := List.mul_add_lt_sq u.isLt v.isLt
+        exact (hout _ (by dsimp only [curAdjBase, curCostBase, m]; omega)).trans (ha_r u v)
+      · have := List.mul_add_lt_sq u.isLt v.isLt
+        exact (hout _ (by dsimp only [curAdjBase, curCostBase, m]; omega)).trans (hwt_r u v)
+      · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hy0) with hlt | rfl
+        · rw [hstep.2]
+          dsimp only
+          rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
+            Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
+            Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
+            Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega)]
+          exact hdone_r y0 hlt
+        · rw [hstep.2]
+          refine ⟨?_, Function.update_self ..⟩
+          dsimp only
+          rw [Function.update_of_ne (by dsimp only [curAdjBase, curCostBase, m]; omega),
+            Function.update_self])
     0 s ⟨rfl, rfl, hadj_in, hwt_in, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hvh, hmc, hfr_end, hmod_end, _, _, _, _, hdone_end⟩ := hrow
   unfold fillSuperRootRowProg
