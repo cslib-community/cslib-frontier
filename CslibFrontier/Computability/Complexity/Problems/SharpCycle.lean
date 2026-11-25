@@ -124,12 +124,11 @@ private theorem mem_nodupLists {l p : List ℕ} (hp : p.Nodup) (h : ∀ v ∈ p,
 private theorem length_nodupLists_le (l : List ℕ) :
     (nodupLists l).length ≤ 2 ^ l.length * l.length.factorial := by
   rw [nodupLists, List.length_flatMap, ← List.length_sublists]
-  have := List.sum_le_length_nsmul (l.sublists.map fun a => a.permutations.length)
+  simpa using List.sum_le_length_nsmul (l.sublists.map fun a => a.permutations.length)
     l.length.factorial fun x hx => by
       obtain ⟨s, hs, rfl⟩ := List.mem_map.1 hx
       rw [List.length_permutations]
       exact Nat.factorial_le (List.mem_sublists.1 hs).length_le
-  simpa using this
 
 /-- Every simple cycle of `G` is a list of distinct declared vertices up to rotation. -/
 private theorem exists_eq_coe_of_isSimpleCycle {G : Graph} {c : Cycle ℕ} (hc : G.IsSimpleCycle c) :
@@ -369,8 +368,7 @@ private theorem isChain_walk (hm : 0 < m) :
       simp only [layerNodes, List.cons_append] at h1 ⊢
       exact List.IsChain.cons_cons
         (mem_edges_gadgetGraph.2 ⟨(u, v), huv, mem_gadgetArcs.2 (.inl ⟨b, rfl, rfl⟩)⟩) h1
-    have := h2.append_overlap (l₃ := l) (by simpa using ih) (by simp)
-    simpa using this
+    simpa using h2.append_overlap (l₃ := l) (by simpa using ih) (by simp)
 
 /-! ### Decomposing paths of the gadget graph -/
 
@@ -640,8 +638,7 @@ private theorem isSimpleCycle_cycleWalk (hm : 0 < m) {r : List ℕ}
   refine Graph.isSimpleCycle_coe.2 ⟨?_, ?_, ?_, ?_⟩
   · rw [cycleWalk, hs]; simp [walk]
   · refine nodup_walk ?_
-    rw [map_fst_steps, headD_cons_rotate_one hne, List.dropLast_concat]
-    exact hnd
+    rwa [map_fst_steps, headD_cons_rotate_one hne, List.dropLast_concat]
   · refine mem_vertices_of_mem_walk (fun p hp => length_snd_of_mem_steps hp) hchain ?_
     rw [map_fst_steps, headD_cons_rotate_one hne]
     intro a ha
@@ -653,8 +650,7 @@ private theorem isSimpleCycle_cycleWalk (hm : 0 < m) {r : List ℕ}
   · refine Cycle.chain_coe_iff_isChain_append_take_one.2 ?_
     have : (cycleWalk m r γ).take 1 = [origNode (r.headD 0)] := by
       rw [cycleWalk, hs]; simp [walk]
-    rw [this]
-    exact hpath
+    rwa [this]
 
 /-- A cycle of the gadget graph contains an original vertex: the layer index grows along arcs
 between gadget nodes. -/
@@ -768,8 +764,7 @@ private theorem exists_eq_cycleWalk (hm : 0 < m) {c : Cycle ℕ}
       have ha : a = u := by rw [← hrhead, hr']; rfl
       rw [hr', ha] at hru ⊢
       simp only [List.take_succ_cons, List.take_zero]
-      rw [hru]
-      exact hsc
+      rwa [hru]
   · rw [cycleWalk, hrhead, ← hrot, steps_eq hsm, hws]
 
 /-! ### Counting -/
@@ -990,14 +985,11 @@ theorem DirHamCycle_mem_P_of_approx {A : Graph → ℕ}
   have hiff : ∀ G, G ∈ DirHamCycle ↔
       2 ^ (layers G * G.distinctVertices.length) ≤ 2 * A (reduce G) := by
     intro G
-    constructor
-    · intro hG
-      exact (two_pow_le_of_mem_DirHamCycle (by simp [layers]) hG).trans (hlo _)
-    · intro hG
-      by_contra hn
-      have := four_mul_lt_two_pow_of_notMem_DirHamCycle hn
-      have := hhi (reduce G)
-      omega
+    refine ⟨fun hG => (two_pow_le_of_mem_DirHamCycle (by simp [layers]) hG).trans (hlo _),
+      fun hG => of_not_not fun hn => ?_⟩
+    have := four_mul_lt_two_pow_of_notMem_DirHamCycle hn
+    have := hhi (reduce G)
+    omega
   refine ⟨fun G => !decide (2 * A (reduce G) <
     2 ^ (layers G * G.distinctVertices.length)), ?_, fun G => by simp [hiff]⟩
   have := hA.comp computableInPolyTime_reduce
