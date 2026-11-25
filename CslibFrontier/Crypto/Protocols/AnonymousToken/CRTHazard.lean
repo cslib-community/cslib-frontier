@@ -13,11 +13,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import Mathlib.Algebra.Field.ZMod
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.CharP.Two
-import Mathlib.LinearAlgebra.Dimension.DivisionRing
-import Mathlib.LinearAlgebra.FiniteDimensional.Basic
 
 /-!
 # FAEST v3 CRT witness-reuse hazard and witness-order repair for VOLE-ACT

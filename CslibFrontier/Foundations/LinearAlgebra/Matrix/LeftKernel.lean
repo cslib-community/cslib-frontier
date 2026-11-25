@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.LinearAlgebra.Matrix.Rank
-import Mathlib.LinearAlgebra.Dimension.DivisionRing
 import Mathlib.LinearAlgebra.FiniteDimensional.Basic
 
 /-!

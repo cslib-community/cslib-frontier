@@ -15,8 +15,6 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Crypto.Game.Hybrid
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.PMF.Bind
 
 /-!
 # Malicious-issuer unlinkability for VOLE-ACT
