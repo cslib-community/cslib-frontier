@@ -125,22 +125,13 @@ lemma wronskian_order_of_distinct_orders {K : Type*} [Field K] [CharZero K]
     (fun j => (f j).natTrailingDegree) (fun i j => scaled_derivative_order (f j) i.val)
   have hBc : B.det.coeff 0 ≠ 0 := by
     have he : B.map (evalRingHom (0 : K)) =
-        Matrix.of (fun i j : Fin h => (f j).trailingCoeff *
-          ((f j).natTrailingDegree.descFactorial i.val : K)) := by
-      ext i j
-      change eval (0 : K) (B i j) = _
-      rw [← coeff_zero_eq_eval_zero, hB i j]
-      change (X ^ i.val * derivative^[i.val] (f j)).coeff (f j).natTrailingDegree = _
-      rw [coeff_scaled_derivative_at]
-      exact mul_comm _ _
-    rw [coeff_zero_eq_eval_zero]
-    change (evalRingHom (0 : K)) B.det ≠ 0
-    rw [RingHom.map_det]
-    change (B.map (evalRingHom (0 : K))).det ≠ 0
-    rw [he, show (Matrix.of fun i j : Fin h => (f j).trailingCoeff *
-        ((f j).natTrailingDegree.descFactorial i.val : K)).det = _ from
-      Matrix.det_mul_row (fun j => (f j).trailingCoeff)
-        (Matrix.of fun i j : Fin h => ((f j).natTrailingDegree.descFactorial i.val : K))]
+        Matrix.of fun i j : Fin h => (f j).trailingCoeff *
+          (Matrix.of fun i j : Fin h => ((f j).natTrailingDegree.descFactorial i.val : K)) i j :=
+      Matrix.ext fun i j => by
+        simpa only [Matrix.map_apply, coe_evalRingHom, ← coeff_zero_eq_eval_zero, hB, A,
+          Matrix.of_apply, coeff_scaled_derivative_at, trailingCoeff] using mul_comm _ _
+    rw [coeff_zero_eq_eval_zero, ← coe_evalRingHom, RingHom.map_det, RingHom.mapMatrix_apply, he,
+      Matrix.det_mul_row]
     exact mul_ne_zero (Finset.prod_ne_zero_iff.mpr fun j _ =>
       trailingCoeff_ne_zero.mpr (hf j)) (det_descFactorial_ne_zero _ hd)
   have hB0 : B.det ≠ 0 := fun hz => by simp [hz] at hBc
@@ -262,12 +253,9 @@ lemma exists_order_echelon_family {K : Type*} [Field K]
   let e := reflectLinearEquiv K (d - 1)
   let W := V.map e.toLinearMap
   have hW : ∀ g ∈ W, g ≠ 0 → g.natDegree < d := by
-    rintro g ⟨f, hfV, rfl⟩ hfn
-    have hf : f ≠ 0 := by intro hz; simp [hz] at hfn
-    have hd := hV f hfV hf
-    have he := natDegree_reflect_le (N := d - 1) (p := f)
-    change (reflect (d - 1) f).natDegree < d
-    omega
+    rintro _ ⟨f, hfV, rfl⟩ hfn
+    have hd := hV f hfV fun hz => hfn (by simp [hz])
+    exact (natDegree_reflect_le (N := d - 1) (p := f)).trans_lt (by omega)
   obtain ⟨h, g, hgLI, hgspan, hgdeg⟩ := exists_degree_echelon_family d W hW
   have hgW : ∀ i, g i ∈ W := fun i => hgspan.le (Submodule.subset_span ⟨i, rfl⟩)
   refine ⟨h, fun i => e.symm (g i), hgLI.map' e.symm.toLinearMap (by simp), ?_, ?_⟩
@@ -459,11 +447,8 @@ lemma exists_echelon_basis_at {K : Type*} [Field K]
   let W := V.map e.toLinearMap
   let eV : V ≃ₗ[K] W := e.submoduleMap V
   have hW : ∀ f ∈ W, f ≠ 0 → f.natDegree < d := by
-    rintro g ⟨f, hfV, rfl⟩ hne
-    have hf : f ≠ 0 := by intro hz; simp [hz] at hne
-    change (taylor a f).natDegree < d
-    rw [natDegree_taylor]
-    exact hV f hfV hf
+    rintro _ ⟨f, hfV, rfl⟩ hne
+    exact (natDegree_taylor f a).trans_lt (hV f hfV fun hz => hne (by simp [hz]))
   obtain ⟨c, hc⟩ := exists_order_echelon_basis d W (b.map eV) hW
   refine ⟨c.map eV.symm, fun i j hij => hc ?_⟩
   have ht (k : Fin h) : taylor a ((c.map eV.symm) k : K[X]) = (c k : K[X]) := by

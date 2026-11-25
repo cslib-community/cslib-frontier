@@ -121,9 +121,7 @@ theorem mem_outgoingTo_iff {P M : Type*} [DecidableEq P] {sent : List (P × M)} 
 theorem outgoingTo_eq_nil_of_forall_ne {P M : Type*} [DecidableEq P]
     {sent : List (P × M)} {dest : P} (h : ∀ m, (dest, m) ∉ sent) :
     outgoingTo sent dest = [] := by
-  rw [List.eq_nil_iff_forall_not_mem]
-  intro m hm
-  exact h m (mem_outgoingTo_iff.mp hm)
+  exact List.eq_nil_iff_forall_not_mem.mpr fun m hm => h m (mem_outgoingTo_iff.mp hm)
 
 /-- Pop the head message from channel `(src, dest)`, leaving all other channels and all local
 process states unchanged. -/
@@ -270,18 +268,10 @@ trace from `s` and `s' = s.runEvents xl`. -/
 theorem mTr_iff_validTrace [DecidableEq P] {s s' : GlobalState P S M} {xl : List (Event P S M)} :
     sys.lts.MTr s xl s' ↔ sys.validTrace s xl ∧ s' = s.runEvents xl := by
   induction xl generalizing s with
-  | nil =>
-    refine ⟨?_, ?_⟩
-    · rintro ⟨⟩
-      exact ⟨trivial, rfl⟩
-    · rintro ⟨_, rfl⟩
-      exact .refl
+  | nil => exact ⟨fun | .refl => ⟨trivial, rfl⟩, fun ⟨_, h⟩ => h ▸ .refl⟩
   | cons e xl ih =>
-    refine ⟨?_, ?_⟩
-    · rintro (_ | ⟨⟨hen, rfl⟩, hrest⟩)
-      exact And.imp_left (⟨hen, ·⟩) (ih.mp hrest)
-    · rintro ⟨⟨hen, hv⟩, rfl⟩
-      exact .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, rfl⟩)
+    exact ⟨fun | .stepL ⟨hen, rfl⟩ hrest => And.imp_left (⟨hen, ·⟩) (ih.mp hrest),
+      fun ⟨⟨hen, hv⟩, h⟩ => .stepL ⟨hen, rfl⟩ (ih.mpr ⟨hv, h⟩)⟩
 
 instance instDecidableMTr [Fintype P] [DecidableEq P] [DecidableEq S] [DecidableEq M]
     [DecidableRel sys.graph.Adj]

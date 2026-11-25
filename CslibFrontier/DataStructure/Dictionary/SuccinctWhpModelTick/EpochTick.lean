@@ -84,8 +84,6 @@ theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     rw [ite_eq_right (by omega : ¬(fs1.rebStage ≤ 3)),
       ite_eq_right (by omega : ¬(fs1.rebStage = 4))] at hbo1
     obtain ⟨hno_old1, hv_old1, hna1, hia0⟩ := hbo1
-    have hcur'_or : (1 - fs1.curEp) = 0 ∨ (1 - fs1.curEp) = 1 :=
-      FastState.oldEp_or hc1.curEp_or
     have hold'_eq : ({ fs1 with
         curEp := 1 - fs1.curEp
         epochClock := 0
@@ -93,13 +91,13 @@ theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         stageCursor := 0 } : FastState).oldEp = fs1.curEp := by
       dsimp only [FastState.oldEp]
       rcases hc1.curEp_or with h | h <;> simp [h]
-    have hinL_roll : ∀ (df : ℕ → ℕ) b st,
+    have hinL_roll (df : ℕ → ℕ) (b st : ℕ) :
         inLiveTree 0 fs1.curEp (df b) st = inLiveTree 5 fs1.oldEp (df b) st := by
-      intro _ _ _; simp [inLiveTree]
+      simp [inLiveTree]
     refine CoreFastInv.toValidFastState ?_ ?_ ?_
     · exact
         { hc1 with
-          curEp_or := hcur'_or
+          curEp_or := FastState.oldEp_or hc1.curEp_or
           epochClock_lt := hq_pos
           rebStage_le := Nat.zero_le 5
           live_fp_inj := fun b hb l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
@@ -111,12 +109,7 @@ theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             rw [hold'_eq, hinL_roll, hs5]
           rKey_buf_inj := hc1.rKey_buf_inj
           bufCur_valid := by
-            change (fs1.buf fs1.oldEp).itemAlloc ≤ 2 * sMaxWhp c n_max ∧
-              (fs1.buf fs1.oldEp).nodeAlloc ≤ 1 + cTabWhp c * (fs1.buf fs1.oldEp).itemAlloc ∧
-              ∃ curMap,
-                ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs1.buf fs1.oldEp) curMap ∧
-                BufMapRel (numBucketsWhp n_max) (2 + fs1.oldEp) fs1.bktCount fs1.locState
-                  (fs1.rKeyAt c U n_max θ) curMap
+            dsimp only [FastState.oldEp] at hna1 hia0 hv_old1 hno_old1 ⊢
             rw [hna1, hia0]
             exact ⟨Nat.zero_le _, by omega, fun _ => none, hv_old1,
               BufMapRel.empty_of_not _ _ _ _ _ hno_old1⟩
@@ -129,8 +122,7 @@ theorem epochTick_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       · refine Or.inr ⟨ha1, h16, hcur, hlin, hins_om, omM, hvO,
           hrO.congr (fun _ _ => rfl) fun loc _ => ?_⟩
         rw [hold'_eq, hinL_roll, hs5]
-    · dsimp only [ValidEpochStage]
-      simp only [↓reduceIte]
+    · simp only [ValidEpochStage, ↓reduceIte]
       exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   · exact CoreFastInv.toValidFastState
       { hc1 with epochClock_lt := Nat.lt_of_not_le hroll } hom1 hstg1

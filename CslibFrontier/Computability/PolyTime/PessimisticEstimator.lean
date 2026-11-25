@@ -110,17 +110,6 @@ variable {I R S M : Type} [LE M] [DecidableRel (α := M) (· ≤ ·)]
 @[expose] def run (x : I) : S :=
   greedy (G.branch x) (G.estimate x) (G.rounds x) (G.init x)
 
-private theorem run_eq_foldl (x : I) :
-    G.run x =
-      (G.rounds x).foldl
-        (fun s r =>
-          if G.estimate x (G.branch x r true s) ≤ G.estimate x (G.branch x r false s) then
-            G.branch x r true s
-          else
-            G.branch x r false s)
-        (G.init x) :=
-  rfl
-
 /-- Plain `ComputableInPolyTime` transfer for `G.run` when `rounds`, `init`, `branch`, `estimate`,
 and `(· ≤ ·)` are polynomial-time and each round increases `(encS s).length` by at most a
 polynomially bounded `growth x`. -/
@@ -418,10 +407,9 @@ theorem computableInPolyTime_run
         hSA.length_elem_le (G.choices p.1.1 p.2) a ha
       have hpa_len : (encChoiceInput encI encS encR encA (p, a)).length ≤
           2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length := by
-        change (encPair encRound encA (p, a)).length ≤ _
-        rw [length_encPair]
-        dsimp only
-        omega
+        rw [show encChoiceInput encI encS encR encA = encPair encRound encA from rfl,
+          length_encPair]
+        exact Nat.add_le_add_left ha_len _
       have hv_len : (encM (G.estimate p.1.1 (G.branch p.1.1 p.2 a p.1.2))).length ≤
           cV * (2 * (encRound p).length + 1 + (encLA (G.choices p.1.1 p.2)).length + 1) ^ dV :=
         (hV (p, a)).trans
@@ -438,9 +426,7 @@ theorem computableInPolyTime_run
   dsimp only [stepRound]
   rcases G.scanStep_foldl_mem x s r (G.choices x r) (G.choices x r) none (Or.inl rfl)
       (fun _ h => h) with hnone | ⟨a, ha, hsome⟩
-  · rw [hnone]
-    simp only [Option.elim]
-    omega
+  · simp [hnone]
   · rw [hsome]
     exact hgrowth x s r a hr ha
 

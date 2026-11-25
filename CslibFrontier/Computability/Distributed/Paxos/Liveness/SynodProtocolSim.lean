@@ -44,27 +44,17 @@ private lemma union_image_broadcastPairs {P M : Type*} [Fintype P] [DecidableEq 
     (pkts ∪ (Finset.univ.image fun q : P => (q, m)).image fun db => ⟨p, db.1, db.2⟩).image
         Packet.body =
       insert m (pkts.image Packet.body) := by
-  ext x
-  simp only [Finset.mem_image, Finset.mem_union, Finset.mem_insert, Finset.mem_univ, true_and]
-  constructor
-  · rintro ⟨pkt, hold | ⟨db, ⟨q, rfl⟩, rfl⟩, rfl⟩
-    exacts [Or.inr ⟨pkt, hold, rfl⟩, Or.inl rfl]
-  · rintro (rfl | ⟨pkt, hold, rfl⟩)
-    exacts [⟨⟨p, p, x⟩, Or.inr ⟨(p, x), ⟨p, rfl⟩, rfl⟩, rfl⟩, ⟨pkt, Or.inl hold, rfl⟩]
+  rw [Finset.image_union, Finset.image_image, Finset.image_image]
+  change pkts.image Packet.body ∪ Finset.univ.image (fun _ : P => m) = _
+  rw [Finset.image_const ⟨p, Finset.mem_univ p⟩, Finset.union_comm, Finset.singleton_union]
 
 /-- Body-projection identity for singleton-destination outgoing packets. -/
 private lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [DecidableEq M]
     (pkts : Finset (Packet P M)) (p q : P) (m : M) :
     (pkts ∪ ({(q, m)} : Finset (P × M)).image fun db => ⟨p, db.1, db.2⟩).image Packet.body =
       insert m (pkts.image Packet.body) := by
-  ext x
-  simp only [Finset.image_singleton, Finset.mem_image, Finset.mem_union, Finset.mem_singleton,
-    Finset.mem_insert]
-  constructor
-  · rintro ⟨pkt, hold | rfl, rfl⟩
-    exacts [Or.inr ⟨pkt, hold, rfl⟩, Or.inl rfl]
-  · rintro (rfl | ⟨pkt, hold, rfl⟩)
-    exacts [⟨⟨p, q, x⟩, Or.inr rfl, rfl⟩, ⟨pkt, Or.inl hold, rfl⟩]
+  rw [Finset.image_union, Finset.image_singleton, Finset.image_singleton, Finset.union_comm,
+    Finset.singleton_union]
 
 /-- Decision output preservation across non-learning steps. -/
 private lemma out_eq_after_nonlearn {V : Type*} (out learned : Option V)

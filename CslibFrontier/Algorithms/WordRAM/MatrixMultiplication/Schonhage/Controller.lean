@@ -66,13 +66,8 @@ theorem source_ne_destination (L j : ℕ) : source L j ≠ destination L j := by
   cases j with
   | zero => simp only [source, destination, outputBase]; omega
   | succ j =>
-    rcases destination_cases L j with h | h
-    · simp only [source, destination, h, ↓reduceIte]
-      unfold scratchBase
-      omega
-    · have hne : scratchBase L ≠ outputBase L := by unfold scratchBase; omega
-      simp only [source, destination, h, hne, ↓reduceIte]
-      exact hne
+    rcases destination_cases L j with h | h <;>
+      simp only [source, destination, scratchBase, h] <;> split_ifs <;> omega
 
 /-- Both current addresses are bounded by the end of the second buffer. -/
 theorem buffer_address_le (L j : ℕ) :
@@ -95,9 +90,7 @@ theorem buffers_separated {L j k N : ℕ} (hjk : j + k = L)
   have hsize : 10 ^ j * 7 ^ k ≤ 10 ^ L := by simpa only [hjk] using stageSize_le j k
   cases j with
   | zero =>
-    left
-    simp only [Nat.zero_add] at hjk
-    simp [source, destination, outputBase, hjk]
+    simp [source, destination, outputBase, ← hjk]
   | succ j =>
     have hs := source_cases (L := L) (j := j + 1) (by omega)
     have hd := destination_cases L (j + 1)
@@ -136,14 +129,11 @@ theorem progress_zero (side : Bool) (L : ℕ) (arr : ℕ → ℤ) (x y : Data 32
     (hy : SetupPost L x y) (hinput : ∀ i < 7 ^ L, x.mem (2 + i) = encode (arr i)) :
     Progress side L 0 arr x.mem y := by
   refine ⟨⟨hy.depth, hy.capacity, hy.output, hy.scratch, hy.one, hy.seven, hy.ten⟩,
-    hy.stage, hy.prefixes, ?_, hy.src, hy.dst, ?_, ?_⟩
-  · simpa only [Nat.sub_zero] using hy.stride
-  · intro p hp r hr
-    obtain rfl : p = 0 := Nat.lt_one_iff.mp hp
-    rw [hy.mem, value_zero]
-    simpa only [source, Nat.sub_zero, Nat.zero_mul, Nat.add_zero] using hinput r hr
-  · intro a _
-    rw [hy.mem]
+    hy.stage, hy.prefixes, by simpa only [Nat.sub_zero] using hy.stride, hy.src, hy.dst,
+    fun p hp r hr => ?_, fun a _ => congrFun hy.mem a⟩
+  obtain rfl : p = 0 := Nat.lt_one_iff.mp hp
+  rw [hy.mem, value_zero]
+  simpa only [source, Nat.sub_zero, Nat.zero_mul, Nat.add_zero] using hinput r hr
 
 /-- One proved native stage advances the mixed-radix invariant. The signed magnitude bound
 comes from the original input and the number of coordinates already transformed. -/
