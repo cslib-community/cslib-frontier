@@ -8,13 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
+public import Mathlib.LinearAlgebra.Matrix.Rank
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import Mathlib.Algebra.Field.ZMod
-import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.CharP.Two
 import Mathlib.LinearAlgebra.Dimension.DivisionRing
@@ -64,11 +63,10 @@ bounds.
 
 ## Main results
 
-* `leftKernelDim_add_rank`, `sub_le_leftKernelDim`, `exists_parityCheckMatrix`: left-kernel
-  dimension identity and existence of full-row-rank parity-check matrices over arbitrary fields.
 * `parityCheck_map_uniformOfFintype`, `parityCheck_uniform_zero_prob`,
   `multiMask_parityCheck_uniform_zero_prob`: exact uniform false-positive rates `(|K|⁻¹) ^ r` and
-  `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)`.
+  `(2 : ℝ≥0∞)⁻¹ ^ (nMask * r)` (relying on generic `[Field K]` left-kernel results from
+  `CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel`).
 * `crtPrefixTest_isQueryBounded`, `crtPrefixTest_honest_true`, `crtPrefixTest_wrong_guess_prob`:
   `kGates`-query soundness and completeness of the `H5` prefix distinguisher.
 * `crtIssueSpendAdversary_isQueryBounded`, `crtIssueSpendAdversary_advantage_ge`: Issue-to-Spend
@@ -90,7 +88,7 @@ bounds.
   derivation.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.AnonymousToken.CRTHazard
 
@@ -99,79 +97,11 @@ open Probability.PMF (uniformOfFintype uniformOfFintype_apply uniformOfFintype_b
   uniformOfFintype_map_equiv uniformOfFintype_pi_map_comp_embedding uniformOfFintype_prod_map_snd)
 open scoped Matrix ENNReal NNReal
 
-/-! ### Left-kernel rank deficiency and uniform parity rejection -/
+/-! ### Uniform parity rejection over surjective parity-check matrices -/
 
-section LinearAlgebra
+section UniformParity
 
-variable {K : Type*} [Field K] {m n r : ℕ}
-
-/-- The dimension of the left kernel `ker Fᵀ` of `F : Matrix (Fin m) (Fin n) K`. -/
-noncomputable def leftKernelDim (F : Matrix (Fin m) (Fin n) K) : ℕ :=
-  Module.finrank K (LinearMap.ker Fᵀ.mulVecLin)
-
-/-- Rank-nullity on `Fᵀ`: `leftKernelDim F + F.rank = m`. -/
-theorem leftKernelDim_add_rank (F : Matrix (Fin m) (Fin n) K) :
-    leftKernelDim F + F.rank = m := by
-  have hrn := Fᵀ.mulVecLin.finrank_range_add_finrank_ker
-  change Fᵀ.rank + leftKernelDim F = Module.finrank K (Fin m → K) at hrn
-  rw [Matrix.rank_transpose, Module.finrank_fin_fun] at hrn
-  omega
-
-/-- Any `m × n` matrix over a field has left-kernel dimension at least `m - n`. -/
-theorem sub_le_leftKernelDim (F : Matrix (Fin m) (Fin n) K) :
-    m - n ≤ leftKernelDim F := by
-  have hsum := leftKernelDim_add_rank F
-  have hr : F.rank ≤ n := by simpa [Fintype.card_fin] using F.rank_le_card_width
-  omega
-
-/-- Every `F : Matrix (Fin m) (Fin n) K` admits an explicit parity-check matrix `H` with
-`leftKernelDim F` rows such that `H * F = 0` and `H.mulVecLin` is surjective. -/
-theorem exists_parityCheckMatrix (F : Matrix (Fin m) (Fin n) K) :
-    ∃ H : Matrix (Fin (leftKernelDim F)) (Fin m) K,
-      H * F = 0 ∧ Function.Surjective H.mulVecLin := by
-  let b := (Module.finBasis K (LinearMap.ker Fᵀ.mulVecLin)).reindex
-    (finCongr rfl : Fin (Module.finrank K (LinearMap.ker Fᵀ.mulVecLin)) ≃
-      Fin (leftKernelDim F))
-  let H : Matrix (Fin (leftKernelDim F)) (Fin m) K :=
-    Matrix.of fun i j => (b i : Fin m → K) j
-  refine ⟨H, ?_, ?_⟩
-  · ext i k
-    have hker : Fᵀ.mulVec (b i : Fin m → K) = 0 := (b i).property
-    have hk := congrFun hker k
-    simpa [H, Matrix.mul_apply, Matrix.mulVec, dotProduct, mul_comm] using hk
-  · have hHT_inj : LinearMap.ker Hᵀ.mulVecLin = ⊥ := by
-      rw [Submodule.eq_bot_iff]
-      intro c hc
-      have hsum : (∑ i, c i • (b i : LinearMap.ker Fᵀ.mulVecLin)) = 0 := by
-        apply Subtype.ext
-        ext j
-        have hj := congrFun hc j
-        simpa [H, Matrix.mulVecLin_apply, Matrix.mulVec, dotProduct, mul_comm,
-          Submodule.coe_sum, Submodule.coe_smul, Finset.sum_apply, Pi.smul_apply,
-          smul_eq_mul] using hj
-      ext i
-      exact linearIndependent_iff'.mp b.linearIndependent Finset.univ c hsum i (Finset.mem_univ i)
-    have hrankT : Hᵀ.rank = leftKernelDim F := by
-      have hrn := Hᵀ.mulVecLin.finrank_range_add_finrank_ker
-      change Hᵀ.rank + Module.finrank K (LinearMap.ker Hᵀ.mulVecLin) =
-        Module.finrank K (Fin (leftKernelDim F) → K) at hrn
-      rw [hHT_inj, finrank_bot, add_zero, Module.finrank_fin_fun] at hrn
-      exact hrn
-    have hrange : LinearMap.range H.mulVecLin = ⊤ := by
-      apply Submodule.eq_top_of_finrank_eq
-      change H.rank = Module.finrank K (Fin (leftKernelDim F) → K)
-      rw [← Matrix.rank_transpose, hrankT, Module.finrank_fin_fun]
-    exact LinearMap.range_eq_top.mp hrange
-
-/-- A left-kernel check annihilates every vector in the image of `F`. -/
-theorem parityCheck_mulVec_of_eq_zero {H : Matrix (Fin r) (Fin m) K}
-    {F : Matrix (Fin m) (Fin n) K} (hHF : H * F = 0) (w : Fin n → K) :
-    H *ᵥ (F *ᵥ w) = 0 := by
-  rw [Matrix.mulVec_mulVec, hHF, Matrix.zero_mulVec]
-
-section Uniform
-
-variable [Fintype K]
+variable {K : Type*} [Field K] {m r : ℕ} [Fintype K]
 
 /-- Decomposition `(Fin m → K) ≃ ker H.mulVecLin × (Fin r → K)` from surjectivity of `H`. -/
 private noncomputable def kernelSliceEquiv {H : Matrix (Fin r) (Fin m) K}
@@ -263,9 +193,7 @@ theorem multiMask_parityCheck_uniform_zero_prob {nMask : ℕ}
   · intro z hz
     simp [hz]
 
-end Uniform
-
-end LinearAlgebra
+end UniformParity
 
 /-! ### CRT garbled mask tables and query-bounded `H5` distinguishers -/
 
@@ -445,7 +373,7 @@ def crtPrefixEval {IV : Type} {nMult lam nMask kGates rSub : ℕ}
   decide (∀ mask, Hsub *ᵥ cand mask = 0)
 
 /-- Auxiliary recursion querying `H5` on the first `m` selected gates. -/
-def queryH5Prefix {IV : Type} {nMult lam : ℕ} (nMask : ℕ) {kGates : ℕ}
+private def queryH5Prefix {IV : Type} {nMult lam : ℕ} (nMask : ℕ) {kGates : ℕ}
     (q : Fin kGates → H5Query IV nMult lam) :
     (m : ℕ) → m ≤ kGates →
       ProbOracleComp (H5Spec IV nMult lam nMask) (Fin m → Fin nMask → ZMod 2)
@@ -548,10 +476,10 @@ theorem crtPrefixTest_honest_true {IV : Type} {nMult lam nMask kGates rSub : ℕ
     simpa [tbl, hActive, honestCRTMaskTable, Matrix.submatrix_apply, Matrix.mulVec,
       dotProduct] using hrec
   rw [hvec]
-  exact parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
+  exact Matrix.parityCheck_mulVec_of_eq_zero hHF (maskInput mask)
 
 /-- Helper factoring `Fin kGates ↪ H5Query IV nMult lam` for distinct `sub` gates. -/
-def gateQueryEmbedding {IV : Type} {nMult lam kGates : ℕ}
+private def gateQueryEmbedding {IV : Type} {nMult lam kGates : ℕ}
     (iv : IV) (sub : Fin kGates ↪ Fin nMult) (cand : Fin nMult → Fin lam → ZMod 2) :
     Fin kGates ↪ H5Query IV nMult lam where
   toFun i := ⟨iv, sub i, cand (sub i)⟩
@@ -717,6 +645,59 @@ theorem crtPrefixTest_wrong_guess_prob {IV : Type} [Fintype IV] [DecidableEq IV]
   simp_rw [hconst]
   rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
+/-- Single-guess false-accept bound in the random `uPrefix` and `H5` model: for any `wStar ≠
+wPrefix`, conditioning away the `2⁻¹ ^ lam` collision `wPrefix + uPrefix = wStar` bounds the
+`crtPrefixTest` acceptance probability by `2⁻¹ ^ (nMask * rSub) + 2⁻¹ ^ lam`. -/
+private theorem crtPrefixTest_wrong_guess_le {IV : Type} [Fintype IV] [DecidableEq IV]
+    {nMult lam nMask kGates rSub : ℕ}
+    (sub : Fin kGates ↪ Fin nMult) (Hsub : Matrix (Fin rSub) (Fin kGates) (ZMod 2))
+    (hsurj : Function.Surjective Hsub.mulVecLin)
+    (iv : IV) (L0 : Fin nMult → (Fin lam → ZMod 2))
+    (wPrefix wStar : Fin lam → ZMod 2) (active : Fin nMult → Bool)
+    (F : Matrix (Fin nMult) (Fin lam) (ZMod 2))
+    (maskInput : Fin nMask → (Fin lam → ZMod 2)) (hne : wStar ≠ wPrefix) :
+    ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
+      (uniformOfFintype (Fin lam → ZMod 2)).bind fun uPrefix =>
+        let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
+        let hActive : Fin kGates → Fin nMask → ZMod 2 :=
+          fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
+        ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive wStar).run (fun q => pure (h5 q))))
+      true ≤
+      (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ lam := by
+  rw [PMF.bind_comm, PMF.bind_apply]
+  let badU : Fin lam → ZMod 2 := wPrefix + wStar
+  calc (∑' uPrefix : Fin lam → ZMod 2,
+        (uniformOfFintype (Fin lam → ZMod 2)) uPrefix *
+        ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
+          let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
+          let hActive : Fin kGates → Fin nMask → ZMod 2 :=
+            fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
+          ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive wStar).run
+            (fun q => pure (h5 q)))) true)
+      ≤ ∑' uPrefix : Fin lam → ZMod 2,
+          (uniformOfFintype (Fin lam → ZMod 2)) uPrefix *
+            ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + if uPrefix = badU then 1 else 0) := by
+        refine tsum_le_tsum fun uPrefix => mul_le_mul_of_nonneg_left ?_ zero_le
+        by_cases hu : uPrefix = badU
+        · simp only [hu, ↓reduceIte]
+          exact le_add_of_le_right (PMF.coe_le_one _ _)
+        · have hnz : wPrefix + uPrefix + wStar ≠ 0 := by
+            intro h0
+            apply hu
+            have hsum : uPrefix + badU = 0 := by
+              rw [show badU = wPrefix + wStar from rfl, ← add_assoc, add_comm uPrefix wPrefix]
+              exact h0
+            exact (zmod2_vec_add_eq_zero_iff uPrefix badU).mp hsum
+          have hp := crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix wPrefix wStar
+            active F maskInput hne hnz
+          rw [hp]
+          simp only [hu, ↓reduceIte, add_zero, le_rfl]
+    _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (uniformOfFintype (Fin lam → ZMod 2)) badU := by
+        simp_rw [mul_add, mul_ite, mul_one, mul_zero]
+        rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq, add_comm]
+    _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ lam := by
+        simp [uniformOfFintype_apply, ZMod.card, ENNReal.inv_pow]
+
 end CRTTables
 
 /-! ### Issue-to-Spend & Spend-prefix unlinkability breaks, and `r`-first repair -/
@@ -803,61 +784,8 @@ theorem crtIssueSpendAdversary_advantage_ge {IV : Type} [Fintype IV] [DecidableE
     rw [hfalse]
     simp [Game.succProbability]
   have htrue_le : (g true true) ≤ (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ lam := by
-    simp only [g, crtIssueSpendGame, crtIssueSpendAdversary, ↓reduceIte]
-    have hswap :
-        ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-          (uniformOfFintype (Fin lam → ZMod 2)).bind fun u₀ =>
-          (uniformOfFintype (Fin lam → ZMod 2)).bind fun _ =>
-          ProbComp.eval ((crtPrefixTest sub Hsub
-            (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5)
-            (fun i => h5 ⟨iv₀, sub i,
-              (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5).activeLabel (sub i)⟩)
-            nf₁).run (fun q => pure (h5 q)))) =
-        (uniformOfFintype (Fin lam → ZMod 2)).bind fun u₀ =>
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            ProbComp.eval ((crtPrefixTest sub Hsub
-              (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5)
-              (fun i => h5 ⟨iv₀, sub i,
-                (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5).activeLabel
-                  (sub i)⟩)
-              nf₁).run (fun q => pure (h5 q))) := by
-      rw [PMF.bind_comm]
-      congr 1 with u₀ : 1
-      simp only [PMF.bind_const]
-    rw [hswap, PMF.bind_apply]
-    let badU : Fin lam → ZMod 2 := nf₀ + nf₁
-    calc (∑' u₀ : Fin lam → ZMod 2,
-          (uniformOfFintype (Fin lam → ZMod 2)) u₀ *
-          ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            ProbComp.eval ((crtPrefixTest sub Hsub
-              (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5)
-              (fun i => h5 ⟨iv₀, sub i,
-                (honestCRTMaskTable iv₀ L0₀ u₀ nf₀ active₀ F maskInput₀ h5).activeLabel
-                  (sub i)⟩)
-              nf₁).run (fun q => pure (h5 q)))) true)
-        ≤ ∑' u₀ : Fin lam → ZMod 2,
-            (uniformOfFintype (Fin lam → ZMod 2)) u₀ *
-              ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + if u₀ = badU then 1 else 0) := by
-          refine tsum_le_tsum fun u₀ => mul_le_mul_of_nonneg_left ?_ zero_le
-          by_cases hu : u₀ = badU
-          · simp only [hu, ↓reduceIte]
-            exact le_add_of_le_right (PMF.coe_le_one _ _)
-          · have hnz : nf₀ + u₀ + nf₁ ≠ 0 := by
-              intro h0
-              apply hu
-              have hsum : u₀ + badU = 0 := by
-                rw [show badU = nf₀ + nf₁ from rfl, ← add_assoc, add_comm u₀ nf₀]
-                exact h0
-              exact (zmod2_vec_add_eq_zero_iff u₀ badU).mp hsum
-            have hp := crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv₀ L0₀ u₀ nf₀ nf₁ active₀ F
-              maskInput₀ hne hnz
-            rw [hp]
-            simp only [hu, ↓reduceIte, add_zero, le_rfl]
-      _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (uniformOfFintype (Fin lam → ZMod 2)) badU := by
-          simp_rw [mul_add, mul_ite, mul_one, mul_zero]
-          rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq, add_comm]
-      _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ lam := by
-          simp [uniformOfFintype_apply, ZMod.card, ENNReal.inv_pow]
+    simp only [g, crtIssueSpendGame, crtIssueSpendAdversary, ↓reduceIte, PMF.bind_const]
+    exact crtPrefixTest_wrong_guess_le sub Hsub hsurj iv₀ L0₀ nf₀ nf₁ active₀ F maskInput₀ hne
   have htrue_succR : (Game.succProbability (g true) : ℝ) ≤
       (2 : ℝ)⁻¹ ^ (nMask * rSub) + (2 : ℝ)⁻¹ ^ lam := by
     rw [Game.coe_succProbability]
@@ -1064,43 +992,9 @@ theorem crtSpendPrefixTest_wrong_t_le {IV : Type} [Fintype IV] [DecidableEq IV]
                 fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
               ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive w).run
                 (fun q => pure (h5 q)))) true ≤
-            (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand) := by
-        rw [PMF.bind_comm]
-        rw [PMF.bind_apply]
-        let badU := packBalancePrefix tReal rReal + w
-        calc (∑' uPrefix : Fin (wBal + wRand) → ZMod 2,
-              (uniformOfFintype (Fin (wBal + wRand) → ZMod 2)) uPrefix *
-              ((uniformOfFintype (H5Query IV nMult (wBal + wRand) → Fin nMask → ZMod 2)).bind
-                fun h5 =>
-                let wPrefix := packBalancePrefix tReal rReal
-                let tbl := honestCRTMaskTable iv L0 uPrefix wPrefix active F maskInput h5
-                let hActive : Fin kGates → Fin nMask → ZMod 2 :=
-                  fun i => h5 ⟨iv, sub i, tbl.activeLabel (sub i)⟩
-                ProbComp.eval ((crtPrefixTest sub Hsub tbl hActive w).run
-                  (fun q => pure (h5 q)))) true)
-            ≤ ∑' uPrefix : Fin (wBal + wRand) → ZMod 2,
-                (uniformOfFintype (Fin (wBal + wRand) → ZMod 2)) uPrefix *
-                  ((2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + if uPrefix = badU then 1 else 0) := by
-              refine tsum_le_tsum fun uPrefix => mul_le_mul_of_nonneg_left ?_ zero_le
-              by_cases hu : uPrefix = badU
-              · simp only [hu, ↓reduceIte]
-                exact le_add_of_le_right (PMF.coe_le_one _ _)
-              · have hnz : packBalancePrefix tReal rReal + uPrefix + w ≠ 0 := by
-                  intro h0
-                  apply hu
-                  have hsum : uPrefix + badU = 0 := by
-                    rw [show badU = packBalancePrefix tReal rReal + w from rfl, ← add_assoc,
-                      add_comm uPrefix (packBalancePrefix tReal rReal)]
-                    exact h0
-                  exact (zmod2_vec_add_eq_zero_iff uPrefix badU).mp hsum
-                have hp := crtPrefixTest_wrong_guess_prob sub Hsub hsurj iv L0 uPrefix
-                  (packBalancePrefix tReal rReal) w active F maskInput hw hnz
-                rw [hp]
-                simp [hu]
-          _ = (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand) := by
-              simp_rw [mul_add, mul_ite, mul_one, mul_zero]
-              rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, tsum_ite_eq]
-              simp [uniformOfFintype_apply, ZMod.card, ENNReal.inv_pow]
+            (2 : ℝ≥0∞)⁻¹ ^ (nMask * rSub) + (2 : ℝ≥0∞)⁻¹ ^ (wBal + wRand) :=
+        crtPrefixTest_wrong_guess_le sub Hsub hsurj iv L0 (packBalancePrefix tReal rReal) w active F
+          maskInput hw
       let H5T := H5Query IV nMult (wBal + wRand) → Fin nMask → ZMod 2
       let UT := Fin (wBal + wRand) → ZMod 2
       have hterm_le :

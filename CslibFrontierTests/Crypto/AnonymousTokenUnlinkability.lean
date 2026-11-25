@@ -6,14 +6,17 @@ Authors: Samuel Schlesinger, Karn Seth
 
 module
 
+import CslibFrontier.Crypto.Protocols.AnonymousToken.CRTDecoupling
 import CslibFrontier.Crypto.Protocols.AnonymousToken.CRTHazard
 import CslibFrontier.Crypto.Protocols.AnonymousToken.Unlinkability
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel
 
 /-!
 # Regressions and instantiations for VOLE-ACT unlinkability and CRT witness-reuse hazard
 
-Exercises `Cslib.Crypto.AnonymousToken.Unlinkability` and
-`Cslib.Crypto.AnonymousToken.CRTHazard` through ordinary module imports:
+Exercises `Cslib.Crypto.AnonymousToken.Unlinkability`,
+`Cslib.Crypto.AnonymousToken.CRTDecoupling`, `Cslib.Crypto.AnonymousToken.CRTHazard`, and
+`CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel` through ordinary module imports:
 * an honest-traffic positive execution witness showing `unlinkabilityExperiment` accepts honest
   issuance, pre-challenge spend, and challenge spend executions with probability `1`;
 * concrete balance-partitioning attacks (`balancePartitionInitAdversary` with `T₀ ≠ T₁` and
@@ -39,8 +42,11 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.Crypto.AnonymousTokenUnlinkability
 
 open Cslib Cslib.Crypto Cslib.Crypto.AnonymousToken
+open Cslib.Crypto.AnonymousToken.CRTDecoupling
 open Cslib.Crypto.AnonymousToken.Unlinkability
 open Cslib.Crypto.AnonymousToken.CRTHazard
+open Matrix (leftKernelDim leftKernelDim_add_rank sub_le_leftKernelDim exists_parityCheckMatrix
+  parityCheck_mulVec_of_eq_zero)
 open Probability
 open Probability.PMF (uniformOfFintype)
 open scoped Matrix ENNReal NNReal

@@ -11,21 +11,15 @@ public import CslibFrontier.Crypto.Computational.Commitment.Scheme
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Crypto.Game
-public import CslibFrontier.Crypto.Protocols.AnonymousToken.CRTHazard
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
-public import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Crypto.Game.Hybrid
-import CslibFrontier.Crypto.Game.Order
-import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Bool
-import Mathlib.Algebra.CharP.Two
 
 /-!
-# Malicious-issuer unlinkability and non-black-box CRT decoupling for VOLE-ACT
+# Malicious-issuer unlinkability for VOLE-ACT
 
 This module formalizes malicious-issuer unlinkability for VOLE-ACT (`[VOLEACT2026]`, Protocol
 Specification / Initial Issuance `#issuance` and Spending `#spending`) in the finite query-bounded
@@ -53,18 +47,11 @@ model (`#7068`), including:
    `[0, 1]` two-world advantage convention, and all `2 + preRounds + challengeSpends` emitted
    commitments (reducing to `2 + challengeSpends` when `preRounds = 0`) are replaced sequentially
    because `choosePre` chooses client branches adaptively.
-4. **Non-black-box `G8 → G8.5` CRT witness-reuse decoupling (`crtDecouple_advantage_le`)**:
-   connecting the coupled CRT witness-reuse simulation `g8Game` (`G8` in [BaumEtAl2026FAEST]
-   §10.10 Theorem 10.42; `d_j = r_j + u_j`, raw `H5`-derived `cmult`) via `IdenticalUntilBad` to
-   decoupled `g85Game` (`G8.5` is this library's intermediate hop), and reducing `BadH5` via
-   `badH5HidingReduction` and `badH5BindingReduction` (using provably distinct `CommitMsg.bumpBal`)
-   to `qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` (original to this library). Here token
-   messages are non-adaptive (fixed by `ck`), `r j` itself serves as the witness prefix (`r`-first
-   layout), `cmult` is raw `H5` output, `g85IvCollisionProb` replaces the fixed `2 ^ (-λ)` term,
-   and end-to-end composition from `G1–G8` remains open under `#7068`.
 
-As in `CRTHazard.lean`, all games and reductions are finite query-bounded constructions (`#7068`);
-asymptotic polynomial-time certificates are outside this module's scope.
+Non-black-box `G8 → G8.5` CRT witness-reuse decoupling lives in
+`CslibFrontier.Crypto.Protocols.AnonymousToken.CRTDecoupling`. As in `CRTHazard.lean` and
+`CRTDecoupling.lean`, all games and reductions here are finite query-bounded constructions
+(`#7068`); asymptotic polynomial-time certificates are outside this module's scope.
 
 ## Main definitions
 
@@ -75,7 +62,6 @@ asymptotic polynomial-time certificates are outside this module's scope.
 * `UnlinkAdversary`, `unlinkabilityExperiment`, `unguardedUnlinkabilityExperiment`.
 * `balancePartitionInitAdversary`, `balancePartitionRefundAdversary`.
 * `zkDistinguisher`, `unlinkHidingReduction`.
-* `G85Setup`, `g8Game`, `g85Game`, `badH5HidingReduction`, `badH5BindingReduction`.
 
 ## Main results
 
@@ -85,18 +71,14 @@ asymptotic polynomial-time certificates are outside this module's scope.
   `balancePartitionRefund_unguarded_advantage_eq_one`,
   `balancePartitionRefund_guarded_advantage_eq_zero`.
 * `zkDistinguisher_isQueryBounded`, `unlinkabilityExperiment_advantage_le`.
-* `crtDecouple_identicalUntilBad`, `crtDecouple_advantage_le`.
 
 ## References
 
 * [*VOLE-ACT*][VOLEACT2026], Protocol Specification / Initial Issuance (`#issuance`), Spending
   (`#spending`), and Proof Status (`#proof-status`).
-* [*FAEST v3: Algorithm Specifications*][BaumEtAl2026FAEST], Sections 3.1–3.3 (pp. 13–18),
-  Section 6 (pp. 35–43, Figures 6.1–6.3), and Section 10.10 (Theorem 10.42, Games `G6`–`G11`,
-  pp. 115–121).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.AnonymousToken.Unlinkability
 
@@ -124,7 +106,7 @@ structure OpeningCommitment (CommitKey Message Commitment Opening : Type) where
   eval : CommitKey → Message → Opening → Commitment
 
 /-- Package an `OpeningCommitment` as a `Commitment.Scheme`. -/
-def OpeningCommitment.toScheme {CommitKey Message C Opening : Type}
+@[expose] def OpeningCommitment.toScheme {CommitKey Message C Opening : Type}
     [DecidableEq C] (Com : OpeningCommitment CommitKey Message C Opening) :
     Commitment.Scheme CommitKey Message C Opening where
   keyGen := Com.keyGen
@@ -157,7 +139,7 @@ structure CommitMsg (Nullifier Context : Type) where
 
 /-- Distinct message obtained by incrementing the note balance by `1`, used in binding
 reductions where two distinct messages must be committed to check collisions. -/
-def CommitMsg.bumpBal {Nullifier Context : Type} (m : CommitMsg Nullifier Context) :
+@[expose] def CommitMsg.bumpBal {Nullifier Context : Type} (m : CommitMsg Nullifier Context) :
     CommitMsg Nullifier Context :=
   ⟨m.nf, m.ctx, m.bal + 1⟩
 
@@ -244,7 +226,7 @@ abbrev ProofSpec (PK C Context Nullifier O Sig Proof : Type) :
 
 /-- Boolean statement-witness relation enforcing `(V1)`–`(V4)` and issuance range `0 < T < bound`
 ([VOLEACT2026], `#issuance` and `#spending`). -/
-def validStatement {CommitKey PK C Context Nullifier O Sig Target SK : Type}
+@[expose] def validStatement {CommitKey PK C Context Nullifier O Sig Target SK : Type}
     [DecidableEq C]
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (tag : C → ℕ → Target) (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
@@ -275,7 +257,7 @@ variable [DecidableEq C]
 
 /-- Real multi-instance ZK oracle returning `none` when `validStatement = false` and running
 `sys.prove` otherwise. -/
-def realProofOracle
+@[expose] def realProofOracle
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (tag : C → ℕ → Target) (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
     (sys : ProverSystem CommitKey PK C Context Nullifier O Sig Proof) (ck : CommitKey)
@@ -415,7 +397,7 @@ variable [DecidableEq C]
 
 /-- Non-abort range admissibility test for spending a note with balance/refund `(bal, ref)`
 on debit `d`: requires `d ≤ bal + ref`, `d < bound`, and `bal + ref - d < bound`. -/
-def spendAdmissible (bound bal ref d : ℕ) : Bool :=
+@[expose] def spendAdmissible (bound bal ref d : ℕ) : Bool :=
   decide (d < bound ∧ d ≤ bal + ref ∧ bal + ref - d < bound)
 
 /-- Minimal simulator note state tracking only `(nf, bal, ref)`, without commitment openings or
@@ -429,7 +411,7 @@ structure SimNote (Nullifier : Type) where
   ref : ℕ
 
 /-- Project a full `ClientNote` to its simulator note state `(nf, bal, ref)`. -/
-def ClientNote.toSim {Nullifier C O Sig : Type}
+private def ClientNote.toSim {Nullifier C O Sig : Type}
     (n : ClientNote Nullifier C O Sig) : SimNote Nullifier :=
   ⟨n.nf, n.bal, n.ref⟩
 
@@ -453,7 +435,7 @@ inductive SimContinuation
   | done (res : Bool)
 
 /-- Output of running the simulator hybrid until pause slot `pauseSlot`. -/
-structure PauseResult
+private structure PauseResult
     (PK Context C Nullifier Proof State : Type) (preRounds challengeSpends : ℕ) where
   /-- Real note message submitted as left hiding challenge. -/
   msgReal : CommitMsg Nullifier Context
@@ -465,7 +447,7 @@ structure PauseResult
 section UnlinkPrograms
 
 /-- Challenge-spend loop inside `ProbOracleComp (ProofSpec ...) Bool`. -/
-def challengeLoopOracle
+@[expose] def challengeLoopOracle
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
@@ -512,7 +494,7 @@ def challengeLoopOracle
 
 /-- Adaptive pre-challenge spend loop inside `ProbOracleComp (ProofSpec ...) Bool`, transitioning
 into `challengeLoopOracle` once all `preRounds` complete. -/
-def preLoopOracle
+@[expose] def preLoopOracle
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
@@ -564,7 +546,7 @@ def preLoopOracle
               note0' note1' resp.st
 
 /-- Oracle-based adaptive unlinkability program queried against `ProofOracle`. -/
-def unlinkOracleProgram
+@[expose] def unlinkOracleProgram
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
@@ -605,7 +587,7 @@ def unlinkOracleProgram
 
 /-- Guarded adaptive malicious-issuer unlinkability experiment (`guardBoth = true`, cross-branch
 non-abort check enforced). -/
-noncomputable def unlinkabilityExperiment
+@[expose] noncomputable def unlinkabilityExperiment
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier) (tag : C → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig) (bound : ℕ)
@@ -1165,9 +1147,9 @@ private def NoteInv
 
 section SimHybrid
 
-/-- Explicit multi-instance ZK distinguisher for the adaptive unlinkability reduction: draws a
-uniform challenge bit `b ← Bool`, runs `unlinkOracleProgram` on `b`, and tests whether the
-adversary's output equals `b` (giving the factor of `2` via
+/-- Explicit multi-instance ZK distinguisher for the adaptive unlinkability reduction (concrete
+query-bounded step, `#7068`): draws a uniform challenge bit `b ← Bool`, runs `unlinkOracleProgram`
+on `b`, and tests whether the adversary's output equals `b` (giving the factor of `2` via
 `Game.advantage_le_two_mul_uniform_bool_xor`). -/
 noncomputable def zkDistinguisher
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
@@ -1327,7 +1309,7 @@ section UnlinkabilityReductionContinuation
 variable {CommitKey PK C Context Nullifier O Sig Target SK Proof State : Type}
 
 /-- Environment bundling fixed protocol parameters across simulator hybrid loops. -/
-structure SimEnv
+private structure SimEnv
     (CommitKey PK C Context Nullifier O Sig Target SK Proof : Type) where
   /-- Deterministic-evaluation opening commitment scheme. -/
   Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O
@@ -1348,7 +1330,7 @@ structure SimEnv
 
 /-- Challenge-spend simulator loop parameterized by commitment hybrid cutoff `hop` (`idx < hop`
 uses `dummy`, `hop ≤ idx` uses the real note message). -/
-def challengeLoopSim {preRounds challengeSpends : ℕ}
+private def challengeLoopSim {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1385,7 +1367,7 @@ def challengeLoopSim {preRounds challengeSpends : ℕ}
             noteNext balOtherNext resp.refund resp.st
 
 /-- Pre-challenge simulator loop parameterized by commitment hybrid cutoff `hop`. -/
-def preLoopSim {preRounds challengeSpends : ℕ}
+private def preLoopSim {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1741,7 +1723,7 @@ private lemma unlinkOracleProgram_sim_eq [DecidableEq C] {preRounds challengeSpe
         ⟨rfl, ht1ub, show (0 : ℕ) < env.bound by omega, hsigs.2⟩
 
 /-- Challenge pause step: stops right before commitment slot `idx` equals `pauseSlot`. -/
-def challengeLoopPause {preRounds challengeSpends : ℕ}
+private def challengeLoopPause {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1786,7 +1768,7 @@ def challengeLoopPause {preRounds challengeSpends : ℕ}
               noteNext (balOther + refOther - choice.debit) resp.refund resp.st
 
 /-- Pre-challenge pause step: stops right before commitment slot `idx` equals `pauseSlot`. -/
-def preLoopPause {preRounds challengeSpends : ℕ}
+private def preLoopPause {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1835,7 +1817,7 @@ def preLoopPause {preRounds challengeSpends : ℕ}
             preLoopPause env adv pk ctx b pauseSlot rem' (by omega) note0' note1' resp.st
 
 /-- Full hybrid prefix up to pause slot `pauseSlot`. -/
-def runPause {preRounds challengeSpends : ℕ}
+private def runPause {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -1872,7 +1854,7 @@ def runPause {preRounds challengeSpends : ℕ}
             ⟨nf0, initOut.t0, 0⟩ ⟨nf1, initOut.t1, 0⟩ issResp.st
 
 /-- Resume simulator hybrid after receiving challenge commitment `cStar` at slot `pauseSlot`. -/
-def resumeAfterCom {preRounds challengeSpends : ℕ}
+private def resumeAfterCom {preRounds challengeSpends : ℕ}
     (env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof)
     (adv : UnlinkAdversary CommitKey PK Context C Nullifier Proof Sig State
       preRounds challengeSpends)
@@ -2179,16 +2161,14 @@ structure UnlinkHidingState
     (preRounds challengeSpends : ℕ) where
   /-- Commitment key `ck`. -/
   ck : CommitKey
+  /-- Sampled dummy nullifier used across dummy-message commitment slots. -/
+  dummyNf : Nullifier
   /-- Sampled challenge bit `b`. -/
   b : Bool
   /-- Sampled commitment hybrid slot `hop`. -/
   hop : Fin (2 + preRounds + challengeSpends)
   /-- Continuation frozen immediately before commitment slot `hop`. -/
   cont : SimContinuation PK Context C Nullifier Proof State preRounds challengeSpends
-
-/-- Deterministic witness value extracted from the nonempty support of `nfGen`. -/
-noncomputable def defaultNf {Nullifier : Type} (nfGen : ProbComp Nullifier) : Nullifier :=
-  Classical.choose (ProbComp.eval nfGen).support_nonempty
 
 /-- Commutes two independent leading `PMF.bind` draws past a third `PMF.bind`. -/
 private lemma pmfBind_comm2 {α β γ δ : Type} (p : PMF α) (q : PMF β) (r : PMF γ)
@@ -2198,10 +2178,11 @@ private lemma pmfBind_comm2 {α β γ δ : Type} (p : PMF α) (q : PMF β) (r : 
   conv_lhs => enter [2, a]; rw [PMF.bind_comm]
   rw [PMF.bind_comm]
 
-/-- Explicit `TwoStage` commitment-hiding reduction for the adaptive unlinkability reduction:
-samples uniform challenge bit `b ← Bool` and random commitment hybrid slot
-`hop ← Fin (2 + preRounds + challengeSpends)`, runs the simulator up to `hop`, submits
-`(msgReal, msgDummy)` to `Com.toScheme`, and tests whether the resumed adversary guesses `b`. -/
+/-- Explicit `TwoStage` commitment-hiding reduction for the adaptive unlinkability reduction
+(concrete query-bounded step, `#7068`): samples `dummyNf ← nfGen`, uniform challenge bit
+`b ← Bool`, and random commitment hybrid slot `hop ← Fin (2 + preRounds + challengeSpends)`, runs
+the simulator up to `hop`, submits `(msgReal, msgDummy)` to `Com.toScheme`, and tests whether the
+resumed adversary guesses `b`. -/
 noncomputable def unlinkHidingReduction {preRounds challengeSpends : ℕ}
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier)
@@ -2214,15 +2195,16 @@ noncomputable def unlinkHidingReduction {preRounds challengeSpends : ℕ}
         preRounds challengeSpends) where
   choose ck := do
     have : NeZero (2 + preRounds + challengeSpends) := ⟨by omega⟩
+    let dummyNf ← nfGen
     let b ← ProbComp.uniform Bool
     let hop ← ProbComp.uniform (Fin (2 + preRounds + challengeSpends))
     let env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof :=
-      ⟨Com, nfGen, tag, S, bound, sys, ck, defaultNf nfGen⟩
+      ⟨Com, nfGen, tag, S, bound, sys, ck, dummyNf⟩
     let res ← runPause env adv b hop.val
-    return (⟨res.msgReal, res.msgDummy⟩, ⟨ck, b, hop, res.cont⟩)
+    return (⟨res.msgReal, res.msgDummy⟩, ⟨ck, dummyNf, b, hop, res.cont⟩)
   guess st cStar := do
     let env : SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof :=
-      ⟨Com, nfGen, tag, S, bound, sys, st.ck, defaultNf nfGen⟩
+      ⟨Com, nfGen, tag, S, bound, sys, st.ck, st.dummyNf⟩
     let g ← resumeAfterCom env adv st.hop.val st.cont cStar
     return decide (g = st.b)
 
@@ -2474,17 +2456,18 @@ private lemma g4_false_eq_true {preRounds challengeSpends : ℕ}
           initOut.t0 0 initOut.t1 0 issResp.st
   rw [heq false, heq true]
 
-/-- **Adaptive malicious-issuer unlinkability reduction** (original finite query-bounded
-formalization for `[VOLEACT2026]`, `#issuance` and `#spending`):
-for any adaptive adversary `adv` against `unlinkabilityExperiment`,
+/-- Adaptive malicious-issuer unlinkability reduction step (`#7068`), original to this library as
+a finite query-bounded bound for `[VOLEACT2026]` (`#issuance` and `#spending`; `[VOLEACT2026]`
+`#proof-status` leaves unlinkability open): for any adaptive adversary `adv` against
+`unlinkabilityExperiment`,
 `Adv^unlink ≤ 2 * Adv^ZK + 2 * (2 + preRounds + challengeSpends) * Adv^hide`
 via `zkDistinguisher` and `unlinkHidingReduction`.
 When `preRounds = 0`, the hiding factor specializes directly to `2 * (2 + challengeSpends)`.
 The leading factor of `2` converts the `[0, 1]` two-world `Game.advantage` into `[0, 1/2]`
-bit-guessing bias via the `b ← ProbComp.uniform Bool` XOR wrapper
-(`Game.advantage_le_two_mul_uniform_bool_xor`),
-and replacing all `2 + preRounds + challengeSpends` emitted commitments sequentially avoids
-guessing which pre-challenge spend terminates each client's branch under adaptive `choosePre`. -/
+bit-guessing bias via `Game.advantage_le_two_mul_uniform_bool_xor`, and replacing all
+`2 + preRounds + challengeSpends` emitted commitments sequentially via
+`Game.advantage_hybrid_average` avoids guessing which pre-challenge spend terminates each client's
+branch under adaptive `choosePre` (asymptotic certificates remain open under `#7068`). -/
 theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challengeSpends : ℕ}
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
     (nfGen : ProbComp Nullifier)
@@ -2512,71 +2495,48 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
       let b ← ProbComp.uniform Bool
       let g ← fn ck b
       return decide (g = b)
-  let envOf : CommitKey → SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof :=
-    fun ck => ⟨Com, nfGen, tag, S, bound, sys, ck, defaultNf nfGen⟩
+  let envOf : CommitKey → Nullifier →
+      SimEnv CommitKey PK C Context Nullifier O Sig Target SK Proof :=
+    fun ck dummyNf => ⟨Com, nfGen, tag, S, bound, sys, ck, dummyNf⟩
   let g0Fn : CommitKey → Bool → ProbComp Bool := fun ck b =>
     (unlinkOracleProgram Com nfGen tag S bound adv true b ck).run
       (realProofOracle Com tag S bound sys ck)
-  let g1Fn : CommitKey → Bool → ProbComp Bool := fun ck b =>
-    runSimProgram (envOf ck) adv b 0
-  let hybFn : ℕ → Game := fun h => bitGame (fun ck b => runSimProgram (envOf ck) adv b h)
-  have hbit_eq (fn : CommitKey → Bool → ProbComp Bool) :
-      (bitGame fn true).toReal =
-        (1 / 2 : ℝ) + (1 / 2 : ℝ) *
-          ((ProbComp.eval (Com.keyGen >>= fun ck => fn ck true) true).toReal -
-            (ProbComp.eval (Com.keyGen >>= fun ck => fn ck false) true).toReal) := by
-    let P : Game := ProbComp.eval (Com.keyGen >>= fun ck => fn ck false)
-    let Q : Game := ProbComp.eval (Com.keyGen >>= fun ck => fn ck true)
-    have hcomm : bitGame fn =
-        (uniformOfFintype Bool).bind fun b =>
-          (if b then Q else P).bind fun g => PMF.pure (decide (g = b)) := by
-      simp only [bitGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-      rw [PMF.bind_comm]
-      refine pmfBind_congr _ fun b => ?_
-      cases b <;>
-        simp only [P, Q, ProbComp.eval_bind, PMF.bind_bind, Bool.false_eq_true, ↓reduceIte]
-    have hval : bitGame fn true = (2 : ℝ≥0∞)⁻¹ * (Q true + P false) := by
-      rw [hcomm, PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-      simp only [uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat, ↓reduceIte,
-        Bool.false_eq_true]
-      have hf : (P.bind fun g => PMF.pure (decide (g = false))) true = P false := by
-        rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-        simp
-      have ht : (Q.bind fun g => PMF.pure (decide (g = true))) true = Q true := by
-        rw [PMF.bind_apply, tsum_fintype, Fintype.sum_bool]
-        simp
-      rw [ht, hf, mul_add]
-    have hPsum : P false + P true = 1 := by
-      have hs := P.tsum_coe
-      rw [tsum_fintype, Fintype.sum_bool, add_comm] at hs
-      exact hs
-    have hPtoReal : (P false).toReal = 1 - (P true).toReal := by
-      have := congrArg ENNReal.toReal hPsum
-      rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
-        ENNReal.toReal_one] at this
-      linarith
-    rw [hval, ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_ofNat,
-      ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _), hPtoReal]
-    ring
+  let hybFn : ℕ → Game := fun h =>
+    (ProbComp.eval nfGen).bind fun dummyNf =>
+      bitGame (fun ck b => runSimProgram (envOf ck dummyNf) adv b h)
+  let g0 : Bool → Game := fun b =>
+    unlinkabilityExperiment Com nfGen tag S bound sys adv b
+  let g4 : Bool → Game := fun b =>
+    (ProbComp.eval nfGen).bind fun dummyNf =>
+      ProbComp.eval (Com.keyGen >>= fun ck => runSimProgram (envOf ck dummyNf) adv b N)
   have hzkReal : multiProofZKRealGame Com tag S bound sys
       (zkDistinguisher Com nfGen tag S bound adv) = bitGame g0Fn := by
     simp only [multiProofZKRealGame, zkDistinguisher, bitGame, g0Fn, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform,
       ProbComp.eval_pure]
   have hzkSim : multiProofZKSimGame Com tag S bound sys
-      (zkDistinguisher Com nfGen tag S bound adv) = bitGame g1Fn := by
-    simp only [multiProofZKSimGame, zkDistinguisher, bitGame, g1Fn, ProbOracleComp.run_bind,
+      (zkDistinguisher Com nfGen tag S bound adv) = hybFn 0 := by
+    simp only [hybFn, multiProofZKSimGame, zkDistinguisher, bitGame, ProbOracleComp.run_bind,
       ProbOracleComp.run_sample, ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform,
       ProbComp.eval_pure]
-    refine pmfBind_congr _ fun ck => pmfBind_congr _ fun b => ?_
-    rw [unlinkOracleProgram_sim_eq (envOf ck) adv b]
-  have hhyb0 : hybFn 0 = bitGame g1Fn := rfl
-  have hhybN_val : (hybFn N true).toReal = 1 / 2 := by
-    have heq : ProbComp.eval (Com.keyGen >>= fun ck => runSimProgram (envOf ck) adv true N) =
-        ProbComp.eval (Com.keyGen >>= fun ck => runSimProgram (envOf ck) adv false N) := by
-      simp only [ProbComp.eval_bind]
-      refine pmfBind_congr _ fun ck => (g4_false_eq_true (envOf ck) adv).symm
-    rw [hbit_eq, heq, sub_self, mul_zero, add_zero]
+    have hstep : ∀ dummyNf,
+        ((ProbComp.eval Com.keyGen).bind fun ck =>
+          (uniformOfFintype Bool).bind fun b =>
+            (ProbComp.eval (runSimProgram (envOf ck dummyNf) adv b 0)).bind fun g =>
+              PMF.pure (decide (g = b))) =
+        ((ProbComp.eval Com.keyGen).bind fun ck =>
+          (uniformOfFintype Bool).bind fun b =>
+            (ProbComp.eval ((unlinkOracleProgram Com nfGen tag S bound adv true b ck).run
+              (simProofOracle Com tag S bound sys ck))).bind fun g =>
+              PMF.pure (decide (g = b))) := by
+      intro dummyNf
+      refine pmfBind_congr _ fun ck => pmfBind_congr _ fun b => ?_
+      rw [← unlinkOracleProgram_sim_eq (envOf ck dummyNf) adv b]
+    simp_rw [hstep, PMF.bind_const]
+  have hg4_eq : g4 false = g4 true := by
+    refine pmfBind_congr _ fun dummyNf => ?_
+    simp only [ProbComp.eval_bind]
+    exact pmfBind_congr _ fun ck => g4_false_eq_true (envOf ck dummyNf) adv
   have hhide_eq (bHide : Bool) :
       ProbComp.eval (Com.toScheme.hidingExperiment
         (unlinkHidingReduction Com nfGen tag S bound sys adv) bHide) =
@@ -2587,1190 +2547,102 @@ theorem unlinkabilityExperiment_advantage_le [DecidableEq C] {preRounds challeng
       unlinkHidingReduction, OpeningCommitment.toScheme, Commitment.Scheme.commitment, hybFn,
       bitGame, envOf, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform,
       ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, PMF.map, Function.comp_def, ite_true]
-    have hsw : ∀ ck : CommitKey,
-        ((uniformOfFintype Bool).bind fun b =>
-          (uniformOfFintype (Fin N)).bind fun h =>
-            (ProbComp.eval (runPause (envOf ck) adv b h.val)).bind fun res =>
-              (ProbComp.eval Com.openSample).bind fun r =>
-                (ProbComp.eval (resumeAfterCom (envOf ck) adv h.val res.cont
-                  (Com.eval ck (MessagePair.select ⟨res.msgReal, res.msgDummy⟩ bHide) r))).bind
-                  fun g => PMF.pure (decide (g = b))) =
-        ((uniformOfFintype (Fin N)).bind fun h =>
-          (uniformOfFintype Bool).bind fun b =>
-            (ProbComp.eval (runSimProgram (envOf ck) adv b
-              (if bHide then h.val + 1 else h.val))).bind fun g => PMF.pure (decide (g = b))) := by
-      intro ck
-      rw [PMF.bind_comm]
-      refine pmfBind_congr _ fun h => pmfBind_congr _ fun b => ?_
-      cases bHide
-      · simp only [MessagePair.select_false, Bool.false_eq_true, ↓reduceIte]
-        have hreal := runPause_real_eq (envOf ck) adv b h.val
-        calc _ = ((ProbComp.eval (do
-                let res ← runPause (envOf ck) adv b h.val
-                let r ← Com.openSample
-                resumeAfterCom (envOf ck) adv h.val res.cont
-                  (Com.eval ck res.msgReal r))).bind fun g => PMF.pure (decide (g = b))) := by
-              simp only [ProbComp.eval_bind, PMF.bind_bind]
-          _ = _ := by rw [hreal]
-      · simp only [MessagePair.select_true, ↓reduceIte]
-        have hdummy := runPause_dummy_eq (envOf ck) adv b h.val
-        calc _ = ((ProbComp.eval (do
-                let res ← runPause (envOf ck) adv b h.val
-                let r ← Com.openSample
-                resumeAfterCom (envOf ck) adv h.val res.cont
-                  (Com.eval ck res.msgDummy r))).bind fun g => PMF.pure (decide (g = b))) := by
-              simp only [ProbComp.eval_bind, PMF.bind_bind]
-          _ = _ := by rw [hdummy]
+    rw [PMF.bind_comm]
     conv_rhs => rw [PMF.bind_comm]
-    exact pmfBind_congr _ fun ck => hsw ck
-  have hhideFalse :
+    refine pmfBind_congr _ fun dummyNf => ?_
+    conv_rhs => rw [PMF.bind_comm]
+    refine pmfBind_congr _ fun ck => ?_
+    rw [PMF.bind_comm]
+    refine pmfBind_congr _ fun h => pmfBind_congr _ fun b => ?_
+    cases bHide
+    · simp only [MessagePair.select_false, Bool.false_eq_true, ↓reduceIte]
+      have hreal := runPause_real_eq (envOf ck dummyNf) adv b h.val
+      calc _ = ((ProbComp.eval (do
+              let res ← runPause (envOf ck dummyNf) adv b h.val
+              let r ← Com.openSample
+              resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
+                (Com.eval ck res.msgReal r))).bind fun g => PMF.pure (decide (g = b))) := by
+            simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
+        _ = _ := by rw [hreal]
+    · simp only [MessagePair.select_true, ↓reduceIte]
+      have hdummy := runPause_dummy_eq (envOf ck dummyNf) adv b h.val
+      calc _ = ((ProbComp.eval (do
+              let res ← runPause (envOf ck dummyNf) adv b h.val
+              let r ← Com.openSample
+              resumeAfterCom (envOf ck dummyNf) adv h.val res.cont
+                (Com.eval ck res.msgDummy r))).bind fun g => PMF.pure (decide (g = b))) := by
+            simp only [envOf, ProbComp.eval_bind, PMF.bind_bind]
+        _ = _ := by rw [hdummy]
+  have hxor_not (fn : Bool → Game) :
+      ((uniformOfFintype Bool).bind fun b => (fn b).map (fun g => g ^^ b)).map Bool.not =
+        (uniformOfFintype Bool).bind fun b => (fn b).map (fun g => decide (g = b)) := by
+    simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+    refine pmfBind_congr _ fun b => ?_
+    congr 1 with g
+    cases g <;> cases b <;> rfl
+  have hxor0 : ((uniformOfFintype Bool).bind fun b => (g0 b).map (fun g => g ^^ b)).map Bool.not =
+      bitGame g0Fn := by
+    rw [hxor_not g0]
+    simp only [bitGame, g0, unlinkabilityExperiment, g0Fn, ProbComp.eval_bind,
+      ProbComp.eval_uniform, ProbComp.eval_pure, PMF.map, Function.comp_def, PMF.bind_bind]
+    rw [PMF.bind_comm]
+  have hxor4 : ((uniformOfFintype Bool).bind fun b => (g4 b).map (fun g => g ^^ b)).map Bool.not =
+      hybFn N := by
+    rw [hxor_not g4]
+    simp only [hybFn, g4, bitGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+      PMF.map, Function.comp_def, PMF.bind_bind]
+    rw [PMF.bind_comm]
+    refine pmfBind_congr _ fun dummyNf => ?_
+    rw [PMF.bind_comm]
+  have hxor_bound := Game.advantage_le_two_mul_uniform_bool_xor g0 g4
+  rw [← Game.advantage_not _ ((uniformOfFintype Bool).bind fun b => (g4 b).map fun g => g ^^ b),
+    hxor0, hxor4, hg4_eq, Game.advantage_self, add_zero] at hxor_bound
+  have : NeZero N := ⟨by omega⟩
+  have hhyb := Game.advantage_hybrid_average hybFn N N le_rfl
+  have hhybL :
+      ((uniformOfFintype (Fin N)).bind fun i =>
+        if i.val < N then hybFn i.val else PMF.pure false) =
       ProbComp.eval (Com.toScheme.hidingExperiment
-        (unlinkHidingReduction Com nfGen tag S bound sys adv) false) =
-        (uniformOfFintype (Fin N)).bind (fun h : Fin N => hybFn h.val) := by
-    simpa only [Bool.false_eq_true, ↓reduceIte] using hhide_eq false
-  have hhideTrue :
+        (unlinkHidingReduction Com nfGen tag S bound sys adv) false) := by
+    rw [hhide_eq false]
+    refine pmfBind_congr _ fun i => ?_
+    simp [i.isLt]
+  have hhybR :
+      ((uniformOfFintype (Fin N)).bind fun i =>
+        if i.val < N then hybFn (i.val + 1) else PMF.pure false) =
       ProbComp.eval (Com.toScheme.hidingExperiment
-        (unlinkHidingReduction Com nfGen tag S bound sys adv) true) =
-        (uniformOfFintype (Fin N)).bind (fun h : Fin N => hybFn (h.val + 1)) := by
-    simpa only [↓reduceIte] using hhide_eq true
-  have htel :
-      (N : ℝ) * ((ProbComp.eval (Com.toScheme.hidingExperiment
-          (unlinkHidingReduction Com nfGen tag S bound sys adv) false) true).toReal -
-        (ProbComp.eval (Com.toScheme.hidingExperiment
-          (unlinkHidingReduction Com nfGen tag S bound sys adv) true) true).toReal) =
-      (hybFn 0 true).toReal - (hybFn N true).toReal := by
-    rw [hhideFalse, hhideTrue, PMF.bind_apply, PMF.bind_apply, tsum_fintype, tsum_fintype]
-    simp only [uniformOfFintype_apply, Fintype.card_fin]
-    have hNpos : (0 : ℝ) < N := by positivity
-    have hNne : (N : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top N
-    have htoRealSum (f : ℕ → Game) :
-        (∑ i : Fin N, ((N : ℝ≥0∞)⁻¹ * f i.val true)).toReal =
-        (N : ℝ)⁻¹ * ∑ i : Fin N, (f i.val true).toReal := by
-      rw [ENNReal.toReal_sum (fun i _ => ENNReal.mul_ne_top
-        (ENNReal.inv_ne_top.mpr (by positivity)) (PMF.apply_ne_top _ _))]
-      simp only [ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast, ← Finset.mul_sum]
-    have h1 := htoRealSum hybFn
-    have h2 := htoRealSum (fun k => hybFn (k + 1))
-    rw [h1, h2]
-    have hfinSum (m : ℕ) :
-        ∑ i : Fin m, ((hybFn i.val true).toReal - (hybFn (i.val + 1) true).toReal) =
-          (hybFn 0 true).toReal - (hybFn m true).toReal := by
-      induction m with
-      | zero => simp
-      | succ k ih =>
-        rw [Fin.sum_univ_castSucc, Fin.val_last]
-        simp only [Fin.val_castSucc]
-        rw [ih]
-        ring
-    rw [← mul_sub, ← Finset.sum_sub_distrib, hfinSum N]
-    field_simp
-  have hhybAbs :
-      |(hybFn 0 true).toReal - (hybFn N true).toReal| =
-        (N : ℝ) * (Experiment.advantage
-          (Com.toScheme.hidingExperiment
-            (unlinkHidingReduction Com nfGen tag S bound sys adv) false)
-          (Com.toScheme.hidingExperiment
-            (unlinkHidingReduction Com nfGen tag S bound sys adv) true) : ℝ) := by
-    rw [← htel, abs_mul, abs_of_nonneg (Nat.cast_nonneg N), Experiment.coe_advantage]
-  have hunlink_eq :
-      (Game.advantage
-        (unlinkabilityExperiment Com nfGen tag S bound sys adv false)
-        (unlinkabilityExperiment Com nfGen tag S bound sys adv true) : ℝ) =
-      2 * |(bitGame g0Fn true).toReal - (hybFn N true).toReal| := by
-    rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-    have hg0false : unlinkabilityExperiment Com nfGen tag S bound sys adv false =
-        ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck false) := rfl
-    have hg0true : unlinkabilityExperiment Com nfGen tag S bound sys adv true =
-        ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck true) := rfl
-    rw [hg0false, hg0true, hbit_eq g0Fn, hhybN_val]
-    have ha :
-        |((1 / 2 : ℝ) + (1 / 2 : ℝ) *
-            ((ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck true) true).toReal -
-              (ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck false) true).toReal)) -
-            (1 / 2 : ℝ)| =
-        (1 / 2 : ℝ) *
-          |(ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck false) true).toReal -
-            (ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck true) true).toReal| := by
-      have : ((1 / 2 : ℝ) + (1 / 2 : ℝ) *
-            ((ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck true) true).toReal -
-              (ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck false) true).toReal)) -
-            (1 / 2 : ℝ) =
-          -(1 / 2 : ℝ) *
-            ((ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck false) true).toReal -
-              (ProbComp.eval (Com.keyGen >>= fun ck => g0Fn ck true) true).toReal) := by ring
-      rw [this, abs_mul, abs_neg, abs_of_nonneg (by norm_num)]
-    rw [ha]
-    ring
-  rw [hunlink_eq, hzkReal, hzkSim]
-  have htri :
-      |(bitGame g0Fn true).toReal - (hybFn N true).toReal| ≤
-        |(bitGame g0Fn true).toReal - (bitGame g1Fn true).toReal| +
-        |(hybFn 0 true).toReal - (hybFn N true).toReal| := by
-    rw [hhyb0]
-    exact abs_sub_le _ _ _
-  calc 2 * |(bitGame g0Fn true).toReal - (hybFn N true).toReal|
-      ≤ 2 * (|(bitGame g0Fn true).toReal - (bitGame g1Fn true).toReal| +
-          |(hybFn 0 true).toReal - (hybFn N true).toReal|) := by linarith
-    _ = 2 * (Game.advantage (bitGame g0Fn) (bitGame g1Fn) : ℝ) +
-          2 * (N : ℝ) * (Experiment.advantage
-            (Com.toScheme.hidingExperiment
-              (unlinkHidingReduction Com nfGen tag S bound sys adv) false)
-            (Com.toScheme.hidingExperiment
-              (unlinkHidingReduction Com nfGen tag S bound sys adv) true) : ℝ) := by
-      rw [hhybAbs, Game.coe_advantage (bitGame g0Fn) (bitGame g1Fn), Game.coe_succProbability,
-        Game.coe_succProbability]
-      ring
+        (unlinkHidingReduction Com nfGen tag S bound sys adv) true) := by
+    rw [hhide_eq true]
+    refine pmfBind_congr _ fun i => ?_
+    simp [i.isLt]
+  rw [hhybL, hhybR] at hhyb
+  have htri : Game.advantage (bitGame g0Fn) (hybFn N) ≤
+      Game.advantage
+        (multiProofZKRealGame Com tag S bound sys (zkDistinguisher Com nfGen tag S bound adv))
+        (multiProofZKSimGame Com tag S bound sys (zkDistinguisher Com nfGen tag S bound adv)) +
+      (N : ℝ≥0) * Experiment.advantage
+        (Com.toScheme.hidingExperiment
+          (unlinkHidingReduction Com nfGen tag S bound sys adv) false)
+        (Com.toScheme.hidingExperiment
+          (unlinkHidingReduction Com nfGen tag S bound sys adv) true) := by
+    rw [← hhyb, hzkReal, hzkSim]
+    exact Game.advantage_triangle _ _ _
+  have hle_nn : Game.advantage (g0 false) (g0 true) ≤
+      2 * Game.advantage
+        (multiProofZKRealGame Com tag S bound sys (zkDistinguisher Com nfGen tag S bound adv))
+        (multiProofZKSimGame Com tag S bound sys (zkDistinguisher Com nfGen tag S bound adv)) +
+      2 * (N : ℝ≥0) * Experiment.advantage
+        (Com.toScheme.hidingExperiment
+          (unlinkHidingReduction Com nfGen tag S bound sys adv) false)
+        (Com.toScheme.hidingExperiment
+          (unlinkHidingReduction Com nfGen tag S bound sys adv) true) := by
+    calc Game.advantage (g0 false) (g0 true)
+        ≤ 2 * Game.advantage (bitGame g0Fn) (hybFn N) := hxor_bound
+      _ ≤ 2 * (Game.advantage _ _ + (N : ℝ≥0) * Experiment.advantage _ _) :=
+          mul_le_mul_of_nonneg_left htri zero_le
+      _ = _ := by ring
+  exact_mod_cast hle_nn
 
 end UnlinkabilityReductionContinuation
-
-section CRTDecoupling
-
-open CRTHazard
-
-/-- Transcript token bundle exposed to an `H5`-querying distinguisher in the CRT witness-reuse
-model (`G8` coupled vs `G8.5` decoupled). -/
-structure CRTProofToken (C IV : Type) (nMult lam nMask : ℕ) where
-  /-- Note commitment `c = Com.eval ck m r`. -/
-  com : C
-  /-- Per-proof initialization vector `iv`. -/
-  iv : IV
-  /-- Verifier mask delta `d`. -/
-  d : Fin lam → ZMod 2
-  /-- Garbled gate multiplier table `cmult`. -/
-  cmult : Fin nMult → Fin nMask → ZMod 2
-
-/-- Configuration for non-black-box CRT witness-reuse decoupling (`G8 → G8.5`, where `G8` follows
-[BaumEtAl2026FAEST] §10.10 Theorem 10.42 and `G8.5` is this library's intermediate hop): `qTok`
-token events (`0 < qTok`) with non-adaptive `ck`-fixed messages, openings `r j` in `r`-first
-layout (`Fin lam → ZMod 2`), IV generator `ivGen`, gate labels `baseLabel`, and `adv` making
-adaptive `H5` queries over all `qTok` token bundles delivered together. -/
-structure G85Setup
-    (CommitKey C Nullifier Context IV : Type) (nMult lam nMask qTok : ℕ) where
-  /-- Deterministic-evaluation opening commitment with openings in `Fin lam → ZMod 2`. -/
-  Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C (Fin lam → ZMod 2)
-  /-- Non-adaptive real note message per token event `j : Fin qTok`, fixed by `ck`. -/
-  msgs : CommitKey → Fin qTok → CommitMsg Nullifier Context
-  /-- Per-token IV distribution. -/
-  ivGen : CommitKey → Fin qTok → ProbComp IV
-  /-- Base garbled-circuit wire labels `(j, e) ↦ L₀(j, e)`. -/
-  baseLabel : CommitKey → Fin qTok → Fin nMult → Fin lam → ZMod 2
-  /-- `H5`-adaptive distinguisher receiving all `qTok` token bundles together. -/
-  adv : CommitKey → (Fin qTok → CRTProofToken C IV nMult lam nMask) →
-    ProbOracleComp (H5Spec IV nMult lam nMask) Bool
-
-variable {CommitKey C Nullifier Context IV : Type} {nMult lam nMask qTok : ℕ}
-variable [DecidableEq IV]
-
-/-- Sample a tuple over `Fin n` from independent component distributions. -/
-def samplePi : (n : ℕ) → {α : Type} → (Fin n → ProbComp α) → ProbComp (Fin n → α)
-  | 0, _, _ => pure Fin.elim0
-  | n + 1, _, f => do
-    let x ← f 0
-    let rest ← samplePi n (fun i => f i.succ)
-    return Fin.cases x rest
-
-/-- Replacing component `j` of `samplePi` with an independent draw `y ← f j` preserves the
-product distribution. -/
-private lemma samplePi_replace {n : ℕ} {α : Type}
-    (f : Fin n → ProbComp α) (default : Fin n → α) (j : Fin n) :
-    ((ProbComp.eval (samplePi n (fun i => if i = j then pure (default i) else f i))).bind
-      fun rest => (ProbComp.eval (f j)).map fun y => Function.update rest j y) =
-      ProbComp.eval (samplePi n f) := by
-  induction n generalizing α with
-  | zero => exact Fin.elim0 j
-  | succ n' ih =>
-    refine Fin.cases ?_ ?_ j
-    · have hsub :
-          (fun i : Fin n' =>
-            if i.succ = (0 : Fin (n' + 1)) then pure (default i.succ) else f i.succ) =
-          fun i => f i.succ :=
-        funext fun i => ite_eq_right_iff.mpr fun h => absurd h (Fin.succ_ne_zero i)
-      simp only [samplePi, ↓reduceIte, hsub, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.bind_bind, PMF.pure_bind, PMF.map, Function.comp_def]
-      rw [PMF.bind_comm]
-      refine pmfBind_congr _ fun x => pmfBind_congr _ fun rest => congrArg PMF.pure ?_
-      funext i
-      exact Fin.cases rfl (fun k => by simp [Function.update, Fin.succ_ne_zero]) i
-    · intro j'
-      have hsub :
-          (fun i : Fin n' =>
-            if i.succ = j'.succ then pure (default i.succ) else f i.succ) =
-          fun i => if i = j' then pure (default i.succ) else f i.succ :=
-        funext fun i => by simp [Fin.succ_inj]
-      have hne : (0 : Fin (n' + 1)) ≠ j'.succ := (Fin.succ_ne_zero j').symm
-      simp only [samplePi, hne, ↓reduceIte, hsub, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.bind_bind, PMF.pure_bind]
-      refine pmfBind_congr _ fun x0 => ?_
-      rw [← ih (fun i => f i.succ) (fun i => default i.succ) j']
-      simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-      refine pmfBind_congr _ fun rest => pmfBind_congr _ fun y => congrArg PMF.pure ?_
-      funext i
-      refine Fin.cases ?_ (fun k => ?_) i
-      · simp [Function.update, (Fin.succ_ne_zero j').symm]
-      · by_cases hk : k = j'
-        · subst k; simp [Function.update]
-        · simp [Function.update, hk, Fin.succ_inj]
-
-/-- Complementary `H5` query key `(iv j, e, baseLabel ck j e + d j + r j)` for token `j` and
-gate `e`. -/
-def badH5Key (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (j : Fin qTok) (e : Fin nMult) : H5Query IV nMult lam :=
-  ⟨iv j, e, setup.baseLabel ck j e + d j + r j⟩
-
-/-- Boolean check testing whether an `H5` query hits `badH5Key` for some token `j` and gate `e`. -/
-def isBadH5Query (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (q : H5Query IV nMult lam) : Bool :=
-  decide (∃ j : Fin qTok, ∃ e : Fin nMult, q = badH5Key setup ck iv d r j e)
-
-/-- Coupled `G8` game ([BaumEtAl2026FAEST] §10.10, Theorem 10.42) under the witness-reuse CRT mask
-option reusing commitment opening `r j` (`r`-first layout, rather than a flag named in
-[BaumEtAl2026FAEST] or [VOLEACT2026]): draws `u j`, sets `d j := r j + u j`, and sets `cmult j e`
-directly to the raw `H5` value at `badH5Key`. -/
-noncomputable def g8Game [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : Game :=
-  ProbComp.eval do
-    let ck ← setup.Com.keyGen
-    let h5 ← ProbComp.uniform (H5Query IV nMult lam → Fin nMask → ZMod 2)
-    let r ← samplePi qTok (fun _ => setup.Com.openSample)
-    let u ← ProbComp.uniform (Fin qTok → Fin lam → ZMod 2)
-    let iv ← samplePi qTok (setup.ivGen ck)
-    let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-      let d := r j + u j
-      let cmult : Fin nMult → Fin nMask → ZMod 2 :=
-        fun e => h5 ⟨iv j, e, setup.baseLabel ck j e + u j⟩
-      ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d, cmult⟩
-    (setup.adv ck tok).run (fun q => pure (h5 q))
-
-/-- Coupled `G8` `StateT Bool` oracle returning `cmult` on `badH5Key` and `h5` otherwise. -/
-noncomputable def g8Handler
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (cmult : Fin qTok → Fin nMult → Fin nMask → ZMod 2)
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-    (q : H5Query IV nMult lam) (bad : Bool) : PMF ((Fin nMask → ZMod 2) × Bool) := by
-  classical
-  exact if h : ∃ p : Fin qTok × Fin nMult, q = badH5Key setup ck iv d r p.1 p.2 then
-    pure (cmult (Classical.choose h).1 (Classical.choose h).2, true)
-  else
-    pure (h5 q, bad)
-
-/-- Decoupled `G8.5` (this library's intermediate hop between FAEST's `G8` and `G9`) `StateT Bool`
-oracle returning `h5 q` uniformly while latching `bad := true` if `isBadH5Query` triggers. -/
-noncomputable def g85Handler
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-    (q : H5Query IV nMult lam) (bad : Bool) : PMF ((Fin nMask → ZMod 2) × Bool) :=
-  pure (h5 q, bad || isBadH5Query setup ck iv d r q)
-
-/-- `ProbComp`-valued variant of `g85Handler` for `ProbOracleComp.runState`. -/
-def g85HandlerP (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-    (q : H5Query IV nMult lam) : StateT Bool ProbComp (Fin nMask → ZMod 2) :=
-  fun bad => pure (h5 q, bad || isBadH5Query setup ck iv d r q)
-
-/-- Full decoupled `G8.5` (library intermediate hop) joint execution over
-`(output, badH5, ivCollision)`. -/
-noncomputable def g85FullRun [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) :
-    ProbComp (Bool × Bool × Bool) := do
-  let ck ← setup.Com.keyGen
-  let h5 ← ProbComp.uniform (H5Query IV nMult lam → Fin nMask → ZMod 2)
-  let r ← samplePi qTok (fun _ => setup.Com.openSample)
-  let d ← ProbComp.uniform (Fin qTok → Fin lam → ZMod 2)
-  let iv ← samplePi qTok (setup.ivGen ck)
-  let cmult ← ProbComp.uniform (Fin qTok → Fin nMult → Fin nMask → ZMod 2)
-  let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-    ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-  let res ← ((setup.adv ck tok).runState (g85HandlerP setup ck iv d r h5)).run false
-  let ivColl : Bool := decide (¬ Function.Injective iv)
-  return (res.1, res.2, ivColl)
-
-/-- Decoupled `G8.5` (library intermediate hop) distinguishing game: `d j` and `cmult j` are
-uniform and independent of `r j` and `h5`. -/
-noncomputable def g85Game [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : Game :=
-  (ProbComp.eval (g85FullRun setup)).map fun (out, _, _) => out
-
-/-- Probability `Pr[¬ Function.Injective iv]` of an IV collision across the `qTok` proofs in
-`g85FullRun` (`0` for counter IVs; replaces a fixed `2 ^ (-λ)` constant bound). -/
-noncomputable def g85IvCollisionProb [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok) : ℝ :=
-  (((ProbComp.eval (g85FullRun setup)).map fun (_, _, ivColl) => ivColl) true).toReal
-
-/-- `IdenticalUntilBad` connecting `g8Handler` and `g85Handler` lifted to `ProbOracleComp`:
-both agree identically while `bad = false` and preserve `bad = true` once triggered. -/
-theorem crtDecouple_identicalUntilBad
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (iv : Fin qTok → IV) (d r : Fin qTok → Fin lam → ZMod 2)
-    (cmult : Fin qTok → Fin nMult → Fin nMask → ZMod 2)
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2) :
-    OracleComp.IdenticalUntilBad
-      (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
-        (g8Handler setup ck iv d r cmult h5))
-      (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n))
-        (g85Handler setup ck iv d r h5))
-      (fun bad : Bool => bad = true) where
-  agree q s hs a s' hs' := by
-    cases q with
-    | inl n => rfl
-    | inr q =>
-      simp only [OracleComp.sumHandler, g8Handler, g85Handler, Bool.not_eq_true] at hs hs' ⊢
-      by_cases hex : ∃ p : Fin qTok × Fin nMult, q = badH5Key setup ck iv d r p.1 p.2
-      · have htrue : isBadH5Query setup ck iv d r q = true := by
-          rcases hex with ⟨⟨j, e⟩, rfl⟩
-          exact decide_eq_true ⟨j, e, rfl⟩
-        simp [hex, htrue, hs, hs']
-      · have hbadF : isBadH5Query setup ck iv d r q = false := by
-          simp only [isBadH5Query, decide_eq_false_iff_not]
-          rintro ⟨j, e, heq⟩
-          exact hex ⟨(j, e), heq⟩
-        simp [hex, hbadF, hs]
-  absorb_first q s hs x hx := by
-    cases q with
-    | inl n =>
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact (Prod.mk.inj heq).2 ▸ hs
-    | inr q =>
-      simp only [OracleComp.sumHandler, g8Handler] at hx
-      split_ifs at hx
-      · change x ∈ (PMF.pure _).support at hx
-        rw [PMF.mem_support_pure_iff] at hx
-        rcases hx with rfl
-        rfl
-      · change x ∈ (PMF.pure _).support at hx
-        rw [PMF.mem_support_pure_iff] at hx
-        rcases hx with rfl
-        exact hs
-  absorb_second q s hs x hx := by
-    cases q with
-    | inl n =>
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact (Prod.mk.inj heq).2 ▸ hs
-    | inr q =>
-      simp only [OracleComp.sumHandler, g85Handler] at hx
-      change x ∈ (PMF.pure _).support at hx
-      rw [PMF.mem_support_pure_iff] at hx
-      rcases hx with rfl
-      simp only [hs, Bool.true_or]
-
-/-- Query-logging `StateT` handler answering all `H5` queries from `h5` while recording queries. -/
-noncomputable def h5LogHandler {IV : Type} {nMult lam nMask : ℕ}
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-    (q : H5Query IV nMult lam) (qs : List (H5Query IV nMult lam)) :
-    PMF ((Fin nMask → ZMod 2) × List (H5Query IV nMult lam)) :=
-  pure (h5 q, q :: qs)
-
-/-- `ProbComp`-valued variant of `h5LogHandler` for `ProbOracleComp.runState`. -/
-def h5LogHandlerP {IV : Type} {nMult lam nMask : ℕ}
-    (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-    (q : H5Query IV nMult lam) :
-    StateT (List (H5Query IV nMult lam)) ProbComp (Fin nMask → ZMod 2) :=
-  fun qs => pure (h5 q, q :: qs)
-
-/-- State passed across the two stages of `badH5HidingReduction`. -/
-structure BadH5HidingState (CommitKey : Type) (qTok : ℕ) where
-  /-- Commitment key `ck`. -/
-  ck : CommitKey
-  /-- Uniformly sampled target token index `j* : Fin qTok`. -/
-  jStar : Fin qTok
-
-/-- Shared `BadH5` log-running helper executing `setup.adv` with challenge commitment `cStar` at
-target token index `jStar` and logging all `H5` queries. -/
-noncomputable def runBadH5WithChallenge [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    (ck : CommitKey) (jStar : Fin qTok) (cStar : C) :
-    ProbComp (IV × (Fin lam → ZMod 2) × List (H5Query IV nMult lam)) := do
-  let h5 ← ProbComp.uniform (H5Query IV nMult lam → Fin nMask → ZMod 2)
-  let rOthers ← samplePi qTok (fun j => if j = jStar then pure 0 else setup.Com.openSample)
-  let d ← ProbComp.uniform (Fin qTok → Fin lam → ZMod 2)
-  let iv ← samplePi qTok (setup.ivGen ck)
-  let cmult ← ProbComp.uniform (Fin qTok → Fin nMult → Fin nMask → ZMod 2)
-  let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-    let c := if j = jStar then cStar else setup.Com.eval ck (setup.msgs ck j) (rOthers j)
-    ⟨c, iv j, d j, cmult j⟩
-  let res ← ((setup.adv ck tok).runState (h5LogHandlerP h5)).run []
-  return (iv jStar, d jStar, res.2)
-
-/-- Explicit `TwoStage` hiding reduction for `BadH5`: chooses a uniform target token `j*`,
-submits `(msgs ck j*, (msgs ck j*).bumpBal)` (`bumpBal ≠ msgs ck j*`) to `Com.toScheme`, plugs
-challenge `c*` into token `j*`, and tests whether any logged `H5` query recovers an opening `r*`
-satisfying `Com.eval ck (msgs ck j*) r* = c*`. -/
-noncomputable def badH5HidingReduction [DecidableEq C] [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    [NeZero qTok] :
-    TwoStage CommitKey (MessagePair (CommitMsg Nullifier Context)) C Bool
-      (BadH5HidingState CommitKey qTok) where
-  choose ck := do
-    let jStar ← ProbComp.uniform (Fin qTok)
-    let m0 := setup.msgs ck jStar
-    return (⟨m0, m0.bumpBal⟩, ⟨ck, jStar⟩)
-  guess st cStar := do
-    let (ivStar, dStar, qs) ← runBadH5WithChallenge setup st.ck st.jStar cStar
-    let m0 := setup.msgs st.ck st.jStar
-    return qs.any fun q =>
-      decide (q.iv = ivStar) &&
-        decide (setup.Com.eval st.ck m0 (q.label + setup.baseLabel st.ck st.jStar q.gate +
-          dStar) = cStar)
-
-/-- Explicit commitment-binding reduction extracting a `BindingCollision` between `msgs ck j*`
-and `(msgs ck j*).bumpBal` whenever `badH5HidingReduction` hits under `b_hide = true`. -/
-noncomputable def badH5BindingReduction [DecidableEq C] [Fintype IV]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    [NeZero qTok] (ck : CommitKey) :
-    ProbComp (Commitment.BindingCollision (CommitMsg Nullifier Context) C (Fin lam → ZMod 2)) := do
-  let jStar ← ProbComp.uniform (Fin qTok)
-  let rDummy ← setup.Com.openSample
-  let m0 := setup.msgs ck jStar
-  let cStar := setup.Com.eval ck m0.bumpBal rDummy
-  let (ivStar, dStar, qs) ← runBadH5WithChallenge setup ck jStar cStar
-  let found? := qs.find? fun q =>
-    decide (q.iv = ivStar) &&
-      decide (setup.Com.eval ck m0 (q.label + setup.baseLabel ck jStar q.gate + dStar) = cStar)
-  match found? with
-  | some q =>
-    return {
-      commitment := cStar
-      msg₀ := m0
-      opening₀ := q.label + setup.baseLabel ck jStar q.gate + dStar
-      msg₁ := m0.bumpBal
-      opening₁ := rDummy
-    }
-  | none =>
-    return {
-      commitment := cStar
-      msg₀ := m0
-      opening₀ := 0
-      msg₁ := m0
-      opening₁ := 0
-    }
-
-/-- **Non-black-box CRT witness-reuse decoupling (`G8 → G8.5`)** (original to this library, where
-`G8` follows [BaumEtAl2026FAEST] §10.10 Theorem 10.42 and `G8.5` is this library's intermediate
-hop): assuming `0 < qTok` (`NeZero qTok`), any `H5`-adaptive distinguisher over the `qTok`
-non-adaptive `ck`-fixed token bundles (`r j` as witness prefix in `r`-first layout, raw-`H5`
-`cmult`) has advantage between coupled `g8Game` and decoupled `g85Game` at most
-`qTok * (Adv^hide + Pr[binding]) + g85IvCollisionProb` via `badH5HidingReduction` and
-`badH5BindingReduction` (`g85IvCollisionProb` tracks IV injectivity instead of a fixed `2 ^ (-λ)`
-term, and composition with `G1–G8` remains `#7068`). -/
-theorem crtDecouple_advantage_le [DecidableEq C] [Fintype IV]
-    [DecidableEq Nullifier] [DecidableEq Context]
-    (setup : G85Setup CommitKey C Nullifier Context IV nMult lam nMask qTok)
-    [NeZero qTok] :
-    (Game.advantage (g8Game setup) (g85Game setup) : ℝ) ≤
-      (qTok : ℝ) *
-        ((Experiment.advantage
-          (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false)
-          (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) true) : ℝ) +
-          (Experiment.succProbability
-            (setup.Com.toScheme.bindingExperiment (badH5BindingReduction setup)) : ℝ)) +
-        g85IvCollisionProb setup := by
-  let logRun : CommitKey → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
-      (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → IV) →
-      (Fin qTok → Fin nMult → Fin nMask → ZMod 2) →
-      PMF (Bool × List (H5Query IV nMult lam)) := fun ck h5 r d iv cmult =>
-    let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-      ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-    ProbOracleComp.runWith (h5LogHandler h5) (setup.adv ck tok) []
-  let badRun : CommitKey → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
-      (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → IV) →
-      (Fin qTok → Fin nMult → Fin nMask → ZMod 2) → PMF (Bool × Bool) :=
-    fun ck h5 r d iv cmult =>
-      let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-        ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-      ProbOracleComp.runWith (g85Handler setup ck iv d r h5) (setup.adv ck tok) false
-  have hlog_to_bad (ck : CommitKey) (h5 : H5Query IV nMult lam → Fin nMask → ZMod 2)
-      (r d : Fin qTok → Fin lam → ZMod 2) (iv : Fin qTok → IV)
-      (cmult : Fin qTok → Fin nMult → Fin nMask → ZMod 2) :
-      (logRun ck h5 r d iv cmult).map (fun (a, qs) => (a, qs.any (isBadH5Query setup ck iv d r))) =
-        badRun ck h5 r d iv cmult := by
-    refine ProbOracleComp.runWith_map_state (h5LogHandler h5) (g85Handler setup ck iv d r h5)
-      (fun qs => qs.any (isBadH5Query setup ck iv d r))
-      (fun q qs => by simp [h5LogHandler, g85Handler, Bool.or_comm]) _ []
-  let outerSetup {α : Type} :
-      (CommitKey → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) →
-        (Fin qTok → IV) → PMF α) → PMF α := fun f =>
-    (ProbComp.eval setup.Com.keyGen).bind fun ck =>
-    (ProbComp.eval (samplePi qTok (fun _ => setup.Com.openSample))).bind fun r =>
-    (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind fun d =>
-    (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv => f ck r d iv
-  let fullSetup {α : Type} :
-      (CommitKey → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) →
-        (Fin qTok → IV) → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
-        (Fin qTok → Fin nMult → Fin nMask → ZMod 2) → PMF α) → PMF α := fun f =>
-    outerSetup fun ck r d iv =>
-      (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-      (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-        f ck r d iv h5 cmult
-  have hbindSum : ∀ {α : Type} (p : PMF α) (f g h : α → ℝ≥0∞),
-      (∀ x, f x ≤ g x + h x) →
-      (∑' x, p x * f x) ≤ (∑' x, p x * g x) + (∑' x, p x * h x) := by
-    intro α p f g h hle
-    rw [← tsum_add]
-    exact tsum_le_tsum fun x => (mul_add (p x) (g x) (h x)).symm ▸
-      mul_le_mul_of_nonneg_left (hle x) zero_le
-  have hfullCongr : ∀ {α : Type} (f g :
-      CommitKey → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) →
-        (Fin qTok → IV) → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
-        (Fin qTok → Fin nMult → Fin nMask → ZMod 2) → PMF α),
-      (∀ ck r d iv h5 cmult, f ck r d iv h5 cmult = g ck r d iv h5 cmult) →
-      fullSetup f = fullSetup g := fun f g h =>
-    pmfBind_congr _ fun ck => pmfBind_congr _ fun r => pmfBind_congr _ fun d =>
-      pmfBind_congr _ fun iv => pmfBind_congr _ fun h5 => pmfBind_congr _ fun cmult =>
-        h ck r d iv h5 cmult
-  have hfullMap : ∀ {α β : Type} (f :
-      CommitKey → (Fin qTok → Fin lam → ZMod 2) → (Fin qTok → Fin lam → ZMod 2) →
-        (Fin qTok → IV) → (H5Query IV nMult lam → Fin nMask → ZMod 2) →
-        (Fin qTok → Fin nMult → Fin nMask → ZMod 2) → PMF α) (g : α → β),
-      (fullSetup f).map g =
-        fullSetup fun ck r d iv h5 cmult => (f ck r d iv h5 cmult).map g := by
-    intro α β f g
-    simp only [fullSetup, outerSetup, PMF.map_bind]
-  have hg85_eq :
-      g85Game setup =
-        (ProbComp.eval setup.Com.keyGen).bind fun ck =>
-        (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-        (ProbComp.eval (samplePi qTok (fun _ => setup.Com.openSample))).bind fun r =>
-        (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind fun d =>
-        (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv =>
-        (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-        (badRun ck h5 r d iv cmult).map Prod.fst := by
-    simp only [g85Game, g85FullRun, badRun, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.map_bind]
-    refine pmfBind_congr _ fun ck => pmfBind_congr _ fun h5 =>
-      pmfBind_congr _ fun r => pmfBind_congr _ fun d =>
-      pmfBind_congr _ fun iv => pmfBind_congr _ fun cmult => ?_
-    rw [ProbOracleComp.eval_runState]
-    have hg85 : (fun q state => ProbComp.eval (g85HandlerP setup ck iv d r h5 q state)) =
-        g85Handler setup ck iv d r h5 :=
-      funext fun q => funext fun s => by simp [g85HandlerP, g85Handler]
-    rw [hg85]
-    simp only [PMF.map, Function.comp_def, PMF.pure_bind]
-  have hg8_eq :
-      g8Game setup =
-        fullSetup fun ck r d iv h5 _ =>
-          let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-            ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-              fun e => h5 ⟨iv j, e, setup.baseLabel ck j e + d j + r j⟩⟩
-          ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q))) := by
-    simp only [fullSetup, outerSetup, g8Game, ProbComp.eval_bind, ProbComp.eval_uniform]
-    refine pmfBind_congr _ fun ck => ?_
-    rw [PMF.bind_comm]
-    refine pmfBind_congr _ fun r => ?_
-    have hvec : ∀ v : Fin lam → ZMod 2, v + v = 0 :=
-      fun v => funext fun k => CharTwo.add_self_eq_zero (v k)
-    let eAdd : (Fin qTok → Fin lam → ZMod 2) ≃ (Fin qTok → Fin lam → ZMod 2) :=
-      { toFun := fun u j => r j + u j
-        invFun := fun d j => d j + r j
-        left_inv := fun u => funext fun j => by
-          dsimp only
-          rw [add_comm (r j) (u j), add_assoc, hvec, add_zero]
-        right_inv := fun d => funext fun j => by
-          dsimp only
-          rw [add_comm (d j) (r j), ← add_assoc, hvec, zero_add] }
-    have hshift :
-        (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind (fun u =>
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, r j + u j,
-                  fun e => h5 ⟨iv j, e, setup.baseLabel ck j e + u j⟩⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q)))) =
-        (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind (fun d =>
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5 ⟨iv j, e, setup.baseLabel ck j e + d j + r j⟩⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q)))) := by
-      conv_rhs => rw [← uniformOfFintype_map_equiv eAdd, PMF.bind_map]
-      simp only [Function.comp_def, eAdd, Equiv.coe_fn_mk]
-      refine pmfBind_congr _ fun u => pmfBind_congr _ fun h5 => pmfBind_congr _ fun iv => ?_
-      have hlab : ∀ j e,
-          setup.baseLabel ck j e + (r j + u j) + r j = setup.baseLabel ck j e + u j :=
-        fun j e => by
-          rw [add_assoc (setup.baseLabel ck j e), add_comm (r j) (u j), add_assoc,
-            hvec, add_zero]
-      simp_rw [hlab]
-    rw [PMF.bind_comm]
-    rw [hshift]
-    refine pmfBind_congr _ fun d => ?_
-    rw [PMF.bind_comm]
-    refine pmfBind_congr _ fun iv => pmfBind_congr _ fun h5 => ?_
-    exact (PMF.bind_const _ _).symm
-  have hdec_point :
-      ∀ ck r d iv,
-        let P : Game :=
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5 ⟨iv j, e, setup.baseLabel ck j e + d j + r j⟩⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q)))
-        let Q : Game :=
-          (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              (badRun ck h5 r d iv cmult).map Prod.fst
-        let B : ℝ≥0∞ :=
-          if Function.Injective iv then
-            ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-              (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-                (badRun ck h5 r d iv cmult).map Prod.snd) true
-          else 1
-        P true ≤ Q true + B ∧ Q true ≤ P true + B := by
-    intro ck r d iv P Q B
-    by_cases hInj : Function.Injective iv
-    · simp only [B, hInj, ↓reduceIte]
-      have hphiInj :
-          Function.Injective (fun p : Fin qTok × Fin nMult =>
-            badH5Key setup ck iv d r p.1 p.2) := by
-        intro p₁ p₂ hp
-        have hiv : iv p₁.1 = iv p₂.1 := congrArg H5Query.iv hp
-        have hgate : p₁.2 = p₂.2 := congrArg H5Query.gate hp
-        exact Prod.ext (hInj hiv) hgate
-      let φ : Fin qTok × Fin nMult → H5Query IV nMult lam :=
-        fun p => badH5Key setup ck iv d r p.1 p.2
-      let eSwap :
-          ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2)) ≃
-            ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2)) := by
-        classical
-        exact
-          { toFun := fun ⟨cmult, h5⟩ =>
-              (fun j e => h5 (φ (j, e)),
-                fun q => if h : ∃ p, φ p = q then
-                  cmult (Classical.choose h).1 (Classical.choose h).2
-                  else h5 q)
-            invFun := fun ⟨cmult, h5⟩ =>
-              (fun j e => h5 (φ (j, e)),
-                fun q => if h : ∃ p, φ p = q then
-                  cmult (Classical.choose h).1 (Classical.choose h).2
-                  else h5 q)
-            left_inv := fun ⟨cmult, h5⟩ => by
-              ext1
-              · funext j e
-                have hex : ∃ p, φ p = φ (j, e) := ⟨(j, e), rfl⟩
-                have hch : Classical.choose hex = (j, e) := hphiInj (Classical.choose_spec hex)
-                simp [hex, hch]
-              · funext q
-                by_cases hq : ∃ p, φ p = q
-                · rcases hq with ⟨p, rfl⟩
-                  have hex : ∃ p', φ p' = φ p := ⟨p, rfl⟩
-                  have hch : Classical.choose hex = p := hphiInj (Classical.choose_spec hex)
-                  simp only [hex, ↓reduceDIte, hch]
-                · simp [hq]
-            right_inv := fun ⟨cmult, h5⟩ => by
-              ext1
-              · funext j e
-                have hex : ∃ p, φ p = φ (j, e) := ⟨(j, e), rfl⟩
-                have hch : Classical.choose hex = (j, e) := hphiInj (Classical.choose_spec hex)
-                simp [hex, hch]
-              · funext q
-                by_cases hq : ∃ p, φ p = q
-                · rcases hq with ⟨p, rfl⟩
-                  have hex : ∃ p', φ p' = φ p := ⟨p, rfl⟩
-                  have hch : Classical.choose hex = p := hphiInj (Classical.choose_spec hex)
-                  simp only [hex, ↓reduceDIte, hch]
-                · simp [hq] }
-      have hP_eq :
-          P = (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-              (ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5) (setup.adv ck tok)
-                false).map Prod.fst := by
-        have hprod : P =
-            (uniformOfFintype ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2))).bind fun ⟨cmult, h5⟩ =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5 (φ (j, e))⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5 q))) := by
-          simp only [P]
-          rw [← uniformOfFintype_prod, PMF.bind_bind]
-          simp only [PMF.bind_map, Function.comp_def]
-          rw [PMF.bind_comm]
-          rfl
-        have hprod2 :
-            ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-              (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-                let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                  ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-                (ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5) (setup.adv ck tok)
-                  false).map Prod.fst) =
-            ((uniformOfFintype ((Fin qTok → Fin nMult → Fin nMask → ZMod 2) ×
-              (H5Query IV nMult lam → Fin nMask → ZMod 2))).map eSwap).bind fun ⟨cmult', h5'⟩ =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  fun e => h5' (φ (j, e))⟩
-              ProbComp.eval ((setup.adv ck tok).run (fun q => pure (h5' q))) := by
-          rw [PMF.bind_map, ← uniformOfFintype_prod, PMF.bind_bind]
-          simp only [PMF.bind_map, Function.comp_def]
-          rw [PMF.bind_comm]
-          simp only [eSwap, Equiv.coe_fn_mk]
-          refine pmfBind_congr _ fun cmult => pmfBind_congr _ fun h5 => ?_
-          have hg8_ans : ∀ q (s : Bool),
-              ((g8Handler setup ck iv d r cmult h5 q s).map fun (a, _) => (a, ())) =
-              PMF.pure ((if h : ∃ p, φ p = q then
-                cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q), ()) := by
-            intro q s
-            simp only [g8Handler]
-            by_cases h1 : ∃ p, q = φ p <;> by_cases h2 : ∃ p, φ p = q
-            · dsimp only [φ] at h1 h2 ⊢
-              have hch : Classical.choose h1 = Classical.choose h2 :=
-                hphiInj ((Classical.choose_spec h1).symm.trans (Classical.choose_spec h2).symm)
-              simp [h1, h2, hch]
-            · rcases h1 with ⟨p, hp⟩
-              exact absurd ⟨p, hp.symm⟩ h2
-            · rcases h2 with ⟨p, hp⟩
-              exact absurd ⟨p, hp.symm⟩ h1
-            · dsimp only [φ] at h1 h2 ⊢
-              simp [h1, h2]
-          have hunit := ProbOracleComp.runWith_map_state
-            (g8Handler setup ck iv d r cmult h5)
-            (fun q (_ : Unit) => PMF.pure ((if h : ∃ p, φ p = q then
-              cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q), ()))
-            (fun _ => ()) (fun q s => hg8_ans q s)
-            (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
-            false
-          have hmap1 :
-              ((ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5)
-                (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  cmult j⟩) false).map Prod.fst) =
-              (((ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5)
-                (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j,
-                  cmult j⟩) false).map (fun (a, s') => (a, ()))).map Prod.fst) := by
-            rw [PMF.map_comp]; rfl
-          rw [hmap1, hunit]
-          have hro := ProbOracleComp.runWith_readOnly
-            (fun q (_ : Unit) => PMF.pure (if h : ∃ p, φ p = q then
-              cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q))
-            (setup.adv ck fun j => ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩)
-            ()
-          have hcm : (fun j e =>
-              (if h : ∃ p, φ p = φ (j, e) then cmult (Classical.choose h).1 (Classical.choose h).2
-                else h5 (φ (j, e)))) = cmult := by
-            funext j e
-            have hex : ∃ p, φ p = φ (j, e) := ⟨(j, e), rfl⟩
-            have hch : Classical.choose hex = (j, e) := hphiInj (Classical.choose_spec hex)
-            simp [hex, hch]
-          simp only [φ] at hcm hro ⊢
-          rw [show (fun q (_ : Unit) =>
-              PMF.pure (if h : ∃ p : Fin qTok × Fin nMult,
-                  badH5Key setup ck iv d r p.1 p.2 = q then
-                cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q, ())) =
-              fun q state => (PMF.pure (if h : ∃ p : Fin qTok × Fin nMult,
-                  badH5Key setup ck iv d r p.1 p.2 = q then
-                cmult (Classical.choose h).1 (Classical.choose h).2 else h5 q)).map
-                  (·, state) from
-            funext fun q => funext fun s => by cases s; simp]
-          rw [hro, PMF.map_comp]
-          rw [show (Prod.fst ∘ fun x : Bool => (x, ())) = id from rfl, PMF.map_id,
-            OracleComp.evalWith_eq_interpret, ProbOracleComp.eval_run]
-          congr 1
-          congr 1
-          funext j
-          congr 1
-          exact (congrFun hcm j).symm
-        rw [hprod, hprod2, uniformOfFintype_map_equiv eSwap]
-      have hstep_le : ∀ h5 cmult,
-          let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-            ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩
-          let firstRun := ProbOracleComp.runWith (g8Handler setup ck iv d r cmult h5)
-            (setup.adv ck tok) false
-          let secondRun := ProbOracleComp.runWith (g85Handler setup ck iv d r h5)
-            (setup.adv ck tok) false
-          (firstRun.map Prod.fst) true ≤
-            (secondRun.map Prod.fst) true + (secondRun.map Prod.snd) true ∧
-          (secondRun.map Prod.fst) true ≤
-            (firstRun.map Prod.fst) true + (secondRun.map Prod.snd) true := by
-        intro h5 cmult tok firstRun secondRun
-        have hub := crtDecouple_identicalUntilBad setup ck iv d r cmult h5
-        have h1 := hub.bind_apply_le (setup.adv ck tok) false
-          (fun x => PMF.pure x.1) true
-        have h2 := hub.symm.bind_apply_le (setup.adv ck tok) false
-          (fun x => PMF.pure x.1) true
-        rw [hub.bad_eq (setup.adv ck tok) false] at h1
-        simp_rw [← ProbOracleComp.runWith_eq_run_interpret] at h1 h2
-        have hbadSet :
-            (ProbOracleComp.runWith (g85Handler setup ck iv d r h5)
-              (setup.adv ck tok) false).toOuterMeasure {x | x.2 = true} =
-              (secondRun.map Prod.snd) true := by
-          rw [PMF.toOuterMeasure_apply, PMF.map_apply]
-          refine tsum_congr fun x => ?_
-          by_cases hx : x.2 = true
-          · simp [hx, secondRun]
-          · simp [hx]
-        rw [hbadSet] at h1 h2
-        exact ⟨by simpa [firstRun, secondRun, PMF.map, Function.comp_def] using h1,
-          by simpa [firstRun, secondRun, PMF.map, Function.comp_def] using h2⟩
-      have hbind2 : ∀ {α : Type} (p : PMF α) (f g h : α → ℝ≥0∞),
-          (∀ x, f x ≤ g x + h x) →
-          (∑' x, p x * f x) ≤ (∑' x, p x * g x) + (∑' x, p x * h x) := by
-        intro α p f g h hle
-        rw [← tsum_add]
-        exact tsum_le_tsum fun x => (mul_add (p x) (g x) (h x)).symm ▸
-          mul_le_mul_of_nonneg_left (hle x) zero_le
-      rw [hP_eq]
-      constructor
-      · simp only [Q, badRun, PMF.bind_apply]
-        exact hbindSum _ _ _ _ fun h5 => hbindSum _ _ _ _ fun cmult => (hstep_le h5 cmult).1
-      · simp only [Q, badRun, PMF.bind_apply]
-        exact hbindSum _ _ _ _ fun h5 => hbindSum _ _ _ _ fun cmult => (hstep_le h5 cmult).2
-    · simp only [B, hInj, ↓reduceIte]
-      exact ⟨le_trans (PMF.coe_le_one _ _) le_add_self,
-        le_trans (PMF.coe_le_one _ _) le_add_self⟩
-  let badFullProb : ℝ≥0∞ := ((ProbComp.eval (g85FullRun setup)).map fun (_, bad, _) => bad) true
-  let ivFullProb : ℝ≥0∞ :=
-    ((ProbComp.eval (g85FullRun setup)).map fun (_, _, ivColl) => ivColl) true
-  have hg85_reorder :
-      ProbComp.eval (g85FullRun setup) =
-        fullSetup fun ck r d iv h5 cmult =>
-          (badRun ck h5 r d iv cmult).map fun res =>
-            (res.1, res.2, decide (¬ Function.Injective iv)) := by
-    simp only [fullSetup, outerSetup, g85FullRun, badRun, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure]
-    refine pmfBind_congr _ fun ck => ?_
-    rw [PMF.bind_comm]; refine pmfBind_congr _ fun r => ?_
-    rw [PMF.bind_comm]; refine pmfBind_congr _ fun d => ?_
-    rw [PMF.bind_comm]; refine pmfBind_congr _ fun iv => ?_
-    refine pmfBind_congr _ fun h5 => pmfBind_congr _ fun cmult => ?_
-    rw [ProbOracleComp.eval_runState]
-    have hg85 : (fun q state => ProbComp.eval (g85HandlerP setup ck iv d r h5 q state)) =
-        g85Handler setup ck iv d r h5 :=
-      funext fun q => funext fun s => by simp [g85HandlerP, g85Handler]
-    rw [hg85]
-    simp only [PMF.map, Function.comp_def]
-  have hdec_global :
-      g8Game setup true ≤ g85Game setup true + (badFullProb + ivFullProb) ∧
-      g85Game setup true ≤ g8Game setup true + (badFullProb + ivFullProb) := by
-    have hbad_le : ∀ ck r d iv,
-        (if Function.Injective iv then
-          ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              (badRun ck h5 r d iv cmult).map Prod.snd) true
-        else (1 : ℝ≥0∞)) ≤
-          ((uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              (badRun ck h5 r d iv cmult).map Prod.snd) true +
-            (PMF.pure (decide (¬ Function.Injective iv))) true := by
-      intro ck r d iv
-      by_cases hInj : Function.Injective iv
-      · simp [hInj]
-      · simp [hInj, self_le_add_left]
-    have hg85_fst :
-        g85Game setup true =
-          (fullSetup fun ck r d iv h5 cmult => (badRun ck h5 r d iv cmult).map Prod.fst) true := by
-      rw [g85Game, hg85_reorder, hfullMap]
-      refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun ck r d iv h5 cmult => ?_)
-      rw [PMF.map_comp]; rfl
-    have hsum_bad :
-        badFullProb + ivFullProb =
-          (fullSetup fun ck r d iv h5 cmult => (badRun ck h5 r d iv cmult).map Prod.snd) true +
-          (outerSetup fun _ _ _ iv => PMF.pure (decide (¬ Function.Injective iv))) true := by
-      simp only [badFullProb, ivFullProb, hg85_reorder]
-      congr 1
-      · rw [hfullMap]
-        refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun _ _ _ _ _ _ => ?_)
-        rw [PMF.map_comp]; rfl
-      · simp only [fullSetup, outerSetup, PMF.map_bind]
-        refine congrArg (fun p : PMF Bool => p true) ?_
-        refine pmfBind_congr _ fun ck => pmfBind_congr _ fun r =>
-          pmfBind_congr _ fun d => pmfBind_congr _ fun iv => ?_
-        simp [PMF.map, Function.comp_def, PMF.bind_const]
-    rw [hg8_eq, hg85_fst, hsum_bad]
-    constructor
-    · simp only [fullSetup, outerSetup, PMF.bind_apply]
-      refine le_trans (hbindSum _ _ _ _ fun ck =>
-        hbindSum _ _ _ _ fun r =>
-        hbindSum _ _ _ _ fun d =>
-        hbindSum _ _ _ _ fun iv =>
-          le_trans (hdec_point ck r d iv).1 (add_le_add (le_refl _) (hbad_le ck r d iv))) ?_
-      simp only [mul_add, tsum_add, PMF.bind_apply]
-      exact le_refl _
-    · simp only [fullSetup, outerSetup, PMF.bind_apply]
-      refine le_trans (hbindSum _ _ _ _ fun ck =>
-        hbindSum _ _ _ _ fun r =>
-        hbindSum _ _ _ _ fun d =>
-        hbindSum _ _ _ _ fun iv =>
-          le_trans (hdec_point ck r d iv).2 (add_le_add (le_refl _) (hbad_le ck r d iv))) ?_
-      simp only [mul_add, tsum_add, PMF.bind_apply]
-      exact le_refl _
-  have hbad_hide :
-      badFullProb ≤ (qTok : ℝ≥0∞) *
-        (ProbComp.eval
-          (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) true) := by
-    have hq_pos : (qTok : ℝ≥0∞) ≠ 0 := by
-      exact_mod_cast NeZero.ne qTok
-    have hq_ne_top : (qTok : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top qTok
-    have hhide_re :
-        ProbComp.eval (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) =
-          fullSetup fun ck r d iv h5 cmult =>
-            (logRun ck h5 r d iv cmult).bind fun res =>
-              (uniformOfFintype (Fin qTok)).map fun jStar =>
-                res.2.any fun q =>
-                  decide (q.iv = iv jStar) &&
-                    decide (setup.Com.eval ck (setup.msgs ck jStar)
-                      (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                      setup.Com.eval ck (setup.msgs ck jStar) (r jStar)) := by
-      simp only [fullSetup, outerSetup, Commitment.Scheme.eval_hidingExperiment, Game.withSetup,
-        eval_lrExperiment, badH5HidingReduction, runBadH5WithChallenge,
-        OpeningCommitment.toScheme, Commitment.Scheme.commitment, MessagePair.select_false,
-        ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_pure,
-        PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, ite_true, logRun]
-      refine pmfBind_congr _ fun ck => ?_
-      have hcomm1 : ∀ (jStar : Fin qTok),
-          ((ProbComp.eval setup.Com.openSample).bind fun rStar =>
-            (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (ProbComp.eval (samplePi qTok (fun j => if j = jStar then pure (0 : Fin lam → ZMod 2)
-              else setup.Com.openSample))).bind fun rOthers =>
-            (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind fun d =>
-            (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              let tok : Fin qTok → CRTProofToken C IV nMult lam nMask := fun j =>
-                ⟨if j = jStar then setup.Com.eval ck (setup.msgs ck jStar) rStar
-                  else setup.Com.eval ck (setup.msgs ck j) (rOthers j), iv j, d j, cmult j⟩
-              (ProbComp.eval (((setup.adv ck tok).runState (h5LogHandlerP h5)).run [])).bind
-                fun res =>
-                  PMF.pure (res.2.any fun q =>
-                    decide (q.iv = iv jStar) &&
-                      decide (setup.Com.eval ck (setup.msgs ck jStar)
-                        (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                        setup.Com.eval ck (setup.msgs ck jStar) rStar))) =
-          ((ProbComp.eval (samplePi qTok (fun _ => setup.Com.openSample))).bind fun r =>
-            (uniformOfFintype (Fin qTok → Fin lam → ZMod 2)).bind fun d =>
-            (ProbComp.eval (samplePi qTok (setup.ivGen ck))).bind fun iv =>
-            (uniformOfFintype (H5Query IV nMult lam → Fin nMask → ZMod 2)).bind fun h5 =>
-            (uniformOfFintype (Fin qTok → Fin nMult → Fin nMask → ZMod 2)).bind fun cmult =>
-              (ProbOracleComp.runWith (h5LogHandler h5) (setup.adv ck fun j =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (r j), iv j, d j, cmult j⟩) []).bind
-                fun res =>
-                  PMF.pure (res.2.any fun q =>
-                    decide (q.iv = iv jStar) &&
-                      decide (setup.Com.eval ck (setup.msgs ck jStar)
-                        (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                        setup.Com.eval ck (setup.msgs ck jStar) (r jStar)))) := by
-        intro jStar
-        have hrep := samplePi_replace (fun _ : Fin qTok => setup.Com.openSample)
-          (fun _ : Fin qTok => (0 : Fin lam → ZMod 2)) jStar
-        rw [← hrep]
-        simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-        conv_lhs => enter [2, rStar]; rw [PMF.bind_comm]
-        rw [PMF.bind_comm]
-        refine pmfBind_congr _ fun rOthers => pmfBind_congr _ fun rStar => ?_
-        conv_rhs => rw [pmfBind_comm2]
-        refine pmfBind_congr _ fun h5 => pmfBind_congr _ fun d =>
-          pmfBind_congr _ fun iv => pmfBind_congr _ fun cmult => ?_
-        have heq_tok : ∀ (d : Fin qTok → Fin lam → ZMod 2) (iv : Fin qTok → IV)
-            (cmult : Fin qTok → Fin nMult → Fin nMask → ZMod 2),
-            (fun j : Fin qTok =>
-              (⟨if j = jStar then setup.Com.eval ck (setup.msgs ck jStar) rStar
-                else setup.Com.eval ck (setup.msgs ck j) (rOthers j), iv j, d j, cmult j⟩ :
-                  CRTProofToken C IV nMult lam nMask)) =
-              (fun j : Fin qTok =>
-                ⟨setup.Com.eval ck (setup.msgs ck j) (Function.update rOthers jStar rStar j),
-                  iv j, d j, cmult j⟩) := by
-          intro d iv cmult
-          funext j
-          by_cases hj : j = jStar
-          · subst hj; simp [Function.update]
-          · simp [hj, Function.update]
-        have hup : Function.update rOthers jStar rStar jStar = rStar := by simp
-        simp only [heq_tok, hup]
-        rw [ProbOracleComp.eval_runState]
-        have hh5 : (fun q state => ProbComp.eval (h5LogHandlerP h5 q state)) =
-            h5LogHandler h5 :=
-          funext fun q => funext fun s => by simp [h5LogHandlerP, h5LogHandler]
-        rw [hh5]
-      simp_rw [hcomm1]
-      rw [PMF.bind_comm]; refine pmfBind_congr _ fun r => ?_
-      rw [PMF.bind_comm]; refine pmfBind_congr _ fun d => ?_
-      rw [PMF.bind_comm]; refine pmfBind_congr _ fun iv => ?_
-      rw [PMF.bind_comm]; refine pmfBind_congr _ fun h5 => ?_
-      rw [PMF.bind_comm]; refine pmfBind_congr _ fun cmult => ?_
-      rw [PMF.bind_comm]
-      simp [PMF.map, Function.comp_def]
-    rw [hhide_re]
-    have hbad_eq :
-        badFullProb =
-          (fullSetup fun ck r d iv h5 cmult =>
-            (logRun ck h5 r d iv cmult).bind fun res =>
-              PMF.pure (res.2.any (isBadH5Query setup ck iv d r))) true := by
-      simp only [badFullProb, hg85_reorder]
-      rw [hfullMap]
-      refine congrArg (fun p : PMF Bool => p true) (hfullCongr _ _ fun ck r d iv h5 cmult => ?_)
-      rw [← hlog_to_bad ck h5 r d iv cmult]
-      simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-    rw [hbad_eq]
-    have hpoint_hit : ∀ (ck : CommitKey) (r d : Fin qTok → Fin lam → ZMod 2)
-        (iv : Fin qTok → IV) (qs : List (H5Query IV nMult lam)),
-        (PMF.pure (qs.any (isBadH5Query setup ck iv d r))) true ≤
-          (qTok : ℝ≥0∞) *
-            ((uniformOfFintype (Fin qTok)).map fun jStar =>
-              qs.any fun q =>
-                decide (q.iv = iv jStar) &&
-                  decide (setup.Com.eval ck (setup.msgs ck jStar)
-                    (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                    setup.Com.eval ck (setup.msgs ck jStar) (r jStar))) true := by
-      intro ck r d iv qs
-      by_cases hhit : qs.any (isBadH5Query setup ck iv d r) = true
-      · simp only [hhit, PMF.pure_apply, ↓reduceIte]
-        rcases List.any_eq_true.mp hhit with ⟨q, hqmem, hqbad⟩
-        simp only [isBadH5Query, decide_eq_true_eq] at hqbad
-        rcases hqbad with ⟨j₀, e₀, rfl⟩
-        have hpred0 : (qs.any fun q =>
-            decide (q.iv = iv j₀) &&
-              decide (setup.Com.eval ck (setup.msgs ck j₀)
-                (q.label + setup.baseLabel ck j₀ q.gate + d j₀) =
-                setup.Com.eval ck (setup.msgs ck j₀) (r j₀))) = true := by
-          refine List.any_eq_true.mpr ⟨badH5Key setup ck iv d r j₀ e₀, hqmem, ?_⟩
-          have hvec : ∀ v : Fin lam → ZMod 2, v + v = 0 :=
-            fun v => funext fun k => CharTwo.add_self_eq_zero (v k)
-          have hlab : (setup.baseLabel ck j₀ e₀ + d j₀ + r j₀) +
-              setup.baseLabel ck j₀ e₀ + d j₀ = r j₀ := by
-            rw [add_assoc _ _ (d j₀), add_comm _ (r j₀), add_assoc,
-              hvec, add_zero]
-          simp [badH5Key, hlab]
-        have hle1 : (qTok : ℝ≥0∞)⁻¹ ≤
-            ((uniformOfFintype (Fin qTok)).map fun jStar =>
-              qs.any fun q =>
-                decide (q.iv = iv jStar) &&
-                  decide (setup.Com.eval ck (setup.msgs ck jStar)
-                    (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                    setup.Com.eval ck (setup.msgs ck jStar) (r jStar))) true := by
-          rw [PMF.map_apply]
-          have hj0 : (qTok : ℝ≥0∞)⁻¹ =
-              if true = (qs.any fun q =>
-                  decide (q.iv = iv j₀) &&
-                    decide (setup.Com.eval ck (setup.msgs ck j₀)
-                      (q.label + setup.baseLabel ck j₀ q.gate + d j₀) =
-                      setup.Com.eval ck (setup.msgs ck j₀) (r j₀)))
-                then (uniformOfFintype (Fin qTok)) j₀ else 0 := by
-            simp [uniformOfFintype_apply, hpred0]
-          simpa using hj0.trans_le (le_tsum
-            (f := fun jStar =>
-              if true = (qs.any fun q =>
-                  decide (q.iv = iv jStar) &&
-                    decide (setup.Com.eval ck (setup.msgs ck jStar)
-                      (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                      setup.Com.eval ck (setup.msgs ck jStar) (r jStar)))
-                then (uniformOfFintype (Fin qTok)) jStar else 0) j₀)
-        calc (1 : ℝ≥0∞) = (qTok : ℝ≥0∞) * (qTok : ℝ≥0∞)⁻¹ :=
-              (ENNReal.mul_inv_cancel hq_pos hq_ne_top).symm
-          _ ≤ _ := mul_le_mul_of_nonneg_left hle1 zero_le
-      · simp [Bool.eq_false_iff.mpr hhit]
-    have hmul_bind : ∀ {α : Type} (p : PMF α) (f g : α → ℝ≥0∞),
-        (∀ x, f x ≤ (qTok : ℝ≥0∞) * g x) →
-        (∑' x, p x * f x) ≤ (qTok : ℝ≥0∞) * (∑' x, p x * g x) := by
-      intro α p f g hle
-      rw [← ENNReal.tsum_mul_left]
-      refine tsum_le_tsum fun x => ?_
-      calc p x * f x ≤ p x * ((qTok : ℝ≥0∞) * g x) := mul_le_mul_of_nonneg_left (hle x) zero_le
-        _ = (qTok : ℝ≥0∞) * (p x * g x) := by ring
-    simp only [fullSetup, outerSetup, PMF.bind_apply]
-    exact hmul_bind _ _ _ fun ck => hmul_bind _ _ _ fun r => hmul_bind _ _ _ fun d =>
-      hmul_bind _ _ _ fun iv => hmul_bind _ _ _ fun h5 => hmul_bind _ _ _ fun cmult =>
-      hmul_bind _ _ _ fun res => hpoint_hit ck r d iv res.2
-  have hhide_true_le_bind :
-      ProbComp.eval (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) true) true ≤
-        ProbComp.eval
-          (setup.Com.toScheme.bindingExperiment (badH5BindingReduction setup)) true := by
-    simp only [Commitment.Scheme.eval_hidingExperiment, Commitment.Scheme.bindingExperiment,
-      Game.withSetup, eval_lrExperiment, badH5HidingReduction, badH5BindingReduction,
-      runBadH5WithChallenge, OpeningCommitment.toScheme, Commitment.Scheme.commitment,
-      MessagePair.select_true, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.bind_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def,
-      ite_true, PMF.bind_apply]
-    refine tsum_le_tsum fun ck => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun jStar => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun rDummy => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun h5 => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun rOthers => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun d => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun iv => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun cmult => mul_le_mul_of_nonneg_left ?_ zero_le
-    refine tsum_le_tsum fun res => mul_le_mul_of_nonneg_left ?_ zero_le
-    let pred : H5Query IV nMult lam → Bool := fun q =>
-      decide (q.iv = iv jStar) &&
-        decide (setup.Com.eval ck (setup.msgs ck jStar)
-          (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-          setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy)
-    by_cases hany : res.2.any pred = true
-    · dsimp only [pred] at hany
-      simp only [PMF.pure_apply, hany, ↓reduceIte]
-      have hfind : (res.2.find? pred).isSome = true :=
-        List.find?_isSome.mpr (List.any_eq_true.mp hany)
-      rcases Option.isSome_iff_exists.mp hfind with ⟨q, hq⟩
-      have hqpred : pred q = true := List.find?_some hq
-      have hqev : setup.Com.eval ck (setup.msgs ck jStar)
-          (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-          setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy := by
-        simpa [pred] using (Bool.and_eq_true_iff.mp hqpred).2
-      have hcol : setup.Com.toScheme.isBindingCollision ck
-          { commitment := setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy
-            msg₀ := setup.msgs ck jStar
-            opening₀ := q.label + setup.baseLabel ck jStar q.gate + d jStar
-            msg₁ := (setup.msgs ck jStar).bumpBal
-            opening₁ := rDummy } = true := by
-        simp only [Commitment.Scheme.isBindingCollision, OpeningCommitment.toScheme,
-          Bool.and_eq_true, decide_eq_true_eq]
-        exact ⟨⟨(CommitMsg.bumpBal_ne _).symm, hqev⟩, trivial⟩
-      have hq' :
-          (res.2.find? fun q =>
-            decide (q.iv = iv jStar) &&
-              decide (setup.Com.eval ck (setup.msgs ck jStar)
-                (q.label + setup.baseLabel ck jStar q.gate + d jStar) =
-                setup.Com.eval ck (setup.msgs ck jStar).bumpBal rDummy)) = some q := hq
-      rw [hq']
-      dsimp only
-      simp only [ProbComp.eval_pure, PMF.pure_apply, ite_mul, one_mul, zero_mul, tsum_ite_eq]
-      simp only [OpeningCommitment.toScheme] at hcol
-      simp only [hcol, ↓reduceIte, le_refl]
-    · dsimp only [pred] at hany
-      simp only [PMF.pure_apply, Bool.eq_false_iff.mpr hany, Bool.true_eq_false, ↓reduceIte,
-        zero_le]
-  have hbad_real :
-      badFullProb.toReal ≤
-        (qTok : ℝ) *
-          ((Experiment.advantage
-            (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false)
-            (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) true) : ℝ) +
-            (Experiment.succProbability
-              (setup.Com.toScheme.bindingExperiment (badH5BindingReduction setup)) : ℝ)) := by
-    have h1 := ENNReal.toReal_mono (ENNReal.mul_ne_top (ENNReal.natCast_ne_top qTok)
-      (PMF.apply_ne_top _ _)) hbad_hide
-    have h2 := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hhide_true_le_bind
-    rw [ENNReal.toReal_mul, ENNReal.toReal_natCast] at h1
-    have h3 :
-        (ProbComp.eval
-          (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) true).toReal ≤
-        |(ProbComp.eval
-            (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) true).toReal -
-          (ProbComp.eval
-            (setup.Com.toScheme.hidingExperiment
-              (badH5HidingReduction setup) true) true).toReal| +
-          (ProbComp.eval
-            (setup.Com.toScheme.hidingExperiment
-              (badH5HidingReduction setup) true) true).toReal := by
-      have hle := le_abs_self
-        ((ProbComp.eval
-            (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) false) true).toReal -
-          (ProbComp.eval
-            (setup.Com.toScheme.hidingExperiment (badH5HidingReduction setup) true) true).toReal)
-      linarith
-    rw [Experiment.coe_advantage, Experiment.coe_succProbability]
-    nlinarith [Nat.cast_nonneg (α := ℝ) qTok]
-  have hadv_le := Game.advantage_le_of_apply_le
-    (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
-    hdec_global.1 hdec_global.2
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] at hadv_le
-  exact hadv_le.trans (add_le_add hbad_real (le_refl _))
-
-end CRTDecoupling
-
 
 end Cslib.Crypto.AnonymousToken.Unlinkability

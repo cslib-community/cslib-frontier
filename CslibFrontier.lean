@@ -6794,6 +6794,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.ACTMQ
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
+public import CslibFrontier.Crypto.Protocols.AnonymousToken.CRTDecoupling
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.CRTHazard
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Conservation
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
@@ -8906,6 +8907,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IsotropicPosition
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.KroneckerRank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Laplacian
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LeftKernel
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Lindsey
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearMeasurements
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.LinearProgramming
