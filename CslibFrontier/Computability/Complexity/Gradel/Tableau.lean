@@ -673,60 +673,46 @@ private theorem stepBodies_sound (tm : MultiTapeTM m Bool State) (input : List B
     rcases hbody with hhalt | ⟨y, ⟨_, hy⟩, rfl⟩
     · split_ifs at hhalt with hq
       · obtain rfl := List.mem_singleton.mp hhalt
-        have h1 := (holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..))
-        exact Or.inl ⟨h1, hq⟩
+        exact Or.inl
+          ⟨(holds_tagAtom_target tm input _ 0 2 v).mp (hb _ (List.mem_cons_self ..)), hq⟩
       · cases hhalt
-    · have h1 := (holds_sitAtom_target tm input y 0 2 v).mp (hb _ (List.mem_cons_self ..))
-      exact Or.inr ⟨y, hy, h1⟩
+    · exact Or.inr
+        ⟨y, hy, (holds_sitAtom_target tm input y 0 2 v).mp (hb _ (List.mem_cons_self ..))⟩
   | out o =>
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
-    rcases hbody with rfl | ⟨⟨y, o'⟩, ⟨_, ho'⟩, rfl⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
-        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inr ⟨y, o', ho', (holds_sitAtom_target tm input y 0 2 v).mp h1,
-        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
+    rcases hbody with rfl | ⟨⟨y, o'⟩, ⟨_, ho'⟩, rfl⟩ <;>
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom_target,
+        holds_sitAtom_target] at hb
+    exacts [Or.inl hb, Or.inr ⟨y, o', ho', hb⟩]
   | inPos =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
-    rcases hbody with rfl | ⟨y, _, rfl⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
-        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1,
-        (holds_inPrevAtom_target tm input _ 0 2 v).mp h2⟩
+    rcases hbody with rfl | ⟨y, _, rfl⟩ <;>
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom_target,
+        holds_sitAtom_target, holds_inPrevAtom_target] at hb
+    exacts [Or.inl hb, Or.inr ⟨y, hb⟩]
   | head i sign =>
     simp only [stepBodies, List.mem_cons, List.mem_map] at hbody
     rcases hbody with rfl | ⟨y, _, rfl⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
-        (holds_tagAtom_target tm input _ 0 2 v).mp h2⟩
+    · simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom_target] at hb
+      exact Or.inl hb
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
-      simp only [hw] at hb
-      obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      refine Or.inr ⟨y, (holds_sitAtom_target tm input y 0 2 v).mp h1, ?_⟩
+      simp only [hw, List.forall_mem_cons, ↓List.forall_mem_singleton, holds_sitAtom_target,
+        holds_headPrevAtom_target] at hb
+      refine Or.inr ⟨y, hb.1, ?_⟩
       rw [hw]
-      exact (holds_headPrevAtom_target tm input i sign dir 0 2 v).mp h2
+      exact hb.2
   | cell i sign s =>
     simp only [stepBodies, List.mem_cons, List.mem_map, List.mem_filter,
       decide_eq_true_eq] at hbody
-    rcases hbody with rfl | rfl | ⟨⟨y, s'⟩, ⟨_, hs'⟩, rfl⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
-        Or.inl ((holds_tagAtom_target tm input _ 0 2 v).mp h2)⟩
-    · obtain ⟨h1, h2⟩ := (List.forall_mem_cons.mp hb).imp_right List.forall_mem_singleton.mp
-      exact Or.inl ⟨(holds_tagAtom_target tm input _ 0 2 v).mp h1,
-        Or.inr ((holds_elsewhereAtom_target tm input i sign 0 2 v).mp h2)⟩
+    rcases hbody with rfl | rfl | ⟨⟨y, s'⟩, ⟨_, hs'⟩, rfl⟩ <;>
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom_target,
+        holds_sitAtom_target, holds_elsewhereAtom_target] at hb
+    · exact Or.inl ⟨hb.1, Or.inl hb.2⟩
+    · exact Or.inl ⟨hb.1, Or.inr hb.2⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hs'
-      have h1 := (holds_sitAtom_target tm input y 0 2 v).mp (hb _ (List.mem_cons_self ..))
-      have h2 := (holds_tagAtom_target tm input _ 0 2 v).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))
-      have h3 := (holds_tagAtom_target tm input _ 0 2 v).mp
-        (hb _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))))
-      refine Or.inr ⟨y, s', ?_, h1, h2, h3⟩
+      refine Or.inr ⟨y, s', ?_, hb⟩
       rw [hw]
       exact hs'
 
@@ -1031,68 +1017,53 @@ private theorem stepBodies_complete (tm : MultiTapeTM m Bool State)
       exact List.mem_map_of_mem (List.mem_filter.mpr ⟨mem_univList y, decide_eq_true hy⟩)
   | out o =>
     rcases hs with ⟨hhalt, hout⟩ | ⟨y, o', ho', hsit, hout⟩
-    · exact ⟨[tagAtom (.state none) 0 2, tagAtom (.out o) 0 2], List.mem_cons_self ..,
-        List.forall_mem_cons.mpr
-          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
-           List.forall_mem_singleton.mpr ((holds_tagAtom (.out o) 0 2 _ ![t, t', a]).mpr hout)⟩⟩
-    · refine ⟨[sitAtom y 0 2, tagAtom (.out o') 0 2], ?_, List.forall_mem_cons.mpr
-        ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
-         List.forall_mem_singleton.mpr ((holds_tagAtom (.out o') 0 2 _ ![t, t', a]).mpr hout)⟩⟩
-      exact List.mem_cons_of_mem _ (List.mem_map.mpr
-        ⟨(y, o'), List.mem_filter.mpr ⟨mem_univList (y, o'), decide_eq_true ho'⟩, rfl⟩)
+    · refine ⟨_, List.mem_cons_self .., ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom]
+      exact ⟨hhalt, hout⟩
+    · refine ⟨_, List.mem_cons_of_mem _ (List.mem_map.mpr
+        ⟨(y, o'), List.mem_filter.mpr ⟨mem_univList (y, o'), decide_eq_true ho'⟩, rfl⟩), ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom, holds_sitAtom]
+      exact ⟨leastModel_sit tm hinput t a y hsit, hout⟩
   | inPos =>
     rcases hs with ⟨hhalt, hpos⟩ | ⟨y, hsit, hprev⟩
-    · exact ⟨[tagAtom (.state none) 0 2, tagAtom .inPos 0 2], List.mem_cons_self ..,
-        List.forall_mem_cons.mpr
-          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
-           List.forall_mem_singleton.mpr ((holds_tagAtom .inPos 0 2 _ ![t, t', a]).mpr hpos)⟩⟩
-    · exact ⟨[sitAtom y 0 2, inPrevAtom (tm.actionOf y).inputTape 0 2],
-        List.mem_cons_of_mem _ (List.mem_map_of_mem (mem_univList y)),
-        List.forall_mem_cons.mpr
-          ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
-           List.forall_mem_singleton.mpr ((holds_inPrevAtom _ 0 2 _ ![t, t', a]).mpr
-             (leastModel_inPrev tm hinput t a _ hprev))⟩⟩
+    · refine ⟨_, List.mem_cons_self .., ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom]
+      exact ⟨hhalt, hpos⟩
+    · refine ⟨_, List.mem_cons_of_mem _ (List.mem_map_of_mem (mem_univList y)), ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_sitAtom,
+        holds_inPrevAtom]
+      exact ⟨leastModel_sit tm hinput t a y hsit, leastModel_inPrev tm hinput t a _ hprev⟩
   | head i sign =>
     rcases hs with ⟨hhalt, hhead⟩ | ⟨y, hsit, hprev⟩
-    · exact ⟨[tagAtom (.state none) 0 2, tagAtom (.head i sign) 0 2], List.mem_cons_self ..,
-        List.forall_mem_cons.mpr
-          ⟨(holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt,
-           List.forall_mem_singleton.mpr
-             ((holds_tagAtom (.head i sign) 0 2 _ ![t, t', a]).mpr hhead)⟩⟩
+    · refine ⟨_, List.mem_cons_self .., ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom]
+      exact ⟨hhalt, hhead⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hprev
-      refine ⟨[sitAtom y 0 2, headPrevAtom i sign dir 0 2], ?_, List.forall_mem_cons.mpr
-        ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
-         List.forall_mem_singleton.mpr ((holds_headPrevAtom i sign dir 0 2 _ ![t, t', a]).mpr
-           (leastModel_headPrev tm inputFormula t a i sign dir hprev))⟩⟩
-      refine List.mem_cons_of_mem _ (List.mem_map.mpr ⟨y, mem_univList y, ?_⟩)
-      simp only [hw]
+      refine ⟨[sitAtom y 0 2, headPrevAtom i sign dir 0 2],
+        List.mem_cons_of_mem _ (List.mem_map.mpr ⟨y, mem_univList y, by simp only [hw]⟩), ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_sitAtom,
+        holds_headPrevAtom]
+      exact ⟨leastModel_sit tm hinput t a y hsit,
+        leastModel_headPrev tm inputFormula t a i sign dir hprev⟩
   | cell i sign s =>
     rcases hs with ⟨hcell, hhalt | helse⟩ | ⟨y, s', hs', hsit, hhead, hcell⟩
-    · exact ⟨[tagAtom (.cell i sign s) 0 2, tagAtom (.state none) 0 2], List.mem_cons_self ..,
-        List.forall_mem_cons.mpr
-          ⟨(holds_tagAtom (.cell i sign s) 0 2 _ ![t, t', a]).mpr hcell,
-           List.forall_mem_singleton.mpr
-             ((holds_tagAtom (.state none) 0 2 _ ![t, t', a]).mpr hhalt)⟩⟩
-    · exact ⟨[tagAtom (.cell i sign s) 0 2, elsewhereAtom i sign 0 2],
-        List.mem_cons_of_mem _ (List.mem_cons_self ..),
-        List.forall_mem_cons.mpr
-          ⟨(holds_tagAtom (.cell i sign s) 0 2 _ ![t, t', a]).mpr hcell,
-           List.forall_mem_singleton.mpr ((holds_elsewhereAtom i sign 0 2 _ ![t, t', a]).mpr
-             (leastModel_elsewhere tm inputFormula t a i sign helse))⟩⟩
+    · refine ⟨_, List.mem_cons_self .., ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom]
+      exact ⟨hcell, hhalt⟩
+    · refine ⟨_, List.mem_cons_of_mem _ (List.mem_cons_self ..), ?_⟩
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom,
+        holds_elsewhereAtom]
+      exact ⟨hcell, leastModel_elsewhere tm inputFormula t a i sign helse⟩
     · rcases hw : (tm.actionOf y).workTapes i with ⟨writeSym, dir⟩
       simp only [hw] at hs'
-      refine ⟨[sitAtom y 0 2, tagAtom (.head i sign) 0 2, tagAtom (.cell i sign s') 0 2], ?_,
-        List.forall_mem_cons.mpr
-          ⟨(holds_sitAtom y 0 2 _ ![t, t', a]).mpr (leastModel_sit tm hinput t a y hsit),
-           List.forall_mem_cons.mpr
-             ⟨(holds_tagAtom (.head i sign) 0 2 _ ![t, t', a]).mpr hhead,
-              List.forall_mem_singleton.mpr
-                ((holds_tagAtom (.cell i sign s') 0 2 _ ![t, t', a]).mpr hcell)⟩⟩⟩
-      refine List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-        (List.mem_map.mpr ⟨(y, s'), List.mem_filter.mpr ⟨mem_univList (y, s'), ?_⟩, rfl⟩))
-      simp only [hw, decide_eq_true_eq]
-      exact hs'
+      refine ⟨[sitAtom y 0 2, tagAtom (.head i sign) 0 2, tagAtom (.cell i sign s') 0 2], ?_, ?_⟩
+      · refine List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+          (List.mem_map.mpr ⟨(y, s'), List.mem_filter.mpr ⟨mem_univList (y, s'), ?_⟩, rfl⟩))
+        simp only [hw, decide_eq_true_eq]
+        exact hs'
+      simp only [List.forall_mem_cons, ↓List.forall_mem_singleton, holds_tagAtom, holds_sitAtom]
+      exact ⟨leastModel_sit tm hinput t a y hsit, hhead, hcell⟩
 
 private theorem leastModel_step (tm : MultiTapeTM m Bool State)
     {inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1)} {input : List Bool}
@@ -1169,71 +1140,37 @@ theorem realize_acceptanceHornSentence
   let Φ := tableauSentence L tm inputFormula
   let LM := Φ.leastModel (Fin B)
   let cfgMax := tm.runFrom (tm.initCfg input) (B - 1)
-  have hmax_val : (maxFin B).val = B - 1 := rfl
   rw [ESO.Horn.Sentence.realize_iff_leastModel]
-  have hcons : Φ.Consistent LM ↔ ∀ C ∈ goalClauses (m := m) (State := State) L, C.Holds LM := by
-    constructor
-    · intro h C hC
-      exact h C (List.mem_append_right _ hC) (goalClause_head_none hC)
-    · intro h C hC hnone
-      rcases List.mem_append.mp hC with hdef | hgoal
-      · have hsome := definiteClause_isSome hdef
-        rw [hnone] at hsome
-        cases hsome
-      · exact h C hgoal
+  have hcons : Φ.Consistent LM ↔ ∀ C ∈ goalClauses (m := m) (State := State) L, C.Holds LM :=
+    ⟨fun h C hC => h C (List.mem_append_right _ hC) (goalClause_head_none hC),
+      fun h C hC hnone => (List.mem_append.mp hC).elim
+        (fun hdef => absurd (definiteClause_isSome hdef) (by simp [hnone])) (h C)⟩
+  -- a goal clause holds iff its tag fails at the last step
+  have hgoal (q : Tag m State) :
+      (⟨1, maxGuard L 0, [tagAtom q 0 0], none⟩ : TClause L m State).Holds LM ↔
+        ¬ row cfgMax q (maxFin B) := by
+    have hmem := mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn q
+      (maxFin B) (maxFin B)
+    refine ⟨fun h hrow => h ![maxFin B] ((realize_maxGuard 0 _).mpr rfl)
+      (List.forall_mem_singleton.mpr ((holds_tagAtom q 0 0 _ _).mpr (hmem.mpr hrow))),
+      fun h v hg hb => h ?_⟩
+    have hm := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
+    rw [(realize_maxGuard 0 v).mp hg] at hm
+    exact hmem.mp hm
   rw [hcons]
-  simp only [goalClauses, List.forall_mem_append, List.forall_mem_map]
-  have hstate : (∀ s ∈ univList State,
-      (⟨1, maxGuard L 0, [tagAtom (.state (some s)) 0 0], none⟩ : TClause L m State).Holds LM) ↔
-      cfgMax.Halted := by
-    constructor
-    · intro hs
-      rw [Cfg.Halted]
-      cases hst : cfgMax.state with
-      | none => rfl
-      | some s =>
-        have hrow : row cfgMax (.state (some s)) (maxFin B) := hst
-        have hmem := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
-          (.state (some s)) (maxFin B) (maxFin B)).mpr (by simpa only [hmax_val] using hrow)
-        exact False.elim (hs s (mem_univList s) ![maxFin B]
-          ((realize_maxGuard 0 ![maxFin B]).mpr rfl)
-          (List.forall_mem_singleton.mpr
-            ((holds_tagAtom (.state (some s)) 0 0 _ ![maxFin B]).mpr hmem)))
-    · intro hhalt s _ v hg hb
-      have hv0 : v 0 = maxFin B := (realize_maxGuard 0 v).mp hg
-      have hmem := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      rw [hv0] at hmem
-      have hrow := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
-        (.state (some s)) (maxFin B) (maxFin B)).mp hmem
-      simp only [hmax_val, row, Tag.feature, Feature.Holds] at hrow
-      rw [Cfg.Halted] at hhalt
-      rw [hhalt] at hrow
-      cases hrow
-  have hout : (∀ o ∈ rejectViews,
-      (⟨1, maxGuard L 0, [tagAtom (.out o) 0 0], none⟩ : TClause L m State).Holds LM) ↔
-      cfgMax.output = [true] := by
-    rw [← OutView.ofList_eq_one_iff]
-    constructor
-    · intro ho
-      by_contra hne
-      have hrej : OutView.ofList cfgMax.output ∈ rejectViews :=
-        (mem_rejectViews_iff _).mpr hne
-      have hrow : row cfgMax (.out (OutView.ofList cfgMax.output)) (maxFin B) := rfl
-      have hmem := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
-        (.out (OutView.ofList cfgMax.output)) (maxFin B) (maxFin B)).mpr
-        (by simpa only [hmax_val] using hrow)
-      exact ho _ hrej ![maxFin B] ((realize_maxGuard 0 ![maxFin B]).mpr rfl)
-        (List.forall_mem_singleton.mpr
-          ((holds_tagAtom (.out (OutView.ofList cfgMax.output)) 0 0 _ ![maxFin B]).mpr hmem))
-    · intro heq o ho v hg hb
-      have hv0 : v 0 = maxFin B := (realize_maxGuard 0 v).mp hg
-      have hmem := (holds_tagAtom _ _ _ _ _).mp (hb _ (List.mem_cons_self ..))
-      rw [hv0] at hmem
-      have hrow := (mem_leastModel_tag_acceptanceHornSentence tm inputFormula input hinput hn
-        (.out o) (maxFin B) (maxFin B)).mp hmem
-      simp only [hmax_val, row, Tag.feature, Feature.Holds] at hrow
-      exact (mem_rejectViews_iff o).mp ho (hrow.symm.trans heq)
-  exact and_congr hstate hout
+  simp only [goalClauses, List.forall_mem_append, List.forall_mem_map, hgoal]
+  refine and_congr ⟨fun h => ?_, fun h s _ hrow => ?_⟩ ?_
+  · rw [Cfg.Halted]
+    cases hst : cfgMax.state with
+    | none => rfl
+    | some s => exact absurd hst (h s (mem_univList s))
+  · rw [Cfg.Halted] at h
+    exact Option.some_ne_none s ((hrow : cfgMax.state = some s).symm.trans h)
+  · rw [← OutView.ofList_eq_one_iff]
+    exact ⟨fun h => Classical.byContradiction fun hne =>
+        h _ ((mem_rejectViews_iff _).mpr hne) rfl,
+      fun heq o ho hrow => (mem_rejectViews_iff o).mp ho
+        ((hrow : OutView.ofList cfgMax.output = o).symm.trans heq)⟩
 
 end Semantics
 
