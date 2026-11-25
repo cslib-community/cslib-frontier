@@ -365,4 +365,25 @@ example :
   rw [Fin.sum_univ_two, ho]
   simp [Bool.add_eq_xor, ← Bool.zero_eq_false, ← Bool.one_eq_true]
 
+-- A disk around one of the even drawing's two crossings misses the neighboring bend
+-- and the other crossing segment, although that segment lies on the same zigzag edge.
+example :
+    let D := drawing false
+    let i : D.SegmentIndex := ⟨0, 0⟩
+    let j : D.SegmentIndex := ⟨1, 1⟩
+    let k : D.SegmentIndex := ⟨1, 2⟩
+    ∃ z : ℂ, ∃ r > (0 : ℝ),
+      z ∈ openSegment ℝ (D.segmentStart i) (D.segmentFinish i) ∧
+      z ∈ openSegment ℝ (D.segmentStart j) (D.segmentFinish j) ∧
+      D.segmentFinish j ∉ Metric.closedBall z r ∧
+      Disjoint (Metric.closedBall z r) (segment ℝ (D.segmentStart k) (D.segmentFinish k)) := by
+  intro D i j k
+  obtain ⟨z, hi, hj⟩ := (hit_iff false 1).mpr (Or.inr ⟨rfl, rfl⟩)
+  have hij : i ≠ j := by decide
+  obtain ⟨_, ρ, hpos, _, _, hends, hseg⟩ := (regular false).exists_crossing_neighborhoods
+  have hz : z ∈ Cslib.Polygonal.openSegmentCrossings D.segmentStart D.segmentFinish :=
+    ⟨i, j, hij, hi, hj⟩
+  exact ⟨z, ρ z, hpos z hz, hi, hj, (hends z hz j).2,
+    hseg i j hij z hi hj k (by decide) (by decide)⟩
+
 end CslibFrontierTests.PolygonalCrossingColors
