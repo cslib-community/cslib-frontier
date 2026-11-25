@@ -78,6 +78,10 @@ class ScanTests(unittest.TestCase):
             15: [review("changes_requested", sha(15), ago(72), "Please split.")],
             16: [comment(f"**REQUEST_CHANGES** at {sha(16)}", ago(72)),
                  comment(f"**APPROVE** at {sha(16)}", ago(70))],
+            17: [comment(f"**REQUEST_CHANGES** at {sha(17)}", ago(72)),
+                 notice(ago(50), "changes"),
+                 comment("> Changes were requested...\n> <!-- stale-notice:changes -->\n\n"
+                         "Working on a fix now.", ago(40), AUTHOR)],
         }
         claims = {
             20: [],
@@ -91,11 +95,15 @@ class ScanTests(unittest.TestCase):
                  comment("Update.", ago(24), "chris-ai1")],
             27: [comment("Owner: `w-27`", 1),
                  notice(ago(30), "claims")],
+            29: [comment("Owner: `w-29`", 1),
+                 notice(ago(80), "claims"),
+                 comment("> <!-- stale-notice:claims -->\n\n`w-29` still active.", ago(24))],
         }
         pulls = ([{**pr(n, draft=True), "user": {"login": AUTHOR}} for n in drafts]
-                 + [{**pr(n), "user": {"login": AUTHOR}} for n in changes])
+                 + [{**pr(n), "user": {"login": AUTHOR},
+                     "body": "Uses `<!-- stale-notice:KIND -->` markers."} for n in changes])
         issues = ([issue(20, "Plan.\n\nOwner: `worker-a` (session x)", comments=0)]
-                  + [issue(n) for n in (21, 22, 23, 26, 27)]
+                  + [issue(n) for n in (21, 22, 23, 26, 27, 29)]
                   + [issue(24, "Owner: none", comments=0), issue(25, "No claim.", comments=0),
                      issue(28, "Template:\n```\nOwner: `example`\n```", comments=0),
                      {**issue(30), "pull_request": {}}])

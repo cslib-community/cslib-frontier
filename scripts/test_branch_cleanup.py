@@ -199,15 +199,20 @@ class NoticeTests(unittest.TestCase):
             return f"| `{name}` | 2026-11-01T00:00Z | w | `{sha(n)}` |"
         comments = [
             notice_comment("\n".join([row("a", 1), row("b", 2), row("c", 3), row("c-d", 6),
-                                       bc.NOTICE_MARKER]), 8),
+                                       row("q", 7), bc.NOTICE_MARKER]), 8),
             notice_comment("\n".join([row("d", 4), bc.NOTICE_MARKER]), 2),
-            notice_comment("Please keep `c`, I still need it.", 1, "https://x/keep")]
+            notice_comment("Please keep `c`, I still need it.", 1, "https://x/keep"),
+            notice_comment(f"> {row('q', 7)}\n> {bc.NOTICE_MARKER}\n\nKeep `q` too!", 1,
+                           "https://x/quote"),
+            notice_comment(f"Example:\n```\n{row('e', 5)}\n{bc.NOTICE_MARKER}\n```", 9)]
         notices = bc.Notices.read(comments, 7, timedelta(days=7))
         hold = {name: notices.hold({"branch": name, "sha": sha(n)}, NOW)
-                for name, n in (("a", 1), ("b", 9), ("c", 3), ("c-d", 6), ("d", 4), ("e", 5))}
+                for name, n in (("a", 1), ("b", 9), ("c", 3), ("c-d", 6), ("q", 7), ("d", 4),
+                                ("e", 5))}
         self.assertEqual(hold, {
             "a": None, "b": "its tip is not the one listed on #7",
             "c": "named in a reply after the notice (https://x/keep)", "c-d": None,
+            "q": "named in a reply after the notice (https://x/quote)",
             "d": "noticed 2026-12-18T12:00Z; deletable from 2026-12-25T12:00Z",
             "e": "not listed in a notice on #7"})
 

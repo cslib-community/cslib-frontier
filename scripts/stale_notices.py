@@ -72,7 +72,10 @@ mutation($id: ID!) {
 
 
 def is_notice(post: gr.Post, marker: str) -> bool:
-    return f"<!-- {marker}" in post.body
+    if post.kind == "body":
+        return False
+    pattern = re.compile(rf"<!-- {re.escape(marker)}(?::[\w.-]+)? -->")
+    return any(bool(pattern.fullmatch(line.strip())) for _, line in post.unfenced_lines())
 
 
 def is_record(post: gr.Post) -> bool:

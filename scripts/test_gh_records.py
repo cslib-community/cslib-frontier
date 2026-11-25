@@ -239,9 +239,16 @@ class HoldTests(unittest.TestCase):
         hold = "HOLD owner={} until=2026-11-20T15:00Z reason=r"
         released = gr.holds(thread(hold.format("rev-1"), "HOLD-RELEASED by=rev-1 reason=done"))
         self.assertEqual(released[0].state(T0), "released")
+        wrong_case = gr.holds(thread(hold.format("rev-1"), "HOLD-RELEASED by=Rev-1 reason=done"))
+        self.assertEqual((wrong_case[0].state(T0), wrong_case[0].other_releases),
+                         ("active", ["Rev-1"]))
         alias = gr.holds(thread(hold.format("maintainer"),
                                 "HOLD-RELEASED by=SamuelSchlesinger reason=ok"))
         self.assertEqual(alias[0].state(T0), "released")
+        alias_case = gr.holds(thread(hold.format("maintainer"),
+                                     "HOLD-RELEASED by=samuelschlesinger reason=ok"))
+        self.assertEqual((alias_case[0].state(T0), alias_case[0].other_releases),
+                         ("active", ["samuelschlesinger"]))
         # Posted at 13:00, before the hold expires at 15:00: not a valid sweep.
         early = gr.holds(thread(hold.format("rev-1"), "HOLD-RELEASED by=coord reason=expired"))
         self.assertEqual((early[0].state(T0), early[0].other_releases), ("active", ["coord"]))
@@ -265,18 +272,20 @@ class ClaimTests(unittest.TestCase):
     def claim(self, by="rev-1", until="2026-11-20T13:30Z", head=HEAD):
         return f"CLAIM review head={head} by={by} until={until}"
 
-    def test_only_the_claimants_verdict_ends_the_claim(self):
+    def test_only_the_claimants_verdict_at_the_claimed_head_ends_the_claim(self):
         [open_claim] = gr.claims(thread(self.claim()))
         self.assertIsNone(open_claim.ended_by)
-        [ended] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `rev-1`."))
+        [ended] = gr.claims(thread(self.claim(), f"**APPROVE** at `{HEAD[:12]}` by `rev-1`."))
         self.assertIsNotNone(ended.ended_by)
         [in_body] = gr.claims(thread(self.claim(), f"**APPROVE** at {HEAD}\n`rev-1` (agent)"))
         self.assertIsNotNone(in_body.ended_by)
+        [wrong_head] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `rev-1`."))
+        self.assertIsNone(wrong_head.ended_by)
         [other_at_head] = gr.claims(thread(self.claim(),
                                            f"**REQUEST_CHANGES** at {HEAD} by `other`"))
         self.assertIsNone(other_at_head.ended_by)
-        [elsewhere] = gr.claims(thread(self.claim(), f"**APPROVE** at {OLD} by `other`"))
-        self.assertIsNone(elsewhere.ended_by)
+        both_heads = gr.claims(thread(self.claim(head=HEAD), self.claim(head=OLD)))
+        self.assertEqual([(c.by, c.head) for c in both_heads], [("rev-1", HEAD), ("rev-1", OLD)])
         self.assertEqual(gr.claims(thread(f"```\n{self.claim()}\n```")), [])
 
     def test_renewal_replaces_the_claim_and_long_leases_are_capped_and_flagged(self):

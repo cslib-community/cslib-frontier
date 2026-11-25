@@ -347,8 +347,7 @@ def current_approval(items: list[Post]) -> Verdict | None:
 
 
 def same_owner(owner: str, releaser: str, maintainer: str = MAINTAINER) -> bool:
-    names = {"maintainer", maintainer.lower()}
-    owner, releaser = owner.lower(), releaser.lower()
+    names = {"maintainer", maintainer}
     return owner == releaser or (owner in names and releaser in names)
 
 
@@ -420,22 +419,24 @@ class Claim:
 
 
 def claims(items: list[Post]) -> list[Claim]:
-    """Each reviewer's latest review claim on the PR, with the verdict that ended it if any.
+    """Each reviewer's latest review claim per head on the PR, with the verdict that ended it.
 
-    A verdict ends a claim when it is posted after the claim by the same reviewer (`by <id>` on
-    its verdict line, or mentioning `<id>` when no other reviewer id is on the verdict line).
+    A verdict ends a claim when it is posted after the claim at the claimed head by the same
+    reviewer (`by <id>` on its verdict line, or mentioning `<id>` when no other reviewer id is on
+    the verdict line).
     """
-    latest: dict[str, Claim] = {}
+    latest: dict[tuple[str, str], Claim] = {}
     for post in items:
         for _, line in post.unfenced_lines():
             if match := CLAIM.match(line):
                 until = _record_time(match.group(3))
                 if until is not None:
-                    by = clean_id(match.group(2))
-                    latest[by] = Claim(match.group(1), by, until, post)
+                    head, by = match.group(1), clean_id(match.group(2))
+                    latest[(by, head)] = Claim(head, by, until, post)
     for verdict in verdicts(items):
         for claim in latest.values():
-            if claim.ended_by is not None or verdict.post.seq <= claim.post.seq:
+            if (claim.ended_by is not None or verdict.post.seq <= claim.post.seq
+                    or not sha_matches(verdict.sha, claim.head)):
                 continue
             mention = re.compile(rf"(?<![\w.-]){re.escape(claim.by)}(?![\w.-])")
             same = (verdict.reviewer == claim.by if (verdict.reviewer and not verdict.formal)

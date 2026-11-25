@@ -236,9 +236,12 @@ class Notices:
         found = cls(issue, wait)
         for comment in comments:
             when, body = gr.parse_time(comment["created_at"]), comment.get("body") or ""
-            if NOTICE_MARKER in body:
-                for branch, sha in NOTICE_ROW.findall(body):
-                    found.listed.setdefault(branch, []).append((sha, when))
+            unfenced = [line for _, line in gr.unfenced_lines(body)
+                        if not line.lstrip().startswith(">")]
+            if any(line.strip() == NOTICE_MARKER for line in unfenced):
+                for line in unfenced:
+                    if match := NOTICE_ROW.match(line):
+                        found.listed.setdefault(match.group(1), []).append((match.group(2), when))
             else:
                 found.replies.append((when, body, comment.get("html_url", "")))
         return found

@@ -314,7 +314,7 @@ def build_report(gh: gr.GitHub, now: datetime, numbers: list[int] | None = None,
         checks += a.notes
         checks += [f"{link(c.post, 'review CLAIM')} by `{c.by}` active until "
                    f"{gr.fmt_time(c.expires)}" for c in a.claims
-                   if c.ended_by is None and c.expires > now]
+                   if c.head == a.head and c.ended_by is None and c.expires > now]
         if not a.at_head:
             checks.append(f"{link(a.other_approval, 'approval of this head')} is not a verdict "
                           "line")

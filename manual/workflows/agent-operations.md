@@ -96,6 +96,32 @@ heads were reported, 1 means it was unavailable and 2 means the check could not 
 
 Merge `main` into an approved PR only when it conflicts, needs a change on `main` to pass CI, or a lower stacked PR has landed; the merge queue already tests each PR on top of the current `main`. GitHub declines any push to the branch of a PR still in the merge queue, even when its entry is unmergeable, so whoever restacks a queued PR first removes it with **Remove from queue** on the PR page or the `dequeuePullRequest` command in [Restacks](../../AGENTS.md#restacks). Dequeueing merges nothing; a non-author queues the new head again under the rules below. After such a restack, `python3 scripts/check_restack.py <approved head> <new head>`, run from a checkout of current `origin/main` after `git fetch origin`, replays the approved change onto the new head's `main` and compares the result with the new head. For a PR approved while stacked on another branch, add `--approved-base <lower head at approval>`, even when the approved head had also merged a newer `main` than that head: the script then replays from the merge of the two, so `main`'s changes are not counted as the PR's own. When the replay and the new head match and CI passes, the approval carries over: post the result line, and the non-author who queues the new head reruns the command it names. Otherwise review the paths and diffs it prints. When the only conflicts are in the `mk_all` aggregates or `references.bib`, `python3 scripts/restack_mechanical.py <PR> --approved-head <approved head>` checks that the head is the approved change, merges with the drivers, writes the aggregates as `lake exe mk_all` would and runs this check, without running the PR's code, then prints the final check result and the `queue_pr.py` command for after CI. Report the unprefixed final result line. Output marked `approval pre-check` only verifies the existing head. It refuses any other conflict, pushes only with `--push` (and only if the check passes and the branch has not moved), and never queues or comments. When a hand restack shifts `#L` declaration anchors in maintained `manual/` pages, `python3 scripts/check_operator_manual.py --fix-anchors` repoints unambiguous `[Ns.name](File.lean#Ln)` headers before re-checking. See [Restacks](../../AGENTS.md#restacks).
 
+## Record evidence at the level of the claim
+
+During ordinary edits, use MCP diagnostics or targeted
+`scripts/build.sh <modules and representative clients> --wfail --iofail`. Use
+`scripts/check.sh --quick --no-full-fallback` at local validation checkpoints. Status 3 means
+the change needs focused checks plus hosted full validation; do not automatically retry with a
+local full check. On a checkout where importing the entire library is expensive,
+`scripts/check.sh --focused` defers the unchanged global smoke and axiom tests if no library
+or test client imports them. It reports each omitted target and also returns 3 for unsupported
+changes. Run full `scripts/check.sh` only when explicitly requested or hosted coverage
+is unavailable, and do not duplicate successful CI covering the final revision. The local
+[restored-source audit](troubleshooting.md#diagnose-warnings-that-only-ci-reports) recovers
+warning/info logs and streams its count, worker mode, current source and elapsed time. It can repeat
+elaboration on unchanged restored sources, so it belongs to validation rather than every edit.
+
+| Outcome | Evidence to retain |
+|---|---|
+| A client compiles | Revision/diff, command or hosted job, outcome |
+| The intended theorem is formalized | Definitions, statement, source mapping and model/nonvacuity review |
+| An API is easier to use | Representative before/after client and validation |
+| A task is complete | Original acceptance criteria and remaining broader objective |
+| A change is ready to integrate | Final revision's validation and independent review, maintainer authority |
+| A development step took a given time | Defined endpoints, timestamps and measurement convention |
+
+The issue owns scope and remaining work; the PR owns the final change, validation and review. Link evidence instead of repeating it. Keep polling and internal coordination out of public records. Distinguish completed milestones from the broader objective. A coordinator with authority monitors a queued PR until it lands or receives a concrete disposition: queued work is not integrated work.
+
 ## Find ready, stalled and finished work
 
 Three maintenance scripts read the repository through the GitHub REST API with an authenticated
@@ -163,32 +189,6 @@ notice has been up for `--notice-wait` (default 7d), `--delete nopr --notice-iss
 only the branches a notice on issue N listed at their current tip and that no later comment there
 names; a push changes the tip, so the branch is kept. `--delete nopr --apply` refuses to run
 without `--notice-issue`.
-
-## Record evidence at the level of the claim
-
-During ordinary edits, use MCP diagnostics or targeted
-`scripts/build.sh <modules and representative clients> --wfail --iofail`. Use
-`scripts/check.sh --quick --no-full-fallback` at local validation checkpoints. Status 3 means
-the change needs focused checks plus hosted full validation; do not automatically retry with a
-local full check. On a checkout where importing the entire library is expensive,
-`scripts/check.sh --focused` defers the unchanged global smoke and axiom tests if no library
-or test client imports them. It reports each omitted target and also returns 3 for unsupported
-changes. Run full `scripts/check.sh` only when explicitly requested or hosted coverage
-is unavailable, and do not duplicate successful CI covering the final revision. The local
-[restored-source audit](troubleshooting.md#diagnose-warnings-that-only-ci-reports) recovers
-warning/info logs and streams its count, worker mode, current source and elapsed time. It can repeat
-elaboration on unchanged restored sources, so it belongs to validation rather than every edit.
-
-| Outcome | Evidence to retain |
-|---|---|
-| A client compiles | Revision/diff, command or hosted job, outcome |
-| The intended theorem is formalized | Definitions, statement, source mapping and model/nonvacuity review |
-| An API is easier to use | Representative before/after client and validation |
-| A task is complete | Original acceptance criteria and remaining broader objective |
-| A change is ready to integrate | Final revision's validation and independent review, maintainer authority |
-| A development step took a given time | Defined endpoints, timestamps and measurement convention |
-
-The issue owns scope and remaining work; the PR owns the final change, validation and review. Link evidence instead of repeating it. Keep polling and internal coordination out of public records. Distinguish completed milestones from the broader objective. A coordinator with authority monitors a queued PR until it lands or receives a concrete disposition: queued work is not integrated work.
 
 ## Interpret timing and transcript records
 
