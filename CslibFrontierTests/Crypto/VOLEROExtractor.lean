@@ -37,10 +37,10 @@ Exercises `CslibFrontier.Crypto.Protocols.VOLE.ROExtractor` via an ordinary `mod
 - Non-degenerate `d = 3` (`2 ^ 3 = 8` leaves) negative / separation tests modeling PRG-based leaf
   commitments (`leaf_hash::aes_ctr`, BaumEtAl2026FAESTer): `prgLeafProver_leafCost_zero`,
   `prgLeafGame_leafTrace_eq_nil`, `prgLeafGame_eq_pure_true`, `extractWitnessFromTrace_nil`,
-  `toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one`,
-  `exists_valid_prgLeaf_queryLog_fails_Rel_eq_one`, `prgLeaf_preimage_extractor_fails` against an
-  arbitrary preimage extractor, and `exists_valid_prgLeaf_proofOnly_extract_fails_ge` against an
-  unbounded proof-only extractor (bound `≥ 1 / 8`).
+  `exists_valid_prgLeaf_queryLog_fails_Rel_eq_one`, `prgLeaf_preimage_extractor_fails` (for every
+  deterministic preimage extractor `extPre` under an explicit `d = 3` PRG collision), and
+  `exists_valid_prgLeaf_proofOnly_extract_fails_ge` against an unbounded proof-only extractor
+  omitting `stmt` (bound `≥ 1 / 8`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -1079,25 +1079,6 @@ example :
 
 /-! ## 3. Non-degenerate `d = 3` separations for PRG leaf commitments (`leaf_hash::aes_ctr`) -/
 
-private theorem xor_add_cancel {n : ℕ} (a b : BitString n) : a + (b + a) + b = 0 := by
-  funext k
-  simp only [Pi.add_apply, Bool.add_eq_xor, Pi.zero_apply]
-  change xor (xor (a k) (xor (b k) (a k))) (b k) = false
-  cases a k <;> cases b k <;> decide
-
-private theorem convertExpandedRows_add {rowLen : ℕ} :
-    ∀ {d : ℕ} (f g : Fin (2 ^ d) → BitString rowLen),
-      (FAEST.convertExpandedRows d (f + g)).u =
-        (FAEST.convertExpandedRows d f).u + (FAEST.convertExpandedRows d g).u
-  | 0, _, _ => rfl
-  | d + 1, f, g => by
-    have hp : FAEST.pairRows (f + g) = FAEST.pairRows f + FAEST.pairRows g := by
-      funext i
-      simp only [FAEST.pairRows, Pi.add_apply]
-      abel
-    simpa [FAEST.convertExpandedRows, hp] using
-      convertExpandedRows_add (FAEST.pairRows f) (FAEST.pairRows g)
-
 /-- Colliding deterministic `d = 3` leaf PRG (`com = 0` regardless of seed, while parity of seed
 determines the expanded row). -/
 private def prgLeafD3 (s : Fin (2 ^ 3)) (_ : ℕ) (_ : Fin (2 ^ 3)) : LeafOutput 2 128 :=
@@ -1137,31 +1118,15 @@ example :
   prgLeafGame_eq_pure_true id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true
     (fun _ => true) (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
 
-/-- On an empty `H_leaf` trace, `extractWitnessFromTrace` recovers only `decWit prf.dCorr` (and
-when the PRG `u` happens to be `0`, fails when `extLog [] = none` on `toyRel true`). -/
+/-- On an empty `H_leaf` trace, `extractWitnessFromTrace` recovers only `decWit prf.dCorr`. -/
 example (prf : VOLEITHProof 3 128 2 (Fin (2 ^ 3)) ℕ (Fin 3 → Bool)) :
     extractWitnessFromTrace (id : BitString 2 → BitString 2) (id : BitString 2 → BitString 2)
       ([] : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ) prf = prf.dCorr :=
   extractWitnessFromTrace_nil id id prf
 
-example (extLog : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ → Option (BitString 2))
-    (hfail : (extLog []).elim false (toyRel true) = false) :
-    ((ProbOracleComp.runWith
-      (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
-        (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
-        (Chal := Fin (2 ^ 3)))
-      (prgLeafGame (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2) (Chal := Fin (2 ^ 3))
-        id prgLeafD3 id id toyMkPreMsg toyCheckRel 0 7 (fun _ => 0) true (fun _ => true))
-      ([], [])).map fun (b, st) =>
-        decide (b = true ∧ (extLog st.1).elim false (toyRel true) = false)).toOuterMeasure
-          {true} = 1 :=
-  toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one id prgLeafD3 id id toyMkPreMsg toyRel
-    toyCheckRel 0 7 (fun _ => 0) true (fun _ => true)
-    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta) extLog hfail
-
 /-- **Disjoint-statement query-log separation (`d = 3`, `1 / 8`-sound `toyCheckRel`)**: **every**
-query-log extractor `extLog` fails `toyRel` with probability `1` on at least one of the valid
-pairs `(false, 0)` or `(true, fun _ => true)`. -/
+query-log extractor `extLog : LeafTrace → Option Wit` (seeing neither statement nor proof) fails
+`toyRel` with probability `1` on at least one of `(false, 0)` or `(true, fun _ => true)`. -/
 example (extLog : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ → Option (BitString 2)) :
     ∃ stmt : Bool, ∃ w : BitString 2, toyRel stmt w = true ∧
       ((ProbOracleComp.runWith
@@ -1183,61 +1148,39 @@ example (extLog : LeafTrace 3 2 128 (Fin (2 ^ 3)) ℕ → Option (BitString 2)) 
   simp only [toyRel, decide_eq_true_eq] at h0 h1
   exact absurd (h0.symm.trans h1) (by decide)
 
-/-- **Preimage-table separation at `d = 3`**: for **every** preimage extractor `extPre`,
-choosing leaf `0` with opposite parity from `extPre (fun _ => 0) 7 0` yields a valid accepting
-proof (`ok = true`) whose preimage-extracted witness fails `toyRel true` with probability `1`. -/
-example (extPre : (Fin (2 ^ 3) → BitString 128) → ℕ → Fin (2 ^ 3) → Fin (2 ^ 3)) :
-    let keys : Fin (2 ^ 3) → Fin (2 ^ 3) := fun idx =>
-      if idx = 0 then (if (extPre (fun _ => 0) 7 0).val % 2 = 0 then 1 else 0)
-      else extPre (fun _ => 0) 7 idx
-    toyRel true (fun _ => true) = true ∧
-      ((ProbOracleComp.runWith
-        (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
-          (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
-          (Chal := Fin (2 ^ 3)))
-        (do
-          let prf ← prgLeafProver (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+/-- **Preimage-table separation at `d = 3` under colliding `prgLeafD3`**: `(false, 0, fun _ => 0)`
+and `(true, fun _ => true, fun idx => if idx = 0 then 1 else 0)` produce identical commitments `0`,
+differing expanded masks `u`, and identical `dCorr = 0`, so **every** deterministic preimage-table
+extractor `extPre` fails `toyRel` with probability `1` on one of them. -/
+example :
+    (fun _ : Fin (2 ^ 3) => (0 : Fin (2 ^ 3))) ≠ (fun idx => if idx = 0 then 1 else 0) ∧
+    ∀ extPre : (Fin (2 ^ 3) → BitString 128) → ℕ → Fin (2 ^ 3) → Fin (2 ^ 3),
+      ∃ stmt : Bool, ∃ w : BitString 2, ∃ keys : Fin (2 ^ 3) → Fin (2 ^ 3),
+        toyRel stmt w = true ∧
+        ((ProbOracleComp.runWith
+          (voleithMemoize (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
             (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
-            (Chal := Fin (2 ^ 3)) id prgLeafD3 id id toyMkPreMsg 0 7 keys true (fun _ => true)
-          let ok ← prgLeafVerify id prgLeafD3 id toyCheckRel true prf
-          return (ok, prf)) ([], [])).map fun ((ok, prf), _) =>
-            let wExt := (id : BitString 2 → BitString 2) (prf.dCorr +
-              (FAEST.convertExpandedRows 3
-                (fun idx => (id : BitString 2 → BitString 2)
-                  (prgLeafD3 (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
-            decide (ok = true ∧ toyRel true wExt = false)).toOuterMeasure {true} = 1 := by
-  intro keys
+            (Chal := Fin (2 ^ 3)))
+          (do
+            let prf ← prgLeafProver (d := 3) (sdLen := 2) (comLen := 128) (rowLen := 2)
+              (Stmt := Bool) (Seed := Fin (2 ^ 3)) (IV := ℕ) (PreMsg := Fin 3 → Bool)
+              (Chal := Fin (2 ^ 3)) id prgLeafD3 id id toyMkPreMsg 0 7 keys stmt w
+            let ok ← prgLeafVerify id prgLeafD3 id toyCheckRel stmt prf
+            return (ok, prf)) ([], [])).map fun ((ok, prf), _) =>
+              let wExt := (id : BitString 2 → BitString 2) (prf.dCorr +
+                (FAEST.convertExpandedRows 3
+                  (fun idx => (id : BitString 2 → BitString 2)
+                    (prgLeafD3 (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
+              decide (ok = true ∧ toyRel stmt wExt = false)).toOuterMeasure {true} = 1 := by
   refine prgLeaf_preimage_extractor_fails id prgLeafD3 id id id toyMkPreMsg toyRel toyCheckRel
-    extPre 0 7 keys true (fun _ => true) (by decide)
-    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta) ?_
-  have hrow_eq :
-      (fun idx => (prgLeafD3 (keys idx) 7 idx).seedOut) =
-      (fun idx => (prgLeafD3 (extPre (fun _ => 0) 7 idx) 7 idx).seedOut) +
-        fun idx => if idx = 0 then (fun _ => true) else (0 : BitString 2) := by
-    funext idx k
-    simp only [keys, prgLeafD3, Pi.add_apply, Bool.add_eq_xor]
-    by_cases h0 : idx = 0
-    · subst h0
-      simp only [↓reduceIte]
-      split_ifs with hmod
-      · rw [show decide ((1 : Fin (2 ^ 3)).val % 2 = 1) = true from by decide]
-        rw [decide_eq_false_iff_not.mpr (by omega)]
-        decide
-      · have hlt : (extPre (fun _ => 0) 7 0).val % 2 < 2 := Nat.mod_lt _ (by decide)
-        rw [show decide ((0 : Fin (2 ^ 3)).val % 2 = 1) = false from by decide]
-        rw [decide_eq_true (by omega)]
-        decide
-    · simp only [h0, ↓reduceIte]
-      cases decide ((extPre (fun _ => 0) 7 idx).val % 2 = 1) <;> rfl
-  have hbasis :
-      (FAEST.convertExpandedRows 3
-        (fun idx : Fin (2 ^ 3) => if idx = 0 then (fun _ : Fin 2 => true) else 0)).u =
-        fun _ => true := by
-    decide
-  have hcoms : (fun j => (prgLeafD3 (keys j) 7 j).com) = fun _ => 0 := rfl
-  simp only [id_eq]
-  rw [hcoms, hrow_eq, convertExpandedRows_add, hbasis, xor_add_cancel]
-  decide
+    0 7 (fun _ => 0) (fun idx => if idx = 0 then 1 else 0)
+    false true (0 : BitString 2) (fun _ => true) (by decide) (by decide) ?_
+    (fun pCols u delta => toyCheckRel_complete false _ rfl pCols u delta)
+    (fun pCols u delta => toyCheckRel_complete true _ rfl pCols u delta)
+    (fun _ => rfl) (by decide) (by decide)
+  intro w' ⟨h0, h1⟩
+  simp only [toyRel, decide_eq_true_eq] at h0 h1
+  exact absurd (h0.symm.trans h1) (by decide)
 
 /-- **Proof-only separation at `d = 3`**: hiding leaf `deltaStar = 0`, `(false, 0, fun _ => 0)`
 and `(true, fun _ => true, fun idx => if idx = 0 then 1 else 0)` emit the exact same proof at

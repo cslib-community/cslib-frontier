@@ -76,21 +76,28 @@ plain ROM.
 * **PRG leaf separation (`leaf_hash::aes_ctr`)**: a local PRG prover (`prgLeafProver`, modeling
   `leaf_hash::aes_ctr` as used in [VoleMole2026], `src/act/issue.hpp:121`, `src/act/spend.hpp:289`)
   makes `0` `H_leaf` queries (`tr_leaf = []`) and accepts with probability `1` under deterministic
-  PRG verification (`prgLeafVerify`), defeating any leaf-query-log extractor
-  `extLog : LeafTrace → Option Wit` with probability `1` against disjoint-witness statements;
-  when two seeds collide on `PRG` (`com`) yet yield distinct expanded `u` values (motivating
+  PRG verification (`prgLeafVerify`), defeating any statement- and proof-less leaf-query-log
+  extractor `extLog : LeafTrace → Option Wit` with probability `1` against disjoint-witness
+  statements (`exists_valid_prgLeaf_queryLog_fails_Rel_eq_one`; this extractor class excludes
+  `extractWitnessFromTrace`, which reads `(tr, prf)` and is covered by the proof-only separation
+  below). When two distinct key vectors collide on `PRG` commitments (`hComEq`) yet produce
+  distinct expanded `u` masks (`hUNe`, unsatisfiable for any injective `prgLeaf`, motivating
   almost-injective PRGs in [BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32,
-  pp. 25–26), colliding commitments break fixed pre-challenge preimage-table seed extractors with
-  probability `1`, and leave any unbounded proof-only extractor (omitting `stmt`) failing with
-  probability at least `1 / |Chal|` at depth `d ≥ 1`.
+  pp. 25–26) and colliding `d_corr` (`hdCorrEq`) across disjoint-witness statements, every
+  deterministic preimage-table seed extractor `extPre : coms → iv → idx → Seed` fails `Rel` with
+  probability `1` (`prgLeaf_preimage_extractor_fails`), and any unbounded proof-only extractor
+  `ext : LeafTrace → VOLEITHProof → Option Wit` omitting `stmt` fails `Rel` with probability at
+  least `1 / |Chal|` at depth `d ≥ 1` (`exists_valid_prgLeaf_proofOnly_extract_fails_ge`).
 
 ## Scope and gaps
 
 * Models a single-repetition flat `2 ^ d`-leaf `leaf_hash::shake` commitment with arbitrary relation
   soundness `ε_rel`; multi-tree BAVC (`T_open`, grinding bits), full `VOLEHash`/`ZKHash`
-  reductions (#4987), ideal-cipher AES-CTR extraction, and machine-checked PPT/`TimeM` runtime
-  certificates remain open under #7068. All reductions are explicit `ProbComp`/`ProbOracleComp`
-  programs with query-cost bounds, not Word-RAM or Turing-machine time bounds.
+  reductions (#4987), ideal-cipher AES-CTR extraction, full FAESTer ([BaumEtAl2026FAESTer],
+  Definition 27 / Lemma 32) post-challenge equivocation for unbounded extractors that also receive
+  `stmt`, and machine-checked PPT/`TimeM` runtime certificates remain open under #7068. All
+  reductions are explicit `ProbComp`/`ProbOracleComp` programs with query-cost bounds, not
+  Word-RAM or Turing-machine time bounds.
 
 ## References
 
@@ -5295,11 +5302,7 @@ theorem extractWitnessFromTrace_nil {d sdLen comLen rowLen : ℕ} {Seed IV PreMs
   change decWit (prf.dCorr + (FAEST.convertExpandedRows d (fun _ => 0)).u) = decWit prf.dCorr
   rw [convertExpandedRows_zero_u d, add_zero]
 
-/-- **Relation-level query-log failure under PRG leaves (`leaf_hash::aes_ctr`)**: whenever an
-empty-trace extractor `extLog []` fails to produce a valid witness for `stmt`
-(`(extLog []).elim false (Rel stmt) = false`), local PRG proving accepts under `prgLeafVerify` and
-defeats `extLog` with probability `1`. -/
-theorem toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one {d sdLen comLen rowLen : ℕ}
+private theorem toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
     [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
@@ -5349,8 +5352,10 @@ theorem toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one {d sdLen comLen rowLen 
 
 /-- **Disjoint-statement query-log separation for `leaf_hash::aes_ctr`**: given two statements
 `stmt₀, stmt₁` with disjoint `Rel`-witness sets and valid witnesses `(w₀, w₁)`, **every**
-leaf-query-log extractor `extLog : LeafTrace → Option Wit` fails `Rel` with probability `1` on at
-least one valid statement-witness pair `(stmt, w)`. -/
+leaf-query-log extractor `extLog : LeafTrace → Option Wit`—which sees neither the statement nor the
+proof, and thus excludes the `(tr, prf)` extractor shape of `extractWitnessFromTrace` covered by
+`exists_valid_prgLeaf_proofOnly_extract_fails_ge`—fails `Rel` with probability `1` on at least one
+valid statement-witness pair `(stmt, w)`. -/
 theorem exists_valid_prgLeaf_queryLog_fails_Rel_eq_one {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
@@ -5384,14 +5389,14 @@ theorem exists_valid_prgLeaf_queryLog_fails_Rel_eq_one {d sdLen comLen rowLen : 
           decide (b = true ∧ (extLog st.1).elim false (Rel stmt) = false)).toOuterMeasure
           {true} = 1 := by
   by_cases h0 : (extLog []).elim false (Rel stmt₀) = true
-  · refine ⟨stmt₁, w₁, hValid₁, toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one expand prgLeaf
-      encWit chalToIdx mkPreMsg Rel checkRel defaultSeed iv keys stmt₁ w₁ hRel₁ extLog ?_⟩
+  · refine ⟨stmt₁, w₁, hValid₁, toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel expand
+      prgLeaf encWit chalToIdx mkPreMsg Rel checkRel defaultSeed iv keys stmt₁ w₁ hRel₁ extLog ?_⟩
     cases hext : extLog [] with
     | none => simp [hext] at h0
     | some w' =>
       simp only [hext, Option.elim_some] at h0 ⊢
       exact Bool.eq_false_iff.mpr fun h1 => hDisj w' ⟨h0, h1⟩
-  · exact ⟨stmt₀, w₀, hValid₀, toOuterMeasure_prgLeaf_queryLog_fails_Rel_eq_one expand prgLeaf
+  · exact ⟨stmt₀, w₀, hValid₀, toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel expand prgLeaf
       encWit chalToIdx mkPreMsg Rel checkRel defaultSeed iv keys stmt₀ w₀ hRel₀ extLog
       (Bool.eq_false_iff.mpr h0)⟩
 
@@ -5438,14 +5443,7 @@ theorem prgLeafProofOfDelta_eq_of {d sdLen comLen rowLen : ℕ} {Seed IV PreMsg 
     · simp [heq, hopen idx heq]
   rw [hcoms, hpre, hdCorr, hkeys]
 
-/-- **Pre-challenge preimage-table failure under colliding PRG commitments** (modeling FAESTer
-[BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32, pp. 25–26): given a fixed
-pre-challenge seed extractor `extPre : coms → iv → idx → Seed` attempting to invert `prgLeaf`, if a
-valid `(stmt, w, keys)` matches `extPre coms iv` in every commitment `(prgLeaf ...).com` yet
-substituting `extPre coms iv` shifts `u` so `decWit (prf.dCorr + u_ext)` violates `Rel stmt`, then
-`prgLeafVerify` accepts while the preimage-extracted witness fails `Rel stmt` with probability `1`.
-This holds at arbitrary depth `d ≥ 1`. -/
-theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
+private theorem prgLeaf_preimage_extractor_fails_of_not_rel {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
     [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
     [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
@@ -5513,6 +5511,90 @@ theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
     rw [← hfun, show (fun _ : Chal => true) = Function.const Chal true from rfl, PMF.map_const]
   rw [hrun, hconst]
   simp
+
+/-- **Pre-challenge preimage-table failure under colliding PRG commitments** (modeling FAESTer
+[BaumEtAl2026FAESTer], Definition 27, pp. 17–18, and Lemma 32, pp. 25–26): given two valid
+executions `(stmt₀, w₀, keys₀)` and `(stmt₁, w₁, keys₁)` with disjoint `Rel`-witness sets
+(`hDisj`), identical PRG commitments (`hComEq`), differing expanded `u` masks (`hUNe`, forcing
+`keys₀ ≠ keys₁` and unsatisfiable for any injective `prgLeaf`), and colliding corrected masks
+`d_corr` (`hdCorrEq`), **every** deterministic preimage-table seed extractor
+`extPre : coms → iv → idx → Seed` fails `Rel` with probability `1` on at least one of the two
+colliding executions. This holds at arbitrary depth `d ≥ 1`. -/
+theorem prgLeaf_preimage_extractor_fails {d sdLen comLen rowLen : ℕ}
+    {Stmt Seed IV PreMsg Chal Wit : Type}
+    [BEq (LeafQuery d Seed IV)] [BEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [LawfulBEq (FSQuery d comLen rowLen Stmt IV PreMsg)]
+    [Fintype Chal] [Nonempty Chal]
+    (expand : BitString sdLen → BitString rowLen)
+    (prgLeaf : Seed → IV → Fin (2 ^ d) → LeafOutput sdLen comLen)
+    (encWit : Wit → BitString rowLen) (decWit : BitString rowLen → Wit)
+    (chalToIdx : Chal → Fin (2 ^ d))
+    (mkPreMsg : (Fin d → BitString rowLen) → BitString rowLen → BitString rowLen → PreMsg)
+    (Rel : Stmt → Wit → Bool)
+    (checkRel : Stmt → (Fin d → BitString rowLen) → BitString rowLen → PreMsg → Chal → Bool)
+    (defaultSeed : Seed) (iv : IV) (keys₀ keys₁ : Fin (2 ^ d) → Seed)
+    (stmt₀ stmt₁ : Stmt) (w₀ w₁ : Wit)
+    (hValid₀ : Rel stmt₀ w₀ = true) (hValid₁ : Rel stmt₁ w₁ = true)
+    (hDisj : ∀ w', ¬ (Rel stmt₀ w' = true ∧ Rel stmt₁ w' = true))
+    (hRel₀ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt₀
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₀ + u) (mkPreMsg pCols u (encWit w₀ + u)) delta = true)
+    (hRel₁ : ∀ (pCols : Fin d → BitString rowLen) (u : BitString rowLen) (delta : Chal),
+      checkRel stmt₁
+        (fun j => pCols j + fun k => (BitString.equivFin d).symm (chalToIdx delta) j * u k)
+        (encWit w₁ + u) (mkPreMsg pCols u (encWit w₁ + u)) delta = true)
+    (hComEq : ∀ idx, (prgLeaf (keys₀ idx) iv idx).com = (prgLeaf (keys₁ idx) iv idx).com)
+    (hUNe :
+      (FAEST.convertExpandedRows d
+        (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u ≠
+      (FAEST.convertExpandedRows d
+        (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u)
+    (hdCorrEq :
+      encWit w₀ +
+        (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u =
+      encWit w₁ +
+        (FAEST.convertExpandedRows d
+          (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u) :
+    keys₀ ≠ keys₁ ∧
+      ∀ extPre : (Fin (2 ^ d) → BitString comLen) → IV → Fin (2 ^ d) → Seed,
+        ∃ stmt w keys, Rel stmt w = true ∧
+          ((ProbOracleComp.runWith
+            (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
+              (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
+            (do
+              let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
+                stmt w
+              let ok ← prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
+              return (ok, prf)) ([], [])).map fun ((ok, prf), _) =>
+                let wExt := decWit (prf.dCorr +
+                  (FAEST.convertExpandedRows d
+                    (fun idx => expand
+                      (prgLeaf (extPre prf.coms prf.iv idx) prf.iv idx).seedOut)).u)
+                decide (ok = true ∧ Rel stmt wExt = false)).toOuterMeasure {true} = 1 := by
+  refine ⟨fun h => hUNe (by rw [h]), fun extPre => ?_⟩
+  let coms₀ : Fin (2 ^ d) → BitString comLen := fun j => (prgLeaf (keys₀ j) iv j).com
+  let coms₁ : Fin (2 ^ d) → BitString comLen := fun j => (prgLeaf (keys₁ j) iv j).com
+  have hcoms : coms₀ = coms₁ := funext hComEq
+  let wExt := decWit ((encWit w₀ +
+    (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₀ idx) iv idx).seedOut)).u) +
+    (FAEST.convertExpandedRows d
+      (fun idx => expand (prgLeaf (extPre coms₀ iv idx) iv idx).seedOut)).u)
+  by_cases h0 : Rel stmt₀ wExt = true
+  · refine ⟨stmt₁, w₁, keys₁, prgLeaf_preimage_extractor_fails_of_not_rel expand prgLeaf encWit
+      decWit chalToIdx mkPreMsg Rel checkRel extPre defaultSeed iv keys₁ stmt₁ w₁ hValid₁ hRel₁
+      ?_⟩
+    have h1_false : Rel stmt₁ wExt = false := Bool.eq_false_iff.mpr fun h1 => hDisj wExt ⟨h0, h1⟩
+    change Rel stmt₁ (decWit ((encWit w₁ +
+      (FAEST.convertExpandedRows d (fun idx => expand (prgLeaf (keys₁ idx) iv idx).seedOut)).u) +
+      (FAEST.convertExpandedRows d
+        (fun idx => expand (prgLeaf (extPre coms₁ iv idx) iv idx).seedOut)).u)) = false
+    rw [← hdCorrEq, ← hcoms]
+    exact h1_false
+  · exact ⟨stmt₀, w₀, keys₀, prgLeaf_preimage_extractor_fails_of_not_rel expand prgLeaf encWit
+      decWit chalToIdx mkPreMsg Rel checkRel extPre defaultSeed iv keys₀ stmt₀ w₀ hValid₀ hRel₀
+      (Bool.eq_false_iff.mpr h0)⟩
 
 /-- **Proof-only extraction separation at `d ≥ 1` under colliding PRG commitments**:
 if two valid pairs `(stmt₀, w₀, keys₀)` and `(stmt₁, w₁, keys₁)` have disjoint `Rel`-witness
