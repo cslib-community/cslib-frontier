@@ -107,7 +107,7 @@ private theorem decidable_KSAT_of_SAT {k : ℕ} {p : ℝ} (hp : 0 ≤ p)
 /-- The size formulation of SH [MITHardnessGroup2026SH, Lemma 2.1, decision case].
 For any fixed width `k ≥ 3`, SH holds exactly when `k`-SAT admits no fixed power saving in the
 exponent measured in the number of occurring variables plus the number of clauses.
-The counting formulation for #SH is tracked in #8457. -/
+The counting formulation is proved in `SharpSatisfiabilityHypothesis`. -/
 theorem SH_iff_KSAT {k : ℕ} (hk : 3 ≤ k) :
     SH ↔ ∀ p : ℝ, 0 < p → p < 1 →
       ¬DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p := by

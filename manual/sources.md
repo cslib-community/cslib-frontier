@@ -3936,7 +3936,8 @@ MIT Hardness Group, Josh Brunner, Erik D. Demaine, Fabian Frei, Timothy Gomez, M
 [Versioned PDF](https://arxiv.org/pdf/2611.02650v2).
 The independent source review checked §1 and footnotes 1–2 (pp. 1–2) for the decision SH input-size conventions, §2.1, Lemma 2.1 (p. 5) for the decision fixed-width size formulation, and §3, Theorem 3.1 (p. 8) for exponent transfer.
 The library uses occurring variables in `CNF ℕ` and allows polynomial overhead in the native binary encoding length.
-The counting half of Lemma 2.1 is tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
+The counting half of Lemma 2.1 was checked independently against §2 and §2.1, including the declared-variable convention and the parsimonious reduction.
+[Independent counting review](https://github.com/cslib-community/cslib-frontier/pull/8614#issuecomment-7169443584).
 [Independent review](https://github.com/cslib-community/cslib-frontier/pull/8539#pullrequestreview-6055020260).
 
 <a id="mitzenmacherupfal17"></a>
