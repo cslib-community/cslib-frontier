@@ -116,23 +116,11 @@ theorem crossing_axis_value {φ : CNF ℕ}
     rwa [length_wire]
   have hc := (wire_values_source hw hv h ho _ (List.getElem_mem hwi) 0).1
   rw [getElem_wire _ _ _ hk', heq] at hc
-  cases axis with
-  | false =>
-    obtain ⟨hl, hr, -, -⟩ := PlanarCompile.side_cardinal p
-    rcases hnb with ⟨hprev, _⟩ | ⟨hprev, _⟩
-    all_goals
-      simp only [Bool.false_eq_true, ↓reduceIte] at hprev ⊢
-      simp only [signal, hprev, hl, hr] at hc
-      rw [crossing_port_value h hp] at hc
-      simpa using hc
-  | true =>
-    obtain ⟨-, -, hb, ht⟩ := PlanarCompile.side_cardinal p
-    rcases hnb with ⟨hprev, _⟩ | ⟨hprev, _⟩
-    all_goals
-      simp only [↓reduceIte] at hprev ⊢
-      simp only [signal, hprev, hb, ht] at hc
-      rw [crossing_port_value h hp] at hc
-      simpa using hc
+  obtain ⟨hl, hr, hb, ht⟩ := PlanarCompile.side_cardinal p
+  simp only [signal] at hc
+  rw [crossing_port_value h hp] at hc
+  cases axis <;> rcases hnb with ⟨hprev, _⟩ | ⟨hprev, _⟩ <;>
+    (rw [hprev] at hc; simpa [hl, hr, hb, ht] using hc)
 
 /-- Source agreement forces agreement on every variable of every emitted ordinary ring. -/
 theorem ordinary_assignments_agree {φ : CNF ℕ}
@@ -175,6 +163,5 @@ theorem crossing_assignments_agree {φ : CNF ℕ}
   have ht := congrFun (PairedCrossover.eq_canonicalExtension_of_holds
     (((eval_rawFormula_iff φ τ).1 hτ).2.2.1 p hp)) v
   exact hs.trans (by rw [ha, hb]; exact ht.symm)
-
 
 end Cslib.Complexity.SAT.ParsimoniousPlanar
