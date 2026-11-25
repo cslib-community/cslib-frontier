@@ -126,11 +126,9 @@ private theorem prop_gauge_radius_cover (h : IsUpperFunctional D p) {κ : Type} 
     | zero => intro e; simpa using h.map_prod_pow_le S a C ha0 hC e
     | succ n ih =>
       intro e
-      have h1 := h.le_sum _ _ (D.mul ((∏ y ∈ S, y ^ e y) * t ^ n) hb)
-      have h2 : t * ((∏ y ∈ S, y ^ e y) * t ^ n) = (∏ y ∈ S, y ^ e y) * t ^ (n + 1) := by
-        rw [pow_succ', mul_left_comm]
-      rw [h2] at h1
-      refine h1.trans ?_
+      rw [show (∏ y ∈ S, y ^ e y) * t ^ (n + 1) = t * ((∏ y ∈ S, y ^ e y) * t ^ n) by
+        rw [pow_succ', mul_left_comm]]
+      refine (h.le_sum _ _ (D.mul ((∏ y ∈ S, y ^ e y) * t ^ n) hb)).trans ?_
       have h3 : ∀ k, p (b k * ((∏ y ∈ S, y ^ e y) * t ^ n)) ≤
           (∏ y ∈ S, C y) * (∏ y ∈ S, a y ^ e y) * A ^ n * a (b k) := by
         intro k
@@ -139,8 +137,7 @@ private theorem prop_gauge_radius_cover (h : IsUpperFunctional D p) {κ : Type} 
         have h4 := ih (fun z => if z = y then e z + 1 else e z)
         rw [prod_pow_ite_add_one hyS (fun z => z) e, prod_pow_ite_add_one hyS a e] at h4
         rw [← mul_assoc]
-        refine h4.trans (le_of_eq ?_)
-        ring
+        exact h4.trans_eq (by ring)
       refine (Finset.sum_le_sum fun k _ => h3 k).trans (le_of_eq ?_)
       rw [← Finset.mul_sum, ← hA]
       ring
@@ -169,8 +166,7 @@ private theorem prop_gauge_radius (h : IsUpperFunctional D p) : IsUpperFunctiona
     simpa [h.map_one] using h.add_mem_radiusSet 1 hδ
   · refine le_csInf ⟨_, h.add_mem_radiusSet 1 one_pos⟩ ?_
     rintro a ⟨ha, C, hC⟩
-    by_contra hlt
-    rw [not_le] at hlt
+    by_contra! hlt
     have hC1 := h.one_le_of_map_pow_le hC
     obtain ⟨m, hm⟩ := exists_pow_lt_of_lt_one (show (0 : ℝ) < 1 / C by positivity) hlt
     have := hC m
@@ -253,9 +249,7 @@ private theorem prop_gauge_radius_root (h : IsUpperFunctional D p) {t : M} {n : 
     calc p (t ^ (m % n)) ≤ p t ^ (m % n) := h.map_pow_le _ _
       _ ≤ (E * b) ^ (m % n) := pow_le_pow_left₀ (h.nonneg t) h3 _
       _ = E ^ (m % n) * b ^ (m % n) := mul_pow _ _ _
-      _ ≤ E ^ n * b ^ (m % n) := by
-        gcongr
-        exact (Nat.mod_lt _ hn).le
+      _ ≤ E ^ n * b ^ (m % n) := by gcongr; exact (Nat.mod_lt _ hn).le
   rw [h1, h2]
   calc _ ≤ p ((t ^ n) ^ (m / n)) * p (t ^ (m % n)) := h.map_mul_le _ _
     _ ≤ (C * a ^ (m / n)) * (E ^ n * b ^ (m % n)) :=
@@ -350,9 +344,7 @@ theorem IsUpperFunctional.exists_localize (h : IsUpperFunctional D p) {f : M} (h
     simp only [hP]
     rw [div_mul_div_comm, ← pow_add]
     gcongr
-    have : s * t * f ^ (n + n) = (s * f ^ n) * (t * f ^ n) := by
-      rw [pow_add]; exact mul_mul_mul_comm _ _ _ _
-    rw [this]
+    rw [pow_add, mul_mul_mul_comm]
     exact h.map_mul_le _ _
   · intro n κ _ t b hb
     have h1 := h.le_sum _ _ (D.mul (f ^ n) hb)
