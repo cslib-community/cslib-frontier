@@ -105,9 +105,7 @@ private theorem cycleOf_pow (π : Perm (Fin (k + 1))) {i : ℕ} (hi : i < k + 1)
   | zero => rfl
   | succ i ih =>
     rw [pow_succ', Perm.mul_apply, ih (by omega), cycleOf_apply, finRotate_apply]
-    congr 1
-    ext
-    rw [Fin.val_add_one_of_lt (by simp [Fin.lt_def]; omega)]
+    exact congrArg π (Fin.ext (Fin.val_add_one_of_lt (by simp [Fin.lt_def]; omega)))
 
 private theorem cycleOf_isCycleOn (π : Perm (Fin (k + 1))) : (cycleOf π).IsCycleOn Set.univ := by
   refine ⟨Set.bijOn_univ.2 (Equiv.bijective _), fun u _ v _ => ?_⟩
@@ -131,18 +129,13 @@ theorem hamiltonianCycleSum_eq_sum_orders (M : Matrix (Fin (k + 1)) (Fin (k + 1)
     refine Equiv.ext fun i => ?_
     have h := cycleOf_pow π i.2
     have h' := cycleOf_pow π' i.2
-    rw [(mem_filter.1 hπ).2] at h
-    rw [(mem_filter.1 hπ').2, ← e, h] at h'
-    exact h'
+    rwa [(mem_filter.1 hπ').2, ← e, ← (mem_filter.1 hπ).2, h] at h'
   · intro σ hσ
     have hc : σ.IsCycleOn ((univ : Finset (Fin (k + 1))) : Set (Fin (k + 1))) := by
-      rw [Finset.coe_univ]
-      exact (mem_filter.1 hσ).2
-    have hsur : Function.Surjective fun i : Fin (k + 1) => (σ ^ (i : ℕ)) 0 := by
-      intro v
+      simpa only [Finset.coe_univ] using (mem_filter.1 hσ).2
+    have hsur : Function.Surjective fun i : Fin (k + 1) => (σ ^ (i : ℕ)) 0 := fun v => by
       obtain ⟨i, hi, e⟩ := hc.exists_pow_eq (mem_univ (0 : Fin (k + 1))) (mem_univ v)
-      rw [Finset.card_univ, Fintype.card_fin] at hi
-      exact ⟨⟨i, hi⟩, e⟩
+      exact ⟨⟨i, by simpa only [Finset.card_univ, Fintype.card_fin] using hi⟩, e⟩
     let π := Equiv.ofBijective _ (Finite.surjective_iff_bijective.1 hsur)
     refine ⟨π, mem_filter.2 ⟨mem_univ _, rfl⟩, Equiv.ext fun v => ?_⟩
     obtain ⟨i, rfl⟩ := π.surjective v
@@ -150,10 +143,8 @@ theorem hamiltonianCycleSum_eq_sum_orders (M : Matrix (Fin (k + 1)) (Fin (k + 1)
     change (σ ^ (finRotate (k + 1) i : ℕ)) 0 = σ ((σ ^ (i : ℕ)) 0)
     rw [← Perm.mul_apply, ← pow_succ', finRotate_apply, Fin.val_add_one]
     split_ifs with h
-    · have := hc.pow_card_apply (mem_univ (0 : Fin (k + 1)))
-      rw [Finset.card_univ, Fintype.card_fin] at this
-      rw [h, Fin.val_last, this, pow_zero]
-      rfl
+    · simpa only [Finset.card_univ, Fintype.card_fin, h, Fin.val_last, pow_zero, Perm.one_apply]
+        using (hc.pow_card_apply (mem_univ (0 : Fin (k + 1)))).symm
     · rfl
   · intro π _
     rw [← Equiv.prod_comp π (fun u => M u (cycleOf π u))]

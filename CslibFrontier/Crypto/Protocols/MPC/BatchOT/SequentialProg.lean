@@ -101,11 +101,9 @@ theorem eval_composeSeqBatchOTRoundEnvProg {m : ℕ} (k : ℕ) (M : Type)
       (fun _ J q => Protocol.eval_realJointProg _ W₂ J q)
       (fun _ J => composeSim (seqBatchOT k M) (seqBatchOTSim k M J) (fun _ => S₂)) I x D i)
     (funext fun r => ?_)
-  cases r with
-  | inl b => simp only [Sum.elim_inl, ProbComp.eval_pure]
-  | inr c =>
-    simp only [Sum.elim_inr]
-    exact eval_composeRoundEnvProg (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub)
+  rcases r with b | c
+  · simp only [Sum.elim_inl, ProbComp.eval_pure]
+  · exact eval_composeRoundEnvProg (seqBatchOT k M) (otWorld M) W₂ (fun _ => Sub)
       (fun _ J q => Sub.eval_realJointProg W₂ J q) (fun _ => S₂) c.coalition c.query c.guess j
 
 /-- A predicate `Q` holds at every round of `seqOTSteps` from the states `st`, for the coalition
@@ -124,12 +122,7 @@ private theorem forallChallenge_seqOTSteps {M : Type} {Out : Fin 2 → Type} (J 
     Finset.ext fun _ => mem_subCoalition
   induction k generalizing State with
   | zero => simp only [seqOTSteps, ForallChallenge]
-  | succ k ih =>
-    rw [seqOTSteps, ForallChallenge]
-    refine ⟨?_, fun ans => ih _ _ _ fun t => h t.succ⟩
-    have h0 := h 0
-    rw [← hJ] at h0
-    exact h0
+  | succ k ih => exact ⟨hJ.symm ▸ h 0, fun _ => ih _ _ _ fun t => h t.succ⟩
 
 /-- In transfer `t` of a batched transfer of bit strings in which both words offered in every
 transfer have length `L`, the word transferred to the receiver has length `L`. -/
@@ -172,19 +165,14 @@ theorem coalition_length_of_mem_support_composeSeqBatchOTRoundEnv {m : ℕ} (k :
       (composeSeqBatchOTRoundEnv k (List Bool) P W₂ Sub S₂ I x D i j).support) :
     c.coalition = J₀ ∧ (otOutputs c.query 1 : List Bool).length = L := by
   rw [composeSeqBatchOTRoundEnv, PMF.mem_support_bind_iff] at hc
-  obtain ⟨r, hr, hc⟩ := hc
-  cases r with
-  | inl b =>
-    rw [Sum.elim_inl, PMF.support_pure, Set.mem_singleton_iff] at hc
-    cases hc
-  | inr c' =>
-    rw [Sum.elim_inr] at hc
-    have h₁ := ForallChallenge.of_mem_support_composeRoundEnv P (batchOTWorld k (List Bool)) W₂
+  rcases hc with ⟨b | c', hr, hc⟩
+  · simp [PMF.support_pure] at hc
+  · have h₁ := ForallChallenge.of_mem_support_composeRoundEnv P (batchOTWorld k (List Bool)) W₂
       _ _ I x D i h hr
     exact ForallChallenge.of_mem_support_composeRoundEnv (seqBatchOT k (List Bool))
       (otWorld (List Bool)) W₂ (fun _ => Sub) (fun _ => S₂) c'.coalition c'.query c'.guess j
       (Q := fun _ J q => J = J₀ ∧ (otOutputs q 1 : List Bool).length = L)
-      (fun c₁ _ => forallChallenge_seqOTSteps c'.coalition _ k _ _ _ fun t =>
+      (fun _ _ => forallChallenge_seqOTSteps c'.coalition _ k _ _ _ fun t =>
         ⟨h₁.1, length_otOutputs_batchOTQueryAt c'.query h₁.2 t⟩) hc
 
 end Cslib.Crypto.Protocols.MPC

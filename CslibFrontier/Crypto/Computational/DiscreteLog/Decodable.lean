@@ -121,10 +121,7 @@ theorem map_encode_decode (d : F.Desc) (w : List Bool) :
     (F.decode d w).map (F.encode d) = if F.isElem (d, w) then some w else none := by
   cases hdec : F.decode d w with
   | none => simp [isElem, hdec]
-  | some x =>
-    have hw := F.encode_eq_of_decode_eq_some hdec
-    subst hw
-    simp [isElem, F.decode_encode]
+  | some x => simp [F.encode_eq_of_decode_eq_some hdec]
 
 /-- Decoding a word with fallback `z` and re-encoding equals returning `w` when `F.isElem (d, w)`
 holds and `F.encode d z` otherwise. -/
@@ -132,10 +129,7 @@ theorem encode_decode_getD (d : F.Desc) (w : List Bool) (z : F.Carrier d) :
     F.encode d ((F.decode d w).getD z) = if F.isElem (d, w) then w else F.encode d z := by
   cases hdec : F.decode d w with
   | none => simp [isElem, hdec]
-  | some x =>
-    have hw := F.encode_eq_of_decode_eq_some hdec
-    subst hw
-    simp [isElem, F.decode_encode]
+  | some x => simp [F.encode_eq_of_decode_eq_some hdec]
 
 variable {F} in
 /-- Group-element membership testing for computed group descriptions and candidate words is
@@ -150,14 +144,10 @@ computable in polynomial time. -/
 polynomial time. -/
 theorem computableInPolyTime_decode_map_encode :
     ComputableInPolyTime (fun p : F.Desc × List Bool => (F.decode p.1 p.2).map (F.encode p.1))
-      (encPair F.encDesc encBits) (encOption encBits) := by
-  have hsome : ComputableInPolyTime (fun p : F.Desc × List Bool => some p.2)
       (encPair F.encDesc encBits) (encOption encBits) :=
-    (ComputableInPolyTime.optionSome encBits).comp (by fun_prop)
-  have hnone : ComputableInPolyTime (fun _ : F.Desc × List Bool => (none : Option (List Bool)))
-      (encPair F.encDesc encBits) (encOption encBits) := by fun_prop
-  have hif := F.computableInPolyTime_isElem.ite hsome hnone
-  exact hif.of_enc_eq fun p => congrArg (encOption encBits) (F.map_encode_decode p.1 p.2)
+  (F.computableInPolyTime_isElem.ite
+    ((ComputableInPolyTime.optionSome encBits).comp (by fun_prop))
+    (by fun_prop)).of_enc_eq fun p => congrArg (encOption encBits) (F.map_encode_decode p.1 p.2)
 
 end DecodablePrimeOrderGroupFamily
 

@@ -96,7 +96,7 @@ private theorem execWithin_inc_rRem {L w : ℕ} {g : Graph (Fin L → Fin L)} {z
       z'.regs rCompLen = z.regs rCompLen ∧ z'.regs rOuterIdx = z.regs rOuterIdx ∧
       z'.mem = z.mem := by
   wram_exec [hC.one]
-  exact ⟨by wram_simp [hC], by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
+  and_intros <;> wram_simp [hC]
 
 /-- Specification for `settleCode`. -/
 theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
@@ -245,22 +245,22 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             ⟨1, le_rfl, exec_nop rRem z1⟩
           obtain ⟨z2, hz2_ex, hz2C, hz2Ch, hz2Rem, hz2CL, hz2Idx, hz2m⟩ :=
             execWithin_inc_rRem (g := g) (z := z1) (by rwa [hz1Rem]) hz1C
-          rw [hz1Ch] at hz2Ch
-          rw [hz1Rem] at hz2Rem
-          rw [hz1CL] at hz2CL
-          rw [hz1Idx] at hz2Idx; rw [hz1m] at hz2m
+          have hz2m' : z2.mem = z.mem := hz2m.trans hz1m
           have hsame_tab : tabAt (k + 1) = tabAt k := by
             have hgv' : (tabAt k).getD v none = none := hgv
             simp only [htab_next, hgv', freeze, Option.map_none]
-            exact List.ext_getElem (by simp) fun i hi1 hi2 => by
-              rw [List.getElem_set]; split_ifs with hiv
-              · subst hiv; simpa [List.getD_eq_getElem?_getD, hi2] using hgv'.symm
-              · rfl
+            apply List.ext_getElem (by simp)
+            intro i hi1 hi2
+            rw [List.getElem_set]
+            split_ifs with hiv
+            · subst hiv
+              simpa [List.getD_eq_getElem?_getD, hi2] using hgv'.symm
+            · rfl
           refine ⟨z2, (hz1_ex.seq ((ExecWithin.branch_neg hc_br hnop_rem).seq hz2_ex)).mono
               (by omega),
-            ⟨?_, hz2Ch, hz2CL, hz2Idx, hz2m ▸ hzCM⟩, hz2Rem⟩
+            ⟨?_, hz1Ch ▸ hz2Ch, hz1CL ▸ hz2CL, hz1Idx ▸ hz2Idx, hz2m' ▸ hzCM⟩, hz1Rem ▸ hz2Rem⟩
           rw [hsame_tab]
-          exact hzT.of_eq hz2C hz2m
+          exact hzT.of_eq hz2C hz2m'
         | some fn =>
           obtain ⟨hvis1, htab_fn⟩ := hzT.vis_some v hv_lt fn hgv
           have hc_br : (Cond.eq rTmp1 rOne).Holds z1 := by
@@ -321,8 +321,9 @@ theorem settleCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L))
             rw [hz4m]; exact hz3Fr a (by omega)
           refine ⟨z4, (hz1_ex.seq ((ExecWithin.branch_pos hc_br (hz2_ex.seq hz3_ex)).seq
               hz4_ex)).mono (by omega),
-            ⟨?_, hz3Ch ▸ hz4Ch, hz3CL ▸ hz4CL, hz3Idx ▸ hz4Idx, hzCM.frame fun a ha1 _ => by
-              rw [hz4m]; exact hz3Fr a (by wram_omega)⟩, hz3Rem ▸ hz4Rem⟩
+            ⟨?_, hz3Ch ▸ hz4Ch, hz3CL ▸ hz4CL, hz3Idx ▸ hz4Idx,
+              hzCM.frame fun a ha1 _ => (congrFun hz4m a).trans (hz3Fr a (by wram_omega))⟩,
+            hz3Rem ▸ hz4Rem⟩
           have hlen_k : (tabAt k).length = slots g := hzT.len_table
           have hgv' : (tabAt k).getD v none = some fn := hgv
           refine ⟨hz4C, hzT.inp.frame (fun a ha => hfr_low a (by wram_omega)),

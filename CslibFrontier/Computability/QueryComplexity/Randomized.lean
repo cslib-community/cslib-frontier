@@ -251,7 +251,7 @@ against `g` on `x`. -/
 theorem errorProb_mapTree_eq_zero {γ : Type*} (φ : DecisionTree ι β → DecisionTree ι γ)
     (μ : RandomizedDecisionTree ι β) (g : (ι → Bool) → γ) (x : ι → Bool)
     (hφ : ∀ t : DecisionTree ι β, (φ t).eval x = g x) : (mapTree φ μ).errorProb g x = 0 :=
-  errorProb_eq_zero_iff.mpr fun u hu => by
+  errorProb_eq_zero_iff.mpr fun _ hu => by
     obtain ⟨t, -, rfl⟩ := exists_of_mem_support_mapTree hu
     exact hφ t
 
@@ -328,10 +328,9 @@ theorem randomizedComplexity_zero (f : (ι → Bool) → β) :
   obtain ⟨t, ht, hd⟩ := DecisionTree.exists_computes_depth_eq_complexity f
   obtain ⟨μ, hμ, hμd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 0) f
   obtain ⟨s, hs⟩ := μ.support_weights_nonempty
-  refine le_antisymm ((randomizedComplexity_le_depth (computes_single ht le_rfl)).trans_eq
-    (by rw [depth_single, hd])) ?_
-  rw [← hμd]
-  exact (DecisionTree.complexity_le_depth (computes_zero_iff.mp hμ s hs)).trans (depth_le_depth hs)
+  exact le_antisymm ((randomizedComplexity_le_depth (computes_single ht le_rfl)).trans_eq
+    (by rw [depth_single, hd])) (hμd ▸ (DecisionTree.complexity_le_depth
+      (computes_zero_iff.mp hμ s hs)).trans (depth_le_depth hs))
 
 omit [Finite ι] in
 /-- A fair coin computes any Boolean-valued function with error at most `1/2`, without a query.
@@ -344,19 +343,16 @@ theorem exists_computes_depth_zero_of_le {ε : ℝ} (hε : 1 / 2 ≤ ε)
     (s := 1 / 2) (t := 1 / 2) (by norm_num) (by norm_num) (by norm_num)
   have hsupp : μ.weights.support ⊆ {DecisionTree.leaf false, DecisionTree.leaf true} := by
     simp only [μ, StdSimplex.weights_duple]
-    exact Finsupp.support_add.trans (Finset.union_subset_union Finsupp.support_single_subset
-      Finsupp.support_single_subset)
-  have hdepth : μ.depth = 0 := Nat.le_zero.mp <| depth_le_iff.mpr fun t ht => by
-    rcases Finset.mem_insert.mp (hsupp ht) with rfl | ht
+    exact Finsupp.support_add.trans
+      (Finset.union_subset_union Finsupp.support_single_subset Finsupp.support_single_subset)
+  refine ⟨μ, fun x => (le_of_eq ?_).trans hε, Nat.le_zero.mp <| depth_le_iff.mpr fun t ht => ?_⟩
+  · simp only [errorProb, StdSimplex.errorProb, μ, StdSimplex.weights_duple]
+    rw [Finsupp.sum_add_index' (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
+      Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
+    cases f x <;> simp
+  · rcases Finset.mem_insert.mp (hsupp ht) with rfl | ht
     · rfl
-    · rw [Finset.mem_singleton.mp ht]
-      rfl
-  refine ⟨μ, fun x => ?_, hdepth⟩
-  refine le_trans (le_of_eq ?_) hε
-  simp only [errorProb, StdSimplex.errorProb, μ, StdSimplex.weights_duple]
-  rw [Finsupp.sum_add_index' (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
-    Finsupp.sum_single_index (zero_mul _), Finsupp.sum_single_index (zero_mul _)]
-  cases f x <;> simp
+    · rw [Finset.mem_singleton.mp ht]; rfl
 
 /-- From `ε = 1/2` on, a fair coin computes every Boolean-valued function: `R_ε(f) = 0`. -/
 theorem randomizedComplexity_eq_zero_of_le (hε : (1 / 2 : ℝ) ≤ ε) (f : (ι → Bool) → Bool) :

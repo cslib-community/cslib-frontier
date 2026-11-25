@@ -664,8 +664,15 @@ private theorem mabPlay_block_loss_le [DecidableEq ι] [Nonempty ι] {m K : ℕ}
             rw [← mul_sum]
             simp only [blockAvgLoss]
             field_simp
-  rw [← sum_sdiff (subset_univ E)]
-  linarith
+  calc ∑ r : Fin m, ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j
+      = (∑ r ∈ univ \ E,
+          ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j) +
+        (∑ r ∈ E,
+          ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j) :=
+        (sum_sdiff (subset_univ E)).symm
+    _ ≤ (Fintype.card ι : ℝ) +
+          (m : ℝ) * ∑ j, H (exploredLoss sched ω ℓ) τ.val j * blockAvgLoss m ℓ τ.val j := by
+        linarith
 
 private theorem mabPlay_expected_loss_le_mul [DecidableEq ι] [Nonempty ι] {m K : ℕ} {Ω : Type*}
     [Fintype Ω] [Nonempty Ω] (hm : 0 < m) (sched : ExplorationSchedule ι m Ω)
@@ -735,8 +742,10 @@ theorem mabPlay_expected_loss_le [DecidableEq ι] [Nonempty ι] {m K T : ℕ} {�
     calc
       ∑ r ∈ range (T - K * m), ∑ j, mabPlay hm sched H ω ℓ (K * m + r) j * ℓ (K * m + r) j
         ≤ ∑ _r ∈ range (T - K * m), (1 : ℝ) := sum_le_sum fun r hr =>
-            mabPlay_round_loss_le_one hm sched hH ω
-              fun s hs => hℓ s (by have := mem_range.mp hr; omega)
+            mabPlay_round_loss_le_one hm sched hH ω fun s hs => hℓ s <|
+              calc s ≤ K * m + r := hs
+                _ < K * m + (T - K * m) := Nat.add_lt_add_left (mem_range.mp hr) _
+                _ = T := Nat.add_sub_of_le hKm
       _ = ((T - K * m : ℕ) : ℝ) := by simp
   have hmin_mono : minCumLoss ℓ (K * m) ≤ minCumLoss ℓ T := by
     obtain ⟨k₀, hk₀⟩ := exists_sum_eq_minCumLoss ℓ T
@@ -924,8 +933,10 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
               rw [sq_sqrt hKr_pos.le]
           _ ≤ (T : ℝ) * √(log N) * (√2 / √x) := by gcongr
           _ = √2 * √(log N) * B := by rw [← hT_div_eq]; ring
-      have hc_mul := mul_le_mul_of_nonneg_left hcore hC
-      linarith
+      calc (m : ℝ) * (C * √((K : ℝ) * log N))
+          = C * ((m : ℝ) * √((K : ℝ) * log N)) := by ring
+        _ ≤ C * (√2 * √(log N) * B) := mul_le_mul_of_nonneg_left hcore hC
+        _ = C * √2 * √(log N) * B := by ring
     have hL_gt : (1 / 2 : ℝ) ≤ log (N : ℝ) := by
       have hlog2 : (1 / 2 : ℝ) ≤ log 2 := by linarith [log_two_gt_d9]
       exact hlog2.trans (log_le_log (by norm_num) hNr)
@@ -934,7 +945,10 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
       rw [mul_pow, sq_sqrt (by norm_num), sq_sqrt hL.le]
       nlinarith
     have hfactor : 3 / 2 + C * √2 * √(log (N : ℝ)) ≤ (3 + 2 * C) * log (N : ℝ) := by
-      linarith [mul_le_mul_of_nonneg_left hcoef2 hC]
+      calc 3 / 2 + C * √2 * √(log (N : ℝ))
+          ≤ 3 * log (N : ℝ) + C * (2 * log (N : ℝ)) := by
+            linarith [mul_le_mul_of_nonneg_left hcoef2 hC]
+        _ = (3 + 2 * C) * log (N : ℝ) := by ring
     calc
       (𝔼 ω : Fin K → (ι ↪ Fin m),
           ∑ t ∈ range T, ∑ j, mabPlay hm_pos sched (H K) ω ℓ t j * ℓ t j)
@@ -964,7 +978,11 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     have hmin_eq : minCumLoss ℓ T = ∑ t ∈ range T, ℓ t i₀ :=
       le_antisymm (minCumLoss_le ℓ T i₀)
         (le_minCumLoss_iff.mpr fun j => by rw [Subsingleton.elim j i₀])
-    simp [hpt, hmin_eq]
+    rw [hmin_eq]
+    calc (𝔼 ω : Fin K → (ι ↪ Fin m),
+            ∑ t ∈ range T, ∑ j, mabPlay hm_pos sched (H K) ω ℓ t j * ℓ t j)
+        = 𝔼 _ω : Fin K → (ι ↪ Fin m), ∑ t ∈ range T, ℓ t i₀ := expect_congr rfl fun ω _ => hpt ω
+      _ ≤ ∑ t ∈ range T, ℓ t i₀ := (Fintype.expect_const _).le
 
 /-- **Explicit Polynomial Weights instantiation of Theorem 4.17** [BlumMansour2007AGT, Theorem 4.17,
 pp. 94–96]: instantiating `mabPlay_expected_loss_le_two_thirds` with capped Polynomial Weights

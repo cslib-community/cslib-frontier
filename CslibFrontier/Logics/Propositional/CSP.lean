@@ -262,9 +262,9 @@ theorem modelCountOn_denseRelabel [Fintype D] [Inhabited D] (sem : Rel → List 
   refine Eq.congr_left ?_
   rw [denseRelabel, eval_relabel]
   refine eval_congr fun v hv => ?_
-  simp only [Function.comp_apply, List.mem_toFinset.mpr hv,
-    show List.idxOf v F.distinctVars ∈ Finset.range F.numVars from
-      (f ⟨v, List.mem_toFinset.mpr hv⟩).2, dite_true]
+  have hidx : List.idxOf v F.distinctVars ∈ Finset.range F.numVars :=
+    (f ⟨v, List.mem_toFinset.mpr hv⟩).2
+  simp only [Function.comp_apply, List.mem_toFinset.mpr hv, hidx, dite_true]
   rfl
 
 /-- Dense variable relabeling preserves `CSP.modelCount`. -/

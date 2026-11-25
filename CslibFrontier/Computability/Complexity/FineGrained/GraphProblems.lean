@@ -16,7 +16,7 @@ public import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Spa
 public import CslibFrontier.Computability.Complexity.Problems.VertexCover
 
 /-!
-# Exponential lower bounds for graph problems under the exponential time hypothesis
+# Fine-grained lower bounds for graph problems
 
 Under the exponential time hypothesis, 3-coloring, independent set, vertex cover and Hamiltonian
 paths and cycles, directed or undirected, are not decidable in time `2 ^ o(|V| + |E|)`, and
@@ -60,8 +60,10 @@ statements; the reductions and size bounds behind them are unconditional.
 
 ## Main results
 
-* `Cslib.Complexity.SH.not_decidableInPowerExpTime_ThreeColoring`: under SH, no fixed power
-  saving below one in the exponent for 3-coloring measured in vertices plus edges.
+* The `SH.not_decidableInPowerExpTime_*` theorems rule out a fixed power saving in the
+  exponent for 3-coloring, Independent Set, Vertex Cover, Clique, and directed and undirected
+  Hamiltonian Path and Cycle. The parameter counts declared vertices plus edges or arcs, with
+  vertex-only bounds for 3-coloring, Independent Set and Clique.
 
 * `Cslib.Complexity.ETH.not_decidableInSubexpTime_ThreeColoring`: no `2 ^ o(|V| + |E|)` algorithm
   for 3-coloring.
@@ -213,6 +215,8 @@ theorem ETH.not_decidableInSubexpTime_HamPath (h : ETH) :
         Graph.length_split_fst, Graph.length_split_snd]
       omega
 
+/-! ### Satisfiability Hypothesis lower bounds -/
+
 /-- Under SH, 3-coloring has no fixed power saving below one in the exponent, measured in
 the number of declared vertices and edges. -/
 theorem SH.not_decidableInPowerExpTime_ThreeColoring (h : SH) {p : ℝ}
@@ -223,5 +227,114 @@ theorem SH.not_decidableInPowerExpTime_ThreeColoring (h : SH) {p : ℝ}
     (fun φ _ => (SAT.toThreeColoring_mem_iff φ).symm) (K := 93) fun φ hφ => by
       have := SAT.length_toThreeColoring_le hφ
       nlinarith
+
+/-- Under SH, 3-coloring has no fixed power saving below one in the exponent measured in
+the number of declared vertices. -/
+theorem SH.not_decidableInPowerExpTime_ThreeColoring_vertices (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime ThreeColoring encGraph (fun x => x.vertices.length) p :=
+  fun hFast => h.not_decidableInPowerExpTime_ThreeColoring hp hp1
+    (hFast.mono_measure (fun _ => Nat.le_add_right _ _) hp.le)
+
+/-- Under SH, Independent Set has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus edges. -/
+theorem SH.not_decidableInPowerExpTime_IndependentSet (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime IndependentSet encIndependentSetInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    SAT.computableInPolyTime_toSparseIndependentSet
+    (fun φ _ => (SAT.toSparseIndependentSet_mem_iff φ).symm) (K := 24) fun φ hφ => by
+      have := SAT.length_toSparseIndependentSet_le hφ
+      omega
+
+/-- Under SH, Independent Set has no fixed power saving below one in the exponent measured in
+the number of declared vertices. -/
+theorem SH.not_decidableInPowerExpTime_IndependentSet_vertices (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime IndependentSet encIndependentSetInstance
+      (fun x => x.graph.vertices.length) p :=
+  fun hFast => h.not_decidableInPowerExpTime_IndependentSet hp hp1
+    (hFast.mono_measure (fun _ => Nat.le_add_right _ _) hp.le)
+
+/-- Under SH, Vertex Cover has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus edges. -/
+theorem SH.not_decidableInPowerExpTime_VertexCover (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime VertexCover encVertexCoverInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    (IndependentSet.computableInPolyTime_toVertexCover.comp
+      SAT.computableInPolyTime_toSparseIndependentSet)
+    (fun φ _ => ((IndependentSet.toVertexCover_mem_iff _).trans
+      (SAT.toSparseIndependentSet_mem_iff φ)).symm) (K := 24) fun φ hφ => by
+      have := SAT.length_toSparseIndependentSet_le hφ
+      simp only [Function.comp_apply, IndependentSet.toVertexCover] at this ⊢
+      omega
+
+/-- Under SH, Clique has no fixed power saving below one in the exponent
+measured in the number of declared vertices. -/
+theorem SH.not_decidableInPowerExpTime_Clique (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime Clique encCliqueInstance (fun x => x.graph.vertices.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    (computableInPolyTime_independentSetToClique.comp
+      SAT.computableInPolyTime_toSparseIndependentSet)
+    (fun φ _ => ((independentSetToClique_mem_iff _).trans
+      (SAT.toSparseIndependentSet_mem_iff φ)).symm)
+    (K := 24) fun φ hφ => by
+      have := SAT.length_toSparseIndependentSet_le hφ
+      simp only [Function.comp_apply, independentSetToClique, Graph.compl] at this ⊢
+      omega
+
+/-- Under SH, Hamiltonian Cycle has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus edges. -/
+theorem SH.not_decidableInPowerExpTime_HamCycle (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime HamCycle encGraph (fun G => G.vertices.length + G.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1 SAT.computableInPolyTime_toSparseHamCycle
+    (fun φ _ => (SAT.toSparseHamCycle_mem_iff φ).symm) (K := 350) fun φ hφ => by
+      have := SAT.length_toSparseHamCycle_le hφ
+      omega
+
+/-- Under SH, Directed Hamiltonian Cycle has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus arcs. -/
+theorem SH.not_decidableInPowerExpTime_DirHamCycle (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime DirHamCycle encGraph (fun G => G.vertices.length + G.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    SAT.computableInPolyTime_toSparseDirHamCycle
+    (fun φ _ => (SAT.toSparseDirHamCycle_mem_iff φ).symm) (K := 70) fun φ hφ => by
+      have := SAT.length_toSparseDirHamCycle_le hφ
+      omega
+
+/-- Under SH, Directed Hamiltonian Path has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus arcs. -/
+theorem SH.not_decidableInPowerExpTime_DirHamPath (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime DirHamPath encPathInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    SAT.computableInPolyTime_toSparseDirHamPath
+    (fun φ _ => (SAT.toSparseDirHamPath_mem_iff φ).symm) (K := 70) fun φ hφ => by
+      have := SAT.length_sparseDiamondGraph_le hφ
+      simp only [SAT.toSparseDirHamPath]
+      omega
+
+/-- Under SH, Hamiltonian Path has no fixed power saving below one in the exponent
+measured in the number of declared vertices plus edges. -/
+theorem SH.not_decidableInPowerExpTime_HamPath (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime HamPath encPathInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) p :=
+  h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    (DirHamPath.computableInPolyTime_toHamPath.comp
+      SAT.computableInPolyTime_toSparseDirHamPath)
+    (fun φ _ => ((DirHamPath.toHamPath_mem_iff _).trans (SAT.toSparseDirHamPath_mem_iff φ)).symm)
+    (K := 350) fun φ hφ => by
+      have := SAT.length_sparseDiamondGraph_le hφ
+      simp only [Function.comp_apply, DirHamPath.toHamPath, SAT.toSparseDirHamPath,
+        Graph.length_split_fst, Graph.length_split_snd]
+      omega
 
 end Cslib.Complexity

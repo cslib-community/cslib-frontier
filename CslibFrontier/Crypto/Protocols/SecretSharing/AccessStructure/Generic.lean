@@ -174,15 +174,12 @@ theorem genericReconstruct_genericShare (A : AccessStructure Party) [DecidablePr
     {G : Type*} [AddCommGroup G] (hempty : ¬ A.authorized ∅) (r : GenericKey A G) (secret : G)
     {s : Finset Party} (hs : A.authorized s) :
     genericReconstruct A s (fun j => genericShare A r secret j.1) = secret := by
-  have hne : s.Nonempty := by
-    rw [Finset.nonempty_iff_ne_empty]
-    rintro rfl
-    exact hempty hs
-  have : NeZero s.card := ⟨Nat.ne_of_gt (Finset.card_pos.mpr hne)⟩
+  have hne : s.Nonempty := Finset.nonempty_iff_ne_empty.mpr fun h => hempty (h ▸ hs)
+  have : NeZero s.card := ⟨(Finset.card_pos.mpr hne).ne'⟩
   simp only [genericReconstruct, hs, ↓reduceDIte, genericShare]
-  have hsum := Equiv.sum_comp (s.equivFin)
-    (Cslib.ProbComp.completeShares s.card secret (r ⟨s, (A.mem_authorizedSets s).mpr hs⟩))
-  rw [hsum, Cslib.ProbComp.sum_completeShares]
+  rw [Equiv.sum_comp s.equivFin
+    (Cslib.ProbComp.completeShares s.card secret (r ⟨s, (A.mem_authorizedSets s).mpr hs⟩)),
+    Cslib.ProbComp.sum_completeShares]
 
 /-- For any unauthorized coalition `s`, any secrets `m₀, m₁`, and any desired view offset `c`,
 there exists a key shift `δ : GenericKey A G` translating the coalition view of `m₀` by `c` into
@@ -229,10 +226,8 @@ private theorem exists_genericKey_shift (A : AccessStructure Party) [DecidablePr
       rw [Finset.sum_update_of_mem (Finset.mem_univ _), Finset.sdiff_singleton_eq_erase,
         sub_add_cancel])
   rw [congrFun hcomp (J.equivFin ⟨i, hJ_auth.2⟩)]
-  have hne : J.equivFin ⟨i, hJ_auth.2⟩ ≠ J.equivFin ⟨p₀ J', hp₀J J'⟩ := by
-    intro heq
-    have hval : i = p₀ J' := congrArg Subtype.val (J.equivFin.injective heq)
-    exact hp₀s J' (hval ▸ hi)
+  have hne : J.equivFin ⟨i, hJ_auth.2⟩ ≠ J.equivFin ⟨p₀ J', hp₀J J'⟩ := fun heq =>
+    hp₀s J' (Subtype.mk.inj (J.equivFin.injective heq) ▸ hi)
   rw [Function.update_of_ne hne]
   dsimp [base, J']
   rw [Equiv.symm_apply_apply]
@@ -245,10 +240,8 @@ private theorem genericView_eq_of_not_authorized (A : AccessStructure Party)
     AccessStructure.viewDistOf P (genericShare A) s m₀ =
       AccessStructure.viewDistOf P (genericShare A) s m₁ := by
   obtain ⟨δ, hδ⟩ := exists_genericKey_shift A hs m₀ m₁ 0
-  refine AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) fun r => ?_
-  have hr := hδ r
-  rw [add_zero] at hr
-  exact hr.symm
+  exact AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) fun r =>
+    ((hδ r).trans (add_zero _)).symm
 
 /-- **Construction 22.1** ([BonehShoup2023], Section 22.5.1, p. 977): the generic secret-sharing
 scheme over `SourceClass.translationInvariant (GenericKey A G)` implementing any monotone access
@@ -299,8 +292,7 @@ theorem genericUniform_viewDist_eq (A : AccessStructure Party) [DecidablePred A.
   apply Cslib.Probability.PMF.uniformOfFintype_map_of_shift
   intro c
   obtain ⟨δ, hδ⟩ := exists_genericKey_shift A hs secret secret c
-  refine ⟨Equiv.addRight δ, fun r => ?_⟩
-  exact hδ r
+  exact ⟨Equiv.addRight δ, hδ⟩
 
 end GenericConstruction
 

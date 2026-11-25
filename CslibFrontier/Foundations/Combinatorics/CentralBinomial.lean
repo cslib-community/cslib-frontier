@@ -118,8 +118,9 @@ theorem card_middle_le (n t : ℕ) :
     rw [mem_Icc]
     omega
   calc _ ≤ n.choose (n / 2) * (Icc ((n + 1) / 2) (n / 2 + t)).card :=
-        card_le_mul_card_image_of_maps_to hmaps _ fun b _ =>
-          (card_filter_card_eq_le _ b).trans (Nat.choose_le_middle b n)
+        card_le_mul_card_image_of_maps_to hmaps _ fun b _ => calc
+          _ ≤ n.choose b := card_filter_card_eq_le _ b
+          _ ≤ n.choose (n / 2) := Nat.choose_le_middle b n
     _ ≤ n.choose (n / 2) * (t + 1) := Nat.mul_le_mul_left _ (by rw [Nat.card_Icc]; omega)
     _ = (t + 1) * n.choose (n / 2) := Nat.mul_comm _ _
 
@@ -143,8 +144,11 @@ theorem ten_mul_card_filter_card_le_le (n t : ℕ) (h : 100 * (t + 1) ^ 2 ≤ n 
         = 100 * (t + 1) ^ 2 * n.choose (n / 2) ^ 2 := by ring
       _ ≤ (n + 1) * n.choose (n / 2) ^ 2 := Nat.mul_le_mul_right _ h
       _ ≤ (2 ^ n) ^ 2 := by simpa only [mul_comm (n + 1), h4] using choose_half_sq_mul_le n
-  have hU := Nat.mul_le_mul_left 10 ((card_le_card hsub).trans (card_union_le A M))
-  omega
+  calc
+    10 * (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t).card
+      ≤ 10 * (A.card + M.card) :=
+        Nat.mul_le_mul_left 10 ((card_le_card hsub).trans (card_union_le A M))
+    _ ≤ 6 * 2 ^ n := by omega
 
 /-- Below `n / 2`, the binomial coefficients `C(n, k)` increase with `k`. -/
 theorem choose_le_choose_of_le_of_le_half {n k a : ℕ} (hka : k ≤ a) (ha : a ≤ n / 2) :

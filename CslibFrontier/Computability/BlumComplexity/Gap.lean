@@ -78,6 +78,7 @@ private theorem exists_noCostIn (Φ : BlumMeasure) (g : ℕ → ℕ → ℕ) (n 
     exact hne ⟨s j, hs_mono (Nat.zero_le j),
       fun i hi m hm hlt hmem => hj ⟨i, hi, m, hm, hlt, hmem⟩⟩
   choose idx hidx m hm hlt hmem using hw
+  -- Two intervals cannot hold the cost of the same program.
   have key {j j'} (hjj' : j < j') (he : idx j = idx j') : False := by
     have heq := Part.mem_unique (he ▸ hmem j) (hmem j')
     have h2 : g n (s j) ≤ s j' :=
@@ -118,11 +119,14 @@ theorem exists_gap₂ {g : ℕ → ℕ → ℕ} {a : ℕ → ℕ} (hg : Computab
       ∀ c : Code, ∀ n, encode c ≤ n → ∀ m ∈ Φ.cost c n, m ≤ t n ∨ g n (t n) < m := by
   classical
   have hex (x : ℕ × ℕ) := Φ.exists_noCostIn g x.1 x.2
+  -- `F (n, L)` is the least `k ≥ L` such that no program numbered `≤ n` has cost on `n` in
+  -- `(k, g n k]`.
   let F : ℕ × ℕ → ℕ := fun x => Nat.find (hex x)
   have hF : Computable F :=
     Computable.find (P := fun (x : ℕ × ℕ) k => x.2 ≤ k ∧ NoCostIn Φ g x.1 k)
       (Φ.computablePred_noCostIn hg) hex
   have hspec (x) : x.2 ≤ F x ∧ NoCostIn Φ g x.1 (F x) := Nat.find_spec (hex x)
+  -- `t 0 = F (0, a 0)` and `t (n + 1) = F (n + 1, max (a (n + 1)) (t n + 1))`.
   let t : ℕ → ℕ := fun n => Nat.rec (motive := fun _ => ℕ) (F (0, a 0))
     (fun i ti => F (i + 1, max (a (i + 1)) (ti + 1))) n
   have ht : Computable t :=

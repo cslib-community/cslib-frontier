@@ -169,10 +169,11 @@ theorem equation_add {x₁ y₁ x₂ y₂ : F} (h₁ : E.Equation x₁ y₁) (h�
     E.Equation ((x₁ * y₂ + x₂ * y₁) / (1 + E.d * x₁ * x₂ * y₁ * y₂))
       ((y₁ * y₂ - x₁ * x₂) / (1 - E.d * x₁ * x₂ * y₁ * y₂)) := by
   simp only [Equation] at h₁ h₂ ⊢
+  have hgoal := equation_add_identity E.d x₁ y₁ x₂ y₂ h₁ h₂
   have hplus' : 1 + x₁ * y₂ * x₂ * y₁ * E.d ≠ 0 := by convert hplus using 1; ring
   have hminus' : 1 - x₁ * y₂ * x₂ * y₁ * E.d ≠ 0 := by convert hminus using 1; ring
   field_simp [hplus', hminus']
-  linear_combination equation_add_identity E.d x₁ y₁ x₂ y₂ h₁ h₂
+  linear_combination hgoal
 
 /-- In characteristic two, a non-square parameter forces `R.x * R.y = 0` for every point `R`. -/
 lemma mul_xy_eq_zero_of_two_eq_zero (h2 : (2 : F) = 0) (hd : ¬IsSquare E.d)
@@ -186,27 +187,48 @@ lemma mul_xy_eq_zero_of_two_eq_zero (h2 : (2 : F) = 0) (hd : ¬IsSquare E.d)
 private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSquare E.d)
     (P Q : E.Point) :
     1 + E.d * P.x * Q.x * P.y * Q.y ≠ 0 := by
-  obtain ⟨x₁, y₁, h₁⟩ := P; obtain ⟨x₂, y₂, h₂⟩ := Q
+  set x₁ := P.x
+  set y₁ := P.y
+  set x₂ := Q.x
+  set y₂ := Q.y
+  set ε := E.d * x₁ * x₂ * y₁ * y₂
+  have hL : (1 - ε) ^ 2 * (x₁ * y₂ + x₂ * y₁) ^ 2 + (1 + ε) ^ 2 * (y₁ * y₂ - x₁ * x₂) ^ 2 =
+      (1 + ε) ^ 2 * (1 - ε) ^ 2 + E.d * (x₁ * y₂ + x₂ * y₁) ^ 2 * (y₁ * y₂ - x₁ * x₂) ^ 2 :=
+    equation_add_identity E.d x₁ y₁ x₂ y₂ P.eq Q.eq
   intro hplus
-  have hL := equation_add_identity E.d x₁ y₁ x₂ y₂ h₁ h₂
-  have hε : E.d * x₁ * x₂ * y₁ * y₂ = -1 := by linear_combination hplus
-  rw [hε] at hL
+  have hε : ε = -1 := by linear_combination hplus
+  have h4 : 4 * (x₁ * y₂ + x₂ * y₁) ^ 2 =
+      E.d * (x₁ * y₂ + x₂ * y₁) ^ 2 * (y₁ * y₂ - x₁ * x₂) ^ 2 := by
+    rw [hε] at hL
+    linear_combination hL
   by_cases hsum : x₁ * y₂ + x₂ * y₁ = 0
-  · have hsq : E.d * (x₁ * y₂) ^ 2 = 1 := by linear_combination -hplus + E.d * x₁ * y₂ * hsum
-    exact hd ⟨(x₁ * y₂)⁻¹, by
-      rw [← sq, inv_pow, ← one_div, eq_div_iff (right_ne_zero_of_mul_eq_one hsq), hsq]⟩
-  · have h4 : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 :=
-      mul_right_cancel₀ (pow_ne_zero 2 hsum) (by linear_combination -hL)
-    have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 :=
-      fun hz => mul_ne_zero h2 h2 (by linear_combination -h4 + E.d * hz)
-    exact hd ⟨2 / (y₁ * y₂ - x₁ * x₂), by
-      rw [← sq, div_pow, eq_div_iff hnz]; linear_combination h4⟩
+  · apply hd
+    refine ⟨(x₁ * y₂)⁻¹, ?_⟩
+    have hxy : x₂ * y₁ = -(x₁ * y₂) := by linear_combination hsum
+    have hsq : E.d * (x₁ * y₂) ^ 2 = 1 := by
+      linear_combination -hε + E.d * (x₁ * y₂) * hxy
+    have hnz : x₁ * y₂ ≠ 0 := fun hz ↦ by rw [hz] at hsq; simp at hsq
+    exact (eq_mul_inv_iff_mul_eq₀ hnz).mpr (eq_inv_of_mul_eq_one_left (by linear_combination hsq))
+  · have h4' : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 := by
+      apply mul_right_cancel₀ (pow_ne_zero 2 hsum)
+      linear_combination -h4
+    apply hd
+    refine ⟨2 / (y₁ * y₂ - x₁ * x₂), ?_⟩
+    have h4ne : (4 : F) ≠ 0 := by
+      rw [show (4 : F) = 2 * 2 by ring]
+      exact mul_ne_zero h2 h2
+    have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 := fun hz ↦
+      h4ne (by rw [hz, mul_zero] at h4'; exact h4'.symm)
+    rw [div_mul_div_comm, ← sq, ← sq, show (2 : F) ^ 2 = 4 by norm_num, eq_div_iff hnz]
+    exact h4'
 
 private lemma add_denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
     1 + E.d * P.x * Q.x * P.y * Q.y ≠ 0 := by
   by_cases h2 : (2 : F) = 0
-  · rw [show E.d * P.x * Q.x * P.y * Q.y = 0 by
-      linear_combination E.d * Q.x * Q.y * E.mul_xy_eq_zero_of_two_eq_zero h2 hd P]
+  · have h0 : E.d * P.x * Q.x * P.y * Q.y = 0 := by
+      have h := E.mul_xy_eq_zero_of_two_eq_zero h2 hd P
+      linear_combination E.d * Q.x * Q.y * h
+    rw [h0]
     simp
   · exact E.add_denom_ne_zero_of_two_ne_zero h2 hd P Q
 

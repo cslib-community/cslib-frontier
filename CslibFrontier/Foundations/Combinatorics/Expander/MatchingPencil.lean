@@ -190,7 +190,8 @@ theorem laplacianPencil_injective {L : Matrix V V ℝ} (hL : L.IsSymm)
     nlinarith [hgap x hx, mul_pos (sub_pos.mpr hbudget) hnorm]
   · have hp : (1 : V → ℝ) ⬝ᵥ diagonal w *ᵥ (1 : V → ℝ) = ∑ v, w v := by
       simp [dotProduct, mulVec_diagonal]
-    have hm : (1 : V → ℝ) ⬝ᵥ weightedMatching w σ *ᵥ (1 : V → ℝ) = ∑ v, w v := by simp [dotProduct]
+    have hm : (1 : V → ℝ) ⬝ᵥ weightedMatching w σ *ᵥ (1 : V → ℝ) = ∑ v, w v := by
+      simp [dotProduct]
     have hd : 0 ≤ (1 : V → ℝ) ⬝ᵥ coreDegree w *ᵥ (1 : V → ℝ) := by
       simp only [coreDegree, dotProduct, mulVec_diagonal, Pi.one_apply, mul_one, one_mul]
       exact sum_nonneg fun v _ => by linarith [hw1 v]

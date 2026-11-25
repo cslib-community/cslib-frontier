@@ -89,14 +89,13 @@ theorem rowNormPow_event_le (hs : s ≠ 0) (hNu : 0 ≤ N * u) {q : ℝ}
         |if Θ σ x then b x y else 0| ^ s) =
       ∑ i : V × V, if X σ i.1 ∧ Y σ i.2 ∧ Θ σ i.1 then |b i.1 i.2| ^ s else 0 := by
     rw [Fintype.sum_prod_type, sum_filter]
-    refine sum_congr rfl fun x _ => ?_
-    by_cases hx : X σ x <;> by_cases hΘ : Θ σ x <;> simp [hx, hΘ, sum_filter, hs]
+    exact sum_congr rfl fun x _ => by
+      by_cases hx : X σ x <;> by_cases hΘ : Θ σ x <;> simp [hx, hΘ, sum_filter, hs]
   have hpoint' (σ : Ω) :
       (∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), |b x y| ^ s) =
       ∑ i : V × V, if X σ i.1 ∧ Y σ i.2 then |b i.1 i.2| ^ s else 0 := by
     rw [Fintype.sum_prod_type, sum_filter]
-    refine sum_congr rfl fun x _ => ?_
-    by_cases hx : X σ x <;> simp [hx, sum_filter]
+    exact sum_congr rfl fun x _ => by by_cases hx : X σ x <;> simp [hx, sum_filter]
   simp only [rowNormPow, expect_eq_sum_div_card, card_univ, hpoint, hpoint']
   calc
     _ ≤ (N * u)⁻¹ *
@@ -118,13 +117,9 @@ theorem vertexNormPow_event_le_rowNormPow (hs : s ≠ 0) (hNu : 0 ≤ N * u) {q 
       q * rowNormPow s N u X Y (fun _ x y => b x y) := by
   calc
     _ ≤ rowNormPow s N u X Y (fun σ x y => if Θ σ x then b x y else 0) := by
-      unfold vertexNormPow rowNormPow
-      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.mpr hNu)
-      refine sum_le_sum fun x hx => ?_
-      by_cases hΘ : Θ σ x
-      · simp only [hΘ, ↓reduceIte]
-        exact hv σ x (mem_filter.mp hx).2
-      · simp [hΘ, hs]
+      refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => sum_le_sum fun x hx => ?_)
+        (inv_nonneg.mpr hNu)
+      by_cases hΘ : Θ σ x <;> simp [hΘ, hs, hv σ x (mem_filter.mp hx).2]
     _ ≤ _ := rowNormPow_event_le hs hNu hrare b
 
 /-- Conditional rarity controls the maximum deterministic error magnitude among retained
@@ -158,10 +153,8 @@ theorem vertexNormPow_heavyCountEvent_le (hs : s ≠ 0) (hNu : 0 ≤ N * u)
         rowNormPow s N u X Yt (fun _ x y => b x y) := by
   classical
   refine vertexNormPow_kthLargest_event_le hs hNu (fun x y => ?_) b
-  have h := Probability.card_filter_heavyCountEvent_le Y
+  simpa only [filter_filter, and_assoc] using Probability.card_filter_heavyCountEvent_le Y
     ({σ | X σ x ∧ Yt σ y} : Finset Ω) univ y ha hρ hρ1 hc (fun w _ => hd x w) (hmass x)
-    (fun w _ hdw hwy => ?_) hn
-  · simpa only [filter_filter, and_assoc] using h
-  · simpa only [filter_filter, and_assoc] using hpair x y w hdw hwy
+    (fun w _ hdw hwy => by simpa only [filter_filter, and_assoc] using hpair x y w hdw hwy) hn
 
 end Cslib

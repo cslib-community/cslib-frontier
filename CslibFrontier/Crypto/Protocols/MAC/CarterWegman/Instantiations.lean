@@ -306,16 +306,18 @@ theorem isDeltaUniversalHash_linearHashWordHash (msgLen : ℕ → ℕ) (n : ℕ)
       ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   let prepare (k : List Bool) : Fin n → BitString (msgLen n) :=
     BitString.block (BitString.ofList (n * msgLen n) k)
-  rw [show (fun k (m : BitString (msgLen n)) =>
+  have hfn : (fun k (m : BitString (msgLen n)) =>
       BitString.ofList n (BitString.LinearHash.wordHash n k (List.ofFn m))) =
-    fun k m => BitString.LinearHash.hash (prepare k) m from
-    funext₂ fun k m => by rw [BitString.LinearHash.wordHash_eq_ofFn, BitString.ofList_ofFn]]
+      fun k m => BitString.LinearHash.hash (prepare k) m :=
+    funext₂ fun k m => by rw [BitString.LinearHash.wordHash_eq_ofFn, BitString.ofList_ofFn]
+  have hcomp : prepare ∘ List.ofFn =
+      (BitString.blocksEquiv (m := n) (k := msgLen n) :
+        BitString (n * msgLen n) ≃ (Fin n → BitString (msgLen n))) :=
+    funext fun s => by simp [prepare, BitString.ofList_ofFn, BitString.blocksEquiv_apply]
+  rw [hfn]
   refine IsDeltaUniversalHash.precompose_seed
     (ProbComp.eval (BitString.sampleList (n * msgLen n))) prepare ?_
-  rw [BitString.eval_sampleList, BitString.uniformList, PMF.map_comp,
-    show prepare ∘ List.ofFn = (BitString.blocksEquiv (m := n) (k := msgLen n) :
-      BitString (n * msgLen n) ≃ (Fin n → BitString (msgLen n))) from
-      funext fun s => by simp [prepare, BitString.ofList_ofFn, BitString.blocksEquiv_apply],
+  rw [BitString.eval_sampleList, BitString.uniformList, PMF.map_comp, hcomp,
     PMF.uniformOfFintype_map_equiv]
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
     BitString.LinearHash.isDeltaUniversalHash (msgLen n) n

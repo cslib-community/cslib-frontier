@@ -46,6 +46,9 @@ changed one entry. To have `git merge` use it for `references.bib`, run once per
 The manual's [bibliography](manual/sources.md) has one too, which merges its entries by key and
 the lines of each entry three ways, so edits to different lines of one entry merge:
 `git config merge.sourcesmd.driver 'python3 scripts/resolve_sources_conflict.py --driver %O %A %B'`.
+That file has one sentence per line, so that such edits touch different lines;
+`python3 scripts/sources_format.py --write` writes it so, and `scripts/check_operator_manual.py`
+reports lines that are not.
 The `mk_all` import aggregates have a similar opt-in driver, which merges their import lines as
 sets and writes them sorted:
 `git config merge.leanagg.driver 'python3 scripts/resolve_aggregate_conflict.py %O %A %B'`.

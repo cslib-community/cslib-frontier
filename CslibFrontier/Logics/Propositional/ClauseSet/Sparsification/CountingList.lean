@@ -133,7 +133,8 @@ theorem Clause.isTautology_eq_true_iff {C : Clause V} :
 theorem Clause.isTautology_eq_false_iff {C : Clause V} :
     Clause.isTautology C = false ↔ ∀ l ∈ C, Std.Sat.Literal.negate l ∉ C := by
   rw [← Bool.not_eq_true, Clause.isTautology_eq_true_iff]
-  push Not; rfl
+  push Not
+  rfl
 
 /-- Any tautological clause evaluates to `true` under every assignment. -/
 theorem eval_eq_true_of_isTautology {C : Clause V} (h : Clause.isTautology C = true)
@@ -226,7 +227,8 @@ theorem countingNormalized_countingNormalize {k : ℕ} {φ : CNF V}
 theorem toClauseSet_negatedHeartUnits (H : Clause V) :
     (negatedHeartUnits H).toClauseSet =
       ClauseSet.Sparsification.negatedHeartUnits H.toFinset := by
-  ext C; simp [negatedHeartUnits, ClauseSet.Sparsification.negatedHeartUnits, CNF.toClauseSet]
+  ext C
+  simp [negatedHeartUnits, ClauseSet.Sparsification.negatedHeartUnits, CNF.toClauseSet]
 
 /-- The list-level counting children compute the clause-set counting children. -/
 theorem toClauseSet_countingChild {ψ : CNF V} (hnd : ∀ C ∈ ψ, C.Nodup) (c : ℕ) (H : Clause V)
@@ -305,7 +307,9 @@ theorem countingNormalized_countingChild {k : ℕ} {ψ : CNF V} (hk : 1 ≤ k)
           cases bv <;> exact Bool.noConfusion (congrArg Prod.snd hneg)
   exact ⟨⟨fun C hC => (hall C hC).1, fun C hC => (hall C hC).2.1,
     ((reduce_sublist _).map _).nodup (nodup_toFinset_dedupClauses _),
-    by rw [countingChild, toClauseSet_reduce]; exact reduced_reduce _⟩,
+    by
+      rw [countingChild, toClauseSet_reduce]
+      exact reduced_reduce _⟩,
     fun C hC => (hall C hC).2.2⟩
 
 private theorem choice_snd_sublist_or_nil (θ : ℕ → ℕ) (k : ℕ) (ψ : CNF V) :
@@ -343,7 +347,8 @@ theorem support_countingChild {ψ : CNF V} {c : ℕ} {H : Clause V} {declared : 
         List.mem_map] at hC
       rcases hC with ⟨D, hD, rfl⟩ | ⟨l₀, hl₀, rfl⟩
       · exact hψ D (List.filter_sublist.subset hD) l (List.mem_filter.mp hl).1
-      · rw [List.mem_singleton.mp hl]; exact hH l₀ hl₀
+      · rw [List.mem_singleton.mp hl]
+        exact hH l₀ hl₀
 
 /-- Every literal occurring in `countingNext θ k ψ b` has its variable in `declared` whenever `ψ`
 does. -/

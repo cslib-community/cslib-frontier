@@ -73,8 +73,7 @@ multiplicity the least residue modulo `M` of the subset Möbius coefficient of `
 theorem card_le_of_mem_mobiusGates {D M : ℕ} {c : (T → Bool) → ℤ} {S : Finset T}
     (hS : S ∈ mobiusGates D M c) : #S ≤ D := by
   obtain ⟨U, hU, hSU⟩ := Multiset.mem_bind.1 hS
-  rw [Multiset.eq_of_mem_replicate hSU]
-  exact (mem_filter.1 hU).2
+  exact Multiset.eq_of_mem_replicate hSU ▸ (mem_filter.1 hU).2
 
 /-- There are at most `M (|T| + 1) ^ D` gates: fewer than `M` copies of each set of at most `D`
 positions. -/
@@ -85,9 +84,7 @@ theorem card_mobiusGates_le (D : ℕ) {M : ℕ} (hM : 0 < M) (c : (T → Bool) �
     Multiset.card (Multiset.replicate _ S) ≤ _
   simp only [Multiset.card_replicate]
   calc _ ≤ ∑ _S ∈ univ.filter (fun S : Finset T => #S ≤ D), M :=
-        sum_le_sum fun S _ => by
-          rw [Int.toNat_le]
-          exact (Int.emod_lt_of_pos _ (by exact_mod_cast hM)).le
+        sum_le_sum fun S _ => Int.toNat_le.2 (Int.emod_lt_of_pos _ (by exact_mod_cast hM)).le
     _ = M * #(univ.filter fun S : Finset T => #S ≤ D) := by rw [sum_const, smul_eq_mul, mul_comm]
     _ ≤ M * (Fintype.card T + 1) ^ D := Nat.mul_le_mul_left M (card_filter_card_le_le_pow D)
 
@@ -101,15 +98,13 @@ number of satisfied gates of `ofLowDegree D M c out` is congruent to `c` modulo 
 theorem natCast_count_ofLowDegree_modEq {D : ℕ} {c : (T → Bool) → ℤ}
     (hc : c ∈ lowDegree ℤ T D) {M : ℕ} (hM : 0 < M) (out : ℕ → Bool) (x : T → Bool) :
     ((ofLowDegree D M c out).count x : ℤ) ≡ c x [ZMOD M] := by
-  have hc' := mem_lowDegree_iff_subsetMobius_eq_zero.1 hc
   rw [natCast_count_eq_sum, congrFun (eq_sum_subsetMobius_smul_monomial c) x]
   simp only [ofLowDegree, mobiusGates, Multiset.map_bind, Multiset.sum_bind,
     Multiset.map_replicate, Multiset.sum_replicate, Finset.sum_apply, Pi.smul_apply,
     smul_eq_mul, nsmul_eq_mul]
   change ∑ S ∈ univ.filter (fun S : Finset T => #S ≤ D), _ ≡ _ [ZMOD M]
-  conv_rhs => rw [← sum_filter_of_ne (p := fun S : Finset T => #S ≤ D) fun S _ hS => by
-    by_contra h
-    exact hS (by rw [hc' S (by omega), zero_mul])]
+  conv_rhs => rw [← sum_filter_of_ne (p := fun S : Finset T => #S ≤ D) fun S _ hS =>
+    not_lt.1 fun h => hS (by rw [mem_lowDegree_iff_subsetMobius_eq_zero.1 hc S h, zero_mul])]
   refine Int.ModEq.sum fun S _ => Int.ModEq.mul_right _ ?_
   rw [Int.toNat_of_nonneg (Int.emod_nonneg _ (by exact_mod_cast hM.ne'))]
   exact Int.mod_modEq _ _
@@ -120,8 +115,7 @@ theorem count_ofLowDegree_mod {D : ℕ} {c : (T → Bool) → ℤ} (hc : c ∈ l
     (ofLowDegree D M c out).count x % M = (c x % M).toNat := by
   have h : ((ofLowDegree D M c out).count x : ℤ) % M = c x % M :=
     natCast_count_ofLowDegree_modEq hc hM out x
-  have h' : (((ofLowDegree D M c out).count x % M : ℕ) : ℤ) = c x % M := by grind
-  rw [← h', Int.toNat_natCast]
+  rw [← (by grind : (((ofLowDegree D M c out).count x % M : ℕ) : ℤ) = c x % M), Int.toNat_natCast]
 
 /-- **What the canonical circuit computes**: `out` of the least residue of `c x` modulo `M`, for
 `c` of degree at most `D` and `M > 0`. -/

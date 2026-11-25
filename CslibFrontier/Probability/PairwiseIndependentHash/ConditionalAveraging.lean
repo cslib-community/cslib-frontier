@@ -116,15 +116,17 @@ theorem coordMove_symm (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) 
     (coordMove (P := P) (r := r) (L := L) g c).symm =
       coordMove g⁻¹
         (-(((g⁻¹ : SpecialLinearGroup (Fin H) ℤ) : Matrix (Fin H) (Fin H) ℤ) *ᵥ c)) := by
-  refine Equiv.ext fun ⟨F, w⟩ ↦ (coordMove (P := P) (r := r) (L := L) g c).injective ?_
+  refine Equiv.ext fun p ↦ (coordMove (P := P) (r := r) (L := L) g c).injective ?_
   rw [Equiv.apply_symm_apply]
+  obtain ⟨F, w⟩ := p
   ext j i
   · simp only [coordMove, Equiv.prodCongr_apply, Prod.map_fst, Frame.mapSL_apply, mulVec_mulVec,
       ← SpecialLinearGroup.coe_mul, ← map_mul, mul_inv_cancel, map_one, SpecialLinearGroup.coe_one,
       one_mulVec]
   · have hc : (fun i ↦ (((-(((g⁻¹ : SpecialLinearGroup (Fin H) ℤ) : Matrix (Fin H) (Fin H) ℤ) *ᵥ
         c)) i : ℤ) : ZMod L)) = -((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g⁻¹ :
-          Matrix (Fin H) (Fin H) (ZMod L)) *ᵥ fun i ↦ (c i : ZMod L)) := funext fun i ↦ by
+          Matrix (Fin H) (Fin H) (ZMod L)) *ᵥ fun i ↦ (c i : ZMod L)) := by
+      ext i
       rw [Pi.neg_apply, Pi.neg_apply, Int.cast_neg, SpecialLinearGroup.map_apply_coe,
         RingHom.mapMatrix_apply]
       exact congrArg Neg.neg (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ c i)
@@ -159,7 +161,8 @@ theorem expect_walk_pow_sliceGraph_sub_expect_sq_le [NeZero L] (hL : L ≤ P) {D
     𝔼 A, (((sliceGraph L hL y G).walk ^ t) f A - 𝔼 B, f B) ^ 2 ≤
       lam ^ (2 * t) * 𝔼 A, (f A - 𝔼 B, f B) ^ 2 := by
   refine ((sliceGraph L hL y G).expect_walk_pow_sub_expect_sq_le t f).trans ?_
-  rw [spectralExpansion_sliceGraph]; gcongr
+  rw [spectralExpansion_sliceGraph]
+  gcongr
 
 /-! ### Validated variants -/
 
@@ -250,33 +253,38 @@ theorem variantMove_wrap_eq [NeZero L] (hL : L ≤ P) {y : ZMod P}
     (g : SpecialLinearGroup (Fin H) ℤ) (c : Fin H → ℤ) (A : RetentionSlice P H r L y) :
     variantMove L g c (wrap L g c (A.1.eval y)) A.1 =
       ((sliceEquiv hL y).symm (coordMove g c (sliceEquiv hL y A))).1 := by
-  have hmul (R : Type) [CommRing R] (i : Fin H) :
-      ((SpecialLinearGroup.map (Int.castRingHom R) g : Matrix _ _ R) *ᵥ
-        fun j ↦ (((A.1.eval y j).val : ℕ) : R)) i =
-        ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.1.eval y j).val : ℤ)) i : ℤ) : R) := by
-    rw [SpecialLinearGroup.map_apply_coe, RingHom.mapMatrix_apply,
-      show (fun j ↦ (((A.1.eval y j).val : ℕ) : R)) =
-        Int.castRingHom R ∘ fun j ↦ ((A.1.eval y j).val : ℤ) by ext; simp]
-    exact (RingHom.map_mulVec (Int.castRingHom R) _ _ i).symm
-  refine (FrameChannel.evalEquiv y).injective (Prod.ext (funext fun i ↦ ?_) rfl)
-  have hP : ((SpecialLinearGroup.map (Int.castRingHom (ZMod P)) g : Matrix _ _ (ZMod P)) *ᵥ
-      A.1.eval y) i =
-      ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.1.eval y j).val : ℤ)) i : ℤ) : ZMod P) := by
-    simpa only [ZMod.natCast_val, ZMod.cast_id', id_eq] using hmul (ZMod P) i
-  have hLmod : (((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g : Matrix _ _ (ZMod L)) *ᵥ
-      fun j ↦ (((A.1.eval y j).val : ℕ) : ZMod L)) i + (c i : ZMod L)) =
-        ((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L) := by
-    simp only [hmul (ZMod L) i, wrapTarget, Pi.add_apply, Int.cast_add]
-  have hval : ((((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L).val : ℕ) : ZMod P) =
-      ((wrapTarget g c (A.1.eval y) i % L : ℤ) : ZMod P) := by
-    rw [← ZMod.val_intCast, Int.cast_natCast]
-  simp only [FrameChannel.evalEquiv_apply, eval_variantMove, Pi.add_apply, hP,
-    eval_sliceEquiv_symm, sliceEquiv_apply, coordMove, Equiv.prodCongr_apply, Prod.map_snd,
-    affineSL_apply, hLmod, hval]
-  rw [Int.emod_def]
-  simp only [wrap, wrapTarget, Pi.add_apply]
-  push_cast
-  ring
+  refine (FrameChannel.evalEquiv y).injective (Prod.ext (funext fun i ↦ ?_) ?_)
+  · have hrep : A.1.eval y = fun j ↦ (((A.1.eval y j).val : ℤ) : ZMod P) := by
+      ext j
+      simp
+    have hP : ((SpecialLinearGroup.map (Int.castRingHom (ZMod P)) g : Matrix _ _ (ZMod P)) *ᵥ
+        A.1.eval y) i = ((((g : Matrix _ _ ℤ) *ᵥ fun j ↦ ((A.1.eval y j).val : ℤ)) i : ℤ) :
+          ZMod P) := by
+      conv_lhs => rw [hrep]
+      rw [SpecialLinearGroup.map_apply_coe, RingHom.mapMatrix_apply]
+      exact (RingHom.map_mulVec (Int.castRingHom (ZMod P)) _ _ i).symm
+    have hLmod : (((SpecialLinearGroup.map (Int.castRingHom (ZMod L)) g : Matrix _ _ (ZMod L)) *ᵥ
+        fun j ↦ (((A.1.eval y j).val : ℕ) : ZMod L)) i + (c i : ZMod L)) =
+          ((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L) := by
+      have hcast : (fun j ↦ (((A.1.eval y j).val : ℕ) : ZMod L)) =
+          Int.castRingHom (ZMod L) ∘ fun j ↦ ((A.1.eval y j).val : ℤ) := by
+        ext j
+        simp
+      rw [wrapTarget, Pi.add_apply, Int.cast_add, SpecialLinearGroup.map_apply_coe,
+        RingHom.mapMatrix_apply, hcast]
+      exact congrArg (· + (c i : ZMod L))
+        (RingHom.map_mulVec (Int.castRingHom (ZMod L)) _ _ i).symm
+    have hval : ((((wrapTarget g c (A.1.eval y) i : ℤ) : ZMod L).val : ℕ) : ZMod P) =
+        ((wrapTarget g c (A.1.eval y) i % L : ℤ) : ZMod P) := by
+      rw [← ZMod.val_intCast, Int.cast_natCast]
+    simp only [FrameChannel.evalEquiv_apply, eval_variantMove, Pi.add_apply, hP,
+      eval_sliceEquiv_symm, sliceEquiv_apply, coordMove, Equiv.prodCongr_apply, Prod.map_snd,
+      affineSL_apply, hLmod, hval]
+    rw [Int.emod_def]
+    simp only [wrap, wrapTarget, Pi.add_apply]
+    push_cast
+    ring
+  · rfl
 
 /-- **Exactly one variant survives** (Lemma 6.3, items 3 and 4, for one step). For a channel
 retaining `y` and any candidate set `Z` of wraps containing the valid one, the sum over `Z` of

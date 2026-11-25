@@ -174,7 +174,8 @@ theorem uniformList_map_simCoins (k : ℕ) (τ : Circuit.Topology n m s)
   have h : (fun coins => ((simWireLabels k coins : Wire n s → _), simFillerRows k τ coins)) =
       (E : _ → _) ∘ fun coins i =>
         BitString.ofList (k + 2) (BitString.listRow (k + 2) (e i) coins) := by
-    funext coins; rfl
+    funext coins
+    rfl
   rw [h, ← PMF.map_comp, simCoinLen, BitString.uniformList_map_listRow_equiv e (k + 2)]
   exact PMF.uniformOfFintype_map_equiv E
 
@@ -244,9 +245,11 @@ private theorem labelBits_simulateWith (k : ℕ) (f : ValidCircuit) (y : Fin f.1
       simRow family k f.1.topo coins (g.cast (size_toCircuit f)) i := by
   have harity := arity_topology_toCircuit f g
   have hw₀ : ((toCircuit f).topology.wires g ⟨0, by omega⟩).toNat =
-      f.1.A (g.cast (size_toCircuit f)) - 1 := by rw [toNat_wires_toCircuit]; rfl
+      f.1.A (g.cast (size_toCircuit f)) - 1 := by
+    rw [toNat_wires_toCircuit]; rfl
   have hw₁ : ((toCircuit f).topology.wires g ⟨1, by omega⟩).toNat =
-      f.1.B (g.cast (size_toCircuit f)) - 1 := by rw [toNat_wires_toCircuit]; rfl
+      f.1.B (g.cast (size_toCircuit f)) - 1 := by
+    rw [toNat_wires_toCircuit]; rfl
   simp only [simulateWith, rowOf, simFillerRows, slotTweak, rowIndex_testBit_of_eq_two harity hi,
     testBit_eq_iff_of_eq_two harity hi, rowIndex_of_eq_two harity]
   rw [← Fin.sum_congr' _ harity.symm, Fin.sum_univ_two]
@@ -438,7 +441,8 @@ private theorem simTopoData_polyTime :
 private theorem simGateCount_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.2.2.1.gateList.length)
       encSimInput encUnary :=
-  (ComputableInPolyTime.length_list _).comp simTopoData_polyTime.snd'.snd'
+  (ComputableInPolyTime.length_list _).comp
+    simTopoData_polyTime.snd'.snd'
 
 private theorem simCoinLen_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo =>
@@ -448,7 +452,8 @@ private theorem simCoinLen_polyTime :
   have hn : ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.2.2.1.n) encSimInput
       encUnary := simTopoData_polyTime.fst'
   have hq := simGateCount_polyTime
-  unfold simCoinLen; polytime
+  unfold simCoinLen
+  polytime
 
 include hf in
 private theorem simViewWord_polyTime :

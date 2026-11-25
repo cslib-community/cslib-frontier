@@ -141,15 +141,14 @@ theorem addSqDist_eq (c : R) (r : ι) (x y : Fin ℓ → R) (T : (ι → Fin ℓ
     addSqDist c r x y T = (T.1, T.2 + c * ((x - y) ⬝ᵥ (x - y))) := by
   obtain ⟨S, z⟩ := T
   simp only [addSqDist, Function.update_self, Function.update_idem, add_sub_cancel_right,
-    Function.update_eq_self, Prod.mk.injEq, true_and]
-  simp only [sub_dotProduct, dotProduct_sub, add_dotProduct, dotProduct_comm y x]
+    Function.update_eq_self, Prod.mk.injEq, true_and, sub_dotProduct, dotProduct_sub,
+    add_dotProduct, dotProduct_comm y x]
   ring
 
 /-- The call with `-c` undoes the call with `c`. -/
 theorem addSqDist_neg_addSqDist (c : R) (r : ι) (x y : Fin ℓ → R)
     (T : (ι → Fin ℓ → R) × R) : addSqDist (-c) r x y (addSqDist c r x y T) = T := by
-  simp only [addSqDist_eq]
-  ring_nf
+  simp only [addSqDist_eq]; ring_nf
 
 variable [DecidableEq R]
 
@@ -203,22 +202,19 @@ theorem natCast_sqDist_eq_zero_iff {x y : Fin ℓ → ℕ} (hx : ∀ i, x i < b)
     simp only [hD, dotProduct, Pi.sub_apply, Function.comp_apply]
     push_cast
     simp only [sq]
-  have hterm (i : Fin ℓ) : ((x i : ℤ) - y i) ^ 2 ≤ ((b - 1 : ℕ) : ℤ) ^ 2 := by
-    have hxi := hx i
-    have hyi := hy i
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
-    exact sq_le_sq' (by omega) (by omega)
-  have hle : D ≤ ℓ * ((b - 1 : ℕ) : ℤ) ^ 2 := by
-    calc D ≤ ∑ _i : Fin ℓ, ((b - 1 : ℕ) : ℤ) ^ 2 := Finset.sum_le_sum fun i _ => hterm i
+  have hle : D ≤ ℓ * ((b - 1 : ℕ) : ℤ) ^ 2 :=
+    calc D ≤ ∑ _i : Fin ℓ, ((b - 1 : ℕ) : ℤ) ^ 2 := Finset.sum_le_sum fun i _ => by
+          have := hx i
+          have := hy i
+          rw [Nat.cast_sub (by omega), Nat.cast_one]
+          exact sq_le_sq' (by omega) (by omega)
       _ = ℓ * ((b - 1 : ℕ) : ℤ) ^ 2 := by simp
-  have hnn : 0 ≤ D := Finset.sum_nonneg fun i _ => sq_nonneg _
-  have hlt : D < m := hle.trans_lt (by exact_mod_cast hm)
   rw [hcast, ZMod.intCast_zmod_eq_zero_iff_dvd] at h
-  have hD0 : D = 0 := Int.eq_zero_of_dvd_of_nonneg_of_lt hnn hlt h
+  have hD0 := Int.eq_zero_of_dvd_of_nonneg_of_lt (Finset.sum_nonneg fun _ _ => sq_nonneg _)
+    (hle.trans_lt (by exact_mod_cast hm)) h
   funext i
-  have hi := (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg ((x i : ℤ) - y i)).mp hD0 i
-    (Finset.mem_univ i)
-  have := pow_eq_zero_iff (n := 2) (by norm_num) |>.mp hi
+  have hi := pow_eq_zero_iff (n := 2) (by norm_num) |>.mp
+    ((Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg _).mp hD0 i (Finset.mem_univ i))
   omega
 
 /-- Over `ZMod m`, the restoring equality test of digit vectors below `b` is exact when
@@ -277,12 +273,9 @@ theorem keyTest_eq (c : M) (a b : κ) (V : κ → M) (s : M) :
     keyTest c a b V s = (V, s + if a = b then c else 0) := by
   simp only [keyTest, Function.update_self, add_sub_cancel_right, Function.update_idem,
     Function.update_eq_self, Prod.mk.injEq, true_and]
-  by_cases h : a = b
-  · subst h
-    simp only [Function.update_self, ite_true]
-    abel
-  · simp only [Function.update_of_ne (Ne.symm h), h, ↓reduceIte]
-    abel
+  rcases eq_or_ne a b with rfl | h
+  · simp only [Function.update_self, ite_true]; abel
+  · simp only [Function.update_of_ne h.symm, h, ↓reduceIte]; abel
 
 end Key
 

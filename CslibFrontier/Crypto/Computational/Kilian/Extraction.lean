@@ -766,11 +766,11 @@ private theorem toOuterMeasure_kilianSingleRun_getElem_le (V : PCPVerifier α) (
     split_ifs with h
     · subst h
       rfl
-    · rw [← PMF.toOuterMeasure_apply_inter_support,
-        show {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} ∩
-            (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).support = ∅ from
-          Set.eq_empty_iff_forall_notMem.mpr fun run ⟨⟨hget, _⟩, hsup⟩ =>
-            h (Option.some.inj ((mem_of_mem_support_kilianPlantedRun hi hsup).1.symm.trans hget)),
+    · have hempty : {run | run.challenges[i]? = some ρ₀ ∧ acc run = true} ∩
+          (ProbComp.eval (kilianPlantedRun V P n cm ρ' i)).support = ∅ :=
+        Set.eq_empty_iff_forall_notMem.mpr fun run ⟨⟨hget, _⟩, hsup⟩ =>
+          h (Option.some.inj ((mem_of_mem_support_kilianPlantedRun hi hsup).1.symm.trans hget))
+      rw [← PMF.toOuterMeasure_apply_inter_support, hempty,
         MeasureTheory.measure_empty, mul_zero]
   rw [tsum_congr hsingle, tsum_ite_eq, BitString.eval_sampleList]
   exact mul_le_mul' (BitString.uniformList_apply_le _ _)
@@ -1146,15 +1146,16 @@ theorem succProbability_kilianAcceptGame_le_extracted
               (MeasureTheory.measure_union_le _ _).trans
                 (add_le_add le_rfl (MeasureTheory.measure_union_le _ _))
           _ = _ := by ring
+      have hb : collected.toOuterMeasure Ebind = bKernel s true :=
+        (map_apply_true collected _).symm
+      have he : collected.toOuterMeasure Eext = eKernel s true :=
+        (map_apply_true collected _).symm
       calc (ProbComp.eval (kilianSingleRun V P n s.2)).toOuterMeasure {y | acc y = true}
           ≤ 1 := Probability.PMF.toOuterMeasure_le_one _ _
         _ ≤ collected.toOuterMeasure Ecovᶜ + collected.toOuterMeasure Ebind +
               collected.toOuterMeasure Eext := h1
         _ ≤ (M : ℝ≥0∞) * ENNReal.ofReal ((1 - θ) ^ T n) + bKernel s true + eKernel s true := by
-            rw [hcompCov, show collected.toOuterMeasure Ebind = bKernel s true from
-                (map_apply_true collected _).symm,
-              show collected.toOuterMeasure Eext = eKernel s true from
-                (map_apply_true collected _).symm]
+            rw [hcompCov, hb, he]
             gcongr
         _ ≤ errConst + bKernel s true + eKernel s true := by
             simp only [errConst]

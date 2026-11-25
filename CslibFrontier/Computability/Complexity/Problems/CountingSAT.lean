@@ -232,7 +232,8 @@ theorem SharpSATExact_ceqPComplete :
   refine ⟨fun a => ⟨r a, 2 ^ p.eval (enc a).length⟩,
     by simpa using encSharpSATTarget_mk_polyTime hr (computableInPolyTime_two_pow_add enc p 0),
     fun a => ?_⟩
-  have h₁ := hfr a; have h₂ := hle a
+  have h₁ := hfr a
+  have h₂ := hle a
   simp only [Pi.add_apply] at h₁
   simp only [SharpSATExact, Set.mem_ofPred_eq, hA a, ← h₁]; omega
 
@@ -317,8 +318,10 @@ private theorem odd_of_mem_vars_shiftOdd {φ : CNF ℕ} {v : ℕ} (hv : v ∈ (s
 
 private theorem card_vars_shiftOdd (φ : CNF ℕ) :
     (shiftOdd φ).vars.toFinset.card = φ.vars.toFinset.card := by
-  rw [show (shiftOdd φ).vars.toFinset = φ.vars.toFinset.image (fun v => v + v + 1) by
-    ext; simp [shiftOdd, CNF.vars_relabel], Finset.card_image_of_injective _ injective_shiftOdd_fn]
+  have heq : (shiftOdd φ).vars.toFinset = φ.vars.toFinset.image (fun v => v + v + 1) := by
+    ext
+    simp [shiftOdd, CNF.vars_relabel]
+  rw [heq, Finset.card_image_of_injective _ injective_shiftOdd_fn]
 
 private theorem mem_vars_padMajority {φ : CNF ℕ} {Q v : ℕ} :
     v ∈ (padMajority φ Q).vars ↔
@@ -355,7 +358,8 @@ theorem card_vars_padMajority (φ : CNF ℕ) (Q : ℕ) :
       Finset.mem_singleton, Finset.mem_image, Finset.mem_range, or_assoc, @eq_comm _ (_ + _ + 2)]
   have hd₀₁ : Disjoint ({0} : Finset ℕ) S₁ := by
     simp only [S₁, Finset.disjoint_singleton_left, Finset.mem_image, Finset.mem_range]
-    rintro ⟨j, -, h⟩; omega
+    rintro ⟨j, -, h⟩
+    omega
   have hd₀₁₂ : Disjoint ({0} ∪ S₁) S₂ := by
     refine Finset.disjoint_left.2 fun v hv₀₁ hv₂ => ?_
     have := odd_of_mem_vars_shiftOdd (List.mem_toFinset.1 hv₂)
@@ -402,9 +406,11 @@ private theorem padSplit_surjective (φ : CNF ℕ) (Q : ℕ) : Function.Surjecti
     else if v % 2 = 0 then (if h : v / 2 - 1 < Q then δ ⟨v / 2 - 1, h⟩ else false)
     else (shiftOdd φ).extendAssignment τ v,
     Prod.ext rfl (Prod.ext (funext fun j => ?_) (funext fun ⟨v, hv⟩ => ?_))⟩
-  · simp only [padSplit, show j.1 + j.1 + 2 ≠ 0 by omega, show (j.1 + j.1 + 2) % 2 = 0 by omega,
+  · -- The dummy variable `2 j + 2` is even and nonzero.
+    simp only [padSplit, show j.1 + j.1 + 2 ≠ 0 by omega, show (j.1 + j.1 + 2) % 2 = 0 by omega,
       show (j.1 + j.1 + 2) / 2 - 1 = j.1 by omega, j.2, ↓reduceIte, ↓reduceDIte, Fin.eta]
-  · have hv' := List.mem_toFinset.1 hv
+  · -- The variables of `shiftOdd φ` are odd.
+    have hv' := List.mem_toFinset.1 hv
     have := odd_of_mem_vars_shiftOdd hv'
     simp only [padSplit, show v ≠ 0 by omega, show ¬v % 2 = 0 by omega, ↓reduceIte,
       CNF.extendAssignment_of_mem _ hv']

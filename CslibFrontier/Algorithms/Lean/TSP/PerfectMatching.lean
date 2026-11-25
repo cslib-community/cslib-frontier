@@ -218,7 +218,8 @@ theorem sum_minPerfectMatching_le {δ : α → α → ℕ} (hsymm : ∀ x y, δ 
   fun_induction minPerfectMatching δ k O generalizing M with
   | case1 | case2 => simp
   | case3 k a L ih =>
-    obtain ⟨b, N, hperm, hw⟩ := exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
+    obtain ⟨b, N, hperm, hw⟩ :=
+      exists_perm_cons_cons hsymm (hM.symm.subset List.mem_cons_self)
     have hbN : (b :: endpoints N).Perm L := (hperm.symm.trans hM).cons_inv
     have hb : b ∈ L := hbN.subset List.mem_cons_self
     have hlen := List.length_erase_add_one hb

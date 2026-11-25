@@ -66,13 +66,18 @@ theorem exists_generatedWeight_isMinIsolating {w n : ℕ}
   let d := 4 * (Nat.log 2 m + 1)
   have hd : d ≤ codeLength w n :=
     (Nat.mul_le_mul_right _ (by decide)).trans (codeLength_bounds w n).1
-  have hbound : (n + 1) ^ 2 * w ^ 4 < 2 ^ d := calc
-    (n + 1) ^ 2 * w ^ 4 ≤ (n + 1) ^ 4 * w ^ 4 :=
-      Nat.mul_le_mul_right _ (Nat.pow_le_pow_right (Nat.succ_pos n) (by decide))
-    _ = m ^ 4 := by dsimp [m]; ring
-    _ < (2 ^ (Nat.log 2 m + 1)) ^ 4 :=
-      Nat.pow_lt_pow_left (Nat.lt_pow_succ_log_self (by decide) _) (by decide)
-    _ = 2 ^ d := by simp only [d, ← pow_mul, Nat.mul_comm]
+  have hbound : (n + 1) ^ 2 * w ^ 4 < 2 ^ d := by
+    calc
+      (n + 1) ^ 2 * w ^ 4 ≤ (n + 1) ^ 4 * w ^ 4 := by
+        apply Nat.mul_le_mul_right
+        calc
+          (n + 1) ^ 2 ≤ (n + 1) ^ 2 * (n + 1) ^ 2 :=
+            Nat.le_mul_of_pos_right _ (by positivity)
+          _ = (n + 1) ^ 4 := by ring
+      _ = m ^ 4 := by dsimp [m]; ring
+      _ < (2 ^ (Nat.log 2 m + 1)) ^ 4 :=
+        Nat.pow_lt_pow_left (Nat.lt_pow_succ_log_self (by decide) _) (by decide)
+      _ = 2 ^ d := by simp only [d, ← pow_mul, Nat.mul_comm]
   have hsize : ((n + 1) ^ 2 * Fintype.card (Fin w) ^ 4) * 2 ^ (codeLength w n - d) <
       2 ^ codeLength w n := by
     rw [Fintype.card_fin]

@@ -84,14 +84,8 @@ section AdditiveInstance
 theorem additiveAccessStructure_authorized_iff (m : ℕ) (s : Finset (Fin (m + 1))) :
     (additiveAccessStructure m).authorized s ↔ s = Finset.univ := by
   simp only [additiveAccessStructure, AccessStructure.threshold_authorized_iff]
-  constructor
-  · intro h
-    have hle := s.card_le_univ
-    rw [Fintype.card_fin] at hle
-    exact Finset.eq_univ_of_card s (by rw [Fintype.card_fin]; exact le_antisymm hle h)
-  · intro h
-    subst h
-    simp
+  exact ⟨fun h => Finset.eq_univ_of_card s (le_antisymm s.card_le_univ (by simpa using h)),
+    fun h => by simp [h]⟩
 
 /-- Additive secret sharing of `secret : G` among `m + 1` parties using `m` pads `r : Fin m → G`,
 delegated to `Cslib.ProbComp.completeShares (m + 1)`. -/
@@ -111,11 +105,8 @@ theorem additiveReconstruct_share {m : ℕ} {G : Type*} [AddCommGroup G]
     (hs : (additiveAccessStructure m).authorized s) :
     additiveReconstruct s (fun j => additiveShare r secret j.1) = secret := by
   classical
-  have huniv : s = Finset.univ := (additiveAccessStructure_authorized_iff m s).mp hs
-  have hall : ∀ j : Fin (m + 1), j ∈ s := fun j => huniv ▸ Finset.mem_univ j
-  simp only [additiveReconstruct, additiveShare]
-  split_ifs
-  exact Cslib.ProbComp.sum_completeShares (m + 1) secret r
+  have huniv := (additiveAccessStructure_authorized_iff m s).mp hs
+  simp [additiveReconstruct, additiveShare, huniv, Cslib.ProbComp.sum_completeShares]
 
 private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddCommGroup G]
     {P : PMF (Fin m → G)} (hP : ∀ δ, P.map (· + δ) = P)
@@ -131,35 +122,27 @@ private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddComm
     have hfun : (fun r (j : s) => additiveShare r m₀ j.1) =
         fun r (j : s) => additiveShare r m₁ j.1 := by
       ext r j
-      have hj_ne : j.1 ≠ Fin.last m := fun h => hj₀ (h ▸ j.2)
-      obtain ⟨i, hi⟩ := Fin.exists_castSucc_eq.mpr hj_ne
+      obtain ⟨i, hi⟩ := Fin.exists_castSucc_eq.mpr fun h => hj₀ (h ▸ j.2)
       have hcast : j.1 = Fin.castLE (Nat.sub_le (m + 1) 1) i := hi.symm
-      rw [hcast]
-      simp only [additiveShare, Cslib.ProbComp.completeShares_castLE]
+      simp only [hcast, additiveShare, Cslib.ProbComp.completeShares_castLE]
     simp only [AccessStructure.viewDistOf, hfun]
   | cast i₀ =>
     let δ : Fin m → G := Pi.single i₀ (m₁ - m₀)
-    have hshift : ∀ r, (fun j : s => additiveShare r m₀ j.1) =
-        fun j : s => additiveShare (r + δ) m₁ j.1 := by
-      intro r
-      ext j
-      induction j using Subtype.rec with | mk j hj =>
-      induction j using Fin.lastCases with
-      | last =>
-        have hsum : ∑ i : Fin m, (r i + δ i) = (∑ i : Fin m, r i) + (m₁ - m₀) := by
-          rw [Finset.sum_add_distrib]
-          simp [δ]
-        have hlast : (Fin.last m : Fin (m + 1)) = ⊤ := rfl
-        simp only [additiveShare, hlast, Cslib.ProbComp.completeShares_top]
-        change m₀ - ∑ i : Fin m, r i = m₁ - ∑ i : Fin m, (r + δ) i
-        simp only [Pi.add_apply, hsum]
-        abel
-      | cast i =>
-        have hi : i ≠ i₀ := fun h => hj₀ (h ▸ hj)
-        have hcast : i.castSucc = Fin.castLE (Nat.sub_le (m + 1) 1) i := rfl
-        simp only [additiveShare, hcast, Cslib.ProbComp.completeShares_castLE, Pi.add_apply, δ,
-          Pi.single_eq_of_ne hi, add_zero]
-    exact AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) hshift
+    refine AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) fun r => ?_
+    ext ⟨j, hj⟩
+    induction j using Fin.lastCases with
+    | last =>
+      have hsum : ∑ i : Fin m, (r i + δ i) = (∑ i : Fin m, r i) + (m₁ - m₀) := by
+        simp [Finset.sum_add_distrib, δ]
+      simp only [additiveShare, show (Fin.last m : Fin (m + 1)) = ⊤ from rfl,
+        Cslib.ProbComp.completeShares_top]
+      change m₀ - ∑ i : Fin m, r i = m₁ - ∑ i : Fin m, (r + δ) i
+      simp only [Pi.add_apply, hsum]
+      abel
+    | cast i =>
+      have hi : i ≠ i₀ := fun h => hj₀ (h ▸ hj)
+      simp only [additiveShare, show i.castSucc = Fin.castLE (Nat.sub_le (m + 1) 1) i from rfl,
+        Cslib.ProbComp.completeShares_castLE, Pi.add_apply, δ, Pi.single_eq_of_ne hi, add_zero]
 
 /-- `(m + 1)`-out-of-`(m + 1)` additive secret sharing over
 `SourceClass.translationInvariant (Fin m → G)`. For infinite `G` with `m ≥ 1`,

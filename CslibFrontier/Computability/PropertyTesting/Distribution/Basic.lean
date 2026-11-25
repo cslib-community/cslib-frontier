@@ -174,8 +174,12 @@ theorem acceptProb₂_pure_eq_one_sub {k : ℕ} (A : (Fin k → α) → (Fin k �
       1 - ∑ x, ∑ y, (iid p k x).toReal * (iid q k y).toReal * (if !A x y then 1 else 0) := by
   rw [acceptProb₂_pure, eq_sub_iff_add_eq, ← sum_add_distrib]
   refine (sum_congr rfl fun x _ => ?_).trans (sum_toReal (iid p k))
-  rw [← sum_add_distrib, show (∑ y, _) = ∑ y, (iid p k x).toReal * (iid q k y).toReal from
-    sum_congr rfl fun y _ => by cases A x y <;> simp, ← mul_sum, sum_toReal, mul_one]
+  rw [← sum_add_distrib]
+  calc ∑ y, ((iid p k x).toReal * (iid q k y).toReal * (if A x y then 1 else 0) +
+        (iid p k x).toReal * (iid q k y).toReal * (if !A x y then 1 else 0))
+      = ∑ y, (iid p k x).toReal * (iid q k y).toReal :=
+        sum_congr rfl fun y _ => by cases A x y <;> simp
+    _ = (iid p k x).toReal := by rw [← mul_sum, sum_toReal, mul_one]
 
 /-- A deterministic decision rule accepts with the probability of its acceptance region. -/
 theorem acceptProb_pure {k : ℕ} (A : (Fin k → α) → Bool) (p : PMF α) :
@@ -255,9 +259,11 @@ theorem acceptProb₂_bind_pi [Finite α] [Finite β] {k : ℕ} (F : α → PMF 
     acceptProb₂ (fun x y => (pi fun i => F (x i)).bind fun x' =>
         (pi fun i => F (y i)).bind fun y' => T x' y') p q =
       acceptProb₂ T (p.bind F) (q.bind F) := by
-  simp only [acceptProb₂_eq, iid_bind, PMF.bind_bind]
-  exact congrArg (fun m : PMF Bool => (m true).toReal)
-    (congrArg _ (funext fun _ => PMF.bind_comm _ _ _))
+  rw [acceptProb₂_eq, acceptProb₂_eq, iid_bind, iid_bind]
+  simp only [PMF.bind_bind]
+  congr 2
+  congr 1 with x : 1
+  rw [PMF.bind_comm]
 
 /-- **Reduction along a randomized map.** If `F` sends every member of `P` into `P'` and every
 distribution `ε`-far from `P` to one `ε'`-far from `P'`, then a `k`-sample tester for `P'` with

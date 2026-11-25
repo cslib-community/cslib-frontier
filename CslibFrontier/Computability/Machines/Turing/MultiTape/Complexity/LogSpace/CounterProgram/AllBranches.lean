@@ -163,7 +163,8 @@ theorem exists_haltsWithin (h : P.AllBranches w B Post (fun _ => False) s) :
   | halt hh _ _ =>
     exact ⟨0, fun _ _ => by rwa [NondeterministicQueryMachine.replay_of_halted _ _ hh]⟩
   | @step s hh _ _ ih =>
-    obtain ⟨t₀, h₀⟩ := ih false; obtain ⟨t₁, h₁⟩ := ih true
+    obtain ⟨t₀, h₀⟩ := ih false
+    obtain ⟨t₁, h₁⟩ := ih true
     refine ⟨max t₀ t₁ + 1, fun choices hlen => ?_⟩
     cases choices with
     | nil => simp at hlen
@@ -183,7 +184,8 @@ theorem replay (h : P.AllBranches w B Post (fun _ => False) s) (choices : List B
   induction h generalizing choices with
   | exit hq => exact hq.elim
   | halt hh hp hb =>
-    rw [NondeterministicQueryMachine.replay_of_halted _ _ hh]; exact ⟨hb, fun _ => hp⟩
+    rw [NondeterministicQueryMachine.replay_of_halted _ _ hh]
+    exact ⟨hb, fun _ => hp⟩
   | @step s hh hb _ ih =>
     cases choices with
     | nil => exact ⟨hb, fun h => absurd h (by simp [hh])⟩
@@ -314,11 +316,12 @@ theorem exists_decidesInLogSpace_of_allBranches (P : CounterProgram) {α : Type}
     ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State) (c : ℕ),
       ntm.DecidesInSpace enc A fun a => c * (Nat.log2 (enc a).length + 1) := by
   choose time htime using fun a => (hall a).exists_haltsWithin
-  exact P.exists_decidesInLogSpace time d (fun a choices hlen => htime a choices hlen.ge)
-    (fun a choices => ((hall a).replay choices).1) fun a =>
-    ⟨fun ha => let ⟨_, hs, hacc⟩ := hacc a ha; accepts_of_branches hs hacc,
-     fun ⟨choices, hhalt, haccept⟩ =>
-      ((hall a).replay choices).2 hhalt (instr_of_accepts hhalt haccept)⟩
+  refine P.exists_decidesInLogSpace time d (fun a choices hlen => htime a choices hlen.ge)
+    (fun a choices => ((hall a).replay choices).1) fun a => ⟨fun ha => ?_, fun ha => ?_⟩
+  · obtain ⟨s, hs, hacc⟩ := hacc a ha
+    exact accepts_of_branches hs hacc
+  · obtain ⟨choices, hhalt, haccept⟩ := ha
+    exact ((hall a).replay choices).2 hhalt (instr_of_accepts hhalt haccept)
 
 end CounterProgram
 

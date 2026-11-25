@@ -52,13 +52,8 @@ theorem exists_linear_size_reduction_from_selfDualThreeSAT [Finite Rel]
       (∀ F, F ∈ SelfDualThreeSAT ↔ f F ∈ CSPSAT arity sem) ∧
       (∀ F, (f F).numVars + (f F).length ≤ C * F.length) := by
   classical
-  have hrel : ∃ r : Rel, True := by
-    by_contra he
-    apply h
-    left
-    intro r
-    exact (he ⟨r, trivial⟩).elim
-  obtain ⟨r, _⟩ := hrel
+  have ⟨r⟩ : Nonempty Rel :=
+    Classical.byContradiction fun he => h (Or.inl fun r => (he ⟨r⟩).elim)
   have hg (s : SelfDualThreeSAT.SignPattern) :
       Nonempty (CSP.PPGadget arity sem
         (CSP.booleanRelation SelfDualThreeSAT.arity SelfDualThreeSAT.sem s)) :=
@@ -75,13 +70,12 @@ theorem exists_linear_size_reduction_from_selfDualThreeSAT [Finite Rel]
     fun hf => CSP.not_wellFormed_malformedReject arity r hf.1
   obtain ⟨C, hC⟩ := CSP.exists_linear_bound_replaceGadgetsGuarded
     SelfDualThreeSAT.arity B (fun s => (gadgets s).template) reject
-  refine ⟨CSP.replaceGadgetsGuarded SelfDualThreeSAT.arity B
-    (fun s => (gadgets s).template) reject, C, ?_, ?_, hC⟩
-  · exact CSP.computableInPolyTime_replaceGadgetsGuarded
-      SelfDualThreeSAT.encSign encRel SelfDualThreeSAT.arity B _ reject
-  · intro F
-    exact (CSP.wellFormed_satisfiable_replaceGadgetsGuarded_iff gadgets B hB
-      reject hr F).symm
+  exact ⟨CSP.replaceGadgetsGuarded SelfDualThreeSAT.arity B
+      (fun s => (gadgets s).template) reject, C,
+    CSP.computableInPolyTime_replaceGadgetsGuarded
+      SelfDualThreeSAT.encSign encRel SelfDualThreeSAT.arity B _ reject,
+    fun F => (CSP.wellFormed_satisfiable_replaceGadgetsGuarded_iff gadgets B hB
+      reject hr F).symm, hC⟩
 
 /-- **Linear-size 3SAT hardness in the hard Schaefer cases.** The same witness is a native
 polynomial-time reduction under binary encodings and satisfies `n' + m' ≤ C * m`, stronger

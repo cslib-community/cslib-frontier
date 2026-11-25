@@ -876,18 +876,22 @@ theorem MinorizesPrefixPartrec.exists_le_two_pow_mul_complexity_of_isLowerSemico
   refine ⟨hfin, ?_⟩
   have hpow_anti : ∀ {a b : ℕ}, a ≤ b → (2 : ℝ)⁻¹ ^ b ≤ (2 : ℝ)⁻¹ ^ a := fun hab =>
     pow_le_pow_of_le_one (by positivity) (by norm_num) hab
-  have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := by
-    by_cases h0 : k₀ = 0
-    · simpa [h0] using (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
-    · refine le_of_not_gt ?_
+  by_cases h0 : k₀ = 0
+  · calc μ x ≤ 1 := (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
+      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ c := by
+        rw [← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow]
+      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
+        mul_le_mul_of_nonneg_left (hpow_anti (by omega)) (by positivity)
+  · have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := by
+      refine le_of_not_gt ?_
       simpa [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)] using
         Nat.find_min hex (show k₀ - 1 < k₀ by omega)
-  calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
-    _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by
-      rw [pow_add, mul_comm ((2 : ℝ)⁻¹ ^ k₀), ← mul_assoc, ← mul_pow,
-        mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
-    _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
-      mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
+    calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
+      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by
+        rw [pow_add, mul_comm ((2 : ℝ)⁻¹ ^ k₀), ← mul_assoc, ← mul_pow,
+          mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
+      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
+        mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
 
 end DescriptionMethod
 

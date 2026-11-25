@@ -282,9 +282,8 @@ def install (i : ι) (d : (C i).Arg) (x : Data (registers C)) : Data (registers 
 
 /-- Installation leaves the memory and the frontier. -/
 @[simp] theorem memoryState_install (i : ι) (d : (C i).Arg) (x : Data (registers C)) :
-    memoryState (frontier C) (install C i d x) = memoryState (frontier C) x := by
-  apply Memory.State.ext rfl
-  simp [memoryState, install, frontier]
+    memoryState (frontier C) (install C i d x) = memoryState (frontier C) x :=
+  Memory.State.ext rfl (by simp [memoryState, install, frontier])
 
 /-- Installed arguments occupy the selected tag's actual source registers. -/
 theorem install_src (i : ι) (d : (C i).Arg) (x : Data (registers C)) :
@@ -296,21 +295,11 @@ theorem install_src (i : ι) (d : (C i).Arg) (x : Data (registers C)) :
 This identity requires actual live words; it supplies no native argument-staging code. -/
 theorem install_eq_self (i : ι) (d : (C i).Arg) (x : Data (registers C))
     (hin : x.regs ∘ src C i = (C i).input d) : install C i d x = x := by
-  apply Data.ext
-  · funext j
-    by_cases hj : 0 < j.val ∧ j.val ≤ (C i).k
-    · let a : Fin (C i).k := ⟨j.val - 1, by omega⟩
-      have hsrc : src C i a = j := by
-        fin_index [src, a]
-      change (if h : 0 < j.val ∧ j.val ≤ (C i).k then
-        (C i).input d ⟨j.val - 1, by omega⟩ else x.regs j) = _
-      rw [dite_eq_left hj]
-      have h := congrFun hin a
-      change x.regs (src C i a) = (C i).input d a at h
-      exact h.symm.trans (congrArg x.regs hsrc)
-    · change (if h : 0 < j.val ∧ j.val ≤ (C i).k then
-        (C i).input d ⟨j.val - 1, by omega⟩ else x.regs j) = _
-      rw [dite_eq_right hj]
+  refine Data.ext (funext fun j => ?_) rfl
+  simp only [install]
+  split_ifs with hj
+  · exact (congrFun hin ⟨j.val - 1, by omega⟩).symm.trans
+      (congrArg x.regs (by fin_index [src]))
   · rfl
 
 /-- Installing fitted argument words preserves bounded data. -/

@@ -534,11 +534,13 @@ private theorem decInfoWord_polyTime :
       simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
         (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
     polytime
-  rw [show (fun x : ℕ × ValidCircuit × List Bool => decInfoWord x.1 x.2.1.1 x.2.2) =
+  have heq : (fun x : ℕ × ValidCircuit × List Bool => decInfoWord x.1 x.2.1.1 x.2.2) =
       fun x => (List.range x.2.1.1.m).map fun o => HalfGates.colourWord x.1
         ((propagateWords x.1 x.2.1.1 x.2.2 x.2.1.1.q).getD
-          (x.2.1.1.n + x.2.1.1.q - x.2.1.1.m + o) []) from
-    funext fun x => by rw [decInfoWord, List.map_range_eq_ofFn]]
+          (x.2.1.1.n + x.2.1.1.q - x.2.1.1.m + o) []) := by
+    funext x
+    rw [decInfoWord, List.map_range_eq_ofFn]
+  rw [heq]
   exact (by polytime [HalfGates.colourWord] :
     ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List (List Bool) =>
       (List.range p.2.1).map fun o => HalfGates.colourWord p.1 (p.2.2.2.getD (p.2.2.1 + o) []))

@@ -314,10 +314,11 @@ theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
   · obtain rfl : T = ∅ := Finset.card_eq_zero.mp h0
     have hnil (idx : ι) : ProbComp.eval (P.coalitionTranscript ∅ x idx) = PMF.pure [] := by
-      rw [coalitionTranscript, ProbComp.eval_map, show (fun cd : C × ((s : S) → D s) =>
-        (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)).filter
-          fun sm => decide (sm.1 ∈ (∅ : Finset S))) = Function.const _ [] from
-        funext fun _ => List.filter_eq_nil_iff.mpr fun _ _ => by simp, PMF.map_const]
+      have hfn : (fun cd : C × ((s : S) → D s) =>
+          (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)).filter
+            fun sm => decide (sm.1 ∈ (∅ : Finset S))) = Function.const _ [] :=
+        funext fun _ => List.filter_eq_nil_iff.mpr fun _ _ => by simp
+      rw [coalitionTranscript, ProbComp.eval_map, hfn, PMF.map_const]
     rw [hnil i, hnil i']
   · obtain ⟨s, rfl⟩ := Finset.card_eq_one.mp h1
     have hrec (idx : ι) : ProbComp.eval (P.coalitionTranscript {s} x idx) =

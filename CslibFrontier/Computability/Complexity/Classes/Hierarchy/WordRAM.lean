@@ -94,8 +94,9 @@ private theorem exists_polylogBound_clock_le_pow_five (k : ℕ) : ∃ M, ∀ {n 
   have hL : L₀ < Nat.size m := Nat.lt_size.mpr ((le_max_right _ _).trans hm)
   -- `2 ^ size m ≤ 2 m`, so `34 (size m + 1) ^ (k + 5) < 2 m`.
   have hpow : 2 ^ Nat.size m ≤ 2 * m := by
-    rw [show Nat.size m = Nat.size m - 1 + 1 by omega, pow_succ']
-    exact Nat.mul_le_mul_left 2 (Nat.lt_size.mp (by omega))
+    calc 2 ^ Nat.size m = 2 * 2 ^ (Nat.size m - 1) := by
+          rw [← pow_succ', Nat.sub_add_cancel (Nat.size_pos.mpr (by omega))]
+      _ ≤ 2 * m := Nat.mul_le_mul_left 2 (Nat.lt_size.mp (by omega))
   have hY := hL₀ (Nat.size m) hL.le
   have hlt : m < 2 ^ Nat.size m := Nat.lt_size_self m
   have hlogn : Nat.log 2 (n + 1) ≤ Nat.size m := by

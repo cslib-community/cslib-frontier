@@ -133,7 +133,9 @@ theorem negTriBlocks_calls_le {n : ℕ} (hn : n ≠ 0) :
       _ = 8 * (t * s) ^ 3 := by ring
       _ ≤ 8 * (2 * n) ^ 3 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hts 3)
       _ = 64 * n ^ 2 * n := by ring
-  have hts2 : (t * s) ^ 2 ≤ 4 * n ^ 2 := (Nat.pow_le_pow_left hts 2).trans_eq (by ring)
+  have hts2 : (t * s) ^ 2 ≤ 4 * n ^ 2 := by
+    calc (t * s) ^ 2 ≤ (2 * n) ^ 2 := Nat.pow_le_pow_left hts 2
+      _ = 4 * n ^ 2 := by ring
   omega
 
 /-! ### The reduction -/

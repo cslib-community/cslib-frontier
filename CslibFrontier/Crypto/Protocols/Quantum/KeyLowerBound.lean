@@ -185,9 +185,10 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
   have hupper : vonNeumannEntropy ρ₀ - vonNeumannEntropy ρa ≤ entropy p := by
     have hle := holevoInformation_le_entropy p fun k =>
       (isDensityMatrix_kronecker hket_dens h.ancilla_density).conj_unitary (U k).2
-    rw [holevoInformation, show ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
-        (pureState (ket x₀) ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ from
-      h.encryptAvg_eq (ket x₀) ⟨x₀, rfl⟩] at hle
+    have hx₀ : ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
+        (pureState (ket x₀) ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ :=
+      h.encryptAvg_eq (ket x₀) ⟨x₀, rfl⟩
+    rw [holevoInformation, hx₀] at hle
     simp_rw [vonNeumannEntropy_conj_unitary_kronecker _ hket_dens h.ancilla_density,
       vonNeumannEntropy_pureState (norm_ket x₀), zero_add, ← Finset.sum_mul, sum_toReal p,
       one_mul] at hle
@@ -214,8 +215,9 @@ theorem logb_card_le_entropy_of_basis [Nonempty ι]
   have hlower : Real.logb 2 (Fintype.card ι) + vonNeumannEntropy ρa ≤ vonNeumannEntropy ρ₀ := by
     have hnn := holevoInformation_nonneg p fun k =>
       (isDensityMatrix_kronecker hπ_dens h.ancilla_density).conj_unitary (U k).2
-    rw [holevoInformation, show ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
-        (π ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ from hπ_avg] at hnn
+    have hπ_sum_avg : ∑ k, (p k).toReal • ((U k : Matrix (ι × κ) (ι × κ) ℂ) *
+        (π ⊗ₖ ρa) * (U k : Matrix (ι × κ) (ι × κ) ℂ)ᴴ) = ρ₀ := hπ_avg
+    rw [holevoInformation, hπ_sum_avg] at hnn
     simp_rw [vonNeumannEntropy_conj_unitary_kronecker _ hπ_dens h.ancilla_density,
       show vonNeumannEntropy π = Real.logb 2 (Fintype.card ι) from vonNeumannEntropy_maximallyMixed,
       ← Finset.sum_mul, sum_toReal p, one_mul] at hnn
@@ -453,8 +455,12 @@ theorem encryptAvg_single_eq_zero_of_ne {p : PMF K}
               smul_zero]
           rw [hrest, add_zero, encryptAvg_single_diag_eq h (embed w)]
           congr 2
-          · rw [hmul_amp, Finset.prod_eq_one fun j _ => by cases w j <;> cases v j <;> simp,
-              mul_one]
+          · calc Ψ.ofLp (embed w) * star (Ψ.ofLp (embed w))
+                = (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
+                    (if w j && v j then Complex.I else 1) *
+                      star (if w j && v j then Complex.I else 1) := hmul_amp w w
+              _ = (2 : ℂ)⁻¹ ^ d := by
+                  rw [Finset.prod_eq_one fun j _ => by cases w j <;> cases v j <;> simp, mul_one]
           · calc Ψ.ofLp (embed w) * star (Ψ.ofLp (embed (flip w)))
                 = (2 : ℂ)⁻¹ ^ d * ∏ j : ↥D,
                     (if w j && v j then Complex.I else 1) *

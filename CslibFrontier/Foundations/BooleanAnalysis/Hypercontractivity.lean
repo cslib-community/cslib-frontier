@@ -144,8 +144,8 @@ theorem noiseStability_le_lpNorm_sq {ρ : ℝ} (hρ : 0 ≤ ρ) (hρ' : ρ ≤ 1
 [O'Donnell, Section 9.2][ODonnell2014]. -/
 theorem noiseStability_one_third_le (f : (ι → Bool) → ℝ) :
     noiseStability (1 / 3) f ≤ lpNorm (4 / 3) f ^ 2 := by
-  simpa only [show (1 : ℝ) + 1 / 3 = 4 / 3 by norm_num] using
-    noiseStability_le_lpNorm_sq (by norm_num : (0 : ℝ) ≤ 1 / 3) (by norm_num) f
+  have h := noiseStability_le_lpNorm_sq (by norm_num : (0 : ℝ) ≤ 1 / 3) (by norm_num) f
+  rwa [show (1 : ℝ) + 1 / 3 = 4 / 3 by norm_num] at h
 
 /-! ### `(2, q)`-hypercontractivity -/
 
@@ -154,33 +154,42 @@ theorem noiseStability_one_third_le (f : (ι → Bool) → ℝ) :
 theorem lpNorm_noiseOp_le_lpNorm_two {q ρ : ℝ} (hq : 2 ≤ q) (hρ : 0 ≤ ρ)
     (hρ' : ρ ≤ (√(q - 1))⁻¹) (f : (ι → Bool) → ℝ) : lpNorm q (noiseOp ρ f) ≤ lpNorm 2 f := by
   set u := noiseOp ρ f
+  have hq0 : 0 < q := by linarith
   have hq1 : 0 < q - 1 := by linarith
   set r := (q - 1)⁻¹ with hr
+  have hr0 : 0 ≤ r := inv_nonneg.2 hq1.le
+  have hr1 : r ≤ 1 := inv_le_one_of_one_le₀ (by linarith)
   -- the dual function `h = u |u| ^ (q - 2)`: `h u = |u| ^ q` and `|h| = |u| ^ (q - 1)`
   set h : (ι → Bool) → ℝ := fun x => u x * |u x| ^ (q - 2)
   have hhu (x : ι → Bool) : h x * u x = |u x| ^ q := by
-    rw [show h x * u x = |u x| ^ (2 : ℝ) * |u x| ^ (q - 2) by rw [Real.rpow_two, sq_abs]; ring,
-      ← Real.rpow_add' (abs_nonneg _) (by linarith), add_sub_cancel]
+    have e : h x * u x = |u x| ^ (2 : ℝ) * |u x| ^ (q - 2) := by
+      rw [Real.rpow_two, sq_abs]
+      ring
+    rw [e, ← Real.rpow_add' (abs_nonneg _) (by linarith), add_sub_cancel]
   have habs (x : ι → Bool) : |h x| ^ (1 + r) = |u x| ^ q := by
-    rw [show |h x| = |u x| ^ (q - 1) by
+    have e : |h x| = |u x| ^ (q - 1) := by
       rw [abs_mul, abs_of_nonneg (Real.rpow_nonneg (abs_nonneg _) _),
         show q - 1 = 1 + (q - 2) by ring, Real.rpow_add' (abs_nonneg _) (by linarith),
-        Real.rpow_one],
-      ← Real.rpow_mul (abs_nonneg _), hr, mul_add, mul_one, mul_inv_cancel₀ hq1.ne', sub_add_cancel]
-  have key := expect_mul_noiseOp_le_lpNorm_mul_lpNorm (r := r) (inv_nonneg.2 hq1.le)
-    (inv_le_one_of_one_le₀ (by linarith)) zero_le_one le_rfl hρ
+        Real.rpow_one]
+    rw [e, ← Real.rpow_mul (abs_nonneg _), hr, mul_add, mul_one,
+      mul_inv_cancel₀ hq1.ne', sub_add_cancel]
+  have key := expect_mul_noiseOp_le_lpNorm_mul_lpNorm hr0 hr1 zero_le_one le_rfl hρ
     (by rwa [mul_one, hr, Real.sqrt_inv]) h f
+  rw [show 𝔼 x, h x * noiseOp ρ f x = 𝔼 x, |u x| ^ q from expect_congr rfl fun x _ => hhu x]
+    at key
   set A := 𝔼 x, |u x| ^ q
-  rw [show 𝔼 x, h x * noiseOp ρ f x = A from expect_congr rfl fun x _ => hhu x,
-    show lpNorm (1 + r) h = A ^ (1 + r)⁻¹ by simp only [lpNorm, habs, A],
-    one_add_one_eq_two] at key
+  have hA : 0 ≤ A := expect_abs_rpow_nonneg q u
+  have hlp : lpNorm (1 + r) h = A ^ (1 + r)⁻¹ := by
+    simp only [lpNorm, habs, A]
+  rw [hlp, one_add_one_eq_two] at key
   change A ^ q⁻¹ ≤ lpNorm 2 f
-  rcases (show 0 ≤ A from expect_abs_rpow_nonneg q u).eq_or_lt with h0 | hpos
-  · rw [← h0, Real.zero_rpow (inv_ne_zero (by linarith))]
+  rcases hA.eq_or_lt with h0 | hpos
+  · rw [← h0, Real.zero_rpow (inv_ne_zero hq0.ne')]
     exact lpNorm_nonneg _ _
   · have hexp : q⁻¹ + (1 + r)⁻¹ = 1 := by
       rw [hr]
-      field_simp; ring
+      field_simp
+      ring
     refine le_of_mul_le_mul_right ?_ (Real.rpow_pos_of_pos hpos (1 + r)⁻¹)
     rw [← Real.rpow_add hpos, hexp, Real.rpow_one, mul_comm]
     exact key
@@ -193,12 +202,14 @@ theorem lpNorm_noiseOp_le_lpNorm {p q ρ : ℝ} (hp : 1 ≤ p) (hp' : p ≤ 2) (
     lpNorm q (noiseOp ρ f) ≤ lpNorm p f := by
   have hq1 : 0 < q - 1 := by linarith
   have hs : 0 < √(q - 1) := Real.sqrt_pos.2 hq1
-  rw [show noiseOp ρ f = noiseOp (√(q - 1))⁻¹ (noiseOp (ρ * √(q - 1)) f) by
-    rw [noiseOp_noiseOp, mul_comm ρ, ← mul_assoc, inv_mul_cancel₀ hs.ne', one_mul]]
+  have hsplit : noiseOp ρ f = noiseOp (√(q - 1))⁻¹ (noiseOp (ρ * √(q - 1)) f) := by
+    rw [noiseOp_noiseOp, mul_comm ρ, ← mul_assoc, inv_mul_cancel₀ hs.ne', one_mul]
+  rw [hsplit]
   refine (lpNorm_noiseOp_le_lpNorm_two hq (inv_nonneg.2 hs.le) le_rfl _).trans
     (lpNorm_two_noiseOp_le hp hp' (mul_nonneg hρ hs.le) ?_ f)
-  exact (mul_le_mul_of_nonneg_right hρ' hs.le).trans_eq <| by
-    rw [← Real.sqrt_mul (div_nonneg (by linarith) hq1.le), div_mul_cancel₀ _ hq1.ne']
+  calc ρ * √(q - 1) ≤ √((p - 1) / (q - 1)) * √(q - 1) := mul_le_mul_of_nonneg_right hρ' hs.le
+    _ = √(p - 1) := by
+      rw [← Real.sqrt_mul (div_nonneg (by linarith) hq1.le), div_mul_cancel₀ _ hq1.ne']
 
 /-- **The `(2, 4)`-Hypercontractivity Theorem**: `‖T_{1/√3} f‖_4 ≤ ‖f‖_2`, that is,
 `𝔼 (T_{1/√3} f) ^ 4 ≤ (𝔼 f ^ 2) ^ 2` [O'Donnell, Section 9.2][ODonnell2014]. -/

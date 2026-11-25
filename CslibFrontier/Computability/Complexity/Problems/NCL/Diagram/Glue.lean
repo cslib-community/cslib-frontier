@@ -291,12 +291,12 @@ private theorem tensor_ext {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d}
 
 theorem legal_glueTensor {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d} {t₁ : D₁.Edge → Bool}
     {t₂ : D₂.Edge → Bool} (h₁ : (D₁.graph I).Legal t₁) (h₂ : (D₂.graph I).Legal t₂) :
-    ((tensor D₁ D₂).graph I).Legal (glueTensor D₁ D₂ t₁ t₂) :=
-  (legal_tensor_iff _ _ _).2
-    ⟨by rwa [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorLeft D₁ D₂ = t₁ from
-          funext fun _ => glueTensor_tensorLeft ..],
-     by rwa [show glueTensor D₁ D₂ t₁ t₂ ∘ tensorRight D₁ D₂ = t₂ from
-          funext fun _ => glueTensor_tensorRight ..]⟩
+    ((tensor D₁ D₂).graph I).Legal (glueTensor D₁ D₂ t₁ t₂) := by
+  have hL : glueTensor D₁ D₂ t₁ t₂ ∘ tensorLeft D₁ D₂ = t₁ :=
+    funext (glueTensor_tensorLeft D₁ D₂ t₁ t₂)
+  have hR : glueTensor D₁ D₂ t₁ t₂ ∘ tensorRight D₁ D₂ = t₂ :=
+    funext (glueTensor_tensorRight D₁ D₂ t₁ t₂)
+  exact (legal_tensor_iff _ _ _).2 ⟨by rwa [hL], by rwa [hR]⟩
 
 theorem glueTensor_reverse_left (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (t₁ : D₁.Edge → Bool) (t₂ : D₂.Edge → Bool) (y : D₁.Edge) :

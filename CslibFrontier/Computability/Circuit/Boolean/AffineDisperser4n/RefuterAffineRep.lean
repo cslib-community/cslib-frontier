@@ -93,10 +93,10 @@ private theorem satisfiable_auxSystem_iff {S : State n} (hwf : S.WellFormed) {a 
       ∃ v, S.EqnsHold v ∧ (∀ p ∈ S.params, v p = val p) ∧ v a = false := by
   refine ⟨fun ⟨l, hl, hH⟩ => ⟨fun i => l.getD i false, ?_⟩,
     fun ⟨v, hv⟩ => ⟨_, by simp, (holds_auxSystem_iff hwf ha val v).2 hv⟩⟩
-  rw [← holds_auxSystem_iff hwf ha,
-    show ((List.range (varBound S)).map fun i => l.getD i false) = l from
-      List.ext_getElem (by simp [hl]) fun i _ h₂ => by simp [h₂]]
-  exact hH
+  have hl' : ((List.range (varBound S)).map fun i => l.getD i false) = l :=
+    List.ext_getElem (by simp [hl])
+      fun i _ h₂ => by simp [h₂]
+  rwa [← holds_auxSystem_iff hwf ha, hl']
 
 /-- `evaluateAux S a val` is the value of the auxiliary variable `a` in the solution of the affine
 system extending the parameter assignment `val`. -/

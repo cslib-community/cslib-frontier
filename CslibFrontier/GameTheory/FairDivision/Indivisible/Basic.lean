@@ -718,9 +718,10 @@ theorem isEF1_roundRobin (hn : 0 < n) : W.toMonotoneValuation.IsEF1 (W.roundRobi
           exact ⟨t, ⟨ht, fun h => hne (congrArg _ h)⟩, rfl⟩
         · rintro ⟨t, ⟨ht, hne⟩, rfl⟩
           exact ⟨⟨t, ht, rfl⟩, fun h => hne (W.rrPick_injective hn h)⟩
-      rw [hsdiff, W.bundleVal_roundRobin hn i i,
-        show W.bundleVal i (T'.image (W.rrPick hn)) = ∑ t ∈ T', W.weight i (W.rrPick hn t) from
-          Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h]
+      have hsum_img : W.bundleVal i (T'.image (W.rrPick hn)) =
+          ∑ t ∈ T', W.weight i (W.rrPick hn t) :=
+        Finset.sum_image fun _ _ _ _ h => W.rrPick_injective hn h
+      rw [hsdiff, W.bundleVal_roundRobin hn i i, hsum_img]
       have hq_pos : ∀ t ∈ T', 1 ≤ t.val / n := fun t ht => by
         obtain ⟨ht_turn, ht_ne⟩ := Finset.mem_sdiff.1 ht
         have hmod : t.val % n = j.val := (Finset.mem_filter.1 ht_turn).2

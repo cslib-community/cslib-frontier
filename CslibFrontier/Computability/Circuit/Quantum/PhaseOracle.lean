@@ -175,7 +175,9 @@ theorem isClassical_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w
       ⟨ih (fun c' h => Nat.lt_succ_of_lt (hc c' (List.mem_cons_of_mem _ h))) (by omega), ?_⟩
     intro g hg
     obtain rfl := List.mem_singleton.mp hg
-    exact ⟨rfl, by simp, by simp; omega, by simp; omega⟩
+    exact ⟨rfl, by simp,
+      by simp; omega,
+      by simp; omega⟩
 
 /-- **`andCodes cs w` computes the AND of `cs` into qubit `w`** when the scratch qubits
 `w, …, w + |cs|` start at zero. -/
@@ -229,9 +231,12 @@ theorem readBit_classicalRun_zeroTestCodes {cs : List ℕ} (hnd : cs.Nodup) {w :
     · simpa [hi] using readBit_classicalRun_of_mem
         (fun g hg => by
           obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
-          exact show c < m by have := hc c hc'; omega)
+          have := hc c hc'
+          exact show c < m by omega)
         (by simpa [List.map_map, Function.comp_def] using hnd)
-        (fun _ _ _ hg => by obtain ⟨_, -, rfl⟩ := List.mem_map.mp hg; simp) x
+        (fun _ _ _ hg => by
+          obtain ⟨_, -, rfl⟩ := List.mem_map.mp hg
+          simp) x
         (List.mem_map_of_mem (f := fun c => ((false, c, []) : GateCode)) hi)
     · rw [readBit_classicalRun_of_forall_ne fun g hg h => by
         obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
@@ -239,7 +244,9 @@ theorem readBit_classicalRun_zeroTestCodes {cs : List ℕ} (hnd : cs.Nodup) {w :
       simp [hi]
   rw [zeroTestCodes, classicalRun_append, readBit_classicalRun_andCodes hc hw _ fun i h₁ h₂ => by
     rw [hflip, hx i h₁ h₂, Bool.false_xor, decide_eq_false_iff_not]
-    exact fun hi => by have := hc i hi; omega]
+    intro hi
+    have := hc i hi
+    omega]
   rw [Bool.eq_iff_iff, List.all_eq_true, List.all_eq_true]
   exact forall₂_congr fun c hc => by simp [hflip, hc]
 

@@ -185,7 +185,8 @@ theorem blk_bijective : Function.Bijective
     change Fintype.card (Fin a → Fin b → F2) = _
     simp [← pow_mul, mul_comm]
   rw [Fintype.card_prod, Fintype.card_prod, hM, Cslib.SLTower.card_U, Cslib.SLTower.card_U,
-    Cslib.SLTower.card_U, tri_add, pow_add, pow_add]
+      Cslib.SLTower.card_U,
+    tri_add, pow_add, pow_add]
   ring
 
 end Cslib.Circuits.Arithmetic.Separation.Flag

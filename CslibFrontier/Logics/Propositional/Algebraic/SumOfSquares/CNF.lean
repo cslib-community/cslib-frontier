@@ -114,7 +114,8 @@ theorem eval_toPoly_toInt (σ : V → Bool) (I : Ineq V) :
       hf, hg, lhs_add, bound_add]
     push_cast
     ring
-  | single v a => simp [toPoly]
+  | single v a =>
+    simp [toPoly]
 
 /-- Over a strictly ordered ring, an inequality holds at a `0/1` point exactly when its
 polynomial is nonnegative there. -/

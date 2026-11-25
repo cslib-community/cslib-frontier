@@ -146,24 +146,30 @@ theorem mul_value_le_mul_value_fptas_add (k : ℕ) {x : List (ℕ × ℕ) × ℕ
   have hsF : s <+ F := sublist_fits hs hsw
   set D := roundValues (n * k) P F
   set S' := profitDP (fun a : (ℕ × ℕ) × ℕ => a.1.1) Prod.snd x.2 D
+  -- the rounded copy of `s` is feasible for the rounded instance
   have hopt : (s.map r).sum ≤ (S'.map Prod.snd).sum := by
     simpa only [List.map_map, Function.comp_def] using
       sum_map_le_profitDP (w := fun a : (ℕ × ℕ) × ℕ => a.1.1) (p := Prod.snd) (B := x.2) (l := D)
         (hsF.map fun a => (a, r a)) (by simpa [List.map_map, Function.comp_def] using hsw)
+  -- rounding bounds for fitting items
   have hhigh {a : ℕ × ℕ} (ha : a ∈ F) : a.2 * (n * k) ≤ r a * P + P := by
     have haP : a.2 ≤ P := le_maxValue ha
     rcases Nat.eq_zero_or_pos P with hP | hP
     · simp [show a.2 = 0 by omega]
-    · rw [show r a = a.2 * (n * k) / P from min_eq_right <|
+    · have hmin : r a = a.2 * (n * k) / P := min_eq_right <|
         (Nat.div_le_div_right (Nat.mul_le_mul_right _ haP)).trans
-          (Nat.mul_div_cancel_left _ hP).le]
+          (Nat.mul_div_cancel_left _ hP).le
+      rw [hmin]
       exact (Nat.lt_div_mul_add hP).le
+  -- the value of `S'` scaled by `P` is at most the value returned scaled by `n k`
   have hS : (S'.map Prod.snd).sum * P ≤ ((fptas k x).map Prod.snd).sum * (n * k) := by
     rw [show fptas k x = S'.map Prod.fst from rfl, List.map_map, ← List.sum_map_mul_right,
       ← List.sum_map_mul_right]
     refine List.sum_le_sum fun b hb => ?_
+    -- every entry of `D` pairs an item of `F` with its rounded value
     obtain ⟨a, _, rfl⟩ := List.mem_map.mp ((profitDP_sublist _ _).subset hb)
     exact (Nat.mul_le_mul_right P (min_le_right _ _)).trans (Nat.div_mul_le_self _ _)
+  -- the value of `s` scaled by `n k` is at most its rounded value scaled by `P`, plus `n P`
   have hs' : (s.map Prod.snd).sum * (n * k) ≤ (s.map r).sum * P + n * P :=
     calc (s.map Prod.snd).sum * (n * k)
         = (s.map fun a => a.2 * (n * k)).sum := (List.sum_map_mul_right _ _ _).symm
@@ -175,10 +181,11 @@ theorem mul_value_le_mul_value_fptas_add (k : ℕ) {x : List (ℕ × ℕ) × ℕ
   · have : s = [] := List.eq_nil_of_length_eq_zero (by have := hsF.length_le; omega)
     simp [this]
   · refine Nat.le_of_mul_le_mul_left (c := n) ?_ hn
-    have hchain := hs'.trans (Nat.add_le_add_right ((Nat.mul_le_mul_right P hopt).trans hS) _)
-    simpa only [show n * (k * (s.map Prod.snd).sum) = (s.map Prod.snd).sum * (n * k) by ring,
-      show n * (k * ((fptas k x).map Prod.snd).sum + P) =
-        ((fptas k x).map Prod.snd).sum * (n * k) + n * P by ring] using hchain
+    calc n * (k * (s.map Prod.snd).sum)
+        = (s.map Prod.snd).sum * (n * k) := by ring
+      _ ≤ ((fptas k x).map Prod.snd).sum * (n * k) + n * P :=
+        hs'.trans (Nat.add_le_add_right ((Nat.mul_le_mul_right P hopt).trans hS) _)
+      _ = n * (k * ((fptas k x).map Prod.snd).sum + P) := by ring
 
 /-- **The FPTAS guarantee** [Williamson and Shmoys, Theorem 3.5][WilliamsonShmoys2011]: with
 accuracy `1 / k`, the FPTAS returns at least `1 - 1 / k` times the value of every feasible
@@ -188,6 +195,7 @@ theorem sub_one_mul_value_le_fptas (k : ℕ) {x : List (ℕ × ℕ) × ℕ} {s :
     (k - 1) * (s.map Prod.snd).sum ≤ k * ((fptas k x).map Prod.snd).sum := by
   have hmain := mul_value_le_mul_value_fptas_add k hs hsw
   generalize hP : maxValue (fits x.2 x.1) = P at hmain
+  -- the most valuable fitting item alone is feasible
   have hP' : (k - 1) * P ≤ k * ((fptas k x).map Prod.snd).sum := by
     by_cases hF : fits x.2 x.1 = []
     · simp [show P = 0 by rw [← hP, hF]; rfl]
@@ -199,7 +207,9 @@ theorem sub_one_mul_value_le_fptas (k : ℕ) {x : List (ℕ × ℕ) × ℕ} {s :
       rw [Nat.sub_one_mul]; omega
   rcases le_total (s.map Prod.snd).sum P with h | h
   · exact (Nat.mul_le_mul_left _ h).trans hP'
-  · rw [Nat.sub_one_mul]; have := Nat.mul_le_mul_left k h; omega
+  · rw [Nat.sub_one_mul]
+    have := Nat.mul_le_mul_left k h
+    omega
 
 /-- **The knapsack FPTAS** [Williamson and Shmoys, Theorem 3.5][WilliamsonShmoys2011],
 [Ibarra and Kim][IbarraKim1975]: for every real `ε > 0`, with `k = ⌈1 / ε⌉`, the FPTAS returns
@@ -215,7 +225,8 @@ theorem one_sub_mul_value_le_fptas {ε : ℝ} (hε : 0 < ε) {x : List (ℕ × �
     simpa [Nat.cast_sub hk1] using
       (Nat.cast_le (α := ℝ)).mpr (sub_one_mul_value_le_fptas k hs hsw)
   have hεk : 1 ≤ ε * k :=
-    (mul_inv_cancel₀ hε.ne').symm.trans_le (mul_le_mul_of_nonneg_left hk hε.le)
+    calc (1 : ℝ) = ε * ε⁻¹ := (mul_inv_cancel₀ hε.ne').symm
+      _ ≤ ε * k := mul_le_mul_of_nonneg_left hk hε.le
   rw [← mul_le_mul_iff_of_pos_left (by exact_mod_cast hk1 : (0 : ℝ) < k)]
   nlinarith [show (0 : ℝ) ≤ (s.map Prod.snd).sum from Nat.cast_nonneg _]
 

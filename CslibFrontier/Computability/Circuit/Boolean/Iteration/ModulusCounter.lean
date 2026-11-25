@@ -195,7 +195,13 @@ theorem counter_powers_average_complexity (k : ℕ) (hk : 64 ≤ k) :
   have hpos : 0 < ModulusCounter.period k := Nat.lcmUpto_pos _
   by_contra! hle
   have h1 : 0 < (easyCounterPowers k (lowerBudget k)).card := by omega
-  have h2 := Nat.mul_lt_mul_of_pos_left hpow h1
+  have h2 : 2 * (easyCounterPowers k (lowerBudget k)).card <
+      (easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1)) := by
+    calc
+      2 * (easyCounterPowers k (lowerBudget k)).card =
+          (easyCounterPowers k (lowerBudget k)).card * 2 := Nat.mul_comm _ _
+      _ < (easyCounterPowers k (lowerBudget k)).card * 2 ^ (2 ^ (k - 1)) :=
+        Nat.mul_lt_mul_of_pos_left hpow h1
   omega
 
 /-- All powers `ModulusCounter.power T` for `T < M` with `M ≤ ModulusCounter.period k` are

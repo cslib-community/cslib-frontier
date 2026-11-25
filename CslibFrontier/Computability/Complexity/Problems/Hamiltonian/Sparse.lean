@@ -216,10 +216,12 @@ theorem toSparseHamCycle_mem_iff (φ : CNF ℕ) : toSparseHamCycle φ ∈ HamCyc
 /-- The rows have at most as many slots in total as `φ` has occurrences of variables. -/
 theorem sum_sparseSlots_le (φ : CNF ℕ) :
     ((List.range φ.distinctVars.length).map (sparseSlots φ)).sum ≤ φ.vars.length := by
-  rw [show ((List.range φ.distinctVars.length).map (sparseSlots φ)).sum =
+  have hflat : ((List.range φ.distinctVars.length).map (sparseSlots φ)).sum =
       ((List.range φ.distinctVars.length).flatMap
-        fun i => occurrencePositions φ (φ.distinctVars.getD i 0)).length by
-    rw [List.length_flatMap]; rfl]
+        fun i => occurrencePositions φ (φ.distinctVars.getD i 0)).length := by
+    rw [List.length_flatMap]
+    rfl
+  rw [hflat]
   refine (List.Nodup.length_le_of_subset ?_ (l₂ := List.range φ.vars.length)
     fun q hq => ?_).trans_eq List.length_range
   · refine List.nodup_flatMap.2 ⟨fun _ _ => List.nodup_range.filter _,

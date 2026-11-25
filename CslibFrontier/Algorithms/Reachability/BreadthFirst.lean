@@ -84,7 +84,10 @@ private theorem prefix_foldl_insertNew (l found : List α) : found <+: l.foldl i
   | nil => exact List.prefix_refl _
   | cons a l ih =>
     refine List.IsPrefix.trans ?_ (ih _)
-    unfold insertNew; split_ifs <;> [exact List.prefix_refl _; exact List.prefix_append _ _]
+    unfold insertNew
+    split_ifs
+    · exact List.prefix_refl _
+    · exact List.prefix_append _ _
 
 private theorem mem_foldl_insertNew {l found : List α} {a : α} :
     a ∈ l.foldl insertNew found ↔ a ∈ found ∨ a ∈ l := by
@@ -92,11 +95,16 @@ private theorem mem_foldl_insertNew {l found : List α} {a : α} :
   | nil => simp
   | cons b l ih =>
     rw [List.foldl_cons, ih, List.mem_cons]
-    by_cases hb : b ∈ found <;> simp only [insertNew, hb, ↓reduceIte, List.mem_append,
-      List.mem_singleton]
-    · exact ⟨Or.imp_right Or.inr,
-        fun | .inl h => .inl h | .inr (.inl h) => .inl (h ▸ hb) | .inr (.inr h) => .inr h⟩
-    · exact or_assoc
+    unfold insertNew
+    split_ifs with hb
+    · constructor
+      · tauto
+      · rintro (h | rfl | h)
+        · exact .inl h
+        · exact .inl hb
+        · exact .inr h
+    · simp only [List.mem_append, List.mem_singleton]
+      tauto
 
 private theorem nodup_foldl_insertNew {l found : List α} (h : found.Nodup) :
     (l.foldl insertNew found).Nodup := by
@@ -104,9 +112,12 @@ private theorem nodup_foldl_insertNew {l found : List α} (h : found.Nodup) :
   | nil => exact h
   | cons a l ih =>
     refine ih ?_
-    unfold insertNew; split_ifs with ha
+    unfold insertNew
+    split_ifs with ha
     · exact h
-    · exact List.nodup_append.mpr ⟨h, List.nodup_singleton a, by rintro _ hb _ hc rfl; simp_all⟩
+    · exact List.nodup_append.mpr ⟨h, List.nodup_singleton a, fun b hb c hc => by
+        rintro rfl
+        exact ha (by simpa using List.mem_singleton.mp hc ▸ hb)⟩
 
 /-- A round only appends. -/
 theorem prefix_expand (found : List α) : found <+: expand succ found :=
@@ -124,15 +135,22 @@ theorem nodup_expand {found : List α} (h : found.Nodup) : (expand succ found).N
 /-- A round adds nothing exactly when the found elements are closed under successors. -/
 theorem expand_eq_self_iff {found : List α} :
     expand succ found = found ↔ ∀ b ∈ found, ∀ a ∈ succ b, a ∈ found := by
-  refine ⟨fun h b hb a ha => h ▸ mem_expand.mpr (.inr ⟨b, hb, ha⟩), fun h => ?_⟩
-  suffices ∀ l : List α, (∀ a ∈ l, a ∈ found) → l.foldl insertNew found = found from
-    this _ fun a ha => let ⟨b, hb, hab⟩ := List.mem_flatMap.mp ha; h b hb a hab
-  intro l hl
-  induction l with
-  | nil => rfl
-  | cons a l ih =>
-    simp only [List.foldl_cons, insertNew, hl a List.mem_cons_self, ↓reduceIte]
-    exact ih fun b hb => hl b (List.mem_cons_of_mem _ hb)
+  constructor
+  · intro h b hb a ha
+    rw [← h]
+    exact mem_expand.mpr (.inr ⟨b, hb, ha⟩)
+  · intro h
+    have hsub : ∀ l : List α, (∀ a ∈ l, a ∈ found) → l.foldl insertNew found = found := by
+      intro l hl
+      induction l with
+      | nil => rfl
+      | cons a l ih =>
+        have ha : a ∈ found := hl a (by simp)
+        simp only [List.foldl_cons, insertNew, ha, ↓reduceIte]
+        exact ih fun b hb => hl b (by simp [hb])
+    exact hsub _ fun a ha => by
+      obtain ⟨b, hb, ha⟩ := List.mem_flatMap.mp ha
+      exact h b hb a ha
 
 /-- A round that adds something makes the list longer. -/
 private theorem length_lt_expand {found : List α} (h : expand succ found ≠ found) :
@@ -148,8 +166,9 @@ theorem prefix_search {i j : ℕ} (hij : i ≤ j) (start : α) :
   induction d with
   | zero => exact List.prefix_refl _
   | succ d ih =>
-    exact (ih (Nat.le_add_right _ _)).trans
-      (by rw [← Nat.add_assoc, search_succ]; exact prefix_expand _)
+    refine (ih (Nat.le_add_right _ _)).trans ?_
+    rw [← Nat.add_assoc, search_succ]
+    exact prefix_expand _
 
 theorem start_mem_search (rounds : ℕ) (start : α) : start ∈ search succ rounds start :=
   (prefix_search (Nat.zero_le rounds) start).subset (by simp)
@@ -158,16 +177,22 @@ theorem start_mem_search (rounds : ℕ) (start : α) : start ∈ search succ rou
 theorem nodup_search (rounds : ℕ) (start : α) : (search succ rounds start).Nodup := by
   induction rounds with
   | zero => exact List.nodup_singleton start
-  | succ _ ih => exact search_succ (succ := succ) _ _ ▸ nodup_expand ih
+  | succ rounds ih =>
+    rw [search_succ]
+    exact nodup_expand ih
 
 /-- **The found elements are reachable.** -/
 theorem reflTransGen_of_mem_search {rounds : ℕ} {start a : α}
     (h : a ∈ search succ rounds start) : Relation.ReflTransGen (fun b c => c ∈ succ b) start a := by
   induction rounds generalizing a with
-  | zero => exact List.mem_singleton.mp h ▸ .refl
+  | zero =>
+    obtain rfl := List.mem_singleton.mp h
+    exact .refl
   | succ rounds ih =>
-    exact (mem_expand.mp (search_succ rounds start ▸ h)).elim ih fun ⟨_, hb, ha⟩ =>
-      (ih hb).tail ha
+    rw [search_succ] at h
+    rcases mem_expand.mp h with h | ⟨b, hb, ha⟩
+    · exact ih h
+    · exact (ih hb).tail ha
 
 /-- Each round before the found elements are closed finds a new element. -/
 private theorem succ_le_length_search_or_closed (rounds : ℕ) (start : α) :

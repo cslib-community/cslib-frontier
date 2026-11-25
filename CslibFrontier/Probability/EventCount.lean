@@ -53,30 +53,25 @@ theorem measurable_and_lintegral_countP_le {Ω : Type*} [MeasurableSpace Ω] (μ
       (∀ x ∈ l, μ {ω | E ω x} ≤ B) →
         Measurable (fun ω => ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞)) ∧
           ∫⁻ ω, ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) ∂μ ≤ l.length * B
-  | [], _, _ => by
-      simp only [List.countP_nil, Nat.cast_zero, lintegral_zero, List.length_nil, zero_mul]
-      exact ⟨measurable_const, le_rfl⟩
+  | [], _, _ => by simp [measurable_const]
   | y :: l, hm, hl => by
-      have hmy := hm y List.mem_cons_self
-      have hy := hl y List.mem_cons_self
-      obtain ⟨hm_ih, hi_ih⟩ := measurable_and_lintegral_countP_le μ E B l
-        (fun x hx => hm x (List.mem_cons_of_mem y hx))
-        (fun x hx => hl x (List.mem_cons_of_mem y hx))
-      have hfun : (fun ω => (((y :: l).countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞)) =
-          fun ω => {ω | E ω y}.indicator 1 ω + ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) := by
-        funext ω
+    have hmy := hm y List.mem_cons_self
+    obtain ⟨hm_ih, hi_ih⟩ := measurable_and_lintegral_countP_le μ E B l
+      (fun x hx => hm x (List.mem_cons_of_mem y hx))
+      (fun x hx => hl x (List.mem_cons_of_mem y hx))
+    have hfun : (fun ω => (((y :: l).countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞)) =
+        fun ω => {ω | E ω y}.indicator 1 ω + ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) :=
+      funext fun ω => by
         rw [List.countP_cons]
         by_cases hω : E ω y
-        · simp only [hω, decide_true, ite_true, Nat.cast_add, Nat.cast_one,
-            Set.indicator_of_mem (show ω ∈ {ω | E ω y} from hω), Pi.one_apply, add_comm]
-        · simp only [hω, decide_false, Bool.false_eq_true, ite_false, Nat.add_zero,
-            Set.indicator_of_notMem (show ω ∉ {ω | E ω y} from hω), zero_add]
-      rw [hfun]
-      refine ⟨(measurable_one.indicator hmy).add hm_ih, ?_⟩
-      rw [lintegral_add_left (measurable_one.indicator hmy), lintegral_indicator_one hmy,
-        List.length_cons, Nat.cast_add, Nat.cast_one, add_comm (l.length : ℝ≥0∞) 1,
-        add_mul, one_mul]
-      exact add_le_add hy hi_ih
+        · simp [hω, add_comm]
+        · simp [hω]
+    rw [hfun]
+    refine ⟨(measurable_one.indicator hmy).add hm_ih, ?_⟩
+    rw [lintegral_add_left (measurable_one.indicator hmy), lintegral_indicator_one hmy,
+      List.length_cons, Nat.cast_add, Nat.cast_one, add_comm (l.length : ℝ≥0∞) 1,
+      add_mul, one_mul]
+    exact add_le_add (hl y List.mem_cons_self) hi_ih
 
 namespace PMF
 
@@ -88,9 +83,8 @@ theorem tsum_mul_countP_le {Ω : Type*} (μ : PMF Ω) (E : Ω → X → Prop)
     ∑' ω, μ ω * ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) ≤ l.length * B := by
   let _ : MeasurableSpace Ω := ⊤
   obtain ⟨hm, hb⟩ := measurable_and_lintegral_countP_le μ.toMeasure E B l
-    (fun _ _ => MeasurableSet.of_discrete) (fun x hx => by
-      rw [PMF.toMeasure_apply_eq_toOuterMeasure_apply μ MeasurableSet.of_discrete]
-      exact hE x hx)
+    (fun _ _ => MeasurableSet.of_discrete) fun x hx =>
+      (PMF.toMeasure_apply_eq_toOuterMeasure_apply μ MeasurableSet.of_discrete).trans_le (hE x hx)
   rwa [PMF.lintegral_toMeasure μ hm] at hb
 
 end PMF

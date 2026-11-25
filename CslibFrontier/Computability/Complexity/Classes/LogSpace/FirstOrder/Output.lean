@@ -85,11 +85,9 @@ theorem reaches_coordinatesCode {d m b n u : ℕ} (hP : P.CodeAt b (coordinatesC
         simp [coordinatesCode]
       have h0₁ : regs₁.getD 0 0 = n := by rw [hkeep 0 (fun i _ => by unfold tupleReg; omega), h0]
       have h4₁ : regs₁.getD 4 0 = u := by rw [hkeep 4 (fun i _ => by unfold tupleReg; omega), h4]
-      have hn : 0 < n := by
-        rcases Nat.eq_zero_or_pos n with rfl | h
-        · rw [zero_pow (by omega)] at hu
-          omega
-        · exact h
+      have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
+        rw [h, zero_pow (by omega)] at hu
+        omega
       refine ⟨regs₁.set (tupleReg d m k) (u / n ^ k % n), hreach.trans (Reaches.assign hc hB₁ ?_),
         by rw [List.length_set, hlen₁], fun i hi => ?_, fun r hr => ?_,
         List.forall_mem_set_of_forall_mem hB₁ ((Nat.mod_lt _ hn).le.trans hnB)⟩
@@ -104,14 +102,12 @@ theorem reaches_coordinatesCode {d m b n u : ℕ} (hP : P.CodeAt b (coordinatesC
 /-- Distinct blocks have disjoint coordinate registers. -/
 theorem tupleReg_ne {d m m' i i' : ℕ} (h : m ≠ m') (hi : i < d) (hi' : i' < d) :
     tupleReg d m i ≠ tupleReg d m' i' := by
-  unfold tupleReg
-  rcases lt_or_gt_of_ne h with hlt | hgt
-  · have : d * (m + 1) ≤ d * m' := Nat.mul_le_mul_left d hlt
-    rw [Nat.mul_succ] at this
+  have hlt {a b j k : ℕ} (hab : a < b) (hj : j < d) : tupleReg d a j < tupleReg d b k := by
+    have hd := Nat.mul_le_mul_left d hab
+    rw [Nat.mul_succ] at hd
+    unfold tupleReg
     omega
-  · have : d * (m' + 1) ≤ d * m := Nat.mul_le_mul_left d hgt
-    rw [Nat.mul_succ] at this
-    omega
+  exact (lt_or_gt_of_ne h).elim (fun h => (hlt h hi).ne) (fun h => (hlt h hi').ne')
 
 /-- Emitting `true` and a bit for every number below `N`, then `false`, frames the bits. -/
 theorem flatMap_range_pair_append_false (N : ℕ) (f : Fin N → Bool) :
@@ -159,15 +155,7 @@ variable {v'} in
 theorem encStructure_reject :
     encStructure ((0, List.replicate (v'.count + 1) []) : EncodedStructure) =
       List.replicate (v'.count + 2) false := by
-  have h (n : ℕ) : (List.replicate n ([] : List Bool)).flatMap MultiTapeTM.frame =
-      List.replicate n false := by
-    induction n with
-    | zero => rfl
-    | succ n ih => simp only [List.replicate_succ, List.flatMap_cons,
-        MultiTapeTM.frame, List.flatMap_nil, List.nil_append, List.singleton_append, ih]
-  rw [encStructure_eq, h]
-  simp only [List.replicate_zero, MultiTapeTM.frame, List.flatMap_nil, List.nil_append,
-    List.singleton_append]
-  rfl
+  rw [encStructure_eq, List.flatMap_replicate]
+  simp [MultiTapeTM.frame, List.replicate_succ]
 
 end Cslib.Logic.Vocabulary.ModelChecker.Writer

@@ -134,9 +134,10 @@ theorem mem_reduce {ψ : ClauseSet V} {C : Finset (Literal V)} :
 theorem mem_reduce_iff_minimal {ψ : ClauseSet V} {C : Finset (Literal V)} :
     C ∈ reduce ψ ↔ Minimal (· ∈ ψ) C := by
   rw [mem_reduce, Minimal]
-  exact and_congr_right fun _ => ⟨fun h D hD hDC => by
-      by_contra hCD; exact h D hD (ssubset_of_subset_not_subset hDC hCD),
-    fun h D hD hDC => hDC.2 (h hD hDC.1)⟩
+  refine and_congr_right fun _ => ⟨fun h D hD hDC => ?_, fun h D hD hDC => ?_⟩
+  · by_contra hCD
+    exact h D hD (ssubset_of_subset_not_subset hDC hCD)
+  · exact hDC.2 (h hD hDC.1)
 
 omit [DecidableEq V] in
 /-- A reduced clause set is an antichain for inclusion. -/
@@ -211,12 +212,14 @@ theorem Heavy.flower_nonempty {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {ψ :
 theorem card_of_mem_intro {θ : ℕ → ℕ} {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
     (h : Heavy θ ψ c H) {b : Bool} {a : Finset (Literal V)} (ha : a ∈ intro ψ c H b) :
     1 ≤ a.card ∧ a.card < c := by
+  obtain ⟨h1, hlt, -⟩ := h
   cases b with
-  | false => rw [intro, mem_singleton] at ha; exact ha ▸ ⟨h.1, h.2.1⟩
+  | false =>
+    rw [intro, mem_singleton] at ha
+    exact ha ▸ ⟨h1, hlt⟩
   | true =>
     rw [card_of_mem_petals ha]
-    have := h.1
-    have := h.2.1; omega
+    omega
 
 /-- Every introduced clause is strictly contained in a clause of the flower. -/
 theorem exists_flower_ssuperset {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {ψ : ClauseSet V} {c : ℕ}
@@ -224,7 +227,8 @@ theorem exists_flower_ssuperset {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {ψ
     (ha : a ∈ intro ψ c H b) : ∃ C ∈ flower ψ c H, a ⊂ C := by
   cases b with
   | false =>
-    rw [intro, mem_singleton] at ha; subst ha
+    rw [intro, mem_singleton] at ha
+    subst ha
     obtain ⟨C, hC⟩ := h.flower_nonempty hθ
     obtain ⟨-, hcard, hH⟩ := mem_flower.mp hC
     exact ⟨C, hC, ssubset_of_subset_of_ne hH fun heq => h.2.1.ne (heq ▸ hcard)⟩
@@ -315,7 +319,8 @@ theorem potential_heart_lt {ψ : ClauseSet V} {c : ℕ} {H : Finset (Literal V)}
     (hlt : H.card < c) (hF : 0 < (flower ψ c H).card) :
     potential ({H} : ClauseSet V) < (flower ψ c H).card * 2 ^ c := by
   rw [potential, sum_singleton]
-  exact (Nat.pow_lt_pow_right one_lt_two hlt).trans_le (Nat.le_mul_of_pos_left _ hF)
+  calc 2 ^ H.card < 2 ^ c := Nat.pow_lt_pow_right one_lt_two hlt
+    _ ≤ (flower ψ c H).card * 2 ^ c := Nat.le_mul_of_pos_left _ hF
 
 /-- Each of the `|flower ψ c H|` petals has width `c - |H|`. -/
 theorem potential_petals (ψ : ClauseSet V) (c : ℕ) (H : Finset (Literal V)) :

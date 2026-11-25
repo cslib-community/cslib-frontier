@@ -204,18 +204,22 @@ theorem ucb1Policy_isMeasurable [Nonempty ι] : (ucb1Policy (ι := ι)).IsMeasur
       rw [h_empty]
       exact MeasurableSet.empty
   · have hmeas_idx : ∀ j : ι, Measurable fun vals : Fin t → ℝ => ucb1Index (H vals) j := fun j => by
+      have hsum_eq : (fun vals : Fin t → ℝ => feedbackSum (H vals) j) =
+          fun vals => ∑ r : Fin t, if arms r = j then vals r else 0 :=
+        funext fun _ => feedbackSum_ofFn _ j
       have hmeas_sum : Measurable fun vals : Fin t → ℝ => feedbackSum (H vals) j := by
-        rw [show (fun vals : Fin t → ℝ => feedbackSum (H vals) j) =
-            fun vals => ∑ r : Fin t, if arms r = j then vals r else 0 from
-          funext fun _ => feedbackSum_ofFn _ j]
+        rw [hsum_eq]
         refine Finset.measurable_sum univ fun r _ => ?_
         by_cases hr : arms r = j <;> simp only [hr, ↓reduceIte]
         · exact measurable_pi_apply r
         · exact measurable_const
-      rw [show (fun vals : Fin t → ℝ => ucb1Index (H vals) j) = fun vals =>
-          feedbackSum (H vals) j / ((univ.filter fun r : Fin t => arms r = j).card : ℝ) +
-            √(2 * log t / ((univ.filter fun r : Fin t => arms r = j).card : ℝ)) from
-        funext fun _ => by simp [ucb1Index_def, empiricalMean_def, hpull_const, H]]
+      have hidx_eq : (fun vals : Fin t → ℝ => ucb1Index (H vals) j) =
+          fun vals =>
+            feedbackSum (H vals) j / ((univ.filter fun r : Fin t => arms r = j).card : ℝ) +
+              √(2 * log t / ((univ.filter fun r : Fin t => arms r = j).card : ℝ)) := by
+        funext vals
+        simp [ucb1Index_def, empiricalMean_def, hpull_const, H]
+      rw [hidx_eq]
       exact (hmeas_sum.div_const _).add measurable_const
     have heq_set : {vals : Fin t → ℝ | ucb1Policy.choose (H vals) = i} =
         (⋂ j : ι, {vals | ucb1Index (H vals) j ≤ ucb1Index (H vals) i}) ∩

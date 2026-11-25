@@ -110,18 +110,14 @@ theorem length_truthTableAnswers (A : Set (α × ℕ)) (r : α → ℕ) (a : α)
 /-- For a decidable indexed family, the answer word is the decided membership of each index below
 the query count. -/
 theorem truthTableAnswers_eq_map_range (A : Set (α × ℕ)) [DecidablePred (· ∈ A)] (r : α → ℕ)
-    (a : α) : truthTableAnswers A r a = (List.range (r a)).map fun i => decide ((a, i) ∈ A) := by
-  apply List.ext_getElem (by simp [truthTableAnswers])
-  intro i hi₁ hi₂
-  simp [truthTableAnswers]
+    (a : α) : truthTableAnswers A r a = (List.range (r a)).map fun i => decide ((a, i) ∈ A) :=
+  List.ext_getElem (by simp [truthTableAnswers]) fun _ _ _ => by simp [truthTableAnswers]
 
 /-- Answers for the complemented family are the negated answers. -/
 theorem truthTableAnswers_compl (A : Set (α × ℕ)) (r : α → ℕ) (a : α) :
     truthTableAnswers Aᶜ r a = (truthTableAnswers A r a).map (!·) := by
   classical
-  apply List.ext_getElem (by simp [truthTableAnswers])
-  intro i hi₁ hi₂
-  simp [truthTableAnswers]
+  exact List.ext_getElem (by simp [truthTableAnswers]) fun _ _ _ => by simp [truthTableAnswers]
 
 /-- Slice `i` of a block-indexed answer word of total length `N a`, with block stride `k`, recovers
 the inner answer word for `q (a, i)` whenever `i * k + r' (q (a, i)) ≤ N a` and block `i` begins
@@ -348,12 +344,8 @@ def truthTableCompQuery (q : α × ℕ → β) (q' : β × ℕ → γ) (M : α �
 theorem truthTableCompQuery_mul_add (q : α × ℕ → β) (q' : β × ℕ → γ) (M : α → ℕ)
     (a : α) (i : ℕ) {j : ℕ} (hj : j < M a) :
     truthTableCompQuery q q' M (a, i * M a + j) = q' (q (a, i), j) := by
-  have hpos : 0 < M a := Nat.zero_lt_of_lt hj
-  have hdiv : (i * M a + j) / M a = i := by
-    rw [mul_comm, Nat.mul_add_div hpos, Nat.div_eq_of_lt hj, add_zero]
-  have hmod : (i * M a + j) % M a = j := by
-    rw [mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hj]
-  simp [truthTableCompQuery, hdiv, hmod]
+  simp [truthTableCompQuery, mul_comm i, Nat.mul_add_div (Nat.zero_lt_of_lt hj),
+    Nat.div_eq_of_lt hj, Nat.mod_eq_of_lt hj]
 
 /-- The combiner of a composite truth-table reduction: block `i` of the answer word, of length
 `r' (q (a, i))` and starting at `i * M a`, is decided by `d'`, and `d` combines the `r a`
@@ -397,11 +389,9 @@ theorem truthTableCompCombiner_mono {r : α → ℕ} {q : α × ℕ → β}
     (hd : ∀ a u v, List.Forall₂ (· ≤ ·) u v → d (a, u) ≤ d (a, v))
     (hd' : ∀ b u v, List.Forall₂ (· ≤ ·) u v → d' (b, u) ≤ d' (b, v)) (a : α)
     (u v : List Bool) (huv : List.Forall₂ (· ≤ ·) u v) :
-    truthTableCompCombiner r q d r' d' M (a, u) ≤ truthTableCompCombiner r q d r' d' M (a, v) := by
-  refine hd _ _ _ ?_
-  rw [List.forall₂_map_left_iff, List.forall₂_map_right_iff]
-  refine List.forall₂_same.mpr fun i _ => hd' _ _ _ ?_
-  exact List.forall₂_take _ (List.forall₂_drop _ huv)
+    truthTableCompCombiner r q d r' d' M (a, u) ≤ truthTableCompCombiner r q d r' d' M (a, v) :=
+  hd _ _ _ <| (List.forall₂_map_left_iff.trans List.forall₂_map_right_iff).mpr <|
+    List.forall₂_same.mpr fun _ _ => hd' _ _ _ (List.forall₂_take _ (List.forall₂_drop _ huv))
 
 /-- Truth-table reductions compose whenever each admissible pair admits a block stride `M` making
 the composite count, quotient/remainder query map and composite combiner admissible. -/
@@ -508,20 +498,16 @@ theorem DTTReducibleBy.trans
     DTTReducibleBy Good₃ A C := by
   obtain ⟨r₁, q₁, hg₁, hA⟩ := hAB
   obtain ⟨r₂, q₂, hg₂, hB⟩ := hBC
-  refine ⟨_, _, hcomp r₁ q₁ r₂ q₂ hg₁ hg₂, fun a => ?_⟩
-  rw [hA a]
-  constructor
+  refine ⟨_, _, hcomp r₁ q₁ r₂ q₂ hg₁ hg₂, fun a => (hA a).trans ⟨?_, ?_⟩⟩
   · rintro ⟨i, hi, hq₁B⟩
     obtain ⟨j, hj, hq₂C⟩ := (hB (q₁ (a, i))).mp hq₁B
-    have hmem : (i, j) ∈ truthTableCompPairs r₁ q₁ r₂ a :=
-      List.mem_flatMap.mpr ⟨i, List.mem_range.mpr hi,
-        List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩⟩
-    obtain ⟨t, ht, hget⟩ := List.getElem_of_mem hmem
+    obtain ⟨t, ht, hget⟩ := List.getElem_of_mem (l := truthTableCompPairs r₁ q₁ r₂ a)
+      (List.mem_flatMap.mpr ⟨i, List.mem_range.mpr hi,
+        List.mem_map.mpr ⟨j, List.mem_range.mpr hj, rfl⟩⟩)
     exact ⟨t, ht, by simpa [dttCompQuery, List.getElem?_eq_getElem ht, hget] using hq₂C⟩
   · rintro ⟨t, ht, htC⟩
-    have hmem : (truthTableCompPairs r₁ q₁ r₂ a)[t] ∈ truthTableCompPairs r₁ q₁ r₂ a :=
-      List.getElem_mem ht
-    obtain ⟨i, hi_mem, hmem'⟩ := List.mem_flatMap.mp hmem
+    obtain ⟨i, hi_mem, hmem'⟩ := List.mem_flatMap.mp
+      (List.getElem_mem ht : (truthTableCompPairs r₁ q₁ r₂ a)[t] ∈ _)
     obtain ⟨j, hj_mem, hij⟩ := List.mem_map.mp hmem'
     exact ⟨i, List.mem_range.mp hi_mem, (hB (q₁ (a, i))).mpr ⟨j, List.mem_range.mp hj_mem, by
       simpa [dttCompQuery, List.getElem?_eq_getElem ht, ← hij] using htC⟩⟩

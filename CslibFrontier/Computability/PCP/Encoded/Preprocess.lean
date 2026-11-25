@@ -107,7 +107,8 @@ theorem length_edges_preprocess (fallback truth : C) (rotate : ℕ × (ℕ × D)
   simp only [preprocess, length_edges_addLoops, length_edges_addTrivial, length_rotationEdges,
     length_edges_degreeReduce]
   change 2 * g.edges.length * (1 + labels.length) +
-    2 * g.edges.length * labels.length + 2 * g.edges.length = _; ring
+    2 * g.edges.length * labels.length + 2 * g.edges.length = _
+  ring
 
 /-- Consecutive half-edge numbers identify the actual vertex set with `Fin (2 |E|)`. -/
 def halfEdgeEquiv (edges : ℕ) : Fin edges × Bool ≃ Fin (2 * edges) :=
@@ -188,12 +189,12 @@ private theorem addTrivial_represents {V L L' : Type} (g : Graph C) (eval : C �
       (extra.map fun p : ℕ × ℕ => Edge.mk p.1 p.2 truth)).symm.trans
     (Equiv.sumCongr eg eh)).trans (Equiv.prodSumDistrib V L L').symm, ?_⟩
   change (Graph.mk g.vertices (g.edges ++ _)).toGraph eval = _
-  rw [toGraph_append_inverse, hg, hh,
-    show ((R.toConstraintGraph.map number).comap eg).union
-        (((RegularConstraintGraph.unconstrained H).toConstraintGraph.map number).comap eh) =
+  have hunion : ((R.toConstraintGraph.map number).comap eg).union
+      (((RegularConstraintGraph.unconstrained H).toConstraintGraph.map number).comap eh) =
       ((R.addTrivial H).toConstraintGraph.map number).comap
-        ((Equiv.sumCongr eg eh).trans (Equiv.prodSumDistrib V L L').symm) by
-      ext (i | j) <;> rfl]
+        ((Equiv.sumCongr eg eh).trans (Equiv.prodSumDistrib V L L').symm) := by
+    ext (i | j) <;> rfl
+  rw [toGraph_append_inverse, hg, hh, hunion]
   rfl
 
 private theorem rotationEdges_product (rotate : ℕ × (ℕ × D) → ℕ × D)
@@ -226,7 +227,8 @@ private theorem rotationEdges_represents {V : Type} (vertices : ℕ)
   apply toGraph_eq_comap ⟨vertices, ((List.range vertices).product labels).map edge⟩ eval
     enumeration
   · intro p
-    simpa [edge, RegularConstraintGraph.toConstraintGraph] using (hnumber (eV.symm p.1)).symm
+    simpa [edge, RegularConstraintGraph.toConstraintGraph] using
+      (hnumber (eV.symm p.1)).symm
   · intro p
     change (rotate (vertices, (eV.symm p.1).val, p.2)).1 = _
     rw [hrotate]
@@ -288,7 +290,7 @@ theorem toGraph_preprocess [DecidableEq α] (htruth : ∀ a b, eval truth a b = 
     (rotationEdges_represents n rotate labels hlabels hmem (degreeReduceEval eval) accept htruth
       (family n) (hrotate n) eV number hnumber)
   have hloops := rotationEdges_represents n (fun p : ℕ × ℕ × Unit => p.2) [()] (by simp)
-    (by rintro ⟨⟩; simp) (degreeReduceEval eval) accept htruth (RotationMap.loops (Fin n) Unit)
+    (fun ⟨⟩ => by simp) (degreeReduceEval eval) accept htruth (RotationMap.loops (Fin n) Unit)
     (fun _ _ => rfl) eV number hnumber
   have hreindex : (RotationMap.loops (Fin n) Unit).reindex eV =
       RotationMap.loops (Fin g.edges.length × Bool) Unit := by
@@ -321,7 +323,8 @@ theorem unsatVal_preprocess (labels : List D) :
   · simp [ConstraintGraph.unsatVal, ConstraintGraph.unsatFrac, length_edges_degreeReduce, hzero]
   · have : (0 : ℝ) < g.edges.length := by exact_mod_cast hpos
     push_cast
-    field_simp; ring
+    field_simp
+    ring
 
 include hrotate htruth in
 /-- The computed graph has exactly the value of the regular preprocessing construction. -/

@@ -94,12 +94,16 @@ theorem exists_cliqueFree_indepSetFree_of_choose {n k l : ℕ}
     (powersetCard j univ).biUnion fun t => {x | ∀ e ∈ pairs t, x e = b}
   -- the colorings making some `j`-set monochromatic of color `b`, counted by a union bound
   have hcount (j : ℕ) (b : Bool) : #(bad j b) * 2 ^ j.choose 2 ≤ n.choose j * 2 ^ N := by
-    refine (Nat.mul_le_mul_right _ card_biUnion_le).trans (le_of_eq ?_)
-    rw [sum_mul, sum_congr rfl fun t ht => by
-      rw [← (mem_powersetCard.1 ht).2, ← card_pairs,
-        Fintype.card_filter_forall_mem_eq (pairs t) fun _ => b, Fintype.card_bool, ← pow_add,
-        card_compl, Nat.sub_add_cancel (card_le_univ _)]]
-    simp [card_powersetCard, N]
+    calc _ ≤ (∑ t ∈ powersetCard j univ,
+            #{x : Sym2 (Fin n) → Bool | ∀ e ∈ pairs t, x e = b}) * 2 ^ j.choose 2 :=
+          Nat.mul_le_mul_right _ card_biUnion_le
+      _ = ∑ _t ∈ powersetCard j (univ : Finset (Fin n)), 2 ^ N := by
+          rw [sum_mul]
+          refine sum_congr rfl fun t ht => ?_
+          rw [← (mem_powersetCard.1 ht).2, ← card_pairs,
+            Fintype.card_filter_forall_mem_eq (pairs t) fun _ => b, Fintype.card_bool, ← pow_add,
+            card_compl, Nat.sub_add_cancel (card_le_univ _)]
+      _ = n.choose j * 2 ^ N := by simp [card_powersetCard, N]
   have hlt : #(bad k true ∪ bad l false) < #(univ : Finset (Sym2 (Fin n) → Bool)) := by
     rw [card_univ, Fintype.card_fun, Fintype.card_bool]
     refine (card_union_le _ _).trans_lt <|

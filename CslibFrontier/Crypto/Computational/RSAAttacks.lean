@@ -371,7 +371,9 @@ theorem computableInPolyTime_factorOfTotient {α : Type} {enc : α ↪ List Bool
   unfold factorOfTotient
   have hdisc : ComputableInPolyTime
       (fun x => ((N x + 1 - φ x) ^ 2 - 4 * N x).sqrt) enc encNat :=
-    ComputableInPolyTime.binary_sqrt' (by simp only [sq]; fun_prop)
+    ComputableInPolyTime.binary_sqrt' (by
+      simp only [sq]
+      fun_prop)
   have hpair {d : α → ℕ} (hd : ComputableInPolyTime d enc encNat) :
       ComputableInPolyTime
         (fun x => ((N x + 1 - φ x + d x) / 2, (N x + 1 - φ x - d x) / 2))
@@ -629,9 +631,15 @@ theorem succProbability_modulusFactoringGame_le_rsaInversionGame (gen : RSAGen)
     Game.succProbability
         (modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) F n) ≤
       Game.succProbability (rsaInversionGame gen (factorToRSA F) n) := by
-  rw [← totientGame_factorToTotient]
-  exact (succProbability_totientGame_le_rsaKeyRecoveryGame gen (factorToTotient F) n).trans
-    (succProbability_rsaKeyRecoveryGame_le gen _ n)
+  calc Game.succProbability
+        (modulusFactoringGame (fun k => (gen k).map RSADesc.modulus) F n)
+      = Game.succProbability (totientGame gen (factorToTotient F) n) := by
+        rw [totientGame_factorToTotient]
+    _ ≤ Game.succProbability
+          (rsaKeyRecoveryGame gen (totientToKeyRecovery (factorToTotient F)) n) :=
+        succProbability_totientGame_le_rsaKeyRecoveryGame gen (factorToTotient F) n
+    _ ≤ Game.succProbability (rsaInversionGame gen (factorToRSA F) n) :=
+        succProbability_rsaKeyRecoveryGame_le gen _ n
 
 /-- **RSA one-wayness implies private-exponent recovery hardness.** -/
 theorem RSAOneWay.rsaKeyRecoveryHard {gen : RSAGen} (h : RSAOneWay gen) :

@@ -100,11 +100,11 @@ theorem exists_densityStep (g : Fin m → Fin m → Bool) (τ σ : ℝ)
   let b := bigHalf safe send
   let W := safe.filter fun x => send x = b
   have hhalf : (#safe : ℝ) ≤ 2 * #W := card_le_two_mul_card_filter_bigHalf safe send
-  have hXpos : (0 : ℝ) < #X := by exact_mod_cast card_pos.mpr hX
   have hW : W.Nonempty := by
-    apply card_pos.mp
-    have : (0 : ℝ) < #W := by dsimp [safe] at hhalf; linarith
-    exact_mod_cast this
+    rw [← card_pos, ← Nat.cast_pos (α := ℝ)]
+    have hXpos : (0 : ℝ) < #X := Nat.cast_pos.mpr (card_pos.mpr hX)
+    dsimp only [safe] at hhalf
+    linarith
   obtain ⟨I, α, hIF, hP, hPW, hfixed, hdense, hcard⟩ := exists_dense_agreeOn hτ F hW
   let P := agreeOn W I α
   obtain ⟨x, hx⟩ := hP
@@ -118,29 +118,21 @@ theorem exists_densityStep (g : Fin m → Fin m → Bool) (τ σ : ℝ)
     linarith
   have hYcard (answer) : (#Y : ℝ) ≤ 2 ^ (#I + 1) * #(Q answer) :=
     hxSafe.nonleaking I hIF answer
-  refine ⟨⟨b, I, P, Q, α⟩, hIF, ?_, (fun answer => gadgetFiber_subset _ _ _ _ answer), ?_, hQ,
-    ?_, hfixed, ?_, hdense, (fun answer => hxSafe.dense I hIF answer), hXcard, hYcard, ?_, ?_⟩
-  · exact hPW.trans ((filter_subset _ _).trans (filter_subset _ _))
-  · exact ⟨x, hx⟩
-  · intro x' hx'
-    exact (mem_filter.mp (hPW hx')).2
+  refine ⟨⟨b, I, P, Q, α⟩, hIF, hPW.trans ((filter_subset _ _).trans (filter_subset _ _)),
+    (fun answer => gadgetFiber_subset _ _ _ _ answer), ⟨x, hx⟩, hQ,
+    fun x' hx' => (mem_filter.mp (hPW hx')).2, hfixed, ?_, hdense,
+    (fun answer => hxSafe.dense I hIF answer), hXcard, hYcard, ?_, ?_⟩
   · intro answer x' hx' y hy i hi
-    have heq : x' i = x i := (hfixed x' hx' i hi).trans (hfixed x hx i hi).symm
-    rw [heq]
+    rw [(hfixed x' hx' i hi).trans (hfixed x hx i hi).symm]
     exact (mem_gadgetFiber.mp hy).2 i hi
   · intro answer
-    have hprod := mul_le_mul hXcard (hYcard answer) (by positivity : (0 : ℝ) ≤ #Y)
-      (by positivity : (0 : ℝ) ≤ 4 * #P * τ ^ #I)
     calc
-      _ ≤ (4 * #P * τ ^ #I) * (2 ^ (#I + 1) * #(Q answer)) := hprod
+      _ ≤ (4 * #P * τ ^ #I) * (2 ^ (#I + 1) * #(Q answer)) :=
+        mul_le_mul hXcard (hYcard answer) (by positivity) (by positivity)
       _ = _ := by rw [pow_succ, mul_pow]; ring
   · intro a b hab
     ext y
     simp only [Q, mem_gadgetFiber]
-    constructor
-    · rintro ⟨hy, hg⟩
-      exact ⟨hy, fun i hi => (hg i hi).trans (hab i hi)⟩
-    · rintro ⟨hy, hg⟩
-      exact ⟨hy, fun i hi => (hg i hi).trans (hab i hi).symm⟩
+    exact and_congr_right fun _ => forall₂_congr fun i hi => by rw [hab i hi]
 
 end Cslib.Communication.Lifting

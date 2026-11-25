@@ -738,9 +738,10 @@ theorem isSmoothMechanism_grid {K : ℕ} (hK : 1 ≤ K) :
       calc ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
             1 / (K : ℝ) * (v i₀ * q ^ (k.val + 1))
           ≤ ∑ k ∈ univ.filter (fun k : Fin K => k₀.val ≤ k.val),
-              1 / (K : ℝ) * FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
-            sum_le_sum fun k hk => mul_le_mul_of_nonneg_left (hwin_ge k (mem_filter.1 hk).2)
-              (by positivity)
+              1 / (K : ℝ) *
+                FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
+            sum_le_sum fun k hk => mul_le_mul_of_nonneg_left
+              (hwin_ge k (mem_filter.1 hk).2) (by positivity)
         _ ≤ ∑ k : Fin K, 1 / (K : ℝ) *
               FirstPrice.mechanism.utility i₀ (v i₀) (update b i₀ (grid k : ℝ)) :=
             sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun k _ _ =>
@@ -1004,10 +1005,11 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
       (measurePreserving_eval ν i).quasiMeasurePreserving.ae (hsupp i)
   have hwel_int : Integrable (fun w => Vickrey.mechanism.welfare w (fun j => β j (w j)))
       (Measure.pi ν) := by
-    rw [show (fun w => Vickrey.mechanism.welfare w (fun j => β j (w j))) =
-      fun w => (∑ i, Vickrey.mechanism.utility i (w i) (fun j => β j (w j))) +
-        ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i from
-      funext fun w => (Vickrey.mechanism.sum_utility_add_sum_payment w _).symm]
+    have hpt_w : (fun w => Vickrey.mechanism.welfare w (fun j => β j (w j))) =
+        fun w => (∑ i, Vickrey.mechanism.utility i (w i) (fun j => β j (w j))) +
+          ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i :=
+      funext fun w => (Vickrey.mechanism.sum_utility_add_sum_payment w _).symm
+    rw [hpt_w]
     exact (integrable_finsetSum _ fun i _ => hutil_eq i).add
       (integrable_finsetSum _ fun i _ => hpay_eq i)
   set W_eq := ∫ w, Vickrey.mechanism.welfare w (fun j => β j (w j)) ∂Measure.pi ν

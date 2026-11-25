@@ -125,8 +125,8 @@ theorem IsMerlinArthurZeroVerifier.isVerifier {q p : Polynomial ℕ} {V : α × 
     rw [Polynomial.eval_add] at hw
     have hfalse := (h a).2 ha (BitString.ofList _ (w.take (q.eval (enc a).length)))
       (BitString.ofList _ (w.drop (q.eval (enc a).length)))
-    rw [BitString.ofFn_ofList (by simp; omega), BitString.ofFn_ofList (by simp; omega),
-      List.take_append_drop] at hfalse
+    rw [BitString.ofFn_ofList (by simp; omega),
+      BitString.ofFn_ofList (by simp; omega), List.take_append_drop] at hfalse
     simp [hfalse] at hVw
 
 /-- A deterministic `NP` verifier is a Merlin–Arthur verifier with completeness `1 / 2` and
@@ -138,7 +138,8 @@ theorem IsVerifier.isMerlinArthurZeroVerifier {q : Polynomial ℕ} {V : α × Li
     refine ⟨BitString.ofList _ w, ?_⟩
     rw [filter_true_of_mem fun r _ => by
       rw [BitString.ofFn_ofList hw,
-        List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0), List.append_nil, hVw]]
+        List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0),
+        List.append_nil, hVw]]
     simp
   · rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn r).length = 0), List.append_nil]
     exact Bool.eq_false_iff.2 fun hVy => ha ((h a).2 ⟨List.ofFn y, List.length_ofFn, hVy⟩)
@@ -260,10 +261,12 @@ theorem IsMerlinArthurOneVerifier.merlinArthurRepeat_one {q p : Polynomial ℕ}
   refine ⟨fun ha => ?_, fun ha y => ?_⟩
   · obtain ⟨y, hy⟩ := (h a).1 ha
     refine ⟨y, ?_⟩
-    unfold BoundedErrorAt; rw [hlen]
+    unfold BoundedErrorAt
+    rw [hlen]
     simpa only [hrep y, decide_eq_true_iff] using
       two_mul_two_pow_le_three_mul_card_two_trials_of_forall Polynomial.eval_one _ hy
-  · unfold BoundedErrorAt; rw [hlen]
+  · unfold BoundedErrorAt
+    rw [hlen]
     simpa only [hrep y, decide_eq_false_iff_not] using
       two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one _
         ((h a).2 ha y)
@@ -294,7 +297,8 @@ theorem IsArthurMerlinOneVerifier.arthurMerlinRepeat_one_perfect {p q : Polynomi
     (V := V) a
   rw [hlen p, hlen q]
   refine ⟨fun ha x => by
-      rw [hex, filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]; simp,
+      rw [hex, filter_true_of_mem fun i _ => (h a).1 ha (BitString.block x i)]
+      simp,
     fun ha => (two_mul_two_pow_le_three_mul_card_two_trials_not_of_two_mul_le Polynomial.eval_one
       (fun r : BitString (p.eval (enc a).length) =>
         ∃ z : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn z) = true)
@@ -334,13 +338,15 @@ theorem isMerlinArthurOneVerifier_sigmaTwoVerifier {e q k p : Polynomial ℕ}
     IsMerlinArthurOneVerifier enc (q + k * p) p (sigmaTwoVerifier enc q k p W) A := by
   have halt := isAlternatingVerifier_sigmaTwoVerifier h hcover fun n => by
     have : 0 < 2 ^ e.eval n := by positivity
-    have := hshifts n; omega
+    have := hshifts n
+    omega
   refine fun a => ⟨fun ha => ?_, fun ha w => ?_⟩
   · obtain ⟨w, hw, hall⟩ := (halt a).1 ha
     simp only [List.map_cons, List.map_nil, alternation_false_cons,
       alternation_nil, List.append_nil] at hw hall
-    exact ⟨BitString.ofList _ w, fun r => by
-      rw [BitString.ofFn_ofList hw]; exact hall (List.ofFn r) List.length_ofFn⟩
+    refine ⟨BitString.ofList _ w, fun r => ?_⟩
+    rw [BitString.ofFn_ofList hw]
+    exact hall (List.ofFn r) List.length_ofFn
   · have hw : (List.ofFn w).length =
         q.eval (enc a).length + k.eval (enc a).length * p.eval (enc a).length := by
       simp [Polynomial.eval_add, Polynomial.eval_mul]
@@ -348,13 +354,14 @@ theorem isMerlinArthurOneVerifier_sigmaTwoVerifier {e q k p : Polynomial ℕ}
       BitString.ofList _ ((List.ofFn w).take (q.eval (enc a).length))
     set u : Fin (k.eval (enc a).length) → BitString (p.eval (enc a).length) :=
       BitString.block (BitString.ofList _ ((List.ofFn w).drop (q.eval (enc a).length)))
+    have hy : List.ofFn y = (List.ofFn w).take (q.eval (enc a).length) :=
+      BitString.ofFn_ofList (by simp)
     set S : Finset (BitString (p.eval (enc a).length)) :=
       univ.filter fun z => W (a, List.ofFn y ++ List.ofFn z) = true
     refine (Nat.mul_le_mul_left 2 (card_le_card fun r hr => ?_)).trans
       (BitString.two_mul_card_filter_exists_add_mem_le S ((h a).2 ha y) (hshifts _) u)
     obtain ⟨i, hi⟩ := (sigmaTwoVerifier_append_ofFn hw r).1 (mem_filter.1 hr).2
-    exact mem_filter.2 ⟨mem_univ _, i, mem_filter.2 ⟨mem_univ _,
-      by rwa [show List.ofFn y = _ from BitString.ofFn_ofList (by simp)]⟩⟩
+    exact mem_filter.2 ⟨mem_univ _, i, mem_filter.2 ⟨mem_univ _, by rwa [hy]⟩⟩
 
 /-- **Perfect completeness for `AM` via Lautemann's shifts**
 ([Goldreich, Exercise 9.8(2)][Goldreich2007DraftR5]; Fürer, Goldreich, Mansour, Sipser and Zachos):

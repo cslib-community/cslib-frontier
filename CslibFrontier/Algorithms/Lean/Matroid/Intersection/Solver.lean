@@ -202,7 +202,9 @@ variable {α : Type} [DecidableEq α] {m n : Type → Type*} [Monad m] [Monad n]
   | zero => rfl
   | succ fuel ih =>
     simp only [maxCommonIndepLoopM, maxCommonIndepLoop, exchTablesM_pure, pure_bind]
-    cases exchSearch V (exchTables indep₁ indep₂ V I) <;> [exact ih _; rfl]
+    rcases exchSearch V (exchTables indep₁ indep₂ V I) with p | R
+    · exact ih _
+    · rfl
 
 @[simp] theorem maxCommonIndepM_pure [LawfulMonad m] (indep₁ indep₂ : Finset α → Bool)
     (es : List α) :
@@ -226,7 +228,9 @@ theorem _root_.Cslib.IsMonadHom.map_maxCommonIndepLoopM {f : {γ : Type} → m �
   | succ fuel ih =>
     simp only [maxCommonIndepLoopM, hf.map_bind, hf.map_exchTablesM]
     congr 1 with T : 1
-    split <;> [exact ih _; exact hf.map_pure _]
+    split
+    · exact ih _
+    · exact hf.map_pure _
 
 theorem _root_.Cslib.IsMonadHom.map_maxCommonIndepM {f : {γ : Type} → m γ → n γ}
     (hf : IsMonadHom m n f) (indep₁ indep₂ : Finset α → m Bool) (es : List α) :
@@ -253,14 +257,16 @@ theorem length_exchPairs (V : List α) (I : Finset α) :
 private theorem src_exchTables_iff (h₁ : ∀ S, indep₁ S = true ↔ M₁.Indep (S : Set α))
     {V : List α} {I : Finset α} {v : α} :
     (exchTables indep₁ indep₂ V I).src v = true ↔ IsExchSource M₁ V.toFinset I v := by
-  simp only [ExchTables.src_eq_true_iff, exchTables, List.mem_filter, decide_eq_true_eq, h₁,
-    IsExchSource, Finset.mem_sdiff, List.mem_toFinset]
+  rw [ExchTables.src_eq_true_iff]
+  simp only [exchTables, List.mem_filter, decide_eq_true_eq, h₁, IsExchSource, Finset.mem_sdiff,
+    List.mem_toFinset]
 
 private theorem tgt_exchTables_iff (h₂ : ∀ S, indep₂ S = true ↔ M₂.Indep (S : Set α))
     {V : List α} {I : Finset α} {v : α} :
     (exchTables indep₁ indep₂ V I).tgt v = true ↔ IsExchSink M₂ V.toFinset I v := by
-  simp only [ExchTables.tgt_eq_true_iff, exchTables, List.mem_filter, decide_eq_true_eq, h₂,
-    IsExchSink, Finset.mem_sdiff, List.mem_toFinset]
+  rw [ExchTables.tgt_eq_true_iff]
+  simp only [exchTables, List.mem_filter, decide_eq_true_eq, h₂, IsExchSink, Finset.mem_sdiff,
+    List.mem_toFinset]
 
 private theorem arc_exchTables_iff (h₁ : ∀ S, indep₁ S = true ↔ M₁.Indep (S : Set α))
     (h₂ : ∀ S, indep₂ S = true ↔ M₂.Indep (S : Set α)) {V : List α} {I : Finset α}
@@ -280,10 +286,12 @@ private theorem isSrcTgtWalk_exchTables_iff (h₁ : ∀ S, indep₁ S = true ↔
     IsSrcTgtWalk V (exchTables indep₁ indep₂ V I).arc (exchTables indep₁ indep₂ V I).src
         (exchTables indep₁ indep₂ V I).tgt p ↔
       IsExchAugWalk M₁ M₂ V.toFinset I p := by
-  simp only [IsSrcTgtWalk, IsExchAugWalk, IsWalk, IsExchWalk,
-    show (fun u v => (exchTables indep₁ indep₂ V I).arc u v = true) = IsExchArc M₁ M₂ V.toFinset I
-      from funext₂ fun _ _ => propext (arc_exchTables_iff h₁ h₂ hIV),
-    src_exchTables_iff h₁, tgt_exchTables_iff h₂, List.mem_toFinset]
+  have harc : (fun u v => (exchTables indep₁ indep₂ V I).arc u v = true) =
+      IsExchArc M₁ M₂ V.toFinset I := by
+    funext u v
+    exact propext (arc_exchTables_iff h₁ h₂ hIV)
+  simp only [IsSrcTgtWalk, IsExchAugWalk, IsWalk, IsExchWalk, harc, src_exchTables_iff h₁,
+    tgt_exchTables_iff h₂, List.mem_toFinset]
 
 /-- **One phase, augmenting case** ([Schrijver2017], Theorem 10.6): if the search finds a walk `p`
 in the exchange digraph of `I ⊆ V`, then `I ∆ p` is a common independent subset of `V` with one more
@@ -345,7 +353,8 @@ private theorem maxCommonIndepLoop_spec (h₁ : ∀ S, indep₁ S = true ↔ M�
   | case1 => omega
   | case2 fuel I p hs ih =>
     obtain ⟨hI'V, hI', hcard⟩ := augment_of_exchSearch_eq_inl h₁ h₂ hIV hs
-    exact ih hI'V hI' (by have := Finset.card_le_card hI'V; omega)
+    have hle := Finset.card_le_card hI'V
+    exact ih hI'V hI' (by omega)
   | case3 fuel I R hs =>
     have heq := card_eq_of_exchSearch_eq_inr h₁ h₂ hIV hI hs
     exact ⟨isMaxCommonIndep_of_card_eq_eRk_add_eRk hIV hI heq, Finset.sdiff_subset, heq⟩

@@ -99,22 +99,12 @@ theorem Clause.isPolyTime_orChainAux {input : Input ↪ List Bool} {enc : W ↪ 
   have hdrop : ComputableInPolyTime (fun x => (rest x).drop ((rest x).length - 2))
       input (encList (encPair enc encBool)) :=
     (dropUnary (encA := encPair enc encBool)).comp (hrest.prod (by fun_prop))
-  have hu : ComputableInPolyTime (fun p : Input × ℕ =>
-      if p.2 = 0 then carry p.1 else ((fresh p.1 (index p.1 + (p.2 - 1)), true) : Literal W))
-      (encPair input encUnary) (encPair enc encBool) := by
-    fun_prop
-  have hv : ComputableInPolyTime (fun p : Input × ℕ => ((rest p.1)[p.2]?).getD (carry p.1))
-      (encPair input encUnary) (encPair enc encBool) := by
-    fun_prop
-  have hz : ComputableInPolyTime (fun p : Input × ℕ => fresh p.1 (index p.1 + p.2))
-      (encPair input encUnary) enc := by
-    fun_prop
   have hflat := ComputableInPolyTime.flatMapWithInput
     (list := fun x => List.range ((rest x).length - 2))
     (f := fun x i => gateClauses
       (if i = 0 then carry x else ((fresh x (index x + (i - 1)), true) : Literal W))
       (((rest x)[i]?).getD (carry x)) (fresh x (index x + i)))
-    (by fun_prop) (gateClauses_polyTime hu hv hz)
+    (by fun_prop) (gateClauses_polyTime (by fun_prop) (by fun_prop) (by fun_prop))
   simp_rw [orChainAux_eq_flatMap, List.getD_eq_getElem?_getD]
   fun_prop
 

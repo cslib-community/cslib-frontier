@@ -85,36 +85,29 @@ every `y` with `0 ≤ y ᵥ* A` [Schrijver1986, Corollary 7.1d]. -/
 theorem exists_nonneg_mulVec_eq_iff (A : Matrix ι κ K) (b : ι → K) :
     (∃ x, 0 ≤ x ∧ A *ᵥ x = b) ↔ ∀ y, 0 ≤ y ᵥ* A → 0 ≤ y ⬝ᵥ b := by
   classical
-  constructor
-  · rintro ⟨x, hx, rfl⟩ y hy
-    rw [dotProduct_mulVec]
-    exact dotProduct_nonneg_of_nonneg hy hx
-  · intro h
-    -- `A x = b` and `x ≥ 0` as the system `A x ≤ b`, `-A x ≤ -b`, `-x ≤ 0`
-    let M : Matrix (ι ⊕ ι ⊕ κ) κ K := fromRows A (fromRows (-A) (-1))
-    let r : ι ⊕ ι ⊕ κ → K := Sum.elim b (Sum.elim (-b) 0)
-    obtain ⟨x, hx⟩ := (exists_mulVec_le_iff M r).2 fun w hw hwM => by
-      have hwM' : (w ∘ Sum.inl - (w ∘ Sum.inr) ∘ Sum.inl) ᵥ* A = (w ∘ Sum.inr) ∘ Sum.inr := by
-        simp only [M, vecMul_fromRows, vecMul_neg, vecMul_one] at hwM
-        rw [sub_vecMul]
-        linear_combination hwM
-      have hy : 0 ≤ (w ∘ Sum.inl - (w ∘ Sum.inr) ∘ Sum.inl) ᵥ* A := by
-        rw [hwM']
-        exact fun k => hw _
-      have := h _ hy
-      rw [← Sum.elim_comp_inl_inr w, ← Sum.elim_comp_inl_inr (w ∘ Sum.inr)]
-      rw [sub_dotProduct] at this
-      simp only [r, sumElim_dotProduct_sumElim, dotProduct_neg, dotProduct_zero, add_zero]
-      linarith
-    refine ⟨x, fun k => ?_, le_antisymm (fun i => hx (.inl i)) fun i => ?_⟩
-    · have := hx (.inr (.inr k))
-      simp only [M, r, fromRows_mulVec, neg_mulVec, one_mulVec, Sum.elim_inr, Pi.neg_apply,
-        Pi.zero_apply, neg_nonpos] at this
-      exact this
-    · have := hx (.inr (.inl i))
-      simp only [M, r, fromRows_mulVec, neg_mulVec, Sum.elim_inr, Sum.elim_inl, Pi.neg_apply,
-        neg_le_neg_iff] at this
-      exact this
+  refine ⟨fun ⟨x, hx, hAx⟩ y hy =>
+    hAx ▸ dotProduct_mulVec y A x ▸ dotProduct_nonneg_of_nonneg hy hx, fun h => ?_⟩
+  -- `A x = b` and `x ≥ 0` as the system `A x ≤ b`, `-A x ≤ -b`, `-x ≤ 0`
+  let M : Matrix (ι ⊕ ι ⊕ κ) κ K := fromRows A (fromRows (-A) (-1))
+  let r : ι ⊕ ι ⊕ κ → K := Sum.elim b (Sum.elim (-b) 0)
+  obtain ⟨x, hx⟩ := (exists_mulVec_le_iff M r).2 fun w hw hwM => by
+    have hwM' : (w ∘ Sum.inl - (w ∘ Sum.inr) ∘ Sum.inl) ᵥ* A = (w ∘ Sum.inr) ∘ Sum.inr := by
+      simp only [M, vecMul_fromRows, vecMul_neg, vecMul_one] at hwM
+      rw [sub_vecMul]
+      linear_combination hwM
+    have hw0 : 0 ≤ (w ∘ Sum.inl - (w ∘ Sum.inr) ∘ Sum.inl) ᵥ* A := by
+      rw [hwM']
+      exact fun k => hw _
+    have hy := h _ hw0
+    rw [sub_dotProduct] at hy
+    rw [← Sum.elim_comp_inl_inr w, ← Sum.elim_comp_inl_inr (w ∘ Sum.inr)]
+    simp only [r, sumElim_dotProduct_sumElim, dotProduct_neg, dotProduct_zero, add_zero]
+    linarith
+  refine ⟨x, fun k => ?_, le_antisymm (fun i => hx (.inl i)) fun i => ?_⟩
+  · simpa only [M, r, fromRows_mulVec, neg_mulVec, one_mulVec, Sum.elim_inr, Pi.neg_apply,
+      Pi.zero_apply, neg_nonpos] using hx (.inr (.inr k))
+  · simpa only [M, r, fromRows_mulVec, neg_mulVec, Sum.elim_inr, Sum.elim_inl, Pi.neg_apply,
+      neg_le_neg_iff] using hx (.inr (.inl i))
 
 /-- **Farkas' lemma**, equality certificate form: `A *ᵥ x = b` has no solution `x ≥ 0` iff some
 `y` has `0 ≤ y ᵥ* A` and `y ⬝ᵥ b < 0` [Schrijver1986, Corollary 7.1d]. -/

@@ -303,8 +303,9 @@ private theorem step_abs {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
   · obtain ⟨e, rfl⟩ := hy
     exact .single ⟨legal_abs hI D hs, legal_abs hI D ht, e,
       reverse_comp_of_injective (original_injective D) s e⟩
-  · rw [show abs D (reverse s y) = abs D s from
-      reverse_comp_of_not_mem_range s fun e h => hy ⟨e, h⟩]
+  · have ha : abs D (reverse s y) = abs D s :=
+      reverse_comp_of_not_mem_range s fun e h => hy ⟨e, h⟩
+    rw [ha]
 
 private theorem reachable_enc_reverse {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b)
     (s : D.Edge → Bool) (e : D.Edge) (he : s e = false)

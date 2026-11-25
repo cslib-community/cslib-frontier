@@ -106,7 +106,8 @@ theorem abs_sum_weighted_mul_le (φ : AlgState A) (T : Measurement β A) (W D : 
   have hn : (∑ b, φ.norm (K b) ^ 2) ≤ 1 := by
     simp only [AlgState.norm_sq, ← hK, ← Complex.re_sum, ← map_sum]
     exact φ.re_apply_le_one ((sum_le_sum fun b _ => hle b).trans_eq T.sum_effect)
-  have hd : (∑ b, φ.norm (K b * D b) ^ 2) ≤ ∑ b, (φ (star (D b) * T.effect b * D b)).re := by
+  have hd : (∑ b, φ.norm (K b * D b) ^ 2) ≤
+      ∑ b, (φ (star (D b) * T.effect b * D b)).re := by
     simp only [hnorm]
     exact sum_le_sum fun b _ => φ.re_apply_mono (star_left_conjugate_le_conjugate (hle b) (D b))
   simpa only [← mul_assoc, ← hK, Real.sqrt_one, one_mul] using

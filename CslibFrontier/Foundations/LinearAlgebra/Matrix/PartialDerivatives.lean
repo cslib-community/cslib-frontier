@@ -102,9 +102,9 @@ private theorem iteratedPDeriv_prod_X (σ τ : Perm (Fin n)) {k : ℕ} (e : Fin 
     have himage : univ.image e = insert (e 0) (univ.image (e ∘ Fin.succ)) := by
       ext x
       simp [Fin.exists_fin_succ, eq_comm]
-    rw [iteratedPDeriv_succ_apply, show Fin.tail (fun t => (τ (e t), e t)) =
-        fun t => (τ ((e ∘ Fin.succ) t), (e ∘ Fin.succ) t) from rfl,
-      ih (e ∘ Fin.succ) (he.comp (Fin.succ_injective k))]
+    have htail : Fin.tail (fun t => (τ (e t), e t)) =
+        fun t => (τ ((e ∘ Fin.succ) t), (e ∘ Fin.succ) t) := rfl
+    rw [iteratedPDeriv_succ_apply, htail, ih (e ∘ Fin.succ) (he.comp (Fin.succ_injective k))]
     by_cases htl : ∀ t, (e ∘ Fin.succ) t ∈ S ∧ σ ((e ∘ Fin.succ) t) = τ ((e ∘ Fin.succ) t)
     · rw [ite_eq_left htl, pderiv_prod_X, himage, sdiff_insert]
       have hiff : (∀ t, e t ∈ S ∧ σ (e t) = τ (e t)) ↔ e 0 ∈ S ∧ σ (e 0) = τ (e 0) :=
@@ -150,13 +150,16 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
     (hw : ∀ σ, w σ ≠ 0) (k : ℕ) :
     ((n.choose k ^ 2 : ℕ) : Cardinal) ≤ (partialDerivatives k (permSum w)).rank := by
   classical
+  -- Pairs of `k`-sets of rows and of columns.
   let s := powersetCard k (univ : Finset (Fin n)) ×ˢ powersetCard k (univ : Finset (Fin n))
   have hcard (ρ : s) : ρ.1.1.card = k ∧ ρ.1.2.card = k :=
     ⟨(mem_powersetCard.1 (mem_product.1 ρ.2).1).2, (mem_powersetCard.1 (mem_product.1 ρ.2).2).2⟩
   choose τ hτ using fun ρ : s => exists_perm_mem_iff ((hcard ρ).1.trans (hcard ρ).2.symm)
+  -- The columns of each pair, enumerated, and the entries of `τ ρ` there.
   let e (ρ : s) : Fin k → Fin n := ρ.1.2.orderEmbOfFin (hcard ρ).2
   have hrange (ρ : s) : univ.image (e ρ) = ρ.1.2 := image_orderEmbOfFin_univ _ _
   let α (ρ : s) (t : Fin k) : Fin n × Fin n := (τ ρ (e ρ t), e ρ t)
+  -- The `0`/`1` point of the entries of `τ ρ` off its columns.
   let point (ρ : s) (x : Fin n × Fin n) : K := if x.2 ∉ ρ.1.2 ∧ τ ρ x.2 = x.1 then 1 else 0
   let E : MvPolynomial (Fin n × Fin n) K →ₗ[K] s → K :=
     LinearMap.pi fun ρ => (aeval (point ρ)).toLinearMap
@@ -181,7 +184,8 @@ private theorem choose_sq_le_rank_partialDerivatives_permSum (w : Perm (Fin n) �
       simp only [eval_X, point, prod_boole, ← hagree σ]
       split_ifs <;> simp_all
     change eval (point ρ') (iteratedPDeriv (α ρ) (permSum w)) = _
-    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.1.2.orderEmbOfFin (hcard ρ).2).injective, map_sum]
+    rw [iteratedPDeriv_permSum w (τ ρ) (e ρ) (ρ.1.2.orderEmbOfFin (hcard ρ).2).injective,
+      map_sum]
     simp only [hterm]
     by_cases h : ρ = ρ' <;> simp [h]
   have htop : LinearMap.range (E ∘ₗ partialDerivatives k (permSum w)) = ⊤ := by
@@ -223,8 +227,9 @@ field. -/
 theorem choose_sq_le_rank_partialDerivatives_permanent_mvPolynomialX (k : ℕ) :
     ((n.choose k ^ 2 : ℕ) : Cardinal) ≤
       (partialDerivatives k (mvPolynomialX (Fin n) (Fin n) K).permanent).rank := by
-  rw [show (mvPolynomialX (Fin n) (Fin n) K).permanent = permSum fun _ => 1 from
-    permanent_mvPolynomialX_eq_sum]
+  have : (mvPolynomialX (Fin n) (Fin n) K).permanent = permSum fun _ => 1 :=
+    permanent_mvPolynomialX_eq_sum
+  rw [this]
   exact choose_sq_le_rank_partialDerivatives_permSum _ (fun _ => one_ne_zero) k
 
 end Matrix

@@ -106,14 +106,16 @@ theorem card_conditioningAssignment_le {α : Type*} (U : Finset α) (m k N : ℕ
       Fintype.card_congr (ConditioningAssignment.equivSigma U m (min k U.card))]
     exact Fintype.card_congr' (by rw [hsets])
   rw [heq, card_conditioningAssignment]
-  refine (sum_le_sum (g := fun _ => (N * m) ^ k) fun j hj => ?_).trans ?_
-  · have hjk : j ≤ k := (Nat.le_of_lt_succ (mem_range.mp hj)).trans (min_le_left _ _)
-    calc U.card.choose j * m ^ j ≤ N ^ j * m ^ j :=
-          Nat.mul_le_mul_right _ ((Nat.choose_le_pow _ _).trans (Nat.pow_le_pow_left hU _))
-      _ = (N * m) ^ j := (mul_pow N m j).symm
-      _ ≤ (N * m) ^ k := Nat.pow_le_pow_right hNm hjk
-  · simp only [sum_const, card_range, smul_eq_mul]
-    exact Nat.mul_le_mul_right _ (Nat.add_le_add_right ((min_le_right _ _).trans hU) 1)
+  calc
+    _ ≤ ∑ _j ∈ range (min k U.card + 1), (N * m) ^ k :=
+      sum_le_sum fun j hj => by
+        have hjk : j ≤ k := (Nat.le_of_lt_succ (mem_range.mp hj)).trans (min_le_left _ _)
+        calc U.card.choose j * m ^ j ≤ N ^ j * m ^ j :=
+              Nat.mul_le_mul_right _ ((Nat.choose_le_pow _ _).trans (Nat.pow_le_pow_left hU _))
+          _ = (N * m) ^ j := (mul_pow N m j).symm
+          _ ≤ (N * m) ^ k := Nat.pow_le_pow_right hNm hjk
+    _ = (min k U.card + 1) * (N * m) ^ k := by simp
+    _ ≤ _ := Nat.mul_le_mul_right _ (Nat.add_le_add_right ((min_le_right _ _).trans hU) 1)
 
 /-- The geometric total over nonempty parity supports, with every bounded conditioning
 assignment on its complement counted once. -/

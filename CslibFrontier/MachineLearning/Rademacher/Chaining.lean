@@ -137,7 +137,9 @@ theorem expect_ciSup_sum_mul_signVal_le_of_hammingDist {ι κ : Type*} [Fintype 
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · simp only [CharP.cast_eq_zero, div_zero, zero_mul]; positivity
     rw [div_mul_eq_mul_div, div_le_div_iff₀ (Nat.cast_pos.2 hn) (by positivity)]
-    nlinarith [sq_nonneg r]
+    calc 4 * r ^ 2 * hammingDist v (ℓ j) * 4 ^ k
+        = r ^ 2 * (4 * hammingDist v (ℓ j) * 4 ^ k) := by ring
+      _ ≤ r ^ 2 * n := mul_le_mul_of_nonneg_left h4 (sq_nonneg r)
   -- The sizes of the nets.
   have hlogT : ∀ k, Real.log (T k).card ≤ 2 * d * (2 * k + 5) := by
     intro k
@@ -191,11 +193,12 @@ theorem expect_ciSup_sum_mul_signVal_le_of_hammingDist {ι κ : Type*} [Fintype 
     have hT0 : Real.log (T 0).card = 0 := by simp [hT]
     have hterm (k : ℕ) : 2 * r / 2 ^ k * √(2 * Real.log ((T (k + 1)).card * (T k).card)) ≤
         2 * r * √d * (((k : ℝ) + 7) / 2 ^ k) := by
-      have hs : √(2 * Real.log ((T (k + 1)).card * (T k).card)) ≤ √d * (k + 7) := by
-        rw [← Real.sqrt_sq (by positivity : (0 : ℝ) ≤ k + 7), ← Real.sqrt_mul (Nat.cast_nonneg _)]
-        exact Real.sqrt_le_sqrt (by
-          have := hlog2 k
-          nlinarith [sq_nonneg ((k : ℝ) - 1), (Nat.cast_nonneg d : (0 : ℝ) ≤ d)])
+      have hs : √(2 * Real.log ((T (k + 1)).card * (T k).card)) ≤ √d * (k + 7) :=
+        calc √(2 * Real.log ((T (k + 1)).card * (T k).card))
+            ≤ √(d * (k + 7) ^ 2) := Real.sqrt_le_sqrt (by
+              nlinarith [hlog2 k, sq_nonneg ((k : ℝ) - 1), (Nat.cast_nonneg d : (0 : ℝ) ≤ d)])
+          _ = √d * (k + 7) := by
+              rw [Real.sqrt_mul (Nat.cast_nonneg _), Real.sqrt_sq (by positivity)]
       calc 2 * r / 2 ^ k * √(2 * Real.log ((T (k + 1)).card * (T k).card))
           ≤ 2 * r / 2 ^ k * (√d * (k + 7)) := mul_le_mul_of_nonneg_left hs (by positivity)
         _ = 2 * r * √d * (((k : ℝ) + 7) / 2 ^ k) := by ring

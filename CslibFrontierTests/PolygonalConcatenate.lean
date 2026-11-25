@@ -108,13 +108,13 @@ example : (lower.concat upper).germ false = (⟨1, -1⟩ : ℂ) ∧
 private def lastIndex : Fin (lower.concat upper).segments := ⟨3, by rw [segments_concat]; decide⟩
 
 example (t : ℝ) : (lower.concat upper).eval lastIndex t = upper.eval 1 t := by
-  rcases concat_eval_cases lower upper rfl lastIndex t with ⟨j, hj, _⟩ | ⟨j, hj, he⟩
+  rcases concat_eval_cases lower upper rfl lastIndex with ⟨j, hj, _⟩ | ⟨j, hj, he⟩
   · change 3 = j.val at hj
     have hb := j.isLt
     change j.val < 2 at hb
     omega
   · change 3 = 2 + j.val at hj
     have h : j = 1 := Fin.ext (by change j.val = 1; omega)
-    simpa only [h] using he
+    simpa only [h] using he t
 
 end CslibFrontierTests.PolygonalConcatenate
