@@ -301,24 +301,35 @@ end BlockCipher
 
 /-! ### Efficiency of the real experiments -/
 
-/-- A stateless keyed oracle whose replies to valid keys have bounded length gives a strict PPT
-experiment for every oracle-PPT adversary. Replies are cut at the bound inside the certificate,
-which changes nothing on the support of the key sampler. -/
+/-- A stateless length-guarded keyed oracle whose replies to valid keys and valid blocks have
+length `bound n` gives a strict PPT experiment for every oracle-PPT adversary. Replies are cut at
+`bound n` inside the certificate, which changes nothing on the support of the key sampler. -/
 private theorem isPPTOn_keyedOracleGame {Operation : Type} [DecidableEq Operation]
     [FinEnum Operation]
     {adversary : ℕ → List Bool → WordOracleComp Operation Bool}
     (hadversary : IsOraclePPT encBool adversary) {keyLen bound : ℕ → ℕ}
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
     (hbound : ComputableInPolyTime bound encUnary encUnary)
-    (oracle : ℕ → List Bool → Operation × List Bool → List Bool)
-    (horacle : ComputableInPolyTime (fun (n, key, request) => oracle n key request)
+    (body : ℕ → List Bool → Operation × List Bool → List Bool)
+    (hbody : ComputableInPolyTime (fun (n, key, request) => body n key request)
       (encPair encUnary (encPair encBits (encPair (encFinEnum Operation) encBits))) encBits)
-    (hlength : ∀ n key request, key.length = keyLen n → (oracle n key request).length ≤ bound n) :
+    (hlength : ∀ n key request, key.length = keyLen n → request.2.length = bound n →
+      (body n key request).length = bound n) :
     IsPPTOn encUnary encBool (fun n => do
       let key ← BitString.sampleList (keyLen n)
       OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifFin (fun request => pure (oracle n key request)))
+        (OracleComp.sumHandler ProbComp.unifFin
+          (fun request => pure (if request.2.length = bound n then body n key request else [])))
         (adversary n [])) := by
+  let oracle (n : ℕ) (key : List Bool) (request : Operation × List Bool) : List Bool :=
+    if request.2.length = bound n then body n key request else []
+  have horacle : ComputableInPolyTime (fun (n, key, request) => oracle n key request)
+      (encPair encUnary (encPair encBits (encPair (encFinEnum Operation) encBits))) encBits :=
+    ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.unary_eq'
+        ((ComputableInPolyTime.snd _ _).snd'.snd'.trans ComputableInPolyTime.length_bits)
+        ((ComputableInPolyTime.fst _ _).trans hbound))
+      hbody (.const [])
   let caller : (ℕ × List Bool) ↪ List Bool := encPair encUnary encBits
   have hfst := ComputableInPolyTime.fst caller
     (encPair (encPair (encFinEnum Operation) encBits) (encFinEnum Unit))
@@ -350,8 +361,12 @@ private theorem isPPTOn_keyedOracleGame {Operation : Type} [DecidableEq Operatio
   refine PMF.bind_congr_on_support _ _ _ fun key hkey => ?_
   have hkeyLen : key.length = keyLen n := BitString.length_of_mem_support_uniformList hkey
   have htake (request : Operation × List Bool) :
-      (oracle n key request).take (bound n) = oracle n key request :=
-    List.take_of_length_le (hlength n key request hkeyLen)
+      (oracle n key request).take (bound n) = oracle n key request := by
+    refine List.take_of_length_le ?_
+    dsimp only [oracle]
+    split_ifs with hq
+    · exact (hlength n key request hkeyLen hq).le
+    · exact Nat.zero_le _
   simp only [htake, ProbComp.eval_map, ProbOracleComp.eval_run_interpret,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure]
   rw [show (OracleComp.sumHandler (fun r => StateT.lift (ProbComp.unifOracle r))
@@ -372,48 +387,27 @@ variable (E : BlockCipher)
 adversary. -/
 theorem isPPTOn_prpRealGame {adversary : OracleDistinguisher}
     (hadversary : IsOraclePPT encBool adversary) :
-    IsPPTOn encUnary encBool (E.prpRealGame adversary) := by
-  have hn := ComputableInPolyTime.fst encUnary
-    (encPair encBits (encPair (encFinEnum Unit) encBits))
-  have hrest := ComputableInPolyTime.snd encUnary
-    (encPair encBits (encPair (encFinEnum Unit) encBits))
-  have hq := hrest.snd'.snd'
-  exact isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
-    (fun n key request => E.prpOracle n key request.2)
-    (ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq' (hq.trans ComputableInPolyTime.length_bits)
-        (hn.trans E.blockLen_polyTime))
-      (E.computableInPolyTime_encrypt_comp hn hrest.fst' hq)
-      (ComputableInPolyTime.const []))
-    fun n key request hkey => by
-      unfold prpOracle; split_ifs with hq
-      · exact (E.length_encrypt n key _ hkey hq).le
-      · exact Nat.zero_le _
+    IsPPTOn encUnary encBool (E.prpRealGame adversary) :=
+  isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
+    (fun n key request => E.encrypt n key request.2)
+    (E.computableInPolyTime_encrypt_comp (by fun_prop) (by fun_prop) (by fun_prop))
+    fun n key _ hkey hq => E.length_encrypt n key _ hkey hq
 
 /-- The real chosen-ciphertext experiment is uniformly strict PPT for every oracle-PPT
 adversary. -/
 theorem isPPTOn_strongPRPRealGame {adversary : StrongPRPDistinguisher}
     (hadversary : IsOraclePPT encBool adversary) :
-    IsPPTOn encUnary encBool (E.strongPRPRealGame adversary) := by
-  have hn := ComputableInPolyTime.fst encUnary
-    (encPair encBits (encPair (encFinEnum Bool) encBits))
-  have hrest := ComputableInPolyTime.snd encUnary
-    (encPair encBits (encPair (encFinEnum Bool) encBits))
-  have hq := hrest.snd'.snd'
-  exact isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
-    (fun n key request => E.strongPRPOracle n key request)
-    (ComputableInPolyTime.ite_decide
-      (ComputableInPolyTime.unary_eq' (hq.trans ComputableInPolyTime.length_bits)
-        (hn.trans E.blockLen_polyTime))
-      (ComputableInPolyTime.ite hrest.snd'.fst'
-        (E.computableInPolyTime_decrypt_comp hn hrest.fst' hq)
-        (E.computableInPolyTime_encrypt_comp hn hrest.fst' hq))
-      (ComputableInPolyTime.const []))
-    fun n key ⟨inverse, query⟩ hkey => by
-      simp only [strongPRPOracle]; split_ifs with hq
-      · exact (E.length_decrypt n key _ hkey hq).le
-      · exact (E.length_encrypt n key _ hkey hq).le
-      · exact Nat.zero_le _
+    IsPPTOn encUnary encBool (E.strongPRPRealGame adversary) :=
+  isPPTOn_keyedOracleGame hadversary E.keyLen_polyTime E.blockLen_polyTime
+    (fun n key request =>
+      if request.1 then E.decrypt n key request.2 else E.encrypt n key request.2)
+    (ComputableInPolyTime.ite (by fun_prop)
+      (E.computableInPolyTime_decrypt_comp (by fun_prop) (by fun_prop) (by fun_prop))
+      (E.computableInPolyTime_encrypt_comp (by fun_prop) (by fun_prop) (by fun_prop)))
+    fun n key ⟨inverse, _⟩ hkey hq => by
+      cases inverse
+      · exact E.length_encrypt n key _ hkey hq
+      · exact E.length_decrypt n key _ hkey hq
 
 end BlockCipher
 
