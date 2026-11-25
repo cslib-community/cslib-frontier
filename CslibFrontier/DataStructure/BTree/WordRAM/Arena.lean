@@ -1506,217 +1506,124 @@ theorem memSplitChild_spec {l base t u slot cnt : ℕ} {mem : ℕ → ℕ}
   have hc_slot1 : childAt base t mem' u (slot + 1) = cnt := by
     have hn : ¬ slot + 1 ≤ slot := by omega
     simpa only [hn, ↓reduceIte] using hcid_u' (slot + 1) (by omega)
-  -- Helper mapping new child index `j < m + 2` to its node-set bound:
-  have hset_sub_old : ∀ j < m + 2, j ≠ slot + 1 →
-      let old_j := if j ≤ slot then j else j - 1
-      readNodeSet l base t mem' (childAt base t mem' u j) ⊆
-        readNodeSet l base t mem (childAt base t mem u old_j) := by
-    intro j hj hne1
-    dsimp only
-    by_cases hj_lt : j < slot
-    · have hj_le : j ≤ slot := by omega
-      simp only [hj_le, ↓reduceIte]
-      rw [hcid_u' j hj]; simp only [hj_le, ↓reduceIte]
-      rw [(hsib_congr j (by omega) (by omega)).2.2.1]
-    · by_cases hj_eq : j = slot
-      · subst hj_eq
-        simp only [le_rfl, ↓reduceIte, hc_slot, hset_c']
-        exact hsub_c1
-      · have hn_le : ¬ j ≤ slot := by omega
-        simp only [hn_le, ↓reduceIte]
-        rw [hcid_u' j hj]; simp only [hn_le, hne1, ↓reduceIte]
-        rw [(hsib_congr (j - 1) (by omega) (by omega)).2.2.1]
+  have hmed_in_c : (keyAt base t mem c (t - 1), valAt base t mem c (t - 1)) ∈
+      (readTree l base t mem c).toList := (hmem_iff1 _).mpr (Or.inr (Or.inl rfl))
+  -- Every other new child `j` of `u` is the old child `o` it was shifted from, and every new key
+  -- other than the median is the old key it was shifted from:
+  have hold : ∀ j < m + 2, j ≠ slot → j ≠ slot + 1 →
+      ∃ o < m + 1, o ≠ slot ∧ (o = j ∧ j < slot ∨ o + 1 = j ∧ slot + 1 < j) ∧
+        childAt base t mem' u j = childAt base t mem u o := by
+    intro j hj h1 h2
+    rcases Nat.lt_or_gt_of_ne h1 with h | h
+    · exact ⟨j, by omega, h1, Or.inl ⟨rfl, h⟩, by simpa only [h.le, ↓reduceIte] using hcid_u' j hj⟩
+    · have hn : ¬j ≤ slot := by omega
+      exact ⟨j - 1, by omega, by omega, Or.inr ⟨by omega, by omega⟩,
+        by simpa only [hn, h2, ↓reduceIte] using hcid_u' j hj⟩
+  have hkey_old : ∀ i < m + 1, i ≠ slot →
+      ∃ o < m, (o = i ∧ i < slot ∨ o + 1 = i ∧ slot < i) ∧
+        (keyAt base t mem' u i, valAt base t mem' u i) =
+          (keyAt base t mem u o, valAt base t mem u o) := by
+    intro i hi h1
+    rw [hkv_u' i hi]
+    rcases Nat.lt_or_gt_of_ne h1 with h | h
+    · exact ⟨i, by omega, Or.inl ⟨rfl, h⟩, by simp only [h, ↓reduceIte]⟩
+    · have hn : ¬i < slot := by omega
+      exact ⟨i - 1, by omega, Or.inr ⟨by omega, h⟩, by simp only [hn, h1, ↓reduceIte]⟩
+  -- Each entry and node below a new child lies below the old child it came from (or is `cnt`):
+  have hchild_old : ∀ j < m + 2, ∀ p ∈ (readTree l base t mem' (childAt base t mem' u j)).toList,
+      ∃ o < m + 1, (o = j ∧ j ≤ slot ∨ o + 1 = j ∧ slot < j) ∧
+        p ∈ (readTree l base t mem (childAt base t mem u o)).toList := by
+    intro j hj p hp
+    by_cases h1 : j = slot
+    · rw [h1, hc_slot, htr_c'] at hp
+      exact ⟨slot, hslot_lt1, by omega, (hmem_iff1 p).mpr (Or.inl hp)⟩
+    by_cases h2 : j = slot + 1
+    · rw [h2, hc_slot1, htr_z'] at hp
+      exact ⟨slot, hslot_lt1, by omega, (hmem_iff1 p).mpr (Or.inr (Or.inr hp))⟩
+    obtain ⟨o, ho, hos, hoj, hco⟩ := hold j hj h1 h2
+    rw [hco, (hsib_congr o ho hos).2.1] at hp
+    exact ⟨o, ho, by omega, hp⟩
+  have hset_old : ∀ j < m + 2, ∀ x ∈ readNodeSet l base t mem' (childAt base t mem' u j),
+      (j = slot + 1 ∧ x = cnt) ∨ ∃ o < m + 1, (o = j ∧ j ≤ slot ∨ o + 1 = j ∧ slot < j) ∧
+        x ∈ readNodeSet l base t mem (childAt base t mem u o) := by
+    intro j hj x hx
+    by_cases h1 : j = slot
+    · rw [h1, hc_slot, hset_c'] at hx
+      exact Or.inr ⟨slot, hslot_lt1, by omega, hsub_c1 hx⟩
+    by_cases h2 : j = slot + 1
+    · rw [h2, hc_slot1, hset_z'] at hx
+      rcases Finset.mem_insert.mp (hsub_z1 hx) with hxz | hxc
+      exacts [Or.inl ⟨h2, hxz⟩, Or.inr ⟨slot, hslot_lt1, by omega, hxc⟩]
+    obtain ⟨o, ho, hos, hoj, hco⟩ := hold j hj h1 h2
+    rw [hco, (hsib_congr o ho hos).2.2.1] at hx
+    exact Or.inr ⟨o, ho, by omega, hx⟩
   have hv_u' : ValidNode (l + 1) base t mem' u := by
     simp only [ValidNode, hnk_u']
-    refine ⟨hlf_u', by omega, by omega, ?_, ?_⟩
-    · intro j hj
-      by_cases hj_lt : j < slot
-      · have hj_le : j ≤ slot := by omega
-        rw [hcid_u' j hj]; simp only [hj_le, ↓reduceIte]
-        obtain ⟨hvs, _, hsets, _, hnks⟩ := hsib_congr j (by omega) (by omega)
-        rw [hsets, hnks]
-        exact ⟨hvs, (hch_u j (by omega)).2.1, (hch_u j (by omega)).2.2⟩
-      · by_cases hj_eq : j = slot
-        · subst hj_eq
-          rw [hc_slot, hset_c', hnk_c']
-          exact ⟨hv_c', le_rfl, hu_not_c1⟩
-        · by_cases hj_eq1 : j = slot + 1
-          · subst hj_eq1
-            rw [hc_slot1, hset_z', hnk_z']
-            exact ⟨hv_z', le_rfl, hu_not_z1⟩
-          · have hn_le : ¬ j ≤ slot := by omega
-            rw [hcid_u' j hj]; simp only [hn_le, hj_eq1, ↓reduceIte]
-            obtain ⟨hvs, _, hsets, _, hnks⟩ := hsib_congr (j - 1) (by omega) (by omega)
-            rw [hsets, hnks]
-            exact ⟨hvs, (hch_u (j - 1) (by omega)).2.1, (hch_u (j - 1) (by omega)).2.2⟩
+    refine ⟨hlf_u', by omega, by omega, fun j hj => ?_, ?_⟩
+    · by_cases h1 : j = slot
+      · rw [h1, hc_slot, hset_c', hnk_c']; exact ⟨hv_c', le_rfl, hu_not_c1⟩
+      by_cases h2 : j = slot + 1
+      · rw [h2, hc_slot1, hset_z', hnk_z']; exact ⟨hv_z', le_rfl, hu_not_z1⟩
+      obtain ⟨o, ho, hos, -, hco⟩ := hold j hj h1 h2
+      obtain ⟨hvs, -, hsets, -, hnks⟩ := hsib_congr o ho hos
+      rw [hco, hsets, hnks]; exact ⟨hvs, (hch_u o ho).2⟩
     · -- Pairwise disjointness of the `m + 2` child node sets:
       intro j₁ j₂ hj₁ hj₂ hne
       wlog hlt12 : j₁ < j₂ generalizing j₁ j₂
       · exact (this j₂ j₁ hj₂ hj₁ hne.symm (by omega)).symm
-      by_cases h1_s1 : j₁ = slot + 1
-      · subst h1_s1
-        have h2_ne : j₂ ≠ slot + 1 := by omega
-        have hn2 : ¬ j₂ ≤ slot := by omega
-        have hsub2 := hset_sub_old j₂ hj₂ h2_ne
-        simp only [hn2, ↓reduceIte] at hsub2
-        rw [hc_slot1, hset_z', Finset.disjoint_left]
-        intro x hxz hx2
-        have hx2' := hsub2 hx2
-        rcases Finset.mem_insert.mp (hsub_z1 hxz) with rfl | hxc
-        · exact hcnt_fresh (child_subset_readNodeSet l base t mem u (j₂ - 1) (by omega) hx2')
-        · exact Finset.disjoint_left.mp
-            (hdisj_u slot (j₂ - 1) hslot_lt1 (by omega) (by omega)) hxc hx2'
-      · by_cases h2_s1 : j₂ = slot + 1
-        · subst h2_s1
-          rw [hc_slot1, hset_z']
-          by_cases h1_s : j₁ = slot
-          · subst h1_s
-            rw [hc_slot, hset_c']
-            exact hdisj_cz1
-          · have h1_le : j₁ ≤ slot := by omega
-            have hsub1 := hset_sub_old j₁ hj₁ h1_s1
-            simp only [h1_le, ↓reduceIte] at hsub1
-            rw [Finset.disjoint_left]
-            intro x hx1 hxz
-            have hx1' := hsub1 hx1
-            rcases Finset.mem_insert.mp (hsub_z1 hxz) with rfl | hxc
-            · exact hcnt_fresh (child_subset_readNodeSet l base t mem u j₁ (by omega) hx1')
-            · exact Finset.disjoint_left.mp
-                (hdisj_u j₁ slot (by omega) hslot_lt1 h1_s) hx1' hxc
-        · have hsub1 := hset_sub_old j₁ hj₁ h1_s1
-          have hsub2 := hset_sub_old j₂ hj₂ h2_s1
-          dsimp only at hsub1 hsub2
-          have hold_ne : (if j₁ ≤ slot then j₁ else j₁ - 1) ≠
-              (if j₂ ≤ slot then j₂ else j₂ - 1) := by
-            split_ifs <;> omega
-          have hold1_lt : (if j₁ ≤ slot then j₁ else j₁ - 1) < m + 1 := by split_ifs <;> omega
-          have hold2_lt : (if j₂ ≤ slot then j₂ else j₂ - 1) < m + 1 := by split_ifs <;> omega
-          exact Finset.disjoint_of_subset_left hsub1
-            (Finset.disjoint_of_subset_right hsub2 (hdisj_u _ _ hold1_lt hold2_lt hold_ne))
+      by_cases hcz : j₁ = slot ∧ j₂ = slot + 1
+      · rw [hcz.1, hcz.2, hc_slot, hset_c', hc_slot1, hset_z']; exact hdisj_cz1
+      have hfresh := fun o (ho : o < m + 1) (h : cnt ∈ readNodeSet l base t mem
+          (childAt base t mem u o)) => hcnt_fresh (child_subset_readNodeSet l base t mem u o ho h)
+      rw [Finset.disjoint_left]
+      intro x hx₁ hx₂
+      rcases hset_old j₁ hj₁ x hx₁ with ⟨h₁, hc₁⟩ | ⟨o₁, ho₁, hoj₁, hx₁⟩ <;>
+        rcases hset_old j₂ hj₂ x hx₂ with ⟨h₂, hc₂⟩ | ⟨o₂, ho₂, hoj₂, hx₂⟩
+      · omega
+      · exact hfresh o₂ ho₂ (hc₁ ▸ hx₂)
+      · exact hfresh o₁ ho₁ (hc₂ ▸ hx₁)
+      · exact Finset.disjoint_left.mp (hdisj_u o₁ o₂ ho₁ ho₂ (by omega)) hx₁ hx₂
   have hs_u' : SortedNode (l + 1) base t mem' u := by
     simp only [SortedNode, hnk_u']
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · intro i₁ i₂ h12 h2
-      have hk1 := congrArg Prod.fst (hkv_u' i₁ (by omega))
-      have hk2 := congrArg Prod.fst (hkv_u' i₂ h2)
-      dsimp only at hk1 hk2
-      rw [hk1, hk2]
-      have hmed_in_c : (keyAt base t mem c (t - 1), valAt base t mem c (t - 1)) ∈
-          (readTree l base t mem c).toList := by
-        rw [hmem_iff1]; exact Or.inr (Or.inl rfl)
-      rcases lt_trichotomy i₁ slot with h1_lt | h1_eq | h1_gt <;>
-        rcases lt_trichotomy i₂ slot with h2_lt | h2_eq | h2_gt
-      · simp only [h1_lt, h2_lt, ↓reduceIte]; exact hkeys_u i₁ i₂ h12 (by omega)
-      · subst h2_eq
-        simp only [h1_lt, lt_irrefl, ↓reduceIte]
-        exact hs_u.key_lt_child (by omega) (by omega) hslot_lt1 hmed_in_c
-      · have hn2 : ¬ i₂ < slot := by omega
-        have he2 : i₂ ≠ slot := by omega
-        simp only [h1_lt, hn2, he2, ↓reduceIte]
-        exact hkeys_u i₁ (i₂ - 1) (by omega) (by omega)
-      · omega
-      · omega
-      · subst h1_eq
-        have hn2 : ¬ i₂ < i₁ := by omega
-        have he2 : i₂ ≠ i₁ := by omega
-        simp only [lt_irrefl, hn2, he2, ↓reduceIte]
-        exact hs_u.child_lt_key (by omega) (by omega) hmed_in_c
-      · omega
-      · omega
-      · have hn1 : ¬ i₁ < slot := by omega
-        have he1 : i₁ ≠ slot := by omega
-        have hn2 : ¬ i₂ < slot := by omega
-        have he2 : i₂ ≠ slot := by omega
-        simp only [hn1, he1, hn2, he2, ↓reduceIte]
-        exact hkeys_u (i₁ - 1) (i₂ - 1) (by omega) (by omega)
-    · intro j hj
-      by_cases hj_lt : j < slot
-      · have hj_le : j ≤ slot := by omega
-        rw [hcid_u' j hj]; simp only [hj_le, ↓reduceIte]
-        exact (hsib_congr j (by omega) (by omega)).2.2.2.1
-      · by_cases hj_eq : j = slot
-        · subst hj_eq; rw [hc_slot]; exact hs_c'
-        · by_cases hj_eq1 : j = slot + 1
-          · subst hj_eq1; rw [hc_slot1]; exact hs_z'
-          · have hn_le : ¬ j ≤ slot := by omega
-            rw [hcid_u' j hj]; simp only [hn_le, hj_eq1, ↓reduceIte]
-            exact (hsib_congr (j - 1) (by omega) (by omega)).2.2.2.1
-    · intro i hi p hp
-      have hki := congrArg Prod.fst (hkv_u' i hi)
-      dsimp only at hki
-      rw [hki]
-      rcases lt_trichotomy i slot with hi_lt | hi_eq | hi_gt
-      · have hi_le : i ≤ slot := by omega
-        rw [hcid_u' i (by omega)] at hp; simp only [hi_le, ↓reduceIte] at hp
-        rw [(hsib_congr i (by omega) (by omega)).2.1] at hp
-        simp only [hi_lt, ↓reduceIte]
-        exact hleft_u i (by omega) p hp
-      · subst hi_eq
-        rw [hc_slot, htr_c'] at hp
-        simp only [lt_irrefl, ↓reduceIte]
-        exact hlt_med1 p hp
-      · have hn : ¬ i < slot := by omega
-        have he : i ≠ slot := by omega
-        simp only [hn, he, ↓reduceIte]
-        by_cases hi_s1 : i = slot + 1
-        · subst hi_s1
-          rw [hc_slot1, htr_z'] at hp
-          have hin_old : p ∈ (readTree l base t mem c).toList := by
-            rw [hmem_iff1]; exact Or.inr (Or.inr hp)
-          simpa only [Nat.add_sub_cancel] using hleft_u slot (by omega) p hin_old
-        · have hn_le : ¬ i ≤ slot := by omega
-          rw [hcid_u' i (by omega)] at hp; simp only [hn_le, hi_s1, ↓reduceIte] at hp
-          rw [(hsib_congr (i - 1) (by omega) (by omega)).2.1] at hp
-          exact hleft_u (i - 1) (by omega) p hp
-    · intro i hi p hp
-      have hki := congrArg Prod.fst (hkv_u' i hi)
-      dsimp only at hki
-      rw [hki]
-      rcases lt_trichotomy i slot with hi_lt | hi_eq | hi_gt
-      · simp only [hi_lt, ↓reduceIte]
-        by_cases hi1_s : i + 1 = slot
-        · rw [hi1_s, hc_slot, htr_c'] at hp
-          have hin_old : p ∈ (readTree l base t mem (childAt base t mem u (i + 1))).toList := by
-            have hin_c : p ∈ (readTree l base t mem c).toList :=
-              (hmem_iff1 p).mpr (Or.inl hp)
-            dsimp only [c] at hin_c
-            rwa [← hi1_s] at hin_c
-          exact hright_u i (by omega) p hin_old
-        · have hi1_le : i + 1 ≤ slot := by omega
-          rw [hcid_u' (i + 1) (by omega)] at hp; simp only [hi1_le, ↓reduceIte] at hp
-          rw [(hsib_congr (i + 1) (by omega) (by omega)).2.1] at hp
-          exact hright_u i (by omega) p hp
-      · subst hi_eq
-        rw [hc_slot1, htr_z'] at hp
-        simp only [lt_irrefl, ↓reduceIte]
-        exact hgt_med1 p hp
-      · have hn : ¬ i < slot := by omega
-        have he : i ≠ slot := by omega
-        have hn1_le : ¬ i + 1 ≤ slot := by omega
-        have hn1_eq : i + 1 ≠ slot + 1 := by omega
-        simp only [hn, he, ↓reduceIte]
-        rw [hcid_u' (i + 1) (by omega)] at hp; simp only [hn1_le, hn1_eq, ↓reduceIte] at hp
-        have hsub_idx : i + 1 - 1 = i := by omega
-        have heq_s : i - 1 + 1 = i := by omega
-        rw [hsub_idx, (hsib_congr i (by omega) (by omega)).2.1, ← heq_s] at hp
-        exact hright_u (i - 1) (by omega) p hp
+    refine ⟨fun i₁ i₂ h12 h2 => ?_, fun j hj => ?_, fun i hi p hp => ?_, fun i hi p hp => ?_⟩
+    · -- Keys stay strictly increasing around the inserted median:
+      by_cases h1 : i₁ = slot
+      · obtain ⟨o₂, ho₂, hoi₂, hkv₂⟩ := hkey_old i₂ h2 (by omega)
+        rw [h1, hk_slot, (Prod.mk.inj hkv₂).1]
+        exact hs_u.child_lt_key (by omega) ho₂ hmed_in_c
+      obtain ⟨o₁, ho₁, hoi₁, hkv₁⟩ := hkey_old i₁ (by omega) h1
+      rw [(Prod.mk.inj hkv₁).1]
+      by_cases h2' : i₂ = slot
+      · rw [h2', hk_slot]; exact hs_u.key_lt_child ho₁ (by omega) hslot_lt1 hmed_in_c
+      obtain ⟨o₂, ho₂, hoi₂, hkv₂⟩ := hkey_old i₂ h2 h2'
+      rw [(Prod.mk.inj hkv₂).1]; exact hkeys_u o₁ o₂ (by omega) ho₂
+    · by_cases h1 : j = slot
+      · rw [h1, hc_slot]; exact hs_c'
+      by_cases h2 : j = slot + 1
+      · rw [h2, hc_slot1]; exact hs_z'
+      obtain ⟨o, ho, hos, -, hco⟩ := hold j hj h1 h2
+      rw [hco]; exact (hsib_congr o ho hos).2.2.2.1
+    · by_cases h1 : i = slot
+      · rw [h1, hc_slot, htr_c'] at hp; rw [h1, hk_slot]; exact hlt_med1 p hp
+      obtain ⟨o, ho, hoi, hkv⟩ := hkey_old i hi h1
+      obtain ⟨o', ho', hoi', hp'⟩ := hchild_old i (by omega) p hp
+      obtain rfl : o' = o := by omega
+      rw [(Prod.mk.inj hkv).1]; exact hleft_u o' ho p hp'
+    · by_cases h1 : i = slot
+      · rw [h1, hc_slot1, htr_z'] at hp; rw [h1, hk_slot]; exact hgt_med1 p hp
+      obtain ⟨o, ho, hoi, hkv⟩ := hkey_old i hi h1
+      obtain ⟨o', ho', hoi', hp'⟩ := hchild_old (i + 1) (by omega) p hp
+      obtain rfl : o' = o + 1 := by omega
+      rw [(Prod.mk.inj hkv).1]; exact hright_u o ho p hp'
   have hsub_u' : readNodeSet (l + 1) base t mem' u ⊆
       insert cnt (readNodeSet (l + 1) base t mem u) := by
     intro x hx
     rw [mem_readNodeSet_succ, hnk_u'] at hx
     rcases hx with rfl | ⟨j, hj, hx⟩
     · exact Finset.mem_insert_of_mem (self_mem_readNodeSet _ _ _ _ _)
-    · by_cases hj_s1 : j = slot + 1
-      · subst hj_s1
-        rw [hc_slot1, hset_z'] at hx
-        rcases Finset.mem_insert.mp (hsub_z1 hx) with rfl | hxc
-        · exact Finset.mem_insert_self _ _
-        · exact Finset.mem_insert_of_mem
-            (child_subset_readNodeSet l base t mem u slot hslot_lt1 hxc)
-      · have hsub_j := hset_sub_old j hj hj_s1 hx
-        have hold_lt : (if j ≤ slot then j else j - 1) < m + 1 := by split_ifs <;> omega
-        exact Finset.mem_insert_of_mem
-          (child_subset_readNodeSet l base t mem u _ hold_lt hsub_j)
+    rcases hset_old j hj x hx with ⟨-, rfl⟩ | ⟨o, ho, -, hx⟩
+    · exact Finset.mem_insert_self _ _
+    · exact Finset.mem_insert_of_mem (child_subset_readNodeSet l base t mem u o ho hx)
   have hmem_b1 : mem' (base + 1) = cnt + 1 := by
     simp only [mem', memSplitChild, Function.update_self]
   have hmem_b0 : mem' base = mem base := by
@@ -1732,34 +1639,12 @@ theorem memSplitChild_spec {l base t u slot cnt : ℕ} {mem : ℕ → ℕ}
   rw [mem_toList_readTree_succ, mem_toList_readTree_succ, hnk_u']
   constructor
   · rintro (⟨i, hi, rfl⟩ | ⟨j, hj, hpj⟩)
-    · rw [hkv_u' i hi]
-      rcases lt_trichotomy i slot with hi_lt | hi_eq | hi_gt
-      · simp only [hi_lt, ↓reduceIte]
-        exact Or.inl ⟨i, by omega, rfl⟩
-      · subst hi_eq
-        simp only [lt_irrefl, ↓reduceIte]
-        exact Or.inr ⟨i, hslot_lt1, (hmem_iff1 _).mpr (Or.inr (Or.inl rfl))⟩
-      · have hn : ¬ i < slot := by omega
-        have he : i ≠ slot := by omega
-        simp only [hn, he, ↓reduceIte]
-        exact Or.inl ⟨i - 1, by omega, rfl⟩
-    · by_cases hj_lt : j < slot
-      · have hj_le : j ≤ slot := by omega
-        rw [hcid_u' j hj] at hpj; simp only [hj_le, ↓reduceIte] at hpj
-        rw [(hsib_congr j (by omega) (by omega)).2.1] at hpj
-        exact Or.inr ⟨j, by omega, hpj⟩
-      · by_cases hj_eq : j = slot
-        · subst hj_eq
-          rw [hc_slot, htr_c'] at hpj
-          exact Or.inr ⟨j, hslot_lt1, (hmem_iff1 _).mpr (Or.inl hpj)⟩
-        · by_cases hj_eq1 : j = slot + 1
-          · subst hj_eq1
-            rw [hc_slot1, htr_z'] at hpj
-            exact Or.inr ⟨slot, hslot_lt1, (hmem_iff1 _).mpr (Or.inr (Or.inr hpj))⟩
-          · have hn_le : ¬ j ≤ slot := by omega
-            rw [hcid_u' j hj] at hpj; simp only [hn_le, hj_eq1, ↓reduceIte] at hpj
-            rw [(hsib_congr (j - 1) (by omega) (by omega)).2.1] at hpj
-            exact Or.inr ⟨j - 1, by omega, hpj⟩
+    · by_cases h1 : i = slot
+      · rw [h1, hk_slot, hv_slot]; exact Or.inr ⟨slot, hslot_lt1, hmed_in_c⟩
+      obtain ⟨o, ho, -, hkv⟩ := hkey_old i hi h1
+      exact Or.inl ⟨o, ho, hkv⟩
+    · obtain ⟨o, ho, -, hp⟩ := hchild_old j hj p hpj
+      exact Or.inr ⟨o, ho, hp⟩
   · rintro (⟨i, hi, rfl⟩ | ⟨j, hj, hpj⟩)
     · rcases lt_or_ge i slot with hi_lt | hi_ge
       · refine Or.inl ⟨i, by omega, ?_⟩
@@ -1848,34 +1733,21 @@ theorem childInsert_spec {l base t u slot k v cnt cnt' : ℕ} {mem mem' : ℕ �
       · obtain ⟨hvs, _, hsets, _, hnks⟩ := hsib_congr j hj hjs
         rw [hsets, hnks]
         exact ⟨hvs, (hch_u j hj).2.1, (hch_u j hj).2.2⟩
-    · intro j₁ j₂ hj₁ hj₂ hne
-      rw [hcid_u' j₁ hj₁, hcid_u' j₂ hj₂]
+    · -- Only child `slot` changed, and its new nodes lie in `Ico cnt cnt'`, above every old node:
+      intro j₁ j₂ hj₁ hj₂ hne
+      wlog h2 : j₂ ≠ slot generalizing j₁ j₂
+      · exact (this j₂ j₁ hj₂ hj₁ hne.symm (by omega)).symm
+      rw [hcid_u' j₂ hj₂, (hsib_congr j₂ hj₂ h2).2.2.1, hcid_u' j₁ hj₁, Finset.disjoint_left]
+      intro x hx₁ hx₂
       by_cases h1 : j₁ = slot
       · subst h1
-        rw [(hsib_congr j₂ hj₂ hne.symm).2.2.1]
-        refine Finset.disjoint_of_subset_left hsub_c' ?_
-        rw [Finset.disjoint_union_left]
-        refine ⟨hdisj_u j₁ j₂ hslot_lt1 hj₂ hne, ?_⟩
-        rw [Finset.disjoint_left]
-        intro x hx_ico hx2
-        have hx_lt : x < cnt :=
-          Finset.mem_range.mp (hrange (child_subset_readNodeSet l base t mem u j₂ hj₂ hx2))
-        have := Finset.mem_Ico.mp hx_ico
-        omega
-      · by_cases h2 : j₂ = slot
-        · subst h2
-          rw [(hsib_congr j₁ hj₁ h1).2.2.1]
-          refine Finset.disjoint_of_subset_right hsub_c' ?_
-          rw [Finset.disjoint_union_right]
-          refine ⟨hdisj_u j₁ j₂ hj₁ hslot_lt1 hne, ?_⟩
-          rw [Finset.disjoint_left]
-          intro x hx1 hx_ico
-          have hx_lt : x < cnt :=
-            Finset.mem_range.mp (hrange (child_subset_readNodeSet l base t mem u j₁ hj₁ hx1))
-          have := Finset.mem_Ico.mp hx_ico
+        rcases Finset.mem_union.mp (hsub_c' hx₁) with hx₁ | hx₁
+        · exact Finset.disjoint_left.mp (hdisj_u _ j₂ hslot_lt1 hj₂ hne) hx₁ hx₂
+        · have := Finset.mem_range.mp (hrange (child_subset_readNodeSet l base t mem u j₂ hj₂ hx₂))
+          have := Finset.mem_Ico.mp hx₁
           omega
-        · rw [(hsib_congr j₁ hj₁ h1).2.2.1, (hsib_congr j₂ hj₂ h2).2.2.1]
-          exact hdisj_u j₁ j₂ hj₁ hj₂ hne
+      · rw [(hsib_congr j₁ hj₁ h1).2.2.1] at hx₁
+        exact Finset.disjoint_left.mp (hdisj_u j₁ j₂ hj₁ hj₂ hne) hx₁ hx₂
   have hs_u'' : SortedNode (l + 1) base t mem' u := by
     simp only [SortedNode, hnk_u']
     refine ⟨?_, ?_, ?_, ?_⟩
