@@ -400,14 +400,16 @@ private theorem two_mul_card_agree_eq {r : BitString k → BitString n} (σ : Fi
   rw [sum_signVal_add_eq, sum_signVal_mul_signVal_eq_two_mul_card_sub]
   simp
 
-/-- Markov's inequality for the survivor counts: if `U` has mean at most `B` over all block
-restrictions `(σ, w)`, then the restrictions with more than `Q` survivors number at most
-`|Fin k → Fin ℓ| * 2 ^ (n + k * ℓ) * (B / (Q + 1))`. -/
-private theorem sum_card_lt_survivors_le (U : (Fin k → Fin ℓ) → BitString (n + k * ℓ) → ℕ)
-    {B : ℝ} (hmean : (∑ σ : Fin k → Fin ℓ, ∑ w : BitString (n + k * ℓ), (U σ w : ℝ)) ≤
+-- Charge bad messages uniformly over the blocks, and bound excess survivors by Markov.
+private theorem sum_bad_restrictions_le
+    (bad : Finset (BitString (n + k * ℓ))) (U : (Fin k → Fin ℓ) → BitString (n + k * ℓ) → ℕ)
+    {C B : ℝ} (hbad : (#bad : ℝ) ≤ 2 ^ (n + k * ℓ) * C)
+    (hmean : (∑ σ : Fin k → Fin ℓ, ∑ w : BitString (n + k * ℓ), (U σ w : ℝ)) ≤
       (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * B) (Q : ℕ) :
-    (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-      (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * (B / (Q + 1)) := by
+    (∑ σ : Fin k → Fin ℓ, ((#bad : ℝ) + (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ))) ≤
+      (Fintype.card (Fin k → Fin ℓ) : ℝ) * 2 ^ (n + k * ℓ) * (C + B / (Q + 1)) := by
+  rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, mul_add, mul_assoc _ _ C]
+  refine add_le_add (mul_le_mul_of_nonneg_left hbad (Nat.cast_nonneg _)) ?_
   rw [mul_div_assoc', le_div_iff₀ (by positivity), mul_comm, mul_sum]
   refine (sum_le_sum fun σ _ => (mul_comm _ _).trans_le <|
     card_filter_mul_le_sum univ _ (fun w => (U σ w : ℝ)) (fun _ _ => Nat.cast_nonneg _)
@@ -435,7 +437,7 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
       (ℓ : ℝ) ^ k * 2 ^ k * ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) /
         ((γ ^ 2 - δ) * 2 ^ n) + B / (Q + 1)) := by
   classical
-  set bad := badMessages r W Q γ with hbad
+  set bad := badMessages r W Q γ
   set CT : ℝ := (ℓ : ℝ) ^ k * 2 ^ k *
     ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) / ((γ ^ 2 - δ) * 2 ^ n)
   set N : ℝ := 2 ^ (n + k * ℓ) with hN
@@ -469,7 +471,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
   have hbadw : (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) ≤
       N * CT := card_filter_badMessages_le hδ hγ hγδ hr W hM Q
   have hσ (σ : Fin k → Fin ℓ) : 2 ^ k * A ≤ N * (2 ^ k * ((1 + γ) / 2)) +
-      2 ^ k * (N * CT) + 2 ^ k * (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ) := by
+      2 ^ k * ((#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) +
+        (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) := by
     have hsum := sum_card_filter_embedUpdate (kaneWilliamsLiveVar_injective n k ℓ σ)
       fun y => f y = kaneWilliamsB r ℓ y
     rw [Fintype.card_fin] at hsum
@@ -482,21 +485,18 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
     rw [sum_add_distrib, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← mul_sum,
       ← mul_sum, sum_boole, sum_boole]
     have hcardN : (Fintype.card (BitString (n + k * ℓ)) : ℝ) = N := by rw [hN]; simp
-    rw [hcardN]; gcongr
+    rw [hcardN, add_assoc, ← mul_add]
   -- summing over the block selections, with Markov's inequality for the survivors
   set S : ℝ := (Fintype.card (Fin k → Fin ℓ) : ℝ) with hS
   have hS0 : 0 < S := by
     rw [hS, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]; positivity
   have hsumσ := sum_le_sum fun σ (_ : σ ∈ (univ : Finset (Fin k → Fin ℓ))) => hσ σ
-  rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_add_distrib, sum_const, sum_const,
-    card_univ, nsmul_eq_mul, nsmul_eq_mul, ← mul_sum, ← hS] at hsumσ
-  have hmarkov' : (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-      S * N * (B / (Q + 1)) := sum_card_lt_survivors_le U hmean Q
+  rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_const, card_univ,
+    nsmul_eq_mul, ← mul_sum, ← hS] at hsumσ
+  have hcharge := sum_bad_restrictions_le _ U hbadw hmean Q
   have hkey : S * (2 ^ k * A) ≤ S * (2 ^ k * (N * ((1 + γ) / 2 + CT + B / (Q + 1)))) := by
-    have hm := mul_le_mul_of_nonneg_left hmarkov' h2k.le
-    linarith only [hsumσ, hm, show S * (2 ^ k * (N * ((1 + γ) / 2 + CT + B / (Q + 1)))) =
-      S * (N * (2 ^ k * ((1 + γ) / 2))) + S * (2 ^ k * (N * CT)) +
-        2 ^ k * (S * N * (B / (Q + 1))) by ring]
+    refine hsumσ.trans ((add_le_add le_rfl (mul_le_mul_of_nonneg_left hcharge h2k.le)).trans_eq ?_)
+    ring
   exact le_of_mul_le_mul_left (le_of_mul_le_mul_left hkey hS0) h2k
 
 /-- **Worst-case core** (original; [KaneWilliams2016], `arXiv:1511.07860v1`, Theorem 1.3 fixes the
@@ -524,7 +524,7 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
     1 ≤ (ℓ : ℝ) ^ k * 2 ^ k * ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) /
         ((γ ^ 2 - δ) * 2 ^ n) + B / (Q + 1) := by
   classical
-  set bad := badMessages r W Q γ with hbad
+  set bad := badMessages r W Q γ
   set CT : ℝ := (ℓ : ℝ) ^ k * 2 ^ k *
     ((((2 ^ k + 1) * M) ^ Q * (2 ^ k + 1) ^ (Q + k + 1) : ℕ) : ℝ) / ((γ ^ 2 - δ) * 2 ^ n)
   set N : ℝ := 2 ^ (n + k * ℓ) with hN
@@ -554,15 +554,10 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
     have hbadw : (#{w : BitString (n + k * ℓ) | kaneWilliamsMessage n k ℓ w ∈ bad} : ℝ) ≤
         N * CT := card_filter_badMessages_le hδ hγ hγδ hr W hM Q
     have hsumσ := sum_le_sum fun σ (_ : σ ∈ (univ : Finset (Fin k → Fin ℓ))) => hcover σ
-    rw [sum_const, card_univ, nsmul_eq_mul, sum_add_distrib, sum_const, card_univ,
-      nsmul_eq_mul, ← hS] at hsumσ
-    have hmarkov' : (∑ σ : Fin k → Fin ℓ, (#{w : BitString (n + k * ℓ) | Q < U σ w} : ℝ)) ≤
-        S * N * (B / (Q + 1)) := sum_card_lt_survivors_le U hmean Q
-    have hkey : S * N * 1 ≤ S * N * (CT + B / (Q + 1)) := by
-      have hm := mul_le_mul_of_nonneg_left hbadw hS0.le
-      linarith only [hsumσ, hmarkov', hm,
-        show S * N * (CT + B / (Q + 1)) = S * (N * CT) + S * N * (B / (Q + 1)) by ring]
-    exact not_le.mpr hlt (le_of_mul_le_mul_left hkey (mul_pos hS0 hN0))
+    rw [sum_const, card_univ, nsmul_eq_mul, ← hS] at hsumσ
+    have hcharge := sum_bad_restrictions_le _ U hbadw hmean Q
+    refine not_le.mpr hlt (le_of_mul_le_mul_left ?_ (mul_pos hS0 hN0))
+    simpa only [mul_one] using hsumσ.trans hcharge
   set x := kaneWilliamsMessage n k ℓ w with hx
   set c := kaneWilliamsResidualParities n k ℓ σ w with hc
   have hx0 : x ≠ 0 := fun h0 => hgood (h0 ▸ zero_mem_badMessages r hℓ W Q hγ1)
