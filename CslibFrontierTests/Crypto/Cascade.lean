@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixHybrid.Split
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRouting
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -107,3 +107,87 @@ example :
               tables.1 tables.2 request.2 else []))) (compareReplies 2 []) :=
   eval_prefixHybridGame_add_eq_split boundedWords (cascadeFamily (fun _ => 1) toggle)
     compareReplies 2 1 1 (by decide) (cascadeFamily_nil _ _) (fun _ _ h => h)
+
+private def realValid (_ : ℕ) (word : List Bool) : Bool :=
+  [[false], [true, false], [true, true]].contains word
+
+-- An earlier short reply picks the next query, which is then repeated.
+private def adaptiveSides : OracleDistinguisher := fun _ _ => do
+  let short ← ProbOracleComp.query ((), [false])
+  let long := [true, short.headD false]
+  let first ← ProbOracleComp.query ((), long)
+  let repeated ← ProbOracleComp.query ((), long)
+  return first == repeated && short.headD false
+
+private theorem adaptiveSides_prefixFree :
+    IsPrefixFreeOn (realValid 2) 2 (adaptiveSides 2 []) := by
+  have h : WordPrefixFree (fun _ => true) [[false], [true, false], [true, true]] := by
+    unfold WordPrefixFree
+    decide
+  intro _ _ _ _ _ x _ hx y _ hy hne hprefix
+  exact h x (by simpa [realValid] using hx) rfl y (by simpa [realValid] using hy) rfl hne hprefix
+
+private theorem length_toggle (key block : List Bool) :
+    (toggle key block).length = key.length := by
+  unfold toggle
+  split <;> simp
+
+example :
+    let Labels := {word : List Bool // word.length ≤ 1} → BitString 2
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1) =
+      (PMF.uniformOfFintype (Labels × Labels)).bind fun tables =>
+        OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle (fun request =>
+          PMF.pure (prefixHybridIndependentLabelOracle (realValid 2)
+            (cascadeFamily (fun _ => 1) toggle) tables.1 tables.2 request.2)))
+          (adaptiveSides 2 []) :=
+  eval_prefixHybridGame_eq_independentLabels realValid (cascadeFamily (fun _ => 1) toggle)
+    adaptiveSides 2 1
+    (fun seed suffix hseed =>
+      (length_cascadeFamily (fun key block _ => length_toggle key block) seed suffix).trans hseed)
+    adaptiveSides_prefixFree
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 1) =
+      cascadeChildTableGame realValid (fun _ => 1) toggle adaptiveSides 2 1
+        ((PMF.uniformOfFintype (BitString 1 → BitString 2)).map fun keys parent block =>
+          BitString.ofList 2 (toggle (List.ofFn (keys parent)) (List.ofFn block))) :=
+  eval_cascadePrefixHybridGame_eq_childTables_real realValid (fun _ => 1) toggle adaptiveSides 2 1
+    (by decide) (fun _ _ => Nat.one_dvd _) (fun key block _ => length_toggle key block)
+    adaptiveSides_prefixFree
+
+example :
+    ProbComp.eval (cascadePrefixHybridGame realValid (fun _ => 1) toggle adaptiveSides 2 2) =
+      cascadeChildTableGame realValid (fun _ => 1) toggle adaptiveSides 2 1
+        (PMF.uniformOfFintype (BitString 1 → BitString 1 → BitString 2)) :=
+  eval_cascadePrefixHybridGame_succ_eq_childTables_ideal realValid (fun _ => 1) toggle adaptiveSides
+    2 1 (by decide) (fun _ _ => Nat.one_dvd _)
+
+-- A new parent takes the next channel, while a repeat keeps that channel and state.
+example :
+    let old : CascadeChildRouterState := ⟨[[false]], [([false], [false, true])]⟩
+    let next : CascadeChildRouterState := { old with parents := [[false], [true]] }
+    let forwarded : WordOracleComp ℕ (List Bool × CascadeChildRouterState) := do
+      let reply ← ProbOracleComp.query (1, [false])
+      return (reply.take 2, next)
+    cascadeChildRoute (boundedWords 2) (fun _ => 1) toggle 2 1 [true, false] old = forwarded ∧
+      cascadeChildRoute (boundedWords 2) (fun _ => 1) toggle 2 1 [true, false] next =
+        forwarded := by
+  dsimp only
+  constructor <;> simp [cascadeChildRoute, boundedWords, List.idxOf_cons_ne]
+
+-- A cached query at the cut and an invalid long word consume no child-oracle call.
+example :
+    let state : CascadeChildRouterState := ⟨[], [([false], [false, true])]⟩
+    cascadeChildRoute (boundedWords 2) (fun _ => 1) toggle 2 1 [false] state =
+      pure ([false, true], state) ∧
+    cascadeChildRoute (boundedWords 2) (fun _ => 1) toggle 2 1 [true, false, true] state =
+      pure ([], state) :=
+  ⟨rfl, rfl⟩
+
+example :
+    (cascadeChildRouter (realValid 2) (fun _ => 1) toggle 2 1
+      (adaptiveSides 2 [])).IsQueryBounded 3 := by
+  apply isQueryBounded_cascadeChildRouter
+  exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+      (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
