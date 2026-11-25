@@ -134,87 +134,44 @@ theorem prob_subset_load_ge_le_exp (G : LoadBalancingGame ι M) {p : ι → M �
     split_ifs with h
     · obtain ⟨hiS, rfl⟩ := h
       have hpij_pos : 0 < p i a := by
-        have hne : pmf i a ≠ 0 := (PMF.mem_support_iff (pmf i) a).mp ha
-        have hpos_enn : 0 < pmf i a := pos_iff_ne_zero.mpr hne
-        have hnot : ¬ p i a ≤ 0 := by
-          intro hle
-          have h0 : pmf i a = 0 := by
-            simp only [pmf, mixedStrategyToPMF, PMF.ofFintype_apply, ENNReal.ofReal_eq_zero]
-            exact hle
-          exact hne h0
-        exact lt_of_not_ge hnot
+        by_contra hle
+        exact (PMF.mem_support_iff (pmf i) a).mp ha
+          (by simp [pmf, mixedStrategyToPMF, ENNReal.ofReal_eq_zero, not_lt.mp hle])
       exact ⟨div_nonneg (div_nonneg (G.weight_nonneg i) (G.speed_pos a).le) hz.le,
         (div_le_one hz).mpr (hcap i hiS hpij_pos)⟩
     · exact ⟨le_rfl, zero_le_one⟩
   have hmean' : ∑ i : ι, ∑ a : M, (pmf i a).toReal * score i a ≤ μ / z := by
-    have hsum_eq : ∑ i : ι, ∑ a : M, (pmf i a).toReal * score i a =
-        (∑ i ∈ S, p i j * (G.weight i / G.speed j)) / z := by
-      rw [sum_div]
-      have hinner : ∀ i : ι,
-          ∑ a : M, (pmf i a).toReal * score i a =
-            if i ∈ S then p i j * (G.weight i / G.speed j) / z else 0 := fun i => by
-        by_cases hi : i ∈ S
-        · rw [ite_eq_left hi]
-          have hterm : ∀ a : M,
-              (pmf i a).toReal * score i a =
-                if a = j then p i j * (G.weight i / G.speed j) / z else 0 := fun a => by
-            by_cases ha : a = j
-            · subst ha
-              simp only [score, pmf, hi, and_self, ↓reduceIte, mixedStrategyToPMF_toReal]
-              ring
-            · simp only [score, ha, and_false, ↓reduceIte, mul_zero]
-          simp only [hterm, sum_ite_eq', mem_univ, ↓reduceIte]
-        · rw [ite_eq_right hi]
-          refine sum_eq_zero fun a _ => ?_
-          simp only [score, hi, false_and, ↓reduceIte, mul_zero]
-      simp_rw [hinner, ← sum_filter]
-      refine sum_congr ?_ fun _ _ => rfl
-      ext i
-      simp
-    rw [hsum_eq]
-    exact div_le_div_of_nonneg_right hmean hz.le
-  have hδ : 0 ≤ t / μ - 1 := by
-    rw [sub_nonneg, one_le_div hμ_pos]
-    exact ht
+    refine (?_ : _ = (∑ i ∈ S, p i j * (G.weight i / G.speed j)) / z).trans_le
+      (div_le_div_of_nonneg_right hmean hz.le)
+    rw [sum_div, show ∑ i ∈ S, p i j * (G.weight i / G.speed j) / z =
+      ∑ i : ι, if i ∈ S then p i j * (G.weight i / G.speed j) / z else 0 by
+        rw [← sum_filter]; refine sum_congr (by ext; simp) fun _ _ => rfl]
+    refine sum_congr rfl fun i _ => ?_
+    rw [sum_eq_single j (fun a _ ha => by simp [score, ha]) (by simp)]
+    by_cases hi : i ∈ S <;> simp [score, pmf, hi, mixedStrategyToPMF_toReal, mul_div_assoc]
+  have hδ : 0 ≤ t / μ - 1 := sub_nonneg.mpr ((one_le_div hμ_pos).mpr ht)
   have hchernoff :=
     Cslib.Probability.PMF.pi_sum_ge_one_add_mul_le_exp_log pmf score hscore hmean' hδ
-  have hmul_eq : (1 + (t / μ - 1)) * (μ / z) = t / z := by
-    field_simp [hμ_pos.ne', hz.ne']
-    ring
+  have hmul_eq : (1 + (t / μ - 1)) * (μ / z) = t / z := by field_simp [hμ_pos.ne', hz.ne']; ring
   have hexp_eq :
       (μ / z) * (t / μ - 1 - (1 + (t / μ - 1)) * Real.log (1 + (t / μ - 1))) =
         (t - μ - t * Real.log (t / μ)) / z := by
-    have h1 : 1 + (t / μ - 1) = t / μ := by ring
-    rw [h1]
+    rw [show 1 + (t / μ - 1) = t / μ by ring]
     field_simp [hμ_pos.ne', hz.ne']
   rw [hmul_eq, hexp_eq] at hchernoff
-  have hprob_eq :
-      ((Cslib.Probability.PMF.pi pmf).toOuterMeasure
-          {A : ι → M | t / z ≤ ∑ i : ι, score i (A i)}).toReal =
-        ∑ A : ι → M,
-          if t ≤ ∑ i ∈ S with A i = j, G.weight i / G.speed j then productWeight p A else 0 := by
-    rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal]
-    refine sum_congr rfl fun A _ => ?_
-    have hsum_score : ∑ i : ι, score i (A i) =
-        (∑ i ∈ S with A i = j, G.weight i / G.speed j) / z := by
-      rw [sum_filter, sum_div]
-      have hsub : ∑ i ∈ S, (if A i = j then G.weight i / G.speed j else 0) / z =
-          ∑ i : ι, if i ∈ S then (if A i = j then G.weight i / G.speed j else 0) / z else 0 := by
-        rw [← sum_filter]
-        refine sum_congr ?_ fun _ _ => rfl
-        ext i; simp
-      rw [hsub]
-      refine sum_congr rfl fun i _ => ?_
-      simp only [score]
-      by_cases hi : i ∈ S <;> by_cases hA : A i = j <;> simp [hi, hA]
-    have hiff : A ∈ {A : ι → M | t / z ≤ ∑ i : ι, score i (A i)} ↔
-        t ≤ ∑ i ∈ S with A i = j, G.weight i / G.speed j := by
-      simp only [Set.mem_ofPred_eq, hsum_score, div_le_div_iff_of_pos_right hz]
-    rw [pi_mixedStrategyToPMF_toReal hp A]
-    by_cases h : t ≤ ∑ i ∈ S with A i = j, G.weight i / G.speed j
-    · rw [ite_eq_left (hiff.mpr h), ite_eq_left h]
-    · rw [ite_eq_right (fun h' => h (hiff.mp h')), ite_eq_right h]
-  rwa [hprob_eq] at hchernoff
+  refine (?_ : _ = ((Cslib.Probability.PMF.pi pmf).toOuterMeasure
+      {A : ι → M | t / z ≤ ∑ i : ι, score i (A i)}).toReal).trans_le hchernoff
+  rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal]
+  refine sum_congr rfl fun A _ => ?_
+  have hsum_score : ∑ i : ι, score i (A i) =
+      (∑ i ∈ S with A i = j, G.weight i / G.speed j) / z := by
+    rw [sum_filter, sum_div, show ∑ i ∈ S, (if A i = j then G.weight i / G.speed j else 0) / z =
+      ∑ i : ι, if i ∈ S then (if A i = j then G.weight i / G.speed j else 0) / z else 0 by
+        rw [← sum_filter]; refine sum_congr (by ext; simp) fun _ _ => rfl]
+    refine sum_congr rfl fun i _ => ?_
+    by_cases hi : i ∈ S <;> by_cases hA : A i = j <;> simp [score, hi, hA]
+  simp only [Set.mem_ofPred_eq, hsum_score, div_le_div_iff_of_pos_right hz]
+  rw [pi_mixedStrategyToPMF_toReal hp A]
 
 end WeightedChernoff
 
@@ -231,40 +188,23 @@ theorem IsIdentical.expectedLoad_le_two_mul_optMakespan {G : LoadBalancingGame �
   have hp1 : ∀ i, ∑ k, p i k = 1 := fun i => (hp.1 i).sum_eq_one
   by_cases hpos : ∃ i : ι, 0 < p i j
   · obtain ⟨i, hij⟩ := hpos
-    have hle_k : ∀ k : M, G.expectedLoad p j ≤ G.expectedLoad p k + G.weight i := fun k => by
+    have hle_k (k : M) : G.expectedLoad p j ≤ G.expectedLoad p k + G.weight i := by
       have hNE := ((G.isMixedNash_iff p).mp hp).2 i j hij k
       rw [hId j, hId k, div_one] at hNE
-      have hpij_le1 : p i j ≤ 1 := by
-        rw [← hp1 i]
-        exact single_le_sum (fun m _ => (hp.1 i).nonneg m) (mem_univ j)
-      have h1 : 0 ≤ (1 - p i j) * G.weight i :=
-        mul_nonneg (sub_nonneg.mpr hpij_le1) (G.weight_nonneg i)
-      have h2 : (1 - p i k) * G.weight i ≤ G.weight i := by
-        nlinarith [(hp.1 i).nonneg k, G.weight_nonneg i]
-      linarith
+      have hpij_le1 : p i j ≤ 1 :=
+        hp1 i ▸ single_le_sum (fun m _ => (hp.1 i).nonneg m) (mem_univ j)
+      nlinarith [(hp.1 i).nonneg k, G.weight_nonneg i]
     have hsum : (Fintype.card M : ℝ) * G.expectedLoad p j ≤
-        (∑ k : M, G.expectedLoad p k) + (Fintype.card M : ℝ) * G.weight i := by
-      calc (Fintype.card M : ℝ) * G.expectedLoad p j
-          = ∑ _k : M, G.expectedLoad p j := by
-              rw [sum_const, card_univ, nsmul_eq_mul]
-        _ ≤ ∑ k : M, (G.expectedLoad p k + G.weight i) := sum_le_sum fun k _ => hle_k k
-        _ = (∑ k : M, G.expectedLoad p k) + (Fintype.card M : ℝ) * G.weight i := by
-              rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul]
-    have hsum_load : ∑ k : M, G.expectedLoad p k = ∑ r : ι, G.weight r := by
-      have h := G.sum_speed_mul_expectedLoad hp1
-      simp_rw [hId _, one_mul] at h
-      exact h
-    have hvol := hId.sum_weight_le_card_mul_optMakespan
-    have hwi := hId.weight_le_optMakespan i
-    have hm_pos : (0 : ℝ) < (Fintype.card M : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-    nlinarith
+        (∑ r : ι, G.weight r) + (Fintype.card M : ℝ) * G.weight i := by
+      have hload := G.sum_speed_mul_expectedLoad hp1
+      simp_rw [hId _, one_mul] at hload
+      simpa only [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hload] using
+        (sum_le_sum fun k (_ : k ∈ univ) => hle_k k)
+    have hm_pos : (0 : ℝ) < Fintype.card M := Nat.cast_pos.mpr Fintype.card_pos
+    nlinarith [hId.sum_weight_le_card_mul_optMakespan, hId.weight_le_optMakespan i]
   · push Not at hpos
-    have h0 : G.expectedLoad p j = 0 := by
-      rw [expectedLoad]
-      refine sum_eq_zero fun i _ => ?_
-      have hpij0 : p i j = 0 := le_antisymm (hpos i) ((hp.1 i).nonneg j)
-      rw [hpij0, zero_mul]
-    rw [h0]
+    rw [expectedLoad, sum_eq_zero fun i _ => by
+      rw [le_antisymm (hpos i) ((hp.1 i).nonneg j), zero_mul]]
     linarith [G.optMakespan_nonneg]
 
 /-- **Weighted Chernoff upper tail on a single machine's load** ([Vocking2007], Lemma 20.14;
@@ -461,22 +401,15 @@ theorem IsIdentical.expectedMakespan_le_seven_mul_optMakespan_of_weight_le
             6 * G.optMakespan * Real.log (6 * G.optMakespan / (2 * G.optMakespan))) /
           (G.optMakespan / Real.log (m : ℝ)) =
         (4 - 6 * Real.log 3) * Real.log (m : ℝ) := by
-      have hdiv : 6 * G.optMakespan / (2 * G.optMakespan) = 3 := by
-        field_simp [hopt_pos.ne']
-        norm_num
-      rw [hdiv]
+      rw [show 6 * G.optMakespan / (2 * G.optMakespan) = 3 by field_simp [hopt_pos.ne']; norm_num]
       field_simp [hopt_pos.ne', hlogm_pos.ne']
       ring
     simp only [hload, hexp_eq] at hch
-    have hexp_le : (4 - 6 * Real.log 3) * Real.log (m : ℝ) ≤ -(2 * Real.log (m : ℝ)) := by
-      nlinarith
-    calc (∑ A : ι → M, if 6 * G.optMakespan ≤ G.load A j then productWeight p A else 0)
-        ≤ Real.exp ((4 - 6 * Real.log 3) * Real.log (m : ℝ)) := hch
-      _ ≤ Real.exp (-(2 * Real.log (m : ℝ))) := Real.exp_le_exp.mpr hexp_le
-      _ = 1 / (m : ℝ) ^ 2 := by
-          rw [Real.exp_neg,
-            show (2 : ℝ) * Real.log (m : ℝ) = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by norm_num,
-            Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
+    refine hch.trans ((Real.exp_le_exp.mpr
+      (by nlinarith : _ ≤ -(2 * Real.log (m : ℝ)))).trans_eq ?_)
+    rw [Real.exp_neg,
+      show (2 : ℝ) * Real.log (m : ℝ) = ((2 : ℕ) : ℝ) * Real.log (m : ℝ) by norm_num,
+      Real.exp_nat_mul, Real.exp_log hm_pos, one_div]
 
 end IdenticalMixedPoA
 
