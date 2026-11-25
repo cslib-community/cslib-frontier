@@ -89,11 +89,8 @@ theorem exec_at {W m n g p b : ℕ} (values : List ℤ)
     (by simpa only [xn, xb] using hac)
     (by rw [xn, xb, hsum]; exact fit.of_le (by omega))
   have ha' : ExecWithin W adapt x a (24 * (n * n) + 38) := by simpa only [xn] using ha
-  have an : a.regs Reg.n = n := by regs_frame
-  have aD : a.regs Reg.dimension = D m := by regs_frame
-  have ag : a.regs Reg.groups = g := by regs_frame
-  have ap : a.regs Reg.prime = p := by regs_frame
-  have ab : a.regs Reg.base = b := by regs_frame
+  obtain ⟨an, aD, ag, ap, ab⟩ : a.regs Reg.n = n ∧ a.regs Reg.dimension = D m ∧
+      a.regs Reg.groups = g ∧ a.regs Reg.prime = p ∧ a.regs Reg.base = b := by regs_frame
   have asum : a.regs Reg.total = T := by simpa only [xn, hsum] using atotal
   have ai (q : ℕ) (hq : q < 5 + 3 * (n * n)) : a.mem (b + q) =
       (Data.init (PreparationInput.input n (D m) g p values) : Data 64).mem q := by
@@ -133,10 +130,8 @@ theorem exec_at {W m n g p b : ℕ} (values : List ℤ)
   have yC : y.regs Reg.witnessC =
       z.regs ((FixedPrime.recordBank RecordWitness.Reg.witnessC).castAdd 3) := yc.trans (zreg _)
   have yS : y.regs Reg.scans = z.regs (FixedPrime.Reg.scans.castAdd 3) := ys.trans (zreg _)
-  have he : ExecWithin W program x y (timeBound (m := m) hn g p values reference.mem) := by
-    apply (ha'.seq (hs'.seq (hsolve.seq hy))).mono
-    dsimp only [timeBound, T]
-    exact le_of_eq (by ring)
+  have he : ExecWithin W program x y (timeBound (m := m) hn g p values reference.mem) :=
+    (ha'.seq (hs'.seq (hsolve.seq hy))).mono (le_of_eq (by dsimp only [timeBound, T]; ring))
   exact ⟨reference, hout, y, he, by simpa only [yF] using zf, by simpa only [yS, yF] using zs,
     by simpa only [yF] using ziff, by simpa only [yF, yA, yB, yC] using zw,
     fun q hq => (congrFun ymem q).trans ((zframe q hq).trans ((congrFun smem q).trans (af q hq))),
