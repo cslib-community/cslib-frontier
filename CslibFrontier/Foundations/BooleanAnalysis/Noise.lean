@@ -131,14 +131,12 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 coordinates is selected, negating the sign, with probability `p`. -/
 theorem bernoulliAverage_chi (p : ℝ) (S : Finset ι) :
     bernoulliAverage p (chi ℝ S) = (1 - 2 * p) ^ #S := by
-  have h : chi ℝ S = fun P => ∏ i, if i ∈ S then (-1) ^ (P i).toNat else 1 :=
-    funext (chi_eq_prod_univ S)
-  rw [h, bernoulliAverage_prod p fun i b => if i ∈ S then (-1) ^ b.toNat else 1, ← prod_const,
-    ← Fintype.prod_ite_mem S]
+  rw [funext (chi_eq_prod_univ S),
+    bernoulliAverage_prod p fun i b => if i ∈ S then (-1) ^ b.toNat else 1,
+    ← prod_const, ← Fintype.prod_ite_mem S]
   refine prod_congr rfl fun i _ => ?_
   split_ifs
-  · simp only [Bool.toNat_false, Bool.toNat_true, pow_zero, pow_one]
-    ring
+  · simp only [Bool.toNat_false, Bool.toNat_true, pow_zero, pow_one]; ring
   · ring
 
 /-- **Arora–Barak, Exercise 17.1, corrected** (web draft 2007-01-08, p. 348/364). If the bits
@@ -152,13 +150,10 @@ theorem bernoulliAverage_parityOn (δ : ℝ) (S : Finset ι) :
     bernoulliAverage (1 - δ) (fun x => if parityOn S x then 1 else 0) =
       1 / 2 - (2 * δ - 1) ^ #S / 2 := by
   have h : (fun x : ι → Bool => if parityOn S x then (1 : ℝ) else 0) =
-      fun x => 1 / 2 - 1 / 2 * chi ℝ S x := by
-    funext x
-    rw [chi_eq_neg_one_pow_parityOn]
-    cases parityOn S x <;> norm_num
+      fun x => 1 / 2 - 1 / 2 * chi ℝ S x :=
+    funext fun x => by rw [chi_eq_neg_one_pow_parityOn]; cases parityOn S x <;> norm_num
   rw [h, bernoulliAverage_sub, bernoulliAverage_const, bernoulliAverage_const_mul,
-    bernoulliAverage_chi]
-  ring
+    bernoulliAverage_chi]; ring
 
 /-- For `0 ≤ δ ≤ 1`, the parity of `|S|` independent bits that are `1` with probability `1 - δ`
 is `1` with probability at most `1/2 + (1 - 2δ)^|S| / 2`. The inequality between the
@@ -169,10 +164,8 @@ theorem parityOn_bernoulliAverage_le (δ : ℝ) (S : Finset ι) :
       1 / 2 + (1 - 2 * δ) ^ #S / 2 := by
   rw [bernoulliAverage_parityOn, show 2 * δ - 1 = -(1 - 2 * δ) by ring]
   rcases Nat.even_or_odd #S with he | ho
-  · rw [he.neg_pow]
-    linarith [he.pow_nonneg (1 - 2 * δ)]
-  · rw [ho.neg_pow]
-    linarith
+  · linarith [he.neg_pow (1 - 2 * δ), he.pow_nonneg (1 - 2 * δ)]
+  · linarith [ho.neg_pow (1 - 2 * δ)]
 
 /-! ### The noise operator -/
 
@@ -186,25 +179,17 @@ noncomputable def noiseOp (ρ : ℝ) (f : (ι → Bool) → ℝ) (x : ι → Boo
 `ρ ^ |S|` [O'Donnell, Proposition 2.47][ODonnell2014]. -/
 theorem noiseOp_eq_sum (ρ : ℝ) (f : (ι → Bool) → ℝ) (x : ι → Bool) :
     noiseOp ρ f x = ∑ S, ρ ^ #S * fourierCoeff f S * chi ℝ S x := by
-  have hf (P : ι → Bool) :
-      f (x + P) = ∑ S, fourierCoeff f S * chi ℝ S x * chi ℝ S P := by
-    rw [← sum_fourierCoeff_mul_chi f (x + P)]
-    simp only [chi_add, mul_assoc]
-  simp only [noiseOp, hf, bernoulliAverage, mul_sum]
-  rw [sum_comm]
-  refine sum_congr rfl fun S _ => ?_
-  have hS := bernoulliAverage_chi ((1 - ρ) / 2) S
-  rw [show 1 - 2 * ((1 - ρ) / 2) = ρ by ring, bernoulliAverage] at hS
-  rw [← hS, sum_mul, sum_mul]
-  exact sum_congr rfl fun P _ => by ring
+  have hf (P : ι → Bool) : f (x + P) = ∑ S, (fourierCoeff f S * chi ℝ S x) * chi ℝ S P := by
+    simp only [← sum_fourierCoeff_mul_chi f (x + P), chi_add, mul_assoc]
+  simp only [noiseOp, hf, bernoulliAverage_sum, bernoulliAverage_const_mul, bernoulliAverage_chi,
+    show 1 - 2 * ((1 - ρ) / 2) = ρ by ring]
+  exact sum_congr rfl fun S _ => by ring
 
 /-- **The noise operator damps the Fourier coefficient of `S` by `ρ ^ |S|`**
 [O'Donnell, Proposition 2.47][ODonnell2014]. -/
 theorem fourierCoeff_noiseOp (ρ : ℝ) (f : (ι → Bool) → ℝ) (S : Finset ι) :
     fourierCoeff (noiseOp ρ f) S = ρ ^ #S * fourierCoeff f S := by
-  have h : noiseOp ρ f = fun x => ∑ T, ρ ^ #T * fourierCoeff f T * chi ℝ T x :=
-    funext (noiseOp_eq_sum ρ f)
-  rw [h, fourierCoeff_sum_mul_chi]
+  rw [funext (noiseOp_eq_sum ρ f), fourierCoeff_sum_mul_chi]
 
 /-- The characters are eigenfunctions of the noise operator. -/
 theorem noiseOp_chi (ρ : ℝ) (S : Finset ι) (x : ι → Bool) :
@@ -214,14 +199,11 @@ theorem noiseOp_chi (ρ : ℝ) (S : Finset ι) (x : ι → Bool) :
 
 /-- At `ρ = 1` no bit is flipped, so the noise operator is the identity. -/
 @[simp] theorem noiseOp_one (f : (ι → Bool) → ℝ) : noiseOp 1 f = f := by
-  funext x
-  simp only [noiseOp, sub_self, zero_div, bernoulliAverage_zero]
-  exact congrArg f (add_zero x)
+  funext x; simp [noiseOp, bernoulliAverage_zero, show (x + fun _ => false) = x from add_zero x]
 
 /-- At `ρ = 0` the noised string is uniform, so the noise operator returns the mean. -/
 theorem noiseOp_zero (f : (ι → Bool) → ℝ) (x : ι → Bool) : noiseOp 0 f x = 𝔼 y, f y := by
-  rw [noiseOp_eq_sum, sum_eq_single ∅ (fun S _ hS => by simp [hS]) (by simp)]
-  simp
+  rw [noiseOp_eq_sum, sum_eq_single ∅ (fun S _ hS => by simp [hS]) (by simp)]; simp
 
 /-- The noise operator fixes the constants. -/
 @[simp] theorem noiseOp_const (ρ c : ℝ) (x : ι → Bool) : noiseOp ρ (fun _ => c) x = c :=
@@ -231,28 +213,23 @@ theorem noiseOp_zero (f : (ι → Bool) → ℝ) (x : ι → Bool) : noiseOp 0 f
 theorem noiseOp_pos {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 < g x) (x : ι → Bool) : 0 < noiseOp ρ g x := by
   obtain ⟨y, -, hy⟩ := exists_min_image univ g univ_nonempty
-  calc 0 < g y := hg y
-    _ = bernoulliAverage ((1 - ρ) / 2) fun _ => g y := (bernoulliAverage_const _ _).symm
-    _ ≤ noiseOp ρ g x :=
-        bernoulliAverage_mono (by linarith) (by linarith) fun P => hy _ (mem_univ _)
+  exact (hg y).trans_le ((bernoulliAverage_const _ _).symm.trans_le <|
+    bernoulliAverage_mono (by linarith) (by linarith) fun _ => hy _ (mem_univ _))
 
 /-- For `|ρ| ≤ 1`, the noise operator maps nonnegative functions to nonnegative functions. -/
 theorem noiseOp_nonneg {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 ≤ g x) (x : ι → Bool) : 0 ≤ noiseOp ρ g x :=
-  calc (0 : ℝ) = bernoulliAverage ((1 - ρ) / 2) fun _ => 0 := (bernoulliAverage_const _ _).symm
-    _ ≤ noiseOp ρ g x := bernoulliAverage_mono (by linarith) (by linarith) fun _ => hg _
+  (bernoulliAverage_const _ 0).symm.trans_le <|
+    bernoulliAverage_mono (by linarith) (by linarith) fun _ => hg _
 
 /-- For `-1 < ρ < 1`, the noise operator maps a nonnegative function that is positive somewhere
 to a positive function: every point is reached with positive probability. -/
 theorem noiseOp_pos_of_nonneg {ρ : ℝ} (hρ : -1 < ρ) (hρ' : ρ < 1) {g : (ι → Bool) → ℝ}
     (hg : ∀ x, 0 ≤ g x) {y : ι → Bool} (hy : 0 < g y) (x : ι → Bool) : 0 < noiseOp ρ g x := by
-  have hw (P : ι → Bool) : 0 < bernoulliWeight ((1 - ρ) / 2) P :=
-    bernoulliWeight_pos (by linarith) (by linarith) P
+  have hw (P : ι → Bool) := bernoulliWeight_pos (p := (1 - ρ) / 2) (by linarith) (by linarith) P
   refine sum_pos' (fun P _ => mul_nonneg (hw P).le (hg _)) ⟨x + y, mem_univ _, mul_pos (hw _) ?_⟩
-  have hxy : x + (x + y) = y := funext fun i => by
-    change x i + (x i + y i) = y i
-    cases x i <;> cases y i <;> decide
-  simpa only [hxy] using hy
+  simpa only [show x + (x + y) = y from funext fun i => by
+    change x i + (x i + y i) = y i; cases x i <;> cases y i <;> rfl] using hy
 
 /-- The noise operator is additive. -/
 theorem noiseOp_add (ρ : ℝ) (f g : (ι → Bool) → ℝ) (x : ι → Bool) :
@@ -282,8 +259,7 @@ noncomputable def noiseOpₗ (ρ : ℝ) : ((ι → Bool) → ℝ) →ₗ[ℝ] (�
 /-- **The noise operators form a semigroup**: `T_ρ T_σ = T_{ρ σ}`. -/
 theorem noiseOp_noiseOp (ρ σ : ℝ) (f : (ι → Bool) → ℝ) :
     noiseOp ρ (noiseOp σ f) = noiseOp (ρ * σ) f :=
-  fourierCoeff_injective <| funext fun S => by
-    simp only [fourierCoeff_noiseOp, mul_pow, mul_assoc]
+  fourierCoeff_injective <| funext fun S => by simp only [fourierCoeff_noiseOp, mul_pow, mul_assoc]
 
 /-- The noise operator commutes with renaming the coordinates. -/
 theorem noiseOp_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : ι ≃ κ) (ρ : ℝ)
@@ -295,9 +271,8 @@ theorem noiseOp_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] (e : 
 /-- On the cube over no coordinates, a single point, the noise operator is the identity. -/
 theorem noiseOp_of_isEmpty [IsEmpty ι] (ρ : ℝ) (g : (ι → Bool) → ℝ) (x : ι → Bool) :
     noiseOp ρ g x = g x := by
-  have h : (fun P : ι → Bool => g (x + P)) = fun _ => g x :=
-    funext fun P => congrArg g (Subsingleton.elim _ _)
-  rw [noiseOp, h, bernoulliAverage_const]
+  simpa only [noiseOp, show (fun P => g (x + P)) = fun _ => g x from
+    funext fun _ => congrArg g (Subsingleton.elim _ _)] using bernoulliAverage_const _ (g x)
 
 /-- The correlation of `f` with `T_ρ g` is the sum of the products of the Fourier coefficients
 damped by `ρ ^ |S|`. -/
@@ -340,8 +315,8 @@ theorem noiseStability_derivative_eq_sum (ρ : ℝ) (i : ι) (f : (ι → Bool) 
 theorem mul_noiseStability_derivative (ρ : ℝ) (i : ι) (f : (ι → Bool) → ℝ) :
     ρ * noiseStability ρ (derivative i f) = ∑ S with i ∈ S, ρ ^ #S * fourierCoeff f S ^ 2 := by
   rw [noiseStability_derivative_eq_sum, mul_sum]
-  refine sum_congr rfl fun S hS => ?_
-  rw [← mul_assoc, ← pow_succ', Nat.sub_add_cancel (card_pos.2 ⟨i, (mem_filter.1 hS).2⟩)]
+  exact sum_congr rfl fun S hS => by
+    rw [← mul_assoc, ← pow_succ', Nat.sub_add_cancel (card_pos.2 ⟨i, (mem_filter.1 hS).2⟩)]
 
 /-- At `ρ = 1` the noise stability is the second moment. -/
 theorem noiseStability_one (f : (ι → Bool) → ℝ) : noiseStability 1 f = 𝔼 x, f x ^ 2 := by
@@ -355,8 +330,7 @@ theorem noiseStability_zero (f : (ι → Bool) → ℝ) : noiseStability 0 f = (
 theorem noiseStability_mono {ρ σ : ℝ} (hρ : 0 ≤ ρ) (hρσ : ρ ≤ σ) (f : (ι → Bool) → ℝ) :
     noiseStability ρ f ≤ noiseStability σ f := by
   simp only [noiseStability_eq_sum]
-  exact sum_le_sum fun S _ =>
-    mul_le_mul_of_nonneg_right (pow_le_pow_left₀ hρ hρσ _) (sq_nonneg _)
+  exact sum_le_sum fun S _ => mul_le_mul_of_nonneg_right (pow_le_pow_left₀ hρ hρσ _) (sq_nonneg _)
 
 /-- On `0 ≤ ρ`, the noise stability is at least the squared mean. -/
 theorem sq_expect_le_noiseStability {ρ : ℝ} (hρ : 0 ≤ ρ) (f : (ι → Bool) → ℝ) :
@@ -372,19 +346,16 @@ theorem noiseStability_nonneg {ρ : ℝ} (hρ : 0 ≤ ρ) (f : (ι → Bool) →
 theorem noiseStability_le_expect_sq {ρ : ℝ} (hρ : |ρ| ≤ 1) (f : (ι → Bool) → ℝ) :
     noiseStability ρ f ≤ 𝔼 x, f x ^ 2 := by
   rw [noiseStability_eq_sum, expect_sq_eq_sum_fourierCoeff_sq]
-  refine sum_le_sum fun S _ => ?_
-  have h : ρ ^ #S ≤ 1 :=
-    (le_abs_self _).trans (abs_pow ρ #S ▸ pow_le_one₀ (abs_nonneg ρ) hρ)
-  simpa only [one_mul] using mul_le_mul_of_nonneg_right h (sq_nonneg (fourierCoeff f S))
+  exact sum_le_sum fun S _ => mul_le_of_le_one_left (sq_nonneg _)
+    ((le_abs_self _).trans (abs_pow ρ #S ▸ pow_le_one₀ (abs_nonneg ρ) hρ))
 
 /-- On `|ρ| ≤ 1`, the noise operator does not increase the squared Fourier coefficients:
 `(T_ρ f)^(S) ^ 2 ≤ f̂(S) ^ 2`. -/
 theorem sq_fourierCoeff_noiseOp_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (f : (ι → Bool) → ℝ) (S : Finset ι) :
     fourierCoeff (noiseOp ρ f) S ^ 2 ≤ fourierCoeff f S ^ 2 := by
   rw [fourierCoeff_noiseOp, mul_pow]
-  refine mul_le_of_le_one_left (sq_nonneg _) ((sq_le_one_iff_abs_le_one _).2 ?_)
-  rw [abs_pow]
-  exact pow_le_one₀ (abs_nonneg ρ) hρ
+  exact mul_le_of_le_one_left (sq_nonneg _)
+    ((sq_le_one_iff_abs_le_one _).2 (abs_pow ρ #S ▸ pow_le_one₀ (abs_nonneg ρ) hρ))
 
 /-- On `|ρ| ≤ 1`, the noise operator does not increase the variance: `Var[T_ρ f] ≤ Var[f]`. -/
 theorem expect_sub_expect_sq_noiseOp_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (f : (ι → Bool) → ℝ) :
@@ -418,35 +389,30 @@ theorem noiseSensitivity_eq_sum (δ : ℝ) (f : (ι → Bool) → Bool) :
     noiseSensitivity δ f =
       ∑ S, (1 - (1 - 2 * δ) ^ #S) / 2 * fourierCoeff (fun x => signVal (f x)) S ^ 2 := by
   have h (S : Finset ι) (c : ℝ) : (1 - (1 - 2 * δ) ^ #S) / 2 * c ^ 2 =
-      1 / 2 * c ^ 2 - 1 / 2 * ((1 - 2 * δ) ^ #S * c ^ 2) := by
-    ring
+      1 / 2 * c ^ 2 - 1 / 2 * ((1 - 2 * δ) ^ #S * c ^ 2) := by ring
   simp only [noiseSensitivity_eq_noiseStability, noiseStability_eq_sum, h, sum_sub_distrib,
     ← mul_sum, sum_fourierCoeff_sq_signVal, mul_one]
 
 /-- With no noise, `f` never changes. -/
 @[simp] theorem noiseSensitivity_zero (f : (ι → Bool) → Bool) : noiseSensitivity 0 f = 0 := by
-  have h (x : ι → Bool) : (x + fun _ => false) = x := add_zero x
-  simp [noiseSensitivity, bernoulliAverage_zero, h]
+  simp [noiseSensitivity, bernoulliAverage_zero, show ∀ x : ι → Bool, (x + fun _ => false) = x from
+    add_zero]
 
 /-- On `0 ≤ δ ≤ 1`, the noise sensitivity is a probability. -/
 theorem noiseSensitivity_mem_Icc {δ : ℝ} (hδ : 0 ≤ δ) (hδ' : δ ≤ 1) (f : (ι → Bool) → Bool) :
     noiseSensitivity δ f ∈ Set.Icc 0 1 := by
-  have h (b : Prop) [Decidable b] :
-      (0 : ℝ) ≤ (if b then 1 else 0) ∧ (if b then 1 else 0 : ℝ) ≤ 1 := by
-    split_ifs <;> norm_num
   refine ⟨expect_nonneg fun x _ => ?_, expect_le univ_nonempty fun x _ => ?_⟩
-  · simpa only [bernoulliAverage_const] using
-      bernoulliAverage_mono hδ hδ' (f := fun _ => 0) fun _ => (h _).1
-  · simpa only [bernoulliAverage_const] using
-      bernoulliAverage_mono hδ hδ' (g := fun _ => 1) fun _ => (h _).2
+  · simpa only [bernoulliAverage_const] using bernoulliAverage_mono hδ hδ' (f := fun _ => 0)
+      fun _ => by split_ifs <;> norm_num
+  · simpa only [bernoulliAverage_const] using bernoulliAverage_mono hδ hδ' (g := fun _ => 1)
+      fun _ => by split_ifs <;> norm_num
 
 /-- On `δ ≤ 1 / 2`, the noise sensitivity increases with `δ`. -/
 theorem noiseSensitivity_mono {δ δ' : ℝ} (hδδ' : δ ≤ δ') (hδ' : δ' ≤ 1 / 2)
     (f : (ι → Bool) → Bool) : noiseSensitivity δ f ≤ noiseSensitivity δ' f := by
   simp only [noiseSensitivity_eq_noiseStability]
-  have := noiseStability_mono (by linarith : 0 ≤ 1 - 2 * δ') (by linarith : 1 - 2 * δ' ≤ 1 - 2 * δ)
-    fun x => signVal (f x)
-  linarith
+  linarith [noiseStability_mono (by linarith : 0 ≤ 1 - 2 * δ')
+    (by linarith : 1 - 2 * δ' ≤ 1 - 2 * δ) fun x => signVal (f x)]
 
 /-- **The noise sensitivity is at most `δ` times the total influence**: `NS_δ[f] ≤ δ I[F]` for
 `δ ≤ 1`, for `F` the function `f` with values `±1` [O'Donnell, Exercise 2.42][ODonnell2014]. -/
@@ -463,24 +429,16 @@ theorem noiseSensitivity_le_two_mul_hammingDist_div {δ : ℝ} (hδ : δ ≤ 1)
     (f : (ι → Bool) → Bool) (b : Bool) :
     noiseSensitivity δ f ≤ 2 * ((hammingDist f (fun _ => b) : ℝ) / 2 ^ Fintype.card ι) := by
   rcases lt_or_ge δ 0 with hδ₀ | hδ₀
-  · -- at negative rates the bound of Exercise 2.42 is nonpositive
-    exact (noiseSensitivity_le_mul_totalInfluence hδ f).trans <| (mul_nonpos_of_nonpos_of_nonneg
-      hδ₀.le (totalInfluence_nonneg _)).trans (by positivity)
+  · exact (noiseSensitivity_le_mul_totalInfluence hδ f).trans <|
+      (mul_nonpos_of_nonpos_of_nonneg hδ₀.le (totalInfluence_nonneg _)).trans (by positivity)
   set g : (ι → Bool) → ℝ := fun x => if f x ≠ b then 1 else 0
   have hpt (x P : ι → Bool) : (if f x ≠ f (x + P) then (1 : ℝ) else 0) ≤ g x + g (x + P) := by
     simp only [g]; cases f x <;> cases f (x + P) <;> cases b <;> simp
-  have htr (P : ι → Bool) : 𝔼 x, g (x + P) = 𝔼 x, g x := by
-    simpa only [add_comm P] using Fintype.expect_add_left g P
-  calc noiseSensitivity δ f
-      ≤ 𝔼 x, bernoulliAverage δ fun P => g x + g (x + P) :=
-        expect_le_expect fun x _ => bernoulliAverage_mono hδ₀ hδ (hpt x)
-    _ = 2 * 𝔼 x, g x := by
-        simp only [bernoulliAverage_add, bernoulliAverage_const, expect_add_distrib,
-          ← bernoulliAverage_expect_comm, htr]
-        ring
-    _ = 2 * ((hammingDist f (fun _ => b) : ℝ) / 2 ^ Fintype.card ι) := by
-        rw [show (2 : ℝ) ^ Fintype.card ι = Fintype.card (ι → Bool) by simp,
-          hammingDist_div_eq_expect]
+  refine (expect_le_expect fun x _ => bernoulliAverage_mono hδ₀ hδ (hpt x)).trans_eq ?_
+  simp only [bernoulliAverage_add, bernoulliAverage_const, expect_add_distrib,
+    ← bernoulliAverage_expect_comm, add_comm _ (_ : ι → Bool), Fintype.expect_add_left,
+    show (2 : ℝ) ^ Fintype.card ι = Fintype.card (ι → Bool) by simp, hammingDist_div_eq_expect]
+  ring
 
 /-- **Nearly constant functions are stable under noise** [O'Donnell, Exercise 2.39][ODonnell2014]:
 for `δ ≤ 1`, `NS_δ[f] ≤ 2 α` for `α = min (Pr[F = 1], Pr[F = -1])` with `F = (-1) ^ f`, the

@@ -67,9 +67,7 @@ termination_by r n => (r, n)
 @[simp] theorem meixnerB_zero (y : R) (n : ℕ) : meixnerB y 0 n = (-y) ^ n := by rw [meixnerB]
 
 @[simp] theorem meixnerB_zero_right (y : R) (r : ℕ) : meixnerB y r 0 = 1 := by
-  cases r with
-  | zero => rw [meixnerB, pow_zero]
-  | succ r => rw [meixnerB]
+  cases r <;> simp [meixnerB]
 
 theorem meixnerB_succ (y : R) (r n : ℕ) :
     meixnerB y (r + 1) (n + 1) = meixnerB y r (n + 1) + meixnerB y r n - y *
@@ -78,9 +76,7 @@ theorem meixnerB_succ (y : R) (r n : ℕ) :
 @[simp] theorem meixnerC_zero (y : R) (n : ℕ) : meixnerC y 0 n = (-1) ^ n := by rw [meixnerC]
 
 @[simp] theorem meixnerC_zero_right (y : R) (r : ℕ) : meixnerC y r 0 = 1 := by
-  cases r with
-  | zero => rw [meixnerC, pow_zero]
-  | succ r => rw [meixnerC]
+  cases r <;> simp [meixnerC]
 
 theorem meixnerC_succ (y : R) (r n : ℕ) :
     meixnerC y (r + 1) (n + 1) = meixnerC y r (n + 1) + y * meixnerC y r n -
@@ -89,19 +85,17 @@ theorem meixnerC_succ (y : R) (r n : ℕ) :
 theorem map_meixnerB {S : Type*} [CommRing S] (f : R →+* S) (y : R) (r n : ℕ) :
     f (meixnerB y r n) = meixnerB (f y) r n := by
   induction r generalizing n with
-  | zero => simp [meixnerB_zero]
-  | succ r ih =>
-    induction n with
-    | zero => simp [meixnerB_zero_right]
+  | zero => simp
+  | succ r ih => induction n with
+    | zero => simp
     | succ n ih' => simp [meixnerB_succ, ih, ih']
 
 theorem map_meixnerC {S : Type*} [CommRing S] (f : R →+* S) (y : R) (r n : ℕ) :
     f (meixnerC y r n) = meixnerC (f y) r n := by
   induction r generalizing n with
-  | zero => simp [meixnerC_zero]
-  | succ r ih =>
-    induction n with
-    | zero => simp [meixnerC_zero_right]
+  | zero => simp
+  | succ r ih => induction n with
+    | zero => simp
     | succ n ih' => simp [meixnerC_succ, ih, ih']
 
 /-- The coefficients of a power series times 1 + at. -/
@@ -113,64 +107,42 @@ private theorem coeff_mk_mul_one_add_succ (f : ℕ → R) (a : R) (n : ℕ) :
     coeff (n + 1) (mk f * (1 + C a * X)) = f (n + 1) + f n * a := by
   simp [mul_add, ← mul_assoc, coeff_succ_mul_X]
 
-/-- `meixnerB y r` is the sequence of coefficients of `(1 + X)^r / (1 + y X)^(r + 1)`. -/
-theorem mk_meixnerB_mul_pow (y : R) (r : ℕ) :
-    mk (meixnerB y r) * (1 + C y * X) ^ (r + 1) = (1 + X) ^ r := by
+private lemma mk_mul_one_add_pow (f : ℕ → ℕ → R) (a b : R) (hz0 : f 0 0 = 1)
+    (hzs : ∀ n, f 0 (n + 1) + f 0 n * a = 0) (hr0 : ∀ r, f (r + 1) 0 = f r 0)
+    (hrs : ∀ r n, f (r + 1) (n + 1) + f (r + 1) n * a = f r (n + 1) + f r n * b) (r : ℕ) :
+    mk (f r) * (1 + C a * X) ^ (r + 1) = (1 + C b * X) ^ r := by
   induction r with
   | zero =>
     rw [zero_add, pow_one, pow_zero]
-    ext n
-    cases n with
-    | zero => rw [coeff_mk_mul_one_add_zero, meixnerB_zero]; simp
-    | succ n =>
-        rw [coeff_mk_mul_one_add_succ, meixnerB_zero, meixnerB_zero, coeff_one,
-            ite_eq_right (Nat.succ_ne_zero n)]; ring
+    ext (_ | n)
+    · simp [coeff_mk_mul_one_add_zero, hz0]
+    · simp [coeff_mk_mul_one_add_succ, hzs]
   | succ r ih =>
-    have step : mk (meixnerB y (r + 1)) * (1 + C y * X) =
-        mk (meixnerB y r) * (1 + C 1 * X) := by
-      ext n
-      cases n with
-      | zero =>
-          rw [coeff_mk_mul_one_add_zero, coeff_mk_mul_one_add_zero, meixnerB_zero_right,
-              meixnerB_zero_right]
-      | succ n => rw [coeff_mk_mul_one_add_succ, coeff_mk_mul_one_add_succ, meixnerB_succ]; ring
-    rw [map_one, one_mul] at step
+    have step : mk (f (r + 1)) * (1 + C a * X) = mk (f r) * (1 + C b * X) := by
+      ext (_ | n)
+      · simp [coeff_mk_mul_one_add_zero, hr0]
+      · simp [coeff_mk_mul_one_add_succ, hrs]
     rw [pow_succ' _ (r + 1), ← mul_assoc, step, mul_right_comm, ih, pow_succ]
+
+/-- `meixnerB y r` is the sequence of coefficients of `(1 + X)^r / (1 + y X)^(r + 1)`. -/
+theorem mk_meixnerB_mul_pow (y : R) (r : ℕ) :
+    mk (meixnerB y r) * (1 + C y * X) ^ (r + 1) = (1 + X) ^ r := by
+  simpa using mk_mul_one_add_pow (meixnerB y) y 1 (by simp) (fun n => by simp; ring) (by simp)
+    (fun r n => by rw [meixnerB_succ]; ring) r
 
 /-- `meixnerC y r` is the sequence of coefficients of `(1 + y X)^r / (1 + X)^(r + 1)`. -/
 theorem mk_meixnerC_mul_pow (y : R) (r : ℕ) :
     mk (meixnerC y r) * (1 + X) ^ (r + 1) = (1 + C y * X) ^ r := by
-  have one : (1 + X : PowerSeries R) = 1 + C 1 * X := by rw [map_one, one_mul]
-  induction r with
-  | zero =>
-    rw [zero_add, pow_one, pow_zero, one]
-    ext n
-    cases n with
-    | zero => rw [coeff_mk_mul_one_add_zero, meixnerC_zero]; simp
-    | succ n =>
-        rw [coeff_mk_mul_one_add_succ, meixnerC_zero, meixnerC_zero, coeff_one,
-            ite_eq_right (Nat.succ_ne_zero n)]; ring
-  | succ r ih =>
-    have step : mk (meixnerC y (r + 1)) * (1 + X) =
-        mk (meixnerC y r) * (1 + C y * X) := by
-      rw [one]
-      ext n
-      cases n with
-      | zero =>
-          rw [coeff_mk_mul_one_add_zero, coeff_mk_mul_one_add_zero, meixnerC_zero_right,
-              meixnerC_zero_right]
-      | succ n => rw [coeff_mk_mul_one_add_succ, coeff_mk_mul_one_add_succ, meixnerC_succ]; ring
-    rw [pow_succ' _ (r + 1), ← mul_assoc, step, mul_right_comm, ih, pow_succ]
+  simpa using mk_mul_one_add_pow (meixnerC y) 1 y (by simp) (fun n => by simp; ring) (by simp)
+    (fun r n => by rw [meixnerC_succ]; ring) r
 
 /-- Reciprocity: `yⁿ · meixnerB (1/y) r n = meixnerC y r n`, for an inverse `z` of `y`. -/
 theorem pow_mul_meixnerB_of_mul_eq_one {y z : R} (h : y * z = 1) (r n : ℕ) : y ^ n *
     meixnerB z r n = meixnerC y r n := by
   induction r generalizing n with
-  | zero =>
-    rw [meixnerB_zero, meixnerC_zero, ← mul_pow, mul_neg, h]
-  | succ r ih =>
-    induction n with
-    | zero => simp [meixnerB_zero_right, meixnerC_zero_right]
+  | zero => rw [meixnerB_zero, meixnerC_zero, ← mul_pow, mul_neg, h]
+  | succ r ih => induction n with
+    | zero => simp
     | succ n ih' =>
       rw [meixnerB_succ, meixnerC_succ, ← ih, ← ih, ← ih']
       linear_combination (-(y ^ n * meixnerB z (r + 1) n)) * h
@@ -178,8 +150,8 @@ theorem pow_mul_meixnerB_of_mul_eq_one {y z : R} (h : y * z = 1) (r n : ℕ) : y
 /-- Reciprocity read backwards: `yⁿ · meixnerC (1/y) r n = meixnerB y r n`. -/
 theorem pow_mul_meixnerC_of_mul_eq_one {y z : R} (h : y * z = 1) (r n : ℕ) : y ^ n *
     meixnerC z r n = meixnerB y r n := by
-  have h' : z * y = 1 := by rw [mul_comm, h]
-  rw [← pow_mul_meixnerB_of_mul_eq_one h', ← mul_assoc, ← mul_pow, h, one_pow, one_mul]
+  rw [← pow_mul_meixnerB_of_mul_eq_one (show z * y = 1 by rw [mul_comm, h]),
+    ← mul_assoc, ← mul_pow, h, one_pow, one_mul]
 
 /-- A telescoping sum. -/
 private theorem sum_range_pow_mul_sub (y : R) (u v : ℕ → R) (N : ℕ) (h : ∀ r, v (r + 1) = u r) :
