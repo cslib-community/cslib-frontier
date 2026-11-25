@@ -237,10 +237,10 @@ theorem blumMansour_swap_regret_le [Nonempty ι] (hη : 0 < η) (hη' : η ≤ 1
               sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (by
                 have h2 : ℓ t i ^ 2 ≤ 1 := by
                   rw [← sq_abs]
-                  nlinarith [abs_nonneg (ℓ t i), hℓ t (mem_range.mp ht) i]
+                  exact pow_le_one₀ (abs_nonneg _) (hℓ t (mem_range.mp ht) i)
                 rw [blumMansourLoss_apply, mul_pow]
-                nlinarith [mul_nonneg hp0 (sub_nonneg.2 hp1),
-                  mul_nonneg (sq_nonneg (blumMansourProb η ℓ t j)) (sub_nonneg.2 h2)])
+                exact (mul_le_of_le_one_right (sq_nonneg _) h2).trans
+                  (by rw [sq]; exact mul_le_of_le_one_right hp0 hp1))
                 (prob_nonneg hφ i)
           _ = blumMansourProb η ℓ t j := by rw [← sum_mul, sum_prob hφ, one_mul]
     simp only [← blumMansourMatrix_eq_prob, blumMansourLoss_apply] at h hsq

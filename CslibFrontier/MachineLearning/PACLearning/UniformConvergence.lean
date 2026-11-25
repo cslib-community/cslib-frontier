@@ -86,50 +86,35 @@ theorem measure_pi_le_abs_card_filter_div_sub_measure (μ : Measure Z) [IsProbab
           (μ {z | g z = true}).toReal|} ≤
       ENNReal.ofReal (2 * Real.exp (-2 * m * ε ^ 2)) := by
   classical
-  rcases Nat.eq_zero_or_pos m with rfl | hm
-  · refine prob_le_one.trans ?_
-    rw [Nat.cast_zero, mul_zero, zero_mul, Real.exp_zero, mul_one, ENNReal.ofReal_ofNat]
-    norm_num
+  rcases m.eq_zero_or_pos with rfl | hm
+  · exact prob_le_one.trans (by simp)
   set q : PMF Bool := (μ.map g).toPMF
-  have hmap : (Measure.pi fun _ : Fin m => μ).map (fun S i => g (S i)) =
-      (Cslib.Probability.PMF.pi fun _ : Fin m => q).toMeasure :=
-    Cslib.Probability.PMF.map_measurePi_eq_toMeasure_pi _ fun _ => hg.aemeasurable
-  have hgm : Measurable fun (S : Fin m → Z) i => g (S i) :=
-    measurable_pi_iff.2 fun i => hg.comp (measurable_pi_apply i)
-  have hqt : (q true).toReal = (μ {z | g z = true}).toReal := by
-    rw [Measure.toPMF_apply, Measure.map_apply hg (measurableSet_singleton _)]
-    rfl
-  set score : Fin m → Bool → ℝ := fun _ b => if b = true then 1 else 0
-  have hscore : ∀ i b, b ∈ q.support → score i b ∈ Set.Icc (0 : ℝ) 1 := by
-    intro i b _
-    cases b <;> simp [score]
+  set score : Fin m → Bool → ℝ := fun _ b => if b then 1 else 0
+  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hcount (S : Fin m → Z) :
       ((Finset.univ.filter fun i => g (S i) = true).card : ℝ) = ∑ i, score i (g (S i)) := by
-    simp only [score, Finset.card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    simp only [score, Finset.card_filter, Nat.cast_sum, apply_ite Nat.cast, Nat.cast_one,
+      Nat.cast_zero]
   have hmean : ∑ i : Fin m, ∑ a, (q a).toReal * score i a = m * (μ {z | g z = true}).toReal := by
-    simp only [score, Fintype.sum_bool, ite_true, mul_one, Bool.false_eq_true, ite_false,
-      mul_zero, add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, hqt]
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
+    simp only [score, Fintype.sum_bool, ↓reduceIte, Bool.false_eq_true, mul_one, mul_zero,
+      add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, q,
+      Measure.toPMF_apply, Measure.map_apply hg (measurableSet_singleton _)]
+    rfl
   have hpre : {S : Fin m → Z | ε ≤ |((Finset.univ.filter fun i => g (S i) = true).card : ℝ) / m -
           (μ {z | g z = true}).toReal|} =
       (fun S i => g (S i)) ⁻¹' {b : Fin m → Bool |
         m * ε ≤ |∑ i, score i (b i) - ∑ i : Fin m, ∑ a, (q a).toReal * score i a|} := by
     ext S
     simp only [Set.mem_ofPred_eq, Set.mem_preimage, hmean, ← hcount]
-    rw [show ((Finset.univ.filter fun i => g (S i) = true).card : ℝ) -
-          m * (μ {z | g z = true}).toReal =
-        m * (((Finset.univ.filter fun i => g (S i) = true).card : ℝ) / m -
-          (μ {z | g z = true}).toReal) by field_simp,
-      abs_mul, abs_of_pos hmR, mul_le_mul_iff_right₀ hmR]
-  rw [hpre, ← Measure.map_apply hgm (Set.toFinite _).measurableSet, hmap,
-    PMF.toMeasure_apply_eq_toOuterMeasure]
-  have hne : (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure
-      {b : Fin m → Bool |
-        m * ε ≤ |∑ i, score i (b i) - ∑ i : Fin m, ∑ a, (q a).toReal * score i a|} ≠ ⊤ :=
-    Cslib.Probability.PMF.toOuterMeasure_ne_top _ _
-  rw [ENNReal.le_ofReal_iff_toReal_le hne (by positivity)]
-  simpa only [Fintype.card_fin] using
-    Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge_card_mul (fun _ : Fin m => q) score hscore hε
+    rw [← mul_le_mul_iff_right₀ hmR]
+    nth_rw 2 [← abs_of_pos hmR]
+    rw [← abs_mul, mul_sub, mul_div_cancel₀ _ hmR.ne']
+  rw [hpre, ← Measure.map_apply (by fun_prop) (Set.toFinite _).measurableSet,
+    Cslib.Probability.PMF.map_measurePi_eq_toMeasure_pi _ fun _ => hg.aemeasurable,
+    PMF.toMeasure_apply_eq_toOuterMeasure, ENNReal.le_ofReal_iff_toReal_le
+      (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) (by positivity)]
+  simpa only [Fintype.card_fin] using Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge_card_mul
+    (fun _ : Fin m => q) score (by rintro _ (_ | _) _ <;> simp [score]) hε
 
 end Hoeffding
 
@@ -218,21 +203,15 @@ theorem IsRepresentative.error_le_optimalError_add {D : Measure (α × β)} [IsP
     {ε : ℝ} (hS : IsRepresentative D C (ε / 2) S) :
     error D (A S) ≤ optimalError D C + ENNReal.ofReal ε := by
   obtain ⟨hAC, hmin⟩ := hA S
-  rw [optimalError, ENNReal.iInf_add]
-  refine le_iInf fun h => ?_
-  rw [ENNReal.iInf_add]
-  refine le_iInf fun hh => ?_
-  have hg := (abs_le.1 (hS _ hAC)).1
-  have hh' := (abs_le.1 (hS h hh)).2
-  have hmis : (empiricalMiscount (A S) S : ℝ) / m ≤ (empiricalMiscount h S : ℝ) / m :=
-    div_le_div_of_nonneg_right (by exact_mod_cast hmin h hh) (Nat.cast_nonneg _)
-  have hreal : (error D (A S)).toReal ≤ (error D h).toReal + ε := by linarith
-  have hfin : ∀ g : α → β, error D g ≠ ⊤ := fun g => measure_ne_top _ _
+  simp only [optimalError, ENNReal.iInf_add, le_iInf_iff]
+  intro h hh
+  have hmis : (empiricalMiscount (A S) S : ℝ) / m ≤ (empiricalMiscount h S : ℝ) / m := by
+    gcongr
+    exact_mod_cast hmin h hh
+  have hfin (g : α → β) : error D g ≠ ⊤ := measure_ne_top _ _
   rw [← ENNReal.ofReal_toReal (hfin (A S)), ← ENNReal.ofReal_toReal (hfin h),
-    ← ENNReal.ofReal_add ENNReal.toReal_nonneg (by
-      have : 0 ≤ ε / 2 := (abs_nonneg _).trans (hS h hh)
-      linarith)]
-  exact ENNReal.ofReal_le_ofReal hreal
+    ← ENNReal.ofReal_add ENNReal.toReal_nonneg (by linarith [(abs_nonneg _).trans (hS h hh)])]
+  exact ENNReal.ofReal_le_ofReal (by linarith [(abs_le.1 (hS _ hAC)).1, (abs_le.1 (hS h hh)).2])
 
 /-- An `ε`-representative sample is `ε'`-representative for every `ε' ≥ ε`. -/
 theorem IsRepresentative.mono {D : Measure (α × β)} {C : ConceptClass α β} {ε ε' : ℝ} {m : ℕ}

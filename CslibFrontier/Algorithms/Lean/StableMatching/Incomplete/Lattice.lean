@@ -98,24 +98,16 @@ private theorem propBest_cross {μ ν : PartialMatching m n} (hμ : I.IsStable �
     (hp : I.propRank p (μ p) ≤ I.propRank p (ν p))
     (hq : I.propRank q (ν q) ≤ I.propRank q (μ q)) : p = q := by
   by_contra hpq
-  have hp_acc := (hμ.1 p r hμp).1
-  have hq_acc := (hν.1 q r hνq).1
-  have hp_r_acc := (hμ.1 p r hμp).2
-  have hq_r_acc := (hν.1 q r hνq).2
-  have hp_lt : I.propRank p (some r) < I.propRank p (ν p) := by
-    refine lt_of_le_of_ne (hμp ▸ hp) fun heq => ?_
-    have hνp : ν p = some r := I.eq_of_propRank_eq hp_acc heq
-    exact hpq (ν.inj hνp hνq)
-  have hq_lt : I.propRank q (some r) < I.propRank q (μ q) := by
-    refine lt_of_le_of_ne (hνq ▸ hq) fun heq => ?_
-    have hμq : μ q = some r := I.eq_of_propRank_eq hq_acc heq
-    exact hpq (μ.inj hμp hμq)
-  have hμs : μ.symm r = some p := μ.eq_some_iff.2 hμp
-  have hνs : ν.symm r = some q := ν.eq_some_iff.2 hνq
+  have hp_lt : I.propRank p (some r) < I.propRank p (ν p) :=
+    lt_of_le_of_ne (hμp ▸ hp) fun heq =>
+      hpq (ν.inj (I.eq_of_propRank_eq (hμ.1 p r hμp).1 heq) hνq)
+  have hq_lt : I.propRank q (some r) < I.propRank q (μ q) :=
+    lt_of_le_of_ne (hνq ▸ hq) fun heq =>
+      hpq (μ.inj hμp (I.eq_of_propRank_eq (hν.1 q r hνq).1 heq))
   rcases lt_trichotomy (I.recvRank r (some p)) (I.recvRank r (some q)) with hr | hr | hr
-  · exact hν.2 p r ⟨hp_lt, hνs ▸ hr⟩
-  · exact hpq (Option.some_injective _ (I.eq_of_recvRank_eq hp_r_acc hr)).symm
-  · exact hμ.2 q r ⟨hq_lt, hμs ▸ hr⟩
+  · exact hν.2 p r ⟨hp_lt, ν.eq_some_iff.2 hνq ▸ hr⟩
+  · exact hpq (Option.some_injective _ (I.eq_of_recvRank_eq (hμ.1 p r hμp).2 hr)).symm
+  · exact hμ.2 q r ⟨hq_lt, μ.eq_some_iff.2 hμp ▸ hr⟩
 
 theorem propBest_injOn {μ ν : PartialMatching m n} (hμ : I.IsStable μ)
     (hν : I.IsStable ν) :
@@ -199,12 +191,8 @@ theorem isStable_propJoin {μ ν : PartialMatching m n} (hμ : I.IsStable μ) (h
   | some q =>
     have hqr : I.propBest μ ν q = some r := (I.propJoin hμ hν).eq_some_iff.1 hj
     rcases I.propBest_mem μ ν q with h | h
-    · have hμq : μ q = some r := h.symm.trans hqr
-      have hμr : μ.symm r = some q := μ.eq_some_iff.2 hμq
-      exact hμ.2 p r ⟨hp.1, by rwa [hμr, ← hj]⟩
-    · have hνq : ν q = some r := h.symm.trans hqr
-      have hνr : ν.symm r = some q := ν.eq_some_iff.2 hνq
-      exact hν.2 p r ⟨hp.2, by rwa [hνr, ← hj]⟩
+    · exact hμ.2 p r ⟨hp.1, by rwa [μ.eq_some_iff.2 (h.symm.trans hqr), ← hj]⟩
+    · exact hν.2 p r ⟨hp.2, by rwa [ν.eq_some_iff.2 (h.symm.trans hqr), ← hj]⟩
 
 /-- In `propJoin`, every receiver gets the worse of its two outcomes. -/
 theorem recvRank_propJoin {μ ν : PartialMatching m n} (hμ : I.IsStable μ) (hν : I.IsStable ν)
@@ -224,10 +212,8 @@ theorem recvRank_propJoin {μ ν : PartialMatching m n} (hμ : I.IsStable μ) (h
   | some q =>
     have hqr : I.propBest μ ν q = some r := (I.propJoin hμ hν).eq_some_iff.1 hj
     rcases I.propBest_mem μ ν q with h | h
-    · have hμr : μ.symm r = some q := μ.eq_some_iff.2 (h.symm.trans hqr)
-      rw [← hμr]; exact le_max_left _ _
-    · have hνr : ν.symm r = some q := ν.eq_some_iff.2 (h.symm.trans hqr)
-      rw [← hνr]; exact le_max_right _ _
+    · exact μ.eq_some_iff.2 (h.symm.trans hqr) ▸ le_max_left _ _
+    · exact ν.eq_some_iff.2 (h.symm.trans hqr) ▸ le_max_right _ _
 
 variable (I) in
 /-- Proposer-wise worst (`meet`) of two stable partial matchings: computed as the receiver-wise

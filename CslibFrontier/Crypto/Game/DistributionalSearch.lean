@@ -67,13 +67,9 @@ inversion experiment's success test, including for noninjective functions. -/
       inversionExperiment sample f inverter := by
   classical
   rw [DistributionalSearchProblem.experiment, inversionExperiment_eq_bind_map]
-  apply congrArg (PMF.bind sample)
-  funext x
-  apply congrArg (fun score : α → Bool => (inverter (f x)).map score)
-  funext answer
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_iff, beq_iff_eq]
-  rfl
+  refine congrArg (PMF.bind sample) (funext fun x => ?_)
+  refine congrArg ((inverter (f x)).map ·) (funext fun answer => ?_)
+  exact Bool.eq_iff_iff.mpr (decide_eq_true_iff.trans beq_iff_eq.symm)
 
 /-- Distributional search reproduces the existing hidden-bit prediction experiment. -/
 @[simp] theorem experiment_predictionSearchProblem
@@ -81,16 +77,10 @@ inversion experiment's success test, including for noninjective functions. -/
     (predictionSearchProblem sample f h).experiment predictor =
       predictionExperiment sample f h predictor := by
   classical
-  rw [DistributionalSearchProblem.experiment]
-  simp only [predictionExperiment, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    PMF.map, Function.comp_def]
-  apply congrArg (PMF.bind sample)
-  funext x
-  apply congrArg (PMF.bind (predictor (f x)))
-  funext answer
-  apply congrArg PMF.pure
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_iff, beq_iff_eq]
-  rfl
+  simp only [DistributionalSearchProblem.experiment, predictionExperiment,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map, Function.comp_def]
+  refine congrArg (PMF.bind sample) (funext fun x => ?_)
+  refine congrArg (PMF.bind (predictor (f x))) (funext fun answer => congrArg PMF.pure ?_)
+  exact Bool.eq_iff_iff.mpr (decide_eq_true_iff.trans beq_iff_eq.symm)
 
 end Cslib.Crypto

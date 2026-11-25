@@ -112,14 +112,8 @@ simultaneous dynamics. -/
 theorem weight_mwuLoss (G : CostGame ι S) (φ : ι → ℝ → ℝ) (i : ι) (t : ℕ) :
     weight (φ i) (G.mwuLoss φ i) t = fun a => G.mwuWeight φ t i a := by
   induction t with
-  | zero =>
-    funext a
-    rw [weight_zero]
-    rfl
-  | succ t ih =>
-    funext a
-    rw [weight_succ, ih]
-    rfl
+  | zero => exact funext fun _ => weight_zero ..
+  | succ t ih => exact funext fun _ => by rw [weight_succ, ih]; rfl
 
 /-- **Each player runs the single-learner multiplicative update**: the mixed strategies of player
 `i` are those of the multiplicative update with factor `φ i` against the loss sequence that the
@@ -127,8 +121,7 @@ dynamics produce for `i`. -/
 theorem prob_mwuLoss (G : CostGame ι S) (φ : ι → ℝ → ℝ) (i : ι) (t : ℕ) :
     prob (φ i) (G.mwuLoss φ i) t = G.mwuProb φ t i := by
   funext a
-  rw [prob, potential, weight_mwuLoss]
-  rfl
+  rw [prob, potential, weight_mwuLoss]; rfl
 
 /-! ### Hedge dynamics -/
 
@@ -166,9 +159,7 @@ theorem hedge_regret_le [∀ i, Nonempty (S i)] (hM : 0 < M) (hc : ∀ i s, |G.c
   set q := fun t b => G.hedgeProb M T t i b with hq
   rcases Nat.lt_or_ge (Fintype.card (S i)) 2 with h1 | h2
   · -- With a single strategy there is no regret.
-    have hone : Fintype.card (S i) = 1 := by
-      have := Fintype.card_pos (α := S i)
-      omega
+    have hone : Fintype.card (S i) = 1 := by have := Fintype.card_pos (α := S i); omega
     obtain ⟨x, hx⟩ := Fintype.card_eq_one_iff.mp hone
     rw [hone, Nat.cast_one, Real.log_one, mul_zero, Real.sqrt_zero, mul_zero, add_zero]
     refine le_of_eq (sum_congr rfl fun t _ => ?_)
@@ -176,22 +167,17 @@ theorem hedge_regret_le [∀ i, Nonempty (S i)] (hM : 0 < M) (hc : ∀ i s, |G.c
           sum_congr rfl fun b _ => by rw [hx b, hx a]
       _ = D t a := by rw [← sum_mul, sum_hedgeProb, one_mul]
   · set ℓ : ℕ → S i → ℝ := fun t b => D t b / M with hℓ
-    have hprob : ∀ t, prob (hedgeFactor √(Real.log (Fintype.card (S i)) / T)) ℓ t = q t :=
-      fun t => G.prob_mwuLoss
-        (fun i x => hedgeFactor √(Real.log (Fintype.card (S i)) / T) (x / M)) i t
-    have hℓ1 : ∀ s < T, ∀ b, |ℓ s b| ≤ 1 := fun s _ b => by
+    have hprob (t) : prob (hedgeFactor √(Real.log (Fintype.card (S i)) / T)) ℓ t = q t :=
+      G.prob_mwuLoss (fun i x => hedgeFactor √(Real.log (Fintype.card (S i)) / T) (x / M)) i t
+    have hℓ1 (s) (_ : s < T) (b) : |ℓ s b| ≤ 1 := by
       rw [hℓ, abs_div, abs_of_pos hM, div_le_one hM]
-      exact G.abs_deviationCost_le (fun j b => hedgeProb_nonneg s j b)
-        (fun j => sum_hedgeProb s j) (hc i) b
+      exact G.abs_deviationCost_le (hedgeProb_nonneg s) (sum_hedgeProb s) (hc i) b
     have h := hedge_regret_le_sqrt h2 hT hℓ1 a
     simp only [hprob] at h
     simp only [hℓ] at h
-    have e1 : ∑ t ∈ range T, ∑ b, q t b * (D t b / M)
-        = (∑ t ∈ range T, ∑ b, q t b * D t b) / M := by
-      rw [sum_div]
-      refine sum_congr rfl fun t _ => ?_
-      rw [sum_div]
-      exact sum_congr rfl fun b _ => (mul_div_assoc _ _ _).symm
+    have e1 : ∑ t ∈ range T, ∑ b, q t b * (D t b / M) =
+        (∑ t ∈ range T, ∑ b, q t b * D t b) / M := by
+      simp_rw [← mul_div_assoc, ← sum_div]
     rw [e1, ← sum_div, div_le_iff₀ hM, add_mul, div_mul_cancel₀ _ hM.ne'] at h
     linarith
 
@@ -256,8 +242,7 @@ theorem IsSmooth.timeAverage_hedgeDist_socialCost_le {lam μ : ℝ} (hG : G.IsSm
     (timeAverage (G.hedgeDist M T) T hT0).weights.sum (fun s w => w * G.socialCost s)
       ≤ (lam * G.socialCost s' + 2 * M * ∑ i, √(Real.log (Fintype.card (S i)) / T)) / (1 - μ) := by
   have hT' : (0 : ℝ) < T := by exact_mod_cast hT0
-  have h := hG.timeAverage_expected_socialCost_le hμ hT0 (hedgeDist_regret hM hc hT) s'
-  refine h.trans (le_of_eq ?_)
-  simp only [mul_div_assoc, Real.sqrt_mul_div_self hT', mul_sum]
+  refine (hG.timeAverage_expected_socialCost_le hμ hT0 (hedgeDist_regret hM hc hT) s').trans ?_
+  simp only [mul_div_assoc, Real.sqrt_mul_div_self hT', mul_sum, le_refl]
 
 end Cslib.GameTheory.CostGame

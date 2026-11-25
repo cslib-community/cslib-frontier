@@ -402,8 +402,7 @@ private theorem map_val_countLaw (ν : PMF Bool) :
     simp only [PMF.monad_bind_eq_bind, PMF.map_bind, PMF.pure_map, hval, PMF.map_comp]
     have h1 : ((countLaw ν n).bind fun a => ν.bind fun b => PMF.pure (a.val + b.toNat)) =
         ((countLaw ν n).map Fin.val).bind fun m => ν.bind fun b => PMF.pure (m + b.toNat) := by
-      rw [PMF.bind_map]
-      rfl
+      rw [PMF.bind_map]; rfl
     rw [h1, map_val_countLaw ν n, PMF.bind_map]
     simp only [Function.comp_def, PMF.map, trueCount_cons]
     rw [PMF.bind_comm]
@@ -434,15 +433,13 @@ private theorem countLaw_tail (ν : PMF Bool) {n : ℕ} (hn : 0 < n) {e : ℝ} (
     rw [show (trueCount v : ℝ) / n - (ν true).toReal =
         ((trueCount v : ℝ) - n * (ν true).toReal) / n by field_simp,
       abs_div, abs_of_pos hn', le_div_iff₀ hn', mul_comm]
-  rw [hsets]
-  exact h
+  rwa [hsets]
 
 private theorem sampleCount_pos {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) (hf : f < 2) :
     0 < sampleCount e f := by
   rw [sampleCount, Nat.ceil_pos]
   have hlog : Real.log (f / 2) < 0 := Real.log_neg (by positivity) (by linarith)
-  have : 0 < 2 * e ^ 2 := by positivity
-  exact div_pos (by linarith) this
+  exact div_pos (by linarith) (by positivity)
 
 private theorem two_mul_exp_sampleCount_le {e f : ℝ} (he : 0 < e) (hf0 : 0 < f) :
     2 * Real.exp (-2 * sampleCount e f * e ^ 2) ≤ f := by
@@ -473,8 +470,7 @@ private theorem card_filter_val_lt {N : ℕ} [NeZero N] (k : Fin (N + 1)) :
   | zero => exact absurd rfl (NeZero.ne 0)
   | succ n =>
     have h := Fin.card_filter_val_lt (n := n + 1) (m := k.val)
-    rw [Nat.min_eq_right (Nat.lt_succ_iff.1 k.isLt)] at h
-    exact h
+    rwa [Nat.min_eq_right (Nat.lt_succ_iff.1 k.isLt)] at h
 
 private theorem map_decide_val_lt_uniform {N : ℕ} [NeZero N] (k : Fin (N + 1))
     (e : ZMod N ≃ ZMod N) (f : ZMod N → Bool) (hf : ∀ w, f w = decide ((e w).val < k.val)) :
@@ -686,8 +682,7 @@ private theorem closeTo_lowLaw (ν : PMF Bool) {b : ℝ} (hb : 0 ≤ b) :
     (min_le_right _ _).trans (max_le (by linarith) h0)
   have hge : (ν true).toReal - b ≤ min 1 (max ((ν true).toReal - b) 0) :=
     le_min (by linarith) (le_max_left _ _)
-  rw [abs_le]
-  constructor <;> linarith
+  exact abs_le.2 ⟨by linarith, by linarith⟩
 
 private theorem closeTo_highLaw (ν : PMF Bool) {b : ℝ} (hb : 0 ≤ b) :
     CloseTo ν (highLaw ν b) (ENNReal.ofReal b) := by
@@ -698,8 +693,7 @@ private theorem closeTo_highLaw (ν : PMF Bool) {b : ℝ} (hb : 0 ≤ b) :
     le_min h1 (le_max_of_le_left (by linarith))
   have hle : min 1 (max ((ν true).toReal + b) 0) ≤ (ν true).toReal + b :=
     (min_le_right _ _).trans (max_le le_rfl (by linarith))
-  rw [abs_le]
-  constructor <;> linarith
+  exact abs_le.2 ⟨by linarith, by linarith⟩
 
 /-- The least probability of the output `false` after `n` more steps from `bits`, over step laws
 that move each step of `law` by at most `b`. -/
@@ -712,9 +706,7 @@ private noncomputable def rejectValue (law : List Bool → PMF Bool) (b : ℝ) :
 
 private theorem rejectValue_le_one (law : List Bool → PMF Bool) (b : ℝ) :
     ∀ n bits, rejectValue law b n bits ≤ 1
-  | 0, bits => by
-    rw [rejectValue]
-    split_ifs <;> simp
+  | 0, bits => by rw [rejectValue]; split_ifs <;> simp
   | n + 1, bits => by
     rw [rejectValue]
     exact (min_le_left _ _).trans (mix_le_one _ fun bit => rejectValue_le_one law b n _)
@@ -743,8 +735,7 @@ private theorem closeTo_bestLaw (law : List Bool → PMF Bool) {b : ℝ} (hb : 0
     (bits : List Bool) : CloseTo (law bits) (bestLaw law b T bits) (ENNReal.ofReal b) := by
   rw [bestLaw]
   split_ifs
-  · exact closeTo_lowLaw _ hb
-  · exact closeTo_highLaw _ hb
+  exacts [closeTo_lowLaw _ hb, closeTo_highLaw _ hb]
 
 private theorem lawFrom_bestLaw (law : List Bool → PMF Bool) (b : ℝ) (T : ℕ) :
     ∀ n bits, bits.length + n = T + 1 →
@@ -758,8 +749,7 @@ private theorem lawFrom_bestLaw (law : List Bool → PMF Bool) (b : ℝ) (T : �
       lawFrom_bestLaw law b T n (true :: bits) (by simp; omega),
       lawFrom_bestLaw law b T n (false :: bits) (by simp; omega), rejectValue, bestLaw, hlen]
     split_ifs with hle
-    · exact (min_eq_left hle).symm
-    · exact (min_eq_right (le_of_not_ge hle)).symm
+    exacts [(min_eq_left hle).symm, (min_eq_right (le_of_not_ge hle)).symm]
 
 /-! ### Rounds -/
 
@@ -863,7 +853,6 @@ private theorem reject_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
         fun bit => rejectValue law b n (bit :: history.bits)
     calc (1 - vc) * (1 - qc) ^ (n + 1) * rejectValue law b (n + 1) history.bits
         = (1 - qc) * ((1 - vc) * (1 - qc) ^ n) * rejectValue law b (n + 1) history.bits := by
-          rw [pow_succ]
           ring
       _ ≤ abortLaw P (law history.bits) x.1 true * ev law (verdict P history.bits x.1) false +
             abortLaw P (law history.bits) x.1 false * ((1 - vc) * (1 - qc) ^ n *
@@ -1002,16 +991,13 @@ private theorem accept_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
 `p`. -/
 private theorem le_abs_sub_of_le_of_le {a p x d t e : ℝ} (h1 : |a - p| ≤ d) (h2 : t ≤ |a - x|)
     (hte : e + d ≤ t) : e ≤ |x - p| := by
-  have htri := abs_sub_le a p x
-  rw [abs_sub_comm p x] at htri
-  linarith
+  linarith [abs_sub_le a p x, abs_sub_comm p x]
 
 /-- If `a` is at least `d` from `p` but within `t` of `x`, then `x` is at least `d - t` from
 `p`. -/
 private theorem le_abs_sub_of_le_of_lt {a p x d t e : ℝ} (h1 : d ≤ |a - p|) (h2 : |a - x| < t)
     (hte : e + t ≤ d) : e ≤ |x - p| := by
-  have htri := abs_sub_le a x p
-  linarith
+  linarith [abs_sub_le a x p]
 
 variable {K : ℝ≥0}
 
@@ -1115,8 +1101,7 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
   have hfin := PMF.apply_ne_top
     (ev law (run (Params.default K T) (honestProposer (Params.default K T)) B)) true
   have hyes' : (2 / 3 : ℝ) ≤ (lawFrom law (T + 1) [] true).toReal := by
-    have := ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
-    simpa using this
+    simpa using ENNReal.toReal_mono (PMF.apply_ne_top _ _) hyes
   have hreal := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hfin, by
     simp [ENNReal.mul_eq_top]⟩) hacc
   rw [ENNReal.toReal_add hfin (by simp [ENNReal.mul_eq_top]), ENNReal.toReal_mul,
@@ -1128,9 +1113,7 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     ring
   rw [hslack] at hreal
   rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin]
-  have h35 : ((3 / 5 : ℝ≥0∞)).toReal = 3 / 5 := by simp
-  rw [h35]
-  linarith
+  linarith [show ((3 / 5 : ℝ≥0∞)).toReal = 3 / 5 by simp]
 
 /-- **Soundness, as a step.** A step toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not
 that theorem: if the output of a `(T + 1)`-step computation is `K`-Lipschitz in its whole step
@@ -1173,8 +1156,7 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
   have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top hU
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
-    have := ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
-    simpa using this
+    simpa using ENNReal.toReal_mono (ENNReal.div_ne_top (by simp) (by simp)) hno
   have hout := Probability.PMF.toReal_true_add_toReal_false (ev law (output (T + 1)))
   have hrun := Probability.PMF.toReal_true_add_toReal_false
     (ev law (run (Params.default K T) A (honestChallenger (Params.default K T))))
@@ -1195,10 +1177,8 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     have hcast : (((T + 1 : ℕ) : ℝ)) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by
       push_cast
       field_simp
-    rw [hcast] at h
-    calc (99 / 100 : ℝ) = 1 + -(1 / 100) := by norm_num
-      _ ≤ (1 + -(1 / (100 * ((T : ℝ) + 1)))) ^ (T + 1) := h
-      _ = (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) := by rw [← sub_eq_add_neg]
+    rw [hcast, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
+    exact (show (99 / 100 : ℝ) = 1 - 1 / 100 by norm_num).trans_le h
   have hU' : (37 / 60 : ℝ) ≤ (rejectValue law (5 / (100 * (K : ℝ))) (T + 1) []).toReal := by
     linarith
   have hprod : (99 / 100 : ℝ) * (99 / 100) * (37 / 60) ≤
@@ -1208,8 +1188,6 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
       (mul_nonneg (by norm_num) (le_trans (by norm_num) hbern))
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _)
     (ENNReal.div_ne_top (by simp) (by simp))]
-  have h25 : ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 := by simp
-  rw [h25]
-  linarith
+  linarith [show ((2 / 5 : ℝ≥0∞)).toReal = 2 / 5 by simp]
 
 end Cslib.Interactive.Debate

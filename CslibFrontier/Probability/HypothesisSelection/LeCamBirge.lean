@@ -305,8 +305,6 @@ theorem sum_mul_birgeWeight_le [Fintype α] (p q₀ q₁ : _root_.PMF α) :
               (mul_abs_birgeScalar_sub_one_le (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))
               (by positivity)
         _ = |u x - a x| * |a x - b x| := by ring
-    have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
-      (fun x => |u x - a x|) (fun x => |a x - b x|)
     have h1 : ∑ x : α, |u x - a x| ^ 2 = 2 * hellingerSq p q₀ := by
       simp_rw [sq_abs]
       rw [hellingerSq_eq_sum]
@@ -315,38 +313,21 @@ theorem sum_mul_birgeWeight_le [Fintype α] (p q₀ q₁ : _root_.PMF α) :
       simp_rw [sq_abs]
       rw [hellingerSq_eq_sum]
       ring
-    rw [h1, h2] at hcs
-    have hsqrt : ∑ x : α, |u x - a x| * |a x - b x| ≤
-        2 * hellingerDist p q₀ * hellingerDist q₀ q₁ := by
-      refine le_of_sq_le_sq ?_
-        (mul_nonneg (mul_nonneg (by norm_num) (hellingerDist_nonneg _ _))
-          (hellingerDist_nonneg _ _))
-      calc (∑ x : α, |u x - a x| * |a x - b x|) ^ 2
-          ≤ (2 * hellingerSq p q₀) * (2 * hellingerSq q₀ q₁) := hcs
-        _ = (2 * hellingerDist p q₀ * hellingerDist q₀ q₁) ^ 2 := by
-            rw [← hellingerDist_sq p q₀, ← hellingerDist_sq q₀ q₁]
-            ring
-    exact (Finset.sum_le_sum fun x _ => hpt x).trans hsqrt
+    refine (Finset.sum_le_sum fun x _ => hpt x).trans
+      ((Real.sum_mul_le_sqrt_mul_sqrt _ _ _).trans_eq ?_)
+    rw [h1, h2, Real.sqrt_mul zero_le_two, Real.sqrt_mul zero_le_two,
+      hellingerDist_eq_sqrt_hellingerSq, hellingerDist_eq_sqrt_hellingerSq]
+    linear_combination (Real.sqrt (hellingerSq p q₀) * Real.sqrt (hellingerSq q₀ q₁)) *
+      Real.mul_self_sqrt (zero_le_two : (0 : ℝ) ≤ 2)
   have hdiff_eq :
-      ∑ x : α, (p x).toReal * w x - ∑ x : α, (q₀ x).toReal * w x =
-        ∑ x : α, (u x - a x) ^ 2 * (w x - 1) +
-          ∑ x : α, 2 * a x * (u x - a x) * (w x - 1) := by
-    have hsum0 : ∑ x : α, ((p x).toReal - (q₀ x).toReal) = 0 := by
-      rw [Finset.sum_sub_distrib, sum_toReal, sum_toReal, sub_self]
-    have hpt (x : α) :
-        (p x).toReal * w x - (q₀ x).toReal * w x - ((p x).toReal - (q₀ x).toReal) =
-          (u x - a x) ^ 2 * (w x - 1) + 2 * a x * (u x - a x) * (w x - 1) := by
-      rw [← hu2 x, ← ha2 x]
-      ring
-    rw [← Finset.sum_sub_distrib]
-    calc ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x)
-        = ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x) -
-            ∑ x : α, ((p x).toReal - (q₀ x).toReal) := by rw [hsum0, sub_zero]
-      _ = ∑ x : α, ((p x).toReal * w x - (q₀ x).toReal * w x -
-            ((p x).toReal - (q₀ x).toReal)) := (Finset.sum_sub_distrib _ _).symm
-      _ = ∑ x : α, ((u x - a x) ^ 2 * (w x - 1) + 2 * a x * (u x - a x) * (w x - 1)) := by
-          simp_rw [hpt]
-      _ = _ := Finset.sum_add_distrib
+      ∑ x : α, (p x).toReal * w x = ∑ x : α, (q₀ x).toReal * w x +
+        ∑ x : α, (u x - a x) ^ 2 * (w x - 1) + ∑ x : α, 2 * a x * (u x - a x) * (w x - 1) +
+          (∑ x : α, (p x).toReal - ∑ x : α, (q₀ x).toReal) := by
+    simp only [← Finset.sum_add_distrib, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun x _ => ?_
+    rw [← hu2 x, ← ha2 x]
+    ring
+  rw [sum_toReal, sum_toReal] at hdiff_eq
   linarith
 
 /-- Robust Hellinger-ball drift bound: whenever `10 * hellingerDist p q₀ ≤ hellingerDist q₀ q₁`,

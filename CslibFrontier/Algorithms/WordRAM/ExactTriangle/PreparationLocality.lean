@@ -111,14 +111,9 @@ theorem Output.heap_le_budget {n D g p : ℕ} (values : ℕ → ℤ) {initial y 
     (one_le_queryCap hD hDn) (fun _ _ => Nat.count_le _) le_rfl
   have hB : 0 < pieceSize D g := by
     have hs : 0 < sOf D := Nat.sqrt_pos.mpr hD
-    have hc := Nat.le_ceilDiv_mul (a := sOf D) (by omega : 0 < g)
-    change sOf D ≤ pieceSize D g * g at hc
-    by_contra hz
-    have : pieceSize D g = 0 := by omega
-    rw [this, Nat.zero_mul] at hc
-    omega
-  have hH : H ≤ n := (Nat.ceilDiv_le_iff hB).mpr
-    (Nat.le_mul_of_pos_right n hB)
+    have hc : sOf D ≤ pieceSize D g * g := Nat.le_ceilDiv_mul (a := sOf D) (by omega)
+    exact Nat.pos_of_ne_zero fun hz => by rw [hz, Nat.zero_mul] at hc; omega
+  have hH : H ≤ n := (Nat.ceilDiv_le_iff hB).mpr (Nat.le_mul_of_pos_right n hB)
   have hKH := Nat.mul_le_mul hK hH
   have hprod := Nat.mul_le_mul_right (6 + 2 * (n * D)) hKH
   obtain ⟨-, -, -, -, -, hh, -⟩ := h

@@ -76,10 +76,9 @@ theorem proximityGap_curve_johnson
   · by_cases h0 : ∃ c ∈ reedSolomon α k, hammingDist (u 0) c ≤ e
     · exact Or.inl fun _ => by simpa [Fin.sum_univ_one] using h0
     · right
-      have hemp : (Finset.univ.filter fun z : F => ∃ c ∈ reedSolomon α k,
-          hammingDist (∑ j : Fin 1, z ^ (j : ℕ) • u j) c ≤ e) = ∅ := by
-        ext; simp [h0]
-      simp [hemp]
+      rw [Finset.filter_eq_empty_iff.mpr fun _ _ => by simpa [Fin.sum_univ_one] using h0,
+        card_empty, Nat.cast_zero, zero_div]
+      positivity
   · obtain ⟨hk_sub, hinterp, hroot, hjb⟩ := ProximityGap.johnson_curve_params_bound hk hkn hm hr he
     rcases curve_dichotomy_of_ca (C := reedSolomon α k) (u := u)
       (fun x c => hammingDist x c ≤ e) (fun D' => Fintype.card ι - e ≤ D'.card)
@@ -161,11 +160,10 @@ theorem weighted_proximityGap_curve_johnson
   · rcases Nat.eq_zero_or_pos r with rfl | hr
     · by_cases h0 : ∃ c ∈ reedSolomon α k, B_W ≤ ∑ i ∈ univ.filter (fun i => u 0 i = c i), W i
       · exact Or.inl fun _ => by simpa [Fin.sum_univ_one] using h0
-      · right; have hemp : (Finset.univ.filter fun z : F => ∃ c ∈ reedSolomon α k,
-            B_W ≤ ∑ i ∈ Finset.univ.filter
-              (fun i => (∑ j : Fin 1, z ^ (j : ℕ) • u j) i = c i), W i) = ∅ := by
-          ext; simp [h0]
-        simp [hemp]
+      · right
+        rw [Finset.filter_eq_empty_iff.mpr fun _ _ => by simpa [Fin.sum_univ_one] using h0,
+          card_empty, Nat.cast_zero, zero_div]
+        positivity
     · obtain ⟨hk_sub, hinterp, hroot, hjb⟩ :=
         ProximityGap.johnson_curve_params_bound (e := n - t) hk hkn hm hr hB
       rw [Nat.sub_sub_self ht_le] at hk_sub hroot
@@ -185,16 +183,10 @@ theorem weighted_proximityGap_curve_johnson
   · right
     have hMn_lt : M * n < B_W := Nat.lt_of_not_ge fun hle =>
       ht_le ((Nat.div_le_iff_le_mul_add_pred hM).2 (by omega))
-    have hemp : (Finset.univ.filter fun z : F => ∃ c ∈ reedSolomon α k,
-        B_W ≤ ∑ i ∈ Finset.univ.filter
-          (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), W i) = ∅ := by
-      ext z; simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false]
-      rintro ⟨c, _, hcW⟩
-      have hle : ∑ i ∈ univ.filter (fun i =>
-          (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), W i ≤ M * n :=
-        sum_le_mul_card_of_le hW _
-      omega
-    rw [hemp, Finset.card_empty, Nat.cast_zero, zero_div]; positivity
+    rw [Finset.filter_eq_empty_iff.mpr fun z _ ⟨c, _, hcW⟩ =>
+      not_le_of_gt hMn_lt (hcW.trans (sum_le_mul_card_of_le hW _)),
+      card_empty, Nat.cast_zero, zero_div]
+    positivity
 
 /-- **Explicit-parameter `ℚ`-weighted correlated-agreement step on parameterized curves up to the
 Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 6.2 and 7.2], accepted
@@ -318,11 +310,9 @@ theorem ratWeighted_proximityGap_curve_johnson
       simpa only [hf] using hbound
   · right
     have hn_lt : (Fintype.card ι : ℚ) < θ := by exact_mod_cast lt_of_not_ge hθ_le_n
-    have hemp : (univ.filter fun z : F => ∃ c ∈ reedSolomon α k, θ ≤ ∑ i ∈ univ.filter (fun i =>
-        (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i), μ i) = ∅ := by
-      ext z; simp only [mem_filter, mem_univ, true_and, notMem_empty, iff_false]
-      rintro ⟨c, _, hcμ⟩; linarith [sum_le_card_of_le_one hμ_le (univ.filter fun i =>
-        (∑ j : Fin (r + 1), z ^ (j : ℕ) • u j) i = c i)]
-    rw [hemp, card_empty, Nat.cast_zero, zero_div]; positivity
+    rw [Finset.filter_eq_empty_iff.mpr fun z _ ⟨c, _, hcμ⟩ =>
+      not_le_of_gt ((sum_le_card_of_le_one hμ_le _).trans_lt hn_lt) hcμ,
+      card_empty, Nat.cast_zero, zero_div]
+    positivity
 
 end Cslib.Code

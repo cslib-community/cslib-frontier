@@ -62,14 +62,10 @@ private theorem mul_le_of_add_le14
     c₁₃ * (n + 1) ≤ U ∧ c₁₄ * (n + 1) ≤ U := by
   have hm {c : ℕ} (hc : c ≤ D) : c * (n + 1) ≤ U :=
     (Nat.mul_le_mul hc (Nat.add_le_add_right hn 1)).trans hU
-  have hm2 {c : ℕ} (hc : c ≤ D) : c * (2 * n + 1 + 1) ≤ 2 * U := by
-    rw [show c * (2 * n + 1 + 1) = 2 * (c * (n + 1)) by ring]
-    exact Nat.mul_le_mul_left 2 (hm hc)
-  have ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃, h₁₄⟩ :
-      c₁ ≤ D ∧ c₂ ≤ D ∧ c₃ ≤ D ∧ c₄ ≤ D ∧ c₅ ≤ D ∧ c₆ ≤ D ∧ c₇ ≤ D ∧
-      c₈ ≤ D ∧ c₉ ≤ D ∧ c₁₀ ≤ D ∧ c₁₁ ≤ D ∧ c₁₂ ≤ D ∧ c₁₃ ≤ D ∧ c₁₄ ≤ D := by omega
-  exact ⟨hm h₁, hm2 h₂, hm h₃, hm h₄, hm h₅, hm h₆, hm h₇, hm h₈, hm h₉, hm h₁₀,
-    hm h₁₁, hm h₁₂, hm h₁₃, hm h₁₄⟩
+  have h₂ := hm (c := c₂) (by omega)
+  exact ⟨hm (by omega), by linarith, hm (by omega), hm (by omega), hm (by omega), hm (by omega),
+    hm (by omega), hm (by omega), hm (by omega), hm (by omega), hm (by omega), hm (by omega),
+    hm (by omega), hm (by omega)⟩
 
 /-- Concrete finite routines, sharing tape origins and a common linear space budget. On the input
 `enc a` the abstract run starts in `start a`; the passes and the finalizer do not depend on `a`. -/
@@ -133,9 +129,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   obtain ⟨cS, hS⟩ := hsize
   have hS1 (a : α) : 1 ≤ S a := (Nat.le_add_left _ _).trans (hlog a)
   have hreach (a : α) (s : σ) (hs : (M.withInit (start a)).Reachable (enc a) s) :
-      (encS s).length ≤ cS * S a := by
-    obtain ⟨coins, rfl⟩ := hs
-    exact hS a coins
+      (encS s).length ≤ cS * S a := by obtain ⟨coins, rfl⟩ := hs; exact hS a coins
   have hstart' : ComputableInSpace (fun a => ((start a, 0, none) : PassState σ)) enc
       (encPass encS) S :=
     (hstart.prod ((ComputableInSpace.constZero 0).prod (ComputableInSpace.constZero none))).mono_le
@@ -179,10 +173,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   let N : Fin (m + 4) := ⟨m + 1, by omega⟩
   let W : Fin (m + 4) := ⟨m + 2, by omega⟩
   let C : Fin (m + 4) := ⟨m + 3, by omega⟩
-  have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
-  have hVW : V ≠ W := by simp [V, W, Fin.ext_iff]
-  have hNW : N ≠ W := by simp [N, W, Fin.ext_iff]
-  have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
+  have ⟨hVN, hVW, hNW, hVC⟩ : V ≠ N ∧ V ≠ W ∧ N ≠ W ∧ V ≠ C := by simp [V, N, W, C, Fin.ext_iff]
   obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega) (Fin.last kI) V
   obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kE (0 : Fin 2)) V
@@ -244,17 +235,11 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     (Nat.mul_le_mul hcN hn).trans (le_of_eq (by rw [hU_eq]; ring))
   have hlarge (a : α) : 100 * (L a + 1) + m ≤ U a := by
     rw [hU_eq]
-    calc 100 * (L a + 1) + m ≤ 100 * (L a + 1) + m * (L a + 1) :=
-          Nat.add_le_add_left (Nat.le_mul_of_pos_right m (by omega)) _
-      _ = (m + 100) * (L a + 1) := by ring
-      _ ≤ D * (L a + 1) := Nat.mul_le_mul_right (L a + 1) hD
+    linarith [Nat.mul_le_mul_right (L a + 1) hD, Nat.le_mul_of_pos_right m (Nat.succ_pos (L a))]
   have hsmall (a : α) : m + 100 + L a ≤ U a := by have := hlarge a; omega
   obtain ⟨G, hG_eq⟩ : ∃ G, G = 1000 * (m + 5) * D * (2 * cS + 8) := ⟨_, rfl⟩
   have hG (a : α) {k : ℕ} (hk_le : k ≤ 1000 * (m + 5)) : k * U a ≤ G * S a := by
-    have hLin : L a + 1 ≤ (2 * cS + 8) * S a := by
-      rw [hL_eq]
-      calc (2 * cS + 7) * S a + 1 ≤ (2 * cS + 7) * S a + S a := Nat.add_le_add_left (hS1 a) _
-        _ = (2 * cS + 8) * S a := by ring
+    have hLin : L a + 1 ≤ (2 * cS + 8) * S a := by rw [hL_eq]; linarith [hS1 a]
     rw [hU_eq, hG_eq]
     calc k * (D * (L a + 1)) ≤ 1000 * (m + 5) * (D * ((2 * cS + 8) * S a)) := by gcongr
       _ = 1000 * (m + 5) * D * (2 * cS + 8) * S a := by ring
@@ -414,8 +399,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) V v ∧ e = [])
       (fun _ _ ⟨_, h⟩ => by simp [h, B, passTapes])
       (fun _ _ _ _ ⟨_, hw⟩ ⟨hw', he⟩ => ⟨by
-        rw [hw', hw]
-        rw [show Function.update (B s flag) C [] = passTapes V C v [] by
+        rw [hw', hw, show Function.update (B s flag) C [] = passTapes V C v [] by
           simp only [B, passTapes, Function.update_idem, v]]
         exact passTapes_nil hVC v, he⟩)
       le_rfl le_rfl

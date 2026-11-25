@@ -55,11 +55,11 @@ private theorem TerminalSigningWrite.History.challenge {s : Level} {base G : Xof
     G.sampleInBall s d.toList = base.sampleInBall s d.toList := by
   induction history with
   | initial => rfl
-  | @append past G previous q w val r x address ih =>
+  | @append past G _ q w val _ x _ ih =>
     subst x
-    have hμ : (G.representativeFromTr tr (formatMessage q.message q.context)).length = 512 := by
-      simp [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read]
-    exact (Xofs.sampleInBall_writeCommitment s G _ hμ w val.toList d).trans ih
+    exact (Xofs.sampleInBall_writeCommitment s G _
+      (by simp [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, G.h256.length_read])
+      w val.toList d).trans ih
 
 private theorem TerminalSigningWrite.History.read_digest {s : Level} {base G : Xofs} {tr writes}
     (history : History s base tr writes G) (x : List Bool) :
@@ -67,18 +67,17 @@ private theorem TerminalSigningWrite.History.read_digest {s : Level} {base G : X
       ∃ w ∈ writes, G.h256.read x (digestBytes s) = w.digest.toList := by
   induction history with
   | initial => exact Or.inl rfl
-  | @append past G previous q w d r addr address ih =>
+  | @append past G _ q w d r addr _ ih =>
     by_cases eq : x = addr
     · subst x
-      refine Or.inr ⟨⟨q, w, addr, d, r⟩, List.mem_append_right past List.mem_cons_self, ?_⟩
-      have drop := List.drop_eq_nil_of_le (G.h256.length_read addr (digestBytes s)).le
-      have take := List.take_of_length_le (FixedBytes.length_toList d).le
-      simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix,
-        FixedBytes.length_toList, take, drop]
-    · have unchanged : (G.writeCommitment addr d.toList).h256.read x (digestBytes s) =
+      exact Or.inr ⟨⟨q, w, addr, d, r⟩, List.mem_append_right past List.mem_cons_self, by
+        simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix,
+          FixedBytes.length_toList, List.take_of_length_le (FixedBytes.length_toList d).le,
+          List.drop_eq_nil_of_le (G.h256.length_read addr (digestBytes s)).le]⟩
+    · have hread : (G.writeCommitment addr d.toList).h256.read x (digestBytes s) =
           G.h256.read x (digestBytes s) := by
         simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, eq]
-      rw [unchanged]
+      rw [hread]
       exact ih.imp_right fun ⟨z, hz, he⟩ => ⟨z, List.mem_append_left _ hz, he⟩
 
 namespace QuantumSigningForger
@@ -95,27 +94,25 @@ private theorem verify_of_sameRepresentative {C : QuantumSigningForger} {s : Lev
   let pk := r.trial.publicKey
   let f := r.trial.forgery
   have hv : G.verify s pk f.message f.context f.signature = some true := by
-    have accepted := (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp win).1).1
-    change (G.verify s pk f.message f.context f.signature).getD false = true at accepted
+    have accepted : (G.verify s pk f.message f.context f.signature).getD false = true :=
+      (Bool.and_eq_true_iff.mp (Bool.and_eq_true_iff.mp win).1).1
     cases h : G.verify s pk f.message f.context f.signature <;> simp_all
   obtain ⟨A, σ, c, hA, hd, hc, check⟩ := parsed_of_verifyWithExpansion (f := f) hv
-  have chk := check
-  simp only [Xofs.check, Bool.and_eq_true, decide_eq_true_eq] at chk
-  obtain ⟨short, hash⟩ := chk
-  let w := hintedCommitment s (publicKey s pk A) σ c
-  let μ := G.messageRepresentative pk (formattedMessage f)
-  change G.h256.read (commitmentInput s w μ) (digestBytes s) = σ.digest at hash
-  have len : σ.digest.length = digestBytes s := by rw [← hash, G.h256.length_read]
-  obtain ⟨d, val⟩ := FixedBytes.exists_toList len
-  have agree := r.history.challenge d
-  change G.sampleInBall s d.toList = base.sampleInBall s d.toList at agree
-  rw [val] at agree
-  have challenge : base.sampleInBall s σ.digest = some c := agree ▸ hc
-  have mat : base.expandA s (pk.take 32) = some A := (r.history.matrix _).symm.trans hA
-  have unchanged : base.h256.read (commitmentInput s w μ) (digestBytes s) = σ.digest := by
-    rcases r.history.read_digest (commitmentInput s w μ) with he | ⟨written, mem, he⟩
-    · exact he.symm.trans hash
-    · exact False.elim (r.ne_written_digest_of_newDigestWin win mem
+  obtain ⟨short, hash⟩ : ResponseShort s.params σ.z ∧
+      G.h256.read (commitmentInput s (hintedCommitment s (publicKey s pk A) σ c)
+        (G.messageRepresentative pk (formattedMessage f))) (digestBytes s) = σ.digest := by
+    have chk := check
+    simp only [Xofs.check, Bool.and_eq_true, decide_eq_true_eq] at chk
+    exact chk
+  obtain ⟨d, val⟩ := FixedBytes.exists_toList
+    (show σ.digest.length = digestBytes s by rw [← hash, G.h256.length_read])
+  have challenge : base.sampleInBall s σ.digest = some c := by
+    have agree : G.sampleInBall s d.toList = base.sampleInBall s d.toList := r.history.challenge d
+    rwa [val, hc, eq_comm] at agree
+  have unchanged : base.h256.read (commitmentInput s (hintedCommitment s (publicKey s pk A) σ c)
+      (G.messageRepresentative pk (formattedMessage f))) (digestBytes s) = σ.digest :=
+    (r.history.read_digest _).elim (·.symm.trans hash) fun ⟨_, mem, he⟩ =>
+      False.elim (r.ne_written_digest_of_newDigestWin win mem
         ((digest_of_sigDecode hd).trans (hash.symm.trans he)))
   have checked : base.check s (publicKey s pk A)
       (base.messageRepresentative pk (formattedMessage f)) σ c := by
@@ -125,7 +122,8 @@ private theorem verify_of_sameRepresentative {C : QuantumSigningForger} {s : Lev
   simp only [formattedMessage] at check checked
   simp only [Xofs.verify, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, hd, hA, hc,
     Option.bind_eq_bind, Option.bind_some, check] at hv
-  simpa only [Xofs.verify, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, hd, mat, challenge,
+  simpa only [Xofs.verify, Xofs.verifyWithExpansion, Xofs.verifyInternalWith, hd,
+    (r.history.matrix (pk.take 32)).symm.trans hA, challenge,
     Option.bind_eq_bind, Option.bind_some, checked] using hv
 
 /-- Check an accepted fresh digest under the raw oracles from before signing. The excess
@@ -140,22 +138,17 @@ theorem publicPairSigning_freshDigest_le (C : QuantumSigningForger) (s : Level) 
       Game.succProbability (run.map fun r =>
         base.terminalRepresentativeMatch r.trial.publicKey r.writes) := by
   intro run
-  apply ENNReal.coe_le_coe.mp
+  rw [← ENNReal.coe_le_coe]
   simp only [Game.succProbability, ENNReal.coe_add, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
-  apply Cslib.Probability.PMF.map_true_le_add
-  intro r hr win
-  by_cases eq : r.trial.xofs.messageRepresentative r.trial.publicKey
-      (formattedMessage r.trial.forgery) =
-      base.messageRepresentative r.trial.publicKey (formattedMessage r.trial.forgery)
-  · left
+  refine Cslib.Probability.PMF.map_true_le_add _ fun r hr win => ?_
+  if eq : r.trial.xofs.messageRepresentative r.trial.publicKey (formattedMessage r.trial.forgery) =
+      base.messageRepresentative r.trial.publicKey (formattedMessage r.trial.forgery) then
     obtain ⟨strong, fresh⟩ := Bool.and_eq_true_iff.mp win
-    have unseen := (Bool.and_eq_true_iff.mp strong).2
-    have accepted := verify_of_sameRepresentative r win eq
-    exact Bool.and_eq_true_iff.mpr
-      ⟨Bool.and_eq_true_iff.mpr ⟨by simp [accepted], unseen⟩, fresh⟩
-  · right
+    exact .inl (Bool.and_eq_true_iff.mpr ⟨Bool.and_eq_true_iff.mpr
+      ⟨by simp [verify_of_sameRepresentative r win eq], (Bool.and_eq_true_iff.mp strong).2⟩, fresh⟩)
+  else
     obtain ⟨w, found, same⟩ := publicPairSigning_match_of_changed_representative hr _ eq
-    exact List.any_eq_true.mpr ⟨w, List.mem_of_find?_eq_some found, beq_iff_eq.mpr same⟩
+    exact .inr (List.any_eq_true.mpr ⟨w, List.mem_of_find?_eq_some found, beq_iff_eq.mpr same⟩)
 
 
 /-- In the seeded ideal-mask signing hybrid, bound a fresh forgery by the public signing
@@ -173,14 +166,11 @@ theorem freshMask_freshDigest_le_ambient (C : QuantumSigningForger) (s : Level)
       Game.succProbability (run fun H r =>
         H.terminalRepresentativeMatch r.trial.publicKey r.writes) := by
   intro run
-  rw [C.freshMask_newDigestGame_eq_publicPair]
-  apply ENNReal.coe_le_coe.mp
+  rw [C.freshMask_newDigestGame_eq_publicPair, ← ENNReal.coe_le_coe]
   simp only [Game.succProbability, ENNReal.coe_add, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
-  apply Cslib.Probability.PMF.bind_apply_le_add_on_support
-  intro H _
+  refine Cslib.Probability.PMF.bind_apply_le_add_on_support _ _ fun H _ => ?_
   unfold Xofs.fullPairExperiment Xofs.keyExperiment
-  apply Cslib.Probability.PMF.bind_apply_le_add_on_support
-  intro seed _
+  refine Cslib.Probability.PMF.bind_apply_le_add_on_support _ _ fun seed _ => ?_
   cases hk : H.keyGen s seed with
   | none => simp
   | some keys =>
@@ -190,12 +180,11 @@ theorem freshMask_freshDigest_le_ambient (C : QuantumSigningForger) (s : Level)
       cases ha : H.expandA s sk.rho with
       | none => simp [hd, ha]
       | some A =>
-        have bound := C.publicPairSigning_freshDigest_le s H
-          (fun j : Fin 32 => sk.rho[j.val]!) (MLDSA.SecretKey.mk A sk.s₁ sk.s₂).publicKey
-        have bound' := ENNReal.coe_le_coe.mpr bound
         simpa only [Game.succProbability, ENNReal.coe_add,
           ENNReal.coe_toNNReal (PMF.apply_ne_top _ _), hd, ha,
-          Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some] using bound'
+          Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some] using
+          ENNReal.coe_le_coe.mpr (C.publicPairSigning_freshDigest_le s H
+            (fun j : Fin 32 => sk.rho[j.val]!) (MLDSA.SecretKey.mk A sk.s₁ sk.s₂).publicKey)
 
 end QuantumSigningForger
 

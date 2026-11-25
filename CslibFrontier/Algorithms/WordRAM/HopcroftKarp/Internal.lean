@@ -128,7 +128,9 @@ theorem exec_clearAt {w base len : ℕ} (baseReg lenReg : Fin 34)
       (∀ k < len, y.mem (base + k) = 0) ∧
       (∀ a, ¬(base ≤ a ∧ a < base + len) → y.mem a = x.mem a) := by
   subst hbase hlen
-  have hla : lenReg ≠ addr := fun h => by subst h; simp at hl_lt
+  have hla : lenReg ≠ addr := fun h => by
+    subst h
+    simp at hl_lt
   have hstep₁ : ∃ s₁, ExecWithin w (ram[ addr ← baseReg; limit ← baseReg + lenReg ] :
       Code .standard 34) x s₁ 2 ∧
       s₁ = (x.set addr (x.regs baseReg)).set limit (x.regs baseReg + x.regs lenReg) := by
@@ -146,8 +148,12 @@ theorem exec_clearAt {w base len : ℕ} (baseReg lenReg : Fin 34)
     (by rw [hs₁_addr, hs₁_lim]; omega) (by rwa [hs₁_lim])).within
   refine ⟨_, (he₁.seq hzf).mono (by rw [hs₁_addr, hs₁_lim]; omega), fun i hi => ?_,
     fun k hk => ?_, fun a ha => ?_⟩
-  · have hia : i ≠ addr := fun h => by subst h; simp at hi
-    have hil : i ≠ limit := fun h => by subst h; simp at hi
+  · have hia : i ≠ addr := by
+      rintro rfl
+      simp at hi
+    have hil : i ≠ limit := by
+      rintro rfl
+      simp at hi
     simp [st, Function.update_of_ne hia, hil]
   · dsimp only
     rw [hs₁_addr, hs₁_lim, Nat.add_sub_cancel_left]
@@ -182,25 +188,6 @@ theorem exec_initBaseRegsFromCSR {w bOff : ℕ} (inst : SparseInstance) (x : Dat
   unfold initBaseRegsFromCSR
   wram_exec [h1, h2, hrm, hrr, hrE, hbOff]
   refine ⟨?_, rfl⟩
-  exact
-    { hzero := by wram_simp [h0]
-      hone := by wram_simp [h1]
-      htwo := by wram_simp [h2]
-      hrm := by wram_simp [hrm]
-      hrr := by wram_simp [hrr]
-      hrE := by wram_simp [hrE]
-      hbOff := by wram_simp [hbOff]
-      hbEdges := by wram_simp
-      hbColMate := by wram_simp
-      hbML := by wram_simp
-      hbDist := by wram_simp
-      hbQueue := by wram_simp; omega
-      hbVis := by wram_simp; omega
-      hbStackU := by wram_simp; omega
-      hbStackV := by wram_simp; omega
-      hbStackPos := by wram_simp; omega
-      hbAugU := by wram_simp; omega
-      hbAugV := by wram_simp; omega
-      houtBase := by wram_simp; omega }
+  constructor <;> wram_simp [h0, h1, h2, hrm, hrr, hrE, hbOff] <;> omega
 
 end Cslib.Algorithms.WordRAM.HopcroftKarp.Internal

@@ -125,17 +125,13 @@ theorem red_surjective (m : ℕ) : Function.Surjective (red m) := by
 theorem exists_of_red_eq_zero {m : ℕ} {x : R (m + 1)} (h : red m x = 0) :
     ∃ c : ZMod 2, x = cst (m + 1) c * s (m + 1) ^ m := by
   obtain ⟨p, rfl⟩ := mkR_surjective _ x
-  rw [red_mk, mkR_eq_zero] at h
-  obtain ⟨q, rfl⟩ := h
+  obtain ⟨q, rfl⟩ := mkR_eq_zero.mp ((red_mk m p).symm.trans h)
   refine ⟨q.coeff 0, ?_⟩
-  have h1 : q = C (q.coeff 0) + X * q.divX := by
-    rw [add_comm, mul_comm, divX_mul_X_add]
-  have h2 : mkR (m + 1) (X ^ (m + 1)) = 0 := mkR_eq_zero.2 dvd_rfl
   rw [s_pow, cst_apply]
   conv_lhs =>
-      rw [h1, mul_add, ← mul_assoc, ← pow_succ, map_add, map_mul, map_mul _ (X ^ (m + 1)), h2,
-          zero_mul,
-    add_zero, mul_comm]
+    rw [(divX_mul_X_add q).symm, mul_add, mul_comm q.divX X, ← mul_assoc, ← pow_succ,
+      map_add, map_mul, map_mul _ (X ^ m), (mkR_eq_zero (p := X ^ (m + 1))).mpr dvd_rfl,
+      zero_mul, zero_add, mul_comm]
 
 /-- The value at s = 0. -/
 noncomputable def ev (m : ℕ) : R (m + 1) →+* ZMod 2 := liftR (Polynomial.evalRingHom 0) (by simp)
@@ -149,21 +145,15 @@ theorem ev_cst (m : ℕ) (a : ZMod 2) : ev m (cst (m + 1) a) = a := by rw [cst_a
 /-- In F₂[s]/(s) every element is a constant. -/
 theorem eq_cst_ev (x : R 1) : x = cst 1 (ev 0 x) := by
   obtain ⟨p, rfl⟩ := mkR_surjective _ x
-  have h1 : p = C (p.coeff 0) + X * p.divX := by
-    rw [add_comm, mul_comm, divX_mul_X_add]
-  have h2 : mkR 1 X = 0 := by rw [mkR_eq_zero, pow_one]
-  have h3 : ev 0 (mkR 1 p) = p.coeff 0 := by
-    rw [Polynomial.coeff_zero_eq_eval_zero]
-    exact ev_mk 0 p
-  rw [h3, cst_apply]
-  conv_lhs => rw [h1, map_add, map_mul, h2, zero_mul, add_zero]
+  rw [ev_mk, ← coeff_zero_eq_eval_zero, cst_apply]
+  have hX : mkR 1 X = 0 := by rw [mkR_eq_zero, pow_one]
+  conv_lhs =>
+    rw [(divX_mul_X_add p).symm, map_add, map_mul, hX, mul_zero, zero_add]
 
 /-- The unit t = 1 + s. -/
 @[expose] noncomputable def t (m : ℕ) : R m := 1 + s m
 
-theorem isUnit_t (m : ℕ) : IsUnit (t m) := by
-  have h : IsNilpotent (s m) := ⟨m, s_pow_self m⟩
-  exact h.isUnit_one_add
+theorem isUnit_t (m : ℕ) : IsUnit (t m) := IsNilpotent.isUnit_one_add ⟨m, s_pow_self m⟩
 
 theorem red_t (m : ℕ) : red m (t (m + 1)) = t m := by rw [t, map_add, map_one, red_s]; rfl
 

@@ -99,14 +99,11 @@ theorem construct_exec {w : ℕ} (x : Data 128) (values : Fin 3 → ℕ → ℤ)
     (by rw [hus, huGroups]; omega) hwidth
     (by intro j; rw [huSource j, huLength j, huHeap]; exact hsrc j)
     (by intro j i hi; rw [huMagnitude]; exact hbdd j i ((huLength j) ▸ hi))
-    (by
-      intro j i hi
-      rw [huSource j]
+    (fun j i hi => by
       have hi' : i < x.regs (arrayLength j) := (huLength j) ▸ hi
       have hs := hsrc j
-      rw [show u.mem (x.regs (arraySource j) + i) = x.mem (x.regs (arraySource j) + i)
-        from hprefix _ (by omega)]
-      exact hinput j i hi')
+      rw [huSource j]
+      exact (hprefix _ (by omega)).trans (hinput j i hi'))
     (by intro j; simpa only [huLength] using hinj j)
   rw [hL] at hb hout
   refine ⟨M, u, b, ?_, hu, hus, hprefix, hout, hpb, hMpos, hMle, hM⟩

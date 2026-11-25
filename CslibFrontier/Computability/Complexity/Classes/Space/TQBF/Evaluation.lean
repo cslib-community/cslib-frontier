@@ -244,6 +244,16 @@ private theorem closedIn_nil (φ : QBF ℕ) : closedIn [] φ = decide φ.Closed 
 
 /-! ### Every call returns its value -/
 
+private theorem exists_iterate_step_two {B₁ B₂ : ℕ} {s₀ s₂ s₄ s₅ : State}
+    (h1 : ∃ T ≤ B₁, step^[T] (step s₀) = s₂)
+    (h3 : ∃ T ≤ B₂, step^[T] (step s₂) = s₄) (h4 : step s₄ = s₅) :
+    ∃ T ≤ B₁ + B₂ + 3, step^[T] s₀ = s₅ := by
+  obtain ⟨T₁, hT₁, h₁⟩ := h1
+  obtain ⟨T₂, hT₂, h₂⟩ := h3
+  exact ⟨1 + (T₂ + (1 + (T₁ + 1))), by omega,
+    Function.iterate_trans
+      (Function.iterate_trans (Function.iterate_trans (Function.iterate_trans rfl h₁) rfl) h₂) h4⟩
+
 /-- **Every call returns its value.** From the tokens of `φ` followed by `input`, the machine
 returns to the same stack, having read the tokens of `φ`, the value of `φ` under the assignment of
 the stack, and the flag updated by the closedness of `φ` relative to the stack, within
@@ -253,66 +263,34 @@ theorem exists_iterate_step_call (φ : QBF ℕ) (input : List (QBF.Kind × ℕ))
       ⟨input, stack, some (φ.eval (assignment stack)), ok && closedIn stack φ⟩ := by
   induction φ generalizing input stack ok with
   | var v => exact ⟨1, le_rfl, by simp [step, QBF.tokens, closedIn_var, assignment]⟩
-  | top => exact ⟨1, le_rfl, by simp [step, QBF.tokens, closedIn]⟩
-  | bot => exact ⟨1, le_rfl, by simp [step, QBF.tokens, closedIn]⟩
+  | top | bot => exact ⟨1, le_rfl, by simp [step, QBF.tokens, closedIn]⟩
   | not φ ih =>
     obtain ⟨T, hT, h⟩ := ih input (⟨(.not, 0), none, φ.tokens ++ input⟩ :: stack) ok
     rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
       closedIn_cons_of_binds_eq_false (fun _ => rfl)] at h
     exact ⟨1 + (T + 1), by simp only [callSteps]; omega,
       Function.iterate_trans (Function.iterate_trans rfl h) rfl⟩
-  | and φ ψ ihφ ihψ =>
-    have e : (φ.and ψ).tokens ++ input = (.and, 0) :: (φ.tokens ++ (ψ.tokens ++ input)) := by
-      simp [QBF.tokens]
-    obtain ⟨T₁, hT₁, h₁⟩ := ihφ (ψ.tokens ++ input)
-      (⟨(.and, 0), none, φ.tokens ++ (ψ.tokens ++ input)⟩ :: stack) ok
-    obtain ⟨T₂, hT₂, h₂⟩ := ihψ input
-      (⟨(.and, 0), some (φ.eval (assignment stack)), φ.tokens ++ (ψ.tokens ++ input)⟩ :: stack)
-      (ok && closedIn stack φ)
-    rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
-      closedIn_cons_of_binds_eq_false (fun _ => rfl)] at h₁ h₂
-    refine ⟨1 + (T₂ + (1 + (T₁ + 1))), by simp only [callSteps]; omega, ?_⟩
-    rw [e]
-    refine Function.iterate_trans
-      (Function.iterate_trans (Function.iterate_trans (Function.iterate_trans rfl h₁) rfl) h₂) ?_
-    simp only [Function.iterate_one, step, closedIn_and, Bool.and_assoc, QBF.eval_and]
-  | or φ ψ ihφ ihψ =>
-    have e : (φ.or ψ).tokens ++ input = (.or, 0) :: (φ.tokens ++ (ψ.tokens ++ input)) := by
-      simp [QBF.tokens]
-    obtain ⟨T₁, hT₁, h₁⟩ := ihφ (ψ.tokens ++ input)
-      (⟨(.or, 0), none, φ.tokens ++ (ψ.tokens ++ input)⟩ :: stack) ok
-    obtain ⟨T₂, hT₂, h₂⟩ := ihψ input
-      (⟨(.or, 0), some (φ.eval (assignment stack)), φ.tokens ++ (ψ.tokens ++ input)⟩ :: stack)
-      (ok && closedIn stack φ)
-    rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
-      closedIn_cons_of_binds_eq_false (fun _ => rfl)] at h₁ h₂
-    refine ⟨1 + (T₂ + (1 + (T₁ + 1))), by simp only [callSteps]; omega, ?_⟩
-    rw [e]
-    refine Function.iterate_trans
-      (Function.iterate_trans (Function.iterate_trans (Function.iterate_trans rfl h₁) rfl) h₂) ?_
-    simp only [Function.iterate_one, step, closedIn_or, Bool.and_assoc, QBF.eval_or]
-  | ex x φ ih =>
-    have hq : QBF.Kind.ex = .ex ∨ QBF.Kind.ex = .all := .inl rfl
-    obtain ⟨T₁, hT₁, h₁⟩ := ih input (⟨(.ex, x), none, φ.tokens ++ input⟩ :: stack) ok
-    obtain ⟨T₂, hT₂, h₂⟩ := ih input
-      (⟨(.ex, x), some (φ.eval (Function.update (assignment stack) x false)), φ.tokens ++ input⟩ ::
-        stack) (ok && closedIn stack (.ex x φ))
-    rw [assignment_cons_quant hq rfl, closedIn_cons_quant hq rfl] at h₁ h₂
-    refine ⟨1 + (T₂ + (1 + (T₁ + 1))), by simp only [callSteps]; omega, ?_⟩
-    refine Function.iterate_trans
-      (Function.iterate_trans (Function.iterate_trans (Function.iterate_trans rfl h₁) rfl) h₂) ?_
-    simp [step]
-  | all x φ ih =>
-    have hq : QBF.Kind.all = .ex ∨ QBF.Kind.all = .all := .inr rfl
-    obtain ⟨T₁, hT₁, h₁⟩ := ih input (⟨(.all, x), none, φ.tokens ++ input⟩ :: stack) ok
-    obtain ⟨T₂, hT₂, h₂⟩ := ih input
-      (⟨(.all, x), some (φ.eval (Function.update (assignment stack) x false)), φ.tokens ++ input⟩ ::
-        stack) (ok && closedIn stack (.ex x φ))
-    rw [assignment_cons_quant hq rfl, closedIn_cons_quant hq rfl] at h₁ h₂
-    refine ⟨1 + (T₂ + (1 + (T₁ + 1))), by simp only [callSteps]; omega, ?_⟩
-    refine Function.iterate_trans
-      (Function.iterate_trans (Function.iterate_trans (Function.iterate_trans rfl h₁) rfl) h₂) ?_
-    simp [step, closedIn_all]
+  | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
+    simp only [QBF.tokens, List.cons_append, List.append_assoc, callSteps, QBF.eval_and,
+      QBF.eval_or, closedIn_and, closedIn_or]
+    apply exists_iterate_step_two
+    · exact ihφ _ _ _
+    · exact ihψ _ _ _
+    · dsimp only [step]
+      rw [assignment_cons_of_binds_eq_false (fun _ => rfl),
+        assignment_cons_of_binds_eq_false (fun _ => rfl),
+        closedIn_cons_of_binds_eq_false (fun _ => rfl),
+        closedIn_cons_of_binds_eq_false (fun _ => rfl), Bool.and_assoc]
+  | ex x φ ih | all x φ ih =>
+    simp only [QBF.tokens, List.cons_append, callSteps, two_mul, QBF.eval_ex, QBF.eval_all,
+      closedIn_all]
+    apply exists_iterate_step_two
+    · exact ih _ _ _
+    · exact ih _ _ _
+    · dsimp only [step]
+      rw [assignment_cons_quant (by simp) rfl, assignment_cons_quant (by simp) rfl,
+        closedIn_cons_quant (by simp) rfl, closedIn_cons_quant (by simp) rfl]
+      simp
 
 /-- An empty stack holding a value is a fixed point. -/
 private theorem iterate_step_done (input : List (QBF.Kind × ℕ)) (b ok : Bool) (n : ℕ) :
@@ -322,27 +300,18 @@ private theorem iterate_step_done (input : List (QBF.Kind × ℕ)) (b ok : Bool)
 /-- The number of steps of a call is less than `4` to the number of tokens. -/
 private theorem callSteps_lt (φ : QBF ℕ) : callSteps φ < 4 ^ φ.tokens.length := by
   induction φ with
-  | var v => simp [callSteps, QBF.tokens]
-  | top => simp [callSteps, QBF.tokens]
-  | bot => simp [callSteps, QBF.tokens]
-  | not φ ih =>
+  | var _ | top | bot => simp [callSteps, QBF.tokens]
+  | not φ ih | ex _ φ ih | all _ φ ih =>
     simp only [callSteps, QBF.tokens, List.length_cons, pow_succ]
     omega
-  | and φ ψ ihφ ihψ =>
+  | and φ ψ ihφ ihψ | or φ ψ ihφ ihψ =>
     simp only [callSteps, QBF.tokens, List.length_cons, List.length_append, pow_succ, pow_add]
-    have := Nat.one_le_pow φ.tokens.length 4 (by norm_num)
-    have := Nat.one_le_pow ψ.tokens.length 4 (by norm_num)
-    nlinarith
-  | or φ ψ ihφ ihψ =>
-    simp only [callSteps, QBF.tokens, List.length_cons, List.length_append, pow_succ, pow_add]
-    have := Nat.one_le_pow φ.tokens.length 4 (by norm_num)
-    have := Nat.one_le_pow ψ.tokens.length 4 (by norm_num)
-    nlinarith
-  | ex x φ ih =>
-    simp only [callSteps, QBF.tokens, List.length_cons, pow_succ]
-    omega
-  | all x φ ih =>
-    simp only [callSteps, QBF.tokens, List.length_cons, pow_succ]
+    have hφ : 1 ≤ 4 ^ φ.tokens.length := Nat.one_le_pow _ _ (by decide)
+    have hψ : 1 ≤ 4 ^ ψ.tokens.length := Nat.one_le_pow _ _ (by decide)
+    have h₁ : 4 ^ φ.tokens.length ≤ 4 ^ φ.tokens.length * 4 ^ ψ.tokens.length :=
+      Nat.le_mul_of_pos_right _ hψ
+    have h₂ : 4 ^ ψ.tokens.length ≤ 4 ^ φ.tokens.length * 4 ^ ψ.tokens.length :=
+      Nat.le_mul_of_pos_left _ hφ
     omega
 
 /-- The evaluator runs the machine long enough: `2 ^ (encQBF φ).length` steps. -/
@@ -447,8 +416,8 @@ private theorem Good.step {φ : QBF ℕ} {s : State} (h : Good φ s) : Good φ (
         hframes g (List.mem_cons_of_mem _ hg)
       obtain ⟨hle, hnest₂⟩ := hnest
       have hpop : Nested φ.tokens.length input.length stack := hnest₂.mono (by omega)
-      have hkeep : ∀ g ∈ { f with first := some b } :: stack, g.token :: g.rest <:+ φ.tokens := by
-        grind
+      have hkeep : ∀ g ∈ { f with first := some b } :: stack, g.token :: g.rest <:+ φ.tokens :=
+        fun g hg => (List.mem_cons.mp hg).elim (fun h => h ▸ hf) (hbelow g)
       obtain ⟨⟨k, x⟩, first, rest⟩ := f
       cases k <;> cases first <;>
         first

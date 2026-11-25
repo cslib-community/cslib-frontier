@@ -180,12 +180,9 @@ theorem length_merkleDamgardChain {h : List Bool → List Bool → List Bool}
   induction blocks generalizing iv with
   | nil => exact hiv
   | cons b bs ih =>
-    apply ih
-    · apply hlen
-      rw [List.length_append, hiv, hblocks b List.mem_cons_self]
-      omega
-    · intro b' hb'
-      exact hblocks b' (List.mem_cons_of_mem _ hb')
+    refine ih (hlen _ ?_) fun b' hb' => hblocks b' (List.mem_cons_of_mem _ hb')
+    rw [List.length_append, hiv, hblocks b List.mem_cons_self]
+    omega
 
 /-- Single step of `chainTrace`: normalize the current chaining value and block to `k.length` bits,
 compress their concatenation under `h k`, and prepend the `2 * k.length`-bit compression input to
@@ -324,23 +321,12 @@ theorem computableInPolyTime_merkleDamgardChain
   let hk : ComputableInPolyTime (fun p : List Bool × List Bool => p.1)
       (encPair encBits encBits) encBits := .fst _ _
   let hkl := ComputableInPolyTime.length_bits_comp hk
-  have hchain : ComputableInPolyTime
-      (fun p : List Bool × List Bool =>
-        (chainTrace h p.1 (List.replicate p.1.length false) (encode p.1.length p.2)).1)
-      (encPair encBits encBits) encBits :=
-    ((computableInPolyTime_chainTrace hh hlen).comp
-      (hk.prod (((ComputableInPolyTime.bitsReplicate false).comp hkl).prod
-        (hencode.comp (hkl.prod (.snd _ _)))))).fst'
-  have heq :
-      (fun p : List Bool × List Bool =>
-        merkleDamgardChain h p.1 (List.replicate p.1.length false) (encode p.1.length p.2)) =
-        fun p =>
-          (chainTrace h p.1 (List.replicate p.1.length false) (encode p.1.length p.2)).1 :=
-    funext fun p =>
-      (fst_chainTrace_eq_merkleDamgardChain (hlen p.1) List.length_replicate
-        (hblocks p.1.length p.2)).symm
-  rw [heq]
-  exact hchain
+  convert ((computableInPolyTime_chainTrace hh hlen).comp
+    (hk.prod (((ComputableInPolyTime.bitsReplicate false).comp hkl).prod
+      (hencode.comp (hkl.prod (.snd _ _)))))).fst' using 1
+  funext p
+  exact (fst_chainTrace_eq_merkleDamgardChain (iv := List.replicate p.1.length false)
+    (hlen p.1) List.length_replicate (hblocks p.1.length p.2)).symm
 
 /-- Extract a candidate `2n`-bit collision `(x₁, x₂)` for `h k` from two block chains `bs₁` and
 `bs₂` by scanning their compression inputs backward from the final step and returning the first
@@ -455,17 +441,11 @@ theorem isCollision_extractChainCollision_of_not_suffix
       dsimp only
       cases hbne : (merkleDamgardChain h k iv bs₁' ++ b₁ !=
           merkleDamgardChain h k iv bs₂' ++ b₂)
-      · have hne : merkleDamgardChain h k iv bs₁' ++ b₁ =
-            merkleDamgardChain h k iv bs₂' ++ b₂ := bne_eq_false_iff_eq.mp hbne
-        have hinj := List.append_inj hne (by rw [hlen₁', hlen₂'])
-        have hchain' : merkleDamgardChain h k iv bs₁' = merkleDamgardChain h k iv bs₂' := hinj.1
-        have hb_eq : b₁ = b₂ := hinj.2
-        subst hb_eq
-        apply ih hbs₁' hbs₂' hchain'
-        · rintro ⟨p, rfl⟩
-          exact hsuf₁ ⟨p, (List.append_assoc p bs₁' [b₁]).symm⟩
-        · rintro ⟨p, rfl⟩
-          exact hsuf₂ ⟨p, (List.append_assoc p bs₂' [b₁]).symm⟩
+      · obtain ⟨hchain', rfl⟩ :=
+          List.append_inj (bne_eq_false_iff_eq.mp hbne) (by rw [hlen₁', hlen₂'])
+        refine ih hbs₁' hbs₂' hchain'
+          (fun ⟨p, hp⟩ => hsuf₁ ⟨p, hp ▸ (List.append_assoc p bs₁' [b₁]).symm⟩)
+          (fun ⟨p, hp⟩ => hsuf₂ ⟨p, hp ▸ (List.append_assoc p bs₂' [b₁]).symm⟩)
       · have hne : merkleDamgardChain h k iv bs₁' ++ b₁ ≠
             merkleDamgardChain h k iv bs₂' ++ b₂ := bne_iff_ne.mp hbne
         simp only [↓reduceIte, isCollision_eq_true_iff, validCompressionInput_eq_true_iff]
@@ -515,11 +495,11 @@ theorem isCollision_extractChainCollision_of_length_eq
       (extractChainCollision h k iv bs₁ bs₂).2 = true := by
   apply isCollision_extractChainCollision_of_not_suffix hlen hiv hbs₁ hbs₂ hchain
   · rintro ⟨p, rfl⟩
-    have hp : p.length = 0 := by simpa using hblen.symm
-    exact hne (by rw [List.eq_nil_of_length_eq_zero hp, List.nil_append])
+    exact hne
+      (by rw [List.eq_nil_of_length_eq_zero (l := p) (by simpa using hblen.symm), List.nil_append])
   · rintro ⟨p, rfl⟩
-    have hp : p.length = 0 := by simpa using hblen
-    exact hne (by rw [List.eq_nil_of_length_eq_zero hp, List.nil_append])
+    exact hne
+      (by rw [List.eq_nil_of_length_eq_zero (l := p) (by simpa using hblen), List.nil_append])
 
 /-- **General suffix-free block-encoding Merkle–Damgård reduction**:
 for any polynomial-time block encoder `encode : ℕ → List Bool → List (List Bool)` that maps valid
@@ -602,17 +582,15 @@ private theorem length_of_mem_mdBlocks {n : ℕ} {msg : List Bool} {b : List Boo
 
 private theorem mdEndBlock_ne_mdDataBlock {n : ℕ} (hn : 1 ≤ n) (b : Bool) :
     mdEndBlock n ≠ mdDataBlock n b := by
-  cases n with
-  | zero => omega
-  | succ m =>
-    intro h
-    have hhead := congrArg List.head? h
-    simp [mdEndBlock, mdDataBlock, List.replicate_succ] at hhead
+  rcases n with _ | m
+  · omega
+  · intro h
+    simpa [mdEndBlock, mdDataBlock, List.replicate_succ] using congrArg List.head? h
 
 private theorem mdEndBlock_not_mem_map_mdDataBlock {n : ℕ} (hn : 1 ≤ n) (msg : List Bool) :
     mdEndBlock n ∉ msg.map (mdDataBlock n) := by
-  rw [List.mem_map]
-  rintro ⟨b, _, hb⟩
+  rintro h
+  obtain ⟨b, _, hb⟩ := List.mem_map.mp h
   exact mdEndBlock_ne_mdDataBlock hn b hb.symm
 
 private theorem mdDataBlock_injective {n : ℕ} (hn : 2 ≤ n) :
@@ -620,9 +598,7 @@ private theorem mdDataBlock_injective {n : ℕ} (hn : 2 ≤ n) :
   rcases n with _ | _ | m
   · omega
   · omega
-  · intro b₁ b₂ h
-    have htail := congrArg (fun l => l.tail.head?) h
-    simpa [mdDataBlock] using htail
+  · exact fun _ _ h => by simpa [mdDataBlock] using congrArg (fun l => l.tail.head?) h
 
 /-- For `n ≥ 2`, `mdBlocks n m₁` is a suffix of `mdBlocks n m₂` if and only if `m₁ = m₂`. -/
 theorem mdBlocks_suffix_iff {n : ℕ} (hn : 2 ≤ n) {m₁ m₂ : List Bool} :
@@ -635,10 +611,8 @@ theorem mdBlocks_suffix_iff {n : ℕ} (hn : 2 ≤ n) {m₁ m₂ : List Bool} :
       exact List.map_injective_iff.mpr (mdDataBlock_injective hn) hp
     | cons a p' =>
       simp only [mdBlocks, List.cons_append, List.cons.injEq] at hp
-      have hmem : mdEndBlock n ∈ m₂.map (mdDataBlock n) := by
-        rw [← hp.2]
-        exact List.mem_append_right _ List.mem_cons_self
-      exact False.elim (mdEndBlock_not_mem_map_mdDataBlock (by omega) m₂ hmem)
+      exact absurd (hp.2 ▸ List.mem_append_right _ List.mem_cons_self)
+        (mdEndBlock_not_mem_map_mdDataBlock (by omega) m₂)
   · rintro rfl
     exact List.suffix_refl _
 

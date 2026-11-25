@@ -86,76 +86,59 @@ theorem toeplitzHashBitNat_eq (n z o x : ℕ) (i : Fin n) :
     toeplitzHashBitNat n z o x i =
       toeplitzHash (hashSeedOfNat n z o) (fun j : Fin n => x.testBit j) i := by
   let g : ℕ → Bool := fun j => z.testBit (o + (i + (n - 1 - j))) && x.testBit j
-  have hadd : (fun b j => b ^^ g j) = (fun b j => b + g j) :=
-    funext fun _ => funext fun _ => (Bool.add_eq_xor _ _).symm
   have hrange : (List.finRange n).map Fin.val = List.range n :=
     List.ext_getElem (by simp) fun _ _ _ => by simp
   have hl (xs : List Bool) (v : Bool) : xs.foldl (· + ·) v = v + xs.sum := by
     simpa [List.sum_eq_foldl, List.foldl_cons] using List.sum_cons (a := v) (l := xs)
   have hfold : (List.range n).foldl (fun b j => b ^^ g j) (z.testBit (o + (n + n - 1) + i)) =
       z.testBit (o + (n + n - 1) + i) + ∑ j : Fin n, g j := by
-    have hmap :
-        (List.finRange n).foldl (fun b (j : Fin n) => b + g j.val)
-            (z.testBit (o + (n + n - 1) + i)) =
-          ((List.finRange n).map fun j : Fin n => g j.val).foldl (· + ·)
-            (z.testBit (o + (n + n - 1) + i)) := by
-      simp [List.foldl_map]
-    rw [hadd, ← hrange, List.foldl_map, hmap, hl, ← Fin.sum_univ_def]
-  rw [toeplitzHashBitNat, hfold]
-  simp only [g, toeplitzHash, hashSeedOfNat, Pi.add_apply, mulVec, dotProduct, toeplitz_apply]
-  rw [add_comm]
-  rfl
+    simp_rw [← Bool.add_eq_xor, ← hrange, List.foldl_map]
+    rw [← List.foldl_map (g := (· + ·)), hl, ← Fin.sum_univ_def]
+  simp only [toeplitzHashBitNat, hfold, g, toeplitzHash, hashSeedOfNat, Pi.add_apply, mulVec,
+    dotProduct, toeplitz_apply]
+  exact add_comm _ _
 
 /-- Bit `k` of a most-significant-first fold of `n` bits. -/
 private theorem testBit_foldr_range (g : ℕ → Bool) (n k : ℕ) :
     ((List.range n).foldr (fun i acc => 2 * acc + (g i).toNat) 0).testBit k =
       (decide (k < n) && g k) := by
   induction n generalizing g k with
-  | zero => simp only [List.range_zero, List.foldr_nil, Nat.zero_testBit, Nat.not_lt_zero,
-      decide_false, Bool.false_and]
+  | zero => simp
   | succ n ih =>
     rw [List.range_succ_eq_map, List.foldr_cons, List.foldr_map, ← Nat.bit_val]
-    rcases k with _ | k
-    · rw [Nat.testBit_bit_zero]
-      simp only [Nat.zero_lt_succ, decide_true, Bool.true_and]
-    · rw [Nat.testBit_bit_succ, ih]
-      simp only [Nat.add_lt_add_iff_right]
+    cases k <;> simp [Nat.testBit_bit_succ, ih]
 
 /-- **The bits of the packed Toeplitz hash**: bit `i < n` of `toeplitzHashNat n z o x` is output
 bit `i` of the Toeplitz hash with seed `hashSeedOfNat n z o` on the low `n` bits of `x`. -/
 theorem testBit_toeplitzHashNat (n z o x : ℕ) (i : Fin n) :
     (toeplitzHashNat n z o x).testBit i =
       toeplitzHash (hashSeedOfNat n z o) (fun j : Fin n => x.testBit j) i := by
-  rw [toeplitzHashNat, testBit_foldr_range, ← toeplitzHashBitNat_eq]
-  simp only [i.isLt, decide_true, Bool.true_and]
+  simp [toeplitzHashNat, testBit_foldr_range, ← toeplitzHashBitNat_eq, i.isLt]
 
 /-- The packed Toeplitz hash has no bits from position `n` on. -/
 theorem toeplitzHashNat_lt (n z o x : ℕ) : toeplitzHashNat n z o x < 2 ^ n :=
   Nat.lt_pow_two_of_testBit _ fun k hk => by
-    rw [toeplitzHashNat, testBit_foldr_range]
-    simp only [Nat.not_lt.mpr hk, decide_false, Bool.false_and]
+    simp [toeplitzHashNat, testBit_foldr_range, Nat.not_lt.mpr hk]
 
 /-- The packed Toeplitz hash has no bits past those of the seed word: row `i` of the Toeplitz
 matrix and bit `i` of the offset are bits of `z` at positions at least `i`. -/
 theorem toeplitzHashNat_lt_two_pow_size (n z o x : ℕ) : toeplitzHashNat n z o x < 2 ^ z.size :=
   Nat.lt_pow_two_of_testBit _ fun k hk => by
     have hz (t : ℕ) (ht : k ≤ t) : z.testBit t = false :=
-      Nat.testBit_eq_false_of_lt ((Nat.lt_size_self z).trans_le (Nat.pow_le_pow_right two_pos
-        (hk.trans ht)))
-    have hz' (t : ℕ) : z.testBit (o + (k + t)) = false := hz _ (by omega)
+      Nat.testBit_eq_false_of_lt ((Nat.lt_size_self z).trans_le
+        (Nat.pow_le_pow_right two_pos (hk.trans ht)))
+    have hconst (xs : List ℕ) : xs.foldl (fun b _ => b) false = false := by
+      induction xs <;> simp [*]
     have hbit : toeplitzHashBitNat n z o x k = false := by
-      have hconst (xs : List ℕ) : xs.foldl (fun b _ => b) false = false := by
-        induction xs <;> simp [*]
-      simp only [toeplitzHashBitNat, hz (o + (n + n - 1) + k) (by omega), hz',
-        Bool.false_and, Bool.xor_false]
+      simp only [toeplitzHashBitNat, hz _ (by omega : k ≤ o + (n + n - 1) + k),
+        fun t => hz (o + (k + t)) (by omega), Bool.false_and, Bool.xor_false]
       exact hconst _
     rw [toeplitzHashNat, testBit_foldr_range, hbit, Bool.and_false]
 
 /-- Bit `k < n` of the packed Toeplitz hash is `toeplitzHashBitNat n z o x k`. -/
 private theorem testBit_toeplitzHashNat_of_lt {n k : ℕ} (z o x : ℕ) (hk : k < n) :
     (toeplitzHashNat n z o x).testBit k = toeplitzHashBitNat n z o x k := by
-  rw [toeplitzHashNat, testBit_foldr_range]
-  simp only [hk, decide_true, Bool.true_and]
+  simp [toeplitzHashNat, testBit_foldr_range, hk]
 
 /-! ### The packed Toeplitz hash in linear space -/
 
@@ -213,24 +196,22 @@ private theorem bitStep_inSpace :
   have hj := encBitReg_j_budget hr
   have ha := encBitQuery_args_budget hq
   have hn := encToeplitzHashArgs_n_budget ha
-  have hidx := ComputableInSpace.budget_natAdd (encToeplitzHashArgs_o_budget ha)
-    (ComputableInSpace.budget_natAdd (encBitQuery_i_budget hq)
-      (ComputableInSpace.budget_natSub
-        (ComputableInSpace.budget_natPred hn) hj))
   have hzb := ComputableInSpace.budget_comp_lin ComputableInSpace.natTestBit
     (ComputableInSpace.linear_mul 32)
-    (ComputableInSpace.budget_prod (encToeplitzHashArgs_z_budget ha) hidx)
+    (ComputableInSpace.budget_prod (encToeplitzHashArgs_z_budget ha)
+      (ComputableInSpace.budget_natAdd (encToeplitzHashArgs_o_budget ha)
+        (ComputableInSpace.budget_natAdd (encBitQuery_i_budget hq)
+          (ComputableInSpace.budget_natSub (ComputableInSpace.budget_natPred hn) hj))))
   have hxb := ComputableInSpace.budget_comp_lin ComputableInSpace.natTestBit
     (ComputableInSpace.linear_mul 32)
     (ComputableInSpace.budget_prod (encToeplitzHashArgs_x_budget ha) hj)
   have hnew := ComputableInSpace.budget_finite (encC := encBool)
-    (fun t : Bool × Bool × Bool => match t with | (b, u, v) => b ^^ (u && v))
-    (ComputableInSpace.budget_prod (encBitReg_b_budget hr)
-      (ComputableInSpace.budget_prod hzb hxb))
-  have hsome := ComputableInSpace.budget_optionSome
-    (encBitReg_mk_budget (ComputableInSpace.budget_natSucc hj) hnew)
-  exact (ComputableInSpace.budget_ite (ComputableInSpace.budget_natLt hj hn) hsome
-    (ComputableInSpace.budget_const none)).of_enc_eq fun p => by
+    (fun t : Bool × Bool × Bool => t.1 ^^ (t.2.1 && t.2.2))
+    (ComputableInSpace.budget_prod (encBitReg_b_budget hr) (ComputableInSpace.budget_prod hzb hxb))
+  exact (ComputableInSpace.budget_ite (ComputableInSpace.budget_natLt hj hn)
+    (ComputableInSpace.budget_optionSome
+      (encBitReg_mk_budget (ComputableInSpace.budget_natSucc hj) hnew))
+    (ComputableInSpace.budget_const none)).of_enc_eq fun _ => by
       simp only [bitStep, BitQuery.term, decide_eq_true_eq]
 
 /-- One output bit by the column loop, in space linear in the query. -/
@@ -248,20 +229,16 @@ private theorem partialBit_inSpace :
           (ComputableInSpace.budget_natAdd (encToeplitzHashArgs_o_budget ha)
             (ComputableInSpace.budget_natPred (ComputableInSpace.budget_natAdd hn hn)))
           (encBitQuery_i_budget hq))))
-  have hloop := ComputableInSpace.loopWith (encA := encBitQuery) (encR := encBitReg)
+  refine (encBitReg_b_budget (ComputableInSpace.loopWith (encA := encBitQuery) (encR := encBitReg)
     (step := fun p => bitStep p.1 p.2) (B := fun q => 8 * (encBitQuery q).length + 16)
     (fun q j => ⟨j, q.partialBit j⟩) (fun q => q.args.n) hinit bitStep_inSpace
-    (fun _ => rfl) (fun q j hj => ?_) (fun q => ?_) (fun q j hj => ?_)
-  · exact ((encBitReg_b_budget hloop).weaken (.of_le_linear 10 16 fun q => by
-      have := Nat.log2_le_self (encBitQuery q).length
-      omega))
-  · simp only [bitStep, hj, ↓reduceIte]
-    rw [BitQuery.partialBit, BitQuery.partialBit, List.range_succ, List.foldl_append]
-    rfl
-  · simp only [bitStep, lt_self_iff_false, ↓reduceIte]
-  · have h₁ := Turing.MultiTapeTM.length_encNat_mono hj
-    have h₂ := encToeplitzHashArgs_n_length_le q.args
-    have h₃ := encBitQuery_args_length_le q
+    (fun _ => rfl) (fun q j hj => ?_) (fun q => ?_) (fun q j hj => ?_))).weaken
+    (.of_le_linear 10 16 fun q => by have := Nat.log2_le_self (encBitQuery q).length; omega)
+  · simp [bitStep, hj, BitQuery.partialBit, List.range_succ]
+  · simp [bitStep]
+  · have := Turing.MultiTapeTM.length_encNat_mono hj
+    have := encToeplitzHashArgs_n_length_le q.args
+    have := encBitQuery_args_length_le q
     simp only [length_encPair, encBitReg_apply, encBitRegFields, encBool_apply,
       List.length_singleton]
     omega
@@ -288,26 +265,23 @@ private theorem hashStep_inSpace :
   have hi := encHashReg_i_budget hr
   have hbit := ComputableInSpace.budget_comp_linear partialBit_inSpace
     (encBitQuery_mk_budget ha (ComputableInSpace.budget_natPred hi))
-  have hsome := ComputableInSpace.budget_optionSome (encHashReg_mk_budget
-    (ComputableInSpace.budget_natPred hi)
-    (ComputableInSpace.budget_natAdd
-      (ComputableInSpace.budget_natMul (ComputableInSpace.budget_const 2)
-        (encHashReg_acc_budget hr))
-      (ComputableInSpace.budget_finite Bool.toNat hbit)))
   exact (ComputableInSpace.budget_ite
-    (ComputableInSpace.budget_natLt (ComputableInSpace.budget_const 0) hi) hsome
-    (ComputableInSpace.budget_const none)).of_enc_eq fun p => by
-      simp only [hashStep, decide_eq_true_eq]
-      rfl
+    (ComputableInSpace.budget_natLt (ComputableInSpace.budget_const 0) hi)
+    (ComputableInSpace.budget_optionSome (encHashReg_mk_budget
+      (ComputableInSpace.budget_natPred hi)
+      (ComputableInSpace.budget_natAdd
+        (ComputableInSpace.budget_natMul (ComputableInSpace.budget_const 2)
+          (encHashReg_acc_budget hr))
+        (ComputableInSpace.budget_finite Bool.toNat hbit))))
+    (ComputableInSpace.budget_const none)).of_enc_eq fun _ => by
+      simp only [hashStep, decide_eq_true_eq]; rfl
 
 /-- Halving `m / 2 ^ k` drops bit `k` of `m`. -/
 private theorem div_two_pow_eq (m k : ℕ) :
     m / 2 ^ k = 2 * (m / 2 ^ (k + 1)) + (m.testBit k).toNat := by
   rw [Nat.testBit_eq_decide_div_mod_eq, pow_succ, ← Nat.div_div_eq_div_mul]
   generalize m / 2 ^ k = q
-  rcases Nat.mod_two_eq_zero_or_one q with h | h <;>
-    simp only [h, Nat.zero_ne_one, decide_false, decide_true, Bool.toNat_false,
-      Bool.toNat_true] <;> omega
+  rcases Nat.mod_two_eq_zero_or_one q with h | h <;> simp [h] <;> omega
 
 /-- **The packed Toeplitz hash in linear space**: `toeplitzHashNat n z o x` is computable within
 work space linear in the length of the encoded arguments. A loop appends the `n` output bits
@@ -321,31 +295,30 @@ theorem computableInSpace_toeplitzHashNat :
   have hq := ComputableInSpace.budget_id (BigOLe.refl fun q => (encToeplitzHashArgs q).length)
   have hinit := encHashReg_mk_budget (encToeplitzHashArgs_n_budget hq)
     (ComputableInSpace.budget_const (encB := encNat) 0)
-  have hloop := ComputableInSpace.loopWith (encA := encToeplitzHashArgs) (encR := encHashReg)
-    (step := fun p => hashStep p.1 p.2) (B := fun q => 8 * (encToeplitzHashArgs q).length + 16)
+  refine ((encHashReg_acc_budget (ComputableInSpace.loopWith (encA := encToeplitzHashArgs)
+    (encR := encHashReg) (step := fun p => hashStep p.1 p.2)
+    (B := fun q => 8 * (encToeplitzHashArgs q).length + 16)
     (fun q j => ⟨q.n - j, toeplitzHashNat q.n q.z q.o q.x / 2 ^ (q.n - j)⟩) (fun q => q.n)
-    hinit hashStep_inSpace (fun q => ?_) (fun q j hj => ?_) (fun q => ?_) (fun q j hj => ?_)
-  · refine ((encHashReg_acc_budget hloop).weaken (.of_le_linear 10 16 fun q => by
+    hinit hashStep_inSpace (fun q => ?_) (fun q j hj => ?_) (fun q => ?_)
+    (fun q j _ => ?_))).weaken (.of_le_linear 10 16 fun q => by
       have := Nat.log2_le_self (encToeplitzHashArgs q).length
-      omega)).of_enc_eq fun q => ?_
-    simp only [Nat.sub_self, pow_zero, Nat.div_one]
-  · simp only [Nat.sub_zero, Nat.div_eq_of_lt (toeplitzHashNat_lt _ _ _ _)]
+      omega)).of_enc_eq fun _ => by simp
+  · simp [Nat.div_eq_of_lt (toeplitzHashNat_lt _ _ _ _)]
   · simp only [hashStep, show 0 < q.n - j by omega, ↓reduceIte, Option.some.injEq,
       HashReg.mk.injEq]
     refine ⟨by omega, ?_⟩
     rw [← testBit_toeplitzHashNat_of_lt _ _ _ (by omega : q.n - j - 1 < q.n),
       show q.n - (j + 1) = q.n - j - 1 by omega, div_two_pow_eq _ (q.n - j - 1),
       show q.n - j - 1 + 1 = q.n - j by omega]
-  · simp only [hashStep, Nat.sub_self, lt_self_iff_false, ↓reduceIte]
-  · have h₁ := Turing.MultiTapeTM.length_encNat_mono (Nat.sub_le q.n j)
-    have h₂ : (encNat (toeplitzHashNat q.n q.z q.o q.x / 2 ^ (q.n - j))).length ≤
+  · simp [hashStep]
+  · have := Turing.MultiTapeTM.length_encNat_mono (Nat.sub_le q.n j)
+    have : (encNat (toeplitzHashNat q.n q.z q.o q.x / 2 ^ (q.n - j))).length ≤
         (encNat q.z).length :=
       (Turing.MultiTapeTM.length_encNat_mono (Nat.div_le_self _ _)).trans
-        ((length_encNat_le_of_lt_two_pow
-          (toeplitzHashNat_lt_two_pow_size q.n q.z q.o q.x)).trans_eq
-            (Turing.MultiTapeTM.length_encNat_eq_size q.z).symm)
-    have h₃ := encToeplitzHashArgs_n_length_le q
-    have h₄ := encToeplitzHashArgs_z_length_le q
+        ((length_encNat_le_of_lt_two_pow (toeplitzHashNat_lt_two_pow_size q.n q.z q.o q.x)).trans_eq
+          (Turing.MultiTapeTM.length_encNat_eq_size q.z).symm)
+    have := encToeplitzHashArgs_n_length_le q
+    have := encToeplitzHashArgs_z_length_le q
     simp only [length_encPair, encHashReg_apply, encHashRegFields]
     omega
 

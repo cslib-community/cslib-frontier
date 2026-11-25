@@ -44,9 +44,8 @@ theorem lineMap_sphere_parameter {z a b : ℂ} {ρ t : ℝ}
     (ht : t ∈ Set.Icc 0 1) (hp : AffineMap.lineMap a b t ∈ Metric.sphere z ρ) :
     t = 1 := by
   by_contra hne
-  have hlt : t < 1 := lt_of_le_of_ne ht.2 hne
-  have h := lineMap_mem_ball ha (Metric.sphere_subset_closedBall hb) ⟨ht.1, hlt⟩
-  exact (ne_of_lt h) (Metric.mem_sphere.mp hp)
+  exact ne_of_lt (lineMap_mem_ball ha (Metric.sphere_subset_closedBall hb)
+    ⟨ht.1, lt_of_le_of_ne ht.2 hne⟩) (Metric.mem_sphere.mp hp)
 
 /-- Two different boundary ports of a round ball have spokes meeting only at their
 common interior center. No bound on the angular span of the ports is needed. -/
@@ -65,10 +64,9 @@ theorem fan_contact {z a p q : ℂ} {ρ s t : ℝ}
       simpa only [AffineMap.lineMap_apply_module', add_left_inj] using heq
     have hparam : AffineMap.lineMap a p (s / t) = q := by
       rw [AffineMap.lineMap_apply_module', div_eq_inv_mul, mul_smul, hvec,
-        inv_smul_smul₀ (ne_of_gt htpos), sub_add_cancel]
-    have hst1 : s / t = 1 := lineMap_sphere_parameter ha hp
-      ⟨div_nonneg hs htpos.le, (div_le_one htpos).mpr hst⟩ (hparam ▸ hq)
-    rw [hst1, AffineMap.lineMap_apply_one] at hparam
+        inv_smul_smul₀ htpos.ne', sub_add_cancel]
+    rw [lineMap_sphere_parameter ha hp ⟨div_nonneg hs htpos.le, (div_le_one htpos).mpr hst⟩
+      (hparam ▸ hq), AffineMap.lineMap_apply_one] at hparam
     exact hpq hparam
   rcases le_total s t with hst | hts
   · have ht0 := one_side hp hq hpq hs.1 hst heq
@@ -83,22 +81,12 @@ theorem arg_sub_injective_on_sphere {z a p q : ℂ} {ρ : ℝ}
     (hq : q ∈ Metric.sphere z ρ)
     (heq : ((p - a).arg : Real.Angle) = ((q - a).arg : Real.Angle)) : p = q := by
   by_contra hpq
-  have hpa : p - a ≠ 0 := by
-    intro h
-    have h' : p = a := sub_eq_zero.mp h
-    rw [h'] at hp
-    exact (ne_of_lt ha) (Metric.mem_sphere.mp hp)
-  have hqa : q - a ≠ 0 := by
-    intro h
-    have h' : q = a := sub_eq_zero.mp h
-    rw [h'] at hq
-    exact (ne_of_lt ha) (Metric.mem_sphere.mp hq)
-  obtain ⟨s, hs, t, ht, hst⟩ := exists_small_smul_eq_of_arg_eq hpa hqa
-    (Complex.arg_coe_angle_eq_iff.mp heq) (by norm_num : (0 : ℝ) < 1)
-  have hpoint : AffineMap.lineMap a p s = AffineMap.lineMap a q t := by
-    simpa only [AffineMap.lineMap_apply_module', add_left_inj] using hst
-  have hzero := fan_contact ha hp hq hpq ⟨hs.1.le, hs.2.le⟩ ⟨ht.1.le, ht.2.le⟩ hpoint
-  exact (ne_of_gt hs.1) hzero.1
+  have hne {w : ℂ} (hw : w ∈ Metric.sphere z ρ) : w - a ≠ 0 := fun h =>
+    ne_of_lt ha (Metric.mem_sphere.mp (sub_eq_zero.mp h ▸ hw))
+  obtain ⟨s, hs, t, ht, hst⟩ := exists_small_smul_eq_of_arg_eq (hne hp) (hne hq)
+    (Complex.arg_coe_angle_eq_iff.mp heq) zero_lt_one
+  refine hs.1.ne' (fan_contact ha hp hq hpq ⟨hs.1.le, hs.2.le⟩ ⟨ht.1.le, ht.2.le⟩ ?_).1
+  simpa only [AffineMap.lineMap_apply_module', add_left_inj] using hst
 
 /-- An affine separating coordinate keeps a spoke beyond its fan center. -/
 theorem fan_coordinate_le (f : ℂ →ᵃ[ℝ] ℝ) {a p : ℂ} (hp : f a < f p)
@@ -112,10 +100,9 @@ theorem split_spokes_ne (f : ℂ →ᵃ[ℝ] ℝ) {a b p q : ℂ}
     {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) :
     AffineMap.lineMap a p s ≠ AffineMap.lineMap b q t := by
   intro heq
-  have hleft := fan_coordinate_le f hp hs
-  have hright := fan_coordinate_le (-f) (by simpa using hq) ht
-  change -f b ≤ -f (AffineMap.lineMap b q t) at hright
-  rw [heq] at hleft
+  have hleft := heq ▸ fan_coordinate_le f hp hs
+  have hright : -f b ≤ -f (AffineMap.lineMap b q t) :=
+    fan_coordinate_le (-f) (by simpa using hq) ht
   linarith
 
 /-- A spoke beyond one connector end meets the connector only at that end. -/

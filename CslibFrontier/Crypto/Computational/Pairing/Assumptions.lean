@@ -249,18 +249,9 @@ private def coCDHInputToCDH (C : F.Companion) (x : F.CoCDHInput C) : F.CDHInput 
 
 /-- The projection from `CoCDHInput` to `CDHInput` is computable in polynomial time. -/
 private theorem computableInPolyTime_coCDHInputToCDH (C : F.Companion) :
-    ComputableInPolyTime (F.coCDHInputToCDH C) (F.encCoCDHInput C) F.encCDHInput := by
-  have hsec : ComputableInPolyTime (fun x : F.CoCDHInput C => x.secParam)
-      (F.encCoCDHInput C) encUnary := by fun_prop
-  have hgrp : ComputableInPolyTime (fun x : F.CoCDHInput C => x.groupParameters)
-      (F.encCoCDHInput C) F.encDesc := by fun_prop
-  have hlz : ComputableInPolyTime
-      (fun x : F.CoCDHInput C => F.encode x.groupParameters x.leftZero)
-      (F.encCoCDHInput C) encBits := by fun_prop
-  have hrz : ComputableInPolyTime
-      (fun x : F.CoCDHInput C => F.encode x.groupParameters x.rightZero)
-      (F.encCoCDHInput C) encBits := by fun_prop
-  exact (F.encCDHInput_mk_polyTime hsec hgrp hlz hrz).of_enc_eq fun _ => rfl
+    ComputableInPolyTime (F.coCDHInputToCDH C) (F.encCoCDHInput C) F.encCDHInput :=
+  (F.encCDHInput_mk_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).of_enc_eq
+    fun _ => rfl
 
 /-- Wrapping a PPT CDH adversary to ignore `u₁` preserves uniform strict PPT. -/
 theorem isPPT_cdhToCoCDHAdversary (C : F.Companion) {adversary : F.CDHAdversary}
@@ -298,18 +289,9 @@ private def cdhInputToCoCDHSelf (x : F.CDHInput) : F.CoCDHInput F.self :=
 /-- Duplicating `leftPublic` from `CDHInput` to `CoCDHInput F.self` is computable in polynomial
 time. -/
 private theorem computableInPolyTime_cdhInputToCoCDHSelf :
-    ComputableInPolyTime F.cdhInputToCoCDHSelf F.encCDHInput (F.encCoCDHInput F.self) := by
-  have hsec : ComputableInPolyTime (fun x : F.CDHInput => x.secParam)
-      F.encCDHInput encUnary := by fun_prop
-  have hgrp : ComputableInPolyTime (fun x : F.CDHInput => x.groupParameters)
-      F.encCDHInput F.encDesc := by fun_prop
-  have hleft : ComputableInPolyTime
-      (fun x : F.CDHInput => F.encode x.groupParameters x.leftPublic)
-      F.encCDHInput encBits := by fun_prop
-  have hright : ComputableInPolyTime
-      (fun x : F.CDHInput => F.encode x.groupParameters x.rightPublic)
-      F.encCDHInput encBits := by fun_prop
-  exact (F.encCoCDHInput_mk_polyTime F.self hsec hgrp hleft hleft hright).of_enc_eq fun _ => rfl
+    ComputableInPolyTime F.cdhInputToCoCDHSelf F.encCDHInput (F.encCoCDHInput F.self) :=
+  (F.encCoCDHInput_mk_polyTime F.self (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop)).of_enc_eq fun _ => rfl
 
 /-- Duplicating `u` preserves uniform strict PPT. -/
 theorem isPPT_coCdhSelfToCDHAdversary {adversary : F.CoCDHAdversary F.self}
@@ -474,44 +456,18 @@ private theorem computableInPolyTime_symmetricDDHCheck :
       (encPair encUnary (encPair P.G₀.encDesc (encPair encBits (encPair encBits encBits)))) :=
     (ComputableInPolyTime.id' (encIn := P.G₀.encDDHInput)).of_enc_eq fun x =>
       (P.G₀.encDDHInput_apply x).symm
+  have hr1 := (ComputableInPolyTime.snd _ _).comp hflat
+  have hr2 := (ComputableInPolyTime.snd _ _).comp hr1
+  have hr3 := (ComputableInPolyTime.snd _ _).comp hr2
   have hd : ComputableInPolyTime (fun x : P.G₀.DDHInput => x.groupParameters)
       P.G₀.encDDHInput P.G₀.encDesc :=
-    ((ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp hflat)).of_enc_eq
-      fun _ => rfl
-  have hu : ComputableInPolyTime
-      (fun x : P.G₀.DDHInput => P.G₀.encode x.groupParameters x.leftPublic)
-      P.G₀.encDDHInput encBits :=
-    ((ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp hflat))).of_enc_eq fun _ => rfl
-  have hv : ComputableInPolyTime
-      (fun x : P.G₀.DDHInput => P.G₀.encode x.groupParameters x.rightPublic)
-      P.G₀.encDDHInput encBits :=
-    ((ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp hflat)))).of_enc_eq
-      fun _ => rfl
-  have hw : ComputableInPolyTime
-      (fun x : P.G₀.DDHInput => P.G₀.encode x.groupParameters x.candidateShared)
-      P.G₀.encDDHInput encBits :=
-    ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp
-      ((ComputableInPolyTime.snd _ _).comp ((ComputableInPolyTime.snd _ _).comp hflat)))).of_enc_eq
-      fun _ => rfl
-  have hg₀ := P.G₀.computableInPolyTime_encode_generator hd
-  have h1 : ComputableInPolyTime
-      (fun x : P.G₀.DDHInput =>
-        P.pairEncoded (x.groupParameters,
-          P.G₀.encode x.groupParameters x.leftPublic,
-          P.G₀.encode x.groupParameters x.rightPublic))
-      P.G₀.encDDHInput encBits :=
-    P.computableInPolyTime_pairEncoded.comp (hd.prod (hu.prod hv))
-  have h2 : ComputableInPolyTime
-      (fun x : P.G₀.DDHInput =>
-        P.pairEncoded (x.groupParameters,
-          P.G₀.encode x.groupParameters (P.G₀.generator x.groupParameters),
-          P.G₀.encode x.groupParameters x.candidateShared))
-      P.G₀.encDDHInput encBits :=
-    P.computableInPolyTime_pairEncoded.comp (hd.prod (hg₀.prod hw))
-  exact (h1.beq h2).of_enc_eq fun x => by
-    simp [symmetricDDHCheck, beq_eq_decide]
+    ((ComputableInPolyTime.fst _ _).comp hr1).of_enc_eq fun _ => rfl
+  have h1 := P.computableInPolyTime_pairEncoded.comp (hd.prod
+    (((ComputableInPolyTime.fst _ _).comp hr2).prod ((ComputableInPolyTime.fst _ _).comp hr3)))
+  have h2 := P.computableInPolyTime_pairEncoded.comp (hd.prod
+    ((P.G₀.computableInPolyTime_encode_generator hd).prod
+      ((ComputableInPolyTime.snd _ _).comp hr3)))
+  exact (h1.beq h2).of_enc_eq fun x => by simp [symmetricDDHCheck, beq_eq_decide]
 
 /-- Distinguisher checking equation (15.8) when `P` is a symmetric pairing (`P.G₁ = P.G₀.self`).
 -/
@@ -537,12 +493,8 @@ private theorem symmetricDDHCheck_eq_of_symmetric (h : P.G₁ = P.G₀.self) (d 
       G₀.self.encode d (β • G₀.self.generator d)) =
     pe (d, G₀.encode d (G₀.generator d),
       G₀.self.encode d (γ • G₀.self.generator d))) = decide (α * β = γ)
-  rw [hpe, hpe, decide_eq_decide, (GT.encode_injective d).eq_iff]
-  have hp1 : pair d (α • G₀.generator d) (β • G₀.self.generator d) = (α * β) • GT.generator d := by
-    rw [LinearMap.map_smul₂, map_smul, smul_smul, hgen]
-  have hp2 : pair d (G₀.generator d) (γ • G₀.self.generator d) = γ • GT.generator d := by
-    rw [map_smul, hgen]
-  rw [hp1, hp2]
+  rw [hpe, hpe, decide_eq_decide, (GT.encode_injective d).eq_iff, LinearMap.map_smul₂, map_smul,
+    smul_smul, map_smul, hgen]
   exact (GT.toFamily.smul_generator_injective d).eq_iff
 
 /-- **DDH is easy in a symmetric pairing group** ([BonehShoup2023], Section 15.4, equation (15.8),
@@ -560,44 +512,31 @@ theorem not_ddh_of_symmetric (h : P.G₁ = P.G₀.self) (setup : ℕ → PMF P.G
   have hrand (n : ℕ) :
       Game.succProbability (P.G₀.ddhRandomGame setup P.symmetricDDHDistinguisher n) ≤
         (1 / 2 : ℝ≥0) := by
-    dsimp only [PrimeOrderGroupFamily.ddhRandomGame]
     refine Game.succProbability_withSetup_le _ _ fun d _ => ?_
     dsimp only [Experiment.succProbability, Game.succProbability]
     rw [eval_ddhRandomExperiment]
     simp only [symmetricDDHDistinguisher, ProbComp.eval_pure,
       P.symmetricDDHCheck_eq_of_symmetric h]
-    have hinner (a b : ZMod (P.G₀.order d)) :
+    have hinner (x : ZMod (P.G₀.order d)) :
         ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun c =>
-          PMF.pure (decide (a * b = c))) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
-      have heq := Cslib.Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true (a * b)
-      simpa only [ZMod.card, eq_comm] using heq
-    have hmid (a : ZMod (P.G₀.order d)) :
-        ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun b =>
-          (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun c =>
-            PMF.pure (decide (a * b = c))) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
+          PMF.pure (decide (x = c))) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
+      simpa only [ZMod.card, eq_comm] using
+        Cslib.Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true x
+    have hconst {β : Type} (p : PMF β) (v : ℝ≥0∞) (f : β → PMF Bool) (hf : ∀ x, f x true = v) :
+        (p.bind f) true = v := by
       rw [PMF.bind_apply]
-      simp_rw [hinner, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    have htot :
-        ((PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun a =>
-          (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun b =>
-            (PMF.uniformOfFintype (ZMod (P.G₀.order d))).bind fun c =>
-              PMF.pure (decide (a * b = c))) true = (P.G₀.order d : ℝ≥0∞)⁻¹ := by
-      rw [PMF.bind_apply]
-      simp_rw [hmid, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    rw [htot, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
+      simp_rw [hf, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+    rw [hconst _ _ _ fun a => hconst _ _ _ fun b => hinner (a * b),
+      ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
     have h2 : (2 : ℝ≥0) ≤ P.G₀.order d := by exact_mod_cast (P.G₀.prime_order d).two_le
     simpa only [one_div] using inv_anti₀ (by norm_num) h2
-  have hadv (n : ℕ) :
-      (1 / 2 : ℝ≥0) ≤
-        Game.advantage (P.G₀.ddhRealGame setup P.symmetricDDHDistinguisher n)
-          (P.G₀.ddhRandomGame setup P.symmetricDDHDistinguisher n) := by
-    rw [hreal n]
-    have hra := hrand n
-    rw [← NNReal.coe_le_coe] at hra ⊢
-    rw [Game.coe_advantage_pure_true_left]
-    push_cast at hra ⊢
-    linarith
-  exact not_negligible_const (by norm_num) (negligible_of_le hneg hadv)
+  refine not_negligible_const (c := 1 / 2) (by norm_num) (negligible_of_le hneg fun n => ?_)
+  have hra := hrand n
+  rw [hreal n]
+  rw [← NNReal.coe_le_coe] at hra ⊢
+  rw [Game.coe_advantage_pure_true_left]
+  push_cast at hra ⊢
+  linarith
 
 /-- Lift a target-group discrete-log adversary to `P.G₀` via `u₀ ↦ P.pair d u₀ g₁`
 ([BonehShoup2023], Section 15.4, p. 625). -/
@@ -616,26 +555,24 @@ theorem isPPT_dlTargetToZeroAdversary
       fun x => P.dlTargetToZeroAdversary adversary x.1 x.2 := by
   have hd : ComputableInPolyTime (fun x : ℕ × P.G₀.Desc × List Bool => x.2.1)
       (encPair encUnary (encPair P.G₀.encDesc encBits)) P.G₀.encDesc := by fun_prop
-  have hu : ComputableInPolyTime (fun x : ℕ × P.G₀.Desc × List Bool => x.2.2)
-      (encPair encUnary (encPair P.G₀.encDesc encBits)) encBits := by fun_prop
-  have hg₁ := P.G₁.computableInPolyTime_encode_generator hd
-  have hp := P.computableInPolyTime_pairEncoded.comp (hd.prod (hu.prod hg₁))
-  exact hA.preprocess ((by fun_prop : ComputableInPolyTime
-    (fun x : ℕ × P.G₀.Desc × List Bool => x.1) _ encUnary).prod (hd.prod hp))
+  exact hA.preprocess ((by fun_prop : ComputableInPolyTime (fun x : _ => x.1) _ encUnary).prod
+    (hd.prod (P.computableInPolyTime_pairEncoded.comp (hd.prod
+      ((by fun_prop : ComputableInPolyTime (fun x : _ => x.2.2) _ encBits).prod
+        (P.G₁.computableInPolyTime_encode_generator hd))))))
 
 /-- **Discrete-log hardness in `G₀` implies discrete-log hardness in `GT`** ([BonehShoup2023],
 Section 15.4, p. 625: computing discrete logarithms in `G₀` is no harder than in `GT`). -/
 theorem DiscreteLog.target_of_sourceZero {setup : ℕ → PMF P.G₀.Desc}
     (hG₀ : P.G₀.DiscreteLog setup) : P.GT.toFamily.DiscreteLog setup := by
   intro adversary hA
-  have hred := hG₀ (P.dlTargetToZeroAdversary adversary) (P.isPPT_dlTargetToZeroAdversary hA)
-  refine negligible_of_le hred fun n => ?_
+  refine negligible_of_le
+    (hG₀ (P.dlTargetToZeroAdversary adversary) (P.isPPT_dlTargetToZeroAdversary hA)) fun n => ?_
   simp only [PrimeOrderGroupFamily.discreteLogGame, dlTargetToZeroAdversary,
     PrimeOrderGroupFamily.Companion.toFamily]
   refine Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ => ?_)
   refine PMF.bind_apply_mono_on_support _ _ fun a _ => ?_
-  have h1 : P.G₁.generator d = (1 : ZMod (P.G₀.order d)) • P.G₁.generator d := (one_smul _ _).symm
-  rw [P.pairEncoded_encode, h1, P.pair_smul_generator_smul_generator, mul_one]
+  rw [P.pairEncoded_encode, ← one_smul (ZMod (P.G₀.order d)) (P.G₁.generator d),
+    P.pair_smul_generator_smul_generator, mul_one]
 
 /-- Lift a target-group discrete-log adversary to `P.G₁` via `u₁ ↦ P.pair d g₀ u₁`
 ([BonehShoup2023], Section 15.4, p. 625). -/
@@ -654,26 +591,24 @@ theorem isPPT_dlTargetToOneAdversary
       fun x => P.dlTargetToOneAdversary adversary x.1 x.2 := by
   have hd : ComputableInPolyTime (fun x : ℕ × P.G₀.Desc × List Bool => x.2.1)
       (encPair encUnary (encPair P.G₀.encDesc encBits)) P.G₀.encDesc := by fun_prop
-  have hv : ComputableInPolyTime (fun x : ℕ × P.G₀.Desc × List Bool => x.2.2)
-      (encPair encUnary (encPair P.G₀.encDesc encBits)) encBits := by fun_prop
-  have hg₀ := P.G₀.computableInPolyTime_encode_generator hd
-  have hp := P.computableInPolyTime_pairEncoded.comp (hd.prod (hg₀.prod hv))
-  exact hA.preprocess ((by fun_prop : ComputableInPolyTime
-    (fun x : ℕ × P.G₀.Desc × List Bool => x.1) _ encUnary).prod (hd.prod hp))
+  exact hA.preprocess ((by fun_prop : ComputableInPolyTime (fun x : _ => x.1) _ encUnary).prod
+    (hd.prod (P.computableInPolyTime_pairEncoded.comp (hd.prod
+      ((P.G₀.computableInPolyTime_encode_generator hd).prod
+        (by fun_prop : ComputableInPolyTime (fun x : _ => x.2.2) _ encBits))))))
 
 /-- **Discrete-log hardness in `G₁` implies discrete-log hardness in `GT`** ([BonehShoup2023],
 Section 15.4, p. 625: computing discrete logarithms in `G₁` is no harder than in `GT`). -/
 theorem DiscreteLog.target_of_sourceOne {setup : ℕ → PMF P.G₀.Desc}
     (hG₁ : P.G₁.toFamily.DiscreteLog setup) : P.GT.toFamily.DiscreteLog setup := by
   intro adversary hA
-  have hred := hG₁ (P.dlTargetToOneAdversary adversary) (P.isPPT_dlTargetToOneAdversary hA)
-  refine negligible_of_le hred fun n => ?_
+  refine negligible_of_le
+    (hG₁ (P.dlTargetToOneAdversary adversary) (P.isPPT_dlTargetToOneAdversary hA)) fun n => ?_
   simp only [PrimeOrderGroupFamily.discreteLogGame, dlTargetToOneAdversary,
     PrimeOrderGroupFamily.Companion.toFamily]
   refine Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ => ?_)
   refine PMF.bind_apply_mono_on_support _ _ fun a _ => ?_
-  have h1 : P.G₀.generator d = (1 : ZMod (P.G₀.order d)) • P.G₀.generator d := (one_smul _ _).symm
-  rw [P.pairEncoded_encode, h1, P.pair_smul_generator_smul_generator, one_mul]
+  rw [P.pairEncoded_encode, ← one_smul (ZMod (P.G₀.order d)) (P.G₀.generator d),
+    P.pair_smul_generator_smul_generator, one_mul]
 
 end PairingGroupFamily
 

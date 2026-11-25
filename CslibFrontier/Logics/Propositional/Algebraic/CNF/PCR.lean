@@ -122,19 +122,13 @@ theorem Clause.eval_toPCRPoly (c : Clause V) (σ : V → Bool) :
     (c.toPCRPoly R).eval (Literal.toPolyAssignment R σ) = if c.eval σ then 0 else 1 := by
   classical
   rw [Clause.toPCRPoly, map_prod]
-  by_cases hc : c.eval σ = true
+  split_ifs with hc
   · obtain ⟨l, hl, he⟩ := (Clause.eval_eq_true_iff σ c).1 hc
-    rw [hc]
     exact Finset.prod_eq_zero (List.mem_toFinset.2 hl) (by
       simp [Literal.toPolyAssignment, (Literal.eval_eq_true_iff σ l).2 he])
-  · have hc' : c.eval σ = false := Bool.eq_false_iff.2 hc
-    rw [hc']
-    apply Finset.prod_eq_one
-    intro l hl
-    have h : Literal.eval σ l = false := by
-      apply Bool.eq_false_iff.2
-      intro h
-      exact hc ((Clause.eval_eq_true_iff σ c).2
+  · refine Finset.prod_eq_one fun l hl => ?_
+    have h : Literal.eval σ l = false := Bool.eq_false_iff.2 fun h =>
+      hc ((Clause.eval_eq_true_iff σ c).2
         ⟨l, List.mem_toFinset.1 hl, (Literal.eval_eq_true_iff σ l).1 h⟩)
     simp [Literal.toPolyAssignment, h]
 
@@ -167,20 +161,17 @@ theorem card_support_complementAxiom_le (v : V) :
   have hadd (p q : MvPolynomial (Literal V) R) :
       (p + q).support.card ≤ p.support.card + q.support.card :=
     (Finset.card_le_card support_add).trans (Finset.card_union_le _ _)
-  unfold complementAxiom
-  rw [sub_eq_add_neg]
-  have h₁ := hadd (X (v, true)) (X (v, false))
-  have h₂ := hadd (X (v, true) + X (v, false)) (-1)
-  have h₃ : (X (v, true) : MvPolynomial (Literal V) R).support.card ≤ 1 := hmono _ _
-  have h₄ : (X (v, false) : MvPolynomial (Literal V) R).support.card ≤ 1 := hmono _ _
-  have h₅ : (-1 : MvPolynomial (Literal V) R).support.card ≤ 1 := by
+  have h1 : (-1 : MvPolynomial (Literal V) R).support.card ≤ 1 := by
     simpa only [support_neg, ← one_def] using hmono 0 1
-  omega
+  rw [complementAxiom, sub_eq_add_neg]
+  exact (hadd _ _).trans <| add_le_add
+    ((hadd _ _).trans <| add_le_add (hmono (Finsupp.single (v, true) 1) 1)
+      (hmono (Finsupp.single (v, false) 1) 1)) h1
 
 /-- A complementarity equation has degree at most one. -/
 theorem totalDegree_complementAxiom_le (v : V) :
-    (complementAxiom v : MvPolynomial (Literal V) R).totalDegree ≤ 1 := by
-  exact (totalDegree_sub _ _).trans
+    (complementAxiom v : MvPolynomial (Literal V) R).totalDegree ≤ 1 :=
+  (totalDegree_sub _ _).trans
     (max_le ((totalDegree_add _ _).trans
       (max_le (totalDegree_X_le _) (totalDegree_X_le _))) (by simp))
 
@@ -212,8 +203,7 @@ theorem eval_eq_zero_of_mem_axioms [Fintype V] (σ : V → Bool)
   rcases List.mem_append.1 hp with hp | hp
   · obtain ⟨v, _, rfl⟩ := List.mem_map.1 hp
     exact eval_complementAxiom σ v
-  · obtain ⟨l, rfl⟩ := Algebraic.mem_boolAxioms.1 hp
-    obtain ⟨v, b⟩ := l
+  · obtain ⟨⟨v, b⟩, rfl⟩ := Algebraic.mem_boolAxioms.1 hp
     cases b <;> cases h : σ v <;> simp [Algebraic.boolAxiom, h]
 
 end PCR
@@ -241,18 +231,13 @@ theorem CNF.eval_eq_true_iff_forall_eval_toPCRPolys_eq_zero [Nontrivial R] (φ :
     (σ : V → Bool) :
     φ.eval σ = true ↔
       ∀ p ∈ φ.toPCRPolys R, MvPolynomial.eval (Literal.toPolyAssignment R σ) p = 0 := by
-  constructor
-  · intro hφ p hp
-    rcases List.mem_append.1 hp with hp | hp
-    · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hp
-      exact (Clause.eval_eq_true_iff_eval_toPCRPoly_eq_zero c σ).1
-        ((CNF.eval_eq_true_iff σ φ).1 hφ c hc)
-    · exact PCR.eval_eq_zero_of_mem_axioms σ hp
-  · intro h
-    apply (CNF.eval_eq_true_iff σ φ).2
-    intro c hc
-    exact (Clause.eval_eq_true_iff_eval_toPCRPoly_eq_zero c σ).2
-      (h _ (CNF.toPCRPoly_mem_toPCRPolys hc))
+  refine ⟨fun hφ p hp => ?_, fun h => (CNF.eval_eq_true_iff σ φ).2 fun c hc =>
+    (Clause.eval_eq_true_iff_eval_toPCRPoly_eq_zero c σ).2 (h _ (CNF.toPCRPoly_mem_toPCRPolys hc))⟩
+  rcases List.mem_append.1 hp with hp | hp
+  · obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hp
+    exact (Clause.eval_eq_true_iff_eval_toPCRPoly_eq_zero c σ).1
+      ((CNF.eval_eq_true_iff σ φ).1 hφ c hc)
+  · exact PCR.eval_eq_zero_of_mem_axioms σ hp
 
 /-- A PCR refutation of the complete squarefree encoding rules out every satisfying assignment.
 This soundness statement needs only a nontrivial commutative coefficient ring. -/
@@ -277,39 +262,29 @@ theorem PCR.exists_toPolyAssignment_eq_of_eval_axioms_eq_zero (z : Literal V →
     ∃ σ : V → Bool, Literal.toPolyAssignment K σ = z := by
   classical
   let σ : V → Bool := fun v => decide (z (v, true) = 1)
-  have hbool (v : V) : z (v, true) = 0 ∨ z (v, true) = 1 := by
-    have hb := hz _ (PCR.boolAxiom_mem_axioms (v, true))
-    have hh : z (v, true) * (z (v, true) - 1) = 0 := by
-      simpa [Algebraic.boolAxiom, pow_two, mul_sub] using hb
-    rcases mul_eq_zero.1 hh with h | h
-    · exact Or.inl h
-    · exact Or.inr (sub_eq_zero.1 h)
   have hpos (v : V) : Literal.toPolyAssignment K σ (v, true) = z (v, true) := by
-    rcases hbool v with h | h <;> simp [Literal.toPolyAssignment_pos, σ, h]
-  refine ⟨σ, funext ?_⟩
-  rintro ⟨v, b⟩
+    have hh : z (v, true) * (z (v, true) - 1) = 0 := by
+      simpa [Algebraic.boolAxiom, pow_two, mul_sub] using hz _ (PCR.boolAxiom_mem_axioms (v, true))
+    rcases mul_eq_zero.1 hh with h | h
+    · simp [Literal.toPolyAssignment_pos, σ, h]
+    · simp [Literal.toPolyAssignment_pos, σ, sub_eq_zero.1 h]
+  refine ⟨σ, funext fun ⟨v, b⟩ => ?_⟩
   cases b
-  · have hc : z (v, true) + z (v, false) = 1 := by
-      exact sub_eq_zero.1 (by simpa [PCR.complementAxiom] using
-        (hz _ (PCR.complementAxiom_mem_axioms v)))
-    have hn : z (v, false) = 1 - z (v, true) :=
-      eq_sub_iff_add_eq.2 (by simpa [add_comm] using hc)
-    rw [Literal.toPolyAssignment_neg_eq_one_sub, hn, ← hpos]
-    simp
+  · have hc : z (v, true) + z (v, false) - 1 = 0 := by
+      simpa [PCR.complementAxiom] using hz _ (PCR.complementAxiom_mem_axioms v)
+    rw [Literal.toPolyAssignment_neg_eq_one_sub, ← Literal.toPolyAssignment_pos, hpos]
+    exact (eq_sub_iff_add_eq'.2 (sub_eq_zero.1 hc)).symm
   · exact hpos v
 
 /-- Over a field, the complete squarefree PCR system has a common zero exactly when the CNF is
 satisfiable. -/
 theorem CNF.exists_commonZero_toPCRPolys_iff (φ : CNF V) :
-    (∃ z : Literal V → K, ∀ p ∈ φ.toPCRPolys K, MvPolynomial.eval z p = 0) ↔ φ.Satisfiable := by
-  constructor
-  · rintro ⟨z, hz⟩
+    (∃ z : Literal V → K, ∀ p ∈ φ.toPCRPolys K, MvPolynomial.eval z p = 0) ↔ φ.Satisfiable :=
+  ⟨fun ⟨z, hz⟩ => by
     obtain ⟨σ, rfl⟩ := PCR.exists_toPolyAssignment_eq_of_eval_axioms_eq_zero z
-      (fun p hp => hz p (φ.axioms_subset_toPCRPolys hp))
-    exact ⟨σ, (CNF.eval_eq_true_iff_forall_eval_toPCRPolys_eq_zero φ σ).2 hz⟩
-  · rintro ⟨σ, hσ⟩
-    exact ⟨Literal.toPolyAssignment K σ,
-      (CNF.eval_eq_true_iff_forall_eval_toPCRPolys_eq_zero φ σ).1 hσ⟩
+      fun p hp => hz p (φ.axioms_subset_toPCRPolys hp)
+    exact ⟨σ, (CNF.eval_eq_true_iff_forall_eval_toPCRPolys_eq_zero φ σ).2 hz⟩,
+   fun ⟨σ, hσ⟩ => ⟨_, (CNF.eval_eq_true_iff_forall_eval_toPCRPolys_eq_zero φ σ).1 hσ⟩⟩
 
 end Field
 

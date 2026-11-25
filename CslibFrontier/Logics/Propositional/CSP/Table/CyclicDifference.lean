@@ -55,8 +55,7 @@ for each symbol of a fixed finite language, independently of raw instance scope 
 theorem wellFormed_differenceTable (arity : Rel → ℕ)
     (sem : Rel → List Bool → Bool) (r : Rel) :
     (differenceTable arity sem r).wellFormed = true := by
-  apply wellFormed_eq_true.mpr
-  intro row hrow
+  refine wellFormed_eq_true.mpr fun row hrow => ?_
   obtain ⟨x, _, rfl⟩ := List.mem_map.mp hrow
   exact List.length_ofFn
 
@@ -65,18 +64,12 @@ theorem booleanRelation_differenceTable (arity : Rel → ℕ)
     (sem : Rel → List Bool → Bool) (r : Rel) :
     booleanRelation Table.arity Table.sem (differenceTable arity sem r) =
       cyclicDifferenceRelation (booleanRelation arity sem r) := by
-  ext x
+  ext (x : Fin (arity r) → Bool)
   change (differenceTable arity sem r).sem (List.ofFn x) = true ↔ _
   rw [sem_eq_true]
   simp only [wellFormed_differenceTable, true_and]
   change List.ofFn x ∈ ((enum (arity r)).filter _).map _ ↔ _
-  simp only [List.mem_map,
-    List.mem_filter, mem_enum, true_and]
-  constructor
-  · rintro ⟨y, hy, he⟩
-    exact ⟨y, hy, List.ofFn_injective he⟩
-  · rintro ⟨y, hy, he⟩
-    exact ⟨y, hy, congrArg List.ofFn he⟩
+  simp only [List.mem_map, List.mem_filter, mem_enum, true_and, List.ofFn_inj]; rfl
 
 /-- Accepted rows are exactly the ordered differences of accepted source tuples. -/
 theorem sem_differenceTable (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
@@ -131,15 +124,11 @@ theorem length_rows_differenceTable_le (arity : Rel → ℕ)
 /-- The unary singleton table pins its sole coordinate. -/
 theorem booleanRelation_pinTable (b : Bool) :
     booleanRelation arity sem (pinTable b) = {fun _ : Fin 1 => b} := by
-  ext x
-  change Fin 1 → Bool at x
-  change (pinTable b).sem (List.ofFn x) = true ↔ x = (fun _ : Fin 1 => b)
-  have hw : (pinTable b).wellFormed = true := by simp [pinTable]
-  rw [sem_eq_true, hw]
-  change (true = true ∧ List.ofFn x ∈ [[b]]) ↔ _
-  simp only [true_and, List.mem_singleton]
-  rw [← show List.ofFn (fun _ : Fin 1 => b) = [b] by simp]
-  exact List.ofFn_inj
+  ext (x : Fin 1 → Bool)
+  change (pinTable b).sem (List.ofFn x) = true ↔ x = fun _ : Fin 1 => b
+  rw [sem_eq_true, show (pinTable b).wellFormed = true by simp [pinTable]]
+  simpa only [pinTable, true_and, List.mem_singleton,
+    ← show List.ofFn (fun _ : Fin 1 => b) = [b] by simp] using List.ofFn_inj
 
 /-- Singleton unary relations are even delta-matroids, including the odd pin. -/
 theorem isEvenDeltaMatroid_pinTable (b : Bool) :

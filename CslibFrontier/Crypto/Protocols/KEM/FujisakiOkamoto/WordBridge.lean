@@ -691,11 +691,7 @@ private theorem simFilterWordHandler_G
         simHashG (CT := List Bool) (K := List Bool) (BitString.sampleList (P.coinLen n)) w
       else pure [] := by
   funext st
-  by_cases h : w.length = P.msgLen n
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
-  · simp only [simFilterWordHandler, h, ↓reduceIte]
-    rfl
+  by_cases h : w.length = P.msgLen n <;> simp only [simFilterWordHandler, h, ↓reduceIte] <;> rfl
 
 private theorem simFilterWordHandler_H
     (d : ℕ → List Bool → List (List Bool × List Bool) → List Bool → Bool) (n : ℕ)
@@ -984,22 +980,11 @@ private theorem exists_savedCoins (hP : P.IsEfficient)
 /-- Each typed query makes at most one call. -/
 private theorem isQueryBounded_typedQuery (n : ℕ) (op : CCAOp) (w : List Bool) :
     OracleComp.IsQueryBounded (P.typedQuery keyLen n op w) 1 := by
-  cases op with
-  | G =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | H =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
-  | decaps =>
-    simp only [typedQuery]
-    split
-    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
-    · exact .pure _ _
+  cases op <;> simp only [typedQuery] <;> split
+  all_goals
+    first
+    | exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+    | exact .pure _ _
 
 /-- **Query bounds of the saved-coin view.** Every coin value and challenge makes at most
 `savedCoinBudget c d keyC keyD n` queries to `G`, as many to `H` and as many to decapsulation. -/
@@ -1101,10 +1086,8 @@ private theorem mem_support_finiteKeyGenNotBot {n : ℕ} {pk : List Bool}
     dk.pk = pk ∧ (pk, dk.sk) ∈ (ProbComp.eval (P.keyGen n)).support := by
   simp only [Scheme.keyGenNotBot, finiteScheme, finitePKE, ProbComp.eval_bind,
     ProbComp.eval_pure, PMF.support_bind, PMF.support_pure, Set.mem_iUnion,
-    Set.mem_singleton_iff, exists_prop] at h
-  obtain ⟨⟨pk', sk'⟩, hkeys, s, -, heq⟩ := h
-  simp only [Prod.mk.injEq] at heq
-  obtain ⟨rfl, rfl⟩ := heq
+    Set.mem_singleton_iff, exists_prop, Prod.mk.injEq] at h
+  obtain ⟨⟨_, _⟩, hkeys, _, -, rfl, rfl⟩ := h
   exact ⟨rfl, hkeys⟩
 
 /-- **A word experiment is the typed experiment** of the saved-coin view, at a parameter where

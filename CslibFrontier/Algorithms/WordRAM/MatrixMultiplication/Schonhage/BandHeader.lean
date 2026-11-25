@@ -35,14 +35,12 @@ theorem exec_powerCode {w : ℕ} (v b n : Fin 96)
     ∃ y, ExecWithin w (powerCode v b n) x y (4 * M + 5) ∧
       y.regs v = B ^ M ∧ y.regs one = 1 ∧ y.mem = x.mem ∧
       (∀ i, i ≠ v → i ≠ counter → i ≠ one → y.regs i = x.regs i) := by
-  obtain ⟨y, he, hv, _, ho, hm, _, _, -⟩ :=
+  obtain ⟨y, he, hv, _, ho, hm, -⟩ :=
     Power.exec_rename (powerRegisters v b n) hinj B M hB x hb hn hfit
-  refine ⟨y, he, hv, ho, hm, ?_⟩
-  intro i hv hc ho
-  apply he.regs_eq
+  refine ⟨y, he, hv, ho, hm, fun i hv' hc ho' => he.regs_eq ?_⟩
   simp [Power.program, Power.body, Code.rename, Code.Preserves, Op.rename, Op.dest, Op.bin,
     powerRegisters, Power.value, Power.counter, Power.base, Power.exponent, Power.one,
-    Ne.symm hv, Ne.symm hc, Ne.symm ho]
+    Ne.symm hv', Ne.symm hc, Ne.symm ho']
 
 /-- Scalar parameters loaded from the three actual input headers and small constants. -/
 structure BasicParameters (L m N : ℕ) (x : Data 96) : Prop where
@@ -138,12 +136,10 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   have h256 : Fits w 256 := hfit.of_le (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
   have h7 : 7 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
   have h2 : 2 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
-  have hlocal : Fits w (4 * (N * D m) + 8 * 10 ^ L + 16) := by
-    apply hfit.of_le
+  have hlocal : Fits w (4 * (N * D m) + 8 * 10 ^ L + 16) := hfit.of_le (by
     unfold wordBudget
     nlinarith only [Nat.zero_le L, Nat.zero_le N, Nat.zero_le (N * D m),
-      Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L),
-      Nat.zero_le (2 * numBands L m N * 10 ^ L)]
+      Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L), Nat.zero_le (2 * numBands L m N * 10 ^ L)])
   unfold header headerLoads headerLayout
   wram_exec [hL, hmemory, hN]
   wram_call (exec_headerPowers hm _ (by constructor <;> wram_simp) hfit)

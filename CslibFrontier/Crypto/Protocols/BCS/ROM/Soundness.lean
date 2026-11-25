@@ -80,11 +80,9 @@ theorem isCostBounded_bcsFSCost_bcsSoundnessProg (iop : PublicCoinIOP r d Stmt W
     {P : OracleComp (BCSROMSpec Stmt Chal) (Stmt × BCSProof r Sym)} {t_FS : ℕ}
     (hFS : IsCostBounded bcsFSCost P t_FS) :
     IsCostBounded bcsFSCost (bcsSoundnessProg iop encSym lang P) (t_FS + r) := by
-  unfold bcsSoundnessProg
   open Classical in
   exact hFS.bind fun (x, prf) =>
-    (isCostBounded_bcsFSCost_bcsVerifyROM iop encSym x prf).bind fun ok =>
-      IsCostBounded.pure (decide (x ∉ lang) && ok) 0
+    (isCostBounded_bcsFSCost_bcsVerifyROM iop encSym x prf).bind fun ok => .pure _ 0
 
 /-- If `P` makes at most `t_MT` Merkle hash queries and `bcsVerifyROM iop encSym x prf` makes at
 most `q_V` Merkle hash queries for every `(x, prf) ∈ P.support`, then `bcsSoundnessProg` makes at
@@ -96,11 +94,8 @@ theorem isCostBounded_bcsMTCost_bcsSoundnessProg (iop : PublicCoinIOP r d Stmt W
     (hV : ∀ x prf, (x, prf) ∈ P.support →
       IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf) q_V) :
     IsCostBounded bcsMTCost (bcsSoundnessProg iop encSym lang P) (t_MT + q_V) := by
-  unfold bcsSoundnessProg
   open Classical in
-  exact hMT.bind_on_support fun (x, prf) hmem =>
-    (hV x prf hmem).bind fun ok =>
-      IsCostBounded.pure (decide (x ∉ lang) && ok) 0
+  exact hMT.bind_on_support fun (x, prf) hmem => (hV x prf hmem).bind fun ok => .pure _ 0
 
 /-- The BCS ROM soundness experiment with `σ`-bit Merkle digests: runs `bcsSoundnessProg` against
 the shared lazy random oracle `RandomOracle.answer (bcsOracleDist Stmt Chal σ)` from an empty cache.
@@ -178,16 +173,12 @@ theorem bcsROMSoundness_bound [DecidableEq Stmt] [DecidableEq Chal] [Fintype Cha
         (Q_MT : ℝ≥0∞) *
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   rw [bcsSoundnessGame_eq_run_bcsMemoize, ← PMF.toOuterMeasure_apply_singleton,
-    PMF.toOuterMeasure_map_apply]
-  set run := (OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run ([], [])
-  rw [← PMF.toOuterMeasure_apply_inter_support]
-  refine (run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_).trans
-    (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := langᶜ)
-      hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
-      (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS))
-  simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
-  subst hres
-  exact not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P hmem
+    PMF.toOuterMeasure_map_apply, ← PMF.toOuterMeasure_apply_inter_support]
+  exact (PMF.toOuterMeasure _ |>.mono fun ⟨_, st'⟩ ⟨(hres : _ = true), hmem⟩ =>
+    not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P (hres ▸ hmem)).trans
+      (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := langᶜ)
+        hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
+        (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS))
 
 /-- **Adaptive two-channel BCS ROM soundness (separate prover/verifier Merkle budgets on
 `P.support`)**: if `P` makes at most `t_MT` Merkle hash queries and `t_FS` Fiat–Shamir queries, and

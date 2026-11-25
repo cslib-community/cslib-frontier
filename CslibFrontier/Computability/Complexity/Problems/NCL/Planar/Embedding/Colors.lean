@@ -59,18 +59,9 @@ theorem port_weight_color {m : ℕ} {vs : List (Vertex (Fin m))}
   split_ifs with hb
   · obtain ⟨q, hq, heq⟩ := List.any_eq_true.mp hb
     simp only [Bool.and_eq_true, beq_iff_eq] at heq
-    have hq' : q ∈ ConstraintGraph.portMultiset (fun i : Fin vs.length => vs.get i) := by
-      rw [ConstraintGraph.portMultiset_get]
-      exact hq
-    exact (hW.weight_eq_of_mem (port_mem hv hp) hq' heq.1.symm).trans heq.2
-  · have hw := port_weight_one_or_two (hA v hv) hp
-    rcases hw with hw | hw
-    · exact hw
-    · have hh : (vs.flatMap Vertex.ports).any
-          (fun q => q.port.edge == p.port.edge && q.weight == 2) = true := by
-        apply List.any_eq_true.mpr
-        refine ⟨p, List.mem_flatMap.mpr ⟨v, hv, hp⟩, ?_⟩
-        simp [hw]
-      exact (hb hh).elim
+    exact (hW.weight_eq_of_mem (port_mem hv hp) ((ConstraintGraph.portMultiset_get _).symm ▸ hq)
+      heq.1.symm).trans heq.2
+  · refine (port_weight_one_or_two (hA v hv) hp).resolve_right fun hw => hb ?_
+    exact List.any_eq_true.mpr ⟨p, List.mem_flatMap.mpr ⟨v, hv, hp⟩, by simp [hw]⟩
 
 end Cslib.Complexity.NCL.Planar.Embedding

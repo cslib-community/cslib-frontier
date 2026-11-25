@@ -76,18 +76,11 @@ theorem getElem_encodeAdjMatrix {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRe
   have hu : u.1 * n + v.1 = v.1 + n * u.1 := by ring
   have hn_pos : 0 < n := Nat.zero_lt_of_lt u.2
   have hdiv : (u.1 * n + v.1) / n = u.1 := by
-    rw [hu, Nat.add_mul_div_left _ _ hn_pos]
-    simp [Nat.div_eq_of_lt v.2]
+    simp [hu, Nat.add_mul_div_left _ _ hn_pos, Nat.div_eq_of_lt v.2]
   have hmod : (u.1 * n + v.1) % n = v.1 := by
     rw [hu, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt v.2]
-  have h1 : G.Adj ⟨(u.1 * n + v.1) / n,
-      Nat.div_lt_of_lt_mul (by nlinarith [u.2, v.2] : u.1 * n + v.1 < n * n)⟩
-      ⟨(u.1 * n + v.1) % n, Nat.mod_lt _ hn_pos⟩ ↔ G.Adj u v := by
-    refine Iff.of_eq ?_
-    congr 1
-    · exact Fin.ext hdiv
-    · exact Fin.ext hmod
-  simp only [h1]
+  congr 1
+  exact propext (Iff.of_eq (congrArg₂ G.Adj (Fin.ext hdiv) (Fin.ext hmod)))
 
 /-- Number of vertices `n + n + 2` in the vertex-split network of an `n`-vertex graph. -/
 abbrev splitCount (n : ℕ) : ℕ := n + n + 2

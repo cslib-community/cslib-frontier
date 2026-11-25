@@ -144,14 +144,11 @@ theorem isPrefixFree_image_append {γ ι : Type*} {D : Set γ}
     (h₁ : IsPrefixFree (enc₁ '' D))
     (h₂ : ∀ x ∈ D, IsPrefixFree (enc₂ '' {y ∈ D | enc₁ y = enc₁ x})) :
     IsPrefixFree ((fun x => enc₁ x ++ enc₂ x) '' D) := by
-  have hbind : IsPrefixFree
-      {w | ∃ u ∈ enc₁ '' D, ∃ v ∈ enc₂ '' {y ∈ D | enc₁ y = u}, w = u ++ v} := by
-    refine h₁.bind_append ?_
-    rintro _ ⟨x, hx, rfl⟩
+  refine (h₁.bind_append (T := fun u => enc₂ '' {y ∈ D | enc₁ y = u}) ?_).anti ?_
+  · rintro _ ⟨x, hx, rfl⟩
     exact h₂ x hx
-  refine hbind.anti ?_
-  rintro _ ⟨x, hx, rfl⟩
-  exact ⟨enc₁ x, ⟨x, hx, rfl⟩, enc₂ x, ⟨x, ⟨hx, rfl⟩, rfl⟩, rfl⟩
+  · rintro _ ⟨x, hx, rfl⟩
+    exact ⟨enc₁ x, ⟨x, hx, rfl⟩, enc₂ x, ⟨x, ⟨hx, rfl⟩, rfl⟩, rfl⟩
 
 /-- Sequential encoding `x ↦ enc₁ x ++ enc₂ x` is injective on `D` whenever `enc₁ '' D` is
 prefix-free and the pair `(enc₁, enc₂)` is injective on `D`. -/
@@ -201,11 +198,9 @@ theorem isPrefixFree_prod_append {α β ι : Type*} {D : Set (α × β)}
 /-- Any set of words of a common fixed length `k` is prefix-free. -/
 theorem isPrefixFree_of_length_eq {ι : Type*} {S : Set (List ι)} {k : ℕ}
     (hlen : ∀ w ∈ S, w.length = k) : IsPrefixFree S := by
-  intro u hu v hv ⟨r, hr⟩
-  have hlen_eq : (u ++ r).length = u.length := by rw [hr, hlen v hv, hlen u hu]
-  rw [List.length_append] at hlen_eq
-  have hr_nil : r = [] := List.eq_nil_of_length_eq_zero (by omega)
-  rw [← hr, hr_nil, List.append_nil]
+  intro u hu v hv hp
+  exact (prefix_append_of_length_eq (v₁ := []) (v₂ := [])
+    ((hlen u hu).trans (hlen v hv).symm) (by simpa using hp)).1
 
 /-! ### Fixed-width binary index code (`finIdxBits`) -/
 
@@ -276,11 +271,9 @@ theorem decodeEliasGamma_eliasGamma {m : ℕ} (hm : 1 ≤ m) :
   have hhalf : (eliasGamma m).length / 2 + 1 = k + 1 := by
     rw [length_eliasGamma]
     omega
-  have hsplit : eliasGamma m =
-      (List.replicate k false ++ [true]) ++ lowBits k m := by
-    simp [eliasGamma, k]
   have hdrop : (eliasGamma m).drop ((eliasGamma m).length / 2 + 1) = lowBits k m := by
-    rw [hhalf, hsplit, List.drop_left' (by simp)]
+    rw [hhalf, eliasGamma, List.drop_append]
+    simp [k]
   have hge : 2 ^ k ≤ m := Nat.pow_log_le_self 2 (by omega)
   have hlt : m < 2 ^ (k + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two m
   have hdiv : m / 2 ^ k = 1 := by
@@ -324,21 +317,11 @@ theorem isPrefixFree_range_eliasGamma : IsPrefixFree (Set.range eliasGamma) := b
         (eliasGamma m₁)[i]'hi₁ := List.getElem_append_left hi₁
     simpa only [hr] using happ.symm
   rcases lt_trichotomy (Nat.log 2 m₁) (Nat.log 2 m₂) with hlt | heq | hgt
-  · have h₁ := getElem_eliasGamma_self m₁
-    have h₂ := getElem_eliasGamma_lt m₂ hlt
-    have h_eq := hget (Nat.log 2 m₁) (by rw [length_eliasGamma]; omega)
-    rw [h₁, h₂] at h_eq
-    cases h_eq
-  · have hlen : (eliasGamma m₁ ++ r).length = (eliasGamma m₁).length := by
-      rw [hr, length_eliasGamma, length_eliasGamma, heq]
-    rw [List.length_append] at hlen
-    have hr_nil : r = [] := List.eq_nil_of_length_eq_zero (by omega)
-    rw [← hr, hr_nil, List.append_nil]
-  · have h₁ := getElem_eliasGamma_lt m₁ hgt
-    have h₂ := getElem_eliasGamma_self m₂
-    have h_eq := hget (Nat.log 2 m₂) (by rw [length_eliasGamma]; omega)
-    rw [h₁, h₂] at h_eq
-    cases h_eq
+  · have h_eq := hget (Nat.log 2 m₁) (by rw [length_eliasGamma]; omega)
+    simp [getElem_eliasGamma_self, getElem_eliasGamma_lt m₂ hlt] at h_eq
+  · exact (List.append_inj (hr.trans (List.append_nil _).symm) (by simp [heq])).1
+  · have h_eq := hget (Nat.log 2 m₂) (by rw [length_eliasGamma]; omega)
+    simp [getElem_eliasGamma_lt m₁ hgt, getElem_eliasGamma_self] at h_eq
 
 /-- `eliasGamma '' {m : ℕ | 1 ≤ m}` is prefix-free. -/
 theorem isPrefixFree_eliasGamma : IsPrefixFree (eliasGamma '' {m : ℕ | 1 ≤ m}) :=

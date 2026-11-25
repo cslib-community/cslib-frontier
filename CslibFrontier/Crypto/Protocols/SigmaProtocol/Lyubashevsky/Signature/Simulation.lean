@@ -219,9 +219,8 @@ private theorem outerMeasure_entry_le_lookup_isSome {M α : Type} [DecidableEq M
         List (Σ _ : M × (Fin n → ZMod q), BitString k) =>
         ((trace.2.2.map
           (fun entry : Σ _ : M × (Fin n → ZMod q), BitString k => (entry.1, entry.2))).lookup
-            target).isSome) ⁻¹' {true} := by
-    intro out hout
-    exact (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
+            target).isSome) ⁻¹' {true} :=
+    fun out hout => (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
   exact μ.toOuterMeasure.mono hsub
 
@@ -403,15 +402,10 @@ public theorem lyubashevskySignVisibleProg_eq_sim_of_pure {Ω M α : Type} [Deci
       Option ((Fin n → ZMod q) × (Fin m → ℤ)) → α) :
     lyubashevskySignVisibleProg n m k q γ β H S T msg cache (fun A h sig => pure (f A h sig)) =
       lyubashevskySignVisibleSim n m k q γ β H T msg cache (fun A h sig => pure (f A h sig)) := by
-  rw [lyubashevskySignVisibleProg_eq_pure, lyubashevskySignVisibleSim_eq_pure]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  congr 1 with A : 1
-  refine PMF.bind_congr_on_support (H A) _ _ fun h hh => ?_
-  pmf_swap with c
-  have heq := (lyubashevsky_nonAbortSpecialHVZK (n := n) (m := m) (k := k) (q := q)
-    (γ := γ) (β := β) hβ hη).acceptedTranscript_eq (S h) (A, T A h) (hvalid A h hh) c
-  rw [heq]
-  simp only [acceptedTranscript, transcript, PMF.bind_map, Function.comp_def]
+  have h := hybrid_eq_simulate (n := n) (m := m) (k := k) (q := q) (η := η) (γ := γ) (β := β)
+    hβ hη H S T hvalid msg cache (fun A h sig => pure (f A h sig))
+  simpa only [lyubashevskySignVisibleProg_eq_pure, lyubashevskySignVisibleSim_eq_pure,
+    interp_norm, pmf_norm] using h
 
 /-- One-attempt signing simulation through a visible oracle continuation:
 the visible output of the one-attempt programmed signing hybrid
@@ -473,10 +467,7 @@ public theorem closeTo_lyubashevskySign_simulate {Ω M α : Type} [DecidableEq M
     cases hsig : (lyubashevsky n m k q γ β).respond (S a.2.1) (a.1, T a.1 a.2.1)
       a.2.2.1.2 a.2.2.2 with
     | some z =>
-      have heq : f a = g a := by
-        dsimp only [f, g]
-        simp only [hsig, Option.map_some, lyubashevskySimCache_some]
-      rw [heq]
+      simp only [f, g, hsig, Option.map_some, lyubashevskySimCache_some]
       exact (CloseTo.refl _).mono zero_le
     | none =>
       dsimp only [f, g]
@@ -639,8 +630,8 @@ theorem lyubashevskySignAttemptsVisibleProg_one_eq {Ω M α : Type} [DecidableEq
   congr 1 with A : 1
   congr 1 with h : 1
   rw [show (1 : ℕ) = 0 + 1 from rfl, fiatShamirAbortSign_run_succ]
-  simp only [pmf_norm, iid, fiatShamirAbortSign, interpret_pure, StateT.run_pure, PMF.map]
-  simp only [interp_norm, pmf_norm, PMF.map]
+  simp only [interp_norm, pmf_norm, iid, fiatShamirAbortSign, interpret_pure, StateT.run_pure,
+    PMF.map]
   simp only [StateT.run, PMF.bind_bind, PMF.pure_bind]
   congr 1 with coin : 1
   congr 1 with c : 1
@@ -687,21 +678,16 @@ public theorem closeTo_lyubashevskySignAttempts_simulate_le_one {Ω M α : Type}
       (lyubashevskySignAttemptsVisibleSim n m k q γ β K H T msg cache cont)
       (∑ j ∈ Finset.range K, ((R + K - 1 - j : ℝ≥0∞) / (q : ℝ≥0∞) ^ n +
         ENNReal.ofReal (Real.sqrt ((q : ℝ) ^ n / ((2 * γ + 1 : ℕ) : ℝ) ^ m) / 2))) := by
-  cases K with
-  | zero =>
-    simp only [Finset.range_zero, Finset.sum_empty]
+  rcases K with _ | _ | K
+  · simp only [Finset.range_zero, Finset.sum_empty]
     rw [lyubashevskySignAttemptsVisibleProg_zero_eq_sim]
     exact CloseTo.refl _
-  | succ K =>
-    cases K with
-    | zero =>
-      rw [show (0 + 1 : ℕ) = 1 from rfl]
-      simp only [Finset.sum_range_one, Nat.cast_zero, Nat.cast_one, tsub_zero]
-      rw [ENNReal.add_sub_cancel_right (by norm_num)]
-      exact closeTo_lyubashevskySignAttempts_simulate_one n m k q η γ β R hγ hβ hη
-        H S T hvalid msg cache cont hcont
-    | succ K =>
-      omega
+  · rw [show (0 + 1 : ℕ) = 1 from rfl]
+    simp only [Finset.sum_range_one, Nat.cast_zero, Nat.cast_one, tsub_zero]
+    rw [ENNReal.add_sub_cancel_right (by norm_num)]
+    exact closeTo_lyubashevskySignAttempts_simulate_one n m k q η γ β R hγ hβ hη
+      H S T hvalid msg cache cont hcont
+  · omega
 
 /-- When the continuation makes zero oracle queries, the `K = 1` programmed signing hybrid and
 simulated signing experiment agree in distribution. -/
@@ -738,15 +724,10 @@ public theorem lyubashevskySignAttemptsVisibleProg_eq_sim_of_pure_le_one
         (fun A h sig => pure (f A h sig)) =
       lyubashevskySignAttemptsVisibleSim n m k q γ β K H T msg cache
         (fun A h sig => pure (f A h sig)) := by
-  cases K with
-  | zero =>
-    exact lyubashevskySignAttemptsVisibleProg_zero_eq_sim n m k q γ β H S T msg cache _
-  | succ K =>
-    cases K with
-    | zero =>
-      exact lyubashevskySignAttemptsVisibleProg_eq_sim_of_pure_one n m k q η γ β hβ hη H S T
-        hvalid msg cache f
-    | succ K =>
-      omega
+  rcases K with _ | _ | K
+  · exact lyubashevskySignAttemptsVisibleProg_zero_eq_sim n m k q γ β H S T msg cache _
+  · exact lyubashevskySignAttemptsVisibleProg_eq_sim_of_pure_one n m k q η γ β hβ hη H S T
+      hvalid msg cache f
+  · omega
 
 end Cslib.Crypto.Protocols.SigmaProtocol

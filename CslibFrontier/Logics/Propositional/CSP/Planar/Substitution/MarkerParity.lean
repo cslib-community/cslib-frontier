@@ -55,25 +55,19 @@ theorem sum_copiedFreeLabels_eq_false
   let bit := fun j => (List.ofFn x).getD
     (occurrencePrefix (fun r => (gadgets r).template) F i.val + j) false
   have htotal : ((List.range g.body.occurrences.length).map bit).sum = false := by
-    have hs := sum_edgeLabels_eq_false_of_constraintParity (copiedEdgeLabels gadgets B F i x)
-      (vertexParity_copiedEdgeLabels_constraint gadgets B F i x hx)
-    have he : (List.range g.body.occurrences.length).map bit =
-        List.ofFn (copiedEdgeLabels gadgets B F i x) := by
-      rw [List.map_range_eq_ofFn]
-      simp only [copiedEdgeLabels, incidenceGraph_edges, List.length_map, Fin.val_cast, g, bit]
-    rw [he]
-    exact hs
+    simpa only [List.map_range_eq_ofFn, copiedEdgeLabels, incidenceGraph_edges, List.length_map,
+      Fin.val_cast, g, bit] using sum_edgeLabels_eq_false_of_constraintParity
+        (copiedEdgeLabels gadgets B F i x)
+        (vertexParity_copiedEdgeLabels_constraint gadgets B F i x hx)
   have haux : ((auxiliaryBoundaryBlocks g w).flatten.map bit).sum = false := by
     have hz (block : List ℕ) (hb : block ∈ auxiliaryBoundaryBlocks g w) :
         (block.map bit).sum = false := by
       obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hb
       let a : Fin g.numAux := ⟨j, by simpa only [length_auxiliaryBoundaryBlocks] using hj⟩
-      have hs := sum_auxiliaryBlock_eq_false gadgets witnesses B hB F i a x hx
-      simpa only [shiftBlock, List.map_map, Function.comp_def,
-        List.getD_eq_getElem _ _ hj, a, g, w, bit] using hs
+      simpa only [shiftBlock, List.map_map, Function.comp_def, List.getD_eq_getElem _ _ hj,
+        a, g, w, bit] using sum_auxiliaryBlock_eq_false gadgets witnesses B hB F i a x hx
     rw [List.map_flatten, List.sum_flatten, List.map_map]
-    have he := congrArg List.sum (List.map_congr_left hz)
-    exact he.trans (by simp [← Bool.zero_eq_false])
+    exact (congrArg List.sum (List.map_congr_left hz)).trans (by simp [← Bool.zero_eq_false])
   have hp := ((flatten_boundaryBlocks_perm_range g w).map bit).sum_eq
   rw [List.flatten_append, List.map_append, List.sum_append, haux, htotal] at hp
   have hfree : ((freeBoundaryBlocks g w).flatten.map bit).sum = false := by

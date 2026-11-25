@@ -59,26 +59,21 @@ private theorem endpoint_polyTime :
 private theorem dartOrigin_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
       drawingPosition p.1.1 p.1.2 (endpoint p.1.1 p.2)) encDrawingDart encPoint := by
-  have hx : ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
-      (p.1.1, p.2)) encDrawingDart (encPair encGraph encUnary) :=
-    ((ComputableInPolyTime.fst encGraph encOrthogonalDrawing).comp
-      (ComputableInPolyTime.fst encDrawingInput encUnary)).prod
-      (ComputableInPolyTime.snd encDrawingInput encUnary)
-  have he : ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
-      endpoint p.1.1 p.2) encDrawingDart encNat := by
-    simpa only [Function.comp_def] using endpoint_polyTime.comp hx
-  have hp : ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
-      (p.1, endpoint p.1.1 p.2)) encDrawingDart (encPair encDrawingInput encNat) :=
-    ((ComputableInPolyTime.fst encDrawingInput encUnary).prod he)
-  simpa only [Function.comp_def] using computableInPolyTime_drawingPosition.comp hp
+  simpa only [Function.comp_def] using computableInPolyTime_drawingPosition.comp
+    ((ComputableInPolyTime.fst encDrawingInput encUnary).prod
+      (endpoint_polyTime.comp
+        (((ComputableInPolyTime.fst encGraph encOrthogonalDrawing).comp
+          (ComputableInPolyTime.fst encDrawingInput encUnary)).prod
+            (ComputableInPolyTime.snd encDrawingInput encUnary))))
 
 private theorem route_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
       (sourceRoute p.1.1 p.1.2 (p.2 / 2)).reverse) encDrawingDart encRoute := by
   apply ComputableInPolyTime.listReverseWithInput
-  exact computableInPolyTime_sourceRoute.comp
-    (g := fun p : (Graph × OrthogonalDrawing) × ℕ => (p.1, p.2 / 2))
-    (by unfold encDrawingDart encDrawingInput encSourceIndex; fun_prop)
+  refine computableInPolyTime_sourceRoute.comp
+    (g := fun p : (Graph × OrthogonalDrawing) × ℕ => (p.1, p.2 / 2)) ?_
+  unfold encDrawingDart encDrawingInput encSourceIndex
+  fun_prop
 
 private theorem exitNeighbor_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
@@ -88,20 +83,20 @@ private theorem exitNeighbor_polyTime :
   apply ComputableInPolyTime.ite_decide
   · unfold encDrawingDart
     fun_prop
-  · exact ComputableInPolyTime.listGetDWithInput hr (ComputableInPolyTime.const 1) (0, 0)
+  · exact ComputableInPolyTime.listGetDWithInput hr (.const 1) (0, 0)
   · exact ComputableInPolyTime.listGetDWithInput hr (by fun_prop) (0, 0)
 
 private theorem clockwiseRank_polyTime :
     ComputableInPolyTime (fun p : Point × Point => clockwiseRank p.1 p.2)
       (encPair encPoint encPoint) encUnary := by
-  have hd := computableInPolyTime_direction
+  have := computableInPolyTime_direction
   unfold clockwiseRank
   fun_prop
 
 private theorem dartRank_polyTime :
     ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
-      dartRank p.1.1 p.1.2 p.2) encDrawingDart encUnary := by
-  exact clockwiseRank_polyTime.comp (dartOrigin_polyTime.prod exitNeighbor_polyTime)
+      dartRank p.1.1 p.1.2 p.2) encDrawingDart encUnary :=
+  clockwiseRank_polyTime.comp (dartOrigin_polyTime.prod exitNeighbor_polyTime)
 
 /-- Four scans of the actual dart list compute the candidate word on every raw input.
 Coordinate magnitudes and vertex names do not determine any iteration count. -/
@@ -140,28 +135,20 @@ binary certificate encoding, with no valid-input or drawing-provider hypothesis.
 theorem computableInPolyTime_rotationCertificate :
     ComputableInPolyTime (fun p : Graph × OrthogonalDrawing => rotationCertificate p.1 p.2)
       encDrawingInput encRotationCertificate := by
-  have hc := computableInPolyTime_clockwiseCandidates
   have hs : ComputableInPolyTime (fun p : (Graph × OrthogonalDrawing) × ℕ =>
       clockwiseSuccessor p.1.1 p.1.2 p.2) encDrawingDart encUnary := by
     unfold clockwiseSuccessor
     simp only [List.headD_eq_head?_getD]
-    apply ComputableInPolyTime.optionGetDWithInput
-    · exact (ComputableInPolyTime.head? encUnary).comp hc
-    · unfold encDrawingDart
-      fun_prop
-  have hu : ComputableInPolyTime (fun p : Graph × OrthogonalDrawing =>
-      (List.range (2 * p.1.edges.length)).map (clockwiseSuccessor p.1 p.2))
-      encDrawingInput (encList encUnary) := by
-    apply ComputableInPolyTime.mapWithInput (encA := encUnary)
-      (ComputableInPolyTime.range.comp dartCount_polyTime)
-    exact hs
-  have hb : ComputableInPolyTime (fun p : Graph × OrthogonalDrawing =>
-      (List.range (2 * p.1.edges.length)).map (clockwiseSuccessor p.1 p.2))
-      encDrawingInput (encList encNat) := by
-    have h := ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat) hu
+    refine ComputableInPolyTime.optionGetDWithInput
+      ((ComputableInPolyTime.head? encUnary).comp computableInPolyTime_clockwiseCandidates) ?_
+    unfold encDrawingDart
+    fun_prop
+  refine encRotationCertificate_mk_polyTime ?_
+  simpa only [Function.comp_def, List.map_id'] using
+    ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat)
+      (ComputableInPolyTime.mapWithInput (encA := encUnary)
+        (ComputableInPolyTime.range.comp dartCount_polyTime) hs)
       (ComputableInPolyTime.unary_to_binary.comp
         (ComputableInPolyTime.snd encDrawingInput encUnary))
-    simpa only [Function.comp_def, List.map_id'] using h
-  exact encRotationCertificate_mk_polyTime hb
 
 end Cslib.Complexity.Graph.OrthogonalDrawing

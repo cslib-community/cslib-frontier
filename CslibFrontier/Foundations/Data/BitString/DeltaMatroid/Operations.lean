@@ -87,6 +87,23 @@ theorem IsDeltaMatroid.reindex (hR : IsDeltaMatroid R) (e : ι ≃ κ) :
     rw [hr]
     exact hf
 
+private theorem flipOn_union_of_disjoint {S T : Finset ι} (h : Disjoint S T) (x : ι → Bool) :
+    flipOn S (flipOn T x) = flipOn (S ∪ T) x := by
+  funext k
+  by_cases hS : k ∈ S
+  · simp [flipOn, hS, Finset.disjoint_left.mp h hS]
+  · by_cases hT : k ∈ T <;> simp [flipOn, hS, hT]
+
+private theorem flipOn_cancel_left {S T : Finset ι} (h : Disjoint S T) (x : ι → Bool) :
+    flipOn S (flipOn (S ∪ T) x) = flipOn T x := by
+  rw [← flipOn_union_of_disjoint h, flipOn_flipOn]
+
+private theorem flipOn_pair_cancel {u v w : ι} (huv : u ≠ v) (huw : u ≠ w) (hvw : v ≠ w)
+    (x : ι → Bool) : flipOn {u, v} (flipOn {v, w} x) = flipOn {u, w} x := by
+  rw [← singleton_union (x := u), ← singleton_union (x := v),
+    ← flipOn_union_of_disjoint (by simp [huv]), ← flipOn_union_of_disjoint (by simp [hvw]),
+    flipOn_flipOn, flipOn_union_of_disjoint (by simp [huw]), singleton_union]
+
 variable [Fintype ι]
 
 /-- The parity change caused by a twist is independent of the tuple. -/
@@ -130,11 +147,9 @@ theorem hammingDist_flipOn_pair_add_two {i j : ι} (hij : i ≠ j)
   have hj' : flipOn {i} x j ≠ y j := by
     simpa only [flipOn_singleton_of_ne hij.symm] using hj
   have h₁ := hammingDist_flip_eq_add_one (flipOn {i} x) y i (by
-    rw [flipOn_singleton_self]
-    cases hx : x i <;> cases hy : y i <;> simp_all)
+    rw [flipOn_singleton_self]; exact (Bool.eq_not_iff.mpr hi.symm).symm)
   have h₂ := hammingDist_flip_eq_add_one (flipOn {j} (flipOn {i} x)) y j (by
-    rw [flipOn_singleton_self]
-    cases hx : flipOn {i} x j <;> cases hy : y j <;> simp_all)
+    rw [flipOn_singleton_self]; exact (Bool.eq_not_iff.mpr hj'.symm).symm)
   rw [flipOn_flipOn] at h₁ h₂
   rw [flipOn_insert (by simpa using hij), flipOn_comm {i} {j}]
   omega
@@ -185,22 +200,10 @@ theorem IsEvenDeltaMatroid.mem_flipOn_four_of_not_mem_cross
   rcases hmem with h | h | h | h
   · exact (hja h).elim
   · subst j
-    convert hf using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkb : k = b <;>
-      by_cases hkc : k = c <;> by_cases hkd : k = d <;> simp_all [flipOn]
-  · subst j
-    apply False.elim <| hadx ?_
-    convert hf using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkc : k = c <;>
-      by_cases hkd : k = d <;> simp_all [flipOn]
-  · subst j
-    apply False.elim <| hacx ?_
-    convert hf using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkc : k = c <;>
-      by_cases hkd : k = d <;> simp_all [flipOn]
+    rw [flipOn_union_of_disjoint (by simp [hac.symm, had.symm, hbc.symm, hbd.symm])] at hf
+    simpa only [insert_union, singleton_union] using hf
+  · subst j; exact (hadx (by rwa [flipOn_pair_cancel hac had hcd] at hf)).elim
+  · subst j; exact (hacx (by rwa [pair_comm c d, flipOn_pair_cancel had hac hcd.symm] at hf)).elim
 
 /-- The four-coordinate exchange alternative used for the no-shortcuts argument in the proof
 of Lemma 35 of [KazdaKolmogorovRolinek2018], p. 17, and reused in Lemma 37.
@@ -219,23 +222,15 @@ theorem IsEvenDeltaMatroid.mem_pair_or_mem_cross_of_mem_flipOn_four
     simp [flipOn, h.1, h.2.1, h.2.2.1, h.2.2.2] at hj
   rcases hmem with h | h | h | h
   · subst j
-    left
-    convert hflip using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkb : k = b <;>
-      by_cases hkc : k = c <;> by_cases hkd : k = d <;> simp_all [flipOn]
+    exact Or.inl (by rwa [show ({a, b, c, d} : Finset ι) = {b, a} ∪ {c, d} by ext; simp; tauto,
+      flipOn_cancel_left (by simp [hac.symm, had.symm, hbc.symm, hbd.symm])] at hflip)
   · exact (hjb h).elim
   · subst j
-    right; right
-    convert hflip using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkb : k = b <;>
-      by_cases hkc : k = c <;> by_cases hkd : k = d <;> simp_all [flipOn]
+    exact Or.inr (Or.inr (by rwa [show ({a, b, c, d} : Finset ι) = {b, c} ∪ {a, d} by ext; simp,
+      flipOn_cancel_left (by simp [hab, hbd.symm, hac, hcd.symm])] at hflip))
   · subst j
-    right; left
-    convert hflip using 1
-    funext k
-    by_cases hka : k = a <;> by_cases hkb : k = b <;>
-      by_cases hkc : k = c <;> by_cases hkd : k = d <;> simp_all [flipOn]
+    exact Or.inr (Or.inl (by
+      rwa [show ({a, b, c, d} : Finset ι) = {b, d} ∪ {a, c} by ext; simp; tauto,
+        flipOn_cancel_left (by simp [hab, hbc.symm, had, hcd])] at hflip))
 
 end Cslib.BitString

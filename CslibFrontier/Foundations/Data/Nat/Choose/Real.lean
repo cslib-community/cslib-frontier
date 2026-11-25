@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.Nat.Choose.Sum
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Foundations.Data.Nat.Choose
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Data.Nat.Choose.Central
@@ -47,6 +48,9 @@ generating-function bound, motivated by the geometric thresholds in Appendix A.3
   `Cslib.logb_choose_sub_logb_choose_sub_le`,
   `Cslib.logb_choose_sub_logb_sub_three_mul_choose_sub_le`: power and base-2 logarithm bounds for
   individual binomial coefficients and binomial differences.
+* `Cslib.log_add_choose_le_two_mul_sqrt`: `log C(m + n, n) ≤ 2 √(m n)` in natural logarithms, a
+  step in the proof of Theorem 4.1 of [KhannaPuttermanSong2026], tracked in #8325 (the paper's
+  Fact 2.1, §2, p. 11).
 * `Real.exists_one_le_and_mul_pow_le_pow`: a polynomial is eventually below an exponential with base
   `r > 1`.
 
@@ -57,6 +61,8 @@ generating-function bound, motivated by the geometric thresholds in Appendix A.3
 * [C. Calabro, R. Impagliazzo, R. Paturi, *A duality between clause width and clause density for
   SAT*][CalabroImpagliazzoPaturi2006]
 * [OpenAI, *The Exponential Time Hypothesis is False*, Appendix A.3, pp. 46–47][OpenAI2026ETH]
+* [S. Khanna, A. Putterman, J. Song, *A Deterministic Linear Time Algorithm for Minimum Spanning
+  Tree*, Fact 2.1][KhannaPuttermanSong2026]
 -/
 
 public section
@@ -301,6 +307,48 @@ theorem logb_add_choose_le {n m : ℕ} (hm₀ : 1 ≤ m) (hmn : m ≤ n) :
   rw [show (8 : ℝ) * ((n : ℝ) / (m : ℝ)) = (2 : ℝ) ^ (3 : ℕ) * ((n : ℝ) / (m : ℝ)) by ring,
     Real.logb_mul (by positivity) (div_pos hn_pos hm_pos).ne', Real.logb_pow,
     Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2)] at h2; nlinarith
+
+/-- **The logarithm of a binomial coefficient is at most `2 √(m n)`**, a step in the proof of
+Theorem 4.1 of [KhannaPuttermanSong2026] (the paper's Fact 2.1, §2, p. 11):
+`log C(m + n, n) ≤ 2 √(m n)`, with the natural logarithm. The source states it for positive `m, n`;
+it also holds when either is zero, where both sides vanish. The term `C(m + n, n) mᵐ nⁿ` of the
+binomial expansion of `(m + n) ^ (m + n)` gives
+`log C(m + n, n) ≤ m log (n / m + 1) + n log (m / n + 1)`, and `log (x + 1) ≤ √x`
+(`Real.log_add_one_le_sqrt`) bounds each term by `√(m n)`. -/
+theorem log_add_choose_le_two_mul_sqrt (m n : ℕ) :
+    Real.log ((m + n).choose n) ≤ 2 * √(m * n) := by
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp
+  have ha : (0 : ℝ) < m := by exact_mod_cast hm
+  have hb : (0 : ℝ) < n := by exact_mod_cast hn
+  have hterm : ((m + n).choose n : ℝ) * ((m : ℝ) ^ m * (n : ℝ) ^ n) ≤
+      ((m : ℝ) + n) ^ m * ((m : ℝ) + n) ^ n := by
+    rw [← pow_add, add_pow]
+    refine le_trans (le_of_eq ?_) (single_le_sum (f := fun k =>
+      (m : ℝ) ^ k * (n : ℝ) ^ (m + n - k) * ((m + n).choose k)) (fun k _ => by positivity)
+      (mem_range.2 (by omega : m < m + n + 1)))
+    rw [Nat.add_sub_cancel_left, Nat.choose_symm_add]
+    ring
+  have hC : ((m + n).choose n : ℝ) ≤ ((n : ℝ) / m + 1) ^ m * ((m : ℝ) / n + 1) ^ n := by
+    rw [div_add_one ha.ne', div_add_one hb.ne', div_pow, div_pow, div_mul_div_comm,
+      le_div_iff₀ (by positivity), add_comm (n : ℝ)]
+    exact hterm
+  have hpos : (0 : ℝ) < (m + n).choose n := by exact_mod_cast Nat.choose_pos (by omega)
+  have h1 := Real.log_le_log hpos hC
+  rw [Real.log_mul (by positivity) (by positivity), Real.log_pow, Real.log_pow] at h1
+  have h2 := Real.log_add_one_le_sqrt (div_nonneg hb.le ha.le)
+  have h3 := Real.log_add_one_le_sqrt (div_nonneg ha.le hb.le)
+  have e2 : (m : ℝ) * √((n : ℝ) / m) = √(m * n) := by
+    rw [Real.sqrt_div' _ ha.le, Real.sqrt_mul ha.le, mul_div_assoc',
+      div_eq_iff (Real.sqrt_pos.2 ha).ne']
+    linear_combination (-√(n : ℝ)) * Real.mul_self_sqrt ha.le
+  have e3 : (n : ℝ) * √((m : ℝ) / n) = √(m * n) := by
+    rw [Real.sqrt_div' _ hb.le, Real.sqrt_mul ha.le, mul_div_assoc',
+      div_eq_iff (Real.sqrt_pos.2 hb).ne']
+    linear_combination (-√(m : ℝ)) * Real.mul_self_sqrt hb.le
+  nlinarith [mul_le_mul_of_nonneg_left h2 ha.le, mul_le_mul_of_nonneg_left h3 hb.le]
 
 /-- Logarithmic form of `choose_le_two_pow_mul_choose_sub` ([LiLiangYuZhou2023], Section 5.2,
 pp. 24–25 / PDF pp. 25–26): `log₂ C(U, k) - log₂ C(U - d, k) ≤ k`. -/

@@ -41,32 +41,23 @@ theorem det_coinc {R : Type*} [CommRing R] {μ : ℕ} (f g : Fin μ → ℕ) (hf
     (of fun i j => if f i = g j then (1 : R) else 0).det = if f = g then 1 else 0 := by
   by_cases h : f = g
   · subst h
-    rw [ite_eq_left rfl]
-    have : (of fun i j => if f i = f j then (1 : R) else 0) = (1 : Matrix (Fin μ) (Fin μ) R) := by
+    have hmat : (of fun i j => if f i = f j then (1 : R) else 0) = 1 := by
       ext i j
       simp [Matrix.one_apply, hf.injective.eq_iff]
-    rw [this, det_one]
+    rw [ite_eq_left rfl, hmat, det_one]
   · rw [ite_eq_right h]
-    have hr : ¬ Set.range f ⊆ Set.range g := by
-      intro hsub
-      apply h
-      have hfin : Set.range f = Set.range g := by
-        have h1 : (Finset.univ.image f) ⊆ (Finset.univ.image g) := by
-          intro n hn
-          have : n ∈ Set.range g := hsub (by simpa using hn)
-          simpa using this
+    have hr : ¬ Set.range f ⊆ Set.range g := fun hsub => h <|
+      (StrictMono.range_inj_of_wellFoundedLT hf hg).1 <| by
+        have h1 : Finset.univ.image f ⊆ Finset.univ.image g := fun n hn => by
+          simpa using hsub (by simpa using hn)
         have h2 := Finset.eq_of_subset_of_card_le h1 (by
           rw [Finset.card_image_of_injective _ hf.injective,
-              Finset.card_image_of_injective _ hg.injective])
-        have h3 := congrArg (fun s : Finset ℕ => (s : Set ℕ)) h2
-        simpa using h3
-      exact StrictMono.range_inj_of_wellFoundedLT hf hg |>.1 hfin
-    rw [Set.not_subset] at hr
-    obtain ⟨_, ⟨i, rfl⟩, hi⟩ := hr
+            Finset.card_image_of_injective _ hg.injective])
+        simpa using congrArg (fun s : Finset ℕ => (s : Set ℕ)) h2
+    obtain ⟨_, ⟨i, rfl⟩, hi⟩ := Set.not_subset.1 hr
     refine det_eq_zero_of_row_eq_zero i fun j => ?_
     simp only [of_apply]
     rw [ite_eq_right]
-    intro hij
-    exact hi ⟨j, hij.symm⟩
+    exact fun hij => hi ⟨j, hij.symm⟩
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

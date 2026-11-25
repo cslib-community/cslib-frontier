@@ -188,21 +188,12 @@ def decodeFramed (v : List Bool) : Option (List Bool × List Bool) :=
 @[simp]
 theorem decodeFramed_eq_some_iff (v w u : List Bool) :
     decodeFramed v = some (w, u) ↔ frame w ++ u = v := by
-  unfold decodeFramed
-  dsimp only
-  split_ifs with h
-  · rw [beq_iff_eq] at h
-    simp only [Option.some.injEq, Prod.mk.injEq]
-    refine ⟨?_, fun hv => ?_⟩
-    · rintro ⟨rfl, rfl⟩
-      exact h
-    · rw [← hv, unframe_frame_append, dropFrame_frame_append]
-      exact ⟨rfl, rfl⟩
-  · rw [beq_iff_eq] at h
-    simp only [false_iff]
-    intro hv
-    apply h
-    rw [← hv, unframe_frame_append, dropFrame_frame_append]
+  simp only [decodeFramed, Option.ite_none_right_eq_some, beq_iff_eq]
+  refine ⟨?_, ?_⟩
+  · rintro ⟨hv, rfl, rfl⟩
+    exact hv
+  · rintro rfl
+    simp
 
 /-- Canonical parameter-free word codec for `D = Unit` nonce-based CPA queries:
 encodes `(pair, (), nonce)` on the single word channel as

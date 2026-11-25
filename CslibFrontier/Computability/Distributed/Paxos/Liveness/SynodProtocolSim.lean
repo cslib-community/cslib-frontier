@@ -48,11 +48,9 @@ private lemma union_image_broadcastPairs {P M : Type*} [Fintype P] [DecidableEq 
   simp only [Finset.mem_image, Finset.mem_union, Finset.mem_insert, Finset.mem_univ, true_and]
   constructor
   · rintro ⟨pkt, hold | ⟨db, ⟨q, rfl⟩, rfl⟩, rfl⟩
-    · exact Or.inr ⟨pkt, hold, rfl⟩
-    · exact Or.inl rfl
+    exacts [Or.inr ⟨pkt, hold, rfl⟩, Or.inl rfl]
   · rintro (rfl | ⟨pkt, hold, rfl⟩)
-    · exact ⟨⟨p, p, x⟩, Or.inr ⟨(p, x), ⟨p, rfl⟩, rfl⟩, rfl⟩
-    · exact ⟨pkt, Or.inl hold, rfl⟩
+    exacts [⟨⟨p, p, x⟩, Or.inr ⟨(p, x), ⟨p, rfl⟩, rfl⟩, rfl⟩, ⟨pkt, Or.inl hold, rfl⟩]
 
 /-- Body-projection identity for singleton-destination outgoing packets. -/
 private lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [DecidableEq M]
@@ -64,18 +62,15 @@ private lemma union_image_singleton_pair {P M : Type*} [DecidableEq P] [Decidabl
     Finset.mem_insert]
   constructor
   · rintro ⟨pkt, hold | rfl, rfl⟩
-    · exact Or.inr ⟨pkt, hold, rfl⟩
-    · exact Or.inl rfl
+    exacts [Or.inr ⟨pkt, hold, rfl⟩, Or.inl rfl]
   · rintro (rfl | ⟨pkt, hold, rfl⟩)
-    · exact ⟨⟨p, q, x⟩, Or.inr rfl, rfl⟩
-    · exact ⟨pkt, Or.inl hold, rfl⟩
+    exacts [⟨⟨p, q, x⟩, Or.inr rfl, rfl⟩, ⟨pkt, Or.inl hold, rfl⟩]
 
 /-- Decision output preservation across non-learning steps. -/
 private lemma out_eq_after_nonlearn {V : Type*} (out learned : Option V)
     (h : out = learned) :
     (if out.isNone then none else out) = learned := by
-  subst h
-  cases out <;> rfl
+  subst h; cases out <;> rfl
 
 /-- Preserves `out = state.learn.learned` across non-learning `applyResult` updates. -/
 private lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [DecidableEq V]
@@ -93,8 +88,7 @@ private lemma out_preserved_of_nonlearn {P V : Type*} [DecidableEq P] [Decidable
   · subst hqd
     simp only [AsyncQuorumProtocol.applyResult, ↓reduceIte, hl_eq]
     exact out_eq_after_nonlearn _ _ (hout q)
-  · simp only [AsyncQuorumProtocol.applyResult, hqd, ↓reduceIte]
-    exact hout q
+  · simp only [AsyncQuorumProtocol.applyResult, hqd, ↓reduceIte]; exact hout q
 
 /-- Commutation of `netToSynod` with `AsyncQuorumProtocol.applyResult`. -/
 private lemma netToSynod_applyResult {P V : Type*} [DecidableEq P] [DecidableEq V]
@@ -189,19 +183,15 @@ private lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq
       (netToSynod u = netToSynod s ∨
         ∃ sact', (synodLts qs).Tr (netToSynod s) sact' (netToSynod u)) := by
   by_cases hguard : (s.proc dest).state.acc.crashed = false ∧ guard = true
-  · dsimp only []
-    rw [ite_eq_left hguard]
-    refine ⟨out_preserved_of_nonlearn hout rfl,
-      Or.inr ⟨sact, ⟨hen_live hguard.1, ?_⟩⟩⟩
+  · dsimp only []; rw [ite_eq_left hguard]
+    refine ⟨out_preserved_of_nonlearn hout rfl, Or.inr ⟨sact, ⟨hen_live hguard.1, ?_⟩⟩⟩
     rw [hstep_eq, ite_eq_left hguard.2]
     exact netToSynod_acc_update s dest ast out _ hmsgs
-  · dsimp only []
-    rw [ite_eq_right hguard]
+  · dsimp only []; rw [ite_eq_right hguard]
     obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
     by_cases hlive : (s.proc dest).state.acc.crashed = false
     · refine ⟨ho, Or.inr ⟨sact, ⟨hen_live hlive, ?_⟩⟩⟩
-      rw [hstep_eq, ite_eq_right (fun hg => hguard ⟨hlive, hg⟩)]
-      exact heq
+      rw [hstep_eq, ite_eq_right (fun hg => hguard ⟨hlive, hg⟩)]; exact heq
     · exact ⟨ho, Or.inl heq⟩
 
 /-- Step simulation for incoming proposer/learner packets (`Phase1b` and `Phase2b`). -/
@@ -225,11 +215,9 @@ private lemma netToSynod_prop_recv_sim {P V : Type*} [LinearOrder P] [DecidableE
       (netToSynod u = netToSynod s ∨
         ∃ sact', (synodLts qs).Tr (netToSynod s) sact' (netToSynod u)) := by
   by_cases hguard : crashed = false ∧ src = a
-  · dsimp only []
-    rw [ite_eq_left hguard]
+  · dsimp only []; rw [ite_eq_left hguard]
     exact ⟨hres.1, Or.inr ⟨sact, ⟨hen_live hguard.1, hres.2⟩⟩⟩
-  · dsimp only []
-    rw [ite_eq_right hguard]
+  · dsimp only []; rw [ite_eq_right hguard]
     obtain ⟨ho, heq⟩ := applyResult_noop_sim hout dest
     exact ⟨ho, Or.inl heq⟩
 
@@ -316,9 +304,7 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
         dsimp only [synodStep, synodStepCore, netToSynod]
         by_cases hxd : x = dest <;> simp only [hxd, ↓reduceIte]
         congr
-  | stutter =>
-    obtain rfl := htr
-    exact ⟨hout, Or.inl rfl⟩
+  | stutter => obtain rfl := htr; exact ⟨hout, Or.inl rfl⟩
 
 /-- Reachability and output simulation from `synodQuorumProtocol` to `synodLts`. -/
 lemma netToSynod_reach {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
@@ -341,14 +327,12 @@ lemma netToSynod_reach {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
       intro hr ho
       obtain ⟨ho', hsim⟩ := netToSynod_step qs hstep ho
       rcases hsim with heq | ⟨sact, hstr⟩
-      · exact ih (heq ▸ hr) ho'
-      · exact ih (hr.trans ⟨[sact], LTS.MTr.single _ hstr⟩) ho'
+      exacts [ih (heq ▸ hr) ho', ih (hr.trans ⟨[sact], LTS.MTr.single _ hstr⟩) ho']
   have hinit_eq : netToSynod ((synodQuorumProtocol qs).start inp) = initState inp := by
     refine SynodState.ext ?_ rfl rfl rfl
     simp only [netToSynod, AsyncQuorumProtocol.start, Finset.image_empty, initState]
   have hr₀ : Reachable qs inp (netToSynod ((synodQuorumProtocol qs).start inp)) := by
-    rw [hinit_eq]
-    exact ⟨[], LTS.MTr.refl⟩
+    rw [hinit_eq]; exact ⟨[], LTS.MTr.refl⟩
   exact hgen hmtr hr₀ (fun _ => rfl)
 
 

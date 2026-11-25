@@ -197,13 +197,10 @@ theorem stepT_toTuple (s : State) (b : Bool) :
           runStep, State.toTuple, Ctl.toTuple, h₁]
     · rcases st with _ | ⟨⟨j, ph, ng, tg⟩, st⟩
       · rfl
-      · fin_cases ph
-        · rfl
-        · rfl
-        · rfl
-        · by_cases h₁ : j + 1 < p - 1 <;>
-            simp [Tuple.tag, Tuple.p, Tuple.regs, Tuple.stack, Tuple.mode,
-              Mode.isCall, stepT, runStepT, machine, step, runStep, State.toTuple, Ctl.toTuple, h₁]
+      · fin_cases ph <;> try rfl
+        by_cases h₁ : j + 1 < p - 1 <;>
+          simp [Tuple.tag, Tuple.p, Tuple.regs, Tuple.stack, Tuple.mode,
+            Mode.isCall, stepT, runStepT, machine, step, runStep, State.toTuple, Ctl.toTuple, h₁]
   | leaf i =>
     rcases m with ⟨neg, t⟩ | _
     · by_cases h₁ : i < e <;> cases b <;>

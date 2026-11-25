@@ -61,28 +61,17 @@ theorem exec_ready_zero {w p A B a b out scratch frames frame : ℕ}
     (by rw [hx.output_eq]; exact haddr.of_le (by unfold addressBound; omega))
     (by simpa only [hx.inputA_eq, hx.output_eq, pow_zero, Nat.one_mul] using hl.left_disjoint)
     (by simpa only [hx.inputB_eq, hx.output_eq, pow_zero, Nat.one_mul] using hl.right_disjoint)
-  refine ⟨y, ?_, ?_⟩
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simpa only [hx.output_eq, pow_zero, Nat.one_mul,
-        Cslib.Algorithms.MatrixMultiplication.Strassen.multiply] using values
-    · intro q hq
-      have hno : ¬(out ≤ q ∧ q < out + p) := by
-        intro h
-        exact hq (Or.inl (by simpa only [pow_zero, Nat.one_mul] using h))
-      exact outside q (by rw [hx.output_eq]; omega)
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · simpa only [hx.frames_eq, hx.frame_eq] using hyframe
-    · simpa only [hx.frames_eq, hx.frame_eq, hx.active_eq] using hyactive
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
-  · intro z T hz
-    have hc : (Cond.lt Reg.zero Reg.active).Holds x := by
-      simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]
-      decide
+  refine ⟨y, ⟨?_, fun q hq => outside q ?_, by regs_frame, by regs_frame, by regs_frame,
+    by simpa only [hx.frames_eq, hx.frame_eq] using hyframe,
+    by simpa only [hx.frames_eq, hx.frame_eq, hx.active_eq] using hyactive,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩, fun z T hz => ?_⟩
+  · simpa only [hx.output_eq, pow_zero, Nat.one_mul,
+      Cslib.Algorithms.MatrixMultiplication.Strassen.multiply] using values
+  · have hno : ¬(out ≤ q ∧ q < out + p) := fun h =>
+      hq (Or.inl (by simpa only [pow_zero, Nat.one_mul] using h))
+    rw [hx.output_eq]; omega
+  · have hc : (Cond.lt Reg.zero Reg.active).Holds x := by
+      simp only [Cond.holds_lt, hx.zero_eq, hx.active_eq]; decide
     exact (ExecWithin.loop_iter hc hy hz).mono (by simp only [traceBudget]; omega)
 
 end Cslib.Algorithms.WordRAM.Strassen

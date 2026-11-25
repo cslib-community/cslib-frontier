@@ -113,8 +113,7 @@ theorem det_add_smul_vecMulVec {R : Type*} [CommRing R] {B : Matrix n n R} (hB :
   have h1 : (1 + replicateRow (Fin 1) v * B⁻¹ * replicateCol (Fin 1) (c • u) :
       Matrix (Fin 1) (Fin 1) R) = Matrix.of fun _ _ => 1 + c * (v ⬝ᵥ (B⁻¹ *ᵥ u)) := by
     ext i j
-    fin_cases i
-    fin_cases j
+    fin_cases i, j
     simp only [Matrix.add_apply, Matrix.one_apply_eq, Matrix.mul_apply, replicateRow_apply,
       replicateCol_apply, Pi.smul_apply, smul_eq_mul, Matrix.of_apply, dotProduct, mulVec]
     congr 1
@@ -124,9 +123,7 @@ theorem det_add_smul_vecMulVec {R : Type*} [CommRing R] {B : Matrix n n R} (hB :
   calc (B + c • vecMulVec u v).det
       = B.det * (1 + replicateRow (Fin 1) v * B⁻¹ * replicateCol (Fin 1) (c • u)).det := by
         rw [h]; exact det_add_replicateCol_mul_replicateRow hB (c • u) v
-    _ = B.det * (1 + c * (v ⬝ᵥ (B⁻¹ *ᵥ u))) := by
-        rw [h1, det_fin_one]
-        rfl
+    _ = B.det * (1 + c * (v ⬝ᵥ (B⁻¹ *ᵥ u))) := by rw [h1, det_fin_one]; rfl
 
 omit [DecidableEq n] in
 /-- A positive combination of the rank-one matrices `vᵢ vᵢᵀ` is positive definite when the `vᵢ`
@@ -140,9 +137,8 @@ theorem posDef_sum_smul_vecMulVec {ι : Type*} (s : Finset ι) (c : ι → ℝ)
       simpa using (posSemidef_vecMulVec_self_star (v i)).smul (hc i hi).le
   refine PosDef.of_dotProduct_mulVec_pos hpsd.isHermitian fun w hw => ?_
   rw [star_trivial, dotProduct_sum_smul_vecMulVec_mulVec]
-  obtain ⟨i, hi, hne⟩ : ∃ i ∈ s, v i ⬝ᵥ w ≠ 0 := by
-    by_contra h
-    exact hw (hv w fun i hi => by_contra fun hne => h ⟨i, hi, hne⟩)
+  obtain ⟨i, hi, hne⟩ : ∃ i ∈ s, v i ⬝ᵥ w ≠ 0 :=
+    by_contra fun h => hw (hv w fun i hi => by_contra fun hne => h ⟨i, hi, hne⟩)
   exact sum_pos' (fun j hj => by nlinarith [(hc j hj).le, sq_nonneg (v j ⬝ᵥ w)])
     ⟨i, hi, by nlinarith [hc i hi, sq_pos_of_ne_zero hne]⟩
 
@@ -217,8 +213,7 @@ private theorem exists_le_log_det_sub {X : Type*} [Fintype X] [Nonempty X] {d : 
   let e : Fin m → Fin d ↪ X := fun k =>
     ⟨fun i => σ.symm (k + Fin.castLE hd i), fun i j h => by
       simpa using (Fin.castLE_injective hd) (add_left_cancel (σ.symm.injective h))⟩
-  have hcount : ∀ t : X → ℝ, ∑ k, ∑ i, t (e k i) = d * ∑ x, t x := by
-    intro t
+  have hcount : ∀ t : X → ℝ, ∑ k, ∑ i, t (e k i) = d * ∑ x, t x := fun t => by
     rw [sum_comm]
     have : ∀ i : Fin d, ∑ k : Fin m, t (e k i) = ∑ x, t x := fun i => by
       rw [← σ.symm.sum_comp]
@@ -228,11 +223,8 @@ private theorem exists_le_log_det_sub {X : Type*} [Fintype X] [Nonempty X] {d : 
   have hsum := sum_le_sum fun k (_ : k ∈ (univ : Finset (Fin m))) =>
     log_det_submatrix_sq_add_sum_le U t (e k) (hU (e k))
   rw [sum_add_distrib, hcount, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
-  rw [div_le_iff₀ (by exact_mod_cast hm0)]
-  have h2 : (Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-      d / m * ∑ x, t x) * m = m * Real.log (∑ x, Real.exp (t x) • vecMulVec (U x) (U x)).det -
-        d * ∑ x, t x := by
-    field_simp
+  rw [div_le_iff₀ (by exact_mod_cast hm0), sub_mul, mul_right_comm (d / m : ℝ),
+    div_mul_cancel₀ _ (by positivity)]
   linarith
 
 /-- Changing the single coordinate `t x` to `b` changes `∑ z, g z (t z)` by
@@ -281,16 +273,11 @@ private theorem le_add_of_neg_sq_lt_log {q r ε : ℝ} (hq : 0 ≤ q) (hr : 0 �
     nlinarith
   have key : δ * (1 - δ) * q < δ ^ 2 + r * δ := by
     nlinarith [mul_le_mul_of_nonneg_right hexp hq]
-  have key2 : (1 - δ) * q < δ + r := by
-    by_contra hcon
-    push Not at hcon
-    nlinarith [mul_le_mul_of_nonneg_left hcon hδ0.le]
-  have hδdef : δ * (1 + r + ε) = ε := by rw [hδ]; field_simp
-  by_contra hcon
-  push Not at hcon
-  have : (1 - δ) * (r + ε) < δ + r :=
-    lt_of_le_of_lt (mul_le_mul_of_nonneg_left hcon.le (by linarith)) key2
-  nlinarith
+  have hδdef : δ * (1 + r + ε) = ε := div_mul_cancel₀ ε (by positivity)
+  by_contra! hcon
+  have h1 : δ * (1 - δ) * (r + ε) ≤ δ * (1 - δ) * q :=
+    mul_le_mul_of_nonneg_left hcon.le (mul_nonneg hδ0.le (by linarith))
+  nlinarith [congrArg (δ * ·) hδdef]
 
 /-- **Approximate isotropic position** (Forster's lemma up to `ε`). If the `m = |X|` rows of
 `U : Matrix X (Fin d) ℝ` are in general position (every `d × d` submatrix is invertible) and
@@ -338,10 +325,8 @@ theorem exists_isotropic_weights {X : Type*} [Fintype X] {d : ℕ} (U : Matrix X
   set t' := Function.update t x (t x - δ)
   have hdet' : (A t').det = (A t).det * (1 + (Real.exp (-δ) - 1) * q) :=
     det_sum_exp_update_sub U t x δ (hApd t)
-  have hy : 0 < 1 + (Real.exp (-δ) - 1) * q := by
-    have h1 := (hApd t').det_pos
-    rw [hdet'] at h1
-    exact pos_of_mul_pos_right h1 (hApd t).det_pos.le
+  have hy : 0 < 1 + (Real.exp (-δ) - 1) * q :=
+    pos_of_mul_pos_right (by rw [← hdet']; exact (hApd t').det_pos) (hApd t).det_pos.le
   have hsum' : ∑ z, t' z = ∑ z, t z - δ :=
     (sum_apply_update_eq_add_sub (fun _ s => s) t x (t x - δ)).trans (by ring)
   have hφ' : φ t' = φ t + Real.log (1 + (Real.exp (-δ) - 1) * q) + r * δ := by
@@ -367,20 +352,16 @@ theorem eventually_det_submatrix_add_smul_ne_zero {X : Type*} [Finite X] {d : �
   let P : Polynomial ℝ := det ((Polynomial.X : Polynomial ℝ) •
     (W.submatrix e id).map Polynomial.C + (U.submatrix e id).map Polynomial.C)
   have hWe : (W.submatrix e id).det ≠ 0 := by
-    have : W.submatrix e id = vandermonde fun i => ((σ (e i) : ℕ) : ℝ) := by
-      ext i j; rfl
+    have : W.submatrix e id = vandermonde fun i => ((σ (e i) : ℕ) : ℝ) := by ext i j; rfl
     rw [this, det_vandermonde_ne_zero_iff]
     intro i j h
     exact e.injective (σ.injective (Fin.ext (by
       exact_mod_cast (show ((σ (e i) : ℕ) : ℝ) = ((σ (e j) : ℕ) : ℝ) from h))))
-  have hP : P ≠ 0 := by
-    intro h
-    apply hWe
+  have hP : P ≠ 0 := fun h => hWe <| by
     rw [← Polynomial.coeff_det_X_add_C_card (W.submatrix e id) (U.submatrix e id)]
     change P.coeff _ = 0
     rw [h, Polynomial.coeff_zero]
-  have heval : ∀ ε : ℝ, P.eval ε = ((U + ε • W).submatrix e id).det := by
-    intro ε
+  have heval : ∀ ε : ℝ, P.eval ε = ((U + ε • W).submatrix e id).det := fun ε => by
     rw [← Polynomial.coe_evalRingHom, RingHom.map_det]
     congr 1
     ext i j

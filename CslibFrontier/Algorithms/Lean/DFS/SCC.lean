@@ -249,32 +249,25 @@ private theorem visit_nil_spec [Fintype V] {g : V → List V} {k : ℕ}
         (visit g k r ⟨vis, []⟩).finished ++ (dfs g k vis.toList).finished⟩
     rw [hd_eq, visit_eq_of_nil]
   have hvis : ∀ w, w ∈ (visit g k r ⟨vis, []⟩).visited ↔
-      w ∈ vis ∨ Relation.ReflTransGen (Edge g) r w := by
-    intro w
+      w ∈ vis ∨ Relation.ReflTransGen (Edge g) r w := fun w => by
     have hm := mem_dfs_visited_iff (adj := g) hk (vis.toList ++ [r]) w
-    rw [hsplit] at hm
-    simp only [List.mem_append, Finset.mem_toList, List.mem_singleton] at hm
+    simp only [hsplit, List.mem_append, Finset.mem_toList, List.mem_singleton] at hm
     rw [hm]
     exact ⟨fun ⟨u, hu, huw⟩ =>
         hu.elim (fun huv => .inl (reach_of_closed hcl huv huw)) (fun hur => .inr (hur ▸ huw)),
       fun h => h.elim (fun hw => ⟨w, .inl hw, .refl⟩) (fun hrw => ⟨r, .inr rfl, hrw⟩)⟩
-  have hfin_prev : ∀ w, w ∈ (dfs g k vis.toList).finished ↔ w ∈ vis := by
-    intro w
+  have hfin_prev : ∀ w, w ∈ (dfs g k vis.toList).finished ↔ w ∈ vis := fun w => by
     rw [mem_dfs_finished_iff hk, ← mem_dfs_visited_iff hk, dfs_visited_of_closed hk hcl]
   have hnd_all :
       ((visit g k r ⟨vis, []⟩).finished ++ (dfs g k vis.toList).finished).Nodup := by
-    have hnd := nodup_dfs_finished (adj := g) hk (vis.toList ++ [r])
-    rwa [hsplit] at hnd
+    simpa only [hsplit] using nodup_dfs_finished (adj := g) hk (vis.toList ++ [r])
   refine ⟨hvis, hnd_all.of_append_left, fun w => ?_⟩
   have hdisj := List.disjoint_of_nodup_append hnd_all
   have hm := mem_dfs_finished_iff (adj := g) hk (vis.toList ++ [r]) w
   rw [← mem_dfs_visited_iff hk, hsplit, List.mem_append, hfin_prev, hvis] at hm
-  constructor
-  · intro hw
-    have hnv : w ∉ vis := fun hwv => hdisj hw ((hfin_prev w).2 hwv)
-    exact ⟨hnv, (hm.1 (.inl hw)).resolve_left hnv⟩
-  · rintro ⟨hnv, hrw⟩
-    exact (hm.2 (.inr hrw)).resolve_right hnv
+  refine ⟨fun hw => ?_, fun ⟨hnv, hrw⟩ => (hm.2 (.inr hrw)).resolve_right hnv⟩
+  have hnv : w ∉ vis := fun hwv => hdisj hw ((hfin_prev w).2 hwv)
+  exact ⟨hnv, (hm.1 (.inl hw)).resolve_left hnv⟩
 
 omit [DecidableEq V] in
 private theorem not_sublist_two_head {z r : V} {rs : List V} (hr : r ∉ rs) :
@@ -302,29 +295,19 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
         (∀ c ∈ comps, ∃ r, ∀ w, w ∈ c ↔ StronglyConnected adj r w) ∧
         (∀ {i j : ℕ} (hi : i < comps.length) (hj : j < comps.length) {u v : V},
           u ∈ comps[i] → v ∈ comps[j] → Edge adj u v → i ≤ j)
-  | [], vis, _, _, _ => by
-    refine ⟨by simp [peelSCCs], by simp [peelSCCs], by simp [peelSCCs], by simp [peelSCCs], ?_⟩
-    intro i _ hi
-    simp [peelSCCs] at hi
+  | [], vis, _, _, _ => by simp [peelSCCs]
   | r :: rs, vis, hnd, hcl, hord => by
-    rw [List.nodup_cons] at hnd
-    rcases hnd with ⟨hr_not_rs, hrs_nd⟩
+    obtain ⟨hr_not_rs, hrs_nd⟩ := List.nodup_cons.1 hnd
     set rev := transposeAdj adj vs
     obtain ⟨hvis_s, hnd_s, hfin_s⟩ := visit_nil_spec (g := rev) hk hcl r
     set s := visit rev k r ⟨vis, []⟩
-    have hvis_adj : ∀ w, w ∈ s.visited ↔ w ∈ vis ∨ Relation.ReflTransGen (Edge adj) w r := by
-      intro w
-      rw [hvis_s, reflTransGen_edge_transposeAdj_iff hvs]
-    have hfin_adj : ∀ w, w ∈ s.finished ↔ w ∉ vis ∧ Relation.ReflTransGen (Edge adj) w r := by
-      intro w
-      rw [hfin_s, reflTransGen_edge_transposeAdj_iff hvs]
-    have hcl' : ∀ u ∈ s.visited, ∀ v ∈ rev u, v ∈ s.visited := by
-      intro u hu v huv
-      have hvu : Edge adj v u := (edge_transposeAdj_iff hvs).1 huv
+    have hvis_adj : ∀ w, w ∈ s.visited ↔ w ∈ vis ∨ Relation.ReflTransGen (Edge adj) w r :=
+      fun w => by rw [hvis_s, reflTransGen_edge_transposeAdj_iff hvs]
+    have hfin_adj : ∀ w, w ∈ s.finished ↔ w ∉ vis ∧ Relation.ReflTransGen (Edge adj) w r :=
+      fun w => by rw [hfin_s, reflTransGen_edge_transposeAdj_iff hvs]
+    have hcl' : ∀ u ∈ s.visited, ∀ v ∈ rev u, v ∈ s.visited := fun u hu v huv => by
       rw [hvis_adj] at hu ⊢
-      rcases hu with hu | hur
-      · exact .inl (hcl u hu v huv)
-      · exact .inr (Relation.ReflTransGen.head hvu hur)
+      exact hu.imp (hcl u · v huv) (.head ((edge_transposeAdj_iff hvs).1 huv))
     have hord' : ∀ r' ∈ rs, ∀ w, Relation.ReflTransGen (Edge adj) w r' →
         ¬ Relation.ReflTransGen (Edge adj) r' w →
         w ∈ s.visited ∨ ∃ z ∈ rs, StronglyConnected adj w z ∧ [z, r'] <+ rs := by
@@ -332,15 +315,11 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
       rcases hord r' (List.mem_cons_of_mem r hr') w hwr' hnr'w with
         hw_vis | ⟨z, hz_mem, hwz, hz_sub⟩
       · exact .inl ((hvis_adj w).2 (.inl hw_vis))
-      · rcases List.mem_cons.1 hz_mem with rfl | hz_rs
-        · exact .inl ((hvis_adj w).2 (.inr hwz.1))
-        · have hzr : z ≠ r := fun h => hr_not_rs (h ▸ hz_rs)
-          have hsub_rs : [z, r'] <+ rs := by
-            rcases List.sublist_cons_iff.1 hz_sub with h | ⟨l, hl, _⟩
-            · exact h
-            · injection hl with hrz _
-              exact absurd hrz hzr
-          exact .inr ⟨z, hz_rs, hwz, hsub_rs⟩
+      obtain rfl | hz_rs := List.mem_cons.1 hz_mem
+      · exact .inl ((hvis_adj w).2 (.inr hwz.1))
+      refine .inr ⟨z, hz_rs, hwz, (List.sublist_cons_iff.1 hz_sub).resolve_right ?_⟩
+      rintro ⟨l, hl, -⟩
+      exact hr_not_rs ((List.cons.inj hl).1 ▸ hz_rs)
     obtain ⟨ih_ne, ih_nd, ih_mem, ih_scc, ih_cond⟩ := peelSCCs_spec hvs hk rs s.visited hrs_nd
       hcl' hord'
     rw [peelSCCs]
@@ -348,85 +327,44 @@ private theorem peelSCCs_spec [Fintype V] {vs : List V} (hvs : ∀ v, v ∈ vs)
       else s.finished :: peelSCCs rev k s.visited rs; _)
     split_ifs with he
     · have hnil : s.finished = [] := List.isEmpty_iff.1 he
-      have hall_vis : ∀ w, Relation.ReflTransGen (Edge adj) w r → w ∈ vis := by
-        intro w hwr
-        by_contra hnv
-        have hm : w ∈ s.finished := (hfin_adj w).2 ⟨hnv, hwr⟩
-        simp [hnil] at hm
+      have hall_vis : ∀ w, Relation.ReflTransGen (Edge adj) w r → w ∈ vis := fun w hwr =>
+        Classical.byContradiction fun hnv => by simpa [hnil] using (hfin_adj w).2 ⟨hnv, hwr⟩
       refine ⟨ih_ne, ih_nd, fun w => ?_, ih_scc, ih_cond⟩
       rw [ih_mem, hvis_adj]
-      constructor
-      · rintro ⟨hnv, r', hr', hwr'⟩
-        exact ⟨fun hv => hnv (.inl hv), r', List.mem_cons_of_mem r hr', hwr'⟩
-      · rintro ⟨hnv, r', hr', hwr'⟩
-        rcases List.mem_cons.1 hr' with rfl | hr'
-        · exact absurd (hall_vis w hwr') hnv
-        · exact ⟨fun h => h.elim hnv (fun hwr => hnv (hall_vis w hwr)), r', hr', hwr'⟩
-    · have hne : s.finished ≠ [] := by
-        intro hnil
-        exact he (List.isEmpty_iff.2 hnil)
-      have hr_nvis : r ∉ vis := by
-        intro hrv
+      by_cases hwr : Relation.ReflTransGen (Edge adj) w r
+      · simp [hwr, hall_vis w hwr]
+      · simp [hwr]
+    · have hne : s.finished ≠ [] := fun hnil => he (List.isEmpty_iff.2 hnil)
+      have hr_nvis : r ∉ vis := fun hrv => by
         obtain ⟨x₀, hx₀⟩ := List.exists_mem_of_ne_nil s.finished hne
         obtain ⟨hnx₀, hx₀r⟩ := (hfin_adj x₀).1 hx₀
         exact hnx₀ (reach_of_closed hcl hrv ((reflTransGen_edge_transposeAdj_iff hvs).2 hx₀r))
-      have hs_scc : ∀ w, w ∈ s.finished ↔ StronglyConnected adj r w := by
-        intro w
+      have hs_scc : ∀ w, w ∈ s.finished ↔ StronglyConnected adj r w := fun w => by
         rw [hfin_adj]
-        constructor
-        · rintro ⟨hnv, hwr⟩
-          refine ⟨?_, hwr⟩
-          by_contra hnrw
-          rcases hord r List.mem_cons_self w hwr hnrw with hwv | ⟨z, _, _, hsub⟩
-          · exact hnv hwv
-          · exact not_sublist_two_head hr_not_rs hsub
-        · rintro ⟨hrw, hwr⟩
-          refine ⟨fun hwv => hr_nvis ?_, hwr⟩
-          exact reach_of_closed hcl hwv ((reflTransGen_edge_transposeAdj_iff hvs).2 hrw)
+        exact ⟨fun ⟨hnv, hwr⟩ => ⟨Classical.byContradiction fun hnrw =>
+            (hord r List.mem_cons_self w hwr hnrw).elim hnv
+              fun ⟨_, _, _, hsub⟩ => not_sublist_two_head hr_not_rs hsub, hwr⟩,
+          fun ⟨hrw, hwr⟩ => ⟨fun hwv => hr_nvis (reach_of_closed hcl hwv
+            ((reflTransGen_edge_transposeAdj_iff hvs).2 hrw)), hwr⟩⟩
       set rest := peelSCCs rev k s.visited rs
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro c hc
-        rcases List.mem_cons.1 hc with rfl | hc
-        · exact hne
-        · exact ih_ne c hc
+      refine ⟨List.forall_mem_cons.2 ⟨hne, ih_ne⟩, ?_, fun w => ?_,
+        List.forall_mem_cons.2 ⟨⟨r, hs_scc⟩, ih_scc⟩, ?_⟩
       · rw [List.flatten_cons, List.nodup_append]
         refine ⟨hnd_s, ih_nd, fun w hw₁ _ hw₂ hww' => ?_⟩
         subst hww'
-        have hw_vis : w ∈ s.visited := (hvis_adj w).2 (.inr ((hfin_adj w).1 hw₁).2)
-        exact ((ih_mem w).1 hw₂).1 hw_vis
-      · intro w
-        rw [List.flatten_cons, List.mem_append, hfin_adj, ih_mem, hvis_adj]
-        by_cases hwr : Relation.ReflTransGen (Edge adj) w r
-        · simp only [hwr, and_true, or_true, not_true_eq_false, false_and, or_false]
-          exact ⟨fun hnv => ⟨hnv, r, List.mem_cons_self, hwr⟩, fun ⟨hnv, _⟩ => hnv⟩
-        · simp only [hwr, and_false, or_false, false_or]
-          constructor
-          · rintro ⟨hnv, r', hr', hwr'⟩
-            exact ⟨hnv, r', List.mem_cons_of_mem r hr', hwr'⟩
-          · rintro ⟨hnv, r', hr', hwr'⟩
-            rcases List.mem_cons.1 hr' with rfl | hr'
-            · exact absurd hwr' hwr
-            · exact ⟨hnv, r', hr', hwr'⟩
-      · intro c hc
-        rcases List.mem_cons.1 hc with rfl | hc
-        · exact ⟨r, hs_scc⟩
-        · exact ih_scc c hc
+        exact ((ih_mem w).1 hw₂).1 ((hvis_adj w).2 (.inr ((hfin_adj w).1 hw₁).2))
+      · rw [List.flatten_cons, List.mem_append, hfin_adj, ih_mem, hvis_adj]
+        by_cases hwr : Relation.ReflTransGen (Edge adj) w r <;> simp [hwr]
       · intro i j hi hj u v hu hv huv
-        cases i with
-        | zero => exact Nat.zero_le j
-        | succ i' =>
-          cases j with
-          | zero =>
-            simp only [List.length_cons, List.getElem_cons_succ, List.getElem_cons_zero] at hi hu hv
-            have hi' : i' < rest.length := by omega
-            have hu_flat : u ∈ rest.flatten :=
-              List.mem_flatten.2 ⟨rest[i'], List.getElem_mem hi', hu⟩
-            have hu_nvis : u ∉ s.visited := ((ih_mem u).1 hu_flat).1
-            have hv_vis : v ∈ s.visited := (hvis_adj v).2 (.inr ((hfin_adj v).1 hv).2)
-            exact absurd (hcl' v hv_vis u ((edge_transposeAdj_iff hvs).2 huv)) hu_nvis
-          | succ j' =>
-            simp only [List.length_cons, List.getElem_cons_succ] at hi hj hu hv
-            exact Nat.succ_le_succ (ih_cond (by omega) (by omega) hu hv huv)
+        rcases i with _ | i'
+        · exact Nat.zero_le j
+        rcases j with _ | j'
+        · simp only [List.length_cons, List.getElem_cons_succ, List.getElem_cons_zero] at hi hu hv
+          exact absurd (hcl' v ((hvis_adj v).2 (.inr ((hfin_adj v).1 hv).2)) u
+            ((edge_transposeAdj_iff hvs).2 huv))
+            ((ih_mem u).1 (List.mem_flatten.2 ⟨_, List.getElem_mem _, hu⟩)).1
+        · simp only [List.length_cons, List.getElem_cons_succ] at hi hj hu hv
+          exact Nat.succ_le_succ (ih_cond (by omega) (by omega) hu hv huv)
 
 /-- **Correctness of Kosaraju's algorithm** [Cormen et al.][CLRS2009]: when `vs` lists every
 vertex of `V`, `sccs adj vs` partitions `V` into nonempty strongly connected components in forward

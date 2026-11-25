@@ -75,14 +75,12 @@ theorem win_comm {p n p' n' : ℕ} (hp : p + n ≤ h) (hp' : p' + n' ≤ h) (hd 
   have h1 := wi_disj hp hp' hd
   have h2 : (wi hp')ᵀ * wi hp = 0 := by
     rw [← Matrix.transpose_transpose (wi hp), ← Matrix.transpose_mul, h1, Matrix.transpose_zero]
-  have z1 : ∀ (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2),
+  have z1 (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2) :
       wi hp * X * (wi hp)ᵀ * (wi hp' * Y * (wi hp')ᵀ) = 0 := by
-    intro X Y
     rw [mul_sandwich, h1]
     simp
-  have z2 : ∀ (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2),
+  have z2 (X : Matrix (Fin n) (Fin n) F2) (Y : Matrix (Fin n') (Fin n') F2) :
       wi hp' * Y * (wi hp')ᵀ * (wi hp * X * (wi hp)ᵀ) = 0 := by
-    intro X Y
     rw [mul_sandwich, h2]
     simp
   unfold wm
@@ -115,14 +113,13 @@ theorem e_nonneg (j : ℕ) (z : Z) : 0 ≤ A.e j z := by
 theorem Fix.sub {p n p' n' : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ p')
     (h2 : p' + n' ≤ p + n) (h3 : p + n ≤ h) : (A.W p' n').Fix z := by
   intro g
-  have e1 : wh h p' n' g = wh h p n (win (p := p' - p) (n := n') (h := n) (by omega) g) := by
-    rw [wh_eq (by omega), wh_eq h3, win_win h3 (by omega) (by omega)]
-    have : p + (p' - p) = p' := by omega
+  have hfit : p' - p + n' ≤ n := by omega
+  have e1 : wh h p' n' g = wh h p n (win (p := p' - p) (n := n') (h := n) hfit g) := by
+    rw [wh_eq (by omega), wh_eq h3, win_win h3 hfit (by omega)]
     congr! 2
-    exact this.symm
+    omega
   change A (wh h p' n' g) z = z
-  rw [e1]
-  exact hz _
+  exact e1 ▸ hz _
 
 theorem wh_comm {p n p' n' : ℕ} (hd : p + n ≤ p') (hp' : p' + n' ≤ h) (a : U n) (b : U n') :
     wh h p n a * wh h p' n' b = wh h p' n' b * wh h p n a := by
@@ -135,17 +132,14 @@ theorem wh_x {j : ℕ} (hj : j < h - 1) : wh h j 2 (x 2 ⟨0, by omega⟩) = x h
 theorem e_zero {p n j : ℕ} {z : Z} (hz : (A.W p n).Fix z) (h1 : p ≤ j) (h2 : j + 2 ≤ p + n)
     (h3 : p + n ≤ h) : A.e j z = 0 := by
   have hj : j < h - 1 := by omega
-  have h4 := hz.sub A h1 h2 h3
   unfold e
-  rw [dite_eq_left hj, ← wh_x hj]
-  have := h4 (x 2 ⟨0, by omega⟩)
-  rw [show A (wh h j 2 (x 2 ⟨0, by omega⟩)) z = z from this, dist_self]
+  rw [dite_eq_left hj, ← wh_x hj,
+    show A (wh h j 2 (x 2 ⟨0, by omega⟩)) z = z from hz.sub A h1 h2 h3 _, dist_self]
 
 theorem e_le {p n j : ℕ} {y : Z} (hy : (A.W p n).Fix y) (h1 : p ≤ j) (h2 : j + 2 ≤ p + n)
     (h3 : p + n ≤ h) (z : Z) : A.e j z ≤ 2 * dist z y := by
   have hj : j < h - 1 := by omega
-  have h4 := hy.sub A h1 h2 h3 (x 2 ⟨0, by omega⟩)
-  have h5 : A (x h ⟨j, hj⟩) y = y := by rw [← wh_x hj]; exact h4
+  have h5 : A (x h ⟨j, hj⟩) y = y := wh_x hj ▸ hy.sub A h1 h2 h3 (x 2 ⟨0, by omega⟩)
   unfold e
   rw [dite_eq_left hj]
   refine (dist_triangle z y _).trans ?_

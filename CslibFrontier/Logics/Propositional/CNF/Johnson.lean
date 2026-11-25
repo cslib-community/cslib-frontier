@@ -219,8 +219,7 @@ theorem CNF.johnsonWeight_restrict_add_le {L : ℕ} (v : V) {ψ : CNF V}
         2 ^ (L - (c.filter (· ≠ a)).length) = 2 ^ (L - c.length) + 2 ^ (L - c.length) := by
       have h1 := length_filter_ne_add_one hnd ha
       rw [show L - (c.filter (· ≠ a)).length = L - c.length + 1 by omega,
-        pow_succ]
-      ring
+        pow_succ, Nat.mul_two]
     by_cases hT : (v, true) ∈ c <;> by_cases hF : (v, false) ∈ c <;>
       simp only [hT, hF, ite_true, ite_false, CNF.johnsonWeight_cons, Bool.not_true,
         Bool.not_false]
@@ -240,19 +239,10 @@ omit [DecidableEq V] in
 /-- A formula without variables has weight `2 ^ L` per clause, all of them falsified. -/
 theorem CNF.johnsonWeight_of_vars_eq_nil {L : ℕ} {ψ : CNF V} (hψ : ∀ v, v ∉ ψ.vars)
     (σ : V → Bool) : ψ.johnsonWeight L = 2 ^ L * ψ.countUnsat σ := by
-  induction ψ with
-  | nil => rfl
-  | cons c ψ ih =>
-    have hc : c = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
-      hψ l.1 (CNF.mem_vars.2 ⟨c, List.mem_cons_self, l.2, hl⟩)
-    have ih := ih fun v hv => hψ v (by
-      obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
-      exact CNF.mem_vars.2 ⟨c', List.mem_cons_of_mem _ hc', b, hb⟩)
-    subst hc
-    have h1 : CNF.countUnsat σ ([] :: ψ) = CNF.countUnsat σ ψ + 1 :=
-      List.countP_cons_of_pos (by simp)
-    rw [CNF.johnsonWeight_cons, h1, ih, List.length_nil, Nat.sub_zero]
-    ring
+  have hnil : ψ = List.replicate ψ.length [] := List.eq_replicate_length.2 fun c hc =>
+    List.eq_nil_iff_forall_not_mem.2 fun l hl => hψ l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)
+  rw [hnil]
+  simp [CNF.johnsonWeight, CNF.countUnsat, List.countP_replicate, Nat.mul_comm]
 
 /-! ### Johnson's algorithm -/
 
@@ -300,13 +290,9 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
       obtain ⟨c₀, hc₀, -, rfl⟩ := CNF.mem_restrict.1 hc
       exact (List.mem_cons.1 (hvars w (CNF.mem_vars.2 ⟨c₀, hc₀, b', (List.mem_filter.1 hl).1⟩)))
         |>.resolve_left hne
-    · have hw : w = r ∨ w ∈ T := by
-        cases b
-        · exact .inr hw
-        · exact List.mem_cons.1 hw
+    · have hw : w = r ∨ w ∈ T := by cases b; exacts [.inr hw, List.mem_cons.1 hw]
       rcases hw with rfl | hw
-      · exact hr
-      · exact fun h => hT w hw (List.mem_cons_of_mem _ h)
+      exacts [hr, fun h => hT w hw (List.mem_cons_of_mem _ h)]
     · have hrσ : σ r = b := by
         rw [hσ r hr]
         cases b
@@ -333,9 +319,8 @@ theorem two_pow_mul_countUnsat_johnsonAssignment_le (φ : CNF V) :
   obtain ⟨⟨-, -, hvars, -, hcount⟩, hle⟩ :=
     greedy_spec_of_add_le johnsonBranch (fun s => s.1.johnsonWeight L) Inv hbranch havg _ _ hinit
   have hcount := hcount (johnsonAssignment φ) fun v _ => rfl
-  rw [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
+  rwa [CNF.johnsonWeight_of_vars_eq_nil (fun v hv => by simpa using hvars v hv)
     (johnsonAssignment φ), hcount] at hle
-  exact hle
 
 /-! ### Corollaries -/
 

@@ -189,8 +189,7 @@ theorem length_searchRight_le (l : List α) : (searchRight Q s l).length ≤ s +
   set c : ℕ → ℕ := fun j => ((l.take (j + 1)).flatMap Q).toFinset.card
   have hP : P.Pairwise fun p q => p.2 < q.2 := by
     have := List.pairwise_lt_range' (s := 0) (n := (l.zip l.tail).length)
-    rw [← List.zipIdx_map_snd 0, List.pairwise_map] at this
-    exact this
+    rwa [← List.zipIdx_map_snd 0, List.pairwise_map] at this
   have hmemF : ∀ p ∈ F,
       l[p.2 + 1]? = some p.1.2 ∧ hasNewQuery Q s (l.take (p.2 + 1)) p.1.2 = true := by
     intro p hp
@@ -209,9 +208,7 @@ theorem length_searchRight_le (l : List α) : (searchRight Q s l).length ≤ s +
     exact List.mem_range.2 (Nat.lt_succ_of_le hnew.1)
   have hF := List.Nodup.length_le_of_subset (hsorted.imp ne_of_lt) hsub
   rw [List.length_map, List.length_range] at hF
-  have hdrop : (l.drop (l.length - 1)).length ≤ 1 := by
-    rw [List.length_drop]
-    omega
+  have hdrop : (l.drop (l.length - 1)).length ≤ 1 := by rw [List.length_drop]; omega
   rw [searchRight, List.length_append, List.length_map]
   exact le_trans (Nat.add_le_add hF hdrop) (by omega)
 
@@ -223,9 +220,7 @@ theorem mem_searchRight {K : Set κ} (hc : ∀ T : Finset κ, (∀ u ∈ T, u �
     (hB : ∀ z ∈ B.head?, ∃ u ∈ Q z, u ∉ K) : y ∈ searchRight Q s (A ++ y :: B) := by
   rw [searchRight, List.mem_append]
   cases B with
-  | nil =>
-    refine .inr ?_
-    simp
+  | nil => exact .inr (by simp)
   | cons z B =>
     refine .inl (List.mem_map.2 ⟨((y, z), A.length), List.mem_filter.2 ⟨?_, ?_⟩, rfl⟩)
     · rw [List.mem_zipIdx_iff_getElem?, List.getElem?_zip_eq_some, List.getElem?_tail]
@@ -233,10 +228,8 @@ theorem mem_searchRight {K : Set κ} (hc : ∀ T : Finset κ, (∀ u ∈ T, u �
     · obtain ⟨u, hu, huK⟩ := hB z (by simp)
       have htake : (A ++ y :: z :: B).take (A.length + 1) = A ++ [y] := by
         simp [List.take_append]
-      have hW : ∀ u ∈ (A ++ [y]).flatMap Q, u ∈ K := by
-        intro u hu
-        obtain ⟨x, hx, hux⟩ := List.mem_flatMap.1 hu
-        exact hA x hx u hux
+      have hW : ∀ u ∈ (A ++ [y]).flatMap Q, u ∈ K := fun u hu => by
+        obtain ⟨x, hx, hux⟩ := List.mem_flatMap.1 hu; exact hA x hx u hux
       change hasNewQuery Q s ((A ++ y :: z :: B).take (A.length + 1)) z = true
       rw [htake, hasNewQuery, Bool.and_eq_true, decide_eq_true_iff, length_eraseDupsBy_flatMap,
         List.any_eq_true]
@@ -345,11 +338,9 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     rcases lt_or_eq_of_le (hc.2 b' hfst' hb') with hlt | heq
     · refine .inl fun y => ?_
       simpa using List.append_lt_append_of_lt_of_length_eq hlt hlen [l.2] [y]
-    · refine .inr ⟨l.2, ?_⟩
-      rw [List.concat_eq_append, eq_of_map_fst_eq_of_map_snd_eq hfst' heq]
-      obtain ⟨u, y⟩ := l
-      simp only [List.singleton_inj] at hl
-      simp [hl]
+    · obtain ⟨u, y⟩ := l
+      obtain rfl : u = v := List.singleton_inj.1 hl
+      exact .inr ⟨y, by rw [List.concat_eq_append, eq_of_map_fst_eq_of_map_snd_eq hfst' heq]⟩
   have hle_true : ∀ y : Bool, c.map Prod.snd ++ [y] ≤ c.map Prod.snd ++ [true] := by
     intro y
     cases y
@@ -361,15 +352,13 @@ theorem exists_isLargest_child {c : List (Literal ℕ)} (hc : IsLargest φ c) (v
     rcases hext b hfst hb with hlt | ⟨y, rfl⟩
     · simpa using (hlt true).le
     · simpa using hle_true y
-  · obtain ⟨y, hy⟩ := Fortune.exists_child_mem_SAT v hc.1
-    cases y
+  · obtain ⟨_ | _, hy⟩ := Fortune.exists_child_mem_SAT v hc.1
     · refine ⟨false, hy, fun b hfst hb => ?_⟩
       rw [List.map_append, List.map_singleton] at hfst
-      rcases hext b hfst hb with hlt | ⟨y, rfl⟩
+      rcases hext b hfst hb with hlt | ⟨_ | _, rfl⟩
       · simpa using (hlt false).le
-      · cases y
-        · exact le_rfl
-        · exact absurd hb htrue
+      · exact le_rfl
+      · exact absurd hb htrue
     · exact absurd hy htrue
 
 /-- Expanding a level in decreasing order gives a level in decreasing order: the `true` child of a
@@ -443,16 +432,11 @@ private theorem mem_prune_of_isLargest (hkey : ∀ ψ, ψ ∈ SAT ↔ ∀ w ∈ 
     List.singleton_append]
   refine mem_searchRight (K := {w | w ∈ K ∧ w.length ≤ M}) (fun T hT => hc T hT)
     (fun x hx w hw => ?_) fun z hz => ?_
-  · have hxl : x ∈ l₁ ++ c :: l₂ := by
+  · obtain ⟨hxl, hle⟩ : x ∈ l₁ ++ c :: l₂ ∧ x.map Prod.snd ≤ c.map Prod.snd := by
       simp only [List.mem_append, List.mem_reverse, List.mem_singleton] at hx
       rcases hx with hx | rfl
-      · simp [hx]
-      · simp
-    have hle : x.map Prod.snd ≤ c.map Prod.snd := by
-      simp only [List.mem_append, List.mem_reverse, List.mem_singleton] at hx
-      rcases hx with hx | rfl
-      · exact (List.rel_of_pairwise_cons hsort'.2.1 hx).le
-      · exact le_rfl
+      · exact ⟨by simp [hx], (List.rel_of_pairwise_cons hsort'.2.1 hx).le⟩
+      · exact ⟨by simp, le_rfl⟩
     have hxfst := hfst x hxl
     have hnode := Fortune.mem_vars_and_length_le_of_map_fst_eq hpre hxfst
     exact ⟨(hkey _).1 (atLeast_append_mem_SAT_of_le hlarge (hxfst.trans (hfst c hcl).symm) hle)
@@ -461,9 +445,7 @@ private theorem mem_prune_of_isLargest (hkey : ∀ ψ, ψ ∈ SAT ↔ ∀ w ∈ 
     have hunsat := atLeast_append_notMem_SAT_of_lt hlarge
       ((hfst z (by simp [hzl₁])).trans (hfst c hcl).symm)
       (hsort'.2.2 z hzl₁ c List.mem_cons_self)
-    rw [hkey] at hunsat
-    push Not at hunsat
-    obtain ⟨w, hw, hwK⟩ := hunsat
+    obtain ⟨w, hw, hwK⟩ := not_forall₂.1 ((hkey _).not.1 hunsat)
     exact ⟨w, hw, fun h => hwK h.1⟩
 
 /-- **Correctness of the procedure.** If the queries `key` reduce `SAT` conjunctively to `K`, the

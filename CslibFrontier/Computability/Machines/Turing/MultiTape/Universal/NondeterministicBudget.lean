@@ -258,13 +258,12 @@ lemma step_fire {T r : List (Key × Act)} {B q : ℕ} {c : SCfg} {o : List ℕ} 
   have hr := nuSym_read (x := x) ⟨T, e :: r, B, c, o⟩
   simp only at hr
   have hk : e.1 = nuKey c (inputSymbol (x.map eBit) c.inputPos) := by
-    rw [hkey]
-    simp [nuKey, SCfg.key, hq]
+    simpa [nuKey, SCfg.key, hq] using hkey
   have ha : nuApply e.2 c (inputSymbol (x.map eBit) c.inputPos) = e.2.apply (x.map eBit) c := rfl
   simp only [NondeterministicQueryMachine.step, hh, Bool.false_eq_true, ↓reduceIte]
   change nuNext (⟨T, e :: r, B, c, o⟩, budgetedNUniversal.read x ⟨T, e :: r, B, c, o⟩, true) = _
-  simp only [nuNext, hr, List.isEmpty_cons, List.headD_cons, Bool.not_true, Bool.false_eq_true,
-    ↓reduceIte, ← hk, decide_true, ha, hb]
+  simp only [nuNext, hr, List.isEmpty_cons, List.headD_cons, Bool.not_true,
+    Bool.false_eq_true, ↓reduceIte, ← hk, decide_true, ha, hb]
 
 /-- A configuration stepping within the budget from the initial configuration is reached by the
 recognizer from `nuStart d b`, with the cursor at the start of the table. -/
@@ -457,20 +456,15 @@ lemma length_eCfg_of_reach {c : SCfg} {o : List ℕ}
   · cases h
     have := length_eCfg_init_le d
     omega
-  · have : (eCfg c).length ≤ b := hb
+  · dsimp only at hb
     omega
 
 lemma length_take_two_le {o : List ℕ} {D : ℕ} (h : ∀ a ∈ o, a ≤ D) :
     (encList encUnary (o.take 2)).length ≤ 4 * D + 2 := by
   rcases o with _ | ⟨a, _ | ⟨a', o⟩⟩
   · simp
-  · have := h a (by simp)
-    simp
-    omega
-  · have := h a (by simp)
-    have := h a' (by simp)
-    simp
-    omega
+  · simp at h ⊢; omega
+  · simp at h ⊢; omega
 
 lemma length_rest_le {r : List (Key × Act)} (h : r <:+ d.table) :
     (encList (encPair eKey eAct) r).length ≤ descLen d := by
@@ -514,13 +508,9 @@ public theorem length_eNU_run_le (d : Desc) (b : ℕ) (x choices : List Bool) :
 bound, is computed within that bound. -/
 public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → Desc} {B S : α → ℕ}
     (hD : ComputableInSpace D enc eDesc S) (hB : ComputableInSpace B enc encUnary S) :
-    ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S := by
-  have hT := eDesc_table_budget hD
-  have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
-    budget_comp_lin (of_inO init_inO) linear_succ hD
-  have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
-    budget_const []
-  exact eNU_mk_budget hT hT hB hI hO
+    ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S :=
+  eNU_mk_budget (eDesc_table_budget hD) (eDesc_table_budget hD) hB
+    (budget_comp_lin (of_inO init_inO) linear_succ hD) (budget_const [])
 
 /-! ### Machines within a space bound -/
 

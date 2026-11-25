@@ -106,19 +106,14 @@ namespace SyndromeSample
 
 /-- The two-block encoding contains exactly two ambient blocks. -/
 @[simp] theorem length_toWord {n : ℕ} (sample : SyndromeSample n) :
-    sample.toWord.length = 2 * n := by
-  simp [toWord]
-  omega
+    sample.toWord.length = 2 * n := by simp [toWord]; omega
 
 /-- The fixed-width two-block encoding preserves the complete source tuple. -/
 theorem toWord_injective {n : ℕ} : Function.Injective (@toWord n) := by
   intro a b h
-  have hab : Fin.append a.publicBlock a.value = Fin.append b.publicBlock b.value :=
-    List.ofFn_injective h
-  have hpublic : a.publicBlock = b.publicBlock := by
-    simpa using congrArg BitString.fstBits hab
-  have hvalue : a.value = b.value := by
-    simpa using congrArg BitString.sndBits hab
+  have hab := List.ofFn_injective h
+  have hpublic : a.publicBlock = b.publicBlock := by simpa using congrArg BitString.fstBits hab
+  have hvalue : a.value = b.value := by simpa using congrArg BitString.sndBits hab
   cases a
   cases b
   simp_all
@@ -135,20 +130,13 @@ second syndrome, in that order. -/
 
 /-- The truncated three-block encoding contains three ambient blocks and the retained prefix. -/
 @[simp] theorem length_toWord {n m : ℕ} (sample : TruncatedSyndromeSample n m) :
-    sample.toWord.length = 3 * n + m := by
-  simp [toWord]
-  omega
+    sample.toWord.length = 3 * n + m := by simp [toWord]; omega
 
 /-- The fixed-width truncated encoding preserves all four components of the source tuple. -/
 theorem toWord_injective {n m : ℕ} : Function.Injective (@toWord n m) := by
   intro a b h
-  have h₀ : Fin.append a.firstBlock
-      (Fin.append a.secondBlock (Fin.append a.firstValue a.secondValue)) =
-      Fin.append b.firstBlock
-        (Fin.append b.secondBlock (Fin.append b.firstValue b.secondValue)) :=
-    List.ofFn_injective h
-  have hfirst : a.firstBlock = b.firstBlock := by
-    simpa using congrArg BitString.fstBits h₀
+  have h₀ := List.ofFn_injective h
+  have hfirst : a.firstBlock = b.firstBlock := by simpa using congrArg BitString.fstBits h₀
   have hrest : Fin.append a.secondBlock (Fin.append a.firstValue a.secondValue) =
       Fin.append b.secondBlock (Fin.append b.firstValue b.secondValue) := by
     simpa using congrArg BitString.sndBits h₀
@@ -209,37 +197,33 @@ derived parity, while the retained second component is independent and uniform. 
 theorem supportsLength_twoRealEnsemble (params : DQCSDParameters)
     (publicParity : ℕ → Bool) :
     NativeQuantum.SupportsLength (twoRealEnsemble params publicParity)
-      (twoWordLength params) := by
-  intro κ word hword
-  obtain ⟨sample, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
-  exact (SyndromeSample.length_toWord sample).le
+      (twoWordLength params) := fun _ _ h =>
+  let ⟨s, _, hs⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  hs ▸ (SyndromeSample.length_toWord s).le
 
 /-- Every encoded comparison 2-DQCSD-P sample has the exact declared word length. -/
 theorem supportsLength_twoUniformEnsemble (params : DQCSDParameters)
     (publicParity : ℕ → Bool) :
     NativeQuantum.SupportsLength (twoUniformEnsemble params publicParity)
-      (twoWordLength params) := by
-  intro κ word hword
-  obtain ⟨sample, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
-  exact (SyndromeSample.length_toWord sample).le
+      (twoWordLength params) := fun _ _ h =>
+  let ⟨s, _, hs⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  hs ▸ (SyndromeSample.length_toWord s).le
 
 /-- Every encoded real 3-QCSD-PT sample has the exact declared word length. -/
 theorem supportsLength_threeRealEnsemble (params : DQCSDTruncatedParameters)
     (firstParity secondParity : ℕ → Bool) :
     NativeQuantum.SupportsLength (threeRealEnsemble params firstParity secondParity)
-      (threeWordLength params) := by
-  intro κ word hword
-  obtain ⟨sample, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
-  exact (TruncatedSyndromeSample.length_toWord sample).le
+      (threeWordLength params) := fun _ _ h =>
+  let ⟨s, _, hs⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  hs ▸ (TruncatedSyndromeSample.length_toWord s).le
 
 /-- Every encoded comparison 3-DQCSD-PT sample has the exact declared word length. -/
 theorem supportsLength_threeUniformEnsemble (params : DQCSDTruncatedParameters)
     (firstParity secondParity : ℕ → Bool) :
     NativeQuantum.SupportsLength (threeUniformEnsemble params firstParity secondParity)
-      (threeWordLength params) := by
-  intro κ word hword
-  obtain ⟨sample, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
-  exact (TruncatedSyndromeSample.length_toWord sample).le
+      (threeWordLength params) := fun _ _ h =>
+  let ⟨s, _, hs⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  hs ▸ (TruncatedSyndromeSample.length_toWord s).le
 
 /-- Concrete native quantum 2-DQCSD-P security with exact sample lengths and separate circuit
 resource budgets: at each `κ`, every native quantum test within a budget has advantage at most `ε`
@@ -298,12 +282,11 @@ theorem NativeQuantumTwoDQCSDP.of_within {params : DQCSDParameters}
       PolynomiallyBounded qubits → PolynomiallyBounded gates → PolynomiallyBounded queries →
       PolynomiallyBounded descriptionBits →
       Negligible (fun κ => ε κ ⟨qubits κ, gates κ, queries κ, descriptionBits κ⟩)) :
-    NativeQuantumTwoDQCSDP params publicParity := by
-  apply NativeQuantum.ComputationallyIndistinguishable.of_within h
+    NativeQuantumTwoDQCSDP params publicParity :=
+  NativeQuantum.ComputationallyIndistinguishable.of_within h
     (supportsLength_twoRealEnsemble params publicParity)
-    (supportsLength_twoUniformEnsemble params publicParity) _ hneg
-  change PolynomiallyBounded (fun κ => 2 * params.blockLength κ)
-  exact (PolynomiallyBounded.const 2).mul hn
+    (supportsLength_twoUniformEnsemble params publicParity)
+    ((PolynomiallyBounded.const 2).mul hn) hneg
 
 /-- Concrete native quantum 3-DQCSD-PT security with exact sample lengths and separate circuit
 resource budgets: at each `κ`, every native quantum test within a budget has advantage at most `ε`
@@ -367,19 +350,15 @@ theorem NativeQuantumThreeDQCSDPT.of_within {params : DQCSDTruncatedParameters}
       PolynomiallyBounded qubits → PolynomiallyBounded gates → PolynomiallyBounded queries →
       PolynomiallyBounded descriptionBits →
       Negligible (fun κ => ε κ ⟨qubits κ, gates κ, queries κ, descriptionBits κ⟩)) :
-    NativeQuantumThreeDQCSDPT params firstParity secondParity := by
-  apply NativeQuantum.ComputationallyIndistinguishable.of_within h
+    NativeQuantumThreeDQCSDPT params firstParity secondParity :=
+  NativeQuantum.ComputationallyIndistinguishable.of_within h
     (supportsLength_threeRealEnsemble params firstParity secondParity)
-    (supportsLength_threeUniformEnsemble params firstParity secondParity) _ hneg
-  change PolynomiallyBounded
-    (fun κ => 3 * params.blockLength κ +
-      (params.blockLength κ - params.truncation κ))
-  apply ((PolynomiallyBounded.const 4).mul hn).mono_of_le
-  intro κ
-  calc
-    3 * params.blockLength κ + (params.blockLength κ - params.truncation κ) ≤
-        3 * params.blockLength κ + params.blockLength κ :=
-      Nat.add_le_add_left (Nat.sub_le _ _) _
-    _ = 4 * params.blockLength κ := by omega
+    (supportsLength_threeUniformEnsemble params firstParity secondParity)
+    (((PolynomiallyBounded.const 4).mul hn).mono_of_le fun κ => by
+      dsimp only [threeWordLength]
+      calc 3 * params.blockLength κ + (params.blockLength κ - params.truncation κ)
+          ≤ 3 * params.blockLength κ + params.blockLength κ :=
+            Nat.add_le_add_left (Nat.sub_le _ _) _
+        _ = 4 * params.blockLength κ := by omega) hneg
 
 end Cslib.Crypto.HQC

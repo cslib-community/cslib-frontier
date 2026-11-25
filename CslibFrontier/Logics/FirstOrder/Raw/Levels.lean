@@ -160,21 +160,11 @@ private def nameDepths (F : ℕ → Prop) [DecidablePred F] (y : ℕ) : ℕ × O
 private theorem inDepths_nameDepths {F : ℕ → Prop} [DecidablePred F] {d y : ℕ} :
     InDepths d (nameDepths F y) ↔ NameOk F d y := by
   unfold nameDepths NameOk
-  split_ifs with h1 h2
-  · simp only [InDepths, Option.getD_none]
-    constructor
-    · intro h; exact Or.inl ⟨h1, by omega⟩
-    · rintro (⟨-, h⟩ | ⟨h, -⟩) <;> omega
-  · simp only [InDepths, Option.getD_none]
-    constructor
-    · intro _; exact Or.inr ⟨by omega, h2⟩
-    · intro _; omega
-  · simp only [InDepths, Option.getD_some]
-    constructor
-    · intro h; omega
-    · rintro (⟨h, -⟩ | ⟨-, h⟩)
-      · omega
-      · exact absurd h h2
+  split_ifs with h1 h2 <;> simp only [InDepths, Option.getD_none, Option.getD_some]
+  · exact ⟨fun h => Or.inl ⟨h1, by omega⟩,
+      fun h => by rcases h with ⟨-, h⟩ | ⟨h, -⟩ <;> omega⟩
+  · exact ⟨fun _ => Or.inr ⟨by omega, h2⟩, fun _ => by omega⟩
+  · exact ⟨fun h => by omega, fun h => h.elim (fun ⟨h, _⟩ => by omega) fun ⟨_, h⟩ => (h2 h).elim⟩
 
 /-- The depth interval at which all names in a list are admissible. -/
 private def listDepths (F : ℕ → Prop) [DecidablePred F] (ys : List ℕ) : ℕ × Option ℕ :=
@@ -195,20 +185,13 @@ private theorem inDepths_allDepths {d x : ℕ} {p : ℕ × Option ℕ} :
     InDepths d (allDepths x p) ↔ x = 2 * d ∧ InDepths (d + 1) p := by
   unfold allDepths
   split_ifs with h
-  · obtain ⟨h1, h2⟩ := h
-    have e : InDepths d (x / 2, some (x / 2)) ↔ d = x / 2 := by
-      simp only [InDepths, Option.getD_some]; omega
-    rw [e]
-    constructor
-    · rintro rfl
-      exact ⟨by omega, h2⟩
-    · rintro ⟨rfl, -⟩
-      omega
-  · have e : ¬InDepths d (1, some 0) := by simp only [InDepths, Option.getD_some]; omega
-    simp only [e, false_iff]
-    rintro ⟨rfl, hp⟩
-    have h2 : 2 * d / 2 = d := by omega
-    exact h ⟨by omega, by rw [h2]; exact hp⟩
+  · refine ⟨fun hd => ?_, fun ⟨hx, _⟩ => by simp [InDepths]; omega⟩
+    simp only [InDepths, Option.getD_some] at hd
+    have hd' : d + 1 = x / 2 + 1 := by omega
+    exact ⟨by omega, hd' ▸ h.2⟩
+  · refine ⟨fun hd => by simp [InDepths] at hd; omega, fun ⟨hx, hp⟩ => ?_⟩
+    have hd' : 2 * d / 2 = d := by omega
+    exact (h ⟨by omega, by simpa [hx, hd'] using hp⟩).elim
 
 /-- The depth interval at which a formula is well scoped. -/
 private def depths (F : ℕ → Prop) [DecidablePred F] (A : ℕ → ℕ → Prop) [DecidableRel A] :
@@ -355,21 +338,16 @@ theorem realize_levels {M : Type*} {I : ℕ → List M → Prop} :
       simp only [Function.comp_apply, h1, Function.update_of_ne hy,
         Function.update_of_ne (show 2 * y + 1 ≠ 0 by omega)]
 
-theorem finSat_levels (φ : RawFormula) : FinSat (levels φ) ↔ FinSat φ := by
-  constructor
-  · rintro ⟨M, hf, hn, I, ρ, h⟩
-    exact ⟨M, hf, hn, I, _, (realize_levels φ ρ).1 h⟩
-  · rintro ⟨M, hf, hn, I, v, h⟩
-    refine ⟨M, hf, hn, I, fun y => v (y / 2), (realize_levels φ _).2 ?_⟩
-    simpa [show ∀ x : ℕ, (2 * x + 1) / 2 = x by omega] using h
+theorem finSat_levels (φ : RawFormula) : FinSat (levels φ) ↔ FinSat φ :=
+  ⟨fun ⟨M, hf, hn, I, ρ, h⟩ => ⟨M, hf, hn, I, _, (realize_levels φ ρ).1 h⟩,
+   fun ⟨M, hf, hn, I, v, h⟩ => ⟨M, hf, hn, I, fun y => v (y / 2),
+     (realize_levels φ _).2 (by simpa [show ∀ x : ℕ, (2 * x + 1) / 2 = x by omega] using h)⟩⟩
 
-theorem finValid_levels (φ : RawFormula) : FinValid (levels φ) ↔ FinValid φ := by
-  constructor
-  · intro h M _ _ I v
-    have := (realize_levels φ (fun y => v (y / 2))).1 (h M I _)
-    simpa [show ∀ x : ℕ, (2 * x + 1) / 2 = x by omega] using this
-  · intro h M _ _ I ρ
-    exact (realize_levels φ ρ).2 (h M I _)
+theorem finValid_levels (φ : RawFormula) : FinValid (levels φ) ↔ FinValid φ :=
+  ⟨fun h M _ _ I v => by
+     simpa [show ∀ x : ℕ, (2 * x + 1) / 2 = x by omega] using
+       (realize_levels φ (fun y => v (y / 2))).1 (h M I _),
+   fun h M _ _ I ρ => (realize_levels φ ρ).2 (h M I _)⟩
 
 private theorem nameOk_bindShift {F : ℕ → Prop} {x d y : ℕ}
     (hy : NameOk F d y) : NameOk (fun z => F z ∧ z ≠ x) (d + 1) (bindShift x y) := by
@@ -378,9 +356,7 @@ private theorem nameOk_bindShift {F : ℕ → Prop} {x d y : ℕ}
   split_ifs with h1 h2
   · omega
   · omega
-  · rcases hy with hy | hy
-    · omega
-    · exact Or.inr ⟨hy.1, hy.2, by omega⟩
+  · exact hy.elim (fun hy => by omega) fun hy => Or.inr ⟨hy.1, hy.2, by omega⟩
 
 private theorem nameOk_bindShift_self {F : ℕ → Prop} {x d : ℕ} :
     NameOk F (d + 1) (bindShift x (2 * x + 1)) := by
@@ -405,13 +381,10 @@ where
   nameOk_bindShift' {d y : ℕ} (hy : NameOk (fun z => F z ∨ z = x) d y) :
       NameOk (fun z => F z ∧ z ≠ x) (d + 1) (bindShift x y) := by
     by_cases hyx : y = 2 * x + 1
-    · subst hyx; exact nameOk_bindShift_self
-    · have hy' : NameOk (fun z => F z) d y := by
-        rcases hy with hy | ⟨h1, h2 | h2⟩
-        · exact Or.inl hy
-        · exact Or.inr ⟨h1, h2⟩
-        · exact absurd (by omega : y = 2 * x + 1) hyx
-      exact nameOk_bindShift hy'
+    · exact hyx ▸ nameOk_bindShift_self
+    · refine nameOk_bindShift (hy.imp id fun ⟨h1, h2⟩ => ⟨h1, h2.resolve_right ?_⟩)
+      rintro rfl
+      omega
 
 /-- `levels φ` is level-named at depth `0`, with free variables among those of `φ` and the same
 atoms. -/

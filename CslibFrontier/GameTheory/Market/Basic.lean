@@ -184,20 +184,16 @@ theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) �
       calc
         expenditure p z - expenditure p b'
           = expenditure p (z - b') := (expenditure_sub p z b').symm
-        _ ≤ ∑ g : G, |p g| * |z g - b' g| := by
-            refine Finset.sum_le_sum fun g _ => ?_
-            simp only [Pi.sub_apply, ← abs_mul]
-            exact le_abs_self _
         _ ≤ ∑ g : G, |p g| * (δ / (1 + S)) := by
-            refine Finset.sum_le_sum fun g _ => ?_
+            refine Finset.sum_le_sum fun g _ => (le_abs_self _).trans ?_
+            rw [Pi.sub_apply, abs_mul]
             exact mul_le_mul_of_nonneg_left (hz_dist g).le (abs_nonneg (p g))
         _ = S * (δ / (1 + S)) := by rw [← Finset.sum_mul]
     have hS_le : S * (δ / (1 + S)) ≤ δ := by
       rw [mul_div_assoc', div_le_iff₀ hden]
       nlinarith
     linarith
-  have hz_feas : IsBudgetFeasible p m z := ⟨hz_nn, hz_exp⟩
-  linarith [hb.2 z hz_feas]
+  linarith [hb.2 z ⟨hz_nn, hz_exp⟩]
 
 /-- **Budget exhaustion**: a locally nonsatiated consumer spends their entire budget at every
 optimal bundle. -/
@@ -210,10 +206,8 @@ theorem IsLocallyNonsatiated.expenditure_eq_of_mem_demandSet {u : (G → ℝ) �
 budget (valid without local nonsatiation). -/
 theorem lt_expenditure_of_mem_demandSet {u : (G → ℝ) → ℝ} {p : G → ℝ} {m : ℝ} {b b' : G → ℝ}
     (hb : b ∈ demandSet u p m) (hb'_nn : ∀ g, 0 ≤ b' g) (hub : u b < u b') :
-    m < expenditure p b' := by
-  by_contra hle
-  push Not at hle
-  exact not_le_of_gt hub (hb.2 b' ⟨hb'_nn, hle⟩)
+    m < expenditure p b' :=
+  lt_of_not_ge fun hle => not_le_of_gt hub (hb.2 b' ⟨hb'_nn, hle⟩)
 
 /-- At nonnegative prices, a locally nonsatiated consumer can have a nonempty demand set only if
 at least one good has a strictly positive price. -/
@@ -223,10 +217,7 @@ theorem IsLocallyNonsatiated.exists_price_pos_of_mem_demandSet {u : (G → ℝ) 
   by_contra hzero
   push Not at hzero
   have hp0 : ∀ g, p g = 0 := fun g => le_antisymm (hzero g) (hp g)
-  have hm_nn : 0 ≤ m := by
-    calc
-      0 ≤ expenditure p b := expenditure_nonneg hp hb.1.1
-      _ ≤ m := hb.1.2
+  have hm_nn : 0 ≤ m := (expenditure_nonneg hp hb.1.1).trans hb.1.2
   obtain ⟨b', hb'_nn, -, hub⟩ := hlns b hb.1.1 1 one_pos
   have hb'_exp : expenditure p b' = 0 := by simp [expenditure, hp0]
   exact not_le_of_gt hub (hb.2 b' ⟨hb'_nn, by linarith⟩)
@@ -240,6 +231,11 @@ def linearUtility (v : G → ℝ) (b : G → ℝ) : ℝ :=
 
 theorem linearUtility_eq_sum (v b : G → ℝ) : linearUtility v b = ∑ g : G, v g * b g := by rfl
 
+private theorem sum_mul_update_sub [DecidableEq G] (w b : G → ℝ) (g : G) (c : ℝ) :
+    ∑ x : G, w x * (Function.update b g c x - b x) = w g * (c - b g) := by
+  rw [Finset.sum_eq_single g (fun x _ hx => by simp [Function.update_of_ne hx]) (by simp)]
+  simp
+
 /-- A linear utility function `linearUtility v` is locally nonsatiated on nonnegative bundles if
 and only if at least one good has strictly positive marginal utility. -/
 theorem isLocallyNonsatiated_linearUtility_iff (v : G → ℝ) :
@@ -248,36 +244,20 @@ theorem isLocallyNonsatiated_linearUtility_iff (v : G → ℝ) :
   constructor
   · intro hlns
     obtain ⟨b', hb'_nn, -, hpos⟩ := hlns 0 (fun _ => le_rfl) 1 one_pos
-    simp only [linearUtility, Pi.zero_apply, mul_zero, Finset.sum_const_zero] at hpos
-    by_contra hall
-    push Not at hall
-    have hle : ∑ g : G, v g * b' g ≤ 0 :=
-      Finset.sum_nonpos fun g _ => mul_nonpos_of_nonpos_of_nonneg (hall g) (hb'_nn g)
-    linarith
+    obtain ⟨g, -, hg⟩ := Finset.exists_lt_of_sum_lt (s := Finset.univ) (f := fun _ => (0 : ℝ))
+      (g := fun g => v g * b' g) (by simpa [linearUtility] using hpos)
+    exact ⟨g, pos_of_mul_pos_left hg (hb'_nn g)⟩
   · rintro ⟨g₀, hg₀⟩ b hb_nn ε hε
     refine ⟨Function.update b g₀ (b g₀ + ε / 2), ?_, ?_, ?_⟩
+    · exact le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩
     · intro g
-      by_cases h : g = g₀
-      · subst h
-        simp only [Function.update_self]
-        linarith [hb_nn g]
-      · simp only [Function.update_of_ne h]
-        exact hb_nn g
-    · intro g
-      by_cases h : g = g₀
-      · subst h
-        simp only [Function.update_self, add_sub_cancel_left, abs_of_pos (half_pos hε)]
-        linarith
+      rcases eq_or_ne g g₀ with rfl | h
+      · simpa [abs_of_pos (half_pos hε)] using half_lt_self hε
       · simp only [Function.update_of_ne h, sub_self, abs_zero, hε]
     · have hdiff : linearUtility v (Function.update b g₀ (b g₀ + ε / 2)) - linearUtility v b =
           v g₀ * (ε / 2) := by
-        simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub]
-        rw [Finset.sum_eq_single g₀]
-        · simp
-        · intro g _ hne
-          simp [Function.update_of_ne hne]
-        · intro hmem
-          exact False.elim (hmem (Finset.mem_univ g₀))
+        simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
+        ring
       nlinarith
 
 /-- If a bundle `b` is optimal for `linearUtility v` at nonnegative prices `p`, every good with
@@ -289,33 +269,16 @@ theorem price_pos_of_mem_demandSet_linearUtility {v p : G → ℝ} {m : ℝ} {b 
   refine lt_of_le_of_ne (hp g) fun hpg => ?_
   have hpg0 : p g = 0 := hpg.symm
   let b' : G → ℝ := Function.update b g (b g + 1)
-  have hb'_nn : ∀ g', 0 ≤ b' g' := by
-    intro g'
-    by_cases h : g' = g
-    · subst h
-      simp only [b', Function.update_self]
-      linarith [hb.1.1 g']
-    · simp only [b', Function.update_of_ne h]
-      exact hb.1.1 g'
+  have hb'_nn : ∀ g', 0 ≤ b' g' :=
+    le_update_iff.2 ⟨by linarith [hb.1.1 g], fun j _ => hb.1.1 j⟩
   have hb'_exp : expenditure p b' = expenditure p b := by
-    have hdiff : expenditure p b' - expenditure p b = 0 := by
-      simp only [expenditure, ← Finset.sum_sub_distrib, ← mul_sub]
-      rw [Finset.sum_eq_single g]
-      · simp [b', hpg0]
-      · intro g' _ hne
-        simp [b', Function.update_of_ne hne]
-      · intro hmem
-        exact False.elim (hmem (Finset.mem_univ g))
-    linarith
+    rw [← sub_eq_zero]
+    simp only [b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub, hpg0,
+      zero_mul]
   have hub : linearUtility v b < linearUtility v b' := by
     have hdiff : linearUtility v b' - linearUtility v b = v g := by
-      simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub]
-      rw [Finset.sum_eq_single g]
-      · simp [b']
-      · intro g' _ hne
-        simp [b', Function.update_of_ne hne]
-      · intro hmem
-        exact False.elim (hmem (Finset.mem_univ g))
+      simp only [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
+      ring
     linarith
   exact not_le_of_gt hub (hb.2 b' ⟨hb'_nn, by linarith [hb.1.2]⟩)
 
@@ -360,57 +323,37 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
       let b' : G → ℝ := Function.update (Function.update b g 0) g' (b g' + p g * b g / p g')
       have hb'_nn : ∀ k, 0 ≤ b' k := by
         intro k
-        by_cases hk' : k = g'
-        · subst hk'
-          simp only [b', Function.update_self]
-          exact add_nonneg (hb.1.1 k) (div_nonneg (mul_nonneg hpg.le hbg.le) hpg'.le)
-        · by_cases hk : k = g
-          · subst hk
-            simp [b', Function.update_of_ne hk']
-          · simp only [b', Function.update_of_ne hk', Function.update_of_ne hk]
-            exact hb.1.1 k
+        simp only [b', Function.update_apply]
+        split_ifs
+        exacts [add_nonneg (hb.1.1 _) (by positivity), le_rfl, hb.1.1 k]
       have hb'_exp : expenditure p b' = expenditure p b := by
-        have hdiff : expenditure p b' - expenditure p b = 0 := by
-          simp only [expenditure, ← Finset.sum_sub_distrib, ← mul_sub]
-          rw [sum_mul_update_two_sub p b hgg' (p g * b g / p g')]
-          field_simp [hpg'.ne']
-          ring
-        linarith
-      have hfeas : IsBudgetFeasible p m b' := ⟨hb'_nn, by linarith [hb.1.2]⟩
-      have hopt := hb.2 b' hfeas
+        rw [← sub_eq_zero]
+        simp only [expenditure, ← Finset.sum_sub_distrib, ← mul_sub]
+        rw [sum_mul_update_two_sub p b hgg' (p g * b g / p g')]
+        field_simp [hpg'.ne']
+        ring
       have hutil_diff : linearUtility v b' - linearUtility v b =
           v g' * (p g * b g / p g') - v g * b g := by
         simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub]
         exact sum_mul_update_two_sub v b hgg' (p g * b g / p g')
-      have hle_mul : v g' * (p g * b g / p g') ≤ v g * b g := by linarith
+      have hle_mul : v g' * (p g * b g / p g') ≤ v g * b g := by
+        linarith [hb.2 b' ⟨hb'_nn, by linarith [hb.1.2]⟩]
+      rw [mul_div_assoc', div_le_iff₀ hpg'] at hle_mul
       rw [div_le_div_iff₀ hpg' hpg]
-      have hpos_bg : 0 < b g := hbg
-      have hmul : v g' * p g * b g ≤ v g * p g' * b g := by
-        have h1 : v g' * (p g * b g) ≤ v g * b g * p g' :=
-          (div_le_iff₀ hpg').1 (by simpa only [mul_div_assoc'] using hle_mul)
-        linarith
-      exact le_of_mul_le_mul_right hmul hpos_bg
+      exact le_of_mul_le_mul_right (by linarith) hbg
   · rintro ⟨hb_nn, hb_exp, hmax⟩
     refine ⟨⟨hb_nn, hb_exp.le⟩, fun b' hb' => ?_⟩
     obtain rfl | hm_pos := hm.eq_or_lt
-    · have hb'0 : ∀ g, b' g = 0 := by
-        intro g
-        by_contra hne
-        have hpos : 0 < b' g := lt_of_le_of_ne (hb'.1 g) (Ne.symm hne)
-        have hterm : 0 < p g * b' g := mul_pos (hp g) hpos
-        have hsum : p g * b' g ≤ expenditure p b' :=
+    · have hb'0 (g : G) : b' g = 0 := by
+        have : p g * b' g ≤ expenditure p b' :=
           Finset.single_le_sum (fun k _ => mul_nonneg (hp k).le (hb'.1 k)) (Finset.mem_univ g)
-        linarith [hb'.2]
-      have hub'0 : linearUtility v b' = 0 := by simp [linearUtility, hb'0]
-      rw [hub'0]
+        nlinarith [hb'.2, hp g, hb'.1 g]
+      rw [show linearUtility v b' = 0 by simp [linearUtility, hb'0]]
       exact Finset.sum_nonneg fun g _ => mul_nonneg (hv g) (hb_nn g)
-    · have hex_pos : ∃ g₀ : G, 0 < b g₀ := by
-        by_contra hall0
-        push Not at hall0
-        have hb0 : ∀ g, b g = 0 := fun g => le_antisymm (hall0 g) (hb_nn g)
-        have hexp0 : expenditure p b = 0 := by simp [expenditure, hb0]
-        linarith
-      obtain ⟨g₀, hg₀⟩ := hex_pos
+    · obtain ⟨g₀, -, hpb⟩ := Finset.exists_lt_of_sum_lt (s := Finset.univ)
+        (f := fun _ => (0 : ℝ)) (g := fun g => p g * b g)
+        (by rw [Finset.sum_const_zero, ← expenditure_eq_sum, hb_exp]; exact hm_pos)
+      have hg₀ : 0 < b g₀ := pos_of_mul_pos_right hpb (hp g₀).le
       set α : ℝ := v g₀ / p g₀
       have hα_nn : 0 ≤ α := div_nonneg (hv g₀) (hp g₀).le
       have hv_le : ∀ g', v g' ≤ α * p g' := fun g' =>
@@ -419,23 +362,13 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
         have hterm : ∀ g, v g * b g = α * (p g * b g) := by
           intro g
           rcases (hb_nn g).eq_or_lt with hbg0 | hbg
-          · rw [← hbg0]
-            simp
-          · have h1 : v g / p g ≤ α := hmax g₀ hg₀ g
-            have h2 : α ≤ v g / p g := hmax g hbg g₀
-            have heq : v g / p g = α := le_antisymm h1 h2
-            have hv_eq : v g = α * p g := by
-              rw [← heq]
-              exact (div_mul_cancel₀ (v g) (hp g).ne').symm
-            rw [hv_eq, mul_assoc]
-        calc
-          linearUtility v b = ∑ g : G, α * (p g * b g) :=
-            Finset.sum_congr rfl fun g _ => hterm g
-          _ = α * expenditure p b := (Finset.mul_sum _ _ _).symm
-          _ = α * m := by rw [hb_exp]
+          · simp [← hbg0]
+          · rw [← (le_antisymm (hmax g₀ hg₀ g) (hmax g hbg g₀) : v g / p g = α), ← mul_assoc,
+              div_mul_cancel₀ _ (hp g).ne']
+        rw [← hb_exp, expenditure, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun g _ => hterm g
       calc
-        linearUtility v b' = ∑ g : G, v g * b' g := rfl
-        _ ≤ ∑ g : G, (α * p g) * b' g :=
+        linearUtility v b' ≤ ∑ g : G, (α * p g) * b' g :=
           Finset.sum_le_sum fun g _ => mul_le_mul_of_nonneg_right (hv_le g) (hb'.1 g)
         _ = α * expenditure p b' := by
           simp only [expenditure, mul_assoc, ← Finset.mul_sum]
@@ -598,10 +531,7 @@ theorem excessDemand_eq_zero_of_other_goods {p : G → ℝ} {x : I → G → ℝ
     E.excessDemand x g₀ = 0 := by
   classical
   have hsingle : expenditure p (E.excessDemand x) = p g₀ * E.excessDemand x g₀ := by
-    simp only [expenditure]
-    refine Finset.sum_eq_single g₀ (fun g _ hne => ?_) (fun hmem => ?_)
-    · rw [hother g hne, mul_zero]
-    · exact False.elim (hmem (Finset.mem_univ g₀))
+    exact Finset.sum_eq_single g₀ (fun g _ hne => by rw [hother g hne, mul_zero]) (by simp)
   rw [hsingle] at hwalras
   exact (mul_eq_zero.1 hwalras).resolve_left hp₀.ne'
 
@@ -637,17 +567,10 @@ theorem IsCompetitiveEquilibrium.of_locallyNonsatiated {E : ExchangeMarket I G}
     (hp : ∀ g, 0 ≤ p g) (hdem : ∀ i, x i ∈ E.demandSet p i)
     (hclear : ∀ g, E.excessDemand x g ≤ 0) :
     E.IsCompetitiveEquilibrium x p := by
-  classical
   refine ⟨hp, hdem, hclear, fun g => ?_⟩
-  have hwalras := E.walras_law hlns hdem
-  have hnonpos : ∀ g' ∈ (Finset.univ : Finset G), p g' * E.excessDemand x g' ≤ 0 :=
-    fun g' _ => mul_nonpos_of_nonneg_of_nonpos (hp g') (hclear g')
-  have hrest : ∑ k ∈ Finset.univ.erase g, p k * E.excessDemand x k ≤ 0 :=
-    Finset.sum_nonpos fun k _ => hnonpos k (Finset.mem_univ k)
-  have hsplit := Finset.add_sum_erase Finset.univ (fun k => p k * E.excessDemand x k)
+  exact (Finset.sum_eq_zero_iff_of_nonpos fun k _ =>
+    mul_nonpos_of_nonneg_of_nonpos (hp k) (hclear k)).1 (E.walras_law hlns hdem) g
     (Finset.mem_univ g)
-  have hsum0 : ∑ k : G, p k * E.excessDemand x k = 0 := hwalras
-  linarith [hnonpos g (Finset.mem_univ g)]
 
 /-- Every positively priced good clears with exact equality (`∑ i, x i g = E.totalSupply g`) in a
 competitive equilibrium. -/
@@ -912,30 +835,21 @@ theorem isEquilibrium_iff_toExchangeMarket {x : I → G → ℝ} {p : G → ℝ}
       expenditure p M.supply = M.totalBudget ∧ M.toExchangeMarket.IsCompetitiveEquilibrium x p := by
   have hsup : ∀ g, M.toExchangeMarket.totalSupply g = M.supply g :=
     M.toExchangeMarket_totalSupply hB
+  have hd (hval : expenditure p M.supply = M.totalBudget) (i : I) :
+      M.toExchangeMarket.demandSet p i = M.demandSet p i := by
+    simp only [ExchangeMarket.demandSet, FisherMarket.demandSet, M.toExchangeMarket_income, hval,
+      div_mul_cancel₀ _ hB.ne', toExchangeMarket_utility]
   constructor
   · intro heq
     have hval := heq.expenditure_supply_eq_totalBudget hlns
     refine ⟨hval, heq.1, fun i => ?_, fun g => ?_, fun g => ?_⟩
-    · have hinc : M.toExchangeMarket.income p i = M.budget i := by
-        rw [M.toExchangeMarket_income, hval, div_mul_cancel₀ _ hB.ne']
-      have hd : M.toExchangeMarket.demandSet p i = M.demandSet p i := by
-        simp only [ExchangeMarket.demandSet, FisherMarket.demandSet, hinc]
-        rfl
-      rw [hd]
-      exact heq.2.1 i
+    · exact hd hval i ▸ heq.2.1 i
     · simp only [ExchangeMarket.excessDemand, hsup g]
       linarith [heq.2.2.1 g]
     · simp only [ExchangeMarket.excessDemand, hsup g]
       linarith [heq.2.2.2 g]
   · rintro ⟨hval, heq⟩
-    refine ⟨heq.1, fun i => ?_, fun g => ?_, fun g => ?_⟩
-    · have hinc : M.toExchangeMarket.income p i = M.budget i := by
-        rw [M.toExchangeMarket_income, hval, div_mul_cancel₀ _ hB.ne']
-      have hd : M.toExchangeMarket.demandSet p i = M.demandSet p i := by
-        simp only [ExchangeMarket.demandSet, FisherMarket.demandSet, hinc]
-        rfl
-      rw [← hd]
-      exact heq.2.1 i
+    refine ⟨heq.1, fun i => hd hval i ▸ heq.2.1 i, fun g => ?_, fun g => ?_⟩
     · have hle := heq.2.2.1 g
       simp only [ExchangeMarket.excessDemand, hsup g] at hle
       linarith

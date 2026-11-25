@@ -119,11 +119,9 @@ theorem agreeOn_union_ite {W : Finset (Fin n → Fin m)} {I J : Finset (Fin n)}
     simpa [hiI] using h i (Or.inr hi)
   · rintro ⟨⟨hx, hI⟩, hJ'⟩
     refine ⟨hx, fun i hi => ?_⟩
-    by_cases hiI : i ∈ I
-    · simp only [hiI, ite_true]
-      exact hI i hiI
-    · simp only [hiI, ite_false]
-      exact hJ' i (hi.resolve_left hiI)
+    split_ifs with hiI
+    · exact hI i hiI
+    · exact hJ' i (hi.resolve_left hiI)
 
 /-- **Claim 3.4 of Mertz and Pitassi.** Fixing a set `W` on a maximal concentrated set `I` of
 coordinates leaves it dense on the other coordinates. -/
@@ -152,11 +150,9 @@ theorem isDense_agreeOn (hτ : 0 < τ) {W : Finset (Fin n → Fin m)} {I : Finse
         _ ≤ #((agreeOn W I α).filter fun x => ∀ i ∈ J, x i = β i) * τ ^ #J * τ ^ #I := by
             gcongr
         _ = _ := by ring
-    · rw [not_nonempty_iff_eq_empty] at hI
-      subst hI
-      simp only [card_empty, pow_zero, mul_one] at hW ⊢
+    · obtain rfl := not_nonempty_iff_eq_empty.1 hI
       have hagree : agreeOn W ∅ α = W := by simp [agreeOn]
-      rw [hagree] at hcon ⊢
+      simp only [card_empty, pow_zero, mul_one, hagree] at hW hcon ⊢
       linarith
   have := hmax (I ∪ J) (union_subset hIF fun j hj => (mem_sdiff.mp (hJ hj)).1) α' hviol
   rw [card_union_of_disjoint hdisj] at this
@@ -174,28 +170,23 @@ theorem exists_max_violates_or_empty {W : Finset (Fin n → Fin m)}
   classical
   set C : Finset (Finset (Fin n) × (Fin n → Fin m)) :=
     (F.powerset ×ˢ univ).filter fun p => Violates τ W p.1 p.2
+  have hmem (I' : Finset (Fin n)) (hI' : I' ⊆ F) (α') (hv : Violates τ W I' α') : (I', α') ∈ C :=
+    mem_filter.2 ⟨mem_product.2 ⟨mem_powerset.2 hI', mem_univ _⟩, hv⟩
   by_cases hC : C.Nonempty
   · obtain ⟨⟨I, α⟩, hp, hpmax⟩ := exists_max_image C (fun p => #p.1) hC
     simp only [C, mem_filter, mem_product, mem_powerset, mem_univ, and_true] at hp
-    refine ⟨I, α, hp.1, hp.2.le, fun I' hI' α' hv => hpmax (I', α') ?_, fun _ => hp.2⟩
-    simp only [C, mem_filter, mem_product, mem_powerset, mem_univ, and_true]
-    exact ⟨hI', hv⟩
-  · refine ⟨∅, x₀, empty_subset _, by simp [agreeOn], fun I' hI' α' hv => ?_, by simp⟩
-    have hmem : (I', α') ∈ C := by
-      simp only [C, mem_filter, mem_product, mem_powerset, mem_univ, and_true]
-      exact ⟨hI', hv⟩
-    exact absurd ⟨_, hmem⟩ hC
+    exact ⟨I, α, hp.1, hp.2.le, fun I' hI' α' hv => hpmax _ (hmem I' hI' α' hv), fun _ => hp.2⟩
+  · exact ⟨∅, x₀, empty_subset _, by simp [agreeOn],
+      fun I' hI' α' hv => absurd ⟨_, hmem I' hI' α' hv⟩ hC, by simp⟩
 
 /-- A fiber that satisfies the density-restoration cardinality bound is nonempty whenever
 the original set is nonempty. -/
 theorem agreeOn_nonempty_of_card_le {W : Finset (Fin n → Fin m)} {I : Finset (Fin n)}
     {α : Fin n → Fin m} (hWne : W.Nonempty) (hW : (#W : ℝ) ≤ #(agreeOn W I α) * τ ^ #I) :
     (agreeOn W I α).Nonempty := by
-  have hWpos : (0 : ℝ) < #W := by exact_mod_cast card_pos.mpr hWne
-  rw [nonempty_iff_ne_empty]
-  intro h
+  refine nonempty_iff_ne_empty.2 fun h => ?_
   rw [h, card_empty, Nat.cast_zero, zero_mul] at hW
-  linarith
+  exact not_le.2 (Nat.cast_pos.2 (card_pos.2 hWne)) hW
 
 /-- When `W` is nonempty and `#W ≤ #(agreeOn W I α) * τ ^ #I`, removing the fiber strictly
 reduces `#W`. -/
@@ -224,9 +215,8 @@ theorem exists_dense_agreeOn (hτ : 0 < τ) (F : Finset (Fin n))
   obtain ⟨I, α, hIF, hcard, hmax, hstrict⟩ :=
     exists_max_violates_or_empty (W := W) x₀ F τ
   refine ⟨I, α, hIF, agreeOn_nonempty_of_card_le ⟨x₀, hx₀⟩ hcard,
-    filter_subset _ _, ?_, isDense_agreeOn hτ hcard hmax hIF hstrict, hcard⟩
-  intro x hx
-  exact (mem_filter.mp hx).2
+    filter_subset _ _, fun x hx => (mem_filter.mp hx).2, isDense_agreeOn hτ hcard hmax hIF hstrict,
+    hcard⟩
 
 /-- **Phase I: the density-restoring partition** [Mertz and Pitassi, Algorithm 1, Claims 3.4 and
 3.5][MertzPitassi2020]. Every set of pointer vectors has a density-restoring partition. -/
@@ -321,11 +311,7 @@ private theorem card_allowing_le_of_lt {X : Finset (Fin n → Fin m)}
     {β : Fin n → Bool} (h1 : (#(allowing Y q.I q.α β) : ℝ) * (4 * τ) ^ #q.I < #Y) :
     (#(allowing Y q.I q.α β) : ℝ) ≤ #Y * #q.P / (2 * #X) := by
   have hXpos : (0 : ℝ) < #X := by exact_mod_cast card_pos.mpr hX
-  have hIne : q.I.Nonempty := by
-    rw [nonempty_iff_ne_empty]
-    intro h
-    rw [h] at h1
-    simp [allowing] at h1
+  have hIne : q.I.Nonempty := nonempty_iff_ne_empty.2 fun h => by simp [h, allowing] at h1
   have h2 := hL.card_le q hq
   have h4 : (4 : ℝ) ≤ 4 ^ #q.I := le_self_pow₀ (by norm_num) (card_ne_zero.mpr hIne)
   have hτI : (0 : ℝ) < τ ^ #q.I := by positivity
@@ -360,11 +346,7 @@ private theorem card_le_two_mul_card_sdiff_biUnion_allowing {X : Finset (Fin n �
           gcongr
           exact sum_card_le_of_pairwise hL.subset hL.pairwise
       _ = #Y / 2 := by field_simp
-  have h1 : #Y - #Ybad ≤ #Ygood := le_card_sdiff _ _
-  have h2 : (#Y : ℝ) - #Ybad ≤ #Ygood := by
-    have := Nat.sub_le_iff_le_add.mp h1
-    have : (#Y : ℝ) ≤ #Ygood + #Ybad := by exact_mod_cast this
-    linarith
+  have h2 : (#Y : ℝ) ≤ #Ygood + #Ybad := by exact_mod_cast card_le_card_sdiff_add_card
   linarith
 
 open Classical in
@@ -407,10 +389,7 @@ theorem exists_piece_forall_le_card_filter {X X₀ : Finset (Fin n → Fin m)}
   -- the vectors in the pieces
   set X' := L.toFinset.biUnion Piece.P
   obtain ⟨hX'X, hX'big⟩ := hL.subset_and_card_le_two_mul_card_biUnion
-  have hX'ne : X'.Nonempty := by
-    rw [← card_pos]
-    have : (0 : ℝ) < #X' := by linarith
-    exact_mod_cast this
+  have hX'ne : X'.Nonempty := card_pos.1 (Nat.cast_pos.1 (by linarith : (0 : ℝ) < #X'))
   have hX'dense : IsDense (τ / 4) F X' :=
     hX₀.of_subset hτ.le (by norm_num) (hX'X.trans hXX₀) (by linarith)
   -- the full-range lemma finds an input allowing a bad value
@@ -455,11 +434,8 @@ theorem exists_fix_blocks (Y : Finset (Fin n → Fin m → Bool)) (I : Finset (F
       have hc : (Fintype.card (I → Fin m → Bool) : ℝ) = 2 ^ (m * #I) := by
         simp [Fintype.card_pi, pow_mul]
       rw [nsmul_eq_mul, card_univ, hc, mul_div_cancel₀ _ (by positivity)])
-  have hfib : ((allowing Y I α β).filter fun y => f y = g).Nonempty := by
-    rw [← card_pos]
-    have : (0 : ℝ) < #((allowing Y I α β).filter fun y => f y = g) :=
-      lt_of_lt_of_le (div_pos (by exact_mod_cast card_pos.mpr hA) (by positivity)) hg
-    exact_mod_cast this
+  have hfib : ((allowing Y I α β).filter fun y => f y = g).Nonempty := card_pos.1 (Nat.cast_pos.1
+    ((div_pos (by exact_mod_cast card_pos.mpr hA) (by positivity)).trans_le hg))
   obtain ⟨y₀, hy₀⟩ := hfib
   obtain ⟨hy₀A, hy₀g⟩ := mem_filter.mp hy₀
   refine ⟨y₀, fun i hi => (mem_filter.mp hy₀A).2 i hi, ?_⟩
@@ -467,9 +443,7 @@ theorem exists_fix_blocks (Y : Finset (Fin n → Fin m → Bool)) (I : Finset (F
       Y.filter fun y => ∀ i ∈ I, y i = y₀ i := by
     intro y hy
     obtain ⟨hyA, hyg⟩ := mem_filter.mp hy
-    refine mem_filter.mpr ⟨(mem_filter.mp hyA).1, fun i hi => ?_⟩
-    have := congrFun (hyg.trans hy₀g.symm) ⟨i, hi⟩
-    exact this
+    exact mem_filter.mpr ⟨(mem_filter.mp hyA).1, fun i hi => congrFun (hyg.trans hy₀g.symm) ⟨i, hi⟩⟩
   have hle : (#((allowing Y I α β).filter fun y => f y = g) : ℝ) ≤
       #(Y.filter fun y => ∀ i ∈ I, y i = y₀ i) := by exact_mod_cast card_le_card hsub
   rw [div_le_iff₀ (by positivity)] at hg

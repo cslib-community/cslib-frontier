@@ -150,13 +150,12 @@ theorem fixed_power_on_optimized {n : ℕ} (c : Circuit signature n n) (S : Fins
     ∃ out : Circuit signature n n,
       out.ComputesOn interpretation ↑S (c.eval interpretation)^[T] ∧
       (out.size : ℝ) ≤ 80000 * optimizedBudget n c.size S.card := by
-  have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
-  obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size S.card hcard
+  obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size S.card
+    (by simpa using Finset.card_le_univ S)
   obtain ⟨out, hout, hs⟩ := fixed_power_on n c S T L hS hL hLN
-  refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 40000 * (powerBudget n c.size S.card L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, hout, by
+    linarith only [hopt, show (out.size : ℝ) ≤ 40000 * powerBudget n c.size S.card L from
+      mod_cast hs]⟩
 
 /-- A closed-form half-exponential bound. -/
 theorem fixed_power_half_exponent {n : ℕ} (c : Circuit signature n n) (T : ℕ) :

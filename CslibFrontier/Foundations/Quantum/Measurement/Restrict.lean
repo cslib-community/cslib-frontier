@@ -107,20 +107,15 @@ theorem projOutcomes_projOutcomes (p q : ι → Prop) [DecidablePred p] [Decidab
 /-- The squared norm of `projOutcomes p ψ` is the probability of outcomes satisfying `p`. -/
 theorem norm_projOutcomes_sq [Fintype ι] (p : ι → Prop) [DecidablePred p]
     (ψ : EuclideanSpace ℂ ι) : ‖projOutcomes p ψ‖ ^ 2 = measureProb ψ (univ.filter p) := by
-  rw [EuclideanSpace.norm_sq_eq, measureProb, ← sum_filter_add_sum_filter_not univ p]
-  have hzero : ∑ y ∈ univ.filter (fun y => ¬p y), ‖(projOutcomes p ψ).ofLp y‖ ^ 2 = 0 := by
-    refine sum_eq_zero fun y hy => ?_
-    simp only [projOutcomes_apply, (mem_filter.1 hy).2, ↓reduceIte, norm_zero, ne_eq,
-      OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow]
-  rw [hzero, add_zero]
-  refine sum_congr rfl fun y hy => ?_
-  simp only [projOutcomes_apply, (mem_filter.1 hy).2, ↓reduceIte]
+  rw [EuclideanSpace.norm_sq_eq, measureProb, ← sum_filter_add_sum_filter_not univ p,
+    sum_eq_zero (s := univ.filter fun y => ¬p y)
+      fun y hy => by simp [projOutcomes_apply, (mem_filter.1 hy).2], add_zero]
+  exact sum_congr rfl fun y hy => by simp [projOutcomes_apply, (mem_filter.1 hy).2]
 
 /-- The squared norm of `projOutcomes (· ∈ S) ψ` is `measureProb ψ S`. -/
 theorem norm_projOutcomes_sq_mem [Fintype ι] [DecidableEq ι] (S : Finset ι)
     (ψ : EuclideanSpace ℂ ι) : ‖projOutcomes (· ∈ S) ψ‖ ^ 2 = measureProb ψ S := by
-  have hS : univ.filter (· ∈ S) = S := by ext y; simp only [mem_filter, mem_univ, true_and]
-  simpa only [hS] using norm_projOutcomes_sq (· ∈ S) ψ
+  simpa only [filter_mem_eq_inter, univ_inter] using norm_projOutcomes_sq (· ∈ S) ψ
 
 /-- Projections onto disjoint outcome predicates are orthogonal. -/
 theorem inner_projOutcomes_eq_zero [Fintype ι] (p q : ι → Prop)
@@ -130,8 +125,7 @@ theorem inner_projOutcomes_eq_zero [Fintype ι] (p q : ι → Prop)
   rw [PiLp.inner_apply]
   refine sum_eq_zero fun y _ => ?_
   by_cases hp : p y
-  · have hq : ¬q y := fun hq => hpq y ⟨hp, hq⟩
-    simp only [projOutcomes_apply, hp, ↓reduceIte, hq, inner_zero_right]
-  · simp only [projOutcomes_apply, hp, ↓reduceIte, inner_zero_left]
+  · simp [projOutcomes_apply, hp, show ¬q y from fun hq => hpq y ⟨hp, hq⟩]
+  · simp [projOutcomes_apply, hp]
 
 end Cslib.Quantum

@@ -135,50 +135,41 @@ theorem registerStep_of_viewStep {v v' : FiniteCfg k Bool State} (h : ntm.ViewSt
     RegisterStep ntm v.input (registers v) (registers v') := by
   cases hs : v.state with
   | none =>
-    have hv : v' = v := by simpa [ViewStep, hs] using h
-    subst hv
+    obtain rfl : v' = v := by simpa [ViewStep, hs] using h
     exact .inl ⟨by simp [registers, hs], rfl⟩
   | some q =>
     obtain ⟨a, ha, rfl⟩ : ∃ a, ntm.Tr q v.inputSymbol v.workTapeSymbols a ∧
         v' = (v.step a).summarizeOutput := by simpa [ViewStep, hs] using h
-    refine .inr ⟨q, v.inputSymbol, v.workTapeSymbols, a, ha, by simp [registers, hs], ?_,
-      fun _ => rfl, registers_step v a⟩
-    exact (Cfg.inputSymbol_eq_inputAt v.toCfg).symm
+    exact .inr ⟨q, _, _, a, ha, by simp [registers, hs],
+      (Cfg.inputSymbol_eq_inputAt v.toCfg).symm, fun _ => rfl, registers_step v a⟩
 
 /-- Every register step out of the registers of a view is the registers of a view step. -/
 theorem exists_viewStep_of_registerStep {v : FiniteCfg k Bool State} {r : Register k → ℕ}
     (h : RegisterStep ntm v.input (registers v) r) :
     ∃ v', ntm.ViewStep v v' ∧ v'.input = v.input ∧ registers v' = r := by
   rcases h with ⟨hc, rfl⟩ | ⟨q, s, heads, a, ha, hc, hin, hh, rfl⟩
-  · have hs : v.state = none := stateCode_injective hc
-    exact ⟨v, by simp [ViewStep, hs], rfl, rfl⟩
-  · have hs : v.state = some q := stateCode_injective hc
-    have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
+  · exact ⟨v, by simp [ViewStep, stateCode_injective hc], rfl, rfl⟩
+  · have hin' : v.inputSymbol = s := (Cfg.inputSymbol_eq_inputAt v.toCfg).trans hin
     have hw : v.workTapeSymbols = heads := funext fun i => symbolCode_injective (hh i)
     refine ⟨(v.step a).summarizeOutput, ?_, rfl, registers_step v a⟩
-    simp only [ViewStep, hs]
+    simp only [ViewStep, stateCode_injective hc]
     exact ⟨a, by rwa [hin', hw], rfl⟩
 
 /-- **Reachable register tuples are the registers of reachable views.** -/
 theorem reflTransGen_registerStep_iff (r : Register k → ℕ) :
     Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r ↔
       ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ registers v = r := by
-  constructor
-  · intro h
-    induction h with
+  refine ⟨fun h => ?_, ?_⟩
+  · induction h with
     | refl => exact ⟨_, .refl, registers_initView w⟩
-    | @tail a b _ hab ih =>
+    | tail _ hab ih =>
       obtain ⟨v, hv, rfl⟩ := ih
-      rw [← input_of_reachable hv] at hab
-      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep hab
+      obtain ⟨v', hstep, _, rfl⟩ := exists_viewStep_of_registerStep (input_of_reachable hv ▸ hab)
       exact ⟨v', hv.tail hstep, rfl⟩
   · rintro ⟨v, hv, rfl⟩
     induction hv with
     | refl => rw [registers_initView]
-    | @tail a b hab hstep ih =>
-      have hstep' := registerStep_of_viewStep hstep
-      rw [input_of_reachable hab] at hstep'
-      exact ih.tail hstep'
+    | tail hab hstep ih => exact ih.tail (input_of_reachable hab ▸ registerStep_of_viewStep hstep)
 
 /-- **Acceptance is register-tuple reachability**: a machine accepts exactly when a tuple with the
 halting control tag and output tag `1` is reachable from the start registers. -/

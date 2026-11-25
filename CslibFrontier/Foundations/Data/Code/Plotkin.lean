@@ -170,17 +170,12 @@ theorem card_mul_sub_le_of_le_minDist_of_forall_notMem_eq {C : Finset (ι → α
       (card_mul_card_sub_one_mul_le_sum_sum_hammingDist hd)) _).trans
       (card_mul_sum_sum_hammingDist_add_le hT)
   rcases Nat.eq_zero_or_pos #C with hM | hM
-  · rw [hM, zero_mul]
-    exact Nat.zero_le _
+  · simp [hM]
   rcases Nat.eq_zero_or_pos q with hq | hq
-  · rw [hq]
-    simp
+  · simp [hq]
   rcases le_or_gt (q * d) ((q - 1) * #T) with hle | hlt
-  · rw [Nat.sub_eq_zero_of_le hle, mul_zero]
-    exact Nat.zero_le _
-  have hM1 : 1 ≤ #C := hM
-  have hq1 : 1 ≤ q := hq
-  zify [hM1, hq1, hlt.le] at h1 ⊢
+  · simp [Nat.sub_eq_zero_of_le hle]
+  zify [show 1 ≤ #C from hM, show 1 ≤ q from hq, hlt.le] at h1 ⊢
   -- divide `h1` by `|C|`
   have h2 : (#C : ℤ) * (#C * (q * d) + #T * #C - q * #T * #C - q * d) ≤ 0 := by linarith
   have hMz : (0 : ℤ) < #C := by exact_mod_cast hM
@@ -203,20 +198,16 @@ theorem card_mul_sub_le_pow_mul_of_le_minDist {C : Finset (ι → α)} {d : ℕ}
   -- group the codewords by their letters outside `T`
   have hfiber (v : (Tᶜ : Finset ι) → α) : #{x ∈ C | Tᶜ.restrict x = v} * k ≤
       Fintype.card α * d := by
-    have hsub := card_mul_sub_le_of_le_minDist_of_forall_notMem_eq
-      (C := {x ∈ C | Tᶜ.restrict x = v}) (d := d)
-      (hd.trans (minDist_anti fun x hx => (mem_filter.1 hx).1)) (T := T)
-      (fun x hx y hy i hi => by
-        have h1 := congrFun (mem_filter.1 hx).2 ⟨i, mem_compl.2 hi⟩
-        have h2 := congrFun (mem_filter.1 hy).2 ⟨i, mem_compl.2 hi⟩
-        exact h1.trans h2.symm)
-    rwa [hTm] at hsub
-  have hcard : Fintype.card ((Tᶜ : Finset ι) → α) = Fintype.card α ^ (Fintype.card ι - m) := by
-    rw [Fintype.card_fun, Fintype.card_coe, card_compl, hTm]
+    simpa only [hTm] using card_mul_sub_le_of_le_minDist_of_forall_notMem_eq
+      (C := {x ∈ C | Tᶜ.restrict x = v}) (hd.trans (minDist_anti fun x hx => (mem_filter.1 hx).1))
+      (T := T) fun x hx y hy i hi =>
+        (congrFun (mem_filter.1 hx).2 ⟨i, mem_compl.2 hi⟩).trans
+          (congrFun (mem_filter.1 hy).2 ⟨i, mem_compl.2 hi⟩).symm
   calc #C * k = ∑ v : (Tᶜ : Finset ι) → α, #{x ∈ C | Tᶜ.restrict x = v} * k := by
         rw [← sum_mul, ← card_eq_sum_card_fiberwise fun x _ => mem_coe.2 (mem_univ _)]
     _ ≤ ∑ _v : (Tᶜ : Finset ι) → α, Fintype.card α * d := sum_le_sum fun v _ => hfiber v
-    _ = _ := by rw [sum_const, card_univ, hcard, smul_eq_mul]
+    _ = _ := by rw [sum_const, card_univ, Fintype.card_fun, Fintype.card_coe, card_compl, hTm,
+        smul_eq_mul]
 
 /-- **The Plotkin bound** [Plotkin1960], [GuruswamiRudraSudan2019, Theorem 4.4.1, part 2]: a code
 `C` of length `n` and minimum distance at least `d` over `q` letters satisfies
@@ -225,9 +216,8 @@ otherwise. -/
 theorem card_mul_sub_le_of_le_minDist {C : Finset (ι → α)} {d : ℕ}
     (hd : (d : ℕ∞) ≤ minDist (C : Set (ι → α))) :
     #C * (Fintype.card α * d - (Fintype.card α - 1) * Fintype.card ι) ≤ Fintype.card α * d := by
-  have h := card_mul_sub_le_of_le_minDist_of_forall_notMem_eq hd (T := univ)
+  simpa only [card_univ] using card_mul_sub_le_of_le_minDist_of_forall_notMem_eq hd (T := univ)
     (fun _ _ _ _ i hi => absurd (mem_univ i) hi)
-  rwa [card_univ] at h
 
 /-- **The Plotkin bound** [Plotkin1960], [GuruswamiRudraSudan2019, Theorem 4.4.1, part 2], quotient
 form: if `d > (1 - 1 / q) n`, a code of length `n` and minimum distance at least `d` over `q`
@@ -249,24 +239,14 @@ theorem card_le_mul_of_le_minDist_of_mul_eq [Nonempty α] {C : Finset (ι → α
     #C ≤ Fintype.card α * Fintype.card ι := by
   set q := Fintype.card α
   set n := Fintype.card ι
-  have hq : 0 < q := Fintype.card_pos
-  have hn : 0 < n := by
-    rcases Nat.eq_zero_or_pos n with hn | hn
-    · rw [hn, mul_zero] at h
-      exact absurd h (Nat.mul_pos hq hd0).ne'
-    · exact hn
+  have hpos : 0 < q * d := Nat.mul_pos Fintype.card_pos hd0
+  have hn : 0 < n := Nat.pos_of_ne_zero fun hn => hpos.ne' (h.trans (by simp [hn]))
+  have hq1 : 0 < q - 1 := Nat.pos_of_ne_zero fun hq1 => hpos.ne' (h.trans (by simp [hq1]))
   have hs := card_mul_sub_le_pow_mul_of_le_minDist hd (m := n - 1) (Nat.sub_le n 1)
   have hk : q * d - (q - 1) * (n - 1) = q - 1 := by
     rw [h, Nat.mul_sub_one, Nat.sub_sub_self (Nat.le_mul_of_pos_right _ hn)]
   have hnn : n - (n - 1) = 1 := by omega
-  rw [hk, hnn, pow_one, h] at hs
-  have hq1 : 0 < q - 1 := by
-    rcases Nat.lt_or_ge 1 q with hq1 | hq1
-    · omega
-    · have : q - 1 = 0 := by omega
-      rw [this, zero_mul] at h
-      exact absurd h (Nat.mul_pos hq hd0).ne'
-  rw [mul_left_comm, mul_comm #C] at hs
+  rw [hk, hnn, pow_one, h, mul_left_comm, mul_comm #C] at hs
   exact Nat.le_of_mul_le_mul_left hs hq1
 
 /-- **The binary Plotkin bound at relative distance one half.** A binary code of length `n = 2 d`

@@ -214,15 +214,11 @@ private theorem addrBit_eq {τ o : ℕ → ℕ} {x : BitString (inputLength I Δ
   rw [hc, Nat.testBit_two_pow_mul_add _ hlt]
   unfold addrBit
   by_cases h : τ j < Δ ∧ r < varLength I lam (var I j (τ j) q) ∧ r < seedWidth I lam
-  · rw [dite_eq_left h]
-    have htt : (⟨_, h.1⟩ : Fin Δ) = t := Fin.ext ht
-    rw [htt]
+  · have htt : (⟨_, h.1⟩ : Fin Δ) = t := Fin.ext ht
+    rw [dite_eq_left h, htt]
     rw [ht, hv] at h
-    rw [ite_eq_left h.2.1]
-    have hbit := BitString.testBit_equivFin
-      (BitString.zeroExtend (d' := varLength I lam v) (seed x t q i)) ⟨r, h.2.1⟩
-    simp only at hbit
-    rw [hbit]
+    rw [ite_eq_left h.2.1, BitString.testBit_equivFin
+      (BitString.zeroExtend (d' := varLength I lam v) (seed x t q i)) ⟨r, h.2.1⟩]
     simp [BitString.zeroExtend, h.2.2]
   · rw [dite_eq_right h]
     rw [ht, hv] at h ⊢
@@ -397,11 +393,8 @@ theorem exists_toInstance_mem_PartialMCSP (Δ k P : ℕ) (hP : 0 < P) :
   let C : BooleanFunction (inputLength I Δ k lam) := fun x =>
     combine I lam τ (Fin.append x (directProduct F (Δ * k) (addr L τ o x))) 0
   refine mem_iff_exists_total_extension.2 ⟨C, fun y b hy => ?_, ?_⟩
-  · have hy' : entry f y = some b := by
-      have h : entry f ((BitString.equivFin _).symm (BitString.equivFin _ y)) = some b := hy
-      convert h using 2
-      exact congrArg (entry f)
-        ((BitString.equivFin (inputLength I Δ k lam)).symm_apply_apply y).symm
+  · have hy' : entry f y = some b := (congrArg (entry f)
+      ((BitString.equivFin (inputLength I Δ k lam)).symm_apply_apply y)).symm.trans hy
     exact combine_append_eq hS hwf hτ hfit' hdisj hy'
   · have hC : single C =
         fun x => combine I lam τ (Fin.append x (directProduct F (Δ * k) (addr L τ o x))) := rfl
@@ -426,11 +419,8 @@ theorem exists_toInstance_mem_PartialMCSP (Δ k P : ℕ) (hP : 0 < P) :
         _ ≤ (P * K) ^ 2 * L ^ 2 * (4 * L ^ 2) ^ 2 := by gcongr
         _ = 16 * (P * K) ^ 2 * L ^ 6 := by ring
         _ ≤ 2 ^ L := hpoly
-    have hmX : (m + 1) * X ≤ 2 ^ L := by
-      have : ((m + 1) * X) ^ 2 ≤ (2 ^ L) ^ 2 := by
-        rw [mul_pow, sq (2 ^ L)]
-        exact Nat.mul_le_mul hm2 hX2
-      exact (Nat.pow_le_pow_iff_left two_ne_zero).1 this
+    have hmX : (m + 1) * X ≤ 2 ^ L := (Nat.pow_le_pow_iff_left two_ne_zero).1
+      ((mul_pow _ _ 2).trans_le ((Nat.mul_le_mul hm2 hX2).trans_eq (sq _).symm))
     have hfinal : complexity interpretation (single C) * (P * L) ≤ (P + 2) * 2 ^ L := by
       rw [hC, Nat.mul_comm]
       calc _ ≤ (P + 1) * 2 ^ L + P * L *

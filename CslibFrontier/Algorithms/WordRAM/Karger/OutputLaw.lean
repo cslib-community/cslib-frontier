@@ -51,14 +51,12 @@ private theorem evalRand_miss_le_of_law {r R T T' w : ℕ} {c : Code .standard r
     (h : ExecRandLaw w c (.init input) P T R (fun y => y.regs out) μ) (hT : T + 1 ≤ T') (m : ℕ) :
     (evalRand w (c.program out) T' (.init input)).toOuterMeasure
         {cfg | ∀ y, cfg ≠ .halted m y} ≤ μ.toOuterMeasure {v | v ≠ m} := by
-  let output : RandCfg r → ℕ := fun | .halted v _ => v | _ => 0
-  obtain ⟨-, -, hpost, hlaw⟩ := h.program out hT output fun _ _ => rfl
+  obtain ⟨-, -, hpost, hlaw⟩ :=
+    h.program out hT (fun | .halted v _ => v | _ => 0) fun _ _ => rfl
   rw [← hlaw, PMF.toOuterMeasure_map_apply]
-  refine PMF.toOuterMeasure_mono _ ?_
-  rintro cfg ⟨hne, hcfg⟩ hv
+  refine PMF.toOuterMeasure_mono _ fun cfg ⟨hne, hcfg⟩ hv => ?_
   obtain ⟨y, rfl, -⟩ := hpost cfg (by rwa [support_evalRand] at hcfg)
-  change y.regs out = m at hv
-  exact hne y (by rw [hv])
+  exact hne y (congrArg (RandCfg.halted · y) hv)
 
 /-- A compiled program whose output word has the law `μ`, supported on the weights of non-trivial
 cuts of `W`, halts on every path with such a weight, and outputs `minCut W` with at least the
@@ -80,25 +78,19 @@ theorem program_of_law {r R T T' n w : ℕ} {c : Code .standard r} {out : Fin r}
         {cfg | ∃ y, cfg = .halted (minCut W) y} ∧
     (evalRand w (c.program out) T' (.init input)).toOuterMeasure
         {cfg | ∀ y, cfg ≠ .halted (minCut W) y} ≤ μ.toOuterMeasure {v | v ≠ minCut W} := by
-  let output : RandCfg r → ℕ := fun | .halted v _ => v | _ => 0
-  obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := h.program out hT output fun _ _ => rfl
-  have hhalted : ∀ cfg ∈ (evalRand w (c.program out) T' (.init input)).support,
-      ∃ y : Data r, cfg = .halted (y.regs out) y := fun cfg hcfg => by
-    obtain ⟨y, rfl, -⟩ := hpost cfg (by rwa [support_evalRand] at hcfg)
-    exact ⟨y, rfl⟩
+  obtain ⟨hhalt, hcalls, hpost, hlaw⟩ :=
+    h.program out hT (fun | .halted v _ => v | _ => 0) fun _ _ => rfl
   refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, ?_, evalRand_miss_le_of_law h hT (minCut W)⟩
   · obtain ⟨y, rfl, hmod⟩ := hpost cfg hcfg
-    obtain ⟨C, hC, hv⟩ := hμ (y.regs out) (by
+    obtain ⟨C, hC, hv⟩ := hμ (y.regs out) <| by
       rw [← hlaw, PMF.mem_support_map_iff]
-      exact ⟨_, by rwa [support_evalRand], rfl⟩)
+      exact ⟨_, by rwa [support_evalRand], rfl⟩
     exact ⟨y, C, by rw [hv], (runRand_bounded_init hfit hcfg).2, hC, minCut_le_cutWeight W hC,
       hmod⟩
   · rw [← hlaw, PMF.toOuterMeasure_map_apply]
-    refine PMF.toOuterMeasure_mono _ ?_
-    rintro cfg ⟨hv, hcfg⟩
-    obtain ⟨y, rfl⟩ := hhalted cfg hcfg
-    change y.regs out = minCut W at hv
-    exact ⟨y, by rw [hv]⟩
+    refine PMF.toOuterMeasure_mono _ fun cfg ⟨hv, hcfg⟩ => ?_
+    obtain ⟨y, rfl, -⟩ := hpost cfg (by rwa [support_evalRand] at hcfg)
+    exact ⟨y, congrArg (RandCfg.halted · y) hv⟩
 
 /-- Unconditional `1 / n` failure-probability bound for a compiled minimum-cut program `c.program
 out`: for `n < 2` the right-hand side `1 / n` is at least `1`; for `2 ≤ n`, the program's miss
@@ -121,10 +113,8 @@ theorem program_failure_le_inv_n {r T' n w : ℕ} {c : Code .standard r} {out : 
   obtain ⟨R, T, P, μ, h, hT, hpos, hzero⟩ := hlaw (by omega)
   have hmiss := evalRand_miss_le_of_law h hT (minCut W)
   rcases Nat.eq_zero_or_pos (minCut W) with hmin0 | hmin_pos
-  · have hμ0 : μ.toOuterMeasure {v | v ≠ minCut W} = 0 :=
-      (PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
-        (Set.disjoint_left.mpr fun v hv hne => hne (hmin0 ▸ hzero hmin0 v hv))
-    exact (hmiss.trans_eq hμ0).trans zero_le
+  · exact (hmiss.trans_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
+      (Set.disjoint_left.mpr fun v hv hne => hne (hmin0 ▸ hzero hmin0 v hv)))).trans zero_le
   · refine (hmiss.trans (hpos hmin_pos)).trans ?_
     apply ENNReal.div_le_div_left
     exact_mod_cast (by omega : n ≤ 2 * n)
@@ -145,22 +135,18 @@ theorem minUpdate_exec {r w : ℕ} {trial zero val best : Fin r} (hbz : best ≠
   have e_copy : ExecWithin (B := .standard) w ram[ best ← val ] x (x.set best (x.regs val)) 1 :=
     (Exec.copy (B := .standard) (w := w) (d := best) (s := val) (x := x)).within
   by_cases hi0 : x.regs trial = 0
-  · have hc : (Cond.eq trial zero).Holds x := by simp [Cond.holds_eq, hz, hi0]
-    exact ⟨_, (ExecWithin.branch_pos hc e_copy).mono (by omega), rfl, by simp [hi0], hset _⟩
+  · exact ⟨_, (ExecWithin.branch_pos (by simp [Cond.holds_eq, hz, hi0]) e_copy).mono (by omega),
+      rfl, by simp [hi0], hset _⟩
   have hc : ¬(Cond.eq trial zero).Holds x := by simp [Cond.holds_eq, hz, hi0]
   by_cases hlt : x.regs val < x.regs best
-  · have hc2 : (Cond.lt val best).Holds x := hlt
-    exact ⟨_, (ExecWithin.branch_neg hc (ExecWithin.branch_pos hc2 e_copy)).mono (by omega), rfl,
-      by simp [hi0, Nat.min_eq_left hlt.le], hset _⟩
-  · have hc2 : ¬(Cond.lt val best).Holds x := hlt
-    have e_zero : ExecWithin (B := .standard) w ram[ zero ← #0 ] x (x.set zero 0) 1 :=
-      ExecWithin.const (fits_zero w)
-    refine ⟨_, (ExecWithin.branch_neg hc (ExecWithin.branch_neg hc2 e_zero)).mono (by omega),
-      rfl, ?_, fun i _ => ?_⟩
-    · simp only [Data.set_regs, Function.update_of_ne hbz, hi0, ↓reduceIte]
-      exact (Nat.min_eq_right (Nat.le_of_not_lt hlt)).symm
-    · by_cases hiz : i = zero
-      · subst hiz; simp [hz]
+  · exact ⟨_, (ExecWithin.branch_neg hc
+      (ExecWithin.branch_pos (cond := .lt val best) hlt e_copy)).mono
+      (by omega), rfl, by simp [hi0, Nat.min_eq_left hlt.le], hset _⟩
+  · refine ⟨_, (ExecWithin.branch_neg hc (ExecWithin.branch_neg (cond := .lt val best) hlt
+      (ExecWithin.const (fits_zero w)))).mono (by omega), rfl, ?_, fun i _ => ?_⟩
+    · simp [Data.set_regs, Function.update_of_ne hbz, hi0, Nat.min_eq_right (not_lt.mp hlt)]
+    · rcases eq_or_ne i zero with rfl | hiz
+      · simp [hz]
       · simp only [Data.set_regs, Function.update_of_ne hiz]
 
 /-- The amplification loop shared by the Karger programs. Suppose each of `R ≥ 1` trials `i` of
@@ -185,24 +171,22 @@ theorem minRunsLoop_law {r w R T S Q : ℕ} {body : Code .standard r} {trial tri
   | zero =>
     intro i x hiR hinv
     obtain rfl : i = R := by omega
-    have hc : ¬(Cond.lt trial trials).Holds x := by
-      simp [Cond.holds_lt, htrial _ _ hinv, htrials _ _ hinv]
     rw [ite_eq_right (by omega)]
-    exact (ExecRandLaw.loop_exit hc hinv).mono (fun _ h => h) (by omega) (Nat.zero_le _)
+    exact (ExecRandLaw.loop_exit
+      (by simp [Cond.holds_lt, htrial _ _ hinv, htrials _ _ hinv]) hinv).mono
+      (fun _ h => h) (by omega) (Nat.zero_le _)
   | succ rem ih =>
     intro i x hiR hinv
     have hc : (Cond.lt trial trials).Holds x := by
-      simp [Cond.holds_lt, htrial _ _ hinv, htrials _ _ hinv]
-      omega
+      simp [Cond.holds_lt, htrial _ _ hinv, htrials _ _ hinv]; omega
     refine ((ExecRandLaw.loop_iter hc (hbody i x (by omega) hinv)
       (κ := fun b => OracleComp.evalWith (fun _ => μ)
         (OracleComp.iterate rem Lean.Karger.minStep b)) fun y hy => by
-          have h := ih (i + 1) y (by omega) hy
-          rw [ite_eq_right (Nat.succ_ne_zero i)] at h
-          exact h).congr_law ?_).mono (fun _ h => h) (by rw [add_one_mul]; omega)
+          simpa only [ite_eq_right (Nat.succ_ne_zero i)] using ih (i + 1) y (by omega) hy
+      ).congr_law ?_).mono (fun _ h => h) (by rw [add_one_mul]; omega)
       (by rw [add_one_mul]; omega)
-    by_cases hi : i = 0
-    · simp [hi, Lean.Karger.minRuns, Function.comp_def]
-    · simp [hi, OracleComp.iterate_succ_bind, Lean.Karger.minStep, Function.comp_def]
+    by_cases hi : i = 0 <;>
+      simp [hi, Lean.Karger.minRuns, OracleComp.iterate_succ_bind, Lean.Karger.minStep,
+        Function.comp_def]
 
 end Cslib.Algorithms.WordRAM.Karger

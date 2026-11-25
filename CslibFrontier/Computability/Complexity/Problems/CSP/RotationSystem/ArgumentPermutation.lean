@@ -53,30 +53,23 @@ omit [DecidableEq V] in
 /-- The scope permutation has exactly one orbit per nonempty constraint position. -/
 theorem sameCycle_argumentPermutation (o p : F.Occurrence) :
     (argumentPermutation F).SameCycle o p ↔ o.1 = p.1 := by
+  have hi (k : ℕ) (x : F.Occurrence) :
+      (argumentPermutation F)^[k] x = ⟨x.1, (finRotate _)^[k] x.2⟩ := by
+    rcases x with ⟨i, j⟩
+    induction k with
+    | zero => rfl
+    | succ k ih =>
+      rw [Function.iterate_succ_apply', ih, Function.iterate_succ_apply']
+      rfl
   constructor
   · intro h
     obtain ⟨n, hn⟩ := h.exists_nat_pow_eq
-    have hi (k : ℕ) : ((argumentPermutation F)^[k] o).1 = o.1 := by
-      induction k with
-      | zero => rfl
-      | succ k ih =>
-        rw [Function.iterate_succ_apply']
-        exact ih
-    simpa only [Equiv.Perm.iterate_eq_pow, hn] using (hi n).symm
+    rw [← hn, ← Equiv.Perm.iterate_eq_pow, hi]
   · rcases o with ⟨i, j⟩
     rcases p with ⟨k, l⟩
-    intro h
-    change i = k at h
-    subst k
+    rintro (rfl : i = k)
     obtain ⟨n, hn⟩ := (Equiv.Perm.sameCycle_finRotate j l).exists_nat_pow_eq
-    have hi (k : ℕ) : (argumentPermutation F)^[k] ⟨i, j⟩ =
-        ⟨i, (finRotate _)^[k] j⟩ := by
-      induction k with
-      | zero => rfl
-      | succ k ih =>
-        rw [Function.iterate_succ_apply', ih, Function.iterate_succ_apply']
-        rfl
-    refine ⟨(n : ℤ), ?_⟩
+    refine ⟨n, ?_⟩
     rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow, hi, Equiv.Perm.iterate_eq_pow, hn]
 
 end Cslib.Complexity.CSP
