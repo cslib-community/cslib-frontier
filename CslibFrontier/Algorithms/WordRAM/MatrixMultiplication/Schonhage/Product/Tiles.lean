@@ -130,12 +130,10 @@ public theorem exec_evaluateTiles {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L)
             Nat.count_mono_left (fun k _ hk => by omega)
           have hpos := CountingSort.position_lt key i.isLt
           dsimp only [key] at hs hmcount hpos
-          rw [yf _ (by omega) (by omega)]
-          exact hz.answers i hold
+          exact (yf _ (by omega) (by omega)).trans (hz.answers i hold)
       · intro p ho hf
         have hbQ := (hz.groups.span_bounds key hoffsets ht).2
-        rw [yf p (by omega) hf]
-        exact hz.frame p ho hf
+        exact (yf p (by omega) hf).trans (hz.frame p ho hf)
     · have hsplit := Finset.sum_eq_sum_Ico_succ_bot ht (tileCharge hm qs)
       dsimp only [Φ]
       rw [yi, hsplit]
