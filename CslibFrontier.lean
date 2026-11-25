@@ -8620,6 +8620,7 @@ public import CslibFrontier.Foundations.Data.Nat.Totient
 public import CslibFrontier.Foundations.Data.Nat.TwoAdicInterval
 public import CslibFrontier.Foundations.Data.Option
 public import CslibFrontier.Foundations.Data.Option.Rel
+public import CslibFrontier.Foundations.Data.PFun
 public import CslibFrontier.Foundations.Data.PFunctor.Free.Eval
 public import CslibFrontier.Foundations.Data.Polynomial.BinaryDigits
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
