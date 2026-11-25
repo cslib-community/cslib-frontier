@@ -60,10 +60,8 @@ private theorem reconnect_below (right : Bool)
       cases sibling with
       | nil => simp [root]
       | node b bl br =>
-        intro eq
-        have eq : b.address = o.address := Option.some.inj eq
-        exact Finset.disjoint_left.mp dis (Finset.mem_insert_self _ _)
-          (eq ▸ Finset.mem_insert_self _ _)
+        exact fun eq => Finset.disjoint_left.mp dis (Finset.mem_insert_self _ _)
+          (Option.some.inj eq ▸ Finset.mem_insert_self _ _)
   cases new with
   | nil => exact (newNonempty rfl).elim
   | node a l r =>
@@ -74,25 +72,19 @@ private theorem reconnect_below (right : Bool)
     obtain ⟨t, field, run, choice, selected, heap, data, ptr⟩ :=
       reconnect_child s _ par label.address read rfl parentRead attached
     have selectedField : field = if right then 1 else 0 := by
-      rcases choice with rfl | rfl <;> cases right <;>
-        simp_all [par, record]
+      rcases choice with rfl | rfl <;> cases right <;> simp_all [par, record]
     obtain ⟨parentRep, parentDistinct, exterior⟩ := replaceChild right h s.heap label old
       (.node a l r) sibling (contextParent cs) localRep localDistinct newRep newDistinct
-      (by simpa only [same] using no)
-      (by simpa only [same] using dis) frame
+      (by simpa only [same] using no) (by simpa only [same] using dis) frame
     have complete : Represents t.heap none
         (plug cs (nodeAt right label (.node a l r) sibling)) := by
       rw [heap, selectedField, cursor]
       exact rep.plug_of_frame distinct parentRep (by cases right <;> rfl) exterior
-    have wholeDistinct := distinct.plug parentDistinct (by
-      simp only [nodeAt_addresses, same])
+    have wholeDistinct := distinct.plug parentDistinct (by simp only [nodeAt_addresses, same])
     refine ⟨t, run, ⟨complete, wholeDistinct, ?_, ptr 0 (by simp [layout]) (by simp [layout])
-      (by simp [layout]), data, ?_, ?_, ?_⟩⟩
+      (by simp [layout]), data, by simp [heap], fun i _ h2 h3 h5 => ptr i h2 h3 h5, ?_⟩⟩
     · rw [ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout]), rootReg]
       exact root_plug_congr cs (by cases right <;> rfl)
-    · simp [heap]
-    · intro i _ h2 h3 h5
-      exact ptr i h2 h3 h5
     · intro b f
       rw [heap]
       by_cases hb : label.address = b
@@ -126,8 +118,7 @@ theorem reconnect_context (h : List (Record M (layout extra regs)))
         by rw [heap], ?_, fun _ _ => by rw [heap]⟩⟩
       · simpa only [heap, plug, contextParent] using newRep
       · exact ptr 0 (by simp [layout]) (by simp [layout]) (by simp [layout])
-      · intro i h1 h2 _ h5
-        exact ptr i h1 h2 h5
+      · exact fun i h1 h2 _ h5 => ptr i h1 h2 h5
   | cons f cs =>
     cases f with
     | left label sibling =>
