@@ -131,11 +131,10 @@ private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
   have hcap : ComputableInPolyTime (fun p => decide ((m p).length ≤ ℓ p)) input encBool := by
     fun_prop
   have hblocks : ComputableInPolyTime
-      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool := by
-    refine ComputableInPolyTime.allWithInput hm ?_
-    exact ComputableInPolyTime.decide_eq'
+      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool :=
+    hm.allWithInput (ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd input encBits))
-      (hb.comp (ComputableInPolyTime.fst input encBits))
+      (hb.comp (ComputableInPolyTime.fst input encBits)))
   exact ComputableInPolyTime.bool_and.comp (hcap.prod hblocks)
 
 /-- The multi-query wrapper is strict oracle PPT whenever its adversary is strict PPT and
@@ -472,9 +471,8 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     · by_cases hne : guess.first = guess.second
       · simp [hne]
       · let decode := decodeWordMessage (ℓ n) (blockWidth n)
-        have hdecoded : decode guess.first ≠ decode guess.second := by
-          intro heq
-          exact hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
+        have hdecoded : decode guess.first ≠ decode guess.second :=
+          fun heq => hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
         rw [Probability.PMF.bind_pure_decide_apply_true]
         have hdistinct : (guess.first ≠ guess.second) = True :=
           propext ⟨fun _ => trivial, fun _ => hne⟩
