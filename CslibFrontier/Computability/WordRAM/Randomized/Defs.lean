@@ -131,13 +131,8 @@ variable {w : ℕ} {p : Program B r} {s : State r}
 theorem stepRand_eq_ofOutcome_of_ne_rand
     (h : ∀ dst src, p[s.pc]? ≠ some (.rand dst src)) :
     stepRand w p (.running s) = pure (.ofOutcome s.data (step w p s)) := by
-  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩)
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · exact absurd hpc (h dst src)
+  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩) <;>
+    first | exact absurd hpc (h _ _) | simp only [stepRand, hpc]
 
 theorem stepRand_halted (v : ℕ) (d : Data r) :
     stepRand w p (.halted v d) = pure (.halted v d) := rfl
@@ -300,43 +295,39 @@ theorem evalRand_mapOp (φ : B.Hom B') (w : ℕ) (p : Program B r) (T : ℕ) (s 
 theorem stepRand_bounded {w : ℕ} {p : Program B r} {cfg cfg' : RandCfg r}
     (hcfg : cfg.Bounded w) (hmem : cfg' ∈ (stepRand w p cfg).support) :
     cfg'.Bounded w := by
+  have hpure {c : RandCfg r} (h : stepRand w p cfg = pure c) : cfg' = c :=
+    OracleComp.eq_of_mem_supportWith_pure (by rw [h] at hmem; exact hmem)
   cases cfg with
   | halted v d =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
+    cases hpure (stepRand_halted v d)
     exact hcfg
   | faulted =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
+    cases hpure stepRand_faulted
     trivial
   | running s =>
     have hs : s.data.Bounded w := hcfg
     cases hpc : p[s.pc]? with
     | none =>
-      rw [stepRand_none hpc] at hmem
-      cases OracleComp.eq_of_mem_supportWith_pure hmem
+      cases hpure (stepRand_none hpc)
       trivial
     | some instr =>
       cases instr with
       | op o =>
         cases ho : o.eval w s.data with
         | none =>
-          rw [stepRand_op_fault hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
+          cases hpure (stepRand_op_fault hpc ho)
           trivial
         | some x =>
-          rw [stepRand_op hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
+          cases hpure (stepRand_op hpc ho)
           exact hs.op ho
       | jump t =>
-        rw [stepRand_jump hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
+        cases hpure (stepRand_jump hpc)
         exact hs
       | branch c t =>
-        rw [stepRand_branch hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
+        cases hpure (stepRand_branch hpc)
         exact hs
       | halt i =>
-        rw [stepRand_halt hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
+        cases hpure (stepRand_halt hpc)
         exact ⟨hs.1 i, hs⟩
       | rand dst src =>
         by_cases hfit : Fits w (s.data.regs src)
@@ -344,8 +335,7 @@ theorem stepRand_bounded {w : ℕ} {p : Program B r} {cfg cfg' : RandCfg r}
           obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
           cases OracleComp.eq_of_mem_supportWith_pure hk
           exact hs.set (hfit.of_le (Nat.le_of_lt_succ k.isLt))
-        · rw [stepRand_rand_of_not_fits hpc hfit] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
+        · cases hpure (stepRand_rand_of_not_fits hpc hfit)
           trivial
 
 /-- Clocked randomized execution preserves `RandCfg.Bounded w`. -/

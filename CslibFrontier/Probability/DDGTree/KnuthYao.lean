@@ -88,9 +88,8 @@ theorem truncErr_nonneg (hx : 0 ≤ x) (n : ℕ) : 0 ≤ truncErr x n := by
 
 theorem truncErr_lt (n : ℕ) : truncErr x n < 2⁻¹ ^ n := by
   rw [truncErr_eq]
-  have h := Nat.lt_floor_add_one ((2 : ℝ) ^ n * x)
-  have hpos : (0 : ℝ) < 2⁻¹ ^ n := by positivity
-  nlinarith
+  exact mul_lt_of_lt_one_left (by positivity)
+    (by linarith [Nat.lt_floor_add_one ((2 : ℝ) ^ n * x)])
 
 theorem truncErr_le (n : ℕ) : truncErr x n ≤ x := by
   rw [truncErr, sub_le_self_iff]
@@ -125,7 +124,7 @@ private theorem exists_scale (hx : 0 < x) (hx1 : x ≤ 1) :
   · have hlt := Nat.find_min hex (show m < Nat.find hex by omega)
     rw [not_le] at hlt
     rw [pow_succ]
-    nlinarith
+    linarith [show (2 : ℝ) ^ m * 2 * x = 2 * ((2 : ℝ) ^ m * x) by ring]
 
 private theorem negMulLogb_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m * x) :
     x * -Real.logb 2 x ≤ m * x := by
@@ -133,7 +132,8 @@ private theorem negMulLogb_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m *
     rw [Real.le_logb_iff_rpow_le (by norm_num) hx, Real.rpow_neg (by norm_num),
       Real.rpow_natCast, inv_le_iff_one_le_mul₀ (by positivity)]
     linarith [mul_comm x ((2 : ℝ) ^ m)]
-  nlinarith
+  rw [mul_comm (m : ℝ)]
+  exact mul_le_mul_of_nonneg_left (by linarith) hx.le
 
 private theorem negMulLogb_gt (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2) :
     ((m : ℝ) - 1) * x < x * -Real.logb 2 x := by
@@ -141,7 +141,8 @@ private theorem negMulLogb_gt (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2
     rw [Real.logb_lt_iff_lt_rpow (by norm_num) hx, Real.rpow_sub (by norm_num),
       Real.rpow_one, Real.rpow_natCast, lt_div_iff₀ (by positivity)]
     linarith [mul_comm x ((2 : ℝ) ^ m)]
-  nlinarith
+  rw [mul_comm _ x]
+  exact mul_lt_mul_of_pos_left (by linarith) hx
 
 /-- The first `m` truncations of `x < 2⁻ᵐ⁺¹` are `0`, so they contribute `m x`. -/
 private theorem mul_le_knuthYaoCost (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m * x < 2) :
@@ -153,8 +154,9 @@ private theorem mul_le_knuthYaoCost (hx : 0 < x) {m : ℕ} (hm : (2 : ℝ) ^ m *
   · simp
   · have hn : n + 1 ≤ m := Finset.mem_range.mp hn
     have h2 : (2 : ℝ) ^ (n + 1) ≤ 2 ^ m := pow_le_pow_right₀ (by norm_num) hn
-    rw [pow_succ] at h2
-    nlinarith
+    have hmul := mul_le_mul_of_nonneg_right h2 hx.le
+    rw [pow_succ] at hmul
+    linarith [show (2 : ℝ) ^ n * 2 * x = 2 * ((2 : ℝ) ^ n * x) by ring]
 
 /-- For `x ≥ 2⁻ᵐ`, the truncation errors are at most `x` for `n < m`, at most `x - 2⁻ᵐ` at
 `n = m`, and below `2⁻ⁿ` afterwards. -/
@@ -170,8 +172,7 @@ private theorem knuthYaoCost_le (hx : 0 < x) {m : ℕ} (hm : 1 ≤ (2 : ℝ) ^ m
     have h1 : (1 : ℝ) ≤ ⌊(2 : ℝ) ^ m * x⌋₊ := by
       exact_mod_cast (Nat.one_le_floor_iff _).mpr hm
     rw [truncErr, inv_pow, div_eq_mul_inv]
-    have hpos : (0 : ℝ) < ((2 : ℝ) ^ m)⁻¹ := by positivity
-    nlinarith
+    linarith [le_mul_of_one_le_left (by positivity : (0 : ℝ) ≤ ((2 : ℝ) ^ m)⁻¹) h1]
   have htail : ∑' k, truncErr x (k + (m + 1)) ≤ 2⁻¹ ^ m := by
     have hgeom : Summable fun k : ℕ => (2⁻¹ : ℝ) ^ (k + (m + 1)) :=
       (summable_nat_add_iff (m + 1)).mpr
@@ -212,14 +213,8 @@ theorem knuthYaoCost_inv_two_pow (m : ℕ) : knuthYaoCost (2⁻¹ ^ m) = m * 2�
     intro n hn
     obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le (not_lt.mp (Finset.mem_range.not.mp hn))
     have h : (2 : ℝ) ^ (m + j) * 2⁻¹ ^ m = ((2 ^ j : ℕ) : ℝ) := by
-      push_cast
-      rw [pow_add, inv_pow]
-      field_simp
-    rw [truncErr, h, Nat.floor_natCast]
-    push_cast
-    rw [pow_add, inv_pow]
-    field_simp
-    ring
+      push_cast; rw [pow_add, inv_pow]; field_simp
+    rw [truncErr_eq, h, Nat.floor_natCast, sub_self, zero_mul]
   rw [knuthYaoCost, tsum_eq_sum hzero, Finset.sum_congr rfl fun n hn => truncErr_eq_self ?_]
   · simp
   · rw [inv_pow, mul_inv_lt_iff₀ (by positivity), one_mul]
@@ -275,7 +270,7 @@ private theorem knuthYaoCounts_mono (p : PMF α) (k : ℕ) (a : α) :
   push_cast
   have := Nat.floor_le (by positivity : (0 : ℝ) ≤ 2 ^ k * (p a).toReal)
   rw [pow_succ]
-  nlinarith
+  linarith [show (2 : ℝ) ^ k * 2 * (p a).toReal = 2 * ((2 : ℝ) ^ k * (p a).toReal) by ring]
 
 private theorem knuthYaoCounts_kraft (p : PMF α) (k : ℕ) :
     ∑ a, knuthYaoCounts p k a ≤ 2 ^ k := by

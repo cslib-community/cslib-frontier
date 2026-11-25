@@ -44,15 +44,11 @@ theorem leastRankFlag_spec (ranks : Fin K → BitString w) (first : Fin K) :
     (∃ i, leastRankFlag ranks first i = true) ∧
       ∀ i, leastRankFlag ranks first i = true → ∀ j, toLex (ranks i) ≤ toLex (ranks j) := by
   let := lexOrder w
-  have h := scanMin_spec ranks (ranks first) K
-  constructor
-  · obtain he | ⟨i, _, he⟩ := h.1
-    · exact ⟨first, decide_eq_true he.symm⟩
-    · exact ⟨i, decide_eq_true he.symm⟩
-  · intro i hi j
-    have he := of_decide_eq_true (p := ranks i = scanMin ranks (ranks first) K) hi
-    rw [he]
-    exact h.2.2 j j.isLt
+  obtain ⟨h1, _, hmin⟩ := scanMin_spec ranks (ranks first) K
+  exact ⟨h1.elim (fun he => ⟨first, decide_eq_true he.symm⟩) fun ⟨i, _, he⟩ =>
+      ⟨i, decide_eq_true he.symm⟩,
+    fun i hi j => (of_decide_eq_true (p := ranks i = scanMin ranks (ranks first) K) hi) ▸
+      hmin j j.isLt⟩
 
 /-- Evaluate the rank circuit once per supplied state, scan for the minimum and share its
 comparison with every rank. The flags can drive any number of subsequent priority scans. -/
@@ -70,20 +66,13 @@ theorem synthesis_leastRankFlag {a : ℕ} (s : Set (BooleanFunction a)) (q : Cir
   have hwire (j : Fin K) (bit : Fin w) : (fun x => ranks x j bit) ∈ s₁ :=
     Or.inr (Set.mem_iUnion.mpr ⟨j, bit, rfl⟩)
   have hm := synthesis_scanMin s₁ ranks (fun x => ranks x first) hwire (hwire first)
-  let s₂ := s₁ ∪ wires least
-  have he := Synthesis.family (I := interpretation) (s := s₂)
+  have he := Synthesis.family (I := interpretation) (s := s₁ ∪ wires least)
     (fun j x => decide (ranks x j = least x)) (fun _ => 6 * w + 1) fun j =>
-      synthesis_bits_eq s₂ (fun x => ranks x j) least
+      synthesis_bits_eq _ (fun x => ranks x j) least
         (by rintro _ ⟨bit, rfl⟩; exact Or.inl (hwire j bit)) (fun _ hb => Or.inr hb)
-  apply (hr.trans (hm.trans he)).mono Set.Subset.rfl Set.Subset.rfl
+  refine (hr.trans (hm.trans he)).mono .rfl .rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
   exact le_of_eq (by ring)
-
-/-- Using the same flags for both scans selects the same position even in a tie. -/
-private theorem chooseRecord_eq_apply {α : Type*} (flags : Fin K → Bool)
-    (rows : Fin K → α) (first : Fin K) :
-    chooseRecord flags rows (rows first) K = rows (chooseRecord flags id first K) :=
-  (chooseRecord_map rows flags id first K).symm
 
 private def corrected (f payload : BitString n → BitString n) (d : Fin K → ℕ)
     (first : Fin K) (flags : Fin K → Bool) (x : BitString n) : BitString n :=
@@ -98,10 +87,12 @@ private theorem corrected_spec (f payload : BitString n → BitString n) (d : Fi
     (hp : payload (f^[d (chooseRecord flags id first K)] x) =
       f^[T - K] (f^[d (chooseRecord flags id first K)] x)) :
     corrected f payload d first flags x = f^[T] x := by
-  simp only [corrected, chooseRecord_eq_apply, hp, ← Function.iterate_add_apply]
+  have hmap (rows : Fin K → BitString n) :
+      chooseRecord flags rows (rows first) K = rows (chooseRecord flags id first K) :=
+    (chooseRecord_map rows flags id first K).symm
+  simp only [corrected, hmap, hp, ← Function.iterate_add_apply]
   congr 1
-  have := hd (chooseRecord flags id first K)
-  lia
+  have := hd (chooseRecord flags id first K); lia
 
 private theorem synthesis_corrected (s : Set (BooleanFunction n)) (c p : Circuit signature n n)
     (d : Fin K → ℕ) (first : Fin K) (flags : BitString n → Fin K → Bool)
@@ -116,19 +107,16 @@ private theorem synthesis_corrected (s : Set (BooleanFunction n)) (c p : Circuit
   let seed := fun x => p.eval interpretation (checkpoint x)
   have hcp := synthesis_chooseRecord s flags states (fun x => states x first) hf
     (fun j => hs _ (hd j)) (hs _ (hd first))
-  let s₁ := s ∪ wires checkpoint
-  have hseed := Synthesis.circuit (I := interpretation) (s := s₁) p
+  have hseed := Synthesis.circuit (I := interpretation) (s := s ∪ wires checkpoint) p
     (fun i x => checkpoint x i) fun i => Or.inr ⟨i, rfl⟩
-  let s₂ := s₁ ∪ wires seed
+  let s₂ := s ∪ wires checkpoint ∪ wires seed
   let trace := Synthesis.stages (fun j => wires fun x => f^[j] (seed x)) K
-  have htrace : Synthesis interpretation s₂ trace (K * c.size) :=
-    Synthesis.orbit c seed (fun i => Or.inr ⟨i, rfl⟩) K
   have hw (j : Fin K) (bit : Fin n) : (fun x => f^[K - d j] (seed x) bit) ∈ s₂ ∪ trace :=
     Or.inr (Synthesis.subset_stages _ (Nat.sub_le K (d j)) ⟨bit, rfl⟩)
   have hout := synthesis_chooseRecord (s₂ ∪ trace) flags (fun x j => f^[K - d j] (seed x))
     (fun x => f^[K - d first] (seed x)) (fun j => Or.inl (Or.inl (Or.inl (hf j)))) hw (hw first)
-  apply (hcp.trans (hseed.trans (htrace.trans hout))).mono Set.Subset.rfl Set.Subset.rfl
-  exact le_of_eq (by ring)
+  exact (hcp.trans (hseed.trans ((Synthesis.orbit c seed (fun i => Or.inr ⟨i, rfl⟩) K).trans
+    hout))).mono .rfl .rfl (le_of_eq (by ring))
 
 private def returnFlag (f : BitString n → BitString n) (x : BitString n) (j : Fin K) : Bool :=
   decide (f^[j.val + 1 + K] x = f^[K] x)
@@ -144,11 +132,9 @@ private theorem finish_of_return (f : BitString n → BitString n) (x fallback :
   obtain ⟨i, _, hi, he⟩ := chooseRecord_spec (returnFlag f x)
     (fun j : Fin K => f^[(T - K) % (j.val + 1) + K] x) fallback K ⟨j, j.isLt, hj⟩
   have hperiod : Function.IsPeriodicPt f (i.val + 1) (f^[K] x) := by
-    change f^[i.val + 1] (f^[K] x) = f^[K] x
-    rw [← Function.iterate_add_apply]
-    exact of_decide_eq_true hi
-  change chooseRecord _ _ _ _ = _
-  rw [he, Function.iterate_add_apply, hperiod.iterate_mod_apply,
+    simpa only [Function.IsPeriodicPt, Function.IsFixedPt, ← Function.iterate_add_apply] using
+      of_decide_eq_true hi
+  rw [finish, he, Function.iterate_add_apply, hperiod.iterate_mod_apply,
     ← Function.iterate_add_apply, Nat.sub_add_cancel hT]
 
 /-- If the state at time `K` has no positive return within `K` further steps, the initial
@@ -158,20 +144,15 @@ theorem injective_of_no_return_period (f : BitString n → BitString n) (x : Bit
     Function.Injective (fun i : Fin K => f^[i.val] x) := by
   have hlt {i j : Fin K} (hij : i.val < j.val) (he : f^[i.val] x = f^[j.val] x) : False := by
     have hperiod : Function.IsPeriodicPt f (j.val - i.val) (f^[i.val] x) := by
-      change f^[j.val - i.val] (f^[i.val] x) = f^[i.val] x
-      rw [← Function.iterate_add_apply, Nat.sub_add_cancel hij.le, he]
+      simpa only [Function.IsPeriodicPt, Function.IsFixedPt, ← Function.iterate_add_apply,
+        Nat.sub_add_cancel hij.le] using he.symm
     have h := hperiod.apply_iterate (K - i.val)
     rw [← Function.iterate_add_apply, Nat.sub_add_cancel i.isLt.le] at h
-    have hj := j.isLt
-    refine hret ⟨⟨j.val - i.val - 1, by lia⟩, ?_⟩
-    change f^[j.val - i.val - 1 + 1] (f^[K] x) = f^[K] x
-    rw [show j.val - i.val - 1 + 1 = j.val - i.val by lia]
-    exact h
+    exact hret ⟨⟨j.val - i.val - 1, by have := j.isLt; lia⟩,
+      by simpa [show j.val - i.val - 1 + 1 = j.val - i.val by lia] using h.eq⟩
   intro i j he
   rcases lt_trichotomy i.val j.val with hij | hij | hij
-  · exact (hlt hij he).elim
-  · exact Fin.ext hij
-  · exact (hlt hij he.symm).elim
+  exacts [(hlt hij he).elim, Fin.ext hij, (hlt hij he.symm).elim]
 
 private theorem synthesis_finish (s : Set (BooleanFunction n)) (f : BitString n → BitString n)
     (T K : ℕ) (fallback : BitString n → BitString n) (hb : wires fallback ⊆ s)
@@ -184,11 +165,11 @@ private theorem synthesis_finish (s : Set (BooleanFunction n)) (f : BitString n 
         (by rintro _ ⟨bit, rfl⟩; exact hs K (by lia) bit)
   have hout := synthesis_chooseRecord (s ∪ Set.range fun j x => returnFlag f x j)
     (fun x (j : Fin K) => returnFlag f x j) (fun x j => f^[(T - K) % (j.val + 1) + K] x)
-    fallback (fun j => Or.inr ⟨j, rfl⟩) (fun j bit => Or.inl (hs _ (by
-      have := Nat.mod_lt (T - K) (Nat.succ_pos j.val)
-      have := j.isLt
-      lia) bit)) (fun bit => Or.inl (hb ⟨bit, rfl⟩))
-  apply (hflag.trans hout).mono Set.Subset.rfl Set.Subset.rfl
+    fallback (fun j => Or.inr ⟨j, rfl⟩)
+    (fun j bit => Or.inl (hs _
+      (by have := Nat.mod_lt (T - K) j.val.succ_pos; have := j.isLt; lia) bit))
+    fun bit => Or.inl (hb ⟨bit, rfl⟩)
+  refine (hflag.trans hout).mono .rfl .rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
   exact le_of_eq (by ring)
 

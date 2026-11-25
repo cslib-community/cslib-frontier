@@ -91,15 +91,14 @@ theorem inPort_source_injective (hp : PairedPorts M dOut dIn) (v : V)
     (h₁ : hp.inPort v q₁ = some (u, p₁)) (h₂ : hp.inPort v q₂ = some (u, p₂)) : q₁ = q₂ := by
   have h₁' := (hp.outPort_eq_some_iff u p₁ v q₁).mpr h₁
   have h₂' := (hp.outPort_eq_some_iff u p₂ v q₂).mpr h₂
-  have hp_eq : p₁ = p₂ := hp.outPort_target_injective u h₁' h₂'
-  subst hp_eq
+  cases hp.outPort_target_injective u h₁' h₂'
   exact (Prod.mk.inj (Option.some.inj (h₁'.symm.trans h₂'))).2
 
 /-- Every nonzero matrix entry is realized by an active incoming port. -/
 theorem exists_inPort_of_ne_zero (hp : PairedPorts M dOut dIn) {u v : V} (h : M u v ≠ 0) :
-    ∃ q p, hp.inPort v q = some (u, p) := by
-  obtain ⟨p, q, hpq⟩ := hp.exists_outPort_of_ne_zero h
-  exact ⟨q, p, (hp.outPort_eq_some_iff u p v q).mp hpq⟩
+    ∃ q p, hp.inPort v q = some (u, p) :=
+  let ⟨p, q, hpq⟩ := hp.exists_outPort_of_ne_zero h
+  ⟨q, p, (hp.outPort_eq_some_iff u p v q).mp hpq⟩
 
 /-- Weight carried by incoming port `(v, q)`, defined via the paired outgoing port. -/
 @[expose] def inWeight (hp : PairedPorts M dOut dIn) (v : V) (q : Fin dIn) : R :=
@@ -160,32 +159,19 @@ theorem entry_eq_sum_outPort {V R : Type*} [DecidableEq V] [AddCommMonoid R]
       | some (w, _) => if w = v then hp.outWeight u p else 0 := by
   by_cases hex : ∃ p q, hp.outPort u p = some (v, q)
   · obtain ⟨p₀, q₀, hp₀⟩ := hex
-    symm
-    rw [Finset.sum_eq_single p₀]
+    rw [eq_comm, Finset.sum_eq_single p₀]
     · simp [hp₀, hp.outWeight_eq_entry hp₀]
     · intro p _ hp_ne
-      cases h : hp.outPort u p with
-      | none => rfl
-      | some wq =>
-        obtain ⟨w, q⟩ := wq
-        by_cases hw : w = v
-        · subst hw
-          exact absurd (hp.outPort_target_injective u h hp₀) hp_ne
-        · simp [hw]
-    · intro hmem
-      exact absurd (Finset.mem_univ p₀) hmem
-  · have hzero : M u v = 0 := by
-      by_contra hne
-      exact hex (hp.exists_outPort_of_ne_zero hne)
-    rw [hzero]
-    symm
-    refine Finset.sum_eq_zero fun p _ => ?_
-    cases h : hp.outPort u p with
-    | none => rfl
-    | some wq =>
-      obtain ⟨w, q⟩ := wq
-      have hw : w ≠ v := fun heq => hex ⟨p, q, heq ▸ h⟩
-      simp [hw]
+      rcases h : hp.outPort u p with _ | ⟨w, q⟩
+      · rfl
+      · exact ite_eq_right_iff.mpr fun hw =>
+          absurd (hp.outPort_target_injective u (hw ▸ h) hp₀) hp_ne
+    · exact fun h => absurd (Finset.mem_univ _) h
+  · rw [Classical.not_not.mp (mt hp.exists_outPort_of_ne_zero hex)]
+    refine (Finset.sum_eq_zero fun p _ => ?_).symm
+    rcases h : hp.outPort u p with _ | ⟨w, q⟩
+    · rfl
+    · exact ite_eq_right_iff.mpr fun hw => (hex ⟨p, q, hw ▸ h⟩).elim
 
 /-- Every matrix entry `M u v` is the sum of `inWeight v q` over incoming ports originating at
 `u`. -/
@@ -209,16 +195,9 @@ theorem mulVec_apply_eq_sum_outPort {V R : Type*} [Fintype V] [NonAssocSemiring 
   simp_rw [hp.entry_eq_sum_outPort u, Finset.sum_mul]
   rw [Finset.sum_comm]
   refine Finset.sum_congr rfl fun p _ => ?_
-  cases h : hp.outPort u p with
-  | none => simp
-  | some vq =>
-    obtain ⟨v, q⟩ := vq
-    rw [Finset.sum_eq_single v]
-    · simp
-    · intro w _ hw
-      simp [hw.symm]
-    · intro hmem
-      exact absurd (Finset.mem_univ v) hmem
+  rcases hp.outPort u p with _ | ⟨v, q⟩
+  · simp
+  · rw [Finset.sum_eq_single v (fun w _ hw => by simp [hw.symm]) (by simp)]; simp
 
 /-- Local incoming-port formula for `(Mᵀ *ᵥ x) v` in terms of `inWeight`. -/
 theorem transpose_mulVec_apply_eq_sum_inPort {V R : Type*} [Fintype V] [NonAssocSemiring R]
@@ -240,11 +219,9 @@ theorem transpose_mulVec_apply_eq_sum_inPort_outWeight {V R : Type*} [Fintype V]
       | some (u, p) => hp.outWeight u p * x u := by
   rw [hp.transpose_mulVec_apply_eq_sum_inPort]
   refine Finset.sum_congr rfl fun q _ => ?_
-  cases h : hp.inPort v q with
-  | none => rfl
-  | some up =>
-    obtain ⟨u, p⟩ := up
-    rw [hp.inWeight_eq_outWeight h]
+  rcases h : hp.inPort v q with _ | ⟨u, p⟩
+  · rfl
+  · rw [hp.inWeight_eq_outWeight h]
 
 end Algebra
 
@@ -275,18 +252,10 @@ private theorem listPortLookup_eq_some_iff {dOther : ℕ}
   cases hg : (targets u)[idx]? with
   | none => simp
   | some w =>
-    have hw_mem : w ∈ targets u := List.mem_of_getElem? hg
-    have hu_mem : u ∈ other w := hmem u w hw_mem
-    have hq_lt : (other w).idxOf u < dOther :=
-      (List.idxOf_lt_length_of_mem hu_mem).trans_le (hother_len w)
-    dsimp only
-    rw [dite_eq_left hq_lt]
-    simp only [Option.some.injEq, Prod.mk.injEq, Fin.ext_iff]
-    constructor
-    · rintro ⟨rfl, hq_eq⟩
-      exact ⟨rfl, hq_eq.symm⟩
-    · rintro ⟨rfl, hq_eq⟩
-      exact ⟨rfl, hq_eq.symm⟩
+    have hq_lt := (List.idxOf_lt_length_of_mem
+      (hmem u w (List.mem_of_getElem? hg))).trans_le (hother_len w)
+    simp only [dite_eq_left hq_lt, Option.some.injEq, Prod.mk.injEq, Fin.ext_iff]
+    exact ⟨fun ⟨rfl, h⟩ => ⟨rfl, h.symm⟩, fun ⟨rfl, h⟩ => ⟨rfl, h.symm⟩⟩
 
 private theorem listPortLookup_eq_none_iff {dOther : ℕ}
     {targets other : V → List V}
@@ -298,11 +267,8 @@ private theorem listPortLookup_eq_none_iff {dOther : ℕ}
   cases hg : (targets u)[idx]? with
   | none => simp
   | some w =>
-    have hq_lt : (other w).idxOf u < dOther :=
-      (List.idxOf_lt_length_of_mem (hmem u w (List.mem_of_getElem? hg))).trans_le (hother_len w)
-    dsimp only
-    rw [dite_eq_left hq_lt]
-    simp
+    simp [dite_eq_left ((List.idxOf_lt_length_of_mem
+      (hmem u w (List.mem_of_getElem? hg))).trans_le (hother_len w))]
 
 /-- Construct a `PairedPorts` structure from duplicate-free bounded outgoing and incoming neighbor
 lists satisfying `v ∈ outTargets u ↔ u ∈ inSources v` and covering all nonzero entries of `M`. -/
@@ -450,30 +416,25 @@ section FinTimeLayer
 variable {n : ℕ} {R : Type*} [Zero R] {P : Matrix (Fin n) (Fin n) R} {dOut dIn : ℕ}
 
 private theorem divNat_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
-    (((timeLayerEquiv T n).symm (toLex (i, v))).divNat) = i := by
-  have h := timeLayerEquiv_apply T n ((timeLayerEquiv T n).symm (toLex (i, v)))
-  rw [Equiv.apply_symm_apply] at h
-  exact (Prod.mk.inj (toLex.injective h)).1.symm
+    (((timeLayerEquiv T n).symm (toLex (i, v))).divNat) = i :=
+  (Prod.mk.inj (toLex.injective ((timeLayerEquiv_apply T n _).symm.trans
+    (Equiv.apply_symm_apply _ _)))).1
 
 private theorem modNat_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
-    (((timeLayerEquiv T n).symm (toLex (i, v))).modNat) = v := by
-  have h := timeLayerEquiv_apply T n ((timeLayerEquiv T n).symm (toLex (i, v)))
-  rw [Equiv.apply_symm_apply] at h
-  exact (Prod.mk.inj (toLex.injective h)).2.symm
+    (((timeLayerEquiv T n).symm (toLex (i, v))).modNat) = v :=
+  (Prod.mk.inj (toLex.injective ((timeLayerEquiv_apply T n _).symm.trans
+    (Equiv.apply_symm_apply _ _)))).2
 
 private theorem val_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
     ((timeLayerEquiv T n).symm (toLex (i, v))).val = i.val * n + v.val := by
   have h := timeLayerEquiv_val T n ((timeLayerEquiv T n).symm (toLex (i, v)))
   rw [Equiv.apply_symm_apply] at h
   dsimp only [ofLex_toLex] at h
-  calc
-    ((timeLayerEquiv T n).symm (toLex (i, v))).val = v.val + n * i.val := h
-    _ = i.val * n + v.val := by ring
+  linarith
 
 private theorem val_div_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
-    ((timeLayerEquiv T n).symm (toLex (i, v))).val / n = i.val := by
-  change (((timeLayerEquiv T n).symm (toLex (i, v))).divNat).val = i.val
-  rw [divNat_symm_toLex]
+    ((timeLayerEquiv T n).symm (toLex (i, v))).val / n = i.val :=
+  congrArg Fin.val (divNat_symm_toLex T n i v)
 
 /-- Lift a paired-port structure on `P : Matrix (Fin n) (Fin n) R` to the consecutive-index
 time-layered matrix `Matrix.finTimeLayer T P` on `Fin ((T + 1) * n)`, preserving port degrees
@@ -644,16 +605,11 @@ theorem finTimeLayer_outPort_val (hp : PairedPorts P dOut dIn) (T : ℕ)
         | some (v, q) => some ((a.val / n + 1) * n + v.val, q)
       else none := by
   dsimp only [finTimeLayer]
-  by_cases ha : a.val / n < T
-  · rw [dite_eq_left ha, ite_eq_left ha]
-    cases hp.outPort a.modNat p with
-    | none => rfl
-    | some vq =>
-      obtain ⟨v, q⟩ := vq
-      simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, and_true]
-      exact val_symm_toLex T n ⟨a.val / n + 1, Nat.succ_lt_succ ha⟩ v
-  · rw [dite_eq_right ha, ite_eq_right ha]
-    rfl
+  split_ifs with ha
+  · rcases hp.outPort a.modNat p with _ | ⟨v, q⟩
+    · rfl
+    · simp [val_symm_toLex T n ⟨a.val / n + 1, Nat.succ_lt_succ ha⟩ v]
+  · rfl
 
 /-- Explicit arithmetic value of `(hp.finTimeLayer T).inPort b q` on natural-number components. -/
 theorem finTimeLayer_inPort_val (hp : PairedPorts P dOut dIn) (T : ℕ)
@@ -665,17 +621,11 @@ theorem finTimeLayer_inPort_val (hp : PairedPorts P dOut dIn) (T : ℕ)
         | some (u, p) => some ((b.val / n - 1) * n + u.val, p)
       else none := by
   dsimp only [finTimeLayer]
-  by_cases hb : 0 < b.val / n
-  · rw [dite_eq_left hb, ite_eq_left hb]
-    cases hp.inPort b.modNat q with
-    | none => rfl
-    | some up =>
-      obtain ⟨u, p⟩ := up
-      simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq, and_true]
-      exact val_symm_toLex T n
-        ⟨b.val / n - 1, lt_of_le_of_lt (Nat.pred_le _) b.divNat.isLt⟩ u
-  · rw [dite_eq_right hb, ite_eq_right hb]
-    rfl
+  split_ifs with hb
+  · rcases hp.inPort b.modNat q with _ | ⟨u, p⟩
+    · rfl
+    · simp [val_symm_toLex T n ⟨b.val / n - 1, lt_of_le_of_lt (Nat.pred_le _) b.divNat.isLt⟩ u]
+  · rfl
 
 /-- Explicit value of `(hp.finTimeLayer T).outWeight a p`. -/
 theorem finTimeLayer_outWeight_apply (hp : PairedPorts P dOut dIn) (T : ℕ)

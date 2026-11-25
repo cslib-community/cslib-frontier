@@ -63,9 +63,8 @@ private theorem binaryExtension_exists (hlo : g * 2 ^ bits ≤ v)
   induction bits generalizing g v with
   | zero =>
     simp only [Nat.pow_zero, Nat.mul_one] at hlo hhi
-    have he : v = g := by omega
-    subst v
-    exact .done g
+    obtain rfl : v = g := by omega
+    exact .done _
   | succ bits ih =>
     simp only [Nat.pow_succ] at hlo hhi
     by_cases hm : v < (2 * g + 1) * 2 ^ bits
@@ -75,8 +74,7 @@ private theorem binaryExtension_exists (hlo : g * 2 ^ bits ≤ v)
       apply ih <;> simp only [Bool.toNat_true] <;> nlinarith
 
 private theorem binaryExtension_zero {g v : ℕ} (h : BinaryExtension 0 g v) : g = v := by
-  cases h
-  rfl
+  cases h; rfl
 
 /-- The selected count includes every reachable vertex of the processed prefix. -/
 def FullPrefix (N : ℕ) (edge : ℕ → ℕ → Bool) (source : ℕ) (s : State) : Prop :=
@@ -114,11 +112,8 @@ private theorem fullPrefix_observe (h : FullPrefix N edge source s)
 private theorem fullPrefix_end (h : FullPrefix N edge source s) (hc : RoundCorrect N edge source s)
     (hu : s.candidate = N) : s.selected = s.count := by
   classical
-  have he : (roundSet N edge source s.round).filter (· < N) =
-      roundSet N edge source s.round := by
-    apply Finset.filter_true_of_mem
-    intro u hu
-    exact Finset.mem_range.mp (Finset.mem_of_mem_filter u hu)
+  have he : (roundSet N edge source s.round).filter (· < N) = roundSet N edge source s.round :=
+    Finset.filter_true_of_mem fun u hu => Finset.mem_range.mp (Finset.mem_of_mem_filter u hu)
   simpa only [FullPrefix, hu, he, hc.2] using h
 
 /-- Additional ghost information used to construct honest choices. A walk retains a possible
@@ -181,8 +176,7 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     simp only [Honest, hp] at hh
     obtain ⟨hf, hw⟩ := hh
     by_cases hz : s.remaining = 0
-    · have he : s.current = s.candidate := by
-        exact Relation.RelatesWithinSteps.zero (hz ▸ hw)
+    · have he : s.current = s.candidate := Relation.RelatesWithinSteps.zero (hz ▸ hw)
       refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simpa only [instruction, hp, hz, he, ↓reduceIte, Honest, FullPrefix] using hf
     · have hr : s.remaining = 1 + (s.remaining - 1) := by omega
@@ -198,11 +192,8 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
         | single hv => exact hv.2.1
       refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simp only [instruction, hp, hz, ↓reduceIte, Honest]
-      refine ⟨hf, v, ?_, hvN, hv, ?_⟩
-      · apply binaryExtension_exists
-        · simp
-        · simpa using hvN.trans_le hwidth
-      · exact hw
+      exact ⟨hf, v, binaryExtension_exists (by simp) (by simpa using hvN.trans_le hwidth), hvN, hv,
+        hw⟩
   | guess =>
     simp only [Honest, hp] at hh
     obtain ⟨hf, v, hx, hv, he, hw⟩ := hh
@@ -220,8 +211,7 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
         refine ⟨b, ?_, ?_⟩
         · simp only [instruction, hp, hb, Nat.succ_ne_zero, ↓reduceIte, Honest]
           exact ⟨hf, v, by simpa only [Nat.add_sub_cancel] using hx, hv, he, hw⟩
-        · intro _ _
-          exact hx.le.trans_lt hv
+        · exact fun _ _ => hx.le.trans_lt hv
   | edge =>
     simp only [Honest, hp] at hh
     obtain ⟨hf, he, hw⟩ := hh
@@ -260,10 +250,7 @@ private theorem bounded_instruction (hsource : source < N) (hi : Invariant N edg
     (hb : Bounded N width s) (hc : ChoiceFits N s choice) :
     Bounded N width (instruction N width source s (answer edge bad s) choice) := by
   have hpow : 0 < 2 ^ width := Nat.pow_pos (by omega)
-  have hN : N + 1 < registerBound N width := by
-    have hp : 0 < 2 ^ width := Nat.pow_pos (by omega)
-    unfold registerBound
-    omega
+  have hN : N + 1 < registerBound N width := by unfold registerBound; omega
   have hw : width < registerBound N width := by unfold registerBound; omega
   cases hp : s.phase with
   | round =>
@@ -376,8 +363,7 @@ private theorem advance_ne_accept {ans choice : Bool} (hs : s.phase ≠ .accept)
     (advance N width source s ans choice).phase ≠ .accept := by
   unfold advance
   by_cases hh : halted s = true
-  · simp only [hh, ↓reduceIte]
-    exact hs
+  · simpa only [hh, ↓reduceIte] using hs
   · simp only [hh, Bool.false_eq_true, ↓reduceIte]
     split_ifs
     · cases hp : s.phase <;> simp only [instruction, hp] <;> (try split_ifs) <;> simp_all [reject]
@@ -431,12 +417,10 @@ theorem accepts_iff_not_reachable (hsource : source < N) (hwidth : N ≤ 2 ^ wid
   rw [accepts_iff hsource hwidth]
   constructor
   · intro h hr
-    have := h target hr
-    simp at this
+    simpa using h target hr
   · intro h u hu
-    by_cases he : u = target
-    · subst u
-      exact False.elim (h hu)
+    rcases eq_or_ne u target with rfl | he
+    · exact (h hu).elim
     · simp [he]
 
 end Cslib.InductiveCounting

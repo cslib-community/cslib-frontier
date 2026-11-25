@@ -30,6 +30,7 @@ import CslibFrontierResults.Entries.KellyMechanism
 import CslibFrontierResults.Entries.LoadBalancing
 import CslibFrontierResults.Entries.LocalConnection
 import CslibFrontierResults.Entries.LocallyDecodable
+import CslibFrontierResults.Entries.LupanovFormula
 import CslibFrontierResults.Entries.LupanovRectifier
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity

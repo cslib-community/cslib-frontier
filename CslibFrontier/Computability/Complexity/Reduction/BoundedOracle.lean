@@ -1112,9 +1112,7 @@ private theorem decide_mem_image_eq_of_decoder {β : Type} {encB : β ↪ List B
     have hmem : w ∈ encB '' B ↔ D.decode w ∈ B := by
       conv_lhs => rw [← hcan]
       exact encB.injective.mem_set_image
-    exact Bool.eq_iff_iff.mpr
-      ⟨fun h => (hgB _).mp (hmem.mp (of_decide_eq_true h)),
-        fun h => decide_eq_true (hmem.mpr ((hgB _).mpr h))⟩
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, hmem, hgB]
   · have hnot : w ∉ encB '' B := by
       rintro ⟨b, _, rfl⟩
       exact hcan (by rw [D.decode_enc])
@@ -1216,11 +1214,7 @@ theorem mem_PWithOracleQueries {A : Set α} {B : Set β}
   refine ⟨fun a => decide (a ∈ A), ⟨R.program, R.isOraclePPTOn, fun a => ⟨?_, ?_⟩⟩,
     fun _ => by simp⟩
   · exact R.toProgram.eval_eq a
-  · rcases R.respects_bound a with ⟨hqc, _, _, _⟩
-    have heq : (fun q : Unit × List Bool => encodedDecisionOracle encB B q.2) =
-        languageOracle (encB '' B) := rfl
-    rw [← heq]
-    exact hqc.trans (hr a)
+  · exact (R.respects_bound a).1.trans (hr a)
 
 /-- Conversely, any membership witness `A ∈ PWithOracleQueries (encB '' B) r encA` yields a
 `BoundedOracleReduction encA encB A B` with `qcount a = r |encA a|`, polynomial `qlen`,

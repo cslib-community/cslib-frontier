@@ -108,9 +108,8 @@ theorem endpoints_append (M N : List (V × V)) :
 
 /-- `endpoints` is monotone for list containment. -/
 theorem endpoints_subset_of_subset {M N : List (V × V)} (h : M ⊆ N) :
-    endpoints M ⊆ endpoints N := fun v hv => by
-  obtain ⟨e, he, hv⟩ := mem_endpoints.1 hv
-  exact mem_endpoints.2 ⟨e, h he, hv⟩
+    endpoints M ⊆ endpoints N :=
+  fun _ hv => let ⟨e, he, hv⟩ := mem_endpoints.1 hv; mem_endpoints.2 ⟨e, h he, hv⟩
 
 end Endpoints
 
@@ -143,11 +142,10 @@ theorem subset_foldl_matchingStep (es : List (V × V)) (M : List (V × V)) :
   induction es generalizing M with
   | nil => exact List.Subset.refl M
   | cons e es ih =>
-    refine List.Subset.trans ?_ (ih _)
-    unfold matchingStep
+    rw [List.foldl_cons, matchingStep]
     split_ifs
-    · exact List.subset_append_left M [e]
-    · exact List.Subset.refl M
+    · exact List.Subset.trans (List.subset_append_left M [e]) (ih _)
+    · exact ih _
 
 /-- The scan keeps the endpoints of the matching distinct. -/
 theorem nodup_endpoints_foldl_matchingStep (es : List (V × V)) {M : List (V × V)}
@@ -158,11 +156,8 @@ theorem nodup_endpoints_foldl_matchingStep (es : List (V × V)) {M : List (V × 
     refine ih ?_
     unfold matchingStep
     split_ifs with h
-    · obtain ⟨hne, h1, h2⟩ := h
-      rw [endpoints_append, List.perm_append_comm.nodup_iff]
-      simp only [endpoints, List.cons_append, List.nil_append, List.nodup_cons, List.mem_cons,
-        not_or]
-      exact ⟨⟨hne, h1⟩, h2, hM⟩
+    · rw [endpoints_append, List.perm_append_comm.nodup_iff]
+      simpa [endpoints, not_or, and_assoc] using ⟨h.1, h.2.1, h.2.2, hM⟩
     · exact hM
 
 /-- Every edge of the final matching is in the initial matching or is a listed edge with distinct
@@ -172,35 +167,29 @@ theorem mem_foldl_matchingStep (es : List (V × V)) {M : List (V × V)} {e : V �
   induction es generalizing M with
   | nil => exact Or.inl he
   | cons f es ih =>
-    rcases ih he with h | h
+    rcases ih he with h | ⟨h, hne⟩
     · unfold matchingStep at h
       split_ifs at h with hf
-      · rcases List.mem_append.1 h with h | h
-        · exact Or.inl h
-        · rw [List.mem_singleton.1 h]
-          exact Or.inr ⟨List.mem_cons_self, hf.1⟩
+      · exact (List.mem_append.1 h).imp id fun h => by
+          rw [List.mem_singleton.1 h]
+          exact ⟨List.mem_cons_self, hf.1⟩
       · exact Or.inl h
-    · exact Or.inr ⟨List.mem_cons_of_mem _ h.1, h.2⟩
+    · exact Or.inr ⟨List.mem_cons_of_mem _ h, hne⟩
 
 /-- **Maximality.** Every listed edge with distinct endpoints meets the final matching. -/
 theorem exists_endpoint_mem_foldl_matchingStep (es : List (V × V)) (M : List (V × V))
     {e : V × V} (he : e ∈ es) (hne : e.1 ≠ e.2) :
     e.1 ∈ endpoints (es.foldl matchingStep M) ∨ e.2 ∈ endpoints (es.foldl matchingStep M) := by
   induction es generalizing M with
-  | nil => simp at he
+  | nil => cases he
   | cons f es ih =>
     rcases List.mem_cons.1 he with rfl | he
     · have hsub := endpoints_subset_of_subset (subset_foldl_matchingStep es (matchingStep M e))
-      simp only [List.foldl_cons]
       by_cases h : e.1 ∈ endpoints M ∨ e.2 ∈ endpoints M
       · have hstep : endpoints M ⊆ endpoints (matchingStep M e) := by grind [matchingStep]
         exact h.imp (fun h => hsub (hstep h)) (fun h => hsub (hstep h))
       · rw [not_or] at h
-        have : matchingStep M e = M ++ [e] := ite_eq_left ⟨hne, h.1, h.2⟩
-        left
-        apply hsub
-        rw [this, endpoints_append]
-        exact List.mem_append_right _ List.mem_cons_self
+        exact Or.inl (hsub (by simp [matchingStep, hne, h.1, h.2, endpoints_append, endpoints]))
     · exact ih _ he
 
 /-- Scanning with `matchingStep` and taking endpoints is scanning with `coverStep`. -/
@@ -209,9 +198,7 @@ theorem endpoints_foldl_matchingStep (es : List (V × V)) (M : List (V × V)) :
   induction es generalizing M with
   | nil => rfl
   | cons e es ih =>
-    simp only [List.foldl_cons]
-    rw [ih]
-    congr 1
+    rw [List.foldl_cons, List.foldl_cons, ih]
     unfold matchingStep coverStep
     split_ifs <;> simp only [endpoints_append, endpoints]
 
@@ -241,9 +228,8 @@ theorem mem_matchingCover {es : List (V × V)} {v : V} (hv : v ∈ matchingCover
 theorem isVertexCover_matchingCover (es : List (V × V)) :
     (SimpleGraph.fromRel fun u v => (u, v) ∈ es).IsVertexCover
       {v | v ∈ matchingCover es} := by
-  intro u v huv
-  rw [SimpleGraph.fromRel_adj] at huv
-  obtain ⟨hne, he | he⟩ := huv
+  rintro u v huv
+  obtain ⟨hne, he | he⟩ := (SimpleGraph.fromRel_adj ..).1 huv
   · exact exists_endpoint_mem_foldl_matchingStep es [] he hne
   · exact (exists_endpoint_mem_foldl_matchingStep es [] he hne.symm).symm
 
@@ -262,53 +248,41 @@ theorem length_le_encard_of_isVertexCover {G : SimpleGraph V} {M : List (V × V)
     simp only [endpoints, List.nodup_cons, List.mem_cons, not_or] at hM
     obtain ⟨⟨-, h1⟩, h2, hM⟩ := hM
     have ih := ih hM fun f hf => hadj f (List.mem_cons_of_mem _ hf)
-    obtain ⟨x, hxc, hx, hxM⟩ : ∃ x ∈ c, (x = e.1 ∨ x = e.2) ∧ x ∉ endpoints M := by
-      rcases hc (hadj e List.mem_cons_self) with h | h
-      · exact ⟨e.1, h, Or.inl rfl, h1⟩
-      · exact ⟨e.2, h, Or.inr rfl, h2⟩
-    have hsub : insert x (c ∩ {v | v ∈ endpoints M}) ⊆ c ∩ {v | v ∈ endpoints (e :: M)} := by
-      intro v hv
-      rcases hv with rfl | ⟨hvc, hvM⟩
-      · refine ⟨hxc, ?_⟩
-        simp only [endpoints, Set.mem_ofPred_eq, List.mem_cons]
-        tauto
-      · refine ⟨hvc, ?_⟩
-        simp only [endpoints, Set.mem_ofPred_eq, List.mem_cons]
-        exact Or.inr (Or.inr hvM)
-    calc ((e :: M).length : ℕ∞) = (M.length : ℕ∞) + 1 := by simp
-      _ ≤ (c ∩ {v | v ∈ endpoints M}).encard + 1 := by gcongr
-      _ = (insert x (c ∩ {v | v ∈ endpoints M})).encard :=
-          (Set.encard_insert_of_notMem fun h : x ∈ c ∩ {v | v ∈ endpoints M} => hxM h.2).symm
-      _ ≤ (c ∩ {v | v ∈ endpoints (e :: M)}).encard := Set.encard_le_encard hsub
+    obtain ⟨x, hxc, hx, hxM⟩ : ∃ x ∈ c, (x = e.1 ∨ x = e.2) ∧ x ∉ endpoints M :=
+      (hc (hadj e List.mem_cons_self)).elim (fun h => ⟨e.1, h, Or.inl rfl, h1⟩)
+        fun h => ⟨e.2, h, Or.inr rfl, h2⟩
+    refine (by simp : ((e :: M).length : ℕ∞) = M.length + 1).trans_le
+      (((add_le_add_left ih 1).trans_eq
+        (Set.encard_insert_of_notMem fun h : x ∈ c ∩ {v | v ∈ endpoints M} => hxM h.2).symm).trans
+        (Set.encard_le_encard ?_))
+    rintro v (rfl | ⟨hvc, hvM⟩) <;>
+      simp only [Set.mem_inter_iff, endpoints, Set.mem_ofPred_eq, List.mem_cons]
+    · exact ⟨hxc, by tauto⟩
+    · exact ⟨hvc, Or.inr (Or.inr hvM)⟩
 
 /-- **The factor 2 against any cover.** The matching cover has at most twice as many vertices as
 any vertex cover. -/
 theorem length_matchingCover_le_two_mul_encard (es : List (V × V)) {c : Set V}
     (hc : (SimpleGraph.fromRel fun u v => (u, v) ∈ es).IsVertexCover c) :
     ((matchingCover es).length : ℕ∞) ≤ 2 * c.encard := by
-  have hM := length_le_encard_of_isVertexCover (nodup_matchingCover es)
-    (fun e he => by
-      obtain ⟨he, hne⟩ := mem_greedyMatching he
-      rw [SimpleGraph.fromRel_adj]
-      exact ⟨hne, Or.inl he⟩) hc
   rw [matchingCover, length_endpoints, Nat.cast_mul, Nat.cast_ofNat]
-  exact mul_le_mul_right hM 2
+  refine mul_le_mul_right (length_le_encard_of_isVertexCover (nodup_matchingCover es)
+    (fun e he => ?_) hc) 2
+  obtain ⟨he, hne⟩ := mem_greedyMatching he
+  exact (SimpleGraph.fromRel_adj ..).2 ⟨hne, Or.inl he⟩
 
 /-- **The factor 2 against any finite cover.** -/
 theorem length_matchingCover_le_two_mul_card (es : List (V × V)) {c : Finset V}
     (hc : (SimpleGraph.fromRel fun u v => (u, v) ∈ es).IsVertexCover c) :
     (matchingCover es).length ≤ 2 * c.card := by
-  have h := length_matchingCover_le_two_mul_encard es hc
-  rw [Set.encard_coe_eq_coe_finsetCard] at h
-  exact_mod_cast h
+  exact_mod_cast Set.encard_coe_eq_coe_finsetCard c ▸ length_matchingCover_le_two_mul_encard es hc
 
 /-- **The maximal-matching 2-approximation**: the matching cover has at most twice the minimum
 number of vertices in a vertex cover. -/
 theorem length_matchingCover_le_two_mul_vertexCoverNum (es : List (V × V)) :
     ((matchingCover es).length : ℕ∞) ≤
-      2 * (SimpleGraph.fromRel fun u v => (u, v) ∈ es).vertexCoverNum := by
-  obtain ⟨c, hcard, hc⟩ := (SimpleGraph.fromRel fun u v => (u, v) ∈ es).vertexCoverNum_exists
-  rw [← hcard]
-  exact length_matchingCover_le_two_mul_encard es hc
+      2 * (SimpleGraph.fromRel fun u v => (u, v) ∈ es).vertexCoverNum :=
+  let ⟨_, hcard, hc⟩ := (SimpleGraph.fromRel fun u v => (u, v) ∈ es).vertexCoverNum_exists
+  hcard ▸ length_matchingCover_le_two_mul_encard es hc
 
 end Cslib.Algorithms.Lean.VertexCover

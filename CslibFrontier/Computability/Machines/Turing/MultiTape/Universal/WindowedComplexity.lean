@@ -131,8 +131,7 @@ lemma base_inO : ComputableInO simDC.base eProb eSol Tb Tb := by
     have h₃ : ((encPair eDesc eWin (a.1, a.2.2)).length + 1) ^ 3 ≤ ((eProb a).length + 1) ^ 3 :=
       Nat.pow_le_pow_left (by omega) 3
     simp only [Function.comp_apply, Tb]
-  · split_ifs <;> omega
-  · split_ifs <;> omega
+  iterate 2 · split_ifs <;> omega
   · simp only [simDC, baseSol]
     split_ifs <;> simp_all
 
@@ -253,11 +252,8 @@ lemma winBound_node (D B n : ℕ) :
     winBound D B 1 (4 * n + 1) + 1 ≤ 65 * ((D + 1) * (B + 1) * (n + 1)) ∧
       D + n + n * (2 * D + 1) ≤ winBound D B 1 (4 * n + 1) := by
   unfold winBound
-  constructor
-  · nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
-      Nat.zero_le (B * n)]
-  · nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
-      Nat.zero_le (B * n)]
+  constructor <;> nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
+    Nat.zero_le (B * n)]
 
 lemma winBound_base (D B : ℕ) : winBound D B 1 5 ≤ 76 * ((D + 1) * (B + 1)) := by
   unfold winBound
@@ -268,9 +264,7 @@ lemma le_sq_X (D B : ℕ) : (D + 1) * (B + 1) ≤ (D + B + 2) ^ 2 := by
 
 lemma simDC_base_eq {d : Desc} {n : ℕ} (hn : n ≤ 1) (w : Win) :
     simDC.base (d, n, w) = sim d n w := by
-  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hn with rfl | rfl
-  · simp [simDC, baseSol, sim]
-  · simp [simDC, baseSol, sim]
+  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hn with rfl | rfl <;> simp [simDC, baseSol, sim]
 
 /-- The cost of a base problem, within `costA`. -/
 lemma baseCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn : n ≤ 1)
@@ -376,21 +370,12 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
     rw [length_encPair (enc₁ := eSaved) (enc₂ := eSol)]; dsimp only; omega
   have hZP : Z + 1 ≤ (descLen d + 2) * (Z + 1) := Nat.le_mul_of_pos_left _ (by omega)
   have hX3 : (descLen d + 2) * ((descLen d + 1) * (B + 1)) ≤ (descLen d + B + 2) ^ 6 :=
-    calc _ ≤ (descLen d + B + 2) * ((descLen d + B + 2) * (descLen d + B + 2)) :=
-          Nat.mul_le_mul (by omega) (Nat.mul_le_mul (by omega) (by omega))
-      _ = (descLen d + B + 2) ^ 3 := by ring
+    calc _ ≤ (descLen d + B + 2) ^ 3 := by rw [pow_three]; gcongr <;> omega
       _ ≤ _ := Nat.pow_le_pow_right (by omega) (by omega)
-  have hfin : 100 * ((descLen d + 2) * (Z + 1)) ≤ costA (descLen d) B * (n + 1) :=
-    calc 100 * ((descLen d + 2) * (Z + 1))
-        ≤ 100 * ((descLen d + 2) * (65 * ((descLen d + 1) * (B + 1) * (n + 1)))) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hZ)
-      _ = 6500 * ((descLen d + 2) * ((descLen d + 1) * (B + 1)) * (n + 1)) := by ring
-      _ ≤ 6500 * ((descLen d + B + 2) ^ 6 * (n + 1)) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hX3)
-      _ ≤ costA (descLen d) B * (n + 1) := by
-          unfold costA
-          rw [Nat.mul_assoc]
-          exact Nat.mul_le_mul_right _ (by norm_num)
+  have hfin : 100 * ((descLen d + 2) * (Z + 1)) ≤ costA (descLen d) B * (n + 1) := by
+    unfold costA
+    linarith [Nat.mul_le_mul_left (descLen d + 2) hZ, Nat.mul_le_mul_right (n + 1) hX3,
+      Nat.zero_le ((descLen d + B + 2) ^ 6 * (n + 1))]
   unfold nodeCost
   omega
 
@@ -436,15 +421,12 @@ lemma eval_le (d : Desc) {B : ℕ} (hDB : descLen d ≤ B) (k : ℕ) :
             (extract (firstHalf (m + 2)) w)).1))) = sim d (m + 2) w by
       rw [sim_add_two]; rfl] at hnode
     refine ⟨_, hnode, ?_⟩
-    · have h2 : m + 2 + 1 ≤ 2 * 2 ^ (k + 1) := by omega
-      calc c₁ + c₂ + nodeCost (d, m + 2, w) _ _
-          ≤ 2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              costA (descLen d) B * (m + 2 + 1) := by omega
-        _ ≤ 2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              costA (descLen d) B * (2 * 2 ^ (k + 1)) := by gcongr
-        _ = 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B := by ring
+    have h2 := Nat.mul_le_mul_left (costA (descLen d) B)
+      (show m + 2 + 1 ≤ 2 * 2 ^ (k + 1) by omega)
+    rw [show 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B =
+      2 * (2 ^ (k + 1) * (k + 1) * costA (descLen d) B) + costA (descLen d) B * (2 * 2 ^ (k + 1))
+      by ring]
+    omega
 
 end Cost
 
@@ -518,12 +500,9 @@ public theorem computableInO_universal_nlogn :
             rw [pow_succ, pow_succ]; omega
         _ = _ := by ring
     have hC2 : costA (descLen d) (descLen d + listMax id x + 1) ≤
-        640000000 * (descLen d + listMax id x + 2) ^ 6 := by
-      unfold costA
-      calc 10000000 * (descLen d + (descLen d + listMax id x + 1) + 2) ^ 6
-          ≤ 10000000 * (2 * (descLen d + listMax id x + 2)) ^ 6 :=
-            Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 6)
-        _ = _ := by ring
+        640000000 * (descLen d + listMax id x + 2) ^ 6 :=
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left
+        (show _ ≤ 2 * (descLen d + listMax id x + 2) by omega) 6)).trans (le_of_eq (by ring))
     have hC3 := (hC (d, x, t)).2
     have hC4 : C (d, x, t) ≤ 5120000000 * ((descLen d + listMax id x + 2) ^ 6 *
         ((t + 1) * (Nat.log 2 (t + 1) + 1))) :=

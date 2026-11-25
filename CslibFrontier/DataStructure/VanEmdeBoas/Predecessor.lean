@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.Basic
-import Mathlib.Tactic.Linarith
 
 /-!
 # Strict van Emde Boas predecessor
@@ -81,9 +80,7 @@ when no cluster entry precedes `x > m`, the excluded node minimum `m` is returne
 
 private theorem minimum_any_iff {d x : ℕ} {t : Tree d} :
     t.minimum.any (· < x) = true ↔ ∃ m M, t.bounds = some (m, M) ∧ m < x := by
-  cases hb : t.bounds with
-  | none => simp [minimum, hb]
-  | some b => obtain ⟨m, M⟩ := b; simp [minimum, hb]
+  rcases hb : t.bounds with _ | ⟨m, M⟩ <;> simp [minimum, hb]
 
 private theorem pred_of_max_lt {d m M x : ℕ} {t : Tree d} (ht : t.Valid)
     (hb : t.bounds = some (m, M)) (hM : M < x) :
@@ -122,14 +119,12 @@ theorem predecessor_spec {d : ℕ} {t : Tree d} (ht : t.Valid) (x : ℕ) :
       rcases b with _ | ⟨m, M⟩
       · simp [predecessor, Contains]
       · have he := ht.extrema_of_bounds rfl
-        by_cases hM : M < x
-        · rw [predecessor, ite_eq_left hM]; exact pred_of_max_lt ht rfl hM
-        · by_cases hm : m < x
-          · rw [predecessor, ite_eq_right hM, ite_eq_left hm]
-            refine ⟨he.2.2.1, hm, fun z hz hzx => ?_⟩
-            obtain ⟨_, _, hb, rfl | rfl⟩ := hz <;> cases hb <;> omega
-          · rw [predecessor, ite_eq_right hM, ite_eq_right hm]
-            exact fun z hz => by have := (he.2.2.2.2 z hz).1; omega
+        simp only [predecessor]
+        split_ifs with hM hm
+        · exact pred_of_max_lt ht rfl hM
+        · refine ⟨he.2.2.1, hm, fun z hz hzx => ?_⟩
+          obtain ⟨_, _, hb, rfl | rfl⟩ := hz <;> cases hb <;> omega
+        · exact fun z hz => by have := (he.2.2.2.2 z hz).1; omega
   | succ d ih =>
     cases t with
     | node b s c =>

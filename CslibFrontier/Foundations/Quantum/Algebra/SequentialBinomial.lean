@@ -171,15 +171,11 @@ private theorem abs_hybridSuccessScore_step_le (φ : AlgState A) (M R : Q → Me
   refine (expect_le_expect fun y _ => abs_expect_le _ _).trans ?_
   let δ (y : Q) := copyDefect φ (M y) (R y)
   let ε (y : Q) (x : Fin k → Q) := transcriptCommutatorDefect φ (M y) (fun j => M (x j))
-  have hδ := Fintype.expect_sqrt_le_sqrt_expect δ (fun y => by
-    unfold δ copyDefect
-    exact sum_nonneg fun a _ => sq_nonneg _)
+  have hδ := Fintype.expect_sqrt_le_sqrt_expect δ fun y => sum_nonneg fun a _ => sq_nonneg _
   have hε : (𝔼 y : Q, 𝔼 x : Fin k → Q, √(ε y x)) ≤ √(𝔼 y : Q, 𝔼 x : Fin k → Q, ε y x) := by
     simpa only [Fintype.expect_prod_type] using
       Fintype.expect_sqrt_le_sqrt_expect (fun z : Q × (Fin k → Q) => ε z.1 z.2)
-        (fun z => by
-          unfold ε transcriptCommutatorDefect
-          exact sum_nonneg fun a _ => sum_nonneg fun g _ => sq_nonneg _)
+        fun z => sum_nonneg fun a _ => sum_nonneg fun g _ => sq_nonneg _
   refine (expect_le_expect fun y _ => expect_le_expect fun x _ => ?_).trans
     (show (𝔼 y : Q, 𝔼 x : Fin k → Q, (1 + √2) * (√(δ y) + √(ε y x))) ≤ _ from ?_)
   · have h := abs_first_transcript_score_sub_le φ (M y) (R y) (hM y) (hR y)
@@ -254,8 +250,7 @@ theorem abs_sequentialSuccess_sub_binomialAtLeast_le
     | zero => intro l; simp
     | succ j ih =>
       intro l
-      have he : l + (j + 1) = (l + 1) + j := by omega
-      rw [he]
+      rw [show l + (j + 1) = (l + 1) + j by omega]
       calc
         _ ≤ |score l (j + 1) - score (l + 1) j| +
             |score (l + 1) j - score ((l + 1) + j) 0| := abs_sub_le _ _ _

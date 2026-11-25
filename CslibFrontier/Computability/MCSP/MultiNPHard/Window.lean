@@ -411,17 +411,13 @@ private theorem early_litWire (κ : Gate p t) (y : Fin (2 ^ p)) (b : Fin p)
 omit [NeZero p] in
 private theorem early_ite {κ : Gate p t} {c : Prop} [Decidable c] {w₁ w₂ : Wire p (gateCount p t)}
     (h₁ : Early κ w₁) (h₂ : Early κ w₂) : Early κ (if c then w₁ else w₂) := by
-  split
-  · exact h₁
-  · exact h₂
+  split <;> assumption
 
 omit [NeZero p] in
 private theorem early_dite {κ : Gate p t} {c : Prop} [Decidable c] {w₁ : c → Wire p (gateCount p t)}
     {w₂ : ¬c → Wire p (gateCount p t)} (h₁ : ∀ h, Early κ (w₁ h)) (h₂ : ∀ h, Early κ (w₂ h)) :
     Early κ (if h : c then w₁ h else w₂ h) := by
-  split
-  · exact h₁ _
-  · exact h₂ _
+  split <;> [exact h₁ _; exact h₂ _]
 
 private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
     (κ : Gate p t) (a) : Early κ ((line A T κ).wires a) := by
@@ -447,13 +443,8 @@ private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p)
     change Early _ (if a.val = 0 then _ else _)
     refine early_ite (early_dite (fun _ => early_gateWire ?_) fun hy0 => early_gateWire ?_)
       (early_ite (early_gateWire ?_) (early_gateWire ?_))
-    · simp only [Gate.val_equivFin_zero, Gate.val_equivFin_window]
-      omega
-    · simp only [Gate.val_equivFin_window]
-      omega
-    · simp only [Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
-      omega
-    · simp only [Gate.val_equivFin_zero, Gate.val_equivFin_window]
+    all_goals
+      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
       omega
 
 /-- **The template as a program.** For `p ≥ 1`, a program over the constant-free De Morgan basis

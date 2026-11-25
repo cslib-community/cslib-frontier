@@ -112,8 +112,7 @@ theorem entropy_le_expected_length_of_isPrefixFree {α : Type*} [Fintype α]
   by_cases ha : a ∈ p.support
   · exact mul_le_mul_of_nonneg_left (surprisal_le_of_mass_ge q a (hmass_ge a ha))
       ENNReal.toReal_nonneg
-  · have hp0 : (p a).toReal = 0 := by simp [(PMF.apply_eq_zero_iff p a).mpr ha]
-    simp [hp0]
+  · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
 
 /-- **Conditional Kraft–Gibbs compression bound**: if for each observable `obs`, `enc obs` is
 injective on `(conditionalSnd joint obs).support` with prefix-free image, then
@@ -214,11 +213,8 @@ private theorem toReal_map_conditionalSnd_event_le {Ω α : Type*} [Finite Ω]
         rw [_root_.PMF.map_apply, tsum_fintype]
         refine (Finset.sum_le_sum (g := fun y => if y = ω then μ y else 0) fun y _ => ?_).trans_eq
           (by simp)
-        split_ifs with h₁ h₂
-        · rfl
-        · exact (h₂ (Prod.mk.inj h₁).2.symm).elim
-        · exact zero_le
-        · rfl
+        split_ifs with h₁ h₂ <;> try rfl
+        exacts [(h₂ (Prod.mk.inj h₁).2.symm).elim, zero_le]
       have hfst : (μ.map fun ω' => (W ω', ω')).map Prod.fst = μ.map W := by
         rw [_root_.PMF.map_comp]; rfl
       rw [hfst, div_eq_mul_inv, mul_comm]; exact mul_le_mul_right hmap_le _
@@ -301,11 +297,8 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
   have hsupp : r.support ⊆ q.support := fun o ho => by
     have hro : 0 < (r o).toReal := ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
       (PMF.apply_ne_top r o)
-    have hqo : 0 < (q o).toReal := by
-      have := hr_le o
-      by_contra hle; push Not at hle
-      have hq0 : (q o).toReal = 0 := le_antisymm hle ENNReal.toReal_nonneg
-      rw [hq0, mul_zero] at this; linarith
+    have hqo : 0 < (q o).toReal :=
+      pos_of_mul_pos_right (hro.trans_le (hr_le o)) (inv_nonneg.mpr hpW_pos.le)
     exact (_root_.PMF.mem_support_iff _ _).mpr fun h0 => by simp [h0] at hqo
   have hterm (o : ObsT) :
       (r o).toReal * (Real.logb 2 pW + Real.logb 2 M) -
@@ -322,21 +315,15 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
         rw [PMF.le_minEntropy_iff]; intro t
         rw [Real.rpow_neg (by norm_num),
           Real.rpow_logb (by norm_num) (by norm_num) (by positivity), inv_div]
-        have hm := congrArg ENNReal.toReal (PMF.marginal_mul_conditionalSnd J o t)
-        rw [ENNReal.toReal_mul] at hm
-        have hjt := (hj_le (o, t)).trans
-          (mul_le_mul_of_nonneg_left (hfiber o t) (inv_nonneg.mpr hpW_pos.le))
-        change (r o).toReal * (PMF.conditionalSnd J o t).toReal = (J (o, t)).toReal at hm
-        rw [← hm] at hjt
+        have hm : (r o).toReal * (PMF.conditionalSnd J o t).toReal = (J (o, t)).toReal := by
+          rw [← ENNReal.toReal_mul]; exact congrArg _ (PMF.marginal_mul_conditionalSnd J o t)
         rw [le_div_iff₀ (by positivity)]
-        have hjt' :
-            (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M) ≤ (q o).toReal := by
-          have := mul_le_mul_of_nonneg_right hjt (show 0 ≤ pW * M by positivity)
-          calc (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M)
-              ≤ pW⁻¹ * ((q o).toReal / M) * (pW * M) := this
-            _ = (q o).toReal := by field_simp
-        linarith [show (PMF.conditionalSnd J o t).toReal * (pW * (r o).toReal * M) =
-          (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M) by ring]
+        calc (PMF.conditionalSnd J o t).toReal * (pW * (r o).toReal * M)
+            = (J (o, t)).toReal * (pW * M) := by rw [← hm]; ring
+          _ ≤ pW⁻¹ * ((q o).toReal / M) * (pW * M) :=
+            mul_le_mul_of_nonneg_right ((hj_le (o, t)).trans
+              (mul_le_mul_of_nonneg_left (hfiber o t) (inv_nonneg.mpr hpW_pos.le))) (by positivity)
+          _ = (q o).toReal := by field_simp
       have hlog : Real.logb 2 (pW * (r o).toReal * M / (q o).toReal) =
           Real.logb 2 pW + Real.logb 2 M - PMF.surprisal r o + PMF.surprisal q o := by
         rw [Real.logb_div (by positivity) hqo.ne', Real.logb_mul (by positivity) hM.ne',
@@ -345,8 +332,7 @@ theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Typ
         ring
       have hmul := mul_le_mul_of_nonneg_left (hlog ▸ hmin) hro.le
       linarith
-    · have hr0 : (r o).toReal = 0 := by simp [(_root_.PMF.apply_eq_zero_iff r o).mpr ho]
-      simp [hr0]
+    · simp [(_root_.PMF.apply_eq_zero_iff r o).mpr ho]
   have hsum := Finset.sum_le_sum (s := Finset.univ) fun (o : ObsT) _ => hterm o
   simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.sum_mul,
     PMF.sum_toReal r, one_mul, ← PMF.entropy_eq_sum_surprisal r] at hsum
@@ -373,18 +359,14 @@ theorem logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Type*}
     rw [_root_.PMF.map_const, _root_.PMF.pure_apply_self]
   have hcond : PMF.conditionalSnd (μ.map fun ω => (true, ω)) true = μ := by
     ext ω
-    have hmem : true ∈ ((μ.map fun ω' => (true, ω')).map Prod.fst).support := by
-      rw [_root_.PMF.map_comp]; change true ∈ (μ.map fun _ => true).support
-      rw [_root_.PMF.mem_support_iff, htrue]; exact one_ne_zero
-    rw [PMF.conditionalSnd_apply _ _ hmem]
     have hfst : ((μ.map fun ω' => (true, ω')).map Prod.fst) true = 1 := by
       rw [_root_.PMF.map_comp]; exact htrue
-    rw [hfst, div_one, _root_.PMF.map_apply, tsum_fintype]
+    rw [PMF.conditionalSnd_apply _ _ ((_root_.PMF.mem_support_iff _ _).mpr (hfst ▸ one_ne_zero)),
+      hfst, div_one, _root_.PMF.map_apply, tsum_fintype]
     simp only [Prod.mk.injEq, true_and, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
   have h := logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ (fun _ => true) obs target hM
-    (by rw [htrue]; exact one_ne_zero) hfiber
+    (htrue ▸ one_ne_zero) hfiber
   dsimp only at h
-  rw [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] at h
-  exact h
+  rwa [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] at h
 
 end Cslib.Probability.Coding

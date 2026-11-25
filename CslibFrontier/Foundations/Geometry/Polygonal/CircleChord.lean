@@ -41,25 +41,17 @@ theorem sbtw_zero_arg_pi_iff (w : ℂ) :
   · intro h
     by_contra hn
     rcases lt_or_eq_of_le (le_of_not_gt hn) with hi | hi
-    · have ha := Complex.arg_neg_iff.mpr hi
-      have hrev := (sbtw_angle_of_lt_of_span_lt ha Real.pi_pos
+    · exact h.not_sbtw (sbtw_angle_of_lt_of_span_lt (Complex.arg_neg_iff.mpr hi) Real.pi_pos
         (by linarith [Complex.neg_pi_lt_arg w])).cyclic_right
-      exact h.not_sbtw hrev
     · by_cases hr : 0 ≤ w.re
-      · have ha := Complex.arg_eq_zero_iff.mpr ⟨hr, hi⟩
-        rw [ha, Real.Angle.coe_zero] at h
+      · rw [Complex.arg_eq_zero_iff.mpr ⟨hr, hi⟩, Real.Angle.coe_zero] at h
         exact sbtw_irrefl_left h
-      · have ha := Complex.arg_eq_pi_iff.mpr ⟨lt_of_not_ge hr, hi⟩
-        rw [ha] at h
+      · rw [Complex.arg_eq_pi_iff.mpr ⟨lt_of_not_ge hr, hi⟩] at h
         exact sbtw_irrefl_right h
   · intro hi
-    have h₀ : 0 < w.arg := by
-      have hnonneg := Complex.arg_nonneg_iff.mpr hi.le
-      have hne : w.arg ≠ 0 := fun h => hi.ne' (Complex.arg_eq_zero_iff.mp h).2
-      exact lt_of_le_of_ne hnonneg hne.symm
-    have hπ : w.arg < Real.pi := by
-      have hne : w.arg ≠ Real.pi := fun h => hi.ne' (Complex.arg_eq_pi_iff.mp h).2
-      exact lt_of_le_of_ne (Complex.arg_le_pi w) hne
+    have h₀ : 0 < w.arg := (Complex.arg_nonneg_iff.mpr hi.le).lt_of_ne
+      fun h => hi.ne' (Complex.arg_eq_zero_iff.mp h.symm).2
+    have hπ : w.arg < Real.pi := Complex.arg_lt_pi_iff.mpr (Or.inr hi.ne')
     simpa only [Real.Angle.coe_zero] using
       sbtw_angle_of_lt_of_span_lt h₀ hπ (by linarith [Real.pi_pos])
 
@@ -180,14 +172,10 @@ theorem sbtw_arg_iff_chordCoordinate_pos {z p q x : ℂ} {ρ : ℝ}
   let m := midpoint ℝ p q
   have hm : m ∈ Metric.ball z ρ := midpoint_mem_ball_of_mem_sphere hp hq hpq
   have hρ : 0 < ρ := (dist_nonneg : 0 ≤ dist m z).trans_lt hm
-  have hpm : p - m ≠ 0 := by
-    intro h
-    have h' : p = m := sub_eq_zero.mp h
-    exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (h' ▸ hm)
-  have hxm : x - m ≠ 0 := by
-    intro h
-    have h' : x = m := sub_eq_zero.mp h
-    exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hx (h' ▸ hm)
+  have hpm : p - m ≠ 0 := fun h =>
+    Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (sub_eq_zero.mp h ▸ hm)
+  have hxm : x - m ≠ 0 := fun h =>
+    Set.disjoint_left.mp Metric.sphere_disjoint_ball hx (sub_eq_zero.mp h ▸ hm)
   have hqm : q - m = -(p - m) := by
     simp only [m, right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
   have horder := sbtw_arg_sub_iff_of_mem_ball (Metric.mem_ball_self hρ) hm
@@ -237,26 +225,18 @@ theorem exists_split_offsets_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
   let n := Complex.I * (p - m)
   let f := chordCoordinate p q
   have hm : m ∈ Metric.ball z ρ := midpoint_mem_ball_of_mem_sphere hp hq hpq
-  have hpm : p - m ≠ 0 := by
-    intro h
-    have h' : p = m := sub_eq_zero.mp h
-    exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (h' ▸ hm)
-  have hpos : ∀ x ∈ A, 0 < f x := by
-    intro x hx
-    have h := hA x hx
-    exact (sbtw_arg_iff_chordCoordinate_pos hp hq h.1 hpq
-      (fun heq => sbtw_irrefl_left (heq ▸ h.2))
+  have hpm : p - m ≠ 0 := fun h =>
+    Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (sub_eq_zero.mp h ▸ hm)
+  have hsign {a b x : ℂ} (ha : a ∈ Metric.sphere z ρ) (hb : b ∈ Metric.sphere z ρ) (hab : a ≠ b)
+      (h : x ∈ Metric.sphere z ρ ∧ sbtw ((a - z).arg : Real.Angle) ((x - z).arg : Real.Angle)
+        ((b - z).arg : Real.Angle)) : 0 < chordCoordinate a b x :=
+    (sbtw_arg_iff_chordCoordinate_pos ha hb h.1 hab (fun heq => sbtw_irrefl_left (heq ▸ h.2))
       (fun heq => sbtw_irrefl_right (heq ▸ h.2))).mp h.2
-  have hneg : ∀ x ∈ B, f x < 0 := by
-    intro x hx
-    have h := hB x hx
-    have hsign := (sbtw_arg_iff_chordCoordinate_pos hq hp h.1 hpq.symm
-      (fun heq => sbtw_irrefl_left (heq ▸ h.2))
-      (fun heq => sbtw_irrefl_right (heq ▸ h.2))).mp h.2
-    rw [chordCoordinate_swap] at hsign
-    change 0 < -f x at hsign
-    linarith
-  have hcoord (t : ℝ) : f (m + t • n) = t := by
+  have hneg (x : ℂ) (hx : x ∈ B) : f x < 0 := by
+    have h := hsign hq hp hpq.symm (hB x hx)
+    rw [chordCoordinate_swap] at h
+    exact neg_pos.mp h
+  have hoff (t : ℝ) : chordCoordinate p q (chordOffset p q t) = t := by
     change ((m + t • (Complex.I * (p - m)) - m) / (p - m)).im = t
     rw [add_sub_cancel_left, Complex.real_smul]
     simp only [← mul_assoc, mul_div_cancel_right₀ _ hpm, Complex.mul_im,
@@ -270,36 +250,20 @@ theorem exists_split_offsets_of_circle_gaps {z p q : ℂ} {ρ : ℝ}
     hminus.eventually (Metric.isOpen_ball.mem_nhds (by simpa using hm))
   have hAP : ∀ᶠ t in nhds (0 : ℝ), ∀ x ∈ A, t < f x :=
     (Filter.eventually_all_finset A).mpr fun x hx =>
-      continuousAt_id.eventually_lt continuousAt_const (hpos x hx)
+      continuousAt_id.eventually_lt continuousAt_const (hsign hp hq hpq (hA x hx))
   have hBP : ∀ᶠ t in nhds (0 : ℝ), ∀ x ∈ B, f x < -t :=
     (Filter.eventually_all_finset B).mpr fun x hx =>
       continuousAt_const.eventually_lt continuousAt_id.neg (by simpa using hneg x hx)
-  have hlocal := hpball.and (hmball.and (hAP.and hBP))
-  obtain ⟨δ, hδ, hδlocal⟩ := Metric.eventually_nhds_iff.mp hlocal
-  let ε := min δ bound / 2
-  have hε : 0 < ε := div_pos (lt_min hδ hbound) (by norm_num)
-  have hεδ : ε < δ := by
-    have h := min_le_left δ bound
-    dsimp [ε]
-    linarith
-  have hεbound : ε < bound := by
-    have h := min_le_right δ bound
-    dsimp [ε]
-    linarith
-  have heps : dist ε (0 : ℝ) < δ := by
-    rw [Real.dist_eq, sub_zero, abs_of_pos (by positivity)]
-    exact hεδ
-  obtain ⟨ha, hb, hA', hB'⟩ := hδlocal heps
-  refine ⟨ε, ⟨hε, hεbound⟩, ha, hb, ?_, ?_, ?_⟩
-  · change f (m + (-ε) • n) < f (m + ε • n)
-    rw [hcoord, hcoord]
-    linarith
-  · change ∀ x ∈ A, f (m + ε • n) < f x
-    rw [hcoord]
-    exact hA'
-  · change ∀ x ∈ B, f x < f (m + (-ε) • n)
-    rw [hcoord]
-    exact hB'
+  obtain ⟨δ, hδ, hδlocal⟩ :=
+    Metric.eventually_nhds_iff.mp (hpball.and (hmball.and (hAP.and hBP)))
+  obtain ⟨ε, hε, hεm⟩ := exists_between (lt_min hδ hbound)
+  obtain ⟨hεδ, hεbound⟩ := lt_min_iff.mp hεm
+  obtain ⟨ha, hb, hA', hB'⟩ :=
+    hδlocal (show dist ε (0 : ℝ) < δ by rwa [Real.dist_eq, sub_zero, abs_of_pos hε])
+  refine ⟨ε, ⟨hε, hεbound⟩, ha, hb, ?_, ?_, ?_⟩ <;> simp only [hoff]
+  · linarith
+  · exact hA'
+  · exact hB'
 
 private theorem exists_lineMap_eq_of_chordCoordinate_eq_zero {p q x : ℂ}
     (hpq : p ≠ q) (hx : chordCoordinate p q x = 0) :
@@ -414,9 +378,7 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
     (f_ne_zero hy hpy hyq), ← image_openSegment ℝ f]
   constructor
   · rintro ⟨w, hwpq, hwxy⟩
-    have hw := Set.mem_image_of_mem f hwpq
-    rw [himage] at hw
-    exact ⟨w, hwxy, Set.mem_singleton_iff.mp hw⟩
+    exact ⟨w, hwxy, himage.subset (Set.mem_image_of_mem f hwpq)⟩
   · rintro ⟨w, hw, hf⟩
     have hb := inside hx hy hxy hw
     obtain ⟨t, hwt⟩ := exists_lineMap_eq_of_chordCoordinate_eq_zero hpq hf

@@ -616,13 +616,12 @@ theorem mended_mergeSplit {l r : BTree α β} {h : ℕ} (hl : Underfull t (h + 1
       by have := hc.balanced.height_of_mem_children hx; rw [hc.height_eq] at this; omega,
       hc.children_occupied x hx⟩
   simp only [rootKeys_node] at hlo hhi
-  refine InsertResult.mended_ofNode (hgood hl List.mem_cons_self) (fun e he => ?_)
+  exact InsertResult.mended_ofNode (hgood hl List.mem_cons_self)
+    (List.forall_mem_append.2
+      ⟨fun _ he => hgood hl (List.mem_cons_of_mem _ (List.mem_map_of_mem he)),
+        List.forall_mem_cons.2 ⟨hgood hr List.mem_cons_self,
+          fun _ he => hgood hr (List.mem_cons_of_mem _ (List.mem_map_of_mem he))⟩⟩)
     (by simp; omega) (by simp; omega)
-  rcases List.mem_append.1 he with he | he
-  · exact hgood hl (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-  · rcases List.mem_cons.1 he with rfl | he
-    · exact hgood hr List.mem_cons_self
-    · exact hgood hr (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- Repair against the right sibling: the results are good, with one key fewer or none. -/
 theorem good_rebalanceRight (ht : 2 ≤ t) {c s : BTree α β} {h : ℕ} (hc : Underfull t h c)
@@ -822,10 +821,8 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         simp only [h₁, h₂, ↓reduceIte]
         have htail : SortedAssoc.erase k ((k', v') :: (c.toList ++ toListRest rest)) =
             (k', v') :: (c.toList ++ toListRest rest) := by
-          refine SortedAssoc.erase_of_forall_ne fun p hp => ?_
-          rcases List.mem_cons.1 hp with rfl | hp
-          · exact hk.ne'
-          · exact (hk.trans (hgt p hp)).ne'
+          exact SortedAssoc.erase_of_forall_ne
+            (List.forall_mem_cons.2 ⟨hk.ne', fun p hp => (hk.trans (hgt p hp)).ne'⟩)
         rw [toList_rebalanceRight, hpe hpre, toListRest_cons, SortedAssoc.erase_append, htail]
         simp
     · -- the key is above this triple: move on, or at the last triple erase from its child

@@ -280,6 +280,25 @@ private def CompGmCompactSlabStepPre (w : ℕ) :
       0 < bucketBits N ∧
       (p_del < p_last → PureMovedSlabInv N (compGmAt metaBase U w N s.mem) p_del p_last)
 
+/-- The optional metadata move of a compaction step leaves the frontier unchanged. -/
+private theorem frontier_compGmCompactSlabMove {metaBase U V w N p_del p_last : ℕ} (hw : 0 < w)
+    (s : Memory.State)
+    (hcond : p_del < p_last → PureMovedSlabInv N (compGmAt metaBase U w N s.mem) p_del p_last) :
+    ((Memory.spec 0).clientState s
+      (if p_del < p_last then
+        compGmMoveLastSlabMetaProg (((mkCompParams U V w N, metaBase), p_del), p_last)
+      else pure ())).frontier = s.frontier := by
+  split_ifs with hc
+  · obtain ⟨hf1, hg1⟩ := compGmRelinkMovedSlabGenProg_effect
+      (itemBase := metaBase + offCompItems U w N) (U := U) (V := V) (m_items := 0)
+      hw le_rfl s (hcond hc)
+    obtain ⟨hf2, _⟩ := compGmLinkMovedNeighborsGenProg_effect
+      (itemBase := metaBase + offCompItems U w N) (U := U) (V := V) (m_items := 0)
+      hw le_rfl _ (hg1.symm ▸ pureMovedSlabInv_after_relink (hcond hc))
+    dsimp only [compGmMoveLastSlabMetaProg]
+    rw [StateTransitionSpec.clientState_bind, hf2.frontier_eq, hf1.frontier_eq]
+  · rfl
+
 private theorem realizesBounded_compGmCompactSlabStep :
     RealizesBounded .exact compGmCompactSlabStepProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
@@ -292,19 +311,8 @@ private theorem realizesBounded_compGmCompactSlabStep :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hcond⟩ := h
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega)
   all_goals try exact ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hcond hc⟩
-  refine ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_⟩, h0_lt⟩
-  by_cases hc : p_del < p_last
-  · rw [ite_eq_left hc]
-    dsimp only [compGmMoveLastSlabMetaProg]
-    obtain ⟨hf1, hg1⟩ := compGmRelinkMovedSlabGenProg_effect
-      (itemBase := metaBase + offCompItems U w N) (U := U) (V := V) (m_items := 0)
-      hw le_rfl s (hcond hc)
-    obtain ⟨hf2, _⟩ := compGmLinkMovedNeighborsGenProg_effect
-      (itemBase := metaBase + offCompItems U w N) (U := U) (V := V) (m_items := 0)
-      hw le_rfl _ (hg1.symm ▸ pureMovedSlabInv_after_relink (hcond hc))
-    rw [StateTransitionSpec.clientState_bind, hf2.frontier_eq, hf1.frontier_eq]
-    exact hfr
-  · simp [hc, hfr]
+  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    hfr.trans_eq (frontier_compGmCompactSlabMove hw s hcond).symm⟩, h0_lt⟩
 
 private theorem realizesBounded_compGmCompactSlab :
     RealizesBounded .exact compGmCompactSlabGenProg
@@ -445,22 +453,7 @@ private theorem validProg_compGmCompactSlabStep {w : ℕ} {d : ((CompParams × �
     (validProg_ite (fun hlt => ?_) (fun _ => validProg_pure ())) fun s1 hs1 => ?_
   · exact validProg_compGmMoveLastSlabMeta ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hcond hlt⟩
   · have hfr1 : metaBase + offCompItems U w N ≤ s1.frontier := by
-      by_cases hlt : p_del < p_last
-      · have hs1_eq : s1 = (Memory.spec 0).clientState s
-            (compGmMoveLastSlabMetaProg (((mkCompParams U V w N, metaBase), p_del), p_last)) := by
-          rw [hs1, ite_eq_left hlt]
-        have hm1 := hcond hlt
-        obtain ⟨hf_r, hg_r⟩ := compGmRelinkMovedSlabGenProg_effect
-          (itemBase := metaBase + offCompItems U w N) (m_items := 0) hw le_rfl s hm1
-        obtain ⟨hf_l, _⟩ := compGmLinkMovedNeighborsGenProg_effect
-          (itemBase := metaBase + offCompItems U w N) (m_items := 0) hw le_rfl _
-          (hg_r.symm ▸ pureMovedSlabInv_after_relink hm1)
-        have hfr_eq : s1.frontier = s.frontier := by
-          rw [hs1_eq]; dsimp only [compGmMoveLastSlabMetaProg]
-          rw [StateTransitionSpec.clientState_bind, hf_l.frontier_eq, hf_r.frontier_eq]
-        exact hfr.trans_eq hfr_eq.symm
-      · have hs1_eq : s1 = s := by rw [hs1, ite_eq_right hlt]; rfl
-        exact hs1_eq ▸ hfr
+      rw [hs1, frontier_compGmCompactSlabMove hw s hcond]; exact hfr
     exact validProg_writeCompGMGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1⟩, h0_lt⟩
 
 private theorem validProg_compGmCompactSlab {w : ℕ} {d : (CompParams × ℕ) × ℕ}

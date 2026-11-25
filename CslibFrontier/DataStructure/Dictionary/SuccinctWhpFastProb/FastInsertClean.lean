@@ -209,27 +209,41 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       rintro ⟨_, _, hge⟩; omega
     rw [ite_eq_right hg3]
     -- Now `fastInsert` returns `some (overmarsStep ... fsInserted)`!
-    refine ⟨_, rfl, ?_, ?_, ?_, ?_⟩
-    · exact (hom_m _).1.trans (by
-        by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
-        · rw [ite_eq_left hfpc]
-        · rw [ite_eq_right hfpc])
-    · -- Check `(fs1.buf fs1.curEp).itemAlloc ≤ #(AllocBadKeys)`!
-      rw [(hom_m _).2.2.1, (hom_m _).2.1]
-      by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
-      · rw [ite_eq_left hfpc]
-        change (Function.update fs.buf fs.curEp
-            (bufInsert (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey b (fs.bktCount b))
-            fs.curEp).itemAlloc ≤
-          #(BadIns.filter fun x =>
-            bufEverPresent (cTabWhp c) (bCharWhp n_max)
-              (Function.update fs.buf fs.curEp
-                (bufInsert (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey b (fs.bktCount b))
-                fs.curEp)
-              (fpReducedKey c U n_max θ.2 x))
-        rw [Function.update_self]
+    have hne_ep : fs.oldEp ≠ fs.curEp := by
+      dsimp only [FastState.oldEp]; rcases hc.curEp_or with h | h <;> omega
+    have hwk_i : ∀ (s_i : FastState),
+        s_i.rebStage = fs.rebStage → s_i.stageCursor = fs.stageCursor →
+        s_i.dirtyCount = fs.dirtyCount → s_i.dirtyIdx = fs.dirtyIdx →
+        s_i.rebCandSalt = fs.rebCandSalt → s_i.rebScanCursor = fs.rebScanCursor →
+        (s_i.buf s_i.oldEp).nodeAlloc = (fs.buf fs.oldEp).nodeAlloc →
+        stageWorkRemaining c n_max (overmarsStep c U n_max θ b s_i) =
+          stageWorkRemaining c n_max fs := by
+      intro s_i r1 r2 r3 r4 r5 r6 r7
+      obtain ⟨_, q2, q3, q4, q5, q6, q7, _, q9, q10⟩ := hom_m s_i
+      refine stageWorkRemaining_eq_of_meta c n_max (q4.trans r1) (q5.trans r2)
+        (q6.trans r3) (q7.trans r4) (q9.trans r5) (q10.trans r6) ?_
+      have hold_eq : (overmarsStep c U n_max θ b s_i).oldEp = s_i.oldEp := by
+        dsimp only [FastState.oldEp]; rw [q2]
+      rw [hold_eq, q3]; exact r7
+    have hst_i : ∀ (s_i : FastState),
+        s_i.rebStage = fs.rebStage → s_i.dirtyCount = fs.dirtyCount →
+        s_i.dirtyIdx = fs.dirtyIdx → s_i.dirtyBuckets = fs.dirtyBuckets →
+        s_i.rebCandSalt = fs.rebCandSalt →
+        SaltBoundAt c U n_max θ W_keys (overmarsStep c U n_max θ b s_i) := by
+      intro s_i r1 r2 r3 r4 r5
+      obtain ⟨_, _, _, q4, _, q6, q7, q8, q9, _⟩ := hom_m s_i
+      intro hs2 hdi
+      rw [q4, r1] at hs2; rw [q7, q6, r3, r2] at hdi
+      rw [q8, q7, q9, r4, r3, r5]
+      exact hcw.salt_bound hs2 hdi
+    by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+        (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
+    · rw [ite_eq_left hfpc]
+      refine ⟨_, rfl, (hom_m _).1, ?_, hwk_i _ rfl rfl rfl rfl rfl rfl ?_,
+        hst_i _ rfl rfl rfl rfl rfl⟩
+      · -- Check `(fs1.buf fs1.curEp).itemAlloc ≤ #(AllocBadKeys)`!
+        rw [(hom_m _).2.2.1, (hom_m _).2.1]
+        simp only [Function.update_self]
         -- Show `u ∈ BadIns` from `hfpc`!
         have hu_bad : u ∈ BadIns := by
           obtain ⟨lm, hvl, hrl⟩ := hc.live_valid b hb
@@ -299,46 +313,12 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
                     (fpReducedKey c U n_max θ.2 x))) :=
                 (Finset.card_insert_of_notMem hu_nin).symm
             _ ≤ _ := Finset.card_le_card hins_sub
-      · rw [ite_eq_right hfpc]
-        exact hcw.buf_alloc
-    · have hne_ep : fs.oldEp ≠ fs.curEp := by
-        dsimp only [FastState.oldEp]; rcases hc.curEp_or with h | h <;> omega
-      have hwk_i : ∀ (s_i : FastState),
-          s_i.rebStage = fs.rebStage → s_i.stageCursor = fs.stageCursor →
-          s_i.dirtyCount = fs.dirtyCount → s_i.dirtyIdx = fs.dirtyIdx →
-          s_i.rebCandSalt = fs.rebCandSalt → s_i.rebScanCursor = fs.rebScanCursor →
-          (s_i.buf s_i.oldEp).nodeAlloc = (fs.buf fs.oldEp).nodeAlloc →
-          stageWorkRemaining c n_max (overmarsStep c U n_max θ b s_i) =
-            stageWorkRemaining c n_max fs := by
-        intro s_i r1 r2 r3 r4 r5 r6 r7
-        obtain ⟨_, q2, q3, q4, q5, q6, q7, _, q9, q10⟩ := hom_m s_i
-        refine stageWorkRemaining_eq_of_meta c n_max (q4.trans r1) (q5.trans r2)
-          (q6.trans r3) (q7.trans r4) (q9.trans r5) (q10.trans r6) ?_
-        have hold_eq : (overmarsStep c U n_max θ b s_i).oldEp = s_i.oldEp := by
-          dsimp only [FastState.oldEp]; rw [q2]
-        rw [hold_eq, q3]; exact r7
-      by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
-      · rw [ite_eq_left hfpc]
-        refine hwk_i _ rfl rfl rfl rfl rfl rfl ?_
-        change (Function.update fs.buf fs.curEp _ fs.oldEp).nodeAlloc = _
+      · change (Function.update fs.buf fs.curEp _ fs.oldEp).nodeAlloc = _
         rw [Function.update_of_ne hne_ep]
-      · rw [ite_eq_right hfpc]
-        exact hwk_i _ rfl rfl rfl rfl rfl rfl rfl
-    · have hst_i : ∀ (s_i : FastState),
-          s_i.rebStage = fs.rebStage → s_i.dirtyCount = fs.dirtyCount →
-          s_i.dirtyIdx = fs.dirtyIdx → s_i.dirtyBuckets = fs.dirtyBuckets →
-          s_i.rebCandSalt = fs.rebCandSalt →
-          SaltBoundAt c U n_max θ W_keys (overmarsStep c U n_max θ b s_i) := by
-        intro s_i r1 r2 r3 r4 r5
-        obtain ⟨_, _, _, q4, _, q6, q7, q8, q9, _⟩ := hom_m s_i
-        intro hs2 hdi
-        rw [q4, r1] at hs2; rw [q7, q6, r3, r2] at hdi
-        rw [q8, q7, q9, r4, r3, r5]
-        exact hcw.salt_bound hs2 hdi
-      by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
-      · rw [ite_eq_left hfpc]; exact hst_i _ rfl rfl rfl rfl rfl
-      · rw [ite_eq_right hfpc]; exact hst_i _ rfl rfl rfl rfl rfl
+    · rw [ite_eq_right hfpc]
+      refine ⟨_, rfl, (hom_m _).1, ?_, hwk_i _ rfl rfl rfl rfl rfl rfl rfl,
+        hst_i _ rfl rfl rfl rfl rfl⟩
+      rw [(hom_m _).2.2.1, (hom_m _).2.1]
+      exact hcw.buf_alloc
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

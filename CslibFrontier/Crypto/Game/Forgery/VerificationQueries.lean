@@ -333,18 +333,12 @@ private theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig]
         dsimp only [vqOracle, StateT.run] at hz
         cases hsig : signer sk s.log m with
         | none =>
-          rw [hsig] at hz
-          simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hz
-          subst hz
-          simp
+          rw [hsig, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hz
+          subst hz; simp
         | some reply =>
-          rw [hsig] at hz
-          simp only [ProbComp.eval_map, PMF.mem_support_map_iff] at hz
-          obtain ⟨_, -, hpair⟩ := hz
-          subst hpair
-          simp
-      | inr p =>
-        cases z.2.won <;> simp)
+          rw [hsig, ProbComp.eval_map, PMF.mem_support_map_iff] at hz
+          obtain ⟨_, -, rfl⟩ := hz; simp
+      | inr p => cases z.2.won <;> simp)
     ⟨[], false⟩ ((), st) hmem
   cases hwon : st.won
   · simp
@@ -605,88 +599,28 @@ private theorem run_vqToForgerHandler_eq_plantedHandler {PK SK M Sig : Type} [In
   rfl
 
 private theorem le_mul_add_of_le_sum {Q : ℕ} {p B c ε : ℝ≥0∞} {idx W : ℕ → ℝ≥0∞}
-    (hp1 : p ≤ 1) (hB1 : B ≤ 1)
-    (hidx_top : ∀ j < Q, idx j ≠ ⊤) (hW_top : ∀ j < Q, W j ≠ ⊤)
+    (hp1 : p ≤ 1)
     (hsum : p ≤ ∑ j ∈ Finset.range Q, W j)
     (hB : ∑ j ∈ Finset.range Q, idx j * W j ≤ B)
     (hidx : ∀ j < Q, 1 ≤ c * idx j + ε) :
     p ≤ c * B + ε := by
-  by_cases hp0 : p = 0
-  · simp [hp0]
   by_cases hε1 : 1 ≤ ε
   · exact hp1.trans (hε1.trans le_add_self)
-  have hε_lt : ε < 1 := not_le.mp hε1
-  have hε_top : ε ≠ ⊤ := (hε_lt.trans_le le_top).ne
-  have hp_top : p ≠ ⊤ := (hp1.trans_lt ENNReal.one_lt_top).ne
-  have hB_top : B ≠ ⊤ := (hB1.trans_lt ENNReal.one_lt_top).ne
-  have hpos_sum : 0 < ∑ j ∈ Finset.range Q, W j := (pos_iff_ne_zero.mpr hp0).trans_le hsum
-  obtain ⟨j₀, hj₀_mem, hj₀_pos⟩ : ∃ j ∈ Finset.range Q, W j ≠ 0 := by
-    by_contra hzero
-    push Not at hzero
-    exact hpos_sum.ne' (Finset.sum_eq_zero hzero)
-  have hj₀ : j₀ < Q := Finset.mem_range.mp hj₀_mem
-  by_cases hc_top : c = ⊤
-  · subst hc_top
-    have hidx0 : idx j₀ ≠ 0 := by
-      intro hz
-      have h1 := hidx j₀ hj₀
-      rw [hz, mul_zero, zero_add] at h1
-      exact hε1 h1
-    have hB0 : B ≠ 0 := by
-      intro hBz
-      have hle : idx j₀ * W j₀ ≤ 0 := hBz ▸
-        (Finset.single_le_sum (fun _ _ => zero_le) hj₀_mem).trans hB
-      exact mul_ne_zero hidx0 hj₀_pos (nonpos_iff_eq_zero.mp hle)
-    rw [ENNReal.top_mul hB0, top_add]
-    exact le_top
-  have hrhs_top : c * B + ε ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨ENNReal.mul_ne_top hc_top hB_top, hε_top⟩
-  rw [← ENNReal.toReal_le_toReal hp_top hrhs_top, ENNReal.toReal_add
-    (ENNReal.mul_ne_top hc_top hB_top) hε_top, ENNReal.toReal_mul]
-  have hpR1 : p.toReal ≤ 1 := by
-    simpa using ENNReal.toReal_mono ENNReal.one_ne_top hp1
-  have hεR_lt : ε.toReal < 1 := by
-    have h := (ENNReal.toReal_lt_toReal hε_top ENNReal.one_ne_top).mpr hε_lt
-    simpa using h
-  have hsum_top : (∑ j ∈ Finset.range Q, W j) ≠ ⊤ :=
-    ENNReal.sum_ne_top.mpr fun j hj => hW_top j (Finset.mem_range.mp hj)
-  have hpR_le : p.toReal ≤ ∑ j ∈ Finset.range Q, (W j).toReal := by
-    calc p.toReal ≤ (∑ j ∈ Finset.range Q, W j).toReal :=
-          ENNReal.toReal_mono hsum_top hsum
-      _ = ∑ j ∈ Finset.range Q, (W j).toReal :=
-          ENNReal.toReal_sum fun j hj => hW_top j (Finset.mem_range.mp hj)
-  have hBR_ge : ∑ j ∈ Finset.range Q, (idx j).toReal * (W j).toReal ≤ B.toReal := by
-    have hprod_top : ∀ j ∈ Finset.range Q, idx j * W j ≠ ⊤ := fun j hj =>
-      ENNReal.mul_ne_top (hidx_top j (Finset.mem_range.mp hj))
-        (hW_top j (Finset.mem_range.mp hj))
-    calc ∑ j ∈ Finset.range Q, (idx j).toReal * (W j).toReal
-        = (∑ j ∈ Finset.range Q, idx j * W j).toReal := by
-          rw [ENNReal.toReal_sum hprod_top]
-          exact Finset.sum_congr rfl fun j _ => (ENNReal.toReal_mul).symm
-      _ ≤ B.toReal := ENNReal.toReal_mono hB_top hB
-  have hpt : ∀ j ∈ Finset.range Q,
-      (1 - ε.toReal) * (W j).toReal ≤ c.toReal * ((idx j).toReal * (W j).toReal) := by
-    intro j hj
-    have hjlt := Finset.mem_range.mp hj
-    have h1 := ENNReal.toReal_mono
-      (ENNReal.add_ne_top.mpr ⟨ENNReal.mul_ne_top hc_top (hidx_top j hjlt), hε_top⟩)
-      (hidx j hjlt)
-    rw [ENNReal.toReal_one, ENNReal.toReal_add (ENNReal.mul_ne_top hc_top (hidx_top j hjlt)) hε_top,
-      ENNReal.toReal_mul] at h1
-    have hWnn : 0 ≤ (W j).toReal := ENNReal.toReal_nonneg
-    nlinarith
-  have hsum_ineq : (1 - ε.toReal) * ∑ j ∈ Finset.range Q, (W j).toReal ≤ c.toReal * B.toReal := by
-    calc (1 - ε.toReal) * ∑ j ∈ Finset.range Q, (W j).toReal
-        = ∑ j ∈ Finset.range Q, (1 - ε.toReal) * (W j).toReal := Finset.mul_sum _ _ _
-      _ ≤ ∑ j ∈ Finset.range Q, c.toReal * ((idx j).toReal * (W j).toReal) :=
-          Finset.sum_le_sum hpt
-      _ = c.toReal * ∑ j ∈ Finset.range Q, (idx j).toReal * (W j).toReal :=
-          (Finset.mul_sum _ _ _).symm
-      _ ≤ c.toReal * B.toReal :=
-          mul_le_mul_of_nonneg_left hBR_ge ENNReal.toReal_nonneg
-  have hp_nonneg : 0 ≤ p.toReal := ENNReal.toReal_nonneg
-  have hε_nonneg : 0 ≤ ε.toReal := ENNReal.toReal_nonneg
-  nlinarith
+  have hε_le : ε ≤ 1 := (not_le.mp hε1).le
+  have hmul : (1 - ε) * p ≤ c * B := calc
+    (1 - ε) * p ≤ (1 - ε) * ∑ j ∈ Finset.range Q, W j := mul_le_mul_right hsum _
+    _ = ∑ j ∈ Finset.range Q, (1 - ε) * W j := Finset.mul_sum _ _ _
+    _ ≤ ∑ j ∈ Finset.range Q, c * idx j * W j :=
+      Finset.sum_le_sum fun j hj =>
+        mul_le_mul_left (tsub_le_iff_right.mpr (hidx j (Finset.mem_range.mp hj))) _
+    _ = c * ∑ j ∈ Finset.range Q, idx j * W j := by
+      simp_rw [mul_assoc]; exact (Finset.mul_sum _ _ _).symm
+    _ ≤ c * B := mul_le_mul_right hB c
+  calc
+    p = (1 - ε + ε) * p := by rw [tsub_add_cancel_of_le hε_le, one_mul]
+    _ = (1 - ε) * p + ε * p := add_mul _ _ _
+    _ ≤ c * B + ε * 1 := add_le_add hmul (mul_le_mul_right hp1 ε)
+    _ = c * B + ε := by rw [mul_one]
 
 /-- Finite index-sampler guessing step toward [BonehShoup2023], Section 6.2, Theorem 6.1
 (pp. 221–223), without machine running-time certificates (not the computational result; see
@@ -803,12 +737,7 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
       exact Summable.sum_le_tsum (Finset.range Q_v) (fun _ _ => zero_le)
         CompleteLattice.summable
     rw [hlhs_eq]
-    exact le_mul_add_of_le_sum
-      (PMF.toOuterMeasure_le_one _ _)
-      (PMF.coe_le_one _ _)
-      (fun j _ => PMF.apply_ne_top _ _)
-      (fun j _ => PMF.apply_ne_top _ _)
-      hunion hrhs_ge hindex
+    exact le_mul_add_of_le_sum (PMF.toOuterMeasure_le_one _ _) hunion hrhs_ge hindex
   exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
 
 /-- Finite query-bounded step toward [BonehShoup2023], Section 6.2, Theorem 6.1 (pp. 221–223),
@@ -1035,6 +964,34 @@ private noncomputable def validPrfVqStep {D R : Type} [DecidableEq D] [Decidable
     let ok := decide (f m = σ)
     PMF.pure (ok, ⟨⟨s.val.log, s.val.won || (ok && freshPair m σ s.val.log)⟩, s.property⟩)
 
+private theorem eval_interpret_pure_run_interpret {D R S α β : Type} {spec : OracleSpec β}
+    (f : D → R) (h : (q : β) → StateT S (ProbOracleComp (fun _ : D => R)) (spec q))
+    (prog : ProbOracleComp spec α) (init : S) :
+    ProbComp.eval (OracleComp.interpret
+      (OracleComp.sumHandler ProbComp.unifFin fun x => pure (f x))
+      ((OracleComp.interpret
+        (OracleComp.sumHandler
+          (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))) h)
+        prog).run init)) =
+      (ProbOracleComp.runWith
+        (fun q state =>
+          (ProbOracleComp.runWith (fun x (u : Unit) => (PMF.pure (f x)).map (·, u))
+            ((h q).run state.1) state.2).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
+        prog (init, ())).map (fun ⟨a, s, _⟩ => (a, s)) := by
+  have hfst := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_readOnly
+    (fun x (_ : Unit) => PMF.pure (f x))
+    ((OracleComp.interpret
+      (OracleComp.sumHandler
+        (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))) h)
+      prog).run init) ())
+  simp only [PMF.map_comp, Function.comp_def, show (fun x : α × S => x) = id from rfl,
+    PMF.map_id] at hfst
+  rw [ProbOracleComp.eval_interpret]
+  simp only [ProbComp.eval_pure]
+  rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
+    PMF.map_comp]
+  rfl
+
 private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [DecidableEq D]
     [DecidableEq R] (A : Unit → ProbOracleComp (forgeVqSpec D R) Unit) (f : D → R) :
     ProbComp.eval ((vqMacToPrfAdversary A).run fun x => pure (f x)) =
@@ -1052,20 +1009,7 @@ private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [De
           (A ())).run ⟨[], false⟩)) =
       (ProbOracleComp.runWith (validPrfVqStep f) (A ()) ⟨⟨[], false⟩, by simp⟩).map
         (fun x => (x.1, x.2.val)) := by
-    have hfst := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_readOnly
-      (fun x (_ : Unit) => PMF.pure (f x))
-      ((OracleComp.interpret
-        (OracleComp.sumHandler
-          (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-          vqMacToPrfHandler)
-        (A ())).run ⟨[], false⟩) ())
-    simp only [PMF.map_comp, Function.comp_def, show (fun x : Unit × VqOracleState D R => x) = id
-      from rfl, PMF.map_id] at hfst
-    rw [ProbOracleComp.eval_interpret]
-    simp only [ProbComp.eval_pure]
-    rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret]
-    have hinit : ((⟨[], false⟩ : VqOracleState D R), ()) =
-        (fun s : ValidPrfVqState f => (s.val, ())) ⟨⟨[], false⟩, by simp⟩ := rfl
+    rw [eval_interpret_pure_run_interpret]
     have hsim := ProbOracleComp.runWith_map_state
       (oracle := validPrfVqStep f)
       (oracle' := fun q state =>
@@ -1081,14 +1025,10 @@ private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [De
           rcases p with ⟨m, σ⟩
           dsimp only [validPrfVqStep, vqMacToPrfHandler, StateT.run]
           by_cases hmem : (m, σ) ∈ s.val.log
-          · have hfm : f m = σ := s.property (m, σ) hmem
-            have hfresh : freshPair m σ s.val.log = false := by simp [freshPair, hmem]
-            simp [hmem, hfm, hfresh]
-          · have hfresh : freshPair m σ s.val.log = true := by simp [freshPair, hmem]
-            simp [hmem, hfresh, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query])
+          · simp [hmem, s.property (m, σ) hmem, freshPair]
+          · simp [hmem, freshPair, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query])
       (A ()) ⟨⟨[], false⟩, by simp⟩
-    rw [hinit, ← hsim, PMF.map_comp, PMF.map_comp]
-    rfl
+    rw [← hsim, PMF.map_comp]; rfl
   have hrhs :
       ProbComp.eval (((A ()).runState
         (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
@@ -1102,12 +1042,7 @@ private theorem eval_run_vqMacToPrfAdversary_pure {D R : Type} [Inhabited R] [De
         (vqOracle (Signer.ofSign fun g : D → R => fun m => pure (g m))
           (fun (_ : Unit) (g : D → R) m σ => decide (g m = σ)) () f q st))
       (represent := Subtype.val)
-      (step := fun q s => by
-        cases q with
-        | inl m => simp [validPrfVqStep, vqOracle, Signer.ofSign]
-        | inr p =>
-          rcases p with ⟨m, σ⟩
-          simp [validPrfVqStep, vqOracle])
+      (step := fun q s => by cases q <;> simp [validPrfVqStep, vqOracle, Signer.ofSign])
       (A ()) ⟨⟨[], false⟩, by simp⟩).symm
   unfold vqMacToPrfAdversary
   simp only [ProbOracleComp.run, OracleComp.interpret_bind, OracleComp.interpret_pure,
@@ -1192,21 +1127,8 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
         (ProbComp.eval
           ((B ()).runLogWith (Signer.ofSign (fun g : D → R => fun m => pure (g m)) f))).map
           (fun x => (x.1, (x.2.map Prod.fst).reverse)) := by
-      have hfst := congrArg (PMF.map Prod.fst) (ProbOracleComp.runWith_readOnly
-        (fun x (_ : Unit) => PMF.pure (f x))
-        ((OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
-            recordQueriesHandler)
-          (B ())).run []) ())
-      simp only [PMF.map_comp, Function.comp_def, show (fun x : (D × R) × List D => x) = id
-        from rfl, PMF.map_id] at hfst
-      rw [ProbOracleComp.eval_interpret]
-      simp only [ProbComp.eval_pure]
-      rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
-        ProbOracleComp.runLogWith, ProbOracleComp.eval_runState]
-      have hinit : (([] : List D), ()) =
-          (fun log : List (D × R) => ((log.map Prod.fst).reverse, ())) [] := rfl
+      rw [eval_interpret_pure_run_interpret, ProbOracleComp.runLogWith,
+        ProbOracleComp.eval_runState]
       have hsim := ProbOracleComp.runWith_map_state
         (oracle := fun m log =>
           ProbComp.eval (ProbOracleComp.logOracle
@@ -1220,20 +1142,14 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
           simp [ProbOracleComp.logOracle, Signer.ofSign, ProbOracleComp.runWith_map,
             ProbOracleComp.runWith_query])
         (B ()) []
-      rw [hinit, ← hsim, PMF.map_comp, PMF.map_comp]
-      rfl
+      simp only [List.map_nil, List.reverse_nil] at hsim
+      rw [← hsim, PMF.map_comp]; rfl
     dsimp only [test, ProbOracleComp.run]
     simp only [OracleComp.interpret_bind, ProbComp.eval_bind]
     rw [hlog, PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨m, σ⟩, log⟩ _ => ?_
     dsimp only [Function.comp_def]
-    by_cases hmem : m ∈ log.map Prod.fst
-    · have hrev : m ∈ (log.map Prod.fst).reverse := List.mem_reverse.mpr hmem
-      have hfresh : freshMessage m σ log = false := by simp [freshMessage, hmem]
-      simp [hrev, hfresh]
-    · have hrev : m ∉ (log.map Prod.fst).reverse := mt List.mem_reverse.mp hmem
-      have hfresh : freshMessage m σ log = true := by simp [freshMessage, hmem]
-      simp [hrev, hfresh]
+    by_cases hmem : m ∈ log.map Prod.fst <;> simp [hmem, freshMessage]
   have hbound : ProbComp.eval (PRF.idealExperiment test) true ≤ (Fintype.card R : ℝ≥0∞)⁻¹ := by
     rw [PRF.eval_idealExperiment_eq_runWith_memoize]
     dsimp only [test]
@@ -1348,37 +1264,18 @@ theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] 
               zero_le
         _ = Q_v / Fintype.card R := div_eq_mul_inv _ _
     · have _ : IsEmpty D := not_nonempty_iff.mp hD
-      have hzero : IsVerificationQueryBounded (A ()) 0 := by
-        unfold IsVerificationQueryBounded
-        have hrec : ∀ prog : ProbOracleComp (forgeVqSpec D R) Unit,
-            OracleComp.IsCostBounded
-              (Sum.elim (fun _ => 0) (fun q : D ⊕ (D × R) => if q.isRight then 1 else 0))
-              prog 0 := by
-          intro prog
-          induction prog with
-          | pure a => exact .pure a 0
-          | liftBind q cont ih =>
-            cases q with
-            | inl k => exact .liftBind (Sum.inl k) cont 0 ih
-            | inr q =>
-              cases q with
-              | inl m => exact IsEmpty.elim ‹IsEmpty D› m
-              | inr p => exact IsEmpty.elim ‹IsEmpty D› p.1
-        exact hrec (A ())
+      have hzero : IsVerificationQueryBounded (A ()) 0 :=
+        OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun q => by
+          rcases q with _ | (m | p)
+          · rfl
+          · exact IsEmpty.elim ‹_› m
+          · exact IsEmpty.elim ‹_› p.1) (A ())
       rw [succProbability_vqForgeExperiment_zero _ _ _ fun _ => hzero]
       exact zero_le
   change Game.succProbability (ProbComp.eval (vqForgeExperiment _ _ _ A)) ≤ _
-  rw [← hreal]
-  calc Game.succProbability (ProbComp.eval (PRF.realExperiment F (vqMacToPrfAdversary A)))
-      = Game.advantage (ProbComp.eval (PRF.realExperiment F (vqMacToPrfAdversary A)))
-          (PMF.pure false) := (Game.advantage_pure_false _).symm
-    _ ≤ PRF.advantage F (vqMacToPrfAdversary A) +
-          Game.advantage (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A)))
-            (PMF.pure false) := Game.advantage_triangle _ _ _
-    _ = PRF.advantage F (vqMacToPrfAdversary A) +
-          Experiment.succProbability (PRF.idealExperiment (vqMacToPrfAdversary A)) := by
-        rw [Game.advantage_pure_false]
-    _ ≤ PRF.advantage F (vqMacToPrfAdversary A) + Q_v / Fintype.card R :=
-        add_le_add le_rfl hideal_le
+  rw [← hreal, ← Game.advantage_pure_false]
+  exact (Game.advantage_triangle _
+      (ProbComp.eval (PRF.idealExperiment (vqMacToPrfAdversary A))) _).trans
+    (by rw [Game.advantage_pure_false]; exact add_le_add le_rfl hideal_le)
 
 end Cslib.Crypto

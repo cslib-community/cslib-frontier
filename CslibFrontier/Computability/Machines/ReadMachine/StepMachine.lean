@@ -81,6 +81,26 @@ private theorem inputSymbolAt_getD {pos : Fin (x.length + 2)} {A : ℕ} (hpos : 
   simp only [MultiTapeTM.inputSymbolAt, hpos, Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
   exact List.getD_eq_getElem?_getD.symm
 
+private theorem length_le_of_inputSymbolAt_eq_none {pos : Fin (x.length + 2)} {A : ℕ}
+    (h : MultiTapeTM.inputSymbolAt x pos = none ∧ pos.val ≠ 0) (hlt : pos.val < A + 1) :
+    x.length ≤ A := by
+  obtain ⟨h₁, h₂⟩ := h
+  simp only [MultiTapeTM.inputSymbolAt, h₂, ↓reduceIte, List.getElem?_eq_none_iff] at h₁
+  omega
+
+private theorem val_moveInputPos_one {pos : Fin (x.length + 2)}
+    (h : ¬(MultiTapeTM.inputSymbolAt x pos = none ∧ pos.val ≠ 0)) :
+    (moveInputPos pos 1).val = pos.val + 1 := by
+  rw [MultiTapeTM.val_moveInputPos_pos]
+  have : pos.val ≤ x.length := by
+    by_contra hc
+    apply h
+    refine ⟨?_, by omega⟩
+    simp only [MultiTapeTM.inputSymbolAt, show pos.val ≠ 0 by omega, ↓reduceIte,
+      List.getElem?_eq_none_iff]
+    omega
+  omega
+
 /-- The walk of the head to the cell of the address read next, and the step there. -/
 theorem exists_iterate_stepCfg_some {q : σ} {A : ℕ} (hA : m.addr q = some A)
     (hhalt : m.halt q = false) (out : List Bool) :
@@ -105,10 +125,7 @@ theorem exists_iterate_stepCfg_some {q : σ} {A : ℕ} (hA : m.addr q = some A)
     by_cases hlt : d.pos.val < A + 1
     · by_cases hend : MultiTapeTM.inputSymbolAt x d.pos = none ∧ d.pos.val ≠ 0
       · -- the head is on the blank after the input: the address is beyond it
-        have hgt : x.length ≤ A := by
-          obtain ⟨h₁, h₂⟩ := hend
-          simp only [MultiTapeTM.inputSymbolAt, h₂, ↓reduceIte, List.getElem?_eq_none_iff] at h₁
-          omega
+        have hgt : x.length ≤ A := length_le_of_inputSymbolAt_eq_none hend hlt
         have hb : (m.toStepMachine).step d.state (MultiTapeTM.inputSymbolAt x d.pos) =
             m.stepAt d.state.1 d.state.2 false := by
           simp only [toStepMachine, hs, hA]
@@ -118,16 +135,7 @@ theorem exists_iterate_stepCfg_some {q : σ} {A : ℕ} (hA : m.addr q = some A)
         simp only [Represents, next, readBit_eq hA, List.getD_eq_default _ _ hgt]
         simp [hhalt, hs, ho]
       · -- move right
-        have hmove : (moveInputPos d.pos 1).val = d.pos.val + 1 := by
-          rw [MultiTapeTM.val_moveInputPos_pos]
-          have : d.pos.val ≤ x.length := by
-            by_contra hc
-            apply hend
-            refine ⟨?_, by omega⟩
-            simp only [MultiTapeTM.inputSymbolAt, show d.pos.val ≠ 0 by omega, ↓reduceIte,
-              List.getElem?_eq_none_iff]
-            omega
-          omega
+        have hmove : (moveInputPos d.pos 1).val = d.pos.val + 1 := val_moveInputPos_one hend
         have hstep : (m.toStepMachine).stepCfg d =
             ⟨(q, d.pos.val + 1), moveInputPos d.pos 1, out⟩ := by
           have hend' : ¬(MultiTapeTM.inputSymbolAt x d.pos = none ∧ ¬d.pos = 0) :=
@@ -220,24 +228,12 @@ theorem Follows.stepCfg {d : StepMachine.Cfg (σ × ℕ) Bool x} (h : Follows (m
         (readBit_eq hA).symm
     by_cases h₂ : d.pos.val < A + 1
     · by_cases h₃ : MultiTapeTM.inputSymbolAt x d.pos = none ∧ d.pos.val ≠ 0
-      · have hgt : x.length ≤ A := by
-          obtain ⟨h₄, h₅⟩ := h₃
-          simp only [MultiTapeTM.inputSymbolAt, h₅, ↓reduceIte, List.getElem?_eq_none_iff] at h₄
-          omega
-        exact hread (b := false) (by simp only [toStepMachine, hs, hA]; simp [h₁, h₂, h₃])
-          (by rw [readBit_eq hA, List.getD_eq_default _ _ hgt])
+      · exact hread (b := false) (by simp only [toStepMachine, hs, hA]; simp [h₁, h₂, h₃])
+          (by rw [readBit_eq hA,
+            List.getD_eq_default _ _ (length_le_of_inputSymbolAt_eq_none h₃ h₂)])
       · have h₃' : ¬(MultiTapeTM.inputSymbolAt x d.pos = none ∧ ¬d.pos = 0) :=
           fun h => h₃ ⟨h.1, fun h0 => h.2 (Fin.ext h0)⟩
-        have hmove : (moveInputPos d.pos 1).val = d.pos.val + 1 := by
-          rw [MultiTapeTM.val_moveInputPos_pos]
-          have : d.pos.val ≤ x.length := by
-            by_contra hc
-            apply h₃
-            refine ⟨?_, by omega⟩
-            simp only [MultiTapeTM.inputSymbolAt, show d.pos.val ≠ 0 by omega, ↓reduceIte,
-              List.getElem?_eq_none_iff]
-            omega
-          omega
+        have hmove : (moveInputPos d.pos 1).val = d.pos.val + 1 := val_moveInputPos_one h₃
         refine ⟨?_, j, ?_, ?_⟩ <;>
           simp only [StepMachine.stepCfg, StepMachine.stepAt, toStepMachine, hs, hhalt, hA] <;>
           simp [h₁, h₂, h₃', hmove, ho]

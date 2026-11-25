@@ -237,9 +237,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
     have htd : t ∈ (cauchyGrid (2 ^ a)).erase d := mem_erase.mpr ⟨hdt.symm, ht⟩
     have hdt' : d ∈ (cauchyGrid (2 ^ a)).erase t := mem_erase.mpr ⟨hdt, hd⟩
     have hsub : ((cauchyGrid (2 ^ a)).erase d).erase t ⊆ (cauchyGrid (2 ^ a)).erase t :=
-      fun q hq => by
-        simp only [mem_erase] at hq ⊢
-        exact ⟨hq.1, hq.2.2⟩
+      erase_subset_erase t (erase_subset d _)
     set sv := ∑ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, padicValInt 2 (t - q)
     set U := ∏ q ∈ ((cauchyGrid (2 ^ a)).erase d).erase t, (unitFactor a t q).map (ℤ₍₂₎).subtype
     -- `S₀ = v_d + ∑_{q ≠ d, t} v_q`.

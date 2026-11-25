@@ -115,17 +115,13 @@ theorem rpow_le_size_of_good (hp : p.Good) (hn : Real.exp 29200 ≤ p.n) {K : Ty
           mul_le_mul_of_nonneg_right h'' (Real.exp_pos _).le
       _ = _ := by rw [he]; ring
   -- the gate counts are at most the size
-  have hU : 0 < c.upper := by
-    rcases Nat.eq_zero_or_pos c.upper with h | h
-    · have hA' : A ≤ 0 := by simpa [h] using hmain
-      exact absurd hA' (not_le.2 hA0)
-    · exact h
+  have hU : 0 < c.upper :=
+    Nat.pos_of_ne_zero fun h => not_le.2 hA0 (by simpa [h] using hmain)
   have hS1 : (c.upper : ℝ) ≤ c.size := by
     exact_mod_cast (by rw [Circuit.size]; omega : c.upper ≤ c.size)
-  have hS2 : max (c.lower : ℝ) 1 ≤ c.size := by
-    refine max_le ?_ ?_
-    · exact_mod_cast (by rw [Circuit.size]; omega : c.lower ≤ c.size)
-    · exact_mod_cast (by rw [Circuit.size]; omega : 1 ≤ c.size)
+  have hS2 : max (c.lower : ℝ) 1 ≤ c.size :=
+    max_le (by exact_mod_cast (by rw [Circuit.size]; omega : c.lower ≤ c.size))
+      (by exact_mod_cast (by rw [Circuit.size]; omega : 1 ≤ c.size))
   have hS0 : (0 : ℝ) ≤ c.size := Nat.cast_nonneg _
   have hmain' : A ≤ 2 * Real.exp (145 * x) * (c.size : ℝ) ^ 2 := by
     refine hmain.trans ?_

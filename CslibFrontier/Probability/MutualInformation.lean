@@ -92,10 +92,8 @@ noncomputable def condMutualInfo [Finite γ] [Finite α] [Finite β] (joint : PM
     entropy joint - entropy (joint.map Prod.fst)
 
 theorem mutualInfo_nonneg [Finite α] [Finite β] (joint : PMF (α × β)) :
-    0 ≤ mutualInfo joint := by
-  have := entropy_le_entropy_map_fst_add_entropy_map_snd joint
-  rw [mutualInfo]
-  linarith
+    0 ≤ mutualInfo joint :=
+  sub_nonneg.2 (entropy_le_entropy_map_fst_add_entropy_map_snd joint)
 
 /-- `I(A; B) = H(B) - H(B | A)`: the mutual information is the entropy of `B` that `A` removes. -/
 theorem mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy [Finite α] [Finite β]
@@ -106,9 +104,8 @@ theorem mutualInfo_eq_entropy_map_snd_sub_conditionalEntropy [Finite α] [Finite
 
 theorem mutualInfo_le_entropy_map_snd [Finite α] [Finite β] (joint : PMF (α × β)) :
     mutualInfo joint ≤ entropy (joint.map Prod.snd) := by
-  have := entropy_map_le joint Prod.fst
   rw [mutualInfo]
-  linarith
+  linarith [entropy_map_le joint Prod.fst]
 
 /-- The mutual information vanishes exactly for independent pairs, whose joint law is the product
 of its marginals. -/
@@ -146,11 +143,7 @@ theorem condMutualInfo_nonneg [Finite γ] [Finite α] [Finite β] (joint : PMF (
   have h := conditionalEntropy_map_fst_ge
     (joint.map (fun t => ((t.1, t.2.1), t.2.2))) Prod.fst
   have e1 : entropy (joint.map fun t => ((t.1, t.2.1), t.2.2)) = entropy joint :=
-    entropy_map_of_injective joint (fun s t h => by
-      obtain ⟨c, a, b⟩ := s
-      obtain ⟨c', a', b'⟩ := t
-      simp only [Prod.mk.injEq] at h
-      simp [h])
+    entropy_map_of_injective joint (Equiv.prodAssoc γ α β).symm.injective
   simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, e1] at h
   change 0 ≤ entropy (joint.map fun x => (x.1, x.2.1)) + entropy (joint.map fun x => (x.1, x.2.2)) -
     entropy joint - entropy (joint.map fun x => x.1)
@@ -182,21 +175,16 @@ theorem entropy_map_prodMk_eq_add_sum [Fintype γ] [Finite α] (ν : PMF Ω) (B 
       ∑ c, ((ν.map B) c).toReal *
         entropy ((conditionalSnd (ν.map fun ω => (B ω, ω)) c).map F) := by
   have hrec := bind_conditionalSnd (ν.map fun ω => (B ω, ω))
-  have hfst : (ν.map fun ω => (B ω, ω)).map Prod.fst = ν.map B := by
-    rw [PMF.map_comp]
-    rfl
+  have hfst : (ν.map fun ω => (B ω, ω)).map Prod.fst = ν.map B := by rw [PMF.map_comp]; rfl
   rw [hfst] at hrec
   have hlaw : (ν.map fun ω => (B ω, F ω)) = (ν.map B).bind
       (fun c => ((conditionalSnd (ν.map fun ω => (B ω, ω)) c).map F).map (c, ·)) := by
     calc (ν.map fun ω => (B ω, F ω)) = (ν.map fun ω => (B ω, ω)).map (Prod.map id F) := by
-          rw [PMF.map_comp]
-          rfl
+          rw [PMF.map_comp]; rfl
       _ = ((ν.map B).bind fun c =>
             (conditionalSnd (ν.map fun ω => (B ω, ω)) c).map (c, ·)).map (Prod.map id F) := by
           rw [hrec]
-      _ = _ := by
-          simp only [PMF.map_bind, PMF.map_comp]
-          rfl
+      _ = _ := by simp only [PMF.map_bind, PMF.map_comp]; rfl
   rw [hlaw]
   exact entropy_bind_pair _ _
 
@@ -217,24 +205,17 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
   have hCA (c : γ) (a : α) :
       joint.map (Prod.map id Prod.fst) (c, a) = f c a * ∑' b, g c b := by
     have : joint.map (Prod.map id Prod.fst) =
-        (joint.map (Equiv.prodAssoc γ α β).symm).map Prod.fst := by
-      rw [PMF.map_comp]
-      rfl
+        (joint.map (Equiv.prodAssoc γ α β).symm).map Prod.fst := by rw [PMF.map_comp]; rfl
     rw [this, map_fst_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_congr fun b => ?_
-    rw [map_equiv_apply]
-    simp [h]
+    exact tsum_congr fun b => by rw [map_equiv_apply]; simp [h]
   have hCB (c : γ) (b : β) :
       joint.map (Prod.map id Prod.snd) (c, b) = (∑' a, f c a) * g c b := by
     let e : γ × α × β ≃ (γ × β) × α :=
       ((Equiv.refl γ).prodCongr (Equiv.prodComm α β)).trans (Equiv.prodAssoc γ β α).symm
     have : joint.map (Prod.map id Prod.snd) = (joint.map e).map Prod.fst := by
-      rw [PMF.map_comp]
-      rfl
+      rw [PMF.map_comp]; rfl
     rw [this, map_fst_apply, ← ENNReal.tsum_mul_right]
-    refine tsum_congr fun a => ?_
-    rw [map_equiv_apply]
-    simp [e, h]
+    exact tsum_congr fun a => by rw [map_equiv_apply]; simp [e, h]
   have hC (c : γ) : joint.map Prod.fst c = (∑' a, f c a) * ∑' b, g c b := by
     rw [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, tsum_fintype, tsum_fintype,
       Finset.sum_mul_sum]
@@ -273,9 +254,7 @@ theorem condMutualInfo_map_eq_zero_of_determined [Finite γ] [Finite α] [Finite
     entropy_map_eq_of_comp ν (F := C) (e := fun c => (c, k c))
       (fun _ _ he => congrArg Prod.fst he) (fun ω hω => by rw [h ω hω]),
     entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω)) (e := fun ca => (ca.1, ca.2, k ca.1))
-      (fun s t hst => by
-        simp only [Prod.mk.injEq] at hst
-        exact Prod.ext hst.1 hst.2.1)
+      (fun _ _ hst => by simp only [Prod.mk.injEq] at hst; exact Prod.ext hst.1 hst.2.1)
       (fun ω hω => by rw [h ω hω])]
   ring
 
@@ -324,12 +303,7 @@ theorem mutualInfo_map_prodMk_eq_add [Finite γ] [Finite α] [Finite β] (ν : P
         condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) := by
   rw [mutualInfo_map, mutualInfo_map, condMutualInfo_map,
     entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, B ω))
-      (e := fun t => ((t.1, t.2.1), t.2.2))
-      (fun s t hst => by
-        obtain ⟨c, a, b⟩ := s
-        obtain ⟨c', a', b'⟩ := t
-        simp only [Prod.mk.injEq] at hst
-        simp [hst])
+      (e := fun t => ((t.1, t.2.1), t.2.2)) (Equiv.prodAssoc γ α β).symm.injective
       (fun _ _ => rfl)]
   ring
 
@@ -339,8 +313,7 @@ theorem condMutualInfo_map_le_mutualInfo [Finite γ] [Finite α] [Finite β] (ν
     condMutualInfo (ν.map fun ω => (C ω, A ω, B ω)) ≤
       mutualInfo (ν.map fun ω => ((C ω, A ω), B ω)) := by
   rw [mutualInfo_map_prodMk_eq_add]
-  have := mutualInfo_nonneg (ν.map fun ω => (C ω, B ω))
-  linarith
+  linarith [mutualInfo_nonneg (ν.map fun ω => (C ω, B ω))]
 
 /-- **Chain rule** through an observation `B = k ∘ T`:
 `I(A; T | C) = I(A; B | C) + E_b I(A; T | C, B = b)`. -/
@@ -360,11 +333,8 @@ theorem condMutualInfo_map_eq_add_sum [Fintype δ] [Finite γ] [Finite α] [Fini
   have m4 := entropy_map_prodMk_eq_add_sum ν B C
   have r1 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, A ω, B ω))
     (G := fun ω => (B ω, C ω, A ω)) (e := fun t => (t.2.2, t.1, t.2.1))
-    (fun s t hst => by
-      obtain ⟨c, a, b⟩ := s
-      obtain ⟨c', a', b'⟩ := t
-      simp only [Prod.mk.injEq] at hst
-      simp [hst]) (fun _ _ => rfl)
+    (fun ⟨_, _, _⟩ ⟨_, _, _⟩ hst => by simp only [Prod.mk.injEq] at hst; simp [hst])
+    (fun _ _ => rfl)
   have r2 := entropy_map_eq_of_comp ν (F := fun ω => (C ω, T ω))
     (G := fun ω => (B ω, C ω, T ω)) (e := fun t => (k t.2, t))
     (fun _ _ hst => congrArg Prod.snd hst) (fun ω _ => by rw [hB])
@@ -419,30 +389,23 @@ theorem map_fst_map_prodMk (ν : PMF Ω) (f : Ω → β) :
 theorem eq_of_mem_support_conditionalSnd_map (ν : PMF Ω) (f : Ω → β) {c : β}
     (hc : ν.map f c ≠ 0) {ω : Ω}
     (hω : ω ∈ (conditionalSnd (ν.map fun ω => (f ω, ω)) c).support) : f ω = c := by
-  have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by
-    rw [map_fst_map_prodMk]
-    exact hc
+  have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by rwa [map_fst_map_prodMk]
   rw [mem_support_conditionalSnd_iff _ _ hc', PMF.mem_support_map_iff] at hω
   obtain ⟨ω', -, h⟩ := hω
-  simp only [Prod.mk.injEq] at h
-  obtain ⟨h1, rfl⟩ := h
-  exact h1
+  exact (Prod.mk.inj h).2 ▸ (Prod.mk.inj h).1
 
 /-- Conditioning on `f = c` restricts to `f ω = c` and renormalizes. -/
 theorem conditionalSnd_map_prodMk_apply [DecidableEq β] (ν : PMF Ω) (f : Ω → β) {c : β}
     (hc : ν.map f c ≠ 0) (ω : Ω) :
     conditionalSnd (ν.map fun ω => (f ω, ω)) c ω =
       (if f ω = c then ν ω else 0) / ν.map f c := by
-  have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by
-    rw [map_fst_map_prodMk]
-    exact hc
+  have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by rwa [map_fst_map_prodMk]
   rw [conditionalSnd_apply _ _ hc', map_fst_map_prodMk, PMF.map_apply]
   congr 1
-  rw [tsum_eq_single ω]
+  rw [tsum_eq_single ω fun ω' hω' => ?_]
   · by_cases h : f ω = c
     · simp [h]
     · simp [h, Ne.symm h]
-  · intro ω' hω'
-    simp [Ne.symm hω']
+  · simp [Ne.symm hω']
 
 end Cslib.Probability.PMF

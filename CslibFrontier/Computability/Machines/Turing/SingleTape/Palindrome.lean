@@ -80,11 +80,7 @@ private lemma palindrome_append_replicate_append_reverse {u : List Symbol} {c : 
     (u ++ List.replicate r c ++ w.reverse).Palindrome ↔ w = u := by
   rw [List.Palindrome.iff_reverse_eq]
   simp only [List.reverse_append, List.reverse_reverse, List.reverse_replicate, List.append_assoc]
-  constructor
-  · intro h
-    exact (List.append_inj h hw).1
-  · rintro rfl
-    rfl
+  exact ⟨fun h => (List.append_inj h hw).1, fun h => by rw [h]⟩
 
 variable (tm) in
 /-- `tm` decides palindromes over the letters `a, b` within time `T`: on every word over
@@ -118,16 +114,13 @@ private lemma palindrome_map_iff {β γ : Type*} {f : β → γ} (hf : Function.
 with the letters `a ≠ b`, answering under the head. -/
 theorem DecidesPalindromesInTime.decidesByHeadInTime {a b yes : Symbol} (hab : a ≠ b)
     {T : ℕ → ℕ} (h : tm.DecidesPalindromesInTime a b yes T) :
-    tm.DecidesByHeadInTime (bitSymbol a b) {w : List Bool | w.Palindrome} yes T := by
-  intro w
+    tm.DecidesByHeadInTime (bitSymbol a b) {w : List Bool | w.Palindrome} yes T := fun w => by
   obtain ⟨o, ho, hyes⟩ := h (w.map (bitSymbol a b)) fun x hx => by
     obtain ⟨β, -, rfl⟩ := List.mem_map.mp hx
     cases β <;> simp [bitSymbol]
-  rw [List.length_map] at ho
-  refine ⟨tm.haltCfg o, ho, rfl, ?_⟩
-  simp only [haltCfg, BiTape.head_mk₁]
-  rw [hyes]
-  exact palindrome_map_iff (bitSymbol_injective hab)
+  exact ⟨tm.haltCfg o, List.length_map (f := bitSymbol a b) ▸ ho, rfl, by
+    simp only [haltCfg, BiTape.head_mk₁, hyes]
+    exact palindrome_map_iff (bitSymbol_injective hab)⟩
 
 /-- The hard inputs: `x`, a block of `r` copies of `false`, then `x` reversed. -/
 @[expose] def palWord (r : ℕ) (x : List Bool) : List Bool :=
@@ -151,22 +144,21 @@ theorem crossings_palWord_injective {ι : Bool → Symbol} {yes : Symbol} {T : �
   let X := {u : List Bool // u.length = x.length}
   let a : X := ⟨x, rfl⟩
   let b : X := ⟨y, hxy⟩
-  have hA (u v : X) : (u.val ++ List.replicate r false ++ v.val.reverse).Palindrome ↔
-      Communication.equality u v = true := by
-    rw [palindrome_append_replicate_append_reverse (v.property.trans u.property.symm),
-      Communication.equality, decide_eq_true_eq]
-    exact ⟨fun h => Subtype.ext h.symm, fun h => congrArg Subtype.val h.symm⟩
   have hinj := crossings_injOn_of_isFoolingSet hdec
     (Communication.isFoolingSet_equality ({a, b} : Finset X))
-    (fun u : X => u.val) (List.replicate r false) (fun v : X => v.val.reverse) hA
-    (fun p _ => p.1.property) (by simpa only [List.length_replicate] using hi)
-  have hab : (a, a) = (b, b) := hinj (by simp) (by simp) (by
-    change (tm.absInit ((palWord r x).map ι)).crossings ((x.length + i : ℕ) : ℤ)
-        (T (palWord r x).length) =
-      (tm.absInit ((palWord r y).map ι)).crossings ((x.length + i : ℕ) : ℤ)
-        (T (palWord r y).length)
-    simpa only [length_palWord, hxy] using h)
-  exact congrArg (fun p : X × X => p.1.val) hab
+    Subtype.val (List.replicate r false) (fun v : X => v.val.reverse)
+    (fun u v => by
+      change (u.val ++ List.replicate r false ++ v.val.reverse).Palindrome ↔ _
+      rw [palindrome_append_replicate_append_reverse (v.2.trans u.2.symm),
+        Communication.equality, decide_eq_true_eq]
+      exact ⟨fun h => Subtype.ext h.symm, fun h => congrArg Subtype.val h.symm⟩)
+    (fun p _ => p.1.2) (by simpa only [List.length_replicate] using hi)
+  refine congrArg (fun p : X × X => p.1.val) (hinj (by simp) (by simp) ?_ : (a, a) = (b, b))
+  change (tm.absInit ((palWord r x).map ι)).crossings ((x.length + i : ℕ) : ℤ)
+      (T (palWord r x).length) =
+    (tm.absInit ((palWord r y).map ι)).crossings ((x.length + i : ℕ) : ℤ)
+      (T (palWord r y).length)
+  simpa only [length_palWord, hxy] using h
 
 private lemma palindrome_ofFn_mix_iff (m r : ℕ) (x y : Fin m → Bool) :
     (List.ofFn x ++ List.replicate r false ++ (List.ofFn y).reverse).Palindrome ↔
@@ -182,20 +174,13 @@ theorem crossing_bound {ι : Bool → Symbol} {yes : Symbol} {T : ℕ → ℕ}
     (hL : 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ m) :
     (r + 1) * L ≤ 2 * T (2 * m + r) := by
   classical
-  let S := (Finset.univ : Finset (Fin m → Bool)).image fun x => (x, x)
-  have hcard : S.card = 2 ^ m := by
-    dsimp only [S]
-    rw [Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h)]
-    simp
-  have hbound := crossing_foolingSet_half_bound hdec
+  simpa only [List.length_replicate] using crossing_foolingSet_half_bound hdec
     (Communication.isFoolingSet_equality (Finset.univ : Finset (Fin m → Bool)))
     List.ofFn (List.replicate r false) (fun y : Fin m → Bool => (List.ofFn y).reverse)
-    (palindrome_ofFn_mix_iff m r)
-    (m := m) (n := 2 * m + r) (fun _ _ => List.length_ofFn)
+    (palindrome_ofFn_mix_iff m r) (m := m) (n := 2 * m + r) (fun _ _ => List.length_ofFn)
     (fun _ _ => by simp; omega) L (by
-      change 2 * (Fintype.card (Option tm.State) + 1) ^ L ≤ S.card
-      rwa [hcard])
-  simpa only [List.length_replicate] using hbound
+      rw [Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h)]
+      simpa using hL)
 
 /-- **Quadratic lower bound for palindromes** (via Hennie's crossing sequences). Let
 `d = ⌈log₂ (|Q| + 2)⌉` where `Q` is the state set. If a single-tape machine decides the
@@ -206,45 +191,38 @@ theorem palindrome_lower_bound {ι : Bool → Symbol} {yes : Symbol} {T : ℕ �
     (hdec : tm.DecidesByHeadInTime ι {w : List Bool | w.Palindrome} yes T) {n : ℕ}
     (hn : 8 * Nat.clog 2 (Fintype.card tm.State + 2) ≤ n) :
     n ^ 2 ≤ 64 * Nat.clog 2 (Fintype.card tm.State + 2) * T n := by
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
-  rw [← hd_def] at hn ⊢
-  have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
-  obtain ⟨m, hm⟩ : ∃ m, m = n / 4 := ⟨_, rfl⟩
-  obtain ⟨r, hr⟩ : ∃ r, r = n - 2 * m := ⟨_, rfl⟩
-  have hm2 : 2 * d ≤ m := by omega
+  classical
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
+  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
+  let m := n / 4; let r := n - 2 * m
   have h3 : (r + 1) * m ≤ 4 * d * T n := by
-    classical
     have h := crossing_foolingSet_bit_bound hdec
       (Communication.isFoolingSet_equality (Finset.univ : Finset (Fin m → Bool)))
       List.ofFn (List.replicate r false) (fun y : Fin m → Bool => (List.ofFn y).reverse)
       (palindrome_ofFn_mix_iff m r) (m := m) (n := n) (fun _ _ => List.length_ofFn)
-      (fun _ _ => by simp; omega) m (by simpa only [← hd_def] using hm2) (by
-        rw [Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h)]
-        simp)
+      (fun _ _ => by simp; dsimp only [m, r]; omega) m
+      (by dsimp only [m]; rw [← hd_def]; omega) (by
+        rw [Finset.card_image_of_injective _ (fun _ _ h => congrArg Prod.fst h)]; simp)
     simpa only [List.length_replicate, ← hd_def] using h
-  have h4 : n + 2 ≤ 2 * (r + 1) := by omega
-  have h5 : n ≤ 4 * m + 3 := by omega
-  have h6 : 8 ≤ n := by omega
-  have F1 := Nat.mul_le_mul_right (4 * m) h4
-  have F2 := Nat.mul_le_mul_left (n + 2) h5
-  have F3 := Nat.mul_le_mul_right (n + 6) h6
-  nlinarith [F1, F2, F3, h3]
+  have h4 : n + 2 ≤ 2 * (r + 1) := by dsimp only [m, r]; omega
+  have h5 : n ≤ 4 * m + 3 := by dsimp only [m]; omega
+  nlinarith [Nat.mul_le_mul_right (4 * m) h4, Nat.mul_le_mul_left (n + 2) h5,
+    Nat.mul_le_mul_right (n + 6) (by omega : 8 ≤ n), h3]
 
 /-- No single-tape machine decides the palindromes over `Bool` in linear time, even answering
 under the head. -/
 theorem not_decidesByHeadInTime_palindromes_linear (ι : Bool → Symbol) (yes : Symbol) (c : ℕ) :
     ¬ tm.DecidesByHeadInTime ι {w : List Bool | w.Palindrome} yes fun n => c * (n + 1) := by
   intro hdec
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
-  have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
-  have h := palindrome_lower_bound hdec (n := 8 * d + 64 * d * c + 2) (by omega)
-  rw [← hd_def] at h
-  have key : ∀ M N : ℕ, M + 2 ≤ N → N ^ 2 ≤ M * (N + 1) → False := fun M N h1 h2 => by
-    have := Nat.mul_le_mul_right N h1
-    nlinarith
-  refine key (64 * d * c) (8 * d + 64 * d * c + 2) (by omega) ?_
-  calc (8 * d + 64 * d * c + 2) ^ 2 ≤ 64 * d * (c * (8 * d + 64 * d * c + 2 + 1)) := h
-    _ = 64 * d * c * (8 * d + 64 * d * c + 2 + 1) := by ring
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
+  have hd : 0 < d := Nat.clog_pos one_lt_two (by omega)
+  let N := 8 * d + 64 * d * c + 2
+  have h : N ^ 2 ≤ 64 * d * c * (N + 1) := by
+    simpa only [← hd_def, mul_assoc] using
+      palindrome_lower_bound hdec (n := N) (by dsimp [N]; omega)
+  have h1 : 64 * d * c + 2 ≤ N := by dsimp [N]; omega
+  generalize 64 * d * c = M at h h1
+  nlinarith [Nat.mul_le_mul_right N h1]
 
 /-- No single-tape machine decides palindromes over two letters in linear time. -/
 theorem not_decidesPalindromesInTime_linear {a b yes : Symbol} (hab : a ≠ b) (c : ℕ) :

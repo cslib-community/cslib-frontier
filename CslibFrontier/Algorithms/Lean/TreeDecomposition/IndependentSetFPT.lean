@@ -145,11 +145,7 @@ theorem size_childPass (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c 
     (childPass G w LB LP f init c).size = init.size := by
   induction c with
   | zero => rfl
-  | succ c ih =>
-    dsimp only [childPass]
-    split_ifs
-    · rw [Array.size_setIfInBounds, ih]
-    · exact ih
+  | succ c ih => dsimp only [childPass]; split_ifs <;> simp [ih]
 
 /-- After the child masks `t < c`, the entry of `best` at a parent mask `k` is the best value over
 the independent child subsets with parent mask `k`. -/
@@ -170,14 +166,10 @@ theorem getD_childPass (w : V → ℕ) {LB : List V} (hLB : LB.Nodup) (LP : List
       by_cases hkey : toMask LP (ofMask LB c) = k
       · rw [ite_eq_left ⟨hind, hkey⟩, Finset.sup_insert, hkey, Array.getD_eq_getD_getElem?,
           Array.getElem?_setIfInBounds, ite_eq_left rfl,
-          ite_eq_left (by rw [size_childPass]; exact hk), Option.getD_some, ih]
-        omega
+          ite_eq_left (by rw [size_childPass]; exact hk), Option.getD_some, ih]; omega
       · rw [ite_eq_right fun h => hkey h.2, Array.getD_eq_getD_getElem?,
-          Array.getElem?_setIfInBounds,
-          ite_eq_right hkey, ← Array.getD_eq_getD_getElem?, ih]
-    · have hind : ¬G.IsIndepSet (↑(ofMask LB c) : Set V) :=
-        fun h => hok ((indepMask_eq_true_iff G LB c).2 h)
-      rw [ite_eq_right hok, ite_eq_right fun h => hind h.1, ih]
+          Array.getElem?_setIfInBounds, ite_eq_right hkey, ← Array.getD_eq_getD_getElem?, ih]
+    · rw [ite_eq_right hok, ite_eq_right fun h => hok ((indepMask_eq_true_iff G LB c).2 h.1), ih]
 
 /-- Started from a zero table, the child pass computes `forget` on every parent subset. -/
 theorem getD_childPass_eq_forget (w : V → ℕ) {LB LP : List V} (hLB : LB.Nodup) (f : Array ℕ)
@@ -186,37 +178,26 @@ theorem getD_childPass_eq_forget (w : V → ℕ) {LB LP : List V} (hLB : LB.Nodu
     (childPass G w LB LP f (Array.replicate (2 ^ LP.length) 0) (2 ^ LB.length)).getD
         (toMask LP (S ∩ LB.toFinset)) 0 =
       forget G w LB.toFinset LP.toFinset g S := by
-  rw [getD_childPass G w hLB LP f _ _ (by rw [Array.size_replicate]; exact toMask_lt _ _)]
-  rw [Array.getD_eq_getD_getElem?, Array.getElem?_replicate, ite_eq_left (toMask_lt _ _),
-    Option.getD_some, Nat.zero_max]
-  unfold forget
-  rw [powerset_toFinset_eq_image, Finset.filter_image, Finset.sup_image]
-  refine Finset.sup_congr ?_ fun t ht => ?_
-  · refine Finset.filter_congr fun t _ => and_congr_right fun _ => ?_
-    rw [toMask_eq_toMask_iff]
-    constructor
-    · intro h
-      ext x
-      have := congrArg (x ∈ ·) h
-      simp only [Finset.mem_inter, eq_iff_iff] at this ⊢
-      constructor
-      · rintro ⟨hxt, hxP⟩
-        exact ⟨(this.1 ⟨hxt, hxP⟩).1.1, (List.mem_toFinset.1 (ofMask_subset LB t hxt)) |>
-          List.mem_toFinset.2⟩
-      · rintro ⟨hxS, hxB⟩
-        exact ⟨(this.2 ⟨⟨hxS, hxB⟩, hS hxS⟩).1, hS hxS⟩
-    · intro h
-      rw [h]
-      exact (Finset.inter_eq_left.2 (Finset.inter_subset_left.trans hS)).symm
-  · rw [Finset.mem_filter, Finset.mem_range] at ht
-    simp only [Function.comp_apply, hfg t ht.1]
+  rw [getD_childPass G w hLB LP f _ _ (by rw [Array.size_replicate]; exact toMask_lt _ _),
+    Array.getD_eq_getD_getElem?, Array.getElem?_replicate, ite_eq_left (toMask_lt _ _),
+    Option.getD_some, Nat.zero_max, forget, powerset_toFinset_eq_image, Finset.filter_image,
+    Finset.sup_image]
+  refine Finset.sup_congr (Finset.filter_congr fun t _ => and_congr_right fun _ => ?_) fun t ht =>
+    by simp only [Function.comp_apply, hfg t (Finset.mem_range.1 (Finset.mem_filter.1 ht).1)]
+  rw [toMask_eq_toMask_iff]
+  refine ⟨fun h => ?_, fun h => by
+    rw [h]
+    exact (Finset.inter_eq_left.2 (Finset.inter_subset_left.trans hS)).symm⟩
+  ext x
+  have hx := congrArg (x ∈ ·) h
+  simp only [Finset.mem_inter, eq_iff_iff] at hx ⊢
+  exact ⟨fun ⟨hxt, hxP⟩ => ⟨(hx.1 ⟨hxt, hxP⟩).1.1, ofMask_subset LB t hxt⟩,
+    fun ⟨hxS, hxB⟩ => ⟨(hx.2 ⟨⟨hxS, hxB⟩, hS hxS⟩).1, hS hxS⟩⟩
 
 omit [DecidableRel G.Adj] in
 theorem size_parentPass (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPass LB LP old best c).size = c := by
-  induction c with
-  | zero => rfl
-  | succ c ih => simp [parentPass, ih]
+  induction c <;> simp [parentPass, *]
 
 omit [DecidableRel G.Adj] in
 theorem getD_parentPass (LB : List V) {LP : List V} (hLP : LP.Nodup) (old best : Array ℕ)
@@ -228,9 +209,8 @@ theorem getD_parentPass (LB : List V) {LP : List V} (hLP : LP.Nodup) (old best :
   | succ c ih =>
     simp only [parentPass, restrictMask_eq_toMask LB hLP]
     rw [Array.getD_eq_getD_getElem?, Array.getElem?_push, size_parentPass]
-    by_cases hsc : s = c
-    · subst hsc
-      rw [ite_eq_left rfl, Option.getD_some]
+    rcases eq_or_ne s c with rfl | hsc
+    · rw [ite_eq_left rfl, Option.getD_some]
     · rw [ite_eq_right hsc, ← Array.getD_eq_getD_getElem?, ih (by omega)]
 
 theorem rootPass_eq_sup (w : V → ℕ) {L : List V} (hL : L.Nodup) (tbl : Array ℕ) (c : ℕ) :
@@ -262,11 +242,9 @@ theorem getD_processNode (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : 
     (hg : ∀ i, ∀ s < 2 ^ (L i).length, st[i].getD s 0 = g i (ofMask (L i) s)) (j i : Fin (n + 1))
     {s : ℕ} (hs : s < 2 ^ (L i).length) :
     (processNode R w L st j)[i].getD s 0 = step R w g j i (ofMask (L i) s) := by
-  dsimp only [processNode]
-  unfold step
-  by_cases hi : i = R.parent j
-  · subst hi
-    rw [Function.update_self, Fin.getElem_fin, Vector.getElem_set_self,
+  dsimp only [processNode]; unfold step
+  rcases eq_or_ne i (R.parent j) with rfl | hi
+  · rw [Function.update_self, Fin.getElem_fin, Vector.getElem_set_self,
       getD_parentPass _ (hL _).1 _ _ hs, hg _ _ hs,
       getD_childPass_eq_forget G w (hL j).1 _ (g j) (hg j) (ofMask_subset _ _), (hL j).2,
       (hL (R.parent j)).2]
@@ -281,27 +259,23 @@ theorem getD_tablesFPT (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : Fi
     (tablesFPT R w L t)[i].getD s 0 = tables R w t i (ofMask (L i) s) := by
   induction t generalizing i s with
   | zero => simp [tablesFPT, tables]
-  | succ t ih =>
-    dsimp only [tablesFPT]
-    exact getD_processNode R w hL _ (tables R w t) (fun i s hs => ih i hs) _ i hs
+  | succ t ih => exact getD_processNode R w hL _ (tables R w t) (fun i _ hs => ih i hs) _ i hs
 
 /-- **Correctness.** The executable program computes the value of the dynamic program. -/
 theorem mwisFPT_eq_mwisValue (R : G.RootedTreeDecomposition n) (w : V → ℕ)
     {L : Fin (n + 1) → List V} (hL : IsBagOrder R L) : mwisFPT R w L = mwisValue R w := by
-  dsimp only [mwisFPT]
-  rw [rootPass_eq_sup G w (hL 0).1, mwisValue, ← (hL 0).2, powerset_toFinset_eq_image,
+  rw [mwisFPT, rootPass_eq_sup G w (hL 0).1, mwisValue, ← (hL 0).2, powerset_toFinset_eq_image,
     Finset.filter_image, Finset.sup_image]
-  refine Finset.sup_congr rfl fun t ht => ?_
-  rw [Finset.mem_filter, Finset.mem_range] at ht
-  simp only [Function.comp_apply, getD_tablesFPT R w hL n 0 ht.1]
+  exact Finset.sup_congr rfl fun t ht => by
+    simp only [Function.comp_apply, getD_tablesFPT R w hL n 0 (Finset.mem_range.1
+      (Finset.mem_filter.1 ht).1)]
 
 /-- The executable program computes the maximum weight of an independent set. -/
 theorem isGreatest_mwisFPT (R : G.RootedTreeDecomposition n) (w : V → ℕ)
     {L : Fin (n + 1) → List V} (hL : IsBagOrder R L) :
     IsGreatest {x | ∃ I : Finset V, G.IsIndepSet (↑I : Set V) ∧ ∑ v ∈ I, w v = x}
-      (mwisFPT R w L) := by
-  rw [mwisFPT_eq_mwisValue R w hL]
-  exact isGreatest_mwisValue R w
+      (mwisFPT R w L) :=
+  mwisFPT_eq_mwisValue R w hL ▸ isGreatest_mwisValue R w
 
 /-- With unit weights the executable program computes the independence number. -/
 theorem mwisFPT_one_eq_indepNum (R : G.RootedTreeDecomposition n) {L : Fin (n + 1) → List V}

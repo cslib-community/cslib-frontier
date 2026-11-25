@@ -152,16 +152,9 @@ theorem distinct_iff_split (h : Bdd U S) :
     · exact exists_split_of_testBit h hb ha hc hβ (Bool.eq_not_of_ne hbit)
         (Bool.eq_not_of_ne hcb) hac (by omega)
   · rintro ⟨β, -, β', -, v, a, ha, b, hb, c, hc, hs⟩
-    obtain ⟨haS, haβ⟩ := mem_filter.mp ha
-    obtain ⟨hbS, hbβ, hbβ'⟩ := mem_filter.mp hb
-    obtain ⟨hcS, hcβ, hcβ'⟩ := mem_filter.mp hc
-    refine ⟨a, haS, b, hbS, c, hcS, ?_, ?_, ?_, hs⟩
-    · rintro rfl
-      simp [haβ] at hbβ
-    · rintro rfl
-      simp [hbβ'] at hcβ'
-    · rintro rfl
-      simp [haβ] at hcβ
+    simp only [splitA, splitB, mem_filter] at ha hb hc
+    exact ⟨a, ha.1, b, hb.1, c, hc.1, by rintro rfl; simp [ha.2] at hb,
+      by rintro rfl; simp [hb.2] at hc, by rintro rfl; simp [ha.2] at hc, hs⟩
 
 end distinct
 
@@ -206,10 +199,7 @@ theorem threeSum_iff_distinct_or_degenerate (x : Fin n → ℤ) :
       exact ⟨i, j, k, fun e => hab (e ▸ rfl), fun e => hbc (e ▸ rfl), fun e => hac (e ▸ rfl), hs⟩
     · obtain ⟨i, hi, j, hj, hij⟩ := one_lt_card.mp h2
       simp only [mem_filter, mem_univ, true_and] at hi hj
-      have hne : ∀ t : Fin n, x t = a → t ≠ k := by
-        rintro t ht rfl
-        omega
-      exact ⟨i, j, k, hij, hne j hj, hne i hi, by omega⟩
+      exact ⟨i, j, k, hij, by rintro rfl; omega, by rintro rfl; omega, by omega⟩
     · obtain ⟨i, hi, j, hj, k, hk, hij, hik, hjk⟩ := two_lt_card.mp h3
       simp only [mem_filter, mem_univ, true_and] at hi hj hk
       exact ⟨i, j, k, hij, hjk, hik, by omega⟩
@@ -221,24 +211,19 @@ theorem degenerate_iff (x : Fin n → ℤ) :
     Degenerate x ↔
       HasThreeSetSolution (twiceSet x) {0} (univ.image x) ∨ HasThreeSetSolution (zeroSet x)
       {0} {0} := by
-  refine or_congr ⟨?_, ?_⟩ ⟨fun h3 => ?_, ?_⟩
+  refine or_congr ⟨?_, ?_⟩ (by by_cases h3 : 3 ≤ #{i : Fin n | x i = 0} <;>
+    simp [HasThreeSetSolution, zeroSet, h3])
   · rintro ⟨a, ha0, h2, k, hk⟩
     obtain ⟨i, hi, -⟩ := one_lt_card.mp h2
-    have ha : a ∈ univ.image x := mem_image.mpr ⟨i, mem_univ i, (mem_filter.mp hi).2⟩
-    exact ⟨2 * a, mem_image.mpr ⟨a, mem_filter.mpr ⟨ha, ha0, h2⟩, rfl⟩, 0, mem_singleton_self 0,
-      x k, mem_image_of_mem x (mem_univ k), by omega⟩
+    exact ⟨2 * a, mem_image.mpr ⟨a, mem_filter.mpr ⟨mem_image.mpr ⟨i, mem_univ i,
+        (mem_filter.mp hi).2⟩, ha0, h2⟩, rfl⟩, 0, by simp, x k, mem_image_of_mem x (mem_univ k),
+      by omega⟩
   · rintro ⟨_, ha', b, hb, _, hc, hs⟩
     obtain ⟨a, ha, rfl⟩ := mem_image.mp ha'
     obtain ⟨-, ha0, h2⟩ := mem_filter.mp ha
     obtain ⟨k, -, rfl⟩ := mem_image.mp hc
     rw [mem_singleton.mp hb] at hs
     exact ⟨a, ha0, h2, k, by omega⟩
-  · rw [zeroSet, ite_eq_left h3]
-    exact ⟨0, mem_singleton_self 0, 0, mem_singleton_self 0, 0, mem_singleton_self 0, rfl⟩
-  · rintro ⟨a, ha, -⟩
-    by_contra h3
-    rw [zeroSet, ite_eq_right h3] at ha
-    exact notMem_empty a ha
 
 end positions
 
@@ -257,25 +242,18 @@ private theorem bdd_image (hx : ∀ i, |x i| ≤ (U : ℤ)) : Bdd (2 * U) (univ.
 
 /-- The elements of `twiceSet x` are bounded by `2U`. -/
 theorem bdd_twiceSet (hx : ∀ i, |x i| ≤ (U : ℤ)) : Bdd (2 * U) (twiceSet x) := by
-  intro a' ha'
+  rintro _ ha'
   obtain ⟨a, ha, rfl⟩ := mem_image.mp ha'
   obtain ⟨i, -, rfl⟩ := mem_image.mp (mem_filter.mp ha).1
   have := abs_le.mp (hx i)
-  rw [abs_le]
-  constructor <;> omega
+  exact abs_le.mpr ⟨by omega, by omega⟩
 
 /-- The set `{0}` is bounded by anything. -/
-theorem bdd_zero (U : ℕ) : Bdd U {0} := by
-  intro a ha
-  rw [mem_singleton.mp ha, abs_zero]
-  omega
+theorem bdd_zero (U : ℕ) : Bdd U {0} := by simp [Bdd]
 
 /-- The set `zeroSet x` is bounded by anything. -/
 theorem bdd_zeroSet (U : ℕ) (x : Fin n → ℤ) : Bdd U (zeroSet x) := by
-  unfold zeroSet
-  split_ifs
-  · exact bdd_zero U
-  · exact fun a ha => absurd ha (notMem_empty a)
+  unfold zeroSet; split_ifs <;> simp [Bdd]
 
 /-- `n` numbers have at most `n` values. -/
 private theorem card_image_univ_le (x : Fin n → ℤ) : #(univ.image x) ≤ n :=
@@ -309,16 +287,11 @@ private theorem exists_isInput_iff (P : Finset ℤ → Finset ℤ → Finset ℤ
       (∃ β < labelBits (2 * U), ∃ β' < labelBits (2 * U), ∃ v : Bool,
         P (splitA (2 * U) β v (univ.image x)) (splitB (2 * U) β β' v false (univ.image x))
           (splitB (2 * U) β β' v true (univ.image x))) ∨
-      P (twiceSet x) {0} (univ.image x) ∨ P (zeroSet x) {0} {0} := by
-  constructor
-  · rintro ⟨_, _, _, ⟨hβ, hβ', v⟩ | _ | _, h⟩
-    · exact .inl ⟨_, hβ, _, hβ', v, h⟩
-    · exact .inr (.inl h)
-    · exact .inr (.inr h)
-  · rintro (⟨β, hβ, β', hβ', v, h⟩ | h | h)
-    · exact ⟨_, _, _, .split hβ hβ' v, h⟩
-    · exact ⟨_, _, _, .twice, h⟩
-    · exact ⟨_, _, _, .zero, h⟩
+      P (twiceSet x) {0} (univ.image x) ∨ P (zeroSet x) {0} {0} :=
+  ⟨by rintro ⟨_, _, _, ⟨hβ, hβ', v⟩ | _ | _, h⟩
+      exacts [.inl ⟨_, hβ, _, hβ', v, h⟩, .inr (.inl h), .inr (.inr h)],
+   by rintro (⟨_, hβ, _, hβ', v, h⟩ | h | h)
+      exacts [⟨_, _, _, .split hβ hβ' v, h⟩, ⟨_, _, _, .twice, h⟩, ⟨_, _, _, .zero, h⟩]⟩
 
 /-- Three entries of `x` at different positions sum to 0 iff one of the three-set inputs has a
 solution. -/
@@ -354,24 +327,13 @@ def inputs (U : ℕ) (x : Fin n → ℤ) : List (Finset ℤ × Finset ℤ × Fin
 /-- Membership in the executable list is exactly the frontend input relation. -/
 theorem mem_inputs_iff {T₁ T₂ T₃ : Finset ℤ} :
     (T₁, T₂, T₃) ∈ inputs U x ↔ IsInput U x T₁ T₂ T₃ := by
-  constructor
-  · intro h
-    simp only [inputs, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_map,
-      List.mem_cons, List.not_mem_nil, or_false] at h
-    rcases h with ⟨β, hβ, β', hβ', v, -, h⟩ | h | h
-    · cases h
-      exact .split hβ hβ' v
-    · cases h
-      exact .twice
-    · cases h
-      exact .zero
-  · intro h
-    cases h with
-    | split hβ hβ' v =>
-      simp only [inputs, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_map]
-      exact .inl ⟨_, hβ, _, hβ', v, by cases v <;> simp, rfl⟩
-    | twice => simp [inputs]
-    | zero => simp [inputs]
+  simp only [inputs, List.mem_append, List.mem_flatMap, List.mem_range, List.mem_map,
+    List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq]
+  exact ⟨by rintro (⟨_, hβ, _, hβ', v, -, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl⟩)
+            exacts [.split hβ hβ' v, .twice, .zero],
+         by rintro (⟨hβ, hβ', v⟩ | _ | _)
+            exacts [.inl ⟨_, hβ, _, hβ', v, by cases v <;> simp, rfl, rfl, rfl⟩,
+              .inr (.inl ⟨rfl, rfl, rfl⟩), .inr (.inr ⟨rfl, rfl, rfl⟩)]⟩
 
 /-- The frontend enumerates exactly `2 (labelBits (2U))² + 2` inputs, counting repetitions. -/
 theorem length_inputs (U : ℕ) (x : Fin n → ℤ) :
@@ -381,12 +343,7 @@ theorem length_inputs (U : ℕ) (x : Fin n → ℤ) :
 /-- Distinct-position 3SUM is equivalent to a yes-instance in the finite frontend list. -/
 theorem threeSum_iff_exists_mem_inputs (hx : ∀ i, |x i| ≤ (U : ℤ)) :
     HasSolution x ↔ ∃ T ∈ inputs U x, HasThreeSetSolution T.1 T.2.1 T.2.2 := by
-  rw [threeSum_iff_exists_input hx]
-  constructor
-  · rintro ⟨T₁, T₂, T₃, hT, hs⟩
-    exact ⟨(T₁, T₂, T₃), mem_inputs_iff.mpr hT, hs⟩
-  · rintro ⟨⟨T₁, T₂, T₃⟩, hT, hs⟩
-    exact ⟨T₁, T₂, T₃, mem_inputs_iff.mp hT, hs⟩
+  simp [threeSum_iff_exists_input hx, Prod.exists, mem_inputs_iff]
 
 
 end inputs

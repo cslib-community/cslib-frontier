@@ -89,17 +89,11 @@ theorem exists_square_move (a b : ℂ) {r : ℝ} (hr : 0 < r) (hb : ‖b - a‖ 
   · intro z y h
     by_contra hne
     have he : z - y = (squareTent a r y - squareTent a r z) • v := by
-      have hxy : z + squareTent a r z • v = y + squareTent a r y • v := h
-      calc
-        _ = (z + squareTent a r z • v) - (y + squareTent a r y • v) +
-            (squareTent a r y • v - squareTent a r z • v) := by abel
-        _ = _ := by rw [hxy, sub_self, zero_add, sub_smul]
-    have hn := congrArg norm he
-    rw [norm_smul, Real.norm_eq_abs] at hn
-    have hl := hn.le.trans (mul_le_mul_of_nonneg_right
+      rw [sub_smul, sub_eq_sub_iff_add_eq_add, add_comm (squareTent a r y • v)]
+      exact h
+    have hl := ((congrArg norm he).trans (norm_smul _ _)).trans_le (mul_le_mul_of_nonneg_right
       ((squareTent_sub_le a r y z).trans_eq (norm_sub_rev y z)) (norm_nonneg v))
-    have hpos : 0 < ‖z - y‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hne)
-    exact (not_lt_of_ge hl) (mul_lt_of_lt_one_right hpos hv)
+    exact (not_lt_of_ge hl) (mul_lt_of_lt_one_right (norm_pos_iff.mpr (sub_ne_zero.mpr hne)) hv)
   · change a + squareTent a r a • (r⁻¹ • (b - a)) = b
     simp only [squareTent, sub_self, abs_zero, max_self, sub_zero, max_eq_left hr.le,
       smul_smul, mul_inv_cancel₀ hr.ne', one_smul]

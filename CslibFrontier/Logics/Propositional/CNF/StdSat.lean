@@ -124,21 +124,12 @@ variable {α β : Type*}
 @[simp] theorem CNF.mem_toStdSat {φ : CNF α} {c : Std.Sat.CNF.Clause α} :
     c ∈ φ.toStdSat ↔ Clause.ofStdSat c ∈ φ := by
   simp only [Std.Sat.CNF.Internal.mem_iff, CNF.toStdSat, List.mem_toArray, List.mem_map]
-  constructor
-  · rintro ⟨d, hd, rfl⟩
-    simpa using hd
-  · intro h
-    exact ⟨Clause.ofStdSat c, h, Clause.toStdSat_ofStdSat c⟩
+  exact ⟨fun ⟨_, hd, h⟩ => by subst h; simpa using hd, fun h => ⟨_, h, Clause.toStdSat_ofStdSat c⟩⟩
 
 @[simp] theorem CNF.mem_ofStdSat {f : Std.Sat.CNF α} {c : Clause α} :
     c ∈ CNF.ofStdSat f ↔ Clause.toStdSat c ∈ f := by
-  simp only [CNF.ofStdSat, List.mem_map, Array.mem_toList_iff,
-    Std.Sat.CNF.Internal.mem_iff]
-  constructor
-  · rintro ⟨d, hd, rfl⟩
-    simpa using hd
-  · intro h
-    exact ⟨Clause.toStdSat c, h, Clause.ofStdSat_toStdSat c⟩
+  simp only [CNF.ofStdSat, List.mem_map, Array.mem_toList_iff, Std.Sat.CNF.Internal.mem_iff]
+  exact ⟨fun ⟨_, hd, h⟩ => by subst h; simpa using hd, fun h => ⟨_, h, Clause.ofStdSat_toStdSat c⟩⟩
 
 /-! ### Evaluation, satisfiability, and variable occurrences -/
 
@@ -164,13 +155,10 @@ theorem Clause.sat_toStdSat_iff (σ : α → Bool) (c : Clause α) :
     φ.toStdSat.eval σ = φ.eval σ := by
   rw [Bool.eq_iff_iff, ← Std.Sat.CNF.sat_def, Std.Sat.CNF.sat_iff_all_mem_sat,
     CNF.eval_eq_true_iff]
-  constructor
-  · intro h c hc
-    have hsat := h (Clause.toStdSat c) (CNF.mem_toStdSat.mpr (by simpa using hc))
-    simpa [Clause.sat_toStdSat_iff] using hsat
-  · intro h c hc
-    have hc' : Clause.ofStdSat c ∈ φ := CNF.mem_toStdSat.mp hc
-    simpa [Std.Sat.CNF.Clause.sat_def] using h _ hc'
+  exact ⟨fun h c hc => by
+      simpa [Clause.sat_toStdSat_iff] using
+        h c.toStdSat (CNF.mem_toStdSat.mpr (by simpa using hc)),
+    fun h c hc => by simpa [Std.Sat.CNF.Clause.sat_def] using h _ (CNF.mem_toStdSat.mp hc)⟩
 
 /-- Evaluation of `CNF.ofStdSat` agrees with `Std.Sat.CNF.eval`. -/
 @[simp] theorem CNF.eval_ofStdSat (σ : α → Bool) (f : Std.Sat.CNF α) :
@@ -218,15 +206,11 @@ theorem Clause.varMem_toStdSat_iff (c : Clause α) (v : α) :
 theorem CNF.varMem_toStdSat_iff (φ : CNF α) (v : α) :
     Std.Sat.CNF.VarMem v φ.toStdSat ↔ v ∈ φ.vars := by
   rw [CNF.mem_vars]
-  constructor
-  · rintro ⟨c, hc, hv⟩
-    have hc' : Clause.ofStdSat c ∈ φ := CNF.mem_toStdSat.mp (Std.Sat.CNF.Internal.mem_iff.mpr hc)
-    obtain ⟨b, hb⟩ :=
-      (Clause.varMem_toStdSat_iff (Clause.ofStdSat c) v).mp (by simpa using hv)
-    exact ⟨Clause.ofStdSat c, hc', b, hb⟩
-  · rintro ⟨c, hc, b, hb⟩
-    refine ⟨c.toStdSat, ?_, (Clause.varMem_toStdSat_iff c v).mpr ⟨b, hb⟩⟩
-    exact Std.Sat.CNF.Internal.mem_iff.mp (CNF.mem_toStdSat.mpr (by simpa using hc))
+  refine ⟨fun ⟨c, hc, hv⟩ => ?_, fun ⟨c, hc, b, hb⟩ => ⟨c.toStdSat,
+    Std.Sat.CNF.Internal.mem_iff.mp (CNF.mem_toStdSat.mpr (by simpa using hc)),
+    (Clause.varMem_toStdSat_iff c v).mpr ⟨b, hb⟩⟩⟩
+  obtain ⟨b, hb⟩ := (Clause.varMem_toStdSat_iff (Clause.ofStdSat c) v).mp (by simpa using hv)
+  exact ⟨Clause.ofStdSat c, CNF.mem_toStdSat.mp (Std.Sat.CNF.Internal.mem_iff.mpr hc), b, hb⟩
 
 /-! ### Relabeling, `relabelFin`, and finite `Fin n` model counting -/
 
@@ -261,47 +245,31 @@ theorem CNF.satisfiable_ofStdSat_relabelFin_iff (f : Std.Sat.CNF ℕ) :
 
 /-- Every variable occurring in `CNF.ofStdSat f` is strictly below `f.numLiterals`. -/
 theorem CNF.lt_numLiterals_of_mem_vars_ofStdSat (f : Std.Sat.CNF ℕ) {v : ℕ}
-    (hv : v ∈ (CNF.ofStdSat f).vars) : v < f.numLiterals := by
-  apply Std.Sat.CNF.lt_numLiterals
-  rw [← CNF.varMem_toStdSat_iff, CNF.toStdSat_ofStdSat] at hv
-  exact hv
+    (hv : v ∈ (CNF.ofStdSat f).vars) : v < f.numLiterals :=
+  Std.Sat.CNF.lt_numLiterals (by rwa [← CNF.varMem_toStdSat_iff, CNF.toStdSat_ofStdSat] at hv)
 
 /-- Every variable occurring in `CNF.ofStdSat (f.relabel Fin.val)` for `f : Std.Sat.CNF (Fin n)` is
 strictly below `n`. -/
 theorem CNF.lt_of_mem_vars_ofStdSat_relabel_val {n : ℕ} (f : Std.Sat.CNF (Fin n)) {v : ℕ}
     (hv : v ∈ (CNF.ofStdSat (f.relabel Fin.val)).vars) : v < n := by
   rw [CNF.relabel_ofStdSat, CNF.mem_vars] at hv
-  obtain ⟨c, hc, b, hb⟩ := hv
-  rw [CNF.relabel, List.mem_map] at hc
-  obtain ⟨d, _, rfl⟩ := hc
-  rw [Clause.relabel, List.mem_map] at hb
-  obtain ⟨⟨i, bi⟩, _, hEq⟩ := hb
-  have hi : i.val = v := congrArg Prod.fst hEq
-  exact hi ▸ i.isLt
+  obtain ⟨_, hd, _, hb⟩ := hv
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp (by rwa [CNF.relabel] at hd)
+  obtain ⟨⟨i, _⟩, _, hEq⟩ := List.mem_map.mp (by rwa [Clause.relabel] at hb)
+  exact (show i.val = v from congrArg Prod.fst hEq) ▸ i.isLt
 
 /-- For `f : Std.Sat.CNF (Fin n)`, `CNF.modelCountOn Finset.univ` of `CNF.ofStdSat f` equals the
 number of assignments `a : Fin n → Bool` with `f.eval a = true`. -/
 theorem CNF.modelCountOn_ofStdSat_univ {n : ℕ} (f : Std.Sat.CNF (Fin n)) :
     (CNF.ofStdSat f).modelCountOn Finset.univ =
       (Finset.univ.filter fun a : Fin n → Bool => f.eval a = true).card := by
-  rw [CNF.modelCountOn]
-  let U : Finset (Fin n) := Finset.univ
-  let e : (↥U → Bool) ≃ (Fin n → Bool) :=
-    { toFun := fun σ i => σ ⟨i, Finset.mem_univ i⟩
-      invFun := fun a i => a i.1
+  simp only [CNF.modelCountOn, ← Fintype.card_subtype, Finset.mem_univ, ↓reduceDIte,
+    CNF.eval_ofStdSat]
+  exact Fintype.card_congr
+    { toFun := fun ⟨σ, hσ⟩ => ⟨fun i => σ ⟨i, Finset.mem_univ i⟩, hσ⟩
+      invFun := fun ⟨a, ha⟩ => ⟨fun i => a i.1, ha⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
-  refine Finset.card_bij (fun σ _ => e σ) (fun σ hσ => ?_) (fun _ _ _ _ h => e.injective h)
-    (fun a ha => ?_)
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and, CNF.eval_ofStdSat] at hσ ⊢
-    convert hσ using 2
-    ext i
-    simp [e]
-  · refine ⟨e.symm a, ?_, e.apply_symm_apply a⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, CNF.eval_ofStdSat] at ha ⊢
-    convert ha using 2
-    ext i
-    simp [e]
 
 /-- For `f : Std.Sat.CNF (Fin n)`, the cardinality of `{a : Fin n → Bool // f.eval a = true}`
 equals `(CNF.ofStdSat f).modelCountOn Finset.univ`. -/
@@ -315,29 +283,16 @@ theorem CNF.card_eval_ofStdSat_eq_modelCountOn {n : ℕ} (f : Std.Sat.CNF (Fin n
 theorem CNF.card_eval_eq_modelCountOn_relabel_val {n : ℕ} (f : Std.Sat.CNF (Fin n)) :
     Fintype.card {a : Fin n → Bool // f.eval a = true} =
       (CNF.ofStdSat (f.relabel Fin.val)).modelCountOn (Finset.range n) := by
-  rw [CNF.card_eval_ofStdSat_eq_modelCountOn, CNF.relabel_ofStdSat]
-  let R : Finset ℕ := Finset.range n
-  let g : (Fin n → Bool) ≃ (↥R → Bool) :=
-    { toFun := fun σ i => σ ⟨i.1, Finset.mem_range.mp i.2⟩
-      invFun := fun τ i => τ ⟨i.1, Finset.mem_range.mpr i.isLt⟩
+  simp only [CNF.modelCountOn, ← Fintype.card_subtype, CNF.relabel_ofStdSat, CNF.eval_relabel]
+  exact Fintype.card_congr
+    { toFun := fun ⟨a, ha⟩ => ⟨fun i => a ⟨i.1, Finset.mem_range.mp i.2⟩, by
+        rw [← CNF.eval_ofStdSat] at ha
+        exact (CNF.eval_congr fun i _ => by simp [i.isLt]).trans ha⟩
+      invFun := fun ⟨τ, hτ⟩ => ⟨fun i => τ ⟨i.1, Finset.mem_range.mpr i.isLt⟩, by
+        rw [← CNF.eval_ofStdSat]
+        exact (CNF.eval_congr fun i _ => by simp [i.isLt]).trans hτ⟩
       left_inv := fun _ => rfl
       right_inv := fun _ => rfl }
-  have hL : (CNF.ofStdSat f).modelCountOn Finset.univ =
-      (Finset.univ.filter fun a : Fin n → Bool => (CNF.ofStdSat f).eval a = true).card := by
-    rw [CNF.modelCountOn_ofStdSat_univ]
-    simp [CNF.eval_ofStdSat]
-  rw [hL, CNF.modelCountOn]
-  refine Finset.card_bij (fun a _ => g a) (fun a ha => ?_) (fun _ _ _ _ h => g.injective h)
-    (fun τ hτ => ?_)
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and, CNF.eval_relabel] at ha ⊢
-    refine (CNF.eval_congr ?_).trans ha
-    intro i _
-    simp [g]
-  · refine ⟨g.symm τ, ?_, g.apply_symm_apply τ⟩
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, CNF.eval_relabel] at hτ ⊢
-    refine (CNF.eval_congr ?_).trans hτ
-    intro i _
-    simp [g]
 
 /-- Express the exact `Std.Sat.CNF (Fin n)` model count using the occurring-variable
 `CNF.modelCount` of `CNF.ofStdSat f`. -/

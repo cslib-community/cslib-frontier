@@ -68,18 +68,11 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ List Bool}
             if pair.1.2.2.2 ≤ pair.2 then (pair.1.2.1, pair.2) else pair.1.2.2))
         (encPair (encPair input stateEncoding) encUnary) stateEncoding := by
       dsimp only [stateEncoding]
-      apply ComputableInPolyTime.prod
-      · exact ComputableInPolyTime.unary_succ.comp (by fun_prop)
-      · have hc := ComputableInPolyTime.unary_le'
-          (by fun_prop : ComputableInPolyTime
-            (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.1.2.2.2)
-            (encPair (encPair input (encPair encUnary (encPair encUnary encUnary))) encUnary)
-            encUnary)
-          (by fun_prop : ComputableInPolyTime
-            (fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.2)
-            (encPair (encPair input (encPair encUnary (encPair encUnary encUnary))) encUnary)
-            encUnary)
-        simpa only [decide_eq_true_eq] using hc.ite (by fun_prop) (by fun_prop)
+      refine ComputableInPolyTime.prod (ComputableInPolyTime.unary_succ.comp (by fun_prop)) ?_
+      exact ComputableInPolyTime.ite_decide
+        (ComputableInPolyTime.unary_le' (left := fun pair : (α × (ℕ × ℕ × ℕ)) × ℕ => pair.1.2.2.2)
+          (right := fun pair => pair.2) (by fun_prop) (by fun_prop))
+        (by fun_prop) (by fun_prop)
     exact hupd.of_enc_eq fun ⟨⟨_, ⟨_, _, _⟩⟩, _⟩ => rfl
   have hloop := (IsPPTOn.iterateWith_spec
     (stateEncoding := stateEncoding) (initial := fun _ => (0, 0, 0))

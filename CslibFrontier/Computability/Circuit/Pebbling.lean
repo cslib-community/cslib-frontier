@@ -73,18 +73,12 @@ theorem Program.dag_adj {p : Program σ n g} {u v : Wire n g} :
       v = .gate j ∧ (p.lines j).wires k = u := Iff.rfl
 
 @[simp] theorem Program.dag_adj_gate {p : Program σ n g} {u : Wire n g} {j : Fin g} :
-    p.dag.Adj u (.gate j) ↔ ∃ k, (p.lines j).wires k = u := by
-  constructor
-  · rintro ⟨j', k, hj, rfl⟩
-    cases hj
-    exact ⟨k, rfl⟩
-  · rintro ⟨k, rfl⟩
-    exact ⟨j, k, rfl, rfl⟩
+    p.dag.Adj u (.gate j) ↔ ∃ k, (p.lines j).wires k = u :=
+  ⟨fun ⟨_, k, hj, h⟩ => by cases hj; exact ⟨k, h⟩, fun ⟨k, h⟩ => ⟨j, k, rfl, h⟩⟩
 
 @[simp] theorem Program.not_dag_adj_input (p : Program σ n g) (u : Wire n g) (i : Fin n) :
     ¬ p.dag.Adj u (.input i) := by
-  rintro ⟨j, k, hj, -⟩
-  cases hj
+  rintro ⟨_, _, ⟨⟩, -⟩
 
 /-- The computation DAG of a program is acyclic: every wire is accessible, by induction along
 the program order. -/
@@ -96,19 +90,11 @@ theorem Program.wellFounded_dag (p : Program σ n g) : WellFounded p.dag.Adj :=
 theorem Program.ncard_dag_adj_le {p : Program σ n g} {r : ℕ} (hp : p.FanInAtMost r)
     (v : Wire n g) : {u | p.dag.Adj u v}.ncard ≤ r := by
   cases v with
-  | input i =>
-    have hset : {u | p.dag.Adj u (.input i)} = ∅ :=
-      Set.eq_empty_of_forall_notMem fun u hu => p.not_dag_adj_input u i hu
-    rw [hset, Set.ncard_empty]
-    exact Nat.zero_le r
+  | input i => simp
   | gate j =>
-    have hset : {u | p.dag.Adj u (.gate j)} = (p.lines j).wires '' Set.univ := by
-      ext u
-      simp only [Set.mem_ofPred_eq, Program.dag_adj_gate, Set.image_univ, Set.mem_range]
-    rw [hset]
-    refine le_trans (Set.ncard_image_le (Set.toFinite _)) ?_
-    rw [Set.ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]
-    exact Program.fanInAtMost_iff.1 hp j
+    rw [show {u | p.dag.Adj u (.gate j)} = (p.lines j).wires '' Set.univ by ext; simp]
+    refine (Set.ncard_image_le (Set.toFinite _)).trans ?_
+    simpa [Set.ncard_univ] using Program.fanInAtMost_iff.1 hp j
 
 end Cslib.Circuits
 
@@ -163,27 +149,19 @@ theorem Program.RegisterStep.trace_eq {c d : Finset (Wire n g) × (Wire n g → 
     {m : Move (Wire n g)} (h : p.RegisterStep I x c m d)
     (hc : ∀ w ∈ c.1, c.2 w = p.trace I x w) : ∀ w ∈ d.1, d.2 w = p.trace I x w := by
   cases h with
-  | @load C r i =>
+  | load i =>
     intro w hw
-    dsimp only at hw hc ⊢
     by_cases hwi : w = .input i
     · subst hwi
-      rw [Function.update_self]
-      rfl
-    · rw [Function.update_of_ne hwi]
-      exact hc w ((Finset.mem_insert.1 hw).resolve_left hwi)
-  | @compute C r j hj =>
+      exact Function.update_self ..
+    · exact (Function.update_of_ne hwi ..).trans (hc w ((Finset.mem_insert.1 hw).resolve_left hwi))
+  | compute j hj =>
     intro w hw
-    dsimp only at hw hc ⊢
     by_cases hwj : w = .gate j
     · subst hwj
-      rw [Function.update_self]
-      have hargs : r ∘ (p.lines j).wires = p.trace I x ∘ (p.lines j).wires :=
-        funext fun k => hc _ (hj k)
-      rw [hargs]
-      exact p.lines_eval I x j
-    · rw [Function.update_of_ne hwj]
-      exact hc w ((Finset.mem_insert.1 hw).resolve_left hwj)
+      exact (Function.update_self ..).trans
+        ((congrArg _ (funext fun k => hc _ (hj k))).trans (p.lines_eval I x j))
+    · exact (Function.update_of_ne hwj ..).trans (hc w ((Finset.mem_insert.1 hw).resolve_left hwj))
   | free w => exact fun v hv => hc v (Finset.mem_of_mem_erase hv)
 
 theorem Program.registerLTS_mTr_trace_eq {s : ℕ} {c d : Finset (Wire n g) × (Wire n g → U)}
@@ -200,10 +178,10 @@ theorem Program.RegisterStep.blackStep {c d : Finset (Wire n g) × (Wire n g →
   cases h with
   | load i => exact .place fun u hu => absurd hu (p.not_dag_adj_input u i)
   | compute j hj =>
-    refine .place fun u hu => ?_
-    obtain ⟨k, rfl⟩ := Program.dag_adj_gate.1 hu
-    exact hj k
-  | free w => exact .remove
+    exact .place fun _ hu => by
+      obtain ⟨k, rfl⟩ := Program.dag_adj_gate.1 hu
+      exact hj k
+  | free => exact .remove
 
 theorem Program.blackPebbleGame_mTr_of_registerLTS {s : ℕ}
     {c d : Finset (Wire n g) × (Wire n g → U)} {ms : List (Move (Wire n g))}
@@ -219,20 +197,20 @@ theorem Program.exists_registerLTS_mTr {s : ℕ} {C D : Finset (Wire n g)}
     (r : Wire n g → U) : ∃ r', (p.registerLTS I x s).MTr (C, r) ms (D, r') := by
   induction h generalizing r with
   | refl => exact ⟨r, .refl⟩
-  | @stepL C₁ m C₂ ms C₃ hstep _ ih =>
+  | stepL hstep _ ih =>
     obtain ⟨hstep, hcard⟩ := hstep
     cases hstep with
     | @place w hw =>
       cases w with
       | input i =>
-        obtain ⟨r', hr'⟩ := ih (Function.update r (.input i) (x i))
+        obtain ⟨r', hr'⟩ := ih _
         exact ⟨r', .stepL ⟨.load i, hcard⟩ hr'⟩
       | gate j =>
         obtain ⟨r', hr'⟩ := ih _
         exact ⟨r', .stepL ⟨.compute j fun k => hw _ (Program.dag_adj_gate.2 ⟨k, rfl⟩), hcard⟩ hr'⟩
-    | @remove w =>
+    | remove =>
       obtain ⟨r', hr'⟩ := ih r
-      exact ⟨r', .stepL ⟨.free w, hcard⟩ hr'⟩
+      exact ⟨r', .stepL ⟨.free _, hcard⟩ hr'⟩
 
 /-- `p` evaluates wire `w` with at most `s` registers, from the initial contents `r₀`. -/
 def Program.EvaluatesInRegisters (p : Program σ n g) (I : Interpretation σ U) (x : Fin n → U)
@@ -252,12 +230,10 @@ black-pebbled with `s` pebbles in the computation DAG of `p`, for every interpre
 and initial register contents. -/
 theorem Program.evaluatesInRegisters_iff_blackPebblable {r₀ : Wire n g → U} {s : ℕ}
     {w : Wire n g} : p.EvaluatesInRegisters I x r₀ s w ↔ BlackPebblable p.dag s w := by
-  constructor
-  · rintro ⟨ms, d, hd, hw⟩
-    exact ⟨ms, d.1, Program.blackPebbleGame_mTr_of_registerLTS hd, hw⟩
-  · rintro ⟨ms, D, hD, hw⟩
-    obtain ⟨r', hr'⟩ := Program.exists_registerLTS_mTr (I := I) (x := x) hD r₀
-    exact ⟨ms, (D, r'), hr', hw⟩
+  refine ⟨fun ⟨ms, d, hd, hw⟩ => ⟨ms, d.1, Program.blackPebbleGame_mTr_of_registerLTS hd, hw⟩, ?_⟩
+  rintro ⟨ms, D, hD, hw⟩
+  obtain ⟨r', hr'⟩ := Program.exists_registerLTS_mTr (I := I) (x := x) hD r₀
+  exact ⟨ms, (D, r'), hr', hw⟩
 
 /-- The least number of registers that evaluates `w` is the black pebbling price of `w` in the
 computation DAG. -/

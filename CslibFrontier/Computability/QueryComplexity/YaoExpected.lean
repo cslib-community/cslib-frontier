@@ -105,9 +105,8 @@ private theorem costProfile_nonempty (f : (ι → Bool) → β) :
     Nonempty (CostProfile f) := by
   classical
   obtain ⟨t, ht, hd⟩ := DecisionTree.exists_computes f
-  let p : (ι → Bool) → Fin (Fintype.card ι + 1) := fun x =>
-    ⟨t.cost x, Nat.lt_succ_of_le ((t.cost_le_depth x).trans hd)⟩
-  exact ⟨⟨p, t, ht, fun _ => rfl⟩⟩
+  exact ⟨⟨fun x => ⟨t.cost x, Nat.lt_succ_of_le ((t.cost_le_depth x).trans hd)⟩,
+    t, ht, fun _ => rfl⟩⟩
 
 private noncomputable def profileTree (f : (ι → Bool) → β) (p : CostProfile f) :
     DecisionTree ι β :=
@@ -126,17 +125,10 @@ private theorem exists_costProfile_le (f : (ι → Bool) → β) (t : DecisionTr
     (ht : t.Computes f) : ∃ p : CostProfile f, ∀ x, (p.val x).val ≤ t.cost x := by
   classical
   let s := t.prune BitString.PartialAssignment.empty
-  have hs : s.Computes f := by
-    intro x
-    change (t.prune BitString.PartialAssignment.empty).eval x = f x
-    rw [DecisionTree.eval_prune_empty]
-    exact ht x
-  have hd : s.depth ≤ Fintype.card ι := t.depth_prune_empty_le_card
-  let p : (ι → Bool) → Fin (Fintype.card ι + 1) := fun x =>
-    ⟨s.cost x, Nat.lt_succ_of_le ((s.cost_le_depth x).trans hd)⟩
-  refine ⟨⟨p, s, hs, fun _ => rfl⟩, ?_⟩
-  intro x
-  exact t.cost_prune_empty_le x
+  exact ⟨⟨fun x => ⟨s.cost x,
+      Nat.lt_succ_of_le ((s.cost_le_depth x).trans t.depth_prune_empty_le_card)⟩,
+    s, fun x => (DecisionTree.eval_prune_empty t x).trans (ht x), fun _ => rfl⟩,
+    t.cost_prune_empty_le⟩
 
 end Profiles
 
@@ -145,16 +137,13 @@ private theorem exists_min_distributionalCost [Finite ι] (ν : StdSimplex ℝ (
       ∀ s : DecisionTree ι β, s.Computes f → t.distributionalCost ν ≤ s.distributionalCost ν := by
   classical
   let := Fintype.ofFinite ι
-  have : Nonempty (CostProfile f) := costProfile_nonempty f
+  have := costProfile_nonempty f
   obtain ⟨p, _, hp⟩ := Finset.exists_min_image Finset.univ
     (fun p : CostProfile f => (profileTree f p).distributionalCost ν) Finset.univ_nonempty
-  refine ⟨profileTree f p, profileTree_computes f p, ?_⟩
-  intro t ht
-  obtain ⟨q, hq⟩ := exists_costProfile_le f t ht
-  refine (hp q (Finset.mem_univ q)).trans (DecisionTree.distributionalCost_mono ?_ ν)
-  intro x
-  rw [profileTree_cost]
-  exact hq x
+  exact ⟨profileTree f p, profileTree_computes f p, fun t ht =>
+    let ⟨q, hq⟩ := exists_costProfile_le f t ht
+    (hp q (Finset.mem_univ q)).trans (DecisionTree.distributionalCost_mono
+      (fun x => (profileTree_cost f q x).trans_le (hq x)) ν)⟩
 
 /-- Finite-game saddle witnesses obtained from the bounded cost profiles. -/
 private theorem exists_expectedCost_saddle_finite [Finite ι] (f : (ι → Bool) → β) :
@@ -163,38 +152,22 @@ private theorem exists_expectedCost_saddle_finite [Finite ι] (f : (ι → Bool)
         ∀ t : DecisionTree ι β, t.Computes f → v ≤ t.distributionalCost ν := by
   classical
   let := Fintype.ofFinite ι
-  have : Nonempty (CostProfile f) := costProfile_nonempty f
-  let M : CostProfile f → (ι → Bool) → ℝ := fun p x => ((p.val x).val : ℝ)
-  obtain ⟨v, ⟨p, hp⟩, q, hq⟩ := Probability.exists_isMinimaxValue M
-  let μ : RandomizedDecisionTree ι β := StdSimplex.map (profileTree f) p
-  refine ⟨v, μ, q, ?_, ?_, ?_⟩
-  · apply RandomizedDecisionTree.computes_zero_iff.mpr
-    intro t ht
-    have hs : t ∈ (p.weights.mapDomain (profileTree f)).support := by
-      simpa only [μ, StdSimplex.weights_map] using ht
-    obtain ⟨a, _, hat⟩ := Finset.mem_image.mp (Finsupp.mapDomain_support hs)
-    subst t
+  have := costProfile_nonempty f
+  obtain ⟨v, ⟨p, hp⟩, q, hq⟩ := Probability.exists_isMinimaxValue
+    fun (p : CostProfile f) (x : ι → Bool) => ((p.val x).val : ℝ)
+  refine ⟨v, StdSimplex.map (profileTree f) p, q, ?_, ?_, ?_⟩
+  · refine RandomizedDecisionTree.computes_zero_iff.mpr fun t ht => ?_
+    obtain ⟨a, _, rfl⟩ := Finset.mem_image.mp
+      (Finsupp.mapDomain_support (by simpa only [StdSimplex.weights_map] using ht))
     exact profileTree_computes f a
   · intro x
-    change RandomizedDecisionTree.expectedCost (p.map (profileTree f)) x ≤ v
-    rw [RandomizedDecisionTree.expectedCost_map,
-      Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-    calc
-      ∑ a, p.weights a * ((profileTree f a).cost x : ℝ) =
-          ∑ a, p.weights a * M a x := by
-        apply Finset.sum_congr rfl
-        intro a _
-        rw [profileTree_cost]
-      _ ≤ v := hp x
+    rw [RandomizedDecisionTree.expectedCost_map, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
+    simpa only [profileTree_cost] using hp x
   · intro t ht
     obtain ⟨a, ha⟩ := exists_costProfile_le f t ht
     rw [DecisionTree.distributionalCost_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-    calc
-      v ≤ ∑ x, q.weights x * M a x := hq a
-      _ ≤ ∑ x, q.weights x * (t.cost x : ℝ) := by
-        apply Finset.sum_le_sum
-        intro x _
-        exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (ha x)) (q.weights_nonneg x)
+    exact (hq a).trans <| Finset.sum_le_sum fun x _ =>
+      mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (ha x)) (q.weights_nonneg x)
 
 /-- Each input distribution has a correct deterministic tree attaining its optimum. -/
 theorem exists_computes_distributionalCost_eq [Finite ι]
@@ -214,14 +187,11 @@ theorem exists_optimal_expectedCost [Finite ι] (f : (ι → Bool) → β) :
         ∀ t : DecisionTree ι β, t.Computes f →
           zeroErrorComplexity f ≤ t.distributionalCost ν := by
   obtain ⟨v, μ, ν, hμ, hupper, hlower⟩ := exists_expectedCost_saddle_finite f
-  have hv : zeroErrorComplexity f = v := by
-    refine le_antisymm (zeroErrorComplexity_le hμ hupper) ?_
-    apply le_zeroErrorComplexity
-    intro η c hη hc
-    obtain ⟨t, ht, hcost⟩ := hη.exists_distributionalCost_le ν hc
-    exact (hlower t ht).trans hcost
-  exact ⟨μ, ν, hμ, fun x => (hupper x).trans_eq hv.symm,
-    fun t ht => hv.trans_le (hlower t ht)⟩
+  have hv : zeroErrorComplexity f = v := le_antisymm (zeroErrorComplexity_le hμ hupper) <|
+    le_zeroErrorComplexity fun η c hη hc =>
+      let ⟨t, ht, hcost⟩ := hη.exists_distributionalCost_le ν hc
+      (hlower t ht).trans hcost
+  exact ⟨μ, ν, hμ, fun x => (hupper x).trans_eq hv.symm, fun t ht => hv.trans_le (hlower t ht)⟩
 
 /-- The averaging direction of expected-cost Yao: any input distribution lower-bounds the
 worst-input expected cost of the optimal zero-error randomized algorithm. -/
@@ -246,12 +216,10 @@ theorem zeroErrorComplexity_eq_iSup_distributionalExpectedComplexity [Finite ι]
     (f : (ι → Bool) → β) :
     zeroErrorComplexity f = ⨆ ν : StdSimplex ℝ (ι → Bool),
       distributionalExpectedComplexity ν f := by
-  have hbdd : BddAbove (Set.range fun ν : StdSimplex ℝ (ι → Bool) =>
-      distributionalExpectedComplexity ν f) :=
-    ⟨zeroErrorComplexity f, Set.forall_mem_range.mpr fun ν =>
-      distributionalExpectedComplexity_le_zeroErrorComplexity ν f⟩
   obtain ⟨ν, hν⟩ := exists_distributionalExpectedComplexity_eq_zeroErrorComplexity f
-  exact le_antisymm (hν.symm.trans_le (le_ciSup hbdd ν))
+  exact le_antisymm (hν.symm.trans_le (le_ciSup
+    ⟨zeroErrorComplexity f, Set.forall_mem_range.mpr fun ν =>
+      distributionalExpectedComplexity_le_zeroErrorComplexity ν f⟩ ν))
     (ciSup_le fun ν => distributionalExpectedComplexity_le_zeroErrorComplexity ν f)
 
 end QueryComplexity

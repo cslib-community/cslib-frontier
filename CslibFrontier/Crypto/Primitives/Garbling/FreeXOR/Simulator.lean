@@ -189,16 +189,19 @@ private noncomputable def rowCoinIndex (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) : ℕ :=
   f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free r.gate + PointPermute.rowIndex r.2
 
+/-- The non-XOR rank strictly increases past the gate of a garbled row. -/
+private theorem nonXorRank_gate_lt (f : ValidCircuit)
+    (r : GarbledRow (toCircuit f).topology (freeCircuit f)) {j : ℕ} (hj : (r.gate : ℕ) < j) :
+    nonXorRank (phiXor.phi f).free r.gate < nonXorRank (phiXor.phi f).free j := by
+  have hq : (r.gate : ℕ) < f.1.q := r.gate.isLt.trans_eq (size_toCircuit f)
+  have hfree : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hq]) = false := by
+    simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hq⟩ = false from r.1.2)
+  exact nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq]) hfree hj
+
 private theorem rowCoinIndex_lt (f : ValidCircuit)
     (r : GarbledRow (toCircuit f).topology (freeCircuit f)) :
     rowCoinIndex f r < f.1.n + f.1.q + 4 * nonXorRank (phiXor.phi f).free f.1.q := by
-  have hlt_q : (r.gate : ℕ) < f.1.q := by
-    have hlt := r.gate.isLt
-    have hsz := size_toCircuit f
-    omega
-  have hfree : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hlt_q]) = false := by
-    simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hlt_q⟩ = false from r.1.2)
-  have hrank := nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hlt_q]) hfree hlt_q
+  have hrank := nonXorRank_gate_lt f r (r.gate.isLt.trans_eq (size_toCircuit f))
   have hrow := PointPermute.rowIndex_lt_four (arity_topology_toCircuit f r.gate) r.2
   simp only [rowCoinIndex]
   omega
@@ -230,19 +233,10 @@ private theorem simIndex_bijective (f : ValidCircuit) : Function.Bijective (simI
           nonXorRank (phiXor.phi f).free r'.gate := by omega
       have hrow : PointPermute.rowIndex r.2 = PointPermute.rowIndex r'.2 := by omega
       have hgg : r.gate = r'.gate := by
-        have hsz := size_toCircuit f
-        have hq : (r.gate : ℕ) < f.1.q := by have := r.gate.isLt; omega
-        have hq' : (r'.gate : ℕ) < f.1.q := by have := r'.gate.isLt; omega
-        have hf : (phiXor.phi f).free[(r.gate : ℕ)]'(by simp [phiXor, hq]) = false := by
-          simpa [phiXor] using (show isXorGate f.1 ⟨r.gate, hq⟩ = false from r.1.2)
-        have hf' : (phiXor.phi f).free[(r'.gate : ℕ)]'(by simp [phiXor, hq']) = false := by
-          simpa [phiXor] using (show isXorGate f.1 ⟨r'.gate, hq'⟩ = false from r'.1.2)
         rcases lt_trichotomy (r.gate : ℕ) r'.gate with hlt | heq | hgt
-        · exact absurd (nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq]) hf hlt)
-            (by omega)
+        · exact absurd (nonXorRank_gate_lt f r hlt) (by omega)
         · exact Fin.ext heq
-        · exact absurd (nonXorRank_lt (phiXor.phi f).free (by simp [phiXor, hq']) hf' hgt)
-            (by omega)
+        · exact absurd (nonXorRank_gate_lt f r' hgt) (by omega)
       obtain ⟨⟨g, hg⟩, c⟩ := r
       obtain ⟨⟨g', hg'⟩, c'⟩ := r'
       change g = g' at hgg

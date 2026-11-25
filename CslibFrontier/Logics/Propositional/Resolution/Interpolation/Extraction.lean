@@ -261,10 +261,7 @@ theorem length_lineGatesOf {Op : Type*} {s : ℕ} (constOp : Bool → Op)
     (lines : List (Clause (ℕ ⊕ (Y ⊕ Z)))) (c : Clause (ℕ ⊕ (Y ⊕ Z))) :
     (lineGatesOf s constOp step n A B lines c).length = s := by
   unfold lineGatesOf
-  split_ifs
-  · simp
-  · simp
-  · cases findStep lines c <;> simp [hstep]
+  split_ifs <;> cases findStep lines c <;> simp [hstep]
 
 /-- Reading one more line appends its gates. -/
 theorem gatesOf_append_singleton {Op : Type*} (s : ℕ) (constOp : Bool → Op)
@@ -530,14 +527,11 @@ theorem ofCode_gatesOf {I : Interpretation σ Bool} {s n : ℕ} {constOp : Bool 
         (Or.inr ⟨c₁, List.mem_reverse.2 h₁, c₂, List.mem_reverse.2 h₂, v, hv₁, hv₂, rfl⟩)
   set k := (ls.reverse.map List.isEmpty).idxOf true with hk_def
   have hk : k < ls.reverse.length := by
-    have := List.idxOf_lt_length_of_mem (a := true) (l := ls.reverse.map List.isEmpty)
-      (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
-    rwa [List.length_map] at this
-  have hempty : ls.reverse[k] = [] := by
-    have h' := List.getElem_idxOf (x := true) (xs := ls.reverse.map List.isEmpty)
-      (by rw [List.length_map]; exact hk)
-    rw [List.getElem_map] at h'
-    exact List.isEmpty_iff.1 h'
+    simpa only [List.length_map] using List.idxOf_lt_length_of_mem (a := true)
+      (l := ls.reverse.map List.isEmpty) (List.mem_map.2 ⟨[], List.mem_reverse.2 hnil, rfl⟩)
+  have hempty : ls.reverse[k] = [] := List.isEmpty_iff.1 <| by
+    rw [← List.getElem_map List.isEmpty]
+    exact List.getElem_idxOf (by rw [List.length_map]; exact hk)
   have hcode := isCodeFrom_gatesOf (A := A) (B := B) hs hconst hstep_len hstep_code hvars'
   have hlen := length_gatesOf constOp hstep_len n A B ls.reverse
   set code := (gatesOf s constOp step n A B ls.reverse, [outputWireOf s n ls.reverse])

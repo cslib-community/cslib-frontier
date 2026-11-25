@@ -654,19 +654,13 @@ private theorem fits_insertRest {rest : List (Branch α β)} {h : ℕ}
         simp only [hr', Option.some.injEq] at hr
         subst hr
         obtain ⟨h₁, h₂, h₃⟩ := ih r' hr'
-        refine ⟨fun e he => ?_, by simpa using h₂, by simpa using h₃⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hcc.1, h₁ e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
       | none =>
         simp only [hr', Option.some.injEq] at hr
         subst hr
         obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
           InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
-        refine ⟨fun e he => ?_, by simpa using hl₁, by simpa using hl₂⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hp₁, hp₂ e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
     · simp [hk] at hr
 
 /-- Shape invariant of the bottom-up insertion. -/
@@ -740,15 +734,10 @@ theorem separated_node_of_linked {first : BPlusTree α β} {rest : List (Branch 
       (fun e he => hr e (List.mem_cons_of_mem _ he))
       (fun e he => hne e (List.mem_cons_of_mem _ he))
     obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _ (hne (s, c) List.mem_cons_self)
-    refine .node hf hr (fun e he p hp => ?_)
+    exact .node hf hr (List.forall_mem_cons.2 ⟨h₂, fun e he p hp => hc.le_of_mem he hp⟩)
       (List.pairwise_cons.2 ⟨fun b hb p hp => hc.lt_of_mem_first hb hp, hc.pairwise⟩)
-      fun e he p hp => ?_
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact h₂ p hp
-      · exact hc.le_of_mem he hp
-    · rcases List.mem_cons.1 he with rfl | he
-      · exact h₁ p hp
-      · exact lt_of_lt_of_le (h₁ p hp) ((h₂ q hq).trans (hc.lt_of_mem_first he hq).le)
+      (List.forall_mem_cons.2 ⟨h₁, fun e he p hp =>
+        lt_of_lt_of_le (h₁ p hp) ((h₂ q hq).trans (hc.lt_of_mem_first he hq).le)⟩)
 
 /-- The separator convention of a result: a separated tree, or two separated trees with the keys
 of the left one below the separator and those of the right one at least it. -/
@@ -890,20 +879,14 @@ private theorem linked_insertRest {prev : BPlusTree α β} {rest : List (Branch 
         simp only [hrs, Option.some.injEq] at hr'
         subst hr'
         obtain ⟨hl', hs'⟩ := ihs r' hrs
-        refine ⟨⟨h₁, h₂, hl'⟩, fun e he => ?_⟩
-        rcases List.mem_cons.1 he with rfl | he
-        exacts [hsc, hs' e he]
+        exact ⟨⟨h₁, h₂, hl'⟩, List.forall_mem_cons.2 ⟨hsc, hs'⟩⟩
       | none =>
         simp only [hrs, Option.some.injEq] at hr'
         subst hr'
         obtain ⟨hsx, hkx⟩ := hc (s, c) List.mem_cons_self
         obtain ⟨hlw, hsw₁, hsw₂⟩ := linked_withRest hsx hkx h₃ hrr (ihn hrs)
-        refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, fun e he => ?_⟩
-        · rcases hkx p (mem_toList_of_mem_withRest_fst hp) with hpk | hp
-          · exact hpk ▸ hk
-          · exact h₂ p hp
-        · rcases List.mem_cons.1 he with rfl | he
-          exacts [hsw₁, hsw₂ e he]
+        refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, List.forall_mem_cons.2 ⟨hsw₁, hsw₂⟩⟩
+        exact (hkx p (mem_toList_of_mem_withRest_fst hp)).elim (fun hpk => hpk ▸ hk) (h₂ p)
     · simp only [hk, ↓reduceIte]
       exact ⟨fun _ s' c' rest' h => by cases h; exact lt_of_not_ge hk, fun r hr => by simp at hr⟩
 

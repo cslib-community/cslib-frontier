@@ -11,6 +11,7 @@ import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChal
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 import Mathlib.Data.Set.Finite.List
 
 /-!
@@ -358,3 +359,16 @@ example :
         (ProbOracleComp.runWith (cascadeChildFiniteOracle table) router 0).map Prod.fst :=
   evalWith_cascadeChildChallengeAtProgram_eq_eager toggle
     (fun key block hk _ => by unfold toggle; split <;> simpa using hk) (1 : Fin 3) _ _ _
+
+-- The wrapper samples eight indices for four channels of an adaptive client.
+example :
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    let source := PMF.pure (fun _ : BitString 1 => BitString.ofList 2 [true, false])
+    (source.bind fun challenge =>
+      OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle
+        (fun req : Unit × List Bool => PMF.pure (randomFunctionOracle 1 challenge req.2)))
+        (cascadeChildChallengeProgram toggle 1 2 4 3 router)) =
+      cascadeChildChallengeGame 4 8 (cascadeKeyedChildFunctionLaw toggle 1 2)
+        (PMF.uniformOfFintype (BitString 1 → BitString 2)) source router :=
+  bind_evalWith_cascadeChildChallengeProgram_eq_game toggle
+    (fun key block hk _ => by unfold toggle; split <;> simpa using hk) 4 3 _ _

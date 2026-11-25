@@ -12,8 +12,6 @@ public import CslibFrontier.Foundations.Data.BitString.Basic
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Foundations.Data.BitString.OddPairs
 import CslibFrontier.Tactic.CommuteLeft
-import CslibFrontier.Tactic.LinarithCast
-import Mathlib.Algebra.Order.Chebyshev
 
 /-!
 # Braiding relations from anticommutation, consistency and linearity
@@ -116,14 +114,13 @@ theorem norm_mul_sub_smul_mul_sq_le_of_consistent (φ : AlgState A) {X Z X' Z' :
     φ.norm (Z * X - s • (X * Z)) ^ 2 ≤
       9 * (φ.norm (X - X') ^ 2 + φ.norm (Z - Z') ^ 2 + φ.norm (X' * Z' - s • (Z' * X')) ^ 2) := by
   have h := norm_mul_sub_smul_mul_le_of_consistent φ hX hZ hX' hZ' hXZ' hZX' hs
-  have h0 := φ.norm_nonneg (Z * X - s • (X * Z))
-  have hCS := Finset.sum_mul_sq_le_sq_mul_sq Finset.univ ![(2 : ℝ), 2, 1]
-    ![φ.norm (X - X'), φ.norm (Z - Z'), φ.norm (X' * Z' - s • (Z' * X'))]
-  simp only [Fin.sum_univ_three, Matrix.cons_val] at hCS
-  calc φ.norm (Z * X - s • (X * Z)) ^ 2 ≤
-        (2 * φ.norm (X - X') + 2 * φ.norm (Z - Z') + φ.norm (X' * Z' - s • (Z' * X'))) ^ 2 :=
-        pow_le_pow_left₀ h0 h 2
-    _ ≤ _ := by linarith
+  set a := φ.norm (X - X')
+  set b := φ.norm (Z - Z')
+  set c := φ.norm (X' * Z' - s • (Z' * X'))
+  calc φ.norm (Z * X - s • (X * Z)) ^ 2
+      ≤ (2 * a + 2 * b + c) ^ 2 := pow_le_pow_left₀ (φ.norm_nonneg _) h 2
+    _ ≤ 9 * (a ^ 2 + b ^ 2 + c ^ 2) := by
+        linarith [sq_nonneg (2 * a - 2 * b), sq_nonneg (a - 2 * c), sq_nonneg (b - 2 * c)]
 
 /-- **Averaged transfer of a commutation relation through consistency**: over any finite family,
 `E_i ‖Z_i X_i - s_i X_i Z_i‖²_φ ≤ 9 (E_i ‖X_i - X'_i‖²_φ + E_i ‖Z_i - Z'_i‖²_φ +
@@ -232,9 +229,8 @@ private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
   rw [hab', BitString.signVal_false, Complex.ofReal_one, one_smul]
   by_cases ha : a = 0
   · subst ha
-    rw [hX0, mul_one, one_mul, sub_self, AlgState.norm_zero]
-    have := hm b
-    nlinarith
+    rw [hX0, mul_one, one_mul, sub_self, AlgState.norm_zero, zero_pow two_ne_zero]
+    linarith [hm b]
   set R : (ι → Bool) → ℝ := fun c =>
     2 * ℓ c ^ 2 + 2 * κZ (c + b) ^ 2 + 2 * κX ^ 2 + m c + m (c + b)
   have hR : ∀ c, 0 ≤ R c := fun c => by
@@ -244,19 +240,15 @@ private theorem norm_braid_sq_le [Fintype ι] [DecidableEq ι] (φ : AlgState A)
     have hacb : a ⬝ᵥ (c + b) = true := by rw [dotProduct_add, hac, hab']; rfl
     have h := norm_mul_sub_mul_le_of_anticommute φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' a b c
     simp only [R, m, hac, hacb, ite_true]
-    have h0 := φ.norm_nonneg (Z b * X a - X a * Z b)
     set x := φ.norm (Z c * Z (c + b) - Z b)
     set y := φ.norm (Z (c + b) - Z' (c + b))
     set z := φ.norm (X a * Z c + Z c * X a)
     set w := φ.norm (X a * Z (c + b) + Z (c + b) * X a)
     calc φ.norm (Z b * X a - X a * Z b) ^ 2 ≤ (2 * x + 2 * y + z + w + 2 * κX) ^ 2 :=
-          pow_le_pow_left₀ h0 h 2
+          pow_le_pow_left₀ (φ.norm_nonneg _) h 2
       _ ≤ 8 * (2 * x ^ 2 + 2 * y ^ 2 + 2 * κX ^ 2 + z ^ 2 + w ^ 2) := by
-          have hCS := sq_sum_le_card_mul_sum_sq (s := Finset.univ)
-            (f := ![x, x, y, y, κX, κX, z, w])
-          simp only [Finset.card_univ, Fintype.card_fin, Fin.sum_univ_eight, Matrix.cons_val]
-            at hCS
-          cast_linarith
+          linarith [sq_nonneg (2 * x + 2 * y - 2 * κX - z - w), sq_nonneg (2 * x - 2 * y),
+            sq_nonneg (2 * κX - z - w), sq_nonneg (z - w)]
   -- half of the `c` have `a · c = 1`: twice the masked average of the bound
   have hβ := BitString.le_two_mul_expect_ite_of_forall ha hpt
   have hmask : 𝔼 c, (if a ⬝ᵥ c = true then 8 * R c else 0) ≤ 𝔼 c, 8 * R c :=
@@ -317,7 +309,7 @@ theorem expect_norm_pauliFamily_sub_sq_le_of_anticommute [Fintype ι] [Decidable
   have h₁ := expect_norm_pauliFamily_sub_sq_le φ X Z Z' hX hZ hZ' hXZ' hZZ'
   have h₂ := expect_norm_braid_sq_le φ X Z X' Z' hX hZ hX' hZ' hXZ' hZZ' hZX' hX0
   refine h₁.trans ?_
-  nlinarith [h₂]
+  linarith [h₂]
 
 end Commutation
 

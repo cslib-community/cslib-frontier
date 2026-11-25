@@ -1450,6 +1450,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpre
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Machine
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Postpone
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Step
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Laws.Existence
+public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Pieces.Program
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Poincare.Lengths
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Poincare.Poincare
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Poincare.Windows
@@ -1623,6 +1625,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.FormalComplexityMeasur
 public import CslibFrontier.Computability.Circuit.Boolean.FormalComplexityMeasure.Certificate
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
+public import CslibFrontier.Computability.Circuit.Boolean.Formula.ConstantFree
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Poly
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Restriction
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Subbotovskaya
@@ -1726,6 +1729,11 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Padding.PolyTi
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
 public import CslibFrontier.Computability.Circuit.Boolean.Lookup
+public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaAsymptotics
+public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaBounds
+public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaConstruction
+public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaSelectors
+public import CslibFrontier.Computability.Circuit.Boolean.Lupanov.FormulaSynthesis
 public import CslibFrontier.Computability.Circuit.Boolean.MachineSimulation
 public import CslibFrontier.Computability.Circuit.Boolean.Majority
 public import CslibFrontier.Computability.Circuit.Boolean.MajorityNonlinear
@@ -6071,6 +6079,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
 public import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+public import CslibFrontier.Crypto.Computational.Encryption.Authenticated.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
@@ -6497,6 +6506,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Ch
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTables
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.FiniteChildTable
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.Hybrid
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.SampledReductionLaw
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
@@ -8196,6 +8206,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.WeisfeilerLema
 public import CslibFrontier.Foundations.Combinatorics.SmallSubsets
 public import CslibFrontier.Foundations.Combinatorics.Sperner
 public import CslibFrontier.Foundations.Combinatorics.Sperner.Kuhn
+public import CslibFrontier.Foundations.Combinatorics.StagedTree
 public import CslibFrontier.Foundations.Combinatorics.SubsetPairCount
 public import CslibFrontier.Foundations.Combinatorics.Subsets.Geometric
 public import CslibFrontier.Foundations.Combinatorics.Sunflower
@@ -8296,6 +8307,7 @@ public import CslibFrontier.Foundations.Data.BitString.MajorityVote
 public import CslibFrontier.Foundations.Data.BitString.MultiplicativeEnumeration
 public import CslibFrontier.Foundations.Data.BitString.Neg
 public import CslibFrontier.Foundations.Data.BitString.OddPairs
+public import CslibFrontier.Foundations.Data.BitString.OpenSpherePartition
 public import CslibFrontier.Foundations.Data.BitString.Pad10Star
 public import CslibFrontier.Foundations.Data.BitString.PadBlocks
 public import CslibFrontier.Foundations.Data.BitString.Parity

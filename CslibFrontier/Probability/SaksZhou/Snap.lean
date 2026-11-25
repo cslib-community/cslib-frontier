@@ -126,10 +126,9 @@ theorem exists_snap_eq (d : ℕ) (x : ℝ) (y : Fin (2 ^ d)) :
       exact_mod_cast Int.toNat_of_nonneg h
     have h' : (0 : ℝ) ≤ ⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ := by exact_mod_cast h
     rw [max_eq_left (div_nonneg h' (by positivity)), e]
-  · rw [Int.toNat_eq_zero.2 h, max_eq_right]
-    · simp
-    · have h' : (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ : ℝ) ≤ 0 := by exact_mod_cast h
-      exact div_nonpos_of_nonpos_of_nonneg h' (by positivity)
+  · have h' : (⌊x * 2 ^ d - (y : ℝ) / 2 ^ d⌋ : ℝ) ≤ 0 := by exact_mod_cast h
+    rw [Int.toNat_eq_zero.2 h, max_eq_right (div_nonpos_of_nonpos_of_nonneg h' (by positivity))]
+    simp
 
 /-- Hermite's identity over a reversed complete residue system:
 `∑_{t < q} ⌊c - t / q⌋ = ⌊q c⌋ - (q - 1)`. -/
@@ -161,8 +160,7 @@ private theorem sum_floor_sub_div (c : ℝ) {q : ℕ} (hq : 0 < q) :
 theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
     (#{y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : ℝ) ≤ 4 ^ d * ε + 1 := by
   wlog hle : a ≤ b generalizing a b
-  · have h := this (a := b) (b := a) (by rwa [abs_sub_comm]) (le_of_not_ge hle)
-    simpa only [ne_comm] using h
+  · simpa only [ne_comm] using this (a := b) (b := a) (by rwa [abs_sub_comm]) (le_of_not_ge hle)
   set f : Fin (2 ^ d) → ℤ := fun t => ⌊a * 2 ^ d - (t : ℝ) / 2 ^ d⌋ with hf
   set g : Fin (2 ^ d) → ℤ := fun t => ⌊b * 2 ^ d - (t : ℝ) / 2 ^ d⌋ with hg
   have hfg : ∀ t, f t ≤ g t := fun t => Int.floor_mono (by gcongr)
@@ -179,11 +177,7 @@ theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
     rw [Finset.card_filter, Nat.cast_sum]
     refine Finset.sum_le_sum fun t _ => ?_
     have := hfg t
-    split_ifs with h
-    · push_cast
-      omega
-    · push_cast
-      omega
+    split_ifs <;> push_cast <;> omega
   have hsum : ∑ t, (g t - f t) =
       ⌊(2 ^ d : ℕ) * (b * 2 ^ d)⌋ - ⌊(2 ^ d : ℕ) * (a * 2 ^ d)⌋ := by
     rw [Finset.sum_sub_distrib]
@@ -196,12 +190,8 @@ theorem card_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
       4 ^ d * ε + 1 := by
     have e1 := Int.floor_le ((2 ^ d : ℕ) * (b * 2 ^ d) : ℝ)
     have e2 := Int.lt_floor_add_one ((2 ^ d : ℕ) * (a * 2 ^ d) : ℝ)
-    have hba : b - a ≤ ε := by
-      rw [abs_sub_comm, abs_of_nonneg (by linarith)] at hab
-      exact hab
-    have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by
-      rw [← mul_pow]
-      norm_num
+    have hba : b - a ≤ ε := by rwa [abs_sub_comm, abs_of_nonneg (by linarith)] at hab
+    have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by rw [← mul_pow]; norm_num
     push_cast at e1 e2 ⊢
     nlinarith [pow_pos (show (0 : ℝ) < 4 by norm_num) d]
   calc (#{y : Fin (2 ^ d) | snap d a y ≠ snap d b y} : ℝ)
@@ -225,10 +215,7 @@ theorem dens_snap_ne_le (d : ℕ) {a b ε : ℝ} (hab : |a - b| ≤ ε) :
   have hq : (0 : ℝ) < 2 ^ d := by positivity
   rw [cast_dens_shift, div_le_iff₀ hq]
   refine (card_snap_ne_le d hab).trans_eq ?_
-  have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by
-    rw [← mul_pow]
-    norm_num
-  rw [h4]
+  rw [show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
   field_simp
 
 /-- Entrywise snapping of a matrix. -/
@@ -252,9 +239,8 @@ theorem card_snapMatrix_ne_le {ι κ : Type*} [Fintype ι] [Fintype κ] (d : ℕ
         {y : Fin (2 ^ d) | snap d (A p.1 p.2) y ≠ snap d (B p.1 p.2) y} := by
     intro y hy
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hy
-    obtain ⟨i, j, hij⟩ : ∃ i j, snapMatrix d A y i j ≠ snapMatrix d B y i j := by
-      by_contra h
-      exact hy (Matrix.ext fun i j => not_not.1 fun hij => h ⟨i, j, hij⟩)
+    obtain ⟨i, hi⟩ := Function.ne_iff.mp hy
+    obtain ⟨j, hij⟩ := Function.ne_iff.mp hi
     simp only [Finset.mem_biUnion, Finset.mem_univ, Finset.mem_filter, true_and]
     exact ⟨(i, j), hij⟩
   calc (#{y : Fin (2 ^ d) | snapMatrix d A y ≠ snapMatrix d B y} : ℝ)
@@ -277,10 +263,7 @@ theorem dens_snapMatrix_ne_le {ι κ : Type*} [Fintype ι] [Fintype κ] (d : ℕ
   have hq : (0 : ℝ) < 2 ^ d := by positivity
   rw [cast_dens_shift, div_le_iff₀ hq]
   refine (card_snapMatrix_ne_le d hAB).trans_eq ?_
-  have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by
-    rw [← mul_pow]
-    norm_num
-  rw [h4]
+  rw [show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
   field_simp
 
 /-- A square matrix is dyadic substochastic at precision `d` if its entries are nonnegative
