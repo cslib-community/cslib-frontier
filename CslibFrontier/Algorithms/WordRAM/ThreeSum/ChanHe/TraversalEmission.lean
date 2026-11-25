@@ -132,8 +132,7 @@ theorem emission_readback {n : ℕ} (published : Bool) (x : Data 128) (e : Entry
       change NodePacking.Output (recordLayout x M) e.read
         (Function.update u.mem (b.regs outputs + b.regs outputCount) (recordLayout x M).packed)
         (deliveryState b).mem
-      have h := delivery_output b e.read u.mem houtb (htableb rfl)
-      simpa only [hL] using h
+      simpa only [hL] using delivery_output b e.read u.mem houtb (htableb rfl)
   have hMexact : M = (e.task.node (Nat.primesLE (x.regs limit)) (x.regs digits)).M := by
     simpa only [hl.2.2, e.image_read, Math.Task.node, Entry.task] using hM
   have hnodeExact : NodePacking.node (recordLayout x M) e.read =
