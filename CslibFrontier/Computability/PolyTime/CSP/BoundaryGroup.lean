@@ -122,11 +122,8 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
             2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) ∧
             ∀ v ∈ (fuseHead J).rotation.successor,
               v < 2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length)
-          have hrot : (fuseHead J).rotation = equalDropCertificate J.body ps.length J.rotation := by
-            simp only [fuseHead, he]
-          simp only [hrot, equalDropCertificate, length_restrictPrefix]
-          refine ⟨hsize, ?_⟩
-          intro v hv
+          simp only [fuseHead, he, equalDropCertificate, length_restrictPrefix]
+          refine ⟨hsize, fun v hv => ?_⟩
           have he' := entries_restrictPrefix_lt
             (2*(J.body.occurrences.length+(ps.length+1)))
             (J.rotation.swapSuccessors (2*(J.body.occurrences.length+ps.length+1))
@@ -146,21 +143,19 @@ private theorem scale_poly (encRel : Rel ↪ List Bool) :
   have hp := encState_ports_polyTime encRel hi
   have hv := (computableInPolyTime_vars encRel encNat).comp hb
   have hn := ComputableInPolyTime.listAppend' hv hp
-  have hq := (ComputableInPolyTime.length_list (encConstraint encRel encNat)).comp hb
-  have hm := (computableInPolyTime_length_vars encRel encNat).comp hb
-  have ht := (ComputableInPolyTime.length_list encNat).comp hp
   have hQ : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.body.length) := by
     simpa only [Function.comp_apply,encUnary_apply,List.length_replicate] using
-      hq.polyBounded_length
+      ((ComputableInPolyTime.length_list (encConstraint encRel encNat)).comp hb).polyBounded_length
   have hM : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.body.occurrences.length) := by
     simpa only [Function.comp_apply,encUnary_apply,List.length_replicate,
-      CSP.vars_length_eq_occurrences] using hm.polyBounded_length
+      CSP.vars_length_eq_occurrences] using
+        ((computableInPolyTime_length_vars encRel encNat).comp hb).polyBounded_length
   have hP : PolyBounded (fun p => (encStateMetadata encRel p).length)
       (fun p => p.1.ports.length) := by
     simpa only [Function.comp_apply,encUnary_apply,List.length_replicate] using
-      ht.polyBounded_length
+      ((ComputableInPolyTime.length_list encNat).comp hp).polyBounded_length
   exact ((((PolyBounded.self.add hn.polyBounded_length).add hQ).add hM).add hP).add (.const 1)
 
 private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ)

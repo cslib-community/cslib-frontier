@@ -102,14 +102,9 @@ theorem prefixWidth_add_suffixWidth (hnd : num ≤ den) (n : ℕ) :
 /-- The suffix keeps at least a `X / (X + 1)` fraction of `(1 - γ) n` bits. -/
 theorem mul_le_suffixWidth (hnd : num ≤ den) (n : ℕ) :
     X * (den - num) * n ≤ (X + 1) * den * suffixWidth num den X n := by
-  have hp : (X + 1) * den * prefixWidth num den X n ≤ n * (den + num * X) := by
-    unfold prefixWidth
-    rw [mul_comm]
-    exact Nat.div_mul_le_self _ _
+  have hp : (X + 1) * den * prefixWidth num den X n ≤ n * (den + num * X) := Nat.mul_div_le _ _
   obtain ⟨e, rfl⟩ : ∃ e, den = num + e := ⟨den - num, by omega⟩
-  rw [show num + e - num = e by omega]
-  unfold suffixWidth
-  rw [Nat.mul_sub]
+  rw [Nat.add_sub_cancel_left, suffixWidth, Nat.mul_sub]
   have h1 : (X + 1) * (num + e) * n = n * (num + e + num * X) + X * e * n := by ring
   omega
 
@@ -165,9 +160,7 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
   set F := fieldWidth num den X n with hF
   set D := depth num den n with hD
   -- Floor bounds.
-  have F1 : n * a < m * (p + 1) := by
-    rw [hp, prefixWidth, ← ha, ← hm]
-    exact Nat.lt_mul_div_succ _ hmpos
+  have F1 : n * a < m * (p + 1) := Nat.lt_mul_div_succ _ hmpos
   have F2 : p < ℓ * F + ℓ * h + 3 * L := by
     have := Nat.lt_mul_div_succ (p - 3 * L) (Nat.mul_pos (by omega : 0 < ℓ) hhpos)
     rw [hF, fieldWidth, blocks]
@@ -176,9 +169,7 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
         ℓ * (h * ((p - 3 * L) / (ℓ * h))) + ℓ * h := by ring
     omega
   have F3 : den * D ≤ num * n + den := by
-    rw [hD, depth]
-    have := Nat.div_mul_le_self (num * n) den
-    nlinarith
+    nlinarith [Nat.mul_div_le (num * n) den, show D = num * n / den + 1 from rfl]
   have F4 : ℓ * ((X + 1) * num) + 2 * a + 3 ≤ (4 * a + 1) * a := by
     obtain ⟨e, rfl⟩ : ∃ e, den = num + 1 + e := ⟨den - num - 1, by omega⟩
     rw [ha]
@@ -196,12 +187,8 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
 private theorem lt_mul_prefixWidth_add_one (hden : 0 < den) (n : ℕ) :
     n < (X + 1) * (prefixWidth num den X n + 1) := by
   have F1 : n * (den + num * X) < (X + 1) * den * (prefixWidth num den X n + 1) :=
-    Nat.lt_mul_div_succ _ (Nat.mul_pos (by omega) hden)
-  have : n * den ≤ n * (den + num * X) := Nat.mul_le_mul_left _ (by omega)
-  have e : (X + 1) * den * (prefixWidth num den X n + 1) =
-      den * ((X + 1) * (prefixWidth num den X n + 1)) := by ring
-  have e2 : n * den = den * n := by ring
-  exact Nat.lt_of_mul_lt_mul_left (a := den) (by omega)
+    Nat.lt_mul_div_succ _ (Nat.mul_pos (Nat.succ_pos _) hden)
+  exact Nat.lt_of_mul_lt_mul_left (a := den) (by nlinarith [Nat.zero_le (n * (num * X))])
 
 /-- Eventually the field exponent has at least `c` blocks. -/
 theorem eventually_le_blocks (hden : 0 < den) (c : ℕ) :
@@ -330,9 +317,7 @@ theorem div_le_sub_depth_add_fieldWidth (hnd : num < den) (n : ℕ) :
     · rw [h]; omega
   -- `den * depth n ≤ num * n + den`.
   have hD : den * depth num den n ≤ num * n + den := by
-    unfold depth
-    have := Nat.div_mul_le_self (num * n) den
-    nlinarith
+    nlinarith [Nat.mul_div_le (num * n) den, show depth num den n = num * n / den + 1 from rfl]
   -- `2 den + dimension * num ≤ dimension * den`, since `num < den`.
   have h4 : 2 * den + dimension num den X * num ≤ dimension num den X * den := by
     have hd : 2 * den ≤ dimension num den X := by unfold dimension; nlinarith
@@ -346,17 +331,8 @@ theorem div_le_sub_depth_add_fieldWidth (hnd : num < den) (n : ℕ) :
   generalize dimension num den X = ℓ at *
   -- Multiply the claim by `den * ℓ`.
   refine Nat.le_of_mul_le_mul_left (c := den * ℓ) ?_ (Nat.mul_pos (by omega) (by omega))
-  have e1 : den * ℓ * (n / ℓ + depth num den n + fieldWidth num den X n) =
-      den * (ℓ * (n / ℓ)) + ℓ * (den * depth num den n) + den * (ℓ * fieldWidth num den X n) := by
-    ring
-  have h1 : den * (ℓ * (n / ℓ)) ≤ den * n := Nat.mul_le_mul_left _ hq
-  have h2 : ℓ * (den * depth num den n) ≤ ℓ * (num * n + den) := Nat.mul_le_mul_left _ hD
-  have h3 : den * (ℓ * fieldWidth num den X n) ≤ den * n := Nat.mul_le_mul_left _ hF
-  have e2 : ℓ * (num * n + den) = (ℓ * num) * n + ℓ * den := by ring
-  have h5 : (2 * den + ℓ * num) * n ≤ (ℓ * den) * n := Nat.mul_le_mul_right n h4
-  have e3 : den * ℓ * (n + 1) = (ℓ * den) * n + ℓ * den := by ring
-  have e4 : (2 * den + ℓ * num) * n = den * n + den * n + (ℓ * num) * n := by ring
-  omega
+  linarith [Nat.mul_le_mul_left den hq, Nat.mul_le_mul_left ℓ hD, Nat.mul_le_mul_left den hF,
+    Nat.mul_le_mul_right n h4]
 
 /-- **The overhead is negligible.** For any polynomial factor `A (n + 1) ^ E`, eventually
 `2 P (den - num) n · A (2 ^ prefixWidth n + 2 ^ (depth n + fieldWidth n)) (n + 1) ^ E` is at most

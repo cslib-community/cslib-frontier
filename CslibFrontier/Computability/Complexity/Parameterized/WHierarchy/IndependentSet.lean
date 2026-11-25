@@ -108,9 +108,7 @@ theorem isCodeFrom_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e �
     have := hE e he
     simp only [List.length_map, List.length_range]
     exact ⟨rfl, by simp only [List.mem_cons, List.not_mem_nil, or_false]; omega⟩
-  · intro g hg
-    simp only [List.mem_singleton] at hg
-    subst hg
+  · rintro _ (_ | ⟨_, ⟨⟩⟩)
     refine ⟨by simp, ?_⟩
     simp only [List.length_append, List.length_map, List.length_range, List.mem_map,
       List.mem_range]
@@ -189,9 +187,7 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
       List.getD_append_right _ _ _ _ (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
       List.getD_eq_getElem _ _ (by simpa using hj), List.getElem_map]
     cases x.getD E[j].1 false <;> cases x.getD E[j].2 false <;> decide
-  · intro g hg i hi
-    simp only [List.mem_singleton] at hg
-    subst hg
+  · rintro _ (_ | ⟨_, ⟨⟩⟩) i hi
     obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hi
     simp only [List.mem_range] at hj
     simp only [List.length_append, List.length_map]
@@ -279,11 +275,8 @@ theorem toCircuit_satisfiableWithWeight_iff (G : Graph) (k : ℕ) :
       ext v
       simp only [mem_vertexSet, x, decide_eq_true_eq, List.getElem_idxOf, exists_prop]
       exact ⟨And.right, fun hv => ⟨hS v hv, hv⟩⟩
-    refine ⟨x, ?_, ?_⟩
-    · rw [← hk, ← hvS]
-      exact (Finset.card_map _).symm
-    · rw [eval_toCircuit, decide_eq_true_eq, edgeIndices_iff, hvS]
-      exact hind
+    exact ⟨x, (Finset.card_map _).symm.trans ((congrArg Finset.card hvS).trans hk), by
+      rwa [eval_toCircuit, decide_eq_true_eq, edgeIndices_iff, hvS]⟩
 
 /-- The values that the circuit computes in the depth interpretation, from zero inputs, are at most
 the sum of bounds on the costs of its three layers. -/
@@ -297,9 +290,7 @@ private theorem le_of_mem_evalCode_circuitGates (cost : Unbounded.Op → ℕ) {n
   rw [circuitGates, evalCode_append, evalCode_append]
   refine le_of_mem_evalCode_depth_layer _ _ _ ?_ (le_of_mem_evalCode_depth_layer _ _ _ ?_
     (le_of_mem_evalCode_depth_layer _ _ _ ?_ ?_ ?_) ?_) ?_
-  · intro g hg i hi
-    simp only [List.mem_singleton] at hg
-    subst hg
+  · rintro _ (_ | ⟨_, ⟨⟩⟩) i hi
     obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hi
     simp only [List.mem_range] at hj
     simp only [length_evalCode, List.length_replicate, List.length_map, List.length_range]
@@ -337,10 +328,8 @@ theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 := by
 theorem depth_toCircuit_le (G : Graph) : (toCircuit G).2.depth ≤ 3 := by
   rw [← Circuit.depthWith_one]
   refine Circuit.depthWith_le_of_evalCode _ _ fun v hv => ?_
-  rw [code_toCircuit] at hv
-  have := le_of_mem_evalCode_circuitGates 1 (fun e he => lt_of_mem_edgeIndices he) le_rfl le_rfl
-    le_rfl v hv
-  simpa using this
+  simpa using le_of_mem_evalCode_circuitGates 1 (fun e he => lt_of_mem_edgeIndices he) le_rfl le_rfl
+    le_rfl v (code_toCircuit G ▸ hv)
 
 /-- Listing the positions of the ends of the edges is polynomial-time. -/
 theorem computableInPolyTime_edgeIndices :

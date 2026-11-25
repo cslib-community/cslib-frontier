@@ -138,13 +138,8 @@ private theorem eq_of_wordLt_eq_false {m : ℕ} {w₁ w₂ : List Bool}
     (h₁₂ : BitString.wordLt w₁ w₂ = false) (h₂₁ : BitString.wordLt w₂ w₁ = false) :
     w₁ = w₂ := by
   rw [← BitString.ofFn_ofList hw₁, ← BitString.ofFn_ofList hw₂] at h₁₂ h₂₁ ⊢
-  have h1 : ¬ (toLex (BitString.ofList m w₁) < toLex (BitString.ofList m w₂)) := by
-    rw [← BitString.wordLt_ofFn_iff, h₁₂]
-    decide
-  have h2 : ¬ (toLex (BitString.ofList m w₂) < toLex (BitString.ofList m w₁)) := by
-    rw [← BitString.wordLt_ofFn_iff, h₂₁]
-    decide
-  exact congrArg (List.ofFn ∘ ofLex) (le_antisymm (not_lt.1 h2) (not_lt.1 h1))
+  simp only [Bool.eq_false_iff, ne_eq, BitString.wordLt_ofFn_iff] at h₁₂ h₂₁
+  exact congrArg (List.ofFn ∘ ofLex) (le_antisymm (not_lt.1 h₂₁) (not_lt.1 h₁₂))
 
 /-! ### Subcubes and child-agreement predicates -/
 
@@ -162,13 +157,8 @@ private theorem isPrefixOf_append_singleton {p x : List Bool} {b : Bool}
   simp only [isPrefixOf_eq_take_beq, List.length_append, List.length_singleton, beq_iff_eq,
     List.take_add_one, List.getElem?_eq_getElem hp, Option.toList_some,
     List.getD_eq_getElem _ _ hp]
-  have hlen : (x.take p.length).length = p.length := List.length_take_of_le hp.le
-  constructor
-  · intro h
-    obtain ⟨h1, h2⟩ := List.append_inj h hlen
-    exact ⟨h1, List.singleton_injective h2⟩
-  · rintro ⟨h1, h2⟩
-    rw [h1, h2]
+  exact ⟨fun h => (List.append_inj h (List.length_take_of_le hp.le)).imp_right
+    (fun h2 => List.singleton_injective h2), fun ⟨h1, h2⟩ => by rw [h1, h2]⟩
 
 /-- Whether the candidate circuit `w` agrees at point `x` in the subcube `p` (tested by
 `p.isPrefixOf x`) with the child certificate `w₀` (if `x[p.length] = false`) or `w₁`
@@ -390,26 +380,15 @@ private theorem isMinMergedCert_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBit
   have hmerged := isMergedCert_mem_PPolyOn hNP
   have hmerged' : {r : (MergeInput × List Bool) × List Bool |
       IsMergedCert r.1.1.header.arity r.1.1.header.size r.1.1.header.subcube
-        (mergeCert₀ r.1.1) (mergeCert₁ r.1.1) r.2} ∈ PPolyOn encQW := by
-    have hred : PolyTimeReducible encQW encQ
-        {r : (MergeInput × List Bool) × List Bool |
-          IsMergedCert r.1.1.header.arity r.1.1.header.size r.1.1.header.subcube
-            (mergeCert₀ r.1.1) (mergeCert₁ r.1.1) r.2}
-        {q : MergeInput × List Bool |
-          IsMergedCert q.1.header.arity q.1.header.size q.1.header.subcube
-            (mergeCert₀ q.1) (mergeCert₁ q.1) q.2} :=
-      ⟨fun r => (r.1.1, r.2),
-        ((fst encMerge encBits).comp (fst encQ encBits)).prod (snd encQ encBits),
-        fun _ => Iff.rfl⟩
-    exact hred.mem_PPolyOn hmerged
+        (mergeCert₀ r.1.1) (mergeCert₁ r.1.1) r.2} ∈ PPolyOn encQW :=
+    PolyTimeReducible.mem_PPolyOn ⟨fun r => (r.1.1, r.2),
+      ((fst encMerge encBits).comp (fst encQ encBits)).prod (snd encQ encBits),
+      fun _ => Iff.rfl⟩ hmerged
   have hwordLt : {r : (MergeInput × List Bool) × List Bool |
       BitString.wordLt r.2 r.1.2 = false} ∈ PPolyOn encQW := by
-    have hcomp : ComputableInPolyTime
-        (fun r : (MergeInput × List Bool) × List Bool => !BitString.wordLt r.2 r.1.2)
-        encQW encBool :=
-      bool_not.comp (bitsWordLt
-        (snd encQ encBits) ((snd encMerge encBits).comp (fst encQ encBits)))
-    simpa [Bool.not_eq_true'] using PPolyOn.of_computableInPolyTime hcomp
+    simpa [Bool.not_eq_true'] using PPolyOn.of_computableInPolyTime
+      (bool_not.comp (bitsWordLt
+        (snd encQ encBits) ((snd encMerge encBits).comp (fst encQ encBits))))
   have hcert_q : ComputableInPolyTime
       (fun q : MergeInput × List Bool => certLength q.1.header.arity q.1.header.size)
       encQ encUnary :=
@@ -588,15 +567,10 @@ private theorem mergeOk₀_append_subcubeState (n s : ℕ) (f : BooleanFunction 
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).getD 0 false := by
   simp only [mergeOk₀, List.ofFn_fin_append]
-  have hlen0 : (List.ofFn (subcubeState n s f (p ++ [false]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  have hlen : 0 < (List.ofFn (subcubeState n s f (p ++ [false]))).length := by omega
-  have htot : 0 < (List.ofFn (subcubeState n s f (p ++ [false])) ++
-      List.ofFn (subcubeState n s f (p ++ [true]))).length := by
-    rw [List.length_append]
+  have hlen : 0 < (List.ofFn (subcubeState n s f (p ++ [false]))).length := by
+    rw [List.length_ofFn, stateWidth]
     omega
-  rw [List.getD_eq_getElem _ _ htot, List.getElem_append_left hlen,
-    List.getD_eq_getElem _ _ hlen]
+  exact List.getD_append _ _ _ _ hlen
 
 private theorem mergeOk₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -605,18 +579,7 @@ private theorem mergeOk₁_append_subcubeState (n s : ℕ) (f : BooleanFunction 
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [true]))).getD 0 false := by
   simp only [mergeOk₁, List.ofFn_fin_append]
-  have hlen0 : (List.ofFn (subcubeState n s f (p ++ [false]))).length = stateWidth n s :=
-    List.length_ofFn
-  have hlen1' : (List.ofFn (subcubeState n s f (p ++ [true]))).length = certLength n s + 1 :=
-    List.length_ofFn
-  have hlen1 : 0 < (List.ofFn (subcubeState n s f (p ++ [true]))).length := by omega
-  have htot : stateWidth n s < (List.ofFn (subcubeState n s f (p ++ [false])) ++
-      List.ofFn (subcubeState n s f (p ++ [true]))).length := by
-    rw [List.length_append, hlen0]
-    omega
-  rw [List.getD_eq_getElem _ _ htot,
-    List.getElem_append_right (by omega), List.getD_eq_getElem _ _ hlen1]
-  simp [hlen0]
+  rw [List.getD_append_right _ _ _ _ (by simp), List.length_ofFn, Nat.sub_self]
 
 private theorem mergeCert₀_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -625,9 +588,9 @@ private theorem mergeCert₀_append_subcubeState (n s : ℕ) (f : BooleanFunctio
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [false]))).drop 1 := by
   simp only [mergeCert₀, List.ofFn_fin_append]
-  have hlen0 : (List.ofFn (subcubeState n s f (p ++ [false]))).length = certLength n s + 1 :=
+  have hlen : (List.ofFn (subcubeState n s f (p ++ [false]))).length = certLength n s + 1 :=
     List.length_ofFn
-  rw [List.drop_append_of_le_length (by omega), List.take_left' (by simp [hlen0])]
+  rw [List.drop_append_of_le_length (by omega), List.take_left' (by simp [hlen])]
 
 private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunction n) (p : List Bool)
     (j : ℕ) :
@@ -636,12 +599,10 @@ private theorem mergeCert₁_append_subcubeState (n s : ℕ) (f : BooleanFunctio
         (subcubeState n s f (p ++ [true])))⟩ =
       (List.ofFn (subcubeState n s f (p ++ [true]))).drop 1 := by
   simp only [mergeCert₁, List.ofFn_fin_append]
-  have hlen0 : (List.ofFn (subcubeState n s f (p ++ [false]))).length = stateWidth n s :=
-    List.length_ofFn
+  have hdrop : stateWidth n s + 1 =
+      (List.ofFn (subcubeState n s f (p ++ [false]))).length + 1 := by simp
   have hlen1 : (List.ofFn (subcubeState n s f (p ++ [true]))).length = certLength n s + 1 :=
     List.length_ofFn
-  have hdrop : stateWidth n s + 1 =
-      (List.ofFn (subcubeState n s f (p ++ [false]))).length + 1 := by rw [hlen0]
   rw [hdrop, List.drop_append, List.drop_eq_nil_of_le (by omega), List.nil_append,
     Nat.add_sub_cancel_left, List.take_of_length_le (by simp [hlen1])]
 

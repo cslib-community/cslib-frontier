@@ -45,14 +45,11 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
   refine ⟨?_, ?_⟩
   · intro inp s hreach
     obtain ⟨hr, hout⟩ := netToSynod_reach qs hreach
-    refine ⟨fun p₁ p₂ v₁ v₂ h₁ h₂ => ?_, fun p v hpv => ?_⟩
-    · rw [hout p₁] at h₁
-      rw [hout p₂] at h₂
-      obtain ⟨b₁, hl₁⟩ := hr.learned_eq_some_iff.mp h₁
-      obtain ⟨b₂, hl₂⟩ := hr.learned_eq_some_iff.mp h₂
-      exact paxos_agreement_crashStop qs hr hl₁ hl₂
-    · rw [hout p] at hpv
-      exact paxos_validity_crashStop qs hr hpv
+    refine ⟨fun p₁ p₂ v₁ v₂ h₁ h₂ => ?_,
+      fun p v hpv => paxos_validity_crashStop qs hr (hout p ▸ hpv)⟩
+    obtain ⟨b₁, hl₁⟩ := hr.learned_eq_some_iff.mp (hout p₁ ▸ h₁)
+    obtain ⟨b₂, hl₂⟩ := hr.learned_eq_some_iff.mp (hout p₂ ▸ h₂)
+    exact paxos_agreement_crashStop qs hr hl₁ hl₂
   · intro Q₀ hQ₀ v
     obtain ⟨p₀, hp₀Q⟩ := hQ₀.nonempty
     obtain ⟨⟨Q₁, hQ₁, hQ₁_sub⟩, ⟨Q₂, hQ₂, hQ₂_sub⟩⟩ := hQ₀
@@ -133,24 +130,20 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
               fun hq x => Finset.mem_union_left _ (h2a hq x)⟩
           · rw [ite_eq_left (⟨rfl, haS⟩ : b = ⟨0, p₀⟩ ∧ a ∉ S)]
             by_cases hqS : ∃ Q ∈ qs.prepareQuorums, Q ⊆ S
-            · have hdS : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ S) = true := decide_eq_true hqS
-              have hd_ins : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S) = true := by
-                obtain ⟨Q, hQ, hsub⟩ := hqS
-                exact decide_eq_true ⟨Q, hQ, hsub.trans (Finset.subset_insert a S)⟩
-              simp only [hdS, hd_ins, Bool.not_true, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
-              exact ⟨hal' _ rfl rfl, trivial, fun _ x => Finset.mem_union_left _ (h2a hdS x)⟩
-            · have hdS : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ S) = false := decide_eq_false hqS
-              by_cases hq_ins : ∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S
-              · have hd_ins : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S) = true :=
-                  decide_eq_true hq_ins
-                simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, ↓reduceIte]
+            · have hq_ins : ∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S :=
+                hqS.imp fun Q ⟨hQ, hsub⟩ => ⟨hQ, hsub.trans (Finset.subset_insert a S)⟩
+              simp only [decide_eq_true hqS, decide_eq_true hq_ins, Bool.not_true,
+                Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+              exact ⟨hal' _ rfl rfl, trivial,
+                fun _ x => Finset.mem_union_left _ (h2a (decide_eq_true hqS) x)⟩
+            · by_cases hq_ins : ∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S
+              · simp only [decide_eq_false hqS, decide_eq_true hq_ins, Bool.not_false,
+                  Bool.true_and, ↓reduceIte]
                 exact ⟨hal' _ rfl rfl, trivial,
                   fun _ x => Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(x, .phase2a b v),
                     Finset.mem_image.mpr ⟨x, Finset.mem_univ x, rfl⟩, rfl⟩)⟩
-              · have hd_ins : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S) = false :=
-                  decide_eq_false hq_ins
-                simp only [hdS, hd_ins, Bool.not_false, Bool.true_and, Bool.false_eq_true,
-                  ↓reduceIte]
+              · simp only [decide_eq_false hqS, decide_eq_false hq_ins, Bool.not_false,
+                  Bool.true_and, Bool.false_eq_true, ↓reduceIte]
                 exact ⟨hal' _ rfl rfl, trivial, nofun⟩)
         (as := qList) (u := s₂) (S₀ := ∅)
         (fun x hx => (hs₂_in x hx).2)
@@ -215,9 +208,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
     obtain ⟨hr₅, hout₅⟩ := netToSynod_reach qs ⟨xl, hmtr_all⟩
     have hlearnedAt₅ : (netToSynod s₅).LearnedAt qs p₀ b v :=
       ⟨Q₂, hQ₂, fun a haQ => hs₅_recv a (Finset.mem_toList.mpr (hQ₂_sub haQ))⟩
-    have hout_eq : (s₅.proc p₀).out = some v := by
-      rw [hout₅ p₀]
-      exact hr₅.learned_eq_some_iff.mpr ⟨b, hlearnedAt₅⟩
-    exact ⟨xl, s₅, hgroup, hmtr_all, p₀, hp₀Q, v, hout_eq⟩
+    exact ⟨xl, s₅, hgroup, hmtr_all, p₀, hp₀Q, v,
+      (hout₅ p₀).trans (hr₅.learned_eq_some_iff.mpr ⟨b, hlearnedAt₅⟩)⟩
 
 end Cslib.Distributed.Paxos

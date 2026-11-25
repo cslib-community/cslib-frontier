@@ -285,30 +285,22 @@ private theorem Program.runFastLoop_map_eq_run (w : ℕ) (p : Program B r) (fuel
     cases hp : p[pc]? with
     | none => simp [step, hp]
     | some instr =>
+      have hshift (s' : State r) :
+          (run w p fuel s').map (fun vn => (vn.1, vn.2 + (steps + 1))) =
+            ((run w p fuel s').map fun vn => (vn.1, vn.2 + 1)).map
+              fun vn => (vn.1, vn.2 + steps) := by
+        cases run w p fuel s' <;> simp [Nat.add_assoc, Nat.add_comm 1]
       cases instr with
       | op o =>
         have hop := Op.evalFast_toData w o x
         cases ho : o.evalFast w x <;> rw [ho] at hop
         · simp [step, hp, ho, ← hop]
-        · simp only [step, hp, ho, ← hop, Option.map_some, ih]
-          cases run w p fuel ⟨pc + 1, _⟩ <;> simp only [Option.map_none, Option.map_some,
-            Option.some.injEq, Prod.mk.injEq, true_and]
-          omega
-      | jump t =>
-        simp only [step, hp, ih]
-        cases run w p fuel ⟨t, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
-          Option.some.injEq, Prod.mk.injEq, true_and]
-        omega
+        · simpa only [step, hp, ho, ← hop, Option.map_some, ih] using hshift _
+      | jump t => simpa only [step, hp, ih] using hshift _
       | branch c t =>
-        simp only [step, hp, Cond.holdsFast_eq, ih]
         by_cases hc : c.Holds x.toData <;>
-          simp only [hc, decide_true, decide_false, Bool.false_eq_true, ↓reduceIte]
-        · cases run w p fuel ⟨t, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
-            Option.some.injEq, Prod.mk.injEq, true_and]
-          omega
-        · cases run w p fuel ⟨pc + 1, x.toData⟩ <;> simp only [Option.map_none, Option.map_some,
-            Option.some.injEq, Prod.mk.injEq, true_and]
-          omega
+          simpa only [step, hp, Cond.holdsFast_eq, hc, decide_true, decide_false,
+            Bool.false_eq_true, ↓reduceIte, ih] using hshift _
       | halt i =>
         simp only [step, hp, Option.map_some, FastData.toData, Option.some.injEq, Prod.mk.injEq,
           true_and]

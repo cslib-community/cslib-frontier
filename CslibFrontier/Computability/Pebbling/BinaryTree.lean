@@ -98,13 +98,9 @@ private theorem blackPebblable_completeBinaryTree_aux {h : ℕ} (k : ℕ) (v : B
     have hyz := Finset.card_le_two (a := child false) (b := child true)
     refine BlackPebblable.of_forall_adj (s := k + 2) {child false, child true}
       (fun u ⟨b, hb⟩ => ?_) (fun u hu => ?_) (by omega) (by omega)
-    · cases b
-      exacts [Finset.mem_insert.2 (.inl (BinaryTreeVertex.ext hb)),
-        Finset.mem_insert_of_mem (Finset.mem_singleton.2 (BinaryTreeVertex.ext hb))]
-    · rcases Finset.mem_insert.mp hu with rfl | hu
-      · exact ih _ (by simp [child]; omega)
-      · rw [Finset.mem_singleton.mp hu]
-        exact ih _ (by simp [child]; omega)
+    · cases b <;> simp [child, BinaryTreeVertex.ext_iff, hb]
+    · simp only [Finset.mem_insert, Finset.mem_singleton] at hu
+      rcases hu with rfl | rfl <;> exact ih _ (by simp [child]; omega)
 
 /-- A vertex at depth `d` of `T_h` can be pebbled with `h - d + 2` pebbles. -/
 theorem blackPebblable_completeBinaryTree {h : ℕ} (v : BinaryTreeVertex h) :
@@ -146,30 +142,25 @@ private theorem forcesPebbles_completeBinaryTree_aux {h : ℕ} (k : ℕ) (v : Bi
       (BinaryTreeVertex.mem_below.2 (List.prefix_append _ _))
       (BinaryTreeVertex.mem_below.2 (List.prefix_append _ _))
   | succ k ih =>
-    let y : BinaryTreeVertex h := ⟨v.path ++ [false], by simp; omega⟩
-    let z : BinaryTreeVertex h := ⟨v.path ++ [true], by simp; omega⟩
+    let child (b : Bool) : BinaryTreeVertex h := ⟨v.path ++ [b], by simp; omega⟩
+    have hleft (b : Bool) {P} (hP : ¬ Unblocked (completeBinaryTree h) P (child b)) :
+        ∃ w ∈ P, w ∈ v.below ∧ w ∉ (child (!b)).below := by
+      obtain ⟨w, hw, i, hwi⟩ := completeBinaryTree_exists_left (child b) hP
+      refine ⟨w, hw, BinaryTreeVertex.mem_below.2 ?_, fun hwb => ?_⟩
+      · rw [hwi]
+        exact (List.prefix_append _ _).trans (List.prefix_append _ _)
+      · rw [BinaryTreeVertex.mem_below, hwi] at hwb
+        cases b <;> simp [child, List.prefix_append_right_inj] at hwb
     rw [show k + 1 + 3 = k + 3 + 1 by omega]
-    refine ForcesPebbles.step (y := y) (z := z) (Ry := y.below) (Rz := z.below) ⟨false, rfl⟩
-      ⟨true, rfl⟩ (fun u hu => ?_) (fun w hw => ?_) (fun w hw => ?_) (fun P hP => ?_)
-      (fun P hP => ?_) (ih y (by simp [y]; omega)) (ih z (by simp [z]; omega))
-    · obtain ⟨b, hb⟩ := hu
-      cases b
-      · exact .inl (BinaryTreeVertex.ext hb)
-      · exact .inr (BinaryTreeVertex.ext hb)
-    · exact BinaryTreeVertex.mem_below.2 ((List.prefix_append _ _).trans hw)
-    · exact BinaryTreeVertex.mem_below.2 ((List.prefix_append _ _).trans hw)
-    · obtain ⟨w, hw, i, hwi⟩ := completeBinaryTree_exists_left y hP
-      refine ⟨w, hw, BinaryTreeVertex.mem_below.2 ?_, fun hwz => ?_⟩
-      · rw [hwi]
-        exact (List.prefix_append _ _).trans (List.prefix_append _ _)
-      · rw [BinaryTreeVertex.mem_below, hwi] at hwz
-        simp [y, z, List.prefix_append_right_inj] at hwz
-    · obtain ⟨w, hw, i, hwi⟩ := completeBinaryTree_exists_left z hP
-      refine ⟨w, hw, BinaryTreeVertex.mem_below.2 ?_, fun hwy => ?_⟩
-      · rw [hwi]
-        exact (List.prefix_append _ _).trans (List.prefix_append _ _)
-      · rw [BinaryTreeVertex.mem_below, hwi] at hwy
-        simp [y, z, List.prefix_append_right_inj] at hwy
+    refine ForcesPebbles.step (y := child false) (z := child true) ⟨false, rfl⟩ ⟨true, rfl⟩
+      (fun _ ⟨b, hb⟩ => ?_)
+      (fun _ hw => BinaryTreeVertex.mem_below.2 ((List.prefix_append _ _).trans hw))
+      (fun _ hw => BinaryTreeVertex.mem_below.2 ((List.prefix_append _ _).trans hw))
+      (fun _ => hleft false) (fun _ => hleft true)
+      (ih _ (by simp [child]; omega))
+      (ih _ (by simp [child]; omega))
+    cases b
+    exacts [.inl (BinaryTreeVertex.ext hb), .inr (BinaryTreeVertex.ext hb)]
 
 /-- Every non-leaf vertex `v` of `T_h` forces `h - depth + 2` pebbles on its subtree. -/
 theorem forcesPebbles_completeBinaryTree {h : ℕ} (v : BinaryTreeVertex h)

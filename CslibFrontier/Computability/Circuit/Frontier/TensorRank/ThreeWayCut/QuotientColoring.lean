@@ -57,13 +57,8 @@ private noncomputable def edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ)
 omit [Finite F] in
 private theorem measurable_edgeVec2 (Q : Multigraph W F) (q : ℝ) (R : ℕ) (e : F) :
     Measurable fun ω : W → BlockSample => edgeVec2 Q q R ω e := by
-  refine Measurable.prodMk ?_ ?_
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_fst.comp measurable_fst).comp
-        (measurable_pi_apply B))
-  · exact (measurable_edgeScore q R e).comp
-      (measurable_pi_iff.mpr fun B => (measurable_snd.comp measurable_fst).comp
-        (measurable_pi_apply B))
+  exact ((measurable_edgeScore q R e).comp (by fun_prop)).prodMk
+    ((measurable_edgeScore q R e).comp (by fun_prop))
 
 omit [Finite F] in
 private theorem edgeVec2_congr {Q : Multigraph W F} {q : ℝ} {R : ℕ} {B : W} {e : F}
@@ -90,17 +85,8 @@ private theorem edgeVec2_rotSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => rotSample (ω B)) e = rot120 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1 / 2, -√3 / 2) ω e
   have h2 := dot2_edgeVec2 Q q R (√3 / 2, -1 / 2) ω e
-  ext
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h1 ⊢
-    have hfun : (fun B => -1 / 2 * (ω B).1.1 + -√3 / 2 * (ω B).1.2) =
-        fun B => -1 / 2 * (ω B).1.1 - √3 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, rotSample, rot120, dot2] at h2 ⊢
-    have hfun : (fun B => √3 / 2 * (ω B).1.1 + -1 / 2 * (ω B).1.2) =
-        fun B => √3 / 2 * (ω B).1.1 - 1 / 2 * (ω B).1.2 := by funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, rotSample, rot120, dot2, neg_div, neg_mul, ← sub_eq_add_neg] at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 omit [Finite F] in
 private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
@@ -108,17 +94,9 @@ private theorem edgeVec2_negSample (Q : Multigraph W F) (q : ℝ) (R : ℕ)
     edgeVec2 Q q R (fun B => negSample (ω B)) e = neg2 (edgeVec2 Q q R ω e) := by
   have h1 := dot2_edgeVec2 Q q R (-1, 0) ω e
   have h2 := dot2_edgeVec2 Q q R (0, -1) ω e
-  ext
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h1 ⊢
-    have hfun : (fun B => -1 * (ω B).1.1 + 0 * (ω B).1.2) = fun B => -(ω B).1.1 := by
-      funext B; ring
-    rw [hfun] at h1
-    linarith only [h1]
-  · dsimp [edgeVec2, negSample, neg2, dot2] at h2 ⊢
-    have hfun : (fun B => 0 * (ω B).1.1 + -1 * (ω B).1.2) = fun B => -(ω B).1.2 := by
-      funext B; ring
-    rw [hfun] at h2
-    linarith only [h2]
+  simp only [edgeVec2, negSample, neg2, dot2, neg_one_mul, zero_mul, zero_add, add_zero]
+    at h1 h2 ⊢
+  exact Prod.ext h1.symm h2.symm
 
 private theorem toFinset_eq_of_fintype {α : Type*} (S : Set α) (i₁ : Fintype S) [i₂ : Fintype S] :
     @Set.toFinset α S i₁ = @Set.toFinset α S i₂ := by

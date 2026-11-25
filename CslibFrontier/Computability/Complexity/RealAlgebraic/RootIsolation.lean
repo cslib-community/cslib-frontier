@@ -142,20 +142,15 @@ private theorem length_encRat_le_of_pow_bound {q : ℚ} {K : ℕ}
 private theorem num_den_div_le {z : ℤ} {D K : ℕ} (hD : 1 ≤ D) (hz : z.natAbs ≤ 2 ^ K)
     (hDK : D ≤ 2 ^ K) : ((z : ℚ) / D).num.natAbs ≤ 2 ^ K ∧ ((z : ℚ) / D).den ≤ 2 ^ K := by
   have hD0 : (D : ℤ) ≠ 0 := Int.natCast_ne_zero.mpr (by omega)
-  have hdiv : (z : ℚ) / (D : ℚ) = Rat.divInt z (D : ℤ) := by
-    rw [Rat.divInt_eq_div, Int.cast_natCast]
-  rw [hdiv]
+  rw [← Int.cast_natCast D, ← Rat.divInt_eq_div]
   exact ⟨(Rat.natAbs_num_divInt_le z D hD0).trans hz,
     (Rat.den_divInt_le z D hD0).trans (by rwa [Int.natAbs_natCast])⟩
 
 private theorem length_encRatPoly_le_of_bitBound {cs : List ℚ} {n K : ℕ}
     (hlen : cs.length ≤ n) (hB : HasCoeffBitBound K cs) :
-    (encRatPoly cs).length ≤ n * (6 * K + 13) := by
-  refine (length_encList_le encRat cs (b := 3 * K + 6) fun q hq =>
-    length_encRat_le_of_pow_bound (hB q hq).1 (hB q hq).2).trans ?_
-  have hmul : 2 * (3 * K + 6) + 1 = 6 * K + 13 := by omega
-  rw [hmul]
-  exact Nat.mul_le_mul_right _ hlen
+    (encRatPoly cs).length ≤ n * (6 * K + 13) :=
+  (length_encList_le encRat cs (b := 3 * K + 6) fun q hq =>
+    length_encRat_le_of_pow_bound (hB q hq).1 (hB q hq).2).trans (by nlinarith)
 
 attribute [local irreducible] encRat encIntBin encNat
 
@@ -214,18 +209,16 @@ private theorem zipWithAll_getD_eq_map_range (op : ℚ → ℚ → ℚ) (p q : L
       (List.range (max p.length q.length)).map (fun i => op (p.getD i 0) (q.getD i 0)) := by
   induction p generalizing q with
   | nil =>
-    change q.map (fun b => op 0 b) = (List.range q.length).map (fun i => op 0 (q.getD i 0))
     refine List.ext_getElem (by simp) fun i hi1 hi2 => ?_
-    simp only [List.length_map] at hi1
-    simp only [List.getElem_map, List.getElem_range, List.getD_eq_getElem _ _ hi1]
+    have hi : i < q.length := by simpa only [List.nil_zipWithAll, List.length_map] using hi1
+    simp [List.getElem?_eq_getElem hi]
   | cons a p ih =>
     cases q with
     | nil =>
-      change (a :: p).map (fun x => op x 0) =
-        (List.range (a :: p).length).map (fun i => op ((a :: p).getD i 0) 0)
       refine List.ext_getElem (by simp) fun i hi1 hi2 => ?_
-      simp only [List.length_map] at hi1
-      simp only [List.getElem_map, List.getElem_range, List.getD_eq_getElem _ _ hi1]
+      have hi : i < (a :: p).length := by
+        simpa only [List.zipWithAll_nil, List.length_map] using hi1
+      simp [-List.map_cons, List.getElem?_eq_getElem hi]
     | cons b q =>
       simp only [List.zipWithAll_cons_cons, Option.getD_some, ih q, List.length_cons,
         Nat.succ_max_succ, List.range_succ_eq_map, List.map_cons, List.getD_cons_zero,
@@ -238,25 +231,13 @@ private theorem coeffList_binOp_polyTime {op : ℚ → ℚ → ℚ}
       (fun pq : List ℚ × List ℚ =>
         CoeffList.trim (List.zipWithAll (fun x y => op (x.getD 0) (y.getD 0)) pq.1 pq.2))
       (encPair encRatPoly encRatPoly) encRatPoly := by
-  have heq :
-      (fun pq : List ℚ × List ℚ =>
-        CoeffList.trim (List.zipWithAll (fun x y => op (x.getD 0) (y.getD 0)) pq.1 pq.2)) =
-      fun pq => CoeffList.trim ((List.range (max pq.1.length pq.2.length)).map
-        fun i => op (pq.1.getD i 0) (pq.2.getD i 0)) := by
-    funext pq
-    simp only [zipWithAll_getD_eq_map_range]
-  rw [heq]
-  have hmap : ComputableInPolyTime
-      (fun pq : List ℚ × List ℚ => (List.range (max pq.1.length pq.2.length)).map
-        fun i => op (pq.1.getD i 0) (pq.2.getD i 0))
-      (encPair encRatPoly encRatPoly) encRatPoly := by
-    refine mapWithInput
-      (range.comp (unary_max.comp (((length_list encRat).comp (fst _ _)).prod
-        ((length_list encRat).comp (snd _ _))))) ?_
-    exact hop.comp
-      ((listGetDWithInput ((fst _ _).comp (fst _ _)) (snd _ _) 0).prod
-       (listGetDWithInput ((snd _ _).comp (fst _ _)) (snd _ _) 0))
-  exact trim_computableInPolyTime.comp hmap
+  simp only [zipWithAll_getD_eq_map_range]
+  refine trim_computableInPolyTime.comp (mapWithInput
+    (range.comp (unary_max.comp (((length_list encRat).comp (fst _ _)).prod
+      ((length_list encRat).comp (snd _ _))))) ?_)
+  exact hop.comp
+    ((listGetDWithInput ((fst _ _).comp (fst _ _)) (snd _ _) 0).prod
+     (listGetDWithInput ((snd _ _).comp (fst _ _)) (snd _ _) 0))
 
 private theorem coeffList_add_polyTime :
     ComputableInPolyTime (fun pq : List ℚ × List ℚ => CoeffList.add pq.1 pq.2)
@@ -659,14 +640,8 @@ private def sturmIterStep (st : SturmIterState) : SturmIterState :=
 
 private theorem sturmIterStep_of_next_nil (rev : List (List ℚ)) (p : List ℚ) (n : ℕ) :
     sturmIterStep^[n] { revPrefix := rev, cur := p, next := [] } =
-      { revPrefix := rev, cur := p, next := [] } := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [Function.iterate_succ_apply]
-    have h0 : sturmIterStep { revPrefix := rev, cur := p, next := [] } =
-        { revPrefix := rev, cur := p, next := [] } := by simp [sturmIterStep]
-    rw [h0, ih]
+      { revPrefix := rev, cur := p, next := [] } :=
+  Function.iterate_fixed (by simp [sturmIterStep]) n
 
 private theorem sturmIterStep_finish_eq :
     ∀ (n : ℕ) (rev : List (List ℚ)) (p q : List ℚ),
@@ -722,30 +697,24 @@ private theorem sturmIterStep_invariant {p q : List ℚ}
     by_cases hne_e : sti.next.isEmpty = true
     · have hnil : sti.next = [] := List.isEmpty_iff.mp hne_e
       have hstep : sturmIterStep sti = sti := by simp [sturmIterStep, hne_e]
-      rw [hstep]
-      refine ⟨hlen.trans (Nat.le_succ i), ?_, hcur_t, hcur_ne, hnext_t, by simp [hnil]⟩
-      rw [hnil] at heq ⊢
       have haux_nil (m : ℕ) : sturmSeqAux m sti.cur [] = [sti.cur] := by
         cases m <;> simp [sturmSeqAux]
-      rw [haux_nil] at heq
-      rw [haux_nil]
-      exact heq
+      rw [hstep]
+      exact ⟨hlen.trans (Nat.le_succ i), by simpa only [hnil, haux_nil] using heq,
+        hcur_t, hcur_ne, hnext_t, by simp [hnil]⟩
     · have hnext_ne : sti.next ≠ [] := fun h => hne_e (List.isEmpty_iff.mpr h)
       have hstep : sturmIterStep sti =
-          { revPrefix := sti.cur :: sti.revPrefix
-            cur := sti.next
-            next := CoeffList.negMod sti.cur sti.next } := by
-        simp [sturmIterStep, hne_e]
-      rw [hstep]
+          { revPrefix := sti.cur :: sti.revPrefix, cur := sti.next,
+            next := CoeffList.negMod sti.cur sti.next } := by simp [sturmIterStep, hne_e]
       have hneg_lt : (CoeffList.negMod sti.cur sti.next).length < sti.next.length :=
         (CoeffList.length_negMod_lt (hnext_t.ofCoeffList_ne_zero hnext_ne)).trans_le
           (CoeffList.length_trim_le _)
+      rw [hstep]
       refine ⟨by simp only [List.length_cons]; omega, ?_, hnext_t, hnext_ne,
         CoeffList.isTrimmed_negMod _ _, by dsimp only; omega⟩
-      rw [List.reverse_cons, List.append_assoc, List.singleton_append]
       rw [hrem_succ] at heq
-      simp only [sturmSeqAux, hne_e, Bool.false_eq_true, ↓reduceIte] at heq
-      exact heq
+      simpa only [sturmSeqAux, hne_e, Bool.false_eq_true, ↓reduceIte, List.reverse_cons,
+        List.append_assoc, List.singleton_append] using heq
 
 /-- Computing the rational Sturm sequence `Cslib.RealRoot.sturmSeqList` is polynomial-time from
 `encRatPoly` to `encSturmSeq`. -/
@@ -1339,14 +1308,8 @@ private def refineIterStep (par : List ℚ × (List (List ℚ) × ℕ)) (st : Re
 
 private theorem refineIterStep_done (par : List ℚ × (List (List ℚ) × ℕ)) (u v : ℚ) (n : ℕ) :
     (refineIterStep par)^[n] { done := true, u := u, v := v } =
-      { done := true, u := u, v := v } := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [Function.iterate_succ_apply]
-    have h0 : refineIterStep par { done := true, u := u, v := v } =
-        { done := true, u := u, v := v } := rfl
-    rw [h0, ih]
+      { done := true, u := u, v := v } :=
+  Function.iterate_fixed rfl n
 
 private theorem refineIterStep_eq_refineLeftLoop (t : List ℚ) (seq : List (List ℚ)) (vu : ℕ) :
     ∀ (fuel : ℕ) (u v : ℚ),
@@ -1660,28 +1623,13 @@ private theorem classifyNode_props (cs : List ℚ) (k : ℕ) {u v : ℚ} (huv : 
       (∀ it ∈ out, it.isDone = false → it.lower = u ∧ it.upper = v) := by
   dsimp only [classifyNode]
   split_ifs with h0 h1
-  · exact ⟨Nat.zero_le 1, fun _ h => (List.not_mem_nil h).elim,
-      fun _ h => (List.not_mem_nil h).elim⟩
-  · refine ⟨le_rfl, ?_, ?_⟩
-    · intro it hit
-      rw [List.mem_singleton] at hit
-      subst hit
-      simp only [FrontierItemInv, ↓reduceIte, and_self, and_true]
-      exact refineLeftRoot_dyadicBounded _ _ _ _ _ _ _ _ hu_d hv_d
-    · intro it hit hdf
-      rw [List.mem_singleton] at hit
-      subst hit
-      cases hdf
-  · refine ⟨le_rfl, ?_, ?_⟩
-    · intro it hit
-      rw [List.mem_singleton] at hit
-      subst hit
-      simp only [FrontierItemInv, Bool.false_eq_true, ↓reduceIte]
-      exact ⟨huv, trivial, trivial, by omega, hu_d, hv_d⟩
-    · intro it hit _
-      rw [List.mem_singleton] at hit
-      subst hit
-      exact ⟨rfl, rfl⟩
+  · simp
+  · simp only [List.length_singleton, le_refl, List.mem_singleton, forall_eq, FrontierItemInv,
+      ↓reduceIte, and_self, and_true, Bool.true_eq_false, IsEmpty.forall_iff, true_and]
+    exact refineLeftRoot_dyadicBounded _ _ _ _ _ _ _ _ hu_d hv_d
+  · simp only [List.length_singleton, le_refl, List.mem_singleton, forall_eq, FrontierItemInv,
+      Bool.false_eq_true, ↓reduceIte, forall_const, and_self, and_true, true_and]
+    exact ⟨huv, by omega, hu_d, hv_d⟩
 
 private theorem pairwise_flatMap_active {items : List FrontierItem}
     (f : FrontierItem → List FrontierItem)
@@ -2153,14 +2101,8 @@ private def sepMidIterStep (par : List (List ℚ) × ℕ) (st : SepMidState) : S
 
 private theorem sepMidIterStep_done (par : List (List ℚ) × ℕ) (a m b : ℚ) (n : ℕ) :
     (sepMidIterStep par)^[n] { done := true, a := a, m := m, b := b } =
-      { done := true, a := a, m := m, b := b } := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [Function.iterate_succ_apply]
-    have h0 : sepMidIterStep par { done := true, a := a, m := m, b := b } =
-        { done := true, a := a, m := m, b := b } := rfl
-    rw [h0, ih]
+      { done := true, a := a, m := m, b := b } :=
+  Function.iterate_fixed rfl n
 
 private theorem sepMidIterStep_eq_separateMidLoop (seq : List (List ℚ)) (vm : ℕ) :
     ∀ (fuel : ℕ) (a m b : ℚ),

@@ -121,19 +121,8 @@ private theorem levinTry_eq_some_iff {enc : α ↪ List Bool} {V : α × List Bo
     levinTry enc V a i t = some w ↔
       runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t = some w ∧ V (a, w) = true := by
   unfold levinTry
-  cases h : runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t with
-  | none => simp
-  | some u =>
-    simp only [Option.elim_some]
-    cases hv : V (a, u) with
-    | false =>
-      simp only [Bool.false_eq_true, ↓reduceIte, reduceCtorEq, Option.some.injEq, false_iff,
-        not_and]
-      rintro rfl
-      simp [hv]
-    | true =>
-      simp only [↓reduceIte, Option.some.injEq]
-      exact ⟨fun h => ⟨h, h ▸ hv⟩, And.left⟩
+  cases runWord (decodeDesc (unframe (Ladner.word i))) (enc a) t <;> simp
+  grind
 
 /-- **Stage `K` of Levin's universal search** for a verifier `V` on instances encoded by `enc`:
 checks the machines with indices `i < K` (in the enumeration `Cslib.Complexity.Ladner.word`),
@@ -280,44 +269,20 @@ theorem computableInPolyTime_levinStage {enc : α ↪ List Bool} {V : α × List
     ComputableInPolyTime (fun p : α × ℕ => levinStage enc V p.1 p.2)
       (encPair enc encUnary) (encOption encBits) := by
   have htry : ComputableInPolyTime
-      (fun (p : (α × ℕ) × ℕ) => levinTry enc V (Prod.fst p.1) p.2 (Prod.snd p.1))
+      (fun (p : (α × ℕ) × ℕ) => levinTry enc V p.1.1 p.2 p.1.2)
       (encPair (encPair enc encUnary) encUnary) (encOption encBits) := by
-    have hdesc : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => decodeDesc (unframe (Ladner.word p.2)))
-        (encPair (encPair enc encUnary) encUnary) eDesc := by
-      fun_prop
-    have ha : ComputableInPolyTime (fun p : (α × ℕ) × ℕ => (Prod.fst p.1))
-        (encPair (encPair enc encUnary) encUnary) enc :=
-      (fst enc encUnary).comp (fst (encPair enc encUnary) encUnary)
-    have hin : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => enc (Prod.fst p.1))
-        (encPair (encPair enc encUnary) encUnary) encBits :=
-      encoding_comp ha
-    have ht : ComputableInPolyTime
-        (fun p : (α × ℕ) × ℕ => Prod.snd p.1)
-        (encPair (encPair enc encUnary) encUnary) encUnary :=
-      (snd enc encUnary).comp (fst (encPair enc encUnary) encUnary)
     have hrun : ComputableInPolyTime
         (fun p : (α × ℕ) × ℕ =>
-          runWord (decodeDesc (unframe (Ladner.word p.2))) (enc (Prod.fst p.1)) (Prod.snd p.1))
+          runWord (decodeDesc (unframe (Ladner.word p.2))) (enc p.1.1) p.1.2)
         (encPair (encPair enc encUnary) encUnary) (encOption encBits) :=
-      computableInPolyTime_runWord hdesc hin ht
-    have hbody : ComputableInPolyTime
-        (fun q : ((α × ℕ) × ℕ) × List Bool =>
-          let ((a, _), _) := q.1
-          if V (a, q.2) then some q.2 else none)
-        (encPair (encPair (encPair enc encUnary) encUnary) encBits) (encOption encBits) := by
-      have hq1 : ComputableInPolyTime
-          (fun q : ((α × ℕ) × ℕ) × List Bool => let ((a, _), _) := q.1; a)
-          (encPair (encPair (encPair enc encUnary) encUnary) encBits) enc :=
-        (fst enc encUnary).comp
-          ((fst (encPair enc encUnary) encUnary).comp
-            (fst (encPair (encPair enc encUnary) encUnary) encBits))
-      have hq2 : ComputableInPolyTime (fun q : ((α × ℕ) × ℕ) × List Bool => q.2)
-          (encPair (encPair (encPair enc encUnary) encUnary) encBits) encBits :=
-        snd (encPair (encPair enc encUnary) encUnary) encBits
-      exact ite' (hV.comp (hq1.prod hq2)) ((optionSome encBits).comp hq2) (const none)
-    exact hrun.optionElimWithInput (const none) hbody
+      computableInPolyTime_runWord (by fun_prop)
+        (encoding_comp ((fst enc encUnary).comp (fst _ _)))
+        ((snd enc encUnary).comp (fst _ _))
+    refine hrun.optionElimWithInput (const none) ?_
+    have hq1 :=
+      (fst enc encUnary).comp ((fst (encPair enc encUnary) encUnary).comp (fst _ encBits))
+    have hq2 := snd (encPair (encPair enc encUnary) encUnary) encBits
+    exact ite' (hV.comp (hq1.prod hq2)) ((optionSome encBits).comp hq2) (const none)
   have hfind : ComputableInPolyTime
       (fun p : α × ℕ => (List.range p.2).find? fun i => (levinTry enc V p.1 i p.2).isSome)
       (encPair enc encUnary) (encOption encUnary) :=
@@ -365,31 +330,15 @@ private theorem computableInPolyTime_searchStep {enc : α ↪ List Bool}
     {V : α × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     ComputableInPolyTime (searchStep enc V) (encSearchState enc) (encSearchState enc) := by
-  have hstage := computableInPolyTime_levinStage hV
   have hleft : ComputableInPolyTime
       (fun p : α × ℕ => (levinStage enc V p.1 p.2).elim
         (some (.inl (p.1, p.2 + 1))) (fun w => some (.inr w)))
-      (encPair enc encUnary) (encSearchState enc) := by
-    have hnext : ComputableInPolyTime
-        (fun p : α × ℕ => (some (.inl (p.1, p.2 + 1)) : SearchState α))
-        (encPair enc encUnary) (encSearchState enc) :=
-      (optionSome _).comp ((sumInl _ _).comp
-        ((fst enc encUnary).prod (by fun_prop)))
-    have hfound : ComputableInPolyTime
-        (fun q : (α × ℕ) × List Bool => (some (.inr q.2) : SearchState α))
-        (encPair (encPair enc encUnary) encBits) (encSearchState enc) :=
-      (optionSome _).comp ((sumInr _ _).comp (snd (encPair enc encUnary) encBits))
-    exact hstage.optionElimWithInput hnext hfound
-  have hinner : ComputableInPolyTime
-      (fun q : SearchState α × ((α × ℕ) ⊕ List Bool) =>
-        Sum.elim
-          (fun p => (levinStage enc V p.1 p.2).elim
-            (some (.inl (p.1, p.2 + 1))) (fun w => some (.inr w)))
-          (fun _ => (none : SearchState α)) q.2)
-      (encPair (encSearchState enc) (encSum (encPair enc encUnary) encBits))
-      (encSearchState enc) :=
-    (sumElim hleft (const none)).comp (snd (encSearchState enc) _)
-  exact id'.optionElimWithInput (const none) hinner
+      (encPair enc encUnary) (encSearchState enc) :=
+    (computableInPolyTime_levinStage hV).optionElimWithInput
+      ((optionSome _).comp ((sumInl _ _).comp ((fst enc encUnary).prod (by fun_prop))))
+      ((optionSome _).comp ((sumInr _ _).comp (snd (encPair enc encUnary) encBits)))
+  exact id'.optionElimWithInput (const none)
+    ((sumElim hleft (const none)).comp (snd (encSearchState enc) _))
 
 private theorem computableInPolyTime_searchFin (enc : α ↪ List Bool) :
     ComputableInPolyTime (searchFin (α := α)) (encSearchState enc) encBits := by

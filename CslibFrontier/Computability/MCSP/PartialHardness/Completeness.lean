@@ -165,17 +165,12 @@ theorem exists_satTerm {S : Finset ℕ}
     · have hφ := hsat _ (List.getElem_mem hj)
       obtain ⟨c, hc, hct⟩ := List.any_eq_true.1 hφ
       obtain ⟨t, ht, rfl⟩ := List.mem_iff_getElem.1 hc
-      have hjD : I.formulas.getD j [] = I.formulas[j] := by
-        simp [List.getD_eq_getElem?_getD, hj]
-      refine ⟨t, fun _ => ⟨hjD ▸ ht, fun q hq => ?_⟩⟩
+      refine ⟨t, fun _ => ⟨by simpa [List.getD_eq_getElem?_getD, hj] using ht, fun q hq => ?_⟩⟩
       have htD : term I j t = I.formulas[j][t] := term_eq_getElem hj ht
       rw [htD] at hq
       have hq' := (Term.eval_eq_true_iff _ _).1 hct _ (List.getElem_mem hq)
       rw [hmono _ (List.getElem_mem hj) _ (List.getElem_mem ht) _ (List.getElem_mem hq)] at hq'
-      have hvar : var I j t q = I.formulas[j][t][q].1 := by
-        simp [var, htD, List.getD_eq_getElem?_getD, hq]
-      rw [hvar]
-      simpa using hq'
+      simpa [var, htD, List.getD_eq_getElem?_getD, hq] using hq'
     · exact ⟨0, fun h => absurd h hj⟩
   choose τ hτ using h
   exact ⟨τ, fun j hj => hτ j hj⟩
@@ -266,14 +261,9 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
     simp only [directProduct, hin]
     rw [hardTable_apply hdisj hvS hs _ (val_equivFin_natBits hlt)]
     have hbits : natBits (varLength I lam v) s =
-        BitString.zeroExtend (d' := varLength I lam v) (seed x ⟨_, htΔ⟩ q i) := by
-      funext r
-      simp only [natBits, hs_def]
-      exact BitString.testBit_equivFin _ r
-    rw [hbits]
-    unfold evalVar
-    rw [dite_eq_left hvn, dite_eq_left hvn]
-    exact congrArg _ (BitString.zeroExtend_self _)
+        BitString.zeroExtend (d' := varLength I lam v) (seed x ⟨_, htΔ⟩ q i) :=
+      funext fun r => BitString.testBit_equivFin _ r
+    simp only [hbits, evalVar, hvn, ↓reduceDIte, BitString.zeroExtend_self]
   · rfl
 
 /-! ### Size -/

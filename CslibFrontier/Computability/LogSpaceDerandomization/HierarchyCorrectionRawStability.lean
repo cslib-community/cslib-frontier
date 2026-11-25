@@ -147,8 +147,8 @@ theorem correction_preparation_row_moment
   obtain ⟨Lh, Lρ, LI, Lτ, hh, hρ, hi, ht, h⟩ :=
     HP.correction_preparation_stability_constants
   let L := Lh + Lρ + 2 * Lτ * LI
-  have hL : 0 ≤ L := by dsimp only [L]; positivity
-  refine ⟨L, hL, fun Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu => ?_⟩
+  refine ⟨L, by dsimp only [L]; positivity,
+    fun Ω V instΩ instV X Y instX instY Kc hKc f hf A B N u hNu => ?_⟩
   classical
   let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
     kthLargest 1 {w | Y σ w} (fun w => |A σ z w - B σ z w|))
@@ -483,19 +483,13 @@ theorem correctionRequest_children_root_envelope
   obtain ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, hd⟩ :=
     correctionRequest_children_root_stability_of_bounds HP
   let B := (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ)
-  have hB : 0 ≤ B := by positivity
   let Cr := 2 * (C + B * Lτ * LI)
   let Cm := B * Lγ
-  have hCr : 0 ≤ Cr := by dsimp only [Cr]; positivity
-  have hCm : 0 ≤ Cm := mul_nonneg hB hLγ
-  refine ⟨Cr, C, Cm, hCr, hC, hCm, ?_⟩
+  refine ⟨Cr, C, Cm,
+    by dsimp only [Cr, B]; positivity, hC,
+    by dsimp only [Cm, B]; positivity, ?_⟩
   intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' σ x y
-  dsimp only
-  intro hx hy
-  let X := fun τ a => r.source.retains (channels D) τ (ident a)
-  let Y := fun τ b => r.terminal.retains (channels D) τ (ident b)
-  let U := fun τ b => r.usage.retains (channels D) τ (ident b)
+    maximum maximum' σ x y X Y U hx hy
   by_cases hu : U σ y
   · let S : Finset V := {z | X σ z}
     let T : Finset V := {w | Y σ w}
@@ -553,10 +547,7 @@ theorem correctionRequest_children_root_moment
   obtain ⟨Cr, Cp, Cm, hCr, hCp, hCm, henv⟩ := correctionRequest_children_root_envelope HP
   refine ⟨Cr, Cp, Cm, hCr, hCp, hCm, ?_⟩
   intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' N u hNu hUY
-  let X := fun σ x => r.source.retains (channels D) σ (ident x)
-  let Y := fun σ y => r.terminal.retains (channels D) σ (ident y)
-  let U := fun σ y => r.usage.retains (channels D) σ (ident y)
+    maximum maximum' N u hNu hUY X Y U
   let E := fun σ => kthLargest 1 {z | X σ z} (fun z =>
     kthLargest 1 {w | Y σ w} (fun w => |raw σ z w - raw' σ z w|))
   let M := fun x y => rowSliceMean X U (fun σ a b => |prep σ a b - prep' σ a b|) x y
@@ -568,10 +559,8 @@ theorem correctionRequest_children_root_moment
         HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw prep maximum σ x y ^ (4⁻¹ : ℝ) -
     correctionRequest D ident r (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ
         HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc raw' prep' maximum' σ x y ^ (4⁻¹ : ℝ)
-  have hA (σ : Environment P J) (x y : V) : 0 ≤ A σ x y := by dsimp only [A, E]; positivity
   have hF (σ : Environment P J) (x y : V) : 0 ≤ F σ x y :=
     mul_nonneg hCp (by split_ifs; exacts [expect_nonneg fun _ _ => abs_nonneg _, le_rfl])
-  have hG (σ : Environment P J) (x y : V) : 0 ≤ G σ x y := by dsimp only [G]; positivity
   have ha : rowNormPow 4 N u X Y A ≤
       (Cr / r.terminal.rate) ^ 4 * (Fintype.card V : ℝ) ^ 2 *
         rowNormPow 4 N u X Y (fun σ x y => raw σ x y - raw' σ x y) := by
@@ -591,7 +580,8 @@ theorem correctionRequest_children_root_moment
     rw [show G = (fun σ x y => Cm * |maximum σ y - maximum' σ y|) from rfl,
       rowNormPow_mul hCm]
     simp only [rowNormPow, abs_abs]
-  exact (rowNormPow_le_three hNu Z A F G hA hF hG
+  exact (rowNormPow_le_three hNu Z A F G (fun _ _ _ => by dsimp only [A, E]; positivity) hF
+    (fun _ _ _ => by dsimp only [G]; positivity)
     (henv P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum')).trans
     (mul_le_mul_of_nonneg_left (add_le_add (add_le_add ha hb) hg.le) (by norm_num))
 

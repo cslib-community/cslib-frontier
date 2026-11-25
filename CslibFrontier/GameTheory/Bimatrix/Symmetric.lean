@@ -192,14 +192,9 @@ private theorem deviationCost_toSymmCostGame_false {x : M → ℝ} (hx : ∑ i :
           G.toSymmCostGame.cost false (update ((boolPairEquiv M).symm p) false i) =
         x p.1 * (-(G.A i p.2 * x p.2)) := by
     intro p
-    rw [productWeight_def, Fintype.prod_bool]
-    dsimp only [boolPairEquiv, Equiv.coe_fn_symm_mk, toSymmCostGame]
-    have hf : update (fun b => cond b p.2 p.1) false i false = i := by rw [update_self]
-    have ht : update (fun b => cond b p.2 p.1) false i true = p.2 := by
-      rw [update_of_ne (by decide : true ≠ false)]
-      rfl
-    rw [hf, ht]
-    simp only [Bool.cond_true, Bool.cond_false]
+    simp only [productWeight_def, Fintype.prod_bool, boolPairEquiv, Equiv.coe_fn_symm_mk,
+      toSymmCostGame, update_self, ne_eq, Bool.true_eq_false, not_false_eq_true, update_of_ne,
+      Bool.cond_true, Bool.cond_false]
     ring
   simp_rw [hterm]
   rw [Fintype.sum_prod_type]
@@ -319,12 +314,8 @@ private theorem isNash_inv_sum_smul {M N : Type*} [Fintype M] [Fintype N] {G : B
     (hopt₁ : ∀ i : M, 0 < x i → ∀ i' : M, (G.A *ᵥ y) i' ≤ (G.A *ᵥ y) i)
     (hopt₂ : ∀ j : N, 0 < y j → ∀ j' : N, (x ᵥ* G.B) j' ≤ (x ᵥ* G.B) j) :
     G.IsNash ((∑ i : M, x i)⁻¹ • x) ((∑ j : N, y j)⁻¹ • y) := by
-  have hx_ne : x ≠ 0 := by
-    intro h0
-    simp only [h0, Pi.zero_apply, sum_const_zero, lt_self_iff_false] at hsx_pos
-  have hy_ne : y ≠ 0 := by
-    intro h0
-    simp only [h0, Pi.zero_apply, sum_const_zero, lt_self_iff_false] at hsy_pos
+  have hx_ne : x ≠ 0 := fun h0 => hsx_pos.ne' (by simp [h0])
+  have hy_ne : y ≠ 0 := fun h0 => hsy_pos.ne' (by simp [h0])
   refine isNash_iff.2
     ⟨isBestResponse₁_iff.2 ⟨isMixedStrategy_inv_sum_smul hx_nn hx_ne, fun i hi =>
       isPureBestResponse₁_iff.2 fun i' => ?_⟩,

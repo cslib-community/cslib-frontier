@@ -266,12 +266,8 @@ private theorem eval_lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit)
       exact (fn_indep_snd h1.1 h1.2 (ℓ₀.eval val) (ℓ₁.eval val)).symm
     · rw [← eval_unaryLit]
       exact (fn_indep_fst h2.1 h2.2 (ℓ₀.eval val) (ℓ₁.eval val)).symm
-    · have hc : binaryB2Cost (.fn op) = 1 := by
-        dsimp only [binaryB2Cost]
-        rw [ite_eq_right (not_or.2 ⟨h1, h2⟩)]
-      have hgv := hg hc
-      dsimp only [lineBinaryGate, Gate.eval] at hgv
-      rw [Lit.eval_node, Bool.xor_false, hgv]
+    · have hc : binaryB2Cost (.fn op) = 1 := by simp [binaryB2Cost, h1, h2]
+      rw [Lit.eval_node, Bool.xor_false, hg hc]
       rfl
   · intro _; exact Lit.eval_const c val
 
@@ -286,11 +282,10 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
     · simp [programWireLit]
     · exact k.elim0
   | @gate g p line ih =>
-    have hval_p : ∀ J ∈ programBinaryGates p, val J = (programBinaryGate p J).eval val := by
-      intro J hJ
-      have hne : J ≠ n + g := by have := mem_programBinaryGates_bounds hJ; omega
-      have hJ' := hval J (subset_programBinaryGates_gate p line hJ)
-      simpa [programBinaryGate, hne] using hJ'
+    have hval_p : ∀ J ∈ programBinaryGates p, val J = (programBinaryGate p J).eval val :=
+      fun J hJ => by
+        have hne : J ≠ n + g := by have := mem_programBinaryGates_bounds hJ; omega
+        simpa [programBinaryGate, hne] using hval J (subset_programBinaryGates_gate p line hJ)
     rintro (i | k)
     · simp [programWireLit]
     · refine Fin.lastCases ?_ (fun j => ?_) k
@@ -298,9 +293,8 @@ private theorem eval_programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool
         · congr 1 with a : 1
           exact ih hval_p (line.wires a)
         · intro hc
-          have hmem : n + g ∈ programBinaryGates (p.gate line) := by
-            simp [programBinaryGates, hc]
-          simpa [programBinaryGate] using hval (n + g) hmem
+          simpa [programBinaryGate] using
+            hval (n + g) (by simp [programBinaryGates, hc])
       · rw [programWireLit_gate_castSucc,
           show (Wire.gate j.castSucc : Wire n (g + 1)) = (Wire.gate j).castSucc from rfl,
           Program.trace_gate_castSucc]

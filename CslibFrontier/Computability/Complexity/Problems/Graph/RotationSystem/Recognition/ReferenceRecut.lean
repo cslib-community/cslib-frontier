@@ -163,13 +163,9 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       cases htag : d.2
       · have hae : a = o := by
           simpa only [htag, Route.endpoint, Bool.false_eq_true, ↓reduceIte] using ho
-        change Route.line o (o + s • (b - a)) =
-          Route.line (o + s • (a - o)) (o + s • (b - o))
-        rw [hae, sub_self, smul_zero, add_zero]
+        simp only [Bool.false_eq_true, ↓reduceIte, hae, o, sub_self, smul_zero, add_zero]
       · have hbe : b = o := by simpa only [htag, Route.endpoint, ↓reduceIte] using ho
-        change Route.line (o + s • (a - b)) o =
-          Route.line (o + s • (a - o)) (o + s • (b - o))
-        rw [hbe, sub_self, smul_zero, add_zero]
+        simp only [↓reduceIte, hbe, o, sub_self, smul_zero, add_zero]
     · calc
         F (AffineMap.lineMap a b t) = T (AffineMap.lineMap a b t) := hFt t ht
         _ = AffineMap.lineMap (T a) (T b) t := AffineMap.apply_lineMap T a b t
@@ -180,14 +176,11 @@ theorem exists_subdivision_embedding_with_frozen_reference_routes
       route e := if frozen e then Q.route e else M.route e
       endpoint_eq := fun e side => by
         by_cases he : frozen e
-        · have h := (hparam e he).1
-          have heq := P.endpoint_eq e side
-          rw [h] at heq
+        · have heq := (hparam e he).1 ▸ P.endpoint_eq e side
           have hx : F ((Q.route e).endpoint side) = P.vertex (Dart.vertex (e, side)) := by
             cases side <;> exact heq
-          change (if frozen e then Q.route e else M.route e).endpoint side =
-            F.symm (P.vertex (Dart.vertex (e, side)))
-          rw [ite_eq_left he, ← hx, F.symm_apply_apply]
+          rw [ite_eq_left he]
+          exact (F.symm_apply_apply _).symm.trans (congrArg F.symm hx)
         · simpa only [ite_eq_right he] using M.endpoint_eq e side }
   have hSimple (e : Fin (subdivisionGraph I).edges.length) : (E.route e).IsSimple := by
     by_cases he : frozen e

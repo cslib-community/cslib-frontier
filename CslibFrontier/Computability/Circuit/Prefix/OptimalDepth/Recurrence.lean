@@ -122,8 +122,7 @@ private theorem V_mono_left (k : ℕ) :
   induction h generalizing d with
   | zero =>
     simp only [V_zero_right, pow_succ]
-    have hp : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ d := by positivity
-    linarith
+    linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 3 / 2) d]
   | succ h ih =>
     cases d with
     | zero =>
@@ -196,8 +195,7 @@ private theorem V_le_two_mul {k : ℕ} (hk : 3 ≤ k) :
   induction h generalizing d with
   | zero =>
     simp only [V_zero_right, pow_succ]
-    have hp : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ d := by positivity
-    linarith
+    linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 3 / 2) d]
   | succ h ih =>
     cases d with
     | zero =>
@@ -344,20 +342,15 @@ theorem W_eq_V {k : ℕ} (hk : 2 ≤ k) (d h : ℕ) : W k k d h = V k d h := by
 /-- For positive root budget `r ≥ 1`, `1 ≤ W k r d h`. -/
 theorem W_one_le {k r : ℕ} (hr : 1 ≤ r) (d h : ℕ) : (1 : ℝ) ≤ W k r d h := by
   cases h with
-  | zero =>
-    unfold W
-    exact one_le_pow₀ (by norm_num)
+  | zero => exact one_le_pow₀ (by norm_num)
   | succ h =>
     obtain rfl | hr2 := hr.eq_or_lt
     · simpa only [W, one_ne_zero, ↓reduceIte] using V_one_le k d h
     obtain rfl | hd := Nat.eq_zero_or_pos d
-    · have hr0 : r ≠ 0 := by omega
-      have hr1 : r ≠ 1 := by omega
-      simp only [W, hr0, hr1, ↓reduceIte, le_rfl]
+    · simp only [W, (Nat.zero_lt_of_lt hr2).ne', hr2.ne', ↓reduceIte, le_rfl]
     rw [W_succ_eq hr2 hd.ne' rfl]
-    have hsum : (0 : ℝ) ≤ ∑ i ∈ Finset.Ico 1 (min d (r - 1)), V k (d - i) h :=
-      Finset.sum_nonneg fun i _ => V_nonneg k _ h
-    linarith [V_one_le k (d - min d (r - 1)) h]
+    linarith [Finset.sum_nonneg fun i (_ : i ∈ Finset.Ico 1 (min d (r - 1))) =>
+      V_nonneg k (d - i) h, V_one_le k (d - min d (r - 1)) h]
 
 /-- `W k r d h` is monotone in the interval-tree depth `d`. -/
 theorem W_mono_left (k : ℕ) :
@@ -366,8 +359,7 @@ theorem W_mono_left (k : ℕ) :
   cases h with
   | zero =>
     simp only [W, pow_succ]
-    have hp : (0 : ℝ) ≤ (3 / 2 : ℝ) ^ d := by positivity
-    linarith
+    linarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 3 / 2) d]
   | succ h =>
     by_cases hr0 : r = 0
     · simp only [W, hr0, ↓reduceIte, le_rfl]
@@ -463,13 +455,9 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
           rw [hleft, hright]
           ring
       set a := m - u
-      have ha_eq1 : m + 2 - (u + 1) = a + 1 := by omega
-      have ha_eq2 : m + 1 - (u + 1) = a := by omega
-      have ha_eq3 : m + 1 = a + u + 1 := by omega
-      have hchain : ∀ w : ℕ,
+      have hchain (w : ℕ) :
           2 * (V k (a + w + 1) (h + 1) - V k (a + w) (h + 1)) ≤
             V k (a + w + 1) (h + 1) + V k (a + 1) (h + 1) - 2 * V k a (h + 1) := by
-        intro w
         induction w with
         | zero =>
           simp only [Nat.add_zero]
@@ -479,10 +467,9 @@ theorem W_split_depth_two {k r d h : ℕ} (hk : 3 ≤ k) (hr : 2 ≤ r) (_hrk : 
           rw [show a + w + 2 = a + w + 1 + 1 by omega] at h3
           rw [← Nat.add_assoc a w 1]
           linarith
-      have hchain_u := hchain u
-      have hstep_last := V_step_ineq hk (a + u) h
-      rw [ha_eq1, ha_eq2, ha_eq3] at htel_sum ⊢
-      linarith
+      rw [show m + 2 - (u + 1) = a + 1 by omega, show m + 1 - (u + 1) = a by omega,
+        show m + 1 = a + u + 1 by omega] at htel_sum ⊢
+      linarith [hchain u, V_step_ineq hk (a + u) h]
 
 
 /-- Diagonal sum `V_k*(D) = ∑_{d=0}^D V_k(d, D - d)` bounding circuit width for `k ≥ 3`. -/

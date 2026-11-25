@@ -202,9 +202,8 @@ private theorem tops_filter (ds : List (Domino α)) :
     · rw [List.filter_cons_of_pos (by simpa using h)]
       simp only [tops_cons, bottoms_cons, ih.1, ih.2, and_self]
     · rw [List.filter_cons_of_neg (by simpa using h)]
-      have ht : t = [] := List.eq_nil_of_length_eq_zero (by omega)
-      have hb : b = [] := List.eq_nil_of_length_eq_zero (by omega)
-      subst ht hb
+      obtain ⟨rfl, rfl⟩ : t = [] ∧ b = [] :=
+        ⟨List.eq_nil_of_length_eq_zero (by omega), List.eq_nil_of_length_eq_zero (by omega)⟩
       exact ih
 
 /-- The marked pieces after the start domino: if their tops follow `⋆T` and their bottoms follow
@@ -310,30 +309,25 @@ theorem solvable_toPCP_iff (I : MInstance α) : Solvable (toPCP I) ↔ I.Solvabl
         rcases hρ' d hd with rfl | ⟨e, -, -, rfl⟩
         · simp [stopPiece]
         · exact head?_starAfter e.bottom
-      have hnil : tops ρ = [] := by
-        cases h : tops ρ with
+      obtain ⟨d, ρ', rfl⟩ := List.exists_cons_of_ne_nil hne
+      have hnil : tops (d :: ρ') = [] := by
+        cases h : tops (d :: ρ') with
         | nil => rfl
         | cons x w =>
-          have hx := htop x (by rw [h]; rfl)
-          rw [heq] at h
-          exact absurd hx (hbot x (by rw [h]; rfl))
-      obtain ⟨d, ρ', rfl⟩ := List.exists_cons_of_ne_nil hne
-      have hdt : d.top = [] := List.append_eq_nil_iff.mp (by simpa using hnil) |>.1
-      have hdb : d.bottom = [] := by
-        rw [heq] at hnil
-        exact (List.append_eq_nil_iff.mp (by simpa using hnil)).1
+          exact absurd (htop x (congrArg List.head? h))
+            (hbot x (congrArg List.head? (heq.symm.trans h)))
+      have hdt : d.top = [] := (List.append_eq_nil_iff.mp hnil).1
+      have hdb : d.bottom = [] := (List.append_eq_nil_iff.mp (heq ▸ hnil)).1
       rcases hρ' d List.mem_cons_self with rfl | ⟨e, -, hpos, rfl⟩
       · simp [stopPiece] at hdt
-      · have h1 : e.top = [] := by
-          have := congrArg List.length hdt
-          simp only [markPiece, length_starBefore, List.length_nil] at this
-          exact List.eq_nil_of_length_eq_zero (by omega)
+      · have h1 : e.top = [] := List.eq_nil_of_length_eq_zero (by
+          simpa only [markPiece, length_starBefore, List.length_nil, Nat.mul_eq_zero,
+            OfNat.ofNat_ne_zero, false_or] using congrArg List.length hdt)
         have h2 : e.bottom = [] := by
           cases hb : e.bottom with
           | nil => rfl
           | cons y w => simp [markPiece, hb] at hdb
-        rw [h1, h2] at hpos
-        simp at hpos
+        simp [h1, h2] at hpos
   · rintro ⟨ds, hds, heq⟩
     obtain ⟨ht, hb⟩ := tops_filter ds
     refine ⟨startPiece I.start ::

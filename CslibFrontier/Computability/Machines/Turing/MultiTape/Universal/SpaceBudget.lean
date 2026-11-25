@@ -559,31 +559,23 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
     have h₂ := length_eSSt_le' d x b t (i + 1) 0
     rw [streamState_zero] at h₂
     omega
-  case refine_7 =>
-    rintro ⟨d, x, t, b⟩ i - j -
-    exact length_eSSt_le' d x b t i j
+  case refine_7 => exact fun ⟨d, x, t, b⟩ i _ j _ => length_eSSt_le' d x b t i j
   case refine_8 =>
     rintro ⟨d, x, t, b⟩
-    have h := length_eSSt_le' d x b t (t - 1 + 1) 0
-    rw [streamState_zero] at h
-    dsimp only
-    exact h
+    simpa only [streamState_zero] using length_eSSt_le' d x b t (t - 1 + 1) 0
   refine ⟨20 * c, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
-    (fun i => ?_) fun i => ?_⟩ <;> obtain ⟨d, x, t, b⟩ := i <;> dsimp only
-  · have hP : (encPair eDesc (encPair encNat encUnary) (d, t, b)).length ≤
+    (fun i => ?_) fun i => ?_⟩
+  all_goals
+    obtain ⟨d, x, t, b⟩ := i
+    dsimp only
+    have hP : (encPair eDesc (encPair encNat encUnary) (d, t, b)).length ≤
         budgetSpace (d, x, t, b) := by
       simp only [length_encPair, encUnary_apply, List.length_replicate, budgetSpace, descLen]
       omega
     have hE := length_eSSt_le' d x b t (t - 1 + 1) 0
     rw [streamState_zero] at hE
-    exact final_time c _ t _ _ _ hP hE
-  · have hP : (encPair eDesc (encPair encNat encUnary) (d, t, b)).length ≤
-        budgetSpace (d, x, t, b) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, budgetSpace, descLen]
-      omega
-    have := length_eSSt_le' d x b t (t - 1 + 1) 0
-    simp only [streamState_zero] at this
-    nlinarith
+  · exact final_time c _ t _ _ _ hP hE
+  · nlinarith
 
 /-- The initial configuration is encoded within `11 * descLen d + 6` bits: the initial state, the
 input head at `1` and blank work tapes. -/

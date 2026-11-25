@@ -144,10 +144,8 @@ theorem dynamicWidth_fits {W b widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (hS :
 theorem size_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widthCoeff : ℕ)
     (cont : Code .standard R) :
     (withDynamicModulus scratch widthCoeff cont).size = 20 + cont.size := by
-  have hclog : NatClog.program.size = 9 := rfl
-  have hargs : (modulusArgs scratch widthCoeff).size = 3 := rfl
-  have hpow : Power.program.size = 8 := rfl
-  simp only [withDynamicModulus, Code.size, Code.size_rename, hclog, hargs, hpow]
+  simp only [withDynamicModulus, Code.size, Code.size_rename]
+  change 9 + (3 + (8 + cont.size)) = 20 + cont.size
   omega
 
 /-- Dynamic modulus computation reads the physical width if and only if `cont` does. -/
@@ -191,9 +189,8 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
       ∃ y, ExecWithin W cont z y tCont ∧ Q y) :
     ∃ y, ExecWithin W (withDynamicModulus scratch widthCoeff cont) x y
         ((4 * widthCoeff + 5) * Nat.clog 2 S + 13 + tCont) ∧ Q y := by
-  have hfit0 : Fits W (0 + 4 * dynamicWindowSize widthCoeff S) := by
-    simpa only [Nat.zero_add] using hfit
-  obtain ⟨-, -, -, hSle, hwlt, hclt⟩ := dynamicWidth_fits hc hS hfit0
+  obtain ⟨-, -, -, hSle, hwlt, hclt⟩ :=
+    dynamicWidth_fits hc hS ((Nat.zero_add (4 * dynamicWindowSize widthCoeff S)).symm ▸ hfit)
   have hlog_le : Nat.clog 2 S ≤ dynamicWidth widthCoeff S := Nat.le_mul_of_pos_left _ hc
   have hwin_ge2 : 2 ≤ dynamicWindowSize widthCoeff S := hS.trans hSle
   have h2 : Fits W 2 := hfit.of_le (by omega)
@@ -214,9 +211,7 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
       (by simpa only [harg0] using hS1) (by simpa only [harg0] using hlog1))
   have hl' : ExecWithin W (NatClog.program.rename clogScratch) x l (5 * Nat.clog 2 S + 5) := by
     simpa only [harg0] using hl
-  have hl_val : l.regs (scratch 1) = Nat.clog 2 S := by
-    rw [← hxS]
-    exact hl_res
+  have hl_val : l.regs (scratch 1) = Nat.clog 2 S := hxS ▸ hl_res
   have h12 : scratch 1 ≠ scratch 2 := hscratch.ne (by decide)
   have h32 : scratch 3 ≠ scratch 2 := hscratch.ne (by decide)
   refine WP.exists_execWithin ?_
@@ -452,10 +447,8 @@ theorem exec_dynamicCallBank {r R W b widthCoeff S T : ℕ}
   obtain ⟨s, hs, hsmem, hsmatch, hsbound, hsregs⟩ :=
     exec_dynamicSetupBank hwin hscratch hbase hmod hc hS x hb hxS hfit
   let v := view (dynamicWidth widthCoeff S) b (s.comap winBank)
-  have hvmem (a : ℕ) : v.mem a = x.mem (b + a) % dynamicWindowSize widthCoeff S := by
-    change s.mem (b + a) % _ = _
-    rw [hsmem]
-    rfl
+  have hvmem (a : ℕ) : v.mem a = x.mem (b + a) % dynamicWindowSize widthCoeff S :=
+    congrArg (· % _) (congrFun hsmem (b + a))
   obtain ⟨z, hz, hpost⟩ := hsrc v hsbound hvmem
   obtain ⟨y, hy, ⟨hymatch, hyframe_mem⟩, hyframe_regs⟩ :=
     ExecWithin.rename_post hwin

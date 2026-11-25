@@ -276,8 +276,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       (.init (s :: a :: b :: c :: encode φ))).map RandCfg.accepts =
         repeatRoundWith (implied φ s) φ (ppszRounds a b n c) := by
   set L := (s :: a :: b :: c :: encode φ).length with hL
-  have hE : (encodeClauses φ).length + 5 = L := by
-    simp only [hL, List.length_cons, length_encode]
+  have hE : (encodeClauses φ).length + 5 = L := by simp [hL, length_encode]
   set e := ppszExp a b n with he
   have hlen := PPZ.length_countDigits_le e c
   -- the setup
@@ -300,8 +299,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     change y₁.mem (L + 1 + 2 * n + i) = (s :: List.replicate (2 * s) 0)[i]
     rw [hm₁ _ (by omega), ampSetupData_mem]
     rcases i with _ | j
-    · rw [ite_eq_left (by omega)]
-      rfl
+    · exact ite_eq_left (by omega)
     · rw [ite_eq_right (by omega), show L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 by omega,
         Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
       simp [List.getElem_replicate]
@@ -338,9 +336,8 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       simp only [ampTime, countSetupTime, ppszCounterLen, ppszDigits, ← he] at hlen hcount ⊢
       omega)
     RandCfg.accepts fun _ _ => rfl
-  refine ⟨hhalt, hcalls, fun cfg hcfg => ?_, hlaw⟩
-  obtain ⟨d, rfl, -, hd⟩ := hpost cfg hcfg
-  exact ⟨_, d, rfl, hd⟩
+  exact ⟨hhalt, hcalls,
+    fun cfg hcfg => (hpost cfg hcfg).elim fun d hd => ⟨_, d, hd.1, hd.2.2⟩, hlaw⟩
 
 /-- **The PPSZ bound for one round** [Hertli][Hertli2011]: on a satisfiable formula with clauses
 of at most `k ≥ 3` literals, one round of PPSZ with `s ≥ ∑ i < h, (k - 1) ^ i` succeeds with
@@ -426,8 +423,7 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
         (2 : ℝ) ^ ((a : ℝ) / b * n) * (c + 1) := by
   set X := (2 : ℝ) ^ ((a : ℝ) / b * n)
   set e := ppszExp a b n with he
-  obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
-  rw [hN]
+  generalize hN : n + L + 1 = N
   have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (by positivity)
   -- the number of rounds
   have h2e : (2 : ℝ) ^ e ≤ 2 * X := PPZ.two_pow_le_two_mul_rpow (ppszExp_le_add_one hb n)
@@ -455,16 +451,14 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
     have he2 : e + 1 ≤ 2 ^ e := Nat.lt_two_pow_self
     simp only [ppszCounterLen, ← he]
     nlinarith [Nat.mul_le_mul_right (c + 1) he2]
-  have hK1 : (1 : ℝ) ≤ K := by
-    have : 0 < K := by rw [hK]; exact Nat.mul_pos (by positivity) (pow_pos (by omega) _)
-    exact_mod_cast this
+  have hK1 : (1 : ℝ) ≤ K :=
+    Nat.one_le_cast.2 (hK ▸ Nat.mul_pos (by positivity) (pow_pos (by omega) _))
   have hexp : (ampTime s a b c n L : ℝ) =
       (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
         ((5 * e + 19 * ppszCounterLen a b n c + 70 : ℕ) : ℝ) := by
     simp only [ampTime, ppszRounds, ← he]; push_cast; ring
   have hc0 : (0 : ℝ) ≤ c := Nat.cast_nonneg c
-  have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by
-    rw [hK]; push_cast; ring
+  have hKc : ((s + 1) ^ 2 : ℕ) * ((N : ℕ) : ℝ) ^ (2 * s + 1) = (K : ℝ) := by push_cast [hK]; ring
   rw [hexp, mul_assoc 600, hKc]
   have h2e0 : (0 : ℝ) ≤ (2 : ℝ) ^ e := by positivity
   calc (2 : ℝ) ^ e * c * ((n * (impliedTime s L + 25) + 12 * L + 41 : ℕ) : ℝ) +
