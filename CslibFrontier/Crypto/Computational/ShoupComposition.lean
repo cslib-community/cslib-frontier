@@ -900,8 +900,7 @@ private theorem shoupPackMasks_spec (b s t iStar : ℕ) (step : List Bool → Li
       [shoupAdvance b s step masks x lo (p - 1) (shoupSegStart b s step x T0 lo),
        BitString.listRow b j T] := by
     have h := hsegs lo p ⟨Nat.zero_le _, hlo_lt, hp_info.2.1, hlo_c, hp_last, hbtw⟩
-    rw [hv_p, hT0 j (Nat.lt_succ_of_le (hj.trans (Nat.log_mono_right hit)))] at h
-    exact h
+    rwa [hv_p, hT0 j (Nat.lt_succ_of_le (hj.trans (Nat.log_mono_right hit)))] at h
   have hlen_st : (shoupAdvance b s step masks x lo (p - 1)
       (shoupSegStart b s step x T0 lo)).length = b :=
     hst' ▸ length_shoupState b s step hstep masks x (p - 1)
@@ -970,8 +969,7 @@ private theorem shoupUnpack_shoupPack {b s t iStar : ℕ}
     change BitString.listRow b j (shoupUnpackMasks b s t iStar step x masks) = _ at hrow
     rw [hrow]
     split_ifs with hle
-    · rw [decide_eq_true_eq] at hle
-      rw [hlo_m j hle, BitString.listXor_pair_comm b (BitString.listXor b _),
+    · rw [hlo_m j (of_decide_eq_true hle), BitString.listXor_pair_comm b (BitString.listXor b _),
         BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)]
     · exact hhi_m j (Nat.lt_of_not_ge (fun h => hle (decide_eq_true h))) hj
   rw [← BitString.flatten_listRows_of_length (length_shoupUnpackMasks b s t iStar step x masks),
