@@ -128,6 +128,7 @@ product, so that the kernel evaluates it. -/
   let cols := ListMatrix.transpose n B
   (A.rightpad l []).map fun row => cols.map (rowDot (row.take m))
 
+/-- `rowsMul` computes the matrix product, with no shape hypothesis on `A` or `B`. -/
 theorem ofLists_rowsMul [NonUnitalNonAssocSemiring α] (l m n : ℕ) (A B : List (List α)) :
     ofLists l n (rowsMul l m n A B) = ofLists l m A * ofLists m n B := by
   rw [ofLists_mul]
@@ -169,6 +170,7 @@ private theorem getD_rowsMap₂ [Zero α] [Zero β] (f : α → β → γ) :
     rw [rowsMap₂, List.getD_cons_succ, getD_rowsMap₂ f n A.tail B.tail (by omega)]
     cases A <;> cases B <;> simp
 
+/-- `rowsMap₂ f` computes `f` entrywise, with no shape hypothesis on `A` or `B`. -/
 theorem ofLists_rowsMap₂ [Zero α] [Zero β] [Zero γ] (f : α → β → γ) (m n : ℕ)
     (A : List (List α)) (B : List (List β)) :
     ofLists m n (rowsMap₂ f m n A B) = of fun i j => f (ofLists m n A i j) (ofLists m n B i j) := by
@@ -209,8 +211,10 @@ private theorem foldl_lcm_pos (r : List ℚ) {acc : ℕ} (h : 0 < acc) :
   | nil => simpa using h
   | cons q r ih => exact ih (Nat.lcm_pos h q.den_pos)
 
+/-- The denominators' lcm is positive. -/
 theorem denLcm_pos (r : List ℚ) : 0 < denLcm r := foldl_lcm_pos r Nat.one_pos
 
+/-- Every denominator divides `denLcm`. -/
 theorem den_dvd_denLcm {r : List ℚ} {q : ℚ} (hq : q ∈ r) : q.den ∣ denLcm r :=
   (foldl_lcm_spec r 1).2 q hq
 
@@ -433,6 +437,7 @@ end LDLCert
   rowsMap₂ (fun x y => -(x + y)) n n (rowsMul n n n (ListMatrix.transpose n A) P)
     (rowsMul n n n P A)
 
+/-- `lyapunovResidual` computes `-(Aᵀ * P + P * A)`. -/
 theorem ofLists_lyapunovResidual (n : ℕ) (A P : List (List ℚ)) :
     ofLists n n (lyapunovResidual n A P) =
       -((ofLists n n A)ᵀ * ofLists n n P + ofLists n n P * ofLists n n A) := by

@@ -18,9 +18,8 @@ import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 A symmetric `2 × 2` real matrix `!![a, b; b, c]` with `a, c ≥ 0` and `b² ≤ ac` is positive
 semidefinite (`Matrix.posSemidef_fin_two`). An `LDLᴴ` product `L * diagonal d * Lᴴ` with `L`
 unit lower triangular is positive definite exactly when every `d i` is positive, and positive
-semidefinite exactly when every `d i` is nonnegative: `L` is invertible, so this is Sylvester's
-law of inertia for the congruence by `L`. The executable `LDLᵀ` certificates of
-`CslibFrontier.Algorithms.LinearAlgebra.LDLCertificate` rest on these two criteria.
+semidefinite exactly when every `d i` is nonnegative. Since `L` is invertible, this is a case of
+Sylvester's law of inertia for the congruence by `L`.
 
 ## Main results
 
