@@ -190,12 +190,9 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (hx₂_r mBase (mReg_ne (by decide)) (fun i => mOldCp_ne_mReg i (Or.inl (by decide)))).trans
       hx₁_base
   have hx₄_cp34 : x₄.regs (mOldCp ⟨34, by decide⟩) = off := by
-    rw [hx₄_keep3 (mOldCp ⟨34, by decide⟩) (mOldCp_ne_mReg _ (Or.inl (by decide)))
-      (mOldCp_lt_160 _) (mOldCp_ne_mReg _ (Or.inr (by decide)))]
-    dsimp only [x₃, RData.set]
-    rw [Function.update_of_ne (mOldCp_ne_mReg _ (c := 1) (Or.inl (by decide))),
-      Function.update_of_ne (mOldCp_ne_mReg _ (c := 13) (Or.inl (by decide))),
-      hx₂_cp_all ⟨34, by decide⟩]
+    rw [hx₄_keep3 _ (by simp [Fin.ext_iff]) (mOldCp_lt_160 _) (by simp [Fin.ext_iff]),
+      show x₃.regs (mOldCp ⟨34, by decide⟩) = x₂.regs (mOldCp ⟨34, by decide⟩) by
+        simp [x₃, RData.set, Fin.ext_iff], hx₂_cp_all]
     exact cpOffItems_mk U V w N
   set x₅ := x₄.set mItemBase (base + off)
   have hex_ib := RDemonicExec.exactBin (f := .add) (d := mItemBase) (i := mBase)
@@ -213,9 +210,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
     (fits_zero w)
   have hx₇b : x₇.Bounded w := ((hx₄b.set hfit_off).set hfit_fr).set (fits_zero w)
   have hms₇ : memoryState mFr x₇.toData = ⟨x.mem, x.frontier⟩ :=
-    Memory.State.ext hx₄m (by
-      dsimp only [memoryState, x₇, x₆, RData.set, RData.toData]
-      rw [Function.update_of_ne (mReg_ne (by decide) : mFr ≠ mZero), Function.update_self])
+    Memory.State.ext hx₄m (by simp [memoryState, x₇, x₆, RData.set, RData.toData])
   let d_ro := (((mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3,
     mkCompParams U V w N), (base, base + off)), 0)
   have hx₇_x₂ : ∀ reg, reg.val < 160 →
