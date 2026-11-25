@@ -5944,6 +5944,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Loop
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.Computability.WordRAM.Realization.MemoryBackend
 public import CslibFrontier.Computability.WordRAM.Realization.Module
+public import CslibFrontier.Computability.WordRAM.Realization.PrefixFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Primitive
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program
