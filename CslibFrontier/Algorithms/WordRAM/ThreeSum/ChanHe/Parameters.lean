@@ -365,11 +365,7 @@ private theorem exec_calculate {w n U : ℕ} (x : Data 24)
 
 private theorem time_exec_le (κ n U : ℕ) :
     (time 0 n U - 20) + (κ + 1) + 9 ≤ time κ n U := by
-  have h1 : time κ n U = κ + time 0 n U := by
-    simp only [time, Nat.zero_add, Nat.add_assoc]
-  have h2 : 20 ≤ time 0 n U := by
-    simp only [time, Nat.zero_add, Nat.add_assoc]
-    omega
+  simp only [time, Nat.zero_add, Nat.add_assoc]
   omega
 
 /-- Read the native unsigned header and compute all parameters, preserving every memory cell.
@@ -389,9 +385,7 @@ theorem exec {w : ℕ} (κ : ℕ) (x : Data 24)
   wram_call (exec_calculate _
     (by wram_simp [n]) (by wram_simp [n, U]) (by wram_simp) (by wram_simp)
     (by wram_simp) (by wram_simp) (by wram_simp) hfit) with y ⟨hout, hm⟩
-  refine ⟨?_, hout, ?_⟩
-  · exact time_exec_le κ n U
-  · wram_simp [hm]
+  exact ⟨time_exec_le κ n U, hout, by wram_simp [hm]⟩
 
 namespace Math
 
@@ -402,18 +396,14 @@ def scale (n U : ℕ) : ℕ := 16 * (n + 2) * (U + 1)
 
 private theorem scale_bounds (n U : ℕ) :
     16 ≤ scale n U ∧ n + 2 ≤ scale n U ∧ 4 * U + 2 ≤ scale n U := by
-  have h16 : 16 ≤ scale n U :=
-    (Nat.le_mul_of_pos_right 16 (Nat.succ_pos _)).trans
-      (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-  have hn : n + 2 ≤ scale n U :=
+  refine ⟨(Nat.le_mul_of_pos_right 16 (Nat.succ_pos _)).trans
+      (Nat.le_mul_of_pos_right _ (Nat.succ_pos _)),
     (Nat.le_mul_of_pos_left (n + 2) (by decide : 0 < 16)).trans
-      (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-  have hU : 4 * U + 2 ≤ scale n U := by
-    have h4 : 4 * (U + 1) ≤ 16 * (n + 2) * (U + 1) :=
-      Nat.mul_le_mul_right (U + 1) (by omega)
-    dsimp only [scale]
-    omega
-  exact ⟨h16, hn, hU⟩
+      (Nat.le_mul_of_pos_right _ (Nat.succ_pos _)), ?_⟩
+  have h4 : 4 * (U + 1) ≤ 16 * (n + 2) * (U + 1) :=
+    Nat.mul_le_mul_right (U + 1) (by omega)
+  dsimp only [scale]
+  omega
 
 private theorem scale_pow_mono {b : ℕ} (hb : 1 ≤ b) {i j : ℕ} (hij : i ≤ j) :
     b ^ i ≤ b ^ j := Nat.pow_le_pow_right hb hij
@@ -429,8 +419,7 @@ theorem budget_le_scale (n U : ℕ) : budget n U ≤ scale n U ^ 20 := by
   have hΛ : labelBits (2 * U) ≤ b := by
     have hl := Nat.log_le_self 2 (4 * U)
     dsimp [labelBits]
-    have he : 2 * (2 * U) = 4 * U := by omega
-    rw [he]
+    rw [show 2 * (2 * U) = 4 * U by omega]
     omega
   have hr : Nat.sqrt n + 1 ≤ b := by have := Nat.sqrt_le_self n; omega
   have hw : ChanHe.wPar n (2 * U) ≤ b ^ 3 := by
@@ -463,7 +452,6 @@ theorem budget_le_scale (n U : ℕ) : budget n U ≤ scale n U ^ 20 := by
     calc
       _ ≤ (2 * b ^ 9) ^ 2 := Nat.pow_le_pow_left hms 2
       _ = 4 * b ^ 18 := by rw [Nat.mul_pow, ← Nat.pow_mul]
-  have hsmall : 8 * U + 4 * n + 64 ≤ 16 * b := by omega
   have hp18 : b ≤ b ^ 18 := by
     simpa only [Nat.pow_one] using scale_pow_mono hb1 (show 1 ≤ 18 by decide)
   have hbudget : budget n U ≤ 48 * b ^ 18 := by
@@ -515,27 +503,22 @@ private theorem budget_le_two_pow (κ n : ℕ) :
 theorem budget_fits {κ n w : ℕ} (hw : width κ n ≤ w) :
     Fits w (Math.budget n ((n + 2) ^ κ)) := by
   have hl := Nat.clog_pos (b := 2) (by decide) (show 1 < n + 2 by omega)
-  apply Fits.mono (w := width κ n) _ hw
-  apply (budget_le_two_pow κ n).trans_lt
-  apply Nat.pow_lt_pow_right (by decide)
-  exact Nat.mul_lt_mul_of_pos_right (by omega) hl
+  exact Fits.mono ((budget_le_two_pow κ n).trans_lt
+    (Nat.pow_lt_pow_right (by decide) (Nat.mul_lt_mul_of_pos_right (by omega) hl))) hw
 
 /-- Signed-encoded inputs and the unsigned length header fit at the same width. -/
 theorem inputFits {κ w : ℕ} (input : List ℤ) (hw : width κ input.length ≤ w)
     (hvalues : ∀ z ∈ input, |z| ≤ ((input.length + 2) ^ κ : ℕ)) :
     InputFits w (input.map Signed.encode) := by
   have hf := budget_fits hw
-  refine ⟨?_, ?_⟩
+  refine ⟨?_, fun v hv => ?_⟩
   · simp only [List.length_map]
     apply hf.of_le
     dsimp [Math.budget]
     omega
-  · intro v hv
-    obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hv
+  · obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hv
     have habs : z.natAbs ≤ (input.length + 2) ^ κ := by
-      have hc : (z.natAbs : ℤ) ≤ ((input.length + 2) ^ κ : ℕ) := by
-        simpa only [Int.natCast_natAbs] using hvalues z hz
-      exact_mod_cast hc
+      exact_mod_cast (Int.natCast_natAbs z).trans_le (hvalues z hz)
     apply hf.of_le
     dsimp [Math.budget, Signed.encode]
     split_ifs <;> omega
@@ -586,8 +569,7 @@ theorem runs_input {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
   have hr := he.runs (pc := 0) (p := (program κ).program packedLen)
     (Program.Contains.self _).append_left
   simp only [Nat.zero_add] at hr
-  refine ⟨y, t, ht.trans (time_bound κ input.length), hr, ho, hm, ?_⟩
-  exact hr.bounded_init hi
+  exact ⟨y, t, ht.trans (time_bound κ input.length), hr, ho, hm, hr.bounded_init hi⟩
 
 /-- The number of native instructions in the finite structured code is affine in `κ`. -/
 theorem size_program (κ : ℕ) : (program κ).size = κ + 71 := by
@@ -602,16 +584,11 @@ theorem size_program (κ : ℕ) : (program κ).size = κ + 71 := by
 
 /-- The code is the same at every word width. -/
 theorem not_readsWidth (κ : ℕ) : ¬(program κ).ReadsWidth := by
-  have hs : ¬setup.ReadsWidth := by decide
-  have hc : ¬calculate.ReadsWidth := by decide
   have hp : ¬(power κ).ReadsWidth := by
     induction κ with
     | zero => decide
-    | succ κ ih =>
-      change ¬((power κ).ReadsWidth ∨
-        (Code.op (Op.bin BinOp.mul magnitude magnitude base) : Code .standard 24).ReadsWidth)
-      exact not_or.mpr ⟨ih, by decide⟩
-  simpa only [program, Code.ReadsWidth, not_or] using And.intro hs (And.intro hp hc)
+    | succ κ ih => exact not_or.mpr ⟨ih, by decide⟩
+  simpa only [program, Code.ReadsWidth, not_or] using ⟨by decide, hp, by decide⟩
 
 /-- A word at the canonical width has polynomial magnitude. -/
 theorem two_pow_width_le (κ n : ℕ) : 2 ^ width κ n ≤ (n + 2) ^ (40 * κ + 242) := by

@@ -16,7 +16,6 @@ public import Mathlib.RingTheory.Polynomial.UniqueFactorization
 public import Mathlib.RingTheory.Radical.Basic
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Polynomial.BigOperators
-import Mathlib.Tactic.Linarith
 
 /-!
 # Bivariate polynomial shifts, Hasse derivatives, vanishing order, and weighted degree
@@ -139,36 +138,26 @@ theorem coeff_hasseDerivX (i : ℕ) (Q : R[X][Y]) (b : ℕ) :
     (hasseDerivX i Q).coeff b = hasseDeriv i (Q.coeff b) := by
   classical
   rw [hasseDerivX, coeff_sum, sum_def]
-  by_cases hb : b ∈ Q.support
-  · rw [Finset.sum_eq_single b]
-    · simp
-    · intro b' _ hne
-      simp [coeff_monomial, hne]
-    · intro h
-      exact absurd hb h
-  · rw [notMem_support_iff.1 hb, map_zero]
-    refine Finset.sum_eq_zero fun b' hb' => ?_
-    have hne : b' ≠ b := fun h => hb (h ▸ hb')
-    simp [coeff_monomial, hne]
+  simp only [coeff_monomial, Finsupp.single_apply, Finset.sum_ite_eq', mem_support_iff]
+  split_ifs with h <;> simp_all
 
 /-- `hasseDerivX i` on `0` is `0`. -/
 @[simp]
 theorem hasseDerivX_zero (i : ℕ) : hasseDerivX i (0 : R[X][Y]) = 0 := by
   ext b a
-  simp
+  simp only [coeff_hasseDerivX, coeff_zero, map_zero]
 
 /-- `hasseDerivX i` is additive. -/
 theorem hasseDerivX_add (i : ℕ) (P Q : R[X][Y]) :
     hasseDerivX i (P + Q) = hasseDerivX i P + hasseDerivX i Q := by
   ext b a
-  simp
+  simp only [coeff_hasseDerivX, coeff_add, map_add]
 
 /-- `hasseDerivX i` on a monomial in `Y`. -/
 @[simp]
 theorem hasseDerivX_monomial (i b : ℕ) (p : R[X]) :
     hasseDerivX i (monomial b p) = monomial b (hasseDeriv i p) := by
-  ext b' a
-  by_cases h : b = b' <;> simp [h]
+  simp only [hasseDerivX, sum_monomial_index, map_zero]
 
 /-- Evaluating `hasseDerivX i Q` at `Y = C y` commutes with `hasseDeriv i`. -/
 theorem eval_C_hasseDerivX (i : ℕ) (Q : R[X][Y]) (y : R) :
@@ -205,16 +194,12 @@ homomorphism `φ : R →+* S` commutes with `shift`. -/
 theorem map_shift (φ : R →+* S) (x y : R) (Q : R[X][Y]) :
     shift (φ x) (φ y) (Q.map (Polynomial.mapRingHom φ)) =
       (shift x y Q).map (Polynomial.mapRingHom φ) := by
-  rw [shift_apply, shift_apply, Polynomial.map_map]
   have hcomp :
       (taylorAlgHom (φ x) : S[X] →+* S[X]).comp (Polynomial.mapRingHom φ) =
         (Polynomial.mapRingHom φ).comp (taylorAlgHom x : R[X] →+* R[X]) := by
-    ext p
-    · simp
-    · simp
-  rw [hcomp, ← Polynomial.map_map]
-  have hCy : C (φ y) = Polynomial.mapRingHom φ (C y) := by simp
-  rw [hCy, ← Polynomial.map_taylor]
+    apply Polynomial.ringHom_ext <;> simp [taylor_C, taylor_X]
+  rw [shift_apply, shift_apply, Polynomial.map_map, hcomp, ← Polynomial.map_map,
+    Polynomial.map_taylor, Polynomial.coe_mapRingHom, Polynomial.map_C]
 
 end Shift
 
@@ -244,14 +229,9 @@ theorem vanishesToOrder_zero (x y : R) (Q : R[X][Y]) : VanishesToOrder 0 x y Q :
 /-- Vanishing to order `1` at `(x, y)` is ordinary vanishing `Q(x, y) = 0`. -/
 theorem vanishesToOrder_one_iff (x y : R) (Q : R[X][Y]) :
     VanishesToOrder 1 x y Q ↔ Q.evalEval x y = 0 := by
-  constructor
-  · intro h
-    simpa using h 0 0 (by omega)
-  · intro h i j hij
-    have hi : i = 0 := by omega
-    have hj : j = 0 := by omega
-    subst hi; subst hj
-    simpa using h
+  refine ⟨fun h => by simpa only [coeff_coeff_shift_zero] using h 0 0 one_pos, fun h i j hij => ?_⟩
+  obtain ⟨rfl, rfl⟩ : i = 0 ∧ j = 0 := by omega
+  simpa only [coeff_coeff_shift_zero] using h
 
 /-- Monotonicity of vanishing order. -/
 theorem VanishesToOrder.mono {m m' : ℕ} {x y : R} {Q : R[X][Y]}
@@ -262,7 +242,7 @@ theorem VanishesToOrder.mono {m m' : ℕ} {x y : R} {Q : R[X][Y]}
 @[simp]
 theorem vanishesToOrder_of_zero (m : ℕ) (x y : R) : VanishesToOrder m x y (0 : R[X][Y]) := by
   intro i j _
-  simp
+  rw [map_zero, coeff_zero, coeff_zero]
 
 /-- Vanishing to order `m` is closed under addition. -/
 theorem VanishesToOrder.add {m : ℕ} {x y : R} {P Q : R[X][Y]}
@@ -296,20 +276,18 @@ theorem VanishesToOrder.mul {m₁ m₂ : ℕ} {x y : R} {Q₁ Q₂ : R[X][Y]}
   intro i j hij
   rw [map_mul, coeff_mul, finsetSum_coeff]
   refine sum_eq_zero fun ab hab => ?_
-  rw [mem_antidiagonal] at hab
   rw [coeff_mul]
   refine sum_eq_zero fun cd hcd => ?_
-  rw [mem_antidiagonal] at hcd
+  rw [mem_antidiagonal] at hab hcd
   by_cases hlt : cd.1 + ab.1 < m₁
   · rw [h₁ cd.1 ab.1 hlt, zero_mul]
-  · have hlt₂ : cd.2 + ab.2 < m₂ := by omega
-    rw [h₂ cd.2 ab.2 hlt₂, mul_zero]
+  · rw [h₂ cd.2 ab.2 (by omega), mul_zero]
 
 /-- Power rule for vanishing order. -/
 theorem VanishesToOrder.pow {m : ℕ} {x y : R} {Q : R[X][Y]}
     (hQ : VanishesToOrder m x y Q) (r : ℕ) : VanishesToOrder (r * m) x y (Q ^ r) := by
   induction r with
-  | zero => simp
+  | zero => rw [zero_mul]; exact vanishesToOrder_zero _ _ _
   | succ r ih =>
     rw [pow_succ, Nat.succ_mul]
     exact ih.mul hQ
@@ -319,44 +297,25 @@ already vanishes to order `m` at `(x, y)`. -/
 theorem VanishesToOrder.of_mul_left_of_evalEval_ne_zero [NoZeroDivisors R] {m : ℕ} {x y : R}
     {Q₁ Q₂ : R[X][Y]} (h₁ : Q₁.evalEval x y ≠ 0) (h : VanishesToOrder m x y (Q₁ * Q₂)) :
     VanishesToOrder m x y Q₂ := by
-  have hmain : ∀ k < m, ∀ i j, i + j = k → ((shift x y Q₂).coeff j).coeff i = 0 := by
-    intro k
-    induction k using Nat.strong_induction_on with
-    | ind k ih =>
-      intro hkm i j hij
-      have h0 := h i j (hij ▸ hkm)
-      rw [map_mul, coeff_mul, finsetSum_coeff] at h0
-      have hsum :
-          ∑ ab ∈ antidiagonal j, ((shift x y Q₁).coeff ab.1 * (shift x y Q₂).coeff ab.2).coeff i =
-            ((shift x y Q₁).coeff 0).coeff 0 * ((shift x y Q₂).coeff j).coeff i := by
-        rw [Finset.sum_eq_single (0, j)]
-        · rw [coeff_mul, Finset.sum_eq_single (0, i)]
-          · intro cd hcd hne
-            rw [mem_antidiagonal] at hcd
-            have hlt : cd.2 + j < k := by
-              have hc1 : cd.1 ≠ 0 := by
-                intro hzero
-                exact hne (Prod.ext hzero (by omega))
-              omega
-            rw [ih (cd.2 + j) hlt (hlt.trans hkm) cd.2 j rfl, mul_zero]
-          · intro hmem
-            exact absurd (mem_antidiagonal.2 (zero_add i)) hmem
-        · intro ab hab hne
-          rw [mem_antidiagonal] at hab
-          rw [coeff_mul]
-          refine sum_eq_zero fun cd hcd => ?_
-          rw [mem_antidiagonal] at hcd
-          have hlt : cd.2 + ab.2 < k := by
-            have ha1 : ab.1 ≠ 0 := by
-              intro hzero
-              exact hne (Prod.ext hzero (by omega))
-            omega
-          rw [ih (cd.2 + ab.2) hlt (hlt.trans hkm) cd.2 ab.2 rfl, mul_zero]
-        · intro hmem
-          exact absurd (mem_antidiagonal.2 (zero_add j)) hmem
-      rw [hsum, coeff_coeff_shift_zero] at h0
-      exact (mul_eq_zero.1 h0).resolve_left h₁
-  exact fun i j hij => hmain (i + j) hij i j rfl
+  intro i j hij
+  induction hk : i + j using Nat.strong_induction_on generalizing i j with
+  | ind k ih =>
+    have hB (a b : ℕ) (hab : a + b < k) : ((shift x y Q₂).coeff b).coeff a = 0 :=
+      ih _ hab a b (by omega) rfl
+    have h0 := h i j hij
+    rw [map_mul, coeff_mul, finsetSum_coeff, Finset.sum_eq_single (0, j), coeff_mul,
+      Finset.sum_eq_single (0, i), coeff_coeff_shift_zero] at h0
+    · exact (mul_eq_zero.1 h0).resolve_left h₁
+    all_goals first
+      | exact fun hn => absurd (mem_antidiagonal.2 (zero_add _)) hn
+      | intro p hp hne
+        rw [mem_antidiagonal] at hp
+        have hp1 : p.1 ≠ 0 := fun h0 => hne (Prod.ext h0 (by omega))
+        first
+          | exact mul_eq_zero_of_right _ (hB _ _ (by omega))
+          | rw [coeff_mul]
+            exact sum_eq_zero fun cd hcd => mul_eq_zero_of_right _
+              (hB _ _ (by rw [mem_antidiagonal] at hcd; omega))
 
 /-- Over a commutative ring, if `P(x) = y` then `Y - C P` vanishes to order `1` at `(x, y)`. -/
 theorem vanishesToOrder_one_X_sub_C {R : Type*} [CommRing R] {x y : R} {P : R[X]}
@@ -370,14 +329,8 @@ theorem VanishesToOrder.X_sub_C_pow_dvd_eval {R : Type*} [CommRing R] {m : ℕ} 
     (X - C x) ^ m ∣ Q.eval P := by
   -- Write `P(X + x) = C y + X * R₀`.
   obtain ⟨R₀, hR₀⟩ : X ∣ taylor x P - C y := by
-    rw [← pow_one (X : R[X]), X_pow_dvd_iff]
-    intro i hi
-    have hi0 : i = 0 := by omega
-    subst hi0
-    rw [coeff_sub, taylor_coeff_zero, coeff_C_zero, hP, sub_self]
-  have hPR : taylor x P = X * R₀ + C y := by
-    rw [← hR₀]
-    ring
+    rw [X_dvd_iff, coeff_sub, taylor_coeff_zero, coeff_C_zero, hP, sub_self]
+  have hPR : taylor x P = X * R₀ + C y := sub_eq_iff_eq_add.mp hR₀
   -- Express `taylor x (Q.eval P)` as `(shift x y Q).eval (X * R₀)`.
   have hshift_eval : taylor x (Q.eval P) = (shift x y Q).eval (X * R₀) := by
     have h1 : taylor x (Q.eval P) =
@@ -391,28 +344,15 @@ theorem VanishesToOrder.X_sub_C_pow_dvd_eval {R : Type*} [CommRing R] {m : ℕ} 
     rw [hshift_eval, eval_eq_sum_range]
     refine Finset.dvd_sum fun j _ => ?_
     rw [mul_pow]
-    by_cases hmj : m ≤ j
-    · obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hmj
-      rw [pow_add]
-      exact ⟨(shift x y Q).coeff (m + k) * (X ^ k * R₀ ^ (m + k)), by ring⟩
-    · have hjlt : j < m := not_le.1 hmj
-      have hcoeff : X ^ (m - j) ∣ (shift x y Q).coeff j := by
-        rw [X_pow_dvd_iff]
-        intro i hi
-        exact hQ i j (by omega)
-      obtain ⟨T, hT⟩ := hcoeff
-      refine ⟨T * R₀ ^ j, ?_⟩
-      rw [hT]
-      have hpow : (X : R[X]) ^ (m - j) * X ^ j = X ^ m := by
-        rw [← pow_add, Nat.sub_add_cancel hjlt.le]
-      calc (X ^ (m - j) * T) * (X ^ j * R₀ ^ j) = (X ^ (m - j) * X ^ j) * (T * R₀ ^ j) := by ring
-        _ = X ^ m * (T * R₀ ^ j) := by rw [hpow]
+    rcases le_or_gt m j with hmj | hjm
+    · exact dvd_mul_of_dvd_right (dvd_mul_of_dvd_left (pow_dvd_pow X hmj) _) _
+    · rw [← Nat.sub_add_cancel hjm.le, pow_add]
+      exact mul_dvd_mul (X_pow_dvd_iff.2 fun i hi => hQ i j (by omega)) (dvd_mul_right _ _)
   -- Shift back by `-x`.
   obtain ⟨T, hT⟩ := hdvd_shift
   refine ⟨taylor (-x) T, ?_⟩
-  have hback : Q.eval P = taylor (-x) (taylor x (Q.eval P)) := by
-    rw [taylor_taylor, neg_add_cancel, taylor_zero]
-  rw [hback, hT, taylor_mul, taylor_X_pow, C_neg, ← sub_eq_add_neg]
+  rw [← taylor_zero (Q.eval P), ← neg_add_cancel x, ← taylor_taylor, hT, taylor_mul,
+    taylor_X_pow, C_neg, ← sub_eq_add_neg]
 
 end Vanishing
 
@@ -430,19 +370,16 @@ noncomputable def weightedDegree (d : ℕ) (Q : R[X][Y]) : ℕ :=
 /-- The weighted degree of `0` is `0`. -/
 @[simp]
 theorem weightedDegree_zero (d : ℕ) : weightedDegree d (0 : R[X][Y]) = 0 := by
-  simp [weightedDegree]
+  rw [weightedDegree, support_zero, Finset.sup_empty]
+  rfl
 
 /-- `weightedDegree d Q ≤ D` iff every nonzero coefficient `(Q.coeff b).coeff a` has
 `a + d * b ≤ D`. -/
 theorem weightedDegree_le_iff {d D : ℕ} {Q : R[X][Y]} :
     weightedDegree d Q ≤ D ↔ ∀ a b, (Q.coeff b).coeff a ≠ 0 → a + d * b ≤ D := by
   simp only [weightedDegree, Finset.sup_le_iff, mem_support_iff]
-  constructor
-  · intro h a b hab
-    have hb : Q.coeff b ≠ 0 := fun h0 => hab (by rw [h0, coeff_zero])
-    exact h b hb a hab
-  · intro h b _ a hab
-    exact h a b hab
+  exact ⟨fun h a b hab => h b (fun h0 => hab (by rw [h0, coeff_zero])) a hab,
+    fun h b _ a hab => h a b hab⟩
 
 /-- Every nonzero monomial `X ^ a * Y ^ b` of `Q` satisfies `a + d * b ≤ weightedDegree d Q`. -/
 theorem le_weightedDegree {d a b : ℕ} {Q : R[X][Y]} (hab : (Q.coeff b).coeff a ≠ 0) :
@@ -475,17 +412,12 @@ theorem weightedDegree_mul_le (d : ℕ) (A B : R[X][Y]) :
   intro a b hab
   rw [coeff_mul, finsetSum_coeff] at hab
   obtain ⟨j, hj, hjne⟩ := exists_ne_zero_of_sum_ne_zero hab
-  rw [mem_antidiagonal] at hj
   rw [coeff_mul] at hjne
   obtain ⟨i, hi, hine⟩ := exists_ne_zero_of_sum_ne_zero hjne
-  rw [mem_antidiagonal] at hi
-  have hA : (A.coeff j.1).coeff i.1 ≠ 0 := left_ne_zero_of_mul hine
-  have hB : (B.coeff j.2).coeff i.2 ≠ 0 := right_ne_zero_of_mul hine
-  have hleA := le_weightedDegree (d := d) hA
-  have hleB := le_weightedDegree (d := d) hB
-  have hsum : a + d * b = (i.1 + d * j.1) + (i.2 + d * j.2) := by
-    rw [← hi, ← hj]
-    ring
+  rw [mem_antidiagonal] at hi hj
+  have hleA := le_weightedDegree (d := d) (left_ne_zero_of_mul hine)
+  have hleB := le_weightedDegree (d := d) (right_ne_zero_of_mul hine)
+  rw [← hi, ← hj, mul_add]
   omega
 
 /-- Extract a nonzero monomial `(a₀, b₀)` of `Q` maximizing `a + d * b` and, among maximizers,
@@ -498,28 +430,17 @@ private theorem exists_max_weightedDegree_monomial {d : ℕ} {Q : R[X][Y]} (hQ :
   have hmem : ∀ a b, (Q.coeff b).coeff a ≠ 0 ↔ (a, b) ∈ supp := by
     intro a b
     simp only [supp, mem_biUnion, mem_image, mem_support_iff, Prod.mk.injEq]
-    constructor
-    · intro hab
-      exact ⟨b, fun h => hab (by rw [h, coeff_zero]), a, hab, rfl, rfl⟩
-    · rintro ⟨b', -, a', ha', rfl, rfl⟩
-      exact ha'
-  have hne : supp.Nonempty := by
-    obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hQ (by ext b : 2; rw [h b, coeff_zero])
-    obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
-      by_contra h
-      push Not at h
-      exact hb (by ext a; rw [h a, coeff_zero])
-    exact ⟨(a, b), (hmem a b).1 ha⟩
+    exact ⟨fun hab => ⟨b, fun h => hab (by rw [h, coeff_zero]), a, hab, rfl, rfl⟩,
+      fun ⟨_, _, _, ha', h1, h2⟩ => h1 ▸ h2 ▸ ha'⟩
+  obtain ⟨b, a, hab⟩ : ∃ b a, (Q.coeff b).coeff a ≠ 0 := by
+    by_contra! h
+    exact hQ (by ext b a; simp [h])
+  have hne : supp.Nonempty := ⟨(a, b), (hmem a b).1 hab⟩
   set M₀ := supp.sup' hne fun p => p.1 + d * p.2
-  have hM₀_eq : M₀ = weightedDegree d Q := by
-    refine le_antisymm ?_ ?_
-    · refine sup'_le _ _ fun ⟨a, b⟩ hab => le_weightedDegree ((hmem a b).2 hab)
-    · rw [weightedDegree_le_iff]
-      intro a b hab
-      exact le_sup' (fun p : ℕ × ℕ => p.1 + d * p.2) ((hmem a b).1 hab)
+  have hM₀_eq : M₀ = weightedDegree d Q :=
+    le_antisymm (sup'_le _ _ fun ⟨a, b⟩ hab => le_weightedDegree ((hmem a b).2 hab))
+      (weightedDegree_le_iff.2 fun a b hab =>
+        le_sup' (fun p : ℕ × ℕ => p.1 + d * p.2) ((hmem a b).1 hab))
   have htop : (supp.filter fun p => p.1 + d * p.2 = M₀).Nonempty := by
     obtain ⟨p, hp, hpeq⟩ := exists_mem_eq_sup' hne fun p => p.1 + d * p.2
     exact ⟨p, mem_filter.2 ⟨hp, hpeq.symm⟩⟩
@@ -547,13 +468,8 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
         have h1 := le_weightedDegree (d := d) (left_ne_zero_of_mul h0)
         have h2 := le_weightedDegree (d := d) (right_ne_zero_of_mul h0)
         dsimp only at h1 h2
-        have hsum : (i.1 + d * b₁) + (i.2 + d * b₂) = weightedDegree d A + weightedDegree d B := by
-          rw [← hdeg₁, ← hdeg₂]
-          linarith
-        have hi1 : i.1 = a₁ := by linarith
-        exact hne (Prod.ext hi1 (by omega))
-      · intro hmem
-        exact absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
+        exact hne (Prod.ext (by omega) (by omega))
+      · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (a₁, a₂) ∈ antidiagonal (a₁ + a₂)) hmem
     · intro j hj hne
       rw [mem_antidiagonal] at hj
       rw [coeff_mul]
@@ -562,47 +478,26 @@ theorem weightedDegree_mul [NoZeroDivisors R] {d : ℕ} {A B : R[X][Y]}
       by_contra h0
       have h1 := le_weightedDegree (d := d) (left_ne_zero_of_mul h0)
       have h2 := le_weightedDegree (d := d) (right_ne_zero_of_mul h0)
-      have hsum : (i.1 + d * j.1) + (i.2 + d * j.2) = weightedDegree d A + weightedDegree d B := by
-        rw [← hdeg₁, ← hdeg₂]
-        have : i.1 + i.2 = a₁ + a₂ := hi
-        have : j.1 + j.2 = b₁ + b₂ := hj
-        nlinarith
-      have h1eq : i.1 + d * j.1 = weightedDegree d A := by omega
-      have h2eq : i.2 + d * j.2 = weightedDegree d B := by omega
-      have hj1 : j.1 ≤ b₁ := hmax₁ i.1 j.1 (left_ne_zero_of_mul h0) h1eq
-      have hj2 : j.2 ≤ b₂ := hmax₂ i.2 j.2 (right_ne_zero_of_mul h0) h2eq
-      have hjeq1 : j.1 = b₁ := by omega
-      exact hne (Prod.ext hjeq1 (by omega))
-    · intro hmem
-      exact absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
-  have hne : ((A * B).coeff (b₁ + b₂)).coeff (a₁ + a₂) ≠ 0 := by
-    rw [hcoeff]
-    exact mul_ne_zero ha₁ ha₂
-  have hle := le_weightedDegree (d := d) hne
-  have hsum : (a₁ + a₂) + d * (b₁ + b₂) = weightedDegree d A + weightedDegree d B := by
-    rw [← hdeg₁, ← hdeg₂]
-    ring
+      have hd : d * j.1 + d * j.2 = d * b₁ + d * b₂ := by rw [← mul_add, ← mul_add, hj]
+      have hj1 := hmax₁ i.1 j.1 (left_ne_zero_of_mul h0) (by omega)
+      have hj2 := hmax₂ i.2 j.2 (right_ne_zero_of_mul h0) (by omega)
+      exact hne (Prod.ext (by omega) (by omega))
+    · exact fun hmem => absurd (mem_antidiagonal.2 rfl : (b₁, b₂) ∈ antidiagonal (b₁ + b₂)) hmem
+  have hle := le_weightedDegree (d := d) (hcoeff ▸ mul_ne_zero ha₁ ha₂)
+  rw [mul_add] at hle
   omega
 
 /-- The constant polynomial `1` has `(1, d)`-weighted degree `0`. -/
 @[simp]
 theorem weightedDegree_one (d : ℕ) : weightedDegree d (1 : R[X][Y]) = 0 := by
   refine Nat.eq_zero_of_le_zero (weightedDegree_le_iff.2 fun a b hab => ?_)
-  rcases b with _ | b
-  · rcases a with _ | a
-    · omega
-    · simp only [coeff_one, Nat.succ_ne_zero, ↓reduceIte] at hab
-      exact absurd rfl hab
-  · simp only [coeff_one, Nat.succ_ne_zero, ↓reduceIte, coeff_zero] at hab
-    exact absurd rfl hab
+  rcases b with _ | b <;> rcases a with _ | a <;> simp [coeff_one] at hab ⊢
 
 /-- Divisors of a nonzero bivariate polynomial have no larger `(1, d)`-weighted degree. -/
 theorem weightedDegree_le_of_dvd [NoZeroDivisors R] {d : ℕ} {A Q : R[X][Y]}
     (hQ : Q ≠ 0) (hdvd : A ∣ Q) : weightedDegree d A ≤ weightedDegree d Q := by
   obtain ⟨B, rfl⟩ := hdvd
-  have hA : A ≠ 0 := left_ne_zero_of_mul hQ
-  have hB : B ≠ 0 := right_ne_zero_of_mul hQ
-  rw [weightedDegree_mul hA hB]
+  rw [weightedDegree_mul (left_ne_zero_of_mul hQ) (right_ne_zero_of_mul hQ)]
   exact Nat.le_add_right _ _
 
 /-- `Y - C P` has `(1, d)`-weighted degree `d` whenever `P.natDegree ≤ d`. -/
@@ -614,18 +509,12 @@ theorem weightedDegree_X_sub_C {R : Type*} [CommRing R] [Nontrivial R] {d : ℕ}
     · simp only [one_ne_zero, ↓reduceIte, zero_sub, coeff_neg, neg_ne_zero] at hab
       have := le_natDegree_of_ne_zero hab
       omega
-    · simp only [zero_add, ↓reduceIte, one_ne_zero, sub_zero, coeff_one] at hab
-      by_cases ha : a = 0
-      · subst ha; omega
-      · simp only [ha, ↓reduceIte] at hab
-        exact absurd rfl hab
-    · have h1 : (1 : ℕ) ≠ b + 2 := by omega
-      have h2 : b + 2 ≠ 0 := by omega
-      simp only [h1, h2, ↓reduceIte, sub_self, coeff_zero] at hab
-      exact absurd rfl hab
+    · rcases a with _ | a <;> simp [coeff_one] at hab ⊢
+    · simp at hab
   · have h1 : (((Y - C P : R[X][Y]).coeff 1).coeff 0) ≠ 0 := by
-      simp
-    simpa using le_weightedDegree (d := d) h1
+      simp only [coeff_sub, coeff_X_one, coeff_C_succ, sub_zero, coeff_one, ↓reduceIte, ne_eq,
+        one_ne_zero, not_false_eq_true]
+    simpa only [zero_add, mul_one] using le_weightedDegree (d := d) h1
 
 /-- Powers `(Y - C P) ^ r` have `(1, d)`-weighted degree `r * d` whenever `P.natDegree ≤ d`. -/
 theorem weightedDegree_X_sub_C_pow {R : Type*} [CommRing R] [IsDomain R] {d : ℕ} {P : R[X]}
@@ -643,7 +532,7 @@ theorem weightedDegree_le_of_X_sub_C_pow_mul {R : Type*} [CommRing R] [IsDomain 
     (h : weightedDegree d ((Y - C P) ^ r * S) ≤ D) :
     weightedDegree d S ≤ D - r * d := by
   rcases eq_or_ne S 0 with rfl | hS0
-  · simp
+  · rw [weightedDegree_zero]; exact Nat.zero_le _
   · rw [weightedDegree_mul (pow_ne_zero r (X_sub_C_ne_zero P)) hS0,
       weightedDegree_X_sub_C_pow hP r] at h
     omega
@@ -654,7 +543,8 @@ theorem weightedDegree_multiset_prod {R : Type*} [CommSemiring R] [NoZeroDivisor
     {fs : Multiset R[X][Y]} (hfs : ∀ P ∈ fs, P ≠ 0) :
     weightedDegree d fs.prod = (fs.map (weightedDegree d)).sum := by
   induction fs using Multiset.induction_on with
-  | empty => simp
+  | empty =>
+    rw [Multiset.prod_zero, weightedDegree_one, Multiset.map_zero, Multiset.sum_zero]
   | cons P s ih =>
     have hP0 : P ≠ 0 := hfs P (Multiset.mem_cons_self P s)
     have : Nontrivial R[X][Y] := ⟨P, 0, hP0⟩
@@ -673,9 +563,7 @@ theorem sum_weightedDegree_le_of_eq_C_mul_prod {R : Type*} [CommSemiring R] [NoZ
       ∀ P ∈ fs, weightedDegree d P ≤ weightedDegree d Q := by
   have : Nontrivial R[X][Y] := ⟨C c, 0, C_ne_zero.2 hc⟩
   have hprod_ne : fs.prod ≠ 0 := Multiset.prod_ne_zero fun h0 => hfs 0 h0 rfl
-  have hQ0 : Q ≠ 0 := by
-    rw [hQeq]
-    exact mul_ne_zero (C_ne_zero.2 hc) hprod_ne
+  have hQ0 : Q ≠ 0 := hQeq ▸ mul_ne_zero (C_ne_zero.2 hc) hprod_ne
   have hle : weightedDegree d fs.prod ≤ weightedDegree d Q :=
     weightedDegree_le_of_dvd hQ0 ⟨C c, by rw [hQeq, mul_comm]⟩
   refine ⟨(weightedDegree_multiset_prod hfs).symm.trans_le hle, fun P hP => ?_⟩
@@ -699,7 +587,7 @@ variable [DecidableEq F]
 theorem weightedDegree_primPart_le (d : ℕ) (Q : F[X][Y]) :
     weightedDegree d Q.primPart ≤ weightedDegree d Q := by
   rcases eq_or_ne Q 0 with rfl | hQ0
-  · simp
+  · simp only [primPart_zero, weightedDegree_one, Nat.zero_le]
   · exact weightedDegree_le_of_dvd hQ0 Q.primPart_dvd
 
 /-- For `Q ≠ 0`, `Q` and its primitive part `Q.primPart` have the same roots in `F[X]`. -/
@@ -707,8 +595,7 @@ theorem eval_primPart_eq_zero_iff {Q : F[X][Y]} (hQ : Q ≠ 0) (P : F[X]) :
     Q.primPart.eval P = 0 ↔ Q.eval P = 0 := by
   conv_rhs => rw [Q.eq_C_content_mul_primPart]
   rw [eval_mul, eval_C, mul_eq_zero]
-  have hc : Q.content ≠ 0 := mt content_eq_zero_iff.1 hQ
-  simp [hc]
+  exact (or_iff_right (mt content_eq_zero_iff.1 hQ)).symm
 
 /-- `radical Q.primPart` has `(1, d)`-weighted degree at most that of `Q`. -/
 theorem weightedDegree_radical_primPart_le (d : ℕ) (Q : F[X][Y]) :
@@ -747,9 +634,7 @@ theorem exists_eq_mul_eval_ne_zero_of_squarefree {Q : F[X][Y]} (hsq : Squarefree
   obtain ⟨S, rfl⟩ := dvd_iff_isRoot.2 hQP
   refine ⟨S, rfl, fun hSP => ?_⟩
   obtain ⟨T, rfl⟩ := dvd_iff_isRoot.2 hSP
-  have hu : IsUnit (Y - C P : F[X][Y]) :=
-    hsq (Y - C P) ⟨T, by ring⟩
-  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit hu
+  have hdeg := Polynomial.natDegree_eq_zero_of_isUnit (hsq (Y - C P) ⟨T, by ring⟩)
   rw [natDegree_X_sub_C] at hdeg
   omega
 
@@ -775,8 +660,7 @@ theorem exists_eq_C_mul_prod_irreducible {Q : F[X][Y]} (hQ : Q ≠ 0) :
   classical
   let fs := UniqueFactorizationMonoid.factors Q.primPart
   have hprim : Q.primPart ≠ 0 := primPart_ne_zero Q
-  have hassoc : Associated fs.prod Q.primPart := UniqueFactorizationMonoid.factors_prod hprim
-  obtain ⟨u, hu⟩ := hassoc
+  obtain ⟨u, hu⟩ : Associated fs.prod Q.primPart := UniqueFactorizationMonoid.factors_prod hprim
   obtain ⟨a, ha_unit, ha_eq⟩ := Polynomial.isUnit_iff.1 u.isUnit
   have hQeq : Q = C (Q.content * a) * fs.prod := by
     conv_lhs => rw [Q.eq_C_content_mul_primPart]
@@ -787,27 +671,12 @@ theorem exists_eq_C_mul_prod_irreducible {Q : F[X][Y]} (hQ : Q ≠ 0) :
   have hfs_prop : ∀ R ∈ fs, Irreducible R ∧ R.IsPrimitive ∧ 1 ≤ R.natDegree := by
     intro R hR
     have hirr : Irreducible R := UniqueFactorizationMonoid.irreducible_of_factor R hR
-    have hdvd : R ∣ Q.primPart :=
-      (Multiset.dvd_prod hR).trans ⟨(u : F[X][Y]), hu.symm⟩
-    have hRprim : R.IsPrimitive := isPrimitive_of_dvd (isPrimitive_primPart Q) hdvd
-    have hdeg : 1 ≤ R.natDegree := by
-      by_contra h0
-      have h0' : R.natDegree = 0 := by omega
-      have hRC : R = C (R.coeff 0) := eq_C_of_natDegree_eq_zero h0'
-      have hcont : normalize (R.coeff 0) = 1 := by
-        have := hRprim.content_eq_one
-        rw [hRC, content_C] at this
-        exact this
-      have hunit0 : IsUnit (R.coeff 0) := by
-        obtain ⟨v, hv⟩ := associated_normalize (R.coeff 0)
-        rw [hcont] at hv
-        exact isUnit_iff_exists_inv.2 ⟨(v : F[X]), hv⟩
-      exact hirr.not_isUnit (hRC ▸ hunit0.map C)
-    exact ⟨hirr, hRprim, hdeg⟩
-  have hprod_ne : fs.prod ≠ 0 := by
-    intro h0
-    rw [h0, mul_zero] at hQeq
-    exact hQ hQeq
+    have hRprim : R.IsPrimitive := isPrimitive_of_dvd (isPrimitive_primPart Q)
+      ((Multiset.dvd_prod hR).trans ⟨(u : F[X][Y]), hu.symm⟩)
+    refine ⟨hirr, hRprim, Nat.one_le_iff_ne_zero.2 fun h0 => ?_⟩
+    have hRC : R = C (R.coeff 0) := eq_C_of_natDegree_eq_zero h0
+    exact hirr.not_isUnit (hRC ▸ (hRprim _ (dvd_of_eq hRC.symm)).map C)
+  have hprod_ne : fs.prod ≠ 0 := fun h0 => hQ (by rw [hQeq, h0, mul_zero])
   have hdeg_sum : (fs.map Polynomial.natDegree).sum = Q.natDegree := by
     rw [hQeq, natDegree_C_mul hc0]
     exact (Polynomial.natDegree_multiset_prod fs fun h0 =>

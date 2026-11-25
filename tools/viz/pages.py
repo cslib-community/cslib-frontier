@@ -94,13 +94,28 @@ largest share "Other".</p>
 }
 
 
+_BODIES["prs"] = ("Pull requests", "Every pull request of cslib-frontier: when, where, how big and how long it waited.", """
+<h1>Pull requests</h1>
+<p class="sub">Every pull request, from GitHub, joined to its squash commit on <code>main</code> for
+the areas it changed. Merged ones sit where they merged, in the lane of the library area with the
+largest net code-line change; open and closed ones where they were opened. Hover for details; click
+to open it on GitHub.</p>
+<div class="tiles" id="tiles"></div>
+<div class="controls" style="margin-top:16px"><input type="search" id="q" placeholder="Search titles, e.g. Cook-Levin, WordRAM, perf" aria-label="Search pull requests">
+<span class="chips" id="kinds"></span><select id="author" aria-label="Author"></select><span class="small" id="stats"></span></div>
+<div class="card" style="padding:8px"><canvas id="galaxy" aria-label="Pull requests over time by area"></canvas></div>
+<div id="charts"></div>
+<p class="small" style="margin-top:16px" id="data-note"></p>
+""")
+
+
 def _json(obj) -> str:
-    # Safe inside <script>: no "</" can close the element early.
-    return json.dumps(obj, separators=(",", ":")).replace("</", "<\\/")
+    # Safe inside <script>: escaping "<" prevents both "</script>" and HTML5 "<!-- <script>" breakouts.
+    return json.dumps(obj, separators=(",", ":")).replace("<", "\\u003c")
 
 
 def build(out: Path, H: h.History, census, charts: list[dict], sections: list[str],
-          repo_url: str) -> list[Path]:
+          repo_url: str, pr_recs: list[dict] | None = None) -> list[Path]:
     """Write every page and its assets into `out`."""
     out.mkdir(parents=True, exist_ok=True)
     for f in ASSETS.iterdir():
@@ -109,7 +124,8 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
     head = H.commits[-1]
     report = census[0] if census else None
     meta = {"sha": head.sha, "time": head.time, "repoUrl": repo_url, "apiRoot": "../",
-            "libRoot": "CslibFrontier", "areas": style.ALL_AREAS, "lean": bool(report)}
+            "libRoot": "CslibFrontier", "areas": style.ALL_AREAS, "lean": bool(report),
+            "prs": pr_recs is not None}
     daily = sd.daily(H)
     audit_rows = __import__("audits").load(H.repo)
     audit_daily = sd.audit_daily(H, daily["dates"])
@@ -145,9 +161,13 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
                                               for r in results["results"]]},
                       "daily": {"dates": daily["dates"]}},
         "areas": {"modules": modules, "daily": daily, "results": results, "changes": changes},
+        "prs": {"prs": _pr_payload(pr_recs), "kinds": __import__("prs").KINDS,
+                "charts": [c for c in charts if c["section"] == "Pull requests"]},
     }
     written = []
     for page, (title, description, body) in _BODIES.items():
+        if page == "prs" and pr_recs is None:
+            continue
         payload = {"meta": meta, **payloads[page]}
         p = out / f"{page}.html"
         p.write_text(_SHELL.format(
@@ -157,3 +177,13 @@ def build(out: Path, H: h.History, census, charts: list[dict], sections: list[st
             script=f"{page}.js"))
         written.append(p)
     return written
+
+
+def _pr_payload(recs):
+    """Columns for the galaxy: number, title, kind, state, opened, merged, author, added, deleted,
+    files, reviews, commits, area, sub-area."""
+    if recs is None:
+        return None
+    keys = ["n", "title", "kind", "state", "created", "merged", "author", "add", "del", "files",
+            "reviews", "commits", "area", "sub"]
+    return {"fields": keys, "rows": [[r[k] for k in keys] for r in recs if r["created"]]}

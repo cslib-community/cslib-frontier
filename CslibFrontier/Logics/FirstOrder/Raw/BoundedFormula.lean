@@ -121,12 +121,9 @@ theorem rawVar_inr (i : Fin n) : rawVar (α := α) (.inr i) = 2 * i := rfl
 @[simp]
 theorem varOfRaw_rawVar (v : α ⊕ Fin n) : varOfRaw n (rawVar v) = some v := by
   rcases v with a | i
-  · have h1 : (2 * encode a + 1) % 2 = 1 := by omega
-    have h2 : (2 * encode a + 1) / 2 = encode a := by omega
-    simp [varOfRaw, h1, h2]
-  · have h1 : 2 * (i : ℕ) % 2 = 0 := by omega
-    have h2 : 2 * (i : ℕ) / 2 = i := by omega
-    simp [varOfRaw, h1, h2]
+  · simp [varOfRaw, show (2 * encode a + 1) % 2 = 1 by omega,
+      show (2 * encode a + 1) / 2 = encode a by omega]
+  · simp [varOfRaw, show 2 * (i : ℕ) % 2 = 0 by omega, show 2 * (i : ℕ) / 2 = i by omega]
 
 /-- If `y` decodes to the variable `v` at depth `n`, then `rawVar v = y`. -/
 theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some v) :
@@ -146,16 +143,9 @@ theorem isSome_varOfRaw {y : ℕ} :
     (varOfRaw (α := α) n y).isSome ↔ RawFormula.NameOk (· ∈ Set.range (encode : α → ℕ)) n y := by
   unfold varOfRaw RawFormula.NameOk
   split_ifs with h1 h2
-  · simp only [Option.isSome_some, true_iff]
-    exact Or.inl h1
-  · rw [Option.isSome_map, Option.isSome_iff_exists]
-    simp only [decode₂_eq_some, Set.mem_range]
-    constructor
-    · rintro ⟨a, ha⟩
-      exact Or.inr ⟨h2, a, ha⟩
-    · rintro (⟨h, -⟩ | ⟨-, h⟩)
-      · omega
-      · exact h
+  · exact iff_of_true rfl (Or.inl h1)
+  · simp only [Option.isSome_map, Option.isSome_iff_exists, decode₂_eq_some, Set.mem_range]
+    exact ⟨fun ⟨a, ha⟩ => Or.inr ⟨h2, a, ha⟩, fun h => h.elim (fun ⟨he, _⟩ => by omega) And.right⟩
   · simp only [Option.isSome_none, Bool.false_eq_true, false_iff]
     omega
 
@@ -219,9 +209,7 @@ theorem isSome_fromRaw : ∀ {n} {χ : RawFormula},
       RawFormula.WellScoped (· ∈ Set.range (encode : α → ℕ))
         (fun r k => ∃ R : Σ l, L.Relations l, encode R = r ∧ R.1 = k) n χ
   | _, .falsum => by simp [fromRaw, RawFormula.WellScoped]
-  | n, .equal x y => by
-    rw [fromRaw, isSome_map₂, isSome_varOfRaw, isSome_varOfRaw]
-    rfl
+  | n, .equal x y => by simp only [fromRaw, isSome_map₂, isSome_varOfRaw]; rfl
   | n, .rel r ys => by
     rw [fromRaw, relOfRaw, RawFormula.WellScoped]
     simp only [← isSome_varOfRaw]
@@ -234,21 +222,14 @@ theorem isSome_fromRaw : ∀ {n} {χ : RawFormula},
       have hr := decode₂_eq_some.1 hR
       rw [Option.bind_some]
       split_ifs with hc
-      · simp only [Option.isSome_some, true_iff]
-        exact ⟨⟨R, hr, hc.1.symm⟩, hc.2⟩
+      · exact iff_of_true rfl ⟨⟨R, hr, hc.1.symm⟩, hc.2⟩
       · simp only [Option.isSome_none, Bool.false_eq_true, false_iff, not_and]
         rintro ⟨R', hR', hl⟩ hs
-        obtain rfl := encode_injective (hR'.trans hr.symm)
-        exact hc ⟨hl.symm, hs⟩
-  | n, .imp χ₁ χ₂ => by
-    rw [fromRaw, isSome_map₂, isSome_fromRaw, isSome_fromRaw]
-    rfl
+        exact hc ⟨encode_injective (hR'.trans hr.symm) ▸ hl.symm, hs⟩
+  | n, .imp χ₁ χ₂ => by simp only [fromRaw, isSome_map₂, isSome_fromRaw]; rfl
   | n, .all x χ => by
     rw [fromRaw, RawFormula.WellScoped]
-    split_ifs with hx
-    · rw [Option.isSome_map, isSome_fromRaw]
-      simp [hx]
-    · simp [hx]
+    split_ifs with hx <;> simp [hx, isSome_fromRaw]
 
 variable [L.IsRelational]
 
@@ -339,23 +320,18 @@ theorem toRaw_of_fromRaw :
     cases h
     rfl
   | n, .equal x y, _, h => by
-    rw [fromRaw, Option.map₂_eq_some_iff] at h
-    obtain ⟨v, w, hv, hw, rfl⟩ := h
+    obtain ⟨v, w, hv, hw, rfl⟩ := Option.map₂_eq_some_iff.1 h
     simp [rawVar_of_varOfRaw hv, rawVar_of_varOfRaw hw]
   | n, .rel r ys, φ, h => by
-    rw [fromRaw, relOfRaw, Option.bind_eq_some_iff] at h
-    obtain ⟨R, hR, h⟩ := h
+    obtain ⟨R, hR, h⟩ := Option.bind_eq_some_iff.1 h
     split_ifs at h with hc
     cases h
     rw [toRaw_rel]
-    congr 1
-    · exact decode₂_eq_some.1 hR
-    · refine List.ext_getElem (by simp [hc.1]) fun i h₁ h₂ => ?_
-      simp only [List.getElem_ofFn, rawTerm_var]
-      exact rawVar_of_varOfRaw (Option.some_get _).symm
+    refine congrArg₂ _ (decode₂_eq_some.1 hR) (List.ext_getElem (by simp [hc.1]) fun i h₁ h₂ => ?_)
+    simp only [List.getElem_ofFn, rawTerm_var]
+    exact rawVar_of_varOfRaw (Option.some_get _).symm
   | n, .imp χ₁ χ₂, _, h => by
-    rw [fromRaw, Option.map₂_eq_some_iff] at h
-    obtain ⟨φ, ψ, hφ, hψ, rfl⟩ := h
+    obtain ⟨φ, ψ, hφ, hψ, rfl⟩ := Option.map₂_eq_some_iff.1 h
     rw [toRaw_imp, toRaw_of_fromRaw hφ, toRaw_of_fromRaw hψ]
   | n, .all x χ, _, h => by
     rw [fromRaw] at h
@@ -382,15 +358,11 @@ omit [L.IsRelational] in
 private theorem primrecRel_isRelCode :
     PrimrecRel fun r k => ∃ R : Σ l, L.Relations l, encode R = r ∧ R.1 = k := by
   obtain ⟨l, -, hl⟩ := Finite.exists_univ_list (Σ l, L.Relations l)
-  refine (PrimrecRel.exists_mem_list (R := fun (a : ℕ × ℕ) (b : ℕ × ℕ) => a = b)
-    Primrec.eq).comp (Primrec.const (l.map fun R => (encode R, R.1))) Primrec.id |>.of_eq ?_
-  · intro p
-    constructor
-    · rintro ⟨_, hm, rfl⟩
-      obtain ⟨R, -, rfl⟩ := List.mem_map.1 hm
-      exact ⟨R, rfl, rfl⟩
-    · rintro ⟨R, h1, h2⟩
-      exact ⟨_, List.mem_map.2 ⟨R, hl R, rfl⟩, Prod.ext h1 h2⟩
+  refine ((PrimrecRel.exists_mem_list (R := (· = · : ℕ × ℕ → _)) Primrec.eq).comp
+    (Primrec.const (l.map fun R => (encode R, R.1))) Primrec.id).of_eq fun ⟨r, k⟩ => ?_
+  simp only [List.mem_map]
+  exact ⟨fun ⟨_, ⟨R, _, rfl⟩, h⟩ => ⟨R, (Prod.mk.inj h).1, (Prod.mk.inj h).2⟩,
+    fun ⟨R, h1, h2⟩ => ⟨_, ⟨R, hl R, rfl⟩, Prod.ext h1 h2⟩⟩
 
 /-- **The raw coding of bounded formulas**: `φ` is coded by the code of `toRaw φ`. It is a
 definition, available as an instance after
@@ -570,12 +542,11 @@ theorem realize_toRaw {I : ℕ → List M → Prop}
     simp only [toRaw_all, RawFormula.realize_all]
     refine forall_congr' fun m => realize_toRaw hI φ fun w => ?_
     rcases w with a | i
-    · rw [Function.update_of_ne (by simp; omega)]
-      simpa using hρ (.inl a)
-    · refine Fin.lastCases ?_ (fun j => ?_) i
-      · simp
-      · rw [Function.update_of_ne (by simp; omega)]
-        simpa using hρ (.inr j)
+    · rw [rawVar, Function.update_of_ne (by omega)]
+      simpa only [rawVar, Sum.elim_inl] using hρ (.inl a)
+    · refine Fin.lastCases (by simp) (fun j => ?_) i
+      rw [rawVar, Fin.val_castSucc, Function.update_of_ne (by omega)]
+      simpa only [rawVar, Sum.elim_inr, Fin.snoc_castSucc] using hρ (.inr j)
 
 end Semantics
 
@@ -623,27 +594,19 @@ theorem exists_structure_realize_iff_toRaw (M : Type*) [Nonempty M] (φ : L.Sent
     let I : ℕ → List M → Prop := fun r as =>
       ∃ (l : ℕ) (R : L.Relations l) (xs : Fin l → M),
         encode (⟨l, R⟩ : Σ l, L.Relations l) = r ∧ List.ofFn xs = as ∧ Structure.RelMap R xs
-    have hI : ∀ {l} (R : L.Relations l) (xs : Fin l → M),
-        I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) ↔ Structure.RelMap R xs := by
-      intro l R xs
-      constructor
-      · rintro ⟨l', R', xs', he, hx, hR⟩
+    have hI {l} (R : L.Relations l) (xs : Fin l → M) :
+        I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) ↔ Structure.RelMap R xs :=
+      ⟨fun ⟨_, _, _, he, hx, hR⟩ => by
         obtain ⟨rfl, hR'⟩ := Sigma.mk.inj_iff.1 (encode_injective he)
-        obtain rfl := eq_of_heq hR'
-        rw [List.ofFn_inj] at hx
-        rwa [← hx]
-      · exact fun h => ⟨l, R, xs, rfl, rfl, h⟩
-    refine ⟨I, fun _ => m, (realize_toRaw hI φ fun w => ?_).2 h⟩
-    rcases w with a | i
-    · exact a.elim
-    · exact i.elim0
+        cases hR'
+        rwa [← List.ofFn_inj.1 hx],
+       fun h => ⟨l, R, xs, rfl, rfl, h⟩⟩
+    exact ⟨I, fun _ => m, (realize_toRaw hI φ fun w => w.elim Empty.elim Fin.elim0).2 h⟩
   · rintro ⟨I, ρ, h⟩
     let _ : L.Structure M :=
       { RelMap := fun {l} R xs => I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) }
-    refine ⟨inferInstance, (realize_toRaw (fun R xs => Iff.rfl) φ fun w => ?_).1 h⟩
-    rcases w with a | i
-    · exact a.elim
-    · exact i.elim0
+    exact ⟨inferInstance,
+      (realize_toRaw (fun _ _ => Iff.rfl) φ fun w => w.elim Empty.elim Fin.elim0).1 h⟩
 
 /-- A sentence is finitely satisfiable iff its raw formula is. -/
 theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) := by

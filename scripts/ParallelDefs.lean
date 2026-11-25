@@ -133,33 +133,50 @@ unsafe def anon (self : NameSet) (e : Expr) : StateM (Std.HashMap USize Expr) Ex
   modify (·.insert key r)
   return r
 
-/-- Tree sizes of the subterms of an anonymized body, computed once per shared node, and the
-subterms of at least `minSize` nodes by hash. -/
-structure Sizes where
+/-- Memoized tree-size walk state for `visitSizes`. -/
+private structure VisitState (σ : Type) where
   memo : Std.HashMap USize Nat := {}
-  big : Std.HashMap UInt64 (Nat × Expr) := {}
+  acc : σ
 
-unsafe def sizes (minSize : Nat) (e : Expr) : StateM Sizes Nat := do
+/-- Tree size of every node in an anonymized expression, computed once per shared pointer, passing
+each visited subterm and its tree size to `onNode`. -/
+unsafe def visitSizes {σ : Type} (e : Expr) (onNode : Expr → Nat → σ → σ) :
+    StateM (VisitState σ) Nat := do
   let key := ptrAddrUnsafe e
   if let some n := (← get).memo[key]? then return n
   let n ← match e with
-    | .app f a => do pure (1 + (← sizes minSize f) + (← sizes minSize a))
-    | .lam _ t b _ | .forallE _ t b _ => do pure (1 + (← sizes minSize t) + (← sizes minSize b))
+    | .app f a => do pure (1 + (← visitSizes f onNode) + (← visitSizes a onNode))
+    | .lam _ t b _ | .forallE _ t b _ => do
+      pure (1 + (← visitSizes t onNode) + (← visitSizes b onNode))
     | .letE _ t v b _ => do
-      pure (1 + (← sizes minSize t) + (← sizes minSize v) + (← sizes minSize b))
-    | .proj _ _ b => do pure (1 + (← sizes minSize b))
+      pure (1 + (← visitSizes t onNode) + (← visitSizes v onNode) + (← visitSizes b onNode))
+    | .proj _ _ b => do pure (1 + (← visitSizes b onNode))
     | _ => pure 1
-  modify fun s => { s with
-    memo := s.memo.insert key n
-    big := if n ≥ minSize then s.big.insert e.hash (n, e) else s.big }
+  modify fun s => { memo := s.memo.insert key n, acc := onNode e n s.acc }
   return n
 
-/-- The size of an anonymized body and its subterms of at least `minSize` nodes, by hash. -/
+/-- The size of an anonymized body and its distinct subterms of at least `minSize` nodes, keyed by
+structural `Expr` equality (`BEq Expr`, i.e., `Expr.eqv`, which agrees with `Expr.equal` on outputs
+of `anon`) so that colliding 32-bit `Expr.hash` values stay separate. -/
 unsafe def bigSubterms (minSize : Nat) (self : NameSet) (body : Expr) :
-    Nat × Std.HashMap UInt64 (Nat × Expr) :=
+    Nat × Std.HashMap Expr Nat :=
   let (a, _) := (anon self body).run {}
-  let (n, s) := (sizes minSize a).run {}
-  (n, s.big)
+  let (n, s) := (visitSizes a fun e sz big =>
+    if sz ≥ minSize then big.insert e sz else big).run { acc := ({} : Std.HashMap Expr Nat) }
+  (n, s.acc)
+
+/-- The size of an anonymized body and the distinct `table` slots whose expression occurs as a
+subterm of at least `minSize` nodes, matched by structural `Expr` equality (`BEq Expr`). -/
+unsafe def matchingSubterms (minSize : Nat) (table : Std.HashMap Expr Nat) (self : NameSet)
+    (body : Expr) : Nat × Std.HashSet Nat :=
+  let (a, _) := (anon self body).run {}
+  let (n, s) := (visitSizes a fun e sz hits =>
+    if sz ≥ minSize then
+      match table[e]? with
+      | some slot => hits.insert slot
+      | none => hits
+    else hits).run { acc := ({} : Std.HashSet Nat) }
+  (n, s.acc)
 
 /-- The constant `c` when `e` is, after its leading `fun`s, `c` applied to bound variables. -/
 partial def aliasTarget? : Expr → Option Name
@@ -295,6 +312,13 @@ def inLines (request : Option (Option (Array (Nat × Nat)))) (range : Option Dec
     rs.any fun (lo, hi) => lo ≤ r.range.endPos.line && r.selectionRange.pos.line ≤ hi
   | _, _ => false
 
+/-- An anonymized subterm of at least `minSize` nodes seen in at least one examined declaration. -/
+private structure SubtermEntry where
+  size : Nat
+  expr : Expr
+  examined : Array Nat := #[]
+  occurrences : Array Nat := #[]
+
 unsafe def runDefs (req : Requests) (libDir : System.FilePath) (minSize maxShared : Nat) :
     IO Unit := do
   let stdout ← IO.getStdout
@@ -326,8 +350,11 @@ unsafe def runDefs (req : Requests) (libDir : System.FilePath) (minSize maxShare
       decls := decls.push {
         name := c.name, module := m.name, priv, examined, self, body, uses
         line := (range.map (·.selectionRange.pos.line)).getD 0 }
-  -- The large subterms of the examined bodies, with the examined declarations containing them.
-  let mut table : Std.HashMap UInt64 (Nat × Expr × Array Nat) := {}
+  -- The distinct large subterms of the examined bodies, indexed by structural `Expr` equality
+  -- (not `Expr.hash` alone, which is 32-bit in Lean 4 and suffers birthday collisions across a
+  -- large library).
+  let mut table : Std.HashMap Expr Nat := {}
+  let mut entries : Array SubtermEntry := #[]
   let mut examinedCount := 0
   let mut index : Std.HashMap Name Nat := {}
   for i in [0:decls.size] do
@@ -344,30 +371,36 @@ unsafe def runDefs (req : Requests) (libDir : System.FilePath) (minSize maxShare
           ("bm", toJson dt.module), ("bl", toJson dt.line), ("bp", toJson dt.priv)]
     let (n, big) := bigSubterms minSize d.self d.body
     decls := decls.set! i { d with size := n }
-    for (h, (sz, e)) in big do
-      let (s0, e0, ds) := table.getD h (sz, e, #[])
-      table := table.insert h (s0, e0, ds.push i)
-  -- Every declaration of the environment containing one of those subterms.
-  let mut occurrences : Std.HashMap UInt64 (Array Nat) := {}
+    for (e, sz) in big do
+      if let some slot := table[e]? then
+        entries := entries.modify slot fun ent =>
+          { ent with examined := ent.examined.push i, occurrences := ent.occurrences.push i }
+      else
+        let slot := entries.size
+        table := table.insert e slot
+        entries := entries.push
+          { size := sz, expr := e, examined := #[i], occurrences := #[i] }
+  -- Add every non-examined declaration containing one of those subterms (examined declarations are
+  -- already recorded in `occurrences` during the loop above).
   if !table.isEmpty then
     for i in [0:decls.size] do
       let d := decls[i]!
-      let (n, big) := bigSubterms minSize d.self d.body
+      if d.examined then continue
+      let (n, hits) := matchingSubterms minSize table d.self d.body
       decls := decls.set! i { d with size := n }
-      for (h, _) in big do
-        if table.contains h then
-          occurrences := occurrences.insert h ((occurrences.getD h #[]).push i)
+      for slot in hits do
+        entries := entries.modify slot fun ent =>
+          { ent with occurrences := ent.occurrences.push i }
   -- For each pair, the largest subterm shared by few enough declarations.
   let mut best : Std.HashMap (Nat × Nat) (Nat × Expr) := {}
-  for (h, (sz, e, examined)) in table do
-    let occs := occurrences.getD h #[]
-    if occs.size < 2 || occs.size > maxShared then continue
-    for a in examined do
-      for b in occs do
+  for ent in entries do
+    if ent.occurrences.size < 2 || ent.occurrences.size > maxShared then continue
+    for a in ent.examined do
+      for b in ent.occurrences do
         if a == b || (decls[b]!.examined && b < a) then continue
         if related decls[a]! decls[b]! then continue
-        if sz > ((best.get? (a, b)).map (·.1)).getD 0 then
-          best := best.insert (a, b) (sz, e)
+        if ent.size > ((best.get? (a, b)).map (·.1)).getD 0 then
+          best := best.insert (a, b) (ent.size, ent.expr)
   let pairs := best.toArray.qsort fun ((a, b), (s, _)) ((a', b'), (s', _)) =>
     s > s' || (s == s' && (a < a' || (a == a' && b < b')))
   for ((a, b), (sz, e)) in pairs do

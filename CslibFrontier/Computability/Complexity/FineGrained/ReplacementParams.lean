@@ -168,10 +168,8 @@ theorem clog_lt_succ_sq_mul_pow_four {n : ℕ} (hnu : 1 ≤ Nat.clog 2 (Nat.clog
     Nat.clog 2 n < (numGroups n + 1) ^ 2 * Nat.clog 2 (Nat.clog 2 n) ^ 4 := by
   set lam := Nat.clog 2 n
   set nu := Nat.clog 2 lam
-  have hdiv : lam.sqrt + 1 ≤ (numGroups n + 1) * nu ^ 2 := by
-    have hlt := Nat.lt_mul_div_succ lam.sqrt (pow_pos hnu 2)
-    rw [mul_comm] at hlt
-    exact hlt
+  have hdiv : lam.sqrt + 1 ≤ (numGroups n + 1) * nu ^ 2 :=
+    (Nat.lt_mul_div_succ lam.sqrt (pow_pos hnu 2)).trans_eq (mul_comm _ _)
   calc lam < (lam.sqrt + 1) ^ 2 := Nat.lt_succ_sqrt' lam
     _ ≤ ((numGroups n + 1) * nu ^ 2) ^ 2 := Nat.pow_le_pow_left hdiv 2
     _ = (numGroups n + 1) ^ 2 * nu ^ 4 := by ring
@@ -304,9 +302,7 @@ theorem intervalStart_eq_natFloor {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 1 
   obtain ⟨hlt, hle⟩ := intervalStart_bounds hr hR hRQ
   have hnonneg : 0 ≤ mean n - ((rowBound β n : ℝ) - 1) / 2 :=
     (Nat.cast_nonneg (intervalStart β n)).trans hle
-  symm
-  rw [Nat.floor_eq_iff hnonneg]
-  exact ⟨hle, by linarith⟩
+  exact ((Nat.floor_eq_iff hnonneg).2 ⟨hle, by linarith⟩).symm
 
 /-- `(intervalStart β n : ℤ)` equals the integer floor `⌊μ - (R - 1) / 2⌋` once `2 ≤ r`, `1 ≤ R`,
 and `2 R ≤ Q`. -/
@@ -314,9 +310,7 @@ theorem intervalStart_eq_intFloor {β n : ℕ} (hr : 2 ≤ numGroups n) (hR : 1 
     (hRQ : 2 * rowBound β n ≤ numNodes n) :
     (intervalStart β n : ℤ) = ⌊mean n - ((rowBound β n : ℝ) - 1) / 2⌋ := by
   obtain ⟨hlt, hle⟩ := intervalStart_bounds hr hR hRQ
-  symm
-  rw [Int.floor_eq_iff]
-  exact ⟨by exact_mod_cast hle, by push_cast; linarith⟩
+  exact (Int.floor_eq_iff.2 ⟨by exact_mod_cast hle, by push_cast; linarith⟩).symm
 
 /-- The interval `I = {A₀, …, A₀ + R - 1}` has exact cardinality `R` whenever `1 ≤ R`. -/
 theorem card_interval {β n : ℕ} (hR : 1 ≤ rowBound β n) :
@@ -431,8 +425,7 @@ theorem binomTail_lt_tailBudget {β n b : ℕ} (hβ : 1 ≤ β) (hr : 2 ≤ numG
       _ = Real.exp ((m + 1 : ℕ) : ℝ) := by rw [← Real.exp_nat_mul, mul_one]
       _ < Real.exp (16 * ((β : ℝ) + 3) ^ 2 * nu) := Real.exp_lt_exp.mpr harg_lt
   have hexp_lt_pow : 2 * Real.exp (-(16 * ((β : ℝ) + 3) ^ 2 * nu)) < 1 / (2 : ℝ) ^ m := by
-    rw [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]
-    exact hpow_lt
+    rwa [Real.exp_neg, ← div_eq_mul_inv, div_lt_div_iff₀ (Real.exp_pos _) (by positivity), one_mul]
   have hdenom_nat : b * r ^ 2 * lam ≤ 2 ^ m := by
     have hr2_lam : r ^ 2 ≤ lam :=
       (Nat.pow_le_pow_left (Nat.div_le_self _ _) 2).trans (Nat.sqrt_le' lam)
@@ -817,8 +810,7 @@ theorem isBigO_mul_rowCost_interpolationScale {β : ℕ} :
             ≤ Real.log (2 / Real.log 2 * L) := Real.log_le_log (by positivity) hlam_le_L
           _ = Real.log (2 / Real.log 2) + LL := Real.log_mul (by positivity) hL_pos.ne'
           _ ≤ Real.log (2 / Real.log 2) * LL + LL := by
-              have := le_mul_of_one_le_right hpos_c hLL_ge
-              linarith
+              linarith [le_mul_of_one_le_right hpos_c hLL_ge]
           _ = (Real.log (2 / Real.log 2) + 1) * LL := by ring
       calc (nu : ℝ) ≤ 2 / Real.log 2 * Real.log lam := clog_two_le_mul_log hlam3
         _ ≤ 2 / Real.log 2 * ((Real.log (2 / Real.log 2) + 1) * LL) := by gcongr

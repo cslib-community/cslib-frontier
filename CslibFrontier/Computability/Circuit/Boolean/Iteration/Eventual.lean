@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Target
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Circuits for eventual behaviour
@@ -91,10 +92,7 @@ theorem synchronous_coalescence_optimized (c : Circuit signature n n) :
       (out.size : ℝ) ≤ 160000 * optimizedBudget n c.size (2 ^ n) + 6 * n + 1 := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := synchronous_coalescence c L hL hLN
-  refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 80000 * (powerBudget n c.size (2 ^ n) L : ℝ) + 6 * n + 1 := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, ho, by cast_linarith [hs]⟩
 
 /-- **Recurring targets.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `80000 * powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L + p.size` decides whether the orbit of
@@ -105,28 +103,28 @@ theorem recurring_target_circuit (c : Circuit signature n n) (p : Circuit signat
       (∀ x, out.eval interpretation x 0 = true ↔
         ∀ a, ∃ t, a ≤ t ∧ p.eval interpretation ((c.eval interpretation)^[t] x) 0 = true) ∧
       out.size ≤ 80000 * powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L + p.size := by
-  let f := c.eval interpretation
   obtain ⟨project, hp, hps⟩ := fixed_power n c (Fintype.card (BitString n)).factorial L hL hLN
   obtain ⟨target, ht, hts⟩ := target_reachability c p L hL hLN
   refine ⟨target.comp project, fun x => ?_, ?_⟩
   · rw [Circuit.eval_comp, ht, hp]
-    exact (recurring_target_iff f (fun y => p.eval interpretation y 0 = true) x).symm
+    exact (recurring_target_iff (c.eval interpretation)
+      (fun y => p.eval interpretation y 0 = true) x).symm
   · have hb : powerBudget n c.size (2 ^ n) L ≤
         powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L := by
       unfold powerBudget
       gcongr
       omega
-    rw [Circuit.size_comp]
-    omega
+    rw [Circuit.size_comp]; omega
 
 /-- Negating a one-bit circuit costs one gate. -/
 theorem exists_not_circuit (p : Circuit signature n 1) :
     ∃ out : Circuit signature n 1,
       (∀ x, out.eval interpretation x 0 = !p.eval interpretation x 0) ∧ out.size ≤ p.size + 1 := by
-  have hp : Synthesis interpretation (inputs n) {fun x => p.eval interpretation x 0} p.size :=
-    (Synthesis.circuit (I := interpretation) (s := inputs n) p (fun i x => x i)
-      fun i => ⟨i, rfl⟩).mono Set.Subset.rfl (by rintro _ rfl; exact ⟨0, rfl⟩) le_rfl
-  obtain ⟨out, ho, hs⟩ := hp.not.exists_circuit
+  obtain ⟨out, ho, hs⟩ := ((Synthesis.circuit (I := interpretation) (s := inputs n) p
+    (fun i x => x i) fun i => ⟨i, rfl⟩).mono Set.Subset.rfl
+      (by
+        rintro _ rfl
+        exact ⟨0, rfl⟩) le_rfl).not.exists_circuit
   exact ⟨out, fun x => congrFun (ho x) 0, hs⟩
 
 /-- **Eventually permanent targets.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
@@ -162,11 +160,7 @@ theorem recurring_target_optimized (c : Circuit signature n n) (p : Circuit sign
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + p.size + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := recurring_target_circuit c p L hL hLN
-  refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      80000 * (powerBudget n (c.size + p.size + 4 * n) (2 ^ n) L : ℝ) + p.size := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, ho, by cast_linarith [hs]⟩
 
 /-- **Square-root eventually permanent targets.** -/
 theorem eventually_always_target_optimized (c : Circuit signature n n)
@@ -179,10 +173,6 @@ theorem eventually_always_target_optimized (c : Circuit signature n n)
   obtain ⟨L, hL, hLN, hopt⟩ :=
     exists_powerBudget_le_optimizedBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) le_rfl
   obtain ⟨out, ho, hs⟩ := eventually_always_target_circuit c p L hL hLN
-  refine ⟨out, ho, ?_⟩
-  have hs' : (out.size : ℝ) ≤
-      80000 * (powerBudget n (c.size + (p.size + 1) + 4 * n) (2 ^ n) L : ℝ) + p.size + 2 := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, ho, by cast_linarith [hs]⟩
 
 end Cslib.Circuits.Boolean.Iteration

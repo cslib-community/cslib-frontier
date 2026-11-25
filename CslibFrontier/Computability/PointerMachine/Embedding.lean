@@ -147,8 +147,7 @@ private theorem modify (r : Fin L.ptrRegs) (g g' : Record M L → Record M L)
 private theorem relabel_congr {g : ℕ → ℕ}
     (hg : ∀ a, a < x.heap.length → g a = f a) {n : Record M L} (hn : n ∈ x.heap) :
     n.relabel g = n.relabel f := by
-  change { n with ptr := fun r => (n.ptr r).map g } =
-    { n with ptr := fun r => (n.ptr r).map f }
+  unfold Record.relabel
   congr 1
   funext r
   exact Option.map_congr fun a ha => hg a (h.source_valid.2 n hn r a ha)
@@ -160,16 +159,8 @@ private theorem create (r : Fin L.ptrRegs) :
   have hg (a) (ha : a < x.heap.length) : g a = f a :=
     Function.update_of_ne (Nat.ne_of_lt ha) _ _
   have hfresh : g x.heap.length = y.heap.length := Function.update_self ..
-  refine ⟨g, hg, ?_⟩
-  refine {
-    source_valid := Instr.effect_valid h.source_valid
-    target_valid := Instr.effect_valid h.target_valid
-    pc := h.pc
-    data := h.data
-    ptr := ?_
-    injective := ?_
-    bound := ?_
-    heap := ?_ }
+  refine ⟨g, hg, ⟨Instr.effect_valid h.source_valid, Instr.effect_valid h.target_valid,
+    h.pc, h.data, ?_, ?_, ?_, ?_⟩⟩
   · intro s
     simp only [Instr.effect, State.setPtr, Function.update_apply]
     split_ifs with hs
@@ -179,34 +170,27 @@ private theorem create (r : Fin L.ptrRegs) :
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha hb
     by_cases ha' : a < x.heap.length <;> by_cases hb' : b < x.heap.length
     · exact h.injective ha' hb' (by simpa only [hg a ha', hg b hb'] using hab)
-    · have hb'' : b = x.heap.length := by omega
-      rw [hb'', hfresh, hg a ha'] at hab
-      have := h.bound ha'
-      omega
-    · have ha'' : a = x.heap.length := by omega
-      rw [ha'', hfresh, hg b hb'] at hab
-      have := h.bound hb'
-      omega
+    · rw [show b = x.heap.length by omega, hfresh, hg a ha'] at hab
+      exact absurd hab (h.bound ha').ne
+    · rw [show a = x.heap.length by omega, hfresh, hg b hb'] at hab
+      exact absurd hab.symm (h.bound hb').ne
     · omega
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha ⊢
     by_cases ha' : a < x.heap.length
-    · rw [hg a ha']
-      exact Nat.lt_succ_of_lt (h.bound ha')
-    · have : a = x.heap.length := by omega
-      simp [this, hfresh]
+    · simpa only [hg a ha'] using Nat.lt_succ_of_lt (h.bound ha')
+    · simp [show a = x.heap.length by omega, hfresh]
   · intro a ha
     simp only [Instr.effect, List.length_append, List.length_singleton] at ha
     change (y.heap ++ [Record.blank])[g a]? =
       ((x.heap ++ [Record.blank])[a]?).map (Record.relabel g)
     by_cases ha' : a < x.heap.length
-    · rw [hg a ha']
-      rw [List.getElem?_append_left (h.bound ha'), List.getElem?_append_left ha', h.heap ha']
+    · rw [hg a ha', List.getElem?_append_left (h.bound ha'), List.getElem?_append_left ha',
+        h.heap ha']
       cases hn : x.heap[a]? with
       | none => rfl
       | some n => simp [h.relabel_congr hg (List.mem_of_getElem? hn)]
-    · have : a = x.heap.length := by omega
-      simp [this, hfresh, Record.relabel, Record.blank]
+    · simp [show a = x.heap.length by omega, hfresh, Record.relabel, Record.blank]
 
 /-- Every instruction preserves heap embeddings. Allocation extends the map at the fresh
 source address and leaves its values on all previously allocated source addresses unchanged. -/
@@ -241,23 +225,17 @@ theorem effect (i : Instr M L) :
   | storePtr field base r =>
     refine ⟨f, fun _ _ => rfl, h.modify base _ _
       (Instr.effect_valid (i := .storePtr field base r) h.source_valid)
-      (Instr.effect_valid (i := .storePtr field base r) h.target_valid) ?_⟩
-    intro n _
+      (Instr.effect_valid (i := .storePtr field base r) h.target_valid) fun n _ => ?_⟩
     simp only [Record.relabel, h.ptr]
     congr 1
     funext s
-    simp only [Function.update_apply]
-    split_ifs <;> rfl
+    simp only [Function.update_apply, apply_ite (Option.map f)]
   | storeData field base s =>
     refine ⟨f, fun _ _ => rfl, h.modify base _ _
       (Instr.effect_valid (i := .storeData field base s) h.source_valid)
-      (Instr.effect_valid (i := .storeData field base s) h.target_valid) ?_⟩
-    intro n _
+      (Instr.effect_valid (i := .storeData field base s) h.target_valid) fun n _ => ?_⟩
     simp [Record.relabel, h.data]
-  | goto _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | ifPtrEq _ _ _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | ifTest _ _ _ _ => exact ⟨f, fun _ _ => rfl, h⟩
-  | halt => exact ⟨f, fun _ _ => rfl, h⟩
+  | goto _ | ifPtrEq _ _ _ | ifTest _ _ _ _ | halt => exact ⟨f, fun _ _ => rfl, h⟩
 
 end State.Embeds
 

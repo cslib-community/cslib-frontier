@@ -102,17 +102,7 @@ theorem toSimpleGraph_cons {n : ℕ} {W : Type} (e : WeightedEdge n W)
     toSimpleGraph (e :: es) = SimpleGraph.edge e.u e.v ⊔ toSimpleGraph es := by
   ext x y
   simp only [toSimpleGraph_adj, List.map_cons, List.mem_cons, WeightedEdge.sym2_eq,
-    SimpleGraph.sup_adj, SimpleGraph.edge_adj]
-  constructor
-  · rintro ⟨hmem | hmem, hne⟩
-    · rcases Sym2.eq_iff.mp hmem with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-      · exact .inl ⟨.inl ⟨rfl, rfl⟩, hne⟩
-      · exact .inl ⟨.inr ⟨rfl, rfl⟩, hne⟩
-    · exact .inr ⟨hmem, hne⟩
-  · rintro (⟨⟨rfl, rfl⟩ | ⟨rfl, rfl⟩, hne⟩ | ⟨hmem, hne⟩)
-    · exact ⟨.inl rfl, hne⟩
-    · exact ⟨.inl Sym2.eq_swap, hne⟩
-    · exact ⟨.inr hmem, hne⟩
+    SimpleGraph.sup_adj, SimpleGraph.edge_adj, Sym2.eq_iff, or_and_right]
 
 theorem toSimpleGraph_append {n : ℕ} {W : Type}
     (es₁ es₂ : List (WeightedEdge n W)) :
@@ -192,10 +182,9 @@ theorem numComponents_edgePartition_eq_one_iff_connected {n : ℕ} {W : Type}
     (edgePartition es).numComponents = 1 ↔ (toSimpleGraph es).Connected := by
   constructor
   · intro hcomp
-    have hn : 0 < n := by
-      rcases Nat.eq_zero_or_pos n with rfl | hpos
-      · simp at hcomp
-      · exact hpos
+    have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
+      subst h
+      simp at hcomp
     have : Nonempty (Fin n) := ⟨⟨0, hn⟩⟩
     refine ⟨fun x y => ?_⟩
     rw [← rel_edgePartition_iff_reachable]
@@ -237,14 +226,6 @@ private theorem isAcyclic_append_singleton {n : ℕ} {W : Type}
     simp only [Bool.true_eq_false, and_false, iff_false]
     omega
 
-private theorem nodup_append_singleton {α : Type} (l : List α) (a : α) :
-    (l ++ [a]).Nodup ↔ l.Nodup ∧ a ∉ l := by
-  induction l with
-  | nil => simp
-  | cons x xs ih =>
-    simp only [List.cons_append, List.nodup_cons, List.mem_append, not_or, ih, List.mem_cons]
-    grind
-
 /-- Exact equivalence between edge-list acyclicity `IsAcyclic F` and simple-graph acyclicity
 `(toSimpleGraph F).IsAcyclic` without parallel edges or self-loops. -/
 theorem isAcyclic_iff_toSimpleGraph {n : ℕ} {W : Type} (F : List (WeightedEdge n W)) :
@@ -256,7 +237,8 @@ theorem isAcyclic_iff_toSimpleGraph {n : ℕ} {W : Type} (F : List (WeightedEdge
   | nil => simp
   | append_singleton F₀ e ih =>
     rw [isAcyclic_append_singleton, ih, toSimpleGraph_append, toSimpleGraph_singleton,
-      List.map_append, List.map_singleton, nodup_append_singleton]
+      List.map_append, List.map_singleton,
+      (List.perm_append_singleton e.sym2 _).nodup_iff, List.nodup_cons, and_comm (a := _ ∉ _)]
     constructor
     · rintro ⟨⟨hacyc, hnodup, hloop⟩, hrel⟩
       have hnreach : ¬(toSimpleGraph F₀).Reachable e.u e.v := by
@@ -315,16 +297,6 @@ theorem IsAcyclic.card_edgeFinset_toSimpleGraph {n : ℕ} {W : Type}
   rw [edgeFinset_toSimpleGraph_of_no_loops hloop, List.toFinset_card_of_nodup hnodup,
     List.length_map]
 
-private theorem sum_toFinset_of_nodup {α W : Type} [DecidableEq α] [AddCommMonoid W]
-    (f : α → W) {l : List α} (hl : l.Nodup) :
-    (∑ x ∈ l.toFinset, f x) = (l.map f).sum := by
-  induction l with
-  | nil => simp
-  | cons a as ih =>
-    obtain ⟨ha, has⟩ := List.nodup_cons.mp hl
-    rw [List.toFinset_cons, Finset.sum_insert (List.mem_toFinset.not.mpr ha), ih has,
-      List.map_cons, List.sum_cons]
-
 /-- When `F` is acyclic and every edge in `F` carries weight `w e.sym2`, `totalWeight F` equals
 `∑ z ∈ (toSimpleGraph F).edgeFinset, w z`. -/
 theorem IsAcyclic.sum_edgeFinset_toSimpleGraph {n : ℕ} {W : Type} [AddCommMonoid W]
@@ -332,7 +304,7 @@ theorem IsAcyclic.sum_edgeFinset_toSimpleGraph {n : ℕ} {W : Type} [AddCommMono
     (hw : ∀ e ∈ F, e.weight = w e.sym2) :
     (∑ z ∈ (toSimpleGraph F).edgeFinset, w z) = totalWeight F := by
   obtain ⟨_, hnodup, hloop⟩ := (isAcyclic_iff_toSimpleGraph F).mp hF
-  rw [edgeFinset_toSimpleGraph_of_no_loops hloop, sum_toFinset_of_nodup w hnodup, List.map_map,
+  rw [edgeFinset_toSimpleGraph_of_no_loops hloop, List.sum_toFinset w hnodup, List.map_map,
     totalWeight]
   congr 1
   exact List.map_congr_left fun e he => (hw e he).symm
@@ -416,12 +388,8 @@ theorem nodup_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
   rcases Sym2.eq_iff.mp hsym with ⟨hu, hv⟩ | ⟨hu, hv⟩
   · cases e₁
     cases e₂
-    dsimp only at hu hv hw₁ hw₂
-    subst hu hv
-    rw [hw₁, hw₂]
-  · exfalso
-    rw [hu, hv] at hlt₁
-    exact lt_asymm hlt₁ hlt₂
+    simp_all
+  · exact absurd (hu ▸ hv ▸ hlt₁) (lt_asymm hlt₂)
 
 /-- `s(x, y)` appears in `(graphEdges G w).map sym2` iff `G.Adj x y`. -/
 theorem mem_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
@@ -479,7 +447,7 @@ theorem totalWeight_graphEdges {n : ℕ} {W : Type} [AddCommMonoid W]
     (F : SimpleGraph (Fin n)) [DecidableRel F.Adj] [Fintype F.edgeSet] (w : Sym2 (Fin n) → W) :
     totalWeight (graphEdges F w) = ∑ z ∈ F.edgeFinset, w z := by
   rw [edgeFinset_eq_toFinset_graphEdges F w,
-    sum_toFinset_of_nodup w (nodup_map_sym2_graphEdges F w), List.map_map, totalWeight]
+    List.sum_toFinset w (nodup_map_sym2_graphEdges F w), List.map_map, totalWeight]
   congr 1
   exact List.map_congr_left fun e he => ((mem_graphEdges F w e).mp he).2.2
 
@@ -542,20 +510,17 @@ theorem sum_edgeFinset_kruskalGraph_le_of_maximal_isAcyclic {n : ℕ} {W : Type}
     (∑ z ∈ (toSimpleGraph (kruskalGraph G w)).edgeFinset, w z) ≤
       ∑ z ∈ F.edgeFinset, w z := by
   classical
-  have hsf := isSpanningForest_graphEdges_of_maximal_isAcyclic w hF
-  have hmin := (kruskalEdges_isMinSpanningForest (graphEdges G w)).2 (graphEdges F w) hsf
   rw [sum_edgeFinset_toSimpleGraph_kruskalGraph, kruskalGraph, ← totalWeight_graphEdges F w]
-  exact hmin
+  exact (kruskalEdges_isMinSpanningForest (graphEdges G w)).2 (graphEdges F w)
+    (isSpanningForest_graphEdges_of_maximal_isAcyclic w hF)
 
 /-- When `G` is connected, `toSimpleGraph (kruskalGraph G w)` is a `SimpleGraph.IsTree` with
 `n - 1` edges (`(kruskalGraph G w).length + 1 = n`). -/
 theorem kruskalGraph_isTree {n : ℕ} {W : Type} [LE W] [DecidableLE W]
     {G : SimpleGraph (Fin n)} [DecidableRel G.Adj] (hconn : G.Connected)
     (w : Sym2 (Fin n) → W) :
-    (toSimpleGraph (kruskalGraph G w)).IsTree ∧ (kruskalGraph G w).length + 1 = n := by
-  have hconn' : (toSimpleGraph (graphEdges G w)).Connected := by
-    rwa [toSimpleGraph_graphEdges]
-  exact toSimpleGraph_kruskalEdges_isTree hconn'
+    (toSimpleGraph (kruskalGraph G w)).IsTree ∧ (kruskalGraph G w).length + 1 = n :=
+  toSimpleGraph_kruskalEdges_isTree (by rwa [toSimpleGraph_graphEdges])
 
 /-- **Simple-graph Kruskal minimum spanning tree optimality** ([Cormen et al., Section 23.2,
 p. 631][CLRS2009]): on a connected graph `G`, `toSimpleGraph (kruskalGraph G w)` minimizes
@@ -604,22 +569,14 @@ theorem eq_toSimpleGraph_kruskalGraph_of_injOn {n : ℕ} {W : Type}
       exact List.map_congr_left fun e he => ((mem_graphEdges G w e).mp he).2.2
     rw [hmap]
     refine (nodup_map_sym2_graphEdges G w).map_on fun z₁ hz₁ z₂ hz₂ hwz => ?_
-    have hm₁ : z₁ ∈ G.edgeSet := by
-      obtain ⟨e₁, he₁, rfl⟩ := List.mem_map.mp hz₁
-      simpa using ((mem_graphEdges G w e₁).mp he₁).2.1
-    have hm₂ : z₂ ∈ G.edgeSet := by
-      obtain ⟨e₂, he₂, rfl⟩ := List.mem_map.mp hz₂
-      simpa using ((mem_graphEdges G w e₂).mp he₂).2.1
-    exact hinj hm₁ hm₂ hwz
-  have hsf_F : IsSpanningForest (graphEdges G w) (graphEdges F w) :=
-    isSpanningForest_graphEdges_of_maximal_isAcyclic w hF
-  have hmin_F : IsMinSpanningForest (graphEdges G w) (graphEdges F w) := by
-    refine ⟨hsf_F, fun H hH => ?_⟩
-    have hk := (kruskalEdges_isMinSpanningForest (graphEdges G w)).2 H hH
-    have hle_k : totalWeight (graphEdges F w) ≤ totalWeight (kruskalGraph G w) := by
-      rw [totalWeight_graphEdges F w, ← sum_edgeFinset_toSimpleGraph_kruskalGraph]
-      exact hopt
-    exact hle_k.trans hk
+    have hm : ∀ z ∈ (graphEdges G w).map WeightedEdge.sym2, z ∈ G.edgeSet :=
+      Sym2.ind fun x y h => (mem_map_sym2_graphEdges G w x y).mp h
+    exact hinj (hm z₁ hz₁) (hm z₂ hz₂) hwz
+  have hmin_F : IsMinSpanningForest (graphEdges G w) (graphEdges F w) :=
+    ⟨isSpanningForest_graphEdges_of_maximal_isAcyclic w hF, fun H hH =>
+      (by rwa [totalWeight_graphEdges F w, ← sum_edgeFinset_toSimpleGraph_kruskalGraph] :
+        totalWeight (graphEdges F w) ≤ totalWeight (kruskalGraph G w)).trans
+        ((kruskalEdges_isMinSpanningForest (graphEdges G w)).2 H hH)⟩
   have hperm := perm_kruskalEdges_of_isMinSpanningForest_of_nodup_weights hnodup_w hmin_F
   calc
     F = toSimpleGraph (graphEdges F w) := (toSimpleGraph_graphEdges F w).symm
@@ -648,13 +605,8 @@ theorem eq_toSimpleGraph_kruskalGraph_of_isTree_of_injOn {n : ℕ} {W : Type}
     (hle : T ≤ G) (hT : T.IsTree)
     (hopt : (∑ z ∈ T.edgeFinset, w z) ≤
       ∑ z ∈ (toSimpleGraph (kruskalGraph G w)).edgeFinset, w z) :
-    T = toSimpleGraph (kruskalGraph G w) := by
-  have hK := kruskalGraph_isMST hconn w
-  have hTMST : G.IsMST w T := ⟨⟨hle, hT⟩, fun T' hT' => by
-    rw [SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
-    exact hopt.trans (by
-      rw [← SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
-      exact hK.2 T' hT')⟩
-  exact hTMST.eq_of_injOn hinj hK
+    T = toSimpleGraph (kruskalGraph G w) :=
+  eq_toSimpleGraph_kruskalGraph_of_injOn G w hinj
+    ((hconn.maximal_le_isAcyclic_iff_isTree hle).mpr hT) hopt
 
 end Cslib.Algorithms.Lean.Kruskal

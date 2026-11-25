@@ -244,6 +244,7 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
     (fun _ => hmass) (by simpa only [hparams.gamma_mul_delta] using hdensity)
     (by simpa only [GoodPredictor, hshift, hparams.gamma_mul_delta] using hcorrelation)
   rw [hparams.gamma_mul_delta] at hstep
+  simp only [← hnext] at hstep
   have hrestored := hdensity.trans (density_vote_shift_ge source params.rate_pos.le
     (fun x => before x - if yes then 1 else 0) vote
       (fun x => (abs_le.mp (by simp [vote] : |vote x| ≤ 1)).2))
@@ -251,14 +252,9 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
   simp only [Invariant, hactiveNext, Bool.false_eq_true, ite_false]
   constructor
   · simpa only [hnext] using hrestored
-  · have hnextPotential := (show averagePotential source params.rate
-        (fun x => ((state.shift yes).add params.codeBound code).margin predict truth x -
-          ((state.shift yes).add params.codeBound code).threshold) ≤
-        averagePotential source params.rate before + (if yes then params.delta else 0) -
-          params.gamma * params.delta ^ 2 / 8 from by simpa only [hnext] using hstep)
-    have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
+  · have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
         state.threshold + if yes then 1 else 0 := by cases yes <;> simp [shift, add]
-    refine hnextPotential.trans ?_
+    refine hstep.trans ?_
     rw [hthreshold]
     dsimp only [before]
     push_cast
@@ -335,12 +331,9 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
     params.denominator_pos hparams.majority_precision
   have hshift := testShift_weights_sound source votes truth params.confidence
     params.shiftPrecision params.densityNumerator params.denominator params.rateBound 1
-    state.threshold
-    (by
-      have := params.denominator_pos
-      have := params.inverseRate_pos
-      unfold Parameters.shiftPrecision
-      positivity)
+    state.threshold (by
+      have := params.denominator_pos; have := params.inverseRate_pos
+      unfold Parameters.shiftPrecision; positivity)
     params.denominator_pos (by
       simpa only [Parameters.delta, Parameters.rate, Parameters.inverseRate, Nat.cast_one]
         using hparams.shift_precision)
@@ -385,31 +378,18 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
           intro code hbad hgood
           exact hbad (State.Invariant.shift_add _ _ _ _ hstate hparams hflag yes code
             hgoodShift hgoodStop hgood)
-        · have hshift' : ((ProbComp.eval (testShift params.confidence params.shiftPrecision
-              params.densityNumerator params.denominator 1 params.inverseRate do
-                let x ← source
-                sampleWeight params.rateBound 1 state.threshold (votes x) (truth x))).toOuterMeasure
-                {yes | ¬ shiftGuard yes}).toReal ≤ (1 / 2 : ℝ) ^ params.confidence := by
-            simpa only [Nat.cast_one, shiftGuard, votes, predict, State.margin, State.votes,
-              Parameters.delta, Parameters.rate, Parameters.inverseRate] using hshift
-          exact add_le_add hshift' le_rfl
+        · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
+            predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
+            Parameters.inverseRate] using hshift) le_rfl
       · have hnext := State.invariant_stop (ProbComp.eval source) predict truth params
           (rounds + 1) state hgoodStop
         dsimp only [predict] at hnext
         simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
           Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
         positivity
-    · have hstop' : ((ProbComp.eval (testMajority params.confidence params.majorityPrecision
-          params.densityNumerator params.denominator
-          ((fun x => listNonpositiveMargin (votes x) (truth x)) <$> source))).toOuterMeasure
-          {stop | ¬ stopGuard stop}).toReal ≤
-          (1 / 2 : ℝ) ^ params.confidence := by
-        simpa only [stopGuard, votes, predict, State.margin, State.votes, Parameters.delta]
-          using hstop
-      calc
-        _ ≤ (1 / 2 : ℝ) ^ params.confidence + ((1 / 2 : ℝ) ^ params.confidence + error) :=
-          add_le_add hstop' le_rfl
-        _ = _ := by ring
+    · exact (add_le_add (b := (1 / 2 : ℝ) ^ params.confidence) (by
+        simpa only [Set.compl_ofPred, stopGuard, votes, predict, State.margin, State.votes,
+          Parameters.delta] using hstop) le_rfl).trans_eq (by ring)
 
 variable (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error)
   (hlearn : ∀ state : State,

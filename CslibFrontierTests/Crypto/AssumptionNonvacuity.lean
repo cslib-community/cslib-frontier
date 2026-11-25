@@ -4,19 +4,26 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Crypto.Computational.Commitment.Basic
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
 import CslibFrontier.Crypto.Computational.DiffieHellman.GapCDH.Assumption
+import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
 import CslibFrontier.Crypto.Computational.Encryption.CCA
+import CslibFrontier.Crypto.Computational.OneWay.Weak
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.PrefixFree
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.StrongRSA
+import CslibFrontier.Crypto.Computational.WeakPRF
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Tactic.PPT
 import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
@@ -25,22 +32,29 @@ import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
 Each security definition below fails for an obviously insecure instance, so none of them holds
 for every candidate. The negative instances for one-way functions, symmetric IND-CPA,
-pseudorandom generators and hard-core predicates are elsewhere.
+pseudorandom generators, hard-core predicates and zero-knowledge assumptions are elsewhere.
 
-* **Discrete logarithm, CDH, Gap-CDH and DDH.** For every prime-order group family `F` and every
-  fixed description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of
-  `F.DiscreteLog`, `F.CDH`, `F.WordCDH` and `F.DDH` (nor `F.GapCDH` when `F` is a
+* **Discrete logarithm, CDH, Gap-CDH, DDH and Multi-DDH.** For every prime-order group family `F`
+  and every fixed description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of
+  `F.DiscreteLog`, `F.CDH`, `F.WordCDH`, `F.DDH`, `F.SingleSecretMultiDDH _ (fun _ => 1)` and
+  `F.MultiDDH _ (fun _ => 1) (fun _ => 1)` (nor `F.GapCDH` when `F` is a
   `DecodablePrimeOrderGroupFamily`). Guessing the exponent `0` solves the discrete logarithm with
   probability `1 / q`. Testing whether the first and third elements are both the identity has
-  advantage `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with
+  advantage `1 / q - 1 / q²` against DDH; testing whether the single-pair Multi-DDH tuple is all
+  identity has advantage `1 / q² - 1 / q³`. These are constant because the group does not grow with
   the security parameter.
 * **IND-CPA and IND-CCA2.** Sending the plaintext bit as the ciphertext is neither `INDCPA` nor
   `INDCCA2`: copying the ciphertext guesses the challenge bit with advantage `1`.
-* **Pseudorandom functions.** The family answering every query with zeros of the declared width
-  is not a `PseudorandomFunctionOver` on `n`-bit inputs, for any output length that is positive at
-  positive parameters: asking for the first answer bit at the zero word has advantage `1 / 2` at
-  every positive parameter. At equal input and output lengths it is not a `PseudorandomFunction`
-  either.
+* **Pseudorandom functions, weak PRFs, Boolean PRFs and block ciphers (PRP / strong PRP).** The
+  family answering every query with zeros of the declared width is not a
+  `PseudorandomFunctionOver` on `n`-bit inputs, for any output length that is positive at positive
+  parameters: asking for the first answer bit at the zero word has advantage `1 / 2` at every
+  positive parameter. At equal input and output lengths it is neither a `PseudorandomFunction` nor
+  a `WeakPseudorandomFunction`, and the constant-false ensemble is not a `BooleanPRF`. The identity
+  block cipher `idBlockCipher` is neither a `BlockCipher.PRP` nor a `BlockCipher.StrongPRP`.
+* **Weak one-way functions and commitment hiding.** The identity function fails `WeakOneWayAt`
+  for every eventually positive failure threshold `α`, and committing to a message in the clear
+  fails both `CommitmentScheme.ComputationalHiding` and `CommitmentScheme.StatisticalHiding`.
 * **Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA.** For every fixed
   composite modulus `N = p * q` (`1 < p`, `1 < q`), outputting `(p, q)` solves
   `modulusFactoringGame` with probability `1`, so `ModulusFactoringHard` fails for
@@ -196,10 +210,8 @@ theorem eval_prfIdealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 <
   have h2 : (PMF.uniformOfFintype (BitString (outLen (n + 1)))).map
       (fun word => word ⟨0, hout n⟩) = PMF.uniformOfFintype Bool := by
     rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
-  have h3 : (PMF.uniformOfFintype Bool).map Bool.not = PMF.uniformOfFintype Bool := by
-    ext b
-    cases b <;> simp [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply]
-  rw [← h3, ← h2, ← h1, PMF.map_comp, PMF.map_comp]
+  rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h2, ← h1,
+    PMF.map_comp, PMF.map_comp]
   rfl
 
 private theorem not_negligible_advantage_firstBitZero {outLen : ℕ → ℕ}
@@ -343,5 +355,397 @@ theorem not_strongRSA_const {N g : ℕ} (hg : Nat.Coprime g N) :
     simp [Nat.ModEq.refl]
   · rw [max_eq_right (Nat.totient_pos.mpr hN)]
     exact Nat.ModEq.pow_totient hg
+
+/-! ### Multi-DDH -/
+
+/-- Accept when `u = 0` and the single-secret pair list equals `[(0, 0)]`. -/
+noncomputable def singleSecretAllZeroTest : F.SingleSecretMultiDDHDistinguisher :=
+  fun _ _ u pairs => pure (decide (u = 0) && decide (pairs = [(0, 0)]))
+
+theorem singleSecretAllZeroTest_isPPT : (singleSecretAllZeroTest F).IsPPT := by
+  have henc : ComputableInPolyTime
+      (fun x : F.SingleSecretMultiDDHInput =>
+        decide (F.encode x.groupParameters x.leftPublic = F.encode x.groupParameters 0) &&
+        decide (encList (F.encCarrierPair x.groupParameters) x.pairs =
+          encList (encPair encBits encBits)
+            [(F.encode x.groupParameters 0, F.encode x.groupParameters 0)]))
+      F.encSingleSecretMultiDDHInput encBool := by
+    fun_prop
+  refine henc.isPPTOn.congr fun x => ?_
+  have hzero :
+      encList (encPair encBits encBits)
+          [(F.encode x.groupParameters 0, F.encode x.groupParameters 0)] =
+        encList (F.encCarrierPair x.groupParameters) [(0, 0)] := by
+    rw [F.encList_encCarrierPair]
+    rfl
+  simp only [singleSecretAllZeroTest, hzero, (F.encode_injective _).eq_iff,
+    (encList (F.encCarrierPair x.groupParameters)).injective.eq_iff]
+
+/-- Accept when the Multi-DDH block list equals `[(0, [(0, 0)])]`. -/
+noncomputable def multiDDHAllZeroTest : F.MultiDDHDistinguisher :=
+  fun _ _ blocks => pure (decide (blocks = [(0, [(0, 0)])]))
+
+theorem multiDDHAllZeroTest_isPPT : (multiDDHAllZeroTest F).IsPPT := by
+  have hz : ComputableInPolyTime (fun x : F.MultiDDHInput => F.encode x.groupParameters 0)
+      F.encMultiDDHInput encBits := by
+    fun_prop
+  have hjoin : ComputableInPolyTime (fun p : List Bool × List Bool => frame p.1 ++ p.2)
+      (encPair encBits encBits) encBits :=
+    ComputableInPolyTime.of_eq fun _ => rfl
+  have hfmt : ComputableInPolyTime
+      (fun z : List Bool => frame (frame z ++ frame (frame z ++ z))) encBits encBits :=
+    ComputableInPolyTime.frame.comp
+      (hjoin.comp (ComputableInPolyTime.id'.prod
+        (ComputableInPolyTime.frame.comp
+          (hjoin.comp (ComputableInPolyTime.id'.prod ComputableInPolyTime.id')))))
+  have hzeroEnc : ComputableInPolyTime
+      (fun x : F.MultiDDHInput =>
+        let z := F.encode x.groupParameters 0
+        frame (frame z ++ frame (frame z ++ z)))
+      F.encMultiDDHInput encBits :=
+    hfmt.comp hz
+  have hblocks : ComputableInPolyTime
+      (fun x : F.MultiDDHInput => encList (F.encMultiDDHBlock x.groupParameters) x.blocks)
+      F.encMultiDDHInput encBits :=
+    F.encMultiDDHInput_blocks_polyTime .id'
+  have heq : ComputableInPolyTime (fun p : List Bool × List Bool => decide (p.1 = p.2))
+      (encPair encBits encBits) encBool := by
+    fun_prop
+  have henc : ComputableInPolyTime
+      (fun x : F.MultiDDHInput =>
+        let z := F.encode x.groupParameters 0
+        decide (encList (F.encMultiDDHBlock x.groupParameters) x.blocks =
+          frame (frame z ++ frame (frame z ++ z))))
+      F.encMultiDDHInput encBool :=
+    heq.comp (hblocks.prod hzeroEnc)
+  refine henc.isPPTOn.congr fun x => ?_
+  have hzero :
+      let z := F.encode x.groupParameters 0
+      frame (frame z ++ frame (frame z ++ z)) =
+        encList (F.encMultiDDHBlock x.groupParameters) [(0, [(0, 0)])] := by
+    rw [F.encList_encMultiDDHBlock]
+    simp
+  simp only [multiDDHAllZeroTest, hzero,
+    (encList (F.encMultiDDHBlock x.groupParameters)).injective.eq_iff]
+
+private theorem succProbability_singleSecretReal_allZero (n : ℕ) :
+    Game.succProbability
+      (F.singleSecretMultiDDHRealGame (fun _ => PMF.pure d) (fun _ => 1)
+        (singleSecretAllZeroTest F) n) =
+      (F.order d : ℝ≥0)⁻¹ ^ 2 := by
+  have hcond (α : ZMod (F.order d)) (B : Fin 1 → ZMod (F.order d)) :
+      (decide (α • F.generator d = 0) &&
+        decide (List.ofFn (fun i : Fin 1 =>
+          (B i • F.generator d, (α * B i) • F.generator d)) = [(0, 0)])) =
+        decide (α = 0 ∧ B = 0) := by
+    simp only [List.ofFn_succ, List.ofFn_zero, List.cons.injEq, and_true, Prod.mk.injEq,
+      smul_eq_zero, F.generator_ne_zero, or_false, funext_iff, Fin.forall_fin_one, Pi.zero_apply]
+    by_cases hα : α = 0 <;> by_cases hB : B 0 = 0 <;> simp [hα, hB]
+  simp only [singleSecretMultiDDHRealGame, multiDDHRealTupleLaw, singleSecretAllZeroTest,
+    PMF.monad_bind_eq_bind, PMF.pure_bind, PMF.bind_map, ProbComp.eval_pure, Function.comp_def,
+    hcond]
+  rw [Game.succProbability, ← ENNReal.toNNReal_natCast, ← ENNReal.toNNReal_inv,
+    ← ENNReal.toNNReal_pow]
+  congr 1
+  have hcard : Fintype.card (Fin 1 → ZMod (F.order d)) = F.order d := by
+    simp [ZMod.card]
+  simp [PMF.bind_apply, tsum_fintype, PMF.uniformOfFintype_apply, PMF.pure_apply, ite_and,
+    ZMod.card, hcard, Finset.sum_ite_eq', sq]
+
+private theorem succProbability_singleSecretRandom_allZero (n : ℕ) :
+    Game.succProbability
+      (F.singleSecretMultiDDHRandomGame (fun _ => PMF.pure d) (fun _ => 1)
+        (singleSecretAllZeroTest F) n) =
+      (F.order d : ℝ≥0)⁻¹ ^ 3 := by
+  have hcond (α : ZMod (F.order d)) (B : Fin 1 → ZMod (F.order d) × ZMod (F.order d)) :
+      (decide (α • F.generator d = 0) &&
+        decide (List.ofFn (fun i : Fin 1 =>
+          ((B i).1 • F.generator d, (B i).2 • F.generator d)) = [(0, 0)])) =
+        decide (α = 0 ∧ B = fun _ => (0, 0)) := by
+    simp only [List.ofFn_succ, List.ofFn_zero, List.cons.injEq, and_true,
+      smul_eq_zero, F.generator_ne_zero, or_false, funext_iff, Fin.forall_fin_one, Prod.ext_iff]
+    by_cases hα : α = 0 <;> by_cases h1 : (B 0).1 = 0 <;> by_cases h2 : (B 0).2 = 0 <;>
+      simp [hα, h1, h2]
+  simp only [singleSecretMultiDDHRandomGame, multiDDHRandomTupleLaw, singleSecretAllZeroTest,
+    PMF.monad_bind_eq_bind, PMF.pure_bind, PMF.bind_map, ProbComp.eval_pure, Function.comp_def,
+    hcond]
+  rw [Game.succProbability, ← ENNReal.toNNReal_natCast, ← ENNReal.toNNReal_inv,
+    ← ENNReal.toNNReal_pow]
+  congr 1
+  have hcard : Fintype.card (Fin 1 → ZMod (F.order d) × ZMod (F.order d)) = F.order d ^ 2 := by
+    simp [ZMod.card, sq]
+  simp [PMF.bind_apply, tsum_fintype, PMF.uniformOfFintype_apply, PMF.pure_apply, ite_and,
+    ZMod.card, hcard, Finset.sum_ite_eq', ENNReal.inv_pow]
+  ring
+
+private theorem inv_sq_ne_inv_cube :
+    (F.order d : ℝ≥0)⁻¹ ^ 2 ≠ (F.order d : ℝ≥0)⁻¹ ^ 3 := by
+  have hgt : (1 : ℝ≥0) < (F.order d : ℝ≥0) := by
+    exact_mod_cast (F.prime_order d).one_lt
+  have hpos : (0 : ℝ≥0) < (F.order d : ℝ≥0) := zero_lt_one.trans hgt
+  have hlt : (F.order d : ℝ≥0)⁻¹ ^ 3 < (F.order d : ℝ≥0)⁻¹ ^ 2 := by
+    have hinv_lt : (F.order d : ℝ≥0)⁻¹ < 1 := inv_lt_one_of_one_lt₀ hgt
+    have hinv_sq_pos : (0 : ℝ≥0) < (F.order d : ℝ≥0)⁻¹ ^ 2 := pow_pos (inv_pos.mpr hpos) 2
+    calc (F.order d : ℝ≥0)⁻¹ ^ 3
+        = (F.order d : ℝ≥0)⁻¹ ^ 2 * (F.order d : ℝ≥0)⁻¹ := by ring
+      _ < (F.order d : ℝ≥0)⁻¹ ^ 2 * 1 := mul_lt_mul_of_pos_left hinv_lt hinv_sq_pos
+      _ = (F.order d : ℝ≥0)⁻¹ ^ 2 := mul_one _
+  exact ne_of_gt hlt
+
+/-- **`SingleSecretMultiDDH` fails for a fixed group**: testing whether the single pair is all
+identity has constant advantage `1 / q² - 1 / q³ > 0`. -/
+theorem not_singleSecretMultiDDH_const :
+    ¬ F.SingleSecretMultiDDH (fun _ => PMF.pure d) (fun _ => 1) := by
+  intro h
+  have hneg := h (singleSecretAllZeroTest F) (singleSecretAllZeroTest_isPPT F)
+  simp only [Game.advantage, succProbability_singleSecretReal_allZero,
+    succProbability_singleSecretRandom_allZero] at hneg
+  exact not_negligible_const (mt nndist_eq_zero.mp (inv_sq_ne_inv_cube F d)) hneg
+
+/-- **`MultiDDH` fails for a fixed group**: with one secret and one pair, testing whether the
+sole block is `(0, [(0, 0)])` has the same constant advantage `1 / q² - 1 / q³ > 0`. -/
+theorem not_multiDDH_const :
+    ¬ F.MultiDDH (fun _ => PMF.pure d) (fun _ => 1) (fun _ => 1) := by
+  intro h
+  have hneg := h (multiDDHAllZeroTest F) (multiDDHAllZeroTest_isPPT F)
+  have hreal (n : ℕ) :
+      F.multiDDHRealGame (fun _ => PMF.pure d) (fun _ => 1) (fun _ => 1)
+        (multiDDHAllZeroTest F) n =
+      F.singleSecretMultiDDHRealGame (fun _ => PMF.pure d) (fun _ => 1)
+        (singleSecretAllZeroTest F) n := by
+    simp only [multiDDHRealGame, singleSecretMultiDDHRealGame, multiDDHRealBlockLaw,
+      multiDDHAllZeroTest, singleSecretAllZeroTest, PMF.iid, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.bind_bind, PMF.pure_map,
+      ProbComp.eval_pure, List.ofFn_succ, List.ofFn_zero, Fin.cons_zero, List.cons.injEq,
+      and_true, Prod.mk.injEq, Bool.decide_and]
+  have hrand (n : ℕ) :
+      F.multiDDHRandomGame (fun _ => PMF.pure d) (fun _ => 1) (fun _ => 1)
+        (multiDDHAllZeroTest F) n =
+      F.singleSecretMultiDDHRandomGame (fun _ => PMF.pure d) (fun _ => 1)
+        (singleSecretAllZeroTest F) n := by
+    simp only [multiDDHRandomGame, singleSecretMultiDDHRandomGame, multiDDHRandomBlockLaw,
+      multiDDHAllZeroTest, singleSecretAllZeroTest, PMF.iid, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.pure_bind, PMF.bind_bind, PMF.pure_map,
+      ProbComp.eval_pure, List.ofFn_succ, List.ofFn_zero, Fin.cons_zero, List.cons.injEq,
+      and_true, Prod.mk.injEq, Bool.decide_and]
+  simp only [hreal, hrand, Game.advantage, succProbability_singleSecretReal_allZero,
+    succProbability_singleSecretRandom_allZero] at hneg
+  exact not_negligible_const (mt nndist_eq_zero.mp (inv_sq_ne_inv_cube F d)) hneg
+
+/-! ### Boolean PRFs, weak PRFs, and block ciphers (`PRP` / `StrongPRP`) -/
+
+/-- The constant-false Boolean function ensemble on `n` bits. -/
+noncomputable def constFalseBooleanEnsemble : ∀ n, PMF (BooleanFunction n) :=
+  fun _ => PMF.pure (fun _ => false)
+
+/-- **`BooleanPRF` fails for the constant-false ensemble**: querying the zero word and checking
+that the reply bit is `false` succeeds with probability `1` in the real game and `1 / 2` in the
+ideal game at every positive parameter. -/
+theorem not_booleanPRF_constFalse : ¬ BooleanPRF constFalseBooleanEnsemble := by
+  intro h
+  have hshift := (h firstBitZero firstBitZero_isOraclePPT).shift 1
+  have heval (n : ℕ) (f : BooleanFunction (n + 1)) :
+      evalBooleanOracle firstBitZero (n + 1) f =
+        PMF.pure !(f (BitString.ofList (n + 1) (List.replicate (n + 1) false))) := by
+    simp only [evalBooleanOracle, booleanOracle, ProbOracleComp.run, firstBitZero,
+      List.length_replicate, ↓reduceIte, bind_pure_comp, Functor.map_map,
+      OracleComp.interpret_map, ProbOracleComp.interpret_query, map_pure, List.take_succ_cons,
+      List.headD_eq_head?_getD, List.head?_cons, Option.getD_some, ProbComp.eval_pure]
+  have hreal (n : ℕ) :
+      booleanPRFRealGame constFalseBooleanEnsemble firstBitZero (n + 1) = PMF.pure true := by
+    simp only [booleanPRFRealGame, constFalseBooleanEnsemble, PMF.pure_bind, heval]
+    rfl
+  have hideal (n : ℕ) :
+      booleanPRFIdealGame firstBitZero (n + 1) = PMF.uniformOfFintype Bool := by
+    rw [booleanPRFIdealGame,
+      show evalBooleanOracle firstBitZero (n + 1) =
+          fun f => PMF.pure !(f (BitString.ofList (n + 1) (List.replicate (n + 1) false)))
+        from funext (heval n)]
+    have h1 : (PMF.uniformOfFintype (BooleanFunction (n + 1))).map
+        (fun f => f (BitString.ofList (n + 1) (List.replicate (n + 1) false))) =
+          PMF.uniformOfFintype Bool := by
+      rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
+    change (PMF.uniformOfFintype (BooleanFunction (n + 1))).map
+        (fun f => !(f (BitString.ofList (n + 1) (List.replicate (n + 1) false)))) = _
+    rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h1,
+      PMF.map_comp]
+    rfl
+  simp only [hreal, hideal] at hshift
+  refine not_negligible_const ?_ hshift
+  norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
+    ENNReal.toNNReal_ofNat]
+
+/-- Request one weak-PRF sample `(point, answer)` and accept when the first bit of `answer`
+(index `n` of the `2n`-bit sample) is `false`. -/
+noncomputable def weakAnswerFirstBitZero : OracleDistinguisher := fun n _ => do
+  let reply ← List.take (2 * n) <$> ProbOracleComp.query ((), [])
+  return !(reply.getD n true)
+
+theorem weakAnswerFirstBitZero_isOraclePPT : IsOraclePPT encBool weakAnswerFirstBitZero := by
+  have hq : ComputableInPolyTime (fun _ : ℕ × List Bool => ([] : List Bool))
+      (encPair encUnary encBits) encBits := ComputableInPolyTime.const []
+  have hlim : ComputableInPolyTime (fun p : ℕ × List Bool => 2 * p.1)
+      (encPair encUnary encBits) encUnary := by
+    fun_prop
+  have hout : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => !(p.2.getD p.1.1 true))
+      (encPair (encPair encUnary encBits) encBits) encBool := by
+    polytime
+  unfold weakAnswerFirstBitZero
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+
+/-- **`WeakPseudorandomFunction` fails for the all-zero family**: reading the first answer bit of
+one weak sample accepts with probability `1` in the real game and `1 / 2` in the ideal game at
+every positive parameter. -/
+theorem not_weakPseudorandomFunction_zeroFamily :
+    ¬ WeakPseudorandomFunction (zeroFamily id) := by
+  intro h
+  have hshift := (h.secure weakAnswerFirstBitZero weakAnswerFirstBitZero_isOraclePPT).shift 1
+  have hreal (n : ℕ) :
+      ProbComp.eval (weakPrfRealGame (zeroFamily id) weakAnswerFirstBitZero (n + 1)) =
+        PMF.pure true := by
+    have hbit (point : List Bool) (hp : point.length = n + 1) :
+        ((point ++ List.replicate (n + 1) false).take (2 * (n + 1))).getD (n + 1) true = false := by
+      have hlen : (point ++ List.replicate (n + 1) false).length = 2 * (n + 1) := by
+        simp [hp]; omega
+      rw [List.take_of_length_le hlen.le, List.getD_eq_getElem?_getD, List.getElem?_append_right
+        (by omega)]
+      simp [hp]
+    simp only [weakPrfRealGame, weakSample, ProbOracleComp.run, weakAnswerFirstBitZero,
+      bind_pure_comp, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
+      ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_map]
+    refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun key _ => ?_).trans
+      (PMF.bind_const _ _)
+    refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun point hp => ?_).trans
+      (PMF.bind_const _ _)
+    have hplen : point.length = n + 1 := BitString.length_of_mem_support_uniformList hp
+    simp only [Function.comp_apply, prfOracle, zeroFamily, id_eq, hplen, ↓reduceIte,
+      hbit point hplen, Bool.not_false]
+  have hideal (n : ℕ) :
+      ProbComp.eval (weakPrfIdealGame weakAnswerFirstBitZero (n + 1)) =
+        PMF.uniformOfFintype Bool := by
+    have hbit (point : List Bool) (hp : point.length = n + 1) (word : BitString (n + 1)) :
+        ((point ++ List.ofFn word).take (2 * (n + 1))).getD (n + 1) true =
+          word ⟨0, Nat.succ_pos n⟩ := by
+      have hlen : (point ++ List.ofFn word).length = 2 * (n + 1) := by
+        simp [hp]; omega
+      rw [List.take_of_length_le hlen.le, List.getD_eq_getElem?_getD, List.getElem?_append_right
+        (by omega)]
+      simp [hp]
+    simp only [weakPrfIdealGame, weakSample, ProbOracleComp.run, weakAnswerFirstBitZero,
+      bind_pure_comp, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
+      ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList, ProbComp.eval_map,
+      PMF.map]
+    rw [PMF.bind_comm]
+    refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.uniformOfFintype Bool)
+      fun point hp => ?_).trans (PMF.bind_const _ _)
+    have hplen : point.length = n + 1 := BitString.length_of_mem_support_uniformList hp
+    have h1 : (PMF.uniformOfFintype (BitString (n + 1) → BitString (n + 1))).map
+        (fun table => table (BitString.ofList (n + 1) point)) =
+          PMF.uniformOfFintype (BitString (n + 1)) := by
+      rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
+    have h2 : (PMF.uniformOfFintype (BitString (n + 1))).map
+        (fun word => word ⟨0, Nat.succ_pos n⟩) = PMF.uniformOfFintype Bool := by
+      rw [← Cslib.Probability.PMF.pi_uniformOfFintype, Cslib.Probability.PMF.pi_map_eval]
+    simp only [Function.comp_apply, randomFunctionOracle, hplen, ↓reduceIte, hbit point hplen]
+    change (PMF.uniformOfFintype (BitString (n + 1) → BitString (n + 1))).map
+      (fun table => !(table (BitString.ofList (n + 1) point) ⟨0, Nat.succ_pos n⟩)) = _
+    rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv Bool.involutive_not.toPerm, ← h2, ← h1,
+      PMF.map_comp, PMF.map_comp]
+    rfl
+  simp only [hreal, hideal] at hshift
+  refine not_negligible_const ?_ hshift
+  norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
+    ENNReal.toNNReal_ofNat]
+
+/-- The identity block cipher with `keyLen = blockLen = id`: `encrypt _ _ x = x`. -/
+def idBlockCipher : BlockCipher where
+  keyLen := id
+  blockLen := id
+  keyLen_polyTime := ComputableInPolyTime.id'
+  blockLen_polyTime := ComputableInPolyTime.id'
+  encrypt _ _ x := x
+  decrypt _ _ y := y
+  encrypt_polyTime := by polytime
+  decrypt_polyTime := by polytime
+  length_encrypt _ _ _ _ hx := hx
+  length_decrypt _ _ _ _ hy := hy
+  decrypt_encrypt _ _ _ _ _ := rfl
+  encrypt_decrypt _ _ _ _ _ := rfl
+
+/-- **`BlockCipher.PRP` fails for the identity block cipher**: by the PRP/PRF switching lemma,
+`idBlockCipher.PRP` would make `fun _ x => x` a PRF, refuted by `firstBitZero` on `0^{n+1}`. -/
+theorem not_prp_idBlockCipher : ¬ idBlockCipher.PRP := by
+  intro hprp
+  have hprf : PseudorandomFunctionOver id id (fun _ query => query) :=
+    (BlockCipher.prp_iff_pseudorandomFunctionOver_of_keyLen_eq_id (E := idBlockCipher)
+      rfl negligible_inv_two_pow).mp hprp
+  have hshift := (hprf.secure firstBitZero firstBitZero_isOraclePPT).shift 1
+  have hreal (n : ℕ) :
+      ProbComp.eval (prfRealGame id (fun _ query => query) firstBitZero (n + 1)) =
+        PMF.pure true := by
+    simp only [prfRealGame, id_eq, ProbOracleComp.run, firstBitZero, prfOracle,
+      List.length_cons, List.length_replicate, ↓reduceIte, List.replicate_succ,
+      List.headD_eq_head?_getD, bind_pure_comp, Functor.map_map, OracleComp.interpret_map,
+      ProbOracleComp.interpret_query, map_pure, List.take_succ_cons, List.head?_cons,
+      Option.getD_some, ProbComp.eval_map, BitString.eval_sampleList]
+    exact PMF.map_const _ _
+  simp only [hreal, eval_prfIdealGame_firstBitZero (outLen := id) Nat.succ_pos] at hshift
+  refine not_negligible_const ?_ hshift
+  norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
+    ENNReal.toNNReal_ofNat]
+
+/-- **`BlockCipher.StrongPRP` fails for the identity block cipher**, since strong PRP security
+implies PRP security. -/
+theorem not_strongPRP_idBlockCipher : ¬ idBlockCipher.StrongPRP :=
+  fun h => not_prp_idBlockCipher h.prp
+
+/-! ### Weak one-way functions and commitment hiding -/
+
+/-- **`WeakOneWayAt` fails for the identity function** at every eventually positive failure
+threshold `α`. -/
+theorem not_weakOneWayAt_id {α : ℕ → ℝ} (hα : ∀ᶠ n in Filter.atTop, 0 < α n) :
+    ¬ WeakOneWayAt id α :=
+  not_weakOneWayAt_of_inverse hα (fun _ y => y)
+    (ComputableInPolyTime.id' (encIn := encBits)).isPPT (fun _ => rfl)
+
+/-- Trivial commitment scheme that reveals the message verbatim as the commitment string. -/
+noncomputable def plaintextCommitment : CommitmentScheme Unit where
+  encodeKey := ⟨fun _ => [], fun _ _ _ => rfl⟩
+  ValidMessage _ _ := True
+  commitDist _ m := PMF.pure (m, [])
+  verify _ m c _ := decide (c = m)
+  validMessage_of_verify _ _ _ _ _ := trivial
+  verify_of_mem_support _ m co _ hco := by
+    simp only [PMF.support_pure, Set.mem_singleton_iff] at hco
+    simp [hco]
+
+/-- Challenge `plaintextCommitment` with `([false], [true])` and output the first commitment bit.
+-/
+noncomputable def copyCommitmentBit : Encryption.WordAdversary where
+  choose _ _ := pure (([false], [true]), [])
+  guess _ _ c := pure (c.headD false)
+
+theorem copyCommitmentBit_isPPT : copyCommitmentBit.IsPPT :=
+  ⟨(ComputableInPolyTime.const _).isPPTOn, by unfold copyCommitmentBit; ppt⟩
+
+/-- **`CommitmentScheme.ComputationalHiding` fails for `plaintextCommitment`.** -/
+theorem not_computationalHiding_plaintextCommitment :
+    ¬ plaintextCommitment.ComputationalHiding (fun _ => PMF.pure ()) := by
+  intro h
+  have hneg := h copyCommitmentBit copyCommitmentBit_isPPT
+  have heval (bit : Bool) (n : ℕ) :
+      plaintextCommitment.hidingGame (fun _ => PMF.pure ()) copyCommitmentBit bit n =
+        PMF.pure bit := by
+    cases bit <;> simp [CommitmentScheme.hidingGame, CommitmentScheme.hidingForKey,
+      plaintextCommitment, copyCommitmentBit]
+  simp only [heval] at hneg
+  refine not_negligible_const ?_ hneg
+  simp [Game.advantage, Game.succProbability]
+
+/-- **`CommitmentScheme.StatisticalHiding` fails for `plaintextCommitment`**, since statistical
+hiding implies computational hiding. -/
+theorem not_statisticalHiding_plaintextCommitment :
+    ¬ plaintextCommitment.StatisticalHiding (fun _ => PMF.pure ()) :=
+  fun h => not_computationalHiding_plaintextCommitment h.computationalHiding
 
 end CslibFrontierTests.Crypto.AssumptionNonvacuity

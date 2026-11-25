@@ -217,8 +217,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have hB : budgetSpace (universalInput G x) ≤ _ :=
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
     have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
@@ -237,8 +236,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
         obtain ⟨c, -, rfl⟩ := List.mem_map.mp hb
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
       simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
@@ -332,12 +330,8 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
       rw [pow_add]
       omega
     have hb : base ≤ 2 ^ base := Nat.lt_two_pow_self.le
-    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by
-      have := Nat.mul_le_mul_left (4 * e) hsf
-      have e₁ : 4 * e * ((c₁ + c₂) * (f x.length + 1)) =
-          4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by ring
-      have e₂ : 4 * (e * s) = 4 * e * s := by ring
-      omega
+    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) :=
+      (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left e hsf)).trans_eq (by ring)
     have hy : 4 * e * (c₁ + c₂) * f x.length ≤
         (4 * e * (c₁ + c₂) + 2 * base + 8) * f x.length := Nat.mul_le_mul_right _ (by omega)
     calc (x.length + 2) * storageBound Bool State k s

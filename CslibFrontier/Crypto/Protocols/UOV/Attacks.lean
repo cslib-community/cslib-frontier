@@ -36,8 +36,10 @@ it is not a security theorem for the corrected construction.
 The attack programs and their exact probabilities are original game-level results. The rescaling
 results require correct oracle answers only on the single query made, and do not implement a UOV
 signer. The raw zero-target forgery does not query the oracle or require its correctness. Their
-query certificates bound external calls, not running time. Scheme-level composition and the
-concrete signer are tracked in #7068 and #4987, respectively.
+query certificates bound external calls, not running time. Classical-ROM hash-and-sign
+composition for abstract trapdoor preimage systems (including `UOV.idealRawScheme`) is supplied in
+`Cslib.Crypto.UOV.HashAndSign`, while the concrete round-3 UOV signer, concrete `Keccak-p[800, 12]`,
+and runtime PPT certificates remain tracked in #4987 and #7068.
 
 ## Main definitions
 
@@ -51,6 +53,8 @@ concrete signer are tracked in #7068 and #4987, respectively.
   vanish at zero.
 * `Cslib.Crypto.UOV.rescale_ne_zeroOpening_of_tail_ne_zero`: a nonzero tail blocks every
   nonidentity rescaling at the fixed zero opening.
+* `Cslib.Crypto.UOV.verify_scale_of_quadratic`, `Cslib.Crypto.UOV.verify_scale_option_of_quadratic`:
+  verification preservation under homogeneous quadratic rescaling when `F 0 = 0` and `G 0 = 0`.
 * `Cslib.Crypto.UOV.eval_rawZeroForger`: raw UOV target EUF-CMA is broken without a query,
   by the known preimage zero of target zero, independently of the preimage oracle.
 
@@ -121,6 +125,16 @@ while the second block binds the opening. This expression also permits constant 
     (message : Message) (opening : Opening) : Message × Tail :=
   (front opening + message, tail opening)
 
+private theorem structuredTarget_smul_zeroOpening
+    (P : QuadraticMap K X (Message × Tail))
+    (front : Opening → Message) (tail : Opening → Tail)
+    (hfront : front 0 = 0) (htail : tail 0 = 0)
+    (a : K) {answer : X} {message : Message}
+    (hanswer : P answer = structuredTarget front tail message 0) :
+    P (a • answer) = structuredTarget front tail ((a * a) • message) 0 := by
+  rw [P.map_smul, hanswer]
+  simp [structuredTarget, hfront, htail]
+
 /-- When both blocks vanish at zero, the one-call rescaling program certifies a fresh semantic
 message with probability one. Freshness ignores the opening. This abstract vector statement
 does not assert that scalar multiplication preserves an application's message-format predicate. -/
@@ -140,14 +154,48 @@ theorem rescaleAttack_zeroOpening [DecidableEq Message] [DecidableEq Tail]
   rw [rescaleAttack, ProbOracleComp.runLog_query_bind_pure, ProbComp.eval_map, PMF.map_comp]
   apply PMF.map_eq_pure_iff.mpr
   intro answer hmem
-  have hvalid : P (a • answer) = structuredTarget front tail ((a * a) • message) 0 := by
-    rw [P.map_smul, hanswer answer hmem]
-    simp [structuredTarget, hfront, htail]
+  have hvalid : P (a • answer) = structuredTarget front tail ((a * a) • message) 0 :=
+    structuredTarget_smul_zeroOpening P front tail hfront htail a (hanswer answer hmem)
   have hfresh : (a * a) • message ≠ message := by
     intro heq
     exact hsquare (smul_left_injective K hmessage (heq.trans (one_smul K message).symm))
   exact decide_eq_true ⟨hvalid, by
     simpa only [List.map_cons, List.map_nil, List.mem_singleton] using hfresh, rfl⟩
+
+/-- Scaling a valid raw preimage under a homogeneous quadratic map when `F 0 = 0` and `G 0 = 0`
+yields a valid preimage for `(a * a) • μ` at opening `0`. -/
+theorem verify_scale_of_quadratic {PK SK : Type} [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) X)
+    (hver : ∀ pk target s, S.verify pk target s = decide (pubMap pk s = target))
+    (F : Opening → Message) (G : Opening → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    {pk : PK} {μ : Message} {s : X} (hs : S.verify pk (structuredTarget F G μ 0) s = true)
+    (a : K) :
+    S.verify pk (structuredTarget F G ((a * a) • μ) 0) (a • s) = true := by
+  rw [hver] at hs ⊢
+  exact decide_eq_true
+    (structuredTarget_smul_zeroOpening (pubMap pk) F G hF hG a (of_decide_eq_true hs))
+
+/-- Optional-preimage (`Option X`) scaling helper matching the verifier shape of
+`UOV.idealRawScheme`: scaling with `Option.map (a • ·)` preserves validity under a homogeneous
+quadratic verifier when `F 0 = 0` and `G 0 = 0`. -/
+theorem verify_scale_option_of_quadratic {PK SK : Type} [DecidableEq Message] [DecidableEq Tail]
+    (pubMap : PK → QuadraticMap K X (Message × Tail))
+    (S : Signature.Scheme PK SK (Message × Tail) (Option X))
+    (hver : ∀ pk target opt, S.verify pk target opt =
+      match opt with | none => false | some s => decide (pubMap pk s = target))
+    (F : Opening → Message) (G : Opening → Tail) (hF : F 0 = 0) (hG : G 0 = 0)
+    {pk : PK} {μ : Message} {opt : Option X}
+    (hopt : S.verify pk (structuredTarget F G μ 0) opt = true) (a : K) :
+    S.verify pk (structuredTarget F G ((a * a) • μ) 0) (Option.map (a • ·) opt) = true := by
+  cases opt with
+  | none =>
+    rw [hver] at hopt
+    simp at hopt
+  | some s =>
+    rw [hver] at hopt ⊢
+    exact decide_eq_true
+      (structuredTarget_smul_zeroOpening (pubMap pk) F G hF hG a (of_decide_eq_true hopt))
 
 /-- A nonzero tail at zero blocks this fixed-opening rescaling: no semantic message can make
 the scaled preimage verify at opening zero when the squared scalar is not one.

@@ -147,13 +147,12 @@ theorem selected_metadataSpace_le (N b σ q d B : ℕ) (hd : 0 < d) (hB : 0 < B)
       100 * (d + 1) * (N.size + b.size + σ.size + q.size + B + chunkWidth d B + d.size + 1) := by
   have hr := chunkCount_le hd hB
   have hrsize := Nat.size_le_size hr
-  have hBsize := length_encNat_le_self B
-  have hmSize := length_encNat_le_self (chunkWidth d B)
+  have hBsize := Nat.size_le_self B
+  have hmSize := Nat.size_le_self (chunkWidth d B)
   have hstride := Nat.size_mul_le (chunkCount d B) (chunkWidth d B)
   have hpoint := Nat.size_mul_le d (chunkCount d B)
   have hp := fieldModulus_size_le hd hB
   have hlimit := assignment_limit_size_le hd hB
-  simp only [length_encNat_eq_size] at hBsize hmSize
   simp only [ConcreteSupplier.metadataSpace, QueryGate.encParams, Interpolation.encContext_apply,
     Interpolation.encContextFields, encNat3, length_encPair, length_encNat_eq_size]
   rw [Nat.size_pow (n := chunkWidth d B), show (encList encNat []).length = 0 from rfl,
@@ -200,8 +199,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hd : 0 < d := by dsimp only [d]; omega
   have hB : 0 < B := Encoding.width_pos k s b
   have hR : 0 < R := by dsimp only [R]; omega
-  have hbs : b.size ≤ b := by simpa only [length_encNat_eq_size] using length_encNat_le_self b
-  have hqs : q.size ≤ q := by simpa only [length_encNat_eq_size] using length_encNat_le_self q
+  have hbs := Nat.size_le_self b
+  have hqs := Nat.size_le_self q
   have hqmul : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
   have hqR : q ≤ R := by dsimp only [R]; omega
   have hargs : N.size + b.size + σ.size + q.size + 1 ≤ R := by
@@ -215,11 +214,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
     have hc := Nat.le_mul_of_pos_right d.size hR
     rw [show M * R = d.size * R + A * R from Nat.add_mul d.size A R]; omega
   have hrB : r ≤ B := chunkCount_le hd hB
-  have hrs : r.size ≤ B := by
-    have h := length_encNat_le_self r
-    rw [length_encNat_eq_size] at h
-    omega
-  have hms : m.size ≤ m := by simpa only [length_encNat_eq_size] using length_encNat_le_self m
+  have hrs : r.size ≤ B := (Nat.size_le_self r).trans hrB
+  have hms := Nat.size_le_self m
   have hds : d.size ≤ d.size * R := Nat.le_mul_of_pos_right _ hR
   have hR0 : N.size + b.size + σ.size + q.size + B + m + d.size + 1 ≤
       (A + M + d.size + 2) * R := by

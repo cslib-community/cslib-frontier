@@ -76,9 +76,7 @@ abbrev temp : Fin 32 := 27
 
 private abbrev bank : Fin 14 → Fin 32 := Fin.castLE (by decide)
 
-private theorem bank_injective : Function.Injective bank := by
-  intro i j h
-  exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
+private theorem bank_injective : Function.Injective bank := Fin.castLE_injective _
 
 /-- Query pointer passed to the chunk writer. -/
 abbrev chunkQueries : Fin 32 := 0
@@ -132,17 +130,18 @@ private theorem before_zero (C : ℕ → ℕ) (cap : ℕ) : before C cap 0 = 0 :
   simp [before]
 
 private theorem before_succ (C : ℕ → ℕ) (cap rho : ℕ) :
-    before C cap (rho + 1) = before C cap rho + C rho ⌈/⌉ cap := by
-  exact Finset.sum_range_succ _ _
+    before C cap (rho + 1) = before C cap rho + C rho ⌈/⌉ cap :=
+  Finset.sum_range_succ _ _
+
+private theorem before_mono (C : ℕ → ℕ) (cap : ℕ) {rho p : ℕ} (h : rho ≤ p) :
+    before C cap rho ≤ before C cap p :=
+  Finset.sum_le_sum_of_subset (Finset.range_mono h)
 
 /-- Every actual chunk lies strictly within the concatenated descriptor array. -/
 theorem before_add_lt (C : ℕ → ℕ) (cap : ℕ) {rho p k : ℕ}
     (hrho : rho < p) (hk : k < C rho ⌈/⌉ cap) :
     before C cap rho + k < before C cap p := by
-  have hsum : before C cap (rho + 1) ≤ before C cap p := by
-    unfold before
-    exact Finset.sum_le_sum_of_subset_of_nonneg
-      (Finset.range_mono (by omega)) (by intro _ _ _; exact Nat.zero_le _)
+  have hsum := before_mono C cap hrho
   rw [before_succ] at hsum
   omega
 
@@ -152,24 +151,18 @@ theorem before_index (C : ℕ → ℕ) (cap p i : ℕ) (hi : i < before C cap p)
     ∃! idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap),
       i = before C cap idx.1.val + idx.2.val := by
   have hsum : (∑ rho : Fin p, C rho.val ⌈/⌉ cap) = before C cap p := by
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, by rw [hsum]; exact hi⟩
+    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
   have hval (idx : (rho : Fin p) × Fin (C rho.val ⌈/⌉ cap)) :
       (finSigmaFinEquiv idx).val = before C cap idx.1.val + idx.2.val := by
     rw [finSigmaFinEquiv_apply]
     change (∑ r : Fin idx.1.val, C r.val ⌈/⌉ cap) + idx.2.val = _
-    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]
-    rfl
-  let idx := finSigmaFinEquiv.symm j
-  have heq : finSigmaFinEquiv idx = j := finSigmaFinEquiv.apply_symm_apply j
-  refine ⟨idx, ?_, ?_⟩
-  · exact (congrArg Fin.val heq).symm.trans (hval idx)
-  · intro k hk
-    apply finSigmaFinEquiv.injective
-    apply Fin.ext
-    rw [heq, hval]
-    exact hk.symm
+    rw [Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap)]; rfl
+  let j : Fin (∑ rho : Fin p, C rho.val ⌈/⌉ cap) := ⟨i, hsum ▸ hi⟩
+  refine ⟨finSigmaFinEquiv.symm j,
+    (congrArg Fin.val (finSigmaFinEquiv.apply_symm_apply j)).symm.trans (hval _), fun k hk => ?_⟩
+  apply finSigmaFinEquiv.injective (Fin.ext ?_)
+  rw [finSigmaFinEquiv.apply_symm_apply, hval]
+  exact hk.symm
 
 /-- At most `N` queries per class give at most `rho * N` occupied descriptors, since every
 nonempty chunk contains at least one query. This bounds the actual allocation before matrix
@@ -328,17 +321,10 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
         rw [hyh, hyb, hys] at h
         simpa only [Nat.mul_add, Nat.add_assoc, Nat.mul_left_comm, Nat.mul_assoc] using h
       · have hrlt : r < y.regs cursor := by omega
-        have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) := by
-          rw [← before_succ]
-          exact Finset.sum_le_sum_of_subset_of_nonneg
-            (Finset.range_mono (by omega)) (by intros; exact Nat.zero_le _)
-        have h0 : z.mem (d + 3 * (P r + k)) = y.mem (d + 3 * (P r + k)) :=
-          hzframe _ (by rw [hyh]; omega)
-        have h1 : z.mem (d + 3 * (P r + k) + 1) = y.mem (d + 3 * (P r + k) + 1) :=
-          hzframe _ (by rw [hyh]; omega)
-        have h2 : z.mem (d + 3 * (P r + k) + 2) = y.mem (d + 3 * (P r + k) + 2) :=
-          hzframe _ (by rw [hyh]; omega)
-        rw [h0, h1, h2]
+        have hbnd : P r + C r ⌈/⌉ Q ≤ P (y.regs cursor) :=
+          (before_succ C Q r).symm.trans_le (before_mono C Q hrlt)
+        rw [hzframe _ (by rw [hyh]; omega), hzframe _ (by rw [hyh]; omega),
+          hzframe _ (by rw [hyh]; omega)]
         exact hycells r hrlt k hk
     · intro a ha
       rw [hzi, hnext] at ha

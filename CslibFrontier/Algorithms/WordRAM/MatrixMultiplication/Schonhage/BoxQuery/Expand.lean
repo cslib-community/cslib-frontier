@@ -89,13 +89,12 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
       (outAt η xs.length)).val := ad.trans (query_digit_at η hk)
   have apow : a.regs Reg.childPower = 10 ^ (xs.length + 1) := by simpa only [pow_succ] using ap
   have arest : StackMemory η F rest a.mem := by simpa only [am] using hrest
+  have hcond : (Cond.eq Reg.digit BoxTable.Reg.nine).Holds a ↔ (outAt η xs.length).IsInner := by
+    simp only [Cond.holds_eq, adigit, a9, output_digit_nine_iff]
   by_cases hi : (outAt η xs.length).IsInner
-  · have acond : (Cond.eq Reg.digit BoxTable.Reg.nine).Holds a := by
-      simp only [Cond.holds_eq, adigit, a9]
-      exact (output_digit_nine_iff _).mpr hi
-    let mid : List (List Term) := if usedFrom η 0 xs < t then
+  · let mid : List (List Term) := if usedFrom η 0 xs < t then
       List.ofFn (fun d : Fin 9 => xs ++ [Encoding.termDigits ⟨d.val, by omega⟩]) else []
-    have hmid_len : mid.length ≤ 9 := by dsimp [mid]; split_ifs <;> simp
+    have hmid_len : mid.length ≤ 9 := by dsimp only [mid]; split_ifs <;> simp
     have hmid : ∃ b, ExecWithin w (.branch (.lt Reg.used BoxTable.Reg.threshold)
           nineChildren (ram[ Reg.temporary ← Reg.temporary ])) a b 155 ∧
         b.regs Reg.top = rest.length + mid.length ∧
@@ -104,16 +103,16 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
           b.mem q = a.mem q) ∧
         (∀ i, ¬IndexedPushLocal i → b.regs i = a.regs i) := by
       by_cases hspare : usedFrom η 0 xs < t
-      · obtain ⟨b, hb, bn, bm, bf⟩ := exec_nineChildren
-          (F := F) (n := rest.length) (k := xs.length + 1) (c := prefixCode xs)
-          (u := usedFrom η 0 xs) (e := starsFrom η 0 xs) (p := 10 ^ xs.length)
-          (cp := 10 ^ (xs.length + 1)) a
-          aF an ak ac au ae app apow a5 a1 (hcommon.of_le (by omega))
+      · obtain ⟨b, hb, bn, bm, bf⟩ := exec_nineChildren a aF an ak ac au ae app apow a5 a1
+          (hcommon.of_le (by omega))
         have hs := arest.indexedChildren xs hi (List.ofFn fun i : Fin 9 => ⟨8 - i.val, by omega⟩)
         rw [reverse_nineChildren] at hs
         refine ⟨b, hb.branch_pos (by simpa only [Cond.holds_lt, au, athreshold] using hspare),
-          by simpa [mid, hspare] using bn, by simpa only [mid, ite_eq_left hspare, bm] using hs,
-          fun q hq => by rw [bm, writeIndexedChildren_frame]; simpa [mid, hspare] using hq, bf⟩
+          by simpa only [mid, ite_eq_left hspare, List.length_ofFn] using bn,
+          by simpa only [mid, ite_eq_left hspare, bm] using hs,
+          fun q hq => by
+            rw [bm, writeIndexedChildren_frame]
+            simpa only [mid, ite_eq_left hspare, List.length_ofFn] using hq, bf⟩
       · refine ⟨a.set Reg.temporary (a.regs Reg.temporary),
           (ExecWithin.copy.branch_neg
             (by simpa only [Cond.holds_lt, au, athreshold] using hspare)).mono (by decide),
@@ -126,34 +125,25 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
         b.regs Reg.power = 10 ^ xs.length ∧ b.regs Reg.childPower = 10 ^ (xs.length + 1) ∧
         b.regs Reg.five = 5 ∧ b.regs BoxTable.Reg.one = 1 ∧ b.regs BoxTable.Reg.nine = 9 ∧
         b.regs BoxTable.Reg.nil = 0 := by regs_frame
-    obtain ⟨y, hy, yn, ym, _⟩ := exec_p0Child
-      (F := F) (n := rest.length + mid.length) (k := xs.length + 1) (c := prefixCode xs)
-      (u := usedFrom η 0 xs) (e := starsFrom η 0 xs) (p := 10 ^ xs.length)
-      (cp := 10 ^ (xs.length + 1)) b
-      bF bn bk bc bu be bp bcp b5 b1 b9 b0 (hcommon.of_le (by omega))
+    obtain ⟨y, hy, yn, ym, _⟩ := exec_p0Child b bF bn bk bc bu be bp bcp b5 b1 b9 b0
+      (hcommon.of_le (by omega))
     have hex : ExecWithin w expand x y 178 :=
-      (ha.seq ((hb'.seq hy).branch_pos acond)).mono (by omega)
+      (ha.seq ((hb'.seq hy).branch_pos (hcond.mpr hi))).mono (by omega)
     have hch : children η t xs = (xs ++ [.P0]) :: mid := by
-      dsimp [children, mid]; exact ite_eq_left hi
+      dsimp only [children, mid]; exact ite_eq_left hi
     refine ⟨y, hex, by simp only [hch, List.length_cons, yn]; omega, ?_, ?_,
       fun i h => hex.regs_eq (expand_preserves i h)⟩
-    · have hpush := bs.p0Child xs hi
-      rw [List.length_append, Nat.add_comm mid.length] at hpush
-      simpa only [ym, hch, List.cons_append] using hpush
+    · simpa only [ym, hch, List.cons_append, List.length_append, Nat.add_comm mid.length] using
+        bs.p0Child xs hi
     · intro q hqout
       rw [hch, List.length_cons] at hqout
       rw [ym, writeTask_frame _ _ _ _ _ _ _ _ _ (by omega), bframe _ (by omega), am]
-  · have acond : ¬(Cond.eq Reg.digit BoxTable.Reg.nine).Holds a := by
-      simp only [Cond.holds_eq, adigit, a9]
-      exact fun h => hi ((output_digit_nine_iff _).mp h)
-    have hd : (PrunedQuery.outputDigits.symm (outAt η xs.length)).val ≤ 9 :=
+  · have hd : (PrunedQuery.outputDigits.symm (outAt η xs.length)).val ≤ 9 :=
       Nat.le_of_lt_succ (PrunedQuery.outputDigits.symm _).isLt
-    obtain ⟨y, hy, yn, ym, _⟩ := exec_privateChild
-      (F := F) (n := rest.length) (k := xs.length + 1) (c := prefixCode xs)
-      (u := usedFrom η 0 xs) (e := starsFrom η 0 xs) (p := 10 ^ xs.length)
-      (cp := 10 ^ (xs.length + 1)) a hd
-      aF an ak ac au ae app apow adigit a5 a1 (hcommon.of_le (by omega))
-    have hex : ExecWithin w expand x y 178 := (ha.seq (hy.branch_neg acond)).mono (by omega)
+    obtain ⟨y, hy, yn, ym, _⟩ := exec_privateChild a hd aF an ak ac au ae app apow adigit a5 a1
+      (hcommon.of_le (by omega))
+    have hex : ExecWithin w expand x y 178 :=
+      (ha.seq (hy.branch_neg (mt hcond.mp hi))).mono (by omega)
     refine ⟨y, hex, by simpa [children, hi] using yn, ?_, ?_,
       fun i h => hex.regs_eq (expand_preserves i h)⟩
     · simpa only [ym, children, ite_eq_right hi, List.singleton_append] using

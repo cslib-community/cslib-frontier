@@ -119,14 +119,10 @@ theorem bitLength_le_iff {n k : ℕ} (hk : k ≠ 0) : bitLength n ≤ k ↔ n < 
   exact and_iff_left (Nat.one_le_iff_ne_zero.2 hk)
 
 theorem bitLength_add_le (m n : ℕ) : bitLength (m + n) ≤ bitLength m + bitLength n := by
-  have hm : 2 ≤ 2 ^ bitLength m := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
-  have hn : 2 ≤ 2 ^ bitLength n := by
-    simpa using Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
+  have hm : 2 ≤ 2 ^ bitLength m := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength m)
+  have hn : 2 ≤ 2 ^ bitLength n := Nat.pow_le_pow_right Nat.two_pos (one_le_bitLength n)
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
-  have := lt_two_pow_bitLength m
-  have := lt_two_pow_bitLength n
-  nlinarith
+  nlinarith [lt_two_pow_bitLength m, lt_two_pow_bitLength n]
 
 theorem bitLength_mul_le (m n : ℕ) : bitLength (m * n) ≤ bitLength m + bitLength n := by
   rw [bitLength_le_iff (by have := one_le_bitLength m; omega), pow_add]
@@ -220,9 +216,8 @@ theorem stepCost_unitCost_le : stepCost unitCost p s ≤ 1 := by
   unfold stepCost
   split <;> simp [unitCost]
 
-theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 := by
-  have hlt : s.pc < p.length := by simpa using h
-  exact stepCost_of_getElem? (List.getElem?_eq_getElem hlt)
+theorem stepCost_unitCost (h : ¬s.isHalted p) : stepCost unitCost p s = 1 :=
+  stepCost_of_getElem? (List.getElem?_eq_getElem (by simpa using h))
 
 /-- Unit time is at most the number of steps. -/
 theorem time_unitCost_le : time unitCost p n s ≤ n :=

@@ -62,8 +62,8 @@ theorem indicator_eval_eq_false_le_prod (σ : V → Bool) (c : Clause V) {S : Fi
       ∏ l ∈ S, if σ l.1 = !l.2 then (1 : ℝ) else 0 := by
   by_cases hc : c.eval σ = false
   · rw [ite_eq_left hc]
-    refine le_of_eq (prod_eq_one fun l hl => ite_eq_left ?_).symm
-    exact (Clause.eval_eq_false_iff σ c).1 hc l (List.mem_toFinset.1 (hS hl))
+    exact (prod_eq_one fun l hl =>
+      ite_eq_left ((Clause.eval_eq_false_iff σ c).1 hc l (List.mem_toFinset.1 (hS hl)))).ge
   · rw [ite_eq_right hc]
     exact prod_nonneg fun _ _ => by positivity
 
@@ -79,7 +79,7 @@ theorem expect_indicator_eval_eq_false_le {k : ℕ} {h : ι → X → Bool}
   by_cases hcomp : ∃ l ∈ c, ∃ l' ∈ c, l.1 = l'.1 ∧ l.2 ≠ l'.2
   · -- a clause with a complementary pair is never falsified
     obtain ⟨l, hl, l', hl', hv, hb⟩ := hcomp
-    have hzero : ∀ i, (if c.eval (h i ∘ e) = false then (1 : ℝ) else 0) = 0 := fun i => by
+    have hzero (i : ι) : (if c.eval (h i ∘ e) = false then (1 : ℝ) else 0) = 0 := by
       rw [ite_eq_right]
       rw [Bool.not_eq_false, Clause.eval_eq_true_iff]
       by_cases hσ : (h i ∘ e) l.1 = l.2
@@ -92,24 +92,18 @@ theorem expect_indicator_eval_eq_false_le {k : ℕ} {h : ι → X → Bool}
   push Not at hcomp
   obtain ⟨S, hSc, hScard⟩ := exists_subset_card_eq (min_le_right k c.toFinset.card)
   -- the literals of `S` have distinct images under `e ∘ Prod.fst`
-  have hinj : Set.InjOn (fun l : Literal V => e l.1) S := fun l hl l' hl' hll' => by
-    have hl := List.mem_toFinset.1 (hSc hl)
-    have hl' := List.mem_toFinset.1 (hSc hl')
-    have hv := he l hl l' hl' hll'
-    exact Prod.ext hv (hcomp l hl l' hl' hv)
-  have hS : #(S.image fun l => e l.1) ≤ k := by
-    rw [card_image_of_injOn hinj, hScard]
-    exact min_le_left _ _
+  have hinj : Set.InjOn (fun l : Literal V => e l.1) S := fun l hl l' hl' hll' =>
+    let hl := List.mem_toFinset.1 (hSc hl)
+    let hl' := List.mem_toFinset.1 (hSc hl')
+    let hv := he l hl l' hl' hll'
+    Prod.ext hv (hcomp l hl l' hl' hv)
+  have hS : #(S.image fun l => e l.1) ≤ k :=
+    (card_image_of_injOn hinj).trans_le (hScard ▸ min_le_left _ _)
   -- the falsifying value at each point of the image of `S`
-  let target : X → Bool := fun x =>
-    if hx : ∃ l ∈ S, e l.1 = x then !hx.choose.2 else false
+  let target (x : X) : Bool := if hx : ∃ l ∈ S, e l.1 = x then !hx.choose.2 else false
   have htarget : ∀ l ∈ S, target (e l.1) = !l.2 := fun l hl => by
     have hx : ∃ l' ∈ S, e l'.1 = e l.1 := ⟨l, hl, rfl⟩
-    simp only [target, dite_eq_left hx]
-    rw [hinj hx.choose_spec.1 hl hx.choose_spec.2]
-  have hcoin : ∀ b : Bool, 𝔼 y : Bool, (if y = b then (1 : ℝ) else 0) = 2⁻¹ := fun b => by
-    rw [Fintype.expect_eq_sum_div_card, Fintype.sum_bool]
-    cases b <;> norm_num
+    simp only [target, dite_eq_left hx, hinj hx.choose_spec.1 hl hx.choose_spec.2]
   calc 𝔼 i, (if c.eval (h i ∘ e) = false then (1 : ℝ) else 0)
       ≤ 𝔼 i, ∏ l ∈ S, if (h i ∘ e) l.1 = !l.2 then (1 : ℝ) else 0 :=
         expect_le_expect fun i _ => indicator_eval_eq_false_le_prod _ c hSc
@@ -120,6 +114,9 @@ theorem expect_indicator_eval_eq_false_le {k : ℕ} {h : ι → X → Bool}
     _ = ∏ x ∈ S.image (fun l => e l.1), 𝔼 y : Bool, if y = target x then (1 : ℝ) else 0 :=
         hh.expect_prod hS fun x y => if y = target x then (1 : ℝ) else 0
     _ = (2 : ℝ)⁻¹ ^ min k c.toFinset.card := by
+        have hcoin (b : Bool) : (𝔼 y : Bool, if y = b then (1 : ℝ) else 0) = 2⁻¹ := by
+          rw [Fintype.expect_eq_sum_div_card, Fintype.sum_bool]
+          cases b <;> norm_num
         simp only [hcoin, prod_const, card_image_of_injOn hinj, hScard]
 
 /-- **Limited independence and clause counts**: if the bits `h i x` are `k`-wise independent and
@@ -132,21 +129,20 @@ theorem expect_countUnsat_le {k : ℕ} {h : ι → X → Bool} (hh : IsKWiseInde
   induction φ with
   | nil => simp [CNF.countUnsat]
   | cons c φ ih =>
-    have hvars : ∀ v ∈ CNF.vars φ, v ∈ CNF.vars (c :: φ) := fun v hv => by
-      obtain ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
-      exact CNF.mem_vars.2 ⟨c', List.mem_cons_of_mem _ hc', b, hb⟩
-    have hc : ∀ l ∈ c, l.1 ∈ CNF.vars (c :: φ) := fun l hl =>
+    have hvars {v} (hv : v ∈ CNF.vars φ) : v ∈ CNF.vars (c :: φ) :=
+      let ⟨c', hc', b, hb⟩ := CNF.mem_vars.1 hv
+      CNF.mem_vars.2 ⟨c', List.mem_cons_of_mem _ hc', b, hb⟩
+    have hc {l : Literal V} (hl : l ∈ c) : l.1 ∈ CNF.vars (c :: φ) :=
       CNF.mem_vars.2 ⟨c, List.mem_cons_self, l.2, hl⟩
-    have ih := ih fun v hv w hw => he v (hvars v hv) w (hvars w hw)
-    have h1 := expect_indicator_eval_eq_false_le hh c fun l hl l' hl' =>
-      he l.1 (hc l hl) l'.1 (hc l' hl')
-    have hsplit : ∀ i, (CNF.countUnsat (h i ∘ e) (c :: φ) : ℝ) =
-        (if c.eval (h i ∘ e) = false then (1 : ℝ) else 0) + (CNF.countUnsat (h i ∘ e) φ : ℝ) :=
-      fun i => by
-        simp only [CNF.countUnsat, List.countP_cons]
-        cases c.eval (h i ∘ e) <;> simp [add_comm]
+    have hsplit (i : ι) : (CNF.countUnsat (h i ∘ e) (c :: φ) : ℝ) =
+        (if c.eval (h i ∘ e) = false then (1 : ℝ) else 0) +
+          (CNF.countUnsat (h i ∘ e) φ : ℝ) := by
+      simp only [CNF.countUnsat, List.countP_cons]
+      cases c.eval (h i ∘ e) <;> simp [add_comm]
     simp only [hsplit, expect_add_distrib, List.map_cons, List.sum_cons]
-    exact add_le_add h1 ih
+    exact add_le_add (expect_indicator_eval_eq_false_le hh c fun l hl l' hl' =>
+        he l.1 (hc hl) l'.1 (hc hl'))
+      (ih fun v hv w hw => he v (hvars hv) w (hvars hw))
 
 /-- Some seed attains the bound of `Cslib.Logic.PL.expect_countUnsat_le`. -/
 theorem exists_countUnsat_le {k : ℕ} {h : ι → X → Bool} (hh : IsKWiseIndependentHash k h)

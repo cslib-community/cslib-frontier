@@ -627,25 +627,10 @@ private theorem computableInPolyTime_cnfToOrderedEntry (b : Bool) :
             (Prod.fst p).fst.getD (Prod.snd p - (Prod.fst p).fst.distinctVars.length) []))
       encP encBool := by
     fun_prop
-  have heq : (fun p : (PL.CNF ℕ × ℕ) × ℕ =>
-        let (fv, c) := p
-        let (φ, v) := fv
-        cnfToOrderedEntry φ b c v) =
-      (fun p : (PL.CNF ℕ × ℕ) × ℕ =>
-        if decide (Prod.snd p < (Prod.fst p).fst.distinctVars.length ∨
-            (Prod.fst p).fst.distinctVars.length + (Prod.fst p).fst.length ≤ Prod.snd p) then
-          decide (Prod.snd p = (Prod.fst p).snd)
-        else
-          decide ((Prod.fst p).snd < (Prod.fst p).fst.distinctVars.length) &&
-            decide (((Prod.fst p).fst.distinctVars.getD (Prod.fst p).snd 0, b) ∈
-              (Prod.fst p).fst.getD (Prod.snd p - (Prod.fst p).fst.distinctVars.length) [])) := by
-    ext ⟨⟨φ, v⟩, c⟩
-    simp only [cnfToOrderedEntry]
-    by_cases h : c < φ.distinctVars.length ∨ φ.distinctVars.length + φ.length ≤ c
-    · simp only [h, decide_true, ↓reduceIte]
-    · simp only [h, decide_false, Bool.false_eq_true, ↓reduceIte, Bool.decide_and]
-  rw [heq]
-  exact ComputableInPolyTime.ite hcond hdiag hbody
+  refine (ComputableInPolyTime.ite hcond hdiag hbody).of_enc_eq fun ⟨⟨φ, v⟩, c⟩ => ?_
+  simp only [cnfToOrderedEntry, encBool_apply]
+  by_cases h : c < φ.distinctVars.length ∨ φ.distinctVars.length + φ.length ≤ c <;>
+    simp [h, Bool.decide_and]
 
 private theorem computableInPolyTime_cnfToOrderedTable (b : Bool) :
     ComputableInPolyTime (cnfToOrderedTable b) encCNF encBits := by

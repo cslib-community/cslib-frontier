@@ -99,11 +99,11 @@ theorem card_eq_sum_le {X : Type*} [Fintype X] (f : X → Bool) {M : X → ℝ}
       (#{t | G t = ∑ i, f (t i)} : ℝ) ≤
         (1 / 2 + ε) * Fintype.card X ^ k + (1 / 2 - ε) * (Fintype.card X - ∑ y, M y) ^ k
   | 0, G, _ => by
-    have h : (#{t : Fin 0 → X | G t = ∑ i, f (t i)} : ℝ) ≤ 1 := by
+    have : (#{t : Fin 0 → X | G t = ∑ i, f (t i)} : ℝ) ≤ 1 := by
       exact_mod_cast (card_filter_le _ _).trans (by simp)
     linarith
   | k + 1, G, hG => by
-    rcases isEmpty_or_nonempty X with hX | ⟨⟨z⟩⟩
+    rcases isEmpty_or_nonempty X with _ | ⟨⟨z⟩⟩
     · simp
     -- Split off the first input.
     set A : X → (Fin k → X) → ℝ := fun y t =>
@@ -111,8 +111,7 @@ theorem card_eq_sum_le {X : Type*} [Fintype X] (f : X → Bool) {M : X → ℝ}
     have hsplit : (#{t | G t = ∑ i, f (t i)} : ℝ) = ∑ y, ∑ t, A y t := by
       rw [natCast_card_filter, ← Fintype.sum_prod_type',
         ← (Fin.consEquiv fun _ : Fin (k + 1) => X).sum_comp]
-      refine sum_congr rfl fun p _ => ?_
-      simp [A, Fin.consEquiv, Fin.sum_univ_succ]
+      exact sum_congr rfl fun _ _ => by simp [A, Fin.consEquiv, Fin.sum_univ_succ]
     -- The part weighted by `M`: a prediction of `f` with the other inputs fixed.
     have hhard (t : Fin k → X) : ∑ y, M y * A y t ≤ (1 / 2 + ε) * ∑ y, M y := by
       refine le_of_eq_of_le ?_ (hG 0 (Fin.cons z t) (∑ i, f (t i)))
@@ -124,12 +123,12 @@ theorem card_eq_sum_le {X : Type*} [Fintype X] (f : X → Bool) {M : X → ℝ}
     set B := (1 / 2 + ε) * (Fintype.card X : ℝ) ^ k +
       (1 / 2 - ε) * (Fintype.card X - ∑ y, M y) ^ k
     have hrest (y : X) : (1 - M y) * ∑ t, A y t ≤ (1 - M y) * B := by
-      refine mul_le_mul_of_nonneg_left ?_ (sub_nonneg.2 (hM y).2)
-      have h := card_eq_sum_le f hM k (fun t => G (Fin.cons y t) ^^ f y) fun i t b => by
-        simpa only [Fin.cons_update, Bool.xor_assoc] using hG i.succ (Fin.cons y t) (f y ^^ b)
-      refine le_of_eq_of_le ?_ h
+      refine mul_le_mul_of_nonneg_left (le_of_eq_of_le ?_ <|
+        card_eq_sum_le f hM k (fun t => G (Fin.cons y t) ^^ f y) fun i t b => by
+          simpa only [Fin.cons_update, Bool.xor_assoc] using hG i.succ (Fin.cons y t) (f y ^^ b))
+        (sub_nonneg.2 (hM y).2)
       rw [natCast_card_filter]
-      exact sum_congr rfl fun t _ => if_congr (eq_add_iff_xor_eq' _ _ _) rfl rfl
+      exact sum_congr rfl fun _ _ => if_congr (eq_add_iff_xor_eq' _ _ _) rfl rfl
     calc (#{t | G t = ∑ i, f (t i)} : ℝ)
         = ∑ y, (M y * ∑ t, A y t + (1 - M y) * ∑ t, A y t) := by
           rw [hsplit]
@@ -140,8 +139,7 @@ theorem card_eq_sum_le {X : Type*} [Fintype X] (f : X → Bool) {M : X → ℝ}
           rw [sum_comm]
       _ ≤ ∑ _t : Fin k → X, (1 / 2 + ε) * ∑ y, M y + ∑ y, (1 - M y) * B :=
           add_le_add (sum_le_sum fun t _ => hhard t) (sum_le_sum fun y _ => hrest y)
-      _ = (1 / 2 + ε) * Fintype.card X ^ (k + 1) +
-            (1 / 2 - ε) * (Fintype.card X - ∑ y, M y) ^ (k + 1) := by
+      _ = _ := by
           rw [← sum_mul, ← sum_mul, sum_sub_distrib]
           simp only [sum_const, card_univ, Fintype.card_fun, Fintype.card_fin, nsmul_eq_mul,
             mul_one, B]
@@ -159,29 +157,24 @@ theorem IsHardCoreMeasure.card_eq_xorPower_div_le {f : BooleanFunction n} {s : �
   let G : (Fin k → BitString n) → Bool := fun t => g (BitString.blocksEquiv.symm t)
   have hcard : #{x | g x = xorPower f k x} = #{t | G t = ∑ i, f (t i)} :=
     card_equiv BitString.blocksEquiv fun x => by
-      simp only [mem_filter, mem_univ, true_and, G, Equiv.symm_apply_apply, xorPower_apply]
-      rfl
+      simp only [mem_filter, mem_univ, true_and, G, Equiv.symm_apply_apply, xorPower_apply]; rfl
   -- Every single-block restriction, complemented or not, costs at most three more gates.
   have hG (i : Fin k) (t : Fin k → BitString n) (b : Bool) :
       ∑ y with (G (update t i y) ^^ b) = f y, M y ≤ (1 / 2 + ε) * ∑ y, M y := by
     refine hM.sum_agree_le _ ?_
-    have hrestrict : complexity interpretation (single fun y => G (update t i y)) ≤ s + 2 := by
-      refine (complexity_single_block_le G t i).trans (Nat.add_le_add_right ?_ 2)
-      simpa only [G, BitString.blocksEquiv_symm_block] using hg
+    have hr : complexity interpretation (single fun y => G (update t i y)) ≤ s + 2 :=
+      (complexity_single_block_le G t i).trans <| Nat.add_le_add_right
+        (by simpa only [G, BitString.blocksEquiv_symm_block] using hg) 2
     cases b
-    · simpa only [Bool.xor_false] using hrestrict.trans (Nat.le_succ _)
-    · simpa only [Bool.xor_true] using
-        (complexity_not_le _).trans (Nat.add_le_add_right hrestrict 1)
+    · simpa only [Bool.xor_false] using hr.trans (Nat.le_succ _)
+    · simpa only [Bool.xor_true] using (complexity_not_le _).trans (Nat.add_le_add_right hr 1)
   have hbound := card_eq_sum_le f hM.mem_Icc k G hG
   rw [← hcard, BitString.card] at hbound
-  have hN : (0 : ℝ) < 2 ^ n := by positivity
-  have hμ := hM.sum_le
-  have hδμ := hM.mul_two_pow_le_sum
+  push_cast at hbound
   have hpow : ((2 : ℝ) ^ n - ∑ y, M y) ^ k ≤ ((1 - δ) * 2 ^ n) ^ k :=
-    pow_le_pow_left₀ (sub_nonneg.2 hμ) (by linarith) k
+    pow_le_pow_left₀ (sub_nonneg.2 hM.sum_le) (by linarith [hM.mul_two_pow_le_sum]) k
   rw [show (2 : ℝ) ^ (k * n) = ((2 : ℝ) ^ n) ^ k by rw [mul_comm, pow_mul],
     div_le_iff₀ (by positivity)]
-  push_cast at hbound
   calc (#{x | g x = xorPower f k x} : ℝ)
       ≤ (1 / 2 + ε) * ((2 : ℝ) ^ n) ^ k + (1 / 2 - ε) * ((2 : ℝ) ^ n - ∑ y, M y) ^ k := hbound
     _ ≤ (1 / 2 + ε) * ((2 : ℝ) ^ n) ^ k + (1 / 2 - ε) * ((1 - δ) * 2 ^ n) ^ k := by
@@ -202,8 +195,8 @@ theorem card_eq_xorPower_div_le {f : BooleanFunction n} {s T : ℕ} {δ ε : ℝ
       complexity interpretation (single g) ≤ T * (s + 3) + (2 + T * (2 * (T + 2))) →
         (#{x | g x = f x} : ℝ) / 2 ^ n ≤ 1 - δ)
     (k : ℕ) {g : BooleanFunction (k * n)} (hg : complexity interpretation (single g) ≤ s) :
-    (#{x | g x = xorPower f k x} : ℝ) / 2 ^ (k * n) ≤ 1 / 2 + ε + (1 / 2 - ε) * (1 - δ) ^ k := by
-  obtain ⟨M, hM⟩ := exists_isHardCoreMeasure hδ hε hT hf
-  exact hM.card_eq_xorPower_div_le hε' k hg
+    (#{x | g x = xorPower f k x} : ℝ) / 2 ^ (k * n) ≤ 1 / 2 + ε + (1 / 2 - ε) * (1 - δ) ^ k :=
+  let ⟨_, hM⟩ := exists_isHardCoreMeasure hδ hε hT hf
+  hM.card_eq_xorPower_div_le hε' k hg
 
 end Cslib.Circuits.Boolean

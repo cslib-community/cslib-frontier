@@ -31,10 +31,9 @@ variable {Rel V : Type} [DecidableEq V]
 theorem incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inl (F : CSP Rel V) (r : Rel) {n : ℕ}
     (x : Fin n → V) (o : F.Occurrence) :
     incidenceEdgeIndex (appendOfFnOccurrenceEquiv F r x (Sum.inl o)) = incidenceEdgeIndex o := by
-  have he : appendOfFnOccurrenceEquiv F r x (Sum.inl o) =
-      appendOccurrenceEquiv F [Constraint.mk r (List.ofFn x)] (Sum.inl o) := by
-    apply Occurrence.record_injective
-    rw [record_appendOfFnOccurrenceEquiv_inl, record_appendOccurrenceEquiv_inl]
+  have he := Occurrence.record_injective <|
+    (record_appendOfFnOccurrenceEquiv_inl F r x o).trans
+      (record_appendOccurrenceEquiv_inl F [Constraint.mk r (List.ofFn x)] o).symm
   rw [he, incidenceEdgeIndex_appendOccurrenceEquiv_inl]
 
 /-- The appended argument's incidence edge is the body-prefix length plus its actual slot.
@@ -50,8 +49,7 @@ theorem incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr {Rel V : Type} [Decidab
     omega
   have he : (F ++ [Constraint.mk r (List.ofFn scope)]).occurrences[F.occurrences.length + j.val] =
       (F.length, j.val, scope j) := by
-    simp only [occurrences_append_scope,
-      List.getElem_append_right (show F.occurrences.length ≤ F.occurrences.length + j.val by omega),
+    simp only [occurrences_append_scope, List.getElem_append_right (Nat.le_add_right _ _),
       Nat.add_sub_cancel_left, List.getElem_map, List.getElem_zipIdx, List.getElem_ofFn,
       Nat.zero_add, Fin.eta]
   unfold incidenceEdgeIndex
@@ -64,13 +62,10 @@ theorem incidenceEdgeIndex_appendScopeOccurrenceEquiv_inr {Rel V : Type} [Decida
     (F : CSP Rel V) (r : Rel) (scope : List V) (j : Fin scope.length) :
     incidenceEdgeIndex (appendScopeOccurrenceEquiv F r scope (Sum.inr j)) =
       F.occurrences.length + j.val := by
-  have h := incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr F r (scope.get) j
+  have h := incidenceEdgeIndex_appendOfFnOccurrenceEquiv_inr F r scope.get j
   unfold incidenceEdgeIndex at h ⊢
   rw [record_appendOfFnOccurrenceEquiv_inr] at h
   rw [record_appendScopeOccurrenceEquiv_inr]
-  have he : List.ofFn scope.get = scope := by
-    change List.ofFn (fun i : Fin scope.length => scope[i.val]) = scope
-    exact List.ofFn_getElem
-  simpa only [he, List.get_eq_getElem] using h
+  simpa only [show List.ofFn scope.get = scope from List.ofFn_getElem, List.get_eq_getElem] using h
 
 end Cslib.Complexity.CSP

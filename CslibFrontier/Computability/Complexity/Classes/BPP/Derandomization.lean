@@ -20,6 +20,7 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Derandomizing BPP from average-case hardness
@@ -107,13 +108,6 @@ private theorem computableInPolyTime_seedDecider_nwGen {α : Type} (enc : α ↪
       (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.encoding_length enc))
   have hlog : ComputableInPolyTime (fun x => t (enc x).length) enc encUnary := by
     dsimp only [t]; fun_prop
-  have hbudget (d : ℕ) : PolyBounded (fun x => (enc x).length) fun x =>
-      2 ^ (d * t (enc x).length) := by
-    refine PolyBounded.of_polynomiallyBounded (fun x => (enc x).length)
-      (bound := fun N => 2 ^ (d * (n₀ + 3)) * 2 ^ (d * e * (Nat.log 2 N + 1)))
-      ((PolynomiallyBounded.const _).mul (polynomiallyBounded_two_pow_mul_log _)) |>.mono
-      fun x => le_of_eq ?_
-    rw [← pow_add]; dsimp [t]; ring_nf
   have hseedO : ComputableInPolyTime (fun x => (b + 1) * t (enc x).length) enc encUnary := by
     fun_prop
   have hblockO : ComputableInPolyTime (fun x => c * (4 * t (enc x).length)) enc encUnary := by
@@ -122,11 +116,9 @@ private theorem computableInPolyTime_seedDecider_nwGen {α : Type} (enc : α ↪
     fun_prop
   have houtO : ComputableInPolyTime (fun x => p.eval (enc x).length) enc encUnary := by
     fun_prop
-  refine computableInPolyTime_seedDecider hV (computableInPolyTime_listGenerator_greedyMasks
+  exact computableInPolyTime_seedDecider hV (computableInPolyTime_listGenerator_greedyMasks
     (fun _ _ h => Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_left k h)) hg hseedO
-    hblockO hoverlapO houtO
-    (hbudget (b + 1)) ((hbudget (k * (c * 4))).mono fun x => le_of_eq ?_)) hseedO (hbudget (b + 1))
-  ring_nf
+    hblockO hoverlapO houtO (by growth_poly) (by growth_poly)) hseedO (by growth_poly)
 
 private theorem nw_design_and_size_bounds {c m Tc τ : ℕ} (hc : 0 < c) (hτ3 : 3 ≤ τ)
     (hBτ : 8 * (m + Tc + 5) ≤ 2 ^ τ) :

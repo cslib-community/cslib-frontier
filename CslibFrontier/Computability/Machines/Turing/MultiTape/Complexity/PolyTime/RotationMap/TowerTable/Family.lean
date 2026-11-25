@@ -81,15 +81,10 @@ theorem contract_eq {m n : ℕ} (G : RotationMap (Fin m) (D × D))
   unfold contract contractFin
   simp only [contractRot, hdecode, hlength]
   split <;> rename_i hindex
-  · simp only [hlookup ⟨vertex.val + n * label.1.val, hindex⟩ label.2]
-    simp only [contractDart, finSlotEncode]
-    apply Prod.ext
-    · rfl
-    · apply Prod.ext
-      · apply Fin.ext
-        exact Nat.mod_eq_of_lt (Fin.divNat (Fin.castLE hcap
-          (G.rot (⟨vertex.val + n * label.1.val, hindex⟩, label.2)).1)).isLt
-      · rfl
+  · simp only [hlookup ⟨vertex.val + n * label.1.val, hindex⟩ label.2, contractDart, finSlotEncode]
+    refine Prod.ext rfl (Prod.ext (Fin.ext ?_) rfl)
+    exact Nat.mod_eq_of_lt (Fin.divNat (Fin.castLE hcap
+      (G.rot (⟨vertex.val + n * label.1.val, hindex⟩, label.2)).1)).isLt
   · rfl
 
 /-- The total rotation program realizes the existing arbitrary-size tower family. -/

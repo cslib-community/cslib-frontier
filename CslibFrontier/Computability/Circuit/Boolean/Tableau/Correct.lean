@@ -361,9 +361,7 @@ private theorem val_acc (htT : t + 1 ≤ T) (q : ScanQ k) :
     simp only [Guard.test, Bool.true_and, ↓reduceIte, ColSel.apply, Bool.false_eq_true]
     simp only [show decide (1 ≤ 0) = false from rfl, Bool.false_and, Bool.false_or]
     rw [val_term tm hinv htT hc]
-    exact ⟨fun h => ⟨0, le_rfl, h⟩, fun ⟨c', hc', h⟩ => by
-      obtain rfl : c' = 0 := by omega
-      exact h⟩
+    simp only [Nat.le_zero, exists_eq_left]
   | succ c ih =>
     rw [val_wire tm (l := .scan (.acc q)) hc htT]
     simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, scanAt]
@@ -371,15 +369,8 @@ private theorem val_acc (htT : t + 1 ≤ T) (q : ScanQ k) :
     simp only [Guard.test, Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply,
       Nat.add_sub_cancel, show 1 ≤ c + 1 by omega, decide_true, Bool.or_eq_true]
     rw [ih (by omega), val_term tm hinv htT hc]
-    constructor
-    · rintro (⟨c', hc', h⟩ | h)
-      · exact ⟨c', by omega, h⟩
-      · exact ⟨c + 1, le_rfl, h⟩
-    · rintro ⟨c', hc', h⟩
-      rcases Nat.lt_or_ge c' (c + 1) with h' | h'
-      · exact Or.inl ⟨c', by omega, h⟩
-      · obtain rfl : c' = c + 1 := by omega
-        exact Or.inr h
+    simp only [← Nat.lt_add_one_iff]
+    exact Nat.exists_lt_succ_right.symm
 
 /-- At the last column, the scan has found the symbols under the heads. -/
 private theorem val_acc_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (q : ScanQ k) :
@@ -390,23 +381,13 @@ private theorem val_acc_last (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (q : Sc
   rcases q with s | ⟨i, s⟩
   · simp only [termSem, readSem, Cfg.inputSymbol_eq_inputAt]
     have := cfg.inputPos.isLt
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      exact ⟨cfg.inputPos.val, by omega, rfl, h⟩
+    exact ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨cfg.inputPos.val, by omega, rfl, h⟩⟩
   · simp only [termSem, readSem, Cfg.workTapeSymbols]
     have hb : |cfg.workTapePos i| ≤ t := abs_workTapePos_runFrom_le (tm := tm) x t i
     rw [abs_le] at hb
-    constructor
-    · rintro ⟨c', -, h, hs⟩
-      rw [h, hs]
-    · intro h
-      refine ⟨(cfg.workTapePos i + T).toNat, ?_, ?_, ?_⟩
-      · omega
-      · omega
-      · rw [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
-        exact h
+    refine ⟨fun ⟨_, _, h, hs⟩ => h ▸ hs, fun h => ⟨(cfg.workTapePos i + T).toNat,
+      by omega, by omega, ?_⟩⟩
+    rwa [show (((cfg.workTapePos i + T).toNat : ℕ) : ℤ) - T = cfg.workTapePos i by omega]
 
 /-! ### Situations and attributes -/
 
@@ -473,26 +454,12 @@ private theorem val_attr (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (v : Attr k
     · rw [val_resolve_node]
       simp only [Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte, ColSel.apply]
       rw [val_sit_last tm hinv hn htT]
-      simp only [Fin.val_castSucc, Fin.val_succ]
-      constructor
-      · rintro (⟨j', hj', h⟩ | h)
-        · exact ⟨j', by omega, h⟩
-        · exact ⟨j, by omega, h, hv⟩
-      · rintro ⟨j', hj', h⟩
-        rcases Nat.lt_or_ge j'.val j.val with h' | h'
-        · exact Or.inl ⟨j', h', h⟩
-        · obtain rfl : j' = j := by omega
-          exact Or.inr h.1
+      simp only [Fin.val_castSucc, Fin.val_succ, Nat.lt_add_one_iff_lt_or_eq, or_and_right,
+        exists_or, Fin.val_inj, exists_eq_left, hv, and_true]
     · rw [val_resolve_fls]
-      simp only [Bool.false_eq_true, or_false, Fin.val_castSucc, Fin.val_succ]
-      constructor
-      · rintro ⟨j', hj', h⟩
-        exact ⟨j', by omega, h⟩
-      · rintro ⟨j', hj', h⟩
-        rcases Nat.lt_or_ge j'.val j.val with h' | h'
-        · exact ⟨j', h', h⟩
-        · obtain rfl : j' = j := by omega
-          exact absurd h.2 hv
+      simp only [Bool.false_eq_true, or_false, Fin.val_castSucc, Fin.val_succ,
+        Nat.lt_add_one_iff_lt_or_eq, or_and_right, exists_or, Fin.val_inj, exists_eq_left, hv,
+        and_false]
 
 /-- **The attributes of the action** of the step. -/
 private theorem val_act (hn : x.length < 2 * T) (htT : t + 1 ≤ T) {c : ℕ} (v : Attr k State) :
@@ -506,12 +473,9 @@ private theorem val_act (hn : x.length < 2 * T) (htT : t + 1 ≤ T) {c : ℕ} (v
   rcases hq : cfg.state with _ | q
   · simp [actSem, hq, Feature.not_holds_sit hq]
   · simp only [actSem, hq, Feature.holds_sit_iff_eq hq]
-    constructor
-    · rintro ⟨j', hj', h⟩
-      rwa [hj'] at h
-    · intro h
-      exact ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
-        rw [sitOf_equivFin]; exact h⟩
+    exact ⟨fun ⟨_, hj', h⟩ => by rwa [hj'] at h,
+      fun h => ⟨Fintype.equivFin _ (cfg.situation q), sitOf_equivFin _, by
+        rwa [sitOf_equivFin]⟩⟩
 
 /-! ### The gadgets of the features -/
 
@@ -744,9 +708,7 @@ theorem eval_circuit {n T : ℕ} (hn : n < 2 * T) (y : BitString n) :
     (circuit tm n T).eval interpretation y 0 =
       decide (OutView.ofList (tm.runFrom (tm.initCfg (List.ofFn y)) T).output = .one true) := by
   rw [Circuit.eval_eq_evalOutput, code_circuit, toNat_outputs_circuit]
-  have h := evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
-  simp only [List.length_ofFn] at h
-  exact h
+  simpa using evalOutput_gates tm (T := T) (x := List.ofFn y) (by simpa using hn)
 
 end Boolean.Tableau
 

@@ -73,32 +73,28 @@ theorem fixed_power_encoded (f : α → α) (S : Finset α) (e : α → BitStrin
       (∀ x ∈ S, out.eval interpretation (e x) = e (f^[T] x)) ∧
       out.size ≤ 40000 * powerBudget n c.size S.card L := by
   classical
-  have himage : ∀ y ∈ S.image e, c.eval interpretation y ∈ S.image e := by
-    intro y hy
+  have himage (y : BitString n) (hy : y ∈ S.image e) : c.eval interpretation y ∈ S.image e := by
     obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hy
-    rw [hstep x hx]
-    exact Finset.mem_image.mpr ⟨f x, hS x hx, rfl⟩
+    exact hstep x hx ▸ Finset.mem_image_of_mem e (hS x hx)
   obtain ⟨out, hout, hsize⟩ := fixed_power_on n c (S.image e) T (min L (2 ^ n)) himage
     (lt_min hL (Nat.two_pow_pos n)) (min_le_right _ _)
-  have hcard : (S.image e).card ≤ S.card := Finset.card_image_le
   have hbudget : powerBudget n c.size (S.image e).card (min L (2 ^ n)) ≤
       powerBudget n c.size S.card L := by
     rcases le_or_gt L (2 ^ n) with hLN | hLN
     · rw [min_eq_left hLN]
-      exact powerBudget_mono hcard
+      exact powerBudget_mono Finset.card_image_le
     · rw [min_eq_right hLN.le]
+      unfold powerBudget
       have hN : (S.image e).card ≤ 2 ^ n := by
         simpa only [Fintype.card_fun, Fintype.card_fin, Fintype.card_bool] using
           Finset.card_le_univ (S.image e)
-      have h1 : (S.image e).card / 2 ^ n ≤ 1 :=
-        Nat.div_le_of_le_mul (by rw [Nat.mul_one]; exact hN)
-      unfold powerBudget
-      refine Nat.add_le_add (Nat.mul_le_mul_right _ hLN.le) (Nat.mul_le_mul_left _ ?_)
-      have := Nat.zero_le (S.card / L)
-      omega
+      have h1 : (S.image e).card / 2 ^ n ≤ 1 := Nat.div_le_of_le_mul (by simpa using hN)
+      exact Nat.add_le_add (Nat.mul_le_mul_right _ hLN.le) (Nat.mul_le_mul_left _
+        (Nat.add_le_add_right ((Nat.add_le_add_left h1 (2 ^ n)).trans
+          (hLN.trans_le (Nat.le_add_right L _))) 1))
   refine ⟨out, fun x hx => ?_, hsize.trans (Nat.mul_le_mul_left _ hbudget)⟩
-  rw [hout (Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨x, hx, rfl⟩))]
-  exact iterate_encoded f S e c hS hstep hx T
+  exact (hout (Finset.mem_coe.mpr (Finset.mem_image_of_mem e hx))).trans
+    (iterate_encoded f S e c hS hstep hx T)
 
 /-- **Fixed powers after a burn-in.** Given a circuit for `d ≤ T` steps, the remaining `T - d`
 steps cost the fixed-power bound with storage term the size of the image of `f^[d]`. -/
@@ -111,18 +107,17 @@ theorem fixed_power_image (c burn : Circuit signature n n) (d T L : ℕ)
         (Finset.univ.image (c.eval interpretation)^[d]).card L := by
   classical
   let f := c.eval interpretation
-  let S := Finset.univ.image f^[d]
-  have hS : ∀ y ∈ S, f y ∈ S := by
-    intro y hy
+  have hS (y : BitString n) (hy : y ∈ Finset.univ.image f^[d]) :
+      f y ∈ Finset.univ.image f^[d] := by
     obtain ⟨x, _, rfl⟩ := Finset.mem_image.mp hy
-    exact Finset.mem_image.mpr ⟨f x, Finset.mem_univ _, by
-      rw [← Function.iterate_succ_apply, Function.iterate_succ_apply']⟩
-  obtain ⟨tail, htail, hsize⟩ := fixed_power_on n c S (T - d) L hS hL hLN
+    exact Finset.mem_image.mpr ⟨f x, Finset.mem_univ _,
+      (Function.iterate_succ_apply f d x).symm.trans (Function.iterate_succ_apply' f d x)⟩
+  obtain ⟨tail, htail, hsize⟩ := fixed_power_on n c _ (T - d) L hS hL hLN
   refine ⟨tail.comp burn, fun x => ?_, ?_⟩
   · rw [Circuit.eval_comp, hburn x,
-      htail (Finset.mem_coe.mpr (Finset.mem_image.mpr ⟨x, Finset.mem_univ _, rfl⟩)),
+      htail (Finset.mem_coe.mpr (Finset.mem_image_of_mem _ (Finset.mem_univ x))),
       ← Function.iterate_add_apply, Nat.sub_add_cancel hdT]
   · rw [Circuit.size_comp]
-    exact Nat.add_le_add_left hsize burn.size
+    gcongr
 
 end Cslib.Circuits.Boolean.Iteration

@@ -40,29 +40,27 @@ cycle, with the exact canonical marker coordinates retained. -/
 theorem argumentSuccessor_gadgetProbeOccurrence_reverse
     (g : PPGadget arity sem R) (i : Fin n) :
     argumentSuccessor (gadgetProbeOccurrence g (finRotate n i)) = gadgetProbeOccurrence g i := by
-  let ports := List.ofFn (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux)
-  let a : Fin ports.length := ⟨i.val, by simpa only [ports, List.length_ofFn] using i.isLt⟩
-  have he : (⟨(finRotate n i).val, by
-        simpa only [ports, List.length_ofFn] using (finRotate n i).isLt⟩ : Fin ports.length) =
-      finRotate ports.length a := Fin.ext (by
-    simp only [val_finRotate, a, ports, List.length_ofFn])
+  have he : (⟨(finRotate n i).val, by simp⟩ :
+      Fin (List.ofFn (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux)).length) =
+      finRotate _ ⟨i.val, by simp⟩ :=
+    Fin.ext (by simp only [val_finRotate, List.length_ofFn])
   unfold gadgetProbeOccurrence
   rw [he, argumentSuccessor_probeOccurrence_reverse]
+
+private theorem length_occurrences_body (g : PPGadget arity sem R) :
+    g.body.occurrences.length = g.body.vars.length := by
+  simpa only [List.length_map] using congrArg List.length (CSP.map_occurrences g.body)
 
 /-- The canonical marker occupies exactly the numeric slot used by free-block preprocessing. -/
 theorem incidenceEdgeIndex_gadgetProbeOccurrence (g : PPGadget arity sem R) (i : Fin n) :
     incidenceEdgeIndex (gadgetProbeOccurrence g i) = g.body.vars.length + (n - 1 - i.val) := by
-  rw [gadgetProbeOccurrence, incidenceEdgeIndex_probeOccurrence]
-  simp only [List.length_ofFn]
-  congr 1
-  simpa only [List.length_map] using congrArg List.length (CSP.map_occurrences g.body)
+  simp [gadgetProbeOccurrence, incidenceEdgeIndex_probeOccurrence, length_occurrences_body]
 
 /-- Canonical marker coordinates retain the named free port, even if it never occurs in
 the actual gadget body. -/
 theorem var_gadgetProbeOccurrence (g : PPGadget arity sem R) (i : Fin n) :
     (gadgetProbeOccurrence g i).var = Sum.inl i := by
-  rw [gadgetProbeOccurrence, var_probeOccurrence]
-  simp only [List.getElem_ofFn, Fin.eta]
+  simp [gadgetProbeOccurrence, var_probeOccurrence]
 
 /-- The raw fixed free-block scan is rooted at the actual reversed-scope probe occurrence. -/
 theorem getD_freeBoundaryBlocks (g : PPGadget arity sem R) (w : GadgetWitness g) (i : Fin n) :
@@ -71,10 +69,10 @@ theorem getD_freeBoundaryBlocks (g : PPGadget arity sem R) (w : GadgetWitness g)
         (incidenceDart (gadgetProbeOccurrence g i) false).index).tail).map (· / 2) := by
   rw [List.getD_eq_getElem _ _ (by simpa only [length_freeBoundaryBlocks] using i.isLt)]
   simp only [freeBoundaryBlocks, List.getElem_map, List.getElem_finRange]
-  congr 3
-  change 2 * (g.body.vars.length + (n - 1 - i.val)) =
-    2 * incidenceEdgeIndex (gadgetProbeOccurrence g i) + 0
-  rw [incidenceEdgeIndex_gadgetProbeOccurrence, Nat.add_zero]
+  exact congrArg (fun k => ((RotationCertificate.cycleWord w.certificate k).tail).map (· / 2))
+    (show 2 * (g.body.vars.length + (n - 1 - i.val)) =
+      2 * incidenceEdgeIndex (gadgetProbeOccurrence g i) + 0 by
+      rw [incidenceEdgeIndex_gadgetProbeOccurrence, Nat.add_zero])
 
 /-- Free blocks contain exactly the indexed body-prefix occurrences with the selected
 free label. Distinctness of canonical ports is proved internally from their `Fin` indices. -/
@@ -82,18 +80,13 @@ theorem mem_freeBoundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetWitness 
     (i : Fin n) (index : ℕ) :
     index ∈ (freeBoundaryBlocks g w).getD i.val [] ↔
       ∃ o : g.body.Occurrence, incidenceEdgeIndex o = index ∧ o.var = Sum.inl i := by
-  rw [← exists_probe_prefix_occurrence_iff g.body (List.ofFn Sum.inl) index (Sum.inl i)]
-  rw [getD_freeBoundaryBlocks]
+  rw [← exists_probe_prefix_occurrence_iff g.body (List.ofFn Sum.inl) index (Sum.inl i),
+    getD_freeBoundaryBlocks]
   obtain ⟨hc, _, _⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted
-  have hn : (List.ofFn (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux)).Nodup :=
-    List.nodup_ofFn.mpr Sum.inl_injective
   have hp : g.body.occurrences.length ≤ incidenceEdgeIndex (gadgetProbeOccurrence g i) := by
-    rw [incidenceEdgeIndex_gadgetProbeOccurrence]
-    have hl := congrArg List.length (CSP.map_occurrences g.body)
-    simp only [List.length_map] at hl
-    omega
-  simpa only [var_gadgetProbeOccurrence] using
-    mem_probe_cycleBlock_iff g.body _ hn w.certificate hc (gadgetProbeOccurrence g i) hp index
+    rw [incidenceEdgeIndex_gadgetProbeOccurrence, length_occurrences_body]; omega
+  simpa only [var_gadgetProbeOccurrence] using mem_probe_cycleBlock_iff g.body _
+    (List.nodup_ofFn.mpr Sum.inl_injective) w.certificate hc (gadgetProbeOccurrence g i) hp index
 
 /-- Each free block is a duplicate-free occurrence word, even at unused free ports. -/
 theorem nodup_freeBoundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g) (i : Fin n) :
@@ -102,6 +95,16 @@ theorem nodup_freeBoundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
   obtain ⟨hc, _, _⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp w.probe_accepted
   simpa only [List.map_tail] using
     (nodup_variable_cycleBlock hc (gadgetProbeOccurrence g i)).tail
+
+private theorem getD_auxiliaryBoundaryBlocks (g : PPGadget arity sem R) (w : GadgetWitness g)
+    (j : Fin g.numAux) :
+    (auxiliaryBoundaryBlocks g w).getD j.val [] =
+      if Sum.inr j ∈ g.body.vars then
+        (RotationCertificate.cycleWord (bodyCertificate g.body w.certificate)
+          (2 * g.body.vars.idxOf (Sum.inr j))).map (· / 2)
+      else [] := by
+  rw [List.getD_eq_getElem _ _ (by simpa only [length_auxiliaryBoundaryBlocks] using j.isLt)]
+  simp only [auxiliaryBoundaryBlocks, List.getElem_map, List.getElem_finRange, Fin.cast_mk, Fin.eta]
 
 /-- At an occurring auxiliary port, the executed block is the literal accepted body cycle
 at its first occurrence. This identifies its cyclic anchoring as well as its members. -/
@@ -113,15 +116,11 @@ theorem auxiliaryBoundaryBlock_eq_cycleBlock (g : PPGadget arity sem R)
           (incidenceDart o false).index).map (· / 2) := by
   obtain ⟨o, ho, hvar⟩ := exists_occurrence_at_first_index (F := g.body) (Sum.inr j) hv
   refine ⟨o, hvar, ?_⟩
-  rw [List.getD_eq_getElem _ _
-    (by simpa only [length_auxiliaryBoundaryBlocks] using j.isLt)]
-  simp only [auxiliaryBoundaryBlocks, List.getElem_map, List.getElem_finRange, Fin.cast_mk,
-    Fin.eta, ite_eq_left hv]
-  have hstart : 2 * g.body.vars.idxOf (Sum.inr j) = (incidenceDart o false).index := by
-    change _ = 2 * incidenceEdgeIndex o + 0
-    rw [ho, Nat.add_zero]
-    simp only [List.idxOf, Bool.beq_eq_decide_eq]
-  rw [hstart]
+  rw [getD_auxiliaryBoundaryBlocks, ite_eq_left hv]
+  exact congrArg (fun k => (RotationCertificate.cycleWord _ k).map (· / 2))
+    (show 2 * g.body.vars.idxOf (Sum.inr j) = 2 * incidenceEdgeIndex o + 0 by
+      rw [ho, Nat.add_zero]
+      simp only [List.idxOf, Bool.beq_eq_decide_eq])
 
 /-- Auxiliary blocks contain exactly the indexed occurrences of their original existential
 label. Unused auxiliary ports have empty blocks rather than invented darts. -/
@@ -133,12 +132,8 @@ theorem mem_auxiliaryBoundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetWit
   · obtain ⟨o, hvar, he⟩ := auxiliaryBoundaryBlock_eq_cycleBlock g w j hv
     obtain ⟨hc, _, _⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp w.body_accepted
     rw [he, mem_variable_cycleBlock_iff hc, hvar]
-  · rw [List.getD_eq_getElem _ _
-      (by simpa only [length_auxiliaryBoundaryBlocks] using j.isLt)]
-    simp only [auxiliaryBoundaryBlocks, List.getElem_map, List.getElem_finRange, Fin.cast_mk,
-      Fin.eta, ite_eq_right hv, List.not_mem_nil, false_iff]
-    rintro ⟨o, _, ho⟩
-    exact hv (ho ▸ o.var_mem)
+  · rw [getD_auxiliaryBoundaryBlocks, ite_eq_right hv]
+    exact ⟨fun h => (List.not_mem_nil h).elim, fun ⟨o, _, ho⟩ => (hv (ho ▸ o.var_mem)).elim⟩
 
 /-- Every auxiliary cycle is a duplicate-free occurrence word. -/
 theorem nodup_auxiliaryBoundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
@@ -146,12 +141,9 @@ theorem nodup_auxiliaryBoundaryBlock (g : PPGadget arity sem R) (w : GadgetWitne
   by_cases hv : Sum.inr j ∈ g.body.vars
   · obtain ⟨o, _, he⟩ := auxiliaryBoundaryBlock_eq_cycleBlock g w j hv
     obtain ⟨hc, _, _⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp w.body_accepted
-    rw [he]
-    exact nodup_variable_cycleBlock hc o
-  · rw [List.getD_eq_getElem _ _
-      (by simpa only [length_auxiliaryBoundaryBlocks] using j.isLt)]
-    simp only [auxiliaryBoundaryBlocks, List.getElem_map, List.getElem_finRange, Fin.cast_mk,
-      Fin.eta, ite_eq_right hv, List.nodup_nil]
+    exact he ▸ nodup_variable_cycleBlock hc o
+  · rw [getD_auxiliaryBoundaryBlocks, ite_eq_right hv]
+    exact List.nodup_nil
 
 /-- Select the actual occurrence word for any declared canonical gadget variable.
 Both free and existential ports retain their empty words when unused. -/
@@ -175,11 +167,7 @@ theorem mem_shiftBlock_boundaryBlock_iff (g : PPGadget arity sem R) (w : GadgetW
     index ∈ shiftBlock offset (boundaryBlock g w v) ↔
       ∃ o : g.body.Occurrence, offset + incidenceEdgeIndex o = index ∧ o.var = v := by
   simp only [shiftBlock, List.mem_map, mem_boundaryBlock_iff]
-  constructor
-  · rintro ⟨j, ⟨o, ho, hv⟩, he⟩
-    exact ⟨o, by rw [ho]; exact he, hv⟩
-  · rintro ⟨o, he, hv⟩
-    exact ⟨incidenceEdgeIndex o, ⟨o, rfl, hv⟩, he⟩
+  exact ⟨fun ⟨_, ⟨o, ho, hv⟩, he⟩ => ⟨o, ho ▸ he, hv⟩, fun ⟨o, he, hv⟩ => ⟨_, ⟨o, rfl, hv⟩, he⟩⟩
 
 /-- Every selected word has no repeated occurrence positions. -/
 theorem nodup_boundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
@@ -192,13 +180,11 @@ theorem nodup_boundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
 have no role here: canonical free ports remain distinct local variables. -/
 theorem disjoint_boundaryBlock (g : PPGadget arity sem R) (w : GadgetWitness g)
     {v u : Fin n ⊕ Fin g.numAux} (hvu : v ≠ u) :
-    (boundaryBlock g w v).Disjoint (boundaryBlock g w u) := by
-  apply List.disjoint_left.mpr
-  intro index hv hu
-  obtain ⟨o, ho, hov⟩ := (mem_boundaryBlock_iff g w v index).mp hv
-  obtain ⟨p, hp, hpu⟩ := (mem_boundaryBlock_iff g w u index).mp hu
-  have he : o = p := incidenceEdgeIndex_injective (ho.trans hp.symm)
-  exact hvu (hov.symm.trans (he ▸ hpu))
+    (boundaryBlock g w v).Disjoint (boundaryBlock g w u) :=
+  List.disjoint_left.mpr fun index hv hu => by
+    obtain ⟨o, ho, hov⟩ := (mem_boundaryBlock_iff g w v index).mp hv
+    obtain ⟨p, hp, hpu⟩ := (mem_boundaryBlock_iff g w u index).mp hu
+    exact hvu (hov.symm.trans (incidenceEdgeIndex_injective (ho.trans hp.symm) ▸ hpu))
 
 private theorem boundaryBlocks_eq_map (g : PPGadget arity sem R) (w : GadgetWitness g) :
     freeBoundaryBlocks g w ++ auxiliaryBoundaryBlocks g w =
@@ -206,31 +192,24 @@ private theorem boundaryBlocks_eq_map (g : PPGadget arity sem R) (w : GadgetWitn
         (boundaryBlock g w) := by
   rw [List.map_append, List.map_map, List.map_map]
   congr 1
-  · apply List.ext_getElem
-    · simp only [length_freeBoundaryBlocks, List.length_map, List.length_finRange]
-    · intro i hi hj
-      simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
-        Sum.elim_inl]
-      exact (List.getD_eq_getElem _ [] hi).symm
-  · apply List.ext_getElem
-    · simp only [length_auxiliaryBoundaryBlocks, List.length_map, List.length_finRange]
-    · intro i hi hj
-      simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
-        Sum.elim_inr]
-      exact (List.getD_eq_getElem _ [] hi).symm
+  · refine List.ext_getElem (by simp [length_freeBoundaryBlocks]) fun i hi _ => ?_
+    simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
+      Sum.elim_inl, Fin.val_cast, List.getD_eq_getElem _ [] hi]
+  · refine List.ext_getElem (by simp [length_auxiliaryBoundaryBlocks]) fun i hi _ => ?_
+    simp only [List.getElem_map, List.getElem_finRange, Function.comp_apply, boundaryBlock,
+      Sum.elim_inr, Fin.val_cast, List.getD_eq_getElem _ [] hi]
 
 /-- The complete free-plus-auxiliary table partitions local occurrence positions without
 any duplication, including zero arities and unused ports. -/
 theorem nodup_flatten_boundaryBlocks (g : PPGadget arity sem R) (w : GadgetWitness g) :
     (freeBoundaryBlocks g w ++ auxiliaryBoundaryBlocks g w).flatten.Nodup := by
   rw [boundaryBlocks_eq_map, ← List.flatMap]
-  apply List.nodup_flatMap.mpr
-  refine ⟨fun v _ => nodup_boundaryBlock g w v, ?_⟩
   have hn : ((List.finRange n).map (Sum.inl : Fin n → Fin n ⊕ Fin g.numAux) ++
       (List.finRange g.numAux).map Sum.inr).Nodup := by
     simp [List.nodup_append, List.nodup_map_iff, Sum.inl_injective, Sum.inr_injective,
       List.nodup_finRange]
-  exact hn.imp fun h => disjoint_boundaryBlock g w h
+  exact List.nodup_flatMap.mpr ⟨fun v _ => nodup_boundaryBlock g w v,
+    hn.imp fun h => disjoint_boundaryBlock g w h⟩
 
 /-- The local partition covers exactly the actual body's bounded occurrence indices.
 No interval of variable names, unused port labels, or binary magnitudes is enumerated. -/
@@ -240,26 +219,19 @@ theorem mem_flatten_boundaryBlocks_iff (g : PPGadget arity sem R) (w : GadgetWit
       index < g.body.occurrences.length := by
   rw [boundaryBlocks_eq_map, ← List.flatMap]
   simp only [List.mem_flatMap, mem_boundaryBlock_iff]
-  constructor
-  · rintro ⟨v, _, o, ho, _⟩
-    rw [← ho]
-    simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
-  · intro hi
-    obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := g.body) index
-      (by simpa only [incidenceGraph_edges, List.length_map] using hi)
-    refine ⟨o.var, ?_, o, ho, rfl⟩
-    cases o.var with
-    | inl i => simp
-    | inr j => simp
+  refine ⟨fun ⟨_, _, o, ho, _⟩ => by
+    simpa only [← ho, incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o,
+    fun hi => ?_⟩
+  obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := g.body) index
+    (by simpa only [incidenceGraph_edges, List.length_map] using hi)
+  exact ⟨o.var, by cases o.var <;> simp, o, ho, rfl⟩
 
 /-- The local words enumerate each actual body occurrence exactly once, in their stored
 cyclic orders. Only the order between fibers differs from the flat occurrence enumeration. -/
 theorem flatten_boundaryBlocks_perm_range (g : PPGadget arity sem R) (w : GadgetWitness g) :
     (freeBoundaryBlocks g w ++ auxiliaryBoundaryBlocks g w).flatten.Perm
-      (List.range g.body.occurrences.length) := by
-  apply (List.perm_ext_iff_of_nodup (nodup_flatten_boundaryBlocks g w)
-    (List.nodup_range)).mpr
-  intro index
-  rw [mem_flatten_boundaryBlocks_iff, List.mem_range]
+      (List.range g.body.occurrences.length) :=
+  (List.perm_ext_iff_of_nodup (nodup_flatten_boundaryBlocks g w) List.nodup_range).mpr fun _ => by
+    rw [mem_flatten_boundaryBlocks_iff, List.mem_range]
 
 end Cslib.Complexity.CSP.GadgetRotation

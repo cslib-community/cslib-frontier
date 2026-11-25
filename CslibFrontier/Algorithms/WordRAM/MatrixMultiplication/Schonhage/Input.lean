@@ -58,21 +58,17 @@ theorem exec_input {w L : ℕ} (hw : 0 < w) (side : Bool) (a : Fin (7 ^ L) → �
       y.regs output = outputBase L ∧ y.regs capacity = 10 ^ L := by
   have hi := input_fits hw a A hA ha hmag haddr
   let x : Data 32 := (State.init (input L a)).data
-  have hheader : x.mem 1 = L := by
-    simp [x, State.init, Data.init, input]
-  have hinput (i : ℕ) (hi : i < 7 ^ L) :
+  have hinput (i : ℕ) (hlt : i < 7 ^ L) :
       x.mem (2 + i) = encode ((List.ofFn a).getD i 0) := by
     have hidx : 2 + i = (i + 1) + 1 := by omega
     change (Data.init (input L a) : Data 32).mem (2 + i) = _
     rw [hidx, Data.init_mem_succ]
     simp only [input, List.getD_cons_succ]
-    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using hi)]
-    simpa using congrArg encode (getD_ofFn a ⟨i, hi⟩).symm
-  have ha' (i : ℕ) (hi : i < 7 ^ L) : |(List.ofFn a).getD i 0| ≤ A := by
-    rw [getD_ofFn a ⟨i, hi⟩]
-    exact ha _
+    rw [List.getD_eq_getElem _ _ (by simpa only [List.length_ofFn] using hlt)]
+    simpa using congrArg encode (getD_ofFn a ⟨i, hlt⟩).symm
   obtain ⟨y, he, hv, hf, ho, hc⟩ := exec hw side (fun i => (List.ofFn a).getD i 0) x
-    hheader hinput A hA ha' hmag haddr
+    (by simp [x, State.init, Data.init, input]) hinput A hA
+    (fun i hlt => getD_ofFn a ⟨i, hlt⟩ ▸ ha _) hmag haddr
   exact ⟨hi, y, he, he.bounded (Data.Bounded.init hi), hv, hf, ho, hc⟩
 
 /-- Complete left encoder on arbitrary signed arrays indexed by the original seven-symbol
@@ -90,15 +86,13 @@ theorem exec_left {w L : ℕ} (hw : 0 < w) (a : LeftStr L → ℤ) (A : ℤ)
       y.regs output = outputBase L ∧ y.regs capacity = 10 ^ L := by
   let f : Fin (7 ^ L) → ℤ := fun i => a (fun ℓ => leftAt (finFunctionFinEquiv.symm i ℓ))
   obtain ⟨hi, y, he, hb, hv, hf, ho, hc⟩ := exec_input hw false f A hA (fun _ => ha _) hmag haddr
-  refine ⟨hi, y, he, hb, ?_, hf, ho, hc⟩
-  intro τ
-  have harr (u : Fin L → Fin 7) : (List.ofFn f).getD (finFunctionFinEquiv u).val 0 =
-      a (fun i => leftAt (u i)) := by
+  refine ⟨hi, y, he, hb, fun τ => ?_, hf, ho, hc⟩
+  have harr (u : Fin L → Fin 7) :
+      (List.ofFn f).getD (finFunctionFinEquiv u).val 0 = a (fun i => leftAt (u i)) := by
     rw [getD_ofFn]
     simp only [f, Equiv.symm_apply_apply]
-  have h := hv (leafIndex τ) (leafIndex τ).isLt
-  rw [value_final_left a _ harr τ] at h
-  exact h
+  simpa only [value_final_left a (fun i => (List.ofFn f).getD i 0) harr τ] using
+    hv (leafIndex τ) (leafIndex τ).isLt
 
 /-- Complete right encoder on arbitrary signed arrays with the original `encodingR` API. -/
 theorem exec_right {w L : ℕ} (hw : 0 < w) (a : RightStr L → ℤ) (A : ℤ)
@@ -114,14 +108,12 @@ theorem exec_right {w L : ℕ} (hw : 0 < w) (a : RightStr L → ℤ) (A : ℤ)
       y.regs output = outputBase L ∧ y.regs capacity = 10 ^ L := by
   let f : Fin (7 ^ L) → ℤ := fun i => a (fun ℓ => rightAt (finFunctionFinEquiv.symm i ℓ))
   obtain ⟨hi, y, he, hb, hv, hf, ho, hc⟩ := exec_input hw true f A hA (fun _ => ha _) hmag haddr
-  refine ⟨hi, y, he, hb, ?_, hf, ho, hc⟩
-  intro τ
-  have harr (u : Fin L → Fin 7) : (List.ofFn f).getD (finFunctionFinEquiv u).val 0 =
-      a (fun i => rightAt (u i)) := by
+  refine ⟨hi, y, he, hb, fun τ => ?_, hf, ho, hc⟩
+  have harr (u : Fin L → Fin 7) :
+      (List.ofFn f).getD (finFunctionFinEquiv u).val 0 = a (fun i => rightAt (u i)) := by
     rw [getD_ofFn]
     simp only [f, Equiv.symm_apply_apply]
-  have h := hv (leafIndex τ) (leafIndex τ).isLt
-  rw [value_final_right a _ harr τ] at h
-  exact h
+  simpa only [value_final_right a (fun i => (List.ofFn f).getD i 0) harr τ] using
+    hv (leafIndex τ) (leafIndex τ).isLt
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

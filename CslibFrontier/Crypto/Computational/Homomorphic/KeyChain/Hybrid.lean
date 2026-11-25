@@ -149,13 +149,11 @@ theorem encryptKeyLinksHybrid_of_length_le_succ (n cut : ℕ)
     rw [List.length_drop]
     omega
   have hzero : E.encryptZeroKeyLinks n (keys.drop cut) = pure [] := by
-    generalize keys.drop cut = rest at *
-    cases rest with
-    | nil => rfl
-    | cons first rest =>
-      cases rest with
-      | nil => rfl
-      | cons second rest => simp only [List.length_cons] at htail; omega
+    match h : keys.drop cut with
+    | [] | [_] => rfl
+    | _ :: _ :: _ =>
+      simp only [h, List.length_cons] at htail
+      omega
   simp [encryptKeyLinksHybrid, List.take_of_length_le hcut, hzero]
 
 /-- Sample the independent keys and a link hybrid, returning only public data. -/
@@ -171,9 +169,8 @@ theorem eval_publicKeyChainHybrid_depth (n depth : ℕ) :
       (ProbComp.eval (E.generateKeyChain n depth)).map
         (fun chain => (chain.1.map Prod.fst, chain.2)) := by
   simp only [pmf_norm, publicKeyChainHybrid, generateKeyChain]
-  apply Probability.PMF.bind_congr_on_support
-  intro keys hkeys
-  have hlength := ((E.mem_support_generateKeys_iff n depth keys).mp hkeys).1
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_
+  have := ((E.mem_support_generateKeys_iff n depth keys).mp hkeys).1
   rw [E.encryptKeyLinksHybrid_of_length_le_succ n depth keys (by omega)]
 
 /-- The initial boundary samples the same public keys with zero plaintexts in every link. -/
@@ -294,13 +291,11 @@ theorem eval_publicKeyLinkHybrid_zero (n beforeCount afterCount : ℕ) :
   rw [← E.eval_generateKeys_splice n beforeCount afterCount]
   simp only [pmf_norm]
   congr 1 with next : 1
-  apply Probability.PMF.bind_congr_on_support
-  intro before hbefore
-  have hlength := ((ProbComp.mem_support_replicate_iff beforeCount (E.keyGen n) before).mp
-    hbefore).1
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun before hbefore => ?_
+  have hlen := ((ProbComp.mem_support_replicate_iff beforeCount (E.keyGen n) before).mp hbefore).1
   congr 1 with predecessor : 1
   congr 1 with after : 1
-  rw [← hlength, ← E.encryptKeyLinkHybrid_zero]
+  rw [← hlen, ← E.encryptKeyLinkHybrid_zero]
 
 /-- With a fixed supported secret length, the final bit boundary is the preceding link
 boundary. No efficiency or ciphertext-width assumption is needed for this exact law. -/
@@ -312,13 +307,10 @@ theorem eval_publicKeyLinkHybrid_length (n beforeCount afterCount width : ℕ)
   rw [← E.eval_generateKeys_splice n beforeCount afterCount]
   simp only [pmf_norm]
   congr 1 with next : 1
-  apply Probability.PMF.bind_congr_on_support
-  intro before hbefore
-  have hlength := ((ProbComp.mem_support_replicate_iff beforeCount (E.keyGen n) before).mp
-    hbefore).1
-  apply Probability.PMF.bind_congr_on_support
-  intro predecessor hpredecessor
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun before hbefore => ?_
+  have hlen := ((ProbComp.mem_support_replicate_iff beforeCount (E.keyGen n) before).mp hbefore).1
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun pred hpred => ?_
   congr 1 with after : 1
-  rw [← hlength, ← hwidth predecessor hpredecessor, ← E.encryptKeyLinkHybrid_length]
+  rw [← hlen, ← hwidth pred hpred, ← E.encryptKeyLinkHybrid_length]
 
 end Cslib.Crypto.Homomorphic.Scheme

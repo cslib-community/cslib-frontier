@@ -338,36 +338,23 @@ theorem nodeCount_mulGadget_le {S : Finset (Fin d)} {a : ι → K}
       _ = #P.parts * W + Fintype.card (Quotient (SameCycle.setoid π)) * (m + 1) + 1 := by
           rw [sum_add_distrib, ← sum_mul, hfib, sum_const, card_univ, smul_eq_mul]
       _ ≤ d * W + d * (m + 1) + 1 := by gcongr
-  -- The sums over the subsets of `Z`, the permutations and the set partitions.
-  have hL2 (P : Finpartition S) (π : Perm P.parts) :
-      (sumOn (zeroCols a).powerset (fun Y => (-1 : K) ^ #Y) fun Y =>
-        prodOn (univ : Finset (Quotient (SameCycle.setoid π))) fun q =>
-          sumOn Yᶜ (fun j => colScale a j ^ #{r | Quotient.mk _ r = q}) fun j =>
-            prodOn {r | Quotient.mk _ r = q} fun r => g j r).nodeCount ≤ 2 ^ d * τ + 1 := by
-    rw [nodeCount_sumOn]
-    refine Nat.add_le_add_right ((sum_le_sum fun Y _ => hL3 P π Y).trans ?_) 1
-    rw [sum_const, card_powerset, smul_eq_mul]
-    exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_right two_pos ((not_lt.1 hZ).trans hSd))
-  have hL1 (P : Finpartition S) :
-      (sumOn (univ : Finset (Perm P.parts)) (fun π => ((sign π : ℤ) : K)) fun π =>
-        sumOn (zeroCols a).powerset (fun Y => (-1 : K) ^ #Y) fun Y =>
-          prodOn (univ : Finset (Quotient (SameCycle.setoid π))) fun q =>
-            sumOn Yᶜ (fun j => colScale a j ^ #{r | Quotient.mk _ r = q}) fun j =>
-              prodOn {r | Quotient.mk _ r = q} fun r => g j r).nodeCount ≤
-        d.factorial * (2 ^ d * τ + 1) + 1 := by
-    rw [nodeCount_sumOn]
-    refine Nat.add_le_add_right ((sum_le_sum fun π _ => hL2 P π).trans ?_) 1
-    rw [sum_const, card_univ, Fintype.card_perm, Fintype.card_coe, smul_eq_mul]
-    exact Nat.mul_le_mul_right _
-      (Nat.factorial_le (P.card_parts_le_card.trans hSd))
-  rw [nodeCount_sumOn]
   have hB : Fintype.card (Finpartition S) ≤ (d + 1) ^ d :=
     (Fintype.card_finpartition_le S).trans <|
       (Nat.pow_le_pow_left (hSd.trans (Nat.le_succ d)) _).trans
         (Nat.pow_le_pow_right (Nat.succ_pos d) hSd)
-  have hL0 := Nat.add_le_add_right ((sum_le_sum fun P _ => hL1 P).trans_eq
-    (by rw [sum_const, card_univ, smul_eq_mul])) 1
-  refine hL0.trans ?_
+  -- The sums over the set partitions, the permutations and the subsets of `Z`.
+  rw [nodeCount_sumOn]
+  refine (Nat.add_le_add_right ((sum_le_sum (g := fun _ => d.factorial * (2 ^ d * τ + 1) + 1)
+    fun P _ => ?_).trans_eq (by rw [sum_const, card_univ, smul_eq_mul])) 1).trans ?_
+  · rw [nodeCount_sumOn]
+    refine Nat.add_le_add_right ((sum_le_sum (g := fun _ => 2 ^ d * τ + 1)
+      fun π _ => ?_).trans ?_) 1
+    · rw [nodeCount_sumOn]
+      refine Nat.add_le_add_right ((sum_le_sum fun Y _ => hL3 P π Y).trans ?_) 1
+      rw [sum_const, card_powerset, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_right two_pos ((not_lt.1 hZ).trans hSd))
+    · rw [sum_const, card_univ, Fintype.card_perm, Fintype.card_coe, smul_eq_mul]
+      exact Nat.mul_le_mul_right _ (Nat.factorial_le (P.card_parts_le_card.trans hSd))
   -- Arithmetic.
   set B := Fintype.card (Finpartition S)
   set X := d.factorial * 2 ^ d
@@ -382,9 +369,7 @@ theorem nodeCount_mulGadget_le {S : Finset (Fin d)} {a : ι → K}
   calc B * (d.factorial * (2 ^ d * τ + 1) + 1) + 1
       = B * (X * τ) + B * d.factorial + B + 1 := by simp only [X]; ring
     _ ≤ B * (X * τ) + B * (X * τ) + B * (X * τ) + B * (X * τ) := by
-        have e1 : B * d.factorial ≤ B * (X * τ) := Nat.mul_le_mul_left _ hfac
-        have e2 : B ≤ B * (X * τ) := Nat.le_mul_of_pos_right _ hXτ
-        linarith
+        linarith [Nat.mul_le_mul_left B hfac, Nat.le_mul_of_pos_right B hXτ]
     _ = 4 * (B * X) * τ := by ring
     _ ≤ 4 * ((d + 1) ^ d * X) * ((d + 1) * (1 + m + W)) := by gcongr
     _ = 4 * ((d + 1) ^ d * X) * (d + 1) * (1 + m + W) := by ring

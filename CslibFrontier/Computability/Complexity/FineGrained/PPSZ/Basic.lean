@@ -101,18 +101,15 @@ theorem wImplied_of_implied_eq_some {φ : CNF (Fin n)} {w : ℕ} {τ : Fin n →
 /-- `implied` returns a value exactly when some value is w-implied. -/
 theorem implied_ne_none_iff {φ : CNF (Fin n)} {w : ℕ} {τ : Fin n → Option Bool} {x : Fin n} :
     implied φ w τ x ≠ none ↔ ∃ b, WImplied φ w τ x b := by
-  constructor
-  · intro h
-    obtain ⟨b, hb⟩ := Option.ne_none_iff_exists'.mp h
-    exact ⟨b, wImplied_of_implied_eq_some hb⟩
-  · rintro ⟨b, hb⟩
-    unfold implied
-    split_ifs with h1 h2
-    · exact Option.some_ne_none _
-    · exact Option.some_ne_none _
-    · cases b
-      · exact absurd hb h2
-      · exact absurd hb h1
+  refine ⟨fun h => (Option.ne_none_iff_exists'.mp h).imp fun _ => wImplied_of_implied_eq_some,
+    fun ⟨b, hb⟩ => ?_⟩
+  unfold implied
+  split_ifs with h1 h2
+  · exact Option.some_ne_none _
+  · exact Option.some_ne_none _
+  · rcases b with _ | _
+    · exact absurd hb h2
+    · exact absurd hb h1
 
 /-- **Implied values are correct**: if `σ` satisfies `φ` and agrees with `τ` where `τ` is defined,
 then the value implied on `x` under `τ`, if any, is `σ x`. -/
@@ -134,15 +131,10 @@ when `x = σ x` is not w-implied. -/
 theorem implied_eq_none_iff {φ : CNF (Fin n)} {w : ℕ} {σ : Fin n → Bool} (hσ : φ.eval σ = true)
     {τ : Fin n → Option Bool} (hτ : ∀ y b, τ y = some b → σ y = b) {x : Fin n} :
     implied φ w τ x = none ↔ ¬ WImplied φ w τ x (σ x) := by
-  constructor
-  · intro h hI
-    rw [implied_eq_some hσ hτ hI] at h
-    cases h
-  · intro h
-    by_contra hne
-    obtain ⟨b, hb⟩ := implied_ne_none_iff.1 hne
-    rw [hb.eq hσ hτ] at h
-    exact h hb
+  refine ⟨fun h hI => (nomatch (implied_eq_some hσ hτ hI).symm.trans h),
+    fun h => by_contra fun hne => ?_⟩
+  obtain ⟨b, hb⟩ := implied_ne_none_iff.1 hne
+  exact h (hb.eq hσ hτ ▸ hb)
 
 /-! ### Runs -/
 
@@ -181,12 +173,8 @@ w-imply `x = σ x`, as in [Scheder, Definition 1.1][Scheder2021]. -/
 theorem forced_iff_wImplied {φ : CNF (Fin n)} {w : ℕ} {σ : Fin n → Bool} (hσ : φ.eval σ = true)
     {π : Equiv.Perm (Fin n)} {x : Fin n} :
     Forced φ w σ π x ↔ WImplied φ w (restrict σ (prefixSet π (π.symm x))) x (σ x) := by
-  unfold Forced
-  rw [implied_ne_none_iff]
-  constructor
-  · rintro ⟨b, hb⟩
-    rwa [hb.eq hσ fun _ _ => PPZ.eq_of_restrict_eq_some]
-  · exact fun h => ⟨σ x, h⟩
+  rw [Forced, implied_ne_none_iff]
+  exact ⟨fun ⟨_, hb⟩ => hb.eq hσ (fun _ _ => PPZ.eq_of_restrict_eq_some) ▸ hb, fun h => ⟨σ x, h⟩⟩
 
 /-- The unforced variables of a whole run are the variables that are not forced. -/
 theorem unforcedCount_eq_card (φ : CNF (Fin n)) (w : ℕ) (σ : Fin n → Bool)
@@ -221,11 +209,9 @@ theorem round_apply_ge_of_le {φ : CNF (Fin n)} {w : ℕ} {σ : Fin n → Bool} 
     {p : ℝ} (hp : ∀ x, p * n.factorial ≤
       ((univ.filter fun π : Equiv.Perm (Fin n) => Forced φ w σ π x).card : ℝ)) :
     (2 : ℝ) ^ (-((1 - p) * n)) ≤ ((round φ w) fun x => some (σ x)).toReal := by
-  refine le_trans (Real.rpow_le_rpow_of_exponent_le one_le_two ?_) (round_apply_ge hσ)
+  refine (Real.rpow_le_rpow_of_exponent_le one_le_two ?_).trans (round_apply_ge hσ)
   have hN : (0 : ℝ) < n.factorial := by exact_mod_cast Nat.factorial_pos n
-  have hsum : ∑ _x : Fin n, p ≤ ∑ x : Fin n,
-      ((univ.filter fun π : Equiv.Perm (Fin n) => Forced φ w σ π x).card : ℝ) / n.factorial :=
-    sum_le_sum fun x _ => (le_div_iff₀ hN).mpr (hp x)
+  have hsum := sum_le_sum fun x (_ : x ∈ univ) => (le_div_iff₀ hN).mpr (hp x)
   rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
   linarith
 
@@ -235,23 +221,20 @@ theorem round_apply_ge_of_le {φ : CNF (Fin n)} {w : ℕ} {σ : Fin n → Bool} 
 w-implied with `w = 1`. -/
 theorem wImplied_one_of_forced {φ : CNF (Fin n)} {τ : Fin n → Option Bool} {x : Fin n} {b : Bool}
     (h : PPZ.forced φ τ x = some b) : WImplied φ 1 τ x b := by
-  have key : ∀ b, (∃ c ∈ φ, PPZ.IsUnitOn τ x b c) → WImplied φ 1 τ x b := by
-    rintro b ⟨c, hc, -, hall⟩
+  have key (b : Bool) : (∃ c ∈ φ, PPZ.IsUnitOn τ x b c) → WImplied φ 1 τ x b := by
+    rintro ⟨c, hc, -, hall⟩
     refine ⟨[c], by simpa using hc, by simp, fun σ hσ hψ => ?_⟩
     obtain ⟨l, hl, hls⟩ :=
       (Clause.eval_eq_true_iff σ c).mp ((CNF.eval_eq_true_iff σ [c]).mp hψ c (by simp))
-    have := hall l hl
-    split_ifs at this with hx
-    · rw [← hx, hls, this]
-    · have := hσ _ _ this
-      rw [hls] at this
-      cases l.2 <;> simp at this
+    have h' := hall l hl
+    split_ifs at h' with hx
+    · rw [← hx, hls, h']
+    · have := hσ _ _ h'
+      cases l.2 <;> simp [hls] at this
   unfold PPZ.forced at h
   split_ifs at h with h1 h2
-  · cases h
-    exact key true h1
-  · cases h
-    exact key false h2
+  · exact Option.some.inj h ▸ key true h1
+  · exact Option.some.inj h ▸ key false h2
 
 /-- For `w ≥ 1`, every variable forced by a unit clause has an implied value (original). -/
 theorem implied_ne_none_of_forced {φ : CNF (Fin n)} {w : ℕ} (hw : 1 ≤ w)
@@ -304,8 +287,7 @@ theorem round_success_of_satisfiable_ppz {k w : ℕ} (hk : 1 ≤ k) (hw : 1 ≤ 
       ((round φ w).toOuterMeasure
         {τ | ∃ σ, φ.eval σ = true ∧ τ = fun x => some (σ x)}).toReal := by
   refine (PPZ.round_success_of_satisfiable hk hsat hlen).trans ?_
-  rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
-    Cslib.Probability.PMF.toOuterMeasure_apply_toReal]
+  simp only [Cslib.Probability.PMF.toOuterMeasure_apply_toReal]
   refine sum_le_sum fun τ _ => ?_
   split_ifs with hτ
   · obtain ⟨σ, hσ, rfl⟩ := hτ
