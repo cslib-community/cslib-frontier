@@ -1607,10 +1607,13 @@ public import CslibFrontier.Computability.Circuit.Boolean.DepthTime
 public import CslibFrontier.Computability.Circuit.Boolean.DepthTime.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.DuplicateFlags
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.BatchTransfer
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.NoPortsVolume
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.PermutationWires
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingGrid
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.RoutingNetwork
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.SourceTransfer
+public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.TaggedCompiler
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.TaggedPermutation
 public import CslibFrontier.Computability.Circuit.Boolean.ElementDistinctness.VolumeToSize
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
@@ -2096,6 +2099,8 @@ public import CslibFrontier.Computability.Circuit.Frontier.SumsetBridge
 public import CslibFrontier.Computability.Circuit.Frontier.Sweep
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ActiveCall
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.BatchPrice
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.BatchSubstitution
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Binarize
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.BinaryDigits
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.BinaryDigitsPolyTime
@@ -2147,6 +2152,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeC
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildBounds
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPolyTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Normalize
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Open
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEvaluator
@@ -2160,7 +2166,9 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Schedul
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduleCount
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduledRecursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.SpectralPorts
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Substitution
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TaperedRecovery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TrivalentVolume
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncated
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedAlgebraBridge
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedAlgorithm
