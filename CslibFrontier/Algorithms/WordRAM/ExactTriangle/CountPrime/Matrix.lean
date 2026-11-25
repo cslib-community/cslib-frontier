@@ -100,8 +100,11 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
         cellKey transpose n p N source x.mem (y.regs Reg.index) := by
       unfold cellKey
       split
-      · apply memory
-        cases transpose <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> stride_omega
+      · rename_i hguard
+        have := Cslib.Tactic.StrideOmega.mul_add_le_of_lt (s := n) hguard.1
+        have := Cslib.Tactic.StrideOmega.mul_add_le_of_lt (s := n) hguard.2
+        apply memory
+        cases transpose <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> omega
       · rfl
     refine ⟨z, he, ⟨fun r hnr => (zr r hnr).trans (hr r hnr), by rw [zi]; omega, ?_, ?_⟩,
       by rw [zi]; omega⟩
@@ -113,11 +116,14 @@ theorem exec_matrix {w n p k source destination table : ℕ} (src dst : Fin 128)
       · have hne : cellPosition N j ≠
             Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) :=
           fun h => hjnew (cellPosition_injective N h)
-        exact (cellFrame _ (by stride_omega)).trans (values j (by omega) r hrp)
+        rcases Nat.lt_or_gt_of_ne hne with h | h <;>
+          have := Cslib.Tactic.StrideOmega.mul_add_le_of_lt (s := p) h <;>
+          exact (cellFrame _ (by omega)).trans (values j (by omega) r hrp)
     · intro d hd
       have hm : Nat.Morton.index (y.regs Reg.index / 2 ^ k) (y.regs Reg.index % 2 ^ k) < 4 ^ k :=
         cellPosition_lt hlt
-      exact (cellFrame _ (by stride_omega)).trans (memory d hd)
+      have := Cslib.Tactic.StrideOmega.mul_add_le_of_lt (s := p) hm
+      exact (cellFrame _ (by omega)).trans (memory d hd)
   refine WP.exists_execWithin ?_
   unfold matrix
   wram_exec [hsrc, hdst, hdstReg]
