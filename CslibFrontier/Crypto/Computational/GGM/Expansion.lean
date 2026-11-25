@@ -97,7 +97,9 @@ theorem expansionOracle_bounds (generator : List Bool → List Bool) (sample : P
     refine ⟨hcache', (length_eval_le ..).trans (length_selectChild_le ..), ?_⟩
     change (cacheEncoding next).length ≤
       (cacheEncoding cache).length + 4 * (query.take depth).length + 2 * (2 * n) + 3 at hgrowth
-    simp only [List.length_take] at hgrowth; dsimp; lia
+    simp only [List.length_take] at hgrowth
+    dsimp
+    lia
   · supp_cases hresult [expansionOracle, hquery]
     exact ⟨hcache, by simp, by dsimp; lia⟩
 
@@ -115,7 +117,9 @@ theorem isPPTOn_expansionOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding) (fun a =>
       expansionOracle generator (sample a) (width a) (depth a) (query a) (cache a)) := by
-  have := computableInPolyTime_eval hgenerator; unfold expansionOracle cacheEncoding; fun_prop
+  have := computableInPolyTime_eval hgenerator
+  unfold expansionOracle cacheEncoding
+  fun_prop
 
 /-- A complete adaptive expansion game is strict PPT, uniformly in the captured parameters and
 sampler. The public local contracts account for the clock, replies and full cache growth. -/

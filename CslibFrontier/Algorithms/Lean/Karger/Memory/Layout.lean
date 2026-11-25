@@ -139,7 +139,9 @@ theorem mat_update_of_not_owns {m : ℕ → ℕ} {a : ℕ} (ha : ¬L.weight.Owns
 /-- The matrix view of the first `k` rows and columns depends only on those cells. -/
 theorem graph_congr {k : ℕ} {m m' : ℕ → ℕ} (h : ∀ i j, i < k → j < k → L.mat m' i j = L.mat m i j) :
     L.graph k m' = L.graph k m := by
-  simp only [graph]; congr with i j : 2; exact h i j i.isLt j.isLt
+  simp only [graph]
+  congr with i j : 2
+  exact h i j i.isLt j.isLt
 
 end Layout
 
@@ -253,7 +255,9 @@ theorem Layout.not_owns_of_not_mem {a : ℕ} (ha : a ∉ L.footprint) :
 /-- The weight field is allocated. -/
 theorem Inv.weight_le {s : Memory.State} (hs : Inv L w s) :
     L.weight.base + L.weight.length ≤ s.frontier := by
-  have := hs.allocated; simp only [Layout.weight, Layout.limit] at this ⊢; omega
+  have := hs.allocated
+  simp only [Layout.weight, Layout.limit] at this ⊢
+  omega
 
 /-- The abstraction reads only the region. -/
 theorem abs_congr {s s' : Memory.State} (hs : Inv L w s)

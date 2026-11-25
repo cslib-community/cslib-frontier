@@ -227,7 +227,10 @@ theorem dens_eval_mem_and_eval_mem_le (hr : 0 < r) (hL₁ : L₁ ≤ P) (hL₂ :
     card_retentionBox hL₁, card_retentionBox hL₂, Fintype.card_fun, Fintype.card_fin,
     ZMod.card] at h
   push_cast at h; rw [div_pow, div_pow]
-  convert h using 1; rw [dens_eq_card_div_card]; push_cast; rfl
+  convert h using 1
+  rw [dens_eq_card_div_card]
+  push_cast
+  rfl
 
 /-- **Lower tail under frame conditioning**: for `r ≥ 1`, `L ≤ P` and `π = (L / P) ^ H`, a
 frame-conditioned channel retains fewer than `#A π / 2` identifiers of `A` with probability at

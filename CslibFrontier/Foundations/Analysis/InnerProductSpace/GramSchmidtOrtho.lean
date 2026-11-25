@@ -214,7 +214,9 @@ theorem gramSchmidt_comp {ι' : Type*} [LinearOrder ι'] [LocallyFiniteOrderBot 
     gramSchmidt 𝕜 (f ∘ e) i = gramSchmidt 𝕜 f (e i) := by
   refine gramSchmidt_eq_of_span_eq (congrArg _ ?_)
     (by rw [Function.comp_apply, sub_self]; exact zero_mem _)
-  rw [Set.image_comp]; congr 1; ext j
+  rw [Set.image_comp]
+  congr 1
+  ext j
   exact ⟨fun ⟨_, hj', heq⟩ => heq ▸ he hj',
     fun hj => let ⟨j', heq⟩ := hlow hj.le ⟨i, rfl⟩; ⟨j', he.lt_iff_lt.1 (heq ▸ hj), heq⟩⟩
 

@@ -253,11 +253,15 @@ theorem holds_tableStep (hchild : ∀ i, 0 < i → ∀ a, child i a < i)
     have hdiff : diffIndex (indicatorList C) (indicatorList (insert v C)) = v :=
       indicatorList_insert C v ▸ diffIndex_set (by simp) (by rw [hbit]; decide)
     have hlen : t.length < s := by
-      rw [h.length_eq]; rw [Finset.card_insert_of_notMem hvC] at hcard; omega
+      rw [h.length_eq]
+      rw [Finset.card_insert_of_notMem hvC] at hcard
+      omega
     have hentry : entry child gates source t v = value v := by
       unfold entry; split_ifs with h0
       · rw [h0, hzero]
-      · rw [hsucc v (Nat.pos_of_ne_zero h0) v.isLt]; congr 1; funext a
+      · rw [hsucc v (Nat.pos_of_ne_zero h0) v.isLt]
+        congr 1
+        funext a
         rw [h.lookup_eq (v := ⟨child v a, (hchild v (Nat.pos_of_ne_zero h0) a).trans v.isLt⟩)
           (hv _ ⟨Nat.pos_of_ne_zero h0, a, rfl⟩), Option.getD_some]
     simpa only [tableStep, ite_eq_right hne, hdiff, hbit, ite_eq_right Bool.false_ne_true,

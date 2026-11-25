@@ -46,7 +46,9 @@ private theorem correct_rows_cols {ι K : Type*} [Fintype ι] [DecidableEq ι] [
     Matrix.rank_le_card_of_support_subset C.transpose bad <|
       Function.support_subset_iff'.2 fun x hx => funext fun y => ite_eq_right (mt And.right hx)
   refine ⟨A + R + C, ?_, fun x y => ?_⟩
-  · have := Matrix.rank_add_le A R; have := Matrix.rank_add_le (A + R) C; omega
+  · have := Matrix.rank_add_le A R
+    have := Matrix.rank_add_le (A + R) C
+    omega
   · change A x y + R x y + C x y = _
     by_cases hx : x ∈ bad <;> by_cases hy : y ∈ bad <;> simp [R, C, hx, hy]
 
@@ -147,7 +149,9 @@ private theorem exists_sylvester_reindex (K : Type*) [Field K] (n : ℕ) :
   refine ⟨Equiv.ofBijective s ((Fintype.bijective_iff_injective_and_card s).mpr ⟨inj, by simp⟩),
     fun i j => ?_⟩
   rw [Matrix.sylvesterHadamard_apply, ← Fin.prod_univ_eq_prod_range, ← prod_filter, prod_const]
-  congr 2; ext b; simp [s]
+  congr 2
+  ext b
+  simp [s]
 
 /-- Finite step toward [Alman and Williams, Theorem 1.1][AlmanWilliams2017].
 At the displayed rank cutoff, the number of central off-band pairs bounds the rigidity

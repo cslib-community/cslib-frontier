@@ -254,6 +254,8 @@ theorem visit_count_of_first (x y : α) (d : ℕ)
       arithmeticProgressionCount d (Function.minimalPeriod f y) T := by
   classical
   rw [← arithmeticProgressionCount_spec]
-  congr 1; ext t; exact and_congr_right fun _ => visit_schedule_of_first f x y d hd hfirst t
+  congr 1
+  ext t
+  exact and_congr_right fun _ => visit_schedule_of_first f x y d hd hfirst t
 
 end Cslib.FunctionalGraph

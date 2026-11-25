@@ -248,7 +248,9 @@ theorem eval_experiment0P1_eq_experiment1P1 {q m : ℕ} [Fact (Nat.Prime q)] (hm
     ProbComp.eval (experiment0P1 q m A) = ProbComp.eval (experiment1P1 q m A) := by
   simp only [experiment0P1, experiment1P1, deal, simDeal, sim1Eval, pmf_norm, ProbComp.eval_uniform]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
-  congr 1 with e₁ : 1; rw [bind_uniform_uniform_bind_comm]; congr 1 with ⟨r, st'⟩ : 1
+  congr 1 with e₁ : 1
+  rw [bind_uniform_uniform_bind_comm]
+  congr 1 with ⟨r, st'⟩ : 1
   by_cases hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q)
   · simp_rw [eq_true hr, ite_true]
     simp only [pmf_norm, ProbComp.eval_uniform]
@@ -364,7 +366,9 @@ theorem eval_experiment0P2_eq_experiment1P2 {q m : ℕ} [Fact (Nat.Prime q)] (hm
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
   rw [← eval_deal_swap t₂ t₁, PMF.bind_map]
   simp only [deal, pmf_norm, ProbComp.eval_uniform, Prod.swap]
-  congr 1 with e₂ : 1; rw [bind_uniform_uniform_bind_comm]; congr 1 with r : 1
+  congr 1 with e₂ : 1
+  rw [bind_uniform_uniform_bind_comm]
+  congr 1 with r : 1
   simpa only [add_comm] using
     bind_honestOpening_eq_bind_uniform hm (productRelations_comm.mp (hrel t₁ t₂ st hx)) e₂ r.2
       fun (α₁, β₁, γ₁) =>

@@ -236,11 +236,15 @@ theorem bind_identityKernel_self :
     have h (b : α) : ((q b).toReal / 2 + 1 / (2 * Fintype.card α)) * identityRemainder q b /
         (2 * Fintype.card α * (q b).toReal + 2) =
           identityRemainder q b / (4 * Fintype.card α) := by
-      have := (identityScale_pos q b).ne'; field_simp; ring
+      have := (identityScale_pos q b).ne'
+      field_simp
+      ring
     simp only [bind_identityKernel_none, h, ← sum_div, sum_identityRemainder]
     field_simp
   · rw [bind_identityKernel_some]
-    have := (identityScale_pos q b).ne'; field_simp; ring
+    have := (identityScale_pos q b).ne'
+    field_simp
+    ring
 
 /-- **Soundness of the reduction**: Goldreich's kernel shrinks the statistical distance from `q` by
 at most a factor `3`. -/
@@ -258,7 +262,10 @@ theorem dist_le_three_mul_dist_bind_identityKernel (p : PMF α) :
         3 * (identityBlock q (some b) : ℝ) := by
       have := Nat.lt_floor_add_one (2 * (Fintype.card α : ℝ) * (q b).toReal)
       have : (0 : ℝ) ≤ identityGrain q b := Nat.cast_nonneg _
-      rw [identityBlock_some]; push_cast; unfold identityGrain at *; linarith
+      rw [identityBlock_some]
+      push_cast
+      unfold identityGrain at *
+      linarith
     have he : ((p b).toReal / 2 + 1 / (2 * Fintype.card α)) /
           (2 * Fintype.card α * (q b).toReal + 2) -
         ((q b).toReal / 2 + 1 / (2 * Fintype.card α)) / (2 * Fintype.card α * (q b).toReal + 2) =

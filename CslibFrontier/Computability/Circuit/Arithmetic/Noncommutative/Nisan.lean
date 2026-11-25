@@ -125,7 +125,9 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
   let restr : (FreeMonoid X → K) →ₗ[K] ((Fin m → X) → K) := LinearMap.funLeft K K FreeMonoid.ofFn
   have hrow : Set.range (nisanMatrix k m f).row =
       restr '' Set.range (fun u : Fin k → X => nisanRow f (FreeMonoid.ofFn u)) := by
-    rw [← Set.range_comp]; congr 1 with u v : 2; simp [Matrix.row, nisanRow, restr]
+    rw [← Set.range_comp]
+    congr 1 with u v : 2
+    simp [Matrix.row, nisanRow, restr]
   have hinj : Function.Injective (restr ∘ₗ (nisanRowSpace f k).subtype) :=
     (injective_iff_map_eq_zero _).mpr fun g hg => Subtype.ext <| funext fun v =>
       if hv : v.toList.length = m then

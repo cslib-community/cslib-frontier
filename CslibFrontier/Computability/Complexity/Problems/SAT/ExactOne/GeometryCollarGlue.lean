@@ -265,7 +265,9 @@ theorem collarPrefixRoute_contact {s : PortAssignment} (hs : s.Distinct)
     ∃ q ∈ support r, q ∈ support t ∧ p = collarReal (collarReflected s) q := by
   rw [support_collarPrefixRoute hs hr] at hp; rw [support_collarPrefixRoute hs ht] at hq
   rcases hp with hp | hp <;> rcases hq with hq | hq
-  · rw [support_collarRoute] at hp hq; obtain ⟨x, hx, rfl⟩ := hp; obtain ⟨y, hy, hyp⟩ := hq
+  · rw [support_collarRoute] at hp hq
+    obtain ⟨x, hx, rfl⟩ := hp
+    obtain ⟨y, hy, hyp⟩ := hq
     cases collarReal_injective _ hyp
     exact ⟨x, hx, hy, rfl⟩
   · exact (Set.disjoint_left.mp (disjoint_collarRoute_connector hbr hri) hp hq).elim

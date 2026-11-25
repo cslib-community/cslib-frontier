@@ -236,7 +236,9 @@ theorem isExponentiallyStable_of_inner_pos [FiniteDimensional ℝ E]
     (fun y => by simpa only [neg_apply, inner_neg_right] using hcQ y) ht
   refine pow_le_pow_iff_left₀ (norm_nonneg _) (by positivity) two_ne_zero |>.1 ?_
   rw [mul_pow, mul_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
-  convert h using 3; push_cast; ring_nf
+  convert h using 3
+  push_cast
+  ring_nf
 
 end ContinuousLinearMap
 

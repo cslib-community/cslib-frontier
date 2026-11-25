@@ -93,7 +93,11 @@ private def oddName {k : ℕ} (v : Fin 4 ⊕ Fin k) : ℕ :=
 
 private theorem oddName_injective (k : ℕ) :
     Function.Injective (oddName : Fin 4 ⊕ Fin k → ℕ) := by
-  intro x y h; apply finSumFinEquiv.injective; apply Fin.ext; dsimp only [oddName] at h; omega
+  intro x y h
+  apply finSumFinEquiv.injective
+  apply Fin.ext
+  dsimp only [oddName] at h
+  omega
 
 private theorem even_ne_odd (x : ℕ) {k : ℕ} (v : Fin 4 ⊕ Fin k) :
     2 * x ≠ oddName v := by

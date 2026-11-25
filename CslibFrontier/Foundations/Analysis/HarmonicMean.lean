@@ -102,7 +102,9 @@ theorem harmonicMean_le_energy {f w : α → ℝ} (hf : ∀ x, 0 ≤ f x)
     field_simp [(hpos x).ne']; ring
   simp_rw [hid, expect_add_distrib, expect_sub_distrib, ← mul_expect, hw] at hs
   rw [show h ^ 2 * (𝔼 x, (f x)⁻¹) = h by dsimp only [h]; field_simp] at hs
-  rw [harmonicMean_of_pos hpos]; dsimp only [h] at hs; linarith
+  rw [harmonicMean_of_pos hpos]
+  dsimp only [h] at hs
+  linarith
 
 /-- A nonnegative weight of mean one attains the variational minimum,
 including when an entry of `f` is zero. -/
@@ -125,7 +127,9 @@ theorem harmonicMean_exists_weight {f : α → ℝ} (hf : ∀ x, 0 ≤ f x) :
       by rw [← mul_expect]; exact inv_mul_cancel₀ he.ne', ?_⟩
     have hid (x : α) : f x * (h * (f x)⁻¹) ^ 2 = h ^ 2 * (f x)⁻¹ := by field_simp [(hpos x).ne']
     simp_rw [hid, ← mul_expect]
-    rw [harmonicMean_of_pos hpos]; dsimp only [h]; field_simp
+    rw [harmonicMean_of_pos hpos]
+    dsimp only [h]
+    field_simp
 
 /-- **The variational formula for the harmonic mean** [Korten, Lemma 11][Korten2026], on every
 nonempty finite type: the harmonic mean is the least energy `𝔼 (f w ^ 2)` of a nonnegative weight

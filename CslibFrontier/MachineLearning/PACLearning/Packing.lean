@@ -92,7 +92,9 @@ theorem exists_injOn_comp_of_two_mul_log_card_lt {β : Type*} [DecidableEq β] {
     have hN : (0 : ℝ) < P.card := Nat.cast_pos.mpr hPne.card_pos
     have hlt : (P.card : ℝ) ^ 2 * Real.exp (-ε) ^ k < 1 := by
       rw [← Real.exp_log hN, ← Real.exp_nat_mul, ← Real.exp_nat_mul, ← Real.exp_add,
-        Real.exp_lt_one_iff]; push_cast; linarith
+        Real.exp_lt_one_iff]
+      push_cast
+      linarith
     have hcard : (bad.card : ℝ) < (m : ℝ) ^ k := calc
       (bad.card : ℝ) ≤ ∑ p ∈ P.offDiag, ((agree p).card : ℝ) ^ k := by
         exact_mod_cast (card_biUnion_le.trans_eq <| by simp [Fintype.card_piFinset])
@@ -100,7 +102,9 @@ theorem exists_injOn_comp_of_two_mul_log_card_lt {β : Type*} [DecidableEq β] {
         sum_le_sum fun p hp => pow_le_pow_left₀ (Nat.cast_nonneg _) (hagree p hp) k
       _ = P.offDiag.card * (Real.exp (-ε) * m) ^ k := by rw [sum_const, nsmul_eq_mul]
       _ ≤ P.card ^ 2 * (Real.exp (-ε) * m) ^ k := by
-        gcongr; rw [offDiag_card]; exact_mod_cast (Nat.sub_le _ _).trans_eq (sq _).symm
+        gcongr
+        rw [offDiag_card]
+        exact_mod_cast (Nat.sub_le _ _).trans_eq (sq _).symm
       _ = (P.card ^ 2 * Real.exp (-ε) ^ k) * (m : ℝ) ^ k := by ring
       _ < 1 * (m : ℝ) ^ k := by gcongr
       _ = (m : ℝ) ^ k := one_mul _
@@ -165,7 +169,9 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
         gcongr; exact hsauer.trans (by gcongr)
       _ = Real.exp L * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by
         rw [mul_pow, ← pow_mul, mul_comm d, ← Real.exp_nat_mul, ← mul_assoc, ← Real.exp_add]
-        congr 2; push_cast; ring
+        congr 2
+        push_cast
+        ring
       _ = P.card * (Real.exp (ε / 2) * (T * K) ^ (2 * d)) := by rw [Real.exp_log hN]
   have hexp2 : Real.exp (ε / 2) < 2 := lt_of_pow_lt_pow_left₀ 2 zero_le_two <| by
     rw [← Real.exp_nat_mul, show (2 : ℕ) * (ε / 2) = ε by push_cast; ring]
@@ -177,7 +183,9 @@ theorem card_le_div_pow_of_forall_two_mul_log_card_lt {β : Type*} {m d : ℕ}
   · refine hle.trans ((mul_le_mul_of_nonneg_right
       (hexp2.le.trans <| (pow_one (2 : ℝ)).symm.trans_le <|
         pow_le_pow_right₀ (by norm_num) (show 1 ≤ 2 * d by omega)) (by positivity)).trans_eq ?_)
-    rw [← mul_pow]; congr 1; ring
+    rw [← mul_pow]
+    congr 1
+    ring
 
 /-- **Packing bound for VC classes** [Vershynin2018, Theorem 8.3.18; Dudley1978]: if every set
 shattered by `C` has at most `d` points, a set of labelings realized by `C` on `m` points whose

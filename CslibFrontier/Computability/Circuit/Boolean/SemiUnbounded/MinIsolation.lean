@@ -218,7 +218,9 @@ theorem card_nonisolatingSeeds_le [Fintype G] (C : LayeredSemiUnboundedCircuit G
     refine (mem_filter.mp hseed).2 (C.isMinIsolating_of_separated _ fun g hgor u v hcu hcv hne
       tu tv htu htv heq => ?_)
     have hlayer : C.layer u = C.layer v := by
-      have := C.layer_orChild hgor hcu; have := C.layer_orChild hgor hcv; omega
+      have := C.layer_orChild hgor hcu
+      have := C.layer_orChild hgor hcv
+      omega
     have heu : C.Eval u := (C.eval_iff_nonempty_proofTree u).mpr ⟨tu⟩
     have hev : C.Eval v := (C.eval_iff_nonempty_proofTree v).mpr ⟨tv⟩
     have ht : Odd (C.layer u) ∧ C.layer u = C.layer v ∧ u ≠ v ∧ C.Eval u ∧ C.Eval v :=

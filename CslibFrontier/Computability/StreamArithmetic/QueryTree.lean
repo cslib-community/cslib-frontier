@@ -233,9 +233,13 @@ theorem maxIntrinsicBits_bindOverhead_le {α : Type w} {β : Type w'} (ov : ℕ)
   | ret _ => exact le_max_right _ _
   | scratchStep _ _ ih => simp only [bindOverhead, maxIntrinsicBits, eval]; omega
   | queryDigit op u _ _ ih =>
-    have := ih (env op u); simp only [bindOverhead, maxIntrinsicBits, eval]; omega
+    have := ih (env op u)
+    simp only [bindOverhead, maxIntrinsicBits, eval]
+    omega
   | queryStruct sOp _ _ ih =>
-    have := ih (sEnv sOp); simp only [bindOverhead, maxIntrinsicBits, eval]; omega
+    have := ih (sEnv sOp)
+    simp only [bindOverhead, maxIntrinsicBits, eval]
+    omega
 
 theorem retained_le_maxIntrinsicBits {α : Type w} (prog : QueryProg Op Struct α)
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
@@ -434,7 +438,9 @@ theorem toQueryProg_retainedBits_le (regenScratch : ℕ) (tree : CondBoolTree Op
     simp only [toQueryProg, QueryProg.activeQueries, QueryProg.activeQueries_bindOverhead,
       List.append_nil, List.mem_map] at hev
     obtain ⟨ev₀, hev₀, rfl⟩ := hev
-    have := ih hev₀; rw [QueryEvent.retained_addBits, depth]; omega
+    have := ih hev₀
+    rw [QueryEvent.retained_addBits, depth]
+    omega
   | andGate _ _ ihl ihr | orGate _ _ ihl ihr =>
     simp only [toQueryProg, QueryProg.activeQueries, QueryProg.activeQueries_bindOverhead,
       List.append_nil, List.mem_append, List.mem_map] at hev
@@ -445,7 +451,9 @@ theorem toQueryProg_retainedBits_le (regenScratch : ℕ) (tree : CondBoolTree Op
     simp only [toQueryProg, QueryProg.activeQueries, QueryProg.activeQueries_bindOverhead,
       toQueryProg_eval, List.mem_append, List.mem_map] at hev
     rcases hev with ⟨ev₀, hev₀, rfl⟩ | hevBranch
-    · have := ihs hev₀; rw [QueryEvent.retained_addBits, depth]; omega
+    · have := ihs hev₀
+      rw [QueryEvent.retained_addBits, depth]
+      omega
     · cases hs : s.eval env sEnv <;>
         simp only [hs, Bool.false_eq_true, ↓reduceIte, QueryProg.activeQueries_bindOverhead,
           QueryProg.activeQueries, List.append_nil, List.mem_map] at hevBranch <;>

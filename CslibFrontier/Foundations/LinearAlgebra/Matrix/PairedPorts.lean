@@ -428,7 +428,9 @@ private theorem modNat_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
 private theorem val_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
     ((timeLayerEquiv T n).symm (toLex (i, v))).val = i.val * n + v.val := by
   have h := timeLayerEquiv_val T n ((timeLayerEquiv T n).symm (toLex (i, v)))
-  rw [Equiv.apply_symm_apply] at h; dsimp only [ofLex_toLex] at h; linarith
+  rw [Equiv.apply_symm_apply] at h
+  dsimp only [ofLex_toLex] at h
+  linarith
 
 private theorem val_div_symm_toLex (T n : ℕ) (i : Fin (T + 1)) (v : Fin n) :
     ((timeLayerEquiv T n).symm (toLex (i, v))).val / n = i.val :=

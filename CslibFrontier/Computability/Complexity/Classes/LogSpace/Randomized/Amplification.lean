@@ -188,7 +188,9 @@ private theorem exists_rejectCoins_le_of_mem_RL (h : A ∈ RL enc) (r : ℕ) :
                 (2 ^ r * (2 ^ t' - M'.acceptCoins (enc a) t')) * 2 ^ T).trans_le
           ((Nat.mul_le_mul_right _ (Nat.mul_le_mul h₁ (hmem' ha))).trans_eq (by ring))) hpos
       · rw [hnot ha, hnot' ha, Nat.sub_zero, Nat.sub_zero, ← Nat.mul_comm (2 ^ T)] at hprod
-        have := Nat.eq_of_mul_eq_mul_right hpos hprod; have := Nat.two_pow_pos T; omega
+        have := Nat.eq_of_mul_eq_mul_right hpos hprod
+        have := Nat.two_pow_pos T
+        omega
 
 /-- **One-sided error amplification for `RL`** [Arora and Barak, Section 7.4.1][AroraBarak09]: for
 every `r ≥ 1`, a language is in `RL` exactly when some logspace fair-coin machine that halts on
@@ -208,7 +210,9 @@ theorem mem_RL_iff_error_le {r : ℕ} (hr : 1 ≤ r) :
     refine ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, hmem, hnot⟩ := (hM a).2
       ⟨(hM a).1, t, ht, fun ha => ?_, hnot⟩⟩
     have h₁ := hmem ha; have := Nat.mul_le_mul_left (2 ^ r) (M.acceptCoins_le (enc a) t)
-    rw [Nat.mul_sub] at h₁; rw [Nat.sub_mul, Nat.one_mul]; omega
+    rw [Nat.mul_sub] at h₁
+    rw [Nat.sub_mul, Nat.one_mul]
+    omega
   · rintro ⟨k, State, hfin, M, c, hM⟩
     refine ⟨k, State, hfin, M, c, fun a => let ⟨t, ht, hmem, hnot⟩ := (hM a).2
       ⟨(hM a).1, t, ht, fun ha => ?_, hnot⟩⟩

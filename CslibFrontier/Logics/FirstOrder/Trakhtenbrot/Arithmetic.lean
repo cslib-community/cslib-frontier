@@ -171,7 +171,9 @@ private theorem pair_eq_iff {N a b p : ℕ} (hp : p < N) :
       ∃ a' < N, ∃ b' < N, ∃ p' < N, p = p' + 1 ∧ Nat.pair a' b' = p' ∧ NextNat a' b' a b := by
   rcases p with _ | q
   · exact ⟨fun h => Or.inl ⟨rfl, by
-        have := Nat.left_le_pair a b; have := Nat.right_le_pair a b; omega⟩,
+        have := Nat.left_le_pair a b
+        have := Nat.right_le_pair a b
+        omega⟩,
       by rintro (⟨-, rfl, rfl⟩ | ⟨_, _, _, _, _, _, h, -⟩); exacts [rfl, by omega]⟩
   · rw [pair_eq_succ_iff]
     refine ⟨fun ⟨a', b', h1, h2⟩ => Or.inr ⟨a', ?_, b', ?_, q, by omega, rfl, h1, h2⟩, ?_⟩

@@ -348,7 +348,10 @@ theorem altLinearTrunc_eq_sum (R : ℕ) (u : ℤ) :
   rw [hℓ, zero_add, hu] at h
   refine h.symm.trans (sum_congr rfl fun k _ => ?_)
   have := k.isLt
-  congr 3; simp only [u', ℓ, decide_eq_decide]; push_cast; omega
+  congr 3
+  simp only [u', ℓ, decide_eq_decide]
+  push_cast
+  omega
 
 /-- The threshold `θ_k = -R + k` of step `k` of the staircase of `f_R`. -/
 def altLinearTruncThreshold (R : ℕ) (k : Fin (2 * R + 2)) : ℤ :=
@@ -363,7 +366,9 @@ theorem two_mul_sum_card_finset (b : ℕ) :
     2 * ∑ S : Finset (Fin b), #S = b * 2 ^ b := by
   have hcompl : (∑ S : Finset (Fin b), #Sᶜ) = ∑ S : Finset (Fin b), #S :=
     (Equiv.mk compl compl compl_compl compl_compl).sum_comp fun S : Finset (Fin b) => #S
-  rw [two_mul]; nth_rw 2 [← hcompl]; rw [← sum_add_distrib]
+  rw [two_mul]
+  nth_rw 2 [← hcompl]
+  rw [← sum_add_distrib]
   simp [card_add_card_compl, mul_comm]
 
 /-! ### Linear threshold functions on general finite domains and depth-one gate decomposition -/

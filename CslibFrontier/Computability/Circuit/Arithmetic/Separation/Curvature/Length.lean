@@ -207,7 +207,10 @@ theorem rms_translateDist (u v : ℤ × ℤ) : (translateDist W u v).rms = meanL
 
 theorem rms_translateDist' (u v : ℤ × ℤ) :
     (translateDist W u v).rms = meanLength W (v - u) := by
-  rw [← H.rms_translateDist v u]; congr 1; funext n b i k; exact H.symm _ _ _ _
+  rw [← H.rms_translateDist v u]
+  congr 1
+  funext n b i k
+  exact H.symm _ _ _ _
 
 theorem meanLength_zero : meanLength W 0 = 0 := by
   have : translateDist W 0 0 * translateDist W 0 0 = fun _ _ _ _ => (0 : ℝ) := by
@@ -251,7 +254,9 @@ theorem meanLength_crossing (X V Y U m m' k k' : ℤ × ℤ) (τ : ℝ) (hτ : 0
     have h := H.crossing n b ((i, j) + X) ((i, j) + V) ((i, j) + Y) ((i, j) + U) ((i, j) + m)
       ((i, j) + m') ((i, j) + k) ((i, j) + k') _ _ τ (H.nonneg n b ((i, j) + X) ((i, j) + V))
       (H.nonneg n b ((i, j) + Y) ((i, j) + U)) hτ
-    rw [one_div, inv_mul_eq_div]; simp only [pow_two] at h; linarith
+    rw [one_div, inv_mul_eq_div]
+    simp only [pow_two] at h
+    linarith
   rw [mean_smul, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add, mean_add,
     mean_add, mean_add, mean_smul, mean_smul, mean_add, mean_add,
     ← rms_sq (hb X V), ← rms_sq (hb Y U), ← rms_sq (hb m m'), ← rms_sq (hb k k'),

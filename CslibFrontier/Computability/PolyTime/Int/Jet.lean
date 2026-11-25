@@ -229,7 +229,9 @@ theorem size_coeffNorm1_le_length_encList (a : List ℤ) :
   have hsum := Nat.size_sum_le (l := a.map Int.natAbs) (b := (encList encIntBin a).length)
     fun n hn => by
       rcases List.mem_map.mp hn with ⟨z, hz, rfl⟩
-      have := length_le_encList_of_mem encIntBin hz; rw [length_encIntBin] at this; omega
+      have := length_le_encList_of_mem encIntBin hz
+      rw [length_encIntBin] at this
+      omega
   have := (Nat.size_le.mpr Nat.lt_two_pow_self).trans (length_le_length_encList encIntBin a)
   rw [List.length_map] at hsum; omega
 
@@ -242,7 +244,9 @@ theorem length_encList_encIntBin_le_of_coeffNorm1 (a : List ℤ) :
     fun n hn => ?_).trans (by simp)
   rcases List.mem_map.mp hn with ⟨z, hz, rfl⟩
   have hsz := Nat.size_le_size (List.le_sum_of_mem (List.mem_map_of_mem (f := Int.natAbs) hz))
-  rw [← Polynomial.coeffNorm1_ofCoeffList] at hsz; rw [length_encIntBin]; omega
+  rw [← Polynomial.coeffNorm1_ofCoeffList] at hsz
+  rw [length_encIntBin]
+  omega
 
 section PolyTime
 

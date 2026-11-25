@@ -181,7 +181,9 @@ theorem rank_sub_diffCount_le_rank (A B : Matrix m n K) : A.rank - diffCount A B
 /-- **Rigidity is at least the rank deficit**: at least `rank A - r` entries must be changed to
 bring the rank of `A` down to `r`. -/
 theorem rank_sub_le_rigidity (A : Matrix m n K) (r : ℕ) : A.rank - r ≤ A.rigidity r := by
-  obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r; have := rank_sub_diffCount_le_rank A B; omega
+  obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
+  have := rank_sub_diffCount_le_rank A B
+  omega
 
 /-- A matrix of rank at least `r` over a field contains an invertible `r × r` submatrix. -/
 private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : ℕ}
