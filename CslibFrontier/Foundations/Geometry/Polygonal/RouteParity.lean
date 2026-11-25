@@ -640,7 +640,8 @@ theorem exists_rayParity_excursion_of_subset {U : Set ℂ} (hU : IsOpen U)
 
 /-- Insert a closed excursion at a join to add the prescribed ray-parity bits in a
 nonzero complex coordinate factor. The new support stays in the union of the original
-support and the punctured region. Both outer endpoints and germs are preserved. -/
+support and the punctured region. Both outer endpoints and germs are preserved, and
+the route retains at least as many segments as the two routes at the join. -/
 theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     (hconn : IsPathConnected U) (points odd : Finset ℂ) (hodd : odd ⊆ points)
     (hUodd : ∀ z ∈ odd, z ∈ U) (p q : Route) (hjoin : p.finish = q.start)
@@ -649,7 +650,8 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
       (∀ b, r.germ b = (p.concat q).germ b) ∧
       (p.concat q).support ⊆ r.support ∧
       r.support ⊆ (p.concat q).support ∪ (U \ (↑points : Set ℂ)) ∧
-      ∀ z ∈ points, r.rayParity u z = (p.concat q).rayParity u z + decide (z ∈ odd) := by
+      (∀ z ∈ points, r.rayParity u z = (p.concat q).rayParity u z + decide (z ∈ odd)) ∧
+      p.segments + q.segments ≤ r.segments := by
   classical
   let f := Homeomorph.mulLeft₀ u hu
   have hf (z : ℂ) : f z = u * z := rfl
@@ -686,7 +688,7 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     exact Bool.decide_congr (Finset.mem_map' embedding)
   have he : p.finish = e.start := hstart.symm
   have hq : (p.concat e).finish = q.start := (finish_concat he).trans (hfinish.trans hjoin)
-  refine ⟨(p.concat e).concat q, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨(p.concat e).concat q, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro b
     rw [endpoint_concat _ _ hq, endpoint_concat p q hjoin, endpoint_concat p e he]
     cases b <;> rfl
@@ -705,6 +707,8 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]
     ac_rfl
+  · rw [segments_concat, segments_concat]
+    omega
 
 /-- Insert a prescribed parity excursion at an interior point of a straight route.
 The excursion avoids the marked points, and each outer germ remains a positive
@@ -721,7 +725,7 @@ theorem exists_line_add_rayParity {U : Set ℂ} (hU : IsOpen U)
   let m := AffineMap.lineMap a b t
   let p := line a m
   let q := line m b
-  obtain ⟨r, he, hg, hcontains, hsupport, hpar⟩ :=
+  obtain ⟨r, he, hg, hcontains, hsupport, hpar, -⟩ :=
     exists_concat_add_rayParity hU hconn points odd hodd hUodd p q rfl hm.1 hm.2 hu
   have hsegments : (p.concat q).support = segment ℝ a b := by
     let L : ℝ →ᵃ[ℝ] ℂ := AffineMap.lineMap a b

@@ -724,7 +724,7 @@ example :
     have he : p.finish = c := Finset.mem_singleton.mp h
     have hr := congrArg Complex.re he
     norm_num [p, c] at hr
-  obtain ⟨r, -, hgerm, -, -, hray⟩ :=
+  obtain ⟨r, -, hgerm, -, -, hray, -⟩ :=
     Route.exists_concat_add_rayParity isOpen_univ hconn {c} {c} (fun _ h => h)
       (fun z _ => Set.mem_univ z) p q rfl (Set.mem_univ p.finish) ha
       (u := ⟨1, 1⟩) (by
