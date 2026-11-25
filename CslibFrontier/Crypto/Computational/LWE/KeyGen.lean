@@ -354,8 +354,9 @@ theorem secretProductResidue_eq (n w row : ℕ) (secretWord ciphertextWord : Lis
         Cslib.Matrix.binaryEntry n w secretWord 0 j.val : ℕ) : ℤ)
   have hcast : (value : ZMod (2 ^ w)) =
       (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row 0 : ZMod (2 ^ w)) -
-        ∑ j : Fin n, (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row (j.val + 1) :
-          ZMod (2 ^ w)) * decodeSecret n w secretWord j := by
+        ∑ j : Fin n,
+          (Cslib.Matrix.binaryEntry (n + 1) w ciphertextWord row (j.val + 1) : ZMod (2 ^ w)) *
+            decodeSecret n w secretWord j := by
     simp [value, decodeSecret, Cslib.Matrix.ofBinary_apply]
   unfold secretProductResidue
   rw [List.map_range_eq_ofFn, List.sum_ofFn]

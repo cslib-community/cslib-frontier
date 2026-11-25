@@ -176,12 +176,14 @@ private theorem core {A B n : ℕ} {a b : ℝ}
   set Z := A / 2 ^ s
   have hBZ : B < (Z + 1) * 2 ^ s := by
     simpa only [← heq, mul_comm] using Nat.lt_mul_div_succ B (show 0 < 2 ^ s by positivity)
-  refine ⟨hAn, Nat.size_le.mpr (Nat.xor_lt_two_pow hAn hBn),
-    by linarith [show (A : ℝ) + 1 ≤ (((2 * Z + 1) * 2 ^ (s - 1) : ℕ) : ℝ) by exact_mod_cast hM1],
-    by linarith [show (((2 * Z + 1) * 2 ^ (s - 1) : ℕ) : ℝ) ≤ B by exact_mod_cast hM2], ?_⟩
-  have h1 : (B : ℝ) + 1 ≤ (Z + 1) * 2 ^ s := by exact_mod_cast hBZ
-  have h2 : (Z : ℝ) * 2 ^ s ≤ A := by exact_mod_cast Nat.div_mul_le_self A (2 ^ s)
-  nlinarith
+  refine ⟨hAn, Nat.size_le.mpr (Nat.xor_lt_two_pow hAn hBn), ?_, ?_, ?_⟩
+  · have : (A : ℝ) + 1 ≤ (((2 * Z + 1) * 2 ^ (s - 1) : ℕ) : ℝ) := by exact_mod_cast hM1
+    linarith
+  · have : (((2 * Z + 1) * 2 ^ (s - 1) : ℕ) : ℝ) ≤ B := by exact_mod_cast hM2
+    linarith
+  · have h1 : (B : ℝ) + 1 ≤ (Z + 1) * 2 ^ s := by exact_mod_cast hBZ
+    have h2 : (Z : ℝ) * 2 ^ s ≤ A := by exact_mod_cast Nat.div_mul_le_self A (2 ^ s)
+    nlinarith
 
 private theorem natCast_div_eq_ofReal {p q : ℕ} (hq : q ≠ 0) :
     (p : ℝ≥0∞) / q = ENNReal.ofReal ((p : ℝ) / q) := by
@@ -307,11 +309,11 @@ theorem cB_bounds (x : List Bool) (hh : heavy num den x = true) :
   have h1 : cB num den x * cQ den x ≤ cR num den x * 2 ^ x.length - 1 := Nat.div_mul_le_self _ _
   have h2 : cR num den x * 2 ^ x.length - 1 < cB num den x * cQ den x + cQ den x :=
     Nat.lt_div_mul_add hQ
+  have h1' : cB num den x * cQ den x < cR num den x * 2 ^ x.length := by omega
+  have h2' : cR num den x * 2 ^ x.length ≤ (cB num den x + 1) * cQ den x := by
+    rw [add_mul, one_mul]; omega
   rw [bR_mul_eq hden, lt_div_iff₀ hQ', div_le_iff₀ hQ']
-  exact ⟨by exact_mod_cast (show cB num den x * cQ den x < cR num den x * 2 ^ x.length by omega),
-    by exact_mod_cast (show cR num den x * 2 ^ x.length ≤ (cB num den x + 1) * cQ den x by
-      rw [add_mul, one_mul]
-      omega)⟩
+  exact ⟨by exact_mod_cast h1', by exact_mod_cast h2'⟩
 
 /-- The facts about a word of large probability used by Claim 20. -/
 theorem heavy_spec (x : List Bool) (hh : heavy num den x = true) :

@@ -167,25 +167,26 @@ theorem reaches_iff {m v : ℕ} :
       exact ⟨fun ⟨hc, hne⟩ => hc.resolve_right hne,
         fun hc => ⟨.inl hc, fun h => hva (h ▸ hc)⟩⟩
   · rintro ⟨hv, hbit, rfl | ⟨u, ⟨p, hp, hnd, hm⟩, hadj⟩⟩
-    · exact ⟨[], ⟨by simp, by simpa using hv, by simp⟩, by simp, fun c => by
-        simp [Nat.testBit_two_pow, eq_comm]⟩
+    · refine ⟨[], ⟨by simp, by simpa using hv, by simp⟩, by simp, fun c => ?_⟩
+      simp [Nat.testBit_two_pow, eq_comm]
     · have hva : χ v ∉ (p ++ [u]).map χ := fun h => by
         simpa [Nat.testBit_sub_two_pow hbit] using (hm (χ v)).2 h
       have hvp : v ∉ p ++ [u] := fun h => hva (List.mem_map_of_mem h)
       refine ⟨p ++ [u], ⟨List.nodup_append.2 ⟨hp.1, by simp, fun a ha b hb =>
           List.mem_singleton.1 hb ▸ fun h => hvp (h ▸ ha)⟩,
         fun x hx => (List.mem_append.1 hx).elim (hp.2.1 x) fun hx => List.mem_singleton.1 hx ▸ hv,
-        List.isChain_append.2 ⟨hp.2.2, by simp, fun x hx y hy => by
-          simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
-            Option.mem_def, Option.some.injEq, List.head?_cons] at hx hy
-          exact hx ▸ hy ▸ hadj⟩⟩,
-        by rw [List.map_append, List.nodup_append]; exact ⟨hnd, by simp, fun a ha b hb =>
-          List.mem_singleton.1 (by simpa using hb) ▸ fun h => hva (h ▸ ha)⟩,
-        fun c => ?_⟩
-      have := hm c
-      rw [Nat.testBit_sub_two_pow hbit, Bool.and_eq_true, decide_eq_true_iff] at this
-      rw [List.map_append, List.mem_append, ← this, List.map_singleton, List.mem_singleton]
-      by_cases hc : c = χ v <;> simp [hc, hbit]
+        ?_⟩, ?_, fun c => ?_⟩
+      · refine List.isChain_append.2 ⟨hp.2.2, by simp, fun x hx y hy => ?_⟩
+        simp only [List.getLast?_append, List.getLast?_singleton, Option.some_or,
+          Option.mem_def, Option.some.injEq, List.head?_cons] at hx hy
+        exact hx ▸ hy ▸ hadj
+      · rw [List.map_append, List.nodup_append]
+        exact ⟨hnd, by simp, fun a ha b hb =>
+          List.mem_singleton.1 (by simpa using hb) ▸ fun h => hva (h ▸ ha)⟩
+      · have := hm c
+        rw [Nat.testBit_sub_two_pow hbit, Bool.and_eq_true, decide_eq_true_iff] at this
+        rw [List.map_append, List.mem_append, ← this, List.map_singleton, List.mem_singleton]
+        by_cases hc : c = χ v <;> simp [hc, hbit]
 
 theorem table_succ (N : ℕ) :
     table G χ (N + 1) = table G χ N ++ [entry G χ (table G χ N) N] := by
@@ -226,7 +227,8 @@ theorem exists_reaches_iff {k : ℕ} (hk : 0 < k) :
     have hmem (c : ℕ) : c ∈ (p ++ [v]).map χ ↔ c < k := by
       rw [← hm, Nat.testBit_two_pow_sub_one, decide_eq_true_iff]
     have hfs : ((p ++ [v]).map χ).toFinset = Finset.range k := by
-      ext c; rw [List.mem_toFinset, hmem, Finset.mem_range]
+      ext c
+      rw [List.mem_toFinset, hmem, Finset.mem_range]
     refine ⟨p ++ [v], hp, ?_, hnd, fun x hx => (hmem _).1 (List.mem_map_of_mem hx)⟩
     rw [← List.length_map (f := χ), ← List.toFinset_card_of_nodup hnd, hfs, Finset.card_range]
   · rintro ⟨p, hp, hlen, hnd, hlt⟩

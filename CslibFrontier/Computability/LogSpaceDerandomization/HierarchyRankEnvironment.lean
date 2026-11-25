@@ -377,7 +377,8 @@ theorem raw_admissible {k : ℕ} (R : RoleProfile J) (l bin : ℕ)
       (gridChannel R.source ks ss) (gridChannel R.midpoint km sm)
       (gridChannel R.terminal kt st) (rate kb)).calls) : Admissible r := by
   simp only [HierarchyTask.rawRequests, HierarchyTask.RawRequests.calls,
-    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hr
+    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false] at hr
   rcases hr with (rfl | rfl | rfl) | rfl <;>
     simp [Admissible, gridChannel, R.source_midpoint, R.source_terminal, R.midpoint_terminal]
 
@@ -845,7 +846,8 @@ theorem raw_grid_bounded {k : ℕ} (R : RoleProfile J) (l bin K ks km kt kb : �
     ∃ es et eu, es ≤ K ∧ et ≤ K ∧ eu ≤ K ∧ r.source.rate = rate es ∧
       r.terminal.rate = rate et ∧ r.usage.rate = rate eu := by
   simp only [HierarchyTask.rawRequests, HierarchyTask.RawRequests.calls,
-    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at hr
+    Option.toList_some, List.mem_append, List.mem_cons, List.not_mem_nil,
+    or_false] at hr
   rcases hr with (rfl | rfl | rfl) | rfl
   · exact ⟨ks, kb, max kt kb, hs, hb, max_le ht hb, rfl, rfl, rate_min kt kb⟩
   · exact ⟨ks, km, km, hs, hm, hm, rfl, rfl, rfl⟩

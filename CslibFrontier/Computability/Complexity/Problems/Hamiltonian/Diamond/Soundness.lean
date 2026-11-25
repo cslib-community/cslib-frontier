@@ -249,7 +249,8 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
       Follows p (rowNode i (3 * s + 4)) (rowNode i (3 * s + 5)) := by
     rcases pairRight_nbrs (Or.inr (hw.rel hch)) with rfl | rfl | ⟨d, hd, hdi, hds, rfl⟩
     · exact (h₁ rfl).elim
-    · exact (separator_dir_succ hp hi hs).elim And.right fun ⟨_, h'⟩ => absurd h' (hw.asymm hnd)
+    · -- Leaving the right pair node towards the right separator makes it rightward.
+      exact (separator_dir_succ hp hi hs).elim And.right fun ⟨_, h'⟩ => absurd h' (hw.asymm hnd)
     · exact (h₂ d hd hdi hds rfl).elim
   obtain ⟨w, hw⟩ := exists_succ hp hpp (rowNode_ne_topNode _ _ _)
   obtain ⟨w', hw'⟩ := exists_succ hp hq (rowNode_ne_topNode _ _ _)
@@ -262,8 +263,10 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
     · exact clauseNode_ne_rowNode _ _ _ (hw'.right_unique hnd h₁)
     · simpa using hw.left_unique hnd h₁
   · -- `p → c`: the successor of `q` is neither `p` nor a clause node of the slot.
-    exact hsucc_q hw' (fun he => by subst he; simpa using hw'.left_unique hnd h)
-      fun d' hd' hdi' hds' he => by
+    have hw'p : w' ≠ rowNode i (3 * s + 2) := fun he => by
+      subst he
+      simpa using hw'.left_unique hnd h
+    exact hsucc_q hw' hw'p fun d' hd' hdi' hds' he => by
         rw [he, ← clauseNode_eq_of_slot hD hd hd' hdi hds hdi' hds'] at hw'
         simpa using hw'.left_unique hnd hw
 

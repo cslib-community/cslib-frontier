@@ -188,14 +188,16 @@ verifier checks their number and `isDominating`. -/
 theorem mem_NP : DominatingSet ∈ NP encDominatingSet := by
   have hset : DominatingSet = {x | ∃ S : Finset ℕ, (∀ v ∈ S, v ∈ x.graph.vertices) ∧
       ((∀ v ∈ x.graph.vertices, v ∈ S ∨ ∃ s ∈ S, x.graph.toSimpleGraph.Adj v s) ∧
-        S.card = x.bound)} := Set.ext fun ⟨_, _⟩ => mem_DominatingSet_iff
+        S.card = x.bound)} :=
+    Set.ext fun ⟨_, _⟩ => mem_DominatingSet_iff
   rw [hset]
   refine mem_NP_of_subsetWitness (encγ := encNat)
     (vs := fun x : DominatingSetInstance => x.graph.vertices)
     (check := fun y => decide (y.2.length = y.1.bound) && isDominating y.1.graph y.2)
-    (by fun_prop) (by fun_prop) fun x l hl _ => ?_
-  simp only [Bool.and_eq_true, decide_eq_true_eq, isDominating_eq_true_iff, List.mem_toFinset,
-    List.toFinset_card_of_nodup hl, and_comm]
+    (by fun_prop)
+    (by fun_prop) fun x l hl _ => ?_
+  · simp only [Bool.and_eq_true, decide_eq_true_eq, isDominating_eq_true_iff, List.mem_toFinset,
+      List.toFinset_card_of_nodup hl, and_comm]
 
 end DominatingSet
 
@@ -360,9 +362,9 @@ private theorem mem_DominatingSet_of_mem_VertexCover {G : Graph} {k : ℕ}
           adj_edgeVertex_fst he⟩
       · exact Or.inr ⟨2 * e.2, Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ h2),
           adj_edgeVertex_snd he⟩
-  · rw [Finset.card_insert_of_notMem
-        (fun h1 => by obtain ⟨v, -, hv⟩ := Finset.mem_image.1 h1; omega),
-      Finset.card_image_of_injective _ fun a b (hab : 2 * a = 2 * b) => by omega]
+  · rw [Finset.card_insert_of_notMem (fun h1 => by
+      obtain ⟨v, -, hv⟩ := Finset.mem_image.1 h1
+      omega), Finset.card_image_of_injective _ fun a b (hab : 2 * a = 2 * b) => by omega]
 
 /-- A dominating set of `dominationGraph G` of `k + 1` vertices yields a vertex cover of at most
 `k` vertices: drop the hub and the pendant, and read the remaining vertices back in `G`. -/
@@ -398,10 +400,12 @@ private theorem exists_cover_of_mem_DominatingSet {G : Graph} {k : ℕ}
     have hD' : ((D.erase 1).erase 3).card + 1 ≤ D.card := by
       rcases hD 3 (mem_dominationGraph_fst.2 (Or.inr (Or.inl rfl))) with h3D | ⟨s, hs, hadj⟩
       · have := Finset.card_erase_add_one (Finset.mem_erase.2 ⟨(by decide : (3 : ℕ) ≠ 1), h3D⟩)
-        have := Finset.card_erase_le (s := D) (a := 1); omega
+        have := Finset.card_erase_le (s := D) (a := 1)
+        omega
       · obtain rfl := eq_one_of_adj_three hadj
         have := Finset.card_erase_add_one hs
-        have := Finset.card_erase_le (s := D.erase 1) (a := 3); omega
+        have := Finset.card_erase_le (s := D.erase 1) (a := 3)
+        omega
     exact (Finset.card_filter_le _ _).trans (Finset.card_image_le.trans (by omega))
 
 /-- **Vertex covers of `G` are dominating sets of `dominationGraph G` with the hub.** -/
@@ -474,13 +478,17 @@ theorem computableInPolyTime_toDominatingSet :
     ComputableInPolyTime toDominatingSet encVertexCoverInstance encDominatingSet := by
   have hle : ComputableInPolyTime
       (fun x : VertexCoverInstance => decide (x.k ≤ x.graph.vertices.toFinset.card))
-      encVertexCoverInstance encBool := by simp_rw [← Graph.length_distinctVertices]; fun_prop
+      encVertexCoverInstance encBool := by
+    simp_rw [← Graph.length_distinctVertices]
+    fun_prop
   have heq : toDominatingSet = fun x : VertexCoverInstance =>
       ⟨dominationGraph x.graph,
         if decide (x.k ≤ x.graph.vertices.toFinset.card) then x.k + 1 else 0⟩ := by
-    funext ⟨G, k⟩; simp only [toDominatingSet, decide_eq_true_eq]
+    funext ⟨G, k⟩
+    simp only [toDominatingSet, decide_eq_true_eq]
   rw [heq]
-  exact encDominatingSet_mk_polyTime (computableInPolyTime_dominationGraph.comp (by fun_prop))
+  exact encDominatingSet_mk_polyTime
+    (computableInPolyTime_dominationGraph.comp (by fun_prop))
     (ite' hle (by fun_prop) (const 0))
 
 end VertexCover

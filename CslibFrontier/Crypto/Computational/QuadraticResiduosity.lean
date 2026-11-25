@@ -344,7 +344,9 @@ theorem sq_bijOn_quadResidueSet (p q : ℕ) [NeZero (p * q)] (h : IsBlumModulus 
       (quadResidueSet p q : Set (ZMod (p * q))ˣ) :=
   ⟨fun x _ => Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, x, pow_two x⟩),
    fun x hx y hy (hxy : x ^ 2 = y ^ 2) => by
-     rw [← blumSqrt_sq_self p q h hx, hxy, blumSqrt_sq_self p q h hy],
+     calc x = blumSqrt p q (x ^ 2) := (blumSqrt_sq_self p q h hx).symm
+       _ = blumSqrt p q (y ^ 2) := by rw [hxy]
+       _ = y := blumSqrt_sq_self p q h hy,
    fun y hy => ⟨blumSqrt p q y, (blumSqrt_sq p q h hy).2, (blumSqrt_sq p q h hy).1⟩⟩
 
 /-! ### Computational quadratic residuosity assumption -/

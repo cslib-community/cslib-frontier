@@ -83,8 +83,10 @@ theorem appendLine_linePoints (x : F) (u v : Point F m) :
 
 omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_single (i : Fin m) :
-    appendPoint (0 : F) (Pi.single i (1 : F)) = Pi.single i.castSucc (1 : F) :=
-  funext fun j => Fin.lastCases (by simp) (fun k => by by_cases h : k = i <;> simp [h]) j
+    appendPoint (0 : F) (Pi.single i (1 : F)) = Pi.single i.castSucc (1 : F) := by
+  funext j
+  refine Fin.lastCases (by simp) (fun k => ?_) j
+  by_cases h : k = i <;> simp [h]
 
 omit [Fintype F] [DecidableEq F] in
 theorem appendPoint_prefixDirection (i : Fin m) (v : Fin (i.val + 1) → F) :
@@ -98,10 +100,14 @@ omit [DecidableEq F] in
 theorem uniformPoint_succ :
     (uniformOfFintype F).bind (fun x => (uniformOfFintype (Point F m)).map (appendPoint x)) =
       uniformOfFintype (Point F (m + 1)) := by
-  rw [← uniformOfFintype_map_equiv (Fin.snocEquiv fun _ : Fin (m + 1) => F),
-    ← uniformOfFintype_prod, PMF.map_bind]
-  simp only [PMF.map_comp]
-  rfl
+  let e := Fin.snocEquiv (fun _ : Fin (m + 1) => F)
+  calc
+    _ = ((uniformOfFintype F).bind fun x =>
+        (uniformOfFintype (Point F m)).map fun u => (x, u)).map e := by
+      rw [PMF.map_bind]
+      simp only [PMF.map_comp]
+      rfl
+    _ = _ := by rw [uniformOfFintype_prod, uniformOfFintype_map_equiv]
 
 omit [DecidableEq F] in
 /-- The score averaged over the self-consistency branch equals the average of its scores
@@ -246,9 +252,10 @@ private theorem lineHasDegree_append (x : F) (L : Finset (Point F m)) (d : ℕ)
   · have ⟨u, v, hL, _, _, _⟩ := h
     have hinit : (fun p : Point F (m + 1) => Fin.init p) ∘ appendPoint x = id :=
       funext fun z => funext (appendPoint_apply_castSucc x z)
+    have hproj : (appendLine x L).image (fun p => Fin.init p) = L := by
+      rw [appendLine, map_eq_image, image_image, hinit, image_id]
     have hgeom : linePoints (Fin.init u) (Fin.init v) = L := by
-      rw [← show (appendLine x L).image (fun p => Fin.init p) = L by
-        rw [appendLine, map_eq_image, image_image, hinit, image_id], ← hL]
+      rw [← hproj, ← hL]
       simp only [linePoints, image_image]
       congr 1
     subst hgeom
@@ -267,17 +274,18 @@ theorem lineAgrees_appendLineAnswer_iff (x : F) (L : Finset (Point F m)) (w : Po
   change (appendLine x K = appendLine x L ∧ LineHasDegree (f ∘ e.symm) d ∧
     ∃ h : appendPoint x w ∈ appendLine x K, f (e.symm ⟨appendPoint x w, h⟩) = a) ↔
     (K = L ∧ LineHasDegree f d ∧ ∃ h : w ∈ K, f ⟨w, h⟩ = a)
-  rw [show appendLine x K = appendLine x L ↔ K = L from
-    (Finset.map_injective (appendPoint x)).eq_iff, lineHasDegree_append]
+  have hLK : (appendLine x K = appendLine x L) ↔ K = L :=
+    (Finset.map_injective (appendPoint x)).eq_iff
+  rw [hLK, lineHasDegree_append]
   refine and_congr_right fun _ => and_congr_right fun _ => ⟨?_, ?_⟩
   · rintro ⟨hw, heval⟩
     obtain ⟨z, hz, he⟩ := mem_map.mp hw
     obtain rfl := (appendPoint x).injective he
-    exact ⟨hz, by simpa only [(show (⟨appendPoint x z, hw⟩ : appendLine x K) = e ⟨z, hz⟩ from
-      Subtype.ext rfl), e.symm_apply_apply] using heval⟩
+    have hsub : (⟨appendPoint x z, hw⟩ : appendLine x K) = e ⟨z, hz⟩ := Subtype.ext rfl
+    exact ⟨hz, by simpa only [hsub, e.symm_apply_apply] using heval⟩
   · rintro ⟨hw, heval⟩
-    exact ⟨(e ⟨w, hw⟩).2, by simpa only [(show (⟨appendPoint x w, (e ⟨w, hw⟩).2⟩ : appendLine x K) =
-      e ⟨w, hw⟩ from Subtype.ext rfl), e.symm_apply_apply] using heval⟩
+    have hsub : (⟨appendPoint x w, (e ⟨w, hw⟩).2⟩ : appendLine x K) = e ⟨w, hw⟩ := Subtype.ext rfl
+    exact ⟨(e ⟨w, hw⟩).2, by simpa only [hsub, e.symm_apply_apply] using heval⟩
 
 omit [Field F] [Fintype F] [DecidableEq F] in
 private theorem appendLineAnswer_injective (x : F) :
@@ -372,9 +380,9 @@ private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
     (ans q.1 q.2).map fun a => (q, a)
   let e := {z | (branchGameWithDiagonalCap (F := F) n d D b).AcceptsRound z}
   change 1 - (p.toOuterMeasure e).toReal = _
-  rw [show 1 - (p.toOuterMeasure e).toReal = (p.toOuterMeasure eᶜ).toReal by
-    linarith [toOuterMeasure_toReal_add_compl p e]]
-  rw [toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
+  have hcompl : 1 - (p.toOuterMeasure e).toReal = (p.toOuterMeasure eᶜ).toReal := by
+    linarith [toOuterMeasure_toReal_add_compl p e]
+  rw [hcompl, toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
   refine sum_congr rfl fun q _ => ?_
   rw [PMF.toOuterMeasure_map_apply]
   unfold e lossAt

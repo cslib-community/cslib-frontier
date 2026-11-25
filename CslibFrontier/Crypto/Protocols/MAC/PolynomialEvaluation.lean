@@ -127,13 +127,16 @@ theorem isDeltaUniversalHash_of_polynomial [Fintype F] {X : Type*}
   have hD : P x - P x' - C d ≠ 0 := fun h0 => by
     obtain rfl : d = 0 := by simpa [hcoeff] using (congrArg (·.coeff 0) h0).symm
     exact sub_ne_zero.mpr (hinj.ne hx) (by simpa using h0)
-  refine (Finset.card_le_card (t := (P x - P x' - C d).roots.toFinset) fun k hk => ?_).trans
-    ((Multiset.toFinset_card_le _).trans ((card_roots' _).trans
-      ((natDegree_sub_le _ _).trans <| max_le
+  calc (Finset.univ.filter fun k => (P x).eval k - (P x').eval k = d).card
+      ≤ (P x - P x' - C d).roots.toFinset.card := Finset.card_le_card fun k hk => by
+        rw [Multiset.mem_toFinset, mem_roots hD, IsRoot.def, eval_sub, eval_sub, eval_C,
+          sub_eq_zero]
+        exact (Finset.mem_filter.mp hk).2
+    _ ≤ (P x - P x' - C d).roots.card := Multiset.toFinset_card_le _
+    _ ≤ (P x - P x' - C d).natDegree := card_roots' _
+    _ ≤ ℓ := (natDegree_sub_le _ _).trans <| max_le
         ((natDegree_sub_le _ _).trans (max_le (hdeg x) (hdeg x')))
-        (by rw [natDegree_C]; exact Nat.zero_le _))))
-  rw [Multiset.mem_toFinset, mem_roots hD, IsRoot.def, eval_sub, eval_sub, eval_C, sub_eq_zero]
-  exact (Finset.mem_filter.mp hk).2
+        ((natDegree_C d).trans_le (Nat.zero_le _))
 
 /-! ### The coefficient polynomial -/
 
@@ -311,10 +314,11 @@ theorem isDeltaUniversalHash_fixedTopHash [Fintype F]
     {encodeLength : Fin ℓ → F} (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     IsDeltaUniversalHash (PMF.uniformOfFintype F) (fixedTopHash encodeLength)
       (ℓ / Fintype.card F) := by
-  rw [show fixedTopHash encodeLength = fun k m => (fixedTopPoly encodeLength m).eval k from
+  have heq : fixedTopHash encodeLength = fun k m => (fixedTopPoly encodeLength m).eval k :=
     funext₂ fun k m => by
       rw [fixedTopPoly, hashPoly, eval_mul, eval_pow, eval_X, eval_ascendingPoly, fixedTopHash,
-        hash]]
+        hash]
+  rw [heq]
   exact isDeltaUniversalHash_of_polynomial (fixedTopPoly encodeLength) (fixedTopPoly_injective hpos)
     (fun m => coeff_fixedTopPoly encodeLength m 0 (Nat.zero_le _)) fun m =>
       natDegree_mul_le.trans <| by
@@ -409,8 +413,9 @@ theorem isDeltaUniversalHash_ascendingHash [Fintype F]
     {encodeLength : Fin ℓ → F} (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) :
     IsDeltaUniversalHash (PMF.uniformOfFintype F) (ascendingHash encodeLength)
       (ℓ / Fintype.card F) := by
-  rw [show ascendingHash encodeLength = fun k m => (ascendingHashPoly encodeLength m).eval k from
-    funext₂ fun k m => by rw [ascendingHashPoly, eval_ascendingPoly, ascendingHash]]
+  have heq : ascendingHash encodeLength = fun k m => (ascendingHashPoly encodeLength m).eval k :=
+    funext₂ fun k m => by rw [ascendingHashPoly, eval_ascendingPoly, ascendingHash]
+  rw [heq]
   exact isDeltaUniversalHash_of_polynomial (ascendingHashPoly encodeLength)
     (ascendingHashPoly_injective hpos) (fun _ => coeff_zero_ascendingPoly _) fun m => by
       have h := natDegree_ascendingPoly_le (coefficients encodeLength m)

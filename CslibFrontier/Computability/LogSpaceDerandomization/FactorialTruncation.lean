@@ -313,7 +313,8 @@ private theorem fix_le_pow (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (y : V) :
       _ = f + f * f * ∑ z ∈ S.filter (· < y), (1 + f) ^ #(S.filter (· < z)) := by
           rw [Finset.mul_sum]; congr 1; exact Finset.sum_congr rfl fun z _ => by ring
       _ ≤ f + f * f * ∑ j ∈ range #(S.filter (· < y)), (1 + f) ^ j := by
-          gcongr; exact sum_rank_le S y fun j => by positivity
+          gcongr
+          exact sum_rank_le S y fun j => by positivity
       _ = f * (1 + f) ^ #(S.filter (· < y)) := by
           have := geom_sum_mul_add f #(S.filter (· < y))
           rw [add_comm f 1] at this
@@ -331,7 +332,8 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
     (fix_le_pow hC hC0 hCf hφ0 hφθ x hf hθf y).trans <| mul_le_mul_of_nonneg_left
       (pow_le_pow_right₀ (by linarith) (card_le_card (filter_subset _ _))) hf
   induction k generalizing y with
-  | zero => simpa using (sub_le_self _ (cutoffCorrectionIter_nonneg hφ0 0 x y)).trans (hM y)
+  | zero =>
+    simpa using (sub_le_self _ (cutoffCorrectionIter_nonneg hφ0 0 x y)).trans (hM y)
   | succ k ih =>
     set F := cutoffCorrectionIter φ C k
     have hFE : ∀ z, F x z ≤ E x z := cutoffCorrectionIter_le_fix hC hC0 hφ0 hφm k x
@@ -351,7 +353,8 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
           rw [show E x y = φ y ((C + E * C) x y) from fix_apply hC x y, cutoffCorrectionIter_succ]
           rfl
       _ ≤ L * ∑ z ∈ S.filter (· < y), (E - F) x z * C z y := by
-          rw [← hsum, ← hdiff]; exact hφL y _ _ hle
+          rw [← hsum, ← hdiff]
+          exact hφL y _ _ hle
       _ ≤ L * ∑ z ∈ S.filter (· < y),
             f * (1 + f) ^ #S * (L * f) ^ k * (#(S.filter (· < z))).choose k * f :=
           mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun z _ => by
@@ -363,7 +366,8 @@ private theorem fix_sub_iter_le_choose (hf : 0 ≤ f) (hθf : 0 ≤ θ * f) (hL 
           exact Finset.sum_congr rfl fun z _ => by ring
       _ ≤ f * (1 + f) ^ #S * (L * f) ^ (k + 1) *
             ∑ j ∈ range #(S.filter (· < y)), (j.choose k : ℝ) := by
-          gcongr; exact sum_rank_le S y (g := fun j => (j.choose k : ℝ)) fun j => by positivity
+          gcongr
+          exact sum_rank_le S y (g := fun j => (j.choose k : ℝ)) fun j => by positivity
       _ = f * (1 + f) ^ #S * (L * f) ^ (k + 1) * (#(S.filter (· < y))).choose (k + 1) := by
           -- the hockey-stick identity `∑ j ∈ Icc k n, j.choose k = (n + 1).choose (k + 1)`
           congr 1
@@ -392,17 +396,20 @@ theorem cutoffCorrectionFix_sub_iter_le (hf : 0 < f) (hθ : 0 < θ) (hL : 0 ≤ 
     nlinarith [card_support_mul_le hC hC0 hC1 hφ0 hφθ x hθf]
   have hr : #(S.filter (· < y)) ≤ m := card_le_card (filter_subset _ _)
   refine (fix_sub_iter_le_choose hC hC0 hCf hφ0 hφθ hφm hφL x hf.le hθf hL k y).trans ?_
-  have hexp : (1 + f) ^ m ≤ Real.exp (1 / θ) :=
-    ((pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp f]) m).trans_eq
-      (Real.exp_nat_mul f m).symm).trans (Real.exp_le_exp.mpr hm)
+  have hexp : (1 + f) ^ m ≤ Real.exp (1 / θ) := by
+    calc (1 + f) ^ m ≤ Real.exp f ^ m := by
+          gcongr; linarith [Real.add_one_le_exp f]
+      _ = Real.exp (m * f) := by rw [← Real.exp_nat_mul]
+      _ ≤ Real.exp (1 / θ) := Real.exp_le_exp.mpr hm
   have hLf : (L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ) ≤ (L / θ) ^ k / k.factorial := by
     have hchoose : ((#(S.filter (· < y))).choose k : ℝ) ≤ (m : ℝ) ^ k / k.factorial :=
       (Nat.choose_le_pow_div k _).trans (by gcongr)
     refine (mul_le_mul_of_nonneg_left hchoose (by positivity)).trans ?_
     rw [← mul_div_assoc, ← mul_pow]
     gcongr
-    exact (by ring : L * f * (m : ℝ) = L * ((m : ℝ) * f)).trans_le
-      ((mul_le_mul_of_nonneg_left hm hL).trans_eq (mul_one_div L θ))
+    calc L * f * m = L * (m * f) := by ring
+      _ ≤ L * (1 / θ) := by gcongr
+      _ = L / θ := by ring
   calc f * (1 + f) ^ m * (L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ)
       = f * (1 + f) ^ m * ((L * f) ^ k * ((#(S.filter (· < y))).choose k : ℝ)) := by ring
     _ ≤ f * Real.exp (1 / θ) * ((L / θ) ^ k / k.factorial) := by gcongr
@@ -422,9 +429,11 @@ theorem cutoffCorrection_residual_nonneg (hθf : 0 ≤ θ * f) (k : ℕ) (x y : 
         (cutoffCorrectionIter φ C (k + 1) * C) x y :=
       Finset.sum_le_sum fun z _ => mul_le_mul_of_nonneg_right
         (cutoffCorrectionIter_le_succ hC0 hφ0 hφm k x z) (hC0 z y)
-    rw [← show cutoffCorrectionIter φ C (k + 1) x y =
-        φ y ((C + cutoffCorrectionIter φ C k * C) x y) by
-      rw [cutoffCorrectionIter_succ]; rfl, Matrix.add_apply] at hcut
+    have hstep : cutoffCorrectionIter φ C (k + 1) x y =
+        φ y ((C + cutoffCorrectionIter φ C k * C) x y) := by
+      rw [cutoffCorrectionIter_succ]
+      rfl
+    rw [← hstep, Matrix.add_apply] at hcut
     rw [Matrix.add_apply, Matrix.sub_apply]
     linarith
 

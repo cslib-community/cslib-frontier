@@ -299,16 +299,19 @@ theorem isBounded_hybridReduction {m : ℕ} (j₀ : Fin m)
     (hF : ∀ j, (F j).IsBounded t) : (hybridReduction j₀ F).IsBounded (m * t + 1) := by
   refine ⟨(OracleComp.isCostBounded_pi fun j => ?_).mono (Nat.le_succ _), fun ⟨j, e⟩ r => ?_⟩
   · by_cases h : j = j₀
-    · rw [dite_eq_left h]; exact .pure _ _
-    · rw [dite_eq_right h]; exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hF ⟨j, h⟩).1
+    · rw [dite_eq_left h]
+      exact .pure _ _
+    · rw [dite_eq_right h]
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (hF ⟨j, h⟩).1
   · rcases eq_or_ne j j₀ with rfl | h
     · rw [hybridReduction_handle_self]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
         ((OracleComp.IsCostBounded.query _).mono (by omega))
     · rw [hybridReduction_handle_of_ne F h]
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((Machine.isQueryBounded_sample
-        (Machine.isQueryBounded_closeProgram ((hF ⟨j, h⟩).2 e (r j h)))).mono
-        (by have := Nat.le_mul_of_pos_left t j₀.pos; omega))
+      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+        ((Machine.isQueryBounded_sample
+          (Machine.isQueryBounded_closeProgram ((hF ⟨j, h⟩).2 e (r j h)))).mono
+          (by have := Nat.le_mul_of_pos_left t j₀.pos; omega))
 
 /-- The single-session distinguisher of hop `j₀`, linking an adversary with query budget `qA`
 against `m` real/ideal packages of call budget `t`, has query budget
