@@ -45,9 +45,14 @@ The [semantic-withdrawal cases](../history/case-studies.md) explain why hypothes
 
 ## Queue approved work and keep its approval
 
-A reviewer with write access who approves a PR queues the approved head in the same step. Use
-`scripts/queue_pr.py` from a trusted checkout of current `main`, or an isolated copy obtained from
-a pinned revision of current `main`. Keep the approved PR head; do not refresh its branch to get the
+A reviewer with write access who approves a PR queues the approved head in the same step. Open a
+PR ready for review instead of holding reviewed work in `--draft` while `lean-checks` finishes:
+once source review and the advisory notices are read (`PR advisory notices` completes in about a
+minute, and `lean-checks` uploads the `lean-advisory-notices` artifact right after building and
+linting affected modules), approve the head and pass `--wait 30` so the helper waits up to 30
+minutes for `ci-checks` at that exact SHA, stops on failure or a discussion edit, and enqueues
+without polling. Use `scripts/queue_pr.py` from a trusted checkout of current `main`, or an
+isolated copy obtained from a pinned revision of current `main`. Keep the approved PR head; do not refresh its branch to get the
 tool or execute the PR branch's copy. From any working directory, substitute the trusted script's
 path and the target PR/head below; pass the repository explicitly when working from private scratch:
 

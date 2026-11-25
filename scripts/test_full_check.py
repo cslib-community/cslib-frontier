@@ -34,6 +34,8 @@ SPEC.loader.exec_module(full)
 REPO = Path(__file__).resolve().parent.parent
 WORKFLOW = REPO / ".github/workflows/lean_action_ci.yml"
 EXECUTION_JOBS = ("source-checks", "lean-checks")
+ADVISORY_JOBS = ("pr-notices",)
+CHECKED_JOBS = EXECUTION_JOBS + ADVISORY_JOBS
 AGGREGATOR_JOB = "ci-checks"
 SOURCE_CHECK_NAMES = frozenset({
     "Test Python tooling",
@@ -44,9 +46,12 @@ SOURCE_CHECK_NAMES = frozenset({
     "Encoding readability report",
     "Projection chain ratchet (changed modules)",
     "Projection chain report",
+    "Documentation pins",
+})
+PR_NOTICE_NAMES = frozenset({
     "Repeated-proof-block notice (advisory)",
     "High-fan-in module impact (advisory)",
-    "Documentation pins",
+    "PR description names (advisory)",
 })
 # The only `run` lines of a mirrored step that the local run does not repeat: they compute CI's
 # base commit, which `full_check.py` passes as `BASE` instead.
@@ -153,12 +158,12 @@ def header_problems(lines: list[str], job: str) -> list[str]:
 
 
 def parity_problems(text: str) -> list[str]:
-    """Each way the source and Lean jobs of workflow `text` differ from the local check."""
+    """Each way the source, Lean and advisory jobs of workflow `text` differ from the local check."""
     problems = []
-    steps_by_job = {job: job_steps(text, job) for job in EXECUTION_JOBS}
+    steps_by_job = {job: job_steps(text, job) for job in CHECKED_JOBS}
     for job in EXECUTION_JOBS:
         problems.extend(header_problems(job_lines(text, job), job))
-    steps = [step for job in EXECUTION_JOBS for step in steps_by_job[job]]
+    steps = [step for job in CHECKED_JOBS for step in steps_by_job[job]]
     for step in steps:
         if "name" not in step and "run" in step:
             problems.append(f"an unnamed `run` step ({step['run'].splitlines()[0]!r}) cannot be "
@@ -166,7 +171,7 @@ def parity_problems(text: str) -> list[str]:
     named_steps = [step for step in steps if "name" in step]
     named = {step["name"]: step for step in named_steps}
     if len(named) != len(named_steps):
-        problems.append("source-checks and lean-checks have two steps with the same name")
+        problems.append("checked CI jobs have two steps with the same name")
     mirrored = {step.name: step for step in full.STEPS}
     homes = (mirrored, full.PREFLIGHT, full.CI_ONLY)
     for name in named:
@@ -175,8 +180,8 @@ def parity_problems(text: str) -> list[str]:
                             "full_check.PREFLIGHT, or record why it stays in CI in "
                             "full_check.CI_ONLY")
     for name in sorted(set().union(*homes) - set(named)):
-        problems.append(f"{name}: listed in full_check, but CI no longer has this step in either "
-                        "execution job")
+        problems.append(f"{name}: listed in full_check, but CI no longer has this step in a "
+                        "checked job")
     local = [(step.name, step.commands, step.cwd, step.env) for step in full.STEPS]
     local += [(name, (command,), None, {}) for name, command in full.PREFLIGHT.items()]
     for name, commands, cwd, env in local:
@@ -219,16 +224,18 @@ class WorkflowParityTests(unittest.TestCase):
         self.text = WORKFLOW.read_text()
         self.named_by_job = {
             job: [step for step in job_steps(self.text, job) if "name" in step]
-            for job in EXECUTION_JOBS
+            for job in CHECKED_JOBS
         }
-        self.named = [step for job in EXECUTION_JOBS for step in self.named_by_job[job]]
+        self.named = [step for job in CHECKED_JOBS for step in self.named_by_job[job]]
 
     def test_parser_reads_the_steps_it_compares(self):
         # A parser that silently lost steps would make the parity test vacuous.
         names = [step["name"] for step in self.named]
         source_names = [step["name"] for step in self.named_by_job["source-checks"]]
+        notice_names = [step["name"] for step in self.named_by_job["pr-notices"]]
         lean_names = [step["name"] for step in self.named_by_job["lean-checks"]]
         self.assertEqual(set(source_names), SOURCE_CHECK_NAMES)
+        self.assertEqual(set(notice_names), PR_NOTICE_NAMES)
         self.assertIn("Tidy statement ratchet", names)
         self.assertIn("lake build", lean_names)
         self.assertGreater(len(names), 25)
@@ -560,6 +567,46 @@ class RunnerTests(unittest.TestCase):
             run.assert_not_called()
             self.assertEqual(full.main(["--skip-map-count-check"]), 0)
             run.assert_called_once()
+
+
+class AdvisoryNoticeTests(unittest.TestCase):
+    """Advisory notices run early on pull requests and never block `ci-checks`."""
+
+    def setUp(self):
+        self.text = WORKFLOW.read_text()
+
+    def test_pr_notices_job_is_independent_nonblocking_and_pull_request_only(self):
+        lines = job_lines(self.text, "pr-notices")
+        header = "\n".join(lines[:lines.index("    steps:")])
+        self.assertIn("if: github.event_name == 'pull_request'", header)
+        self.assertNotIn("needs:", header)
+        self.assertIn("contents: read", header)
+        aggregator = "\n".join(job_lines(self.text, AGGREGATOR_JOB))
+        self.assertNotIn("pr-notices", aggregator)
+        steps = {s["name"]: s for s in job_steps(self.text, "pr-notices") if "name" in s}
+        self.assertEqual(set(steps), PR_NOTICE_NAMES)
+        for name, step in steps.items():
+            with self.subTest(step=name):
+                self.assertEqual(step.get("continue-on-error"), "true")
+                self.assertIn("timeout-minutes", step)
+        self.assertIn("--fetch-deps", steps["PR description names (advisory)"]["run"])
+
+    def test_parallel_definition_notices_run_right_after_lint_and_upload_early_summary(self):
+        lean_steps = job_steps(self.text, "lean-checks")
+        names = [s.get("name") for s in lean_steps]
+        parallel_idx = names.index("Parallel-definition and duplicate-statement notices (advisory)")
+        upload_idx = names.index("Upload early Lean advisory notices")
+        self.assertGreater(parallel_idx, names.index("lake lint"))
+        self.assertEqual(upload_idx, parallel_idx + 1)
+        self.assertLess(upload_idx, names.index("Tidy statement ratchet"))
+        self.assertLess(upload_idx, names.index("Changed-file lints"))
+        parallel_step = lean_steps[parallel_idx]
+        upload_step = lean_steps[upload_idx]
+        self.assertEqual(parallel_step.get("if"), "github.event_name == 'pull_request'")
+        self.assertEqual(parallel_step.get("continue-on-error"), "true")
+        self.assertIn("lean-advisory-notices.md", parallel_step["run"])
+        self.assertEqual(upload_step.get("if"), "github.event_name == 'pull_request'")
+        self.assertEqual(upload_step.get("continue-on-error"), "true")
 
 
 if __name__ == "__main__":
