@@ -1072,6 +1072,10 @@ private structure PrefixBuilder (N g : ℕ) where
 private def PrefixBuilder.mulCost {N g : ℕ} (B : PrefixBuilder N g) : ℕ :=
   B.program.cost fun | .mul => 1 | .id => 0
 
+private theorem PrefixBuilder.input_ne_of_lo_ne {N g : ℕ} (B : PrefixBuilder N g) {i : Fin N}
+    {v : Wire N g} (h : B.lo v ≠ i.val) : (Wire.input i : Wire N g) ≠ v := by
+  rintro rfl; exact h (B.validInputs i).1
+
 private def PrefixBuilder.uses {N g : ℕ} (B : PrefixBuilder N g) (w : Wire N g) : ℕ :=
   progOutDeg B.program w + ((Finset.range N).filter fun j => B.outs j = some w).card
 
@@ -1559,8 +1563,7 @@ private theorem compileTree_exists {N k : ℕ} (hk : 2 ≤ k) :
       simp only [B₁, PrefixBuilder.addId, houts_free j hj1 hj2, Option.map_none]
     have hin₁ : ∀ i : Fin N, a ≤ i.val → i.val < b → B₁.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne : (Wire.input i : Wire N g) ≠ v := by
-        intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+      have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
       exact (B.uses_addId_ne v (.input i) hne).trans (hin_free i hi1 hi2)
     have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
       B.uses_addId_le v (by omega) hall_uses
@@ -1636,8 +1639,7 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       simp only [B₁, PrefixBuilder.addId, houts_free j hj1 (by omega), Option.map_none]
     have hin₁ : ∀ i : Fin N, a ≤ i.val → i.val < m → B₁.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne : (Wire.input i : Wire N g) ≠ v := by
-        intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+      have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
       exact (B.uses_addId_ne v (.input i) hne).trans (hin_free i hi1 (by omega))
     have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
       B.uses_addId_le v (by omega) hall_uses
@@ -1679,10 +1681,8 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       simp only [B₁, PrefixBuilder.addId, houts_free j (by omega) hj2, Option.map_none]
     have hin₃ : ∀ i : Fin N, m ≤ i.val → i.val < b → B₃.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := by
-        intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hv_B₂_lo] at hlo; omega
-      have hne_u₁ : (Wire.input i : Wire N g₂) ≠ u₁ := by
-        intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hu₁_lo] at hlo; omega
+      have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := B₂.input_ne_of_lo_ne (by omega)
+      have hne_u₁ : (Wire.input i : Wire N g₂) ≠ u₁ := B₂.input_ne_of_lo_ne (by omega)
       have hB₂_in : B₂.uses (.input i) = 0 := by
         have h1 : e₁.emb (.input i) ≠ v₁ := castSucc_ne_lastGate (.input i)
         have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m → e₁.emb (.input i) ≠ .input i' := by
@@ -1692,8 +1692,7 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
           omega
         have h_eq : e₂.emb (e₁.emb (.input i)) = .input i := by rw [e₁.emb_input, e₂.emb_input]
         rw [← h_eq]
-        have hne0 : (Wire.input i : Wire N g) ≠ v := by
-          intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+        have hne0 : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
         exact (hold₂ _ h1 h2).2.trans
           ((B.uses_addId_ne v (.input i) hne0).trans (hin_free i (by omega) hi2))
       exact (B₂.uses_addMul_ne v_in_B₂ u₁ h0_3 hmid_3 h1_3 (.input i) hne_v hne_u₁).trans hB₂_in
@@ -1848,13 +1847,10 @@ private theorem compileChain_exists {N k : ℕ} (hk : 2 ≤ k) :
       rw [hout₁_out j (Or.inr hj1), houts_free j (by omega) hj2, Option.map_none, Option.map_none]
     have hin₂ : ∀ i : Fin N, m₂ ≤ i.val → i.val < b → B₂.uses (.input i) = 0 := by
       intro i hi1 hi2
-      have hne_v : (Wire.input i : Wire N g₁) ≠ v_in_B₁ := by
-        intro heq; have hlo := (B₁.validInputs i).1; rw [heq, hv_B₁_lo] at hlo; omega
-      have hne_ui : (Wire.input i : Wire N g₁) ≠ u_init := by
-        intro heq; have hlo := (B₁.validInputs i).1; rw [heq, hui_lo] at hlo; omega
+      have hne_v : (Wire.input i : Wire N g₁) ≠ v_in_B₁ := B₁.input_ne_of_lo_ne (by omega)
+      have hne_ui : (Wire.input i : Wire N g₁) ≠ u_init := B₁.input_ne_of_lo_ne (by omega)
       have hB₁_in : B₁.uses (.input i) = 0 := by
-        have h1 : (Wire.input i : Wire N g) ≠ v := by
-          intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+        have h1 : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
         have h2 : ∀ i' : Fin N, a ≤ i'.val → i'.val < m₂ →
             (Wire.input i : Wire N g) ≠ .input i' := by
           intro i' _ hi'2 heq
@@ -2068,8 +2064,7 @@ private theorem exists_rippleOptimalPrefixCircuit {N k : ℕ} (hk : 2 ≤ k) (hN
             hout_ge j (by omega), Option.map_none]
         · intro i hi
           have hne_v' : (Wire.input i : Wire N (g + 1)) ≠ v' := castSucc_ne_lastGate (.input i)
-          have hne_v : (Wire.input i : Wire N g) ≠ v := by
-            intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+          have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
           have hne_inp : (Wire.input i : Wire N g) ≠ inp := by
             intro heq
             have hval : i.val = m + 1 := Fin.val_eq_of_eq (Wire.input.inj heq)
@@ -2235,8 +2230,7 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             simp only [B₂, PrefixBuilder.addMul, B₁, PrefixBuilder.assignOut, hj_ne, ↓reduceIte,
               hout_ge j (by omega), Option.map_none]
           · intro i hi
-            have hne_v : (Wire.input i : Wire N g) ≠ v := by
-              intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+            have hne_v : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
             have hne_ud : (Wire.input i : Wire N g) ≠ u_d := by
               intro heq
               have hval : i.val = a := Fin.val_eq_of_eq (Wire.input.inj heq)
@@ -2275,8 +2269,7 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             simp only [B₁, PrefixBuilder.addId, hout_ge j hj1, Option.map_none]
           have hin₁ : ∀ i : Fin N, a ≤ i.val → B₁.uses (.input i) = 0 := by
             intro i hi1
-            have hne : (Wire.input i : Wire N g) ≠ v := by
-              intro heq; have hlo := (B.validInputs i).1; rw [heq, hv_lo] at hlo; omega
+            have hne : (Wire.input i : Wire N g) ≠ v := B.input_ne_of_lo_ne (by omega)
             exact (B.uses_addId_ne v (.input i) hne).trans (hin_ge i hi1)
           have hall₁ : ∀ w' : Wire N (g + 1), B₁.uses w' ≤ k :=
             B.uses_addId_le v (by omega) hall
@@ -2338,10 +2331,8 @@ theorem exists_optimalPrefixCircuit_of_le_maxCircuitWidthUpper {N k D : ℕ}
             rw [hout₂_out j (Or.inr hj)]
             simp only [B₁, PrefixBuilder.addId, hout_ge j (by omega), Option.map_none]
           · intro i hi
-            have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := by
-              intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hv2_lo] at hlo; omega
-            have hne_ud : (Wire.input i : Wire N g₂) ≠ u_d := by
-              intro heq; have hlo := (B₂.validInputs i).1; rw [heq, hud_lo] at hlo; omega
+            have hne_v : (Wire.input i : Wire N g₂) ≠ v_in_B₂ := B₂.input_ne_of_lo_ne (by omega)
+            have hne_ud : (Wire.input i : Wire N g₂) ≠ u_d := B₂.input_ne_of_lo_ne (by omega)
             have hB₂_in : B₂.uses (.input i) = 0 := by
               have h1_in : e₁.emb (.input i) ≠ v_buf := castSucc_ne_lastGate (.input i)
               have h2_in : ∀ i' : Fin N, a ≤ i'.val → i'.val < b →
