@@ -33,6 +33,22 @@ private theorem faceNext_reverse_vertex {G : Graph} (r : RotationSystem G) (d : 
   change (r.rotate.symm d.reverse.reverse).vertex = d.vertex
   rw [Dart.reverse_reverse, ← r.vertex_rotate (r.rotate.symm d), r.rotate.apply_symm_apply]
 
+private theorem mergeDartEquiv_reverse_vertices {G : Graph} (r : RotationSystem G)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) (a b : Dart G)
+    (hb : b.vertex ≠ b.reverse.vertex) (hsep : ¬SameComponent G a.vertex b.vertex) :
+    let h := r.faceNext a.reverse
+    let k := r.faceNext b.reverse
+    let e := mergeDartEquiv h k
+    (e a.reverse).vertex = a.reverse.vertex ∧ (e b.reverse).vertex = b.reverse.vertex := by
+  let h := r.faceNext a.reverse
+  let k := r.faceNext b.reverse
+  have unchanged (d : Dart G) (hd : d.vertex ≠ b.vertex) :
+      (mergeDartEquiv h k d).vertex = d.vertex := by
+    rw [vertex_mergeDartEquiv, faceNext_reverse_vertex r b, Function.update_of_ne hd]
+    rfl
+  exact ⟨unchanged a.reverse (fun he => hsep (he ▸ sameComponent_reverse hG a)),
+    unchanged b.reverse hb.symm⟩
+
 private theorem sameCycle_after_join_swap {α : Type} [Finite α] [DecidableEq α]
     (f : Equiv.Perm α) {x y : α} (hne : x ≠ y) (hsep : ¬f.SameCycle x y) :
     (Equiv.swap x y * f).SameCycle x y := by
@@ -83,22 +99,11 @@ theorem numericalGenusZero_mergeEdgeEnds {G : Graph} (r : RotationSystem G)
     exact .refl (vertex_mem hG h)
   have differentFaces : ¬r.faceNext.SameCycle h k :=
     fun he => hnot (r.sameComponent_of_sameFace hG he)
-  have farA : a.reverse.vertex ≠ k.vertex := by
-    intro he
-    exact hsep ((he.trans hk) ▸ sameComponent_reverse hG a)
-  have farB : b.reverse.vertex ≠ k.vertex := hk.symm ▸ hb.symm
   have farNe : a.reverse.vertex ≠ b.reverse.vertex := by
     intro he
     exact hsep ((sameComponent_reverse hG a).trans
       (he.symm ▸ (sameComponent_reverse hG b).symm))
-  have av : a'.vertex = a.reverse.vertex := by
-    change (mergeDartEquiv h k a.reverse).vertex = a.reverse.vertex
-    rw [vertex_mergeDartEquiv, Function.update_of_ne farA]
-    rfl
-  have bv : b'.vertex = b.reverse.vertex := by
-    change (mergeDartEquiv h k b.reverse).vertex = b.reverse.vertex
-    rw [vertex_mergeDartEquiv, Function.update_of_ne farB]
-    rfl
+  obtain ⟨av, bv⟩ := mergeDartEquiv_reverse_vertices r hG a b hb hsep
   have h₂ : a'.vertex ≠ b'.vertex := by rwa [av, bv]
   let s := r.mergeVertices h k h₁
   let g := Equiv.swap h k * r.faceNext
@@ -186,17 +191,7 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
   let t := (r.mergeVertices h k h₁).mergeVertices a' b' h₂
   have hh : h.vertex = a.vertex := faceNext_reverse_vertex r a
   have hk : k.vertex = b.vertex := faceNext_reverse_vertex r b
-  have hab : a.reverse.vertex ≠ b.vertex := by
-    intro he
-    exact hsep (he ▸ sameComponent_reverse hG a)
-  have av : a'.vertex = a.reverse.vertex := by
-    change (mergeDartEquiv h k a.reverse).vertex = a.reverse.vertex
-    rw [vertex_mergeDartEquiv, hk, Function.update_of_ne hab]
-    rfl
-  have bv : b'.vertex = b.reverse.vertex := by
-    change (mergeDartEquiv h k b.reverse).vertex = b.reverse.vertex
-    rw [vertex_mergeDartEquiv, hk, Function.update_of_ne hb.symm]
-    rfl
+  obtain ⟨av, bv⟩ := mergeDartEquiv_reverse_vertices r hG a b hb hsep
   have hgraph : mergeGraph a' b' = G.relabel names := by
     change (G.relabel _).relabel _ = _
     rw [show Function.update id k.vertex h.vertex = Function.update id b.vertex a.vertex from
@@ -254,36 +249,33 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
       using b.1.isLt)]
     simp only [Graph.relabel, List.length_map]
     omega
+  let castIndex := finCongr hSize.symm
+  let removed := castIndex b.1
+  have hskipIndex (d : Dart H) : castIndex (lift d).1 = removed.succAbove d.1 := by
+    apply Fin.ext
+    change (lift d).1.val = (removed.succAbove d.1).val
+    rw [hIndex]
+    by_cases hd : d.1.val < b.1.val
+    · rw [ite_eq_left hd, Fin.succAbove_of_castSucc_lt _ _
+        (show d.1.castSucc < removed from hd), Fin.val_castSucc]
+    · rw [ite_eq_right hd, Fin.succAbove_of_le_castSucc _ _
+        (show removed ≤ d.1.castSucc from Nat.le_of_not_gt hd), Fin.val_succ]
   refine ⟨H, s, lift, hV.trans (congrArg Graph.vertices hgraph), hEdges', hz, ?_, ?_, ?_⟩
   · intro d
     have hc := he' d
     rw [← hLift d, hcoords, hbit] at hc
     exact ⟨hc.1.symm, hc.2.1, hIndex d⟩
   · intro d
+    have hsurvivor : castIndex d.1 ∈ Set.range removed.succAbove ↔ d.1 ≠ b.1 := by
+      rw [Fin.range_succAbove, Set.mem_compl_iff, Set.mem_singleton_iff]
+      exact not_congr castIndex.injective.eq_iff
+    rw [← hsurvivor]
     constructor
-    · rintro ⟨x, rfl⟩ he
-      have heq := congrArg Fin.val he
-      have hx := hIndex x
-      split at hx <;> omega
-    · intro hd
-      let j := if d.1.val < b.1.val then d.1.val else d.1.val - 1
-      have hne : d.1.val ≠ b.1.val := fun he => hd (Fin.ext he)
-      have hj : j < H.edges.length := by
-        have hbnd := b.1.isLt
-        have hdnd := d.1.isLt
-        dsimp only [j]
-        split <;> omega
-      let x : Dart H := (⟨j, hj⟩, d.2)
-      refine ⟨x, Prod.ext (Fin.ext ?_) ?_⟩
-      · have hx := hIndex x
-        change (lift x).1.val = if j < b.1.val then j else j + 1 at hx
-        by_cases hlt : d.1.val < b.1.val
-        · simpa only [j, ite_eq_left hlt] using hx
-        · have hge : ¬d.1.val - 1 < b.1.val := by omega
-          simp only [j, ite_eq_right hlt, ite_eq_right hge] at hx
-          omega
-      · have hc := (he' x).2.1
-        rwa [← hLift x, hbit] at hc
+    · rintro ⟨x, rfl⟩
+      exact ⟨x.1, (hskipIndex x).symm⟩
+    · rintro ⟨j, hj⟩
+      refine ⟨(j, d.2), Prod.ext (castIndex.injective ((hskipIndex (j, d.2)).trans hj)) ?_⟩
+      simpa only [← hLift, hbit] using (he' (j, d.2)).2.1
   · intro x y
     have heq (d c : Dart G) : t.rotate (f d) = f c ↔ splice d = c := by
       rw [hrotate, f.injective.eq_iff]
