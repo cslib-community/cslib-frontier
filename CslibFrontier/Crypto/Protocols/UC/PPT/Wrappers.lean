@@ -500,9 +500,7 @@ requests. -/
     have htag : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.1)
         EIn (encFinite iE'.Channel) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hmemFin : ComputableInPolyTime
         (fun pair : Finset (Fin n) × Fin n => decide (pair.2 ∈ pair.1))
         (encPair (encFinite (Finset (Fin n))) (encFinite (Fin n))) encBool :=
@@ -510,15 +508,11 @@ requests. -/
     have hC : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.1.corrupted)
         EIn (encFinite (Finset (Fin n))) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hw : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.2)
         EIn encBits := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     have hwt : ComputableInPolyTime
         (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.1.2.tail)
         EIn encBits :=
@@ -562,15 +556,7 @@ requests. -/
       refine cert.handle.preprocess
         (prepare := fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool =>
           (x.1, (ch, reqMap x.2.1.2), x.2.2)) ?_
-      have hp : ComputableInPolyTime
-          (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.1)
-          EIn (encPPTParam n) := by
-        dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      have hs : ComputableInPolyTime
-          (fun x : PPTParam n × (iE'.Channel × List Bool) × List Bool => x.2.2)
-          EIn encBits := by
-        dsimp only [EIn]; unfold encHandlerCall; fun_prop
-      exact hp.prod (((ComputableInPolyTime.const ch).prod hreqMap).prod hs)
+      exact hpairNorm.fst'.prod (((ComputableInPolyTime.const ch).prod hreqMap).prod hpairNorm.snd')
     let mkTagged (b : Bool) (ch : iE.Channel) :
         IsOraclePPTOn (Operation := iI.Channel) EIn (encPair encBits encBits)
           (fun x => (fun out : List Bool × List Bool => (b :: out.1, out.2)) <$>
@@ -935,9 +921,7 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
     have htag : ComputableInPolyTime
         (fun x : PPTParam n × ((iL.sum iE).Channel × List Bool) × List Bool => x.2.1.1)
         EIn (encFinite (iL.sum iE).Channel) := by
-      dsimp only [EIn]
-      unfold encHandlerCall
-      fun_prop
+      dsimp only [EIn]; unfold encHandlerCall; fun_prop
     refine IsOraclePPTOn.finite_cases (Operation := (iL.sum iR).Channel)
       (Tag := (iL.sum iE).Channel)
       (tagEncoding := encFinite (iL.sum iE).Channel)
