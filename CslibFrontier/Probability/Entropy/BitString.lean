@@ -123,27 +123,13 @@ theorem entropy_ge_of_dist_uniform_le {n : ℕ} (p : PMF (BitString n))
     (hdist : dist p (PMF.uniformOfFintype (BitString n)) ≤ 1 / (n : ℝ) ^ 2) :
     (n : ℝ) - 2 ≤ entropy p := by
   rcases le_or_gt n 1 with hn1 | hn1
-  · have hent : 0 ≤ entropy p := entropy_nonneg p
-    have hn_le : (n : ℝ) ≤ 1 := by exact_mod_cast hn1
-    linarith
-  have hn_pos : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
-  have h1 := entropy_ge_of_dist_uniform hn1.le p
-  have hn_ge : (1 : ℝ) ≤ (n : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ n := by exact_mod_cast hn1
-    linarith
-  have h2 : ((n : ℝ) - 1) * (1 - 2 * (1 / (n : ℝ) ^ 2)) ≤
-      ((n : ℝ) - 1) * (1 - 2 * dist p (PMF.uniformOfFintype (BitString n))) := by
-    refine mul_le_mul_of_nonneg_left ?_ (by linarith)
-    linarith
-  have h3 : (n : ℝ) - 2 ≤ ((n : ℝ) - 1) * (1 - 2 * (1 / (n : ℝ) ^ 2)) := by
-    have hsq : 0 < (n : ℝ) ^ 2 := sq_pos_of_pos hn_pos
-    have hquad : 2 * ((n : ℝ) - 1) ≤ (n : ℝ) ^ 2 := by
-      nlinarith [sq_nonneg ((n : ℝ) - 1)]
-    have hdiv : 2 * ((n : ℝ) - 1) * (1 / (n : ℝ) ^ 2) ≤ 1 := by
-      rw [mul_one_div]
-      exact (div_le_one hsq).mpr hquad
-    linarith
-  linarith
+  · linarith [entropy_nonneg p, (by exact_mod_cast hn1 : (n : ℝ) ≤ 1)]
+  have hn2 : (2 : ℝ) ≤ n := by exact_mod_cast hn1
+  have hdiv : 2 * ((n : ℝ) - 1) * (1 / (n : ℝ) ^ 2) ≤ 1 := by
+    rw [mul_one_div, div_le_one (pow_pos (by linarith) 2)]
+    nlinarith [sq_nonneg ((n : ℝ) - 1)]
+  linarith [entropy_ge_of_dist_uniform hn1.le p,
+    mul_le_mul_of_nonneg_left hdist (by linarith : (0 : ℝ) ≤ 2 * ((n : ℝ) - 1))]
 
 /-- **[Liu and Pass, Proof of Theorem 5.2, Claim 2, §5.2, p. 12 of arXiv:2009.11514v1][LiuPass2020]:
 High Shannon entropy implies non-negligible mass on low-probability outcomes.**
