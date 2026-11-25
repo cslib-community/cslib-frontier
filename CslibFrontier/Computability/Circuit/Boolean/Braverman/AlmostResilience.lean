@@ -84,11 +84,10 @@ theorem fools_bitVal_of_isKWiseSmallBias {D : PMF (BitString n)} {d p t : ℕ} {
   have hdiff := abs_sum_mul_sub_le_dist D D'
     (fun x => bitVal ℝ (C.eval Unbounded.interpretation x 0))
     (fun _ => bitVal_nonneg _) (fun _ => bitVal_le_one _)
-  have htri := abs_sub_le
+  linarith [abs_sub_le
     (∑ x, (D x).toReal * bitVal ℝ (C.eval Unbounded.interpretation x 0))
     (∑ x, (D' x).toReal * bitVal ℝ (C.eval Unbounded.interpretation x 0))
-    (𝔼 x, bitVal ℝ (C.eval Unbounded.interpretation x 0))
-  linarith
+    (𝔼 x, bitVal ℝ (C.eval Unbounded.interpretation x 0))]
 
 /-- **Bias under almost `t`-wise independence**
 [Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019]: extension of
@@ -104,10 +103,8 @@ theorem abs_sum_bitVal_sub_half_le_of_isKWiseSmallBias {D : PMF (BitString n)} {
       ε₁ + 1 / 2 ^ p + (n : ℝ) ^ t * γ := by
   have hf := fools_bitVal_of_isKWiseSmallBias hp C hfan hsize hd ht hγ hD
   unfold Fools at hf
-  have htri := abs_sub_le
-    (∑ x, (D x).toReal * bitVal ℝ (C.eval Unbounded.interpretation x 0))
-    (𝔼 x, bitVal ℝ (C.eval Unbounded.interpretation x 0)) (1 / 2)
-  linarith
+  linarith [abs_sub_le (∑ x, (D x).toReal * bitVal ℝ (C.eval Unbounded.interpretation x 0))
+    (𝔼 x, bitVal ℝ (C.eval Unbounded.interpretation x 0)) (1 / 2)]
 
 /-- **Coalition influence under `t`-wise `γ`-bias**
 [Chattopadhyay–Zuckerman, Theorem 4.1][ChattopadhyayZuckerman2019]: extends
@@ -151,11 +148,10 @@ theorem coalitionInfluence_le_of_dist_map_restrict_le {D : PMF (BitString n)} {d
     (hD : ∀ T : Finset (Fin n), #T ≤ t →
       dist (D.map T.restrict) (PMF.uniformOfFintype (T → Bool)) ≤ γ) :
     coalitionInfluence D Q (fun x => C.eval Unbounded.interpretation x 0) ≤
-      ε₂ + 1 / 2 ^ p + 2 * (n : ℝ) ^ t * γ := by
-  have hγ : 0 ≤ γ := dist_nonneg.trans (hD ∅ (Nat.zero_le t))
-  have h := coalitionInfluence_le_of_isKWiseSmallBias hp C hmono hfan hsize hd Q hQ ht
-    (mul_nonneg zero_le_two hγ) (isKWiseSmallBias_of_dist_map_restrict_le hD)
-  exact h.trans_eq (by ring)
+      ε₂ + 1 / 2 ^ p + 2 * (n : ℝ) ^ t * γ :=
+  (coalitionInfluence_le_of_isKWiseSmallBias hp C hmono hfan hsize hd Q hQ ht
+    (mul_nonneg zero_le_two (dist_nonneg.trans (hD ∅ (Nat.zero_le t))))
+    (isKWiseSmallBias_of_dist_map_restrict_le hD)).trans_eq (by ring)
 
 /-- **Tribes coalition influence under `t`-wise `γ`-bias**: extension of
 `isKWiseResilient_tribes` to almost `t`-wise independent distributions. -/
@@ -165,15 +161,13 @@ theorem coalitionInfluence_tribes_le_of_isKWiseSmallBias {w s p q t : ℕ}
     (hγ : 0 ≤ γ) (hD : IsKWiseSmallBias t γ D) :
     coalitionInfluence D Q (tribes w s) ≤ 2 ^ q / 2 ^ w + 1 / 2 ^ p + (s * w : ℝ) ^ t * γ := by
   obtain ⟨D', hD'_ind, hdist⟩ := exists_isKWiseIndependent_dist_le_of_isKWiseSmallBias hγ hD
-  rw [Fintype.card_fin] at hdist
+  rw [Fintype.card_fin, Nat.cast_mul] at hdist
   have hD' := isKWiseResilient_tribes hp hs hw ht Q hQ D' hD'_ind
   have hshift := abs_sum_mul_sub_le_dist D D'
     (fun x => if IsUndetermined Q (tribes w s) x then 1 else 0)
     (fun _ => by split_ifs <;> norm_num) (fun _ => by split_ifs <;> norm_num)
   change |coalitionInfluence D Q (tribes w s) - coalitionInfluence D' Q (tribes w s)| ≤
     dist D D' at hshift
-  have hcast : ((s * w : ℕ) : ℝ) ^ t * γ = (s * w : ℝ) ^ t * γ := by push_cast; rfl
-  rw [hcast] at hdist
   linarith [(abs_le.mp hshift).2]
 
 /-- **Tribes bias under `t`-wise `γ`-bias**: extension of `abs_sum_bitVal_tribes_sub_half_le`
@@ -185,15 +179,11 @@ theorem abs_sum_bitVal_tribes_sub_half_le_of_isKWiseSmallBias {w s p t : ℕ}
     |∑ x, (D x).toReal * bitVal ℝ (tribes w s x) - 1 / 2| ≤
       2⁻¹ ^ w + 1 / 2 ^ p + (s * w : ℝ) ^ t * γ := by
   obtain ⟨D', hD'_ind, hdist⟩ := exists_isKWiseIndependent_dist_le_of_isKWiseSmallBias hγ hD
-  rw [Fintype.card_fin] at hdist
+  rw [Fintype.card_fin, Nat.cast_mul] at hdist
   have hD' := abs_sum_bitVal_tribes_sub_half_le hp hs hw h₁ h₂ ht hD'_ind
   have hshift := abs_sum_mul_sub_le_dist D D' (fun x => bitVal ℝ (tribes w s x))
     (fun _ => bitVal_nonneg _) (fun _ => bitVal_le_one _)
-  have htri := abs_sub_le
-    (∑ x, (D x).toReal * bitVal ℝ (tribes w s x))
-    (∑ x, (D' x).toReal * bitVal ℝ (tribes w s x)) (1 / 2)
-  have hcast : ((s * w : ℕ) : ℝ) ^ t * γ = (s * w : ℝ) ^ t * γ := by push_cast; rfl
-  rw [hcast] at hdist
-  linarith
+  linarith [abs_sub_le (∑ x, (D x).toReal * bitVal ℝ (tribes w s x))
+    (∑ x, (D' x).toReal * bitVal ℝ (tribes w s x)) (1 / 2)]
 
 end Cslib.Circuits.Boolean.Braverman

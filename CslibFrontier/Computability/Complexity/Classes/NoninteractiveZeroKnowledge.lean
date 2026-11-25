@@ -140,9 +140,8 @@ def NISZK (enc : α ↪ List Bool) : Set (Set α) :=
 theorem PromiseNIPZK_subset_PromiseNISZK (enc : α ↪ List Bool) :
     PromiseNIPZK enc ⊆ PromiseNISZK enc := by
   rintro A ⟨P, S, hP, hS⟩
-  refine ⟨P, S, fun _ => 0, hP, Cslib.Crypto.negligible_zero, ?_⟩
-  intro a ha
-  simpa only [hS a ha, ENNReal.coe_zero] using CloseTo.refl (P.transcript a)
+  exact ⟨P, S, fun _ => 0, hP, Cslib.Crypto.negligible_zero, fun a ha => by
+    simpa only [hS a ha, ENNReal.coe_zero] using CloseTo.refl (P.transcript a)⟩
 
 /-- Every noninteractive perfect zero-knowledge language is statistically zero knowledge. -/
 theorem NIPZK_subset_NISZK (enc : α ↪ List Bool) : NIPZK enc ⊆ NISZK enc :=
@@ -153,34 +152,24 @@ common randomness and empty proof. The simulator runs the same decider. -/
 theorem P_subset_NIPZK (enc : α ↪ List Bool) : P enc ⊆ NIPZK enc := by
   intro A hA
   obtain ⟨decideA, htime, hdecideA⟩ := mem_P.mp hA
+  have hbit := htime.comp (ComputableInPolyTime.fst enc encBits)
   let proof : CRSProtocol enc :=
-    { commonLength := 0
-      proofLength := 0
-      verify := fun p => decideA p.1
-      computableInPolyTime_verify := htime.comp (ComputableInPolyTime.fst enc encBits)
-      privateCoins := fun _ => 0
+    { commonLength := 0, proofLength := 0, verify := fun p => decideA p.1
+      computableInPolyTime_verify := hbit, privateCoins := fun _ => 0
       respond := fun _ _ _ _ => false }
   let sim : CRSTranscriptSimulator enc :=
-    { coinLength := 0
-      sample := fun p => ⟨[], [], decideA p.1⟩
-      computableInPolyTime_sample := by
-        have hbit := htime.comp (ComputableInPolyTime.fst enc encBits)
-        fun_prop }
+    { coinLength := 0, sample := fun p => ⟨[], [], decideA p.1⟩
+      computableInPolyTime_sample := by fun_prop }
   have hreal (a : α) : proof.transcript a = PMF.pure ⟨[], [], decideA a⟩ := by
     simp only [CRSProtocol.transcript, proof, Polynomial.eval_zero, List.ofFn_zero,
       PMF.bind_const]
     exact PMF.map_const _ _
-  refine ⟨proof, sim, ⟨?_, ?_⟩, ?_⟩
-  · intro a ha
-    have hyes := (hdecideA a).mp ha
-    rw [hreal, hyes]
+  refine ⟨proof, sim, ⟨fun a ha => ?_, fun a ha => ?_⟩, fun a _ => ?_⟩
+  · rw [hreal, (hdecideA a).mp ha]
     norm_num [ENNReal.div_le_iff]
-  · intro a ha
-    have hno : decideA a = false := Bool.eq_false_iff.mpr ((hdecideA a).not.mp ha)
-    apply boundedErrorAt_false_iff.mpr
-    simp [proof, arthurMerlinSlice, hno, acceptCount]
-  · intro a _
-    rw [hreal]
+  · refine boundedErrorAt_false_iff.mpr ?_
+    simp [proof, arthurMerlinSlice, Bool.eq_false_iff.mpr ((hdecideA a).not.mp ha), acceptCount]
+  · rw [hreal]
     simp only [CRSTranscriptSimulator.run, sim]
     exact PMF.map_const _ _
 

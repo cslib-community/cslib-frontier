@@ -57,14 +57,9 @@ omit [DecidableEq Address] in
 /-- The ordinary entries determine the association list. -/
 theorem entries_injective : Function.Injective (entries (Address := Address) (Value := Value)) := by
   intro s t h
-  apply AList.ext
-  have hi : Function.Injective (fun e : Sigma (fun _ : Address => Value) => (e.1, e.2)) := by
-    intro x y h
-    cases x
-    cases y
-    cases h
-    rfl
-  exact List.map_injective_iff.mpr hi h
+  refine AList.ext (List.map_injective_iff.mpr (fun ⟨_, _⟩ ⟨_, _⟩ h => ?_) h)
+  cases h
+  rfl
 
 omit [DecidableEq Address] in
 @[simp] theorem entries_empty : entries (∅ : SparseMemory Address Value) = [] := rfl
@@ -83,9 +78,8 @@ theorem read_insert (default : Value) (a : Address) (v : Value)
     (s : SparseMemory Address Value) :
     (fun b => read default b (s.insert a v)) = Function.update (fun b => read default b s) a v := by
   funext b
-  by_cases h : b = a
-  · subst b
-    simp [read]
+  rcases eq_or_ne b a with rfl | h
+  · simp [read]
   · simp [read, AList.lookup_insert_ne h, Function.update_of_ne h]
 
 /-- A write adds at most one distinct stored address. -/
@@ -108,25 +102,19 @@ private theorem kerase_eq_filter (a : Address) (l : List (Sigma (fun _ : Address
   | nil => rfl
   | cons e l ih =>
     obtain ⟨hne, hn⟩ := List.nodupKeys_cons.mp h
-    by_cases ha : a = e.1
-    · subst a
-      rw [List.kerase_cons_eq rfl]
-      simp only [ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true,
-        not_false_eq_true, List.filter_cons_of_neg]
-      symm
-      apply List.filter_eq_self.mpr
-      intro x hx
-      have hx' : x.1 ∈ l.keys := List.mem_map.mpr ⟨x, hx, rfl⟩
-      simpa using fun he : e.1 = x.1 => hne (he ▸ hx')
+    rcases eq_or_ne a e.1 with rfl | ha
+    · simp only [List.kerase_cons_eq rfl, ne_eq, not_true_eq_false, decide_false,
+        Bool.false_eq_true, not_false_eq_true, List.filter_cons_of_neg]
+      exact (List.filter_eq_self.mpr fun x hx => decide_eq_true
+        fun he : e.1 = x.1 => hne (he ▸ List.mem_map.mpr ⟨x, hx, rfl⟩)).symm
     · simp [List.kerase_cons_ne ha, ha, ih hn]
 
 /-- A write is a filter followed by one cons, on the encoded pair representation. -/
 theorem entries_insert (a : Address) (v : Value) (s : SparseMemory Address Value) :
     entries (s.insert a v) = (a, v) :: (entries s).filter (fun e => decide (a ≠ e.1)) := by
   simp only [entries, AList.entries_insert, List.map_cons,
-    kerase_eq_filter a (AList.entries s) s.nodupKeys]
-  congr 1
-  exact (List.filter_map (p := fun e : Address × Value => decide (a ≠ e.1))).symm
+    kerase_eq_filter a (AList.entries s) s.nodupKeys, List.filter_map]
+  rfl
 
 /-- Lookup is a first-match scan of the encoded pair representation. -/
 theorem read_eq_find (default : Value) (a : Address) (s : SparseMemory Address Value) :
@@ -136,13 +124,11 @@ theorem read_eq_find (default : Value) (a : Address) (s : SparseMemory Address V
   induction (AList.entries s) with
   | nil => rfl
   | cons e l ih =>
-    by_cases h : a = e.1
+    rcases eq_or_ne a e.1 with rfl | h
     · cases e
-      subst a
       simp [List.dlookup]
-    · simp only [List.dlookup, List.map_cons, List.find?_cons, h, Ne.symm h,
-        decide_false]
-      exact ih
+    · simpa only [List.dlookup, List.map_cons, List.find?_cons, h, Ne.symm h, ↓reduceDIte,
+        decide_false] using ih
 
 /-- Each binding after a write is either the new binding or a surviving old binding. -/
 theorem mem_entries_insert {a : Address} {v : Value} {s : SparseMemory Address Value}
