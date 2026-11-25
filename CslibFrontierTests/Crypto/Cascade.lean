@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildChallenge
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
 import Mathlib.Data.Set.Finite.List
@@ -260,3 +261,50 @@ example :
   simp only [encodedCascadeChildRouter, cascadeChildRouter, bind_pure_comp,
     OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query]
   simp [StateT.run, cascadeChildRoute, boundedWords, Functor.map_map]
+
+-- Skipping channel zero cannot allocate channel one. Once zero is assigned, channel one
+-- can be used and its subsequent calls leave the cursor unchanged.
+example (table : Fin 2 → BitString 1 → BitString 2) :
+    cascadeChildFiniteOracle table (1, [true]) 0 = PMF.pure ([], 0) ∧
+      cascadeChildFiniteOracle table (1, [true]) 1 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) ∧
+      cascadeChildFiniteOracle table (1, [true]) 2 =
+        PMF.pure (List.ofFn (table 1 (BitString.ofList 1 [true])), 2) :=
+  ⟨rfl, rfl, rfl⟩
+
+private theorem visitBothParents_isQueryBounded : visitBothParents.IsQueryBounded 4 :=
+  (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+      (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+example :
+    let source := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    (ProbOracleComp.runWith (cascadeChildChannelOracle source) router []).map Prod.fst =
+      (PMF.pi (fun _ : Fin 4 => source)).bind fun table =>
+        (ProbOracleComp.runWith (cascadeChildFiniteOracle table) router 0).map Prod.fst :=
+  runWith_cascadeChildChannelOracle_eq_finite
+    (PMF.uniformOfFintype (BitString 1 → BitString 2))
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded)
+
+-- Four admissible channels in a sampling range of eight.
+example :
+    let real := PMF.pure (fun _ : BitString 1 => BitString.ofList 2 [true, false])
+    let ideal := PMF.uniformOfFintype (BitString 1 → BitString 2)
+    let router := cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 visitBothParents
+    Game.advantage
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle real) router []).map Prod.fst)
+        ((ProbOracleComp.runWith (cascadeChildChannelOracle ideal) router []).map Prod.fst) =
+      8 * Game.advantage
+        (cascadeChildChallengeGame 4 8 real ideal real router)
+        (cascadeChildChallengeGame 4 8 real ideal ideal router) :=
+  advantage_cascadeChildChannelOracle_eq _ _
+    (isQueryBounded_cascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1
+      visitBothParents_isQueryBounded) (by decide)
+
+-- Every sampled channel is padding when the query budget is zero.
+example (source : PMF (BitString 1 → BitString 2)) :
+    cascadeChildChallengeGame 0 8 source source source (pure true) = PMF.pure false := by
+  simp [cascadeChildChallengeGame]

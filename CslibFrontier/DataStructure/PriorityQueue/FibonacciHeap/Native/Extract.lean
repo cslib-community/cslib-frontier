@@ -76,11 +76,7 @@ private def extractSafe (w : ℕ) (d : Fin 2 → ℕ) (s : Memory.State) : Prop 
 private theorem realizes_extractBody : Realizes .exact extractBody (.refl _)
     (WordEncoding.encode (α := Option (ℕ × ℕ))) extractSafe (fun _ _ => 0) := by
   have nine (n : ℕ) : n + n + n + n + n + n + n + n + n = 9 * n := by omega
-  conv =>
-    arg 2
-    ext d
-    simp only [extractBody, ← nine]
-  realize [realizes_forestReturn]
+  realize [realizes_forestReturn] rewriting [extractBody, ← nine]
   all_goals simp only [nine] at *
   all_goals try have hdom := h.2 (by assumption)
   all_goals try simp (disch := omega) only [Function.update_of_ne] at *

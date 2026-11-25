@@ -105,11 +105,6 @@ def derivedHints (T : XTrail) (memo : Assign) : List ℕ :=
     | .decision _ => none
 
 /-- `derivedHints` in one pass over the trail, newest first, without reversing it. -/
-def derivedHintsFast (T : XTrail) (memo : Assign) : List ℕ :=
-  T.foldl (fun acc x => match x with
-    | .implied l r => if memo.value l.1 == some true then r :: acc else acc
-    | .decision _ => acc) []
-
 private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : List ℕ),
     T.foldl (fun acc x => match x with
       | .implied l r => if memo.value l.1 == some true then r :: acc else acc
@@ -121,10 +116,6 @@ private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : Lis
     | decision d => simp [derivedHints]
     | implied l r =>
       by_cases h : memo.value l.1 = some true <;> simp [derivedHints, h]
-
-theorem derivedHintsFast_eq (T : XTrail) (memo : Assign) :
-    derivedHintsFast T memo = derivedHints T memo := by
-  rw [derivedHintsFast, foldl_derivedHints, List.append_nil]
 
 /-- The array marking the variables of the clause `C`, below `n`. -/
 def clauseVars (C : Clause ℕ) (n : ℕ) : Array Bool :=
@@ -577,17 +568,63 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
       L.rup
 
 
-/-- **Minimizing a learned clause**, whose false literals are on the trail `T`, recursively if
-`recursive` (MiniSat's `ccmin_mode = 2`) and otherwise in the basic way (`ccmin_mode = 1`): the
-learned clause without its redundant literals. Its hints are the reasons of the derived literals of
-the trail, oldest first, which propagate the negations of the literals removed, and then those of
-the learned clause (`Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_minimized`). The learned
-clause is kept if nothing is redundant. -/
-def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreasons : Reasons log₀ T)
-    (hnd : (Trail.vars (XTrail.trail T)).Nodup) (n : ℕ) (recursive : Bool := true) :
-    Learned log₀ A (XTrail.trail T) :=
+/-- `XTrail.reasons` of the entries below position `p`, read from the arrays of the trail
+(`ATrail.reasonsBelow_eq`). -/
+def ATrail.reasonsBelow (T : ATrail) (p n : ℕ) : Array (Option ℕ) :=
+  T.foldDown (fun a c r => match r with
+    | 0 => a
+    | r + 1 => a.setIfInBounds (c / 2) (some r)) 0 p (Array.replicate n none)
+
+theorem ATrail.reasonsBelow_eq (T : ATrail) (p n : ℕ) :
+    T.reasonsBelow p n = XTrail.reasons (T.seg 0 p) n := by
+  rw [reasonsBelow, foldDown_eq, XTrail.reasons]
+  congr 1
+  funext a x
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
+
+/-- `derivedHints` of the entries below position `p`, read from the arrays of the trail in one
+pass, newest first, without reversing them (`ATrail.derivedHintsBelow_eq`). -/
+def ATrail.derivedHintsBelow (T : ATrail) (p : ℕ) (memo : Assign) : List ℕ :=
+  T.foldDown (fun acc c r => match r with
+    | 0 => acc
+    | r + 1 => if memo.value (c / 2) == some true then r :: acc else acc) 0 p []
+
+theorem ATrail.derivedHintsBelow_eq (T : ATrail) (p : ℕ) (memo : Assign) :
+    T.derivedHintsBelow p memo = derivedHints (T.seg 0 p) memo := by
+  rw [derivedHintsBelow, foldDown_eq, ← List.append_nil (derivedHints _ _), ← foldl_derivedHints]
+  congr 1
+  funext a x
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
+
+/-- `minimizeRedundant` on the entries below position `p`, with the reasons read from the arrays of
+the trail. -/
+def minimizeRedundantBelow (log : LRATLog φ) (T : ATrail) (p : ℕ) (C : Clause ℕ) (lit : Literal ℕ)
+    (recursive : Bool) (n : ℕ) : List (Literal ℕ) × Assign :=
+  let deep : ℕ → Bool :=
+    if recursive then fun _ => true
+    else
+      let root := Assign.ofTrail (XTrail.trail (XTrail.root (T.seg 0 p)))
+      fun v => root.assigned v
+  redundant log (T.reasonsBelow p n) (clauseVars C n) deep (n + 1) lit C ⟨Array.replicate n 0⟩
+
+theorem minimizeRedundantBelow_eq (log : LRATLog φ) (T : ATrail) (p : ℕ) (C : Clause ℕ)
+    (lit : Literal ℕ) (recursive : Bool) (n : ℕ) :
+    minimizeRedundantBelow log T p C lit recursive n =
+      minimizeRedundant log (T.seg 0 p) C lit recursive n := by
+  rw [minimizeRedundantBelow, minimizeRedundant, ATrail.reasonsBelow_eq]
+
+/-- **Minimizing a learned clause**, whose false literals are on the entries of the trail `T` below
+position `p`, recursively if `recursive` (MiniSat's `ccmin_mode = 2`) and otherwise in the basic
+way (`ccmin_mode = 1`): the learned clause without its redundant literals. Its hints are the
+reasons of the derived literals of the trail, oldest first, which propagate the negations of the
+literals removed, and then those of the learned clause
+(`Cslib.Algorithms.Lean.CDCL.Learned.propagateHints_minimized`). The reasons and the hints are read
+from the arrays of the trail. The learned clause is kept if nothing is redundant. -/
+def Learned.minimize (T : ATrail) (p : ℕ) (L : Learned log₀ A (XTrail.trail (T.seg 0 p)))
+    (hreasons : Reasons log₀ (T.seg 0 p)) (hnd : (Trail.vars (XTrail.trail (T.seg 0 p))).Nodup)
+    (n : ℕ) (recursive : Bool := true) : Learned log₀ A (XTrail.trail (T.seg 0 p)) :=
   let C := L.clause
-  let r := minimizeRedundant log₀ T C L.lit recursive n
+  let r := minimizeRedundantBelow log₀ T p C L.lit recursive n
   if r.1.isEmpty then L
   else
     let D := L.lit :: C.filter fun y => y != L.lit && !r.1.contains y
@@ -597,8 +634,13 @@ def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreas
       · exact (List.mem_filter.1 hy).1
     { L with
       clause := D
-      hints := derivedHintsFast T r.2 ++ L.hints
-      rup := derivedHintsFast_eq T r.2 ▸ L.propagateHints_minimized hreasons hnd recursive n
+      hints := T.derivedHintsBelow p r.2 ++ L.hints
+      rup := by
+        have h := L.propagateHints_minimized hreasons hnd recursive n
+        simp only [] at h
+        rw [← minimizeRedundantBelow_eq] at h
+        rw [ATrail.derivedHintsBelow_eq]
+        exact h
       vars_mem := fun l hl => L.vars_mem l (hsub l hl)
       mem := List.mem_cons_self
       false_below := fun y hy hne => L.false_below y (hsub y hy) hne

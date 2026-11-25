@@ -7,6 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (indexed path color regression)
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.ClosedPassages.ComponentOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SeparatingPairOrder
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
@@ -109,9 +110,14 @@ private theorem crossingParity_of_embedding {K : Graph} {D : PolygonalDrawing K}
     (fun he => hne (congrArg Sigma.fst he).symm) w hw
     (openSegment_subset_segment ℝ _ _ hzt)
 
--- The same three arms have an actual regular polygonal embedding.
+-- In an actual regular embedding, the subdivided arm has its own rank interval when
+-- the rotation is cut at the first direct edge.
 example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotation ∧
-    (rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c₁) := by
+    (rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c₁) ∧
+    ∃ a b : Dart G, a.vertex = 0 ∧ b.vertex = 0 ∧
+      ∀ d : Dart G, d.vertex = 0 → (d = a₀ ↔
+        rotation.rotationDistance b₀ a ≤ rotation.rotationDistance b₀ d ∧
+          rotation.rotationDistance b₀ d ≤ rotation.rotationDistance b₀ b) := by
   classical
   have hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices := by decide
   have genus : rotation.NumericalGenusZero := by
@@ -122,15 +128,42 @@ example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotati
     exact (RotationCertificate.verifyEuler_eq_true_iff check).mp he
   obtain ⟨D, hD, hR⟩ := rotation.exists_polygonalDrawing hG genus
   have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
-  refine ⟨D, hreg, hR, ?_⟩
-  apply hreg.inverse_rotate_iff_not_inverse_rotate_of_three_paths hD.simple hR hG arms
-    startPorts finishPorts (fun _ => rfl) (fun _ => rfl) ?_ ?_ ?_
-  · decide
-  · decide
-  · intro a b hab i j
-    have hne : (arms a i).1 ≠ (arms b j).1 :=
-      (by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (arms a i).1 ≠ (arms b j).1) a b hab i j
-    exact crossingParity_of_embedding hD hne
+  refine ⟨D, hreg, hR, ?_, ?_⟩
+  · apply hreg.inverse_rotate_iff_not_inverse_rotate_of_three_paths hD.simple hR hG arms
+      startPorts finishPorts (fun _ => rfl) (fun _ => rfl) ?_ ?_ ?_
+    · decide
+    · decide
+    · intro a b hab i j
+      have hne : (arms a i).1 ≠ (arms b j).1 :=
+        (by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (arms a i).1 ≠ (arms b j).1) a b hab i j
+      exact crossingParity_of_embedding hD hne
+  · let one : {w : ℕ // w ≠ 0} := ⟨1, by decide⟩
+    let K := (G.toSimpleGraph.induce {w | w ≠ 0}).induce {w | w ≠ one}
+    let two : {w : {n : ℕ // n ≠ 0} // w ≠ one} := ⟨⟨2, by decide⟩, by decide⟩
+    let C := K.connectedComponentMk two
+    let S : Set ℕ := Subtype.val '' (Subtype.val '' C.supp)
+    have htwo : (2 : ℕ) ∈ S := ⟨two.val, ⟨two, rfl, rfl⟩, rfl⟩
+    have hone : (1 : ℕ) ∉ S := by
+      rintro ⟨w, ⟨x, _, rfl⟩, hx⟩
+      exact x.property (Subtype.ext hx)
+    have other : ∀ d : Dart G, d.vertex = 0 → d ≠ a₀ → d.reverse.vertex = 1 := by decide
+    have enters (d : Dart G) (hd : d.vertex = 0) : d.reverse.vertex ∈ S ↔ d = a₀ := by
+      constructor
+      · intro hm
+        by_contra he
+        exact hone (other d hd he ▸ hm)
+      · rintro rfl
+        exact htwo
+    obtain ⟨a, b, ha, hb, _, _, hinterval⟩ :=
+      ClosedPassages.exists_separating_component_rank_interval hR hreg hD.simple
+        hD.vertices_injective
+        (RotationSystem.vertex_mem hG) (fun _ _ hne _ => crossingParity_of_embedding hD hne)
+        one C b₀ a₀ rfl rfl hone htwo (by
+          intro d hd hC hd'
+          have h := other d hd (fun he => hC ((enters d hd).mpr he))
+          exact (show (⟨d.reverse.vertex, hd'⟩ : {w : ℕ // w ≠ 0}) = one from
+            Subtype.ext h).symm ▸ SimpleGraph.Reachable.refl one)
+    exact ⟨a, b, ha, hb, fun d hd => (enters d hd).symm.trans (hinterval d hd)⟩
 
 private abbrev withSpurs : Graph :=
   ⟨[0, 1, 2, 3, 4], [(0, 2), (2, 1), (0, 1), (0, 1), (2, 3), (0, 4)]⟩
