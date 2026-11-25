@@ -7,12 +7,13 @@ in `.lake/packages/cslib/` after fetching dependencies. [AGENTS.md](AGENTS.md) d
 repository's workflow, file layout, proof, validation and review requirements. Upstream
 submissions follow the target repository's current process.
 
-For setup, start with [Build a checkout](README.md#build-a-checkout). The
+For setup, start with [Get oriented and build](manual/workflows/getting-started.md). The
 [guide](https://www.cslib.io/cslib-frontier/guide/) and
-[checked examples](README.md#start-here) introduce the APIs before you change them.
+[examples by topic](manual/README.md#library-map) introduce the APIs before you change them.
 
 ## Proposing and contributing work
 
+A suggestion can start with a result you would like to see and a source or example.
 Agree on a substantial development before implementing it. An issue in this repository, written
 with the [development template](.github/ISSUE_TEMPLATE/development.md), is one good way to
 propose a new direction; a pull request can also start the discussion. There is no separate
