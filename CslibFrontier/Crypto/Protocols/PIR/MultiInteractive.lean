@@ -223,13 +223,16 @@ def toInteractiveScheme : InteractiveScheme ι C ((s : S) → D s) β where
   protocol := P.tree.compile P.serverBit fun _ => []
 
 @[simp] theorem toInteractiveScheme_userCoins :
-    P.toInteractiveScheme.userCoins = P.userCoins := by rfl
+    P.toInteractiveScheme.userCoins = P.userCoins := by
+  rfl
 
 @[simp] theorem toInteractiveScheme_serverCoins :
-    P.toInteractiveScheme.serverCoins = P.serverCoins := by rfl
+    P.toInteractiveScheme.serverCoins = P.serverCoins := by
+  rfl
 
 @[simp] theorem toInteractiveScheme_protocol :
-    P.toInteractiveScheme.protocol = P.tree.compile P.serverBit fun _ => [] := by rfl
+    P.toInteractiveScheme.protocol = P.tree.compile P.serverBit fun _ => [] := by
+  rfl
 
 theorem depth_toInteractiveScheme :
     P.toInteractiveScheme.protocol.depth = P.tree.depth :=
@@ -240,7 +243,8 @@ def run (x : ι → β) (i : ι) : ProbComp β :=
   P.toInteractiveScheme.run x i
 
 @[simp] theorem run_toInteractiveScheme (x : ι → β) (i : ι) :
-    P.toInteractiveScheme.run x i = P.run x i := by rfl
+    P.toInteractiveScheme.run x i = P.run x i := by
+  rfl
 
 /-- Sub-trace of directional channel events `(s, msg)` observed by a server coalition
 `T : Finset S`. -/
@@ -319,7 +323,8 @@ theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
     have hrec (idx : ι) : ProbComp.eval (P.coalitionTranscript {s} x idx) =
         (ProbComp.eval (P.serverTranscript s x idx)).map (List.map (s, ·)) := by
       simp only [serverTranscript, coalitionTranscript, ProbComp.eval_map, PMF.map_comp]
-      congr 1; funext cd
+      congr 1
+      funext cd
       simp only [Function.comp_apply, List.map_map]
       induction P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1) with
       | nil => rfl
@@ -348,7 +353,8 @@ theorem isPrivate_toInteractiveScheme_of_card_le [Fintype S] {t : ℕ}
         (fun tr => MultiRoundTree.leafOfBits P.toInteractiveScheme.protocol
           (tr.map (ChannelMsg.bit ∘ Prod.snd))) := by
     rw [InteractiveScheme.eval_transcript, coalitionTranscript, ProbComp.eval_map, PMF.map_comp]
-    congr 1; funext cd
+    congr 1
+    funext cd
     simp only [Function.comp_apply, toInteractiveScheme, Finset.mem_univ, decide_true,
       List.filter_true]
     exact (MultiRoundTree.leafOfBits_map_bit_execTrace P.serverBit (fun _ => []) P.tree

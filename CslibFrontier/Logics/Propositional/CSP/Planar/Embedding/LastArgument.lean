@@ -97,28 +97,39 @@ private theorem argumentOrder_restrictPrefix_lastArgument_of_clock (F : CSP Rel 
         [((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length)] := by
     simp [CSP.occurrences_append_last_argument, List.zipIdx_append]
   rw [verifyArgumentOrder, List.all_eq_true] at ho ⊢
-  rintro ⟨⟨i, j, w⟩, k⟩ he
+  intro entry he
+  rcases entry with ⟨⟨i, j, w⟩, k⟩
   apply decide_eq_true
-  have hsrc := of_decide_eq_true (ho ((i, j, w), k) (hpre ▸ List.mem_append_left _ he))
+  have hsrc := of_decide_eq_true (ho ((i, j, w), k) (by
+    rw [hpre]
+    exact List.mem_append_left _ he))
   change c.successor.getD (2 * k + 1) 0 =
     2 * argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) i j + 1 at hsrc
   obtain ⟨hk, hrec⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
-  obtain ⟨o, hrecord⟩ := CSP.mem_occurrences.mp (List.mem_iff_getElem.mpr ⟨k, hk, hrec⟩)
-  obtain ⟨rfl, rfl, rfl⟩ : o.1.val = i ∧ o.2.val = j ∧ o.var = w := by
+  have hm : (i, j, w) ∈ (F ++ [Constraint.mk r scope]).occurrences :=
+    List.mem_iff_getElem.mpr ⟨k, hk, hrec⟩
+  obtain ⟨o, hrecord⟩ := CSP.mem_occurrences.mp hm
+  have hcoords : o.1.val = i ∧ o.2.val = j ∧ o.var = w := by
     simpa only [CSP.Occurrence.record, Prod.mk.injEq] using hrecord
+  rcases hcoords with ⟨hi, hj, hw⟩
+  subst i
+  subst j
+  subst w
   have hn := argumentNextIndex_lt_occurrences o
   by_cases hlast : o.1.val = F.length ∧ o.2.val + 1 = scope.length
   · rw [argumentNextIndex_append_last_argument, ite_eq_left hlast] at hsrc
     have hwrap := of_decide_eq_true (ho
-      ((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length)
-      (hpre ▸ List.mem_append_right _ (by simp)))
+      ((F.length, scope.length, v), (F ++ [Constraint.mk r scope]).occurrences.length) (by
+        rw [hpre]
+        exact List.mem_append_right _ (by simp)))
     change c.successor.getD (2 * (F ++ [Constraint.mk r scope]).occurrences.length + 1) 0 =
       2 * argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) F.length scope.length + 1
       at hwrap
     rw [argumentNextIndex_append_last_argument_wrap F r scope v o hlast.1 hlast.2] at hwrap
-    simpa only [hsrc, hwrap] using getD_restrictPrefix_two c
-      (2 * (F ++ [Constraint.mk r scope]).occurrences.length) (2 * k + 1) (by omega) hc
-      (by rw [hsrc]; omega) (by rw [hsrc, hwrap]; omega)
+    have hr := getD_restrictPrefix_two c (2 * (F ++ [Constraint.mk r scope]).occurrences.length)
+      (2 * k + 1) (by omega) hc (by rw [hsrc]; omega) (by rw [hsrc, hwrap]; omega)
+    rw [hsrc, hwrap] at hr
+    exact hr
   · rw [argumentNextIndex_append_last_argument, ite_eq_right hlast] at hsrc
     rw [getD_restrictPrefix_one c _ _ (by omega) (by omega) (by rw [hsrc]; omega), hsrc]
 

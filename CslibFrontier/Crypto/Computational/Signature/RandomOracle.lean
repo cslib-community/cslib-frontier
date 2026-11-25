@@ -103,7 +103,8 @@ theorem correctOn_toROM {S : Scheme PK SK M Sig} {adm : M → Prop}
   dsimp only [ROMSignature.Scheme.CorrectOn, toROM]
   rintro keys hkeys m hm σ hσ _ _ hsigned _ hverified
   simp only [interp_norm, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff] at hsigned hverified
-  subst hsigned hverified; exact h keys hkeys m hm σ hσ
+  subst hsigned hverified
+  exact h keys hkeys m hm σ hσ
 
 /-- A correct scheme is a correct random-oracle scheme. -/
 theorem correct_toROM {S : Scheme PK SK M Sig} (h : S.Correct) : S.toROM.Correct :=
@@ -171,7 +172,8 @@ theorem worldGame_toROM_eufCma [DecidableEq M] (S : Scheme PK SK M Sig) (A : For
         (fun verified ⟨m, _⟩ pairs => verified && !(pairs.map Prod.fst).contains m) =
       ProbComp.eval (S.eufCmaExperiment A) := by
   rw [← S.worldGame_toROM freshMessage A]
-  congr 1; funext _ _ pairs
+  congr 1
+  funext _ _ pairs
   have hmem (x) : x ∈ pairs.reverse.map Prod.fst ↔ x ∈ pairs.map Prod.fst := by simp [List.mem_map]
   simp only [freshMessage, hmem, List.contains_eq_mem, decide_not]
 
@@ -182,7 +184,8 @@ theorem worldGame_toROM_sufCma [DecidableEq M] [DecidableEq Sig] (S : Scheme PK 
         (fun verified msig pairs => verified && !pairs.contains msig) =
       ProbComp.eval (S.sufCmaExperiment A) := by
   rw [← S.worldGame_toROM freshPair A]
-  congr 1; funext _ _ _
+  congr 1
+  funext _ _ _
   simp [freshPair]
 
 end Scheme
@@ -198,8 +201,10 @@ theorem SignatureScheme.eufCmaGame_eq_worldGame_toROM (S : SignatureScheme) (adv
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1; funext _ _ _
-  simp only [List.contains_eq_mem]; congr
+  congr 1
+  funext _ _ _
+  simp only [List.contains_eq_mem]
+  congr
 
 /-- At each parameter `n`, honest signatures of `n`-bit messages verify in
 `(S.toScheme n).toROM`. -/
@@ -218,8 +223,10 @@ theorem WordSignatureScheme.eufCmaGame_eq_worldGame_toROM (S : WordSignatureSche
         (fun verified (⟨m, _⟩ : List Bool × List Bool) pairs =>
           verified && !(pairs.map Prod.fst).contains m) := by
   rw [S.eufCmaGame_eq_eufCmaExperiment, ← Signature.Scheme.worldGame_toROM_eufCma]
-  congr 1; funext _ _ _
-  simp only [List.contains_eq_mem]; congr
+  congr 1
+  funext _ _ _
+  simp only [List.contains_eq_mem]
+  congr
 
 /-- At each parameter `n`, `(S.toScheme n).toROM` is correct on every message. -/
 theorem WordSignatureScheme.correct_toROM (S : WordSignatureScheme) (n : ℕ) :

@@ -127,7 +127,8 @@ theorem rightUnique_registerStep_fin (hdet : ntm.IsDeterministic) {B : ℕ} :
 /-- The initial view has the start registers. -/
 theorem registers_initView (w : List Bool) :
     registers (ntm.initView w) = startRegisters ntm := by
-  funext i; cases i <;> rfl
+  funext i
+  cases i <;> rfl
 
 /-- Every view step is a register step on the view's input. -/
 theorem registerStep_of_viewStep {v v' : FiniteCfg k Bool State} (h : ntm.ViewStep v v') :
@@ -176,10 +177,13 @@ theorem accepts_iff_registerStep :
     ntm.Accepts w ↔ ∃ r, Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r ∧
       r .control = stateCode (none : Option State) ∧ r .output = 1 := by
   rw [accepts_iff_reflTransGen_viewStep]
-  refine ⟨fun ⟨v, hv, hs, ho⟩ => ⟨registers v, (reflTransGen_registerStep_iff _).mpr ⟨v, hv, rfl⟩,
-    congrArg stateCode hs, outputCode_eq_one_iff.mpr ho⟩, fun ⟨r, hr, hc, ho⟩ => ?_⟩
-  obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
-  exact ⟨v, hv, stateCode_injective hc, outputCode_eq_one_iff.mp ho⟩
+  constructor
+  · rintro ⟨v, hv, hs, ho⟩
+    exact ⟨registers v, (reflTransGen_registerStep_iff _).mpr ⟨v, hv, rfl⟩,
+      congrArg stateCode hs, outputCode_eq_one_iff.mpr ho⟩
+  · rintro ⟨r, hr, hc, ho⟩
+    obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
+    exact ⟨v, hv, stateCode_injective hc, outputCode_eq_one_iff.mp ho⟩
 
 /-- **Acceptance on bounded register tuples**: when every reachable view fits the radix `B`,
 acceptance is reachability between tuples of elements of `Fin B`, from a tuple holding the start
@@ -192,18 +196,26 @@ theorem accepts_iff_registerStep_fin {B : ℕ}
         RegisterStep ntm w (fun i => (x i).val) (fun i => (y i).val)) x y ∧
       (y .control).val = stateCode (none : Option State) ∧ (y .output).val = 1 := by
   let f : (Register k → Fin B) → Register k → ℕ := fun x i => (x i).val
-  have hf : Function.Injective f := fun _ _ h => funext fun i => Fin.ext (congrFun h i)
+  have hf : Function.Injective f := fun x y h => funext fun i => Fin.ext (congrFun h i)
+  have hstart : Fits B (startRegisters ntm) := by
+    rw [← registers_initView w]
+    exact hfit _ .refl
   have hrange : ∀ r, Relation.ReflTransGen (RegisterStep ntm w) (startRegisters ntm) r →
-      ∃ x, f x = r := fun r hr => by
+      ∃ x, f x = r := by
+    intro r hr
     obtain ⟨v, hv, rfl⟩ := (reflTransGen_registerStep_iff r).mp hr
     exact ⟨fun i => ⟨registers v i, hfit v hv i⟩, rfl⟩
   rw [accepts_iff_registerStep]
-  refine ⟨fun ⟨r, hr, hc, ho⟩ => ?_, fun ⟨x, y, hx, hxy, hc, ho⟩ =>
-    ⟨f y, funext hx ▸ Relation.ReflTransGen.lift f (fun _ _ h => h) _ _ hxy, hc, ho⟩⟩
-  let x : Register k → Fin B :=
-    fun i => ⟨startRegisters ntm i, by rw [← registers_initView w]; exact hfit _ .refl i⟩
-  obtain ⟨y, rfl⟩ := hrange r hr
-  exact ⟨x, y, fun _ => rfl,
-    (Relation.reflTransGen_onFun_iff hf (a := x) (b := y) hrange).mpr hr, hc, ho⟩
+  constructor
+  · rintro ⟨r, hr, hc, ho⟩
+    let x : Register k → Fin B := fun i => ⟨startRegisters ntm i, hstart i⟩
+    obtain ⟨y, rfl⟩ := hrange r hr
+    exact ⟨x, y, fun _ => rfl,
+      (Relation.reflTransGen_onFun_iff hf (a := x) (b := y) hrange).mpr hr, hc, ho⟩
+  · rintro ⟨x, y, hx, hxy, hc, ho⟩
+    have hfx : f x = startRegisters ntm := funext hx
+    refine ⟨f y, ?_, hc, ho⟩
+    rw [← hfx]
+    exact Relation.ReflTransGen.lift f (fun _ _ h => h) _ _ hxy
 
 end Turing.MultiTapeNTM.ConfigurationGraph

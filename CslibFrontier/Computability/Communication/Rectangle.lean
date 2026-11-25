@@ -237,9 +237,11 @@ theorem mem_leafBob_leaf : y ∈ p.leafBob (p.leaf x y) :=
 theorem run_eq_leafOutput_leaf (p : Protocol X Y Z) (x : X) (y : Y) :
     p.run x y = p.leafOutput (p.leaf x y) := by
   induction p with
-  | output => rfl
-  | alice send _ _ ih₀ ih₁ => cases h : send x <;> simp [leaf, leafOutput, h, ih₀, ih₁]
-  | bob send _ _ ih₀ ih₁ => cases h : send y <;> simp [leaf, leafOutput, h, ih₀, ih₁]
+  | output z => rfl
+  | alice send p₀ p₁ ih₀ ih₁ =>
+    cases h : send x <;> simp [leaf, leafOutput, h, ih₀, ih₁]
+  | bob send p₀ p₁ ih₀ ih₁ =>
+    cases h : send y <;> simp [leaf, leafOutput, h, ih₀, ih₁]
 
 /-- **The output is constant on each leaf rectangle.** -/
 theorem run_eq_leafOutput {i : Fin p.leafCount} (hx : x ∈ p.leafAlice i) (hy : y ∈ p.leafBob i) :
@@ -325,7 +327,8 @@ theorem sum_filter_le_mul {M : Type*} [Semiring M] [PartialOrder M] [IsOrderedAd
     (hK : ∀ (A : Finset X) (B : Finset Y), (∀ x ∈ A, ∀ y ∈ B, f x y = z) →
       ∑ x ∈ A, ∑ y ∈ B, w x y ≤ K) :
     ∑ q : X × Y with f q.1 q.2 = z, w q.1 q.2 ≤ #{i | p.leafOutput i = z} * K := by
-  subst hp; classical
+  subst hp
+  classical
   exact p.sum_filter_run_le_mul z w fun i hi => hK _ _ fun _ hx _ hy =>
     (run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2).trans hi
 

@@ -133,8 +133,11 @@ theorem toOption_filterMapM (f : α → Except ε (Option β)) (l : List α) :
   | cons a l ih =>
     rcases h : f a with e | (_ | b)
     · simp [h]
-    · simp only [List.filterMapM_cons, h, ok_bind, ih]; split_ifs <;> simp_all
-    · simp only [List.filterMapM_cons, h, ok_bind, toOption_bind, ih]; split_ifs <;> simp_all
+    · simp only [List.filterMapM_cons, h, ok_bind]
+      rw [ih]
+      split_ifs <;> simp_all
+    · simp only [List.filterMapM_cons, h, ok_bind, toOption_bind, ih]
+      split_ifs <;> simp_all
 
 /-! ### Postconditions -/
 
@@ -203,10 +206,11 @@ theorem Spec.mapM {l : List α} {f : α → Except ε β} {R : α → β → Pro
   | nil => simp
   | cons a l ih =>
     simp only [List.mapM_cons]
-    exact (h a List.mem_cons_self).bind fun b₀ _ hb₀ =>
-      (ih fun a' ha' => h a' (List.mem_cons_of_mem a ha')).bind fun bs _ hbs b hb =>
-        (List.mem_cons.mp hb).elim (fun h => h ▸ ⟨a, List.mem_cons_self, h ▸ hb₀⟩)
-          fun hb => (hbs b hb).imp fun _ ⟨h, h'⟩ => ⟨List.mem_cons_of_mem a h, h'⟩
+    refine (h a List.mem_cons_self).bind fun b₀ _ hb₀ =>
+      (ih fun a' ha' => h a' (List.mem_cons_of_mem a ha')).bind fun bs _ hbs b hb => ?_
+    rcases List.mem_cons.mp hb with rfl | hb
+    · exact ⟨a, List.mem_cons_self, hb₀⟩
+    · exact (hbs b hb).imp fun _ ⟨h, h'⟩ => ⟨List.mem_cons_of_mem a h, h'⟩
 
 /-- Every result of a successful `List.filterMapM` comes from a step whose specification it
 meets. -/

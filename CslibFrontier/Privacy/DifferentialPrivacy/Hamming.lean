@@ -93,7 +93,8 @@ theorem HammingAdjacent.eq_update [DecidableEq ι] {x y : ι → X} (h : Hamming
   rcases eq_or_ne j i with rfl | hji
   · simp
   · rw [Function.update_of_ne hji]
-    exact Classical.not_not.mp fun hj => hji (h (Ne.symm hj) hi)
+    by_contra hj
+    exact hji (h (Ne.symm hj) hi)
 
 /-- A pair at Hamming distance at most `k + 1` passes through a dataset at distance at most `k`
 from the first and adjacent to the second. -/
@@ -151,12 +152,15 @@ theorem hammingDist_le_of_pure (h : DifferentiallyPrivate HammingAdjacent M ε 0
 theorem hammingDist_le' (h : DifferentiallyPrivate HammingAdjacent M ε δ) (hε : 0 ≤ ε) (k : ℕ) :
     DifferentiallyPrivate (fun x y => hammingDist x y ≤ k) M (k * ε)
       (k * ENNReal.ofReal (Real.exp ((k - 1 : ℕ) * ε)) * δ) := by
-  refine (h.hammingDist_le k).mono le_rfl <|
-    (Finset.sum_le_sum (g := fun _ => ENNReal.ofReal (Real.exp ((k - 1 : ℕ) * ε)) * δ)
-      fun i hi => ?_).trans_eq ?_
-  · have : i ≤ k - 1 := by have := Finset.mem_range.mp hi; omega
-    gcongr
-  · rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_assoc]
+  refine (h.hammingDist_le k).mono le_rfl ?_
+  calc ∑ i ∈ Finset.range k, ENNReal.ofReal (Real.exp (i * ε)) * δ
+      ≤ ∑ _i ∈ Finset.range k, ENNReal.ofReal (Real.exp ((k - 1 : ℕ) * ε)) * δ := by
+        refine Finset.sum_le_sum fun i hi => ?_
+        have hi' : i ≤ k - 1 := by
+          have := Finset.mem_range.mp hi; omega
+        gcongr
+    _ = k * ENNReal.ofReal (Real.exp ((k - 1 : ℕ) * ε)) * δ := by
+        rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_assoc]
 
 end DifferentiallyPrivate
 

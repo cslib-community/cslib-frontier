@@ -56,7 +56,10 @@ theorem valid_transport {f g : OccurrenceLabeling F Bool} (hf : ValidLabeling se
         ⟨localTuple g j, (sem_eq_true.mp (hg j)).2, hd j hj, by
           simp only [localTuple, List.length_ofFn, hb j hj]⟩
   else
-    have he : i.val = F.length := by have := i.isLt; simp only [length_contract] at this; omega
+    have he : i.val = F.length := by
+      have := i.isLt
+      simp only [length_contract] at this
+      omega
     simpa only [he, get_contract_central, get_transportRows_central] using hc
 
 /-- Zero connectors reflect validity for arbitrary outside changes when the internal reference
@@ -66,21 +69,26 @@ theorem valid_of_transport_zero {f g : OccurrenceLabeling F Bool} (hf : ValidLab
     (hc : central.length = (connectors F vs).length)
     (hi : ∀ o : Occurrence F, o.var ∈ vs → g o = f o)
     (hg : ValidLabeling sem (transport f vs g (fun _ => false) central)) :
-    ValidLabeling sem g := fun i => by
+    ValidLabeling sem g := by
+  intro i
   let j : Fin (contract f vs).length := ⟨i.val, by
-    have := i.isLt; simp only [length_contract]; omega⟩
+    have := i.isLt
+    simp only [length_contract]
+    omega⟩
   have hv := hg j
   change (contract f vs)[i.val].rel.sem
     (localTuple (labels _ (transportRows g vs (fun _ => false) central)) j) = true at hv
   rw [localTuple_labels _ _ j (transportRows_length f g vs _ hc j),
-    get_contract_old f vs i, get_transportRows_old g vs (fun _ => false) central i,
-    constraint] at hv
+    get_contract_old f vs i, get_transportRows_old g vs (fun _ => false) central i] at hv
+  unfold constraint at hv
   split at hv
   · exact hv
-  · refine (sem_contract_zero_iff (canContract_constraint hf vs i) (by simp [localTuple])
-      fun k hk => ?_).mp (by simpa only [localTuple, List.length_ofFn] using hv)
+  · apply (sem_contract_zero_iff (canContract_constraint hf vs i) (by simp [localTuple]) ?_).mp
+      (by simpa only [localTuple, List.length_ofFn] using hv)
+    intro k hk
     have hkb := List.mem_range.mp (List.mem_filter.mp hk).1
-    simpa [localTuple, hkb] using hi ⟨i, ⟨k, hkb⟩⟩ ((mem_positions vs i ⟨k, hkb⟩).mp hk)
+    have hkv := (mem_positions vs i ⟨k, hkb⟩).mp hk
+    simpa [localTuple, hkb] using hi ⟨i, ⟨k, hkb⟩⟩ hkv
 
 /-- Every nonconnector port of the actual contracted edge instance is a surviving old port. -/
 theorem exists_oldPort (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -104,11 +112,13 @@ theorem exists_connectorPort_or_centralPort (hF : EdgeInstance F)
     (ho : o.var ∈ connectors F vs) :
     (∃ i : Fin F.length, ∃ hi : i ∈ touched F vs, connectorPort f vs i hi = o) ∨
       ∃ k : Fin (connectors F vs).length, centralPort f vs k = o := by
-  obtain ⟨_, hi, he⟩ := List.mem_map.mp ho
-  obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hi
-  rcases (edge_contract hF f vs).eq_or_eq_partner
-      (show o.var = (connectorPort f vs (touched F vs)[k] (List.getElem_mem hk)).var by
-        rw [connectorPort_var]; exact he.symm) with heq | heq
+  obtain ⟨i, hi, he⟩ := List.mem_map.mp ho
+  obtain ⟨k, hk, hki⟩ := List.mem_iff_getElem.mp hi
+  subst i
+  have hoa : o.var = (connectorPort f vs (touched F vs)[k] (List.getElem_mem hk)).var := by
+    rw [connectorPort_var]
+    exact he.symm
+  rcases (edge_contract hF f vs).eq_or_eq_partner hoa with heq | heq
   · exact Or.inl ⟨(touched F vs)[k], List.getElem_mem hk, heq.symm⟩
   · exact Or.inr ⟨⟨k, by simpa only [length_connectors] using hk⟩,
       (centralPort_eq_partner_connectorPort hF f vs ⟨k, hk⟩).trans heq.symm⟩
@@ -134,7 +144,8 @@ theorem transport_expandZero (hF : EdgeInstance F) (f : OccurrenceLabeling F Boo
     · rw [transport_connectorPort, hbits i hi]
     · rw [transport_centralPort, hcentral k]
   · obtain ⟨p, hp, rfl⟩ := exists_oldPort hF f vs o ho
-    simp only [transport_oldPort, expandZero, dite_eq_right hp]
+    rw [transport_oldPort]
+    simp only [expandZero, dite_eq_right hp]
 
 /-- Restoring a valid zero-connector comparison gives a valid original labeling; outside
 coordinates need not agree with the prepared reference. -/

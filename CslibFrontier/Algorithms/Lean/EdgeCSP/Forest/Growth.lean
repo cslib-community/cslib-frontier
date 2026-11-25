@@ -141,7 +141,9 @@ theorem Grown.output_var_ne {sem : Rel → List Bool → Bool}
     (hg : Forest.Grown sem f rs (e :: es)) {o : Occurrence F} (ho : o ∈ e.outputs) :
     e.input.var ≠ o.var := by
   cases hg with
-  | cons _ hv _ hf => exact fun he => hf o ho (he ▸ hv)
+  | cons _ hv _ hf =>
+    intro he
+    exact hf o ho (he ▸ hv)
 
 end Log
 
@@ -166,7 +168,8 @@ theorem run_grown (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
     have hv : es.Visited rs input.var := by
       simpa only [decide_eq_true_eq] using List.find?_some hi
     split
-    · dsimp only; split <;> exact hg
+    · dsimp only
+      split <;> exact hg
     next os hs =>
       exact run_grown sem f hF rs _ _
         (hg.of_scan hF hv (hu input (List.mem_of_find?_eq_some hi)) hs)

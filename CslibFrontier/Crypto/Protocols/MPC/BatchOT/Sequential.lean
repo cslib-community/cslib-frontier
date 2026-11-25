@@ -152,8 +152,9 @@ theorem evalWith_seqOTSteps {M : Type} {Out : Fin 2 → Type} (k : ℕ) {State :
     rw [seqOTSteps, Steps.evalWith_oracle]
     simp only [otWorld, otFunctionality, Functionality.ofDeterministic, ProbComp.eval_pure,
       PMF.pure_bind, ih, PMF.pure_map]
-    exact congrArg PMF.pure (funext fun i =>
-      Prod.ext (funext fun s => funext fun hs => by subst hs; rfl) rfl)
+    refine congrArg PMF.pure (funext fun i => Prod.ext (funext fun s => funext fun hs => ?_) rfl)
+    subst hs
+    rfl
 
 /-- The output of party `i` after `seqOTSteps`, on the transcript in which its answers are `ans`,
 is `output i` of its state and `ans`. -/
@@ -250,8 +251,10 @@ theorem perfectSemiHonestPrivate_seqBatchOT (k : ℕ) (M : Type) :
       (seqBatchOTSim k M) := by
   refine perfectSemiHonestPrivate_of_deterministic _ _ batchOTAnswer _ (fun I x => ?_)
     fun x r hr => ?_
-  · rw [evalWith_seqBatchOT, PMF.pure_map]; exact ProbComp.eval_pure _
-  · rw [evalWith_seqBatchOT, PMF.support_pure, Set.mem_singleton_iff] at hr; rw [hr]
+  · rw [evalWith_seqBatchOT, PMF.pure_map]
+    exact ProbComp.eval_pure _
+  · rw [evalWith_seqBatchOT, PMF.support_pure, Set.mem_singleton_iff] at hr
+    rw [hr]
 
 /-! ### Substituting a protocol for the single transfer -/
 
@@ -434,17 +437,22 @@ theorem replacementBound_seqOTSteps_le {M : Type} {Out : Fin 2 → Type}
     replacementBound (otWorld M) W₂ (fun _ => Sub) (fun _ => S₂) I (seqOTSteps k query output) st
       D ≤ k * ε := by
   have hε' : ∀ J, J = I → ∀ q D,
-      (semiHonestAdvantage Sub W₂ (otFunctionality M) J (S₂ J) q D : ℝ≥0∞) ≤ ε :=
-    fun _ h => h ▸ hε
+      (semiHonestAdvantage Sub W₂ (otFunctionality M) J (S₂ J) q D : ℝ≥0∞) ≤ ε := by
+    rintro J rfl
+    exact hε
   induction k generalizing State with
   | zero =>
     rw [seqOTSteps, replacementBound]
     exact bot_le
   | succ k ih =>
     rw [seqOTSteps, replacementBound]
-    refine (add_le_add (hε' _ (subCoalition_refl I) _ _)
-      (tsum_le_tsum fun r => mul_le_mul' le_rfl (ih _ _ _ _))).trans_eq ?_
-    rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_mul, one_mul, add_comm]
+    calc _ ≤ ε + ∑' r, (Sub.realJoint W₂ (subCoalition (Function.Embedding.refl (Fin 2)) I)
+            (fun s => query 0 s (st s))) r * (k * ε) :=
+          add_le_add (hε' _ (subCoalition_refl I) _ _)
+            (tsum_le_tsum fun r => mul_le_mul' le_rfl (ih _ _ _ _))
+      _ = ((k + 1 : ℕ) : ℝ≥0∞) * ε := by
+          rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul, Nat.cast_succ, add_mul, one_mul,
+            add_comm]
 
 /-- **The batched transfer over a statistically secure single transfer.** If every test has
 semi-honest advantage at most `ε` against `Sub`, for `otFunctionality M` with the simulator `S₂ I`

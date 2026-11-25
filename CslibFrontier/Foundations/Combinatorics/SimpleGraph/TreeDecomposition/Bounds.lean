@@ -61,15 +61,17 @@ open TreeDecomposition
 /-- The clique number is at most the treewidth plus one. -/
 theorem cliqueNum_le_treewidth_add_one [Finite V] : G.cliqueNum ≤ G.treewidth + 1 := by
   obtain ⟨K, hK⟩ := G.exists_isNClique_cliqueNum
-  obtain ⟨_, D, hD⟩ := exists_width_eq_treewidth (G := G)
-  exact hK.card_eq ▸ hD ▸ D.card_le_width_add_one_of_isClique hK.isClique
+  obtain ⟨n, D, hD⟩ := exists_width_eq_treewidth (G := G)
+  rw [← hK.card_eq, ← hD]
+  exact D.card_le_width_add_one_of_isClique hK.isClique
 
 /-- The complete graph on a finite vertex type `V` has treewidth `card V - 1`. -/
 theorem treewidth_top [Fintype V] : (⊤ : SimpleGraph V).treewidth = Fintype.card V - 1 := by
   classical
-  refine le_antisymm treewidth_le_card (le_treewidth_iff.2 fun _ D => ?_)
+  refine le_antisymm treewidth_le_card (le_treewidth_iff.2 fun n D => ?_)
   have := D.card_le_width_add_one_of_isClique (K := Finset.univ) (by simp)
-  simpa using Nat.sub_le_of_le_add this
+  rw [Finset.card_univ] at this
+  omega
 
 /-- The minimum degree is at most the treewidth. -/
 theorem minDegree_le_treewidth [Fintype V] [DecidableRel G.Adj] : G.minDegree ≤ G.treewidth := by
@@ -265,7 +267,8 @@ theorem treewidth_bot [Finite V] : (⊥ : SimpleGraph V).treewidth = 0 := by
 theorem treewidth_eq_zero_iff [Finite V] : G.treewidth = 0 ↔ G = ⊥ := by
   classical
   refine ⟨fun h => ?_, fun h => h ▸ treewidth_bot⟩
-  ext u v; simp only [bot_adj, iff_false]
+  ext u v
+  simp only [bot_adj, iff_false]
   intro huv
   obtain ⟨_, D, hD⟩ := exists_width_eq_treewidth (G := G)
   obtain ⟨t, hu, hv⟩ := D.exists_adj_mem_bag huv

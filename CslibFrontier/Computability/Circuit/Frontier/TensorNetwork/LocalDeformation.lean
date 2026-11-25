@@ -103,7 +103,8 @@ theorem map_localDeformation {R : Type*} [CommRing R] [Algebra ℚ R] (N : Tenso
   rw [← coe_mapRingHom, localDeformation, ← deformedContraction_map, ← coe_compRingHom_apply,
     ← deformedContraction_map, map_map, map_map, map_map]
   congr 1
-  · congr 1; ext x : 1
+  · congr 1
+    ext x : 1
     simp only [RingHom.coe_comp, Function.comp_apply, coe_mapRingHom, Polynomial.map_C,
       coe_compRingHom_apply, C_comp]
   · ext e e'
@@ -126,12 +127,14 @@ theorem eval₂_localDeformation {R' : Type*} [CommRing R'] (N : TensorNetwork B
       (N.map π).deformedContraction side (cauchyValueMatrix (π.comp κ) ζ a t packet slot) := by
   rw [← coe_eval₂RingHom, localDeformation, ← deformedContraction_map, map_map]
   congr 1
-  · congr 1; ext x : 1
+  · congr 1
+    ext x : 1
     simp only [RingHom.coe_comp, Function.comp_apply, coe_eval₂RingHom, eval₂_C]
   · ext e e'
     simp only [Matrix.map_apply, cauchyLocalMatrix, cauchyValueMatrix, coe_eval₂RingHom]
     split_ifs
-    · rw [eval₂_map]; rfl
+    · rw [eval₂_map]
+      rfl
     · exact eval₂_zero _ _
 
 /-! ### Degrees -/
@@ -152,12 +155,14 @@ theorem natDegree_deformedContraction_le {R : Type*} [CommRing R] (N : TensorNet
   rw [hc, hc] at h2
   have hv (e : E) : (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e).natDegree ≤ d :=
     natDegree_sum_le_of_forall_le _ _ fun e' _ => by
-      dsimp only; split_ifs
+      dsimp only
+      split_ifs
       exacts [(mul_one (W e e')).symm ▸ hW e e', by simp]
   have hprod : (∏ e, affineFactor (Y e)
       (W.mulVec (fun e' => if X e' then (1 : R[X]) else 0) e)).natDegree ≤ Fintype.card E * d :=
     (natDegree_prod_le _ _).trans ((Finset.sum_le_card_nsmul _ _ d fun e _ => by
-      unfold affineFactor; split_ifs
+      unfold affineFactor
+      split_ifs
       · exact hv e
       · exact (natDegree_sub_le _ _).trans (max_le (by simp) (hv e))).trans_eq
         (by rw [Finset.card_univ, smul_eq_mul]))
@@ -170,8 +175,12 @@ theorem natDegree_localKernel_le {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2
     map_localKernel ht hd]
   refine natDegree_comp_le.trans ?_
   rw [natDegree_cauchyKernel hd]
-  exact (Nat.mul_le_mul_left _ ((natDegree_add_le _ _).trans
-    (max_le (by simp) ((natDegree_C_mul_le _ _).trans natDegree_X_le)))).trans_eq (mul_one _)
+  have : (C (t : ℚ) + C ((2 : ℚ) ^ (a + 1)) * X).natDegree ≤ 1 :=
+    (natDegree_add_le _ _).trans (max_le (by rw [natDegree_C]; exact Nat.zero_le _)
+      ((natDegree_C_mul_le _ _).trans natDegree_X_le))
+  calc (2 * 2 ^ a - 1) * (C (t : ℚ) + C ((2 : ℚ) ^ (a + 1)) * X).natDegree
+      ≤ (2 * 2 ^ a - 1) * 1 := Nat.mul_le_mul_left _ this
+    _ = 2 * 2 ^ a - 1 := mul_one _
 
 /-- The local deformation has degree at most `M (2 L - 1)` for `M` edges. -/
 theorem natDegree_localDeformation_le (N : TensorNetwork B Bool V E) (side : V → Bool)
@@ -179,7 +188,8 @@ theorem natDegree_localDeformation_le (N : TensorNetwork B Bool V E) (side : V �
     {t : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)) :
     (N.localDeformation side κ a t packet slot).natDegree ≤ Fintype.card E * (2 * 2 ^ a - 1) := by
   refine natDegree_deformedContraction_le N side _ fun e e' => ?_
-  unfold cauchyLocalMatrix; split_ifs
+  unfold cauchyLocalMatrix
+  split_ifs
   · exact natDegree_map_le.trans
       (natDegree_localKernel_le ht (sub_mem_cauchyGrid (hslot e) (hslot e')))
   · simp

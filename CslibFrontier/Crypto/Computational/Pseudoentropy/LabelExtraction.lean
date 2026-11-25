@@ -108,10 +108,15 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
   let reduced := fun (a : ℕ × List Bool) i samples => do
     let result ← extractLabels (seed a.1 i) (hash a.1 i) samples
     test a i result
-  refine negligible_iff_coe.mpr ((Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
-    tendsto_natCast_atTop_atTop).mpr fun degree => ?_)
-  have herror' : Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ)) error :=
-    (negligible_iff_coe.mp herror).congr fun _ => Real.coe_toNNReal _ (by positivity)
+  apply negligible_iff_coe.mpr
+  apply (Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
+    tendsto_natCast_atTop_atTop).mpr
+  intro degree
+  have herror' : Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ)) error := by
+    apply (negligible_iff_coe.mp herror).congr
+    intro n
+    apply Real.coe_toNNReal
+    positivity
   let inverseGap := fun n => dyadicSize (count n) * (n + 1) ^ degree
   have hinverseGap : ComputableInPolyTime inverseGap encUnary encUnary :=
     (hcount.trans .unary_dyadicSize).unary_mul'
@@ -152,13 +157,15 @@ theorem HasGapWithAdvice.indexed_extracted_advantage_negligible_of_isPPTOn {pair
           (fun output => ProbComp.eval (test (n, advice n) (choose n) output))) : ℝ) ≤
         (dyadicSize (count n) : ℝ) / inverseGap n + error n := by
     change _ - error n ≤ _ at hcompare
-    exact (sub_lt_iff_lt_add.mp (hcompare.trans_lt hdistinguish)).le
+    exact le_of_lt ((sub_lt_iff_lt_add.mp (hcompare.trans_lt hdistinguish)))
   rw [abs_of_nonneg (mul_nonneg (pow_nonneg (Nat.cast_nonneg n) _) (Game.advantage _ _).coe_nonneg)]
   have hprecision : (n : ℝ) ^ degree * ((dyadicSize (count n) : ℝ) / inverseGap n) ≤ 1 := by
     have hdyadic : (dyadicSize (count n) : ℝ) ≠ 0 := by exact_mod_cast (dyadicSize_pos _).ne'
     simp only [inverseGap, Nat.cast_mul, Nat.cast_pow, Nat.cast_add, Nat.cast_one,
       div_mul_eq_div_div, div_self hdyadic, mul_one_div]
-    exact (div_le_one (by positivity)).mpr (by gcongr; linarith)
+    apply (div_le_one (by positivity)).mpr
+    gcongr
+    linarith
   have h := mul_le_mul_of_nonneg_left htotal (pow_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) degree)
   rw [mul_add] at h
   dsimp only [reduced] at h
@@ -211,13 +218,16 @@ theorem HasGapWithAdvice.extract_indexed_labels_of_isPPTOn {pair : SamplablePair
           (realization.sampleCount inverseSlack n)
           (seed n (choose n))).bind
             (fun output => ProbComp.eval (test (n, advice n) (choose n) output)))) := by
-  refine hpair.indexed_extracted_advantage_negligible_of_isPPTOn realization choose seed hash test
-    htest hcandidates (realization.isPolyTime_sampleCount hslack) hnumerator hdensity hchoose
-    hvalid hhash (slack := fun n => realization.sampleSlack inverseSlack n)
+  apply hpair.indexed_extracted_advantage_negligible_of_isPPTOn realization choose seed hash test
+    htest hcandidates
+    (realization.isPolyTime_sampleCount hslack)
+    hnumerator hdensity hchoose hvalid hhash
+    (slack := fun n => realization.sampleSlack inverseSlack n)
     (fun _ => Nat.cast_nonneg _)
-    (negligible_of_eventually_le ExtractionSchedule.error_negligible ?_)
+  apply negligible_of_eventually_le ExtractionSchedule.error_negligible
   filter_upwards [hbudget] with n hn
-  refine NNReal.coe_le_coe.mp ((Real.coe_toNNReal _ (by positivity)).trans_le ?_)
+  apply NNReal.coe_le_coe.mp
+  rw [Real.coe_toNNReal _ (by positivity)]
   simpa only [BitString, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow,
     Nat.cast_ofNat] using ExtractionSchedule.error_le n (realization.length n) (inverseSlack n)
       (outputBits n (choose n)) ((numerator n (choose n) : ℝ) / dyadicSize (densityBound n)) hn

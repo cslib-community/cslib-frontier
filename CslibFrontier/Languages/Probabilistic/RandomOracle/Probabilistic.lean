@@ -72,8 +72,9 @@ private theorem run_interpret_memoize_transcript_prob (distribution : Query → 
     ?_ program (cache, []) (by simp) result (cache', transcript) h
   rintro q ⟨current, seen⟩ ⟨hcount, hentries⟩ answer next hnext
   simp only [OracleComp.withTranscript, PMF.mem_support_map_iff, mem_support_memoize_iff] at hnext
-  obtain ⟨⟨value, current'⟩, hvalue, rfl, rfl⟩ := hnext
-  dsimp only at hvalue ⊢
+  obtain ⟨⟨value, current'⟩, hvalue, heq⟩ := hnext
+  cases heq
+  dsimp only at hvalue
   rcases hvalue with ⟨_, rfl⟩ | ⟨_, hfresh, rfl⟩ <;> grind
 
 /-- External query budgets control cache growth and new-entry provenance for randomized clients.
@@ -105,7 +106,8 @@ theorem run_interpret_memoize_prob [LawfulBEq Query] [DecidableEq Query]
     (ProbOracleComp.runWith (memoize distribution) program cache).map
         (fun (result, cache') => (result, ofList cache')) =
       ProbOracleComp.runWith (answer distribution) program (ofList cache) := by
-  refine ProbOracleComp.runWith_map_state _ _ _ (fun q current => ?_) _ _
+  apply ProbOracleComp.runWith_map_state
+  intro q current
   simpa only [OracleComp.interpret_query, StateT.run] using
     run_interpret_memoize distribution (OracleComp.query q) current
 
@@ -151,7 +153,8 @@ theorem eval_zoom_memoize_bind {Key Value St T β : Type} [DecidableEq Key]
       (answer (fun _ => ProbComp.eval d) q (ofList (get s))).bind Φ := by
   rw [ProbComp.eval_bind, eval_zoomStateT_memoize, ← memoize_map_ofList, PMF.map_bind,
     PMF.bind_map, PMF.bind_map]
-  exact congrArg _ (funext fun ⟨v, c⟩ => hf v c)
+  congr 1 with ⟨v, c⟩ : 1
+  exact hf v c
 
 end List
 
@@ -276,7 +279,8 @@ theorem answer_bind_complete (d : Q → PMF V) (c : Cache (fun _ : Q => V))
   have h := congrArg (fun p => p.bind (fun x => F (x.1, c) x.2)) (answer_complete d c q)
   simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map,
     Function.comp_def] at h
-  rw [← h]; congr 1 with ⟨v, c'⟩ : 1
+  rw [← h]
+  congr 1 with ⟨v, c'⟩ : 1
   rw [hF v c' c]
 
 /-- `answer_bind_complete` past one independent sample `p`. -/

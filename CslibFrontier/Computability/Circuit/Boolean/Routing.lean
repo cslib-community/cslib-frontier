@@ -195,8 +195,10 @@ theorem eval_routeCircuit_header_of_rank {h k o depth width : ℕ}
     (fun row => toLex (order.eval interpretation row)) (monotone_routeCircuit key tag order x)
     destination target (fun i h => unique i h) (by
       convert rank using 1
-      refine congrArg Finset.card (Finset.ext fun _ => ?_)
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]; rfl)
+      apply congrArg Finset.card
+      ext i
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      rfl)
 
 open scoped Classical in
 /-- At a fixed restored position, destination values are the OR of matching original sources. -/
@@ -278,9 +280,10 @@ theorem four_mul_size_routeCircuit {h k o : ℕ}
         (12 * (k + 1 + o + h + width) + 4) +
       4 * (1 + (2 ^ depth - 1) * (6 * k + 1) + width * (1 + 4 * 2 ^ depth)) := by
   have positive : 0 < h := Nat.zero_lt_of_lt tag.isLt
+  have h₁ : k + 1 + (h + width) ≠ 0 := by lia
+  have h₂ : o + (h + width) ≠ 0 := by lia
   have hc := four_mul_cost_program_routeCircuit key tag order depth width (fun _ => 1)
-  simp only [Program.cost_const, one_mul, size_compareSwapCircuit,
-    show k + 1 + (h + width) ≠ 0 by lia, show o + (h + width) ≠ 0 by lia, ↓reduceIte] at hc
+  simp only [Program.cost_const, one_mul, size_compareSwapCircuit, h₁, h₂, ↓reduceIte] at hc
   convert hc using 1
   ring
 

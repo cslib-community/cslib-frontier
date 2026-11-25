@@ -147,7 +147,8 @@ theorem completedPaste_eq_map (k : ℕ) [Nonempty (Fin k ↪ F)]
     (M : F → Measurement (Option (BoundedPolynomial F n d)) A)
     (hM : ∀ t, (M t).IsProjective) (fallback : BoundedPolynomial F (n + 1) d) :
     completedPaste k M hM fallback = (pasteSlices k M hM).map (fun q => q.getD fallback) := by
-  unfold completedPaste; rfl
+  unfold completedPaste
+  rfl
 
 open scoped Classical in
 /-- The fallback outcome receives the original failure effect in addition to its

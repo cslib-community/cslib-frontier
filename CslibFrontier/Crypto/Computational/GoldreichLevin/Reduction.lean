@@ -225,18 +225,26 @@ theorem invertSigned_success_ge {n k : ℕ} {Coins : Image → Type*} [∀ image
     ε / 8 ≤ (inversionExperiment (PMF.uniformOfFintype (BitString n)) f
       (invertSigned f predictor coins k) true).toReal := by
   rw [invertSigned_probability]
-  rcases (le_abs.mp h).symm with hneg | hpos
-  · have hcomp :
-        (parityPredictionExperiment f (fun y s r => !(predictor y s r)) coins true).toReal =
+  rcases (le_abs.mp h).symm with hnegative | hpositive
+  · have hcomplement :
+        (parityPredictionExperiment f (fun y seed r => !(predictor y seed r)) coins true).toReal =
           1 - (parityPredictionExperiment f predictor coins true).toReal := by
       rw [parityPredictionExperiment_not]
-      exact (congrArg NNReal.toReal (Game.succProbability_not _)).trans
-        (by rw [Game.failProbability_eq, NNReal.coe_sub (Game.succProbability_le_one _)]; rfl)
-    linarith [invert_success_ge f (fun y s r => !(predictor y s r)) coins ε hε hk
-      (by linarith) hsize, ENNReal.toReal_nonneg (a := inversionExperiment
-        (PMF.uniformOfFintype (BitString n)) f (invert f predictor coins k) true)]
-  · linarith [invert_success_ge f predictor coins ε hε hk (by linarith) hsize,
-      ENNReal.toReal_nonneg (a := inversionExperiment (PMF.uniformOfFintype (BitString n)) f
-        (invert f (fun y s r => !(predictor y s r)) coins k) true)]
+      change
+        (Game.succProbability ((parityPredictionExperiment f predictor coins).map Bool.not) : ℝ) = _
+      rw [Game.succProbability_not, Game.failProbability_eq,
+        NNReal.coe_sub (Game.succProbability_le_one _)]
+      rfl
+    have hs := invert_success_ge f (fun y seed r => !(predictor y seed r)) coins ε hε hk
+      (by rw [hcomplement]; linarith) hsize
+    have hn := ENNReal.toReal_nonneg
+      (a := inversionExperiment (PMF.uniformOfFintype (BitString n)) f
+        (invert f predictor coins k) true)
+    linarith
+  · have hs := invert_success_ge f predictor coins ε hε hk (by linarith) hsize
+    have hn := ENNReal.toReal_nonneg
+      (a := inversionExperiment (PMF.uniformOfFintype (BitString n)) f
+        (invert f (fun y seed r => !(predictor y seed r)) coins k) true)
+    linarith
 
 end Cslib.Crypto.GoldreichLevin

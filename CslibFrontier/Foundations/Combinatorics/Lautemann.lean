@@ -77,18 +77,21 @@ theorem card_filter_exists_forall_mul_mem_le [DecidableEq G] (S : Finset G) (k :
     #{u : Fin k → G | ∃ g : G, ∀ i, g * u i ∈ S} ≤ Fintype.card G * #S ^ k := by
   let bad (g : G) : Finset (Fin k → G) := univ.filter fun u => ∀ i, g * u i ∈ S
   have hsub : (univ.filter fun u : Fin k → G => ∃ g : G, ∀ i, g * u i ∈ S) ⊆
-      univ.biUnion bad := fun _ hu =>
-    let ⟨g, hg⟩ := (mem_filter.1 hu).2
-    mem_biUnion.2 ⟨g, mem_univ _, mem_filter.2 ⟨mem_univ _, hg⟩⟩
+      univ.biUnion bad := fun u hu => by
+    obtain ⟨g, hg⟩ := (mem_filter.1 hu).2
+    exact mem_biUnion.2 ⟨g, mem_univ _, mem_filter.2 ⟨mem_univ _, hg⟩⟩
   have hbad (g : G) : #(bad g) = #S ^ k := by
     have hg : Fintype.card {x : G // g * x ∈ S} = #S := by
       rw [Fintype.card_subtype]
       exact card_nbij' (g * ·) (g⁻¹ * ·) (fun _ => by simp) (fun _ => by simp)
         (fun _ _ => by simp) (fun _ _ => by simp)
-    rw [← Fintype.card_subtype, Fintype.card_congr
-      (Equiv.subtypePiEquivPi (p := fun (_ : Fin k) (x : G) => g * x ∈ S))]
-    simp [hg]
-  simpa [sum_const_nat fun g _ => hbad g] using (card_le_card hsub).trans card_biUnion_le
+    calc #(bad g)
+        = Fintype.card {u : Fin k → G // ∀ i, g * u i ∈ S} := by simp [bad, Fintype.card_subtype]
+      _ = Fintype.card (Fin k → {x : G // g * x ∈ S}) :=
+          Fintype.card_congr (Equiv.subtypePiEquivPi (p := fun (_ : Fin k) (x : G) => g * x ∈ S))
+      _ = #S ^ k := by simp [hg]
+  refine (card_le_card hsub).trans (card_biUnion_le.trans ?_)
+  rw [sum_const_nat fun g _ => hbad g, card_univ]
 
 /-- **Lautemann's covering lemma**, union-bound form: if `S` is a subset of a finite group `G`
 with `|G| |G \ S| ^ k < |G| ^ k`, then some `k` shifts `u i` carry every `g : G` into `S` by right
@@ -211,13 +214,18 @@ theorem BitString.two_mul_card_filter_exists_forall_add_mem_le {n k : ℕ} (S : 
     2 * #{u : Fin k → BitString m | ∃ r : BitString m, ∀ i, r + u i ∈ S} ≤
       2 ^ (k * m) := by
   have hpow : 2 * 2 ^ m ≤ (2 ^ n) ^ k := by
-    rw [← pow_succ', ← pow_mul]; exact Nat.pow_le_pow_right (by norm_num) hk
+    rw [← pow_succ', ← pow_mul]
+    exact Nat.pow_le_pow_right (by norm_num) hk
   refine Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < (2 ^ n) ^ k)
   calc (2 ^ n) ^ k * (2 * #{u : Fin k → BitString m | ∃ r : BitString m, ∀ i, r + u i ∈ S})
       ≤ (2 ^ n) ^ k * (2 * (Fintype.card (BitString m) * #S ^ k)) := by
-        gcongr; exact card_filter_exists_forall_add_mem_le S k
-    _ = 2 * 2 ^ m * (2 ^ n * #S) ^ k := by rw [BitString.card]; ring
-    _ ≤ (2 ^ n) ^ k * (2 ^ m) ^ k := Nat.mul_le_mul hpow (Nat.pow_le_pow_left hS k)
+        gcongr
+        exact card_filter_exists_forall_add_mem_le S k
+    _ = 2 * 2 ^ m * (2 ^ n * #S) ^ k := by
+        rw [BitString.card]
+        ring
+    _ ≤ (2 ^ n) ^ k * (2 ^ m) ^ k :=
+        Nat.mul_le_mul hpow (Nat.pow_le_pow_left hS k)
     _ = (2 ^ n) ^ k * 2 ^ (k * m) := by rw [← pow_mul 2 m k, Nat.mul_comm m k]
 
 private theorem two_pow_lt_two_mul_pow (hm : 2 ≤ m) : 2 ^ m < (2 * m) ^ m := by
@@ -235,14 +243,18 @@ theorem BitString.mem_iff_exists_forall_exists (hm : 2 ≤ m)
     (hmem : ∀ x ∈ L, 2 * m * #{r | A x r = false} ≤ 2 ^ m)
     (hnotMem : ∀ x ∉ L, 2 * m * #{r | A x r = true} ≤ 2 ^ m) (x : α) :
     x ∈ L ↔ ∃ u : Fin m → BitString m, ∀ r, ∃ i, A x (r + u i) = true := by
-  refine ⟨fun hx => ?_, fun ⟨u, hu⟩ => by_contra fun hx => ?_⟩
-  · obtain ⟨u, hu⟩ := exists_forall_exists_add_mem_of_mul_card_compl_le {r | A x r = true}
+  constructor
+  · intro hx
+    obtain ⟨u, hu⟩ := exists_forall_exists_add_mem_of_mul_card_compl_le {r | A x r = true}
       (q := 2 * m) (k := m) (by simpa [compl_filter, BitString.card] using hmem x hx)
       (by rw [BitString.card]; exact two_pow_lt_two_mul_pow hm)
     exact ⟨u, fun r => by simpa using hu r⟩
-  · obtain ⟨r, hr⟩ := exists_forall_add_notMem_of_mul_card_le {r | A x r = true} (q := 2 * m)
+  · rintro ⟨u, hu⟩
+    by_contra hx
+    obtain ⟨r, hr⟩ := exists_forall_add_notMem_of_mul_card_le {r | A x r = true} (q := 2 * m)
       (by rw [BitString.card]; exact hnotMem x hx) (by omega) u
-    exact let ⟨i, hi⟩ := hu r; hr i (mem_filter.2 ⟨mem_univ _, hi⟩)
+    obtain ⟨i, hi⟩ := hu r
+    exact hr i (mem_filter.2 ⟨mem_univ _, hi⟩)
 
 /-- **The finite core of the Sipser–Gács–Lautemann theorem**, `∀ ∃ ∀` form
 ([Lautemann][Lautemann1983], [Arora and Barak, Theorem 7.15][AroraBarak09]): let `A x r` decide
@@ -253,8 +265,9 @@ theorem BitString.mem_iff_forall_exists_forall (hm : 2 ≤ m)
     (hmem : ∀ x ∈ L, 2 * m * #{r | A x r = false} ≤ 2 ^ m)
     (hnotMem : ∀ x ∉ L, 2 * m * #{r | A x r = true} ≤ 2 ^ m) (x : α) :
     x ∈ L ↔ ∀ u : Fin m → BitString m, ∃ r, ∀ i, A x (r + u i) = true := by
-  rw [← not_iff_not, ← Set.mem_compl_iff, mem_iff_exists_forall_exists (L := Lᶜ)
-    (A := fun x r => !A x r) hm (by simpa using hnotMem) (by simpa using hmem) x]
+  have h := mem_iff_exists_forall_exists (L := Lᶜ) (A := fun x r => !A x r) hm
+    (by simpa using hnotMem) (by simpa using hmem) x
+  rw [← not_iff_not, ← Set.mem_compl_iff, h]
   simp
 
 end BitString

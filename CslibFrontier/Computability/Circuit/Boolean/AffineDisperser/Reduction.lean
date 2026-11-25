@@ -87,7 +87,8 @@ private theorem Reduction.wt_le_add_one (h : Reduction f S S' F D T) (hS : S.Val
     (hpart : ∀ x ∈ F, ¬ S.IsPartner x u) (hdeg : 1 ≤ S.deg u) : S'.wt u ≤ S.wt u + 1 := by
   by_cases hu : u ∈ S.unpaired
   · rw [wt_of_mem hu, config_weight]
-    have := six_le_weight hdeg; have := S'.wt_le_bound u
+    have := six_le_weight hdeg
+    have := S'.wt_le_bound u
     rw [config_weightBound] at this; omega
   · simp [h.wt_eq_zero hS hu hpart]
 
@@ -114,7 +115,8 @@ theorem Reduction.wt_le_of_exclusive (h : Reduction f S S' F D T) (hS : S.Valid 
     S'.wt u ≤ S.wt u := by
   by_cases hu : u ∈ S.unpaired
   · exact Reduction.wt_le_wt h hu fun N hN hNu =>
-      let ⟨x, hx, hxu, hNx⟩ := hT N hN hNu; hexcl.two_le_deg hu hNu hx hxu hNx
+      let ⟨x, hx, hxu, hNx⟩ := hT N hN hNu
+      hexcl.two_le_deg hu hNu hx hxu hNx
   · simp [h.wt_eq_zero hS hu hpart]
 
 /-- Deleting one constraint with at most two parameters as parents is a step of gate
@@ -150,7 +152,8 @@ theorem Valid.reduction_restrict {S : State n} (hS : S.Valid f) {x : ℕ} (hx : 
       avoid := fun _ hpr => not_or.1 (Finset.mem_filter.1 hpr).2
       drop := fun pr hpr hP => by
         have hprx : pr.1 = x ∨ pr.2 = x := by
-          by_contra hc; exact hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
+          by_contra hc
+          exact hP (Finset.mem_filter.2 ⟨hpr, hc⟩)
         refine ⟨hprx, fun y hy => ?_⟩
         obtain ⟨pr', hpr', hxy⟩ := (hℓ y hy).2.2.2 ⟨pr, hpr, hprx⟩
         cases hS.pair_unique hpr hpr' hprx (hxy.imp And.left And.left)
@@ -167,11 +170,13 @@ theorem Valid.fixConst {S : State n} (hS : S.Valid f) {w : ℕ} (hw : w ∈ S.pa
     (S.fixConst w b).Valid f :=
   Valid.restrict hS
     { mem := hw
-      reads := fun _ hy => by simp [Lit.Reads, Lit.const] at hy
+      reads := fun y hy => by simp [Lit.Reads, Lit.const] at hy
       subset := Finset.filter_subset _ _
       avoid := fun _ hpr => not_or.1 (Finset.mem_filter.1 hpr).2
-      drop := fun pr hpr hP => ⟨by by_contra h; exact hP (Finset.mem_filter.2 ⟨hpr, h⟩),
-        fun _ hy => by simp [Lit.Reads, Lit.const] at hy⟩ }
+      drop := fun pr hpr hP => by
+        refine ⟨?_, fun y hy => by simp [Lit.Reads, Lit.const] at hy⟩
+        by_contra h
+        exact hP (Finset.mem_filter.2 ⟨hpr, h⟩) }
 
 /-- Fixing a parameter to a constant is a reduction. -/
 theorem Valid.reduction_fixConst {S : State n} (hS : S.Valid f) {w : ℕ} (hw : w ∈ S.params)

@@ -98,13 +98,16 @@ theorem Clause.evalOne_congr {σ τ : V → Bool} {c : Clause V}
 theorem CNF.evalOne_congr {σ τ : V → Bool} {φ : CNF V}
     (h : ∀ v ∈ φ.vars, σ v = τ v) : φ.evalOne σ = φ.evalOne τ := by
   rw [Bool.eq_iff_iff, CNF.evalOne_eq_true_iff, CNF.evalOne_eq_true_iff]
-  exact forall₂_congr fun c hc => by
-    rw [Clause.evalOne_congr fun l hl => h l.1 (CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩)]
+  refine forall₂_congr fun c hc => ?_
+  rw [Clause.evalOne_congr (fun l hl => h l.1 ?_)]
+  exact CNF.mem_vars.mpr ⟨c, hc, l.2, hl⟩
 
 /-- Exact-one clause evaluation commutes with relabelling. -/
 @[simp] theorem Clause.evalOne_relabel (f : V → W) (σ : W → Bool) (c : Clause V) :
     (c.relabel f).evalOne σ = c.evalOne (σ ∘ f) := by
-  rw [Clause.evalOne, Clause.relabel, List.countP_map]; rfl
+  unfold Clause.evalOne Clause.relabel
+  rw [List.countP_map]
+  rfl
 
 /-- Exact-one formula evaluation commutes with relabelling. -/
 @[simp] theorem CNF.evalOne_relabel (f : V → W) (σ : W → Bool) (φ : CNF V) :
@@ -140,16 +143,19 @@ theorem Clause.eval_atMostOneOccurrences (σ : V → Bool) (c : Clause V) :
 /-- Exact-one clause encoding preserves evaluation under the same assignment. -/
 @[simp] theorem Clause.eval_oneEncoding (σ : V → Bool) (c : Clause V) :
     c.oneEncoding.eval σ = c.evalOne σ := by
-  rw [Bool.eq_iff_iff, Clause.oneEncoding, CNF.eval_append, Bool.and_eq_true, CNF.eval_cons,
-    CNF.eval_nil, Bool.and_true, Clause.eval_atMostOneOccurrences, Clause.evalOne_eq_true_iff,
-    show (c.eval σ = true) ↔ 0 < c.countP (Literal.eval σ) by
-      simp [Clause.eval, List.countP_pos_iff]]
+  rw [Bool.eq_iff_iff, Clause.oneEncoding, CNF.eval_append, Bool.and_eq_true]
+  rw [CNF.eval_cons, CNF.eval_nil, Bool.and_true, Clause.eval_atMostOneOccurrences,
+    Clause.evalOne_eq_true_iff]
+  have hpos : c.eval σ = true ↔ 0 < c.countP (Literal.eval σ) := by
+    simp [Clause.eval, List.countP_pos_iff]
+  rw [hpos]
   omega
 
 /-- Exact-one formula encoding preserves evaluation under the same assignment. -/
 @[simp] theorem CNF.eval_oneEncoding (σ : V → Bool) (φ : CNF V) :
     φ.oneEncoding.eval σ = φ.evalOne σ := by
-  rw [Bool.eq_iff_iff, CNF.oneEncoding, CNF.eval_flatMap_eq_true_iff, CNF.evalOne_eq_true_iff]
+  rw [Bool.eq_iff_iff, CNF.oneEncoding, CNF.eval_flatMap_eq_true_iff,
+    CNF.evalOne_eq_true_iff]
   simp
 
 /-- The ordinary encoding is satisfiable exactly when the exact-one source is. -/
@@ -168,8 +174,10 @@ theorem Clause.fst_mem_of_mem_atMostOneOccurrences {c : Clause V} {d : Clause V}
     rcases hd with ⟨k', hk', rfl⟩ | hd
     · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
       rcases hl with rfl | rfl
-      exacts [⟨k, List.mem_cons_self, rfl⟩, ⟨k', List.mem_cons_of_mem _ hk', rfl⟩]
-    · exact let ⟨k', hk', he⟩ := ih hd; ⟨k', List.mem_cons_of_mem _ hk', he⟩
+      · exact ⟨k, List.mem_cons_self, rfl⟩
+      · exact ⟨k', List.mem_cons_of_mem _ hk', rfl⟩
+    · obtain ⟨k', hk', he⟩ := ih hd
+      exact ⟨k', List.mem_cons_of_mem _ hk', he⟩
 
 /-- The encoding has exactly the variables of the source, irrespective of repetitions. -/
 theorem CNF.mem_vars_oneEncoding {φ : CNF V} {v : V} :

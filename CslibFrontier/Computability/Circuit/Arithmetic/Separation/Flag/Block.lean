@@ -114,7 +114,8 @@ private theorem mat_blk' (t : U a × Matrix (Fin a) (Fin b) F2 × U b) : mat (bl
       (h : Wᵀ * V = 0) {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2)
       (Q : Matrix (Fin d) (Fin (a + b)) F2) (X : Matrix (Fin c) (Fin k) F2)
       (Y : Matrix (Fin k') (Fin d) F2) : P * X * Wᵀ * (V * Y * Q) = 0 := by
-    rw [mul_sandwich, h]; simp
+    rw [mul_sandwich, h]
+    simp
   have e {k : ℕ} (W : Matrix (Fin (a + b)) (Fin k) F2) (h : Wᵀ * W = 1)
       {c d : ℕ} (P : Matrix (Fin (a + b)) (Fin c) F2) (Q : Matrix (Fin d) (Fin (a + b)) F2)
       (X : Matrix (Fin c) (Fin k) F2) (Y : Matrix (Fin k) (Fin d) F2) :
@@ -181,7 +182,8 @@ theorem blk_bijective : Function.Bijective
     (blk : U a × Matrix (Fin a) (Fin b) F2 × U b → U (a + b)) := by
   refine (Fintype.bijective_iff_injective_and_card _).2 ⟨blk_injective, ?_⟩
   have hM : Fintype.card (Matrix (Fin a) (Fin b) F2) = 2 ^ (a * b) := by
-    change Fintype.card (Fin a → Fin b → F2) = _; simp [← pow_mul, mul_comm]
+    change Fintype.card (Fin a → Fin b → F2) = _
+    simp [← pow_mul, mul_comm]
   rw [Fintype.card_prod, Fintype.card_prod, hM, Cslib.SLTower.card_U, Cslib.SLTower.card_U,
     Cslib.SLTower.card_U, tri_add, pow_add, pow_add]
   ring

@@ -89,7 +89,8 @@ theorem run_coinOfDigits (n : ℕ) :
   | succ n ih =>
     intro d
     have hsame : (coinOfDigits d).child (d 0) = coinOfDigits fun i => d (i + 1) := by
-      ext w; simp [coinOfDigits, coinOfDigitsOutput]
+      ext w
+      simp [coinOfDigits, coinOfDigitsOutput]
     have hdiff : ((coinOfDigits d).child (!d 0)).run n = PMF.pure (some (d 0)) :=
       run_eq_pure_of_output_nil (by simp [coinOfDigits, coinOfDigitsOutput]) n
     obtain ⟨ihn, ihs⟩ := ih fun i => d (i + 1)
@@ -123,21 +124,22 @@ theorem coinOfDigits_generates {d : ℕ → Bool} {ρ : I}
     (coinOfDigits d).Generates (PMF.coin ρ) := by
   have htrue : (coinOfDigits d).outputProb true = ENNReal.ofReal ρ := by
     rw [outputProb_coinOfDigits, ← hd.tsum_eq,
-      ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity) hd.summable]
-    exact tsum_congr fun i => by
-      split_ifs <;> simp [ENNReal.ofReal_pow, ENNReal.ofReal_inv_of_pos, ENNReal.inv_pow]
+      ENNReal.ofReal_tsum_of_nonneg (fun i => by positivity) hd.summable]
+    refine tsum_congr fun i => ?_
+    split_ifs <;> simp [ENNReal.ofReal_pow, ENNReal.ofReal_inv_of_pos, ENNReal.inv_pow]
   have hall : (coinOfDigits d).outputProb true + (coinOfDigits d).outputProb false = 1 := by
     rw [outputProb_coinOfDigits, outputProb_coinOfDigits, ← tsum_add]
-    simp only [show ∀ i, ((if d i = true then (2⁻¹ : ℝ≥0∞) ^ (i + 1) else 0) +
-        if d i = false then (2⁻¹ : ℝ≥0∞) ^ (i + 1) else 0) = 2⁻¹ ^ (i + 1) from
-      fun i => by cases d i <;> simp,
-      ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two, inv_inv]
+    have : ∀ i, ((if d i = true then (2⁻¹ : ℝ≥0∞) ^ (i + 1) else 0) +
+        if d i = false then (2⁻¹ : ℝ≥0∞) ^ (i + 1) else 0) = 2⁻¹ ^ (i + 1) := by
+      intro i; cases d i <;> simp
+    simp only [this, ENNReal.tsum_geometric_add_one, ENNReal.one_sub_inv_two, inv_inv]
     exact ENNReal.inv_mul_cancel two_ne_zero ENNReal.ofNat_ne_top
-  rintro (_ | _)
+  intro x
+  cases x
   · rw [PMF.coin_apply, ite_eq_right Bool.false_ne_true, ENNReal.ofReal_sub _ ρ.2.1,
-      ENNReal.ofReal_one, ← htrue, ← hall,
-      ENNReal.add_sub_cancel_left (by rw [htrue]; exact ENNReal.ofReal_ne_top)]
-  · simp [PMF.coin_apply, htrue]
+      ENNReal.ofReal_one, ← htrue, ← hall, ENNReal.add_sub_cancel_left]
+    exact htrue ▸ ENNReal.ofReal_ne_top
+  · rw [PMF.coin_apply, ite_eq_left rfl, htrue]
 
 /-- Expected total digit cost: with cost `w n` for the digit compared at flip `n + 1`, the expected
 cost is `∑ₙ w n 2⁻ⁿ`. -/
@@ -158,20 +160,25 @@ theorem expectedCostWith_coinOfDigits_lt_top (d : ℕ → Bool) {w : ℕ → ℕ
     (coinOfDigits d).expectedCostWith (PMF.uniformOfFintype Bool) (fun n => w n) < ⊤ := by
   obtain ⟨C, k, hC⟩ := polynomiallyBounded_iff_le.mp hw
   rw [expectedCostWith_coinOfDigits]
-  have hsum : Summable fun n : ℕ => (C : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k * 2⁻¹ ^ n :=
-    (((summable_nat_add_iff 1).mpr
-      (summable_pow_mul_geometric_of_norm_lt_one (r := (2⁻¹ : ℝ)) k (by norm_num))).mul_left
-      ((2 : ℝ) * C)).congr fun n => by simp only [pow_succ, Nat.cast_add, Nat.cast_one]; ring
-  refine ((tsum_le_tsum (g := fun n =>
-      ENNReal.ofReal ((C : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k * 2⁻¹ ^ n)) fun n => ?_).trans_eq
-    (ENNReal.ofReal_tsum_of_nonneg (fun _ => by positivity) hsum).symm).trans_lt
-      ENNReal.ofReal_lt_top
-  dsimp only
-  rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_pow (by norm_num),
-    ENNReal.ofReal_inv_of_pos (by norm_num), ENNReal.ofReal_ofNat]
-  gcongr
-  rw [← ENNReal.ofReal_natCast]
-  exact ENNReal.ofReal_le_ofReal (by exact_mod_cast hC n)
+  have hsum : Summable fun n : ℕ => (C : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k * 2⁻¹ ^ n := by
+    have hg : Summable fun m : ℕ => (m : ℝ) ^ k * 2⁻¹ ^ m :=
+      summable_pow_mul_geometric_of_norm_lt_one k (by norm_num)
+    have hg1 := (summable_nat_add_iff 1).mpr hg
+    refine (hg1.mul_left ((2 : ℝ) * C)).congr fun n => ?_
+    simp only [pow_succ]
+    push_cast
+    ring_nf
+  calc ∑' n, (w n : ℝ≥0∞) * 2⁻¹ ^ n
+      ≤ ∑' n : ℕ, ENNReal.ofReal ((C : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k * 2⁻¹ ^ n) := by
+        refine tsum_le_tsum fun n => ?_
+        rw [ENNReal.ofReal_mul (by positivity), ENNReal.ofReal_pow (by norm_num),
+          ENNReal.ofReal_inv_of_pos (by norm_num), ENNReal.ofReal_ofNat]
+        gcongr
+        rw [← ENNReal.ofReal_natCast]
+        exact ENNReal.ofReal_le_ofReal (by exact_mod_cast hC n)
+    _ = ENNReal.ofReal (∑' n : ℕ, (C : ℝ) * ((n + 1 : ℕ) : ℝ) ^ k * 2⁻¹ ^ n) :=
+        (ENNReal.ofReal_tsum_of_nonneg (fun n => by positivity) hsum).symm
+    _ < ⊤ := ENNReal.ofReal_lt_top
 
 end DDGTree
 

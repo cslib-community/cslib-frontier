@@ -122,16 +122,29 @@ theorem costHoare_dijkstra (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
     (spec G.n K V).CostHoare (charge pqCharge) (· = init G) (dijkstra G.source)
       (fun _ => HasDistances G) (fun _ => budget cI cE cD G.n G.m) := by
   rw [StateTransitionSpec.costHoare_iff_ofFn, StateTransitionSpec.hoare_iff_ofFn]
-  refine ⟨by rintro _ rfl; exact dijkstra_correct G hK hV, ?_⟩
-  rintro _ rfl
-  let rate : OpKind → ℕ := fun
-    | .insert => cI | .extractMin => cE | .decreaseKey => cD
-    | .inspect => 0 | .distance | .graph => 1
-  refine (totalCost_dijkstra_le G hK hV _ rate fun ⟨q, _⟩ o ho => ?_).trans_eq ?_
-  · rcases o with (_ | _ | _ | _ | _) | (_ | _)
-    exacts [absurd rfl ho, absurd rfl ho, hI q _ _, hD q _ _, hE q, le_rfl, le_rfl]
-  · simp only [rateBound, budget, rate]
-    congr 1 <;> ring
+  refine ⟨fun s hs₀ => ?_, fun s hs₀ => ?_⟩
+  · subst hs₀
+    exact dijkstra_correct G hK hV
+  · subst hs₀
+    let rate : OpKind → ℕ
+      | .insert => cI
+      | .extractMin => cE
+      | .decreaseKey => cD
+      | .inspect => 0
+      | .distance => 1
+      | .graph => 1
+    refine (totalCost_dijkstra_le G hK hV _ rate fun s o ho => ?_).trans (le_of_eq ?_)
+    · obtain ⟨q, _⟩ := s
+      rcases o with (_ | _ | _ | _ | _) | (_ | _)
+      · exact absurd rfl ho
+      · exact absurd rfl ho
+      · exact hI q _ _
+      · exact hD q _ _
+      · exact hE q
+      · exact le_rfl
+      · exact le_rfl
+    · simp only [rateBound, budget, rate]
+      congr 1 <;> ring
 
 /-- **Through any implementation of the interfaces.** Let a module `M` implement the interfaces
 of Dijkstra's algorithm over a lower interface `E`, with each method body costing at most
@@ -229,9 +242,11 @@ theorem exists_costHoare_linearithmic (C : ℕ) :
         generalize Nat.log 2 n = L at hL ⊢
         have hC := Nat.le_mul_of_pos_right C hL
         rcases le_total n (m + 1) with h | h
-        · rw [min_eq_left h]; refine (min_le_left _ _).trans ?_
+        · rw [min_eq_left h]
+          refine (min_le_left _ _).trans ?_
           nlinarith [Nat.mul_le_mul_left n hC, Nat.le_mul_of_pos_right n hL]
-        · rw [min_eq_right h]; refine (min_le_right _ _).trans ?_
+        · rw [min_eq_right h]
+          refine (min_le_right _ _).trans ?_
           nlinarith [Nat.mul_le_mul_left (m + 1) hC, Nat.mul_le_mul_left (m + 2) hC,
             Nat.le_mul_of_pos_right (m + 1) hL]
 

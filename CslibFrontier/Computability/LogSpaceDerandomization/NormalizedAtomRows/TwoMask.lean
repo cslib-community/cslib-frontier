@@ -270,7 +270,9 @@ theorem integrated_two_mask_clipped_means_capacity
   have hC : 0 ≤ 2 + 256 * M / η := by positivity
   have hh (ν : Fin 2) := integrated_mean_tail_capacity s t hst Ls
     (if ν = 0 then side P k else Lt) D hD sourceSuffix suffix H hk
-    (by split_ifs; exacts [side_le P k, hLt]) G hG hη (hε ν) hNu hmass m n K hn Δ raw
+    (by split_ifs
+        · exact side_le P k
+        · exact hLt) G hG hη (hε ν) hNu hmass m n K hn Δ raw
     (actualClippedMean HP s t Ls (side P k) Lt D sourceSuffix suffix k G ζ Δ raw ν)
     (B ν) (hB ν) (hμ ν) (hbudget ν)
   have hh' := vertex_add_budget (retainedMask s Ls D sourceSuffix) hNu
@@ -315,8 +317,10 @@ theorem integrated_two_mask_envelope_capacity
       (((2 + 256 * M / η) * (εμ 0 + εμ 1)) / 63 + (εz 0 + εz 1) * (7 / 9)) ^ 4 := by
   dsimp only
   have hM : 0 ≤ M := (sum_nonneg (fun y _ => hG 0 y)).trans (hmass 0)
-  have hm0 := hεμ 0; have hm1 := hεμ 1
-  have hz0 := hεz 0; have hz1 := hεz 1
+  have hm0 := hεμ 0
+  have hm1 := hεμ 1
+  have hz0 := hεz 0
+  have hz1 := hεz 1
   exact vertex_add_budget (retainedMask s Ls D sourceSuffix) hNu (by positivity) (by positivity) _ _
     (integrated_two_mask_clipped_means_capacity HP s t hst Ls Lt D hD sourceSuffix suffix H hk hLt
       G hG ζ hη hNu hmass m n K hn Δ raw εμ hεμ B hB hμ hbudget)

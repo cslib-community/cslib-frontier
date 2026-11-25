@@ -116,7 +116,8 @@ theorem tendsto_randomGraphProb_finset (T₀ : Finset Language.graph.Sentence)
       Filter.atTop (nhds 1) := by
   have h := tendsto_structProb_forall_finset randomGraphStructure T₀ fun φ hφ =>
     tendsto_sentenceProb_randomGraphStructure (hT₀ hφ)
-  simp only [← randomGraphProb_structure_eq] at h; exact h
+  simp only [← randomGraphProb_structure_eq] at h
+  exact h
 
 /-- The theory of the random graph is satisfiable. By compactness it suffices that each finite
 subset has a model, and a finite subset holds in `G(n, 1/2)` with positive probability for large
@@ -129,10 +130,14 @@ theorem isSatisfiable_randomGraphTheory : randomGraphTheory.IsSatisfiable :=
 no finite models and is `ℵ₀`-categorical in a countable language [Fagin1976]
 [Libkin2004, Chapter 12]. -/
 theorem isComplete_randomGraphTheory : randomGraphTheory.IsComplete := by
-  have : Countable Language.graph.Symbols := by unfold Language.Symbols; infer_instance
-  exact aleph0_categorical_randomGraphTheory.{0}.isComplete ℵ₀ _ le_rfl
-    (by rw [lift_aleph0, lift_le_aleph0]; exact Cardinal.mk_le_aleph0)
-    isSatisfiable_randomGraphTheory fun _ => infinite_of_model_randomGraphTheory
+  have hcard : lift.{0} Language.graph.card ≤ lift.{0} ℵ₀ := by
+    have : Countable Language.graph.Symbols := by
+      unfold Language.Symbols
+      infer_instance
+    rw [lift_aleph0, lift_le_aleph0]
+    exact Cardinal.mk_le_aleph0
+  exact aleph0_categorical_randomGraphTheory.{0}.isComplete ℵ₀ _ le_rfl hcard
+    isSatisfiable_randomGraphTheory fun M => infinite_of_model_randomGraphTheory
 
 /-- A consequence of the theory of the random graph holds in `G(n, 1/2)` with probability tending
 to `1`. -/
@@ -229,12 +234,15 @@ theorem not_exists_sentence_evenEdges :
     ¬∃ φ : Language.graph.Sentence, ∀ᶠ n in Filter.atTop,
       ∀ G : SimpleGraph (Fin n), Satisfies G φ ↔ G.EvenEdges := by
   have hlim : Filter.Tendsto (fun n => randomGraphProb n SimpleGraph.EvenEdges) Filter.atTop
-      (nhds (1 / 2)) :=
-    tendsto_const_nhds.congr' (by
-      filter_upwards [Filter.eventually_ge_atTop 2] with _ hn
-      exact (randomGraphProb_evenEdges hn).symm)
-  exact not_exists_sentence_of_not_tendsto (fun _ => SimpleGraph.EvenEdges)
-    (fun h => by have := tendsto_nhds_unique hlim h; norm_num at this)
-    (fun h => by have := tendsto_nhds_unique hlim h; norm_num at this)
+      (nhds (1 / 2)) := by
+    refine tendsto_const_nhds.congr' ?_
+    filter_upwards [Filter.eventually_ge_atTop 2] with n hn
+    exact (randomGraphProb_evenEdges hn).symm
+  refine not_exists_sentence_of_not_tendsto (fun _ => SimpleGraph.EvenEdges) (fun h => ?_)
+    (fun h => ?_)
+  · have := tendsto_nhds_unique hlim h
+    norm_num at this
+  · have := tendsto_nhds_unique hlim h
+    norm_num at this
 
 end Cslib.Logic.FO.graph

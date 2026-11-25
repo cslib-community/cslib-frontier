@@ -54,7 +54,8 @@ private noncomputable def area (x : ℝ) : ℝ :=
   if x ≤ 0 then 1 / 2 - x else (max 0 (1 - x)) ^ 2 / 2
 
 private theorem curve_of_nonpos {x : ℝ} (hx : x ≤ 0) : curve x = 1 := by
-  simp [curve, max_eq_right (by linarith : 0 ≤ 1 - x), min_eq_left (by linarith : 1 ≤ 1 - x)]
+  simp [curve, max_eq_right (by linarith : 0 ≤ 1 - x),
+    min_eq_left (by linarith : 1 ≤ 1 - x)]
 
 private theorem curve_of_mem_Icc {x : ℝ} (hx : x ∈ Set.Icc 0 1) : curve x = 1 - x := by
   simp [curve, max_eq_right (by linarith [hx.2] : 0 ≤ 1 - x),
@@ -70,11 +71,13 @@ private theorem area_of_mem_Icc {x : ℝ} (hx : x ∈ Set.Icc 0 1) :
     area x = (1 - x) ^ 2 / 2 := by
   unfold area
   split_ifs with h
-  · cases le_antisymm h hx.1; norm_num
+  · cases le_antisymm h hx.1
+    norm_num
   · rw [max_eq_right (by linarith [hx.2] : 0 ≤ 1 - x)]
 
 private theorem area_of_one_le {x : ℝ} (hx : 1 ≤ x) : area x = 0 := by
-  simp [area, not_le.mpr (by linarith : 0 < x), max_eq_left (by linarith : 1 - x ≤ 0)]
+  simp [area, not_le.mpr (by linarith : 0 < x),
+    max_eq_left (by linarith : 1 - x ≤ 0)]
 
 private theorem area_lower_bound (x : ℝ) : 1 / 2 - x ≤ area x := by
   rcases le_total x 0 with hx | hx
@@ -93,9 +96,11 @@ private theorem area_le_quadratic (x y : ℝ) :
     rcases le_total y 0 with hy | hy
     · rw [area_of_nonpos hy, show _ - (1 / 2 - y) = (y - x) ^ 2 / 2 by ring]; positivity
     · rcases le_total y 1 with hy' | hy'
-      · rw [area_of_mem_Icc ⟨hy, hy'⟩, show _ - (1 - y) ^ 2 / 2 = x ^ 2 / 2 + -x * y by ring]
+      · rw [area_of_mem_Icc ⟨hy, hy'⟩,
+          show _ - (1 - y) ^ 2 / 2 = x ^ 2 / 2 + (-x) * y by ring]
         exact add_nonneg (by positivity) (mul_nonneg (neg_nonneg.mpr hx) hy)
-      · rw [area_of_one_le hy', show _ - 0 = (y - 1) ^ 2 / 2 + x ^ 2 / 2 + -x * y by ring]
+      · rw [area_of_one_le hy',
+          show _ - 0 = (y - 1) ^ 2 / 2 + x ^ 2 / 2 + (-x) * y by ring]
         exact add_nonneg (by positivity) (mul_nonneg (neg_nonneg.mpr hx) hy)
   · rcases le_total x 1 with hx' | hx'
     · rw [area_of_mem_Icc ⟨hx, hx'⟩, curve_of_mem_Icc ⟨hx, hx'⟩]
@@ -106,7 +111,8 @@ private theorem area_le_quadratic (x y : ℝ) :
         · rw [area_of_one_le hy', show _ - 0 = (y - 1) ^ 2 / 2 by ring]; positivity
     · rw [area_of_one_le hx', curve_of_one_le hx']
       rcases le_total y 0 with hy | hy
-      · rw [area_of_nonpos hy, show _ - (1 / 2 - y) = (x - 1 - y) ^ 2 / 2 + (x - 1) by ring]
+      · rw [area_of_nonpos hy,
+          show _ - (1 / 2 - y) = (x - 1 - y) ^ 2 / 2 + (x - 1) by ring]
         exact add_nonneg (by positivity) (sub_nonneg.mpr hx')
       · rcases le_total y 1 with hy' | hy'
         · rw [area_of_mem_Icc ⟨hy, hy'⟩,
@@ -165,9 +171,11 @@ theorem potential_lower_bound {rate : ℝ} (hrate : 0 < rate) (margin : ℝ) :
 theorem potential_le_quadratic {rate : ℝ} (hrate : 0 < rate) (x y : ℝ) :
     potential rate y ≤ potential rate x - weight rate x * (y - x) +
       rate * (y - x) ^ 2 / 2 := by
+  have h := div_le_div_of_nonneg_right (area_le_quadratic (rate * x) (rate * y)) hrate.le
   rw [potential_eq_area hrate, potential_eq_area hrate]
-  convert div_le_div_of_nonneg_right (area_le_quadratic (rate * x) (rate * y)) hrate.le using 1
-  unfold weight curve; field_simp
+  convert h using 1
+  unfold weight curve
+  field_simp
 
 /-- A correct vote decreases the potential by its current weight, up to `rate / 2`. -/
 theorem potential_add_one_le {rate : ℝ} (hrate : 0 < rate) (margin : ℝ) :
@@ -182,6 +190,7 @@ theorem potential_sub_one_le {rate : ℝ} (hrate : 0 < rate) (margin : ℝ) :
 /-- At a nonpositive margin a unit threshold increase costs exactly one, with no remainder. -/
 theorem potential_sub_one_of_nonpos (rate : ℝ) {margin : ℝ} (hmargin : margin ≤ 0) :
     potential rate (margin - 1) = potential rate margin + 1 := by
-  rw [potential_of_nonpos rate (by linarith), potential_of_nonpos rate hmargin]; ring
+  rw [potential_of_nonpos rate (by linarith), potential_of_nonpos rate hmargin]
+  ring
 
 end Cslib.Crypto.Pseudoentropy.Boosting

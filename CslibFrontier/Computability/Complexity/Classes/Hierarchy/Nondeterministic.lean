@@ -44,18 +44,24 @@ open _root_.Turing _root_.Turing.MultiTapeTM Filter
 
 private theorem timeDiagonal_two_pow_two_pow_bound (n : ℕ) :
     (n + 1) ^ 5 * (2 ^ (2 ^ n) + 1) ^ 3 ≤ 2 ^ (2 ^ (n + 4)) := by
-  have h₁ : n + 1 ≤ 2 ^ (2 ^ n) :=
-    (Nat.succ_le_of_lt Nat.lt_two_pow_self).trans
-      (Nat.pow_le_pow_right Nat.two_pos Nat.lt_two_pow_self.le)
-  have h₂ : (n + 1) ^ 5 ≤ 2 ^ (5 * 2 ^ n) :=
-    (Nat.pow_le_pow_left h₁ 5).trans_eq (by rw [← Nat.pow_mul, mul_comm])
+  have h₁ : n + 1 ≤ 2 ^ (2 ^ n) := by
+    calc n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
+      _ ≤ 2 ^ (2 ^ n) := Nat.pow_le_pow_right (by norm_num) (Nat.le_of_lt Nat.lt_two_pow_self)
+  have h₂ : (n + 1) ^ 5 ≤ 2 ^ (5 * 2 ^ n) := by
+    calc (n + 1) ^ 5 ≤ (2 ^ (2 ^ n)) ^ 5 := Nat.pow_le_pow_left h₁ 5
+      _ = 2 ^ (5 * 2 ^ n) := by rw [← Nat.pow_mul, mul_comm]
   have h₃ : 2 ^ (2 ^ n) + 1 ≤ 2 ^ (2 * 2 ^ n) := by
-    have := @Nat.one_le_two_pow (2 ^ n); have := @Nat.one_le_two_pow n
-    exact (show 2 ^ (2 ^ n) + 1 ≤ 2 ^ (2 ^ n + 1) by rw [pow_succ']; omega).trans
-      (Nat.pow_le_pow_right (by norm_num) (by omega))
+    have hp₁ : 1 ≤ 2 ^ (2 ^ n) := Nat.one_le_two_pow
+    have hp₂ : 1 ≤ 2 ^ n := Nat.one_le_two_pow
+    calc 2 ^ (2 ^ n) + 1 ≤ 2 * 2 ^ (2 ^ n) := by omega
+      _ = 2 ^ (2 ^ n + 1) := (pow_succ' 2 (2 ^ n)).symm
+      _ ≤ 2 ^ (2 * 2 ^ n) := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have h₄ : (2 ^ (2 ^ n) + 1) ^ 3 ≤ 2 ^ (6 * 2 ^ n) := by
+    calc (2 ^ (2 ^ n) + 1) ^ 3 ≤ (2 ^ (2 * 2 ^ n)) ^ 3 := Nat.pow_le_pow_left h₃ 3
+      _ = 2 ^ (6 * 2 ^ n) := by rw [← Nat.pow_mul]; ring_nf
   calc (n + 1) ^ 5 * (2 ^ (2 ^ n) + 1) ^ 3
-      ≤ 2 ^ (5 * 2 ^ n) * (2 ^ (2 * 2 ^ n)) ^ 3 := Nat.mul_le_mul h₂ (Nat.pow_le_pow_left h₃ 3)
-    _ = 2 ^ (11 * 2 ^ n) := by rw [← Nat.pow_mul, ← Nat.pow_add]; ring_nf
+      ≤ 2 ^ (5 * 2 ^ n) * 2 ^ (6 * 2 ^ n) := Nat.mul_le_mul h₂ h₄
+    _ = 2 ^ (11 * 2 ^ n) := by rw [← Nat.pow_add]; ring_nf
     _ ≤ 2 ^ (16 * 2 ^ n) := Nat.pow_le_pow_right (by norm_num) (by omega)
     _ = 2 ^ (2 ^ (n + 4)) := by rw [Nat.pow_add, mul_comm (2 ^ n) (2 ^ 4)]
 

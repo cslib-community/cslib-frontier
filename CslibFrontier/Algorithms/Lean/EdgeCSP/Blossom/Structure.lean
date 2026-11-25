@@ -33,12 +33,14 @@ variable {F : CSP Table ℕ} {w : Walk F}
 /-- A closed incidence trail uses both ports of each variable it visits. -/
 theorem partner_mem_edges (hF : EdgeInstance F) (hw : w.IsWalk) (hc : w.finish = w.start)
     {o : Occurrence F} (ho : o ∈ w.edges) : hF.partner o ∈ w.edges := by
-  have hd : defects (w.flip fun _ => false) = ∅ := by
-    rw [hw.defects_flip hF, hc, (show defects (fun _ : Occurrence F => false) = ∅ by
-      ext; simp [Inconsistent])]
+  have hz : defects (fun _ : Occurrence F => false) = ∅ := by
+    ext v
+    simp [Inconsistent]
+  have hd : defects (w.flip (fun _ => false)) = ∅ := by
+    rw [hw.defects_flip hF, hc, hz]
     simp
-  by_contra hn
   have he := (defects_eq_empty_iff _).mp hd o (hF.partner o) (hF.partner_variable o)
+  by_contra hn
   simp [Walk.flip, BitString.flipOn_apply, ho, hn] at he
 
 /-- For a closed edge-instance trail, gathering by variable name includes exactly the used
@@ -78,7 +80,8 @@ theorem two_le_positions (hF : EdgeInstance F) (hw : w.IsWalk)
   obtain ⟨⟨⟨ai, aj⟩, ⟨bi, bj⟩⟩, hs, ha⟩ := touched_has_step hF hw hc hi
   have hb : bi = i := (DAG.linked_constraint hw.1 hs).symm.trans ha
   dsimp only at ha
-  subst ai; subst bi
+  subst ai
+  subst bi
   have hae : ⟨i, aj⟩ ∈ w.edges := List.mem_flatMap.mpr ⟨_, hs, by simp⟩
   have hbe : ⟨i, bj⟩ ∈ w.edges := List.mem_flatMap.mpr ⟨_, hs, by simp⟩
   have hjne : aj.val ≠ bj.val := fun he => (List.nodup_cons.mp (hw.2.sublist <|
@@ -102,9 +105,16 @@ private theorem inconsistent_edge_endpoints {f : OccurrenceLabeling F Bool} {v :
     simp only [Walk.edgesOf_cons, List.mem_cons] at ho
     rcases ho with rfl | rfl | ho
     · exact Or.inl hl.1
-    · exact hi.1.imp_left (by rintro rfl; rfl) |>.resolve_right (· hd) |> Or.inr
-    · have hn : ss ≠ [] := by rintro rfl; simp [Walk.edgesOf] at ho
-      exact (ih hl.2.2 hi.2 ho).elim (fun hb => ((hi.1.resolve_left hn) (hb ▸ hd)).elim) Or.inr
+    · rcases hi.1 with he | hb
+      · subst ss
+        exact Or.inr rfl
+      · exact (hb hd).elim
+    · have hn : ss ≠ [] := by
+        rintro rfl
+        simp [Walk.edgesOf] at ho
+      rcases ih hl.2.2 hi.2 ho with hb | he
+      · exact ((hi.1.resolve_left hn) (hb ▸ hd)).elim
+      · exact Or.inr he
 
 /-- A genuine prepared blossom has exactly one internal defective variable: its base. -/
 theorem defects_inter_internal {f : OccurrenceLabeling F Bool}
@@ -114,6 +124,7 @@ theorem defects_inter_internal {f : OccurrenceLabeling F Bool}
   refine ⟨fun ⟨hd, hv⟩ => ?_, ?_⟩
   · obtain ⟨o, ho, rfl⟩ := List.mem_map.mp (List.mem_dedup.mp hv)
     exact (inconsistent_edge_endpoints hb.1.1 hb.2.2.2.2.1 ho hd).elim id (·.trans hb.2.1)
-  · rintro rfl; exact ⟨hb.2.2.2.1, List.mem_dedup.mpr (hb.1.start_mem_vars hb.2.2.1)⟩
+  · rintro rfl
+    exact ⟨hb.2.2.2.1, List.mem_dedup.mpr (hb.1.start_mem_vars hb.2.2.1)⟩
 
 end Cslib.Logic.PL.CSP.Blossom

@@ -116,8 +116,9 @@ theorem not_X_pow_dvd_aeval_logCurve (hV : ∀ i, ∀ p ∈ V, MvPolynomial.pder
   have h := X_pow_dvd_aeval_logCurve_sub (n * r ^ 2 + r) f
   rw [hq, Polynomial.coe_mul, Polynomial.coe_pow, Polynomial.coe_X,
     dvd_sub_right (dvd_mul_right _ _)] at h
-  exact not_X_pow_dvd_aeval_logSeries (algebraicIndependent_logSeries F n) hV hf hf0
-    ((pow_dvd_pow _ (by gcongr)).trans h)
+  refine not_X_pow_dvd_aeval_logSeries (algebraicIndependent_logSeries F n) hV hf hf0
+    ((pow_dvd_pow _ ?_).trans h)
+  gcongr
 
 /-- **Theorem 1.1 of the source.** A nonzero polynomial in a derivative-closed space of dimension
 at most `r` does not vanish on the logarithmic curve truncated below degree `n * r ^ 2 + r`. -/
@@ -129,8 +130,9 @@ theorem aeval_logCurve_ne_zero (hV : ∀ i, ∀ p ∈ V, MvPolynomial.pderiv i p
 
 /-- The logarithmic curve truncated below degree `B` has coordinates of degree at most `B`. -/
 theorem natDegree_logCurve_le (B : ℕ) (i : Fin n) : (logCurve F n B i).natDegree ≤ B := by
+  rw [logCurve]
   cases B with
-  | zero => simp [logCurve]
+  | zero => simp
   | succ B => exact (PowerSeries.natDegree_trunc_lt _ B).le
 
 /-- The points of the logarithmic curve form a hitting set for the polynomials of degree at most
@@ -165,30 +167,33 @@ theorem isHittingSet_sum_pow (s d : ℕ) :
   classical
   set ℓ : Fin s → MvPolynomial (Fin n) F := fun k => ∑ i, a k i • MvPolynomial.X i with hℓ
   set b : Fin s × Fin (d + 1) → MvPolynomial (Fin n) F := fun ke => ℓ ke.1 ^ (ke.2 : ℕ) with hb
-  set V := Submodule.span F (Set.range b)
+  set V := Submodule.span F (Set.range b) with hVdef
   have hmem (k : Fin s) (e : ℕ) (he : e ≤ d) : ℓ k ^ e ∈ V :=
     Submodule.subset_span ⟨(k, ⟨e, Nat.lt_succ_of_le he⟩), rfl⟩
   have hpd (i : Fin n) (k : Fin s) : MvPolynomial.pderiv i (ℓ k) = MvPolynomial.C (a k i) := by
     simp only [hℓ, map_sum, MvPolynomial.smul_eq_C_mul, MvPolynomial.pderiv_C_mul,
       MvPolynomial.pderiv_X, Pi.single_apply, mul_ite, mul_one, mul_zero]
     simp
-  refine isHittingSet_logHittingSet (s * (d + 1)) d _ ⟨?_, V, fun i p hp => ?_,
-    Module.Finite.span_of_finite F (Set.finite_range b),
-    (finrank_range_le_card b).trans_eq (by simp),
-    V.sum_mem fun k _ => V.smul_mem _ (hmem k d le_rfl)⟩ hf0
+  refine isHittingSet_logHittingSet (s * (d + 1)) d _ ⟨?_, V, ?_, ?_, ?_, ?_⟩ hf0
   · refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun k _ => ?_)
     refine (MvPolynomial.totalDegree_smul_le _ _).trans
       ((MvPolynomial.totalDegree_pow _ _).trans ?_)
-    simpa using Nat.mul_le_mul_left d
-      ((MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun i _ =>
-        (MvPolynomial.totalDegree_smul_le _ _).trans (MvPolynomial.totalDegree_X i).le))
-  · refine Submodule.span_induction ?_ (by simp)
-      (fun _ _ _ _ hx hy => by rw [map_add]; exact V.add_mem hx hy)
-      (fun _ _ _ hx => by rw [Derivation.map_smul]; exact V.smul_mem _ hx) hp
-    rintro _ ⟨⟨k, e⟩, rfl⟩
-    simp only [hb, Derivation.leibniz_pow, hpd]
-    refine V.smul_of_tower_mem _ ?_
-    rw [smul_eq_mul, mul_comm, ← MvPolynomial.smul_eq_C_mul]
-    exact V.smul_mem _ (hmem k _ (by have := e.2; omega))
+    have h1 : (ℓ k).totalDegree ≤ 1 :=
+      (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun i _ =>
+        (MvPolynomial.totalDegree_smul_le _ _).trans (MvPolynomial.totalDegree_X i).le)
+    simpa using Nat.mul_le_mul_left d h1
+  · intro i p hp
+    refine Submodule.span_induction (p := fun q _ => MvPolynomial.pderiv i q ∈ V) ?_ ?_ ?_ ?_ hp
+    · rintro _ ⟨⟨k, e⟩, rfl⟩
+      simp only [hb, Derivation.leibniz_pow, hpd]
+      refine V.smul_of_tower_mem _ ?_
+      rw [smul_eq_mul, mul_comm, ← MvPolynomial.smul_eq_C_mul]
+      exact V.smul_mem _ (hmem k _ (by have := e.2; omega))
+    · simp
+    · intro x y _ _ hx hy; rw [map_add]; exact V.add_mem hx hy
+    · intro r x _ hx; rw [Derivation.map_smul]; exact V.smul_mem _ hx
+  · exact Module.Finite.span_of_finite F (Set.finite_range b)
+  · exact (finrank_range_le_card b).trans_eq (by simp)
+  · exact V.sum_mem fun k _ => V.smul_mem _ (hmem k d le_rfl)
 
 end Cslib.Circuits.Arithmetic

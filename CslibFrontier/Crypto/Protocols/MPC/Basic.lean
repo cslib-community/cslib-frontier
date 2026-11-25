@@ -606,9 +606,11 @@ theorem PerfectSemiHonestPrivateLe.proper_of_succ_eq
     {f : Functionality m In Out}
     {S : (I : Finset (Fin m)) → CoalitionSimulator sc In Coins Out I}
     (h : PerfectSemiHonestPrivateLe t proto W f S) (htm : t + 1 = m) :
-    PerfectSemiHonestPrivateProper proto W f S := fun I hI =>
-  have hlt : I.card < m := by simpa [Fintype.card_fin] using Finset.card_lt_card (Ne.lt_top hI)
-  h I (by omega)
+    PerfectSemiHonestPrivateProper proto W f S := by
+  intro I hI x
+  have hlt : I.card < m := by
+    simpa [Fintype.card_fin] using Finset.card_lt_card (Ne.lt_top hI)
+  exact h I (by omega) x
 
 /-- Bridge lemma (Goldreich Def. 7.5.1, Eqs. 7.39–7.40, p. 696; cf. Def. 7.2.1, Eqs. 7.7–7.10,
 p. 620, and equivalence remark on p. 621): for a deterministic functionality `f`, matching the
@@ -657,8 +659,9 @@ theorem Protocol.bind_realJoint {m : ℕ} {spec : MultiOracleSpec} {sc : Schedul
     {In Coins Out : Fin m → Type} (proto : Protocol m spec sc In Coins Out)
     (W : MultiOracleWorld spec) (I : Finset (Fin m)) (setup : PMF ((i : Fin m) → In i)) :
     setup.bind (proto.realJoint W I) =
-      (setup.bind (proto.evalWith W)).map (Prod.map I.restrict id) :=
-  (PMF.map_bind _ _ _).symm
+      (setup.bind (proto.evalWith W)).map (Prod.map I.restrict id) := by
+  rw [PMF.map_bind]
+  rfl
 
 /-- Perfect semi-honest privacy against all proper static coalitions `I ≠ Finset.univ` for a
 protocol whose party inputs are dealt by a trusted setup: on functionality inputs `x`, the setup

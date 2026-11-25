@@ -72,18 +72,21 @@ theorem comp_mem_lowDegree {φ : (κ → Bool) → ι → Bool}
   suffices h : lowDegree R ι D ≤ (lowDegree R κ D).comap (LinearMap.funLeft R R φ) from h hf
   refine Submodule.span_le.2 ?_
   rintro _ ⟨S, hS, rfl⟩
+  have h : (fun y => monomial R S (φ y)) = ∏ i ∈ S, fun y => bitVal R (φ y i) := by
+    funext y
+    simp [monomial, Finset.prod_apply]
   change (fun y => monomial R S (φ y)) ∈ lowDegree R κ D
-  rw [show (fun y => monomial R S (φ y)) = ∏ i ∈ S, fun y => bitVal R (φ y i) from
-    funext fun _ => by simp [monomial, Finset.prod_apply]]
+  rw [h]
   exact lowDegree_mono (by simpa using hS) (prod_mem_lowDegree S fun i _ => hφ i)
 
 /-- The weight, read in `R`, has degree at most `1`. -/
 theorem weight_mem_lowDegree [Fintype ι] :
     (fun x : ι → Bool => (weight x : R)) ∈ lowDegree R ι 1 := by
-  rw [show (fun x : ι → Bool => (weight x : R)) = ∑ i, fun x => bitVal R (x i) from
-    funext fun x => by
-      simp only [weight_eq_sum_toNat, Nat.cast_sum, Finset.sum_apply]
-      exact sum_congr rfl fun i _ => by cases x i <;> simp [bitVal]]
+  have h : (fun x : ι → Bool => (weight x : R)) = ∑ i, fun x => bitVal R (x i) := by
+    funext x
+    simp only [weight_eq_sum_toNat, Nat.cast_sum, Finset.sum_apply]
+    exact sum_congr rfl fun i _ => by cases x i <;> simp [bitVal]
+  rw [h]
   exact sum_mem_lowDegree _ fun i _ => bitVal_mem_lowDegree i
 
 /-- A univariate polynomial evaluated at the weight has degree at most its degree on the cube. -/
@@ -112,36 +115,44 @@ private theorem card_filter_weight_eq_subset (S : Finset ι) (k : ℕ) :
     #{x : ι → Bool | weight x = k ∧ ∀ i ∈ S, x i = true} =
       #((univ.powersetCard k).filter (S ⊆ ·)) := by
   refine card_nbij' (fun x => ({i | x i = true} : Finset ι)) (fun T i => decide (i ∈ T))
-    (fun x hx => ?_) (fun T hT => ?_) (fun _ _ => by funext; simp)
-    (fun _ _ => by ext; simp)
+    (fun x hx => ?_) (fun T hT => ?_) (fun x _ => ?_) (fun T _ => ?_)
   · obtain ⟨hw, hS⟩ := by simpa using hx
-    exact mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, hw⟩, fun i hi => by simpa using hS i hi⟩
+    refine mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, hw⟩, fun i hi => ?_⟩
+    simpa using hS i hi
   · obtain ⟨hT, hST⟩ := mem_filter.1 hT
     refine mem_filter.2 ⟨mem_univ _, ?_, fun i hi => by simpa using hST hi⟩
     rw [← (mem_powersetCard.1 hT).2, weight]
-    exact congrArg Finset.card (by ext; simp)
+    congr 1
+    ext i
+    simp
+  · funext i
+    simp
+  · ext i
+    simp
 
 /-- The monomial of a set of `s` coordinates averages to `k.choose s / n.choose s` over the inputs
 of weight `k ≤ n`. -/
 theorem layerAverage_monomial (S : Finset ι) {k : ℕ} (hk : k ≤ Fintype.card ι) :
     layerAverage (monomial 𝕜 S) k = (k.choose #S : 𝕜) / (Fintype.card ι).choose #S := by
   set n := Fintype.card ι
-  rw [layerAverage, expect_eq_sum_div_card, card_filter_weight_eq,
-    show ∑ x ∈ {x : ι → Bool | weight x = k}, monomial 𝕜 S x =
-        #((univ.powersetCard k).filter (S ⊆ ·)) by
-      rw [← card_filter_weight_eq_subset, ← filter_filter, natCast_card_filter]
-      exact sum_congr rfl fun x _ => (monomial_apply S x).trans (by congr)]
+  have hsum : ∑ x ∈ {x : ι → Bool | weight x = k}, monomial 𝕜 S x =
+      #((univ.powersetCard k).filter (S ⊆ ·)) := by
+    rw [← card_filter_weight_eq_subset, ← filter_filter, natCast_card_filter]
+    exact sum_congr rfl fun x _ => (monomial_apply S x).trans (by congr)
+  rw [layerAverage, expect_eq_sum_div_card, hsum, card_filter_weight_eq]
   have hnk : (n.choose k : 𝕜) ≠ 0 := Nat.cast_ne_zero.2 (Nat.choose_pos hk).ne'
   rcases lt_or_ge k #S with hks | hks
   · -- no `k`-set contains `S`
-    rw [filter_false_of_mem fun T hT hST =>
-      absurd ((card_le_card hST).trans (mem_powersetCard.1 hT).2.le) (not_le.2 hks),
-      Nat.choose_eq_zero_of_lt hks]
+    have : (univ.powersetCard k).filter (S ⊆ ·) = ∅ :=
+      filter_false_of_mem fun T hT hST =>
+        absurd ((card_le_card hST).trans (mem_powersetCard.1 hT).2.le) (not_le.2 hks)
+    rw [this, Nat.choose_eq_zero_of_lt hks]
     simp
-  · rw [card_filter_powersetCard_subset S univ k (subset_univ S) hks, card_univ,
-      div_eq_div_iff hnk (Nat.cast_ne_zero.2 (Nat.choose_pos (hks.trans hk)).ne')]
-    exact_mod_cast (mul_comm _ (n.choose #S)).trans
-      ((Nat.choose_mul hks).symm.trans (mul_comm _ _))
+  · rw [card_filter_powersetCard_subset S univ k (subset_univ S) hks, card_univ]
+    have hns : (n.choose #S : 𝕜) ≠ 0 := Nat.cast_ne_zero.2 (Nat.choose_pos (hks.trans hk)).ne'
+    rw [div_eq_div_iff hnk hns]
+    exact_mod_cast (show (n - #S).choose (k - #S) * n.choose #S = k.choose #S * n.choose k by
+      rw [mul_comm, ← Nat.choose_mul hks, mul_comm])
 
 /-- **Minsky–Papert symmetrization**: the layer averages of a function of degree at most `D` are
 the values at the weights of a univariate polynomial of degree at most `D`. -/
@@ -150,25 +161,28 @@ theorem exists_natDegree_le_eval_eq_layerAverage {D : ℕ} {f : (ι → Bool) �
     ∃ q : 𝕜[X], q.natDegree ≤ D ∧
       ∀ k ≤ Fintype.card ι, q.eval (k : 𝕜) = layerAverage f k := by
   induction hf using Submodule.span_induction with
-  | mem _ hf =>
+  | mem f hf =>
     obtain ⟨S, hS, rfl⟩ := hf
     refine ⟨C (((#S).factorial * (Fintype.card ι).choose #S : ℕ) : 𝕜)⁻¹ * descPochhammer 𝕜 #S,
       (natDegree_C_mul_le _ _).trans ((descPochhammer_natDegree _ _).trans_le hS), fun k hk => ?_⟩
-    have hfac : ((#S).factorial : 𝕜) ≠ 0 := Nat.cast_ne_zero.2 (Nat.factorial_ne_zero _)
     rw [layerAverage_monomial S hk, eval_mul, eval_C, descPochhammer_eval_eq_descFactorial,
       Nat.descFactorial_eq_factorial_mul_choose]
-    push_cast; field_simp
-  | zero => exact ⟨0, by simp, fun _ _ => by simp [layerAverage]⟩
-  | add _ _ _ _ hf hg =>
-    obtain ⟨p, hp, hpf⟩ := hf; obtain ⟨q, hq, hqg⟩ := hg
+    have hfac : ((#S).factorial : 𝕜) ≠ 0 := Nat.cast_ne_zero.2 (Nat.factorial_ne_zero _)
+    push_cast
+    field_simp
+  | zero => exact ⟨0, by simp, fun k _ => by simp [layerAverage]⟩
+  | add f g _ _ hf hg =>
+    obtain ⟨p, hp, hpf⟩ := hf
+    obtain ⟨q, hq, hqg⟩ := hg
     refine ⟨p + q, natDegree_add_le_of_degree_le hp hq, fun k hk => ?_⟩
     rw [eval_add, hpf k hk, hqg k hk, layerAverage, layerAverage, layerAverage,
       ← expect_add_distrib]
     rfl
-  | smul a _ _ hf =>
+  | smul a f _ hf =>
     obtain ⟨p, hp, hpf⟩ := hf
-    exact ⟨C a * p, (natDegree_C_mul_le _ _).trans hp, fun k hk => by
-      rw [eval_mul, eval_C, hpf k hk, layerAverage, layerAverage, mul_expect]; rfl⟩
+    refine ⟨C a * p, (natDegree_C_mul_le _ _).trans hp, fun k hk => ?_⟩
+    rw [eval_mul, eval_C, hpf k hk, layerAverage, layerAverage, mul_expect]
+    rfl
 
 end Symmetrization
 

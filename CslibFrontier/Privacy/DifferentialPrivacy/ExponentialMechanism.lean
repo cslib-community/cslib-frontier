@@ -74,7 +74,8 @@ noncomputable def exponentialMechanism (u : D → R → ℝ) (Δ ε : ℝ) (x : 
 theorem exponentialMechanism_apply (u : D → R → ℝ) (Δ ε : ℝ) (x : D) (r : R) :
     exponentialMechanism u Δ ε x r =
       ENNReal.ofReal (Real.exp (ε * u x r / (2 * Δ)) /
-        ∑ r', Real.exp (ε * u x r' / (2 * Δ))) := by rfl
+        ∑ r', Real.exp (ε * u x r' / (2 * Δ))) := by
+  rfl
 
 private theorem exp_le_exp_half_mul_exp {Δ ε a b : ℝ} (hΔ : 0 < Δ) (hε : 0 ≤ ε)
     (hab : a - b ≤ Δ) :
@@ -94,16 +95,22 @@ theorem differentiallyPrivate_exponentialMechanism {Adj : D → D → Prop} {u :
   refine ENNReal.ofReal_le_ofReal ?_
   set Zx := ∑ r', Real.exp (ε * u x r' / (2 * Δ))
   set Zy := ∑ r', Real.exp (ε * u y r' / (2 * Δ))
-  have hZx : 0 < Zx := Finset.sum_pos (fun _ _ => Real.exp_pos _) Finset.univ_nonempty
-  have hZy : 0 < Zy := Finset.sum_pos (fun _ _ => Real.exp_pos _) Finset.univ_nonempty
-  have hw := exp_le_exp_half_mul_exp hΔ hε (le_of_abs_le (hu hxy r))
+  have hZx : 0 < Zx := Finset.sum_pos (fun r _ => Real.exp_pos _) Finset.univ_nonempty
+  have hZy : 0 < Zy := Finset.sum_pos (fun r _ => Real.exp_pos _) Finset.univ_nonempty
+  have hw : Real.exp (ε * u x r / (2 * Δ)) ≤ Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ)) :=
+    exp_le_exp_half_mul_exp hΔ hε (le_of_abs_le (hu hxy r))
   have hZ : Zy ≤ Real.exp (ε / 2) * Zx := by
     rw [Finset.mul_sum]
-    exact Finset.sum_le_sum fun r' _ =>
-      exp_le_exp_half_mul_exp hΔ hε (by linarith [(abs_le.mp (hu hxy r')).1])
-  rw [div_le_iff₀ hZx, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ hZy,
-    show Real.exp ε = Real.exp (ε / 2) * Real.exp (ε / 2) by rw [← Real.exp_add, add_halves]]
-  exact (mul_le_mul hw hZ hZy.le (by positivity)).trans_eq (by ring)
+    refine Finset.sum_le_sum fun r' _ => exp_le_exp_half_mul_exp hΔ hε ?_
+    have := hu hxy r'
+    rw [abs_le] at this
+    linarith
+  have hεsplit : Real.exp ε = Real.exp (ε / 2) * Real.exp (ε / 2) := by
+    rw [← Real.exp_add, add_halves]
+  rw [div_le_iff₀ hZx, mul_div_assoc', div_mul_eq_mul_div, le_div_iff₀ hZy, hεsplit]
+  calc Real.exp (ε * u x r / (2 * Δ)) * Zy
+      ≤ (Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ))) * (Real.exp (ε / 2) * Zx) := by gcongr
+    _ = Real.exp (ε / 2) * Real.exp (ε / 2) * Real.exp (ε * u y r / (2 * Δ)) * Zx := by ring
 
 /-- The optimal utility `OPT_u(x) = max_r u(x, r)`. -/
 noncomputable def optUtility (u : D → R → ℝ) (x : D) : ℝ :=
@@ -136,30 +143,37 @@ theorem exponentialMechanism_toOuterMeasure_utility_le {u : D → R → ℝ} {Δ
         Real.exp (ε * (c - optUtility u x) / (2 * Δ))) := by
   classical
   set Z := ∑ r', Real.exp (ε * u x r' / (2 * Δ))
-  have hZ : 0 < Z := Finset.sum_pos (fun _ _ => Real.exp_pos _) Finset.univ_nonempty
+  have hZ : 0 < Z := Finset.sum_pos (fun r _ => Real.exp_pos _) Finset.univ_nonempty
   rw [PMF.toOuterMeasure_apply_fintype]
-  refine (Finset.sum_le_sum fun r _ =>
-    (?_ : _ ≤ ENNReal.ofReal (Real.exp (ε * c / (2 * Δ)) / Z))).trans ?_
-  · by_cases hr : u x r ≤ c
-    · rw [Set.indicator_of_mem hr, exponentialMechanism_apply]
-      exact ENNReal.ofReal_le_ofReal (div_le_div_of_nonneg_right
-        (Real.exp_le_exp.mpr (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hr hε)
-          (by positivity))) hZ.le)
+  have hterm (r : R) : {r | u x r ≤ c}.indicator (exponentialMechanism u Δ ε x) r ≤
+      ENNReal.ofReal (Real.exp (ε * c / (2 * Δ)) / Z) := by
+    by_cases hr : u x r ≤ c
+    · rw [Set.indicator_of_mem (by exact hr), exponentialMechanism_apply]
+      refine ENNReal.ofReal_le_ofReal (div_le_div_of_nonneg_right ?_ hZ.le)
+      refine Real.exp_le_exp.mpr (div_le_div_of_nonneg_right ?_ (by positivity))
+      exact mul_le_mul_of_nonneg_left hr hε
     · rw [Set.indicator_of_notMem (by exact hr)]
       exact zero_le
+  refine (Finset.sum_le_sum fun r _ => hterm r).trans ?_
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← ENNReal.ofReal_natCast,
     ← ENNReal.ofReal_mul (Nat.cast_nonneg _)]
   refine ENNReal.ofReal_le_ofReal ?_
   have hopt : ((optSet u x).card : ℝ) * Real.exp (ε * optUtility u x / (2 * Δ)) ≤ Z := by
-    rw [← nsmul_eq_mul, ← Finset.sum_const,
-      Finset.sum_congr rfl fun r hr => by rw [← mem_optSet.mp hr]]
-    exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
-      fun _ _ _ => (Real.exp_pos _).le
+    calc ((optSet u x).card : ℝ) * Real.exp (ε * optUtility u x / (2 * Δ))
+        = ∑ r ∈ optSet u x, Real.exp (ε * u x r / (2 * Δ)) := by
+          rw [Finset.sum_congr rfl fun r hr => by rw [mem_optSet.mp hr], Finset.sum_const,
+            nsmul_eq_mul]
+      _ ≤ Z := Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+          fun _ _ _ => (Real.exp_pos _).le
   have hcard : (0 : ℝ) < (optSet u x).card := by exact_mod_cast card_optSet_pos u x
-  rw [show Real.exp (ε * (c - optUtility u x) / (2 * Δ)) =
-      Real.exp (ε * c / (2 * Δ)) / Real.exp (ε * optUtility u x / (2 * Δ)) by
-    rw [← Real.exp_sub]; ring_nf, mul_div_assoc', div_mul_div_comm]
-  exact div_le_div_of_nonneg_left (by positivity) (by positivity) (by linarith)
+  have hsplit : Real.exp (ε * (c - optUtility u x) / (2 * Δ)) =
+      Real.exp (ε * c / (2 * Δ)) / Real.exp (ε * optUtility u x / (2 * Δ)) := by
+    rw [← Real.exp_sub]
+    ring_nf
+  rw [hsplit, mul_div_assoc', div_mul_div_comm]
+  refine div_le_div_of_nonneg_left (by positivity) (by positivity) ?_
+  rw [mul_comm]
+  linarith
 
 /-- Utility of the exponential mechanism [DworkRoth2014, Theorem 3.11]: the output has utility at
 most `OPT - (2 Δ / ε) (ln (|R| / |R_OPT|) + t)` with probability at most `exp (-t)`. -/
@@ -173,9 +187,11 @@ theorem exponentialMechanism_toOuterMeasure_utility_le_opt_sub {u : D → R → 
   congr 1
   have hcard : (0 : ℝ) < (optSet u x).card := by exact_mod_cast card_optSet_pos u x
   have hR : (0 : ℝ) < Fintype.card R := by exact_mod_cast Fintype.card_pos
-  rw [show ε * (optUtility u x - 2 * Δ / ε * (Real.log (Fintype.card R / (optSet u x).card) +
-      t) - optUtility u x) / (2 * Δ) = -Real.log (Fintype.card R / (optSet u x).card) + -t by
-    field_simp; ring, Real.exp_add, Real.exp_neg, Real.exp_log (by positivity), ← mul_assoc,
+  have hexp : ε * (optUtility u x - 2 * Δ / ε * (Real.log (Fintype.card R / (optSet u x).card) +
+      t) - optUtility u x) / (2 * Δ) = -Real.log (Fintype.card R / (optSet u x).card) + -t := by
+    field_simp
+    ring
+  rw [hexp, Real.exp_add, Real.exp_neg, Real.exp_log (by positivity), ← mul_assoc,
     mul_inv_cancel₀ (by positivity), one_mul]
 
 /-- Utility of the exponential mechanism [DworkRoth2014, Corollary 3.12]: the output has utility

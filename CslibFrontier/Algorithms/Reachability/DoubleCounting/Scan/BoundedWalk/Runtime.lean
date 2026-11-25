@@ -63,7 +63,8 @@ theorem length_encState (encContext : κ ↪ List Bool) (encCallee : τ ↪ List
         (BoundedWalk.encState encCallee s.walk).length + 2 := by
   change (frame (encContext s.context) ++
     (frame (encNat s.size) ++ BoundedWalk.encState encCallee s.walk)).length = _
-  simp only [List.length_append, length_frame]; omega
+  simp only [List.length_append, length_frame]
+  omega
 
 /-- Frame the retained context and vertex count around a supplied encoded walk state. -/
 theorem state_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
@@ -117,7 +118,8 @@ def entryRanks (ctx : κ) {N : ℕ} (positive : 0 < N) (current target fuel : �
 theorem entryRanks_eq_entry (ctx : κ) {N : ℕ} (positive : 0 < N) (r : Registers N) :
     entryRanks edge start verdict clock ctx positive r.current.val r.target.val r.fuel =
       entry edge start verdict clock ctx r := by
-  simp only [entryRanks, Registers.ofRanks_val]
+  unfold entryRanks
+  rw [Registers.ofRanks_val]
 
 /-- Enter the walk from a retained context, positive dimension, binary endpoint ranks and fuel
 within their common space budget. The rank producers may return arbitrary binary naturals. -/
@@ -170,12 +172,14 @@ theorem machine_next_call (initial : State κ τ) {N : ℕ} (ctx : κ) (hp : 0 <
 theorem machine_withInit (initial state : State κ τ) :
     (machine edge start verdict clock initial).withInit state =
       machine edge start verdict clock state := by
-  unfold machine NondeterministicQueryMachine.withInit; rfl
+  unfold machine NondeterministicQueryMachine.withInit
+  rfl
 
 /-- The runtime machine starts in the supplied entry state. -/
 theorem machine_init (initial : State κ τ) :
     (machine edge start verdict clock initial).init = initial := by
-  unfold machine; rfl
+  unfold machine
+  rfl
 
 private theorem innerMachine_withInit {N : ℕ} (ctx : κ) (hp : 0 < N)
     (s : BoundedWalk.State N τ) (r : Registers N) :
@@ -309,7 +313,8 @@ theorem remainingFuel_run {N : ℕ} (ctx : κ) (r : Registers N) (input selector
     remainingFuel ((machine edge start verdict clock initial).run input selectors) =
       BoundedWalk.remainingFuel ((BoundedWalk.machine edge (fun u v => start ctx u.val v.val)
         verdict clock r).run input selectors) := by
-  dsimp only; rw [run_eq]
+  dsimp only
+  rw [run_eq]
   rfl
 
 open Cslib.DoubleCounting.Scan in
@@ -367,8 +372,9 @@ theorem length_run_le {N : ℕ} (ctx : κ) (r : Registers N) (input selectors : 
       stateBound N r.fuel clock (encContext ctx).length calleeBound := by
   dsimp only [stateBound]
   rw [run_eq, length_encState]
-  have := BoundedWalk.length_run_le edge (fun u v => start ctx u.val v.val) verdict clock r
+  have h := BoundedWalk.length_run_le edge (fun u v => start ctx u.val v.val) verdict clock r
     input encCallee calleeBound hcallee selectors
-  dsimp only; omega
+  dsimp only
+  omega
 
 end Turing.DoubleCounting.BoundedWalk.Runtime

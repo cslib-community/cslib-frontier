@@ -176,7 +176,8 @@ theorem computableInPolyTime_validGroupHashInput {blockLen : F.Desc → ℕ}
         F.validGroupHashInput blockLen p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair (encPair F.encDesc encBits) encBits)) encBool := by
   have _ := hblock
-  unfold validGroupHashInput; polytime
+  unfold validGroupHashInput
+  polytime
 
 /-- Evaluating `groupHash blockLen` is computable in polynomial time whenever `blockLen` is
 computable in polynomial time in unary. -/
@@ -185,8 +186,10 @@ theorem computableInPolyTime_groupHash {blockLen : F.Desc → ℕ}
     ComputableInPolyTime
       (fun p : (F.Desc × List Bool) × List Bool => F.groupHash blockLen p.1 p.2)
       (encPair (encPair F.encDesc encBits) encBits) encBits := by
-  have _ := hblock; have _ := F.computableInPolyTime_encodePedersenCommit
-  unfold groupHash; polytime
+  have _ := hblock
+  have _ := F.computableInPolyTime_encodePedersenCommit
+  unfold groupHash
+  polytime
 
 /-- **Collision extraction for `groupHash`** (step 2 of the proof of [KatzLindell2020],
 Theorem 9.79, pp. 358–359): if `2 ^ blockLen d ≤ F.order d`, any valid collision `(x, y)` for
@@ -363,11 +366,13 @@ theorem multiGeneratorHash_extract_of_eq {ι : Type*} [Fintype ι] [DecidableEq 
     αs j =
       (ys j - xs j)⁻¹ * ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i := by
   have hsum := (F.multiGeneratorHash_smul_generator_eq_iff d αs xs ys).mp hcoll
-  have hsplit := Finset.add_sum_erase Finset.univ (fun i => (xs i - ys i) * αs i)
-    (Finset.mem_univ j)
-  rw [show ∑ i : ι, (xs i - ys i) * αs i = 0 by
-    simp only [sub_mul, Finset.sum_sub_distrib, hsum, sub_self]] at hsplit
-  rw [← show (ys j - xs j) * αs j = ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i by
-      linear_combination -hsplit, inv_mul_cancel_left₀ (sub_ne_zero.mpr hj)]
+  have hdiff : ∑ i : ι, (xs i - ys i) * αs i = 0 := by
+    simp only [sub_mul, Finset.sum_sub_distrib, hsum, sub_self]
+  have hsplit :=
+    Finset.add_sum_erase Finset.univ (fun i => (xs i - ys i) * αs i) (Finset.mem_univ j)
+  rw [hdiff] at hsplit
+  have hmul : (ys j - xs j) * αs j = ∑ i ∈ Finset.univ.erase j, (xs i - ys i) * αs i := by
+    linear_combination -hsplit
+  rw [← hmul, inv_mul_cancel_left₀ (sub_ne_zero.mpr hj)]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

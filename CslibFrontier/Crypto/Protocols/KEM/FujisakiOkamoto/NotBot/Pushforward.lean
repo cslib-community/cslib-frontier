@@ -157,18 +157,30 @@ theorem eagerCoupledGame_eq_eagerFbGame [Fintype M] [Finite R] [Fintype CT] [Fin
     PMF.pure_bind]
   congr 1 with ⟨pk, sk⟩ : 1
   dsimp only
-  refine (PMF.bind_const (ProbComp.eval S.sampleMsg) _).symm.trans ?_
-  congr 1 with s : 1
-  congr 1 with G : 1
-  rw [bind_keyTable_reindex S G pk sk]
-  congr 1 with Hq : 1
-  congr 1 with Hraw : 1
-  refine (PMF.bind_const (S.keyTable CT) _).symm.trans ?_
-  congr 1 with Hfb' : 1
-  congr 1 with mStar : 1
-  congr 1 with kRand : 1
-  congr 1
-  exact funext fun q => (S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q).symm
+  symm
+  calc _ = (ProbComp.eval S.sampleMsg).bind fun _ =>
+        S.coinTable.bind fun G =>
+          (S.keyTable CT).bind fun Hq =>
+            (S.keyTable (Bool × M × CT)).bind fun Hraw =>
+              (S.keyTable CT).bind fun _ =>
+                (ProbComp.eval S.sampleMsg).bind fun mStar =>
+                  (ProbComp.eval S.sampleKey).bind fun kRand =>
+                    OracleComp.interpret
+                      (S.eagerCoupledHandler G Hq Hraw pk sk (encT S.pke G pk mStar))
+                      (A ⟨pk, encT S.pke G pk mStar, if b = true then kRand else
+                        S.coupledH G Hq Hraw pk sk (false, mStar, encT S.pke G pk mStar)⟩) := by
+        congr 1 with s : 1
+        congr 1 with G : 1
+        rw [bind_keyTable_reindex S G pk sk]
+        congr 1 with Hq : 1
+        congr 1 with Hraw : 1
+        congr 1 with Hfb' : 1
+        congr 1 with mStar : 1
+        congr 1 with kRand : 1
+        congr 1
+        funext q
+        exact S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q
+    _ = _ := by simp only [PMF.bind_const]
 
 end Scheme
 

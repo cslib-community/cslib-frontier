@@ -235,11 +235,12 @@ theorem runWithEncryption_eq_run {α : Type}
     runWithEncryption encrypt n pk program =
       (ProbOracleComp.simulate (fun request => ProbOracleComp.query request.2) program).run
         (encrypt n pk) := by
-  have horacle : OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
-      (encryptionOracle encrypt n pk) =
+  have horacle : (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
+      (encryptionOracle encrypt n pk)) =
       fun q => StateT.lift (OracleComp.sumHandler ProbComp.unifFin
-        (fun request : Unit × List Bool => encrypt n pk request.2) q) :=
-    funext fun q => by cases q <;> rfl
+        (fun request : Unit × List Bool => encrypt n pk request.2) q) := by
+    funext q
+    cases q <;> rfl
   rw [runWithEncryption, horacle, OracleComp.run_interpret_lift, ProbOracleComp.run_simulate]
   simp only [ProbOracleComp.run_query, map_eq_pure_bind, bind_assoc, pure_bind, bind_pure]
   rfl

@@ -234,7 +234,9 @@ theorem roundEnv_succ_bind_roundGame (steps : Steps State Out sc₁) (j : ℕ)
       (roundEnv W₁ S₂ ν I steps j st D).bind (roundGame ν) := by
   induction steps generalizing j with
   | done => simp only [roundEnv, roundGame, PMF.bind_map, Function.comp_def, Sum.elim_inl]
-  | message _ _ ih => rw [roundEnv, roundEnv]; exact ih _ _ _
+  | message _ _ ih =>
+    rw [roundEnv, roundEnv]
+    exact ih _ _ _
   | oracle _ _ ih =>
     cases j with
     | zero =>
@@ -340,8 +342,9 @@ theorem composeRoundEnv_bind_roundGame_of_oracleRounds_le
     (composeRoundEnv P W₁ W₂ Sub S₂ I x D j).bind (roundGame κ) =
       ((P.compose Sub).realJoint W₂ I x).bind fun r => ProbComp.eval (D r) := by
   rw [Protocol.realJoint_compose_eq_kernelRun, composeRoundEnv, PMF.bind_bind, PMF.bind_bind]
-  exact congrArg _ (funext fun _ => by
-    rw [roundEnv_bind_roundGame_of_oracleRounds_le W₁ S₂ _ I κ P.steps hj, PMF.bind_map]; rfl)
+  refine congrArg _ (funext fun c₁ => ?_)
+  rw [roundEnv_bind_roundGame_of_oracleRounds_le W₁ S₂ _ I κ P.steps hj, PMF.bind_map]
+  rfl
 
 /-- **Composition bound with one environment per oracle round.** For every outer protocol `P` in
 the oracle world `W₁`, outer simulators `S₁`, subprotocols `Sub` in `W₂` and subprotocol simulators
@@ -440,21 +443,25 @@ theorem advantage_bind_compose_le_add_sum_roundGame (p : PMF (Bool ⊕ α))
             (p.bind (Sum.elim PMF.pure fun a =>
               (composeRoundEnv (P a) (W₁ a) (W₂ a) (Sub a) (S₂ a) (I a) (x a) (D a) j).bind
                 (roundGame fun op J q => (Sub a op).realJoint (W₂ a) J q))) := by
-  simp only [show ∀ a, ((ProbComp.eval (idealJoint (f a) (I a)
-        (composeSim (P a) (S₁ a (I a)) (S₂ a)) (x a))).bind fun r => ProbComp.eval (D a r)) =
+  have hideal (a : α) :
+      ((ProbComp.eval (idealJoint (f a) (I a) (composeSim (P a) (S₁ a (I a)) (S₂ a))
+        (x a))).bind fun r => ProbComp.eval (D a r)) =
       (ProbComp.eval (idealJoint (f a) (I a) (S₁ a (I a)) (x a))).bind fun r =>
-        ProbComp.eval (composeDistinguisher (P a) (S₂ a) (I a) (x a) (D a) r) from fun a => by
-    rw [← ProbComp.eval_bind, ← ProbComp.eval_bind, eval_idealJoint_composeSim_bind]]
+        ProbComp.eval (composeDistinguisher (P a) (S₂ a) (I a) (x a) (D a) r) := by
+    rw [← ProbComp.eval_bind, ← ProbComp.eval_bind, eval_idealJoint_composeSim_bind]
+  simp only [hideal]
   refine (Game.advantage_triangle _ _ _).trans (add_le_add le_rfl ?_)
   simp only [← composeRoundEnv_zero_bind_roundGame (P _) (W₁ _) (W₂ _) (Sub _) (S₂ _) (I _) (x _)
-    (D _), ← fun a => composeRoundEnv_bind_roundGame_of_oracleRounds_le (P a) (W₁ a) (W₂ a) (Sub a)
+    (D _),
+    ← fun a => composeRoundEnv_bind_roundGame_of_oracleRounds_le (P a) (W₁ a) (W₂ a) (Sub a)
       (S₂ a) (I a) (x a) (D a)
       (fun op J q => ProbComp.eval (idealJoint (W₁ a op) J (S₂ a op J) q)) (hN a)]
-  exact (Game.advantage_hybrid_le_sum
+  refine (Game.advantage_hybrid_le_sum
     (fun j => p.bind (Sum.elim PMF.pure fun a =>
       (composeRoundEnv (P a) (W₁ a) (W₂ a) (Sub a) (S₂ a) (I a) (x a) (D a) j).bind
-        (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ a op) J (S₂ a op J) q)))) N).trans_eq
-    (Finset.sum_congr rfl fun _ _ => by simp only [composeRoundEnv_succ_bind_roundGame])
+        (roundGame fun op J q => ProbComp.eval (idealJoint (W₁ a op) J (S₂ a op J) q))))
+    N).trans_eq ?_
+  exact Finset.sum_congr rfl fun j _ => by simp only [composeRoundEnv_succ_bind_roundGame]
 
 end Mixture
 

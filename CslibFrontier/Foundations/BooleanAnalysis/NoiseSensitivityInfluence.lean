@@ -162,7 +162,8 @@ theorem noiseSensitivity_inv_eq_expect_totalInfluence (f : (ι → Bool) → Boo
   have hblock (j : Fin m) :
       𝔼 π : ι → Fin m, H (fun i => decide (π i = j)) = bernoulliAverage (m : ℝ)⁻¹ H := by
     rw [expect_comp_eq_bernoulliAverage (fun c : Fin m => decide (c = j)) H]
-    congr 1; simp [filter_eq', dens_singleton]
+    congr 1
+    simp [filter_eq', dens_singleton]
   simp only [hblock, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
   field_simp
 

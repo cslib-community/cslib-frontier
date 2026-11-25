@@ -66,9 +66,11 @@ theorem measure_pi_forall_apply_eq_eq_pow_card {ι : Type*} [Fintype ι] (D : Me
     [IsProbabilityMeasure D] {h : α → β} (hh : MeasurableSet {p : α × β | h p.1 ≠ p.2}) :
     Measure.pi (fun _ : ι => D) {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
       (1 - error D h) ^ Fintype.card ι := by
-  rw [show {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
-      Set.univ.pi fun _ => {p : α × β | h p.1 ≠ p.2}ᶜ by ext; simp,
-    Measure.pi_pi, prob_compl_eq_one_sub hh, Finset.prod_const, Finset.card_univ, error]
+  have hset : {S : ι → α × β | ∀ i, h (S i).1 = (S i).2} =
+      Set.univ.pi fun _ => {p : α × β | h p.1 ≠ p.2}ᶜ := by
+    ext S
+    simp only [mem_ofPred_eq, mem_pi, mem_univ, mem_compl_iff, not_not, true_implies]
+  rw [hset, Measure.pi_pi, prob_compl_eq_one_sub hh, Finset.prod_const, Finset.card_univ, error]
 
 /-- A fixed hypothesis `h` agrees with all `m` i.i.d. examples drawn from `D` with probability
 `(1 - error D h) ^ m`. -/
@@ -88,19 +90,24 @@ theorem measure_pi_exists_consistent_lt_error_le_card_mul_pow {H : Finset (α �
         {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} ≤
       H.card * (1 - ε) ^ m := by
   classical
+  set μ := Measure.pi (fun _ : Fin m => D)
   set Bad := H.filter fun h => ε < error D h
-  refine (measure_mono
-    (s := {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2})
-    (t := ⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2})
-    fun S ⟨h, hH, hε, hS⟩ => mem_iUnion₂.2 ⟨h, Finset.mem_filter.2 ⟨hH, hε⟩, hS⟩).trans
-    ((measure_biUnion_finset_le _ _).trans
-      ((Finset.sum_le_sum (g := fun _ => (1 - ε) ^ m) fun h hh => ?_).trans ?_))
-  · rw [measure_pi_forall_apply_eq_eq_pow D (hH h (Finset.mem_filter.1 hh).1)]
-    have := (Finset.mem_filter.1 hh).2
-    gcongr
-  · rw [Finset.sum_const, nsmul_eq_mul]
-    have := Finset.filter_subset (fun h => ε < error D h) H
-    gcongr
+  have hsub : {S : LabeledSample α β m | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2} ⊆
+      ⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2} := fun S ⟨h, hH, hε, hS⟩ =>
+    mem_iUnion₂.2 ⟨h, Finset.mem_filter.2 ⟨hH, hε⟩, hS⟩
+  calc μ {S | ∃ h ∈ H, ε < error D h ∧ ∀ i, h (S i).1 = (S i).2}
+      ≤ μ (⋃ h ∈ Bad, {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2}) := measure_mono hsub
+    _ ≤ ∑ h ∈ Bad, μ {S : LabeledSample α β m | ∀ i, h (S i).1 = (S i).2} :=
+        measure_biUnion_finset_le _ _
+    _ ≤ ∑ _h ∈ Bad, (1 - ε) ^ m := by
+        refine Finset.sum_le_sum fun h hh => ?_
+        obtain ⟨hhH, hhε⟩ := Finset.mem_filter.1 hh
+        rw [measure_pi_forall_apply_eq_eq_pow D (hH h hhH)]
+        gcongr
+    _ ≤ H.card * (1 - ε) ^ m := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+        gcongr
+        exact Finset.filter_subset _ _
 
 /-- **Union bound for consistent learners of a finite class.** If `D` is realizable by the finite
 class `H` and `A` is consistent with `H`, then the probability over `m` i.i.d. examples that the
@@ -131,9 +138,11 @@ private theorem one_sub_ofReal_pow_le (ε : ℝ) (hε : 0 ≤ ε) (m : ℕ) :
   have h1 : 1 - ENNReal.ofReal ε ≤ ENNReal.ofReal (Real.exp (-ε)) := by
     rw [← ENNReal.ofReal_one, ← ENNReal.ofReal_sub _ hε]
     exact ENNReal.ofReal_le_ofReal (Real.one_sub_le_exp_neg ε)
-  refine (pow_le_pow_left' h1 m).trans_eq ?_
-  rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
-  congr 2; ring
+  calc (1 - ENNReal.ofReal ε) ^ m ≤ ENNReal.ofReal (Real.exp (-ε)) ^ m := by gcongr
+    _ = ENNReal.ofReal (Real.exp (-(ε * m))) := by
+        rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← Real.exp_nat_mul]
+        congr 2
+        ring
 
 /-- **The Occam sample size.** `n (1 - ε) ^ m ≤ δ` once `log n + log (1 / δ) ≤ ε m`. -/
 theorem natCast_mul_one_sub_ofReal_pow_le {n m : ℕ} {ε δ : ℝ} (hε : 0 ≤ ε) (hδ : 0 < δ)

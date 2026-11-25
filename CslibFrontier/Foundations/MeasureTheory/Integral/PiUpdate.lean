@@ -106,11 +106,11 @@ theorem integral_integral_update_measure {E : Type*} [NormedAddCommGroup E] [Nor
     ∫ v, ∫ z, F (Function.update v i z) ∂ν ∂Measure.pi μ =
       ∫ v, F v ∂Measure.pi (Function.update μ i ν) := by
   have hΦ := measurePreserving_update_measure μ i ν
-  rw [← integral_prod (fun p : (∀ j, X j) × X i => F (Function.update p.1 i p.2))
-    (hΦ.integrable_comp_of_integrable hF)]
+  have hint : Integrable (fun p : (∀ j, X j) × X i => F (Function.update p.1 i p.2))
+      ((Measure.pi μ).prod ν) := hΦ.integrable_comp_of_integrable hF
+  rw [← integral_prod _ hint]
   conv_rhs => rw [← hΦ.map_eq]
-  exact (integral_map hΦ.measurable.aemeasurable
-    (by rw [hΦ.map_eq]; exact hF.aestronglyMeasurable)).symm
+  rw [integral_map hΦ.measurable.aemeasurable (by rw [hΦ.map_eq]; exact hF.aestronglyMeasurable)]
 
 /-- The inner integral of `integral_integral_update_measure` is integrable in the outer sample. -/
 theorem integrable_integral_update_measure {E : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
@@ -212,6 +212,7 @@ theorem abs_integral_pi_sub_le_sum {F : (∀ j, X j) → ℝ} (δ : ι → ℝ)
       rw [Finset.sum_insert ht]
       exact (abs_sub_le _ (∫ v, F v ∂Measure.pi (s.piecewise ν μ)) _).trans
         (add_le_add (hδ s t ht) ih)
-  simpa only [Finset.piecewise_univ, abs_sub_comm] using key Finset.univ
+  have h := key Finset.univ
+  rwa [Finset.piecewise_univ, abs_sub_comm] at h
 
 end MeasureTheory

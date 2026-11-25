@@ -118,10 +118,13 @@ theorem natAbs_noise_le {m β η : ℕ} (e x : Fin m → ℤ) (x₀ : ℤ)
     (he : ∀ i, (e i).natAbs ≤ β) (hx : ∀ i, (x i).natAbs ≤ η) (hx₀ : x₀.natAbs ≤ η) :
     (noise e x x₀).natAbs ≤ m * (β * η) + η := by
   refine (Int.natAbs_sub_le _ _).trans ?_
-  have hsum : (∑ i, e i * x i).natAbs ≤ m * (β * η) :=
-    (Int.natAbs_sum_le _ _).trans <|
-      (Finset.sum_le_sum (s := Finset.univ) fun i _ =>
-        (Int.natAbs_mul _ _).trans_le (Nat.mul_le_mul (he i) (hx i))).trans_eq (by simp)
+  have hsum : (∑ i, e i * x i).natAbs ≤ m * (β * η) := by
+    refine (Int.natAbs_sum_le _ _).trans ?_
+    calc ∑ i, (e i * x i).natAbs ≤ ∑ _i : Fin m, β * η :=
+          Finset.sum_le_sum fun i _ => by
+            rw [Int.natAbs_mul]
+            exact Nat.mul_le_mul (he i) (hx i)
+      _ = m * (β * η) := by simp
   omega
 
 /-- Zero decryption error under the strict margin `4 * (m * (β * η) + η) < 2 ^ w`. -/
@@ -188,9 +191,16 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
           return (A, u)) ≤
       Real.sqrt ((2 : ℝ) ^ (w * n) / (2 : ℝ) ^ m) / 2 := by
   classical
-  let row (k : ℕ) (α : Type) : (Fin k → α) ≃ Matrix (Fin 1) (Fin k) α :=
-    ⟨fun v => Matrix.of fun _ => v, fun M => M 0, fun _ => rfl,
-      fun M => by ext i; fin_cases i; rfl⟩
+  let rowBool : (Fin m → Bool) ≃ Matrix (Fin 1) (Fin m) Bool :=
+    { toFun := fun b => Matrix.of fun _ => b
+      invFun := fun M => M 0
+      left_inv := fun _ => rfl
+      right_inv := fun M => by ext i j; fin_cases i; rfl }
+  let rowResidue : (Fin n → ZMod (2 ^ w)) ≃ Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)) :=
+    { toFun := fun u => Matrix.of fun _ => u
+      invFun := fun M => M 0
+      left_inv := fun _ => rfl
+      right_inv := fun M => by ext i j; fin_cases i; rfl }
   let cont : Matrix (Fin m) (Fin n) (ZMod (2 ^ w)) →
       Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)) → PMF (PublicKey n m w) :=
     fun A r => PMF.pure (A, r 0)
@@ -198,13 +208,15 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Matrix (Fin 1) (Fin m) Bool)).bind fun r =>
           cont A (r.map (fun bit => (bit.toNat : ZMod (2 ^ w))) * A) := by
-    rw [← PMF.uniformOfFintype_map_equiv (row m Bool)]
+    rw [← PMF.uniformOfFintype_map_equiv rowBool]
     simp only [keyGen, ProbComp.eval_bind, ProbComp.eval_pure, LWE.eval_sampleMatrix,
       ProbComp.eval_replicateFin, ProbComp.eval_uniform, PMF.pi_uniformOfFintype, PMF.map_bind,
-      PMF.pure_map, PMF.bind_map, Function.comp_def]
+      PMF.pure_map, PMF.bind_map]
     congr 1 with A : 1
+    simp only [Function.comp_def]
     congr 1 with b : 1
-    refine congrArg PMF.pure (Prod.ext rfl (funext fun j => ?_))
+    refine congrArg PMF.pure (Prod.ext rfl ?_)
+    funext j
     simp only [publicKeyOf, castVector, Matrix.mul_apply, Matrix.vecMul, dotProduct,
       Int.cast_natCast, Matrix.map_apply]
     rfl
@@ -214,7 +226,7 @@ theorem dist_keyGen_uniform_le (n m w : ℕ) :
         return ((A, u) : PublicKey n m w)) =
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))).bind fun A =>
         (PMF.uniformOfFintype (Matrix (Fin 1) (Fin n) (ZMod (2 ^ w)))).bind (cont A) := by
-    rw [← PMF.uniformOfFintype_map_equiv (row n (ZMod (2 ^ w)))]
+    rw [← PMF.uniformOfFintype_map_equiv rowResidue]
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map]
     congr 1 with A : 1
   rw [hL, hR]
@@ -263,7 +275,9 @@ theorem decrypt_encryptWithCoins_extract {bound η : ℕ} (T : GPVTrapdoor n m w
     (hmargin : 4 * (m * (bound * η) + η) < 2 ^ w) :
     decrypt e (encryptWithCoins (keys.1, u) μ s x x₀) = μ := by
   obtain ⟨hu, hshort⟩ := hT keys hkeys u e he
-  rw [show ((keys.1, u) : PublicKey n m w) = publicKeyOf keys.1 e by rw [publicKeyOf, hu]]
+  have hpk : ((keys.1, u) : PublicKey n m w) = publicKeyOf keys.1 e := by
+    rw [publicKeyOf, hu]
+  rw [hpk]
   exact decrypt_encryptWithCoins _ _ μ s x x₀ hw hshort hx hx₀ hmargin
 
 end GPVTrapdoor

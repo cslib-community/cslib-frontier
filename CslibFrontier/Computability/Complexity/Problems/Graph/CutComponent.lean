@@ -50,7 +50,9 @@ theorem split_component_separates {G H : Graph} (a b : Dart G) (hb : b.vertex = 
   let marked (u : ℕ) : Prop := u = w ∨ inClass u
   have hend (d : Dart G) : (e d).vertex = _ := hEnds d
   have markNew : marked w := Or.inl rfl
-  have markOld : ¬marked a.vertex := by rintro (h | ⟨h, _⟩); exacts [hfresh a h, h rfl]
+  have markOld : ¬marked a.vertex := by
+    rintro (h | ⟨h, _⟩)
+    exacts [hfresh a h, h rfl]
   have markAway (d : Dart G) (hd : d.vertex ≠ a.vertex) :
       marked (e d).vertex ↔ inClass d.vertex := by
     rw [hend, ite_eq_right (fun h => hd (hcut d h))]

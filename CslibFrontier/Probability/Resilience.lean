@@ -98,11 +98,13 @@ variable {Q Q' : Finset ι} {f : (ι → Bool) → Bool} {x x' : ι → Bool}
 /-- Whether `f` is undetermined at `x` by the bits outside `Q` depends only on the bits of `x`
 outside `Q`. -/
 theorem isUndetermined_congr (h : ∀ i ∉ Q, x i = x' i) :
-    IsUndetermined Q f x ↔ IsUndetermined Q f x' :=
-  ⟨fun ⟨y, z, hy, hz, hf⟩ => ⟨y, z, fun i hi => (hy i hi).trans (h i hi),
-    fun i hi => (hz i hi).trans (h i hi), hf⟩,
-    fun ⟨y, z, hy, hz, hf⟩ => ⟨y, z, fun i hi => (hy i hi).trans (h i hi).symm,
-      fun i hi => (hz i hi).trans (h i hi).symm, hf⟩⟩
+    IsUndetermined Q f x ↔ IsUndetermined Q f x' := by
+  refine ⟨fun ⟨y, z, hy, hz, hf⟩ => ⟨y, z, fun i hi => ?_, fun i hi => ?_, hf⟩,
+    fun ⟨y, z, hy, hz, hf⟩ => ⟨y, z, fun i hi => ?_, fun i hi => ?_, hf⟩⟩
+  · rw [hy i hi, h i hi]
+  · rw [hz i hi, h i hi]
+  · rw [hy i hi, h i hi]
+  · rw [hz i hi, h i hi]
 
 /-- A larger coalition leaves the function undetermined wherever a smaller one does. -/
 theorem IsUndetermined.mono (h : IsUndetermined Q f x) (hQ : Q ⊆ Q') :
@@ -153,15 +155,26 @@ theorem isUndetermined_singleton_iff (i : ι) :
   have key (y : ι → Bool) (hy : ∀ j ∉ ({i} : Finset ι), y j = x j) :
       f y = f x ∨ f y = f (update x i !x i) := by
     have hyx : y = update x i (y i) := funext fun j => by
-      rcases eq_or_ne j i with rfl | hj
-      · rw [update_self]
-      · rw [update_of_ne hj, hy j (notMem_singleton.2 hj)]
-    have h : y i = x i ∨ y i = !x i := by cases y i <;> cases x i <;> simp
-    exact h.imp (fun h => by rw [hyx, h, update_eq_self]) (fun h => by rw [hyx, h])
-  refine ⟨fun ⟨y, z, hy, hz, hyz⟩ => ?_, fun h =>
-    ⟨update x i !x i, x, fun _ hj => update_of_ne (notMem_singleton.1 hj) _ _, fun _ _ => rfl, h⟩⟩
-  rcases key y hy with h1 | h1 <;> rcases key z hz with h2 | h2 <;> rw [h1, h2] at hyz
-  exacts [absurd rfl hyz, hyz.symm, hyz, absurd rfl hyz]
+      by_cases hj : j = i
+      · subst hj
+        rw [update_self]
+      · rw [update_of_ne hj]
+        exact hy j (by rwa [mem_singleton])
+    obtain h | h : y i = x i ∨ y i = !x i := by cases y i <;> cases x i <;> simp
+    · left
+      rw [hyx, h, update_eq_self]
+    · right
+      rw [hyx, h]
+  constructor
+  · rintro ⟨y, z, hy, hz, hyz⟩
+    rcases key y hy with h1 | h1 <;> rcases key z hz with h2 | h2 <;> rw [h1, h2] at hyz
+    · exact absurd rfl hyz
+    · exact hyz.symm
+    · exact hyz
+    · exact absurd rfl hyz
+  · intro h
+    refine ⟨update x i !x i, x, fun j hj => update_of_ne (by rwa [mem_singleton] at hj) _ _,
+      fun _ _ => rfl, h⟩
 
 /-! ### Coalition influence -/
 
@@ -204,9 +217,11 @@ theorem coalitionInfluence_le_one (D : PMF (ι → Bool)) (Q : Finset ι) (f : (
 /-- A larger coalition has at least the influence of a smaller one. -/
 theorem coalitionInfluence_mono (D : PMF (ι → Bool)) (hQ : Q ⊆ Q') (f : (ι → Bool) → Bool) :
     coalitionInfluence D Q f ≤ coalitionInfluence D Q' f :=
-  sum_le_sum fun _ _ => mul_le_mul_of_nonneg_left
-    (by split_ifs with h₁ h₂; exacts [le_rfl, absurd (h₁.mono hQ) h₂, zero_le_one, le_rfl])
-    ENNReal.toReal_nonneg
+  sum_le_sum fun x _ => mul_le_mul_of_nonneg_left (by
+    by_cases h : IsUndetermined Q f x
+    · rw [ite_eq_left h, ite_eq_left (h.mono hQ)]
+    · rw [ite_eq_right h]
+      split_ifs <;> norm_num) ENNReal.toReal_nonneg
 
 /-- A coalition that leaves the function undetermined everywhere has influence one. -/
 theorem coalitionInfluence_eq_one_of_forall (D : PMF (ι → Bool))
@@ -226,7 +241,8 @@ theorem coalitionInfluence_singleton (i : ι) (f : (ι → Bool) → Bool) :
     coalitionInfluence (Probability.PMF.uniformOfFintype (ι → Bool)) {i} f =
       influence i fun x => signVal (f x) := by
   rw [coalitionInfluence_uniformOfFintype, influence_signVal]
-  exact expect_congr rfl fun _ _ => by simp only [isUndetermined_singleton_iff, ne_eq, ite_not]
+  refine expect_congr rfl fun x _ => ?_
+  simp only [isUndetermined_singleton_iff, ne_eq, ite_not]
 
 /-! ### Resilient functions -/
 

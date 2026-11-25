@@ -86,7 +86,8 @@ private theorem state_tables_polyTime (encRel : Rel ↪ List Bool) :
       (encState encRel) encRotationCertificate := by
   simp only [← CSP.vars_length_eq_occurrences]
   have hmaps := boundary_index_maps_polyTime (input := encState encRel)
-    (m := fun I : State Rel => I.body.vars.length) (n := fun I : State Rel => I.ports.length)
+    (m := fun I : State Rel => I.body.vars.length)
+    (n := fun I : State Rel => I.ports.length)
     (by polytime) (by polytime)
   have hreindex := RotationCertificate.computableInPolyTime_reindex
     (table := State.rotation) (count := fun I => 2 * (I.body.vars.length + I.ports.length))

@@ -74,10 +74,13 @@ private theorem rank_lt (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
 private theorem rank_lt_rank (rows : List ℕ) {i j : ℕ} (hi : i < rows.length)
     (hij : key rows i < key rows j) : List.rowRank rows i < List.rowRank rows j := by
   rw [rank_eq_card, rank_eq_card]
-  refine Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨fun k hk => ?_, fun he => ?_⟩)
-  · obtain ⟨hk, hki⟩ := Finset.mem_filter.mp hk
+  apply Finset.card_lt_card
+  refine Finset.ssubset_iff_subset_ne.mpr ⟨?_, ?_⟩
+  · intro k hk
+    obtain ⟨hk, hki⟩ := Finset.mem_filter.mp hk
     exact Finset.mem_filter.mpr ⟨hk, hki.trans hij⟩
-  · have hm : i ∈ (Finset.range rows.length).filter fun k => key rows k < key rows j :=
+  · intro he
+    have hm : i ∈ (Finset.range rows.length).filter fun k => key rows k < key rows j :=
       Finset.mem_filter.mpr ⟨Finset.mem_range.mpr hi, hij⟩
     rw [← he] at hm
     exact lt_irrefl _ (Finset.mem_filter.mp hm).2
@@ -101,13 +104,14 @@ private theorem ranks_nodup (rows : List ℕ) : (ranks rows).Nodup :=
     (fun _ hi _ hj => rank_injective rows (List.mem_range.mp hi) (List.mem_range.mp hj))
     List.nodup_range
 
-private theorem mem_ranks_iff (rows : List ℕ) (k : ℕ) : k ∈ ranks rows ↔ k < rows.length :=
-  ⟨fun hk => by
-      obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hk
-      exact rank_lt rows (List.mem_range.mp hi),
-    fun hk => by
-      obtain ⟨i, hi⟩ := rank_surjective rows ⟨k, hk⟩
-      exact List.mem_map.mpr ⟨i.val, List.mem_range.mpr i.isLt, congrArg Fin.val hi⟩⟩
+private theorem mem_ranks_iff (rows : List ℕ) (k : ℕ) : k ∈ ranks rows ↔ k < rows.length := by
+  constructor
+  · intro hk
+    obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hk
+    exact rank_lt rows (List.mem_range.mp hi)
+  · intro hk
+    obtain ⟨i, hi⟩ := rank_surjective rows ⟨k, hk⟩
+    exact List.mem_map.mpr ⟨i.val, List.mem_range.mpr i.isLt, congrArg Fin.val hi⟩
 
 private theorem idxOf_rank (rows : List ℕ) {i : ℕ} (hi : i < rows.length) :
     (ranks rows).idxOf (List.rowRank rows i) = i := by
@@ -150,11 +154,18 @@ theorem equiv_symm_apply_eq_getElem (rows : List ℕ) (i : Fin rows.length) :
 
 /-- The sorted index array permutes the original vertex-index range. -/
 theorem indices_perm_range (rows : List ℕ) : (indices rows).Perm (List.range rows.length) := by
+  have h := Equiv.Perm.map_finRange_perm (equiv rows).symm
+  have hm := h.map Fin.val
   have he : (List.finRange rows.length).map (fun i => ((equiv rows).symm i).val) =
-      indices rows := List.ext_getElem (by simp [indices]) fun _ _ _ => by
-    simp only [List.getElem_map, List.getElem_finRange, indices, List.getElem_range]; rfl
-  simpa only [List.map_map, Function.comp_def, he, List.map_coe_finRange_eq_range] using
-    (Equiv.Perm.map_finRange_perm (equiv rows).symm).map Fin.val
+      indices rows := by
+    apply List.ext_getElem
+    · simp [indices]
+    · intro i hi hj
+      simp only [List.getElem_map, List.getElem_finRange, indices, List.getElem_range]
+      rfl
+  have hn : (List.finRange rows.length).map Fin.val = List.range rows.length :=
+    List.map_coe_finRange_eq_range
+  simpa only [List.map_map, Function.comp_def, he, hn] using hm
 
 /-- The sorted index array has one entry per original vertex. -/
 @[simp] theorem length_indices (rows : List ℕ) : (indices rows).length = rows.length := by

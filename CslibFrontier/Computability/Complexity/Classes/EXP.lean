@@ -207,12 +207,13 @@ theorem setOf_mem_E_of_computableInPolyTime_pad {Ψ : List Bool × ℕ → Bool}
   -- the time bound is `2 ^ O(n)`, since `n + 1 ≤ 2 ^ n`
   refine mem_E_iff.2 ⟨2 * D, DTIME_mono_of_le_mul_add (C := C) (fun _ => le_rfl)
     (setOf_mem_DTIME_of_computableInO (t := fun n => C * 2 ^ (2 * D * n) + C) h fun y => ?_)⟩
+  simp only [encBits_apply]
   calc C * 2 ^ (D * y.length) * (y.length + 1) ^ D
-      ≤ C * 2 ^ (D * y.length) * (2 ^ y.length) ^ D := by gcongr; exact Nat.lt_two_pow_self
-    _ ≤ C * 2 ^ (2 * D * (encBits y).length) + C := by
-      rw [encBits_apply, show C * 2 ^ (D * y.length) * (2 ^ y.length) ^ D =
-        C * 2 ^ (2 * D * y.length) by ring]
-      exact Nat.le_add_right _ _
+      ≤ C * 2 ^ (D * y.length) * (2 ^ y.length) ^ D := by
+        gcongr
+        exact Nat.lt_two_pow_self
+    _ = C * 2 ^ (2 * D * y.length) := by ring
+    _ ≤ _ := Nat.le_add_right _ _
 
 /-- **`EXP` is closed under polynomial-time many-one reductions.** -/
 theorem PolyTimeReducible.mem_EXP {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
@@ -230,13 +231,17 @@ theorem PolyTimeReducible.mem_EXP {α β : Type} {encA : α ↪ List Bool} {encB
     have hpow : 2 ^ (encB (f a)).length ^ k ≤ 2 ^ (c * ((encA a).length + 1) ^ d) ^ k :=
       Nat.pow_le_pow_right (by norm_num) (Nat.pow_le_pow_left (by omega) k)
     omega
-  rw [show A = f ⁻¹' B from Set.ext hred]
+  have hA_eq : A = f ⁻¹' B := Set.ext hred
+  rw [hA_eq]
   refine DTIME_two_pow_subset_EXP (h := fun n => c * (n + 1) ^ d + (c * (n + 1) ^ d) ^ k + 1)
     (by fun_prop) (DTIME_mono (fun n => ?_) hpre)
   set M := c * (n + 1) ^ d + (c * (n + 1) ^ d) ^ k
-  have h1 : c * (n + 1) ^ d ≤ 2 ^ M := (Nat.le_add_right _ _).trans Nat.lt_two_pow_self.le
+  have h1 : c * (n + 1) ^ d ≤ 2 ^ M :=
+    (Nat.le_add_right _ _).trans (Nat.lt_two_pow_self.le)
   have h2 : 2 ^ (c * (n + 1) ^ d) ^ k ≤ 2 ^ M :=
     Nat.pow_le_pow_right (by norm_num) (Nat.le_add_left _ _)
-  simpa only [pow_succ', two_mul] using Nat.add_le_add h1 h2
+  calc
+    c * (n + 1) ^ d + 2 ^ (c * (n + 1) ^ d) ^ k ≤ 2 ^ M + 2 ^ M := Nat.add_le_add h1 h2
+    _ = 2 ^ (M + 1) := by rw [← two_mul, pow_succ']
 
 end Cslib.Complexity

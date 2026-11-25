@@ -129,11 +129,12 @@ theorem card_incidence_edgeEnds_le (v : V) :
 theorem edgeExpansion_mul_card_div_three_le_minBalancedCut :
     G.edgeExpansion * Fintype.card V / 3 ≤ Multigraph.minBalancedCut G.edgeEnds := by
   rcases subsingleton_or_nontrivial V with hV | hV
-  · simp [G.edgeExpansion_eq_zero_of_subsingleton]
+  · rw [G.edgeExpansion_eq_zero_of_subsingleton]
+    simp
   obtain ⟨S, h₁, h₂, hS⟩ := Multigraph.exists_card_edgeCut_eq_minBalancedCut G.edgeEnds
     Fintype.one_lt_card
-  simpa only [← hS, card_edgeCut_edgeEnds] using
-    G.edgeExpansion_mul_card_div_three_le_card_interedges h₁ h₂
+  rw [← hS, card_edgeCut_edgeEnds]
+  exact G.edgeExpansion_mul_card_div_three_le_card_interedges h₁ h₂
 
 omit [DecidableEq D] in
 /-- A rotation map of positive edge expansion is connected. -/

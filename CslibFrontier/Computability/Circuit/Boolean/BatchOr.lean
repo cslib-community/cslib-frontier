@@ -104,7 +104,8 @@ private theorem request_key (h : requests + (sources + padding) = BitonicSort.ar
     (x : BitString input) (request : Fin requests) :
     header (layout sourceKeys sourceValues queryKeys h x) (requestIndex h request) ∘ Fin.castSucc =
       substitute (queryKeys request) x := by
-  funext bit; simp [header, Function.comp_def, requestIndex, layout_apply, rows, substitute]
+  funext bit
+  simp [header, Function.comp_def, requestIndex, layout_apply, rows, substitute]
 
 private theorem request_tag (h : requests + (sources + padding) = BitonicSort.arity d)
     (x : BitString input) (request : Fin requests) :
@@ -116,7 +117,8 @@ private theorem source_key (h : requests + (sources + padding) = BitonicSort.ari
     (x : BitString input) (source : Fin sources) :
     header (layout sourceKeys sourceValues queryKeys h x) (sourceIndex h source) ∘ Fin.castSucc =
       substitute (sourceKeys source) x := by
-  funext bit; simp [header, Function.comp_def, sourceIndex, layout_apply, rows, substitute]
+  funext bit
+  simp [header, Function.comp_def, sourceIndex, layout_apply, rows, substitute]
 
 private theorem source_tag (h : requests + (sources + padding) = BitonicSort.arity d)
     (x : BitString input) (source : Fin sources) :
@@ -128,7 +130,8 @@ private theorem source_value (h : requests + (sources + padding) = BitonicSort.a
     (x : BitString input) (source : Fin sources) :
     value (layout sourceKeys sourceValues queryKeys h x) (sourceIndex h source) =
       substitute (sourceValues source) x := by
-  funext bit; simp [value, Function.comp_def, sourceIndex, layout_apply, rows, substitute]
+  funext bit
+  simp [value, Function.comp_def, sourceIndex, layout_apply, rows, substitute]
 
 private theorem exists_source_iff (h : requests + (sources + padding) = BitonicSort.arity d)
     (x : BitString input) (p : BitString k → BitString v → Prop) :
@@ -195,12 +198,14 @@ theorem size_withPadding (h : requests + (sources + padding) = BitonicSort.arity
     (withPadding sourceKeys sourceValues queryKeys h).size =
       BitonicSort.sortTraceSize d * (12 * (k + v) + 14) +
         (1 + (BitonicSort.arity d - 1) * (6 * k + 1) + v * (1 + 4 * BitonicSort.arity d)) + 2 := by
-  have ha : BitonicSort.arity d ≠ 0 :=
-    BitonicSort.arity_eq_two_pow d ▸ pow_ne_zero _ (by decide)
+  have ha : BitonicSort.arity d ≠ 0 := by
+    rw [BitonicSort.arity_eq_two_pow]
+    exact pow_ne_zero _ (by decide)
   have hc := cost_program_withPadding sourceKeys sourceValues queryKeys h (fun _ => 1)
   simp only [Program.cost_const, one_mul, size_routeValuesCircuit, size_broadcastCircuit,
     ite_eq_right ha] at hc
-  rw [hc]; ring
+  rw [hc]
+  ring
 
 /-- A bound linear in the record count and field width, and quadratic in sorting depth. -/
 theorem size_withPadding_le (h : requests + (sources + padding) = BitonicSort.arity d) :
@@ -270,10 +275,12 @@ This is a circuit gate bound, not a certificate of constructor runtime. -/
 theorem size_batchOrCircuit_le :
     (batchOrCircuit sourceKeys sourceValues queryKeys).size ≤
       48 * (requests + sources + 1) * (Nat.clog 2 (requests + sources) + 1) ^ 2 * (k + v + 1) := by
-  refine (size_withPadding_le sourceKeys sourceValues queryKeys _).trans ((?_ : _ ≤
-    24 * (2 * (requests + sources + 1)) * (depth requests sources + 1) ^ 2 * (k + v + 1)).trans_eq
-      (by dsimp only [depth]; ring))
-  gcongr
-  exact arity_depth_le requests sources
+  calc
+    _ ≤ 24 * BitonicSort.arity (depth requests sources) * (depth requests sources + 1) ^ 2 *
+        (k + v + 1) := size_withPadding_le sourceKeys sourceValues queryKeys _
+    _ ≤ 24 * (2 * (requests + sources + 1)) * (depth requests sources + 1) ^ 2 * (k + v + 1) := by
+      gcongr
+      exact arity_depth_le requests sources
+    _ = _ := by dsimp only [depth]; ring
 
 end Cslib.Circuits.Boolean

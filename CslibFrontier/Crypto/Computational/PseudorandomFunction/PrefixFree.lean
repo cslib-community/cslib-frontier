@@ -122,11 +122,14 @@ theorem wordQueryRunDist_apply_eq_of_agree {α : Type} {oracle oracle' : List Bo
         congrArg ((ProbComp.unifOracle k coin) * ·) (ih coin result hagree)
     | inr req =>
       simp only [wordQueryRunDist, PMF.map_apply]
-      refine tsum_congr fun ⟨answer, log⟩ => ?_
+      apply tsum_congr
+      rintro ⟨answer, log⟩
       by_cases heq : result = (answer, req.2 :: log)
       · subst result
-        simp only [↓reduceIte, hagree req.2 (List.mem_cons_self ..)]
-        exact ih (oracle' req.2) (answer, log) fun q hq => hagree q (List.mem_cons_of_mem _ hq)
+        simp only [↓reduceIte]
+        rw [hagree req.2 (List.mem_cons_self ..)]
+        exact ih (oracle' req.2) (answer, log) (fun q hq =>
+          hagree q (List.mem_cons_of_mem _ hq))
       · simp [heq]
 
 /-- Querying a fixed list of words records exactly that list. Against a deterministic oracle,
@@ -182,20 +185,22 @@ private theorem length_snd_le_of_mem_support_wordQueryRunDist {α : Type}
   induction program generalizing q result with
   | pure a =>
     simp only [wordQueryRunDist, PMF.mem_support_pure_iff] at hmem
-    exact hmem ▸ Nat.zero_le q
+    subst hmem
+    exact Nat.zero_le q
   | liftBind op cont ih =>
     obtain ⟨hle, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp hq
     cases op with
     | inl m =>
-      obtain ⟨c, _, hc⟩ := by
-        simpa only [wordQueryRunDist, PMF.mem_support_bind_iff] using hmem
+      simp only [wordQueryRunDist, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨c, _, hc⟩ := hmem
       simpa only [Sum.elim_inl, Nat.sub_zero] using ih c (hcont c) hc
     | inr req =>
-      obtain ⟨⟨a, log⟩, hc, rfl⟩ := by
-        simpa only [wordQueryRunDist, PMF.mem_support_map_iff] using hmem
+      simp only [wordQueryRunDist, PMF.mem_support_map_iff] at hmem
+      obtain ⟨⟨a, log⟩, hc, rfl⟩ := hmem
       have hlen := ih (oracle req.2) (hcont (oracle req.2)) hc
       simp only [Sum.elim_inr] at hle hlen
-      simp only [List.length_cons]; omega
+      simp only [List.length_cons]
+      omega
 
 /-- Every program making at most one query is prefix-free on every domain. -/
 theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
@@ -205,8 +210,10 @@ theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → 
   have hlen := length_snd_le_of_mem_support_wordQueryRunDist oracle hq hmem
   rcases result with ⟨_, _ | ⟨w, _ | ⟨w', _⟩⟩⟩
   · cases hx
-  · simp only [List.mem_singleton] at hx hy; exact absurd (hx.trans hy.symm) hxy
-  · simp only [List.length_cons] at hlen; omega
+  · simp only [List.mem_singleton] at hx hy
+    exact absurd (hx.trans hy.symm) hxy
+  · simp only [List.length_cons] at hlen
+    omega
 
 /-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
 Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic

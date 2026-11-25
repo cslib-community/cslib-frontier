@@ -121,8 +121,10 @@ theorem encode_injective : Function.Injective (encode : Record n w → BitString
 
 /-- The sort key of a decoded record is read from its key coordinates. -/
 private theorem key_decode (bits : BitString (width n w)) :
-    (decode bits).key = toLex (bits ∘ keyBits) :=
-  congrArg toLex <| funext fun i => by induction i using Fin.cases <;> rfl
+    (decode bits).key = toLex (bits ∘ keyBits) := by
+  apply congrArg toLex
+  funext i
+  induction i using Fin.cases <;> rfl
 
 /-- Two records have equal sort keys iff they have the same padding flag and state. -/
 theorem key_eq_iff (a b : Record n w) :

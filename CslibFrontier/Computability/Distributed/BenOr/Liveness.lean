@@ -173,7 +173,8 @@ private lemma singlePhase_not_unanimous_eq_zero {P : Type*} [Fintype P] {t : ℕ
     {st : P → ProcState} (hu : IsUnanimous st) :
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ IsUnanimous st'} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro _ hsupp hnot; supp_cases hsupp with ⟨c, _, rfl⟩
+  intro _ hsupp hnot
+  supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot (hu.phaseStep ht hv c)
 
 private lemma probRun_support_estimateLocked {P : Type*} [Fintype P] {t : ℕ}
@@ -182,8 +183,10 @@ private lemma probRun_support_estimateLocked {P : Type*} [Fintype P] {t : ℕ}
     (inp : P → Bool) :
     ∀ k, (∀ r < k, ∀ st, (strat r st).Valid t) →
       ∀ st ∈ (probRun t coinLaw strat inp k).support, EstimateLocked st
-  | 0, _, _, hst => by supp_cases hst [probRun]; exact estimateLocked_initState inp
-  | k + 1, hv, _, hst' => by
+  | 0, _, st, hst => by
+    supp_cases hst [probRun]
+    exact estimateLocked_initState inp
+  | k + 1, hv, st', hst' => by
     supp_cases hst' [probRun] with ⟨st, hst, c, _, rfl⟩
     exact (probRun_support_estimateLocked ht coinLaw inp k
       (fun r hr => hv r (Nat.lt_succ_of_lt hr)) st hst).phaseStep ht
@@ -196,7 +199,8 @@ private lemma singlePhase_not_allDecided_eq_zero {P : Type*} [Fintype P] {t : �
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ AllDecided st'} = 0 := by
   obtain ⟨b, hb⟩ := hu
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro _ hsupp hnot; supp_cases hsupp with ⟨c, _, rfl⟩
+  intro _ hsupp hnot
+  supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot ⟨b, phaseStep_allDecided_of_est_eq ht hv c hlock hb⟩
 
 /-! ### Parametric multi-phase tail bounds under pre-coin phase schedulers -/
@@ -268,7 +272,8 @@ theorem tendsto_probRun_not_allDecided {P : Type*} [Fintype P] {t : ℕ}
 
 private lemma one_sub_half_ennreal : (1 : ℝ≥0∞) - (1 / 2 : ℝ≥0∞) = 1 / 2 := by
   have : (1 / 2 : ℝ≥0∞) ≤ 1 := by norm_num
-  ennreal_to_real; norm_num
+  ennreal_to_real
+  norm_num
 
 /-- Pre-coin phase-scheduler tail bound for the separate common-coin variant (`commonCoinLaw P`,
 not in [BenOr1983]): when each phase's quorums are committed from the phase boundary state before

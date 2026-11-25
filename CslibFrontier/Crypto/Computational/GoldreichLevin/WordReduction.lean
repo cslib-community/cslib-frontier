@@ -124,17 +124,22 @@ theorem isPPT_wordInverter {f : List Bool → List Bool}
     have hp := ComputableInPolyTime.id'
       (encIn := encPair (encPair (encPair (encPair (encPair encUnary encBits) encBool)
         encBits) encBits) encBits)
-    have hpredict := ComputableInPolyTime.bool_xor.comp ((hevaluate.comp
-      ((hp.fst'.fst'.fst'.fst'.fst'.prod
-        (ComputableInPolyTime.bitsAppend hp.fst'.fst'.fst'.fst'.snd' hp.snd')).prod
-        hp.fst'.fst'.snd')).prod hp.fst'.fst'.fst'.snd')
+    have hn := hp.fst'.fst'.fst'.fst'.fst'
+    have himage := hp.fst'.fst'.fst'.fst'.snd'
+    have hcoins := hp.fst'.fst'.snd'
+    have hflip := hp.fst'.fst'.fst'.snd'
+    have hprepare := (hn.prod
+      (ComputableInPolyTime.bitsAppend himage hp.snd')).prod hcoins
+    have hpredict := ComputableInPolyTime.bool_xor.comp
+      ((hevaluate.comp hprepare).prod hflip)
     have hinput := ComputableInPolyTime.id'
       (encIn := encPair (encPair (encPair (encPair encUnary encBits) encBool) encBits) encBits)
     exact polyTime_wordDecode degree hf hpredict
       hinput.fst'.fst'.fst'.fst' hinput.fst'.fst'.fst'.snd' hinput.snd'
   unfold wordInverter
-  refine IsPPTOn.isPPT ((isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
-    ((ComputableInPolyTime.sampleList (by unfold coinBudget; fun_prop)).bind_with ?_))
+  apply IsPPTOn.isPPT
+  apply (isPPTOn_uniform_bool (encPair encUnary encBits)).bind_with
+  refine (ComputableInPolyTime.sampleList (by unfold coinBudget; fun_prop)).bind_with ?_
   simpa only [bind_pure_comp] using
     (ComputableInPolyTime.sampleList (by fun_prop)).map_with hdecode
 
@@ -185,7 +190,8 @@ theorem eval_parityPredictionGame (f : List Bool → List Bool) (adversary : Dis
   congr 1 with x : 1
   simp_rw [← fixedPredictor_distribution adversary evaluate c d hrealize,
     PMF.bind_map, Function.comp_def]
-  rw [PMF.bind_comm]; rfl
+  rw [PMF.bind_comm]
+  rfl
 
 /-- The standard any-preimage game agrees with the finite inversion experiment. -/
 theorem eval_wordInversionGame (f : List Bool → List Bool)
@@ -219,8 +225,10 @@ theorem negligible_parityPrediction {f : List Bool → List Bool} (hf : OneWay f
     Negligible (fun n => Game.guessingAdvantage
       (ProbComp.eval (parityPredictionGame f adversary n))) := by
   obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := hPPT.on.exists_seeded_evaluator
-  simp only [eval_parityPredictionGame f adversary evaluate c d fun n input => hrealize (n, input)]
-  refine negligible_prediction_of_negligible_inversion _ _ _ fun degree => ?_
+  simp only [eval_parityPredictionGame f adversary evaluate c d
+    (fun n input => hrealize (n, input))]
+  apply negligible_prediction_of_negligible_inversion
+  intro degree
   simpa only [eval_wordInversionGame f] using
     hf.inversion_negligible _ (isPPT_wordInverter hf.polyTime hefficient c d degree)
 

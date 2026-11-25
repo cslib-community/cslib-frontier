@@ -72,7 +72,9 @@ theorem decodeCertificate_append_replicate (machine : MultiTapeCTM k Symbol Stat
     machine.decodeCertificate cfg (choices ++ List.replicate padding 0) =
       some (choices, final) := by
   induction choices generalizing cfg with
-  | nil => obtain rfl := Option.some.inj hrun.symm; simp [machine.decodeCertificate_of_halted hhalt]
+  | nil =>
+    obtain rfl := Option.some.inj hrun.symm
+    simp [machine.decodeCertificate_of_halted hhalt]
   | cons index rest ih =>
     obtain ⟨next, hstep, hrest⟩ := Option.bind_eq_some_iff.mp hrun
     cases hs : cfg.state with
@@ -87,22 +89,30 @@ theorem decodeCertificate_sound (machine : MultiTapeCTM k Symbol State)
       word = choices ++ List.replicate (word.length - choices.length) 0 := by
   induction word generalizing cfg choices with
   | nil =>
-    cases hs : cfg.state <;> simp only [decodeCertificate, hs, List.length_nil,
-      List.replicate_zero, ↓reduceIte, Option.some.injEq, Prod.mk.injEq, reduceCtorEq] at h
-    rcases h with ⟨rfl, rfl⟩; simp [hs, Cfg.Halted]
+    cases hs : cfg.state with
+    | none =>
+      simp only [decodeCertificate, hs, List.length_nil, List.replicate_zero, ↓reduceIte,
+        Option.some.injEq, Prod.mk.injEq] at h
+      rcases h with ⟨rfl, rfl⟩
+      simp [hs, Cfg.Halted]
+    | some state => simp [decodeCertificate, hs] at h
   | cons index word ih =>
     cases hs : cfg.state with
     | none =>
       rw [machine.decodeCertificate_of_halted hs] at h
       split_ifs at h with hzero
-      · obtain ⟨rfl, rfl⟩ := Option.some.inj h; exact ⟨rfl, hs, by simpa using hzero⟩
-    | some _ =>
-      simp only [decodeCertificate, hs, bind, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h
+      · obtain ⟨rfl, rfl⟩ := Option.some.inj h
+        exact ⟨rfl, hs, by simpa using hzero⟩
+    | some state =>
+      simp only [decodeCertificate, hs, bind, Option.bind_eq_some_iff,
+        Option.map_eq_some_iff] at h
       obtain ⟨next, hstep, ⟨rest, final'⟩, hdecode, heq⟩ := h
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq.symm
+      cases heq
       obtain ⟨hrun, hhalt, hword⟩ := ih hdecode
-      exact ⟨by simp [runBranch_cons, hstep, hrun], hhalt,
-        by simpa using congrArg (index :: ·) hword⟩
+      refine ⟨?_, hhalt, ?_⟩
+      · simp [runBranch_cons, hstep, hrun]
+      · simpa only [List.length_cons, Nat.add_sub_add_right, List.cons_append,
+          List.cons.injEq, true_and] using hword
 
 /-- Decoding is exact replay plus canonical zero padding, rather than an assumed counting
 certificate. Both acceptance and rejection can use its same validity condition. -/
@@ -142,15 +152,21 @@ theorem mem_certificates_iff (machine : MultiTapeCTM k Symbol State)
     (cfg : Cfg k Symbol State input) (fuel : ℕ) (word : List ℕ) :
     word ∈ machine.certificates fuel cfg ↔
       word.length = fuel ∧ (machine.decodeCertificate cfg word).isSome := by
-  refine ⟨fun h => ?_, fun ⟨hlen, hdecode⟩ => ?_⟩
-  · obtain ⟨c, hc, rfl⟩ := Finset.mem_image.mp h
-    obtain ⟨hle, _, hrun, hhalt⟩ := (machine.mem_branches_iff cfg fuel c).mp hc
-    exact ⟨by simp [padCertificate, Nat.add_sub_of_le hle], by
-      rw [padCertificate, machine.decodeCertificate_append_replicate hrun hhalt]; rfl⟩
-  · obtain ⟨⟨c, final⟩, hd⟩ := Option.isSome_iff_exists.mp hdecode
-    obtain ⟨hrun, hhalt, hword⟩ := machine.decodeCertificate_sound hd
-    exact Finset.mem_image.mpr ⟨c, (machine.mem_branches_iff cfg fuel c).mpr
-      ⟨by grind, final, hrun, hhalt⟩, by simpa only [padCertificate, hlen] using hword.symm⟩
+  constructor
+  · intro h
+    obtain ⟨choices, hchoices, rfl⟩ := Finset.mem_image.mp h
+    obtain ⟨hlen, final, hrun, hhalt⟩ := (machine.mem_branches_iff cfg fuel choices).mp hchoices
+    constructor
+    · simp [padCertificate, Nat.add_sub_of_le hlen]
+    · rw [padCertificate, machine.decodeCertificate_append_replicate hrun hhalt]
+      rfl
+  · rintro ⟨hlen, hdecode⟩
+    obtain ⟨⟨choices, final⟩, hdecode⟩ := Option.isSome_iff_exists.mp hdecode
+    obtain ⟨hrun, hhalt, hword⟩ := machine.decodeCertificate_sound hdecode
+    have hbound : choices.length ≤ fuel := by grind
+    refine Finset.mem_image.mpr ⟨choices,
+      (machine.mem_branches_iff cfg fuel choices).mpr ⟨hbound, final, hrun, hhalt⟩, ?_⟩
+    simpa only [padCertificate, hlen] using hword.symm
 
 /-- The actual trace-to-certificate map is a bijection onto all successful fixed-length decoder
 inputs. No extra copies are introduced by terminal padding or by distinct equal-effect choices. -/

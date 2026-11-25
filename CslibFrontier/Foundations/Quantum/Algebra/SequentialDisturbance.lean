@@ -34,10 +34,12 @@ variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] 
 private theorem sum_re_star_mul_weight_le {ι : Type*} [Fintype ι] (φ : AlgState A)
     (X Y W : ι → A) (hW : ∀ i, star (W i) * W i ≤ 1) :
     (∑ i, (φ (star (X i) * (W i * Y i))).re) ≤
-      √(∑ i, φ.norm (X i) ^ 2) * √(∑ i, φ.norm (Y i) ^ 2) :=
-  (sum_le_sum fun i _ => (φ.re_apply_star_mul_le _ _).trans (mul_le_mul_of_nonneg_left
-    (φ.norm_mul_le_of_star_mul_self_le_one (hW i) _) (φ.norm_nonneg _))).trans
-    (Real.sum_mul_le_sqrt_mul_sqrt _ _ _)
+      √(∑ i, φ.norm (X i) ^ 2) * √(∑ i, φ.norm (Y i) ^ 2) := by
+  calc
+    _ ≤ ∑ i, φ.norm (X i) * φ.norm (Y i) := sum_le_sum fun i _ =>
+      (φ.re_apply_star_mul_le _ _).trans (mul_le_mul_of_nonneg_left
+        (φ.norm_mul_le_of_star_mul_self_le_one (hW i) _) (φ.norm_nonneg _))
+    _ ≤ _ := Real.sum_mul_le_sqrt_mul_sqrt _ _ _
 
 /-- The one-sided change in a quadratic score after replacing a normalized family `Y`
 by `X`, with a commuting contraction as weight at each index. -/
@@ -51,20 +53,24 @@ theorem AlgState.sum_weighted_quadratic_le {ι : Type*} [Fintype ι] (φ : AlgSt
   have hdiff (i : ι) :
       (φ (star (X i) * X i * W i)).re - (φ (star (Y i) * Y i * W i)).re =
         (φ (star (D i) * (W i * X i))).re + (φ (star (Y i) * (W i * D i))).re := by
-    rw [← Complex.sub_re, ← map_sub, show star (X i) * X i * W i - star (Y i) * Y i * W i =
-        star (D i) * (W i * X i) + star (Y i) * (W i * D i) by
+    have heq : star (X i) * X i * W i - star (Y i) * Y i * W i =
+        star (D i) * (W i * X i) + star (Y i) * (W i * D i) := by
       rw [← (hX i).eq, ← ((hX i).sub_left (hY i)).eq]
-      simp only [D, star_sub]; noncomm_ring, map_add, Complex.add_re]
+      simp only [D, star_sub]
+      noncomm_ring
+    rw [← Complex.sub_re, ← map_sub, heq, map_add, Complex.add_re]
   apply sub_le_iff_le_add'.mp
   rw [← sum_sub_distrib]
   simp only [hdiff, sum_add_distrib]
-  simpa only [two_mul, D] using add_le_add
-    ((sum_re_star_mul_weight_le φ D X W hW).trans (by
+  have hx := (sum_re_star_mul_weight_le φ D X W hW).trans
+    (by
       simpa only [mul_one, Real.sqrt_one] using mul_le_mul_of_nonneg_left
-        (Real.sqrt_le_sqrt hXnorm) (Real.sqrt_nonneg _)))
-    ((sum_re_star_mul_weight_le φ Y D W hW).trans (by
+        (Real.sqrt_le_sqrt hXnorm) (Real.sqrt_nonneg (∑ i, φ.norm (D i) ^ 2)))
+  have hy := (sum_re_star_mul_weight_le φ Y D W hW).trans
+    (by
       simpa only [one_mul, Real.sqrt_one] using mul_le_mul_of_nonneg_right
-        (Real.sqrt_le_sqrt hYnorm) (Real.sqrt_nonneg _)))
+        (Real.sqrt_le_sqrt hYnorm) (Real.sqrt_nonneg (∑ i, φ.norm (D i) ^ 2)))
+  simpa only [two_mul, D] using add_le_add hx hy
 
 namespace Measurement
 

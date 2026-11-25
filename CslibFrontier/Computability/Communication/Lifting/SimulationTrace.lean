@@ -59,16 +59,22 @@ theorem DensityTrace.volume {g : Fin m → Fin m → Bool} {τ σ : ℝ}
   induction h with
   | stop => simp
   | @alice F X Y F' X' Y' c q st send answer valid tail ih =>
-    calc _ ≤ (8 * (2 * τ) ^ #st.queried) * ((#st.speaker : ℝ) * #(st.listener answer)) := by
-          simpa only [mul_assoc] using valid.volume answer
-      _ ≤ (8 * (2 * τ) ^ #st.queried) * (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
-          mul_le_mul_of_nonneg_left ih (by positivity)
+    calc
+      _ ≤ (8 * (2 * τ) ^ #st.queried) *
+          ((#st.speaker : ℝ) * #(st.listener answer)) := by
+        simpa only [mul_assoc] using valid.volume answer
+      _ ≤ (8 * (2 * τ) ^ #st.queried) *
+          (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
+        mul_le_mul_of_nonneg_left ih (by positivity)
       _ = _ := by rw [pow_succ, pow_add]; ring
   | @bob F X Y F' X' Y' c q st send answer valid tail ih =>
-    calc _ ≤ (8 * (2 * τ) ^ #st.queried) * ((#(st.listener answer) : ℝ) * #st.speaker) := by
-          nlinarith [valid.volume answer]
-      _ ≤ (8 * (2 * τ) ^ #st.queried) * (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
-          mul_le_mul_of_nonneg_left ih (by positivity)
+    calc
+      _ ≤ (8 * (2 * τ) ^ #st.queried) *
+          ((#(st.listener answer) : ℝ) * #st.speaker) := by
+        nlinarith [valid.volume answer]
+      _ ≤ (8 * (2 * τ) ^ #st.queried) *
+          (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
+        mul_le_mul_of_nonneg_left ih (by positivity)
       _ = _ := by rw [pow_succ, pow_add]; ring
 
 /-- Queries in a trace are fresh: their total number is precisely the loss of free coordinates. -/
@@ -79,7 +85,8 @@ theorem DensityTrace.card_free {g : Fin m → Fin m → Bool} {τ σ : ℝ}
   induction h with
   | stop => simp
   | alice _ _ _ valid _ ih | bob _ _ _ valid _ ih =>
-    have := card_sdiff_add_card_eq_card valid.queried_subset; omega
+    have := card_sdiff_add_card_eq_card valid.queried_subset
+    omega
 
 /-- Every executed step only removes source elements. -/
 theorem DensityTrace.subsets {g : Fin m → Fin m → Bool} {τ σ : ℝ}

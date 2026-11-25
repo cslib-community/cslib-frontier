@@ -123,26 +123,29 @@ theorem synthesis_scanMin (s : Set (BooleanFunction a)) (values : BitString a �
   let := lexOrder n
   let current := fun t x => scanMin (values x) (fallback x) t
   let q := fun t => wires (current t)
-  refine (Synthesis.steps (I := interpretation) q (10 * n + 1) R
-    (by rintro _ ⟨bit, rfl⟩; exact hf bit) fun t ht => ?_).mono
-      Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
-  let src := s ∪ Synthesis.stages q t
-  have hcur : wires (current t) ⊆ src := fun _ h => Or.inr (Synthesis.subset_stages q le_rfl h)
-  have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src := by
-    rintro _ ⟨bit, rfl⟩; exact Or.inl (hv _ bit)
-  let less := fun x => decide (toLex (values x ⟨t, ht⟩) < toLex (current t x))
-  have hl := synthesis_lexLt src (fun x => values x ⟨t, ht⟩) (current t) hval hcur
-  have hm := synthesis_bits_mux (src ∪ {less}) (fun x => values x ⟨t, ht⟩) (current t) less
-    (fun _ h => Or.inl (hval h)) (fun _ h => Or.inl (hcur h)) (Or.inr rfl)
-  rw [show (fun x => if less x then values x ⟨t, ht⟩ else current t x) = current (t + 1) from
-    funext fun x => by
+  have hz : q 0 ⊆ s := by rintro _ ⟨bit, rfl⟩; exact hf bit
+  have hs := Synthesis.steps (I := interpretation) q (10 * n + 1) R hz fun t ht => ?_
+  · exact hs.mono Set.Subset.rfl (Synthesis.subset_stages q le_rfl) le_rfl
+  · let src := s ∪ Synthesis.stages q t
+    have hcur : wires (current t) ⊆ src := fun _ h => Or.inr (Synthesis.subset_stages q le_rfl h)
+    have hval : wires (fun x => values x ⟨t, ht⟩) ⊆ src := by
+      rintro _ ⟨bit, rfl⟩
+      exact Or.inl (hv _ bit)
+    let less := fun x => decide (toLex (values x ⟨t, ht⟩) < toLex (current t x))
+    have hl := synthesis_lexLt src (fun x => values x ⟨t, ht⟩) (current t) hval hcur
+    have hm := synthesis_bits_mux (src ∪ {less}) (fun x => values x ⟨t, ht⟩) (current t) less
+      (fun _ h => Or.inl (hval h)) (fun _ h => Or.inl (hcur h)) (Or.inr rfl)
+    have he : (fun x => if less x then values x ⟨t, ht⟩ else current t x) = current (t + 1) := by
+      funext x
       change _ = scanMin (values x) (fallback x) (t + 1)
       rw [scanMin, dite_eq_left ht]
       by_cases hh : toLex (values x ⟨t, ht⟩) < toLex (current t x)
-      · simp only [less, hh, decide_true, ite_true]; exact (min_eq_left hh.le).symm
+      · simp only [less, hh, decide_true, ite_true]
+        exact (min_eq_left hh.le).symm
       · simp only [less, hh, decide_false, Bool.false_eq_true, ite_false]
-        exact (min_eq_right (le_of_not_gt hh)).symm] at hm
-  exact (hl.trans hm).mono Set.Subset.rfl Set.Subset.rfl (by omega)
+        exact (min_eq_right (le_of_not_gt hh)).symm
+    rw [he] at hm
+    exact (hl.trans hm).mono Set.Subset.rfl Set.Subset.rfl (by omega)
 
 /-! ### First flagged positions -/
 
@@ -175,10 +178,12 @@ theorem chooseFirst_spec {α : Type*} (flags : Fin R → Bool) (records : Fin R 
     (fallback : α) (j : Fin R) (hj : flags j = true)
     (hfirst : ∀ i : Fin R, i.val < j.val → flags i = false) :
     chooseFirst flags records fallback = records j := by
-  simpa only [chooseFirst, Fin.rev_rev] using
-    chooseRecord_eq_of_last (fun i => flags i.rev) (fun i => records i.rev) fallback j.rev
-      (by simpa using hj) R j.rev.isLt fun i hi _ =>
-        hfirst i.rev (by simp only [Fin.val_rev] at hi ⊢; omega)
+  have h := chooseRecord_eq_of_last (fun i => flags i.rev) (fun i => records i.rev)
+    fallback j.rev (by simpa using hj) R j.rev.isLt fun i hi _ => by
+      apply hfirst
+      simp only [Fin.val_rev] at hi ⊢
+      omega
+  simpa only [chooseFirst, Fin.rev_rev] using h
 
 /-- The first flagged position in `w` bits, or zero if none is flagged. -/
 def firstIndex (flags : Fin R → Bool) : BitVec w :=

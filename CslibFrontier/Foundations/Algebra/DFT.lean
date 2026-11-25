@@ -148,7 +148,8 @@ theorem dft_eq_add_of_lt {n m : ℕ} (hn : n = 2 * m) (ω : R) (a : Fin n → R)
   rw [dft, sum_even_add_sum_odd hn, dft, dft, mul_sum]
   congr 1 <;> refine sum_congr rfl fun i _ => ?_
   · simp only [pow_mul]
-  · simp only [pow_succ, pow_mul]; ring
+  · simp only [pow_succ, pow_mul]
+    ring
 
 /-- **Cooley–Tukey splitting, upper half.** For `n = 2 m`, `ω ^ m = -1` and `m ≤ j`, the
 transform at `j` is `E (j - m) - ω ^ (j - m) * O (j - m)`. -/
@@ -172,20 +173,23 @@ of `p * q` when `natDegree p + natDegree q < n`, since then no index wraps aroun
 theorem cyclicConv_coeff {n : ℕ} {p q : Polynomial R} (hpq : p.natDegree + q.natDegree < n)
     (k : Fin n) :
     cyclicConv (fun i : Fin n => p.coeff i) (fun i : Fin n => q.coeff i) k = (p * q).coeff k := by
-  have hsub (i : Fin n) :
-      ((k - i : Fin n) : ℕ) = if (i : ℕ) ≤ k then (k : ℕ) - i else n - i + k := by
+  have hsub : ∀ i : Fin n,
+      ((k - i : Fin n) : ℕ) = if (i : ℕ) ≤ k then (k : ℕ) - i else n - i + k := fun i => by
     rw [Fin.val_sub]
-    split_ifs
+    split_ifs with h
     · rw [show n - (i : ℕ) + k = (k - i) + n by omega, Nat.add_mod_right,
         Nat.mod_eq_of_lt (by omega)]
     · exact Nat.mod_eq_of_lt (by omega)
-  simp only [cyclicConv, hsub]
-  rw [Fin.sum_univ_eq_sum_range
-      (fun i => p.coeff i * q.coeff (if i ≤ (k : ℕ) then (k : ℕ) - i else n - i + k)),
-    Polynomial.coeff_mul, Nat.sum_antidiagonal_eq_sum_range_succ_mk,
+  have hL : cyclicConv (fun i : Fin n => p.coeff i) (fun i : Fin n => q.coeff i) k =
+      ∑ i ∈ range n, p.coeff i * q.coeff (if i ≤ (k : ℕ) then (k : ℕ) - i else n - i + k) := by
+    rw [cyclicConv, ← Fin.sum_univ_eq_sum_range]
+    exact sum_congr rfl fun i _ => by rw [hsub]
+  rw [hL, Polynomial.coeff_mul, Nat.sum_antidiagonal_eq_sum_range_succ_mk,
     ← sum_range_add_sum_Ico _ (show (k : ℕ) + 1 ≤ n by omega),
     sum_eq_zero (s := Ico _ _) fun i hi => ?_, add_zero]
-  · exact sum_congr rfl fun i hi => by rw [mem_range] at hi; rw [ite_eq_left (by omega)]
+  · refine sum_congr rfl fun i hi => ?_
+    rw [mem_range] at hi
+    rw [ite_eq_left (by omega)]
   · rw [mem_Ico] at hi
     rw [ite_eq_right (by omega)]
     by_cases hp : i ≤ p.natDegree

@@ -109,9 +109,10 @@ theorem isReadOnceTest_parityOn {L w : ℕ} (hw : 2 ≤ w) (S : Finset (Fin L)) 
 private theorem expect_signVal {α : Type*} [Fintype α] [Nonempty α] (f : α → Bool) :
     𝔼 a, signVal (f a) = 1 - 2 * ((dens {a | f a = true} : ℚ≥0) : ℝ) := by
   have hc : (0 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.card_pos
+  have h (a : α) : signVal (f a) = 1 - 2 * (if f a = true then 1 else 0 : ℝ) := by
+    cases f a <;> norm_num [signVal]
   rw [Fintype.expect_eq_sum_div_card, nnratCast_dens]
-  simp_rw [fun a => show signVal (f a) = 1 - 2 * (if f a = true then 1 else 0 : ℝ) by
-    cases f a <;> norm_num [signVal]]
+  simp_rw [h]
   rw [sum_sub_distrib, ← mul_sum, sum_boole]
   field_simp
   simp
@@ -124,7 +125,9 @@ theorem Generator.Secure.isSmallBias {k ℓ s : ℕ} {G : Generator (Fin k → B
     {ε : ℝ≥0} (hs : 1 ≤ s) (hG : G.Secure (IsReadOnceTest (2 ^ s)) ε) :
     IsSmallBias (2 * ε) G.outputDist := by
   intro S hS
-  have hw : 2 ≤ 2 ^ s := (pow_one 2).symm.trans_le (Nat.pow_le_pow_right two_pos hs)
+  have hw : 2 ≤ 2 ^ s := by
+    calc 2 = 2 ^ 1 := (pow_one 2).symm
+      _ ≤ 2 ^ s := Nat.pow_le_pow_right two_pos hs
   have h := hG _ (isReadOnceTest_parityOn hw S)
   rw [Generator.advantage, Generator.toReal_realExperiment_pure,
     Generator.toReal_idealExperiment_pure] at h
@@ -140,8 +143,9 @@ theorem Generator.Secure.isSmallBias {k ℓ s : ℕ} {G : Generator (Fin k → B
   rw [Generator.outputDist, bias_uniformOfFintype_map]
   simp_rw [chi_eq_signVal_parityOn]
   rw [expect_signVal]
-  rw [hU, abs_le] at h
-  exact abs_le.2 ⟨by linarith [h.2], by linarith [h.1]⟩
+  rw [hU] at h
+  rw [abs_le] at h ⊢
+  constructor <;> linarith [h.1, h.2]
 
 /-- **The stretch of space-bounded pseudorandom generators** ([Goldreich, Exercise
 8.25(2)][Goldreich2007DraftR4], corrected): a generator `G : {0,1}^k → {0,1}^ℓ` that fools the
