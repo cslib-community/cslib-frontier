@@ -212,15 +212,10 @@ theorem ligeroBatchProximityReduction_outputOn_congr {F BatchChal : Type}
     (ligeroBatchProximityReduction m weights G q).verifier.outputOn M₁ (chal, v, Q, ()) =
       (ligeroBatchProximityReduction m weights G q).verifier.outputOn M₂ (chal, v, Q, ()) := by
   rw [ligeroBatchProximityReduction_outputOn, ligeroBatchProximityReduction_outputOn]
-  have hiff : (∀ t : Fin q, ligeroColumnCheck G M₁ (weights chal) v (Q t) = true) ↔
-      (∀ t : Fin q, ligeroColumnCheck G M₂ (weights chal) v (Q t) = true) :=
-    forall_congr' fun t => by
-      simp only [ligeroColumnCheck, decide_eq_true_eq,
-        Matrix.vecMul_apply_eq_sum (weights chal) _ (Q t)]
-      rw [Finset.sum_congr rfl fun i _ => by rw [hcols t i]]
-  by_cases h₁ : ∀ t : Fin q, ligeroColumnCheck G M₁ (weights chal) v (Q t) = true
-  · rw [ite_eq_left h₁, ite_eq_left (hiff.1 h₁)]
-  · rw [ite_eq_right h₁, ite_eq_right (h₁ ∘ hiff.2)]
+  refine if_congr (forall_congr' fun t => ?_) rfl rfl
+  simp only [ligeroColumnCheck, decide_eq_true_eq,
+    Matrix.vecMul_apply_eq_sum (weights chal) _ (Q t)]
+  rw [Finset.sum_congr rfl fun i _ => by rw [hcols t i]]
 
 /-- **Completeness of `ligeroBatchProximityReduction`**: every honestly encoded matrix `M = U * G`
 is accepted with error `0`. -/
@@ -239,12 +234,10 @@ theorem ligeroBatchProximityReduction_complete {F BatchChal : Type}
   refine Cslib.Probability.PMF.tsum_mul_le_of_forall_le _ fun chal => ?_
   rw [PMF.toOuterMeasure_bind_apply]
   refine Cslib.Probability.PMF.tsum_mul_le_of_forall_le _ fun Q => le_of_eq ?_
-  have hchk : ∀ t : Fin q,
-      ligeroColumnCheck G (U * G) (weights chal) (ligeroRowComb (weights chal) U) (Q t) = true :=
-    fun t => ligeroColumnCheck_honest G U (weights chal) (Q t)
   refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, trivial⟩)
   exact (ligeroBatchProximityReduction_outputOn m weights G q (U * G) chal
-    (ligeroRowComb (weights chal) U) Q).trans (ite_eq_left hchk)
+    (ligeroRowComb (weights chal) U) Q).trans
+    (ite_eq_left fun t => ligeroColumnCheck_honest G U (weights chal) (Q t))
 
 private lemma ligeroBatchProximityReduction_rbrSound_of_rowBound
     {F BatchChal : Type} [Field F] [DecidableEq F]
@@ -357,10 +350,9 @@ theorem ligeroAffineProximityReduction_reedSolomon_sound_johnson_of_eta
       (ENNReal.ofReal
         (115200 * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ))) +
        (((n - (e + 1) : ℕ) : ℝ≥0∞) / (n : ℝ≥0∞)) ^ q) := by
-  have h :=
+  simpa only [PerChallenge.sum, add_zero] using
     (ligeroAffineProximityReduction_reedSolomon_rbrSound_johnson_of_eta m (q := q)
       hα hk hkn hη he).sound
-  simpa only [PerChallenge.sum, add_zero] using h
 
 /-- **Round-by-round soundness of single-scalar `ligeroCurveProximityReduction` in the
 unique-decoding regime** (`2 * e + k ≤ n`, derived via
@@ -394,8 +386,8 @@ theorem ligeroCurveProximityReduction_reedSolomon_sound
       (ligeroProximityLang m (reedSolomonGenerator α k) e) Set.univ
       ((((m - 1) * n : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
        (((n - (e + 1) : ℕ) : ℝ≥0∞) / (n : ℝ≥0∞)) ^ q) := by
-  have h := (ligeroCurveProximityReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
-  simpa only [PerChallenge.sum, add_zero] using h
+  simpa only [PerChallenge.sum, add_zero] using
+    (ligeroCurveProximityReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
 
 /-- **Explicit-parameter Guruswami–Sudan round-by-round soundness of single-scalar
 `ligeroCurveProximityReduction` up to the Johnson bound** (in the setting of
@@ -459,10 +451,9 @@ theorem ligeroCurveProximityReduction_reedSolomon_sound_johnson_of_eta
         (115200 * ((m - 1 : ℕ) : ℝ) * ((n : ℝ) ^ 2) /
           (((k : ℝ) / (n : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ))) +
        (((n - (e + 1) : ℕ) : ℝ≥0∞) / (n : ℝ≥0∞)) ^ q) := by
-  have h :=
+  simpa only [PerChallenge.sum, add_zero] using
     (ligeroCurveProximityReduction_reedSolomon_rbrSound_johnson_of_eta m (q := q)
       hα hk hkn hη he).sound
-  simpa only [PerChallenge.sum, add_zero] using h
 
 end BatchProximityReduction
 
@@ -543,41 +534,31 @@ theorem mem_ligeroEvalProximityLang_reedSolomon_iff {F : Type} [Field F] [Decida
   constructor
   · rintro ⟨U, hclose, heval⟩
     rcases Nat.eq_zero_or_pos k with rfl | hk
-    · let P : Fin m → F[X] := fun _ => 0
-      have hUG : Function.swap (U * reedSolomonGenerator α 0) = fun _ _ => 0 := by
-        funext j i
-        simp [Function.swap, Matrix.mul_apply]
-      have hbw : berlekampWelchInterleaved α e 0 (Function.swap claim.matrix) = some P :=
-        (berlekampWelchInterleaved_eq_some_iff hα hunique').2
-          ⟨fun _ => WithBot.bot_lt_coe 0, by
-            simpa only [P, Polynomial.eval_zero, hUG, hammingDist_comm] using hclose⟩
-      refine ⟨P, hbw, ?_⟩
-      have hU_eq : (Matrix.of fun i (d : Fin 0) => (P i).coeff (d : ℕ)) = U :=
-        Matrix.ext fun _ d => d.elim0
-      rwa [hU_eq]
+    · have hUG : Function.swap (U * reedSolomonGenerator α 0) = fun _ _ => 0 := by
+        funext j i; simp [Function.swap, Matrix.mul_apply]
+      exact ⟨fun _ => 0, (berlekampWelchInterleaved_eq_some_iff hα hunique').2
+        ⟨fun _ => WithBot.bot_lt_coe 0,
+          by simpa only [Polynomial.eval_zero, hUG, hammingDist_comm] using hclose⟩,
+        by rwa [show (Matrix.of fun _ (d : Fin 0) => (0 : F[X]).coeff (d : ℕ)) = U from
+          Matrix.ext fun _ d => d.elim0]⟩
     · let P : Fin m → F[X] := fun i => Polynomial.ofFn k (U i)
-      have hdeg : ∀ i : Fin m, (P i).degree < k := fun i => Polynomial.ofFn_degree_lt (U i)
       have heval_UG : (fun j i => (P i).eval (α j)) =
           Function.swap (U * reedSolomonGenerator α k) := by
         funext j i
         simp only [P, Function.swap, Polynomial.ofFn_eq_sum_monomial, Polynomial.eval_finsetSum,
           Polynomial.eval_monomial, Matrix.mul_apply, reedSolomonGenerator_apply]
-      have hbw : berlekampWelchInterleaved α e k (Function.swap claim.matrix) = some P :=
-        (berlekampWelchInterleaved_eq_some_iff hα hunique').2
-          ⟨hdeg, by rwa [heval_UG, hammingDist_comm]⟩
-      have hcoeff : (Matrix.of fun i (d : Fin k) => (P i).coeff (d : ℕ)) = U :=
-        Matrix.ext fun i d => Polynomial.ofFn_coeff_eq_val_of_lt (U i) d.isLt
-      exact ⟨P, hbw, by rwa [hcoeff]⟩
+      exact ⟨P, (berlekampWelchInterleaved_eq_some_iff hα hunique').2
+        ⟨fun i => Polynomial.ofFn_degree_lt (U i), by rwa [heval_UG, hammingDist_comm]⟩,
+        by rwa [show (Matrix.of fun i (d : Fin k) => (P i).coeff (d : ℕ)) = U from
+          Matrix.ext fun i d => Polynomial.ofFn_coeff_eq_val_of_lt (U i) d.isLt]⟩
   · rintro ⟨P, hbw, heval⟩
-    let U : Matrix (Fin m) (Fin k) F := Matrix.of fun i d => (P i).coeff (d : ℕ)
     have hdeg := degree_lt_of_berlekampWelchInterleaved_eq_some hbw
     have hdist := hammingDist_le_of_berlekampWelchInterleaved_eq_some hbw
     have heval_UG : (fun j i => (P i).eval (α j)) =
-        Function.swap (U * reedSolomonGenerator α k) := by
-      funext j i
-      rw [poly_eval_eq_coeff_vecMul_reedSolomonGenerator α (hdeg i) j]
-      rfl
-    exact ⟨U, by rwa [heval_UG, hammingDist_comm] at hdist, heval⟩
+        Function.swap ((Matrix.of fun i (d : Fin k) => (P i).coeff (d : ℕ)) *
+          reedSolomonGenerator α k) := by
+      funext j i; exact poly_eval_eq_coeff_vecMul_reedSolomonGenerator α (hdeg i) j
+    exact ⟨_, by rwa [heval_UG, hammingDist_comm] at hdist, heval⟩
 
 /-- Round specification of `ligeroBatchEvalReduction`. -/
 abbrev ligeroBatchEvalSpec (BatchChal : Type) (l n q : ℕ) (F : Type) : Spec :=
@@ -645,25 +626,15 @@ theorem ligeroBatchEvalReduction_outputOn_congr {F BatchChal : Type}
     (ligeroBatchEvalReduction m weights G q).verifier.outputOn ⟨M₁, b, c, w⟩ (chal, reply, Q, ()) =
       (ligeroBatchEvalReduction m weights G q).verifier.outputOn
         ⟨M₂, b, c, w⟩ (chal, reply, Q, ()) := by
-  rw [ligeroBatchEvalReduction_outputOn, ligeroBatchEvalReduction_outputOn]
   have hcol_eq (r : Fin m → F) (t : Fin q) : (r ᵥ* M₁) (Q t) = (r ᵥ* M₂) (Q t) := by
-    rw [Matrix.vecMul_apply_eq_sum, Matrix.vecMul_apply_eq_sum]
+    simp only [Matrix.vecMul_apply_eq_sum]
     exact Finset.sum_congr rfl fun i _ => by rw [hcols t i]
-  have hiff :
-      (∀ t : Fin q,
-        ligeroColumnCheck G M₁ (weights chal) reply.proxComb (Q t) = true ∧
-        ligeroEvalCheck G M₁ b c w reply.evalComb (Q t) = true) ↔
-      (∀ t : Fin q,
-        ligeroColumnCheck G M₂ (weights chal) reply.proxComb (Q t) = true ∧
-        ligeroEvalCheck G M₂ b c w reply.evalComb (Q t) = true) :=
-    forall_congr' fun t => by
-      simp only [ligeroColumnCheck, ligeroEvalCheck, decide_eq_true_eq, hcol_eq _ t]
   have hver_eq : ligeroBatchEvalVerify G ⟨M₁, b, c, w⟩ (weights chal) reply Q =
       ligeroBatchEvalVerify G ⟨M₂, b, c, w⟩ (weights chal) reply Q := by
-    unfold ligeroBatchEvalVerify
-    dsimp only
-    rw [decide_eq_decide.2 hiff]
-  rw [hver_eq]
+    unfold ligeroBatchEvalVerify; dsimp only
+    congr 1; refine decide_eq_decide.2 (forall_congr' fun t => ?_)
+    simp only [ligeroColumnCheck, ligeroEvalCheck, decide_eq_true_eq, hcol_eq _ t]
+  rw [ligeroBatchEvalReduction_outputOn, ligeroBatchEvalReduction_outputOn, hver_eq]
 
 /-- **Completeness of `ligeroBatchEvalReduction`**: every honest claim `claim.matrix = U * G` with
 `ligeroEval U claim.rowWeights claim.colWeights = claim.value` is accepted with error `0`. -/
@@ -722,12 +693,9 @@ private lemma ligeroBatchEvalReduction_rbrSound_of_rowBound
       {chal | round1Lucky claim chal} ≤ ε₁
     rw [ProbComp.eval_uniform]
     by_cases hprox : claim.matrix ∈ ligeroProximityLang m G e
-    · have hemp : {chal : BatchChal | round1Lucky claim chal} = ∅ := by
-        ext chal
-        simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false, round1Lucky, not_or,
-          not_and]
-        exact ⟨hnot, fun h => False.elim (h hprox)⟩
-      simp only [hemp, MeasureTheory.measure_empty, zero_le]
+    · rw [show {chal : BatchChal | round1Lucky claim chal} = ∅ from
+        Set.eq_empty_iff_forall_notMem.2 fun _ h => h.elim hnot fun h' => h'.1 hprox]
+      simp
     · refine ((PMF.uniformOfFintype BatchChal).toOuterMeasure.mono fun chal h => ?_).trans
         (hrow claim.matrix hprox)
       exact (h.resolve_left hnot).2
@@ -739,13 +707,10 @@ private lemma ligeroBatchEvalReduction_rbrSound_of_rowBound
       have hexU : ∀ i : Fin m, ∃ u : Fin l → F, u ᵥ* G = fun j => V j i :=
         fun i => mem_codeOfGenerator.1 (mem_interleavedLinear.1 hV i)
       let U : Matrix (Fin m) (Fin l) F := Matrix.of fun i d => (hexU i).choose d
-      have hUG : Function.swap (U * G) = V := by
-        funext j i
-        change (U * G) i j = V j i
-        have hi := congrFun (hexU i).choose_spec j
-        simpa only [Matrix.mul_apply, Matrix.vecMul, dotProduct, U, Matrix.of_apply] using hi
       have hclose : hammingDist (Function.swap claim.matrix) (Function.swap (U * G)) ≤ e := by
-        rwa [hUG]
+        convert hdist using 2; funext j i
+        simpa only [Function.swap, Matrix.mul_apply, Matrix.vecMul, dotProduct, U,
+          Matrix.of_apply] using congrFun (hexU i).choose_spec j
       have hfalse : ligeroEval U claim.rowWeights claim.colWeights ≠ claim.value := fun heval =>
         hS (Or.inl ⟨U, hclose, heval⟩)
       refine ((PMF.uniformOfFintype (Fin q → Fin n)).toOuterMeasure.mono fun Q hQ => ?_).trans
@@ -809,8 +774,8 @@ theorem ligeroAffineEvalReduction_reedSolomon_sound
       (ligeroEvalProximityLang (reedSolomonGenerator α k) e) Set.univ
       ((n : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
        (((n - (e + 1) : ℕ) : ℝ≥0∞) / (n : ℝ≥0∞)) ^ q) := by
-  have h := (ligeroAffineEvalReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
-  simpa only [PerChallenge.sum, add_zero] using h
+  simpa only [PerChallenge.sum, add_zero] using
+    (ligeroAffineEvalReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
 
 /-- **Round-by-round soundness of single-scalar `ligeroBatchEvalReduction` across the Reed–Solomon
 unique-decoding radius** (`2 * e + k ≤ n`): rejects every claim outside
@@ -846,8 +811,8 @@ theorem ligeroCurveEvalReduction_reedSolomon_sound
       (ligeroEvalProximityLang (reedSolomonGenerator α k) e) Set.univ
       ((((m - 1) * n : ℕ) : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
        (((n - (e + 1) : ℕ) : ℝ≥0∞) / (n : ℝ≥0∞)) ^ q) := by
-  have h := (ligeroCurveEvalReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
-  simpa only [PerChallenge.sum, add_zero] using h
+  simpa only [PerChallenge.sum, add_zero] using
+    (ligeroCurveEvalReduction_reedSolomon_rbrSound m (q := q) hα hunique).sound
 
 end BatchEvalReduction
 
@@ -916,11 +881,8 @@ theorem rsBatchProximityDecide_congr_cols {F BatchChal : Type} [Semiring F] [Dec
   refine congrArg (decide (answers.length = k) && ·)
     (congrArg (List.all (List.finRange q)) (funext fun s => ?_))
   simp only [ligeroColumnCheck, decide_eq_decide]
-  have hsum : (weights (chals 0).batchChal ᵥ* M₁) ((chals 1).queryIdxs s) =
-      (weights (chals 0).batchChal ᵥ* M₂) ((chals 1).queryIdxs s) := by
-    rw [Matrix.vecMul_apply_eq_sum, Matrix.vecMul_apply_eq_sum]
-    exact Finset.sum_congr rfl fun i _ => by rw [hcols s i]
-  rw [hsum]
+  rw [Matrix.vecMul_apply_eq_sum (weights _) M₁, Matrix.vecMul_apply_eq_sum (weights _) M₂,
+    Finset.sum_congr rfl fun i _ => by rw [hcols s i]]
 
 /-- **2-round batched Reed–Solomon proximity `PublicCoinIOP`** (`k ≤ 2 ^ d` over domain
 `Fin (2 ^ d)`):
@@ -977,23 +939,13 @@ theorem iopVerify_rsBatchProximityIOP_eq_true_iff {F BatchChal : Type} [Semiring
         ligeroColumnCheck (reedSolomonGenerator α k) M (weights (chals 0).batchChal)
           (fun t : Fin k => oracles 1 ⟨t.val, lt_of_lt_of_le t.isLt hk⟩)
           ((chals 1).queryIdxs s) = true := by
-  have hget (t : Fin k) :
-      (iopAnswers (rsBatchProximityIOP m hk α q weights) M chals oracles).getD t.val 0 =
-        oracles 1 ⟨t.val, lt_of_lt_of_le t.isLt hk⟩ := by
-    have hlt :
-        t.val < (iopAnswers (rsBatchProximityIOP m hk α q weights) M chals oracles).length := by
-      simpa only [length_iopAnswers, length_rsBatchProximityIOP_queries] using t.isLt
-    rw [List.getD_eq_getElem _ _ hlt]
+  have hv : (fun t : Fin k =>
+      (iopAnswers (rsBatchProximityIOP m hk α q weights) M chals oracles).getD t.val 0) =
+      fun t : Fin k => oracles 1 ⟨t.val, lt_of_lt_of_le t.isLt hk⟩ := funext fun t => by
+    rw [List.getD_eq_getElem _ _
+      (by simpa only [length_iopAnswers, length_rsBatchProximityIOP_queries] using t.isLt)]
     simp [iopAnswers, rsBatchProximityIOP]
-  have hv :
-      (fun t : Fin k =>
-        (iopAnswers (rsBatchProximityIOP m hk α q weights) M chals oracles).getD t.val 0) =
-      (fun t : Fin k => oracles 1 ⟨t.val, lt_of_lt_of_le t.isLt hk⟩) :=
-    funext hget
-  have hdec : (iopVerify (rsBatchProximityIOP m hk α q weights) M chals oracles) =
-      rsBatchProximityDecide k α q weights M chals
-        (iopAnswers (rsBatchProximityIOP m hk α q weights) M chals oracles) := rfl
-  rw [hdec]
+  change rsBatchProximityDecide k α q weights M chals _ = true ↔ _
   simp only [rsBatchProximityDecide, length_iopAnswers, length_rsBatchProximityIOP_queries,
     decide_true, Bool.true_and, hv, List.all_eq_true, List.mem_finRange, forall_true_left]
 
@@ -1003,22 +955,14 @@ theorem rsBatchProximityIOP_complete {F BatchChal : Type} [Semiring F] [Decidabl
     (weights : BatchChal → (Fin m → F)) :
     IOPCompleteness (rsBatchProximityIOP m hk α q weights)
       (ligeroCodewordRel m (reedSolomonGenerator α k)) := by
-  intro M U hrel chals
-  subst hrel
+  rintro M U rfl chals
   rw [iopVerify_rsBatchProximityIOP_eq_true_iff]
   intro s
-  have horacle :
-      (fun t : Fin k =>
-        iopProverOracles (rsBatchProximityIOP m hk α q weights)
-          (U * reedSolomonGenerator α k) U chals 1 ⟨t.val, lt_of_lt_of_le t.isLt hk⟩) =
-      ligeroRowComb (weights (chals 0).batchChal) U := by
-    funext t
-    simp only [iopProverOracles, rsBatchProximityIOP, prefixChallenges, t.isLt, ↓reduceDIte,
-      Fin.eta]
-    rfl
-  rw [horacle]
-  exact ligeroColumnCheck_honest (reedSolomonGenerator α k) U (weights (chals 0).batchChal)
-    ((chals 1).queryIdxs s)
+  convert ligeroColumnCheck_honest (reedSolomonGenerator α k) U (weights (chals 0).batchChal)
+    ((chals 1).queryIdxs s) using 2
+  funext t
+  simp only [iopProverOracles, rsBatchProximityIOP, prefixChallenges, t.isLt, ↓reduceDIte, Fin.eta]
+  rfl
 
 /-- **Two-channel BCS random-oracle completeness of `rsBatchProximityIOP`**. -/
 theorem rsBatchProximityBCS_honestROMGame_eq_pure_true {F BatchChal : Type}
@@ -1085,18 +1029,14 @@ theorem rsBatchProximityIOP_rbrSound {F BatchChal : Type} [Field F] [DecidableEq
       (rsBatchGoodStep m hk α q e weights) where
   init_doomed _ hM := hM
   step_doomed M pref π chal _ hgood := by
-    rcases pref with _ | ⟨e₀, _ | ⟨e₁, rest⟩⟩
+    rcases pref with _ | ⟨_, _ | ⟨_, rest⟩⟩
     · exact hgood
     · exact hgood
     · rw [List.cons_append, List.cons_append]
-      rcases h : rest ++ [(π, chal)] with _ | ⟨_, _⟩
-      · simp at h
-      · trivial
-  reject_of_doomed M oracles chals hd := by
-    have hofFn : (List.ofFn fun j : Fin 2 => (oracles j, chals j)) =
-        [(oracles 0, chals 0), (oracles 1, chals 1)] := rfl
-    rw [hofFn] at hd
-    exact Bool.eq_false_iff.2 fun hver =>
+      rcases h : rest ++ [(π, chal)] with _ | ⟨_, _⟩; · simp at h
+      trivial
+  reject_of_doomed M oracles chals hd :=
+    Bool.eq_false_iff.2 fun hver =>
       hd ((iopVerify_rsBatchProximityIOP_eq_true_iff m hk α q weights M chals oracles).1 hver)
 
 private lemma rsBatchProximityIOP_round0_escape_le {F BatchChal : Type}
@@ -1171,11 +1111,7 @@ private lemma rsBatchProximityIOP_escape_le {F BatchChal : Type}
       (le_max_left _ _)
   · exact (rsBatchProximityIOP_round1_escape_le m hk α q e weights π₀ chal₀ π hd).trans
       (le_max_right _ _)
-  · have hemp : {chal : LigeroIOPChal BatchChal d q |
-        ¬ rsBatchGoodStep m hk α q e weights M ((π₀, chal₀) :: e₁ :: rest) π chal} = ∅ := by
-      ext chal
-      simp [rsBatchGoodStep]
-    simp only [hemp, MeasureTheory.measure_empty, zero_le]
+  · simp [Set.eq_empty_iff_forall_notMem.2, rsBatchGoodStep]
 
 /-- **Interactive IOP soundness of `rsBatchProximityIOP`** against any adaptive (possibly
 randomized) cheating IOP prover `P` given row-batching escape bound `ε_row`. -/
