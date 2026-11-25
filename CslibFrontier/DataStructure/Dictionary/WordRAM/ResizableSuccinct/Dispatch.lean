@@ -754,24 +754,14 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
   set res_sb := (Memory.spec 0).clientResult s_fix₃
     (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m))
   set d_sr := ((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q))
-  have hx₃_base : x₃.regs rBase = base :=
-    (hx₃_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_base
-  have hx₃_cnt : x₃.regs rCnt = n :=
-    (hx₃_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_cnt
-  have hx₃_item : x₃.regs rItemBase = base + offCompItems U w N :=
-    (hx₃_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₂_item
-  have hx₃_u : x₃.regs rArgU = u.val :=
-    (hx₃_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₂_u.trans hx₁_u)
-  have hx₃_v : x₃.regs rArgV = v :=
-    (hx₃_pres rArgV (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₂_v.trans hx₁_v)
-  have hx₃_cp : ∀ i : Fin 36, x₃.regs (cpReg i) = mkCompParams U V w N i := fun i =>
-    (hx₃_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₂_cp i)
+  obtain ⟨hx₃_base, hx₃_cnt, hx₃_item, hx₃_u, hx₃_v⟩ : x₃.regs rBase = base ∧ x₃.regs rCnt = n ∧
+      x₃.regs rItemBase = base + offCompItems U w N ∧ x₃.regs rArgU = u.val ∧
+      x₃.regs rArgV = v := by
+    have := hx₂_u.trans hx₁_u; have := hx₂_v.trans hx₁_v
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rw [hx₃_pres] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
+  have hx₃_cp : ∀ i : Fin 36, x₃.regs (cpReg i) = mkCompParams U V w N i := fun i => by
+    rw [hx₃_pres, hx₂_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hin_sr : x₃.regs ∘ srcKeyHashOp = WordEncoding.encode d_sr :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₃_cp)
@@ -796,22 +786,11 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     have hfm := congrArg Memory.State.frontier hm_sr
     change x₄.regs rFr = x₃.frontier at hfm
     rw [hfm, hx₄f]
-  have hx₄_found : x₄.regs rFound = res_sb.1.1 := by
-    have h0 := hout_sr 0
-    rw [tmpInsSearch_out] at h0
-    exact h0.trans (encode_pair2_0 _ _ _ _)
-  have hx₄_phys : x₄.regs rPhys = res_sb.2 := by
-    have h1 := hout_sr 1
-    rw [tmpInsSearch_out] at h1
-    exact h1.trans (encode_pair2_1 _ _ _ _)
-  have hx₄_b : x₄.regs rBucket = b := by
-    have h2 := hout_sr 2
-    rw [tmpInsSearch_out] at h2
-    exact h2.trans (encode_pair2_2 _ _ _ _)
-  have hx₄_m : x₄.regs rMicro = m := by
-    have h3 := hout_sr 3
-    rw [tmpInsSearch_out] at h3
-    exact h3.trans (encode_pair2_3 _ _ _ _)
+  simp only [tmpInsSearch_out] at hout_sr
+  have hx₄_found : x₄.regs rFound = res_sb.1.1 := (hout_sr 0).trans (encode_pair2_0 _ _ _ _)
+  have hx₄_phys : x₄.regs rPhys = res_sb.2 := (hout_sr 1).trans (encode_pair2_1 _ _ _ _)
+  have hx₄_b : x₄.regs rBucket = b := (hout_sr 2).trans (encode_pair2_2 _ _ _ _)
+  have hx₄_m : x₄.regs rMicro = m := (hout_sr 3).trans (encode_pair2_3 _ _ _ _)
   have hx₄_pres : ∀ reg, reg ≠ rFr → reg.val < 88 →
       reg ≠ rFound → reg ≠ rPhys → reg ≠ rBucket → reg ≠ rMicro → x₄.regs reg = x₃.regs reg :=
     fun reg h1 h88 hf hp hb hm => hframe_sr reg h1 (tmpInsSearch_ne_reg h88 hf hp hb hm)
@@ -824,31 +803,17 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
     simp [x₅, RData.set, hx₄_fr]
   have hms₅ : memoryState rFr x₅.toData = ⟨x₃.mem, x₃.frontier⟩ :=
     Memory.State.ext hx₄m (hx₅_fr.trans hx₄f)
-  have hx₅_base : x₅.regs rBase = base := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rOne)]
-    exact (hx₄_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₃_base
-  have hx₅_cnt : x₅.regs rCnt = n := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rOne)]
-    exact (hx₄_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₃_cnt
-  have hx₅_item : x₅.regs rItemBase = base + offCompItems U w N := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rItemBase ≠ rOne)]
-    exact (hx₄_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₃_item
-  have hx₅_u : x₅.regs rArgU = u.val := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rArgU ≠ rOne)]
-    exact (hx₄_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₃_u
-  have hx₅_v : x₅.regs rArgV = v := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rArgV ≠ rOne)]
-    exact (hx₄_pres rArgV (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₃_v
+  have hx₅_eq : ∀ reg, reg ≠ rOne → reg ≠ rFr → reg.val < 88 → reg ≠ rFound → reg ≠ rPhys →
+      reg ≠ rBucket → reg ≠ rMicro → x₅.regs reg = x₃.regs reg :=
+    fun reg h0 h1 h2 h3 h4 h5 h6 => by
+      simp only [x₅, RData.set_regs, Function.update_of_ne h0]; exact hx₄_pres reg h1 h2 h3 h4 h5 h6
+  obtain ⟨hx₅_base, hx₅_cnt, hx₅_item, hx₅_u, hx₅_v⟩ : x₅.regs rBase = base ∧ x₅.regs rCnt = n ∧
+      x₅.regs rItemBase = base + offCompItems U w N ∧ x₅.regs rArgU = u.val ∧
+      x₅.regs rArgV = v := by
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rw [hx₅_eq] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
   have hx₅_cp : ∀ i : Fin 36, x₅.regs (cpReg i) = mkCompParams U V w N i := fun i => by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 12) i (by decide))]
-    exact (hx₄_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
+    rw [hx₅_eq, hx₃_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hcost_sr_mul :
       inEpochFactor *
           (memoryCost (compInsertSearchWithHashGenProg d_sr) (memoryState rFr x₃.toData) + 1) ≤
@@ -856,16 +821,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
           (12 * inEpochFactor) *
             probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
     rw [hms₃]
-    calc inEpochFactor * (memoryCost (compInsertSearchWithHashGenProg d_sr) ⟨x₃.mem, x₃.frontier⟩ +
-          1)
-        ≤ inEpochFactor *
-            (32 + 12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-              (Dictionary.dom s_abs) u + 1) :=
-          Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_sr 1)
-      _ = 33 * inEpochFactor +
-            (12 * inEpochFactor) *
-              probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
-          ring
+    exact (Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_sr 1)).trans_eq (by ring)
   have hgm_x₃ : compGmAt base U w N x₃.mem = compGmAt base U w N x.mem := by
     rw [compGmAt_eq_of_scratch_mod henv₃.pos_w hx₃_out_mem, hx₂m]; rfl
   have hf1_ge := one_le_inEpochFactor
@@ -933,10 +889,7 @@ private theorem inEpochInsertCode_active_exec {U V w N n n_init base L_peak : �
           (memoryCost (compWritePhysValGenProg d_wv) (memoryState rFr x₅.toData) + 1) ≤
           9 * inEpochFactor := by
       rw [hms₅]
-      calc inEpochFactor * (memoryCost (compWritePhysValGenProg d_wv) ⟨x₃.mem, x₃.frontier⟩ + 1)
-          ≤ inEpochFactor * (8 + 1) :=
-            Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_wv 1)
-        _ = 9 * inEpochFactor := by ring
+      exact (Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_wv 1)).trans_eq (by ring)
     have hex_tot : RDemonicExec w L_peak inEpochInsertCode x _ (· = y) :=
       hex_ld.seq_eq (hex_ctx.seq_eq (hex_kh.seq_eq (hex_sr.seq_eq
         (hex_o.seq_eq (RDemonicExec.branch_pos (neg := inEpochInsertMissTailCode)
@@ -1280,40 +1233,22 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
       hq_last0_lt, _, _, _, _⟩ :=
     compDeleteWithHashGenProg_dict_spec (s_mid := ⟨x₄.mem, x₄.frontier⟩)
       henv₄ hfit_off hinv₄ hcpl₄ htot₄.le rfl (fun _ _ => rfl) u
-  have hx₅_base : x₅.regs rBase = base := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rHq)]
-    exact (hx₄_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_base
-  have hx₅_cnt : x₅.regs rCnt = n := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rHq)]
-    exact (hx₄_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_cnt
-  have hx₅_item : x₅.regs rItemBase = base + offCompItems U w N := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rItemBase ≠ rHq)]
-    exact (hx₄_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_item
-  have hx₅_hash : x₅.regs rHashBase = base + epochHdrWords := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rHashBase ≠ rHq)]
-    exact (hx₄_pres rHashBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_hash
-  have hx₅_scr : x₅.regs rScratchBase = base + offScratch := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rScratchBase ≠ rHq)]
-    exact (hx₄_pres rScratchBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans hx₃_scr
-  have hx₅_u : x₅.regs rArgU = u.val := by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rArgU ≠ rHq)]
-    exact (hx₄_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-      (eReg_ne (by decide))).trans (hx₃_u.trans hx₂_u)
+  have hx₅_eq : ∀ reg, reg ≠ rHq → reg ≠ rFr → reg.val < 88 → reg ≠ rQuot → reg ≠ rHashOut →
+      x₅.regs reg = x₃.regs reg := fun reg hq h1 h2 h3 h4 => by
+    simp only [x₅, RData.set_regs, Function.update_of_ne hq]; exact hx₄_pres reg h1 h2 h3 h4
+  obtain ⟨hx₅_base, hx₅_cnt, hx₅_item, hx₅_hash, hx₅_scr, hx₅_u⟩ : x₅.regs rBase = base ∧
+      x₅.regs rCnt = n ∧ x₅.regs rItemBase = base + offCompItems U w N ∧
+      x₅.regs rHashBase = base + epochHdrWords ∧ x₅.regs rScratchBase = base + offScratch ∧
+      x₅.regs rArgU = u.val := by
+    have := hx₃_u.trans hx₂_u
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> rw [hx₅_eq] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
   have hx₅_hq : x₅.regs rHq = h_q := by simp [x₅, RData.set, hx₄_hout]
   have hx₅_hp : ∀ i : Fin 19, x₅.regs (hpReg i) =
       mkHashParams w (epochQBits U N) (epochHashB N) (totalMicroBits N) 3 i := fun i => by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (hpReg_ne_eReg (c := 19) i (by decide))]
-    exact (hx₄_pres (hpReg i) (hpReg_ne_eReg i (by decide)) (hpReg_lt_88 i)
-      (hpReg_ne_eReg i (by decide)) (hpReg_ne_eReg i (by decide))).trans (hx₃_hp i)
+    rw [hx₅_eq, hx₃_hp i] <;> first | exact hpReg_ne_eReg i (by decide) | exact hpReg_lt_88 i
   have hx₅_cp : ∀ i : Fin 36, x₅.regs (cpReg i) = mkCompParams U V w N i := fun i => by
-    simp only [x₅, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 19) i (by decide))]
-    exact (hx₄_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₃_cp i)
+    rw [hx₅_eq, hx₃_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hin_prep : x₅.regs ∘ srcDelPrep = WordEncoding.encode d_prep :=
     (regs_pairSrc
       (regs_pairSrc (regs_cp_eq hx₅_cp)
@@ -1340,22 +1275,11 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
     have hfm := congrArg Memory.State.frontier hm_prep
     change x₆.regs rFr = x₄.frontier at hfm
     rw [hfm, hx₆f]; rfl
-  have hx₆_found : x₆.regs rFound = found0 := by
-    have h0 := hout_prep 0
-    rw [tmpDelPrep_out] at h0
-    exact h0.trans (encode_left4_0 _ _ _ _)
-  have hx₆_jdel : x₆.regs rJDel = j_del0 := by
-    have h1 := hout_prep 1
-    rw [tmpDelPrep_out] at h1
-    exact h1.trans (encode_left4_1 _ _ _ _)
-  have hx₆_phys : x₆.regs rPhys = phys_del0 := by
-    have h2 := hout_prep 2
-    rw [tmpDelPrep_out] at h2
-    exact h2.trans (encode_left4_2 _ _ _ _)
-  have hx₆_quot : x₆.regs rQuot = q_last0 := by
-    have h3 := hout_prep 3
-    rw [tmpDelPrep_out] at h3
-    exact h3.trans (encode_left4_3 _ _ _ _)
+  simp only [tmpDelPrep_out] at hout_prep
+  have hx₆_found : x₆.regs rFound = found0 := (hout_prep 0).trans (encode_left4_0 _ _ _ _)
+  have hx₆_jdel : x₆.regs rJDel = j_del0 := (hout_prep 1).trans (encode_left4_1 _ _ _ _)
+  have hx₆_phys : x₆.regs rPhys = phys_del0 := (hout_prep 2).trans (encode_left4_2 _ _ _ _)
+  have hx₆_quot : x₆.regs rQuot = q_last0 := (hout_prep 3).trans (encode_left4_3 _ _ _ _)
   have hx₆_pres : ∀ reg, reg ≠ rFr → reg.val < 88 →
       reg ≠ rFound → reg ≠ rJDel → reg ≠ rPhys → reg ≠ rQuot → x₆.regs reg = x₅.regs reg :=
     fun reg h1 h88 hf hj hp hq => hframe_prep reg h1 (tmpDelPrep_ne_reg h88 hf hj hp hq)
@@ -1393,38 +1317,20 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
   set h_q_last := hValOfSeed U N θ q_last
   set d_fin := ((((mkCompParams U V w N, (base, base + offCompItems U w N)), (u.val, h_q)),
     ((found, j_del), phys_del)), h_q_last)
-  have hx₇_base : x₇.regs rBase = base :=
-    (hx₇_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans
-      ((hx₆_pres rBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_base)
-  have hx₇_cnt : x₇.regs rCnt = n :=
-    (hx₇_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans
-      ((hx₆_pres rCnt (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_cnt)
-  have hx₇_item : x₇.regs rItemBase = base + offCompItems U w N :=
-    (hx₇_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans
-      ((hx₆_pres rItemBase (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_item)
-  have hx₇_u : x₇.regs rArgU = u.val :=
-    (hx₇_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans
-      ((hx₆_pres rArgU (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_u)
-  have hx₇_hq : x₇.regs rHq = h_q :=
-    (hx₇_pres rHq (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans
-      ((hx₆_pres rHq (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))
-        (eReg_ne (by decide)) (eReg_ne (by decide)) (eReg_ne (by decide))).trans hx₅_hq)
-  have hx₇_found : x₇.regs rFound = found :=
-    (hx₇_pres rFound (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans hx₆_found
-  have hx₇_jdel : x₇.regs rJDel = j_del :=
-    (hx₇_pres rJDel (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans hx₆_jdel
-  have hx₇_phys : x₇.regs rPhys = phys_del :=
-    (hx₇_pres rPhys (eReg_ne (by decide)) (eReg_lt_88 _) (eReg_ne (by decide))).trans hx₆_phys
-  have hx₇_cp : ∀ i : Fin 36, x₇.regs (cpReg i) = mkCompParams U V w N i := fun i =>
-    (hx₇_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-      (cpReg_ne_eReg i (by decide))).trans
-      ((hx₆_pres (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)
-        (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))
-        (cpReg_ne_eReg i (by decide)) (cpReg_ne_eReg i (by decide))).trans (hx₅_cp i))
+  have hx₇_eq : ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rHashOut → reg ≠ rFound → reg ≠ rJDel →
+      reg ≠ rPhys → reg ≠ rQuot → x₇.regs reg = x₅.regs reg := fun reg h1 h2 h3 h4 h5 h6 h7 =>
+    (hx₇_pres reg h1 h2 h3).trans (hx₆_pres reg h1 h2 h4 h5 h6 h7)
+  obtain ⟨hx₇_base, hx₇_cnt, hx₇_item, hx₇_u, hx₇_hq⟩ : x₇.regs rBase = base ∧ x₇.regs rCnt = n ∧
+      x₇.regs rItemBase = base + offCompItems U w N ∧ x₇.regs rArgU = u.val ∧
+      x₇.regs rHq = h_q := by
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rw [hx₇_eq] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
+  obtain ⟨hx₇_found, hx₇_jdel, hx₇_phys⟩ : x₇.regs rFound = found ∧ x₇.regs rJDel = j_del ∧
+      x₇.regs rPhys = phys_del := by
+    refine ⟨?_, ?_, ?_⟩ <;> rw [hx₇_pres] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
+  have hx₇_cp : ∀ i : Fin 36, x₇.regs (cpReg i) = mkCompParams U V w N i := fun i => by
+    rw [hx₇_eq, hx₅_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hin_fin : x₇.regs ∘ srcDelFin = WordEncoding.encode d_fin :=
     (regs_pairSrc
       (regs_pairSrc
@@ -1474,18 +1380,15 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
   have hx₉_ff : x₉.frontier = base + compactedEpochWords U V w N n := hx₈_ff
   have hx₉_fr : x₉.regs rFr = x₉.frontier := by
     simp [x₉, RData.set, hx₈_fr]
-  have hx₉_base : x₉.regs rBase = base := by
-    simp only [x₉, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rBase ≠ rOne)]
-    exact (hx₈_unch rBase (eReg_ne (by decide)) (eReg_lt_88 _)).trans hx₇_base
-  have hx₉_cnt : x₉.regs rCnt = n := by
-    simp only [x₉, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rCnt ≠ rOne)]
-    exact (hx₈_unch rCnt (eReg_ne (by decide)) (eReg_lt_88 _)).trans hx₇_cnt
-  have hx₉_found : x₉.regs rFound = found := by
-    simp only [x₉, RData.set_regs, Function.update_of_ne (eReg_ne (by decide) : rFound ≠ rOne)]
-    exact (hx₈_unch rFound (eReg_ne (by decide)) (eReg_lt_88 _)).trans hx₇_found
+  have hx₉_eq : ∀ reg, reg ≠ rOne → reg ≠ rFr → reg.val < 88 → x₉.regs reg = x₇.regs reg :=
+    fun reg h0 h1 h2 => by
+      simp only [x₉, RData.set_regs, Function.update_of_ne h0]; exact hx₈_unch reg h1 h2
+  obtain ⟨hx₉_base, hx₉_cnt, hx₉_found⟩ : x₉.regs rBase = base ∧ x₉.regs rCnt = n ∧
+      x₉.regs rFound = found := by
+    refine ⟨?_, ?_, ?_⟩ <;> rw [hx₉_eq] <;>
+      first | exact eReg_ne (by decide) | exact eReg_lt_88 _ | assumption
   have hx₉_cp : ∀ i : Fin 36, x₉.regs (cpReg i) = mkCompParams U V w N i := fun i => by
-    simp only [x₉, RData.set_regs, Function.update_of_ne (cpReg_ne_eReg (c := 12) i (by decide))]
-    exact (hx₈_unch (cpReg i) (cpReg_ne_eReg i (by decide)) (cpReg_lt_88 i)).trans (hx₇_cp i)
+    rw [hx₉_eq, hx₇_cp i] <;> first | exact cpReg_ne_eReg i (by decide) | exact cpReg_lt_88 i
   have hgm_x₄ : compGmAt base U w N x₄.mem = compGmAt base U w N x.mem := by
     rw [compGmAt_eq_of_scratch_mod henv₄.pos_w hx₄_out_mem, hx₃m]; rfl
   have hcost_del_mul :
@@ -1499,34 +1402,7 @@ private theorem inEpochDeleteCode_active_exec {U V w N n n_init base L_peak : �
           probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
     unfold inEpochPotential
     rw [hms₅, hms₇, hx₈m_fin, ← hgm_x₄]
-    calc inEpochFactor * (memoryCost (compDeletePrepWithHashGenProg d_prep) ⟨x₄.mem, x₄.frontier⟩ +
-            1) +
-          inEpochFactor *
-            (memoryCost (compDeleteFinishWithHashGenProg d_fin) ⟨x₇.mem, x₇.frontier⟩ + 1) +
-          (98 * inEpochFactor) *
-            slotPotential N
-              (compGmAt base U w N
-                ((Memory.spec 0).clientState ⟨x₇.mem, x₇.frontier⟩
-                  (compDeleteFinishWithHashGenProg d_fin)).mem)
-        = inEpochFactor *
-            (memoryCost (compDeletePrepWithHashGenProg d_prep) ⟨x₄.mem, x₄.frontier⟩ +
-              memoryCost (compDeleteFinishWithHashGenProg d_fin) ⟨x₇.mem, x₇.frontier⟩ +
-              98 * slotPotential N
-                (compGmAt base U w N
-                  ((Memory.spec 0).clientState ⟨x₇.mem, x₇.frontier⟩
-                    (compDeleteFinishWithHashGenProg d_fin)).mem)) +
-            2 * inEpochFactor := by ring
-      _ ≤ inEpochFactor *
-            (98 * slotPotential N (compGmAt base U w N x₄.mem) + 354 +
-              12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2
-                (Dictionary.dom s_abs) u) +
-            2 * inEpochFactor :=
-          Nat.add_le_add_right (Nat.mul_le_mul_left _ hcost_del) _
-      _ = (98 * inEpochFactor) * slotPotential N (compGmAt base U w N x₄.mem) +
-            356 * inEpochFactor +
-            (12 * inEpochFactor) *
-              probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
-          ring
+    linarith [Nat.mul_le_mul_left inEpochFactor hcost_del]
   have hf1_ge := one_le_inEpochFactor
   have hbelow_x₈ : ∀ addr < base, x₈.mem addr = x.mem addr := fun addr haddr =>
     (hbelow8 addr haddr).trans
