@@ -40,6 +40,7 @@ private theorem envelope_le_pow {n p A κ : ℕ}
   have hn : n ≤ b := by dsimp only [b]; omega
   have hk : k ≤ n := Nat.clog_le_of_le_pow (Nat.lt_two_pow_self.le)
   have hκ : 1 ≤ b ^ κ := Nat.one_le_pow _ _ hb1
+  have hle (j : ℕ) (hj : j ≤ κ + 12) : b ^ j ≤ b ^ e := Nat.pow_le_pow_right hb1 hj
   have htwo : 2 ^ k ≤ b ^ 2 :=
     (Nat.pow_le_pow_right (by decide) (Nat.clog_mono_right 2 hn)).trans
       (Nat.two_pow_clog_le_sq (by omega))
@@ -52,31 +53,21 @@ private theorem envelope_le_pow {n p A κ : ℕ}
     change (2 ^ 4) ^ k ≤ b ^ 8
     rw [← pow_mul, Nat.mul_comm 4 k, pow_mul]
     exact (Nat.pow_le_pow_left htwo 4).trans_eq (by rw [← pow_mul])
-  have hN2 : n * n ≤ b ^ e := by
-    calc
-      _ ≤ b ^ 2 := by simpa only [pow_two] using Nat.mul_le_mul hn hn
-      _ ≤ b ^ e := Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega)
-  have hN3 : n * n * n ≤ b ^ e := by
-    calc
-      _ ≤ b ^ 3 := by
-        simpa only [pow_succ, pow_zero, one_mul] using (Nat.mul_le_mul (Nat.mul_le_mul hn hn) hn)
-      _ ≤ b ^ e := Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega)
-  have hnE : n ≤ b ^ e := hn.trans (Nat.le_self_pow (by dsimp only [e]; omega) b)
+  have hN2 : n * n ≤ b ^ e :=
+    (Nat.mul_le_mul hn hn).trans (by rw [← pow_two]; exact hle 2 (by omega))
+  have hN3 : n * n * n ≤ b ^ e :=
+    (Nat.mul_le_mul (Nat.mul_le_mul hn hn) hn).trans (by rw [← pow_three']; exact hle 3 (by omega))
+  have hnE : n ≤ b ^ e := hn.trans (by simpa only [pow_one] using hle 1 (by omega))
   have hkE : k ≤ b ^ e := hk.trans hnE
-  have hpE : p ≤ b ^ e := hp.trans (Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega))
-  have hAE : A ≤ b ^ e := hA.trans (Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega))
-  have hfourE : 4 ^ k ≤ b ^ e := hfour.trans
-    (Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega))
-  have htwoE : 2 ^ k ≤ b ^ e := htwo.trans
-    (Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega))
-  have harea : 4 ^ k * p ≤ b ^ e := by
-    calc
-      _ ≤ b ^ 4 * b ^ κ := Nat.mul_le_mul hfour hp
-      _ = b ^ (κ + 4) := by rw [← pow_add, Nat.add_comm]
-      _ ≤ b ^ e := Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega)
+  have hpE : p ≤ b ^ e := hp.trans (hle _ (by omega))
+  have hAE : A ≤ b ^ e := hA.trans (hle _ (by omega))
+  have hfourE : 4 ^ k ≤ b ^ e := hfour.trans (hle _ (by omega))
+  have htwoE : 2 ^ k ≤ b ^ e := htwo.trans (hle _ (by omega))
+  have harea : 4 ^ k * p ≤ b ^ e := (Nat.mul_le_mul hfour hp).trans
+    (by rw [← pow_add]; exact hle _ (by omega))
   have hunit : 1 ≤ b ^ e := Nat.one_le_pow _ _ hb1
   have hconst : 16 ≤ b ^ e := (show 16 ≤ (2 : ℕ) ^ 12 by decide).trans
-    ((Nat.pow_le_pow_left hb 12).trans (Nat.pow_le_pow_right hb1 (by dsimp only [e]; omega)))
+    ((Nat.pow_le_pow_left hb 12).trans (hle _ (by omega)))
   have hB : addressBudget n p k (3 + 3 * (n * n)) 3 (3 + n * n)
       (3 + 2 * (n * n)) ≤ 480 * b ^ e := by
     unfold addressBudget
