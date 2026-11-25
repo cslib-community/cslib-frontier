@@ -74,14 +74,10 @@ theorem lt_varBound_of_mem_freeVars :
     omega
   | rel _ args, y, h => lt_varBound_of_mem h
   | imp φ ψ, y, h => by
-    simp only [freeVars, List.mem_append] at h
-    simp only [varBound]
-    rcases h with h | h
+    rcases List.mem_append.1 h with h | h
     · exact lt_max_of_lt_left (lt_varBound_of_mem_freeVars h)
     · exact lt_max_of_lt_right (lt_varBound_of_mem_freeVars h)
-  | all x φ, y, h => by
-    simp only [varBound]
-    exact lt_max_of_lt_right (lt_varBound_of_mem_freeVars (mem_freeVars_all.1 h).1)
+  | all _ _, _, h => lt_max_of_lt_right (lt_varBound_of_mem_freeVars (mem_freeVars_all.1 h).1)
 
 @[simp] theorem freeVars_neg (φ : RawFormula) : (neg φ).freeVars = φ.freeVars := by
   simp [neg, freeVars]
@@ -116,11 +112,10 @@ theorem atoms_bigConj {l : List RawFormula} {a : ℕ × ℕ} (h : a ∈ (bigConj
   induction l with
   | nil => simp [bigConj, verum, neg, atoms] at h
   | cons ψ l ih =>
-    simp only [bigConj, conj, neg, atoms, List.append_nil, List.mem_append] at h
-    rcases h with h | h
-    · exact ⟨ψ, by simp, h⟩
+    rcases List.mem_append.1 (by simpa [bigConj, conj, neg, atoms] using h) with h | h
+    · exact ⟨ψ, List.mem_cons_self, h⟩
     · obtain ⟨φ, hφ, h⟩ := ih h
-      exact ⟨φ, by simp [hφ], h⟩
+      exact ⟨φ, List.mem_cons_of_mem _ hφ, h⟩
 
 /-! ### Existential quantification of a range of variables -/
 
@@ -134,24 +129,18 @@ theorem exRange_succ (B L : ℕ) (φ : RawFormula) :
 theorem realize_exRange {M : Type*} {I : ℕ → List M → Prop} :
     ∀ (B L : ℕ) (φ : RawFormula) (v : ℕ → M), (exRange B L φ).Realize I v ↔
       ∃ w : ℕ → M, (∀ y, ¬(B ≤ y ∧ y < B + L) → w y = v y) ∧ φ.Realize I w
-  | B, 0, φ, v => by
-    constructor
-    · exact fun h => ⟨v, fun _ _ => rfl, h⟩
-    · rintro ⟨w, hw, h⟩
-      have : w = v := funext fun y => hw y (by omega)
-      subst this
-      exact h
+  | B, 0, φ, v =>
+    ⟨fun h => ⟨v, fun _ _ => rfl, h⟩, fun ⟨w, hw, h⟩ => funext (fun y => hw y (by omega)) ▸ h⟩
   | B, L + 1, φ, v => by
     rw [exRange_succ, realize_ex]
     simp only [realize_exRange (B + 1) L]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro ⟨m, w, hw, h⟩
-      refine ⟨w, fun y hy => ?_, h⟩
-      rw [hw y (by omega), Function.update_of_ne (by omega)]
+      exact ⟨w, fun y hy => (hw y (by omega)).trans (Function.update_of_ne (by omega) ..), h⟩
     · rintro ⟨w, hw, h⟩
       refine ⟨w B, w, fun y hy => ?_, h⟩
-      by_cases hyB : y = B
-      · subst hyB; simp
+      rcases eq_or_ne y B with rfl | hyB
+      · simp
       · rw [Function.update_of_ne hyB, hw y (by omega)]
 
 theorem atoms_exRange (B L : ℕ) (φ : RawFormula) : (exRange B L φ).atoms = φ.atoms := by
@@ -167,24 +156,22 @@ theorem mem_freeVars_exRange {y : ℕ} {φ : RawFormula} :
     obtain ⟨h1, h2⟩ := mem_freeVars_exRange h.1
     exact ⟨by omega, h2⟩
 
-theorem finSat_exRange (B L : ℕ) (φ : RawFormula) : FinSat (exRange B L φ) ↔ FinSat φ := by
-  constructor
-  · rintro ⟨M, hf, hn, I, v, h⟩
-    obtain ⟨w, -, hw⟩ := (realize_exRange B L φ v).1 h
-    exact ⟨M, hf, hn, I, w, hw⟩
-  · rintro ⟨M, hf, hn, I, v, h⟩
-    exact ⟨M, hf, hn, I, v, (realize_exRange B L φ v).2 ⟨v, fun _ _ => rfl, h⟩⟩
+theorem finSat_exRange (B L : ℕ) (φ : RawFormula) : FinSat (exRange B L φ) ↔ FinSat φ :=
+  ⟨fun ⟨M, hf, hn, I, v, h⟩ =>
+    let ⟨w, _, hw⟩ := (realize_exRange B L φ v).1 h
+    ⟨M, hf, hn, I, w, hw⟩,
+    fun ⟨M, hf, hn, I, v, h⟩ =>
+      ⟨M, hf, hn, I, v, (realize_exRange B L φ v).2 ⟨v, fun _ _ => rfl, h⟩⟩⟩
 
 /-- The **existential closure** of `φ`: all variables below `varBound φ` quantified
 existentially. -/
 def exClosure (φ : RawFormula) : RawFormula := exRange 0 φ.varBound φ
 
-theorem isSentence_exClosure (φ : RawFormula) : IsSentence (exClosure φ) := by
-  rw [IsSentence, List.eq_nil_iff_forall_not_mem]
-  intro y hy
-  obtain ⟨h1, h2⟩ := mem_freeVars_exRange hy
-  have := lt_varBound_of_mem_freeVars h2
-  omega
+theorem isSentence_exClosure (φ : RawFormula) : IsSentence (exClosure φ) :=
+  List.eq_nil_iff_forall_not_mem.2 fun _ hy =>
+    let ⟨h1, h2⟩ := mem_freeVars_exRange hy
+    have := lt_varBound_of_mem_freeVars h2
+    by omega
 
 theorem atoms_exClosure (φ : RawFormula) : (exClosure φ).atoms = φ.atoms :=
   atoms_exRange _ _ φ

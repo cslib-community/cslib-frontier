@@ -300,10 +300,7 @@ private theorem evalWith_iknp (H : Fin m → BitString κ → L)
   rw [Protocol.evalWith_eq, eval_pi_iknpSampleCoins]
   simp only [evalWith_iknpSteps, PMF.pure_map, PMF.bind_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg _ (funext fun c => ?_)
-  simp only [Function.comp_apply]
-  refine congrArg PMF.pure (Prod.ext rfl ?_)
-  funext i
+  refine congrArg _ (funext fun c => congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_)))
   fin_cases i
   · rfl
   · exact outputOfView_iknp_one H x c
@@ -317,7 +314,7 @@ theorem iknp_output_of_mem_support (H : Fin m → BitString κ → L)
     (hres : res ∈ ((iknpProtocol H).evalWith (batchOTWorld κ (BitString m)) x).support) :
     res.2 = batchOTAnswer x := by
   rw [evalWith_iknp, PMF.mem_support_map_iff] at hres
-  obtain ⟨c, -, rfl⟩ := hres
+  obtain ⟨_, -, rfl⟩ := hres
   rfl
 
 /-! ### Privacy against the sender -/
@@ -337,12 +334,11 @@ private theorem iknpReceived_zero (H : Fin m → BitString κ → L)
     (⟨x 0, iknpCoins c 0, iknpReceived H (fun i => (x i, iknpCoins c i)) 0⟩ :
         PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) 0) =
       iknpSenderView (x 0) c.1 (fun i => iknpColumns (x 1) c.2 i (c.1 i)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-    · rfl
-  · exact Round.received_message_eq_of_ne (by simp) _ _
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+    (Prod.ext (Round.received_message_eq_of_ne (by simp) _ _) rfl))
+  fin_cases sl
+  · exact absurd hsl (by simp [iknpRoleReversal])
+  · rfl
 
 /-- The real joint distribution for a corrupted sender: its choice string and the columns it
 receives, with `T` uniform. -/
@@ -353,9 +349,8 @@ theorem realJoint_iknp_sender (H : Fin m → BitString κ → L)
         (singletonView (iknpSenderView (x 0) c.1 (fun i => iknpColumns (x 1) c.2 i (c.1 i))),
           batchOTAnswer x) := by
   rw [Protocol.realJoint, evalWith_iknp, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [iknpReceived_zero]
+  exact congrArg (PMF.map · _) (funext fun c => by
+    simp only [Function.comp_apply, Prod.map, id, restrict_singleton, iknpReceived_zero])
 
 /-- **Perfect privacy against the sender**: the ideal joint distribution with `iknpSenderSim`
 equals the real one, because the columns `tⁱ + sᵢ r` are uniform whatever `s` and `r` are. -/
@@ -424,9 +419,8 @@ private theorem iknp_simulated_pairs (H : Fin m → BitString κ → L) (X : Fin
     (fun j b => if b = r j then X j (r j) + H j (T j) else ((fun j => X j (!r j)) + w) j) =
       fun j b => X j b + if b = r j then H j (T j) else w j := by
   funext j b
-  by_cases hb : b = r j
-  · subst hb
-    simp
+  rcases eq_or_ne b (r j) with rfl | hb
+  · simp
   · obtain rfl : b = !r j := by cases b <;> cases h : r j <;> simp_all
     simp
 
@@ -438,12 +432,11 @@ private theorem iknpReceived_one (H : Fin m → BitString κ → L)
         PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) 1) =
       iknpReceiverView (x 1) c.2
         (fun j b => x 0 j b + if b = x 1 j then H j (c.2 j) else H j (c.2 j + c.1)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · rfl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-  · exact Round.received_message_ext fun _ => iknpMasked_eq H (x 0) (x 1) c.2 c.1
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+    (Prod.ext (Round.received_message_ext fun _ => iknpMasked_eq H (x 0) (x 1) c.2 c.1) rfl))
+  fin_cases sl
+  · rfl
+  · exact absurd hsl (by simp [iknpRoleReversal])
 
 /-- The real joint distribution for a corrupted receiver. -/
 theorem realJoint_iknp_receiver (H : Fin m → BitString κ → L)
@@ -454,9 +447,8 @@ theorem realJoint_iknp_receiver (H : Fin m → BitString κ → L)
           fun j b => x 0 j b + if b = x 1 j then H j (c.2 j) else H j (c.2 j + c.1)),
           batchOTAnswer x) := by
   rw [Protocol.realJoint, evalWith_iknp, PMF.map_comp]
-  refine congrArg (PMF.map · _) (funext fun c => ?_)
-  simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
-  rw [iknpReceived_one]
+  exact congrArg (PMF.map · _) (funext fun c => by
+    simp only [Function.comp_apply, Prod.map, id, restrict_singleton, iknpReceived_one])
 
 /-- The real joint distribution for a corrupted receiver, tested by `D`, is the real
 correlation-robustness game of `iknpReduction H x D`: the unchosen entries are masked by
