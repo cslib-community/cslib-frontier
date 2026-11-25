@@ -304,18 +304,11 @@ private theorem iterate_augStep_spec (hB : ∀ u v, W u v ≤ B) (f : (Network.m
           (y, x) ∈ pathArcs (buildPath parOf rem (parOf cur))) →
         u1.mem (flowAddr c x.1 y.1) = f x y := by
       intro x y hmem
-      rw [hflow1 x y]
-      rcases hmem with hxy | hyx
-      · obtain ⟨_, hyc⟩ := hdisj x y hxy
-        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hyc (Prod.mk.inj h).2
-        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj x y hxy).1 (Prod.mk.inj h).2
-        rw [ite_eq_right h1, ite_eq_right h2]
-        exact hf_sub x y (Or.inl (by rw [harcs_eq]; exact List.mem_append_left _ hxy))
-      · obtain ⟨hxc, _⟩ := hdisj y x hyx
-        have h1 : (x, y) ≠ (parOf cur, cur) := fun h => hxc (Prod.mk.inj h).2
-        have h2 : (y, x) ≠ (parOf cur, cur) := fun h => (hdisj y x hyx).2 (Prod.mk.inj h).2
-        rw [ite_eq_right h1, ite_eq_right h2]
-        exact hf_sub x y (Or.inr (by rw [harcs_eq]; exact List.mem_append_left _ hyx))
+      obtain ⟨hx, hy⟩ := hmem.elim (hdisj x y) fun h => (hdisj y x h).symm
+      rw [hflow1 x y, ite_eq_right fun e => hy (Prod.mk.inj e).2,
+        ite_eq_right fun e => hx (Prod.mk.inj e).2]
+      rw [harcs_eq] at hf_sub
+      exact hf_sub x y (hmem.imp (List.mem_append_left _) (List.mem_append_left _))
     have hih := iterate_augStep_spec hB f parOf hpar δ hδ rem (parOf cur) u1 (by omega) hp_rem
       hpar1 hf_sub1 x y
     change ((Memory.spec 0).clientState u_st
