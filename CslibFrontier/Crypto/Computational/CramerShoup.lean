@@ -575,16 +575,8 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
     cramerShoupExactCollisionInner
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   refine advantage_bind_le_succProbability_bind (setup n) _ _ _ fun d => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun α => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun β => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun γ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun σ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun τ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun σ₁ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun τ₁ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun σ₂ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun τ₂ => ?_
-  refine bind_apply_le_add_bind_apply _ _ _ _ true fun choiceOut => ?_
+  iterate 10 refine bind_apply_le_add_bind_apply _ _ _ _ true fun _ => ?_
+  rename_i _ β γ σ τ σ₁ τ₁ σ₂ τ₂ choiceOut
   by_cases h : (isElem (d, encodeMsg (d, csChoiceMsg₀ choiceOut.1)) &&
       isElem (d, encodeMsg (d, csChoiceMsg₁ choiceOut.1))) = true
   · simp only [h, ↓reduceIte]
