@@ -289,9 +289,7 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
     simp only [replayView, List.range_succ, List.map_append, List.map_cons, List.map_nil,
       List.foldl_append, List.foldl_cons, List.foldl_nil]
   -- the start registers
-  have hB : ComputableInSpace (fun b => radix (radixExponent State c) (w b).length) encB encNat
-      S :=
-    radix_budget (radixExponent State c) hlen
+  have hB := radix_budget (radixExponent State c) hlen
   have hstart := startID_budget machine.toNTM hB
   have hinit := encReplayRegs_mk_budget hL hlen hB (budget_const 0) hstart
     (queryIndex_budget (k := k) hB hstart)
@@ -319,9 +317,9 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
           (hX (radixExponent State c + 1) (by omega)))
     have h₅ : (encNat (vertexID (radix (radixExponent State c) (w b).length)
         (replayView machine w coin b j))).length ≤ K * (S b + 2) := by
-      have h := length_vertexID_le_of_runsInSpace c (hs b) (hreach b j)
       have hl := log2_succ_le (w b).length
-      exact h.trans ((Nat.mul_le_mul_left _ (by omega)).trans (hX _ (by omega)))
+      exact (length_vertexID_le_of_runsInSpace c (hs b) (hreach b j)).trans
+        ((Nat.mul_le_mul_left _ (by omega)).trans (hX _ (by omega)))
     have hq : queryIndex (k := k) (radix (radixExponent State c) (w b).length)
         (vertexID (radix (radixExponent State c) (w b).length) (replayView machine w coin b j)) ≤
           ((w b).length + 2) ^ 1 := by
@@ -347,7 +345,7 @@ theorem replayCoins_inSpace [Finite State] (machine : MultiTapePTM k Bool State)
       rw [hinput b j] at hsucc
       simp only [replayStep, replayRegsAt, hj, ↓reduceIte, hsucc, ← hview])
     (fun b => by simp [replayStep, replayRegsAt])
-    (fun b j hj => hT b j hj)
+    hT
   -- the final test
   have hid := budget_id (enc := encReplayRegs) (.refl _)
   have hbad := bad_budget (k := k) (State := State) (encReplayRegs_radix_budget hid)

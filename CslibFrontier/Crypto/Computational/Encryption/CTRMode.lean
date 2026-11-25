@@ -348,10 +348,9 @@ private theorem toOuterMeasure_exists_ctr_mem_le
       ((k * ks.length : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   classical
   have hsub : {iv : BitString n | ∃ j < k, counter iv j ∈ ks} ⊆
-      ⋃ j ∈ Finset.range k, ⋃ y ∈ ks.toFinset, {iv | counter iv j = y} := by
-    intro iv ⟨j, hj, hmem⟩
-    refine Set.mem_biUnion (Finset.mem_range.2 hj) ?_
-    exact Set.mem_biUnion (List.mem_toFinset.2 hmem) rfl
+      ⋃ j ∈ Finset.range k, ⋃ y ∈ ks.toFinset, {iv | counter iv j = y} :=
+    fun _ ⟨_, hj, hmem⟩ =>
+      Set.mem_biUnion (Finset.mem_range.2 hj) (Set.mem_biUnion (List.mem_toFinset.2 hmem) rfl)
   calc (PMF.uniformOfFintype (BitString n)).toOuterMeasure
           {iv | ∃ j < k, counter iv j ∈ ks}
       ≤ (PMF.uniformOfFintype (BitString n)).toOuterMeasure
@@ -408,8 +407,7 @@ private theorem toOuterMeasure_bad_freshQuery_le
         by_cases hhit : ctrAnyHit s.1 counter iv 0 (blockModeBlocks ℓ q) = true
         · have hex :
               iv ∈ {iv' | ∃ j < blockModeBlocks ℓ q, counter iv' j ∈ s.1.map Prod.fst} := by
-            have := (ctrAnyHit_eq_true_iff s.1 counter iv 0 (blockModeBlocks ℓ q)).1 hhit
-            simpa using this
+            simpa using (ctrAnyHit_eq_true_iff s.1 counter iv 0 (blockModeBlocks ℓ q)).1 hhit
           rw [Set.indicator_of_mem hex, Pi.one_apply]
           exact PMF.toOuterMeasure_le_one _ _
         · have hpre2 :
@@ -454,13 +452,9 @@ private theorem toOuterMeasure_bad_fresh_le
       exact (PMF.toOuterMeasure_lift_eq_zero (bad := fun s : FlagState n => s.2 = true)
         (ProbComp.unifOracle i) s hs).trans_le zero_le
     | inr q =>
-      calc (ProbOracleComp.runWith freshStep (ctrQueryProgram counter ℓ b q) s).toOuterMeasure
-            {x | x.2.2 = true}
-          ≤ ((blockModeBlocks ℓ q * s.1.length : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ :=
-            toOuterMeasure_bad_freshQuery_le counter ℓ b q s hs hintra hiv
-        _ = _ := by
-            simp only [blockModeCost, Sum.elim_inr, Nat.cast_zero, zero_mul, add_zero, Nat.cast_mul,
-              mul_assoc]
+      refine (toOuterMeasure_bad_freshQuery_le counter ℓ b q s hs hintra hiv).trans_eq ?_
+      simp only [blockModeCost, Sum.elim_inr, Nat.cast_zero, zero_mul, add_zero, Nat.cast_mul,
+        mul_assoc]
   · intro q s _ x hx _
     cases q with
     | inl i =>
@@ -472,8 +466,7 @@ private theorem toOuterMeasure_bad_fresh_le
       refine le_of_eq ?_
       push_cast
       ring
-  · intro _ _ _ _ _ _
-    exact zero_le
+  · exact fun _ _ _ _ _ _ => zero_le
   · simp only [List.length_nil, Nat.cast_mul, Nat.cast_zero, zero_mul, zero_add, add_zero,
       mul_zero]
     ring

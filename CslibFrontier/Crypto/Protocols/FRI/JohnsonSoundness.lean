@@ -157,12 +157,9 @@ private theorem cast_two_pow_sub_eq_smooth (params : FRISmoothParams F) :
       (1 - (1 : ℝ) / (2 : ℝ) ^ params.totalLog) * ((2 : ℝ) ^ params.d) := by
   have hle : 2 ^ (params.d - params.totalLog) ≤ 2 ^ params.d :=
     Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)
-  have hsplit : (2 : ℝ) ^ params.d =
-      (2 : ℝ) ^ (params.d - params.totalLog) * (2 : ℝ) ^ params.totalLog := by
-    rw [← pow_add, Nat.sub_add_cancel params.htotal]
-  rw [Nat.cast_sub hle]
-  push_cast
-  rw [hsplit]
+  rw [Nat.cast_sub hle, Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat,
+    show (2 : ℝ) ^ params.d = (2 : ℝ) ^ (params.d - params.totalLog) * (2 : ℝ) ^ params.totalLog
+      by rw [← pow_add, Nat.sub_add_cancel params.htotal]]
   field_simp
 
 private theorem sum_fin_arity_sub_one_succ {α : Type*} {a : ℕ} (ha : 1 ≤ a)
@@ -631,9 +628,9 @@ theorem weightedCurveGapPerRound_of_johnson [DecidableEq F]
     have hn₀R : (0 : ℝ) < ((2 ^ params.d : ℕ) : ℝ) := by positivity
     have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ)) :=
       Real.sqrt_pos.mpr (by positivity)
-    have hterm : 0 ≤ Real.sqrt ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ)) / (2 * (mJ : ℝ)) :=
-      by positivity
-    exact_mod_cast (div_lt_one hn₀R).mp (by linarith : (e : ℝ) / ((2 ^ params.d : ℕ) : ℝ) < 1)
+    exact_mod_cast (div_lt_one hn₀R).mp
+      (by linarith [show 0 ≤ Real.sqrt ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ)) / (2 * mJ)
+        by positivity] : (e : ℝ) / ((2 ^ params.d : ℕ) : ℝ) < 1)
   let DRound : Fin params.m → ℕ := fun i =>
     (mJ + 1) * ⌈(1 + 1 / (2 * (mJ : ℝ))) *
       Real.sqrt ((params.domainSize (i.val + 1) : ℝ) * (params.dim (i.val + 1) : ℝ))⌉₊ - 1
@@ -696,11 +693,10 @@ theorem weightedCurveGapBound_of_johnson_eta [DecidableEq F]
   refine (weightedCurveGapBound_of_johnson params hmJ
     (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he_mJ)).mono fun _ => Nat.le_floor ?_
   calc ((friSmoothJohnsonCommitBound params mJ : ℕ) : ℝ)
-      ≤ ((1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.firstStepLog)) *
-          (2 ^ params.d) ^ 2 : ℕ) : ℝ) / (params.dim 0 : ℝ) := Nat.cast_div_le
-    _ = 1800 * ((mJ + 1 : ℝ) ^ 6) *
+      ≤ 1800 * ((mJ + 1 : ℝ) ^ 6) *
           ((2 ^ params.d - 2 ^ (params.d - params.firstStepLog) : ℕ) : ℝ) *
-          ((2 ^ params.d : ℝ) ^ 2) / (params.dim 0 : ℝ) := by push_cast; ring
+          ((2 ^ params.d : ℝ) ^ 2) / (params.dim 0 : ℝ) :=
+        Nat.cast_div_le.trans_eq (by push_cast; ring)
     _ ≤ 1800 * (64 / (η ^ 6)) *
           ((2 ^ params.d - 2 ^ (params.d - params.firstStepLog) : ℕ) : ℝ) *
           ((2 ^ params.d : ℝ) ^ 2) / (params.dim 0 : ℝ) := by gcongr
@@ -985,13 +981,8 @@ theorem friSmoothJohnsonCommitBound_toSmooth_le (params : FRIParams F) (mJ : ℕ
     friSmoothJohnsonCommitBound params.toSmooth mJ ≤ friJohnsonCommitBound params mJ := by
   rw [friSmoothJohnsonCommitBound, friJohnsonCommitBound, params.toSmooth_dim (Nat.zero_le _)]
   refine Nat.div_le_div_right ?_
-  calc 1800 * (mJ + 1) ^ 6 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog)) *
-        (2 ^ params.d) ^ 2
-      = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 *
-          (2 * (2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog))) := by ring
-    _ ≤ 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 * 2 ^ params.d :=
-        Nat.mul_le_mul_left _ (two_mul_toSmooth_first_sub_le params)
-    _ = 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 3 := by ring
+  have := two_mul_toSmooth_first_sub_le params
+  nlinarith [Nat.zero_le ((mJ + 1) ^ 6 * (2 ^ params.d) ^ 2)]
 
 /-- At round `0`, `friJohnsonRoundBound` coincides exactly with `friJohnsonCommitBound`. -/
 theorem friJohnsonRoundBound_zero (params : FRIParams F) (mJ : ℕ) (hm : 0 < params.m) :
@@ -1001,10 +992,8 @@ theorem friJohnsonRoundBound_zero (params : FRIParams F) (mJ : ℕ) (hm : 0 < pa
     toSmooth_first_sub_eq_of_pos params (lt_of_lt_of_le hm params.hm)]
   have h0 : 2 * 2 ^ (params.d - 1) = 2 ^ params.d := by
     rw [← pow_succ', Nat.sub_add_cancel (lt_of_lt_of_le hm params.hm)]
-  change (1800 * (mJ + 1) ^ 6 * 2 ^ (params.d - 1) * (2 ^ params.d) ^ 2) / params.dim 0 = _
-  congr 1
-  calc _ = 900 * (mJ + 1) ^ 6 * (2 * 2 ^ (params.d - 1)) * (2 ^ params.d) ^ 2 := by ring
-    _ = _ := by rw [h0]; ring
+  exact congrArg (· / params.dim 0)
+    (by linear_combination 900 * (mJ + 1) ^ 6 * (2 ^ params.d) ^ 2 * h0)
 
 /-- Every folding round's geometric budget `friJohnsonRoundBound params mJ i` is bounded by the
 round-0 uniform budget `friJohnsonCommitBound params mJ`. -/
@@ -1159,12 +1148,9 @@ theorem weightedLineGapPerRound_of_johnson [DecidableEq F]
         Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ))) :
     WeightedLineGapPerRound params (2 ^ params.d - e - 1) (friJohnsonRoundBound params mJ) := by
   rw [weightedLineGapPerRound_iff_weightedCurveGapPerRound]
-  have he' : (e : ℝ) / (2 ^ params.toSmooth.d : ℝ) ≤
-      1 - Real.sqrt ((params.toSmooth.dim 0 : ℝ) / (2 ^ params.toSmooth.d : ℝ)) -
-        Real.sqrt ((params.toSmooth.dim 0 : ℝ) / (2 ^ params.toSmooth.d : ℝ)) / (2 * (mJ : ℝ)) := by
-    simpa only [params.toSmooth_dim (Nat.zero_le _)] using he
-  refine (weightedCurveGapPerRound_of_johnson params.toSmooth hmJ he').mono fun i => ?_
-  rw [friJohnsonRoundBound_eq_smooth]
+  refine (weightedCurveGapPerRound_of_johnson params.toSmooth hmJ
+    (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)).mono fun i =>
+      (friJohnsonRoundBound_eq_smooth params mJ i).ge
 
 /-- **Original explicit-constant uniform Johnson-bound `WeightedLineGapBound`** for all `m`
 single-word FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (`friJohnsonCommitBound params
@@ -1195,16 +1181,13 @@ theorem weightedLineGapBound_of_johnson_eta [DecidableEq F]
     WeightedLineGapBound params (2 ^ params.d - e - 1)
       (friJohnsonEtaCommitBound params η) := by
   rw [WeightedLineGapBound, weightedLineGapPerRound_iff_weightedCurveGapPerRound]
-  have he' : (e : ℝ) / (2 ^ params.toSmooth.d : ℝ) ≤
-      1 - Real.sqrt ((params.toSmooth.dim 0 : ℝ) / (2 ^ params.toSmooth.d : ℝ)) - η := by
-    simpa only [params.toSmooth_dim (Nat.zero_le _)] using he
-  refine (weightedCurveGapBound_of_johnson_eta params.toSmooth hη he').mono fun _ =>
-    Nat.floor_mono ?_
+  refine (weightedCurveGapBound_of_johnson_eta params.toSmooth hη
+    (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using he)).mono fun _ =>
+      Nat.floor_mono ?_
   rw [params.toSmooth_dim (Nat.zero_le _)]
   have h1R : 2 * ((2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) : ℕ) : ℝ) ≤
       (2 ^ params.d : ℝ) := mod_cast two_mul_toSmooth_first_sub_le params
-  refine div_le_div_of_nonneg_right ?_ (by positivity)
-  nlinarith [sq_nonneg ((2 : ℝ) ^ params.d)]
+  exact div_le_div_of_nonneg_right (by nlinarith [sq_nonneg ((2 : ℝ) ^ params.d)]) (by positivity)
 
 /-- **Original explicit-constant Johnson summed commit-phase soundness of single-word `friIOP`**
 (using `friJohnsonCommitError params mJ`, bounded independently of `m`). -/

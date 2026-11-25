@@ -104,12 +104,7 @@ variable {d : V → V → α} {P : List V}
 theorem IsFarthestFirst.subset {L : List V} (h : IsFarthestFirst d P L) : ∀ x ∈ L, x ∈ P := by
   induction h with
   | nil => simp
-  | snoc _ hx _ ih =>
-    intro y hy
-    rcases List.mem_append.1 hy with hy | hy
-    · exact ih y hy
-    · rw [List.mem_singleton.1 hy]
-      exact hx
+  | snoc _ hx _ ih => exact List.forall_mem_append.2 ⟨ih, List.forall_mem_singleton.2 hx⟩
 
 /-- One round of the farthest-first traversal: append a point of `P` farthest from the current
 centers, the first such point in the order of `P`. Nothing is appended when `P` is empty. -/
@@ -141,9 +136,7 @@ theorem isFarthestFirst_gonzalez (d : V → V → α) (P : List V) (k : ℕ) :
     IsFarthestFirst d P (gonzalez d P k) := by
   induction k with
   | zero => exact .nil
-  | succ k ih =>
-    rw [gonzalez_succ]
-    exact ih.farthestStep
+  | succ _ ih => exact gonzalez_succ d P _ ▸ ih.farthestStep
 
 theorem length_farthestStep (hP : P ≠ []) (L : List V) :
     (farthestStep d P L).length = L.length + 1 := by
@@ -163,19 +156,14 @@ theorem length_gonzalez (hP : P ≠ []) (k : ℕ) : (gonzalez d P k).length = k 
 @[simp] theorem gonzalez_nil (d : V → V → α) (k : ℕ) : gonzalez d [] k = [] := by
   induction k with
   | zero => rfl
-  | succ k ih =>
-    rw [gonzalez_succ, ih]
-    rfl
+  | succ _ ih => rw [gonzalez_succ, ih]; rfl
 
 /-- The centers are points of `P`. -/
 theorem mem_of_mem_gonzalez {k : ℕ} {x : V} (hx : x ∈ gonzalez d P k) : x ∈ P :=
   (isFarthestFirst_gonzalez d P k).subset x hx
 
 theorem length_gonzalez_le (d : V → V → α) (P : List V) (k : ℕ) : (gonzalez d P k).length ≤ k := by
-  rcases eq_or_ne P [] with rfl | hP
-  · rw [gonzalez_nil]
-    exact Nat.zero_le k
-  · exact (length_gonzalez hP k).le
+  rcases eq_or_ne P [] with rfl | hP; exacts [by simp, (length_gonzalez hP k).le]
 
 /-- **Feasibility:** Gonzalez's algorithm chooses at most `k` centers. -/
 theorem card_toFinset_gonzalez_le (d : V → V → α) (P : List V) (k : ℕ) :
@@ -191,26 +179,21 @@ theorem nodup_gonzalez [Zero α] (hself : ∀ x, d x x = 0) (hpos : ∀ x y, x �
   | zero => exact List.nodup_nil
   | succ k ih =>
     have hP : P ≠ [] := by grind [List.toFinset_nil, Finset.card_empty]
-    rw [gonzalez_succ]
-    unfold farthestStep
+    rw [gonzalez_succ]; unfold farthestStep
     match hm : P.argmax (centerDist d (gonzalez d P k).toFinset) with
     | none => exact absurd (List.argmax_eq_none.1 hm) hP
     | some x =>
       refine List.nodup_append.2 ⟨ih (Nat.le_of_succ_le hk), List.nodup_singleton x, ?_⟩
-      rintro a ha b hb rfl
+      rintro a ha _ hb rfl
       rw [List.mem_singleton.1 hb] at ha
-      have hsub : P.toFinset ⊆ (gonzalez d P k).toFinset := by
-        intro y hy
-        have hx0 : centerDist d (gonzalez d P k).toFinset x ≤ ((0 : α) : WithTop α) :=
-          centerDist_le_coe_iff.2 ⟨x, List.mem_toFinset.2 ha, (hself x).le⟩
-        obtain ⟨c, hc, hyc⟩ :=
-          centerDist_le_coe_iff.1 ((List.le_of_mem_argmax (List.mem_toFinset.1 hy) hm).trans hx0)
-        by_cases hyc' : y = c
-        · exact hyc' ▸ hc
-        · exact absurd (hpos y c hyc') (not_lt.2 hyc)
+      have hsub : P.toFinset ⊆ (gonzalez d P k).toFinset := fun y hy => by
+        obtain ⟨c, hc, hyc⟩ := centerDist_le_coe_iff.1
+          ((List.le_of_mem_argmax (List.mem_toFinset.1 hy) hm).trans
+            (centerDist_le_coe_iff.2 ⟨x, List.mem_toFinset.2 ha, (hself x).le⟩))
+        exact (Decidable.eq_or_ne y c).elim (· ▸ hc) fun hne =>
+          absurd (hpos y c hne) (not_lt.2 hyc)
       have hcard := (Finset.card_le_card hsub).trans (List.toFinset_card_le _)
-      rw [length_gonzalez hP] at hcard
-      omega
+      rw [length_gonzalez hP] at hcard; omega
 
 /-- Under a distance that vanishes exactly on the diagonal, Gonzalez's algorithm chooses exactly
 `k` distinct centers when `P` has at least `k` distinct points. -/
@@ -218,9 +201,7 @@ theorem card_toFinset_gonzalez [Zero α] (hself : ∀ x, d x x = 0)
     (hpos : ∀ x y, x ≠ y → 0 < d x y) {k : ℕ} (hk : k ≤ P.toFinset.card) :
     (gonzalez d P k).toFinset.card = k := by
   rcases eq_or_ne P [] with rfl | hP
-  · rw [List.toFinset_nil, Finset.card_empty, Nat.le_zero] at hk
-    subst hk
-    rfl
+  · simp_all
   · rw [List.toFinset_card_of_nodup (nodup_gonzalez hself hpos hk), length_gonzalez hP]
 
 end Algorithm
@@ -241,15 +222,11 @@ theorem IsFarthestFirst.pairwise_lt {L : List V} (h : IsFarthestFirst d P L)
     (L ++ [v]).Pairwise fun a b => r < d a b := by
   induction h generalizing v with
   | nil => exact List.pairwise_singleton _ _
-  | @snoc L x hL hx hmax ih =>
-    have hsub : L.toFinset ⊆ (L ++ [x]).toFinset := by
-      intro y hy
-      rw [List.mem_toFinset] at hy ⊢
-      exact List.mem_append_left _ hy
-    have hxr : (r : WithTop α) < centerDist d L.toFinset x :=
-      (hr.trans_le (centerDist_anti hsub v)).trans_le (hmax v hv)
-    rw [List.pairwise_append]
-    refine ⟨ih hx hxr, List.pairwise_singleton _ _, fun a ha b hb => ?_⟩
+  | @snoc L x _ hx hmax ih =>
+    have hsub : L.toFinset ⊆ (L ++ [x]).toFinset :=
+      fun _ hy => List.mem_toFinset.2 (List.mem_append_left _ (List.mem_toFinset.1 hy))
+    refine List.pairwise_append.2 ⟨ih hx ((hr.trans_le (centerDist_anti hsub v)).trans_le
+      (hmax v hv)), List.pairwise_singleton _ _, fun a ha b hb => ?_⟩
     rw [List.mem_singleton.1 hb, hsymm]
     exact coe_lt_centerDist_iff.1 hr a (List.mem_toFinset.2 ha)
 
@@ -264,14 +241,10 @@ theorem IsFarthestFirst.centerDist_le_two_mul {L : List V} (h : IsFarthestFirst 
     centerDist d L.toFinset v ≤ ((2 * r : α) : WithTop α) := by
   by_contra hlt
   have hlen := length_le_card_of_pairwise_lt hsymm htri (C := C) (M := L ++ [v])
-    (fun w hw => by
-      rcases List.mem_append.1 hw with hw | hw
-      · exact hr w (h.subset w hw)
-      · rw [List.mem_singleton.1 hw]
-        exact hr v hv)
+    (List.forall_mem_append.2 ⟨fun w hw => hr w (h.subset w hw),
+      List.forall_mem_singleton.2 (hr v hv)⟩)
     (h.pairwise_lt hsymm hv (not_le.1 hlt))
-  rw [List.length_append, List.length_singleton] at hlen
-  omega
+  rw [List.length_append, List.length_singleton] at hlen; omega
 
 /-- **Gonzalez's algorithm is a 2-approximation** ([WilliamsonShmoys2011], Theorem 2.3;
 [Gonzalez1985]): for a symmetric distance with the triangle inequality, if some set `C` of at most

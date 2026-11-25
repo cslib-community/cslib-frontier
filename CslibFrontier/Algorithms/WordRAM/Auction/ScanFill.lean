@@ -179,7 +179,7 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
         dsimp only
         refine ⟨by omega, hdiv_le, fun idx hidx_lt => ?_⟩
         rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt' | rfl
-        · exact (hprev idx hlt').trans (le_of_lt hlt)
+        · exact (hprev idx hlt').trans hlt.le
         · rw [← hidx]
       · rw [ite_eq_right hlt, clientResult_pure]
         dsimp only
@@ -192,12 +192,9 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
   dsimp only [d]
   unfold scanMaxProg
   refine ⟨hsafe, validHistory_bind_step hv_it (validHistory_pure w _ _), ?_, ?_, ?_, ?_⟩
-  · rw [memoryCost_bind']
-    have hp : memoryCost (pure ((Memory.spec 0).clientResult s₀
-        (iterate scanMaxStep d (n * n) ⟨0, 0⟩)).curM : Memory.Prog ℕ)
-        ((Memory.spec 0).clientState s₀ (iterate scanMaxStep d (n * n) ⟨0, 0⟩)) = 0 := rfl
+  · rw [memoryCost_bind', memoryCost_pure]
     dsimp only [d] at hmc_it ⊢
-    rw [hp]; omega
+    omega
   · rw [clientState_bind, clientState_pure]
     exact hs_eq
   · rw [clientResult_bind, clientResult_pure]
@@ -347,7 +344,6 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
         split_ifs <;> rw [clientResult_bind_write, clientResult_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
-        dsimp only
         exact Function.update_of_ne (by omega) _ _
       · rw [hst_eq, hres_eq]
         dsimp only

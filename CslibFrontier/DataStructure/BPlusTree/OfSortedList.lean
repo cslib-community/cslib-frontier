@@ -242,13 +242,13 @@ private theorem map_buildM (hf : IsMonadHom m n f) (t : ℕ) (visit : m Unit) (f
   | zero =>
     rcases rest with _ | ⟨e, es⟩
     · simp [hf.map_pure]
-    · rw [buildM_cons, buildM_cons]
-      split <;> simp [hf.map_bind, hf.map_pure]
+    rw [buildM_cons, buildM_cons]
+    split <;> simp [hf.map_bind, hf.map_pure]
   | succ fuel ih =>
     rcases rest with _ | ⟨e, es⟩
     · simp [hf.map_pure]
-    · rw [buildM_cons, buildM_cons]
-      split <;> simp [hf.map_bind, hf.map_pure, map_packM hf, ih]
+    rw [buildM_cons, buildM_cons]
+    split <;> simp [hf.map_bind, hf.map_pure, map_packM hf, ih]
 
 /-- A monad morphism commutes with bulk loading. -/
 theorem map_ofSortedListM (hf : IsMonadHom m n f) (t : ℕ) (visit : m Unit)
@@ -371,16 +371,12 @@ private theorem ofSortedList_eq_build (l : List (α × β)) :
 private theorem toList_leafBranches (ss : List ℕ) (l : List (α × β)) :
     ((leafBranches ss l).flatMap fun e => e.child.toList) = l := by
   induction ss generalizing l with
-  | nil =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l => simp [leafBranches_nil_cons]
+  | nil => cases l <;> simp [leafBranches_nil, leafBranches_nil_cons]
   | cons s ss ih =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l =>
-      rw [leafBranches_cons_cons, List.flatMap_cons, ih, Branch.child_mk, toList_leaf,
-        List.take_append_drop]
+    rcases l with _ | ⟨p, l⟩
+    · simp [leafBranches_nil]
+    rw [leafBranches_cons_cons, List.flatMap_cons, ih, Branch.child_mk, toList_leaf,
+      List.take_append_drop]
 
 private theorem toList_leafLevel (ss : List ℕ) (l : List (α × β)) :
     (leafLevel ss l).1.toList ++ ((leafLevel ss l).2.flatMap fun e => e.child.toList) = l := by
@@ -420,16 +416,13 @@ private theorem toList_pack_fst (first : BPlusTree α β) (rest : List (Branch �
 private theorem toList_build (fuel : ℕ) (first : BPlusTree α β) (rest : List (Branch α β)) :
     (build t fuel first rest).toList = first.toList ++ rest.flatMap fun e => e.child.toList := by
   induction fuel generalizing first rest with
-  | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp [build_nil]
-    · rw [build_zero_cons, toList_node]
+  | zero => rcases rest with _ | ⟨e, es⟩ <;> simp [build_nil, build_zero_cons]
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with h | h
     · rw [build_succ_of_lt h, ih, toList_pack]
     · rcases rest with _ | ⟨e, es⟩
       · simp [build_nil]
-      · rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
+      rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
 
 /-- Bulk loading keeps the entries in order, for every list and every `t`. -/
 @[simp] theorem toList_ofSortedList (t : ℕ) (l : List (α × β)) :
@@ -739,18 +732,17 @@ private theorem separated_build (fuel : ℕ) {first : BPlusTree α β} {rest : L
   | zero =>
     rcases rest with _ | ⟨e, es⟩
     · rwa [build_nil]
-    · rw [build_zero_cons]
-      exact separated_node hf hr hk hs
+    rw [build_zero_cons]
+    exact separated_node hf hr hk hs
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
       obtain ⟨hf', hr'⟩ := separated_pack (BTree.groupSizes t rest.length rest.length) hf hr hk hs
-      exact ih hf' (fun e he => (hr' e he).1) (fun e he => (hr' e he).2)
-        (by rw [toList_pack]; exact hs)
+      exact ih hf' (fun e he => (hr' e he).1) (fun e he => (hr' e he).2) (by rwa [toList_pack])
     · rcases rest with _ | ⟨e, es⟩
       · rwa [build_nil]
-      · rw [build_of_length_le (List.cons_ne_nil e es) hle]
-        exact separated_node hf hr hk hs
+      rw [build_of_length_le (List.cons_ne_nil e es) hle]
+      exact separated_node hf hr hk hs
 
 /-- A tree of the bottom level is a leaf, hence separated. -/
 private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c := by

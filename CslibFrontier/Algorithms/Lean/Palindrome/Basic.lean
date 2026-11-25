@@ -186,31 +186,19 @@ theorem min_radius_mirror {w : List α} {C c R : ℕ} (hCc : C ≤ c)
     exact this.2.2
   set L := C / 2 - radius w C with hL
   have hLR : L + R = C := by omega
-  -- Inside `[L, R)`, the palindromic radii `k ≤ b` about `c` and about `c'` correspond under
-  -- reflection across the center `C`.
-  have hiff : ∀ k, k ≤ b → (IsPalRadius w c k ↔ IsPalRadius w c' k) := by
-    intro k hk
-    have e1 : L + R - ((c + 1) / 2 + k) = c' / 2 - k := by omega
-    have e2 : L + R - (c / 2 - k) = (c' + 1) / 2 + k := by omega
-    have e3 : L + R - ((c' + 1) / 2 + k) = c / 2 - k := by omega
-    have e4 : L + R - (c' / 2 - k) = (c + 1) / 2 + k := by omega
-    constructor
-    · rintro ⟨_, _, h⟩
-      refine ⟨by omega, by omega, ?_⟩
-      have := hbig.extract_reflect h hRn (by omega) (by omega) (by omega)
-      rwa [e1, e2] at this
-    · rintro ⟨_, _, h⟩
-      refine ⟨by omega, by omega, ?_⟩
-      have := hbig.extract_reflect h hRn (by omega) (by omega) (by omega)
-      rwa [e3, e4] at this
-  have h1 : min (radius w c) b ≤ radius w c' := by
-    rw [← isPalRadius_iff_le_radius hc'n, ← hiff _ (Nat.min_le_right _ _),
-      isPalRadius_iff_le_radius hcn]
-    exact Nat.min_le_left _ _
-  have h2 : min (radius w c') b ≤ radius w c := by
-    rw [← isPalRadius_iff_le_radius hcn, hiff _ (Nat.min_le_right _ _),
-      isPalRadius_iff_le_radius hc'n]
-    exact Nat.min_le_left _ _
+  -- Inside `[L, R)`, reflecting any palindromic radius `k ≤ b` across `C` swaps `c` and `c'`.
+  have hdir {x y : ℕ} (hx : x ≤ 2 * w.length) (hy : y ≤ 2 * w.length)
+      (hsum : x + y = 2 * C) (hlo : L + b ≤ x / 2) (hhi : (x + 1) / 2 + b ≤ R) :
+      min (radius w x) b ≤ radius w y := by
+    set k := min (radius w x) b
+    have hk : k ≤ b := Nat.min_le_right _ _
+    have hpal := ((isPalRadius_iff_le_radius hx).mpr (Nat.min_le_left (radius w x) b)).2.2
+    have hrefl := hbig.extract_reflect hpal hRn (by omega) (by omega) (by omega)
+    rw [show L + R - ((x + 1) / 2 + k) = y / 2 - k by omega,
+      show L + R - (x / 2 - k) = (y + 1) / 2 + k by omega] at hrefl
+    exact (isPalRadius_iff_le_radius hy).mp ⟨by omega, by omega, hrefl⟩
+  have h1 := hdir hcn hc'n (by omega) (by omega) (by omega)
+  have h2 := hdir hc'n hcn (by omega) (by omega) (by omega)
   omega
 
 /-! ## Longest palindromic factors and palindromic prefixes -/

@@ -262,14 +262,9 @@ theorem acceptsWith_iff_of_searchWith
     (hsat : φ ∈ SAT → ∃ a ∈ searchWith prune φ, units a ++ φ ∈ SAT) :
     acceptsWith prune φ = true ↔ φ ∈ SAT := by
   rw [acceptsWith, List.any_eq_true]
-  constructor
-  · rintro ⟨a, -, ha⟩
-    exact mem_SAT_of_units_append ⟨_, ha⟩
-  · intro hφ
-    obtain ⟨a, ha, hgood⟩ := hsat hφ
-    refine ⟨a, ha, (verifier_units_append_iff fun v hv => ?_).2 hgood⟩
-    rw [hfst a ha]
-    exact hv
+  exact ⟨fun ⟨a, _, ha⟩ => mem_SAT_of_units_append ⟨_, ha⟩, fun hφ =>
+    let ⟨a, ha, hgood⟩ := hsat hφ
+    ⟨a, ha, (verifier_units_append_iff fun v hv => hfst a ha ▸ hv).2 hgood⟩⟩
 
 /-- **Correctness of a pruned search.** If the rule `prune` keeps only nodes of the level it
 prunes, and keeps a satisfiable node of every level of the tree of `φ` that has one, then the
@@ -445,22 +440,15 @@ theorem SAT_mem_P {β : Type*} {encB : β ↪ List Bool} {S : Set β} (hS : S �
   sparse problem are that short. -/
   let q : Polynomial ℕ := Polynomial.C C *
     (p.comp (Polynomial.X + Polynomial.X * (8 * Polynomial.X + 11)) + 1) ^ D
-  have hq (L : ℕ) : q.eval L = C * (p.eval (L + L * (8 * L + 11)) + 1) ^ D := by
-    simp [q]
   refine ⟨fun φ => accepts (fun ψ => encB (f ψ)) (q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := encB '' S) (M := p.eval ((encCNF φ).length +
-      (encCNF φ).length * (8 * (encCNF φ).length + 11))) (fun ψ => ?_) (fun a ha hlen => ?_)
-      (fun s hs => ?_)).symm⟩
-  · rw [encB.injective.mem_set_image]
-    exact hfS ψ
-  · refine (hp _).trans (Polynomial.eval_mono _ ?_)
-    have hunits := length_encCNF_units_le ha
-    have hvars := length_vars_le φ
-    rw [length_encCNF_append]
-    nlinarith
-  · rw [hq]
-    exact hCD _ s fun w hw => by simpa using hs w hw
+      (encCNF φ).length * (8 * (encCNF φ).length + 11)))
+      (fun ψ => (hfS ψ).trans (encB.injective.mem_set_image).symm)
+      (fun a ha _ => (hp _).trans (Polynomial.eval_mono _ (by
+        rw [length_encCNF_append]
+        nlinarith [length_encCNF_units_le ha, length_vars_le φ])))
+      (fun s hs => by simpa [q] using hCD _ s fun w hw => by simpa using hs w hw)).symm⟩
 
 end Fortune
 

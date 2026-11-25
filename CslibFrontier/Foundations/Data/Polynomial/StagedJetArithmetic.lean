@@ -226,10 +226,7 @@ private theorem sum_prod_assoc_left {J ℓ : ℕ} {M : Type*} [AddCommMonoid M]
   · simp only [h, ↓reduceIte]
     refine sum_eq_zero fun p₁₂ _ => ?_
     split_ifs with h1 h2
-    · exfalso
-      exact h ⟨by omega, by omega⟩
-    · rfl
-    · rfl
+    exacts [(h ⟨by omega, by omega⟩).elim, rfl, rfl]
 
 /-- A double convolution `conv (conv A B) C` as one sum over three index pairs whose
 coordinates add up to `(j, u)`. -/
@@ -251,9 +248,7 @@ private theorem conv_conv_eq_prod_sum {J ℓ : ℕ} {R : Type*} [Semiring R]
             A p₁.1 p₁.2 * B p₂.1 p₂.2 * C p₃.1 p₃.2
           else 0
         else 0
-  · refine sum_congr rfl fun p₃ _ => ?_
-    rw [sum_comm]
-    exact sum_congr rfl fun p₁ _ => sum_comm
+  · exact sum_congr rfl fun p₃ _ => sum_comm.trans <| sum_congr rfl fun p₁ _ => sum_comm
   · trans ∑ p₃ : Fin J × Fin ℓ, ∑ p₁ : Fin J × Fin ℓ, ∑ p₂ : Fin J × Fin ℓ,
         if (p₁.1 : ℕ) + (p₂.1 : ℕ) + (p₃.1 : ℕ) = (j : ℕ) ∧
             (p₁.2 : ℕ) + (p₂.2 : ℕ) + (p₃.2 : ℕ) = (u : ℕ) then
@@ -261,8 +256,7 @@ private theorem conv_conv_eq_prod_sum {J ℓ : ℕ} {R : Type*} [Semiring R]
         else 0
     · exact sum_congr rfl fun p₃ _ => sum_congr rfl fun p₁ _ => sum_congr rfl fun p₂ _ =>
         sum_prod_assoc_left p₁ p₂ p₃ (j, u) _
-    · rw [sum_comm]
-      exact sum_congr rfl fun p₁ _ => sum_comm
+    · exact sum_comm.trans <| sum_congr rfl fun p₁ _ => sum_comm
 
 private theorem sum_fin_filter_add_eq_antidiagonal {M : Type*} [AddCommMonoid M] {N : ℕ}
     (k : Fin N) (f : ℕ → ℕ → M) :
@@ -293,13 +287,7 @@ theorem conv_comm (A B : JetTable J ℓ R) : conv A B = conv B A := by
   ext j u
   rw [conv_eq_prod_sum, conv_eq_prod_sum, sum_comm]
   refine sum_congr rfl fun p₂ _ => sum_congr rfl fun p₁ _ => ?_
-  by_cases h : (p₁.1 : ℕ) + (p₂.1 : ℕ) = (j : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (u : ℕ)
-  · have h' : (p₂.1 : ℕ) + (p₁.1 : ℕ) = (j : ℕ) ∧ (p₂.2 : ℕ) + (p₁.2 : ℕ) = (u : ℕ) :=
-      ⟨by omega, by omega⟩
-    simp only [h, h', and_self, ↓reduceIte, mul_comm]
-  · have h' : ¬((p₂.1 : ℕ) + (p₁.1 : ℕ) = (j : ℕ) ∧ (p₂.2 : ℕ) + (p₁.2 : ℕ) = (u : ℕ)) :=
-      by omega
-    simp only [h, h', ↓reduceIte]
+  exact if_congr (by omega) (mul_comm _ _) rfl
 
 theorem const_conv (c : R) (A : JetTable J ℓ R) : conv (const c) A = smul c A := by
   ext j u
@@ -549,11 +537,8 @@ def transpose {J ℓ : ℕ} {R : Type*} [CommRing R] :
       ∑ j₂ ∈ univ.filter (fun j₂ : Fin J => (j₁ : ℕ) + (j₂ : ℕ) = (j : ℕ)),
         ∑ u₂ ∈ univ.filter (fun u₂ : Fin ℓ => (u₁ : ℕ) + (u₂ : ℕ) = (u : ℕ)),
           A u₁ j₁ * B u₂ j₂
-    · refine sum_congr rfl fun u₁ _ => ?_
-      rw [sum_comm]
-      exact sum_congr rfl fun j₁ _ => sum_comm
-    · rw [sum_comm]
-      exact sum_congr rfl fun j₁ _ => sum_comm
+    · exact sum_congr rfl fun u₁ _ => sum_comm.trans <| sum_congr rfl fun j₁ _ => sum_comm
+    · exact sum_comm.trans <| sum_congr rfl fun j₁ _ => sum_comm
   map_zero' := ext fun _ _ => by simp only [of_apply, coe_zero]
   map_add' _ _ := ext fun _ _ => by simp only [of_apply, coe_add]
 
@@ -738,8 +723,7 @@ theorem l1Norm_conv_le (A B : JetTable J ℓ ℤ) :
     refine (Int.natAbs_sum_le _ _).trans (sum_le_sum fun p₂ _ => ?_)
     by_cases h1 : (p₁.1 : ℕ) + (p₂.1 : ℕ) = (q.1 : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (q.2 : ℕ)
     · simp only [h1, and_self, ↓reduceIte, Int.natAbs_mul, le_rfl]
-    · simp only [h1, ↓reduceIte, Int.natAbs_zero]
-      exact Nat.zero_le _
+    · simp only [h1, ↓reduceIte, Int.natAbs_zero, Nat.zero_le]
   refine (sum_le_sum fun q _ => entry_le q).trans ?_
   rw [sum_comm]
   refine (sum_congr rfl fun p₁ _ => sum_comm).trans_le ?_

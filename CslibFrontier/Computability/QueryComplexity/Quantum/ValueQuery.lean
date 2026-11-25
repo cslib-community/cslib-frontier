@@ -667,12 +667,8 @@ private theorem step_rel_ite_apply {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
   simp only [Equiv.apply_symm_apply] at hv
   have hval : (WithLp.toLp 2 fun v' => y.ofLp (e.symm j, v', w)) = valSlice y (e.symm j) w := rfl
   rw [hval] at hv
-  cases hbj : b j
-  · simp only [hbj, Bool.false_eq_true, ite_false] at hv ⊢
-    exact hv.symm
-  · simp only [hbj, ite_true, LinearIsometryEquiv.trans_apply,
-      LinearIsometryEquiv.symm_apply_apply] at hv ⊢
-    exact hv.symm
+  cases hbj : b j <;> simp only [hbj, Bool.false_eq_true, ite_false, ite_true,
+    LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.symm_apply_apply] at hv ⊢ <;> exact hv.symm
 
 private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
     (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
@@ -756,16 +752,12 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
         simp only [hne, ite_false, hmod, hdiv]
         by_cases hlt : t + 1 < T
         · simp only [hlt, ite_true]
-        · have heq : t + 1 = T := by omega
-          simp only [eq_false hlt, ite_false, eq_true heq, ite_true]
+        · simp only [eq_false hlt, ite_false, eq_true (show t + 1 = T by omega), ite_true]
       rw [hq, run, hiter (stride - 1) (by omega), ← hq, hVend]
-      split_ifs with hlt
-      · simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
-          LinearIsometryEquiv.coe_toLinearIsometry]
-        rw [hstep, liftValueIso_embedState, ← runValue]
-      · simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
-          LinearIsometryEquiv.coe_toLinearIsometry]
-        rw [show T = t + 1 by omega, hstep, liftValueIso_embedState, ← runValue]
+      split_ifs with hlt <;> simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
+        LinearIsometryEquiv.coe_toLinearIsometry]
+      · rw [hstep, liftValueIso_embedState, ← runValue]
+      · rw [show T = t + 1 by omega, hstep, liftValueIso_embedState, ← runValue]
   have hT := hrun T le_rfl
   simp only [lt_irrefl, ite_false] at hT
   rw [hT, measureProb_embedState]
@@ -814,9 +806,7 @@ private theorem exists_half_angle (μ ν : ℝ) (h : μ ^ 2 + ν ^ 2 = 1) :
     have hν : ν = 0 := by nlinarith
     simp [hν]
   · have hm_le : -1 ≤ μ := by nlinarith [sq_nonneg (μ + 1), sq_nonneg ν]
-    have hpos : 0 < (1 + μ) / 2 := by
-      have : -1 < μ := lt_of_le_of_ne hm_le (Ne.symm hm)
-      linarith
+    have hpos : 0 < (1 + μ) / 2 := by linarith [lt_of_le_of_ne hm_le (Ne.symm hm)]
     let c := Real.sqrt ((1 + μ) / 2)
     have hc_pos : 0 < c := Real.sqrt_pos.mpr hpos
     have hc2 : c ^ 2 = (1 + μ) / 2 := Real.sq_sqrt hpos.le
@@ -827,11 +817,7 @@ private theorem exists_half_angle (μ ν : ℝ) (h : μ ^ 2 + ν ^ 2 = 1) :
       rw [div_pow, h1, hden]
       have hne : (1 + μ : ℝ) ≠ 0 := by linarith
       field_simp [hne]
-    refine ⟨c, s, by linarith, by linarith, ?_⟩
-    have hcne : c ≠ 0 := hc_pos.ne'
-    calc
-      2 * c * (ν / (2 * c)) = (2 * c) * (ν / (2 * c)) := by ring
-      _ = ν := mul_div_cancel₀ ν (mul_ne_zero two_ne_zero hcne)
+    exact ⟨c, s, by linarith, by linarith, mul_div_cancel₀ ν (mul_ne_zero two_ne_zero hc_pos.ne')⟩
 
 private noncomputable def phaseSBool :
     EuclideanSpace ℂ Bool ≃ₗᵢ[ℂ] EuclideanSpace ℂ Bool where
@@ -950,16 +936,7 @@ theorem exists_sim_value {N : ℕ}
   let R := (step a₀).symm.trans (step a₁)
   obtain ⟨bas, μ, ν, hunit, heig⟩ := LinearIsometryEquiv.exists_orthonormalBasis_eigenvectors R
   let d := Module.finrank ℂ (EuclideanSpace ℂ V)
-  have hcs_ex : ∀ k : Fin d, ∃ p : ℝ × ℝ,
-      p.1 ^ 2 + p.2 ^ 2 = 1 ∧ p.1 ^ 2 - p.2 ^ 2 = μ k ∧ 2 * p.1 * p.2 = ν k := by
-    intro k
-    obtain ⟨c, s, h1, h2, h3⟩ := exists_half_angle (μ k) (ν k) (hunit k)
-    exact ⟨(c, s), h1, h2, h3⟩
-  let c : Fin d → ℝ := fun k => (Classical.choose (hcs_ex k)).1
-  let s : Fin d → ℝ := fun k => (Classical.choose (hcs_ex k)).2
-  have hcs : ∀ k, (c k) ^ 2 + (s k) ^ 2 = 1 := fun k => (Classical.choose_spec (hcs_ex k)).1
-  have hmu : ∀ k, (c k) ^ 2 - (s k) ^ 2 = μ k := fun k => (Classical.choose_spec (hcs_ex k)).2.1
-  have hnu : ∀ k, 2 * c k * s k = ν k := fun k => (Classical.choose_spec (hcs_ex k)).2.2
+  choose c s hcs hmu hnu using fun k : Fin d => exists_half_angle (μ k) (ν k) (hunit k)
   let Bchg : EuclideanSpace ℂ (Bool × V) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (Bool × Fin d) :=
     liftBasis bas.repr
   let Qpre : EuclideanSpace ℂ (Bool × Fin d) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (Bool × Fin d) :=
@@ -1144,9 +1121,8 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
     intro t ht
     induction t with
     | zero =>
-      rcases Nat.eq_zero_or_pos T with rfl | h0
-      · simp [runValue, U', ψ₀', liftFalse_embedFalse]
-      · simp [runValue, U', ψ₀', h0, liftFalse_embedFalse]
+      rcases Nat.eq_zero_or_pos T with rfl | h0 <;>
+        simp [runValue, U', ψ₀', liftFalse_embedFalse, *]
     | succ t ih =>
       have ht' : t < T := by omega
       have hprev := ih ht'.le

@@ -279,10 +279,9 @@ theorem relRank_smul_le (c : K) (f : MvPolynomial σ K) :
 
 /-- Scaling by a nonzero constant does not change the relative rank. -/
 theorem relRank_smul {c : K} (hc : c ≠ 0) (f : MvPolynomial σ K) :
-    relRank blk A B (c • f) = relRank blk A B f := by
-  refine (relRank_smul_le blk A B c f).antisymm ?_
-  calc relRank blk A B f = relRank blk A B (c⁻¹ • c • f) := by rw [inv_smul_smul₀ hc]
-    _ ≤ relRank blk A B (c • f) := relRank_smul_le blk A B _ _
+    relRank blk A B (c • f) = relRank blk A B f :=
+  (relRank_smul_le blk A B c f).antisymm
+    (by simpa [inv_smul_smul₀ hc] using relRank_smul_le blk A B c⁻¹ (c • f))
 
 /-- Negation does not change the relative rank. -/
 @[simp]
@@ -311,17 +310,17 @@ theorem relRank_mul_le {S T : Finset (Fin d)} {f g : MvPolynomial σ K}
     (hA : A ⊆ S ∪ T) (hB : B ⊆ S ∪ T) :
     relRank blk A B (f * g) ≤
       relRank blk (A ∩ S) (B ∩ S) f * relRank blk (A ∩ T) (B ∩ T) g := by
-  have hden : ((Fintype.card (BlockChoice blk A) * Fintype.card (BlockChoice blk B) : ℕ) : ℝ) =
-      ((Fintype.card (BlockChoice blk (A ∩ S)) * Fintype.card (BlockChoice blk (B ∩ S)) : ℕ) :
-        ℝ) *
+  rw [relRank, relRank, relRank, div_mul_div_comm, ← Real.sqrt_mul (Nat.cast_nonneg _)]
+  refine (?_ : _ = (relMatrix blk A B (f * g)).rank /
+    √(((Fintype.card (BlockChoice blk (A ∩ S)) * Fintype.card (BlockChoice blk (B ∩ S)) : ℕ) : ℝ) *
       ((Fintype.card (BlockChoice blk (A ∩ T)) * Fintype.card (BlockChoice blk (B ∩ T)) : ℕ) :
-        ℝ) := by
-    rw [card_blockChoice_inter_mul blk hST hA, card_blockChoice_inter_mul blk hST hB]
-    push_cast
-    ring
-  rw [relRank, relRank, relRank, div_mul_div_comm, ← Real.sqrt_mul (Nat.cast_nonneg _), ← hden]
-  exact div_le_div_of_nonneg_right (by exact_mod_cast rank_relMatrix_mul_le hf hg hST hA hB)
-    (Real.sqrt_nonneg _)
+        ℝ))).trans_le
+      (div_le_div_of_nonneg_right (by exact_mod_cast rank_relMatrix_mul_le hf hg hST hA hB)
+        (Real.sqrt_nonneg _))
+  congr 2
+  rw [card_blockChoice_inter_mul blk hST hA, card_blockChoice_inter_mul blk hST hB]
+  push_cast
+  ring
 
 /-- **Multiplicativity, as an inequality** ([LimayeSrinivasanTavenas2021, Claim 7(3), p. 7]): if
 the factors `f i` of a finite product are set-multilinear on pairwise disjoint sets `T i` of blocks,

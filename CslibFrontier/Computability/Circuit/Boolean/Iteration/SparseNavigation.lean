@@ -201,8 +201,7 @@ theorem cycle_label_visit_circuit (f : BitVec n → BitVec n)
   let x := fun z : BitString (n + n) => wordCycleLabel f (BitString.equivBitVec (inputLeft z))
   let y := fun z : BitString (n + n) => wordCycleLabel f (BitString.equivBitVec (inputRight z))
   have hle : labels.eval Boolean.interpretation =
-      fun x => wordCycleLabel f (BitString.equivBitVec x) :=
-    funext hl
+      fun x => wordCycleLabel f (BitString.equivBitVec x) := funext hl
   have hx : Synthesis Boolean.interpretation (inputs (n + n)) (wires x) labels.size := by
     simpa only [hle, wires] using Synthesis.circuit (I := Boolean.interpretation)
       (s := inputs (n + n)) labels (fun i z => inputLeft z i) (fun _ => ⟨_, rfl⟩)
@@ -248,9 +247,7 @@ theorem sparse_counter_visit_schedule (f : Equiv.Perm (BitVec n)) :
     exact cycleLabelVisits_spec f f.injective _ _ t
   refine ⟨out, hspec, fun z T => ?_, hs⟩
   rw [← visitScheduleCount_spec]
-  congr 1
-  ext t
-  exact and_congr_right (fun _ => hspec z t)
+  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
 
 /-- The existence flag and first hitting time have the same sparse circuit bound. -/
 theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
@@ -346,13 +343,10 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
         visitScheduleContains (out.eval Boolean.interpretation z) t := by
     rw [ho z]
     change _ ↔ visitScheduleContains (middle.eval Boolean.interpretation (args z)) t
-    rw [← hm (args z) t, hex z, hey z]
-    rw [← hconj.iterate_right t]
+    rw [← hm (args z) t, hex z, hey z, ← hconj.iterate_right t]
     exact e.injective.eq_iff.symm
   refine ⟨out, hspec, fun z T => ?_, by lia⟩
   rw [← visitScheduleCount_spec]
-  congr 1
-  ext t
-  exact and_congr_right (fun _ => hspec z t)
+  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
 
 end Cslib.Circuits.Boolean.Iteration

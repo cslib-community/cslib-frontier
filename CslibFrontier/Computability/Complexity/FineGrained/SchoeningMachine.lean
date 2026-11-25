@@ -332,13 +332,8 @@ private theorem computableInPolyTime_firstUnsatClauseBits :
 private theorem computableInPolyTime_flipBitAt :
     ComputableInPolyTime (fun p : List Bool × ℕ => flipBitAt p.1 p.2)
       (encPair encBits encUnary) encBits := by
-  have hlist : ComputableInPolyTime
-      (fun p : List Bool × ℕ =>
-        (List.range p.1.length).map fun i =>
-          if i == p.2 then !(p.1.getD i false) else p.1.getD i false)
-      (encPair encBits encUnary) (encList encBool) := by
-    fun_prop
-  exact ComputableInPolyTime.listToBits.comp hlist
+  unfold flipBitAt
+  exact ComputableInPolyTime.listToBits.comp (by fun_prop)
 
 private theorem isPPTOn_walkStepBits :
     IsPPTOn (encPair (encPair (encCNFOver encUnary) encUnary) encBits) encBits
@@ -353,8 +348,8 @@ private theorem isPPTOn_walkStepBits :
   have hempty : ComputableInPolyTime
       (fun p : (CNF ℕ × ℕ) × List Bool => (firstUnsatClauseBits p.1.1 p.2).isEmpty)
       InEnc encBool := (ComputableInPolyTime.listIsEmpty' (encPair encUnary encBool)).comp hc
-  have hw : ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × List Bool => p.1.2) InEnc encUnary :=
-    (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
+  have hw : ComputableInPolyTime (fun p : (CNF ℕ × ℕ) × List Bool => p.1.2) InEnc encUnary := by
+    fun_prop
   have hclen_unary : ComputableInPolyTime
       (fun p : (CNF ℕ × ℕ) × List Bool => (firstUnsatClauseBits p.1.1 p.2).length)
       InEnc encUnary := Clause.computableInPolyTime_length hc
@@ -398,16 +393,13 @@ private theorem isPPTOn_iterateBitsOfStep {P : Type} (encP : P ↪ List Bool)
       (fun x : (P × ℕ) × List Bool => OracleComp.iterate x.1.2 (stepFn x.1.1) x.2) := by
   let encIn := encPair (encPair encP encUnary) encBits
   have hparam : ComputableInPolyTime (fun q : ((P × ℕ) × List Bool) × List Bool => (q.1.1.1, q.2))
-      (encPair encIn encBits) (encPair encP encBits) :=
-    (((ComputableInPolyTime.fst encP encUnary).comp
-      (ComputableInPolyTime.fst (encPair encP encUnary) encBits)).comp
-      (ComputableInPolyTime.fst encIn encBits)).prod (ComputableInPolyTime.snd encIn encBits)
+      (encPair encIn encBits) (encPair encP encBits) := by
+    fun_prop
   exact (IsPPTOn.iterateWith_spec
     (input := encIn) (stateEncoding := encBits)
     (initial := Prod.snd) (count := fun x => x.1.2)
     (step := fun x bits => stepFn x.1.1 bits)
-    ((ComputableInPolyTime.snd encP encUnary).comp (ComputableInPolyTime.fst _ _))
-    (ComputableInPolyTime.snd _ _) (hstepFn.preprocess hparam)
+    (by fun_prop) (ComputableInPolyTime.snd _ _) (hstepFn.preprocess hparam)
     (fun x _ bits => bits.length = x.2.length) (fun _ => rfl)
     (fun x _ _ _ hlen _ hnext => (hlen_eq x.1.1 _ _ hnext).trans hlen)
     (size := fun x => (encIn x).length) PolyBounded.self

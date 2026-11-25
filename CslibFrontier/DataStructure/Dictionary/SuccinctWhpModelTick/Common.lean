@@ -63,16 +63,13 @@ private theorem BufMapRel.insert_skip {M tag b₀ : ℕ} {bktCnt : ℕ → ℕ}
     by_cases hbb : b = b₀
     · subst hbb; rw [Function.update_self]; exact Nat.lt_succ_of_lt hloc
     · rwa [Function.update_of_ne hbb]
-  · by_cases hbb : b = b₀
-    · subst hbb
-      rw [Function.update_self] at hloc_upd
-      rcases Nat.lt_succ_iff_lt_or_eq.mp hloc_upd with hlt | rfl
-      · exact ⟨hb, hlt, (hst_pres b hb loc hlt).symm.trans hst',
-          (hrk_pres b hb loc hlt).symm.trans hrk'⟩
-      · exact absurd hst' hst_new
-    · rw [Function.update_of_ne hbb] at hloc_upd
-      exact ⟨hb, hloc_upd, (hst_pres b hb loc hloc_upd).symm.trans hst',
-        (hrk_pres b hb loc hloc_upd).symm.trans hrk'⟩
+  · have hlt : loc < bktCnt b := by
+      rw [Function.update_apply] at hloc_upd
+      split_ifs at hloc_upd with hbb
+      · subst hbb; exact lt_of_le_of_ne (Nat.lt_succ_iff.mp hloc_upd) fun h => hst_new (h ▸ hst')
+      · exact hloc_upd
+    exact ⟨hb, hlt, (hst_pres b hb loc hlt).symm.trans hst',
+      (hrk_pres b hb loc hlt).symm.trans hrk'⟩
 
 private theorem inLiveTree_curEp_eq_false {fs : FastState} (hc : fs.curEp = 0 ∨ fs.curEp = 1)
     (doneB : ℕ) :

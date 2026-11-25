@@ -49,43 +49,28 @@ theorem cycleWord_eq_map_range {G : Graph} {c : RotationCertificate}
         (((decode G c h).rotate)^[k] d).index := by
   let r := decode G c h
   let step (i : ℕ) := c.successor.getD i 0
-  have hi : Function.Injective (Dart.index (G := G)) := fun a b hab =>
-    (Dart.indexEquiv G).injective (Fin.ext hab)
-  have hperiod : Function.minimalPeriod step d.index = Function.minimalPeriod r.rotate d := by
-    apply Function.minimalPeriod_eq_minimalPeriod_iff.mpr
-    intro k
-    change step^[k] d.index = d.index ↔ r.rotate^[k] d = d
-    rw [← show walk c.successor k d.index = step^[k] d.index from rfl, walk_index h]
-    exact hi.eq_iff
-  have hpos : 0 < Function.minimalPeriod step d.index := by
-    rw [hperiod]
-    exact Function.minimalPeriod_pos_of_mem_periodicPts (r.rotate.injective.mem_periodicPts d)
+  have hperiod : Function.minimalPeriod step d.index = Function.minimalPeriod r.rotate d :=
+    Function.minimalPeriod_eq_minimalPeriod_iff.mpr fun k => by
+      change walk c.successor k d.index = d.index ↔ r.rotate^[k] d = d
+      rw [walk_index h]
+      exact ⟨fun hk => (Dart.indexEquiv G).injective (Fin.ext hk), congrArg Dart.index⟩
+  have hpos : 0 < Function.minimalPeriod step d.index := hperiod ▸
+    Function.minimalPeriod_pos_of_mem_periodicPts (r.rotate.injective.mem_periodicPts d)
   have hbound : Function.minimalPeriod step d.index ≤ c.successor.length := by
-    rw [hperiod, length_of_verifyRotation h]
-    simpa only [Dart.card] using
-      (Function.minimalPeriod_le_card (f := r.rotate) (x := d))
+    rw [hperiod, length_of_verifyRotation h, ← Dart.card]
+    exact Function.minimalPeriod_le_card
   have he := Function.firstReturnWord_eq step d.index c.successor.length hpos hbound
-  change cycleWord c d.index = _
-  change d.index :: ((List.range c.successor.length).map fun k =>
-    step^[k + 1] d.index).take _ = _ at he
-  rw [show cycleWord c d.index = d.index ::
-    ((List.range c.successor.length).map fun k => step^[k + 1] d.index).take
-      (((List.range c.successor.length).map fun k => step^[k + 1] d.index).idxOf d.index)
-        from rfl, he, hperiod]
-  apply List.map_congr_left
-  intro k _
-  exact walk_index h d k
+  change cycleWord c d.index = _ at he
+  rw [he, hperiod]
+  exact List.map_congr_left fun k _ => walk_index h d k
 
 /-- No dart is duplicated in the computed word of an accepted table. -/
 theorem nodup_cycleWord {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) : (cycleWord c d.index).Nodup := by
   rw [cycleWord_eq_map_range h]
-  apply List.nodup_map_iff_inj_on List.nodup_range |>.mpr
-  intro i hi j hj he
-  rw [List.mem_range] at hi hj
-  have hinj : Function.Injective (Dart.index (G := G)) := fun a b hab =>
-    (Dart.indexEquiv G).injective (Fin.ext hab)
-  exact (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod hi hj).mp (hinj he)
+  exact (List.nodup_map_iff_inj_on List.nodup_range).mpr fun i hi j hj he =>
+    (Function.iterate_eq_iterate_iff_of_lt_minimalPeriod (List.mem_range.mp hi)
+      (List.mem_range.mp hj)).mp ((Dart.indexEquiv G).injective (Fin.ext he))
 
 /-- The stored cycle contains exactly the selected endpoint fiber. This uses actual
 indexed darts, so repeated labels on distinct edge occurrences remain distinct members. -/
@@ -93,37 +78,27 @@ theorem mem_cycleWord_iff {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d e : Dart G) :
     e.index ∈ cycleWord c d.index ↔ e.vertex = d.vertex := by
   let r := decode G c h
-  have hinj : Function.Injective (Dart.index (G := G)) := fun a b hab =>
-    (Dart.indexEquiv G).injective (Fin.ext hab)
   rw [cycleWord_eq_map_range h, List.mem_map]
-  constructor
-  · rintro ⟨k, _, hk⟩
-    have he : r.rotate^[k] d = e := hinj hk
-    have hc : r.rotate.SameCycle d e := ⟨(k : ℤ), by
+  refine ⟨fun ⟨k, _, hk⟩ => ?_, fun he => ?_⟩
+  · exact ((r.sameCycle_iff _ _).mp ⟨k, by
       rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow]
-      exact he⟩
-    exact ((r.sameCycle_iff _ _).mp hc).symm
-  · intro he
-    obtain ⟨k, hk⟩ := ((r.sameCycle_iff _ _).mpr he.symm).exists_nat_pow_eq
-    have hp := Function.minimalPeriod_pos_of_mem_periodicPts
-      (r.rotate.injective.mem_periodicPts d)
-    refine ⟨k % Function.minimalPeriod r.rotate d, List.mem_range.mpr
-      (Nat.mod_lt _ hp), ?_⟩
-    rw [Function.iterate_mod_minimalPeriod_eq, Equiv.Perm.iterate_eq_pow, hk]
+      exact (Dart.indexEquiv G).injective (Fin.ext hk)⟩).symm
+  · obtain ⟨k, hk⟩ := ((r.sameCycle_iff _ _).mpr he.symm).exists_nat_pow_eq
+    exact ⟨k % Function.minimalPeriod r.rotate d, List.mem_range.mpr
+      (Nat.mod_lt _ (Function.minimalPeriod_pos_of_mem_periodicPts
+        (r.rotate.injective.mem_periodicPts d))),
+      by rw [Function.iterate_mod_minimalPeriod_eq, Equiv.Perm.iterate_eq_pow, hk]⟩
 
 /-- Every entry of an accepted cycle word is the index of an actual dart in its endpoint
 fiber. Malformed out-of-range table values therefore cannot occur in such a word. -/
 theorem mem_cycleWord_iff_exists_dart {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d : Dart G) (index : ℕ) :
     index ∈ cycleWord c d.index ↔ ∃ e : Dart G, e.index = index ∧ e.vertex = d.vertex := by
-  constructor
-  · intro hm
-    rw [cycleWord_eq_map_range h, List.mem_map] at hm
+  refine ⟨fun hm => ?_, ?_⟩
+  · rw [cycleWord_eq_map_range h, List.mem_map] at hm
     obtain ⟨k, hkb, hk⟩ := hm
-    let e := ((decode G c h).rotate)^[k] d
-    refine ⟨e, hk, ?_⟩
-    exact (mem_cycleWord_iff h d e).mp
-      (by rw [cycleWord_eq_map_range h]; exact List.mem_map.mpr ⟨k, hkb, rfl⟩)
+    exact ⟨_, hk, (mem_cycleWord_iff h d _).mp
+      (cycleWord_eq_map_range h d ▸ List.mem_map.mpr ⟨k, hkb, rfl⟩)⟩
   · rintro ⟨e, rfl, he⟩
     exact (mem_cycleWord_iff h d e).mpr he
 
@@ -131,44 +106,36 @@ theorem mem_cycleWord_iff_exists_dart {G : Graph} {c : RotationCertificate}
 theorem mem_tail_cycleWord_iff {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d e : Dart G) :
     e.index ∈ (cycleWord c d.index).tail ↔ e.vertex = d.vertex ∧ e ≠ d := by
-  have hn := nodup_cycleWord h d
-  have hhead : cycleWord c d.index = d.index :: (cycleWord c d.index).tail := rfl
-  rw [hhead, List.nodup_cons] at hn
-  constructor
-  · intro hm
-    refine ⟨(mem_cycleWord_iff h d e).mp (List.mem_of_mem_tail hm), ?_⟩
-    intro he
-    exact hn.1 (he ▸ hm)
-  · rintro ⟨hv, he⟩
-    have hm := (mem_cycleWord_iff h d e).mpr hv
-    rw [hhead, List.mem_cons] at hm
-    rcases hm with hm | hm
-    · exact False.elim (he ((Dart.indexEquiv G).injective (Fin.ext hm)))
-    · exact hm
+  have hn := List.nodup_cons.mp (nodup_cycleWord h d)
+  refine ⟨fun hm => ⟨(mem_cycleWord_iff h d e).mp (List.mem_of_mem_tail hm),
+    fun he => hn.1 (he ▸ hm)⟩, fun ⟨hv, he⟩ => ?_⟩
+  exact (List.mem_cons.mp ((mem_cycleWord_iff h d e).mpr hv)).resolve_left fun hm =>
+    he ((Dart.indexEquiv G).injective (Fin.ext hm))
 
 /-- The directed word's cyclic successor is the supplied raw successor at every member.
 This identifies the actual order, not only its set of darts or endpoint fiber. -/
 theorem formPerm_cycleWord_apply {G : Graph} {c : RotationCertificate}
     (h : verifyRotation G c = true) (d e : Dart G) (he : e.vertex = d.vertex) :
     (cycleWord c d.index).formPerm e.index = c.successor.getD e.index 0 := by
-  let r := decode G c h
-  let p := Function.minimalPeriod r.rotate d
-  have hm := (mem_cycleWord_iff h d e).mpr he
-  rw [cycleWord_eq_map_range h, List.mem_map] at hm
-  obtain ⟨k, hk, hke⟩ := hm
-  have hlen : (cycleWord c d.index).length = p := by
-    simp [cycleWord_eq_map_range h, p, r]
+  obtain ⟨k, hk, hke⟩ :=
+    List.mem_map.mp (cycleWord_eq_map_range h d ▸ (mem_cycleWord_iff h d e).mpr he)
   have hbound : k < (cycleWord c d.index).length := by
-    rw [hlen]
-    exact List.mem_range.mp hk
+    simpa [cycleWord_eq_map_range h] using List.mem_range.mp hk
   have hget : (cycleWord c d.index)[k] = e.index := by
     simpa only [cycleWord_eq_map_range h, List.getElem_map, List.getElem_range] using hke
   rw [← hget, List.formPerm_apply_getElem _ (nodup_cycleWord h d) _ hbound]
   simp only [cycleWord_eq_map_range h, List.length_map, List.length_range,
     List.getElem_map, List.getElem_range]
-  rw [Function.iterate_mod_minimalPeriod_eq, Function.iterate_succ_apply']
-  have hrot : r.rotate^[k] d = e := (Dart.indexEquiv G).injective (Fin.ext hke)
-  rw [hrot, index_decode_rotate h]
+  rw [Function.iterate_mod_minimalPeriod_eq, Function.iterate_succ_apply',
+    (Dart.indexEquiv G).injective (Fin.ext hke), index_decode_rotate h]
+
+/-- Roots at different vertices have disjoint words, even when their edges are parallel. -/
+theorem disjoint_cycleWord {G : Graph} {c : RotationCertificate}
+    (hc : verifyRotation G c = true) (a b : Dart G) (hab : a.vertex ≠ b.vertex) :
+    (cycleWord c a.index).Disjoint (cycleWord c b.index) := by
+  refine List.disjoint_left.mpr fun n ha hb => ?_
+  obtain ⟨d, rfl, hd⟩ := (mem_cycleWord_iff_exists_dart hc a n).mp ha
+  exact hab (hd.symm.trans ((mem_cycleWord_iff hc b d).mp hb))
 
 open Equiv in
 /-- The two ways of swapping successors around markers on different vertex cycles give
@@ -198,12 +165,8 @@ theorem formPerm_cycleWord_join_skip_iff {G : Graph} (r : RotationSystem G)
   have hform (root d : Dart G) (hd : d.vertex = root.vertex) :
       (cycleWord c root.index).formPerm d.index = (r.rotate d).index := by
     rw [formPerm_cycleWord_apply hc root d hd, ← index_decode_rotate hc, decode_ofRotation r hG]
-  have hn : (A ++ B).Nodup := by
-    refine List.nodup_append'.mpr ⟨nodup_cycleWord hc a, nodup_cycleWord hc b, ?_⟩
-    apply List.disjoint_left.mpr
-    intro n ha hb
-    obtain ⟨d, rfl, hd⟩ := (mem_cycleWord_iff_exists_dart hc a n).mp ha
-    exact hab (hd.symm.trans ((hmem b d).mp hb))
+  have hn : (A ++ B).Nodup := List.nodup_append'.mpr
+    ⟨nodup_cycleWord hc a, nodup_cycleWord hc b, disjoint_cycleWord hc a b hab⟩
   let p (d : Dart G) := d.vertex = a.vertex ∨ d.vertex = b.vertex
   have hproduct (d : Dart G) (hd : p d) :
       (r.rotate d).index = (A.formPerm * B.formPerm) d.index := by

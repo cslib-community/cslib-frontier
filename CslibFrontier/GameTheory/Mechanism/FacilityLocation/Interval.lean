@@ -152,12 +152,9 @@ variable {ι : Type*} [Fintype ι] {a b : ℝ} (E : MoulinScheme ι a b)
 private noncomputable def evalVal (x : ι → Set.Icc a b) : ℝ :=
   finMin b Finset.univ fun S => max (E.alpha S) (finMax a S fun i => (x i : ℝ))
 
-private lemma evalVal_mem_Icc (x : ι → Set.Icc a b) : E.evalVal x ∈ Set.Icc a b := by
-  refine ⟨?_, ?_⟩
-  · refine le_finMin ?_ fun S _ => ?_
-    · exact (E.mem_Icc Finset.univ).1.trans (E.mem_Icc Finset.univ).2
-    · exact le_max_of_le_left (E.mem_Icc S).1
-  · exact finMin_le_base b Finset.univ _
+private lemma evalVal_mem_Icc (x : ι → Set.Icc a b) : E.evalVal x ∈ Set.Icc a b :=
+  ⟨le_finMin ((E.mem_Icc Finset.univ).1.trans (E.mem_Icc Finset.univ).2) fun S _ =>
+    le_max_of_le_left (E.mem_Icc S).1, finMin_le_base b Finset.univ _⟩
 
 /-- Evaluates a `MoulinScheme` on an agent profile `x : ι → Set.Icc a b`, returning
 `min_{S} max(α_S, max(a, sup_{i ∈ S} x_i)) ∈ Set.Icc a b`. -/
@@ -247,35 +244,29 @@ theorem eval_isGroupStrategyProof [DecidableEq ι] [MeasurableSpace (Set.Icc a b
   rintro x z A ⟨hle, i₀, _, hlt⟩
   let y : ℝ := (E.eval x : ℝ)
   let y' : ℝ := (E.eval (A.piecewise z x) : ℝ)
-  have hne : y ≠ y' := fun heq => hlt.ne <| by
-    rw [Subtype.dist_eq, Subtype.dist_eq]; change dist (x i₀ : ℝ) y' = dist (x i₀ : ℝ) y; rw [heq]
+  have hne : y ≠ y' := fun heq => hlt.ne (by rw [Subtype.ext heq])
   have hdist_le : ∀ i ∈ A, |y' - (x i : ℝ)| ≤ |y - (x i : ℝ)| := fun i hi => by
     simpa [Subtype.dist_eq, Real.dist_eq, abs_sub_comm, y, y'] using hle i hi
   rcases lt_or_gt_of_ne hne with hy_lt | hy'_lt
-  · have hA_gt : ∀ i ∈ A, y < (x i : ℝ) := fun i hi => by
-      have hsq := sq_le_sq.mpr (hdist_le i hi)
-      nlinarith
+  · have hA_gt (i : ι) (hi : i ∈ A) : y < (x i : ℝ) := by nlinarith [sq_le_sq.mpr (hdist_le i hi)]
     obtain ⟨S₀, hS₀⟩ := E.exists_eval_witness x
     have hdisj : ∀ j ∈ S₀, j ∉ A := fun j hjS hjA => (hA_gt j hjA).not_ge <|
       (le_max_of_le_right (mem_le_finMax a (fun k => (x k : ℝ)) hjS)).trans_eq hS₀
     have hfin_eq : (finMax a S₀ fun j => ((A.piecewise z x j : Set.Icc a b) : ℝ)) =
         finMax a S₀ fun j => (x j : ℝ) :=
       finMax_eq_of_eqOn a S₀ fun j hj => by simp [Finset.piecewise_eq_of_notMem _ _ _ (hdisj j hj)]
-    have hy' : y' ≤ y := (E.eval_le_branch (A.piecewise z x) S₀).trans_eq (by rw [hfin_eq, hS₀])
-    exact hy_lt.not_ge hy'
-  · have hA_lt : ∀ i ∈ A, (x i : ℝ) < y := fun i hi => by
-      have hsq := sq_le_sq.mpr (hdist_le i hi)
-      nlinarith
+    exact hy_lt.not_ge ((E.eval_le_branch (A.piecewise z x) S₀).trans_eq (by rw [hfin_eq, hS₀]))
+  · have hA_lt (i : ι) (hi : i ∈ A) : (x i : ℝ) < y := by nlinarith [sq_le_sq.mpr (hdist_le i hi)]
     obtain ⟨S₁, hS₁⟩ := E.exists_eval_witness (A.piecewise z x)
     have hα : E.alpha (S₁ ∪ A) < y := (E.antitone Finset.subset_union_left).trans_lt <|
       ((le_max_left _ _).trans_eq hS₁).trans_lt hy'_lt
     have hmem_lt : ∀ j ∈ S₁ ∪ A, (x j : ℝ) < y := fun j hj => by
       by_cases hjA : j ∈ A
       · exact hA_lt j hjA
-      · have hjS : j ∈ S₁ := (Finset.mem_union.mp hj).resolve_right hjA
-        have heq : (x j : ℝ) = ((A.piecewise z x j : Set.Icc a b) : ℝ) := by
-          simp [Finset.piecewise_eq_of_notMem _ _ _ hjA]
-        exact heq.symm ▸ ((le_max_of_le_right (mem_le_finMax a _ hjS)).trans_eq hS₁).trans_lt hy'_lt
+      · simpa [Finset.piecewise_eq_of_notMem _ _ _ hjA] using
+          ((le_max_of_le_right
+            (mem_le_finMax a _ ((Finset.mem_union.mp hj).resolve_right hjA))).trans_eq hS₁).trans_lt
+            hy'_lt
     exact (E.eval_le_branch x (S₁ ∪ A)).not_gt
       (max_lt hα (finMax_lt ((E.mem_Icc _).1.trans_lt hα) hmem_lt))
 
@@ -303,16 +294,11 @@ private lemma evalVal_update_eq [DecidableEq ι] (x : ι → Set.Icc a b) (i₀ 
     split_ifs with hi
     · have hfin : (finMax a S fun j => ((Function.update x i₀ z j : Set.Icc a b) : ℝ)) =
           max (z : ℝ) (finMax a (S.erase i₀) fun j => (x j : ℝ)) := by
-        let gz : ι → ℝ := fun j => ((Function.update x i₀ z j : Set.Icc a b) : ℝ)
-        refine le_antisymm (finMax_le (le_max_of_le_right (le_finMax a _ _)) fun j hj => ?_)
-          (max_le (by simpa only [gz, Function.update_self] using mem_le_finMax a gz hi)
-            (finMax_le (le_finMax a S gz) fun j hj => by
-              simpa only [gz, Function.update_of_ne (Finset.ne_of_mem_erase hj)] using
-                mem_le_finMax a gz (Finset.erase_subset _ _ hj)))
-        by_cases hji : j = i₀
-        · subst hji; simp
-        · exact le_max_of_le_right <| by
-            simpa [hji] using mem_le_finMax a (fun k => (x k : ℝ)) (Finset.mem_erase.mpr ⟨hji, hj⟩)
+        dsimp only [finMax]
+        conv_lhs => rw [← Finset.insert_erase hi]
+        rw [Finset.fold_insert (Finset.notMem_erase _ _), Function.update_self]
+        exact congrArg _ (Finset.fold_congr fun j hj => by
+          rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)])
       rw [hfin]; dsimp only [g]; rw [max_left_comm, max_comm]
     · dsimp only [g]; rw [Finset.erase_eq_of_notMem hi]; congr 1
       exact finMax_eq_of_eqOn a S fun j hj => by simp [show j ≠ i₀ from fun h => hi (h ▸ hj)]
@@ -501,20 +487,16 @@ private lemma coord_no_right_jump [DecidableEq ι] {f : (ι → Set.Icc a b) →
   have ht₀_eq : (t₀ : ℝ) = (u₀ + v₀) / 2 := by
     rcases lt_trichotomy (t₀ : ℝ) ((u₀ + v₀) / 2) with hlt | heq | hgt
     · let t' := ((t₀ : ℝ) + min ((u₀ + v₀) / 2) (t₁ : ℝ)) / 2
-      have ht'_def : t' = ((t₀ : ℝ) + min ((u₀ + v₀) / 2) (t₁ : ℝ)) / 2 := rfl
-      have hmin_gt : (t₀ : ℝ) < min ((u₀ + v₀) / 2) (t₁ : ℝ) := lt_min hlt ht₁
-      have hmin_l : min ((u₀ + v₀) / 2) (t₁ : ℝ) ≤ (u₀ + v₀) / 2 := min_le_left _ _
-      have hmin_r : min ((u₀ + v₀) / 2) (t₁ : ℝ) ≤ t₁ := min_le_right _ _
-      have ht'_gt : (t₀ : ℝ) < t' := by linarith [ht'_def, hmin_gt]
-      have ht'_le : t' ≤ t₁ := by linarith [ht'_def, hmin_r]
-      have ht'_lt : t' < (u₀ + v₀) / 2 := by linarith [ht'_def, hmin_l]
+      have ht'_gt : (t₀ : ℝ) < t' := by dsimp only [t']; linarith [lt_min hlt ht₁]
+      have ht'_le : t' ≤ t₁ := by dsimp only [t']; linarith [min_le_right ((u₀ + v₀) / 2) (t₁ : ℝ)]
+      have ht'_lt : t' < (u₀ + v₀) / 2 := by
+        dsimp only [t']; linarith [min_le_left ((u₀ + v₀) / 2) (t₁ : ℝ)]
       have ht'_mem : t' ∈ Set.Icc a b := ⟨t₀.2.1.trans ht'_gt.le, ht'_le.trans t₁.2.2⟩
       have hv_le : v₀ ≤ g ⟨t', ht'_mem⟩ :=
         csInf_le ⟨u₀ + ε, hS_lo⟩ ⟨⟨t', ht'_mem⟩, ht'_gt, rfl⟩
-      have hsp' := hg_sp ⟨t', ht'_mem⟩ t₀
       have h1 : v₀ - t' ≤ |g ⟨t', ht'_mem⟩ - t'| := by rw [abs_of_nonneg (by linarith)]; linarith
       have h2 : |u₀ - t'| < v₀ - t' := abs_lt.mpr ⟨by linarith, by linarith⟩
-      linarith
+      linarith [hg_sp ⟨t', ht'_mem⟩ t₀]
     · exact heq
     · obtain ⟨_, ⟨t, ht_gt, rfl⟩, hy_lt⟩ :=
         (csInf_lt_iff ⟨u₀ + ε, hS_lo⟩ hS_ne).mp
@@ -523,8 +505,7 @@ private lemma coord_no_right_jump [DecidableEq ι] {f : (ι → Set.Icc a b) →
       have h1 : |g t - (t₀ : ℝ)| < (t₀ : ℝ) - u₀ := abs_lt.mpr ⟨by linarith, by linarith⟩
       have h2 : |u₀ - (t₀ : ℝ)| = (t₀ : ℝ) - u₀ := by rw [abs_of_neg (by linarith)]; ring
       linarith [hg_sp t₀ t]
-  let η := (v₀ - u₀) / 16
-  have hη_def : η = (v₀ - u₀) / 16 := rfl
+  set η := (v₀ - u₀) / 16 with hη_def
   have hη : 0 < η := by linarith [hu₀_le_v₀, hε, hη_def]
   have htplus_mem : (t₀ : ℝ) + η / 4 ∈ Set.Icc a b :=
     ⟨t₀.2.1.trans (by linarith),
@@ -679,11 +660,9 @@ theorem isStrategyProof_and_surjective_iff_exists_moulinScheme
       { alpha := fun S => (f (indProf S) : ℝ)
         mem_Icc := fun S => (f (indProf S)).2
         antitone := fun S T hST => profile_mono_of_sp hf_sp' fun i => by
-          by_cases hT : i ∈ T <;> by_cases hS : i ∈ S
-          · simp [indProf, hT, hS]
-          · simpa [indProf, hT, hS, aPt, bPt] using hab
-          · exact absurd (hST hS) hT
-          · simp [indProf, hT, hS]
+          by_cases hS : i ∈ S
+          · simp [indProf, hS, hST hS]
+          · by_cases hT : i ∈ T <;> simp [indProf, hS, hT, aPt, bPt, hab]
         boundary_empty := by
           rw [show indProf ∅ = fun _ => bPt by ext; simp [indProf], hf_unan]
         boundary_univ := by
@@ -726,19 +705,14 @@ theorem isStrategyProof_and_surjective_iff_exists_moulinScheme
     | succ k ih =>
       intro y hcard
       obtain ⟨i₀, hi₀⟩ := Finset.card_pos.mp (by rw [hcard]; exact Nat.succ_pos k)
-      have hcard_upd : ∀ z : Set.Icc a b, z = aPt ∨ z = bPt →
+      have hcard_upd (z : Set.Icc a b) (hz : z = aPt ∨ z = bPt) :
           (Finset.univ.filter fun i =>
             Function.update y i₀ z i ≠ aPt ∧ Function.update y i₀ z i ≠ bPt).card = k := by
-        intro z hz
-        have hsub : (Finset.univ.filter fun i =>
+        suffices (Finset.univ.filter fun i =>
             Function.update y i₀ z i ≠ aPt ∧ Function.update y i₀ z i ≠ bPt) =
-            (Finset.univ.filter fun i => y i ≠ aPt ∧ y i ≠ bPt).erase i₀ := by
-          ext j
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-          by_cases hj : j = i₀
-          · subst hj; rcases hz with rfl | rfl <;> simp
-          · simp [hj]
-        rw [hsub, Finset.card_erase_of_mem hi₀, hcard]; simp
+            (Finset.univ.filter fun i => y i ≠ aPt ∧ y i ≠ bPt).erase i₀ by
+          rw [this, Finset.card_erase_of_mem hi₀, hcard]; rfl
+        ext j; rcases eq_or_ne j i₀ with rfl | hj <;> rcases hz with rfl | rfl <;> simp [*]
       have hy_upd : Function.update y i₀ (y i₀) = y := Function.update_eq_self i₀ y
       calc
         (f y : ℝ) = (f (Function.update y i₀ (y i₀)) : ℝ) := by rw [hy_upd]

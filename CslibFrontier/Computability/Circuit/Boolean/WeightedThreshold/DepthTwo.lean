@@ -94,17 +94,14 @@ is nonzero. -/
 @[simp]
 theorem mem_lineSupport (line : Line signature n g) (w : Wire n g) :
     w ∈ lineSupport line ↔ lineWeight line w ≠ 0 := by
-  classical
-  simp [lineSupport]
+  classical simp [lineSupport]
 
 /-- The number of active wires of a line is at most the syntactic arity of its operation. -/
 theorem card_lineSupport_le_arity (line : Line signature n g) :
     #(lineSupport line) ≤ line.op.arity := by
   classical
-  have hsub : lineSupport line ⊆ univ.image line.wires := by
-    intro w hw
-    rw [mem_lineSupport] at hw
-    obtain ⟨a, ha, _⟩ := exists_ne_zero_of_sum_ne_zero hw
+  have hsub : lineSupport line ⊆ univ.image line.wires := fun w hw => by
+    obtain ⟨a, ha, _⟩ := exists_ne_zero_of_sum_ne_zero ((mem_lineSupport line w).mp hw)
     exact mem_image.mpr ⟨a, mem_univ a, (mem_filter.mp ha).2⟩
   exact (card_le_card hsub).trans (card_image_le.trans (by simp))
 
@@ -135,16 +132,14 @@ theorem wireCount_eq_inputWireCount_add (p : Program signature n g) :
 
 /-- The direct-input wire count of a program is at most its total active wire count. -/
 theorem inputWireCount_le_wireCount (p : Program signature n g) :
-    inputWireCount p ≤ wireCount p := by
-  rw [wireCount_eq_inputWireCount_add]
-  exact Nat.le_add_right _ _
+    inputWireCount p ≤ wireCount p :=
+  (wireCount_eq_inputWireCount_add p).symm ▸ Nat.le_add_right _ _
 
 /-- The active wire count of a program is at most its syntactic argument-slot count
 `p.cost Op.arity`. -/
 theorem wireCount_le_cost_arity (p : Program signature n g) :
-    wireCount p ≤ p.cost Op.arity := by
-  rw [wireCount, p.cost_eq_sum]
-  exact sum_le_sum fun gate _ => card_lineSupport_le_arity (p.lines gate)
+    wireCount p ≤ p.cost Op.arity :=
+  p.cost_eq_sum Op.arity ▸ sum_le_sum fun gate _ => card_lineSupport_le_arity (p.lines gate)
 
 end Cslib.Circuits.Boolean.WeightedThreshold
 
@@ -236,34 +231,23 @@ theorem lines_depthTwo_bottom_or_top (top : Op) (bottom : Fin top.arity → Op)
     (∃ j, (depthTwo top bottom args).program.lines k = ⟨bottom j, fun a => .input (args j a)⟩) ∨
       ∃ ws : Fin top.arity → Fin (depthTwo top bottom args).size,
         (depthTwo top bottom args).program.lines k = ⟨top, fun a => .gate (ws a)⟩ := by
-  obtain ⟨k, rfl⟩ | ⟨k, rfl⟩ :
-      (∃ k', k = Fin.castAdd 1 k') ∨ ∃ k', k = Fin.natAdd
-        (Circuit.pi fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)).size k' :=
-    Fin.addCases (motive := fun k => (∃ k', k = Fin.castAdd 1 k') ∨ ∃ k', k = Fin.natAdd _ k')
-      (fun k' => .inl ⟨k', rfl⟩) (fun k' => .inr ⟨k', rfl⟩) k
+  refine Fin.addCases (fun k => ?_) (fun k => ?_) k
   · obtain ⟨j, k', f, hi, -, hk⟩ := Circuit.exists_lines_pi _ k
-    refine .inl ⟨j, ?_⟩
     obtain rfl : k' = Fin.last 0 := Fin.fin_one_eq_zero k'
-    refine (Program.lines_append_castAdd _ _ _ k).trans ?_
+    refine .inl ⟨j, (Program.lines_append_castAdd _ _ _ k).trans ?_⟩
     rw [hk]
-    change ((((Program.empty : Program signature n 0).gate
-      (⟨bottom j, fun a => Wire.input (args j a)⟩ : Line signature n 0)).lines
-        (Fin.last 0)).mapWires f).mapWires (Wire.castAdd 1) = _
+    change (((Program.empty.gate _).lines (Fin.last 0)).mapWires f).mapWires (Wire.castAdd 1) = _
     rw [Program.lines_gate_last]
     exact congrArg (Line.mk (σ := signature) (bottom j))
       (funext fun a => congrArg (Wire.castAdd 1) (hi (args j a)))
   · obtain rfl : k = Fin.last 0 := Fin.fin_one_eq_zero k
     choose ws hws using Circuit.outputs_pi_eq_gate
       (fun j => Circuit.oneGate (σ := signature) (bottom j) (args j)) (fun _ => ⟨Fin.last 0, rfl⟩)
-    refine .inr ⟨fun a => Fin.castAdd 1 (ws a), ?_⟩
-    refine (Program.lines_append_natAdd _ _ _ (Fin.last 0)).trans ?_
-    change (((Program.empty : Program signature top.arity 0).gate
-      (⟨top, fun a => Wire.input a⟩ : Line signature top.arity 0)).lines (Fin.last 0)).mapWires
-        (Program.appendedWire _) = _
+    refine .inr ⟨fun a => Fin.castAdd 1 (ws a), (Program.lines_append_natAdd _ _ _ _).trans ?_⟩
+    change ((Program.empty.gate _).lines (Fin.last 0)).mapWires (Program.appendedWire _) = _
     rw [Program.lines_gate_last]
     simp only [Line.mapWires, Function.comp_def, Wire.Renaming.castSucc_apply, Wire.castSucc_input,
-      Program.appendedWire_input, hws, Wire.castAdd_gate]
-    rfl
+      Program.appendedWire_input, hws, Wire.castAdd_gate]; rfl
 
 /-! ### Alternating linear function and integer interval telescoping -/
 
@@ -275,9 +259,7 @@ def altLinear (u : ℤ) : ℤ :=
 theorem negOnePow_sum {α : Type*} (s : Finset α) (f : α → ℤ) :
     ((∑ x ∈ s, f x).negOnePow : ℤ) = ∏ x ∈ s, ((f x).negOnePow : ℤ) := by
   classical
-  induction s using Finset.induction_on with
-  | empty => simp
-  | insert a s ha ih =>
+  exact Finset.induction_on s (by simp) fun a s ha ih => by
     rw [sum_insert ha, Int.negOnePow_add, Units.val_mul, ih, prod_insert ha]
 
 /-- **Alternating linear shift identity**: for all integers `X` and `t`,
@@ -285,19 +267,14 @@ theorem negOnePow_sum {α : Type*} (s : Finset α) (f : α → ℤ) :
 `φ(X + t) - φ(t) = X * (-1) ^ t`. -/
 theorem negOnePow_mul_altLinear_add_sub_altLinear (X t : ℤ) :
     (X.negOnePow : ℤ) * altLinear (X + t) - altLinear t = X * (t.negOnePow : ℤ) := by
-  have hX : (X.negOnePow : ℤ) * X.negOnePow = 1 := by
-    rw [← Units.val_mul, Int.units_mul_self, Units.val_one]
   simp only [altLinear, Int.negOnePow_add, Units.val_mul]
-  have hassoc : (X.negOnePow : ℤ) * ((X.negOnePow : ℤ) * t.negOnePow * (X + t)) =
-      ((X.negOnePow : ℤ) * X.negOnePow) * (t.negOnePow * (X + t)) := by ring
-  rw [hassoc, hX]
+  rw [← mul_assoc, ← mul_assoc, ← Units.val_mul, Int.units_mul_self, Units.val_one, one_mul]
   ring
 
 /-- The discrete derivative of `altLinear` at `u` is `(-1) ^ (u + 1) * (2 * u + 1)`. -/
 theorem altLinear_add_one_sub (u : ℤ) :
     altLinear (u + 1) - altLinear u = ((u + 1).negOnePow : ℤ) * (2 * u + 1) := by
-  simp only [altLinear, Int.negOnePow_succ, Units.val_neg]
-  ring
+  simp only [altLinear, Int.negOnePow_succ, Units.val_neg]; ring
 
 /-- `altLinear` is odd. -/
 theorem altLinear_neg (u : ℤ) : altLinear (-u) = -altLinear u := by
@@ -316,8 +293,7 @@ def altLinearTrunc (R : ℕ) (u : ℤ) : ℤ :=
 
 /-- `altLinearTrunc` is odd. -/
 theorem altLinearTrunc_neg (R : ℕ) (u : ℤ) : altLinearTrunc R (-u) = -altLinearTrunc R u := by
-  simp only [altLinearTrunc, Int.natAbs_neg, altLinear_neg]
-  split_ifs <;> simp
+  simp only [altLinearTrunc, Int.natAbs_neg, altLinear_neg]; split_ifs <;> simp
 
 /-- The truncation error of the pair of reflected forms `x + d` and `x - d`:
 `(f_R - φ)(x + d) + (f_R - φ)(x - d)`. It is odd in `x`. -/
@@ -326,21 +302,15 @@ def altLinearTruncErrorPair (R : ℕ) (x d : ℤ) : ℤ :=
 
 theorem altLinearTruncErrorPair_neg (R : ℕ) (x d : ℤ) :
     altLinearTruncErrorPair R (-x) d = -altLinearTruncErrorPair R x d := by
-  rw [altLinearTruncErrorPair, altLinearTruncErrorPair, show -x + d = -(x - d) by ring,
-    show -x - d = -(x + d) by ring, altLinearTrunc_neg, altLinearTrunc_neg, altLinear_neg,
-    altLinear_neg]
-  ring
+  simp only [altLinearTruncErrorPair, show -x + d = -(x - d) by ring,
+    show -x - d = -(x + d) by ring, altLinearTrunc_neg, altLinear_neg]; ring
 
 /-- The squared truncation error of one form is `u² [|u| > R]`. -/
 theorem sq_altLinearTrunc_sub_altLinear (R : ℕ) (u : ℤ) :
     ((altLinearTrunc R u - altLinear u : ℤ) : ℝ) ^ 2 =
       if R < u.natAbs then (u : ℝ) ^ 2 else 0 := by
   unfold altLinearTrunc
-  split_ifs with h1 h2 h2
-  · omega
-  · simp
-  · rw [zero_sub, Int.cast_neg, neg_sq, ← Int.cast_pow, altLinear_sq, Int.cast_pow]
-  · omega
+  split_ifs <;> first | omega | simp [← Int.cast_pow, altLinear_sq]
 
 /-- **Integer interval telescoping**: any function `f : ℤ → ℤ` on an integer `u ∈ [ℓ, ℓ + L]`
 equals `f ℓ` plus the sum of its step differences weighted by threshold indicators
@@ -348,33 +318,18 @@ equals `f ℓ` plus the sum of its step differences weighted by threshold indica
 theorem sum_sub_mul_decide_le (f : ℤ → ℤ) {ℓ u : ℤ} {L : ℕ}
     (hlo : ℓ ≤ u) (hhi : u ≤ ℓ + L) :
     f ℓ + ∑ k : Fin L, (f (ℓ + k + 1) - f (ℓ + k)) * (decide (ℓ + k + 1 ≤ u)).toNat = f u := by
-  induction L generalizing u with
-  | zero =>
-    have hu : u = ℓ := by omega
-    simp [hu]
-  | succ L ih =>
-    rw [Fin.sum_univ_castSucc]
-    by_cases hle : u ≤ ℓ + L
-    · have hlast : ¬ (ℓ + (Fin.last L : ℕ) + 1 ≤ u) := by grind
-      simp only [Fin.val_castSucc, hlast, decide_false, Bool.toNat_false, Nat.cast_zero, mul_zero,
-        add_zero]
-      exact ih hlo hle
-    · push_cast at hhi
-      have hu : u = ℓ + L + 1 := by omega
-      have hlast : ℓ + L + 1 ≤ u := by omega
-      have hcongr :
-          ∑ k : Fin L, (f (ℓ + (k.castSucc : ℕ) + 1) - f (ℓ + (k.castSucc : ℕ))) *
-              ((decide (ℓ + (k.castSucc : ℕ) + 1 ≤ u)).toNat : ℤ) =
-            ∑ k : Fin L, (f (ℓ + (k : ℕ) + 1) - f (ℓ + (k : ℕ))) *
-              ((decide (ℓ + (k : ℕ) + 1 ≤ ℓ + L)).toNat : ℤ) := by
-        refine sum_congr rfl fun k _ => ?_
-        have hk1 : ℓ + (k : ℕ) + 1 ≤ u := by omega
-        have hk2 : ℓ + (k : ℕ) + 1 ≤ ℓ + L := by omega
-        simp [hk1, hk2]
-      rw [hcongr, ← add_assoc, ih (u := ℓ + L) (by omega) le_rfl, Fin.val_last]
-      simp only [hlast, decide_true, Bool.toNat_true, Nat.cast_one, mul_one]
-      rw [hu]
-      ring
+  set m : ℕ := (u - ℓ).toNat
+  have hm : ℓ + m = u ∧ m ≤ L := by omega
+  have hsum : (∑ k : Fin L, (f (ℓ + k + 1) - f (ℓ + k)) * (decide (ℓ + k + 1 ≤ u)).toNat) =
+      ∑ k ∈ range m, (f (ℓ + (k + 1 : ℕ)) - f (ℓ + k)) := by
+    rw [Fin.sum_univ_eq_sum_range (fun k : ℕ =>
+        (f (ℓ + k + 1) - f (ℓ + k)) * (decide (ℓ + k + 1 ≤ u)).toNat),
+      ← sum_subset (range_mono hm.2)]
+    · refine sum_congr rfl fun k hk => ?_
+      rw [mem_range] at hk; simp [show ℓ + ((k : ℕ) + 1) ≤ u by omega, add_assoc]
+    · intro k _ hk
+      rw [mem_range] at hk; simp [show ¬(ℓ + (k : ℕ) + 1 ≤ u) by omega]
+  rw [hsum, sum_range_sub (fun k : ℕ => f (ℓ + k)), Nat.cast_zero, add_zero, hm.1, add_sub_cancel]
 
 /-- **The staircase of `f_R`**: `f_R(u) = ∑_{k < 2 R + 2} (f_R(θ_k) - f_R(θ_k - 1)) [θ_k ≤ u]` for
 every integer `u`, with thresholds `θ_k = -R + k`. -/
@@ -386,17 +341,13 @@ theorem altLinearTrunc_eq_sum (R : ℕ) (u : ℤ) :
   set u' : ℤ := max ℓ (min u (ℓ + (2 * R + 2 : ℕ)))
   have h := sum_sub_mul_decide_le (altLinearTrunc R) (ℓ := ℓ) (u := u') (L := 2 * R + 2)
     (le_max_left _ _) (max_le (by push_cast; omega) (min_le_right _ _))
-  have hℓ : altLinearTrunc R ℓ = 0 := by
-    simp only [altLinearTrunc, ℓ]
-    split_ifs <;> first | rfl | omega
+  have hℓ : altLinearTrunc R ℓ = 0 := by unfold altLinearTrunc; split_ifs <;> omega
   have hu : altLinearTrunc R u' = altLinearTrunc R u := by
-    simp only [altLinearTrunc, u', ℓ]
-    push_cast
+    simp only [altLinearTrunc, u', ℓ]; push_cast
     split_ifs <;> first | rfl | omega | (congr 1; omega)
   rw [hℓ, zero_add, hu] at h
-  rw [← h]
-  refine sum_congr rfl fun k _ => ?_
-  have hk := k.isLt
+  refine h.symm.trans (sum_congr rfl fun k _ => ?_)
+  have := k.isLt
   congr 3
   simp only [u', ℓ, decide_eq_decide]
   push_cast
@@ -413,14 +364,12 @@ def altLinearTruncStep (R : ℕ) (k : Fin (2 * R + 2)) : ℤ :=
 /-- Twice the sum of subset cardinalities over `Finset (Fin b)` is `b * 2 ^ b`. -/
 theorem two_mul_sum_card_finset (b : ℕ) :
     2 * ∑ S : Finset (Fin b), #S = b * 2 ^ b := by
-  let e : Finset (Fin b) ≃ Finset (Fin b) := ⟨compl, compl, compl_compl, compl_compl⟩
   have hcompl : (∑ S : Finset (Fin b), #Sᶜ) = ∑ S : Finset (Fin b), #S :=
-    e.sum_comp fun S : Finset (Fin b) => #S
-  calc 2 * ∑ S : Finset (Fin b), #S
-      = (∑ S : Finset (Fin b), #S) + ∑ S : Finset (Fin b), #Sᶜ := by rw [two_mul, hcompl]
-    _ = ∑ S : Finset (Fin b), (#S + #Sᶜ) := sum_add_distrib.symm
-    _ = ∑ _S : Finset (Fin b), b := sum_congr rfl fun S _ => by simp [card_add_card_compl]
-    _ = b * 2 ^ b := by simp [mul_comm]
+    (Equiv.mk compl compl compl_compl compl_compl).sum_comp fun S : Finset (Fin b) => #S
+  rw [two_mul]
+  nth_rw 2 [← hcompl]
+  rw [← sum_add_distrib]
+  simp [card_add_card_compl, mul_comm]
 
 /-! ### Linear threshold functions on general finite domains and depth-one gate decomposition -/
 
@@ -437,21 +386,17 @@ theorem gateWeight_eq_zero_of_depths_le_one {n g : ℕ} (p : Program signature n
     (hd : p.depths gate ≤ 1) (k : Fin g) :
     gateWeight p gate k = 0 := by
   dsimp only [gateWeight, lineWeight]
-  refine sum_eq_zero fun i hi => ?_
-  exfalso
-  have hw : (p.lines gate).wires i = Wire.gate k := (mem_filter.mp hi).2
+  refine sum_eq_zero fun i hi => absurd ?_ (not_lt.mpr hd)
   have hlt := p.wireDepths_lines_lt gate i
-  rw [hw] at hlt
+  rw [(mem_filter.mp hi).2] at hlt
   change p.depths k < p.depths gate at hlt
-  have hpos := p.depths_pos k
-  omega
+  have := p.depths_pos k; omega
 
 /-- Any gate of depth at most `1` in a weighted threshold program has empty `gateSupport`. -/
 theorem gateSupport_eq_empty_of_depths_le_one {n g : ℕ} (p : Program signature n g) {gate : Fin g}
     (hd : p.depths gate ≤ 1) :
     gateSupport p gate = ∅ := by
-  ext k
-  simp [gateSupport, gateWeight_eq_zero_of_depths_le_one p hd k]
+  ext k; simp [gateSupport, gateWeight_eq_zero_of_depths_le_one p hd k]
 
 /-- Any gate of depth at most `1` in a weighted threshold program evaluates as the linear threshold
 function `ltfEval (inputWeight p gate) (p.lines gate).op.threshold` on the primary inputs `x`. -/
@@ -459,10 +404,7 @@ theorem eval_eq_ltfEval_inputWeight_of_depths_le_one {n g : ℕ} (p : Program si
     (x : Fin n → Bool) {gate : Fin g} (hd : p.depths gate ≤ 1) :
     p.eval interpretation x gate =
       ltfEval (inputWeight p gate) (p.lines gate).op.threshold x := by
-  rw [eval_gate_eq, ltfEval]
-  have hgate_zero :
-      (∑ k : Fin g, gateWeight p gate k * (p.eval interpretation x k).toNat) = 0 :=
-    sum_eq_zero fun k _ => by simp [gateWeight_eq_zero_of_depths_le_one p hd k]
-  rw [hgate_zero, add_zero]
+  rw [eval_gate_eq, ltfEval, sum_eq_zero (s := (univ : Finset (Fin g))) fun k _ => by
+    simp [gateWeight_eq_zero_of_depths_le_one p hd k], add_zero]
 
 end Cslib.Circuits.Boolean.WeightedThreshold

@@ -235,8 +235,7 @@ private theorem iterate_agrees (input : Input)
       have hs := scan_eq rs es a []
         (Forest.partners Table.sem (labeling input.body input.labels) a)
       change scan (Forest.roots (labeling input.body input.labels)) _ _ _ _ = _ at hs
-      rw [← roots_eq input] at hs
-      simp only [List.map_nil] at hs
+      rw [← roots_eq input, List.map_nil] at hs
       cases hc : Forest.scan rs es a []
           (Forest.partners Table.sem (labeling input.body input.labels) a) with
       | continued os =>
@@ -253,13 +252,11 @@ private theorem iterate_agrees (input : Input)
             (workLog ((⟨a, os⟩ : Forest.Expansion input.body) :: es), r, none))
               (filter_remaining es a os rem)
         rw [hstep]
-        have hm := List.mem_of_find?_eq_some hn
-        have he := List.length_erase_of_mem hm
-        have hf := List.length_filter_le (fun b => decide (b ∉ Forest.Log.used
-          ((⟨a, os⟩ : Forest.Expansion input.body) :: es))) (rem.erase a)
-        have hp : 0 < rem.length := List.length_pos_of_mem hm
         have hlen' : ((rem.erase a).filter fun b => decide (b ∉ Forest.Log.used
-            ((⟨a, os⟩ : Forest.Expansion input.body) :: es))).length < n := by omega
+            ((⟨a, os⟩ : Forest.Expansion input.body) :: es))).length < n :=
+          (List.length_filter_le _ _).trans_lt (by
+            have := List.length_erase_add_one (List.mem_of_find?_eq_some hn)
+            omega)
         have hi := ih ((⟨a, os⟩ : Forest.Expansion input.body) :: es) _ hlen'
         change Forest.scan (Forest.roots (labeling input.body input.labels)) _ _ _ _ = _ at hc
         simpa only [hn, hc] using hi
@@ -285,12 +282,9 @@ theorem run_eq (input : Input)
 
 /-- Width mismatch is the only rejection: a correctly formed buffer never runs out of fuel. -/
 theorem run_eq_none_iff (input : Input) :
-    run input = none ↔ input.labels.length ≠ (incidenceList input.body).length := by
-  constructor
-  · intro hr hw
-    rw [run_eq input hw] at hr
-    cases hr
-  · exact run_eq_none_of_length input
+    run input = none ↔ input.labels.length ≠ (incidenceList input.body).length :=
+  ⟨fun hr hw => Option.some_ne_none _ ((run_eq input hw).symm.trans hr),
+    run_eq_none_of_length input⟩
 
 /-- Successful native output decodes to precisely the source result, with no supplied trace,
 forest invariant, implementation or semantic oracle. -/

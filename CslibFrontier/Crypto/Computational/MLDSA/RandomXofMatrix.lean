@@ -88,12 +88,9 @@ private theorem overwrite {a b : ℕ} {s : Level} (base : Xofs) (t : Table a b)
       cases hc : cellAt s rho x with
       | none => rfl
       | some cell =>
-        have hi : ¬ i < 894 := by
-          intro small
-          apply hit
-          refine ⟨(cell, ⟨i, small⟩), ?_⟩
+        have hi : ¬ i < 894 := fun small => hit ⟨(cell, ⟨i, small⟩), by
           obtain rfl := address_of_cellAt hc
-          rfl
+          rfl⟩
         simp only [Option.map_some, Option.bind_some, List.getElem?_ofFn, dite_eq_right hi,
           Option.getD_none, z]
   · simp only [dite_eq_right h]
@@ -194,16 +191,13 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
   have on (H : Xofs) : (matrixSetup H s).map f (some A) ≤ (U.map some) (some A) := by
     rw [← uniform_programmedMatrixSetup, PMF.map_bind]
     change _ ≤ U.bind (fun B => PMF.pure (some B)) (some A)
-    apply PMF.bind_apply_mono_on_support
-    intro B _
+    refine PMF.bind_apply_mono_on_support _ _ fun B _ => ?_
     by_cases h : A = B
     · subst B
       simpa only [PMF.pure_apply_self] using
         PMF.coe_le_one (((programmedMatrixSetup H s A).eval).map f) (some A)
     · rw [PMF.pure_apply, ite_eq_right (show some A ≠ some B from fun e => h (Option.some.inj e))]
-      apply le_of_eq
-      apply (PMF.apply_eq_zero_iff _ _).mpr
-      intro hit
+      refine le_of_eq ((PMF.apply_eq_zero_iff _ _).mpr fun hit => ?_)
       obtain ⟨⟨G, o⟩, mem, val⟩ := (PMF.mem_support_map_iff ..).mp hit
       rcases o with _ | ⟨B', keys⟩
       · cases val

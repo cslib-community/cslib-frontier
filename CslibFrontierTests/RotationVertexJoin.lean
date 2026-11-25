@@ -4,12 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: OpenAI
 -/
 
+module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateCornerSwap
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeEndJoin
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexJoinGenus
 
 /-! Different-component vertex joins retain parallel occurrences, a closed loop and points. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.RotationVertexJoin
 
@@ -22,6 +27,9 @@ private abbrev c : Graph.RotationCertificate := ⟨[2, 3, 0, 1, 6, 7, 4, 5, 9, 8
 
 private noncomputable def r : Graph.RotationSystem G :=
   Graph.RotationCertificate.decode G c (by decide)
+
+private theorem encode_r : Graph.RotationCertificate.ofRotation r = c :=
+  Graph.RotationCertificate.ofRotation_decode (by decide)
 
 private theorem genus : r.NumericalGenusZero :=
   (Graph.RotationCertificate.verifyEuler_eq_true_iff (by decide :
@@ -41,7 +49,10 @@ example : (r.mergeVertices h k (by decide)).NumericalGenusZero :=
 
 -- The exact successor list is the source list with precisely the two outgoing entries swapped.
 example : Graph.RotationCertificate.ofRotation (r.mergeVertices h k (by decide)) =
-    ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ := by decide +kernel
+    ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ := by
+  rw [ofRotation_mergeVertices, encode_r]
+  exact congrArg Graph.RotationCertificate.mk
+    (by decide : (c.swapSuccessors h.index k.index).successor = [6, 3, 0, 1, 2, 7, 4, 5, 9, 8])
 
 example : Graph.RotationCertificate.verifyGenusZero (mergeGraph h k)
     ⟨[6, 3, 0, 1, 2, 7, 4, 5, 9, 8]⟩ = true := by decide
@@ -75,7 +86,8 @@ example : Graph.RotationCertificate.verifyGenusZero
     (mergeGraph (G := dipole) (0, false) (0, true))
     (Graph.RotationCertificate.ofRotation
       (dipoleRotation.mergeVertices (0, false) (0, true) (by decide))) = false := by
-  decide +kernel
+  rw [ofRotation_mergeVertices, dipoleRotation, Graph.RotationCertificate.ofRotation_decode]
+  decide
 
 private theorem faceFromTable (d e : Graph.Dart G)
     (he : (Graph.RotationCertificate.faceTable G c).getD d.index 0 = e.index) :
@@ -101,34 +113,20 @@ example :
     faceFromTable k.reverse (3, false) (by decide)]
   decide +kernel
 
--- The joined digons have opposite orders of their two payload darts around the retained marker.
+-- In original dart indices, the two payload blocks occur in opposite orders at the ends
+-- of the retained marker. These equalities also check the start and length of each word.
 example : ∃ (H : Graph) (s : Graph.RotationSystem H) (lift : Graph.Dart H ↪ Graph.Dart G),
     s.NumericalGenusZero ∧ H.edges = [(0, 1), (0, 1), (0, 1), (4, 4)] ∧
-      (∃ x y, lift x = (1, false) ∧ lift y = (3, false) ∧ s.rotate x = y) ∧
-      (∃ x y, lift x = (3, true) ∧ lift y = (1, true) ∧ s.rotate x = y) := by
-  obtain ⟨H, s, lift, _, hedges, hz, _, hrange, hrotate⟩ :=
+      ∃ u, lift u = h ∧ lift u.reverse = h.reverse ∧
+        ((List.range (Function.minimalPeriod s.rotate u)).map
+          (fun i => (lift (s.rotate^[i] u)).index)) = [0, 2, 6] ∧
+        ((List.range (Function.minimalPeriod s.rotate u.reverse)).map
+          (fun i => (lift (s.rotate^[i] u.reverse)).index)) = [1, 7, 3] := by
+  obtain ⟨H, s, lift, _, hedges, hz, _, _, _, u, hu, hv, hf, hb⟩ :=
     r.exists_numericalGenusZero_glueMarkerEdges (by decide) genus h k
       (by decide) (by decide) different
-  let f := r.rotate * Equiv.swap (r.faceNext h.reverse) (r.faceNext k.reverse) *
-    Equiv.swap h.reverse k.reverse
-  have splice (x y : Graph.Dart G) (hx : x.1 ≠ k.1) (hy : y.1 ≠ k.1)
-      (tag : Bool) (h₁ : f x = (k.1, tag)) (h₂ : f (k.1, tag) = y) :
-      ∃ X Y, lift X = x ∧ lift Y = y ∧ s.rotate X = Y := by
-    obtain ⟨X, hX⟩ := (hrange x).mpr hx
-    obtain ⟨Y, hY⟩ := (hrange y).mpr hy
-    refine ⟨X, Y, hX, hY, (hrotate X Y).mpr (Or.inr ⟨tag, ?_, ?_⟩)⟩
-    · rw [hX]
-      exact h₁
-    · rw [hY]
-      exact h₂
-  have ha : r.faceNext h.reverse = (1, false) := faceFromTable _ _ (by decide)
-  have hb : r.faceNext k.reverse = (3, false) := faceFromTable _ _ (by decide)
-  refine ⟨H, s, lift, hz, hedges.trans (by decide +kernel),
-    splice (1, false) (3, false) (by decide) (by decide) false ?_ ?_,
-    splice (3, true) (1, true) (by decide) (by decide) true ?_ ?_⟩
-  all_goals
-    dsimp only [f]
-    rw [ha, hb]
-    decide +kernel
+  refine ⟨H, s, lift, hz, hedges.trans (by decide +kernel), u, hu, hv, ?_, ?_⟩
+  · exact hf.trans (by rw [encode_r]; decide)
+  · exact hb.trans (by rw [encode_r]; decide)
 
 end CslibFrontierTests.RotationVertexJoin

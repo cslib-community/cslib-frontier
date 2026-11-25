@@ -91,17 +91,16 @@ private theorem integral_le_sqrt_klDiv_add_log {P Q : Measure ι} [IsProbability
     {C : ℝ} (hg : ∀ i, |g i| ≤ C) {lam : ℝ} (hlam : 0 < lam) {B : ℝ}
     (hB : ∫⁻ i, ENNReal.ofReal (Real.exp (lam * g i ^ 2)) ∂P ≤ ENNReal.ofReal B) :
     ∫ i, g i ∂Q ≤ Real.sqrt (((klDiv Q P).toReal + Real.log B) / lam) := by
-  have hsq (i : ι) : lam * g i ^ 2 ≤ lam * C ^ 2 := by
-    rw [← sq_abs]
-    exact mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (abs_nonneg _) (hg i) 2) hlam.le
+  have hsq (i : ι) : lam * g i ^ 2 ≤ lam * C ^ 2 :=
+    sq_abs (g i) ▸ mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (abs_nonneg _) (hg i) 2) hlam.le
   have hgm2 : Measurable fun i => lam * g i ^ 2 := measurable_const.mul (hgM.pow_const 2)
   have hfQ : Integrable (fun i => lam * g i ^ 2) Q :=
-    Integrable.of_bound hgm2.aestronglyMeasurable (lam * C ^ 2)
-      (ae_of_all _ fun i => by rw [Real.norm_of_nonneg (by positivity)]; exact hsq i)
+    .of_bound hgm2.aestronglyMeasurable (lam * C ^ 2)
+      (ae_of_all _ fun i => (Real.norm_of_nonneg (by positivity)).trans_le (hsq i))
   have hexpP : Integrable (fun i => Real.exp (lam * g i ^ 2)) P :=
-    Integrable.of_bound hgm2.exp.aestronglyMeasurable (Real.exp (lam * C ^ 2))
-      (ae_of_all _ fun i => by
-        rw [Real.norm_of_nonneg (Real.exp_pos _).le]; exact Real.exp_le_exp.2 (hsq i))
+    .of_bound hgm2.exp.aestronglyMeasurable (Real.exp (lam * C ^ 2))
+      (ae_of_all _ fun i =>
+        (Real.norm_of_nonneg (Real.exp_pos _).le).trans_le (Real.exp_le_exp.2 (hsq i)))
   -- Change of measure: `λ 𝔼_Q g² ≤ KL(Q ‖ P) + log 𝔼_P exp (λ g²) ≤ KL(Q ‖ P) + log B`.
   have hcm := Probability.integral_le_toReal_klDiv_add_log_integral_exp hQP hfQ hexpP
   rw [integral_const_mul] at hcm
@@ -111,15 +110,10 @@ private theorem integral_le_sqrt_klDiv_add_log {P Q : Measure ι} [IsProbability
   have hlog := Real.log_le_log hpos (hB.resolve_right (not_le.2 hpos))
   -- Jensen: `(𝔼_Q g)² ≤ 𝔼_Q g²`, since the variance is nonnegative.
   have hmem : MemLp g 2 Q :=
-    MemLp.of_bound hgM.aestronglyMeasurable C
-      (ae_of_all _ fun i => by rw [Real.norm_eq_abs]; exact hg i)
-  have hjensen : (∫ i, g i ∂Q) ^ 2 ≤ ∫ i, g i ^ 2 ∂Q := by
-    have := variance_nonneg g Q
-    rw [variance_eq_sub hmem] at this
-    simpa only [Pi.pow_apply, sub_nonneg] using this
-  refine (le_abs_self _).trans (Real.abs_le_sqrt ?_)
-  rw [le_div_iff₀ hlam]
-  nlinarith
+    .of_bound hgM.aestronglyMeasurable C (ae_of_all _ fun i => (Real.norm_eq_abs _).trans_le (hg i))
+  have hjensen : (∫ i, g i ∂Q) ^ 2 ≤ ∫ i, g i ^ 2 ∂Q :=
+    sub_nonneg.mp (variance_eq_sub hmem ▸ variance_nonneg g Q)
+  exact (le_abs_self _).trans (Real.abs_le_sqrt ((le_div_iff₀ hlam).2 (by nlinarith)))
 
 end ChangeOfMeasure
 
@@ -141,11 +135,8 @@ theorem measure_ofReal_div_le_lintegral_le_of_measurable (μ : Measure Ω) [SFin
     rw [lintegral_lintegral_swap hFm.aemeasurable]
     calc ∫⁻ i, ∫⁻ ω, F ω i ∂μ ∂P ≤ ∫⁻ _, ENNReal.ofReal B ∂P := lintegral_mono hB
       _ = ENNReal.ofReal B := by simp
-  have hthr : ENNReal.ofReal (B / δ) ≠ 0 := by
-    rw [ne_eq, ENNReal.ofReal_eq_zero, not_le]
-    exact div_pos hB0 hδ
-  refine (meas_ge_le_lintegral_div hFm.lintegral_prod_right.aemeasurable hthr
-    ENNReal.ofReal_ne_top).trans ?_
+  refine (meas_ge_le_lintegral_div hFm.lintegral_prod_right.aemeasurable
+    (ENNReal.ofReal_pos.2 (div_pos hB0 hδ)).ne' ENNReal.ofReal_ne_top).trans ?_
   refine (ENNReal.div_le_div_right hswap _).trans_eq ?_
   rw [← ENNReal.ofReal_div_of_pos (div_pos hB0 hδ)]
   congr 1
@@ -173,14 +164,11 @@ theorem measurable_trueRisk_of_measurable {D : Measure Z} [IsProbabilityMeasure 
     {ℓ : ι → Z → ℝ} (hℓ : Measurable (Function.uncurry ℓ))
     (hℓ01 : ∀ i z, ℓ i z ∈ Set.Icc (0 : ℝ) 1) :
     Measurable (trueRisk ℓ D) := by
-  have heq : trueRisk ℓ D = fun i => (∫⁻ z, ENNReal.ofReal (ℓ i z) ∂D).toReal := by
-    ext i
-    have hi : Measurable (ℓ i) := hℓ.comp (measurable_const.prodMk measurable_id)
-    have hint : Integrable (ℓ i) D :=
-      Integrable.of_mem_Icc 0 1 hi.aemeasurable (ae_of_all _ fun z => hℓ01 i z)
-    rw [trueRisk_def, integral_eq_lintegral_of_nonneg_ae
-      (ae_of_all _ fun z => (hℓ01 i z).1) hint.1]
-  rw [heq]
+  rw [show trueRisk ℓ D = fun i => (∫⁻ z, ENNReal.ofReal (ℓ i z) ∂D).toReal from funext fun i =>
+    (trueRisk_def ℓ D i).trans <|
+      integral_eq_lintegral_of_nonneg_ae (ae_of_all _ fun z => (hℓ01 i z).1)
+        (Integrable.of_mem_Icc 0 1 (hℓ.comp (measurable_const.prodMk measurable_id)).aemeasurable
+          (ae_of_all _ fun z => hℓ01 i z)).1]
   exact hℓ.ennreal_ofReal.lintegral_prod_right.ennreal_toReal
 
 /-- Joint measurability of `(S, i) ↦ empiricalRisk ℓ S i` from joint measurability of `ℓ`. -/
@@ -229,11 +217,10 @@ private theorem lintegral_exp_sq_risk_sub_le (hℓ : ∀ i, Measurable (ℓ i))
   have hm1 : (1 : ℝ) ≤ m := Nat.one_le_cast.2 hm
   have hc : (((4 * m : NNReal)⁻¹ : NNReal) : ℝ) = (4 * (m : ℝ))⁻¹ := by push_cast; ring
   have key : 1 - 2 * (2 * ((m : ℝ) - 1)) * (4 * (m : ℝ))⁻¹ = (m : ℝ)⁻¹ := by field_simp; ring
-  have h := (Probability.hasSubgaussianMGF_integral_sub_sum_div D (hℓ i) (hℓ01 i)
-    hm).lintegral_exp_mul_sq_le (s := 2 * (m - 1)) (by linarith) (by
-      rw [hc]; have := inv_pos.2 hmR; linarith)
   simp only [trueRisk_def, empiricalRisk_eq_sum_div]
-  refine h.trans_eq ?_
+  refine ((Probability.hasSubgaussianMGF_integral_sub_sum_div D (hℓ i) (hℓ01 i)
+    hm).lintegral_exp_mul_sq_le (s := 2 * (m - 1)) (by linarith)
+    (by rw [hc]; linarith [inv_pos.2 hmR])).trans_eq ?_
   rw [hc, key, Real.sqrt_inv, inv_inv]
 
 end ExponentialMoment
@@ -271,17 +258,14 @@ theorem measure_pi_exists_integral_risk_gt_of_measurable
   obtain ⟨Q, hQ, hQP, hlt⟩ := hS
   by_contra hB
   rw [Set.mem_ofPred_eq, not_le] at hB
-  have hlam : (0 : ℝ) < 2 * (m - 1) := by
-    have : (2 : ℝ) ≤ m := by exact_mod_cast hm
-    linarith
+  have hlam : (0 : ℝ) < 2 * (m - 1) := by linarith [show (2 : ℝ) ≤ m from mod_cast hm]
   have hg (i : ι) : |trueRisk ℓ D i - empiricalRisk ℓ S i| ≤ 1 := by
     have h1 := trueRisk_mem_Icc ℓ D (hℓ01 i)
     have h2 := empiricalRisk_mem_Icc ℓ S (hℓ01 i)
     rw [abs_le]
     constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
-  have hgM : Measurable fun i => trueRisk ℓ D i - empiricalRisk ℓ S i :=
-    htr_meas.sub (measurable_empiricalRisk_arg hℓ S)
-  have hbound := integral_le_sqrt_klDiv_add_log hQP hgM hg hlam hB.le
+  have hbound := integral_le_sqrt_klDiv_add_log (g := fun i => trueRisk ℓ D i - empiricalRisk ℓ S i)
+    hQP (htr_meas.sub (measurable_empiricalRisk_arg hℓ S)) hg hlam hB.le
   rw [integral_sub (integrable_trueRisk_of_measurable hℓ hℓ01 Q)
     (integrable_empiricalRisk_of_measurable hℓ hℓ01 S Q)] at hbound
   linarith
@@ -315,12 +299,11 @@ theorem measure_pi_exists_integral_risk_gt_log_div (hℓ : ∀ i, Measurable (�
   refine (measure_mono fun S hS => ?_).trans (measure_pi_exists_integral_risk_gt hℓ hℓ01 hm P hδ)
   obtain ⟨Q, hQ, hQP, hlt⟩ := hS
   refine ⟨Q, hQ, hQP, lt_of_le_of_lt ?_ hlt⟩
-  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast (by omega : 1 ≤ m)
-  have hsqrt : Real.sqrt m ≤ m := (Real.sqrt_le_left (by linarith)).2 (by nlinarith)
+  have hm1 : (1 : ℝ) ≤ m := mod_cast (by omega : 1 ≤ m)
   have hlog : Real.log (Real.sqrt m / δ) ≤ Real.log (m / δ) :=
     Real.log_le_log (div_pos (Real.sqrt_pos.2 (by linarith)) hδ)
-      (div_le_div_of_nonneg_right hsqrt hδ.le)
-  have hlam : (0 : ℝ) ≤ 2 * (m - 1) := by linarith
+      (div_le_div_of_nonneg_right ((Real.sqrt_le_left (by linarith)).2 (by nlinarith)) hδ.le)
+  have : (0 : ℝ) ≤ 2 * (m - 1) := by linarith
   gcongr
 
 /-- **The Occam bound as a PAC-Bayes corollary** [ShalevShwartzBenDavid2014, Exercise 31.2]:

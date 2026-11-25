@@ -89,13 +89,11 @@ theorem AllowanceBound.mono_ac {Op : Type u} {Struct : Type v} {d a₀ a b c₀ 
     (ha : a₀ ≤ a) (hc : c₀ ≤ c) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a₀ b c₀ t ev) :
     AllowanceBound d a b c t ev := by
-  have had : ((a₀ * d : ℕ) : ℤ) ≤ ((a * d : ℕ) : ℤ) :=
-    Int.ofNat_le.mpr (Nat.mul_le_mul_right d ha)
+  have had : ((a₀ * d : ℕ) : ℤ) ≤ ((a * d : ℕ) : ℤ) := Int.ofNat_le.mpr (Nat.mul_le_mul_right d ha)
   cases ev with
-  | digit op j L =>
-    exact ⟨h.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right d hc) t),
+  | digit _ _ _ => exact ⟨h.1.trans (Nat.add_le_add_left (Nat.mul_le_mul_right d hc) t),
       h.2.trans (add_le_add_left had _)⟩
-  | struct sOp L => exact h.trans (add_le_add_left had _)
+  | struct _ _ => exact h.trans (add_le_add_left had _)
 
 /-- Increasing the clock-drop coefficient from `b₀` to `b ≥ b₀` is paid for by increasing `a₀` to
 `a₀ + (b - b₀) * c₀` [OpenAI2026LogSpace, Theorem 10.9 proof]. -/
@@ -107,16 +105,14 @@ theorem AllowanceBound.mono_coeff {Op : Type u} {Struct : Type v} {d a₀ b₀ b
   | digit op j L =>
     obtain ⟨hj, hL⟩ := h
     refine ⟨hj, ?_⟩
-    have hmul : (0 : ℤ) ≤ ((b : ℤ) - (b₀ : ℤ)) * ((t : ℤ) + ((c₀ * d : ℕ) : ℤ) - (j : ℤ)) :=
-      mul_nonneg (by omega) (by zify [hj]; omega)
-    have hcast : (((a₀ + (b - b₀) * c₀) * d : ℕ) : ℤ) =
-        ((a₀ * d : ℕ) : ℤ) + ((b : ℤ) - (b₀ : ℤ)) * ((c₀ * d : ℕ) : ℤ) := by
-      push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb]; ring
-    rw [hcast]
+    have := mul_nonneg (by omega : (0 : ℤ) ≤ (b : ℤ) - b₀)
+      (by zify [hj]; omega : (0 : ℤ) ≤ (t : ℤ) + ((c₀ * d : ℕ) : ℤ) - j)
+    rw [show (((a₀ + (b - b₀) * c₀) * d : ℕ) : ℤ) =
+        ((a₀ * d : ℕ) : ℤ) + ((b : ℤ) - b₀) * ((c₀ * d : ℕ) : ℤ) by
+      push_cast [Nat.add_mul, Nat.mul_assoc, Int.ofNat_sub hb]; ring]
     linarith
   | struct sOp L =>
-    refine h.trans (add_le_add
-      (Int.ofNat_le.mpr (Nat.mul_le_mul_right d (Nat.le_add_right _ _)))
+    exact h.trans (add_le_add (Int.ofNat_le.mpr (Nat.mul_le_mul_right d (Nat.le_add_right _ _)))
       (mul_le_mul_of_nonneg_right (Int.ofNat_le.mpr hb) (Nat.cast_nonneg t)))
 
 private theorem AllowanceBound.mono_abc {Op : Type u} {Struct : Type v}
@@ -142,33 +138,30 @@ theorem AllowanceBound.shift_clock_up {Op : Type u} {Struct : Type v} {d a b c t
     (hd : 1 ≤ d) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a b c (t + k) ev) :
     AllowanceBound d (a + b * k) b (c + k) t ev := by
-  have had : ((a * d : ℕ) : ℤ) + (b : ℤ) * (k : ℤ) ≤ (((a + b * k) * d : ℕ) : ℤ) := by
-    rw [Nat.add_mul, Nat.cast_add, ← Nat.cast_mul b k]
-    exact add_le_add_right (Int.ofNat_le.mpr (Nat.le_mul_of_pos_right (b * k) hd)) _
+  have had : (b * k : ℕ) ≤ b * k * d := Nat.le_mul_of_pos_right (b * k) hd
   cases ev with
   | digit op j L =>
     have := Nat.le_mul_of_pos_right k hd
-    exact ⟨by rw [Nat.add_mul]; have := h.1; omega,
-      h.2.trans <| le_trans (le_of_eq (by push_cast; ring))
-        (add_le_add_left had ((b : ℤ) * ((t : ℤ) - (j : ℤ))))⟩
+    refine ⟨by rw [Nat.add_mul]; have := h.1; omega, ?_⟩
+    have h2 := h.2
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h2 ⊢; linarith
   | struct sOp L =>
-    exact h.trans <| le_trans (le_of_eq (by push_cast; ring)) (add_le_add_left had ((b : ℤ) * t))
+    dsimp only [AllowanceBound] at h ⊢
+    push_cast [Nat.add_mul, Nat.mul_assoc] at had h ⊢; linarith
 
 theorem AllowanceBound.addBits_const {Op : Type u} {Struct : Type v} {d a b c t : ℕ}
     (hd : 1 ≤ d) (extra : ℕ) {ev : QueryEvent Op Struct}
     (h : AllowanceBound d a b c t ev) :
     AllowanceBound d (a + extra) b c t (ev.addBits extra) := by
-  have hex : (extra : ℤ) ≤ ((extra * d : ℕ) : ℤ) :=
-    Int.ofNat_le.mpr (Nat.le_mul_of_pos_right extra hd)
+  have hex : extra ≤ extra * d := Nat.le_mul_of_pos_right extra hd
   cases ev with
-  | digit op j L =>
-    obtain ⟨hj, hL⟩ := h
-    refine ⟨hj, ?_⟩
-    push_cast at hex hL ⊢; linarith
-  | struct sOp L =>
-    have hL : (L : ℤ) ≤ ((a * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ) := h
-    change ((extra + L : ℕ) : ℤ) ≤ (((a + extra) * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ)
-    push_cast at hex hL ⊢; linarith
+  | digit _ _ _ =>
+    refine ⟨h.1, ?_⟩
+    have h2 := h.2
+    push_cast at hex h2 ⊢; linarith
+  | struct _ L =>
+    dsimp only [AllowanceBound, QueryEvent.addBits] at h ⊢
+    push_cast at hex h ⊢; linarith
 
 /-- Clock-difference telescoping along a parent-to-child digit substitution
 [OpenAI2026LogSpace, Theorem 10.9]. -/
@@ -179,18 +172,16 @@ theorem AllowanceBound.comp_child {Op₂ : Type u'} {Struct : Type v} {d a₁ a�
     {evChild : QueryEvent Op₂ Struct}
     (hChild : AllowanceBound d a₂ b c₂ u evChild) :
     AllowanceBound d (a₁ + a₂ + retBits) b (c₁ + c₂) t (evChild.addBits (w + retBits)) := by
-  have hret : (retBits : ℤ) ≤ ((retBits * d : ℕ) : ℤ) :=
-    Int.ofNat_le.mpr (Nat.le_mul_of_pos_right retBits hd)
+  have hret : retBits ≤ retBits * d := Nat.le_mul_of_pos_right retBits hd
   cases evChild with
-  | digit op₂ j L =>
-    obtain ⟨hj, hL⟩ := hChild
-    refine ⟨by rw [Nat.add_mul]; omega, ?_⟩
-    push_cast at hw hL hret ⊢; linarith
-  | struct sOp L =>
-    have hL : (L : ℤ) ≤ ((a₂ * d : ℕ) : ℤ) + (b : ℤ) * (u : ℤ) := hChild
-    change ((w + retBits + L : ℕ) : ℤ) ≤
-      (((a₁ + a₂ + retBits) * d : ℕ) : ℤ) + (b : ℤ) * (t : ℤ)
-    push_cast at hw hL hret ⊢; linarith
+  | digit _ _ _ =>
+    refine ⟨by rw [Nat.add_mul]; have := hChild.1; omega, ?_⟩
+    have h2 := hChild.2
+    push_cast at hw h2 hret ⊢
+    linarith
+  | struct _ L =>
+    dsimp only [AllowanceBound, QueryEvent.addBits] at hChild ⊢
+    push_cast at hw hChild hret ⊢; linarith
 
 end AllowanceAccounting
 
@@ -538,8 +529,7 @@ theorem maxIntrinsicBits_diffDigitProg_le {Op : Type u} {Struct : Type v} {d C :
     · rw [Nat.add_mul]; omega
     · refine (QueryProg.maxIntrinsicBits_bindOverhead_le _ _ _ _ _).trans (max_le ?_ ?_)
       · rw [Nat.add_mul]; omega
-      · simp only [QueryProg.maxIntrinsicBits, Nat.max_zero]
-        rw [Nat.add_mul]; omega
+      · simp only [QueryProg.maxIntrinsicBits, Nat.max_zero, Nat.add_mul]; omega
 
 /-- Package any mod-16 scaled-approximation residue program into a certified
 `UniformStreamRecipe`. -/
@@ -647,8 +637,7 @@ theorem mem_activeQueries_windowPrefixModProg {Op : Type u} {Struct : Type v} (o
     (env : Op → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent Op Struct}
     (hev : ev ∈ (windowPrefixModProg op W K).activeQueries env sEnv) :
     ∃ j ≤ K, ev = .digit op j (2 * W) := by
-  have haux : ∀ idx rem acc,
-      ev ∈ (scanModAux op W idx rem acc).activeQueries env sEnv →
+  have haux : ∀ idx rem acc, ev ∈ (scanModAux op W idx rem acc).activeQueries env sEnv →
       ∃ j < idx + rem, ev = .digit op j (2 * W) := by
     intro idx rem
     induction rem generalizing idx with
@@ -657,8 +646,7 @@ theorem mem_activeQueries_windowPrefixModProg {Op : Type u} {Struct : Type v} (o
       intro _ h
       rcases List.mem_cons.mp h with rfl | h
       · exact ⟨idx, by omega, rfl⟩
-      · obtain ⟨j, hj, rfl⟩ := ih (idx + 1) _ h
-        exact ⟨j, by omega, rfl⟩
+      · obtain ⟨j, hj, rfl⟩ := ih (idx + 1) _ h; exact ⟨j, by omega, rfl⟩
   obtain ⟨j, hj, rfl⟩ := haux (K + 1 - W) (K + 1 - (K + 1 - W)) 0 hev
   exact ⟨j, by omega, rfl⟩
 

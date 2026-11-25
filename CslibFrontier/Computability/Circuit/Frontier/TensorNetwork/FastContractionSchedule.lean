@@ -196,9 +196,7 @@ theorem child (hB : ∀ d M p, Active C m d M p → ActiveBounds C m d M p) (h :
       unfold nodePrec
       rw [hslots]
       refine hb.nodePrecision_le _ _ (by rw [← hlevels]; exact hu) ?_
-      have := taperStep_mul_le x.scale x.depth x.edges
-      rw [h.scale_eq] at this
-      simpa only [step, h.scale_eq] using this
+      simpa only [step, h.scale_eq] using taperStep_mul_le x.scale x.depth x.edges
 
 end OnSchedule
 
@@ -301,10 +299,7 @@ theorem length_children_le (hB : ∀ d M p, Active C m d M p → ActiveBounds C 
         (nodePrecision x.prec (step x) (slotBits m x.depth) x.edges i) := by
       rw [weights, ← e1]
     have hh : step x * taper m x.depth ≤ 3 * x.edges + taper m x.depth := by
-      have := taperStep_mul_le x.scale x.depth x.edges
-      rw [h.scale_eq] at this
-      rw [step, h.scale_eq]
-      exact this
+      simpa only [step, h.scale_eq] using taperStep_mul_le x.scale x.depth x.edges
     have hP' : Fintype.card (Fin (packing x).2.1) * 2 ^ slotBits m x.depth ≤ 3 * x.edges := by
       rw [Fintype.card_fin, ← hslots]; exact hP
     rw [e1, e2, length_budgetTuples_modeWeights]

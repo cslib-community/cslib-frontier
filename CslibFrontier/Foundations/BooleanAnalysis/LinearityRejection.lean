@@ -92,20 +92,11 @@ theorem abs_fourierCoeff_signVal_le_of_ne (f : (ι → Bool) → Bool) {S T : Fi
       hammingDist f (parityOn T) + hammingDist (parityOn S) (parityOn T) := by
     rw [hammingDist_comm (parityOn S) (parityOn T)]
     exact_mod_cast hammingDist_triangle _ _ _
-  rw [fourierCoeff_signVal, abs_le, mul_div_assoc]
-  set N : ℝ := 2 ^ Fintype.card ι
-  have hdST : (hammingDist (parityOn S) (parityOn T) : ℝ) / N = 1 / 2 := by
-    rw [div_eq_iff hN.ne']
+  rw [fourierCoeff_signVal, abs_le]
+  constructor <;>
+  · refine le_of_mul_le_mul_right ?_ hN
+    field_simp
     linarith
-  have i₁ : (hammingDist (parityOn S) (parityOn T) : ℝ) / N ≤
-      (hammingDist f (parityOn S) : ℝ) / N + (hammingDist f (parityOn T) : ℝ) / N := by
-    rw [← add_div]
-    exact div_le_div_of_nonneg_right h₁ hN.le
-  have i₂ : (hammingDist f (parityOn S) : ℝ) / N ≤
-      (hammingDist f (parityOn T) : ℝ) / N + (hammingDist (parityOn S) (parityOn T) : ℝ) / N := by
-    rw [← add_div]
-    exact div_le_div_of_nonneg_right h₂ hN.le
-  constructor <;> linarith
 
 /-! ### The rejection probability -/
 
@@ -212,26 +203,18 @@ theorem not_forall_mul_sub_mul_sq_le_one_sub_blrAcceptance {c : ℝ} (hc : 3 < c
     rw [hammingDist_decide_eq_parityOn_empty a]
     exact one_le_hammingDist_decide_eq_parityOn a (by simp [n]) T
   have hN : (0 : ℝ) < 2 ^ n := by positivity
-  have hd := h n _ ∅ hS
-  rw [hammingDist_decide_eq_parityOn_empty a, blrAcceptance_decide_eq ha, Fintype.card_fin] at hd
-  push_cast at hd
   have hm₁ : 1 / δ₀ < 2 ^ n := (le_max_left _ _).trans_lt (hm.trans hpow)
   have hm₂ : (|C| + 6) / (c - 3) < 2 ^ n := (le_max_right _ _).trans_lt (hm.trans hpow)
-  have hδ : 1 / 2 ^ n ≤ δ₀ := by
-    rw [div_le_iff₀ hN]
-    rw [div_lt_iff₀ hδ₀] at hm₁
-    linarith
-  have key := hd hδ
+  have hδ : 1 / 2 ^ n ≤ δ₀ := (div_le_iff₀ hN).2 <| by rw [div_lt_iff₀ hδ₀] at hm₁; linarith
+  have key := h n _ ∅ hS (by simpa [hammingDist_decide_eq_parityOn_empty] using hδ)
+  rw [hammingDist_decide_eq_parityOn_empty a, blrAcceptance_decide_eq ha, Fintype.card_fin] at key
+  push_cast at key
   rw [div_lt_iff₀ (by linarith)] at hm₂
   set N : ℝ := 2 ^ n
-  have hC : C ≤ |C| := le_abs_self C
   have hgap : 0 < c * (1 / N) - C * (1 / N) ^ 2 - (1 - (1 - 3 / N + 6 / N ^ 2)) := by
-    have e : c * (1 / N) - C * (1 / N) ^ 2 - (1 - (1 - 3 / N + 6 / N ^ 2)) =
-        ((c - 3) * N - (C - 6)) / N ^ 2 := by
-      field_simp
-      ring
-    rw [e]
-    exact div_pos (by nlinarith) (by positivity)
+    rw [show c * (1 / N) - C * (1 / N) ^ 2 - (1 - (1 - 3 / N + 6 / N ^ 2)) =
+        ((c - 3) * N - (C - 6)) / N ^ 2 by field_simp; ring]
+    exact div_pos (by linarith [le_abs_self C]) (by positivity)
   linarith
 
 end Cslib.BitString

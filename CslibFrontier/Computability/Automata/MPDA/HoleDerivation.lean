@@ -418,9 +418,8 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
       rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega, List.extract_eq_take_drop,
         Nat.sub_self, List.take_zero, List.take_nil]
       simp⟩
-  have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ := by
-    intro c hc
-    simpa using hc
+  have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ :=
+    fun c hc => by simpa using hc
   refine ⟨by simpa using h₁, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩
   · rcases hmem c hc with hc | rfl
     · obtain ⟨⟨a', ha⟩, hp⟩ := h₂ c (by simp [hc]) e he
@@ -487,14 +486,11 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     by_contra hne
     obtain ⟨q, hq, ⟨a, δ, hqa⟩, hqk⟩ := exists_pending_push (u := w.extract (p + 1) w.length) hk
       (lt_of_le_of_ne hge (Ne.symm hne))
-    have hqw : p + 1 + q < w.length := by
-      rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
-      omega
+    rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq
+    have hqw : p + 1 + q < w.length := by omega
     have hqa' : w[p + 1 + q]? = some (a, .push i δ) := by
-      rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by
-        rw [List.extract_eq_take_drop, List.length_take, List.length_drop] at hq; omega),
+      rwa [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega),
         List.getElem?_drop] at hqa
-      exact hqa
     have hqpend : PendingAt w (p + 1 + q) (w.length - 1) := by
       refine ⟨by omega, by omega, i, ⟨a, δ, hqa'⟩, fun k => ?_⟩
       have hd : (w.extract (p + 1) w.length).drop (q + 1) =
@@ -502,8 +498,7 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
         rw [List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take, List.drop_drop,
           show w.length - (p + 1) - (q + 1) = w.length - 1 + 1 - (p + 1 + q + 1) by omega,
           show p + 1 + (q + 1) = p + 1 + q + 1 by omega]
-      rw [← hd]
-      exact hqk k
+      exact hd ▸ hqk k
     obtain ⟨c, hc, e, he, he'⟩ := h₄ _ hqpend
     obtain ⟨⟨a', hea⟩, -⟩ := h₂ c hc e he
     have hci : c.stack = i := IsPushOn.unique ⟨a', e.2, hea⟩ ⟨a, δ, he' ▸ hqa'⟩

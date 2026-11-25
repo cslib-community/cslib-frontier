@@ -344,19 +344,15 @@ theorem entry_le_explicitBlockNetwork {p : List ℕ × List ℕ}
     (hp : p ∈ (machine.explicitBlockNetwork input b σ e).vertices) {a : ℕ} (ha : a ∈ p.2) :
     a ≤ 2 ^ b := by
   obtain ⟨v, y, rfl⟩ := TensorNetwork.exists_tensor_of_mem_toExplicit _ _ _ hp ha
-  have hone : (1 : ℕ) ≤ 2 ^ b := Nat.one_le_two_pow
   rcases v with v | p
   · rw [TensorNetwork.subdivide_tensor_inl]
     rcases TensorNetwork.tensor_binarize_eq_zero_or (machine.blockNetwork input b σ)
       (letterCode e) v _ with h | ⟨x, h⟩
-    · rw [h]
-      exact Nat.zero_le _
-    · rw [h]
-      exact machine.tensor_blockNetwork_le input b σ v x
+    · exact h ▸ Nat.zero_le _
+    · exact h ▸ machine.tensor_blockNetwork_le input b σ v x
   · rw [TensorNetwork.subdivide_tensor_inr]
     split_ifs
-    · exact hone
-    · exact Nat.zero_le _
+    exacts [Nat.one_le_two_pow, Nat.zero_le _]
 
 end MultiTapePTM
 

@@ -151,31 +151,13 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
   obtain ⟨_, hv2, hfr2, hm2, hframe2, hc2⟩ :=
     writeBlock4Prog_spec (dstMetaBase + 8 + 8) (hp 8) (hp 9) (hp 10) (hp 11) (s := s2)
       (by omega) (hfit27.of_le (by omega)) (hhp 8) (hhp 9) (hhp 10) (hhp 11)
-  have hb0_eq : writeBlock4Prog (dstMetaBase + 8,
-      (((1 + reducedHalfLimbs t * 6) +
-        (1 <<< (reducedChunkBits t + reducedChunkBits t - reducedPackShift t w)),
-        1 + reducedHalfLimbs t * 6),
-       (reducedHalfLimbs t * 6, (1 <<< (epochQBits U N - 1)) - 1))) =
-      writeBlock4Prog (dstMetaBase + 8, ((hp 0, hp 1), (hp 2, hp 3))) := by
-    rw [heq_sp, heq0, heq1, heq2, heq3]
-  have hb1_eq : writeBlock4Prog (dstMetaBase + 8 + 4,
-      (((epochQBits U N - 1) >>> 1, (1 <<< ((epochQBits U N - 1) >>> 1)) - 1),
-       ((1 <<< ((epochQBits U N - 1) - ((epochQBits U N - 1) >>> 1))) - 1,
-        (1 <<< ((epochQBits U N - 1) -
-          (((epochQBits U N - 1) >>> 1) + ((epochQBits U N - 1) >>> 1)))) - 1))) =
-      writeBlock4Prog (dstMetaBase + 8 + 4, ((hp 4, hp 5), (hp 6, hp 7))) := by
-    rw [heq7, heq6, heq5, heq4]
-  have hb2_eq : writeBlock4Prog (dstMetaBase + 8 + 8,
-      ((epochQBits U N - min (epochQBits U N) (3 * epochHashB N), reducedChunkBits t),
-       ((1 <<< reducedChunkBits t) - 1, reducedChunkBits t + reducedChunkBits t))) =
-      writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11))) := by
-    rw [heq11, heq10, heq8, heq9]
   have hprog_eq : prog =
       p01 >>= fun _ =>
         writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11))) >>= fun _ =>
           pure (epochHashSpace U w N) := by
     dsimp only [prog, d, writeHashParamsLoProg, p01]
-    rw [hb0_eq, hb1_eq, hb2_eq, heq_sp, bind_assoc]
+    rw [heq_sp, heq0, heq1, heq2, heq3, heq7, heq6, heq5, heq4, heq11, heq10, heq8, heq9,
+      bind_assoc]
   set s3 := (Memory.spec 0).clientState s2
     (writeBlock4Prog (dstMetaBase + 8 + 8, ((hp 8, hp 9), (hp 10, hp 11))))
   have hs'_eq : s' = s3 := by
@@ -194,11 +176,8 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     · rw [hframe2 _ (by omega)]
       exact (hm01 j hj8).trans (congrArg hp (Fin.ext (Nat.zero_add j)))
     · obtain ⟨m20, m21, m22, m23⟩ := hm2
-      rcases (show j = 8 ∨ j = 9 ∨ j = 10 ∨ j = 11 by omega) with rfl | rfl | rfl | rfl
-      · exact m20
-      · rw [show dstMetaBase + 8 + 9 = dstMetaBase + 8 + 8 + 1 by omega]; exact m21
-      · rw [show dstMetaBase + 8 + 10 = dstMetaBase + 8 + 8 + 2 by omega]; exact m22
-      · rw [show dstMetaBase + 8 + 11 = dstMetaBase + 8 + 8 + 3 by omega]; exact m23
+      rcases (show j = 8 ∨ j = 9 ∨ j = 10 ∨ j = 11 by omega) with rfl | rfl | rfl | rfl <;>
+        first | exact m20 | exact m21 | exact m22 | exact m23
   · intro a ha
     rw [hs'_eq, hframe2 a (by omega), hframe01 a (by omega)]
   · rw [hprog_eq, Realization.memoryCost_bind', hc01, Realization.memoryCost_bind',
@@ -333,23 +312,17 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
       (by omega) (hfit27.of_le (by omega)) (hhp 16) (hhp 17) (hhp 18)
   set s2 := (Memory.spec 0).clientState s1
     (writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18))))
-  have hb0_eq : writeBlock4Prog (dstMetaBase + 8 + 12,
-      ((1 <<< (reducedChunkBits t + reducedChunkBits t),
-        (1 <<< (reducedChunkBits t + reducedChunkBits t)) - 1),
-       (reducedPackShift t w, (1 <<< reducedPackShift t w) - 1))) =
-      writeBlock4Prog (dstMetaBase + 8 + 12, ((hp 12, hp 13), (hp 14, hp 15))) := by
-    rw [heq13, heq12, heq15, heq14]
-  have hb1_eq : writeBlock3Prog (dstMetaBase + 8 + 16,
-      (reducedHalfLimbs t, (3, Nat.log 2 N))) =
-      writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18))) := by
-    rw [heq16, heq17, heq18]
+  have hprog_eq : prog =
+      writeBlock4Prog (dstMetaBase + 8 + 12, ((hp 12, hp 13), (hp 14, hp 15))) >>= fun _ =>
+        writeBlock3Prog (dstMetaBase + 8 + 16, (hp 16, (hp 17, hp 18))) := by
+    dsimp only [prog, d, writeHashParamsHiProg]
+    rw [heq13, heq12, heq15, heq14, heq16, heq17, heq18]
   have hs'_eq : s' = s2 := by
-    dsimp only [s', prog, d, writeHashParamsHiProg]
-    rw [hb0_eq, hb1_eq, StateTransitionSpec.clientState_bind]
+    dsimp only [s']
+    rw [hprog_eq, StateTransitionSpec.clientState_bind]
   refine ⟨⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩,
     ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog, d, writeHashParamsHiProg]
-    rw [hb0_eq, hb1_eq, validHistory_bind']
+  · rw [hprog_eq, validHistory_bind']
     exact ⟨hv0, hv1⟩
   · rw [hs'_eq, hfr1, hfr0]
   · intro j hj
@@ -358,21 +331,12 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     obtain ⟨m10, m11, m12⟩ := hm1
     rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 by omega) with
       rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    · rw [show dstMetaBase + 20 + 0 = dstMetaBase + 8 + 12 by omega, hframe1 _ (by omega)]
-      exact m00
-    · rw [show dstMetaBase + 20 + 1 = dstMetaBase + 8 + 12 + 1 by omega, hframe1 _ (by omega)]
-      exact m01
-    · rw [show dstMetaBase + 20 + 2 = dstMetaBase + 8 + 12 + 2 by omega, hframe1 _ (by omega)]
-      exact m02
-    · rw [show dstMetaBase + 20 + 3 = dstMetaBase + 8 + 12 + 3 by omega, hframe1 _ (by omega)]
-      exact m03
-    · rw [show dstMetaBase + 20 + 4 = dstMetaBase + 8 + 16 by omega]; exact m10
-    · rw [show dstMetaBase + 20 + 5 = dstMetaBase + 8 + 16 + 1 by omega]; exact m11
-    · rw [show dstMetaBase + 20 + 6 = dstMetaBase + 8 + 16 + 2 by omega]; exact m12
+    all_goals first
+      | exact m10 | exact m11 | exact m12
+      | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
   · intro a ha
     rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
-  · dsimp only [prog, d, writeHashParamsHiProg]
-    rw [hb0_eq, hb1_eq, Realization.memoryCost_bind']
+  · rw [hprog_eq, Realization.memoryCost_bind']
     change memoryCost (writeBlock4Prog _) s + memoryCost (writeBlock3Prog _) s1 = 7
     rw [hc0, hc1]
 
@@ -469,37 +433,24 @@ theorem writeHashParamsSubProg_props {w U N hdrBase dstMetaBase : ℕ} {s : Memo
     dsimp only
     rw [StateTransitionSpec.clientState_bind, hres_lo, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [d, writeHashParamsSubProg]
-    rw [validHistory_bind', hst_core, hres_core]
-    refine ⟨hv_core, ?_⟩
-    dsimp only; rw [validHistory_bind']
-    refine ⟨hv_lo, ?_⟩
-    rw [validHistory_bind']; exact ⟨hv_hi, trivial⟩
-  · dsimp only [d, writeHashParamsSubProg]
-    rw [prog_clientResult_bind, hst_core, hres_core]
-    dsimp only
-    rw [prog_clientResult_bind, hres_lo, prog_clientResult_bind, prog_clientResult_pure]
-  · rw [hs_final, hfr_hi, hfr_lo]
-  · intro ⟨j, hj⟩
-    rw [hs_final]
-    dsimp only [offHashParams]
+  rw [hs_final]
+  dsimp only [d, writeHashParamsSubProg, offHashParams, offCompParams]
+  rw [validHistory_bind', prog_clientResult_bind, Realization.memoryCost_bind', hst_core,
+    hres_core]
+  dsimp only
+  rw [validHistory_bind', validHistory_bind', prog_clientResult_bind, prog_clientResult_bind,
+    prog_clientResult_pure, hres_lo, Realization.memoryCost_bind', Realization.memoryCost_bind',
+    memoryCost_pure]
+  refine ⟨⟨hv_core, hv_lo, hv_hi, trivial⟩, rfl, by rw [hfr_hi, hfr_lo], fun ⟨j, hj⟩ => ?_,
+    fun a ha => by rw [hframe_hi a (by omega), hframe_lo a (by omega)], ?_⟩
+  · dsimp only
     by_cases hj12 : j < 12
     · rw [hframe_hi _ (by omega)]
       exact hmem_lo j hj12
-    · have hk : j - 12 < 7 := by omega
-      have hhi := hmem_hi (j - 12) hk
+    · have hhi := hmem_hi (j - 12) (by omega)
       rw [show dstMetaBase + 20 + (j - 12) = dstMetaBase + 8 + j by omega] at hhi
       exact hhi.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
-  · intro a ha
-    rw [hs_final]
-    unfold offHashParams offCompParams at ha
-    rw [hframe_hi a (by omega), hframe_lo a (by omega)]
-  · dsimp only [d, writeHashParamsSubProg]
-    rw [Realization.memoryCost_bind', hst_core, hres_core]
-    dsimp only
-    rw [Realization.memoryCost_bind', Realization.memoryCost_bind', memoryCost_pure]
-    change memoryCost (computeHashCoreProg _) s +
+  · change memoryCost (computeHashCoreProg _) s +
       (memoryCost (writeHashParamsLoProg d_lo) s +
         (memoryCost (writeHashParamsHiProg d_hi) s1 + 0)) ≤ _
     omega

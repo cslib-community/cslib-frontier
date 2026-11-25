@@ -536,12 +536,10 @@ private theorem take_ofFn_ofList_append {n : ℕ} {r m : List Bool} (hr : r.leng
 private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool × List Bool)
     {s : CoupledState n} {r : List Bool} (z : BitString (2 * n)) (hr : r.length = n)
     (hs : CoupledInv n s) : CoupledInv n (coupledStep n bit request s r z).2.1 := by
-  unfold coupledStep
   by_cases h1 : request.1 = true
-  · simp only [h1, ↓reduceIte]
+  · simp only [coupledStep, h1, ↓reduceIte]
     by_cases h2 : s.1.contains request.2 = true
-    · simp only [h2, ↓reduceIte]
-      exact hs
+    · simpa only [h2, ↓reduceIte] using hs
     · simp only [h2, Bool.false_eq_true, ↓reduceIte]
       by_cases h3 : (request.2.length == 2 * n) = true
       · simp only [h3, ↓reduceIte]
@@ -551,20 +549,18 @@ private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool ×
           rcases List.mem_cons.mp ht with rfl | ht
           · exact ⟨fun h => (h rfl).elim, rfl⟩
           · exact hs t ht
-      · simp only [h3, Bool.false_eq_true, ↓reduceIte]
-        exact hs
-  · simp only [h1, Bool.false_eq_true, ↓reduceIte]
+      · simpa only [h3, Bool.false_eq_true, ↓reduceIte] using hs
+  · simp only [coupledStep, h1, Bool.false_eq_true, ↓reduceIte]
     by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
     · simp only [h2, ↓reduceIte]
-      have hlen := h2
-      simp only [Bool.and_eq_true, beq_iff_eq] at hlen
+      simp only [Bool.and_eq_true, beq_iff_eq] at h2
       have hnew : CoupledInv n (List.ofFn z :: s.1,
           (BitString.ofList (2 * n) (r ++ unframe request.2),
             BitString.ofList (2 * n) (r ++ dropFrame request.2), z) :: s.2) := by
         intro t ht
         rcases List.mem_cons.mp ht with rfl | ht
         · exact ⟨fun _ => List.mem_cons_self, by
-            rw [take_ofFn_ofList_append hr hlen.2, take_ofFn_ofList_append hr hlen.1]⟩
+            rw [take_ofFn_ofList_append hr h2.2, take_ofFn_ofList_append hr h2.1]⟩
         · exact ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
       by_cases h3 : r ∈ s.2.map (fun t => (List.ofFn t.1).take n)
       · simp only [h3, ↓reduceIte]
@@ -572,10 +568,8 @@ private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool ×
         · intro t ht
           exact ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
         · exact hnew
-      · simp only [h3, ↓reduceIte]
-        exact hnew
-    · simp only [h2, Bool.false_eq_true, ↓reduceIte]
-      exact hs
+      · simpa only [h3, ↓reduceIte] using hnew
+    · simpa only [h2, Bool.false_eq_true, ↓reduceIte] using hs
 
 /-- The coupled handler keeps the invariant. -/
 private theorem coupledInv_of_mem_support_coupledHandler {n : ℕ} (bit : Bool)
@@ -598,9 +592,8 @@ private theorem invLookup_coupledCache_eq {n : ℕ} (bit : Bool) {log : List (Li
     simp only [coupledCache, List.map_cons, invLookup_cons, Bool.false_eq_true, ↓reduceIte]
     by_cases hyt : y = t.2.2
     · subst hyt
-      have ht : t.1 = t.2.1 := by
-        by_contra hne
-        exact hy ((hs t List.mem_cons_self).1 hne)
+      have ht : t.1 = t.2.1 :=
+        Classical.byContradiction fun hne => hy ((hs t List.mem_cons_self).1 hne)
       simp [ht]
     · have hbeq : (y == t.2.2) = false := by simpa using hyt
       simp only [hbeq]
@@ -615,9 +608,8 @@ private theorem lookup_coupledCache_eq_none {n : ℕ} (bit : Bool) {records : Li
   induction records with
   | nil => rfl
   | cons t rest ih =>
-    have hne : x ≠ (if bit then t.2.1 else t.1) := by
-      rintro rfl
-      exact h t List.mem_cons_self rfl
+    have hne : x ≠ (if bit then t.2.1 else t.1) := fun heq =>
+      h t List.mem_cons_self (by rw [heq])
     have hbeq : (x == (if bit then t.2.1 else t.1)) = false := by simpa using hne
     simp only [coupledCache, List.map_cons, List.lookup_cons, hbeq]
     exact ih fun u hu => h u (List.mem_cons_of_mem _ hu)
@@ -658,10 +650,8 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
   · by_cases h2 : log.contains request.2 = true
     · have hstep (r : List Bool) (z : BitString (2 * n)) :
           coupledStep n bit request (log, records) r z = ([], (log, records), false) := by
-        unfold coupledStep
-        simp only [h1, h2, ↓reduceIte]
-      unfold ccaToStrongPRPHandler
-      simp only [hstep, PMF.bind_const, h1, h2, ↓reduceIte,
+        simp only [coupledStep, h1, h2, ↓reduceIte]
+      simp only [ccaToStrongPRPHandler, hstep, PMF.bind_const, h1, h2, ↓reduceIte,
         ProbOracleComp.runWith_pure, PMF.pure_map]
       exact PMF.map_const _ _
     · by_cases h3 : (request.2.length == 2 * n) = true
@@ -679,10 +669,8 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
           have hstep (r : List Bool) (z : BitString (2 * n)) :
               coupledStep n bit request (log, records) r z =
                 (encOption encBits (some ((List.ofFn x).drop n)), (log, records), false) := by
-            unfold coupledStep
-            simp only [h1, h2, h3, hinv, Bool.false_eq_true, ↓reduceIte]
-          unfold ccaToStrongPRPHandler
-          simp only [hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
+            simp only [coupledStep, h1, h2, h3, hinv, Bool.false_eq_true, ↓reduceIte]
+          simp only [ccaToStrongPRPHandler, hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
             ↓reduceIte, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, hW,
             PermQuery.ofBoolProd, stateT_map_apply, forgetfulAnswer_inverse_of_some hlookup,
             PMF.pure_map, Prod.map_apply, id_eq, htake]
@@ -693,10 +681,8 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
               coupledStep n bit request (log, records) r z =
                 (encOption encBits (some ((List.ofFn z).drop n)),
                   (log, (z, z, BitString.ofList (2 * n) request.2) :: records), false) := by
-            unfold coupledStep
-            simp only [h1, h2, h3, hinv, Bool.false_eq_true, ↓reduceIte]
-          unfold ccaToStrongPRPHandler
-          simp only [hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
+            simp only [coupledStep, h1, h2, h3, hinv, Bool.false_eq_true, ↓reduceIte]
+          simp only [ccaToStrongPRPHandler, hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
             ↓reduceIte, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, hW,
             PermQuery.ofBoolProd, stateT_map_apply, forgetfulAnswer_inverse_of_none hlookup,
             PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq, htake, coupledCache_cons,
@@ -704,17 +690,14 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
       · have hstep (r : List Bool) (z : BitString (2 * n)) :
             coupledStep n bit request (log, records) r z =
               (encOption encBits none, (log, records), false) := by
-          unfold coupledStep
-          simp only [h1, h2, h3, Bool.false_eq_true, ↓reduceIte]
-        unfold ccaToStrongPRPHandler
-        simp only [hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
+          simp only [coupledStep, h1, h2, h3, Bool.false_eq_true, ↓reduceIte]
+        simp only [ccaToStrongPRPHandler, hstep, PMF.bind_const, h1, h2, h3, Bool.false_eq_true,
           ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
         exact PMF.map_const _ _
   · by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
     · have hlen := h2
       simp only [Bool.and_eq_true, beq_iff_eq] at hlen
-      unfold ccaToStrongPRPHandler
-      simp only [h1, h2, Bool.false_eq_true, ↓reduceIte]
+      simp only [ccaToStrongPRPHandler, h1, h2, Bool.false_eq_true, ↓reduceIte]
       rw [ProbOracleComp.runWith_sample_bind]
       simp only [BitString.eval_sampleList, PMF.map_bind]
       refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
@@ -745,13 +728,11 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
               · simpa using heq
               · rw [← (hs t ht).2]
                 simpa using heq⟩))
-          rw [hnone] at hlk
-          cases hlk
+          simp [hnone] at hlk
         have hstep (z : BitString (2 * n)) :
             coupledStep n bit request (log, records) r z =
               (List.ofFn y, (List.ofFn y :: log, records), true) := by
-          unfold coupledStep
-          simp only [h1, h2, hmem, hlk, Bool.false_eq_true, ↓reduceIte]
+          simp only [coupledStep, h1, h2, hmem, hlk, Bool.false_eq_true, ↓reduceIte]
         simp only [hstep, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           hW, PermQuery.ofBoolProd, stateT_map_apply, forgetfulAnswer_forward_of_some hlk,
           PMF.pure_map, Prod.map_apply, id_eq, htake]
@@ -765,21 +746,16 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
                 (BitString.ofList (2 * n)
                   (r ++ if bit = true then dropFrame request.2 else unframe request.2), z) ::
                     coupledCache n bit records)) := by
-          unfold coupledStep
-          simp only [h1, h2, hlk, Bool.false_eq_true, ↓reduceIte]
-          by_cases hmem : r ∈ records.map (fun t => (List.ofFn t.1).take n)
-          · simp only [hmem, ↓reduceIte, coupledCache_cons, hxb]
-          · simp only [hmem, ↓reduceIte, coupledCache_cons, hxb]
+          simp only [coupledStep, h1, h2, hlk, Bool.false_eq_true, ↓reduceIte]
+          split <;> simp only [coupledCache_cons, hxb]
         simp only [hstep, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           hW, PermQuery.ofBoolProd, stateT_map_apply, forgetfulAnswer_forward_of_none hlk,
           PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq, htake]
     · have hstep (r : List Bool) (z : BitString (2 * n)) :
           coupledStep n bit request (log, records) r z = ([], (log, records), false) := by
-        unfold coupledStep
-        simp only [h1, h2, Bool.false_eq_true, ↓reduceIte]
-      unfold ccaToStrongPRPHandler
-      simp only [hstep, PMF.bind_const, h1, h2, Bool.false_eq_true, ↓reduceIte,
-        ProbOracleComp.runWith_pure, PMF.pure_map]
+        simp only [coupledStep, h1, h2, Bool.false_eq_true, ↓reduceIte]
+      simp only [ccaToStrongPRPHandler, hstep, PMF.bind_const, h1, h2, Bool.false_eq_true,
+        ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
       exact PMF.map_const _ _
 
 /-! ### The ideal bound -/

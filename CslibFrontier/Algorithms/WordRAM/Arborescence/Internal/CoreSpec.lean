@@ -32,7 +32,7 @@ open Cslib.WordRAM.Realization.Signed
 
 attribute [local client_simps] StateTransitionSpec.clientState
   StateTransitionSpec.runClient_pure'
-  runClient_read runClient_write runClient_allocDirty runClient_ite runClient_map
+  runClient_read runClient_write runClient_allocDirty runClient_ite
   prog_clientState_ite
 
 /-! ### Full solver `edmondsCoreProg_spec`, entry programs, and `O(n³)` Word-RAM theorems -/
@@ -172,60 +172,34 @@ private structure ContractRoundDisj (ws n k : ℕ) : Prop where
   ct_bx : ∀ v : Fin n,
     ¬(ws ≤ frameBExitBase ws n k + v.1 ∧ frameBExitBase ws n k + v.1 < ws + 4 * (n * n))
 
+/-- Unfold the workspace layout and close an address-disjointness goal with `omega`. -/
+local macro "layout_omega" : tactic => `(tactic| (
+  dsimp -failIfUnchanged only [curAdjBase, curCostBase, candPredBase, candCostBase,
+    frameParentBase, frameMaskBase, frameBEntryBase, frameBExitBase, frameRepAddr, frameBase] at *
+  omega))
+
 private theorem contractRoundDisj (ws n k : ℕ) : ContractRoundDisj ws n k where
-  fp_rep v := by have := v.isLt; dsimp only [frameParentBase, frameRepAddr, frameBase]; omega
-  adj_rep u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curAdjBase, frameRepAddr, frameBase]; omega
-  cost_rep u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curCostBase, frameRepAddr, frameBase]; omega
-  adj_cm u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curAdjBase, frameMaskBase, frameBase]; omega
-  cost_cm u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curCostBase, frameMaskBase, frameBase]; omega
-  fp_cm v := by have := v.isLt; dsimp only [frameParentBase, frameMaskBase, frameBase]; omega
-  adj_be u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curAdjBase, candPredBase, candCostBase, frameBEntryBase, frameBase]; omega
-  cost_be u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curCostBase, candPredBase, candCostBase, frameBEntryBase, frameBase]; omega
-  mask_be y := by
-    have := y.isLt
-    dsimp only [frameMaskBase, candPredBase, candCostBase, frameBEntryBase, frameBase]; omega
-  fp_be v := by
-    have := v.isLt
-    dsimp only [frameParentBase, candPredBase, candCostBase, frameBEntryBase, frameBase]; omega
-  adj_bx u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curAdjBase, candPredBase, candCostBase, frameBExitBase, frameBase]; omega
-  cost_bx u col := by
-    have := List.mul_add_lt_sq u.isLt col.isLt
-    dsimp only [curCostBase, candPredBase, candCostBase, frameBExitBase, frameBase]; omega
-  mask_bx y := by
-    have := y.isLt
-    dsimp only [frameMaskBase, candPredBase, candCostBase, frameBExitBase, frameBase]; omega
-  fp_bx v := by
-    have := v.isLt
-    dsimp only [frameParentBase, candPredBase, candCostBase, frameBExitBase, frameBase]; omega
-  be_bx u := by
-    have := u.isLt
-    dsimp only [frameBEntryBase, candPredBase, candCostBase, frameBExitBase, frameBase]; omega
-  out addr haddr := by
-    dsimp only [candPredBase, candCostBase, frameMaskBase, frameBEntryBase,
-      frameBExitBase, frameRepAddr, frameBase] at haddr ⊢
-    exact ⟨by omega, by omega, by omega, by omega, by omega⟩
-  rep_all := by
-    dsimp only [candPredBase, candCostBase, frameMaskBase, frameBEntryBase,
-      frameBExitBase, frameRepAddr, frameBase]
-    exact ⟨by omega, by omega, by omega, by omega⟩
-  fp_ct v := by dsimp only [frameParentBase, frameBase]; omega
-  ct_mask v := by dsimp only [frameMaskBase, frameBase]; omega
-  ct_be v := by dsimp only [frameBEntryBase, frameBase]; omega
-  ct_bx v := by dsimp only [frameBExitBase, frameBase]; omega
+  fp_rep v := by have := v.isLt; layout_omega
+  adj_rep u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  cost_rep u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  adj_cm u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  cost_cm u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  fp_cm v := by have := v.isLt; layout_omega
+  adj_be u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  cost_be u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  mask_be y := by have := y.isLt; layout_omega
+  fp_be v := by have := v.isLt; layout_omega
+  adj_bx u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  cost_bx u col := by have := List.mul_add_lt_sq u.isLt col.isLt; layout_omega
+  mask_bx y := by have := y.isLt; layout_omega
+  fp_bx v := by have := v.isLt; layout_omega
+  be_bx u := by have := u.isLt; layout_omega
+  out addr haddr := by layout_omega
+  rep_all := by layout_omega
+  fp_ct v := by layout_omega
+  ct_mask v := by layout_omega
+  ct_be v := by layout_omega
+  ct_bx v := by layout_omega
 
 private theorem matrix_mem_congr {n base : ℕ} {P : ℕ → Prop} {s₁ s₂ : Memory.State}
     {val : Fin n → Fin n → ℕ}
@@ -605,337 +579,158 @@ private theorem forwardProg_spec {w n ws M₀ : ℕ} (r : Fin n)
       have hf_s_pos : 0 < s.frontier := by rw [hfr]; exact hf_pos
       rcases hbranch with
           ⟨hst0, hdep, a_k, cUnred, cRed, frs, hlen, hpot, heq_aux, ha_k, hc_k, hbnd_k, hfrs_k⟩ |
-          ⟨hst1, hdep, frs, q₀, hlen, heq_aux, hcur_k, hfrs_k⟩ | ⟨hst2, heq_none⟩
+          hrest
       · subst status depth
         have hfr_le_k := frame_le_frames hk
         have hfit_diff := hdiff_fit k hk
-        have hB_k : ∀ u col : Fin n, (cRed[u.1][col.1]).natAbs ≤ (k + 1) * M₀ := by
-          intro u col
-          obtain ⟨hlo, hhi⟩ := hbnd_k u col
-          have hlo' : -(((k + 1) * M₀ : ℕ) : ℤ) ≤ cRed[u.1][col.1] := by
-            have : (M₀ : ℤ) ≤ (k + 1 : ℤ) * M₀ := by nlinarith
-            push_cast
-            linarith
-          have hhi' : cRed[u.1][col.1] ≤ (((k + 1) * M₀ : ℕ) : ℤ) := by
-            push_cast
-            linarith
-          omega
-        have hfit_ck : ∀ u col : Fin n, Fits w (Signed.encode cRed[u.1][col.1]) := by
-          intro u col
-          have hbk := hB_k u col
-          unfold Signed.encode
-          exact hfit_diff.of_le (by split_ifs <;> omega)
-        have hsel := selectParentsProg_spec r a_k cRed s hk hws hf_s ha_k hc_k hfit_ck
-        set selArgs : SelectArgs := ⟨n, r.1, ws, k⟩
-        set sSel := (Memory.spec 0).clientState s (selectParentsProg selArgs)
-        set sel := selectParents a_k cRed r
+        have hfuel_eq : n - k = (n - (k + 1)) + 1 := by omega
+        have hmul (j : ℕ) (hj : j < frs.length) :
+            j * (4 * n + 1) + (4 * n + 1) ≤ k * (4 * n + 1) := by
+          simpa [Nat.succ_mul] using Nat.mul_le_mul_right (4 * n + 1) (hlen ▸ hj : j < k)
+        have hB_k : ∀ u col : Fin n, (cRed[u.1][col.1]).natAbs ≤ (k + 1) * M₀ := fun u col => by
+          have h := hbnd_k u col
+          have : (M₀ : ℤ) ≤ (k + 1 : ℤ) * M₀ := by nlinarith
+          zify; rw [abs_le]; constructor <;> linarith
+        have hsel := selectParentsProg_spec r a_k cRed s hk hws hf_s ha_k hc_k fun u col =>
+          hfit_diff.of_le (by have := hB_k u col; unfold Signed.encode; split_ifs <;> omega)
+        dsimp only at hsel
+        obtain ⟨⟨-, hsel_safe⟩, hsel_vh, hsel_mc, hsel_fr, hsel_mod, hsel_res, hsel_par⟩ := hsel
+        generalize hsSel : (Memory.spec 0).clientState s (selectParentsProg ⟨n, r.1, ws, k⟩) = sSel
+          at hsel_fr hsel_mod hsel_par
+        rw [hfr] at hsel_fr
         have hsel_eq_unred : selectParents a_k cRed r = selectParents a_k cUnred r :=
           selectParents_of_rowPotEq r hpot
-        have hsSel_fr : sSel.frontier = s₀.frontier := hsel.2.2.2.1.trans hfr
-        have hf_sSel : ws + wsSize n ≤ sSel.frontier := by rw [hsSel_fr]; exact hf
-        have ha_sel : ∀ u col : Fin n,
-            sSel.mem (curAdjBase ws n + u.1 * n + col.1) = if a_k[u.1][col.1] then 1 else 0 := by
-          intro u col
+        set sel := selectParents a_k cRed r
+        have hf_sSel : ws + wsSize n ≤ sSel.frontier := hsel_fr ▸ hf
+        have hsel_out (x : ℕ) (hx : ¬(ws ≤ x ∧ x < ws + wsSize n)) : sSel.mem x = s.mem x :=
+          hsel_mod x (by
+            dsimp only [wsSize, candPredBase, candCostBase, frameParentBase, frameBase] at hx ⊢
+            omega)
+        have ha_sel := matrix_mem_congr hsel_mod (fun u col => by
           have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [hsel.2.2.2.2.1 _ (by
-            dsimp only [curAdjBase, candPredBase, candCostBase, frameParentBase, frameBase]
-            omega)]
-          exact ha_k u col
-        have hc_sel : ∀ u col : Fin n,
-            sSel.mem (curCostBase ws n + u.1 * n + col.1) = Signed.encode cRed[u.1][col.1] := by
-          intro u col
+          dsimp only [curAdjBase, candPredBase, candCostBase, frameParentBase, frameBase]
+          omega) ha_k
+        have hc_sel := matrix_mem_congr hsel_mod (fun u col => by
           have := List.mul_add_lt_sq u.isLt col.isLt
-          rw [hsel.2.2.2.2.1 _ (by
-            dsimp only [curCostBase, candPredBase, candCostBase, frameParentBase, frameBase]
-            omega)]
-          exact hc_k u col
-        have hfrs_sel : ∀ j (hj : j < frs.length), FrameStored ws n j frs[j] sSel := fun j hj =>
-          frameStored_congr (hfrs_k j hj) fun addr hlo hhi =>
-            hsel.2.2.2.2.1 addr (by
-              have hjk : j < k := hlen ▸ hj
-              have hmul : j * (4 * n + 1) + (4 * n + 1) ≤ k * (4 * n + 1) := by
-                simpa [Nat.succ_mul] using Nat.mul_le_mul_right (4 * n + 1) hjk
-              dsimp only [candPredBase, candCostBase, frameParentBase, frameBase] at hlo hhi ⊢
-              omega)
-        have hfc := findCycleProg_spec r sel.parents sSel h1
-          (hws.of_le (by dsimp only [wsSize, frameParentBase, frameBase]; linarith only [hfr_le_k]))
-          (hws.of_le (by dsimp only [wsSize]; omega))
-          (by rw [hsSel_fr]; exact hf_pos)
-          (by dsimp only [wsSize, frameParentBase, frameBase] at hf_sSel ⊢;
-              linarith only [hf_sSel, hfr_le_k])
-          hsel.2.2.2.2.2.2
-        set fcArgs : FindCycleArgs := ⟨n, r.1, frameParentBase ws n k⟩
-        have hsFc_eq : (Memory.spec 0).clientState sSel (findCycleProg fcArgs) = sSel :=
-          hfc.2.2.2.1
-        have hfuel_eq : n - k = (n - (k + 1)) + 1 := by omega
-        have hcp_parent := copyWordsProg_spec
-          ⟨frameParentBase ws n k, curParentBase ws n, n⟩ sSel
-          (by dsimp only [wsSize, frameParentBase, frameBase] at hf_sSel ⊢;
-              linarith only [hf_sSel, hfr_le_k])
-          (by dsimp only [wsSize, curParentBase] at hf_sSel ⊢; omega)
-          (Or.inr (by dsimp only [curParentBase, frameParentBase, frameBase]; omega))
-          (hws.of_le (by dsimp only [wsSize, frameParentBase, frameBase]; linarith only [hfr_le_k]))
-          (hws.of_le (by dsimp only [wsSize, curParentBase]; omega))
-          (hws.of_le (by dsimp only [wsSize]; omega))
-          (fun i hi => by
-            dsimp only
-            rw [hsel.2.2.2.2.2.2 ⟨i, hi⟩]
-            exact hws.of_le (by
-              have := (sel.parents[i]).isLt
-              dsimp only [wsSize]; omega))
-        have hcrb_at (x0 : Fin n) :=
-          contractRoundBodyProg_spec r x0 a_k cRed sel.parents sSel hk hws hf_sSel
-            hfit_diff ha_sel hc_sel hsel.2.2.2.2.2.2 hB_k
-        have hsafe_step : ForwardStepSafe w (ca, ⟨k, 0, k⟩) s := by
-          dsimp only [ForwardStepSafe, ca]
-          refine ⟨hk, hws, fun _ => ⟨hsel.1.2, fun _ => ⟨hfc.1, ?_, ?_⟩⟩⟩
-          · intro _
-            rw [hsFc_eq]
-            exact hcp_parent.1
-          · intro hx0_ne
-            have hfc_s := hsFc_eq
-            have hfc_r := hfc.2.2.2.2
-            dsimp only [sSel, selArgs, fcArgs] at hfc_s hfc_r
-            rw [hfc_s]
-            rw [hfc_r] at hx0_ne ⊢
-            cases hcyc_case : findCycleTable r sel.parents with
-            | none => exact absurd (by simp [hcyc_case, optFinIdx]) hx0_ne
-            | some x0 =>
-              simp only [optFinIdx]
-              exact (hcrb_at x0).1
-        refine ⟨hsafe_step, ?_, ?_, ?_, ?_, ?_⟩
-        · unfold forwardStep
-          dsimp only [ca, ↓reduceIte]
-          refine validHistory_read_bind hf_s_pos ?_
-          refine validHistory_bind_step hsel.2.1 ?_
-          by_cases hfeas0 : (Memory.spec 0).clientResult s (selectParentsProg selArgs) = 0
-          · simp only [selArgs] at hfeas0
-            simp only [hfeas0, ↓reduceIte]
+          dsimp only [curCostBase, candPredBase, candCostBase, frameParentBase, frameBase]
+          omega) hc_k
+        have hfrs_sel (j : ℕ) (hj : j < frs.length) : FrameStored ws n j frs[j] sSel :=
+          frameStored_congr (hfrs_k j hj) fun addr hlo hhi => hsel_mod addr (by
+            have := hmul j hj
+            dsimp only [candPredBase, candCostBase, frameParentBase, frameBase] at hlo hhi ⊢
+            omega)
+        obtain ⟨hfc_safe, hfc_vh, hfc_mc, hfc_st, hfc_res⟩ :=
+          findCycleProg_spec r sel.parents sSel h1
+            (hws.of_le (by
+              dsimp only [wsSize, frameParentBase, frameBase]; linarith only [hfr_le_k]))
+            (hws.of_le (by dsimp only [wsSize]; omega)) (by rw [hsel_fr]; exact hf_pos)
+            (by dsimp only [wsSize, frameParentBase, frameBase] at hf_sSel ⊢;
+                linarith only [hf_sSel, hfr_le_k])
+            hsel_par
+        have hsSel' := hsSel
+        have hfc_st' := hfc_st
+        simp only [StateTransitionSpec.clientState] at hsSel' hfc_st'
+        cases hfeas_b : sel.feasible
+        · have hres_sel :
+              (Memory.spec 0).clientResult s (selectParentsProg ⟨n, r.1, ws, k⟩) = 0 := by
+            simp only [hsel_res, hfeas_b, Bool.false_eq_true, ↓reduceIte]
+          refine ⟨⟨hk, hws, fun _ => ⟨hsel_safe, fun h => absurd hres_sel h⟩⟩,
+            validHistory_read_bind hf_s_pos (validHistory_bind_step hsel_vh ?_), ?_⟩
+          · rw [hsSel, hres_sel, ite_eq_left rfl]
             exact validHistory_pure w _ _
-          · simp only [selArgs] at hfeas0
-            simp only [hfeas0, ↓reduceIte]
-            refine validHistory_bind_step hfc.2.1 ?_
-            change (Memory.spec w).ValidHistory ((Memory.spec 0).clientState sSel
-              (findCycleProg fcArgs)) _
-            rw [hsFc_eq]
-            by_cases hx0_eq : (Memory.spec 0).clientResult sSel (findCycleProg fcArgs) = n
-            · dsimp only [fcArgs, sSel, selArgs] at hx0_eq ⊢
-              simp only [hx0_eq, ↓reduceIte]
-              exact validHistory_bind_step hcp_parent.2.1 (validHistory_pure w _ _)
-            · have hfc_res := hfc.2.2.2.2
-              dsimp only [fcArgs, sSel, selArgs] at hx0_eq hfc_res ⊢
-              simp only [hx0_eq, ↓reduceIte]
-              rw [hfc_res] at hx0_eq ⊢
-              cases hcyc_case : findCycleTable r sel.parents with
-              | none => simp [hcyc_case, optFinIdx] at hx0_eq
-              | some x0 =>
-                simp only [optFinIdx]
-                exact validHistory_bind_step (hcrb_at x0).2.1 (validHistory_pure w _ _)
-        · unfold forwardStep
-          dsimp only [ca]
-          rw [memoryCost_bind', memoryCost_read, clientState_read]
-          simp only [↓reduceIte, memoryCost_bind']
-          have hc_sel_le : memoryCost (selectParentsProg selArgs) s ≤ (6 * n + 2) * n :=
-            hsel.2.2.1
-          dsimp only [selArgs] at hc_sel_le
-          split_ifs with hfeas0
-          · simp only [client_simps]; nlinarith only [hc_sel_le]
-          · simp only [memoryCost_bind']
-            split_ifs with hx0_eq
-            · have hc_fc_le : memoryCost (findCycleProg fcArgs) sSel ≤ (n + 1) * n := hfc.2.2.1
-              have hc_cp_le := hcp_parent.2.2.1
-              dsimp only [fcArgs, sSel, selArgs] at hc_fc_le hsFc_eq hc_cp_le ⊢
-              rw [hsFc_eq]
-              simp only [client_simps] at hc_cp_le ⊢
-              nlinarith only [hc_sel_le, hc_fc_le, hc_cp_le]
-            · have hc_fc_le : memoryCost (findCycleProg fcArgs) sSel ≤ (n + 1) * n := hfc.2.2.1
-              have hfc_res := hfc.2.2.2.2
-              dsimp only [fcArgs, sSel, selArgs] at hc_fc_le hsFc_eq hfc_res hx0_eq ⊢
-              rw [hsFc_eq, hfc_res]
-              rw [hfc_res] at hx0_eq
-              cases hcyc_case : findCycleTable r sel.parents with
-              | none => simp [hcyc_case, optFinIdx] at hx0_eq
-              | some x0 =>
-                simp only [optFinIdx]
-                have hc_crb := (hcrb_at x0).2.2.1
-                dsimp only [sSel, selArgs] at hc_crb
-                simp only [client_simps]
-                nlinarith only [hc_sel_le, hc_fc_le, hc_crb]
-        · unfold forwardStep
-          dsimp only [ca]
-          rw [clientState_bind_read, ite_eq_left rfl, StateTransitionSpec.clientState_bind]
-          by_cases hfeas0 : (Memory.spec 0).clientResult s (selectParentsProg selArgs) = 0
-          · dsimp only [selArgs] at hfeas0
-            rw [ite_eq_left hfeas0, StateTransitionSpec.clientState_pure]
-            dsimp only [sSel, selArgs] at hsSel_fr
-            exact hsSel_fr.trans hfr.symm
-          · dsimp only [selArgs] at hfeas0
-            rw [ite_eq_right hfeas0, StateTransitionSpec.clientState_bind]
-            dsimp only [sSel, selArgs, fcArgs] at hsFc_eq hsSel_fr ⊢
-            rw [hsFc_eq]
-            by_cases hx0_eq :
-                (Memory.spec 0).clientResult
-                    ((Memory.spec 0).clientState s (selectParentsProg ⟨n, r.1, ws, k⟩))
-                    (findCycleProg ⟨n, r.1, frameParentBase ws n k⟩) = n
-            · rw [ite_eq_left hx0_eq, StateTransitionSpec.clientState_bind,
-                StateTransitionSpec.clientState_pure]
-              have hcp_fr := hcp_parent.2.2.2.1
-              dsimp only [sSel, selArgs] at hcp_fr hsSel_fr
-              exact hcp_fr.trans (hsSel_fr.trans hfr.symm)
-            · rw [ite_eq_right hx0_eq, StateTransitionSpec.clientState_bind,
-                StateTransitionSpec.clientState_pure]
-              have hfc_res := hfc.2.2.2.2
-              dsimp only [fcArgs, sSel, selArgs] at hfc_res hx0_eq ⊢
-              rw [hfc_res] at hx0_eq ⊢
-              cases hcyc_case : findCycleTable r sel.parents with
-              | none => simp [hcyc_case, optFinIdx] at hx0_eq
-              | some x0 =>
-                simp only [optFinIdx]
-                have hcrb_fr := (hcrb_at x0).2.2.2.1
-                dsimp only [sSel, selArgs] at hcrb_fr hsSel_fr
-                exact hcrb_fr.trans (hsSel_fr.trans hfr.symm)
-        · intro addr haddr
-          have hsSel_addr : sSel.mem addr = s.mem addr :=
-            hsel.2.2.2.2.1 addr (by
-              dsimp only [wsSize, candPredBase, candCostBase, frameParentBase, frameBase]
-                at haddr ⊢
-              omega)
-          unfold forwardStep
-          dsimp only [ca]
-          rw [clientState_bind_read, ite_eq_left rfl, StateTransitionSpec.clientState_bind]
-          by_cases hfeas0 : (Memory.spec 0).clientResult s (selectParentsProg selArgs) = 0
-          · dsimp only [selArgs] at hfeas0
-            rw [ite_eq_left hfeas0, StateTransitionSpec.clientState_pure]
-            exact hsSel_addr
-          · dsimp only [selArgs] at hfeas0
-            rw [ite_eq_right hfeas0, StateTransitionSpec.clientState_bind]
-            dsimp only [sSel, selArgs, fcArgs] at hsFc_eq hsSel_addr ⊢
-            rw [hsFc_eq]
-            by_cases hx0_eq :
-                (Memory.spec 0).clientResult
-                    ((Memory.spec 0).clientState s (selectParentsProg ⟨n, r.1, ws, k⟩))
-                    (findCycleProg ⟨n, r.1, frameParentBase ws n k⟩) = n
-            · rw [ite_eq_left hx0_eq, StateTransitionSpec.clientState_bind,
-                StateTransitionSpec.clientState_pure]
-              have hcp_mod := hcp_parent.2.2.2.2.1
-              dsimp only [sSel, selArgs] at hcp_mod hsSel_addr
-              rw [hcp_mod addr (by dsimp only [wsSize, curParentBase] at haddr ⊢; omega)]
-              exact hsSel_addr
-            · rw [ite_eq_right hx0_eq, StateTransitionSpec.clientState_bind,
-                StateTransitionSpec.clientState_pure]
-              have hfc_res := hfc.2.2.2.2
-              dsimp only [fcArgs, sSel, selArgs] at hfc_res hx0_eq hsSel_addr ⊢
-              rw [hfc_res] at hx0_eq ⊢
-              cases hcyc_case : findCycleTable r sel.parents with
-              | none => simp [hcyc_case, optFinIdx] at hx0_eq
-              | some x0 =>
-                simp only [optFinIdx]
-                have hcrb_mod := (hcrb_at x0).2.2.2.2.1
-                dsimp only [sSel, selArgs] at hcrb_mod
-                rw [hcrb_mod addr (by
-                  dsimp only [wsSize, frameMaskBase, frameBase] at haddr ⊢; omega)]
-                exact hsSel_addr
-        · unfold forwardStep
-          dsimp only [ca]
-          simp only [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
-            prog_clientResult_ite, ↓reduceIte]
-          repeat rw [clientState_bind_read]
-          repeat rw [StateTransitionSpec.clientState_bind]
-          repeat rw [clientState_read]
-          have hsel_res := hsel.2.2.2.2.2.1
-          dsimp only [selArgs, sel] at hsel_res
-          rw [hsel_res]
-          cases hfeas_b : (selectParents a_k cRed r).feasible
-          · dsimp only [sSel, selArgs] at hsSel_fr
-            simp only [Bool.false_eq_true, ↓reduceIte]
-            refine ⟨trivial, hsSel_fr, Or.inr (Or.inr ⟨trivial, ?_⟩)⟩
-            rw [heq_aux, hfuel_eq]
-            simp [edmondsTableAux, ← hsel_eq_unred, hfeas_b]
-          · simp only [↓reduceIte, Nat.one_ne_zero]
-            rw [StateTransitionSpec.clientState_bind]
-            have hfc_res := hfc.2.2.2.2
-            dsimp only [fcArgs, sSel, selArgs, sel] at hsFc_eq hfc_res ⊢
-            rw [hsFc_eq, hfc_res]
-            cases hcyc_case : findCycleTable r (selectParents a_k cRed r).parents with
-            | none =>
-              simp only [optFinIdx, ↓reduceIte]
-              repeat rw [StateTransitionSpec.clientState_bind]
-              repeat rw [StateTransitionSpec.clientState_pure]
-              have hcp := hcp_parent
-              dsimp only [sSel, selArgs, sel] at hcp hsSel_fr
-              refine ⟨trivial, hcp.2.2.2.1.trans hsSel_fr, Or.inr (Or.inl ⟨trivial, by omega,
-                frs, (selectParents a_k cRed r).parents, hlen, ?_, ?_, ?_⟩)⟩
-              · rw [heq_aux, hfuel_eq]
-                simp [edmondsTableAux, ← hsel_eq_unred, hfeas_b, hcyc_case]
-              · intro v
-                rw [show curParentBase ws n + v.1 =
-                  (⟨frameParentBase ws n k, curParentBase ws n, n⟩ : CopyArgs).dst + v.1 from rfl,
-                  hcp.2.2.2.2.2 v.1 v.isLt]
-                exact hsel.2.2.2.2.2.2 v
-              · intro j hj
-                exact frameStored_congr (hfrs_sel j hj) fun addr hlo hhi =>
-                  hcp.2.2.2.2.1 addr (by dsimp only [curParentBase, frameBase] at hlo ⊢; omega)
-            | some x0 =>
-              have hx0_ne : x0.1 ≠ n := ne_of_lt x0.isLt
-              simp only [optFinIdx, hx0_ne, ↓reduceIte]
-              repeat rw [StateTransitionSpec.clientState_bind]
-              repeat rw [StateTransitionSpec.clientState_pure]
-              have hcrb := hcrb_at x0
-              dsimp only [sSel, selArgs, sel] at hcrb
-              obtain ⟨hpot', heq_aux', hbnd'⟩ :=
-                forwardStep_contract_math hk hpot heq_aux hfeas_b hcyc_case hbnd_k
-              refine ⟨trivial, hcrb.2.2.2.1.trans hsSel_fr, Or.inl ⟨trivial, trivial,
-                _, _, _, _, by simp [hlen], hpot', heq_aux', hcrb.2.2.2.2.2.1,
-                hcrb.2.2.2.2.2.2.1, hbnd', ?_⟩⟩
-              intro j hj
-              rw [List.length_append, List.length_singleton] at hj
-              rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hlt | rfl
-              · rw [List.getElem_append_left hlt]
-                have hjk : j < k := hlen ▸ hlt
-                have hmul : j * (4 * n + 1) + (4 * n + 1) ≤ k * (4 * n + 1) := by
-                  simpa [Nat.succ_mul] using Nat.mul_le_mul_right (4 * n + 1) hjk
-                exact frameStored_congr (hfrs_sel j hlt) fun addr hlo hhi =>
-                  hcrb.2.2.2.2.1 addr (by
-                    dsimp only [frameMaskBase, frameBase] at hlo hhi ⊢; omega)
-              · simp only [List.getElem_append_right (le_refl frs.length), Nat.sub_self,
-                  List.getElem_singleton]
-                rw [hlen]
-                exact hcrb.2.2.2.2.2.2.2
-      · subst status
-        refine ⟨by dsimp only [ForwardStepSafe, ca]; exact ⟨hk, hws, fun h => by cases h⟩,
-          ?_, ?_,
-          by simp [forwardStep, client_simps],
-          fun _ _ => by simp [forwardStep, client_simps],
-          ?_⟩
-        · unfold forwardStep
-          simp only [Nat.one_ne_zero, ↓reduceIte]
-          exact validHistory_read_bind hf_s_pos (validHistory_pure w _ _)
-        · unfold forwardStep
-          simp only [Nat.one_ne_zero, ↓reduceIte]
-          rw [memoryCost_bind', memoryCost_read]
-          simp only [client_simps]
-          omega
-        · unfold forwardStep
-          simp only [Nat.one_ne_zero, ↓reduceIte, client_simps]
-          exact ⟨trivial, hfr, Or.inr (Or.inl ⟨trivial, by omega, frs, q₀, hlen, heq_aux,
-            hcur_k, hfrs_k⟩)⟩
-      · subst status
-        refine ⟨by dsimp only [ForwardStepSafe, ca]; exact ⟨hk, hws, fun h => by cases h⟩,
-          ?_, ?_,
-          by simp [forwardStep, client_simps],
-          fun _ _ => by simp [forwardStep, client_simps],
-          ?_⟩
-        · unfold forwardStep
-          simp only [show (2 : ℕ) ≠ 0 by decide, ↓reduceIte]
-          exact validHistory_read_bind hf_s_pos (validHistory_pure w _ _)
-        · unfold forwardStep
-          simp only [show (2 : ℕ) ≠ 0 by decide, ↓reduceIte]
-          rw [memoryCost_bind', memoryCost_read]
-          simp only [client_simps]
-          omega
-        · unfold forwardStep
-          simp only [show (2 : ℕ) ≠ 0 by decide, ↓reduceIte, client_simps]
-          exact ⟨trivial, hfr, Or.inr (Or.inr ⟨trivial, heq_none⟩)⟩)
+          simp only [forwardStep, ca, client_simps, hsSel', hres_sel, ↓reduceIte]
+          refine ⟨by nlinarith only [hsel_mc], hsel_fr.trans hfr.symm, hsel_out, trivial, hsel_fr,
+            Or.inr (Or.inr ⟨trivial, ?_⟩)⟩
+          rw [heq_aux, hfuel_eq]
+          simp [edmondsTableAux, ← hsel_eq_unred, hfeas_b]
+        have hres_sel : (Memory.spec 0).clientResult s (selectParentsProg ⟨n, r.1, ws, k⟩) = 1 := by
+          simp only [hsel_res, hfeas_b, ↓reduceIte]
+        cases hcyc : findCycleTable r sel.parents
+        · have hx0 : (Memory.spec 0).clientResult sSel
+              (findCycleProg ⟨n, r.1, frameParentBase ws n k⟩) = n := by rw [hfc_res, hcyc]; rfl
+          have hcp := copyWordsProg_spec
+            ⟨frameParentBase ws n k, curParentBase ws n, n⟩ sSel
+            (by dsimp only [wsSize, frameParentBase, frameBase] at hf_sSel ⊢;
+                linarith only [hf_sSel, hfr_le_k])
+            (by dsimp only [wsSize, curParentBase] at hf_sSel ⊢; omega)
+            (Or.inr (by dsimp only [curParentBase, frameParentBase, frameBase]; omega))
+            (hws.of_le (by
+              dsimp only [wsSize, frameParentBase, frameBase]; linarith only [hfr_le_k]))
+            (hws.of_le (by dsimp only [wsSize, curParentBase]; omega))
+            (hws.of_le (by dsimp only [wsSize]; omega))
+            (fun i hi => by
+              dsimp only
+              rw [hsel_par ⟨i, hi⟩]
+              exact hws.of_le (by have := (sel.parents[i]).isLt; dsimp only [wsSize]; omega))
+          obtain ⟨hcp_safe, hcp_vh, hcp_mc, hcp_fr, hcp_mod, hcp_val⟩ := hcp
+          refine ⟨?_, validHistory_read_bind hf_s_pos (validHistory_bind_step hsel_vh ?_), ?_⟩
+          · dsimp only [ForwardStepSafe, ca]
+            rw [hsSel, hfc_st, hx0]
+            exact ⟨hk, hws, fun _ => ⟨hsel_safe, fun _ => ⟨hfc_safe, fun _ => hcp_safe,
+              fun h => absurd rfl h⟩⟩⟩
+          · rw [hsSel, hres_sel, ite_eq_right one_ne_zero]
+            refine validHistory_bind_step hfc_vh ?_
+            rw [hfc_st, hx0, ite_eq_left rfl]
+            exact validHistory_bind_step hcp_vh (validHistory_pure w _ _)
+          simp only [StateTransitionSpec.clientState] at hcp_fr hcp_mod hcp_val
+          simp only [forwardStep, ca, client_simps, hsSel', hres_sel, one_ne_zero, hfc_st', hx0,
+            ↓reduceIte]
+          refine ⟨by nlinarith only [hsel_mc, hfc_mc, hcp_mc],
+            hcp_fr.trans (hsel_fr.trans hfr.symm),
+            fun x hx => (hcp_mod x (by dsimp only [wsSize, curParentBase] at hx ⊢; omega)).trans
+              (hsel_out x hx),
+            trivial, hcp_fr.trans hsel_fr,
+            Or.inr (Or.inl ⟨trivial, by omega, frs, sel.parents, hlen, ?_,
+              fun v => (hcp_val v.1 v.isLt).trans (hsel_par v), fun j hj =>
+                frameStored_congr (hfrs_sel j hj) fun addr hlo hhi => hcp_mod addr (by
+                  dsimp only [curParentBase, frameBase] at hlo ⊢; omega)⟩)⟩
+          rw [heq_aux, hfuel_eq]
+          simp [edmondsTableAux, ← hsel_eq_unred, hfeas_b, hcyc]
+        · rename_i x0
+          have hx0 : (Memory.spec 0).clientResult sSel
+              (findCycleProg ⟨n, r.1, frameParentBase ws n k⟩) = x0.1 := by rw [hfc_res, hcyc]; rfl
+          have hx0_ne : x0.1 ≠ n := x0.isLt.ne
+          have hcrb := contractRoundBodyProg_spec r x0 a_k cRed sel.parents sSel hk hws hf_sSel
+            hfit_diff ha_sel hc_sel hsel_par hB_k
+          dsimp only at hcrb
+          obtain ⟨hcrb_safe, hcrb_vh, hcrb_mc, hcrb_fr, hcrb_mod, hcrb_a, hcrb_c, hcrb_frm⟩ := hcrb
+          obtain ⟨hpot', heq_aux', hbnd'⟩ :=
+            forwardStep_contract_math hk hpot heq_aux hfeas_b hcyc hbnd_k
+          refine ⟨?_, validHistory_read_bind hf_s_pos (validHistory_bind_step hsel_vh ?_), ?_⟩
+          · dsimp only [ForwardStepSafe, ca]
+            rw [hsSel, hfc_st, hx0]
+            exact ⟨hk, hws, fun _ => ⟨hsel_safe, fun _ => ⟨hfc_safe, fun h => absurd h hx0_ne,
+              fun _ => hcrb_safe⟩⟩⟩
+          · rw [hsSel, hres_sel, ite_eq_right one_ne_zero]
+            refine validHistory_bind_step hfc_vh ?_
+            rw [hfc_st, hx0, ite_eq_right hx0_ne]
+            exact validHistory_bind_step hcrb_vh (validHistory_pure w _ _)
+          simp only [StateTransitionSpec.clientState] at hcrb_fr hcrb_mod hcrb_a hcrb_c hcrb_frm
+          simp only [forwardStep, ca, client_simps, hsSel', hres_sel, one_ne_zero, hfc_st', hx0,
+            hx0_ne, ↓reduceIte]
+          refine ⟨by nlinarith only [hsel_mc, hfc_mc, hcrb_mc],
+            hcrb_fr.trans (hsel_fr.trans hfr.symm),
+            fun x hx => (hcrb_mod x (by
+              dsimp only [wsSize, frameMaskBase, frameBase] at hx ⊢; omega)).trans (hsel_out x hx),
+            trivial, hcrb_fr.trans hsel_fr, Or.inl ⟨trivial, trivial, _, _, _, _, by simp [hlen],
+              hpot', heq_aux', hcrb_a, hcrb_c, hbnd', fun j hj => ?_⟩⟩
+          rw [List.length_append, List.length_singleton] at hj
+          rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hj) with hlt | rfl
+          · rw [List.getElem_append_left hlt]
+            exact frameStored_congr (hfrs_sel j hlt) fun addr hlo hhi => hcrb_mod addr (by
+              have := hmul j hlt
+              dsimp only [frameMaskBase, frameBase] at hlo hhi ⊢; omega)
+          · simp only [List.getElem_append_right (le_refl frs.length), Nat.sub_self,
+              List.getElem_singleton]
+            rw [hlen]
+            exact hcrb_frm
+      have hst : status ≠ 0 := by rcases hrest with ⟨h, -⟩ | ⟨h, -⟩ <;> omega
+      refine ⟨⟨hk, hws, fun h => absurd h hst⟩, ?_⟩
+      simp only [forwardStep, hst, ↓reduceIte]
+      refine ⟨validHistory_read_bind hf_s_pos (validHistory_pure w _ _), ?_⟩
+      simp only [client_simps]
+      exact ⟨by omega, trivial, fun _ _ => trivial, trivial, hfr,
+        Or.inr (hrest.imp (fun ⟨h1, hd, h⟩ => ⟨h1, by omega, h⟩) id)⟩)
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, Or.inl ⟨rfl, rfl, a₀, c₀, c₀, [], rfl,
       ⟨fun _ => 0, fun _ _ _ => by simp⟩,
       by simp [expandFrames], ha₀, hc₀,

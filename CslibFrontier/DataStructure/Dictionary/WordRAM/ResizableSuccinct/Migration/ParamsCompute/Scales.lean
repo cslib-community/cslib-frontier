@@ -115,18 +115,8 @@ theorem writeRootHdrSubProg_spec
     ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rcases s with ⟨mem, fr⟩
     dsimp only [prog, d, writeRootHdrSubProg] at hsrc_fr hdst_fr hm0 hm1 hm2 hm3 hm4 ⊢
-    refine validHistory_read_step (by omega) ?_
-    refine validHistory_read_step (by omega) ?_
-    refine validHistory_read_step (by omega) ?_
-    refine validHistory_read_step (by omega) ?_
-    refine validHistory_read_step (by omega) ?_
-    refine validHistory_write_step (by omega) hm0 ?_
-    refine validHistory_write_step (by omega) hm1 ?_
-    refine validHistory_write_step (by omega) hm2 ?_
-    refine validHistory_write_step (by omega) hm3 ?_
-    refine validHistory_write_step (by omega) hm4 ?_
-    refine validHistory_write_step (by omega) hN_fit ?_
-    refine validHistory_write_step (by omega) hnc_fit ?_
+    iterate 5 refine validHistory_read_step (by omega) ?_
+    iterate 7 refine validHistory_write_step (by omega) (by assumption) ?_
     exact ⟨⟨show dstMetaBase + 7 < fr by omega, hni_fit⟩, trivial⟩
   · dsimp only [prog, d, writeRootHdrSubProg]
     simp only [prog_clientResult_bind, prog_clientResult_read, prog_runClient_state_read,

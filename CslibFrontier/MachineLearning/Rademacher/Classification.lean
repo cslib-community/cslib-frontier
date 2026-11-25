@@ -102,12 +102,8 @@ theorem mem_bitClass_lossClass {C : ConceptClass α Bool} {f : α × Bool → �
     f ∈ bitClass (lossClass C) ↔
       ∃ h ∈ C, (fun p : α × Bool => bitVal ℝ (decide (h p.1 ≠ p.2))) = f := by
   rw [mem_bitClass]
-  constructor
-  · rintro ⟨_, hl, rfl⟩
-    obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hl
-    exact ⟨h, hh, rfl⟩
-  · rintro ⟨h, hh, rfl⟩
-    exact ⟨_, mem_lossClass.2 ⟨h, hh, rfl⟩, rfl⟩
+  exact ⟨by rintro ⟨_, hl, rfl⟩; obtain ⟨h, hh, rfl⟩ := mem_lossClass.1 hl; exact ⟨h, hh, rfl⟩,
+    by rintro ⟨h, hh, rfl⟩; exact ⟨_, mem_lossClass.2 ⟨h, hh, rfl⟩, rfl⟩⟩
 
 /-- Functions of `bitClass C` take values in `[0, 1]`. -/
 theorem mem_Icc_of_mem_bitClass {C : ConceptClass α Bool} {f : α → ℝ} (hf : f ∈ bitClass C)
@@ -128,31 +124,25 @@ theorem empiricalRademacherComplexity_bitClass_lossClass (C : ConceptClass α Bo
     (S : Fin m → α × Bool) :
     empiricalRademacherComplexity (bitClass (lossClass C)) S =
       empiricalRademacherComplexity (signClass C) (fun i => (S i).1) / 2 := by
-  have hsign : ∀ (f : signClass C) (i : Fin m), |(f : α → ℝ) (S i).1| ≤ 1 :=
-    fun f i => abs_le_one_of_mem_signClass f.2 _
-  have hloss : ∀ (f : bitClass (lossClass C)) (i : Fin m), |(f : α × Bool → ℝ) (S i)| ≤ 1 :=
-    fun f i => by
-      have := mem_Icc_of_mem_bitClass f.2 (S i)
-      exact abs_le.2 ⟨by linarith [this.1], this.2⟩
-  have haff := rademacherAverage_add_mul_signVal_mul hsign (fun _ => 1 / 2)
-    (fun i => !(S i).2) (by norm_num : (0 : ℝ) ≤ 1 / 2)
+  have hsign (f : signClass C) (i : Fin m) : |(f : α → ℝ) (S i).1| ≤ 1 :=
+    abs_le_one_of_mem_signClass f.2 _
   rw [empiricalRademacherComplexity_def, empiricalRademacherComplexity_def, div_eq_inv_mul,
-    show (2 : ℝ)⁻¹ = 1 / 2 by norm_num, ← haff]
-  refine rademacherAverage_eq_of_forall_exists (B := 1) hloss ?_ ?_ ?_
-  · intro f i
-    have h1 := abs_le.1 (hsign f i)
-    rw [abs_le]
-    constructor <;> cases (S i).2 <;> simp only [Bool.not_false, Bool.not_true, signVal_true,
-      signVal_false] <;> linarith [h1.1, h1.2]
-  · rintro ⟨f, hf⟩
-    obtain ⟨h, hh, rfl⟩ := mem_bitClass_lossClass.1 hf
-    refine ⟨⟨fun x => signVal (h x), mem_signClass.2 ⟨h, hh, rfl⟩⟩, funext fun i => ?_⟩
-    exact bitVal_decide_ne _ _
-  · rintro ⟨f, hf⟩
-    obtain ⟨h, hh, rfl⟩ := mem_signClass.1 hf
-    refine ⟨⟨fun p => bitVal ℝ (decide (h p.1 ≠ p.2)), mem_bitClass_lossClass.2 ⟨h, hh, rfl⟩⟩,
-      funext fun i => ?_⟩
-    exact (bitVal_decide_ne _ _).symm
+    show (2 : ℝ)⁻¹ = 1 / 2 by norm_num, ← rademacherAverage_add_mul_signVal_mul hsign
+      (fun _ => 1 / 2) (fun i => !(S i).2) (by norm_num)]
+  refine rademacherAverage_eq_of_forall_exists (B := 1)
+    (fun f i => abs_le.2 ⟨by linarith [(mem_Icc_of_mem_bitClass f.2 (S i)).1],
+      (mem_Icc_of_mem_bitClass f.2 (S i)).2⟩)
+    (fun f i => by
+      have h1 := abs_le.1 (hsign f i)
+      cases (S i).2 <;> simp only [Bool.not_false, Bool.not_true, signVal_true, signVal_false,
+        abs_le] <;> constructor <;> linarith [h1.1, h1.2])
+    (fun ⟨_, hf⟩ => by
+      obtain ⟨h, hh, rfl⟩ := mem_bitClass_lossClass.1 hf
+      exact ⟨⟨_, mem_signClass.2 ⟨h, hh, rfl⟩⟩, funext fun _ => bitVal_decide_ne _ _⟩)
+    (fun ⟨_, hf⟩ => by
+      obtain ⟨h, hh, rfl⟩ := mem_signClass.1 hf
+      exact ⟨⟨_, mem_bitClass_lossClass.2 ⟨h, hh, rfl⟩⟩,
+        funext fun _ => (bitVal_decide_ne _ _).symm⟩)
 
 /-- The average 0-1 loss on a labeled sample is the empirical error `empiricalMiscount h S / m`. -/
 theorem expect_bitVal_decide_ne {m : ℕ} (h : α → Bool) (S : Fin m → α × Bool) :
@@ -243,8 +233,7 @@ theorem growthFunction_classification_bound [Finite α] (D : PMF (α × Bool)) {
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (rademacherComplexity_classification_bound D hm C hδ)
   rintro S ⟨h, hh, hlt⟩
-  refine ⟨h, hh, ?_⟩
-  linarith [rademacherComplexity_signClass_le (D.map Prod.fst) C m]
+  exact ⟨h, hh, by linarith [rademacherComplexity_signClass_le (D.map Prod.fst) C m]⟩
 
 /-- **VC-dimension generalization bound** [MohriRostamizadehTalwalkar2018, Corollary 3.19]: if
 every finite set shattered by `C` has at most `d` points, then for `m ≥ d` and `m > 0`, with
@@ -263,8 +252,7 @@ theorem vc_classification_bound [Finite α] (D : PMF (α × Bool)) {C : ConceptC
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (rademacherComplexity_classification_bound D hm C hδ)
   rintro S ⟨h, hh, hlt⟩
-  refine ⟨h, hh, ?_⟩
-  linarith [rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm]
+  exact ⟨h, hh, by linarith [rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm]⟩
 
 /-! ### Empirical risk minimization -/
 
@@ -277,17 +265,14 @@ private theorem empiricalMiscount_div_le [Finite α] (D : PMF (α × Bool)) {m :
       {S | (D.toOuterMeasure {p | c p.1 ≠ p.2}).toReal + √(Real.log (1 / δ) / (2 * m)) <
         (empiricalMiscount c S : ℝ) / m}).toReal ≤ δ := by
   have := Fintype.ofFinite α
-  have hrange : ∀ f ∈ ({fun p => -bitVal ℝ (decide (c p.1 ≠ p.2))} : Set (α × Bool → ℝ)),
-      ∀ z, f z ∈ Set.Icc (-1) 0 := by
-    rintro f rfl z
-    by_cases hz : c z.1 = z.2 <;> simp [hz, bitVal]
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
-    (rademacherComplexity_generalization_bound D hm (by norm_num) hrange hδ)
-  intro S hS
-  refine ⟨_, rfl, ?_⟩
-  simp only [Set.mem_ofPred_eq] at hS ⊢
-  rw [Finset.expect_neg_distrib, expect_bitVal_decide_ne, rademacherComplexity_singleton]
-  simp only [mul_neg, Finset.sum_neg_distrib, sum_mul_bitVal_decide_ne]
+    (rademacherComplexity_generalization_bound D hm (a := -1) (b := 0) (by norm_num)
+      (F := {fun p => -bitVal ℝ (decide (c p.1 ≠ p.2))})
+      (by rintro f rfl z; by_cases hz : c z.1 = z.2 <;> simp [hz, bitVal]) hδ)
+  refine fun S hS => ⟨_, rfl, ?_⟩
+  simp only [Set.mem_ofPred_eq, Finset.expect_neg_distrib, expect_bitVal_decide_ne,
+    rademacherComplexity_singleton, mul_neg, Finset.sum_neg_distrib, sum_mul_bitVal_decide_ne]
+    at hS ⊢
   linarith
 
 /-- Empirical risk minimization against one comparator `c ∈ C`. -/
@@ -298,29 +283,25 @@ private theorem PACLearning.IsERM.rademacherComplexity_le_add [Fintype α] (D : 
       {S | (D.toOuterMeasure {p | c p.1 ≠ p.2}).toReal +
         rademacherComplexity (D.map Prod.fst) (signClass C) m + √(2 * Real.log (2 / δ) / m) <
           (D.toOuterMeasure {p | A S p.1 ≠ p.2}).toReal}).toReal ≤ δ := by
-  have hm' : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hε : √(2 * Real.log (2 / δ) / m) = 2 * √(Real.log (1 / (δ / 2)) / (2 * m)) := by
     rw [one_div_div, show 2 * Real.log (2 / δ) / m = 2 ^ 2 * (Real.log (2 / δ) / (2 * m)) by
       field_simp, Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]
-  have h₁ := rademacherComplexity_classification_bound D hm C (half_pos hδ)
-  have h₂ := empiricalMiscount_div_le D hm c (half_pos hδ)
-  refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _
-      (t := {S | ∃ h ∈ C, (empiricalMiscount h S : ℝ) / m +
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _
+    (t := {S | ∃ h ∈ C, (empiricalMiscount h S : ℝ) / m +
         rademacherComplexity (D.map Prod.fst) (signClass C) m +
           √(Real.log (1 / (δ / 2)) / (2 * m)) < (D.toOuterMeasure {p | h p.1 ≠ p.2}).toReal} ∪
-        {S | (D.toOuterMeasure {p | c p.1 ≠ p.2}).toReal + √(Real.log (1 / (δ / 2)) / (2 * m)) <
-          (empiricalMiscount c S : ℝ) / m}) ?_) ?_
-  · intro S hS
-    by_contra hS'
-    simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, not_exists, not_and, not_lt] at hS hS'
-    obtain ⟨hAC, hmin⟩ := hA S
-    have hmis : (empiricalMiscount (A S) S : ℝ) / m ≤ (empiricalMiscount c S : ℝ) / m :=
-      div_le_div_of_nonneg_right (by exact_mod_cast hmin c hc) hm'.le
-    linarith [hS'.1 (A S) hAC, hS'.2]
-  · refine (ENNReal.toReal_le_add (MeasureTheory.measure_union_le _ _)
+      {S | (D.toOuterMeasure {p | c p.1 ≠ p.2}).toReal + √(Real.log (1 / (δ / 2)) / (2 * m)) <
+        (empiricalMiscount c S : ℝ) / m}) fun S hS => ?_).trans
+    ((ENNReal.toReal_le_add (MeasureTheory.measure_union_le _ _)
       (Probability.PMF.toOuterMeasure_ne_top _ _)
-      (Probability.PMF.toOuterMeasure_ne_top _ _)).trans ?_
-    linarith
+      (Probability.PMF.toOuterMeasure_ne_top _ _)).trans
+      (by linarith [rademacherComplexity_classification_bound D hm C (half_pos hδ),
+        empiricalMiscount_div_le D hm c (half_pos hδ)]))
+  by_contra hS'
+  simp only [Set.mem_union, Set.mem_ofPred_eq, not_or, not_exists, not_and, not_lt] at hS hS'
+  have hmis : (empiricalMiscount (A S) S : ℝ) / m ≤ (empiricalMiscount c S : ℝ) / m :=
+    div_le_div_of_nonneg_right (Nat.cast_le.2 ((hA S).2 c hc)) (Nat.cast_nonneg _)
+  linarith [hS'.1 (A S) (hA S).1, hS'.2]
 
 /-- **Agnostic learning by empirical risk minimization**: with probability at least `1 - δ` over
 `m > 0` independent examples from `D`, an empirical risk minimizer `A` for `C` satisfies
@@ -338,16 +319,13 @@ theorem PACLearning.IsERM.rademacherComplexity_agnostic_bound [Fintype α] (D : 
         rademacherComplexity (D.map Prod.fst) (signClass C) m + √(2 * Real.log (2 / δ) / m) <
           (D.toOuterMeasure {p | A S p.1 ≠ p.2}).toReal}).toReal ≤ δ := by
   rcases C.eq_empty_or_nonempty with rfl | hne
-  · simp only [Set.mem_empty_iff_false, false_and, exists_false, Set.ofPred_false,
-      MeasureTheory.measure_empty, ENNReal.toReal_zero]
-    exact hδ.le
+  · simp [hδ.le]
   obtain ⟨c₀, hc₀, hmin⟩ := Set.exists_min_image C
     (fun c => (D.toOuterMeasure {p | c p.1 ≠ p.2}).toReal) (Set.toFinite C) hne
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
-    (IsERM.rademacherComplexity_le_add D hm hA hc₀ hδ)
+    (hA.rademacherComplexity_le_add D hm hc₀ hδ)
   rintro S ⟨c, hc, hlt⟩
-  change _ < _
-  linarith [hmin c hc]
+  change _ < _; linarith [hmin c hc]
 
 /-- **Agnostic VC bound for empirical risk minimization**: if every finite set shattered by `C`
 has at most `d` points, then for `m ≥ d` and `m > 0`, with probability at least `1 - δ` over `m`
@@ -368,7 +346,6 @@ theorem PACLearning.IsERM.vc_agnostic_bound [Finite α] (D : PMF (α × Bool))
   refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
     (hA.rademacherComplexity_agnostic_bound D hm hδ)
   rintro S ⟨c, hc, hlt⟩
-  refine ⟨c, hc, ?_⟩
-  linarith [rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm]
+  exact ⟨c, hc, by linarith [rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm]⟩
 
 end Cslib.MachineLearning

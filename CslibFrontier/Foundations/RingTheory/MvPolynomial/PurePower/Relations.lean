@@ -88,52 +88,25 @@ private theorem shifted_sum (ell B : ℕ) (r : Fin n → MvPolynomial (Fin n) S)
     (v : MvPolynomial (Fin n) S) (i : Fin n) :
     (∑ j ∈ (indices n B).filter (fun j => j i < B), term ell r (v * r i) j) =
       ∑ j ∈ (indices n B).filter (fun j => 0 < j i), term ell r (v * X i ^ ell) j := by
-  apply Finset.sum_bij (fun j _ => raiseIndex j i)
-  · intro j hj
-    obtain ⟨hj, hji⟩ := Finset.mem_filter.mp hj
-    apply Finset.mem_filter.mpr
-    constructor
-    · apply mem_indices.mpr
-      intro k
-      by_cases hk : k = i
-      · subst k
-        simp only [raiseIndex, Function.update_self]
-        omega
-      · simpa only [raiseIndex, Function.update_of_ne hk] using mem_indices.mp hj k
-    · simp [raiseIndex]
-  · intro j hj k hk heq
-    funext a
-    have hh := congrFun heq a
-    by_cases ha : a = i
-    · subst a
-      simp only [raiseIndex, Function.update_self] at hh
+  refine Finset.sum_nbij' (raiseIndex · i) (lowerIndex · i) (fun j hj => ?_) (fun k hk => ?_)
+    (fun j _ => ?_) (fun k hk => ?_) fun j _ => (term_raise ell r v j i).symm
+  · obtain ⟨hj, hji⟩ := Finset.mem_filter.1 hj
+    refine Finset.mem_filter.2 ⟨mem_indices.2 fun a => ?_, by simp [raiseIndex]⟩
+    have := mem_indices.1 hj a
+    by_cases ha : a = i <;> simp [raiseIndex, ha] <;> omega
+  · obtain ⟨hk, hki⟩ := Finset.mem_filter.1 hk
+    have hiB := mem_indices.1 hk i
+    refine Finset.mem_filter.2 ⟨mem_indices.2 fun a => ?_, ?_⟩
+    · have := mem_indices.1 hk a
+      by_cases ha : a = i <;> simp [lowerIndex, ha] <;> omega
+    · simp only [lowerIndex, Function.update_self]
       omega
-    · simpa only [raiseIndex, Function.update_of_ne ha] using hh
-  · intro k hk
-    obtain ⟨hk, hki⟩ := Finset.mem_filter.mp hk
-    have hl : lowerIndex k i ∈ (indices n B).filter (fun j => j i < B) := by
-      apply Finset.mem_filter.mpr
-      constructor
-      · apply mem_indices.mpr
-        intro a
-        have haB := mem_indices.mp hk a
-        by_cases ha : a = i
-        · subst a
-          simp only [lowerIndex, Function.update_self]
-          omega
-        · simpa only [lowerIndex, Function.update_of_ne ha] using haB
-      · have hiB := mem_indices.mp hk i
-        simp only [lowerIndex, Function.update_self]
-        omega
-    refine ⟨lowerIndex k i, hl, ?_⟩
+  · funext a
+    by_cases ha : a = i <;> simp [raiseIndex, lowerIndex, ha]
+  · have := (Finset.mem_filter.1 hk).2
     funext a
-    by_cases ha : a = i
-    · subst a
-      simp only [raiseIndex, lowerIndex, Function.update_self]
-      omega
-    · simp only [raiseIndex, lowerIndex, Function.update_of_ne ha]
-  · intro j _
-    exact (term_raise ell r v j i).symm
+    by_cases ha : a = i <;> simp [raiseIndex, lowerIndex, ha]
+    omega
 
 /-- The canonical functional respects each defining reduction relation. -/
 theorem residue_mul_X_pow {ell : ℕ} (hell : 1 ≤ ell)
@@ -155,20 +128,12 @@ theorem residue_mul_X_pow {ell : ℕ} (hell : 1 ≤ ell)
   have hL :
       (∑ j ∈ (indices n B).filter (fun j => 0 < j i), term ell r (v * X i ^ ell) j) =
         ∑ j ∈ indices n B, term ell r (v * X i ^ ell) j := by
-    apply Finset.sum_subset (Finset.filter_subset _ _)
-    intro j hj hjnot
-    have hji : j i = 0 := by
-      have hnot : ¬0 < j i := fun h => hjnot (Finset.mem_filter.mpr ⟨hj, h⟩)
-      omega
+    refine Finset.sum_filter_of_ne fun j _ hne => Nat.pos_of_ne_zero fun hji => hne ?_
     exact term_axis_zero hell r v j i hji
   have hR :
       (∑ j ∈ (indices n B).filter (fun j => j i < B), term ell r (v * r i) j) =
         ∑ j ∈ indices n B, term ell r (v * r i) j := by
-    apply Finset.sum_subset (Finset.filter_subset _ _)
-    intro j hj hjnot
-    have hji : B ≤ j i := by
-      have hnot : ¬j i < B := fun h => hjnot (Finset.mem_filter.mpr ⟨hj, h⟩)
-      omega
+    refine Finset.sum_filter_of_ne fun j _ hne => not_le.1 fun hji => hne ?_
     have hd : j i ≤ (∑ i, j i) :=
       Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
     exact term_eq_zero_of_degree_lt hell r hr (v * r i) j (by omega)
@@ -195,12 +160,9 @@ theorem linear_mul_mem_ideal {ell : ℕ} (hell : 1 ≤ ell)
   induction hq using Submodule.span_induction with
   | mem q hq =>
     obtain ⟨i, rfl⟩ := hq
-    intro v
-    exact linear_mul_generator hell r hr v i
+    exact (linear_mul_generator hell r hr · i)
   | zero => intro v; rw [mul_zero, map_zero]
-  | add q t hq ht ihq iht =>
-    intro v
-    rw [mul_add, map_add, ihq v, iht v, add_zero]
+  | add q t hq ht ihq iht => intro v; rw [mul_add, map_add, ihq v, iht v, add_zero]
   | smul c q hq ih =>
     intro v
     change linear hell r hr (v * (c * q)) = 0

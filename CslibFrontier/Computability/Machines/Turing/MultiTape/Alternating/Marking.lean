@@ -121,40 +121,35 @@ theorem markGood_iff {found marked : List (FiniteCfg k Bool State)}
     atm.markGood marked v = true ↔ atm.ViewAcceptsWithin (n + 1) v := by
   classical
   have hsucc {w} (hw : w ∈ atm.toPTM.toNTM.viewSucc v) :
-      decide (w ∈ marked) = true ↔ atm.ViewAcceptsWithin n w := by
-    rw [decide_eq_true_iff]
-    exact hmarked w (hclosed v hv w hw)
+      decide (w ∈ marked) = true ↔ atm.ViewAcceptsWithin n w :=
+    decide_eq_true_iff.trans (hmarked w (hclosed v hv w hw))
   rcases hs : v.state with _ | q
-  · rw [viewAcceptsWithin_of_halted hs]
-    simp [markGood, hs, MultiTapeNTM.viewSucc]
+  · simp [viewAcceptsWithin_of_halted hs, markGood, hs, MultiTapeNTM.viewSucc]
   · cases hq : atm.universal q
     · rw [viewAcceptsWithin_succ_of_existential hs hq]
       simp only [markGood, hs, reduceCtorEq, decide_false, Bool.false_and, Bool.false_or,
         Option.any_some, hq, Bool.false_eq_true, ↓reduceIte, List.any_eq_true]
-      exact exists_congr fun w => and_congr_right fun hw => hsucc hw
+      exact exists_congr fun _ => and_congr_right hsucc
     · rw [viewAcceptsWithin_succ_of_universal hs hq]
       simp only [markGood, hs, reduceCtorEq, decide_false, Bool.false_and, Bool.false_or,
         Option.any_some, hq, ↓reduceIte, List.all_eq_true]
-      exact forall_congr' fun w => forall_congr' fun hw => hsucc hw
+      exact forall_congr' fun _ => forall_congr' hsucc
 
 /-- Marking against no views gives the views accepting within `0` moves: a running view has a
 successor, which is not marked. -/
 theorem markGood_nil_iff {v : FiniteCfg k Bool State} :
     atm.markGood [] v = true ↔ atm.ViewAcceptsWithin 0 v := by
   classical
+  rw [viewAcceptsWithin_zero_iff]
   rcases hs : v.state with _ | q
-  · rw [viewAcceptsWithin_zero_iff]
-    simp [markGood, hs]
-  · rw [viewAcceptsWithin_zero_iff, hs]
-    have hne := viewSucc_ne_nil (atm := atm) hs
+  · simp [markGood, hs]
+  · obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil _ (viewSucc_ne_nil (atm := atm) hs)
     cases hq : atm.universal q
     · simp [markGood, hs, hq]
     · simp only [markGood, hs, reduceCtorEq, decide_false, Bool.false_and, Bool.false_or,
         Option.any_some, hq, ↓reduceIte, List.mem_nil_iff, decide_false, List.all_eq_true,
         Bool.false_eq_true, imp_false, false_and, iff_false]
-      intro h
-      obtain ⟨w, hw⟩ := List.exists_mem_of_ne_nil _ hne
-      exact h w hw
+      exact fun h => h w hw
 
 /-- **Marking rounds.** On a list of views closed under successors, after `i + 1` rounds of
 marking the marked views are those of the list accepting within `i` moves. -/
@@ -218,33 +213,21 @@ open scoped Classical in
 theorem computableInPolyTime_markGood :
     ComputableInPolyTime (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
       atm.markGood p.1 p.2) (encPair (encList encFiniteCfg) encFiniteCfg) encBool := by
-  have hv : ComputableInPolyTime (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
-      p.2) (encPair (encList encFiniteCfg) encFiniteCfg) encFiniteCfg :=
-    ComputableInPolyTime.snd _ _
+  let Cfg := FiniteCfg k Bool State
+  have hv : ComputableInPolyTime (Prod.snd : List Cfg × Cfg → Cfg)
+      (encPair (encList encFiniteCfg) encFiniteCfg) encFiniteCfg := .snd _ _
+  have hstate := ComputableInPolyTime.finiteCfg_state.comp hv
   have hsucc := (MultiTapeNTM.computableInPolyTime_viewSucc (ntm := atm.toPTM.toNTM)).comp hv
-  have hmem : ComputableInPolyTime
-      (fun q : (List (FiniteCfg k Bool State) × FiniteCfg k Bool State) × FiniteCfg k Bool State =>
-        decide (q.2 ∈ q.1.1))
+  have hmem : ComputableInPolyTime (fun q : (List Cfg × Cfg) × Cfg => decide (q.2 ∈ q.1.1))
       (encPair (encPair (encList encFiniteCfg) encFiniteCfg) encFiniteCfg) encBool :=
-    ComputableInPolyTime.decide_mem ((ComputableInPolyTime.fst _ _).comp
-      (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _)
-  have hhalt : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
-        decide (p.2.state = none) && decide (p.2.output = [true]))
-      (encPair (encList encFiniteCfg) encFiniteCfg) encBool :=
-    ComputableInPolyTime.bool_and.comp
-      (((ComputableInPolyTime.of_finite fun state : Option State =>
-          decide (state = none)).comp (ComputableInPolyTime.finiteCfg_state.comp hv)).prod
-      (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.finiteCfg_output.comp hv)
-        (ComputableInPolyTime.const [true])))
-  have huniv : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
-        p.2.state.any atm.universal)
-      (encPair (encList encFiniteCfg) encFiniteCfg) encBool :=
-    (ComputableInPolyTime.of_finite fun state : Option State => state.any atm.universal).comp
-      (ComputableInPolyTime.finiteCfg_state.comp hv)
-  exact ComputableInPolyTime.bool_or.comp (hhalt.prod (ComputableInPolyTime.ite huniv
-    (ComputableInPolyTime.allWithInput hsucc hmem) (ComputableInPolyTime.anyWithInput hsucc hmem)))
+    .decide_mem ((ComputableInPolyTime.fst _ _).comp (.fst _ _)) (.snd _ _)
+  have hhalt := ComputableInPolyTime.bool_and.comp
+    (((ComputableInPolyTime.of_finite fun s : Option State => decide (s = none)).comp hstate).prod
+      (.decide_eq' (ComputableInPolyTime.finiteCfg_output.comp hv) (.const [true])))
+  have huniv := (ComputableInPolyTime.of_finite (encOut := encBool)
+    fun s : Option State => s.any atm.universal).comp hstate
+  exact ComputableInPolyTime.bool_or.comp (hhalt.prod (.ite huniv
+    (.allWithInput hsucc hmem) (.anyWithInput hsucc hmem)))
 
 open scoped Classical in
 /-- **Marking is polynomial-time** in the found views and the start view: the marked views are a
@@ -252,39 +235,25 @@ sublist of the found views, and there are as many rounds of marking as found vie
 theorem computableInPolyTime_markAccepts :
     ComputableInPolyTime (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
       atm.markAccepts p.1 p.2) (encPair (encList encFiniteCfg) encFiniteCfg) encBool := by
-  have hfound : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State => p.1)
-      (encPair (encList encFiniteCfg) encFiniteCfg) (encList encFiniteCfg) :=
-    ComputableInPolyTime.fst _ _
-  -- the number of rounds of marking
-  have hcount : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State => p.1.length + 1)
+  let Cfg := FiniteCfg k Bool State
+  have hfound : ComputableInPolyTime (Prod.fst : List Cfg × Cfg → List Cfg)
+      (encPair (encList encFiniteCfg) encFiniteCfg) (encList encFiniteCfg) := .fst _ _
+  have hcount : ComputableInPolyTime (fun p : List Cfg × Cfg => p.1.length + 1)
       (encPair (encList encFiniteCfg) encFiniteCfg) encUnary :=
     ComputableInPolyTime.unary_add.comp (((ComputableInPolyTime.length_list _).comp hfound).prod
-      (ComputableInPolyTime.const 1))
-  -- a round of marking
-  have hmark : ComputableInPolyTime (fun p : List (FiniteCfg k Bool State) ×
-      List (FiniteCfg k Bool State) => atm.markStep p.1 p.2)
+      (.const 1))
+  have hmark : ComputableInPolyTime (fun p : List Cfg × List Cfg => atm.markStep p.1 p.2)
       (encPair (encList encFiniteCfg) (encList encFiniteCfg)) (encList encFiniteCfg) :=
-    ComputableInPolyTime.filterWithInput (ComputableInPolyTime.fst _ _)
-      (computableInPolyTime_markGood.comp (((ComputableInPolyTime.snd _ _).comp
-        (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
-  -- the marked views are a sublist of the found views
-  have hmarked : ComputableInPolyTime
-      (fun p : List (FiniteCfg k Bool State) × FiniteCfg k Bool State =>
-        (atm.markStep p.1)^[p.1.length + 1] [])
-      (encPair (encList encFiniteCfg) encFiniteCfg) (encList encFiniteCfg) := by
-    refine ComputableInPolyTime.iterateWith hfound hcount (ComputableInPolyTime.const []) hmark
-      (hfound.polyBounded_length.add (.const 1)) fun p i _ => ?_
-    have hsub : ∀ j, ((atm.markStep p.1)^[j] []).Sublist p.1 := by
-      intro j
-      cases j with
-      | zero => exact List.nil_sublist _
-      | succ j =>
-        rw [Function.iterate_succ_apply']
-        exact List.filter_sublist
-    exact (length_encList_sublist _ (hsub i)).trans (Nat.le_succ _)
-  exact ComputableInPolyTime.decide_mem hmarked (ComputableInPolyTime.snd _ _)
+    .filterWithInput (.fst _ _) (computableInPolyTime_markGood.comp
+      (((ComputableInPolyTime.snd _ _).comp (.fst _ _)).prod (.snd _ _)))
+  refine .decide_mem (.iterateWith hfound hcount (.const []) hmark
+    (hfound.polyBounded_length.add (.const 1)) fun p i _ =>
+      (length_encList_sublist _ ?_).trans (Nat.le_succ _)) (.snd _ _)
+  cases i with
+  | zero => exact List.nil_sublist _
+  | succ _ =>
+    rw [Function.iterate_succ_apply']
+    exact List.filter_sublist
 
 open scoped Classical in
 /-- **Space-bounded acceptance by marking is polynomial-time** in the instance and the unary

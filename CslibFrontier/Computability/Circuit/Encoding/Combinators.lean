@@ -501,21 +501,11 @@ theorem code_replicate {σ : Signature.{v}} {n m : ℕ} (c : Circuit σ n m) (k 
       List.flatMap_singleton, List.map_flatMap, List.map_map, List.nil_append, Prod.mk.injEq,
       List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
       List.length_range, smul_eq_mul]
-    refine ⟨?_, ?_⟩
-    · congr 1
-      · apply List.flatMap_congr
-        intro t ht
-        apply List.map_congr_left
-        intro g _
+    refine ⟨congrArg₂ _ ?_ ?_, congrArg₂ _ (List.flatMap_congr fun t ht => by rw [hA t ht])
+      (by rw [hB])⟩
+    · exact List.flatMap_congr fun t ht => List.map_congr_left fun g _ => by
         simp only [Function.comp_apply, List.map_map, hA t ht]
-      · apply List.map_congr_left
-        intro g _
-        simp only [Function.comp_apply, List.map_map, hB]
-    · congr 1
-      · apply List.flatMap_congr
-        intro t ht
-        rw [hA t ht]
-      · rw [hB]
+    · exact List.map_congr_left fun g _ => by simp only [Function.comp_apply, List.map_map, hB]
 
 /-! ### Single-gate and formula-template serialization -/
 
@@ -1182,21 +1172,14 @@ private theorem intervalTables_entry_bound {Op : Type} (encOp : Op ↪ List Bool
   let B := inputBudget encOp op unit leaves
   let M := (2 * leaves.length + 1) * B
   let D := B + (encNat n).length + 3 * M + 2
-  have hunit : OpBitsLe encOp unit B ∧ codeMass unit ≤ B ∧ WireBitsLe unit B :=
-    ⟨opBitsLe_mono (opBitsLe_encoding encOp unit) (by dsimp [B, inputBudget]; omega),
-      (codeMass_le_encoding encOp unit).trans (by dsimp [B, inputBudget]; omega),
-      wireBitsLe_mono (wireBitsLe_encoding encOp unit) (by dsimp [B, inputBudget]; omega)⟩
-  have hop : OpBitsLe encOp op B ∧ codeMass op ≤ B ∧ WireBitsLe op B :=
-    ⟨opBitsLe_mono (opBitsLe_encoding encOp op) (by dsimp [B, inputBudget]; omega),
-      (codeMass_le_encoding encOp op).trans (by dsimp [B, inputBudget]; omega),
-      wireBitsLe_mono (wireBitsLe_encoding encOp op) (by dsimp [B, inputBudget]; omega)⟩
-  have hleaves : ∀ c ∈ leaves, OpBitsLe encOp c B ∧ codeMass c ≤ B ∧ WireBitsLe c B := by
-    intro c h
-    have hc := length_le_encList_of_mem (encCode encOp) h
-    have hB : (encCode encOp c).length ≤ B := by dsimp only [B, inputBudget]; omega
-    exact ⟨opBitsLe_mono (opBitsLe_encoding encOp c) hB,
-      (codeMass_le_encoding encOp c).trans hB,
+  have hbits (c) (hB : (encCode encOp c).length ≤ B) :
+      OpBitsLe encOp c B ∧ codeMass c ≤ B ∧ WireBitsLe c B :=
+    ⟨opBitsLe_mono (opBitsLe_encoding encOp c) hB, (codeMass_le_encoding encOp c).trans hB,
       wireBitsLe_mono (wireBitsLe_encoding encOp c) hB⟩
+  have hunit := hbits unit (by dsimp [B, inputBudget]; omega)
+  have hop := hbits op (by dsimp [B, inputBudget]; omega)
+  have hleaves (c) (h : c ∈ leaves) := hbits c (by
+    have := length_le_encList_of_mem (encCode encOp) h; dsimp only [B, inputBudget]; omega)
   have hBM : B ≤ M := by dsimp [M]; nlinarith
   have hBW : B ≤ (2 * leaves.length + 1) * D := by dsimp [D]; nlinarith
   suffices OpBitsLe encOp code B ∧ codeMass code ≤ M ∧

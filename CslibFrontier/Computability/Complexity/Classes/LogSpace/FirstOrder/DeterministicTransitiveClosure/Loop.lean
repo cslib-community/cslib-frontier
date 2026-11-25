@@ -328,9 +328,7 @@ private theorem loop_scan (hP : P.CodeAt b (dtcCode b base k src dst body T F))
         refine ⟨regs₂, Or.inl ⟨hpre.trans (reaches_lt_no h10 hB₂
           (fun h => one_ne_zero ((flag_lt_one (hf₂.trans hf)).mp h)) (Reaches.refl _)),
           hmain₂.kept, fun y'' hD => ?_⟩⟩
-        have h1 : y = y'' := hD.2 y hy
-        have h2 : ys = y'' := hD.2 ys hE
-        have : (finFunctionFinEquiv y : ℕ) = finFunctionFinEquiv ys := by rw [h1, h2]
+        obtain rfl : y = ys := (hD.2 y hy).trans (hD.2 ys hE).symm
         omega
     | false =>
       have hE : ¬ E us ys := fun h => Bool.false_ne_true (hres.mpr h)

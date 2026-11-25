@@ -92,9 +92,7 @@ private theorem guardedDifference_eq (s z : ℕ) :
       (2 ^ s + z) * ones s := by
     simp only [packRadix, powers, ones, Finset.mul_sum, one_mul,
       ← Finset.sum_add_distrib, ← add_mul]
-    apply Finset.sum_congr rfl
-    intro i hi
-    rw [Nat.sub_add_cancel (h i (Finset.mem_range.mp hi))]
+    exact Finset.sum_congr rfl fun i hi => by rw [Nat.sub_add_cancel (h i (Finset.mem_range.mp hi))]
   omega
 
 private theorem guardedDifference_guard {s z : ℕ} (hz : z < 2 ^ s) (i : Fin s) :
@@ -140,10 +138,7 @@ private theorem powerFlags_eq {s z : ℕ} (hz : z < 2 ^ s) :
       (decide (2 ^ i.val ≤ z)).toNat * 2 ^ (s + (s + 1) * i.val)) =
       2 ^ s * packRadix (2 ^ (s + 1)) s (fun i => (decide (2 ^ i ≤ z)).toNat) := by
     rw [packRadix, ← Fin.sum_univ_eq_sum_range, Finset.mul_sum]
-    apply Finset.sum_congr rfl
-    intro i _
-    rw [pow_add, pow_mul]
-    ring
+    exact Finset.sum_congr rfl fun i _ => by rw [pow_add, pow_mul]; ring
   rw [he, Nat.mul_div_right _ (Nat.two_pow_pos _)]
 
 /-- Counting the packed flags gives the number of powers of two at most the input. -/
@@ -289,9 +284,7 @@ private theorem clusterMask_eq (s : ℕ) :
 
 private theorem clusterMask_lt {s : ℕ} (hs : 0 < s) : clusterMask s < 2 ^ (s * s) := by
   rw [clusterMask_eq, pow_mul]
-  apply packRadix_lt
-  intro _ _
-  exact Nat.pow_lt_pow_right (by decide) (by omega)
+  exact packRadix_lt _ fun _ _ => Nat.pow_lt_pow_right (by decide) (by omega)
 
 private theorem clusterMask_bit {s i j : ℕ} (hs : 0 < s) (hi : i < s) (hj : j < s) :
     (clusterMask s).testBit (j + s * i) = decide (s - 1 = j) := by
@@ -324,9 +317,8 @@ private theorem clusterDifference_eq {s x : ℕ} (hs : 0 < s)
         packRadix (2 ^ s) s (fun i => x / 2 ^ (s * i) % 2 ^ (s - 1)) =
         packRadix (2 ^ s) s (fun _ => 2 ^ (s - 1)) := by
     simp only [packRadix, ← Finset.sum_add_distrib, ← add_mul]
-    apply Finset.sum_congr rfl
-    intro i _
-    rw [Nat.sub_add_cancel (Nat.mod_lt _ (Nat.two_pow_pos _)).le]
+    exact Finset.sum_congr rfl fun i _ => by
+      rw [Nat.sub_add_cancel (Nat.mod_lt _ (Nat.two_pow_pos _)).le]
   omega
 
 private theorem clusterDifference_guard {s x i : ℕ} (hs : 0 < s)
@@ -364,27 +356,16 @@ theorem clusterMarkers_guard {s x i : ℕ} (hs : 0 < s) (hx : x < 2 ^ (s * s))
     exact Nat.pow_dvd_pow 2 (by omega)
   let v := x / 2 ^ (s * i) % 2 ^ s
   have hv : v < 2 ^ s := Nat.mod_lt _ (Nat.two_pow_pos _)
-  have he : v.testBit (s - 1) = false ∧ v % 2 ^ (s - 1) = 0 ↔ v = 0 := by
-    constructor
-    · rintro ⟨hb, hm⟩
-      rw [Nat.testBit_eq_decide_div_mod_eq] at hb
-      have hh : s - 1 + 1 = s := by omega
-      have hd : v / 2 ^ (s - 1) < 2 := by
-        apply (Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _)).mpr
-        simpa only [Nat.mul_comm 2, ← pow_succ, hh] using hv
-      simp only [decide_eq_false_iff_not, Nat.mod_eq_of_lt hd] at hb
-      have hq : v / 2 ^ (s - 1) = 0 :=
-        Nat.lt_one_iff.mp (lt_of_le_of_ne (Nat.le_of_lt_succ hd) hb)
-      have hm' := Nat.mod_add_div v (2 ^ (s - 1))
-      simpa only [hm, hq, Nat.mul_zero, Nat.add_zero] using hm'.symm
-    · intro hv0
-      simp [hv0]
+  have hsplit : v = v % 2 ^ (s - 1) + 2 ^ (s - 1) * (v / 2 ^ (s - 1) % 2) := by
+    rw [← Nat.mod_pow_succ, Nat.sub_add_cancel hs, Nat.mod_eq_of_lt hv]
   apply Bool.eq_iff_iff.mpr
   simp only [Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
     decide_eq_true_eq]
   rw [← hl]
   change v.testBit (s - 1) = true ∨ ¬v % 2 ^ (s - 1) = 0 ↔ v ≠ 0
-  cases hb : v.testBit (s - 1) <;> simp_all
+  rw [Nat.testBit_eq_decide_div_mod_eq, decide_eq_true_eq]
+  have := Nat.two_pow_pos (s - 1)
+  rcases Nat.mod_two_eq_zero_or_one (v / 2 ^ (s - 1)) with h | h <;> rw [h] at hsplit ⊢ <;> omega
 
 /-- The masked product compresses exactly the original cluster-marker bits. Cross terms
 are collision-free everywhere, including outside the final retained interval. -/
@@ -554,9 +535,7 @@ private theorem ones_lt (s : ℕ) : ones s < 2 ^ ((s + 1) * s) := by
 
 private theorem powers_lt (s : ℕ) : powers s < 2 ^ ((s + 1) * s) := by
   rw [powers, pow_mul]
-  apply packRadix_lt
-  intro i hi
-  exact Nat.pow_lt_pow_right (by decide) (by omega)
+  exact packRadix_lt _ (fun _ _ => Nat.pow_lt_pow_right (by decide) (by omega))
 
 private theorem guards_lt (s : ℕ) : guards s < 2 ^ ((s + 1) * s) := by
   have he : guards s = packRadix (2 ^ (s + 1)) s (fun _ => 2 ^ s) := by
@@ -570,10 +549,7 @@ private theorem powerReplicate_lt {s z : ℕ} (hz : z < 2 ^ s) :
       packRadix (2 ^ (s + 1)) s (fun _ => 2 ^ s + z) := by
     simp only [ones, packRadix, Finset.mul_sum, one_mul]
   rw [he, pow_mul]
-  apply packRadix_lt
-  intro _ _
-  rw [pow_succ]
-  omega
+  exact packRadix_lt _ fun _ _ => by rw [pow_succ]; omega
 
 private theorem powerFlags_lt {s z : ℕ} (hz : z < 2 ^ s) :
     powerFlags s z < 2 ^ ((s + 1) * s) := by
@@ -614,36 +590,23 @@ theorem powerStageValues_lt {s z : ℕ} (hs : 0 < s) (hz : z < 2 ^ s) :
     have hp := Nat.mul_lt_mul_of_lt_of_lt (powerFlags_lt hz) (ones_lt s)
     rw [← pow_add] at hp
     convert hp using 1; congr 1; ring
-  have hcount : powerCount s z ≤ powerFlags s z * ones s := by
-    unfold powerCount
-    exact Nat.and_le_left.trans (by rw [Nat.shiftRight_eq_div_pow]; exact Nat.div_le_self _ _)
+  have hcount : powerCount s z ≤ powerFlags s z * ones s :=
+    Nat.and_le_left.trans (Nat.shiftRight_le _ _)
+  have hs1 : 2 ^ s ≤ 2 ^ ((s + 1) * s) := (Nat.pow_le_pow_right (by decide) (by omega)).trans hpow
   intro a ha'
   simp only [powerStageValues, List.mem_cons, List.not_mem_nil, or_false] at ha'
   rcases ha' with ha' | ha' | ha' | ha' | ha' | ha' | ha' | ha' | ha' | ha' |
     ha' | ha' | ha' | ha' | ha' | ha' | ha' | ha' | ha' <;> subst a
-  · exact (hz.trans_le
-      ((Nat.pow_le_pow_right (by decide) (by omega : s ≤ s + 1)).trans hpow)).trans hlift
-  · exact ((Nat.pow_le_pow_right (by decide) (by omega : s ≤ s + 1)).trans hpow).trans_lt hlift
-  · exact (ones_lt s).trans hlift
-  · exact (powers_lt s).trans hlift
-  · exact (guards_lt s).trans hlift
-  · exact (hadd.trans_le hpow).trans hlift
-  · exact ha.trans hlift
-  · exact hb.trans hlift
-  · exact hc.trans hlift
-  · exact (powerFlags_lt hz).trans hlift
-  · exact hd
-  · rw [Nat.shiftRight_eq_div_pow]
-    exact (Nat.div_le_self _ _).trans_lt hd
-  · exact (Nat.sub_le _ _).trans_lt (hpow.trans_lt hlift)
-  · exact hcount.trans_lt hd
-  · exact (Nat.sub_le _ _).trans_lt (hcount.trans_lt hd)
-  · exact (show s ≤ 2 * (s + 1) * s by nlinarith).trans_lt Nat.lt_two_pow_self
-  · exact (show s + 1 ≤ 2 * (s + 1) * s by nlinarith).trans_lt Nat.lt_two_pow_self
-  · exact (show (s - 1) * (s + 1) ≤ 2 * (s + 1) * s by
-      have := Nat.sub_le s 1
-      nlinarith).trans_lt Nat.lt_two_pow_self
-  · exact hpow.trans_lt hlift
+  exacts [(hz.trans_le hs1).trans hlift, hs1.trans_lt hlift, (ones_lt s).trans hlift,
+    (powers_lt s).trans hlift, (guards_lt s).trans hlift, (hadd.trans_le hpow).trans hlift,
+    ha.trans hlift, hb.trans hlift, hc.trans hlift, (powerFlags_lt hz).trans hlift, hd,
+    (Nat.shiftRight_le _ _).trans_lt hd, (Nat.sub_le _ _).trans_lt (hpow.trans_lt hlift),
+    hcount.trans_lt hd, (Nat.sub_le _ _).trans_lt (hcount.trans_lt hd),
+    (show s ≤ 2 * (s + 1) * s by nlinarith).trans_lt Nat.lt_two_pow_self,
+    (show s + 1 ≤ 2 * (s + 1) * s by nlinarith).trans_lt Nat.lt_two_pow_self,
+    (show (s - 1) * (s + 1) ≤ 2 * (s + 1) * s by
+      have := Nat.sub_le s 1; nlinarith).trans_lt Nat.lt_two_pow_self,
+    hpow.trans_lt hlift]
 
 private theorem compressionShift_injective {s : ℕ} (hs : 0 < s) :
     Function.Injective (fun j : Fin s => compressionShift s j.val) := by
@@ -703,22 +666,13 @@ theorem clusterStageValues_lt {s x : ℕ} (hs : 0 < s) (hx : x < 2 ^ (s * s)) :
   simp only [clusterStageValues, List.mem_cons, List.not_mem_nil, or_false] at ha'
   rcases ha' with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl |
     rfl | rfl | rfl | rfl
-  · exact hx.trans_le hmono
-  · exact hf.trans_le hmono
-  · exact hh.trans_le hmono
-  · exact hr.trans_le hmono
-  · exact hd.trans_le hmono
-  · exact he.trans_le hmono
-  · exact (Nat.xor_lt_two_pow hf he).trans_le hmono
-  · exact hy.trans_le hmono
-  · exact ha.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
-  · exact hp
-  · rw [Nat.shiftRight_eq_div_pow]
-    exact (Nat.div_le_self _ _).trans_lt hp
-  · have hmask : 2 ^ s - 1 < 2 ^ s := by have := Nat.two_pow_pos s; omega
-    exact hmask.trans_le (hsmono.trans hmono)
-  · exact (clusterSummary_lt s x).trans_le (hsmono.trans hmono)
-  · exact (show s * s ≤ 2 * (s * s) + s by omega).trans_lt Nat.lt_two_pow_self
+  exacts [hx.trans_le hmono, hf.trans_le hmono, hh.trans_le hmono, hr.trans_le hmono,
+    hd.trans_le hmono, he.trans_le hmono, (Nat.xor_lt_two_pow hf he).trans_le hmono,
+    hy.trans_le hmono, ha.trans_le (Nat.pow_le_pow_right (by decide) (by omega)), hp,
+    (Nat.shiftRight_le _ _).trans_lt hp,
+    (Nat.sub_lt (Nat.two_pow_pos s) one_pos).trans_le (hsmono.trans hmono),
+    (clusterSummary_lt s x).trans_le (hsmono.trans hmono),
+    (show s * s ≤ 2 * (s * s) + s by omega).trans_lt Nat.lt_two_pow_self]
 
 /-- The small-input arithmetic returns an index below the supplied bit width, even
 for zero (where its saturating subtraction returns zero). -/

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.FirstOrder.Operator.Polarity
+public import CslibFrontier.Logics.FirstOrder.Operator.Quantifiers
 
 /-!
 # Uniform definability by first-order formulas with operators
@@ -30,6 +30,7 @@ interface. A registered rule must produce a well-formed witness, rather than raw
 
 * `Definable.neg`, `Definable.conj`, `Definable.disj`, `Definable.ex`, `Definable.all`:
   compositional construction of well-formed formulas.
+* `Definable.exs`: quantify a fixed-width tuple of fresh first-order variables.
 * `Definable.ofFO`, `Definable.equal`, `Definable.rel`: atomic certificates.
 
 ## References
@@ -122,6 +123,17 @@ theorem ex {P : ∀ i, M i → (α → M i) → Prop}
   refine ⟨.ex φ, hφ, ?_⟩
   intro i v
   exact exists_congr fun x => hP i (Option.elim · x v)
+
+/-- Existentially quantify a whole tuple using fresh variables in the right summand. The tuple
+width is fixed independently of the structure; width zero also works on empty structures. -/
+theorem exs {n : ℕ} {P : ∀ i, (α → M i) → (Fin n → M i) → Prop}
+    (hP : Definable (L := L) policy M I ρ
+      (fun i v => P i (v ∘ Sum.inl) (v ∘ Sum.inr))) :
+    Definable (L := L) policy M I ρ (fun i v => ∃ xs, P i v xs) := by
+  obtain ⟨φ, hφ, hP⟩ := hP
+  refine ⟨φ.exs n, by rw [Formula.wellFormed_exs]; exact hφ, fun i v => ?_⟩
+  rw [Formula.realize_exs]
+  exact exists_congr fun xs => hP i (Sum.elim v xs)
 
 /-- Universal quantification is synthesized from a defining formula with one extra variable. -/
 theorem all {P : ∀ i, M i → (α → M i) → Prop}

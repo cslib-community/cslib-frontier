@@ -450,7 +450,6 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
           simp only [hBdef, h.1, h.2, hZ', mem_filter, hpZ, hs, implies_true, and_self, ite_true]
         rw [hB, ite_eq_left h, norm_mul, norm_mul, Complex.norm_real,
           Real.norm_eq_abs, abs_of_nonneg hc0]
-        have h1 := norm_sq_sum_signVal_le {a | simonG E X a = w.ys} w.xs
         have h2 : ((#{a | simonG E X a = w.ys} : ℕ) : ℝ) ^ 2 ≤
             K * #{a | simonG E X a = w.ys} := by
           rw [sq]
@@ -459,8 +458,9 @@ theorem measureProb_simonAlg_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ 
             = c ^ 4 *
                 ‖∑ a with simonG E X a = w.ys, ((signVal (a ⬝ᵥ w.xs) : ℝ) : ℂ)‖ ^ 2 := by
               ring
-          _ ≤ c ^ 4 * (#{a | simonG E X a = w.ys} : ℝ) ^ 2 := by gcongr
-          _ ≤ c ^ 4 * (K * #{a | simonG E X a = w.ys}) := by gcongr
+          _ ≤ c ^ 4 * (K * #{a | simonG E X a = w.ys}) := by
+              gcongr
+              exact (norm_sq_sum_signVal_le _ w.xs).trans h2
           _ = c ^ 4 * K * #{a | simonG E X a = w.ys} := by ring
       · push Not at hs
         obtain ⟨r₀, hr⟩ := hs
@@ -527,12 +527,9 @@ theorem measureProb_simonAlg_le_of_injective (E : Fin N ≃ (Fin n → Bool) × 
   have h := measureProb_simonAlg_le E i₀ ((simonPromise_zero_iff _).mpr hf) hfib A
   rw [hA', Nat.cast_one, one_mul, ← hacc] at h
   have hreal : (#A : ℝ) * 2 ^ m ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have h1 : ((2 ^ n - 1 : ℕ) : ℝ) = 2 ^ n - 1 := by
-      rw [Nat.cast_sub Nat.one_le_two_pow]
-      push_cast
-      ring
-    rw [← h1]
-    exact_mod_cast hnat
+    have := Nat.cast_le (α := ℝ).2 hnat
+    push_cast [Nat.cast_sub Nat.one_le_two_pow] at this
+    exact this
   refine h.trans ?_
   rw [div_le_div_iff₀ (by positivity) (by positivity)]
   linarith

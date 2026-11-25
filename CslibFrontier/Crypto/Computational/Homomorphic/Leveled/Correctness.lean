@@ -120,15 +120,15 @@ theorem encryptedWires_evaluateCircuit_drop (hE : E.Correct)
     (by omega) hchain (List.ofFn x) inputs hinputs
     (by simpa only [List.length_ofFn] using (Layered.wellFormed_compile c).padTo (2 * step))
     row hrow
-  have heval : Layered.eval (List.ofFn x)
+  rw [show Layered.eval (List.ofFn x)
       (Layered.padTo inputCount (2 * step) (Layered.compile inputCount c.code).1) =
-        Layered.eval (List.ofFn x) (Layered.compile inputCount c.code).1 := by
-    simpa only [List.length_ofFn] using
-      Layered.eval_padTo (List.ofFn x) (2 * step) (Layered.compile inputCount c.code).1
-  rw [heval, hlength, ← Nat.mul_add] at h
-  have hselected := h.select (outputs := (Layered.compile inputCount c.code).2) (by
-    simpa only [Layered.length_eval, List.length_ofFn] using Layered.outputs_valid_compile c)
-  simpa only [Layered.readPositions_eval_compile] using hselected
+      Layered.eval (List.ofFn x) (Layered.compile inputCount c.code).1 by
+        simpa only [List.length_ofFn] using
+          Layered.eval_padTo (List.ofFn x) (2 * step) (Layered.compile inputCount c.code).1,
+    hlength, ← Nat.mul_add] at h
+  simpa only [Layered.readPositions_eval_compile] using
+    h.select (outputs := (Layered.compile inputCount c.code).2)
+      (by simpa only [Layered.length_eval, List.length_ofFn] using Layered.outputs_valid_compile c)
 
 /-- Padding reaches the budget's final key and preserves the original ordered output vector. -/
 theorem encryptedWires_evaluateCircuit (hE : E.Correct)
@@ -157,11 +157,21 @@ theorem freshInputs_tail {budget : ℕ → ℕ} {n : ℕ} {pk bits : List Bool}
     E.FreshInputs n ((publicKeyDecoder.decode pk).1.getD 0 []) bits
       (inputs.map List.tail) := by
   rw [Scheme.FreshInputs, List.forall₂_map_right_iff]
-  apply h.imp
-  intro bit ciphertext hc
-  change ciphertext ∈ (ProbComp.eval (encrypt E n pk bit)).support at hc
+  refine h.imp fun _ ciphertext hc => ?_
+  change ciphertext ∈ (ProbComp.eval (encrypt E n pk _)).support at hc
   supp_cases hc [encrypt] with ⟨payload, hpayload, rfl⟩
   exact hpayload
+
+private theorem encryptedWires_of_freshInputs (hE : E.Correct)
+    (hwidth : E.FixedWidth secretWidth ciphertextWidth) {budget : ℕ → ℕ} {n : ℕ}
+    {chain : List (List Bool × List Bool)} {links : List (List (List Bool))}
+    (hchain : (chain, links) ∈ (ProbComp.eval (E.generateKeyChain n (2 * budget n))).support)
+    {bits : List Bool} {inputs : List (List Bool)}
+    (hinputs : (scheme D budget).FreshInputs n (keyPair (2 * budget n) chain links).1 bits inputs) :
+    E.EncryptedWires ciphertextWidth n (chain.getD 0 ([], [])).2 bits (inputs.map List.tail) := by
+  have hin := freshInputs_tail D hinputs
+  simp only [keyPair, publicKeyDecoder_decode_enc, List.getD_map chain ([], []) Prod.fst] at hin
+  exact hin.encryptedWires hE hwidth (E.key_mem_support_of_generatedChain hchain (Nat.zero_le _))
 
 /-- Evaluating one hop of depth at most `step` starting at offset `offset` produces a `true`-tagged
 ciphertext of width `ciphertextWidth n + 1` whose payload decrypts under key `2 * (offset + step)`
@@ -183,15 +193,12 @@ theorem evaluateHop_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth cip
         c.2.eval interpretation (BitString.ofList c.1 bits) 0 := by
   supp_cases hc [evaluateHop] with ⟨row, hrow, rfl⟩
   simp only [keyPair, publicKeyDecoder_decode_enc] at hrow
-  have h := encryptedWires_evaluateCircuit_drop D hE hwidth hD n total offset step chain links c.2
-    hstep htotal hchain (BitString.ofList c.1 bits) (inputs.map List.tail)
-    (by simpa only [BitString.ofFn_ofList hbits] using hinputs) row hrow
-  have hout := h.getD (i := 0) (by simp)
-  have hlength : (row.headD []).length = ciphertextWidth n := by
-    simpa only [List.headD_eq_getD] using hout.1
-  refine ⟨by rw [List.length_cons, hlength], rfl, ?_⟩
-  rw [List.tail_cons, List.headD_eq_getD]
-  simpa using hout.2
+  have hout := (encryptedWires_evaluateCircuit_drop D hE hwidth hD n total offset step chain links
+    c.2 hstep htotal hchain (BitString.ofList c.1 bits) (inputs.map List.tail)
+    (by simpa only [BitString.ofFn_ofList hbits] using hinputs) row hrow).getD (i := 0) (by simp)
+  exact ⟨by simpa only [List.length_cons, List.headD_eq_getD, Nat.add_right_cancel_iff]
+      using hout.1, rfl,
+    by rw [List.tail_cons, List.headD_eq_getD]; simpa using hout.2⟩
 
 /-- Pointwise hop evaluations at offset `offset` with step budget `step` advance `EncryptedWires`
 on the stripped ciphertext payloads to `2 * (offset + step)`. -/
@@ -243,15 +250,12 @@ theorem evaluateHop_final_spec (hE : E.Correct)
   have hlast := E.key_mem_support_of_generatedChain hchain (Nat.le_refl _)
   have hspec := evaluateHop_spec D hE hwidth hD n (budget n) offset step chain links hchain c
     hstep (by omega) bits inputs hbits hinputs ciphertext hc
-  refine ⟨hspec.1, ?_⟩
-  cases ciphertext with
-  | nil => simp at hspec
-  | cons tag payload =>
-    have htag : tag = true := by simpa using hspec.2.1
-    subst htag
-    have hpayload : payload.length = ciphertextWidth n := by simpa using hspec.1
+  rcases ciphertext with _ | ⟨tag, payload⟩
+  · simp at hspec
+  · obtain rfl : tag = true := by simpa using hspec.2.1
+    refine ⟨hspec.1, ?_⟩
     change decrypt D n (encSecretKey _) (true :: payload) = _
-    rw [decrypt_true D n _ _ _ (hwidth.secret_length n _ hlast) hpayload]
+    rw [decrypt_true D n _ _ _ (hwidth.secret_length n _ hlast) (by simpa using hspec.1)]
     simpa [hfinal] using hspec.2.2
 
 /-- Two-hop leveled evaluation: first-hop circuits of depth at most `step₁` evaluated on fresh
@@ -281,22 +285,13 @@ theorem evaluateHop_twoHop_spec (hE : E.Correct)
       (scheme D budget).decrypt n keys.2 ciphertext =
         outer.2.eval interpretation (BitString.ofList outer.1 midBits) 0 := by
   obtain ⟨chain, links, hchain, rfl⟩ := (mem_support_keyGen_iff n (budget n) keys).1 hkeys
-  have hfirst := E.key_mem_support_of_generatedChain hchain (Nat.zero_le _)
-  have hpk : (chain.map Prod.fst).getD 0 [] = (chain.getD 0 ([], [])).1 :=
-    List.getD_map chain ([], []) Prod.fst
-  have hmidsLevel :
-      E.EncryptedWires ciphertextWidth n (chain.getD (2 * step₁) ([], [])).2
-        midBits (mids.map List.tail) := by
-    simpa only [Nat.zero_add] using
-      encryptedWires_of_evaluateHop D hE hwidth hD hchain (offset := 0) (step := step₁)
-        (by omega)
-        (hmids.imp fun _ _ ⟨c, bits, inputs, hstep, hbits, hinputs, hmid, heval⟩ => by
-          have hin := freshInputs_tail D hinputs
-          simp only [keyPair, publicKeyDecoder_decode_enc, hpk] at hin
-          exact ⟨c, bits, inputs, hstep, hbits,
-            hin.encryptedWires hE hwidth hfirst, hmid, heval⟩)
-  exact evaluateHop_final_spec D hE hwidth hD budget n step₁ step₂ chain links hchain hbudget
-    outer houter midBits mids hmidBits hmidsLevel ciphertext hc
+  refine evaluateHop_final_spec D hE hwidth hD budget n step₁ step₂ chain links hchain hbudget
+    outer houter midBits mids hmidBits ?_ ciphertext hc
+  simpa only [Nat.zero_add] using
+    encryptedWires_of_evaluateHop D hE hwidth hD hchain (offset := 0) (step := step₁) (by omega)
+      (hmids.imp fun _ _ ⟨c, bits, inputs, hstep, hbits, hinputs, hmid, heval⟩ =>
+        ⟨c, bits, inputs, hstep, hbits,
+          encryptedWires_of_freshInputs D hE hwidth hchain hinputs, hmid, heval⟩)
 
 /-- Fresh ciphertexts have the tagged base width and decrypt under the initial endpoint. -/
 theorem encrypt_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth ciphertextWidth)
@@ -310,9 +305,8 @@ theorem encrypt_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth ciphert
   have hfirst := E.key_mem_support_of_generatedChain hchain (Nat.zero_le _)
   change ciphertext ∈ (ProbComp.eval (encrypt E n _ bit)).support at hc
   supp_cases hc [encrypt] with ⟨payload, hpayload, rfl⟩
-  have hpk : (chain.map Prod.fst).getD 0 [] = (chain.getD 0 ([], [])).1 :=
-    List.getD_map chain ([], []) Prod.fst
-  simp only [keyPair, publicKeyDecoder_decode_enc, hpk] at hpayload
+  simp only [keyPair, publicKeyDecoder_decode_enc, List.getD_map chain ([], []) Prod.fst]
+    at hpayload
   have hlength := hwidth.encrypt_length n _ hfirst bit payload hpayload
   refine ⟨by simp [hlength], ?_⟩
   change decrypt D n (encSecretKey _) (false :: payload) = bit
@@ -334,13 +328,9 @@ theorem evaluate_spec (hE : E.Correct) (hwidth : E.FixedWidth secretWidth cipher
       (scheme D budget).decrypt n keys.2 ciphertext =
         c.2.eval interpretation (BitString.ofList c.1 bits) 0 := by
   obtain ⟨chain, links, hchain, rfl⟩ := (mem_support_keyGen_iff n (budget n) keys).1 hkeys
-  have hfirst := E.key_mem_support_of_generatedChain hchain (Nat.zero_le _)
-  have hin := freshInputs_tail D hinputs
-  have hpk : (chain.map Prod.fst).getD 0 [] = (chain.getD 0 ([], [])).1 :=
-    List.getD_map chain ([], []) Prod.fst
-  simp only [keyPair, publicKeyDecoder_decode_enc, hpk] at hin
   exact evaluateHop_final_spec D hE hwidth hD budget n 0 (budget n) chain links hchain
-    (Nat.zero_add _) c hbudget bits inputs hbits (hin.encryptedWires hE hwidth hfirst) ciphertext hc
+    (Nat.zero_add _) c hbudget bits inputs hbits
+    (encryptedWires_of_freshInputs D hE hwidth hchain hinputs) ciphertext hc
 
 /-- Bootstrappability constructs a correct scheme for every circuit within the depth budget.
 No assumption of leveled correctness is used; the keys, padding, and evaluation are explicit. -/

@@ -81,10 +81,9 @@ def BinaryTreeVertex.below {h : ℕ} (v : BinaryTreeVertex h) : Set (BinaryTreeV
 /-- A vertex at the full depth `h` is a leaf: it has no children in `T_h`. -/
 private theorem completeBinaryTree_not_adj_of_length_eq {h : ℕ} {u v : BinaryTreeVertex h}
     (hv : v.path.length = h) : ¬ (completeBinaryTree h).Adj u v := by
-  rintro ⟨b, hb⟩
-  have h₁ := congrArg List.length hb
-  have h₂ := u.length_le
-  simp only [List.length_append, List.length_singleton] at h₁
+  rintro ⟨_, hb⟩
+  have := u.length_le
+  simp only [hb, List.length_append, List.length_singleton, hv] at this
   omega
 
 private theorem blackPebblable_completeBinaryTree_aux {h : ℕ} (k : ℕ) (v : BinaryTreeVertex h)
@@ -95,20 +94,17 @@ private theorem blackPebblable_completeBinaryTree_aux {h : ℕ} (k : ℕ) (v : B
       (fun _ hu => absurd hu (completeBinaryTree_not_adj_of_length_eq hk)) (by simp) (by simp)
       (by simp)
   | succ k ih =>
-    let y : BinaryTreeVertex h := ⟨v.path ++ [false], by simp; omega⟩
-    let z : BinaryTreeVertex h := ⟨v.path ++ [true], by simp; omega⟩
-    have hyz := Finset.card_le_two (a := y) (b := z)
-    refine BlackPebblable.of_forall_adj (s := k + 2) {y, z} (fun u hu => ?_) ?_ (by omega)
-      (by omega)
-    · obtain ⟨b, hb⟩ := hu
-      cases b
-      · exact Finset.mem_insert.2 (.inl (BinaryTreeVertex.ext hb))
-      · exact Finset.mem_insert_of_mem (Finset.mem_singleton.2 (BinaryTreeVertex.ext hb))
-    · intro u hu
-      simp only [Finset.mem_insert, Finset.mem_singleton] at hu
-      rcases hu with rfl | rfl
-      · exact ih _ (by simp [y]; omega)
-      · exact ih _ (by simp [z]; omega)
+    let child (b : Bool) : BinaryTreeVertex h := ⟨v.path ++ [b], by simp; omega⟩
+    have hyz := Finset.card_le_two (a := child false) (b := child true)
+    refine BlackPebblable.of_forall_adj (s := k + 2) {child false, child true}
+      (fun u ⟨b, hb⟩ => ?_) (fun u hu => ?_) (by omega) (by omega)
+    · cases b
+      exacts [Finset.mem_insert.2 (.inl (BinaryTreeVertex.ext hb)),
+        Finset.mem_insert_of_mem (Finset.mem_singleton.2 (BinaryTreeVertex.ext hb))]
+    · rcases Finset.mem_insert.mp hu with rfl | hu
+      · exact ih _ (by simp [child]; omega)
+      · rw [Finset.mem_singleton.mp hu]
+        exact ih _ (by simp [child]; omega)
 
 /-- A vertex at depth `d` of `T_h` can be pebbled with `h - d + 2` pebbles. -/
 theorem blackPebblable_completeBinaryTree {h : ℕ} (v : BinaryTreeVertex h) :

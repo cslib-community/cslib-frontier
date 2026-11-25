@@ -149,21 +149,18 @@ private theorem penaltyFrom_eq (s : ℕ) (σ : List Job) :
   | cons j σ ih =>
     rw [penaltyFrom, ih, List.length_cons, List.range_succ_eq_map, List.map_cons,
       List.sum_cons, List.map_map]
-    congr 2
-    refine List.map_congr_left fun i _ => ?_
-    simp only [Function.comp_apply, List.getD_cons_succ, List.take_succ_cons, List.map_cons,
-      List.sum_cons, Nat.add_assoc]
+    congr 2; exact List.map_congr_left fun i _ => by
+      simp only [Function.comp_apply, List.getD_cons_succ, List.take_succ_cons, List.map_cons,
+        List.sum_cons, Nat.add_assoc]
 
 /-- The total penalty of an order is polynomial-time computable. -/
 @[fun_prop]
 theorem computableInPolyTime_totalPenalty :
     ComputableInPolyTime totalPenalty (encList encJob) encNat := by
-  have h : totalPenalty = fun σ : List Job => ((List.range σ.length).map fun i =>
+  rw [show totalPenalty = fun σ : List Job => ((List.range σ.length).map fun i =>
       if (σ.getD i ⟨0, 0, 0⟩).deadline < ((σ.take (i + 1)).map Job.time).sum then
-        (σ.getD i ⟨0, 0, 0⟩).penalty else 0).sum := by
-    funext σ
-    simpa only [totalPenalty, Nat.zero_add] using penaltyFrom_eq 0 σ
-  rw [h]
+        (σ.getD i ⟨0, 0, 0⟩).penalty else 0).sum from
+    funext fun σ => by simpa only [totalPenalty, Nat.zero_add] using penaltyFrom_eq 0 σ]
   fun_prop
 
 /-- The check of an order against an instance: it is a permutation of the jobs, by counting
@@ -175,12 +172,11 @@ private def check (y : JobSequencingInstance × List Job) : Bool :=
 private theorem check_iff (x : JobSequencingInstance) (σ : List Job) :
     check (x, σ) = true ↔ σ ~ x.jobs ∧ totalPenalty σ ≤ x.bound := by
   simp only [check, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq, List.mem_append]
-  refine and_congr_left fun _ => ⟨fun h => List.perm_iff_count.2 fun j => ?_,
+  refine and_congr_left fun _ => ⟨fun h => List.perm_iff_count.2 fun j =>
+      if hj : j ∈ σ ∨ j ∈ x.jobs then h j hj
+      else by rw [not_or] at hj; rw [List.count_eq_zero_of_not_mem hj.1,
+        List.count_eq_zero_of_not_mem hj.2],
     fun h j _ => List.perm_iff_count.1 h j⟩
-  by_cases hj : j ∈ σ ∨ j ∈ x.jobs
-  · exact h j hj
-  · rw [not_or] at hj
-    rw [List.count_eq_zero_of_not_mem hj.1, List.count_eq_zero_of_not_mem hj.2]
 
 private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encJobSequencing (encList encJob)) encBool := by
@@ -196,14 +192,12 @@ private def decoderJob : Decoder encJob :=
 
 /-- `JobSequencing` belongs to `NP`, with the order as the witness; a permutation of the jobs is
 encoded with the length of the encoded list of jobs. -/
-theorem mem_NP : JobSequencing ∈ NP encJobSequencing := by
-  have h := mem_NP_of_witness (p := Polynomial.X) (Decoder.list decoderJob)
-    computableInPolyTime_check check_iff fun x σ hσ => ⟨σ, hσ, ?_⟩
-  · exact h
-  · rw [Polynomial.eval_X, encJobSequencing_apply, length_encPair, length_encList,
-      (hσ.1.map _).sum_eq, ← length_encList]
-    dsimp only
-    omega
+theorem mem_NP : JobSequencing ∈ NP encJobSequencing :=
+  mem_NP_of_witness (p := Polynomial.X) (Decoder.list decoderJob)
+    computableInPolyTime_check check_iff fun x σ hσ => ⟨σ, hσ, by
+      rw [Polynomial.eval_X, encJobSequencing_apply, length_encPair, length_encList,
+        (hσ.1.map _).sum_eq, ← length_encList]
+      dsimp only; omega⟩
 
 /-- A job of time and penalty `a` with deadline `t`. -/
 private def job (t a : ℕ) : Job := ⟨a, t, a⟩
@@ -214,8 +208,7 @@ private theorem penaltyFrom_le (s t : ℕ) (l : List ℕ) :
   | nil => exact le_refl _
   | cons a l ih =>
     simp only [List.map_cons, job, penaltyFrom, List.sum_cons]
-    have := ih (s + a)
-    split <;> omega
+    have := ih (s + a); split <;> omega
 
 private theorem penaltyFrom_eq_zero (s t : ℕ) (l : List ℕ) (h : s + l.sum ≤ t) :
     penaltyFrom s (l.map (job t)) = 0 := by
@@ -236,20 +229,10 @@ private theorem exists_onTime (t : ℕ) (l : List ℕ) (s : ℕ) :
     simp only [List.map_cons, job, penaltyFrom, List.sum_cons]
     obtain ⟨O, hO, hsum, hle⟩ := ih (s + a)
     by_cases ha : t < s + a
-    · refine ⟨O, hO.cons a, ?_, ?_⟩
-      · rw [ite_eq_left ha]
-        omega
-      · rcases hle with hle | rfl
-        · omega
-        · exact Or.inr rfl
-    · refine ⟨a :: O, hO.cons_cons a, ?_, Or.inl ?_⟩
-      · rw [ite_eq_right ha, List.sum_cons]
-        omega
-      · rcases hle with hle | rfl
-        · rw [List.sum_cons]
-          omega
-        · simp only [List.sum_cons, List.sum_nil]
-          omega
+    · exact ⟨O, hO.cons a, by rw [ite_eq_left ha]; omega, hle.imp (fun _ => by omega) id⟩
+    · exact ⟨a :: O, hO.cons_cons a, by rw [ite_eq_right ha, List.sum_cons]; omega,
+        Or.inl <| hle.elim (fun _ => by rw [List.sum_cons]; omega)
+          fun h => by simp only [h, List.sum_cons, List.sum_nil]; omega⟩
 
 end JobSequencing
 
@@ -271,55 +254,42 @@ theorem toJobSequencing_mem_iff (x : SubsetSumInstance) :
   rw [mem_SubsetSum_iff_sublist]
   dsimp only [toJobSequencing]
   split_ifs with ht
-  · constructor
-    · rintro ⟨σ, hσ, hpen⟩
-      dsimp only at hσ hpen
+  · refine ⟨fun ⟨σ, hσ, hpen⟩ => ?_, fun ⟨s, hs, hsum⟩ => ?_⟩
+    · dsimp only [totalPenalty] at hσ hpen
       have hσ' : σ = (σ.map Job.time).map (job t) := by
-        conv_lhs => rw [← List.map_id σ]
-        rw [List.map_map]
-        refine List.map_congr_left fun j hj => ?_
-        obtain ⟨a, -, rfl⟩ := List.mem_map.1 (hσ.subset hj)
-        rfl
+        rw [List.map_map]; conv_lhs => rw [← List.map_id σ]
+        exact List.map_congr_left fun j hj =>
+          let ⟨_, _, ha⟩ := List.mem_map.1 (hσ.subset hj); ha ▸ rfl
       have hperm : σ.map Job.time ~ l := by
         simpa only [List.map_map, Function.comp_def, List.map_id'] using hσ.map Job.time
       obtain ⟨O, hO, hsum, hle⟩ := exists_onTime t (σ.map Job.time) 0
       rw [← hσ'] at hsum
       have htot : (σ.map Job.time).sum = l.sum := hperm.sum_eq
-      unfold totalPenalty at hpen
-      have hOt : O.sum = t := by
-        rcases hle with hle | rfl
-        · omega
-        · simp only [List.sum_nil] at hsum ⊢
-          omega
+      have hOt : O.sum = t := hle.elim (fun _ => by omega)
+        fun h => by simp only [h, List.sum_nil] at hsum ⊢; omega
       obtain ⟨O', hO'perm, hO'l⟩ := hO.subperm.trans hperm.subperm
       exact ⟨O', hO'l, hO'perm.sum_eq.trans hOt⟩
-    · rintro ⟨s, hs, hsum⟩
-      obtain ⟨r, hr⟩ := hs.exists_perm_append
+    · obtain ⟨r, hr⟩ := hs.exists_perm_append
       refine ⟨(s ++ r).map (job t), (hr.map _).symm, ?_⟩
-      dsimp only
-      have htot := hr.sum_eq
-      rw [List.sum_append] at htot
-      unfold totalPenalty
-      rw [List.map_append, penaltyFrom_append, penaltyFrom_eq_zero 0 t s (by omega)]
+      have htot := hr.sum_eq; rw [List.sum_append] at htot
       have := penaltyFrom_le (0 + ((s.map (job t)).map Job.time).sum) t r
+      simp only [totalPenalty, List.map_append, penaltyFrom_append,
+        penaltyFrom_eq_zero 0 t s (by omega)]
       omega
-  · constructor
-    · rintro ⟨σ, hσ, hpen⟩
-      rw [List.perm_singleton] at hσ
-      subst hσ
-      simp [totalPenalty, penaltyFrom] at hpen
-    · rintro ⟨s, hs, rfl⟩
-      obtain ⟨r, hr⟩ := hs.exists_perm_append
-      have := hr.sum_eq
-      rw [List.sum_append] at this
-      omega
+  · exact ⟨fun ⟨σ, hσ, hpen⟩ => by
+        dsimp only at hσ hpen
+        rw [List.perm_singleton] at hσ; subst hσ
+        simp [totalPenalty, penaltyFrom] at hpen,
+      fun ⟨s, hs, hsum⟩ => by
+        obtain ⟨r, hr⟩ := hs.exists_perm_append
+        have := hr.sum_eq
+        rw [List.sum_append] at this; omega⟩
 
 /-- The reduction `toJobSequencing` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_toJobSequencing :
     ComputableInPolyTime toJobSequencing encSubsetSum encJobSequencing := by
-  unfold toJobSequencing
-  fun_prop
+  unfold toJobSequencing; fun_prop
 
 end SubsetSum
 

@@ -601,10 +601,8 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
     push Not at hq0
     classical
     let closedNbhd : Finset V := S ∪ S.biUnion fun v => G.neighborFinset v
-    have hreach : ∀ w ∈ closedNbhd, ∃ k, w ∈ (progressiveStep G q)^[k] (S : Set V) := by
-      intro w _
-      obtain ⟨k, hk⟩ := hS w
-      exact ⟨k, hk k le_rfl⟩
+    have hreach : ∀ w ∈ closedNbhd, ∃ k, w ∈ (progressiveStep G q)^[k] (S : Set V) :=
+      fun w _ => (hS w).imp fun k hk => hk k le_rfl
     choose f hf using hreach
     let ℓ : ℕ := closedNbhd.attach.sup fun x => f x.1 x.2
     have hclosed : (closedNbhd : Set V) ⊆ (progressiveStep G q)^[ℓ] (S : Set V) := by
@@ -648,8 +646,7 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
     obtain ⟨k, hk⟩ := hS w
     refine ⟨k + 1, fun j hj => ?_⟩
     obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hj
-    have hjm : m + (k + 1) = (m + k) + 1 := by omega
-    rw [hjm, hiter (m + k)]
+    rw [show m + (k + 1) = (m + k) + 1 by omega, hiter (m + k)]
     exact hk (ℓ + (m + k) + 1) (by omega)
 
 /-- Progressive and nonprogressive contagion have the exact same contagion threshold on every
@@ -701,11 +698,9 @@ private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdi
       (G.neighborFinset v \ (X ∪ D)).card + (G.neighborFinset v ∩ D).card =
         (G.neighborFinset v \ X).card := by
     intro v _
-    have hdisj' : Disjoint (G.neighborFinset v \ (X ∪ D)) (G.neighborFinset v ∩ D) := by
-      rw [Finset.disjoint_left]
-      intro w hw1 hw2
-      simp only [Finset.mem_sdiff, Finset.mem_union, Finset.mem_inter] at hw1 hw2
-      exact hw1.2 (Or.inr hw2.2)
+    have hdisj' : Disjoint (G.neighborFinset v \ (X ∪ D)) (G.neighborFinset v ∩ D) :=
+      Finset.disjoint_left.2 fun w hw1 hw2 =>
+        (Finset.mem_sdiff.1 hw1).2 (Finset.mem_union_right _ (Finset.mem_inter.1 hw2).2)
     rw [← Finset.card_union_of_disjoint hdisj']
     congr 1
     ext w
@@ -728,10 +723,8 @@ private theorem edgeBoundaryCard_union_add [DecidableEq V] {X D : Finset V} (hdi
 private theorem progressiveStep_iterate_finite {q : ℝ} (hq0 : 0 < q)
     (hdeg : ∀ v, 0 < G.degree v) (S : Finset V) (n : ℕ) :
     ((progressiveStep G q)^[n] (S : Set V)).Finite := by
-  have hiso : {v : V | G.IsIsolated v} = ∅ := by
-    ext v
-    simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-    exact (G.degree_pos v).mp (hdeg v)
+  have hiso : {v : V | G.IsIsolated v} = ∅ :=
+    Set.eq_empty_iff_forall_notMem.2 fun v => (G.degree_pos v).mp (hdeg v)
   have h := progressiveStep_iterate_sdiff_isolated_finite G hq0 S n
   rwa [hiso, Set.sdiff_empty] at h
 
@@ -757,47 +750,31 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
     let D := Sfin (j + 1) \ Sfin j
     have hdisj : Disjoint X D := Finset.disjoint_sdiff
     have hunion : X ∪ D = Sfin (j + 1) := Finset.union_sdiff_of_subset (hSfin_sub j)
-    have hDne : D.Nonempty := by
-      rw [Finset.nonempty_iff_ne_empty]
-      intro hemp
-      apply hne
-      rw [← hunion, hemp, Finset.union_empty]
+    have hDne : D.Nonempty :=
+      Finset.nonempty_iff_ne_empty.2 fun hemp => hne (by rw [← hunion, hemp, Finset.union_empty])
     have hlt_each : ∀ u ∈ D,
         (G.neighborFinset u \ (X ∪ D)).card < (G.neighborFinset u ∩ X).card := by
       intro u hu
       have huD : u ∈ Sfin (j + 1) ∧ u ∉ Sfin j := Finset.mem_sdiff.mp hu
-      have hmem_succ : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by
-        rw [← hSfin_coe]
-        exact huD.1
-      have hnot_j : u ∉ (progressiveStep G q)^[j] (S : Set V) := by
-        rw [← hSfin_coe]
-        exact huD.2
-      rw [Function.iterate_succ_apply', progressiveStep] at hmem_succ
-      have hbr : u ∈ bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) :=
-        hmem_succ.resolve_left hnot_j
+      have hbr : u ∈ bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) := by
+        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by rw [← hSfin_coe]; exact huD.1
+        rw [Function.iterate_succ_apply', progressiveStep] at h1
+        exact h1.resolve_left (by rw [← hSfin_coe]; exact huD.2)
       rw [mem_bestResponseStep_iff, ← hSfin_coe] at hbr
       have hncard : (G.neighborSet u ∩ (X : Set V)).ncard = (G.neighborFinset u ∩ X).card := by
         rw [← G.coe_neighborFinset, ← Finset.coe_inter, Set.ncard_coe_finset]
       rw [hncard] at hbr
       have hdu : 0 < (G.degree u : ℝ) := Nat.cast_pos.mpr (hdeg u)
-      have hmaj_real : (G.degree u : ℝ) < 2 * ((G.neighborFinset u ∩ X).card : ℝ) := by
-        have hhalf : (1 / 2 : ℝ) * (G.degree u : ℝ) < q * (G.degree u : ℝ) :=
-          mul_lt_mul_of_pos_right hq hdu
-        linarith
       have hmaj : G.degree u < 2 * (G.neighborFinset u ∩ X).card := by
-        exact_mod_cast hmaj_real
-      have hdisj_nb : Disjoint (G.neighborFinset u ∩ X) (G.neighborFinset u \ (X ∪ D)) := by
-        rw [Finset.disjoint_left]
-        intro w hw1 hw2
-        simp only [Finset.mem_inter, Finset.mem_sdiff, Finset.mem_union] at hw1 hw2
-        exact hw2.2 (Or.inl hw1.2)
-      have hsub_nb :
-          (G.neighborFinset u ∩ X) ∪ (G.neighborFinset u \ (X ∪ D)) ⊆ G.neighborFinset u :=
-        Finset.union_subset Finset.inter_subset_left Finset.sdiff_subset
+        have := mul_lt_mul_of_pos_right hq hdu
+        exact_mod_cast (by linarith : (G.degree u : ℝ) < 2 * ((G.neighborFinset u ∩ X).card : ℝ))
+      have hdisj_nb : Disjoint (G.neighborFinset u ∩ X) (G.neighborFinset u \ (X ∪ D)) :=
+        Finset.disjoint_left.2 fun w hw1 hw2 =>
+          (Finset.mem_sdiff.1 hw2).2 (Finset.mem_union_left _ (Finset.mem_inter.1 hw1).2)
       have hcard_le :
           (G.neighborFinset u ∩ X).card + (G.neighborFinset u \ (X ∪ D)).card ≤ G.degree u := by
         rw [← Finset.card_union_of_disjoint hdisj_nb, ← G.card_neighborFinset_eq_degree]
-        exact Finset.card_le_card hsub_nb
+        exact Finset.card_le_card (Finset.union_subset Finset.inter_subset_left Finset.sdiff_subset)
       omega
     have hsum_lt :
         ∑ u ∈ D, (G.neighborFinset u \ (X ∪ D)).card < ∑ u ∈ D, (G.neighborFinset u ∩ X).card :=
@@ -808,15 +785,12 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       edgeBoundaryCard G (Sfin j) + ∑ u ∈ D, (G.neighborFinset u \ Sfin (j + 1)).card at heq
     omega
   have hstop : ∃ k, Sfin k = Sfin (k + 1) := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     have hbound : ∀ n, edgeBoundaryCard G (Sfin n) + n ≤ edgeBoundaryCard G (Sfin 0) := by
       intro n
       induction n with
       | zero => omega
-      | succ n ih =>
-          have hlt := hdec n (hno n)
-          omega
+      | succ n ih => have := hdec n (hno n); omega
     have := hbound (edgeBoundaryCard G (Sfin 0) + 1)
     omega
   obtain ⟨k, hk⟩ := hstop

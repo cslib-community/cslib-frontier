@@ -50,10 +50,10 @@ theorem Xofs.sampleInBall_writeCommitment (s : Level) (H : Xofs)
     (d : FixedBytes (digestBytes s)) :
     (H.writeCommitment (commitmentInput s w μ) value).sampleInBall s d.toList =
       H.sampleInBall s d.toList := by
-  have sep := (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm
   have row : (H.writeCommitment (commitmentInput s w μ) value).h256.readBytes d.toList 221 =
       H.h256.readBytes d.toList 221 := by
-    simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes, sep]
+    simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes,
+      (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm]
   unfold Xofs.sampleInBall
   rw [row]
 
@@ -141,13 +141,12 @@ theorem TerminalSigningWrite.History.read_representative {s : Level} {base G : X
   induction history generalizing formatted n with
   | initial => rfl
   | @append past G prev q w d r x address ih =>
-    have last := miss ⟨q, w, x, d, r⟩ (List.mem_append_right past List.mem_cons_self)
     subst x
-    have prior := ih (fun z hz => miss z (List.mem_append_left _ hz))
+    have prior := ih fun z hz => miss z (List.mem_append_left _ hz)
     have current : G.h256.read (representativeInput tr
         (formatMessage q.message q.context)) 64 ≠ tr := by
       rw [prior]
-      exact last
+      exact miss ⟨q, w, _, d, r⟩ (List.mem_append_right past List.mem_cons_self)
     exact (repRead s G tr ht (formatMessage q.message q.context) w d.toList current
       formatted n).trans (prior _ _)
 
@@ -175,8 +174,7 @@ theorem Xofs.fullPairExperiment_eq_expand (H : Xofs) (s : Level)
         return run (fun i => rho[i.val]!) ⟨A, ModuleLWE.sample A x e⟩) : Option Game).getD
           (PMF.pure false) := by
   unfold Xofs.fullPairExperiment Xofs.keyExperiment
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·)
-  funext seed
+  refine congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·) (funext fun seed => ?_)
   cases kg : H.keyGen s seed with
   | none =>
     unfold Xofs.keyGen at kg
@@ -237,15 +235,14 @@ theorem ProgrammedSigningResult.ne_written_digest_of_newDigestWin {C : QuantumSi
   cases hr : w.reply with
   | none =>
     have hv := (Bool.and_eq_true_iff.mp win).1
-    apply result.ne_failed_digest hw hr
+    refine result.ne_failed_digest hw hr ?_
     cases h : result.trial.xofs.verify s result.trial.publicKey result.trial.forgery.message
         result.trial.forgery.context result.trial.forgery.signature <;> simp_all
   | some sig =>
     obtain ⟨pref, mem⟩ := result.signed w hw sig hr
-    intro eq
-    have repeated : result.trial.repeatsDigest := List.any_eq_true.mpr
-      ⟨_, mem, beq_iff_eq.mpr (pref.trans eq.symm)⟩
-    simp [repeated] at fresh
+    exact fun eq => by
+      simp [show result.trial.repeatsDigest from List.any_eq_true.mpr
+        ⟨_, mem, beq_iff_eq.mpr (pref.trans eq.symm)⟩] at fresh
 
 private structure Terminal (s : Level) (H : Xofs) where
   point : Fin s.params.k → Fin 256 → ℤ
@@ -324,19 +321,14 @@ private theorem freshMaskDraw_eq (s : Level) (sk : MLDSA.SecretKey s.params)
   unfold freshMaskDraw publicDraw
   congr 1
   funext d c hc
-  have valid := s.valid
-  have eq := freshSigningAttempt_eq_simulate s.params valid (by cases s <;> decide)
-    (by cases s <;> decide) 13 (hintLimit s) sk h₁ h₂ (inBall_of_sampleInBall hc)
-  rw [← eq]
+  rw [← freshSigningAttempt_eq_simulate s.params s.valid (by cases s <;> decide)
+    (by cases s <;> decide) 13 (hintLimit s) sk h₁ h₂ (inBall_of_sampleInBall hc)]
   simp only [freshSigningAttempt, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     _root_.PMF.bind_map]
-  congr 1
-  funext y
-  apply congrArg _root_.PMF.pure
-  apply recordBytes_map
-  have tab : (Vector.ofFn c).get = c := funext (Vector.get_ofFn c)
+  refine congrArg _ (funext fun y => congrArg _root_.PMF.pure (recordBytes_map _ _ _ _ ?_))
   simp only [finishSigningAttempt, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
-    Option.join_some, compressedSignAttempt, tab]
+    Option.join_some, compressedSignAttempt,
+    show (Vector.ofFn c).get = c from funext (Vector.get_ofFn c)]
 
 private structure History (s : Level) (base : Xofs) (tr : List Byte) where
   xofs : Xofs
@@ -468,23 +460,18 @@ theorem freshMask_newDigestGame_eq_publicPair (C : QuantumSigningForger) (s : Le
       (C.freshMaskSigning s H keys).map (·.any fun r => r.trial.newDigestWin)) =
     ((base.uniformPrefixes a b).bind fun H => H.fullPairExperiment s fun ρ pair =>
       (C.publicPairSigning s H ρ pair).map fun r => r.trial.newDigestWin) := by
-  apply congrArg (base.uniformPrefixes a b).bind
-  funext H
+  refine congrArg (base.uniformPrefixes a b).bind (funext fun H => ?_)
   unfold Xofs.fullPairExperiment Xofs.keyExperiment
-  apply congrArg (PMF.uniformOfFintype (FixedBytes 32)).bind
-  funext seed
+  refine congrArg (PMF.uniformOfFintype (FixedBytes 32)).bind (funext fun seed => ?_)
   cases hg : H.keyGen s seed with
   | none => rfl
   | some keys =>
     obtain ⟨ρ, sk, ha, pk, hd, h₁, h₂, _⟩ := privateKey_of_keyGen hg
-    have rho : (fun i : Fin 32 => ρ.toList[i.val]!) = ρ := by
-      funext i
-      simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]
-    have same := C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂
     dsimp only
-    rw [same, _root_.PMF.map_comp]
+    rw [C.freshMaskSigning_eq_of_decoded s H keys ρ sk _ ha pk hd h₁ h₂, _root_.PMF.map_comp]
     simp only [hd, ha, Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some,
-      rho]
+      show (fun i : Fin 32 => ρ.toList[i.val]!) = ρ from funext fun i => by
+        simp only [FixedBytes.toList, List.length_ofFn, getElem!_pos, i.isLt, List.getElem_ofFn]]
     rfl
 
 /-- A changed message representative in a real output of the public-pair simulator yields a
@@ -503,21 +490,17 @@ theorem publicPairSigning_match_of_changed_representative {C : QuantumSigningFor
       base.h256.read (addr w) 64 = tr := by
   intro tr addr
   obtain ⟨pk, hash⟩ := publicPairSigning_key_of_mem hr
-  have ht : result.tr.length = 64 := hash ▸ base.h256.length_read ..
-  have pkread := result.history.read_publicKey rho pair.t 64
-  rw [← pk] at pkread
+  have pkread := pk ▸ result.history.read_publicKey rho pair.t 64
   cases found : result.writes.find? (fun z => base.h256.read (addr z) 64 == tr) with
-  | some w => exact ⟨w, rfl,
-      beq_iff_eq.mp (List.find?_some (p := fun z => base.h256.read (addr z) 64 == tr) found)⟩
+  | some w =>
+    exact ⟨w, rfl, beq_iff_eq.mp
+      (List.find?_some (p := fun z => base.h256.read (addr z) 64 == tr) found)⟩
   | none =>
-    exfalso
-    apply changed
-    have clean (w) (hw : w ∈ result.writes) :
-        base.h256.read (representativeInput result.tr
-          (formatMessage w.request.message w.request.context)) 64 ≠ result.tr := by
-      have miss := List.find?_eq_none.mp found w hw
-      simpa only [hash, addr, tr, beq_iff_eq] using miss
-    have same := result.history.read_representative ht clean formatted 64
+    refine (changed ?_).elim
+    have same := result.history.read_representative (hash ▸ base.h256.length_read ..)
+      (fun w hw =>
+        by simpa only [hash, addr, tr, beq_iff_eq] using List.find?_eq_none.mp found w hw)
+      formatted 64
     rw [hash] at same
     simp only [Xofs.messageRepresentative, Xofs.representativeFromTr, pkread, same]
 

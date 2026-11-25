@@ -107,41 +107,34 @@ variable {L}
 /-- A matrix entry within the capacity lies in the weight field. -/
 theorem row_base_add_lt {i j : ℕ} (hi : i < L.capacity) (hj : j < L.capacity) :
     (L.row i).base + j < L.weight.base + L.weight.length := by
-  simp only [row, weight]
-  nlinarith
+  simp only [row, weight]; nlinarith
 
 /-- Distinct matrix entries within the capacity have distinct addresses. -/
 theorem row_base_add_inj {i j a b : ℕ} (hj : j < L.capacity) (hb : b < L.capacity)
     (h : (L.row i).base + j = (L.row a).base + b) : i = a ∧ j = b := by
   simp only [row] at h
-  have h' : j + L.capacity * i = b + L.capacity * a := by linarith
   have hpos : 0 < L.capacity := by omega
   have hi : i = a := by
-    have := congrArg (· / L.capacity) h'
+    have := congrArg (· / L.capacity) (show j + L.capacity * i = b + L.capacity * a by linarith)
     simp only [Nat.add_mul_div_left _ _ hpos, Nat.div_eq_of_lt hj, Nat.div_eq_of_lt hb] at this
     omega
-  subst hi
-  exact ⟨rfl, by omega⟩
+  exact ⟨hi, by subst hi; omega⟩
 
 /-- Writing a matrix entry within the capacity updates that entry of the matrix view. -/
 theorem mat_update {m : ℕ → ℕ} {a b : ℕ} (hb : b < L.capacity) (x : ℕ) {i j : ℕ}
     (hj : j < L.capacity) :
     L.mat (Function.update m ((L.row a).base + b) x) i j =
       if i = a ∧ j = b then x else L.mat m i j := by
-  unfold mat
-  split_ifs with h
-  · obtain ⟨rfl, rfl⟩ := h
-    exact Function.update_self _ _ _
-  · refine Function.update_of_ne (fun he => h ?_) _ _
-    exact row_base_add_inj hj hb he
+  unfold mat; split_ifs with h
+  · exact h.1 ▸ h.2 ▸ Function.update_self _ _ _
+  · exact Function.update_of_ne (fun he => h (row_base_add_inj hj hb he)) _ _
 
 /-- Writing outside the weight field leaves the matrix view unchanged. -/
 theorem mat_update_of_not_owns {m : ℕ → ℕ} {a : ℕ} (ha : ¬L.weight.Owns a) (x : ℕ) {i j : ℕ}
     (hi : i < L.capacity) (hj : j < L.capacity) :
     L.mat (Function.update m a x) i j = L.mat m i j := by
   refine Function.update_of_ne (fun he => ha ?_) _ _
-  rw [← he]
-  exact ⟨by simp only [row, weight]; omega, row_base_add_lt hi hj⟩
+  rw [← he]; exact ⟨by simp only [row, weight]; omega, row_base_add_lt hi hj⟩
 
 /-- The matrix view of the first `k` rows and columns depends only on those cells. -/
 theorem graph_congr {k : ℕ} {m m' : ℕ → ℕ} (h : ∀ i j, i < k → j < k → L.mat m' i j = L.mat m i j) :
@@ -195,11 +188,9 @@ theorem abs_eq_and_inv {s : Memory.State} {k : ℕ} {W : Fin k → Fin k → ℕ
     (hdeg : ∀ i : Fin k, s.mem (L.degree.base + i) = rowDeg W i)
     (htotal : s.mem L.total.base = totalDoubledWeight W) (hfit : Fits w (totalDoubledWeight W)) :
     abs L s = ⟨k, W⟩ ∧ Inv L w s := by
-  have habs : abs L s = ⟨k, W⟩ := by
-    rw [abs, hsize]
-    exact congrArg (Graph.mk k) (funext₂ hmat)
+  have habs : abs L s = ⟨k, W⟩ := by rw [abs, hsize]; exact congrArg (Graph.mk k) (funext₂ hmat)
   exact ⟨habs, hlim, hC, hsize ▸ hk, by rw [habs]; exact hW, by rw [habs]; exact hdeg,
-    by rw [habs]; exact htotal, by rw [htotal]; exact hfit⟩
+    by rw [habs]; exact htotal, htotal ▸ hfit⟩
 
 /-- The cells of a state satisfying the invariant hold its abstraction. -/
 theorem Inv.cells {s : Memory.State} (hs : Inv L w s) {k : ℕ} {W : Fin k → Fin k → ℕ}
@@ -207,9 +198,7 @@ theorem Inv.cells {s : Memory.State} (hs : Inv L w s) {k : ℕ} {W : Fin k → F
     s.mem L.size.base = k ∧ (∀ i j : Fin k, L.mat s.mem i j = W i j) ∧ IsMultigraph W ∧
       (∀ i : Fin k, s.mem (L.degree.base + i) = rowDeg W i) ∧
       s.mem L.total.base = totalDoubledWeight W := by
-  obtain ⟨hk, hW⟩ := Graph.mk.inj habs
-  subst hk
-  obtain rfl := eq_of_heq hW
+  obtain ⟨rfl, hW⟩ := Graph.mk.inj habs; obtain rfl := eq_of_heq hW
   exact ⟨rfl, fun _ _ => rfl, hs.multigraph, hs.degree_eq, hs.total_eq⟩
 
 /-- Matrix entries within the capacity belong to the region. -/
@@ -273,9 +262,8 @@ theorem Inv.weight_le {s : Memory.State} (hs : Inv L w s) :
 /-- The abstraction reads only the region. -/
 theorem abs_congr {s s' : Memory.State} (hs : Inv L w s)
     (h : ∀ a ∈ L.footprint, s'.mem a = s.mem a) : abs L s' = abs L s := by
-  have hsize : s'.mem L.size.base = s.mem L.size.base := h _ L.size_mem_footprint
   have hk := hs.size_le
-  rw [abs, abs, hsize]
+  rw [abs, abs, h _ L.size_mem_footprint]
   exact Layout.graph_congr fun i j hi hj =>
     h _ (L.row_base_add_mem_footprint (by omega) (by omega))
 
@@ -284,15 +272,12 @@ theorem Inv.congr {s s' : Memory.State} (hs : Inv L w s)
     (h : ∀ a ∈ L.footprint, s'.mem a = s.mem a) (hf : s.frontier ≤ s'.frontier) :
     Inv L w s' := by
   have habs := abs_congr hs h
-  have hsize : s'.mem L.size.base = s.mem L.size.base := h _ L.size_mem_footprint
-  have htot : s'.mem L.total.base = s.mem L.total.base := h _ L.total_mem_footprint
-  have hk := hs.size_le
-  refine ⟨hs.allocated.trans hf, hs.capacity_fits, hsize ▸ hk, habs ▸ hs.multigraph, ?_,
+  have hsize := h _ L.size_mem_footprint
+  have htot := h _ L.total_mem_footprint
+  refine ⟨hs.allocated.trans hf, hs.capacity_fits, hsize ▸ hs.size_le, habs ▸ hs.multigraph, ?_,
     by rw [habs, htot]; exact hs.total_eq, htot ▸ hs.total_fits⟩
-  rw [habs]
-  intro i
-  rw [h _ (L.degree_mem_footprint (by have := i.isLt; simp only [abs_size] at this; omega)),
-    hs.degree_eq i]
+  rw [habs]; intro i
+  rw [h _ (L.degree_mem_footprint (i.isLt.trans_le hs.size_le)), hs.degree_eq i]
 
 /-! ## Prefix sums -/
 
@@ -371,20 +356,16 @@ theorem wp_scan {b : Block} {s : Memory.State} :
       scan b n (i + 1) (r - s.mem (b.base + i))) (fun a s' t => Q a s' (t + 1)) s
     have hsplit := sum_eq_sum_Ico_succ_bot (show i < i + (n + 1) by omega)
       fun j => s.mem (b.base + j)
-    by_cases hx : r < s.mem (b.base + i)
-    · rw [ite_eq_left hx]
-      have h := hQ i le_rfl (by omega) (by simp) (by simpa using hx)
+    split_ifs with hx
+    · have h := hQ i le_rfl (by omega) (by simp) (by simpa using hx)
       simp only [Ico_self, sum_empty, Nat.sub_zero, Nat.add_sub_cancel_left] at h
       simpa using h
-    · rw [ite_eq_right hx]
-      refine wp_scan n (i + 1) (r - s.mem (b.base + i)) _ (fun j hj => hf j (by omega))
+    · refine wp_scan n (i + 1) (r - s.mem (b.base + i)) _ (fun j hj => hf j (by omega))
         (by rw [show i + 1 + n = i + (n + 1) by omega]; omega) fun u hu₁ hu₂ hle hlt => ?_
       have h₁ := sum_eq_sum_Ico_succ_bot (show i < u by omega) fun j => s.mem (b.base + j)
       have h₂ := sum_eq_sum_Ico_succ_bot (show i < u + 1 by omega) fun j => s.mem (b.base + j)
-      have hQu := hQ u (by omega) (by omega) (by omega) (by omega)
-      rw [h₁, ← Nat.sub_sub,
-        show u + 1 - i = u + 1 - (i + 1) + 1 by omega] at hQu
-      exact hQu
+      have h := hQ u (by omega) (by omega) (by omega) (by omega)
+      rwa [h₁, ← Nat.sub_sub, show u + 1 - i = u + 1 - (i + 1) + 1 by omega] at h
 
 
 /-- The degree array as a sum over a range is the total doubled weight. -/
@@ -400,28 +381,22 @@ theorem wp_pairAt {s : Memory.State} (hs : Inv L w s) {r : ℕ}
     (Memory.spec w).wp charge (pairAt L r)
       (fun a s' t => a = sampledPair (abs L s).weight r ∧ s' = s ∧
         t ≤ 2 * (abs L s).size + 1) s := by
-  have hk : s.mem L.size.base ≤ L.capacity := hs.size_le
-  have hwl := hs.weight_le
+  have hk := hs.size_le
   rw [pairAt, wp_lift_bind]
   refine ⟨hs.lt_frontier L.size_mem_footprint, ?_⟩
   dsimp only [StateTransitionSpec.stepFn, step_read, charge_read, Nat.add_zero]
   rw [wp_bind]
   refine wp_scan _ 0 r _ (fun j hj => hs.lt_frontier (L.degree_mem_footprint (by omega)))
-    (by rw [Nat.zero_add, ← range_eq_Ico, ← abs_size, hs.sum_degree]; exact hr)
-    fun u _ hu hle hlt => ?_
+    (by rwa [Nat.zero_add, ← range_eq_Ico, ← abs_size, hs.sum_degree]) fun u _ hu hle hlt => ?_
   simp only [Nat.zero_add, ← range_eq_Ico, sum_range_succ] at hu hle hlt
   rw [hs.degree_eq ⟨u, hu⟩] at hlt
-  dsimp only
-  rw [wp_bind]
-  have hrd : rowDeg (abs L s).weight ⟨u, hu⟩ =
-      ∑ j ∈ Ico 0 (0 + s.mem L.size.base), s.mem ((L.row u).base + j) := by
-    rw [Nat.zero_add, ← range_eq_Ico]
-    exact rowDeg_eq_sum_range _ _ _ fun j hj => rfl
-  have hsu : ∑ j ∈ Ico 0 u, s.mem (L.degree.base + j) =
-      ∑ j ∈ range u, s.mem (L.degree.base + j) := by rw [range_eq_Ico]
+  dsimp only; rw [wp_bind]
+  have hrd := rowDeg_eq_sum_range (abs L s).weight ⟨u, hu⟩
+    (fun j => s.mem ((L.row u).base + j)) fun _ _ => rfl
   refine wp_scan _ 0 _ _ (fun j hj => (Layout.row_base_add_lt (hu.trans_le hk)
-      (show j < L.capacity by omega)).trans_le hwl)
-    (by rw [← hrd, hsu]; omega) fun v _ hv hle' hlt' => ?_
+      (by omega)).trans_le hs.weight_le)
+    (by simp only [Nat.zero_add, ← range_eq_Ico, ← abs_size, ← hrd]; omega)
+    fun v _ hv hle' hlt' => ?_
   simp only [Nat.zero_add, ← range_eq_Ico, sum_range_succ] at hv hle' hlt'
   dsimp only
   have hdb : degBefore (abs L s).weight ⟨u, hu⟩ = ∑ j ∈ range u, s.mem (L.degree.base + j) :=
@@ -430,11 +405,8 @@ theorem wp_pairAt {s : Memory.State} (hs : Inv L w s) {r : ℕ}
       ∑ j ∈ range v, s.mem ((L.row u).base + j) :=
     weightBefore_eq_sum_range _ _ _ _ fun j hj => rfl
   have hsamp : IsSampledPair (abs L s).weight r ⟨u, hu⟩ ⟨v, hv⟩ := by
-    have hw : (abs L s).weight ⟨u, hu⟩ ⟨v, hv⟩ = s.mem ((L.row u).base + v) := rfl
-    unfold IsSampledPair edgeOffset
-    omega
-  refine ⟨(sampledPair_eq hsamp).symm, rfl, ?_⟩
-  simp only [abs_size] at hu hv ⊢
-  omega
+    have : (abs L s).weight ⟨u, hu⟩ ⟨v, hv⟩ = s.mem ((L.row u).base + v) := rfl
+    unfold IsSampledPair edgeOffset; omega
+  exact ⟨(sampledPair_eq hsamp).symm, rfl, by simp only [abs_size] at hu hv ⊢; omega⟩
 
 end Cslib.Algorithms.Lean.Karger.Memory

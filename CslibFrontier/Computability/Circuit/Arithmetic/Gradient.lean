@@ -203,12 +203,8 @@ private theorem State.represents_push {s : State C n g m} {v : Wire n g → R}
     {out : Fin m → R} (h : s.Represents constant x v out) (op : ArithOp C)
     (args : Fin op.arity → Wire n s.size) :
     (s.push op args).Represents constant x v out := by
-  obtain ⟨hv, ho⟩ := h
-  refine ⟨?_, ?_⟩
-  · funext w
-    exact (s.trace_push_castSucc op args _).trans (congrFun hv w)
-  · funext k
-    exact (s.trace_push_castSucc op args _).trans (congrFun ho k)
+  exact ⟨funext fun w => (s.trace_push_castSucc op args _).trans (congrFun h.1 w),
+    funext fun k => (s.trace_push_castSucc op args _).trans (congrFun h.2 k)⟩
 
 private theorem State.adjointSum_push (s : State C n g m) (op : ArithOp C)
     (args : Fin op.arity → Wire n s.size) (v : Wire n g → R) :
@@ -226,37 +222,27 @@ private theorem State.trace_accumulate_castSucc (s : State C n g m) (w : Wire n 
 private theorem State.represents_accumulate {s : State C n g m} {v : Wire n g → R}
     {out : Fin m → R} (h : s.Represents constant x v out) (w : Wire n g) (t : Wire n s.size) :
     (s.accumulate w t).Represents constant x v out := by
-  obtain ⟨hv, ho⟩ := h
-  refine ⟨?_, ?_⟩
-  · funext u
-    exact (s.trace_accumulate_castSucc w t _).trans (congrFun hv u)
-  · funext k
-    exact (s.trace_accumulate_castSucc w t _).trans (congrFun ho k)
+  exact ⟨funext fun u => (s.trace_accumulate_castSucc w t _).trans (congrFun h.1 u),
+    funext fun k => (s.trace_accumulate_castSucc w t _).trans (congrFun h.2 k)⟩
 
 private theorem State.trace_adjoint_accumulate (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (u : Wire n g) :
     (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) =
       s.program.trace I x (s.adjoint u) + if u = w then s.program.trace I x t else 0 := by
-  by_cases hu : u = w
-  · subst hu
-    simp only [State.accumulate, Function.update_self, ite_true]
+  rcases eq_or_ne u w with rfl | hu
+  · simp only [State.accumulate, Function.update_self, ite_true]
     exact Program.trace_gate_last _ _ _ _
-  · simp only [State.accumulate, Function.update_of_ne hu, Function.comp_apply, hu, ite_false,
-      add_zero]
-    exact Program.trace_gate_castSucc _ _ _ _ _
+  · simp [State.accumulate, hu]
 
 private theorem State.adjointSum_accumulate (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (v : Wire n g → R) :
     (s.accumulate w t).adjointSum constant x D v =
       s.adjointSum constant x D v + s.program.trace I x t • D (v w) := by
-  have h : ∀ u, (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) • D (v u) =
+  have h (u) : (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) • D (v u) =
       s.program.trace I x (s.adjoint u) • D (v u) +
         if u = w then s.program.trace I x t • D (v w) else 0 := by
-    intro u
     rw [State.trace_adjoint_accumulate, add_smul, ite_smul, zero_smul]
-    by_cases hu : u = w
-    · subst hu; rfl
-    · rw [ite_eq_right hu, ite_eq_right hu]
+    by_cases hu : u = w <;> simp [hu]
   rw [State.adjointSum, Finset.sum_congr rfl fun u _ => h u, Finset.sum_add_distrib,
     Finset.sum_ite_eq' Finset.univ w, ite_eq_left (Finset.mem_univ w)]
   rfl
@@ -363,18 +349,14 @@ private theorem init_adjointSum (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) (hzero : constant zero = 0) :
     (init c j seed zero).adjointSum constant x D (c.program.trace I x) =
       constant seed • D (c.eval I x j) := by
-  have h : ∀ w, (init c j seed zero).program.trace I x ((init c j seed zero).adjoint w) •
+  have h (w) : (init c j seed zero).program.trace I x ((init c j seed zero).adjoint w) •
       D (c.program.trace I x w) =
         if w = c.outputs j then constant seed • D (c.eval I x j) else 0 := by
-    intro w
-    by_cases hw : w = c.outputs j
-    · subst hw
-      simp only [init, ite_true]
-      rw [Program.trace_gate_castSucc, Program.trace_gate_last]
-      rfl
+    rcases eq_or_ne w (c.outputs j) with rfl | hw
+    · simp only [init, ite_true, Program.trace_gate_castSucc, Program.trace_gate_last]; rfl
     · simp only [init, hw, ite_false]
       rw [Program.trace_gate_last]
-      simp only [arithInterpretationWith_const, hzero, zero_smul]
+      simp [hzero]
   rw [State.adjointSum, Finset.sum_congr rfl fun w _ => h w, Finset.sum_ite_eq' Finset.univ,
     ite_eq_left (Finset.mem_univ _)]
 
@@ -392,15 +374,8 @@ private theorem State.cost_step (s : State C n (g + 1) m) (op : ArithOp C)
     (wires : Fin op.arity → Wire n g) (cost : ArithOp C → ℕ) :
     (s.step op wires).program.cost cost = s.program.cost cost + backwardCost cost op := by
   cases op with
-  | add =>
-    change s.program.cost cost + cost .add + cost .add = _
-    simp only [backwardCost]
-    omega
-  | mul =>
-    change s.program.cost cost + cost .mul + cost .add + cost .mul + cost .add = _
-    simp only [backwardCost]
-    omega
-  | const c => rfl
+  | add | mul => simp only [State.step, Program.cost_gate, backwardCost]; omega
+  | const _ => rfl
 
 private theorem cost_backward (cost : ArithOp C → ℕ) :
     ∀ {g : ℕ} (p : Program (arithSignature C) n g) (s : State C n g m),
@@ -559,12 +534,11 @@ theorem Circuit.exists_gradient (c : Circuit (arithSignature K) n m) (j : Fin m)
       d.program.cost ArithOp.mulCost = 3 * c.program.cost ArithOp.mulCost ∧
       d.polynomial 0 = c.polynomial j ∧ ∀ i, d.polynomial i.succ = pderiv i (c.polynomial j) := by
   let e := c.withGradient j 1 0
-  refine ⟨⟨e.program, Fin.cons (e.outputs (j.castAdd n)) fun i => e.outputs (Fin.natAdd m i)⟩,
-    c.size_withGradient_le j 1 0, c.mulCost_withGradient j 1 0, ?_, fun i => ?_⟩
-  · exact c.polynomial_withGradient_castAdd j 1 0 j
-  · have h := c.polynomial_withGradient_natAdd j 1 i
-    rw [map_one, one_mul] at h
-    exact h
+  exact ⟨⟨e.program, Fin.cons (e.outputs (j.castAdd n)) fun i => e.outputs (Fin.natAdd m i)⟩,
+    c.size_withGradient_le j 1 0, c.mulCost_withGradient j 1 0,
+    c.polynomial_withGradient_castAdd j 1 0 j, fun i => by
+      have h := c.polynomial_withGradient_natAdd j 1 i
+      rwa [map_one, one_mul] at h⟩
 
 /-- **Lower-bound transfer for size.** If every circuit computing the gradient of `f` has at least
 `S` gates, then every circuit computing `f` has at least `(S - 2) / 5` gates. -/
@@ -597,13 +571,10 @@ theorem Circuit.exists_pow_of_psum {d : ℕ} {u : K} (hu : u * (d + 1) = 1)
   let g := c.withGradient j u 0
   refine ⟨⟨g.program, fun i => g.outputs (Fin.natAdd m i)⟩, c.size_withGradient_le j u 0,
     c.mulCost_withGradient j u 0, fun i => ?_⟩
-  have h := c.polynomial_withGradient_natAdd j u i
-  rw [hc, pderiv_psum_succ, ← mul_assoc] at h
-  refine h.trans ?_
-  have hu' : MvPolynomial.C u * (d + 1 : MvPolynomial (Fin n) K) = 1 := by
-    rw [show (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) by
-      rw [map_add, map_natCast, map_one], ← map_mul, hu, map_one]
-  rw [hu', one_mul]
+  rw [show (Circuit.mk g.program _).polynomial i = g.polynomial (Fin.natAdd m i) from rfl,
+    c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc,
+    show (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) by simp,
+    ← map_mul, hu, map_one, one_mul]
 
 /-- **Lower-bound transfer for power sums.** If `d + 1` is invertible in `K` and every circuit
 computing the power map `(X 0 ^ d, …, X (n - 1) ^ d)` has at least `S` multiplications, then every

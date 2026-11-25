@@ -110,11 +110,8 @@ private theorem lowZero_collapse (g : List Bool → List Bool) (x : List Bool) :
 /-- A marked image determines its value. -/
 private theorem eq_of_mark_eq {n m : ℕ} {u v : List Bool} (h : mark n u = mark m v) : u = v := by
   unfold mark at h
-  generalize n + u.length = p at h
-  generalize m + v.length = q at h
-  induction p generalizing q with
-  | zero => cases q <;> simp_all [List.replicate_succ]
-  | succ p ih => cases q <;> simp_all [List.replicate_succ]
+  generalize n + u.length = p, m + v.length = q at h
+  induction p generalizing q <;> cases q <;> simp_all [List.replicate_succ]
 
 private theorem collapse_of_lowZero (g : List Bool → List Bool) {w : List Bool}
     (hw : lowZero w = true) :
@@ -136,11 +133,10 @@ theorem iterate_collapse_eq {g : List Bool → List Bool} {length : ℕ → ℕ}
     (hxy : x.length = y.length) : (collapse g)^[j + 2] x = (collapse g)^[j + 2] y := by
   have hfirst : (collapse g x).length = (collapse g y).length := by
     rw [length_collapse, length_collapse, hlen, hlen, hxy]
-  have hsecond : collapse g (collapse g x) = collapse g (collapse g y) := by
-    rw [collapse_of_lowZero g (lowZero_collapse g x), collapse_of_lowZero g (lowZero_collapse g y),
-      hlen (collapse g x), hlen (collapse g y), hfirst]
   rw [Function.iterate_add_apply, Function.iterate_add_apply]
-  exact congrArg _ hsecond
+  exact congrArg _ (show collapse g (collapse g x) = collapse g (collapse g y) by
+    rw [collapse_of_lowZero g (lowZero_collapse g x), collapse_of_lowZero g (lowZero_collapse g y),
+      hlen, hlen, hfirst])
 
 /-- **Iterates of `collapse g` are not one-way.** For `g` of fixed output length and a count `k`
 with `k n ≥ 2` for all large `n`, the constant inverter answering `0^n` inverts
@@ -152,20 +148,16 @@ theorem not_oneWay_iterate_collapse {g : List Bool → List Bool} {length : ℕ 
   intro hf
   have hzeros : ComputableInPolyTime (fun p : ℕ × List Bool => List.replicate p.1 false)
       (encPair encUnary encBits) encBits := by polytime
-  have hPPT : IsPPT encBits
-      (fun n _ => (pure (List.replicate n false) : ProbComp (List Bool))) := hzeros.isPPTOn
-  refine not_negligible_const one_ne_zero ((hf.inversion_negligible _ hPPT).congr' ?_)
+  refine not_negligible_const one_ne_zero
+    ((hf.inversion_negligible (fun n _ => pure (List.replicate n false)) hzeros.isPPTOn).congr' ?_)
   filter_upwards [hk] with n hn
   obtain ⟨j, hj⟩ : ∃ j, k n = j + 2 := ⟨k n - 2, by omega⟩
   have hgame : ProbComp.eval (inversionGame (fun x => (collapse g)^[k x.length] x)
       (fun n _ => pure (List.replicate n false)) n) = PMF.pure true := by
-    have heval : ProbComp.eval (inversionGame (fun x => (collapse g)^[k x.length] x)
-        (fun n _ => pure (List.replicate n false)) n) =
-        (BitString.uniformList n).map fun x =>
-          (collapse g)^[k (List.replicate n false).length] (List.replicate n false) ==
-            (collapse g)^[k x.length] x := by
-      simp [inversionGame, inversionExperiment]
-    refine heval.trans (Cslib.Probability.PMF.map_eq_pure_iff.mpr fun x hx => ?_)
+    refine (by simp [inversionGame, inversionExperiment] : _ = (BitString.uniformList n).map
+      fun x => (collapse g)^[k (List.replicate n false).length] (List.replicate n false) ==
+        (collapse g)^[k x.length] x).trans
+      (Cslib.Probability.PMF.map_eq_pure_iff.mpr fun x hx => ?_)
     have hxn : x.length = n := BitString.length_of_mem_support_uniformList hx
     rw [List.length_replicate, hxn, hj, iterate_collapse_eq hlen j (x := List.replicate n false)
       (y := x) (by rw [List.length_replicate, hxn]), beq_self_eq_true]
@@ -178,11 +170,9 @@ def markInverter (adversary : Inverter) : Inverter :=
 /-- `markInverter adversary` is uniform strict PPT when `adversary` is. -/
 theorem isPPT_markInverter {adversary : Inverter} (hadversary : IsPPT encBits adversary) :
     IsPPT encBits (markInverter adversary) := by
-  have hprepare : ComputableInPolyTime (fun p : ℕ × List Bool => mark p.1 p.2)
-      (encPair encUnary encBits) encBits := by
-    unfold mark
-    polytime
-  exact hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits) hprepare
+  refine hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits) ?_
+  unfold mark
+  polytime
 
 /-- Inverting `collapse g` succeeds at most as often as inverting `g` with the marked challenge,
 plus the probability `2^-(n / 2)` of a low-zero input. -/
@@ -197,8 +187,8 @@ theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
         ((BitString.uniformList n).map (List.take (n / 2))).bind
           (fun w => PMF.pure (decide (w = List.replicate (n / 2) false))) := by
       rw [PMF.bind_map]
-      refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
-      rw [Function.comp_apply, lowZero, BitString.length_of_mem_support_uniformList hx]
+      exact PMF.bind_congr_on_support _ _ _ fun x hx => by
+        rw [Function.comp_apply, lowZero, BitString.length_of_mem_support_uniformList hx]
     rw [hcongr, PMF.bind_pure_decide_eq_apply_true',
       BitString.uniformList_take (Nat.div_le_self n 2)]
     refine (BitString.uniformList_apply_le _ _).trans_eq ?_
@@ -212,24 +202,19 @@ theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
       ProbComp.eval_pure, BitString.eval_sampleList]
     refine PMF.bind_apply_le_add_on_support _ true fun x hx => ?_
     have hxn : x.length = n := BitString.length_of_mem_support_uniformList hx
-    by_cases hx : lowZero x = true
-    · rw [hx, PMF.pure_apply_self]
+    by_cases hzx : lowZero x = true
+    · rw [hzx, PMF.pure_apply_self]
       exact le_add_left (PMF.coe_le_one _ _)
     · refine le_add_right ?_
-      have himage : collapse g x = mark n (g x) := by rw [collapse, ite_eq_right hx, hxn]
-      rw [himage]
+      rw [collapse, ite_eq_right hzx, hxn]
       refine PMF.bind_apply_mono_on_support _ true fun candidate _ => ?_
       cases hwin : (collapse g candidate == mark n (g x))
       · simp
       · have heq := beq_iff_eq.1 hwin
-        have hg : g candidate = g x := by
-          unfold collapse at heq
-          split at heq
-          · exfalso
-            have := congrArg (fun w => true ∈ w) heq
-            simp [mark] at this
-          · exact eq_of_mark_eq heq
-        simp [hg]
+        unfold collapse at heq
+        split at heq
+        · exact False.elim (by simpa [mark] using congrArg (true ∈ ·) heq)
+        · simp [eq_of_mark_eq heq]
   unfold Game.succProbability
   refine (ENNReal.toNNReal_mono (ENNReal.add_ne_top.2 ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩)
     key).trans_eq ?_
@@ -238,11 +223,14 @@ theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
 /-- **`collapse g` is one-way** when `g` is one-way. -/
 theorem oneWay_collapse {g : List Bool → List Bool} (hg : OneWay g) : OneWay (collapse g) := by
   have hpoly := hg.polyTime
-  refine OneWay.of_inversion_negligible (by unfold collapse lowZero mark; polytime)
-    fun adversary hadversary => ?_
-  have hε := (hg.inversion_negligible _ (isPPT_markInverter hadversary)).add
-    ((negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).div_const (by norm_num : 0 < 2))
-  exact negligible_of_le hε fun n => succProbability_inversionGame_collapse_le g adversary n
+  refine OneWay.of_inversion_negligible ?_ fun A hA => ?_
+  · unfold collapse lowZero mark
+    polytime
+  · have hhalf : Negligible fun n => (1 / 2 : ℝ≥0) ^ (n / 2) :=
+      (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).div_const
+        (by norm_num : 0 < 2)
+    exact negligible_of_le ((hg.inversion_negligible _ (isPPT_markInverter hA)).add hhalf)
+      (succProbability_inversionGame_collapse_le g A)
 
 end IterateCounterexample
 
@@ -260,9 +248,8 @@ theorem exists_oneWay_not_oneWay_iterate (h : ∃ g : List Bool → List Bool, O
       ∀ k : ℕ → ℕ, (∀ᶠ n in Filter.atTop, 2 ≤ k n) → ¬ OneWay (fun x => f^[k x.length] x) := by
   obtain ⟨g₀, hg₀⟩ := h
   obtain ⟨g, length, hg, hlen, hlength⟩ := hg₀.exists_fixedOutputLength
-  refine ⟨collapse g, oneWay_collapse hg, ⟨fun n => n + 2 * length n + 1, fun x => ?_, by fun_prop⟩,
-    fun k hk => not_oneWay_iterate_collapse hlen hk⟩
-  rw [length_collapse, hlen]
+  exact ⟨collapse g, oneWay_collapse hg, ⟨fun n => n + 2 * length n + 1,
+    fun x => by rw [length_collapse, hlen], by fun_prop⟩, fun _ => not_oneWay_iterate_collapse hlen⟩
 
 /-- **The exercise's counts** ([AroraBarak07], Chapter 10, Exercise 4): if a one-way function
 exists, then some one-way function `f` with polynomial-time fixed output length has
@@ -274,8 +261,8 @@ theorem exists_oneWay_not_oneWay_iterate_ceil_rpow (h : ∃ g : List Bool → Li
       ∀ c : ℝ, 0 < c → ¬ OneWay (fun x => f^[⌈(x.length : ℝ) ^ c⌉₊] x) := by
   obtain ⟨f, hf, hm, hiter⟩ := exists_oneWay_not_oneWay_iterate h
   refine ⟨f, hf, hm, fun c hc => hiter (fun n => ⌈(n : ℝ) ^ c⌉₊) ?_⟩
-  have hlim := (tendsto_rpow_atTop hc).comp tendsto_natCast_atTop_atTop
-  filter_upwards [hlim.eventually_ge_atTop 2] with n hn
-  exact_mod_cast (show (2 : ℝ) ≤ ⌈(n : ℝ) ^ c⌉₊ from hn.trans (Nat.le_ceil _))
+  filter_upwards [((tendsto_rpow_atTop hc).comp tendsto_natCast_atTop_atTop).eventually_ge_atTop 2]
+    with n hn
+  exact_mod_cast hn.trans (Nat.le_ceil _)
 
 end Cslib.Crypto

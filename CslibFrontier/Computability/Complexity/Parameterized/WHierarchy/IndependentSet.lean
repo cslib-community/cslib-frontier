@@ -258,11 +258,8 @@ private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
     obtain ⟨⟨a, b⟩, hab, rfl⟩ := List.mem_map.1 he
     simp only [List.mem_filter, decide_eq_true_eq] at hab
     obtain ⟨hab, ha, hb, hne⟩ := hab
-    dsimp only at h₁ h₂
-    rw [hget a ha] at h₁
-    rw [hget b hb] at h₂
-    exact h (Finset.mem_coe.2 (mem_vertexSet.2 ⟨ha, h₁⟩))
-      (Finset.mem_coe.2 (mem_vertexSet.2 ⟨hb, h₂⟩)) hne
+    exact h (Finset.mem_coe.2 (mem_vertexSet.2 ⟨ha, (hget a ha).symm.trans h₁⟩))
+      (Finset.mem_coe.2 (mem_vertexSet.2 ⟨hb, (hget b hb).symm.trans h₂⟩)) hne
       (Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl hab⟩)
 
 /-- **Correctness of the circuit.** The circuit of `G` has a satisfying input with `k` ones exactly
@@ -274,22 +271,14 @@ theorem toCircuit_satisfiableWithWeight_iff (G : Graph) (k : ℕ) :
   constructor
   · rintro ⟨x, hk, hx⟩
     rw [eval_toCircuit, decide_eq_true_eq, edgeIndices_iff] at hx
-    refine ⟨vertexSet G x, fun v hv => (mem_vertexSet.1 hv).1, hx, ?_⟩
-    exact (Finset.card_map _).trans hk
+    exact ⟨vertexSet G x, fun v hv => (mem_vertexSet.1 hv).1, hx, (Finset.card_map _).trans hk⟩
   · rintro ⟨S, hS, hind, hk⟩
     let x : BitString (toCircuit G).1 := fun i =>
       decide (G.distinctVertices[i.val]'(i.isLt.trans_eq (toCircuit_fst G)) ∈ S)
     have hvS : vertexSet G x = S := by
       ext v
-      rw [mem_vertexSet]
-      constructor
-      · rintro ⟨hv, hx⟩
-        simp only [x, decide_eq_true_eq] at hx
-        rwa [List.getElem_idxOf] at hx
-      · intro hv
-        refine ⟨hS v hv, ?_⟩
-        simp only [x, decide_eq_true_eq]
-        rwa [List.getElem_idxOf]
+      simp only [mem_vertexSet, x, decide_eq_true_eq, List.getElem_idxOf, exists_prop]
+      exact ⟨And.right, fun hv => ⟨hS v hv, hv⟩⟩
     refine ⟨x, ?_, ?_⟩
     · rw [← hk, ← hvS]
       exact (Finset.card_map _).symm
@@ -329,16 +318,11 @@ private theorem le_of_mem_evalCode_circuitGates (cost : Unbounded.Op → ℕ) {n
     omega
   · intro v hv
     exact (List.eq_of_mem_replicate hv).le
+  · simp [h₁]
   · intro g hg
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hg
-    exact h₁
-  · intro g hg
-    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hg
+    obtain ⟨e, -, rfl⟩ := List.mem_map.1 hg
     exact h₂
-  · intro g hg
-    simp only [List.mem_singleton] at hg
-    subst hg
-    exact h₃
+  · simp [h₃]
 
 /-- The circuit of a graph has weft at most `1`: its only large gate is the final conjunction. -/
 theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 := by
@@ -369,62 +353,32 @@ theorem computableInPolyTime_circuitCode :
     ComputableInPolyTime circuitCode encGraph (Circuit.encCode Unbounded.encOp) := by
   have hE := computableInPolyTime_edgeIndices
   have hV := Graph.computableInPolyTime_distinctVertices
+  have hb := ComputableInPolyTime.unary_to_binary
   have hm : ComputableInPolyTime (fun G : Graph => (edgeIndices G).length) encGraph encUnary := by
     fun_prop
   have hnot : ComputableInPolyTime
       (fun G : Graph => (List.range G.distinctVertices.length).map
         fun i => ((Unbounded.Op.not, [i]) : Unbounded.Op × List ℕ))
       encGraph (encList (Circuit.encGate Unbounded.encOp)) := by
-    have hb := ComputableInPolyTime.unary_to_binary
     fun_prop
-  have hb := ComputableInPolyTime.unary_to_binary
   have hor : ComputableInPolyTime
       (fun G : Graph => (edgeIndices G).map fun e =>
         ((Unbounded.Op.or 2, [G.distinctVertices.length + e.1, G.distinctVertices.length + e.2]) :
           Unbounded.Op × List ℕ))
-      encGraph (encList (Circuit.encGate Unbounded.encOp)) := by
-    refine ComputableInPolyTime.mapWithInput hE ?_
-    have hop : ComputableInPolyTime (fun _ : Graph × (ℕ × ℕ) => Unbounded.Op.or 2)
-        (encPair encGraph (encPair encUnary encUnary)) Unbounded.encOp :=
-      ComputableInPolyTime.const _
-    have h₁ : ComputableInPolyTime (fun p : Graph × (ℕ × ℕ) =>
-        p.1.distinctVertices.length + p.2.1)
-        (encPair encGraph (encPair encUnary encUnary)) encUnary := by
-      fun_prop
-    have h₂ : ComputableInPolyTime (fun p : Graph × (ℕ × ℕ) =>
-        p.1.distinctVertices.length + p.2.2)
-        (encPair encGraph (encPair encUnary encUnary)) encUnary := by
-      fun_prop
-    exact hop.prod (ComputableInPolyTime.cons' (hb.comp h₁)
-      (ComputableInPolyTime.cons' (hb.comp h₂) (ComputableInPolyTime.const [])))
+      encGraph (encList (Circuit.encGate Unbounded.encOp)) :=
+    hE.mapWithInput ((ComputableInPolyTime.const (Unbounded.Op.or 2)).prod
+      (.cons' (hb.comp (by fun_prop)) (.cons' (hb.comp (by fun_prop)) (.const []))))
   have hand : ComputableInPolyTime
       (fun G : Graph => [((Unbounded.Op.and (edgeIndices G).length,
         (List.range (edgeIndices G).length).map
           (G.distinctVertices.length + G.distinctVertices.length + ·)) :
           Unbounded.Op × List ℕ)])
-      encGraph (encList (Circuit.encGate Unbounded.encOp)) := by
-    have hop := Unbounded.computableInPolyTime_and.comp hm
-    have hargs : ComputableInPolyTime (fun G : Graph =>
-        (List.range (edgeIndices G).length).map
-          (G.distinctVertices.length + G.distinctVertices.length + ·))
-        encGraph (encList encNat) := by
-      refine ComputableInPolyTime.mapWithInput (ComputableInPolyTime.range.comp hm) ?_
-      have h : ComputableInPolyTime (fun p : Graph × ℕ =>
-          p.1.distinctVertices.length + p.1.distinctVertices.length + p.2)
-          (encPair encGraph encUnary) encUnary := by
-        fun_prop
-      exact hb.comp h
-    exact ComputableInPolyTime.cons' (hop.prod hargs) (ComputableInPolyTime.const [])
-  have hsum : ComputableInPolyTime (fun G : Graph => G.distinctVertices.length +
-      G.distinctVertices.length + (edgeIndices G).length) encGraph encUnary := by
-    fun_prop
-  have hout : ComputableInPolyTime
-      (fun G : Graph => [G.distinctVertices.length + G.distinctVertices.length +
-        (edgeIndices G).length]) encGraph (encList encNat) :=
-    ComputableInPolyTime.cons' (hb.comp hsum) (ComputableInPolyTime.const [])
+      encGraph (encList (Circuit.encGate Unbounded.encOp)) :=
+    .cons' ((Unbounded.computableInPolyTime_and.comp hm).prod
+      ((ComputableInPolyTime.range.comp hm).mapWithInput (hb.comp (by fun_prop)))) (.const [])
   unfold circuitCode circuitGates
-  exact (ComputableInPolyTime.listAppend' (ComputableInPolyTime.listAppend' hnot hor) hand).prod
-    hout
+  exact ((hnot.listAppend' hor).listAppend' hand).prod
+    (.cons' (hb.comp (by fun_prop)) (.const []))
 
 /-- **The instance of `WCS 1 3` of a graph and a target**: the circuit of the graph, of weft at most
 `1` and depth at most `3`, with the target as weight. -/

@@ -88,11 +88,8 @@ theorem Word.State.computableInPolyTime_mk {α : Type} {input : α ↪ List Bool
     ComputableInPolyTime (fun x => Word.State.mk (w x) (n x) (vs x)) input Word.encState := by
   change ComputableInPolyTime
     ((fun p : (List ℕ × ℕ) × List (Vertex ℕ) => Word.State.mk p.1.1 p.1.2 p.2) ∘
-      (fun x => ((w x, n x), vs x))) input Word.encState
-  have hp : ComputableInPolyTime (fun x => ((w x, n x), vs x)) input
-      (encPair (encPair (encList encUnary) encUnary) (encList (encVertex encNat))) :=
-    (hw.prod hn).prod hv
-  exact computableInPolyTime_stateData.comp hp
+      fun x => ((w x, n x), vs x)) input Word.encState
+  exact computableInPolyTime_stateData.comp ((hw.prod hn).prod hv)
 
 private abbrev stepInput := encPair encUnary Word.encState
 
@@ -102,21 +99,16 @@ private theorem computableInPolyTime_run_swap :
   have hk := ComputableInPolyTime.fst encUnary Word.encState
   have hs := ComputableInPolyTime.snd encUnary Word.encState
   have hw := Word.State.computableInPolyTime_wires.comp hs
-  have ht : ComputableInPolyTime (fun p : ℕ × Word.State => p.2.wires.take p.1)
-      stepInput (encList encUnary) :=
-    ComputableInPolyTime.listTakeWithInput hw hk
-  have hi : ComputableInPolyTime (fun p : ℕ × Word.State => p.1 + 1) stepInput encUnary := by
-    unfold stepInput
-    fun_prop
-  have hfirst := ComputableInPolyTime.listGetDWithInput hw hi 0
+  have hfirst := ComputableInPolyTime.listGetDWithInput hw
+    (show ComputableInPolyTime (fun p : ℕ × Word.State => p.1 + 1) stepInput encUnary by
+      unfold stepInput
+      fun_prop) 0
   have hsecond := ComputableInPolyTime.listGetDWithInput hw hk 0
-  have htwo := hfirst.cons' (hsecond.cons' (ComputableInPolyTime.const []))
-  have hd : ComputableInPolyTime (fun p : ℕ × Word.State => p.2.wires.drop (p.1 + 2))
-      stepInput (encList encUnary) := by
-    apply ComputableInPolyTime.listDropWithInput hw
-    fun_prop
   unfold Slice.run
-  exact Word.State.computableInPolyTime_mk ((ht.listAppend' htwo).listAppend' hd)
+  exact Word.State.computableInPolyTime_mk
+    (((ComputableInPolyTime.listTakeWithInput hw hk).listAppend'
+      (hfirst.cons' (hsecond.cons' (.const [])))).listAppend'
+        (ComputableInPolyTime.listDropWithInput hw (by fun_prop)))
     (Word.State.computableInPolyTime_next.comp hs) (Word.State.computableInPolyTime_verts.comp hs)
 
 private def runData (d : Slice.Data) (st : Word.State) : Word.State :=
@@ -137,10 +129,9 @@ private theorem runData_data (sl : Slice) (st : Word.State) : runData sl.data st
   | gen k a b vs =>
     simp only [runData, Slice.data, Bool.false_eq_true, ite_false, Slice.run, List.map_map]
     congr 2
-    · congr 1
-      apply List.ext_getElem <;> simp
+    · exact congrArg _ (List.ext_getElem (by simp) (by simp))
     · congr 2
-      exact Vertex.map_comp_map (by intro e; cases e <;> rfl)
+      exact Vertex.map_comp_map fun e => by cases e <;> rfl
 
 
 private abbrev encDataState := encPair Slice.encData Word.encState
@@ -149,60 +140,55 @@ private theorem computableInPolyTime_runData_vertices :
     ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.vertices.map
       (Vertex.map (fun e => if e.1 then p.2.wires.getD (p.1.offset + e.2) 0 else p.2.next + e.2)))
       encDataState (encList (encVertex encNat)) := by
-  apply ComputableInPolyTime.mapWithInput
-    (show ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.vertices)
-      encDataState (encList (encVertex (encPair encBool encUnary))) by
-        unfold encDataState Slice.encData
-        fun_prop)
-  apply Vertex.computableInPolyTime_mapWithInput
-  · exact ComputableInPolyTime.snd _ _
-  · have hu : ComputableInPolyTime
-        (fun p : ((Slice.Data × Word.State) × Vertex (Bool × ℕ)) × (Bool × ℕ) =>
-          let ⟨⟨⟨data, state⟩, _⟩, edge⟩ := p
-          if edge.1 then state.wires.getD (data.offset + edge.2) 0 else state.next + edge.2)
-        (encPair (encPair encDataState (encVertex (encPair encBool encUnary)))
-          (encPair encBool encUnary)) encUnary := by
+  have hu : ComputableInPolyTime
+      (fun p : ((Slice.Data × Word.State) × Vertex (Bool × ℕ)) × (Bool × ℕ) =>
+        let ⟨⟨⟨data, state⟩, _⟩, edge⟩ := p
+        if edge.1 then state.wires.getD (data.offset + edge.2) 0 else state.next + edge.2)
+      (encPair (encPair encDataState (encVertex (encPair encBool encUnary)))
+        (encPair encBool encUnary)) encUnary := by
+    unfold encDataState Slice.encData
+    fun_prop
+  exact ComputableInPolyTime.mapWithInput
+    (by
       unfold encDataState Slice.encData
-      fun_prop
-    exact ComputableInPolyTime.unary_to_binary.comp hu
+      fun_prop)
+    (Vertex.computableInPolyTime_mapWithInput (.snd _ _)
+      (ComputableInPolyTime.unary_to_binary.comp hu))
 
 private theorem computableInPolyTime_runData :
     ComputableInPolyTime (fun p : Slice.Data × Word.State => runData p.1 p.2)
       encDataState Word.encState := by
-  have hm : ComputableInPolyTime (fun p : Slice.Data × Word.State => (p.1.offset, p.2))
-      encDataState (encPair encUnary Word.encState) := by
+  have hs := ComputableInPolyTime.snd Slice.encData Word.encState
+  have hw := Word.State.computableInPolyTime_wires.comp hs
+  have hk : ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.offset)
+      encDataState encUnary := by
     unfold encDataState Slice.encData
     fun_prop
   have hswap : ComputableInPolyTime (fun p : Slice.Data × Word.State =>
       (Slice.swap p.1.offset).run p.2) encDataState Word.encState := by
     change ComputableInPolyTime
       ((fun p : ℕ × Word.State => (Slice.swap p.1).run p.2) ∘
-        (fun p : Slice.Data × Word.State => (p.1.offset, p.2))) encDataState Word.encState
-    exact computableInPolyTime_run_swap.comp hm
-  have hk : ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.offset)
-      encDataState encUnary := by unfold encDataState Slice.encData; fun_prop
-  have ha : ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.inputs.length)
-      encDataState encUnary := by unfold encDataState Slice.encData; fun_prop
-  have hb : ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.outputs.length)
-      encDataState encUnary := by unfold encDataState Slice.encData; fun_prop
-  have hw := Word.State.computableInPolyTime_wires.comp
-    (ComputableInPolyTime.snd Slice.encData Word.encState)
-  have hn := Word.State.computableInPolyTime_next.comp
-    (ComputableInPolyTime.snd Slice.encData Word.encState)
-  have htake := ComputableInPolyTime.listTakeWithInput hw hk
-  have hdrop := ComputableInPolyTime.listDropWithInput hw (hk.unary_add' ha)
-  have hnew : ComputableInPolyTime (fun p : Slice.Data × Word.State =>
-      (List.range p.1.outputs.length).map (p.2.next + ·)) encDataState (encList encUnary) := by
-    unfold encDataState Slice.encData
-    fun_prop
-  have hv := (Word.State.computableInPolyTime_verts.comp
-    (ComputableInPolyTime.snd Slice.encData Word.encState)).listAppend'
-      computableInPolyTime_runData_vertices
-  have hg := Word.State.computableInPolyTime_mk
-    ((htake.listAppend' hnew).listAppend' hdrop) (hn.unary_add' hb) hv
-  have hflag : ComputableInPolyTime (fun p : Slice.Data × Word.State => p.1.isSwap)
-      encDataState encBool := by unfold encDataState Slice.encData; fun_prop
-  exact hflag.ite hswap hg
+        fun p : Slice.Data × Word.State => (p.1.offset, p.2)) encDataState Word.encState
+    exact computableInPolyTime_run_swap.comp (hk.prod hs)
+  refine ComputableInPolyTime.ite
+    (by
+      unfold encDataState Slice.encData
+      fun_prop) hswap ?_
+  exact Word.State.computableInPolyTime_mk
+    (((ComputableInPolyTime.listTakeWithInput hw hk).listAppend'
+      (by
+        unfold Slice.encData
+        fun_prop)).listAppend'
+        (ComputableInPolyTime.listDropWithInput hw
+          (hk.unary_add' (by
+            unfold encDataState Slice.encData
+            fun_prop))))
+    ((Word.State.computableInPolyTime_next.comp hs).unary_add'
+      (by
+        unfold Slice.encData
+        fun_prop))
+    ((Word.State.computableInPolyTime_verts.comp hs).listAppend'
+      computableInPolyTime_runData_vertices)
 
 
 /-- Execute an arbitrary encoded layer on an encoded compiler state in polynomial time. -/
@@ -210,10 +196,7 @@ private theorem computableInPolyTime_runData :
 theorem Slice.computableInPolyTime_run :
     ComputableInPolyTime (fun p : Slice × Word.State => p.1.run p.2)
       (encPair encSlice Word.encState) Word.encState := by
-  have hm := (Slice.computableInPolyTime_data.comp
-    (ComputableInPolyTime.fst encSlice Word.encState)).prod
-      (ComputableInPolyTime.snd encSlice Word.encState)
-  have h := computableInPolyTime_runData.comp hm
-  simpa only [Function.comp_def, Prod.map, runData_data] using h
+  simpa only [Function.comp_def, Prod.map, runData_data] using computableInPolyTime_runData.comp
+    ((Slice.computableInPolyTime_data.comp (.fst _ _)).prod (.snd _ _))
 
 end Cslib.Complexity.NCL

@@ -89,16 +89,14 @@ theorem memoize_cache_bounds_prob (distribution : Query → PMF Value)
         (size entry.1 ≤ maxSize ∧ entry.2 ∈ (distribution entry.1).support) := by
   rw [← ProbOracleComp.run_interpret_withTranscript (memoize distribution) program cache [],
     PMF.mem_support_map_iff] at h
-  obtain ⟨⟨value, state⟩, hstate, heq⟩ := h
-  cases heq
+  dsimp only at h
+  obtain ⟨⟨value, state⟩, hstate, rfl, rfl⟩ := h
   obtain ⟨hcount, hentries⟩ := run_interpret_memoize_transcript_prob distribution program cache
-    state.1 result state.2 hstate
-  refine ⟨hcount.trans (Nat.add_le_add_left
-    (hcalls.length_transcript_le (memoize distribution) hstate) _), ?_⟩
-  intro entry hentry
-  rcases hentries entry hentry with h | ⟨hseen, hsupport⟩
-  · exact Or.inl h
-  · exact Or.inr ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hseen, hsupport⟩
+    state.1 value state.2 hstate
+  exact ⟨hcount.trans (Nat.add_le_add_left
+      (hcalls.length_transcript_le (memoize distribution) hstate) _),
+    fun entry hentry => (hentries entry hentry).imp id fun ⟨hseen, hsupport⟩ =>
+      ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hseen, hsupport⟩⟩
 
 /-- List memoization implements the mathematical random oracle for clients with private samples,
 retaining the result and represented final cache even over infinite query domains. -/
@@ -220,8 +218,8 @@ theorem interpret_prob_eq_memoize {Value : Type} [Finite Value] [BEq Query] [Law
       (ProbOracleComp.runWith (memoize distribution) program []).map Prod.fst := by
   classical
   rw [interpret_prob_eq_lazy]
-  have h := congrArg (PMF.map Prod.fst) (run_interpret_memoize_prob distribution program [])
-  simpa only [PMF.map_comp, Function.comp_def, ofList_nil] using h.symm
+  simpa only [PMF.map_comp, Function.comp_def, ofList_nil] using
+    (congrArg (PMF.map Prod.fst) (run_interpret_memoize_prob distribution program [])).symm
 
 /-- Injective keys and mapped values implement the same finite random function, including
 independent private samples and adaptive external queries in the client. -/

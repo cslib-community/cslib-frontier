@@ -130,19 +130,18 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
   set P := SubsetBlockPred acc (Z := Z) hk with hP
   rw [show (univ.filter fun zs : Fin (K * Z) → Bool => subsetTest acc K Z k (List.ofFn zs) = true)
       = univ.filter fun zs => P (BitString.blocksEquiv zs) by
-    simp only [subsetTest_ofFn_iff _ hk, hP]]
-  rw [show (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
+        simp only [subsetTest_ofFn_iff _ hk, hP],
+    show (univ.filter fun zs : Fin (K * Z) → Bool => P (BitString.blocksEquiv zs)).card =
       (univ.filter P).card from card_equiv BitString.blocksEquiv
-        (fun v => by simp only [mem_filter, mem_univ, true_and])]
+        (fun _ => by simp only [mem_filter, mem_univ, true_and])]
   -- restricting to the first `k` blocks
   have hrestrict : (univ.filter P).card = (univ.filter fun g : Fin k → Lex (Fin Z → Bool) =>
       StrictMono g ∧ ∀ i, g i ∈ A.map toLex.toEmbedding).card := by
     refine card_bij (fun t _ i => toLex (t (Fin.castLE hk i))) ?_ ?_ ?_
     · intro t ht
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ⊢
-      refine ⟨strictMono_of_lt_succ fun i hi => ht.2 i hi, fun i => ?_⟩
-      rw [mem_map]
-      exact ⟨_, by rw [hA, mem_filter]; exact ⟨mem_univ _, (ht.1 _).1 i.2⟩, rfl⟩
+      exact ⟨strictMono_of_lt_succ fun i hi => ht.2 i hi, fun i =>
+        mem_map.2 ⟨_, mem_filter.2 ⟨mem_univ _, (ht.1 _).1 i.2⟩, rfl⟩⟩
     · intro t ht t' ht' h
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred] at ht ht'
       funext j
@@ -155,12 +154,12 @@ theorem card_filter_subsetTest (acc : List Bool → Bool) {K k : ℕ} (Z : ℕ) 
         funext fun i => by simp [i.2]⟩
       simp only [mem_filter, mem_univ, true_and, hP, SubsetBlockPred]
       refine ⟨fun j => ⟨fun hj => ?_, fun hj => by simp [show ¬(j : ℕ) < k by omega]⟩,
-        fun i hi => ?_⟩
-      · obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
-        simp only [hj, ↓reduceDIte, ← hzg]
-        simpa [hA] using hz
-      · simp only [show i < k by omega, hi, dite_true]
-        exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))
+        fun i hi => by
+          simp only [show i < k by omega, hi, dite_true]
+          exact hg.1 (Fin.mk_lt_mk.2 (Nat.lt_succ_self i))⟩
+      obtain ⟨z, hz, hzg⟩ := mem_map.1 (hg.2 ⟨j, hj⟩)
+      simp only [hj, ↓reduceDIte, ← hzg]
+      exact (mem_filter.1 hz).2
   rw [hrestrict, card_filter_strictMono, card_map]
 
 variable {α : Type} {enc : α ↪ List Bool}

@@ -102,19 +102,12 @@ theorem remainingSteps_le_quad {P Data : Type*} [Fintype P] (ord : ScanOrder P)
       (2 * Fintype.card P + 2) * (Fintype.card P + 1) + 1 := by
   have hn := ord.length_eq_card
   cases ps with
-  | idle =>
-    simp only [remainingSteps]
-    omega
-  | readyToWrite _ _ _ =>
-    simp only [remainingSteps]
-    omega
+  | idle | readyToWrite _ _ _ => simp only [remainingSteps]; omega
   | scanning st =>
     have hr := hrem st rfl
     simp only [remainingSteps]
-    have hle : ord.elems.length - #st.moved ≤ ord.elems.length := Nat.sub_le _ _
     have hmul : (ord.elems.length - #st.moved) * (2 * ord.elems.length + 2) ≤
-        ord.elems.length * (2 * ord.elems.length + 2) :=
-      Nat.mul_le_mul_right _ hle
+        ord.elems.length * (2 * ord.elems.length + 2) := Nat.mul_le_mul_right _ (Nat.sub_le _ _)
     cases st.phase <;> cases st.mode <;> dsimp only <;> nlinarith
 
 /-- Unbounded sequence-numbered single-writer step for #7504 (after
@@ -177,19 +170,15 @@ private theorem card_moved_lt_of_restart {P Data : Type*} [Fintype P] [Decidable
   push Not at hdirty
   obtain ⟨k₀, hk₀_ne⟩ := hdirty
   have hk₀_not_moved : k₀ ∉ st.moved := by
-    intro hk₀_in
     have hnone := List.find?_eq_none.mp hfind k₀ (ord.complete k₀)
-    simp only [decide_eq_true_eq, not_and] at hnone
-    exact hnone hk₀_ne hk₀_in
+    simp only [decide_eq_true_eq, not_and] at hnone; exact hnone hk₀_ne
   have hsub : insert k₀ st.moved ⊆
       st.moved ∪ univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq := by
     intro x hx
     rcases mem_insert.mp hx with rfl | hx
     · exact mem_union_right _ (mem_filter.mpr ⟨mem_univ x, hk₀_ne⟩)
     · exact mem_union_left _ hx
-  calc #st.moved < #(insert k₀ st.moved) := by
-        rw [card_insert_of_notMem hk₀_not_moved]
-        omega
+  calc #st.moved < #(insert k₀ st.moved) := by rw [card_insert_of_notMem hk₀_not_moved]; omega
     _ ≤ _ := card_le_card hsub
 
 /-- Unbounded sequence-numbered single-writer step for #7504 (after
@@ -206,8 +195,7 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
   cases hpi : s.proc i with
   | idle => simp only [hpi] at h; nomatch h
   | readyToWrite opId val snap =>
-    simp only [hpi, Option.some.injEq] at h
-    subst h
+    simp only [hpi, Option.some.injEq] at h; subst h
     simp only [isRegAccessStep, hpi, ↓reduceIte, Function.update_self, remainingSteps,
       remainingRegOps, Nat.zero_lt_one, le_refl, and_self]
   | scanning st =>
@@ -248,9 +236,7 @@ theorem remainingSteps_lt_of_step {P Data : Type*} [Fintype P] [DecidableEq P] (
         · exact hfinish _ (Option.some.inj h)
         · cases hfind : (ord.elems.find? fun k =>
               decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) with
-          | some k =>
-            simp only [hfind, Option.some.injEq] at h
-            exact hfinish _ h
+          | some k => simp only [hfind, Option.some.injEq] at h; exact hfinish _ h
           | none =>
             simp only [hfind, Option.some.injEq] at h; subst h
             set changed := univ.filter fun k => (st.collectAVal k).seq ≠ (st.collectBVal k).seq
@@ -275,20 +261,14 @@ theorem step_enabled_of_not_idle {P Data : Type*} [Fintype P] [DecidableEq P] (o
   unfold stepSnapshot
   cases hpi : s.proc i with
   | idle => exact absurd hpi hact
-  | readyToWrite opId val snap =>
-    simp only [hpi]
-    exact ⟨_, rfl⟩
+  | readyToWrite opId val snap => simp only [hpi]; exact ⟨_, rfl⟩
   | scanning st =>
     simp only [hpi]
-    cases st.phase <;> cases st.rem
+    cases st.phase <;> cases st.rem <;> first | exact ⟨_, rfl⟩ | split_ifs
     · exact ⟨_, rfl⟩
-    · exact ⟨_, rfl⟩
-    · split_ifs
-      · exact ⟨_, rfl⟩
-      · cases (ord.elems.find? fun k =>
-            decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
-          exact ⟨_, rfl⟩
-    · exact ⟨_, rfl⟩
+    · cases (ord.elems.find? fun k =>
+          decide ((st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved)) <;>
+        exact ⟨_, rfl⟩
 
 /-- Unbounded sequence-numbered single-writer step for #7504 (after
 [Afek et al., Lemma 3.4, p. 10][AfekAttiyaDolevGafniMerrittShavit1993]): from any state `s`, running
@@ -304,9 +284,7 @@ theorem exists_solo_completion {P Data : Type*} [Fintype P] [DecidableEq P] (ord
   · obtain ⟨s₁, hs₁⟩ := step_enabled_of_not_idle ord dInit s i hact
     have hlt := (remainingSteps_lt_of_step ord dInit hs₁).1
     obtain ⟨k, s', hk_le, hmtr, hidle⟩ := exists_solo_completion ord dInit s₁ i
-    refine ⟨k + 1, s', by omega, ?_, hidle⟩
-    rw [List.replicate_succ]
-    exact Cslib.LTS.MTr.stepL hs₁ hmtr
+    exact ⟨k + 1, s', by omega, List.replicate_succ .. ▸ Cslib.LTS.MTr.stepL hs₁ hmtr, hidle⟩
 termination_by remainingSteps ord (s.proc i)
 
 end Cslib.Distributed.SetAgreement
