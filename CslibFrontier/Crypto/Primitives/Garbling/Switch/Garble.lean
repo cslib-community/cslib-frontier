@@ -313,6 +313,23 @@ private theorem lockstep_update {Δ : L} {K : Fin n ⊕ Fin N → L}
   · simp only [Function.update_of_ne hu]
     exact h u
 
+private theorem lockstep_pair {Δ : L} {K : Fin n ⊕ Fin N → L}
+    {pst : Fin n ⊕ Fin N → Option R} {gst : Fin n ⊕ Fin N → Option L}
+    (hmap : ∀ w, gst w = (pst w).map (wireLabel Δ (K w)))
+    (u v : Fin n ⊕ Fin N) (d : L) (hd : K v = K u + d) (w : Fin n ⊕ Fin N) :
+    (match gst u, gst v with
+      | some a, none => Function.update gst v (some (a + d))
+      | none, some a => Function.update gst u (some (a - d))
+      | _, _ => gst) w =
+    ((match pst u, pst v with
+      | some a, none => Function.update pst v (some a)
+      | none, some a => Function.update pst u (some a)
+      | _, _ => pst) w).map (wireLabel Δ (K w)) := by
+  rw [hmap u, hmap v]
+  cases pst u <;> cases pst v <;> try exact hmap w
+  · exact lockstep_update hmap u _ _ (by simp only [wireLabel, hd]; abel) w
+  · exact lockstep_update hmap v _ _ (by simp only [wireLabel, hd]; abel) w
+
 private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L →+ ZMod 2}
     {Δ : L} (hΔ : col Δ = 1) {K : Fin n ⊕ Fin N → L} {σ : Fin n ⊕ Fin N → R} {i : ℕ}
     {g : SwitchGate n N R} {μ : Material L} (hcons : Consistent H col Δ K i g μ)
@@ -324,70 +341,32 @@ private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L
   cases g with
   | affine terms b y =>
     obtain ⟨rfl, hy⟩ := hcons
-    have hsum := knownSum_map Δ K pst terms
     have hgs :
         knownSum gst terms = (knownSum pst terms).map fun s => termSum K terms + s • Δ := by
-      rw [← hsum]
+      rw [← knownSum_map Δ K pst terms]
       exact congrArg (knownSum · terms) (funext hmap)
     simp only [propagate, evalGate, hmap (.inr y), hgs]
-    cases pst (.inr y) with
-    | some v => cases knownSum pst terms <;> exact hmap
-    | none =>
-      cases knownSum pst terms with
-      | none => exact hmap
-      | some s =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel, hy, add_smul]
-        abel
+    cases pst (.inr y) <;> cases knownSum pst terms <;> try exact hmap
+    exact lockstep_update hmap _ _ _ (by simp only [wireLabel, hy, add_smul]; abel)
   | switch x y c =>
     obtain ⟨rfl, hy⟩ := hcons
     simp only [propagate, evalGate, hmap c]
     cases hpc : pst c with
     | none => simp only [Option.map_none, reduceCtorEq, ite_false]; exact hmap
     | some v =>
-      have hv : v = σ c := hsound c v hpc
-      have hbit : v = 0 ∨ v = 1 := hv ▸ hg.1
+      have hbit : v = 0 ∨ v = 1 := hsound c v hpc ▸ hg.1
       simp only [Option.map_some, col_wireLabel_add hΔ (K c) hbit, Option.some.injEq]
       by_cases hv0 : v = 0
       · subst hv0
         have hk : wireLabel Δ (K c) (0 : R) = K c := by simp [wireLabel]
-        simp only [ite_true, hk, hmap x, hmap (.inr y)]
-        cases pst x with
-        | none =>
-          cases pst (.inr y) with
-          | none => exact hmap
-          | some a =>
-            refine lockstep_update hmap _ _ _ ?_
-            simp only [wireLabel, hy]
-            abel
-        | some a =>
-          cases pst (.inr y) with
-          | none =>
-            refine lockstep_update hmap _ _ _ ?_
-            simp only [wireLabel, hy]
-            abel
-          | some _ => exact hmap
+        simp only [ite_true, hk]
+        exact lockstep_pair hmap x (.inr y) (H (K c) i) hy
       · simp only [hv0, ite_false]
         exact hmap
   | join x y =>
     change μ = _ at hcons
     subst hcons
-    simp only [propagate, evalGate, hmap x, hmap y]
-    cases pst x with
-    | none =>
-      cases pst y with
-      | none => exact hmap
-      | some a =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel]
-        abel
-    | some a =>
-      cases pst y with
-      | none =>
-        refine lockstep_update hmap _ _ _ ?_
-        simp only [wireLabel]
-        abel
-      | some _ => exact hmap
+    exact lockstep_pair hmap x y (K y - K x) (by abel)
 
 private theorem lockstep_evalGates [DecidableEq R] {H : L → ℕ → L} {col : L →+ ZMod 2}
     {Δ : L} (hΔ : col Δ = 1) {K : Fin n ⊕ Fin N → L} {σ : Fin n ⊕ Fin N → R} :
