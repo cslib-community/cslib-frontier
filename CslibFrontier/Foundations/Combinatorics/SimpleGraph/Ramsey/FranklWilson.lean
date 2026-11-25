@@ -92,59 +92,45 @@ variable [Fintype α]
 theorem cliqueFree_franklWilsonGraph {p d : ℕ} [hp : Fact p.Prime] (hd : d % p = p - 1) :
     (franklWilsonGraph α p d).CliqueFree ((Fintype.card α).choose (p - 1) + 1) := by
   intro t ht
-  set L : Finset (ZMod p) := univ.erase (d : ZMod p) with hL
-  have hLc : #L = p - 1 := by rw [hL, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
+  let L : Finset (ZMod p) := univ.erase (d : ZMod p)
+  have hLc : #L = p - 1 := by simp only [L, card_erase_of_mem (mem_univ _), card_univ, ZMod.card]
   have h := Fintype.card_le_choose_of_card_inter_mem_zmod (ι := t) (fun s => s.1.1) L
-    (fun s => s.1.2) (fun i j hij => ?_) (by rw [hL]; exact notMem_erase _ _) (by rw [hLc, hd])
-  · rw [Fintype.card_coe, ht.2, hLc] at h
-    omega
-  · rw [hL, mem_erase]
-    refine ⟨fun h => ?_, mem_univ _⟩
-    rw [ZMod.natCast_eq_natCast_iff'] at h
-    exact ht.1 i.2 j.2 (fun h' => hij (Subtype.ext h')) h
+    (fun s => s.1.2) (fun i j hij => mem_erase.2 ⟨fun h => ht.1 i.2 j.2
+      (fun h' => hij (Subtype.ext h')) ((ZMod.natCast_eq_natCast_iff' _ _ _).1 h), mem_univ _⟩)
+    (notMem_erase _ _) (by rw [hLc, hd])
+  rw [Fintype.card_coe, ht.2, hLc] at h; omega
 
 /-- For `p > 0`, the Frankl–Wilson graph has no independent set of size `C(|α|, ⌊d / p⌋) + 1`, by
 the Ray-Chaudhuri–Wilson theorem. -/
 theorem indepSetFree_franklWilsonGraph {p d : ℕ} (hp : 0 < p) :
     (franklWilsonGraph α p d).IndepSetFree ((Fintype.card α).choose (d / p) + 1) := by
   intro t ht
-  set L : Finset ℕ := (range (d / p)).image (fun m => m * p + d % p) with hL
+  let L : Finset ℕ := (range (d / p)).image fun m => m * p + d % p
   have hLc : #L = d / p := by
-    rw [hL, card_image_of_injective _ (fun a b h =>
+    rw [card_image_of_injective _ (fun a b h =>
       Nat.eq_of_mul_eq_mul_right hp (Nat.add_right_cancel h)), card_range]
   have h := Fintype.card_le_choose_of_card_inter_mem_of_lt (ι := t) (fun s => s.1.1) L
     (fun s => s.1.2) (fun i j hij => ?_) ?_
-  · rw [Fintype.card_coe, ht.2, hLc] at h
-    omega
+  · rw [Fintype.card_coe, ht.2, hLc] at h; omega
   · have hne : i.1 ≠ j.1 := fun h' => hij (Subtype.ext h')
     have hmod : #(i.1.1 ∩ j.1.1) % p = d % p := not_ne_iff.1 (ht.1 i.2 j.2 hne)
-    have hlt : #(i.1.1 ∩ j.1.1) < d := by
-      refine lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.1.2) fun h3 => hne ?_
-      have hsub : i.1.1 ⊆ j.1.1 :=
-        inter_eq_left.1 (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.1.2]))
-      exact Subtype.ext (eq_of_subset_of_card_le hsub (by rw [i.1.2, j.1.2]))
+    have hlt : #(i.1.1 ∩ j.1.1) < d :=
+      lt_of_le_of_ne ((card_le_card inter_subset_left).trans_eq i.1.2) fun h3 => hne <|
+        Subtype.ext <| eq_of_subset_of_card_le (inter_eq_left.1
+          (eq_of_subset_of_card_le inter_subset_left (by rw [h3, i.1.2]))) (by rw [i.1.2, j.1.2])
     have e1 := Nat.div_add_mod (#(i.1.1 ∩ j.1.1)) p
     have e2 := Nat.div_add_mod d p
-    rw [hL, mem_image]
-    refine ⟨#(i.1.1 ∩ j.1.1) / p, mem_range.2 ?_, ?_⟩
-    · by_contra hc
-      have := Nat.mul_le_mul_left p (not_lt.1 hc)
-      omega
-    · rw [← hmod, Nat.mul_comm]
-      omega
-  · intro l hl
+    refine mem_image.2 ⟨#(i.1.1 ∩ j.1.1) / p, mem_range.2 ?_, by rw [← hmod, Nat.mul_comm]; omega⟩
+    by_contra hc; have := Nat.mul_le_mul_left p (not_lt.1 hc); omega
+  · rintro _ hl
     obtain ⟨m, hm, rfl⟩ := mem_image.1 hl
-    have e2 := Nat.div_add_mod d p
-    have := Nat.mul_le_mul_right p (mem_range.1 hm)
-    rw [Nat.succ_mul] at this
-    have : d / p * p = p * (d / p) := Nat.mul_comm _ _
-    omega
+    have := Nat.div_add_mod d p; have := Nat.mul_le_mul_right p (mem_range.1 hm)
+    rw [Nat.succ_mul, Nat.mul_comm (d / p)] at this; omega
 
 private theorem sq_sub_one_eq (p : ℕ) (hp : 0 < p) : p ^ 2 - 1 = (p - 1) + p * (p - 1) := by
   obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_lt hp
   simp only [Nat.zero_add, Nat.add_sub_cancel]
-  rw [show (q + 1) ^ 2 = q + (q + 1) * q + 1 by ring]
-  omega
+  rw [show (q + 1) ^ 2 = q + (q + 1) * q + 1 by ring]; omega
 
 private theorem sq_sub_one_mod (p : ℕ) (hp : 0 < p) : (p ^ 2 - 1) % p = p - 1 := by
   rw [sq_sub_one_eq p hp, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
@@ -162,66 +148,50 @@ theorem choose_lt_ramseyNumber_franklWilson (p : ℕ) [hp : Fact p.Prime] :
   have h := card_lt_ramseyNumber_iff (k := (p ^ 3).choose (p - 1) + 1)
     (l := (p ^ 3).choose (p - 1) + 1) (V := {s : Finset (Fin (p ^ 3)) // #s = p ^ 2 - 1})
   rw [Fintype.card_finset_len, Fintype.card_fin] at h
-  refine h.2 ⟨franklWilsonGraph (Fin (p ^ 3)) p (p ^ 2 - 1), ?_, ?_⟩
-  · have hc := cliqueFree_franklWilsonGraph (α := Fin (p ^ 3)) (sq_sub_one_mod p hp0)
-    rwa [Fintype.card_fin] at hc
-  · have hi := indepSetFree_franklWilsonGraph (α := Fin (p ^ 3)) (d := p ^ 2 - 1) hp0
-    rwa [Fintype.card_fin, sq_sub_one_div p hp0] at hi
+  exact h.2 ⟨franklWilsonGraph (Fin (p ^ 3)) p (p ^ 2 - 1),
+    by simpa [Fintype.card_fin] using
+      cliqueFree_franklWilsonGraph (α := Fin (p ^ 3)) (sq_sub_one_mod p hp0),
+    by
+      have hi := indepSetFree_franklWilsonGraph (α := Fin (p ^ 3)) (d := p ^ 2 - 1) hp0
+      rwa [Fintype.card_fin, sq_sub_one_div p hp0] at hi⟩
 
 /-- The Frankl–Wilson parameters grow superpolynomially: with `k = C(p³, p - 1) + 1`,
 `k ^ c < C(p³, p² - 1)` whenever `p ≥ 6 c + 3`. The proof uses `k ≤ p ^ (3 p)` and
 `(p - 1) ^ (p² - 1) ≤ C(p³, p² - 1)`. -/
 private theorem pow_lt_choose_franklWilson {p c : ℕ} (hpc : 6 * c + 3 ≤ p) :
     ((p ^ 3).choose (p - 1) + 1) ^ c < (p ^ 3).choose (p ^ 2 - 1) := by
-  have hp3 : 3 ≤ p := by omega
-  -- `k ≤ (p³) ^ p`.
+  have hp0 : 0 < p := by omega
   have hk : (p ^ 3).choose (p - 1) + 1 ≤ p ^ (3 * p) := by
-    have h1 := Nat.choose_le_pow (p ^ 3) (p - 1)
     have h2 : (p ^ 3) ^ (p - 1) * p ^ 3 = p ^ (3 * p) := by
-      rw [← pow_mul, ← pow_add]
-      congr 1
-      have : p - 1 + 1 = p := by omega
-      calc 3 * (p - 1) + 3 = 3 * (p - 1 + 1) := by ring
-        _ = 3 * p := by rw [this]
-    have h3 : 2 ≤ p ^ 3 := le_trans (by omega) (Nat.le_self_pow (by norm_num) p)
-    have h4 : 1 ≤ (p ^ 3) ^ (p - 1) := Nat.one_le_pow _ _ (by omega)
-    nlinarith
-  -- `(p - 1) ^ (p² - 1) ≤ C(p³, p² - 1)`.
+      rw [← pow_mul, ← pow_add]; congr 1; omega
+    nlinarith [Nat.choose_le_pow (p ^ 3) (p - 1),
+      show 2 ≤ p ^ 3 from le_trans (by omega) (Nat.le_self_pow (by norm_num) p),
+      Nat.one_le_pow (p - 1) (p ^ 3) (by positivity)]
   have hN : (p - 1) ^ (p ^ 2 - 1) ≤ (p ^ 3).choose (p ^ 2 - 1) := by
-    set r := p ^ 2 - 1 with hr
-    have hpr : r < p ^ 2 := by
-      have : 0 < p ^ 2 := by positivity
-      omega
-    have h1 := Nat.pow_sub_le_descFactorial (p ^ 3) r
-    rw [Nat.descFactorial_eq_factorial_mul_choose] at h1
-    have h2 : r.factorial ≤ (p ^ 2) ^ r :=
-      (Nat.factorial_le_pow r).trans (Nat.pow_le_pow_left hpr.le r)
+    let r := p ^ 2 - 1
+    have hpr : r < p ^ 2 := Nat.sub_lt (by positivity) zero_lt_one
+    have h1 := Nat.descFactorial_eq_factorial_mul_choose (p ^ 3) r ▸
+      Nat.pow_sub_le_descFactorial (p ^ 3) r
     have h3 : p ^ 2 * (p - 1) ≤ p ^ 3 + 1 - r := by
       have : p ^ 3 = p ^ 2 * (p - 1) + p ^ 2 := by
-        obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_lt (by omega : 0 < p)
-        simp only [Nat.zero_add, Nat.add_sub_cancel]
-        ring
-      omega
-    have h4 : (p ^ 2) ^ r * (p - 1) ^ r ≤ (p ^ 2) ^ r * (p ^ 3).choose r := by
-      calc (p ^ 2) ^ r * (p - 1) ^ r = (p ^ 2 * (p - 1)) ^ r := (mul_pow _ _ _).symm
-        _ ≤ (p ^ 3 + 1 - r) ^ r := Nat.pow_le_pow_left h3 r
-        _ ≤ r.factorial * (p ^ 3).choose r := h1
-        _ ≤ (p ^ 2) ^ r * (p ^ 3).choose r := Nat.mul_le_mul_right _ h2
-    exact Nat.le_of_mul_le_mul_left h4 (by positivity)
-  -- `p ^ (3 p c) ≤ (p - 1) ^ (6 p c) < (p - 1) ^ (p² - 1)`.
+        obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_lt hp0
+        simp only [Nat.zero_add, Nat.add_sub_cancel]; ring
+      dsimp only [r]; omega
+    refine Nat.le_of_mul_le_mul_left ?_ (by positivity : 0 < (p ^ 2) ^ r)
+    exact (mul_pow _ _ _).symm.le.trans <| (Nat.pow_le_pow_left h3 r).trans <| h1.trans <|
+      Nat.mul_le_mul_right _ ((Nat.factorial_le_pow r).trans (Nat.pow_le_pow_left hpr.le r))
   have hsq : p ≤ (p - 1) ^ 2 := by
-    obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_le hp3
-    simp only [show 3 + q - 1 = q + 2 by omega]
-    nlinarith
+    obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_le (by omega : 3 ≤ p)
+    simp only [show 3 + q - 1 = q + 2 by omega]; nlinarith
   have hexp : 6 * p * c < p ^ 2 - 1 := by
     have : 6 * p * c + p * 3 ≤ p * p := by nlinarith
-    have : p ^ 2 = p * p := sq p
-    omega
-  calc ((p ^ 3).choose (p - 1) + 1) ^ c ≤ (p ^ (3 * p)) ^ c := Nat.pow_le_pow_left hk c
-    _ = p ^ (3 * p * c) := (pow_mul _ _ _).symm
-    _ ≤ ((p - 1) ^ 2) ^ (3 * p * c) := Nat.pow_le_pow_left hsq _
-    _ = (p - 1) ^ (6 * p * c) := by rw [← pow_mul]; ring_nf
-    _ < (p - 1) ^ (p ^ 2 - 1) := Nat.pow_lt_pow_right (by omega) hexp
+    rw [sq]; omega
+  calc ((p ^ 3).choose (p - 1) + 1) ^ c
+      ≤ (p ^ (3 * p)) ^ c := Nat.pow_le_pow_left hk c
+    _ ≤ ((p - 1) ^ 2) ^ (3 * p * c) := by rw [← pow_mul]; exact Nat.pow_le_pow_left hsq _
+    _ < (p - 1) ^ (p ^ 2 - 1) := by
+        rw [← pow_mul, show 2 * (3 * p * c) = 6 * p * c by ring]
+        exact Nat.pow_lt_pow_right (by omega) hexp
     _ ≤ (p ^ 3).choose (p ^ 2 - 1) := hN
 
 /-- **Superpolynomial explicit Ramsey bound**: with `k = C(p³, p - 1) + 1`, `k ^ c < R(k, k)` for
