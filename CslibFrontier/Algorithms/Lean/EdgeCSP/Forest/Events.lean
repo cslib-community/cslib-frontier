@@ -248,11 +248,9 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         s ∈ (es.ancestry x).walk.steps → t ∈ (es.ancestry y).walk.steps →
         (inArc (Log.stamp (e :: es)) s).copy =
           (inArc (Log.stamp (e :: es)) t).copy →
-        (es.ancestry x).walk.start = (es.ancestry y).walk.start := by
-      intro x y s t hs ht hc
-      apply ih hs ht
-      simpa only [inArc, Arc.copy, (hp.stamp_cons_of_mem_ancestry hu hs).1,
-        (hp.stamp_cons_of_mem_ancestry hu ht).1] using hc
+        (es.ancestry x).walk.start = (es.ancestry y).walk.start := fun hs ht hc =>
+      ih hs ht (by simpa only [inArc, Arc.copy, (hp.stamp_cons_of_mem_ancestry hu hs).1,
+        (hp.stamp_cons_of_mem_ancestry hu ht).1] using hc)
     have notnew : ∀ {x : V} {s : Occurrence F × Occurrence F},
         s ∈ (es.ancestry x).walk.steps →
         (inArc (Log.stamp (e :: es)) s).copy ≠ (e.input.1, es.length) := by
@@ -268,8 +266,7 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         simp only [Log.ancestry, hfu, hfv, Walk.snoc] at hs ht ⊢
         rcases List.mem_append.mp hs with hs | hs
         · exact older hs ht hc
-        · have he : s = (e.input, a) := List.mem_singleton.mp hs
-          subst s
+        · obtain rfl := List.mem_singleton.mp hs
           apply False.elim (notnew ht ?_)
           simpa only [inArc, Arc.copy, Log.stamp, ↓reduceIte] using hc.symm
     | none =>
@@ -278,8 +275,7 @@ theorem ancestry_root_eq_of_copy (hg : Grown sem f rs es) {u v : V}
         simp only [Log.ancestry, hfu, hfv, Walk.snoc] at hs ht ⊢
         rcases List.mem_append.mp ht with ht | ht
         · exact older hs ht hc
-        · have he : t = (e.input, b) := List.mem_singleton.mp ht
-          subst t
+        · obtain rfl := List.mem_singleton.mp ht
           apply False.elim (notnew hs ?_)
           simpa only [inArc, Arc.copy, Log.stamp, ↓reduceIte] using hc
       | none =>
@@ -873,8 +869,7 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     (hb : m.blossomData = some b) :
     (blossomDAG b.cycle b.times b.pivot).IsFDAG sem (b.prepare.flip f) := by
   rcases (m.blossomData_eq_some_iff b).mp hb with ⟨_, _, rfl⟩ | ⟨_, _, _, hc, _, _, _⟩; swap
-  · rw [ha] at hc
-    cases hc
+  · simp [ha] at hc
   let k := (m.commonNodes.length - 1) / 2
   have hlen : m.commonNodes.length = 2 * k + 1 := m.ancestor_variable_length ha
   have htl : m.left.times.drop k = (m.left.walk.drop k).steps.map
@@ -911,12 +906,10 @@ theorem Trace.variable_blossom_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
     · obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
       rw [← he]
       exact (h.expansion.grown.ancestry_chronological _).rel_of_mem_take_of_mem_drop hs ht'
-    · have he : c.2 = m.older.length := List.mem_singleton.mp hc
-      rw [he]
+    · rw [List.mem_singleton.mp hc]
       exact (m.older.mem_arcs
         (h.expansion.grown.ancestry_arcs _ (List.mem_of_mem_take hs)).1).2
-  · rw [List.mem_reverse] at hc
-    obtain ⟨t, ht', he⟩ := List.mem_map.mp hc
+  · obtain ⟨t, ht', he⟩ := List.mem_map.mp (List.mem_reverse.mp hc)
     rw [← he]
     exact h.prefix_time_lt_right_drop k (by omega) hs ht'
 
