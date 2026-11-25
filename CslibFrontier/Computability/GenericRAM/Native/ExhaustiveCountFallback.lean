@@ -306,16 +306,8 @@ private theorem monomialSum_equationToFinset_eq_zero_iff {n : ℕ} {eq : List (L
     ext v
     simp only [List.mem_toFinset]
     constructor <;> intro hv
-    · have hvn : v < n := hvars m₁ hm₁ v hv
-      have hmem : (⟨v, hvn⟩ : Fin n) ∈ f m₁ :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
-      rw [h] at hmem
-      exact (Finset.mem_filter.mp hmem).2
-    · have hvn : v < n := hvars m₂ hm₂ v hv
-      have hmem : (⟨v, hvn⟩ : Fin n) ∈ f m₂ :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ _, hv⟩
-      rw [← h] at hmem
-      exact (Finset.mem_filter.mp hmem).2
+    · simpa [f] using (Finset.ext_iff.mp h ⟨v, hvars m₁ hm₁ v hv⟩).1 (by simpa [f] using hv)
+    · simpa [f] using (Finset.ext_iff.mp h ⟨v, hvars m₂ hm₂ v hv⟩).2 (by simpa [f] using hv)
   have hnd_s : (eq.map List.toFinset).Nodup :=
     heq.1.map_on fun m₁ hm₁ m₂ hm₂ h => (heq.2 m₁ hm₁).eq_of_toFinset_eq (heq.2 m₂ hm₂) h
   have hterm (m : List ℕ) (hm : m ∈ eq) :
@@ -803,10 +795,8 @@ theorem exists_nat_exp_bound_of_guarded_fallback {ok : α → Bool} {f_fast f_ex
     have hp2 : ((ei x).length + 1) ^ d ≤ ((ei x).length + 1) ^ (d_f + d) :=
       Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_left _ _)
     have htwo : 1 ≤ 2 ^ E x := Nat.one_le_two_pow
-    have hC : C * ((ei x).length + 1) ^ d ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x := by
-      calc C * ((ei x).length + 1) ^ d
-          ≤ C * ((ei x).length + 1) ^ (d_f + d) := Nat.mul_le_mul_left C hp2
-        _ ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x := Nat.le_mul_of_pos_right _ htwo
+    have hC : C * ((ei x).length + 1) ^ d ≤ C * ((ei x).length + 1) ^ (d_f + d) * 2 ^ E x :=
+      (Nat.mul_le_mul_left C hp2).trans (Nat.le_mul_of_pos_right _ htwo)
     change (NativeCertificate.branch (NativeCertificate.ofPolyTime hok) c_fast c_exhaust).time x ≤ _
     cases h : ok x
     · simp only [h, Bool.false_eq_true, ↓reduceIte, zero_add] at hx
@@ -873,16 +863,10 @@ theorem exists_real_exp_bound_of_guarded_fallback {ok : α → Bool} {f_fast f_e
     have hp2 : (((ei x).length + 1) ^ d : ℝ) ≤ ((ei x).length + 1 : ℝ) ^ (d_f + d) := by
       exact_mod_cast Nat.pow_le_pow_right (Nat.succ_pos _) (Nat.le_add_left d d_f)
     have htwo : (1 : ℝ) ≤ (2 : ℝ) ^ E x := Real.one_le_rpow (by norm_num) (hE x)
-    have hpow_nonneg : (0 : ℝ) ≤ ((ei x).length + 1 : ℝ) ^ (d_f + d) := by positivity
     have hC : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ d ≤
-        (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x := by
-      have h1 : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ d ≤
-          (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) :=
-        mul_le_mul_of_nonneg_left hp2 (Nat.cast_nonneg C)
-      have h2 : (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * 1 ≤
-          (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x :=
-        mul_le_mul_of_nonneg_left htwo (mul_nonneg (Nat.cast_nonneg C) hpow_nonneg)
-      linarith
+        (C : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x :=
+      (mul_le_mul_of_nonneg_left hp2 (Nat.cast_nonneg C)).trans
+        (le_mul_of_one_le_right (by positivity) htwo)
     cases h : ok x
     · simp only [h, Bool.false_eq_true, ↓reduceIte, Nat.cast_zero, zero_add] at hx
       have hCF : (0 : ℝ) ≤ (C_f : ℝ) * ((ei x).length + 1 : ℝ) ^ (d_f + d) * (2 : ℝ) ^ E x := by
