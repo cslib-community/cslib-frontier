@@ -136,12 +136,9 @@ private def triangleAt {t : ℕ} (A B C : Fin t → Fin t → ℤ)
 
 private theorem exists_triangleAt {t : ℕ} (A B C : Fin t → Fin t → ℤ) :
     (∃ q, triangleAt A B C q) ↔ Cslib.Algorithms.ExactTriangle.HasZeroTriangle A B C := by
-  constructor
-  · rintro ⟨q, hq⟩
-    exact ⟨q.divNat, q.modNat.divNat, q.modNat.modNat, hq⟩
-  · rintro ⟨i, j, k, h⟩
-    refine ⟨Fin.mkDivMod i (Fin.mkDivMod j k), ?_⟩
-    simpa only [triangleAt, Fin.divNat_mkDivMod, Fin.modNat_mkDivMod] using h
+  refine ⟨fun ⟨q, hq⟩ => ⟨q.divNat, q.modNat.divNat, q.modNat.modNat, hq⟩, fun ⟨i, j, k, h⟩ =>
+    ⟨Fin.mkDivMod i (Fin.mkDivMod j k), ?_⟩⟩
+  simpa only [triangleAt, Fin.divNat_mkDivMod, Fin.modNat_mkDivMod] using h
 
 private theorem exec_accumulate {w v : ℕ} (j : Fin 3) (x : Data 24)
     (hv : x.regs (word j) = v) (h2 : x.regs two = 2) (h0 : x.regs zero = 0)
@@ -154,8 +151,8 @@ private theorem exec_accumulate {w v : ℕ} (j : Fin 3) (x : Data 24)
   have hsign : Fits w (v % 2) := h2fit.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold accumulate
-  have hne : (word j : Fin 24) ≠ magnitude := by
-    intro h; have := congrArg Fin.val h; simp [word] at this; omega
+  have hne : (word j : Fin 24) ≠ magnitude :=
+    (by decide : ∀ j : Fin 3, (word j : Fin 24) ≠ magnitude) j
   wram_exec [hv, h2, h0, hmag, hsign, hp, hn, hne]
   all_goals exact ⟨by wram_simp [positivePart, hc], by wram_simp [negativePart, hc], rfl⟩
 
@@ -202,8 +199,7 @@ private theorem exec_loadTriple {w t F abp bcp acp free v₀ v₁ v₂ : ℕ}
 
 private theorem magnitude_le {F : ℕ} {z : ℤ} (h : |z| ≤ (F : ℤ)) : encode z / 2 ≤ F := by
   rw [encode_div_two]
-  have h' : (z.natAbs : ℤ) ≤ (F : ℤ) := by simpa only [Int.natCast_natAbs] using h
-  exact_mod_cast h'
+  exact_mod_cast (by simpa only [Int.natCast_natAbs] using h : (z.natAbs : ℤ) ≤ F)
 
 private theorem exec_finish {w q : ℕ} (x : Data 24)
     (ho : x.regs one = 1) (hq : x.regs current = q) (hinc : Fits w (q + 1)) :
@@ -244,38 +240,38 @@ private theorem exec_body {w t F abp bcp acp free : ℕ}
     (hsum.of_le (by rw [han]; omega))
   have hpb : Control t abp bcp acp b := by regs_frame
   have hbpF : b.regs positive ≤ F := by
-    rw [hbp, hap, Nat.zero_add]
-    exact (parts_le _).1.trans hva
+    simpa only [hbp, hap, Nat.zero_add] using (parts_le _).1.trans hva
   have hbnF : b.regs negative ≤ F := by
-    rw [hbn, han, Nat.zero_add]
-    exact (parts_le _).2.trans hva
+    simpa only [hbn, han, Nat.zero_add] using (parts_le _).2.trans hva
   have hb₁ : b.regs (word 1) = encode zb := by regs_frame
   obtain ⟨c, hc, hcp, hcn, hcm⟩ := exec_accumulate 1 b hb₁ hpb.two hpb.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpc : Control t abp bcp acp c := by regs_frame
   have hcpF : c.regs positive ≤ 2 * F := by
-    rw [hcp]; have := (parts_le (encode zb)).1; omega
+    rw [hcp]
+    have := (parts_le (encode zb)).1
+    omega
   have hcnF : c.regs negative ≤ 2 * F := by
-    rw [hcn]; have := (parts_le (encode zb)).2; omega
+    rw [hcn]
+    have := (parts_le (encode zb)).2
+    omega
   have hc₂ : c.regs (word 2) = encode zc := by regs_frame
   obtain ⟨d, hd, hdp, hdn, hdm⟩ := exec_accumulate 2 c hc₂ hpc.two hpc.zero h2fit
     (hsum.of_le (by omega)) (hsum.of_le (by omega)) (hsum.of_le (by omega))
   have hpd : Control t abp bcp acp d := by regs_frame
   have hd_out : d.regs out = x.regs out := by regs_frame
   have hhit : d.regs positive = d.regs negative ↔ triangleAt A B C q := by
-    rw [hdp, hcp, hbp, hap, hdn, hcn, hbn, han]
-    simp only [Nat.zero_add]
-    simpa only [decode_encode, za, zb, zc, triangleAt] using
-      (zero_iff (encode za) (encode zb) (encode zc)).symm
+    simpa only [hdp, hcp, hbp, hap, hdn, hcn, hbn, han, Nat.zero_add, decode_encode,
+      za, zb, zc, triangleAt] using (zero_iff (encode za) (encode zb) (encode zc)).symm
   obtain ⟨y, hy, hyq, hyo, hym⟩ := exec_finish d hpd.one
     (by regs_frame) (hfit.of_le (by have := q.isLt; omega))
   refine ⟨y, (ha.seq (hb.seq (hc.seq (hd.seq hy)))).mono (by decide),
     by regs_frame, hyq, ?_, ?_, by mem_frame⟩
   · rw [hyo, hd_out]; split_ifs <;> omega
   · rw [hyo, hd_out]
-    by_cases hz : d.regs positive = d.regs negative
-    · simp only [hz, ↓reduceIte, hhit.mp hz, or_true]
-    · simp only [hz, ↓reduceIte, hhit.not.mp hz, or_false]
+    split_ifs with hz
+    · simp only [hhit.mp hz, or_true]
+    · simp only [hhit.not.mp hz, or_false]
 
 private theorem exec_scan {w t F abp bcp acp free : ℕ}
     (A B C : Fin t → Fin t → ℤ) (x : Data 24)
@@ -354,17 +350,13 @@ private theorem fits_budget {w t F abp bcp acp free : ℕ}
     Fits w (free + t * (t * t) + 6 * F + 10) := by
   let S := free + F + t + 2
   have htt : 0 < t * t := Nat.mul_pos ht ht
-  have hs : 7 ≤ S := by dsimp only [S]; omega
-  have hts : t ≤ S := by dsimp only [S]; omega
-  have hfs : free ≤ S := by dsimp only [S]; omega
-  have hFs : F ≤ S := by dsimp only [S]; omega
-  have hs3 : S ≤ S ^ 3 := by
-    simpa only [pow_one] using Nat.pow_le_pow_right (show 1 ≤ S by omega)
-      (show 1 ≤ 3 by decide)
+  have hs : 7 ≤ S := by omega
+  have hs3 : S ≤ S ^ 3 := Nat.le_self_pow (by decide) S
   have ht3 : t * (t * t) ≤ S ^ 3 := by
-    simpa only [pow_succ, pow_zero, one_mul, Nat.mul_assoc] using Nat.pow_le_pow_left hts 3
-  have hf3 := hfs.trans hs3
-  have hF3 := hFs.trans hs3
+    simpa only [pow_succ, pow_zero, one_mul, Nat.mul_assoc] using
+      Nat.pow_le_pow_left (by omega : t ≤ S) 3
+  have hf3 := (by omega : free ≤ S).trans hs3
+  have hF3 := (by omega : F ≤ S).trans hs3
   have h10 : 10 ≤ S ^ 3 := (by decide : 10 ≤ 7 ^ 3).trans (Nat.pow_le_pow_left hs 3)
   have h9 : 9 ≤ S ^ 2 := (by decide : 9 ≤ 7 ^ 2).trans (Nat.pow_le_pow_left hs 2)
   have hbound : free + t * (t * t) + 6 * F + 10 < S ^ 6 := by

@@ -212,6 +212,26 @@ private theorem mul_pow_le_mul_pow {c y d Z D : ℕ} (hy : y + 1 ≤ Z) (hd : d 
   Nat.mul_le_mul_left _ ((Nat.pow_le_pow_left hy _).trans
     (Nat.pow_le_pow_right (by omega) hd))
 
+private theorem evaluator_bound {left input run n extra cLeft cInput cRun : ℕ}
+    {factor scale scale' coefficient : ℕ}
+    (hfactor : 1 ≤ factor) (hscale : scale ≤ scale') (hn : n ≤ scale)
+    (hleft : left ≤ cLeft * scale) (hinput : input ≤ cInput * scale)
+    (hrun : run ≤ cRun * factor * scale + extra)
+    (hcoeff : 2 * cLeft + 1 + cInput + cRun ≤ coefficient) :
+    2 * left + n + (input + run) ≤ coefficient * factor * scale' + extra := by
+  calc 2 * left + n + (input + run) ≤
+      2 * (cLeft * scale) + scale + (cInput * scale + (cRun * factor * scale + extra)) :=
+        Nat.add_le_add (Nat.add_le_add (Nat.mul_le_mul_left _ hleft) hn)
+          (Nat.add_le_add hinput hrun)
+    _ = 2 * (cLeft * scale) + scale + cInput * scale + (cRun * factor * scale + extra) := by
+        rw [Nat.add_assoc (2 * (cLeft * scale) + scale)]
+    _ ≤ factor * (2 * (cLeft * scale) + scale + cInput * scale) +
+          (cRun * factor * scale + extra) :=
+        Nat.add_le_add_right (Nat.le_mul_of_pos_left _ hfactor) _
+    _ = (2 * cLeft + 1 + cInput + cRun) * factor * scale + extra := by ring
+    _ ≤ _ := Nat.add_le_add_right
+      (Nat.mul_le_mul (Nat.mul_le_mul_right factor hcoeff) hscale) _
+
 /-- **The resources of the native evaluator of descriptors.** For a native certificate `ce` of
 the entry procedure of the roots, there is `K` such that on a descriptor and bits of total length
 `n`, with `m` target modes and `L` row ports (`0` and `0` for a root), if the reduced coefficient
@@ -228,9 +248,15 @@ theorem entryCertificate_le
         (entryCertificate ce).space q ≤
           K * ((encPair (enc encT) encBits q).length + q.1.modes + Rv + 2) ^ K + ES := by
   obtain ⟨K₀, hK₀⟩ := vertexCertificate_le
-  have hL := NativeCertificate.ofPolyTime_isPolynomial (getLeft_polyTime (encT := encT))
-  have hP := NativeCertificate.ofPolyTime_isPolynomial (packetInput_polyTime (encT := encT))
-  have hI := NativeCertificate.ofPolyTime_isPolynomial (rootInput_polyTime (encT := encT))
+  let left := NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))
+  let rootInput := NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))
+  let packetInput := NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))
+  have hL : left.IsPolynomial :=
+    NativeCertificate.ofPolyTime_isPolynomial (getLeft_polyTime (encT := encT))
+  have hP : packetInput.IsPolynomial :=
+    NativeCertificate.ofPolyTime_isPolynomial (packetInput_polyTime (encT := encT))
+  have hI : rootInput.IsPolynomial :=
+    NativeCertificate.ofPolyTime_isPolynomial (rootInput_polyTime (encT := encT))
   obtain ⟨cr, dr, hrt⟩ := hL.1.exists_le
   obtain ⟨cr', dr', hrs⟩ := hL.2.exists_le
   obtain ⟨cp, dp, hpt⟩ := hP.1.exists_le
@@ -248,10 +274,9 @@ theorem entryCertificate_le
   have hP1 : 1 ≤ P := hP ▸ Nat.one_le_pow _ _ (by omega)
   have hnZ : n + 1 ≤ Z := by omega
   have hZD : Z ^ D ≤ Z ^ (G + D) := Nat.pow_le_pow_right (by omega) (by omega)
-  have hrt' : (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).time q ≤
-      cr * Z ^ D := (hrt q).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
-  have hrs' : (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).space q ≤
-      cr' * Z ^ D := (hrs q).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
+  have hnD : n ≤ Z ^ D := (by omega : n ≤ Z).trans (Nat.le_self_pow (by omega) Z)
+  have hrt' : left.time q ≤ cr * Z ^ D := (hrt q).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
+  have hrs' : left.space q ≤ cr' * Z ^ D := (hrs q).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
   rcases q with ⟨t | d, bs⟩
   · -- A root: the input of the entry procedure, then the entry procedure.
     obtain ⟨hEt, hEs⟩ : ce.time (t, bs) ≤ E ∧ ce.space (t, bs) ≤ ES := hE t rfl
@@ -268,53 +293,26 @@ theorem entryCertificate_le
     have hpow3 {c e : ℕ} (he : e ≤ D) : c * (3 * Z) ^ e ≤ c * 3 ^ e * Z ^ D := by
       rw [Nat.mul_pow, ← Nat.mul_assoc]
       exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) he)
-    have hit' : (NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))).time
-        ((.inl t, bs), t) ≤ ci * 3 ^ di * Z ^ D :=
+    have hit' : rootInput.time ((.inl t, bs), t) ≤ ci * 3 ^ di * Z ^ D :=
       (hit _).trans ((Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hlenI _)).trans
         (hpow3 (by omega)))
-    have his' : (NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))).space
-        ((.inl t, bs), t) ≤ ci' * 3 ^ di' * Z ^ D :=
+    have his' : rootInput.space ((.inl t, bs), t) ≤ ci' * 3 ^ di' * Z ^ D :=
       (his _).trans ((Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hlenI _)).trans
         (hpow3 (by omega)))
-    have htime : (entryCertificate ce).time (.inl t, bs) =
-        2 * (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).time (.inl t, bs) +
-          n + ((NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))).time
-            ((.inl t, bs), t) + ce.time (t, bs)) := by
-      rw [hn]; rfl
-    have hspace : (entryCertificate ce).space (.inl t, bs) =
-        2 * (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).space (.inl t, bs) +
-          n + ((NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))).space
-            ((.inl t, bs), t) + ce.space (t, bs)) := by
-      rw [hn]; rfl
-    have hnD : n ≤ Z ^ D := by
-      calc n ≤ Z := by omega
-        _ = Z ^ 1 := (pow_one Z).symm
-        _ ≤ Z ^ D := Nat.pow_le_pow_right (by omega) (by omega)
     constructor
-    · rw [htime]
-      have h1 : 2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr + 1 + ci * 3 ^ di) * Z ^ D =
-            2 * (cr * Z ^ D) + Z ^ D + ci * 3 ^ di * Z ^ D := by ring
-        omega
-      have h2 : G * Z ^ D ≤ (G + D) * P * Z ^ (G + D) :=
-        Nat.mul_le_mul ((Nat.le_add_right G D).trans (Nat.le_mul_of_pos_right _ hP1)) hZD
-      omega
-    · rw [hspace]
-      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D ≤ G * Z ^ D :=
-          Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr' + 1 + ci' * 3 ^ di') * Z ^ D =
-            2 * (cr' * Z ^ D) + Z ^ D + ci' * 3 ^ di' * Z ^ D := by ring
-        omega
-      have h2 : G * Z ^ D ≤ (G + D) * Z ^ (G + D) := Nat.mul_le_mul (by omega) hZD
-      omega
+    · exact evaluator_bound (coefficient := G + D) (cRun := 0) (extra := E)
+        hP1 hZD (hn ▸ hnD) hrt' hit' (by simpa only [Nat.zero_mul, Nat.zero_add] using hEt)
+          (by clear * - hG; lia)
+    · have hs := evaluator_bound (coefficient := G + D) (cRun := 0) (extra := ES)
+        (factor := 1) (run := ce.space (t, bs))
+          le_rfl hZD (hn ▸ hnD) hrs' his' (by simpa only [Nat.zero_mul, Nat.zero_add] using hEs)
+          (by clear * - hG; lia)
+      rw [Nat.mul_one] at hs
+      exact hs
   · -- A packet: the input of the packet evaluator, then the evaluator.
-    have hpt' : (NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).time
-        (.inr d, bs) ≤ cp * Z ^ D :=
+    have hpt' : packetInput.time (.inr d, bs) ≤ cp * Z ^ D :=
       (hpt _).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
-    have hps' : (NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).space
-        (.inr d, bs) ≤ cp' * Z ^ D :=
+    have hps' : packetInput.space (.inr d, bs) ≤ cp' * Z ^ D :=
       (hps _).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
     have hlen : (encPair encPacketDesc encBits (d, bs)).length ≤ n := by
       have h1 : n = 2 * ((encPacketDesc d).length + 1) + 1 + (encBits bs).length := by
@@ -329,45 +327,20 @@ theorem entryCertificate_le
         2) ^ K₀ ≤ Z ^ D :=
       (Nat.pow_le_pow_left hZ' _).trans (Nat.pow_le_pow_right (by omega) (by omega))
     have hvt' : vertexCertificate.time (d, bs) ≤ K₀ * P * Z ^ D := by
-      refine hvt.trans ?_
-      rw [hP]
-      exact Nat.mul_le_mul_left _ hpowK
+      rw [hP]; exact hvt.trans (Nat.mul_le_mul_left _ hpowK)
     have hvs' : vertexCertificate.space (d, bs) ≤ K₀ * Z ^ D :=
       hvs.trans (Nat.mul_le_mul_left _ hpowK)
-    have htime : (entryCertificate ce).time (.inr d, bs) =
-        2 * (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).time (.inr d, bs) +
-          n + ((NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).time
-            (.inr d, bs) + vertexCertificate.time (d, bs)) := by
-      rw [hn]; rfl
-    have hspace : (entryCertificate ce).space (.inr d, bs) =
-        2 * (NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))).space (.inr d, bs) +
-          n + ((NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))).space
-            (.inr d, bs) + vertexCertificate.space (d, bs)) := by
-      rw [hn]; rfl
-    have hnD : n ≤ Z ^ D := by
-      calc n ≤ Z := by omega
-        _ = Z ^ 1 := (pow_one Z).symm
-        _ ≤ Z ^ D := Nat.pow_le_pow_right (by omega) (by omega)
     constructor
-    · rw [htime]
-      have h1 : 2 * (cr * Z ^ D) + Z ^ D + cp * Z ^ D ≤ P * ((2 * cr + 1 + cp) * Z ^ D) := by
-        calc _ = (2 * cr + 1 + cp) * Z ^ D := by ring
-          _ ≤ _ := Nat.le_mul_of_pos_left _ hP1
-      have h2 : P * ((2 * cr + 1 + cp) * Z ^ D) + K₀ * P * Z ^ D ≤ P * (G * Z ^ D) := by
-        rw [show K₀ * P * Z ^ D = P * (K₀ * Z ^ D) by ring, ← Nat.mul_add, ← Nat.add_mul]
-        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (by omega))
-      have h3 : P * (G * Z ^ D) ≤ (G + D) * P * Z ^ (G + D) := by
-        rw [show (G + D) * P * Z ^ (G + D) = P * ((G + D) * Z ^ (G + D)) by ring]
-        exact Nat.mul_le_mul_left _ (Nat.mul_le_mul (by omega) hZD)
-      omega
-    · rw [hspace]
-      have h1 : 2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D ≤ G * Z ^ D := by
-        have : (2 * cr' + 1 + cp' + K₀) * Z ^ D ≤ G * Z ^ D := Nat.mul_le_mul_right _ (by omega)
-        have e : (2 * cr' + 1 + cp' + K₀) * Z ^ D =
-            2 * (cr' * Z ^ D) + Z ^ D + cp' * Z ^ D + K₀ * Z ^ D := by ring
-        omega
-      have h2 : G * Z ^ D ≤ (G + D) * Z ^ (G + D) := Nat.mul_le_mul (by omega) hZD
-      omega
+    · exact evaluator_bound (coefficient := G + D) (cRun := K₀) (extra := E)
+        hP1 hZD (hn ▸ hnD) hrt' hpt' (hvt'.trans (Nat.le_add_right _ _))
+          (by clear * - hG; lia)
+    · have hs := evaluator_bound (coefficient := G + D) (cRun := K₀) (extra := ES)
+        (factor := 1) (run := vertexCertificate.space (d, bs))
+          le_rfl hZD (hn ▸ hnD) hrs' hps'
+          (by simpa only [Nat.mul_one] using hvs'.trans (Nat.le_add_right _ ES))
+          (by clear * - hG; lia)
+      rw [Nat.mul_one] at hs
+      exact hs
 
 end Evaluator
 

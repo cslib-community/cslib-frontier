@@ -642,9 +642,7 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
         (A ((toCircuit f).topology.wires g a)).2 := by
       rw [hidx, PointPermute.rowIndex_of_eq_two harity, hc₀, hc₁,
         HalfGates.colourWord_labelBits, HalfGates.colourWord_labelBits]
-    have hidx_lt : idx < 4 := by
-      rw [hidx_eq]
-      exact rowIndex_colours_lt f g A
+    have hidx_lt : idx < 4 := hidx_eq ▸ rowIndex_colours_lt f g A
     have hrow_eq : garbledRowOf (toCircuit f).topology g hfr' idx =
         ⟨⟨g, hfr'⟩, fun a => (A ((toCircuit f).topology.wires g a)).2⟩ := by
       simp only [garbledRowOf, hidx_eq, PointPermute.testBit_rowIndex_of_eq_two harity]
@@ -661,8 +659,7 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
           (List.ofFn fun i : Fin 4 =>
             labelBits (table (garbledRowOf (toCircuit f).topology g hfr' i))).flatten.length := by
         rw [hlen_rows]
-        calc idx * (k + 2) + (k + 2) = (idx + 1) * (k + 2) := by ring
-          _ ≤ 4 * (k + 2) := Nat.mul_le_mul_right _ hidx_lt
+        linarith [Nat.mul_le_mul_right (k + 2) hidx_lt]
       rw [List.drop_append_of_le_length (by omega),
         List.take_append_of_le_length (by simp only [List.length_drop]; omega),
         ← List.take_append_of_le_length (l₂ := List.replicate (k + 2) false)
@@ -761,18 +758,7 @@ theorem scheme_correct : (scheme hash).Correct := by
     (fun key t => CCR.atLevel hash k (key, false) t)
     (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x)
     (hfree_toCircuit f) hK (HalfGates.offsetKey k coins) (baseLabels k coins)
-  have hev := (isLocal_evalStep hτ (freeCircuit f)
-    (fun key t => CCR.atLevel hash k (key, false) t)
-    (slotTweak (toCircuit f).topology (freeCircuit f) k)
-    (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).table
-    (encode (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).encoding
-      (BitString.ofList f.1.n x))).iterate_eq_of_isFixed 0 (funext hfix)
+  have hev := (isLocal_evalStep hτ (freeCircuit f) _ _ _ _).iterate_eq_of_isFixed 0 (funext hfix)
   have hrun := Garbled.run_garbleWith (toCircuit f) fullInterpretation
     (fun key t => CCR.atLevel hash k (key, false) t)
     (slotTweak (toCircuit f).topology (freeCircuit f) k) (BitString.ofList f.1.n x)
@@ -782,20 +768,7 @@ theorem scheme_correct : (scheme hash).Correct := by
   rw [PointPermute.projectiveEncode_labelBits (n := f.1.n)
       (fun i b => label (HalfGates.offsetKey k coins)
         (propagate (toCircuit f).topology (freeCircuit f) (baseLabels k coins) (.input i)) b) hx]
-  have heval := evalWord_encodeFn hash k f
-    (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).table
-    (encode (garbleWith (toCircuit f) fullInterpretation
-      (fun key t => CCR.atLevel hash k (key, false) t)
-      (slotTweak (toCircuit f).topology (freeCircuit f) k)
-      (HalfGates.offsetKey k coins) (baseLabels k coins)).encoding
-      (BitString.ofList f.1.n x))
-    (activeLabel (toCircuit f) fullInterpretation (BitString.ofList f.1.n x) (freeCircuit f)
-      (HalfGates.offsetKey k coins) (baseLabels k coins))
-    hfix
-  erw [heval]
+  erw [evalWord_encodeFn hash k f _ _ _ hfix]
   rw [PointPermute.decodeWord_ofFn]
   have h := congrArg List.ofFn hrun
   rw [eval_toCircuit, BitString.ofFn_ofList hx] at h

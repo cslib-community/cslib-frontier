@@ -67,14 +67,11 @@ theorem courseOfValuesWith_of_tableBound {γ π β : Type}
     (htables : ∀ x, ∀ i ≤ count x,
       (encL (List.courseOfValues (step (par x)) i)).length ≤ bound x) :
     ComputableInPolyTime (fun x => List.courseOfValues (step (par x)) (count x)) encIn encL := by
-  have hiter :=
+  simpa only [← List.courseOfValues_eq_iterate] using
     iterateWith (par := par) (count := count) (init := fun _ : γ => ([] : List β))
-    (step := fun p T => T ++ [step p T])
-    hpar hcount (const [])
-    (hsnoc.comp ((snd encPar encL).prod hstep))
-    hbound fun x i hi => by
-      simpa only [← List.courseOfValues_eq_iterate] using htables x i hi
-  simpa only [← List.courseOfValues_eq_iterate] using hiter
+      (step := fun p T => T ++ [step p T]) hpar hcount (const [])
+      (hsnoc.comp ((snd encPar encL).prod hstep)) hbound fun x i hi => by
+        simpa only [← List.courseOfValues_eq_iterate] using htables x i hi
 
 /-- **Course-of-values certificate for framed lists** with a captured parameter `par` and unary
 stage count `count`. Only the values produced along reachable prefixes `i < count x` need a
@@ -155,9 +152,7 @@ theorem bitsCourseOfValuesWith {γ π : Type}
       (encPair encPar encBits) encBool) :
     ComputableInPolyTime (fun x => List.courseOfValues (step (par x)) (count x)) encIn encBits :=
   courseOfValuesWith_of_tableBound hpar hcount hstep bitsSnoc hcount.polyBounded fun x i hi => by
-    change (List.courseOfValues (step (par x)) i).length ≤ count x
-    rw [List.length_courseOfValues]
-    exact hi
+    simpa only [encBits_apply, List.length_courseOfValues] using hi
 
 /-- **Course-of-values certificate for raw Boolean tables (`encBits`) from unary stage `n`.**
 No explicit element bound is needed because every stage appends one bit. -/

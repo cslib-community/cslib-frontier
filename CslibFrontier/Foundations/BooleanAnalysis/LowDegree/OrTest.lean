@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import Mathlib.LinearAlgebra.Basis.Defs
+public import Mathlib.Data.ZMod.Basic
 public import Mathlib.Data.ZMod.Defs
-import Mathlib.Data.ZMod.Basic
 
 /-!
 # A seeded low-degree test for OR modulo two
@@ -64,7 +64,7 @@ variable {F κ ι : Type*} [AddCommGroup F] [Module (ZMod 2) F] [Fintype κ]
 
 /-- **The seeded OR test** `1 - ∏_{j ∈ κ} (1 - ∑_{w ∈ A} [e w]_j y_w)`, where `[·]_j` is the
 `j`-th coordinate in the basis `b` of `F` over `𝔽₂`, read as `0` or `1`. -/
-noncomputable def orTest (b : Module.Basis κ (ZMod 2) F) (e : ι → F) (A : Finset ι)
+@[expose] noncomputable def orTest (b : Module.Basis κ (ZMod 2) F) (e : ι → F) (A : Finset ι)
     (y : ι → Bool) : ℤ :=
   1 - ∏ j, (1 - ∑ w ∈ A, ((b.repr (e w) j).val : ℤ) * bitVal ℤ (y w))
 

@@ -61,18 +61,16 @@ theorem coefficientResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (fun w => coefficientResidue (p w) (k w) (fun z => value (w, z))) ∈
       CountingFunction (a + 1) enc encNat := by
   have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
-  have hk' := hk.comp (ComputableInPolyTime.fst enc encNat)
-  have he := ComputableInPolyTime.binary_sub'
-    (ComputableInPolyTime.binary_sub' hp' (.const 1)) hk'
   have hpower := CountingFunction.powMod (a := a) (CountingFunction.of_polyTime hp')
     (CountingFunction.of_polyTime (ComputableInPolyTime.snd enc encNat))
-    (CountingFunction.of_polyTime he)
-  have hsum := CountingFunction.sum_range D (CountingFunction.nat_mul hv hpower) hp
-  have hmod := CountingFunction.nat_mod hsum (CountingFunction.of_polyTime hp)
-  have hsub := CountingFunction.map
-    (CountingFunction.prod (CountingFunction.of_polyTime hp) hmod)
-    ComputableInPolyTime.binary_sub
-  exact CountingFunction.nat_mod hsub (CountingFunction.of_polyTime hp)
+    (CountingFunction.of_polyTime (ComputableInPolyTime.binary_sub'
+      (ComputableInPolyTime.binary_sub' hp' (.const 1)) (hk.comp (.fst enc encNat))))
+  exact CountingFunction.nat_mod
+    (CountingFunction.map (CountingFunction.prod (CountingFunction.of_polyTime hp)
+      (CountingFunction.nat_mod (CountingFunction.sum_range D
+        (CountingFunction.nat_mul hv hpower) hp) (CountingFunction.of_polyTime hp)))
+      ComputableInPolyTime.binary_sub)
+    (CountingFunction.of_polyTime hp)
 
 /-- The total evaluator represents the actual polynomial coefficient in the field.
 Correctness uses values only on the canonical representatives below `p`. -/

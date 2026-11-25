@@ -95,16 +95,14 @@ theorem Valid.step_of_andOnIsolated {S : State n} (hS : S.Valid f) (h : S.AndOnI
   obtain ⟨b, c, hc⟩ := Gate.exists_const_of_not_isAffineOp hand hargs
   obtain ⟨S', h⟩ : ∃ S', Reduction f S S' {w} [.inl G] [] := by
     have h₁ := Valid.reduction_fixConst hS hw b
-    have h := h₁.trans (h₁.valid.reduction_deleteConst hG fun val _ _ => by
-      rw [fixConst_gate, Gate.eval_subst_const]; exact hc _ (Function.update_self _ _ _))
-    rw [Finset.union_empty] at h
-    exact ⟨_, h⟩
+    rw [← Finset.union_empty {w}]
+    exact ⟨_, h₁.trans (h₁.valid.reduction_deleteConst hG fun val _ _ => by
+      rw [fixConst_gate, Gate.eval_subst_const]; exact hc _ (Function.update_self _ _ _))⟩
   refine ⟨S', h.step hS (by simp) (by simp) ?_⟩
   have hW := h.W_le (fun u => if u = z then 6 else 0) (fun u => if S.IsPartner w u then 7 else 0)
     fun u hu => by
-      by_cases huz : u = z
-      · subst huz
-        rw [h.wt_eq_zero_of_subset (by simp [hcz]) (by simp), wt_of_mem hz, hz1,
+      rcases eq_or_ne u z with rfl | huz
+      · rw [h.wt_eq_zero_of_subset (by simp [hcz]) (by simp), wt_of_mem hz, hz1,
           config_weight, weight_one, ite_eq_left rfl]
         omega
       · rw [ite_eq_right huz]
@@ -188,9 +186,7 @@ theorem Valid.exclusive {S : State n} (hS : S.Valid f) (hmov : ∀ J, ¬ S.Movab
     (hdel : ¬ S.DeletionAvailable) (h2 : ¬ S.AndOnIsolated) : S.Exclusive := by
   intro z hz hz1 N hN z' hz' hzz hN'
   have hzp := (mem_unpaired.1 hz).1
-  have hcz : S.children z = {N} := by
-    obtain ⟨a, ha⟩ := Finset.card_eq_one.1 hz1
-    rw [ha] at hN ⊢; rw [Finset.mem_singleton.1 hN]
+  have hcz : S.children z = {N} := children_eq_singleton hz1.le hN
   rcases N with G | e
   · obtain ⟨hG, hGz⟩ := (SemiCircuit.inl_mem_children _).1 hN
     obtain ⟨-, hGz'⟩ := (SemiCircuit.inl_mem_children _).1 hN'
@@ -198,11 +194,8 @@ theorem Valid.exclusive {S : State n} (hS : S.Valid f) (hmov : ∀ J, ¬ S.Movab
     by_cases haff : IsAffineOp (S.gate G).op
     · refine hmov G ⟨hG, haff, fun i hi hig => ?_⟩
       have hip : i ∈ S.params := by
-        rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi
-        · rw [hl] at hi; cases hi; exact hzp
-        · rw [hr] at hi; cases hi; exact hz'
-        · rw [hl] at hi; cases hi; exact hz'
-        · rw [hr] at hi; cases hi; exact hzp
+        rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi <;>
+          simp only [hl, hr] at hi <;> cases hi <;> assumption
       exact hS.wf.notMem_gates_of_mem_params hip hig
     · exact h2 ⟨G, hG, z, z', haff, hargs, hz, hz1, hz', Ne.symm hzz⟩
   · exact hdel (Or.inr (Or.inr (Or.inr ⟨z, hz, e, hcz⟩)))
@@ -226,31 +219,24 @@ theorem Valid.step_of_degeneratePair {S : State n} (hS : S.Valid f) (hexcl : S.E
     ∃ S', Step f S S' := by
   obtain ⟨p, hp, hpp, hdeg⟩ := h
   obtain ⟨r, hpr⟩ := exists_partner hpp
-  have hnot : ∀ x u, S.IsPartner x u → x ∈ ({r} : Finset ℕ) ∨ x ∈ ({p} : Finset ℕ) → u ≠ r →
-      u ≠ p → False := fun x u hxu hx hur hup => by
-    rcases hx with hx | hx <;> rw [Finset.mem_singleton] at hx <;> subst hx
-    · exact hup (hS.isPartner_unique hxu hpr.symm)
-    · exact hur (hS.isPartner_unique hxu hpr)
   rcases hdeg with hdeg | hdeg
   · -- fix the partner `r`; `p` becomes unpaired and unused
     have h := Valid.reduction_fixConst hS (hS.partner_mem hpr) false
     refine ⟨_, h.step hS (by simp) (by simp) ?_⟩
     have hW := h.W_le (fun _ => 0) (fun _ => 0) fun u hu => by
-      obtain ⟨-, hur⟩ := Finset.mem_sdiff.1 hu
-      rw [Finset.mem_singleton] at hur
-      by_cases hup : u = p
-      · subst hup
-        have := h.wt_le_weight (u := u) (fun _ hN => absurd hN List.not_mem_nil)
+      rcases eq_or_ne u p with rfl | hup
+      · have := h.wt_le_weight (u := u) (fun _ hN => absurd hN List.not_mem_nil)
         rw [Finset.card_eq_zero.1 hdeg, Finset.empty_sdiff, Finset.card_empty,
           config_weight, weight_zero] at this
         omega
       · exact Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl
-          (fun x hx hxu => hnot x u hxu (Or.inl hx) hur hup)
+          (fun x hx hxu => by
+            obtain rfl := Finset.mem_singleton.1 hx
+            exact hup (hS.isPartner_unique hxu hpr.symm))
           fun _ hN => absurd hN List.not_mem_nil) _
-    simp only [Finset.sum_singleton, wt_of_paired hpr.symm.paired,
+    simp only [Finset.sum_singleton, Finset.card_singleton, wt_of_paired hpr.symm.paired,
       hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired,
-      Finset.sum_const_zero] at hW
-    simp only [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired]
+      Finset.sum_const_zero] at hW ⊢
     omega
   · -- fix `p` and delete two of its children; only the partner `r` may gain weight
     obtain ⟨N₁, hN₁, N₂, hN₂, hne⟩ := Finset.one_lt_card.1 (show 1 < (S.children p).card from hdeg)
@@ -263,21 +249,19 @@ theorem Valid.step_of_degeneratePair {S : State n} (hS : S.Valid f) (hexcl : S.E
     rw [Finset.union_empty] at h
     refine ⟨S', h.step hS (by simp) (by simp) ?_⟩
     have hW := h.W_le (fun _ => 0) (fun u => if S.IsPartner p u then 7 else 0) fun u hu => by
-      obtain ⟨-, hup⟩ := Finset.mem_sdiff.1 hu
-      rw [Finset.mem_singleton] at hup
+      have hup := Finset.notMem_singleton.1 (Finset.mem_sdiff.1 hu).2
       by_cases hur : S.IsPartner p u
       · rw [ite_eq_left hur]; have := S'.wt_le_bound u; rw [config_weightBound] at this; omega
       · rw [ite_eq_right hur]
         refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl (fun x hx hxu => ?_)
           fun N hN _ => ⟨p, hp, Ne.symm hup, ?_⟩) _
-        · rw [Finset.mem_singleton] at hx; subst hx; exact hur hxu
+        · obtain rfl := Finset.mem_singleton.1 hx; exact hur hxu
         · simp only [List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at hN
           rcases hN with rfl | rfl <;> assumption
     have hgain := hS.sum_partner_le p (S.params \ {p}) 7
-    simp only [Finset.sum_singleton, wt_of_paired hpp, hS.card_pairsMeeting_singleton,
-      ite_eq_left hpp, Finset.sum_const_zero, List.nil_append, List.length_cons,
-      List.length_nil] at hW
-    simp only [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_left hpp]
+    simp only [Finset.sum_singleton, Finset.card_singleton, wt_of_paired hpp,
+      hS.card_pairsMeeting_singleton, ite_eq_left hpp, Finset.sum_const_zero, List.nil_append,
+      List.length_cons, List.length_nil] at hW ⊢
     omega
 
 /-! ### Case 4: partners with a common child -/
@@ -309,23 +293,18 @@ theorem Valid.eq_insert_of_mem_terms {S : State n} (hS : S.Valid f) (hdel : ¬ S
     (hpe : p ∈ (S.eqn e).terms) (hre : r ∈ (S.eqn e).terms) :
     ∃ v ∈ S.aux, v ≠ p ∧ v ≠ r ∧ (S.eqn e).terms = {v, p, r} := by
   obtain ⟨v, hv, hvp, hvr⟩ : ∃ v ∈ (S.eqn e).terms, v ≠ p ∧ v ≠ r := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     refine hdel (Or.inl ⟨e, he, (Finset.card_le_card (t := {p, r}) fun i hi => ?_).trans
       (Finset.card_le_two)⟩)
-    by_cases hip : i = p
-    · simp [hip]
-    · simp [hno i hi hip]
+    simpa using or_iff_not_imp_left.2 (hno i hi)
   have hterms : (S.eqn e).terms = {v, p, r} := (Finset.eq_of_subset_of_card_le
     (by simp [Finset.insert_subset_iff, hv, hpe, hre]) (by
       rw [Finset.card_insert_of_notMem (by simp [hvp, hvr]), Finset.card_pair hpr]
       exact hS.wf.card_terms_le e he)).symm
   refine ⟨v, ?_, hvp, hvr, hterms⟩
-  rcases Finset.mem_union.1 (hS.wf.terms_subset e he hv) with hvp' | hva
-  · refine absurd (hS.terms_eq_empty_of_subset he ?_) (Finset.ne_empty_of_mem hv)
-    rw [hterms]
-    simp [Finset.insert_subset_iff, hvp', hp, hr]
-  · exact hva
+  refine (Finset.mem_union.1 (hS.wf.terms_subset e he hv)).resolve_left fun hvp' => ?_
+  refine absurd (hS.terms_eq_empty_of_subset he ?_) (Finset.ne_empty_of_mem hv)
+  simp [hterms, Finset.insert_subset_iff, hvp', hp, hr]
 
 /-- The configuration of Case 4: two partners have a common child. -/
 def PartnersShareChild (S : State n) : Prop :=
@@ -384,20 +363,15 @@ theorem Valid.step_of_partnersShareChild {S : State n} (hS : S.Valid f)
           fun t ht => by simp [Lit.Reads, Lit.const] at ht⟩
         fun t ht => by simp [Lit.Reads, Lit.const] at ht)⟩
   refine ⟨S', h.step hS (by simp) (by simp) ?_⟩
-  have hW := h.W_le (fun _ => 0) (fun _ => 0) fun u hu => by
-    obtain ⟨-, hup⟩ := Finset.mem_sdiff.1 hu
-    by_cases hur : u = r
-    · subst hur
-      rw [h.wt_eq_zero_of_subset (by simp [hcr]) (by simp)]
-      omega
+  have hW := h.W_le (fun _ => 0) (fun _ => 0) fun u _ => by
+    rcases eq_or_ne u r with rfl | hur
+    · rw [h.wt_eq_zero_of_subset (by simp [hcr]) (by simp)]; omega
     · refine Nat.add_le_add_right (Reduction.wt_le h hS (fun x hx hxu => ?_) (by simp)) 0
-      rw [Finset.mem_singleton] at hx
-      subst hx
+      obtain rfl := Finset.mem_singleton.1 hx
       exact hur (hS.isPartner_unique hxu hpart)
-  rw [Finset.sum_singleton, wt_of_paired hpp, hS.card_pairsMeeting_singleton,
-    ite_eq_left hpp] at hW
-  simp only [Finset.sum_const_zero, List.length_singleton] at hW
-  rw [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_left hpp]
+  simp only [Finset.sum_singleton, Finset.card_singleton, wt_of_paired hpp,
+    hS.card_pairsMeeting_singleton, ite_eq_left hpp, Finset.sum_const_zero,
+    List.length_singleton] at hW ⊢
   omega
 
 /-! ### Case 5: a paired parameter in the affine system -/
@@ -426,10 +400,9 @@ theorem Valid.step_of_pairInSystem {S : State n} {d : ℕ} (hS : S.Valid f)
   obtain ⟨S₂, h⟩ : ∃ S₂, Reduction f S S₂ {r} [Hr] [Hr] := by
     have h₁ := Valid.reduction_fixConst hS hr false
     obtain ⟨S₂, h₂⟩ := h₁.valid.exists_reduction_deleteAll [Hr] (by simp) fun N hN => by
-      rw [List.mem_singleton] at hN; subst hN; exact deletable_fixConst_child hS _ false hHr
-    have h := h₁.trans h₂
-    rw [Finset.union_empty] at h
-    exact ⟨S₂, h⟩
+      obtain rfl := List.mem_singleton.1 hN; exact deletable_fixConst_child hS _ false hHr
+    rw [← Finset.union_empty {r}]
+    exact ⟨S₂, h₁.trans h₂⟩
   have hpu₂ : p ∈ S₂.unpaired :=
     (h.mem_unpaired_iff hS).2 ⟨hp, by simpa using hrp.symm, Or.inr ⟨r, by simp, hpr.symm⟩⟩
   have hcp₂ : S₂.children p ⊆ {.inr e} := by
@@ -438,26 +411,24 @@ theorem Valid.step_of_pairInSystem {S : State n} {d : ℕ} (hS : S.Valid f)
     exact this.trans Finset.sdiff_subset
   have hW := h.W_le (fun _ => 0) (fun u => if u = p then weight (S₂.deg p) else 0) fun u hu => by
     obtain ⟨-, hur⟩ := Finset.mem_sdiff.1 hu
-    by_cases hup : u = p
-    · subst hup; rw [wt_of_mem hpu₂, config_weight, ite_eq_left rfl]; omega
+    rcases eq_or_ne u p with rfl | hup
+    · rw [wt_of_mem hpu₂, config_weight, ite_eq_left rfl]; omega
     · rw [ite_eq_right hup]
       refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl (fun x hx hxu => ?_)
         fun N hN _ => ?_) 0
-      · rw [Finset.mem_singleton] at hx; subst hx
+      · obtain rfl := Finset.mem_singleton.1 hx
         exact hup (hS.isPartner_unique hxu hpr.symm)
-      · rw [List.mem_singleton] at hN; subst hN
+      · obtain rfl := List.mem_singleton.1 hN
         exact ⟨r, hr, Ne.symm (by simpa using hur), hHr⟩
   have hpr' : p ∈ S.params \ {r} := Finset.mem_sdiff.2 ⟨hp, by simpa using hrp.symm⟩
   rw [Finset.sum_ite_eq' (S.params \ {r}) p, ite_eq_left hpr', Finset.sum_singleton,
     wt_of_paired hpr.symm.paired, hS.card_pairsMeeting_singleton,
     ite_eq_left hpr.symm.paired] at hW
-  simp only [Finset.sum_const_zero, List.length_singleton] at hW
   have ha₂ := h.a_add hS
   have hm₂ := h.m_add
   have hs₂ := h.s_add
-  rw [Finset.card_singleton, hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired] at ha₂
-  rw [Finset.card_singleton] at hm₂
-  simp only [List.length_singleton] at hs₂
+  simp only [Finset.sum_const_zero, List.length_singleton, Finset.card_singleton,
+    hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired] at hW ha₂ hm₂ hs₂
   have hdeg₂ : S₂.deg p ≤ 1 := (Finset.card_le_card hcp₂).trans (by simp)
   rcases Nat.lt_or_ge (S₂.deg p) 1 with h0 | h1
   · -- `p` became unused
@@ -504,9 +475,7 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
     notMem_children_of_isPartner h4 hpr (by rw [hcp]; exact Finset.mem_singleton_self _)
   obtain ⟨Hg, rfl⟩ : ∃ Hg, Hr = .inl Hg := by
     rcases Hr with Hg | e
-    · exact ⟨Hg, rfl⟩
-    · obtain ⟨he, hre⟩ := (SemiCircuit.inr_mem_children _).1 hHr
-      exact absurd ⟨r, hrpaired, e, he, hre⟩ h5
+    exacts [⟨Hg, rfl⟩, (h5 ⟨r, hrpaired, e, (SemiCircuit.inr_mem_children _).1 hHr⟩).elim]
   have hHgG : Hg ≠ G := by rintro rfl; exact hGr hHr
   have hwr : w ≠ r := by
     rintro rfl; exact hGr ((SemiCircuit.inl_mem_children _).2 ⟨hG, hGw⟩)
@@ -533,10 +502,8 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
   have hW := h.W_le (fun _ => 0) (fun u => if S.IsPartner w u then 7 else 0) fun u hu => by
     obtain ⟨-, huF⟩ := Finset.mem_sdiff.1 hu
     simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at huF
-    by_cases hup : u = p
-    · subst hup
-      rw [h.wt_eq_zero_of_subset (by simp [hcp]) (by simp [hcp, hHgG])]
-      omega
+    rcases eq_or_ne u p with rfl | hup
+    · rw [h.wt_eq_zero_of_subset (by simp [hcp]) (by simp [hcp, hHgG])]; omega
     · by_cases hwu : S.IsPartner w u
       · rw [ite_eq_left hwu]; have := S'.wt_le_bound u; rw [config_weightBound] at this; omega
       · rw [ite_eq_right hwu]
@@ -544,8 +511,8 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
           fun N hN _ => ?_) _
         · rcases Finset.mem_insert.1 hx with rfl | hx
           · exact hup (hS.isPartner_unique hxu hpr.symm)
-          · rw [Finset.mem_singleton] at hx; subst hx; exact hwu hxu
-        · rw [List.mem_singleton] at hN; subst hN
+          · obtain rfl := Finset.mem_singleton.1 hx; exact hwu hxu
+        · obtain rfl := List.mem_singleton.1 hN
           exact ⟨r, hr, Ne.symm huF.1, hHr⟩
   have hk : (S.pairsMeeting {r, w}).card = (if S.Paired w then 1 else 0) + 1 := by
     rw [hS.card_pairsMeeting_insert (by simpa using hwr.symm) (by simpa using hwpart),
@@ -603,13 +570,8 @@ theorem Valid.step_or_normal {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAf
     fun G hG hand x y hargs hx hy hxy => ?_⟩
   · have hxu : x ∈ S.unpaired := mem_unpaired.2 ⟨hx, fun hp => h5 ⟨x, hp, e, he, hxe⟩⟩
     have hex : Sum.inr e ∈ S.children x := (SemiCircuit.inr_mem_children _).2 ⟨he, hxe⟩
-    refine ⟨hxu, ?_⟩
-    by_contra hlt
-    have h1 : S.deg x = 1 := by
-      have := Finset.card_pos.2 ⟨_, hex⟩
-      change 0 < S.deg x at this
-      omega
-    exact hdel (Or.inr (Or.inr (Or.inr ⟨x, hxu, e, children_eq_singleton h1.le hex⟩)))
+    exact ⟨hxu, by_contra fun hlt => hdel (Or.inr (Or.inr (Or.inr
+      ⟨x, hxu, e, children_eq_singleton (Nat.le_of_not_lt hlt) hex⟩)))⟩
   · have hxu : x ∈ S.unpaired :=
       mem_unpaired.2 ⟨hx, fun hp => h6 ⟨G, hG, x, y, hand, hargs, hp, hy, hxy⟩⟩
     exact ⟨hxu, two_le_deg_of_not_andOnIsolated h2 hG hand hargs hxu hy hxy⟩

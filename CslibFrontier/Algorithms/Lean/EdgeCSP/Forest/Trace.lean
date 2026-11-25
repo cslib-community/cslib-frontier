@@ -53,7 +53,7 @@ theorem outgoing_subset_used (es : Log F) : es.outgoing ⊆ es.used := by
   induction es with
   | nil => exact List.Subset.refl _
   | cons e es ih =>
-    intro o ho
+    rintro o ho
     rcases List.mem_append.mp ho with ho | ho
     · exact List.mem_cons_of_mem _ (List.mem_append_left _ ho)
     · exact List.mem_cons_of_mem _ (List.mem_append_right _ (ih ho))
@@ -123,23 +123,20 @@ theorem mem_arcs (es : Log F) {a : Arc F} (ha : a ∈ es.arcs) :
         ht.trans (Nat.lt_succ_self _)⟩
 
 /-- All arcs of the converted DAG have supported endpoints, including isolated roots. -/
-theorem toDAG_supported (rs : List V) (es : Log F) : (es.toDAG rs).Supported := by
-  intro a ha
+theorem toDAG_supported (rs : List V) (es : Log F) : (es.toDAG rs).Supported := fun a ha => by
   have hm : a ∈ es.arcs := List.mem_toFinset.mp ha
-  refine ⟨List.mem_toFinset.mpr (List.mem_append_right _
-    (List.mem_map.mpr ⟨a.occurrence, (es.mem_arcs hm).1, rfl⟩)), ?_⟩
-  exact List.mem_toFinset.mpr (List.mem_map.mpr ⟨a, hm, rfl⟩)
+  exact ⟨List.mem_toFinset.mpr (List.mem_append_right _
+    (List.mem_map.mpr ⟨a.occurrence, (es.mem_arcs hm).1, rfl⟩)),
+    List.mem_toFinset.mpr (List.mem_map.mpr ⟨a, hm, rfl⟩)⟩
 
 /-- A visited variable belongs to the converted DAG even when it is an isolated root. -/
 theorem Visited.mem_vars {rs : List V} {es : Log F} {v : V}
     (hv : es.Visited rs v) : v ∈ (es.toDAG rs).vars := by
-  apply List.mem_toFinset.mpr
   rcases hv with hv | hv
-  · exact List.mem_append_left _ hv
-  · rw [children_eq_map_outgoing] at hv
-    obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hv
-    exact List.mem_append_right _
-      (List.mem_map.mpr ⟨o, es.outgoing_subset_used ho, rfl⟩)
+  · exact List.mem_toFinset.mpr (List.mem_append_left _ hv)
+  · obtain ⟨o, ho, rfl⟩ := List.mem_map.mp (children_eq_map_outgoing es ▸ hv)
+    exact List.mem_toFinset.mpr (List.mem_append_right _
+      (List.mem_map.mpr ⟨o, es.outgoing_subset_used ho, rfl⟩))
 
 omit [DecidableEq V] in
 /-- Original occurrences of converted arcs are exactly the used ports. -/
@@ -171,8 +168,7 @@ theorem scan_outputs_mono (rs : List V) (es : Log F) (input : Occurrence F)
   | cons b bs ih =>
     simp only [scan] at h
     split at h
-    · intro o ho
-      exact ih _ h (List.mem_append_left _ ho)
+    · exact fun _ ho => ih _ h (List.mem_append_left _ ho)
     · split at h
       · exact ih _ h
       · cases h
@@ -191,19 +187,15 @@ theorem scan_saturated (hF : EdgeInstance F) (rs : List V) (es : Log F)
     simp only [scan] at h
     have htail : ∀ c ∈ bs, c.1 = input.1 := fun c hc => hbs c (List.mem_cons_of_mem b hc)
     split at h
-    next hn =>
-      have hm := scan_outputs_mono rs es input bs (os ++ [b]) h
-      intro c hc
+    · intro c hc
       rcases List.mem_cons.mp hc with rfl | hc
-      · exact List.mem_append_left _ (hm (by simp))
+      · exact List.mem_append_left _ (scan_outputs_mono rs es input bs (os ++ [c]) h (by simp))
       · exact ih _ htail h c hc
-    next hv =>
-      split at h
+    · split at h
       next hp =>
-        have hb : b ∈ os ++ es.outgoing := by
-          change b ∈ Log.outgoing ((⟨input, os⟩ : Expansion F) :: es)
-          apply Log.SameParent.mem_outgoing hF
-          simpa only [hbs b List.mem_cons_self] using hp
+        have hb : b ∈ os ++ es.outgoing :=
+          Log.SameParent.mem_outgoing (es := (⟨input, os⟩ : Expansion F) :: es) hF
+            (by simpa only [hbs b List.mem_cons_self] using hp)
         intro c hc
         rcases List.mem_cons.mp hc with rfl | hc
         · rcases List.mem_append.mp hb with hb | hb

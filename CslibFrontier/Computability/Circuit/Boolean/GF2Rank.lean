@@ -116,47 +116,37 @@ private theorem pivFn_eq_true_iff (x : BitString n) (i : Fin r) :
   rw [pivotRow_eq_some_iff]
   simp only [pivFn, Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, mem_filter,
     mem_univ, true_and, not_exists, candFn_eq_true_iff]
-  constructor
-  · rintro ⟨⟨hfree, hne⟩, hmin⟩
-    exact ⟨hfree, hne, fun i' hi' hfree' => by_contra fun h => hmin i' ⟨hi', hfree', h⟩⟩
-  · rintro ⟨hfree, hne, hmin⟩
-    exact ⟨⟨hfree, hne⟩, fun i' ⟨hi', hfree', h⟩ => h (hmin i' hi' hfree')⟩
+  exact ⟨fun ⟨⟨hfree, hne⟩, hmin⟩ =>
+    ⟨hfree, hne, fun i' hi' hfree' => by_contra fun h => hmin i' ⟨hi', hfree', h⟩⟩,
+    fun ⟨hfree, hne, hmin⟩ => ⟨⟨hfree, hne⟩, fun i' ⟨hi', hfree', h⟩ => h (hmin i' hi' hfree')⟩⟩
 
 private theorem pivEntryFn_eq (x : BitString n) (l : Fin c) :
     pivEntryFn A k l x = (pivotRow (A x) k).elim false fun p => bitEquiv (A x p l) := by
   unfold pivEntryFn
+  have hfalse {i : Fin r} (hne : pivotRow (A x) k ≠ some i) : pivFn A k i x = false :=
+    Bool.eq_false_iff.mpr ((pivFn_eq_true_iff A k x i).not.mpr hne)
   rcases h : pivotRow (A x) k with _ | p
-  · refine sum_eq_zero fun i _ => ?_
-    have : pivFn A k i x = false := by
-      rw [← Bool.not_eq_true, pivFn_eq_true_iff, h]
-      simp
-    simp [this, Bool.zero_eq_false]
+  · exact sum_eq_zero fun i _ => by simp [hfalse (by simp [h]), Bool.zero_eq_false]
   · rw [sum_eq_single p]
     · simp [(pivFn_eq_true_iff A k x p).mpr h]
     · intro i _ hip
-      have : pivFn A k i x = false := by
-        rw [← Bool.not_eq_true, pivFn_eq_true_iff, h]
-        simpa using Ne.symm hip
-      simp [this, Bool.zero_eq_false]
+      have hi : pivFn A k i x = false := hfalse (by simpa [h] using Ne.symm hip)
+      simp [hi, Bool.zero_eq_false]
     · simp
 
 private theorem newFn_eq (p : Fin r × Fin c) :
     newFn A k p = fun x => bitEquiv (stage (A x) k p.1 p.2) := by
   funext x
-  rw [stage_apply_zmod_two, map_add, map_sum]
-  unfold newFn
-  rw [pivEntryFn_eq, Bool.add_eq_xor]
+  rw [stage_apply_zmod_two, map_add, map_sum, newFn, pivEntryFn_eq, Bool.add_eq_xor]
   congr 1
   rcases h : pivotRow (A x) k with _ | q
   · rw [sum_eq_zero fun i _ => by simp]
     simp [Bool.zero_eq_false]
   · rw [sum_eq_single q (fun q' _ hq' => by simp [Ne.symm hq']) (by simp)]
-    by_cases hq : q = p.1
-    · subst hq
-      simp [(pivFn_eq_true_iff A k x _).mpr h, Bool.zero_eq_false]
-    · have : pivFn A k p.1 x = false := by
-        rw [← Bool.not_eq_true, pivFn_eq_true_iff, h]
-        simpa using hq
+    rcases eq_or_ne q p.1 with rfl | hq
+    · simp [(pivFn_eq_true_iff A k x _).mpr h, Bool.zero_eq_false]
+    · have : pivFn A k p.1 x = false :=
+        Bool.eq_false_iff.mpr ((pivFn_eq_true_iff A k x p.1).not.mpr (by simpa [h] using hq))
       simp [this, hq, map_mul, Bool.mul_eq_and]
 
 /-- **One Gauss–Jordan stage over `ZMod 2`**: the bits of `stage (A x) k` cost at most
@@ -174,9 +164,9 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
     refine (Synthesis.congr_iff ((Synthesis.exists_mem (univ.filter fun l : Fin c => l.1 < k.1) _
       (fun _ => 0) fun l _ => hentry i l).not.and (hentry i k)) fun x => by
         simp [candFn]).mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [sum_const, smul_eq_mul, zero_add, mul_one]
     have : (univ.filter fun l : Fin c => l.1 < k.1).card ≤ c :=
       (card_filter_le _ _).trans (by simp)
+    simp only [sum_const, smul_eq_mul, zero_add, mul_one]
     omega
   -- pivots
   have h₂ : Synthesis interpretation (s ∪ Set.range (candFn A k)) (Set.range (pivFn A k))
@@ -188,23 +178,19 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
     refine (Synthesis.congr_iff ((hcand i).and (Synthesis.exists_mem
       (univ.filter fun i' : Fin r => i' < i) _ (fun _ => 0) fun i' _ => hcand i').not) fun x => by
         simp [pivFn]).mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [sum_const, smul_eq_mul, zero_add, mul_one]
     have : (univ.filter fun i' : Fin r => i' < i).card ≤ r :=
       (card_filter_le _ _).trans (by simp)
+    simp only [sum_const, smul_eq_mul, zero_add, mul_one]
     omega
   -- pivot-row entries
   have h₃ : Synthesis interpretation (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k)))
       (Set.range (pivEntryFn A k)) (c * (5 * r + 1)) := by
     refine (Synthesis.family (pivEntryFn A k) (fun _ => 5 * r + 1) fun l => ?_).mono
       Set.Subset.rfl Set.Subset.rfl (by simp)
-    have hpiv (i : Fin r) : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k))) {pivFn A k i} 0 :=
-      Synthesis.of_mem (Or.inr (Or.inr ⟨i, rfl⟩))
-    have hent (i : Fin r) : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k))) {fun x => bitEquiv (A x i l)} 0 :=
-      Synthesis.of_mem (Or.inl (hA (entry_mem_entryBits A i l)))
     refine (Synthesis.sum univ (fun i x => pivFn A k i x && bitEquiv (A x i l)) (fun _ => 1)
-      fun i _ => (hpiv i).and (hent i)).mono Set.Subset.rfl Set.Subset.rfl ?_
+      fun i _ => (Synthesis.of_mem (Or.inr (Or.inr ⟨i, rfl⟩))).and
+        (Synthesis.of_mem (Or.inl (hA (entry_mem_entryBits A i l))))).mono
+      Set.Subset.rfl Set.Subset.rfl ?_
     simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     omega
   -- new entries
@@ -217,20 +203,14 @@ theorem synthesis_entryBits_stage {s : Set (BooleanFunction n)} (hA : entryBits 
         (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
         {fun x => bitEquiv (A x i l)} 0 :=
       Synthesis.of_mem (Or.inl (hA (entry_mem_entryBits A i l)))
-    have hpiv : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
-        {pivFn A k p.1} 0 := Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨p.1, rfl⟩)))
-    have hpe : Synthesis interpretation
-        (s ∪ (Set.range (candFn A k) ∪ Set.range (pivFn A k) ∪ Set.range (pivEntryFn A k)))
-        {pivEntryFn A k p.2} 0 := Synthesis.of_mem (Or.inr (Or.inr ⟨p.2, rfl⟩))
-    exact ((hent p.1 p.2).xor ((hent p.1 k).and (hpiv.not.and hpe))).mono Set.Subset.rfl
+    exact ((hent p.1 p.2).xor ((hent p.1 k).and
+      ((Synthesis.of_mem (Or.inr (Or.inl (Or.inr ⟨p.1, rfl⟩)))).not.and
+        (Synthesis.of_mem (Or.inr (Or.inr ⟨p.2, rfl⟩)))))).mono Set.Subset.rfl
       Set.Subset.rfl (by omega)
   have h := ((h₁.comp h₂).comp h₃).trans h₄
-  have hset : Set.range (newFn A k) = entryBits fun x => stage (A x) k :=
-    congrArg Set.range (funext (newFn_eq A k))
-  rw [hset] at h
-  refine h.mono Set.Subset.rfl Set.Subset.rfl ?_
-  nlinarith [Nat.zero_le (r * c), Nat.zero_le (r * r)]
+  rw [congrArg Set.range (funext (newFn_eq A k))] at h
+  exact h.mono Set.Subset.rfl Set.Subset.rfl
+    (by nlinarith [Nat.zero_le (r * c), Nat.zero_le (r * r)])
 
 end Stage
 
@@ -247,16 +227,10 @@ theorem synthesis_entryBits_reduceUpTo (A : BitString n → Matrix (Fin r) (Fin 
     by_cases hk : k < c
     · have hstage := synthesis_entryBits_stage (fun x => reduceUpTo (A x) k) ⟨k, hk⟩
         (s := s ∪ entryBits fun x => reduceUpTo (A x) k) Set.subset_union_right
-      have hset : (entryBits fun x => stage (reduceUpTo (A x) k) ⟨k, hk⟩) =
-          entryBits fun x => reduceUpTo (A x) (k + 1) := by
-        simp only [reduceUpTo_succ_of_lt _ hk]
-      rw [hset] at hstage
+      rw [congrArg entryBits (funext fun x => reduceUpTo_succ_of_lt (A x) hk)]
       exact (ih.trans hstage).mono Set.Subset.rfl Set.Subset.rfl
         (le_of_eq (Nat.add_one_mul k _).symm)
-    · have hset : (entryBits fun x => reduceUpTo (A x) (k + 1)) =
-          entryBits fun x => reduceUpTo (A x) k := by
-        simp only [reduceUpTo_succ_of_le _ (Nat.le_of_not_lt hk)]
-      rw [hset]
+    · rw [congrArg entryBits (funext fun x => reduceUpTo_succ_of_le (A x) (Nat.le_of_not_lt hk))]
       exact ih.mono Set.Subset.rfl Set.Subset.rfl (Nat.mul_le_mul_right _ (Nat.le_succ k))
 
 /-- **Gauss–Jordan elimination over `ZMod 2`**: the bits of `reduce (A x)` cost at most
@@ -286,28 +260,23 @@ theorem synthesis_le_rank (A : BitString n → Matrix (Fin r) (Fin c) (ZMod 2))
     refine (Synthesis.biUnion _ _ (fun _ => c + 1 + 1) fun i hi => ?_).mono Set.Subset.rfl
       Set.Subset.rfl (by simp)
     have hi : i < r := mem_range.mp hi
-    have h := Synthesis.exists_mem (s := s ∪ entryBits fun x => reduce (A x)) univ
-      (fun l x => bitEquiv (reduce (A x) ⟨i, hi⟩ l)) (fun _ => 0)
-      fun l _ => Synthesis.of_mem (Or.inr (entry_mem_entryBits _ _ l))
-    refine (Synthesis.congr_iff h fun x => by simp [rowFn, hi]).mono Set.Subset.rfl
-      Set.Subset.rfl ?_
-    simp
-  have hcount := synthesis_atLeast rowFn (k := r) (j := t)
+    exact (Synthesis.congr_iff (Synthesis.exists_mem (s := s ∪ entryBits fun x => reduce (A x))
+      univ (fun l x => bitEquiv (reduce (A x) ⟨i, hi⟩ l)) (fun _ => 0)
+      fun l _ => Synthesis.of_mem (Or.inr (entry_mem_entryBits _ _ l))) fun x => by
+        simp [rowFn, hi]).mono Set.Subset.rfl Set.Subset.rfl (by simp)
+  have h := (hred.comp hrow).trans <| synthesis_atLeast rowFn (k := r) (j := t)
     (s := s ∪ (entryBits (fun x => reduce (A x)) ∪ ⋃ i ∈ range r, {rowFn i}))
     (fun i hi => Or.inr (Or.inr (Set.mem_biUnion (mem_range.mpr hi) rfl))) ht
-  have h := (hred.comp hrow).trans hcount
   have key (x : BitString n) : atLeast rowFn r t x = true ↔ decide (t ≤ (A x).rank) = true := by
     rw [rank_eq_card_reduce_ne_zero]
     simp only [atLeast, decide_eq_true_eq]
-    suffices hcard : ((range r).filter fun i => rowFn i x = true).card =
-        (univ.filter fun i : Fin r => (reduce (A x)).row i ≠ 0).card by
-      rw [hcard]
-    rw [card_filter, card_filter, ← Fin.sum_univ_eq_sum_range]
-    refine sum_congr rfl fun i _ => ?_
-    have hiff : rowFn i x = true ↔ (reduce (A x)).row i ≠ 0 := by
-      simp only [rowFn, i.2, dite_true, decide_eq_true_eq, mem_univ, true_and,
-        bitEquiv_eq_true_iff, Ne, funext_iff, not_forall, Fin.eta, row_apply', Pi.zero_apply]
-    simp only [hiff]
+    have hcard : ((range r).filter fun i => rowFn i x = true).card =
+        (univ.filter fun i : Fin r => (reduce (A x)).row i ≠ 0).card := by
+      rw [card_filter, card_filter, ← Fin.sum_univ_eq_sum_range]
+      exact sum_congr rfl fun i _ => by
+        simp only [rowFn, i.2, dite_true, decide_eq_true_eq, mem_univ, true_and,
+          bitEquiv_eq_true_iff, Ne, funext_iff, not_forall, Fin.eta, row_apply', Pi.zero_apply]
+    rw [hcard]
   refine (Synthesis.congr_iff h key).mono Set.Subset.rfl Set.Subset.rfl ?_
   nlinarith [Nat.zero_le (r * c), Nat.zero_le (r * r), Nat.zero_le (c * c),
     Nat.zero_le (c * r * r), Nat.zero_le (c * c * r)]

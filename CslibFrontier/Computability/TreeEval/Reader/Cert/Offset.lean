@@ -119,7 +119,8 @@ theorem tableLength_inSpace :
     have : (fun x => (encNat x).length) ≼ fun x => 64 * ((encNat x).length + 1) :=
       .of_le fun _ => by omega
     space
-  have h := iterate (n := fun ℓ : ℕ => ℓ) hid (budget_const (encB := encNat) 1 hl) hstep
+  have h := iterate (n := fun ℓ : ℕ => ℓ) hid
+    (budget_const (Bs := fun ℓ => (encNat ℓ).length) (encB := encNat) 1) hstep
     (Q := fun ℓ => 64 * (2 * ℓ + 2)) (B := fun ℓ => 2 * ℓ + 1)
     (fun ℓ k hk => by rw [iterate_mul_four]; have := length_encNat_pow_four k; omega)
     (fun ℓ k hk => by rw [iterate_mul_four]; have := length_encNat_pow_four k; omega)
@@ -238,7 +239,8 @@ theorem dirs_inSpace :
     exact (Nat.mul_le_mul_left 3 (List.length_take_le' i st)).trans (three_mul_length_le st)
   have h := foldl (encL := encList encFrame) (list := fun st : List Frame => st)
     (init := fun _ => ([] : List Bool)) (step := fun acc fr => fr.dir :: acc)
-    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl)) (budget_const [] (.refl _)) hstep
+    (of_inO (ComputableInO.of_eq (f := id) fun _ => rfl))
+    (budget_const (Bs := fun st => (encList encFrame st).length) []) hstep
     (Q := fun st => 2 * (3 * (encList encFrame st).length + 2))
     (B := fun st => (encList encFrame st).length)
     (fun st i hi => by

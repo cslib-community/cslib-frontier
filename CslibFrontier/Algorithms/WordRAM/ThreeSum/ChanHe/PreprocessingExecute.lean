@@ -84,41 +84,17 @@ theorem afterFrontend_exec {κ w : ℕ} (input : List ℤ) (rs : List (ℕ × �
   have bcontrol : a.Controls b := by simpa only [rm] using bcontrols
   have bh : b.regs Traversal.heap = a.floor := by simpa only [rm] using bheap
   have bfront : Frontend.Output l U rs b.mem := by
-    rw [bmem]
-    apply hfront.frame hcard
-    intro v hv
-    exact (qprefix v hv).trans (congrFun pm v)
+    rw [bmem]; exact hfront.frame hcard fun v hv => (qprefix v hv).trans (congrFun pm v)
   have bbounded := hb.bounded (hr.bounded (hq.bounded (hp.bounded hx)))
-  have hi : (ForestCursor.mk 0 []).Invariant a w l U rs b := by
-    constructor
-    · exact bbounded
-    · exact bcontrol
-    · exact bfront
-    · exact bs.base
-    · exact bs.count
-    · exact bs.index
-    · exact bs.fuel
-    · exact bs.stride
-    · exact bs.one
-    · exact Nat.zero_le _
-    · intro v hv
-      rw [bmem]
-      exact qbitmap v hv
-    · exact bh.ge
-    · rw [bh]
-      exact le_rfl
-    · exact bcount
-    · simp only [List.length_nil, Nat.sub_zero, Nat.zero_add]
-      exact Nat.mul_le_mul_left l.count (work_le_power F)
-    · exact Traversal.storedNodes_nil _ _ _ _
-    · intro i
-      exact Fin.elim0 i
-    · simp only [List.map_nil, List.drop_zero, List.nil_append]
-    · intro v _
-      exact congrFun bmem v
-  have hready : a.Ready w := by
-    have hh := arena_ready hw q.mem
-    simpa only [Nat.add_sub_cancel] using hh
+  have hi : (ForestCursor.mk 0 []).Invariant a w l U rs b :=
+    ⟨bbounded, bcontrol, bfront, bs.base, bs.count, bs.index, bs.fuel, bs.stride, bs.one,
+      Nat.zero_le _, fun v hv => by rw [bmem]; exact qbitmap v hv, bh.ge,
+      by rw [bh]; exact le_rfl, bcount,
+      by simp only [List.length_nil, Nat.sub_zero, Nat.zero_add]
+         exact Nat.mul_le_mul_left l.count (work_le_power F),
+      Traversal.storedNodes_nil _ _ _ _, fun i => Fin.elim0 i,
+      by simp only [List.map_nil, List.drop_zero, List.nil_append], fun v _ => congrFun bmem v⟩
+  have hready : a.Ready w := by simpa only [Nat.add_sub_cancel] using arena_ready hw q.mem
   obtain ⟨s, y, he, hy, _, hout⟩ := forest_exec (arena_separated κ n q.mem) hready hi
     rfl rfl rfl (arena_frontend_before κ n q.mem) hkeys hnd hcard hvalues
   refine ⟨s.nodes, y, ?_, hout, hy.output, hy.count, hy.controls.2.2.2.2.2.2.1, ?_, ?_⟩

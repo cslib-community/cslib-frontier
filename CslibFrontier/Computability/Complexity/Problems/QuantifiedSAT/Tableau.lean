@@ -52,16 +52,23 @@ private theorem lengths_certBlocks (w n i o : ℕ) :
   | succ i ih => simp only [certBlocks, List.map_cons, List.length_map, List.length_range,
       ih, List.replicate_succ]
 
+@[simp] private theorem length_certBlocks (w n i o : ℕ) : (certBlocks w n i o).length = i := by
+  simpa using congrArg List.length (lengths_certBlocks w n i o)
+
+private theorem certBlocks_ne_nil {w n i o : ℕ} (hi : 1 ≤ i) : certBlocks w n i o ≠ [] :=
+  ne_of_apply_ne List.length (by
+    simp only [length_certBlocks, List.length_nil]
+    omega)
+
 /-- Consecutive certificate blocks enumerate exactly the source and target variables of the
 existing tableau formula when their total length is `2 * w`. -/
 theorem flatten_certBlocks_eq (w n i : ℕ) (h : i * n = 2 * w) :
     (certBlocks w n i 0).flatten = blockVars w 0 0 ++ blockVars w 1 0 := by
-  rw [flatten_certBlocks, h]
-  simp only [Nat.zero_add]
-  rw [show 2 * w = w + w by omega, List.range_add, List.map_append, List.map_map]
+  rw [flatten_certBlocks, h, show 2 * w = w + w by omega, List.range_add, List.map_append,
+    List.map_map]
   congr 1
   · exact List.map_congr_left fun j hj => by simp [certVar, List.mem_range.mp hj]
-  · exact List.map_congr_left fun j hj => by simp [certVar]
+  · exact List.map_congr_left fun j _ => by simp [certVar]
 
 /-- Quantifying the certificate blocks ranges over all certificate words, for any matrix
 whose value depends on the source and target variables through the indicated predicate. -/
@@ -73,15 +80,10 @@ theorem eval_certBlocks {φ : QBF ℕ} {P : List Bool → Prop}
   rw [QBF.eval_blocks_eq_true_iff, lengths_certBlocks]
   refine alternation_congr_of_length fun z hz => ?_
   rw [List.sum_replicate, smul_eq_mul, h] at hz
-  rw [hφ]
-  have hread :
-      block (QBF.updates σ (certBlocks w n i 0).flatten z) w 0 0 ++
-        block (QBF.updates σ (certBlocks w n i 0).flatten z) w 1 0 = z := by
-    rw [block, block, ← List.map_append, ← flatten_certBlocks_eq w n i h]
-    exact QBF.map_updates (flatten_certBlocks_eq w n i h ▸ nodup_blockVars_append w 0)
-      (by simpa only [flatten_certBlocks_eq w n i h, List.length_append, blockVars,
-        List.length_map, List.length_range, ← two_mul] using hz)
-  rw [hread]
+  have hf := flatten_certBlocks_eq w n i h
+  rw [hφ, block, block, ← List.map_append, ← hf, QBF.map_updates (hf ▸ nodup_blockVars_append w 0)
+    (by simpa only [hf, List.length_append, blockVars, List.length_map, List.length_range,
+      ← two_mul] using hz)]
 
 /-- Grouped certificate variables can be written in polynomial time from unary widths. -/
 theorem certBlocks_polyTime {α : Type} {enc : α ↪ List Bool} {w n o : α → ℕ}
@@ -100,18 +102,13 @@ private theorem matrix_quantifierFree {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w : ℕ) : (baseMatrix tab w).QuantifierFree := by
   rw [baseMatrix, QBF.quantifierFree_and]
   refine ⟨?_, QBF.quantifierFree_ofCNF _⟩
-  unfold certLinks
-  have hc (fs : List (QBF ℕ)) (h : ∀ φ ∈ fs, φ.QuantifierFree) :
-      (QBF.conj fs).QuantifierFree := by
-    induction fs with
-    | nil => exact QBF.quantifierFree_top
-    | cons φ fs ih =>
-      rw [QBF.conj, List.foldr_cons, QBF.quantifierFree_and]
-      exact ⟨h _ List.mem_cons_self, ih (fun ψ hψ => h ψ (.tail _ hψ))⟩
-  apply hc
-  simp only [List.forall_mem_map]
-  intro j _
-  simp [QBF.iff]
+  suffices ∀ fs : List (QBF ℕ), (∀ φ ∈ fs, φ.QuantifierFree) → (QBF.conj fs).QuantifierFree from
+    this _ (List.forall_mem_map.mpr fun _ _ => by simp [QBF.iff])
+  intro fs h
+  induction fs with
+  | nil => exact QBF.quantifierFree_top
+  | cons φ fs ih =>
+    exact QBF.quantifierFree_and.mpr ⟨h _ List.mem_cons_self, ih fun _ hψ => h _ (.tail _ hψ)⟩
 
 /-- Merge the auxiliary tableau variables into the final certificate block. `r` is the
 polarity of that final block; a universal block uses the negated tableau matrix. -/
@@ -124,28 +121,14 @@ noncomputable def instanceOfTableau {k : ℕ} {State : Type} [Fintype State]
 theorem instanceOfTableau_wellFormed {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (hi : 1 ≤ i)
     (h : i * n = 2 * w) (r : Bool) : (instanceOfTableau tab w n i r).WellFormed i := by
-  have hlen : (certBlocks w n i 0).length = i := by
-    have := congrArg List.length (lengths_certBlocks w n i 0)
-    simpa only [List.length_map, List.length_replicate] using this
-  have hne : certBlocks w n i 0 ≠ [] := by
-    intro heq
-    simp only [heq, List.length_nil] at hlen
-    omega
-  refine ⟨(QBF.length_appendLast hne _).trans hlen, ?_, ?_⟩
-  · cases r
-    · exact QBF.quantifierFree_not.mpr (matrix_quantifierFree tab w)
-    · exact matrix_quantifierFree tab w
-  · intro x hx
-    have hx' : x ∈ (baseMatrix tab w).freeVars := by cases r <;> exact hx
-    change x ∈ (QBF.appendLast (certBlocks w n i 0) (baseVars tab w)).flatten.toFinset
-    rw [List.mem_toFinset, QBF.flatten_appendLast, List.mem_append]
-    by_cases hb : x ∈ baseVars tab w
-    · exact .inr hb
-    · have hbase : x ∈ (baseFormula tab w).freeVars := by
-        rw [baseFormula, QBF.freeVars_exs, Finset.mem_sdiff, List.mem_toFinset]
-        exact ⟨hx', hb⟩
-      rw [flatten_certBlocks_eq w n i h, List.mem_append]
-      exact .inl (mem_freeVars_baseFormula tab w x hbase)
+  refine ⟨(QBF.length_appendLast (certBlocks_ne_nil hi) _).trans (length_certBlocks ..),
+    Bool.rec (QBF.quantifierFree_not.mpr (matrix_quantifierFree tab w))
+      (matrix_quantifierFree tab w) r, fun x hx => ?_⟩
+  have hx' : x ∈ (baseMatrix tab w).freeVars := by cases r <;> exact hx
+  simp only [instanceOfTableau, List.mem_toFinset, QBF.flatten_appendLast,
+    flatten_certBlocks_eq w n i h, List.mem_append]
+  exact or_iff_not_imp_right.mpr fun hb =>
+    mem_freeVars_baseFormula tab w x (by simp [baseFormula, QBF.freeVars_exs, hx', hb])
 
 private theorem eval_blocks_congr {φ ψ : QBF ℕ} (h : ∀ σ, φ.eval σ = ψ.eval σ)
     (q : Bool) (bs : List (List ℕ)) (σ : ℕ → Bool) :
@@ -157,33 +140,22 @@ private theorem eval_blocks_congr {φ ψ : QBF ℕ} (h : ∀ σ, φ.eval σ = ψ
 theorem instanceOfTableau_nonempty {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (hi : 1 ≤ i) (hn : 1 ≤ n) (r : Bool) :
     ∀ b ∈ (instanceOfTableau tab w n i r).blocks, b ≠ [] := by
-  have hbase : ∀ b ∈ certBlocks w n i 0, b ≠ [] := by
-    intro b hb heq
-    have hmem := List.mem_map_of_mem (f := List.length) hb
-    rw [lengths_certBlocks] at hmem
-    have := List.eq_of_mem_replicate hmem
+  have hbase : ∀ b ∈ certBlocks w n i 0, b ≠ [] := fun b hb heq => by
+    have := List.eq_of_mem_replicate (lengths_certBlocks w n i 0 ▸ List.mem_map_of_mem hb)
     simp only [heq, List.length_nil] at this
     omega
-  have hne : certBlocks w n i 0 ≠ [] := by
-    intro h
-    have := lengths_certBlocks w n i 0
-    simp [h] at this
-    omega
-  suffices ∀ (bs : List (List ℕ)), bs ≠ [] → (∀ b ∈ bs, b ≠ []) →
-      ∀ b ∈ QBF.appendLast bs (baseVars tab w), b ≠ [] from this _ hne hbase
-  intro bs
+  suffices ∀ bs : List (List ℕ), bs ≠ [] → (∀ b ∈ bs, b ≠ []) →
+      ∀ b ∈ QBF.appendLast bs (baseVars tab w), b ≠ [] from
+    this _ (certBlocks_ne_nil hi) hbase
+  intro bs hbs hall
   induction bs with
-  | nil => simp
+  | nil => contradiction
   | cons b bs ih =>
-    intro _ hall
     cases bs with
-    | nil =>
-      have hb : b ++ baseVars tab w ≠ [] := fun heq =>
-        hall b (by simp) (List.append_eq_nil_iff.mp heq).1
-      simpa only [QBF.appendLast, List.mem_singleton, forall_eq] using hb
+    | nil => simpa [QBF.appendLast] using fun hb _ => hall b List.mem_cons_self hb
     | cons c bs =>
-      simp only [QBF.appendLast, List.mem_cons, forall_eq_or_imp]
-      exact ⟨hall b (by simp), ih (by simp) (fun d hd => hall d (.tail _ hd))⟩
+      simpa [QBF.appendLast] using
+        ⟨hall b List.mem_cons_self, ih (by simp) fun _ hd => hall _ (.tail _ hd)⟩
 
 /-- The merged formula has the value of the original certificate prefix followed by the
 existential tableau, or its negation when the final block is universal. -/
@@ -193,20 +165,11 @@ theorem eval_instanceOfTableau {k : ℕ} {State : Type} [Fintype State]
     ((instanceOfTableau tab w n i r).formula q).eval σ =
       (QBF.blocks q (certBlocks w n i 0)
         (if r then baseFormula tab w else (baseFormula tab w).not)).eval σ := by
-  have hlen : (certBlocks w n i 0).length = i := by
-    have := congrArg List.length (lengths_certBlocks w n i 0)
-    simpa only [List.length_map, List.length_replicate] using this
-  have hne : certBlocks w n i 0 ≠ [] := by
-    intro heq
-    simp only [heq, List.length_nil] at hlen
-    omega
   rw [PrenexQBF.formula, instanceOfTableau,
-    QBF.blocks_appendLast q r hne (hlen.symm ▸ hr)]
-  apply eval_blocks_congr
-  intro τ
+    QBF.blocks_appendLast q r (certBlocks_ne_nil hi) (by rwa [length_certBlocks])]
+  refine eval_blocks_congr (fun τ => ?_) q _ σ
   cases r
-  · have hd := QBF.eval_blocks_dual true [baseVars tab w] (baseMatrix tab w) τ
-    exact hd
+  · exact QBF.eval_blocks_dual true [baseVars tab w] (baseMatrix tab w) τ
   · rfl
 
 /-- The merged tableau instance is polynomial-time in the tableau and its unary parameters,
@@ -220,16 +183,15 @@ theorem instanceOfTableau_polyTime {α : Type} {enc : α ↪ List Bool} {k : ℕ
     ComputableInPolyTime (fun a => instanceOfTableau (tab a) (w a) (n a) i r)
       enc encPrenexQBF := by
   have hbs := certBlocks_polyTime i hw hn (const 0)
-  have ht := computableInPolyTime_tabVar (k := k) (State := State)
   have hc := CookLevin.computableInPolyTime_cert (k := k) (State := State)
   have hv := CNF.computableInPolyTime_vars (CookLevin.encVar (k := k) (State := State))
-  have hrel := CNF.computableInPolyTime_relabel ht
+  have hrel := CNF.computableInPolyTime_relabel
+    (computableInPolyTime_tabVar (k := k) (State := State))
   have haux : ComputableInPolyTime (fun a => baseVars (tab a) (w a)) enc (encList encNat) := by
     unfold baseVars
     fun_prop
   have hm := computableInPolyTime_baseMatrix htab hw
-  unfold instanceOfTableau
-  simp only [QBF.appendLast_eq_reverse]
-  cases r <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> fun_prop
+  cases r <;> simp only [instanceOfTableau, QBF.appendLast_eq_reverse, Bool.false_eq_true,
+    ite_false, ite_true] <;> fun_prop
 
 end Cslib.Complexity.QuantifiedSAT

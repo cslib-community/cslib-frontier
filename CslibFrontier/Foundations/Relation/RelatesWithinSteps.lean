@@ -76,24 +76,20 @@ theorem RelatesWithinSteps.reflTransGen (h : RelatesWithinSteps r a b n) :
 a walk of bounded length is guessed and checked one step at a time. -/
 theorem relatesWithinSteps_iff_relatesInSteps_reflGen :
     RelatesWithinSteps r a b n ↔ RelatesInSteps (ReflGen r) a b n := by
-  constructor
-  · rintro ⟨m, hm, h⟩
-    have h' := (h.map id fun _ _ => ReflGen.single).trans (relatesInSteps_self b (n - m))
-    rwa [Nat.add_sub_cancel' hm] at h'
-  · intro h
-    induction h with
-    | refl => exact .refl _
-    | tail _ _ n _ hstep ih =>
-      cases hstep with
-      | refl => exact ih.mono n.le_succ
-      | single hstep => exact ih.trans (.single hstep)
+  refine ⟨fun ⟨m, hm, h⟩ => Nat.add_sub_cancel' hm ▸
+    (h.map id fun _ _ => ReflGen.single).trans (relatesInSteps_self b (n - m)), fun h => ?_⟩
+  induction h with
+  | refl => exact .refl _
+  | tail _ _ n _ hstep ih =>
+    cases hstep with
+    | refl => exact ih.mono n.le_succ
+    | single hstep => exact ih.trans (.single hstep)
 
 /-- **One more step of breadth-first search.** An element is reached within `n + 1` steps exactly
 when it is reached in at most one step from an element reached within `n` steps. -/
 theorem RelatesWithinSteps.succ_iff :
     RelatesWithinSteps r a c (n + 1) ↔ ∃ b, RelatesWithinSteps r a b n ∧ ReflGen r b c := by
-  simp only [relatesWithinSteps_iff_relatesInSteps_reflGen]
-  exact RelatesInSteps.succ_iff
+  simp only [relatesWithinSteps_iff_relatesInSteps_reflGen, RelatesInSteps.succ_iff]
 
 /-- A walk of at most one step is a step of the reflexive closure. -/
 @[simp]
@@ -122,9 +118,7 @@ theorem RelatesInSteps.add_mul_of_cycle {i : ℕ} (h : RelatesInSteps r a b i)
     (hcycle : RelatesInSteps r b b m) (rounds : ℕ) : RelatesInSteps r a b (i + rounds * m) := by
   induction rounds with
   | zero => simpa using h
-  | succ rounds ih =>
-    have := ih.trans hcycle
-    rwa [Nat.add_assoc, ← Nat.succ_mul] at this
+  | succ rounds ih => simpa only [Nat.add_assoc, ← Nat.succ_mul] using ih.trans hcycle
 
 /-- **The midpoint recursion.** A walk of at most `m + n` steps is exactly a walk of at most `m`
 steps to some midpoint followed by a walk of at most `n` steps from it. The midpoint is all a
@@ -132,8 +126,7 @@ recursive search has to remember. -/
 theorem RelatesWithinSteps.add_iff :
     RelatesWithinSteps r a c (m + n) ↔
       ∃ b, RelatesWithinSteps r a b m ∧ RelatesWithinSteps r b c n := by
-  simp only [relatesWithinSteps_iff_relatesInSteps_reflGen]
-  exact RelatesInSteps.add_iff
+  simp only [relatesWithinSteps_iff_relatesInSteps_reflGen, RelatesInSteps.add_iff]
 
 /-- The halving form of the midpoint recursion: a bound of `2 n` splits into two independent
 bounds of `n`. -/
@@ -158,15 +151,11 @@ of at most `n + 1` steps from `a` to some `c ≠ a` is a step to `b` followed by
 `n` steps from `b`. -/
 theorem RelatesWithinSteps.succ_iff_of_unique (hab : r a b) (huniq : ∀ b', r a b' → b' = b)
     (hac : a ≠ c) : RelatesWithinSteps r a c (n + 1) ↔ RelatesWithinSteps r b c n := by
-  constructor
-  · rintro ⟨m, hm, h⟩
-    cases m with
-    | zero => exact absurd h.zero hac
-    | succ m =>
-      obtain ⟨t, ht, h'⟩ := RelatesInSteps.succ'_iff.mp h
-      exact ⟨m, by omega, huniq t ht ▸ h'⟩
-  · rintro ⟨m, hm, h⟩
-    exact ⟨m + 1, by omega, h.head a b c m hab⟩
+  refine ⟨?_, fun ⟨m, hm, h⟩ => ⟨m + 1, by omega, h.head a b c m hab⟩⟩
+  rintro ⟨_ | m, hm, h⟩
+  · exact absurd h.zero hac
+  · obtain ⟨t, ht, h'⟩ := RelatesInSteps.succ'_iff.mp h
+    exact ⟨m, by omega, huniq t ht ▸ h'⟩
 
 /-! ### Walks on few elements are short -/
 
@@ -176,10 +165,7 @@ out (upstream `Relation.ReflTransGen.relatesInSteps_lt_encard`). -/
 theorem ReflTransGen.relatesWithinSteps_of_encard_le (h : ReflTransGen r a b)
     (hN : {x | ReflTransGen r a x}.encard ≤ N + 1) : RelatesWithinSteps r a b N := by
   obtain ⟨n, hn, hlt⟩ := h.relatesInSteps_lt_encard
-  have : (n : ℕ∞) < (N + 1 : ℕ) := by
-    push_cast
-    exact hlt.trans_le hN
-  exact ⟨n, Nat.lt_succ_iff.mp (by exact_mod_cast this), hn⟩
+  exact ⟨n, Nat.lt_succ_iff.mp (by exact_mod_cast hlt.trans_le hN), hn⟩
 
 /-- Reachability is reachability within `N` steps once at most `N + 1` elements are
 reachable. -/

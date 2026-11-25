@@ -455,17 +455,11 @@ theorem exists_getElem_of_not_orthogonal {a b : List Bool} (h : ¬OV.Orthogonal 
     ∃ i, ∃ ha : i < a.length, ∃ hb : i < b.length, a[i] = true ∧ b[i] = true := by
   simp only [OV.Orthogonal, not_forall, not_or, Bool.not_eq_false] at h
   obtain ⟨i, ha, hb⟩ := h
-  have hia : i < a.length := by
-    by_contra hc
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (not_lt.mp hc)] at ha
-    exact Bool.false_ne_true ha
-  have hib : i < b.length := by
-    by_contra hc
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (not_lt.mp hc)] at hb
-    exact Bool.false_ne_true hb
-  refine ⟨i, hia, hib, ?_, ?_⟩
-  · rwa [List.getD_eq_getElem _ _ hia] at ha
-  · rwa [List.getD_eq_getElem _ _ hib] at hb
+  have hlt {u : List Bool} (hu : u.getD i false = true) : i < u.length :=
+    lt_of_not_ge fun hc =>
+      Bool.false_ne_true (by rwa [List.getD_eq_getElem?_getD, List.getElem?_eq_none hc] at hu)
+  exact ⟨i, hlt ha, hlt hb, (List.getD_eq_getElem _ _ (hlt ha)).symm.trans ha,
+    (List.getD_eq_getElem _ _ (hlt hb)).symm.trans hb⟩
 
 /-- **Diameter at most three**: through the hubs `0` and `1`. -/
 theorem edist_toDiameter_le_three (u v : {v // v ∈ (toDiameter p).vertices}) :
@@ -519,25 +513,19 @@ theorem two_lt_edist_toDiameter {k j : ℕ} (hk : k < p.1.length) (hj : j < p.2.
       ⟨vecVertex (p.1.length + j), vec_mem_toDiameter₂ hj⟩ := by
   rw [SimpleGraph.two_lt_edist_iff]
   refine ⟨fun he => ?_, fun he => ?_, ?_⟩
-  · have := congrArg Subtype.val he
-    simp only [vecVertex] at this
+  · simp only [Subtype.ext_iff, vecVertex] at he
     omega
   · obtain ⟨-, he⟩ := Graph.toSimpleGraph_adj.mp he
-    have he' : (vecVertex (p.1.length + j), vecVertex k) ∈ (toDiameter p).edges ∨
-        (vecVertex k, vecVertex (p.1.length + j)) ∈ (toDiameter p).edges := he.symm
-    rcases eq_of_mem_edges_toDiameter_vec₁ hk he' with he | ⟨i, -, -, he⟩ <;>
+    change (vecVertex k, vecVertex (p.1.length + j)) ∈ _ ∨
+      (vecVertex (p.1.length + j), vecVertex k) ∈ _ at he
+    rcases eq_of_mem_edges_toDiameter_vec₁ hk he.symm with he | ⟨i, -, -, he⟩ <;>
       simp only [vecVertex, coordVertex] at he <;> omega
   · refine Set.eq_empty_of_forall_notMem fun w hw => ?_
     rw [SimpleGraph.mem_commonNeighbors] at hw
     obtain ⟨-, hu⟩ := Graph.toSimpleGraph_adj.mp hw.1
     obtain ⟨-, hv⟩ := Graph.toSimpleGraph_adj.mp hw.2
-    have hu' : (w.1, vecVertex k) ∈ (toDiameter p).edges ∨
-        (vecVertex k, w.1) ∈ (toDiameter p).edges :=
-      hu.symm
-    have hv' : (w.1, vecVertex (p.1.length + j)) ∈ (toDiameter p).edges ∨
-        (vecVertex (p.1.length + j), w.1) ∈ (toDiameter p).edges := hv.symm
-    rcases eq_of_mem_edges_toDiameter_vec₁ hk hu' with hu | ⟨i, hia, ha, hu⟩ <;>
-      rcases eq_of_mem_edges_toDiameter_vec₂ hj hv' with hv | ⟨i', hib, hb, hv⟩
+    rcases eq_of_mem_edges_toDiameter_vec₁ hk hu.symm with hu | ⟨i, hia, ha, hu⟩ <;>
+      rcases eq_of_mem_edges_toDiameter_vec₂ hj hv.symm with hv | ⟨i', hib, hb, hv⟩
     · omega
     · simp only [coordVertex] at hv
       omega
@@ -557,12 +545,10 @@ theorem one_lt_edist_toDiameter_two_three :
   refine lt_of_not_ge fun h => ?_
   rcases SimpleGraph.edist_le_one_iff_adj_or_eq.mp h with he | he
   · obtain ⟨-, he⟩ := Graph.toSimpleGraph_adj.mp he
-    have he' : ((2 : ℕ), (3 : ℕ)) ∈ (toDiameter p).edges ∨
-        ((3 : ℕ), (2 : ℕ)) ∈ (toDiameter p).edges := he
-    rcases he' with he | he <;> rcases fst_mem_edges_toDiameter he with h | h | ⟨i, h⟩ <;>
+    change ((2 : ℕ), (3 : ℕ)) ∈ _ ∨ ((3 : ℕ), (2 : ℕ)) ∈ _ at he
+    rcases he with he | he <;> rcases fst_mem_edges_toDiameter he with h | h | ⟨i, h⟩ <;>
       first | omega | (simp only [coordVertex] at h; omega)
-  · have := congrArg Subtype.val he
-    simp only at this
+  · simp only [Subtype.ext_iff] at he
     omega
 
 /-- **Correctness of the reduction from orthogonal vectors to diameter**: the gadget has diameter
@@ -836,28 +822,23 @@ theorem computableInO_parseRun {β : Type} {enc : β ↪ List Bool} {f : ℕ →
       43 * (Nat.size x.length + 1) ^ (dN + dE + 1) := by
     have := Nat.le_self_pow (show dN + dE + 1 ≠ 0 by omega) (Nat.size x.length + 1)
     omega
-  have ht (x : List Bool) : cN * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dN +
-      cE * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dE ≤
-      M * (Nat.size x.length + 1) ^ (dN + dE + 1) := by
-    have h₁ := Nat.mul_le_mul_left cN (hpow x dN (by omega))
-    have h₂ := Nat.mul_le_mul_left cE (hpow x dE (by omega))
-    simp only [M, Nat.add_mul, Nat.mul_assoc] at h₁ h₂ ⊢
+  have hlin (a b : ℕ) (hab : a * 89 ^ dN + b * 89 ^ dE ≤ M) (x : List Bool) :
+      a * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dN +
+        b * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dE ≤
+        M * (Nat.size x.length + 1) ^ (dN + dE + 1) := by
+    have h₁ := Nat.mul_le_mul_left a (hpow x dN (by omega))
+    have h₂ := Nat.mul_le_mul_left b (hpow x dE (by omega))
+    have h₃ := Nat.mul_le_mul_right ((Nat.size x.length + 1) ^ (dN + dE + 1)) hab
+    simp only [Nat.add_mul, Nat.mul_assoc] at h₁ h₂ h₃
     omega
-  have hs (x : List Bool) : cN' * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dN +
-      cE' * (2 * (43 + 3 * Nat.size x.length) + 3) ^ dE ≤
-      M * (Nat.size x.length + 1) ^ (dN + dE + 1) := by
-    have h₁ := Nat.mul_le_mul_left cN' (hpow x dN (by omega))
-    have h₂ := Nat.mul_le_mul_left cE' (hpow x dE (by omega))
-    simp only [M, Nat.add_mul, Nat.mul_assoc] at h₁ h₂ ⊢
-    omega
+  have ht := hlin cN cE (by simp only [M]; omega)
+  have hs := hlin cN' cE' (by simp only [M]; omega)
   refine ⟨dN + dE + 1, ComputableInO.of_bounds
     (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (c * (2 * cI + 2 + (2 * cF + 2) + M + 100)) (fun x => ?_) (fun x => ?_)
     (fun x => ((ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).length_le x).trans ?_)⟩
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left
-    rw [encBits_apply]
-    exact key _ _ _ _ _ _ (hY x) (ht x) (hl x)
+  · rw [Nat.mul_assoc, encBits_apply]
+    exact Nat.mul_le_mul_left _ (key _ _ _ _ _ _ (hY x) (ht x) (hl x))
   · rw [Nat.mul_assoc]
     apply Nat.mul_le_mul_left
     have h₁ := hs x
@@ -867,10 +848,8 @@ theorem computableInO_parseRun {β : Type} {enc : β ↪ List Bool} {f : ℕ →
         (x.length + 1) * (Nat.size x.length + 1) ^ (dN + dE + 1) :=
       Nat.le_mul_of_pos_left _ (Nat.succ_pos _)
     nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left
-    rw [encBits_apply]
-    exact key _ _ _ _ _ _ (hY x) (ht x) (hl x)
+  · rw [Nat.mul_assoc, encBits_apply]
+    exact Nat.mul_le_mul_left _ (key _ _ _ _ _ _ (hY x) (ht x) (hl x))
 
 open ComputableInPolyTime in
 /-- **The reduction from orthogonal vectors to diameter runs in quasi-linear time**: within time
@@ -981,10 +960,7 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
         (((encGraph (toDiameter p)).length : ℝ) + 1) ^ (2 - ε₀) := by
       rcases Nat.eq_zero_or_pos (encGraph (toDiameter p)).length with h0 | h0
       · rw [h0, Nat.cast_zero, zero_add, Real.one_rpow]
-        by_cases h2 : 2 - ε = 0
-        · rw [h2, Real.rpow_zero]
-        · rw [Real.zero_rpow h2]
-          exact zero_le_one
+        by_cases h2 : 2 - ε = 0 <;> simp [h2, Real.zero_rpow]
       · have h1 : (1 : ℝ) ≤ (encGraph (toDiameter p)).length := by exact_mod_cast h0
         calc ((encGraph (toDiameter p)).length : ℝ) ^ (2 - ε)
             ≤ ((encGraph (toDiameter p)).length : ℝ) ^ (2 - ε₀) :=
@@ -1062,15 +1038,10 @@ theorem DecidableInTimeO.decidableInTimeO_OV_of_diameter {ε : ℝ} (hε : 0 < �
   refine (DecidableInTimeO.of_computableInO hdec (fun p => ?_) (fun p => hfinal p)).mono
     (⌈40 * C₂ + c⌉₊) (fun p => ?_) (fun p => by positivity)
   · simp only [Function.comp_apply]
-    by_cases hp : p ∈ OV
-    · have h := ediam_toDiameter p
-      simp only [hp, ↓reduceIte] at h
-      have := (hgS (toDiameter p)).not.mp (hS₃ _ h)
-      simp [hp, this]
-    · have h := ediam_toDiameter p
-      simp only [hp, ↓reduceIte] at h
-      have := (hgS (toDiameter p)).mp (hS₂ _ h.le)
-      simp [hp, this]
+    have h := ediam_toDiameter p
+    by_cases hp : p ∈ OV <;> simp only [hp, ↓reduceIte] at h
+    · simp [hp, (hgS (toDiameter p)).not.mp (hS₃ _ h)]
+    · simp [hp, (hgS (toDiameter p)).mp (hS₂ _ h.le)]
   · have hC : (40 * C₂ + c) ≤ (⌈40 * C₂ + c⌉₊ : ℝ) := Nat.le_ceil _
     have hY0 : (0 : ℝ) ≤ ((p.1.length + p.2.length : ℕ) : ℝ) ^ (2 - ε₀ / 2) *
         ((OV.dim p : ℝ) + 1) ^ 2 := by positivity
@@ -1115,10 +1086,7 @@ theorem not_decidableInTimeO_diameter_size_of_OVH (hOVH : OVH) {ε : ℝ} (hε :
     rcases Nat.eq_zero_or_pos (G.vertices.length + G.edges.length) with h0 | h0
     · rw [h0, Nat.cast_zero]
       have h₁ : (0 : ℝ) ^ (2 - ε) ≤ 1 := by
-        by_cases h2 : 2 - ε = 0
-        · rw [h2, Real.rpow_zero]
-        · rw [Real.zero_rpow h2]
-          exact zero_le_one
+        by_cases h2 : 2 - ε = 0 <;> simp [h2, Real.zero_rpow]
       linarith
     · have h1 : (1 : ℝ) ≤ ((G.vertices.length + G.edges.length : ℕ) : ℝ) := by exact_mod_cast h0
       have h₁ : ((G.vertices.length + G.edges.length : ℕ) : ℝ) ^ (2 - ε) ≤

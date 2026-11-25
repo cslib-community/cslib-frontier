@@ -56,7 +56,7 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k 
     (ComputableInSpace.of_finite _) (ComputableInSpace.of_finite _)
     (fun _ => firstBit.init) (A := {input | firstBit.Accepts input}) (fun _ => Iff.rfl)
     (fun input : List Bool => Nat.log2 input.length + 1) (fun _ => le_rfl)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const _)
     ⟨Nat.card (Fin 3), fun input choices =>
       (length_encFinite_lt (firstBit.run input choices)).le.trans
         (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))⟩

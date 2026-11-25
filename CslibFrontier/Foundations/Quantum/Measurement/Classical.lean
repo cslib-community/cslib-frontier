@@ -80,9 +80,7 @@ theorem outcomeProjection_eq_diagonal (f : ι → A) (y : A) :
 @[simp] theorem outcomeProjection_mul_self (f : ι → A) (y : A) :
     outcomeProjection f y * outcomeProjection f y = outcomeProjection f y := by
   simp only [outcomeProjection_eq_diagonal, diagonal_mul_diagonal]
-  congr 1
-  funext i
-  split_ifs <;> simp
+  exact congrArg diagonal (funext fun i => by split_ifs <;> simp)
 
 /-- The outcome projectors form a complete family. -/
 theorem sum_outcomeProjection [Fintype A] (f : ι → A) : ∑ y, outcomeProjection f y = 1 := by
@@ -105,8 +103,7 @@ theorem classicalDensityBranch_apply (f : ι → A) (y : A) (ρ : Matrix ι ι �
 /-- Conjugation by an outcome projector preserves positivity. -/
 theorem classicalDensityBranch_posSemidef (f : ι → A) (y : A) {ρ : Matrix ι ι ℂ}
     (hρ : ρ.PosSemidef) : (classicalDensityBranch f y ρ).PosSemidef := by
-  change (densityConj (outcomeProjection f y) ρ).PosSemidef
-  rw [densityConj_apply]
+  rw [classicalDensityBranch, densityConj_apply]
   exact hρ.mul_mul_conjTranspose_same _
 
 /-- Branch mass is the sum of the diagonal entries in its fiber. -/
@@ -126,17 +123,13 @@ theorem map_measureDensity_basis_apply (f : ι → A) (ρ : Matrix ι ι ℂ)
     (hρ : IsDensityMatrix ρ) (y : A) :
     ((POVM.basis.measureDensity ρ hρ).map f) y =
       ENNReal.ofReal (classicalDensityBranch f y ρ).trace.re := by
-  rw [PMF.map_apply, tsum_fintype, trace_classicalDensityBranch, Complex.re_sum]
-  rw [ENNReal.ofReal_sum_of_nonneg]
-  · apply sum_congr rfl
-    intro i _
-    by_cases h : f i = y
-    · simp [h, POVM.measureDensity_apply, POVM.densityProb_basis]
-    · simp [h, Ne.symm h]
-  · intro i _
-    split_ifs
-    · exact (Complex.nonneg_iff.mp hρ.posSemidef.diag_nonneg).1
-    · simp
+  rw [PMF.map_apply, tsum_fintype, trace_classicalDensityBranch, Complex.re_sum,
+    ENNReal.ofReal_sum_of_nonneg fun i _ => by
+      split_ifs
+      · exact (Complex.nonneg_iff.mp hρ.posSemidef.diag_nonneg).1
+      · exact le_rfl]
+  refine sum_congr rfl fun i _ => ?_
+  by_cases h : f i = y <;> simp [h, Ne.symm, POVM.measureDensity_apply, POVM.densityProb_basis]
 
 /-- A supported outcome has strictly positive branch trace, so its state can be normalized. -/
 theorem trace_classicalDensityBranch_pos_of_mem_support (f : ι → A) (ρ : Matrix ι ι ℂ)
@@ -258,8 +251,8 @@ theorem measureDensity_afterRead (f : ι → A) (M : A → POVM B ι)
   have trace (a) :
       (outcomeProjection f a * (M a).effect b * outcomeProjection f a * ρ).trace =
         ((M a).effect b * classicalDensityBranch f a ρ).trace := by
-    rw [classicalDensityBranch, densityConj_apply, outcomeProjection_conjTranspose]
-    simp only [Matrix.mul_assoc]
+    simp only [classicalDensityBranch, densityConj_apply, outcomeProjection_conjTranspose,
+      Matrix.mul_assoc]
     rw [Matrix.trace_mul_comm]
     simp only [Matrix.mul_assoc]
   simp_rw [trace]

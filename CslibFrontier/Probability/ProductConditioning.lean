@@ -185,8 +185,8 @@ theorem toOuterMeasure_toReal_le_two_rpow (p : ∀ i, PMF (β i)) (W : Set (∀ 
   -- `ln (1 / w) / 2 ≤ log₂ (1 / w)` because `ln 2 < 2`.
   have hle : Real.log (1 / w) / 2 ≤ Real.logb 2 (1 / w) := by
     rw [Real.logb, div_le_div_iff₀ two_pos hln2]
-    have : Real.log 2 ≤ 2 := (Real.log_le_sub_one_of_pos two_pos).trans (by norm_num)
-    nlinarith
+    exact mul_le_mul_of_nonneg_left
+      ((Real.log_le_sub_one_of_pos two_pos).trans (by norm_num)) hlog
   have hsum := (sum_sq_dist_map_filter_pi_le p W hW).trans hle
   calc w = (2 : ℝ) ^ (-Real.logb 2 (1 / w)) := by
         rw [Real.rpow_neg zero_le_two, Real.rpow_logb two_pos (by norm_num) (by positivity),

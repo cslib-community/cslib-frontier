@@ -245,28 +245,16 @@ theorem decideDominatingSet_iff {A : List (List ℕ) × ℕ → List ℕ} {ρ : 
     · rw [hfs]
       refine Finset.card_image_le.trans ?_
       rcases hpos with h0 | h0
-      · have : (centers (domMatrix G) (A (domMatrix G, k))) = ∅ := by
-          refine Finset.eq_empty_of_forall_notMem fun i _ => ?_
-          have := i.2
-          simp only [length_domMatrix, h0] at this
-          omega
-        rw [this, Finset.card_empty]
-        exact Nat.zero_le k
+      · exact (Finset.card_le_univ _).trans (by simp [length_domMatrix, h0])
       · exact hcard _ _ (isInstance_domMatrix G) h0 (by simpa using hk)
   · rintro ⟨hk, S, hSV, hS, hSk⟩
     have hpos : G.distinctVertices.length = 0 ∨ 0 < k := by
-      rcases Nat.eq_zero_or_pos G.distinctVertices.length with h | h
-      · exact Or.inl h
-      · right
-        by_contra hk0
-        have hk0 : k = 0 := by omega
-        subst hk0
-        have hS0 : S = ∅ := Finset.card_eq_zero.1 (Nat.le_zero.1 hSk)
-        subst hS0
-        obtain ⟨v, hv⟩ := List.exists_mem_of_length_pos h
-        rcases hS v (Graph.mem_distinctVertices.1 hv) with h' | ⟨s, hs, -⟩
-        · exact Finset.notMem_empty v h'
-        · exact Finset.notMem_empty s hs
+      refine or_iff_not_imp_left.2 fun h => Nat.pos_of_ne_zero fun hk0 => ?_
+      obtain ⟨v, hv⟩ := List.exists_mem_of_length_pos (Nat.pos_of_ne_zero h)
+      obtain rfl : S = ∅ := Finset.card_eq_zero.1 (by omega)
+      rcases hS v (Graph.mem_distinctVertices.1 hv) with h' | ⟨s, hs, -⟩
+      · exact Finset.notMem_empty v h'
+      · exact Finset.notMem_empty s hs
     refine ⟨⟨hk, hpos⟩, fun v hv => ?_⟩
     have hvL : v ∈ G.distinctVertices := Graph.mem_distinctVertices.2 hv
     have hn : 0 < G.distinctVertices.length := List.length_pos_of_mem hvL

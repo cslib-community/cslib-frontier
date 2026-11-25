@@ -76,13 +76,13 @@ theorem ComputableInSpace.bindWith {α β γ : Type} {encA : α ↪ List Bool} {
       fun p => (encPair encB (encOption encC) p.1).length +
         (Sh p.2 + Sg p.2 + Nat.log2 (encA p.2).length) :=
     (budget_ite (budget_optionIsSome hreg.snd')
-      ((ComputableInSpace.constZero none).mono_le fun _ => Nat.zero_le _)
+      (ComputableInSpace.budget_const none)
       (budget_optionSome (budget_prod hreg.fst' (budget_optionSome hgp)))).of_enc_eq
       fun _ => rfl
   have hinit : ComputableInSpace (fun a => (h a, (none : Option γ))) encA
       (encPair encB (encOption encC)) fun a => Sh a + Sg a + Nat.log2 (encA a).length :=
     budget_prod (hh.mono_le fun _ => by omega)
-      ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+      (ComputableInSpace.budget_const _)
   -- the loop of two rounds
   have hloop := ComputableInSpace.loopWith (step := bindStep g)
     (B := fun a => (encPair encB (encOption encC) (h a, some (g (h a, a)))).length +

@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.WordRAM.Time
 import CslibFrontier.Computability.GenericRAM.Native.Certificate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
@@ -281,4 +282,100 @@ example : PolyBounded id (fun n : ℕ => n + 1) ∧ Cslib.WordRAM.Fits 3 7 ∧
 
 example : True := by
   fail_if_success have : Cslib.WordRAM.Fits 3 8 := by growth_poly
+  trivial
+
+/-! ### Extensible `@[growth_poly]`, powers of logs, local bounds, and input decomposition -/
+
+private def customMetric (n : ℕ) : ℕ := 3 * n + 2
+
+@[growth_poly]
+private theorem customMetric_le (n : ℕ) : customMetric n ≤ 3 * n + 2 := le_rfl
+
+private def customMix (m n : ℕ) : ℕ := m + 2 * n
+
+@[growth_poly]
+private theorem polyBounded_customMix {α : Type*} {size u v : α → ℕ}
+    (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => customMix (u a) (v a)) :=
+  hu.add ((PolyBounded.const 2).mul hv)
+
+-- Custom `@[growth_poly]` pointwise bound and closure rules work without unfolding.
+example {α : Type*} {size u v : α → ℕ} (hu : PolyBounded size u) (hv : PolyBounded size v) :
+    PolyBounded size (fun a => customMetric (u a) + customMix (u a) (v a)) := by
+  growth_poly
+
+-- Invalid `@[growth_poly]` targets are rejected at registration time.
+/--
+error: `growth_poly` requires a non-variable head on the left-hand side, got
+  ?n
+-/
+#guard_msgs in
+@[growth_poly]
+private theorem badGrowthPolyWildcard (n : ℕ) : n ≤ n := le_rfl
+
+/--
+error: `growth_poly` expects a theorem concluding `lhs ≤ rhs`, `lhs = rhs` in `ℕ`, or `Turing.MultiTapeTM.PolyBounded size (fun a => op …)`, got
+  True
+-/
+#guard_msgs in
+@[growth_poly]
+private theorem badGrowthPolyConcl : True := trivial
+
+-- `Nat.log2`, `b ^ Nat.log b _`, exponent splitting (`+`, `*`, `min`, local bound),
+-- and expanded `@[growth_poly]` `List.length` rules.
+example {α β : Type*} {size u v : α → ℕ} {xs : α → List β} {ys : α → List ℕ}
+    {p : β → Bool} {c k : ℕ}
+    (hu : PolyBounded size u)
+    (hxs : PolyBounded size (fun a => (xs a).length))
+    (hlogb : ∀ a, v a ≤ c * (Nat.log 2 (u a) + 1)) :
+    PolyBounded size (fun a =>
+      Nat.log2 (u a) + 2 ^ (c * (Nat.log 2 (u a) + 1) + k) +
+      2 ^ min (size a) (Nat.log 2 (u a)) + 2 ^ (v a) +
+      ((xs a).filter p).length + (List.range (u a)).length +
+      (List.finRange (u a)).length + ((xs a).zip (ys a)).length +
+      (xs a).zipIdx.length + (xs a).tail.length + ((xs a).eraseIdx (v a)).length) := by
+  growth_poly
+
+-- Local pointwise `fvar` bounds.
+example {α : Type*} {size f : α → ℕ} {d : ℕ}
+    (hf : ∀ a, f a ≤ size a + 3) :
+    PolyBounded size (fun a => f a + 2 * (f a + 1) ^ d) := by
+  growth_poly
+
+-- Non-reducible `PolyBounded` wrapper + nested-`Prod` `abbrev` projection in `PolyBounded.comp`.
+private abbrev NestedProdCtx : Type := (ℕ × ℕ) × (List Bool × ℕ)
+
+private def WrappedPolyBounded {α : Type*} (size cost : α → ℕ) : Prop :=
+  PolyBounded size cost
+
+example {β γ : Type*} {size : (ℕ × β) × (NestedProdCtx × γ) → ℕ}
+    {size' cost : β × NestedProdCtx → ℕ}
+    (hcost : WrappedPolyBounded size' cost)
+    (hsize' : PolyBounded size (fun a => size' (a.1.2, a.2.1))) :
+    PolyBounded size (fun a => cost (a.1.2, a.2.1) + 1) := by
+  growth_poly
+
+-- Automatic decomposition of `enc_structure` + `encPair` + `encList` + `encUnary` + `encBits`
+-- input components, and goal-side `encNat` / `encBool` / `enc_structure` lengths.
+private structure GrowthSample where
+  items : List ℕ
+  tag : Bool
+  width : ℕ
+  bits : List Bool
+
+private enc_structure encGrowthSample : GrowthSample where
+  items : (encList encNat), tag : encBool, width : encUnary, bits : encBits
+
+example :
+    PolyBounded (fun x : GrowthSample => (encGrowthSample x).length)
+      (fun x => x.items.length * x.width + x.bits.length +
+        (encNat x.items.length).length + (encBool x.tag).length +
+        (encGrowthSample x).length) := by
+  growth_poly
+
+-- Soundness: global `Nat.log2_le_self` is not applied inside exponents, and a linear local bound
+-- on an exponent does not make `2 ^ f a` polynomial.
+example {α : Type*} {size f : α → ℕ} (_hf : ∀ a, f a ≤ size a) : True := by
+  fail_if_success have : PolyBounded size (fun a => 2 ^ Nat.log2 (size a)) := by growth_poly
+  fail_if_success have : PolyBounded size (fun a => 2 ^ f a) := by growth_poly
   trivial

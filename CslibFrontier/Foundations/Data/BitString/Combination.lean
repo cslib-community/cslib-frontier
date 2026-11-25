@@ -83,16 +83,18 @@ theorem unrankCombination_injective {m k r₁ r₂ : ℕ}
     | zero => simp only [Nat.choose_zero_right, Nat.lt_one_iff] at hr₁ hr₂; omega
     | succ k => simp at hr₁
   | succ m ih =>
-    simp only [unrankCombination] at heq; split_ifs at heq with h₁ h₂ h₂
-    · simp only [List.cons.injEq, true_and] at heq; exact ih h₁ h₂ heq
+    simp only [unrankCombination] at heq
+    split_ifs at heq with h₁ h₂ h₂
+    · exact ih h₁ h₂ (List.cons.inj heq).2
     · simp at heq
     · simp at heq
-    · simp only [List.cons.injEq, true_and] at heq
-      cases k with
+    · cases k with
       | zero => simp only [Nat.choose_zero_right] at hr₁ h₁; omega
       | succ k =>
         rw [Nat.choose_succ_succ, Nat.succ_eq_add_one] at hr₁ hr₂
-        have := ih (by omega : r₁ - m.choose (k + 1) < m.choose k) (by omega) heq; omega
+        have hr₁' : r₁ - m.choose (k + 1) < m.choose k := by omega
+        have := ih hr₁' (by omega) (List.cons.inj heq).2
+        omega
 
 /-- **The lexicographic rank of a Boolean indicator `bs`** among all indicators of length
 `bs.length` and weight `bs.count true` (`false` before `true`), inverting `unrankCombination`. -/
@@ -107,11 +109,11 @@ theorem rankCombination_lt_choose :
     ∀ bs : List Bool, rankCombination bs < bs.length.choose (bs.count true)
   | [] => by simp [rankCombination]
   | false :: xs =>
-    lt_of_lt_of_le (rankCombination_lt_choose xs) (Nat.choose_le_succ xs.length (xs.count true))
+    (rankCombination_lt_choose xs).trans_le (Nat.choose_le_succ xs.length (xs.count true))
   | true :: xs => by
-    have ih := rankCombination_lt_choose xs
-    simp only [rankCombination, List.length_cons, List.count_cons_self]
-    rw [Nat.choose_succ_succ, Nat.succ_eq_add_one]
+    have := rankCombination_lt_choose xs
+    simp only [rankCombination, List.length_cons, List.count_cons_self, Nat.choose_succ_succ,
+      Nat.succ_eq_add_one]
     omega
 
 /-- Unranking the rank of `bs` at `(bs.length, bs.count true)` recovers `bs`. -/
@@ -121,26 +123,21 @@ theorem unrankCombination_rankCombination :
       unrankCombination bs.length (bs.count true) (rankCombination bs) = bs
   | [] => rfl
   | false :: xs => by
-    have hlt := rankCombination_lt_choose xs
-    simp [rankCombination, unrankCombination, hlt, unrankCombination_rankCombination xs]
+    simp [rankCombination, unrankCombination, rankCombination_lt_choose xs,
+      unrankCombination_rankCombination xs]
   | true :: xs => by
-    have hnot : ¬ (xs.length.choose (xs.count true + 1) + rankCombination xs <
-        xs.length.choose (xs.count true + 1)) := by omega
-    simp [rankCombination, unrankCombination, hnot, unrankCombination_rankCombination xs]
+    simp [rankCombination, unrankCombination, Nat.not_lt.mpr (Nat.le_add_right _ _),
+      unrankCombination_rankCombination xs]
 
 /-- Ranking `unrankCombination m k r` for `r < C(m, k)` recovers `r`. -/
 @[simp]
 theorem rankCombination_unrankCombination {m k r : ℕ} (hr : r < m.choose k) :
     rankCombination (unrankCombination m k r) = r := by
-  set bs := unrankCombination m k r
-  have hlen : bs.length = m := length_unrankCombination m k r
-  have hcnt : bs.count true = k := count_true_unrankCombination hr
-  have hr' : rankCombination bs < m.choose k := by
-    have hlt := rankCombination_lt_choose bs
-    rwa [hlen, hcnt] at hlt
-  refine unrankCombination_injective hr' hr ?_
-  have hunr := unrankCombination_rankCombination bs
-  rwa [hlen, hcnt] at hunr
+  have hlen := length_unrankCombination m k r
+  have hcnt := count_true_unrankCombination hr
+  exact unrankCombination_injective
+    (by simpa only [hlen, hcnt] using rankCombination_lt_choose (unrankCombination m k r)) hr
+    (by simpa only [hlen, hcnt] using unrankCombination_rankCombination (unrankCombination m k r))
 
 /-- Computable bijection between `k`-element subsets of `Fin m` and `Fin (m.choose k)`, obtained by
 composing `rankCombination` / `unrankCombination` with `supportOfList`. -/

@@ -138,10 +138,8 @@ private theorem sum_biUnion_le_of_nonneg {α β : Type*} [DecidableEq α] (B : F
   induction B using Finset.induction_on with
   | empty => simp
   | @insert b B hb ih =>
-    rw [Finset.biUnion_insert, Finset.sum_insert hb]
-    have hsplit : ∑ z ∈ g b ∪ B.biUnion g, f z =
-        ∑ z ∈ g b, f z + ∑ z ∈ B.biUnion g \ g b, f z := by
-      rw [← Finset.sum_union disjoint_sdiff_self_right, Finset.union_sdiff_self_eq_union]
+    rw [Finset.biUnion_insert, Finset.sum_insert hb,
+      ← Finset.union_sdiff_self_eq_union, Finset.sum_union disjoint_sdiff_self_right]
     have hsdiff : ∑ z ∈ B.biUnion g \ g b, f z ≤ ∑ z ∈ B.biUnion g, f z :=
       Finset.sum_le_sum_of_subset_of_nonneg Finset.sdiff_subset fun z _ _ => hf z
     linarith
@@ -189,19 +187,12 @@ private theorem edgeWeight_sq_le_half {deg : V → ℕ} {θ : ℝ} {u v : V} (hu
           mul_le_mul hsu hsv hs2.le (hs2.le.trans hsu)
   exact div_le_div_of_nonneg_left (sq_nonneg θ) (by norm_num) hprod
 
-private theorem edgeWeight_lt_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 1) {u v : V}
+private theorem edgeWeight_lt_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) {u v : V}
     (hu : 3 ≤ deg u) (hv : 3 ≤ deg v) : edgeWeight deg θ u v < 1 := by
-  have hsq : edgeWeight deg θ u v ^ 2 < 1 := by
-    have hθsq : θ ^ 2 < 1 := by nlinarith
-    linarith [edgeWeight_sq_le_half (θ := θ) hu hv]
-  nlinarith [edgeWeight_nonneg deg hθ0 u v]
-
-private theorem edgeWeight_le_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) {u v : V}
-    (hu : 3 ≤ deg u) (hv : 3 ≤ deg v) : edgeWeight deg θ u v ≤ 1 := by
-  have hsq : edgeWeight deg θ u v ^ 2 ≤ 1 := by
-    have hθsq : θ ^ 2 ≤ 1 := by nlinarith
-    linarith [edgeWeight_sq_le_half (θ := θ) hu hv]
-  nlinarith [edgeWeight_nonneg deg hθ0 u v]
+  apply (pow_lt_pow_iff_left₀ (edgeWeight_nonneg deg hθ0 u v) zero_le_one two_ne_zero).mp
+  rw [one_pow]
+  have hθsq := (pow_le_pow_left₀ hθ0 hθ1 2).trans_eq (one_pow _)
+  exact (edgeWeight_sq_le_half (θ := θ) hu hv).trans_lt (by linarith only [hθsq])
 
 /-- Maximum walk weight of length at most `r` from `u` to `z` in `H`, computed recursively by
 Bellman–Ford updates from the source vertex. -/
@@ -287,7 +278,7 @@ private theorem bestWalkWeight_le_one (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) (hlo :
   | succ r ih =>
     rw [bestWalkWeight_succ]
     refine max_le (ih u) (finsetMaxZero_le zero_le_one fun w _ => ?_)
-    have hq := edgeWeight_le_one hθ0 hθ1 (hlo u) (hlo w)
+    have hq := (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo w)).le
     have hq0 := edgeWeight_nonneg deg hθ0 u w
     have hr0 := bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r w z
     nlinarith [ih w]
@@ -307,10 +298,7 @@ theorem weightedKernelRow_eq_zero_of_lt {R : ℕ} {v z : V} (h : R < H.edist v z
   induction R generalizing v with
   | zero =>
     simp only [Nat.cast_zero] at h
-    have hvz : v ≠ z := by
-      rintro rfl
-      simp at h
-    rw [bestWalkWeight, ite_eq_right hvz]
+    rw [bestWalkWeight, ite_eq_right fun hvz => by simp [hvz] at h]
   | succ r ih =>
     rw [bestWalkWeight_succ]
     have h1 : (r : ℕ∞) < H.edist v z :=
@@ -319,14 +307,9 @@ theorem weightedKernelRow_eq_zero_of_lt {R : ℕ} {v z : V} (h : R < H.edist v z
         (fun w => edgeWeight deg θ v w * bestWalkWeight H deg θ r w z) = 0 := by
       refine le_antisymm (finsetMaxZero_le le_rfl fun w hw => ?_) (finsetMaxZero_nonneg _ _)
       have hvw : H.Adj v w := (SimpleGraph.mem_neighborFinset H v w).mp hw
-      have htri : H.edist v z ≤ H.edist w z + 1 := SimpleGraph.Adj.edist_le_edist_add_one hvw z
-      have hwz : (r : ℕ∞) < H.edist w z := by
-        by_contra hle
-        push Not at hle
-        have hle' : H.edist v z ≤ ((r + 1 : ℕ) : ℕ∞) := by
-          push_cast
-          exact htri.trans (add_le_add_left hle 1)
-        exact not_lt_of_ge hle' h
+      have hwz : (r : ℕ∞) < H.edist w z := lt_of_not_ge fun hle => by
+        push_cast at h
+        exact h.not_ge ((hvw.edist_le_edist_add_one z).trans (add_le_add_left hle 1))
       rw [ih hwz, mul_zero]
     rw [ih h1, hstep, max_self]
 
@@ -349,46 +332,34 @@ private theorem weightedKernelRow_defect_le (hθ0 : 0 ≤ θ) (hθ1 : θ ≤ 1) 
   dsimp only
   wlog hba : bestWalkWeight H deg θ (r + 1) v z ≤ bestWalkWeight H deg θ (r + 1) u z
     generalizing u v
-  · have hsym := this huv.symm (le_of_not_ge hba)
-    rw [edgeWeight_comm deg θ v u] at hsym
-    linarith
+  · simpa only [edgeWeight_comm deg θ v u, add_comm, mul_comm] using
+      this huv.symm (le_of_not_ge hba)
   set q := edgeWeight deg θ u v
   set a := bestWalkWeight H deg θ (r + 1) u z
   set b := bestWalkWeight H deg θ (r + 1) v z
   have hb0 : 0 ≤ b := bestWalkWeight_nonneg (r + 1) v z
-  have ha0 : 0 ≤ a := hb0.trans hba
-  have hq0 : 0 ≤ q := edgeWeight_nonneg deg hθ0 u v
-  have hq1 : q ≤ 1 := edgeWeight_le_one hθ0 hθ1 (hlo u) (hlo v)
-  have hκ1 : 2 * q / (1 + q ^ 2) ≤ 1 := two_mul_div_one_add_sq_le_one q
   have hIv : 0 ≤ if bestWalkWeight H deg θ r v z < b then b ^ 2 else 0 := by
     split_ifs <;> positivity
   by_cases hu : bestWalkWeight H deg θ r u z < a
   · rw [ite_eq_left hu]
-    have hprod : b ^ 2 ≤ a * b := by nlinarith
-    have hab0 : 0 ≤ a * b := mul_nonneg ha0 hb0
-    have hκ_ab : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) ≤ a ^ 2 + b ^ 2 := by
-      nlinarith [sq_nonneg a, sq_nonneg b]
-    linarith
-  · rw [ite_eq_right hu]
+    have hprod : b ^ 2 ≤ a * b := by
+      rw [pow_two]
+      exact mul_le_mul_of_nonneg_right hba hb0
+    have hκ_ab := mul_le_of_le_one_left (by positivity : 0 ≤ a ^ 2 + b ^ 2)
+      (two_mul_div_one_add_sq_le_one q)
+    linarith only [hprod, hκ_ab, hIv, mul_nonneg (hb0.trans hba) hb0]
+  · rw [ite_eq_right hu, zero_add]
     have hru : bestWalkWeight H deg θ r u z = a :=
-      le_antisymm (bestWalkWeight_le_succ r u z) (not_lt.mp hu)
+      le_antisymm (bestWalkWeight_le_succ r u z) (le_of_not_gt hu)
     have hqa : q * a ≤ b := by
       have hstep := step_le_bestWalkWeight_succ (deg := deg) (θ := θ) r huv.symm z
       rwa [edgeWeight_comm deg θ v u, hru] at hstep
-    have hqb : q * b ≤ a := by nlinarith
+    have hqb : q * b ≤ a :=
+      (mul_le_of_le_one_left hb0 (edgeWeight_lt_one hθ0 hθ1 (hlo u) (hlo v)).le).trans hba
     have hneg : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 ≤ a * b := by
-      have hfac : q * (a ^ 2 + b ^ 2) - (1 + q ^ 2) * (a * b) ≤ 0 := by
-        have hid : q * (a ^ 2 + b ^ 2) - (1 + q ^ 2) * (a * b) = (b - q * a) * (q * b - a) := by
-          ring
-        rw [hid]
-        exact mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith)
-      have hden : (0 : ℝ) < 1 + q ^ 2 := by positivity
-      have hdiv : 2 * q / (1 + q ^ 2) * (a ^ 2 + b ^ 2) / 2 =
-          q * (a ^ 2 + b ^ 2) / (1 + q ^ 2) := by
-        field_simp
-      rw [hdiv, div_le_iff₀ hden]
-      linarith
-    linarith
+      rw [div_le_iff₀ two_pos, div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
+      linarith [mul_nonpos_of_nonneg_of_nonpos (sub_nonneg.mpr hqa) (sub_nonpos.mpr hqb)]
+    linarith only [hneg, hIv]
 
 end FiniteProps
 
@@ -401,14 +372,11 @@ variable [Fintype V] {H : SimpleGraph V} {deg : V → ℕ} {θ : ℝ}
 /-- Every `weightedKernelRow` has Euclidean norm at least `1`. -/
 theorem one_le_norm_weightedKernelRow (R : ℕ) (v : V) :
     1 ≤ ‖weightedKernelRow H deg θ R v‖ := by
-  have h1 : 1 ≤ weightedKernelRow H deg θ R v v := one_le_bestWalkWeight_self R v
-  have hsq : 1 ≤ ‖weightedKernelRow H deg θ R v‖ ^ 2 := by
-    rw [EuclideanSpace.real_norm_sq_eq]
-    calc (1 : ℝ) ≤ weightedKernelRow H deg θ R v v ^ 2 := by nlinarith
-      _ ≤ ∑ z, weightedKernelRow H deg θ R v z ^ 2 :=
-          Finset.single_le_sum (f := fun z => weightedKernelRow H deg θ R v z ^ 2)
-            (fun _ _ => sq_nonneg _) (Finset.mem_univ v)
-  nlinarith [norm_nonneg (weightedKernelRow H deg θ R v)]
+  apply (one_le_pow_iff_of_nonneg (norm_nonneg _) two_ne_zero).mp
+  rw [EuclideanSpace.real_norm_sq_eq]
+  exact (one_le_pow₀ (one_le_bestWalkWeight_self R v)).trans <|
+    Finset.single_le_sum (f := fun z => weightedKernelRow H deg θ R v z ^ 2)
+      (fun _ _ => sq_nonneg _) (Finset.mem_univ v)
 
 /-- Coordinate `z` of `unitWeightedKernelRow` is `weightedKernelRow` divided by its norm. -/
 theorem unitWeightedKernelRow_apply (R : ℕ) (v z : V) :
@@ -457,24 +425,12 @@ private theorem exists_mem_strictPiece_of_lt {r : ℕ} {u z : V} [Fintype (H.nei
           fun b => edgeWeight deg θ u b * bestWalkWeight H deg θ r b z) := by
     rw [bestWalkWeight_succ]
     congr!
-  have hmax_eq : bestWalkWeight H deg θ (r + 1) u z =
-      finsetMaxZero (H.neighborFinset u)
-        (fun b => edgeWeight deg θ u b * bestWalkWeight H deg θ r b z) := by
-    rcases max_choice (bestWalkWeight H deg θ r u z)
-      (finsetMaxZero (H.neighborFinset u)
-        fun b => edgeWeight deg θ u b * bestWalkWeight H deg θ r b z) with h | h
-    · rw [hdef, h] at hlt
-      exact absurd hlt (lt_irrefl _)
-    · exact hdef.trans h
-  have hpos : 0 < finsetMaxZero (H.neighborFinset u)
-      (fun b => edgeWeight deg θ u b * bestWalkWeight H deg θ r b z) := by
-    linarith [bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r u z]
-  obtain ⟨b, hb_mem, hb_eq⟩ := exists_mem_of_finsetMaxZero_pos hpos
-  have hval : bestWalkWeight H deg θ (r + 1) u z =
-      edgeWeight deg θ u b * bestWalkWeight H deg θ r b z :=
-    hmax_eq.trans hb_eq.symm
-  refine ⟨b, hb_mem, ?_, hval⟩
-  exact Finset.mem_filter.mpr ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ z, by linarith⟩, hval⟩
+  have hmax_eq := hdef.trans ((max_choice _ _).resolve_left fun h => hlt.ne' (hdef.trans h))
+  obtain ⟨b, hb_mem, hb_eq⟩ := exists_mem_of_finsetMaxZero_pos
+    (hmax_eq ▸ (bestWalkWeight_nonneg r u z).trans_lt hlt)
+  have hval := hmax_eq.trans hb_eq.symm
+  exact ⟨b, hb_mem, Finset.mem_filter.mpr
+    ⟨Finset.mem_filter.mpr ⟨Finset.mem_univ z, hval ▸ hlt⟩, hval⟩, hval⟩
 
 /-- Squared `bestWalkWeight` sum on `strictPiece H deg θ r u b` reduces to `strictStepSet` at
 `b`. -/
@@ -505,31 +461,21 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
         (θ ^ 2) ^ (r + 1) / (√((deg a : ℝ) - 1) * √2)
   | 0, a, b, _ => by
     classical
-    have hsub : strictStepSet H deg θ 0 a b ⊆ {b} := by
-      intro z hz
-      have hz' : bestWalkWeight H deg θ 0 a z <
-          edgeWeight deg θ a b * bestWalkWeight H deg θ 0 b z := (Finset.mem_filter.mp hz).2
+    have hsub : strictStepSet H deg θ 0 a b ⊆ {b} := fun z hz => by
+      have hz' := (Finset.mem_filter.mp hz).2
       rw [bestWalkWeight, bestWalkWeight] at hz'
-      by_contra hzb
-      have hbz : b ≠ z := Ne.symm (Finset.notMem_singleton.mp hzb)
-      rw [ite_eq_right hbz, mul_zero] at hz'
+      refine Finset.mem_singleton.mpr (by_contra fun hzb => ?_)
+      rw [ite_eq_right (Ne.symm hzb), mul_zero] at hz'
       split_ifs at hz' <;> linarith
-    have hsum : ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2 ≤ 1 := by
-      calc ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2
-          ≤ ∑ z ∈ ({b} : Finset V), bestWalkWeight H deg θ 0 b z ^ 2 :=
-            Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => sq_nonneg _
-        _ = 1 := by simp [bestWalkWeight]
-    have h1 : edgeWeight deg θ a b ^ 2 *
-          (∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2) ≤
-        edgeWeight deg θ a b ^ 2 := by
-      nlinarith [sq_nonneg (edgeWeight deg θ a b)]
-    refine h1.trans ?_
+    have hsum : ∑ z ∈ strictStepSet H deg θ 0 a b, bestWalkWeight H deg θ 0 b z ^ 2 ≤ 1 :=
+      (Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => sq_nonneg _).trans
+        (by simp [bestWalkWeight])
+    refine (mul_le_of_le_one_right (sq_nonneg _) hsum).trans ?_
     rw [edgeWeight_sq, pow_one]
-    have hsb := sqrt_two_le_sqrt_deg_sub_one (hlo b)
     have hsa : 0 < √((deg a : ℝ) - 1) :=
       lt_of_lt_of_le (by positivity) (sqrt_two_le_sqrt_deg_sub_one (hlo a))
     exact div_le_div_of_nonneg_left (sq_nonneg θ) (by positivity)
-      (mul_le_mul_of_nonneg_left hsb hsa.le)
+      (mul_le_mul_of_nonneg_left (sqrt_two_le_sqrt_deg_sub_one (hlo b)) hsa.le)
   | r + 1, a, b, hab => by
     classical
     let nb : Finset V := (H.neighborFinset b).erase a
@@ -540,30 +486,17 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
         (Finset.mem_filter.mp hz).2
       have hq0 := edgeWeight_nonneg deg hθ0 a b
       have hlt_b : bestWalkWeight H deg θ r b z < bestWalkWeight H deg θ (r + 1) b z := by
-        by_contra hle
-        push Not at hle
-        have hstep := step_le_bestWalkWeight_succ (deg := deg) (θ := θ) r hab z
-        have hmul : edgeWeight deg θ a b * bestWalkWeight H deg θ (r + 1) b z ≤
-            edgeWeight deg θ a b * bestWalkWeight H deg θ r b z :=
-          mul_le_mul_of_nonneg_left hle hq0
-        linarith
+        exact lt_of_not_ge fun hle => hz'.not_ge
+          ((mul_le_mul_of_nonneg_left hle hq0).trans (step_le_bestWalkWeight_succ r hab z))
       obtain ⟨c, hc_mem, hc_piece, hc_eq⟩ := exists_mem_strictPiece_of_lt hlt_b
       have hca : c ≠ a := by
         intro hca_eq
         subst c
-        have hq1 := edgeWeight_lt_one hθ0 hθ1 (hlo a) (hlo b)
-        have hsymm := edgeWeight_comm deg θ b a
-        have hra := bestWalkWeight_nonneg (H := H) (deg := deg) (θ := θ) r a z
-        have hmono := bestWalkWeight_le_succ (H := H) (deg := deg) (θ := θ) r a z
-        have heq_z : bestWalkWeight H deg θ (r + 1) b z =
-            edgeWeight deg θ a b * bestWalkWeight H deg θ r a z := by
-          rw [hc_eq, hsymm]
-        have hsq1 : edgeWeight deg θ a b ^ 2 ≤ 1 := by nlinarith
-        have hprod : edgeWeight deg θ a b * bestWalkWeight H deg θ (r + 1) b z ≤
-            bestWalkWeight H deg θ r a z := by
-          rw [heq_z, ← mul_assoc, ← sq]
-          nlinarith
-        linarith
+        have hq1 := edgeWeight_lt_one hθ0 hθ1.le (hlo a) (hlo b)
+        rw [hc_eq, edgeWeight_comm deg θ b a, ← mul_assoc, ← sq] at hz'
+        have hsq1 := (pow_le_pow_left₀ hq0 hq1.le 2).trans_eq (one_pow _)
+        exact hz'.not_ge ((mul_le_of_le_one_left (bestWalkWeight_nonneg r a z) hsq1).trans
+          (bestWalkWeight_le_succ r a z))
       exact Finset.mem_biUnion.mpr ⟨c, Finset.mem_erase.mpr ⟨hca, hc_mem⟩, hc_piece⟩
     have hsum_cov : ∑ z ∈ strictStepSet H deg θ (r + 1) a b,
           bestWalkWeight H deg θ (r + 1) b z ^ 2 ≤
@@ -576,24 +509,13 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
       (sum_sq_strictPiece_le r b c).trans
         (edgeWeight_sq_mul_sum_strictStepSet_le hθ0 hθ1 hlo hsimple r
           ((SimpleGraph.mem_neighborFinset H b c).mp (Finset.mem_of_mem_erase hc)))
-    have ha_mem : a ∈ H.neighborFinset b := (SimpleGraph.mem_neighborFinset H b a).mpr hab.symm
     have hcard_nb : (nb.card : ℝ) ≤ (deg b : ℝ) - 1 := by
-      have h1 : nb.card + 1 = (H.neighborFinset b).card := Finset.card_erase_add_one ha_mem
+      have h1 := Finset.card_erase_add_one ((SimpleGraph.mem_neighborFinset H b a).mpr hab.symm)
       have h2 : (H.neighborFinset b).card ≤ deg b := by
         rw [SimpleGraph.neighborFinset, ← ncard_eq_toFinset_card']
         exact hsimple b
-      have h3 : nb.card + 1 ≤ deg b := by omega
-      have h3R : (nb.card : ℝ) + 1 ≤ deg b := by exact_mod_cast h3
-      linarith
-    have hsum_nb : ∑ z ∈ strictStepSet H deg θ (r + 1) a b,
-          bestWalkWeight H deg θ (r + 1) b z ^ 2 ≤
-        ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by
-      calc ∑ z ∈ strictStepSet H deg θ (r + 1) a b, bestWalkWeight H deg θ (r + 1) b z ^ 2
-          ≤ ∑ c ∈ nb, (θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2) :=
-            hsum_cov.trans (Finset.sum_le_sum hpiece_le)
-        _ = (nb.card : ℝ) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by
-            rw [Finset.sum_const, nsmul_eq_mul]
-        _ ≤ ((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2)) := by gcongr
+      rw [le_sub_iff_add_le]
+      exact_mod_cast h1.trans_le h2
     have hdb : (3 : ℝ) ≤ deg b := by exact_mod_cast hlo b
     have hda : (3 : ℝ) ≤ deg a := by exact_mod_cast hlo a
     have hsb_pos : 0 < √((deg b : ℝ) - 1) := sqrt_pos.mpr (by linarith)
@@ -602,7 +524,11 @@ private theorem edgeWeight_sq_mul_sum_strictStepSet_le (hθ0 : 0 ≤ θ) (hθ1 :
     calc edgeWeight deg θ a b ^ 2 *
           ∑ z ∈ strictStepSet H deg θ (r + 1) a b, bestWalkWeight H deg θ (r + 1) b z ^ 2
         ≤ edgeWeight deg θ a b ^ 2 *
-            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) := by gcongr
+            (((deg b : ℝ) - 1) * ((θ ^ 2) ^ (r + 1) / (√((deg b : ℝ) - 1) * √2))) := by
+          gcongr
+          refine hsum_cov.trans ((Finset.sum_le_sum hpiece_le).trans ?_)
+          rw [Finset.sum_const, nsmul_eq_mul]
+          gcongr
       _ = (θ ^ 2) ^ (r + 1 + 1) / (√((deg a : ℝ) - 1) * √2) := by
           rw [edgeWeight_sq, pow_succ' (θ ^ 2) (r + 1)]
           field_simp
@@ -723,9 +649,9 @@ theorem le_inner_unitWeightedKernelRow {d : ℕ} (hθ0 : 0 ≤ θ) (hθ1 : θ < 
   have hκ : 0 ≤ 2 * q / (1 + q ^ 2) := by positivity
   have he : 0 ≤ (d : ℝ) / 2 * (θ ^ 2) ^ R := by positivity
   have hamgm : 2 * (s * t) ≤ s ^ 2 + t ^ 2 := by nlinarith [sq_nonneg (s - t)]
-  have h1 : 1 ≤ s * t := by nlinarith
-  rw [le_div_iff₀ (by positivity)]
-  nlinarith [mul_le_mul_of_nonneg_left hamgm hκ, mul_le_mul_of_nonneg_left h1 he]
+  rw [le_div_iff₀ (mul_pos (zero_lt_one.trans_le hs) (zero_lt_one.trans_le ht))]
+  have h1 := one_le_mul_of_one_le_of_one_le hs ht
+  linarith only [hC, mul_le_mul_of_nonneg_left hamgm hκ, mul_le_mul_of_nonneg_left h1 he]
 
 end FintypeProps
 
@@ -776,13 +702,9 @@ theorem pairCorrelation_comm (d₁ d₂ : ℕ) : pairCorrelation d₁ d₂ = pai
 
 private theorem pairWeight_le_one {d₁ d₂ : ℕ} (h₁ : 3 ≤ d₁) (h₂ : 3 ≤ d₂) :
     pairWeight d₁ d₂ ≤ 1 := by
-  have hd₁ : (3 : ℝ) ≤ d₁ := by exact_mod_cast h₁
-  have hd₂ : (3 : ℝ) ≤ d₂ := by exact_mod_cast h₂
-  have hs₁ : 1 ≤ √(√((d₁ : ℝ) - 1)) :=
-    Real.one_le_sqrt.mpr (Real.one_le_sqrt.mpr (by linarith))
-  have hs₂ : 1 ≤ √(√((d₂ : ℝ) - 1)) :=
-    Real.one_le_sqrt.mpr (Real.one_le_sqrt.mpr (by linarith))
-  have hprod : 1 ≤ √(√((d₁ : ℝ) - 1)) * √(√((d₂ : ℝ) - 1)) := by nlinarith
+  have hs {d : ℕ} (hd : 3 ≤ d) : 1 ≤ √(√((d : ℝ) - 1)) :=
+    Real.one_le_sqrt.mpr (Real.one_le_sqrt.mpr (by linarith [show (3 : ℝ) ≤ d from mod_cast hd]))
+  have hprod := one_le_mul_of_one_le_of_one_le (hs h₁) (hs h₂)
   unfold pairWeight
   exact (div_le_one (by linarith)).mpr hprod
 
@@ -790,25 +712,22 @@ private theorem pairWeight_nonneg (d₁ d₂ : ℕ) : 0 ≤ pairWeight d₁ d₂
   unfold pairWeight
   positivity
 
-private theorem sub_two_mul_div_le {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 : q₀ ≤ 1) (hθ0 : 0 ≤ θ)
+private theorem sub_two_mul_div_bounds {q₀ θ : ℝ} (hq0 : 0 ≤ q₀) (hq1 : q₀ ≤ 1) (hθ0 : 0 ≤ θ)
     (hθ1 : θ ≤ 1) :
-    2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) := by
+    0 ≤ 2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ∧
+      2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) := by
   set q := θ * q₀
   have hqq₀ : q ≤ q₀ := mul_le_of_le_one_left hq0 hθ1
   have hq_nonneg : 0 ≤ q := mul_nonneg hθ0 hq0
-  have hdiff : q₀ - q ≤ 1 - θ := by nlinarith
   have hden : (0 : ℝ) < (1 + q₀ ^ 2) * (1 + q ^ 2) := by positivity
   have hnum : 2 * q₀ * (1 + q ^ 2) - (1 + q₀ ^ 2) * (2 * q) =
       2 * (q₀ - q) * (1 - q₀ * q) := by ring
+  have hdiff : q₀ - q ≤ 1 - θ := by nlinarith
   have h1 : 1 - q₀ * q ≤ 1 := by nlinarith
-  have h2 : 0 ≤ 1 - q₀ * q := by nlinarith
-  have hprod : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) * ((1 + q₀ ^ 2) * (1 + q ^ 2)) := by
-    have ha : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) * 1 := by nlinarith
-    have hb : (1 : ℝ) ≤ (1 + q₀ ^ 2) * (1 + q ^ 2) := by
-      nlinarith [sq_nonneg q₀, sq_nonneg q, mul_nonneg (sq_nonneg q₀) (sq_nonneg q)]
-    nlinarith
-  rw [div_sub_div _ _ (by positivity) (by positivity), div_le_iff₀ hden, hnum]
-  exact hprod
+  have ha : 2 * (q₀ - q) * (1 - q₀ * q) ≤ 2 * (1 - θ) := by nlinarith
+  rw [div_sub_div _ _ (by positivity) (by positivity), hnum]
+  refine ⟨div_nonneg (mul_nonneg (by linarith) (by nlinarith)) hden.le, (div_le_iff₀ hden).mpr ?_⟩
+  nlinarith [sq_nonneg q₀, sq_nonneg q, mul_nonneg (sq_nonneg q₀) (sq_nonneg q)]
 
 private theorem exists_delta_arccos {α : Type*} (s : Finset α) (g : α → ℝ) {ε : ℝ} (hε : 0 < ε) :
     ∃ δ > 0, ∀ p ∈ s, ∀ x, dist x (g p) < δ → dist (arccos x) (arccos (g p)) < ε := by
@@ -840,9 +759,7 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
   classical
   have hd2 : 2 ≤ d := by omega
   set D : ℝ := (d : ℝ)
-  have hD : 3 ≤ D := by
-    simp only [D]
-    exact_mod_cast hd
+  have hD : 3 ≤ D := by simp only [D]; exact_mod_cast hd
   have hden : (0 : ℝ) < 2 * d - 3 := by linarith
   have hpairs_symm : ∀ d₁ d₂ : ℕ, 3 ≤ d₁ → d₁ ≤ d → 3 ≤ d₂ → d₂ ≤ d → d + 3 ≤ d₁ + d₂ →
       arccos (pairCorrelation d₁ d₂) / π ≤ A * (1 - 1 / (d₁ : ℝ) - 1 / (d₂ : ℝ)) := by
@@ -859,27 +776,19 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     (fun p => pairCorrelation p.1 p.2) (ε := π * ξ) (by positivity)
   set μ : ℝ := min δ 1
   have hμ : 0 < μ := lt_min hδ one_pos
-  set θ : ℝ := 1 - μ / 4
-  have hθ0 : 0 ≤ θ := by
-    simp only [θ]
-    linarith [min_le_right δ 1]
-  have hθ1 : θ < 1 := by
-    simp only [θ]
-    linarith
+  set θ : ℝ := 1 - μ / 4 with hθ
+  have hθ0 : 0 ≤ θ := by linarith [min_le_right δ 1]
+  have hθ1 : θ < 1 := by linarith
   have hθsq1 : θ ^ 2 < 1 := by nlinarith
   obtain ⟨R₀, hR₀⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < μ / (2 * D)) hθsq1
   set R : ℕ := R₀ + 1
   have hR1 : 1 ≤ R := Nat.le_add_left 1 R₀
-  have hRpow : (θ ^ 2) ^ R ≤ (θ ^ 2) ^ R₀ :=
-    pow_le_pow_of_le_one (sq_nonneg θ) hθsq1.le (Nat.le_succ R₀)
   have hRerr : D / 2 * (θ ^ 2) ^ R < μ / 4 := by
-    have hlt : (θ ^ 2) ^ R < μ / (2 * D) := hRpow.trans_lt hR₀
-    have hmul := mul_lt_mul_of_pos_left hlt (by positivity : 0 < D / 2)
-    have hcancel : D / 2 * (μ / (2 * D)) = μ / 4 := by
-      have : D ≠ 0 := by linarith
-      field_simp
-      ring
-    rwa [hcancel] at hmul
+    have : D ≠ 0 := by linarith
+    calc D / 2 * (θ ^ 2) ^ R < D / 2 * (μ / (2 * D)) := by
+          gcongr
+          exact (pow_le_pow_of_le_one (sq_nonneg θ) hθsq1.le (Nat.le_succ R₀)).trans_lt hR₀
+      _ = μ / 4 := by field_simp; ring
   obtain ⟨N₀, hN₀⟩ := exists_width_le_of_unitRows_add_mul hd2 R hξ
   refine ⟨N₀, fun V E _ _ G Q hG hQ two big => ?_⟩
   let _ : Fintype Q.blocks := Fintype.ofFinite Q.blocks
@@ -907,61 +816,35 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     intro e
     set d₁ := degH (H.src e)
     set d₂ := degH (H.tgt e)
-    have hd₁_lo : 3 ≤ d₁ := hlo (H.src e)
-    have hd₁_hi : d₁ ≤ d := hhi (H.src e)
-    have hd₂_lo : 3 ≤ d₂ := hlo (H.tgt e)
-    have hd₂_hi : d₂ ≤ d := hhi (H.tgt e)
-    have hd_sum : d + 3 ≤ d₁ + d₂ := hQ.add_three_le_ncard_incidenceSet_quotient e
     have hmem : (d₁, d₂) ∈ pairSet :=
-      Finset.mem_product.mpr ⟨Finset.mem_Icc.mpr ⟨hd₁_lo, hd₁_hi⟩,
-        Finset.mem_Icc.mpr ⟨hd₂_lo, hd₂_hi⟩⟩
+      Finset.mem_product.mpr ⟨Finset.mem_Icc.mpr ⟨hlo (H.src e), hhi (H.src e)⟩,
+        Finset.mem_Icc.mpr ⟨hlo (H.tgt e), hhi (H.tgt e)⟩⟩
     set q₀ := pairWeight d₁ d₂
-    have hq₀0 : 0 ≤ q₀ := pairWeight_nonneg d₁ d₂
-    have hq₀1 : q₀ ≤ 1 := pairWeight_le_one hd₁_lo hd₂_lo
     have hq_eq : edgeWeight degH θ (H.src e) (H.tgt e) = θ * q₀ := by
       simp only [edgeWeight, q₀, pairWeight, d₁, d₂]
       ring
-    have hsub1 : pairCorrelation d₁ d₂ -
-        2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) :=
-      sub_two_mul_div_le hq₀0 hq₀1 hθ0 hθ1.le
-    have hsub1_nonneg : 0 ≤ pairCorrelation d₁ d₂ -
-        2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) := by
-      unfold pairCorrelation
-      change 0 ≤ 2 * q₀ / (1 + q₀ ^ 2) - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2)
-      rw [div_sub_div _ _ (by positivity) (by positivity)]
-      refine div_nonneg ?_ (by positivity)
-      have hnum : 2 * q₀ * (1 + (θ * q₀) ^ 2) - (1 + q₀ ^ 2) * (2 * (θ * q₀)) =
-          2 * q₀ * (1 - θ) * (1 - θ * q₀ ^ 2) := by ring
-      rw [hnum]
-      have h1 : 0 ≤ 1 - θ := by linarith
-      have h2 : 0 ≤ 1 - θ * q₀ ^ 2 := by nlinarith [sq_nonneg q₀]
-      positivity
+    obtain ⟨hsub1_nonneg, hsub1⟩ :
+        0 ≤ pairCorrelation d₁ d₂ - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ∧
+          pairCorrelation d₁ d₂ - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) :=
+      sub_two_mul_div_bounds (pairWeight_nonneg d₁ d₂)
+        (pairWeight_le_one (hlo (H.src e)) (hlo (H.tgt e))) hθ0 hθ1.le
     have hρ_le : ρ e ≤ pairCorrelation d₁ d₂ := by
       dsimp only [ρ]
       rw [hq_eq]
-      have : 0 ≤ D / 2 * (θ ^ 2) ^ R := by positivity
-      linarith
+      linarith [show 0 ≤ D / 2 * (θ ^ 2) ^ R by positivity]
     have hρ_diff : pairCorrelation d₁ d₂ - ρ e < δ := by
       dsimp only [ρ]
       rw [hq_eq]
       have h2θ : 2 * (1 - θ) = μ / 2 := by simp only [θ]; ring
-      have hμδ : μ ≤ δ := min_le_left δ 1
-      linarith
-    have hdist : dist (ρ e) (pairCorrelation d₁ d₂) < δ := by
-      rw [Real.dist_eq, abs_sub_comm, abs_of_nonneg (by linarith)]
-      exact hρ_diff
-    have harc := hcont (d₁, d₂) hmem (ρ e) hdist
+      linarith [min_le_left δ 1]
+    have harc := hcont (d₁, d₂) hmem (ρ e)
+      (by rw [Real.dist_eq, abs_sub_comm, abs_of_nonneg (by linarith)]; exact hρ_diff)
     rw [Real.dist_eq] at harc
-    have harc_le : arccos (ρ e) ≤ arccos (pairCorrelation d₁ d₂) + π * ξ := by
-      linarith [(abs_lt.mp harc).2]
     have hdiv : arccos (ρ e) / π ≤ arccos (pairCorrelation d₁ d₂) / π + ξ := by
-      rw [div_le_iff₀ pi_pos]
-      have heq : (arccos (pairCorrelation d₁ d₂) / π + ξ) * π =
-          arccos (pairCorrelation d₁ d₂) + π * ξ := by
-        field_simp
-      rw [heq]
-      exact harc_le
-    linarith [hpairs_symm d₁ d₂ hd₁_lo hd₁_hi hd₂_lo hd₂_hi hd_sum]
+      rw [div_add' _ _ _ pi_pos.ne', div_le_div_iff_of_pos_right pi_pos]
+      linarith [(abs_lt.mp harc).2]
+    linarith [hpairs_symm d₁ d₂ (hlo (H.src e)) (hhi (H.src e)) (hlo (H.tgt e)) (hhi (H.tgt e))
+      (hQ.add_three_le_ncard_incidenceSet_quotient e)]
   have hsum_cross : (∑ e : Q.external, arccos (ρ e) / π) ≤
       A * ((Fintype.card Q.external : ℝ) - Fintype.card Q.blocks) +
         ξ * Fintype.card Q.external := by
@@ -983,11 +866,8 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     have hcard := Q.card_add_card_external_le
     have hconn := G.card_le_card_add_one_of_connected hG
     have hβ : Nat.card E + 1 ≤ G.cycleRank + Nat.card V := by grind [Multigraph.cycleRank]
-    have hnat : Nat.card Q.external ≤ Nat.card Q.blocks + G.cycleRank := by omega
-    rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card]
-    have hR : (Nat.card Q.external : ℝ) ≤ Nat.card Q.blocks + G.cycleRank := by
-      exact_mod_cast hnat
-    linarith
+    rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, sub_le_iff_le_add']
+    exact_mod_cast (by omega : Nat.card Q.external ≤ Nat.card Q.blocks + G.cycleRank)
   have ⟨hE3, hV3⟩ := hQ.card_external_and_blocks_le_three_mul_cycleRank hd hG two
   have hE3' : (Fintype.card Q.external : ℝ) ≤ 3 * G.cycleRank := by
     rwa [← Nat.card_eq_fintype_card]
@@ -1001,13 +881,48 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
 
 namespace WeightedKernel
 
-/-- Double-angle lower bound for `cos`: if `0 ≤ u ≤ cos x` and `v ≤ 2 u ^ 2 - 1`, then
-`v ≤ cos (2 x)`. -/
-private theorem le_cos_two_mul {x u v : ℝ} (hu0 : 0 ≤ u) (hu : u ≤ cos x)
-    (hv : v ≤ 2 * u ^ 2 - 1) : v ≤ cos (2 * x) := by
-  have hsq : u ^ 2 ≤ cos x ^ 2 := pow_le_pow_left₀ hu0 hu 2
-  rw [cos_two_mul]
-  linarith
+private noncomputable def cosOctUpper (x : ℝ) : ℝ :=
+  let t := x / 8
+  let c := 1 - 2 * (t - t ^ 3 / 6) ^ 2
+  2 * (2 * c ^ 2 - 1) ^ 2 - 1
+
+private theorem arccos_le_of_cosOctUpper {r x : ℝ} (hx0 : 0 ≤ x) (hx2 : x ≤ 2)
+    (hr : cosOctUpper x ≤ r) : arccos r ≤ x := by
+  have ht0 : 0 ≤ x / 8 - (x / 8) ^ 3 / 6 := by
+    have : x / 8 - (x / 8) ^ 3 / 6 = (x / 8) * (1 - (x / 8) ^ 2 / 6) := by ring
+    rw [this]; exact mul_nonneg (by linarith) (by nlinarith)
+  have hsin := sin_ge_sub_cube (show 0 ≤ x / 8 by linarith)
+  have hc0 : cos (2 * (x / 8)) ≤ 1 - 2 * (x / 8 - (x / 8) ^ 3 / 6) ^ 2 := by
+    rw [cos_two_mul']
+    linarith [pow_le_pow_left₀ ht0 hsin 2, sin_sq_add_cos_sq (x / 8)]
+  have hc1 := cos_two_mul_le (by nlinarith) hc0 le_rfl
+  have hc2 : cos x ≤ cosOctUpper x := by
+    conv_lhs => rw [show x = 2 * (2 * (2 * (x / 8))) by ring]
+    exact cos_two_mul_le (by nlinarith) hc1 le_rfl
+  exact (arccos_le_arccos (hc2.trans hr)).trans_eq (arccos_cos hx0 (by linarith [pi_gt_three]))
+
+private noncomputable def cosQuarLower (x : ℝ) : ℝ :=
+  let t := x / 4
+  let c := 1 - 2 * (t - t ^ 3 / 6 + t ^ 5 / 100) ^ 2
+  2 * c ^ 2 - 1
+
+private theorem le_arccos_of_cosQuarLower {r x : ℝ} (hx0 : 0 ≤ x) (hx3 : x ≤ 3)
+    (hc0 : 0 ≤ 1 - 2 * ((x / 4) - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100) ^ 2)
+    (hr : r ≤ cosQuarLower x) : x ≤ arccos r := by
+  have ht0 : 0 ≤ x / 4 := by linarith
+  have hb := sin_bound (x := x / 4) (by rw [abs_of_nonneg ht0]; linarith)
+  rw [abs_of_nonneg ht0] at hb
+  have hsin : sin (x / 4) ≤ x / 4 - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100 := by
+    linarith [(abs_le.mp hb).2]
+  have hsin0 : 0 ≤ sin (x / 4) := sin_nonneg_of_nonneg_of_le_pi ht0 (by linarith [pi_gt_three])
+  have hc1 : 1 - 2 * (x / 4 - (x / 4) ^ 3 / 6 + (x / 4) ^ 5 / 100) ^ 2 ≤ cos (2 * (x / 4)) := by
+    rw [cos_two_mul']
+    linarith [pow_le_pow_left₀ hsin0 hsin 2, sin_sq_add_cos_sq (x / 4)]
+  have hc2 : cosQuarLower x ≤ cos x := by
+    dsimp only [cosQuarLower]
+    conv_rhs => rw [show x = 2 * (2 * (x / 4)) by ring, cos_two_mul]
+    linarith [pow_le_pow_left₀ hc0 hc1 2]
+  exact (arccos_cos hx0 (by linarith [pi_gt_three])).symm.trans_le (arccos_le_arccos (hr.trans hc2))
 
 /-- Rational lower-bound certificate for `pairCorrelation d₁ d₂ = 2 √(√p) / (√p + 1)` where
 `p = (d₁ - 1)(d₂ - 1)`. -/
@@ -1018,37 +933,38 @@ private theorem lt_pairCorrelation_of_bounds {d₁ d₂ : ℕ} (hd₁ : 3 ≤ d�
     (h3 : u * (r_hi + 1) < 2 * s_lo) : u < pairCorrelation d₁ d₂ := by
   set a : ℝ := (d₁ : ℝ) - 1
   set b : ℝ := (d₂ : ℝ) - 1
-  have ha : 0 < a := by
-    have : (3 : ℝ) ≤ d₁ := by exact_mod_cast hd₁
-    linarith
-  have hb : 0 < b := by
-    have : (3 : ℝ) ≤ d₂ := by exact_mod_cast hd₂
-    linarith
+  have ha : 0 < a := by linarith [show (3 : ℝ) ≤ d₁ from mod_cast hd₁]
+  have hb : 0 < b := by linarith [show (3 : ℝ) ≤ d₂ from mod_cast hd₂]
   set p : ℝ := a * b
   have hp : 0 < p := mul_pos ha hb
   have hs_eq : √(√a) * √(√b) = √(√p) := by
     rw [← sqrt_mul (sqrt_nonneg a), ← sqrt_mul ha.le]
   have hs_pos : 0 < √(√p) := by positivity
-  have hs_sq : √(√p) ^ 2 = √p := sq_sqrt (sqrt_nonneg p)
   have hcorr_eq : pairCorrelation d₁ d₂ = 2 * √(√p) / (√p + 1) := by
     unfold pairCorrelation pairWeight
     change 2 * (1 / (√(√a) * √(√b))) / (1 + (1 / (√(√a) * √(√b))) ^ 2) = 2 * √(√p) / (√p + 1)
-    rw [hs_eq]
+    rw [hs_eq, div_eq_div_iff (by positivity) (by positivity)]
     have hne : √(√p) ≠ 0 := hs_pos.ne'
-    have hden_pos : 0 < √p + 1 := by positivity
-    rw [div_eq_div_iff (by positivity) hden_pos.ne']
     field_simp
-    nlinarith [hs_sq]
+    nlinarith [sq_sqrt (sqrt_nonneg p)]
   rw [hcorr_eq, lt_div_iff₀ (by positivity)]
   have hr_lt : √p < r_hi := (sqrt_lt' hr).mpr h1
-  have hs2_lt : s_lo ^ 2 < √p := (lt_sqrt (sq_nonneg s_lo)).mpr (by ring_nf at h2 ⊢; exact h2)
-  have hs_lt : s_lo < √(√p) := (lt_sqrt hs.le).mpr hs2_lt
+  have hs_lt : s_lo < √(√p) :=
+    (lt_sqrt hs.le).mpr ((lt_sqrt (sq_nonneg s_lo)).mpr (pow_mul s_lo 2 2 ▸ h2))
   by_cases hu0 : 0 ≤ u
-  · have hmul : u * (√p + 1) ≤ u * (r_hi + 1) :=
-      mul_le_mul_of_nonneg_left (by linarith) hu0
-    linarith
-  · have : u * (√p + 1) < 0 := mul_neg_of_neg_of_pos (not_le.mp hu0) (by positivity)
-    linarith
+  · linarith [mul_le_mul_of_nonneg_left hr_lt.le hu0]
+  · linarith [mul_neg_of_neg_of_pos (not_le.mp hu0) (by positivity : 0 < √p + 1)]
+
+private theorem arccos_pairCorrelation_le {d₁ d₂ : ℕ} (hd₁ : 3 ≤ d₁) (hd₂ : 3 ≤ d₂)
+    {x r_hi s_lo : ℝ}
+    (hcert : 0 ≤ x ∧ x ≤ 2 ∧ 0 < s_lo ∧ 0 < r_hi ∧
+      ((d₁ : ℝ) - 1) * ((d₂ : ℝ) - 1) < r_hi ^ 2 ∧
+      s_lo ^ 4 < ((d₁ : ℝ) - 1) * ((d₂ : ℝ) - 1) ∧
+      cosOctUpper x * (r_hi + 1) < 2 * s_lo) :
+    arccos (pairCorrelation d₁ d₂) ≤ x := by
+  rcases hcert with ⟨hx0, hx2, hs, hr, h1, h2, h3⟩
+  exact arccos_le_of_cosOctUpper hx0 hx2
+    (lt_pairCorrelation_of_bounds hd₁ hd₂ hs hr h1 h2 h3).le
 
 /-- Diagonal evaluation: `pairCorrelation d d = Gaussian.vertexCorrelation d` for `d ≥ 1`. -/
 theorem pairCorrelation_self {d : ℕ} (hd : 1 ≤ d) :
@@ -1094,97 +1010,28 @@ theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
 
 private theorem arccos_pairCorrelation_three_four_le :
     arccos (pairCorrelation 3 4) / π ≤ 5 / 36 := by
-  have hpi_lo := pi_gt_d4
-  have hpi_hi := pi_lt_d4
-  set α := 5 * π / 36 with hα
-  have hα0 : 0 ≤ α := by positivity
-  have hα_lo : 157075 / 360000 ≤ α := by rw [hα]; linarith
-  have hα_hi : α ≤ 157080 / 360000 := by rw [hα]; linarith
-  have hcos : cos α ≤ 907 / 1000 := by
-    have hb := cos_bound (x := α) (by rw [abs_of_nonneg hα0]; linarith)
-    rw [abs_of_nonneg hα0] at hb
-    have h2 : (157075 / 360000 : ℝ) ^ 2 ≤ α ^ 2 := by gcongr
-    have h4 : α ^ 4 ≤ (157080 / 360000 : ℝ) ^ 4 := by gcongr
-    have h5 := (abs_le.mp hb).2
-    nlinarith
-  have hρ : (907 / 1000 : ℝ) < pairCorrelation 3 4 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 39127 / 25000) (r_hi := 244949 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have harc : arccos (pairCorrelation 3 4) ≤ α :=
-    (arccos_le_arccos (hcos.trans hρ.le)).trans_eq
-      (arccos_cos hα0 (by rw [hα]; linarith))
+  have harc : arccos (pairCorrelation 3 4) ≤ 157075 / 360000 :=
+    arccos_pairCorrelation_le (by norm_num) (by norm_num)
+      (s_lo := 39127 / 25000) (r_hi := 244949 / 100000) (by dsimp only [cosOctUpper]; norm_num)
   rw [div_le_iff₀ pi_pos]
-  linarith
+  linarith [pi_gt_d4]
 
-private theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) := by
-  have hb := cos_bound (x := 3217 / 160000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 3217 / 160000)] at hb
-  have h0 : (49989893 / 50000000 : ℝ) ≤ cos (3217 / 160000) := by linarith [(abs_le.mp hb).1]
-  have h1 := le_cos_two_mul (by norm_num) h0 (v := 999191521 / 1000000000) (by norm_num)
-  have h2 := le_cos_two_mul (by norm_num) h1 (v := 996767391 / 1000000000) (by norm_num)
-  have h3 := le_cos_two_mul (by norm_num) h2 (v := 987090463 / 1000000000) (by norm_num)
-  have h4 := le_cos_two_mul (by norm_num) h3 (v := 237173791 / 250000000) (by norm_num)
-  have h5 := le_cos_two_mul (by norm_num) h4 (v := 200011257 / 250000000) (by norm_num)
-  have hcos : (4 / 5 : ℝ) ≤ cos (3217 / 5000) := by
-    have hval : (3217 / 5000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (3217 / 160000))))) := by norm_num
-    rw [hval]
-    exact le_trans (by norm_num) h5
-  calc (3217 / 5000 : ℝ) = arccos (cos (3217 / 5000)) :=
-        (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-    _ ≤ arccos (4 / 5) := arccos_le_arccos hcos
+private theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) :=
+  le_arccos_of_cosQuarLower (by norm_num) (by norm_num) (by norm_num)
+    (by dsimp only [cosQuarLower]; norm_num)
 
-private theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 := by
-  have hb := cos_bound (x := 64351 / 3200000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 64351 / 3200000)] at hb
-  have h0 : cos (64351 / 3200000) ≤ 999797809 / 1000000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 499595659 / 500000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 49838329 / 50000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 987087231 / 1000000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 237170601 / 250000000) (by norm_num)
-  have h5 := cos_two_mul_le (by norm_num) h4 (v := 12499947 / 15625000) (by norm_num)
-  have hcos : cos (64351 / 100000) ≤ 4 / 5 := by
-    have hval : (64351 / 100000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (64351 / 3200000))))) := by
-      norm_num
-    rw [hval]
-    exact h5.trans (by norm_num)
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+private theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 :=
+  arccos_le_of_cosOctUpper (by norm_num) (by norm_num) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_four_five_le :
-    arccos (pairCorrelation 4 5) ≤ 35387 / 60000 := by
-  have hb := cos_bound (x := 35387 / 480000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 35387 / 480000)] at hb
-  have h0 : cos (35387 / 480000) ≤ 9972841 / 10000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 1236439 / 1250000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 4784201 / 5000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 519429 / 625000) (by norm_num)
-  have hρ : (519429 / 625000 : ℝ) < pairCorrelation 4 5 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 4653 / 2500) (r_hi := 346411 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (35387 / 60000) ≤ pairCorrelation 4 5 := by
-    have hval : (35387 / 60000 : ℝ) = 2 * (2 * (2 * (35387 / 480000))) := by norm_num
-    rw [hval]
-    exact h3.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 4 5) ≤ 35387 / 60000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 4653 / 2500) (r_hi := 346411 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_three_five_le :
-    arccos (pairCorrelation 3 5) ≤ 22519 / 45000 := by
-  have hb := cos_bound (x := 22519 / 360000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 22519 / 360000)] at hb
-  have h0 : cos (22519 / 360000) ≤ 2495111 / 2500000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 9921853 / 10000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 4844317 / 5000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 4386963 / 5000000) (by norm_num)
-  have hρ : (4386963 / 5000000 : ℝ) < pairCorrelation 3 5 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 168179 / 100000) (r_hi := 282843 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (22519 / 45000) ≤ pairCorrelation 3 5 := by
-    have hval : (22519 / 45000 : ℝ) = 2 * (2 * (2 * (22519 / 360000))) := by norm_num
-    rw [hval]
-    exact h3.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 3 5) ≤ 22519 / 45000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 168179 / 100000) (r_hi := 282843 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 /-- The exact degree-five layout coefficient `(5 / 3) arccos (4 / 5) / π ≈ 0.341388`. -/
 @[expose] noncomputable def fiveCoefficient : ℝ :=
@@ -1213,103 +1060,35 @@ theorem fiveCircuitCoefficient_ge_3929 :
   linarith
 
 private theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 3) := by
-  have hb := cos_bound (x := 7297 / 640000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 7297 / 640000)] at hb
-  have h0 : (9999350013 / 10000000000 : ℝ) ≤ cos (7297 / 640000) := by
-    linarith [(abs_le.mp hb).1]
-  have h1 := le_cos_two_mul (by norm_num) h0 (v := 1249675017 / 1250000000) (by norm_num)
-  have h2 := le_cos_two_mul (by norm_num) h1 (v := 1997920379 / 2000000000) (by norm_num)
-  have h3 := le_cos_two_mul (by norm_num) h2 (v := 2489607301 / 2500000000) (by norm_num)
-  have h4 := le_cos_two_mul (by norm_num) h3 (v := 4917031221 / 5000000000) (by norm_num)
-  have h5 := le_cos_two_mul (by norm_num) h4 (v := 4670878411 / 5000000000) (by norm_num)
-  have h6 := le_cos_two_mul (by norm_num) h5 (v := 931710513 / 1250000000) (by norm_num)
   have hs5 : √5 < 3 * (931710513 / 1250000000 : ℝ) :=
     (sqrt_lt' (by norm_num)).mpr (by norm_num)
-  have hcos : √5 / 3 ≤ cos (7297 / 10000) := by
-    have hval : (7297 / 10000 : ℝ) = 2 * (2 * (2 * (2 * (2 * (2 * (7297 / 640000)))))) := by
-      norm_num
-    rw [hval]
-    linarith
-  calc (7297 / 10000 : ℝ) = arccos (cos (7297 / 10000)) :=
-        (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
-    _ ≤ arccos (√5 / 3) := arccos_le_arccos hcos
+  refine le_arccos_of_cosQuarLower (by norm_num) (by norm_num) (by norm_num) ?_
+  have hnum : (931710513 / 1250000000 : ℝ) ≤ cosQuarLower (7297 / 10000) := by
+    dsimp only [cosQuarLower]; norm_num
+  linarith
 
 private theorem arccos_sqrt_five_div_three_le : arccos (√5 / 3) ≤ 72973 / 100000 := by
-  have hb := cos_bound (x := 72973 / 6400000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 72973 / 6400000)] at hb
-  have h0 : cos (72973 / 6400000) ≤ 4999674989 / 5000000000 := by
-    linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 9997399997 / 10000000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 9989601341 / 10000000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 9958426991 / 10000000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 2458513407 / 2500000000) (by norm_num)
-  have h5 := cos_two_mul_le (by norm_num) h4 (v := 1167715269 / 1250000000) (by norm_num)
-  have h6 := cos_two_mul_le (by norm_num) h5 (v := 3726777277 / 5000000000) (by norm_num)
   have hs5 : 3 * (3726777277 / 5000000000 : ℝ) < √5 :=
     (lt_sqrt (by norm_num)).mpr (by norm_num)
-  have hcos : cos (72973 / 100000) ≤ √5 / 3 := by
-    have hval : (72973 / 100000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (72973 / 6400000)))))) := by norm_num
-    rw [hval]
-    linarith
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+  refine arccos_le_of_cosOctUpper (by norm_num) (by norm_num) ?_
+  have hnum : cosOctUpper (72973 / 100000) ≤ 3726777277 / 5000000000 := by
+    dsimp only [cosOctUpper]; norm_num
+  linarith
 
 private theorem arccos_pairCorrelation_five_six_le :
-    arccos (pairCorrelation 5 6) ≤ 138643 / 200000 := by
-  have hb := cos_bound (x := 138643 / 3200000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 138643 / 3200000)] at hb
-  have h0 : cos (138643 / 3200000) ≤ 49953081 / 50000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 3984993 / 4000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 24625529 / 25000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 47026669 / 50000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 2403769 / 3125000) (by norm_num)
-  have hρ : (2403769 / 3125000 : ℝ) < pairCorrelation 5 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 105737 / 50000) (r_hi := 223607 / 50000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (138643 / 200000) ≤ pairCorrelation 5 6 := by
-    have hval : (138643 / 200000 : ℝ) = 2 * (2 * (2 * (2 * (138643 / 3200000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 5 6) ≤ 138643 / 200000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 105737 / 50000) (r_hi := 223607 / 50000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_four_six_le :
-    arccos (pairCorrelation 4 6) ≤ 51079 / 80000 := by
-  have hb := cos_bound (x := 51079 / 1280000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 51079 / 1280000)] at hb
-  have h0 : cos (51079 / 1280000) ≤ 99920391 / 100000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 99681691 / 100000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 98728791 / 100000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 23736871 / 25000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 16060099 / 20000000) (by norm_num)
-  have hρ : (16060099 / 20000000 : ℝ) < pairCorrelation 4 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 98399 / 50000) (r_hi := 387299 / 100000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (51079 / 80000) ≤ pairCorrelation 4 6 := by
-    have hval : (51079 / 80000 : ℝ) = 2 * (2 * (2 * (2 * (51079 / 1280000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 4 6) ≤ 51079 / 80000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 98399 / 50000) (r_hi := 387299 / 100000) (by dsimp only [cosOctUpper]; norm_num)
 
 private theorem arccos_pairCorrelation_three_six_le :
-    arccos (pairCorrelation 3 6) ≤ 21891 / 40000 := by
-  have hb := cos_bound (x := 21891 / 640000) (by norm_num)
-  norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 21891 / 640000)] at hb
-  have h0 : cos (21891 / 640000) ≤ 9994151 / 10000000 := by linarith [(abs_le.mp hb).2]
-  have h1 := cos_two_mul_le (by norm_num) h0 (v := 99766109 / 100000000) (by norm_num)
-  have h2 := cos_two_mul_le (by norm_num) h1 (v := 99065531 / 100000000) (by norm_num)
-  have h3 := cos_two_mul_le (by norm_num) h2 (v := 96279589 / 100000000) (by norm_num)
-  have h4 := cos_two_mul_le (by norm_num) h3 (v := 42697593 / 50000000) (by norm_num)
-  have hρ : (42697593 / 50000000 : ℝ) < pairCorrelation 3 6 :=
-    lt_pairCorrelation_of_bounds (by norm_num) (by norm_num)
-      (s_lo := 177827 / 100000) (r_hi := 79057 / 25000)
-      (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
-  have hcos : cos (21891 / 40000) ≤ pairCorrelation 3 6 := by
-    have hval : (21891 / 40000 : ℝ) = 2 * (2 * (2 * (2 * (21891 / 640000)))) := by norm_num
-    rw [hval]
-    exact h4.trans hρ.le
-  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
+    arccos (pairCorrelation 3 6) ≤ 21891 / 40000 :=
+  arccos_pairCorrelation_le (by norm_num) (by norm_num)
+    (s_lo := 177827 / 100000) (r_hi := 79057 / 25000) (by dsimp only [cosOctUpper]; norm_num)
 
 /-- The exact degree-six layout coefficient `(3 / 2) arccos (√5 / 3) / π ≈ 0.348419`. -/
 @[expose] noncomputable def sixCoefficient : ℝ :=
@@ -1351,13 +1130,9 @@ theorem layoutBound_four_one_third : LayoutBound 4 (1 / 3) := by
   refine layoutBound_of_weightedKernel (by norm_num) (by norm_num) fun d₁ d₂ h1 h12 h2 hsum => ?_
   have hcases : (d₁ = 3 ∧ d₂ = 4) ∨ (d₁ = 4 ∧ d₂ = 4) := by omega
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · refine arccos_pairCorrelation_three_four_le.trans_eq ?_
-    push_cast
-    norm_num
+  · exact arccos_pairCorrelation_three_four_le.trans_eq (by push_cast; norm_num)
   · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
-    push_cast
-    field_simp
-    norm_num
+    push_cast; field_simp; norm_num
 
 /-- **Degree-five weighted layout bound.** Connected loopless multigraphs of maximum degree five
 have layouts of width `(fiveCoefficient + o(1)) β₁ + o(|V|)`, where
@@ -1369,37 +1144,15 @@ theorem layoutBound_five_weighted : LayoutBound 5 WeightedKernel.fiveCoefficient
       (d₁ = 4 ∧ d₂ = 4) ∨ (d₁ = 3 ∧ d₂ = 5) ∨ (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 5) := by
     omega
   unfold WeightedKernel.fiveCoefficient
+  rw [div_mul_eq_mul_div]
+  refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha5 := WeightedKernel.le_arccos_four_fifths
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos]),
-      div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (4 : ℝ) - 1 / (4 : ℝ)) * π =
-        5 / 6 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [pi_lt_d4]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (3 : ℝ) - 1 / (5 : ℝ)) * π =
-        7 / 9 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_three_five_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 5 / 3 * arccos (4 / 5) / π * (1 - 1 / (4 : ℝ) - 1 / (5 : ℝ)) * π =
-        11 / 12 * arccos (4 / 5) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
-  · rw [pairCorrelation_five_five]
-    refine le_of_eq ?_
-    push_cast
-    ring
+  · rw [pairCorrelation_four_four, arccos_cos (by positivity) (by linarith [pi_pos])]
+    push_cast; linarith [pi_lt_d4]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_five_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
+  · rw [pairCorrelation_five_five]; push_cast; linarith
 
 /-- **Degree-six weighted layout bound.** Connected loopless multigraphs of maximum degree six
 have layouts of width `(sixCoefficient + o(1)) β₁ + o(|V|)`, where
@@ -1411,51 +1164,15 @@ theorem layoutBound_six_weighted : LayoutBound 6 WeightedKernel.sixCoefficient :
       (d₁ = 5 ∧ d₂ = 5) ∨ (d₁ = 5 ∧ d₂ = 6) ∨ (d₁ = 6 ∧ d₂ = 6) := by
     omega
   unfold WeightedKernel.sixCoefficient
+  rw [div_mul_eq_mul_div]
+  refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha6 := WeightedKernel.le_arccos_sqrt_five_div_three
   rcases hcases with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (4 : ℝ) - 1 / (5 : ℝ)) * π =
-        33 / 40 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (3 : ℝ) - 1 / (6 : ℝ)) * π =
-        3 / 4 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_three_six_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (4 : ℝ) - 1 / (6 : ℝ)) * π =
-        7 / 8 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_four_six_le]
-  · rw [pairCorrelation_five_five, div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (5 : ℝ) - 1 / (5 : ℝ)) * π =
-        9 / 10 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_four_fifths_le]
-  · rw [div_le_iff₀ pi_pos]
-    push_cast
-    have heq : 3 / 2 * arccos (√5 / 3) / π * (1 - 1 / (5 : ℝ) - 1 / (6 : ℝ)) * π =
-        19 / 20 * arccos (√5 / 3) := by
-      field_simp
-      ring
-    rw [heq]
-    linarith [WeightedKernel.arccos_pairCorrelation_five_six_le]
-  · rw [pairCorrelation_six_six]
-    refine le_of_eq ?_
-    push_cast
-    ring
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_five_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_three_six_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_four_six_le]
+  · rw [pairCorrelation_five_five]; push_cast; linarith [WeightedKernel.arccos_four_fifths_le]
+  · push_cast; linarith [WeightedKernel.arccos_pairCorrelation_five_six_le]
+  · rw [pairCorrelation_six_six]; push_cast; linarith
 
 end Cslib.Circuits.Frontier

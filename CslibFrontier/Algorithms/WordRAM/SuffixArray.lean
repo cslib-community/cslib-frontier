@@ -341,28 +341,38 @@ private theorem KasaiRegs.write_mem {I : KasaiInput} {x : Data 20} (hr : KasaiRe
   ⟨hr.zero_eq, hr.one_eq, hr.tb_eq, hr.tl_eq, hr.sb_eq, hr.sl_eq, hr.rkb_eq, hr.out_eq,
    hr.lcpb_eq⟩
 
+private theorem KasaiRegs.kasai_exec {I : KasaiInput} {c : Code .standard 20} {x y : Data 20}
+    {w T : ℕ} (hr : KasaiRegs I x) (he : ExecWithin w c x y T)
+    (h0 : c.Preserves zero := by decide) (h1 : c.Preserves one := by decide)
+    (htb : c.Preserves textBase := by decide) (htl : c.Preserves textLen := by decide)
+    (hsb : c.Preserves saBase := by decide) (hsl : c.Preserves saLen := by decide)
+    (hrk : c.Preserves rkBase := by decide) (ho : c.Preserves out := by decide)
+    (hlb : c.Preserves lcpBase := by decide) : KasaiRegs I y :=
+  ⟨(he.regs_eq h0).trans hr.zero_eq, (he.regs_eq h1).trans hr.one_eq,
+   (he.regs_eq htb).trans hr.tb_eq, (he.regs_eq htl).trans hr.tl_eq,
+   (he.regs_eq hsb).trans hr.sb_eq, (he.regs_eq hsl).trans hr.sl_eq,
+   (he.regs_eq hrk).trans hr.rkb_eq, (he.regs_eq ho).trans hr.out_eq,
+   (he.regs_eq hlb).trans hr.lcpb_eq⟩
+
 private theorem init_kasaiEncode (I : KasaiInput) :
     let x : Data 20 := Data.init I.encode
     x.mem 1 = I.text.length ∧ x.mem 2 = I.sa.length ∧
       Block.HoldsList 3 I.text x.mem ∧
       Block.HoldsList (3 + I.text.length) I.sa x.mem := by
   intro x
-  have hhdr : Block.HoldsList 1 [I.text.length, I.sa.length] x.mem := by
-    dsimp only [x, KasaiInput.encode]
-    exact init_holdsList_append (r := 20) [] [I.text.length, I.sa.length] (I.text ++ I.sa)
-  obtain ⟨hm1, hhdr2⟩ := Block.holdsList_cons_iff.mp hhdr
+  obtain ⟨hm1, hhdr2⟩ := Block.holdsList_cons_iff.mp
+    (init_holdsList_append (r := 20) [] [I.text.length, I.sa.length] (I.text ++ I.sa))
   obtain ⟨hm2, _⟩ := Block.holdsList_cons_iff.mp hhdr2
-  have htxt : Block.HoldsList 3 I.text x.mem := by
-    dsimp only [x, KasaiInput.encode]
-    exact init_holdsList_append (r := 20) [I.text.length, I.sa.length] I.text I.sa
-  have hsa : Block.HoldsList (3 + I.text.length) I.sa x.mem := by
-    dsimp only [x, KasaiInput.encode]
-    have h := init_holdsList_append (r := 20) ([I.text.length, I.sa.length] ++ I.text) I.sa []
-    have hlen : ([I.text.length, I.sa.length] ++ I.text).length + 1 = 3 + I.text.length := by
-      simp; omega
-    rw [hlen] at h
-    simpa only [List.append_nil, List.cons_append, List.nil_append] using h
-  exact ⟨hm1, hm2, htxt, hsa⟩
+  have hsa := init_holdsList_append (r := 20) (I.text.length :: I.sa.length :: I.text) I.sa []
+  have hlen : (I.text.length :: I.sa.length :: I.text).length + 1 = 3 + I.text.length := by
+    simp only [List.length_cons]
+    omega
+  rw [hlen] at hsa
+  exact ⟨hm1, hm2,
+    init_holdsList_append (r := 20) [I.text.length, I.sa.length] I.text I.sa,
+    by
+      dsimp only [x, KasaiInput.encode]
+      simpa only [List.append_nil, List.cons_append] using hsa⟩
 
 private theorem kasaiSetupAndZero_spec (I : KasaiInput) {w : ℕ}
     (hw : Fits w (3 * I.text.length + I.sa.length + 4)) :
@@ -397,85 +407,79 @@ private theorem kasaiSetupAndZero_spec (I : KasaiInput) {w : ℕ}
     refine WP.exists_execWithin ?_
     unfold kasaiSetup
     wram_exec [x, Data.init_regs, hm1, hm2, hf_1, hf_2, hf_3, hf_sb, hf_rkb, hf_out, hf_lcpb]
-    refine ⟨⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp; omega, by wram_simp; omega⟩,
-      ?_, ?_, ?_⟩
-    · simp only [Data.set_mem, Data.write_mem]
-      rw [show 3 + I.text.length + I.sa.length + I.text.length = 3 + 2 * n + m by omega,
-        Function.update_self]
+    refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_⟩
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+    · wram_simp
+      omega
+    · wram_simp
+      omega
+    · have hout_idx : 3 + I.text.length + I.sa.length + I.text.length = 3 + 2 * n + m := by omega
+      simp only [Data.set_mem, Data.write_mem, hout_idx, Function.update_self, n]
     · exact htxt.frame fun a _ ha2 => by
-        simp only [Data.set_mem, Data.write_mem]; rw [Function.update_of_ne (by omega)]
+        simp only [Data.set_mem, Data.write_mem]
+        rw [Function.update_of_ne (by omega)]
     · exact hsa.frame fun a _ ha2 => by
-        simp only [Data.set_mem, Data.write_mem]; rw [Function.update_of_ne (by omega)]
+        simp only [Data.set_mem, Data.write_mem]
+        rw [Function.update_of_ne (by omega)]
   obtain ⟨s₀, es₀, hrs₀, hmem_out, htxt₀, hsa₀⟩ := hsetup
   set s₁ := s₀.set t0 (3 + n + m)
-  have e₁ : ExecWithin (B := .standard) w (.op (.copy t0 rkBase)) s₀ s₁ 1 := by
-    simpa only [hrs₀.rkb_eq] using
-      (ExecWithin.copy (B := .standard) (d := t0) (s := rkBase) (x := s₀))
   have hrs₁ : KasaiRegs I s₁ := hrs₀.set_scratch t0 _
+  have hs₁_t0 : s₁.regs t0 = 3 + n + m := Data.set_regs_self s₀ t0 _
   have ez₁ := (zeroFill_exec (w := w) (cur := t0) (stop := out) (zero := zero) (one := one)
     (x := s₁) (by decide) (by decide) (by decide) hrs₁.zero_eq hrs₁.one_eq
-    (by simp only [s₁, Data.set_regs_self, hrs₁.out_eq]; omega)
+    (by rw [hs₁_t0, hrs₁.out_eq]; omega)
     (by rw [hrs₁.out_eq]; exact hw.of_le (by omega))).within
   set s₂ : Data 20 := ⟨Function.update s₁.regs t0 (s₁.regs out),
     clear s₁.mem (s₁.regs t0) (s₁.regs out - s₁.regs t0)⟩
-  have hs₁_t0 : s₁.regs t0 = 3 + n + m := Data.set_regs_self s₀ t0 _
-  have hs₁_out : s₁.regs out = 3 + 2 * n + m := hrs₁.out_eq
-  have hdiff₁ : s₁.regs out - s₁.regs t0 = n := by rw [hs₁_out, hs₁_t0]; omega
+  have hdiff₁ : s₁.regs out - s₁.regs t0 = n := by
+    rw [hrs₁.out_eq, hs₁_t0]
+    omega
   rw [hdiff₁] at ez₁
-  have hrs₂ : KasaiRegs I s₂ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      dsimp only [s₂] <;> rw [Function.update_of_ne (by decide)]
-    exacts [hrs₁.zero_eq, hrs₁.one_eq, hrs₁.tb_eq, hrs₁.tl_eq,
-      hrs₁.sb_eq, hrs₁.sl_eq, hrs₁.rkb_eq, hrs₁.out_eq, hrs₁.lcpb_eq]
-  set s₃ := s₂.set t0 (4 + 2 * n + m)
-  have e₃ : ExecWithin (B := .standard) w (.op (.copy t0 lcpBase)) s₂ s₃ 1 := by
-    simpa only [hrs₂.lcpb_eq] using
-      (ExecWithin.copy (B := .standard) (d := t0) (s := lcpBase) (x := s₂))
-  have hrs₃ : KasaiRegs I s₃ := hrs₂.set_scratch t0 _
-  set s₄ := s₃.set t1 (4 + 2 * n + m + n)
-  have e₄ : ExecWithin w (.op (.bin .add t1 lcpBase textLen)) s₃ s₄ 1 := by
-    simpa only [BinOp.eval, hrs₃.lcpb_eq, hrs₃.tl_eq] using
-      (ExecWithin.bin (f := .add) (d := t1) (i := lcpBase) (j := textLen) (x := s₃)
-        (by simpa only [BinOp.eval, hrs₃.lcpb_eq, hrs₃.tl_eq] using hf_lcpe))
-  have hrs₄ : KasaiRegs I s₄ := hrs₃.set_scratch t1 _
-  have hs₄_t0 : s₄.regs t0 = 4 + 2 * n + m :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_self s₂ t0 _)
-  have hs₄_t1 : s₄.regs t1 = 4 + 2 * n + m + n := Data.set_regs_self s₃ t1 _
+  have hrs₂ : KasaiRegs I s₂ := hrs₁.kasai_exec ez₁
+  set s₄ := (s₂.set t0 (4 + 2 * n + m)).set t1 (4 + 2 * n + m + n)
+  have hrs₄ : KasaiRegs I s₄ := (hrs₂.set_scratch t0 _).set_scratch t1 _
+  have hs₄_t0 : s₄.regs t0 = 4 + 2 * n + m := by wram_simp [s₄]
+  have hs₄_t1 : s₄.regs t1 = 4 + 2 * n + m + n := Data.set_regs_self _ t1 _
   have ez₂ := (zeroFill_exec (w := w) (cur := t0) (stop := t1) (zero := zero) (one := one)
     (x := s₄) (by decide) (by decide) (by decide) hrs₄.zero_eq hrs₄.one_eq
     (by rw [hs₄_t0, hs₄_t1]; omega)
-    (by rw [hs₄_t1]; exact hf_lcpe)).within
+    (hs₄_t1 ▸ hf_lcpe)).within
   set x₁ : Data 20 := ⟨Function.update s₄.regs t0 (s₄.regs t1),
     clear s₄.mem (s₄.regs t0) (s₄.regs t1 - s₄.regs t0)⟩
-  have hdiff₂ : s₄.regs t1 - s₄.regs t0 = n := by rw [hs₄_t1, hs₄_t0]; omega
+  have hdiff₂ : s₄.regs t1 - s₄.regs t0 = n := by
+    rw [hs₄_t1, hs₄_t0]
+    omega
   rw [hdiff₂] at ez₂
-  have hrx₁ : KasaiRegs I x₁ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
-      dsimp only [x₁] <;> rw [Function.update_of_ne (by decide)]
-    exacts [hrs₄.zero_eq, hrs₄.one_eq, hrs₄.tb_eq, hrs₄.tl_eq,
-      hrs₄.sb_eq, hrs₄.sl_eq, hrs₄.rkb_eq, hrs₄.out_eq, hrs₄.lcpb_eq]
   have hx₁_mem : x₁.mem = clear (clear s₀.mem (3 + n + m) n) (4 + 2 * n + m) n := by
     change clear s₄.mem (s₄.regs t0) (s₄.regs t1 - s₄.regs t0) = _
     rw [hdiff₂, hs₄_t0]
     change clear (clear s₁.mem (s₁.regs t0) (s₁.regs out - s₁.regs t0)) _ _ = _
-    rw [hdiff₁, hs₁_t0]; rfl
-  have hinit_exec : ExecWithin w kasaiZeroInit s₀ x₁ (8 * n + 7) := by
-    unfold kasaiZeroInit
-    exact (e₁.seq (ez₁.seq (e₃.seq (e₄.seq ez₂)))).mono (by omega)
-  refine ⟨x₁, (es₀.seq hinit_exec).mono (by omega), hrx₁, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hx₁_mem, clear_of_not_owns (by simp [Block.Owns]; omega),
-      clear_of_not_owns (by simp [Block.Owns]; omega)]
-    exact hmem_out
-  · exact htxt₀.frame fun a ha1 ha2 => by
-      rw [hx₁_mem, clear_of_not_owns (by simp [Block.Owns]; omega),
-        clear_of_not_owns (by simp [Block.Owns]; omega)]
-  · exact hsa₀.frame fun a ha1 ha2 => by
-      rw [hx₁_mem, clear_of_not_owns (by simp [Block.Owns]; omega),
-        clear_of_not_owns (by simp [Block.Owns]; omega)]
+    rw [hdiff₁, hs₁_t0]
+    rfl
+  have hinit_exec : ExecWithin w kasaiZeroInit s₀ x₁ (8 * n + 7) :=
+    WP.execWithin <| by
+      unfold kasaiZeroInit
+      wram_exec [hrs₀.rkb_eq]
+      refine WP.of_execWithin ez₁ ?_
+      wram_exec [hrs₂.lcpb_eq, hrs₂.tl_eq, hf_lcpe]
+      exact WP.of_execWithin ez₂ ⟨by omega, rfl⟩
+  have hclr (a : ℕ) (ha : a < 3 + n + m ∨ a = 3 + 2 * n + m) : x₁.mem a = s₀.mem a := by
+    rw [hx₁_mem, clear_of_not_owns (by simp only [Block.Owns]; omega),
+      clear_of_not_owns (by simp only [Block.Owns]; omega)]
+  refine ⟨x₁, (es₀.seq hinit_exec).mono (by omega), hrs₀.kasai_exec hinit_exec,
+    (hclr _ (Or.inr rfl)).trans hmem_out,
+    htxt₀.frame (fun a _ ha2 => hclr a (Or.inl (by omega))),
+    hsa₀.frame (fun a _ ha2 => hclr a (Or.inl (by omega))), ?_, ?_⟩
   · rw [rankArray_nil, Array.toList_replicate, hx₁_mem]
-    exact (holdsList_replicate_clear s₀.mem (3 + n + m) n).frame fun a ha1 ha2 =>
-      clear_of_not_owns (by simp [Block.Owns]; simp only [List.length_replicate] at ha2; omega)
+    exact (holdsList_replicate_clear s₀.mem (3 + n + m) n).frame fun a _ ha2 => by
+      simp only [List.length_replicate] at ha2
+      exact clear_of_not_owns (by simp only [Block.Owns]; omega)
   · rw [hx₁_mem]
     exact holdsList_replicate_clear _ (4 + 2 * n + m) n
 
@@ -512,9 +516,10 @@ private theorem scatterCode_spec (I : KasaiInput) {w : ℕ}
   let n := I.text.length
   let m := I.sa.length
   set s₀ := x₁.set regi 0
-  have e₀ : ExecWithin (B := .standard) w (ram[ regi ← zero ]) x₁ s₀ 1 := by
-    simpa only [hrx₁.zero_eq] using
-      (ExecWithin.copy (B := .standard) (d := regi) (s := zero) (x := x₁))
+  have e₀ : ExecWithin (B := .standard) w (ram[ regi ← zero ]) x₁ s₀ 1 :=
+    WP.execWithin <| by
+      wram_exec [hrx₁.zero_eq]
+      rfl
   have hs₀_inv : ScatterInv I x₁ s₀ :=
     ⟨hrx₁.set_scratch regi 0,
      by simp only [s₀, Data.set_regs_self, Nat.zero_le],
@@ -529,87 +534,51 @@ private theorem scatterCode_spec (I : KasaiInput) {w : ℕ}
     (fun s hs hc => by
       simp only [Cond.holds_lt, hs.regs.sl_eq] at hc
       set r := s.regs regi
-      have hs_sar : s.mem (3 + n + r) = I.sa[r] := hs.sa_holds.get r hc
+      have hs_sar : s.mem (3 + I.text.length + s.regs regi) = I.sa[r] := hs.sa_holds.get r hc
       have hf_sa_addr : Fits w (3 + n + r) := hw.of_le (by omega)
       have hf_r1 : Fits w (r + 1) := hw.of_le (by omega)
-      set u₁ := s.set t0 (3 + n + r)
-      have b₁ : ExecWithin w (.op (.bin .add t0 saBase regi)) s u₁ 1 := by
-        simpa only [BinOp.eval, hs.regs.sb_eq] using
-          (ExecWithin.bin (f := .add) (d := t0) (i := saBase) (j := regi) (x := s)
-            (by simpa only [BinOp.eval, hs.regs.sb_eq] using hf_sa_addr))
-      set u₂ := u₁.set t0 I.sa[r]
-      have b₂ : ExecWithin (B := .standard) w (.op (.load t0 t0)) u₁ u₂ 1 := by
-        have ht : u₁.regs t0 = 3 + n + r := Data.set_regs_self s t0 _
-        have hm' : u₁.mem (u₁.regs t0) = I.sa[r] := ht ▸ hs_sar
-        simpa only [hm'] using (ExecWithin.load (B := .standard) (d := t0) (a := t0) (x := u₁))
-      have hru₂ : KasaiRegs I u₂ := (hs.regs.set_scratch t0 _).set_scratch t0 _
-      have hu₂_t0 : u₂.regs t0 = I.sa[r] := Data.set_regs_self u₁ t0 _
-      have hu₂_r : u₂.regs regi = r :=
-        (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
       have htake_step : I.sa.take (r + 1) = I.sa.take r ++ [I.sa[r]] := by
         rw [List.take_add_one, List.getElem?_eq_getElem hc, Option.toList_some]
       have htake_len : (I.sa.take r).length = r := List.length_take_of_le (by omega)
-      unfold scatterBody
       by_cases hlt : I.sa[r] < n
-      · have hc_br : (Cond.lt t0 textLen).Holds u₂ := by
-          simp only [Cond.holds_lt, hu₂_t0, hru₂.tl_eq]; exact hlt
-        have hf_rk_addr : Fits w (3 + n + m + I.sa[r]) := hw.of_le (by omega)
-        set u₃ := u₂.set t1 (3 + n + m + I.sa[r])
-        have b₃ : ExecWithin w (.op (.bin .add t1 rkBase t0)) u₂ u₃ 1 := by
-          simpa only [BinOp.eval, hru₂.rkb_eq, hu₂_t0] using
-            (ExecWithin.bin (f := .add) (d := t1) (i := rkBase) (j := t0) (x := u₂)
-              (by simpa only [BinOp.eval, hru₂.rkb_eq, hu₂_t0] using hf_rk_addr))
-        have hu₃_r : u₃.regs regi = r := (Data.set_regs_of_ne (by decide : regi ≠ t1) _).trans hu₂_r
-        set u₄ := u₃.write (3 + n + m + I.sa[r]) r
-        have b₄ : ExecWithin (B := .standard) w (.op (.store t1 regi)) u₃ u₄ 1 := by
-          have ht1 : u₃.regs t1 = 3 + n + m + I.sa[r] := Data.set_regs_self u₂ t1 _
-          simpa only [ht1, hu₃_r] using
-            (ExecWithin.store (B := .standard) (a := t1) (s := regi) (x := u₃))
-        have hru₄ : KasaiRegs I u₄ := (hru₂.set_scratch t1 _).write_mem _ _
-        have hu₄_r : u₄.regs regi = r := hu₃_r
-        set u₅ := u₄.set regi (r + 1)
-        have b₅ : ExecWithin w (.op (.bin .add regi regi one)) u₄ u₅ 1 := by
-          simpa only [BinOp.eval, hu₄_r, hru₄.one_eq] using
-            (ExecWithin.bin (f := .add) (d := regi) (i := regi) (j := one) (x := u₄)
-              (by simpa only [BinOp.eval, hu₄_r, hru₄.one_eq] using hf_r1))
-        have hexec_pos : ExecWithin w scatterBody s u₅ 6 := by
+      · have hf_rk_addr : Fits w (3 + n + m + I.sa[r]) := hw.of_le (by omega)
+        have hstep : ∃ u, ExecWithin w scatterBody s u 6 ∧
+            u.regs regi = r + 1 ∧
+            u.mem = Function.update s.mem (3 + n + m + I.sa[r]) r := by
+          refine WP.exists_execWithin ?_
           unfold scatterBody
-          exact (b₁.seq (b₂.seq (ExecWithin.branch_pos hc_br (b₃.seq (b₄.seq b₅))))).mono (by omega)
-        refine ⟨u₅, hexec_pos, ?_, ?_⟩
-        · refine ⟨hru₄.set_scratch regi (r + 1),
-            by simp only [u₅, Data.set_regs_self]; omega,
-            ?_, ?_, ?_, ?_, ?_⟩
-          · simp only [u₅, u₄, u₃, u₂, u₁, Data.set_mem, Data.write_mem]
-            rw [Function.update_of_ne (by omega)]; exact hs.out_hdr
-          · exact hs.txt_holds.frame fun a _ ha2 => by
-              simp only [u₅, u₄, u₃, u₂, u₁, Data.set_mem, Data.write_mem]
-              rw [Function.update_of_ne (by omega)]
-          · exact hs.sa_holds.frame fun a _ ha2 => by
-              simp only [u₅, u₄, u₃, u₂, u₁, Data.set_mem, Data.write_mem]
-              rw [Function.update_of_ne (by omega)]
-          · simp only [u₅, Data.set_regs_self, htake_step, rankArray_append_singleton, htake_len]
-            exact holdsList_set!_lt hs.rk_holds (by rw [size_rankArray]; exact hlt) r
-          · exact hs.lcp_holds.frame fun a ha1 _ => by
-              simp only [u₅, u₄, u₃, u₂, u₁, Data.set_mem, Data.write_mem]
-              rw [Function.update_of_ne (by omega)]
-        · simp only [u₅, Data.set_regs_self]; omega
-      · have hc_br : ¬(Cond.lt t0 textLen).Holds u₂ := by
-          simp only [Cond.holds_lt, hu₂_t0, hru₂.tl_eq]; exact hlt
-        set u₃ := u₂.set regi (r + 1)
-        have b₃ : ExecWithin w (.op (.bin .add regi regi one)) u₂ u₃ 1 := by
-          simpa only [BinOp.eval, hu₂_r, hru₂.one_eq] using
-            (ExecWithin.bin (f := .add) (d := regi) (i := regi) (j := one) (x := u₂)
-              (by simpa only [BinOp.eval, hu₂_r, hru₂.one_eq] using hf_r1))
-        have hexec_neg : ExecWithin w scatterBody s u₃ 6 := by
+          wram_exec [hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.rkb_eq, hs.regs.one_eq,
+            hs_sar, hf_sa_addr, hf_rk_addr, hf_r1]
+          refine ⟨?_, ?_⟩
+          · wram_simp [r]
+          · dsimp only [n, m, r]
+            simp only [Data.set_mem, Data.write_mem]
+        obtain ⟨u, hexec, hur, humem⟩ := hstep
+        refine ⟨u, hexec, ⟨hs.regs.kasai_exec hexec, by rw [hur]; omega, ?_, ?_, ?_, ?_, ?_⟩,
+          by rw [hur]; omega⟩
+        · rw [humem, Function.update_of_ne (by omega)]
+          exact hs.out_hdr
+        · exact hs.txt_holds.frame fun a _ ha2 => by
+            rw [humem, Function.update_of_ne (by omega)]
+        · exact hs.sa_holds.frame fun a _ ha2 => by
+            rw [humem, Function.update_of_ne (by omega)]
+        · rw [hur, htake_step, rankArray_append_singleton, htake_len, humem]
+          exact holdsList_set!_lt hs.rk_holds (by rw [size_rankArray]; exact hlt) r
+        · exact hs.lcp_holds.frame fun a ha1 _ => by
+            rw [humem, Function.update_of_ne (by omega)]
+      · have hstep : ∃ u, ExecWithin w scatterBody s u 6 ∧
+            u.regs regi = r + 1 ∧ u.mem = s.mem := by
+          refine WP.exists_execWithin ?_
           unfold scatterBody
-          exact (b₁.seq (b₂.seq (ExecWithin.branch_neg hc_br b₃))).mono (by omega)
-        refine ⟨u₃, hexec_neg, ?_, ?_⟩
-        · refine ⟨hru₂.set_scratch regi (r + 1),
-            by simp only [u₃, Data.set_regs_self]; omega,
-            hs.out_hdr, hs.txt_holds, hs.sa_holds, ?_, hs.lcp_holds⟩
-          simp only [u₃, Data.set_regs_self, htake_step, rankArray_append_singleton, htake_len]
-          exact holdsList_set!_ge hs.rk_holds (by rw [size_rankArray]; exact hlt) r
-        · simp only [u₃, Data.set_regs_self]; omega)
+          wram_exec [hs.regs.sb_eq, hs.regs.tl_eq, hs.regs.one_eq, hs_sar, hf_sa_addr, hf_r1]
+          refine ⟨?_, rfl⟩
+          wram_simp [r]
+        obtain ⟨u, hexec, hur, humem⟩ := hstep
+        refine ⟨u, hexec, ⟨hs.regs.kasai_exec hexec, by rw [hur]; omega,
+          humem ▸ hs.out_hdr, humem ▸ hs.txt_holds, humem ▸ hs.sa_holds, ?_, humem ▸ hs.lcp_holds⟩,
+          by rw [hur]; omega⟩
+        rw [hur, htake_step, rankArray_append_singleton, htake_len, humem]
+        exact holdsList_set!_ge hs.rk_holds (by simpa only [size_rankArray] using hlt) r)
     hs₀_inv
   obtain ⟨x₂, eloop, hx₂_inv, hnc⟩ := hloop
   simp only [Cond.holds_lt, hx₂_inv.regs.sl_eq, not_lt] at hnc
@@ -671,183 +640,106 @@ private theorem kasaiExt_spec (I : KasaiInput) {w : ℕ}
   intro rem
   induction rem with
   | zero =>
-    intro x hrem hrx hgo htxt
+    intro x hrem hrx hgo _
     have hc_go : (Cond.lt zero go).Holds x := by
-      simp only [Cond.holds_lt, hrx.zero_eq, hgo]; exact Nat.zero_lt_one
-    have hi_ge : n ≤ x.regs regi + x.regs regh := by omega
+      rw [Cond.holds_lt, hrx.zero_eq, hgo]
+      exact Nat.zero_lt_one
     have hlcp0 : List.lcpLen (I.text.drop (x.regs regj + x.regs regh))
         (I.text.drop (x.regs regi + x.regs regh)) = 0 := by
       have := List.lcpLen_le_length_right (I.text.drop (x.regs regj + x.regs regh))
         (I.text.drop (x.regs regi + x.regs regh))
       simp only [List.length_drop] at this
       omega
-    set u₁ := x.set t0 (n - x.regs regi)
-    have b₁ : ExecWithin w (.op (.bin .sub t0 textLen regi)) x u₁ 1 := by
-      simpa only [BinOp.eval, hrx.tl_eq] using
-        (ExecWithin.bin (f := .sub) (d := t0) (i := textLen) (j := regi) (x := x)
-          (hw.of_le (by simp only [BinOp.eval, hrx.tl_eq]; omega)))
-    have hru₁ : KasaiRegs I u₁ := hrx.set_scratch t0 _
-    have hc_nh : ¬(Cond.lt regh t0).Holds u₁ := by
-      simp only [Cond.holds_lt, u₁, Data.set_regs_self,
-        Data.set_regs_of_ne (by decide : regh ≠ t0)]
-      omega
-    set u₂ := u₁.set go 0
-    have b₂ : ExecWithin (B := .standard) w (.op (.copy go zero)) u₁ u₂ 1 := by
-      simpa only [hru₁.zero_eq] using
-        (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₁))
-    have hbody : ExecWithin w kasaiExtBody x u₂ 4 := by
+    have hf_ni : Fits w (n - x.regs regi) := hw.of_le (by omega)
+    have hstep : ∃ u, ExecWithin w kasaiExtBody x u 4 ∧
+        u.regs go = 0 ∧ u.regs regh = x.regs regh ∧ u.mem = x.mem := by
+      refine WP.exists_execWithin ?_
       unfold kasaiExtBody
-      exact b₁.seq (ExecWithin.branch_neg hc_nh b₂)
-    exact kasaiExt_stop hc_go hbody (by omega) (hru₁.set_scratch go 0)
-      (Data.set_regs_self u₁ go 0)
-      ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_of_ne (by decide) _))
-      ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_of_ne (by decide) _))
-      ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_of_ne (by decide) _))
-      rfl hlcp0
+      wram_exec [hrx.tl_eq, hrx.zero_eq, hf_ni]
+      refine ⟨?_, ?_, rfl⟩
+      · wram_simp
+      · wram_simp
+    obtain ⟨u, hbody, hugo, huh, humem⟩ := hstep
+    exact kasaiExt_stop hc_go hbody (by omega) (hrx.kasai_exec hbody) hugo
+      (hbody.regs_eq (by decide)) huh (hbody.regs_eq (by decide)) humem hlcp0
   | succ rem ih =>
     intro x hrem hrx hgo htxt
     have hc_go : (Cond.lt zero go).Holds x := by
-      simp only [Cond.holds_lt, hrx.zero_eq, hgo]; exact Nat.zero_lt_one
+      rw [Cond.holds_lt, hrx.zero_eq, hgo]
+      exact Nat.zero_lt_one
     set i := x.regs regi
     set h := x.regs regh
     set j := x.regs regj
     have hih : i + h < n := by omega
-    set u₁ := x.set t0 (n - i)
-    have b₁ : ExecWithin w (.op (.bin .sub t0 textLen regi)) x u₁ 1 := by
-      simpa only [BinOp.eval, hrx.tl_eq] using
-        (ExecWithin.bin (f := .sub) (d := t0) (i := textLen) (j := regi) (x := x)
-          (hw.of_le (by simp only [BinOp.eval, hrx.tl_eq]; omega)))
-    have hru₁ : KasaiRegs I u₁ := hrx.set_scratch t0 _
-    have hc_h : (Cond.lt regh t0).Holds u₁ := by
-      simp only [Cond.holds_lt, u₁, Data.set_regs_self,
-        Data.set_regs_of_ne (by decide : regh ≠ t0)]
-      omega
-    set u₂ := u₁.set t0 (n - h)
-    have b₂ : ExecWithin w (.op (.bin .sub t0 textLen regh)) u₁ u₂ 1 := by
-      have hu₁_h : u₁.regs regh = h := Data.set_regs_of_ne (by decide) _
-      simpa only [BinOp.eval, hru₁.tl_eq, hu₁_h] using
-        (ExecWithin.bin (f := .sub) (d := t0) (i := textLen) (j := regh) (x := u₁)
-          (hw.of_le (by simp only [BinOp.eval, hru₁.tl_eq, hu₁_h]; omega)))
-    have hru₂ : KasaiRegs I u₂ := hru₁.set_scratch t0 _
-    have hu₂_j : u₂.regs regj = j :=
-      (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
+    have hf_ni : Fits w (n - i) := hw.of_le (by omega)
+    have hf_nh : Fits w (n - h) := hw.of_le (by omega)
     by_cases hjlt : j < n - h
     · have hjh : j + h < n := by omega
-      have hc_j : (Cond.lt regj t0).Holds u₂ := by
-        simp only [Cond.holds_lt, hu₂_j, u₂, Data.set_regs_self]; exact hjlt
-      have hread_j : u₂.mem (3 + (j + h)) = I.text[j + h] := htxt.get (j + h) hjh
-      have hread_i : u₂.mem (3 + (i + h)) = I.text[i + h] := htxt.get (i + h) hih
+      have hread_j : x.mem (3 + (j + h)) = I.text[j + h] := htxt.get (j + h) hjh
+      have hread_i : x.mem (3 + (i + h)) = I.text[i + h] := htxt.get (i + h) hih
       have hf_jh : Fits w (j + h) := hw.of_le (by omega)
       have hf_3jh : Fits w (3 + (j + h)) := hw.of_le (by omega)
       have hf_ih : Fits w (i + h) := hw.of_le (by omega)
       have hf_3ih : Fits w (3 + (i + h)) := hw.of_le (by omega)
-      have hloads : ∃ u₃, ExecWithin w kasaiExtLoads u₂ u₃ 6 ∧
-          KasaiRegs I u₃ ∧
-          u₃.regs t0 = I.text[j + h] ∧
-          u₃.regs t1 = I.text[i + h] ∧
-          u₃.regs regi = i ∧ u₃.regs regh = h ∧ u₃.regs regj = j ∧
-          u₃.regs regr = x.regs regr ∧ u₃.regs go = 1 ∧ u₃.mem = x.mem := by
-        have hu₂_i : u₂.regs regi = i :=
-          (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-        have hu₂_h : u₂.regs regh = h :=
-          (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-        have hu₂_r : u₂.regs regr = x.regs regr :=
-          (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-        have hu₂_go : u₂.regs go = 1 :=
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans hgo
-        refine WP.exists_execWithin ?_
-        unfold kasaiExtLoads
-        wram_exec [hru₂.tb_eq, hu₂_i, hu₂_h, hu₂_j, hread_j, hread_i,
-          hf_jh, hf_3jh, hf_ih, hf_3ih]
-        exact ⟨⟨by wram_simp [hru₂.zero_eq], by wram_simp [hru₂.one_eq],
-          by wram_simp [hru₂.tb_eq], by wram_simp [hru₂.tl_eq],
-          by wram_simp [hru₂.sb_eq], by wram_simp [hru₂.sl_eq],
-          by wram_simp [hru₂.rkb_eq], by wram_simp [hru₂.out_eq],
-          by wram_simp [hru₂.lcpb_eq]⟩,
-          by wram_simp, by wram_simp,
-          by wram_simp [hu₂_i], by wram_simp [hu₂_h], by wram_simp [hu₂_j],
-          by wram_simp [hu₂_r], by wram_simp [hu₂_go], rfl⟩
-      obtain ⟨u₃, eloads, hru₃, hu₃_t0, hu₃_t1, hu₃_i, hu₃_h, hu₃_j, hu₃_r, hu₃_go, hu₃_mem⟩ :=
-        hloads
       by_cases heq : I.text[j + h] = I.text[i + h]
-      · have hc_eq : (Cond.eq t0 t1).Holds u₃ := by
-          simp only [Cond.holds_eq, hu₃_t0, hu₃_t1]; exact heq
-        have hf_h1 : Fits w (h + 1) := hw.of_le (by omega)
-        set u₄ := u₃.set regh (h + 1)
-        have b₄ : ExecWithin w (.op (.bin .add regh regh one)) u₃ u₄ 1 := by
-          simpa only [BinOp.eval, hu₃_h, hru₃.one_eq] using
-            (ExecWithin.bin (f := .add) (d := regh) (i := regh) (j := one) (x := u₃)
-              (by simpa only [BinOp.eval, hu₃_h, hru₃.one_eq] using hf_h1))
-        have hbody : ExecWithin w kasaiExtBody x u₄ 12 := by
-          unfold kasaiExtBody
-          exact (b₁.seq (ExecWithin.branch_pos hc_h
-            (b₂.seq (ExecWithin.branch_pos hc_j
-              (eloads.seq (ExecWithin.branch_pos hc_eq b₄)))))).mono (by omega)
-        have hru₄ : KasaiRegs I u₄ := hru₃.set_scratch regh (h + 1)
-        have hu₄_i : u₄.regs regi = i := (Data.set_regs_of_ne (by decide) _).trans hu₃_i
-        have hu₄_h : u₄.regs regh = h + 1 := Data.set_regs_self u₃ regh _
-        have hu₄_j : u₄.regs regj = j := (Data.set_regs_of_ne (by decide) _).trans hu₃_j
-        have hu₄_r : u₄.regs regr = x.regs regr :=
-          (Data.set_regs_of_ne (by decide) _).trans hu₃_r
-        have hu₄_go : u₄.regs go = 1 := (Data.set_regs_of_ne (by decide) _).trans hu₃_go
+      · have hf_h1 : Fits w (h + 1) := hw.of_le (by omega)
+        have hstep : ∃ u, ExecWithin w kasaiExtBody x u 12 ∧
+            u.regs regh = h + 1 ∧ u.regs go = 1 ∧ u.mem = x.mem := by
+          refine WP.exists_execWithin ?_
+          unfold kasaiExtBody kasaiExtLoads
+          wram_exec [hrx.tl_eq, hrx.tb_eq, hrx.one_eq, hrx.zero_eq, hgo,
+            hread_j, hread_i, hf_ni, hf_nh, hf_jh, hf_3jh, hf_ih, hf_3ih, hf_h1]
+          refine ⟨?_, ?_, rfl⟩
+          · wram_simp [h]
+          · wram_simp [hgo]
+        obtain ⟨u, hbody, huh, hugo, humem⟩ := hstep
+        have hui : u.regs regi = i := hbody.regs_eq (by decide)
+        have huj : u.regs regj = j := hbody.regs_eq (by decide)
+        have hur : u.regs regr = x.regs regr := hbody.regs_eq (by decide)
         obtain ⟨y, T_rec, hrec, hry, hy_i, hy_r, hy_h, hT_rec, hy_mem⟩ :=
-          ih u₄ (by rw [hu₄_i, hu₄_h]; omega) hru₄ hu₄_go (hu₃_mem ▸ htxt)
-        rw [hu₄_i] at hy_i hy_h hT_rec
-        rw [hu₄_r] at hy_r
-        rw [hu₄_h, hu₄_j] at hy_h hT_rec
+          ih u (by rw [hui, huh]; omega) (hrx.kasai_exec hbody) hugo (humem ▸ htxt)
+        rw [hui] at hy_i hy_h hT_rec
+        rw [hur] at hy_r
+        rw [huh, huj] at hy_h hT_rec
         have hlcp_step : List.lcpLen (I.text.drop (j + h)) (I.text.drop (i + h)) =
             1 + List.lcpLen (I.text.drop (j + (h + 1))) (I.text.drop (i + (h + 1))) := by
           rw [List.drop_eq_getElem_cons hjh, List.drop_eq_getElem_cons hih, heq,
-            List.lcpLen_cons_cons_self,
-            show j + (h + 1) = j + h + 1 by omega,
-            show i + (h + 1) = i + h + 1 by omega]
+            List.lcpLen_cons_cons_self, ← Nat.add_assoc j h 1, ← Nat.add_assoc i h 1]
           omega
         refine ⟨y, 12 + T_rec + 2, ExecWithin.loop_iter hc_go hbody hrec, hry, hy_i, hy_r,
-          by rw [hlcp_step]; omega, by rw [hlcp_step]; omega, hy_mem.trans hu₃_mem⟩
-      · have hc_eq : ¬(Cond.eq t0 t1).Holds u₃ := by
-          simp only [Cond.holds_eq, hu₃_t0, hu₃_t1]; exact heq
-        set u₄ := u₃.set go 0
-        have b₄ : ExecWithin (B := .standard) w (.op (.copy go zero)) u₃ u₄ 1 := by
-          simpa only [hru₃.zero_eq] using
-            (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₃))
-        have hbody : ExecWithin w kasaiExtBody x u₄ 13 := by
-          unfold kasaiExtBody
-          exact (b₁.seq (ExecWithin.branch_pos hc_h
-            (b₂.seq (ExecWithin.branch_pos hc_j
-              (eloads.seq (ExecWithin.branch_neg hc_eq b₄)))))).mono (by omega)
+          by rw [hlcp_step]; omega,
+          by rw [hlcp_step]; omega, hy_mem.trans humem⟩
+      · have hstep : ∃ u, ExecWithin w kasaiExtBody x u 13 ∧
+            u.regs go = 0 ∧ u.regs regh = h ∧ u.mem = x.mem := by
+          refine WP.exists_execWithin ?_
+          unfold kasaiExtBody kasaiExtLoads
+          wram_exec [hrx.tl_eq, hrx.tb_eq, hrx.zero_eq,
+            hread_j, hread_i, hf_ni, hf_nh, hf_jh, hf_3jh, hf_ih, hf_3ih]
+          refine ⟨?_, ?_, rfl⟩
+          · wram_simp
+          · wram_simp [h]
+        obtain ⟨u, hbody, hugo, huh, humem⟩ := hstep
         have hlcp0 : List.lcpLen (I.text.drop (j + h)) (I.text.drop (i + h)) = 0 := by
           rw [List.drop_eq_getElem_cons hjh, List.drop_eq_getElem_cons hih,
             List.lcpLen_cons_cons]
           simp only [heq, ↓reduceIte]
-        exact kasaiExt_stop hc_go hbody (by omega) (hru₃.set_scratch go 0)
-          (Data.set_regs_self u₃ go 0)
-          ((Data.set_regs_of_ne (by decide) _).trans hu₃_i)
-          ((Data.set_regs_of_ne (by decide) _).trans hu₃_h)
-          ((Data.set_regs_of_ne (by decide) _).trans hu₃_r)
-          hu₃_mem hlcp0
-    · have hc_nj : ¬(Cond.lt regj t0).Holds u₂ := by
-        simp only [Cond.holds_lt, hu₂_j, u₂, Data.set_regs_self]; exact hjlt
-      set u₃ := u₂.set go 0
-      have b₃ : ExecWithin (B := .standard) w (.op (.copy go zero)) u₂ u₃ 1 := by
-        simpa only [hru₂.zero_eq] using
-          (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₂))
-      have hbody : ExecWithin w kasaiExtBody x u₃ 6 := by
+        exact kasaiExt_stop hc_go hbody (by omega) (hrx.kasai_exec hbody) hugo
+          (hbody.regs_eq (by decide)) huh (hbody.regs_eq (by decide)) humem hlcp0
+    · have hstep : ∃ u, ExecWithin w kasaiExtBody x u 6 ∧
+          u.regs go = 0 ∧ u.regs regh = h ∧ u.mem = x.mem := by
+        refine WP.exists_execWithin ?_
         unfold kasaiExtBody
-        exact (b₁.seq (ExecWithin.branch_pos hc_h
-          (b₂.seq (ExecWithin.branch_neg hc_nj b₃)))).mono (by omega)
+        wram_exec [hrx.tl_eq, hrx.zero_eq, hf_ni, hf_nh]
+        refine ⟨?_, ?_, rfl⟩
+        · wram_simp
+        · wram_simp [h]
+      obtain ⟨u, hbody, hugo, huh, humem⟩ := hstep
       have hlcp0 : List.lcpLen (I.text.drop (j + h)) (I.text.drop (i + h)) = 0 := by
         have := List.lcpLen_le_length_left (I.text.drop (j + h)) (I.text.drop (i + h))
         simp only [List.length_drop] at this
         omega
-      exact kasaiExt_stop hc_go hbody (by omega) (hru₂.set_scratch go 0)
-        (Data.set_regs_self u₂ go 0)
-        ((Data.set_regs_of_ne (by decide) 0).trans
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)))
-        ((Data.set_regs_of_ne (by decide) 0).trans
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)))
-        ((Data.set_regs_of_ne (by decide) 0).trans
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)))
-        rfl hlcp0
+      exact kasaiExt_stop hc_go hbody (by omega) (hrx.kasai_exec hbody) hugo
+        (hbody.regs_eq (by decide)) huh (hbody.regs_eq (by decide)) humem hlcp0
 
 private theorem getElem!_rankArray_le (n : ℕ) (sa : List ℕ) {i : ℕ} (hi : i < n) :
     (rankArray n sa)[i]! ≤ sa.length := by
@@ -904,120 +796,96 @@ private theorem kasaiBody_spec (I : KasaiInput) {w : ℕ}
     exact h1
   have hf_rk_i : Fits w (3 + n + m + i) := hw.of_le (by omega)
   have hf_i1 : Fits w (i + 1) := hw.of_le (by omega)
-  set u₁ := x.set t0 (3 + n + m + i)
-  have b₁ : ExecWithin w (.op (.bin .add t0 rkBase regi)) x u₁ 1 := by
-    simpa only [BinOp.eval, hx.regs.rkb_eq] using
-      (ExecWithin.bin (f := .add) (d := t0) (i := rkBase) (j := regi) (x := x)
-        (by simpa only [BinOp.eval, hx.regs.rkb_eq] using hf_rk_i))
-  set u₂ := u₁.set regr rk[i]!
-  have b₂ : ExecWithin (B := .standard) w (.op (.load regr t0)) u₁ u₂ 1 := by
-    have ht : u₁.regs t0 = 3 + n + m + i := Data.set_regs_self x t0 _
-    have hm' : u₁.mem (u₁.regs t0) = rk[i]! := ht ▸ hrk_i_mem
-    simpa only [hm'] using (ExecWithin.load (B := .standard) (d := regr) (a := t0) (x := u₁))
-  have hru₂ : KasaiRegs I u₂ := (hx.regs.set_scratch t0 _).set_scratch regr _
-  have hu₂_r : u₂.regs regr = rk[i]! := Data.set_regs_self u₁ regr _
-  have hu₂_i : u₂.regs regi = i :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
-  have hu₂_h : u₂.regs regh = h :=
-    (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)
   by_cases hr0 : rk[i]! = 0
-  · have hc_r0 : (Cond.eq regr zero).Holds u₂ := by
-      simp only [Cond.holds_eq, hu₂_r, hru₂.zero_eq]; exact hr0
-    set y := u₂.set regi (i + 1)
-    have b₃ : ExecWithin w (.op (.bin .add regi regi one)) u₂ y 1 := by
-      simpa only [BinOp.eval, hu₂_i, hru₂.one_eq] using
-        (ExecWithin.bin (f := .add) (d := regi) (i := regi) (j := one) (x := u₂)
-          (by simpa only [BinOp.eval, hu₂_i, hru₂.one_eq] using hf_i1))
-    have e_pos : ExecWithin w kasaiBody x y 4 := by
+  · have hstep : ∃ y, ExecWithin w kasaiBody x y 4 ∧
+        y.regs regi = i + 1 ∧ y.regs regh = h ∧ y.mem = x.mem := by
+      refine WP.exists_execWithin ?_
       unfold kasaiBody
-      exact (b₁.seq (b₂.seq (ExecWithin.branch_pos hc_r0 b₃))).mono (by omega)
-    have hy_i : y.regs regi = i + 1 := Data.set_regs_self u₂ regi _
-    have hy_h : y.regs regh = h := (Data.set_regs_of_ne (by decide) _).trans hu₂_h
-    refine ⟨y, 4, e_pos, ?_, ?_⟩
-    · refine ⟨hru₂.set_scratch regi (i + 1), by rw [hy_i]; omega,
-        by rw [hy_h]; exact hh_le_n,
-        hx.out_hdr, hx.txt_holds, hx.sa_holds, hx.rk_holds,
-        ⟨lcp, hlcp_sz, hlcp_holds, ?_⟩⟩
-      rw [hy_i, hy_h, ← kasaiLoop_of_rk_zero I.text.toArray I.sa.toArray rk
+      wram_exec [hx.regs.rkb_eq, hx.regs.zero_eq, hx.regs.one_eq, hrk_i_mem, hf_rk_i, hf_i1]
+      refine ⟨?_, ?_, rfl⟩
+      · wram_simp [i]
+      · wram_simp [h]
+    obtain ⟨y, e_pos, hy_i, hy_h, hy_mem⟩ := hstep
+    refine ⟨y, 4, e_pos,
+      ⟨hx.regs.kasai_exec e_pos, by rw [hy_i]; omega, hy_h.symm ▸ hh_le_n,
+       hy_mem ▸ hx.out_hdr, hy_mem ▸ hx.txt_holds, hy_mem ▸ hx.sa_holds, hy_mem ▸ hx.rk_holds,
+       ⟨lcp, hlcp_sz, hy_mem ▸ hlcp_holds, ?_⟩⟩, ?_⟩
+    · rw [hy_i, hy_h, ← kasaiLoop_of_rk_zero I.text.toArray I.sa.toArray rk
         (by simpa only [List.size_toArray] using hc) hr0 h lcp]
       exact hlcp_eq
     · unfold kasaiPotential
       rw [hy_i, hy_h]
       clear hlcp_eq hlcp_holds hrk_i_mem
       omega
-  · have hc_r0 : ¬(Cond.eq regr zero).Holds u₂ := by
-      simp only [Cond.holds_eq, hu₂_r, hru₂.zero_eq]; exact hr0
-    have hrk_le_m : rk[i]! ≤ m := getElem!_rankArray_le n I.sa hc
+  · have hrk_le_m : rk[i]! ≤ m := getElem!_rankArray_le n I.sa hc
     have hf_rm1 : Fits w (rk[i]! - 1) := hw.of_le (by omega)
+    set u₁ := x.set t0 (3 + n + m + i)
+    set u₂ := u₁.set regr rk[i]!
+    have b₁ : ExecWithin w (.op (.bin .add t0 rkBase regi)) x u₁ 1 :=
+      WP.execWithin <| by
+        wram_exec [hx.regs.rkb_eq, hf_rk_i]
+        rfl
+    have b₂ : ExecWithin (B := .standard) w (.op (.load regr t0)) u₁ u₂ 1 :=
+      WP.execWithin <| by
+        wram_exec [u₁, hrk_i_mem]
+        rfl
+    have hc_r0 : ¬(Cond.eq regr zero).Holds u₂ := by
+      simp only [Cond.holds_eq, u₂, u₁, Data.set_regs_self,
+        Data.set_regs_of_ne (by decide : zero ≠ regr),
+        Data.set_regs_of_ne (by decide : zero ≠ t0), hx.regs.zero_eq]
+      exact hr0
     set u₃ := u₂.set t0 (rk[i]! - 1)
-    have b₃ : ExecWithin w (.op (.bin .sub t0 regr one)) u₂ u₃ 1 := by
-      simpa only [BinOp.eval, hu₂_r, hru₂.one_eq] using
-        (ExecWithin.bin (f := .sub) (d := t0) (i := regr) (j := one) (x := u₂)
-          (by simpa only [BinOp.eval, hu₂_r, hru₂.one_eq] using hf_rm1))
-    have hru₃ : KasaiRegs I u₃ := hru₂.set_scratch t0 _
+    have b₃ : ExecWithin w (.op (.bin .sub t0 regr one)) u₂ u₃ 1 :=
+      WP.execWithin <| by
+        wram_exec [u₂, u₁, hx.regs.one_eq, hf_rm1]
+        rfl
+    have hru₃ : KasaiRegs I u₃ := ((hx.regs.kasai_exec b₁).kasai_exec b₂).kasai_exec b₃
     have hu₃_t0 : u₃.regs t0 = rk[i]! - 1 := Data.set_regs_self u₂ t0 _
+    have hu₃_i : u₃.regs regi = i :=
+      (b₃.regs_eq (by decide)).trans ((b₂.regs_eq (by decide)).trans (b₁.regs_eq (by decide)))
+    have hu₃_h : u₃.regs regh = h :=
+      (b₃.regs_eq (by decide)).trans ((b₂.regs_eq (by decide)).trans (b₁.regs_eq (by decide)))
+    have hu₃_r : u₃.regs regr = rk[i]! :=
+      (b₃.regs_eq (by decide)).trans (Data.set_regs_self _ regr _)
     set j_val := I.sa.toArray[rk[i]! - 1]!
     have hj_load : ∃ u₄, ExecWithin w
         (ram[ if t0 < saLen then [ t1 ← saBase + t0; regj ← *t1 ] else [ regj ← zero ] ])
         u₃ u₄ 3 ∧
-        KasaiRegs I u₄ ∧ u₄.regs regj = j_val ∧
-        u₄.regs regi = i ∧ u₄.regs regh = h ∧ u₄.regs regr = rk[i]! ∧ u₄.mem = x.mem := by
-      have hu₃_i : u₃.regs regi = i := (Data.set_regs_of_ne (by decide) _).trans hu₂_i
-      have hu₃_h : u₃.regs regh = h := (Data.set_regs_of_ne (by decide) _).trans hu₂_h
-      have hu₃_r : u₃.regs regr = rk[i]! := (Data.set_regs_of_ne (by decide) _).trans hu₂_r
+        u₄.regs regj = j_val ∧ u₄.mem = x.mem := by
       by_cases hrm : rk[i]! - 1 < m
-      · have hc_rm : (Cond.lt t0 saLen).Holds u₃ := by
-          simp only [Cond.holds_lt, hu₃_t0, hru₃.sl_eq]; exact hrm
-        have hf_sa_rm : Fits w (3 + n + (rk[i]! - 1)) := hw.of_le (by omega)
-        have hmem_sa : u₃.mem (3 + n + (rk[i]! - 1)) = j_val := by
+      · have hf_sa_rm : Fits w (3 + I.text.length + (rk[i]! - 1)) := hw.of_le (by omega)
+        have hmem_sa : u₃.mem (3 + I.text.length + (rk[i]! - 1)) = j_val := by
           change x.mem (3 + I.text.length + (rk[i]! - 1)) = I.sa.toArray[rk[i]! - 1]!
           rw [hx.sa_holds.get (rk[i]! - 1) hrm,
             getElem!_pos I.sa.toArray (rk[i]! - 1) (by simpa using hrm), List.getElem_toArray]
-        set v₁ := u₃.set t1 (3 + n + (rk[i]! - 1))
-        have d₁ : ExecWithin w (.op (.bin .add t1 saBase t0)) u₃ v₁ 1 := by
-          simpa only [BinOp.eval, hru₃.sb_eq, hu₃_t0] using
-            (ExecWithin.bin (f := .add) (d := t1) (i := saBase) (j := t0) (x := u₃)
-              (by simpa only [BinOp.eval, hru₃.sb_eq, hu₃_t0] using hf_sa_rm))
-        set v₂ := v₁.set regj j_val
-        have d₂ : ExecWithin (B := .standard) w (.op (.load regj t1)) v₁ v₂ 1 := by
-          have ht1 : v₁.regs t1 = 3 + n + (rk[i]! - 1) := Data.set_regs_self u₃ t1 _
-          have hm' : v₁.mem (v₁.regs t1) = j_val := ht1 ▸ hmem_sa
-          simpa only [hm'] using
-            (ExecWithin.load (B := .standard) (d := regj) (a := t1) (x := v₁))
-        exact ⟨v₂, ExecWithin.branch_pos hc_rm (d₁.seq d₂),
-          (hru₃.set_scratch t1 _).set_scratch regj _,
-          Data.set_regs_self v₁ regj _,
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            hu₃_i,
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            hu₃_h,
-          ((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-            hu₃_r,
-          rfl⟩
+        refine WP.exists_execWithin ?_
+        wram_exec [hu₃_t0, hru₃.sl_eq, hru₃.sb_eq, hru₃.zero_eq, hmem_sa, hf_sa_rm]
+        exact ⟨by wram_simp, rfl⟩
       · have hc_rm : ¬(Cond.lt t0 saLen).Holds u₃ := by
-          simp only [Cond.holds_lt, hu₃_t0, hru₃.sl_eq]; exact hrm
+          simp only [Cond.holds_lt, hu₃_t0, hru₃.sl_eq]
+          exact hrm
         have hj0 : j_val = 0 := getElem!_neg I.sa.toArray (rk[i]! - 1) (by simpa using hrm)
-        set v₁ := u₃.set regj 0
-        have d₁ : ExecWithin (B := .standard) w (.op (.copy regj zero)) u₃ v₁ 1 := by
-          simpa only [hru₃.zero_eq] using
-            (ExecWithin.copy (B := .standard) (d := regj) (s := zero) (x := u₃))
-        exact ⟨v₁, ExecWithin.branch_neg hc_rm d₁,
-          hru₃.set_scratch regj 0,
-          (Data.set_regs_self u₃ regj 0).trans hj0.symm,
-          (Data.set_regs_of_ne (by decide) 0).trans hu₃_i,
-          (Data.set_regs_of_ne (by decide) 0).trans hu₃_h,
-          (Data.set_regs_of_ne (by decide) 0).trans hu₃_r,
-          rfl⟩
-    obtain ⟨u₄, ej_load, hru₄, hu₄_j, hu₄_i, hu₄_h, hu₄_r, hu₄_mem⟩ := hj_load
+        have d₁ : ExecWithin (B := .standard) w (.op (.copy regj zero)) u₃ (u₃.set regj 0) 1 :=
+          WP.execWithin <| by
+            wram_exec [hru₃.zero_eq]
+            rfl
+        exact ⟨u₃.set regj 0, ExecWithin.branch_neg hc_rm d₁,
+          (Data.set_regs_self u₃ regj 0).trans hj0.symm, rfl⟩
+    obtain ⟨u₄, ej_load, hu₄_j, hu₄_mem⟩ := hj_load
+    have hru₄ : KasaiRegs I u₄ := hru₃.kasai_exec ej_load
     set u₅ := u₄.set go 1
-    have b₅ : ExecWithin (B := .standard) w (.op (.copy go one)) u₄ u₅ 1 := by
-      simpa only [hru₄.one_eq] using
-        (ExecWithin.copy (B := .standard) (d := go) (s := one) (x := u₄))
+    have b₅ : ExecWithin (B := .standard) w (.op (.copy go one)) u₄ u₅ 1 :=
+      WP.execWithin <| by
+        wram_exec [hru₄.one_eq]
+        rfl
     have hru₅ : KasaiRegs I u₅ := hru₄.set_scratch go 1
-    have hu₅_i : u₅.regs regi = i := (Data.set_regs_of_ne (by decide) 1).trans hu₄_i
-    have hu₅_h : u₅.regs regh = h := (Data.set_regs_of_ne (by decide) 1).trans hu₄_h
-    have hu₅_j : u₅.regs regj = j_val := (Data.set_regs_of_ne (by decide) 1).trans hu₄_j
-    have hu₅_r : u₅.regs regr = rk[i]! := (Data.set_regs_of_ne (by decide) 1).trans hu₄_r
+    have hu₅_i : u₅.regs regi = i :=
+      (b₅.regs_eq (by decide)).trans ((ej_load.regs_eq (by decide)).trans hu₃_i)
+    have hu₅_h : u₅.regs regh = h :=
+      (b₅.regs_eq (by decide)).trans ((ej_load.regs_eq (by decide)).trans hu₃_h)
+    have hu₅_j : u₅.regs regj = j_val := (b₅.regs_eq (by decide)).trans hu₄_j
+    have hu₅_r : u₅.regs regr = rk[i]! :=
+      (b₅.regs_eq (by decide)).trans ((ej_load.regs_eq (by decide)).trans hu₃_r)
     obtain ⟨u₆, T_ext, e_ext, hru₆, hu₆_i, hu₆_r, hu₆_h, hT_ext, hu₆_mem⟩ :=
       kasaiExt_spec I hw (n - (u₅.regs regi + u₅.regs regh)) u₅ rfl hru₅
         (Data.set_regs_self u₄ go 1) (hu₄_mem ▸ hx.txt_holds)
@@ -1032,98 +900,72 @@ private theorem kasaiBody_spec (I : KasaiInput) {w : ℕ}
       simp only [List.length_drop] at hk_len
       change 0 < List.lcpLen (I.text.drop (j_val + h)) (I.text.drop (i + h)) at hk_pos
       omega
-    have hh'_le_n : h' ≤ n := by
-      rcases Nat.eq_zero_or_pos k with hk0 | hkpos
-      · change h + k ≤ n; omega
-      · have := hk_bound hkpos; change h + k ≤ n; omega
     have hlcp_store : ∃ u₇, ExecWithin w
         (ram[ if regr < textLen then [ t0 ← lcpBase + regr; *t0 ← regh ] else [ t0 ← zero ] ])
         u₆ u₇ 3 ∧
-        KasaiRegs I u₇ ∧ u₇.regs regi = i ∧ u₇.regs regh = h' ∧
         u₇.mem (3 + 2 * n + m) = n ∧
         Block.HoldsList 3 I.text u₇.mem ∧
         Block.HoldsList (3 + n) I.sa u₇.mem ∧
         Block.HoldsList (3 + n + m) rk.toList u₇.mem ∧
         Block.HoldsList (4 + 2 * n + m) (lcp.set! rk[i]! h').toList u₇.mem := by
+      let storeBr : Code .standard 20 :=
+        .branch (.lt regr textLen)
+          (.seq (.op (.bin .add t0 lcpBase regr)) (.op (.store t0 regh)))
+          (.op (.copy t0 zero))
       have hm_eq : u₆.mem = x.mem := hu₆_mem.trans hu₄_mem
       by_cases hrlt : rk[i]! < n
-      · have hc_rlt : (Cond.lt regr textLen).Holds u₆ := by
-          simp only [Cond.holds_lt, hu₆_r, hru₆.tl_eq]; exact hrlt
-        have hf_lcp_r : Fits w (4 + 2 * n + m + rk[i]!) := hw.of_le (by omega)
-        set v₁ := u₆.set t0 (4 + 2 * n + m + rk[i]!)
-        have d₁ : ExecWithin w (.op (.bin .add t0 lcpBase regr)) u₆ v₁ 1 := by
-          simpa only [BinOp.eval, hru₆.lcpb_eq, hu₆_r] using
-            (ExecWithin.bin (f := .add) (d := t0) (i := lcpBase) (j := regr) (x := u₆)
-              (by simpa only [BinOp.eval, hru₆.lcpb_eq, hu₆_r] using hf_lcp_r))
-        set v₂ := v₁.write (4 + 2 * n + m + rk[i]!) h'
-        have d₂ : ExecWithin (B := .standard) w (.op (.store t0 regh)) v₁ v₂ 1 := by
-          have ht0 : v₁.regs t0 = 4 + 2 * n + m + rk[i]! := Data.set_regs_self u₆ t0 _
-          have hh' : v₁.regs regh = h' := (Data.set_regs_of_ne (by decide) _).trans hu₆_h
-          simpa only [ht0, hh'] using
-            (ExecWithin.store (B := .standard) (a := t0) (s := regh) (x := v₁))
-        refine ⟨v₂, ExecWithin.branch_pos hc_rlt (d₁.seq d₂),
-          (hru₆.set_scratch t0 _).write_mem _ _,
-          (Data.write_regs_apply _ _ _ regi).trans
-            ((Data.set_regs_of_ne (by decide) _).trans hu₆_i),
-          (Data.write_regs_apply _ _ _ regh).trans
-            ((Data.set_regs_of_ne (by decide) _).trans hu₆_h),
-          ?_, ?_, ?_, ?_, ?_⟩
-        · simp only [v₂, v₁, Data.write_mem, Data.set_mem, hm_eq]
-          rw [Function.update_of_ne (by omega)]; exact hx.out_hdr
-        · exact hx.txt_holds.frame fun a _ ha2 => by
-            simp only [v₂, v₁, Data.write_mem, Data.set_mem, hm_eq]
-            rw [Function.update_of_ne (by omega)]
-        · exact hx.sa_holds.frame fun a _ ha2 => by
-            simp only [v₂, v₁, Data.write_mem, Data.set_mem, hm_eq]
-            rw [Function.update_of_ne (by omega)]
-        · exact hx.rk_holds.frame fun a _ ha2 => by
-            simp only [v₂, v₁, Data.write_mem, Data.set_mem, hm_eq]
-            have : a < 3 + 2 * n + m := by
-              rw [Array.length_toList, size_rankArray] at ha2; omega
-            rw [Function.update_of_ne (by omega)]
-        · simp only [v₂, v₁, Data.write_mem, Data.set_mem, hm_eq]
-          exact holdsList_set!_lt hlcp_holds (by omega) h'
-      · have hc_rlt : ¬(Cond.lt regr textLen).Holds u₆ := by
-          simp only [Cond.holds_lt, hu₆_r, hru₆.tl_eq]; exact hrlt
-        set v₁ := u₆.set t0 0
-        have d₁ : ExecWithin (B := .standard) w (.op (.copy t0 zero)) u₆ v₁ 1 := by
-          simpa only [hru₆.zero_eq] using
-            (ExecWithin.copy (B := .standard) (d := t0) (s := zero) (x := u₆))
-        refine ⟨v₁, ExecWithin.branch_neg hc_rlt d₁,
-          hru₆.set_scratch t0 0,
-          (Data.set_regs_of_ne (by decide) 0).trans hu₆_i,
-          (Data.set_regs_of_ne (by decide) 0).trans hu₆_h,
-          by simp only [v₁, Data.set_mem, hm_eq]; exact hx.out_hdr,
-          by simp only [v₁, Data.set_mem, hm_eq]; exact hx.txt_holds,
-          by simp only [v₁, Data.set_mem, hm_eq]; exact hx.sa_holds,
-          by simp only [v₁, Data.set_mem, hm_eq]; exact hx.rk_holds,
-          by
-            simp only [v₁, Data.set_mem, hm_eq]
-            exact holdsList_set!_ge hlcp_holds (by omega) h'⟩
-    obtain ⟨u₇, elcp_st, hru₇, hu₇_i, hu₇_h, hout₇, htxt₇, hsa₇, hrk₇, hlcp₇⟩ := hlcp_store
+      · have hf_lcp_r : Fits w (4 + 2 * I.text.length + I.sa.length + rk[i]!) := hw.of_le (by omega)
+        have hstep : ∃ u₇, ExecWithin w storeBr u₆ u₇ 3 ∧
+            u₇.mem = Function.update x.mem (4 + 2 * n + m + rk[i]!) h' := by
+          refine WP.exists_execWithin ?_
+          wram_exec [storeBr, hu₆_r, hru₆.tl_eq, hru₆.lcpb_eq, hu₆_h, hru₆.zero_eq, hf_lcp_r]
+          dsimp only [n, m, h']
+          simp only [Data.write_mem, Data.set_mem, hm_eq]
+        obtain ⟨u₇, eu₇, hu₇_mem⟩ := hstep
+        have hfr (a : ℕ) (ha : a ≤ 3 + 2 * n + m) : u₇.mem a = x.mem a := by
+          rw [hu₇_mem, Function.update_of_ne (by omega)]
+        refine ⟨u₇, eu₇, (hfr _ le_rfl).trans hx.out_hdr,
+          hx.txt_holds.frame (fun a _ ha2 => hfr a (by omega)),
+          hx.sa_holds.frame (fun a _ ha2 => hfr a (by omega)),
+          hx.rk_holds.frame (fun a _ ha2 => by
+            rw [Array.length_toList, size_rankArray] at ha2
+            exact hfr a (by omega)),
+          hu₇_mem ▸ holdsList_set!_lt hlcp_holds (by omega) h'⟩
+      · have hstep : ∃ u₇, ExecWithin w storeBr u₆ u₇ 3 ∧ u₇.mem = x.mem := by
+          refine WP.exists_execWithin ?_
+          wram_exec [storeBr, hu₆_r, hru₆.tl_eq, hru₆.zero_eq]
+          exact hm_eq
+        obtain ⟨u₇, eu₇, hu₇_mem⟩ := hstep
+        exact ⟨u₇, eu₇, hu₇_mem ▸ hx.out_hdr, hu₇_mem ▸ hx.txt_holds, hu₇_mem ▸ hx.sa_holds,
+          hu₇_mem ▸ hx.rk_holds, hu₇_mem ▸ holdsList_set!_ge hlcp_holds (by omega) h'⟩
+    obtain ⟨u₇, elcp_st, hout₇, htxt₇, hsa₇, hrk₇, hlcp₇⟩ := hlcp_store
+    have hru₇ : KasaiRegs I u₇ := hru₆.kasai_exec elcp_st
+    have hu₇_i : u₇.regs regi = i := (elcp_st.regs_eq (by decide)).trans hu₆_i
+    have hu₇_h : u₇.regs regh = h' := (elcp_st.regs_eq (by decide)).trans hu₆_h
     have hf_hm1 : Fits w (h' - 1) := hw.of_le (by omega)
-    set u₈ := u₇.set regh (h' - 1)
-    have b₈ : ExecWithin w (.op (.bin .sub regh regh one)) u₇ u₈ 1 := by
-      simpa only [BinOp.eval, hu₇_h, hru₇.one_eq] using
-        (ExecWithin.bin (f := .sub) (d := regh) (i := regh) (j := one) (x := u₇)
-          (by simpa only [BinOp.eval, hu₇_h, hru₇.one_eq] using hf_hm1))
-    have hru₈ : KasaiRegs I u₈ := hru₇.set_scratch regh (h' - 1)
-    have hu₈_i : u₈.regs regi = i := (Data.set_regs_of_ne (by decide) _).trans hu₇_i
-    set y := u₈.set regi (i + 1)
-    have b₉ : ExecWithin w (.op (.bin .add regi regi one)) u₈ y 1 := by
-      simpa only [BinOp.eval, hu₈_i, hru₈.one_eq] using
-        (ExecWithin.bin (f := .add) (d := regi) (i := regi) (j := one) (x := u₈)
-          (by simpa only [BinOp.eval, hu₈_i, hru₈.one_eq] using hf_i1))
-    have hy_i : y.regs regi = i + 1 := Data.set_regs_self u₈ regi _
+    set y := (u₇.set regh (h' - 1)).set regi (i + 1)
+    have b_tail : ExecWithin w
+        (.seq (.op (.bin .sub regh regh one)) (.op (.bin .add regi regi one))) u₇ y 2 :=
+      WP.execWithin <| by
+        wram_exec [hu₇_h, hu₇_i, hru₇.one_eq, hf_hm1, hf_i1]
+        rfl
+    have hy_i : y.regs regi = i + 1 := Data.set_regs_self _ regi _
     have hy_h : y.regs regh = h' - 1 :=
       (Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_self u₇ regh _)
-    have e_neg := b₃.seq (ej_load.seq (b₅.seq (e_ext.seq (elcp_st.seq (b₈.seq b₉)))))
+    have e_neg := b₃.seq (ej_load.seq (b₅.seq (e_ext.seq (elcp_st.seq b_tail))))
     have e_full : ExecWithin w kasaiBody x y (14 * k + 31) := by
       unfold kasaiBody
       exact (b₁.seq (b₂.seq (ExecWithin.branch_neg hc_r0 e_neg))).mono (by omega)
     refine ⟨y, 14 * k + 31, e_full, ?_, ?_⟩
-    · refine ⟨hru₈.set_scratch regi (i + 1), by rw [hy_i]; omega,
-        by rw [hy_h]; omega, hout₇, htxt₇, hsa₇, hrk₇,
+    · refine ⟨hru₇.kasai_exec b_tail, by rw [hy_i]; omega,
+        by
+          rw [hy_h]
+          dsimp only [h']
+          rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+          · omega
+          · have := hk_bound hkpos
+            omega,
+        hout₇, htxt₇, hsa₇, hrk₇,
         ⟨lcp.set! rk[i]! h',
          by rw [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]; exact hlcp_sz,
          hlcp₇, ?_⟩⟩
@@ -1162,20 +1004,14 @@ theorem kasaiCode_exec (I : KasaiInput) {w : ℕ}
     scatterCode_spec I hw x₁ hrx₁ hout₁ htxt₁ hsa₁ hrk₁ hlcp₁
   set s₀ := (x₂.set regi 0).set regh 0
   have e_init : ExecWithin (B := .standard) w (ram[ regi ← zero; regh ← zero ]) x₂ s₀ 2 := by
-    have c₁ : ExecWithin (B := .standard) w (.op (.copy regi zero)) x₂ (x₂.set regi 0) 1 := by
-      simpa only [hrx₂.zero_eq] using
-        (ExecWithin.copy (B := .standard) (d := regi) (s := zero) (x := x₂))
-    have hz' : (x₂.set regi 0).regs zero = 0 :=
-      (Data.set_regs_of_ne (by decide) 0).trans hrx₂.zero_eq
-    have c₂ : ExecWithin (B := .standard) w (.op (.copy regh zero)) (x₂.set regi 0) s₀ 1 := by
-      simpa only [hz'] using
-        (ExecWithin.copy (B := .standard) (d := regh) (s := zero) (x := x₂.set regi 0))
-    exact c₁.seq c₂
+    refine WP.execWithin ?_
+    wram_exec [hrx₂.zero_eq]
+    rfl
   have hs₀_i : s₀.regs regi = 0 :=
     (Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self x₂ regi 0)
   have hs₀_h : s₀.regs regh = 0 := Data.set_regs_self _ regh 0
   have hs₀_inv : KasaiLoopInv I s₀ :=
-    ⟨(hrx₂.set_scratch regi 0).set_scratch regh 0,
+    ⟨hrx₂.kasai_exec e_init,
      by rw [hs₀_i]; exact Nat.zero_le _,
      by rw [hs₀_h]; exact Nat.zero_le _,
      hout₂, htxt₂, hsa₂, hrk₂,
@@ -1197,10 +1033,11 @@ theorem kasaiCode_exec (I : KasaiInput) {w : ℕ}
   rw [kasaiLoop_of_le _ _ _ (by simpa only [List.size_toArray, hy_i] using le_rfl)] at hlcp_fin_eq
   rw [hlcp_fin_eq] at hlcp_fin_holds
   have hout_list : outputList y.mem (y.regs out) = kasai I.text I.sa := by
+    have hlcp_addr :
+        3 + 2 * I.text.length + I.sa.length + 1 = 4 + 2 * I.text.length + I.sa.length := by
+      omega
     rw [outputList_eq_iff, hy_inv.regs.out_eq, length_kasai]
-    refine ⟨hy_inv.out_hdr, ?_⟩
-    simpa only [show 3 + 2 * I.text.length + I.sa.length + 1 =
-      4 + 2 * I.text.length + I.sa.length by omega] using hlcp_fin_holds
+    exact ⟨hy_inv.out_hdr, by simpa only [hlcp_addr] using hlcp_fin_holds⟩
   have hfit_out : Fits w (y.regs out + (kasai I.text I.sa).length) := by
     rw [hy_inv.regs.out_eq, length_kasai]
     exact hw.of_le (by omega)
@@ -1401,6 +1238,24 @@ private theorem SearchRegs.set_scratch {I : SearchInput} {x : Data 20} (hr : Sea
    (Data.set_regs_of_ne ho v).trans hr.out_eq,
    hr.txt_holds, hr.sa_holds, hr.pat_holds⟩
 
+private theorem SearchRegs.search_exec {I : SearchInput} {c : Code .standard 20}
+    {x y : Data 20} {w T : ℕ} (hr : SearchRegs I x) (he : ExecWithin w c x y T)
+    (hm : ∀ a < 4 + I.text.length + I.sa.length + I.pat.length, y.mem a = x.mem a)
+    (h0 : c.Preserves zero := by decide) (h1 : c.Preserves one := by decide)
+    (h2 : c.Preserves twoReg := by decide) (htb : c.Preserves textBase := by decide)
+    (htl : c.Preserves textLen := by decide) (hsb : c.Preserves saBase := by decide)
+    (hsl : c.Preserves saLen := by decide) (hpb : c.Preserves patBase := by decide)
+    (hpl : c.Preserves patLen := by decide) (ho : c.Preserves out := by decide) :
+    SearchRegs I y :=
+  ⟨(he.regs_eq h0).trans hr.zero_eq, (he.regs_eq h1).trans hr.one_eq,
+   (he.regs_eq h2).trans hr.two_eq, (he.regs_eq htb).trans hr.tb_eq,
+   (he.regs_eq htl).trans hr.tl_eq, (he.regs_eq hsb).trans hr.sb_eq,
+   (he.regs_eq hsl).trans hr.sl_eq, (he.regs_eq hpb).trans hr.pb_eq,
+   (he.regs_eq hpl).trans hr.pl_eq, (he.regs_eq ho).trans hr.out_eq,
+   hr.txt_holds.frame (fun a _ ha2 => hm a (by omega)),
+   hr.sa_holds.frame (fun a _ ha2 => hm a (by omega)),
+   hr.pat_holds.frame (fun a _ ha2 => hm a (by omega))⟩
+
 private theorem init_searchEncode (I : SearchInput) :
     let x : Data 20 := Data.init I.encode
     x.mem 1 = I.text.length ∧ x.mem 2 = I.sa.length ∧ x.mem 3 = I.pat.length ∧
@@ -1409,38 +1264,34 @@ private theorem init_searchEncode (I : SearchInput) :
       Block.HoldsList (4 + I.text.length + I.sa.length) I.pat x.mem := by
   intro x
   have hhdr : Block.HoldsList 1 [I.text.length, I.sa.length, I.pat.length] x.mem := by
-    dsimp only [x, SearchInput.encode]
-    have h := init_holdsList_append (r := 20) [] [I.text.length, I.sa.length, I.pat.length]
-      (I.text ++ (I.sa ++ I.pat))
-    simpa only [List.length_nil, Nat.zero_add, List.nil_append, List.cons_append,
-      List.append_assoc] using h
+    simpa only [x, SearchInput.encode, List.length_nil, Nat.zero_add, List.nil_append,
+      List.cons_append, List.append_assoc] using
+      init_holdsList_append (r := 20) [] [I.text.length, I.sa.length, I.pat.length]
+        (I.text ++ (I.sa ++ I.pat))
   obtain ⟨hm1, hhdr2⟩ := Block.holdsList_cons_iff.mp hhdr
   obtain ⟨hm2, hhdr3⟩ := Block.holdsList_cons_iff.mp hhdr2
   obtain ⟨hm3, _⟩ := Block.holdsList_cons_iff.mp hhdr3
-  have htxt : Block.HoldsList 4 I.text x.mem := by
-    dsimp only [x, SearchInput.encode]
-    have h := init_holdsList_append (r := 20) [I.text.length, I.sa.length, I.pat.length]
-      I.text (I.sa ++ I.pat)
-    simpa only [List.length_cons, List.length_nil, List.cons_append, List.nil_append,
-      List.append_assoc] using h
-  have hsa : Block.HoldsList (4 + I.text.length) I.sa x.mem := by
-    dsimp only [x, SearchInput.encode]
-    have h := init_holdsList_append (r := 20)
-      ([I.text.length, I.sa.length, I.pat.length] ++ I.text) I.sa I.pat
-    have hlen : ([I.text.length, I.sa.length, I.pat.length] ++ I.text).length + 1 =
-        4 + I.text.length := by simp; omega
-    rw [hlen] at h
-    simpa only [List.cons_append, List.nil_append, List.append_assoc] using h
-  have hpat : Block.HoldsList (4 + I.text.length + I.sa.length) I.pat x.mem := by
-    dsimp only [x, SearchInput.encode]
-    have h := init_holdsList_append (r := 20)
-      ([I.text.length, I.sa.length, I.pat.length] ++ (I.text ++ I.sa)) I.pat []
-    have hlen : ([I.text.length, I.sa.length, I.pat.length] ++ (I.text ++ I.sa)).length + 1 =
-        4 + I.text.length + I.sa.length := by simp; omega
-    rw [hlen] at h
-    simpa only [List.append_nil, List.cons_append, List.nil_append, List.append_assoc]
-      using h
-  exact ⟨hm1, hm2, hm3, htxt, hsa, hpat⟩
+  have hsa := init_holdsList_append (r := 20)
+    ([I.text.length, I.sa.length, I.pat.length] ++ I.text) I.sa I.pat
+  have hpat := init_holdsList_append (r := 20)
+    ([I.text.length, I.sa.length, I.pat.length] ++ (I.text ++ I.sa)) I.pat []
+  have hlen_sa : ([I.text.length, I.sa.length, I.pat.length] ++ I.text).length + 1 =
+      4 + I.text.length := by
+    simp only [List.length_append, List.length_cons, List.length_nil]; omega
+  have hlen_pat : ([I.text.length, I.sa.length, I.pat.length] ++ (I.text ++ I.sa)).length + 1 =
+      4 + I.text.length + I.sa.length := by
+    simp only [List.length_append, List.length_cons, List.length_nil]; omega
+  rw [hlen_sa] at hsa
+  rw [hlen_pat] at hpat
+  refine ⟨hm1, hm2, hm3, ?_, ?_, ?_⟩
+  · simpa only [x, SearchInput.encode, List.length_cons, List.length_nil, List.cons_append,
+      List.nil_append, List.append_assoc] using
+      init_holdsList_append (r := 20) [I.text.length, I.sa.length, I.pat.length]
+        I.text (I.sa ++ I.pat)
+  · simpa only [x, SearchInput.encode, List.cons_append, List.nil_append, List.append_assoc]
+      using hsa
+  · simpa only [x, SearchInput.encode, List.append_nil, List.cons_append, List.nil_append,
+      List.append_assoc] using hpat
 
 private theorem cmpLoop_stop {I : SearchInput} {w T : ℕ} {x s₁ : Data 20} {ord : Ordering}
     (hc_go : (Cond.lt zero go).Holds x)
@@ -1471,17 +1322,10 @@ private theorem cmpLoop_stop {I : SearchInput} {w T : ℕ} {x s₁ : Data 20} {o
 
 private theorem setGtStop_exec {I : SearchInput} {w : ℕ} (u : Data 20) (hru : SearchRegs I u) :
     ExecWithin (B := .standard) w (ram[ resReg ← twoReg; go ← zero ]) u
-      ((u.set resReg 2).set go 0) 2 := by
-  have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg twoReg)) u (u.set resReg 2) 1 := by
-    simpa only [hru.two_eq] using
-      (ExecWithin.copy (B := .standard) (d := resReg) (s := twoReg) (x := u))
-  have hz : (u.set resReg 2).regs zero = 0 :=
-    (Data.set_regs_of_ne (by decide) 2).trans hru.zero_eq
-  have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero))
-      (u.set resReg 2) ((u.set resReg 2).set go 0) 1 := by
-    simpa only [hz] using
-      (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u.set resReg 2))
-  exact c₁.seq c₂
+      ((u.set resReg 2).set go 0) 2 :=
+  WP.execWithin <| by
+    wram_exec [hru.two_eq, hru.zero_eq]
+    rfl
 
 private theorem cmpLoop_gt_stop {I : SearchInput} {w T : ℕ} {x u : Data 20}
     (hc_go : (Cond.lt zero go).Holds x)
@@ -1588,73 +1432,56 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
         have hf_pk : Fits w (pos + k) := hw.of_le (by omega)
         have hf_ta : Fits w (4 + (pos + k)) := hw.of_le (by omega)
         have hloads : ∃ u₂, ExecWithin w cmpLoads u₁ u₂ 5 ∧
-            SearchRegs I u₂ ∧
-            u₂.regs t0 = I.pat[k] ∧ u₂.regs t1 = I.text[pos + k] ∧
-            u₂.regs regk = k ∧ u₂.regs posReg = pos ∧
-            u₂.regs resReg = 1 ∧ u₂.regs go = 1 ∧
-            u₂.regs loReg = x.regs loReg ∧ u₂.regs hiReg = x.regs hiReg ∧
-            u₂.regs midReg = x.regs midReg ∧ u₂.regs savedLo = x.regs savedLo := by
+            u₂.regs t0 = I.pat[k] ∧ u₂.regs t1 = I.text[pos + k] ∧ u₂.mem = u₁.mem := by
           have hu₁_k : u₁.regs regk = k := Data.set_regs_of_ne (by decide) _
-          have hu₁_res : u₁.regs resReg = 1 :=
-            (Data.set_regs_of_ne (by decide) _).trans hres
-          have hu₁_go : u₁.regs go = 1 :=
-            (Data.set_regs_of_ne (by decide) _).trans hgo
-          have hu₁_lo : u₁.regs loReg = x.regs loReg := Data.set_regs_of_ne (by decide) _
-          have hu₁_hi : u₁.regs hiReg = x.regs hiReg := Data.set_regs_of_ne (by decide) _
-          have hu₁_mid : u₁.regs midReg = x.regs midReg := Data.set_regs_of_ne (by decide) _
-          have hu₁_sv : u₁.regs savedLo = x.regs savedLo := Data.set_regs_of_ne (by decide) _
           refine WP.exists_execWithin ?_
           unfold cmpLoads
           wram_exec [hru₁.pb_eq, hru₁.tb_eq, hu₁_k, hu₁_pos, hread_p, hread_t,
             hf_pa, hf_pk, hf_ta]
-          exact ⟨⟨by wram_simp [hru₁.zero_eq], by wram_simp [hru₁.one_eq],
-            by wram_simp [hru₁.two_eq], by wram_simp [hru₁.tb_eq],
-            by wram_simp [hru₁.tl_eq], by wram_simp [hru₁.sb_eq],
-            by wram_simp [hru₁.sl_eq], by wram_simp [hru₁.pb_eq],
-            by wram_simp [hru₁.pl_eq], by wram_simp [hru₁.out_eq],
-            hrx.txt_holds, hrx.sa_holds, hrx.pat_holds⟩,
-            by wram_simp, by wram_simp,
-            by wram_simp [hu₁_k], by wram_simp [hu₁_pos],
-            by wram_simp [hu₁_res], by wram_simp [hu₁_go],
-            by wram_simp [hu₁_lo], by wram_simp [hu₁_hi],
-            by wram_simp [hu₁_mid], by wram_simp [hu₁_sv]⟩
-        obtain ⟨u₂, eloads, hru₂, hu₂_t0, hu₂_t1, hu₂_k, hu₂_pos, hu₂_res, hu₂_go,
-          hu₂_lo, hu₂_hi, hu₂_mid, hu₂_sv⟩ := hloads
+          refine ⟨?_, ?_, rfl⟩
+          · wram_simp
+          · wram_simp
+        obtain ⟨u₂, eloads, hu₂_t0, hu₂_t1, hu₂_mem⟩ := hloads
+        have hru₂ : SearchRegs I u₂ := hru₁.search_exec eloads (fun a _ => congrFun hu₂_mem a)
+        have hu₂_k : u₂.regs regk = k :=
+          (eloads.regs_eq (by decide)).trans (Data.set_regs_of_ne (by decide) _)
+        have hu₂_pos : u₂.regs posReg = pos := (eloads.regs_eq (by decide)).trans hu₁_pos
+        have hu₂_res : u₂.regs resReg = 1 :=
+          (eloads.regs_eq (by decide)).trans ((Data.set_regs_of_ne (by decide) _).trans hres)
+        have hu₂_go : u₂.regs go = 1 :=
+          (eloads.regs_eq (by decide)).trans ((Data.set_regs_of_ne (by decide) _).trans hgo)
+        have hu₂_lo : u₂.regs loReg = x.regs loReg :=
+          (eloads.regs_eq (by decide)).trans (Data.set_regs_of_ne (by decide) _)
+        have hu₂_hi : u₂.regs hiReg = x.regs hiReg :=
+          (eloads.regs_eq (by decide)).trans (Data.set_regs_of_ne (by decide) _)
+        have hu₂_mid : u₂.regs midReg = x.regs midReg :=
+          (eloads.regs_eq (by decide)).trans (Data.set_regs_of_ne (by decide) _)
+        have hu₂_sv : u₂.regs savedLo = x.regs savedLo :=
+          (eloads.regs_eq (by decide)).trans (Data.set_regs_of_ne (by decide) _)
         by_cases hlt1 : I.pat[k] < I.text[pos + k]
         · have hc_lt1 : (Cond.lt t0 t1).Holds u₂ := by
             simp only [Cond.holds_lt, hu₂_t0, hu₂_t1]; exact hlt1
           set u₃ := (u₂.set resReg 0).set go 0
-          have c₁ : ExecWithin (B := .standard) w (.op (.copy resReg zero))
-              u₂ (u₂.set resReg 0) 1 := by
-            simpa only [hru₂.zero_eq] using
-              (ExecWithin.copy (B := .standard) (d := resReg) (s := zero) (x := u₂))
-          have c₂ : ExecWithin (B := .standard) w (.op (.copy go zero))
-              (u₂.set resReg 0) u₃ 1 := by
-            have hz' : (u₂.set resReg 0).regs zero = 0 :=
-              (Data.set_regs_of_ne (by decide) 0).trans hru₂.zero_eq
-            simpa only [hz'] using
-              (ExecWithin.copy (B := .standard) (d := go) (s := zero) (x := u₂.set resReg 0))
+          have c_lt : ExecWithin (B := .standard) w
+              (.seq (.op (.copy resReg zero)) (.op (.copy go zero))) u₂ u₃ 2 :=
+            WP.execWithin <| by
+              wram_exec [hru₂.zero_eq]
+              rfl
           have hbody : ExecWithin w cmpBody x u₃ 12 := by
             unfold cmpBody
             exact (ExecWithin.branch_pos hc_k
               (ExecWithin.branch_pos hc_kn
                 (b₁.seq (ExecWithin.branch_pos hc_pos
-                  (eloads.seq (ExecWithin.branch_pos hc_lt1 (c₁.seq c₂))))))).mono (by omega)
+                  (eloads.seq (ExecWithin.branch_pos hc_lt1 c_lt)))))).mono (by omega)
           have hcmp : cmpSuffix I.text.toArray (I.pat.drop k) (pos + k) = .lt := by
             rw [List.drop_eq_getElem_cons hk_lt, cmpSuffix,
               dite_eq_left (by simpa only [List.size_toArray] using hpk_lt),
               List.getElem_toArray, compare_lt_iff_lt.mpr hlt1]
           have h1 := cmpLoop_stop (ord := .lt) hc_go hbody (by omega)
-            ((hru₂.set_scratch resReg 0).set_scratch go 0)
+            (hru₂.search_exec c_lt (fun _ _ => rfl))
             (Data.set_regs_self _ go 0)
-            (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-              hu₂_lo)
-            (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-              hu₂_hi)
-            (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-              hu₂_mid)
-            (((Data.set_regs_of_ne (by decide) _).trans (Data.set_regs_of_ne (by decide) _)).trans
-              hu₂_sv)
+            (hbody.regs_eq (by decide)) (hbody.regs_eq (by decide))
+            (hbody.regs_eq (by decide)) (hbody.regs_eq (by decide))
             ((Data.set_regs_of_ne (by decide) 0).trans (Data.set_regs_self u₂ resReg 0))
             hcmp
           rwa [hrem] at h1
@@ -1681,10 +1508,10 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
             have heq_ch : I.pat[k] = I.text[pos + k] := by omega
             have hf_k1 : Fits w (k + 1) := hw.of_le (by omega)
             set u₃ := u₂.set regk (k + 1)
-            have c₁ : ExecWithin w (.op (.bin .add regk regk one)) u₂ u₃ 1 := by
-              simpa only [BinOp.eval, hu₂_k, hru₂.one_eq] using
-                (ExecWithin.bin (f := .add) (d := regk) (i := regk) (j := one) (x := u₂)
-                  (by simpa only [BinOp.eval, hu₂_k, hru₂.one_eq] using hf_k1))
+            have c₁ : ExecWithin w (.op (.bin .add regk regk one)) u₂ u₃ 1 :=
+              WP.execWithin <| by
+                wram_exec [hu₂_k, hru₂.one_eq, hf_k1]
+                rfl
             have hbody : ExecWithin w cmpBody x u₃ 14 := by
               unfold cmpBody
               exact (ExecWithin.branch_pos hc_k
@@ -1692,28 +1519,22 @@ private theorem cmpLoop_spec (I : SearchInput) {w : ℕ}
                   (b₁.seq (ExecWithin.branch_pos hc_pos
                     (eloads.seq (ExecWithin.branch_neg hc_nlt1
                       (ExecWithin.branch_neg hc_nlt2 c₁))))))).mono (by omega)
-            have hru₃ : SearchRegs I u₃ := hru₂.set_scratch regk (k + 1)
-            have hu₃_k : u₃.regs regk = k + 1 := Data.set_regs_self u₂ regk _
-            have hu₃_pos : u₃.regs posReg = pos :=
-              (Data.set_regs_of_ne (by decide) _).trans hu₂_pos
-            have hu₃_res : u₃.regs resReg = 1 :=
-              (Data.set_regs_of_ne (by decide) _).trans hu₂_res
-            have hu₃_go : u₃.regs go = 1 :=
-              (Data.set_regs_of_ne (by decide) _).trans hu₂_go
             obtain ⟨y, T_rec, hrec, hry, hy_lo, hy_hi, hy_mid, hy_sv, hy_res, hT_rec⟩ :=
-              ih u₃ (by rw [hu₃_k]; omega) hru₃ hu₃_res hu₃_go
-            rw [hu₃_k, hu₃_pos] at hy_res
+              ih u₃ (by rw [Data.set_regs_self u₂ regk _]; omega)
+                (hru₂.set_scratch regk (k + 1))
+                ((c₁.regs_eq (by decide)).trans hu₂_res)
+                ((c₁.regs_eq (by decide)).trans hu₂_go)
+            rw [Data.set_regs_self u₂ regk _, (c₁.regs_eq (by decide)).trans hu₂_pos] at hy_res
             have hcmp_step : cmpSuffix I.text.toArray (I.pat.drop k) (pos + k) =
                 cmpSuffix I.text.toArray (I.pat.drop (k + 1)) (pos + (k + 1)) := by
               rw [List.drop_eq_getElem_cons hk_lt, cmpSuffix,
                 dite_eq_left (by simpa only [List.size_toArray] using hpk_lt),
-                List.getElem_toArray, compare_eq_iff_eq.mpr heq_ch,
-                show pos + (k + 1) = pos + k + 1 by omega]
+                List.getElem_toArray, compare_eq_iff_eq.mpr heq_ch, ← Nat.add_assoc pos k 1]
             refine ⟨y, 14 + T_rec + 2, ExecWithin.loop_iter hc_go hbody hrec, hry,
-              hy_lo.trans ((Data.set_regs_of_ne (by decide) _).trans hu₂_lo),
-              hy_hi.trans ((Data.set_regs_of_ne (by decide) _).trans hu₂_hi),
-              hy_mid.trans ((Data.set_regs_of_ne (by decide) _).trans hu₂_mid),
-              hy_sv.trans ((Data.set_regs_of_ne (by decide) _).trans hu₂_sv),
+              hy_lo.trans (hbody.regs_eq (by decide)),
+              hy_hi.trans (hbody.regs_eq (by decide)),
+              hy_mid.trans (hbody.regs_eq (by decide)),
+              hy_sv.trans (hbody.regs_eq (by decide)),
               by rw [hcmp_step]; exact hy_res, by omega⟩
       · have hc_npos : ¬(Cond.lt posReg t0).Holds u₁ := by
           simp only [Cond.holds_lt, hu₁_pos, u₁, Data.set_regs_self]; exact hpos_lt
@@ -1757,29 +1578,26 @@ private theorem cmpSuffixCode_spec (I : SearchInput) {w : ℕ}
     hs.sa_holds.get (s.regs midReg) hm
   have hf_sa_m : Fits w (4 + I.text.length + s.regs midReg) := hw.of_le (by omega)
   have hprep : ∃ u, ExecWithin w cmpPrep s u 5 ∧
-      SearchRegs I u ∧
-      u.regs posReg = I.sa[s.regs midReg] ∧ u.regs regk = 0 ∧ u.regs resReg = 1 ∧ u.regs go = 1 ∧
-      u.regs loReg = s.regs loReg ∧ u.regs hiReg = s.regs hiReg ∧
-      u.regs midReg = s.regs midReg ∧ u.regs savedLo = s.regs savedLo := by
+      u.regs posReg = I.sa[s.regs midReg] ∧ u.regs regk = 0 ∧
+      u.regs resReg = 1 ∧ u.regs go = 1 ∧ u.mem = s.mem := by
     refine WP.exists_execWithin ?_
     unfold cmpPrep
     wram_exec [hs.sb_eq, hs.zero_eq, hs.one_eq, hmem_sa, hf_sa_m]
-    exact ⟨⟨by wram_simp [hs.zero_eq], by wram_simp [hs.one_eq],
-      by wram_simp [hs.two_eq], by wram_simp [hs.tb_eq],
-      by wram_simp [hs.tl_eq], by wram_simp [hs.sb_eq],
-      by wram_simp [hs.sl_eq], by wram_simp [hs.pb_eq],
-      by wram_simp [hs.pl_eq], by wram_simp [hs.out_eq],
-      hs.txt_holds, hs.sa_holds, hs.pat_holds⟩,
-      by wram_simp, by wram_simp [hs.zero_eq],
-      by wram_simp [hs.one_eq], by wram_simp [hs.one_eq],
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  obtain ⟨u, eprep, hru, hu_pos, hu_k, hu_res, hu_go, hu_lo, hu_hi, hu_mid, hu_sv⟩ := hprep
+    refine ⟨?_, ?_, ?_, ?_, rfl⟩
+    · wram_simp
+    · wram_simp [hs.zero_eq]
+    · wram_simp [hs.one_eq]
+    · wram_simp [hs.one_eq]
+  obtain ⟨u, eprep, hu_pos, hu_k, hu_res, hu_go, hu_mem⟩ := hprep
   obtain ⟨s', T_loop, eloop, hrs', hs'_lo, hs'_hi, hs'_mid, hs'_sv, hs'_res, hT⟩ :=
-    cmpLoop_spec I hw I.pat.length u (by rw [hu_k, Nat.sub_zero]) hru hu_res hu_go
+    cmpLoop_spec I hw I.pat.length u (by rw [hu_k, Nat.sub_zero])
+      (hs.search_exec eprep (fun a _ => congrFun hu_mem a)) hu_res hu_go
   rw [hu_k, hu_pos, List.drop_zero, Nat.add_zero] at hs'_res
   unfold cmpSuffixCode
   exact ⟨s', (eprep.seq eloop).mono (by omega), hrs',
-    hs'_lo.trans hu_lo, hs'_hi.trans hu_hi, hs'_mid.trans hu_mid, hs'_sv.trans hu_sv, hs'_res⟩
+    hs'_lo.trans (eprep.regs_eq (by decide)), hs'_hi.trans (eprep.regs_eq (by decide)),
+    hs'_mid.trans (eprep.regs_eq (by decide)), hs'_sv.trans (eprep.regs_eq (by decide)),
+    hs'_res⟩
 
 private theorem twoBisections_spec (I : SearchInput) {w : ℕ}
     (hw : Fits w (I.text.length + I.sa.length + I.pat.length + 6)) :
@@ -1848,24 +1666,6 @@ private theorem twoBisections_spec (I : SearchInput) {w : ℕ}
   set lo_val := (search I.text I.sa I.pat).1
   change u₁.regs loReg = lo_val at hu₁_lo
   set u₂ := ((u₁.set savedLo lo_val).set loReg 0).set hiReg m
-  have cm₁ : ExecWithin (B := .standard) w (.op (.copy savedLo loReg)) u₁
-      (u₁.set savedLo lo_val) 1 := by
-    simpa only [hu₁_lo] using
-      (ExecWithin.copy (B := .standard) (d := savedLo) (s := loReg) (x := u₁))
-  have hzm' : (u₁.set savedLo lo_val).regs zero = 0 :=
-    (Data.set_regs_of_ne (by decide) _).trans hru₁.zero_eq
-  have cm₂ : ExecWithin (B := .standard) w (.op (.copy loReg zero))
-      (u₁.set savedLo lo_val) ((u₁.set savedLo lo_val).set loReg 0) 1 := by
-    simpa only [hzm'] using
-      (ExecWithin.copy (B := .standard) (d := loReg) (s := zero) (x := u₁.set savedLo lo_val))
-  have hslm' : ((u₁.set savedLo lo_val).set loReg 0).regs saLen = m :=
-    (Data.set_regs_of_ne (by decide) _).trans
-      ((Data.set_regs_of_ne (by decide) _).trans hru₁.sl_eq)
-  have cm₃ : ExecWithin (B := .standard) w (.op (.copy hiReg saLen))
-      ((u₁.set savedLo lo_val).set loReg 0) u₂ 1 := by
-    simpa only [hslm'] using
-      (ExecWithin.copy (B := .standard) (d := hiReg) (s := saLen)
-        (x := (u₁.set savedLo lo_val).set loReg 0))
   let Inv₂ (s : Data 20) : Prop := SearchRegs I s ∧ s.regs savedLo = lo_val
   have hu₂_inv : Inv₂ u₂ :=
     ⟨((hru₁.set_scratch savedLo lo_val).set_scratch loReg 0).set_scratch hiReg m,
@@ -1903,12 +1703,13 @@ private theorem twoBisections_spec (I : SearchInput) {w : ℕ}
   rw [Nat.sub_zero] at ebis₂
   change x₂.regs loReg = (search I.text I.sa I.pat).2 at hx₂_lo
   have etwo : ExecWithin w twoBisectionsCode x₁ x₂
-      ((32 * plen + 63) * (Nat.log 2 m + 1) + 7) := by
-    unfold twoBisectionsCode
-    have hsum : ((16 * plen + 24 + 8) * (Nat.log 2 m + 1) + 2) +
-        (1 + (1 + (1 + ((16 * plen + 23 + 8) * (Nat.log 2 m + 1) + 2)))) =
-        (32 * plen + 63) * (Nat.log 2 m + 1) + 7 := by ring
-    exact (ebis₁.seq (cm₁.seq (cm₂.seq (cm₃.seq ebis₂)))).mono (by rw [hsum])
+      ((32 * plen + 63) * (Nat.log 2 m + 1) + 7) :=
+    WP.execWithin <| by
+      unfold twoBisectionsCode
+      refine WP.seq (WP.of_execWithin ebis₁ ?_)
+      wram_exec [hu₁_lo, hru₁.zero_eq, hru₁.sl_eq]
+      refine WP.of_execWithin ebis₂ ⟨?_, rfl⟩
+      linarith
   exact ⟨x₂, (es.seq etwo).mono (by dsimp only [plen, m] at *; omega), hrx₂, hx₂_sv, hx₂_lo⟩
 
 /-- `rangeSearchCode` executes within `(32 * |I.pat| + 63) * (Nat.log 2 |I.sa| + 1) + 25`
@@ -2021,51 +1822,25 @@ theorem occurrencesCode_exec (I : SearchInput) {w : ℕ}
       omega
     have hf_cnt : Fits w (hi - lo) := hw.of_le (by omega)
     set u₁ := ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)).set regk 0
-    have e_init : ExecWithin w occCopyInit x₂ u₁ 3 := by
-      unfold occCopyInit
-      have c₁ : ExecWithin w (.op (.bin .sub hiReg loReg savedLo)) x₂
-          (x₂.set hiReg (hi - lo)) 1 := by
-        simpa only [BinOp.eval, hx₂_lo, hx₂_sv] using
-          (ExecWithin.bin (f := .sub) (d := hiReg) (i := loReg) (j := savedLo) (x := x₂)
-            (by simpa only [BinOp.eval, hx₂_lo, hx₂_sv] using hf_cnt))
-      have ho' : (x₂.set hiReg (hi - lo)).regs out = out₀ :=
-        (Data.set_regs_of_ne (by decide : out ≠ hiReg) _).trans hrx₂.out_eq
-      have hh' : (x₂.set hiReg (hi - lo)).regs hiReg = hi - lo := Data.set_regs_self _ hiReg _
-      have c₂ : ExecWithin (B := .standard) w (.op (.store out hiReg))
-          (x₂.set hiReg (hi - lo)) ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)) 1 := by
-        simpa only [ho', hh'] using
-          (ExecWithin.store (B := .standard) (a := out) (s := hiReg)
-            (x := x₂.set hiReg (hi - lo)))
-      have hz' : ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)).regs zero = 0 :=
-        (Data.set_regs_of_ne (by decide : zero ≠ hiReg) (hi - lo)).trans hrx₂.zero_eq
-      have c₃ : ExecWithin (B := .standard) w (.op (.copy regk zero))
-          ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)) u₁ 1 := by
-        simpa only [hz'] using
-          (ExecWithin.copy (B := .standard) (d := regk) (s := zero)
-            (x := (x₂.set hiReg (hi - lo)).write out₀ (hi - lo)))
-      exact c₁.seq (c₂.seq c₃)
-    have hru₁ : SearchRegs I u₁ := by
-      have h1 := hrx₂.set_scratch hiReg (hi - lo)
-      have h2 : SearchRegs I ((x₂.set hiReg (hi - lo)).write out₀ (hi - lo)) :=
-        ⟨h1.zero_eq, h1.one_eq, h1.two_eq, h1.tb_eq, h1.tl_eq, h1.sb_eq, h1.sl_eq,
-         h1.pb_eq, h1.pl_eq, h1.out_eq,
-         h1.txt_holds.frame (fun a _ ha2 => by
-           simp only [Data.write_mem]; rw [Function.update_of_ne (by omega)]),
-         h1.sa_holds.frame (fun a _ ha2 => by
-           simp only [Data.write_mem]; rw [Function.update_of_ne (by omega)]),
-         h1.pat_holds.frame (fun a _ ha2 => by
-           simp only [Data.write_mem]; rw [Function.update_of_ne (by omega)])⟩
-      exact h2.set_scratch regk 0
+    have e_init : ExecWithin w occCopyInit x₂ u₁ 3 :=
+      WP.execWithin <| by
+        unfold occCopyInit
+        wram_exec [hx₂_lo, hx₂_sv, hrx₂.out_eq, hrx₂.zero_eq, hf_cnt]
+        rfl
+    have hru₁ : SearchRegs I u₁ := hrx₂.search_exec e_init fun a ha => by
+      simp only [u₁, out₀, Data.set_mem, Data.write_mem]
+      rw [Function.update_of_ne (by omega)]
     have hu₁_k : u₁.regs regk = 0 := Data.set_regs_self _ regk 0
     have hu₁_inv : OccCopyInv I lo hi u₁ :=
       ⟨hru₁,
-       by simp only [u₁, Data.set_regs_of_ne (by decide : savedLo ≠ regk), Data.write_regs,
-            Data.set_regs_of_ne (by decide : savedLo ≠ hiReg), hx₂_sv]; rfl,
-       by simp only [u₁, Data.set_regs_of_ne (by decide : hiReg ≠ regk), Data.write_regs,
-            Data.set_regs_self],
+       (e_init.regs_eq (by decide)).trans hx₂_sv,
+       by
+         simp only [u₁, Data.set_regs_of_ne (by decide : hiReg ≠ regk), Data.write_regs,
+           Data.set_regs_self],
        by rw [hu₁_k]; exact Nat.zero_le _,
-       by dsimp only [u₁, out₀]
-          simp only [Data.set_mem, Data.write_mem]; rw [Function.update_self],
+       by
+         dsimp only [u₁, out₀]
+         simp only [Data.set_mem, Data.write_mem, Function.update_self],
        by simpa only [hu₁_k, List.take_zero] using Block.holdsList_nil (out₀ + 1) u₁.mem⟩
     have hloop := ExecWithin.loop_invariant (w := w) (cond := .lt regk hiReg) (body := occCopyBody)
       (OccCopyInv I lo hi) (fun s => (hi - lo) - s.regs regk) (T := 7)
@@ -2084,40 +1859,32 @@ theorem occurrencesCode_exec (I : SearchInput) {w : ℕ}
         have hf_o1k : Fits w (out₀ + 1 + k) := hw.of_le (by omega)
         have hf_k1 : Fits w (k + 1) := hw.of_le (by omega)
         have hstep : ∃ s', ExecWithin w occCopyBody s s' 7 ∧
-            SearchRegs I s' ∧
-            s'.regs savedLo = lo ∧ s'.regs hiReg = hi - lo ∧ s'.regs regk = k + 1 ∧
-            s'.mem out₀ = hi - lo ∧
+            s'.regs regk = k + 1 ∧
             s'.mem = Function.update s.mem (out₀ + 1 + k) I.sa[lo + k] := by
           refine WP.exists_execWithin ?_
           unfold occCopyBody
           wram_exec [hs.sv_eq, hs.regs.sb_eq, hs.regs.out_eq, hs.regs.one_eq, hread_sa,
             hf_lk, hf_sa_lk, hf_o1, hf_o1k, hf_k1]
-          refine ⟨⟨by wram_simp [hs.regs.zero_eq], by wram_simp [hs.regs.one_eq],
-            by wram_simp [hs.regs.two_eq], by wram_simp [hs.regs.tb_eq],
-            by wram_simp [hs.regs.tl_eq], by wram_simp [hs.regs.sb_eq],
-            by wram_simp [hs.regs.sl_eq], by wram_simp [hs.regs.pb_eq],
-            by wram_simp [hs.regs.pl_eq], by wram_simp [hs.regs.out_eq],
-            hs.regs.txt_holds.frame (fun a _ ha2 => by
-              simp only [Data.set_mem, Data.write_mem]; rw [Function.update_of_ne (by omega)]),
-            hs.regs.sa_holds.frame (fun a _ ha2 => by
-              simp only [Data.set_mem, Data.write_mem]; rw [Function.update_of_ne (by omega)]),
-            hs.regs.pat_holds.frame (fun a _ ha2 => by
-              simp only [Data.set_mem, Data.write_mem]; rw [Function.update_of_ne (by omega)])⟩,
-            by wram_simp [hs.sv_eq], by wram_simp [hs.hi_eq], by wram_simp; rfl,
-            ?_, by dsimp only [out₀, k, lo] at hread_sa ⊢
-                   simp only [Data.set_mem, Data.write_mem]⟩
-          simp only [Data.set_mem, Data.write_mem]
-          rw [Function.update_of_ne (by omega)]
-          exact hs.out_hdr
-        obtain ⟨s', es', hrs', hs'_sv, hs'_hi, hs'_k, hs'_hdr, hs'_mem⟩ := hstep
-        refine ⟨s', es', ⟨hrs', hs'_sv, hs'_hi, by rw [hs'_k]; omega, hs'_hdr, ?_⟩,
+          refine ⟨?_, ?_⟩
+          · wram_simp [k]
+          · dsimp only [out₀, k, lo] at hread_sa ⊢
+            simp only [Data.set_mem, Data.write_mem]
+        obtain ⟨s', es', hs'_k, hs'_mem⟩ := hstep
+        have hrs' : SearchRegs I s' := hs.regs.search_exec es' fun a ha => by
+          rw [hs'_mem, Function.update_of_ne (by omega)]
+        refine ⟨s', es', ⟨hrs', (es'.regs_eq (by decide)).trans hs.sv_eq,
+          (es'.regs_eq (by decide)).trans hs.hi_eq,
+          by rw [hs'_k]; omega, ?_, ?_⟩,
           by rw [hs'_k]; omega⟩
-        rw [hs'_k, hs'_mem]
-        have htake_step : occ.take (k + 1) = occ.take k ++ [I.sa[lo + k]] := by
-          rw [List.take_add_one, List.getElem?_eq_getElem (by omega), Option.toList_some, hocc_k]
-        have htake_len : (occ.take k).length = k := List.length_take_of_le (by omega)
-        rw [htake_step, show out₀ + 1 + k = (out₀ + 1) + (occ.take k).length by rw [htake_len]]
-        exact hs.out_holds.append_one I.sa[lo + k])
+        · rw [hs'_mem, Function.update_of_ne (by omega)]
+          exact hs.out_hdr
+        · rw [hs'_k, hs'_mem]
+          have htake_step : occ.take (k + 1) = occ.take k ++ [I.sa[lo + k]] := by
+            rw [List.take_add_one, List.getElem?_eq_getElem (by omega), Option.toList_some, hocc_k]
+          have htake_len : (occ.take k).length = k := List.length_take_of_le (by omega)
+          have hout_addr : out₀ + 1 + k = (out₀ + 1) + (occ.take k).length := by rw [htake_len]
+          rw [htake_step, hout_addr]
+          exact hs.out_holds.append_one I.sa[lo + k])
       hu₁_inv
     obtain ⟨y, eloop, hy_inv, hnc⟩ := hloop
     simp only [Cond.holds_lt, hy_inv.hi_eq, not_lt] at hnc

@@ -67,16 +67,13 @@ of `f ⊕ g`, the indicator of the inputs on which they differ, plus four gates.
 theorem dist_complexity_single_le_complexity_xor (f g : BooleanFunction n) :
     Nat.dist (complexity interpretation (single f)) (complexity interpretation (single g)) ≤
       complexity interpretation (single fun x => f x ^^ g x) + 4 := by
-  have hf' : (fun x => g x ^^ (f x ^^ g x)) = f := funext fun x => by
-    cases f x <;> cases g x <;> rfl
-  have hg' : (fun x => f x ^^ (f x ^^ g x)) = g := funext fun x => by
-    cases f x <;> cases g x <;> rfl
-  have hf : complexity interpretation (single f) ≤ complexity interpretation (single g) +
-      complexity interpretation (single fun x => f x ^^ g x) + 4 := by
-    simpa only [hf'] using complexity_xor_le g fun x => f x ^^ g x
-  have hg : complexity interpretation (single g) ≤ complexity interpretation (single f) +
-      complexity interpretation (single fun x => f x ^^ g x) + 4 := by
-    simpa only [hg'] using complexity_xor_le f fun x => f x ^^ g x
+  set d : BooleanFunction n := fun x => f x ^^ g x
+  have hf := (funext fun x => by
+    dsimp only [d]
+    cases f x <;> cases g x <;> rfl : (fun x => g x ^^ d x) = f) ▸ complexity_xor_le g d
+  have hg := (funext fun x => by
+    dsimp only [d]
+    cases f x <;> cases g x <;> rfl : (fun x => f x ^^ d x) = g) ▸ complexity_xor_le f d
   unfold Nat.dist
   omega
 
@@ -142,23 +139,20 @@ theorem complexityGiven_le_of_cover (f g : BitString n → BitString m) (s : Fin
       hcs x]
     funext j
     by_cases h : ∃ i, select i = j
-    · have hi := h.choose_spec
-      simp only [patch, h, dite_true, oldWire, supportWire, labelWire, Fin.append_left,
+    · simp only [patch, h, dite_true, oldWire, supportWire, labelWire, Fin.append_left,
         Fin.append_right, single_apply]
       by_cases hx : x ∈ s
       · rw [show cl.eval interpretation x = _ from hcl (Finset.mem_coe.mpr hx)]
-        simp only [hx, decide_true, Bool.true_and, hi]
+        simp only [hx, decide_true, Bool.true_and, h.choose_spec]
         cases f x j <;> cases g x j <;> rfl
       · simp [hx, hs x hx]
     · simp only [patch, h, dite_false, oldWire, Fin.append_left]
       exact (hselect j (fun ⟨i, hi⟩ => h ⟨i, hi⟩) x).symm
   have hle := ecomplexityGiven_le_of_eval f g c hc
   rw [← natCast_complexityGiven] at hle
-  have hsize : c.size ≤ complexity interpretation (single fun x => decide (x ∈ s)) +
-      complexityOn interpretation s (fun x i => f x (select i) ^^ g x (select i)) + 5 * k := by
-    simp only [circuit_simps, c, old, read]
-    omega
-  exact (by exact_mod_cast hle : complexityGiven interpretation f g ≤ c.size).trans hsize
+  refine (by exact_mod_cast hle : complexityGiven interpretation f g ≤ c.size).trans ?_
+  simp only [circuit_simps, c, old, read]
+  omega
 
 /-- **Sparse correction changes complexity little.** If `f` and `g` agree outside `s`, and agree
 on every output outside the range of `select`, then their complexities differ by at most the
@@ -189,10 +183,9 @@ private theorem complexityOn_pi_le (s : Set (BitString n)) (f : Fin k → Boolea
   have hcongr : Set.EqOn (fun x i => f i x) (fun x i => (c i).eval interpretation x 0) s :=
     fun x hx => funext fun i => (Circuit.computesOn_single_iff.1 (hc i) x hx).symm
   rw [complexityOn_congr hcongr]
-  refine complexityOn_le_complexity.trans ((complexity_pi_le _).trans
-    (sum_le_sum fun i _ => ?_))
-  rw [← hsize i]
-  refine complexity_le_of_computes (c i) (Circuit.computes_single_iff.2 fun _ => rfl)
+  exact complexityOn_le_complexity.trans ((complexity_pi_le _).trans
+    (sum_le_sum fun i _ => hsize i ▸
+      complexity_le_of_computes (c i) (Circuit.computes_single_iff.2 fun _ => rfl)))
 
 /-- **Sparse correction with separate labels.** If `f` and `g` agree outside `s`, and agree on
 every output outside the range of `select`, then their complexities differ by at most the

@@ -70,47 +70,23 @@ private theorem CompatibleOn.refine {grid : Nat → Nat → Node} {width height 
     CompatibleOn (refineNodeGrid grid) (4 * width) (4 * height) := by
   constructor
   · intro x y hx hy
-    have hxmod : x % 4 < 4 := Nat.mod_lt _ (by decide)
-    have hymod : y % 4 < 4 := Nat.mod_lt _ (by decide)
     by_cases hboundary : x % 4 = 3
-    · have hnextDiv : (x + 1) / 4 = x / 4 + 1 := by omega
-      have hnextMod : (x + 1) % 4 = 0 := by omega
-      have hparentX : x / 4 + 1 < width := by omega
-      have hparentY : y / 4 < height := by omega
-      have parentMatch := compatible.hmatch (x / 4) (y / 4)
-        hparentX hparentY
-      have childMatch := children_hCompatible_boundary parentMatch
-        ⟨y % 4, hymod⟩
-      simpa [refineNodeGrid, childPosition, blockPosition, hboundary,
-        hnextDiv, hnextMod] using childMatch
-    · have hlocal : x % 4 < 3 := by omega
-      have hnextDiv : (x + 1) / 4 = x / 4 := by omega
-      have hnextMod : (x + 1) % 4 = x % 4 + 1 := by omega
-      have childMatch := children_hCompatible_within (grid (x / 4) (y / 4))
-        ⟨x % 4, hlocal⟩ ⟨y % 4, hymod⟩
-      simpa [refineNodeGrid, childPosition, blockPosition, hnextDiv,
-        hnextMod] using childMatch
+    · simpa [refineNodeGrid, childPosition, blockPosition, hboundary,
+        show (x + 1) / 4 = x / 4 + 1 by omega, show (x + 1) % 4 = 0 by omega] using
+        children_hCompatible_boundary (compatible.hmatch (x / 4) (y / 4) (by omega) (by omega))
+          ⟨y % 4, by omega⟩
+    · simpa [refineNodeGrid, childPosition, blockPosition, show (x + 1) / 4 = x / 4 by omega,
+        show (x + 1) % 4 = x % 4 + 1 by omega] using
+        children_hCompatible_within (grid (x / 4) (y / 4)) ⟨x % 4, by omega⟩ ⟨y % 4, by omega⟩
   · intro x y hx hy
-    have hxmod : x % 4 < 4 := Nat.mod_lt _ (by decide)
-    have hymod : y % 4 < 4 := Nat.mod_lt _ (by decide)
     by_cases hboundary : y % 4 = 3
-    · have hnextDiv : (y + 1) / 4 = y / 4 + 1 := by omega
-      have hnextMod : (y + 1) % 4 = 0 := by omega
-      have hparentX : x / 4 < width := by omega
-      have hparentY : y / 4 + 1 < height := by omega
-      have parentMatch := compatible.vmatch (x / 4) (y / 4)
-        hparentX hparentY
-      have childMatch := children_vCompatible_boundary parentMatch
-        ⟨x % 4, hxmod⟩
-      simpa [refineNodeGrid, childPosition, blockPosition, hboundary,
-        hnextDiv, hnextMod] using childMatch
-    · have hlocal : y % 4 < 3 := by omega
-      have hnextDiv : (y + 1) / 4 = y / 4 := by omega
-      have hnextMod : (y + 1) % 4 = y % 4 + 1 := by omega
-      have childMatch := children_vCompatible_within (grid (x / 4) (y / 4))
-        ⟨x % 4, hxmod⟩ ⟨y % 4, hlocal⟩
-      simpa [refineNodeGrid, childPosition, blockPosition, hnextDiv,
-        hnextMod] using childMatch
+    · simpa [refineNodeGrid, childPosition, blockPosition, hboundary,
+        show (y + 1) / 4 = y / 4 + 1 by omega, show (y + 1) % 4 = 0 by omega] using
+        children_vCompatible_boundary (compatible.vmatch (x / 4) (y / 4) (by omega) (by omega))
+          ⟨x % 4, by omega⟩
+    · simpa [refineNodeGrid, childPosition, blockPosition, show (y + 1) / 4 = y / 4 by omega,
+        show (y + 1) % 4 = y % 4 + 1 by omega] using
+        children_vCompatible_within (grid (x / 4) (y / 4)) ⟨x % 4, by omega⟩ ⟨y % 4, by omega⟩
 
 /-- The decorated supertile obtained by repeatedly substituting the selected 4×4 children. -/
 @[expose] def supertileNodeGrid : ℕ → Node → ℕ → ℕ → Node
@@ -227,12 +203,9 @@ theorem supertile_validShadeRectangle (level : Nat) (root : Node) :
       (2 * 4 ^ level) (2 * 4 ^ level) := by
   constructor
   · intro x y hx hy
-    have hxmod : x % 2 < 2 := Nat.mod_lt _ (by decide)
-    have hymod : y % 2 < 2 := Nat.mod_lt _ (by decide)
-    have allowed := (supertileNodeGrid level root (x / 2) (y / 2)).block_allowed
-        ⟨x % 2, hxmod⟩ ⟨y % 2, hymod⟩
-    simpa [supertileIndexGrid, supertileShadeGrid,
-      quadrantAt, Nat.mod_mod] using allowed
+    simpa [supertileIndexGrid, supertileShadeGrid, quadrantAt, Nat.mod_mod] using
+      (supertileNodeGrid level root (x / 2) (y / 2)).block_allowed
+        ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩
   · intro x y hx hy
     refine adjacent_pairs (fun a b : ShadeState => a.east = b.west)
       (fun i r => (supertileNodeGrid level root i (y / 2)).block.at r (y % 2))
@@ -303,12 +276,9 @@ theorem nextInterior_eq_of_no_opposite_before
     nextInterior interior position (length - position) = some orientation := by
   induction distance : border - position generalizing position with
   | zero =>
-      have positionEq : position = border := by omega
-      subst position
-      have fuelPositive : 0 < length - border := by omega
-      obtain ⟨fuel, fuelEq⟩ := Nat.exists_eq_succ_of_ne_zero fuelPositive.ne'
-      rw [fuelEq]
-      simp [nextInterior, selected]
+      obtain rfl : position = border := by omega
+      obtain ⟨fuel, fuelEq⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : length - position ≠ 0)
+      simp [fuelEq, nextInterior, selected]
   | succ distance ih =>
       have positionBefore : position < border := by omega
       have fuelEq : length - position = length - (position + 1) + 1 := by omega
@@ -316,17 +286,11 @@ theorem nextInterior_eq_of_no_opposite_before
       cases current : interior position with
       | none =>
           simp only [nextInterior, current, Option.orElse_none]
-          apply ih (position := position + 1)
-          · intro candidate lower upper
-            exact noOpposite candidate (by omega) upper
-          · omega
-          · omega
+          apply ih (position := position + 1) <;>
+            first | omega | exact fun candidate lower => noOpposite candidate (by omega)
       | some currentOrientation =>
-          cases orientation <;> cases currentOrientation
-          · simp [nextInterior, current]
-          · exact (noOpposite position le_rfl positionBefore current).elim
-          · exact (noOpposite position le_rfl positionBefore current).elim
-          · simp [nextInterior, current]
+          have := noOpposite position le_rfl positionBefore
+          cases orientation <;> cases currentOrientation <;> simp [nextInterior, current] at this ⊢
 
 /-- A successful suffix scan witnesses an actual selected border in the scanned interval. -/
 theorem exists_interior_of_nextInterior_eq_some
@@ -408,24 +372,11 @@ theorem intervalEdge_allowed (interior : ℕ → Option Bool) (length position :
         simp [nextInterior, hcurrent]
       simp [flowAllowed, intervalEdge, hprevious, hnext]
   | some current =>
-      cases current <;> cases hprevious : previousInterior interior position with
-      | none =>
-          cases hnext : nextInterior interior (position + 1) (length - (position + 1)) with
-          | none =>
-              simp [flowAllowed, intervalEdge, hcurrent,
-                hprevious, hnext, hlength, nextInterior]
-          | some next =>
-              cases next <;> simp [flowAllowed, intervalEdge, hcurrent,
-                hprevious, hnext, hlength, previousInterior, nextInterior]
-      | some previous =>
-          cases previous <;>
-            cases hnext : nextInterior interior (position + 1) (length - (position + 1)) with
-            | none =>
-                simp [flowAllowed, intervalEdge, hcurrent,
-                  hprevious, hnext, hlength, nextInterior]
-            | some next =>
-                cases next <;> simp [flowAllowed, intervalEdge, hcurrent,
-                  hprevious, hnext, hlength, previousInterior, nextInterior]
+      cases current <;> rcases hprevious : previousInterior interior position with _ | _ | _ <;>
+        rcases hnext : nextInterior interior (position + 1) (length - (position + 1))
+          with _ | _ | _ <;>
+        simp [flowAllowed, intervalEdge, hcurrent, hprevious, hnext, hlength, previousInterior,
+          nextInterior]
 
 /-- A selected border cannot have clear canonical signal edges on both sides. -/
 theorem interior_eq_none_of_adjacent_clear

@@ -210,23 +210,21 @@ theorem exists_oracleCircuit_gapMCSP {s₁ s₂ : ℕ → ℕ} {n : ℕ}
     have := depthWith_finalQuery_le (n := n) s R
     omega
   · -- Yes-instances: `f` itself agrees with every sample.
-    rw [GapMCSP.ofFn_mem_yesSet_iff] at hT
-    set f := (truthTable n).symm T
-    have hTf : T = truthTable n f := (Equiv.apply_symm_apply _ T).symm
-    rw [Circuit.eval_comp, eval_finalQuery, hTf,
+    obtain ⟨f, rfl⟩ := (truthTable n).surjective T
+    rw [GapMCSP.ofFn_mem_yesSet_iff, Equiv.symm_apply_apply] at hT
+    rw [Circuit.eval_comp, eval_finalQuery,
       encQuery_ofSamples_one_zero_notMem_antiCheckerOracle_iff]
     exact ⟨f, mem_computableFunctions_iff_complexity_le.2 hT,
       fun p hp => (snd_eq_of_mem_samplesOf_eval_generator _ n s ℓ R f hp).symm⟩
   · -- No-instances: the samples are an anti-checker, so no function with `s₁` gates agrees.
-    rw [GapMCSP.ofFn_mem_noSet_iff] at hT
-    set f := (truthTable n).symm T
-    have hTf : T = truthTable n f := (Equiv.apply_symm_apply _ T).symm
+    obtain ⟨f, rfl⟩ := (truthTable n).surjective T
+    rw [GapMCSP.ofFn_mem_noSet_iff, Equiv.symm_apply_apply] at hT
     have hf : n * s + complexity interpretation (single (strictMajority n)) <
         complexity interpretation (single f) := by
       have := complexity_threshold_le n (n / 2 + 1)
       rw [strictMajority]
       nlinarith
-    rw [Bool.eq_false_iff, Ne, Circuit.eval_comp, eval_finalQuery, hTf,
+    rw [Bool.eq_false_iff, Ne, Circuit.eval_comp, eval_finalQuery,
       encQuery_ofSamples_one_zero_notMem_antiCheckerOracle_iff]
     rintro ⟨g, hg, hagree⟩
     obtain ⟨x, hx, hgx⟩ := isAntiChecker_samplesOf_generator hn (fun _ => Iff.rfl) hf g hg

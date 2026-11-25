@@ -46,41 +46,27 @@ theorem exec_stage_finish {w p k A B a b out scratch frames frame : ℕ}
     hx hc hl hu hv hout hprod hmag haddr
   obtain ⟨y, hy, hm, hframe, hactive, hr⟩ := exec_pop s sh.frameWidth_eq
     (by rw [sh.frame_eq]; exact haddr.of_le (by unfold addressBound; omega))
-  have he := exec_stage_return 6 hs hy
   have he' : ExecWithin (w + 2) (stage 7) x y (26 * (4 ^ k * p) + 13) := by
-    simpa [receiveBudget] using he.mono (show receiveBudget 6 (4 ^ k * p) + 3 ≤
-      26 * (4 ^ k * p) + 13 by norm_num [receiveBudget])
-  refine ⟨y, he', ?_⟩
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro i hi
-    let q := 4 ^ k * p
+    simpa [receiveBudget] using (exec_stage_return 6 hs hy).mono (show receiveBudget 6
+      (4 ^ k * p) + 3 ≤ 26 * (4 ^ k * p) + 13 by norm_num [receiveBudget])
+  refine ⟨y, he', fun i hi => ?_, fun d hd => ?_, by regs_frame, by regs_frame, by regs_frame,
+    by simpa only [sh.frames_eq, sh.frame_eq] using hframe,
+    by simpa only [sh.frames_eq, sh.frame_eq, sh.active_eq] using hactive,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
+  · let q := 4 ^ k * p
     have hq : 0 < q := Nat.mul_pos (by positivity) hl.modulus_pos
     have hsize : 4 ^ (k + 1) * p = 4 * q := by dsimp [q]; rw [pow_succ]; ring
     let t : Fin 4 := ⟨i / q, (Nat.div_lt_iff_lt_mul hq).mpr (by simpa only [hsize] using hi)⟩
     have hmidx : t.val * q + i % q = i := by
       simpa only [t, Nat.mul_comm] using Nat.div_add_mod i q
-    have hmod : i % q < q := Nat.mod_lt i hq
-    rw [hm]
-    have hv' := outputValues t (i % q) hmod
-    have hp' := Cslib.Algorithms.MatrixMultiplication.Strassen.multiply_eq_partialValue
-      hl.modulus_pos u v t hmod
+    have hv' := outputValues t (i % q) (Nat.mod_lt i hq)
     change s.mem (out + t.val * q + i % q) = encode
       (Cslib.Algorithms.MatrixMultiplication.Strassen.partialValue p k 7 u v t (i % q)) at hv'
+    have hp' := Cslib.Algorithms.MatrixMultiplication.Strassen.multiply_eq_partialValue
+      hl.modulus_pos u v t (Nat.mod_lt i hq)
     rw [Nat.add_assoc, hmidx, ← hp', hmidx] at hv'
-    exact hv'
-  · intro d hd
-    rw [hm]
-    apply memory d
-    have hn : ¬(out ≤ d ∧ d < out + 4 ^ (k + 1) * p) := fun h => hd (Or.inl h)
-    omega
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · simpa only [sh.frames_eq, sh.frame_eq] using hframe
-  · simpa only [sh.frames_eq, sh.frame_eq, sh.active_eq] using hactive
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
+    rw [hm]; exact hv'
+  · have hn : ¬(out ≤ d ∧ d < out + 4 ^ (k + 1) * p) := fun h => hd (Or.inl h)
+    rw [hm]; exact memory d (by omega)
 
 end Cslib.Algorithms.WordRAM.Strassen

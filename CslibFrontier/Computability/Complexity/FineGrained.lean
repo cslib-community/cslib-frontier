@@ -104,10 +104,9 @@ theorem DecidableInTimeO.mono (h : DecidableInTimeO A enc T) (c : ℕ)
     (hT : ∀ a, T a ≤ c * T' a + c) (hT' : ∀ a, 0 ≤ T' a) : DecidableInTimeO A enc T' := by
   obtain ⟨c₀, t, s, ht, h⟩ := h
   refine ⟨c₀ * c + c₀, t, s, fun a => (ht a).trans ?_, h⟩
-  have h₁ := mul_le_mul_of_nonneg_left (hT a) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀)
-  have h₂ := mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀) (hT' a)
   push_cast
-  nlinarith
+  nlinarith [mul_le_mul_of_nonneg_left (hT a) (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀),
+    mul_nonneg (Nat.cast_nonneg c₀ : (0 : ℝ) ≤ c₀) (hT' a)]
 
 /-- **`DTIME` in terms of `DecidableInTimeO`.** For a bound that is a function of the length of
 the encoded instance, `Cslib.Complexity.DecidableInTimeO` is membership in

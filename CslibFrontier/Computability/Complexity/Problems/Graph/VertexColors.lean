@@ -83,11 +83,9 @@ values on the declared vertices are at most `n`, has an encoding of length at mo
 theorem Graph.length_encList_map_le {G : Graph} {f : ℕ → ℕ} {n : ℕ} (hG : G.vertices.length ≤ n)
     (hf : ∀ v ∈ G.vertices, f v ≤ n) :
     (encList encNat (G.vertices.map f)).length ≤ 2 * n ^ 2 + n := by
-  have hentry : ∀ a ∈ G.vertices.map f, (encNat a).length ≤ n := by
-    intro a ha
+  have h := length_encList_le encNat (G.vertices.map f) fun a ha => by
     obtain ⟨v, hv, rfl⟩ := List.mem_map.1 ha
     exact (length_encNat_le_self _).trans (hf v hv)
-  have h := length_encList_le encNat _ hentry
   rw [List.length_map] at h
   nlinarith
 
@@ -111,13 +109,11 @@ theorem mem_NP_of_colorOf {α : Type} {enc : α ↪ List Bool} (graph : α → G
       fun ⟨cs, hcs⟩ => hsound x cs hcs⟩
   rw [hset]
   refine mem_NP_of_witness (p := 2 * Polynomial.X ^ 2 + Polynomial.X) (.list .nat) hcheck
-    (fun _ _ => Iff.rfl) ?_
-  rintro x cs hcs
+    (fun _ _ => Iff.rfl) fun x cs hcs => ?_
   obtain ⟨g, hgle, hg⟩ := hcomplete x (hsound x cs hcs)
-  have hN : (graph x).vertices.length ≤ (enc x).length := hlen x
   refine ⟨(graph x).vertices.map g, hg, ?_⟩
-  have h := Graph.length_encList_map_le hN fun v hv => (hgle v hv).trans hN
   simpa only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_pow, Polynomial.eval_X,
-    Polynomial.eval_ofNat] using h
+    Polynomial.eval_ofNat] using
+    Graph.length_encList_map_le (hlen x) fun v hv => (hgle v hv).trans (hlen x)
 
 end Cslib.Complexity

@@ -54,10 +54,7 @@ private theorem iterate_halfStep (p k o : ℕ) (x : List ℕ) (a : ℕ) (n : ℕ
 private theorem length_chi_le (p : ℕ) (b : Bool) (x : ℕ) :
     (encNat (chi p b x)).length ≤ (encNat p).length + (encNat x).length + 1 := by
   rcases Nat.eq_zero_or_pos p with rfl | hp
-  · cases b
-    · have : chi 0 false x = 1 := by simp [chi, addMod, negMod]
-      rw [this]; simp
-    · simp [chi]
+  · cases b <;> simp [chi, addMod, negMod]
   · have := length_encNat_mono
       (show chi p b x ≤ p by cases b <;> exact (Nat.mod_lt _ hp).le)
     omega
@@ -69,10 +66,9 @@ private theorem sum_length_getD_le (x : List ℕ) (j : ℕ) :
   | cons a x ih =>
     rcases j with _ | j
     · simp
-    · rw [Finset.sum_range_succ', length_encList]
-      simp only [List.getD_cons_succ, List.getD_cons_zero, List.map_cons, List.sum_cons]
-      have := ih j
-      rw [length_encList] at this
+    · have := ih j
+      simp only [Finset.sum_range_succ', List.getD_cons_succ, List.getD_cons_zero,
+        length_encList, List.map_cons, List.sum_cons] at this ⊢
       omega
 
 /-- For `p = 0`, the products of half of a weight are no longer than their factors together. -/
@@ -135,7 +131,7 @@ private theorem halfStep_inSpace :
   have hbit := budget_comp natTestBit (budget_prod hk hoj) (.of_le_linear 64 64 fun s => by
     have := length_encNat_add_le_add s.1.1.2.2 s.2.1
     simp only [length_encPair] at this ⊢; omega)
-  have hxj := budget_comp_lin getD (linear_mul _) (budget_prod hx hj)
+  have hxj := budget_getD hx hj
   have hc := budget_comp_linear chi_inSpace (budget_prod (budget_prod hp hxj) hbit)
   have hm := budget_comp_linear mulMod_inSpace (budget_prod hp (budget_prod ha hc))
   exact budget_prod hpar (budget_prod hsucc hm)
@@ -155,8 +151,8 @@ private theorem half_inSpace :
   have hn := (snd (encPair encNat3 (encList encNat)) encNat).weaken hl
   have hp := fst' (fst' hpar)
   have hone := budget_comp_lin natMod (linear_mul _)
-    (budget_prod (budget_const (encB := encNat) 1 hl) hp)
-  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0 hl) hone)
+    (budget_prod (budget_const (encB := encNat) 1) hp)
+  have hinit := budget_prod hpar (budget_prod (budget_const (encB := encNat) 0) hone)
   have hlen (h : ((ℕ × ℕ × ℕ) × List ℕ) × ℕ) (j : ℕ) (hj : j ≤ h.2) :
       (encHalf (halfStep^[j] (h.1, 0, 1 % h.1.1.1))).length ≤
         4 * ((encHalfIn h).length + h.2 + 1) := by
@@ -192,7 +188,7 @@ theorem weight_inSpace :
   have hℓ := fst' (snd' hpkl)
   have hk := snd' (snd' hpkl)
   have hlo₀ := budget_prod (budget_prod (budget_prod hp
-    (budget_prod hk (budget_const (encB := encNat) 0 hl))) (fst' hxy)) hℓ
+    (budget_prod hk (budget_const (encB := encNat) 0))) (fst' hxy)) hℓ
   have hhi₀ := budget_prod (budget_prod (budget_prod hp (budget_prod hk hℓ)) (snd' hxy)) hℓ
   have hlo := budget_comp half_inSpace hlo₀
     (.const_mul 256 (((length_le hlo₀).add hℓle).add (.const 1 _)))

@@ -132,13 +132,15 @@ noncomputable def summand (i : ℕ) (W : (Fin (C.width i) → Bool) → R)
 
 theorem eval_valuePoly_castAdd {k : ℕ} (W : (Fin k → Bool) → R) (y w : Fin k → R) :
     eval (Fin.append y w) (valuePoly (Fin.castAdd k) W) = eval y (multilinearExtension W) := by
-  have : (Fin.append y w ∘ Fin.castAdd k) = y := funext fun j => Fin.append_left y w j
-  simp [valuePoly, eval_indicatorAt, this, eval_multilinearExtension_eq_sum]
+  simp [valuePoly, eval_indicatorAt,
+    show (Fin.append y w ∘ Fin.castAdd k) = y from funext (Fin.append_left y w),
+    eval_multilinearExtension_eq_sum]
 
 theorem eval_valuePoly_natAdd {k : ℕ} (W : (Fin k → Bool) → R) (y w : Fin k → R) :
     eval (Fin.append y w) (valuePoly (Fin.natAdd k) W) = eval w (multilinearExtension W) := by
-  have : (Fin.append y w ∘ Fin.natAdd k) = w := funext fun j => Fin.append_right y w j
-  simp [valuePoly, eval_indicatorAt, this, eval_multilinearExtension_eq_sum]
+  simp [valuePoly, eval_indicatorAt,
+    show (Fin.append y w ∘ Fin.natAdd k) = w from funext (Fin.append_right y w),
+    eval_multilinearExtension_eq_sum]
 
 /-- The wiring polynomial at `(y, w)` is the multilinear extension of the wiring predicate at
 `(z, y, w)`. -/
@@ -146,15 +148,11 @@ theorem eval_wiringPoly (g : Gate) (i : ℕ) (z : Fin (C.width (i + 1)) → R)
     (y w : Fin (C.width i) → R) :
     eval (Fin.append y w) (C.wiringPoly g i z) =
       eval (Sum.elim z (Sum.elim y w)) (multilinearExtension (C.wiringPred (R := R) g i)) := by
-  have hl : (Fin.append y w ∘ Fin.castAdd (C.width i)) = y :=
-    funext fun j => Fin.append_left y w j
-  have hr : (Fin.append y w ∘ Fin.natAdd (C.width i)) = w :=
-    funext fun j => Fin.append_right y w j
+  have hl : (Fin.append y w ∘ Fin.castAdd (C.width i)) = y := funext (Fin.append_left y w)
+  have hr : (Fin.append y w ∘ Fin.natAdd (C.width i)) = w := funext (Fin.append_right y w)
   rw [eval_multilinearExtension_wiringPred, wiringPoly, map_sum]
   refine Finset.sum_congr rfl fun a _ => ?_
-  split_ifs
-  · simp [eval_indicatorAt, hl, hr, mul_assoc]
-  · simp
+  split_ifs <;> simp [eval_indicatorAt, hl, hr, mul_assoc]
 
 /-- **The value of the GKR summand** at `(y, w)`, from the wiring extensions and the values of the
 multilinear extension of layer `i` at `y` and `w`. -/
@@ -175,15 +173,10 @@ theorem sum_eval_summand (i : ℕ) (W : (Fin (C.width i) → Bool) → R)
     ∑ b : Fin (C.width i + C.width i) → Bool, eval (bitPoint b) (C.summand i W z) =
       eval z (multilinearExtension (C.step i W)) := by
   rw [eval_multilinearExtension_step]
-  have hsplit : ∀ b : Fin (C.width i + C.width i) → Bool, (bitPoint b : _ → R) =
-      Fin.append (bitPoint (b ∘ Fin.castAdd _)) (bitPoint (b ∘ Fin.natAdd _)) := by
-    intro b
-    funext j
-    refine Fin.addCases (fun j => ?_) (fun j => ?_) j
-    · rw [Fin.append_left]
-      rfl
-    · rw [Fin.append_right]
-      rfl
+  have hsplit (b : Fin (C.width i + C.width i) → Bool) : (bitPoint b : _ → R) =
+      Fin.append (bitPoint (b ∘ Fin.castAdd _)) (bitPoint (b ∘ Fin.natAdd _)) :=
+    funext <| Fin.addCases (fun _ => by rw [Fin.append_left]; rfl)
+      (fun _ => by rw [Fin.append_right]; rfl)
   simp only [hsplit, eval_summand, eval_multilinearExtension]
   rw [← Fintype.sum_prod_type']
   exact Fintype.sum_equiv (splitEquiv _) _ _ fun _ => rfl
@@ -212,18 +205,15 @@ theorem degreeOf_summand_le (i : ℕ) (W : (Fin (C.width i) → Bool) → R)
   have hl := degreeOf_valuePoly_le (Fin.castAdd (C.width i)) W v
   have hr := degreeOf_valuePoly_le (Fin.natAdd (C.width i)) W v
   have h1 := sum_castAdd_add_sum_natAdd v
-  refine (degreeOf_add_le _ _ _).trans (max_le ?_ ?_)
-  · have hw := C.degreeOf_wiringPoly_le .add i z v
-    have hs := degreeOf_add_le v (valuePoly (Fin.castAdd (C.width i)) W)
-      (valuePoly (Fin.natAdd (C.width i)) W)
-    refine (degreeOf_mul_le _ _ _).trans ?_
-    have : max (degreeOf v (valuePoly (Fin.castAdd (C.width i)) W))
-        (degreeOf v (valuePoly (Fin.natAdd (C.width i)) W)) ≤ 1 := max_le (by omega) (by omega)
+  refine (degreeOf_add_le _ _ _).trans (max_le ((degreeOf_mul_le _ _ _).trans ?_)
+    ((degreeOf_mul_le _ _ _).trans ?_))
+  · have := C.degreeOf_wiringPoly_le .add i z v
+    have := (degreeOf_add_le v (valuePoly (Fin.castAdd (C.width i)) W)
+      (valuePoly (Fin.natAdd (C.width i)) W)).trans (max_le (c := 1) (by omega) (by omega))
     omega
-  · have hw := C.degreeOf_wiringPoly_le .mul i z v
-    have hs := degreeOf_mul_le v (valuePoly (Fin.castAdd (C.width i)) W)
+  · have := C.degreeOf_wiringPoly_le .mul i z v
+    have := degreeOf_mul_le v (valuePoly (Fin.castAdd (C.width i)) W)
       (valuePoly (Fin.natAdd (C.width i)) W)
-    refine (degreeOf_mul_le _ _ _).trans ?_
     omega
 
 end Degree

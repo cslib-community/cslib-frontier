@@ -81,36 +81,31 @@ theorem exists_clock_acceptCount_mem_SharpTIME (hT : TimeConstructible T) (c₁ 
   have hupper (n : ℕ) : (c₁ + c₂) * 2 ^ Nat.size (T n) ≤
       2 * (c₁ + c₂) * T n + 2 * (c₁ + c₂) := by
     have := Nat.mul_le_mul_left (c₁ + c₂) (Nat.two_pow_size_le (T n))
-    have e : 2 * (c₁ + c₂) * T n + 2 * (c₁ + c₂) =
+    have : 2 * (c₁ + c₂) * T n + 2 * (c₁ + c₂) =
         (c₁ + c₂) * (2 * T n + 1) + (c₁ + c₂) := by ring
     omega
   refine ⟨fun n => (c₁ + c₂) * 2 ^ Nat.size (T n), fun n => ?_, ⟨2 * (c₁ + c₂), hupper⟩,
     fun {k State} _ M => ?_⟩
-  · have h : (c₁ + c₂) * (T n + 1) ≤ (c₁ + c₂) * 2 ^ Nat.size (T n) :=
-      Nat.mul_le_mul_left _ (Nat.lt_size_self _)
-    have e : (c₁ + c₂) * (T n + 1) = c₁ * T n + c₂ + (c₂ * T n + c₁) := by ring
-    rw [e] at h
+  · have h := Nat.mul_le_mul_left (c₁ + c₂) (Nat.lt_size_self (T n))
+    rw [show (c₁ + c₂) * (T n + 1) = c₁ * T n + c₂ + (c₂ * T n + c₁) by ring] at h
     change c₁ * T n + c₂ ≤ (c₁ + c₂) * 2 ^ Nat.size (T n)
     omega
   · let compiled := MultiTapeCTM.PaddedClock.compile M (prepare.extendTapes (Fin.natAddEmb k))
     refine ⟨C + 2 * (c₁ + c₂), C + 2 * (c₁ + c₂) + 1, k + r + 1, P ⊕ Option State,
       inferInstance, compiled, MultiTapeCTM.PaddedClock.nonblocking_compile _ _, fun a => ?_⟩
-    have hready := MultiTapePTM.PolynomialClock.prepare_runFrom (k := k) prepare (enc a)
-      (List.replicate ((c₁ + c₂) * 2 ^ Nat.size (T (enc a).length)) true)
-      (C * T (enc a).length + C) (hprepare (enc a))
     obtain ⟨hhalt, hcount⟩ := MultiTapeCTM.PaddedClock.haltsWithin_acceptCount_compile M
-      (prepare.extendTapes (Fin.natAddEmb k)) (enc a) _ _ hready
+      (prepare.extendTapes (Fin.natAddEmb k)) (enc a) _ _
+      (MultiTapePTM.PolynomialClock.prepare_runFrom (k := k) prepare (enc a)
+        (List.replicate ((c₁ + c₂) * 2 ^ Nat.size (T (enc a).length)) true)
+        (C * T (enc a).length + C) (hprepare (enc a)))
     have hle : C * T (enc a).length + C + ((c₁ + c₂) * 2 ^ Nat.size (T (enc a).length) + 1) ≤
         (C + 2 * (c₁ + c₂)) * T (enc a).length + (C + 2 * (c₁ + c₂) + 1) := by
       have := hupper (enc a).length
-      have e : (C + 2 * (c₁ + c₂)) * T (enc a).length + (C + 2 * (c₁ + c₂) + 1) =
+      have : (C + 2 * (c₁ + c₂)) * T (enc a).length + (C + 2 * (c₁ + c₂) + 1) =
           C * T (enc a).length + C + (2 * (c₁ + c₂) * T (enc a).length + 2 * (c₁ + c₂)) + 1 := by
         ring
       omega
-    refine ⟨hhalt.mono hle, ?_⟩
-    change compiled.branchCount (· == [true]) _ _ = _
-    rw [hhalt.branchCount_eq hle]
-    exact hcount
+    exact ⟨hhalt.mono hle, (hhalt.branchCount_eq (verdict := (· == [true])) hle).trans hcount⟩
 
 /-- **`NTIME[T]` as a positive count.** For a time-constructible `T`, every problem in
 `NTIME enc T` consists of the instances with a positive count `f a`, for some `f` in
@@ -130,12 +125,9 @@ theorem exists_mem_SharpTIME_of_mem_PPTIME (hT : TimeConstructible T) (hA : A �
   obtain ⟨c₁, c₂, k, State, _, M, hM⟩ := hA
   obtain ⟨τ, hτ, -, hmem⟩ := exists_clock_acceptCount_mem_SharpTIME (enc := enc) hT c₁ (c₂ + 1)
   refine ⟨_, hmem M, _, hmem MultiTapePTM.acceptAll, fun a => ?_⟩
-  have hdecide := MultiTapePTM.decidesByMajorityInTime_iff.mp
-    (hM.mono (t' := fun a => τ (enc a).length) fun a => (Nat.le_succ _).trans (hτ _)) a
-  obtain ⟨m, hm⟩ : ∃ m, τ (enc a).length = m + 1 :=
-    Nat.exists_eq_add_one.mpr (Nat.lt_of_lt_of_le (Nat.succ_pos _) (hτ _))
-  rw [hdecide.2]
-  change _ ↔ MultiTapePTM.acceptAll.acceptCount (enc a) (τ (enc a).length) < _
+  obtain ⟨m, hm⟩ := Nat.exists_eq_add_one.mpr (Nat.lt_of_lt_of_le (Nat.succ_pos _) (hτ _))
+  rw [(MultiTapePTM.decidesByMajorityInTime_iff.mp
+    (hM.mono fun a => (Nat.le_succ _).trans (hτ _)) a).2]
   rw [hm, MultiTapePTM.acceptCount_acceptAll]
 
 /-- **`BPTIME[T]` as a comparison of two counts**, through `Cslib.Complexity.BPTIME_subset_PPTIME`.

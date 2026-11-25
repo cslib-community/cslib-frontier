@@ -178,9 +178,8 @@ theorem exists_expect_sq_sub_le_mapSL_transvection (hH : 3 ≤ H) (g : Frame P H
   obtain ⟨m, hm⟩ := RotationMap.exists_expect_sq_sub_le_elementaryMove hH G
   refine ⟨m, ?_⟩
   set c : ℝ := Fintype.card (Frame P H 1) / Fintype.card (Fin H → ZMod P)
-  have hc : 0 < c := by
-    have : (0 : ℝ) < Fintype.card (Frame P H 1) := by exact_mod_cast Fintype.card_pos
-    positivity
+  have hc : 0 < c :=
+    div_pos (by exact_mod_cast Fintype.card_pos) (by exact_mod_cast Fintype.card_pos)
   have hL : 𝔼 v, (if v = 0 then 0 else (G v - m) ^ 2) = c * 𝔼 F, (g F - m) ^ 2 := by
     rw [expect_ite_eq]
     simp only [hGF]
@@ -191,8 +190,7 @@ theorem exists_expect_sq_sub_le_mapSL_transvection (hH : 3 ≤ H) (g : Frame P H
     have h0 (v : Fin H → ZMod P) : (G (RotationMap.elementaryMove a b v) - G v) ^ 2 =
         if v = 0 then 0 else (G (RotationMap.elementaryMove a b v) - G v) ^ 2 := by
       split_ifs with hv
-      · subst hv
-        simp [RotationMap.elementaryMove]
+      · subst hv; simp [RotationMap.elementaryMove]
       · rfl
     rw [expect_congr rfl fun v _ ↦ h0 v, expect_ite_eq]
     simp only [← Frame.mapSL_transvection_apply_zero h, hGF]
@@ -203,8 +201,7 @@ theorem exists_expect_sq_sub_le_mapSL_transvection (hH : 3 ≤ H) (g : Frame P H
       𝔼 v, (G (RotationMap.elementaryMove p.1.1 p.1.2 v) - G v) ^ 2 =
         c * ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
           𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) F) - g F) ^ 2 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun p _ ↦ hR _ _ p.2
+    rw [mul_sum]; exact sum_congr rfl fun p _ ↦ hR _ _ p.2
   rw [hsum, mul_left_comm] at hm
   exact le_of_mul_le_mul_left hm hc
 
@@ -247,8 +244,7 @@ theorem affineMove_inr {r : ℕ} (i : Fin H) (q : Frame P H r × (Fin H → ZMod
       Prod.map_snd, affineSL_apply, map_one, SpecialLinearGroup.coe_one, one_mulVec, Pi.add_apply,
       update_apply]
     split_ifs with h
-    · subst h
-      simp
+    · subst h; simp
     · simp [h]
 
 /-- There are `H ^ 2` generators: `H (H - 1)` elementary matrices and `H` translations. -/
@@ -256,11 +252,8 @@ theorem card_affineGenerator_index :
     Fintype.card ({p : Fin H × Fin H // p.1 ≠ p.2} ⊕ Fin H) = H ^ 2 := by
   rw [Fintype.card_sum, Fintype.card_fin, Fintype.card_subtype]
   have : (univ.filter fun p : Fin H × Fin H ↦ p.1 ≠ p.2) = (univ : Finset (Fin H)).offDiag := by
-    ext p
-    simp
-  rw [this, offDiag_card, card_univ, Fintype.card_fin]
-  have : H ≤ H * H := Nat.le_mul_self H
-  rw [Nat.sub_add_cancel this, sq]
+    ext p; simp
+  rw [this, offDiag_card, card_univ, Fintype.card_fin, Nat.sub_add_cancel (Nat.le_mul_self H), sq]
 
 /-- Averaging over the second coordinate contracts the squared change along a product
 permutation. -/
@@ -303,17 +296,13 @@ theorem expect_sq_le_affineMove [Fact P.Prime] [NeZero L] (hH : 3 ≤ H)
         f p) ^ 2 ≤ D := by
     have hσi : i ≠ σ i := (hσ i).symm
     fin_cases k
-    · refine le_trans (le_of_eq ?_) (hterm (.inl ⟨(i, σ i), hσi⟩))
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine (expect_congr rfl fun p _ ↦ ?_).trans_le (hterm (.inl ⟨(i, σ i), hσi⟩))
       simp [RotationMap.pairShearTranslationMove, hρ hσi]
-    · refine le_trans (le_of_eq ?_) (hterm (.inl ⟨(σ i, i), hσi.symm⟩))
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine (expect_congr rfl fun p _ ↦ ?_).trans_le (hterm (.inl ⟨(σ i, i), hσi.symm⟩))
       simp [RotationMap.pairShearTranslationMove, hρ hσi.symm]
-    · refine le_trans (le_of_eq ?_) (hterm (.inr i))
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine (expect_congr rfl fun p _ ↦ ?_).trans_le (hterm (.inr i))
       simp [RotationMap.pairShearTranslationMove]
-    · refine le_trans (le_of_eq ?_) (hterm (.inr (σ i)))
-      refine expect_congr rfl fun p _ ↦ ?_
+    · refine (expect_congr rfl fun p _ ↦ ?_).trans_le (hterm (.inr (σ i)))
       simp [RotationMap.pairShearTranslationMove]
   have hbox : 𝔼 p, (f p - 𝔼 w, f (p.1, w)) ^ 2 ≤ 2048 * H * D := by
     refine (RotationMap.expect_sq_sub_expect_le_pairShearTranslation ρ σ (fun i ↦ hσ i) f).trans ?_
@@ -322,20 +311,15 @@ theorem expect_sq_le_affineMove [Fact P.Prime] [NeZero L] (hH : 3 ≤ H)
           gcongr with i _ k _
           exact hpair i k
       _ = 2048 * H * D := by
-          simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
-          push_cast
-          ring
+          simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]; push_cast; ring
   -- The frame part, by the Poincaré inequality on frames and Jensen's inequality.
   obtain ⟨m, hm⟩ := exists_expect_sq_sub_le_mapSL_transvection hH g
   have hg0 : 𝔼 F, g F = 0 := by rw [← Fintype.expect_prod_type]; exact hf
   have hgm : 𝔼 F, g F ^ 2 ≤ 𝔼 F, (g F - m) ^ 2 := by
-    have : 𝔼 F, (g F - m) ^ 2 = 𝔼 F, g F ^ 2 + m ^ 2 := by
-      have h1 : 𝔼 F, (g F - m) ^ 2 = 𝔼 F, (g F ^ 2 + m ^ 2) - 2 * m * 𝔼 F, g F := by
-        rw [mul_expect, ← expect_sub_distrib]
-        exact expect_congr rfl fun F _ ↦ by ring
-      rw [h1, hg0, expect_add_distrib, Fintype.expect_const]
-      ring
-    rw [this]
+    have h1 : 𝔼 F, (g F - m) ^ 2 = 𝔼 F, (g F ^ 2 + m ^ 2) - 2 * m * 𝔼 F, g F := by
+      rw [mul_expect, ← expect_sub_distrib]
+      exact expect_congr rfl fun F _ ↦ by ring
+    rw [h1, hg0, expect_add_distrib, Fintype.expect_const]
     nlinarith [sq_nonneg m]
   have hframe : ∑ p : {p : Fin H × Fin H // p.1 ≠ p.2},
       𝔼 F, (g (Frame.mapSL (SpecialLinearGroup.transvection p.2 1) F) - g F) ^ 2 ≤ D := by
@@ -348,11 +332,8 @@ theorem expect_sq_le_affineMove [Fact P.Prime] [NeZero L] (hH : 3 ≤ H)
           refine le_trans ?_ (Fintype.sum_sum_type _).symm.le
           exact le_add_of_nonneg_right
             (sum_nonneg fun _ _ ↦ expect_nonneg fun _ _ ↦ sq_nonneg _)
-  have hHD : (H : ℝ) * D ≤ H ^ 2 * D := by
-    have : (H : ℝ) ≤ H ^ 2 := by
-      have : (1 : ℝ) ≤ H := by exact_mod_cast (by omega : 1 ≤ H)
-      nlinarith
-    exact mul_le_mul_of_nonneg_right this hD0
+  have hHD : (H : ℝ) * D ≤ H ^ 2 * D := mul_le_mul_of_nonneg_right
+    (le_self_pow₀ (by exact_mod_cast (by omega : 1 ≤ H)) two_ne_zero) hD0
   have hHsq : (0 : ℝ) ≤ H ^ 2 := sq_nonneg _
   rw [hsplit]
   nlinarith [mul_le_mul_of_nonneg_left hframe (by positivity : (0 : ℝ) ≤ 36864 * H ^ 2)]
@@ -393,9 +374,7 @@ theorem spectralExpansion_lazy_ofPerms_affineMove_le [Fact P.Prime] [NeZero L] (
   have h₁ :=
     (ofPerms (affineMove P H L 1)).spectralExpansion_lazy_le_one_add_secondEigenvalue_div_two
   have h₂ := secondEigenvalue_ofPerms_affineMove_le (P := P) (L := L) hH
-  have : 1 / (155648 * (H : ℝ) ^ 4) = (1 / (77824 * H ^ 4)) / 2 := by
-    rw [div_div]
-    ring
+  have : 1 / (155648 * (H : ℝ) ^ 4) = (1 / (77824 * H ^ 4)) / 2 := by rw [div_div]; ring
   rw [this]
   linarith
 

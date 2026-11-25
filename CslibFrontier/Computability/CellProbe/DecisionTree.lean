@@ -116,11 +116,8 @@ theorem depth_ofDecisionTree {S : ℕ} {α : Type} (t : DecisionTree (Fin S) α)
       (if v.1 == 1 then ofDecisionTree ifTrue else ofDecisionTree ifFalse).depth) + 1 =
       max ifFalse.depth ifTrue.depth + 1
     have huniv : (Finset.univ : Finset (Fin (2 ^ 1))) = {⟨0, by decide⟩, ⟨1, by decide⟩} := by
-      ext ⟨v, hv⟩
-      simp only [Finset.mem_univ, Finset.mem_insert, Finset.mem_singleton, Fin.ext_iff, true_iff]
-      omega
-    rw [huniv]
-    simp only [Finset.sup_insert, Finset.sup_singleton]
+      decide
+    rw [huniv, Finset.sup_insert, Finset.sup_singleton]
     have h0 : ((⟨0, by decide⟩ : Fin (2 ^ 1)).1 == 1) = false := rfl
     have h1 : ((⟨1, by decide⟩ : Fin (2 ^ 1)).1 == 1) = true := rfl
     simp only [h0, Bool.false_eq_true, ↓reduceIte, h1, ihF, ihT, Nat.max_def]

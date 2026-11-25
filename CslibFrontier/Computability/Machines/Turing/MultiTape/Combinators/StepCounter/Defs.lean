@@ -78,21 +78,11 @@ The runtime bound makes this set finite, with no further signals after the machi
 
 /-- Halting bounds all signal times, including when the requested count is zero. -/
 theorem signalTimes_finite (counter : StepCounter) (n : ℕ) : (counter.signalTimes n).Finite := by
-  let C := counter.timeConstant * (n + 1)
-  refine (Set.finite_range (fun i : Fin C => i.val)).subset ?_
-  intro t ht
-  have hlt : t < C := by
-    by_contra hnot
-    have hhalt := runsInTime_iff_halted.mp (counter.runsInTime n)
-    have heq := congrArg Cfg.state
-      (runFrom_eq_of_halt counter.machine (counter.machine.initCfg (encNat n))
-        (by omega : C ≤ t) hhalt)
-    change _ = none at hhalt
-    change (counter.machine.runFrom (counter.machine.initCfg (encNat n)) t).state =
-      some counter.signal at ht
-    rw [heq, hhalt] at ht
-    contradiction
-  exact ⟨⟨t, hlt⟩, rfl⟩
+  refine (Set.finite_lt_nat (counter.timeConstant * (n + 1))).subset
+    fun t ht => show t < _ from not_le.mp fun hle => ?_
+  have hhalt := runsInTime_iff_halted.mp (counter.runsInTime n)
+  have heq := runFrom_eq_of_halt counter.machine _ hle hhalt
+  exact Option.some_ne_none _ (ht.symm.trans ((congrArg Cfg.state heq).trans hhalt))
 
 /-- The machine has exactly the requested number of entering-and-leaving signals. -/
 theorem signal_count (counter : StepCounter) (n : ℕ) : (counter.signalTimes n).ncard = n :=

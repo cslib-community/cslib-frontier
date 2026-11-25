@@ -55,11 +55,9 @@ private theorem shear_embedding {G : Graph} {D : PolygonalDrawing G} (hD : D.IsE
 
 private theorem declared_dart {G : Graph} (hG : G.incidenceVertices ⊆ G.vertices)
     (d : Dart G) : d.vertex ∈ G.vertices := by
-  have hends : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices := by
-    intro edge he
-    constructor <;> apply hG <;>
-      exact List.mem_flatMap.mpr ⟨edge, he, by simp⟩
-  exact Graph.edgeEndpoint_mem G hends d.1.isLt d.2
+  exact Graph.edgeEndpoint_mem G (fun edge he =>
+    ⟨hG (List.mem_flatMap.mpr ⟨edge, he, by simp⟩),
+      hG (List.mem_flatMap.mpr ⟨edge, he, by simp⟩)⟩) d.1.isLt d.2
 
 private theorem separate_width {G : Graph} (D : PolygonalDrawing G) (v : ℕ)
     (hsep : ∀ w ∈ G.vertices, w ≠ v → (D.vertex w).im ≠ (D.vertex v).im) :
@@ -111,9 +109,7 @@ theorem IsEmbedding.exists_horizontal_vertex_transport {G : Graph} {D : Polygona
         r < |(D.vertex w).im - (D.vertex v).im| := by
     by_cases he : w = v
     · subst w
-      left
-      simp only [sub_self, abs_zero]
-      positivity
+      exact Or.inl (by simp [div_pos hr zero_lt_two])
     · exact Or.inr (hgap w hw he)
   refine ⟨r, hr, fun d => ?_⟩
   have hg (x : Dart G) : ∃ c : ℝ, 0 < c ∧
@@ -124,24 +120,17 @@ theorem IsEmbedding.exists_horizontal_vertex_transport {G : Graph} {D : Polygona
   have hd (x : Dart G) : (D.plateauShear (D.vertex v).im r d).direction x = D.direction x := by
     obtain ⟨c, hc, heq⟩ := hg x
     simp only [direction, heq, Complex.real_smul, Complex.arg_real_mul _ hc]
-  refine ⟨shear_embedding hD _ hr d, ?_, hg, ?_, ?_, ?_⟩
-  · intro w hw
-    change Polygonal.plateauShear (D.vertex v).im r d (D.vertex w) = _
-    by_cases he : w = v
-    · subst w
-      rw [ite_eq_left rfl]
-      apply Polygonal.plateauShear_apply_inner hr d
-      rcases hflat v hv with hh | hh
-      · exact hh.le
-      · simp only [sub_self, abs_zero] at hh
-        exact False.elim (not_lt_of_ge hr.le hh)
-    · rw [ite_eq_right he]
-      exact Polygonal.plateauShear_apply_outer hr d (hgap w hw he).le
-  · intro x y z _ _ _ _ _
-    rw [hd x, hd y, hd z]
-  · intro e
-    exact (Route.segments_plateauShear (D.route e) _ r d).2
-  · intro e he
-    exact Route.plateauShear_eq_self hr d he
+  refine ⟨shear_embedding hD _ hr d, fun w hw => ?_, hg,
+    fun x y z _ _ _ _ _ => by rw [hd x, hd y, hd z],
+    fun e => (Route.segments_plateauShear (D.route e) _ r d).2,
+    fun _ => Route.plateauShear_eq_self hr d⟩
+  change Polygonal.plateauShear (D.vertex v).im r d (D.vertex w) = _
+  by_cases he : w = v
+  · subst w
+    let _ := hv
+    rw [ite_eq_left rfl]
+    exact Polygonal.plateauShear_apply_inner hr d (by simpa using (div_pos hr zero_lt_two).le)
+  · rw [ite_eq_right he]
+    exact Polygonal.plateauShear_apply_outer hr d (hgap w hw he).le
 
 end Cslib.Complexity.Graph.PolygonalDrawing

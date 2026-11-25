@@ -86,18 +86,15 @@ variable {d : V → V → α} {S T : Finset V} {v c : V} {r : α}
 
 /-- `d(v, S) ≤ r` exactly when some center of `S` is within `r` of `v`. -/
 theorem centerDist_le_coe_iff : centerDist d S v ≤ r ↔ ∃ c ∈ S, d v c ≤ r := by
-  rw [centerDist, Finset.inf_le_iff (WithTop.coe_lt_top r)]
-  simp only [WithTop.coe_le_coe]
+  simp only [centerDist, Finset.inf_le_iff (WithTop.coe_lt_top r), WithTop.coe_le_coe]
 
 /-- `r < d(v, S)` exactly when every center of `S` is farther than `r` from `v`. -/
 theorem coe_lt_centerDist_iff : (r : WithTop α) < centerDist d S v ↔ ∀ c ∈ S, r < d v c := by
-  rw [centerDist, Finset.lt_inf_iff (WithTop.coe_lt_top r)]
-  simp only [WithTop.coe_lt_coe]
+  simp only [centerDist, Finset.lt_inf_iff (WithTop.coe_lt_top r), WithTop.coe_lt_coe]
 
 /-- `d(v, S) < r` exactly when some center of `S` is closer than `r` to `v`. -/
 theorem centerDist_lt_coe_iff : centerDist d S v < r ↔ ∃ c ∈ S, d v c < r := by
-  rw [centerDist, Finset.inf_lt_iff]
-  simp only [WithTop.coe_lt_coe]
+  simp only [centerDist, Finset.inf_lt_iff, WithTop.coe_lt_coe]
 
 /-- A point is at most as far from a set as from each of its centers. -/
 theorem centerDist_le_of_mem (hc : c ∈ S) : centerDist d S v ≤ d v c :=
@@ -135,20 +132,15 @@ theorem length_le_card_of_pairwise_lt (hsymm : ∀ x y, d x y = d y x)
     rw [List.pairwise_cons] at hM
     obtain ⟨c, hc, hac⟩ := hcov a List.mem_cons_self
     -- the other entries are covered by the remaining centers
-    have hcov' : ∀ v ∈ M, ∃ c' ∈ C.erase c, d v c' ≤ r := by
-      intro v hv
+    have hlen := ih (C := C.erase c) (fun v hv => by
       obtain ⟨c', hc', hvc'⟩ := hcov v (List.mem_cons_of_mem a hv)
-      refine ⟨c', Finset.mem_erase.2 ⟨fun hcc => ?_, hc'⟩, hvc'⟩
-      subst hcc
-      have hav : d a v ≤ 2 * r := by
-        rw [two_mul]
-        exact (htri a c' v).trans (add_le_add hac (hsymm c' v ▸ hvc'))
-      exact absurd hav (not_le.2 (hM.1 v hv))
-    have hlen := ih hcov' hM.2
-    rw [Finset.card_erase_of_mem hc] at hlen
+      refine ⟨c', Finset.mem_erase.2 ⟨?_, hc'⟩, hvc'⟩
+      rintro rfl
+      exact (hM.1 v hv).not_ge
+        ((htri a c' v).trans (two_mul r ▸ add_le_add hac (hsymm c' v ▸ hvc')))) hM.2
     have hpos := Finset.card_pos.2 ⟨c, hc⟩
-    rw [List.length_cons]
-    omega
+    rw [Finset.card_erase_of_mem hc] at hlen
+    exact Nat.succ_le_of_lt (by omega)
 
 end Packing
 
@@ -171,16 +163,14 @@ when `k = 0`. -/
 variable {d : V → V → α} {S T : Finset V} {k : ℕ}
 
 theorem radius_le_iff {r : WithTop α} : radius d S ≤ r ↔ ∀ v, centerDist d S v ≤ r := by
-  rw [radius, Finset.sup'_le_iff]
-  simp only [Finset.mem_univ, true_implies]
+  simp only [radius, Finset.sup'_le_iff, Finset.mem_univ, true_implies]
 
 /-- The radius of `S` is at most `r` exactly when every point is within `r` of a center. -/
 theorem radius_le_coe_iff {r : α} : radius d S ≤ r ↔ ∀ v, ∃ c ∈ S, d v c ≤ r := by
   simp only [radius_le_iff, centerDist_le_coe_iff]
 
 theorem radius_lt_iff {r : WithTop α} : radius d S < r ↔ ∀ v, centerDist d S v < r := by
-  rw [radius, Finset.sup'_lt_iff]
-  simp only [Finset.mem_univ, true_implies]
+  simp only [radius, Finset.sup'_lt_iff, Finset.mem_univ, true_implies]
 
 theorem centerDist_le_radius (v : V) : centerDist d S v ≤ radius d S :=
   Finset.le_sup' (centerDist d S) (Finset.mem_univ v)
@@ -189,10 +179,9 @@ theorem centerDist_le_radius (v : V) : centerDist d S v ≤ radius d S :=
 theorem radius_anti (h : S ⊆ T) : radius d T ≤ radius d S :=
   radius_le_iff.2 fun v => (centerDist_anti h v).trans (centerDist_le_radius v)
 
-@[simp] theorem radius_empty (d : V → V → α) : radius d ∅ = ⊤ :=
-  top_unique (by
-    obtain ⟨v⟩ := ‹Nonempty V›
-    exact (centerDist_empty d v).symm.le.trans (centerDist_le_radius v))
+@[simp] theorem radius_empty (d : V → V → α) : radius d ∅ = ⊤ := by
+  obtain ⟨v⟩ := ‹Nonempty V›
+  exact top_unique ((centerDist_empty d v).symm.le.trans (centerDist_le_radius v))
 
 /-- A nonempty set of centers has finite radius. -/
 theorem radius_lt_top (hS : S.Nonempty) : radius d S < ⊤ := by
@@ -211,18 +200,15 @@ theorem exists_radius_eq_optRadius (d : V → V → α) (k : ℕ) :
   exact ⟨S, (Finset.mem_filter.1 hS).2, h.symm⟩
 
 theorem optRadius_le_iff {r : WithTop α} :
-    optRadius d k ≤ r ↔ ∃ S : Finset V, S.card ≤ k ∧ radius d S ≤ r := by
-  constructor
-  · intro h
-    obtain ⟨S, hS, hSr⟩ := exists_radius_eq_optRadius d k
-    exact ⟨S, hS, hSr ▸ h⟩
-  · rintro ⟨S, hS, hSr⟩
-    exact (optRadius_le_radius hS).trans hSr
+    optRadius d k ≤ r ↔ ∃ S : Finset V, S.card ≤ k ∧ radius d S ≤ r :=
+  ⟨fun h =>
+    let ⟨S, hS, hSr⟩ := exists_radius_eq_optRadius d k
+    ⟨S, hS, hSr ▸ h⟩,
+    fun ⟨_, hS, hSr⟩ => (optRadius_le_radius hS).trans hSr⟩
 
 theorem le_optRadius_iff {r : WithTop α} :
     r ≤ optRadius d k ↔ ∀ S : Finset V, S.card ≤ k → r ≤ radius d S := by
-  rw [optRadius, Finset.le_inf_iff]
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+  simp only [optRadius, Finset.le_inf_iff, Finset.mem_filter, Finset.mem_univ, true_and]
 
 /-- **Exactly `k` centers suffice:** when `k ≤ |V|`, some set of exactly `k` centers attains the
 optimal radius over at most `k` centers, since padding a set of centers never increases its radius
@@ -241,15 +227,13 @@ theorem optRadius_antitone (d : V → V → α) : Antitone (optRadius d) := fun 
 /-- Without centers, the radius is `⊤`. -/
 @[simp] theorem optRadius_zero (d : V → V → α) : optRadius d 0 = ⊤ := by
   obtain ⟨S, hS, h⟩ := exists_radius_eq_optRadius d 0
-  rw [Finset.card_eq_zero.1 (Nat.le_zero.1 hS), radius_empty] at h
-  exact h.symm
+  simpa [Finset.card_eq_zero.1 (Nat.le_zero.1 hS)] using h.symm
 
 /-- With at least one center, the optimal radius is finite. -/
 theorem optRadius_lt_top (hk : 0 < k) : optRadius d k < ⊤ := by
   obtain ⟨c⟩ := ‹Nonempty V›
-  refine (optRadius_le_radius (S := {c}) ?_).trans_lt (radius_lt_top (Finset.singleton_nonempty c))
-  rw [Finset.card_singleton]
-  exact hk
+  exact (optRadius_le_radius (S := {c}) (Finset.card_singleton c ▸ hk)).trans_lt
+    (radius_lt_top (Finset.singleton_nonempty c))
 
 /-- **A lower bound on the optimum** ([WilliamsonShmoys2011], proof of Theorem 2.3): if more than
 `k` points are pairwise farther than `2 r` apart, every set of at most `k` centers has radius
@@ -260,9 +244,8 @@ theorem lt_optRadius_of_pairwise_lt [Semiring α] [IsOrderedAddMonoid α]
     (r : WithTop α) < optRadius d k := by
   rw [← not_le, optRadius_le_iff]
   rintro ⟨S, hS, hSr⟩
-  have := length_le_card_of_pairwise_lt hsymm htri
-    (fun v _ => radius_le_coe_iff.1 hSr v) hM
-  omega
+  exact hk.not_ge ((length_le_card_of_pairwise_lt hsymm htri
+    (fun v _ => radius_le_coe_iff.1 hSr v) hM).trans hS)
 
 end Finite
 

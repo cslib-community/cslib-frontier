@@ -92,10 +92,9 @@ theorem getD_whiteTable (cert : Graph.RotationCertificate)
     (whiteTable F cert).getD (incidenceEdgeIndex o) 0 =
       incidenceEdgeIndex ((argumentPermutation F).symm
         ((variablePermutation (decode _ cert h)).symm o)) := by
-  have hi : incidenceEdgeIndex o < F.occurrences.length := by
-    simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
   rw [List.getD_eq_getElem _ _ (by
-    simpa only [whiteTable, List.length_map, List.length_range] using hi)]
+    simpa only [whiteTable, List.length_map, List.length_range, incidenceGraph_edges] using
+      incidenceEdgeIndex_lt o)]
   simp only [whiteTable, List.getElem_map, List.getElem_range, idxOf_variable cert h,
     Nat.mul_div_cancel_left _ (by decide : 0 < 2)]
   exact idxOf_argumentTable _

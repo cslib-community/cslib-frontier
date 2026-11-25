@@ -70,9 +70,7 @@ exponential clock. -/
 private theorem preprocess_exp_bound (C c₂ d₂ X : ℕ) (hX : 1 ≤ X) :
     5 * (C * (X + 1)) + c₂ * (C * (X + 1) + 1) ^ d₂ + 9 ≤
       (5 * (2 * C) + c₂ * (2 * C + 1) ^ d₂ + 9) * X ^ (d₂ + 1) := by
-  have hX1 : X ≤ X ^ (d₂ + 1) := by
-    calc X = X ^ 1 := (pow_one X).symm
-      _ ≤ X ^ (d₂ + 1) := Nat.pow_le_pow_right hX (by omega)
+  have hX1 : X ≤ X ^ (d₂ + 1) := Nat.le_self_pow (by omega) X
   have hXd : X ^ d₂ ≤ X ^ (d₂ + 1) := Nat.pow_le_pow_right hX (by omega)
   have h1 : 1 ≤ X ^ (d₂ + 1) := Nat.one_le_pow _ _ hX
   have hpow : (C * (X + 1) + 1) ^ d₂ ≤ (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := by
@@ -81,8 +79,7 @@ private theorem preprocess_exp_bound (C c₂ d₂ X : ℕ) (hX : 1 ≤ X) :
       _ = (2 * C + 1) ^ d₂ * X ^ d₂ := Nat.mul_pow _ _ _
       _ ≤ (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := Nat.mul_le_mul_left _ hXd
   have hlin : 5 * (C * (X + 1)) ≤ 5 * (2 * C) * X ^ (d₂ + 1) := by
-    have := Nat.mul_le_mul_left (2 * C) hX1
-    nlinarith
+    nlinarith [Nat.mul_le_mul_left (2 * C) hX1]
   have hc : c₂ * (C * (X + 1) + 1) ^ d₂ ≤ c₂ * (2 * C + 1) ^ d₂ * X ^ (d₂ + 1) := by
     rw [Nat.mul_assoc]
     exact Nat.mul_le_mul_left _ hpow

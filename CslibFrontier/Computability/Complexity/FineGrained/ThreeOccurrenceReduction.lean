@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsification
 public import CslibFrontier.Computability.Complexity.FineGrained.Reduction
+public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSATThree.Counting
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount.DenseRelabel
 import CslibFrontier.Logics.Propositional.CNF.ThreeOccurrence.PolyTime
@@ -51,6 +52,9 @@ pp. 43–47).
   `Cslib.Complexity.ETH.not_decidableInSubexpTime_threeSATThree_numVars`: fine-grained exponential
   and subexponential reductions from `ThreeSAT` to `ThreeSATThree` in both `CNF.numVars` and
   `List.length`.
+* `Cslib.Complexity.SH.not_decidableInPowerExpTime_threeSATThree_numVars`,
+  `Cslib.Complexity.SH.not_decidableInPowerExpTime_threeSATThree_length`: under SH, no fixed
+  power saving in the exponent for bounded-occurrence 3SAT in either size parameter.
 * `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter_of_promise`,
   `Cslib.Complexity.exists_computableInO_guardOccurrenceCounter`,
   `Cslib.Complexity.CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise`,
@@ -273,6 +277,34 @@ theorem not_ETH_of_decidableInSubexpTime_threeSATThree_numVars
 theorem not_ETH_of_decidableInSubexpTime_threeSATThree_length
     (h : DecidableInSubexpTime ThreeSATThree encCNF List.length) : ¬ ETH :=
   fun heth => heth.not_decidableInSubexpTime_threeSATThree_length h
+
+/-! ### Lower bounds under the Satisfiability Hypothesis -/
+
+private theorem SH.not_decidableInPowerExpTime_threeSATThree (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) {μ : CNF ℕ → ℕ} {K : ℕ}
+    (hsize : ∀ φ, μ (toThreeSATThree φ) ≤ K * φ.length + K) :
+    ¬DecidableInPowerExpTime ThreeSATThree encCNF μ p := by
+  refine h.not_decidableInPowerExpTime_of_linear_reduction hp hp1
+    computableInPolyTime_toThreeSATThree (fun φ hφ => ?_) (K := K) (fun φ _ => hsize φ)
+  rw [mem_ThreeSATThree_toThreeSATThree_iff]
+  exact ⟨fun hSat => ⟨hφ, hSat⟩, fun hThree => hThree.2⟩
+
+/-- Under SH, deciding width-three SAT with at most three literal occurrences per variable
+admits no fixed power saving in the exponent measured in the number of occurring variables. -/
+theorem SH.not_decidableInPowerExpTime_threeSATThree_numVars (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime ThreeSATThree encCNF CNF.numVars p :=
+  h.not_decidableInPowerExpTime_threeSATThree hp hp1 (K := 3) fun φ =>
+    (numVars_toThreeSATThree_le_mul_length φ).trans (Nat.le_add_right _ 3)
+
+/-- Under SH, deciding width-three SAT with at most three literal occurrences per variable
+admits no fixed power saving in the exponent measured in the number of clauses. -/
+theorem SH.not_decidableInPowerExpTime_threeSATThree_length (h : SH) {p : ℝ}
+    (hp : 0 < p) (hp1 : p < 1) :
+    ¬DecidableInPowerExpTime ThreeSATThree encCNF List.length p :=
+  h.not_decidableInPowerExpTime_threeSATThree hp hp1 (K := 4) fun φ => by
+    have hlen := length_toThreeSATThree_le_mul_length φ
+    omega
 
 /-! ### 3. Guarded leaf model-counter reduction for `CountingSparsify.search` -/
 
