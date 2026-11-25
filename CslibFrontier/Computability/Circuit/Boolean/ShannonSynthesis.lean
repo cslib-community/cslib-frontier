@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.ShannonConstruction
 public import Mathlib.Data.Nat.Log
-import Mathlib.Tactic.Linarith
+import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.Ring
 
 /-!
@@ -71,13 +71,6 @@ private theorem address_estimates (hn : 16 ≤ n) :
   rw [heq, pow_succ, pow_succ] at hhi
   lia
 
-private theorem square_le_two_pow (hn : 4 ≤ n) : n * n ≤ 2 ^ n := by
-  induction n, hn using Nat.le_induction with
-  | base => decide
-  | succ n hn ih =>
-    rw [pow_succ]
-    nlinarith
-
 private theorem four_mul_le_two_pow (hn : 4 ≤ n) : 4 * n ≤ 2 ^ n := by
   induction n, hn using Nat.le_induction with
   | base => decide
@@ -99,7 +92,8 @@ theorem bound_le (hn : 16 ≤ n) :
   have haddress : 4 * 2 ^ addressWidth n * n ≤ 2 * 2 ^ n := calc
     _ = 2 * ((2 * 2 ^ addressWidth n) * n) := by ring
     _ ≤ 2 * (n * n) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right n haddr)
-    _ ≤ 2 * 2 ^ n := Nat.mul_le_mul_left 2 (square_le_two_pow (by lia))
+    _ ≤ 2 * 2 ^ n :=
+      Nat.mul_le_mul_left 2 ((sq n).symm.trans_le (Nat.sq_le_two_pow (by lia)))
   have hlog : 4 ≤ Nat.log 2 n := Nat.le_log_of_pow_le (by decide) hn
   have hquarter : 4 * Nat.log 2 n ≤ n :=
     (four_mul_le_two_pow hlog).trans (Nat.pow_log_le_self 2 (by lia))

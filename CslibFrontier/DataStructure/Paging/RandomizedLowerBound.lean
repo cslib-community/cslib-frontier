@@ -114,13 +114,6 @@ private theorem exists_elem_ge_avg {M : Finset α} (hM : M.Nonempty) (f : α →
   rw [Finset.sum_const, nsmul_eq_mul, mul_div_cancel₀ _ hpos.ne'] at hsum
   exact lt_irrefl _ hsum
 
-omit [DecidableEq α] in
-private theorem sum_tsum_ennreal {β : Type*} (S : Finset α) (f : α → β → ℝ≥0∞) :
-    (∑ x ∈ S, ∑' m, f x m) = ∑' m, ∑ x ∈ S, f x m := by
-  induction S using Finset.cons_induction with
-  | empty => simp only [Finset.sum_empty, tsum_zero]
-  | cons a s ha ih => simp only [Finset.sum_cons, ih, tsum_add]
-
 private theorem sum_ite_notMem_ennreal (S T : Finset α) :
     (∑ x ∈ S, if x ∈ T then (0 : ℝ≥0∞) else 1) = ((S \ T).card : ℝ≥0∞) := by
   have h : (fun x => if x ∈ T then (0 : ℝ≥0∞) else 1) =
@@ -516,7 +509,7 @@ private theorem one_le_sum_toReal_tsum {β : Type*} (π : PMF β) (S : Finset α
     rw [hinc x, ENNReal.toReal_add hfin₀ (hterm_ne_top x), add_sub_cancel_left]
   simp_rw [htoReal_inc]
   have hsum_enn : (1 : ℝ≥0∞) ≤ ∑ x ∈ S, ∑' b, π b * step b x := by
-    rw [sum_tsum_ennreal]
+    rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
     calc (1 : ℝ≥0∞) = ∑' b, π b * 1 := by simp only [mul_one, π.tsum_coe]
       _ ≤ ∑' b, ∑ x ∈ S, π b * step b x := by
           refine tsum_le_tsum fun b => ?_

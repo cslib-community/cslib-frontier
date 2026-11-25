@@ -230,9 +230,6 @@ other parties hold `false`. -/
     ∑ i : Fin m, constShare b i = b := by
   simp [constShare]
 
-private theorem bool_not_eq_add_true (a : Bool) : (!a) = a + true := by
-  cases a <;> rfl
-
 private theorem bool_or_eq_add_add_mul (a b : Bool) : (a || b) = a + b + a * b := by
   cases a <;> cases b <;> rfl
 
@@ -365,7 +362,7 @@ private theorem evalWith_lineSteps {m inputCount g : ℕ} [NeZero m]
     simp only [lineSteps, Steps.outputAt]
     refine Wire.lastCases ?_ (fun wire => ?_) wire
     · simp [Line.eval, Program.trace, Boolean.interpretation,
-        Finset.sum_add_distrib, hw (wires 0), bool_not_eq_add_true]
+        Finset.sum_add_distrib, hw (wires 0), ← Bool.xor_true, ← Bool.add_eq_xor]
     · simp [hw wire]
   | and =>
     constructor
