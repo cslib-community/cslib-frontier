@@ -126,41 +126,20 @@ private theorem young_mul_rpow {α a b R : ℝ} (hα : 1 < α) (ha : 0 < a) (hb 
     (hR : 0 < R) :
     a * R ^ (α - 1) ≤
       (1 / α) * (a * (a / b) ^ (α - 1)) + ((α - 1) / α) * (b * R ^ α) := by
-  set t : ℝ := α - 1
-  have ht : 0 < t := sub_pos.mpr hα
   have hα0 : 0 < α := by linarith
-  have hw₁ : 0 ≤ 1 / α := by positivity
-  have hw₂ : 0 ≤ t / α := by positivity
-  have hw : 1 / α + t / α = 1 := by
-    dsimp only [t]
-    field_simp
-    ring
   have hab : 0 < a / b := div_pos ha hb
-  set z₁ : ℝ := a * (a / b) ^ t
-  set z₂ : ℝ := b * R ^ α
-  have hz₁_eq : z₁ = b * (a / b) ^ α := by
-    dsimp only [z₁, t]
-    calc a * (a / b) ^ (α - 1)
-        = b * ((a / b) ^ (1 : ℝ) * (a / b) ^ (α - 1)) := by
-          rw [Real.rpow_one]
-          field_simp
-      _ = b * (a / b) ^ α := by
-          rw [← Real.rpow_add hab]
-          exact congrArg (fun e => b * (a / b) ^ e) (by ring)
-  have hgm := Real.geom_mean_le_arith_mean2_weighted hw₁ hw₂
-    (show 0 ≤ z₁ by positivity) (show 0 ≤ z₂ by positivity) hw
-  have hlhs : z₁ ^ (1 / α) * z₂ ^ (t / α) = a * R ^ t := by
-    have h1 : z₁ ^ (1 / α) = b ^ (1 / α) * (a / b) := by
-      rw [hz₁_eq, Real.mul_rpow hb.le (Real.rpow_nonneg hab.le _), ← Real.rpow_mul hab.le,
-        mul_one_div_cancel hα0.ne', Real.rpow_one]
-    have h2 : z₂ ^ (t / α) = b ^ (t / α) * R ^ t := by
-      rw [Real.mul_rpow hb.le (Real.rpow_nonneg hR.le _), ← Real.rpow_mul hR.le,
-        mul_div_cancel₀ t hα0.ne']
-    calc z₁ ^ (1 / α) * z₂ ^ (t / α)
-        = (b ^ (1 / α) * b ^ (t / α)) * (a / b) * R ^ t := by rw [h1, h2]; ring
-      _ = b ^ (1 / α + t / α) * (a / b) * R ^ t := by rw [← Real.rpow_add hb]
-      _ = a * R ^ t := by rw [hw, Real.rpow_one, mul_div_cancel₀ a hb.ne']
-  rwa [hlhs] at hgm
+  have hw : 1 / α + (α - 1) / α = 1 := by field_simp; ring
+  have hz₁ : a * (a / b) ^ (α - 1) = b * (a / b) ^ α := by
+    rw [Real.rpow_sub_one hab.ne']; field_simp
+  have hgm := Real.geom_mean_le_arith_mean2_weighted (by positivity)
+    (div_nonneg (by linarith) hα0.le) (by positivity : 0 ≤ a * (a / b) ^ (α - 1))
+    (by positivity : 0 ≤ b * R ^ α) hw
+  calc a * R ^ (α - 1) = (a * (a / b) ^ (α - 1)) ^ (1 / α) * (b * R ^ α) ^ ((α - 1) / α) := by
+        rw [hz₁, Real.mul_rpow hb.le (Real.rpow_nonneg hab.le _), ← Real.rpow_mul hab.le,
+          mul_one_div_cancel hα0.ne', Real.rpow_one, Real.mul_rpow hb.le (Real.rpow_nonneg hR.le _),
+          ← Real.rpow_mul hR.le, mul_div_cancel₀ _ hα0.ne', mul_mul_mul_comm, ← Real.rpow_add hb,
+          hw, Real.rpow_one, ← mul_assoc, mul_div_cancel₀ a hb.ne']
+    _ ≤ _ := hgm
 
 /-- Joint sub-additivity of `(u, v) ↦ u * (u / v) ^ (α - 1)` over countable sums for `1 < α`. -/
 private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ≥0∞}
