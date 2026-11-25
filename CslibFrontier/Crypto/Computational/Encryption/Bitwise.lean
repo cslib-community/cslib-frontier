@@ -335,19 +335,8 @@ private theorem isPPTOn_bitwiseToSingleAt_choose
         ((ChoiceOut.msg₀ q.2).getD q.1.2 false, (ChoiceOut.msg₁ q.2).getD q.1.2 false))
       EMid (encPair encBool encBool) := by
     dsimp only [EMid, EIn, encChoiceOut]; fun_prop
-  have hyes : ComputableInPolyTime
-      (fun q : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) =>
-        (((ChoiceOut.msg₀ q.2).getD q.1.2 false, (ChoiceOut.msg₁ q.2).getD q.1.2 false),
-          encBitwiseToSingleState ⟨true, q.1.1.2, (ChoiceOut.msg₁ q.2).take q.1.2,
-            (ChoiceOut.msg₀ q.2).drop (q.1.2 + 1), ChoiceOut.state q.2⟩))
-      EMid (encChoiceOut encBool) :=
-    hmsgs.prod hrec.encoding_comp
-  have hno : ComputableInPolyTime
-      (fun _ : ((ℕ × List Bool) × ℕ) × ChoiceOut (List Bool) =>
-        ((false, false), rejectBitwiseToSingleState))
-      EMid (encChoiceOut encBool) :=
-    ComputableInPolyTime.const ((false, false), rejectBitwiseToSingleState)
-  have hpost := ComputableInPolyTime.ite hcond hyes hno
+  have hpost := ComputableInPolyTime.ite hcond (hmsgs.prod hrec.encoding_comp)
+    (.const ((false, false), rejectBitwiseToSingleState))
   exact (hchoose.bind_with
     (second := fun p choice =>
       pure (if valid p.1.1 p.1.2 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) &&
@@ -417,16 +406,11 @@ theorem isPPT_bitwiseToSingleAt
     have hsplice : ComputableInPolyTime
         (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
           encList encBits (r.1.2 ++ r.1.1.2.2 :: r.2))
-        E2 encBits := by
-      have hlist : ComputableInPolyTime
-          (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
-            r.1.2 ++ r.1.1.2.2 :: r.2)
-          E2 (encList encBits) :=
-        (ComputableInPolyTime.listAppend encBits).comp
-          (((ComputableInPolyTime.snd encGuessInput (encList encBits)).comp hp2).prod
-            ((ComputableInPolyTime.cons encBits).comp
-              (hct.prod (ComputableInPolyTime.snd E1 (encList encBits)))))
-      exact hlist.encoding_comp
+        E2 encBits :=
+      ((ComputableInPolyTime.listAppend encBits).comp
+        (((ComputableInPolyTime.snd encGuessInput (encList encBits)).comp hp2).prod
+          ((ComputableInPolyTime.cons encBits).comp
+            (hct.prod (ComputableInPolyTime.snd E1 (encList encBits)))))).encoding_comp
     have hguessArg : ComputableInPolyTime
         (fun r : ((ℕ × List Bool × List Bool) × List (List Bool)) × List (List Bool) =>
           (r.1.1.1, (bitwiseToSingleStateDecoder.decode r.1.1.2.1).stateA,
