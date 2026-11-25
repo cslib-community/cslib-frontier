@@ -493,8 +493,14 @@ omit hfuel in
 theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
     (hfuel : ComputableInPolyTime fuel enc encUnary) :
     ComputableInPolySpace (evaluate enc M fuel) enc encNat := by
-  have hn : ComputableInPolyTime (evalTime fuel) enc encNat :=
-    binary_two_pow.comp (g := fun a => (fuel a + 1) * (2 * fuel a + 1)) (by fun_prop)
+  have hn : ComputableInPolyTime (evalTime fuel) enc encNat := by
+    have hexp : ComputableInPolyTime (fun a => (fuel a + 1) * (2 * fuel a + 1)) enc
+        encUnary := by
+      have h1 := unary_add.comp (hfuel.prod (const (encOut := encUnary) 1))
+      have h2 := unary_add.comp ((unary_mul.comp ((const (encOut := encUnary) 2).prod hfuel)).prod
+        (const (encOut := encUnary) 1))
+      exact unary_mul.comp (h1.prod h2)
+    exact binary_two_pow.comp hexp
   have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
       (encEvalState enc) := by fun_prop
   have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)
