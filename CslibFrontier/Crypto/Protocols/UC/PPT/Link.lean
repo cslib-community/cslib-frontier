@@ -385,11 +385,8 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, PMF.bind_map, PMF.map_bind,
         Function.comp_def, Prod.map, id_eq]
       refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
-      have hsupp : x.1 ∈ OracleComp.support
-          (ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0)) :=
-        ProbOracleComp.mem_support_of_mem oracle hx
-      have hlen : (iE.reply eQ x.1.1).length ≤ L := hbound eQ s0 x.1 hsupp
-      rw [List.take_of_length_le hlen, iE.decodeReply_reply]
+      rw [List.take_of_length_le (hbound eQ s0 x.1 (ProbOracleComp.mem_support_of_mem oracle hx)),
+        iE.decodeReply_reply]
       exact ih x.1.1 x.1.2 x.2
 
 /-- Library infrastructure (no cited result): linking a strict-PPT environment against any
