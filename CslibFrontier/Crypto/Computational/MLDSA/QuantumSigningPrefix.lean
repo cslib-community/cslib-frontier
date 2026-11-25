@@ -74,10 +74,7 @@ def Xofs.digestTable (base : Xofs) (i : commitmentAddresses s extra) : DigestReg
 XOFs at every raw input and requested length, including at literal FIPS SHAKE. -/
 theorem sharedXofs_digestTable (base : Xofs) :
     sharedXofs s extra base (base.digestTable s extra) = base := by
-  apply Xofs.ext
-  · rfl
-  apply ExtendableOutput.ext
-  funext x n
+  refine Xofs.ext rfl (ExtendableOutput.ext (funext fun x => funext fun n => ?_))
   unfold sharedXofs ExtendableOutput.withPrefixes
   by_cases h : x ∈ commitmentAddresses s extra
   · simp only [h, ↓reduceDIte, Xofs.digestTable,
@@ -92,12 +89,10 @@ theorem commitmentDigest_sharedXofs (base : Xofs)
     (w : Fin s.params.k → Poly) :
     (sharedXofs s extra base T).commitmentDigest s (highBitsVec s.params w) (List.ofFn m) =
       registerBytes s (T (commitmentAddress s extra m w)) := by
-  let i := commitmentAddress s extra m w
   unfold Xofs.commitmentDigest
   rw [← val_commitmentAddress s extra m w]
-  change (sharedXofs s extra base T).h256.read i.val _ = registerBytes s (T i)
-  simp [sharedXofs, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix, i.property,
-    List.take_of_length_le, base.h256.length_read]
+  simp [sharedXofs, ExtendableOutput.withPrefixes, ExtendableOutput.readWithPrefix,
+    (commitmentAddress s extra m w).property, List.take_of_length_le, base.h256.length_read]
 
 /-- Serve a raw SHAKE256 read by consulting the coherent table once for its stored digest
 prefix and using the fixed underlying XOF bytes for the rest. -/
@@ -243,20 +238,16 @@ theorem completeSigningTrial_expandMask (base : Xofs) (sk : PrivateKey s) (A : P
   rw [dig]
   unfold completeSigningTrial trialResult
   dsimp only
-  cases h : finishSigningAttempt s sk y w d (H.sampleInBall s d) with
-  | none => rfl
-  | some reply =>
-    cases reply with
-    | none =>
-      simp only [finishRequest, eval_shared_reads]
-      rw [evalPure_signingQueries]
-      cases hrem : OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
-          (signingQueries s sk A (List.ofFn m) seed id fuel (nonce + s.params.ℓ)) with
-      | none => rfl
-      | some sig => exact recordReply_some s (length_of_evalPure_signingQueries hrem)
-    | some sig =>
-      exact recordReply_some s (length_finishSigningAttempt
-        (by rw [← dig]; exact length_commitmentDigest (H := H) ..) h)
+  rcases h : finishSigningAttempt s sk y w d (H.sampleInBall s d) with _ | _ | sig
+  · rfl
+  · simp only [finishRequest, eval_shared_reads]
+    rw [evalPure_signingQueries]
+    cases hrem : OracleComp.evalPure (ExtendableOutput.Request.answer H.h256)
+        (signingQueries s sk A (List.ofFn m) seed id fuel (nonce + s.params.ℓ)) with
+    | none => rfl
+    | some sig => exact recordReply_some s (length_of_evalPure_signingQueries hrem)
+  · exact recordReply_some s (length_finishSigningAttempt
+      (dig ▸ length_commitmentDigest (H := H) ..) h)
 
 /-- The three commitment-table treatments for the distinguished trial. -/
 inductive TrialRefresh where
@@ -344,42 +335,39 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
   obtain ⟨H, v⟩ := hv
   let G (i : commitmentAddresses s extra) := Function.update H i v
   let u (b : B) := p.state addStep ψ H b
+  have total : ∑ b, ‖u b‖ ^ 2 = 1 := by simpa [u, hψ] using p.sum_sq_state addStep ψ H
   simp only [reduceCtorEq, false_and, true_and, ↓reduceIte, ← sum_sub_distrib]
-  refine (abs_sum_le_sum_abs _ _).trans ?_
-  calc
-    _ ≤ ∑ b, ‖u b‖ ^ 2 * C := by
-      refine sum_le_sum fun b _ => ?_
-      let run := finishRequest s extra base (sk b) A (msg b) (seed b) fuel
-        (nonce + s.params.ℓ) (some none)
-      let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
-          DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
-        (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
-        (next b) (accept b)
-          T (u b)
-      let result (y : Fin s.params.ℓ → Poly) :=
-        trialResult s extra base (sk b) A (G (addr b y)) (msg b) y
-      have row (y : Fin s.params.ℓ → Poly) :
-          |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
-            (mask y).toReal * score (result y) (G (addr b y))| ≤
-            (mask y).toReal * |score (some none) (G (addr b y)) - score (some none) H| := by
-        rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-        apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-        by_cases he : result y = some none
-        · rw [ite_eq_left he, he, abs_sub_comm]
-        · simp [he]
-      refine (abs_sum_le_sum_abs _ _).trans ((sum_le_sum fun y _ => row y).trans ?_)
-      rw [← Probability.PMF.sum_map_mul mask (addr b)
-        (fun i => |score (some none) (G i) - score (some none) H|)]
-      have h := MeasuredPrefix.mean_abs_serviceAcceptance_update_sub_le addStep run
-        (next b) (accept b) H v (u b) (retry_bounded ..) (mask.map (addr b))
-        (δ := mass) (fun i => ENNReal.toReal_mono finite (signingAddressLaw_le s extra A (msg b) i))
-      refine h.trans (mul_le_mul_of_nonneg_left ?_ (sq_nonneg _))
-      rw [Real.sqrt_mul ENNReal.toReal_nonneg, mul_comm]
-      exact mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (add_le_add le_rfl
-        (pow_le_pow_left₀ (next b _).updateCost_nonneg (future b _) 2))) (Real.sqrt_nonneg _)
-    _ = _ := by
-      have total : ∑ b, ‖u b‖ ^ 2 = 1 := by simpa [u, hψ] using p.sum_sq_state addStep ψ H
-      rw [← sum_mul, total, one_mul]
+  refine (abs_sum_le_sum_abs _ _).trans
+    ((sum_le_sum (g := fun b => ‖u b‖ ^ 2 * C) fun b _ => ?_).trans_eq
+      (by rw [← sum_mul, total, one_mul]))
+  let run := finishRequest s extra base (sk b) A (msg b) (seed b) fuel
+    (nonce + s.params.ℓ) (some none)
+  let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
+      DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
+    (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+    (next b) (accept b) T (u b)
+  let result (y : Fin s.params.ℓ → Poly) :=
+    trialResult s extra base (sk b) A (G (addr b y)) (msg b) y
+  have row (y : Fin s.params.ℓ → Poly) :
+      |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
+        (mask y).toReal * score (result y) (G (addr b y))| ≤
+        (mask y).toReal * |score (some none) (G (addr b y)) - score (some none) H| := by
+    rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+    refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
+    by_cases he : result y = some none
+    · rw [ite_eq_left he, he, abs_sub_comm]
+    · simp [he]
+  refine (abs_sum_le_sum_abs _ _).trans ((sum_le_sum fun y _ => row y).trans ?_)
+  rw [← Probability.PMF.sum_map_mul mask (addr b)
+    (fun i => |score (some none) (G i) - score (some none) H|)]
+  refine (MeasuredPrefix.mean_abs_serviceAcceptance_update_sub_le addStep run
+    (next b) (accept b) H v (u b) (retry_bounded ..) (mask.map (addr b))
+    (δ := mass) (fun i => ENNReal.toReal_mono finite
+      (signingAddressLaw_le s extra A (msg b) i))).trans
+    (mul_le_mul_of_nonneg_left ?_ (sq_nonneg _))
+  rw [Real.sqrt_mul ENNReal.toReal_nonneg, mul_comm]
+  exact mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (add_le_add le_rfl
+    (pow_le_pow_left₀ (next b _).updateCost_nonneg (future b _) 2))) (Real.sqrt_nonneg _)
 
 /-- Compare an honest read with a fresh digest that persists only on a terminal trial.
 On mask rejection the digest is restored before the signer retries. Earlier measured signing
@@ -407,19 +395,16 @@ theorem abs_mean_signingAttemptRefreshProbability_sub_le {B W O : Type} [Fintype
   refine (abs_expect_le _ _).trans ((expect_le_expect (g := fun A =>
     L * (Real.sqrt (commitmentKernelSize s A) / Real.sqrt (2 ^ s.commitmentBoxBits)))
     fun A _ => ?_).trans ?_)
-  · have erase := abs_eraseRejected_sub_persistent s extra (base A) A (sk A) (p A) (ψ A) (msg A)
-      (seed A) fuel nonce (next A) (accept A) (hψ A) (future A)
-    have persist := abs_signingAttemptRefreshProbability_sub_le s extra (base A) A (sk A) (p A)
-      (ψ A) (msg A) (seed A) fuel nonce (next A) (accept A) (hψ A)
-    refine (abs_sub_le _ _ _).trans ((add_le_add erase persist).trans ?_)
-    rw [← add_mul]
-    apply mul_le_mul (by dsimp [L]; linarith [budget A]) _ (Real.sqrt_nonneg _) hL
-    rw [← Real.sqrt_div (Nat.cast_nonneg _)]
-    exact Real.sqrt_le_sqrt (commitmentGuessProbability_le_kernel_div_pow s A)
-  · rw [← mul_expect]
-    apply mul_le_mul_of_nonneg_left _ hL
-    simp_rw [div_eq_mul_inv]
-    rw [← expect_mul]
+  · refine (abs_sub_le _ _ _).trans ((add_le_add
+      (abs_eraseRejected_sub_persistent s extra (base A) A (sk A) (p A) (ψ A) (msg A)
+        (seed A) fuel nonce (next A) (accept A) (hψ A) (future A))
+      (abs_signingAttemptRefreshProbability_sub_le s extra (base A) A (sk A) (p A)
+        (ψ A) (msg A) (seed A) fuel nonce (next A) (accept A) (hψ A))).trans ?_)
+    rw [← add_mul, ← Real.sqrt_div (Nat.cast_nonneg _)]
+    exact mul_le_mul (by dsimp [L]; linarith [budget A])
+      (Real.sqrt_le_sqrt (commitmentGuessProbability_le_kernel_div_pow s A))
+      (Real.sqrt_nonneg _) hL
+  · simp_rw [← mul_expect, div_eq_mul_inv, ← expect_mul]
     gcongr
     exact (mean_sqrt_commitmentKernelSize_lt s).le
 
