@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, restriction of a polynomial to a line)
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.AffineLine
 public import Mathlib.Algebra.MvPolynomial.Eval
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.Algebra.MvPolynomial.Degrees
@@ -18,11 +19,13 @@ import Mathlib.RingTheory.Polynomial.Basic
 # A multivariate polynomial along a line
 
 `MvPolynomial.line u p` is the univariate polynomial `t ↦ p (t • u)`: the restriction of `p` to the
-line through `0` and `u`. Its constant coefficient is that of `p` (`MvPolynomial.coeff_zero_line`),
-and its value at `1` is the value of `p` at `u` (`MvPolynomial.eval_one_line`); for a polynomial of
-low degree that value is the sum of its first coefficients along the line
-(`MvPolynomial.sum_coeff_line_eq_eval`). `Polynomial.coeff_mul_succ` splits a positive coefficient
-of a product into the parts that involve a constant coefficient and the rest.
+line through `0` and `u`, the case of origin `0` of `MvPolynomial.affineLineHom`
+(`CslibFrontier/Foundations/Data/MvPolynomial/AffineLine.lean`). Its constant coefficient is that of
+`p` (`MvPolynomial.coeff_zero_line`), and its value at `1` is the value of `p` at `u`
+(`MvPolynomial.eval_one_line`); for a polynomial of low degree that value is the sum of its first
+coefficients along the line (`MvPolynomial.sum_coeff_line_eq_eval`). `Polynomial.coeff_mul_succ`
+splits a positive coefficient of a product into the parts that involve a constant coefficient and
+the rest.
 
 Along a line, the coefficient of degree `i` of `p` is the value at the point of its homogeneous part
 of degree `i` (`MvPolynomial.coeff_line`).
@@ -36,6 +39,8 @@ From the proof of Lemma K.2 of *VP ≠ VNP over every field* [AnthropicVPVNP2026
 
 ## Main results
 
+* `MvPolynomial.line_apply`: `line u` is `restrictAffineLine` with origin `0` and direction `u`;
+  `MvPolynomial.line_X`.
 * `MvPolynomial.coeff_line`, `MvPolynomial.coeff_zero_line`, `MvPolynomial.eval_one_line`,
   `MvPolynomial.sum_coeff_line_eq_eval`, `Polynomial.coeff_mul_succ`.
 -/
@@ -46,39 +51,33 @@ namespace MvPolynomial
 
 variable {F : Type*} [CommSemiring F] {σ : Type*}
 
-/-- `p` along the line through `0` and `u`: the polynomial `t ↦ p (t • u)`. -/
+/-- `p` along the line through `0` and `u`: the polynomial `t ↦ p (t • u)`, the affine line
+`0 + t • u`. -/
 @[expose] noncomputable def line (u : σ → F) : MvPolynomial σ F →ₐ[F] Polynomial F :=
-  aeval fun l => Polynomial.C (u l) * Polynomial.X
+  affineLineHom 0 u
+
+theorem line_apply (u : σ → F) (p : MvPolynomial σ F) : line u p = p.restrictAffineLine 0 u :=
+  rfl
+
+@[simp] theorem line_X (u : σ → F) (i : σ) : line u (X i) = Polynomial.C (u i) * Polynomial.X := by
+  simp [line, affineLineHom]
 
 /-- The constant coefficient along a line is the constant coefficient. -/
 theorem coeff_zero_line (u : σ → F) (p : MvPolynomial σ F) :
     (line u p).coeff 0 = constantCoeff p := by
-  rw [Polynomial.coeff_zero_eq_eval_zero]
-  have : (Polynomial.evalRingHom (0 : F)).comp (line u).toRingHom =
-      (constantCoeff : MvPolynomial σ F →+* F) := by
-    apply ringHom_ext
-    · intro r; simp [line]
-    · intro i; simp [line]
-  exact DFunLike.congr_fun this p
+  rw [Polynomial.coeff_zero_eq_eval_zero, line_apply, eval_restrictAffineLine, zero_smul,
+    add_zero, ← eval_zero]
 
 /-- At `t = 1` the line passes through `u`. -/
 theorem eval_one_line (u : σ → F) (p : MvPolynomial σ F) : (line u p).eval 1 = eval u p := by
-  have : (Polynomial.evalRingHom (1 : F)).comp (line u).toRingHom =
-      (eval u : MvPolynomial σ F →+* F) := by
-    apply ringHom_ext
-    · intro r; simp [line]
-    · intro i; simp [line]
-  exact DFunLike.congr_fun this p
+  rw [line_apply, eval_restrictAffineLine, one_smul, zero_add]
 
 /-- A polynomial of total degree at most `d` is the sum of its first `n > d` coefficients along any
 line, evaluated at `1`. -/
 theorem sum_coeff_line_eq_eval (u : σ → F) (p : MvPolynomial σ F) {d n : ℕ}
     (hd : p.totalDegree ≤ d) (hn : d < n) :
     ∑ i ∈ Finset.range n, (line u p).coeff i = eval u p := by
-  have hdeg : (line u p).natDegree ≤ d := by
-    have := aeval_natDegree_le p hd (fun i => Polynomial.C (u i) * Polynomial.X) (n := 1)
-      (fun i => (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X_le)
-    simpa [line] using this
+  have hdeg : (line u p).natDegree ≤ d := (natDegree_restrictAffineLine_le p 0 u).trans hd
   rw [← eval_one_line, Polynomial.eval_eq_sum_range' (lt_of_le_of_lt hdeg hn)]
   simp
 
@@ -92,9 +91,9 @@ theorem coeff_line (u : σ → F) (p : MvPolynomial σ F) (i : ℕ) :
       (isHomogeneous_monomial a rfl : (monomial d a).IsHomogeneous d.degree))]
     have e : line u (monomial d a) =
         Polynomial.C (eval u (monomial d a)) * Polynomial.X ^ d.degree := by
-      simp only [line, aeval_monomial, eval_monomial, Finsupp.prod, mul_pow,
-        Finset.prod_mul_distrib, Finset.prod_pow_eq_pow_sum, map_mul, map_prod, map_pow,
-            Polynomial.algebraMap_eq]
+      simp only [line, affineLineHom, Pi.zero_apply, map_zero, zero_add, aeval_monomial,
+        eval_monomial, Finsupp.prod, mul_pow, Finset.prod_mul_distrib,
+        Finset.prod_pow_eq_pow_sum, map_mul, map_prod, map_pow, Polynomial.algebraMap_eq]
       simp only [Finsupp.degree, mul_assoc]
       rfl
     rw [e, Polynomial.coeff_C_mul_X_pow]

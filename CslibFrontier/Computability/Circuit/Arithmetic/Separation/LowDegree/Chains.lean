@@ -96,13 +96,13 @@ theorem lem_lowdeg_chains [Fintype σ] (l : ℕ → MvPolynomial σ F)
         rcases hs with ⟨i, e⟩ | ⟨c, e⟩ | ⟨i, hi, j, hj, e⟩ | h
         · refine ⟨0, fun i' => if i' = i then 1 else 0, fun u m => ?_⟩
           rw [e]
-          simp only [line, MvPolynomial.aeval_X, Polynomial.coeff_C_mul, Polynomial.coeff_X]
+          simp only [line_X, Polynomial.coeff_C_mul, Polynomial.coeff_X]
           by_cases hm : m = 0
           · subst hm; simp
           · simp [hm]
         · refine ⟨0, 0, fun u m => ?_⟩
           rw [e]
-          simp [line]
+          simp
         · obtain ⟨κa, la, Ha⟩ := ih i hi (hi.trans hn)
           obtain ⟨κb, lb, Hb⟩ := ih j hj (hj.trans hn)
           refine ⟨κa + κb, la + lb, fun u m => ?_⟩
