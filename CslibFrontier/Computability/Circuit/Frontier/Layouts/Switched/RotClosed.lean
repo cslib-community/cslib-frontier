@@ -87,28 +87,19 @@ private theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
   rw [continuous_iff_continuousAt]
   intro ψ₀
   simp_rw [ContinuousAt, rotF_as_integral]
+  have hm : Measurable fun y : E3 => (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) := by fun_prop
   apply tendsto_integral_filter_of_dominated_convergence (fun _ => (1 : ℝ))
   · filter_upwards with ψ
-    refine Measurable.aestronglyMeasurable (Measurable.sub ?_ ?_)
-    · exact Measurable.ite ((by fun_prop : Measurable fun y : E3 =>
-        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫)) (measurableSet_lowSet I J si sj h ψ))
-        measurable_const measurable_const
-    · exact Measurable.ite ((by fun_prop : Measurable fun y : E3 =>
-        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫)) (measurableSet_highSet I J si sj h ψ))
-        measurable_const measurable_const
-  · filter_upwards with ψ
-    filter_upwards with y
-    split_ifs <;> norm_num
+    exact ((Measurable.ite (hm (measurableSet_lowSet I J si sj h ψ)) measurable_const
+      measurable_const).sub (Measurable.ite (hm (measurableSet_highSet I J si sj h ψ))
+      measurable_const measurable_const)).aestronglyMeasurable
+  · exact .of_forall fun ψ => .of_forall fun y => by split_ifs <;> norm_num
   · exact integrable_const 1
   · -- pointwise convergence off the null set `⟨v_j(ψ₀), y⟩ = h`
-    have hnull : stdGaussian E3 {y | vjVal (J := J) (sj := sj) ψ₀ y = h} = 0 := by
-      have := prob_inner_eq (norm_vj (J := J) hR ψ₀) h
-      simp only [Measure.real, ENNReal.toReal_eq_zero_iff] at this
-      rcases this with h0 | htop
-      · simpa [vjVal_eq_inner] using h0
-      · exact absurd htop (measure_ne_top _ _)
     have hae : ∀ᵐ y ∂stdGaussian E3, vjVal (J := J) (sj := sj) ψ₀ y ≠ h := by
-      rw [ae_iff]; simpa using hnull
+      rw [ae_iff]
+      simpa [vjVal_eq_inner] using (measureReal_eq_zero_iff (measure_ne_top _ _)).mp
+        (prob_inner_eq (norm_vj (J := J) hR ψ₀) h)
     filter_upwards [hae] with y hy
     have hcont : Continuous fun ψ => vjVal (J := J) (sj := sj) ψ y := by unfold vjVal; fun_prop
     apply tendsto_const_nhds.congr'
@@ -127,9 +118,7 @@ private theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
     have hhi : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ ↔
         (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀ := by
       simp only [highSet, Set.mem_ofPred_eq]
-      have hle : h ≤ vjVal (J := J) (sj := sj) ψ y ↔ h ≤ vjVal (J := J) (sj := sj) ψ₀ y := by
-        simpa only [not_lt] using hψ.not
-      exact and_congr_right fun _ => and_congr_left fun _ => hle
+      exact and_congr_right fun _ => and_congr_left fun _ => not_lt.symm.trans (hψ.not.trans not_lt)
     simp only [hlo, hhi]
 
 /-- **ROT on the closed interval.** -/
@@ -170,18 +159,15 @@ theorem rotF_pi (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 ≤
   have hJ1 : -1 ≤ J ∧ J ≤ 1 := by constructor <;> nlinarith only [hR, sq_nonneg sj]
   have hcI : Real.cos (Real.arccos I) = I := Real.cos_arccos hI1.1 hI1.2
   have hcJ : Real.cos (Real.arccos J) = J := Real.cos_arccos hJ1.1 hJ1.2
-  have hsI : Real.sin (Real.arccos I) = si := by
-    rw [Real.sin_arccos, ← hP, Real.sqrt_sq hsi]
-  have hsJ : Real.sin (Real.arccos J) = sj := by
-    rw [Real.sin_arccos, ← hR, Real.sqrt_sq hsj]
+  have hsI : Real.sin (Real.arccos I) = si := by rw [Real.sin_arccos, ← hP, Real.sqrt_sq hsi]
+  have hsJ : Real.sin (Real.arccos J) = sj := by rw [Real.sin_arccos, ← hR, Real.sqrt_sq hsj]
   -- the high set is empty
   have hhigh : {y : E3 | (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h π} = ∅ := by
     ext y
     simp only [highSet, Set.mem_ofPred_eq, Real.cos_pi, Real.sin_pi, Set.mem_empty_iff_false,
       iff_false, not_and, not_le]
     intro h1 h2
-    by_contra h3'
-    have h3 : h ≤ ⟪e 0, y⟫ := not_lt.mp h3'
+    by_contra! h3
     -- `sj (I y₀ + si y₁) + si (J y₀ - sj y₁) = (sj I + si J) y₀`
     have hcomb : sj * I + si * J ≤ 0 := by
       have hstep {A B sA sB : ℝ} (hpA : sA ^ 2 = 1 - A ^ 2) (hpB : sB ^ 2 = 1 - B ^ 2)
@@ -218,9 +204,8 @@ theorem rotF_pi (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 ≤
   ext y
   simp only [lowSet, planarSet, Set.mem_ofPred_eq, Set.mem_preimage, Real.cos_pi, Real.sin_pi,
     hcI, hcJ, hsI, hsJ]
-  constructor
-  · rintro ⟨a, b, c⟩; exact ⟨c, by linarith, by linarith⟩
-  · rintro ⟨a, b, c⟩; exact ⟨by linarith, by linarith, a⟩
+  exact ⟨fun ⟨a, b, c⟩ => ⟨c, by linarith, by linarith⟩,
+    fun ⟨a, b, c⟩ => ⟨by linarith, by linarith, a⟩⟩
 
 end Rot
 end Cslib.Circuits.Frontier.Switched
