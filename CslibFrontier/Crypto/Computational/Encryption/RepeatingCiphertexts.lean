@@ -163,9 +163,8 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
     unfold repeatWrapperStep at hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support (ProbOracleComp.sample (BitString.sampleList caller.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨c, hc, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawCt, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hc
       cases OracleComp.eq_of_mem_supportWith_pure hresult
