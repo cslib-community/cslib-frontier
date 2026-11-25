@@ -336,12 +336,9 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       csrOffset_succ targetAdj hlt
     have hoff_le : csrOffset targetAdj (y.regs iReg + 1) ≤ Mc :=
       (csrOffset_mono targetAdj (by omega : y.regs iReg + 1 ≤ N)).trans hmc
-    let BodyPost (z : Data 28) : Prop :=
-      P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1
-    change ∃ z, ExecWithin w prefixSumBody y z 7 ∧ BodyPost z
     unfold prefixSumBody
     wram_exec [hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
-    dsimp only [BodyPost, P]
+    dsimp only [P]
     refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
     · wram_simp [hy_fr r hr]
     · wram_simp; exact hoff_succ.symm
