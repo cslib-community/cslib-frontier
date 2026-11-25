@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Rt
+import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg.Helpers
 import CslibFrontier.Tactic.Realize
 
@@ -649,41 +650,35 @@ theorem bufClearLoop_spec {c U V w n_max base ep : ℕ}
       ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
       BufTrieMemRep base c U V w n_max ep tr' s'.mem ∧
       BufEpFrame base c U V w n_max ep s.mem s'.mem := by
-  intro rt k
-  induction k with
-  | zero =>
-    intro tr s hrep _
-    exact ⟨trivial, rfl, Nat.zero_le _, validProg_pure _, hrep, BufEpFrame.refl _⟩
-  | succ k ih =>
-    intro tr s hrep hclr
-    have hpre : BufClearOnePre w (rt, ()) s :=
-      ⟨c, U, V, w, n_max, base, ep, tr, henv, hep, rfl, hrep, hclr⟩
-    obtain ⟨hfr1, hmc1, hvp1, hrep1, hbfr1⟩ := bufClearOneRtProg_spec henv hep hrep hclr (s := s)
-    set s1 := (Memory.spec 0).clientState s (bufClearOneRtProg (rt, ()))
-    have hclr1 : ClearableBufTrie (bufClearOne tr) := hclr.clearOne_step.1
-    obtain ⟨hsafe_k, hfr_k, hmc_k, hvp_k, hrep_k, hbfr_k⟩ := ih (bufClearOne tr) s1 hrep1 hclr1
-    have hu_eq : (Memory.spec 0).clientResult s (bufClearOneRtProg (rt, ())) = () := rfl
-    dsimp only
-    have hst_all : (Memory.spec 0).clientState s (bufClearLoopGenProg ((rt, ()), k + 1)) =
-        (Memory.spec 0).clientState s1 (bufClearLoopGenProg ((rt, ()), k)) := by
-      change (Memory.spec 0).clientState s
-        (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s') = _
-      rw [clientState_bind, hu_eq]
-      rfl
-    rw [hst_all]
-    refine ⟨⟨hpre, ?_⟩, hfr_k.trans hfr1, ?_, ?_, hrep_k, hbfr1.trans hbfr_k⟩
-    · rw [clientState_width, clientResult_width]
-      exact hsafe_k
-    · change memoryCost (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s')
-        s ≤ 15 * (k + 1)
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      change memoryCost (bufClearOneRtProg (rt, ())) s +
-        memoryCost (bufClearLoopGenProg ((rt, ()), k)) s1 ≤ 15 * (k + 1)
-      dsimp only [rt] at hmc1 hmc_k ⊢
-      omega
-    · change ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (bufClearOneRtProg (rt, ()) >>= fun s' => iterate bufClearOneRtProg rt k s')
-      exact validProg_bind hvp1 hvp_k
+  intro rt k tr s hrep hclr
+  -- `J r () t`: `r` steps remain from `t`, which represents a clearable trie `tr'` reaching the
+  -- target.
+  let J : ℕ → Unit → Memory.State → Prop := fun r _ t => ∃ tr',
+    bufClearSteps r tr' = bufClearSteps k tr ∧ ClearableBufTrie tr' ∧
+    BufTrieMemRep base c U V w n_max ep tr' t.mem ∧ t.frontier = s.frontier ∧
+    BufEpFrame base c U V w n_max ep s.mem t.mem
+  have hJ : ∀ r t, J (r + 1) () t →
+      BufClearOnePre w (rt, ()) t ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) t (bufClearOneRtProg (rt, ())) ∧
+      memoryCost (bufClearOneRtProg (rt, ())) t ≤ 15 ∧
+      J r () ((Memory.spec 0).clientState t (bufClearOneRtProg (rt, ()))) := by
+    rintro r t ⟨tr', heq, hclr', hrep', hfr, hbfr⟩
+    obtain ⟨hfr1, hmc1, hvp1, hrep1, hbfr1⟩ := bufClearOneRtProg_spec henv hep hrep' hclr' (s := t)
+    exact ⟨⟨c, U, V, w, n_max, base, ep, tr', henv, hep, rfl, hrep', hclr'⟩, hvp1, hmc1,
+      bufClearOne tr', heq, hclr'.clearOne_step.1, hrep1, hfr1.trans hfr, hbfr.trans hbfr1⟩
+  have hJk : J k () s := ⟨tr, rfl, hclr, hrep, rfl, BufEpFrame.refl _⟩
+  obtain ⟨hsafe, hvp, tr', htr', -, hrep', hfr', hbfr'⟩ := validProg_iterate_of_inv (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (body := bufClearOneRtProg)
+    (safe := BufClearOnePre) (d := rt) (n := k) (fun j => J (k - j))
+    (fun j hj _ t h => by
+      obtain ⟨hpre, hvp1, -, hJ'⟩ :=
+        hJ (k - (j + 1)) t (by rwa [show k - (j + 1) + 1 = k - j by omega])
+      exact ⟨hpre, hvp1, hJ'⟩)
+    (a := ()) (s := s) (by rwa [Nat.sub_zero])
+  have hmc := memoryCost_iterate_le_potential bufClearOneRtProg rt J (fun _ _ => 0) _
+    (fun j _ t h => ⟨(hJ j t h).2.2.2, Nat.add_le_add_right (hJ j t h).2.2.1 0⟩) k () s hJk
+  obtain rfl : tr' = bufClearSteps k tr := by rwa [Nat.sub_self] at htr'
+  exact ⟨hsafe, hfr', hmc, hvp, hrep', hbfr'⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -21,12 +21,18 @@ through the public facade.
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.mkBufRtGenProg`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.BufRtSegLe`: the header words and tables of
+  a `BufRt` lie inside its large-space segment (concluded by `rt_seg_le`)
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.BufRtDisj`: the header words and tables of a
+  `BufRt` are laid out in order without overlap (concluded by `rt_disj_le`)
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufReadItemPairRtProg`
 
 ## Main results
 
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_mkBufRtGen`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.mkBufRtGenProg_spec`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.rt_seg_le`
+* `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.rt_disj_le`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.bufTrieMemRep_iff_rt`
 * `Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.realizes_bufReadItemPairRt`
 -/
