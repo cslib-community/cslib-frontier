@@ -3996,6 +3996,14 @@ Dov Monderer and Lloyd S. Shapley.
 Games and Economic Behavior 14(1), 124–143, 1996. https://doi.org/10.1006/game.1996.0044 . The published text was consulted on 2026-11-07 for the definitions (2.1)–(2.3), Lemmas 2.1, 2.3, 2.5 and 2.7, Corollary 2.2, Theorem 3.1 and footnote 12, and checked again against the *Games and Economic Behavior* PDF on 2026-11-24 ([PR #8098](https://github.com/cslib-community/cslib-frontier/pull/8098#issuecomment-7139462024)) for Section 2 (Prisoner's Dilemma on p. 128, counterexample `G₁` on p. 129, Corollary 2.6 on p. 130, Theorem 2.8 and Corollary 2.9 on pp. 130–131, and Lemma 2.10 with equation (2.4) on pp. 131–132) and Appendix A (pp. 138–139, proof of Theorem 2.8).
 In [Strategic/PotentialCharacterization.lean](../CslibFrontier/GameTheory/Strategic/PotentialCharacterization.lean), all game definitions are stated in cost-minimization form (with reversed inequalities relative to payoffs), `CostGame.IsWeightedPotential` omits positivity `0 < w i` relative to equation (2.2) (supplying `0 < w i` explicitly where needed and generalizing Lemma 2.10 to arbitrary `w : ι → ℝ`), and the coordination–dummy decomposition (`CostGame.IsCoordination`, `CostGame.IsDummy`, `CostGame.exists_isExactPotential_iff_coordination_add_dummy`) is proved algebraically without citing Appendix B.
 
+<a id="monetolteanu18"></a>
+## monetolteanu18
+
+Mikaël Monet and Dan Olteanu.
+*Towards Deterministic Decomposable Circuits for Safe Queries* (`MonetOlteanu2018`).
+AMW 2018, CEUR Workshop Proceedings 2100, paper 19. https://ceur-ws.org/Vol-2100/paper19.pdf . Read in the CEUR-WS PDF on 2026-11-25 UTC: Definition 3 (PDF p. 4), a Boolean circuit with and, or, not and variable gates is decomposable when the inputs of every and-gate depend on pairwise disjoint sets of variables, and deterministic when no valuation makes two inputs of an or-gate true; a negation normal form has not-gates only on variables.
+[DeterministicDecomposable.lean](../CslibFrontier/Computability/Circuit/Boolean/DeterministicDecomposable.lean) formalizes Definition 3 on De Morgan circuits (`Circuit.IsDeterministicDecomposable`), with binary and- and or-gates and with Boolean constants, which Definition 3 does not list.
+
 <a id="mosertardos10"></a>
 ## mosertardos10
 
