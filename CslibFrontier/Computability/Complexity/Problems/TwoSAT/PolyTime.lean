@@ -363,16 +363,16 @@ theorem eval_assignment_of_satisfiable {φ : CNF V} (hw : ∀ c ∈ φ, c.length
   have hnocyc' : ∀ x, ¬ (Relation.ReflTransGen φ.Implies (x, true) (x, false) ∧
       Relation.ReflTransGen φ.Implies (x, false) (x, true)) :=
     fun x ⟨h₁, h₂⟩ => hnocyc x h₁ h₂
-  have hbase : GoodSet φ [] :=
-    ⟨fun _ h => absurd h List.not_mem_nil,
-      fun _ h => absurd h List.not_mem_nil,
-      fun _ h => absurd h List.not_mem_nil⟩
-  have hgood :
-      GoodSet φ (chosenLiterals φ) ∧
-        ∀ v ∈ φ.vars, (v, true) ∈ chosenLiterals φ ∨ (v, false) ∈ chosenLiterals φ := by
-    obtain ⟨hg, -, hdec⟩ := foldl_chooseStep_good hnocyc' φ.vars [] (fun _ h => h) hbase
-    exact ⟨hg, hdec⟩
-  obtain ⟨hg, hdec⟩ := hgood
+  obtain ⟨hg, -, hdec⟩ :
+      GoodSet φ (chosenLiterals φ) ∧ [] ⊆ chosenLiterals φ ∧
+        ∀ v ∈ φ.vars, (v, true) ∈ chosenLiterals φ ∨ (v, false) ∈ chosenLiterals φ :=
+    foldl_chooseStep_good hnocyc' φ.vars [] (fun _ h => h)
+      ⟨fun _ h => absurd h List.not_mem_nil, fun _ h => absurd h List.not_mem_nil,
+        fun _ h => absurd h List.not_mem_nil⟩
+  have hdec_lit : ∀ ℓ : Literal V, ℓ.1 ∈ φ.vars →
+      ℓ ∈ chosenLiterals φ ∨ ℓ.negate ∈ chosenLiterals φ := by
+    rintro ⟨v, b⟩ hv
+    cases b <;> [exact (hdec v hv).symm; exact hdec v hv]
   have hlits_eval : ∀ m : Literal V, m ∈ chosenLiterals φ → assignment φ m.1 = m.2 := by
     rintro ⟨v, b⟩ hm
     cases b
@@ -385,40 +385,18 @@ theorem eval_assignment_of_satisfiable {φ : CNF V} (hw : ∀ c ∈ φ, c.length
   rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
   · exact absurd hc hnil
   · have hav : a.1 ∈ φ.vars := CNF.mem_vars.mpr ⟨[a], hc, a.2, List.mem_singleton_self a⟩
-    have ha_mem : a ∈ chosenLiterals φ := by
-      rcases hdec a.1 hav with ht | hf
-      · rcases a with ⟨v, p⟩
-        cases p
-        · have himp : φ.Implies (v, true) (v, false) :=
-            ⟨[(v, false)], hc, by simp [Std.Sat.Literal.negate], by simp,
-              fun m hm => .inl (by simpa [Std.Sat.Literal.negate] using hm)⟩
-          exact hg.closed (v, true) ht (v, false) himp
-        · exact ht
-      · rcases a with ⟨v, p⟩
-        cases p
-        · exact hf
-        · have himp : φ.Implies (v, false) (v, true) :=
-            ⟨[(v, true)], hc, by simp [Std.Sat.Literal.negate], by simp,
-              fun m hm => .inl (by simpa [Std.Sat.Literal.negate] using hm)⟩
-          exact hg.closed (v, false) hf (v, true) himp
+    have ha_mem : a ∈ chosenLiterals φ :=
+      (hdec_lit a hav).elim id fun hna =>
+        hg.closed a.negate hna a ⟨[a], hc, by simp [negate_negate], by simp,
+          fun m hm => .inl (by simpa [negate_negate] using hm)⟩
     exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, List.mem_singleton_self a, hlits_eval a ha_mem⟩
   · have hav : a.1 ∈ φ.vars := CNF.mem_vars.mpr ⟨[a, b], hc, a.2, by simp⟩
-    by_cases ha_mem : a ∈ chosenLiterals φ
-    · exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, by simp, hlits_eval a ha_mem⟩
-    · have hna_mem : a.negate ∈ chosenLiterals φ := by
-        rcases a with ⟨v, p⟩
-        rcases hdec v hav with ht | hf
-        · cases p
-          · exact ht
-          · exact absurd ht ha_mem
-        · cases p
-          · exact absurd hf ha_mem
-          · exact hf
-      have himp : φ.Implies a.negate b :=
-        ⟨[a, b], hc, by simp [negate_negate], by simp,
+    rcases hdec_lit a hav with ha | hna
+    · exact (Clause.eval_eq_true_iff _ _).mpr ⟨a, by simp, hlits_eval a ha⟩
+    · have hb : b ∈ chosenLiterals φ :=
+        hg.closed a.negate hna b ⟨[a, b], hc, by simp [negate_negate], by simp,
           fun m hm => by simpa [negate_negate] using hm⟩
-      have hb_mem : b ∈ chosenLiterals φ := hg.closed a.negate hna_mem b himp
-      exact (Clause.eval_eq_true_iff _ _).mpr ⟨b, by simp, hlits_eval b hb_mem⟩
+      exact (Clause.eval_eq_true_iff _ _).mpr ⟨b, by simp, hlits_eval b hb⟩
   · simp at hc2
 
 /-- Correctness of the executable `solve` decider. -/
