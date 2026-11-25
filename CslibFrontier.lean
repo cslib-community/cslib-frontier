@@ -8818,6 +8818,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.Neighborhood
 public import CslibFrontier.Foundations.Geometry.Polygonal.Noncrossing
 public import CslibFrontier.Foundations.Geometry.Polygonal.NoncrossingOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.ParabolaChord
+public import CslibFrontier.Foundations.Geometry.Polygonal.Perturbation
 public import CslibFrontier.Foundations.Geometry.Polygonal.PlateauShear
 public import CslibFrontier.Foundations.Geometry.Polygonal.RadialOrder
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
