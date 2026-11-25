@@ -519,14 +519,8 @@ theorem IsWalrasianEquilibrium.lprObjective_le {N M : Type*} [Fintype N] [Fintyp
     lprObjective v x ≤ welfare v a := by
   let u : N → ℝ := fun i => v i (a.bundle i) - ∑ j ∈ a.bundle i, p j
   have hdual : IsDLPRFeasible v u p :=
-    { cover := fun i S => by
-        have h := heq.demand i S
-        dsimp only [u]
-        linarith
-      utility_nonneg := fun i => by
-        have h := heq.demand i ∅
-        simp only [Finset.sum_empty, sub_zero] at h
-        exact (hv i).trans h
+    { cover := fun i S => by dsimp only [u]; linarith [heq.demand i S]
+      utility_nonneg := fun i => (hv i).trans (by simpa [u] using heq.demand i ∅)
       price_nonneg := heq.price_nonneg }
   have hobj : dlprObjective u p = welfare v a := by
     unfold dlprObjective welfare
@@ -547,11 +541,7 @@ theorem exists_isWalrasianEquilibrium_of_lprObjective_le {N M : Type*} [Fintype 
     ∃ p : M → ℝ, IsWalrasianEquilibrium v p a := by
   obtain ⟨x₀, u, p, hx₀, hup, heq⟩ := exists_lpr_dlpr_eq v
   have hle : dlprObjective u p ≤ welfare v a := heq ▸ hopt x₀ hx₀
-  have hge : welfare v a ≤ dlprObjective u p := by
-    simpa only [Allocation.lprObjective_indicator] using
-      lprObjective_le_dlprObjective a.indicator_isLPRFeasible hup
-  have htight : welfare v a = dlprObjective u p := le_antisymm hge hle
-  unfold welfare dlprObjective at htight
+  unfold welfare dlprObjective at hle
   -- Complementary slackness via the chain `∑ vᵢ(S*ᵢ) ≤ ∑ (uᵢ + p(S*ᵢ)) ≤ ∑ uᵢ + ∑ pⱼ = ∑ vᵢ(S*ᵢ)`.
   have hcov := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hup.cover i (a.bundle i)
   have hpriceSum := sum_bundle_prices_le hup.price_nonneg a
@@ -648,9 +638,8 @@ theorem welfare_noEquilibriumVal_le (a : Allocation Bool Bool) :
   rw [Fintype.sum_bool]
   by_cases h : a.bundle true = Finset.univ
   · have hA : a.bundle false = ∅ := by
-      have hd := a.disjoint (by decide : false ≠ true)
-      rw [Function.onFun, h, Finset.disjoint_iff_inter_eq_empty, Finset.inter_univ] at hd
-      exact hd
+      simpa only [Function.onFun, h, Finset.disjoint_iff_inter_eq_empty, Finset.inter_univ] using
+        a.disjoint (by decide : false ≠ true)
     simp [noEquilibriumVal, h, hA]
   · simp only [noEquilibriumVal, h, ↓reduceIte, Bool.false_eq_true]
     split_ifs <;> norm_num
