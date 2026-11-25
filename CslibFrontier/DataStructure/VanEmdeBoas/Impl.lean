@@ -222,11 +222,8 @@ theorem memberVisits_le (t : Tree d) (x : ℕ) : t.memberVisits x ≤ d + 1 :=
 theorem insertVisits_of_bounds_none {t : Tree d} (hb : t.bounds = none) (x : ℕ) :
     t.insertVisits x = 1 := by
   cases t with
-  | leaf b => rfl
-  | node b s c =>
-    simp only [bounds] at hb
-    subst b
-    rfl
+  | leaf _ => rfl
+  | node _ _ _ => cases hb; rfl
 
 /-- `insert` performs at most `d + 1` active recursive calls. -/
 theorem insertVisits_le (t : Tree d) (x : ℕ) : t.insertVisits x ≤ d + 1 :=
@@ -245,10 +242,9 @@ depth. -/
 theorem eraseVisits_of_bounds_eq {t : Tree d} {m : ℕ} (hb : t.bounds = some (m, m)) (x : ℕ) :
     t.eraseVisits x = 1 := by
   cases t with
-  | leaf b => rfl
-  | node b s c =>
-    simp only [bounds] at hb
-    subst b
+  | leaf _ => rfl
+  | node _ _ _ =>
+    cases hb
     simp only [eraseVisits, ↓reduceIte, ite_self]
 
 /-- `erase` performs at most `d + 1` active recursive calls. -/
@@ -259,10 +255,10 @@ theorem eraseVisits_le (t : Tree d) (x : ℕ) : t.eraseVisits x ≤ d + 1 :=
       split_ifs
       · exact Nat.le_add_left 1 _
       · exact Nat.le_add_left 1 _
-      · rcases eraseTarget m x s c with _ | ⟨_, i, low⟩
+      · rcases eraseTarget m x s c with _ | ⟨_, i, _⟩
         · exact Nat.le_add_left 1 _
         · dsimp only
-          rcases (c i).bounds with _ | ⟨cm, cM⟩
+          rcases (c i).bounds with _ | ⟨_, _⟩
           · exact Nat.le_add_left 1 _
           · dsimp only
             split_ifs
@@ -343,15 +339,12 @@ theorem finMinimum_spec {t : Tree d} (ht : t.Valid) :
   cases hb : t.bounds with
   | none =>
     simp only [finMinimum, minimum, hb, Option.map_none, LeastResult]
-    ext x
-    simp only [mem_finElements_iff ht, Finset.notMem_empty, iff_false]
-    exact not_contains_of_bounds_none hb x.val
+    exact Finset.eq_empty_iff_forall_notMem.mpr fun x =>
+      mt (mem_finElements_iff ht x).mp (not_contains_of_bounds_none hb x.val)
   | some b =>
-    obtain ⟨m, M⟩ := b
     obtain ⟨_, _, hm_mem, _, hbounds⟩ := ht.extrema_of_bounds hb
-    have hm : m < universeSize d := ht.contains_lt hm_mem
-    simp only [finMinimum, minimum, hb, Option.map_some, dite_eq_left hm, LeastResult,
-      mem_finElements_iff ht]
+    simp only [finMinimum, minimum, hb, Option.map_some, dite_eq_left (ht.contains_lt hm_mem),
+      LeastResult, mem_finElements_iff ht]
     exact ⟨hm_mem, fun z hz => (hbounds z.val hz).1⟩
 
 /-- `finSuccessor` satisfies the optional-minimum contract for keys strictly above `x`. -/
@@ -360,20 +353,14 @@ theorem finSuccessor_spec {t : Tree d} (ht : t.Valid) (x : Fin (universeSize d))
   cases hs : t.successor x.val with
   | none =>
     simp only [finSuccessor, hs, LeastResult]
-    have hnone := (successor_eq_none_iff ht x.val).mp hs
-    ext z
-    simp only [Finset.mem_filter, mem_finElements_iff ht, Finset.notMem_empty, iff_false, not_and]
-    intro hz
-    have hle := hnone z.val hz
-    exact not_lt_of_ge hle
+    exact Finset.eq_empty_iff_forall_notMem.mpr fun z hz =>
+      not_lt_of_ge ((successor_eq_none_iff ht x.val).mp hs z.val
+        ((mem_finElements_iff ht z).mp (Finset.mem_filter.mp hz).1)) (Finset.mem_filter.mp hz).2
   | some y =>
     have hy_spec := (successor_eq_some_iff ht x.val y).mp hs
-    have hy : y < universeSize d := ht.contains_lt hy_spec.1
-    simp only [finSuccessor, hs, dite_eq_left hy, LeastResult, Finset.mem_filter,
-      mem_finElements_iff ht]
-    refine ⟨⟨hy_spec.1, hy_spec.2.1⟩, ?_⟩
-    intro z ⟨hz, hxz⟩
-    exact hy_spec.2.2 z.val hz hxz
+    simp only [finSuccessor, hs, dite_eq_left (ht.contains_lt hy_spec.1), LeastResult,
+      Finset.mem_filter, mem_finElements_iff ht]
+    exact ⟨⟨hy_spec.1, hy_spec.2.1⟩, fun z ⟨hz, hxz⟩ => hy_spec.2.2 z.val hz hxz⟩
 
 /-- A successful `finPredecessor` returns the greatest element of `t.finElements` strictly below
 `x`. -/

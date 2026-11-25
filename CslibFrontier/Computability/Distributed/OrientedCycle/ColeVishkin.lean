@@ -227,8 +227,7 @@ theorem iterate_cvBound_le_six {N k : ℕ} (hk : Nat.logStar N ≤ k) : cvBound^
   | zero => exact iterate_cvBound_logStar_le N
   | succ j ih =>
     rw [Function.iterate_succ_apply']
-    refine le_trans (cvBound_monotone ih) ?_
-    decide
+    exact (cvBound_monotone ih).trans (by decide)
 
 /-- The Cole–Vishkin 3-colouring algorithm with parameter `K`: `K` bit-index reduction rounds, then
 three rounds removing colours `5`, `4` and `3`; afterwards nodes keep their colours. Its input is an
@@ -266,14 +265,11 @@ theorem state_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) {s : ℕ} (h
   | zero => exact ⟨hx, hN⟩
   | succ s ih =>
     obtain ⟨hp, hb⟩ := ih (by omega)
-    have hst : ∀ v, (threeColoring K).state x (s + 1) v =
-        cvColor ((threeColoring K).state x s v) ((threeColoring K).state x s (v + 1)) := fun v => by
+    have hst (v) : (threeColoring K).state x (s + 1) v =
+        cvColor ((threeColoring K).state x s v) ((threeColoring K).state x s (v + 1)) := by
       rw [Algorithm.state_succ, step_of_lt (by omega)]
-    refine ⟨fun v => ?_, fun v => ?_⟩
-    · rw [hst, hst]
-      exact cvColor_ne (hp v)
-    · rw [hst, Function.iterate_succ_apply']
-      exact cvColor_lt (hp v) (hb v) (hb (v + 1))
+    exact ⟨fun v => by rw [hst, hst]; exact cvColor_ne (hp v),
+      fun v => by rw [hst, Function.iterate_succ_apply']; exact cvColor_lt (hp v) (hb v) (hb _)⟩
 
 /-- In the three colour-removal rounds after round `K`, the colouring stays proper and loses colours
 `5`, `4` and `3`, provided `K` Cole–Vishkin rounds leave at most `6` colours. -/
@@ -287,18 +283,16 @@ theorem state_add_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) (h6 : cv
     exact ⟨hp, fun v => lt_of_lt_of_le (hb v) h6⟩
   | succ i ih =>
     obtain ⟨hp, hb⟩ := ih (by omega)
-    have hst : ∀ v, (threeColoring K).state x (K + (i + 1)) v =
+    have hst (v) : (threeColoring K).state x (K + (i + 1)) v =
         reduceColor (5 - i) ((threeColoring K).state x (K + i) (v - 1))
-          ((threeColoring K).state x (K + i) v) ((threeColoring K).state x (K + i) (v + 1)) :=
-      fun v => by
-        rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le_of_lt (by omega) (by omega),
-          Nat.add_sub_cancel_left]
-    refine ⟨fun v => ?_, fun v => ?_⟩
-    · rw [hst, hst, add_sub_cancel_right]
-      exact reduceColor_ne (hp v)
-    · rw [hst]
-      have := hb v
-      exact lt_of_lt_of_le (reduceColor_lt (by omega) (by omega)) (by omega)
+          ((threeColoring K).state x (K + i) v) ((threeColoring K).state x (K + i) (v + 1)) := by
+      rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le_of_lt (by omega) (by omega),
+        Nat.add_sub_cancel_left]
+    refine ⟨fun v => by rw [hst, hst, add_sub_cancel_right]; exact reduceColor_ne (hp v),
+      fun v => ?_⟩
+    rw [hst]
+    have := hb v
+    exact (reduceColor_lt (by omega) (by omega)).trans_le (by omega)
 
 /-- After round `K + 3` every node keeps its colour. -/
 theorem state_add_three_add (j : ℕ) :
@@ -317,12 +311,10 @@ theorem threeColoring_run_of_iterate_le {n K N : ℕ} {x : ZMod n → ℕ} (hx :
     (hN : ∀ v, x v < N) (h6 : cvBound^[K] N ≤ 6) {r : ℕ} (hr : K + 3 ≤ r) :
     IsProperColoring ((threeColoring K).run x r) ∧ ∀ v, (threeColoring K).run x r v < 3 := by
   obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hr
-  have h := threeColoring.state_add_of_le hx hN h6 le_rfl
-  have hrun : (threeColoring K).run x (K + 3 + j) = (threeColoring K).state x (K + 3) := by
-    funext v
-    exact congrFun (threeColoring.state_add_three_add j) v
+  have hrun : (threeColoring K).run x (K + 3 + j) = (threeColoring K).state x (K + 3) :=
+    funext (congrFun (threeColoring.state_add_three_add j))
   rw [hrun]
-  exact h
+  exact threeColoring.state_add_of_le hx hN h6 le_rfl
 
 /-- **Cole–Vishkin 3-colouring** [Cole and Vishkin][ColeVishkin1986]. On every oriented cycle
 (and on the infinite oriented path, `n = 0`), from a proper colouring with colours below `N`, the
@@ -424,12 +416,10 @@ theorem fastThreeColoring_run {n N s : ℕ} {x : ZMod n → ℕ} (hx : IsProperC
       ∀ v, (fastThreeColoring s).run x r v < 3 := by
   obtain ⟨t, rfl⟩ := Nat.exists_eq_add_of_le hr
   have hrun : (fastThreeColoring s).run x (s + 3 + t) =
-      (threeColoring 0).run ((cvRule s).apply x) (3 + t) := by
-    funext v
-    rw [Nat.add_assoc]
-    exact LocalRule.andThen_run _ _ x _ v
+      (threeColoring 0).run ((cvRule s).apply x) (3 + t) :=
+    funext fun v => by rw [Nat.add_assoc]; exact LocalRule.andThen_run _ _ x _ v
   rw [hrun]
-  exact threeColoring_run_of_iterate_le (N := 6) (cvRule_apply_isProperColoring hx s)
+  exact threeColoring_run_of_iterate_le (cvRule_apply_isProperColoring hx s)
     (cvRule_apply_lt hx hN hs) le_rfl (by omega)
 
 /-- The Cole–Vishkin algorithm `fastThreeColoring s` as a rule of radius `s + 3`. -/
@@ -444,25 +434,13 @@ theorem fastThreeColoringRule_toFun {s N : ℕ} {y : ℤ → ℕ} (hy : ∀ i, y
     (fastThreeColoringRule s).toFun y ≠ (fastThreeColoringRule s).toFun (fun i => y (i + 1)) ∧
       (fastThreeColoringRule s).toFun y < 3 := by
   have h := fastThreeColoring_run (n := 0) (x := y) hy hN hs le_rfl
-  have h0 : window (n := 0) y 0 = y := by
-    funext j
-    simp only [window]
-    rw [zero_add]
-    rfl
-  have h1 : window (n := 0) y 1 = fun i => y (i + 1) := by
-    funext j
-    simp only [window]
-    rw [add_comm]
-    rfl
+  have h0 : window (n := 0) y 0 = y := funext fun j => by simp only [window, zero_add]; rfl
+  have h1 : window (n := 0) y 1 = fun i => y (i + 1) :=
+    funext fun j => by simp only [window, add_comm (1 : ZMod 0)]; rfl
   have e0 := (fastThreeColoring s).run_eq_apply (n := 0) y (s + 3) 0
   have e1 := (fastThreeColoring s).run_eq_apply (n := 0) y (s + 3) 1
   simp only [LocalRule.apply, h0, h1] at e0 e1
-  refine ⟨?_, ?_⟩
-  · have := h.1 0
-    rw [e0, zero_add, e1] at this
-    exact this
-  · have := h.2 0
-    rw [e0] at this
-    exact this
+  exact ⟨by simpa only [fastThreeColoringRule, e0, zero_add, e1] using h.1 0,
+    by simpa only [fastThreeColoringRule, e0] using h.2 0⟩
 
 end Cslib.Distributed.OrientedCycle
