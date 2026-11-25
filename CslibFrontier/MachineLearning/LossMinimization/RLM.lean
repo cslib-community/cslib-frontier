@@ -111,10 +111,9 @@ the regularizer are continuous on `K`, some rule minimizes the regularized empir
 theorem exists_isRLM {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} (hK : IsCompact K)
     (hne : K.Nonempty) (hℓ : ∀ z, ContinuousOn (fun w => ℓ w z) K) (hR : ContinuousOn R K)
     (m : ℕ) : ∃ A : (Fin m → Z) → E, IsRLM ℓ R K A := by
-  have h : ∀ S : Fin m → Z, ∃ w ∈ K, IsMinOn (fun w => empiricalRisk ℓ S w + R w) K w :=
-    fun S => hK.exists_isMinOn hne ((continuousOn_empiricalRisk fun i => hℓ (S i)).add hR)
-  choose A hAK hAmin using h
-  exact ⟨A, ⟨hAK, hAmin⟩⟩
+  choose A hAK hAmin using fun S : Fin m → Z =>
+    hK.exists_isMinOn hne ((continuousOn_empiricalRisk fun i => hℓ (S i)).add hR)
+  exact ⟨A, hAK, hAmin⟩
 
 end Existence
 
@@ -130,43 +129,25 @@ theorem exists_isRLM_tikhonov [ProperSpace E] {ℓ : E → Z → ℝ} {K : Set E
     (hc : ∀ w ∈ K, ∀ z, c ≤ ℓ w z) {r : ℝ} (hr : 0 < r) (m : ℕ) :
     ∃ A : (Fin m → Z) → E, IsRLM ℓ (fun w => r * ‖w‖ ^ 2) K A := by
   obtain ⟨w₀, hw₀⟩ := hne
-  have h : ∀ S : Fin m → Z,
-      ∃ w ∈ K, IsMinOn (fun w => empiricalRisk ℓ S w + r * ‖w‖ ^ 2) K w := by
-    intro S
-    set f := fun w => empiricalRisk ℓ S w + r * ‖w‖ ^ 2 with hf_def
-    have hf : ContinuousOn f K :=
-      (continuousOn_empiricalRisk fun i => hℓ (S i)).add (by fun_prop)
-    -- The empirical risk is at least `min c 0` on `K` (it is `0` on the empty sample).
-    have hlow : ∀ w ∈ K, min c 0 + r * ‖w‖ ^ 2 ≤ f w := fun w hw => by
-      have : min c 0 ≤ empiricalRisk ℓ S w := by
-        rw [empiricalRisk_def]
-        rcases isEmpty_or_nonempty (Fin m) with hm | hm
-        · simp only [Finset.univ_eq_empty, Finset.expect_empty]
-          exact min_le_right _ _
-        · exact Finset.le_expect Finset.univ_nonempty fun i _ =>
-            (min_le_left _ _).trans (hc w hw (S i))
-      simp only [hf_def]
-      linarith
-    -- Away from a large ball, `r‖w‖²` exceeds `f w₀ - min c 0`.
-    set ρ₀ := |f w₀ - min c 0| / r + 1
-    have hev : ∀ᶠ w in cocompact E ⊓ Filter.principal K, f w₀ ≤ f w := by
-      rw [eventually_inf_principal]
-      filter_upwards [tendsto_norm_cocompact_atTop.eventually_ge_atTop ρ₀] with w hw hwK
-      have h1 : 1 ≤ ‖w‖ := by
-        have := div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le
-        linarith
-      have h2 : |f w₀ - min c 0| ≤ r * ‖w‖ := by
-        have : |f w₀ - min c 0| / r ≤ ‖w‖ := by linarith
-        rwa [div_le_iff₀ hr, mul_comm] at this
-      have h3 : r * ‖w‖ ≤ r * ‖w‖ ^ 2 :=
-        calc r * ‖w‖ = r * ‖w‖ * 1 := by ring
-          _ ≤ r * ‖w‖ * ‖w‖ := mul_le_mul_of_nonneg_left h1 (by positivity)
-          _ = r * ‖w‖ ^ 2 := by ring
-      have := hlow w hwK
-      linarith [le_abs_self (f w₀ - min c 0)]
-    exact hf.exists_isMinOn' hK hw₀ hev
-  choose A hAK hAmin using h
-  exact ⟨A, ⟨hAK, hAmin⟩⟩
+  choose A hAK hAmin using fun S : Fin m → Z => by
+    set f := fun w => empiricalRisk ℓ S w + r * ‖w‖ ^ 2
+    have hf : ContinuousOn f K := (continuousOn_empiricalRisk fun i => hℓ (S i)).add (by fun_prop)
+    refine hf.exists_isMinOn' hK hw₀ (eventually_inf_principal.2 ?_)
+    filter_upwards [tendsto_norm_cocompact_atTop.eventually_ge_atTop
+      (|f w₀ - min c 0| / r + 1)] with w hw hwK
+    have hlow : min c 0 ≤ empiricalRisk ℓ S w := by
+      rw [empiricalRisk_def]
+      rcases isEmpty_or_nonempty (Fin m) with _ | _
+      · simp
+      · exact Finset.le_expect Finset.univ_nonempty fun i _ =>
+          (min_le_left _ _).trans (hc w hwK (S i))
+    have h1 : 1 ≤ ‖w‖ := by linarith [div_nonneg (abs_nonneg (f w₀ - min c 0)) hr.le]
+    have h2 : |f w₀ - min c 0| ≤ r * ‖w‖ := by rw [mul_comm, ← div_le_iff₀ hr]; linarith
+    have h3 : r * ‖w‖ ≤ r * ‖w‖ ^ 2 := by
+      simpa only [mul_one, mul_assoc, sq] using
+        mul_le_mul_of_nonneg_left h1 (mul_nonneg hr.le (norm_nonneg w))
+    linarith [le_abs_self (f w₀ - min c 0)]
+  exact ⟨A, hAK, hAmin⟩
 
 end Normed
 
@@ -187,25 +168,19 @@ theorem IsRLM.mul_norm_sub_sq_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Se
     σ * m * ‖A (Function.update S i z') - A S‖ ^ 2 ≤
       (ℓ (A (Function.update S i z')) (S i) - ℓ (A S) (S i)) +
         (ℓ (A S) z' - ℓ (A (Function.update S i z')) z') := by
-  have hm : (0 : ℝ) < m := by exact_mod_cast i.pos
-  have hu := hA.mem S
-  have hv := hA.mem (Function.update S i z')
-  -- Both regularized empirical risks are `σ`-strongly convex, so both minimizers have quadratic
-  -- growth.
-  have hstrong : ∀ T : Fin m → Z, StrongConvexOn K σ fun w => empiricalRisk ℓ T w + R w :=
-    fun T => by
-      have h := hR.add_convexOn (convexOn_empiricalRisk hR.1 fun j => hconv (T j))
-      rw [add_comm] at h
-      exact h
-  have h₁ := (hstrong S).add_le_of_isMinOn hu (hA.isMinOn S) hv
-  have h₂ := (hstrong (Function.update S i z')).add_le_of_isMinOn hv (hA.isMinOn _) hu
+  have hm : (0 : ℝ) < m := Nat.cast_pos.2 i.pos
+  have hstrong (T : Fin m → Z) : StrongConvexOn K σ fun w => empiricalRisk ℓ T w + R w := by
+    have h := hR.add_convexOn (convexOn_empiricalRisk hR.1 fun j => hconv (T j))
+    rwa [add_comm] at h
+  have h₁ := (hstrong S).add_le_of_isMinOn (hA.mem S) (hA.isMinOn S)
+    (hA.mem (Function.update S i z'))
+  have h₂ := (hstrong (Function.update S i z')).add_le_of_isMinOn
+    (hA.mem (Function.update S i z')) (hA.isMinOn _) (hA.mem S)
   rw [norm_sub_rev, empiricalRisk_update, empiricalRisk_update] at h₂
-  have h : σ * ‖A (Function.update S i z') - A S‖ ^ 2 ≤
-      ((ℓ (A S) z' - ℓ (A S) (S i)) -
-        (ℓ (A (Function.update S i z')) z' - ℓ (A (Function.update S i z')) (S i))) / m := by
-    rw [sub_div]
-    linarith
-  rw [le_div_iff₀ hm] at h
+  have h := (le_div_iff₀ hm).1 (show σ * ‖A (Function.update S i z') - A S‖ ^ 2 ≤
+    ((ℓ (A S) z' - ℓ (A S) (S i)) -
+      (ℓ (A (Function.update S i z')) z' - ℓ (A (Function.update S i z')) (S i))) / m by
+    rw [sub_div]; linarith)
   linarith
 
 /-- **RLM rules with a strongly convex regularizer are stable** (compare
@@ -217,24 +192,14 @@ theorem IsRLM.norm_sub_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} {m
     (hconv : ∀ z, ConvexOn ℝ K fun w => ℓ w z) {ρ : NNReal}
     (hlip : ∀ z, LipschitzOnWith ρ (fun w => ℓ w z) K) (S : Fin m → Z) (i : Fin m) (z' : Z) :
     ‖A (Function.update S i z') - A S‖ ≤ 2 * ρ / (σ * m) := by
-  have hm : (0 : ℝ) < m := by exact_mod_cast i.pos
-  have hu := hA.mem S
-  have hv := hA.mem (Function.update S i z')
   have hgrowth := hA.mul_norm_sub_sq_le hR hconv S i z'
-  -- Lipschitz bounds on the two changed losses.
-  have hlip₁ := (hlip z').le_add_mul hu hv
-  have hlip₂ := (hlip (S i)).le_add_mul hv hu
+  have hlip₁ := (hlip z').le_add_mul (hA.mem S) (hA.mem (Function.update S i z'))
+  have hlip₂ := (hlip (S i)).le_add_mul (hA.mem (Function.update S i z')) (hA.mem S)
   rw [dist_eq_norm, norm_sub_rev] at hlip₁
   rw [dist_eq_norm] at hlip₂
-  have hd0 : 0 ≤ ‖A (Function.update S i z') - A S‖ := norm_nonneg _
-  generalize ‖A (Function.update S i z') - A S‖ = d at hgrowth hlip₁ hlip₂ hd0 ⊢
-  -- The change in the two losses is at most `2 ρ d`.
-  have key : σ * m * d ^ 2 ≤ 2 * ρ * d := by linarith
-  rcases hd0.eq_or_lt with hd | hd
-  · rw [← hd]
-    positivity
-  · rw [le_div_iff₀ (by positivity)]
-    nlinarith
+  rcases (norm_nonneg (A (Function.update S i z') - A S)).eq_or_lt with hd | hd
+  · rw [← hd]; positivity
+  · rw [le_div_iff₀ (mul_pos hσ (Nat.cast_pos.2 i.pos))]; nlinarith
 
 /-- **RLM rules with a strongly convex regularizer are uniformly stable**: under the hypotheses of
 `Cslib.MachineLearning.IsRLM.norm_sub_le`, replacing one of `m` examples changes the loss of the
@@ -246,10 +211,10 @@ theorem IsRLM.sub_le {ℓ : E → Z → ℝ} {R : E → ℝ} {K : Set E} {m : �
     ℓ (A (Function.update S i z')) z - ℓ (A S) z ≤ 2 * ρ ^ 2 / (σ * m) := by
   have h := (hlip z).le_add_mul (hA.mem (Function.update S i z')) (hA.mem S)
   rw [dist_eq_norm] at h
-  have hd := hA.norm_sub_le hσ hR hconv hlip S i z'
   calc ℓ (A (Function.update S i z')) z - ℓ (A S) z
       ≤ ρ * ‖A (Function.update S i z') - A S‖ := by linarith
-    _ ≤ ρ * (2 * ρ / (σ * m)) := by gcongr
+    _ ≤ ρ * (2 * ρ / (σ * m)) :=
+        mul_le_mul_of_nonneg_left (hA.norm_sub_le hσ hR hconv hlip S i z') ρ.2
     _ = 2 * ρ ^ 2 / (σ * m) := by ring
 
 /-- RLM rules with a `σ`-strongly convex regularizer and convex `ρ`-Lipschitz losses are
@@ -302,9 +267,8 @@ theorem IsRLM.integral_trueRisk_le [MeasurableSpace Z] {ℓ : E → Z → ℝ} {
     (hint' : ∀ i, Integrable (fun S => ℓ (A S) (S i)) (Measure.pi fun _ : Fin m => D))
     {w : E} (hw : w ∈ K) (hwint : Integrable (ℓ w) D) :
     ∫ S, trueRisk ℓ D (A S) ∂(Measure.pi fun _ : Fin m => D) ≤ trueRisk ℓ D w + R w + ε := by
-  have hgen := hstab.integral_trueRisk_le D hm hint hint'
-  have hemp := hA.integral_empiricalRisk_le hR D hm hint' hw hwint
-  linarith
+  linarith [hstab.integral_trueRisk_le D hm hint hint',
+    hA.integral_empiricalRisk_le hR D hm hint' hw hwint]
 
 section Tikhonov
 
@@ -319,8 +283,7 @@ theorem IsRLM.isReplaceOneStable_tikhonov [MeasurableSpace Z] {ℓ : E → Z →
     (hK : Convex ℝ K) (hr : 0 < r) (hconv : ∀ z, ConvexOn ℝ K fun w => ℓ w z) {ρ : NNReal}
     (hlip : ∀ z, LipschitzOnWith ρ (fun w => ℓ w z) K) :
     IsReplaceOneStable ℓ A (ρ ^ 2 / (r * m)) := by
-  have h := hA.isReplaceOneStable (by positivity) (strongConvexOn_mul_norm_sq hK r) hconv hlip
-  convert h using 1
+  convert hA.isReplaceOneStable (by positivity) (strongConvexOn_mul_norm_sq hK r) hconv hlip using 1
   field_simp
 
 /-- **The oracle inequality for Tikhonov RLM** [ShalevShwartzBenDavid2014, Corollary 13.8]: for
@@ -345,9 +308,7 @@ theorem IsRLM.integral_trueRisk_le_tikhonov [MeasurableSpace Z] {ℓ : E → Z �
       trueRisk ℓ D w + r * ‖w‖ ^ 2 + 2 * ρ ^ 2 / (r * m) := by
   have h := hA.integral_trueRisk_le (fun _ _ => by positivity)
     (hA.isReplaceOneStable_tikhonov hK hr hconv hlip) D hm hint hint' hw hwint
-  have hle : ρ ^ 2 / (r * m) ≤ 2 * ρ ^ 2 / (r * m) := by
-    gcongr
-    linarith [sq_nonneg (ρ : ℝ)]
+  have hle : (ρ : ℝ) ^ 2 / (r * m) ≤ 2 * ρ ^ 2 / (r * m) := by gcongr; linarith [sq_nonneg (ρ : ℝ)]
   linarith
 
 /-- **Convex-Lipschitz-bounded problems** [ShalevShwartzBenDavid2014, Corollary 13.9]: for
@@ -370,35 +331,20 @@ theorem IsRLM.integral_trueRisk_le_add_sqrt [MeasurableSpace Z] {ℓ : E → Z �
     {w : E} (hw : w ∈ K) (hwB : ‖w‖ ≤ B) (hwint : Integrable (ℓ w) D) :
     ∫ S, trueRisk ℓ D (A S) ∂(Measure.pi fun _ : Fin m => D) ≤
       trueRisk ℓ D w + ρ * B * √(8 / m) := by
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
+  have hm' : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hr0 : 0 < r := by rw [hr]; positivity
   have hr2 : r ^ 2 * (B ^ 2 * m) = 2 * ρ ^ 2 := by
-    rw [hr, Real.sq_sqrt (by positivity)]
-    field_simp
-  set t := √(8 / (m : ℝ))
-  have ht2 : t ^ 2 * m = 8 := by
-    simp only [t]
-    rw [Real.sq_sqrt (by positivity)]
-    field_simp
+    rw [hr, Real.sq_sqrt (by positivity)]; field_simp
+  have ht2 : √(8 / (m : ℝ)) ^ 2 * m = 8 := by rw [Real.sq_sqrt (by positivity)]; field_simp
   have h := hA.integral_trueRisk_le (fun _ _ => by positivity)
     (hA.isReplaceOneStable_tikhonov hK hr0 hconv hlip) D hm hint hint' hw hwint
-  -- `r‖w‖² ≤ r B²`, `ρ² / (r m) = r B² / 2` and `ρ B t = 2 r B²`.
   have hw2 : r * ‖w‖ ^ 2 ≤ r * B ^ 2 := by gcongr
   have hstab : (ρ : ℝ) ^ 2 / (r * m) = r * B ^ 2 / 2 := by
-    rw [div_eq_iff (by positivity)]
-    nlinarith
-  have hρt : (ρ : ℝ) * t = 2 * B * r := by
-    have hsq : ((ρ : ℝ) * t) ^ 2 = (2 * B * r) ^ 2 := by
-      have : ((ρ : ℝ) * t) ^ 2 * m = (2 * B * r) ^ 2 * m := by
-        calc ((ρ : ℝ) * t) ^ 2 * m = ρ ^ 2 * (t ^ 2 * m) := by ring
-          _ = 4 * (r ^ 2 * (B ^ 2 * m)) := by rw [ht2, hr2]; ring
-          _ = (2 * B * r) ^ 2 * m := by ring
-      exact mul_right_cancel₀ hm'.ne' this
-    exact (sq_eq_sq₀ (by positivity) (by positivity)).1 hsq
-  have : (ρ : ℝ) * B * t = 2 * (r * B ^ 2) := by
-    rw [mul_right_comm, hρt]
-    ring
-  have hrB : 0 ≤ r * B ^ 2 := by positivity
+    rw [div_eq_iff (by positivity)]; nlinarith
+  have hρt : (ρ : ℝ) * B * √(8 / (m : ℝ)) = 2 * (r * B ^ 2) :=
+    (sq_eq_sq₀ (by positivity) (by positivity)).1 <| mul_right_cancel₀ hm'.ne'
+      (by linear_combination (norm := ring) (B ^ 2 * ρ ^ 2) * ht2 - 4 * B ^ 2 * hr2)
+  have : 0 ≤ r * B ^ 2 := by positivity
   linarith
 
 end Tikhonov
