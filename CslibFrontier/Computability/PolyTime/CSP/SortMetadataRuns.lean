@@ -217,19 +217,7 @@ theorem recover_sortAndCloseMetadataRuns (I : State Rel) (keys : List ℕ)
       false) ∧
       ∀ i j, i < keys.length → j < keys.length → keys.getD i 0 = keys.getD j 0 →
         (I.ports.map ρ).getD i false = (I.ports.map ρ).getD j false := by
-  let R := compute keys
-  let J := sortBoundaryMetadata g w I keys
-  let sorted := R.sortedKeys
-  let states := fun s => (fun K : State Rel => closeFirstMetadataRun K
-    (sorted.drop (sorted.length-K.ports.length)))^[s] J
-  let Phi := (List.range sorted.length).foldl (fun f s => fun z =>
-    if f z ∈ (states s).ports.take
-        ((sorted.drop (sorted.length-(states s).ports.length)).takeWhile
-          (fun b => decide (b=(sorted.drop (sorted.length-(states s).ports.length)).headD
-            0))).length
-    then (states s).ports.headD 0 else f z) id
-  let ρ := fun z => τ (Phi (2^R.requests.length*z))
-  let ids := R.requests.foldl (fun ps j => ps.swap j (j + 1)) (List.range keys.length)
+  intro R J sorted states Phi ρ ids
   have ha := sortedKeys_length_sortBoundaryMetadata g w I keys hl
   have hlow := recover_closeMetadataRuns sem J sorted ha τ (by
     rw [← intermediate g w I keys hl]
