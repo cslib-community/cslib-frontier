@@ -80,10 +80,9 @@ private theorem shortCache_cons {cut n : ℕ} (cache : List (List Bool × List B
       Function.update (shortCache cache) query (some label) := by
   funext word
   by_cases h : word = query
-  · subst word
-    simp [shortCache, BitString.ofList_ofFn]
-  · have hv : word.val ≠ query.val := fun hval => h (Subtype.ext hval)
-    simp [shortCache, Function.update_of_ne h, List.lookup_cons, beq_eq_false_iff_ne.mpr hv]
+  · subst word; simp [shortCache, BitString.ofList_ofFn]
+  · simp [shortCache, Function.update_of_ne h, List.lookup_cons,
+      beq_eq_false_iff_ne.mpr fun hv => h (Subtype.ext hv)]
 
 private theorem shortCall_map {cut n : ℕ} (query : ShortWord cut)
     (cache : List (List Bool × List Bool))
@@ -94,15 +93,13 @@ private theorem shortCall_map {cut n : ℕ} (query : ShortWord cut)
         (shortCache cache)).map (fun (label, next) => (List.ofFn label, next)) := by
   cases hc : cache.lookup query.val with
   | none =>
-    have hc' : shortCache cache query = (none : Option (BitString n)) := by simp [shortCache, hc]
     rw [cachedDistOracle, ite_eq_left rfl, memoize_of_none _ _ _ hc,
-      RandomOracle.answer_of_none _ _ _ hc']
+      RandomOracle.answer_of_none _ _ _ (by simp [shortCache, hc])]
     simp [BitString.uniformList, shortCache_cons, PMF.map, pmf_norm]
   | some label =>
-    obtain ⟨before, after, hcache, _⟩ := List.lookup_eq_some_iff.mp hc
-    have hwidth := hlen (query.val, label) (by simp [hcache])
+    obtain ⟨_, _, hcache, _⟩ := List.lookup_eq_some_iff.mp hc
     simp [cachedDistOracle, memoize_of_some _ _ _ _ hc, RandomOracle.answer, shortCache,
-      hc, BitString.ofFn_ofList hwidth, pmf_norm]
+      hc, BitString.ofFn_ofList (hlen (query.val, label) (by simp [hcache])), pmf_norm]
 
 private theorem tableStep {n depth : ℕ} (valid : List Bool → Bool) (inLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) (child : PMF (BitString (inLen n) → BitString n))
@@ -115,35 +112,28 @@ private theorem tableStep {n depth : ℕ} (valid : List Bool → Bool) (inLen : 
         (tableCache state) := by
   by_cases hv : valid request.2 = true
   · by_cases hl : request.2.length ≤ depth * inLen n
-    · let word : ShortWord (depth * inLen n) := ⟨request.2, hl⟩
-      simp only [cascadeChildPrefixOracle, tableQuery, hv, ↓reduceIte, Nat.not_lt.mpr hl,
-        dite_eq_left hl,
-        ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache, tableDist,
-        RandomOracle.answer_sum_inl, PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq]
-      have hshort := congrArg (PMF.map fun (label, next) =>
-        (label, RandomOracle.Cache.sum next (fun parent : BitString (depth * inLen n) =>
-          state.parentRows (List.ofFn parent)))) (shortCall_map word state.shortLabels hlen)
-      simpa only [PMF.map_comp, Function.comp_def, word] using hshort
+    · simp only [cascadeChildPrefixOracle, tableQuery, hv, ↓reduceIte, Nat.not_lt.mpr hl,
+        dite_eq_left hl, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache,
+        tableDist, RandomOracle.answer_sum_inl, PMF.map_comp, Function.comp_def, Prod.map_apply,
+        id_eq]
+      simpa only [PMF.map_comp, Function.comp_def] using congrArg
+        (PMF.map fun (label, next) => (label, RandomOracle.Cache.sum next
+          fun parent : BitString (depth * inLen n) => state.parentRows (List.ofFn parent)))
+        (shortCall_map ⟨request.2, hl⟩ state.shortLabels hlen)
     · let parent := BitString.ofList (depth * inLen n) request.2
-      have hparent : List.ofFn parent = request.2.take (depth * inLen n) := by
-        change List.ofFn (BitString.ofList (depth * inLen n) request.2) = _
-        rw [← BitString.ofList_take]
-        exact BitString.ofFn_ofList (by simp [Nat.min_eq_left (Nat.le_of_lt (Nat.lt_of_not_ge hl))])
+      have hparent : List.ofFn parent = request.2.take (depth * inLen n) :=
+        (congrArg List.ofFn (BitString.ofList_take _ _).symm).trans
+          (BitString.ofFn_ofList (by simp [Nat.min_eq_left (Nat.le_of_not_ge hl)]))
       simp only [cascadeChildPrefixOracle, tableQuery, hv, ↓reduceIte, Nat.lt_of_not_ge hl,
-        dite_eq_right hl,
-        ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache, tableDist,
-        RandomOracle.answer_sum_inr, PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq,
-        BitString.ofList_take, List.drop_drop]
+        dite_eq_right hl, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, tableCache,
+        tableDist, RandomOracle.answer_sum_inr, PMF.map_comp, Function.comp_def, Prod.map_apply,
+        id_eq, BitString.ofList_take, List.drop_drop]
       cases hc : state.parentRows (List.ofFn parent) with
       | none =>
-        have hc' := hparent ▸ hc
-        have hupdate := Function.update_comp_eq_of_injective' state.parentRows
-          (f := (List.ofFn : BitString (depth * inLen n) → List Bool)) List.ofFn_injective
-        simp [RandomOracle.answer, parent, hc, hc', ← hparent, PMF.map_comp, Function.comp_def,
-          hupdate]
-      | some row =>
-        have hc' := hparent ▸ hc
-        simp [RandomOracle.answer, parent, hc, hc', pmf_norm]
+        simp [RandomOracle.answer, parent, hc, hparent ▸ hc, ← hparent, PMF.map_comp,
+          Function.comp_def,
+          Function.update_comp_eq_of_injective' state.parentRows List.ofFn_injective]
+      | some row => simp [RandomOracle.answer, parent, hc, hparent ▸ hc, pmf_norm]
   · simp [cascadeChildPrefixOracle, tableQuery, hv, pmf_norm]
 
 private theorem tableStep_width {n depth : ℕ} (valid : List Bool → Bool) (inLen : ℕ → ℕ)
@@ -157,15 +147,15 @@ private theorem tableStep_width {n depth : ℕ} (valid : List Bool → Bool) (in
   by_cases hv : valid request.2 = true
   · by_cases hl : depth * inLen n < request.2.length
     · simp only [cascadeChildPrefixOracle, hv, hl, ↓reduceIte, PMF.mem_support_map_iff] at hs
-      obtain ⟨⟨row, rows⟩, _, heq⟩ := hs
+      obtain ⟨_, _, heq⟩ := hs
       exact (Prod.mk.inj heq).2 ▸ hlen
     · simp only [cascadeChildPrefixOracle, hv, hl, ↓reduceIte, PMF.mem_support_map_iff,
         cachedDistOracle] at hs
       obtain ⟨⟨label, cache⟩, hb, heq⟩ := hs
-      have h := RandomOracle.memoize_invariant (fun _ : List Bool => BitString.uniformList n)
-        (fun _ label => label.length = n) request.2 state.shortLabels hlen
-        (fun _ => BitString.length_of_mem_support_uniformList) (label, cache) hb
-      exact (Prod.mk.inj heq).2 ▸ h.2
+      exact (Prod.mk.inj heq).2 ▸ (RandomOracle.memoize_invariant
+        (fun _ : List Bool => BitString.uniformList n) (fun _ l => l.length = n) request.2
+        state.shortLabels hlen (fun _ => BitString.length_of_mem_support_uniformList)
+        (label, cache) hb).2
   · simp only [cascadeChildPrefixOracle, ite_eq_right hv, PMF.mem_support_pure_iff] at hs
     exact (Prod.mk.inj hs).2 ▸ hlen
 
@@ -183,9 +173,7 @@ theorem cascadeChildPrefixGame_eq_childTableGame (valid : ℕ → List Bool → 
   let distribution := tableDist (cut := cut) child
   let program := ProbOracleComp.simulate adapt (adversary n [])
   let initial : CascadeChildPrefixState (inLen n) n := ⟨[], fun _ => none⟩
-  have hnil : tableCache (cut := cut) initial = fun _ => none := by
-    funext key
-    cases key <;> rfl
+  have hnil : tableCache (cut := cut) initial = fun _ => none := funext fun k => by cases k <;> rfl
   have hsim := ProbOracleComp.runWith_map_state_of_invariant
     (fun request : Unit × List Bool => cascadeChildPrefixOracle (valid n) inLen family n depth
       child request.2)
@@ -193,12 +181,11 @@ theorem cascadeChildPrefixGame_eq_childTableGame (valid : ℕ → List Bool → 
     (tableCache (cut := cut)) (fun state => ∀ entry ∈ state.shortLabels, entry.2.length = n)
     (tableStep_width (valid n) inLen family child)
     (tableStep (valid n) inLen family child) (adversary n []) initial (by simp [initial])
-  have hrun := congrArg (PMF.map Prod.fst) hsim
   calc
     _ = (ProbOracleComp.runWith (RandomOracle.answer distribution) program
           (fun _ => none)).map Prod.fst := by
       simpa only [cascadeChildPrefixGame, PMF.map_comp, Function.comp_def, hnil, program,
-        ProbOracleComp.runWith_simulate] using hrun
+        ProbOracleComp.runWith_simulate] using congrArg (PMF.map Prod.fst) hsim
     _ = (PMF.pi distribution).bind (fun table =>
           OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
             (fun key => PMF.pure (table key))) program) :=
@@ -228,7 +215,6 @@ theorem cascadeChildPrefixGame_eq_childTableGame (valid : ℕ → List Bool → 
       rw [PMF.bind_pi_sum (β := ChildSpec cut (inLen n) n) distribution eager]
       change ((PMF.pi fun _ : ShortWord cut => PMF.uniformOfFintype (BitString n)).bind
         fun short => (PMF.pi fun _ : BitString cut => child).bind (eager short)) = _
-      rw [PMF.pi_uniformOfFintype]
-      rfl
+      rw [PMF.pi_uniformOfFintype]; rfl
 
 end Cslib.Crypto
