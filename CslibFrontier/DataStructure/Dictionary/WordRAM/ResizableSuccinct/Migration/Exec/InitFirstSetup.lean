@@ -163,7 +163,6 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   rw [hs₅_k] at hex_gz1
   set s₆ := growZeroPost mK mRes mCur mIdx mZero mOne s₅
   have hs₆b : s₆.Bounded w := growZeroPost_bounded hs₅b hfit1 (hsum_55 ▸ hfit_b63)
-  have hs₆m : s₆.mem = x.mem := hs₄m
   have hs₆f : s₆.frontier = base + 63 := hsum_55
   have hs₆_keep5 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
       s₆.regs reg = s₅.regs reg := fun _ hreg => growZeroPost_regs_of_not_mem hreg
@@ -183,13 +182,12 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   set s₆c := s₆b.set mTmpA base
   have hex_6c := RDemonicExec.copy (B := .exact) (w := w) (L_peak := fr₁)
     (d := mTmpA) (s := mBase) (x := s₆b) (hs₆f.le.trans h63_le)
-  have hs₆b_base : s₆b.regs mBase = base := by simp [s₆b, s₆a, RData.set, hs₆_base]
-  rw [hs₆b_base] at hex_6c
+  rw [show s₆b.regs mBase = base by simp [s₆b, s₆a, RData.set, hs₆_base]] at hex_6c
   have hs₆cb : s₆c.Bounded w :=
     ((hs₆b.set (hfit225.of_le (by decide))).set hfit_b63).set
       (hfit_b63.of_le (Nat.le_add_right _ _))
   have hms₆c : memoryState mFr s₆c.toData = ⟨x.mem, base + 63⟩ :=
-    Memory.State.ext hs₆m (by simp [memoryState, s₆c, s₆b, RData.set, RData.toData])
+    Memory.State.ext hs₄m (by simp [memoryState, s₆c, s₆b, RData.set, RData.toData])
   have hs₆c_s₄ : ∀ reg,
       reg ∉ ([mTmpA, mFr, mCur, mRes, mIdx, mZero, mOne, mK] : List (Fin rResize)) →
       s₆c.regs reg = s₄.regs reg := fun reg h => by
@@ -316,8 +314,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
   have hf1 := one_le_migFactor
   have hc_tc_mul : migFactor * (memoryCost (computeTargetCapProg (base, 1)) ⟨x.mem, x.frontier⟩ + 1)
       ≤ 2 * migFactor := by
-    have hmul := Nat.mul_le_mul_left migFactor (Nat.add_le_add_right hc_tc 1)
-    linarith only [hmul]
+    linarith only [Nat.mul_le_mul_left migFactor (Nat.add_le_add_right hc_tc 1)]
   have hc_wp_mul : migFactor * (memoryCost
       (writeEpochParamsGenProg ((base, base), (N₁, (1, 1)))) ⟨x.mem, base + 63⟩ + 1) ≤
       migFactor * 123 :=
@@ -415,7 +412,6 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
   rw [hy₃_k] at hex_gz
   set y₄ := growZeroPost mK mRes mCur mIdx mZero mOne y₃
   have hy₄b : y₄.Bounded w := growZeroPost_bounded hy₃b hfit1 (hsum_fr₁ ▸ hfit_peak)
-  have hy₄m : y₄.mem = s₁₀.mem := rfl
   have hy₄f : y₄.frontier = fr₁ := hsum_fr₁
   have hy₄_keep3 : ∀ reg, reg ∉ ([mRes, mCur, mIdx, mZero, mOne] : List (Fin rResize)) →
       y₄.regs reg = y₃.regs reg := fun _ hreg => growZeroPost_regs_of_not_mem hreg
@@ -428,15 +424,12 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
   set y₆ := y₅.set mCur 225
   have hex₆ := RDemonicExec.const (B := .exact) (d := mCur) (v := 225) (x := y₅) hy₄f.le hfit225
   set y := y₆.set mHashBase (base + epochHdrWords)
-  have hy₆_base : y₆.regs mBase = base := by
-    simp [y₆, y₅, RData.set, hy₄_keep3 mBase (by simp), y₃, y₂, y₁, hs₁₀_base]
   have hfit_hb : Fits w (base + epochHdrWords) :=
     hfit_off.of_le (by unfold epochHdrWords; linarith only [h225_le])
   have hex₇ := RDemonicExec.exactBin (f := .add) (d := mHashBase) (i := mBase) (j := mCur)
     (w := w) (L_peak := fr₁) (x := y₆) hy₄f.le (v := base + epochHdrWords)
-    (by
-      change some (y₆.regs mBase + y₆.regs mCur) = some (base + 225)
-      rw [hy₆_base]; simp [y₆, RData.set])
+    (by simp [BinOp.evalExact, epochHdrWords, y₆, y₅, RData.set,
+          hy₄_keep3 mBase (by simp), y₃, y₂, y₁, hs₁₀_base])
     hfit_hb
   have hyb : y.Bounded w := ((hy₄b.set hfit_peak).set hfit225).set hfit_hb
   have hkeep_10_y : ∀ reg : Fin rResize,
@@ -445,11 +438,10 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
       y.regs reg = s₁₀.regs reg := fun reg hnot => by
     simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
     obtain ⟨hfr', hcur, hhb, hres, hidx, hz, ho, hk, hpf, hib⟩ := hnot
-    dsimp only [y, y₆, y₅, RData.set]
-    rw [Function.update_of_ne hhb, Function.update_of_ne hcur, Function.update_of_ne hfr',
-      hy₄_keep3 reg (by simp [hres, hcur, hidx, hz, ho])]
-    dsimp only [y₃, y₂, y₁, RData.set]
-    rw [Function.update_of_ne hk, Function.update_of_ne hpf, Function.update_of_ne hib]
+    simp only [y, y₆, y₅, y₃, y₂, y₁, RData.set_regs,
+      Function.update_of_ne hhb, Function.update_of_ne hcur, Function.update_of_ne hfr',
+      hy₄_keep3 reg (by simp [hres, hcur, hidx, hz, ho]),
+      Function.update_of_ne hk, Function.update_of_ne hpf, Function.update_of_ne hib]
   have hoff_lin : off₁ ≤ 943 :=
     (offCompItems_le_linear hw hN₁U hhdr₁₀.fits_U).trans (by linarith only [hN₁_le2])
   have hiw_lin : iw₁ ≤ 4 :=
