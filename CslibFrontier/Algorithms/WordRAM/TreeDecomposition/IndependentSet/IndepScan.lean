@@ -128,11 +128,9 @@ private theorem noAdjScanProg_spec {w m : ℕ} (args : NoAdjArgs) {adjL xs : Lis
   let adj := fun u v => decide (adjL.getD (u * m + v) 0 ≠ 0)
   let env : NoAdjEnv := ⟨args.numVerts, args.adjPtr, args.x⟩
   have hcost : memoryCost (noAdjScanProg args) s ≤ 2 * args.len := by
-    unfold noAdjScanProg
-    rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    have hle := memoryCost_iterate_le_of noAdjStep 2 env (fun _ _ => le_rfl)
+    rw [noAdjScanProg, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    exact memoryCost_iterate_le_of noAdjStep 2 env (fun _ _ => le_rfl)
       args.len ⟨args.ptr, args.mask, 1⟩ s
-    omega
   suffices ∀ ys cur curM ok, HoldsIn cur ys s → (∀ u ∈ ys, u < m) →
       (ok = 0 ∨ ok = 1) →
       (Memory.spec w).ValidHistory s
@@ -251,12 +249,10 @@ private theorem noAdjScanProg_realizes :
         _ = (d.x + 1) * m := by rw [Nat.succ_mul]
         _ ≤ m * m := Nat.mul_le_mul_right m hx_lt
     have hcur_fit : Fits w (st.cur + 1) := hptr_fit.of_le (by omega)
-    have hmul_fit : Fits w (d.x * d.numVerts) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
-    have hsum1_fit : Fits w (d.adjPtr + d.x * d.numVerts) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
-    have hsum2_fit : Fits w (d.adjPtr + d.x * d.numVerts + t.mem st.cur) := by
-      rw [hnv]; exact hadj_fit.of_le (by omega)
+    have hmul_fit : Fits w (d.x * d.numVerts) := hnv ▸ hadj_fit.of_le (by omega)
+    have hsum1_fit : Fits w (d.adjPtr + d.x * d.numVerts) := hnv ▸ hadj_fit.of_le (by omega)
+    have hsum2_fit : Fits w (d.adjPtr + d.x * d.numVerts + t.mem st.cur) :=
+      hnv ▸ hadj_fit.of_le (by omega)
     have h2_ne : 2 ≠ 0 := by decide
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, hadj_t, hrem_next⟩
     · repeat (first | split | assumption | refine And.intro ?_ ?_)
@@ -396,18 +392,15 @@ theorem indepBagProg_spec {w m : ℕ} (args : IndepBagArgs) {adjL xs : List ℕ}
         ys.length * (2 * ys.length + 1) by
     have hrun := this xs args.bagPtr args.mask 1 hxs hxs_lt (.inr rfl)
     rw [hlen] at hrun
-    refine ⟨?_, indepBagProg_state args s, ?_, ?_⟩
-    · unfold indepBagProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold indepBagProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate indepBagStep env args.bagLen ⟨args.bagPtr, args.bagLen, args.mask, 1⟩)).ok = _
-      rw [hrun.2.1]
-      cases indepInst adj xs args.mask <;> rfl
-    · unfold indepBagProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), indepBagProg_state args s,
+      ?_, by simpa only [indepBagProg, memoryCost_bind', memoryCost_pure, Nat.add_zero] using
+        hrun.2.2⟩
+    unfold indepBagProg
+    rw [StateTransitionSpec.clientResult_bind]
+    change ((Memory.spec 0).clientResult s
+      (iterate indepBagStep env args.bagLen ⟨args.bagPtr, args.bagLen, args.mask, 1⟩)).ok = _
+    rw [hrun.2.1]
+    cases indepInst adj xs args.mask <;> rfl
   intro ys
   induction ys with
   | nil =>
@@ -537,16 +530,14 @@ theorem indepBagProg_realizes :
     dsimp only at hr_na
     refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
     · repeat (first | split | exact hnoAdj_safe | assumption | refine And.intro ?_ ?_)
+    · rw [hres_ev, hrem_eq]
+      rfl
     · rw [hres_ev]
-      change st.remLen - 1 = j
-      omega
-    · rw [hres_ev]
-      change (st.cur + 1) + j = d.bagPtr + d.bagLen
+      dsimp only
       omega
     · rw [hres_ev]
       dsimp only
       rw [hr_na]
-      change (if st.ok = 1 then (if st.curM % 2 = 1 then (if _ then 1 else 0) else 1) else 0) ≤ 1
       split_ifs <;> omega
     · rwa [hst_ev]
     · rwa [hst_ev, hres_ev]

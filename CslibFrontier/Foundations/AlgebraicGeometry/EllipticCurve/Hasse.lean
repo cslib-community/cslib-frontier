@@ -77,9 +77,7 @@ private lemma eq_of_rec {f g : ℤ → ℤ} (h0 : f 0 = g 0) (h1 : f 1 = g 1)
     exact ⟨ih.2, by omega⟩
   | pred i ih =>
     rw [sub_add_cancel]
-    have a := hf (-(i : ℤ))
-    have b := hg (-(i : ℤ))
-    exact ⟨by omega, ih.1⟩
+    exact ⟨by linarith [hf (-(i : ℤ)), hg (-(i : ℤ)), ih.1], ih.1⟩
 
 /-- An integer quadratic `n² + S n + q` with `q` odd that is nonnegative on `ℤ` has `S² ≤ 4 q`.
 For `S = 2 k` evaluate at `-k`; for `S = 2 k + 1` evaluate at `-(k + 1)`, which gives
@@ -112,10 +110,8 @@ lemma derivative_cubicPoly_eval_ne_zero (hΔ : (ofCubic α β γ).Δ ≠ 0) {c :
   have hns := (Affine.nonsingular_iff _ _).1
     ((Affine.equation_iff_nonsingular_of_Δ_ne_zero hΔ).1 heq)
   have hd : (derivative (cubicPoly α β γ)).eval c = 3 * c ^ 2 + 2 * α * c + β := by
-    simp [cubicPoly]
-    ring
-  rw [hd]
-  simpa [eq_comm] using hns.2
+    simp [cubicPoly]; ring
+  simpa [hd, eq_comm] using hns.2
 
 /-- If `Δ ≠ 0`, every root of `g` has multiplicity at most one. -/
 lemma rootMultiplicity_cubicPoly_le_one (hΔ : (ofCubic α β γ).Δ ≠ 0) (c : k) :
@@ -231,12 +227,8 @@ private lemma d1Num_eq (hF : ringChar F ≠ 2) :
   have hodd : 2 * (Fintype.card F / 2) + 1 = Fintype.card F := by
     have := FiniteField.odd_card_of_char_ne_two hF
     omega
-  have he : cubicPoly α β γ ^ (2 * (Fintype.card F / 2) + 1) = (X ^ Fintype.card F) ^ 3 +
-      C α * (X ^ Fintype.card F) ^ 2 + C β * X ^ Fintype.card F + C γ := by
-    rw [hodd]
-    exact cubicPoly_pow_card α β γ
   unfold d1Num
-  linear_combination he
+  linear_combination (congrArg (cubicPoly α β γ ^ ·) hodd).trans (cubicPoly_pow_card α β γ)
 
 variable (α β γ) in
 /-- `deg N = 2 q + 1`. -/

@@ -171,13 +171,11 @@ theorem convexHull_uniform_empirical_margin_bound {α : Type*} [Finite α] (D : 
           3 * √(Real.log (Real.logb 2 (2 * r / ρ)) / m) +
           3 * √(Real.log (4 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
-  have hconv : ∀ f ∈ convexHull ℝ H, ∀ x, |f x| ≤ B := fun f hf x =>
-    abs_le_of_mem_convexHull hH hf x
-  have h := uniform_empiricalRademacherComplexity_margin_bound D hm hconv hr hδ
-  refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_) h
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
+    (uniform_empiricalRademacherComplexity_margin_bound D hm
+      (fun _ => abs_le_of_mem_convexHull hH) hr hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]
+  exact ⟨f, hf, ρ, hρ, by rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]⟩
 
 /-- **Uniform VC-dimension margin bound for convex combinations of binary classifiers**
 [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Section 7.3.3,
@@ -201,18 +199,14 @@ theorem convexHull_signClass_vc_uniform_margin_bound {α : Type*} [Finite α] (D
           √(Real.log (2 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
   have := Fintype.ofFinite α
-  have hB : ∀ h ∈ signClass C, ∀ x, |h x| ≤ 1 := fun _ hf => abs_le_one_of_mem_signClass hf
-  have hR : rademacherComplexity (D.map Prod.fst) (signClass C) m ≤
-      √(2 * (d * Real.log (Real.exp 1 * m / d)) / m) :=
-    rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm
   refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
-    (convexHull_uniform_margin_bound D hm hB zero_lt_one hδ)
+    (convexHull_uniform_margin_bound (H := signClass C) D hm
+      (fun _ hf => abs_le_one_of_mem_signClass hf) zero_lt_one hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  have hcoef : 0 ≤ 4 / ρ := div_nonneg (by norm_num) hρ.1.le
-  have hmul := mul_le_mul_of_nonneg_left hR hcoef
-  rw [mul_one]
-  linarith
+  have hmul := mul_le_mul_of_nonneg_left
+    (rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm)
+    (div_nonneg (by norm_num : (0 : ℝ) ≤ 4) hρ.1.le)
+  exact ⟨f, hf, ρ, hρ, by rw [mul_one]; linarith⟩
 
 /-! ### Normalized AdaBoost score and convex-hull membership -/
 
@@ -371,11 +365,8 @@ theorem adaBoost_uniform_margin_bound_vc {α : Type*} [Finite α] (D : PMF (α �
   have hZ : (¬ ∃ t < T, (rounds S A t).error S = 0) → 0 < totalVote S A T := fun hz =>
     totalVote_pos S A hT
       (fun t ht => (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht, h.symm⟩) hε
-  have hmono : (D.toOuterMeasure {p | adaBoost S A T p.1 ≠ p.2}).toReal ≤
-      (D.toOuterMeasure {p | signVal p.2 * normalizedScore S A T p.1 ≤ 0}).toReal :=
-    Probability.PMF.toOuterMeasure_toReal_mono D fun _ hp =>
-      signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ hp
-  exact lt_of_lt_of_le hlt hmono
+  exact lt_of_lt_of_le hlt (Probability.PMF.toOuterMeasure_toReal_mono D fun _ =>
+    signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ)
 
 end AdaBoostScore
 
@@ -576,11 +567,9 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
   have hprod_nonneg : 0 ≤ ∏ t ∈ range T,
       2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2) :=
-    prod_nonneg fun t ht => by
-      have he0 : 0 ≤ (rounds S A t).error S := rounds_error_nonneg S A t
-      have he1 : 0 ≤ 1 - (rounds S A t).error S := by linarith [hε t (mem_range.mp ht)]
-      exact mul_nonneg (mul_nonneg zero_le_two (Real.rpow_nonneg he0 _))
-        (Real.rpow_nonneg he1 _)
+    prod_nonneg fun t ht => mul_nonneg
+      (mul_nonneg zero_le_two (Real.rpow_nonneg (rounds_error_nonneg S A t) _))
+      (Real.rpow_nonneg (by linarith [hε t (mem_range.mp ht)]) _)
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
   · rw [card_eq_zero.mpr (filter_eq_empty_iff.mpr fun i _ hle => ?_), Nat.cast_zero, zero_div]
     · exact hprod_nonneg
