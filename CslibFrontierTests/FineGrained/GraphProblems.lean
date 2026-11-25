@@ -144,6 +144,15 @@ example (h : SH) :
       (fun G => G.vertices.length + G.edges.length) (1 / 2) :=
   h.not_decidableInPowerExpTime_ThreeColoring (by norm_num) (by norm_num)
 
+/-- The square-root bound specializes to a vertex-only measure and to directed path instances. -/
+example (h : SH) :
+    (¬DecidableInPowerExpTime IndependentSet encIndependentSetInstance
+      (fun x => x.graph.vertices.length) (1 / 2)) ∧
+    (¬DecidableInPowerExpTime DirHamPath encPathInstance
+      (fun x => x.graph.vertices.length + x.graph.edges.length) (1 / 2)) :=
+  ⟨h.not_decidableInPowerExpTime_IndependentSet_vertices (by norm_num) (by norm_num),
+    h.not_decidableInPowerExpTime_DirHamPath (by norm_num) (by norm_num)⟩
+
 /-! ### Axioms -/
 
 /-- info: 'Cslib.Complexity.SAT.toDirHamPath_eq' does not depend on any axioms -/
