@@ -59,22 +59,16 @@ theorem DensityTrace.volume {g : Fin m → Fin m → Bool} {τ σ : ℝ}
   induction h with
   | stop => simp
   | @alice F X Y F' X' Y' c q st send answer valid tail ih =>
-    calc
-      _ ≤ (8 * (2 * τ) ^ #st.queried) *
-          ((#st.speaker : ℝ) * #(st.listener answer)) := by
-        simpa only [mul_assoc] using valid.volume answer
-      _ ≤ (8 * (2 * τ) ^ #st.queried) *
-          (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
-        mul_le_mul_of_nonneg_left ih (by positivity)
+    calc _ ≤ (8 * (2 * τ) ^ #st.queried) * ((#st.speaker : ℝ) * #(st.listener answer)) := by
+          simpa only [mul_assoc] using valid.volume answer
+      _ ≤ (8 * (2 * τ) ^ #st.queried) * (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
+          mul_le_mul_of_nonneg_left ih (by positivity)
       _ = _ := by rw [pow_succ, pow_add]; ring
   | @bob F X Y F' X' Y' c q st send answer valid tail ih =>
-    calc
-      _ ≤ (8 * (2 * τ) ^ #st.queried) *
-          ((#(st.listener answer) : ℝ) * #st.speaker) := by
-        nlinarith [valid.volume answer]
-      _ ≤ (8 * (2 * τ) ^ #st.queried) *
-          (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
-        mul_le_mul_of_nonneg_left ih (by positivity)
+    calc _ ≤ (8 * (2 * τ) ^ #st.queried) * ((#(st.listener answer) : ℝ) * #st.speaker) := by
+          nlinarith [valid.volume answer]
+      _ ≤ (8 * (2 * τ) ^ #st.queried) * (8 ^ c * (2 * τ) ^ q * #X' * #Y') :=
+          mul_le_mul_of_nonneg_left ih (by positivity)
       _ = _ := by rw [pow_succ, pow_add]; ring
 
 /-- Queries in a trace are fresh: their total number is precisely the loss of free coordinates. -/
@@ -84,12 +78,8 @@ theorem DensityTrace.card_free {g : Fin m → Fin m → Bool} {τ σ : ℝ}
     #F' + q = #F := by
   induction h with
   | stop => simp
-  | alice st send answer valid tail ih =>
-    have := card_sdiff_add_card_eq_card valid.queried_subset
-    omega
-  | bob st send answer valid tail ih =>
-    have := card_sdiff_add_card_eq_card valid.queried_subset
-    omega
+  | alice _ _ _ valid _ ih | bob _ _ _ valid _ ih =>
+    have := card_sdiff_add_card_eq_card valid.queried_subset; omega
 
 /-- Every executed step only removes source elements. -/
 theorem DensityTrace.subsets {g : Fin m → Fin m → Bool} {τ σ : ℝ}
@@ -119,8 +109,7 @@ theorem DensityTrace.full_volume {g : Fin m → Fin m → Bool} {τ σ : ℝ}
     {F F' : Finset (Fin n)} {X' Y' : Finset (Fin n → Fin m)} {c q : ℕ}
     (h : DensityTrace g τ σ F univ univ F' X' Y' c q) (hτ : 0 ≤ τ) :
     (m : ℝ) ^ (2 * n) ≤ 8 ^ c * (2 * τ) ^ q * #X' * #Y' := by
-  have hv := h.volume hτ
-  simpa [Fintype.card_fun, pow_mul, pow_two, mul_pow] using hv
+  simpa [Fintype.card_fun, pow_mul, pow_two, mul_pow] using h.volume hτ
 
 private theorem extend_fixed_partition {F I : Finset (Fin n)}
     {X Y : Finset (Fin n → Fin m)} {q : ℕ} (hIF : I ⊆ F)
@@ -134,17 +123,12 @@ private theorem extend_fixed_partition {F I : Finset (Fin n)}
       (∀ x ∈ X, ∀ x' ∈ X, ∀ i ∈ AX, x i = x' i) ∧
       (∀ y ∈ Y, ∀ y' ∈ Y, ∀ i ∈ AY, y i = y' i) := by
   obtain ⟨AX, AY, hAX, hAY, hd, hq, hx, hy⟩ := h
-  have hIA : Disjoint I AX := disjoint_left.mpr fun i hi ha =>
-    (mem_sdiff.mp (hAX ha)).2 hi
-  have hIY : Disjoint I AY := disjoint_left.mpr fun i hi ha =>
-    (mem_sdiff.mp (hAY ha)).2 hi
-  refine ⟨I ∪ AX, AY, union_subset hIF (hAX.trans sdiff_subset),
-    hAY.trans sdiff_subset, disjoint_union_left.mpr ⟨hIY, hd⟩, ?_, ?_, hy⟩
-  · rw [card_union_of_disjoint hIA]; omega
-  · intro x hx' x' hx'' i hi
-    rcases mem_union.mp hi with hi | hi
-    · exact hfixed x hx' x' hx'' i hi
-    · exact hx x hx' x' hx'' i hi
+  have hIA : Disjoint I AX := disjoint_left.mpr fun _ hi ha => (mem_sdiff.mp (hAX ha)).2 hi
+  have hIY : Disjoint I AY := disjoint_left.mpr fun _ hi ha => (mem_sdiff.mp (hAY ha)).2 hi
+  exact ⟨I ∪ AX, AY, union_subset hIF (hAX.trans sdiff_subset), hAY.trans sdiff_subset,
+    disjoint_union_left.mpr ⟨hIY, hd⟩, by rw [card_union_of_disjoint hIA]; omega,
+    fun x hx' x' hx'' i hi => (mem_union.mp hi).elim (hfixed x hx' x' hx'' i)
+      (hx x hx' x' hx'' i), hy⟩
 
 /-- All queried coordinates can be assigned disjointly to the player whose source was fixed.
 This derives the fixed-coordinate hypotheses needed for volume amortization from the trace. -/
@@ -157,17 +141,16 @@ theorem DensityTrace.fixed_partition {g : Fin m → Fin m → Bool} {τ σ : ℝ
   induction h with
   | stop => exact ⟨∅, ∅, by simp, by simp, by simp, by simp, by simp, by simp⟩
   | alice st send answer valid tail ih =>
-    apply extend_fixed_partition valid.queried_subset ?_ ih
-    intro x hx x' hx' i hi
-    exact (valid.fixed x (tail.subsets.1 hx) i hi).trans
-      (valid.fixed x' (tail.subsets.1 hx') i hi).symm
+    exact extend_fixed_partition valid.queried_subset (fun x hx x' hx' i hi =>
+      (valid.fixed x (tail.subsets.1 hx) i hi).trans
+        (valid.fixed x' (tail.subsets.1 hx') i hi).symm) ih
   | bob st send answer valid tail ih =>
     obtain ⟨AX, AY, hAX, hAY, hd, hq, hx, hy⟩ := ih
-    have hswap := extend_fixed_partition (q := #AX + #AY) valid.queried_subset
-      (fun y hy y' hy' i hi => (valid.fixed y (tail.subsets.2 hy) i hi).trans
-        (valid.fixed y' (tail.subsets.2 hy') i hi).symm)
-      ⟨AY, AX, hAY, hAX, hd.symm, by omega, hy, hx⟩
-    obtain ⟨AY, AX, hAY, hAX, hd, hq, hy, hx⟩ := hswap
+    obtain ⟨AY, AX, hAY, hAX, hd, _, hy, hx⟩ := extend_fixed_partition (q := #AX + #AY)
+      valid.queried_subset (fun y hy y' hy' i hi =>
+        (valid.fixed y (tail.subsets.2 hy) i hi).trans
+          (valid.fixed y' (tail.subsets.2 hy') i hi).symm)
+      ⟨AY, AX, hAY, hAX, hd.symm, Nat.add_comm _ _, hy, hx⟩
     exact ⟨AX, AY, hAX, hAY, hd.symm, by omega, hx, hy⟩
 
 /-- The query exponent is bounded by the number of executed steps, with no separate endpoint

@@ -143,9 +143,7 @@ between the combined server family (Alice) and the user (Bob). -/
     (tree : MultiRoundTree S Y Z) : (compile serverBit hist tree).depth = tree.depth := by
   induction tree generalizing hist with
   | output _ => rfl
-  | sendTo _ _ p₀ p₁ ih₀ ih₁ =>
-    simp only [compile, Protocol.depth, depth, ih₀, ih₁]
-  | recvFrom _ p₀ p₁ ih₀ ih₁ =>
+  | sendTo _ _ _ _ ih₀ ih₁ | recvFrom _ _ _ ih₀ ih₁ =>
     simp only [compile, Protocol.depth, depth, ih₀, ih₁]
 
 /-- Ordered trace of `(server, directional message)` channel events produced on inputs `(x, d)` and
@@ -225,16 +223,13 @@ def toInteractiveScheme : InteractiveScheme ι C ((s : S) → D s) β where
   protocol := P.tree.compile P.serverBit fun _ => []
 
 @[simp] theorem toInteractiveScheme_userCoins :
-    P.toInteractiveScheme.userCoins = P.userCoins := by
-  rfl
+    P.toInteractiveScheme.userCoins = P.userCoins := by rfl
 
 @[simp] theorem toInteractiveScheme_serverCoins :
-    P.toInteractiveScheme.serverCoins = P.serverCoins := by
-  rfl
+    P.toInteractiveScheme.serverCoins = P.serverCoins := by rfl
 
 @[simp] theorem toInteractiveScheme_protocol :
-    P.toInteractiveScheme.protocol = P.tree.compile P.serverBit fun _ => [] := by
-  rfl
+    P.toInteractiveScheme.protocol = P.tree.compile P.serverBit fun _ => [] := by rfl
 
 theorem depth_toInteractiveScheme :
     P.toInteractiveScheme.protocol.depth = P.tree.depth :=
@@ -245,8 +240,7 @@ def run (x : ι → β) (i : ι) : ProbComp β :=
   P.toInteractiveScheme.run x i
 
 @[simp] theorem run_toInteractiveScheme (x : ι → β) (i : ι) :
-    P.toInteractiveScheme.run x i = P.run x i := by
-  rfl
+    P.toInteractiveScheme.run x i = P.run x i := by rfl
 
 /-- Sub-trace of directional channel events `(s, msg)` observed by a server coalition
 `T : Finset S`. -/
@@ -310,40 +304,32 @@ theorem IsTPrivate.mono {t₁ t₂ : ℕ} (hle : t₁ ≤ t₂) (h : P.IsTPrivat
   fun T hT => h T (hT.trans hle)
 
 theorem isTPrivate_one_iff : P.IsTPrivate 1 ↔ P.IsPrivate := by
-  constructor
-  · intro h s x i i'
-    have hsing := h {s} (by simp) x i i'
-    simp only [serverTranscript, ProbComp.eval_map, hsing]
-  · intro h T hT x i i'
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
-    · have hEmpty : T = ∅ := Finset.card_eq_zero.mp h0
-      subst hEmpty
-      have hnil (idx : ι) : ProbComp.eval (P.coalitionTranscript ∅ x idx) = PMF.pure [] := by
-        rw [coalitionTranscript, ProbComp.eval_map]
-        have hfn : (fun cd : C × ((s : S) → D s) =>
-            (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)).filter
-              fun sm => decide (sm.1 ∈ (∅ : Finset S))) = Function.const _ [] := by
-          funext cd
-          exact List.filter_eq_nil_iff.mpr fun _ _ => by simp
-        rw [hfn, PMF.map_const]
-      rw [hnil i, hnil i']
-    · obtain ⟨s, rfl⟩ := Finset.card_eq_one.mp h1
-      have hrec (idx : ι) : ProbComp.eval (P.coalitionTranscript {s} x idx) =
-          (ProbComp.eval (P.serverTranscript s x idx)).map (List.map fun msg => (s, msg)) := by
-        simp only [serverTranscript, coalitionTranscript, ProbComp.eval_map, PMF.map_comp]
-        congr 1
-        funext cd
-        simp only [Function.comp_apply, List.map_map]
-        induction (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)) with
-        | nil => rfl
-        | cons hd tl ih =>
-          rcases hd with ⟨s', msg⟩
-          by_cases hs : s' = s
-          · subst hs
-            rw [List.filter_cons_of_pos (by simp), List.map_cons, Function.comp_apply, ← ih]
-          · rw [List.filter_cons_of_neg (by simp [hs])]
-            exact ih
-      rw [hrec i, hrec i', h s x i i']
+  refine ⟨fun h s x i i' => by
+      simp only [serverTranscript, ProbComp.eval_map, h {s} (by simp) x i i'],
+    fun h T hT x i i' => ?_⟩
+  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hT with h0 | h1
+  · obtain rfl : T = ∅ := Finset.card_eq_zero.mp h0
+    have hnil (idx : ι) : ProbComp.eval (P.coalitionTranscript ∅ x idx) = PMF.pure [] := by
+      rw [coalitionTranscript, ProbComp.eval_map, show (fun cd : C × ((s : S) → D s) =>
+        (P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1)).filter
+          fun sm => decide (sm.1 ∈ (∅ : Finset S))) = Function.const _ [] from
+        funext fun _ => List.filter_eq_nil_iff.mpr fun _ _ => by simp, PMF.map_const]
+    rw [hnil i, hnil i']
+  · obtain ⟨s, rfl⟩ := Finset.card_eq_one.mp h1
+    have hrec (idx : ι) : ProbComp.eval (P.coalitionTranscript {s} x idx) =
+        (ProbComp.eval (P.serverTranscript s x idx)).map (List.map (s, ·)) := by
+      simp only [serverTranscript, coalitionTranscript, ProbComp.eval_map, PMF.map_comp]
+      congr 1; funext cd
+      simp only [Function.comp_apply, List.map_map]
+      induction P.tree.execTrace P.serverBit (fun _ => []) x cd.2 (idx, cd.1) with
+      | nil => rfl
+      | cons hd _ ih =>
+        rcases hd with ⟨s', msg⟩
+        by_cases hs : s' = s
+        · subst hs
+          rw [List.filter_cons_of_pos (by simp), List.map_cons, Function.comp_apply, ← ih]
+        · rwa [List.filter_cons_of_neg (by simp [hs])]
+    rw [hrec i, hrec i', h s x i i']
 
 end Defs
 
@@ -357,19 +343,17 @@ theorem isPrivate_toInteractiveScheme_of_card_le [Fintype S] {t : ℕ}
     P.toInteractiveScheme.IsPrivate := by
   rw [InteractiveScheme.isPrivate_iff]
   intro x i i'
-  have huniv : (Finset.univ : Finset S).card ≤ t := by simpa using hcard
   have hleaf (idx : ι) : ProbComp.eval (P.toInteractiveScheme.transcript x idx) =
       (ProbComp.eval (P.coalitionTranscript Finset.univ x idx)).map
         (fun tr => MultiRoundTree.leafOfBits P.toInteractiveScheme.protocol
           (tr.map (ChannelMsg.bit ∘ Prod.snd))) := by
     rw [InteractiveScheme.eval_transcript, coalitionTranscript, ProbComp.eval_map, PMF.map_comp]
-    congr 1
-    funext cd
+    congr 1; funext cd
     simp only [Function.comp_apply, toInteractiveScheme, Finset.mem_univ, decide_true,
       List.filter_true]
     exact (MultiRoundTree.leafOfBits_map_bit_execTrace P.serverBit (fun _ => []) P.tree
       x cd.2 (idx, cd.1)).symm
-  rw [hleaf i, hleaf i', hprivate Finset.univ huniv x i i']
+  rw [hleaf i, hleaf i', hprivate Finset.univ (by simpa using hcard) x i i']
 
 /-- **Full-coalition multi-round lower bound (`|S| ≤ t`)**
 [CGKS, Sections 2.2 and 5.1][ChorGoldreichKushilevitzSudan1998]: if all `k` servers may collude,

@@ -100,12 +100,10 @@ private theorem spaceBound_of_mem_support_oracleAnswerStep {k : ℕ} {Control : 
   split_ifs at hnext with hq
   · obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
     have hstep := machine.spaceBound_answerStep (fun _ => b) hcfg
-    rw [machine.answerStep_bit (fun _ => b)] at hstep
-    simpa [hq] using hstep
+    rw [machine.answerStep_bit (fun _ => b)] at hstep; simpa [hq] using hstep
   · rw [OracleComp.eq_of_mem_supportWith_pure hnext]
     have hstep := machine.spaceBound_answerStep (fun _ => false) hcfg
-    rw [machine.answerStep_bit (fun _ => false)] at hstep
-    simpa [hq] using hstep
+    rw [machine.answerStep_bit (fun _ => false)] at hstep; simpa [hq] using hstep
 
 private theorem interpret_id_oracleAnswerStep {k : ℕ} {Control : Type}
     (machine : Turing.MultiTapePTM k Bool Control Unit)
@@ -114,11 +112,9 @@ private theorem interpret_id_oracleAnswerStep {k : ℕ} {Control : Type}
     (cfg : Turing.MultiTapeMachine.FiniteConfig k Bool Control Unit) :
     OracleComp.interpret (m := Id) (languageOracle O) (oracleAnswerStep machine prog cfg) =
       machine.answerStep (fun q => [g q.2]) cfg := by
-  rw [machine.answerStep_bit]
-  unfold oracleAnswerStep
+  rw [machine.answerStep_bit]; unfold oracleAnswerStep
   split_ifs with hq
-  · rw [OracleComp.interpret_map, hg]
-    rfl
+  · rw [OracleComp.interpret_map, hg]; rfl
   · rfl
 
 /-- Interpret a finite machine with a polynomial clock, using a polynomial-time oracle
@@ -166,8 +162,7 @@ private theorem computableInPolyTimeWithOracle_run {O : Set (List Bool)}
   · simp only [OracleComp.interpret_map, OracleComp.interpret_iterate]
     exact hit.map (by fun_prop)
   · rw [OracleComp.interpret_map, OracleComp.interpret_id_iterate]
-    simp only [interpret_id_oracleAnswerStep machine hg]
-    rfl
+    simp only [interpret_id_oracleAnswerStep machine hg]; rfl
 
 /-- A Boolean oracle program agrees with the first output bit of its clocked machine. -/
 private theorem exists_clocked_bool_run {O : Set (List Bool)} {f : α → Bool}
@@ -179,8 +174,7 @@ private theorem exists_clocked_bool_run {O : Set (List Bool)} {f : α → Bool}
   obtain ⟨program, hcert, hprogram⟩ := hf
   obtain ⟨k, m, machine, c, d, hrun⟩ := hcert.exists_fin_run_pure_false
   refine ⟨k, m, machine, c, d, fun a => ?_⟩
-  rw [← machine.interpret_run_pure_false, hrun a (languageOracle O), hprogram a]
-  simp
+  rw [← machine.interpret_run_pure_false, hrun a (languageOracle O), hprogram a]; simp
 
 open Classical in
 /-- **Oracle substitution for polynomial-time Boolean computations**: if an oracle language `O₁`
@@ -191,13 +185,12 @@ theorem ComputableInPolyTimeWithOracle.of_mem_PWithOracle {O₁ O₂ : Set (List
     (hf : ComputableInPolyTimeWithOracle O₁ f encA encBool) :
     ComputableInPolyTimeWithOracle O₂ f encA encBool := by
   obtain ⟨g, ⟨prog, hprog, hg⟩, hgO₁⟩ := hO₁
-  have hg' : g = fun w => decide (w ∈ O₁) := funext fun w =>
+  obtain rfl : g = fun w => decide (w ∈ O₁) := funext fun w =>
     Bool.eq_iff_iff.mpr ⟨fun h => decide_eq_true ((hgO₁ w).mpr h),
       fun h => (hgO₁ w).mp (of_decide_eq_true h)⟩
-  subst hg'
   obtain ⟨k, m, machine, c, d, hrun⟩ := exists_clocked_bool_run hf
-  have h := computableInPolyTimeWithOracle_run (encA := encA) ⟨prog, hprog, hg⟩ machine c d
-  exact (funext hrun) ▸ h
+  exact funext hrun ▸
+    computableInPolyTimeWithOracle_run (encA := encA) ⟨prog, hprog, hg⟩ machine c d
 
 open Classical in
 /-- A polynomial-time Boolean oracle computation extends to all raw inputs by running its

@@ -72,9 +72,8 @@ private theorem run_interpret_memoize_transcript_prob (distribution : Query → 
     ?_ program (cache, []) (by simp) result (cache', transcript) h
   rintro q ⟨current, seen⟩ ⟨hcount, hentries⟩ answer next hnext
   simp only [OracleComp.withTranscript, PMF.mem_support_map_iff, mem_support_memoize_iff] at hnext
-  obtain ⟨⟨value, current'⟩, hvalue, heq⟩ := hnext
-  cases heq
-  dsimp only at hvalue
+  obtain ⟨⟨value, current'⟩, hvalue, rfl, rfl⟩ := hnext
+  dsimp only at hvalue ⊢
   rcases hvalue with ⟨_, rfl⟩ | ⟨_, hfresh, rfl⟩ <;> grind
 
 /-- External query budgets control cache growth and new-entry provenance for randomized clients.
@@ -89,16 +88,14 @@ theorem memoize_cache_bounds_prob (distribution : Query → PMF Value)
         (size entry.1 ≤ maxSize ∧ entry.2 ∈ (distribution entry.1).support) := by
   rw [← ProbOracleComp.run_interpret_withTranscript (memoize distribution) program cache [],
     PMF.mem_support_map_iff] at h
-  obtain ⟨⟨value, state⟩, hstate, heq⟩ := h
-  cases heq
+  dsimp only at h
+  obtain ⟨⟨value, state⟩, hstate, rfl, rfl⟩ := h
   obtain ⟨hcount, hentries⟩ := run_interpret_memoize_transcript_prob distribution program cache
-    state.1 result state.2 hstate
-  refine ⟨hcount.trans (Nat.add_le_add_left
-    (hcalls.length_transcript_le (memoize distribution) hstate) _), ?_⟩
-  intro entry hentry
-  rcases hentries entry hentry with h | ⟨hseen, hsupport⟩
-  · exact Or.inl h
-  · exact Or.inr ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hseen, hsupport⟩
+    state.1 value state.2 hstate
+  exact ⟨hcount.trans (Nat.add_le_add_left
+      (hcalls.length_transcript_le (memoize distribution) hstate) _),
+    fun entry hentry => (hentries entry hentry).imp id fun ⟨hseen, hsupport⟩ =>
+      ⟨hsize.forall_mem_transcript (memoize distribution) hstate _ hseen, hsupport⟩⟩
 
 /-- List memoization implements the mathematical random oracle for clients with private samples,
 retaining the result and represented final cache even over infinite query domains. -/
@@ -108,8 +105,7 @@ theorem run_interpret_memoize_prob [LawfulBEq Query] [DecidableEq Query]
     (ProbOracleComp.runWith (memoize distribution) program cache).map
         (fun (result, cache') => (result, ofList cache')) =
       ProbOracleComp.runWith (answer distribution) program (ofList cache) := by
-  apply ProbOracleComp.runWith_map_state
-  intro q current
+  refine ProbOracleComp.runWith_map_state _ _ _ (fun q current => ?_) _ _
   simpa only [OracleComp.interpret_query, StateT.run] using
     run_interpret_memoize distribution (OracleComp.query q) current
 
@@ -155,8 +151,7 @@ theorem eval_zoom_memoize_bind {Key Value St T β : Type} [DecidableEq Key]
       (answer (fun _ => ProbComp.eval d) q (ofList (get s))).bind Φ := by
   rw [ProbComp.eval_bind, eval_zoomStateT_memoize, ← memoize_map_ofList, PMF.map_bind,
     PMF.bind_map, PMF.bind_map]
-  congr 1 with ⟨v, c⟩ : 1
-  exact hf v c
+  exact congrArg _ (funext fun ⟨v, c⟩ => hf v c)
 
 end List
 
@@ -220,8 +215,8 @@ theorem interpret_prob_eq_memoize {Value : Type} [Finite Value] [BEq Query] [Law
       (ProbOracleComp.runWith (memoize distribution) program []).map Prod.fst := by
   classical
   rw [interpret_prob_eq_lazy]
-  have h := congrArg (PMF.map Prod.fst) (run_interpret_memoize_prob distribution program [])
-  simpa only [PMF.map_comp, Function.comp_def, ofList_nil] using h.symm
+  simpa only [PMF.map_comp, Function.comp_def, ofList_nil] using
+    (congrArg (PMF.map Prod.fst) (run_interpret_memoize_prob distribution program [])).symm
 
 /-- Injective keys and mapped values implement the same finite random function, including
 independent private samples and adaptive external queries in the client. -/
@@ -281,8 +276,7 @@ theorem answer_bind_complete (d : Q → PMF V) (c : Cache (fun _ : Q => V))
   have h := congrArg (fun p => p.bind (fun x => F (x.1, c) x.2)) (answer_complete d c q)
   simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.bind_map,
     Function.comp_def] at h
-  rw [← h]
-  congr 1 with ⟨v, c'⟩ : 1
+  rw [← h]; congr 1 with ⟨v, c'⟩ : 1
   rw [hF v c' c]
 
 /-- `answer_bind_complete` past one independent sample `p`. -/
