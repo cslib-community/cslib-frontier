@@ -120,10 +120,8 @@ private theorem measureReal_rayCross_le {Q : Multigraph W F} (hloop : Q.Loopless
       _ ≤ arccos ⟪edgeVector Q q R e₁, edgeVector Q q R e₂⟫ / π := by
           rw [← InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hunit1 hunit2]
           exact measureReal_mem_uIoc_le (hunit1.trans hunit2.symm) 0
-  have hpi : 0 < π := pi_pos
   rw [le_div_iff₀ (by positivity)]
-  have hmul := (le_div_iff₀ hpi).mp h2A
-  linarith only [hmul]
+  linarith [(le_div_iff₀ pi_pos).mp h2A]
 
 /-- **Expected `badCount` at a degree-`3` block.** At any block `B` with
 `(Q.incidenceSet B).ncard = 3`, `E[badCount Q q R · B] ≤ capAt ρ₀`. -/
@@ -231,14 +229,10 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
           dsimp [edgeVec2, edgeScore]; rw [heq]
         exact hne_c (inOpenSector_unique (hz ▸ hc₁) hc₂)
       exact hdet_ω (a, b) (Finset.mem_filter.mpr ⟨Finset.mem_offDiag.mpr ⟨ha, hb, hab⟩, hvec_ne⟩)
-    have hnat := four_mul_badCount_le h01 h12 h02 hs_toFin hinj hray_ω hdet_sec
-    have hreal : (4 : ℝ) * (badCount Q q R ω B : ℝ) ≤
-        ((∑ p ∈ s.offDiag, ∑ c : Fin 3,
-          if rayCross c (edgeVec2 Q q R ω p.1) (edgeVec2 Q q R ω p.2) then 1 else 0) +
-        2 * (if ω ∈ Conv then 1 else 0) : ℕ) := by exact_mod_cast hnat
-    refine hreal.trans_eq ?_
-    push_cast [rhsFn, indicator_apply, RC, mem_ofPred_eq]
-    rfl
+    have hreal := Nat.cast_le (α := ℝ).mpr
+      (four_mul_badCount_le h01 h12 h02 hs_toFin hinj hray_ω hdet_sec)
+    push_cast [rhsFn, indicator_apply, RC, mem_ofPred_eq] at hreal
+    exact hreal
   have hint_ineq : 4 * ∫ ω, (badCount Q q R ω B : ℝ) ∂P ≤ ∫ ω, rhsFn ω ∂P := by
     rw [← integral_const_mul]; exact integral_mono_ae (hint_bad.const_mul 4) hint_rhs hae_le
   have hint_rhs_eq : ∫ ω, rhsFn ω ∂P =

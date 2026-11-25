@@ -264,14 +264,12 @@ equivalence noted in [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): quan
 theorem eventualStrongAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualStrongAccuracy F H ↔ ∃ t, ∀ t', t ≤ t' → ∀ p ∉ F t', ∀ q ∉ F t', p ∉ H q t' := by
-  constructor
-  · rintro ⟨t₁, ht₁⟩
-    obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
-    refine ⟨max t₁ t₀, fun t' ht' p hp q hq => ?_⟩
-    have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
-    exact ht₁ t' ((le_max_left t₁ t₀).trans ht') p (hstab p |>.mp hp) q (hstab q |>.mp hq)
-  · rintro ⟨t, ht⟩
-    exact ⟨t, fun t' ht' p hp q hq => ht t' ht' p (hp t') q (hq t')⟩
+  refine ⟨fun ⟨t₁, ht₁⟩ => ?_,
+    fun ⟨t, ht⟩ => ⟨t, fun t' ht' p hp q hq => ht t' ht' p (hp t') q (hq t')⟩⟩
+  obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
+  refine ⟨max t₁ t₀, fun t' ht' p hp q hq => ?_⟩
+  have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
+  exact ht₁ t' ((le_max_left t₁ t₀).trans ht') p (hstab p |>.mp hp) q (hstab q |>.mp hq)
 
 /-- Interface characterization of `EventualWeakAccuracy` on finite `P` (analogous to
 `eventualStrongAccuracy_iff_alive`, [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]):
@@ -281,14 +279,12 @@ theorem eventualWeakAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualWeakAccuracy F H ↔
       ∃ t, ∃ p ∈ F.Correct, ∀ t', t ≤ t' → ∀ q ∉ F t', p ∉ H q t' := by
-  constructor
-  · rintro ⟨t₁, p, hp, ht₁⟩
-    obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
-    refine ⟨max t₁ t₀, p, hp, fun t' ht' q hq => ?_⟩
-    have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
-    exact ht₁ t' ((le_max_left t₁ t₀).trans ht') q (hstab q |>.mp hq)
-  · rintro ⟨t, p, hp, ht⟩
-    exact ⟨t, p, hp, fun t' ht' q hq => ht t' ht' q (hq t')⟩
+  refine ⟨fun ⟨t₁, p, hp, ht₁⟩ => ?_,
+    fun ⟨t, p, hp, ht⟩ => ⟨t, p, hp, fun t' ht' q hq => ht t' ht' q (hq t')⟩⟩
+  obtain ⟨t₀, ht₀⟩ := F.exists_stabilize
+  refine ⟨max t₁ t₀, p, hp, fun t' ht' q hq => ?_⟩
+  have hstab := (ht₀ t' ((le_max_right t₁ t₀).trans ht')).2
+  exact ht₁ t' ((le_max_left t₁ t₀).trans ht') q (hstab q |>.mp hq)
 
 /-! #### Implications among completeness and accuracy properties -/
 
@@ -580,14 +576,10 @@ theorem exists_isEventuallyPerfect_not_isWeakAccuracy {P : Type*} [Finite P] [No
   let H : DetectorHistory P := fun _ t => if t = 0 then Finset.univ else ∅
   obtain ⟨p₀⟩ := ‹Nonempty P›
   have hcorr : F.Correct.Nonempty := ⟨p₀, by simp [F]⟩
-  refine ⟨F, H, hcorr, ⟨?_, ?_⟩, ?_⟩
-  · refine ⟨0, fun p hp => ?_⟩
-    simp only [F, FailurePattern.crashed_const, coe_empty, Set.mem_empty_iff_false] at hp
-  · refine ⟨1, fun t' ht' p _ q _ => ?_⟩
-    simp only [H, show t' ≠ 0 by omega, ↓reduceIte, notMem_empty, not_false_eq_true]
-  · rintro ⟨p, _, hns⟩
-    have h0 := hns 0 p (by simp [F])
-    simp only [H, ↓reduceIte, mem_univ, not_true_eq_false] at h0
+  exact ⟨F, H, hcorr,
+    ⟨⟨0, fun p hp => by simp [F] at hp⟩,
+     ⟨1, fun t' ht' _ _ _ _ => by simp [H, Nat.ne_of_gt ht']⟩⟩,
+    fun ⟨p, _, hns⟩ => by simpa [H] using hns 0 p (by simp [F])⟩
 
 /-- **Original raw-history coatom witness 2 (`S \ ◇Q`):** on any `[Nontrivial P]`, permanently
 suspecting one fixed correct process `p₁` while never suspecting a distinct correct process
@@ -602,13 +594,9 @@ theorem exists_isStrong_not_isEventualStrongAccuracy {P : Type*} [Nontrivial P] 
   let H : DetectorHistory P := fun _ _ => {p₁}
   have hp₀ : p₀ ∈ F.Correct := by simp [F]
   have hp₁ : p₁ ∈ F.Correct := by simp [F]
-  refine ⟨F, H, ⟨p₀, hp₀⟩, ⟨?_, ?_⟩, ?_⟩
-  · refine ⟨0, fun p hp => ?_⟩
-    simp only [F, FailurePattern.crashed_const, coe_empty, Set.mem_empty_iff_false] at hp
-  · exact ⟨p₀, hp₀, fun _ _ _ => mem_singleton.not.mpr hne⟩
-  · rintro ⟨t, ht⟩
-    have hmem := ht t le_rfl p₁ hp₁ p₀ hp₀
-    simp only [H, mem_singleton, not_true_eq_false] at hmem
+  exact ⟨F, H, ⟨p₀, hp₀⟩,
+    ⟨⟨0, fun p hp => by simp [F] at hp⟩, ⟨p₀, hp₀, fun _ _ _ => mem_singleton.not.mpr hne⟩⟩,
+    fun ⟨t, ht⟩ => by simpa [H] using ht t le_rfl p₁ hp₁ p₀ hp₀⟩
 
 /-- **Original raw-history coatom witness 3 (`Q \ ◇S`):** when `3 ≤ Fintype.card P`, crashing one
 process `f` while one correct process `c₁` permanently suspects `f` and a second correct process

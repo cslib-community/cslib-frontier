@@ -421,8 +421,7 @@ theorem fieldVal_borrowC (idx : ℕ) {q : ℕ} (hq : q ≤ s + cb + tb) :
     fieldVal s cb tb x n T idx (chainW (4 + (s + cb + tb)) (s + cb + tb) 0 q) =
       decide (colOf s cb (idx / 16) % 2 ^ q = 0) := by
   rw [fieldVal_chainW idx (by omega) hq rfl]
-  simp only [chainVal, chain, ↓reduceIte, cmp, Nat.zero_mod, div_mod_eq_colOf]
-  simp
+  simp [chainVal, chain, cmp, div_mod_eq_colOf]
 
 theorem fieldVal_carryC (idx : ℕ) {q : ℕ} (hq : q ≤ s + cb + tb) :
     fieldVal s cb tb x n T idx (chainW (4 + (s + cb + tb)) (s + cb + tb) 1 q) =
@@ -430,16 +429,15 @@ theorem fieldVal_carryC (idx : ℕ) {q : ℕ} (hq : q ≤ s + cb + tb) :
   rw [fieldVal_chainW idx (by omega) hq rfl]
   simp only [chainVal, chain, one_ne_zero, ↓reduceIte, cmp, div_mod_eq_colOf]
   have hK : (2 ^ (s + cb + tb) - 1) % 2 ^ q = 2 ^ q - 1 := by
-    obtain ⟨d, hd⟩ : ∃ d, s + cb + tb = q + d := ⟨s + cb + tb - q, by omega⟩
-    rw [hd, Nat.pow_add]
-    have h1 := Nat.one_le_two_pow (n := q)
-    have h2 := Nat.one_le_two_pow (n := d)
-    have h3 : 2 ^ q ≤ 2 ^ q * 2 ^ d := Nat.le_mul_of_pos_right _ (by omega)
-    rw [show 2 ^ q * 2 ^ d - 1 = 2 ^ q * (2 ^ d - 1) + (2 ^ q - 1) by
-      rw [Nat.mul_sub_one]; omega, Nat.mul_add_mod, Nat.mod_eq_of_lt (by omega)]
-  rw [hK]
+    obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hq
+    have := Nat.one_le_two_pow (n := q)
+    have h3 : 2 ^ q ≤ 2 ^ q * 2 ^ d := Nat.le_mul_of_pos_right _ (Nat.two_pow_pos d)
+    have heq : 2 ^ q * 2 ^ d - 1 = 2 ^ q * (2 ^ d - 1) + (2 ^ q - 1) := by
+      rw [Nat.mul_sub_one]
+      omega
+    rw [hd, Nat.pow_add, heq, Nat.mul_add_mod, Nat.mod_eq_of_lt (by omega)]
+  rw [hK, Bool.eq_iff_iff]
   have := Nat.mod_lt (colOf s cb (idx / 16)) (Nat.two_pow_pos q)
-  rw [Bool.eq_iff_iff]
   simp only [Bool.and_true, Bool.or_eq_true, decide_eq_true_eq, or_iff_right_iff_imp]
   omega
 
@@ -448,9 +446,7 @@ theorem fieldVal_borrowT (idx : ℕ) (hidx : idx < 2 ^ (4 + (s + cb + tb))) {q :
     fieldVal s cb tb x n T idx (chainW (4 + (s + cb + tb)) (s + cb + tb) 2 q) =
       decide (timeOf s cb (idx / 16) % 2 ^ q = 0) := by
   rw [fieldVal_chainW idx (by omega) hq rfl]
-  simp only [chainVal, chain, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, ↓reduceIte, cmp,
-    Nat.zero_mod, div_mod_eq_timeOf hidx]
-  simp
+  simp [chainVal, chain, cmp, div_mod_eq_timeOf hidx]
 
 /-- **The formula of an output bit computes `outBit`** on the values of its wires: the values of
 the field stage, and the outputs `ts` of the constant stage for its literal. -/
@@ -510,14 +506,12 @@ theorem eval_outTemplate_wireNat {z : ℕ → Bool} {idx : ℕ} (hidx : idx < 2 
       · have ht : ¬ s + cb ≤ q := by omega
         simp only [hc, ht, and_self, ↓reduceIte, hcol, hC, hb0 (show q - s ≤ s + cb + tb by omega),
           hb1 (show q - s ≤ s + cb + tb by omega), hN, Bool.xor_false, Bool.and_false,
-          Bool.or_false, decide_true, decide_false, Bool.true_and, Bool.false_and]
-        simp only [Bool.or_assoc]
+          Bool.or_false, decide_true, decide_false, Bool.true_and, Bool.false_and, Bool.or_assoc]
       · simp only [hc, ↓reduceIte, hN, Bool.xor_false, Bool.and_false, Bool.or_false,
           decide_false, Bool.false_and]
         by_cases ht : s + cb ≤ q
         · simp only [ht, ↓reduceIte, htime, hC, hb2 (show q - s - cb ≤ s + cb + tb by omega),
-            decide_true, Bool.true_and]
-          simp only [Bool.or_assoc]
+            decide_true, Bool.true_and, Bool.or_assoc]
         · simp only [ht, ↓reduceIte, hN, Bool.xor_false, Bool.and_false, Bool.or_false,
             decide_false, Bool.false_and]
     · simp [h2, hP, hN]
@@ -571,11 +565,10 @@ theorem ofBits_keyWire {idx : ℕ} (hidx : idx < 2 ^ (4 + (s + cb + tb))) (hs : 
       cmp gt (idx / 2 ^ 4 % 2 ^ (s + cb + tb) % 2 ^ (s + cb + tb)) (K % 2 ^ (s + cb + tb)) e =
         cmp gt (idx / 16) K e := by
     rw [Nat.mod_mod]; exact cmp_mod_of_lt hp hK
-  have hc0 : bitAt (fun i : Fin (4 + s + 14) =>
-      fieldVal s cb tb x n T idx (keyWire s cb tb i)) (4 + s) =
-      chainVal (chain s cb tb x.length n T 0) idx (s + cb + tb) := by
-    simpa using hch 0 (by omega)
-  simp only [Key.ofBits, Key.ofFields, hc0,
+  simp only [Key.ofBits, Key.ofFields,
+    (Nat.add_zero (4 + s) ▸ hch 0 (by omega) :
+      bitAt (fun i : Fin (4 + s + 14) => fieldVal s cb tb x n T idx (keyWire s cb tb i)) (4 + s) =
+        _),
     hin 0 (by omega), hin 1 (by omega), hin 2 (by omega), hin 3 (by omega)]
   rw [show (fun i : Fin s => bitAt (fun i : Fin (4 + s + 14) =>
       fieldVal s cb tb x n T idx (keyWire s cb tb i)) (4 + i)) =
@@ -590,8 +583,8 @@ theorem ofBits_keyWire {idx : ℕ} (hidx : idx < 2 ^ (4 + (s + cb + tb))) (hs : 
   rw [hj, htag]
   simp only [hch 3 (by omega), hch 4 (by omega), hch 5 (by omega), hch 6 (by omega),
     hch 7 (by omega), hch 8 (by omega), hch 9 (by omega), hch 2 (by omega), hch 10 (by omega),
-    hch 11 (by omega), hch 12 (by omega), hch 13 (by omega), chainVal, chain]
-  simp only [OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, ↓reduceIte, Nat.reduceEqDiff]
+    hch 11 (by omega), hch 12 (by omega), hch 13 (by omega), chainVal, chain,
+    OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, ↓reduceIte, Nat.reduceEqDiff]
   simp (disch := omega) only [hcv, htv, hpv]
   simp [cmp]
 

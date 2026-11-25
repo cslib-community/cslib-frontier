@@ -307,15 +307,13 @@ private theorem oddExpect_pauliBraidingRoundDistances_le
     apply le_trans _ (mul_le_mul_of_nonneg_left (hround false) (by positivity))
     cases basis
     · exact (oddExpect_expect_eq_dens_mul _).le
-    · rw [← oddExpect_swap, oddExpect_expect_eq_dens_mul]
-      rfl
+    · exact ((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).le
   have hreverse : oddExpect (fun x y => 𝔼 z, S.state.norm (a x z - b x y) ^ 2) ≤
       density * (32 * δ) := by
     apply le_trans _ (mul_le_mul_of_nonneg_left (hround true) (by positivity))
     cases basis
     · exact (oddExpect_expect_eq_dens_mul _).le
-    · rw [← oddExpect_swap, oddExpect_expect_eq_dens_mul]
-      rfl
+    · exact ((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).le
   exact ⟨hforward, hreverse⟩
 
 /-- The combined verifier's consistency rejection controls the uniform average of the
@@ -359,9 +357,8 @@ theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module �
       oddExpect_pauliBraidingRoundDistances_le G special decode basis S
     cases roles
     · exact hforward
-    · refine le_trans ?_ hreverse
-      refine oddExpect_mono fun x y _ => expect_le_expect fun z _ => ?_
-      exact (congrArg (· ^ 2) (S.state.norm_sub_comm (a x y) (b x z))).le
+    · simp_rw [S.state.norm_sub_comm (a _ _)]
+      exact hreverse
   have hcross : oddExpect (fun x _ => S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2)
       ≤ 448 * density * δ := by
     rw [oddExpect_fst]
@@ -369,11 +366,8 @@ theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module �
     have hcompare : (𝔼 x, if x = 0 then 0 else S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2) ≤
         896 * density * δ := by
       cases roles
-      · convert h using 1
-        refine expect_congr rfl fun x _ => ?_
-        split_ifs
-        · rfl
-        · exact congrArg (· ^ 2) (S.state.norm_sub_comm _ _)
+      · simp_rw [S.state.norm_sub_comm (𝔼 z, b _ z)]
+        exact h
       · exact h
     linarith only [hcompare]
   have hjensen : oddExpect (fun x y => S.state.norm (a x y - (𝔼 z, b x z)) ^ 2) ≤
@@ -434,13 +428,10 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
     refine le_trans ?_ h
     refine mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ?_ (by positivity))
       ENNReal.toReal_nonneg
-    apply sum_le_sum
-    intro p _
-    cases roles <;> cases basis
-    · exact le_rfl
-    · exact le_rfl
-    · exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
-    · exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
+    refine sum_le_sum fun p _ => ?_
+    cases roles
+    · cases basis <;> exact le_rfl
+    · cases basis <;> exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
   have htri : (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤
       2 * (𝔼 p, S.state.norm (point p - avg p) ^ 2) +
       2 * (𝔼 p, S.state.norm (point p - b p) ^ 2) := by

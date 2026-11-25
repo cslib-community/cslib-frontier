@@ -207,20 +207,14 @@ theorem acceptWeight_exact {σ : Type*} {D : ℤ} {p : σ → ℤ} (step : σ �
   | zero => rw [acceptWeight, pow_zero, Function.iterate_zero_apply, one_mul]
   | succ n ih =>
     have hp0 : p s = if answer s then D else 0 := hp 0 (Nat.zero_lt_succ n)
-    have hpn : ∀ i < n,
-        p ((fun s => step s (answer s))^[i] (step s (answer s))) =
-          if answer ((fun s => step s (answer s))^[i] (step s (answer s))) then D else 0 :=
-      fun i hi => hp (i + 1) (Nat.succ_lt_succ hi)
-    have h := ih (step s (answer s)) hpn
+    have h := ih (step s (answer s)) fun i hi => hp (i + 1) (Nat.succ_lt_succ hi)
     rw [acceptWeight, hp0, Function.iterate_succ_apply, pow_succ]
     cases ha : answer s
-    · simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, zero_mul, add_zero]
-      have h' : step s false = step s (answer s) := by rw [ha]
-      rw [h', h]
+    · simp only [Bool.false_eq_true, ↓reduceIte, sub_zero, zero_mul, add_zero, ha] at h ⊢
+      rw [h]
       ring
-    · simp only [↓reduceIte, sub_self, zero_mul, zero_add]
-      have h' : step s true = step s (answer s) := by rw [ha]
-      rw [h', h]
+    · simp only [↓reduceIte, sub_self, zero_mul, zero_add, ha] at h ⊢
+      rw [h]
       ring
 
 /-- Special case of `acceptWeight_exact` when the exact weight identity holds at every state. -/
@@ -336,9 +330,8 @@ theorem GapPWithOracle_eq_GapP_of_mem_SPP (hA : A ∈ SPP encBits) (enc : α ↪
     GapPWithOracle A enc = GapP enc := by
   apply Set.Subset.antisymm ?_ (GapP_subset_GapPWithOracle A enc)
   rintro g ⟨f₁, hf₁, f₂, hf₂, hg⟩
-  have h := GapP.sub_mem' (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₁)
-    (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₂)
-  convert h using 1
+  convert GapP.sub_mem' (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₁)
+    (sharpPWithOracle_mem_GapP_of_mem_SPP hA hf₂) using 1
   exact funext hg
 
 /-- **`SPP` is self-low** (`SPP^SPP = SPP`,
@@ -502,12 +495,8 @@ theorem LWPPWithFixedTarget_eq_LWPP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc :
   obtain ⟨S, hS, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun n => S n * f n,
     hS.intBin_mul' hf, fun n => mul_ne_zero (hSn n) (hfn n),
-    fun a => ?_, fun a => ?_⟩
-  · rcases hrange a with h0 | hfa
-    · exact Or.inl (by simp only [h0, mul_zero])
-    · exact Or.inr (by simp only [hfa])
-  · rw [hL a]
-    exact (mul_right_inj' (hSn (enc a).length)).symm
+    fun a => (hrange a).imp (mul_eq_zero_of_right _) (congrArg (S (enc a).length * ·)),
+    fun a => (hL a).trans (mul_right_inj' (hSn (enc a).length)).symm⟩
 
 /-- **`LWPP` is low for fixed-target `WPP`** (`WPPWithFixedTarget A enc = WPP enc` for
 `A ∈ LWPP encBits`, where the outer target `f : α → ℤ` is computable without `A`;
@@ -519,12 +508,9 @@ theorem WPPWithFixedTarget_eq_WPP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc : �
   obtain ⟨S, hS, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun a => S (enc a).length * f a,
     (hS.comp (.encoding_length enc)).intBin_mul' hf,
-    fun a => mul_ne_zero (hSn (enc a).length) (hfn a), fun a => ?_, fun a => ?_⟩
-  · rcases hrange a with h0 | hfa
-    · exact Or.inl (by simp only [h0, mul_zero])
-    · exact Or.inr (by simp only [hfa])
-  · rw [hL a]
-    exact (mul_right_inj' (hSn (enc a).length)).symm
+    fun a => mul_ne_zero (hSn (enc a).length) (hfn a),
+    fun a => (hrange a).imp (mul_eq_zero_of_right _) (congrArg (S (enc a).length * ·)),
+    fun a => (hL a).trans (mul_right_inj' (hSn (enc a).length)).symm⟩
 
 /-- **`LWPP` is low for `C=P`** (`C=P^LWPP = C=P`,
 [Fenner–Fortnow–Kurtz, Section 5][FennerFortnowKurtz1994]). -/
@@ -534,9 +520,7 @@ theorem CeqPWithOracle_eq_CeqP_of_mem_LWPP (hA : A ∈ LWPP encBits) (enc : α �
   rintro L ⟨g, hg, hL⟩
   obtain ⟨S, -, hSn, hSg⟩ := exists_mul_mem_GapP_of_mem_LWPP hA hg
   refine ⟨fun a => S (enc a).length * g a, hSg, fun a => ?_⟩
-  rw [hL a]
-  exact ⟨fun h0 => by simp only [h0, mul_zero],
-    fun hmul => (mul_eq_zero.mp hmul).resolve_left (hSn (enc a).length)⟩
+  simp only [hL a, mul_eq_zero, hSn (enc a).length, false_or]
 
 /-- **`WPP` is low for `PP`** (`PP^WPP = PP`, via `WPP ⊆ AWPP` and `AWPP` lowness for `PP`). -/
 theorem PPWithOracle_eq_PP_of_mem_WPP (hA : A ∈ WPP encBits) (enc : α ↪ List Bool) :

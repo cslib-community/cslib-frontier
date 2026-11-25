@@ -89,22 +89,15 @@ private theorem placed_vector (p : Route) (flip : Bool) (z : ℂ) :
   dsimp only
   have h0 := placed_contact_eval p flip z 0
   have h1 := placed_contact_eval p flip z 1
-  have hvec : ∀ q : Route, ∀ i : Fin q.segments,
+  have hvec (q : Route) (i : Fin q.segments) :
       q.point i.succ - q.point i.castSucc = q.eval i 1 - q.eval i 0 := by
-    intro q i
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero]
   rw [hvec]
   cases flip <;> simp only [contactTime, Bool.false_eq_true, ↓reduceIte, sub_zero,
-    sub_self] at h0 h1 ⊢
-  · rw [h1, h0]
+    sub_self] at h0 h1 ⊢ <;> rw [h0, h1] <;>
     simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
       add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
-      Bool.false_eq_true, ↓reduceIte, Route.start]
-  · rw [h0, h1]
-    simp only [Route.eval, AffineMap.lineMap_apply_one, AffineMap.lineMap_apply_zero,
-      add_sub_add_left_eq_sub, Fin.castSucc_zero, Route.germ,
-      Bool.false_eq_true, ↓reduceIte, Route.start,
-      neg_sub]
+      Bool.false_eq_true, ↓reduceIte, Route.start, neg_sub]
 
 private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
     (hz : z ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b)) {r : ℝ} (hr : 0 < r)
@@ -118,12 +111,10 @@ private theorem cut_parameters {a b : ℝ} (hab : a ≠ b) {z : ℂ}
   have hshift (x : ℝ) (hx : |x| < min (z.re - min a b) (max a b - z.re)) :
       z + (⟨x, x * (a + b)⟩ : ℂ) ∈ openSegment ℝ (parabolaPoint a) (parabolaPoint b) := by
     have hx' := lt_min_iff.mp hx
-    have hxlow := neg_abs_le x
-    have hxhigh := le_abs_self x
-    apply (mem_openChord_iff hab _).mpr
-    constructor
+    refine (mem_openChord_iff hab _).mpr ⟨?_, ?_⟩
     · change min a b < z.re + x ∧ z.re + x < max a b
-      constructor <;> linarith
+      exact ⟨by linarith [neg_abs_le x],
+        by linarith [le_abs_self x]⟩
     · change z.im + x * (a + b) = (a + b) * (z.re + x) - a * b
       nlinarith only [hline]
   have hleft := hshift (-r) (by simpa only [abs_neg, abs_of_pos hr] using hm)
@@ -171,25 +162,22 @@ private theorem choose_geometry {ι : Type*} [Finite ι] (s m : ι → ℝ)
   have hr : 0 < r := by dsimp [r]; positivity
   refine ⟨r, ε, hr, by dsimp [ε]; positivity, ?_, ?_⟩
   · intro i
-    have hi : 1 / m i ≤ ∑ j, 1 / m j :=
-      Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le) (Finset.mem_univ i)
-    have hTi : 1 / m i < T := by dsimp [T]; linarith
+    have hTi : 1 / m i < T := by
+      dsimp [T]
+      linarith [Finset.single_le_sum (fun j _ => (div_pos zero_lt_one (hm j)).le)
+        (Finset.mem_univ i)]
     have hprod := (div_lt_iff₀ (hm i)).mp hTi
-    have hsmall : 1 / (2 * T) < m i := by
-      apply (div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
-      nlinarith
-    exact (min_le_right _ _).trans_lt hsmall
+    exact (min_le_right _ _).trans_lt
+      ((div_lt_iff₀ (by positivity : 0 < 2 * T)).mpr
+        (by nlinarith))
   · intro i
-    have hi : |s i| ≤ ∑ j, |s j| :=
-      Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)
-    have hKi : 1 + |s i| ≤ K := by dsimp [K]; linarith
-    have hrK : r * K ≤ ρ / 4 := by
-      have hh : r ≤ ρ / (4 * K) := min_le_left _ _
-      have := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp hh
-      nlinarith
+    have hKi : 1 + |s i| ≤ K := by
+      dsimp [K]
+      linarith [Finset.single_le_sum (fun j _ => abs_nonneg (s j)) (Finset.mem_univ i)]
+    have hrK := (le_div_iff₀ (by positivity : 0 < 4 * K)).mp (min_le_left _ _ : r ≤ _)
     have hbound := mul_le_mul_of_nonneg_left hKi hr.le
     dsimp [ε]
-    linarith
+    nlinarith
 
 /-- Place the actual finite incident family inside any positive-radius ball. Source cut
 parameters, optional frozen protection, slopes and all geometric conclusions are internal.
@@ -254,15 +242,13 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     intro e f he hf
     by_contra hef
     have hef' : e.val ≠ f.val := fun h => hef (Subtype.ext h)
-    have hez := hopen e
-    have hfz := hopen f
-    rw [openSegment_eq_image_lineMap] at hez hfz
-    obtain ⟨u, hu, hueq⟩ := hez
-    obtain ⟨v, hv, hveq⟩ := hfz
+    simp only [openSegment_eq_image_lineMap] at hopen
+    obtain ⟨u, hu, hueq⟩ := hopen e
+    obtain ⟨v, hv, hveq⟩ := hopen f
     have heval : (D.route e.val).eval 0 u = (D.route f.val).eval 0 v := by
       rw [hshape e.val, hshape f.val, Route.eval_line, Route.eval_line]
       exact hueq.trans hveq.symm
-    obtain ⟨be, bf, hbe, hbf, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
+    obtain ⟨be, _, hbe, _, _⟩ := referenceDrawing_frozen_edge_contacts hI e.val f.val
       hef' he hf 0 0 ⟨hu.1.le, hu.2.le⟩ ⟨hv.1.le, hv.2.le⟩ heval
     exact (Route.not_atEnd_of_mem_Ioo _ 0 hu be) hbe
   let fixed : Option X := if h : ∃ e : X, F e.val = true then some h.choose else none
@@ -380,22 +366,17 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
         ((congrArg (fun x => z + x) ((hraw_eval e t).symm.trans hete)).trans hu)
     · exact (placed_contact_eval (R f) (flip f) z t').trans
         ((congrArg (fun x => z + x) ((hraw_eval f t').symm.trans hetf)).trans hu)
-    · let ve := (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).succ -
-        (placed (R e) (flip e) z).point (contactIndex (R e) (flip e) z).castSucc
-      let vf := (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).succ -
-        (placed (R f) (flip f) z).point (contactIndex (R f) (flip f) z).castSucc
-      change ve.re * vf.im - ve.im * vf.re ≠ 0
-      have hve : ve = if flip e then -(R e).germ false else (R e).germ false :=
-        placed_vector (R e) (flip e) z
-      have hvf : vf = if flip f then -(R f).germ false else (R f).germ false :=
-        placed_vector (R f) (flip f) z
+    · have hve := placed_vector (R e) (flip e) z
+      have hvf := placed_vector (R f) (flip f) z
+      dsimp only [placed, flip, a, b, D] at hve hvf ⊢
       rw [hve, hvf]
       have hd := hdet e f hef
       change ((R e).germ false).re * ((R f).germ false).im -
         ((R e).germ false).im * ((R f).germ false).re ≠ 0 at hd
-      cases flip e <;> cases flip f <;>
-        simp only [Bool.false_eq_true, ↓reduceIte, Complex.neg_re, Complex.neg_im] <;>
-        intro hzero <;> apply hd <;> nlinarith only [hzero]
+      split_ifs <;> intro hzero <;> apply hd
+      all_goals
+        try simp only [Complex.neg_re, Complex.neg_im] at hzero
+        nlinarith only [hzero]
   · intro e f g hef heg hfg w hwe hwf hwg
     obtain ⟨u, hue, hu⟩ := (placed_support (R e) (flip e) z) ▸ hwe
     obtain ⟨v, hvf, hv⟩ := (placed_support (R f) (flip f) z) ▸ hwf

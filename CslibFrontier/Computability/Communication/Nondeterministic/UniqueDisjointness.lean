@@ -149,19 +149,15 @@ private theorem insertPair_injOn {x : α} {U : Finset α} (hx : x ∉ U) :
     · exact ⟨erase_insert ha, erase_eq_of_notMem hb⟩
     · exact ⟨erase_eq_of_notMem ha, erase_insert hb⟩
   have ha : a₁ = a₂ := by
-    have := congrArg (fun p => p.1.erase x) heq
-    rwa [(he t₁ a₁ b₁ hxa₁ hxb₁).1, (he t₂ a₂ b₂ hxa₂ hxb₂).1] at this
+    simpa only [(he t₁ a₁ b₁ hxa₁ hxb₁).1, (he t₂ a₂ b₂ hxa₂ hxb₂).1] using
+      congrArg (fun p => p.1.erase x) heq
   have hb : b₁ = b₂ := by
-    have := congrArg (fun p => p.2.erase x) heq
-    rwa [(he t₁ a₁ b₁ hxa₁ hxb₁).2, (he t₂ a₂ b₂ hxa₂ hxb₂).2] at this
+    simpa only [(he t₁ a₁ b₁ hxa₁ hxb₁).2, (he t₂ a₂ b₂ hxa₂ hxb₂).2] using
+      congrArg (fun p => p.2.erase x) heq
   subst ha hb
-  fin_cases t₁ <;> fin_cases t₂ <;> simp only [insertPair, Prod.mk.injEq] at heq ⊢
-  · exact absurd (heq.1.symm ▸ mem_insert_self x a₁) hxa₁
-  · exact absurd (heq.2.symm ▸ mem_insert_self x b₁) hxb₁
-  · exact absurd (heq.1 ▸ mem_insert_self x a₁) hxa₁
-  · exact absurd (heq.1 ▸ mem_insert_self x a₁) hxa₁
-  · exact absurd (heq.2 ▸ mem_insert_self x b₁) hxb₁
-  · exact absurd (heq.1.symm ▸ mem_insert_self x a₁) hxa₁
+  have hx1 := congrArg (fun p => x ∈ p.1) heq
+  have hx2 := congrArg (fun p => x ∈ p.2) heq
+  fin_cases t₁ <;> fin_cases t₂ <;> simp [insertPair, hxa₁, hxb₁] at hx1 hx2 ⊢
 
 /-- There are `3 ^ U.card` pairs of disjoint subsets of `U` [KaibelWeltge2015, Section 2]. -/
 theorem card_disjointPairs (U : Finset α) : (disjointPairs U).card = 3 ^ U.card := by
@@ -202,14 +198,12 @@ private theorem isValidDisjointSet_image_flipPair {U : Finset α}
     IsValidDisjointSet U (R.image flipPair) := by
   refine ⟨?_, ?_⟩
   · intro p hp
-    rw [mem_image] at hp
-    obtain ⟨q, hq, rfl⟩ := hp
+    obtain ⟨q, hq, rfl⟩ := mem_image.1 hp
     have hqd := mem_disjointPairs.1 (hR.1 hq)
     exact mem_disjointPairs.2 ⟨hqd.2.1, hqd.1, hqd.2.2.symm⟩
   · intro p hp q hq
-    rw [mem_image] at hp hq
-    obtain ⟨p', hp', rfl⟩ := hp
-    obtain ⟨q', hq', rfl⟩ := hq
+    obtain ⟨p', hp', rfl⟩ := mem_image.1 hp
+    obtain ⟨q', hq', rfl⟩ := mem_image.1 hq
     simpa only [flipPair, inter_comm] using hR.2 q' hq' p' hp'
 
 private def leftSplit (x : α) (R : Finset (Finset α × Finset α)) :
@@ -221,24 +215,19 @@ private theorem leftSplit_image_erase_isValid {x : α} {U : Finset α}
     IsValidDisjointSet U ((leftSplit x R).image fun p => (p.1.erase x, p.2.erase x)) := by
   refine ⟨?_, ?_⟩
   · intro p hp
-    rw [mem_image] at hp
-    obtain ⟨q, hq, rfl⟩ := hp
-    have hqR := (mem_filter.1 hq).1
-    obtain ⟨ha, hb, hab⟩ := mem_disjointPairs.1 (hR.1 hqR)
+    obtain ⟨q, hq, rfl⟩ := mem_image.1 hp
+    obtain ⟨ha, hb, hab⟩ := mem_disjointPairs.1 (hR.1 (mem_filter.1 hq).1)
     have hsub : ∀ s : Finset α, s ⊆ insert x U → s.erase x ⊆ U := fun s hs y hy =>
       (mem_insert.1 (hs (mem_of_mem_erase hy))).resolve_left (ne_of_mem_erase hy)
     exact mem_disjointPairs.2
       ⟨hsub q.1 ha, hsub q.2 hb, hab.mono (erase_subset x q.1) (erase_subset x q.2)⟩
   · intro p hp q hq
-    rw [mem_image] at hp hq
-    obtain ⟨p', hp', rfl⟩ := hp
-    obtain ⟨q', hq', rfl⟩ := hq
-    have hp'R := (mem_filter.1 hp').1
-    have hq'R := (mem_filter.1 hq').1
+    obtain ⟨p', hp', rfl⟩ := mem_image.1 hp
+    obtain ⟨q', hq', rfl⟩ := mem_image.1 hq
     have hxq' : x ∉ q'.2 := (mem_filter.1 hq').2.1
     rw [erase_eq_of_notMem hxq', erase_inter,
       erase_eq_of_notMem fun h => hxq' (mem_inter.1 h).2]
-    exact hR.2 p' hp'R q' hq'R
+    exact hR.2 p' (mem_filter.1 hp').1 q' (mem_filter.1 hq').1
 
 private theorem injOn_erase_leftSplit {x : α} {R : Finset (Finset α × Finset α)} :
     Set.InjOn (fun p : Finset α × Finset α => (p.1.erase x, p.2.erase x)) (leftSplit x R) := by
@@ -294,12 +283,8 @@ private theorem subset_leftSplit_union {x : α} {U : Finset α} {R : Finset (Fin
         · right
           refine ⟨(b, a), mem_filter.2 ⟨mem_image.2 ⟨(a, b), hab, rfl⟩, hxa,
             Or.inr fun h => hib ?_⟩, rfl⟩
-          rw [mem_image] at h
-          obtain ⟨q, hq, hqeq⟩ := h
-          have : q = (a, insert x b) := by
-            rw [flipPair, Prod.mk.injEq] at hqeq
-            exact Prod.ext hqeq.2 hqeq.1
-          rwa [← this]
+          obtain ⟨⟨_, _⟩, hq, ⟨rfl, rfl⟩⟩ := mem_image.1 h
+          exact hq
       · left
         exact mem_filter.2 ⟨hab, hxb, Or.inr hia⟩
 
@@ -415,13 +400,11 @@ theorem three_div_two_pow_le_of_coverNumber_uniqueDisjointnessRel_le {K : Type*}
     (hr : coverNumber true (uniqueDisjointnessRel α) Set.univ Set.univ ≤ r) :
     (3 / 2 : K) ^ Fintype.card α ≤ r := by
   obtain ⟨C, hcov⟩ := coverNumber_le_iff.1 hr
-  have hnat : 3 ^ Fintype.card α ≤ r * 2 ^ Fintype.card α := by
-    simpa only [Fintype.card_fin] using
-      three_pow_le_two_pow_mul_of_isCover_uniqueDisjointnessRel hcov
-  have hcast : ((3 : K) ^ Fintype.card α) ≤ (r : K) * (2 : K) ^ Fintype.card α := by
-    exact_mod_cast hnat
   rw [div_pow, div_le_iff₀ (by positivity)]
-  exact hcast
+  exact_mod_cast (by
+    simpa only [Fintype.card_fin] using
+      three_pow_le_two_pow_mul_of_isCover_uniqueDisjointnessRel hcov :
+    3 ^ Fintype.card α ≤ r * 2 ^ Fintype.card α)
 
 omit [Fintype α] in
 /-- Covering the total predicate `nonUniqueInter α` (`|a ∩ b| ≠ 1`) is at least as hard as
@@ -462,15 +445,10 @@ theorem coverNumberFun_nonUniqueInter_le_vec :
     simp only [nonUniqueInterVec, nonUniqueInter, hfilter]
   refine le_coverNumber_iff.2 fun r C hcov => ?_
   rw [isCover_fun_iff] at hcov
-  have hcov' : IsCover true (fun a b r => nonUniqueInter α a b = r) Set.univ Set.univ
-      (fun w => (f ⁻¹' (C w).1, f ⁻¹' (C w).2)) := by
-    rw [isCover_fun_iff]
-    refine ⟨fun w a _ ha b _ hb => ?_, fun a _ b _ hab => ?_⟩
-    · rw [← heq a b]
-      exact hcov.1 w (f a) (Set.mem_univ _) ha (f b) (Set.mem_univ _) hb
-    · rw [← heq a b] at hab
-      exact hcov.2 (f a) (Set.mem_univ _) (f b) (Set.mem_univ _) hab
-  exact coverNumber_le_iff.2 ⟨_, hcov'⟩
+  refine coverNumber_le_iff.2 ⟨fun w => (f ⁻¹' (C w).1, f ⁻¹' (C w).2), isCover_fun_iff.2
+    ⟨fun w a _ ha b _ hb => ?_, fun a _ b _ hab => ?_⟩⟩
+  · exact heq a b ▸ hcov.1 w (f a) (Set.mem_univ _) ha (f b) (Set.mem_univ _) hb
+  · exact hcov.2 (f a) (Set.mem_univ _) (f b) (Set.mem_univ _) ((heq a b).trans hab)
 
 /-- Nondeterministic `1`-communication complexity of `uniqueDisjointnessRel α` is at least
 `⌈log₂ ⌈(3 / 2) ^ |α|⌉⌉` [KaibelWeltge2015, Section 3]. -/

@@ -147,11 +147,9 @@ theorem isTop_or_isBottom_of_extremal (hP : F.IsPareto) (hI : F.IsIIA)
     (F P).IsTop b ∨ (F P).IsBottom b := by
   classical
   by_contra! h
-  obtain ⟨hT, hB⟩ := h
   simp only [WeakRanking.IsTop, WeakRanking.IsBottom, WeakRanking.Prefers, not_forall,
-    not_not] at hT hB
-  obtain ⟨a₀, ha₀b, hab₀⟩ := hT
-  obtain ⟨c₀, hc₀b, hbc₀⟩ := hB
+    not_not] at h
+  obtain ⟨⟨a₀, ha₀b, hab₀⟩, c₀, hc₀b, hbc₀⟩ := h
   -- Find distinct `a, c ≠ b` with `a ≥ b ≥ c` socially.
   obtain ⟨a, c, hab, hcb, hac, hab', hbc'⟩ : ∃ a c, a ≠ b ∧ c ≠ b ∧ a ≠ c ∧
       (F P).AtLeast a b ∧ (F P).AtLeast b c := by
@@ -278,8 +276,7 @@ private theorem IsPivot.prefers (hI : F.IsIIA) {b : A} {n : V} (hn : IsPivot F b
   by_cases hj : j = n
   · subst hj
     rw [hQn]
-    refine iff_of_true hxy ?_
-    exact ((P j).toTop b).isTop_toTop x y (Ne.symm hxy')
+    exact iff_of_true hxy (((P j).toTop b).isTop_toTop x y (Ne.symm hxy'))
   · simp only [Q, hj, ite_false]
     split_ifs
     · exact ((P j).toTop_prefers_of_ne hxb hyb).symm
@@ -330,10 +327,8 @@ theorem IsDictator.unique [Nontrivial A] {i j : V} (hi : F.IsDictator i) (hj : F
   by_contra hij
   obtain ⟨a, b, hab⟩ := exists_pair_ne A
   obtain ⟨r⟩ := Ranking.nonempty A
-  obtain ⟨s, hs⟩ : ∃ s : Ranking A, s.Prefers a b := by
-    rcases r.total a b hab with h | h
-    · exact ⟨r, h⟩
-    · exact ⟨r.reverse, r.reverse_prefers.2 h⟩
+  obtain ⟨s, hs⟩ : ∃ s : Ranking A, s.Prefers a b :=
+    (r.total a b hab).elim (⟨r, ·⟩) fun h => ⟨r.reverse, r.reverse_prefers.2 h⟩
   let P : Profile V A := fun k => if k = i then s else s.reverse
   have h1 : (F P).Prefers a b := hi P a b (by simp only [P, ite_true]; exact hs)
   have h2 : (F P).Prefers b a := hj P b a (by
