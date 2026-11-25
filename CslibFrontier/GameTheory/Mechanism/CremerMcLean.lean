@@ -314,6 +314,34 @@ theorem isTruthful_withOpponentTransfer [DecidableEq ι] (D : IndirectMechanism 
   simp only [withOpponentTransfer_outcome, withOpponentTransfer_payment, oppProj_update]
   constructor <;> intro h <;> linarith
 
+private theorem exists_singleAgentVal [Fintype ι] [DecidableEq Ω] (i₀ : ι)
+    {ω₀ ω₁ : Ω} (hω : ω₀ ≠ ω₁) (v₀ : T i₀ → ℝ) (hv₀ : ∀ ti, 1 ≤ v₀ ti) :
+    ∃ val : ∀ i, T i → Ω → ℝ,
+      (∀ i ti ω, 0 ≤ val i ti ω) ∧
+      (∀ i ti, val i ti ω₀ = 0) ∧
+      (∀ (ti : T i₀) (ω : Ω), val i₀ ti ω = if ω = ω₁ then v₀ ti else 0) ∧
+      (∀ D : IndirectMechanism ι T Ω, D.IsExPostEfficient val → ∀ t, D.outcome t = ω₁) := by
+  classical
+  have hval_i₀ (ti : T i₀) (ω : Ω) :
+      (if h : i₀ = i₀ then (if ω = ω₁ then v₀ (h ▸ ti) else 0) else 0) =
+        if ω = ω₁ then v₀ ti else 0 := by simp only [↓reduceDIte]
+  refine ⟨fun i ti ω => if h : i = i₀ then (if ω = ω₁ then v₀ (h ▸ ti) else 0) else 0,
+    fun i ti ω => ?_, fun i ti => by simp only [ite_eq_right hω, dite_eq_ite, ite_self],
+    hval_i₀, fun D hEff t => ?_⟩
+  · by_cases h₁ : i = i₀
+    · subst h₁; by_cases h₂ : ω = ω₁ <;> simp [h₂, zero_le_one.trans (hv₀ ti)]
+    · simp [h₁]
+  · by_contra hne
+    have hw (ω : Ω) :
+        (∑ j, if h : j = i₀ then (if ω = ω₁ then v₀ (h ▸ t j) else 0) else 0) =
+          if ω = ω₁ then v₀ (t i₀) else 0 := by
+      rw [← add_sum_erase _ _ (mem_univ i₀), hval_i₀,
+        sum_eq_zero fun j hj => dite_eq_right (ne_of_mem_erase hj), add_zero]
+    have key := hEff t ω₁
+    rw [hw, hw] at key
+    simp only [↓reduceIte, ite_eq_right hne] at key
+    linarith [hv₀ (t i₀)]
+
 end IndirectMechanism
 
 namespace Mechanism
@@ -658,6 +686,12 @@ theorem exists_isTruthful_interimIR_extractsFullSurplus {P : CorrelatedPrior ι 
 
 end HasFullBeliefRank
 
+private theorem mulVec_condBelief_sub_const (P : CorrelatedPrior ι T) (i : ι)
+    (g : OppProfile T i → ℝ) (c : ℝ) (ti : T i) :
+    (P.condBelief i *ᵥ fun t_opp => g t_opp - c) ti = (P.condBelief i *ᵥ g) ti - c := by
+  simp only [mulVec, dotProduct, mul_sub, sum_sub_distrib, ← sum_mul, P.sum_condBelief_eq_one,
+    one_mul]
+
 /-- **Converse to Crémer–McLean dominant-strategy extraction**: if `P.HasFullBeliefRank` fails and
 `Ω` has at least two outcomes, there exists a nonnegative valuation profile (normalized to `0` on
 a status-quo outcome) for which no ex-post efficient, dominant-strategy truthful (`IsTruthful`),
@@ -676,83 +710,38 @@ theorem exists_nonneg_val_not_exists_isTruthful_of_not_hasFullBeliefRank
   have hnotSurj := mt P.hasFullBeliefRank_iff_forall_exists_mulVec_eq.2 hP
   push Not at hnotSurj
   obtain ⟨i₀, c, hno_sol⟩ := hnotSurj
-  have hc_ne : c ≠ 0 := fun hc0 => hno_sol 0 (by rw [hc0, mulVec_zero])
-  obtain ⟨ti₀, -⟩ : ∃ ti₀ : T i₀, c ti₀ ≠ 0 := Function.ne_iff.1 hc_ne
+  obtain ⟨ti₀, -⟩ := Function.ne_iff.1 (show c ≠ 0 from fun hc0 => hno_sol 0 (by simp [hc0]))
   obtain ⟨ω₀, ω₁, hω⟩ := exists_pair_ne Ω
   let shift : ℝ := 1 + ∑ ti : T i₀, |c ti|
-  have hpos_val : ∀ ti : T i₀, 1 ≤ shift + c ti := fun ti => by
-    have habs : |c ti| ≤ ∑ ti' : T i₀, |c ti'| :=
-      single_le_sum (f := fun ti' => |c ti'|) (fun _ _ => abs_nonneg _) (mem_univ ti)
-    have hneg : -c ti ≤ |c ti| := neg_le_abs (c ti)
+  have hpos_val (ti : T i₀) : 1 ≤ shift + c ti := by
     dsimp only [shift]
-    linarith
-  let val : ∀ i, T i → Ω → ℝ := fun i ti ω =>
-    if h : i = i₀ then (if ω = ω₁ then shift + c (h ▸ ti) else 0) else 0
-  refine ⟨val, ?_, ⟨ω₀, fun i ti => ?_⟩, ?_⟩
-  · intro i ti ω
-    dsimp only [val]
-    split_ifs with h₁ h₂
-    · exact zero_le_one.trans (hpos_val (h₁ ▸ ti))
-    · exact le_rfl
-    · exact le_rfl
-  · dsimp only [val]
-    simp only [ite_eq_right hω, dite_eq_ite, ite_self]
-  · rintro ⟨D, hEff, hTruth, hIR, hExt⟩
-    rw [IndirectMechanism.isTruthful_iff] at hTruth
-    have hzero := (P.extractsFullSurplus_iff_forall_interimUtility_eq_zero hIR).1 hExt
-    have hval_i₀ : ∀ (ti : T i₀) (ω : Ω),
-        val i₀ ti ω = if ω = ω₁ then shift + c ti else 0 := fun ti ω => by
-      simp only [val, ↓reduceDIte]
-    have hval_ne : ∀ {j : ι}, j ≠ i₀ → ∀ (tj : T j) (ω : Ω), val j tj ω = 0 :=
-      fun hj _ _ => by simp only [val, dite_eq_right hj]
-    have hwelfare : ∀ (t : ∀ j, T j) (ω : Ω),
-        ∑ j, val j (t j) ω = if ω = ω₁ then shift + c (t i₀) else 0 := fun t ω => by
-      rw [← add_sum_erase _ _ (mem_univ i₀), hval_i₀,
-        sum_eq_zero fun j hj => hval_ne (ne_of_mem_erase hj) (t j) ω, add_zero]
-    have hout : ∀ t, D.outcome t = ω₁ := fun t => by
-      by_contra hne
-      have key := hEff t ω₁
-      rw [hwelfare, hwelfare] at key
-      simp only [↓reduceIte, ite_eq_right hne] at key
-      linarith [hpos_val (t i₀)]
-    have hpay_const : ∀ (ti : T i₀) (t_opp : OppProfile T i₀),
-        D.payment (extendProfile i₀ ti t_opp) i₀ =
-          D.payment (extendProfile i₀ ti₀ t_opp) i₀ := fun ti t_opp => by
-      have h1 := hTruth (extendProfile i₀ ti t_opp) i₀ ti₀
-      have h2 := hTruth (extendProfile i₀ ti₀ t_opp) i₀ ti
-      simp only [update_extendProfile, hout] at h1 h2
-      linarith
-    let q : OppProfile T i₀ → ℝ :=
-      fun t_opp => D.payment (extendProfile i₀ ti₀ t_opp) i₀ - shift
-    have hBq : P.condBelief i₀ *ᵥ q = c := by
-      funext ti
-      have hu := hzero i₀ ti
-      simp only [interimUtility_apply, hout, hval_i₀, ↓reduceIte, hpay_const ti] at hu
-      have hsum1 := P.sum_condBelief_eq_one i₀ ti
-      have hu' : ∑ t_opp, P.condBelief i₀ ti t_opp *
-          D.payment (extendProfile i₀ ti₀ t_opp) i₀ = shift + c ti := by
-        have hsplit : ∑ t_opp, P.condBelief i₀ ti t_opp *
-            (shift + c ti - D.payment (extendProfile i₀ ti₀ t_opp) i₀) =
-            (shift + c ti) * (∑ t_opp, P.condBelief i₀ ti t_opp) -
-              ∑ t_opp, P.condBelief i₀ ti t_opp *
-                D.payment (extendProfile i₀ ti₀ t_opp) i₀ := by
-          rw [mul_sum, ← sum_sub_distrib]
-          refine sum_congr rfl fun t_opp _ => ?_
-          ring
-        rw [hsplit, hsum1, mul_one] at hu
-        linarith
-      simp only [mulVec, dotProduct, q]
-      have hqsplit : ∑ t_opp, P.condBelief i₀ ti t_opp *
-          (D.payment (extendProfile i₀ ti₀ t_opp) i₀ - shift) =
-          (∑ t_opp, P.condBelief i₀ ti t_opp *
-            D.payment (extendProfile i₀ ti₀ t_opp) i₀) -
-            shift * ∑ t_opp, P.condBelief i₀ ti t_opp := by
-        rw [mul_sum, ← sum_sub_distrib]
-        refine sum_congr rfl fun t_opp _ => ?_
-        ring
-      rw [hqsplit, hu', hsum1, mul_one]
-      ring
-    exact hno_sol q hBq
+    linarith [single_le_sum (f := fun ti' => |c ti'|) (fun _ _ => abs_nonneg _) (mem_univ ti),
+      neg_le_abs (c ti)]
+  obtain ⟨val, hnn, h0, hval_i₀, hout_of_eff⟩ :=
+    IndirectMechanism.exists_singleAgentVal (T := T) i₀ hω (fun ti => shift + c ti) hpos_val
+  refine ⟨val, hnn, ⟨ω₀, h0⟩, ?_⟩
+  rintro ⟨D, hEff, hTruth, hIR, hExt⟩
+  rw [IndirectMechanism.isTruthful_iff] at hTruth
+  have hzero := (P.extractsFullSurplus_iff_forall_interimUtility_eq_zero hIR).1 hExt
+  have hout := hout_of_eff D hEff
+  have hpay_const (ti : T i₀) (t_opp : OppProfile T i₀) :
+      D.payment (extendProfile i₀ ti t_opp) i₀ =
+        D.payment (extendProfile i₀ ti₀ t_opp) i₀ := by
+    have h1 := hTruth (extendProfile i₀ ti t_opp) i₀ ti₀
+    have h2 := hTruth (extendProfile i₀ ti₀ t_opp) i₀ ti
+    simp only [update_extendProfile, hout] at h1 h2; linarith
+  refine hno_sol (fun t_opp => D.payment (extendProfile i₀ ti₀ t_opp) i₀ - shift)
+    (funext fun ti => ?_)
+  rw [P.mulVec_condBelief_sub_const]
+  have hu := hzero i₀ ti
+  simp only [interimUtility_apply, hout, hval_i₀, ↓reduceIte, hpay_const ti] at hu
+  have hu' := P.mulVec_condBelief_sub_const i₀
+    (fun t_opp => D.payment (extendProfile i₀ ti₀ t_opp) i₀) (shift + c ti) ti
+  have hsum0 : (P.condBelief i₀ *ᵥ fun t_opp =>
+      D.payment (extendProfile i₀ ti₀ t_opp) i₀ - (shift + c ti)) ti = 0 := by
+    simp only [mulVec, dotProduct, ← neg_sub (shift + c ti), mul_neg, sum_neg_distrib, hu,
+      neg_zero]
+  linarith
 
 /-- **Crémer–McLean dominant-strategy characterization** ([CremerMcLean1988]): for any finite
 outcome space `Ω` with at least two outcomes, `P.HasFullBeliefRank` holds if and only if every
@@ -878,26 +867,12 @@ theorem condBelief_notMem_convexHull_iff_exists_separating_lottery (P : Correlat
     obtain ⟨y, hyA, hyb⟩ := (Matrix.not_exists_nonneg_mulVec_eq_iff A (P.condBelief i ti)).1 hnoA
     let c : ℝ := y ⬝ᵥ P.condBelief i ti
     refine ⟨fun t_opp => y t_opp - c, ?_, fun ti' hne => ?_⟩
-    · have hsum1 := P.sum_condBelief_eq_one i ti
-      have hdot : P.condBelief i ti ⬝ᵥ y = c := dotProduct_comm _ _
-      simp only [mulVec, dotProduct]
-      have hsplit : ∑ t_opp, P.condBelief i ti t_opp * (y t_opp - c) =
-          P.condBelief i ti ⬝ᵥ y - c * ∑ t_opp, P.condBelief i ti t_opp := by
-        simp only [dotProduct, mul_sum, ← sum_sub_distrib]
-        refine sum_congr rfl fun t_opp _ => ?_
-        ring
-      rw [hsplit, hdot, hsum1, mul_one, sub_self]
-    · have hsum1 := P.sum_condBelief_eq_one i ti'
+    · rw [P.mulVec_condBelief_sub_const]
+      exact sub_eq_zero.2 (dotProduct_comm _ _)
+    · rw [P.mulVec_condBelief_sub_const]
       have hy_ti' : 0 ≤ (y ᵥ* A) ⟨ti', hne⟩ := hyA ⟨ti', hne⟩
-      simp only [A, vecMul, dotProduct, Matrix.of_apply] at hy_ti'
-      simp only [mulVec, dotProduct]
-      have hsplit : ∑ t_opp, P.condBelief i ti' t_opp * (y t_opp - c) =
-          (∑ t_opp, y t_opp * P.condBelief i ti' t_opp) -
-            c * ∑ t_opp, P.condBelief i ti' t_opp := by
-        rw [mul_sum, ← sum_sub_distrib]
-        refine sum_congr rfl fun t_opp _ => ?_
-        ring
-      rw [hsplit, hsum1, mul_one]
+      simp only [A, vecMul, mulVec, Matrix.of_apply] at hy_ti' ⊢
+      rw [dotProduct_comm] at hy_ti'
       have hc : c < 0 := hyb
       linarith
   · rintro ⟨h, h0, hpos⟩ ⟨w, hw, hcomb⟩
@@ -1109,51 +1084,24 @@ theorem exists_nonneg_val_not_exists_isBIC_of_not_hasConvexIndependentBeliefs
   obtain ⟨i₀, ti₀, hmem⟩ := hP
   obtain ⟨w, hw, hcomb⟩ := (P.condBelief_mem_convexHull_iff i₀ ti₀).1 hmem
   obtain ⟨ω₀, ω₁, hω⟩ := exists_pair_ne Ω
-  let val : ∀ i, T i → Ω → ℝ := fun i ti ω =>
-    if h : i = i₀ then
-      (if ω = ω₁ then (if h ▸ ti = ti₀ then 1 else 2) else 0)
-    else 0
-  refine ⟨val, ?_, ⟨ω₀, fun i ti => ?_⟩, ?_⟩
-  · intro i ti ω
-    dsimp only [val]
-    split_ifs <;> norm_num
-  · dsimp only [val]
-    simp only [ite_eq_right hω, dite_eq_ite, ite_self]
-  · rintro ⟨D, hEff, hBIC, hIR, hExt⟩
-    have hzero := (P.extractsFullSurplus_iff_forall_interimUtility_eq_zero hIR).1 hExt
-    have hval_i₀ : ∀ (ti : T i₀) (ω : Ω),
-        val i₀ ti ω = if ω = ω₁ then (if ti = ti₀ then 1 else 2) else 0 :=
-      fun ti ω => by simp only [val, ↓reduceDIte]
-    have hval_ne : ∀ {j : ι}, j ≠ i₀ → ∀ (tj : T j) (ω : Ω), val j tj ω = 0 :=
-      fun hj _ _ => by simp only [val, dite_eq_right hj]
-    have hwelfare : ∀ (t : ∀ j, T j) (ω : Ω),
-        ∑ j, val j (t j) ω = if ω = ω₁ then (if t i₀ = ti₀ then 1 else 2) else 0 := fun t ω => by
-      rw [← add_sum_erase _ _ (mem_univ i₀), hval_i₀,
-        sum_eq_zero fun j hj => hval_ne (ne_of_mem_erase hj) (t j) ω, add_zero]
-    have hout : ∀ t, D.outcome t = ω₁ := fun t => by
-      by_contra hne
-      have key := hEff t ω₁
-      rw [hwelfare, hwelfare] at key
-      simp only [↓reduceIte, ite_eq_right hne] at key
-      split_ifs at key <;> norm_num at key
-    have hrent := P.le_interimUtility_add_sum_of_convexComb hBIC hw.nonneg hcomb
-    simp only [hzero, mul_zero, sum_const_zero, zero_add, hout, hval_i₀, ↓reduceIte] at hrent
-    have h1 : (∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-        ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-          ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 := by
-      calc ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-            ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
-              ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)
-          = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
-              ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp := by
-              refine sum_congr rfl fun ti' _ =>
-                congrArg (w ti' * ·) (sum_congr rfl fun t_opp _ => ?_)
-              rw [ite_eq_right ti'.2]
-              ring
-        _ = ∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' := by
-              simp only [P.sum_condBelief_eq_one, mul_one]
-        _ = 1 := hw.sum_eq_one
-    linarith
+  obtain ⟨val, hnn, h0, hval_i₀, hout_of_eff⟩ := IndirectMechanism.exists_singleAgentVal (T := T)
+    i₀ hω (fun ti => if ti = ti₀ then 1 else 2) (fun _ => by split_ifs <;> norm_num)
+  refine ⟨val, hnn, ⟨ω₀, h0⟩, ?_⟩
+  rintro ⟨D, hEff, hBIC, hIR, hExt⟩
+  have hzero := (P.extractsFullSurplus_iff_forall_interimUtility_eq_zero hIR).1 hExt
+  have hrent := P.le_interimUtility_add_sum_of_convexComb hBIC hw.nonneg hcomb
+  simp only [hzero, mul_zero, sum_const_zero, zero_add, hout_of_eff D hEff, hval_i₀,
+    ↓reduceIte] at hrent
+  have h1 : (∑ ti' : {ti' : T i₀ // ti' ≠ ti₀}, w ti' *
+      ∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
+        ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 := by
+    have hcongr : ∀ ti' : {ti' : T i₀ // ti' ≠ ti₀},
+        (∑ t_opp : OppProfile T i₀, P.condBelief i₀ ti'.1 t_opp *
+          ((if ti'.1 = ti₀ then (1 : ℝ) else 2) - 1)) = 1 := fun ti' => by
+      simpa only [ite_eq_right ti'.2, show (2 : ℝ) - 1 = 1 by norm_num, mul_one] using
+        P.sum_condBelief_eq_one i₀ ti'.1
+    simpa only [hcongr, mul_one] using hw.sum_eq_one
+  linarith
 
 /-- **Crémer–McLean Bayesian characterization** ([CremerMcLean1988]): for any finite outcome space
 `Ω` with at least two outcomes, `P.HasConvexIndependentBeliefs` holds if and only if every
