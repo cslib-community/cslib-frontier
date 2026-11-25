@@ -285,13 +285,24 @@ private theorem front_rewrites (rules : Fin r → Rule q) (i : Fin r) {m : ℕ}
 private def tail_application {rule : Rule q} {s t : Fin (n + 1) → Fin q}
     (app : Application rule s t) (hf : app.first ≠ 0) :
     Application rule (fun j : Fin n => s j.succ) (fun j => t j.succ) := by
-  have hfp : 0 < app.first.val := Nat.pos_of_ne_zero fun h => hf (Fin.ext h)
+  have hfp : 0 < app.first.val := by
+    by_contra h
+    apply hf
+    apply Fin.ext
+    change app.first.val = 0
+    omega
   let first : Fin n := ⟨app.first.val - 1, by have := app.first.isLt; omega⟩
   let second : Fin n :=
     ⟨app.second.val - 1, by have := app.second.isLt; have := app.adjacent; omega⟩
-  have hfirst : first.succ = app.first := Fin.ext (Nat.sub_add_cancel hfp)
-  have hsecond : second.succ = app.second :=
-    Fin.ext (Nat.sub_add_cancel (by have := app.adjacent; omega))
+  have hfirst : first.succ = app.first := by
+    apply Fin.ext
+    change app.first.val - 1 + 1 = app.first.val
+    omega
+  have hsecond : second.succ = app.second := by
+    apply Fin.ext
+    have := app.adjacent
+    change app.second.val - 1 + 1 = app.second.val
+    omega
   exact ⟨first, second, by have := app.adjacent; dsimp only [first, second]; omega,
     hfirst ▸ app.source_first, hsecond ▸ app.source_second,
     hfirst ▸ app.target_first, hsecond ▸ app.target_second,
