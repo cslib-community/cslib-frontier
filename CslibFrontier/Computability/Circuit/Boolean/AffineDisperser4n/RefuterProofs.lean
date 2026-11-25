@@ -282,10 +282,7 @@ private theorem findD2_eq_none {S : State n} (h : findD2 S = none) :
     ∀ J ∈ S.gates, (∃ K ∈ S.gates, (S.gate K).Reads J) ∨ S.out.Reads J := fun J hJ => by
   have := find?_sort_eq_none h J hJ
   simp only [decide_eq_false_iff_not, not_and, not_not] at this
-  by_cases hK : ∃ K ∈ S.gates, (S.gate K).Reads J
-  · exact Or.inl hK
-  · push Not at hK
-    exact Or.inr (this hK)
+  exact or_iff_not_imp_left.2 fun hK => this (by push Not at hK; exact hK)
 
 private theorem findD3_eq_some {S : State n} {e : ℕ} (h : findD3 S = some e) :
     e ∈ S.eqns ∧ (S.eqn e).terms.card ≤ 2 := by
@@ -294,9 +291,7 @@ private theorem findD3_eq_some {S : State n} {e : ℕ} (h : findD3 S = some e) :
 
 private theorem findD3_eq_none {S : State n} (h : findD3 S = none) :
     ∀ e ∈ S.eqns, 2 < (S.eqn e).terms.card := fun e he => by
-  have := find?_sort_eq_none h e he
-  simp only [decide_eq_false_iff_not, not_le] at this
-  exact this
+  simpa using find?_sort_eq_none h e he
 
 private theorem findD4_eq_some {S : State n} {x e : ℕ} (h : findD4 S = some (x, e)) :
     x ∈ S.unpaired ∧ ¬ S.out.Reads x ∧ e ∈ S.eqns ∧ S.children x = {.inr e} := by
@@ -431,26 +426,23 @@ theorem RefuterStep.spec {S S' : State n} (h : RefuterStep f S S') :
     have := hs.lt
     have := hs.a_le
     omega
-  · have ha := hp.a_eq
-    refine ⟨?_, hp.valid, ?_, ha.le⟩
-    · unfold refuterMeasure
-      have := hp.m_eq
-      have := hp.s_eq
-      omega
-    · have := hp.W_le
-      omega
-  · have ha := hp.a_eq
-    refine ⟨?_, hp.valid, ?_, ha.le⟩
-    · unfold refuterMeasure
-      have hne' : S'.gates.Nonempty := hg ▸ hne
-      rw [dite_eq_left hne, dite_eq_left hne', min'_congr hg hne' hne, hg]
-      have := hp.m_eq
-      have := hp.s_eq
-      omega
-    · have := hp.W_le
-      omega
+  all_goals
+    have ha := hp.a_eq
+    refine ⟨?_, hp.valid, by have := hp.W_le; omega, ha.le⟩
+    unfold refuterMeasure
+    have := hp.m_eq
+    have := hp.s_eq
+  · omega
+  · have hne' : S'.gates.Nonempty := hg ▸ hne
+    rw [dite_eq_left hne, dite_eq_left hne', min'_congr hg hne' hne, hg]
+    omega
 
 /-! #### Deletions and moves -/
+
+private theorem deleteGate_gates_subset (S : State n) (J : ℕ) (ℓ : Lit) :
+    (S.deleteGate J ℓ).gates ⊆ S.gates := by
+  rw [deleteGate_gates]
+  exact Finset.erase_subset _ _
 
 private theorem refuterStep_deleteConstantGate {S : State n} (hS : S.Valid f) {J : ℕ}
     (h : findD1 S = some J) : RefuterStep f S (applyStep S (.deleteConstantGate J)) := by
@@ -462,10 +454,8 @@ private theorem refuterStep_deleteDeadGate {S : State n} (hS : S.Valid f) {J : �
     (h : findD2 S = some J) : RefuterStep f S (applyStep S (.deleteDeadGate J)) := by
   obtain ⟨hJ, hK, hout⟩ := findD2_eq_some h
   refine Or.inl ⟨Reduction.step_of_delete (hS.reduction_deleteGate (ℓ := Lit.const false)
-    ⟨hJ, (fun _ h => by cases h), Or.inr ⟨hK, hout⟩⟩ (fun _ h => by cases h)) hS, ?_⟩
-  change (S.deleteGate J (Lit.const false)).gates ⊆ S.gates
-  rw [deleteGate_gates]
-  exact Finset.erase_subset _ _
+    ⟨hJ, (fun _ h => by cases h), Or.inr ⟨hK, hout⟩⟩ (fun _ h => by cases h)) hS,
+    deleteGate_gates_subset S J _⟩
 
 private theorem refuterStep_deleteShortEqn {S : State n} (hS : S.Valid f) {e : ℕ}
     (h : findD3 S = some e) : RefuterStep f S (applyStep S (.deleteShortEqn e)) := by
@@ -616,20 +606,14 @@ private theorem andOnPairStep_gates_subset (S : State n) (G : ℕ) (pr : ZeroPai
     (S.andOnPairStep G pr p w prw b c Hr K Hw').gates ⊆ S.gates := by
   unfold andOnPairStep
   rcases prw with _ | q
-  · refine (deleteConstraint_gates_subset _ _).trans ?_
-    rw [deleteGate_gates]
-    exact Finset.erase_subset _ _
+  · exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
   · dsimp only
     by_cases hb : b = q.bias w
     · rw [ite_eq_left hb]
-      refine (deleteConstraint_gates_subset _ _).trans ?_
-      rw [deleteGate_gates]
-      exact Finset.erase_subset _ _
+      exact (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)
     · rw [ite_eq_right hb]
-      refine (deleteConstraint_gates_subset _ _).trans
-        ((deleteConstraint_gates_subset _ _).trans ?_)
-      rw [deleteGate_gates]
-      exact Finset.erase_subset _ _
+      exact (deleteConstraint_gates_subset _ _).trans
+        ((deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _))
 
 private theorem exists_find_reader_gate {S : State n} (hS : S.Valid f) {u G : ℕ}
     (hG : G ∈ S.gates) (hout : S.out.arg = .node u) (hD2 : findD2 S = none) (huG : u ≠ G) :
@@ -715,9 +699,8 @@ private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : find
   simp only [applyStep, hargs]
   by_cases hsub : (findAffineRep S a).2 ⊆ {b}
   · rw [ite_eq_left hsub]
-    refine Or.inl ⟨Valid.step_deleteGate_affineIn hS hG hab hGa hGb haff hsub, ?_⟩
-    rw [deleteGate_gates]
-    exact Finset.erase_subset _ _
+    exact Or.inl ⟨Valid.step_deleteGate_affineIn hS hG hab hGa hGb haff hsub,
+      deleteGate_gates_subset _ _ _⟩
   · rw [ite_eq_right hsub]
     obtain ⟨y, hyT, hyb⟩ : ∃ y ∈ (findAffineRep S a).2, y ≠ b := by
       by_contra hc
@@ -772,9 +755,7 @@ private theorem refuterStep_pairCreation {S : State n} (hS : S.Valid f) {u : ℕ
   refine Or.inl ⟨Valid.step_pairCreation_of hS hG htne (Or.inl hl) (Or.inr hr)
     (mem_unpaired.2 ⟨ht₁, hu₁⟩) (mem_unpaired.2 ⟨ht₂, hu₂⟩)
     (fun val => by rw [Gate.eval_of_args hl hr]; exact and_form_spec hna _ _) hK' hK'r,
-    (deleteConstraint_gates_subset _ _).trans ?_⟩
-  rw [deleteGate_gates]
-  exact Finset.erase_subset _ _
+    (deleteConstraint_gates_subset _ _).trans (deleteGate_gates_subset _ _ _)⟩
 
 /-- Every choice of `chooseStep?` is a refuter step. -/
 theorem refuterStep_applyStep {S : State n} (hS : S.Valid f) {c : StepChoice}
