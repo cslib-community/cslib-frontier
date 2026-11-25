@@ -691,6 +691,13 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
     rw [h0, hf0]
     ring
   rw [hrange]
+  have hstep : ∀ d, 1 ≤ d → d < D → f d (D - d) =
+      (∑ j ∈ Finset.Ico 1 (min d (k - 1)), f (d - j) (D - d - 1)) +
+        2 * f (d - min d (k - 1)) (D - d - 1) := by
+    intro d hd1 hdD
+    obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
+    obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
+    rw [hh', Nat.add_sub_cancel, hfrec]
   rw [← Finset.sum_Ico_consecutive (f := fun d => f d (D - d))
     (m := 1) (n := k - 1) (k := D) (by omega) (by omega)]
   have hlow : ∑ d ∈ Finset.Ico 1 (k - 1), f d (D - d) =
@@ -701,14 +708,8 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
           1 + ∑ j ∈ Finset.Ico 1 (d + 1), f (d - j) (D - d - 1) := by
       intro d hd
       simp only [Finset.mem_Ico] at hd
-      obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-      obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
-      rw [hh', Nat.add_sub_cancel, hfrec]
-      have hl : min (d' + 1) (k - 1) = d' + 1 := Nat.min_eq_left (by omega)
-      rw [hl, Nat.sub_self, hf0]
-      conv_rhs =>
-        rw [Finset.sum_Ico_succ_top (by omega) (fun j => f (d' + 1 - j) h'),
-          Nat.sub_self, hf0]
+      rw [hstep d (by omega) (by omega), Nat.min_eq_left (by omega : d ≤ k - 1), Nat.sub_self,
+        hf0, Finset.sum_Ico_succ_top (by omega : 1 ≤ d), Nat.sub_self, hf0]
       ring
     rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, Finset.sum_const, Nat.card_Ico,
       nsmul_one, show k - 1 - 1 = k - 2 by omega]
@@ -722,11 +723,7 @@ private theorem diagSum_recurrence {R : Type*} [CommSemiring R] {k D : ℕ}
             2 * f (d - (k - 1)) (D - d - 1) := by
       intro d hd
       simp only [Finset.mem_Ico] at hd
-      obtain ⟨d', rfl⟩ : ∃ d', d = d' + 1 := ⟨d - 1, by omega⟩
-      obtain ⟨h', hh'⟩ : ∃ h', D - (d' + 1) = h' + 1 := ⟨D - (d' + 1) - 1, by omega⟩
-      rw [hh', Nat.add_sub_cancel, hfrec]
-      have hl : min (d' + 1) (k - 1) = k - 1 := Nat.min_eq_right (by omega)
-      rw [hl]
+      rw [hstep d (by omega) (by omega), Nat.min_eq_right (by omega : k - 1 ≤ d)]
     rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, ← Finset.mul_sum]
     congr 2
     rw [sum_Ico_sub_eq_sum_range f (by omega), show k - 1 + 1 = k by omega]
