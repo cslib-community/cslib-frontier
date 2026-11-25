@@ -395,12 +395,11 @@ theorem exists_isClosenessTester_closenessFlatteningTester [Nonempty α] {ε : �
         rw [← Real.rpow_natCast, ← Real.rpow_mul hn.le]; norm_num
       have hv2 : ε ^ (4 / 3 : ℝ) = v ^ 2 := by
         rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
-      have hv3 : ε ^ 2 = v ^ 3 := by
-        refine Eq.symm ?_
+      have hv3 : v ^ 3 = ε ^ 2 := by
         rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
       have haa : a = (u / v) ^ 2 := by rw [ha_def, hu2, hv2, div_pow]
       calc n / (ε ^ 2 * Real.sqrt a) = a := by
-            rw [haa, Real.sqrt_sq (by positivity), hv3]
+            rw [haa, Real.sqrt_sq (by positivity), ← hv3]
             nth_rewrite 1 [hu3]
             field_simp
         _ ≤ M := le_max_left _ _
