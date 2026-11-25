@@ -6,9 +6,10 @@ ranges) section header, and an inline link whose text names a declaration of the
 (`[Ns.name](…#L<n>)`) must start on that declaration's header. Pass `--fix-anchors` to repoint
 drifted `[Ns.name](File.lean#Ln)` links at the declaration's current header start line before
 running the check. It also reports a list item directly after a paragraph line, which the PDF
-build's Pandoc reader absorbs into that paragraph, and a locator (`Section 5.6`, `p. 12`,
+build's Pandoc reader absorbs into that paragraph, a locator (`Section 5.6`, `p. 12`,
 `Theorem 4.17`) inside the label of a link into `sources.md`, which the PDF replaces by a citation
-number. This does not fetch URLs, elaborate Lean, audit
+number, and a line of `sources.md` with more than one sentence (`scripts/sources_format.py --write`
+splits it). This does not fetch URLs, elaborate Lean, audit
 mathematical meaning, check links whose text names no declaration of the linked file (prose, a
 file, a module, a declaration that moved elsewhere), or assert that historical evidence describes
 the current checkout. Run from any working directory.
@@ -31,8 +32,10 @@ from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(ROOT / 'manual/data'))
 from build_latex import FROZEN, frozen
+import sources_format
 from visuals import check_markup
 
 EXCLUDED = {"_build", "_generated", "__pycache__"}
@@ -116,6 +119,7 @@ CITATION_LOCATOR = re.compile(
     r"|Figures?|Fig\.|Tables?|Equations?|Eqs?\.)\s*\(?(?:[0-9]|[IVXLC]+\b|[A-Z]\b)")
 LABEL_LOCATOR = ("locator inside a citation link label, which the PDF drops (write it after the "
                  "link: `[Author][key], Section 5.6`)")
+SOURCES_LINE_FORMAT = "not one sentence per line (run `python3 scripts/sources_format.py --write`)"
 # A label may wrap over a line break, but not over a blank line.
 WRAPPED_LABEL = r"\[((?:[^\[\]\n]|\n(?![ \t]*\n))+)\]"
 WRAPPED_INLINE_LINK = re.compile(WRAPPED_LABEL + r"\(\s*(?:<([^>\n]+)>|([^\s)]+))")
@@ -407,6 +411,9 @@ def check(repo: Path, manual: Path | None = None) -> dict:
             errors.append(f'{doc.relative_to(manual)}: {error}')
         errors.extend(f"{doc.relative_to(manual)}: Line {number}: {LIST_AFTER_PARAGRAPH}"
                       for number in lists_after_paragraphs(doc.read_text()))
+        if doc == manual / "sources.md":
+            errors.extend(f"sources.md: Line {number}: {SOURCES_LINE_FORMAT}"
+                          for number in sources_format.unformatted(doc.read_text()))
         urls, undefined = links(doc.read_text())
         errors.extend(f"{doc.relative_to(manual)}: undefined reference [{key}]" for key in undefined)
         for number, label, url in labelled_links(doc.read_text()):

@@ -1,5 +1,12 @@
 # Primary sources and provenance
 
+<!--
+Each entry is its anchor line, its `## key` heading, a blank line and its text.
+Write each sentence of the text on a line of its own, so that changes to different sentences touch different lines.
+`python3 scripts/sources_format.py --write` puts the file in this format, and `python3 scripts/check_operator_manual.py`, which CI runs, reports lines that are not in it.
+The opt-in merge driver `scripts/resolve_sources_conflict.py` merges entries and lines; see CONTRIBUTING.md.
+-->
+
 Repository citations are pinned to the reviewed source or dependency revision.
 Direct declaration links in the chapter text identify the supporting statement.
 The [library bibliography](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/references.bib) is linked at the survey revision; inclusion there is not a claim that this review checked every cited paper.
