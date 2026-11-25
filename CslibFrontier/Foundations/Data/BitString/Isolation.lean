@@ -61,20 +61,15 @@ private theorem update_cons_succ (b : Bool) (τ : Fin n → Bool) (j : Fin n) (c
     Function.update (Fin.cons b τ : Fin (n + 1) → Bool) j.succ c =
       Fin.cons b (Function.update τ j c) := by
   ext i
-  refine Fin.cases ?_ (fun k => ?_) i
-  · simp [Function.update_of_ne (Fin.succ_ne_zero j).symm]
-  · by_cases hk : k = j
-    · subst hk
-      simp
-    · simp [Function.update_of_ne hk, Function.update_of_ne (fun e => hk (Fin.succ_injective _ e))]
+  refine Fin.cases (by simp [Function.update_of_ne (Fin.succ_ne_zero j).symm]) (fun k => ?_) i
+  by_cases hk : k = j
+  · subst hk; simp
+  · simp [Function.update_of_ne hk, Function.update_of_ne (fun e => hk (Fin.succ_injective _ e))]
 
 /-- Flipping the first coordinate of `Fin.cons b τ`. -/
 private theorem update_cons_zero (b : Bool) (τ : Fin n → Bool) (c : Bool) :
-    Function.update (Fin.cons b τ : Fin (n + 1) → Bool) 0 c = Fin.cons c τ := by
-  ext i
-  refine Fin.cases ?_ (fun k => ?_) i
-  · simp
-  · simp
+    Function.update (Fin.cons b τ : Fin (n + 1) → Bool) 0 c = Fin.cons c τ :=
+  funext (Fin.cases (by simp) fun _ => by simp)
 
 /-- The isolation of `Fin.cons b τ` in `S` is at least the isolation of `τ` in its slice, plus one
 if flipping the first coordinate leaves `S`. -/
@@ -97,39 +92,26 @@ theorem isolation_cons_ge (S : Finset (Fin (n + 1) → Bool)) (b : Bool) (τ : F
   split_ifs with h
   · simpa using card_le_card hA
   · have h0 : (0 : Fin (n + 1)) ∈ B := by
-      simp only [B, mem_filter, mem_univ, true_and, Fin.cons_zero]
-      rwa [update_cons_zero]
-    have h0A : (0 : Fin (n + 1)) ∉ A.map (Fin.succEmb n) := by
-      simp [Fin.succ_ne_zero]
-    calc
-      A.card + 1 = (insert 0 (A.map (Fin.succEmb n))).card := by
-        rw [card_insert_of_notMem h0A, card_map]
-      _ ≤ B.card := card_le_card (insert_subset h0 hA)
+      simp only [B, mem_filter, mem_univ, true_and, Fin.cons_zero]; rwa [update_cons_zero]
+    rw [← card_map (Fin.succEmb n),
+      ← card_insert_of_notMem (a := (0 : Fin (n + 1))) (by simp [Fin.succ_ne_zero])]
+    exact card_le_card (insert_subset h0 hA)
 
 /-- The sum over `S` of a function of `σ`, split by the first coordinate. -/
 private theorem sum_split (S : Finset (Fin (n + 1) → Bool)) (f : (Fin (n + 1) → Bool) → ℕ) :
     ∑ σ ∈ S, f σ = ∑ b : Bool, ∑ τ ∈ slice S b, f (Fin.cons b τ) := by
   rw [Fintype.sum_bool]
   have hsplit (b : Bool) : ∑ τ ∈ slice S b, f (Fin.cons b τ) =
-      ∑ σ ∈ S.filter (fun σ => σ 0 = b), f σ := by
-    refine sum_nbij' (fun τ => Fin.cons b τ) (fun σ => Fin.tail σ) ?_ ?_ ?_ ?_ ?_
-    · intro τ hτ
-      rw [mem_slice] at hτ
-      rw [mem_filter]
-      exact ⟨hτ, rfl⟩
-    · intro σ hσ
-      rw [mem_filter] at hσ
-      rw [mem_slice, ← hσ.2, Fin.cons_self_tail]
-      exact hσ.1
-    · intro τ _
-      exact Fin.tail_cons _ _
-    · intro σ hσ
-      rw [mem_filter] at hσ
-      change Fin.cons b (Fin.tail σ) = σ
-      rw [← hσ.2]
-      exact Fin.cons_self_tail σ
-    · intro τ _
-      rfl
+      ∑ σ ∈ S.filter (fun σ => σ 0 = b), f σ :=
+    sum_nbij' (fun τ : Fin n → Bool => Fin.cons b τ) (fun σ => Fin.tail σ)
+      (fun _ hτ => mem_filter.2 ⟨mem_slice.1 hτ, rfl⟩)
+      (fun σ hσ => by
+        rw [mem_slice, ← (mem_filter.1 hσ).2, Fin.cons_self_tail]; exact (mem_filter.1 hσ).1)
+      (fun _ _ => Fin.tail_cons _ _)
+      (fun σ hσ => by
+        change Fin.cons b (Fin.tail σ) = σ
+        rw [← (mem_filter.1 hσ).2]; exact Fin.cons_self_tail σ)
+      (fun _ _ => rfl)
   rw [hsplit, hsplit, ← sum_filter_add_sum_filter_not S (fun σ => σ 0 = true)]
   congr 1
 
@@ -160,36 +142,26 @@ private theorem sum_slice_le {n : ℕ} (S : Finset (Fin (n + 1) → Bool)) (b : 
 theorem two_pow_le_sum_two_pow_isolation :
     ∀ {n : ℕ} (S : Finset (Fin n → Bool)), S.Nonempty →
       2 ^ n ≤ ∑ σ ∈ S, 2 ^ isolation S σ
-  | 0, S, hS => by
-    obtain ⟨σ, hσ⟩ := hS
-    calc
-      2 ^ 0 = 1 := rfl
-      _ ≤ 2 ^ isolation S σ := Nat.one_le_two_pow
-      _ ≤ ∑ σ ∈ S, 2 ^ isolation S σ :=
-        single_le_sum (f := fun σ => 2 ^ isolation S σ) (fun _ _ => Nat.zero_le _) hσ
+  | 0, S, ⟨σ, hσ⟩ =>
+    Nat.one_le_two_pow.trans (single_le_sum (f := fun σ => 2 ^ isolation S σ)
+      (fun _ _ => Nat.zero_le _) hσ)
   | n + 1, S, hS => by
     rw [sum_split S fun σ => 2 ^ isolation S σ]
     by_cases h0 : (slice S false).Nonempty <;> by_cases h1 : (slice S true).Nonempty
-    · -- Both slices are nonempty.
-      have ih0 := two_pow_le_sum_two_pow_isolation (slice S false) h0
+    · have ih0 := two_pow_le_sum_two_pow_isolation (slice S false) h0
       have ih1 := two_pow_le_sum_two_pow_isolation (slice S true) h1
       have e0 := sum_slice_le S false
       have e1 := sum_slice_le S true
-      rw [Fintype.sum_bool, pow_succ]
-      omega
-    · -- Only the slice with first coordinate `false` is nonempty.
-      have ih0 := two_pow_le_sum_two_pow_isolation (slice S false) h0
-      rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h1, sum_empty, zero_add, pow_succ]
-      exact (Nat.mul_le_mul_right 2 ih0).trans (sum_slice_mul_two_le_of_not_nonempty S false h1)
-    · -- Only the slice with first coordinate `true` is nonempty.
-      have ih1 := two_pow_le_sum_two_pow_isolation (slice S true) h1
-      rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h0, sum_empty, add_zero, pow_succ]
-      exact (Nat.mul_le_mul_right 2 ih1).trans (sum_slice_mul_two_le_of_not_nonempty S true h0)
-    · -- Both slices are empty, so `S` is empty.
-      exfalso
-      obtain ⟨σ, hσ⟩ := hS
+      rw [Fintype.sum_bool, pow_succ]; omega
+    · rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h1, sum_empty, zero_add, pow_succ]
+      exact (Nat.mul_le_mul_right 2 (two_pow_le_sum_two_pow_isolation _ h0)).trans
+        (sum_slice_mul_two_le_of_not_nonempty S false h1)
+    · rw [Fintype.sum_bool, not_nonempty_iff_eq_empty.mp h0, sum_empty, add_zero, pow_succ]
+      exact (Nat.mul_le_mul_right 2 (two_pow_le_sum_two_pow_isolation _ h1)).trans
+        (sum_slice_mul_two_le_of_not_nonempty S true h0)
+    · obtain ⟨σ, hσ⟩ := hS
       cases hb : σ 0
-      · exact h0 ⟨Fin.tail σ, mem_slice.mpr (by rw [← hb, Fin.cons_self_tail]; exact hσ)⟩
-      · exact h1 ⟨Fin.tail σ, mem_slice.mpr (by rw [← hb, Fin.cons_self_tail]; exact hσ)⟩
+      · exact (h0 ⟨Fin.tail σ, mem_slice.mpr (by rwa [← hb, Fin.cons_self_tail])⟩).elim
+      · exact (h1 ⟨Fin.tail σ, mem_slice.mpr (by rwa [← hb, Fin.cons_self_tail])⟩).elim
 
 end Cslib.BitString
