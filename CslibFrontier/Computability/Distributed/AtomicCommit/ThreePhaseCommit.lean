@@ -743,8 +743,11 @@ private theorem crashFree_sweep_alive_to {s : ThreePCState P} {ph : ThreePCPhase
   have hfinal_eq : (fun p => if p ∈ R then dst else s.localState p) =
       (fun p => if p ∈ s.alive then dst else s.localState p) := by
     funext p
-    by_cases hpal : p ∈ s.alive <;> by_cases hp : pred (s.localState p) <;> simp [R, hpal, hp]
-    exact halive_exhaust p hpal hp
+    by_cases hpal : p ∈ s.alive
+    · by_cases hp : pred (s.localState p)
+      · simp [R, hpal, hp]
+      · simp [R, hpal, halive_exhaust p hpal hp]
+    · simp [R, hpal]
   rwa [hfinal_eq] at hcf
 
 private theorem crashFree_castVotes (c : P) (al : Finset P) :
