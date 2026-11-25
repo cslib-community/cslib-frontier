@@ -53,7 +53,7 @@ structure Assign where
 namespace Assign
 
 /-- The code of a value: `0` for none, `1` for `false`, `2` for `true`. -/
-def code : Option Bool → ℕ
+@[inline] def code : Option Bool → ℕ
   | none => 0
   | some false => 1
   | some true => 2
@@ -75,25 +75,18 @@ still runs it. -/
 def value (A : Assign) (v : ℕ) : Option Bool := decode (A.vals.getD v 0)
 
 /-- **Whether the literal `l` is true**, read on the code of its variable. -/
-def holds (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def holds (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => !l.2
   | _ => l.2
 
 /-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
-def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
+@[inline] def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
   match A.vals.getD l.1 0 with
   | 0 => false
   | 1 => l.2
   | _ => !l.2
-
-/-- **Whether two literals are equal**, comparing the variables and the signs directly, without
-the generic calls of the instance on pairs. -/
-def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
-
-theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
-  obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
 
 private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
     A.holds l = true ↔ A.value l.1 = some l.2 := by
@@ -111,7 +104,7 @@ private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
   rcases c with _ | _ | c <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
-def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
+@[inline] def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
 
 /-- A variable is assigned when it has a value. -/
 theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).isSome := by
@@ -120,14 +113,14 @@ theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).i
   rcases c with _ | _ | c <;> rfl
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
-def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign := ⟨A.vals.setGrow v 0 (code x)⟩
+@[inline] def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign := ⟨A.vals.setGrow v 0 (code x)⟩
 
 /-- Assigning the literal `l`. -/
-def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
+@[inline] def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
 
 /-- Unassigning the variable `v`: an update within the array, which is left as it is if `v` is past
 its end, since `v` then has no value. -/
-def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
+@[inline] def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
 
 /-- Unassigning the variables `vs`. It never grows the array. -/
 def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A
@@ -479,7 +472,7 @@ theorem litCode_negate (l : Literal ℕ) : litCode l.negate = negKey l := by
 /-- **The literal of a key**: the variable is the key divided by two, and the literal is positive
 when the key is odd. It inverts `litCode` (`litOfKey_litCode`, `litCode_litOfKey`), so every number
 is the key of exactly one literal. -/
-def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
+@[inline] def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
 
 @[simp] theorem litOfKey_litCode (l : Literal ℕ) : litOfKey (litCode l) = l := by
   obtain ⟨v, b⟩ := l

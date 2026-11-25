@@ -777,17 +777,6 @@ private theorem parseOPBWith_printOPB {M N : Names} {π : ℕ → ℕ} {I : Inst
 
 /-! #### The normal form and the semantics -/
 
-private theorem insertCoeff_of_not_mem {v : ℕ} {L : List (ℕ × ℤ)} (h : v ∉ L.map Prod.fst)
-    (a : ℤ) : insertCoeff v a L = L ++ [(v, a)] := by
-  induction L with
-  | nil => rfl
-  | cons e L ih =>
-    obtain ⟨u, b⟩ := e
-    simp only [List.map_cons, List.mem_cons, not_or] at h
-    rw [insertCoeff]
-    simp only [Ne.symm h.1, ↓reduceIte, ih h.2]
-    rfl
-
 private theorem foldl_insertCoeff_of_nodup {es L : List (ℕ × ℤ)}
     (h : (L.map Prod.fst ++ es.map Prod.fst).Nodup) :
     es.foldl (fun L e => insertCoeff e.1 e.2 L) L = L ++ es := by

@@ -5,7 +5,6 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Crypto.Computational.GGM.Evaluation
 import Mathlib.Tactic.Linarith
 
@@ -153,8 +152,8 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
       (fun p : List Bool × Bool => p.1 ++ [p.2]) (encPair encBits encBool) encBits 1 1 :=
     hfst.append
       hsnd (fun _ => rfl)
-  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum_spec
+  obtain ⟨k, hk, -⟩ := hstep.inO_one
+  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableInTimeAndSpace.foldl_bits_stream_sum_spec
     (hstep := hk) (step := fun acc b => acc ++ [b]) []
     (fun _ i state => state.length = i) (by simp)
     (by intro l i hi state hs; simpa using hs)
@@ -167,7 +166,7 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
         List.length_append, hs]
       exact ⟨by lia, Nat.mul_le_mul_left k (by lia)⟩)
     (by intro l i hi state hs; simpa [hs] using hi)
-  refine ⟨⟨c * (3 * k + 3), (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+  refine ⟨⟨c * (3 * k + 3), h.mono
     (fun l => ?_) (fun l => ?_)⟩, hpost⟩
   · have hsum (n : ℕ) : (∑ i ∈ Finset.range n, (k * (2 * i + 3) + 2 * i + 2)) =
         (k + 1) * n ^ 2 + (2 * k + 1) * n := by
@@ -187,7 +186,7 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
 private def resetStep (state : List Bool) (bit : Bool) : List Bool :=
   if bit then [] else state ++ [false]
 
-example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) encBits encBits
+example : ∃ c, ComputableInTimeAndSpace (fun l => l.foldl resetStep []) encBits encBits
     (fun l => c * ((∑ i ∈ Finset.range l.length,
       (((l.take i).foldl resetStep []).length + 1)) + 1))
     (fun l => c * (l.length + 1)) := by
@@ -214,8 +213,8 @@ example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) 
       (fun p : List Bool × Bool => resetStep p.1 p.2) (encPair encBits encBool) encBits 1 1 :=
     hsnd.ite
       ((ComputableInDegree.const []).restrict _) (happend.restrict _)
-  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum
+  obtain ⟨k, hk, -⟩ := hstep.inO_one
+  obtain ⟨c, h⟩ := ComputableInTimeAndSpace.foldl_bits_stream_sum
     (hstep := hk) (step := resetStep) []
     (R := fun l i => (3 * k + 2) * (((l.take i).foldl resetStep []).length + 1))
     (Q := fun l => k * (2 * l.length + 3)) (B := List.length)
@@ -293,13 +292,13 @@ example : ComputableInDegree (List.getLast? (α := Bool)) encBits
 -- `O(Q + seed.length + 1)` independent of the query depth `query.length`.
 theorem ggm_eval_quantitative {generator : List Bool → List Bool}
     {tChild sChild : List Bool × Bool → ℕ}
-    (hchild : ComputableTidilyInTimeAndSpace
+    (hchild : ComputableInTimeAndSpace
       (fun p : List Bool × Bool => Cslib.Crypto.GGM.child generator p.1 p.2)
       (encPair encBits encBool) encBits tChild sChild)
     {Q : List Bool × List Bool → ℕ}
     (hspace : ∀ p : List Bool × List Bool, ∀ i < p.2.length,
       sChild (Cslib.Crypto.GGM.eval generator p.1 (p.2.take i), p.2[i]?.getD false) ≤ Q p) :
-    (∃ c, ComputableTidilyInTimeAndSpace
+    (∃ c, ComputableInTimeAndSpace
       (fun p : List Bool × List Bool => Cslib.Crypto.GGM.eval generator p.1 p.2)
       (encPair encBits encBits) encBits
       (fun p => c * (p.1.length + p.2.length +

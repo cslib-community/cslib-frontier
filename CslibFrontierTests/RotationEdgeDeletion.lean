@@ -6,6 +6,7 @@ Authors: OpenAI
 
 -- upstream: candidate
 
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.CertificateCycles
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionGenus
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Lifting
@@ -127,6 +128,23 @@ private def sphereBigon : RotationSystem (lastEdgeGraph bridge 0 1) where
     (finCongr (show 2 = (lastEdgeGraph bridge 0 1).2.length by decide)) (Equiv.refl Bool)).permCongr
       (Equiv.prodCongr (Equiv.swap (0 : Fin 2) 1) (Equiv.refl Bool))
   sameCycle_iff := by decide +kernel
+
+-- Swapping the two predecessors joins the rooted words in the opposite order to
+-- swapping the roots. Both computations skip the removed root.
+example : ([0, 2, 3] : List ℕ).formPerm 2 = 3 ∧ ([0, 3, 2] : List ℕ).formPerm 3 = 2 := by
+  let a : Dart (lastEdgeGraph bridge 0 1) := (⟨0, by decide⟩, false)
+  let b : Dart (lastEdgeGraph bridge 0 1) := (⟨0, by decide⟩, true)
+  let x : Dart (lastEdgeGraph bridge 0 1) := (⟨1, by decide⟩, false)
+  let y : Dart (lastEdgeGraph bridge 0 1) := (⟨1, by decide⟩, true)
+  have hG : ∀ v ∈ (lastEdgeGraph bridge 0 1).incidenceVertices,
+      v ∈ (lastEdgeGraph bridge 0 1).vertices := by decide
+  constructor
+  · exact (RotationCertificate.formPerm_cycleWord_join_skip_iff sphereBigon hG a b x y
+      (by decide +kernel) (Or.inl rfl) (by decide +kernel) (by decide +kernel)).1.mpr
+        (Or.inr ⟨by decide +kernel, by decide +kernel⟩)
+  · exact (RotationCertificate.formPerm_cycleWord_join_skip_iff sphereBigon hG a b y x
+      (by decide +kernel) (Or.inr rfl) (by decide +kernel) (by decide +kernel)).2.mpr
+        (Or.inr ⟨by decide +kernel, by decide +kernel⟩)
 
 private theorem bigonGenus : sphereBigon.NumericalGenusZero := by
   have hG : ∀ v ∈ (lastEdgeGraph bridge 0 1).incidenceVertices,
