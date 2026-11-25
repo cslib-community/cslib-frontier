@@ -71,11 +71,8 @@ theorem recursively_related_of_encode_le (Φ Ψ : BlumMeasure) :
     refine ⟨∑ i ∈ Finset.range (n + 1), b i, fun i hi => ?_⟩
     have hle : b i ≤ ∑ i ∈ Finset.range (n + 1), b i :=
       Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.2 hi)
-    refine ⟨fun h => ?_, fun h => ?_⟩
-    · obtain ⟨m', hm', h'⟩ := (hb i).1 h
-      exact ⟨m', by omega, h'⟩
-    · obtain ⟨m', hm', h'⟩ := (hb i).2 h
-      exact ⟨m', by omega, h'⟩
+    exact ⟨fun h => ((hb i).1 h).imp fun _ ⟨_, h'⟩ => ⟨by omega, h'⟩,
+      fun h => ((hb i).2 h).imp fun _ ⟨_, h'⟩ => ⟨by omega, h'⟩⟩
   have hR : ComputablePred fun x : (ℕ × ℕ) × ℕ => R x.1 x.2 := by
     refine ComputablePred.forall_lt
       (p := fun (y : (ℕ × ℕ) × ℕ) i =>
