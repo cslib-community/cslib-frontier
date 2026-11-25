@@ -111,22 +111,12 @@ theorem injective_multiplyShiftReduced_of_le {U w₀ R : ℕ} (hU : U ≤ 2 ^ w�
     (α : Fin (2 ^ (w₀ - 1))) :
     Function.Injective (multiplyShiftReduced U w₀ R α) := by
   intro x y hxy
-  have hval : (2 * α.val + 1) * x.val % 2 ^ w₀ / 2 ^ (w₀ - R) =
-      (2 * α.val + 1) * y.val % 2 ^ w₀ / 2 ^ (w₀ - R) :=
-    congrArg Fin.val hxy
-  have hsub : w₀ - R = 0 := Nat.sub_eq_zero_of_le hle
-  rw [hsub, pow_zero, Nat.div_one, Nat.div_one] at hval
-  have hodd : Odd (2 * α.val + 1) := odd_two_mul_add_one α.val
+  have hmod : (2 * α.val + 1) * x.val ≡ (2 * α.val + 1) * y.val [MOD 2 ^ w₀] := by
+    simpa [Nat.ModEq, Nat.sub_eq_zero_of_le hle] using congrArg Fin.val hxy
   have hcop : Nat.Coprime (2 ^ w₀) (2 * α.val + 1) :=
-    Nat.Coprime.pow_left w₀ (Nat.coprime_comm.mp hodd.coprime_two_right)
-  have hmod : (2 * α.val + 1) * x.val ≡ (2 * α.val + 1) * y.val [MOD 2 ^ w₀] := hval
-  have hxy_mod : x.val ≡ y.val [MOD 2 ^ w₀] :=
-    Nat.ModEq.cancel_left_of_coprime hcop hmod
-  have hx_lt : x.val < 2 ^ w₀ := lt_of_lt_of_le x.isLt hU
-  have hy_lt : y.val < 2 ^ w₀ := lt_of_lt_of_le y.isLt hU
-  change x.val % 2 ^ w₀ = y.val % 2 ^ w₀ at hxy_mod
-  rw [Nat.mod_eq_of_lt hx_lt, Nat.mod_eq_of_lt hy_lt] at hxy_mod
-  exact Fin.ext hxy_mod
+    .pow_left w₀ (Nat.coprime_comm.mp (odd_two_mul_add_one α.val).coprime_two_right)
+  exact Fin.ext ((hmod.cancel_left_of_coprime hcop).eq_of_lt_of_lt (x.isLt.trans_le hU)
+    (y.isLt.trans_le hU))
 
 /-- For any distinct `x, y : Fin U` (`U ≤ 2 ^ w₀`, `0 < w₀`), the number of seeds
 `α : Fin (2 ^ (w₀ - 1))` for which
@@ -137,35 +127,16 @@ theorem card_multiplyShiftReduced_eq_le {U w₀ R : ℕ} (hw₀ : 0 < w₀) (hU 
     #{α : Fin (2 ^ (w₀ - 1)) |
       multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} * 2 ^ R ≤ 2 ^ w₀ := by
   rcases le_or_gt R w₀ with hle | hlt
-  · let x' : Fin (2 ^ w₀) := ⟨x.val, lt_of_lt_of_le x.isLt hU⟩
-    let y' : Fin (2 ^ w₀) := ⟨y.val, lt_of_lt_of_le y.isLt hU⟩
-    have hxy' : x' ≠ y' := by
-      intro h
-      apply hxy
-      ext
-      exact congrArg (Fin.val : Fin (2 ^ w₀) → ℕ) h
-    have hcard : #{α : Fin (2 ^ (w₀ - 1)) |
-        multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} ≤ 2 ^ (w₀ - R) := by
-      have hsub : #{α : Fin (2 ^ (w₀ - 1)) |
-          multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} =
-        #{α : Fin (2 ^ (w₀ - 1)) |
-          multiplyShift w₀ R α x' = multiplyShift w₀ R α y'} := by
-        refine congrArg card (filter_congr fun α _ => ?_)
-        exact Fin.ext_iff
-      rw [hsub]
-      exact card_filter_multiplyShift_eq_le hw₀ hle hxy'
-    calc
-      #{α : Fin (2 ^ (w₀ - 1)) |
-          multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} * 2 ^ R
-        ≤ 2 ^ (w₀ - R) * 2 ^ R := Nat.mul_le_mul_right (2 ^ R) hcard
+  · have hxy' : (⟨x.val, x.isLt.trans_le hU⟩ : Fin (2 ^ w₀)) ≠ ⟨y.val, y.isLt.trans_le hU⟩ :=
+      fun h => hxy (Fin.ext (Fin.mk.inj h))
+    calc _ ≤ 2 ^ (w₀ - R) * 2 ^ R := by
+          gcongr
+          refine (congrArg card (filter_congr fun α _ => ?_)).trans_le
+            (card_filter_multiplyShift_eq_le hw₀ hle hxy')
+          exact Fin.ext_iff
       _ = 2 ^ w₀ := by rw [← pow_add, Nat.sub_add_cancel hle]
-  · have hemp : ({α : Fin (2 ^ (w₀ - 1)) |
-        multiplyShiftReduced U w₀ R α x = multiplyShiftReduced U w₀ R α y} :
-        Finset (Fin (2 ^ (w₀ - 1)))) = ∅ := by
-      rw [filter_eq_empty_iff]
-      intro α _ hcoll
-      exact hxy (injective_multiplyShiftReduced_of_le hU (le_of_lt hlt) α hcoll)
-    rw [hemp, card_empty, zero_mul]
+  · rw [filter_false_of_mem fun α _ h => hxy (injective_multiplyShiftReduced_of_le hU hlt.le α h),
+      card_empty, zero_mul]
     exact Nat.zero_le _
 
 /-- Finset of top-level multiply-shift seeds `α : Fin (2 ^ (w₀ - 1))` that are injective on
@@ -194,21 +165,13 @@ theorem card_not_injOn_multiplyShiftReduced_le {U w₀ R : ℕ} (hw₀ : 0 < w�
       pairs.biUnion (fun p => univ.filter fun α : Fin (2 ^ (w₀ - 1)) =>
         multiplyShiftReduced U w₀ R α p.1 = multiplyShiftReduced U w₀ R α p.2) := by
     intro α hα
-    rw [mem_sdiff, mem_reducedGoodTop] at hα
-    have hnot : ¬ Set.InjOn (multiplyShiftReduced U w₀ R α) (S : Set (Fin U)) := hα.2
-    rw [Set.InjOn] at hnot
-    push Not at hnot
-    obtain ⟨x, hx, y, hy, hcoll, hne⟩ := hnot
+    rw [mem_sdiff, mem_reducedGoodTop, Set.InjOn] at hα
+    push Not at hα
+    obtain ⟨x, hx, y, hy, hcoll, hne⟩ := hα.2
     rw [mem_biUnion]
     rcases hne.lt_or_gt with hlt | hgt
-    · refine ⟨(x, y), ?_, ?_⟩
-      · simp only [pairs, mem_filter, mem_product]
-        exact ⟨⟨hx, hy⟩, hlt⟩
-      · simp only [mem_filter, mem_univ, true_and, hcoll]
-    · refine ⟨(y, x), ?_, ?_⟩
-      · simp only [pairs, mem_filter, mem_product]
-        exact ⟨⟨hy, hx⟩, hgt⟩
-      · simp only [mem_filter, mem_univ, true_and, hcoll.symm]
+    · exact ⟨(x, y), mem_filter.2 ⟨mem_product.2 ⟨hx, hy⟩, hlt⟩, by simp [hcoll]⟩
+    · exact ⟨(y, x), mem_filter.2 ⟨mem_product.2 ⟨hy, hx⟩, hgt⟩, by simp [hcoll]⟩
   -- There are `#S.choose 2` such pairs, and `2 * n.choose 2 = n * (n - 1)`.
   have hcard_pairs : 2 * #pairs = #S * (#S - 1) := by
     rw [card_product_filter_lt, Nat.choose_two_right,
@@ -217,22 +180,14 @@ theorem card_not_injOn_multiplyShiftReduced_le {U w₀ R : ℕ} (hw₀ : 0 < w�
     conv_lhs => rw [← Nat.sub_add_cancel hw₀, pow_succ']
   calc
     #(univ \ reducedGoodTop U w₀ R S) * 2 ^ R
-      ≤ (#(pairs.biUnion fun p => univ.filter fun α : Fin (2 ^ (w₀ - 1)) =>
-          multiplyShiftReduced U w₀ R α p.1 = multiplyShiftReduced U w₀ R α p.2)) * 2 ^ R :=
-        Nat.mul_le_mul_right _ (card_le_card hsub)
-    _ ≤ (∑ p ∈ pairs, #{α : Fin (2 ^ (w₀ - 1)) |
-          multiplyShiftReduced U w₀ R α p.1 = multiplyShiftReduced U w₀ R α p.2}) * 2 ^ R :=
-        Nat.mul_le_mul_right _ card_biUnion_le
-    _ = ∑ p ∈ pairs, #{α : Fin (2 ^ (w₀ - 1)) |
-          multiplyShiftReduced U w₀ R α p.1 = multiplyShiftReduced U w₀ R α p.2} * 2 ^ R :=
-        sum_mul _ _ _
-    _ ≤ ∑ _p ∈ pairs, 2 ^ w₀ := by
-        refine sum_le_sum fun p hp => ?_
-        simp only [pairs, mem_filter] at hp
-        exact card_multiplyShiftReduced_eq_le hw₀ hU hp.2.ne
-    _ = #pairs * 2 ^ w₀ := by rw [sum_const, smul_eq_mul]
-    _ = (2 * #pairs) * 2 ^ (w₀ - 1) := by rw [hpow_w₀]; ring
-    _ = (#S * (#S - 1)) * 2 ^ (w₀ - 1) := by rw [hcard_pairs]
+      ≤ ∑ p ∈ pairs, #{α : Fin (2 ^ (w₀ - 1)) |
+          multiplyShiftReduced U w₀ R α p.1 = multiplyShiftReduced U w₀ R α p.2} * 2 ^ R := by
+        rw [← sum_mul]
+        exact Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
+    _ ≤ ∑ _p ∈ pairs, 2 ^ w₀ :=
+        sum_le_sum fun p hp => card_multiplyShiftReduced_eq_le hw₀ hU (mem_filter.1 hp).2.ne
+    _ = (#S * (#S - 1)) * 2 ^ (w₀ - 1) := by
+        rw [sum_const, smul_eq_mul, hpow_w₀, ← hcard_pairs]; ring
 
 /-- **Probability bound on non-injective multiply-shift seeds**:
 under a uniform seed `α ← PMF.uniformOfFintype (Fin (2 ^ (w₀ - 1)))`, the probability that
@@ -253,22 +208,9 @@ theorem toOuterMeasure_not_injOn_multiplyShiftReduced_le {U w₀ R : ℕ} (hw₀
   rw [hset, PMF.toOuterMeasure_apply_finset]
   simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, sum_const, nsmul_eq_mul,
     ← div_eq_mul_inv, Nat.cast_pow, Nat.cast_ofNat]
-  have hcard := card_not_injOn_multiplyShiftReduced_le (R := R) hw₀ hU S
-  have hcast : ((#(univ \ reducedGoodTop U w₀ R S) : ℝ≥0∞) * (2 ^ R : ℝ≥0∞)) ≤
-      ((#S * (#S - 1) : ℕ) : ℝ≥0∞) * (2 ^ (w₀ - 1) : ℝ≥0∞) := by
-    exact_mod_cast hcard
-  have hpow_ne_zero : (2 ^ (w₀ - 1) : ℝ≥0∞) ≠ 0 := by positivity
-  have hpow_ne_top : (2 ^ (w₀ - 1) : ℝ≥0∞) ≠ ⊤ := ENNReal.coe_ne_top
-  have hR_ne_zero : (2 ^ R : ℝ≥0∞) ≠ 0 := by positivity
-  have hR_ne_top : (2 ^ R : ℝ≥0∞) ≠ ⊤ := ENNReal.coe_ne_top
-  rw [ENNReal.div_le_iff_le_mul (Or.inl hpow_ne_zero) (Or.inl hpow_ne_top)]
-  calc (#(univ \ reducedGoodTop U w₀ R S) : ℝ≥0∞)
-      = (#(univ \ reducedGoodTop U w₀ R S) : ℝ≥0∞) * (2 ^ R : ℝ≥0∞) / (2 ^ R : ℝ≥0∞) :=
-        (ENNReal.mul_div_cancel_right hR_ne_zero hR_ne_top).symm
-    _ ≤ ((#S * (#S - 1) : ℕ) : ℝ≥0∞) * (2 ^ (w₀ - 1) : ℝ≥0∞) / (2 ^ R : ℝ≥0∞) :=
-        ENNReal.div_le_div_right hcast _
-    _ = ((#S * (#S - 1) : ℕ) : ℝ≥0∞) / (2 ^ R : ℝ≥0∞) * (2 ^ (w₀ - 1) : ℝ≥0∞) := by
-        rw [div_eq_mul_inv, mul_right_comm, ← div_eq_mul_inv]
+  rw [ENNReal.div_le_iff (by positivity) (by simp), ← ENNReal.mul_div_right_comm,
+    ENNReal.le_div_iff_mul_le (Or.inl (by positivity)) (Or.inl (by simp))]
+  exact_mod_cast card_not_injOn_multiplyShiftReduced_le (R := R) hw₀ hU S
 
 /-! ## Two-stage reduced trinomial polynomial hash family -/
 
@@ -333,16 +275,12 @@ theorem isKWiseIndependentHash_reducedPolyHash_of_injOn {U w₀ b b' k : ℕ}
     (hinj : Set.InjOn (multiplyShiftReduced U w₀ (3 * b) α) (S : Set (Fin U))) :
     IsKWiseIndependentHash k
       (fun (β : ReducedBotSeed w₀ b b' k) (u : S) => reducedPolyHash U w₀ b b' k (α, β) u.val) := by
-  have hg : Function.Injective (fun u : S => multiplyShiftReduced U w₀ (3 * b) α u.val) :=
-    fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)
   have htr : IsKWiseIndependentHash k
       (trinomialPolyHash (reducedTrinomialStep w₀ b b') k (2 ^ min w₀ (3 * b)) b') :=
-    isKWiseIndependentHash_trinomialPolyHash
-      (t := reducedTrinomialStep w₀ b b') (k := k) (U := 2 ^ min w₀ (3 * b)) (M := b')
-      (two_pow_min_le_two_pow_reducedTrinomialDeg w₀ b b')
+    isKWiseIndependentHash_trinomialPolyHash (two_pow_min_le_two_pow_reducedTrinomialDeg w₀ b b')
       (le_reducedTrinomialDeg w₀ b b')
-  have hcomp := IsKWiseIndependentHash.comp htr hg
-  exact hcomp
+  exact htr.comp (e := fun u : S => multiplyShiftReduced U w₀ (3 * b) α u.val)
+    fun u₁ u₂ h => Subtype.ext (hinj u₁.property u₂.property h)
 
 /-- For any `α ∈ reducedGoodTop U w₀ (3 * b) T`, the restriction of `reducedPolyHash` to `T`
 (`#T ≤ k`) under a uniform bottom seed is `PMF.uniformOfFintype (T → Fin (2 ^ b'))`. -/
@@ -401,16 +339,8 @@ theorem coupledWithin_reducedPolyHash_restrict {U w₀ b b' k : ℕ}
     refine congrArg ((PMF.uniformOfFintype (ReducedTopSeed w₀)).bind ·) (funext fun α => ?_)
     simp only [PMF.map_comp, Function.comp_def]
   rw [hprod]
-  have hcpl : PMF.CoupledWithin
-      ((PMF.uniformOfFintype (ReducedTopSeed w₀)).bind fun α =>
-        (PMF.uniformOfFintype (ReducedBotSeed w₀ b b' k)).map
-          (fun β => T.restrict (reducedPolyHash U w₀ b b' k (α, β))))
-      (PMF.uniformOfFintype (T → Fin (2 ^ b')))
-      ((PMF.uniformOfFintype (ReducedTopSeed w₀)).toOuterMeasure
-        (G : Set (ReducedTopSeed w₀))ᶜ) := by
-    refine PMF.CoupledWithin.bind_of_eq_on (G : Set (ReducedTopSeed w₀)) fun α _ hα => ?_
-    exact map_restrict_reducedPolyHash_eq_uniform_of_injOn hT (mem_reducedGoodTop.mp hα)
-  refine hcpl.mono ?_
+  refine (PMF.CoupledWithin.bind_of_eq_on (G : Set (ReducedTopSeed w₀)) fun α _ hα =>
+    map_restrict_reducedPolyHash_eq_uniform_of_injOn hT (mem_reducedGoodTop.mp hα)).mono ?_
   have hcompl : ((G : Set (ReducedTopSeed w₀))ᶜ : Set (ReducedTopSeed w₀)) =
       {α | ¬ Set.InjOn (multiplyShiftReduced U w₀ (3 * b) α) (T : Set (Fin U))} := by
     ext α

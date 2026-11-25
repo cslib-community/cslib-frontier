@@ -77,18 +77,13 @@ private theorem smooth_gap_arith {s β d p q X Y : ℝ} (hβ : 0 ≤ β) (hs : 4
     (hY : Y ≤ q * d + β / 2 * d ^ 2) : s * X ≤ 5 / 2 * (p ^ 2 + q ^ 2) := by
   rcases hd.eq_or_lt with h0 | hpos
   · subst h0
-    have : X ≤ 0 := by simpa using hX
-    nlinarith
+    nlinarith [show X ≤ 0 by simpa using hX]
   -- Dividing the growth inequality by `d > 0` gives `(s - β) d ≤ p + q`, hence `3 s d ≤ 4 (p + q)`.
-  have hlin : (s - β) * d ≤ p + q := by
-    have : ((s - β) * d) * d ≤ (p + q) * d := by nlinarith
-    exact le_of_mul_le_mul_right this hpos
+  have hlin : (s - β) * d ≤ p + q := le_of_mul_le_mul_right (by nlinarith) hpos
   have ht : 3 * (s * d) ≤ 4 * (p + q) := by nlinarith
   -- `s X ≤ p (s d) + (s d)² / 8`, and `s d ≤ 4 (p + q) / 3`.
   have hsX : s * X ≤ p * (s * d) + (s * d) ^ 2 / 8 := by
-    have h1 : s * X ≤ s * (p * d + β / 2 * d ^ 2) := by
-      have : 0 ≤ s := by linarith
-      exact mul_le_mul_of_nonneg_left hX this
+    have h1 : s * X ≤ s * (p * d + β / 2 * d ^ 2) := mul_le_mul_of_nonneg_left hX (by linarith)
     have h2 : s * (β / 2 * d ^ 2) ≤ (s * d) ^ 2 / 8 := by
       have : 0 ≤ s * d ^ 2 * (s - 4 * β) :=
         mul_nonneg (mul_nonneg (by linarith) (sq_nonneg d)) (by linarith)
@@ -96,9 +91,7 @@ private theorem smooth_gap_arith {s β d p q X Y : ℝ} (hβ : 0 ≤ β) (hs : 4
     nlinarith
   have hst : 0 ≤ s * d := by nlinarith
   have h3 : p * (3 * (s * d)) ≤ p * (4 * (p + q)) := mul_le_mul_of_nonneg_left ht hp
-  have h4 : (3 * (s * d)) ^ 2 ≤ (4 * (p + q)) ^ 2 := by
-    have : 0 ≤ 3 * (s * d) := by linarith
-    exact pow_le_pow_left₀ this ht 2
+  have h4 : (3 * (s * d)) ^ 2 ≤ (4 * (p + q)) ^ 2 := pow_le_pow_left₀ (by linarith) ht 2
   nlinarith [sq_nonneg (p - q), sq_nonneg p, sq_nonneg q]
 
 section Smooth
@@ -326,9 +319,8 @@ theorem IsRLM.integral_trueRisk_le_add_of_lipschitzWith_fderiv {ℓ : E → Z �
   have hrw : r * ‖w‖ ^ 2 ≤ ε / 3 := by
     calc r * ‖w‖ ^ 2 ≤ r * B ^ 2 := by gcongr
       _ = ε / 3 := by rw [hr]; field_simp
-  have hcE : 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 := by
-    calc 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 * 1 := by gcongr
-      _ = ε / 10 := mul_one _
+  have hcE : 5 * (β : ℝ) / (r * m) * ∫ S, empiricalRisk ℓ S (A S) ∂μ ≤ ε / 10 :=
+    (mul_le_mul hc hfit hfit0 (by linarith)).trans_eq (mul_one _)
   linarith
 
 end Tikhonov

@@ -265,13 +265,9 @@ private theorem majorityReconstruct_map_flattenSubsamples {m t s : ℕ}
   rw [dite_eq_left_of_eq_true (eq_true hlen)]
   have hsub : ∀ j : Fin t,
       (fun u : Fin s => ((flattenSubsamples B).map S)[(finProdFinEquiv (j, u)).1]'(by
-        rw [hlen]; exact (finProdFinEquiv (j, u)).2)) = S ∘ B j := by
-    intro j
-    funext u
-    simp only [flattenSubsamples, List.getElem_map, List.getElem_ofFn, Function.comp_apply]
-    have hidx : ⟨(finProdFinEquiv (j, u)).1, (finProdFinEquiv (j, u)).2⟩ =
-        finProdFinEquiv (j, u) := rfl
-    rw [hidx, Equiv.symm_apply_apply]
+        rw [hlen]; exact (finProdFinEquiv (j, u)).2)) = S ∘ B j := fun j => funext fun u => by
+    simp only [flattenSubsamples, List.getElem_map, List.getElem_ofFn, Function.comp_apply,
+      Fin.eta, Equiv.symm_apply_apply]
   refine congrArg (fun n => decide (t < 2 * n)) (congrArg Finset.card ?_)
   exact Finset.filter_congr fun j _ => by dsimp only; rw [hsub j]
 
@@ -338,6 +334,7 @@ theorem exists_majority_subsamples_of_dualVCDim {C : ConceptClass α Bool} {d dS
   have hgG : g ∈ G :=
     ⟨fun c : ↥C => (c : α → Bool) (S i).1, mem_dualClass.2 ⟨(S i).1, rfl⟩, rfl⟩
   have happrox := abs_lt.1 (hB g hgG)
+  set c := (Finset.univ.filter fun j => g (B j) = true).card with hc
   have hμi : (μ.toMeasure {b | A (S ∘ b) (S i).1 ≠ (S i).2}).toReal ≤ 1 / 3 := by
     rw [PMF.toMeasure_apply_eq_toOuterMeasure]
     exact ENNReal.toReal_le_of_le_ofReal (by norm_num) (hμ i)
@@ -346,26 +343,14 @@ theorem exists_majority_subsamples_of_dualVCDim {C : ConceptClass α Bool} {d dS
     have hset : {b : Fin s → Fin m | g b = true} = {b | A (S ∘ b) (S i).1 ≠ (S i).2} := by
       ext b; simp [g, φ, hy]
     have hprob : (μ.toMeasure {b | g b = true}).toReal ≤ 1 / 3 := hset ▸ hμi
-    have hlt_frac :
-        ((Finset.univ.filter fun j => g (B j) = true).card : ℝ) / t < 1 / 2 := by
-      linarith [happrox.2, hprob]
-    have hcard_lt :
-        (2 * (Finset.univ.filter fun j => g (B j) = true).card : ℝ) < t := by
-      have := (div_lt_iff₀ htpos).1 hlt_frac
-      linarith
+    have hlt := (div_lt_iff₀ htpos).1 (by linarith [happrox.2] : (c : ℝ) / t < 1 / 2)
+    have hlt_nat : 2 * c < t := by exact_mod_cast (by linarith : (2 * c : ℝ) < t)
     have hcard_sum :
-        (Finset.univ.filter fun j : Fin t => A (S ∘ B j) (S i).1 = false).card +
-          (Finset.univ.filter fun j : Fin t => g (B j) = true).card = t := by
-      have heq : (Finset.univ.filter fun j : Fin t => A (S ∘ B j) (S i).1 = false) =
-          (Finset.univ.filter fun j : Fin t => ¬ (g (B j) = true)) := by
-        refine Finset.filter_congr fun j _ => ?_
-        simp [g, φ]
-      rw [heq, add_comm]
-      simpa only [Finset.card_univ, Fintype.card_fin] using
-        Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin t)))
-          (p := fun j => g (B j) = true)
-    have hlt_nat : 2 * (Finset.univ.filter fun j => g (B j) = true).card < t := by
-      exact_mod_cast hcard_lt
+        (Finset.univ.filter fun j : Fin t => A (S ∘ B j) (S i).1 = false).card + c = t := by
+      rw [hc, add_comm]
+      simpa only [g, φ, Function.comp_apply, Bool.not_eq_true, Finset.card_univ,
+        Fintype.card_fin] using Finset.card_filter_add_card_filter_not
+          (s := (Finset.univ : Finset (Fin t))) (p := fun j => g (B j) = true)
     omega
   · -- When `(S i).2 = true`, `{g = true}` is the error set's complement, so `μ {g = true} ≥ 2/3`.
     have hcompl : {b : Fin s → Fin m | g b = true} =
@@ -377,17 +362,9 @@ theorem exists_majority_subsamples_of_dualVCDim {C : ConceptClass α Bool} {d dS
         1 - (μ.toMeasure {b | A (S ∘ b) (S i).1 ≠ (S i).2}).toReal := by
       rw [hcompl, measure_compl (Set.toFinite _).measurableSet hmeas_err, measure_univ,
         ENNReal.toReal_sub_of_le (prob_le_one) ENNReal.one_ne_top, ENNReal.toReal_one]
-    have hprob : 2 / 3 ≤ (μ.toMeasure {b | g b = true}).toReal := by linarith [hcompl_eq, hμi]
-    have hgt_frac :
-        1 / 2 < ((Finset.univ.filter fun j => g (B j) = true).card : ℝ) / t := by
-      linarith [happrox.1, hprob]
-    have hcard_gt :
-        (t : ℝ) < 2 * (Finset.univ.filter fun j => g (B j) = true).card := by
-      have := (lt_div_iff₀ htpos).1 hgt_frac
-      linarith
-    have hlt_nat : t < 2 * (Finset.univ.filter fun j => g (B j) = true).card := by
-      exact_mod_cast hcard_gt
-    simpa only [g, φ, Function.comp_apply] using hlt_nat
+    have hgt := (lt_div_iff₀ htpos).1 (by linarith [happrox.1] : 1 / 2 < (c : ℝ) / t)
+    have hlt_nat : t < 2 * c := by exact_mod_cast (by linarith : (t : ℝ) < 2 * c)
+    simpa only [hc, g, φ, Function.comp_apply] using hlt_nat
 
 /-- Strict majority correctness expressed via `decide (t < 2 * count_true) = (S i).2`. -/
 private theorem decide_majority_eq_label {t : ℕ} (f : Fin t → Bool) (y : Bool)
@@ -396,11 +373,7 @@ private theorem decide_majority_eq_label {t : ℕ} (f : Fin t → Bool) (y : Boo
   cases y
   · have hsum : (Finset.univ.filter fun j => f j = true).card +
         (Finset.univ.filter fun j => f j = false).card = t := by
-      have heq : (Finset.univ.filter fun j : Fin t => f j = false) =
-          (Finset.univ.filter fun j : Fin t => ¬ (f j = true)) :=
-        Finset.filter_congr fun j _ => by cases f j <;> simp
-      rw [heq]
-      simpa only [Finset.card_univ, Fintype.card_fin] using
+      simpa only [Bool.not_eq_true, Finset.card_univ, Fintype.card_fin] using
         Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset (Fin t)))
           (p := fun j => f j = true)
     exact decide_eq_false (by omega)
@@ -440,13 +413,9 @@ theorem exists_finset_compression_of_dualVCDim {C : ConceptClass α Bool} {d dSt
           T.card ≤ t * s ∧
           ∀ i : Fin m, ρ T info (S i).1 = (S i).2 := by
   classical
-  have hs_pos : 0 < s := by
-    have : (0 : ℝ) < s := lt_of_lt_of_le (vcSampleSize_one_third_half_pos d) hs
-    exact_mod_cast this
-  have ht_pos : 0 < t := by
-    have : (0 : ℝ) < t :=
-      lt_of_lt_of_le (uniformConvergenceSampleSize_one_sixth_half_pos dStar) ht
-    exact_mod_cast this
+  have hs_pos : 0 < s := Nat.cast_pos.1 ((vcSampleSize_one_third_half_pos d).trans_le hs)
+  have ht_pos : 0 < t :=
+    Nat.cast_pos.1 ((uniformConvergenceSampleSize_one_sixth_half_pos dStar).trans_le ht)
   refine ⟨finsetSideReconstruct A t, fun {m} S hS => ?_⟩
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · exact ⟨∅, fun _ _ => ⟨0, Nat.mul_pos ht_pos hs_pos⟩,
@@ -462,12 +431,8 @@ theorem exists_finset_compression_of_dualVCDim {C : ConceptClass α Bool} {d dSt
       obtain ⟨j, -, hu⟩ := Finset.mem_biUnion.1 hz
       obtain ⟨u, -, rfl⟩ := Finset.mem_image.1 hu
       exact ⟨B j u, rfl⟩
-    have hT_card : T.card ≤ t * s :=
-      calc T.card ≤ ∑ j : Fin t, (Finset.univ.image (S ∘ B j)).card := Finset.card_biUnion_le
-        _ ≤ ∑ _j : Fin t, (Finset.univ : Finset (Fin s)).card :=
-            Finset.sum_le_sum fun _ _ => Finset.card_image_le
-        _ = t * s := by
-            simp only [Finset.card_univ, Fintype.card_fin, Finset.sum_const, smul_eq_mul]
+    have hT_card : T.card ≤ t * s := Finset.card_biUnion_le.trans <|
+      (Finset.sum_le_sum fun _ _ => Finset.card_image_le).trans_eq (by simp)
     have hT_pos : 0 < T.card :=
       Finset.card_pos.2 ⟨S (B ⟨0, ht_pos⟩ ⟨0, hs_pos⟩), hmem _ _⟩
     let e : T ≃ Fin T.card := Fintype.equivFinOfCardEq (Fintype.card_coe T)
@@ -476,13 +441,9 @@ theorem exists_finset_compression_of_dualVCDim {C : ConceptClass α Bool} {d dSt
     refine ⟨T, info, hT_sub, hT_card, fun i => ?_⟩
     have hsub : ∀ j : Fin t,
         (fun u : Fin s => (e.symm ⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩).1) =
-          S ∘ B j := by
-      intro j
-      funext u
+          S ∘ B j := fun j => funext fun u => by
       have hfin : (⟨(info j u).1 % T.card, Nat.mod_lt _ hT_pos⟩ : Fin T.card) =
-          e ⟨S (B j u), hmem j u⟩ := by
-        apply Fin.ext
-        exact Nat.mod_eq_of_lt (e ⟨S (B j u), hmem j u⟩).2
+          e ⟨S (B j u), hmem j u⟩ := Fin.ext (Nat.mod_eq_of_lt (e ⟨S (B j u), hmem j u⟩).2)
       rw [hfin, Equiv.symm_apply_apply]
       rfl
     have heval : finsetSideReconstruct A t T info (S i).1 =

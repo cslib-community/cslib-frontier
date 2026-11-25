@@ -123,14 +123,11 @@ theorem one_sub_expect_decodingError_le [Fintype M] [Nonempty M] (p : I) (hp : (
       ∑ e, bernoulliWeight p e * (if D (E m + e) = m then 1 else 0) := by
     have hw1 : ∑ e : ι → Bool, bernoulliWeight p e = 1 := by
       simpa [bernoulliAverage] using bernoulliAverage_const (ι := ι) p 1
-    have hsplit : ∑ e, bernoulliWeight p e * (if D (E m + e) = m then (1 : ℝ) else 0) +
-        ∑ e, bernoulliWeight p e * (if D (E m + e) ≠ m then (1 : ℝ) else 0) =
-          ∑ e : ι → Bool, bernoulliWeight p e := by
-      rw [← sum_add_distrib]
-      refine sum_congr rfl fun e _ => ?_
-      by_cases h : D (E m + e) = m <;> simp [h]
     rw [decodingError_eq_bernoulliAverage, bernoulliAverage]
-    linarith
+    refine sub_eq_of_eq_add (hw1.symm.trans ?_)
+    rw [← sum_add_distrib]
+    refine sum_congr rfl fun e _ => ?_
+    by_cases h : D (E m + e) = m <;> simp [h]
   -- pointwise split by the weight of the noise
   have hpt (m : M) (e : ι → Bool) :
       bernoulliWeight p e * (if D (E m + e) = m then 1 else 0) ≤
@@ -305,25 +302,17 @@ theorem exists_pos_one_sub_two_mul_exp_le_expect_decodingError (p : I) {R : ℝ}
       (E : M → ι → Bool) (D : (ι → Bool) → M),
       R * Fintype.card ι ≤ Real.logb 2 (Fintype.card M) →
         1 - 2 * Real.exp (-(δ * Fintype.card ι)) ≤ 𝔼 m, decodingError p E D m := by
-  rcases le_or_gt (p : ℝ) (1 / 2) with hp | hp
-  · obtain ⟨δ, hδ, h⟩ := exists_pos_bound p hp hR
+  wlog hp : (p : ℝ) ≤ 1 / 2 generalizing p
+  · obtain ⟨δ, hδ, h⟩ := this (σ p) (by rwa [unitInterval.coe_symm_eq, Real.binEntropy_one_sub])
+      (by rw [unitInterval.coe_symm_eq]; linarith)
     refine ⟨δ, hδ, fun {ι} _ {M} _ _ E D hM => ?_⟩
-    have hK : (0 : ℝ) < Fintype.card M := by exact_mod_cast Fintype.card_pos
-    obtain ⟨a, ha⟩ := h (Fintype.card ι) (Fintype.card M) hK hM
-    have := one_sub_expect_decodingError_le p hp E D a
-    linarith
-  · have hσ : ((σ p : I) : ℝ) ≤ 1 / 2 := by
-      rw [unitInterval.coe_symm_eq]
-      linarith
-    have hRσ : 1 - Real.binEntropy (σ p : I) / Real.log 2 < R := by
-      rwa [unitInterval.coe_symm_eq, Real.binEntropy_one_sub]
-    obtain ⟨δ, hδ, h⟩ := exists_pos_bound (σ p) hσ hRσ
-    refine ⟨δ, hδ, fun {ι} _ {M} _ _ E D hM => ?_⟩
-    have hK : (0 : ℝ) < Fintype.card M := by exact_mod_cast Fintype.card_pos
-    obtain ⟨a, ha⟩ := h (Fintype.card ι) (Fintype.card M) hK hM
-    have := one_sub_expect_decodingError_le (σ p) hσ E (fun y => D fun i => !y i) a
-    simp only [decodingError_symm] at this
-    linarith
+    simpa only [decodingError_symm] using h E (fun y => D fun i => !y i) hM
+  obtain ⟨δ, hδ, h⟩ := exists_pos_bound p hp hR
+  refine ⟨δ, hδ, fun {ι} _ {M} _ _ E D hM => ?_⟩
+  have hK : (0 : ℝ) < Fintype.card M := by exact_mod_cast Fintype.card_pos
+  obtain ⟨a, ha⟩ := h (Fintype.card ι) (Fintype.card M) hK hM
+  have := one_sub_expect_decodingError_le p hp E D a
+  linarith
 
 open Filter in
 /-- **The strong converse for `BSC_p`**, asymptotic form: for every `p ∈ [0, 1]`, every rate
@@ -359,9 +348,7 @@ theorem eventually_exists_lt_decodingError (p : I) {R : ℝ}
       (D : BitString n → BitString k), ∃ m, ε < decodingError p E D m := by
   filter_upwards [eventually_one_sub_le_expect_decodingError p hR (ε := (1 - ε) / 2)
     (by linarith)] with n hn k hk E D
-  have hM : R * n ≤ Real.logb 2 (Fintype.card (BitString k)) := by
-    rwa [BitString.logb_card]
-  have h := hn E D hM
+  have h := hn E D (by rwa [BitString.logb_card])
   obtain ⟨m, -, hm⟩ := exists_lt_of_lt_expect univ_nonempty (show ε < 𝔼 m, decodingError p E D m
     by linarith)
   exact ⟨m, hm⟩

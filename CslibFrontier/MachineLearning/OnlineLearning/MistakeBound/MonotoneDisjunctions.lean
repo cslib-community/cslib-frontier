@@ -81,22 +81,13 @@ theorem setShatters_monotoneDisjunctions {k r : ℕ} (hkr : k * 2 ^ r ≤ n) :
     decide (∃ T : Finset (Fin r), a.2 ∈ T ∧ e (a.1, T) = i)
   have hpt : ∀ a j T, pt a (e (j, T)) = decide (a.1 = j ∧ a.2 ∈ T) := by
     intro a j T
-    simp only [pt, decide_eq_decide]
-    constructor
-    · rintro ⟨T', hT', he⟩
-      obtain ⟨h1, h2⟩ := Prod.ext_iff.mp (e.injective he)
-      dsimp only at h1 h2
-      subst h2
-      exact ⟨h1, hT'⟩
-    · rintro ⟨rfl, hT⟩
-      exact ⟨T, hT, rfl⟩
+    simp [pt, and_comm]
   have hinj : Function.Injective pt := by
     intro a b hab
     have h := congrFun hab (e (a.1, {a.2}))
-    rw [hpt, hpt] at h
-    have h' : b.1 = a.1 ∧ b.2 ∈ ({a.2} : Finset (Fin r)) :=
-      of_decide_eq_true (h.symm.trans (decide_eq_true ⟨rfl, Finset.mem_singleton_self _⟩))
-    exact Prod.ext h'.1.symm (Finset.mem_singleton.mp h'.2).symm
+    simp only [hpt, Finset.mem_singleton, and_self, decide_true, Bool.decide_and, Bool.true_eq,
+      Bool.and_eq_true, decide_eq_true_eq] at h
+    exact Prod.ext h.1.symm h.2.symm
   refine ⟨Finset.univ.image pt, ?_, ?_⟩
   · rw [Finset.card_image_of_injective _ hinj, Finset.card_univ, Fintype.card_prod,
       Fintype.card_fin, Fintype.card_fin]

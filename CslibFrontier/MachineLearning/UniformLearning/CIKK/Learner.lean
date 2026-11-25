@@ -142,9 +142,7 @@ theorem learns_cikkLearner {n ℓ : ℕ} (e g h : ℕ) {test : BitString (2 ^ �
       Nat.cast_pow, Nat.cast_ofNat] at h' ⊢
     linarith
   have h1 := nwLearner_learns_of_dens (Design.binaryPolynomial (cikkK e g * n + cikkK e g) ℓ)
-    test (C := (glAmp · (cikkK e g)) '' C) hδ (by
-      rintro _ ⟨f, hf, rfl⟩ z
-      exact hrej f hf z)
+    test (C := (glAmp · (cikkK e g)) '' C) hδ (by rintro _ ⟨f, hf, rfl⟩; exact hrej f hf)
   have hadv : (2 : ℝ) ^ (ℓ + 1) / 2 ^ g / (2 * ((2 ^ ℓ : ℕ) : ℝ)) = 1 / 2 ^ g := by
     push_cast
     field_simp
@@ -157,16 +155,9 @@ theorem learns_cikkLearner {n ℓ : ℕ} (e g h : ℕ) {test : BitString (2 ^ �
     (two_mul_cikkFixed_le_cikkK e g) (le_cikkFixed e g) (le_cikkTrials e g)
   -- stage 3: best-of selection
   have hp : (1 : ℝ) / 2 ^ g * ((1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2 / 8) ≤ 1 := by
-    have hq : (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3) : ℝ) ^ 2 / 8 ≤ 1 := by
-      have : (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3) : ℝ) ≤ 1 :=
-        (div_le_self (by positivity) (one_le_pow₀ (by norm_num))).trans
-          (one_div_two_pow_le_one g)
-      have : (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3) : ℝ) ^ 2 ≤ 1 :=
-        pow_le_one₀ (by positivity) this
-      linarith
-    calc (1 : ℝ) / 2 ^ g * ((1 / 2 ^ g / 2 ^ (cikkMasks e g + 3)) ^ 2 / 8)
-        ≤ 1 * 1 := mul_le_mul (one_div_two_pow_le_one g) hq (by positivity) zero_le_one
-      _ = 1 := one_mul 1
+    have : (1 / 2 ^ g / 2 ^ (cikkMasks e g + 3) : ℝ) ^ 2 ≤ 1 := pow_le_one₀ (by positivity)
+      ((div_le_self (by positivity) (one_le_pow₀ (by norm_num))).trans (one_div_two_pow_le_one g))
+    exact (mul_le_of_le_one_left (by positivity) (one_div_two_pow_le_one g)).trans (by linarith)
   have h3 := QueryLearner.learns_bestOf_of_success (k := cikkRuns e g h) (t := cikkSamples e g h)
     (θ := 1 / 2 ^ (e + 2)) (η := 1 / 2 ^ h) h2 hp (by positivity) (by positivity)
     (log_le_cikkRuns e g h) (log_le_cikkSamples e g h)
@@ -207,17 +198,13 @@ theorem queriesAtMost_cikkLearner_two_pow (n ℓ e g h : ℕ) (test : BitString 
     have hZ2 : 2 ≤ 2 ^ (9 * g + 4 * e + 46) := by omega
     have hmul : 9 * g + 4 * e + 2 * h + 46 ≤ (h + 1) * 2 ^ (9 * g + 4 * e + 46) := by
       have := Nat.mul_le_mul_left h hZ2
-      calc 9 * g + 4 * e + 2 * h + 46
-          ≤ h * 2 ^ (9 * g + 4 * e + 46) + 2 ^ (9 * g + 4 * e + 46) := by omega
-        _ = (h + 1) * 2 ^ (9 * g + 4 * e + 46) := by ring
+      rw [add_one_mul]
+      omega
     calc cikkSamples e g h ≤ 2 ^ (2 * e + 3) * (9 * g + 4 * e + 2 * h + 46) := hS
       _ ≤ 2 ^ (2 * e + 3) * ((h + 1) * 2 ^ (9 * g + 4 * e + 46)) := by gcongr
       _ = (h + 1) * 2 ^ (9 * g + 6 * e + 49) := by ring
       _ ≤ (h + 1) * 2 ^ (2 * ℓ + 10 * g + 6 * e + 58) :=
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num) (by omega))
-  calc cikkRuns e g h * (2 ^ ℓ * 2 ^ (ℓ - 1) * cikkK e g) + cikkSamples e g h
-      ≤ (h + 1) * 2 ^ (2 * ℓ + 10 * g + 6 * e + 58) +
-          (h + 1) * 2 ^ (2 * ℓ + 10 * g + 6 * e + 58) := Nat.add_le_add h1 h2
-    _ = (h + 1) * 2 ^ (2 * ℓ + 10 * g + 6 * e + 59) := by ring
+  exact (Nat.add_le_add h1 h2).trans_eq (by ring)
 
 end Cslib.MachineLearning.UniformLearning

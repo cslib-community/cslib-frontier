@@ -59,10 +59,8 @@ variable {α β Ω : Type*}
 /-- The entropy of a bit is the binary entropy, in bits, of its probability of being `true`. -/
 theorem entropy_bool (q : PMF Bool) :
     entropy q = Real.binEntropy (q true).toReal / Real.log 2 := by
-  have h : (q false).toReal = 1 - (q true).toReal := by
-    have := sum_toReal q
-    rw [Fintype.sum_bool] at this
-    linarith
+  have h : (q false).toReal = 1 - (q true).toReal :=
+    eq_sub_of_add_eq' ((Fintype.sum_bool fun b => (q b).toReal).symm.trans (sum_toReal q))
   rw [entropy_eq_sum, Fintype.sum_bool, h, Real.binEntropy_eq_negMulLog_add_negMulLog_one_sub]
 
 open scoped unitInterval in
@@ -78,10 +76,8 @@ theorem entropy_le_binEntropy_add_mul_logb [Fintype α] (q : PMF α) (a : α) :
       (1 - (q a).toReal) * Real.logb 2 (Fintype.card α - 1) := by
   classical
   set e : ℝ := 1 - (q a).toReal with he
-  have hsum : ∑ x ∈ Finset.univ.erase a, (q x).toReal = e := by
-    have := sum_toReal q
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a)] at this
-    linarith
+  have hsum : ∑ x ∈ Finset.univ.erase a, (q x).toReal = e :=
+    eq_sub_of_add_eq' ((Finset.add_sum_erase _ _ (Finset.mem_univ a)).trans (sum_toReal q))
   have hlog : 0 < Real.log 2 := Real.log_pos one_lt_two
   -- `S` is the contribution of the outcomes other than `a` to `H(q) log 2`
   set S : ℝ := ∑ x ∈ Finset.univ.erase a, Real.negMulLog (q x).toReal with hS
@@ -91,15 +87,12 @@ theorem entropy_le_binEntropy_add_mul_logb [Fintype α] (q : PMF α) (a : α) :
   have hSle : S ≤ Real.negMulLog e + e * Real.log (Fintype.card α - 1) := by
     rcases Nat.eq_or_lt_of_le hK with hK1 | hK1
     · -- a single outcome: nothing else contributes
-      have hempty : Finset.univ.erase a = ∅ := by
-        rw [← Finset.card_eq_zero, hcard, ← hK1]
+      have hempty : Finset.univ.erase a = ∅ := by rw [← Finset.card_eq_zero, hcard, ← hK1]
       have he0 : e = 0 := by rw [← hsum, hempty, Finset.sum_empty]
       rw [hS, hempty, Finset.sum_empty, he0, Real.negMulLog_zero, zero_mul, add_zero]
     · -- Jensen's inequality for `negMulLog` on the `c = |α| - 1` other outcomes
       set c : ℝ := ((Fintype.card α - 1 : ℕ) : ℝ) with hc
-      have hcpos : 0 < c := by
-        rw [hc]
-        exact_mod_cast Nat.sub_pos_of_lt hK1
+      have hcpos : 0 < c := by rw [hc]; exact_mod_cast Nat.sub_pos_of_lt hK1
       have hc' : (Fintype.card α : ℝ) - 1 = c := by
         rw [hc, Nat.cast_sub hK, Nat.cast_one]
       have hJ := Real.concaveOn_negMulLog.le_map_sum (t := Finset.univ.erase a)
@@ -109,13 +102,10 @@ theorem entropy_le_binEntropy_add_mul_logb [Fintype α] (q : PMF α) (a : α) :
       simp only [smul_eq_mul, ← Finset.mul_sum, hsum] at hJ
       rw [Real.negMulLog_mul, Real.negMulLog, Real.log_inv] at hJ
       rw [hc']
-      have := mul_le_mul_of_nonneg_left hJ hcpos.le
-      rw [← hS] at this
       have hcc : c * c⁻¹ = 1 := mul_inv_cancel₀ hcpos.ne'
-      calc S = c * (c⁻¹ * S) := by rw [← mul_assoc, hcc, one_mul]
-        _ ≤ c * (e * (-c⁻¹ * -Real.log c) + c⁻¹ * Real.negMulLog e) := this
-        _ = e * Real.log c * (c * c⁻¹) + Real.negMulLog e * (c * c⁻¹) := by ring
-        _ = Real.negMulLog e + e * Real.log c := by rw [hcc]; ring
+      have := mul_le_mul_of_nonneg_left hJ hcpos.le
+      rw [← hS, ← mul_assoc c c⁻¹ S, hcc, one_mul] at this
+      exact this.trans_eq (by linear_combination (Real.negMulLog e + e * Real.log c) * hcc)
   have h1e : 1 - e = (q a).toReal := by rw [he]; ring
   rw [entropy_eq_sum, ← Finset.add_sum_erase _ _ (Finset.mem_univ a), ← hS,
     Real.binEntropy_eq_negMulLog_add_negMulLog_one_sub, h1e, Real.logb, mul_div_assoc',
@@ -147,21 +137,14 @@ theorem conditionalEntropy_le_binEntropy_add_mul_logb [Finite β] [Fintype α]
   have hPe' : Pe = ∑ y, w y * ey y := by
     rw [hPe, toOuterMeasure_apply_toReal, Fintype.sum_prod_type]
     refine Finset.sum_congr rfl fun y _ => ?_
-    have hrow : ∀ x, (joint (y, x)).toReal = w y * (conditionalSnd joint y x).toReal := by
-      intro x
+    have hrow (x) : (joint (y, x)).toReal = w y * (conditionalSnd joint y x).toReal := by
       rw [hw, ← ENNReal.toReal_mul, marginal_mul_conditionalSnd]
-    have hsumc : ∑ x, (conditionalSnd joint y x).toReal = 1 := sum_toReal _
     simp only [Set.mem_ofPred_eq, hrow, hey]
     have hf : Finset.univ.filter (fun x => g y ≠ x) = Finset.univ.erase (g y) := by
-      ext x
-      simp [eq_comm]
-    rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, hf, ← Finset.mul_sum]
-    have h2 := Finset.add_sum_erase Finset.univ (fun x => (conditionalSnd joint y x).toReal)
-      (Finset.mem_univ (g y))
-    rw [hsumc] at h2
-    have h3 : ∑ x ∈ Finset.univ.erase (g y), (conditionalSnd joint y x).toReal =
-        1 - (conditionalSnd joint y (g y)).toReal := by linarith
-    rw [h3]
+      ext x; simp [eq_comm]
+    rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, hf, ← Finset.mul_sum,
+      eq_sub_of_add_eq' ((Finset.add_sum_erase _ _ (Finset.mem_univ (g y))).trans
+        (sum_toReal (conditionalSnd joint y)))]
   rw [conditionalEntropy_eq_sum]
   calc ∑ y, w y * entropy (conditionalSnd joint y)
       ≤ ∑ y, w y * (Real.binEntropy (ey y) / Real.log 2 +
@@ -171,13 +154,11 @@ theorem conditionalEntropy_le_binEntropy_add_mul_logb [Finite β] [Fintype α]
     _ = (∑ y, w y * Real.binEntropy (ey y)) / Real.log 2 +
           Pe * Real.logb 2 (Fintype.card α - 1) := by
         rw [hPe', Finset.sum_mul, Finset.sum_div, ← Finset.sum_add_distrib]
-        refine Finset.sum_congr rfl fun y _ => ?_
-        ring
+        exact Finset.sum_congr rfl fun y _ => by ring
     _ ≤ Real.binEntropy Pe / Real.log 2 + Pe * Real.logb 2 (Fintype.card α - 1) := by
         gcongr
-        have hJ := Real.strictConcave_binEntropy.concaveOn.le_map_sum (t := Finset.univ)
-          (w := w) (p := ey) (fun y _ => hw0 y) hw1 (fun y _ => hey01 y)
-        simpa only [smul_eq_mul, ← hPe'] using hJ
+        simpa only [smul_eq_mul, ← hPe'] using Real.strictConcave_binEntropy.concaveOn.le_map_sum
+          (t := Finset.univ) (w := w) (p := ey) (fun y _ => hw0 y) hw1 (fun y _ => hey01 y)
 
 /-- **Fano's inequality** for random variables `X : Ω → α` and `Y : Ω → β` on a probability space
 `ν`, with the estimate `g ∘ Y` of `X`: `H(X | Y) ≤ h₂(Pe) + Pe log₂ (|α| - 1)`, where
@@ -197,9 +178,8 @@ theorem conditionalEntropy_le_one_add_mul_logb [Finite β] [Fintype α] (joint :
       1 + (joint.toOuterMeasure {z | g z.1 ≠ z.2}).toReal * Real.logb 2 (Fintype.card α) := by
   have h := conditionalEntropy_le_binEntropy_add_mul_logb joint g
   set Pe := (joint.toOuterMeasure {z | g z.1 ≠ z.2}).toReal
-  have hh : Real.binEntropy Pe / Real.log 2 ≤ 1 := by
-    rw [div_le_one (Real.log_pos one_lt_two)]
-    exact Real.binEntropy_le_log_two
+  have hh : Real.binEntropy Pe / Real.log 2 ≤ 1 :=
+    (div_le_one (Real.log_pos one_lt_two)).2 Real.binEntropy_le_log_two
   have hcard : (1 : ℝ) ≤ Fintype.card α := by
     have : Nonempty α := ⟨joint.support_nonempty.choose.2⟩
     exact_mod_cast Fintype.card_pos

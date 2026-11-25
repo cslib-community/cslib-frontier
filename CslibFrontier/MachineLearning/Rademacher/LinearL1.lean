@@ -115,9 +115,8 @@ theorem empiricalRademacherComplexity_l1LinearPredictors_le (φ : Z → Fin n �
         ring
       · rw [decide_eq_false hneg, signVal_false, one_mul, abs_of_nonneg (not_lt.1 hneg)]
     calc ∑ j, w j * c j ≤ ∑ j, |w j| * |c j₀| := Finset.sum_le_sum fun j _ =>
-          (le_abs_self _).trans (by
-            rw [abs_mul]
-            exact mul_le_mul_of_nonneg_left (hj₀ j (Finset.mem_univ _)) (abs_nonneg _))
+          ((le_abs_self _).trans_eq (abs_mul _ _)).trans
+            (mul_le_mul_of_nonneg_left (hj₀ j (Finset.mem_univ _)) (abs_nonneg _))
       _ = (∑ j, |w j|) * |c j₀| := by rw [Finset.sum_mul]
       _ ≤ B * |c j₀| := mul_le_mul_of_nonneg_right hw (abs_nonneg _)
       _ = 𝔼 i, signVal (σ i) * v (decide (c j₀ < 0), j₀) i := hvert.symm
@@ -127,8 +126,7 @@ theorem empiricalRademacherComplexity_l1LinearPredictors_le (φ : Z → Fin n �
   rcases lt_or_ge R 0 with hRneg | hR
   · -- A negative bound leaves no sample coordinates, so the square root vanishes.
     have h0 : m = 0 ∨ n = 0 := by
-      by_contra hcon
-      push Not at hcon
+      by_contra! hcon
       exact absurd ((abs_nonneg _).trans (hS ⟨0, by omega⟩ ⟨0, by omega⟩)) (not_le.2 hRneg)
     rcases h0 with rfl | rfl <;> simp
   · rw [max_eq_left hR]

@@ -75,21 +75,12 @@ coordinate distribution `p i` has support contained in `(q i).support`. -/
 theorem support_pi_subset_iff [∀ i, Finite (α i)] {p q : ∀ i, PMF (α i)} :
     (pi p).support ⊆ (pi q).support ↔ ∀ i, (p i).support ⊆ (q i).support := by
   classical
-  constructor
-  · intro h i a ha
-    have hex : ∀ j, ∃ b, b ∈ (p j).support := fun j => (p j).support_nonempty
-    choose x₀ hx₀ using hex
-    have hmem : Function.update x₀ i a ∈ (pi p).support := by
-      rw [mem_support_pi_iff]
-      intro j
-      by_cases hij : j = i
-      · subst hij; simpa only [Function.update_self] using ha
-      · simpa only [Function.update_of_ne hij] using hx₀ j
-    have hq := (mem_support_pi_iff q _).mp (h hmem) i
-    simpa only [Function.update_self] using hq
-  · intro h x hx
-    rw [mem_support_pi_iff] at hx ⊢
-    exact fun i => h i (hx i)
+  refine ⟨fun h i a ha => ?_, fun h x hx =>
+    (mem_support_pi_iff q x).2 fun i => h i ((mem_support_pi_iff p x).1 hx i)⟩
+  choose x₀ hx₀ using fun j => (p j).support_nonempty
+  have hmem : Function.update x₀ i a ∈ (pi p).support := (mem_support_pi_iff p _).2
+    ((Function.forall_update_iff x₀ (p := fun j b => b ∈ (p j).support)).2 ⟨ha, fun j _ => hx₀ j⟩)
+  simpa only [Function.update_self] using (mem_support_pi_iff q _).mp (h hmem) i
 
 /-- Support inclusion transfers from `p, q` to `n`-fold i.i.d. laws `iid p n, iid q n`. -/
 theorem support_iid_subset {β : Type*} {p q : PMF β} (h : p.support ⊆ q.support) (n : ℕ) :
@@ -115,10 +106,8 @@ theorem sum_mul_log_div_pi [DecidableEq ι] [∀ i, Fintype (α i)] {p q : ∀ i
         Real.log_prod fun i _ => div_ne_zero (hp_real i) (hq_real i)]
     · push Not at h0
       obtain ⟨i, hi⟩ := h0
-      have hp0 : (pi p x).toReal = 0 := by
-        rw [pi_apply, ENNReal.toReal_prod]
-        exact Finset.prod_eq_zero (Finset.mem_univ i) (by simp [hi])
-      simp only [hp0, zero_mul]
+      simp [pi_apply, Finset.prod_eq_zero (f := fun j => (p j (x j)).toReal) (Finset.mem_univ i)
+        (by simp [hi])]
   simp only [hterm]
   exact sum_pi_mul_sum p fun i a => Real.log ((p i a).toReal / (q i a).toReal)
 
@@ -174,9 +163,7 @@ variable {V X : Type*}
 theorem map_fst_bind_prodMk (μ : PMF V) (P : V → PMF X) :
     (μ.bind fun v => (P v).map (·, v)).map Prod.fst = μ.bind P := by
   rw [_root_.PMF.map_bind]
-  have hid : (fun v : V => ((P v).map (·, v)).map Prod.fst) = P :=
-    funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_id _)
-  rw [hid]
+  exact congrArg μ.bind (funext fun v => (_root_.PMF.map_comp _ _ _).trans (_root_.PMF.map_id _))
 
 /-- Second marginal of the observation-first joint law `μ.bind fun v => (P v).map (·, v)`. -/
 theorem map_snd_bind_prodMk (μ : PMF V) (P : V → PMF X) :
@@ -192,23 +179,19 @@ theorem toReal_bind_map_prodMk_apply (μ : PMF V) (P : V → PMF X) (x : X) (v :
     ((μ.bind fun v => (P v).map (·, v)) (x, v)).toReal = (μ v).toReal * (P v x).toReal := by
   classical
   simp only [_root_.PMF.bind_apply, _root_.PMF.map_apply, Prod.mk.injEq]
-  have hsingle : ∀ w : V, (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
+  have hsingle (w : V) : (μ w * ∑' x' : X, if x = x' ∧ v = w then P w x' else 0) =
       if w = v then μ v * P v x else 0 := by
-    intro w
     by_cases hwv : w = v
     · subst hwv
       simp only [and_true, tsum_ite_eq', ↓reduceIte]
-    · have hne : v ≠ w := Ne.symm hwv
-      simp only [hne, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
+    · simp only [Ne.symm hwv, and_false, hwv, ↓reduceIte, tsum_zero, mul_zero]
   rw [tsum_congr hsingle, tsum_ite_eq, ENNReal.toReal_mul]
 
 private theorem support_bind_subset_of_forall {μ : PMF V} {P : V → PMF X} {Q : PMF X}
     (hQ : ∀ v ∈ μ.support, (P v).support ⊆ Q.support) :
-    (μ.bind P).support ⊆ Q.support := by
-  intro x hx
-  rw [_root_.PMF.mem_support_bind_iff] at hx
-  obtain ⟨v, hv, hxv⟩ := hx
-  exact hQ v hv hxv
+    (μ.bind P).support ⊆ Q.support := fun x hx =>
+  let ⟨v, hv, hxv⟩ := (_root_.PMF.mem_support_bind_iff μ P x).1 hx
+  hQ v hv hxv
 
 /-- **Golden mixture identity for mutual information**: for a prior `μ : PMF V`, channel
 `P : V → PMF X`, and any reference distribution `Q : PMF X` dominating `P v` on `μ.support`,
@@ -279,8 +262,7 @@ theorem mutualInfo_bind_mul_log_two_eq_sum_klDiv_sub [Fintype V] [Finite X]
     refine Finset.sum_congr rfl fun v _ => ?_
     by_cases hv : v ∈ μ.support
     · rw [← Finset.mul_sum, toReal_klDiv_toMeasure (hQ v hv)]
-    · have h0 : μ v = 0 := (_root_.PMF.apply_eq_zero_iff μ v).mpr hv
-      simp [h0]
+    · simp [(_root_.PMF.apply_eq_zero_iff μ v).mpr hv]
   · refine Finset.sum_congr rfl fun x _ => ?_
     rw [← Finset.sum_mul, hbar_apply x]
 
@@ -311,8 +293,7 @@ theorem mutualInfo_bind_mul_log_two_le_of_klDiv_le [Finite V] [Finite X]
         refine Finset.sum_le_sum fun v _ => ?_
         by_cases hv : v ∈ μ.support
         · exact mul_le_mul_of_nonneg_left (hβ v hv) ENNReal.toReal_nonneg
-        · have h0 : μ v = 0 := (_root_.PMF.apply_eq_zero_iff μ v).mpr hv
-          simp [h0]
+        · simp [(_root_.PMF.apply_eq_zero_iff μ v).mpr hv]
     _ = β := by rw [← Finset.sum_mul, sum_toReal, one_mul]
 
 /-- **Pairwise-KL upper bound on mutual information**: when `P v` and `P w` have matching supports
@@ -336,8 +317,7 @@ theorem mutualInfo_bind_mul_log_two_le_sum_sum_klDiv [Fintype V] [Finite X]
               (klDiv (P v).toMeasure (P w).toMeasure).toReal := by
             rw [Finset.mul_sum]
             exact Finset.sum_congr rfl fun v _ => by ring
-    · have h0 : μ w = 0 := (_root_.PMF.apply_eq_zero_iff μ w).mpr hw
-      simp [h0]
+    · simp [(_root_.PMF.apply_eq_zero_iff μ w).mpr hw]
   have hsum := Finset.sum_le_sum fun w (_ : w ∈ Finset.univ) => hper_w w
   rw [← Finset.sum_mul, sum_toReal, one_mul] at hsum
   rwa [Finset.sum_comm] at hsum

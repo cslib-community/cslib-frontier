@@ -200,12 +200,9 @@ theorem sum_abs_snapIter_sub_pow_le (d n₁ : ℕ) {M : Matrix ι ι ℝ}
         (Matrix.sum_pow_apply_le_one h0 h1 _ i)
     have hstep : ∀ i, ∑ j, |snapIter d (· ^ n₁) M (n + 1) z i j - (R ^ n₁) i j| ≤
         Fintype.card ι * (2 / 2 ^ d) := fun i => by
-      rw [snapIter_succ]
-      calc ∑ j, |snapMatrix d (R ^ n₁) (z (Fin.last n)) i j - (R ^ n₁) i j|
-          ≤ ∑ _j : ι, (2 / 2 ^ d : ℝ) := Finset.sum_le_sum fun j _ => by
-            rw [snapMatrix_apply]
-            exact abs_snap_sub_le d (Matrix.pow_apply_nonneg hR0 n₁ i j) _
-        _ = Fintype.card ι * (2 / 2 ^ d) := by simp
+      simpa using Finset.sum_le_card_nsmul univ _ (2 / 2 ^ d : ℝ) fun j _ => by
+        rw [snapIter_succ, snapMatrix_apply]
+        exact abs_snap_sub_le d (Matrix.pow_apply_nonneg hR0 n₁ i j) _
     have hpow := Matrix.sum_abs_pow_sub_pow_le hR hM (fun i => ih (Fin.init z) i) n₁ i
     rw [← pow_mul, ← pow_succ] at hpow
     calc ∑ j, |snapIter d (· ^ n₁) M (n + 1) z i j - (M ^ n₁ ^ (n + 1)) i j|
@@ -217,11 +214,7 @@ theorem sum_abs_snapIter_sub_pow_le (d n₁ : ℕ) {M : Matrix ι ι ℝ}
           rw [Finset.sum_add_distrib]
           exact add_le_add (hstep i) hpow
       _ = (∑ k ∈ range (n + 1), (n₁ : ℝ) ^ k) * (Fintype.card ι * (2 / 2 ^ d)) := by
-          rw [Finset.sum_range_succ', pow_zero]
-          have : ∑ k ∈ range n, (n₁ : ℝ) ^ (k + 1) = n₁ * ∑ k ∈ range n, (n₁ : ℝ) ^ k := by
-            rw [Finset.mul_sum]
-            exact Finset.sum_congr rfl fun k _ => pow_succ' _ _
-          rw [this]
+          rw [geom_sum_succ]
           ring
 
 private theorem card_le_of_dens_le {α : Type*} [Fintype α] {s : Finset α} {ε : ℝ}
@@ -321,12 +314,7 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     by_cases hb : ∃ i j, ε < |pow R y i j - (R ^ n₁) i j|
     · rw [ite_eq_left hb]
       have h1 : (#{t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} : ℝ) ≤
-          2 ^ d := by
-        have := Finset.card_le_univ
-          ({t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} :
-            Finset (Fin (2 ^ d)))
-        rw [Fintype.card_fin] at this
-        exact_mod_cast this
+          2 ^ d := by exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
       have h2 : 0 ≤ c := by positivity
       linarith
     · rw [ite_eq_right hb, zero_add]
@@ -348,12 +336,8 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     _ ≤ 2 ^ d * (ε * Fintype.card Ω) + Fintype.card Ω * c := by gcongr
     _ = (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) *
           (Fintype.card Ω * Fintype.card (Fin (2 ^ d))) := by
-        rw [Fintype.card_fin, hc]
-        have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by
-          rw [← mul_pow]
-          norm_num
+        rw [Fintype.card_fin, hc, show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
         push_cast
-        rw [h4]
         field_simp
 
 /-- **Coupling with the reference iteration** [ChattopadhyayLiao2020, proof of Lemma A.4]. Let

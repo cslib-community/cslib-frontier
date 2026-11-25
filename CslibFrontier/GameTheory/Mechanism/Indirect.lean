@@ -587,10 +587,8 @@ theorem isBayesNash_iff_toBayesianGame [Fintype ι] [DecidableEq ι]
         (fun i v => ⟨max 0 (β i v), Set.mem_Ici.2 (le_max_left 0 (β i v))⟩) := by
   let s : ∀ i, ℝ → Set.Ici (0 : ℝ) :=
     fun i v => ⟨max 0 (β i v), Set.mem_Ici.2 (le_max_left 0 (β i v))⟩
-  have hbox : ∀ᵐ v ∂Measure.pi μ, ∀ j, v j ∈ Icc 0 (h j) := by
-    rw [ae_all_iff]
-    intro j
-    exact (Measure.quasiMeasurePreserving_eval μ j).ae (hsupp j)
+  have hbox : ∀ᵐ v ∂Measure.pi μ, ∀ j, v j ∈ Icc 0 (h j) :=
+    ae_all_iff.2 fun j => (Measure.quasiMeasurePreserving_eval μ j).ae (hsupp j)
   have hinterim : ∀ (hβ : ∀ j, ∀ v ∈ Icc 0 (h j), 0 ≤ β j v) (i : ι) (v : ℝ)
       (z : Set.Ici (0 : ℝ)),
       (M.toBayesianGame μ).interimUtility s i v z =

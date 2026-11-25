@@ -173,9 +173,7 @@ private theorem foldl_mul_add_accumulate (k : F) {n : ℕ} (x : Fin n → F) (a 
   induction n generalizing a with
   | zero => simp
   | succ n ih =>
-    rw [Fin.foldl_succ, Fin.foldl_succ]
-    conv_lhs => rw [ih]
-    conv_rhs => rw [ih]
+    rw [Fin.foldl_succ, Fin.foldl_succ, ih _ (a * k + x 0), ih _ (0 * k + x 0)]
     ring
 
 @[simp]
@@ -231,16 +229,9 @@ two-block collision at every key requested by [BonehShoup2023], Exercise 7.1 (v0
 for the hash of Equation 7.3. -/
 theorem polyHash_two_blocks_eq_iff {R : Type*} [Ring R] {a b c d : R} :
     (∀ k, polyHash k [a, b] = polyHash k [c, d]) ↔ a = c ∧ b = d := by
-  constructor
-  · intro h
-    have hb : b = d := by
-      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_zero, zero_add] using h 0
-    refine ⟨?_, hb⟩
-    have h1 : (1 + a) + b = (1 + c) + b := by
-      simpa only [polyHash, List.foldl_cons, List.foldl_nil, mul_one, ← hb] using h 1
-    exact add_left_cancel (add_right_cancel h1)
-  · rintro ⟨rfl, rfl⟩ k
-    rfl
+  refine ⟨fun h => ?_, by rintro ⟨rfl, rfl⟩ k; rfl⟩
+  have hb : b = d := by simpa [polyHash] using h 0
+  exact ⟨by simpa [polyHash, hb] using h 1, hb⟩
 
 /-- Boneh and Shoup's `Hxpoly` ([BonehShoup2023], Equation 7.23): `k * polyHash k m`. -/
 def xpolyHash (k : F) (m : List F) : F :=
@@ -317,32 +308,21 @@ private theorem monic_toPoly (m : List F) :
 
 /-- Distinct messages have distinct polynomials. -/
 private theorem toPoly_injective : Function.Injective (toPoly : List F → F[X]) := by
-  intro m
-  induction m using List.reverseRecOn with
-  | nil =>
-    intro m' h
-    have hlen := (monic_toPoly m').2
-    rw [← h, (monic_toPoly ([] : List F)).2] at hlen
-    exact (List.length_eq_zero_iff.mp hlen.symm).symm
+  intro m m' h
+  have hlen := (monic_toPoly m).2.symm.trans ((congrArg natDegree h).trans (monic_toPoly m').2)
+  induction m using List.reverseRecOn generalizing m' with
+  | nil => exact (List.length_eq_zero_iff.mp hlen.symm).symm
   | append_singleton m a ih =>
-    intro m' h
-    have hlen := (monic_toPoly m').2
-    rw [← h, (monic_toPoly (m ++ [a])).2] at hlen
     obtain rfl | ⟨m'', a', rfl⟩ := List.eq_nil_or_concat m'
     · simp at hlen
-    rw [List.concat_eq_append] at h ⊢
-    rw [toPoly_append_singleton, toPoly_append_singleton] at h
-    have ha : a = a' := by
-      simpa using congrArg (·.coeff 0) h
-    subst ha
-    rw [ih (mul_right_cancel₀ X_ne_zero (add_right_cancel h))]
+    rw [List.concat_eq_append, toPoly_append_singleton, toPoly_append_singleton] at h
+    obtain rfl : a = a' := by simpa using congrArg (·.coeff 0) h
+    rw [List.concat_eq_append,
+      ih (mul_right_cancel₀ X_ne_zero (add_right_cancel h)) (by simpa using hlen)]
 
 private theorem coeffToPoly_injective (n : ℕ) :
-    Function.Injective (coeffToPoly (F := F) (n := n)) := by
-  intro x y h
-  apply List.ofFn_injective
-  apply toPoly_injective
-  exact sub_left_injective (by simpa only [coeffToPoly] using h)
+    Function.Injective (coeffToPoly (F := F) (n := n)) := fun _ _ h =>
+  List.ofFn_injective (toPoly_injective (sub_left_injective h))
 
 private theorem natDegree_coeffToPoly_le {n : ℕ} (x : Fin n → F) :
     (coeffToPoly x).natDegree ≤ n - 1 := by
@@ -373,8 +353,7 @@ theorem isUniversalHash_coeffPolyHash_of_embedding {S : Type*} [Fintype S] [None
         (Finset.card_image_of_injective _ point.injective).symm
       _ ≤ (coeffToPoly x - coeffToPoly y).roots.toFinset.card := by
         refine Finset.card_le_card fun k hk => ?_
-        rw [Finset.mem_image] at hk
-        obtain ⟨s, hs, rfl⟩ := hk
+        obtain ⟨s, hs, rfl⟩ := Finset.mem_image.mp hk
         rw [Multiset.mem_toFinset, mem_roots hD, IsRoot.def, eval_sub, eval_coeffToPoly,
           eval_coeffToPoly, sub_eq_zero]
         exact (Finset.mem_filter.mp hs).2
@@ -437,12 +416,8 @@ theorem not_isUniversalHash_polyHash_zmod_pow_two (n : ℕ) {ℓ : ℕ} (hℓ : 
     ¬ IsUniversalHash seed
       (fun k (m : {m : List (ZMod (2 ^ (n + 1))) // m.length ≤ ℓ}) => polyHash k m) ε := by
   let c : ZMod (2 ^ (n + 1)) := ((2 ^ n : ℕ) : ZMod (2 ^ (n + 1)))
-  have hc : c ≠ 0 := by
-    have hpos : 0 < (2 : ℕ) ^ n := pow_pos (by decide) _
-    have hlt : (2 : ℕ) ^ n < 2 ^ (n + 1) :=
-      pow_lt_pow_right₀ (by decide) (Nat.lt_succ_self n)
-    intro h
-    exact hlt.not_ge (Nat.le_of_dvd hpos ((ZMod.natCast_eq_zero_iff _ _).mp h))
+  have hc : c ≠ 0 := fun h => (Nat.pow_lt_pow_succ (by decide)).not_ge
+    (Nat.le_of_dvd (by positivity) ((ZMod.natCast_eq_zero_iff _ _).mp h))
   have hcollision (k : ZMod (2 ^ (n + 1))) :
       polyHash k [c, -c, 0] = polyHash k [0, 0, 0] := by
     obtain ⟨t, ht⟩ := Int.even_mul_pred_self (ZMod.cast k)
@@ -470,9 +445,7 @@ private theorem card_mul_eval_sub_eq_le [Fintype F] [DecidableEq F] {p q : F[X]}
   have hD : p - q ≠ 0 := sub_ne_zero.mpr hpq
   let P := X * (p - q) - C d
   have hP : P ≠ 0 := fun h => by
-    have hdeg := congrArg natDegree (sub_eq_zero.mp h)
-    rw [natDegree_X_mul hD, natDegree_C] at hdeg
-    exact Nat.succ_ne_zero _ hdeg
+    simpa [natDegree_X_mul hD] using congrArg natDegree (sub_eq_zero.mp h)
   calc
     _ ≤ P.roots.toFinset.card := by
       refine Finset.card_le_card fun k hk => ?_
@@ -494,9 +467,7 @@ theorem isDeltaUniversalHash_mul_coeffPolyHash [Fintype F] (n : ℕ) :
       (fun k (x : Fin n → F) => k * coeffPolyHash k x) (n / Fintype.card F) := by
   classical
   exact IsDeltaUniversalHash.of_card_le fun x y hxy d => by
-    have hn : 0 < n := Nat.pos_of_ne_zero fun h => by
-      subst n
-      exact hxy (Subsingleton.elim _ _)
+    have hn : 0 < n := Nat.pos_of_ne_zero fun h => hxy (by subst n; exact Subsingleton.elim _ _)
     have hdeg : (coeffToPoly x - coeffToPoly y).natDegree ≤ n - 1 :=
       (natDegree_sub_le _ _).trans <|
         max_le (natDegree_coeffToPoly_le x) (natDegree_coeffToPoly_le y)
@@ -514,8 +485,7 @@ private theorem isDeltaUniversalHash_mul_eval [Fintype F] {M : Type*}
     IsDeltaUniversalHash.of_card_le fun m m' hne d =>
       (card_mul_eval_sub_eq_le (hf.ne hne) d).trans <| Nat.add_le_add_right
         ((natDegree_sub_le _ _).trans (max_le (hdeg m) (hdeg m'))) 1
-  push_cast at h
-  exact h
+  exact_mod_cast h
 
 /-- **`Hxpoly` is `(ℓ + 1) / |F|`-Δ-universal** ([BonehShoup2023], Lemma 7.8): a difference `d`
 of the hashes of two distinct messages occurs only at the roots of the nonzero polynomial
@@ -539,10 +509,8 @@ theorem isDeltaUniversalHash_xpolyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
       (4 * (ℓ + 1) / N) := by
   let lift (m : {m : List (ZMod N) // m.length ≤ ℓ}) : {m : List (ZMod p) // m.length ≤ ℓ} :=
     ⟨m.val.map ZMod.cast, by simpa only [List.length_map] using m.property⟩
-  have hlift : Function.Injective lift := by
-    intro m m' h
-    apply Subtype.ext
-    exact List.map_injective_iff.mpr (ZMod.cast_injective_of_le hNp) (congrArg Subtype.val h)
+  have hlift : Function.Injective lift := fun m m' h => Subtype.ext <|
+    List.map_injective_iff.mpr (ZMod.cast_injective_of_le hNp) (congrArg Subtype.val h)
   have h := (isDeltaUniversalHash_xpolyHash (F := ZMod p) ℓ).precompose hlift
   rw [ZMod.card p] at h
   exact h.zmod_cast_div hNp
@@ -557,13 +525,10 @@ theorem isUniversalHash_polyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
       (fun k (m : {m : List (ZMod N) // m.length ≤ ℓ}) => polyHashMod k m.val)
       (4 * ℓ / N) := by
   intro m m' hne
-  have hℓ : 0 < ℓ := by
-    by_contra! h
-    apply hne
-    apply Subtype.ext
-    have hm : m.val.length = 0 := Nat.eq_zero_of_le_zero (m.property.trans h)
-    have hm' : m'.val.length = 0 := Nat.eq_zero_of_le_zero (m'.property.trans h)
-    rw [List.length_eq_zero_iff.mp hm, List.length_eq_zero_iff.mp hm']
+  have hℓ : 0 < ℓ := Nat.pos_of_ne_zero fun h => hne <| by
+    subst h
+    exact Subtype.ext ((List.length_eq_zero_iff.mp (Nat.le_zero.mp m.2)).trans
+      (List.length_eq_zero_iff.mp (Nat.le_zero.mp m'.2)).symm)
   -- The empty message has no monic prefix. Its polynomial index is zero.
   let encode (w : {w : List (ZMod N) // w.length ≤ ℓ}) :
       {f : (ZMod p)[X] // f.natDegree ≤ ℓ - 1} × ZMod N :=
@@ -600,8 +565,7 @@ theorem isUniversalHash_polyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
     (fun f : {f : (ZMod p)[X] // f.natDegree ≤ ℓ - 1} => f.val)
     Subtype.coe_injective (ℓ - 1) Subtype.property
   have hdegree : (((ℓ - 1 : ℕ) : ℝ≥0∞) + 1) = (ℓ : ℝ≥0∞) := by
-    simpa only [Nat.cast_add, Nat.cast_one] using
-      congrArg (fun n : ℕ => (n : ℝ≥0∞)) (Nat.sub_add_cancel hℓ)
+    rw [← Nat.cast_add_one, Nat.sub_add_cancel hℓ]
   rw [hdegree, ZMod.card p] at h
   have hbound := h.zmod_cast_div hNp
   by_cases hp : (encode m).1 = (encode m').1
@@ -616,8 +580,7 @@ theorem isUniversalHash_polyHashMod {p N : ℕ} [Fact p.Prime] [NeZero N]
     simp only [Set.mem_ofPred_eq, heval] at hk
     change (ZMod.cast (k * (encode m).1.val.eval k) : ZMod N) -
       ZMod.cast (k * (encode m').1.val.eval k) = (encode m').2 - (encode m).2
-    rw [sub_eq_sub_iff_add_eq_add, add_comm (encode m').2]
-    exact hk
+    rwa [sub_eq_sub_iff_add_eq_add, add_comm (encode m').2]
 
 /-- Boneh and Shoup's `Hpoly` fails `ε`-difference universality for every `ε < 1` as soon
 as one-block messages are allowed ([BonehShoup2023], v0.6, Section 7.4, p. 269). The hashes of

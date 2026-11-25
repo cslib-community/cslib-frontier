@@ -84,9 +84,7 @@ private theorem offset_add_mass_le (pre suffix : List Bool)
   induction suffix generalizing pre with
   | nil => simp [offset]
   | cons bit suffix ih =>
-    have hprefix : pre.length < depth := by
-      simp only [List.length_cons] at hdepth
-      omega
+    have hprefix : pre.length < depth := by simp only [List.length_cons] at hdepth; omega
     have hchild (bit : Bool) : (pre ++ [bit]).length + suffix.length ≤ depth := by
       simp only [List.length_append, List.length_cons, List.length_nil] at *
       omega
@@ -104,9 +102,7 @@ private theorem decode_eq_iff (pre suffix : List Bool)
   induction suffix generalizing pre rank with
   | nil => simp [decode, offset]
   | cons bit suffix ih =>
-    have hprefix : pre.length < depth := by
-      simp only [List.length_cons] at hdepth
-      omega
+    have hprefix : pre.length < depth := by simp only [List.length_cons] at hdepth; omega
     have hchild (bit : Bool) : (pre ++ [bit]).length + suffix.length ≤ depth := by
       simp only [List.length_append, List.length_cons, List.length_nil] at *
       omega
@@ -122,35 +118,22 @@ private theorem decode_eq_iff (pre suffix : List Bool)
       · simp only [List.length_cons, decode, hrank, ite_false, List.cons.injEq,
           Bool.true_eq_false, false_and, and_false, offset, Bool.false_eq_true,
           zero_add]
-        constructor
-        · exact False.elim
-        · rintro ⟨hlower, hupper⟩
-          omega
+        exact ⟨False.elim, fun ⟨hlower, hupper⟩ => by omega⟩
     | true =>
       have hi := ih (pre ++ [true]) (hchild true) (rank - mass (pre ++ [false]))
       simp only [List.append_assoc, List.singleton_append] at hi
       by_cases hrank : rank < mass (pre ++ [false])
       · simp only [List.length_cons, decode, hrank, ite_true, List.cons.injEq,
           Bool.false_eq_true, false_and, and_false, offset]
-        constructor
-        · exact False.elim
-        · rintro ⟨hlower, hupper⟩
-          omega
+        exact ⟨False.elim, fun ⟨hlower, hupper⟩ => by omega⟩
       · simp only [List.length_cons, decode, hrank, ite_false, List.cons.injEq,
           true_and, offset, ite_true]
         constructor
         · rintro ⟨hroot, hdecode⟩
-          have hresidual : rank - mass (pre ++ [false]) < mass (pre ++ [true]) := by
-            omega
-          have hinterval := hi.mp ⟨hresidual, hdecode⟩
+          have hinterval := hi.mp ⟨by omega, hdecode⟩
           omega
         · intro hinterval
-          have hresidual :
-              offset mass (pre ++ [true]) suffix ≤ rank - mass (pre ++ [false]) ∧
-                rank - mass (pre ++ [false]) <
-                  offset mass (pre ++ [true]) suffix + mass (pre ++ true :: suffix) := by
-            omega
-          obtain ⟨hbound, hdecode⟩ := hi.mpr hresidual
+          obtain ⟨hbound, hdecode⟩ := hi.mpr (by omega)
           exact ⟨by omega, hdecode⟩
 
 /-- A valid rank reaches a positive-mass leaf; zero-mass branches are not sampled. -/
@@ -178,14 +161,11 @@ theorem card_filter_decode (remaining : ℕ) (pre : List Bool)
       ext rank
       simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_Ico]
       exact decode_eq_iff hadd pre word hdepth rank
-    rw [hfiber]
-    simp
+    simp [hfiber]
   · have hempty : (Finset.range (mass pre)).filter
-        (fun rank => decode mass remaining pre rank = word) = ∅ := by
-      apply Finset.filter_eq_empty_iff.mpr
-      intro rank _ heq
-      exact hlength ((congrArg List.length heq).symm.trans
-        (length_decode mass remaining pre rank))
+        (fun rank => decode mass remaining pre rank = word) = ∅ :=
+      Finset.filter_eq_empty_iff.mpr fun rank _ heq => hlength
+        ((congrArg List.length heq).symm.trans (length_decode mass remaining pre rank))
     simp [hlength, hempty]
 
 /-- Decoding a uniform finite rank gives each leaf its integer mass divided by the total mass. -/
@@ -209,11 +189,8 @@ theorem uniformFin_decode_apply (remaining : ℕ) (pre : List Bool)
       ext rank
       simp only [Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
         Finset.mem_range, Fin.valEmbedding_apply]
-      constructor
-      · rintro ⟨index, hdecode, rfl⟩
-        exact ⟨index.isLt, hdecode⟩
-      · rintro ⟨hbound, hdecode⟩
-        exact ⟨⟨rank, hbound⟩, hdecode, rfl⟩
+      exact ⟨fun ⟨index, hdecode, h⟩ => h ▸ ⟨index.isLt, hdecode⟩,
+        fun ⟨hbound, hdecode⟩ => ⟨⟨rank, hbound⟩, hdecode, rfl⟩⟩
     rw [← Finset.card_map (f := Fin.valEmbedding), hmap, ← hroot]
     exact card_filter_decode hadd remaining pre hdepth word
   rw [PMF.uniformOfFintype_map_apply, Fintype.card_fin, hfiber]

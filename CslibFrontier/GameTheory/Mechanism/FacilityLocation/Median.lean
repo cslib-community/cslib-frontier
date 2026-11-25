@@ -114,49 +114,36 @@ theorem orderStatisticMechanism_isGroupStrategyProof [DecidableEq ι] (k : ℕ) 
   have hne : y' ≠ y := fun heq => by rw [heq] at hlt; exact (lt_irrefl _ hlt)
   rcases hne.lt_or_gt with hlt_y | hgt_y
   · -- If `y' < y`, every agent `i` with `y ≤ x i` strictly loses under `y'`, so `i ∉ A`.
-    have hnotmem : ∀ i : ι, y ≤ x i → i ∉ A := by
-      intro i hxi hiA
-      have hcost := hle i hiA
-      change |x i - y'| ≤ |x i - y| at hcost
+    have hnotmem : ∀ i : ι, y ≤ x i → i ∉ A := fun i hxi hiA => by
+      have hcost : |x i - y'| ≤ |x i - y| := hle i hiA
       rw [abs_of_nonneg (sub_nonneg.2 hxi),
         abs_of_nonneg (sub_nonneg.2 (hlt_y.le.trans hxi))] at hcost
       linarith
     have hdisj : Disjoint (Finset.univ.filter fun i => y ≤ x i)
-        (Finset.univ.filter fun i => x' i ≤ y') := by
-      rw [Finset.disjoint_left]
-      intro i hi1 hi2
-      rw [Finset.mem_filter] at hi1 hi2
-      have hxi : x' i = x i := Finset.piecewise_eq_of_notMem _ _ _ (hnotmem i hi1.2)
-      rw [hxi] at hi2
-      linarith [hi1.2, hi2.2]
-    have hsum_le : (Finset.univ.filter fun i => y ≤ x i).card +
-        (Finset.univ.filter fun i => x' i ≤ y').card ≤ Fintype.card ι := by
-      rw [← Finset.card_union_of_disjoint hdisj]
-      exact Finset.card_le_univ _
+        (Finset.univ.filter fun i => x' i ≤ y') :=
+      Finset.disjoint_filter.2 fun i _ hi1 hi2 => by
+        rw [show x' i = x i from Finset.piecewise_eq_of_notMem _ _ _ (hnotmem i hi1)] at hi2
+        linarith
+    have hsum_le :=
+      (Finset.card_union_of_disjoint hdisj).symm.trans_le (Finset.card_le_univ _)
     have hsplit : (Finset.univ.filter fun i => x i < y).card +
         (Finset.univ.filter fun i => y ≤ x i).card = Fintype.card ι := by
-      have hc := Finset.card_filter_add_card_filter_not (s := Finset.univ)
-        (p := fun i => x i < y)
-      simpa only [Finset.card_univ, not_lt] using hc
+      simpa only [Finset.card_univ, not_lt] using
+        Finset.card_filter_add_card_filter_not (s := Finset.univ) (p := fun i => x i < y)
     have h1 := hy.2.1
     have h2 := hy'.2.2
     omega
   · -- If `y < y'`, every agent `i` with `x i ≤ y` strictly loses under `y'`, so `i ∉ A`.
-    have hnotmem : ∀ i : ι, x i ≤ y → i ∉ A := by
-      intro i hxi hiA
-      have hcost := hle i hiA
-      change |x i - y'| ≤ |x i - y| at hcost
+    have hnotmem : ∀ i : ι, x i ≤ y → i ∉ A := fun i hxi hiA => by
+      have hcost : |x i - y'| ≤ |x i - y| := hle i hiA
       rw [abs_of_nonpos (sub_nonpos.2 hxi),
         abs_of_nonpos (sub_nonpos.2 (hxi.trans hgt_y.le))] at hcost
       linarith
     have hsub : (Finset.univ.filter fun i => x i ≤ y) ⊆
-        Finset.univ.filter fun i => x' i < y' := by
-      intro i hi
-      rw [Finset.mem_filter] at hi ⊢
-      refine ⟨Finset.mem_univ i, ?_⟩
-      dsimp only [x']
-      rw [Finset.piecewise_eq_of_notMem _ _ _ (hnotmem i hi.2)]
-      exact hi.2.trans_lt hgt_y
+        Finset.univ.filter fun i => x' i < y' :=
+      Finset.monotone_filter_right _ fun i _ hi => by
+        rw [show x' i = x i from Finset.piecewise_eq_of_notMem _ _ _ (hnotmem i hi)]
+        exact hi.trans_lt hgt_y
     have hcard_le := Finset.card_le_card hsub
     have h1 := hy.2.2
     have h2 := hy'.2.1
@@ -225,8 +212,7 @@ theorem not_isStrategyProof_meanMechanism [DecidableEq ι] (hcard : 2 ≤ Fintyp
   rw [meanMechanism, Mechanism.isStrategyProof_deterministic_iff]
   intro hsp
   have hpos : 0 < Fintype.card ι := lt_of_lt_of_le (by decide) hcard
-  have hi₀ : Nonempty ι := Fintype.card_pos_iff.1 hpos
-  obtain ⟨i₀⟩ := hi₀
+  obtain ⟨i₀⟩ : Nonempty ι := Fintype.card_pos_iff.1 hpos
   let x : ι → ℝ := fun j => if j = i₀ then 0 else 1
   let z : ℝ := 1 - (Fintype.card ι : ℝ)
   have hones : ∑ _j ∈ Finset.univ.erase i₀, (1 : ℝ) = (Fintype.card ι : ℝ) - 1 := by
@@ -235,10 +221,9 @@ theorem not_isStrategyProof_meanMechanism [DecidableEq ι] (hcard : 2 ≤ Fintyp
   have hsum : ∑ j ∈ Finset.univ.erase i₀, x j = (Fintype.card ι : ℝ) - 1 := by
     rw [Finset.sum_congr rfl (fun j hj =>
       show x j = 1 by simp only [x, Finset.ne_of_mem_erase hj, ite_false]), hones]
+  have hx0 : x i₀ = 0 := by simp only [x, ite_true]
   have hmean_x : mean x = ((Fintype.card ι : ℝ) - 1) / Fintype.card ι := by
-    rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀)]
-    have hx0 : x i₀ = 0 := by simp only [x, ite_true]
-    rw [hx0, zero_add, hsum]
+    rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀), hx0, zero_add, hsum]
   have hmean_upd : mean (Function.update x i₀ z) = 0 := by
     rw [mean_def, ← Finset.add_sum_erase _ _ (Finset.mem_univ i₀), Function.update_self]
     have hupd : ∑ j ∈ Finset.univ.erase i₀, Function.update x i₀ z j =
@@ -248,7 +233,6 @@ theorem not_isStrategyProof_meanMechanism [DecidableEq ι] (hcard : 2 ≤ Fintyp
     simp only [z]
     ring_nf
   have hle := hsp x i₀ z
-  have hx0 : x i₀ = 0 := by simp only [x, ite_true]
   rw [hx0, hmean_x, hmean_upd] at hle
   simp only [Real.dist_eq, zero_sub, abs_neg, abs_zero] at hle
   have hlt : 0 < |((Fintype.card ι : ℝ) - 1) / Fintype.card ι| :=

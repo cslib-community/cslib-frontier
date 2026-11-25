@@ -131,13 +131,11 @@ private theorem exists_ne_ne (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ 
     ∃ z, z ≠ x ∧ z ≠ y := by
   obtain ⟨a, b, c, hab, hac, hbc⟩ := h3
   by_contra! h
-  by_cases hax : a = x
-  · subst hax
-    exact hbc ((h b hab.symm).trans (h c hac.symm).symm)
-  · by_cases hbx : b = x
-    · subst hbx
-      exact hac ((h a hab).trans (h c hbc.symm).symm)
-    · exact hab ((h a hax).trans (h b hbx).symm)
+  rcases eq_or_ne a x with rfl | hax
+  · exact hbc ((h b hab.symm).trans (h c hac.symm).symm)
+  rcases eq_or_ne b x with rfl | hbx
+  · exact hac ((h a hab).trans (h c hbc.symm).symm)
+  exact hab ((h a hax).trans (h b hbx).symm)
 
 /-- **Extremal lemma** ([Geanakoplos2005], first proof): if every voter ranks `b` at the top or
 at the bottom, society ranks `b` strictly at the top or strictly at the bottom. The hypothesis of
@@ -169,22 +167,16 @@ theorem isTop_or_isBottom_of_extremal (hP : F.IsPareto) (hI : F.IsIIA)
     if (P i).IsTop b then ((P i).toTop c).toTop b else ((P i).toTop c).toBottom b
   have hQ : ∀ i, ((P i).IsTop b ∧ (Q i).IsTop b) ∨ ((P i).IsBottom b ∧ (Q i).IsBottom b) := by
     intro i
-    by_cases ht : (P i).IsTop b
-    · left
-      refine ⟨ht, ?_⟩
-      simp only [Q, ht, ite_true]
-      exact ((P i).toTop c).isTop_toTop b
-    · right
-      refine ⟨(hb i).resolve_left ht, ?_⟩
-      simp only [Q, ht, ite_false]
-      exact ((P i).toTop c).isBottom_toBottom b
+    simp only [Q]
+    split_ifs with ht
+    · exact .inl ⟨ht, ((P i).toTop c).isTop_toTop b⟩
+    · exact .inr ⟨(hb i).resolve_left ht, ((P i).toTop c).isBottom_toBottom b⟩
   have hca : ∀ i, (Q i).Prefers c a := by
     intro i
-    by_cases ht : (P i).IsTop b
-    · simp only [Q, ht, ite_true]
-      exact (((P i).toTop c).toTop_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
-    · simp only [Q, ht, ite_false]
-      exact (((P i).toTop c).toBottom_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
+    simp only [Q]
+    split_ifs
+    · exact (((P i).toTop c).toTop_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
+    · exact (((P i).toTop c).toBottom_prefers_of_ne hcb hab).2 ((P i).isTop_toTop c a hac)
   have h1 := (hI P Q a b fun i => prefers_iff_of_extremal (hQ i) (Or.inr rfl)).1 hab'
   have h2 := (hI P Q b c fun i => prefers_iff_of_extremal (hQ i) (Or.inl rfl)).1 hbc'
   exact hP Q c a hca ((F Q).trans _ _ _ h1 h2)
@@ -221,9 +213,9 @@ private theorem exists_isPivot [Finite V] (hP : F.IsPareto) (hI : F.IsIIA)
   let P : Finset V → Profile V A := fun S j => if j ∈ S then r.toTop b else r.toBottom b
   have hext : ∀ S j, (P S j).IsTop b ∨ (P S j).IsBottom b := by
     intro S j
-    by_cases hj : j ∈ S
-    · left; simp only [P, hj, ite_true]; exact r.isTop_toTop b
-    · right; simp only [P, hj, ite_false]; exact r.isBottom_toBottom b
+    simp only [P]
+    split_ifs
+    exacts [.inl (r.isTop_toTop b), .inr (r.isBottom_toBottom b)]
   let T : Finset V → Prop := fun S => (F (P S)).IsTop b
   have h0 : ¬ T ∅ := by
     intro hT
@@ -257,13 +249,10 @@ private theorem IsPivot.prefers (hI : F.IsIIA) {b : A} {n : V} (hn : IsPivot F b
   have hQ : ∀ j, j ≠ n → ((P₁ j).IsTop b ∧ (Q j).IsTop b) ∨
       ((P₁ j).IsBottom b ∧ (Q j).IsBottom b) := by
     intro j hj
-    by_cases ht : (P₁ j).IsTop b
-    · refine Or.inl ⟨ht, ?_⟩
-      simp only [Q, hj, ht, ite_true, ite_false]
-      exact (P j).isTop_toTop b
-    · refine Or.inr ⟨(hext j).resolve_left ht, ?_⟩
-      simp only [Q, hj, ht, ite_false]
-      exact (P j).isBottom_toBottom b
+    simp only [Q, hj, ite_false]
+    split_ifs with ht
+    · exact .inl ⟨ht, (P j).isTop_toTop b⟩
+    · exact .inr ⟨(hext j).resolve_left ht, (P j).isBottom_toBottom b⟩
   have hQn : Q n = ((P n).toTop b).toTop x := by simp only [Q, ite_true]
   -- Society ranks `x` above `b` at `Q`, as at `P₁`.
   have h1 : (F Q).Prefers x b := by
@@ -325,22 +314,14 @@ theorem isIIA_dictatorship (i : V) : (dictatorship (A := A) i).IsIIA := by
 /-- Voter `i` is a dictator exactly when `F` is the dictatorship of `i`: society's weak ranking
 is then `i`'s ranking, with no ties. -/
 theorem isDictator_iff_eq_dictatorship {i : V} : F.IsDictator i ↔ F = dictatorship i := by
-  constructor
-  · intro hi
-    funext P
-    ext a b
-    change (F P).AtLeast a b ↔ a = b ∨ (P i).Prefers a b
-    by_cases hab : a = b
-    · subst hab
-      exact iff_of_true ((F P).refl a) (Or.inl rfl)
-    constructor
-    · intro h
-      exact Or.inr (by_contra fun hn => hi P b a ((P i).prefers_of_not_prefers hab hn) h)
-    · rintro (rfl | h)
-      · exact (F P).refl a
-      · exact (F P).atLeast_of_prefers (hi P a b h)
-  · rintro rfl
-    exact isDictator_dictatorship i
+  refine ⟨fun hi => funext fun P => ?_, fun h => h ▸ isDictator_dictatorship i⟩
+  ext a b
+  change (F P).AtLeast a b ↔ a = b ∨ (P i).Prefers a b
+  by_cases hab : a = b
+  · subst hab
+    exact iff_of_true ((F P).refl a) (Or.inl rfl)
+  refine ⟨fun h => Or.inr (by_contra fun hn => hi P b a ((P i).prefers_of_not_prefers hab hn) h),
+    fun h => (F P).atLeast_of_prefers (hi P a b (h.resolve_left hab))⟩
 
 /-- With at least two alternatives, a rule has at most one dictator. -/
 theorem IsDictator.unique [Nontrivial A] {i j : V} (hi : F.IsDictator i) (hj : F.IsDictator j) :
@@ -392,12 +373,10 @@ theorem existsUnique_isDictator_of_isPareto_of_isIIA [Finite V] (hP : F.IsPareto
 functions satisfying IIA are exactly the dictatorships. -/
 theorem isPareto_and_isIIA_iff [Finite V] (h3 : ∃ a b c : A, a ≠ b ∧ a ≠ c ∧ b ≠ c) :
     F.IsPareto ∧ F.IsIIA ↔ ∃ i, F = dictatorship i := by
-  constructor
-  · rintro ⟨hP, hI⟩
-    obtain ⟨i, hi⟩ := isDictatorial_of_isPareto_of_isIIA hP hI h3
-    exact ⟨i, isDictator_iff_eq_dictatorship.1 hi⟩
-  · rintro ⟨i, rfl⟩
-    exact ⟨isPareto_dictatorship i, isIIA_dictatorship i⟩
+  refine ⟨fun ⟨hP, hI⟩ => Exists.imp (fun _ => isDictator_iff_eq_dictatorship.1)
+    (isDictatorial_of_isPareto_of_isIIA hP hI h3), ?_⟩
+  rintro ⟨i, rfl⟩
+  exact ⟨isPareto_dictatorship i, isIIA_dictatorship i⟩
 
 end SocialWelfareFunction
 
