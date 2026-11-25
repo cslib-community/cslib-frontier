@@ -69,6 +69,8 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
     PreOvermarsBucketInv c U n_max θ fsIns b ∧
     ValidEpochStage c U n_max θ fsIns ∧
     fsIns.epochClock = fs.epochClock := by
+  have hfp_false : hasFpCollision = false := Bool.eq_false_iff.mpr hfp_coll
+  subst hfp_false
   obtain ⟨hfsIns_bkt, hfp_pres, hrk_pres, hfp_new, _, _, _,
     hqv_glob', hbkt_le', hbkt_ge0', hact_item', hquot_inj', hdict_map',
     hpoolTop', hbp_val', hfree_lt', hbp_inj', hfree_inj', hdisj', hcons'⟩ := hbase
@@ -82,23 +84,15 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
   set lIdx := fs.liveSliceIdx b
   set rKey := fpReducedKey c U n_max θ.2 u
   set fsAlloc := fastInsertAlloc n_max b X fs
-  set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx hasFpCollision fsAlloc
-  set p_new := fsAlloc.physSlot n_max b X
+  set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx false fsAlloc
   obtain ⟨hia_cur, hna_cur, curMap, hv_cur, hrel_cur⟩ := hv.bufCur_valid
-  have hfp_false : hasFpCollision = false := Bool.eq_false_iff.mpr hfp_coll
-  have hfsIns_eq : fsIns =
-      { fsAlloc with
-        quotArr := Function.update fsAlloc.quotArr p_new q_val
-        valArr := Function.update fsAlloc.valArr p_new v
-        bktCount := Function.update fsAlloc.bktCount b (X + 1)
-        locState := Function.update fsAlloc.locState b
-          (Function.update (fsAlloc.locState b) X 1)
-        slices := Function.update fsAlloc.slices lIdx
-          (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fsAlloc.slices lIdx) fp X)
-        liveInsCount := Function.update fsAlloc.liveInsCount b
-          (fsAlloc.liveInsCount b + 1) } := by
-    dsimp only [fsIns, fastInsertFresh]; rw [ite_eq_right hfp_coll]
+  have hlocState_eq : fsIns.locState =
+      Function.update fs.locState b (Function.update (fs.locState b) X 1) := rfl
+  have hsl_eq : fsIns.slices = Function.update fs.slices lIdx
+      (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+        (fs.slices lIdx) fp X) := rfl
+  have hlic_eq : fsIns.liveInsCount =
+      Function.update fs.liveInsCount b (fs.liveInsCount b + 1) := rfl
   -- Fields of `fs` that the live insertion leaves untouched.
   obtain ⟨hcur_eq, hold_eq, hstg_eq, hdf_eq, hbs_eq, hbuf_eq, hli_eq, hoa_eq, hoc_eq, hoi_eq,
       hosi_eq, hrsi_eq, hsc_eq, hdc_eq, hdb_eq, hdi_eq, hrq_eq, hcs_eq, hrc_eq, hri_eq⟩ :
@@ -110,19 +104,18 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
       fsIns.stageCursor = fs.stageCursor ∧ fsIns.dirtyCount = fs.dirtyCount ∧
       fsIns.dirtyBuckets = fs.dirtyBuckets ∧ fsIns.dirtyIdx = fs.dirtyIdx ∧
       fsIns.rebQueued = fs.rebQueued ∧ fsIns.rebCandSalt = fs.rebCandSalt ∧
-      fsIns.rebScanCursor = fs.rebScanCursor ∧ fsIns.rebInsCount = fs.rebInsCount := by
-    rw [hfsIns_eq]
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+      fsIns.rebScanCursor = fs.rebScanCursor ∧ fsIns.rebInsCount = fs.rebInsCount :=
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
       rfl, rfl, rfl⟩
   have hls_pres : ∀ b' < numBucketsWhp n_max, ∀ l' < fs.bktCount b',
       fsIns.locState b' l' = fs.locState b' l' := by
     intro b' _ l' hl'
-    rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+    rw [hlocState_eq]
     by_cases hbb : b' = b
     · subst hbb; rw [Function.update_self, Function.update_of_ne (by omega)]
     · rw [Function.update_of_ne hbb]
   have hls_new : fsIns.locState b X = 1 := by
-    rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]; simp
+    rw [hlocState_eq, Function.update_self, Function.update_self]
   have hinL_X : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fsIns.locState b X) =
       true := by
     rw [hls_new]; simp [inLiveTree]
@@ -140,7 +133,7 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
     cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
         (fs.slices lIdx) fp with
     | none => rfl
-    | some _ => exact absurd (by simp [hfp_def, hlk]) hfp_coll
+    | some _ => simp [hlk] at hfp_def
   have hlm0_none : liveMap0 fp = none :=
     (hv_live0.lookup_eq hv.hth hlic_le8 hfp_lt).symm.trans hlk_live_none
   have hno_fp_coll : ∀ loc < X,
@@ -160,13 +153,13 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
     · subst hbb; omega
     · exact ⟨fun heq => hbb (sliceIdx_inj hor' hlr_b heq).1,
         fun heq => hbb (sliceIdx_inj hrr'.1 hlr_b heq).1⟩
-  refine ⟨?_, ?_, ?_, ?_, by rw [hfsIns_eq]; rfl⟩
+  refine ⟨?_, ?_, ?_, ?_, rfl⟩
   · refine
       { hth := hv.hth
         curEp_or := hcur_eq ▸ hv.curEp_or
-        epochClock_lt := by rw [hfsIns_eq]; exact hv.epochClock_lt
-        rebStage_le := by rw [hfsIns_eq]; exact hv.rebStage_le
-        rebCollision_zero := by rw [hfsIns_eq]; exact hv.rebCollision_zero
+        epochClock_lt := hv.epochClock_lt
+        rebStage_le := hv.rebStage_le
+        rebCollision_zero := hv.rebCollision_zero
         qv_global := hqv_glob'
         bktCount_le := hbkt_le'
         bktCount_ge_zero := hbkt_ge0'
@@ -181,7 +174,7 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
             rw [hls_pres b' hb' l' hl']; exact hv.locState_active b' hb' l' hl'
         locState_inactive := fun b' l' hnot => by
           rw [hfsIns_bkt] at hnot
-          rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+          rw [hlocState_eq]
           by_cases hbb : b' = b
           · subst hbb; rw [Function.update_self] at hnot ⊢
             rw [Function.update_of_ne (by omega)]
@@ -198,8 +191,8 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
         freeStack_inj := hfree_inj'
         back_free_disj := hdisj'
         pool_conservation := hcons'
-        roles_valid := by rw [hfsIns_eq]; exact hv.roles_valid
-        bktSalt_lt := by rw [hfsIns_eq]; exact hv.bktSalt_lt
+        roles_valid := hv.roles_valid
+        bktSalt_lt := hv.bktSalt_lt
         live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
           rw [hstg_eq, hold_eq, hdf_eq] at hin₁ hin₂
           rw [hbs_eq] at hfeq
@@ -230,8 +223,7 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
           · subst hbb
             rw [Function.update_self]
             refine ⟨Function.update liveMap0 fp (some X), ?_, ?_⟩
-            · rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc, lIdx]
-              simp only [Function.update_self]
+            · rw [hlic_eq, hsl_eq, Function.update_self, Function.update_self]
               exact hins_live
             · have hrl' := hrel_live0.congr
                 (f' := fsIns.fpAt c U n_max θ (fs.bktSalt b) b)
@@ -252,7 +244,7 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
               exact hbb (sliceIdx_inj (hv.roles_valid b' hb').1 hlr_b heq).1
             refine ⟨lm, ?_, hrl.congr (fun loc hlt => hfp_pres _ b' hb' loc hlt)
               (fun loc hlt => by rw [hls_pres b' hb' loc hlt])⟩
-            rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+            rw [hlic_eq, hsl_eq]
             simp only [Function.update_of_ne hbb, Function.update_of_ne hne_s]
             exact hvl
         rKey_buf_inj := fun b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂ h2₁ h2₂ hrkeq => by
@@ -314,17 +306,16 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
       (fun loc hlt => hls_pres b' hb' loc hlt)
       (by rw [hfsIns_bkt, Function.update_of_ne hne])
       (by
-        rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
         exact Function.update_of_ne hne _ _)
       (congrFun hoa_eq b') (congrFun hoc_eq b') (congrFun hoi_eq b')
       (by
-        rw [hosi_eq, hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+        rw [hosi_eq, hsl_eq]
         exact Function.update_of_ne (hne_all b' hb').1 _ _)
   · have hlic_b : fsIns.liveInsCount b = fs.liveInsCount b + 1 := by
-      rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]; simp
+      rw [hlic_eq, Function.update_self]
     have hom_sl : fsIns.slices (fsIns.overmarsSliceIdx b) =
         fs.slices (fs.overmarsSliceIdx b) := by
-      rw [hosi_eq, hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+      rw [hosi_eq, hsl_eq]
       exact Function.update_of_ne (hne_all b hb).1 _ _
     rcases hv.overmars_valid b hb with
       ⟨ha0, hlt5⟩ | ⟨ha1, h16, hcur, hlin, hins_om, omM, hvO, hrO⟩
@@ -373,7 +364,7 @@ theorem fastInsertFresh_live_spec {c U V n_max : ℕ}
           Nat.min_le_left _ _
         have hrsl_eq : fsIns.slices (fsIns.rebSliceIdx bc) =
             fs.slices (fs.rebSliceIdx bc) := by
-          rw [hrsi_eq, hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+          rw [hrsi_eq, hsl_eq]
           exact Function.update_of_ne (hne_all bc hbc).2 _ _
         rw [hmin_eq, hrsl_eq]
         refine ⟨?_, ?_, rm, hvr, ?_⟩

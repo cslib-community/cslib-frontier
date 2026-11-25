@@ -65,6 +65,7 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
     PreOvermarsBucketInv c U n_max θ fsIns b ∧
     ValidEpochStage c U n_max θ fsIns ∧
     fsIns.epochClock = fs.epochClock := by
+  subst hasFpCollision
   obtain ⟨hfsIns_bkt, hfp_pres, hrk_pres, _, hrk_new, hno_rk_cur, hno_rk_any,
     hqv_glob', hbkt_le', hbkt_ge0', hact_item', hquot_inj', hdict_map',
     hpoolTop', hbp_val', hfree_lt', hbp_inj', hfree_inj', hdisj', hcons'⟩ := hbase
@@ -79,19 +80,12 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
   set fp := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
   set lIdx := fs.liveSliceIdx b
   set fsAlloc := fastInsertAlloc n_max b X fs
-  set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx hasFpCollision fsAlloc
-  set p_new := fsAlloc.physSlot n_max b X
+  set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx true fsAlloc
   obtain ⟨hia_cur, hna_cur, curMap, hv_cur, hrel_cur⟩ := hv.bufCur_valid
-  have hfsIns_eq : fsIns =
-      { fsAlloc with
-        quotArr := Function.update fsAlloc.quotArr p_new q_val
-        valArr := Function.update fsAlloc.valArr p_new v
-        bktCount := Function.update fsAlloc.bktCount b (X + 1)
-        locState := Function.update fsAlloc.locState b
-          (Function.update (fsAlloc.locState b) X (2 + fsAlloc.curEp))
-        buf := Function.update fsAlloc.buf fsAlloc.curEp
-          (bufInsert (cTabWhp c) (bCharWhp n_max) (fsAlloc.buf fsAlloc.curEp) rKey b X) } := by
-    dsimp only [fsIns, fastInsertFresh]; rw [ite_eq_left hfp_coll]
+  have hlocState_eq : fsIns.locState =
+      Function.update fs.locState b (Function.update (fs.locState b) X (2 + fs.curEp)) := rfl
+  have hbuf_eq : fsIns.buf = Function.update fs.buf fs.curEp
+      (bufInsert (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey b X) := rfl
   -- Fields of `fs` that the collision insertion leaves untouched.
   obtain ⟨hcur_eq, hold_eq, hstg_eq, hdf_eq, hbs_eq, hsl_eq, hlic_eq, hli_eq, hoa_eq, hoc_eq,
       hoi_eq, hosi_eq, hrsi_eq, hsc_eq, hdc_eq, hdb_eq, hdi_eq, hrq_eq, hcs_eq, hrc_eq, hri_eq⟩ :
@@ -104,19 +98,18 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
       fsIns.stageCursor = fs.stageCursor ∧ fsIns.dirtyCount = fs.dirtyCount ∧
       fsIns.dirtyBuckets = fs.dirtyBuckets ∧ fsIns.dirtyIdx = fs.dirtyIdx ∧
       fsIns.rebQueued = fs.rebQueued ∧ fsIns.rebCandSalt = fs.rebCandSalt ∧
-      fsIns.rebScanCursor = fs.rebScanCursor ∧ fsIns.rebInsCount = fs.rebInsCount := by
-    rw [hfsIns_eq]
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+      fsIns.rebScanCursor = fs.rebScanCursor ∧ fsIns.rebInsCount = fs.rebInsCount :=
+    ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
       rfl, rfl, rfl, rfl⟩
   have hls_pres : ∀ b' < numBucketsWhp n_max, ∀ l' < fs.bktCount b',
       fsIns.locState b' l' = fs.locState b' l' := by
     intro b' _ l' hl'
-    rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+    rw [hlocState_eq]
     by_cases hbb : b' = b
     · subst hbb; rw [Function.update_self, Function.update_of_ne (by omega)]
     · rw [Function.update_of_ne hbb]
   have hls_new : fsIns.locState b X = 2 + fs.curEp := by
-    rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]; simp
+    rw [hlocState_eq, Function.update_self, Function.update_self]
   have hinL_X : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) (fsIns.locState b X) =
       false := by
     rw [hls_new]; exact inLiveTree_curEp_eq_false hv.curEp_or _
@@ -129,24 +122,24 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
         Bool.eq_false_iff.mpr hev
       have hlt_cap : (fs.buf fs.curEp).itemAlloc < 2 * sMaxWhp c n_max := by
         by_contra hge
-        exact hg3 ⟨hfp_coll, by simp [hevf], Nat.not_lt.mp hge⟩
+        exact hg3 ⟨rfl, by simp [hevf], Nat.not_lt.mp hge⟩
       have hia_eq : tr'.itemAlloc = (fs.buf fs.curEp).itemAlloc + 1 :=
         hins_cur.2.2.2.1.trans (ite_eq_right hev)
       omega
   have hna_tr' : tr'.nodeAlloc ≤ 1 + cTabWhp c * tr'.itemAlloc :=
     hv_cur.insert_nodeAlloc_le hrk_lt hna_cur
   have hbuf_cur_eq : fsIns.buf fsIns.curEp = tr' := by
-    rw [hcur_eq, hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]; simp [tr']
+    rw [hcur_eq, hbuf_eq, Function.update_self]
   have hbuf_old_eq : fsIns.buf fsIns.oldEp = fs.buf fs.oldEp := by
-    rw [hold_eq, hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+    rw [hold_eq, hbuf_eq]
     exact Function.update_of_ne (curEp_ne_oldEp hv.curEp_or).symm _ _
-  refine ⟨?_, ?_, ?_, ?_, by rw [hfsIns_eq]; rfl⟩
+  refine ⟨?_, ?_, ?_, ?_, rfl⟩
   · refine
       { hth := hv.hth
         curEp_or := hcur_eq ▸ hv.curEp_or
-        epochClock_lt := by rw [hfsIns_eq]; exact hv.epochClock_lt
-        rebStage_le := by rw [hfsIns_eq]; exact hv.rebStage_le
-        rebCollision_zero := by rw [hfsIns_eq]; exact hv.rebCollision_zero
+        epochClock_lt := hv.epochClock_lt
+        rebStage_le := hv.rebStage_le
+        rebCollision_zero := hv.rebCollision_zero
         qv_global := hqv_glob'
         bktCount_le := hbkt_le'
         bktCount_ge_zero := hbkt_ge0'
@@ -161,7 +154,7 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
             rw [hls_pres b' hb' l' hl']; exact hv.locState_active b' hb' l' hl'
         locState_inactive := fun b' l' hnot => by
           rw [hfsIns_bkt] at hnot
-          rw [hfsIns_eq]; dsimp only [fsAlloc, fastInsertAlloc]
+          rw [hlocState_eq]
           by_cases hbb : b' = b
           · subst hbb; rw [Function.update_self] at hnot ⊢
             rw [Function.update_of_ne (by omega)]
@@ -178,8 +171,8 @@ theorem fastInsertFresh_collision_spec {c U V n_max : ℕ}
         freeStack_inj := hfree_inj'
         back_free_disj := hdisj'
         pool_conservation := hcons'
-        roles_valid := by rw [hfsIns_eq]; exact hv.roles_valid
-        bktSalt_lt := by rw [hfsIns_eq]; exact hv.bktSalt_lt
+        roles_valid := hv.roles_valid
+        bktSalt_lt := hv.bktSalt_lt
         live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
           rw [hstg_eq, hold_eq, hdf_eq] at hin₁ hin₂
           rw [hbs_eq] at hfeq
