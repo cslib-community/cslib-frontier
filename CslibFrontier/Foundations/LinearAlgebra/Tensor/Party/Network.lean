@@ -166,11 +166,8 @@ theorem sum_mul_prod_unit {E : Type} [Fintype E] [DecidableEq E] (n : E → ℕ)
     (fun z _ hz => ?_) (fun l _ => ?_)
   · funext e
     exact congr_fun (congr_fun h e) 0
-  · have : ∃ e, ¬ ∀ i j, z e i = z e j := by
-      by_contra hcon
-      push Not at hcon
-      exact hz ⟨fun e => z e 0, by simp, funext fun e => funext fun i => hcon e 0 i⟩
-    obtain ⟨e, he⟩ := this
+  · obtain ⟨e, he⟩ : ∃ e, ¬ ∀ i j, z e i = z e j := not_forall.mp fun hcon =>
+      hz ⟨fun e => z e 0, by simp, funext fun e => funext fun i => hcon e 0 i⟩
     rw [Finset.prod_eq_zero (Finset.mem_univ e), mul_zero]
     exact ite_eq_right he
   · rw [Finset.prod_eq_one, mul_one]
@@ -211,10 +208,8 @@ theorem push_le_of_network {E κ : Type} [Fintype E] [DecidableEq E] [Fintype κ
       (fun v x x' y y' hx hy => ?_) fun x => ?_
     · refine hT v _ _ _ _ _ _ hx (fun e he => ?_) fun k m hm => hy (Sum.inr ⟨k, m⟩) hm
       by_cases ha : a e = v
-      · simp only [ha]
-        exact congr_arg (eq e) (hy (Sum.inl ⟨e, 0⟩) ha)
-      · simp only [ha]
-        exact congr_arg (eq e) (hy (Sum.inl ⟨e, 1⟩) (he.resolve_left ha))
+      · simp only [ha, ↓reduceIte, hy (Sum.inl ⟨e, 0⟩) ha]
+      · simp only [ha, ↓reduceIte, hy (Sum.inl ⟨e, 1⟩) (he.resolve_left ha)]
     · rw [h]
       let Φ : (∀ l, (outerPair U (outer t)).Index l) ≃
           (∀ e, Fin 2 → Fin (n e)) × (∀ k m, (t k).Index m) :=
@@ -247,10 +242,8 @@ theorem push_le_of_network {E κ : Type} [Fintype E] [DecidableEq E] [Fintype κ
   refine key.trans ((antisymmRel_push_outerPair _ U (outer t)).1.trans (mul_le_mul' ?_ ?_))
   · refine (antisymmRel_push_outer (fun l : Σ _ : E, Fin 2 => ξ (ρ' (Sum.inl l))) _).1.trans
       (prod_le_prod fun e => ?_)
-    have : (fun m => ξ (ρ' (Sum.inl ⟨e, m⟩))) = ![ξ (a e), ξ (b e)] := by
-      funext m
-      fin_cases m <;> rfl
-    rw [this]
+    rw [show (fun m => ξ (ρ' (Sum.inl ⟨e, m⟩))) = ![ξ (a e), ξ (b e)] from
+      funext fun m => by fin_cases m <;> rfl]
     exact le_rfl
   · exact (antisymmRel_push_outer (fun l : Σ k, M k => ξ (ρ' (Sum.inr l))) t).1
 
@@ -267,9 +260,7 @@ theorem push_le_of_edges {E : Type} [Fintype E] [DecidableEq E]
   have := push_le_of_network (κ := Empty) (M := fun _ => Empty) π ξ s Λ a b
     (fun k => k.elim) (fun k => k.elim) (fun v x l _ => T v x l)
     (fun v x x' l l' _ _ hx hl _ => hT v x x' l l' hx hl)
-    (fun x => by
-      rw [h]
-      exact Finset.sum_congr rfl fun l _ => by simp)
+    (fun x => (h x).trans (Finset.sum_congr rfl fun l _ => by simp))
   exact this.trans <|
     (mul_le_mul' le_rfl (antisymmRel_prod_of_isEmpty _).le).trans (antisymmRel_mul_one _).le
 
