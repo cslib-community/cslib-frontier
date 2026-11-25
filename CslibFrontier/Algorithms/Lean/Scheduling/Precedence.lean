@@ -512,8 +512,7 @@ theorem exists_isGreedy (m : ℕ) (hm : 0 < m) (prec : J → J → Prop) (hwf : 
   subst hD
   refine ⟨s, ⟨⟨fun i j hij => (h.prec_le i j hij (mem_univ j)).2, fun t => ?_⟩, ?_⟩⟩
   · simpa using h.card_le t
-  · intro t j hlt htj
-    exact h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
+  · exact fun t j hlt htj => h.ready t (htj.trans (h.lt_of_mem j (mem_univ j))) j hlt htj
 
 end Existence
 
