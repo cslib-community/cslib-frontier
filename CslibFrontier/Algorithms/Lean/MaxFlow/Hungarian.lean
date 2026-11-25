@@ -719,11 +719,9 @@ theorem usedCount_vset {used : Vector Bool n} {j₁ : Fin n}
     (a := j₁) (by simp [hj₁])]
   congr 1
   ext j
-  by_cases hj : j = j₁
-  · subst hj
-    simp
-  · rw [Finset.mem_filter, Finset.mem_insert, Finset.mem_filter, vget_vset_ne _ _ (Ne.symm hj)]
-    simp [hj]
+  rcases eq_or_ne j j₁ with rfl | hj
+  · simp
+  · simp [hj, vget_vset_ne _ _ hj.symm]
 
 theorem usedCount_all {used : Vector Bool n} (h : ∀ j, vget used j = true) :
     usedCount used = n := by
@@ -1021,10 +1019,9 @@ private theorem vget_hgApplyEdges_eq_none {mate : Vector (Option (Fin n)) n}
   | nil => exact h
   | cons e es ih =>
     have hm := ih h
-    by_cases hje : j = e.2
-    · subst hje
-      simp at hm
-    · rwa [vget_vset_ne _ _ (Ne.symm hje)] at hm
+    rcases eq_or_ne j e.2 with rfl | hje
+    · simp at hm
+    · rwa [vget_vset_ne _ _ hje.symm] at hm
 
 theorem hgOuterBound_augment {W : ℕ} {r : Fin n} {s : HgState n} {bestRow : Fin n → Fin n}
     (h : HgStepInv c W r s bestRow) {j₁ : Fin n} (hj₁ : vget s.used j₁ = false)
@@ -1041,16 +1038,12 @@ theorem HgStepInv.path_eq_singleton {W : ℕ} {r : Fin n} {s : HgState n}
     (hfree : ∀ j', vget s.mate j' ≠ some (bestRow j)) :
     vget s.path j = [(bestRow j, j)] := by
   obtain ⟨e, l, hql⟩ := List.exists_cons_of_ne_nil (h.path_ok j).ne_nil
-  have hhead : e = (bestRow j, j) := by
-    have hh := h.head_eq j
-    rw [hql, List.head?_cons, Option.some.injEq] at hh
-    exact hh
+  have hhead : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
   have htree : vget s.tree (bestRow j) = true :=
     (h.path_ok j).tree (bestRow j, j) (List.mem_of_mem_head? (h.head_eq j))
   have hbr : bestRow j = r := by
     rcases (h.tree_iff (bestRow j)).mp htree with hbr | ⟨j', _, hm⟩
-    · exact hbr
-    · exact absurd hm (hfree j')
+    exacts [hbr, absurd hm (hfree j')]
   have htl := h.tail_root j hbr
   rw [hql, List.tail_cons] at htl
   rw [hql, hhead, htl]
@@ -1060,10 +1053,7 @@ theorem HgStepInv.path_eq_cons {W : ℕ} {r : Fin n} {s : HgState n}
     (hm : vget s.mate j' = some (bestRow j)) :
     vget s.path j = (bestRow j, j) :: vget s.path j' := by
   obtain ⟨e, l, hql⟩ := List.exists_cons_of_ne_nil (h.path_ok j).ne_nil
-  have hhead : e = (bestRow j, j) := by
-    have hh := h.head_eq j
-    rw [hql, List.head?_cons, Option.some.injEq] at hh
-    exact hh
+  have hhead : e = (bestRow j, j) := by simpa [hql] using h.head_eq j
   have htl := h.tail_mate j j' hm
   rw [hql, List.tail_cons] at htl
   rw [hql, hhead, htl]
