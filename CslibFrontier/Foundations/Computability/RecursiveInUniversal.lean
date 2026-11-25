@@ -87,8 +87,9 @@ theorem hasUniformCode_prefixOf :
           (Computable.unpair.comp (Computable.snd.comp Computable.unpair)))).pair
         (HasUniformCode.oracle.comp (hasUniformCode_computable (Computable.fst.comp
           (Computable.unpair.comp (Computable.snd.comp Computable.unpair))))))).of_eq
-      fun f _ => by simp [Seq.seq, show ∀ a, (Part.some a >>= (f : ℕ →. ℕ)) = Part.some (f a) from
-        fun a => Part.bind_some a _]
+      fun f _ => by
+        have hbind (a) : (Part.some a >>= (f : ℕ →. ℕ)) = Part.some (f a) := Part.bind_some a _
+        simp [Seq.seq, hbind]
   refine (((hasUniformCode_computable (Computable.const 0)).prec hstep).comp
     (hasUniformCode_computable (g := Nat.pair 0)
       (Primrec₂.natPair.to_comp.comp (Computable.const 0) Computable.id))).of_eq fun f k => ?_

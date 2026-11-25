@@ -175,8 +175,9 @@ its try wire points up; the construction is independent of the formula's truth. 
 theorem body_memories (qs : List Quantifier) (ms : List (List Bool)) :
     Chain.memories [] qs ((body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb) =
       List.replicate qs.length false := by
-  rw [show (body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb = (chain [] qs).orient from
-    Realization.comp_orient_compLeft _ _, chain_memories]
+  have horient : (body qs ms).orient ∘ (Matrix.chainOcc qs ms).emb = (chain [] qs).orient :=
+    Realization.comp_orient_compLeft _ _
+  rw [horient, chain_memories]
 
 /-- Reversing the body's satisfied wire from the explicit initial configuration implies truth
 of the closed source formula, for every valuation of its free-variable interface. -/

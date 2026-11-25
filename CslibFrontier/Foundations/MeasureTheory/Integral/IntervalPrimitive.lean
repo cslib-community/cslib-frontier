@@ -74,8 +74,8 @@ theorem integral_intervalIntegral_eq_integral_measureReal_Ici_mul {μ : Measure 
         filter_upwards [(Measure.quasiMeasurePreserving_fst (μ := μ)
           (ν := (volume : Measure ℝ))).ae hμ] with p hp
         by_cases hpS : p ∈ S
-        · rw [hG, indicator_of_mem hpS, indicator_of_mem (show p.2 ∈ Ioc 0 h from
-            ⟨hpS.1, hpS.2.trans hp.2⟩)]
+        · have hp2 : p.2 ∈ Ioc 0 h := ⟨hpS.1, hpS.2.trans hp.2⟩
+          rw [hG, indicator_of_mem hpS, indicator_of_mem hp2]
         · rw [hG, indicator_of_notMem hpS, norm_zero]
           exact indicator_nonneg (fun _ _ => norm_nonneg _) _
   have hR (z : ℝ) : ∫ v, G (v, z) ∂μ =
