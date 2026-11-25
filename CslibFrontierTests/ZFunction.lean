@@ -35,6 +35,7 @@ open Cslib.Algorithms.Lean
 open Cslib.Algorithms.Lean.ZFunction
 open Cslib.WordRAM
 open Cslib.Algorithms.WordRAM.ZFunction
+open Cslib.Algorithms.WordRAM (PatternTextInput)
 
 private def aabxaab : List Char := "aabxaab".toList
 private def gusfield : List Char := "aabcaabxaaz".toList
@@ -112,7 +113,7 @@ private meta def evalZ (w : ℕ) (s : List ℕ) : Option (List ℕ × ℕ) :=
   (zCode.eval w (2 * s.length + 5) (Data.init s)).map fun (y, steps) =>
     (outputList y.mem (y.regs Reg.out), steps)
 
-private meta def evalMatch (w : ℕ) (I : MatchInput) : Option (List ℕ × ℕ) :=
+private meta def evalMatch (w : ℕ) (I : PatternTextInput) : Option (List ℕ × ℕ) :=
   let fuel := 3 * (I.pat.length + I.txt.length) + 10
   (matchCode.eval w fuel (Data.init I.encode)).map fun (y, steps) =>
     (outputList y.mem (y.regs Reg.out), steps)
@@ -178,7 +179,7 @@ example : ∃ n, ExecutesList 1 zProgram (.init []) [] n ∧ n ≤ 10 := by
   simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add, heq] using h
 
 example : ∃ n, ExecutesList 5 matchProgram
-    (.init (MatchInput.encode ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩))
+    (.init (PatternTextInput.encode ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩))
     [0, 2, 4] n ∧ n ≤ 39 * 3 + 50 * 7 + 23 := by
   have h := matchProgram_computesListInTime ⟨[1, 2, 1], [1, 2, 1, 2, 1, 2, 1]⟩ 5
     (by decide) (by decide)
@@ -187,14 +188,14 @@ example : ∃ n, ExecutesList 5 matchProgram
   simpa only [List.length_cons, List.length_nil, heq] using h
 
 example : ∃ n, ExecutesList 3 matchProgram
-    (.init (MatchInput.encode ⟨[], []⟩)) [0] n ∧ n ≤ 23 := by
+    (.init (PatternTextInput.encode ⟨[], []⟩)) [0] n ∧ n ≤ 23 := by
   have h := matchProgram_computesListInTime ⟨[], []⟩ 3 (by decide) (by decide)
   have heq : zMatches ([] : List ℕ) [] = [0] := by
     rw [zMatches_eq_filter_range]; decide
   simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add, heq] using h
 
 example : ∃ n, ExecutesList 3 matchProgram
-    (.init (MatchInput.encode ⟨[5], []⟩)) [] n ∧ n ≤ 39 * 1 + 23 := by
+    (.init (PatternTextInput.encode ⟨[5], []⟩)) [] n ∧ n ≤ 39 * 1 + 23 := by
   have h := matchProgram_computesListInTime ⟨[5], []⟩ 3 (by decide) (by decide)
   have heq : zMatches [5] ([] : List ℕ) = [] := by
     rw [zMatches_eq_filter_range]; decide

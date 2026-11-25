@@ -9,10 +9,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.KMP.Search
+public import CslibFrontier.Algorithms.WordRAM.StringInput
 public import CslibFrontier.Computability.WordRAM.ListOutput
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
@@ -27,7 +27,7 @@ This module implements the Knuth–Morris–Pratt (`[KnuthMorrisPratt1977]`, Sec
   the length-prefixed failure table `(computePrefix p.toArray).toList` at address `|p| + 1` within
   `31 * |p| + 10` instructions (`31 * |p| + 9` before `halt`) whenever `Fits w (2 * |p| + 1)` and
   `InputFits w p` hold.
-* `searchCode` and `searchProgram` take a `SearchInput` `(pat, txt)` encoded as
+* `searchCode` and `searchProgram` take a `PatternTextInput` `(pat, txt)` encoded as
   `[|pat|, |txt|] ++ pat ++ txt` in `State.init`, construct the failure table at
   `3 + |pat| + |txt|` when `pat ≠ []`, and write the length-prefixed list of all exact match shifts
   `kmpMatchesList pat txt` at address `3 + 2 * |pat| + |txt|` within
@@ -44,8 +44,6 @@ potential `10 * k`, charging each `10`-instruction fallback step against the str
 
 * `Cslib.Algorithms.WordRAM.KMP.Reg.out`: output register (`Fin 15`) holding the returned
   length-prefixed array address.
-* `Cslib.Algorithms.WordRAM.KMP.SearchInput`, `SearchInput.encode`: pattern-matching instance
-  `(pat, txt)` and its word-sequence encoding `[|pat|, |txt|] ++ pat ++ txt`.
 * `Cslib.Algorithms.WordRAM.KMP.prefixCode`, `prefixProgram`: structured and flat programs
   computing `(computePrefix p.toArray).toList`.
 * `Cslib.Algorithms.WordRAM.KMP.searchCode`, `searchProgram`: structured and flat programs
@@ -74,22 +72,7 @@ namespace Cslib.Algorithms.WordRAM.KMP
 open Cslib.WordRAM
 open Cslib.Algorithms.Lean.KMP
 
-/-! ## Input encoding and registers -/
-
-/-- Pattern-matching instance on the word RAM: a pattern `pat` and a text `txt` over `w`-bit
-words. -/
-structure SearchInput where
-  /-- Pattern word sequence. -/
-  pat : List ℕ
-  /-- Text word sequence. -/
-  txt : List ℕ
-  deriving DecidableEq, Repr
-
-/-- Word-list layout `[|pat|, |txt|] ++ pat ++ txt` placed into `State.init`: `mem[1] = |pat|`,
-`mem[2] = |txt|`, `pat` occupies `[3, 3 + |pat|)`, and `txt` occupies
-`[3 + |pat|, 3 + |pat| + |txt|)`. -/
-@[expose] def SearchInput.encode (I : SearchInput) : List ℕ :=
-  I.pat.length :: I.txt.length :: (I.pat ++ I.txt)
+/-! ## Registers -/
 
 namespace Reg
 
@@ -661,39 +644,6 @@ theorem prefixProgram_computesListInTime :
 
 /-! ## Execution of `searchCode` -/
 
-private theorem init_encode_blocks (I : SearchInput) :
-    let x : Data 15 := Data.init I.encode
-    x.mem 1 = I.pat.length ∧
-      x.mem 2 = I.txt.length ∧
-      Block.HoldsList 3 I.pat x.mem ∧
-      Block.HoldsList (3 + I.pat.length) I.txt x.mem := by
-  dsimp only
-  have hm1 : (Data.init I.encode : Data 15).mem 1 = I.pat.length := by
-    simpa only [SearchInput.encode, List.getD_cons_zero] using
-      Data.init_mem_succ (r := 15) I.encode 0
-  have hm2 : (Data.init I.encode : Data 15).mem 2 = I.txt.length := by
-    simpa only [SearchInput.encode, List.getD_cons_succ, List.getD_cons_zero] using
-      Data.init_mem_succ (r := 15) I.encode 1
-  have heq1 : I.encode = [I.pat.length, I.txt.length] ++ (I.pat ++ I.txt) := rfl
-  have hpat : Block.HoldsList 3 I.pat (Data.init I.encode : Data 15).mem := by
-    rw [heq1]
-    exact Data.init_realizes_append [I.pat.length, I.txt.length] I.pat I.txt
-  have htxt : Block.HoldsList (3 + I.pat.length) I.txt (Data.init I.encode : Data 15).mem := by
-    have heq2 : I.encode = ([I.pat.length, I.txt.length] ++ I.pat) ++ (I.txt ++ []) := by
-      simp only [SearchInput.encode, List.cons_append, List.nil_append, List.append_nil]
-    have h := Data.init_realizes_append (r := 15) ([I.pat.length, I.txt.length] ++ I.pat) I.txt []
-    rw [← heq2] at h
-    have hbase : ([I.pat.length, I.txt.length] ++ I.pat).length + 1 = 3 + I.pat.length := by
-      simp only [List.length_append, List.length_cons, List.length_nil]
-      omega
-    intro ⟨k, hk⟩
-    have hk_eq := h ⟨k, hk⟩
-    change (Data.init I.encode : Data 15).mem
-      (([I.pat.length, I.txt.length] ++ I.pat).length + 1 + k) = I.txt[k] at hk_eq
-    change (Data.init I.encode : Data 15).mem (3 + I.pat.length + k) = I.txt[k]
-    rwa [← hbase]
-  exact ⟨hm1, hm2, hpat, htxt⟩
-
 private theorem emptyPatCode_spec {w : ℕ} (txt : List ℕ) (hw : Fits w (2 * txt.length + 4))
     (x : Data 15)
     (hz : x.regs zero = 0) (ho : x.regs one = 1) (hn : x.regs txtLen = txt.length)
@@ -772,7 +722,7 @@ private theorem maxPrefixSuffixUpTo_take_zero (pat txt : List ℕ) (B : ℕ) :
   simp only [List.length_take, List.length_nil] at hlen
   omega
 
-private structure SearchRegs (I : SearchInput) (s : Data 15) : Prop where
+private structure SearchRegs (I : PatternTextInput) (s : Data 15) : Prop where
   zero_eq : s.regs zero = 0
   one_eq : s.regs one = 1
   pb_eq : s.regs patBase = 3
@@ -782,7 +732,7 @@ private structure SearchRegs (I : SearchInput) (s : Data 15) : Prop where
   pib_eq : s.regs piBase = 3 + I.pat.length + I.txt.length
   out_eq : s.regs out = 3 + 2 * I.pat.length + I.txt.length
 
-private structure SearchInv (I : SearchInput) (pi : Array ℕ) (s : Data 15) : Prop where
+private structure SearchInv (I : PatternTextInput) (pi : Array ℕ) (s : Data 15) : Prop where
   regs_ok : SearchRegs I s
   idx_le : s.regs regidx ≤ I.txt.length
   oc_le : s.regs outCnt ≤ s.regs regidx
@@ -795,7 +745,7 @@ private structure SearchInv (I : SearchInput) (pi : Array ℕ) (s : Data 15) : P
     ms.Pairwise (· < ·) ∧
     (∀ sh, sh ∈ ms ↔ sh + I.pat.length ≤ s.regs regidx ∧ IsMatchAt I.pat.toArray I.txt.toArray sh)
 
-private theorem searchPostBranch_full_step {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.length)
+private theorem searchPostBranch_full_step {w : ℕ} (I : PatternTextInput) (hp : 0 < I.pat.length)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
     (pi : Array ℕ) (hpi_idx : I.pat.length - 1 < pi.size)
     (s₂ : Data 15) (hr₂ : SearchRegs I s₂)
@@ -830,7 +780,7 @@ private theorem searchPostBranch_full_step {w : ℕ} (I : SearchInput) (hp : 0 <
   congr 1
   omega
 
-private theorem searchPostBranch_nonfull_step {w : ℕ} (I : SearchInput)
+private theorem searchPostBranch_nonfull_step {w : ℕ} (I : PatternTextInput)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
     (s₂ : Data 15) (hr₂ : SearchRegs I s₂)
     (hi_lt : s₂.regs regidx < I.txt.length)
@@ -847,7 +797,7 @@ private theorem searchPostBranch_nonfull_step {w : ℕ} (I : SearchInput)
   wram_exec [hr₂.one_eq, hr₂.pm_eq, hkne, hf_i1]
   exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
-private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.length)
+private theorem searchBody_spec {w : ℕ} (I : PatternTextInput) (hp : 0 < I.pat.length)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
     (pi : Array ℕ) (hpi_sz : pi.size = I.pat.length)
     (hpi_tab : IsPrefixTableFor I.pat.toArray pi) (hpi_dec : IsDecreasingTable pi)
@@ -1020,7 +970,7 @@ private theorem searchBody_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.leng
       clear sk hk'_max hk'_lt_m hk'_pred hnot_suf sms_mem hpi_tab hpi_dec hs₁_ch hread_txt hadv_k
       omega
 
-private theorem nonemptyPatCode_spec {w : ℕ} (I : SearchInput) (hp : 0 < I.pat.length)
+private theorem nonemptyPatCode_spec {w : ℕ} (I : PatternTextInput) (hp : 0 < I.pat.length)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
     (x : Data 15) (hrx : SearchRegs I x)
     (hpat : Block.HoldsList 3 I.pat x.mem)
@@ -1126,7 +1076,7 @@ within `31 * I.pat.length + 37 * I.txt.length + 22` instructions and writes
 `kmpMatchesList I.pat I.txt` as the length-prefixed array at
 `y.regs Reg.out = 3 + 2 * I.pat.length + I.txt.length`, preserving the pattern and text blocks at
 `[3, 3 + I.pat.length)` and `[3 + I.pat.length, 3 + I.pat.length + I.txt.length)`. -/
-theorem searchCode_exec {w : ℕ} (I : SearchInput)
+theorem searchCode_exec {w : ℕ} (I : PatternTextInput)
     (hw : Fits w (2 * I.pat.length + 2 * I.txt.length + 4)) :
     ∃ y, ExecWithin w searchCode (Data.init I.encode) y
         (31 * I.pat.length + 37 * I.txt.length + 22) ∧
@@ -1136,7 +1086,7 @@ theorem searchCode_exec {w : ℕ} (I : SearchInput)
       Block.HoldsList 3 I.pat y.mem ∧
       Block.HoldsList (3 + I.pat.length) I.txt y.mem := by
   let x : Data 15 := Data.init I.encode
-  obtain ⟨hm1, hm2, hpat, htxt⟩ := init_encode_blocks I
+  obtain ⟨hm1, hm2, -, hpat, htxt⟩ := I.init_blocks (r := 15)
   have hf_1 : Fits w 1 := hw.of_le (by omega)
   have hf_2 : Fits w 2 := hw.of_le (by omega)
   have hf_3 : Fits w 3 := hw.of_le (by omega)
@@ -1189,10 +1139,10 @@ theorem searchCode_exec {w : ℕ} (I : SearchInput)
       hy_out_list, hy_out', hfit_out, hy_pat, hy_txt'⟩
 
 /-- `searchProgram` computes `kmpMatchesList I.pat I.txt` in
-`31 * |I.pat| + 37 * |I.txt| + 23` instructions on every fitting `SearchInput` at every word width
-fitting `2 * |I.pat| + 2 * |I.txt| + 4`. -/
+`31 * |I.pat| + 37 * |I.txt| + 23` instructions on every fitting `PatternTextInput` at every word
+width fitting `2 * |I.pat| + 2 * |I.txt| + 4`. -/
 theorem searchProgram_computesListInTime :
-    searchProgram.ComputesListInTime (fun _ (I : SearchInput) => I.encode)
+    searchProgram.ComputesListInTime (fun _ (I : PatternTextInput) => I.encode)
       (fun I _ => 31 * I.pat.length + 37 * I.txt.length + 23)
       (fun I w => Fits w (2 * I.pat.length + 2 * I.txt.length + 4))
       (fun I => kmpMatchesList I.pat I.txt) :=

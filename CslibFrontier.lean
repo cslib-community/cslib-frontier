@@ -1046,6 +1046,7 @@ public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
 public import CslibFrontier.Algorithms.WordRAM.Schoening.TrialCount
 public import CslibFrontier.Algorithms.WordRAM.StoerWagner
+public import CslibFrontier.Algorithms.WordRAM.StringInput
 public import CslibFrontier.Algorithms.WordRAM.SuffixArray
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Cell
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.BucketCounts
