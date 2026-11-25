@@ -260,10 +260,8 @@ private theorem foldlM_replay {σ : Type} {R : Type}
   | zero => simp [Fin.foldlM_zero, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
   | succ N ih =>
     simp only [Fin.foldlM_succ, bind, OptionT.bind, OptionT.mk, OptionT.run, StateT.bind]
-    have hr : (f a 0 s).1 = g a 0 := h a 0 s
     rcases he : f a 0 s with ⟨r, s'⟩
-    rw [he] at hr
-    rw [← hr]
+    rw [← (congrArg Prod.fst he).symm.trans (h a 0 s)]
     cases r with
     | none => rfl
     | some a' => exact ih _ _ (fun b v t => h b v.succ t) a' s'
@@ -384,11 +382,7 @@ private theorem contribution_matches (source target : Fin N) (branch : Branch N)
     rw [hs, Finset.sum_filter]
     exact Finset.sum_congr rfl fun v _ => by
       cases h : branch v <;> simp [guessedLength, transcript, h]
-  have hh : decide (∃ v, (contribution target branch v).hit = true) =
-      (branch target).isSome := by simp [contribution]
-  unfold aggregate
-  rw [hh]
-  simp only [contribution, hcount, hsum, observed]
+  simp [aggregate, contribution, hcount, hsum, observed]
 
 open scoped Classical in
 private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fin N)
@@ -422,18 +416,14 @@ theorem run_eq_some_iff (edge : Fin N → Fin N → Bool) (source target : Fin N
       Passes (fun u v => edge u v = true) source k (transcript source branch) ∧
         (branch target).isSome = hit := by
   classical
-  unfold run Passes
+  unfold run Passes Result.finish
   rw [tally_spec]
-  by_cases h : ∀ v p, transcript source branch v = some p →
-      p.IsChainFromTo (fun u v => edge u v = true) source v ∧
-        guessedLength (transcript source branch) v ≤ k
-  · rw [ite_eq_left h]
-    change (if (observed (transcript source branch)).matches _ then _ else none) = some hit ↔ _
-    split <;> rename_i hm
-    · exact ⟨fun he => ⟨⟨h, hm⟩, Option.some.inj he⟩, fun he => congrArg some he.2⟩
-    · simp only [reduceCtorEq, hm, false_and, and_false]
-  · rw [ite_eq_right h]
-    simp [Option.bind, h]
+  split_ifs with h
+  · dsimp only [Option.bind]
+    split_ifs with hm
+    · simp only [Option.some.injEq, and_iff_right h, and_iff_right hm]
+    · simp [hm]
+  · simp [h]
 
 /-- The streaming scanner with the canonical choice provider returns a bit exactly when
 the corresponding transcript passes, and that bit records selection of the target. -/
@@ -573,17 +563,13 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
   intro acc v state
   have hselect := hs v state
   simp only [OptionT.run, OptionT.mk, candidateM, bind, StateT.bind]
-  rcases hc : select v state with ⟨choice, t⟩
-  rw [hc] at hselect
-  change clock t ≤ clock state + 1 at hselect
-  cases choice
-  · change clock t ≤ _
-    omega
-  · simp only [ite_true, bind, StateT.bind]
+  rcases hc : select v state with ⟨_ | _, t⟩ <;> rw [hc] at hselect
+  · exact le_trans hselect (by omega)
+  · simp only [ite_true, bind, StateT.bind, pure, StateT.pure] at hselect ⊢
     have hwalk := walkM_clock clock next edge hn he v source k t
     rcases hw : walkM next edge v k source t with ⟨_, u⟩
     rw [hw] at hwalk
-    change clock u ≤ _ at hwalk ⊢
+    dsimp only at hwalk ⊢
     omega
 
 /-- The terminal tally check adds no callback action to `tallyM_clock`. Both a rejected scan
