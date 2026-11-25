@@ -19,10 +19,10 @@ import CslibFrontier.Tactic.PolyTime
 Exercises `Cslib.Crypto.AnonymousToken` and `Cslib.Crypto.AnonymousToken.Conservation` word-level
 reductions, polynomial-time / PPT certificates, `PMF` law-equality theorems, and headline
 negligibility bounds via a `module` client with ordinary imports:
-* encoding injectivity (`encWordPayload.injective`, `wordTag_injective`, `encComTuple.injective`)
+* encoding injectivity (`encWordPayload.injective`, `wordTag_injective`, `encComInput.injective`)
   and decoder round-trips (`wordPairDecoder`, `wordPayloadDecoder`, `creditNoteDecoder`,
   `wordRequestDecoder`);
-* negative boundary check on `noteBindingCollisionOrTrivialWord ... none`;
+* negative boundary check on `Conservation.noteBindingCollisionOrTrivial ... none`;
 * concrete `WordSignatureScheme` (`identitySigScheme`), concrete polynomial-time hashes
   (`constHash`, `idHash`), and concrete oracle-PPT adversaries exercising `targetForgerWord`,
   `bindingReductionWord`, `targetCollisionFinder`, `sampledTargetForger`, `noteForgerWord`,
@@ -92,22 +92,23 @@ example : wordTag [true] 1 ≠ wordTag [false] 1 := by
   have : ([true] : List Bool) = [false] := congrArg Prod.fst hinj
   cases this
 
--- Distinct `(nf, ctx, credit, opening)` tuples map to distinct `encComTuple` words.
+-- Distinct `(nf, ctx, credit, opening)` records map to distinct `encComInput` words.
 example :
-    encComTuple ([true], [], 5, []) ≠ encComTuple ([true], [], 6, []) := by
+    encComInput ⟨[true], [], 5, []⟩ ≠ encComInput ⟨[true], [], 6, []⟩ := by
   intro h
-  have hinj := encComTuple.injective h
-  have : (5 : ℕ) = 6 := congrArg (fun p => p.2.2.1) hinj
+  have hinj := encComInput.injective h
+  have : (5 : ℕ) = 6 := congrArg ComInput.credit hinj
   cases this
 
--- Negative boundary: `noteBindingCollisionOrTrivialWord ... none` never satisfies
+-- Negative boundary: `Conservation.noteBindingCollisionOrTrivial ... none` never satisfies
 -- `isBindingCollision` for any commitment scheme `CS`.
 example {K : Type} (CS : Crypto.Commitment.Scheme K (List Bool × List Bool × ℕ)
       (List Bool) (List Bool))
     (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
     (n : ℕ) (ck : List Bool) (key : K) :
-    CS.isBindingCollision key (noteBindingCollisionOrTrivialWord com n ck none) = false := by
-  simp [Crypto.Commitment.Scheme.isBindingCollision, noteBindingCollisionOrTrivialWord]
+    CS.isBindingCollision key
+      (Conservation.noteBindingCollisionOrTrivial (com n ck) none) = false := by
+  simp [Crypto.Commitment.Scheme.isBindingCollision, Conservation.noteBindingCollisionOrTrivial]
 
 /-! ### 2. Concrete scheme, hash, and word-level PPT adversary fixtures -/
 
@@ -161,11 +162,12 @@ private def constNoteCom (_ : ℕ) (_ _ _ : List Bool) (_ : ℕ) (_ : List Bool)
 
 private theorem computableInPolyTime_constNoteCom :
     ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
-        constNoteCom p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      (fun p : (ℕ × List Bool) × ComInput =>
+        constNoteCom p.1.1 p.1.2 p.2.nullifier p.2.context p.2.credit p.2.opening)
       encComArgs encBits := by
-  have h : (fun p : (ℕ × List Bool) × (List Bool × List Bool × ℕ × List Bool) =>
-      constNoteCom p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2) = fun _ => [] := rfl
+  have h : (fun p : (ℕ × List Bool) × ComInput =>
+      constNoteCom p.1.1 p.1.2 p.2.nullifier p.2.context p.2.credit p.2.opening) =
+      fun _ => [] := rfl
   rw [h]
   exact ComputableInPolyTime.const []
 
