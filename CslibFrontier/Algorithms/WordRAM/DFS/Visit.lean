@@ -244,22 +244,11 @@ private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
   simp only [Fin.eta] at hoff_u
   have hstk1' : x.mem (stkAddr + 3 * d + 1) = csrOffset adj (u.val + 1) := by omega
   have hu_lt := u.isLt
-  let PopPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis visAddr x₁.mem ∧
-      x₁.regs pReg = d ∧
-      x₁.regs finCnt = F₀ + 1 ∧
-      x₁.mem (finAddr + F₀) = u.val ∧
-      (∀ a, ¬ (a = finAddr + F₀) → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧ PopPost x₁
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2']
-  dsimp only [PopPost]
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
     by wram_simp, by wram_simp, fun a ha => by wram_simp,
     fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
@@ -316,22 +305,9 @@ private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
   have hv_lt := v.isLt
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  let SkipPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis visAddr x₁.mem ∧
-      x₁.regs pReg = d + 1 ∧
-      x₁.regs finCnt = F₀ ∧
-      x₁.mem (stkAddr + 3 * d) = u.val ∧
-      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-      (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧ SkipPost x₁
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end]
-  dsimp only [SkipPost]
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
     by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
     fun a ha => by wram_simp, fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
@@ -398,27 +374,10 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
     simpa [Nat.add_assoc] using hcsr.1 (v.val + 1) (by omega)
   have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
     simpa [Nat.add_assoc] using hstk2
-  let PushPost (x₁ : Data 28) : Prop :=
-    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-      CSRAt adj offAddr edgeAddr x₁.mem ∧
-      VisAt vis₁ visAddr x₁.mem ∧
-      x₁.regs pReg = (d + 1) + 1 ∧
-      x₁.regs finCnt = F₀ ∧
-      x₁.mem (stkAddr + 3 * d) = u.val ∧
-      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-      x₁.mem (stkAddr + 3 * (d + 1)) = v.val ∧
-      x₁.mem (stkAddr + 3 * (d + 1) + 1) = csrOffset adj v.val + 0 ∧
-      x₁.mem (stkAddr + 3 * (d + 1) + 2) = csrOffset adj (v.val + 1) ∧
-      (∀ a, ¬ (a = visAddr + v.val ∨
-          (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
-      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧ PushPost x₁
   unfold dfsStepBody
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
     hoff_v0, hoff_v1]
-  dsimp only [PushPost]
   refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
     by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
     by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
