@@ -73,7 +73,7 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
   let chunk := ChunkCatalogue.before C (queryCap n D) idx.residue.val + idx.chunk
   let out := x.regs Instances.output
   obtain ⟨hk, hj⟩ := (mem_instanceIndices _ idx).mp hidx
-  have hH : 0 < H := lt_of_le_of_lt (Nat.zero_le _) hj
+  have hH : 0 < H := Nat.zero_lt_of_lt hj
   have hcard : (residueClass (fun u v : Fin n => values (pairIndex (u, v))) p idx.residue).card =
       C idx.residue.val := QuerySpec.card_residueClass _ hp R (by intro pair; rfl) idx.residue
   have hk' : idx.chunk < C idx.residue.val ⌈/⌉ queryCap n D := by
@@ -81,11 +81,9 @@ theorem exec_construct {w n D g p : ℕ} (values : ℕ → ℤ)
   have hchunk : chunk < K :=
     ChunkCatalogue.before_add_lt C (queryCap n D) idx.residue.isLt hk'
   have hdiv : x.regs Instances.produced / x.regs Instances.pieces = chunk := by
-    rw [hi, cursor.pieces]
-    exact Nat.mul_add_div_of_lt chunk hj
+    rw [hi, cursor.pieces]; exact Nat.mul_add_div_of_lt chunk hj
   have hmod : x.regs Instances.produced % x.regs Instances.pieces = idx.piece := by
-    rw [hi, cursor.pieces]
-    exact Nat.mul_add_mod_of_lt hj
+    rw [hi, cursor.pieces]; exact Nat.mul_add_mod_of_lt hj
   have hdesc :
       x.mem (chunk * 3 + x.regs Instances.descriptors) = idx.residue.val ∧
       x.mem (chunk * 3 + x.regs Instances.descriptors + 1) =
