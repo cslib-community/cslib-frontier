@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.SizedGraph
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
+import CslibFrontier.Tactic.FirstOrder
 import Mathlib.SetTheory.Cardinal.NatCard
 
 /-!
@@ -87,20 +88,6 @@ private def sizeAnchorGuard : qfNumericLanguage.Formula (Fin 1 × Fin 4) :=
   QFNumeric.isMax (0, 0) ⊓
     (QFNumeric.isZero (0, 1) ⊓ (QFNumeric.isZero (0, 2) ⊓ QFNumeric.isZero (0, 3)))
 
-private theorem isQF_isAnchor0 : isAnchor0.IsQF :=
-  (QFNumeric.isQF_isMax _).inf
-    ((QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)))
-
-private theorem isQF_conflictGuard : conflictGuard.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isMax _))
-
-private theorem isQF_sizeClauseGuard : sizeClauseGuard.IsQF :=
-  (QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_sizeAnchorGuard : sizeAnchorGuard.IsQF :=
-  (QFNumeric.isQF_isMax _).inf
-    ((QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)))
-
 private def anchorToClauseFormula :
     ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin 4) :=
   .branch (QFNumeric.isZero (1, 3))
@@ -108,11 +95,6 @@ private def anchorToClauseFormula :
     (.branch (QFNumeric.isMax (1, 3))
       (.negLit FO.cnf.neg ![(1, 1), (1, 2)])
       (.const true))
-
-private theorem isQF_anchorToClauseFormula : anchorToClauseFormula.IsQF :=
-  ⟨QFNumeric.isQF_isZero _, ProjectionFormula.isQF_negLit _ _,
-    ⟨QFNumeric.isQF_isMax _, ProjectionFormula.isQF_negLit _ _,
-      ProjectionFormula.isQF_const true⟩⟩
 
 /-- Quantifier-free projection formulas for the dimension-4 `SAT → IndependentSet` reduction. -/
 def satToIndependentSetFormula :
@@ -139,19 +121,8 @@ noncomputable def satToIndependentSetInterpretation :
 
 theorem isQFProjection_satToIndependentSetInterpretation :
     satToIndependentSetInterpretation.IsQFProjection := by
-  refine FullTupleInterpretation.isQFProjection_ofQFProjection satToIndependentSetFormula
-    fun R => ?_
-  cases R
-  · exact ⟨QFNumeric.isQF_isZero _,
-      ⟨QFNumeric.isQF_isZero _,
-        ⟨QFNumeric.isQF_varEq _ _, ProjectionFormula.isQF_const true,
-          ProjectionFormula.IsQF.guardAnd isQF_conflictGuard (ProjectionFormula.isQF_const true)⟩,
-        ProjectionFormula.isQF_const false⟩,
-      ⟨QFNumeric.isQF_isZero _,
-        ⟨isQF_isAnchor0, isQF_anchorToClauseFormula, ProjectionFormula.isQF_const true⟩,
-        ProjectionFormula.isQF_const true⟩⟩
-  · exact ⟨isQF_sizeClauseGuard, ProjectionFormula.isQF_const true,
-      ProjectionFormula.IsQF.guardAnd isQF_sizeAnchorGuard (ProjectionFormula.isQF_const true)⟩
+  fo_qf [satToIndependentSetInterpretation, satToIndependentSetFormula, isAnchor0,
+    conflictGuard, sizeClauseGuard, sizeAnchorGuard, anchorToClauseFormula]
 
 /-! ### Tuple-level structure and clique-partition proof -/
 

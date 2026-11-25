@@ -118,8 +118,8 @@ variable {L : Language}
 
 /--
 Note: fo_qf proves quantifier-freeness from the rules of the Aesop rule set `FirstOrder` and
-  hypotheses. Unfold a local definition first, assume `IsQF` for an abstract formula or
-  interpretation, or register a lemma for a new combinator with `@[aesop safe apply (rule_sets :=
+  hypotheses. Use `fo_qf [defs]` to unfold a local definition, assume `IsQF` for an abstract formula
+  or interpretation, or register a lemma for a new combinator with `@[aesop safe apply (rule_sets :=
   [FirstOrder])]`.
 -/
 #guard_msgs (whitespace := lax, substring := true) in

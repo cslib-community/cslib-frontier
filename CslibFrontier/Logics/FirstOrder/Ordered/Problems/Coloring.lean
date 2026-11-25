@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.CNF
 public import CslibFrontier.Logics.FirstOrder.Ordered.Problems.Reachability
 public import CslibFrontier.Logics.FirstOrder.Problems.Coloring
 import CslibFrontier.Logics.FirstOrder.Ordered.Projection.Tagged
+import CslibFrontier.Tactic.FirstOrder
 
 /-!
 # Canonical ordered 3-colorability and the `SAT ≤_qfp 3COL` projection
@@ -191,33 +192,6 @@ private def guardBridgeLink : qfNumericLanguage.Formula (Fin 2 × Fin (4 + 2)) :
   QFNumeric.varEq (0, cPay0) (1, cPay0) ⊓
     (QFNumeric.isMax (0, cPay1) ⊓ QFNumeric.isZero (1, cPay1))
 
-private theorem isQF_guardOrigin0 : guardOrigin0.IsQF :=
-  (QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginBoth : guardOriginBoth.IsQF :=
-  isQF_guardOrigin0.inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_isZero _))
-
-private theorem isQF_guardOriginToVar : guardOriginToVar.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginToZero1 : guardOriginToZero1.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isZero _)
-
-private theorem isQF_guardOriginToMax1 : guardOriginToMax1.IsQF :=
-  isQF_guardOrigin0.inf (QFNumeric.isQF_isMax _)
-
-private theorem isQF_guardSameVar0 : guardSameVar0.IsQF :=
-  (QFNumeric.isQF_isZero _).inf ((QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_varEq _ _))
-
-private theorem isQF_guardVarToAct : guardVarToAct.IsQF :=
-  (QFNumeric.isQF_isZero _).inf (QFNumeric.isQF_varEq _ _)
-
-private theorem isQF_guardSameCell : guardSameCell.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf (QFNumeric.isQF_varEq _ _)
-
-private theorem isQF_guardBridgeLink : guardBridgeLink.IsQF :=
-  (QFNumeric.isQF_varEq _ _).inf ((QFNumeric.isQF_isMax _).inf (QFNumeric.isQF_isZero _))
-
 /-- Combined intra-gate triangle edge `(c, x) ~ (c, x)` and successor step link
 `g0(c, x + 1) ~ out(c, x)`. -/
 private def gateG0OutFormula :
@@ -226,12 +200,6 @@ private def gateG0OutFormula :
     (.branch (QFNumeric.varEq (0, cPay1) (1, cPay1))
       (.const true)
       (.guardAnd (QFNumeric.varSucc (1, cPay1) (0, cPay1)) (.const true)))
-
-private theorem isQF_gateG0OutFormula : gateG0OutFormula.IsQF :=
-  ProjectionFormula.IsQF.guardAnd (QFNumeric.isQF_varEq _ _)
-    ⟨QFNumeric.isQF_varEq _ _, ProjectionFormula.isQF_const true,
-      ProjectionFormula.IsQF.guardAnd (QFNumeric.isQF_varSucc _ _)
-        (ProjectionFormula.isQF_const true)⟩
 
 /-- Strictly upper-triangular edge specification (`colorTagRank t₁ < colorTagRank t₂`). -/
 private def upperColorEdge : ColorTag → ColorTag →
@@ -281,22 +249,11 @@ private theorem asym_upperColorEdge (t₁ t₂ : ColorTag)
 private theorem isQF_upperColorEdge (t₁ t₂ : ColorTag)
     (p : ProjectionFormula qfNumericLanguage FO.cnf (Fin 2 × Fin (4 + 2)))
     (h : upperColorEdge t₁ t₂ = some p) : p.IsQF := by
-  have htrue := ProjectionFormula.isQF_const (N := qfNumericLanguage) (L := FO.cnf)
-    (α := Fin 2 × Fin (4 + 2)) true
   cases t₁ <;> cases t₂ <;> simp only [upperColorEdge, Option.some.injEq] at h
   all_goals cases h
-  all_goals first
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginBoth htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 (ProjectionFormula.isQF_negLit _ _)
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOrigin0 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToVar htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToZero1 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardOriginToMax1 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardSameVar0 htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardVarToAct htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardSameCell htrue
-    | exact ProjectionFormula.IsQF.guardAnd isQF_guardBridgeLink htrue
-    | exact isQF_gateG0OutFormula
+  all_goals fo_qf [guardOrigin0, guardOriginBoth, guardOriginToVar, guardOriginToZero1,
+    guardOriginToMax1, guardSameVar0, guardVarToAct, guardSameCell, guardBridgeLink,
+    gateG0OutFormula]
 
 /-- Quantifier-free projection formulas for the dimension-6 `SAT → SimpleThreeColorable`
 reduction. -/
