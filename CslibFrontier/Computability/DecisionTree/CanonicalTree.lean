@@ -219,6 +219,7 @@ theorem depth_canonicalTree_le (ρ : PartialAssignment ι) :
     (by omega)
   refine (depth_canonicalTree_le (ρ.assign V.toFinset a)).trans ?_
   obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty (F.pathLength (ρ.assign V.toFinset a))
+  -- The input reading `a` on `V` and `y` elsewhere has a query path through `V`.
   set x : ι → Bool := fun j => if j ∈ V then a j else y j
   have hxa : ρ.assign V.toFinset x = ρ.assign V.toFinset a :=
     funext fun i => by by_cases hi : i ∈ V <;> simp [x, hi]

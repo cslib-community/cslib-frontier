@@ -84,6 +84,7 @@ theorem le_nthRoot_and_mul_nthRoot_le {k s e c p : ℕ} (hk : k ≠ 0) (hse : s 
 `2 ^ m p ^ (m p) ≤ (p + 1) ^ (m p)` for `p ≠ 0`. -/
 theorem two_pow_mul_pow_le_add_one_pow (m : ℕ) {p : ℕ} (hp : p ≠ 0) :
     2 ^ m * p ^ (m * p) ≤ (p + 1) ^ (m * p) := by
+  -- Bernoulli's inequality: `p ^ p + p ^ p ≤ (p + 1) ^ p`
   have h : 2 * p ^ p ≤ (p + 1) ^ p := by
     simpa only [mul_one, Nat.cast_id, mul_pow_sub_one hp, ← two_mul] using
       pow_add_mul_le_add_pow_of_sq_nonneg (R := ℕ) (a := p) (b := 1) (Nat.zero_le _)

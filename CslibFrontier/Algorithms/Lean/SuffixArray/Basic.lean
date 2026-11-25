@@ -215,11 +215,13 @@ theorem IsSuffixArray.getElem_lcpArray_sub_one_le (h : IsSuffixArray w sa) {r r'
   set L := List.lcpLen (w.drop j) (w.drop i) with hL
   rcases Nat.lt_or_ge L 2 with hL2 | hL2
   · omega
+  -- Both suffixes have length at least `L ≥ 2`, so `j + 1 < |w|`.
   have hjn : j + 1 < w.length := by
     have := List.lcpLen_le_length_left (w.drop j) (w.drop i)
     simp only [List.length_drop] at this
     omega
   obtain ⟨q, hq, hqj⟩ := h.exists_getElem_eq hjn
+  -- The heads agree, so the order of the tails is that of the suffixes.
   have hqr' : q < r' := by
     rw [h.lt_iff_drop_lt hq hr', hqj, ← hsucc]
     have hlt : w.drop j < w.drop i := h.drop_lt_drop (by omega) hr

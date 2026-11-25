@@ -118,6 +118,7 @@ private theorem bonami_step_le {C a₂ b₂ X Y Z s₂ m₄ : ℝ} {k : ℕ} (hC
     (hYk : Y ≤ C ^ k * b₂ ^ 2) (hCS : Z ^ 2 ≤ X * Y) (hm : m₄ ≤ C * s₂ ^ 2) :
     X + 6 * Z * s₂ + Y * m₄ ≤ C ^ (k + 1) * (a₂ + b₂ * s₂) ^ 2 := by
   have hCk : 0 ≤ C ^ k := pow_nonneg (by linarith only [hC]) k
+  -- `3 Z ≤ C ^ (k + 1) a₂ b₂`, using `9 ≤ C`
   have hZ3 : 3 * Z ≤ C ^ (k + 1) * a₂ * b₂ :=
     (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).1 <|
       calc (3 * Z) ^ 2 = 9 * Z ^ 2 := by ring
@@ -186,7 +187,8 @@ private theorem integral_multilinearEval_pow_four_le_aux {C : ℝ} (hC : 9 ≤ C
     have hX := ih k _ (multilinearExpectCoeff_eq_zero_of_not_subset hc)
       (multilinearExpectCoeff_eq_zero_of_card_lt hk a)
     rcases k with _ | k
-    · simpa [show D = 0 from funext fun _ => by
+    · -- degree zero: `D_a F = 0`
+      simpa [show D = 0 from funext fun _ => by
         simp [D, multilinearDerivCoeff_eq_zero_of_degree_zero hk a]] using hX
     · have hCS := sq_integral_mul_le (f := fun v => E v ^ 2) (g := fun v => D v ^ 2) (P := P)
         (by simpa only [← pow_mul] using hE4) (by simpa only [← pow_mul] using hD4) hED

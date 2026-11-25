@@ -99,6 +99,7 @@ private theorem tendsto_eLpNorm_gaussianNoiseOp_sub_of_bcf (g : (ι → ℝ) →
     Filter.Eventually.mono (Ioo_mem_nhdsLT (show (-1 : ℝ) < 1 by norm_num)) fun _ h =>
       abs_le.2 ⟨h.1.le, h.2.le⟩
   have hg := g.continuous.aestronglyMeasurable (μ := γ)
+  -- pointwise convergence `U_ρ g z → g z`, by dominated convergence in `g`
   have hpt (z : ι → ℝ) : Tendsto (fun ρ => gaussianNoiseOp ρ g z) (𝓝[<] 1) (𝓝 (g z)) := by
     have h := tendsto_integral_filter_of_dominated_convergence (μ := γ) (l := 𝓝[<] (1 : ℝ))
       (F := fun ρ y => g fun i => ρ * z i + √(1 - ρ ^ 2) * y i) (f := fun _ => g z)

@@ -133,6 +133,7 @@ theorem sum_filter_card_le_fourierCoeff_indicator_sq_le_log_pow {k : ℕ} (hk : 
   set ρ := (k : ℝ) / (2 * L)
   have hρ₀ : 0 < ρ := by positivity
   have hρ₁ : ρ ≤ 1 := (div_le_one (by positivity)).2 hkα
+  -- `ρ ^ k W^{≤k} ≤ Stab_ρ ≤ α ^ (2 / (1 + ρ)) ≤ α ^ (2 (1 - ρ)) = α ^ 2 e ^ k`
   have hW := (pow_mul_sum_filter_card_le_le_noiseStability hρ₀.le hρ₁ k
     (A.indicator 1)).trans (noiseStability_indicator_le hρ₀.le hρ₁ A)
   have hexp : α ^ (2 / (1 + ρ)) ≤ α ^ 2 * exp k := by
@@ -158,6 +159,7 @@ theorem levelWeight_one_indicator_le_rpow {ρ : ℝ} (hρ : 0 < ρ) (hρ' : ρ �
     levelWeight 1 (A.indicator 1) ≤
       ((𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ (2 / (1 + ρ)) -
         (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2) / ρ := by
+  -- the degree-zero and degree-one terms of the level-weight sum
   have hW : (𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x) ^ 2 + ρ * levelWeight 1 (A.indicator 1) ≤
       noiseStability ρ (A.indicator 1) := by
     rcases (Fintype.card ι).eq_zero_or_pos with hι | hι
@@ -190,6 +192,7 @@ theorem levelWeight_one_indicator_le (A : Set (ι → Bool)) :
     rw [show 𝔼 x, A.indicator (1 : (ι → Bool) → ℝ) x = 0 from hα.symm] at h
     rw [show α = 0 from hα.symm]
     simpa using h
+  -- the derivative of `ρ ↦ α ^ (2 / (1 + ρ))` at `0`
   have hg : HasDerivAt (fun ρ : ℝ => 2 / (1 + ρ)) (-2) 0 := by
     simpa [div_eq_mul_inv] using
       (((hasDerivAt_id (0 : ℝ)).const_add 1).inv (by norm_num)).const_mul 2

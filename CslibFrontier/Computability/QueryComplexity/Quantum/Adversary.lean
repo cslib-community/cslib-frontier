@@ -197,6 +197,7 @@ theorem spectralSensitivity_le_thirty_six_mul {f : BooleanFunction N}
     (h : ∀ x, |measureProb (run U ψ₀ x T) S - bitVal ℝ (f x)| ≤ 1 / 3) :
     spectralSensitivity f ≤ 36 * T := by
   have := one_sub_mul_spectralSensitivity_le U hψ₀ T S h (by norm_num)
+  -- `2√(2/9) ≤ 17/18`, since `8/9 = 288/324 ≤ 289/324`
   have : √((1 / 3 : ℝ) * (1 - 1 / 3)) ≤ 17 / 36 :=
     (Real.sqrt_le_left (by norm_num)).2 (by norm_num)
   nlinarith [spectralSensitivity_nonneg f]

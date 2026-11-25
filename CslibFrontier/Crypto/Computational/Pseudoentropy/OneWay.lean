@@ -105,6 +105,7 @@ theorem eventually_prediction_entropy_le_withAdvice {f : List Bool → List Bool
         1 / (hashCount n : ℝ) := by
   obtain ⟨c, d, evaluate, hefficient, _, hrealize⟩ := hPPT.exists_total_seeded_evaluator
   obtain ⟨c', d', hbudget⟩ := exists_advice_budget_le hadvice c d
+  -- The inverter captures the advice word from its own input.
   let advisedEvaluate : (ℕ × List Bool) × List Bool → (ℕ × List Bool) → List Bool → Bool :=
     fun ((_, word), _) (m, observation) coins => evaluate ((m, word), observation) coins
   have hevaluate := hefficient.comp (show ComputableInPolyTime

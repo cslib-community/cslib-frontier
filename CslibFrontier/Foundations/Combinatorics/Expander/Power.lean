@@ -155,6 +155,7 @@ theorem walk_pow (t : ℕ) : (G.pow t).walk = G.walk ^ t := by
   | succ t ih =>
     refine LinearMap.ext fun f => funext fun v => ?_
     simp only [pow_succ', mul_apply_eq_comp, ← ih, walk_apply, neighbor_pow_succ]
+    -- a tuple of `t + 1` labels is a first label and a tuple of `t` labels
     exact Fin.expect_univ_cons _
 
 variable [Fintype V]
@@ -213,6 +214,7 @@ theorem spectralExpansion_pow {t : ℕ} (ht : t ≠ 0) :
   suffices h : G.spectralExpansion ≤ (G.pow t).spectralExpansion ^ (t⁻¹ : ℝ) from
     (pow_le_pow_left₀ G.spectralExpansion_nonneg h t).trans_eq (Real.rpow_inv_natCast_pow hc ht)
   refine spectralExpansion_le (by positivity) fun f hf => ?_
+  -- the second moments along the walk from `f` grow at least geometrically
   have key := mul_pow_le_pow_mul_of_sq_le_mul (a := fun s => 𝔼 v, (G.walk ^ s) f v ^ 2)
     (fun _ => expect_nonneg fun _ _ => sq_nonneg _) (G.sq_expect_walk_pow_succ_sq_le f) t
   have hat := (G.pow t).expect_walk_sq_le_spectralExpansion_sq_mul hf
