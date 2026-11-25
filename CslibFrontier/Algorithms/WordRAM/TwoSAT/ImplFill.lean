@@ -95,14 +95,14 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       rcases htarget with hnil | hfold
       · simp [hnil] at hidx
       · simpa using hfold
-    let FillStepPost (x₁ : Data 28) : Prop :=
-      PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) (addClauseEdges g c))
-          curBase edgeBase x₁.mem ∧
-        (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + 2 * G.n) ∨
-            (edgeBase ≤ a ∧ a < edgeBase + csrOffset G.adjFin (2 * G.n))) → x₁.mem a = x.mem a) ∧
-        x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
-        (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
-    have hstep : ∃ x₁, ExecWithin w implFillBody x x₁ 26 ∧ FillStepPost x₁ := by
+    obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ :
+        ∃ x₁, ExecWithin w implFillBody x x₁ 26 ∧
+          PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) (addClauseEdges g c))
+            curBase edgeBase x₁.mem ∧
+          (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + 2 * G.n) ∨
+              (edgeBase ≤ a ∧ a < edgeBase + csrOffset G.adjFin (2 * G.n))) → x₁.mem a = x.mem a) ∧
+          x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
+          (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
       rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, rest⟩⟩⟩
       · simp at hc
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
@@ -135,7 +135,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_fr, st_v, hc1, hi, hf_p2, hf_i1]
-        dsimp only [FillStepPost]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
         · wram_simp
           rwa [mapAdj_addClauseEdges_one]
@@ -208,7 +207,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         wram_exec [hy₁_fr, st_v1, hc1, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
         wram_exec [hy₂_fr, st_v2, hy₁_fr, st_v1, hc1, hi, hf_p3, hf_i1]
-        dsimp only [FillStepPost]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
         · wram_simp
           rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
@@ -217,7 +215,6 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         · wram_simp [hy₂_fr r (by reg_ne) (by reg_ne), st_v2, hy₁_fr r (by reg_ne) (by reg_ne),
             st_v1]
       · simp at hc
-    obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ := hstep
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
       intro k hk
       have hk_bound : p + 1 + c.length + k < G.workBase := by
