@@ -13,6 +13,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.Map
 
 /-!
 # Draft issuer bridge and carry-bit boundary for single-issuer VOLE-ACT
@@ -43,7 +44,9 @@ reduction are original to this library. Modeling choices relative to the draft p
   bound `T_init < 2^(8*L)`).
 * `acceptDraftSpendPre` enforces `(V1)`–`(V4)` and nullifier freshness before invoking
   `policy.chooseRefund` (matching the draft's Overview order rather than `SpendResponse` input
-  order), so policies whose state depends on rejected spends are excluded.
+  order): `policy.chooseRefund` is not called when `acceptDraftSpendPre` fails, whereas when
+  `policy.chooseRefund` returns `none` or `refund ≥ bound`, the spend is rejected after the
+  policy runs and retains its updated `policyState`.
 * A spend's `ctx` is read from `DraftSpendRequest.ctx` and matched against the certified input note,
   allowing multi-context requests under one oracle.
 
@@ -63,12 +66,14 @@ collision between sums under `2 * bound` forces an exact `bound`-credit wraparou
 
 * `IssuerPolicy`: stateful, probabilistic key-independent issuer policy supplying agreed issuance
   amounts and spend refunds from public spend metadata only.
-* `DraftIssueRequest`, `DraftSpendRequest`, `DraftQuery`, `draftReply`, `IssuerState`: draft-style
-  queries and stateful issuer bookkeeping, without adversary-chosen `T` or `x'`.
-* `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
+* `IssueAgreement`, `SpendReply`, `AgreedTicket`, `DraftIssueRequest`, `DraftSpendRequest`,
+  `DraftQuery`, `draftReply`, `IssuerState`: draft-style queries, named replies, and stateful
+  issuer bookkeeping, without adversary-chosen `T` or `x'`.
+* `agreeIssueTransition`, `commitDraftIssue`, `acceptedSpendRefund`, `commitDraftSpend`,
+  `draftQueryStep`, `draftIssuerOracle`, `DraftAdversary`, `ExtractedDraftConservationExecution`,
   `runExtractedDraftConservation`, `extractedDraftConservationAccept`,
-  `extractedDraftConservationExperiment`: the draft-style extracted conservation game with range and
-  policy rejections.
+  `extractedDraftConservationExperiment`: shared draft query transition and the draft-style
+  extracted conservation game with range and policy rejections.
 * `bridgeAdversary`: explicit simulation reduction to `Conservation.ExtractedAdversary`.
 
 ## Main results
@@ -186,21 +191,47 @@ inductive DraftQuery (Nullifier Context Opening Commitment Sig IssueHint : Type)
   /-- Submit a spend request and extracted witness; the issuer supplies any refund `x'`. -/
   | spend (req : DraftSpendRequest Nullifier Context Opening Commitment Sig)
 
-/-- Reply type of each `DraftQuery`: `(ticket, T)` (or `none`) for `.agreeIssue`, `some σ` (or
-`none`) for `.issue`, and `some (x', σ)` (or `none`) for `.spend`. -/
+/-- Out-of-band issuance agreement reply returning the sequential ticket index and agreed balance
+`T`. -/
+structure IssueAgreement where
+  /-- Sequential index of the allocated agreement ticket. -/
+  ticket : ℕ
+  /-- Initial credit balance `T` agreed by the issuer policy. -/
+  amount : ℕ
+  deriving DecidableEq
+
+/-- Spend reply returning the issuer-chosen refund `x'` and certification signature on
+`Tag(c', x')`. -/
+structure SpendReply (Sig : Type) where
+  /-- Refund `x'` chosen by the issuer policy. -/
+  refund : ℕ
+  /-- Issuer certification signature on the change token. -/
+  signature : Sig
+  deriving DecidableEq
+
+/-- Server-side record of an agreed issuance ticket under `ctx` for initial balance `T`. -/
+structure AgreedTicket (Context : Type) where
+  /-- Issuance context negotiated for this ticket. -/
+  ctx : Context
+  /-- Initial credit balance `T` agreed for this ticket. -/
+  amount : ℕ
+  deriving DecidableEq
+
+/-- Reply type of each `DraftQuery`: `Option IssueAgreement` for `.agreeIssue`, `Option Sig` for
+`.issue`, and `Option (SpendReply Sig)` for `.spend`. -/
 def draftReply (Sig : Type) :
     DraftQuery Nullifier Context Opening Commitment Sig IssueHint → Type
-  | .agreeIssue _ _ => Option (ℕ × ℕ)
+  | .agreeIssue _ _ => Option IssueAgreement
   | .issue _ => Option Sig
-  | .spend _ => Option (ℕ × Sig)
+  | .spend _ => Option (SpendReply Sig)
 
 /-- Private state of the draft-style issuer: policy state, issued agreement tickets, consumed
 ticket indices, and accepted `Conservation.Request` log (oldest first). -/
 structure IssuerState (Nullifier Context Opening Commitment Sig PolicyState : Type) where
   /-- Current private state of the issuer policy. -/
   policyState : PolicyState
-  /-- Agreed issuance tickets `(ctx, T)` indexed by allocation order. -/
-  pending : List (Context × ℕ)
+  /-- Agreed issuance tickets indexed by allocation order. -/
+  pending : List (AgreedTicket Context)
   /-- Ticket indices already redeemed by an accepted `.issue` call. -/
   consumed : List ℕ
   /-- Accepted requests recorded in `Conservation.Request` format, oldest first. -/
@@ -217,10 +248,10 @@ def acceptDraftIssue [DecidableEq Commitment]
     Option (Conservation.Request Nullifier Context Opening Commitment Sig) :=
   match st.pending[req.ticket]? with
   | none => none
-  | some (ctx, amt) =>
-      if req.ticket ∉ st.consumed ∧ 1 ≤ amt ∧ amt < bound ∧
-          com req.nullifier ctx amt req.opening = req.commitment then
-        some (.issue ⟨ctx, amt, req.commitment, req.nullifier, req.opening⟩)
+  | some agreed =>
+      if req.ticket ∉ st.consumed ∧ 1 ≤ agreed.amount ∧ agreed.amount < bound ∧
+          com req.nullifier agreed.ctx agreed.amount req.opening = req.commitment then
+        some (.issue ⟨agreed.ctx, agreed.amount, req.commitment, req.nullifier, req.opening⟩)
       else
         none
 
@@ -235,11 +266,89 @@ def acceptDraftSpendPre [DecidableEq Nullifier] [DecidableEq Context] [Decidable
   req.withinRange bound &&
     Conservation.acceptRequest com tag S pk st.accepted (.spend (req.toSpendRequest 0))
 
+/-- Shared local state update after sampling `policy.agreeIssue`: allocates a sequential
+single-use agreement ticket when `amt? = some amt`, and updates `st.policyState`. -/
+def agreeIssueTransition (ctx : Context) (amt? : Option ℕ) (pst' : PolicyState)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    Option IssueAgreement × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
+  match amt? with
+  | none => (none, { st with policyState := pst' })
+  | some amt =>
+      (some ⟨st.pending.length, amt⟩,
+        { st with policyState := pst', pending := st.pending ++ [⟨ctx, amt⟩] })
+
+/-- Shared local state update on an accepted `.issue` request once signature `σ` is obtained. -/
+def commitDraftIssue (ticket : ℕ)
+    (creq : Conservation.Request Nullifier Context Opening Commitment Sig) (σ : Sig)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    Option Sig × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
+  (some σ, { st with consumed := ticket :: st.consumed, accepted := st.accepted ++ [creq] })
+
+/-- Range filter on `policy.chooseRefund` output: accepts `refund` iff `refund < bound`. -/
+def acceptedSpendRefund (bound : ℕ) (refund? : Option ℕ) : Option ℕ :=
+  match refund? with
+  | none => none
+  | some refund => if refund < bound then some refund else none
+
+/-- Shared local state update on an accepted `.spend` request once signature `σ` is obtained. -/
+def commitDraftSpend (refund : ℕ)
+    (creq : Conservation.Request Nullifier Context Opening Commitment Sig) (σ : Sig)
+    (st : IssuerState Nullifier Context Opening Commitment Sig PolicyState) :
+    Option (SpendReply Sig) × IssuerState Nullifier Context Opening Commitment Sig PolicyState :=
+  (some ⟨refund, σ⟩, { st with accepted := st.accepted ++ [creq] })
+
+/-- Shared draft-query state transition parameterized by `OracleComp` sampling (`samplePolicy`)
+and accepted-request certification/forwarding (`certify`). If `certify` returns `none`, the request
+is rejected without appending to `st.consumed` or `st.accepted` (preserving any `policyState`
+update already returned by `policy.chooseRefund`). -/
+def draftQueryStep {ι : Type} {qspec : ι → Type}
+    [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+    (com : Nullifier → Context → ℕ → Opening → Commitment)
+    (tag : Commitment → ℕ → Target)
+    (S : Signature.Scheme PK SK Target Sig)
+    (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
+    (bound : ℕ) (pk : PK)
+    (samplePolicy : ∀ {α : Type}, ProbComp α → OracleComp qspec α)
+    (certify :
+      Conservation.Request Nullifier Context Opening Commitment Sig →
+        OracleComp qspec (Option Sig)) :
+    (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) →
+      StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState) (OracleComp qspec)
+        (draftReply Sig q)
+  | .agreeIssue ctx hint => fun st => do
+      let (amt?, pst') ← samplePolicy ((policy.agreeIssue ctx hint).run st.policyState)
+      return agreeIssueTransition ctx amt? pst' st
+  | .issue req => fun st =>
+      match acceptDraftIssue com bound req st with
+      | none => pure (none, st)
+      | some creq => do
+          let σ? ← certify creq
+          match σ? with
+          | none => pure (none, st)
+          | some σ => pure (commitDraftIssue req.ticket creq σ st)
+  | .spend req => fun st =>
+      if acceptDraftSpendPre com tag S bound pk st req then do
+        let (refund?, pst') ← samplePolicy
+          ((policy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
+            st.policyState)
+        let st' := { st with policyState := pst' }
+        match acceptedSpendRefund bound refund? with
+        | none => return (none, st')
+        | some refund => do
+            let creq : Conservation.Request Nullifier Context Opening Commitment Sig :=
+              .spend (req.toSpendRequest refund)
+            let σ? ← certify creq
+            match σ? with
+            | none => return (none, st')
+            | some σ => return commitDraftSpend refund creq σ st'
+      else
+        pure (none, st)
+
 /-- Draft-style stateful issuer oracle implementing out-of-band `T` agreement, issuer-chosen `x'`,
 `T ≥ 1` and `< bound` `(V4)` range checks, `(V1)`–`(V3)`, and nullifier-uniqueness rejections.
 Rejected `.issue` calls leave `st.consumed` and `st.policyState` unchanged; `.spend` calls failing
 `acceptDraftSpendPre` return `none` without calling `policy.chooseRefund`, whereas `chooseRefund`
-returning `none` or `x' ≥ bound` updates `policyState` before returning `none`. -/
+returning `none` or `refund ≥ bound` updates `policyState` before returning `none`. -/
 def draftIssuerOracle [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
@@ -248,42 +357,9 @@ def draftIssuerOracle [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq
     (bound : ℕ) (keys : PK × SK) :
     (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) →
       StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState) ProbComp
-        (draftReply Sig q)
-  | .agreeIssue ctx hint => fun st => do
-      let (amt?, pst') ← (policy.agreeIssue ctx hint).run st.policyState
-      match amt? with
-      | none => return (none, { st with policyState := pst' })
-      | some amt =>
-          let ticket := st.pending.length
-          return (some (ticket, amt),
-            { st with policyState := pst', pending := st.pending ++ [(ctx, amt)] })
-  | .issue req => fun st =>
-      match acceptDraftIssue com bound req st with
-      | none => pure (none, st)
-      | some creq => do
-          let σ ← S.sign keys.2 (creq.signedMessage tag)
-          return (some σ,
-            { st with
-              consumed := req.ticket :: st.consumed
-              accepted := st.accepted ++ [creq] })
-  | .spend req => fun st =>
-      if acceptDraftSpendPre com tag S bound keys.1 st req then do
-        let (refund?, pst') ←
-          (policy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
-            st.policyState
-        match refund? with
-        | none => return (none, { st with policyState := pst' })
-        | some refund =>
-            if refund < bound then
-              let creq : Conservation.Request Nullifier Context Opening Commitment Sig :=
-                .spend (req.toSpendRequest refund)
-              let σ ← S.sign keys.2 (creq.signedMessage tag)
-              return (some (refund, σ),
-                { st with policyState := pst', accepted := st.accepted ++ [creq] })
-            else
-              return (none, { st with policyState := pst' })
-      else
-        pure (none, st)
+        (draftReply Sig q) :=
+  draftQueryStep com tag S policy bound keys.1 (fun p => p)
+    (fun creq => some <$> S.sign keys.2 (creq.signedMessage tag))
 
 /-- An adaptive adversary interacting with the draft-style issuer oracle and returning a target
 context `ctx*`. -/
@@ -347,63 +423,25 @@ def extractedDraftConservationExperiment
 
 /-! ### Simulation reduction to `Conservation` -/
 
+end
+
 /-- Simulation handler translating `DraftQuery` calls into `Conservation.extractedIssuerOracle`
-queries. Out-of-band agreements, policy state, range checks, and rejected requests are handled
-locally without querying `Conservation`'s oracle; accepted issuances and spends forward exactly
-one request each. -/
-def bridgeHandler [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
+queries via `draftQueryStep`. Out-of-band agreements, policy state, range checks, and rejected
+requests are handled locally without querying `Conservation`'s oracle; accepted issuances and
+spends forward exactly one request each. -/
+private def bridgeHandler [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq Commitment]
     (com : Nullifier → Context → ℕ → Opening → Commitment)
     (tag : Commitment → ℕ → Target)
     (S : Signature.Scheme PK SK Target Sig)
     (policy : IssuerPolicy PolicyState Context Nullifier Commitment IssueHint)
-    (bound : ℕ) (pk : PK)
-    (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) :
-    StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState)
-      (ProbOracleComp (fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
-        Option Sig))
-      (draftReply Sig q) :=
-  match q with
-  | .agreeIssue ctx hint => fun st => do
-      let (amt?, pst') ← ProbOracleComp.sample ((policy.agreeIssue ctx hint).run st.policyState)
-      match amt? with
-      | none => return (none, { st with policyState := pst' })
-      | some amt =>
-          let ticket := st.pending.length
-          return (some (ticket, amt),
-            { st with policyState := pst', pending := st.pending ++ [(ctx, amt)] })
-  | .issue req => fun st =>
-      match acceptDraftIssue com bound req st with
-      | none => pure (none, st)
-      | some creq => do
-          let σ? ← ProbOracleComp.query creq
-          match σ? with
-          | none => pure (none, st)
-          | some σ =>
-              pure (some σ,
-                { st with
-                  consumed := req.ticket :: st.consumed
-                  accepted := st.accepted ++ [creq] })
-  | .spend req => fun st =>
-      if acceptDraftSpendPre com tag S bound pk st req then do
-        let (refund?, pst') ← ProbOracleComp.sample
-          ((policy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
-            st.policyState)
-        match refund? with
-        | none => return (none, { st with policyState := pst' })
-        | some refund =>
-            if refund < bound then
-              let creq : Conservation.Request Nullifier Context Opening Commitment Sig :=
-                .spend (req.toSpendRequest refund)
-              let σ? ← ProbOracleComp.query creq
-              match σ? with
-              | none => return (none, { st with policyState := pst' })
-              | some σ =>
-                  return (some (refund, σ),
-                    { st with policyState := pst', accepted := st.accepted ++ [creq] })
-            else
-              return (none, { st with policyState := pst' })
-      else
-        pure (none, st)
+    (bound : ℕ) (pk : PK) :
+    (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint) →
+      StateT (IssuerState Nullifier Context Opening Commitment Sig PolicyState)
+        (ProbOracleComp (fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
+          Option Sig))
+        (draftReply Sig q) :=
+  draftQueryStep com tag S policy bound pk
+    (fun p => ProbOracleComp.sample p) (fun creq => ProbOracleComp.query creq)
 
 /-- Explicit simulation reduction from `DraftAdversary` to `Conservation.ExtractedAdversary`.
 Encapsulates `policy`, ticket tracking, and `(V4)` range rejections while forwarding only accepted
@@ -425,8 +463,6 @@ def bridgeAdversary [DecidableEq Nullifier] [DecidableEq Context] [DecidableEq C
       (bridgeHandler com tag S policy bound pk))
     (A pk)).run st₀
   return result.1
-
-end
 
 /-- `bridgeAdversary` makes at most `q` queries to the `Conservation` oracle whenever `A` makes
 at most `q` draft-oracle queries (no runtime or polynomial-time certificate is claimed here; #7068).
@@ -460,73 +496,40 @@ theorem bridgeAdversary_queryBound
           (ProbComp.unifFin k)).bind fun a => OracleComp.IsCostBounded.pure (a, st) 0
     · cases req with
       | agreeIssue ctx hint =>
-          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler]
+          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler,
+            draftQueryStep]
           rw [← Nat.zero_add 1]
           refine (ProbOracleComp.IsQueryBounded.sample _).bind fun p => ?_
-          rcases p with ⟨_ | amt, pst'⟩
-          · exact OracleComp.IsCostBounded.pure _ 1
-          · exact OracleComp.IsCostBounded.pure _ 1
+          exact OracleComp.IsCostBounded.pure _ 1
       | issue ireq =>
-          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler]
+          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler,
+            draftQueryStep]
           cases acceptDraftIssue com bound ireq st with
           | none => exact OracleComp.IsCostBounded.pure (none, st) 1
           | some creq =>
               dsimp only
-              have hq := ProbOracleComp.IsQueryBounded.query
-                (spec := fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
-                  Option Sig)
-                creq
-              have hcont :
-                  ∀ σ? : Option Sig,
-                    ProbOracleComp.IsQueryBounded
-                      (spec := fun _ :
-                          Conservation.Request Nullifier Context Opening Commitment Sig =>
-                        Option Sig)
-                      (match σ? with
-                        | none => pure (none, st)
-                        | some σ => pure (some σ,
-                            { policyState := st.policyState
-                              pending := st.pending
-                              consumed := ireq.ticket :: st.consumed
-                              accepted := st.accepted ++ [creq] }))
-                      0 := by
-                intro σ?
-                cases σ? <;> exact OracleComp.IsCostBounded.pure _ 0
-              exact hq.bind hcont
+              rw [← Nat.add_zero 1]
+              refine (ProbOracleComp.IsQueryBounded.query creq).bind fun σ? => ?_
+              cases σ? <;> exact OracleComp.IsCostBounded.pure _ 0
       | spend sreq =>
-          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler]
+          simp only [OracleComp.sumHandler, Sum.elim_inr, StateT.run, bridgeHandler,
+            draftQueryStep]
           by_cases hpre : acceptDraftSpendPre com tag S bound pk st sreq = true
           · simp only [hpre, ↓reduceIte]
             rw [← Nat.zero_add 1]
             refine (ProbOracleComp.IsQueryBounded.sample _).bind fun p => ?_
-            rcases p with ⟨_ | refund, pst'⟩
-            · exact OracleComp.IsCostBounded.pure _ 1
-            · by_cases hr : refund < bound
-              · simp only [hr, ↓reduceIte]
-                have hq := ProbOracleComp.IsQueryBounded.query
+            rcases p with ⟨refund?, pst'⟩
+            dsimp only
+            cases acceptedSpendRefund bound refund? with
+            | none => exact OracleComp.IsCostBounded.pure _ 1
+            | some refund =>
+                dsimp only
+                rw [← Nat.add_zero 1]
+                refine (ProbOracleComp.IsQueryBounded.query
                   (spec := fun _ : Conservation.Request Nullifier Context Opening Commitment Sig =>
                     Option Sig)
-                  (.spend (sreq.toSpendRequest refund))
-                have hcont :
-                    ∀ σ? : Option Sig,
-                      ProbOracleComp.IsQueryBounded
-                        (spec := fun _ :
-                            Conservation.Request Nullifier Context Opening Commitment Sig =>
-                          Option Sig)
-                        (match σ? with
-                          | none => pure (none,
-                              IssuerState.mk pst' st.pending st.consumed st.accepted)
-                          | some σ => pure (some (refund, σ),
-                              IssuerState.mk pst' st.pending st.consumed
-                                (st.accepted ++
-                                  [Conservation.Request.spend
-                                    (sreq.toSpendRequest refund)])))
-                        0 := by
-                  intro σ?
-                  cases σ? <;> exact OracleComp.IsCostBounded.pure _ 0
-                exact hq.bind hcont
-              · simp only [hr, ↓reduceIte]
-                exact OracleComp.IsCostBounded.pure _ 1
+                  (.spend (sreq.toSpendRequest refund))).bind fun σ? => ?_
+                cases σ? <;> exact OracleComp.IsCostBounded.pure _ 0
           · simp only [hpre, Bool.false_eq_true, ↓reduceIte]
             exact OracleComp.IsCostBounded.pure (none, st) 1
   exact hbody.bind fun _ => OracleComp.IsCostBounded.pure _ 0
@@ -555,8 +558,7 @@ private theorem acceptRequest_of_acceptDraftIssue
   simp only [acceptDraftIssue] at h
   cases hp : st.pending[req.ticket]? with
   | none => simp [hp] at h
-  | some p =>
-      rcases p with ⟨ctx, amt⟩
+  | some agreed =>
       simp only [hp] at h
       split_ifs at h with hcond
       · simp only [Option.some.injEq] at h
@@ -638,6 +640,54 @@ theorem eval_extractedDraftConservationExperiment_eq
   simp only [ProbComp.eval_pure, PMF.pure_map, PMF.bind_bind]
   refine PMF.bind_congr_on_support _ _ _ fun pst₀ _ => ?_
   let st₀ : IssuerState Nullifier Context Opening Commitment Sig PolicyState := ⟨pst₀, [], [], []⟩
+  have hcertify_mem : ∀ {β : Type}
+      (creq : Conservation.Request Nullifier Context Opening Commitment Sig)
+      (rejSt : IssuerState Nullifier Context Opening Commitment Sig PolicyState)
+      (commit : Sig → Option β × IssuerState Nullifier Context Opening Commitment Sig PolicyState)
+      (log : List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
+      (hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst) creq = true)
+      (hrej : rejSt.accepted = log.map Prod.fst)
+      (hacc : ∀ σ, (commit σ).2.accepted = rejSt.accepted ++ [creq])
+      (ans : Option β)
+      (next : IssuerState Nullifier Context Opening Commitment Sig PolicyState ×
+        List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig)),
+      ((ans, next.1), next.2) ∈ (ProbOracleComp.runWith extLogOracle (do
+          let σ? ← ProbOracleComp.query creq
+          match σ? with
+          | none => pure (none, rejSt)
+          | some σ => pure (commit σ)) log).support →
+        next.1.accepted = next.2.map Prod.fst := by
+    intro β creq rejSt commit log hreq hrej hacc ans next hmem
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query] at hmem
+    dsimp only [extLogOracle, ProbOracleComp.logOracle, Conservation.extractedIssuerOracle] at hmem
+    simp only [hreq, ↓reduceIte, ProbComp.eval_map, Functor.map_map, PMF.bind_map,
+      Function.comp_def, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨σ, _, hmem'⟩ := hmem
+    simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff] at hmem'
+    have hL := congrArg Prod.fst hmem'
+    have hSt := congrArg Prod.snd hL
+    have hLg := congrArg Prod.snd hmem'
+    dsimp only at hSt hLg
+    rw [hSt, hLg]
+    simp only [hacc σ, hrej, List.map_append, List.map_cons, List.map_nil]
+  have hcertify_eq : ∀ {β : Type}
+      (creq : Conservation.Request Nullifier Context Opening Commitment Sig)
+      (rejSt : IssuerState Nullifier Context Opening Commitment Sig PolicyState)
+      (commit : Sig → Option β × IssuerState Nullifier Context Opening Commitment Sig PolicyState)
+      (log : List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig))
+      (hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst) creq = true),
+      ((ProbOracleComp.runWith extLogOracle (do
+          let σ? ← ProbOracleComp.query creq
+          match σ? with
+          | none => pure (none, rejSt)
+          | some σ => pure (commit σ)) log).map fun (p, _) => p) =
+        (ProbComp.eval (S.sign sk (creq.signedMessage tag))).bind fun σ =>
+          PMF.pure (commit σ) := by
+    intro β creq rejSt commit log hreq
+    rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query]
+    dsimp only [extLogOracle, ProbOracleComp.logOracle, Conservation.extractedIssuerOracle]
+    simp only [hreq, ↓reduceIte, ProbComp.eval_map, Functor.map_map, PMF.bind_map,
+      Function.comp_def, PMF.map_bind, ProbOracleComp.runWith_pure, PMF.pure_map]
   have hpreserve :
       ∀ (q : DraftQuery Nullifier Context Opening Commitment Sig IssueHint)
         (state : IssuerState Nullifier Context Opening Commitment Sig PolicyState ×
@@ -648,75 +698,62 @@ theorem eval_extractedDraftConservationExperiment_eq
             List (Conservation.Request Nullifier Context Opening Commitment Sig × Option Sig)),
           (ans, next) ∈ (jointOracle q state).support →
           next.1.accepted = next.2.map Prod.fst := by
-    intro q ⟨st, log⟩ hstate ans next hnext
+    intro q ⟨st, log⟩ hstate
     dsimp only at hstate
     cases q with
     | agreeIssue ctx hint =>
-        simp only [jointOracle, bridgeHandler, StateT.run,
-          ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, PMF.bind_map,
-          Function.comp_def, PMF.map_bind, PMF.mem_support_bind_iff] at hnext
-        obtain ⟨⟨amt?, pst'⟩, _, hmem⟩ := hnext
-        cases amt? <;>
-          · simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff] at hmem
-            obtain ⟨_, rfl⟩ := hmem
-            exact hstate
+        dsimp only [draftReply]
+        intro ans next hnext
+        simp only [jointOracle, bridgeHandler, draftQueryStep, StateT.run, draftReply] at hnext
+        rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample] at hnext
+        simp only [PMF.bind_map, Function.comp_def, PMF.map_bind] at hnext
+        obtain ⟨⟨amt?, pst'⟩, _, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hnext
+        simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff] at hmem
+        obtain ⟨_, rfl⟩ := hmem
+        cases amt? <;> exact hstate
     | issue req =>
-        simp only [jointOracle, bridgeHandler, StateT.run] at hnext
+        dsimp only [draftReply]
+        intro ans next hnext
+        simp only [jointOracle, bridgeHandler, draftQueryStep, StateT.run, draftReply] at hnext
         cases hacc : acceptDraftIssue com bound req st with
         | none =>
-            simp only [hacc, ProbOracleComp.runWith_pure, PMF.pure_map,
-              PMF.mem_support_pure_iff] at hnext
-            obtain ⟨_, rfl⟩ := hnext
+            simp only [hacc, ProbOracleComp.runWith_pure, PMF.pure_map] at hnext
+            obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff _ _).mp hnext
             exact hstate
         | some creq =>
-            have hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst) creq = true :=
-              hstate ▸ acceptRequest_of_acceptDraftIssue hacc
             simp only [hacc] at hnext
-            rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query] at hnext
-            dsimp only [extLogOracle, ProbOracleComp.logOracle,
-              Conservation.extractedIssuerOracle] at hnext
-            simp only [hreq, ↓reduceIte, ProbComp.eval_map, Functor.map_map, PMF.bind_map,
-              Function.comp_def, PMF.map_bind, PMF.mem_support_bind_iff] at hnext
-            obtain ⟨σ, _, hmem⟩ := hnext
-            simp only [ProbOracleComp.runWith_pure, PMF.pure_map, PMF.mem_support_pure_iff] at hmem
-            obtain ⟨_, rfl⟩ := hmem
-            simp only [List.map_append, List.map_cons, List.map_nil, hstate]
+            obtain ⟨⟨p, log'⟩, hmem, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
+            cases heq
+            exact hcertify_mem creq st (fun σ => commitDraftIssue req.ticket creq σ st) log
+              (hstate ▸ acceptRequest_of_acceptDraftIssue hacc) hstate (fun _ => rfl)
+              p.1 (p.2, log') hmem
     | spend req =>
-        simp only [jointOracle, bridgeHandler, StateT.run] at hnext
+        dsimp only [draftReply]
+        intro ans next hnext
+        simp only [jointOracle, bridgeHandler, draftQueryStep, StateT.run, draftReply] at hnext
         by_cases hpre : acceptDraftSpendPre com tag S bound pk st req = true
         · simp only [hpre, ↓reduceIte, ProbOracleComp.runWith_bind,
-            ProbOracleComp.runWith_sample, PMF.bind_map, Function.comp_def, PMF.map_bind,
-            PMF.mem_support_bind_iff] at hnext
-          obtain ⟨⟨refund?, pst'⟩, _, hmem⟩ := hnext
-          cases refund? with
+            ProbOracleComp.runWith_sample, PMF.bind_map, Function.comp_def, PMF.map_bind] at hnext
+          obtain ⟨⟨refund?, pst'⟩, _, hmem⟩ := (PMF.mem_support_bind_iff _ _ _).mp hnext
+          cases haccRef : acceptedSpendRefund bound refund? with
           | none =>
-              simp only [ProbOracleComp.runWith_pure, PMF.pure_map,
+              simp only [haccRef, ProbOracleComp.runWith_pure, PMF.pure_map,
                 PMF.mem_support_pure_iff] at hmem
               obtain ⟨_, rfl⟩ := hmem
               exact hstate
           | some refund =>
-              by_cases hr : refund < bound
-              · have hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst)
-                    (.spend (req.toSpendRequest refund)) = true :=
-                  hstate ▸ acceptRequest_of_acceptDraftSpendPre hpre refund
-                simp only [hr, ↓reduceIte] at hmem
-                rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query] at hmem
-                dsimp only [extLogOracle, ProbOracleComp.logOracle,
-                  Conservation.extractedIssuerOracle] at hmem
-                simp only [hreq, ↓reduceIte, ProbComp.eval_map, Functor.map_map, PMF.bind_map,
-                  Function.comp_def, PMF.map_bind, PMF.mem_support_bind_iff] at hmem
-                obtain ⟨σ, _, hmem'⟩ := hmem
-                simp only [ProbOracleComp.runWith_pure, PMF.pure_map,
-                  PMF.mem_support_pure_iff] at hmem'
-                obtain ⟨_, rfl⟩ := hmem'
-                simp only [List.map_append, List.map_cons, List.map_nil, hstate]
-              · simp only [hr, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map,
-                  PMF.mem_support_pure_iff] at hmem
-                obtain ⟨_, rfl⟩ := hmem
-                exact hstate
+              simp only [haccRef, PMF.mem_support_map_iff] at hmem
+              obtain ⟨⟨p, log'⟩, hmem', heq⟩ := hmem
+              cases heq
+              exact hcertify_mem (.spend (req.toSpendRequest refund))
+                { st with policyState := pst' }
+                (fun σ => commitDraftSpend refund (.spend (req.toSpendRequest refund)) σ
+                  { st with policyState := pst' })
+                log (hstate ▸ acceptRequest_of_acceptDraftSpendPre hpre refund) hstate
+                (fun _ => rfl) p.1 (p.2, log') hmem'
         · simp only [hpre, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
-            PMF.pure_map, PMF.mem_support_pure_iff] at hnext
-          obtain ⟨_, rfl⟩ := hnext
+            PMF.pure_map] at hnext
+          obtain ⟨_, rfl⟩ := (PMF.mem_support_pure_iff _ _).mp hnext
           exact hstate
   have hinv :
       ∀ ctx st log,
@@ -734,65 +771,48 @@ theorem eval_extractedDraftConservationExperiment_eq
     dsimp only at hstate
     cases q with
     | agreeIssue ctx hint =>
-        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, StateT.run,
-          ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          ProbComp.eval_bind, PMF.bind_map, PMF.map_bind]
-        congr 1 with ⟨amt?, pst'⟩ : 1
-        cases amt? <;> simp
+        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, draftQueryStep,
+          StateT.run, draftReply]
+        rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbComp.eval_bind]
+        simp only [PMF.bind_map, Function.comp_def, PMF.map_bind,
+          ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
     | issue req =>
-        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, StateT.run]
+        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, draftQueryStep,
+          StateT.run, draftReply, PMF.map_comp, Function.comp_def]
         cases hacc : acceptDraftIssue com bound req st with
-        | none => simp
+        | none => simp [ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
         | some creq =>
-            have hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst) creq = true :=
-              hstate ▸ acceptRequest_of_acceptDraftIssue hacc
-            rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query]
-            dsimp only [extLogOracle, ProbOracleComp.logOracle,
-              Conservation.extractedIssuerOracle]
-            simp only [hreq, ↓reduceIte, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-              Functor.map_map, PMF.bind_map, Function.comp_def, PMF.map_bind,
-              ProbOracleComp.runWith_pure, PMF.pure_map]
+            simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+            exact hcertify_eq creq st (fun σ => commitDraftIssue req.ticket creq σ st) log
+              (hstate ▸ acceptRequest_of_acceptDraftIssue hacc)
     | spend req =>
-        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, StateT.run]
+        simp only [jointOracle, draftOracle, bridgeHandler, draftIssuerOracle, draftQueryStep,
+          StateT.run, draftReply, PMF.map_comp, Function.comp_def]
         by_cases hpre : acceptDraftSpendPre com tag S bound pk st req = true
         · simp only [hpre, ↓reduceIte, ProbOracleComp.runWith_bind,
             ProbOracleComp.runWith_sample, ProbComp.eval_bind, PMF.bind_map, Function.comp_def,
             PMF.map_bind]
           congr 1 with ⟨refund?, pst'⟩ : 1
-          cases refund? with
-          | none => simp
+          dsimp only
+          cases acceptedSpendRefund bound refund? with
+          | none => simp [ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
           | some refund =>
-              by_cases hr : refund < bound
-              · have hreq : Conservation.acceptRequest com tag S pk (log.map Prod.fst)
-                    (.spend (req.toSpendRequest refund)) = true :=
-                  hstate ▸ acceptRequest_of_acceptDraftSpendPre hpre refund
-                simp only [hr, ↓reduceIte]
-                rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query]
-                dsimp only [extLogOracle, ProbOracleComp.logOracle,
-                  Conservation.extractedIssuerOracle]
-                simp only [hreq, ↓reduceIte, ProbComp.eval_map, ProbComp.eval_bind,
-                  ProbComp.eval_pure, Functor.map_map, PMF.bind_map, Function.comp_def,
-                  PMF.map_bind, ProbOracleComp.runWith_pure, PMF.pure_map]
-              · simp [hr]
-        · simp [hpre]
+              simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def]
+              exact hcertify_eq (.spend (req.toSpendRequest refund))
+                { st with policyState := pst' }
+                (fun σ => commitDraftSpend refund (.spend (req.toSpendRequest refund)) σ
+                  { st with policyState := pst' })
+                log (hstate ▸ acceptRequest_of_acceptDraftSpendPre hpre refund)
+        · simp [hpre, ProbComp.eval_pure, ProbOracleComp.runWith_pure, PMF.pure_map]
   have hcongr :
       (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
           (fun ⟨ctx, st, _⟩ => extractedDraftConservationAccept ⟨pk, ctx, st.accepted⟩) =
         (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).map
           (fun ⟨ctx, _, log⟩ => Conservation.extractedConservationAccept ⟨pk, ctx, log⟩) := by
-    apply PMF.ext
-    intro b
-    simp only [PMF.map_apply]
-    refine tsum_congr fun ⟨ctx, st, log⟩ => ?_
-    by_cases hmem : (ctx, st, log) ∈ (ProbOracleComp.runWith jointOracle (A pk) (st₀, [])).support
-    · have heq : st.accepted = log.map Prod.fst := hinv ctx st log hmem
-      have heq' :
-          extractedDraftConservationAccept ⟨pk, ctx, st.accepted⟩ =
-            Conservation.extractedConservationAccept ⟨pk, ctx, log⟩ := by
-        dsimp only [extractedDraftConservationAccept, Conservation.extractedConservationAccept]
-        simp only [heq, List.map_map, Function.comp_def]
-      rw [heq']
-    · simp [(PMF.apply_eq_zero_iff _ _).mpr hmem]
+    refine PMF.map_congr_on_support _ _ _ fun ⟨ctx, st, log⟩ hmem => ?_
+    have heq : st.accepted = log.map Prod.fst := hinv ctx st log hmem
+    dsimp only [extractedDraftConservationAccept, Conservation.extractedConservationAccept]
+    simp only [heq, List.map_map, Function.comp_def]
   have hd :
       ((ProbComp.eval (((A pk).runState (draftIssuerOracle com tag S policy bound (pk, sk))).run
           st₀)).map fun p => extractedDraftConservationAccept ⟨pk, p.1, p.2.accepted⟩) =

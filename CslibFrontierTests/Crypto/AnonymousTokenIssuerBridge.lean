@@ -108,7 +108,7 @@ example :
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.agreeIssue 1 0)).run st0) =
       PMF.pure (none, ⟨1, [], [], []⟩) := by
-  simp [draftIssuerOracle, detPolicy, StateT.run]
+  simp [draftIssuerOracle, draftQueryStep, agreeIssueTransition, detPolicy, StateT.run]
   rfl
 
 -- Positive witness: `.agreeIssue` (`hint = 10`) allocates ticket `0` and steps `policyState`.
@@ -117,20 +117,20 @@ example :
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.agreeIssue 1 10)).run st0) =
-      PMF.pure (some (0, 10), ⟨1, [(1, 10)], [], []⟩) := by
-  simp [draftIssuerOracle, detPolicy, StateT.run]
+      PMF.pure (some ⟨0, 10⟩, ⟨1, [⟨1, 10⟩], [], []⟩) := by
+  simp [draftIssuerOracle, draftQueryStep, agreeIssueTransition, detPolicy, StateT.run]
   rfl
 
 -- Positive witness: `.issue` on a fresh valid ticket is accepted, signed, consumed, and logged.
 example :
-    let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [(1, 10)], [], []⟩
+    let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [⟨1, 10⟩], [], []⟩
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.issue issueValid)).run st1) =
       PMF.pure (some ((1, 1, 10), 0),
-        ⟨1, [(1, 10)], [0], [.issue ⟨1, 10, (1, 1, 10), 1, 0⟩]⟩) := by
-  simp [draftIssuerOracle, acceptDraftIssue, issueValid, testCom, testSig, StateT.run,
-    Conservation.Request.signedMessage]
+        ⟨1, [⟨1, 10⟩], [0], [.issue ⟨1, 10, (1, 1, 10), 1, 0⟩]⟩) := by
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, commitDraftIssue, issueValid, testCom,
+    testSig, StateT.run, Conservation.Request.signedMessage]
   rfl
 
 -- Positive witness: `.spend` passing the pre-check is accepted with stateful refund `2`.
@@ -138,39 +138,40 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨2, [(1, 10)], [0], [creq]⟩
+      ⟨2, [⟨1, 10⟩], [0], [creq]⟩
     let req := spendStep1 ((1, 1, 10), 0)
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.spend req)).run st1) =
-      PMF.pure (some (2, ((2, 1, 6), 2)),
-        ⟨3, [(1, 10)], [0], [creq, .spend (req.toSpendRequest 2)]⟩) := by
-  simp [draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange,
-    DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
-    Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
-    Conservation.Request.signedMessage, detPolicy, spendStep1, testCom, testSig, StateT.run]
+      PMF.pure (some ⟨2, ((2, 1, 6), 2)⟩,
+        ⟨3, [⟨1, 10⟩], [0], [creq, .spend (req.toSpendRequest 2)]⟩) := by
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, acceptedSpendRefund,
+    commitDraftSpend, DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest,
+    Conservation.acceptRequest, Conservation.acceptLocal, Conservation.hasSpentNullifier,
+    Conservation.SpendRequest.inputNote, Credit.target, Conservation.Request.signedMessage,
+    detPolicy, spendStep1, testCom, testSig, StateT.run]
   rfl
 
 -- `T = 0` agreed via `hint = 1` is rejected by `.issue` (`none`) without consuming ticket `0`.
 example :
-    let st0 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [(1, 0)], [], []⟩
+    let st0 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [⟨1, 0⟩], [], []⟩
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.issue { ticket := 0, commitment := (1, 1, 0), nullifier := 1, opening := 0 })).run
           st0) =
       PMF.pure (none, st0) := by
-  simp [draftIssuerOracle, acceptDraftIssue, testCom, StateT.run]
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, testCom, StateT.run]
   rfl
 
 -- `T ≥ bound` (`T = 100`, `bound = 16`) agreed via `hint = 2` is rejected by `.issue`.
 example :
-    let st0 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [(1, 100)], [], []⟩
+    let st0 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ := ⟨1, [⟨1, 100⟩], [], []⟩
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.issue { ticket := 0, commitment := (1, 1, 100), nullifier := 1, opening := 0 })).run
           st0) =
       PMF.pure (none, st0) := by
-  simp [draftIssuerOracle, acceptDraftIssue, testCom, StateT.run]
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, testCom, StateT.run]
   rfl
 
 -- Ticket replay: once ticket `0` is in `st.consumed`, a second `.issue` on ticket `0` returns
@@ -179,12 +180,12 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨1, [(1, 10)], [0], [creq]⟩
+      ⟨1, [⟨1, 10⟩], [0], [creq]⟩
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.issue issueValid)).run st1) =
       PMF.pure (none, st1) := by
-  simp [draftIssuerOracle, acceptDraftIssue, issueValid, testCom, StateT.run]
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftIssue, issueValid, testCom, StateT.run]
   rfl
 
 -- Isolated range check on `d = 16 ≥ bound`: `(V1)`–`(V3)` pass (`10 + 8 = 2 + 16`, with
@@ -193,7 +194,7 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨5, [(1, 10)], [0], [creq]⟩
+      ⟨5, [⟨1, 10⟩], [0], [creq]⟩
     let badD : DraftSpendRequest ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       { ctx := 1, nullifier := 1, debit := 16, changeCommitment := (2, 1, 2), oldCredit := 10,
         oldOpening := 0, oldRefund := 8, signature := ((1, 1, 10), 8), newNullifier := 2,
@@ -208,7 +209,8 @@ example :
   · simp [DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
       Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
       testCom, testSig]
-  · simp [draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange, StateT.run]
+  · simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
+      StateT.run]
     rfl
 
 -- Isolated range checks on `t = 16`, `x = 16`, and `t' = 16`: each satisfies
@@ -218,7 +220,7 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨5, [(1, 10)], [0], [creq]⟩
+      ⟨5, [⟨1, 10⟩], [0], [creq]⟩
     let badT : DraftSpendRequest ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       { ctx := 1, nullifier := 1, debit := 4, changeCommitment := (2, 1, 12), oldCredit := 16,
         oldOpening := 0, oldRefund := 0, signature := ((1, 1, 16), 0), newNullifier := 2,
@@ -254,8 +256,8 @@ example :
     | (simp [DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
         Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
         testCom, testSig]; done)
-    | (simp [draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange, StateT.run];
-        rfl)
+    | (simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
+        StateT.run]; rfl)
 
 -- `(V4)` refund range check rejects issuer-proposed `x' = 100 ≥ 16` (triggered by `debit = 7`)
 -- while recording the updated `policyState` from calling `chooseRefund`.
@@ -263,17 +265,17 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨1, [(1, 10)], [0], [creq]⟩
+      ⟨1, [⟨1, 10⟩], [0], [creq]⟩
     let req7 : DraftSpendRequest ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       { spendStep1 ((1, 1, 10), 0) with debit := 7, newCredit := 3, changeCommitment := (2, 1, 3) }
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.spend req7)).run st1) =
       PMF.pure (none, { st1 with policyState := 2 }) := by
-  simp [draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange,
-    DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
-    Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
-    detPolicy, spendStep1, testCom, testSig, StateT.run]
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, acceptedSpendRefund,
+    DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
+    Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
+    Credit.target, detPolicy, spendStep1, testCom, testSig, StateT.run]
   rfl
 
 -- Policy decline (`chooseRefund = none` at `policyState = 99`) also rejects with `none`.
@@ -281,13 +283,13 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st99 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨99, [(1, 10)], [0], [creq]⟩
+      ⟨99, [⟨1, 10⟩], [0], [creq]⟩
     let req := spendStep1 ((1, 1, 10), 0)
     ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig detPolicy 16 ((), ())
           (.spend req)).run st99) =
       PMF.pure (none, st99) := by
-  simp [draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange,
+  simp [draftIssuerOracle, draftQueryStep, acceptDraftSpendPre, DraftSpendRequest.withinRange,
     DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
     Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
     detPolicy, spendStep1, testCom, testSig, StateT.run]
@@ -309,7 +311,7 @@ private def honestDraftAdversary :
   let r1? ← ProbOracleComp.query
     (DraftQuery.spend s1 :
       DraftQuery ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ)
-  let sig1 := (r1?.getD (0, ((0, 0, 0), 0))).2
+  let sig1 := (r1?.getD ⟨0, ((0, 0, 0), 0)⟩).signature
   let _ ← ProbOracleComp.query
     (DraftQuery.spend (spendStep2 sig1) :
       DraftQuery ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ)
@@ -332,7 +334,8 @@ example :
   simp only [runExtractedDraftConservation, honestDraftAdversary, testSig, detPolicy,
     ProbOracleComp.runState_bind, ProbOracleComp.runState_query, ProbOracleComp.runState_pure,
     StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, acceptDraftIssue, acceptDraftSpendPre,
+  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
+    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, issueValid, spendStep1, spendStep2,
@@ -347,7 +350,8 @@ example :
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation,
     honestDraftAdversary, testSig, detPolicy, ProbOracleComp.runState_bind,
     ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, acceptDraftIssue, acceptDraftSpendPre,
+  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
+    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, issueValid, spendStep1, spendStep2,
@@ -402,7 +406,8 @@ example :
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation, forgingAdversary,
     testSig, zeroRefundPolicy, ProbOracleComp.runState_bind, ProbOracleComp.runState_query,
     ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, acceptDraftSpendPre, DraftSpendRequest.withinRange,
+  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, acceptDraftSpendPre,
+    acceptedSpendRefund, commitDraftSpend, DraftSpendRequest.withinRange,
     DraftSpendRequest.toSpendRequest, Conservation.acceptRequest, Conservation.acceptLocal,
     Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote, Credit.target,
     Conservation.Request.signedMessage, testCom, extractedDraftConservationAccept,
@@ -427,17 +432,17 @@ example :
     let creq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
       .issue ⟨1, 10, (1, 1, 10), 1, 0⟩
     let st1 : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-      ⟨0, [(1, 10)], [0], [creq]⟩
+      ⟨0, [⟨1, 10⟩], [0], [creq]⟩
     let req := spendStep1 ((1, 1, 10), 0)
     (ProbComp.eval
         ((draftIssuerOracle testCom Prod.mk testSig randPolicy 16 ((), ())
           (.spend req)).run st1))
-        (some (1, ((2, 1, 6), 1)), ⟨0, [(1, 10)], [0], [creq, .spend (req.toSpendRequest 1)]⟩) =
+        (some ⟨1, ((2, 1, 6), 1)⟩, ⟨0, [⟨1, 10⟩], [0], [creq, .spend (req.toSpendRequest 1)]⟩) =
         2⁻¹ ∧
       (ProbComp.eval
           ((draftIssuerOracle testCom Prod.mk testSig randPolicy 16 ((), ())
             (.spend req)).run st1))
-          (some (2, ((2, 1, 6), 2)), ⟨1, [(1, 10)], [0], [creq, .spend (req.toSpendRequest 2)]⟩) =
+          (some ⟨2, ((2, 1, 6), 2)⟩, ⟨1, [⟨1, 10⟩], [0], [creq, .spend (req.toSpendRequest 2)]⟩) =
         2⁻¹ := by
   intro creq st1 req
   have hpre :
@@ -447,23 +452,23 @@ example :
       Conservation.SpendRequest.inputNote, Credit.target, req, spendStep1, st1, creq, testCom,
       testSig]
   let stOf (n : ℕ) : IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-    ⟨n, [(1, 10)], [0], [creq, .spend (req.toSpendRequest (n + 1))]⟩
+    ⟨n, [⟨1, 10⟩], [0], [creq, .spend (req.toSpendRequest (n + 1))]⟩
   let res (n : ℕ) :
-      Option (ℕ × (ℕ × ℕ × ℕ) × ℕ) ×
+      Option (SpendReply ((ℕ × ℕ × ℕ) × ℕ)) ×
         IssuerState ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ :=
-    (some (n + 1, ((2, 1, 6), n + 1)), stOf n)
+    (some ⟨n + 1, ((2, 1, 6), n + 1)⟩, stOf n)
   have heval :
       ProbComp.eval
           ((draftIssuerOracle testCom Prod.mk testSig randPolicy 16 ((), ()) (.spend req)).run
             st1) =
         (Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val) := by
-    simp only [draftIssuerOracle, hpre, ↓reduceIte, randPolicy, StateT.run, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind]
+    simp only [draftIssuerOracle, draftQueryStep, hpre, ↓reduceIte, randPolicy, StateT.run,
+      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_unifFin, PMF.bind_bind, PMF.pure_bind]
     change (Probability.PMF.uniformOfFintype (Fin 2)).bind _ = _
     refine congrArg (PMF.bind (Probability.PMF.uniformOfFintype (Fin 2))) (funext fun r => ?_)
     have hr : r.val + 1 < 16 := by omega
-    simp [res, stOf, hr, Conservation.Request.signedMessage, DraftSpendRequest.toSpendRequest, req,
-      spendStep1, testSig, st1, draftReply]
+    simp [res, stOf, hr, acceptedSpendRefund, commitDraftSpend, Conservation.Request.signedMessage,
+      DraftSpendRequest.toSpendRequest, req, spendStep1, testSig, st1, draftReply]
   have hrhs (k : Fin 2) :
       ((Probability.PMF.uniformOfFintype (Fin 2)).bind fun r => PMF.pure (res r.val))
           (res k.val) =
@@ -553,21 +558,13 @@ private def mod64ZeroRefundOracle :
       (draftReply ((ℕ × ℕ × ℕ) × ℕ) q)
   | .agreeIssue ctx hint => fun st => do
       let (amt?, pst') ← (zeroRefundPolicy.agreeIssue ctx hint).run st.policyState
-      match amt? with
-      | none => return (none, { st with policyState := pst' })
-      | some amt =>
-          let ticket := st.pending.length
-          return (some (ticket, amt),
-            { st with policyState := pst', pending := st.pending ++ [(ctx, amt)] })
+      return agreeIssueTransition ctx amt? pst' st
   | .issue req => fun st =>
       match acceptDraftIssue testCom (2 ^ 64) req st with
       | none => pure (none, st)
       | some creq => do
           let σ ← testSig.sign () (creq.signedMessage Prod.mk)
-          return (some σ,
-            { st with
-              consumed := req.ticket :: st.consumed
-              accepted := st.accepted ++ [creq] })
+          return commitDraftIssue req.ticket creq σ st
   | .spend req => fun st =>
       let okV1 := testSig.verify () (Credit.target testCom Prod.mk (⟨req.nullifier, req.ctx,
         req.oldCredit, req.oldRefund⟩) req.oldOpening) req.signature
@@ -580,17 +577,14 @@ private def mod64ZeroRefundOracle :
         let (refund?, pst') ←
           (zeroRefundPolicy.chooseRefund req.ctx req.nullifier req.debit req.changeCommitment).run
             st.policyState
-        match refund? with
-        | none => return (none, { st with policyState := pst' })
+        let st' := { st with policyState := pst' }
+        match acceptedSpendRefund (2 ^ 64) refund? with
+        | none => return (none, st')
         | some refund =>
-            if refund < 2 ^ 64 then
-              let sreq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
-                .spend (req.toSpendRequest refund)
-              let σ ← testSig.sign () (sreq.signedMessage Prod.mk)
-              return (some (refund, σ),
-                { st with policyState := pst', accepted := st.accepted ++ [sreq] })
-            else
-              return (none, { st with policyState := pst' })
+            let sreq : Conservation.Request ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) :=
+              .spend (req.toSpendRequest refund)
+            let σ ← testSig.sign () (sreq.signedMessage Prod.mk)
+            return commitDraftSpend refund sreq σ st'
       else
         pure (none, st)
 
@@ -617,7 +611,7 @@ private def wraparoundDraftAdversary :
         newCredit := 0
         newOpening := 0 } :
       DraftQuery ℕ ℕ ℕ (ℕ × ℕ × ℕ) ((ℕ × ℕ × ℕ) × ℕ) ℕ)
-  let sig1 := (r1?.getD (0, ((0, 0, 0), 0))).2
+  let sig1 := (r1?.getD ⟨0, ((0, 0, 0), 0)⟩).signature
   let _ ← ProbOracleComp.query
     (DraftQuery.spend
       { ctx := 1
@@ -644,7 +638,8 @@ example :
   simp only [extractedDraftConservationExperiment, runExtractedDraftConservation,
     wraparoundDraftAdversary, testSig, zeroRefundPolicy, ProbOracleComp.runState_bind,
     ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, draftIssuerOracle, acceptDraftIssue, acceptDraftSpendPre,
+  simp [StateT.run, draftIssuerOracle, draftQueryStep, draftReply, agreeIssueTransition,
+    acceptDraftIssue, commitDraftIssue, acceptDraftSpendPre, acceptedSpendRefund, commitDraftSpend,
     DraftSpendRequest.withinRange, DraftSpendRequest.toSpendRequest, Conservation.acceptRequest,
     Conservation.acceptLocal, Conservation.hasSpentNullifier, Conservation.SpendRequest.inputNote,
     Credit.target, Conservation.Request.signedMessage, testCom,
@@ -668,7 +663,8 @@ example :
       1 := by
   simp only [wraparoundDraftAdversary, testSig, zeroRefundPolicy, ProbOracleComp.runState_bind,
     ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
-  simp [StateT.run, mod64ZeroRefundOracle, acceptDraftIssue, DraftSpendRequest.withinRange,
+  simp [StateT.run, mod64ZeroRefundOracle, draftReply, agreeIssueTransition, acceptDraftIssue,
+    commitDraftIssue, acceptedSpendRefund, commitDraftSpend, DraftSpendRequest.withinRange,
     DraftSpendRequest.toSpendRequest, Conservation.hasSpentNullifier, Credit.target,
     Conservation.Request.signedMessage, zeroRefundPolicy, testCom, testSig,
     extractedDraftConservationAccept, Conservation.extractedConservationAccept,
