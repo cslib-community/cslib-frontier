@@ -39,6 +39,10 @@ lemma val_finEquiv (i : Fin m) : (ZMod.finEquiv m i).val = i.val := by
   | zero => exact (NeZero.ne 0 rfl).elim
   | succ m => rfl
 
+/-- The equivalence from `Fin m` sends an index to its natural-number cast. -/
+lemma finEquiv_eq_natCast (i : Fin m) : ZMod.finEquiv m i = (i.val : ZMod m) := by
+  rw [← val_finEquiv i, natCast_zmod_val]
+
 /-- `(ZMod.finEquiv m).symm` preserves the underlying natural-number value. -/
 lemma val_finEquiv_symm (z : ZMod m) :
     ((ZMod.finEquiv m).symm z).val = z.val := by

@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
@@ -367,33 +368,6 @@ theorem computableInPolyTime_esymmCoords' {α : Type} {input : α ↪ List Bool}
   simpa only [Function.comp_def] using
     computableInPolyTime_esymmCoords.comp ((htab.prod ht).prod hzs)
 
-/-- The traces of the basis elements, from the diagonals of the multiplication table. -/
-private theorem computableInPolyTime_traceVector :
-    ComputableInPolyTime traceVector encTable encBits := by
-  unfold traceVector
-  fun_prop
-
-/-- The traces of the basis elements, as a composition rule. -/
-@[fun_prop]
-theorem computableInPolyTime_traceVector' {α : Type} {input : α ↪ List Bool}
-    {tab : α → List (List (List Bool))} (htab : ComputableInPolyTime tab input encTable) :
-    ComputableInPolyTime (fun x => traceVector (tab x)) input encBits := by
-  simpa only [Function.comp_def] using computableInPolyTime_traceVector.comp htab
-
-/-- The trace as a bit. -/
-private theorem computableInPolyTime_traceBit : ComputableInPolyTime
-    (fun p : List Bool × List Bool => traceBit p.1 p.2) (encPair encBits encBits) encBool := by
-  unfold traceBit
-  fun_prop
-
-/-- The trace as a bit, as a composition rule. -/
-@[fun_prop]
-theorem computableInPolyTime_traceBit' {α : Type} {input : α ↪ List Bool}
-    {τ a : α → List Bool} (hτ : ComputableInPolyTime τ input encBits)
-    (ha : ComputableInPolyTime a input encBits) :
-    ComputableInPolyTime (fun x => traceBit (τ x) (a x)) input encBool := by
-  simpa only [Function.comp_def] using computableInPolyTime_traceBit.comp (hτ.prod ha)
-
 /-- **`traceSym 1 r t` in coordinates**, uniformly in the multiplication table, `r` and `t` in
 unary, and the input bits. -/
 theorem computableInPolyTime_traceSymCoords : ComputableInPolyTime
@@ -418,7 +392,7 @@ theorem computableInPolyTime_traceSymCoords : ComputableInPolyTime
   have hrQ : ComputableInPolyTime (fun q => q.1.1.1.2) encQ encUnary :=
     hrP.comp (fst _ _)
   unfold traceSymCoords
-  refine computableInPolyTime_traceBit' (computableInPolyTime_traceVector' htabP)
+  refine bitsListDot (computableInPolyTime_traceVector htabP)
     (computableInPolyTime_esymmCoords' htabP htP ?_)
   refine mapWithInput (unary_range' hrP) ?_
   exact computableInPolyTime_powerPred' htabQ

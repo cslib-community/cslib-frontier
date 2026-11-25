@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
+import Mathlib.Algebra.BigOperators.Fin
 
 /-!
 # The Boolean inner product of bit lists
@@ -50,5 +51,21 @@ theorem listDot_nil_right (left : List Bool) : listDot left [] = false := by
 theorem listDot_ofFn {n : ℕ} (left right : BitString n) :
     listDot (List.ofFn left) (List.ofFn right) = left ⬝ᵥ right :=
   (dotProduct_eq_foldl left right).symm
+
+/-- The bit-list inner product as a sum over the first list, reading absent bits as zero. -/
+theorem listDot_eq_sum_getD (left right : List Bool) :
+    listDot left right = ∑ i : Fin left.length, left.getD i false * right.getD i false := by
+  have hsum (l : List Bool) : l.foldl Bool.xor false = l.sum := by
+    simp [List.sum_eq_foldl, Bool.add_eq_xor, Bool.zero_eq_false]
+  simp only [listDot, hsum]
+  induction left generalizing right with
+  | nil => simp
+  | cons b l ih =>
+    cases right with
+    | nil => simp [← Bool.zero_eq_false]
+    | cons c r =>
+      simp only [List.length_cons]
+      rw [Fin.sum_univ_succ]
+      simp [ih r, Bool.mul_eq_and]
 
 end Cslib.BitString

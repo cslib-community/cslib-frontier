@@ -66,23 +66,6 @@ open Cslib.BinaryField Turing.MultiTapeTM ComputableInPolyTime
 open Probability
 open scoped BigOperators
 
-/-- A power in coordinates, starting at the unit and multiplying `i` times by `x`. -/
-def powerWord (tab : List (List (List Bool))) (x : List Bool) (i : ℕ) : List Bool :=
-  (fun z => fieldMul tab z x)^[i] [true]
-
-private theorem powerWord_polyTime {α : Type} {encIn : α ↪ List Bool}
-    {tab : α → List (List (List Bool))} {x : α → List Bool} {i : α → ℕ}
-    (htab : ComputableInPolyTime tab encIn encTable)
-    (hx : ComputableInPolyTime x encIn encBits)
-    (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun a => powerWord (tab a) (x a) (i a)) encIn encBits := by
-  unfold powerWord
-  refine iterateWithInput_of_bounded_growth hi (const [true]) ?_
-    ⟨((length_list (encList encBits)).comp htab).polyBounded, fun a z => ?_⟩
-  · exact computableInPolyTime_fieldMul' (htab.comp (fst _ _)) (snd _ _)
-      (hx.comp (fst _ _))
-  · simp [length_fieldMul]
-
 /-- Evaluate the powering construction using a multiplication table. Coordinates are padded to
 its degree before taking the inner product. -/
 def poweringWord (tab : List (List (List Bool))) (n : ℕ) (x y : List Bool) : List Bool :=
@@ -90,15 +73,6 @@ def poweringWord (tab : List (List (List Bool))) (n : ℕ) (x y : List Bool) : L
 
 @[simp] theorem length_poweringWord (tab : List (List (List Bool))) (n : ℕ) (x y : List Bool) :
     (poweringWord tab n x y).length = n := by simp [poweringWord]
-
-private theorem fieldOfBits_powerWord {w : ℕ} (hw : w ≠ 0) (x : List Bool) (i : ℕ) :
-    fieldOfBits (basis hw) (powerWord (fieldTable w) x i) =
-      fieldOfBits (basis hw) x ^ i := by
-  induction i with
-  | zero => simp [powerWord, fieldOfBits_one hw]
-  | succ i ih =>
-    rw [powerWord, Function.iterate_succ_apply', ← powerWord,
-      fieldOfBits_fieldMul (isMulTable_fieldTable hw), ih, pow_succ]
 
 /-- The executable evaluator agrees with the abstract powering map on every seed. -/
 theorem poweringWord_eq {w : ℕ} (hw : w ≠ 0) (n : ℕ) (x y : BitString w) :
@@ -188,19 +162,7 @@ theorem poweringMasks_polyTime :
   have hsize : PolyBounded (fun p : ℕ × ℕ => (enc p).length)
       (fun p => 2 ^ smallBiasDegree p.1 p.2) := by
     growth_poly [fun p : ℕ × ℕ => (fieldSize_bounds p.1 p.2).2]
-  have hbound : ComputableInPolyTime
-      (fun p : ℕ × ℕ => 2 ^ (smallBiasDegree p.1 p.2 + 1)) enc encUnary :=
-    binary_to_unary_bounded (binary_two_pow.comp (unary_add' hw (const 1)))
-      (bound := fun p => 4 * (p.1 * p.2 + 1)) (by fun_prop) fun p => by
-        have := (fieldSize_bounds p.1 p.2).2
-        rw [pow_succ]
-        omega
-  have hmod := computableInPolyTime_bits_unary.comp
-    (computableInPolyTime_leastIrreducibleCode.comp (hbound.prod hw))
-  have htab : ComputableInPolyTime (fun p : ℕ × ℕ => fieldTable (smallBiasDegree p.1 p.2))
-      enc encTable := by
-    simpa only [fieldTable, modulusBits, Function.comp_def] using
-      computableInPolyTime_powerMulTable.comp hmod
+  have htab := computableInPolyTime_fieldTable hw hsize
   have hseeds := bitsEnumList_of_polyBounded hw hsize
   unfold poweringMasks
   refine flatMapWithInput hseeds (mapWithInput (hseeds.comp (fst _ _)) ?_)

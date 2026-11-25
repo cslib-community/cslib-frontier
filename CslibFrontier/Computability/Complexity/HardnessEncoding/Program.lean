@@ -38,7 +38,7 @@ of degree `w = 4 b`, in coordinates:
 * the low-degree extension of the truth table at a point is the sum, over the inputs `z` accepted
   by the decider, of the products over the blocks of `z` of the Lagrange basis polynomials
   (`Cslib.HardnessEncoding.ldeVal`), and the output is the parity of the bits of that value
-  selected by the last `w` input bits (`Cslib.AffineDisperser.traceBit`, the parity of the
+  selected by the last `w` input bits (`Cslib.BitString.listDot`, the parity of the
   coordinates selected by a bit list).
 
 On every input `y`, with the length parameter `|y|`, the program computes the encoded slice of `L`
@@ -69,7 +69,7 @@ open Cslib.BinaryField
 namespace Cslib.HardnessEncoding
 
 open Finset Polynomial Cslib.AffineDisperser Cslib.Circuits Cslib.Circuits.Boolean
-open Cslib.BitString (bitEquiv bitEquiv_symm_false bitEquiv_symm_true listXor)
+open Cslib.BitString (listDot bitEquiv bitEquiv_symm_false bitEquiv_symm_true listXor)
 
 /-! ### The program -/
 
@@ -108,7 +108,7 @@ degree `w` of the truth table of `gL` on `M b` bits, at the point whose coordina
 `M` blocks of `w` bits of `y`. -/
 def encodedProgramAt (M : ℕ) (gL : List Bool → Bool) (y : List Bool) (b : ℕ) : Bool :=
   if b = 0 then false else
-    traceBit ((y.drop (M * (4 * b))).take (4 * b))
+    listDot ((y.drop (M * (4 * b))).take (4 * b))
       (ldeVal (fieldTable (4 * b)) (4 * b) b M (BitString.enumList b)
         ((BitString.enumList (M * b)).filter fun z => gL (z.take (M * b)))
         ((List.range M).map fun i => (y.drop (i * (4 * b))).take (4 * b)))
@@ -267,15 +267,11 @@ private theorem drop_take_eq_ofFn {M : ℕ} {y : List Bool} {Y : BitString (M * 
 
 /-- The parity selected by the last `w` bits is the dot product of the bits of the field element
 with them. -/
-private theorem traceBit_eq (hw : w ≠ 0) {a : List Bool} (ha : a.length = w) (r : BitString w) :
-    traceBit (List.ofFn r) a = BinaryField.equivBits hw (fieldOfBits (𝔅 hw) a) ⬝ᵥ r := by
-  rw [BitString.dotProduct_eq_foldl, traceBit]
-  congr 1
-  refine List.ext_getElem (by simp) fun j h₁ h₂ => ?_
-  simp only [List.length_map, List.length_range, List.length_ofFn] at h₁
-  rw [List.getElem_map, List.getElem_range, List.getElem_zipWith, List.getElem_ofFn,
-    List.getElem_ofFn, equivBits_fieldOfBits, List.getD_ofFn_of_lt r (by simpa using h₁) false,
-    List.getD_eq_getElem a false (by omega)]
+private theorem listDot_fieldOfBits (hw : w ≠ 0) {a : List Bool} (r : BitString w) :
+    listDot (List.ofFn r) a = BinaryField.equivBits hw (fieldOfBits (𝔅 hw) a) ⬝ᵥ r := by
+  rw [BitString.listDot_eq_sum_getD, List.length_ofFn, dotProduct]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [List.getD_ofFn_of_lt _ j.isLt, equivBits_fieldOfBits, mul_comm]
 
 /-- **The program computes the encoded slices**: on every input `y`, with a decider `gL` of `L`
 and the length parameter `|y|`, the program returns the encoded slice of `L` at length `|y|`. -/
@@ -291,15 +287,7 @@ theorem encodedProgram_eq {L : Language Bool} {gL : List Bool → Bool}
   have hle := encodedLength_le M y.length
   have hY : ∀ k, (fun i : Fin y.length => y[i]) (Fin.castLE hle k) = y.getD k false := fun k =>
     (List.getD_eq_getElem y false (by have := k.2; omega)).symm
-  have hlen : (ldeVal (fieldTable (4 * blockLength M y.length)) (4 * blockLength M y.length)
-      (blockLength M y.length) M (BitString.enumList (blockLength M y.length))
-      ((BitString.enumList (M * blockLength M y.length)).filter
-        fun z => gL (z.take (M * blockLength M y.length)))
-      ((List.range M).map fun i =>
-        (y.drop (i * (4 * blockLength M y.length))).take (4 * blockLength M y.length))).length =
-      4 * blockLength M y.length := by
-    rw [ldeVal, BitString.length_listXor]
-  rw [hardnessEncode, drop_take_eq_ofFn hY hle, traceBit_eq hw0 hlen,
+  rw [hardnessEncode, drop_take_eq_ofFn hY hle, listDot_fieldOfBits hw0,
     fieldOfBits_ldeVal hw (by omega) hgL]
   apply congrArg (· ⬝ᵥ _)
   apply congrArg (BinaryField.equivBits hw0)

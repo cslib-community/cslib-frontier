@@ -1,3 +1,8 @@
+The acyclic linear-circuit and Fourier-block definitions and circuit operations in
+CslibFrontier/Computability/Circuit/Linear/Model/ are adapted from OpenAI's finite Fourier
+formalization in openai/math, revision 3344da59991ed94f9ba711217b29c1d760badfa6,
+under the Apache License, Version 2.0 (see LICENSE).
+
 The 3SUM/Exact Triangle reductions, finite counting/tensor lemmas and native matrix builder in
 CslibFrontier/Algorithms/ExactTriangle/{Defs,Weights,Lopsided,Hashing,Splitting,Witnesses}.lean,
 CslibFrontier/Algorithms/MatrixMultiplication/Schonhage/,

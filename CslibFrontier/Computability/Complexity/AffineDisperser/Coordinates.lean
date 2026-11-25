@@ -41,7 +41,6 @@ table.
 ## Main results
 
 * `Cslib.AffineDisperser.fieldOfBits_esymmCoords`: the dynamic program for `e_t`.
-* `Cslib.AffineDisperser.traceBit_traceVector`: the trace as a bit.
 * `Cslib.AffineDisperser.traceSymCoords_eq`: `traceSymCoords` computes `traceSymBits 1 r t`.
 
 ## References
@@ -140,47 +139,6 @@ theorem fieldOfBits_esymmCoords {B : Basis (Fin n) (ZMod 2) F} {tab : List (List
   rw [esymmCoords, h, add_zero, Nat.sub_add_cancel ht]
 
 
-/-- The trace is the trace of the multiplication matrix: the sum of the diagonal coordinates
-`[x * b i]_i`. -/
-theorem trace_eq_sum_repr_mul {R S : Type*} [CommRing R] [CommRing S] [Algebra R S]
-    {ι : Type*} [Fintype ι] (b : Basis ι R S) (x : S) :
-    Algebra.trace R S x = ∑ i, b.repr (x * b i) i := by
-  classical
-  rw [Algebra.trace_eq_matrix_trace b, Matrix.trace]
-  simp [Algebra.leftMulMatrix_eq_repr_mul]
-
-/-- The traces of the basis elements, as bits: the trace of `B u` is the sum over `v` of the
-coordinate `v` of `B u * B v`. -/
-def traceVector (tab : List (List (List Bool))) : List Bool :=
-  (List.range tab.length).map fun u =>
-    ((List.range tab.length).map fun v => (tableEntry tab u v).getD v false).foldl xor false
-
-/-- The trace, as a bit, of the element with coordinates `a`, from the traces `τ` of the basis
-elements. -/
-def traceBit (τ a : List Bool) : Bool :=
-  ((List.range τ.length).map fun u => a.getD u false && τ.getD u false).foldl xor false
-
-/-- **The trace as a bit**: with a multiplication table of the basis `B`,
-`traceBit (traceVector tab) a` is the trace over `ZMod 2` of the element with coordinates `a`. -/
-theorem traceBit_traceVector {B : Basis (Fin n) (ZMod 2) F} {tab : List (List (List Bool))}
-    (htab : IsMulTable B tab) (a : List Bool) :
-    traceBit (traceVector tab) a = bitEquiv (Algebra.trace (ZMod 2) F (fieldOfBits B a)) := by
-  have hτ (u : Fin n) : bitEquiv.symm ((traceVector tab).getD u false) =
-      Algebra.trace (ZMod 2) F (B u) := by
-    rw [trace_eq_sum_repr_mul B, List.getD_eq_getElem _ _ (by simp [traceVector, htab.1])]
-    simp only [traceVector, List.getElem_map, List.getElem_range, htab.1,
-      bitEquiv_symm_foldl_xor, List.map_map, Function.comp_def, List.sum_map_range]
-    refine Finset.sum_congr rfl fun v _ => ?_
-    rw [htab.2 u v, repr_fieldOfBits]
-  have hlen : (traceVector tab).length = n := by simp [traceVector, htab.1]
-  apply bitEquiv.symm.injective
-  rw [traceBit, hlen, bitEquiv_symm_foldl_xor, RingEquiv.symm_apply_apply, List.map_map,
-    Function.comp_def, List.sum_map_range, fieldOfBits, ofBits, map_sum]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  rw [map_smul, smul_eq_mul, ← hτ u]
-  cases a.getD u false <;> cases (traceVector tab).getD u false <;> decide
-
-
 /-- Blocks of `n` bits: bit `u` of block `i < r` is input bit `n i + u`, among the first `r n`
 input bits. -/
 def blockPos {r n N : ℕ} (h : r * n ≤ N) (q : Fin r × Fin n) : Fin N :=
@@ -199,7 +157,7 @@ coordinates the blocks of `n = tab.length` bits of `x`, computed from the multip
 `tab`: the powers by repeated squaring, the elementary symmetric polynomial by dynamic programming,
 and the trace from the traces of the basis elements. -/
 def traceSymCoords (tab : List (List (List Bool))) (r t : ℕ) (x : List Bool) : Bool :=
-  traceBit (traceVector tab) (esymmCoords tab t ((List.range r).map fun i =>
+  listDot (traceVector tab) (esymmCoords tab t ((List.range r).map fun i =>
     powerPred tab ((x.drop (tab.length * i)).take tab.length) (r - i)))
 
 /-- **Correctness of the coordinate computation**: with a multiplication table of the basis `B`,
@@ -207,7 +165,7 @@ def traceSymCoords (tab : List (List (List Bool))) (r t : ℕ) (x : List Bool) :
 theorem traceSymCoords_eq {B : Basis (Fin n) (ZMod 2) F} {tab : List (List (List Bool))}
     (htab : IsMulTable B tab) {r t N : ℕ} (ht : 0 < t) (h : r * n ≤ N) (x : List Bool) :
     traceSymCoords tab r t x = traceSymBits (1 : F) r t B (blockPos h) (ofList N x) := by
-  rw [traceSymBits, traceSym_eq_esymm, one_mul, traceSymCoords, traceBit_traceVector htab,
+  rw [traceSymBits, traceSym_eq_esymm, one_mul, traceSymCoords, listDot_traceVector htab,
     fieldOfBits_esymmCoords htab ht, Fin.univ_val_map, htab.1]
   congr 3
   congr 1

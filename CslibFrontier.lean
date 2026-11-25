@@ -2184,6 +2184,18 @@ public import CslibFrontier.Computability.Circuit.InnerSize
 public import CslibFrontier.Computability.Circuit.Inputization
 public import CslibFrontier.Computability.Circuit.Iteration
 public import CslibFrontier.Computability.Circuit.KernelVector
+public import CslibFrontier.Computability.Circuit.Linear.FourierSize
+public import CslibFrontier.Computability.Circuit.Linear.Model.Basic
+public import CslibFrontier.Computability.Circuit.Linear.Model.Fourier
+public import CslibFrontier.Computability.Circuit.Linear.Model.Operations
+public import CslibFrontier.Computability.Circuit.Linear.Model.Rewire
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzComplexity
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzConstruction
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzIndexing
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzLowerBound
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzPacking
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzPadding
+public import CslibFrontier.Computability.Circuit.Linear.ToeplitzParameters
 public import CslibFrontier.Computability.Circuit.LinearSolve
 public import CslibFrontier.Computability.Circuit.Linearize
 public import CslibFrontier.Computability.Circuit.Local
@@ -5505,6 +5517,7 @@ public import CslibFrontier.Computability.PolyTime.Int.MatrixPower
 public import CslibFrontier.Computability.PolyTime.Int.Negacyclic
 public import CslibFrontier.Computability.PolyTime.Int.Table
 public import CslibFrontier.Computability.PolyTime.JetArray
+public import CslibFrontier.Computability.PolyTime.LinearAlgebra.BitMatrixPrinter
 public import CslibFrontier.Computability.PolyTime.LinearAlgebra.BooleanMeasurements
 public import CslibFrontier.Computability.PolyTime.LinearAlgebra.CopyPlacement
 public import CslibFrontier.Computability.PolyTime.LinearAlgebra.ExchangeReplacement
