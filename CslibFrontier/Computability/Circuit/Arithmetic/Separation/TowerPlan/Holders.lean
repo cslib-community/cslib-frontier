@@ -46,16 +46,16 @@ variable {F : Type*} [CommSemiring F] {h b D J r m Uu A : ℕ} {T : Tower h b D 
   {R : Routes T m Uu} {ch : Fin A ↪ T.X 0} {FL : VertexLaws F T}
 
 /-- The nodes that hold the units of a channel of a move: the nodes at its two ends. -/
-@[expose] noncomputable def channelHolders (ν : MoveChannel R ch FL) : Sym2 (Node T) :=
+@[expose] noncomputable def channelHolders (ν : MoveChannel R ch FL) : Sym2 T.Node :=
   s(ν.1.party (ν.1.law.channelEnd ν.2 false), ν.1.party (ν.1.law.channelEnd ν.2 true))
 
 /-- The nodes that hold the units of the string between two base parties. -/
-@[expose] def initialHolders (ch : Fin A ↪ T.X 0) (a c : Fin A) : Sym2 (Node T) :=
+@[expose] def initialHolders (ch : Fin A ↪ T.X 0) (a c : Fin A) : Sym2 T.Node :=
   s(.ofChamber (Nat.zero_le J) (ch a), .ofChamber (Nat.zero_le J) (ch c))
 
 /-- The nodes that hold the units with a target. -/
 @[expose] noncomputable def Target.holders (R : Routes T m Uu) (ch : Fin A ↪ T.X 0) :
-    Target T m A → Sym2 (Node T)
+    Target T m A → Sym2 T.Node
   | .done => s(.root, .root)
   | .edge j e => s(.ofChamber (Nat.le_of_lt_succ j.2) (T.e0 e),
       .ofChamber (Nat.le_of_lt_succ j.2) (T.e1 e))
@@ -75,7 +75,7 @@ theorem holders_stepTarget {c c' γ : T.X 0} {s : ℕ} (hs : s < R.pl c c' γ) :
         .ofChamber (Nat.zero_le J) (R.pn c c' γ (s + 1))) := by
   obtain ⟨e, h1, h2, -⟩ := R.exists_edge c c' γ hs
   rw [stepTarget, h1]
-  exact congrArg (Sym2.map (Node.ofChamber (Nat.zero_le J))) h2
+  exact congrArg (Sym2.map (Tower.Node.ofChamber (Nat.zero_le J))) h2
 
 /-- The initial units are held by the nodes of their target. -/
 theorem holders_initialTarget {a c : Fin A} {k : ℕ} (hd : initialTarget R ch a c k ≠ .done) :
@@ -93,7 +93,7 @@ theorem holders_initialTarget {a c : Fin A} {k : ℕ} (hd : initialTarget R ch a
 
 private theorem map_segment {j : ℕ} (hj : j < J) (i : Fin h) (c : T.X j) :
     (s(T.co i (T.hostOf i c), T.co i c) : Sym2 T.Fl).map (fun f =>
-      Node.ofChamber hj ((T.chamberEquiv hj i).symm (T.πV (T.vx i c), f))) =
+      Tower.Node.ofChamber hj ((T.chamberEquiv hj i).symm (T.πV (T.vx i c), f))) =
         s(.ofChamber hj (T.hostOf i c), .ofChamber hj (T.π c)) := by
   have h1 : (T.chamberEquiv hj i).symm (T.πV (T.vx i c), T.co i (T.hostOf i c)) = T.hostOf i c := by
     rw [← T.host_vx hj i (T.vx i c)]
@@ -122,11 +122,12 @@ private theorem Relay.holders_target {x : Relay T m A} (hx : x.Occurs R ch) {d :
   · cases d <;> fin_cases s
     · exact absurd rfl hd
     · exact map_segment j.2 (T.ty e) (T.e0 e)
-    · exact congrArg (Sym2.map (Node.ofChamber j.2)) (T.π_ends j.2 e)
+    · exact congrArg (Sym2.map (Tower.Node.ofChamber j.2)) (T.π_ends j.2 e)
     · exact (map_segment j.2 (T.ty e) (T.e1 e)).trans Sym2.eq_swap
     · by_cases hh : T.hostOf (T.ty e) (T.e0 e) = T.π (T.e0 e)
       · refine (congrArg (Target.holders R ch) (ite_eq_right (not_not.2 hh))).trans ?_
-        exact congrArg (fun c => s(Node.ofChamber j.2 c, Node.ofChamber j.2.le (T.e1 e))) hh.symm
+        exact congrArg (fun c => s(Tower.Node.ofChamber j.2 c, .ofChamber j.2.le (T.e1 e)))
+          hh.symm
       · exact congrArg (Target.holders R ch) (ite_eq_left hh)
     · rfl
     · by_cases hh : T.π (T.e1 e) = T.hostOf (T.ty e) (T.e1 e)
@@ -147,7 +148,7 @@ private theorem holders_target_vertex (l : VertexMove FL) (ν : (FL.law l.kind).
     (T.nr_vx1 l.stage.2 l.type p).trans (congrArg Prod.fst hp)
   have h2 := (FL.place_channelEnd l.kind ν).trans
     ((T.nr_co l.stage.2 l.type p).trans (by rw [hp])).symm
-  have h3 := congrArg (Sym2.map fun f => Node.ofChamber l.stage.2
+  have h3 := congrArg (Sym2.map fun f => Tower.Node.ofChamber l.stage.2
     ((T.chamberEquiv l.stage.2 l.type).symm (l.vertex, f))) h2
   have e0 : (T.chamberEquiv l.stage.2 l.type).symm (l.vertex, T.co l.type (T.e0 p.1)) =
       T.e0 p.1 := by
@@ -157,7 +158,7 @@ private theorem holders_target_vertex (l : VertexMove FL) (ν : (FL.law l.kind).
       T.e1 p.1 := by
     rw [← h1]
     exact T.chamberEquiv_symm_vx_co _ _ _
-  exact (congrArg₂ (fun x y => s(Node.ofChamber l.stage.2 x, Node.ofChamber l.stage.2 y))
+  exact (congrArg₂ (fun x y => s(Tower.Node.ofChamber l.stage.2 x, .ofChamber l.stage.2 y))
     e0 e1).symm.trans h3.symm
 
 /-- The units of a channel of a move are held by the nodes of their target. -/
