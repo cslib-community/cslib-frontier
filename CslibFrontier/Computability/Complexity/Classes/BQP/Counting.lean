@@ -89,44 +89,38 @@ theorem computableInPolyTime_pathStep :
     ComputableInPolyTime (fun p : (List Bool × List Bool × Bool) × GateCode => pathStep p.1 p.2)
       (encPair (encPair encBits (encPair encBits encBool)) encGateCode)
       (encPair encBits (encPair encBits encBool)) := by
-  have hs := (ComputableInPolyTime.fst
-    (encPair encBits (encPair encBits encBool)) encGateCode).fst'
-  have hp := (ComputableInPolyTime.fst
-    (encPair encBits (encPair encBits encBool)) encGateCode).snd'.fst'
-  have hsign := (ComputableInPolyTime.fst
-    (encPair encBits (encPair encBits encBool)) encGateCode).snd'.snd'
-  have hg := ComputableInPolyTime.snd
-    (encPair encBits (encPair encBits encBool)) encGateCode
+  let encSt := encPair encBits (encPair encBits encBool)
+  have hs := (ComputableInPolyTime.fst encSt encGateCode).fst'
+  have hp := (ComputableInPolyTime.fst encSt encGateCode).snd'.fst'
+  have hsign := (ComputableInPolyTime.fst encSt encGateCode).snd'.snd'
+  have hg := ComputableInPolyTime.snd encSt encGateCode
   have ht := hg.snd'.fst'
   have hbit := ComputableInPolyTime.bitsGetDWithInput hs ht false
   have hhead := (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hp
   have hall : ComputableInPolyTime
       (fun p : (List Bool × List Bool × Bool) × GateCode =>
         p.2.2.2.all fun c => p.1.1.getD c false)
-      (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBool := by
-    apply ComputableInPolyTime.allWithInput hg.snd'.snd'
-    exact ComputableInPolyTime.bitsGetDWithInput
-      (hs.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _) false
+      (encPair encSt encGateCode) encBool :=
+    ComputableInPolyTime.allWithInput hg.snd'.snd'
+      (ComputableInPolyTime.bitsGetDWithInput
+        (hs.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _) false)
   have htake := ComputableInPolyTime.bitsTake.comp (hs.prod ht)
   have hdrop := ComputableInPolyTime.bitsDropWithInput hs
     (ComputableInPolyTime.unary_add.comp (ht.prod (ComputableInPolyTime.const 1)))
   have hin := ComputableInPolyTime.unary_lt.comp
     (ht.prod (ComputableInPolyTime.length_bits.comp hs))
-  have hH := hin.ite'
-    (ComputableInPolyTime.bitsAppend htake (ComputableInPolyTime.bitsCons hhead hdrop)) hs
-  have hX := hin.ite'
-    (ComputableInPolyTime.bitsAppend htake
-      (ComputableInPolyTime.bitsCons
-        (ComputableInPolyTime.bool_xor.comp (hbit.prod hall)) hdrop)) hs
   have htail : ComputableInPolyTime
       (fun p : (List Bool × List Bool × Bool) × GateCode => p.1.2.1.tail)
-      (encPair (encPair encBits (encPair encBits encBool)) encGateCode) encBits := by fun_prop
+      (encPair encSt encGateCode) encBits := by fun_prop
   simp only [pathStep_eq]
-  apply hg.fst'.ite'
+  refine hg.fst'.ite' ?_ ?_
   · simpa only [Function.comp_def, decide_eq_true_eq] using
-      hH.prod (htail.prod (ComputableInPolyTime.bool_xor.comp
-        (hsign.prod (ComputableInPolyTime.bool_and' hbit hhead))))
-  · simpa only [Function.comp_def, decide_eq_true_eq] using hX.prod (hp.prod hsign)
+      (hin.ite' (ComputableInPolyTime.bitsAppend htake (ComputableInPolyTime.bitsCons hhead hdrop))
+        hs).prod (htail.prod (ComputableInPolyTime.bool_xor.comp
+          (hsign.prod (ComputableInPolyTime.bool_and' hbit hhead))))
+  · simpa only [Function.comp_def, decide_eq_true_eq] using
+      (hin.ite' (ComputableInPolyTime.bitsAppend htake (ComputableInPolyTime.bitsCons
+        (ComputableInPolyTime.bool_xor.comp (hbit.prod hall)) hdrop)) hs).prod (hp.prod hsign)
 
 /-- A simulation step never lengthens the encoded state. -/
 private theorem length_encPair_pathStep (st : List Bool × List Bool × Bool) (g : GateCode) :
@@ -162,9 +156,7 @@ theorem onesPairGap_zero_mem_GapP {gs : α → List GateCode} {X X' : α → Lis
     (fun a => onesPairGap [0] (gs a) (X a) (X' a)) ∈ GapP enc := by
   let h : α → ℕ := fun a => hadamardCount (gs a)
   have hh : ComputableInPolyTime h enc encUnary := by
-    simp only [h, hadamardCount_eq_countP]
-    fun_prop
-  -- the simulations along the two paths of a pair
+    simp only [h, hadamardCount_eq_countP]; fun_prop
   let run₁ : (α × List Bool) × List Bool → List Bool × List Bool × Bool := fun p =>
     (gs p.1.1).foldl pathStep (X p.1.1, p.1.2, false)
   let run₂ : (α × List Bool) × List Bool → List Bool × List Bool × Bool := fun p =>
@@ -180,18 +172,17 @@ theorem onesPairGap_zero_mem_GapP {gs : α → List GateCode} {X X' : α → Lis
       (if (run₁ p).2.2 ^^ (run₂ p).2.2 then -1 else 1) else 0
   have hT : T ∈ GapP (encPair (encPair enc encBits) encBits) :=
     mem_GapP_of_polyTime (by dsimp only [T]; fun_prop)
-  have hinner := GapP.sum_bits_mem hT (r := fun p : α × List Bool => h p.1) (by fun_prop)
-  have houter := GapP.sum_bits_mem hinner hh
-  convert houter using 2 with a
+  convert GapP.sum_bits_mem (GapP.sum_bits_mem hT (r := fun p : α × List Bool => h p.1)
+    (by fun_prop)) hh using 2 with a
   rw [onesPairGap]
-  exact Finset.sum_congr rfl fun π _ => Finset.sum_congr rfl fun π' _ => onesPairTerm_zero _ _ _ _ _
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => onesPairTerm_zero _ _ _ _ _
 
 /-- **The acceptance gap of a uniform family is a `GapP` function** of the instance. -/
 theorem acceptGap_mem_GapP (F : UniformCircuitFamily) :
     (fun a => acceptGap (F.gates (enc a).length)
       (List.ofFn (inputState (F.width (enc a).length) (enc a)))) ∈ GapP enc := by
-  have hgates := F.computableInPolyTime_gates
-  have hwidth := F.computableInPolyTime_width
+  have := F.computableInPolyTime_gates
+  have := F.computableInPolyTime_width
   let X : α → List Bool := fun a =>
     enc a ++ List.replicate (F.width (enc a).length - (enc a).length) false
   have hX : ComputableInPolyTime X enc encBits := by dsimp only [X]; fun_prop
@@ -207,27 +198,22 @@ theorem BQP_subset_AWPP : BQP enc ⊆ AWPP enc := by
     (r := fun a => hadamardCount (F.gates (enc a).length))
     (by
       have := F.computableInPolyTime_gates
-      simp only [hadamardCount_eq_countP]
-      fun_prop) (fun a => ?_)
-  have hp := acceptProb_eq_acceptGap _ (F.wellFormed (enc a).length) (enc a)
+      simp only [hadamardCount_eq_countP]; fun_prop)
+    fun a => ?_
+  have hp : F.acceptProb (enc a) = _ :=
+    acceptProb_eq_acceptGap _ (F.wellFormed (enc a).length) (enc a)
   set g := acceptGap (F.gates (enc a).length)
     (List.ofFn (inputState (F.width (enc a).length) (enc a)))
   set r := hadamardCount (F.gates (enc a).length)
   have hpos : (0 : ℝ) < 2 ^ r := by positivity
-  have h0 := F.acceptProb_nonneg (enc a)
-  have h1 := F.acceptProb_le_one (enc a)
-  change F.acceptProb (enc a) = _ at hp
-  rw [hp, le_div_iff₀ hpos, zero_mul] at h0
-  rw [hp, div_le_iff₀ hpos, one_mul] at h1
-  refine ⟨⟨by exact_mod_cast h0, by exact_mod_cast h1⟩, fun ha => ?_, fun ha => ?_⟩
-  · have := (hF a).1 ha
-    rw [hp, le_div_iff₀ hpos] at this
-    have : (2 : ℝ) * 2 ^ r ≤ 3 * g := by linarith
-    exact_mod_cast this
-  · have := (hF a).2 ha
-    rw [hp, div_le_iff₀ hpos] at this
-    have : (3 : ℝ) * g ≤ 2 ^ r := by linarith
-    exact_mod_cast this
+  have h0 := (le_div_iff₀ hpos).mp (hp ▸ F.acceptProb_nonneg (enc a))
+  have h1 := (div_le_iff₀ hpos).mp (hp ▸ F.acceptProb_le_one (enc a))
+  refine ⟨⟨by exact_mod_cast (by linarith : (0 : ℝ) ≤ g),
+      by exact_mod_cast (by linarith : (g : ℝ) ≤ 2 ^ r)⟩, fun ha => ?_, fun ha => ?_⟩
+  · have := (le_div_iff₀ hpos).mp (hp ▸ (hF a).1 ha)
+    exact_mod_cast (by linarith : (2 : ℝ) * 2 ^ r ≤ 3 * g)
+  · have := (div_le_iff₀ hpos).mp (hp ▸ (hF a).2 ha)
+    exact_mod_cast (by linarith : (3 : ℝ) * g ≤ 2 ^ r)
 
 /-- **`BQP ⊆ PP`** [Adleman, DeMarrais, Huang][AdlemanDeMarraisHuang1997]. -/
 theorem BQP_subset_PP : BQP enc ⊆ PP enc :=
