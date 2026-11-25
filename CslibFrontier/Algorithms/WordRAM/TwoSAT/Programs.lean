@@ -172,23 +172,14 @@ theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     have hcond_chk : (Cond.eq compIdxReg cOne).Holds s₂ := by
       change s₂.regs compIdxReg = s₂.regs cOne; omega
     obtain ⟨hw_φ, hnil_φ⟩ := (checkClauses_eq_true_iff G.φ).1 hchk
-    have hcs_φ : ∀ c ∈ G.φ, 1 ≤ c.length ∧ c.length ≤ 2 := fun c hc => by
-      refine ⟨?_, hw_φ c hc⟩
-      cases c with
-      | nil => exact absurd hc hnil_φ
-      | cons _ _ => simp
+    have hcs_φ : ∀ c ∈ G.φ, 1 ≤ c.length ∧ c.length ≤ 2 := fun c hc =>
+      ⟨List.length_pos_of_ne_nil fun h => hnil_φ (h ▸ hc), hw_φ c hc⟩
     by_cases hn0 : G.n = 0
     · -- `G.n = 0`: `G.φ = []`, `answerWords G = [1]`
-      have hφ_nil : G.φ = [] := by
-        cases hφ : G.φ with
-        | nil => rfl
-        | cons c cs =>
-          have hc1 := (hcs_φ c (by simp [hφ])).1
-          cases c with
-          | nil => simp at hc1
-          | cons ℓ _ =>
-            have := ℓ.1.isLt
-            omega
+      have hφ_nil : G.φ = [] := List.eq_nil_iff_forall_not_mem.2 fun c hc => by
+        obtain ⟨ℓ, -⟩ := List.exists_mem_of_length_pos (hcs_φ c hc).1
+        have := ℓ.1.isLt
+        omega
       have hcond_n0 : (Cond.eq nv cZero).Holds s₂ := by
         change s₂.regs nv = s₂.regs cZero; omega
       have hf_ob1 : Fits w (G.outAddrBase + 1) :=
@@ -366,9 +357,7 @@ theorem program_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     rw [hylist, hyout]
     exact G.fits_of_le hfit
       (by simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
-  refine ⟨steps + 1, by omega, ?_⟩
-  have hex := hexec.executesList outBase hfit_out
-  rwa [hylist] at hex
+  exact ⟨steps + 1, by omega, hylist ▸ hexec.executesList outBase hfit_out⟩
 
 /-- Fixed-program `Program.ComputesListInTime` certificate for Word-RAM 2-SAT. -/
 theorem computesListInTime_program :
@@ -379,7 +368,6 @@ theorem computesListInTime_program :
   intro G w hfit _
   obtain ⟨steps, hle, hex⟩ := program_spec G hfit
   exact ⟨steps, hex, hle⟩
-
 
 /-- `program` does not read the word width (`width%`). -/
 theorem not_readsWidth_program : ¬ program.ReadsWidth := by
