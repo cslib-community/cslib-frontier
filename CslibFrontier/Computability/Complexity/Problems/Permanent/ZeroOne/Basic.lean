@@ -259,24 +259,42 @@ theorem permanent_entryChain (L : ℕ) :
       (by rw [Nat.div_lt_iff_lt_mul (by norm_num)]; rw [pow_succ] at hw; exact hw)]
     have hz : ∀ i j, (N ≤ i ∨ N ≤ j) → edgeWeight E i j = 0 :=
       fun i j h => edgeWeight_eq_zero_of_within hE h
-    -- remove the relay vertex `N + 1`, then the doubling vertex `N`
+    -- remove the relay vertex `N + 1`
     rw [permanent_edgeMatrix_relay (K := N + 1) (s := N) (t := v) (a := 1) (b := 1) _ (by omega)
-      (by omega) ?_ ?_ ?_,
-      permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv ?_ ?_ ?_]
-    · refine congrArg Matrix.permanent ?_
-      ext i j
-      have hi := i.isLt
-      have hj := j.isLt
-      simp only [edgeMatrix, Matrix.of_apply, edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
-        edgeWeight_chainLevel_zero_of_lt hi hj]
+      (by omega)]
+    rotate_left
+    · simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_row_succ hu hv, hz (N + 1) (N + 1) (by omega)]
       split_ifs <;> omega
-    all_goals
-      intros
-      simp (disch := omega) only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil, hz,
-        edgeWeight_chainLevel_zero_row_succ hu hv, edgeWeight_chainLevel_zero_col_succ hu hv,
-        edgeWeight_chainLevel_zero_row hu hv, edgeWeight_chainLevel_zero_col hu hv, true_and,
-        and_true]
+    · intro j hj
+      simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_row_succ hu hv, hz (N + 1) j (by omega)]
       split_ifs <;> omega
+    · intro i hi
+      simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_col_succ hu hv, hz i (N + 1) (by omega)]
+      split_ifs <;> omega
+    -- remove the doubling vertex `N`
+    rw [permanent_edgeMatrix_relay (K := N) (s := u) (t := v) (a := w / 2) (b := 2) _ hu hv]
+    rotate_left
+    · simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_row hu hv, hz N N (by omega)]
+      split_ifs <;> omega
+    · intro j hj
+      simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_row hu hv, hz N j (by omega), true_and]
+      split_ifs <;> omega
+    · intro i hi
+      simp only [edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+        edgeWeight_chainLevel_zero_col hu hv, hz i N (by omega), and_true]
+      split_ifs <;> omega
+    refine congrArg Matrix.permanent ?_
+    ext i j
+    have hi := i.isLt
+    have hj := j.isLt
+    simp only [edgeMatrix, Matrix.of_apply, edgeWeight_append, edgeWeight_cons, edgeWeight_nil,
+      edgeWeight_chainLevel_zero_of_lt hi hj]
+    split_ifs <;> omega
 
 /-! ### Chains of a table -/
 
@@ -328,26 +346,28 @@ theorem permanent_tableChain (L : ℕ) :
 
 /-! ### The chains form a 0/1 matrix -/
 
-/-- A list sum over `range n` of the terms at one index `a`. -/
-private theorem sum_range_ite_eq {n a : ℕ} (f : ℕ → ℕ) :
-    ((List.range n).map fun k => if k = a then f k else 0).sum = if a < n then f a else 0 := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [List.range_succ, List.map_append, List.sum_append, ih]
-    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero]
-    split_ifs <;> subst_vars <;> omega
-
 /-- A list sum over `range L` whose terms are at most `1` and vanish away from one index `κ` is at
 most `1`. -/
 private theorem sum_range_le_one {L κ : ℕ} {f : ℕ → ℕ} (hf : ∀ k, f k ≤ 1)
     (hκ : ∀ k, f k ≠ 0 → k = κ) : ((List.range L).map f).sum ≤ 1 := by
-  rw [List.map_congr_left (g := fun k => if k = κ then f k else 0) fun k _ => by
-    split_ifs with h
-    · rfl
-    · exact by_contra fun h' => h (hκ k h'), sum_range_ite_eq]
-  split_ifs
-  exacts [hf κ, Nat.zero_le 1]
+  induction L with
+  | zero => simp
+  | succ L ih =>
+    rw [List.range_succ, List.map_append, List.sum_append]
+    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero]
+    by_cases hL : f L = 0
+    · simpa [hL] using ih
+    · have hLκ := hκ L hL
+      have hrest : ((List.range L).map f).sum = 0 := by
+        rw [List.sum_eq_zero_iff]
+        intro x hx
+        obtain ⟨k, hk, rfl⟩ := List.mem_map.1 hx
+        by_contra h
+        have := hκ k h
+        simp at hk
+        omega
+      have := hf L
+      omega
 
 theorem edgeWeight_chainLevel_le_one (N u v w k i j : ℕ) (hu : u < N) (hv : v < N) :
     edgeWeight (chainLevel N u v w k) i j ≤ 1 := by
@@ -364,6 +384,16 @@ private theorem sum_range_eq_of_zero {L : ℕ} {f : ℕ → ℕ} (hf : ∀ k, k 
     rcases L with _ | L
     · simp
     · simp [hf (L + 1) (by omega)]
+
+/-- A list sum over `range n` of the terms at one index `a`. -/
+private theorem sum_range_ite_eq {n a : ℕ} (f : ℕ → ℕ) :
+    ((List.range n).map fun k => if k = a then f k else 0).sum = if a < n then f a else 0 := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [List.range_succ, List.map_append, List.sum_append, ih]
+    simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero]
+    split_ifs <;> subst_vars <;> omega
 
 /-- Entries of one chain between old vertices: only the edge `u → v` of level `0` remains. -/
 theorem edgeWeight_entryChain_of_lt {N u v w L i j : ℕ} (hi : i < N) (hj : j < N) :
@@ -533,8 +563,16 @@ theorem zeroOnePermanent_edgeTable {N : ℕ} {E : List WeightedEdge}
   simp only [Matrix.submatrix_apply, boolTableMatrix_apply, edgeMatrix, Matrix.of_apply]
   simp only [finCongr_apply, Fin.getElem_fin, Fin.val_cast]
   rw [getD_edgeTable _ j.isLt]
-  have h := any_edgeTable_iff E i j
-  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hij with hw | hw <;> rw [hw] at h ⊢ <;> simp_all
+  by_cases hw : edgeWeight E i j = 0
+  · rw [hw]
+    have : ¬ ((E.any fun e => e.src == (i : ℕ) && e.dst == (j : ℕ) && e.weight != 0) = true) := by
+      rw [any_edgeTable_iff]; exact not_not.2 hw
+    simp only [Bool.not_eq_true] at this
+    rw [this]
+    rfl
+  · rw [(any_edgeTable_iff E i j).2 hw]
+    simp only [Bool.toNat_true]
+    omega
 
 theorem natTableTriples_bounds {A : List (List ℕ)} {t : WeightedEdge} (ht : t ∈ natTableTriples A) :
     t.src < A.length ∧ t.dst < A.length ∧ t.weight < 2 ^ natChainLength A := by

@@ -92,7 +92,10 @@ private theorem pair_interior (k : Fin (n + 3)) (a b : Option (Fin q))
     rw [he, hstart, Equiv.symm_apply_apply] at hpair
     cases hpair
   · by_contra h
-    have he : k = (⟨n + 2, by omega⟩ : Fin (n + 3)) := Fin.ext (by dsimp only; omega)
+    have he : k = (⟨n + 2, by omega⟩ : Fin (n + 3)) := by
+      apply Fin.ext
+      change k.val = n + 2
+      omega
     rw [he, hfinish, Equiv.symm_apply_apply] at hpair
     cases hpair
 
@@ -103,10 +106,15 @@ private theorem first_marker_depth (hu : HWord.Legal (compatibility rules) u)
   by_contra h
   have hc : k.val = 1 ∨ k.val = 2 := by omega
   rcases hc with hc | hc
-  · have he : (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 := Fin.ext (by change k.val - 1 = 0; omega)
+  · have he : (⟨k.val - 1, by omega⟩ : Fin (n + 3)) = 0 := by
+      apply Fin.ext
+      change k.val - 1 = 0
+      omega
     rw [he, hstart, Equiv.symm_apply_apply] at hm
     cases hm
-  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by change 0 + 1 = k.val - 1; omega)
+  · have hedge := edge_view rules hu 0 ⟨k.val - 1, by omega⟩ (by
+      change 0 + 1 = k.val - 1
+      omega)
     rw [hstart, Equiv.symm_apply_apply, hm] at hedge
     exact False.elim hedge
 
@@ -131,7 +139,11 @@ private theorem first_neighborhood (hu : HWord.Legal (compatibility rules) u)
     Nonempty (FirstNeighborhood rules u k a a' b) := by
   obtain ⟨hk0, hkn⟩ := pair_interior k a b hpu hstart hfinish
   let previous : Fin (n + 3) := ⟨k.val - 1, by omega⟩
-  have hprev : previous ≠ k := Fin.ne_of_val_ne (by dsimp only [previous]; omega)
+  have hprev : previous ≠ k := by
+    intro h
+    have hval := congrArg Fin.val h
+    change k.val - 1 = k.val at hval
+    omega
   have hu' := edge_view rules hu previous k (by change k.val - 1 + 1 = k.val; omega)
   have hv' := edge_view rules hv previous k (by change k.val - 1 + 1 = k.val; omega)
   rw [hpu] at hu'
@@ -139,7 +151,9 @@ private theorem first_neighborhood (hu : HWord.Legal (compatibility rules) u)
   obtain ⟨i, hm⟩ := first_change_marker rules hu' hv' hne
   have hk3 := first_marker_depth rules hu k hk0 i hm hstart
   let earlier : Fin (n + 3) := ⟨k.val - 2, by omega⟩
-  have hbefore := edge_view rules hu earlier previous (by change k.val - 2 + 1 = k.val - 1; omega)
+  have hbefore := edge_view rules hu earlier previous (by
+    change k.val - 2 + 1 = k.val - 1
+    omega)
   rw [hm] at hbefore
   obtain ⟨left, c, hc⟩ := before_marker rules i hbefore
   rw [hc] at hbefore
@@ -179,7 +193,11 @@ private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules
   apply rewrites_of_pair rules context changed hindex
   · intro j _hj hchanged
     apply readout_first_off rules hu hv k he a a' b hpu hpv j
-    exact fun h => hchanged (Fin.ext (by dsimp only [changed]; omega))
+    intro h
+    apply hchanged
+    apply Fin.ext
+    change j.val = k.val - 2
+    omega
   · simpa only [hcontext, ← hcontext'] using hlocal
 
 private theorem second_marker_depth (hu : HWord.Legal (compatibility rules) u)
@@ -194,8 +212,10 @@ private theorem second_marker_depth (hu : HWord.Legal (compatibility rules) u)
       omega)
     rw [hm, hfinish, Equiv.symm_apply_apply] at hedge
     exact False.elim hedge
-  · have he : (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ :=
-      Fin.ext (by dsimp only; omega)
+  · have he : (⟨k.val + 1, by omega⟩ : Fin (n + 3)) = ⟨n + 2, by omega⟩ := by
+      apply Fin.ext
+      change k.val + 1 = n + 2
+      omega
     rw [he, hfinish, Equiv.symm_apply_apply] at hm
     cases hm
 
@@ -220,7 +240,11 @@ private theorem second_neighborhood (hu : HWord.Legal (compatibility rules) u)
     Nonempty (SecondNeighborhood rules u k a b b') := by
   obtain ⟨hk0, hkn⟩ := pair_interior k a b hpu hstart hfinish
   let following : Fin (n + 3) := ⟨k.val + 1, by omega⟩
-  have hfollowing : following ≠ k := Fin.ne_of_val_ne (by dsimp only [following]; omega)
+  have hfollowing : following ≠ k := by
+    intro h
+    have hval := congrArg Fin.val h
+    change k.val + 1 = k.val at hval
+    omega
   have hu' := edge_view rules hu k following rfl
   have hv' := edge_view rules hv k following rfl
   rw [hpu] at hu'
@@ -255,15 +279,23 @@ private theorem second_coordinate_rewrites (hu : HWord.Legal (compatibility rule
   have hy := readout_pair_right rules hv changed a b'
     (by simpa only [changed, Nat.sub_add_cancel hk0] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
-    readout_second_off rules hu hv k he a b b' hpu hpv context (by change k.val + 1 ≠ k.val; omega)
+    readout_second_off rules hu hv k he a b b' hpu hpv context (by
+      change k.val + 1 ≠ k.val
+      omega)
   have hlocal := marker_left_rewrites rules C.rule C.letter (readout rules u hu changed)
     (readout rules v hv changed) a a C.right C.compatible
     (by simpa only [hx] using C.source) (by simpa only [hy] using C.target)
     (by intro h; exact hne (hx.trans ((congrArg some h).trans hy.symm)))
-  apply rewrites_of_pair rules changed context (by change k.val - 1 + 1 = k.val; omega)
+  apply rewrites_of_pair rules changed context (by
+    change k.val - 1 + 1 = k.val
+    omega)
   · intro j hchanged _hj
     apply readout_second_off rules hu hv k he a b b' hpu hpv j
-    exact fun h => hchanged (Fin.ext (by dsimp only [changed]; omega))
+    intro h
+    apply hchanged
+    apply Fin.ext
+    change j.val = k.val - 1
+    omega
   · simpa only [hcontext, ← hcontext'] using hlocal
 
 private theorem same_pair_eq (k : Fin (n + 3)) (he : ∀ j, j ≠ k → u j = v j)
