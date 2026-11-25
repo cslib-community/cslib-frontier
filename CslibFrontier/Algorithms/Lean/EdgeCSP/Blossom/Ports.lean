@@ -61,8 +61,8 @@ theorem scope_constraint (f : OccurrenceLabeling F Bool) (vs : List ℕ) (i : Fi
   unfold constraint
   split
   next hp =>
-    have he := List.isEmpty_iff.mp hp
-    simpa only [List.append_nil] using (filter_eq_self_of_positions_empty he).symm
+    simpa only [List.append_nil] using
+      (filter_eq_self_of_positions_empty (List.isEmpty_iff.mp hp)).symm
   next hp =>
     dsimp only
     rw [outsideScope_eq_filter]
@@ -74,9 +74,8 @@ theorem positive_constraint (f : OccurrenceLabeling F Bool) (vs : List ℕ)
   split
   · rfl
   next hp =>
-    have he : positions vs F[i.val].scope ≠ [] := by simpa using hp
-    have hs := scope_ne_nil_of_positions_ne_nil he
-    simp [List.isEmpty_eq_false_iff.mpr hs]
+    simp [List.isEmpty_eq_false_iff.mpr
+      (scope_ne_nil_of_positions_ne_nil (mt List.isEmpty_iff.mpr hp))]
 
 /-- Adding the central nonempty exactly-one scope increases the positive count by exactly one.
 Nullary original constraints are preserved and are not charged to this measure. -/
@@ -184,9 +183,7 @@ theorem vars_contract_perm (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
   let added (i : Fin F.length) :=
     if (positions vs F[i.val].scope).isEmpty then [] else [connector F i]
   have hout : ids.flatMap outside = F.vars.filter (fun v => !vs.contains v) := by
-    rw [show ids.flatMap outside =
-      (ids.flatMap fun i => F[i.val].scope).filter (fun v => !vs.contains v) from
-        List.filter_flatMap.symm,
+    rw [← List.filter_flatMap,
       ← List.flatMap_map (f := fun i : Fin F.length => F[i.val]) (g := Constraint.scope),
       ← List.ofFn_eq_map, List.ofFn_getElem]
     rfl
@@ -235,21 +232,16 @@ theorem edge_contract (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) (vs 
       exact nodup_connectors F vs
   · intro v hv
     rw [count_vars_contract]
-    have hm : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (connectors F vs).toFinset := by
-      rw [← vars_contract f vs]
-      exact List.mem_toFinset.mpr hv
-    rcases mem_union.mp hm with hm | hm
+    rcases mem_union.mp (vars_contract f vs ▸ List.mem_toFinset.mpr hv) with hm | hm
     · obtain ⟨hv, hn⟩ := mem_sdiff.mp hm
       have hnew : v ∉ connectors F vs := fun hh => by
         obtain ⟨i, _, rfl⟩ := List.mem_map.mp hh
         exact connector_not_mem i (List.mem_toFinset.mp hv)
-      rw [ite_eq_right (by simpa using hn), hF.count_vars (List.mem_toFinset.mp hv),
+      rw [ite_eq_right (mt List.mem_toFinset.mpr hn), hF.count_vars (List.mem_toFinset.mp hv),
         List.count_eq_zero.mpr hnew]
     · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hm)
-      have hz : F.vars.count (connector F i) = 0 := List.count_eq_zero.mpr (connector_not_mem i)
-      have hc : (connectors F vs).count (connector F i) = 1 :=
-        List.count_eq_one_of_mem (nodup_connectors F vs) (List.mem_map.mpr ⟨i, hi, rfl⟩)
-      rw [hz, hc]
+      rw [List.count_eq_zero.mpr (connector_not_mem i),
+        List.count_eq_one_of_mem (nodup_connectors F vs) (List.mem_map.mpr ⟨i, hi, rfl⟩)]
       split <;> rfl
 
 end Cslib.Logic.PL.CSP.Blossom

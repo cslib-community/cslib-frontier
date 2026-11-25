@@ -258,20 +258,15 @@ private theorem exists_runFrom_round {p : ℕ} [Fact p.Prime] {st : List Frame}
       else cfg (ℓ := ℓ) (H := H) p R' st .ret .run out) ∧ R'.WF p ℓ ∧
       R'.toState p ℓ = gateRound pl pr f (sgn neg) t (Iter.zmodUnit p j) (R.toState p ℓ) := by
   have hp := (Fact.out : p.Prime).pos
-  have dl (ph : Fin 4) (h : ph.val % 2 = 0) :
-      path (⟨j, ph, neg, t⟩ :: st) = path st ++ [false] := by
-    simp [Frame.dir, h]
-  have dr (ph : Fin 4) (h : ph.val % 2 = 1) :
-      path (⟨j, ph, neg, t⟩ :: st) = path st ++ [true] := by
-    simp [Frame.dir, h]
   obtain ⟨n₁, R₁, h₁, hR₁, hS₁⟩ := hl (⟨j, 0, neg, t⟩ :: st) false (t + 1)
-    (R.scale p (t + 1) (unitVal j)) out (hR.scale hp _ _) (dl 0 rfl)
+    (R.scale p (t + 1) (unitVal j)) out (hR.scale hp _ _) (by simp [Frame.dir])
   obtain ⟨n₂, R₂, h₂, hR₂, hS₂⟩ := hr (⟨j, 1, neg, t⟩ :: st) false (t + 2)
-    (R₁.scale p (t + 2) (unitVal j)) out (hR₁.scale hp _ _) (dr 1 rfl)
+    (R₁.scale p (t + 2) (unitVal j)) out (hR₁.scale hp _ _) (by simp [Frame.dir])
   obtain ⟨R₃, h₃, hR₃, hS₃⟩ := runFrom_update (fr := ⟨j, 1, neg, t⟩) hf rfl R₂ hR₂ out
-  obtain ⟨n₄, R₄, h₄, hR₄, hS₄⟩ := hl (⟨j, 2, neg, t⟩ :: st) true (t + 1) R₃ out hR₃ (dl 2 rfl)
+  obtain ⟨n₄, R₄, h₄, hR₄, hS₄⟩ :=
+    hl (⟨j, 2, neg, t⟩ :: st) true (t + 1) R₃ out hR₃ (by simp [Frame.dir])
   obtain ⟨n₅, R₅, h₅, hR₅, hS₅⟩ := hr (⟨j, 3, neg, t⟩ :: st) true (t + 2)
-    (R₄.scale p (t + 1) (unitInv p j)) out (hR₄.scale hp _ _) (dr 3 rfl)
+    (R₄.scale p (t + 1) (unitInv p j)) out (hR₄.scale hp _ _) (by simp [Frame.dir])
   generalize tableLength ℓ + 2 = G at h₃
   refine ⟨n₁ + (1 + (n₂ + (G + (n₄ + (1 + (n₅ + 1)))))),
     R₅.scale p (t + 2) (unitInv p j), ?_, hR₅.scale hp _ _, ?_⟩
@@ -406,9 +401,7 @@ private theorem exists_runFrom_test {q : ℕ} :
     obtain rfl : d = q := by omega
     have hprime : d.Prime := Nat.prime_def_lt'.mpr ⟨by omega, fun m hm hlt hdvd =>
       hdiv m hm hlt (Nat.mod_eq_zero_of_dvd hdvd)⟩
-    exact ⟨1, by
-      rw [ReadMachine.runFrom_one]
-      simp [ReadMachine.next, machine, step, hprime]⟩
+    exact ⟨1, by simp [ReadMachine.runFrom_one, ReadMachine.next, machine, step, hprime]⟩
   | k + 1, d, hd, hd2, hdiv => by
     by_cases hmod : q % d = 0
     · have hnot : ¬q.Prime := fun hp =>
@@ -478,9 +471,8 @@ theorem exists_run_eq (T : Tree ℓ H) :
     ∃ n s, machine.run T.encode n = ⟨s, List.ofFn T.eval⟩ ∧ machine.halt s = true := by
   have : Fact (primeFor ℓ).Prime := ⟨primeFor_prime ℓ⟩
   have hK : 2 * ℓ < Fintype.card (ZMod (primeFor ℓ)) - 1 := by
-    rw [ZMod.card]
     have := le_primeFor ℓ
-    omega
+    rw [ZMod.card]; omega
   obtain ⟨n₁, h₁⟩ := exists_runFrom_search (T := T) (primeFor ℓ - (2 * ℓ + 2)) (2 * ℓ + 2)
     (by have := le_primeFor ℓ; omega) le_rfl
   obtain ⟨n₂, R, h₂, hR, hS⟩ := exists_runFrom_call (T := T) (p := primeFor ℓ) T []

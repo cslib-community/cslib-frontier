@@ -171,16 +171,11 @@ private theorem card_filter_fin_lt (e : V ≃ Fin (Fintype.card V)) {m : ℕ}
     (hm : m ≤ Fintype.card V) :
     (Finset.univ.filter fun i : V => (e i : ℕ) < m).card = m := by
   classical
-  let emb : Fin m ↪ V := ⟨fun k => e.symm ⟨k.1, k.2.trans_le hm⟩,
-    fun _ _ h => Fin.ext (Fin.mk.inj (e.symm.injective h))⟩
-  have hset : (Finset.univ.filter fun i : V => (e i : ℕ) < m) = Finset.univ.map emb := by
-    ext i
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_map]
-    refine ⟨fun hi => ⟨⟨e i, hi⟩, e.symm_apply_apply i⟩, ?_⟩
-    rintro ⟨k, rfl⟩
-    change (e (e.symm ⟨k.1, _⟩) : ℕ) < m
-    simp [k.2]
-  rw [hset, Finset.card_map, Finset.card_univ, Fintype.card_fin]
+  refine (Finset.card_bij (fun i hi => (⟨e i, (Finset.mem_filter.1 hi).2⟩ : Fin m))
+    (fun _ _ => Finset.mem_univ _)
+    (fun _ _ _ _ h => e.injective (Fin.ext (Fin.mk.inj h)))
+    fun b _ => ⟨e.symm ⟨b.1, b.2.trans_le hm⟩, by simp [b.2],
+      Fin.ext (by simp)⟩).trans (Finset.card_fin m)
 
 private def threeBlockProfile (e : V ≃ Fin (Fintype.card V)) (c₀ c₁ : ℕ)
     (r₀ r₁ r₂ : Ranking A) : Profile V A :=
@@ -295,18 +290,15 @@ theorem exists_profile_forall_not_isCondorcetWinner (hV : 3 ≤ Fintype.card V)
   obtain ⟨P, hab', hbc', hsupp, hother⟩ := exists_cyclicThreeBlock hV hab hac hbc
   have : Nonempty V := Fintype.card_pos_iff.1 (by omega)
   refine ⟨P, fun x hx => ?_⟩
-  by_cases hxa : x = a
-  · subst hxa
-    have h_ac := hx c hac.symm
+  rcases eq_or_ne x a with rfl | hxa
+  · have h_ac := hx c hac.symm
     have := support_add_support P hac
     unfold MajorityPrefers at h_ac
     omega
-  by_cases hxb : x = b
-  · subst hxb
-    exact hab'.asymm (hx a hab)
-  by_cases hxc : x = c
-  · subst hxc
-    exact hbc'.asymm (hx b hbc)
+  rcases eq_or_ne x b with rfl | hxb
+  · exact hab'.asymm (hx a hab)
+  rcases eq_or_ne x c with rfl | hxc
+  · exact hbc'.asymm (hx b hbc)
   exact (majorityPrefers_of_forall (hother x hxa hxb hxc)).asymm (hx a (Ne.symm hxa))
 
 /-! ### Plurality rule -/
@@ -598,24 +590,19 @@ theorem not_isDictator_borda [Nontrivial A] (hV : 2 ≤ Fintype.card V) (i : V) 
     have hcongr (j : V) :
         (Finset.univ.filter fun x => (P j).Prefers a x).card =
           if j = i then Fintype.card A - 1 else 0 := by
-      by_cases hj : j = i
-      · simp only [P, hj, ↓reduceIte]
-        exact hcard_top htop_a
-      · simp only [P, hj, ↓reduceIte]
-        exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)
+      by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte]
+      · exact hcard_top htop_a
+      · exact hcard_bot fun x hxa => r.reverse_prefers.2 (htop_a x hxa)
     simp [bordaScore, hcongr]
   have hscore_b : bordaScore P b = (Fintype.card V - 1) * (Fintype.card A - 1) := by
     have hcongr (j : V) :
         (Finset.univ.filter fun x => (P j).Prefers b x).card =
           if j = i then 0 else Fintype.card A - 1 := by
-      by_cases hj : j = i
-      · simp only [P, hj, ↓reduceIte]
-        exact hcard_bot hbot_b
-      · simp only [P, hj, ↓reduceIte]
-        exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
-    have hset : (Finset.univ.filter fun j : V => ¬ j = i) = Finset.univ.erase i := by
-      ext
-      simp
+      by_cases hj : j = i <;> simp only [P, hj, ↓reduceIte]
+      · exact hcard_bot hbot_b
+      · exact hcard_top fun x hxb => r.reverse_prefers.2 (hbot_b x hxb)
+    have hset : (Finset.univ.filter fun j : V => ¬ j = i) = Finset.univ.erase i :=
+      Finset.ext fun _ => by simp
     rw [bordaScore, Finset.sum_congr rfl fun j _ => hcongr j, Finset.sum_ite,
       Finset.sum_const_zero, zero_add, hset, Finset.sum_const_nat fun _ _ => rfl,
       Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ]

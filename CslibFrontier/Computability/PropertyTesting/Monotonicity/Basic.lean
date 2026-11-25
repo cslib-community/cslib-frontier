@@ -233,8 +233,7 @@ private theorem card_viol (f : (ι → Bool) → Bool) (i : ι) :
     ↓reduceIte, add_zero] at h
   have he : violatedEdges f i = univ.filter fun x => x i = false ∧ Viol f i x := by
     ext x
-    rw [mem_violatedEdges_iff_viol, mem_filter]
-    simp only [mem_univ, true_and]
+    simp [mem_violatedEdges_iff_viol]
   rw [he, card_filter, card_filter, h, two_mul]
 
 /-- The endpoints of the violated edges in direction `i`, the points `x` such that `f` decreases
@@ -249,9 +248,7 @@ direction `i`. -/
 theorem hammingDist_sortAlong (f : (ι → Bool) → Bool) (i : ι) :
     hammingDist f (sortAlong i f) = 2 * #(violatedEdges f i) := by
   rw [← card_viol, hammingDist]
-  congr 1
-  ext x
-  simp only [mem_filter, mem_univ, true_and, ne_sortAlong_iff]
+  exact congrArg card (filter_congr fun _ _ => ne_sortAlong_iff _ _ _)
 
 /-- After sorting along `i`, no edge in direction `i` is violated. -/
 theorem violatedEdges_sortAlong_self (f : (ι → Bool) → Bool) (i : ι) :
@@ -333,21 +330,14 @@ theorem distMonotone_le {f g : (ι → Bool) → Bool} (hg : Monotone g) :
 
 /-- The distance to monotone is attained by a monotone function. -/
 theorem exists_monotone_hammingDist_eq_distMonotone (f : (ι → Bool) → Bool) :
-    ∃ g : (ι → Bool) → Bool, Monotone g ∧ hammingDist f g = distMonotone f := by
-  have hne : ((fun g => hammingDist f g) '' {g : (ι → Bool) → Bool | Monotone g}).Nonempty :=
-    ⟨_, (fun _ => false), monotone_const, rfl⟩
-  obtain ⟨g, hg, h⟩ := Nat.sInf_mem hne
-  exact ⟨g, hg, h⟩
+    ∃ g : (ι → Bool) → Bool, Monotone g ∧ hammingDist f g = distMonotone f :=
+  Nat.sInf_mem (s := (hammingDist f ·) '' {g | Monotone g}) ⟨_, fun _ => false, monotone_const, rfl⟩
 
 /-- The distance to monotone vanishes exactly on monotone functions. -/
 theorem distMonotone_eq_zero_iff {f : (ι → Bool) → Bool} : distMonotone f = 0 ↔ Monotone f := by
-  constructor
-  · intro h
-    obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
-    rw [h, hammingDist_eq_zero] at hfg
-    rwa [hfg]
-  · intro hf
-    exact Nat.le_zero.1 ((distMonotone_le hf).trans (hammingDist_self f).le)
+  refine ⟨fun h => ?_, fun hf => Nat.le_zero.1 ((distMonotone_le hf).trans (hammingDist_self f).le)⟩
+  obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
+  rwa [hammingDist_eq_zero.1 (hfg.trans h)]
 
 /-- The distance to monotone is at most twice the number of violated edges. -/
 theorem distMonotone_le_two_mul_sum (f : (ι → Bool) → Bool) :
@@ -402,16 +392,12 @@ differs from `f` on at least an `ε` fraction of the cube. -/
 theorem le_relDistMonotone_iff {f : (ι → Bool) → Bool} {ε : ℝ} :
     ε ≤ relDistMonotone f ↔
       ∀ g : (ι → Bool) → Bool, Monotone g → ε ≤ hammingDist f g / 2 ^ Fintype.card ι := by
-  constructor
-  · intro h g hg
-    refine h.trans ?_
-    rw [relDistMonotone]
+  refine ⟨fun h g hg => h.trans ?_, fun h => ?_⟩
+  · rw [relDistMonotone]
     gcongr
     exact_mod_cast distMonotone_le hg
-  · intro h
-    obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
-    have := h g hg
-    rwa [hfg] at this
+  · obtain ⟨g, hg, hfg⟩ := exists_monotone_hammingDist_eq_distMonotone f
+    simpa [relDistMonotone, hfg] using h g hg
 
 /-- Monotone functions are at relative distance `0` from monotone. -/
 theorem relDistMonotone_of_monotone {f : (ι → Bool) → Bool} (hf : Monotone f) :

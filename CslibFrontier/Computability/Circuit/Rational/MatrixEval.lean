@@ -115,31 +115,26 @@ theorem Hits.nonzero_iff {n s : ℕ} {H : Output n} (hH : Hits s H)
 theorem admissible_nonzero_or_add_one {n : ℕ} (f : Formula n) (hf : Admissible f) :
     Nonzero f ∨ Nonzero (.add f (.const 1)) := by
   obtain ⟨d, hd, X, v, he⟩ := hf
-  by_cases hv : v = 0
+  rcases eq_or_ne v 0 with rfl | hv
   · have : NeZero d := ⟨hd.ne'⟩
-    right
-    refine ⟨d, hd, X, v + 1, ?_, ?_⟩
-    · simpa only [Evaluates, map_one] using Eval.add he (Eval.const 1)
-    · simpa only [hv, zero_add] using (one_ne_zero : (1 : Mat d) ≠ 0)
+    exact Or.inr ⟨d, hd, X, 0 + 1,
+      by simpa only [Evaluates, map_one] using Eval.add he (Eval.const 1),
+      by simpa only [zero_add] using (one_ne_zero : (1 : Mat d) ≠ 0)⟩
   · exact Or.inl ⟨d, hd, X, v, he, hv⟩
 
 /-- A hitting list with an allowance of two more nodes also detects the domain of every formula. -/
 theorem Hits.admissible_iff {n s : ℕ} {H : Output n} (hH : Hits (s + 2) H)
     (f : Formula n) (hf : f.nodeCount ≤ s) :
     Admissible f ↔ ∃ X ∈ H.tuples, ∃ v, Evaluates f X v := by
-  constructor
-  · intro ha
-    rcases admissible_nonzero_or_add_one f ha with hn | hn
-    · obtain ⟨X, hX, v, he, _⟩ := hH f (by lia) ha hn
-      exact ⟨X, hX, v, he⟩
-    · have hsize : (Formula.add f (.const 1)).nodeCount ≤ s + 2 := by
-        simp only [nodeCount_add, nodeCount_const]
-        lia
-      obtain ⟨X, hX, v, he, _⟩ := hH (.add f (.const 1)) hsize hn.admissible hn
-      obtain ⟨a, _, hleft, _⟩ := eval_add_iff.mp he
-      exact ⟨X, hX, a, hleft⟩
-  · rintro ⟨X, _, v, he⟩
-    exact ⟨H.dimension, H.dimension_pos, X, v, he⟩
+  refine ⟨fun ha => ?_, fun ⟨X, _, v, he⟩ => ⟨H.dimension, H.dimension_pos, X, v, he⟩⟩
+  rcases admissible_nonzero_or_add_one f ha with hn | hn
+  · obtain ⟨X, hX, v, he, _⟩ := hH f (by lia) ha hn
+    exact ⟨X, hX, v, he⟩
+  · have hsize : (Formula.add f (.const 1)).nodeCount ≤ s + 2 := by
+      simp only [nodeCount_add, nodeCount_const]; omega
+    obtain ⟨X, hX, v, he, _⟩ := hH (.add f (.const 1)) hsize hn.admissible hn
+    obtain ⟨a, _, hleft, _⟩ := eval_add_iff.mp he
+    exact ⟨X, hX, a, hleft⟩
 
 /-- An invertible hit turns a nonzero formula into one with an admissible inverse. -/
 theorem Hits.admissible_inv_iff_nonzero {n s : ℕ} {H : Output n} (hH : Hits s H)

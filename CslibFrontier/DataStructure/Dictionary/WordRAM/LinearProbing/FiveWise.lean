@@ -196,12 +196,10 @@ theorem expect_bucketCentered {Y : Type*} [Fintype Y] [DecidableEq Y] [Nonempty 
 theorem abs_bucketCentered_le_one {Y : Type*} [Fintype Y] [DecidableEq Y]
     (W : Finset Y) (y : Y) :
     |bucketCentered W y| ≤ 1 := by
-  have hcard : (#W : ℝ) ≤ (Fintype.card Y : ℝ) := by
-    exact_mod_cast W.card_le_univ
-  have hp0 : 0 ≤ (#W : ℝ) / (Fintype.card Y : ℝ) := by positivity
-  have hp1 : (#W : ℝ) / (Fintype.card Y : ℝ) ≤ 1 := div_le_one_of_le₀ hcard (by positivity)
-  dsimp only [bucketCentered]
-  rw [abs_le]
+  have hcard : (#W : ℝ) ≤ Fintype.card Y := mod_cast W.card_le_univ
+  have hp0 : 0 ≤ (#W : ℝ) / Fintype.card Y := by positivity
+  have hp1 : (#W : ℝ) / Fintype.card Y ≤ 1 := div_le_one_of_le₀ hcard (by positivity)
+  rw [bucketCentered, abs_le]
   split_ifs <;> constructor <;> linarith
 
 /-- The second moment of `bucketCentered W` is at most `p = #W / |Y|`. -/
@@ -217,10 +215,7 @@ theorem expect_bucketCentered_sq_le {Y : Type*} [Fintype Y] [DecidableEq Y] [Non
       (if y ∈ W then (1 : ℝ) else 0) * (1 - p) + (1 - (if y ∈ W then (1 : ℝ) else 0)) * p ^ 2 := by
     dsimp only [bucketCentered, p]
     split_ifs
-    · have : (1 - p) ^ 2 ≤ 1 - p := by
-        rw [sq]
-        exact mul_le_of_le_one_left (by linarith) (by linarith)
-      linarith
+    · nlinarith
     · ring_nf; rfl
   have hmean : (𝔼 y : Y, if y ∈ W then (1 : ℝ) else 0) = p := by
     rw [Fintype.expect_eq_sum_div_card]
@@ -247,11 +242,8 @@ theorem abs_expect_bucketCentered_pow_le {Y : Type*} [Fintype Y] [DecidableEq Y]
   refine (abs_expect_le _ _).trans ((expect_le_expect fun y _ => ?_).trans
     (expect_bucketCentered_sq_le W))
   rw [abs_pow]
-  have habs := abs_bucketCentered_le_one W y
-  have h0 : 0 ≤ |bucketCentered W y| := abs_nonneg _
-  have hpow : |bucketCentered W y| ^ c ≤ |bucketCentered W y| ^ 2 :=
-    pow_le_pow_of_le_one h0 habs hc
-  simpa only [sq_abs] using hpow
+  simpa only [sq_abs] using
+    pow_le_pow_of_le_one (abs_nonneg _) (abs_bucketCentered_le_one W y) hc
 
 /-- **Conditioned fourth-moment bound under $5$-wise independence**: for a $5$-wise independent
 family `h : ι → X → Y`, a finite set `S ⊆ X`, a query point `u ∉ S`, a target bucket `b : Y`, and a
@@ -323,15 +315,10 @@ theorem expect_indicator_mul_sum_pow_four_le {ι X Y : Type*} [Fintype ι] [Fint
               gcongr with x hx
               exact abs_expect_bucketCentered_pow_le W (hall2 x hx)
           _ = p ^ #I := prod_const _
-      by_cases hI1 : #I ≤ 1
-      · have hI_eq1 : #I = 1 := by omega
-        rw [hI_eq1, pow_one] at hprod_le
-        simp only [hI1, hI_le2, ↓reduceIte]
-        linarith [sq_nonneg p]
-      · have hI_eq2 : #I = 2 := by omega
-        rw [hI_eq2] at hprod_le
-        simp only [hI1, hI_le2, ↓reduceIte, zero_add]
-        exact hprod_le
+      rcases (by omega : #I = 1 ∨ #I = 2) with hI_eq | hI_eq <;>
+        simp only [hI_eq, Nat.reduceLeDiff, ↓reduceIte, pow_one, zero_add] at hprod_le ⊢
+      · linarith [sq_nonneg p]
+      · exact hprod_le
     · push Not at hall2
       obtain ⟨x, hx, hlt2⟩ := hall2
       obtain ⟨r, -, rfl⟩ := mem_image.1 hx
@@ -567,13 +554,11 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     by_cases hov : scaleOverload M h S u j i
     · simp only [hov, ↓reduceIte, mul_one]
       have hov_real : (2 ^ (j - 1) : ℝ) ≤
-          (#(S.filter fun x => h i x ∈ scaleWindow M (h i u) j) : ℝ) := by
-        exact_mod_cast hov
-      have hm := hmean_le (h i u)
+          #(S.filter fun x => h i x ∈ scaleWindow M (h i u) j) := mod_cast hov
       have hdiff : δ ≤ ∑ x ∈ S, bucketCentered (scaleWindow M (h i u) j) (h i x) := by
         rw [sum_bucketCentered_eq]
         have : (2 ^ (j - 1) : ℝ) = 2 * δ := by dsimp only [δ]; ring
-        linarith
+        linarith [hmean_le (h i u)]
       exact pow_le_pow_left₀ hδ_pos.le hdiff 4
     · simp only [hov, ↓reduceIte, mul_zero]; positivity
   have hexp_b (b : Fin (2 ^ M)) :
@@ -583,20 +568,13 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     refine (expect_indicator_mul_sum_pow_four_le hh S hu b (scaleWindow M b j)).trans
       (mul_le_mul_of_nonneg_left ?_ (expect_nonneg fun y _ => by split_ifs <;> positivity))
     set μ := (#S : ℝ) * ((#(scaleWindow M b j) : ℝ) / (Fintype.card (Fin (2 ^ M)) : ℝ))
-    have hμ_le : μ ≤ δ := hmean_le b
-    have hμ_sq : μ ^ 2 ≤ δ ^ 2 := pow_le_pow_left₀ (by positivity) hμ_le 2
-    have hδ_le_2sq : δ ≤ 2 * δ ^ 2 := by
-      have := mul_le_mul_of_nonneg_right hδ_ge_half hδ_pos.le
-      linarith [sq δ]
-    linarith
+    have hμ0 : 0 ≤ μ := by positivity
+    nlinarith [hmean_le b, hδ_ge_half]
   have hsum_exp_b :
       (∑ b : Fin (2 ^ M), (𝔼 y : Fin (2 ^ M), if y = b then (1 : ℝ) else 0) * (18 * δ ^ 2)) =
         18 * δ ^ 2 := by
-    rw [← sum_mul]
-    have hsum1 : (∑ b : Fin (2 ^ M), 𝔼 y : Fin (2 ^ M), if y = b then (1 : ℝ) else 0) = 1 := by
-      rw [← expect_sum_comm]
-      simp only [Fintype.sum_ite_eq, Fintype.expect_const]
-    rw [hsum1, one_mul]
+    rw [← sum_mul, ← expect_sum_comm]
+    simp only [Fintype.sum_ite_eq, Fintype.expect_const, one_mul]
   have hmarkov :
       δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0) ≤ 18 * δ ^ 2 := by
     calc δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0)
@@ -726,9 +704,7 @@ theorem expect_probe_le_of_cluster_witness {ι X : Type*} [Fintype ι]
         exact mul_le_mul_of_nonneg_left
           (expect_scaleOverload_le hh S hu hS hM) (by positivity)
     _ = 288 - 288 / (2 ^ M : ℝ) := sum_Icc_two_pow_mul_div_sq_eq M
-    _ ≤ 288 := by
-        have : (0 : ℝ) ≤ 288 / (2 ^ M : ℝ) := by positivity
-        linarith
+    _ ≤ 288 := sub_le_self _ (by positivity)
 
 /-- Natural-number sum form of `expect_probe_le_of_cluster_witness`: the sum of `probe i` over all
 seeds `i : ι` is at most `288 * Fintype.card ι`. -/
@@ -742,9 +718,7 @@ theorem sum_probe_le_of_cluster_witness {ι X : Type*} [Fintype ι]
     (∑ i : ι, probe i) ≤ 288 * Fintype.card ι := by
   have := hh.nonempty
   have hexp := expect_probe_le_of_cluster_witness hh S hu hS hM probe hwit
-  rw [Fintype.expect_eq_sum_div_card] at hexp
-  have hcard_pos : (0 : ℝ) < (Fintype.card ι : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  rw [div_le_iff₀ hcard_pos] at hexp
+  rw [Fintype.expect_eq_sum_div_card, div_le_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)] at hexp
   exact_mod_cast hexp
 
 /-- `ℝ≥0∞` expectation form of `expect_probe_le_of_cluster_witness` under `PMF.uniformOfFintype`:

@@ -146,27 +146,23 @@ private theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → 
     intro d hd
     by_cases hlt : d < b_win
     · exact Or.inl ⟨hlt, physByBase_slab dt hlt⟩
-    · refine Or.inr ⟨by omega, ?_, ?_⟩
-      · obtain ⟨ht_lt, _⟩ := hw.owner_valid d (by omega) hd
-        unfold physByBase; rw [ite_eq_right hb0, ite_eq_right hlt]; omega
-      · obtain ⟨ht_lt, _⟩ := hw.owner_valid d (by omega) hd
-        unfold physByBase; rw [ite_eq_right hb0, ite_eq_right hlt]; omega
+    · obtain ⟨ht_lt, _⟩ := hw.owner_valid d (by omega) hd
+      unfold physByBase
+      rw [ite_eq_right hb0, ite_eq_right hlt]
+      exact Or.inr ⟨by omega, by omega, by omega⟩
   refine ⟨hrng, fun d₁ hd₁ d₂ hd₂ heq => ?_⟩
   rcases hrng d₁ hd₁ with ⟨h1, hp1⟩ | ⟨h1, hlo1, _⟩ <;>
-    rcases hrng d₂ hd₂ with ⟨h2, hp2⟩ | ⟨h2, hlo2, _⟩
-  · omega
-  · omega
-  · omega
-  · obtain ⟨ht1, htd1⟩ := hw.owner_valid d₁ h1 hd₁
-    obtain ⟨ht2, htd2⟩ := hw.owner_valid d₂ h2 hd₂
-    unfold physByBase at heq
-    rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d₁ < b_win),
-      ite_eq_right hb0, ite_eq_right (by omega : ¬d₂ < b_win)] at heq
-    have hdt_eq : dt (d₁ % maxTailItems N) = dt (d₂ % maxTailItems N) := by omega
-    have hmod_eq : d₁ % maxTailItems N = d₂ % maxTailItems N := by
-      rw [← htd1, hdt_eq, htd2]
-    rw [← denseOfCirc_mod_self hM_pos h1 (by omega : d₁ < b_win + maxTailItems N),
-      ← denseOfCirc_mod_self hM_pos h2 (by omega : d₂ < b_win + maxTailItems N), hmod_eq]
+    rcases hrng d₂ hd₂ with ⟨h2, hp2⟩ | ⟨h2, hlo2, _⟩ <;> try omega
+  obtain ⟨ht1, htd1⟩ := hw.owner_valid d₁ h1 hd₁
+  obtain ⟨ht2, htd2⟩ := hw.owner_valid d₂ h2 hd₂
+  unfold physByBase at heq
+  rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d₁ < b_win),
+    ite_eq_right hb0, ite_eq_right (by omega : ¬d₂ < b_win)] at heq
+  have hdt_eq : dt (d₁ % maxTailItems N) = dt (d₂ % maxTailItems N) := by omega
+  have hmod_eq : d₁ % maxTailItems N = d₂ % maxTailItems N := by
+    rw [← htd1, hdt_eq, htd2]
+  rw [← denseOfCirc_mod_self hM_pos h1 (by omega : d₁ < b_win + maxTailItems N),
+    ← denseOfCirc_mod_self hM_pos h2 (by omega : d₂ < b_win + maxTailItems N), hmod_eq]
 
 /-- Writing `(q, v)` to dense slot `d < b_win + n_win` in `s` preserves `WindowCoupled` against
 updating `(quotAt, valAt)` at `g = physByBase N b_win dt d` in `s_fix`. -/
@@ -388,18 +384,17 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   obtain ⟨hlm_c2, hgm_c2, htd_c2, hdt_c2⟩ := writeCompVal_meta_frame (metaBase := metaBase)
     (U := U) (V := V) (N := N) (v := compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win)
     hw hitem hd_last_lt _
-  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem := by
-    dsimp only [s₁]; rw [hs1_eq]; exact hgm_c2.trans hgm_c1
-  have hlm1 : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem := by
-    dsimp only [s₁]; rw [hs1_eq]; exact hlm_c2.trans hlm_c1
-  have htd1 : compTDAt metaBase U w N s₁.mem = compTDAt metaBase U w N s.mem := by
-    dsimp only [s₁]; rw [hs1_eq]; exact htd_c2.trans htd_c1
-  have hdt1 : compDTAt metaBase U w N s₁.mem = compDTAt metaBase U w N s.mem := by
-    dsimp only [s₁]; rw [hs1_eq]; exact hdt_c2.trans hdt_c1
-  have htd_b : ∀ i, compTDAt metaBase U w N s.mem i < maxTailItems N :=
-    fun i => by have := hcpl.td_lt i; rw [hmax_eq] at this; exact this
-  have hdt_b : ∀ i, compDTAt metaBase U w N s.mem i < maxTailItems N :=
-    fun i => by have := hcpl.dt_lt i; rw [hmax_eq] at this; exact this
+  have hs1_mem : s₁.mem = _ := congrArg Memory.State.mem hs1_eq
+  have hgm1 : compGmAt metaBase U w N s₁.mem = compGmAt metaBase U w N s.mem :=
+    hs1_mem ▸ hgm_c2.trans hgm_c1
+  have hlm1 : compLmAt metaBase U w N s₁.mem = compLmAt metaBase U w N s.mem :=
+    hs1_mem ▸ hlm_c2.trans hlm_c1
+  have htd1 : compTDAt metaBase U w N s₁.mem = compTDAt metaBase U w N s.mem :=
+    hs1_mem ▸ htd_c2.trans htd_c1
+  have hdt1 : compDTAt metaBase U w N s₁.mem = compDTAt metaBase U w N s.mem :=
+    hs1_mem ▸ hdt_c2.trans hdt_c1
+  have htd_b (i) : compTDAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.td_lt i
+  have hdt_b (i) : compDTAt metaBase U w N s.mem i < maxTailItems N := hmax_eq ▸ hcpl.dt_lt i
   obtain ⟨_, htd2, hdt2, hlm2, hgm2, hq2, hv2, _⟩ :=
     winShrinkLeftGenProg_effect (metaBase := metaBase) (itemBase := itemBase) (U := U) (V := V)
       (w := w) (N := N) (m_items := b_win + (n' + 1)) (b_win := b_win) (n_win := n')
@@ -433,6 +428,10 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
     rcases hrng with ⟨hlt, hp_eq⟩ | ⟨hge, hlo, _⟩
     · rw [hp_eq]; omega
     · omega
+  have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
+      N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
+    unfold physByBase
+    rw [ite_eq_right hb0, ite_eq_right (Nat.lt_irrefl b_win)]
   refine ⟨hgm_s3.trans (hcpl.gm_eq.trans hgm_fix.symm),
     hlm_s3.trans (hcpl.lm_eq.trans hlm_fix.symm),
     by rw [htd_s3, hdt_s3]; exact hspec.1,
@@ -453,11 +452,8 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
       by_cases hdel : d = d_last
       · subst d
         have hgt : b_win < d_last := lt_of_le_of_ne hp.1 (Ne.symm hdeb)
-        rw [compQuotAt_writeCompQuot_self s.mem hd_last_lt hq_b_lt, hp.2.2.1 hgt]
-        have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
-            N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
-          unfold physByBase; rw [ite_eq_right hb0, ite_eq_right (Nat.lt_irrefl b_win)]
-        rw [← hp_b]; exact hcpl.quot_eq b_win hb_lt
+        rw [compQuotAt_writeCompQuot_self s.mem hd_last_lt hq_b_lt, hp.2.2.1 hgt, ← hp_b]
+        exact hcpl.quot_eq b_win hb_lt
       · rw [compQuotAt_writeCompQuot_of_ne hw s.mem hdel, hp.2.2.2 d (by omega) hdeb hdel]
         exact hcpl.quot_eq d hd
   · rw [hm_eq] at hd ⊢
@@ -473,11 +469,8 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
       by_cases hdel : d = d_last
       · subst d
         have hgt : b_win < d_last := lt_of_le_of_ne hp.1 (Ne.symm hdeb)
-        rw [compValAt_writeCompVal_self _ hd_last_lt hv_b_lt, hp.2.2.1 hgt]
-        have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
-            N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
-          unfold physByBase; rw [ite_eq_right hb0, ite_eq_right (Nat.lt_irrefl b_win)]
-        rw [← hp_b]; exact hcpl.val_eq b_win hb_lt
+        rw [compValAt_writeCompVal_self _ hd_last_lt hv_b_lt, hp.2.2.1 hgt, ← hp_b]
+        exact hcpl.val_eq b_win hb_lt
       · rw [compValAt_writeCompVal_of_ne hw _ hdel, compValAt_writeCompQuot hw s.mem,
           hp.2.2.2 d (by omega) hdeb hdel]
         exact hcpl.val_eq d hd

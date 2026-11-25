@@ -142,20 +142,14 @@ private theorem visitListLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
   induction es generalizing S x with
   | nil =>
     generalize hp : x.regs rCurNode = p at hch
-    generalize hl : ([] : List (Edge (Fin L → Fin L))) = l at hch
-    rcases hch with _ | ⟨_, _, _, _, _⟩
-    swap
-    · nomatch hl
+    cases hch
     exact ⟨x, ⟨2, by omega, .loop_exit
         (by simp only [Cond.holds_lt, hS.consts.zero, hp]; omega)⟩, hS, rfl, rfl⟩
   | cons e es' ih =>
-    have hex : ∀ p l, AdjChain g x.mem (visBase g) p l → l = e :: es' →
-        ∃ (j : ℕ) (hj : j < g.edges.length), e = g.edges[j] ∧
-          nodeBase g ≤ p ∧ p + 2 ≤ visBase g ∧ x.mem p = j ∧
-          AdjChain g x.mem (visBase g) (x.mem (p + 1)) es' := by
-      rintro _ _ (_ | ⟨hj, hlo, hhi, hp0, htl⟩) ⟨⟩
-      exact ⟨_, hj, rfl, hlo, hhi, hp0, htl⟩
-    obtain ⟨j, hj, rfl, hlo, hhi, hp0, htl⟩ := hex _ _ hch rfl
+    generalize hp : x.regs rCurNode = p at hch
+    cases hch with
+    | @cons _ j _ hj hlo hhi hp0 htl =>
+    rw [← hp] at hlo hhi hp0 htl
     have hc_loop : (Cond.lt rZero rCurNode).Holds x := by
       simp only [Cond.holds_lt, hS.consts.zero]
       simp only [nodeBase, headBase] at hlo; omega
@@ -214,9 +208,8 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
   obtain ⟨hstk1, hstk2⟩ := holdsList_append_iff.mp hm
   rw [List.length_reverse] at hstk2
   have hrest_le : rest.length < slots g := by
-    have hp : S.potential ≤ slots g := hS.pot_le
-    unfold State.potential at hp
-    simp only [hst, List.length_cons] at hp
+    have hp := hS.pot_le
+    simp only [statePotential, hst, List.length_cons] at hp
     omega
   set S1 : State (Fin L) := { S with stack := rest, comp := u :: S.comp }
   have hpop_raw : ∃ x1, ExecWithin w scanPop x x1 8 ∧
@@ -248,7 +241,8 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
          have hun : S1.unvisited = S.unvisited := rfl
          change S1.potential ≤ slots g
          unfold State.potential at hp ⊢
-         simp only [S1, hun, hst, List.length_cons] at hp ⊢; omega,
+         simp only [S1, hun, hst, List.length_cons] at hp ⊢
+         omega,
       fun a ha => by
         rw [hfr_comp _ (by wram_omega)]
         exact hS.cand_mem a ha,

@@ -469,12 +469,10 @@ theorem inGrid_start_iff : InGrid N N start ↔ 0 < N := by
 
 theorem IsSpernerColoring.hasBoundaryEntry_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasBoundaryEntry c N N t ↔ t = start := by
-  refine ⟨?_, ?_⟩
-  · rintro ⟨k, ⟨h1, h2⟩, hk⟩
-    obtain ⟨⟨a1, b1, e1⟩, ⟨a2, b2, e2⟩⟩ := boundary_corners ht hk
-    exact (boundary_door ht hk).2 ⟨hc _ _ a1 b1 e1 ▸ h1, hc _ _ a2 b2 e2 ▸ h2⟩
-  · rintro rfl
-    exact ⟨2, hc.isEntry_start (inGrid_start_iff.mp ht), interior_start_two⟩
+  refine ⟨fun ⟨k, ⟨h1, h2⟩, hk⟩ => ?_,
+    fun h => h.symm ▸ ⟨2, hc.isEntry_start (inGrid_start_iff.mp (h ▸ ht)), interior_start_two⟩⟩
+  obtain ⟨⟨a1, b1, e1⟩, ⟨a2, b2, e2⟩⟩ := boundary_corners ht hk
+  exact (boundary_door ht hk).2 ⟨hc _ _ a1 b1 e1 ▸ h1, hc _ _ a2 b2 e2 ▸ h2⟩
 
 /-- In a Sperner colouring of the `N × N` grid (`0 < N`), the door graph has exactly one more
 sink than it has sources. -/
@@ -564,11 +562,10 @@ theorem IsSpernerColoring.next_ne_start (hc : IsSpernerColoring N c) {t : GridTr
   obtain ⟨hg, hi', -, -, -⟩ := gluing ht hi
   rw [next_eq_across hk hi]
   intro hs
-  have he := isEntry_across c ht hi hk
-  rw [hs] at he hi' hg
-  have h2 := isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg))
-  rw [h2, interior_start_two] at hi'
-  exact Bool.false_ne_true hi'
+  have he := hs ▸ isEntry_across c ht hi hk
+  rw [hs] at hi' hg
+  rw [isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg))] at hi'
+  exact Bool.noConfusion hi'
 
 theorem IsSpernerColoring.hasInteriorExit_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasInteriorExit c N N t ↔ HasExit c t := by
@@ -609,9 +606,8 @@ theorem IsSpernerColoring.trichromatic_iff (hc : IsSpernerColoring N c) {t : Gri
     Trichromatic c t ↔ (((HasEntry c t ∧ t ≠ start) ↔ HasExit c t) ↔ t = start) := by
   rw [trichromatic_iff_isSink_or_isSource]
   unfold IsSink IsSource
-  by_cases hs : t = start
-  · subst hs
-    have he : HasEntry c start := ⟨2, hc.isEntry_start (inGrid_start_iff.mp ht)⟩
+  rcases eq_or_ne t start with rfl | hs
+  · have : HasEntry c start := ⟨2, hc.isEntry_start (inGrid_start_iff.mp ht)⟩
     tauto
   · tauto
 

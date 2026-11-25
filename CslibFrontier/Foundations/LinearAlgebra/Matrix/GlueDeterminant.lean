@@ -145,24 +145,19 @@ theorem det_sumElim_smul_add (P : n → (n ⊕ m) → R) (l : m → R) (v e : m 
         (of (Sum.elim P (T.piecewise v e)) : Matrix (n ⊕ m) (n ⊕ m) R).det := by
   let g : (m → (n ⊕ m) → R) →ₘₗ[R] R :=
     (MultilinearMap.currySum (detRowAlternating (n := n ⊕ m) (R := R)).toMultilinearMap) P
-  have hg : ∀ w : m → (n ⊕ m) → R, g w = (of (Sum.elim P w) : Matrix (n ⊕ m) (n ⊕ m) R).det := by
-    intro w
-    rfl
   have h1 := g.map_add_univ (fun r => l r • v r) e
-  have h2 : ∀ T : Finset m, g (T.piecewise (fun r => l r • v r) e) =
+  have h2 (T : Finset m) : g (T.piecewise (fun r => l r • v r) e) =
       (∏ r ∈ T, l r) * g (T.piecewise v e) := by
-    intro T
-    have := g.map_piecewise_smul l (T.piecewise v e) T
-    rw [smul_eq_mul] at this
-    simp only [RingHom.id_apply] at this
-    rw [← this]
+    have h := g.map_piecewise_smul l (T.piecewise v e) T
+    simp only [smul_eq_mul, RingHom.id_apply] at h
+    rw [← h]
     congr 1
     ext r : 1
     by_cases hr : r ∈ T <;> simp [hr]
   calc (of (Sum.elim P (fun r => l r • v r + e r)) : Matrix (n ⊕ m) (n ⊕ m) R).det
       = g ((fun r => l r • v r) + e) := rfl
     _ = ∑ T : Finset m, g (T.piecewise (fun r => l r • v r) e) := h1
-    _ = _ := Finset.sum_congr rfl fun T _ => by rw [h2, hg]
+    _ = _ := Finset.sum_congr rfl fun T _ => h2 T
 
 end expand
 
@@ -173,8 +168,7 @@ theorem dvd_det_sub {R n : Type*} [CommRing R] [Fintype n] [DecidableEq n] (d : 
   rw [← Ideal.mem_span_singleton, ← Ideal.Quotient.eq, RingHom.map_det, RingHom.map_det]
   congr 1
   ext i j
-  simp only [RingHom.mapMatrix_apply, Matrix.map_apply]
-  rw [Ideal.Quotient.eq, Ideal.mem_span_singleton]
+  simp only [RingHom.mapMatrix_apply, Matrix.map_apply, Ideal.Quotient.eq, Ideal.mem_span_singleton]
   exact h i j
 
 end Matrix

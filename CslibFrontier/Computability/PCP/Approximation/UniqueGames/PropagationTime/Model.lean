@@ -77,10 +77,7 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
   induction l with
   | nil =>
     refine ⟨List.length_replicate, fun u => ?_⟩
-    change (List.replicate n []).getD u [] = []
-    by_cases hu : u < n
-    · exact List.getD_replicate _ hu
-    · exact List.getD_eq_default _ _ (by simpa only [List.length_replicate, not_lt] using hu)
+    by_cases hu : u < n <;> simp [buckets, List.getD_eq_getElem?_getD, hu]
   | cons e l ih =>
     obtain ⟨hlen, hget⟩ := ih fun d hd => hl d (List.mem_cons_of_mem _ hd)
     have ⟨hs, hd⟩ := hl e List.mem_cons_self
@@ -197,16 +194,13 @@ propagation on `g`. -/
 theorem Fits.inputFits_encode {L w : ℕ} {g : Graph (Fin L → Fin L)} (hw : Fits w (wordBound g)) :
     InputFits w (encode g) := by
   refine ⟨hw.of_le (by rw [length_encode, wordBound]; nlinarith), fun x hx => hw.of_le ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap, encodeEdge, List.mem_map] at hx
+  have hbound : L + slots g + g.edges.length ≤ wordBound g := by rw [wordBound]; nlinarith
   have hv_le : g.vertices ≤ slots g := vertices_le_slots g
-  simp only [wordBound]
+  simp only [encode, List.mem_cons, List.mem_flatMap, encodeEdge, List.mem_map] at hx
   rcases hx with rfl | rfl | rfl | ⟨e, he, rfl | rfl | ⟨a, _, rfl⟩⟩
-  · nlinarith
-  · nlinarith
-  · nlinarith
-  · nlinarith [src_lt_slots he]
-  · nlinarith [dst_lt_slots he]
-  · nlinarith [(e.constraint a).isLt]
+  all_goals try omega
+  · exact (src_lt_slots he).le.trans (by omega)
+  · exact (dst_lt_slots he).le.trans (by omega)
 
 namespace Reg
 

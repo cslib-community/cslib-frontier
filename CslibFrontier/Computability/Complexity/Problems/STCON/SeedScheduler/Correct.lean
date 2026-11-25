@@ -80,9 +80,7 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
   have endpointVal (v : Fin ((I.n - 1) + 1) × Fin I.n) :
       (index (root size.subdivision.chainBound v)).val =
         (subdivisionIndex I bound (root bound v)).val := by
-    rw [configurationSubdivisionIndex_val]
-    simp only [subdivisionIndex_root_val]
-    rw [congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound) hparams]
+    simp [I, index, size, setup, bound, configurationSubdivisionIndex_val, hparams]
   have hsource : (⟨setup.sourceID, hs⟩ : Fin size.subdivision.vertexCount) =
       index (root size.subdivision.chainBound source) :=
     Fin.ext ((Prod.mk.inj hids).1.trans (endpointVal source).symm)
@@ -92,13 +90,11 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
   have hroots : List.ofFn (fun j : Fin size.subdivision.originalCount =>
       (⟨setup.originalSourceID j.val, hr _ j.isLt⟩ : Fin size.subdivision.vertexCount)) =
       List.ofFn (originalRootID index) := by
-    refine List.ext_getElem ?_ fun i _ hi => ?_
+    refine List.ext_getElem ?_ fun i _ hi => Fin.ext ?_
     · simpa only [List.length_ofFn] using configurationSeedSearchSetup_originalCount ntm c input
-    · simp only [List.getElem_ofFn]
-      apply Fin.ext
-      rw [originalRootID, configurationSubdivisionIndex_val]
-      exact configurationSeedSearchSetup_originalSourceID_eq ntm c input
-        ⟨i, by simpa only [List.length_ofFn] using hi⟩
+    · simpa [originalRootID, index, setup, configurationSubdivisionIndex_val] using
+        configurationSeedSearchSetup_originalSourceID_eq ntm c input
+          ⟨i, by simpa only [List.length_ofFn] using hi⟩
   let controller (bits : Fin (codeLength I.n (I.n - 1)) → Bool)
       (u : Fin size.subdivision.vertexCount) :=
     scan ⟨setup, (BitString.equivFin _ bits).val, u.val⟩
@@ -120,11 +116,8 @@ theorem configurationSeedScheduler_correct {m : Type → Type} [AlternativeMonad
       (BitString.equivFin _).symm i = fun j : Fin (codeLength I.n (I.n - 1)) =>
         i.val.testBit j.val :=
     funext fun _ => BitString.equivFin_symm_apply ..
-  refine ⟨result, hrun, ?_, fun i hi => ?_, hreach.trans (layeredDigraph_reachable_iff I)⟩
-  · rw [← bitsOfRank]
-    exact hmin
-  · rw [← bitsOfRank]
-    exact hleast i hi
+  exact ⟨result, hrun, bitsOfRank _ ▸ hmin, fun i hi => bitsOfRank _ ▸ hleast i hi,
+    hreach.trans (layeredDigraph_reachable_iff I)⟩
 
 /-- Evaluate the mathematical controller with exact adjacency and membership answers
 for the request's seed and source in the original input's subdivision. The input fixes the

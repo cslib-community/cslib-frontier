@@ -475,9 +475,7 @@ theorem endOfPotentialLineViolationRel_potentialLineBack
   by_cases hprom : LineSourcePromise n P S a
   · rcases endOfPotentialLineRel_iff.mp h with h | ⟨hlen, hu, hin, hout⟩
     · rw [potentialLineBack_eq_self hprom h.2.2]
-      rcases sinkViolation_of_sinkOfPotentialLineRel hprom h with h' | h'
-      · exact ⟨h.1, .inr (.inr (.inl h'))⟩
-      · exact ⟨h.1, .inr (.inr (.inr h'))⟩
+      exact ⟨h.1, .inr (.inr (sinkViolation_of_sinkOfPotentialLineRel hprom h))⟩
     · exact violation_of_properSource hprom hP hlen hu hin hout
   · rw [potentialLineBack_of_not_promise hprom]
     exact ⟨length_zeroVertex _, .inl ⟨rfl, hprom⟩⟩
@@ -828,10 +826,8 @@ theorem exists_potentialBound (hn : ComputableInPolyTime n enc encUnary)
     ∃ m : α → ℕ, ComputableInPolyTime m enc encUnary ∧
       ∀ a u, u.length = n a → V (a, u) < 2 ^ m a := by
   obtain ⟨m, hm, hbits⟩ := exists_length_bits_le hn hV
-  refine ⟨m, hm, fun a u hu => ?_⟩
-  have hsize := hbits a u hu
-  rw [Nat.size_eq_bits_len] at hsize
-  exact (Nat.lt_size_self _).trans_le (Nat.pow_le_pow_right (by decide) hsize)
+  exact ⟨m, hm, fun a u hu => (Nat.lt_size_self _).trans_le
+    (Nat.pow_le_pow_right (by decide) (Nat.size_eq_bits_len _ ▸ hbits a u hu))⟩
 
 /-- Whether `u` lies on a potential line: `u = 0 ^ (n a)` or `u` has a potential-increasing incoming
 edge. -/
@@ -866,9 +862,7 @@ private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
     sinkOfPotentialLineRel n P S V a u := by
   obtain ⟨hlen, hle⟩ := h
   by_cases hon : onPotentialLine n P S V (a, u) = true
-  · have hon' : u = zeroVertex (n a) ∨ hasPotentialIn n P S V a u = true := by
-      simpa [onPotentialLine] using hon
-    refine ⟨hlen, ?_, hon'⟩
+  · refine ⟨hlen, ?_, by simpa [onPotentialLine] using hon⟩
     by_contra hout
     simp only [Bool.not_eq_false] at hout
     have hnext : onPotentialLine n P S V (a, S (a, u)) = true := by
@@ -877,9 +871,7 @@ private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
     have hBS := hB _ (hS u hlen)
     simp only [soplCost, soplNeighbor, hon, ↓reduceIte, potentialSucc_of_true hout, hnext] at hle
     omega
-  · exfalso
-    have hz : onPotentialLine n P S V (a, zeroVertex (n a)) = true := by
-      simp [onPotentialLine]
+  · have hz : onPotentialLine n P S V (a, zeroVertex (n a)) = true := by simp [onPotentialLine]
     simp only [soplCost, soplNeighbor, hon, Bool.false_eq_true, ↓reduceIte, hz] at hle
     omega
 

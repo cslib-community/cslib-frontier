@@ -128,10 +128,8 @@ deficit for both boundary layers, for even as well as odd input sizes.
 -/
 
 private theorem le_strictMajorityDeficitBound (n : ℕ) : 128 ≤ strictMajorityDeficitBound n := by
-  have h := Real.logb_nonneg (by norm_num : (1 : ℝ) < 2)
-    (show (1 : ℝ) ≤ 2 * ((n : ℝ) + 1) by have := Nat.cast_nonneg (α := ℝ) n; linarith)
-  unfold strictMajorityDeficitBound
-  linarith
+  exact le_add_of_nonneg_right <| Real.logb_nonneg (by norm_num)
+    (by linarith [Nat.cast_nonneg (α := ℝ) n])
 
 private theorem two_pow_le_succ_mul_choose_half (n : ℕ) : 2 ^ n ≤ (n + 1) * n.choose (n / 2) := by
   calc
@@ -260,22 +258,19 @@ private theorem majority_layers_limits {n : ℕ} (hn : 16 ≤ n) :
   have hp : (16 : ℝ) / n ≤ 1 := (div_le_one hnpos).mpr (by exact_mod_cast hn)
   constructor
   · intro x hx
-    have hx' : weight x = n / 2 := (mem_filter.mp hx).2
-    have hl := isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2 + 1)) x
-      (fun i => !x i) (by rw [weight_not, Fintype.card_fin, hx']; omega) ?_
-    · exact hl.mono_right (by positivity) hp (le_strictMajorityDeficitBound n)
-    intro i hi
+    have hx' : weight x = n / 2 := mem_weightLayer.mp hx
+    refine (isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2 + 1)) x (fun i => !x i)
+      (by rw [weight_not, Fintype.card_fin, hx']; omega) fun i hi => ?_).mono_right
+      (by positivity) hp (le_strictMajorityDeficitBound n)
     have hi' : x i = false := by simpa using hi
-    simp only [mem_weightLayer, hi', Bool.not_false]
-    rw [weight_update_true hi', hx']
+    simp only [mem_weightLayer, hi', Bool.not_false, weight_update_true hi', hx']
   · intro y hy
-    have hy' : weight y = n / 2 + 1 := (mem_filter.mp hy).2
-    have hl := isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2)) y
-      y (by rw [hy']; omega) ?_
-    · exact hl.mono_right (by positivity) hp (le_strictMajorityDeficitBound n)
-    intro i hi
-    have hc := weight_update_false hi
+    have hy' : weight y = n / 2 + 1 := mem_weightLayer.mp hy
+    refine (isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2)) y y
+      (by rw [hy']; omega) fun i hi => ?_).mono_right
+      (by positivity) hp (le_strictMajorityDeficitBound n)
     simp only [mem_weightLayer, hi, Bool.not_true]
+    have := weight_update_false hi
     omega
 
 /-! ### The communication lower bound for strict majority
@@ -308,14 +303,12 @@ theorem not_solvesKW_strictMajority {n d : ℕ} (P : KWRoundProtocol (Fin n) M (
   have ⟨hleft, hright⟩ := majority_layers_limits hn16
   have hbudget :
       (32768 * (194 : ℝ) ^ d * (m + strictMajorityDeficitBound n)) ^ d * (16 / n) ≤ 1 / 4 := by
-    rw [← mul_div_assoc, div_le_iff₀ hnpos]
-    linarith
+    rw [← mul_div_assoc, div_le_iff₀ hnpos]; linarith
   intro hsol
-  apply P.not_solves_bilateral_density hM hm (by linarith)
-    (show (0 : ℝ) < 16 / n by positivity) hX.1 hY.1 hX.2 hY.2 hleft hright hbudget
-  intro x hx y hy
-  exact hsol x y (strictMajority_eq_false_iff.mpr (mem_weightLayer.mp hx).le)
-    (strictMajority_eq_true_iff.mpr (by have := mem_weightLayer.mp hy; omega))
+  refine P.not_solves_bilateral_density hM hm (by linarith)
+    (by positivity) hX.1 hY.1 hX.2 hY.2 hleft hright hbudget fun x hx y hy => hsol x y
+      (strictMajority_eq_false_iff.mpr (mem_weightLayer.mp hx).le)
+      (strictMajority_eq_true_iff.mpr (by have := mem_weightLayer.mp hy; omega))
 
 end RoundProtocol
 

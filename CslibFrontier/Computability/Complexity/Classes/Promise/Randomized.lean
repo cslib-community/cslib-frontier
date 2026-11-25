@@ -339,14 +339,10 @@ theorem RPReducibleWithError.trans_add {s₁ : α → ℝ} {s₂ : ℝ}
     have hfail := PMF.toOuterMeasure_bind_failure_toReal_le
       (ProbComp.eval (R₁ a)) (fun b => ProbComp.eval (R₂ b)) Y.no Z.noᶜ
       (sub_nonneg.mpr hs₂) fun b _ hb => by
-        have hadd := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₂ b)) Z.no
-        have h := hno₂ b hb
-        linarith
-    have hadd₁ := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₁ a)) Y.no
-    have hadd₂ := PMF.toOuterMeasure_toReal_add_compl
-      ((ProbComp.eval (R₁ a)).bind fun b => ProbComp.eval (R₂ b)) Z.no
-    have h₁ := hno₁ a ha
-    linarith
+        linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₂ b)) Z.no, hno₂ b hb]
+    linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R₁ a)) Y.no,
+      PMF.toOuterMeasure_toReal_add_compl
+        ((ProbComp.eval (R₁ a)).bind fun b => ProbComp.eval (R₂ b)) Z.no, hno₁ a ha]
 
 /-- Precomposing an `RPReducibleWithError` reduction with an explicit deterministic polynomial-time
 reduction `f` from `X` to `Y` pulls back its soundness threshold along `f`. -/
@@ -414,11 +410,7 @@ private theorem probability_and2 (M : α → ProbComp Bool) (a : α) :
     Pr[and2 M a] = Pr[M a] * Pr[M a] := by
   change Pr[M a >>= fun b₁ => (fun b₂ => b₁ && b₂) <$> M a] = _
   rw [ProbComp.probability_bind, Fintype.sum_bool]
-  simp only [Bool.true_and, Bool.false_and]
-  have htrue : Pr[(fun b₂ : Bool => b₂) <$> M a] = Pr[M a] := by simp
-  have hfalse : Pr[(fun _ : Bool => false) <$> M a] = 0 := by
-    simp [ProbComp.eval_map, PMF.map_apply]
-  rw [htrue, hfalse, mul_zero, add_zero]
+  simp [Bool.true_and, Bool.false_and, ProbComp.eval_map, PMF.map_apply]
 
 private theorem probability_sampleList_ge_of_errorExponentAt_true {β : Type} {enc : β ↪ List Bool}
     {q p : Polynomial ℕ} {V : β × List Bool → Bool} {b : β} (h : ErrorExponentAt enc q p V b true) :
@@ -524,9 +516,7 @@ theorem RPReducible.mem_PromiseBPP (hXY : RPReducible encA encB X Y)
           rw [PMF.toOuterMeasure_apply_singleton]
           exact hMno y hy
       rw [← ProbComp.eval_bind, PMF.toOuterMeasure_apply_singleton] at hfail
-      have hadd := PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R a)) Y.no
-      have hno := hnoR a ha
-      linarith
+      linarith [PMF.toOuterMeasure_toReal_add_compl (ProbComp.eval (R a)) Y.no, hnoR a ha]
     have hand2 : Pr[and2 T a] ≤ 1 / 3 := by
       rw [probability_and2]
       calc Pr[T a] * Pr[T a] ≤ (11 / 24) * (11 / 24) :=
