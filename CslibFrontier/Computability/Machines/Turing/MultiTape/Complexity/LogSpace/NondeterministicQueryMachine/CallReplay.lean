@@ -67,9 +67,8 @@ private theorem firstHalting_append_live_iff {α : Type} (M : NondeterministicQu
   · intro h
     refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
     have hh := h.2 (before.length + n) (by simp only [List.length_append]; omega)
-    rw [List.take_append, List.take_of_length_le (by omega : before.length ≤ before.length + n),
+    rwa [List.take_append, List.take_of_length_le (by omega : before.length ≤ before.length + n),
       Nat.add_sub_cancel_left, M.replay_append] at hh
-    exact hh
   · intro h
     refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
     by_cases hle : n ≤ before.length
@@ -145,12 +144,9 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     ∃ callBits, left = callBits ++ false :: rest ∧ right = callBits ++ false :: rest' ∧
       callee.FirstHalting input callBits s ∧
       ret (callee.replay input callBits s) = some a ∧ a = a' := by
-  obtain ⟨callBits, hleft, hf, hret⟩ :=
-    (readReply_iff _ _ _ _ _ _ _).mp ha
-  obtain ⟨other, hright, hf', hret'⟩ :=
-    (readReply_iff _ _ _ _ _ _ _).mp ha'
-  have he : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
-  subst other
+  obtain ⟨callBits, hleft, hf, hret⟩ := (readReply_iff _ _ _ _ _ _ _).mp ha
+  obtain ⟨other, hright, hf', hret'⟩ := (readReply_iff _ _ _ _ _ _ _).mp ha'
+  obtain rfl : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
   exact ⟨callBits, hleft, hright, hf, hret, Option.some.inj (hret.symm.trans hret')⟩
 
 /-- If a selector stream runs past a common clock, it contains a first-halting callback
