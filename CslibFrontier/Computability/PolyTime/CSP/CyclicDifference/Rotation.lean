@@ -43,8 +43,7 @@ theorem getD_argumentTable (o : F.Occurrence) :
 
 /-- The argument successor table is a permutation of actual occurrence positions. -/
 theorem argumentTable_nodup (F : CSP Rel ℕ) : (argumentTable F).Nodup := by
-  apply F.occurrences_nodup.map_on
-  intro a ha b hb hab
+  refine F.occurrences_nodup.map_on fun _ ha _ hb hab => ?_
   obtain ⟨o, rfl⟩ := CSP.mem_occurrences.mp ha
   obtain ⟨p, rfl⟩ := CSP.mem_occurrences.mp hb
   change argumentNextIndex F o.1 o.2 = argumentNextIndex F p.1 p.2 at hab
@@ -61,8 +60,7 @@ theorem idxOf_argumentTable (o : F.Occurrence) :
       incidenceEdgeIndex_lt ((argumentPermutation F).symm o)
   have he := getD_argumentTable ((argumentPermutation F).symm o)
   rw [Equiv.apply_symm_apply, List.getD_eq_getElem _ _ hi] at he
-  rw [← he]
-  exact (argumentTable_nodup F).idxOf_getElem _ _
+  exact he ▸ (argumentTable_nodup F).idxOf_getElem _ hi
 
 /-- Inverting the supplied successor list at an actual variable end recovers precisely the
 inverse variable permutation of the decoded rotation; no supplied inverse is trusted. -/
@@ -73,18 +71,14 @@ theorem idxOf_variable (cert : Graph.RotationCertificate)
   let r := decode (incidenceGraph F) cert h
   let p := (variablePermutation r).symm o
   have hi : 2 * incidenceEdgeIndex p < cert.successor.length := by
-    rw [(verifyRotation_parts h).2.1]
-    have := incidenceEdgeIndex_lt p
-    omega
-  have he : cert.successor.getD (2 * incidenceEdgeIndex p) 0 =
-      2 * incidenceEdgeIndex o := by
+    have := incidenceEdgeIndex_lt p; rw [(verifyRotation_parts h).2.1]; omega
+  have he : cert.successor.getD (2 * incidenceEdgeIndex p) 0 = 2 * incidenceEdgeIndex o := by
     have he := index_decode_rotate h (incidenceDart p false)
     rw [rotate_incidenceDart_false, show variablePermutation r p = o from
       (variablePermutation r).apply_symm_apply o] at he
     simpa only [Graph.Dart.index, incidenceDart, Bool.toNat_false, Nat.add_zero] using he.symm
   rw [List.getD_eq_getElem _ _ hi] at he
-  rw [← he]
-  exact (verifyRotation_parts h).2.2.1.idxOf_getElem _ _
+  exact he ▸ (verifyRotation_parts h).2.2.1.idxOf_getElem _ hi
 
 /-- The executed white table is exactly the polygon's backward-dart face successor. -/
 theorem getD_whiteTable (cert : Graph.RotationCertificate)
@@ -92,10 +86,9 @@ theorem getD_whiteTable (cert : Graph.RotationCertificate)
     (whiteTable F cert).getD (incidenceEdgeIndex o) 0 =
       incidenceEdgeIndex ((argumentPermutation F).symm
         ((variablePermutation (decode _ cert h)).symm o)) := by
-  have hi : incidenceEdgeIndex o < F.occurrences.length := by
-    simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
   rw [List.getD_eq_getElem _ _ (by
-    simpa only [whiteTable, List.length_map, List.length_range] using hi)]
+    simpa only [whiteTable, List.length_map, List.length_range, incidenceGraph_edges] using
+      incidenceEdgeIndex_lt o)]
   simp only [whiteTable, List.getElem_map, List.getElem_range, idxOf_variable cert h,
     Nat.mul_div_cancel_left _ (by decide : 0 < 2)]
   exact idxOf_argumentTable _
@@ -121,13 +114,11 @@ theorem orbitBool_white (cert : Graph.RotationCertificate)
     | succ k ih =>
       rw [walk, Function.iterate_succ_apply', ← walk, ih, ht, Function.iterate_succ_apply']
   have hcard : Fintype.card F.Occurrence = F.occurrences.length := by
-    simpa only [polygonGraph, List.length_map] using
-      (length_edges_polygonGraph_eq_card F).symm
+    simpa only [polygonGraph, List.length_map] using (length_edges_polygonGraph_eq_card F).symm
   simp only [orbitBool, List.any_eq_true, List.mem_range, decide_eq_true_eq, hw]
   rw [sameCycle_iff_bounded, hcard]
-  constructor <;> rintro ⟨k, hk, he⟩ <;> refine ⟨k, hk, ?_⟩
-  · exact incidenceEdgeIndex_injective he
-  · exact congrArg incidenceEdgeIndex he
+  exact ⟨fun ⟨k, hk, he⟩ => ⟨k, hk, incidenceEdgeIndex_injective he⟩,
+    fun ⟨k, hk, he⟩ => ⟨k, hk, congrArg incidenceEdgeIndex he⟩⟩
 
 /-- The white orbit scan is the actual face orbit on backward polygon darts. -/
 theorem sameCycle_white_iff (r : Graph.RotationSystem (incidenceGraph F))
@@ -135,20 +126,14 @@ theorem sameCycle_white_iff (r : Graph.RotationSystem (incidenceGraph F))
     (whitePermutation r).SameCycle o p ↔
       (polygonRotation r).faceNext.SameCycle (polygonDart o true) (polygonDart p true) := by
   have hm : Function.Semiconj (fun q : F.Occurrence => polygonDart q true)
-      (whitePermutation r) (polygonRotation r).faceNext := by
-    intro q
-    exact (faceNext_polygonDart_true r q).symm
-  constructor
-  · exact fun h => h.map_of_semiconj hm
-  · intro h
-    obtain ⟨k, hk⟩ := h.exists_nat_pow_eq
-    refine ⟨(k : ℤ), ?_⟩
-    have hh : polygonDart (((whitePermutation r) ^ (k : ℤ)) o) true =
-        polygonDart p true := by
-      rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow]
-      exact (hm.iterate_right k o).trans (by
-        simpa only [Equiv.Perm.iterate_eq_pow] using hk)
-    exact incidenceEdgeIndex_injective (congrArg (fun d => d.1.val) hh)
+      (whitePermutation r) (polygonRotation r).faceNext :=
+    fun q => (faceNext_polygonDart_true r q).symm
+  refine ⟨fun h => h.map_of_semiconj hm, fun h => ?_⟩
+  obtain ⟨k, hk⟩ := h.exists_nat_pow_eq
+  have hh : polygonDart (((whitePermutation r) ^ (k : ℤ)) o) true = polygonDart p true := by
+    rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow]
+    exact (hm.iterate_right k o).trans (by rw [Equiv.Perm.iterate_eq_pow]; exact hk)
+  exact ⟨k, incidenceEdgeIndex_injective (congrArg (fun d => d.1.val) hh)⟩
 
 /-- The black orbit is the original indexed constraint position. -/
 theorem sameCycle_black_iff (r : Graph.RotationSystem (incidenceGraph F))
@@ -156,21 +141,15 @@ theorem sameCycle_black_iff (r : Graph.RotationSystem (incidenceGraph F))
     (polygonRotation r).faceNext.SameCycle (polygonDart o false) (polygonDart p false) ↔
       o.1 = p.1 := by
   have hm : Function.Semiconj (fun q : F.Occurrence => polygonDart q false)
-      (argumentPermutation F) (polygonRotation r).faceNext := by
-    intro q
-    exact (faceNext_polygonDart_false r q).symm
+      (argumentPermutation F) (polygonRotation r).faceNext :=
+    fun q => (faceNext_polygonDart_false r q).symm
   rw [← sameCycle_argumentPermutation o p]
-  constructor
-  · intro h
-    obtain ⟨k, hk⟩ := h.exists_nat_pow_eq
-    refine ⟨(k : ℤ), ?_⟩
-    have hh : polygonDart (((argumentPermutation F) ^ (k : ℤ)) o) false =
-        polygonDart p false := by
-      rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow]
-      exact (hm.iterate_right k o).trans (by
-        simpa only [Equiv.Perm.iterate_eq_pow] using hk)
-    exact incidenceEdgeIndex_injective (congrArg (fun d => d.1.val) hh)
-  · exact fun h => h.map_of_semiconj hm
+  refine ⟨fun h => ?_, fun h => h.map_of_semiconj hm⟩
+  obtain ⟨k, hk⟩ := h.exists_nat_pow_eq
+  have hh : polygonDart (((argumentPermutation F) ^ (k : ℤ)) o) false = polygonDart p false := by
+    rw [zpow_natCast, ← Equiv.Perm.iterate_eq_pow]
+    exact (hm.iterate_right k o).trans (by rw [Equiv.Perm.iterate_eq_pow]; exact hk)
+  exact ⟨k, incidenceEdgeIndex_injective (congrArg (fun d => d.1.val) hh)⟩
 
 /-- A polygon face cannot change its black/white endpoint side. -/
 theorem sameCycle_polygon_side (r : Graph.RotationSystem (incidenceGraph F))
@@ -178,15 +157,11 @@ theorem sameCycle_polygon_side (r : Graph.RotationSystem (incidenceGraph F))
     d.2 = e.2 := by
   have hstep (a : Graph.Dart (polygonGraph F)) : ((polygonRotation r).faceNext a).2 = a.2 := by
     obtain ⟨o, ho⟩ := exists_polygonDart a
-    cases hb : a.2
-    · rw [hb] at ho
-      rw [← ho, faceNext_polygonDart_false]
-      rfl
-    · rw [hb] at ho
-      rw [← ho, faceNext_polygonDart_true]
-      rfl
+    cases hb : a.2 <;> rw [hb] at ho <;> rw [← ho]
+    · rw [faceNext_polygonDart_false]; rfl
+    · rw [faceNext_polygonDart_true]; rfl
   obtain ⟨k, hk⟩ := h.exists_nat_pow_eq
-  have hi (n : ℕ) : ((polygonRotation r).faceNext^[n] d).2 = d.2 := by
+  have hi (n : ℕ) : (((polygonRotation r).faceNext)^[n] d).2 = d.2 := by
     induction n with
     | zero => rfl
     | succ n ih => rw [Function.iterate_succ_apply', hstep, ih]

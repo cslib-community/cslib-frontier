@@ -164,11 +164,9 @@ noncomputable def junctionEquiv : Junction c ≃ Consumer c :=
 
 /-- Every signal has a consumer. -/
 theorem fanout_pos (w : Signal c) : 0 < fanout c w := by
-  obtain ⟨w, hw⟩ := w
-  refine Nat.card_pos_iff.mpr ⟨?_, inferInstance⟩
-  cases hw with
-  | output o => exact ⟨⟨.inr o, rfl⟩⟩
-  | arg a hg => exact ⟨⟨.inl ⟨⟨_, a⟩, hg⟩, rfl⟩⟩
+  rcases w with ⟨_, o | ⟨a, hg⟩⟩
+  · exact Nat.card_pos_iff.mpr ⟨⟨⟨.inr o, rfl⟩⟩, inferInstance⟩
+  · exact Nat.card_pos_iff.mpr ⟨⟨⟨.inl ⟨⟨_, a⟩, hg⟩, rfl⟩⟩, inferInstance⟩
 
 /-! ### The graph -/
 
@@ -236,9 +234,7 @@ def feeder : Junction c → Vertex c
 /-- No junction feeds itself. -/
 theorem feeder_ne_junction : ∀ j : Junction c, feeder j ≠ .junction j
   | ⟨_, ⟨0, _⟩⟩, h => by cases h
-  | ⟨_, ⟨k + 1, _⟩⟩, h => by
-    have := congrArg (fun j : Junction c => (j.2 : ℕ)) (Vertex.junction.inj h)
-    simp at this
+  | ⟨_, ⟨_ + 1, _⟩⟩, h => by simp [feeder] at h
 
 /-- The source of an edge. -/
 def src : Edge c → Vertex c
@@ -319,27 +315,22 @@ private theorem signal_of_src_eq_junction :
 /-- An edge entering the vertex of a signal delivers one of the argument slots of its gate. -/
 theorem exists_slot_of_tgt_eq_signal {e : Edge c} {w : Signal c} (h : tgt e = .signal w) :
     ∃ a : Slot c, Wire.gate a.1.1 = w.1 ∧ e = deliverEdge (.inl a) := by
-  rcases e with j | j
-  · cases h
-  · change owner (junctionEquiv c j) = _ at h
-    obtain ⟨t, rfl⟩ := (junctionEquiv c).symm.surjective j
-    rw [Equiv.apply_symm_apply] at h
-    rcases t with a | o
-    · exact ⟨a, congrArg Subtype.val (Vertex.signal.inj h), rfl⟩
-    · cases h
+  cases e with
+  | feed => cases h
+  | deliver j =>
+    obtain ⟨a | _, rfl⟩ := (junctionEquiv c).symm.surjective j <;>
+      simp only [tgt, owner, Equiv.apply_symm_apply, Vertex.signal.injEq, reduceCtorEq] at h
+    exact ⟨a, congrArg Subtype.val h, rfl⟩
 
 /-- An edge entering the vertex of an output delivers that output. -/
 theorem eq_outEdge_of_tgt_eq_output {e : Edge c} {o : Fin m} (h : tgt e = .output o) :
     e = outEdge c o := by
-  rcases e with j | j
-  · cases h
-  · change owner (junctionEquiv c j) = _ at h
-    obtain ⟨t, rfl⟩ := (junctionEquiv c).symm.surjective j
-    rw [Equiv.apply_symm_apply] at h
-    rcases t with a | o'
-    · cases h
-    · cases h
-      rfl
+  cases e with
+  | feed => cases h
+  | deliver j =>
+    obtain ⟨_ | o', rfl⟩ := (junctionEquiv c).symm.surjective j <;>
+      simp only [tgt, owner, Equiv.apply_symm_apply, Vertex.output.injEq, reduceCtorEq] at h
+    subst h; rfl
 
 /-! ### The network -/
 
@@ -421,24 +412,13 @@ variable {I Acc}
 signal. -/
 theorem satisfies_trace {x : Fin n → U} (hx : ∀ o, c.eval I x o ∈ Acc o) :
     (network c I Acc).Satisfies x fun e => c.program.trace I x e.signal.1 := by
-  intro v
-  cases v with
-  | signal w =>
-    obtain ⟨w, hw⟩ := w
-    change c.program.trace I x w = emit I ⟨w, hw⟩ x _
-    cases w with
-    | input i => rfl
-    | gate g =>
-      rw [Program.trace_gate]
-      simp only [emit, argEdge, signal_deliverEdge, consumed]
-  | junction j =>
-    intro e he
-    change c.program.trace I x e.signal.1 = c.program.trace I x j.1.1
-    rw [signal_of_src_eq_junction he]
-  | output o =>
-    change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
-    rw [signal_deliverEdge]
-    exact hx o
+  rintro (⟨_ | g, hw⟩ | j | o)
+  · rfl
+  · change c.program.trace I x (.gate g) = emit I ⟨.gate g, hw⟩ x _
+    rw [Program.trace_gate]; simp only [emit, argEdge, signal_deliverEdge, consumed]
+  · exact fun e he => congrArg (c.program.trace I x ∘ Subtype.val) (signal_of_src_eq_junction he)
+  · change c.program.trace I x (outEdge c o).signal.1 ∈ Acc o
+    rw [signal_deliverEdge]; exact hx o
 
 section Satisfying
 
@@ -462,13 +442,12 @@ private theorem eq_head (e : Edge c) : α e = α (head e.signal) := by
 /-- In a satisfying assignment, the first edge of every signal carries its value in the
 circuit. -/
 private theorem head_eq_trace :
-    ∀ (w : Wire n c.size) (hw : Reach c w), α (head ⟨w, hw⟩) = c.program.trace I x w := by
-  refine c.program.wire_induction (fun i hw => hα (.signal ⟨.input i, hw⟩)) fun g ih hw => ?_
-  have h : α (head ⟨.gate g, hw⟩) = I _ fun a => α (argEdge hw a) := hα (.signal ⟨.gate g, hw⟩)
-  rw [h, Program.trace_gate]
-  refine congrArg _ (funext fun a => ?_)
-  rw [eq_head hα, argEdge, signal_deliverEdge]
-  exact ih a _
+    ∀ (w : Wire n c.size) (hw : Reach c w), α (head ⟨w, hw⟩) = c.program.trace I x w :=
+  c.program.wire_induction (fun i hw => hα (.signal ⟨.input i, hw⟩)) fun g ih hw => by
+    have h : α (head ⟨.gate g, hw⟩) = I _ fun a => α (argEdge hw a) := hα (.signal ⟨.gate g, hw⟩)
+    rw [h, Program.trace_gate]
+    exact congrArg _ (funext fun a => (eq_head hα _).trans
+      (by rw [argEdge, signal_deliverEdge]; exact ih a _))
 
 /-- **Uniqueness.** A satisfying assignment puts on every edge the value of its signal in the
 circuit. -/
@@ -481,18 +460,17 @@ end Satisfying
 is accepted and the assignment puts on every edge the value of its signal in the circuit. -/
 theorem satisfies_iff {x : Fin n → U} {α : Edge c → U} :
     (network c I Acc).Satisfies x α ↔
-      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.1 := by
-  refine ⟨fun hα => ⟨fun o => ?_, funext (eq_trace hα)⟩, ?_⟩
-  · have h : α (outEdge c o) ∈ Acc o := hα (.output o)
-    rwa [eq_trace hα, signal_deliverEdge] at h
-  · rintro ⟨hx, rfl⟩
-    exact satisfies_trace hx
+      (∀ o, c.eval I x o ∈ Acc o) ∧ α = fun e => c.program.trace I x e.signal.1 :=
+  ⟨fun hα => ⟨fun o => by
+      have h : α (outEdge c o) ∈ Acc o := hα (.output o)
+      rwa [eq_trace hα, signal_deliverEdge] at h,
+    funext (eq_trace hα)⟩,
+   fun ⟨hx, h⟩ => h ▸ satisfies_trace hx⟩
 
 /-- **Exactness.** The network accepts exactly the inputs on which every output `o` of the
 circuit lies in `Acc o`. -/
-theorem accepted_network : (network c I Acc).accepted = {x | ∀ o, c.eval I x o ∈ Acc o} := by
-  ext x
-  exact ⟨fun ⟨_, hα⟩ => (satisfies_iff.mp hα).1, fun hx => ⟨_, satisfies_trace hx⟩⟩
+theorem accepted_network : (network c I Acc).accepted = {x | ∀ o, c.eval I x o ∈ Acc o} :=
+  Set.ext fun _ => ⟨fun ⟨_, hα⟩ => (satisfies_iff.mp hα).1, fun hx => ⟨_, satisfies_trace hx⟩⟩
 
 /-- **Uniqueness.** An input has at most one satisfying assignment. -/
 theorem satisfies_unique {x : Fin n → U} {α β : Edge c → U}
@@ -517,23 +495,16 @@ theorem eval_splice {P : Set (Vertex c)} {x y z : Fin n → U}
     (hzy : EqOn z y ((network c I fun _ => univ).readIn P)ᶜ) (o : Fin m) :
     (Vertex.output o ∈ P → c.eval I z o = c.eval I x o) ∧
       (Vertex.output o ∉ P → c.eval I z o = c.eval I y o) := by
-  have hx : (network c I fun _ => univ).Satisfies x fun e => c.program.trace I x e.signal.1 :=
-    satisfies_trace fun _ => mem_univ _
-  have hy : (network c I fun _ => univ).Satisfies y fun e => c.program.trace I y e.signal.1 :=
-    satisfies_trace fun _ => mem_univ _
-  obtain ⟨γ, hγ, hγx, hγy⟩ := hx.splice hy hcut hzx hzy
-  -- Every value at the output `o` is read off the edge delivering it.
-  have hval : ∀ v, c.program.trace I v (outEdge c o).signal.1 = c.eval I v o := fun v => by
-    rw [signal_deliverEdge]
-    rfl
+  obtain ⟨γ, hγ, hγx, hγy⟩ :=
+    (satisfies_trace (I := I) (Acc := fun _ => univ) (x := x) fun _ => mem_univ _).splice
+      (satisfies_trace fun _ => mem_univ _) hcut hzx hzy
   have htgt : (network c I fun _ => univ).tgt (outEdge c o) = .output o := tgt_deliverEdge _
-  rw [← hval z, ← eq_trace hγ, ← hval x, ← hval y]
+  have hval (v) : c.eval I v o = c.program.trace I v (outEdge c o).signal.1 := by
+    rw [signal_deliverEdge]; rfl
+  simp only [hval, ← eq_trace hγ]
   refine ⟨fun ho => hγx (Or.inr (htgt ▸ ho)), fun ho => ?_⟩
   by_cases ht : outEdge c o ∈ (network c I fun _ => univ).touching P
-  · -- The edge reaches into `P` from outside, so it lies on the cut.
-    have hsrc : src (outEdge c o) ∈ P := ht.resolve_right fun h => ho (htgt ▸ h)
-    refine (hγx ht).trans (hcut _ ?_)
-    exact fun h => ho (htgt ▸ h.mp hsrc)
+  · exact (hγx ht).trans (hcut _ fun h => ho (htgt ▸ h.mp (ht.resolve_right (mt (htgt ▸ ·) ho))))
   · exact hγy ht
 
 end Cslib.Circuits.Frontier.Compiler
