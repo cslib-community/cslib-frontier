@@ -118,37 +118,21 @@ variable {w : ℕ}
 theorem unique {c : Code B r} {x : Data r} {m m' : ProbComp (Data r × ℕ)}
     (h : ExecRand w c x m) (h' : ExecRand w c x m') : m = m' := by
   induction h generalizing m' with
-  | op ho =>
-    cases h' with
-    | op ho' => rw [ho] at ho'; cases ho'; rfl
-  | rand _ =>
-    cases h' with
-    | rand _ => rfl
+  | op ho => cases h' with | op ho' => rw [ho] at ho'; cases ho'; rfl
+  | rand _ => cases h'; rfl
   | seq _ _ ih₁ ih₂ =>
     cases h' with
     | seq h₁' h₂' =>
       obtain rfl := ih₁ h₁'
-      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-      rw [ih₂ z₁ hz₁ (h₂' z₁ hz₁)]
-  | branch_pos hc _ ih =>
+      exact OracleComp.bind_congr_on_support fun z₁ hz₁ => by rw [ih₂ z₁ hz₁ (h₂' z₁ hz₁)]
+  | branch_pos _ _ ih | branch_neg _ _ ih => cases h' <;> first | contradiction | rw [ih ‹_›]
+  | loop_exit _ => cases h' <;> first | rfl | contradiction
+  | loop_iter _ _ _ ihb ihl =>
     cases h' with
-    | branch_pos _ hp => rw [ih hp]
-    | branch_neg hc' _ => exact absurd hc hc'
-  | branch_neg hc _ ih =>
-    cases h' with
-    | branch_pos hc' _ => exact absurd hc' hc
-    | branch_neg _ hn => rw [ih hn]
-  | loop_exit hc =>
-    cases h' with
-    | loop_exit _ => rfl
-    | loop_iter hc' _ _ => exact absurd hc' hc
-  | loop_iter hc _ _ ihb ihl =>
-    cases h' with
-    | loop_exit hc' => exact absurd hc hc'
+    | loop_exit => contradiction
     | loop_iter _ hb' hl' =>
       obtain rfl := ihb hb'
-      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-      rw [ihl z₁ hz₁ (hl' z₁ hz₁)]
+      exact OracleComp.bind_congr_on_support fun z₁ hz₁ => by rw [ihl z₁ hz₁ (hl' z₁ hz₁)]
 
 /-- Every structured execution takes at least `1` instruction on every path. -/
 theorem pos {c : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)}
