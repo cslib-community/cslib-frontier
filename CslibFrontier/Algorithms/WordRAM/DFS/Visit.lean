@@ -359,8 +359,7 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
       hcsr.2 u idx hidx_lt, hv_eq]
   have hvis_v0 : x.mem (visAddr + v.val) = 0 := by simpa [hmem] using hvis v
   set vis₁ := insert v vis
-  have hcard_vis₁_le : vis₁.card ≤ N := by
-    have := Finset.card_le_univ vis₁; simpa using this
+  have hcard_vis₁_le : vis₁.card ≤ N := by simpa using Finset.card_le_univ vis₁
   have hu_lt := u.isLt
   have hv_lt := v.isLt
   have hoff_v0 : x.mem (offAddr + v.val) = csrOffset adj v.val := hcsr.1 v.val (by omega)
