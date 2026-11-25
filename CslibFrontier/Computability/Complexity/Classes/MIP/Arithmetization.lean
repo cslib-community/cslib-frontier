@@ -1019,22 +1019,12 @@ theorem eval_gateTracePoly_bitPoint {Q M : ℕ} (R : Type*) [CommRing R]
     cases hop : (c.code.1[j.val]'hj).1 with
     | const v => cases v <;> simp [opEvalField, Op.value, bitVal]
     | not =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
-      simp only [opEvalField, map_sub, map_one]
-      rw [hstep _ h0, ← opEvalField_bitVal Op.not]
-      simp [opEvalField]
-    | and =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
-      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := harg_lt 1 (by simp [hop])
-      simp only [opEvalField, map_mul]
-      rw [hstep _ h0, hstep _ h1, ← opEvalField_bitVal Op.and]
-      rfl
-    | or =>
-      have h0 : (c.code.1[j.val]'hj).2.getD 0 0 < Q + j.val := harg_lt 0 (by simp [hop])
-      have h1 : (c.code.1[j.val]'hj).2.getD 1 0 < Q + j.val := harg_lt 1 (by simp [hop])
-      simp only [opEvalField, map_sub, map_add, map_mul]
-      rw [hstep _ h0, hstep _ h1, ← opEvalField_bitVal Op.or]
-      rfl
+      rw [← opEvalField_bitVal]
+      simp only [opEvalField, map_sub, map_one, hstep _ (harg_lt 0 (by simp [hop]))]
+    | and | or =>
+      rw [← opEvalField_bitVal]
+      simp only [opEvalField, map_sub, map_add, map_mul, hstep _ (harg_lt 0 (by simp [hop])),
+        hstep _ (harg_lt 1 (by simp [hop]))]
   have hwj (j : Fin c.size) : MvPolynomial.eval (bitPoint (Fin.append idx w))
       (X ⟨Q + j.val, by omega⟩ : MvPolynomial (Fin (Q + c.size)) R) = bitVal R (w j) := by
     have hna : (⟨Q + j.val, by omega⟩ : Fin (Q + c.size)) = Fin.natAdd Q j := Fin.ext rfl
@@ -1168,6 +1158,10 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
     (SuccinctVerifier.toCNF c).Satisfiable ↔ (Tableau.succinctCNF tm x n T).Satisfiable := by
   let Q := Tableau.clauseBits k State T
   let L := Tableau.labelBits k State T
+  have hcl_mem (idx : ℕ) (hidx : idx < 2 ^ Q) :
+      Tableau.clauseAt tm x n T idx ∈ Tableau.succinctCNF tm x n T := by
+    simp only [Tableau.succinctCNF, List.mem_map, List.mem_range]
+    exact ⟨idx, hidx, rfl⟩
   have hdec (idx : ℕ) (hidx : idx < 2 ^ Q) (r : Fin 3) :
       let clause := Tableau.clauseAt tm x n T idx
       let lit := clause.getD r.val (0, false)
@@ -1179,34 +1173,30 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
         lit.1 ∧
       c.eval interpretation (fun i => idx.testBit i) (SuccinctVerifier.signWire L r) = lit.2 ∧
       lit ∈ clause := by
-    have hcl_mem : Tableau.clauseAt tm x n T idx ∈ Tableau.succinctCNF tm x n T := by
-      simp only [Tableau.succinctCNF, List.mem_map, List.mem_range]
-      exact ⟨idx, hidx, rfl⟩
-    have hcl_len : (Tableau.clauseAt tm x n T idx).length = 3 :=
-      Tableau.length_of_mem_succinctCNF tm hcl_mem
+    have hcl_len := Tableau.length_of_mem_succinctCNF tm (hcl_mem idx hidx)
     have hr_lt : r.val < (Tableau.clauseAt tm x n T idx).length := by omega
     have hvar_lt (l : Literal ℕ) (hl : l ∈ Tableau.clauseAt tm x n T idx) : l.1 < 2 ^ L := by
       apply Tableau.lt_two_pow_labelBits_of_mem_vars tm hn hx
-      exact CNF.mem_vars.mpr ⟨_, hcl_mem, l.2, hl⟩
+      exact CNF.mem_vars.mpr ⟨_, hcl_mem idx hidx, l.2, hl⟩
     have hof := hc idx hidx
     have hlits_len : ∀ l ∈ Tableau.clauseAt tm x n T idx,
         (Decoder.litBits L l).length = L + 1 := fun l _ => by simp [Decoder.litBits]
     have hget_lit : (Tableau.clauseAt tm x n T idx).getD r.val (0, false) =
         (Tableau.clauseAt tm x n T idx)[r.val]'hr_lt := by
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hr_lt, Option.getD_some]
+    -- output wire `r * (L + 1) + j` carries bit `j` of the `r`-th literal's encoding
+    have hbit (w : Fin (3 * (Tableau.labelBits k State T + 1))) (j : ℕ) (hj : j < L + 1)
+        (hw : w.val = r.val * (L + 1) + j) :
+        some (c.eval interpretation (fun j => idx.testBit j) w) =
+          (Decoder.litBits L ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)))[j]? := by
+      have hl := congrArg (fun l : List Bool => l[w.val]?) hof
+      simp only [List.getElem?_ofFn, w.isLt, ↓reduceDIte, Fin.eta] at hl
+      rw [hw, List.getElem?_flatMap_mul_add _ _ _ hlits_len hr_lt hj] at hl
+      rwa [hget_lit]
     have haddr (i : Fin L) :
         c.eval interpretation (fun j => idx.testBit j) (SuccinctVerifier.addressWire L r i) =
           ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).1.testBit i.val := by
-      have hpos : r.val * (L + 1) + i.val < 3 * (Tableau.labelBits k State T + 1) :=
-        (SuccinctVerifier.addressWire L r i).isLt
-      have hl := congrArg (fun l : List Bool => l[(SuccinctVerifier.addressWire L r i).val]?) hof
-      rw [List.getElem?_ofFn] at hl
-      dsimp only [SuccinctVerifier.addressWire] at hl
-      simp only [hpos, ↓reduceDIte] at hl
-      change some _ = ((Tableau.clauseAt tm x n T idx).flatMap (Decoder.litBits L))[
-          r.val * (L + 1) + i.val]? at hl
-      rw [List.getElem?_flatMap_mul_add _ _ _ hlits_len hr_lt (Nat.lt_succ_of_lt i.isLt)] at hl
-      rw [hget_lit]
+      have hl := hbit (SuccinctVerifier.addressWire L r i) i.val (Nat.lt_succ_of_lt i.isLt) rfl
       simp only [Decoder.litBits] at hl
       rw [List.getElem?_append_left (by simp)] at hl
       simp only [List.getElem?_ofFn, i.isLt, ↓reduceDIte] at hl
@@ -1214,16 +1204,7 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
     have hsign :
         c.eval interpretation (fun j => idx.testBit j) (SuccinctVerifier.signWire L r) =
           ((Tableau.clauseAt tm x n T idx).getD r.val (0, false)).2 := by
-      have hpos : r.val * (L + 1) + L < 3 * (Tableau.labelBits k State T + 1) :=
-        (SuccinctVerifier.signWire L r).isLt
-      have hl := congrArg (fun l : List Bool => l[(SuccinctVerifier.signWire L r).val]?) hof
-      rw [List.getElem?_ofFn] at hl
-      dsimp only [SuccinctVerifier.signWire] at hl
-      simp only [hpos, ↓reduceDIte] at hl
-      change some _ = ((Tableau.clauseAt tm x n T idx).flatMap (Decoder.litBits L))[
-          r.val * (L + 1) + L]? at hl
-      rw [List.getElem?_flatMap_mul_add _ _ _ hlits_len hr_lt (Nat.lt_succ_self L)] at hl
-      rw [hget_lit]
+      have hl := hbit (SuccinctVerifier.signWire L r) L (Nat.lt_succ_self L) rfl
       simp only [Decoder.litBits] at hl
       rw [List.getElem?_append_right (by simp)] at hl
       simp only [List.length_ofFn, Nat.sub_self, List.getElem?_cons_zero] at hl
@@ -1261,10 +1242,7 @@ theorem satisfiable_toCNF_iff_succinctCNF {k : ℕ} {State : Type} [Fintype Stat
       rw [Tableau.succinctCNF, CNF.eval_map_eq_true_iff] at hσ
       exact hσ idx (List.mem_range.mpr hidx)
     obtain ⟨l, hl, hlσ⟩ := (Clause.eval_eq_true_iff σ _).1 hcl_t
-    have hcl_len : (Tableau.clauseAt tm x n T idx).length = 3 :=
-      Tableau.length_of_mem_succinctCNF tm (by
-        simp only [Tableau.succinctCNF, List.mem_map, List.mem_range]
-        exact ⟨idx, hidx, rfl⟩)
+    have hcl_len := Tableau.length_of_mem_succinctCNF tm (hcl_mem idx hidx)
     obtain ⟨r_nat, hr_lt, rfl⟩ := List.mem_iff_getElem.1 hl
     let r : Fin 3 := ⟨r_nat, by omega⟩
     obtain ⟨-, h1, h2, -⟩ := hdec idx hidx r
