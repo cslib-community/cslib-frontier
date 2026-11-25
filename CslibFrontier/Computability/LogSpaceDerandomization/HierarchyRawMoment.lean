@@ -191,13 +191,11 @@ theorem rawIncomingNormalized_moment {k : ℕ}
   have hleft (σ : Environment P J) : child requests.left σ =
       correctionRequest D ident requests.left (polynomialAuxCutoff4 HP.θ)
         HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff HP.γ HP.K Kc
-        (raw requests.left) (prep requests.left) (maximum requests.left) σ := by
-    rfl
+        (raw requests.left) (prep requests.left) (maximum requests.left) σ := rfl
   have hrow : ∀ σ x, XD σ x →
-      #{z ∈ ({z | ZD σ z} : Finset V) | child requests.left σ x z ≠ 0} ≤ HP.K := by
-    intro σ x _
-    rw [hleft]
-    exact selectedRequest_row_support HP hK D ident requests.left Kc _ _ _ σ x
+      #{z ∈ ({z | ZD σ z} : Finset V) | child requests.left σ x z ≠ 0} ≤ HP.K := fun σ x _ =>
+    selectedRequest_row_support HP hK D ident requests.left Kc (raw requests.left)
+      (prep requests.left) (maximum requests.left) σ x
   have hcol : ∀ σ z, ZD σ z →
       #{x ∈ ({x | XD σ x} : Finset V) | child requests.left σ x z ≠ 0} ≤ Kc := by
     intro σ z _
@@ -207,13 +205,10 @@ theorem rawIncomingNormalized_moment {k : ℕ}
     convert h.le using 1
     congr 1
   have hbound : ∀ σ x z, |child requests.left σ x z| ≤
-      2 * HP.Q HP.toHierarchyParams.atomCap := by
-    intro σ x z
-    rw [hleft]
+      2 * HP.Q HP.toHierarchyParams.atomCap := fun σ x z =>
     have h := selectedRequest_mem_Icc HP D ident requests.left Kc
       (raw requests.left) (prep requests.left) (maximum requests.left) σ x z
-    rw [abs_of_nonneg h.1]
-    exact h.2
+    (abs_of_nonneg h.1).trans_le h.2
   have hz : ∀ σ x z, ¬ ZD σ z → child requests.left σ x z = 0 := by
     intro σ x z h
     rw [hleft]
@@ -252,11 +247,9 @@ theorem rawIncomingNormalized_moment {k : ℕ}
     unfold HierarchyTask.rawSample HierarchyTask.rawPositiveSample
       HierarchyTask.rawNegativeSample
     dsimp only
-    congr 1
-    congr 1
+    congr 2
     rw [mul_sum, sum_filter]
-    apply sum_congr rfl
-    intro z _
+    refine sum_congr rfl fun z _ => ?_
     by_cases h : ZD σ z
     · simp only [h, ↓reduceIte]
       change (rate kb * _ * (rate km / _)) *
@@ -308,13 +301,8 @@ theorem rawIncomingNormalized_noise_le_lower {k : ℕ}
       semanticSide_grid, X, Y] at hm ⊢
     convert hm using 1
     congr 1
-    apply expect_congr rfl
-    intro σ _
-    apply sum_congr (by ext x; simp)
-    intro x _
-    apply sum_congr (by ext y; simp)
-    intro y _
-    rfl
+    exact expect_congr rfl fun σ _ =>
+      sum_congr (by ext x; simp) fun x _ => sum_congr (by ext y; simp) fun y _ => rfl
   exact (rawIncomingNormalized_noise HP D ident R l bin ks km kt kb ss sm st
     (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff Kc binCutoff raw prep maximum
     (mul_pos hN hu).le steps).trans
