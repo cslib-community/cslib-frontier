@@ -93,9 +93,8 @@ private theorem inner_eq_zero_or_eq_of_clone_core (T : E → E → G)
     (hψ : U (T ψ e) = T ψ ψ) (hφ : U (T φ e) = T φ φ) : ⟪ψ, φ⟫_ℂ = 0 ∨ ψ = φ := by
   have h := U.inner_map_map (T ψ e) (T φ e)
   rw [hψ, hφ, hT, hT, inner_self_eq_one_of_norm_eq_one he, mul_one] at h
-  rcases eq_zero_or_one_of_sq_eq_self (by rw [sq]; exact h : ⟪ψ, φ⟫_ℂ ^ 2 = ⟪ψ, φ⟫_ℂ) with h0 | h1
-  · exact Or.inl h0
-  · exact Or.inr ((inner_eq_one_iff_of_norm_eq_one hψ₁ hφ₁).mp h1)
+  exact (eq_zero_or_one_of_sq_eq_self (by rwa [sq])).imp id
+    (inner_eq_one_iff_of_norm_eq_one hψ₁ hφ₁).mp
 
 /-- The apparatus-assisted no-cloning dichotomy for a ternary pairing `T` with
 `⟪T x y a, T x' y' a'⟫ = ⟪x, x'⟫ ⟪y, y'⟫ ⟪a, a'⟫`. -/
@@ -107,36 +106,24 @@ private theorem inner_eq_zero_or_exists_smul_of_clone_apparatus_core (T : E → 
     ⟪ψ, φ⟫_ℂ = 0 ∨ ∃ c : ℂ, ‖c‖ = 1 ∧ φ = c • ψ := by
   have norm_app {x : E} {ax : A} (hx : ‖x‖ = 1) (hUx : U (T x e a₀) = T x x ax) : ‖ax‖ = 1 := by
     have hn := U.inner_map_map (T x e a₀) (T x e a₀)
-    rw [hUx, hT, hT, inner_self_eq_one_of_norm_eq_one hx,
-      inner_self_eq_one_of_norm_eq_one he, inner_self_eq_one_of_norm_eq_one ha₀,
-      one_mul, one_mul, mul_one] at hn
-    have hsq : ‖ax‖ ^ 2 = 1 ^ 2 := by
-      rw [norm_sq_eq_re_inner (𝕜 := ℂ), hn]
-      simp
-    exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp hsq
-  by_cases h0 : ⟪ψ, φ⟫_ℂ = 0
-  · exact Or.inl h0
-  · right
-    set c : ℂ := ⟪ψ, φ⟫_ℂ with hc_def
-    have h := U.inner_map_map (T ψ e a₀) (T φ e a₀)
-    rw [hψ, hφ, hT, hT, inner_self_eq_one_of_norm_eq_one he,
-      inner_self_eq_one_of_norm_eq_one ha₀, mul_one, mul_one, ← hc_def] at h
-    have hn := congrArg norm h
-    simp only [norm_mul] at hn
-    have hprod : ‖c‖ * ‖⟪aψ, aφ⟫_ℂ‖ = 1 :=
-      mul_left_cancel₀ (norm_ne_zero_iff.mpr h0) (by linear_combination hn)
-    have hc_le : ‖c‖ ≤ 1 := by simpa only [hc_def, hψ₁, hφ₁, mul_one] using norm_inner_le_norm ψ φ
-    have ha_le : ‖⟪aψ, aφ⟫_ℂ‖ ≤ 1 := by
-      simpa only [norm_app hψ₁ hψ, norm_app hφ₁ hφ, mul_one] using norm_inner_le_norm aψ aφ
-    have hmul_le : ‖c‖ * ‖⟪aψ, aφ⟫_ℂ‖ ≤ 1 * ‖⟪aψ, aφ⟫_ℂ‖ :=
-      mul_le_mul_of_nonneg_right hc_le (norm_nonneg _)
-    have ha1 : ‖⟪aψ, aφ⟫_ℂ‖ = 1 := by linarith
-    have hc1 : ‖c‖ = 1 := by rw [ha1, mul_one] at hprod; exact hprod
-    have hcψ : ‖c • ψ‖ = 1 := by rw [norm_smul, hc1, hψ₁, one_mul]
-    have hinner : ⟪c • ψ, φ⟫_ℂ = 1 := by
-      rw [inner_smul_left, ← hc_def, RCLike.conj_mul, hc1]
-      norm_num
-    exact ⟨c, hc1, ((inner_eq_one_iff_of_norm_eq_one hcψ hφ₁).mp hinner).symm⟩
+    rw [hUx, hT, hT, inner_self_eq_one_of_norm_eq_one hx, inner_self_eq_one_of_norm_eq_one he,
+      inner_self_eq_one_of_norm_eq_one ha₀, one_mul, one_mul, mul_one] at hn
+    refine (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp ?_
+    rw [norm_sq_eq_re_inner (𝕜 := ℂ), hn]; simp
+  refine or_iff_not_imp_left.mpr fun h0 => ?_
+  set c : ℂ := ⟪ψ, φ⟫_ℂ with hc_def
+  have hn := congrArg norm (U.inner_map_map (T ψ e a₀) (T φ e a₀))
+  simp only [hψ, hφ, hT, inner_self_eq_one_of_norm_eq_one he,
+    inner_self_eq_one_of_norm_eq_one ha₀, mul_one, ← hc_def, norm_mul] at hn
+  have hprod : ‖c‖ * ‖⟪aψ, aφ⟫_ℂ‖ = 1 :=
+    mul_left_cancel₀ (norm_ne_zero_iff.mpr h0) (by linear_combination hn)
+  have hc_le : ‖c‖ ≤ 1 := by simpa only [hc_def, hψ₁, hφ₁, mul_one] using norm_inner_le_norm ψ φ
+  have ha_le : ‖⟪aψ, aφ⟫_ℂ‖ ≤ 1 := by
+    simpa only [norm_app hψ₁ hψ, norm_app hφ₁ hφ, mul_one] using norm_inner_le_norm aψ aφ
+  have hc1 : ‖c‖ = 1 := by nlinarith [norm_nonneg c, norm_nonneg ⟪aψ, aφ⟫_ℂ]
+  have hcψ : ‖c • ψ‖ = 1 := by rw [norm_smul, hc1, hψ₁, one_mul]
+  refine ⟨c, hc1, ((inner_eq_one_iff_of_norm_eq_one (𝕜 := ℂ) hcψ hφ₁).mp ?_).symm⟩
+  rw [inner_smul_left, ← hc_def, RCLike.conj_mul, hc1]; norm_num
 
 /-- No linear apparatus-assisted cloning for a ternary pairing `T` that is multiplicative on inner
 products and linear in its first argument, in the presence of an orthonormal pair `u, v`. -/
@@ -153,28 +140,23 @@ private theorem not_clone_apparatus_core (T : E → E → A → G)
   set s : ℂ := (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) with hs_def
   have hs : starRingEnd ℂ s * s = 1 / 2 := by
     rw [hs_def, Complex.conj_ofReal, ← Complex.ofReal_mul, ← mul_inv,
-      Real.mul_self_sqrt (by norm_num)]
-    norm_num
+      Real.mul_self_sqrt (by norm_num)]; norm_num
   have hs0 : s ≠ 0 := by
     rw [hs_def]; exact_mod_cast inv_ne_zero (Real.sqrt_ne_zero'.mpr (by norm_num))
   have hw : ‖s • u + s • v‖ = 1 := by
-    have h2 : ⟪s • u + s • v, s • u + s • v⟫_ℂ = 1 := by
+    refine (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp ?_
+    rw [norm_sq_eq_re_inner (𝕜 := ℂ), show ⟪s • u + s • v, s • u + s • v⟫_ℂ = 1 by
       simp only [inner_add_left, inner_add_right, inner_smul_left, inner_smul_right, huu, hvv,
-        huv, hvu]
-      linear_combination 2 * hs
-    have h2' : ‖s • u + s • v‖ ^ 2 = 1 ^ 2 := by
-      rw [norm_sq_eq_re_inner (𝕜 := ℂ), h2]; simp
-    exact (sq_eq_sq₀ (norm_nonneg _) zero_le_one).mp h2'
+        huv, hvu]; linear_combination 2 * hs]
+    simp
   obtain ⟨au, _, hLu⟩ := hL u hu
   obtain ⟨av, _, hLv⟩ := hL v hv
-  obtain ⟨aw, haw, hLw⟩ := hL (s • u + s • v) hw
+  obtain ⟨aw, haw, hLw⟩ := hL _ hw
   rw [hadd, hsmul, hsmul, map_add, map_smul, map_smul, hLu, hLv] at hLw
-  have key := congrArg (fun z => ⟪T u v aw, z⟫_ℂ) hLw
+  have key := congrArg (⟪T u v aw, ·⟫_ℂ) hLw
   simp only [inner_add_right, inner_smul_right, hT, huu, hvv, huv, hvu] at key
-  have hprod : (s * s) * ⟪aw, aw⟫_ℂ = 0 := by linear_combination -key
-  rcases mul_eq_zero.mp hprod with h | h
-  · exact hs0 (mul_self_eq_zero.mp h)
-  · exact haw (inner_self_eq_zero.mp h)
+  exact (mul_eq_zero.mp (by linear_combination -key : (s * s) * ⟪aw, aw⟫_ℂ = 0)).elim
+    (fun h => hs0 (mul_self_eq_zero.mp h)) (fun h => haw (inner_self_eq_zero.mp h))
 
 /-- No linear cloning, up to nonzero factors, for a pairing `T` that is multiplicative and
 linear in its first argument, in the presence of an orthonormal pair `u, v`. -/
@@ -186,11 +168,9 @@ private theorem not_clone_core (T : E → E → G)
     (e : E) (L : G →ₗ[ℂ] G) (c : E → ℂ) (hc : ∀ ψ, ‖ψ‖ = 1 → c ψ ≠ 0)
     (hL : ∀ ψ, ‖ψ‖ = 1 → L (T ψ e) = c ψ • T ψ ψ) : False :=
   not_clone_apparatus_core (A := ℂ) (fun x y a => a • T x y)
-    (fun x y a x' y' a' => by
-      rw [inner_smul_left, inner_smul_right, hT, RCLike.inner_apply]; ring)
-    (fun x x' y a => by rw [hadd, smul_add])
-    (fun z x y a => by rw [hsmul, smul_comm])
-    hu hv huv e 1 L (fun ψ hψ => ⟨c ψ, hc ψ hψ, by rw [one_smul, hL ψ hψ]⟩)
+    (fun _ _ _ _ _ _ => by rw [inner_smul_left, inner_smul_right, hT, RCLike.inner_apply]; ring)
+    (fun _ _ _ _ => by rw [hadd, smul_add]) (fun _ _ _ _ => by rw [hsmul, smul_comm])
+    hu hv huv e 1 L fun ψ hψ => ⟨c ψ, hc ψ hψ, by rw [one_smul, hL ψ hψ]⟩
 
 private theorem exists_orthonormal_pair (h : 1 < Module.rank ℂ E) :
     ∃ u v : E, ‖u‖ = 1 ∧ ‖v‖ = 1 ∧ ⟪u, v⟫_ℂ = 0 := by
@@ -229,10 +209,7 @@ theorem inner_eq_zero_or_exists_smul_of_clone_apparatus
     ⟪ψ, φ⟫_ℂ = 0 ∨ ∃ c : ℂ, ‖c‖ = 1 ∧ φ = c • ψ :=
   inner_eq_zero_or_exists_smul_of_clone_apparatus_core (G := (E ⊗[ℂ] E) ⊗[ℂ] A)
     (fun x y a => (x ⊗ₜ[ℂ] y) ⊗ₜ[ℂ] a)
-    (fun x y a x' y' a' => by
-      rw [TensorProduct.inner_tmul ℂ (x ⊗ₜ[ℂ] y) (x' ⊗ₜ[ℂ] y') a a',
-        TensorProduct.inner_tmul ℂ x x' y y'])
-    U hψ hφ he ha₀ hUψ hUφ
+    (fun _ _ _ _ _ _ => by simp only [TensorProduct.inner_tmul]) U hψ hφ he ha₀ hUψ hUφ
 
 /-- **Wootters–Zurek no-cloning with an apparatus** [Wootters, Zurek][WoottersZurek1982]: if
 `dim E ≥ 2`, no linear map `L` of `(E ⊗ E) ⊗ A` (in particular no unitary) maps `(ψ ⊗ e) ⊗ a₀` to
@@ -243,13 +220,10 @@ theorem not_exists_linearMap_clone_apparatus (h : 1 < Module.rank ℂ E) (e : E)
       ∀ ψ : E, ‖ψ‖ = 1 → ∃ aψ : A, aψ ≠ 0 ∧ L ((ψ ⊗ₜ e) ⊗ₜ a₀) = (ψ ⊗ₜ ψ) ⊗ₜ aψ := by
   rintro ⟨L, hL⟩
   obtain ⟨u, v, hu, hv, huv⟩ := exists_orthonormal_pair h
-  exact not_clone_apparatus_core (G := (E ⊗[ℂ] E) ⊗[ℂ] A)
-    (fun x y a => (x ⊗ₜ[ℂ] y) ⊗ₜ[ℂ] a)
-    (fun x y a x' y' a' => by
-      rw [TensorProduct.inner_tmul ℂ (x ⊗ₜ[ℂ] y) (x' ⊗ₜ[ℂ] y') a a',
-        TensorProduct.inner_tmul ℂ x x' y y'])
-    (fun x x' y a => by rw [TensorProduct.add_tmul, TensorProduct.add_tmul])
-    (fun c x y a => by rw [← TensorProduct.smul_tmul', ← TensorProduct.smul_tmul'])
+  exact not_clone_apparatus_core (G := (E ⊗[ℂ] E) ⊗[ℂ] A) (fun x y a => (x ⊗ₜ[ℂ] y) ⊗ₜ[ℂ] a)
+    (fun _ _ _ _ _ _ => by simp only [TensorProduct.inner_tmul])
+    (fun _ _ _ _ => by rw [TensorProduct.add_tmul, TensorProduct.add_tmul])
+    (fun _ _ _ _ => by rw [← TensorProduct.smul_tmul', ← TensorProduct.smul_tmul'])
     hu hv huv e a₀ L hL
 
 /-- **No-cloning** [Wootters, Zurek][WoottersZurek1982], [Dieks][Dieks1982], ancilla-free and up
@@ -264,17 +238,15 @@ theorem not_exists_linearMap_clone_smul (h : 1 < Module.rank ℂ E) (e : E) :
   rintro ⟨L, c, hL⟩
   obtain ⟨u, v, hu, hv, huv⟩ := exists_orthonormal_pair h
   exact not_clone_core (fun x y => x ⊗ₜ[ℂ] y) (fun _ _ _ _ => TensorProduct.inner_tmul ℂ _ _ _ _)
-    (fun _ _ _ => TensorProduct.add_tmul _ _ _)
-    (fun c x y => (TensorProduct.smul_tmul' c x y).symm)
-    hu hv huv e L c (fun ψ hψ => (hL ψ hψ).1) (fun ψ hψ => (hL ψ hψ).2)
+    (fun _ _ _ => TensorProduct.add_tmul _ _ _) (fun c x y => (TensorProduct.smul_tmul' c x y).symm)
+    hu hv huv e L c (fun ψ hψ => (hL ψ hψ).1) fun ψ hψ => (hL ψ hψ).2
 
 /-- **No-cloning** [Wootters, Zurek][WoottersZurek1982], [Dieks][Dieks1982], ancilla-free: if
 `dim E ≥ 2`, no linear map of `E ⊗ E` (in particular no unitary) maps `ψ ⊗ e` to `ψ ⊗ ψ` for every
 unit state `ψ`. -/
 theorem not_exists_linearMap_clone (h : 1 < Module.rank ℂ E) (e : E) :
-    ¬ ∃ L : E ⊗[ℂ] E →ₗ[ℂ] E ⊗[ℂ] E, ∀ ψ : E, ‖ψ‖ = 1 → L (ψ ⊗ₜ e) = ψ ⊗ₜ ψ := by
-  rintro ⟨L, hL⟩
-  exact not_exists_linearMap_clone_smul h e
+    ¬ ∃ L : E ⊗[ℂ] E →ₗ[ℂ] E ⊗[ℂ] E, ∀ ψ : E, ‖ψ‖ = 1 → L (ψ ⊗ₜ e) = ψ ⊗ₜ ψ := fun ⟨L, hL⟩ =>
+  not_exists_linearMap_clone_smul h e
     ⟨L, fun _ => 1, fun ψ hψ => ⟨one_ne_zero, by rw [one_smul, hL ψ hψ]⟩⟩
 
 end TensorProduct
@@ -285,6 +257,21 @@ section Coordinates
 
 variable {ι α : Type*} [Fintype ι] [Fintype α]
 
+private lemma exists_isometry_of_unitary {κ : Type*} [Fintype κ] [DecidableEq κ]
+    {U : Matrix κ κ ℂ} (hU : U ∈ unitaryGroup κ ℂ) :
+    ∃ V : EuclideanSpace ℂ κ →ₗᵢ[ℂ] EuclideanSpace ℂ κ,
+      ∀ x y, U *ᵥ x.ofLp = y.ofLp → V x = y :=
+  ⟨(Unitary.linearIsometryEquiv
+      ⟨toEuclideanCLM (n := κ) (𝕜 := ℂ) U, Unitary.map_mem _ hU⟩).toLinearIsometry,
+    fun _ _ h => WithLp.ofLp_injective 2 h⟩
+
+private lemma exists_orthonormal_ket (ι : Type*) [Fintype ι] [Nontrivial ι] :
+    ∃ u v : EuclideanSpace ℂ ι, ‖u‖ = 1 ∧ ‖v‖ = 1 ∧ ⟪u, v⟫_ℂ = 0 := by
+  classical
+  obtain ⟨i, j, hij⟩ := exists_pair_ne ι
+  exact ⟨ket i, ket j, norm_ket i, norm_ket j, by
+    rw [ket, EuclideanSpace.inner_single_left]; simp [hij]⟩
+
 /-- **No-cloning, inner-product form**, ancilla-free, for a unitary matrix `U` on `ℂ^{ι × ι}`: if
 `U` copies two unit states `ψ` and `φ` of `ℂ^ι` onto a unit blank state `e`, then `ψ` and `φ` are
 orthogonal or equal. -/
@@ -293,12 +280,9 @@ theorem inner_eq_zero_or_eq_of_unitary_clone [DecidableEq ι] {U : Matrix (ι ×
     (hψ : ‖ψ‖ = 1) (hφ : ‖φ‖ = 1) (he : ‖e‖ = 1)
     (hUψ : U *ᵥ (prodState ψ e).ofLp = (prodState ψ ψ).ofLp)
     (hUφ : U *ᵥ (prodState φ e).ofLp = (prodState φ φ).ofLp) : ⟪ψ, φ⟫_ℂ = 0 ∨ ψ = φ := by
-  let V : EuclideanSpace ℂ (ι × ι) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (ι × ι) :=
-    Unitary.linearIsometryEquiv ⟨toEuclideanCLM (n := ι × ι) (𝕜 := ℂ) U, Unitary.map_mem _ hU⟩
-  have hV (x : EuclideanSpace ℂ (ι × ι)) : (V x).ofLp = U *ᵥ x.ofLp := rfl
+  obtain ⟨V, hV⟩ := exists_isometry_of_unitary hU
   exact inner_eq_zero_or_eq_of_clone_core prodState (fun x y x' y' => inner_prodState x x' y y')
-    V.toLinearIsometry hψ hφ he (WithLp.ofLp_injective 2 ((hV _).trans hUψ))
-    (WithLp.ofLp_injective 2 ((hV _).trans hUφ))
+    V hψ hφ he (hV _ _ hUψ) (hV _ _ hUφ)
 
 /-- **Apparatus-assisted no-cloning, inner-product form** in coordinates
 [Wootters, Zurek][WoottersZurek1982]: if a unitary matrix `U` on `ℂ^{(ι × ι) × α}` copies two unit
@@ -312,16 +296,11 @@ theorem inner_eq_zero_or_exists_smul_of_unitary_clone_apparatus [DecidableEq ι]
     (hUψ : U *ᵥ (prodState (prodState ψ e) a₀).ofLp = (prodState (prodState ψ ψ) aψ).ofLp)
     (hUφ : U *ᵥ (prodState (prodState φ e) a₀).ofLp = (prodState (prodState φ φ) aφ).ofLp) :
     ⟪ψ, φ⟫_ℂ = 0 ∨ ∃ c : ℂ, ‖c‖ = 1 ∧ φ = c • ψ := by
-  let V : EuclideanSpace ℂ ((ι × ι) × α) ≃ₗᵢ[ℂ] EuclideanSpace ℂ ((ι × ι) × α) :=
-    Unitary.linearIsometryEquiv
-      ⟨toEuclideanCLM (n := (ι × ι) × α) (𝕜 := ℂ) U, Unitary.map_mem _ hU⟩
-  have hV (x : EuclideanSpace ℂ ((ι × ι) × α)) : (V x).ofLp = U *ᵥ x.ofLp := rfl
+  obtain ⟨V, hV⟩ := exists_isometry_of_unitary hU
   exact inner_eq_zero_or_exists_smul_of_clone_apparatus_core
     (fun x y a => prodState (prodState x y) a)
-    (fun x y a x' y' a' => by rw [inner_prodState, inner_prodState])
-    V.toLinearIsometry hψ hφ he ha₀
-    (WithLp.ofLp_injective 2 ((hV _).trans hUψ))
-    (WithLp.ofLp_injective 2 ((hV _).trans hUφ))
+    (fun _ _ _ _ _ _ => by rw [inner_prodState, inner_prodState])
+    V hψ hφ he ha₀ (hV _ _ hUψ) (hV _ _ hUφ)
 
 /-- **Wootters–Zurek no-cloning with an apparatus** in coordinates
 [Wootters, Zurek][WoottersZurek1982]: if `|ι| ≥ 2`, no matrix (in particular no unitary) `U` on
@@ -335,22 +314,13 @@ theorem not_exists_matrix_clone_apparatus [Nontrivial ι] (e : EuclideanSpace �
           U *ᵥ (prodState (prodState ψ e) a₀).ofLp = (prodState (prodState ψ ψ) aψ).ofLp := by
   classical
   rintro ⟨U, hU⟩
-  obtain ⟨i, j, hij⟩ := exists_pair_ne ι
-  let L : EuclideanSpace ℂ ((ι × ι) × α) →ₗ[ℂ] EuclideanSpace ℂ ((ι × ι) × α) :=
-    Matrix.toEuclideanLin U
-  have hL (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) :
-      ∃ aψ : EuclideanSpace ℂ α, aψ ≠ 0 ∧
-        L (prodState (prodState ψ e) a₀) = prodState (prodState ψ ψ) aψ := by
-    obtain ⟨aψ, haψ, hUψ⟩ := hU ψ hψ
-    exact ⟨aψ, haψ, WithLp.ofLp_injective 2 hUψ⟩
-  have hij' : ⟪ket i, ket j⟫_ℂ = 0 := by
-    rw [ket, EuclideanSpace.inner_single_left]
-    simp [hij]
+  obtain ⟨u, v, hu, hv, huv⟩ := exists_orthonormal_ket ι
   exact not_clone_apparatus_core (fun x y a => prodState (prodState x y) a)
-    (fun x y a x' y' a' => by rw [inner_prodState, inner_prodState])
-    (fun x x' y a => by ext ⟨⟨p, q⟩, r⟩; simp [add_mul])
-    (fun c x y a => by ext ⟨⟨p, q⟩, r⟩; simp [mul_assoc])
-    (norm_ket i) (norm_ket j) hij' e a₀ L hL
+    (fun _ _ _ _ _ _ => by rw [inner_prodState, inner_prodState])
+    (fun _ _ _ _ => by ext ⟨⟨p, q⟩, r⟩; simp [add_mul])
+    (fun _ _ _ _ => by ext ⟨⟨p, q⟩, r⟩; simp [mul_assoc])
+    hu hv huv e a₀ (Matrix.toEuclideanLin U) fun ψ hψ =>
+      let ⟨aψ, haψ, h⟩ := hU ψ hψ; ⟨aψ, haψ, WithLp.ofLp_injective 2 h⟩
 
 /-- **No-cloning** in coordinates, ancilla-free and up to nonzero factors: if `|ι| ≥ 2`, no
 matrix `U` on `ℂ^{ι × ι}` maps `ψ ⊗ e` to a nonzero multiple of `ψ ⊗ ψ` for every unit state `ψ`
@@ -361,20 +331,13 @@ theorem not_exists_matrix_clone_smul [Nontrivial ι] (e : EuclideanSpace ℂ ι)
         c ψ ≠ 0 ∧ U *ᵥ (prodState ψ e).ofLp = c ψ • (prodState ψ ψ).ofLp := by
   classical
   rintro ⟨U, c, hU⟩
-  obtain ⟨i, j, hij⟩ := exists_pair_ne ι
-  obtain ⟨L, hL⟩ : ∃ L : EuclideanSpace ℂ (ι × ι) →ₗ[ℂ] EuclideanSpace ℂ (ι × ι),
-      ∀ x, (L x).ofLp = U *ᵥ x.ofLp := ⟨Matrix.toEuclideanLin U, fun _ => rfl⟩
-  have hL' (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) : L (prodState ψ e) = c ψ • prodState ψ ψ := by
-    apply WithLp.ofLp_injective 2
-    rw [hL, WithLp.ofLp_smul, (hU ψ hψ).2]
-  have hij' : ⟪ket i, ket j⟫_ℂ = 0 := by
-    rw [ket, EuclideanSpace.inner_single_left]
-    simp [hij]
+  obtain ⟨u, v, hu, hv, huv⟩ := exists_orthonormal_ket ι
   -- The linearity of `prodState` is restated at the `EuclideanSpace` instances; passing
   -- `prodState_add_left` directly makes the elaborator unify the `PiLp` and `WithLp` additions.
   exact not_clone_core prodState (fun x y x' y' => inner_prodState x x' y y')
-    (fun x x' y => by ext p; simp [add_mul]) (fun a x y => by ext p; simp [mul_assoc])
-    (norm_ket i) (norm_ket j) hij' e L c (fun ψ hψ => (hU ψ hψ).1) hL'
+    (fun _ _ _ => by ext p; simp [add_mul]) (fun _ _ _ => by ext p; simp [mul_assoc])
+    hu hv huv e (Matrix.toEuclideanLin U) c (fun ψ hψ => (hU ψ hψ).1) fun ψ hψ =>
+      WithLp.ofLp_injective 2 ((hU ψ hψ).2.trans (WithLp.ofLp_smul ..).symm)
 
 /-- **No-cloning** in coordinates [Wootters, Zurek][WoottersZurek1982], [Dieks][Dieks1982];
 [de Wolf][deWolf2019], Chapter 1, Exercise 12, ancilla-free: if `|ι| ≥ 2`, no matrix (in
@@ -382,9 +345,8 @@ particular no unitary) `U` on `ℂ^{ι × ι}` maps `ψ ⊗ e` to `ψ ⊗ ψ` fo
 `ℂ^ι`. -/
 theorem not_exists_matrix_clone [Nontrivial ι] (e : EuclideanSpace ℂ ι) :
     ¬ ∃ U : Matrix (ι × ι) (ι × ι) ℂ, ∀ ψ : EuclideanSpace ℂ ι, ‖ψ‖ = 1 →
-      U *ᵥ (prodState ψ e).ofLp = (prodState ψ ψ).ofLp := by
-  rintro ⟨U, hU⟩
-  exact not_exists_matrix_clone_smul e
+      U *ᵥ (prodState ψ e).ofLp = (prodState ψ ψ).ofLp := fun ⟨U, hU⟩ =>
+  not_exists_matrix_clone_smul e
     ⟨U, fun _ => 1, fun ψ hψ => ⟨one_ne_zero, by rw [one_smul, hU ψ hψ]⟩⟩
 
 end Coordinates
