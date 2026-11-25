@@ -168,7 +168,9 @@ theorem not_setShatters_thresholdClass {W : Finset α} (hW : 1 < W.card) :
   obtain ⟨_, ⟨θ, rfl⟩, hc⟩ := hsh {b} (by simpa using hb)
   have hbθ : b < θ := by
     simpa using (hc ▸ rfl : b ∈ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α)).1
-  have ha' : a ∉ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α) := by rw [hc]; simpa using hab
+  have ha' : a ∉ thresholdConcept θ ⁻¹' {true} ∩ (W : Set α) := by
+    rw [hc]
+    simpa using hab
   exact ha' ⟨by simpa using hlt.trans hbθ, ha⟩
 
 /-- A subclass of `thresholdClass α` that shatters a singleton has VC dimension `1`. -/
@@ -228,8 +230,10 @@ theorem littlestoneDim_thresholdClassUpTo (N : ℕ) :
     littlestoneDim (thresholdClassUpTo N) = Nat.log 2 (N + 1) := by
   classical
   apply le_antisymm
-  · rw [show thresholdClassUpTo N = ((Finset.Iic N).image thresholdConcept : Set (ℕ → Bool)) by
-      simp [thresholdClassUpTo]]
+  · have hC : thresholdClassUpTo N =
+        ((Finset.Iic N).image thresholdConcept : Set (ℕ → Bool)) := by
+      simp [thresholdClassUpTo]
+    rw [hC]
     exact (littlestoneDim_le_log_card _).trans
       (by exact_mod_cast Nat.log_mono_right (Finset.card_image_le.trans (by simp)))
   · refine le_littlestoneDim_of_hasMistakeTree ((hasMistakeTree_thresholdConcept_Icc _ 0).mono ?_)
@@ -248,8 +252,12 @@ theorem setShatters_singleton_thresholdClassUpTo {N x : ℕ} (hx : x < N) :
     SetShatters (thresholdClassUpTo N) ({x} : Set ℕ) := by
   intro W' hW'
   rcases Set.subset_singleton_iff_eq.mp hW' with rfl | rfl
-  · exact ⟨thresholdConcept 0, ⟨0, by simp, rfl⟩, by ext; simp⟩
-  · exact ⟨thresholdConcept (x + 1), ⟨x + 1, by simp only [Set.mem_Iic]; omega, rfl⟩, by ext; simp⟩
+  · refine ⟨thresholdConcept 0, ⟨0, by simp, rfl⟩, ?_⟩
+    ext
+    simp
+  · refine ⟨thresholdConcept (x + 1), ⟨x + 1, by simp only [Set.mem_Iic]; omega, rfl⟩, ?_⟩
+    ext
+    simp
 
 /-- For `N ≥ 1`, the thresholds `θ ≤ N` have VC dimension `1`. -/
 theorem vcDim_thresholdClassUpTo {N : ℕ} (hN : 1 ≤ N) : vcDim (thresholdClassUpTo N) = 1 :=

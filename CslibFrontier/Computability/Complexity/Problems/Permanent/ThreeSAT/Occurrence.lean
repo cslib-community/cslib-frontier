@@ -33,7 +33,8 @@ theorem litAt_mem (hφ : WellFormed φ) {o : ℕ} (ho : o < numOcc φ) :
     litAt φ o ∈ φ[o / 3]'(by unfold numOcc at ho; omega) := by
   have hj : o / 3 < φ.length := by unfold numOcc at ho; omega
   have hp : min (o % 3) ((φ[o / 3]).length - 1) < (φ[o / 3]).length := by
-    have := hφ _ (List.getElem_mem hj); omega
+    have := hφ _ (List.getElem_mem hj)
+    omega
   rw [litAt, List.getD_eq_getElem _ _ hj, List.getD_eq_getElem _ _ hp]
   exact List.getElem_mem hp
 
@@ -118,14 +119,19 @@ theorem exists_nextOcc_eq {o : ℕ} (ho : o < numOcc φ)
 
 /-! ### Vertex indices -/
 
-theorem entryIdx_injective (φ : CNF ℕ) : Function.Injective (entryIdx φ) :=
-  fun _ _ h => by unfold entryIdx at h; omega
+theorem entryIdx_injective (φ : CNF ℕ) : Function.Injective (entryIdx φ) := by
+  intro _ _ h
+  unfold entryIdx at h
+  omega
 
-theorem exitIdx_injective (φ : CNF ℕ) : Function.Injective (exitIdx φ) :=
-  fun _ _ h => by unfold exitIdx at h; omega
+theorem exitIdx_injective (φ : CNF ℕ) : Function.Injective (exitIdx φ) := by
+  intro _ _ h
+  unfold exitIdx at h
+  omega
 
 theorem entryIdx_ne_exitIdx (φ : CNF ℕ) (o o' : ℕ) : entryIdx φ o ≠ exitIdx φ o' := by
-  unfold entryIdx exitIdx; omega
+  unfold entryIdx exitIdx
+  omega
 
 theorem numAux_le_entryIdx (φ : CNF ℕ) (o : ℕ) : numAux φ ≤ entryIdx φ o := by
   unfold entryIdx; omega
@@ -192,11 +198,14 @@ theorem auxSucc_true_ne_false (hφ : WellFormed φ) {i : ℕ} (hi : i < numAux �
   obtain ⟨o₁, h₁⟩ := Option.ne_none_iff_exists'.1 hb
   have hnot : auxSucc φ i (!(litAt φ o).2) = entryIdx φ o₁ := by
     cases hb' : (litAt φ o).2
-    · rw [hb'] at h₁; exact h.trans (auxSucc_eq_some h₁)
-    · rw [hb'] at h₁; exact h.symm.trans (auxSucc_eq_some h₁)
+    · rw [hb'] at h₁
+      exact h.trans (auxSucc_eq_some h₁)
+    · rw [hb'] at h₁
+      exact h.symm.trans (auxSucc_eq_some h₁)
   rcases h₂ : firstOcc φ ((varList φ).getD i 0, !(litAt φ o).2) with _ | o₂
   · rw [auxSucc_eq_none h₂] at hnot
-    have := numAux_le_entryIdx φ o₁; omega
+    have := numAux_le_entryIdx φ o₁
+    omega
   · rw [auxSucc_eq_some h₂] at hnot
     obtain rfl := entryIdx_injective φ hnot
     have e := (firstOcc_eq_some.1 h₁).2.1.symm.trans (firstOcc_eq_some.1 h₂).2.1

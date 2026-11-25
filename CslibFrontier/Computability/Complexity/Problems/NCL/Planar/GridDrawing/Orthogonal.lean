@@ -63,7 +63,8 @@ private theorem no_common_unit (D : Closed G) {e f : E} (hef : e ≠ f)
     D.meet e f y hef hye ((D.path f).contains_of_mem_unitRoute y (hy.symm ▸ hb'))
   rw [← hx, ← hy] at hu
   by_cases h : v = w
-  · subst w; simp [length] at hu
+  · subst w
+    simp [length] at hu
   · have := D.vertex_separation v w h
     dsimp only [integerPoint, length] at hu
     omega

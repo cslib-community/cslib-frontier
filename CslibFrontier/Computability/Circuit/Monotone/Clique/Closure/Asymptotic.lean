@@ -93,7 +93,8 @@ private theorem positive_budget {n k r l t q : ℕ} (hr : 2 ≤ r) (hlk : l ≤ 
             _ = (q * (r - 1)) ^ j * (n - j).choose (k - j) := by rw [mul_pow]; ring
             _ ≤ n.choose k := Nat.pow_mul_choose_sub_le_choose hq' (hj₂.trans hlk) hn
       _ ≤ l * n.choose k := by
-        rw [sum_const, smul_eq_mul, Nat.card_Icc]; exact Nat.mul_le_mul_right _ (by omega)
+        rw [sum_const, smul_eq_mul, Nat.card_Icc]
+        exact Nat.mul_le_mul_right _ (by omega)
   refine Nat.lt_of_mul_lt_mul_left (a := q ^ (l / 2 + 1)) ?_
   calc q ^ (l / 2 + 1) * (Positive.errorCap n k r l * t)
       = (q ^ (l / 2 + 1) * ∑ j ∈ Icc (l / 2 + 1) l, (r - 1) ^ j * (n - j).choose (k - j)) *
@@ -151,12 +152,16 @@ theorem two_pow_lt_size_of_separates {n k g l : ℕ} (hl : 2 ≤ l) (hg : 2 * l 
   refine Closure.lt_size_of_separates (r := l * (Nat.log 2 n + 2) + 2) (by omega) hl hg hgk
     (positive_budget (q := 8) (by omega) ?_ (by norm_num) hr (two_mul_mul_two_pow_lt l))
     (negative_budget (by omega) hg hrn ?_) hC
-  · have := Nat.le_self_pow two_ne_zero l; omega
+  · have := Nat.le_self_pow two_ne_zero l
+    omega
   · calc 2 * (smallSets n l).card * 2 ^ l ≤ 2 * (2 ^ (Nat.log 2 n + 1)) ^ l * 2 ^ l := by
-          gcongr; exact (card_smallSets_le n l).trans (Nat.pow_le_pow_left hb l)
+          gcongr
+          exact (card_smallSets_le n l).trans (Nat.pow_le_pow_left hb l)
       _ = 2 ^ (l * (Nat.log 2 n + 1) + l + 1) := by rw [← pow_mul]; ring
-      _ < 2 ^ (l * (Nat.log 2 n + 2) + 2) :=
-          Nat.pow_lt_pow_right (by norm_num) (by ring_nf; omega)
+      _ < 2 ^ (l * (Nat.log 2 n + 2) + 2) := by
+          refine Nat.pow_lt_pow_right (by norm_num) ?_
+          ring_nf
+          omega
 
 /-- **The Alon–Boppana lower bound for cliques.** For `2 ≤ l` with `2 l ^ 2 ≤ k - 1` and
 `8 l (⌊log₂ n⌋ + 3) k ≤ n`, every monotone circuit computing `k`-clique on `n` vertices has more
@@ -186,8 +191,10 @@ theorem two_pow_lt_size_of_separates_sqrt {n k : ℕ} (hn : 2 ^ 40 ≤ n) (hk : 
   set a := n.sqrt.sqrt
   have ha : 1024 ≤ a := Nat.le_sqrt.2 (Nat.le_sqrt.2 (le_trans (by norm_num) hn))
   have ha2 : a ^ 2 ≤ n.sqrt := Nat.sqrt_le' _
-  have ha4 : a ^ 4 ≤ n :=
-    (show a ^ 4 = (a ^ 2) ^ 2 by ring) ▸ (Nat.pow_le_pow_left ha2 2).trans (Nat.sqrt_le' n)
+  have ha4 : a ^ 4 ≤ n := by
+    calc a ^ 4 = (a ^ 2) ^ 2 := by ring
+      _ ≤ n.sqrt ^ 2 := Nat.pow_le_pow_left ha2 2
+      _ ≤ n := Nat.sqrt_le' n
   have hsqrt : n.sqrt < (a + 1) ^ 2 := Nat.lt_succ_sqrt' _
   have hc : 10 ≤ Nat.log 2 a := Nat.le_log_of_pow_le (by norm_num) (le_trans (by norm_num) ha)
   have hlog : Nat.log 2 n < 4 * (Nat.log 2 a + 1) := by

@@ -178,7 +178,9 @@ theorem isCollisionFinder_sanitizeCollisionFinder {α β : Type*} [DecidableEq �
     (F : α → β) (A : α → PMF α) : IsCollisionFinder F (sanitizeCollisionFinder F A) := by
   intro x _ hy
   obtain ⟨x', _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hy
-  split_ifs with h <;> [exact h; rfl]
+  split_ifs with h
+  · exact h
+  · rfl
 
 /-! ### Accessible set expectation and the fiber-escape entropy gap -/
 
@@ -318,7 +320,8 @@ theorem accessibleEscapeGame_sanitizeWordCollisionFinder
       (sanitizeWordCollisionFinder inLen evalWord A) n =
       accessibleEscapeGame evalWord inLen accSet A n := by
   simp only [accessibleEscapeGame, sanitizeWordCollisionFinder, bind_assoc, pure_bind]
-  congr 1 with zWord; congr 1 with raw
+  congr 1 with zWord
+  congr 1 with raw
   split_ifs with h
   · rfl
   · simp only [Bool.and_eq_true, beq_iff_eq] at h

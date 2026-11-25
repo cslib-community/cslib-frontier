@@ -134,7 +134,8 @@ theorem two_pow_length_stdWord_le (n : ℕ) : 2 ^ (stdWord n).length ≤ n + 1 :
 /-- The word at a position, in unary, is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_stdWord : ComputableInPolyTime stdWord encUnary encBits := by
-  unfold stdWord; fun_prop
+  unfold stdWord
+  fun_prop
 
 /-! ### Characteristic sequences -/
 
@@ -171,7 +172,9 @@ theorem mem_cylinder_iff {z : List Bool} {A : Set (List Bool)} :
     A ∈ cylinder z ↔ charPrefix A z.length = z := Iff.rfl
 
 @[simp]
-theorem cylinder_nil : cylinder [] = Set.univ := by ext; simp [mem_cylinder_iff, charPrefix]
+theorem cylinder_nil : cylinder [] = Set.univ := by
+  ext
+  simp [mem_cylinder_iff, charPrefix]
 
 /-! ### Martingales -/
 
@@ -207,8 +210,9 @@ theorem mem_successSet_iff_limsup {d : List Bool → ℝ} {A : Set (List Bool)} 
     · have := Finset.single_le_sum (f := fun n => |d (charPrefix A n)|)
         (fun _ _ => abs_nonneg _) (Finset.mem_range.mpr (Nat.lt_of_not_le hmN))
       linarith [le_abs_self (d (charPrefix A m)), abs_nonneg y.toReal]
-    · exact (EReal.le_coe_toReal hy.ne).trans_lt
-        (EReal.coe_lt_coe_iff.mpr (lt_of_le_of_lt (by linarith [le_abs_self y.toReal]) hm))
+    · calc y ≤ (y.toReal : EReal) := EReal.le_coe_toReal hy.ne
+        _ < d (charPrefix A m) := EReal.coe_lt_coe_iff.mpr
+          (lt_of_le_of_lt (by linarith [le_abs_self y.toReal]) hm)
   · obtain ⟨n, hn⟩ := (h C (EReal.coe_lt_top C)).exists
     exact ⟨n, EReal.coe_lt_coe_iff.mp hn⟩
 
@@ -304,13 +308,15 @@ theorem hasMeasureZeroInE_iff {X : Set (Set (List Bool))} :
 
 /-- p-measure zero implies measure zero in `E`. -/
 theorem HasPMeasureZero.hasMeasureZeroInE {X : Set (Set (List Bool))} (h : HasPMeasureZero X) :
-    HasMeasureZeroInE X :=
-  let ⟨d, hd, hX⟩ := h; ⟨d, hd, Set.inter_subset_left.trans hX⟩
+    HasMeasureZeroInE X := by
+  obtain ⟨d, hd, hX⟩ := h
+  exact ⟨d, hd, Set.inter_subset_left.trans hX⟩
 
 /-- **Subsets of p-measure-zero classes have p-measure zero** [Lutz, Lemma 3.10][Lutz1992]. -/
 theorem HasPMeasureZero.mono {X Y : Set (Set (List Bool))} (hY : HasPMeasureZero Y) (h : X ⊆ Y) :
-    HasPMeasureZero X :=
-  let ⟨d, hd, hY⟩ := hY; ⟨d, hd, h.trans hY⟩
+    HasPMeasureZero X := by
+  obtain ⟨d, hd, hY⟩ := hY
+  exact ⟨d, hd, h.trans hY⟩
 
 theorem hasPMeasureZero_empty : HasPMeasureZero ∅ :=
   ⟨fun _ => ((0 : ℕ) : ℝ), isPMartingale_const 0, Set.empty_subset _⟩
@@ -344,6 +350,7 @@ theorem HasMeasureZeroInE.mono {X Y : Set (Set (List Bool))} (hY : HasMeasureZer
 /-- Unions of two classes of measure zero in `E` have measure zero in `E`. -/
 theorem HasMeasureZeroInE.union {X Y : Set (Set (List Bool))} (hX : HasMeasureZeroInE X)
     (hY : HasMeasureZeroInE Y) : HasMeasureZeroInE (X ∪ Y) := by
-  rw [hasMeasureZeroInE_iff, Set.union_inter_distrib_right]; exact HasPMeasureZero.union hX hY
+  rw [hasMeasureZeroInE_iff, Set.union_inter_distrib_right]
+  exact HasPMeasureZero.union hX hY
 
 end Cslib.Complexity.Measure

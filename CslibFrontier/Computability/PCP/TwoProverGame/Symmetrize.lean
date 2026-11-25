@@ -202,8 +202,10 @@ theorem symmetrize_agreement {V : Type*} [Fintype V] [DecidableEq V]
   rw [Finset.sum_comm (γ := B) (α := A), ← sum_add_distrib, sum_div]
   refine sum_congr rfl fun a _ => ?_
   rw [← sum_add_distrib, sum_div]
-  exact sum_congr rfl fun b _ =>
-    if he : f a = g b then by simp [he, h] else by simp [he, Ne.symm he]
+  refine sum_congr rfl fun b _ => ?_
+  by_cases he : f a = g b
+  · simp [he, h]
+  · simp [he, Ne.symm he]
 
 end Cslib.PCP.QuantumStrategy
 

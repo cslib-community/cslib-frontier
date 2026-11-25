@@ -241,16 +241,20 @@ theorem configurationJustesenSubdivisionEdge_contract
   have hbound : ctx.parameters.search.subdivision.chainBound = size.chainBound :=
     congrArg (fun p : SeedSearchParameters => p.search.subdivision.chainBound)
       (configurationSeedSearchSetup_endpoints ntm c w).1.symm
-  rw [show start = flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩ by
-    dsimp only [start, justesenSubdivisionEdgeStart]; rw [hbound]]
+  have hstart : start = flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩ := by
+    dsimp only [start, justesenSubdivisionEdgeStart]
+    rw [hbound]
+  rw [hstart]
   obtain ⟨hbefore, answer, hrun, hhalt, hedge⟩ :=
     configurationJustesenWeightedSubdivisionCallback_agrees ntm c w u v seed
   have h3 : M.runFrom w (flatCallbackStart ⟨ctx, size.chainBound, u.val, v.val⟩) 3 =
       .inl (.inr answer) := hrun
-  refine ⟨hbefore, hhalt, by rw [h3]; exact hedge,
-    fun t ht => (hC w ctx rfl u.val v.val u.isLt v.isLt t ht).trans ?_⟩
-  simpa only [Nat.mul_assoc, Nat.add_mul, Nat.one_mul] using
-    Nat.mul_le_mul_left C (Nat.add_le_add_right (hD w seed.val seed.isLt) _)
+  refine ⟨hbefore, hhalt, h3.symm ▸ hedge, fun t ht => ?_⟩
+  calc _ ≤ C * ((encJustesenSubdivisionContext ctx).length + (Nat.log2 w.length + 1)) :=
+        hC w ctx rfl u.val v.val u.isLt v.isLt t ht
+    _ ≤ C * (D * (Nat.log2 w.length + 1) + (Nat.log2 w.length + 1)) :=
+        Nat.mul_le_mul_left C (Nat.add_le_add_right (hD w seed.val seed.isLt) _)
+    _ = _ := by rw [Nat.mul_assoc, Nat.add_mul, Nat.one_mul]
 
 /-- Initialize the adjacency context from the encoded input and a valid binary rank,
 including the logarithmic bound on the encoded output. -/

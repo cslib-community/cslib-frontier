@@ -123,8 +123,9 @@ theorem card_le_of_blackPebbleGame_mTr {s : ℕ} {C D : Finset V} {ms : List (Mo
   | stepL h _ ih => exact ih h.2
 
 theorem BlackPebblable.mono {s t : ℕ} (hst : s ≤ t) {v : V} (h : BlackPebblable G s v) :
-    BlackPebblable G t v :=
-  let ⟨ms, C, hC, hv⟩ := h; ⟨ms, C, blackPebbleGame_mTr_mono hst hC, hv⟩
+    BlackPebblable G t v := by
+  obtain ⟨ms, C, hC, hv⟩ := h
+  exact ⟨ms, C, blackPebbleGame_mTr_mono hst hC, hv⟩
 
 theorem BlackPebblable.one_le {s : ℕ} {v : V} (h : BlackPebblable G s v) : 1 ≤ s :=
   let ⟨_, _, hC, hv⟩ := h
@@ -166,10 +167,9 @@ theorem exists_blackPebbleGame_mTr_union {s : ℕ} {C D : Finset V} {ms : List (
     | @remove v =>
       by_cases hvF : v ∈ F
       · exact ⟨ms', Finset.erase_union_of_mem hvF C₁ ▸ ih⟩
-      · refine ⟨.remove v :: ms', .stepL ⟨?_, hcard'⟩ ih⟩
-        rw [show C₁.erase v ∪ F = (C₁ ∪ F).erase v by
-          rw [Finset.erase_union_distrib, Finset.erase_eq_of_notMem hvF]]
-        exact .remove
+      · have herase : C₁.erase v ∪ F = (C₁ ∪ F).erase v := by
+          rw [Finset.erase_union_distrib, Finset.erase_eq_of_notMem hvF]
+        exact ⟨.remove v :: ms', .stepL ⟨herase ▸ .remove, hcard'⟩ ih⟩
 
 /-- Composition: if every predecessor of `v` lies in `ps` and can be pebbled with `s` pebbles,
 then `v` can be pebbled with `t` pebbles whenever `#ps + 1 ≤ t` and `s + #ps ≤ t + 1`. -/
@@ -230,8 +230,9 @@ theorem blackPebblable_blackPebblingPrice {s : ℕ} {v : V} (h : BlackPebblable 
   Nat.sInf_mem (s := {s | BlackPebblable G s v}) ⟨s, h⟩
 
 theorem blackPebblable_iff_blackPebblingPrice_le {s : ℕ} {v : V} (h : ∃ s, BlackPebblable G s v) :
-    BlackPebblable G s v ↔ blackPebblingPrice G v ≤ s :=
-  let ⟨_, h₀⟩ := h; ⟨blackPebblingPrice_le, (blackPebblable_blackPebblingPrice h₀).mono⟩
+    BlackPebblable G s v ↔ blackPebblingPrice G v ≤ s := by
+  obtain ⟨_, h₀⟩ := h
+  exact ⟨blackPebblingPrice_le, (blackPebblable_blackPebblingPrice h₀).mono⟩
 
 /-- A vertex that no budget pebbles has price `0`. -/
 theorem blackPebblingPrice_eq_zero_of_forall_not {v : V} (h : ∀ s, ¬ BlackPebblable G s v) :

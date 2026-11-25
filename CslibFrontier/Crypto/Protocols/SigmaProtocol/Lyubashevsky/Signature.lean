@@ -131,10 +131,12 @@ theorem isSISSolution_sub_smul_secret {B η : ℕ}
     SIS.IsSolution A (B + Δc.natAbs * η) (v - Δc • s) := by
   refine ⟨sub_ne_zero.mpr hne, fun i => ?_, ?_⟩
   · simp only [Pi.sub_apply, zsmul_eq_mul, Pi.mul_apply]
-    refine (abs_sub _ _).trans ?_
-    rw [abs_mul, Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
-    exact add_le_add (mem_intBox.mp hv i)
-      (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
+    calc |v i - Δc * s i| ≤ |v i| + |Δc * s i| := abs_sub _ _
+      _ = |v i| + |Δc| * |s i| := by rw [abs_mul]
+      _ ≤ (B : ℤ) + |Δc| * (η : ℤ) :=
+        add_le_add (mem_intBox.mp hv i) (mul_le_mul_of_nonneg_left (mem_intBox.mp hs i) (abs_nonneg Δc))
+      _ = ((B + Δc.natAbs * η : ℕ) : ℤ) := by
+        rw [Nat.cast_add, Nat.cast_mul, Int.natCast_natAbs]
   · rw [InKernelLattice, show (Int.cast ∘ (v - Δc • s) : Fin m → ZMod q) =
         (Int.cast ∘ v) - (Δc : ZMod q) • (Int.cast ∘ s) from
           funext fun i => by simp [Pi.sub_apply, Pi.smul_apply],
@@ -272,9 +274,10 @@ theorem lyubashevskyForkToSIS {γ β η : ℕ}
       Matrix.mulVec_sub, Matrix.mulVec_sub, hz.2, hz'.2]
     abel
   · simp only [lyubashevskyExtract, Option.getD_some, Sum.elim_inl, Pi.sub_apply]
-    refine (abs_sub _ _).trans
-      ((add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)).trans_eq ?_)
-    push_cast; ring
+    calc |z i - z' i| ≤ |z i| + |z' i| := abs_sub _ _
+      _ ≤ ((γ - β : ℕ) : ℤ) + ((γ - β : ℕ) : ℤ) :=
+        add_le_add (mem_intBox.mp hz.1 i) (mem_intBox.mp hz'.1 i)
+      _ = ((2 * (γ - β) : ℕ) : ℤ) := by push_cast; ring
   · simp only [lyubashevskyExtract, Sum.elim_inr, Pi.sub_apply, lyubashevskyChallenge]
     split_ifs <;> simp
   · rw [extractSISFromRelaxedWitness_lyubashevskyExtract, extractSISFromTwoTranscripts_eq_sub,
@@ -349,9 +352,11 @@ theorem lyubashevsky_succProbability_directAttack_le {γ β : ℕ}
   have hP' : P'.SpecialSoundness
       (fun u y => SIS.IsSolution (Matrix.fromCols y.1 y.2) (max (2 * (γ - β)) 1) u)
       (lyubashevskyExtract n m k q) := lyubashevsky_specialSoundness
-  rw [show (lyubashevsky n m k q γ β).directAttack keyGen A =
-      P'.directAttack (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2)) A by
-    simp only [directAttack, P', PMF.monad_bind_eq_bind, PMF.bind_map]; rfl]
+  have hdir : (lyubashevsky n m k q γ β).directAttack keyGen A =
+      P'.directAttack (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2)) A := by
+    simp only [directAttack, P', PMF.monad_bind_eq_bind, PMF.bind_map]
+    rfl
+  rw [hdir]
   simpa [Fintype.card_pi, Fintype.card_bool] using succProbability_directAttack_le
     (hP'.specialSoundOn (keyGen.map fun key => ((0 : Fin m ⊕ Fin k → ℤ), key.2))) A
 

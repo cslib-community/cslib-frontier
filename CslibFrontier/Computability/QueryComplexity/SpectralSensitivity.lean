@@ -126,7 +126,8 @@ coordinates. -/
 theorem neighborFinset_sensitivityGraph (f : BooleanFunction n) (x : BitString n) :
     (sensitivityGraph f).neighborFinset x =
       (sensitiveCoords f x).image fun i => update x i (!x i) := by
-  ext; simp [sensitivityGraph_adj]
+  ext
+  simp [sensitivityGraph_adj]
 
 /-- The adjacency matrix of the sensitivity graph sums over the neighbors across sensitive
 coordinates: `(A_f v)(x) = ∑_{i sensitive at x} v(x ⊕ eᵢ)`. -/
@@ -199,7 +200,9 @@ theorem spectralSensitivity_le_of_forall_sum_le {f : BooleanFunction n} {K : ℝ
     rw [← real_inner_self_eq_norm_sq]
     change inner ℝ (WithLp.toLp 2 y.ofLp) (A (WithLp.toLp 2 z.ofLp)) ≤ _
     rw [inner_toEuclideanCLM_adjMatrix_sensitivityGraph]
-    exact sum_le_sum fun x _ => sum_le_sum fun i _ => by rw [← abs_mul]; exact le_abs_self _
+    refine sum_le_sum fun x _ => sum_le_sum fun i _ => ?_
+    rw [← abs_mul]
+    exact le_abs_self _
   -- the form at the normalized absolute values is at most `K`
   have hsq (v : EuclideanSpace ℝ (BitString n)) (hv : 0 < ‖v‖) :
       ∑ x, (|v.ofLp x| / ‖v‖) ^ 2 = 1 := by
@@ -260,9 +263,11 @@ theorem degree_le_spectralSensitivity_sq (f : BooleanFunction n) :
     · exact (hvS x).trans (sum_le_sum_of_subset_of_nonneg
         (fun i hi => mem_sensitiveCoords.2 (hsens x hx i (mem_filter.1 hi).1 (mem_filter.1 hi).2))
         fun _ _ _ => hv _)
-    · rw [hvV x hx, mul_zero]; exact sum_nonneg fun _ _ => hv _
-  rw [← hS, ← Real.sq_sqrt (Nat.cast_nonneg #S)]
-  gcongr
+    · rw [hvV x hx, mul_zero]
+      exact sum_nonneg fun _ _ => hv _
+  rw [← hS]
+  calc (#S : ℝ) = √(#S : ℝ) ^ 2 := (Real.sq_sqrt (Nat.cast_nonneg _)).symm
+    _ ≤ spectralSensitivity f ^ 2 := by gcongr
 
 end QueryComplexity
 

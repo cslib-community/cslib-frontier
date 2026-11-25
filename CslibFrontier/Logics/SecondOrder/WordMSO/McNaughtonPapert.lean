@@ -88,7 +88,8 @@ type. -/
 theorem wordRankType_congr {u v : List α} (h : u = v) (n : ℕ) {k : ℕ}
     (a : Fin k → Fin u.length) :
     wordRankType n u a = wordRankType n v fun i => Fin.cast (congrArg List.length h) (a i) := by
-  subst h; rfl
+  subst h
+  rfl
 
 /-- The pointed words `(u₁ · c · u₂, |u₁|)` of a rank-`n` type: the type depends only on the letter
 `c` and the rank-`n` types of `u₁` and `u₂`. -/
@@ -135,10 +136,12 @@ theorem pointedRankTypeLanguage_eq (n : ℕ) (τ : FO.RankType (wordLanguage α)
     refine ⟨⟨(wordRankType n (x.take p) Fin.elim0, x[p],
       wordRankType n (x.drop (p + 1)) Fin.elim0), x.take p, x.drop (p + 1), rfl, rfl, ?_⟩,
       Language.mem_mul.2 ⟨x.take p ++ [x[p]], Language.mem_mul.2 ⟨x.take p, rfl, [x[p]], rfl, rfl⟩,
-        x.drop (p + 1), rfl, by rw [List.append_assoc]; exact hx.symm⟩⟩
-    rw [← hp, wordRankType_congr hx.symm]
-    congr 1 with i : 1
-    exact Fin.ext (by simp [Matrix.cons_val_fin_one])
+        x.drop (p + 1), rfl, ?_⟩⟩
+    · rw [← hp, wordRankType_congr hx.symm]
+      congr 1 with i : 1
+      exact Fin.ext (by simp [Matrix.cons_val_fin_one])
+    · rw [List.append_assoc]
+      exact hx.symm
   · rintro ⟨⟨⟨T₁, c, T₂⟩, u₁, u₂, hu₁, hu₂, hτ⟩, hx⟩
     obtain ⟨y, hy, y₂, hy₂, rfl⟩ := Language.mem_mul.1 hx
     obtain ⟨y₁, hy₁, c', hc', rfl⟩ := Language.mem_mul.1 hy
@@ -180,17 +183,23 @@ theorem wordRankType_succ_eq_iff {n : ℕ} {v w : List α} :
     refine ⟨?_, ?_⟩
     · rintro ⟨p, rfl⟩
       obtain ⟨q, hq⟩ := hf p
-      exact ⟨q, by rw [snoc_elim0, snoc_elim0] at hq; exact (wordRankType_eq_iff.2 hq).symm⟩
+      rw [snoc_elim0, snoc_elim0] at hq
+      exact ⟨q, (wordRankType_eq_iff.2 hq).symm⟩
     · rintro ⟨q, rfl⟩
       obtain ⟨p, hp⟩ := hb q
-      exact ⟨p, by rw [snoc_elim0, snoc_elim0] at hp; exact wordRankType_eq_iff.2 hp⟩
+      rw [snoc_elim0, snoc_elim0] at hp
+      exact ⟨p, wordRankType_eq_iff.2 hp⟩
   · intro h
     refine ⟨wordStructure.partialIso_iff.2 ⟨fun i => i.elim0, fun i => i.elim0⟩, fun p => ?_,
       fun q => ?_⟩
     · obtain ⟨q, hq⟩ := (h (wordRankType n v ![p])).1 ⟨p, rfl⟩
-      exact ⟨q, by rw [snoc_elim0, snoc_elim0]; exact wordRankType_eq_iff.1 hq.symm⟩
+      refine ⟨q, ?_⟩
+      rw [snoc_elim0, snoc_elim0]
+      exact wordRankType_eq_iff.1 hq.symm
     · obtain ⟨p, hp⟩ := (h (wordRankType n w ![q])).2 ⟨q, rfl⟩
-      exact ⟨p, by rw [snoc_elim0, snoc_elim0]; exact wordRankType_eq_iff.1 hp⟩
+      refine ⟨p, ?_⟩
+      rw [snoc_elim0, snoc_elim0]
+      exact wordRankType_eq_iff.1 hp
 
 variable [Finite α]
 
@@ -213,10 +222,14 @@ theorem isStarFree_rankTypeLanguage (n : ℕ) (T : FO.RankType (wordLanguage α)
   | zero =>
     by_cases hT : ∃ w, w ∈ rankTypeLanguage 0 T
     · obtain ⟨w, hw⟩ := hT
-      exact (show rankTypeLanguage 0 T = ⊤ by
-        ext v; exact iff_of_true ((wordRankType_zero_eq v w).trans hw) trivial) ▸ IsStarFree.top
-    · exact (show rankTypeLanguage 0 T = 0 by
-        ext v; exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)) ▸ IsStarFree.zero
+      have htop : rankTypeLanguage 0 T = ⊤ := by
+        ext v
+        exact iff_of_true ((wordRankType_zero_eq v w).trans hw) trivial
+      exact htop ▸ IsStarFree.top
+    · have hzero : rankTypeLanguage 0 T = 0 := by
+        ext v
+        exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)
+      exact hzero ▸ IsStarFree.zero
   | succ n ih =>
     by_cases hT : ∃ w, w ∈ rankTypeLanguage (n + 1) T
     · obtain ⟨w, hw⟩ := hT
@@ -233,8 +246,10 @@ theorem isStarFree_rankTypeLanguage (n : ℕ) (T : FO.RankType (wordLanguage α)
       split_ifs
       · exact isStarFree_pointedRankTypeLanguage ih τ
       · exact (isStarFree_pointedRankTypeLanguage ih τ).compl
-    · exact (show rankTypeLanguage (n + 1) T = 0 by
-        ext v; exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)) ▸ IsStarFree.zero
+    · have hzero : rankTypeLanguage (n + 1) T = 0 := by
+        ext v
+        exact iff_of_false (fun hv => hT ⟨v, hv⟩) (Language.notMem_zero v)
+      exact hzero ▸ IsStarFree.zero
 
 /-- **First-order definable languages are star-free** over a finite alphabet
 [Libkin, Theorem 7.26][Libkin2004]. The language of a sentence of quantifier rank `n` is the union

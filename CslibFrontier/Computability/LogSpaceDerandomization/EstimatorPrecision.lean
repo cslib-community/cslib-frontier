@@ -85,14 +85,16 @@ theorem precision_child_sub (K A : ℝ) (M m i i' : ℕ) {a a' u u' : ℝ}
       -((M : ℝ) - m) / K + Real.logb 2 (a' / a) / 2 + Real.logb 2 (u' / u) / 2 +
         A * ((i : ℝ) - i') := by
   rw [Real.logb_div ha'.ne' ha.ne', Real.logb_div hu'.ne' hu.ne']
-  unfold precision; ring
+  unfold precision
+  ring
 
 /-- Increasing the integer budget cannot decrease precision for a positive precision constant. -/
 theorem precision_mono_budget {K A a u : ℝ} (hK : 0 < K) (i : ℕ) :
     Monotone fun M => precision K A M i a u := by
   intro M m hMm
   have := div_le_div_of_nonneg_right (Nat.cast_le.2 hMm) hK.le
-  unfold precision; linarith
+  unfold precision
+  linarith
 
 /-- Budget-zero tasks at rates in `(0, 1]` are inactive. -/
 theorem precision_zero_nonpos {K A a u : ℝ} (hA : 0 ≤ A) (ha : 0 < a) (ha1 : a ≤ 1)
@@ -126,7 +128,8 @@ theorem binNormCost_pos (s h : ℝ) : 0 < binNormCost s h :=
 theorem binNormCost_mul_accuracy {s : ℝ} (hs : s ≠ 0) (h : ℝ) :
     binNormCost s h * (2 : ℝ) ^ (-h / 2) = (2 : ℝ) ^ (-scaleMargin s * |h|) := by
   rw [binNormCost, ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  congr 1; unfold scaleMargin
+  congr 1
+  unfold scaleMargin
   split_ifs with hh
   · rw [abs_of_nonneg hh]; ring
   · rw [abs_of_neg (lt_of_not_ge hh)]
@@ -136,7 +139,9 @@ theorem binNormCost_mul_accuracy {s : ℝ} (hs : s ≠ 0) (h : ℝ) :
 theorem source_cost_mul_accuracy {s r : ℝ} (hr : 0 < r) :
     r ^ (1 / s) * r ^ (-(1 / 2 : ℝ)) = r ^ (-scaleMargin s) := by
   rw [← Real.rpow_add hr]
-  exact congrArg _ (by unfold scaleMargin; ring)
+  refine congrArg _ ?_
+  unfold scaleMargin
+  ring
 
 /-- Resetting the source to a broader rate costs at most one after its precision gain, for every
 moment exponent strictly above two. -/
@@ -163,7 +168,10 @@ theorem child_cost_mul_accuracy {s K A a a' u u' : ℝ} (hs : s ≠ 0)
     simp only [neg_div] at hp ⊢; linarith
   have hg : (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2) =
       (2 : ℝ) ^ (-scaleMargin s * Real.logb 2 (u' / u)) := by
-    rw [← Real.rpow_add (by norm_num)]; exact congrArg _ (by unfold scaleMargin; ring)
+    rw [← Real.rpow_add (by norm_num)]
+    refine congrArg _ ?_
+    unfold scaleMargin
+    ring
   rw [he, Real.rpow_add (by norm_num), Real.rpow_add (by norm_num)]
   calc _ = (binNormCost s (Real.logb 2 (a' / a)) * (2 : ℝ) ^ (-Real.logb 2 (a' / a) / 2)) *
         ((2 : ℝ) ^ (Real.logb 2 (u' / u) / s) * (2 : ℝ) ^ (-Real.logb 2 (u' / u) / 2)) *
@@ -183,11 +191,13 @@ theorem child_cost_mul_accuracy_le {s K A a a' u u' : ℝ} (hs : 2 < s) (hA : 0 
   have hlog : 0 ≤ Real.logb 2 (u' / u) :=
     Real.logb_nonneg (by norm_num) ((le_div_iff₀ hu).2 (by simpa using huu'))
   rw [child_cost_mul_accuracy (by linarith) M m i i' ha ha' hu (hu.trans_le huu')]
-  exact (mul_le_of_le_one_right (by positivity)
-    (Real.rpow_le_one_of_one_le_of_nonpos (by norm_num)
-      (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (scaleMargin_pos hs).le) hlog))).trans
-    (mul_le_mul_of_nonneg_right (Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith))
-      (by positivity))
+  calc _ ≤ (2 : ℝ) ^ (-precision K A M i a u + ((M : ℝ) - m) / K - A * ((i : ℝ) - i')) *
+        (2 : ℝ) ^ (-scaleMargin s * |Real.logb 2 (a' / a)|) :=
+      mul_le_of_le_one_right (by positivity)
+        (Real.rpow_le_one_of_one_le_of_nonpos (by norm_num)
+          (mul_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (scaleMargin_pos hs).le) hlog))
+    _ ≤ _ := mul_le_mul_of_nonneg_right
+        (Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith)) (by positivity)
 
 /-- A child rate only needs to dominate a fixed multiple of the bin rate. The resulting constant
 is exactly `2 ^ (-log₂ c / 2)`; the geometric decay is still measured at the actual bin offset.
@@ -206,7 +216,9 @@ theorem child_cost_mul_accuracy_le_of_rate_le {s K A a a' b c u u' : ℝ}
   have hacc : (2 : ℝ) ^ (-precision K A m i' a' u') ≤
       (2 : ℝ) ^ (-precision K A m i' b u') * (2 : ℝ) ^ (-Real.logb 2 c / 2) := by
     rw [← Real.rpow_add (by norm_num)]
-    exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by unfold precision; linarith)
+    refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
+    unfold precision
+    linarith
   calc _ ≤ binNormCost s (Real.logb 2 (b / a)) * (2 : ℝ) ^ (Real.logb 2 (u' / u) / s) *
         ((2 : ℝ) ^ (-precision K A m i' b u') * (2 : ℝ) ^ (-Real.logb 2 c / 2)) :=
       mul_le_mul_of_nonneg_left hacc (mul_nonneg (binNormCost_pos _ _).le (by positivity))
