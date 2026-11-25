@@ -107,6 +107,21 @@ theorem decrypt_refresh (hE : E.Correct) (hD : Bootstrappable D)
     (by simp only [List.length_append, hsk, hc]) (List.rel_append hek hfresh) result hresult
   exact heval.trans (D.correct n sk ciphertext hsk hc)
 
+private theorem mem_support_refreshNand {n : ℕ} {pk sk first second : List Bool}
+    {encryptedKey : List (List Bool)} (hek : E.FreshInputs n pk sk encryptedKey)
+    {result : List Bool}
+    (hresult : result ∈ (ProbComp.eval (refreshNand D n pk encryptedKey first second)).support) :
+    ∃ inputs, E.FreshInputs n pk ((sk ++ first) ++ (sk ++ second)) inputs ∧
+      result ∈ (ProbComp.eval (E.evaluate n pk ⟨_, augmentNand (D.circuit n)⟩ inputs)).support := by
+  rw [refreshNand, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
+  obtain ⟨firstBits, hfirstBits, hresult⟩ := hresult
+  rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
+  obtain ⟨secondBits, hsecondBits, hresult⟩ := hresult
+  exact ⟨_, List.rel_append
+    (List.rel_append hek ((E.mem_support_encryptBits_iff n pk first firstBits).1 hfirstBits))
+    (List.rel_append hek ((E.mem_support_encryptBits_iff n pk second secondBits).1 hsecondBits)),
+    hresult⟩
+
 /-- NAND refresh computes NAND of the old decryptions. No fresh-encryption hypothesis is needed
 for either old ciphertext, and the encrypted secret key is shared between the two input blocks. -/
 theorem decrypt_refreshNand (hE : E.Correct) (hD : Bootstrappable D)
@@ -119,22 +134,12 @@ theorem decrypt_refreshNand (hE : E.Correct) (hD : Bootstrappable D)
     (hresult : result ∈ (ProbComp.eval
       (refreshNand D n keys.1 encryptedKey first second)).support) :
     E.decrypt n keys.2 result = !(E.decrypt n sk first && E.decrypt n sk second) := by
-  rw [refreshNand, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
-  obtain ⟨firstBits, hfirstBits, hresult⟩ := hresult
-  rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
-  obtain ⟨secondBits, hsecondBits, hresult⟩ := hresult
-  have hfresh₁ := (E.mem_support_encryptBits_iff n keys.1 first firstBits).1 hfirstBits
-  have hfresh₂ := (E.mem_support_encryptBits_iff n keys.1 second secondBits).1 hsecondBits
-  have hlen₁ : (sk ++ first).length = secretWidth n + ciphertextWidth n := by
-    simp only [List.length_append, hsk, hfirst]
-  have hlen₂ : (sk ++ second).length = secretWidth n + ciphertextWidth n := by
-    simp only [List.length_append, hsk, hsecond]
+  obtain ⟨inputs, hfresh, hresult⟩ := mem_support_refreshNand D hek hresult
   have heval := hE.decrypt_evaluate n keys hkeys ⟨_, augmentNand (D.circuit n)⟩ (hD.nand_mem n)
-    ((sk ++ first) ++ (sk ++ second))
-    ((encryptedKey ++ firstBits) ++ (encryptedKey ++ secondBits))
-    (by simp only [List.length_append, hsk, hfirst, hsecond])
-    (List.rel_append (List.rel_append hek hfresh₁) (List.rel_append hek hfresh₂)) result hresult
-  rw [BitString.ofList_append hlen₁ hlen₂, eval_augmentNand,
+    ((sk ++ first) ++ (sk ++ second)) inputs
+    (by simp only [List.length_append, hsk, hfirst, hsecond]) hfresh result hresult
+  rw [BitString.ofList_append (by simp only [List.length_append, hsk, hfirst])
+    (by simp only [List.length_append, hsk, hsecond]), eval_augmentNand,
     D.correct n sk first hsk hfirst, D.correct n sk second hsk hsecond] at heval
   exact heval
 
@@ -165,17 +170,10 @@ theorem length_refreshNand (hE : E.FixedWidth secretWidth ciphertextWidth) (hD :
     (hresult : result ∈ (ProbComp.eval
       (refreshNand D n keys.1 encryptedKey first second)).support) :
     result.length = ciphertextWidth n := by
-  rw [refreshNand, ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
-  obtain ⟨firstBits, hfirstBits, hresult⟩ := hresult
-  rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hresult
-  obtain ⟨secondBits, hsecondBits, hresult⟩ := hresult
-  have hfresh₁ := (E.mem_support_encryptBits_iff n keys.1 first firstBits).1 hfirstBits
-  have hfresh₂ := (E.mem_support_encryptBits_iff n keys.1 second secondBits).1 hsecondBits
+  obtain ⟨inputs, hfresh, hresult⟩ := mem_support_refreshNand D hek hresult
   exact hE.evaluate_length n keys hkeys _ (hD.nand_mem n)
-    ((sk ++ first) ++ (sk ++ second))
-    ((encryptedKey ++ firstBits) ++ (encryptedKey ++ secondBits))
-    (by simp only [List.length_append, hsk, hfirst, hsecond])
-    (List.rel_append (List.rel_append hek hfresh₁) (List.rel_append hek hfresh₂)) result hresult
+    ((sk ++ first) ++ (sk ++ second)) inputs
+    (by simp only [List.length_append, hsk, hfirst, hsecond]) hfresh result hresult
 
 end Scheme
 
