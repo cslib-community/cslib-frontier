@@ -381,10 +381,9 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
   set n := Fintype.card ι
   set N := Fintype.card (ι → Bool)
   have hN : N = 2 ^ n := by simp [N, n]
-  have hKpos : 0 < K := by
-    rw [← Nat.cast_pos (α := ℝ)]
-    have : (0 : ℝ) < ((2 ^ t + 3 * n + 2 : ℕ) : ℝ) := by positivity
-    linarith
+  have hKpos : 0 < K :=
+    (Nat.cast_pos (α := ℝ)).mp
+      (by linarith [show (0 : ℝ) < ((2 ^ t + 3 * n + 2 : ℕ) : ℝ) by positivity])
   let WType (k₁ k₂ : ℕ) :=
     Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool) ×
       ((Fin t → Bool) → Bool) × (Fin t → Fin k₁ ⊕ Fin k₂ → Fin (k₁ + k₂))
@@ -566,14 +565,7 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
           have : (#(Finset.Icc K N) : ℝ) ≤ N := by exact_mod_cast hIcc
           gcongr
       _ = (2 : ℝ) ^ (2 ^ t + 3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-          have hNN : (N : ℝ) * N = (2 : ℝ) ^ (2 * n) := by
-            rw [hN]; push_cast; rw [← pow_add]; ring_nf
-          calc (N : ℝ) * N * (2 ^ (2 ^ t + n + 1) * 2 ^ N * exp (-(2 * K)))
-              = ((N : ℝ) * N * 2 ^ (2 ^ t + n + 1)) * exp (-(2 * K)) * 2 ^ N := by ring
-            _ = (2 : ℝ) ^ (2 ^ t + 3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-                rw [hNN, ← pow_add]
-                congr 2
-                ring
+          rw [hN]; push_cast; ring
       _ < 2 ^ N := by
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
