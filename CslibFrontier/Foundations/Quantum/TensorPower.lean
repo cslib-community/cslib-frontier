@@ -124,9 +124,8 @@ theorem sum_filter_mul_norm_tensorPowerApply_le
   have hΩ (a : κ) : tensorPowerApply A Φ (j.insertNth a v) = ∑ b, A a b * φ b :=
     tensorPowerApply_insertNth A Φ j a v
   simp only [hΩ, hiso φ, filter_mem_eq_inter, univ_inter]
-  have := hA φ
-  have := hg (j.insertNth a₀ v)
-  nlinarith
+  rw [mul_left_comm]
+  exact mul_le_mul_of_nonneg_left (hA φ) (hg _)
 
 /-- **The exponential moment of the number of copies in `T`**: for `t ≥ 1`, the expectation of
 `t ^ #{j | u j ∈ T}` is at most `(1 + (t - 1) s) ^ k` times the squared norm, as for `k`
@@ -162,7 +161,7 @@ theorem sum_pow_card_filter_mul_norm_tensorPowerApply_le
       have h1 : 0 ≤ t - 1 := by linarith
       have h2 : 0 ≤ ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u :=
         sum_nonneg fun u _ => by positivity
-      have h3 : 0 ≤ 1 + (t - 1) * s := by nlinarith
+      have h3 : 0 ≤ 1 + (t - 1) * s := by positivity
       calc ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u +
             (t - 1) * ∑ u with u J ∈ T, t ^ (S.filter fun j => u j ∈ T).card * μ u
           ≤ ∑ u, t ^ (S.filter fun j => u j ∈ T).card * μ u +
@@ -187,7 +186,9 @@ theorem sum_card_filter_ge_norm_tensorPowerApply_le
   have hμ : 0 ≤ ∑ u, μ u := sum_nonneg fun u _ => by positivity
   have hpow : (1 + (2 - 1) * s) ^ (2 * r) ≤ (16 / 9 : ℝ) ^ r := by
     rw [pow_mul]
-    exact pow_le_pow_left₀ (by positivity) (by nlinarith) r
+    refine pow_le_pow_left₀ (by positivity) ?_ r
+    exact (by gcongr : (1 + (2 - 1) * s) ^ 2 ≤ (1 + (2 - 1) * (1 / 3 : ℝ)) ^ 2).trans_eq
+      (by norm_num)
   have hlow : (2 : ℝ) ^ r * ∑ u with r ≤ (univ.filter fun j => u j ∈ T).card, μ u ≤
       ∑ u, (2 : ℝ) ^ (univ.filter fun j => u j ∈ T).card * μ u := by
     rw [mul_sum]
@@ -195,8 +196,7 @@ theorem sum_card_filter_ge_norm_tensorPowerApply_le
       (sum_le_sum_of_subset_of_nonneg (filter_subset _ _) fun u _ _ => by positivity)
     exact mul_le_mul_of_nonneg_right (pow_le_pow_right₀ (by norm_num) (mem_filter.mp hu).2)
       (by positivity)
-  have h2r : (0 : ℝ) < 2 ^ r := by positivity
-  rw [← mul_le_mul_iff_of_pos_left h2r]
+  rw [← mul_le_mul_iff_of_pos_left (by positivity : (0 : ℝ) < 2 ^ r)]
   calc (2 : ℝ) ^ r * ∑ u with r ≤ (univ.filter fun j => u j ∈ T).card, μ u
       ≤ (16 / 9 : ℝ) ^ r * ∑ u, μ u := hlow.trans (hB.trans (by gcongr))
     _ = 2 ^ r * ((8 / 9) ^ r * ∑ u, μ u) := by
