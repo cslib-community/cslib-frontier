@@ -74,22 +74,28 @@ variable {k a b r : ℕ}
 theorem inputStrand_of_index (e : Strand k a b r) (i : Fin (k + a + r))
     (hi : inputIndex e = some i) : inputStrand i = e := by
   rcases e with j | ((j | j) | j) <;> simp only [inputIndex, Option.some.injEq] at hi
-  · exact hi ▸ by simp [inputStrand, j.isLt]
-  · exact hi ▸ by simp [inputStrand, show ¬k + j.val < k by omega,
+  · subst i
+    simp [inputStrand, j.isLt]
+  · subst i
+    simp [inputStrand, show ¬k + j.val < k by omega,
       show k + j.val < k + a by have := j.isLt; omega]
   · cases hi
-  · exact hi ▸ by simp [inputStrand, show ¬k + a + j.val < k by omega,
+  · subst i
+    simp [inputStrand, show ¬k + a + j.val < k by omega,
       show ¬k + a + j.val < k + a by omega]
 
 /-- A strand with an output port is uniquely determined by that port. -/
 theorem outputStrand_of_index (e : Strand k a b r) (j : Fin (k + b + r))
     (hj : outputIndex e = some j) : outputStrand j = e := by
   rcases e with i | ((i | i) | i) <;> simp only [outputIndex, Option.some.injEq] at hj
-  · exact hj ▸ by simp [outputStrand, i.isLt]
+  · subst j
+    simp [outputStrand, i.isLt]
   · cases hj
-  · exact hj ▸ by simp [outputStrand, show ¬k + i.val < k by omega,
+  · subst j
+    simp [outputStrand, show ¬k + i.val < k by omega,
       show k + i.val < k + b by have := i.isLt; omega]
-  · exact hj ▸ by simp [outputStrand, show ¬k + b + i.val < k by omega,
+  · subst j
+    simp [outputStrand, show ¬k + b + i.val < k by omega,
       show ¬k + b + i.val < k + b by omega]
 
 /-- The unique cell vertex in the layer's own coordinates. -/
@@ -216,9 +222,12 @@ theorem Layer.row_le (L : Layer k a b r) (e : Strand k a b r) (p : Point)
     (hp : L.Trace e p) : p.2 ≤ L.height := by
   simp only [height]
   rcases hp with ⟨i, _, hp⟩ | ⟨_, hp⟩ | ⟨_, j, _, hp⟩
-  · have := L.upper.row_le i hp; omega
-  · have := middle_row_le L.arity hp; omega
-  · have := L.lower.row_le j hp; omega
+  · have := L.upper.row_le i hp
+    omega
+  · have := middle_row_le L.arity hp
+    omega
+  · have := L.lower.row_le j hp
+    omega
 
 /-- The first row consists precisely of the declared input strand endpoints. -/
 theorem Layer.top_iff (L : Layer k a b r) (e : Strand k a b r) (x : ℕ) :
@@ -252,11 +261,14 @@ private theorem lower_middle_same (L : Layer k a b r) {e f : Strand k a b r}
     {j : Fin (k + b + r)} {p : Point} (hj : outputIndex e = some j)
     (hl : Shift (2 * (k + a + r + 1) + 2) (L.lower.Contains j) p)
     (hm : Shift (2 * (k + a + r + 1)) (MiddleContains f) p) : e = f := by
-  obtain ⟨_, hx⟩ := L.middle_lower_intersection f j p.1 (p.2 - 2 * (k + a + r + 1)) hm.2
-    ⟨by have := hl.1; omega, by simpa only [Nat.sub_sub] using hl.2⟩
+  have hlocal : 2 ≤ p.2 - 2 * (k + a + r + 1) ∧
+      L.lower.Contains j (p.1, p.2 - 2 * (k + a + r + 1) - 2) :=
+    ⟨by have := hl.1; omega,
+      by simpa only [Nat.sub_sub] using hl.2⟩
+  obtain ⟨_, hx⟩ := L.middle_lower_intersection f j p.1 (p.2 - 2 * (k + a + r + 1)) hm.2 hlocal
+  have heq : p.2 = 2 * (k + a + r + 1) + 2 := by have := hm.1; omega
   exact middle_boundary_unique L.arity (.inr rfl) (middle_bottom_of_output e j hj)
-    (by simpa only [show p.2 = 2 * (k + a + r + 1) + 2 by have := hm.1; omega, hx,
-      Nat.add_sub_cancel_left] using hm.2)
+    (by simpa only [heq, hx, Nat.add_sub_cancel_left] using hm.2)
 
 /-- Distinct full strands intersect only at their common cell vertex. -/
 theorem Layer.meet (L : Layer k a b r) {e f : Strand k a b r} (hef : e ≠ f)

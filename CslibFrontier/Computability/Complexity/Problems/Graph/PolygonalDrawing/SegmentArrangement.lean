@@ -41,7 +41,8 @@ theorem IsEmbedding.segment_interior_disjoint {G : Graph} {D : PolygonalDrawing 
       segment ℝ (D.segmentStart j) (D.segmentFinish j) := by
   rw [segment_eq_image_lineMap]
   rintro ⟨u, hu, heq⟩
-  rcases s with ⟨e, i⟩; rcases j with ⟨f, k⟩
+  rcases s with ⟨e, i⟩
+  rcases j with ⟨f, k⟩
   by_cases hedge : e = f
   · subst f
     exact hne (((hD.simple e).index_time_eq_of_eval_eq_of_mem_Ioo i k ht hu heq.symm).1 ▸ rfl)
@@ -60,7 +61,8 @@ theorem IsEmbedding.segment_endpoint_contact {G : Graph} {D : PolygonalDrawing G
   classical
   rcases k with ⟨s, tag⟩
   by_cases hj : j = s
-  · subst j; cases tag <;> simp [rayEndpoint]
+  · subst j
+    cases tag <;> simp [rayEndpoint]
   rw [segment_eq_image_lineMap] at hp
   obtain ⟨t, ht, heq⟩ := hp
   rcases eq_or_lt_of_le ht.1 with ht0 | ht0
@@ -93,7 +95,8 @@ private theorem segment_ends_at_bend_of_contacts {G : Graph} {D : PolygonalDrawi
       (D.route e).point i.castSucc.succ) :
     k = (⟨e, i.castSucc⟩, true) ∨ k = (⟨e, i.succ⟩, false) := by
   rcases k with ⟨⟨f, j⟩, tag⟩
-  have htime : (if tag then (1 : ℝ) else 0) ∈ ({0, 1} : Set ℝ) := by cases tag <;> simp
+  have htime : (if tag then (1 : ℝ) else 0) ∈ ({0, 1} : Set ℝ) := by
+    cases tag <;> simp
   have hpoint : (D.route e).eval i.castSucc 1 =
       (D.route f).eval j (if tag then 1 else 0) := by
     rw [← D.segment_endpoint_eq_eval ⟨f, j⟩ tag]
@@ -110,9 +113,11 @@ private theorem segment_ends_at_bend_of_contacts {G : Graph} {D : PolygonalDrawi
       hsimple e _ _ _ _ (by simp) (endpoint_parameters_mem_Icc htime) hpoint
     · cases tag
       · dsimp [Route.position] at hpos
-        exact .inr (by congr 2; exact Fin.ext (by exact_mod_cast (hpos.trans (add_zero _)).symm))
+        have hj : j = i.succ := Fin.ext (by exact_mod_cast (hpos.trans (add_zero _)).symm)
+        exact .inr (hj ▸ rfl)
       · dsimp [Route.position] at hpos
-        exact .inl (by congr 2; exact Fin.ext (by exact_mod_cast (add_right_cancel hpos).symm))
+        have hj : j = i.castSucc := Fin.ext (by exact_mod_cast (add_right_cancel hpos).symm)
+        exact .inl (hj ▸ rfl)
     · exact (hnot false hstart).elim
     · exact (hnot true hfinish).elim
   · obtain ⟨b, hb⟩ := hcontact ⟨e, i.castSucc⟩ ⟨f, j⟩ hedge (by simp) htime hpoint
@@ -188,13 +193,17 @@ theorem segment_end_at_vertex_of_contacts {G : Graph} (D : PolygonalDrawing G)
   cases b <;> cases tag <;>
     simp only [Route.AtEnd, Route.position, Bool.false_eq_true, ↓reduceIte] at hb
   · have hi : i = 0 := Fin.ext (Nat.cast_eq_zero (R := ℝ).mp (by linarith))
-    subst i; rfl
+    subst i
+    rfl
   · linarith
   · linarith
-  · dsimp [Route.segments] at hb; push_cast at hb
+  · dsimp [Route.segments] at hb
+    push_cast at hb
     have hi : i = Fin.last (D.route e).bends := Fin.ext <| by
-      rw [Fin.val_last]; exact (Nat.cast_inj (R := ℝ)).mp (by linarith)
-    subst i; rfl
+      rw [Fin.val_last]
+      exact (Nat.cast_inj (R := ℝ)).mp (by linarith)
+    subst i
+    rfl
 
 /-- Segment ends at declared vertices of an embedding are actual graph darts there. -/
 theorem IsEmbedding.segment_end_at_vertex {G : Graph} {D : PolygonalDrawing G}

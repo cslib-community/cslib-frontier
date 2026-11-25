@@ -208,7 +208,9 @@ theorem value_majority_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
       rw [value_affine _ _ _ (by positivity), value_repeatShape_prod _ _ _
         (fun _ t => 1 + ((W t).toNat : ℚ)) (fun _ t => by positivity), prod_const, card_univ,
         Fintype.card_fin, value_const_add]
-    _ ≤ 1 / 2 ^ (k + 1) * (4 / 3) ^ (2 * k) + 0 := by gcongr; linarith
+    _ ≤ 1 / 2 ^ (k + 1) * (4 / 3) ^ (2 * k) + 0 := by
+      gcongr
+      linarith
     _ = (8 / 9) ^ k / 2 := by
       rw [pow_mul, pow_succ]
       field_simp
@@ -352,14 +354,18 @@ theorem IsAMGameVerifierWithErrorExponent.isAMGameVerifier {enc : α ↪ List Bo
   rw [isAMGameVerifierWithErrorExponent_iff_value] at h
   rw [isAMGameVerifier_iff_value]
   intro a
-  have h4 : (4 : ℚ) ≤ 2 ^ e.eval (enc a).length :=
-    (by norm_num : (4 : ℚ) = 2 ^ 2).trans_le (pow_le_pow_right₀ (by norm_num) (he _))
+  have h4 : (4 : ℚ) ≤ 2 ^ e.eval (enc a).length := by
+    calc (4 : ℚ) = 2 ^ 2 := by norm_num
+      _ ≤ 2 ^ e.eval (enc a).length := pow_le_pow_right₀ (by norm_num) (he _)
   have hv0 : 0 ≤ value true (evalShape G (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) :=
     value_nonneg _ _ fun _ => by positivity
   have hv1 : value true (evalShape G (enc a).length) (fun t => ((V (a, t)).toNat : ℚ)) ≤ 1 :=
     value_le_one _ _ fun t => by cases V (a, t) <;> norm_num
-  exact ⟨fun ha => by have := (h a).1 ha; nlinarith,
-    fun ha => by have := (h a).2 ha; nlinarith⟩
+  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  · have := (h a).1 ha
+    nlinarith
+  · have := (h a).2 ha
+    nlinarith
 
 /-- **Error reduction for public-coin games**: parallel repetition with a majority vote. A problem
 has a game verifier of pattern `π` exactly when it has one with error at most `2 ^ (-e(n))` for
@@ -384,10 +390,14 @@ theorem mem_AMGameClass_iff_forall_errorExponent {enc : α ↪ List Bool} {π : 
       rw [← mul_pow]; norm_num
     refine ⟨fun ha => ?_, fun ha => ?_⟩
     · have := value_majority_ge _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).1 ha)
-      exact (mul_le_mul_of_nonneg_left (by linarith) (by positivity)).trans_eq h2
+      calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
+            gcongr; linarith
+        _ = 1 := h2
     · have := value_majority_le _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).2 ha)
       have hp0 : (0 : ℚ) ≤ (8 / 9) ^ (6 * e.eval (enc a).length) := by positivity
-      exact (mul_le_mul_of_nonneg_left (by linarith) (by positivity)).trans_eq h2
+      calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
+            gcongr; linarith
+        _ = 1 := h2
   · intro h
     obtain ⟨G, V, hG, hV, hA⟩ := h 2
     exact ⟨G, V, hG, hV, hA.isAMGameVerifier fun n => by simp⟩

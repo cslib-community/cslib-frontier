@@ -113,13 +113,15 @@ theorem IsPartitionCover.of_embedding {C : κ → Set X × Set Y}
     · rw [Function.extend_apply' _ _ _ hw'] at hxC
       exact hxC.elim
   · obtain ⟨w, hw, hunique⟩ := hcov x hx y hy hR
-    refine ⟨e w, by dsimp only; rwa [e.injective.extend_apply], fun w' hw' => ?_⟩
-    dsimp only at hw'
-    by_cases hex : ∃ u, e u = w'
-    · obtain ⟨u, rfl⟩ := hex
-      exact congrArg e (hunique u (by rwa [e.injective.extend_apply] at hw'))
-    · rw [Function.extend_apply' _ _ _ hex] at hw'
-      exact hw'.1.elim
+    refine ⟨e w, ?_, fun w' hw' => ?_⟩
+    · dsimp only
+      rwa [e.injective.extend_apply]
+    · dsimp only at hw'
+      by_cases hex : ∃ u, e u = w'
+      · obtain ⟨u, rfl⟩ := hex
+        exact congrArg e (hunique u (by rwa [e.injective.extend_apply] at hw'))
+      · rw [Function.extend_apply' _ _ _ hex] at hw'
+        exact hw'.1.elim
 
 /-- A partition cover indexed by a finite type `κ` bounds `partitionCoverNumber` by `|κ|`. -/
 theorem IsPartitionCover.partitionCoverNumber_le [Fintype κ] {C : κ → Set X × Set Y}

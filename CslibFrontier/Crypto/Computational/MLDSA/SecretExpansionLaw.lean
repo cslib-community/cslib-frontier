@@ -189,7 +189,8 @@ private theorem vector_law (s : Level) (n r : ℕ) :
     apply congrArg (PMF.bind B ·)
     funext t
     change (if (decode t).isSome then P.map some else PMF.pure none) = _
-    cases decode t; exacts [(PMF.map_const ..).symm, rfl]
+    cases decode t
+    exacts [(PMF.map_const ..).symm, rfl]
   have joint := congrArg (PMF.pi (ι := Fin r) ∘ Function.const (Fin r)) single
   change PMF.pi (fun _ : Fin r => B.map decode) = PMF.pi (fun _ : Fin r => B.bind _) at joint
   rw [PMF.pi_map, PMF.pi_bind] at joint
@@ -207,7 +208,8 @@ private theorem vector_law (s : Level) (n r : ℕ) :
     | none => rfl
     | some _ => exact congrArg some (funext (Vector.get_ofFn p))
   simp_rw [exchange]
-  cases h : rejBoundedVector s v; exacts [PMF.map_const .., rfl]
+  cases h : rejBoundedVector s v
+  exacts [PMF.map_const .., rfl]
 
 /-- Independent 481-byte streams at the distinct secret-vector nonces of Algorithm 33.
 The actual Algorithm 31 parser is applied separately at every nonce used for the MLWE secret

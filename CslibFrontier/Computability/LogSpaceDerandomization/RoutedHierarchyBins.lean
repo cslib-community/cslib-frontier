@@ -190,12 +190,16 @@ theorem expect_binProductRecipe (hf : 0 < f) (hb : 0 < b)
     simpa only [mulVec, dotProduct, Pi.one_apply, mul_one] using hC1 z
   simp only [binProductRecipe, mul_sum]
   rw [expect_sum_comm]
-  refine sum_congr rfl fun z _ => (expect_congr
-      (g := fun draw => ((f / A.π) * A.atom draw.1 x z) * B.direct C draw.2 z y) rfl
-      fun draw _ => by dsimp only [DenseSamplingLaws.direct]; ring).trans ?_
-  rw [expect_product]
-  dsimp only
-  rw [← expect_mul_expect, A.expect_atom hf hC hC1 hx, B.expect_direct hb hC hrow]
+  refine sum_congr rfl fun z _ => ?_
+  calc
+    _ = 𝔼 draw ∈ (({s | Xs s x} : Finset Γ) ×ˢ (univ : Finset Ζ)) ×ˢ
+        ({s | Ya s y} : Finset Ω),
+        ((f / A.π) * A.atom draw.1 x z) * B.direct C draw.2 z y :=
+      expect_congr rfl fun draw _ => by dsimp only [DenseSamplingLaws.direct]; ring
+    _ = _ := by
+      rw [expect_product]
+      dsimp only
+      rw [← expect_mul_expect, A.expect_atom hf hC hC1 hx, B.expect_direct hb hC hrow]
 
 end HierarchyParams.CorrectionSampling
 
@@ -219,7 +223,8 @@ theorem identifier_radixCopy {p : ℕ} (n m l : ℕ)
   congr 1
   have h := radixCopyEquiv_val n m l ((radixCopyEquiv n m l).symm (toLex (x, j)))
   simp only [Equiv.apply_symm_apply, ofLex_toLex] at h
-  rw [h]; push_cast
+  rw [h]
+  push_cast
   ring
 
 /-- A common fixed suffix is the affine substitution used by the channel invariance law. -/
@@ -246,12 +251,15 @@ theorem dens_frame_padding {p H r : ℕ} [Fact p.Prime] {D : ZMod p} (hD : D ≠
     dens {A : Cslib.Probability.FrameChannel p H r |
       E (fun x => A.eval (identifier D suffix x))} =
       dens {A : Cslib.Probability.FrameChannel p H r | E A.eval} := by
-  rw [show ({A : Cslib.Probability.FrameChannel p H r |
+  have hset : ({A : Cslib.Probability.FrameChannel p H r |
       E (fun x => A.eval (identifier D suffix x))} : Finset _) =
     ({A : Cslib.Probability.FrameChannel p H r |
-      E (fun x => A.eval (D ^ suffix.length * x + identifier D suffix 0))} : Finset _) by
-    ext A; simp only [mem_filter, mem_univ, true_and]
-    exact iff_of_eq (congrArg E (funext fun x => congrArg A.eval (identifier_affine D suffix x)))]
+      E (fun x => A.eval (D ^ suffix.length * x + identifier D suffix 0))} : Finset _) := by
+    ext A
+    simp only [mem_filter, mem_univ, true_and]
+    exact iff_of_eq (congrArg E (funext fun x =>
+      congrArg A.eval (identifier_affine D suffix x)))
+  rw [hset]
   exact Cslib.Probability.dens_eval_comp_affine (pow_ne_zero _ hD) _ E
 
 end CopyPadding
@@ -402,7 +410,8 @@ theorem sum_expect_hierarchy_routed_bins {Ω : Type*} [Fintype Ω]
   simp_rw [DenseSamplingLaws.expect_direct (A _ _) (hb _) hD hDM]
   rw [← mul_sum, sum_routedBinCutoff n hb hχ hcover]
   simp only [hierarchy_succ, HierarchyParams.next_eq, submatrix_apply, copyStage, copySplit,
-    of_apply]; ring
+    of_apply]
+  ring
 
 end Hierarchy
 end Matrix

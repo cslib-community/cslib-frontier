@@ -207,7 +207,8 @@ private theorem verifier_ofFn_append {N c m T : Polynomial ℕ} {ℓ : α → �
   have hdrop' : (List.ofFn r ++ (List.ofFn e ++ List.ofFn z)).drop
       (m.eval n * (5 * N.eval n + T.eval n) + m.eval n + (5 * N.eval n + T.eval n)) =
         List.ofFn z := by
-    rw [← List.append_assoc]; exact List.drop_left' (by simp)
+    rw [← List.append_assoc]
+    exact List.drop_left' (by simp)
   rw [List.drop_left' List.length_ofFn, hdrop', List.take_left' List.length_ofFn,
     List.take_left' List.length_ofFn, BitString.LinearHash.hashZero_ofFn, and_assoc]
   refine and_congr ⟨fun h i => ?_, fun h i hi => ?_⟩ Iff.rfl

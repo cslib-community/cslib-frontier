@@ -182,9 +182,14 @@ private theorem pow_injective_to_distance (a b : Dart G) (h : a.vertex = b.verte
     exacts [this hi hj heq hij, rfl, (this hj hi heq.symm hij).symm]
   refine absurd ?_ (r.pow_ne_of_lt_rotationDistance a b h
     (k := r.rotationDistance a b - j + i) (by omega))
-  rw [pow_add, Equiv.Perm.mul_apply, heq, ← Equiv.Perm.mul_apply, ← pow_add,
-    Nat.sub_add_cancel hj]
-  exact r.pow_rotationDistance a b h
+  calc
+    (r.rotate ^ (r.rotationDistance a b - j + i)) a =
+        (r.rotate ^ (r.rotationDistance a b - j)) ((r.rotate ^ i) a) := by
+      rw [pow_add, Equiv.Perm.mul_apply]
+    _ = (r.rotate ^ (r.rotationDistance a b - j)) ((r.rotate ^ j) a) := congrArg _ heq
+    _ = (r.rotate ^ r.rotationDistance a b) a := by
+      rw [← Equiv.Perm.mul_apply, ← pow_add, Nat.sub_add_cancel hj]
+    _ = b := r.pow_rotationDistance a b h
 
 open Classical in
 /-- The literal directed cyclic interval `(a,b]`: rotate forward from `a` to the first `b`,
@@ -285,16 +290,25 @@ theorem sum_alternates_eq_interval {x y : Fin G.2.length → Bool}
       (P.dart i false) (P.dart i true) (Q.dart j false) (Q.dart j true))) =
       ∑ d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true), x d.1 := by
   classical
-  rw [Finset.sum_congr rfl fun i _ => r.alternates_eq_interval _ _ _ _ (P.dart_ne i)
-      (Q.dart_ne j) (disjoint_ports_ne P Q hdisj i j false false)
-      (disjoint_ports_ne P Q hdisj i j false true)
-      (disjoint_ports_ne P Q hdisj i j true false)
-      (disjoint_ports_ne P Q hdisj i j true true) (P.vertex_eq i) (Q.vertex_eq j),
-    P.sum_ports (fun d => decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true))),
-    ← Finset.sum_ite_mem_eq (r.rotationInterval (Q.dart j false) (Q.dart j true)) (fun d => x d.1)]
-  refine Finset.sum_congr rfl fun d _ => ?_
-  by_cases hm : d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true) <;>
-    cases x d.1 <;> simp [hm, Bool.zero_eq_false]
+  calc
+    _ = ∑ i : Fin P.count,
+        (decide (P.dart i false ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)) +
+        decide (P.dart i true ∈ r.rotationInterval (Q.dart j false) (Q.dart j true))) :=
+      Finset.sum_congr rfl fun i _ => r.alternates_eq_interval _ _ _ _ (P.dart_ne i) (Q.dart_ne j)
+        (disjoint_ports_ne P Q hdisj i j false false)
+        (disjoint_ports_ne P Q hdisj i j false true)
+        (disjoint_ports_ne P Q hdisj i j true false)
+        (disjoint_ports_ne P Q hdisj i j true true) (P.vertex_eq i) (Q.vertex_eq j)
+    _ = ∑ d : Dart G, if x d.1 = true then
+        decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)) else 0 :=
+      P.sum_ports (fun d =>
+        decide (d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true)))
+    _ = _ := by
+      rw [← Finset.sum_ite_mem_eq
+        (r.rotationInterval (Q.dart j false) (Q.dart j true)) (fun d => x d.1)]
+      refine Finset.sum_congr rfl fun d _ => ?_
+      by_cases hm : d ∈ r.rotationInterval (Q.dart j false) (Q.dart j true) <;>
+        cases x d.1 <;> simp [hm, Bool.zero_eq_false]
 
 open Classical in
 /-- If the first support is a face boundary, its local alternating count along one passage

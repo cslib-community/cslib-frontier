@@ -117,12 +117,13 @@ def allPathPortSignals (φ : CNF ℕ) : List Variable :=
 theorem allPathPortSignals_nodup {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3) :
     (allPathPortSignals φ).Nodup := by
-  rw [show allPathPortSignals φ =
+  have heq : allPathPortSignals φ =
       (((paths φ).flatMap pathPortKeys).product [0, 1]).map
-        (portKeySignal (crossingSites φ)) by
+        (portKeySignal (crossingSites φ)) := by
     change ((paths φ).flatMap fun r =>
       ((pathPortKeys r).product [0, 1]).map (portKeySignal (crossingSites φ))) = _
-    simp [List.product, List.map_flatMap, List.flatMap_assoc]]
+    simp [List.product, List.map_flatMap, List.flatMap_assoc]
+  rw [heq]
   exact ((PlanarCompile.pathPorts_nodup hw hv).product (by decide)).map (portKeySignal_injective _)
 
 private theorem vars_originalClauses (φ : CNF ℕ) (sites : List Point) :
@@ -200,7 +201,8 @@ private theorem count_tagged {W : Type*} [DecidableEq W] (ls : List W)
       simp [List.count_map_of_injective ls (fun w => ((p, tag w) : Variable))
         (fun _ _ he => hinj (congrArg Prod.snd he)) v, Nat.add_mul, Nat.add_comm]
     · rw [List.count_eq_zero.mpr fun hm => by
-        obtain ⟨_, _, he⟩ := List.mem_map.mp hm; exact h (congrArg Prod.fst he)]
+        obtain ⟨_, _, he⟩ := List.mem_map.mp hm
+        exact h (congrArg Prod.fst he)]
       simp [h]
 
 private theorem count_ordinary_inl (φ : CNF ℕ) (p : Point) (v : Fin 4 × Fin 2) :

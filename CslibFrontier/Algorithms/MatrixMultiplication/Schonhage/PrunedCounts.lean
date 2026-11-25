@@ -36,7 +36,8 @@ open Finset
 /-- An empty request set has no child requests. -/
 @[simp]
 theorem childSet_empty {n : ℕ} (lam : Term) : childSet (∅ : Finset (OutStr (n + 1))) lam = ∅ := by
-  ext w; simp [mem_childSet]
+  ext w
+  simp [mem_childSet]
 
 /-- Values of the two encoded arrays do not affect which calls are made. -/
 theorem Pruned.calls_irrel {n : ℕ} (a b a' b' : Leaf n → ℤ) (S : Finset (OutStr n)) :
@@ -119,7 +120,8 @@ theorem Pruned.card_calls_add_one_le {n : ℕ} (a b : Leaf n → ℤ)
     let f : Term → ℕ := fun lam => if (childSet S lam).Nonempty then
       (Pruned.calls n (sliceAt a lam) (sliceAt b lam) (childSet S lam)).card else 0
     have hsum := sum_le_sum (s := univ) fun lam _ => (show f lam + 1 ≤ 2 * 10 ^ n by
-      dsimp only [f]; split_ifs
+      dsimp only [f]
+      split_ifs
       · exact ih _ _ _
       · have : 0 < (10 : ℕ) ^ n := Nat.pow_pos (by decide)
         omega)

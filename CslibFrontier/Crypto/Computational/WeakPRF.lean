@@ -148,7 +148,8 @@ private theorem length_le_of_mem_support_weakSampleQuery {n : ℕ} {reply : List
     (hreply : reply ∈ OracleComp.support (weakSampleQuery n)) : reply.length ≤ 2 * n + 2 := by
   unfold weakSampleQuery at hreply
   obtain ⟨point, hpoint, hreply⟩ := OracleComp.mem_supportWith_bind_iff.mp hreply
-  change point ∈ OracleComp.support (ProbOracleComp.sample (BitString.sampleList n)) at hpoint
+  change point ∈ OracleComp.support
+    (ProbOracleComp.sample (BitString.sampleList n)) at hpoint
   rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hpoint
   obtain ⟨answer, hanswer, hreply⟩ := OracleComp.mem_supportWith_bind_iff.mp hreply
   obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hanswer
@@ -182,7 +183,8 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
   unfold weakToPrfDistinguisher
   rw [OracleComp.interpret_interpret, ProbComp.eval_interpret, ProbOracleComp.eval_interpret]
   congr 1
-  funext x; rcases x with m | request
+  funext x
+  rcases x with m | request
   · simp only [ProbComp.unifFin, interp_norm, ProbComp.unifOracle]
     exact ProbComp.eval_unifFin m
   · simp only [interp_norm, pmf_norm, weakSampleQuery, weakSample]
@@ -369,12 +371,18 @@ theorem advantage_weakPrfRealGame_zeroPatch_le (family : List Bool → List Bool
   have hne : (Q : ℝ≥0∞) * (2 ^ n)⁻¹ ≠ ⊤ :=
     ENNReal.mul_ne_top (ENNReal.natCast_ne_top Q)
       (ENNReal.inv_ne_top.mpr (pow_ne_zero _ two_ne_zero))
+  have hfirst : ProbComp.eval (weakPrfRealGame (zeroPatch family) adversary n) true ≤
+      ProbComp.eval (weakPrfRealGame family adversary n) true + Q * (2 ^ n)⁻¹ := by
+    rw [heval, heval]
+    exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
+      weakRun_apply_le n _ _ (hagree key) hq true
+  have hsecond : ProbComp.eval (weakPrfRealGame family adversary n) true ≤
+      ProbComp.eval (weakPrfRealGame (zeroPatch family) adversary n) true + Q * (2 ^ n)⁻¹ := by
+    rw [heval, heval]
+    exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
+      weakRun_apply_le n _ _ (fun point hpoint => (hagree key point hpoint).symm) hq true
   simpa [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
-    Game.advantage_le_of_apply_le hne
-      (by rw [heval, heval]; exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
-        weakRun_apply_le n _ _ (hagree key) hq true)
-      (by rw [heval, heval]; exact PMF.bind_apply_le_add_const_on_support _ true fun key _ =>
-        weakRun_apply_le n _ _ (fun point hpoint => (hagree key point hpoint).symm) hq true)
+    Game.advantage_le_of_apply_le hne hfirst hsecond
 
 /-- **Zero patching preserves weak pseudorandomness**: a weak adversary sees the all-zero point
 with probability `2⁻ⁿ` per call, so the patched family stays weakly pseudorandom. -/
@@ -387,8 +395,11 @@ theorem WeakPseudorandomFunction.zeroPatch {family : List Bool → List Bool →
     let Q : ℕ → ℕ := fun n => cq * (n + 2) ^ dq
     have hq (n : ℕ) : (adversary n []).IsQueryBounded (Q n) := by
       simpa only [Q, List.length_nil, Nat.add_zero] using (hqbounds n []).1
-    have hpatch := (negligible_geometric (ratio := (1 / 2 : ℝ≥0))
-      (by norm_num)).polynomiallyBounded_mul (p := Q) (by dsimp only [Q]; fun_prop)
+    have hpolyQ : PolynomiallyBounded Q := by
+      dsimp only [Q]
+      fun_prop
+    have hpatch :=
+      (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul hpolyQ
     refine negligible_of_le ((hweak.secure adversary hadversary).add hpatch) fun n => ?_
     have htri := NNReal.coe_le_coe.mpr (Game.advantage_triangle
       (ProbComp.eval (weakPrfRealGame (Cslib.Crypto.zeroPatch family) adversary n))

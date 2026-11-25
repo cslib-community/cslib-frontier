@@ -245,7 +245,9 @@ theorem searchWith_induction (P : List ℕ → List (List (Literal ℕ)) → Pro
     simpa [searchWith] using h φ.vars [] [[]] (by simp) hroot
   intro l
   induction l with
-  | nil => intro pre nodes _ h; simpa using h
+  | nil =>
+    intro pre nodes _ h
+    simpa using h
   | cons v l ih =>
     intro pre nodes hpre h
     have hpre' : (pre ++ [v] ++ l).IsPrefix φ.vars := by simpa using hpre

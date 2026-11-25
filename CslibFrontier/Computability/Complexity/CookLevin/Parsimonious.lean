@@ -271,9 +271,12 @@ theorem eq_runAssignment_of_eval_tableau (h : (tableau tm u L T).eval σ = true)
     exact ⟨fun hs => ((eval_uniqueClauses t).1 hu).2.1 _ _ hact hs, fun hs => hs ▸ hact⟩
   rcases hv with ⟨j, hj, rfl⟩ | ⟨t, ht, φ, hφ, rfl⟩ | ⟨t, ht, ⟨i, s, rfl⟩ | ⟨s, rfl⟩ | ⟨y, rfl⟩⟩
   · simp [runAssignment, certWord, List.getD_eq_getElem?_getD, hj]
-  · rw [Bool.eq_iff_iff, runAssignment_holds]; exact hA t ht φ hφ
-  · rw [Bool.eq_iff_iff, runAssignment_holds]; exact hread t ht i s
-  · rw [Bool.eq_iff_iff, runAssignment_holds]; exact hinRead t ht s
+  · rw [Bool.eq_iff_iff, runAssignment_holds]
+    exact hA t ht φ hφ
+  · rw [Bool.eq_iff_iff, runAssignment_holds]
+    exact hread t ht i s
+  · rw [Bool.eq_iff_iff, runAssignment_holds]
+    exact hinRead t ht s
   · rw [Bool.eq_iff_iff, runAssignment_holds]
     obtain ⟨hr, hs, hu, -⟩ := hsteps t ht
     refine ⟨fun hy => ?_, (hA t ht.le).sit (hb t ht.le) hr hs⟩
@@ -344,7 +347,8 @@ theorem modelCount_reduce {α : Type} {enc : α ↪ List Bool} {p : Polynomial �
   refine congrArg Finset.card (Finset.filter_congr fun w _ => ?_)
   obtain ⟨hhalt, hout⟩ := hrun _ List.length_ofFn
   rw [length_encPair, encBits_apply, List.length_ofFn, encPair_apply, encBits_apply] at hhalt hout
-  rw [hhalt, hout]; simp
+  rw [hhalt, hout]
+  simp
 
 end Counting
 

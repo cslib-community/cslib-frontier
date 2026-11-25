@@ -158,7 +158,10 @@ theorem unsatVal_contradiction (a b : α) (hab : a ≠ b) :
     rw [Graph.unsatFrac_toGraph] at h
     simpa [contradiction, projectionEval, hab, hab.symm] using h
   · rw [Graph.unsatFrac_toGraph, show (contradiction a b).edges.length = 2 from rfl]
-    exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2 (by exact_mod_cast hcount τ)
+    have hcast : (1 : ℝ) ≤ ((contradiction a b).edges.countP
+        (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) : ℝ) := by
+      exact_mod_cast hcount τ
+    exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2 hcast
 
 private theorem count_violations_le_incidence (pairs : List (α × α)) (fallback : α × α)
     (g : Graph (α → α → Bool))
@@ -172,7 +175,8 @@ private theorem count_violations_le_incidence (pairs : List (α × α)) (fallbac
         ((fun d : Edge (α → α → Bool) => !d.constraint (τ d.src).2 (τ d.dst).2) ∘ Prod.fst)
       by rw [← List.countP_map, List.zipIdx_map_fst], incidence, List.countP_flatMap]
   refine List.countP_le_sum_map fun ⟨d, i⟩ hdi hbad => ?_
-  have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi)) ((τ i).1)
+  have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi))
+    ((τ i).1)
   have hnotboth : ¬((repair pairs fallback d.constraint (τ i).1).1 = (τ d.src).2 ∧
       (repair pairs fallback d.constraint (τ i).1).2 = (τ d.dst).2) := by
     rintro ⟨h₁, h₂⟩
@@ -197,9 +201,14 @@ theorem half_unsatVal_le_incidence (pairs : List (α × α)) (fallback : α × �
         (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) : ℝ) :=
     Nat.cast_le.mpr (count_violations_le_incidence pairs fallback g hR τ)
   simp only [Graph.unsatFrac_toGraph, id_eq] at hval
-  rw [Graph.unsatFrac_toGraph, length_edges_incidence, show ((2 * g.edges.length : ℕ) : ℝ) =
-    (g.edges.length : ℝ) * 2 by push_cast; ring, ← div_div]
-  exact (div_le_div_of_nonneg_right hval (by norm_num)).trans (by gcongr)
+  rw [Graph.unsatFrac_toGraph, length_edges_incidence]
+  calc (g.toGraph id).unsatVal / 2 ≤
+        (g.edges.countP (fun d => !d.constraint (τ d.src).2 (τ d.dst).2) : ℝ) /
+          g.edges.length / 2 := div_le_div_of_nonneg_right hval (by norm_num)
+    _ ≤ ((incidence pairs fallback g).edges.countP
+        (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) : ℝ) /
+          g.edges.length / 2 := by gcongr
+    _ = _ := by push_cast; ring
 
 /-- Source satisfiability gives a satisfying pair at every edge occurrence and hence a satisfying
 labelling of the incidence projections. -/

@@ -235,14 +235,16 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   have hround (a : α) (j : ℕ) (hj : j ≤ rounds ν a) :
       ((encState encA ((step f g)^[j] (init a))).length + 1) ^ d +
         t (f ((step f g)^[j] (init a)).1) ≤ (st a + 1) ^ d + leafTime μA nd c δ k e a :=
-    Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a j hj) 1) d)
-      (by rw [iterate_step_init]; exact le_leafTime hδ (ht _) (hμ a j) (hnd_bound a j hj))
+    Nat.add_le_add (Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a j hj) 1) d) (by
+      rw [iterate_step_init]
+      exact le_leafTime hδ (ht _) (hμ a j) (hnd_bound a j hj))
   have hsearch := ha.inO.comp
     (ComputableInO.iterate hn.inO hi.inO hstep hround hround (hstate g))
   -- Apart from the number of rounds and the leaves, the running time is polynomial.
   have hpoly : PolyBounded (fun a => (encA a).length) fun a =>
       ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di + (st a + 1) ^ da +
-        ((st a + 1) ^ d + st a + (st a + 1) ^ 2) + (nd a + 1) ^ e := by growth_poly
+        ((st a + 1) ^ d + st a + (st a + 1) ^ 2) + (nd a + 1) ^ e := by
+    growth_poly
   obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
   refine DecidableInExpTime.of_computableInO hsearch
     (fun a => (search_eq_true_iff hfA (fun b => (hgB b).symm) a).symm)
@@ -261,7 +263,8 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   have hR : ((rounds ν a + 1 : ℕ) : ℝ) ≤ (2 ^ K + 1) * 2 ^ ((1 / M : ℝ) * μA a) := by
     have h₁ : (rounds ν a : ℝ) ≤ 2 ^ K * ((2 ^ (μA a / M) : ℕ) : ℝ) := by
       exact_mod_cast (show rounds ν a ≤ 2 ^ K * 2 ^ (μA a / M) by
-        rw [rounds, ← pow_add, add_comm K]; exact Nat.pow_le_pow_right two_pos (hνM a))
+        rw [rounds, ← pow_add, add_comm K]
+        exact Nat.pow_le_pow_right two_pos (hνM a))
     have h₂ : ((2 ^ (μA a / M) : ℕ) : ℝ) ≤ 2 ^ ((1 / M : ℝ) * μA a) := by
       rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, one_div_mul_eq_div]
       exact Real.rpow_le_rpow_of_exponent_le (by norm_num) Nat.cast_div_le
@@ -291,12 +294,16 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
     (by positivity) (Real.one_le_rpow (by norm_num) (by positivity))
     (Real.one_le_rpow (by norm_num) (by positivity))
     (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
+  have hXY : (2 : ℝ) ^ ((1 / M + c * δ) * μA a) =
+      2 ^ ((1 / M : ℝ) * μA a) * 2 ^ ((c * δ) * μA a) := by
+    rw [← Real.rpow_add (by norm_num)]
+    congr 1
+    ring
   -- `key` is the claimed bound, up to rearranging the running time and rounding the constant up.
-  rw [show (2 : ℝ) ^ ((1 / M + c * δ) * μA a) =
-      2 ^ ((1 / M : ℝ) * μA a) * 2 ^ ((c * δ) * μA a) by
-    rw [← Real.rpow_add (by norm_num)]; exact congrArg _ (by ring)]
+  rw [hXY]
   push_cast
-  exact (by linarith : _ ≤ _).trans (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity))
+  refine (?_ : _ ≤ _).trans (mul_le_mul_of_nonneg_right (Nat.le_ceil _) (by positivity))
+  linarith
 
 /-- **Subexponential-time transfer along an exhaustive search with sublinear branch exponent.** If
 $f : \alpha \times \mathbb{N} \to \beta$ and $\nu : \alpha \to \mathbb{N}$ are computable in

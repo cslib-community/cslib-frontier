@@ -193,15 +193,21 @@ attribute [local fun_prop] AdversaryInaccessibleEntropyFamily.polyTime_inLen
 
 @[fun_prop]
 theorem computableInPolyTime_ampSlack (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampSlack F) encUnary encUnary := by unfold ampSlack; fun_prop
+    ComputableInPolyTime (ampSlack F) encUnary encUnary := by
+      unfold ampSlack
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampReps (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampReps F) encUnary encUnary := by unfold ampReps; fun_prop
+    ComputableInPolyTime (ampReps F) encUnary encUnary := by
+      unfold ampReps
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampGridCount (F : AdversaryInaccessibleEntropyFamily) :
-    ComputableInPolyTime (ampGridCount F) encUnary encUnary := by unfold ampGridCount; fun_prop
+    ComputableInPolyTime (ampGridCount F) encUnary encUnary := by
+      unfold ampGridCount
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampShrinkLen :
@@ -287,7 +293,9 @@ private theorem ampGoodIdx_lt_ampGridCount (F : AdversaryInaccessibleEntropyFami
       refine Nat.floor_le_of_le ?_
       simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
       rw [mul_assoc, mul_comm (ampSlack F n : ℝ), ← mul_assoc, mul_div_cancel_right₀ _ hΔ_pos.ne']
-      exact mul_le_mul_of_nonneg_left (by linarith [div_pos zero_lt_one hD_pos]) (by positivity)
+      have ha_le : accessibleSetExpectation (accSet n) ≤ F.inLen n := by
+        linarith [div_pos zero_lt_one hD_pos]
+      gcongr
     unfold ampGridCount
     nlinarith [F.denom_pos n]
 
@@ -466,7 +474,8 @@ STEPS 1–3 (pp. 30–31)**: every uniform `OneWay` function yields a uniform po
 `ShrinkingCollisionGrid` with `G.shrinkLen n = Nat.log 2 n + 1`. -/
 theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
-  let ⟨F⟩ := hf.exists_inaccessibleEntropyFamily; F.exists_shrinkingCollisionGrid_log
+  let ⟨F⟩ := hf.exists_inaccessibleEntropyFamily
+  F.exists_shrinkingCollisionGrid_log
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) corollary of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log`, forgetting the explicit
@@ -474,7 +483,8 @@ theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (
 theorem AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid
     (F : AdversaryInaccessibleEntropyFamily) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := F.exists_shrinkingCollisionGrid_log; ⟨G⟩
+  let ⟨G, _⟩ := F.exists_shrinkingCollisionGrid_log
+  ⟨G⟩
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) specialization of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid` to a fixed
@@ -488,6 +498,7 @@ theorem InaccessibleEntropyFamily.exists_shrinkingCollisionGrid (F : Inaccessibl
 equation. -/
 theorem OneWay.exists_shrinkingCollisionGrid {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := hf.exists_shrinkingCollisionGrid_log; ⟨G⟩
+  let ⟨G, _⟩ := hf.exists_shrinkingCollisionGrid_log
+  ⟨G⟩
 
 end Cslib.Crypto

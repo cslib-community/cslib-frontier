@@ -277,7 +277,8 @@ theorem eval_run_toSigmaScheme [DecidableEq S] (P : IndexedScheme ι S R Q A β)
   rw [Scheme.eval_run, show (P.toSigmaScheme defaultA fallback).query i =
     (fun ⟨r, q⟩ => (r, fun s => ⟨s, q s⟩)) <$> P.query i from rfl,
     ProbComp.eval_map, PMF.map_comp, P.eval_run]
-  congr 1; funext ⟨r, q⟩
+  congr 1
+  funext ⟨r, q⟩
   simp only [Function.comp_apply]
   rw [show (fun s => (P.toSigmaScheme defaultA fallback).answer s x ⟨s, q s⟩) =
     fun s => ⟨s, P.answer s x (q s)⟩ from funext fun s => by simp [toSigmaScheme]]
@@ -351,16 +352,20 @@ def rows (ρ : Type) (P : IndexedScheme ι S R Q A β) :
   reconstruct ji r a := P.reconstruct ji.2 r fun s => a s ji.1
 
 @[simp] theorem query_rows (ρ : Type) (P : IndexedScheme ι S R Q A β) (ji : ρ × ι) :
-    (P.rows ρ).query ji = P.query ji.2 := by rfl
+    (P.rows ρ).query ji = P.query ji.2 := by
+  rfl
 
 @[simp] theorem run_rows (ρ : Type) (P : IndexedScheme ι S R Q A β) (x : ρ × ι → β) (ji : ρ × ι) :
-    (P.rows ρ).run x ji = P.run (fun i => x (ji.1, i)) ji.2 := by rfl
+    (P.rows ρ).run x ji = P.run (fun i => x (ji.1, i)) ji.2 := by
+  rfl
 
 @[simp] theorem serverQuery_rows (ρ : Type) (P : IndexedScheme ι S R Q A β) (s : S) (ji : ρ × ι) :
-    (P.rows ρ).serverQuery s ji = P.serverQuery s ji.2 := by rfl
+    (P.rows ρ).serverQuery s ji = P.serverQuery s ji.2 := by
+  rfl
 
 @[simp] theorem coalitionQuery_rows (ρ : Type) (P : IndexedScheme ι S R Q A β) (T : Finset S)
-    (ji : ρ × ι) : (P.rows ρ).coalitionQuery T ji = P.coalitionQuery T ji.2 := by rfl
+    (ji : ρ × ι) : (P.rows ρ).coalitionQuery T ji = P.coalitionQuery T ji.2 := by
+  rfl
 
 theorem IsCorrect.rows (ρ : Type) (h : P.IsCorrect) : (P.rows ρ).IsCorrect := fun x ji =>
   h (fun i => x (ji.1, i)) ji.2
@@ -380,14 +385,17 @@ noncomputable def comap {ι' : Type} (P : IndexedScheme ι' S R Q A β) (e : ι 
   reconstruct i r a := P.reconstruct (e i) r a
 
 @[simp] theorem query_comap {ι' : Type} (P : IndexedScheme ι' S R Q A β) (e : ι ↪ ι') (pad : β)
-    (i : ι) : (P.comap e pad).query i = P.query (e i) := by rfl
+    (i : ι) : (P.comap e pad).query i = P.query (e i) := by
+  rfl
 
 @[simp] theorem serverQuery_comap {ι' : Type} (P : IndexedScheme ι' S R Q A β) (e : ι ↪ ι')
-    (pad : β) (s : S) (i : ι) : (P.comap e pad).serverQuery s i = P.serverQuery s (e i) := by rfl
+    (pad : β) (s : S) (i : ι) : (P.comap e pad).serverQuery s i = P.serverQuery s (e i) := by
+  rfl
 
 @[simp] theorem coalitionQuery_comap {ι' : Type} (P : IndexedScheme ι' S R Q A β) (e : ι ↪ ι')
     (pad : β) (T : Finset S) (i : ι) :
-    (P.comap e pad).coalitionQuery T i = P.coalitionQuery T (e i) := by rfl
+    (P.comap e pad).coalitionQuery T i = P.coalitionQuery T (e i) := by
+  rfl
 
 theorem IsCorrect.comap {ι' : Type} {P : IndexedScheme ι' S R Q A β} (h : P.IsCorrect)
     (e : ι ↪ ι') (pad : β) : (P.comap e pad).IsCorrect := fun x i => by
@@ -487,13 +495,16 @@ def Scheme.toIndexed {ι S R Q A β : Type} (P : Scheme ι S R Q A β) :
   reconstruct := P.reconstruct
 
 @[simp] theorem Scheme.query_toIndexed {ι S R Q A β : Type} (P : Scheme ι S R Q A β) (i : ι) :
-    P.toIndexed.query i = P.query i := by rfl
+    P.toIndexed.query i = P.query i := by
+  rfl
 
 @[simp] theorem Scheme.answer_toIndexed {ι S R Q A β : Type} (P : Scheme ι S R Q A β) (s : S)
-    (x : ι → β) (q : Q) : P.toIndexed.answer s x q = P.answer s x q := by rfl
+    (x : ι → β) (q : Q) : P.toIndexed.answer s x q = P.answer s x q := by
+  rfl
 
 @[simp] theorem Scheme.reconstruct_toIndexed {ι S R Q A β : Type} (P : Scheme ι S R Q A β)
-    (i : ι) (r : R) (a : S → A) : P.toIndexed.reconstruct i r a = P.reconstruct i r a := by rfl
+    (i : ι) (r : R) (a : S → A) : P.toIndexed.reconstruct i r a = P.reconstruct i r a := by
+  rfl
 
 @[simp] theorem Scheme.eval_run_toIndexed {ι S R Q A β : Type} (P : Scheme ι S R Q A β)
     (x : ι → β) (i : ι) : ProbComp.eval (P.toIndexed.run x i) = ProbComp.eval (P.run x i) := by

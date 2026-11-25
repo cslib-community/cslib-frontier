@@ -172,9 +172,11 @@ theorem freshBatchWordBlock_eq_map_freshBatchBlock (width : ℕ) (messages : Lis
   let used := messages.flatMap (completeRows width)
   have hrows : (used.map (BitString.ofList width)).map List.ofFn = used := by
     rw [List.map_map]
-    refine (List.map_congr_left fun row hr => ?_).trans (List.map_id used)
-    obtain ⟨_, _, hrow⟩ := List.mem_flatMap.mp hr
-    exact BitString.ofFn_ofList (BitString.length_of_mem_listRows hrow)
+    calc
+      _ = used.map id := List.map_congr_left fun row hr => by
+        obtain ⟨_, _, hrow⟩ := List.mem_flatMap.mp hr
+        exact BitString.ofFn_ofList (BitString.length_of_mem_listRows hrow)
+      _ = used := List.map_id used
   have hflatten : (messages.map fun word => (completeRows width word).map
       (BitString.ofList width)).flatten = used.map (BitString.ofList width) := by
     simp only [used, List.map_flatMap, List.flatMap_map, List.flatten_eq_flatMap, id_eq]
@@ -200,8 +202,13 @@ theorem freshBatchWordBlock_eq_map_freshBatchBlock (width : ℕ) (messages : Lis
     rw [← List.map_coe_finRange_eq_range, List.map_map, List.find?_map]
     simp only [Function.comp_def, ← hcontains, ← BitString.lowBits_eq_ofFn_equivFin_symm,
       Fin.val_castLE]
-  refine (hsearch _ (min_le_left _ _)).trans (Eq.trans ?_ (hsearch _ (min_le_left _ _)).symm)
-  rw [List.length_map]
+  calc
+    _ = ((List.range (min (2 ^ width) (used.length + 1))).map
+        (BitString.lowBits width)).find? (fun block => !used.contains block) :=
+      hsearch _ (min_le_left _ _)
+    _ = _ := by
+      refine Eq.trans ?_ (hsearch _ (min_le_left _ _)).symm
+      rw [List.length_map]
 
 /-- With more alphabet elements than complete block occurrences, the flat search succeeds. -/
 theorem freshBatchWordBlock_isSome_of_sum_div_lt {width : ℕ} {messages : List (List Bool)}

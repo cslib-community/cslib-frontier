@@ -107,10 +107,14 @@ theorem acceptsWithin_lift_tag (r : ℕ) : ∀ (zd : List Bool) (u : Bool) (n : 
     cases u
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_existential hstate rfl,
         Bool.not_false, Cslib.Complexity.alternation_true_one_cons]
-      exact exists_congr fun b => by rw [next_lift_move]; exact hgame b
+      exact exists_congr fun b => by
+        rw [next_lift_move]
+        exact hgame b
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_universal hstate rfl,
         Bool.not_true, Cslib.Complexity.alternation_false_one_cons]
-      exact forall_congr' fun b => by rw [next_lift_move]; exact hgame b
+      exact forall_congr' fun b => by
+        rw [next_lift_move]
+        exact hgame b
 
 end GuessVerify
 

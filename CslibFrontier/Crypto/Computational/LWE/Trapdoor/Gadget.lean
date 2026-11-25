@@ -125,10 +125,12 @@ def gadgetMatrix (w : ℕ) [DecidableEq ι] : Matrix ι (ι × Fin w) (ZMod (2 ^
     gadgetMatrix w i p = if i = p.1 then 2 ^ p.2.val else 0 := rfl
 
 theorem gadgetMatrix_apply_same (w : ℕ) [DecidableEq ι] (i : ι) (j : Fin w) :
-    gadgetMatrix w i (i, j) = 2 ^ j.val := by simp
+    gadgetMatrix w i (i, j) = 2 ^ j.val := by
+  simp
 
 theorem gadgetMatrix_apply_ne (w : ℕ) [DecidableEq ι] {i i' : ι} (h : i ≠ i') (j : Fin w) :
-    gadgetMatrix w i (i', j) = 0 := by simp [h]
+    gadgetMatrix w i (i', j) = 0 := by
+  simp [h]
 
 /-- Right-multiplying `gadgetMatrix w` by a vector is `GSW.bitCompose w`. -/
 theorem gadgetMatrix_mulVec [Fintype ι] [DecidableEq ι] (w : ℕ)
@@ -180,26 +182,33 @@ theorem gadgetDecomp_eq_scalarDecomp (w : ℕ) (u : ι → ZMod (2 ^ w)) (p : ι
     gadgetDecomp w u p = scalarDecomp w (u p.1) p.2 := rfl
 
 theorem scalarDecomp_nonneg (w : ℕ) (u : ZMod (2 ^ w)) (j : Fin w) :
-    0 ≤ scalarDecomp w u j := Int.natCast_nonneg _
+    0 ≤ scalarDecomp w u j :=
+  Int.natCast_nonneg _
 
 theorem scalarDecomp_le_one (w : ℕ) (u : ZMod (2 ^ w)) (j : Fin w) :
-    scalarDecomp w u j ≤ 1 := Int.ofNat_le.mpr (Bool.toNat_le _)
+    scalarDecomp w u j ≤ 1 :=
+  Int.ofNat_le.mpr (Bool.toNat_le _)
 
 theorem natAbs_scalarDecomp_le_one (w : ℕ) (u : ZMod (2 ^ w)) (j : Fin w) :
-    (scalarDecomp w u j).natAbs ≤ 1 := Bool.toNat_le _
+    (scalarDecomp w u j).natAbs ≤ 1 :=
+  Bool.toNat_le _
 
 theorem gadgetDecomp_nonneg (w : ℕ) (u : ι → ZMod (2 ^ w)) (p : ι × Fin w) :
-    0 ≤ gadgetDecomp w u p := Int.natCast_nonneg _
+    0 ≤ gadgetDecomp w u p :=
+  Int.natCast_nonneg _
 
 theorem gadgetDecomp_le_one (w : ℕ) (u : ι → ZMod (2 ^ w)) (p : ι × Fin w) :
-    gadgetDecomp w u p ≤ 1 := Int.ofNat_le.mpr (Bool.toNat_le _)
+    gadgetDecomp w u p ≤ 1 :=
+  Int.ofNat_le.mpr (Bool.toNat_le _)
 
 theorem natAbs_gadgetDecomp_le_one (w : ℕ) (u : ι → ZMod (2 ^ w)) (p : ι × Fin w) :
-    (gadgetDecomp w u p).natAbs ≤ 1 := Bool.toNat_le _
+    (gadgetDecomp w u p).natAbs ≤ 1 :=
+  Bool.toNat_le _
 
 theorem natAbs_gadgetDecompMatrix_le_one (w : ℕ) (U : Matrix ι κ (ZMod (2 ^ w)))
     (p : ι × Fin w) (k : κ) :
-    (gadgetDecompMatrix w U p k).natAbs ≤ 1 := Bool.toNat_le _
+    (gadgetDecompMatrix w U p k).natAbs ≤ 1 :=
+  Bool.toNat_le _
 
 /-- `gadgetDecomp w` is a deterministic right inverse of `f_G(x) = G x mod 2 ^ w`:
 `G *ᵥ gadgetDecomp w u = u` ([MicciancioPeikert2012], Section 4). -/
@@ -247,7 +256,8 @@ def scalarBasis (w : ℕ) : Matrix (Fin w) (Fin w) ℤ :=
   fun i j => if i.val = j.val then 2 else if i.val = j.val + 1 then -1 else 0
 
 @[simp] theorem scalarBasis_self (w : ℕ) (i : Fin w) :
-    scalarBasis w i i = 2 := by simp [scalarBasis]
+    scalarBasis w i i = 2 := by
+  simp [scalarBasis]
 
 theorem scalarBasis_eq_zero_of_lt {w : ℕ} {i j : Fin w} (hij : i < j) :
     scalarBasis w i j = 0 := by
@@ -300,8 +310,12 @@ theorem scalarBasis_col_inScalarKernel (w : ℕ) (j : Fin w) :
   split_ifs with hj
   · simp only [gadgetVector_apply, Int.cast_ofNat, Int.cast_neg, Int.cast_one, pow_succ]
     ring
-  · simp only [gadgetVector_apply, Int.cast_ofNat, ← pow_succ, show j.val + 1 = w by omega]
-    exact_mod_cast CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
+  · simp only [gadgetVector_apply, Int.cast_ofNat]
+    calc
+      (2 : ZMod (2 ^ w)) ^ j.val * 2 = 2 ^ (j.val + 1) := (pow_succ 2 j.val).symm
+      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by
+        rw [show j.val + 1 = w by omega, Nat.cast_pow, Nat.cast_ofNat]
+      _ = 0 := CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
 
 /-- Matrix form of `gᵀ S_w ≡ 0 (mod 2 ^ w)` ([MicciancioPeikert2012], Section 4.1). -/
 @[simp] theorem gadgetVector_vecMul_scalarBasis (w : ℕ) :
@@ -421,12 +435,15 @@ private theorem shifted_sub_mod_eq (w l : ℕ) (hl : l < w) (s : ZMod (2 ^ w)) :
       rw [← pow_add, show w - 1 - l + l = w - 1 by omega]
     have h2 : 2 ^ (w - 1 - l) * 2 ^ (l + 1) = 2 ^ w := by
       rw [← pow_add, show w - 1 - l + (l + 1) = w by omega]
-    trans 2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
-      (s.val.testBit l).toNat * (2 ^ (w - 1 - l) * 2 ^ l) +
-      (2 ^ (w - 1 - l) * 2 ^ (l + 1)) * (s.val / 2 ^ (l + 1))
-    · conv_lhs => rw [nat_decomp_step s.val l]
-      ring
-    · rw [h1, h2]
+    calc
+      2 ^ (w - 1 - l) * s.val =
+          2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
+            (s.val.testBit l).toNat * (2 ^ (w - 1 - l) * 2 ^ l) +
+            (2 ^ (w - 1 - l) * 2 ^ (l + 1)) * (s.val / 2 ^ (l + 1)) := by
+        conv_lhs => rw [nat_decomp_step s.val l]
+        ring
+      _ = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) + (s.val.testBit l).toNat * 2 ^ (w - 1) +
+            2 ^ w * (s.val / 2 ^ (l + 1)) := by rw [h1, h2]
   have hcast := congrArg (fun k : ℕ => (k : ZMod (2 ^ w))) hnat
   push_cast at hcast
   rw [ZMod.natCast_zmod_val, (by exact_mod_cast CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w) :
@@ -438,7 +455,8 @@ private theorem invertScalarAux_eq_mod (w : ℕ) (s : ZMod (2 ^ w)) (e : Fin w �
     (he : ∀ j : Fin w, 4 * (e j).natAbs < 2 ^ w) (l : ℕ) (hl : l ≤ w) :
     invertScalarAux w (fun j => 2 ^ j.val * s + (e j : ZMod (2 ^ w))) l = s.val % 2 ^ l := by
   induction l with
-  | zero => simp [invertScalarAux, Nat.mod_one]
+  | zero =>
+    simp [invertScalarAux, Nat.mod_one]
   | succ l ih =>
     have hlw : l < w := Nat.lt_of_succ_le hl
     simp only [invertScalarAux, hlw, ↓reduceDIte, ih hlw.le]

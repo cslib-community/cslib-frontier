@@ -60,8 +60,10 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
   let e := mergeDartEquiv h k
   let s := r.mergeVertices h k hk
   have hH := mergeGraph_endpoints_declared h k hG
-  have hrot (a b : Dart G) (he : r.rotate.SameCycle a b) : SameComponent G a.vertex b.vertex := by
-    rw [(r.sameCycle_iff a b).mp he]; exact .refl (vertex_mem hG b)
+  have hrot (a b : Dart G) (he : r.rotate.SameCycle a b) :
+      SameComponent G a.vertex b.vertex := by
+    rw [(r.sameCycle_iff a b).mp he]
+    exact .refl (vertex_mem hG b)
   have hedge : ∀ a b : Dart G, (Dart.reversal G).SameCycle a b → SameComponent G a.vertex b.vertex
     | ⟨i, u⟩, ⟨j, v⟩, he => by
       obtain rfl : i = j := (sameCycle_reversal_iff (i, u) (j, v)).mp he

@@ -42,8 +42,12 @@ theorem internallyConsistent_iff_splits (f : OccurrenceLabeling F Bool)
       ∀ pre o p a b post, ss = pre ++ (o, p) :: (a, b) :: post → ¬ Inconsistent f p.var := by
   refine ⟨fun hi pre => ?_, fun hi => ?_⟩
   · induction pre generalizing ss with
-    | nil => rintro o p a b post rfl; exact hi.1.resolve_left (by simp)
-    | cons s pre ih => rintro o p a b post rfl; exact ih _ hi.2 o p a b post rfl
+    | nil =>
+      rintro o p a b post rfl
+      exact hi.1.resolve_left (by simp)
+    | cons s pre ih =>
+      rintro o p a b post rfl
+      exact ih _ hi.2 o p a b post rfl
   · induction ss with
     | nil => trivial
     | cons s ss ih =>

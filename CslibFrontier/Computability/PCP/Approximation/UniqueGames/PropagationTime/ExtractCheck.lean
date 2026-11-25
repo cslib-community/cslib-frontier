@@ -137,9 +137,9 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
               simp only [labVal, labelling, hgv, Option.elim_none, default, Fin.val_zero])
           unfold extractBody
           wram_exec [hzC.zero, hzC.one, hzC.two, hzC.visB, hzC.outB, hv_reg, hvis0]
-          exact ⟨⟨by wram_simp [hzC],
-            by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-            by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, by wram_simp⟩
+          refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
+          · simpa only [Data.write_mem, Data.set_mem] using hpws.1
+          · simpa only [Data.write_mem, Data.set_mem] using hpws.2
         | some fn =>
           obtain ⟨hvis1, htab_fn⟩ := hT0.vis_some v hv fn hgv
           have hvis1' : z.mem (visBase g + v) = 1 := (hzFr _ (by wram_omega)).trans hvis1
@@ -157,9 +157,9 @@ theorem extractCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x
           unfold extractBody
           wram_exec [hzC.one, hzC.two, hzC.regL, hzC.visB, hzC.tabB, hzC.outB, hv_reg, hvis1',
             hf0_mem]
-          exact ⟨⟨by wram_simp [hzC],
-            by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-            by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, by wram_simp⟩)
+          refine ⟨⟨by wram_simp [hzC], ?_, ?_⟩, by wram_simp⟩
+          · simpa only [Data.write_mem, Data.set_mem] using hpws.1
+          · simpa only [Data.write_mem, Data.set_mem] using hpws.2)
       (by rw [hidx0]; exact Nat.zero_le _)
       (by rw [hidx0]; exact ⟨hT0.consts, fun _ h => by omega, fun _ _ => rfl⟩)
   rw [hidx0, Nat.sub_zero] at hy
@@ -281,11 +281,11 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
       simp only [hsolve, Option.isSome_some, Bool.toNat_true]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
-      refine ⟨by simp only [Function.update_of_ne (by omega : outBaseAddr g ≠ outBaseAddr g + 1),
-        Function.update_self, encodeSolution, List.length_cons, List.length_map, List.length_range],
-        holdsList_cons_iff.mpr ⟨Function.update_self .., hout.frame fun a _ _ => by
-          simp only [Function.update_of_ne (by omega : a ≠ outBaseAddr g + 1),
-            Function.update_of_ne (by omega : a ≠ outBaseAddr g)]⟩⟩
+      refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., hout.frame fun a _ _ => ?_⟩⟩
+      · rw [Function.update_of_ne (by omega), Function.update_self]
+        simp only [encodeSolution, List.length_cons, List.length_map, List.length_range]
+      · simp only [Function.update_of_ne (by omega : a ≠ outBaseAddr g + 1),
+          Function.update_of_ne (by omega : a ≠ outBaseAddr g)]
     · wram_simp [hc.outB]
       exact hsolve ▸ fits_top hw (by
         simp only [encodeSolution, List.length_cons, List.length_map, List.length_range]
@@ -301,10 +301,12 @@ theorem finishCode_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x 
       simp only [hsolve, Option.isSome_none, Bool.toNat_false]
     · wram_simp [hc.outB]
       rw [hsolve, outputList_eq_iff]
-      exact ⟨by simp only [Function.update_of_ne (by omega : outBaseAddr g ≠ outBaseAddr g + 1),
-        Function.update_self, encodeSolution, List.length_singleton],
-        holdsList_cons_iff.mpr ⟨Function.update_self .., holdsList_nil _ _⟩⟩
+      refine ⟨?_, holdsList_cons_iff.mpr ⟨Function.update_self .., holdsList_nil _ _⟩⟩
+      rw [Function.update_of_ne (by omega), Function.update_self]
+      simp only [encodeSolution, List.length_singleton]
     · wram_simp [hc.outB]
-      exact hsolve ▸ fits_top hw (by simp only [encodeSolution, List.length_singleton]; wram_omega)
+      refine hsolve ▸ fits_top hw (by
+        simp only [encodeSolution, List.length_singleton]
+        wram_omega)
 
 end Cslib.Complexity.UniqueGames.Propagation

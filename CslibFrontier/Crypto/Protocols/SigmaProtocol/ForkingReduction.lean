@@ -425,11 +425,17 @@ theorem isQueryBounded_program (σ : Signer Req Reply Point C Log S) (κ : Check
     IsQueryBounded (program σ κ A samples) (Qro + 1) := by
   have hhandler : ∀ (q : Req ⊕ Point) (st : State Point C Log S),
       IsQueryBounded ((handler σ q).run st) (hashCost q)
-    | .inl q, st => by rw [run_handler_inl]; exact .pure _ _
+    | .inl q, st => by
+      rw [run_handler_inl]
+      exact .pure _ _
     | .inr x, st => by
       cases hl : st.table.lookup x with
-      | some e => rw [run_handler_inr_some σ hl]; exact .pure _ _
-      | none => rw [run_handler_inr_none σ hl]; exact .liftBind _ _ 0 fun _ => .pure _ 0
+      | some e =>
+        rw [run_handler_inr_some σ hl]
+        exact .pure _ _
+      | none =>
+        rw [run_handler_inr_none σ hl]
+        exact .liftBind _ _ 0 fun _ => .pure _ 0
   refine (hA.run_interpret hhandler ⟨[], [], 0, samples⟩).bind fun ⟨⟨m, t, _⟩, st⟩ => ?_
   cases hl : st.table.lookup (κ.point m t) <;> simp only [finish, hl]
   · exact .liftBind _ _ 0 fun _ => .pure _ 0

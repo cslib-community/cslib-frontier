@@ -227,10 +227,12 @@ theorem isPolyTime_toCNF :
   have hclause (p : α × α) : ComputableInPolyTime
       (fun d : Edge (α → α → Bool) => excludeClause e d.src d.dst p)
       (Edge.encoding (encPi (encPi encBool))) (encList (encPair encNat encBool)) := by
-    unfold excludeClause; fun_prop
+    unfold excludeClause
+    fun_prop
   have htest (p : α × α) : ComputableInPolyTime
       (fun d : Edge (α → α → Bool) => !d.constraint p.1 p.2)
-      (Edge.encoding (encPi (encPi encBool))) encBool := by fun_prop
+      (Edge.encoding (encPi (encPi encBool))) encBool := by
+    fun_prop
   have hmapFilter (l : List (α × α)) : ComputableInPolyTime
       (fun d : Edge (α → α → Bool) =>
         (l.filter fun p => !d.constraint p.1 p.2).map (excludeClause e d.src d.dst))
@@ -287,16 +289,18 @@ theorem polyTimeReducible_GapTwoCSP_GapThreeSAT {α : Type} [Fintype α] {k : �
   have : Nonempty α := ⟨e.symm fun _ => false⟩
   let pairs := (Finset.univ : Finset (α × α)).toList
   have hpairs : ∀ p, p ∈ pairs := fun p => Finset.mem_toList.2 (Finset.mem_univ p)
-  have hlen : pairs.length = Fintype.card α ^ 2 := by simp [pairs, Fintype.card_prod, sq]
+  have hlen : pairs.length = Fintype.card α ^ 2 := by
+    simp [pairs, Fintype.card_prod, sq]
   refine ⟨fun g => toThreeSAT (Graph.toCNF e pairs g),
     computableInPolyTime_toThreeSAT.comp (Graph.isPolyTime_toCNF e pairs),
     fun g hg => ?_, fun g hg => ?_⟩
   · rw [yes_GapThreeSAT, mem_ThreeSAT_toThreeSAT_iff]
     exact Graph.satisfiable_toCNF e pairs (mem_yes_GapTwoCSP.1 hg)
   · have hK : (0 : ℝ) < (Fintype.card α ^ 2 * max 1 (2 * k - 2) : ℕ) := by
-      have := Fintype.card_pos (α := α); positivity
-    refine (mem_no_GapThreeSAT (by linarith [div_pos (by linarith : 0 < 1 - s) hK])).2
-      ⟨fun c hc => ?_, ?_⟩
+      have := Fintype.card_pos (α := α)
+      positivity
+    have hs1 : 0 < 1 - s := by linarith
+    refine (mem_no_GapThreeSAT (by linarith [div_pos hs1 hK])).2 ⟨fun c hc => ?_, ?_⟩
     · obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hc
       simpa using CNF.length_le_three_of_mem_to3CNF hd
     · rw [sub_sub_cancel, ← hlen]

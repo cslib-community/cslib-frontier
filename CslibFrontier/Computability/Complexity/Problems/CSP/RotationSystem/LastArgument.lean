@@ -188,7 +188,9 @@ theorem vertex_lastArgumentDartEquiv_symm (F : CSP Rel V) (r : Rel) (scope : Lis
       (S.distinctVars.idxOf o.var, S.numVars + o.1) := by
     change (T.occurrences.map fun a => (S.distinctVars.idxOf a.2.2, S.numVars + a.1)).getD
       (incidenceEdgeIndex o) (0, 0) = _
-    rw [List.getD_eq_getElem _ _ (by rw [List.length_map]; exact hidx), List.getElem_map]
+    rw [List.getD_eq_getElem _ _ (by
+      rw [List.length_map]
+      exact hidx), List.getElem_map]
     exact congrArg (fun a => (S.distinctVars.idxOf a.2.2, S.numVars + a.1))
       (List.getElem_idxOf hidx)
   change (if side then ((lastArgumentPrefixGraph F r scope v).edges.getD
@@ -219,11 +221,13 @@ theorem vertex_lastArgumentDartEquiv_symm_eq_iff (F : CSP Rel V) (r : Rel)
   · change S.distinctVars.idxOf o.var = S.distinctVars.idxOf p.var ↔
       T.distinctVars.idxOf o.var = T.distinctVars.idxOf p.var
     rw [List.idxOf_inj (hm o), List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)]
-  · have := hS o; have := hT o
+  · have := hS o
+    have := hT o
     change S.distinctVars.idxOf o.var = S.numVars + p.1.val ↔
       T.distinctVars.idxOf o.var = T.numVars + p.1.val
     omega
-  · have := hS p; have := hT p
+  · have := hS p
+    have := hT p
     change S.numVars + o.1.val = S.distinctVars.idxOf p.var ↔
       T.numVars + o.1.val = T.distinctVars.idxOf p.var
     omega

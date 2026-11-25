@@ -316,7 +316,9 @@ theorem MildlyHardOnAverageFor.approx_zero_iff
       MildlyHardOnAverageFor Quant Admissible fun _ x v => decide (v = f x) :=
   Iff.of_eq (congrArg (MildlyHardOnAverageFor Quant Admissible)
     (funext fun _ => funext fun _ => funext fun _ =>
-      decide_eq_decide.mpr (by unfold Nat.dist; omega)))
+      decide_eq_decide.mpr (by
+        unfold Nat.dist
+        omega)))
 
 /-- **Zero-gap specialization (one-sided):** one-sided `0`-approximation hardness coincides with
 exact hardness for every quantifier and admissibility predicate. -/
@@ -383,11 +385,12 @@ theorem MildlyHardOnAverageFor.not_of_admissible_pure {β : Type}
     ¬ MildlyHardOnAverageFor Quant Admissible correct := by
   refine MildlyHardOnAverageFor.not_of_forall_poly hfalse fun p hp => ⟨fun _ => pure v₀, hadm, ?_⟩
   filter_upwards [hcorr] with n hn
-  rw [show ((do
+  have hmap : ((do
       let x ← BitString.uniformList n
-      (ProbComp.eval (pure v₀)).map (correct n x) : PMF Bool)) = PMF.pure true from
+      (ProbComp.eval (pure v₀)).map (correct n x) : PMF Bool)) = PMF.pure true :=
     (PMF.bind_congr_on_support (BitString.uniformList n) _ (fun _ => PMF.pure true) fun x hx => by
-      simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)]
+      simp [hn x (BitString.length_of_mem_support_uniformList hx)]).trans (PMF.bind_const _ _)
+  rw [hmap]
   simp only [PMF.pure_apply_self, ENNReal.toReal_one]
   linarith [one_div_pos.mpr (show (0 : ℝ) < (p.eval n : ℕ) by exact_mod_cast hp n)]
 

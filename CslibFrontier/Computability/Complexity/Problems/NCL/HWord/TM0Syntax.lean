@@ -84,7 +84,8 @@ private theorem left_context {a : Symbol Γ Q} (p : List (Symbol Γ Q))
   induction p using List.reverseRecOn generalizing a with
   | nil =>
     simp only [List.nil_append, List.head?_cons, Option.some.injEq] at hh
-    subst a; contradiction
+    subst a
+    contradiction
   | append_singleton p x ih =>
     have hs : (p ++ [x]).IsChain Compatible ∧ Compatible x a := by
       simpa only [List.append_assoc, List.singleton_append, List.isChain_append_cons_cons,
@@ -111,7 +112,8 @@ private theorem right_context {b : Symbol Γ Q} (s : List (Symbol Γ Q))
   induction s generalizing b with
   | nil =>
     simp only [List.getLast?_singleton, Option.some.injEq] at hh
-    subst b; contradiction
+    subst b
+    contradiction
   | cons x s ih =>
     rcases outgoing_exit hb hc.rel with rfl | ⟨a, rfl⟩
     · exact ⟨[], by rw [chain_from_rb s hc.tail]; rfl⟩
@@ -209,10 +211,12 @@ private theorem pair_context_either {c : MicroCfg Γ Q} {a b a' b' : Symbol Γ Q
     ∃ L R : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) ∧
       s = R.map (fun b => sym (b, true)) ++ [rb] := by
   rcases hw with hw | hw
-  · exact let ⟨L, hL⟩ := prefix_context hw ha; let ⟨R, hR⟩ := suffix_context hw hb
-      ⟨L, R, hL, hR⟩
-  · exact let ⟨L, hL⟩ := prefix_context hw ha'; let ⟨R, hR⟩ := suffix_context hw hb'
-      ⟨L, R, hL, hR⟩
+  · obtain ⟨L, hL⟩ := prefix_context hw ha
+    obtain ⟨R, hR⟩ := suffix_context hw hb
+    exact ⟨L, R, hL, hR⟩
+  · obtain ⟨L, hL⟩ := prefix_context hw ha'
+    obtain ⟨R, hR⟩ := suffix_context hw hb'
+    exact ⟨L, R, hL, hR⟩
 
 private theorem end_context_either {c : MicroCfg Γ Q} {a a' : Symbol Γ Q}
     {p s : List (Symbol Γ Q)}
@@ -220,8 +224,10 @@ private theorem end_context_either {c : MicroCfg Γ Q} {a a' : Symbol Γ Q}
     (ha : Entry a) (ha' : Entry a') :
     ∃ L : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) ∧ s = [] := by
   rcases hw with hw | hw
-  · exact let ⟨L, hL⟩ := prefix_context hw ha; ⟨L, hL, end_context hw⟩
-  · exact let ⟨L, hL⟩ := prefix_context hw ha'; ⟨L, hL, end_context hw⟩
+  · exact let ⟨L, hL⟩ := prefix_context hw ha
+    ⟨L, hL, end_context hw⟩
+  · exact let ⟨L, hL⟩ := prefix_context hw ha'
+    ⟨L, hL, end_context hw⟩
 
 variable [Inhabited Q]
 open Cslib.PostCorrespondence

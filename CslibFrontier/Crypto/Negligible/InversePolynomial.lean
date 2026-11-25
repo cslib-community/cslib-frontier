@@ -325,8 +325,9 @@ polynomially bounded `ℝ≥0` function is not negligible. -/
 theorem not_negligible_of_frequently_inv_le {ε P : ℕ → ℝ≥0} (hP : PolynomiallyBoundedNNReal P)
     (h : ∃ᶠ n in atTop, 0 < P n ∧ (P n)⁻¹ ≤ ε n) : ¬ Negligible ε := fun hε =>
   not_negligible_of_frequently_ge one_ne_zero
-    (h.mono fun _ ⟨hpos, hle⟩ =>
-      (mul_inv_cancel₀ hpos.ne').symm.trans_le (mul_le_mul_of_nonneg_left hle zero_le))
+    (h.mono fun n ⟨hpos, hle⟩ => by
+      calc (1 : ℝ≥0) = P n * (P n)⁻¹ := (mul_inv_cancel₀ hpos.ne').symm
+        _ ≤ P n * ε n := mul_le_mul_of_nonneg_left hle zero_le)
     (hε.polynomiallyBoundedNNReal_mul hP)
 
 /-- **Remark after Definition 2.7** ([BonehShoup2023], p. 29): if `P` is a polynomially bounded

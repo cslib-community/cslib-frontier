@@ -103,9 +103,11 @@ theorem isCorrect_iff (hP : P.IsLinearSummation) : P.IsCorrect ↔
     generalize (q false + q true) j = a at this ⊢
     rcases eq_or_ne j i with rfl | hji
     · simp only [↓reduceIte] at this ⊢
-      revert this; cases a <;> decide
+      revert this
+      cases a <;> decide
     · simp only [hji, hji.symm, ↓reduceIte] at this ⊢
-      revert this; cases a <;> decide
+      revert this
+      cases a <;> decide
   · rw [hP.reconstruct_eq, hP.answer_eq, hP.answer_eq, ← dotProduct_add, h i r q hrq]
     exact dotProduct_single_one x i
 
@@ -300,7 +302,8 @@ theorem isPrivate_evenTwoServer : (evenTwoServer h₀).IsPrivate := by
     simp only [Pi.add_apply]
     generalize makeEven h₀ u j = a, (Pi.single i σ : ι → Bool) j = b,
       (Pi.single h₀ σ : ι → Bool) j = c
-    revert a b c; decide
+    revert a b c
+    decide
   intro σ i i'
   rw [key, key]
 

@@ -82,7 +82,8 @@ every two vertices are joined by a path, including the graph without vertices. -
 def UCONN : Set UGraphInstance :=
   {G | G.graph.Preconnected}
 
-theorem mem_UCONN {G : UGraphInstance} : G ∈ UCONN ↔ G.graph.Preconnected := Iff.rfl
+theorem mem_UCONN {G : UGraphInstance} : G ∈ UCONN ↔ G.graph.Preconnected :=
+  Iff.rfl
 
 namespace UCONN
 
@@ -205,8 +206,11 @@ private theorem reachable_map {V W : Type*} {H : SimpleGraph V} {K : SimpleGraph
     (hf : ∀ a b, H.Adj a b → f a = f b ∨ K.Adj (f a) (f b)) {a b : V} (h : H.Reachable a b) :
     K.Reachable (f a) (f b) := by
   rw [SimpleGraph.reachable_iff_reflTransGen] at h ⊢
-  exact h.lift' f fun a b hab => (hf a b hab).elim
-    (fun e => by change Relation.ReflTransGen K.Adj (f a) (f b); exact e ▸ .refl) .single
+  refine h.lift' f fun a b hab => ?_
+  rcases hf a b hab with e | e
+  · change Relation.ReflTransGen K.Adj (f a) (f b)
+    exact e ▸ .refl
+  · exact .single e
 
 /-- The retraction onto the copy `w`: the source and the copies before `w` go to the vertex `0`,
 the target and the copies after `w` to the vertex `w`. -/

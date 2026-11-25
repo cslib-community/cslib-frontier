@@ -140,7 +140,8 @@ theorem toWord_injective {n m : ℕ} : Function.Injective (@toWord n m) := by
   have hrest : Fin.append a.secondBlock (Fin.append a.firstValue a.secondValue) =
       Fin.append b.secondBlock (Fin.append b.firstValue b.secondValue) := by
     simpa using congrArg BitString.sndBits h₀
-  have hsecond : a.secondBlock = b.secondBlock := by simpa using congrArg BitString.fstBits hrest
+  have hsecond : a.secondBlock = b.secondBlock := by
+    simpa using congrArg BitString.fstBits hrest
   have hvalues : Fin.append a.firstValue a.secondValue =
       Fin.append b.firstValue b.secondValue := by
     simpa using congrArg BitString.sndBits hrest
@@ -354,6 +355,10 @@ theorem NativeQuantumThreeDQCSDPT.of_within {params : DQCSDTruncatedParameters}
     (supportsLength_threeRealEnsemble params firstParity secondParity)
     (supportsLength_threeUniformEnsemble params firstParity secondParity)
     (((PolynomiallyBounded.const 4).mul hn).mono_of_le fun κ => by
-      dsimp only [threeWordLength]; omega) hneg
+      dsimp only [threeWordLength]
+      calc 3 * params.blockLength κ + (params.blockLength κ - params.truncation κ)
+          ≤ 3 * params.blockLength κ + params.blockLength κ :=
+            Nat.add_le_add_left (Nat.sub_le _ _) _
+        _ = 4 * params.blockLength κ := by omega) hneg
 
 end Cslib.Crypto.HQC

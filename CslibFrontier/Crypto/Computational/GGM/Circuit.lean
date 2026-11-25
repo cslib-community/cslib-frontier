@@ -164,10 +164,17 @@ theorem complexity_evalBits_le (G : PRG.Generator (BitString k) (BitString (2 * 
   | succ n ih =>
     let w : BitString (2 * k) → BitString k :=
       fun y => y ∘ fun i : Fin k => finProdFinEquiv (finTwoEquiv.symm (x 0), i)
-    have hw : complexity interpretation (w ∘ ⇑G) ≤ complexity interpretation ⇑G :=
-      (complexity_comp_le ⇑G w).trans_eq (by rw [complexity_wiring, add_zero])
-    exact (complexity_comp_le (w ∘ ⇑G) (fun seed => evalBits G seed (Fin.tail x))).trans
-      ((add_le_add hw (ih (Fin.tail x))).trans_eq (by ring))
+    have hw : complexity interpretation (w ∘ ⇑G) ≤ complexity interpretation ⇑G := by
+      have hstep := complexity_comp_le (I := interpretation) ⇑G w
+      dsimp only [w] at hstep
+      rwa [complexity_wiring, add_zero] at hstep
+    calc complexity interpretation (fun seed : BitString k => evalBits G seed x)
+        ≤ complexity interpretation (w ∘ ⇑G) +
+            complexity interpretation (fun seed => evalBits G seed (Fin.tail x)) :=
+          complexity_comp_le (w ∘ ⇑G) (fun seed => evalBits G seed (Fin.tail x))
+      _ ≤ complexity interpretation ⇑G + n * complexity interpretation ⇑G :=
+          add_le_add hw (ih (Fin.tail x))
+      _ = (n + 1) * complexity interpretation ⇑G := by ring
 
 /-- One bit of the evaluation along a fixed query of length `n`, as a function of a string of
 length `2 k` whose selected block is the seed, costs at most `n` copies of a circuit for the
@@ -469,9 +476,10 @@ theorem isExponentiallySecure_booleanFamily
     have h1 : 2 ^ (c * n) ≤ 2 ^ ((c + 3) * n - 1) :=
       Nat.pow_le_pow_right two_pos (by rw [add_mul]; omega)
     have h2 : 2 ^ n * (n * complexity interpretation ⇑(G ((n + 1) ^ (2 * d + 1))) + 1) ≤
-        2 ^ ((c + 3) * n - 1) :=
-      (Nat.mul_le_mul_left _ hn.le).trans ((pow_add 2 n n).symm.trans_le
-        (Nat.pow_le_pow_right two_pos (by rw [add_mul]; omega)))
+        2 ^ ((c + 3) * n - 1) := by
+      calc _ ≤ 2 ^ n * 2 ^ n := Nat.mul_le_mul_left _ hn.le
+        _ = 2 ^ (2 * n) := by rw [← pow_add, two_mul]
+        _ ≤ _ := Nat.pow_le_pow_right two_pos (by rw [add_mul]; omega)
     have hpos : 1 ≤ (c + 3) * n := Nat.mul_pos (by omega) (by omega)
     calc _ ≤ 2 * 2 ^ ((c + 3) * n - 1) := by omega
       _ = 2 ^ ((c + 3) * n) := by rw [← pow_succ', Nat.sub_add_cancel hpos]

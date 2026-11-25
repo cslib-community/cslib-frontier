@@ -116,9 +116,11 @@ positive `k`. -/
 theorem mem_no_iff {S : SetSystem} {k : ℕ} :
     (S, k) ∈ (GapSetCover 3).no ↔ S.Coverable ∧ 3 * k ≤ S.optCoverSize ∧ 0 < k := by
   rw [GapSetCover, mem_no_GapSetCoverFn]
-  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl)
-    ⟨fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h,
-      fun hk => by linarith [show (0 : ℝ) < k by exact_mod_cast hk]⟩
+  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl) ⟨?_, ?_⟩
+  · exact fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h
+  · intro hk
+    have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
+    linarith
 
 /-- The optimum of a coverable system is at most its number of sets. -/
 private theorem optCoverSize_le_length {S : SetSystem} (hS : S.Coverable) :
@@ -320,7 +322,9 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
     (Nat.pow_le_pow_right (by norm_num) (eighteen_le_arity S)).trans' (by norm_num)
   have hd : arity S * (5 * k + 5) ≤ 2 ^ arity S / S.ground.length := by
     rw [Nat.le_div_iff_mul_le hN]
-    have h30 : 30 ≤ bound S ^ 3 := (by norm_num : 30 ≤ 4 ^ 3).trans (Nat.pow_le_pow_left hb 3)
+    have h30 : 30 ≤ bound S ^ 3 := by
+      calc 30 ≤ 4 ^ 3 := by norm_num
+        _ ≤ bound S ^ 3 := Nat.pow_le_pow_left hb 3
     calc arity S * (5 * k + 5) * S.ground.length
         ≤ (6 * bound S) * (5 * bound S) * bound S :=
           Nat.mul_le_mul (Nat.mul_le_mul (arity_le S) (by omega)) hNb
@@ -376,12 +380,16 @@ theorem three_mul_card_reduce_mem_le {S : SetSystem} {k : ℕ} (hno : (S, k) ∈
           from fun y => List.getElem?_take_of_lt y.isLt]
     · congr 1
       ext T
-      simp only [mem_filter, mem_univ, true_and, g,
-        show (fun y : Fin (2 ^ arity S) => (List.ofFn T).getD y false) = T from
-          funext fun y => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]]
-  rw [hcard, mul_left_comm]
-  exact (Nat.mul_le_mul_left _ (three_mul_card_ofTable_mem_le hno)).trans_eq
-    (by rw [← pow_add, Nat.sub_add_cancel hq])
+      have hT : (fun y : Fin (2 ^ arity S) => (List.ofFn T).getD y false) = T :=
+        funext fun y => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
+      simp only [mem_filter, mem_univ, true_and, g, hT]
+  rw [hcard]
+  calc 3 * (2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I})
+      = 2 ^ (q - 2 ^ arity S) * (3 * #{T : Fin (2 ^ arity S) → Bool |
+          ofTable S k T ∈ MultiMCSP I}) := by ring
+    _ ≤ 2 ^ (q - 2 ^ arity S) * 2 ^ 2 ^ arity S :=
+        Nat.mul_le_mul_left _ (three_mul_card_ofTable_mem_le hno)
+    _ = 2 ^ q := by rw [← pow_add, Nat.sub_add_cancel hq]
 
 /-- **The randomized reduction, given its running time.** If `reduce` runs in polynomial time,
 `GapSetCover 3` reduces to Multi-MCSP, restricted to Definition 1's positive instances, by a

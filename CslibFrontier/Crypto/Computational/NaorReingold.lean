@@ -337,8 +337,11 @@ theorem computableInPolyTime_naorReingoldWordSuffix :
         naorReingoldProdNat 1 (input.2.2.1.zip input.2.2.2))
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encNat :=
     computableInPolyTime_naorReingoldProdNat.comp ((ComputableInPolyTime.const 1).prod hzip)
-  exact F.computableInPolyTime_smul.comp
-    ((by fun_prop : ComputableInPolyTime _ _ F.encDesc).prod (hprod.prod (by fun_prop)))
+  have hd : ComputableInPolyTime
+      (fun input : F.Desc × List Bool × List ℕ × List Bool => input.1)
+      (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) F.encDesc := by
+    fun_prop
+  exact F.computableInPolyTime_smul.comp (hd.prod (hprod.prod (by fun_prop)))
 
 /-- `naorReingoldWordEval` is computable in polynomial time. -/
 theorem computableInPolyTime_naorReingoldWordEval :
@@ -346,7 +349,8 @@ theorem computableInPolyTime_naorReingoldWordEval :
       (fun input : F.Desc × ℕ × List ℕ × List Bool =>
         F.naorReingoldWordEval input.1 input.2.1 input.2.2.1 input.2.2.2)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encBits := by
-  have hd : ComputableInPolyTime (fun input : F.Desc × ℕ × List ℕ × List Bool => input.1)
+  have hd : ComputableInPolyTime
+      (fun input : F.Desc × ℕ × List ℕ × List Bool => input.1)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) F.encDesc := by
     fun_prop
   have hzip : ComputableInPolyTime

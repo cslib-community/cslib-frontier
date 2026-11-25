@@ -322,9 +322,11 @@ theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool)
     eq_sub_of_add_eq (by simpa [Fintype.sum_bool] using ((S.bob y).map g).sum_effect)
   rw [Measurement.observable, Measurement.observable, ← Complex.add_re, ← map_add]
   change _ = (1 + (S.state ((s - t) * (u - v))).re) / 2
+  have hring : 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) := by
+    rw [hst, huv]
+    noncomm_ring
   rw [show (1 : ℝ) = (S.state 1).re by rw [S.state.map_one, Complex.one_re],
-    ← Complex.add_re, ← map_add,
-    show 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) by rw [hst, huv]; noncomm_ring]
+    ← Complex.add_re, ← map_add, hring]
   simp only [map_add, Complex.add_re]
   ring
 

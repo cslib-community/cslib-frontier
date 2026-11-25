@@ -225,7 +225,9 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
     have hpow : c * (2 * caller.2.2.length + 1 + (2 * j + 1 + request.2.length) + 1) ^ d ≤
         c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + request.2.length + 3) ^ d :=
       Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
-    exact ⟨trivial, by enc_len, by enc_len⟩
+    refine ⟨trivial, ?_, ?_⟩
+    · enc_len
+    · enc_len
   · obtain rfl : result = ([], j, signed) := by
       simpa only [ProbComp.eval_pure, PMF.mem_support_pure_iff] using hresult
     exact ⟨trivial, by simp, by lia⟩

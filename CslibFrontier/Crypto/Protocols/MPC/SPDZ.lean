@@ -487,13 +487,19 @@ theorem sum_checkResidual_eq_neg_mul {p n T : ℕ} {alpha : ZMod p}
     (hauth : PartyCheckInput.AuthenticFor alpha shares opened e inp) :
     (∑ i : Fin n, checkResidual (inp i)) =
       -alpha * linearCombAddHom (fun l => (opened l).value - (shares l).secret) e := by
-  have h1 : (∑ i : Fin n, ∑ l : Fin T, (inp i).weights l * (inp i).macShares l) =
-      alpha * ∑ l : Fin T, e l * ((shares l).secret + (shares l).delta) := by
+  have h1 :
+      (∑ i : Fin n, ∑ l : Fin T, (inp i).weights l * (inp i).macShares l) =
+        alpha * ∑ l : Fin T, e l * ((shares l).secret + (shares l).delta) := by
     simp_rw [hauth.weights_eq, hauth.macShares_eq]
-    rw [Finset.sum_comm, Finset.mul_sum]
-    refine Finset.sum_congr rfl fun l _ => ?_
-    rw [← Finset.mul_sum, ← AuthShare.macSum, hauth.valid_shares l]
-    ring
+    rw [Finset.sum_comm]
+    calc (∑ l : Fin T, ∑ i : Fin n, e l * (shares l).macShares i)
+        = ∑ l : Fin T, e l * (shares l).macSum :=
+            Finset.sum_congr rfl fun l _ => (Finset.mul_sum ..).symm
+      _ = alpha * ∑ l : Fin T, e l * ((shares l).secret + (shares l).delta) := by
+            rw [Finset.mul_sum]
+            refine Finset.sum_congr rfl fun l _ => ?_
+            rw [hauth.valid_shares l]
+            ring
   have h2 : (∑ i : Fin n, (inp i).keyShare *
         ∑ l : Fin T, (inp i).weights l * (((inp i).opened l).value + ((inp i).opened l).delta)) =
       alpha * ∑ l : Fin T, e l * ((opened l).value + (shares l).delta) := by

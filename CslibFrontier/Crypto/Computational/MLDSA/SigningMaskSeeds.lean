@@ -204,12 +204,16 @@ theorem keyGen_eq_of_mem_sampleSigningMaskSeeds {base : Xofs} {s : Level} {seed 
     pair.shared.keyGen level setup = pair.background.keyGen level setup := by
   have bytes (x : List Byte) (k : ℕ) (hx : x.length ≠ 128) :
       pair.shared.h256.readBytes x k = pair.background.h256.readBytes x k :=
-    read_ne_maskSeed_length h _ (by rw [Keccak.length_bytesToBitsLE]; lia) k
+    read_ne_maskSeed_length h _ (by
+      rw [Keccak.length_bytesToBitsLE]
+      lia) k
   exact Xofs.keyGen_congr_of_reads level setup (agree_off_sampleSigningMaskSeeds h).1
     (bytes _ _ (by simp [FixedBytes.toList]))
     (fun _ => bytes _ _
       (by simp [nonceInput, Xofs.expandKeySeed, pair.background.h256.length_read]))
-    fun x hx => bytes _ _ (by rw [hx]; cases level <;> decide)
+    fun x hx => bytes _ _ (by
+      rw [hx]
+      cases level <;> decide)
 
 private theorem publicKeyHash_eq_of_mem_sampleSigningMaskSeeds
     {base : Xofs} {s : Level} {seed : FixedBytes 32} {a b n : ℕ} {t : Fin n ↪ FixedBytes 32}
@@ -340,7 +344,8 @@ theorem Xofs.prob_representative_ne_sampleSigningMaskSeeds (base : Xofs) (s : Le
             FixedBytes.toList, List.ofFn_inj]
         rw [eq, ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity),
           prob_uniformOfFintype_embedding_mem_range]
-        simp only [Fintype.card_fin, FixedBytes.card, Nat.cast_pow, Nat.cast_ofNat, le_refl]
+        simp only [Fintype.card_fin, FixedBytes.card, Nat.cast_pow, Nat.cast_ofNat,
+          le_refl]
 
 namespace QuantumSigningForger
 
@@ -376,9 +381,11 @@ theorem shared_maskSeedGame_eq_distinctHedgeGame (C : QuantumSigningForger) (s :
       C.distinctHedgeGame s base a b hn hsize score := by
   simp only [maskSeedGame, withMaskSeedOracles, distinctHedgeGame, fixedHedgeGame,
     PMF.monad_bind_eq_bind, ↓reduceIte]
-  congr 1; funext t
+  congr 1
+  funext t
   rw [PMF.bind_comm (base.uniformPrefixes a b)]
-  congr 1; funext seed
+  congr 1
+  funext seed
   let run := fun H => C.scoreWithSetup s H H (H.keyGen s seed) (List.ofFn t) score
   have law := congrArg (PMF.bind · run) (base.uniform_shared_sampleSigningMaskSeeds s seed t ha hb)
   simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at law

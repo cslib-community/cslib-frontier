@@ -146,13 +146,15 @@ noncomputable def shamirCube (D ι : Type) [Fintype D] [DecidableEq D] [Fintype 
 theorem reconstruct_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
     (params : Shamir.Params F S) (i : ι) (r : Unit) (ans : S → F) :
     (shamir ι params).reconstruct i r ans =
-      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by rfl
+      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by
+  rfl
 
 theorem reconstruct_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) (i : D → ι) (r : Unit)
     (ans : S → F) :
     (shamirCube D ι params).reconstruct i r ans =
-      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by rfl
+      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by
+  rfl
 
 /-- Any coalition `T` of at most `params.threshold` servers in `PIR.shamir` sees a uniform family
 of query vectors, independent of the queried index. -/
@@ -184,12 +186,13 @@ theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
   let sec (j : ι) : F := if x j then (if j = i then 1 else 0) else 0
   let coeff (j : ι) : Shamir.Randomness params := if x j then r j else 0
   dsimp only [shamir]
-  rw [show (fun s : S => ∑ j : ι, if x j then Shamir.share params (r j) (if j = i then 1 else 0) s
-        else 0) = fun s : S => Shamir.share params (∑ j : ι, coeff j) (∑ j : ι, sec j) s from
-      funext fun s => (Finset.sum_congr rfl fun j _ => by
-        by_cases hxj : x j <;> simp [coeff, sec, hxj]).trans
-        (Shamir.share_sum Finset.univ params coeff sec s).symm,
-    Shamir.Polynomial.reconstruct_share_eq_secret params,
+  have hans : (fun s : S =>
+        ∑ j : ι, if x j then Shamir.share params (r j) (if j = i then 1 else 0) s else 0) =
+      fun s : S => Shamir.share params (∑ j : ι, coeff j) (∑ j : ι, sec j) s :=
+    funext fun s => (Finset.sum_congr rfl fun j _ => by
+      by_cases hxj : x j <;> simp [coeff, sec, hxj]).trans
+      (Shamir.share_sum Finset.univ params coeff sec s).symm
+  rw [hans, Shamir.Polynomial.reconstruct_share_eq_secret params,
     Finset.sum_eq_single i (fun j _ hji => by simp [sec, hji])
       (fun hi => (hi (Finset.mem_univ i)).elim)]
   simp [sec]
@@ -298,7 +301,8 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
   let factor (l : D) (u : ι) : _root_.Polynomial F :=
     Shamir.Polynomial.sharingPolynomial (if u = i l then 1 else 0)
       (Shamir.Polynomial.tailPolynomial params.threshold (r l u))
-  let term (j : D → ι) : _root_.Polynomial F := if x j then ∏ l : D, factor l (j l) else 0
+  let term (j : D → ι) : _root_.Polynomial F :=
+    if x j then ∏ l : D, factor l (j l) else 0
   let poly : _root_.Polynomial F := ∑ j : D → ι, term j
   have hans : (fun s : S => ∑ j : D → ι, if x j then
         ∏ l : D, Shamir.share params (r l (j l)) (if j l = i l then 1 else 0) s else 0) =
@@ -458,7 +462,8 @@ def zmodShamirParams {t k p : ℕ} [Fact p.Prime] (htk : t < k) (hkp : k < p) :
     omega
 
 @[simp] theorem threshold_zmodShamirParams {t k p : ℕ} [Fact p.Prime] (htk : t < k) (hkp : k < p) :
-    (zmodShamirParams htk hkp).threshold = t := by rw [zmodShamirParams]
+    (zmodShamirParams htk hkp).threshold = t := by
+  rw [zmodShamirParams]
 
 @[simp] theorem point_zmodShamirParams {t k p : ℕ} [Fact p.Prime] (htk : t < k) (hkp : k < p)
     (s : Fin k) : (zmodShamirParams htk hkp).point s = ((s.val + 1 : ℕ) : ZMod p) := by

@@ -63,12 +63,13 @@ theorem abs_expect_pow_le {Ω : Type*} (S : Finset Ω) {s : ℕ} (hs : s ≠ 0) 
     |𝔼 σ ∈ S, v σ| ^ s ≤ 𝔼 σ ∈ S, |v σ| ^ s := by
   rcases S.eq_empty_or_nonempty with rfl | hS
   · simp [hs]
-  refine (pow_le_pow_left₀ (abs_nonneg _) (abs_expect_le S v) s).trans ?_
-  simpa only [expect_eq_sum_div_card, div_eq_inv_mul, mul_sum] using
-    Real.pow_arith_mean_le_arith_mean_pow S (fun _ => (#S : ℝ)⁻¹) (fun σ => |v σ|)
-      (fun _ _ => by positivity)
-      (by simp [show (#S : ℝ) ≠ 0 by exact_mod_cast hS.card_ne_zero])
-      (fun _ _ => abs_nonneg _) s
+  have hcard : (#S : ℝ) ≠ 0 := by exact_mod_cast hS.card_ne_zero
+  calc
+    _ ≤ (𝔼 σ ∈ S, |v σ|) ^ s := pow_le_pow_left₀ (abs_nonneg _) (abs_expect_le S v) s
+    _ ≤ _ := by
+      simpa only [expect_eq_sum_div_card, div_eq_inv_mul, mul_sum] using
+        Real.pow_arith_mean_le_arith_mean_pow S (fun _ => (#S : ℝ)⁻¹) (fun σ => |v σ|)
+          (fun _ _ => by positivity) (by simp [hcard]) (fun _ _ => abs_nonneg _) s
 
 variable {Ω V : Type*} [Fintype Ω] [Fintype V]
 
@@ -208,16 +209,21 @@ theorem rowNormPow_fineMean_le {s : ℕ} {N u c πa πb : ℝ} (hs : s ≠ 0)
           (fun σ x y => c * (πa / πb) * D σ x y) x y =
         c * conditionalTableMean (fun (σ : Γ × Υ) x => X σ.1 x)
           (fun (σ : Γ × Υ) y => Yb σ.2 y) D x y := by
-    rw [show (fun σ x y => c * (πa / πb) * D σ x y) = fun σ x y => (πa / πb) * (c * D σ x y)
-        by funext _ _ _; ring,
-      conditionalTableMean_change_terminal X Ya Yb hπb hYaπ hYbπ hsub
-        (fun σ x y => c * D σ x y) (fun σ x y h => by rw [hD σ x y h, mul_zero])]
+    have hcomm : (fun σ x y => c * (πa / πb) * D σ x y) =
+        fun σ x y => (πa / πb) * (c * D σ x y) := by
+      funext _ _ _
+      ring
+    rw [hcomm, conditionalTableMean_change_terminal X Ya Yb hπb hYaπ hYbπ hsub
+      (fun σ x y => c * D σ x y) (fun σ x y h => by rw [hD σ x y h, mul_zero])]
     exact (mul_expect ..).symm
   simp_rw [hchange]
   rw [rowNormPow_const_change_terminal X Ya Yb s N u hπb hYaπ hYbπ, rowNormPow_mul hc]
-  exact (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left
-    (rowNormPow_conditionalTableMean_le hs hNu _ _ D) (by positivity)) (by positivity)).trans_eq
-    (by ring)
+  calc
+    _ ≤ (πa / πb) * (c ^ s * rowNormPow s N u (fun (σ : Γ × Υ) x => X σ.1 x)
+        (fun (σ : Γ × Υ) y => Yb σ.2 y) D) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left
+        (rowNormPow_conditionalTableMean_le hs hNu _ _ D) (by positivity)) (by positivity)
+    _ = _ := by ring
 
 end ProductSlices
 
@@ -277,14 +283,19 @@ theorem fineScaleCost_le {s : ℕ} (hs : s ≠ 0) {a b πa πb Ca cb : ℝ}
     (ha : 0 < a) (hb : 0 < b) (hπb : 0 < πb)
     (hCa : 0 ≤ Ca) (hcb : 0 < cb) (hupper : πa ≤ Ca * a) (hlower : cb * b ≤ πb) :
     (b / a) ^ s * (πa / πb) ≤ (Ca / cb) * (b / a) ^ (s - 1) := by
-  have hratio : πa / πb ≤ (Ca / cb) * (a / b) :=
-    ((div_le_div_iff₀ hπb (mul_pos hcb hb)).2
-      ((mul_le_mul_of_nonneg_right hupper (mul_nonneg hcb.le hb.le)).trans
-        (mul_le_mul_of_nonneg_left hlower (mul_nonneg hCa ha.le)))).trans_eq (by ring)
+  have hratio : πa / πb ≤ (Ca / cb) * (a / b) := by
+    calc
+      _ ≤ (Ca * a) / (cb * b) := by
+        rw [div_le_div_iff₀ hπb (mul_pos hcb hb)]
+        exact (mul_le_mul_of_nonneg_right hupper (mul_nonneg hcb.le hb.le)).trans
+          (mul_le_mul_of_nonneg_left hlower (mul_nonneg hCa ha.le))
+      _ = _ := by ring
   obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
-  refine (mul_le_mul_of_nonneg_left hratio (by positivity)).trans_eq ?_
-  rw [Nat.add_sub_cancel, pow_succ]
-  field_simp
+  calc
+    _ ≤ (b / a) ^ (k + 1) * ((Ca / cb) * (a / b)) := by gcongr
+    _ = _ := by
+      rw [Nat.add_sub_cancel, pow_succ]
+      field_simp
 
 /-- **Fine-bin conditional product comparison** [OpenAI2026LogSpace, proof of Lemma 7.3].
 Both sample products are concrete finite sums. The actual terminal density ratio is removed

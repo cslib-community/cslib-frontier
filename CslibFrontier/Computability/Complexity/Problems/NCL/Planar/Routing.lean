@@ -265,13 +265,16 @@ private theorem sound_tensor {I : Interp Γ} (D₁ : Diagram Γ a b) (D₂ : Dia
   intro s t ht htop hborn
   obtain ⟨h₁, h₂⟩ := (legal_tensor_iff (diagram D₁) (diagram D₂) t).1 ht
   have hr₁ := ih₁ (s := s ∘ tensorLeft D₁ D₂) h₁
-    (fun i => htop ((List.appendIndexEquiv a c) (.inl i))) (fun e => hborn (.inl e))
+    (fun i => htop ((List.appendIndexEquiv a c) (.inl i)))
+    (fun e => hborn (.inl e))
   have hr₂ := ih₂ (s := s ∘ tensorRight D₁ D₂) h₂
     (fun i => htop ((List.appendIndexEquiv a c) (.inr i))) (fun e => hborn (.inr e))
   refine ⟨(legal_tensor_iff D₁ D₂ s).2 ⟨hr₁.1, hr₂.1⟩, fun j => ?_⟩
   rcases (List.appendIndexEquiv b d).surjective j with ⟨k | k, rfl⟩
-  · rw [bottom_tensor_left, bottom_tensor_left]; exact hr₁.2 k
-  · rw [bottom_tensor_right, bottom_tensor_right]; exact hr₂.2 k
+  · rw [bottom_tensor_left, bottom_tensor_left]
+    exact hr₁.2 k
+  · rw [bottom_tensor_right, bottom_tensor_right]
+    exact hr₂.2 k
 
 private theorem sound_bound {I : Interp Γ} (hI : I.Forward) (D : Diagram Γ a b) :
     Sound I D := by

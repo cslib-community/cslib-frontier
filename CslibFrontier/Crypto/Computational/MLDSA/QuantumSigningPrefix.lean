@@ -335,39 +335,43 @@ private theorem abs_eraseRejected_sub_persistent {B W O : Type} [Fintype B] [Fin
   obtain ⟨H, v⟩ := hv
   let G (i : commitmentAddresses s extra) := Function.update H i v
   let u (b : B) := p.state addStep ψ H b
-  have total : ∑ b, ‖u b‖ ^ 2 = 1 := by simpa [u, hψ] using p.sum_sq_state addStep ψ H
   simp only [reduceCtorEq, false_and, true_and, ↓reduceIte, ← sum_sub_distrib]
-  refine (abs_sum_le_sum_abs _ _).trans
-    ((sum_le_sum (g := fun b => ‖u b‖ ^ 2 * C) fun b _ => ?_).trans_eq
-      (by rw [← sum_mul, total, one_mul]))
-  let run := finishRequest s extra base (sk b) A (msg b) (seed b) fuel
-    (nonce + s.params.ℓ) (some none)
-  let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
-      DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
-    (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
-    (next b) (accept b) T (u b)
-  let result (y : Fin s.params.ℓ → Poly) :=
-    trialResult s extra base (sk b) A (G (addr b y)) (msg b) y
-  have row (y : Fin s.params.ℓ → Poly) :
-      |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
-        (mask y).toReal * score (result y) (G (addr b y))| ≤
-        (mask y).toReal * |score (some none) (G (addr b y)) - score (some none) H| := by
-    rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-    refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-    by_cases he : result y = some none
-    · rw [ite_eq_left he, he, abs_sub_comm]
-    · simp [he]
-  refine (abs_sum_le_sum_abs _ _).trans ((sum_le_sum fun y _ => row y).trans ?_)
-  rw [← Probability.PMF.sum_map_mul mask (addr b)
-    (fun i => |score (some none) (G i) - score (some none) H|)]
-  refine (MeasuredPrefix.mean_abs_serviceAcceptance_update_sub_le addStep run
-    (next b) (accept b) H v (u b) (retry_bounded ..) (mask.map (addr b))
-    (δ := mass) (fun i => ENNReal.toReal_mono finite
-      (signingAddressLaw_le s extra A (msg b) i))).trans
-    (mul_le_mul_of_nonneg_left ?_ (sq_nonneg _))
-  rw [Real.sqrt_mul ENNReal.toReal_nonneg, mul_comm]
-  exact mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (add_le_add le_rfl
-    (pow_le_pow_left₀ (next b _).updateCost_nonneg (future b _) 2))) (Real.sqrt_nonneg _)
+  refine (abs_sum_le_sum_abs _ _).trans ?_
+  calc
+    _ ≤ ∑ b, ‖u b‖ ^ 2 * C := by
+      refine sum_le_sum fun b _ => ?_
+      let run := finishRequest s extra base (sk b) A (msg b) (seed b) fuel
+        (nonce + s.params.ℓ) (some none)
+      let score (result : Option (Option (List Byte))) (T : commitmentAddresses s extra →
+          DigestRegister s) := MeasuredPrefix.serviceAcceptance addStep
+        (finishRequest s extra base (sk b) A (msg b) (seed b) fuel (nonce + s.params.ℓ) result)
+        (next b) (accept b)
+          T (u b)
+      let result (y : Fin s.params.ℓ → Poly) :=
+        trialResult s extra base (sk b) A (G (addr b y)) (msg b) y
+      have row (y : Fin s.params.ℓ → Poly) :
+          |(mask y).toReal * score (result y) (if result y = some none then H else G (addr b y)) -
+            (mask y).toReal * score (result y) (G (addr b y))| ≤
+            (mask y).toReal * |score (some none) (G (addr b y)) - score (some none) H| := by
+        rw [← mul_sub, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+        refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
+        by_cases he : result y = some none
+        · rw [ite_eq_left he, he, abs_sub_comm]
+        · simp [he]
+      refine (abs_sum_le_sum_abs _ _).trans ((sum_le_sum fun y _ => row y).trans ?_)
+      rw [← Probability.PMF.sum_map_mul mask (addr b)
+        (fun i => |score (some none) (G i) - score (some none) H|)]
+      refine (MeasuredPrefix.mean_abs_serviceAcceptance_update_sub_le addStep run
+        (next b) (accept b) H v (u b) (retry_bounded ..) (mask.map (addr b))
+        (δ := mass) (fun i => ENNReal.toReal_mono finite
+          (signingAddressLaw_le s extra A (msg b) i))).trans
+        (mul_le_mul_of_nonneg_left ?_ (sq_nonneg _))
+      rw [Real.sqrt_mul ENNReal.toReal_nonneg, mul_comm]
+      exact mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt (add_le_add le_rfl
+        (pow_le_pow_left₀ (next b _).updateCost_nonneg (future b _) 2))) (Real.sqrt_nonneg _)
+    _ = _ := by
+      have total : ∑ b, ‖u b‖ ^ 2 = 1 := by simpa [u, hψ] using p.sum_sq_state addStep ψ H
+      rw [← sum_mul, total, one_mul]
 
 /-- Compare an honest read with a fresh digest that persists only on a terminal trial.
 On mask rejection the digest is restored before the signer retries. Earlier measured signing

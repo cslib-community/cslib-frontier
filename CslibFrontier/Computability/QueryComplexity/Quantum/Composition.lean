@@ -197,8 +197,9 @@ theorem measureProb_eq_sum_slice [DecidableEq W] [DecidableEq G] (ψ : State N (
     measureProb ψ S =
       ∑ g, measureProb (slice g ψ) (univ.filter fun (i, b, w) => (i, b, w, g) ∈ S) := by
   simp only [measureProb, sum_filter]
-  rw [show ∑ p ∈ S, ‖ψ.ofLp p‖ ^ 2 = ∑ p, if p ∈ S then ‖ψ.ofLp p‖ ^ 2 else 0 by
-    rw [sum_ite_mem, univ_inter], sum_split]
+  have hS : ∑ p ∈ S, ‖ψ.ofLp p‖ ^ 2 = ∑ p, if p ∈ S then ‖ψ.ofLp p‖ ^ 2 else 0 := by
+    rw [sum_ite_mem, univ_inter]
+  rw [hS, sum_split]
   exact sum_congr rfl fun _ _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
 
 /-- The probability of measuring query index `i` is the sum over the slices. -/
@@ -373,7 +374,8 @@ noncomputable def hadCtrl : State N W →ₗᵢ[ℂ] State N W where
 
 theorem hadCtrl_apply (ψ : State N W) (i : Fin N) (b : Bool) (w : W) :
     (hadCtrl ψ).ofLp (i, b, w) = (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
-      (ψ.ofLp (i, false, w) + (if b then -1 else 1) * ψ.ofLp (i, true, w)) := rfl
+      (ψ.ofLp (i, false, w) + (if b then -1 else 1) * ψ.ofLp (i, true, w)) :=
+  rfl
 
 /-- **Hadamard gates around a query give the bit oracle**: a Hadamard gate on the control bit, a
 query and another Hadamard gate permute the basis by `|i, b, w⟩ ↦ |i, b ⊕ x_i, w⟩`. -/

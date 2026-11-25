@@ -34,7 +34,9 @@ theorem remaining_append (I : FixedRotationInput) (v : ℕ) (block : List ℕ) (
   unfold remaining
   rw [List.filter_filter]
   refine List.filter_congr fun e _ => ?_
-  by_cases h : d = e <;> [simp [h]; simp [h, Ne.symm h]]
+  by_cases h : d = e
+  · simp [h]
+  · simp [h, Ne.symm h]
 
 /-- Upper charge for extension queries: one full remaining-list scan per nonempty search.
 The only carried simulated state is the same optional block as in `advance`. -/
@@ -205,7 +207,8 @@ theorem white_fiber_even {Rel V : Type} [DecidableEq V] {F : Cslib.Logic.PL.CSP 
   | false =>
     exact List.mem_map.mpr ⟨CSP.incidenceEdgeIndex o,
       List.mem_range.mpr (CSP.incidenceEdgeIndex_lt o), by
-        rw [← hi, ← ho]; simp [Dart.index, CSP.incidenceDart, hs]⟩
+        rw [← hi, ← ho]
+        simp [Dart.index, CSP.incidenceDart, hs]⟩
   | true => simp only [hs, ↓reduceIte] at hv'; omega
 
 /-- Original CSP recovery charges at most `1+m²` queries. Constraint-side words are already
@@ -226,7 +229,9 @@ theorem recoveryWork_ofCSP_le {Rel V : Type} [DecidableEq V] (F : Cslib.Logic.PL
     change (!((freePrefix (CSP.incidenceGraph F) F.numVars).orders.getD v none).isSome) = true
       at hfree
     rw [hread] at hfree
-    split at hfree <;> [assumption; simp at hfree]
+    split at hfree
+    · assumption
+    · simp at hfree
   have hsub : freeVertices.flatMap (fiber I.graph) ⊆
       (List.range (CSP.incidenceGraph F).2.length).map (2 * ·) := fun d hd => by
     obtain ⟨v, hv, hd⟩ := List.mem_flatMap.mp hd

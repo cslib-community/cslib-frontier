@@ -73,7 +73,10 @@ private def packRow (s : Level) (r : Fin 256 → MaskCoefficient s) : FixedBytes
 
 private theorem packRow_list (s : Level) (r : Fin 256 → MaskCoefficient s) :
     (packRow s r).toList = packSigned (width s) s.params.γ₁ (fun _ : Fin 1 => ringRow r) :=
-  List.ext_getElem (by simp [packSigned]) fun _ _ _ => by
+  by
+  apply List.ext_getElem
+  · simp [packSigned]
+  · intro _ _ _
     simp only [FixedBytes.toList, List.getElem_ofFn, packRow]
 
 private theorem unpack_row (s : Level) (r : Fin 256 → MaskCoefficient s) (j : Fin 256) :
@@ -277,8 +280,9 @@ private theorem maskLaw_coefficients (s : Level) :
       congrArg (fun v : ↥(maskSet s.params) => (v.val i j).valMinAbs) h
   have onto : Function.Surjective pack := fun y => by
     choose x hx eq using (mem_intervalVectors s.params).mp y.property
-    exact ⟨fun i j => ⟨x i j, Finset.mem_Ioc.mpr ⟨by have := (hx i j).1; lia, (hx i j).2⟩⟩,
-      Subtype.ext (funext₂ eq)⟩
+    refine ⟨fun i j => ⟨x i j, Finset.mem_Ioc.mpr ⟨?_, (hx i j).2⟩⟩, Subtype.ext (funext₂ eq)⟩
+    have := (hx i j).1
+    lia
   let _ : Nonempty ↥(maskSet s.params) :=
     Finset.nonempty_coe_sort.mpr (mask_nonempty s.params (by cases s <;> decide))
   have law := PMF.uniformOfFintype_finset_map_val (maskSet s.params)
@@ -366,7 +370,9 @@ theorem Xofs.privateMaskRetries_eq_iid (H : Xofs) (s : Level) (sk : PrivateKey s
   have native : H.attemptWithMask s sk A μ = finish := funext fun y => by
     simp only [Xofs.attemptWithMask, AttemptCommitment.ofMask, tabulateRingVector_eq, finish]
   have stop : (fun y => (finish y).elim (some none) (Option.map some)) = terminalReply ∘ finish :=
-    funext fun y => by dsimp only [Function.comp_apply]; cases finish y <;> rfl
+    funext fun y => by
+      dsimp only [Function.comp_apply]
+      cases finish y <;> rfl
   simp only [Xofs.signingRetries, native, stop]
   exact cappedReplay _ (signingMaskLaw s.params (by cases s <;> decide))
     (fun row nonce => ringVectorCoeffs (maskFromRow s row nonce)) finish s.params.ℓ 814

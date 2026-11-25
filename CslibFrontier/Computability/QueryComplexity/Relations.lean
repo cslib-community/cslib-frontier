@@ -168,13 +168,15 @@ theorem certificateComplexityAt_le_sensitivityFor_mul_blockSensitivityAt (f : Bo
     ⟨∅, mem_filter.2 ⟨mem_sensitiveFamilies.2 ⟨by simp, by simp⟩, by simp⟩⟩
   obtain ⟨hFs, hFmin⟩ := mem_filter.1 hF
   rw [mem_sensitiveFamilies] at hFs
-  refine (certificateComplexityAt_le (isCertificate_biUnion_of_maximal hFs hFmin fun G hG hGmin =>
-    hmax G (mem_filter.2 ⟨mem_sensitiveFamilies.2 hG, hGmin⟩))).trans
-      (card_biUnion_le.trans ((sum_le_card_nsmul _ _ _ fun B hB =>
-        (hFmin B hB).card_le_sensitivityFor).trans ?_))
-  change #F * sensitivityFor f (!f x) ≤ _
-  rw [mul_comm]
-  exact Nat.mul_le_mul_left _ (card_le_blockSensitivityAt hFs)
+  have hcert := isCertificate_biUnion_of_maximal hFs hFmin fun G hG hGmin =>
+    hmax G (mem_filter.2 ⟨mem_sensitiveFamilies.2 hG, hGmin⟩)
+  calc certificateComplexityAt f x ≤ #(F.biUnion id) := certificateComplexityAt_le hcert
+    _ ≤ ∑ B ∈ F, #B := card_biUnion_le
+    _ ≤ #F * sensitivityFor f (!f x) :=
+      sum_le_card_nsmul _ _ _ fun B hB => (hFmin B hB).card_le_sensitivityFor
+    _ ≤ sensitivityFor f (!f x) * blockSensitivityAt f x := by
+      rw [mul_comm]
+      exact Nat.mul_le_mul_left _ (card_le_blockSensitivityAt hFs)
 
 /-- **Nisan's bound at an input**: `C(f, x) ≤ s(f) bs(f, x)`. -/
 theorem certificateComplexityAt_le_sensitivity_mul_blockSensitivityAt (f : BooleanFunction n)

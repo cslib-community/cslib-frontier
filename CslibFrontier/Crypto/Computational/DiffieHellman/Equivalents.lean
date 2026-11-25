@@ -279,7 +279,10 @@ theorem solvesSqDH_evalPure_sqFromInvProg [DecidableEq G] [Fact q.Prime] {inv : 
             show α • g + g = (α + 1) • g by rw [add_smul, one_smul],
             hinv (α - 1) hsub, hinv (α + 1) hadd, hr_ne, OracleComp.evalPure_pure]
           rw [← sub_smul, hinv _ hinv_ne, ← Nat.cast_smul_eq_nsmul (ZMod q), smul_smul,
-            Nat.cast_ofNat, ← two_mul_inv_sub_inv_add_one h2 hsub hadd, add_smul, one_smul]
+            Nat.cast_ofNat]
+          calc (2 * ((α - 1)⁻¹ - (α + 1)⁻¹)⁻¹) • g + g
+              = (2 * ((α - 1)⁻¹ - (α + 1)⁻¹)⁻¹ + 1) • g := by rw [add_smul, one_smul]
+            _ = (α ^ 2) • g := by rw [two_mul_inv_sub_inv_add_one h2 hsub hadd]
 
 end SqFromInv
 
@@ -364,11 +367,13 @@ private theorem evalPure_foldlM_invFromCDHStep {cdh : G × G → G} (hcdh : Solv
     cases b
     · simp only [Bool.false_eq_true, ↓reduceIte, OracleComp.evalPure_pure,
         Cslib.BitString.binaryValue_snoc, Bool.toNat_false, add_zero]
-      congr 1; ring
+      congr 1
+      ring
     · simp only [↓reduceIte, OracleComp.evalPure_query,
         Cslib.BitString.binaryValue_snoc, Bool.toNat_true]
       rw [← pow_two, hcdh ((α ^ Cslib.BitString.binaryValue ws) ^ 2) α]
-      congr 1; ring
+      congr 1
+      ring
 
 /-- Correctness of `(c) Inverse-DH ≤ (a) CDH`, a step toward [BonehShoup2023], Exercise 10.17
 (p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
@@ -382,8 +387,9 @@ theorem solvesInvDH_evalPure_invFromCDHProg [Fact q.Prime] {cdh : G × G → G}
   rw [evalPure_foldlM_invFromCDHStep q g hcdh α (q - 2).bits.reverse,
     Cslib.BitString.binaryValue_reverse_bits]
   have h2le : 2 ≤ q := (Fact.out : q.Prime).two_le
-  rw [eq_inv_of_mul_eq_one_left (show α ^ (q - 2) * α = 1 by
-    rw [← pow_succ, show q - 2 + 1 = q - 1 by omega, ZMod.pow_card_sub_one_eq_one hα])]
+  have hmul : α ^ (q - 2) * α = 1 := by
+    rw [← pow_succ, show q - 2 + 1 = q - 1 by omega, ZMod.pow_card_sub_one_eq_one hα]
+  rw [eq_inv_of_mul_eq_one_left hmul]
 
 end InvFromCDH
 

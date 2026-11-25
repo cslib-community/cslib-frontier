@@ -126,7 +126,9 @@ theorem isSatExtension_update_iff {φ : CNF (Fin n)} {τ : Fin n → Option Bool
     IsSatExtension φ (update τ y (some b)) σ ↔ IsSatExtension φ τ σ ∧ σ y = b := by
   refine ⟨fun ⟨hext, hsat⟩ => ⟨⟨fun z c hz => hext z c ?_, hsat⟩,
     hext y b (update_self y _ τ)⟩, fun ⟨⟨hext, hsat⟩, hσy⟩ => ⟨fun z c hz => ?_, hsat⟩⟩
-  · rwa [update_of_ne (by rintro rfl; simp [hy] at hz)]
+  · rwa [update_of_ne (by
+      rintro rfl
+      simp [hy] at hz)]
   · by_cases hzy : z = y
     · subst hzy
       simpa [hσy] using hz

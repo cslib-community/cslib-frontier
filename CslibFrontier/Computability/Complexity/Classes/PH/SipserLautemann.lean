@@ -138,7 +138,9 @@ theorem eval_witnessPoly (p : Polynomial ℕ) (n : ℕ) :
     (witnessPoly p).eval n = witnessLen (p.eval n) := by
   simp [witnessPoly, witnessLen, shifts]
 
-private theorem shifts_pos (m : ℕ) : 0 < shifts m := by unfold shifts runs halfRuns; omega
+private theorem shifts_pos (m : ℕ) : 0 < shifts m := by
+  unfold shifts runs halfRuns
+  omega
 
 private theorem shifts_le_two_pow (m : ℕ) : shifts m ≤ 2 ^ (m + 7) := by
   unfold shifts runs halfRuns
@@ -185,8 +187,10 @@ private theorem nine_pow_mul_card_filter_le {m : ℕ} {G : Finset (Fin m → Boo
     9 ^ halfRuns m *
         (univ.filter fun ω : Seed m => (univ.filter fun j => ω j ∈ G).card ≤ halfRuns m).card ≤
       8 ^ halfRuns m * Fintype.card (Seed m) := by
-  rw [show Fintype.card (Seed m) = Fintype.card (Fin m → Bool) ^ (2 * halfRuns m) by
-    rw [Fintype.card_fun, Fintype.card_fin]; rfl]
+  have hcard : Fintype.card (Seed m) = Fintype.card (Fin m → Bool) ^ (2 * halfRuns m) := by
+    rw [Fintype.card_fun, Fintype.card_fin]
+    rfl
+  rw [hcard]
   exact Cslib.card_filter_card_filter_le_le G
     (by simpa [Fintype.card_fin, Fintype.card_bool] using hG) (halfRuns m)
 
@@ -211,11 +215,13 @@ theorem exists_shifts_majorityAccepts {m : ℕ} {P : (Fin m → Bool) → Bool}
     exact Nat.pow_lt_pow_left (two_pow_m_mul_eight_pow_halfRuns_lt m) (shifts_pos m).ne'
   obtain ⟨tests, htests⟩ :=
     Cslib.exists_forall_exists_add_mem_of_card_mul_card_compl_pow_lt S (k := shifts m)
-      (Nat.lt_of_mul_lt_mul_left (a := 9 ^ (halfRuns m * shifts m)) <|
-        ((Nat.mul_le_mul_left N (Nat.pow_le_pow_left hS (shifts m))).trans_eq'
-          (by rw [← hNdef]; ring)).trans_lt
-          ((Nat.mul_lt_mul_of_pos_right hN (pow_pos Fintype.card_pos _)).trans_eq'
-            (by rw [← hNdef]; ring)))
+      (Nat.lt_of_mul_lt_mul_left (a := 9 ^ (halfRuns m * shifts m)) <| by
+        calc 9 ^ (halfRuns m * shifts m) * (N * #Sᶜ ^ shifts m)
+            = N * (9 ^ halfRuns m * #Sᶜ) ^ shifts m := by ring
+          _ ≤ N * (8 ^ halfRuns m * N) ^ shifts m := by gcongr
+          _ = N * 8 ^ (halfRuns m * shifts m) * N ^ shifts m := by ring
+          _ < 9 ^ (halfRuns m * shifts m) * N ^ shifts m :=
+            Nat.mul_lt_mul_of_pos_right hN (pow_pos Fintype.card_pos _))
   exact ⟨tests, fun r => (htests r).imp fun _ hi => (mem_filter.1 hi).2⟩
 
 /-- **Soundness on amplified seeds.** If at least two thirds of the single-trial seeds satisfy
@@ -236,17 +242,21 @@ theorem exists_seed_not_majorityAccepts {m : ℕ} {P : (Fin m → Bool) → Bool
       have hpart := Finset.card_filter_add_card_filter_not
         (s := (univ : Finset (Fin (runs m)))) (fun j => ω j ∈ G₀)
       have hruns : runs m = 2 * halfRuns m := rfl
-      rw [Finset.card_univ, Fintype.card_fin,
-        show (univ.filter fun j : Fin (runs m) => ω j ∉ G₀) =
-          univ.filter fun j : Fin (runs m) => P (ω j) = true by ext j; simp [hG₀]] at hpart
+      have hnot : (univ.filter fun j : Fin (runs m) => ω j ∉ G₀) =
+          univ.filter fun j : Fin (runs m) => P (ω j) = true := by
+        ext j
+        simp [hG₀]
+      rw [Finset.card_univ, Fintype.card_fin, hnot] at hpart
       omega⟩
   have hS : 9 ^ halfRuns m * #S ≤ 8 ^ halfRuns m * Fintype.card (Seed m) :=
     (Nat.mul_le_mul_left _ (card_le_card hsub)).trans (nine_pow_mul_card_filter_le hP)
-  have hlt : shifts m * #S < Fintype.card (Seed m) :=
-    Nat.lt_of_mul_lt_mul_left (a := 9 ^ halfRuns m) <|
-      ((Nat.mul_le_mul_left (shifts m) hS).trans_eq' (by ring)).trans_lt
-        ((Nat.mul_lt_mul_of_pos_right (shifts_mul_eight_pow_halfRuns_lt m)
-          Fintype.card_pos).trans_eq' (by ring))
+  have hlt : shifts m * #S < Fintype.card (Seed m) := by
+    refine Nat.lt_of_mul_lt_mul_left (a := 9 ^ halfRuns m) ?_
+    calc 9 ^ halfRuns m * (shifts m * #S) = shifts m * (9 ^ halfRuns m * #S) := by ring
+      _ ≤ shifts m * (8 ^ halfRuns m * Fintype.card (Seed m)) := Nat.mul_le_mul_left _ hS
+      _ = shifts m * 8 ^ halfRuns m * Fintype.card (Seed m) := by ring
+      _ < 9 ^ halfRuns m * Fintype.card (Seed m) :=
+        Nat.mul_lt_mul_of_pos_right (shifts_mul_eight_pow_halfRuns_lt m) Fintype.card_pos
   obtain ⟨r, hr⟩ := Cslib.exists_forall_add_notMem_of_mul_card_lt S hlt tests
   exact ⟨r, fun i hi => hr i (mem_filter.2 ⟨mem_univ _, hi⟩)⟩
 

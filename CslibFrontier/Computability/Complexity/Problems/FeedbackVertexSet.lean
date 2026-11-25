@@ -155,7 +155,8 @@ private theorem zeroCount_eq (x : FeedbackVertexSetInstance × List ℕ) :
   rw [zeroCount, List.countP_eq_length_filter,
     ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter,
     show x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset by
-      ext v; simp [mem_distinctVertices]]
+      ext v
+      simp [mem_distinctVertices]]
   simp only [decide_eq_true_eq]
 
 private theorem check_iff (x : FeedbackVertexSetInstance × List ℕ) :
@@ -209,14 +210,15 @@ private theorem exists_certifies {G : Graph} {k : ℕ}
     split
     · exact Nat.zero_le _
     · exact (hflt v (mem_deleteVerts_vertices.2 ⟨hv, ‹_›⟩)).trans_le hsub
-  · rw [show (G.vertices.toFinset.filter fun v => colorOf G (G.vertices.map fun v =>
-        if v ∈ R then 0 else f v + 1) v = 0) = R by
+  · have hfilter : (G.vertices.toFinset.filter fun v => colorOf G (G.vertices.map fun v =>
+        if v ∈ R then 0 else f v + 1) v = 0) = R := by
       ext v
       simp only [Finset.mem_filter, List.mem_toFinset]
       exact ⟨fun ⟨hv, h0⟩ => by
           rw [colorOf_map hv] at h0
           split at h0 <;> first | assumption | omega,
-        fun hv => ⟨hRV v hv, by rw [colorOf_map (hRV v hv), ite_eq_left hv]⟩⟩]
+        fun hv => ⟨hRV v hv, by rw [colorOf_map (hRV v hv), ite_eq_left hv]⟩⟩
+    rw [hfilter]
     exact hcard
   · dsimp only at h1 h2 h3 h4 ⊢
     rw [colorOf_map h1] at h3 ⊢

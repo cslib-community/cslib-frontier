@@ -61,9 +61,13 @@ private theorem boundaryPorts_map {E E' : Type*} (a : List Color) (f : Fin a.len
 private theorem boundaryPorts_eq_sum {E : Type*} (a : List Color)
     (f : Fin a.length → E) (d : Bool) :
     boundaryPorts a f d = ∑ i, {⟨⟨f i, d⟩, (a.get i).weight⟩} := by
-  unfold boundaryPorts
-  refine (Multiset.sum_map_singleton _).symm.trans ?_
-  simp only [Multiset.map_coe, Multiset.sum_coe, List.map_ofFn, List.sum_ofFn]; rfl
+  let us : List (WeightedPort E) := List.ofFn (fun i => ⟨⟨f i, d⟩, (a.get i).weight⟩)
+  change (↑us : Multiset (WeightedPort E)) = _
+  calc
+    _ = (Multiset.map (fun p => {p}) (↑us)).sum := (Multiset.sum_map_singleton _).symm
+    _ = _ := by
+      simp only [Multiset.map_coe, Multiset.sum_coe, us, List.map_ofFn, List.sum_ofFn]
+      rfl
 
 private theorem boundaryPorts_append {E : Type*} (a b : List Color)
     (f : Fin (a ++ b).length → E) (d : Bool) :
@@ -245,10 +249,15 @@ theorem portMultiset_add_boundary (I : Interp Γ) {a b : List Color} (D : Diagra
   have hp := portBalance_of_checkGens I D h
   rw [PortBalance, listedPorts, ← portMultiset_vertexList, boundaryPorts_eq_sum,
     boundaryPorts_eq_sum, createdPorts_eq_sum, createdPorts_eq_sum] at hp
-  rw [add_right_comm, hp, add_comm _ (∑ i : Fin a.length, _)]
-  simp only [Fintype.sum_sum_type, edgeWeight, Sum.elim_inl, Sum.elim_inr,
-    Finset.sum_add_distrib, add_assoc]
-  exact congrArg (_ + ·) (add_left_comm _ _ _)
+  calc
+    _ = ((D.graph I).portMultiset +
+        ∑ j : Fin b.length, {⟨⟨D.bottom j, true⟩, (b.get j).weight⟩}) +
+        ∑ i : Fin a.length, {⟨⟨Sum.inl i, false⟩, (a.get i).weight⟩} := by ac_rfl
+    _ = _ := by
+      rw [hp, add_comm _ (∑ i : Fin a.length, _)]
+      simp only [Fintype.sum_sum_type, edgeWeight, Sum.elim_inl, Sum.elim_inr,
+        Finset.sum_add_distrib, add_assoc]
+      exact congrArg (_ + ·) (add_left_comm _ _ _)
 
 /-- A checked outgoing wire has its declared color weight. -/
 theorem edgeWeight_bottom (I : Interp Γ) {a b : List Color} (D : Diagram Γ a b)

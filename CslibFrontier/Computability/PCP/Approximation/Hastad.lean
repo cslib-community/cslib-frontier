@@ -257,8 +257,13 @@ private theorem graphLinearCorr_le_of_unsatVal (g : Graph (β → γ)) {δ : ℝ
     (hparam : (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η ≤ (8 * ε) ^ 2)
     {B : ℕ → (γ → Bool) → Bool} (hB : ∀ w, IsOdd (B w)) (A : ℕ → (β → Bool) → Bool) :
     graphLinearCorr g δ B A ≤ 8 * ε := by
-  exact (abs_le_of_sq_le_sq' ((graphLinearCorr_sq_le g hδ0 hδ1 k hB A).trans
-    ((by gcongr : _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η).trans hparam)) (by positivity)).2
+  have hsq : graphLinearCorr g δ B A ^ 2 ≤ (8 * ε) ^ 2 := by
+    calc graphLinearCorr g δ B A ^ 2
+      _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * (1 - (g.toGraph projectionEval).unsatVal) :=
+        graphLinearCorr_sq_le g hδ0 hδ1 k hB A
+      _ ≤ (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η := by gcongr
+      _ ≤ (8 * ε) ^ 2 := hparam
+  exact (abs_le_of_sq_le_sq' hsq (by positivity)).2
 
 /-- For every `ε > 0` and `0 < δ < 1 / 2`, there exist a degree cutoff `k : ℕ` and a Label Cover
 soundness threshold `η > 0` such that `(1 - 2 * δ) ^ (2 * k) + k ^ 2 * η ≤ (8 * ε) ^ 2`. -/

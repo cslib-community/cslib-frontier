@@ -86,9 +86,11 @@ theorem _root_.Cslib.Complexity.Graph.exists_lastEdge_reindex (G : Graph) (i : F
       change (finSuccEquiv' (Fin.last E.length)).symm (finSuccEquiv' i (i.succAbove j)) = _
       rw [finSuccEquiv'_succAbove, ← finSuccEquiv'_last_apply_castSucc j, symm_apply_apply]
     have hlist : (lastEdgeGraph H u v).edges = List.ofFn (f ∘ σ.symm) := by
-      have hrest : H.edges = List.ofFn (fun j => f (i.succAbove j)) :=
-        (congrArg (·.eraseIdx i.val) (List.ofFn_get (edge :: E)).symm).trans
-          (List.eraseIdx_ofFn f i)
+      have hrest : H.edges = List.ofFn (fun j => f (i.succAbove j)) := by
+        change ((edge :: E).eraseIdx i.val) = _
+        calc
+          _ = (List.ofFn f).eraseIdx i.val := by rw [List.ofFn_get]
+          _ = _ := List.eraseIdx_ofFn f i
       rw [List.ofFn_succ', List.concat_eq_append]
       change H.edges ++ [f i] = List.ofFn (fun j => f (σ.symm j.castSucc)) ++
         [f (σ.symm (Fin.last E.length))]
@@ -268,9 +270,11 @@ theorem card_faces_deleteLastEdge_balance {G : Graph} {u v : ℕ}
     simp only [a, mul_assoc, swap_mul_self, mul_one]
   have hφ : r.deleteLastEdge.faceNext = removeNone (removeNone (f * a.optionCongr.optionCongr)) :=
     r.faceNext_deleteLastEdge.trans (congrArg (fun q => removeNone (removeNone q)) hf)
-  rw [removeNone_mul_optionCongr, ← hf, show Nat.card (Quotient (Perm.SameCycle.setoid f)) =
-    Nat.card (Quotient (Perm.SameCycle.setoid r.rotate)) by
-      dsimp only [f]; rw [card_orbits_inv, card_orbits_permCongr]] at h₁
+  have hc : Nat.card (Quotient (Perm.SameCycle.setoid f)) =
+      Nat.card (Quotient (Perm.SameCycle.setoid r.rotate)) := by
+    dsimp only [f]
+    rw [card_orbits_inv, card_orbits_permCongr]
+  rw [removeNone_mul_optionCongr, ← hf, hc] at h₁
   have hσ : removeNone (removeNone f) = r.deleteLastEdge.rotate⁻¹ := rfl
   rw [← removeNone_mul_optionCongr, ← hφ, hσ, card_orbits_inv, removeNone_mul_optionCongr] at h₂
   change Nat.card (Quotient (Perm.SameCycle.setoid r.deleteLastEdge.faceNext)) + _ = _

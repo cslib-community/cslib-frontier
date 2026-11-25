@@ -87,11 +87,13 @@ def endpoint : E × Bool → V
 
 /-- The vertex of the first half of an edge is its first end. -/
 @[simp]
-theorem endpoint_false (e : E) : G.endpoint (e, false) = G.src e := rfl
+theorem endpoint_false (e : E) : G.endpoint (e, false) = G.src e :=
+  rfl
 
 /-- The vertex of the second half of an edge is its second end. -/
 @[simp]
-theorem endpoint_true (e : E) : G.endpoint (e, true) = G.dst e := rfl
+theorem endpoint_true (e : E) : G.endpoint (e, true) = G.dst e :=
+  rfl
 
 /-- The cloud of a vertex: the half-edges at it. -/
 abbrev Cloud (v : V) : Type _ :=
@@ -118,7 +120,8 @@ variable {G} (H : ∀ v, RotationMap (G.Cloud v) D)
 cloud. -/
 private theorem neighbor_cloudGraph {v : V} (x : G.Cloud v) (i : D) :
     (G.cloudGraph H).neighbor x.1 i = ((H v).neighbor x i).1 := by
-  obtain ⟨_, rfl⟩ := x; rfl
+  obtain ⟨_, rfl⟩ := x
+  rfl
 
 /-- The neighbors of a half-edge in the cloud graph are in its cloud. -/
 @[simp]
@@ -138,7 +141,8 @@ def halfEdgeGraph : RotationMap (E × Bool) Unit :=
 /-- The other half of the half-edge `(e, b)` is `(e, !b)`. -/
 @[simp]
 theorem neighbor_halfEdgeGraph (e : E) (b : Bool) (i : Unit) :
-    (halfEdgeGraph (E := E)).neighbor (e, b) i = (e, !b) := rfl
+    (halfEdgeGraph (E := E)).neighbor (e, b) i = (e, !b) :=
+  rfl
 
 /-- The **degree-reduced constraint graph** [Dinur, Section 3.1][Dinur2005]: its vertices are the
 half-edges of `G`; the edge-link `inl ()` joins the two halves of an edge `e` and carries the
@@ -306,15 +310,19 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
       #{q ∈ (G.degreeReduce H).toConstraintGraph.unsatEdges A | q.2.isRight} := by
   classical
   set T : Finset V := univ.image G.endpoint
+  /- The darts of the multigraph on the cloud of `v` joining differently labelled half-edges, and
+  their embedding into the cloud-links. -/
   set Dis : ∀ v, Finset (G.Cloud v × D) := fun v ↦ {r | A r.1.1 ≠ A ((H v).neighbor r.1 r.2).1}
   set f : ∀ v, G.Cloud v × D → (E × Bool) × (Unit ⊕ D) := fun _ r ↦ (r.1.1, .inr r.2)
   have hf (v : V) : Function.Injective (f v) := fun _ _ h ↦ by
     simp only [f, Prod.mk.injEq, Sum.inr.injEq] at h
     exact Prod.ext (Subtype.ext h.1) h.2
-  have hcloud (v : V) : (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.1 ≠ σ v} ≤ #(Dis v) :=
-    (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right (sub_le_sub_left (hH v) 1)
-      (Nat.cast_nonneg _)) (Nat.cast_nonneg _)).trans
-        ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.1) (hσ v))
+  /- In each cloud, the disagreeing darts are many. -/
+  have hcloud (v : V) : (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.1 ≠ σ v} ≤ #(Dis v) := by
+    refine le_trans ?_ ((H v).mul_card_filter_ne_le_card_filter_ne_neighbor (fun x ↦ A x.1) (hσ v))
+    gcongr
+    linarith [hH v]
+  /- The disagreeing darts of different clouds give different violated cloud-links. -/
   have hdisj : (T : Set V).PairwiseDisjoint fun v ↦ (Dis v).image (f v) :=
     fun _ _ _ _ hvw ↦ disjoint_left.2 fun q hq hq' ↦ by
       obtain ⟨r, -, rfl⟩ := mem_image.1 hq
@@ -325,11 +333,18 @@ private theorem mul_card_filter_ne_le_card_filter_isRight [DecidableEq α]
     obtain ⟨v, -, r, hr, rfl⟩ := by simpa only [mem_biUnion, mem_image] using hq
     rw [mem_filter, mem_unsatEdges, satisfies_degreeReduce_inr, neighbor_cloudGraph H r.1]
     exact ⟨by simpa [Dis] using hr, rfl⟩
-  rw [G.card_filter_ne_endpoint_eq_sum A σ, mul_sum]
-  refine (sum_le_sum fun v _ ↦ (hcloud v).trans_eq
-    (Nat.cast_inj.2 (card_image_of_injective (Dis v) (hf v)).symm)).trans ?_
-  rw [← Nat.cast_sum]
-  exact_mod_cast (card_biUnion hdisj).symm.trans_le (card_le_card hsub)
+  calc (1 - μ) * Fintype.card D * #{p | A p ≠ σ (G.endpoint p)}
+      = ∑ v ∈ T, (1 - μ) * Fintype.card D * #{x : G.Cloud v | A x.1 ≠ σ v} := by
+        rw [G.card_filter_ne_endpoint_eq_sum A σ, mul_sum]
+    _ ≤ ∑ v ∈ T, (#((Dis v).image (f v)) : ℝ) := by
+        refine sum_le_sum fun v _ ↦ ?_
+        rw [card_image_of_injective _ (hf v)]
+        exact hcloud v
+    _ = #(T.biUnion fun v ↦ (Dis v).image (f v)) := by
+        rw [card_biUnion hdisj]
+        push_cast
+        rfl
+    _ ≤ _ := by exact_mod_cast card_le_card hsub
 
 /-- **Soundness of degree reduction** [Dinur, Section 3.1][Dinur2005]: if the multigraphs on the
 clouds have spectral expansion at most `μ`, every labelling of the half-edges violates a proportion

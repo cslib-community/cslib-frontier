@@ -120,11 +120,13 @@ private theorem exists_slotHit {idx : Q → ℕ} {f : X → X} {n d : ℕ} (hd :
   have hpd : p < d := by
     rcases hp with hp | ⟨r, -, -, hr⟩
     · omega
-    · have := Nat.mod_lt (idx r.1) hd; omega
+    · have := Nat.mod_lt (idx r.1) hd
+      omega
   have hbp : idx q % d ≤ p := by
     rcases hp with hp | ⟨r, hr, hra, hrp⟩
     · omega
-    · have := (hcons' r hr hra).1; omega
+    · have := (hcons' r hr hra).1
+      omega
   have hgd : (idx q / d * d + p) / d = idx q / d := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt hpd, zero_add]
   have hgm : (idx q / d * d + p) % d = p := by
@@ -271,13 +273,18 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
       simpa [hza, hzb] using hzf
   have htop : ∀ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample)
       f (slotInverter idx sample f n d g A)) true ≠ ⊤ := fun g _ => PMF.apply_ne_top _ _
-  rw [← ENNReal.toNNReal_sum htop]
-  refine ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) ?_
-  rw [hreal]
-  refine (PMF.map_true_le_sum D (Finset.range (n * d))
-    (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE => ?_).trans
-    (Finset.sum_le_sum hstep)
-  exact exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE
+  have hsum : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) true ≤
+      ∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
+        (slotInverter idx sample f n d g A)) true := by
+    rw [hreal]
+    exact (PMF.map_true_le_sum D (Finset.range (n * d))
+      (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE =>
+        exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE).trans (Finset.sum_le_sum hstep)
+  calc Experiment.succProbability (repeatedIterateExperiment idx sample f n d A)
+      ≤ (∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
+          (slotInverter idx sample f n d g A)) true).toNNReal :=
+        ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) hsum
+    _ = _ := ENNReal.toNNReal_sum htop
 
 /-- The slot sum behind (13.6): the `d = 1` case. -/
 theorem succProbability_repeatedInversionExperiment_le_sum (idx : Q → ℕ) (sample : ProbComp X)

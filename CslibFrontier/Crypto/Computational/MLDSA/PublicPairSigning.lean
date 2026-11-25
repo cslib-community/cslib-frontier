@@ -50,11 +50,12 @@ theorem Xofs.sampleInBall_writeCommitment (s : Level) (H : Xofs)
     (d : FixedBytes (digestBytes s)) :
     (H.writeCommitment (commitmentInput s w μ) value).sampleInBall s d.toList =
       H.sampleInBall s d.toList := by
-  unfold Xofs.sampleInBall
-  rw [show (H.writeCommitment (commitmentInput s w μ) value).h256.readBytes d.toList 221 =
-      H.h256.readBytes d.toList 221 by
+  have row : (H.writeCommitment (commitmentInput s w μ) value).h256.readBytes d.toList 221 =
+      H.h256.readBytes d.toList 221 := by
     simp [Xofs.writeCommitment, ExtendableOutput.withPrefixes, ExtendableOutput.readBytes,
-      (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm]]
+      (commitmentInput_ne_digestInput w hμ (FixedBytes.length_toList d)).symm]
+  unfold Xofs.sampleInBall
+  rw [row]
 
 /-- One raw commitment write retained when a signing attempt terminates its request. -/
 structure TerminalSigningWrite (s : Level) where
@@ -142,8 +143,11 @@ theorem TerminalSigningWrite.History.read_representative {s : Level} {base G : X
   | @append past G prev q w d r x address ih =>
     subst x
     have prior := ih fun z hz => miss z (List.mem_append_left _ hz)
-    exact (repRead s G tr ht (formatMessage q.message q.context) w d.toList
-      (by rw [prior]; exact miss ⟨q, w, _, d, r⟩ (List.mem_append_right past List.mem_cons_self))
+    have current : G.h256.read (representativeInput tr
+        (formatMessage q.message q.context)) 64 ≠ tr := by
+      rw [prior]
+      exact miss ⟨q, w, _, d, r⟩ (List.mem_append_right past List.mem_cons_self)
+    exact (repRead s G tr ht (formatMessage q.message q.context) w d.toList current
       formatted n).trans (prior _ _)
 
 /-- A signing experiment at the original FIPS seeded law of `(ρ,A,t)`. A setup error
@@ -175,12 +179,14 @@ theorem Xofs.fullPairExperiment_eq_expand (H : Xofs) (s : Level)
   | none =>
     unfold Xofs.keyGen at kg
     cases ha : H.expandA s ((H.expandKeySeed s seed).take 32) <;>
-      cases hs : H.expandS s (((H.expandKeySeed s seed).drop 32).take 64) <;> simp_all
+      cases hs : H.expandS s (((H.expandKeySeed s seed).drop 32).take 64) <;>
+      simp_all
   | some keys =>
     obtain ⟨rho, sk, mat, pk, hd, _, _, exp⟩ := privateKey_of_keyGen kg
-    simp only [hd, show (H.expandKeySeed s seed).take 32 = rho.toList by
-        rw [← publicSeed_of_keyGen kg, pk, take_encodePublic],
-      mat, exp, Option.bind_eq_bind, Option.bind_some, Option.pure_def, Option.getD_some]
+    have seedEq : (H.expandKeySeed s seed).take 32 = rho.toList := by
+      rw [← publicSeed_of_keyGen kg, pk, take_encodePublic]
+    simp only [hd, seedEq, mat, exp, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+      Option.getD_some]
     rfl
 
 namespace QuantumSigningForger

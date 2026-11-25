@@ -119,7 +119,8 @@ theorem hashesToZero_ofFn_iff {k M : ℕ} (seed : List Bool) (x : BitString M) :
   refine forall_congr' fun i => ?_
   generalize BitString.LinearHash.hash _ x i = a
   generalize ValiantVazirani.offset k M seed i = b
-  revert a b; decide
+  revert a b
+  decide
 
 open ValiantVazirani BitString.LinearHash in
 /-- **Isolation with probability `3 / 16`**: for a nonempty set `S` of strings of length `M`, with
@@ -144,9 +145,13 @@ theorem three_mul_two_pow_le_card_filter_card_eq_one {M B : ℕ} {S : Finset (Bi
     Fintype.card_fin, matrix_take, offset_take,
     card_filter_seed (fun p => #{x ∈ S | affineHash p x = 0} = 1)] at hsplit
   simp only [hashesToZero_ofFn_iff]
-  rw [hsplit, show 3 * 2 ^ B = 3 * 2 ^ (k * M + k) * 2 ^ (B - (k * M + k)) by
-    rw [Nat.mul_assoc, ← pow_add, Nat.add_sub_cancel' hB]]
-  exact (Nat.mul_le_mul_right _ hU).trans_eq (Nat.mul_assoc 16 _ _)
+  rw [hsplit]
+  calc 3 * 2 ^ B = 3 * 2 ^ (k * M + k) * 2 ^ (B - (k * M + k)) := by
+        rw [Nat.mul_assoc, ← pow_add, Nat.add_sub_cancel' hB]
+    _ ≤ 16 * (univ.filter fun p : (Fin k → BitString M) × BitString k =>
+          #{x ∈ S | affineHash p x = 0} = 1).card * 2 ^ (B - (k * M + k)) :=
+        Nat.mul_le_mul_right _ hU
+    _ = _ := Nat.mul_assoc 16 _ _
 
 /-! ### The isolation step -/
 
@@ -176,8 +181,11 @@ private theorem odd_one_add_prod_trials_iff {M T B : ℕ} (c : (Fin M → Bool) 
     exact iff_of_eq (congrArg (Odd ∘ Finset.card) (Finset.ext fun x => by
       simp only [mem_filter, mem_univ, true_and, hgood x, and_comm]))
   simp only [hpar]
-  exact ⟨fun ⟨_, hj⟩ => let ⟨x, hx⟩ := Finset.card_pos.1 hj.pos; ⟨x, (mem_filter.1 hx).1⟩,
-    fun hS => let ⟨j, hj⟩ := hiso hS; ⟨j, hj ▸ odd_one⟩⟩
+  refine ⟨fun ⟨_, hj⟩ => ?_, fun hS => ?_⟩
+  · obtain ⟨x, hx⟩ := Finset.card_pos.1 hj.pos
+    exact ⟨x, (mem_filter.1 hx).1⟩
+  · obtain ⟨j, hj⟩ := hiso hS
+    exact ⟨j, hj ▸ odd_one⟩
 
 /-- At the isolating level `k₀ = log₂ #S + 2`, at most `13 / 16` of the seeds of length `B` fail to
 isolate `S`. -/
@@ -215,8 +223,9 @@ private theorem sixteen_pow_mul_card_filter_no_isolation_le {M t B : ℕ} {S : F
     ¬#{x ∈ S | hashesToZero k₀ (List.ofFn σ) (List.ofFn x)} = 1 with hFbad
   -- the rounds use the level `k₀` at the indices `i * (M + 3) + k₀`
   let idx : Fin t → Fin T := fun i => ⟨i * (M + 3) + k₀, by
-    have hi := Nat.mul_le_mul_right (M + 3) (Nat.succ_le_of_lt i.2)
-    rw [Nat.succ_mul] at hi; omega⟩
+    calc i * (M + 3) + k₀ < i * (M + 3) + (M + 3) := by omega
+      _ = (i + 1) * (M + 3) := by ring
+      _ ≤ t * (M + 3) := Nat.mul_le_mul_right _ i.2⟩
   have hidx : Function.Injective idx := fun i i' h => by
     simp only [idx, Fin.mk.injEq] at h
     exact Fin.ext (Nat.eq_of_mul_eq_mul_right (by omega)

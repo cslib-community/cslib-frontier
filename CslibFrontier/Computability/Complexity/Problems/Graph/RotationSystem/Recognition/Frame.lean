@@ -166,8 +166,9 @@ theorem frozen_edge_shape {I : FixedRotationInput} (hI : Valid I) {e : ℕ × �
     ((I.graph.vertices.length + 2 * entry.2, I.graph.vertices.length + 2 * entry.2 + 1), false),
     ((I.graph.vertices.length + 2 * entry.2 + 1, entry.1.2), _)] at hs
   rcases List.mem_cons.mp hs with rfl | hs
-  · refine ⟨entry.1.1, I.graph.vertices.length + 2 * entry.2, hu, by omega,
-      by unfold subdivisionSize; omega, Or.inl rfl, hf, ?_⟩
+  · refine ⟨entry.1.1, I.graph.vertices.length + 2 * entry.2, hu, Nat.le_add_right _ _, by
+      unfold subdivisionSize
+      omega, Or.inl rfl, hf, ?_⟩
     have hr := getD_incidenceVertices_even I.graph entry.2
     rw [List.getD_eq_getElem _ _ hi, hv] at hr
     simpa using hr
@@ -175,7 +176,9 @@ theorem frozen_edge_shape {I : FixedRotationInput} (hI : Valid I) {e : ℕ × �
     · cases hf
     · obtain rfl := List.mem_singleton.mp hs
       refine ⟨entry.1.2, I.graph.vertices.length + 2 * entry.2 + 1, hw, by omega,
-        by unfold subdivisionSize; omega, Or.inr rfl, hf, ?_⟩
+        by
+          unfold subdivisionSize
+          omega, Or.inr rfl, hf, ?_⟩
       have hr := getD_incidenceVertices_odd I.graph entry.2
       rw [List.getD_eq_getElem _ _ hi, hv] at hr
       simpa only [show I.graph.vertices.length + 2 * entry.2 + 1 - I.graph.vertices.length =

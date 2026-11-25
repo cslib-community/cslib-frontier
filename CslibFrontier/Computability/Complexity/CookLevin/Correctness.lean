@@ -85,14 +85,15 @@ private theorem eval_inputClauses (t j : ℕ) :
       · simp only [inputAt, show j ≠ 0 by omega, ite_false]
         exact List.getElem?_eq_none (by simp only [List.length_append, length_certWord]; omega)
     simp [this]
-  · rw [show inputAt (u ++ certWord σ L) j = u[j - 1]? by
+  · have : inputAt (u ++ certWord σ L) j = u[j - 1]? := by
       simp only [inputAt, show j ≠ 0 by omega, ite_false]
-      exact List.getElem?_append_left (by omega)]
-    simp
-  · rw [show inputAt (u ++ certWord σ L) j = some (σ (.cert (j - 1 - u.length))) by
+      exact List.getElem?_append_left (by omega)
+    simp [this]
+  · have : inputAt (u ++ certWord σ L) j = some (σ (.cert (j - 1 - u.length))) := by
       simp only [inputAt, show j ≠ 0 by omega, ite_false]
       rw [List.getElem?_append_right (by omega)]
-      simp [certWord, List.getElem?_map, List.getElem?_range (show j - 1 - u.length < L by omega)]]
+      simp [certWord, List.getElem?_map, List.getElem?_range (show j - 1 - u.length < L by omega)]
+    rw [this]
     cases hc : σ (.cert (j - 1 - u.length)) <;> cases hp : σ (.holds t (.inPos j)) <;>
       simp [hc, hp]
 

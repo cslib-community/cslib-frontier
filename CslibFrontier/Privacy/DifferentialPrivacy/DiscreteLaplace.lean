@@ -87,9 +87,11 @@ variable {α : ℝ}
 theorem hasSum_pow_natAbs (h0 : 0 ≤ α) (h1 : α < 1) :
     HasSum (fun z : ℤ => α ^ z.natAbs) ((1 + α) / (1 - α)) := by
   have hpos := hasSum_geometric_of_lt_one h0 h1
+  have hneg : HasSum (fun n : ℕ => α ^ (-((n : ℤ) + 1)).natAbs) (α * (1 - α)⁻¹) := by
+    have hn (n : ℕ) : (-((n : ℤ) + 1)).natAbs = n + 1 := by omega
+    simpa only [hn, pow_succ'] using hpos.mul_left α
   convert HasSum.of_nat_of_neg_add_one (f := fun z : ℤ => α ^ z.natAbs) (by simpa using hpos)
-    (by simpa only [show ∀ n : ℕ, (-((n : ℤ) + 1)).natAbs = n + 1 by omega, pow_succ'] using
-      hpos.mul_left α) using 1
+    hneg using 1
   have : (1 - α) ≠ 0 := by linarith
   field_simp
 
@@ -239,8 +241,9 @@ theorem twoSidedGeometric_apply_le (h0 : 0 < α) (h1 : α < 1) {Δ : ℝ} (z d :
   rw [twoSidedGeometric_apply, twoSidedGeometric_apply, ← ENNReal.ofReal_mul (Real.exp_pos _).le]
   refine ENNReal.ofReal_le_ofReal ?_
   have hC : 0 ≤ (1 - α) / (1 + α) := div_nonneg (by linarith) (by linarith)
-  simp only [show ∀ n : ℕ, α ^ n = Real.exp (n * Real.log α) from fun n => by
-    rw [Real.exp_nat_mul, Real.exp_log h0], mul_left_comm, ← Real.exp_add]
+  have hpow (n : ℕ) : α ^ n = Real.exp (n * Real.log α) := by
+    rw [Real.exp_nat_mul, Real.exp_log h0]
+  rw [hpow, hpow, mul_left_comm, ← Real.exp_add]
   refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr ?_) hC
   rw [Real.log_inv]
   have hlog : Real.log α < 0 := Real.log_neg h0 h1
@@ -280,7 +283,9 @@ theorem discreteLaplace_apply (t : ℝ) (ht : 0 < t) (z : ℤ) :
   rw [← Real.exp_nat_mul, Nat.cast_natAbs, Int.cast_abs,
     show Real.exp (-1 / t) = (Real.exp (1 / t))⁻¹ by rw [← Real.exp_neg, neg_div]]
   have := Real.exp_pos (1 / t)
-  congr 1 <;> [field_simp; ring_nf]
+  congr 1
+  · field_simp
+  · ring_nf
 
 /-- Adding discrete Laplace noise of scale `Δ / ε` to an integer-valued query of sensitivity
 `Δ > 0` is `(ε, 0)`-differentially private [CanonneKamathSteinke2020, Lemma 29]. -/
@@ -328,14 +333,17 @@ probability at most `2 exp (-a / t)`. -/
 theorem discreteLaplace_toOuterMeasure_lt_abs_le (t : ℝ) (ht : 0 < t) {a : ℝ} (ha : 0 ≤ a) :
     (discreteLaplace t ht).toOuterMeasure {z | a < |(z : ℝ)|} ≤
       ENNReal.ofReal (2 * Real.exp (-a / t)) := by
-  rw [show {z : ℤ | a < |(z : ℝ)|} = {z | ⌊a⌋₊ + 1 ≤ z.natAbs} from Set.ext fun z => by
-      simp only [Set.mem_ofPred_eq, ← Int.cast_abs, ← Nat.cast_natAbs, ← Nat.floor_lt ha,
-        Nat.lt_iff_add_one_le],
-    discreteLaplace_toOuterMeasure_le_natAbs t ht (Nat.succ_ne_zero _)]
-  refine ENNReal.ofReal_le_ofReal <| (div_le_self (by positivity)
-    (by linarith [Real.exp_pos (-1 / t)])).trans ?_
-  have : a ≤ ((⌊a⌋₊ + 1 : ℕ) : ℝ) := by exact_mod_cast (Nat.lt_floor_add_one a).le
-  gcongr
+  have hset : {z : ℤ | a < |(z : ℝ)|} = {z | ⌊a⌋₊ + 1 ≤ z.natAbs} := Set.ext fun z => by
+    simp only [Set.mem_ofPred_eq, ← Int.cast_abs, ← Nat.cast_natAbs, ← Nat.floor_lt ha,
+      Nat.lt_iff_add_one_le]
+  rw [hset, discreteLaplace_toOuterMeasure_le_natAbs t ht (Nat.succ_ne_zero _)]
+  refine ENNReal.ofReal_le_ofReal ?_
+  have hm : a ≤ ((⌊a⌋₊ + 1 : ℕ) : ℝ) := by exact_mod_cast (Nat.lt_floor_add_one a).le
+  calc 2 * Real.exp (-((⌊a⌋₊ + 1 : ℕ) : ℝ) / t) / (1 + Real.exp (-1 / t))
+      ≤ 2 * Real.exp (-((⌊a⌋₊ + 1 : ℕ) : ℝ) / t) :=
+        div_le_self (by positivity) (by linarith [Real.exp_pos (-1 / t)])
+    _ ≤ 2 * Real.exp (-a / t) := by
+        gcongr
 
 /-- Shifting the discrete Laplace distribution with scale `t` by at most `Δ` changes each mass by
 a factor of at most `exp (Δ / t)`. -/

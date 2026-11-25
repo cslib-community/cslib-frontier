@@ -65,8 +65,10 @@ theorem abs_le_of_mem_convexHull {Z : Type*} {F : Set (Z → ℝ)} {B : ℝ}
     |f z| ≤ B := by
   have hconv : Convex ℝ {g : Z → ℝ | ∀ x, |g x| ≤ B} := fun g₁ hg₁ g₂ hg₂ a b ha hb hab x => by
     simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    calc |a * g₁ x + b * g₂ x| ≤ |a * g₁ x| + |b * g₂ x| := abs_add_le _ _
-      _ = a * |g₁ x| + b * |g₂ x| := by rw [abs_mul, abs_mul, abs_of_nonneg ha, abs_of_nonneg hb]
+    calc |a * g₁ x + b * g₂ x|
+        ≤ |a * g₁ x| + |b * g₂ x| := abs_add_le _ _
+      _ = a * |g₁ x| + b * |g₂ x| := by
+          rw [abs_mul, abs_mul, abs_of_nonneg ha, abs_of_nonneg hb]
       _ ≤ a * B + b * B := add_le_add
           (mul_le_mul_of_nonneg_left (hg₁ x) ha) (mul_le_mul_of_nonneg_left (hg₂ x) hb)
       _ = B := by rw [← add_mul, hab, one_mul]
@@ -87,8 +89,10 @@ private theorem expect_signVal_mul_le_of_mem_convexHull {m : ℕ} {A : Set (Fin 
         exact Finset.expect_congr rfl fun i _ => by ring
       change 𝔼 i, signVal (σ i) * (a • u₁ + b • u₂) i ≤ M
       rw [hlin]
-      exact (add_le_add (mul_le_mul_of_nonneg_left hu₁ ha)
-        (mul_le_mul_of_nonneg_left hu₂ hb)).trans_eq (by rw [← add_mul, hab, one_mul])
+      calc a * (𝔼 i, signVal (σ i) * u₁ i) + b * (𝔼 i, signVal (σ i) * u₂ i)
+          ≤ a * M + b * M := add_le_add
+            (mul_le_mul_of_nonneg_left hu₁ ha) (mul_le_mul_of_nonneg_left hu₂ hb)
+        _ = M := by rw [← add_mul, hab, one_mul]
   exact convexHull_min (fun u hu => hA u hu) hconv hv
 
 /-- A real average bound for `A : Set (Fin m → ℝ)` whose coordinates are bounded by `B`. -/
@@ -101,7 +105,9 @@ private theorem bddAbove_range_expect_sub {m : ℕ} {A : Set (Fin m → ℝ)} {B
     refine ⟨B, ?_⟩
     rintro _ ⟨v, rfl⟩
     refine Finset.expect_le Finset.univ_nonempty fun i _ => ?_
-    exact (le_abs_self _).trans (by rw [abs_mul, abs_signVal, one_mul]; exact hA v.1 v.2 i)
+    calc signVal (σ i) * v.1 i ≤ |signVal (σ i) * v.1 i| := le_abs_self _
+      _ = |v.1 i| := by rw [abs_mul, abs_signVal, one_mul]
+      _ ≤ B := hA v.1 v.2 i
 
 /-- **Rademacher average of a convex hull** [ShalevShwartzBenDavid2014, Lemma 26.7]: taking the
 convex hull of a uniformly bounded set `A : Set (Fin m → ℝ)` preserves its Rademacher average. -/
@@ -142,7 +148,9 @@ theorem empiricalRademacherComplexity_convexHull {Z : Type*} {F : Set (Z → ℝ
     empiricalRademacherComplexity (convexHull ℝ F) S =
       empiricalRademacherComplexity F S := by
   let A : Set (Fin m → ℝ) := (fun g : Z → ℝ => fun i => g (S i)) '' F
-  have hA : ∀ v ∈ A, ∀ i, |v i| ≤ B := by rintro _ ⟨g, hg, rfl⟩ i; exact hF g hg (S i)
+  have hA : ∀ v ∈ A, ∀ i, |v i| ≤ B := by
+    rintro _ ⟨g, hg, rfl⟩ i
+    exact hF g hg (S i)
   have hF_eq : empiricalRademacherComplexity F S = rademacherAverage (fun v : A => v.1) := by
     rw [empiricalRademacherComplexity_def]
     exact rademacherAverage_eq_of_forall_exists (fun g i => hF g.1 g.2 (S i))

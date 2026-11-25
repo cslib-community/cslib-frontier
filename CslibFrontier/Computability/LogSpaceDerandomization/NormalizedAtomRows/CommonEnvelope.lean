@@ -150,7 +150,8 @@ theorem actualTwoSignal_mean_le_common
   · change |actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
       D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
       (fun _ _ _ _ => 0) 0 i x y| ≤ |firstMeanEnvelope R D ss st ks k (input (i + 1)) G x y|
-    rw [actualClippedMean_first_eq]; exact le_rfl
+    rw [actualClippedMean_first_eq]
+    exact le_rfl
   · change |actualClippedMean HP R.source R.terminal (side P ks) (side P k) (side P ku)
       D ss st k G ζ (firstSignalIncrement A k (secondSignalIncrement W ζ))
       (fun _ _ _ _ => 0) 1 i x y| ≤ |secondMeanEnvelope R D ss st ks k ku Lh Lρ ζ (A (i + 1)) G x y|
