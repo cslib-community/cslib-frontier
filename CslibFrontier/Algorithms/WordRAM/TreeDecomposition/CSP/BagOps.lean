@@ -281,7 +281,8 @@ private theorem eraseCopyStep_eval (target : ℕ) (st : EraseState) (t : Memory.
 private theorem eraseCopyStep_valid {w target : ℕ} {st : EraseState} {t : Memory.State}
     (hsrc : st.srcCur < t.frontier) (hfit : Fits w (t.mem st.srcCur))
     (hdst : ¬(st.skipped = 0 ∧ t.mem st.srcCur = target) → st.dstCur < t.frontier) :
-    (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t (eraseCopyStep (target, st))) := by
+    (Memory.spec w).ValidHistory t
+      ((Memory.spec w).clientHistory t (eraseCopyStep (target, st))) := by
   unfold eraseCopyStep
   dsimp only
   refine validHistory_read_bind hsrc ?_

@@ -121,7 +121,7 @@ private theorem lookupRadixProg_result (args : LookupRadixArgs) {LB : List ℕ} 
   induction ys with
   | nil =>
     intro curPtr curM found ans _ hfd
-    show ans = _
+    change ans = _
     rcases hfd with ⟨rfl, rfl⟩ | rfl <;> simp [ofRadix]
   | cons v rest ih =>
     intro curPtr curM found ans hcur hfd
