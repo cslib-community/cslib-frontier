@@ -75,11 +75,10 @@ private theorem comp_shrink {β : Type} {enc : β ↪ List Bool} {f : List Bool 
       fun w => w.length :=
   (hf.comp hg).mono 2 (fun w => by
       have h := Nat.pow_le_pow_left (Nat.succ_le_succ (hle w)) 2
-      simp only [encBits_apply] at *
-      nlinarith) fun w => by
-    have := hle w
-    simp only [encBits_apply]
-    omega
+      simp only [encBits_apply] at *; nlinarith)
+    fun w => by
+      have := hle w
+      simp only [encBits_apply]; omega
 
 /-- The minimum of two linear unary counts, within quadratic time and space. -/
 private theorem unaryMin {a b : List Bool → ℕ}
@@ -90,16 +89,13 @@ private theorem unaryMin {a b : List Bool → ℕ}
     ComputableInO (fun w => min (a w) (b w)) encBits encUnary (fun w => (w.length + 1) ^ 2)
       fun w => (w.length + 1) ^ 2 := by
   obtain ⟨c, hc⟩ := (ha.prod hb).length_le
-  have h := ComputableInDegree.unary_min.inO.comp (ha.prod hb)
-  have hsq (w : List Bool) : ((encPair encUnary encUnary (a w, b w)).length + 1) ^ 2 ≤
-      ((2 * c + 1) * (w.length + 1)) ^ 2 := by
-    have := hc w
-    simp only [encBits_apply] at this
-    exact Nat.pow_le_pow_left (by nlinarith) 2
-  refine h.mono ((2 * c + 1) ^ 2 + 2) (fun w => ?_) fun w => ?_ <;>
-  · have := hsq w
-    simp only [encBits_apply, mul_pow] at *
-    nlinarith
+  refine (ComputableInDegree.unary_min.inO.comp (ha.prod hb)).mono ((2 * c + 1) ^ 2 + 2)
+    (fun w => ?_) fun w => ?_ <;>
+  · have h := hc w
+    simp only [encBits_apply] at h ⊢
+    have := Nat.pow_le_pow_left (show (encPair encUnary encUnary (a w, b w)).length + 1 ≤
+      (2 * c + 1) * (w.length + 1) by nlinarith) 2
+    rw [mul_pow] at this; nlinarith
 
 /-! ### Stack tapes -/
 
@@ -185,26 +181,23 @@ theorem decodeStackTape : ComputableInO MultiTapeTM.decodeStackTape encBits
     (B := fun w => L + 4 * (c * (w.length + 1)))
     (fun w i _ => by
       have := hstate w i
-      simp only [length_encPair, encBool_apply, List.length_singleton] at this ⊢
-      omega)
+      simp only [length_encPair, encBool_apply, List.length_singleton] at this ⊢; omega)
     (fun w i _ => by
       have := hstate w i
-      simp only [length_encPair, encBool_apply, List.length_singleton] at this ⊢
-      omega)
+      simp only [length_encPair, encBool_apply, List.length_singleton] at this ⊢; omega)
     (fun w i _ => hstate w i)
   refine (snd' hfold).mono ((c + 1) * (3 * L + 3 + 13 * c) + 2) (fun w => ?_) fun w => ?_
   · have hm := hlen w
     simp only [encBits_apply]
-    have h1 : (cellsTransducer.run cellsTransducer.q₀ w).reverse.length + 1 ≤
-        (c + 1) * (w.length + 1) := by nlinarith
-    have h2 : 2 * (L + 4 * (c * (w.length + 1))) + 3 + (L + 4 * (c * (w.length + 1))) +
+    have := Nat.mul_le_mul
+      (show (cellsTransducer.run cellsTransducer.q₀ w).reverse.length + 1 ≤
+        (c + 1) * (w.length + 1) by nlinarith)
+      (show 2 * (L + 4 * (c * (w.length + 1))) + 3 + (L + 4 * (c * (w.length + 1))) +
         (cellsTransducer.run cellsTransducer.q₀ w).reverse.length ≤
-        (3 * L + 3 + 13 * c) * (w.length + 1) := by nlinarith
-    have h3 := Nat.mul_le_mul h1 h2
+        (3 * L + 3 + 13 * c) * (w.length + 1) by nlinarith)
     nlinarith
   · have hm := hlen w
-    simp only [encBits_apply]
-    nlinarith
+    simp only [encBits_apply]; nlinarith
 
 /-- Decoding a cell is linear. -/
 private theorem decodeCellO : ComputableInO MultiTapeTM.decodeCell encBits (encOption encBool)
@@ -303,22 +296,17 @@ theorem decodeView : ComputableInO (MultiTapeNTM.decodeView (k := k) (State := S
       (fun code => MultiTapeTM.decodeFiniteCfg (k := k) (State := State) (unframe code.tail))
       encBits encFiniteCfg (fun code => (code.length + 1) ^ 2)
       fun code => (code.length + 1) ^ 2 :=
-    ((decodeFiniteCfg (k := k) (State := State)).comp (unframe' htail)).mono 2 (fun code => by
-        have h := Nat.pow_le_pow_left (Nat.add_le_add_right (length_unframe_tail_le code) 1) 2
-        simp only [encBits_apply] at *
-        nlinarith) fun code => by
-      have h := Nat.pow_le_pow_left (Nat.add_le_add_right (length_unframe_tail_le code) 1) 2
-      simp only [encBits_apply] at *
-      nlinarith
-  have hsome := some'.comp_linear hcfg
-  refine ((hc.ite (const none) hsome).mono 3 (fun code => ?_) fun code => ?_).of_enc_eq
-    fun code => ?_
-  · simp only [encBits_apply]
-    split_ifs <;> nlinarith
-  · simp only [encBits_apply]
-    split_ifs <;> nlinarith
-  · rw [MultiTapeNTM.decodeView_eq]
-    rfl
+    ((decodeFiniteCfg (k := k) (State := State)).comp (unframe' htail)).mono 2
+      (fun code => by
+        have := Nat.pow_le_pow_left (Nat.add_le_add_right (length_unframe_tail_le code) 1) 2
+        simp only [encBits_apply] at *; nlinarith)
+      fun code => by
+        have := Nat.pow_le_pow_left (Nat.add_le_add_right (length_unframe_tail_le code) 1) 2
+        simp only [encBits_apply] at *; nlinarith
+  refine ((hc.ite (const none) (some'.comp_linear hcfg)).mono 3
+    (fun _ => by simp only [encBits_apply]; split_ifs <;> nlinarith)
+    fun _ => by simp only [encBits_apply]; split_ifs <;> nlinarith).of_enc_eq
+    fun code => by rw [MultiTapeNTM.decodeView_eq]; rfl
 
 /-- **The view read from a code has a linear encoding.** -/
 theorem length_encOption_decodeView_le : ∃ c, ∀ code : List Bool,
@@ -331,7 +319,6 @@ theorem length_encOption_decodeView_le : ∃ c, ∀ code : List Bool,
   · simp
   · have h := hc (unframe code.tail)
     have hle := Nat.mul_le_mul_left c (Nat.add_le_add_right (length_unframe_tail_le code) 1)
-    simp only [encOption_some, List.length_cons]
-    nlinarith
+    simp only [encOption_some, List.length_cons]; nlinarith
 
 end Turing.MultiTapeTM.ComputableInO
