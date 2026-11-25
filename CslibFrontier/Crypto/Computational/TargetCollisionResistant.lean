@@ -22,7 +22,9 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
@@ -309,8 +311,7 @@ theorem CollisionResistantOn.targetCollisionResistantOn
   have heq (n : ℕ) :
       ProbComp.eval (targetCollisionGame id (fun _ k msg => H k msg) valid adversary n) =
         ProbComp.eval (collisionGame H valid colFinder n) := by
-    simp only [targetCollisionGame, collisionGame, colFinder, id_eq, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    simp only [targetCollisionGame, collisionGame, colFinder, id_eq, pmf_norm]
     exact PMF.bind_comm _ _ _
   simpa only [heq] using hCR.negligible colFinder hcolPPT
 
@@ -783,32 +784,15 @@ private theorem listRows_succ_eq_snoc (r κ : ℕ) (K : List Bool) :
     BitString.listRows (r + 1) κ K = BitString.listRows r κ K ++ [BitString.listRow κ r K] := by
   simp only [BitString.listRows, List.range_succ, List.map_append, List.map_singleton]
 
-private theorem listRows_take_mul_eq (i κ : ℕ) (K : List Bool) :
-    BitString.listRows i κ (K.take (i * κ)) = BitString.listRows i κ K := by
-  refine List.map_congr_left fun r hr =>
-    List.ext_getElem (by simp only [BitString.length_listRow]) fun c hc _ => ?_
-  simp only [BitString.length_listRow] at hc
-  have hr_lt : r < i := List.mem_range.mp hr
-  have hidx : r * κ + c < i * κ :=
-    calc r * κ + c < r * κ + κ := by omega
-      _ = (r + 1) * κ := by ring
-      _ ≤ i * κ := Nat.mul_le_mul_right κ (by omega)
-  rw [BitString.getElem_listRow hc, BitString.getElem_listRow hc]
-  rcases lt_or_ge (r * κ + c) K.length with hK | hK
-  · rw [List.getD_eq_getElem _ _ (by simp only [List.length_take]; omega),
-      List.getD_eq_getElem _ _ hK, List.getElem_take]
-  · rw [List.getD_eq_default _ _ ((List.length_take .. ▸ Nat.min_le_right _ _).trans hK),
-      List.getD_eq_default _ _ hK]
-
 private theorem uowhfCandidateInput_take_eq (h : ℕ → List Bool → List Bool → List Bool)
     {n κ M i j : ℕ} (hi : i ≤ n) (K msg : List Bool) :
     uowhfCandidateInput h n κ M i j (K.take (i * κ)) msg =
       uowhfCandidateInput h n κ M i j K msg := by
   unfold uowhfCandidateInput
   split_ifs with hlt
-  · rw [listRows_take_mul_eq]
+  · rw [BitString.listRows_take]
   · obtain rfl : i = n := le_antisymm hi (Nat.not_lt.mp hlt)
-    rw [listRows_take_mul_eq]
+    rw [BitString.listRows_take]
 
 /-- **Deterministic node-collision extraction for `uowhfTreeHash`**: whenever two distinct messages
 `m₀ ≠ m₁` of length `< 2 ^ n` (with `m₀.length ≤ B`, `1 ≤ B`, `1 ≤ n`, and `n ≤ blockLen n`) produce
@@ -1078,16 +1062,14 @@ theorem succProbability_targetCollisionGame_uowhfTreeHash_le
           (uowhfTreeAdversary h keyLen blockLen maxBlocks adversary) n) =
         (PMF.uniformOfFintype (Fin (dyadicSize bound))).bind (fun s => slotTrial s.val) := by
     dsimp only [targetCollisionGame, uowhfTreeAdversary, slotTrial, κ, M, B, bound]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, eval_sampleDyadicIndex,
-      BitString.eval_sampleList, treeStateDecoder.decode_enc, PMF.bind_bind, PMF.pure_bind,
-      PMF.bind_map, Function.comp_def]
+    simp only [eval_sampleDyadicIndex, BitString.eval_sampleList, treeStateDecoder.decode_enc,
+      pmf_norm]
   have htree_eq :
       ProbComp.eval
         (targetCollisionGame (fun m => (m + 1) * keyLen m)
           (uowhfTreeHash h keyLen blockLen) (fun _ _ => true) adversary n) =
         μ.map W := by
-    simp only [targetCollisionGame, μ, W, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, κ]
+    simp only [targetCollisionGame, μ, W, BitString.eval_sampleList, PMF.map, κ, pmf_norm]
   let Wi (s : Fin (dyadicSize bound))
       (t : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
     if s.val < bound then

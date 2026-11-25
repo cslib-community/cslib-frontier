@@ -9,12 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Elementary
 public import Mathlib.Data.Nat.Log
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.Field.GeomSum
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # Minimum-index dyadic band multiplication of signed-digit streams

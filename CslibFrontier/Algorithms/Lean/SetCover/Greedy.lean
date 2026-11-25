@@ -13,10 +13,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Data.List.MinMax
 public import Mathlib.NumberTheory.Harmonic.Defs
 import CslibFrontier.Foundations.NumberTheory.Harmonic
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.NumberTheory.Harmonic.Bounds
-import Mathlib.Tactic.Positivity
-import Mathlib.Tactic.Ring
 
 /-!
 # The greedy algorithm for weighted set cover

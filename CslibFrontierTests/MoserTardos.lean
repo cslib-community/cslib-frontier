@@ -474,6 +474,31 @@ example {sel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fin
 
 /-! ### Parallel Moser–Tardos (Algorithm 1.2, Theorem 1.3) -/
 
+-- Termination without slack. On the dependent pair `vblPair`, `Pr[A i] = 1/4 = 1/2 · (1 - 1/2)`
+-- holds with equality (`hypPair`). Since `min (x (1 - y)) (y (1 - x)) ≤ 1/4` for all weights, no
+-- weights satisfy the slack form `Pr[A i] ≤ (1 - ε) x_i (1 - x_j)` with `ε > 0`. Every admissible
+-- parallel rule still reaches an assignment avoiding both events, after at most `1 + 1 = 2`
+-- resamplings in expectation.
+example {psel : (∀ p : Fin 3 × ℕ, (fun _ : Fin 3 => Bool) p.1) → List (Fin 2) → List (Fin 2)}
+    (hrule : IsValidParallelRule vblPair heads psel) :
+    (∀ᵐ T ∂table coin3, ∃ n, ∀ i,
+        current vblPair T (parallelRun (α := fun _ : Fin 3 => Bool) psel T n) ∉ heads i) ∧
+      ∫⁻ T, ⨆ n, ((parallelRun (α := fun _ : Fin 3 => Bool) psel T n).length : ℝ≥0∞)
+        ∂table coin3 ≤ 2 := by
+  refine ⟨ae_exists_forall_notMem_parallelRun coin3 vblPair heads measurableSet_heads
+    heads_dependsOn other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩)
+    hypPair hrule, (lintegral_iSup_length_parallelRun_le coin3 vblPair heads measurableSet_heads
+    heads_dependsOn other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩)
+    hypPair hrule).trans (le_of_eq ?_)⟩
+  norm_num [Fin.sum_univ_two]
+
+-- The same for the canonical greedy rule.
+example : ∀ᵐ T ∂table coin3, ∃ n, ∀ i,
+    current vblPair T (parallelRun (greedyParallel vblPair heads) T n) ∉ heads i :=
+  ae_exists_forall_notMem_parallelRun coin3 vblPair heads measurableSet_heads heads_dependsOn
+    other other_spec (x := fun _ => 1 / 2) (fun _ => ⟨by norm_num, by norm_num⟩) hypPair
+    (isValidParallelRule_greedyParallel vblPair heads)
+
 private def vblPar : Fin 3 → Finset (Fin 8)
   | 0 => {0, 1, 2}
   | 1 => {2, 3, 4}
@@ -510,8 +535,8 @@ example :
     decide
   exact (isValidParallelRule_boolParRule.eq_nil_iff stepFalseParTable _).1 hnil k
 
--- Expected parallel rounds and a.s. termination on `vblPar` (`q = 1 / 8`, `d = 1`, `ε = 1 / 4`),
--- together with the general `PMF.pi` bridge on `vblTriple`.
+-- Expected parallel rounds on `vblPar` (`q = 1 / 8`, `d = 1`, `ε = 1 / 4`) and a.s. termination,
+-- which needs no `ε`, together with the general `PMF.pi` bridges on `vblTriple`.
 example {psel : (∀ p : Fin 8 × ℕ, (fun _ : Fin 8 => Bool) p.1) → List (Fin 3) → List (Fin 3)}
     (hrule : IsValidParallelRule vblPar (fun k => allTrueSet (vblPar k)) psel) :
     ∫⁻ T, parallelRounds (α := fun _ : Fin 8 => Bool) psel T ∂table (unifCoin 8) ≤
@@ -538,7 +563,7 @@ example {psel : (∀ p : Fin 8 × ℕ, (fun _ : Fin 8 => Bool) p.1) → List (Fi
         hprob ⟨by norm_num, by norm_num⟩ hlll hrule
   · exact ae_exists_forall_notMem_parallelRun_symmetric (unifCoin 8) vblPar
       (fun k => allTrueSet (vblPar k)) (fun k => measurableSet_allTrueSet (vblPar k))
-      (fun k => allTrueSet_dependsOn (vblPar k)) hdeg hprob ⟨by norm_num, by norm_num⟩ hlll hrule
+      (fun k => allTrueSet_dependsOn (vblPar k)) hdeg hprob (hlll.trans (by norm_num)) hrule
 
 example {psel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fin 2) → List (Fin 2)}
     (hrule : IsValidParallelRule vblTriple (fun k => allTrueSet (vblTriple k)) psel) :
@@ -575,7 +600,9 @@ example {psel : (∀ p : Fin 5 × ℕ, (fun _ : Fin 5 => Bool) p.1) → List (Fi
       (fun k => allTrueSet (vblTriple k)) (fun k => measurableSet_allTrueSet (vblTriple k))
       (fun k => allTrueSet_dependsOn (vblTriple k)) (fun i => {i}ᶜ)
       (fun i j hji _ => by simp [hji]) (x := fun _ => 1 / 4) (fun _ => ⟨by norm_num, by norm_num⟩)
-      (ε := 1 / 4) ⟨by norm_num, by norm_num⟩ hAx hrule
+      (fun i => (hAx i).trans (mul_le_of_le_one_left
+        (mul_nonneg (by norm_num) (Finset.prod_nonneg fun _ _ => by norm_num)) (by norm_num)))
+      hrule
 
 -- Negative counterexamples: a batch with dependent events `[0, 1]` violates `pairwise`,
 -- and a non-maximal batch `[2]` when event `0` (disjoint from `2`) occurs violates `max`.

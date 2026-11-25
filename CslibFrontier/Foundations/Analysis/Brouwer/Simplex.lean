@@ -9,8 +9,6 @@ module
 
 public import CslibFrontier.Foundations.Analysis.Brouwer
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Topology.Algebra.Monoid
 
 /-!
 # Brouwer's fixed-point theorem on products of simplices

@@ -34,7 +34,9 @@ whose learners see only labelled samples.
 
 A *non-adaptive* learner chooses its query points from the seed alone, and then computes its
 hypothesis from the answers (`UniformLearning.QueryLearner.ofNonadaptive`); it makes as many
-queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le`).
+queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le`). A query tree
+that queries a list of points and then applies a function of the answers computes that function
+when it depends only on the queried values (`DecisionTree.eval_queryAll_of_congr`).
 
 ## Main definitions
 
@@ -51,6 +53,8 @@ queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le
 
 ## Main results
 
+* `Cslib.DecisionTree.eval_queryAll_of_congr`: a non-adaptive query tree computes a function of
+  the queried values.
 * `Cslib.MachineLearning.UniformLearning.QueryLearner.eval_ofNonadaptive`,
   `Cslib.MachineLearning.UniformLearning.QueryLearner.depth_ofNonadaptive_le`: the hypothesis and
   the query count of a non-adaptive learner.
@@ -67,6 +71,18 @@ queries as it lists points (`UniformLearning.QueryLearner.depth_ofNonadaptive_le
 -/
 
 @[expose] public section
+
+namespace Cslib.DecisionTree
+
+/-- If `f` depends only on the values at the variables of `l`, the tree `queryAll f l a` computes
+`f`, whatever the starting assignment `a`. -/
+theorem eval_queryAll_of_congr {ι β : Type*} [DecidableEq ι] {f : (ι → Bool) → β} {l : List ι}
+    (hf : ∀ g g' : ι → Bool, (∀ j ∈ l, g j = g' j) → f g = f g') (a x : ι → Bool) :
+    (queryAll f l a).eval x = f x := by
+  rw [eval_queryAll]
+  exact hf _ _ fun j hj => ite_eq_left_iff.2 fun h => absurd hj h
+
+end Cslib.DecisionTree
 
 namespace Cslib.MachineLearning.UniformLearning
 
@@ -155,9 +171,8 @@ theorem eval_ofNonadaptive {points : Ω → List (ι → Bool)}
     {hyp : ((ι → Bool) → Bool) → Ω → (ι → Bool) → Bool}
     (hhyp : ∀ ω g g', (∀ x ∈ points ω, g x = g' x) → hyp g ω = hyp g' ω)
     (f : (ι → Bool) → Bool) (ω : Ω) :
-    (ofNonadaptive points hyp ω).eval f = hyp f ω := by
-  rw [ofNonadaptive, DecisionTree.eval_queryAll]
-  exact hhyp ω _ _ fun x hx => ite_eq_left_iff.2 fun h => absurd hx h
+    (ofNonadaptive points hyp ω).eval f = hyp f ω :=
+  DecisionTree.eval_queryAll_of_congr (hhyp ω) _ f
 
 /-- The non-adaptive learner makes at most as many queries as it lists points. -/
 theorem depth_ofNonadaptive_le (points : Ω → List (ι → Bool))
