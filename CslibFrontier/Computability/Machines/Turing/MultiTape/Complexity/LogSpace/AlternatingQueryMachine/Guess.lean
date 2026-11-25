@@ -94,12 +94,11 @@ private theorem guess_step_fst (input : List Bool) (s : σ) (p : Option Bool) (b
     (M.guess.step input (s, p) b).1 = s ∨ (M.guess.step input (s, p) b).1 = M.step input s b := by
   cases hs : M.halted s
   · rcases p with _ | _ | _
-    · exact .inl (by rw [M.guess_step_none input hs])
-    · have hh : M.guess.halted (s, some false) = true := rfl
-      exact .inl (by rw [NondeterministicQueryMachine.step_of_halted _ _ hh])
-    · exact .inr (by rw [M.guess_step_some_true input hs])
-  · have hh : M.guess.halted (s, p) = true := by rw [guess_halted, hs, Bool.or_true]
-    exact .inl (by rw [NondeterministicQueryMachine.step_of_halted _ _ hh])
+    · exact .inl (congrArg Prod.fst (M.guess_step_none input hs b))
+    · exact .inl (congrArg Prod.fst (NondeterministicQueryMachine.step_of_halted _ _ rfl b))
+    · exact .inr (congrArg Prod.fst (M.guess_step_some_true input hs b))
+  · exact .inl (congrArg Prod.fst (NondeterministicQueryMachine.step_of_halted _ _
+      (by rw [guess_halted, hs, Bool.or_true]) b))
 
 /-- **Replays of the guessing machine follow replays of `M`**: every state the guessing machine
 reaches from `(s, p)` pairs a state that `M` reaches from `s` with a phase. -/
@@ -134,15 +133,14 @@ theorem guess_halted_replay {input : List Bool} {s : σ} {t : ℕ}
     intro choices hlen
     cases hs : M.halted s
     · rcases choices with _ | ⟨g, _ | ⟨b, rest⟩⟩
-      · simp only [List.length_nil] at hlen
-        omega
-      · simp only [List.length_cons, List.length_nil] at hlen
-        omega
+      · simp at hlen
+      · simp only [List.length_cons, List.length_nil] at hlen; omega
       · simp only [List.length_cons] at hlen
         rw [NondeterministicQueryMachine.replay_cons, M.guess_step_none input hs]
         cases g == M.universal s
-        · have hh : M.guess.halted (s, some false) = true := rfl
-          rw [NondeterministicQueryMachine.replay_of_halted _ _ hh, hh]
+        · rw [NondeterministicQueryMachine.replay_of_halted _ _
+            (rfl : M.guess.halted (s, some false) = true)]
+          rfl
         · rw [NondeterministicQueryMachine.replay_cons, M.guess_step_some_true input hs]
           exact ih (fun choices hc => h (b :: choices) (by simp only [List.length_cons]; omega))
             rest (by omega)
@@ -169,23 +167,19 @@ theorem guess_query_inSpace
 theorem guess_halted_inSpace
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length) :
     ComputableInSpace M.guess.halted (encGuessState encS) encBool
-      fun p => (encGuessState encS p).length := by
-  have h := budget_finite (encC := encBool)
-    (fun q : Option Bool × Bool => q.1 == some false || q.2)
+      fun p => (encGuessState encS p).length :=
+  budget_finite (encC := encBool) (fun q : Option Bool × Bool => q.1 == some false || q.2)
     (budget_prod (snd encS (encOption encBool))
       (budget_comp_linear hhalted (fst encS (encOption encBool))))
-  exact h
 
 /-- Whether a state of the guessing machine accepts, within linear space in the state. -/
 theorem guess_accept_inSpace
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length) :
     ComputableInSpace M.guess.accept (encGuessState encS) encBool
-      fun p => (encGuessState encS p).length := by
-  have h := budget_finite (encC := encBool)
-    (fun q : Option Bool × Bool => q.1 != some false && q.2)
+      fun p => (encGuessState encS p).length :=
+  budget_finite (encC := encBool) (fun q : Option Bool × Bool => q.1 != some false && q.2)
     (budget_prod (snd encS (encOption encBool))
       (budget_comp_linear haccept (fst encS (encOption encBool))))
-  exact h
 
 /-- The step of the guessing machine, from a state, a read and a choice, within linear space in
 the encoded state, read and choice: a guess checked by `M.universal`, or a move of `M`. -/
@@ -198,13 +192,12 @@ theorem guess_next_inSpace
   have hp := fst (encGuessState encS) encReadChoice
   have hrc := snd (encGuessState encS) encReadChoice
   have hs := fst' hp
-  have hmove := budget_comp_linear hnext (budget_prod hs hrc)
-  have hguess := budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 == q.2)
-    (budget_prod (snd' hrc) (budget_comp_linear huniversal hs))
   exact (budget_ite (budget_optionIsSome (snd' hp))
-    (budget_prod hmove (budget_const (encB := encOption encBool) none))
-    (budget_prod hs (budget_optionSome hguess))).of_enc_eq fun p => by
-      obtain ⟨⟨_, o⟩, _, _⟩ := p
-      cases o <;> rfl
+    (budget_prod (budget_comp_linear hnext (budget_prod hs hrc))
+      (budget_const (encB := encOption encBool) none))
+    (budget_prod hs (budget_optionSome
+      (budget_finite (encC := encBool) (fun q : Bool × Bool => q.1 == q.2)
+        (budget_prod (snd' hrc) (budget_comp_linear huniversal hs)))))).of_enc_eq
+    fun ⟨⟨_, o⟩, _, _⟩ => by cases o <;> rfl
 
 end Turing.AlternatingQueryMachine

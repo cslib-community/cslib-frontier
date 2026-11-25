@@ -155,23 +155,17 @@ private theorem solution_of_fork (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZM
     (hy : accepts expand radius y c) (hy' : accepts expand radius y' c') :
     IsSolution A (2 * radius) (y - y') := by
   simp only [accepts, decide_eq_true_eq] at hy hy'
-  refine ⟨fun hz => hc ?_, ?_, ?_⟩
-  · rw [hy.2, hy'.2, sub_eq_zero.mp hz]
-  · intro i j
-    change |y i j - y' i j| ≤ _
+  refine ⟨fun hz => hc (by rw [hy.2, hy'.2, sub_eq_zero.mp hz]), fun i j => ?_, ?_⟩
+  · change |y i j - y' i j| ≤ _
     calc
       _ ≤ |y i j| + |y' i j| := abs_sub _ _
       _ ≤ (radius : ℤ) + radius := add_le_add (hy.1 i j) (hy'.1 i j)
       _ = _ := by push_cast; ring
-  · let w := fun i j => (y i j : ZMod q)
-    let w' := fun i j => (y' i j : ZMod q)
-    have hsub : (fun i j => ((y - y') i j : ZMod q)) = w - w' := by
-      funext i j
-      exact Int.cast_sub _ _
-    rw [hsub]
-    apply add_right_cancel (b := moduleSISMap A w')
-    simpa only [← moduleSISMap_add, sub_add_cancel, zero_add]
-      using (show moduleSISMap A w = moduleSISMap A w' from hprod)
+  · rw [show (fun i j => ((y - y') i j : ZMod q)) =
+        (fun i j => (y i j : ZMod q)) - fun i j => (y' i j : ZMod q) from
+      funext₂ fun _ _ => Int.cast_sub _ _]
+    exact add_right_cancel (b := product A y')
+      (by simpa only [product, ← moduleSISMap_add, sub_add_cancel, zero_add] using hprod)
 
 omit [DecidableEq C] in
 private theorem oneRun (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZMod q))
@@ -185,20 +179,15 @@ private theorem oneRun (A : Matrix (Fin d) (Fin (k + 1)) (Fin n → ZMod q))
   rw [ForkingReduction.map_run_program]
   let aux := withSampleList () (ForkingReduction.gameHandler
     (noSigner (d := d) (n := n) (q := q) (C := C)))
-  have step (p : Point d n q) (t : List (Point d n q × C)) :
-      (ROMSignature.oracle C p t).map
-          (fun (a, t') => (a, (t', ([] : List Unit)), ([] : List Unit))) =
-        aux (Sum.inr p) ((t, []), []) := by
-    simp only [aux, withSampleList, ForkingReduction.gameHandler, List.tail_nil,
-      PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def]
   have hrun := run_interpret_map_state (ROMSignature.oracle C) (fun p => aux (Sum.inr p))
-    (fun t => ((t, []), [])) step B []
+    (fun t => ((t, []), [])) (fun p t => by
+      simp only [aux, withSampleList, ForkingReduction.gameHandler, List.tail_nil,
+        PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def]) B []
   simp only [forger, liftSolver, interpret_map, interpret_interpret, interpret_query,
     StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
   change (((interpret (fun p => aux (Sum.inr p)) B).run (([], []), [])).bind _) = _
   rw [← hrun, PMF.bind_map]
-  congr 1 with r
-  rcases r with ⟨⟨msg, y⟩, cache⟩
+  congr 1 with ⟨⟨msg, y⟩, cache⟩
   simp [ForkingReduction.finishGame, check]
 
 private def collides (expand : C → Option (Fin n → ZMod q)) (c c' : C) : Bool :=
@@ -226,15 +215,13 @@ private theorem fork_collision_le (fallback : C) (expand : C → Option (Fin n �
       collisionMass expand := by
   refine Forking.bad_reply_le coins (forkingAlgorithm fallback (Q + 1)
     fun s => ForkingReduction.program noSigner (check A expand radius) (forger (adv A s)) [])
-      (fun r => r.1.2.challenge) ?_ (collides expand)
-  intro s h j hj
+      (fun r => r.1.2.challenge) (fun s h j hj => ?_) (collides expand)
   unfold forkingAlgorithm at hj ⊢
   generalize hrun : runWithAnswers _ _ (List.ofFn h) = run at hj ⊢
   obtain ⟨⟨pos, outcome⟩, queries⟩ := run
-  have hpos := (validIndex_eq_some hj).1
   obtain ⟨_, hnamed⟩ := ForkingReduction.runWithAnswers_program _ noSigner (check A expand radius)
     (noProgrammed A expand radius) (forger (adv A s)) [] _ hrun
-  simpa only [List.getD_ofFn] using (hnamed j hpos).2.1.symm
+  simpa only [List.getD_ofFn] using (hnamed j (validIndex_eq_some hj).1).2.1.symm
 
 /-- Classical self-target success with a uniform digest oracle and deterministic partial
 challenge expansion. A fork extracting two distinct polynomials gives a Module-SIS solution
@@ -257,43 +244,36 @@ theorem success_le_fork_digest (expand : C → Option (Fin n → ZMod q)) (radiu
     (fun s => forger (adv s.1 s.2)) (fun _ => []) (fun s => bounded (hQ s.1 s.2))
     (fallback := fallback) (ε := 0) (succ := succ + collisionMass expand) (by simp)
     (p := (matrices.bind (game expand radius coins adv)) true)
-  have hwin : (matrices.bind (game expand radius coins adv)) true ≤
-      first.bind (fun s => ((interpret countingUniform (ForkingReduction.program noSigner
-        (check s.1 expand radius) (forger (adv s.1 s.2)) [])).run 0).map
-          fun ((_, out), _) => out.won) true + 0 := by
-    simp [first, game, oneRun, pmf_norm]
+    (by simp [first, game, oneRun, pmf_norm])
   have hf : (Forking.fork first (forkingAlgorithm fallback (Q + 1)
       fun s => ForkingReduction.program noSigner (check s.1 expand radius)
         (forger (adv s.1 s.2)) [])).map Option.isSome true ≤ succ + collisionMass expand := by
-    have hmix : Forking.fork first (forkingAlgorithm fallback (Q + 1)
-        fun s => ForkingReduction.program noSigner (check s.1 expand radius)
-          (forger (adv s.1 s.2)) []) =
+    have hfork : Forking.fork first (forkingAlgorithm fallback (Q + 1)
+          fun s => ForkingReduction.program noSigner (check s.1 expand radius)
+            (forger (adv s.1 s.2)) []) =
         matrices.bind (fun A => fork fallback expand radius Q coins adv A) := by
       simp only [first, fork, replay, Forking.fork, pmf_norm, Function.comp_def]
       rfl
-    rw [hmix, PMF.map_bind]
-    apply Probability.PMF.bind_apply_le_add_const_on_support
-    intro A _
-    refine le_trans ?_ (add_le_add le_rfl (fork_collision_le fallback expand radius Q coins adv A))
+    rw [hfork, PMF.map_bind]
+    refine Probability.PMF.bind_apply_le_add_const_on_support _ _ fun A _ =>
+      le_trans ?_ (add_le_add le_rfl (fork_collision_le fallback expand radius Q coins adv A))
     simp only [reductionLaw, PMF.map_comp]
-    rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-    apply Probability.PMF.bind_apply_le_add_on_support
-    intro result hr
+    simp only [← PMF.bind_pure_comp]
+    refine Probability.PMF.bind_apply_le_add_on_support _ _ fun result hr => ?_
     rcases result with _ | ⟨j, ⟨⟨_, a⟩, _⟩, ⟨⟨_, b⟩, _⟩⟩
     · simp [difference]
-    · obtain ⟨s, _, he, hc, ha, hb⟩ := ForkingReduction.exists_of_mem_support_fork
+    · obtain ⟨_, _, he, hc, ha, hb⟩ := ForkingReduction.exists_of_mem_support_fork
         (first := coins) noSigner (fun _ => check A expand radius)
         (fun _ => noProgrammed A expand radius) (fun s => forger (adv A s)) (fun _ => []) hr
       by_cases hsame : expand a.challenge = expand b.challenge
-      · have hs := (of_decide_eq_true ha).2
-        have hbad : collides expand a.challenge b.challenge = true :=
-          decide_eq_true ⟨hc, by rw [hs]; rfl, hsame⟩
+      · have hbad : collides expand a.challenge b.challenge = true :=
+          decide_eq_true ⟨hc, by rw [(of_decide_eq_true ha).2]; rfl, hsame⟩
         simp [hbad]
-      · have hw := solution_of_fork A expand hsame (congrArg Prod.snd he) ha hb
-        simp [Function.comp_def, difference, hw]
-  have hmass : collisionMass expand ≤ 1 := Finset.sup_le fun _ _ => PMF.coe_le_one _ _
-  simpa [succ] using h hwin hf (ENNReal.add_ne_top.mpr
-    ⟨PMF.apply_ne_top _ _, ne_top_of_le_ne_top ENNReal.one_ne_top hmass⟩)
+      · simp [Function.comp_def, difference,
+          solution_of_fork A expand hsame (congrArg Prod.snd he) ha hb]
+  simpa [succ] using h hf (ENNReal.add_ne_top.mpr
+    ⟨PMF.apply_ne_top _ _, ne_top_of_le_ne_top ENNReal.one_ne_top
+      (Finset.sup_le fun _ _ => PMF.coe_le_one _ _)⟩)
 
 /-- For ideal challenges embedded in the ring, different replies always produce different
 last coordinates. The bound recovers the classical Dilithium §6.1 fork with zero collision loss. -/
@@ -305,11 +285,8 @@ theorem success_le_fork (encode : C ↪ (Fin n → ZMod q)) (radius Q : ℕ)
       (Q + 1 : ℕ) / (Fintype.card C : ℝ) + Real.sqrt ((Q + 1 : ℕ) *
         ((matrices.bind fun A => (reductionLaw fallback (some ∘ encode) radius Q coins adv A).map
           fun w => decide (IsSolution A (2 * radius) w)) true).toReal) := by
-  have hm : collisionMass (some ∘ encode) = 0 := by
-    apply le_antisymm _ bot_le
-    apply Finset.sup_le
-    intro c _
-    simp [collides, Function.comp_def, encode.injective.eq_iff]
+  have hm : collisionMass (some ∘ encode) = 0 := le_antisymm
+    (Finset.sup_le fun c _ => by simp [collides, Function.comp_def, encode.injective.eq_iff]) bot_le
   simpa only [hm, add_zero] using
     success_le_fork_digest (some ∘ encode) radius Q matrices coins adv hQ fallback
 

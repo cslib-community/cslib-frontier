@@ -213,8 +213,7 @@ theorem Occupied.size_pos {c : BPlusTree α β} (ht : 2 ≤ t) (ho : Occupied t 
   induction c with
   | leaf entries =>
     have := ho.le_width
-    simp only [width_leaf] at this
-    simp only [size_leaf]
+    simp only [width_leaf, size_leaf] at this ⊢
     omega
   | node first rest ih _ =>
     have := ih ho.first
@@ -228,14 +227,12 @@ theorem Separated.le_of_mem_tail {first c : BPlusTree α β} {s : α} {rest : Li
     (h : Separated (.node first ((s, c) :: rest)))
     (hs : (BPlusTree.node first ((s, c) :: rest)).toList.IsSortedAssoc) (hc : 0 < c.size)
     {q : α × β} (hq : q ∈ (BPlusTree.node c rest).toList) : s ≤ q.1 := by
-  rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs
-  have hcs := hs.2.1
-  rw [toList_node, List.isSortedAssoc_append_iff] at hcs
-  rw [toList_node, List.mem_append] at hq
-  rcases hq with hq | hq
+  rw [toList_node_cons, List.isSortedAssoc_append_iff, toList_node,
+    List.isSortedAssoc_append_iff] at hs
+  rcases List.mem_append.1 (toList_node .. ▸ hq) with hq | hq
   · exact h.le_of_mem (e := (s, c)) List.mem_cons_self hq
   · obtain ⟨p, hp⟩ := List.exists_mem_of_length_pos (l := c.toList) hc
-    exact (h.le_of_mem (e := (s, c)) List.mem_cons_self hp).trans (hcs.2.2 p hp q hq).le
+    exact (h.le_of_mem (e := (s, c)) List.mem_cons_self hp).trans (hs.2.1.2.2 p hp q hq).le
 
 /-- Lookup against the model, under what the search uses: the separator convention, sorted
 entries, and occupied children at `2 ≤ t`, which makes them non-empty. -/
@@ -246,27 +243,22 @@ private theorem lookup_eq_of (ht : 2 ≤ t) (k : α) :
     rw [lookup_leaf, toList_leaf]
     exact SortedAssoc.idRun_lookupM (by simpa using hs) k
   | .node first [], hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    rw [lookup_node_nil,
-      lookup_eq_of ht k first hp.first (by simpa using hs) fun c hc => hf.of_mem_children hc]
+    rw [lookup_node_nil, lookup_eq_of ht k first hp.first (by simpa using hs) fun c hc =>
+      (ho first (by simp)).of_mem_children hc]
     simp
   | .node first ((s, c) :: rest), hp, hs, ho => by
-    have hf : Occupied t first := ho first (by simp)
-    have hc : Occupied t c := ho c (by simp)
-    have hs' := hs
-    rw [toList_node_cons, List.isSortedAssoc_append_iff] at hs'
+    have hs' := List.isSortedAssoc_append_iff.1 (toList_node_cons ▸ hs)
     rw [lookup_node_cons, toList_node_cons]
     by_cases hk : s ≤ k
-    · simp only [hk, ↓reduceIte]
-      rw [List.lookup_append_of_forall_lt fun p hp' =>
-        lt_of_lt_of_le (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp') hk]
-      exact lookup_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d (by
-        simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
-        exact Or.inr hd)
-    · simp only [hk, ↓reduceIte]
-      rw [List.lookup_append_of_forall_gt fun q hq =>
-        lt_of_lt_of_le (lt_of_not_ge hk) (hp.le_of_mem_tail hs (hc.size_pos ht) hq)]
-      exact lookup_eq_of ht k first hp.first hs'.1 fun d hd => hf.of_mem_children hd
+    · rw [ite_eq_left hk, List.lookup_append_of_forall_lt fun p hp' =>
+        (hp.lt_of_mem_first (e := (s, c)) List.mem_cons_self hp').trans_le hk]
+      refine lookup_eq_of ht k (.node c rest) hp.tail hs'.2.1 fun d hd => ho d ?_
+      simp only [children_node, List.map_cons, List.mem_cons] at hd ⊢
+      exact Or.inr hd
+    · rw [ite_eq_right hk, List.lookup_append_of_forall_gt fun q hq =>
+        (lt_of_not_ge hk).trans_le (hp.le_of_mem_tail hs ((ho c (by simp)).size_pos ht) hq)]
+      exact lookup_eq_of ht k first hp.first hs'.1 fun d hd =>
+        (ho first (by simp)).of_mem_children hd
 termination_by tr => sizeOf tr
 
 /-- Model equation of lookup on well-formed trees. -/

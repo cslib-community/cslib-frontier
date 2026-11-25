@@ -187,8 +187,7 @@ private theorem KeysValsRep.toFinset_eq_dom {base c_exp n_max U V : ℕ} {ks : L
     {s : Dictionary.State U} {mem : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem) :
     ks.toFinset = Dictionary.dom s := by
   ext u
-  rw [List.mem_toFinset]
-  exact h.2.2.2.1 u
+  exact List.mem_toFinset.trans (h.2.2.2.1 u)
 
 theorem KeysValsRep.card_dom_eq {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {mem : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem) :
@@ -201,20 +200,14 @@ private theorem KeysValsRep.unique {base c_exp n_max U V : ℕ} {ks₁ ks₂ : L
     (h₂ : KeysValsRep base c_exp n_max U V ks₂ s₂ mem) :
     s₁ = s₂ := by
   funext u
-  have hlen : ks₁.length = ks₂.length := h₁.2.2.1.symm.trans h₂.2.2.1
-  have hks_eq : ks₁ = ks₂ := by
-    apply List.ext_getElem hlen
-    intro idx hlt1 hlt2
-    apply Fin.ext
-    rw [← (h₁.2.2.2.2.1 idx hlt1).1, ← (h₂.2.2.2.2.1 idx hlt2).1]
+  have hks_eq : ks₁ = ks₂ := List.ext_getElem (h₁.2.2.1.symm.trans h₂.2.2.1)
+    fun idx hlt1 hlt2 => Fin.ext ((h₁.2.2.2.2.1 idx hlt1).1.symm.trans (h₂.2.2.2.2.1 idx hlt2).1)
   subst hks_eq
   by_cases hu : u ∈ ks₁
   · obtain ⟨idx, hlt, rfl⟩ := List.mem_iff_getElem.mp hu
     rw [(h₁.2.2.2.2.1 idx hlt).2, (h₂.2.2.2.2.1 idx hlt).2]
-  · have hu1 : u ∉ Dictionary.dom s₁ := fun h => hu ((h₁.2.2.2.1 u).mpr h)
-    have hu2 : u ∉ Dictionary.dom s₂ := fun h => hu ((h₂.2.2.2.1 u).mpr h)
-    rw [Dictionary.notMem_dom_iff] at hu1 hu2
-    rw [hu1, hu2]
+  · rw [Dictionary.notMem_dom_iff.mp fun h => hu ((h₁.2.2.2.1 u).mpr h),
+      Dictionary.notMem_dom_iff.mp fun h => hu ((h₂.2.2.2.1 u).mpr h)]
 
 /-- Insertion-order-indexed representation invariant `RepWithKeys w base c_exp n_max U V ks s x`
 for cuckoo hashing: stores the static header, the hash pair `θ_mem = extractSeed ... x.mem`, the
@@ -257,9 +250,9 @@ theorem RepWithKeys.extractSeed_mem_survivingSeeds {w base c_exp n_max U V : ℕ
   rfl
 
 theorem Rep.bounded {w base c_exp n_max U V : ℕ} {s : Dictionary.State U} {x : Data 19}
-    (h : Rep w base c_exp n_max U V s x) : x.Bounded w := by
-  obtain ⟨_, hbdd, _⟩ := h
-  exact hbdd
+    (h : Rep w base c_exp n_max U V s x) : x.Bounded w :=
+  let ⟨_, hbdd, _⟩ := h
+  hbdd
 
 /-- A machine state `x` represents at most one abstract dictionary state `s`. -/
 theorem Rep.unique {w base c_exp n_max U V : ℕ}
@@ -302,9 +295,9 @@ theorem Rep.supported {w base c_exp n_max U V : ℕ}
     (hmem : ∀ a ∈ (Block.mk base (space c_exp n_max)).footprint, x'.mem a = x.mem a)
     (hbdd : x'.Bounded w)
     (hrep : Rep w base c_exp n_max U V s x) :
-    Rep w base c_exp n_max U V s x' := by
-  obtain ⟨ks, hrep_ks⟩ := hrep
-  exact ⟨ks, hrep_ks.supported hreg0 hmem hbdd⟩
+    Rep w base c_exp n_max U V s x' :=
+  let ⟨ks, hrep_ks⟩ := hrep
+  ⟨ks, hrep_ks.supported hreg0 hmem hbdd⟩
 
 /-! ### Section 2: `allocSpan` and `initSetup` programs and specifications -/
 
@@ -527,27 +520,21 @@ noncomputable def coupleExtractedSeed (base c_exp n_max U : ℕ) (μ : PMF (Data
 
 @[simp]
 theorem map_snd_coupleExtractedSeed (base c_exp n_max U : ℕ) (μ : PMF (Data 19)) :
-    (coupleExtractedSeed base c_exp n_max U μ).map Prod.snd = μ := by
-  dsimp only [coupleExtractedSeed]
-  rw [PMF.map_comp]
-  exact PMF.map_id _
+    (coupleExtractedSeed base c_exp n_max U μ).map Prod.snd = μ :=
+  (PMF.map_comp _ _ _).trans (PMF.map_id _)
 
 @[simp]
 theorem map_fst_coupleExtractedSeed (base c_exp n_max U : ℕ) (μ : PMF (Data 19)) :
     (coupleExtractedSeed base c_exp n_max U μ).map Prod.fst =
-      μ.map (fun y => extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) := by
-  dsimp only [coupleExtractedSeed]
-  rw [PMF.map_comp]
-  rfl
+      μ.map (fun y => extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) :=
+  PMF.map_comp _ _ _
 
 theorem mem_support_coupleExtractedSeed {base c_exp n_max U : ℕ} {μ : PMF (Data 19)}
     {p : Seed c_exp n_max U (tableBits n_max) × Data 19}
     (hp : p ∈ (coupleExtractedSeed base c_exp n_max U μ).support) :
     p.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) p.2.mem ∧
     p.2 ∈ μ.support := by
-  dsimp only [coupleExtractedSeed] at hp
-  rw [PMF.mem_support_map_iff] at hp
-  obtain ⟨y, hy, rfl⟩ := hp
+  obtain ⟨_, hy, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
   exact ⟨rfl, hy⟩
 
 /-- Coupled distributional specification for `initSetup`, directly returning the seed-coupled
@@ -569,8 +556,7 @@ theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
         p.2.regs 1 = base + space c_exp n_max ∧
         RepWithKeys w base c_exp n_max U V [] (Dictionary.empty U) p.2 ∧
         Modifies (Block.mk base (space c_exp n_max)).footprint x₁.mem p.2.mem := by
-  have hfit_end : Fits w (base + space c_exp n_max) := by
-    rw [← hfr]; exact hx₁.1 1
+  have hfit_end : Fits w (base + space c_exp n_max) := hfr ▸ hx₁.1 1
   have hfit_sp : Fits w (space c_exp n_max) := by fits
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
@@ -615,9 +601,7 @@ theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
   refine ⟨coupleExtractedSeed base c_exp n_max U μ_init, ?_, ?_, fun p hp => ?_⟩
   · simpa only [map_snd_coupleExtractedSeed] using hfull_dist
   · rw [map_fst_coupleExtractedSeed]
-    dsimp only [μ_init]
-    rw [PMF.map_comp]
-    exact hres_law
+    exact (PMF.map_comp ..).trans hres_law
   · obtain ⟨hp1, hy⟩ := mem_support_coupleExtractedSeed hp
     rcases p with ⟨θ₀, y⟩
     have hy_bdd : y.Bounded w := hfull_dist.bounded hx₁ y hy
@@ -1044,14 +1028,9 @@ theorem probeKeyCode_execWithin {w base c_exp n_max U : ℕ}
         cases tbl.t2 (evalHash2 θ u) <;> rfl
     rw [hlookup_eq]
     cases ht2 : tbl.t2 (evalHash2 θ u) with
-    | none =>
-      rw [hs5_13, ht2]
-      exact hs2_13_eq
+    | none => simpa only [hs5_13, ht2] using hs2_13_eq
     | some e₂ =>
-      by_cases hk2 : e₂.key = u
-      · simp only [hk2, ↓reduceIte, hs5_13, hs5_14, ht2, true_and]
-      · simp only [hk2, ↓reduceIte, hs5_13, ht2]
-        exact hs2_13_eq
+      by_cases hk2 : e₂.key = u <;> simp [hk2, hs5_13, hs5_14, ht2, hs2_13_eq]
 
 private def queryFoundBranchCode : Code .exact 19 :=
   .seq (loadHeaderCode 17 14)
@@ -1383,18 +1362,14 @@ private theorem evictRoundBodyCode_execWithin {w base c_exp n_max U fuel : ℕ}
   rw [hput1] at hs1_slots hs1_tiv hs1_out
   cases disp₁ with
   | none =>
-    have hres_eq : res = (tbl₁, none) := by
-      dsimp only [res, pureEvictRound]
-      rw [hput1]
+    have hres_eq : res = (tbl₁, none) := by simp only [res, pureEvictRound, hput1]
     rw [hres_eq]
     wram_exec [hs1_0, hs1_out, Nat.add_sub_cancel,
       (by mem_frame : s1.mem (base + 15) = fuel + 1)]
     exact ⟨by regs_frame, by struct_frame hhdr, hrep_hash.congr_of_footprint (by mem_frame),
       by struct_frame hs1_slots, hs1_tiv, by mem_frame, by mem_frame, by mem_frame⟩
   | some e₁ =>
-    have hres_eq : res = putT2 (evalHash2 θ) tbl₁ e₁ := by
-      dsimp only [res, pureEvictRound]
-      rw [hput1]
+    have hres_eq : res = putT2 (evalHash2 θ) tbl₁ e₁ := by simp only [res, pureEvictRound, hput1]
     rw [hres_eq]
     obtain ⟨hs1_16, hs1_11, hs1_12, he₁⟩ := hs1_out
     wram_exec [hs1_0, hs1_16]

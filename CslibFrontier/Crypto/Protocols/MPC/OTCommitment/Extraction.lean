@@ -61,14 +61,12 @@ private theorem accepts_choices_eq {k : ℕ} (ts : Fin k → Fin 4 → Bool)
     (h : ∀ i, (ts i (boolPairToFin4 (false, false)) ^^
       ts i (boolPairToFin4 (false, true))) = b → c i = d i) : c = d := by
   funext i
-  by_cases he : c i = d i
-  · exact he
-  · apply h i
-    have hc' := (hc i).2
-    have hd' := (hd i).2
-    have hp := (hc i).1
-    cases hcbit : c i <;> cases hdbit : d i <;> simp only [hcbit, hdbit] at he hc' hd'
-    all_goals simp_all
+  by_contra he
+  refine he (h i ?_)
+  have hc' := (hc i).2
+  have hd' := (hd i).2
+  have hp := (hc i).1
+  cases hcbit : c i <;> cases hdbit : d i <;> simp_all
 
 /-- A fixed opening to the opposite of the extracted bit is accepted on at most a
 `2⁻⌈k/2⌉` fraction of the honest receiver's hidden choices.
@@ -81,38 +79,35 @@ theorem wrongOpening_bound {k : ℕ} (ts : Fin k → Fin 4 → Bool) (b : Bool)
   classical
   let good := {i : Fin k | (ts i (boolPairToFin4 (false, false)) ^^
     ts i (boolPairToFin4 (false, true))) = b}
-  let win := fun c => Accepts c (fun i => ts i (boolPairToFin4 (false, c i))) b o
-  have hinj : Function.Injective (fun c : {c // win c} => fun i : good => c.val i.val) := by
-    intro c d he
-    apply Subtype.ext
-    exact accepts_choices_eq ts b o c.property d.property (fun i hi =>
-      congrFun he ⟨i, hi⟩)
-  have hcard : Nat.card {c // win c} ≤ 2 ^ (k / 2) := by
-    have hle := Fintype.card_le_of_injective _ hinj
-    have hmajor := BitString.card_filter_eq_le_half_of_strictMajorityOn_ne
-      Finset.univ (fun i => ts i (boolPairToFin4 (false, false)) ^^
-        ts i (boolPairToFin4 (false, true))) b
-      (by simpa only [extract, strictMajority_eq_strictMajorityOn] using hb)
-    have hg : Fintype.card good ≤ k / 2 := by
-      simpa only [good, Fintype.card_subtype, Set.mem_ofPred_eq, Finset.card_univ,
-        Fintype.card_fin] using hmajor
+  have hinj : Function.Injective
+      (fun c : {c // Accepts c (fun i => ts i (boolPairToFin4 (false, c i))) b o} =>
+        fun i : good => c.val i.val) := fun c d he =>
+    Subtype.ext (accepts_choices_eq ts b o c.2 d.2 fun i hi => congrFun he ⟨i, hi⟩)
+  have hg : Fintype.card good ≤ k / 2 := by
+    simpa only [good, Fintype.card_subtype, Set.mem_ofPred_eq, Finset.card_univ, Fintype.card_fin]
+      using BitString.card_filter_eq_le_half_of_strictMajorityOn_ne (Finset.univ : Finset (Fin k)) _
+        b (by simpa only [extract, strictMajority_eq_strictMajorityOn] using hb)
+  have hcard : Nat.card {c // Accepts c (fun i => ts i (boolPairToFin4 (false, c i))) b o} ≤
+      2 ^ (k / 2) := by
     rw [Nat.card_eq_fintype_card]
-    exact hle.trans (by simpa using Nat.pow_le_pow_right (by decide : 0 < 2) hg)
+    exact (Fintype.card_le_of_injective _ hinj).trans
+      (by simpa using Nat.pow_le_pow_right (by decide : 0 < 2) hg)
   rw [Probability.PMF.uniformOfFintype_map_apply]
   simp only [decide_eq_true_eq]
   calc
-    _ ≤ (2 ^ (k / 2) : ℝ≥0∞) / Fintype.card (Fin k → Bool) := by
-      apply mul_le_mul_of_nonneg_right _ zero_le
-      exact_mod_cast hcard
+    _ ≤ (2 ^ (k / 2) : ℝ≥0∞) / Fintype.card (Fin k → Bool) :=
+      mul_le_mul_of_nonneg_right (by exact_mod_cast hcard) zero_le
     _ = (2 : ℝ≥0∞)⁻¹ ^ (k - k / 2) := by
       simp only [Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow,
         Nat.cast_ofNat]
       have hk : k = k / 2 + (k - k / 2) := by omega
-      conv_lhs => arg 2; rw [hk, pow_add]
-      rw [div_eq_mul_inv, ENNReal.mul_inv, ← mul_assoc]
-      · rw [ENNReal.mul_inv_cancel (by positivity) (by finiteness)]
-        simp [ENNReal.inv_pow]
-      all_goals simp
+      conv_lhs =>
+        arg 2
+        rw [hk, pow_add]
+      rw [div_eq_mul_inv, ENNReal.mul_inv (by simp) (by simp), ← mul_assoc,
+        ENNReal.mul_inv_cancel (by positivity)
+          (by finiteness)]
+      simp [ENNReal.inv_pow]
 
 /-- Real corrupted-sender experiment, using the actual OT world. The sender state at the commit
 boundary and its arbitrary auxiliary output are retained jointly with the honest receiver's result.
@@ -198,14 +193,10 @@ theorem simulatedOpening_coupled {State Output : Type} (A : Sender State) (k : �
   · simp only [joint, simulatedOpening, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
     pmf_swap
-  · simp only [joint, Probability.PMF.monad_bind_eq_bind,
-      Probability.PMF.monad_pure_eq_pure]
-    apply Probability.PMF.toOuterMeasure_bind_le
-    intro st
-    apply Probability.PMF.toOuterMeasure_bind_le
-    rintro ⟨ts, final⟩
-    apply Probability.PMF.toOuterMeasure_bind_le
-    rintro ⟨submission, out⟩
+  · simp only [joint, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure]
+    refine Probability.PMF.toOuterMeasure_bind_le _ _ _ fun _ =>
+      Probability.PMF.toOuterMeasure_bind_le _ _ _ fun ⟨ts, _⟩ =>
+        Probability.PMF.toOuterMeasure_bind_le _ _ _ fun ⟨submission, _⟩ => ?_
     change ((PMF.uniformOfFintype (Fin k → Bool)).map _).toOuterMeasure _ ≤ _
     rw [PMF.toOuterMeasure_map_apply]
     simpa only [Set.preimage_ofPred_eq, ne_eq, Prod.mk.injEq, and_true, eq_self] using

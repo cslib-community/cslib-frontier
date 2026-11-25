@@ -176,14 +176,12 @@ private theorem encard_le_coe_of_finset_card_le {γ : Type*} {S : Set γ} {L : �
     S.encard ≤ L := by
   classical
   by_contra! hlt
-  have hle : ((L + 1 : ℕ) : ℕ∞) ≤ S.encard := by
-    rw [Nat.cast_add, Nat.cast_one]
-    exact Order.add_one_le_of_lt hlt
-  obtain ⟨t, hts, ht⟩ := Set.exists_subset_encard_eq hle
+  obtain ⟨t, hts, ht⟩ := Set.exists_subset_encard_eq (k := ((L + 1 : ℕ) : ℕ∞))
+    (by simpa only [Nat.cast_add, Nat.cast_one] using Order.add_one_le_of_lt hlt)
   have htFin : t.Finite := Set.finite_of_encard_eq_coe ht
   have hcard : #(htFin.toFinset) = L + 1 := by
     rw [← Nat.cast_inj (R := ℕ∞), ← Set.encard_coe_eq_coe_finsetCard, Set.Finite.coe_toFinset, ht]
-  have hB := h htFin.toFinset (by simpa using hts)
+  have := h htFin.toFinset (by simpa using hts)
   omega
 
 /-- A finite code `C : Finset (ι → α)` is `(ρ, L)`-list-decodable iff every Hamming ball of
@@ -195,7 +193,7 @@ theorem isListDecodable_finset_iff {C : Finset (ι → α)} {ρ : ℝ} {L : ℕ}
   have hset : ({c ∈ (C : Set (ι → α)) | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} : Set _) =
       ((C.filter fun c => (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι : Finset (ι → α)) :
         Set (ι → α)) := by
-    ext c
+    ext
     simp
   rw [hset, Set.encard_coe_eq_coe_finsetCard, Nat.cast_le]
 
@@ -207,20 +205,16 @@ theorem isListDecodable_iff_forall_finset {C : Set (ι → α)} {ρ : ℝ} {L : 
         (B : Set (ι → α)) ⊆ {c ∈ C | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} →
         #B ≤ L := by
   refine ⟨fun h w B hB => ?_, fun h w => encard_le_coe_of_finset_card_le (h w)⟩
-  have henc : (B : Set (ι → α)).encard ≤ L := (Set.encard_le_encard hB).trans (h w)
-  rwa [Set.encard_coe_eq_coe_finsetCard, Nat.cast_le] at henc
+  simpa only [Set.encard_coe_eq_coe_finsetCard, Nat.cast_le] using
+    (Set.encard_le_encard hB).trans (h w)
 
 /-- List decodability is downward closed in the code and radius and upward closed in the list
 size. -/
 theorem IsListDecodable.mono {C C' : Set (ι → α)} {ρ ρ' : ℝ} {L L' : ℕ}
     (h : IsListDecodable C ρ L) (hC : C' ⊆ C) (hρ : ρ' ≤ ρ) (hL : L ≤ L') :
     IsListDecodable C' ρ' L' := fun w => by
-  have hsub : {c ∈ C' | (hammingDist c w : ℝ) ≤ ρ' * Fintype.card ι} ⊆
-      {c ∈ C | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} := by
-    rintro c ⟨hc, hdist⟩
-    refine ⟨hC hc, hdist.trans ?_⟩
-    exact mul_le_mul_of_nonneg_right hρ (Nat.cast_nonneg _)
-  exact (Set.encard_le_encard hsub).trans ((h w).trans (Nat.cast_le.2 hL))
+  refine (Set.encard_le_encard ?_).trans ((h w).trans (Nat.cast_le.2 hL))
+  exact fun _ hc => ⟨hC hc.1, hc.2.trans (mul_le_mul_of_nonneg_right hρ (Nat.cast_nonneg _))⟩
 
 /-- For an injective encoder of a finite nonempty message type, combinatorial `(ρ, L)`-list
 decodability of `Set.range enc` is equivalent to the existence of a `ListCode` with encoder `enc`
@@ -237,21 +231,13 @@ theorem isListDecodable_range_iff_exists_listCode {M : Type*} [Finite M] [Nonemp
       {x | (hammingDist (enc x) w : ℝ) ≤ ρ * Fintype.card ι}
     have hS (w : ι → α) : #(S w) ≤ L := by
       have himg : ((S w).image enc : Set (ι → α)) ⊆
-          {c ∈ Set.range enc | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} := by
-        rintro c hc
-        simp only [Finset.coe_image, Set.mem_image, Finset.mem_coe, Finset.mem_filter,
-          Finset.mem_univ, true_and, S] at hc
-        obtain ⟨x, hdist, rfl⟩ := hc
-        exact ⟨⟨x, rfl⟩, hdist⟩
-      have hencard : (((S w).image enc : Finset (ι → α)) : Set (ι → α)).encard ≤ L :=
-        (Set.encard_le_encard himg).trans (h w)
-      rw [Set.encard_coe_eq_coe_finsetCard, card_image_of_injective _ henc, Nat.cast_le]
-        at hencard
-      exact hencard
+          {c ∈ Set.range enc | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} := fun c hc => by
+        obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp hc
+        exact ⟨⟨x, rfl⟩, (Finset.mem_filter.mp hx).2⟩
+      simpa only [Set.encard_coe_eq_coe_finsetCard, card_image_of_injective _ henc, Nat.cast_le]
+        using (Set.encard_le_encard himg).trans (h w)
     refine ⟨⟨enc, fun w k => (S w).toList.getD k (Classical.arbitrary M)⟩, rfl, fun x w hx => ?_⟩
-    have hxS : x ∈ (S w).toList := by
-      rw [Finset.mem_toList, Finset.mem_filter]
-      exact ⟨Finset.mem_univ x, hx⟩
+    have hxS : x ∈ (S w).toList := Finset.mem_toList.2 (Finset.mem_filter.2 ⟨mem_univ x, hx⟩)
     obtain ⟨i, hi, hix⟩ := List.mem_iff_getElem.1 hxS
     refine ⟨⟨i, hi.trans_le ((Finset.length_toList _).trans_le (hS w))⟩, ?_⟩
     change (S w).toList.getD i _ = x
@@ -260,13 +246,12 @@ theorem isListDecodable_range_iff_exists_listCode {M : Type*} [Finite M] [Nonemp
     have hsub : {c ∈ Set.range D.encode | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} ⊆
         (((Finset.univ : Finset (Fin L)).image fun k => D.encode (D.decode w k) :
           Finset (ι → α)) : Set (ι → α)) := by
-      rintro c ⟨⟨x, rfl⟩, hdist⟩
+      rintro _ ⟨⟨x, rfl⟩, hdist⟩
       obtain ⟨k, hk⟩ := hD x w hdist
-      rw [Finset.coe_image, Finset.coe_univ, Set.image_univ]
-      exact ⟨k, congrArg D.encode hk⟩
-    refine (Set.encard_le_encard hsub).trans ?_
-    rw [Set.encard_coe_eq_coe_finsetCard, Nat.cast_le]
-    exact card_image_le.trans_eq (card_fin L)
+      exact Finset.mem_image.mpr ⟨k, Finset.mem_univ k, congrArg D.encode hk⟩
+    exact (Set.encard_le_encard hsub).trans <| by
+      rw [Set.encard_coe_eq_coe_finsetCard, Nat.cast_le]
+      exact card_image_le.trans_eq (card_fin L)
 
 end Code
 

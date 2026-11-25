@@ -76,8 +76,7 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 `(-1) ^ #S / 2 ^ #T` on each subset `S` of `T` and `0` on every other set. -/
 theorem fourierCoeff_monomial (T S : Finset ι) :
     fourierCoeff (monomial ℝ T) S = if S ⊆ T then (-1) ^ #S / 2 ^ #T else 0 := by
-  have hT : monomial ℝ T = _ := funext (monomial_apply T)
-  rw [hT]
+  rw [show monomial ℝ T = _ from funext (monomial_apply T)]
   convert fourierCoeff_ite_forall_mem_eq T (fun _ => true) S using 2
   · congr!
   · simp [chi]
@@ -93,25 +92,20 @@ theorem exists_fourierCoeff_eq_intCast_div_two_pow_of_mem_lowDegree (g : (ι →
       subsetMobius (fun U => ((g fun i => decide (i ∈ U) : ℤ) : ℝ)) T = c T :=
     (map_subsetMobius (Int.castAddHom ℝ) _ T).symm
   have hc (T : Finset ι) (hT : k < #T) : c T = 0 := by
-    have h := subsetMobius_eq_zero_of_mem_lowDegree hg hT
-    rw [hcR] at h
-    exact_mod_cast h
-  have hcoeff : fourierCoeff (fun x => (g x : ℝ)) S =
-      ∑ T, (c T : ℝ) * fourierCoeff (monomial ℝ T) S := by
-    rw [eq_sum_subsetMobius_smul_monomial (fun x => (g x : ℝ)), ← fourierCoeffₗ_apply, map_sum]
-    simp only [map_smul, fourierCoeffₗ_apply, smul_eq_mul, hcR]
+    exact_mod_cast (hcR T).symm.trans (subsetMobius_eq_zero_of_mem_lowDegree hg hT)
   refine ⟨∑ T, if S ⊆ T then c T * (-1) ^ #S * 2 ^ (k - #T) else 0, ?_⟩
-  rw [hcoeff, Int.cast_sum, sum_div]
+  rw [eq_sum_subsetMobius_smul_monomial (fun x => (g x : ℝ)), ← fourierCoeffₗ_apply, map_sum,
+    Int.cast_sum, sum_div]
   refine sum_congr rfl fun T _ => ?_
-  rw [fourierCoeff_monomial]
+  simp only [map_smul, fourierCoeffₗ_apply, smul_eq_mul, hcR, fourierCoeff_monomial]
   by_cases hST : S ⊆ T
   · by_cases hT : #T ≤ k
     · simp only [hST, ite_true]
       push_cast
       rw [pow_sub₀ _ two_ne_zero hT]
       field_simp
-    · simp only [hc T (not_le.1 hT), Int.cast_zero, zero_mul, ite_self, zero_div]
-  · simp only [hST, ite_false, mul_zero, Int.cast_zero, zero_div]
+    · simp [hc T (not_le.1 hT)]
+  · simp [hST]
 
 /-- **Boolean functions of low degree are granular** [O'Donnell, Exercise 1.11(b)][ODonnell2014]: a
 Boolean function of degree at most `k`, read as signs, has Fourier coefficients in
@@ -123,20 +117,14 @@ theorem exists_fourierCoeff_signVal_eq_intCast_div_two_pow_of_mem_lowDegree
     convert signVal_comp_mem_lowDegree_iff.1 hf using 2 with x
     cases f x <;> simp
   obtain ⟨z, hz⟩ := exists_fourierCoeff_eq_intCast_div_two_pow_of_mem_lowDegree _ hmem S
-  have hF : (fun x => signVal (f x)) =
-      fun x => 1 - 2 * ((bitVal ℤ (f x) : ℤ) : ℝ) := by
-    funext x
-    cases f x <;> norm_num
-  rw [hF, fourierCoeff_sub, fourierCoeff_const, fourierCoeff_const_mul, hz]
+  rw [show (fun x => signVal (f x)) = fun x => 1 - 2 * ((bitVal ℤ (f x) : ℤ) : ℝ) from
+    funext fun x => by cases f x <;> norm_num,
+    fourierCoeff_sub, fourierCoeff_const, fourierCoeff_const_mul, hz]
   rcases k with _ | k
   · exact ⟨(if S = ∅ then 1 else 0) - 2 * z, by split_ifs <;> push_cast <;> ring⟩
   · refine ⟨(if S = ∅ then 2 ^ k else 0) - z, ?_⟩
     rw [Nat.add_sub_cancel, pow_succ]
-    split_ifs
-    · push_cast
-      field_simp
-    · push_cast
-      field_simp
-      ring
+    split_ifs <;> push_cast <;> field_simp
+    ring
 
 end Cslib.BitString

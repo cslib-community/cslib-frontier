@@ -75,9 +75,9 @@ open Classical in
 private lemma measurable_decide_mem {c : Set α} (hc : MeasurableSet c) :
     Measurable (fun x : α => decide (x ∈ c)) := by
   refine measurable_to_bool ?_
-  have hset : (fun x : α => decide (x ∈ c)) ⁻¹' {true} = c := by
-    ext x; exact decide_eq_true_iff
-  rw [hset]; exact hc
+  convert hc using 1
+  ext x
+  simp
 
 private lemma measurable_graph_of_bool {c : α → Bool} (hc : Measurable c) :
     Measurable (fun x : α => (x, c x)) :=
@@ -89,11 +89,10 @@ private lemma measurableSet_ne_bool (h : α → Bool) (hh : Measurable h) :
       ({x | h x = true} ×ˢ ({false} : Set Bool)) ∪
         ({x | h x = false} ×ˢ ({true} : Set Bool)) := by
     ext ⟨x, b⟩
-    cases b <;> cases hx : h x <;> simp [hx]
+    cases b <;> cases h x <;> simp
   rw [hrewrite]
-  refine MeasurableSet.union ?_ ?_
-  · exact (hh (measurableSet_singleton true)).prod (measurableSet_singleton false)
-  · exact (hh (measurableSet_singleton false)).prod (measurableSet_singleton true)
+  exact ((hh (measurableSet_singleton true)).prod (measurableSet_singleton false)).union
+    ((hh (measurableSet_singleton false)).prod (measurableSet_singleton true))
 
 open Classical in
 /-- The pi-product of pushforwards along `(x ↦ (x, decide (x ∈ c)))` equals the
@@ -147,23 +146,11 @@ private lemma map_graph_supportedOn_image
     {c : α → Bool} (hc_meas : Measurable c) :
     (P.map (fun x : α => (x, c x)))
         (↑(W.image (fun x : α => (x, c x))) : Set (α × Bool))ᶜ = 0 := by
-  have hmeasf := measurable_graph_of_bool hc_meas
   set V : Finset (α × Bool) := W.image (fun x : α => (x, c x))
-  have hVc_meas : MeasurableSet (↑V : Set (α × Bool))ᶜ :=
-    V.finite_toSet.measurableSet.compl
-  rw [Measure.map_apply hmeasf hVc_meas]
-  have hpre :
-      (fun x : α => (x, c x)) ⁻¹' (↑V : Set (α × Bool))ᶜ = (↑W : Set α)ᶜ := by
-    rw [Set.preimage_compl]
-    congr 1
-    ext x
-    rw [Set.mem_preimage, Finset.mem_coe, Finset.mem_image]
-    refine ⟨?_, ?_⟩
-    · rintro ⟨y, hy, hxy⟩
-      exact (Prod.mk.inj hxy).1 ▸ hy
-    · intro hxW
-      exact ⟨x, hxW, rfl⟩
-  rw [hpre]; exact hP_supp
+  rw [Measure.map_apply (measurable_graph_of_bool hc_meas) V.finite_toSet.measurableSet.compl]
+  convert hP_supp using 2
+  ext x
+  simp [V]
 
 open Classical in
 /-- **Key bridge lemma**: when `P` is supported on the finite set `↑W` and `c`
@@ -190,18 +177,9 @@ private lemma error_map_eq_hypothesisError_set_finite_supp
     (V.finite_toSet.subset Set.inter_subset_right).measurableSet
   have hSnull : NullMeasurableSet {p : α × Bool | h p.1 ≠ p.2}
       (P.map (fun x : α => (x, c x))) := by
-    have heq : {p : α × Bool | h p.1 ≠ p.2} =
-        ({p : α × Bool | h p.1 ≠ p.2} ∩ ↑V) ∪
-          ({p : α × Bool | h p.1 ≠ p.2} \ ↑V) := by
-      ext x; constructor
-      · intro hx; by_cases hxV : x ∈ (↑V : Set (α × Bool))
-        · exact Or.inl ⟨hx, hxV⟩
-        · exact Or.inr ⟨hx, hxV⟩
-      · rintro (⟨hxS, _⟩ | ⟨hxS, _⟩) <;> exact hxS
-    rw [heq]
-    refine NullMeasurableSet.union hSV_meas.nullMeasurableSet
-      (NullMeasurableSet.of_null ?_)
-    exact measure_mono_null (fun _ hx => hx.2) hVc_null
+    rw [← Set.inter_union_sdiff {p : α × Bool | h p.1 ≠ p.2} (↑V)]
+    exact hSV_meas.nullMeasurableSet.union
+      (NullMeasurableSet.of_null (measure_mono_null (fun _ hx => hx.2) hVc_null))
   simp only [error, hypothesisError]
   rw [Measure.map_apply₀ hmeasf.aemeasurable hSnull]
   congr 1
@@ -442,17 +420,12 @@ theorem sample_complexity_lower_bound_vcDim
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearn : IsRPACLearnerFor m ε δ C 𝒟) :
     (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ m := by
-  set S := {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}
-  have hne : S.Nonempty := by
-    by_contra hempty
-    rw [Set.not_nonempty_iff_eq_empty] at hempty
-    have : (2 : ℕ) ≤ sSup (∅ : Set ℕ) := hempty ▸ hvc
-    simp at this
+  have hne : {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}.Nonempty :=
+    Set.nonempty_iff_ne_empty.mpr fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
   obtain ⟨W, hWcard, hW⟩ := Nat.sSup_mem hne hbdd
-  have hW_card : 2 ≤ W.card := hWcard ▸ hvc
   have hvc_eq : vcDim C = W.card := hWcard.symm
-  simp only [hvc_eq]
-  exact sample_complexity_lower_bound_randomized hW hW_card hε_le hδ_lt hC_meas
+  rw [hvc_eq]
+  exact sample_complexity_lower_bound_randomized hW (hvc_eq ▸ hvc) hε_le hδ_lt hC_meas
     h_real hlearn
 
 /-- Lower bound on deterministic sample complexity in terms of `vcDim`. -/
