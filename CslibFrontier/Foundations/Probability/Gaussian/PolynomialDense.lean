@@ -134,8 +134,7 @@ private theorem integral_mul_cexp_eq_zero {f : (ι → ℝ) → ℝ}
     have hpt (z : ι → ℝ) : F n z = (Complex.I ^ n / n ! : ℂ) * ((f z * MvPolynomial.eval z
         ((∑ i, MvPolynomial.C (a i) * MvPolynomial.X i) ^ n) : ℝ) : ℂ) := by
       simp only [hF, hs, dotProduct, map_pow, map_sum, map_mul, MvPolynomial.eval_C,
-        MvPolynomial.eval_X,
-        Complex.ofReal_mul, Complex.ofReal_pow, mul_pow]
+        MvPolynomial.eval_X, Complex.ofReal_mul, Complex.ofReal_pow, mul_pow]
       ring
     simp only [hpt]
     rw [integral_const_mul, integral_complex_ofReal, h, Complex.ofReal_zero, mul_zero]
@@ -186,9 +185,8 @@ theorem ae_eq_zero_of_forall_integral_mul_prod_pow_eq_zero_pi_gaussianReal {f : 
     have hpt (z : ι → ℝ) : ((max (f z) 0 : ℝ) : ℂ) * Complex.exp (L z * Complex.I) =
         (f z : ℂ) * Complex.exp (L z * Complex.I) +
           ((max (-f z) 0 : ℝ) : ℂ) * Complex.exp (L z * Complex.I) := by
-      have e : max (f z) 0 = f z + max (-f z) 0 := by
-        linarith [max_zero_sub_max_neg_zero_eq_self (f z)]
-      rw [e, Complex.ofReal_add, add_mul]
+      rw [show max (f z) 0 = f z + max (-f z) 0 by
+        linarith [max_zero_sub_max_neg_zero_eq_self (f z)], Complex.ofReal_add, add_mul]
     rw [hchar f hfi, hchar (fun z => -f z) hfi.neg, integral_congr_ae (ae_of_all _ hpt),
       integral_add (hint f hfi L) (hint _ hfi.neg_part L), h0, zero_add]
   filter_upwards [(withDensity_eq_iff_of_sigmaFinite (hm f hfi) (hm _ hfi.neg)).1 hμ] with z hz
@@ -245,9 +243,8 @@ theorem exists_eLpNorm_sub_eval_lt_pi_gaussianReal {f : (ι → ℝ) → ℝ}
       simp only [hz, Pi.smul_apply, hpz, smul_eq_mul, map_mul, MvPolynomial.eval_C]
   obtain ⟨u, hu, hdist⟩ := EMetric.mem_closure_iff.1 hmem ε hε
   obtain ⟨p, hp⟩ := hpoly u hu
-  refine ⟨p, ?_⟩
   rw [Lp.edist_def] at hdist
-  refine (eLpNorm_congr_ae ?_).trans_lt hdist
+  refine ⟨p, (eLpNorm_congr_ae ?_).trans_lt hdist⟩
   filter_upwards [hf.coeFn_toLp, hp] with z hz hpz
   simp only [Pi.sub_apply, hz, hpz]
 
