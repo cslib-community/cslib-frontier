@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.SelectorNetwork
+import CslibFrontier.Foundations.Data.List.SumIndicator
 import Mathlib.Algebra.Order.BigOperators.Group.List
 import Mathlib.Algebra.Order.Group.Nat
 
@@ -91,11 +92,6 @@ theorem sat_relation_iff (s : Edge C R → Bool) (r : R) :
       · exact ⟨⟨⟨.inr (r, true), false⟩, 1⟩,
           (N.endpoints.mem_ports _ _ _ _).mpr ⟨N.mem_edges _, rfl, rfl⟩, hs, Nat.zero_lt_one⟩
 
-private theorem sum_flags {α : Type*} (xs : List α) (f : α → Bool) :
-    (xs.map fun x => if f x then 1 else 0).sum = xs.countP f := by
-  rw [List.sum_map_ite]
-  simp [List.countP_eq_length_filter]
-
 private theorem inflow_character (s : Edge C R → Bool) (c : C) :
     (N.graph (.inr (.inl c))).inflow s =
       (if s (.inl c) = false then N.selectorWeight c else 0) +
@@ -130,7 +126,7 @@ private theorem inflow_character (s : Edge C R → Bool) (c : C) :
       (N.incident c).countP (fun e => s (.inr e)) := by
     rw [List.sum_map_ite]
     simp only [List.map_const', List.sum_replicate, smul_eq_mul, Nat.mul_zero, add_zero]
-    exact sum_flags (N.incident c) _
+    exact (List.countP_eq_sum_map_ite (N.incident c) _).symm
   rw [hsc, hbr]
 
 /-- Selecting a character forces every incident branch toward it. -/
