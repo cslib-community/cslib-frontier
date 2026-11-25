@@ -112,49 +112,31 @@ private lemma lt_maxMinEval_iff (E : MoulinScheme ι a b) (x : ι → Set.Icc a 
       by classical exact (y : ℝ) < E.alpha (Finset.univ.filter fun i => (x i : ℝ) ≤ y) := by
   classical
   let Sle : Finset ι := Finset.univ.filter fun i => (x i : ℝ) ≤ y
-  constructor
-  · intro hy
-    rw [maxMinEval, Finset.lt_fold_max] at hy
+  refine ⟨fun hy => ?_, fun hy => ?_⟩
+  · rw [maxMinEval, Finset.lt_fold_max] at hy
     rcases hy with hy_a | ⟨S, _, hS⟩
     · linarith [y.2.1]
-    · have h1 : (y : ℝ) < E.alpha Sᶜ := lt_of_lt_of_le hS (min_le_left _ _)
-      have h2 : (y : ℝ) < S.fold min b fun i => (x i : ℝ) := lt_of_lt_of_le hS (min_le_right _ _)
-      have hsub : Sle ⊆ Sᶜ := by
-        intro i hi
-        rw [Finset.mem_compl]
-        intro hiS
-        have hxi : (y : ℝ) < x i := ((Finset.lt_fold_min _).mp h2).2 i hiS
-        linarith [(Finset.mem_filter.mp hi).2]
-      exact h1.trans_le (E.antitone hsub)
-  · intro hy
-    have hyb : (y : ℝ) < b := hy.trans_le (E.mem_Icc Sle).2
-    have hfold : (y : ℝ) < Sleᶜ.fold min b fun i => (x i : ℝ) := by
+    · refine (lt_of_lt_of_le hS (min_le_left _ _)).trans_le (E.antitone fun i hi => ?_)
+      rw [Finset.mem_compl]
+      intro hiS
+      exact (((Finset.lt_fold_min _).mp (lt_of_lt_of_le hS (min_le_right _ _))).2 i hiS).not_ge
+        (Finset.mem_filter.mp hi).2
+  · have hfold : (y : ℝ) < Sleᶜ.fold min b fun i => (x i : ℝ) := by
       rw [Finset.lt_fold_min]
-      refine ⟨hyb, fun i hi => ?_⟩
-      rw [Finset.mem_compl, Finset.mem_filter] at hi
-      push Not at hi
-      exact hi (Finset.mem_univ i)
-    have hmin : (y : ℝ) < min (E.alpha Sleᶜᶜ) (Sleᶜ.fold min b fun i => (x i : ℝ)) := by
-      rw [compl_compl]
-      exact lt_min hy hfold
-    exact hmin.trans_le (le_maxMinEval_branch E x Sleᶜ)
+      refine ⟨hy.trans_le (E.mem_Icc Sle).2, fun i hi => ?_⟩
+      simpa only [Sle, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ, true_and, not_le]
+        using hi
+    exact (lt_min (by rwa [compl_compl]) hfold).trans_le (le_maxMinEval_branch E x Sleᶜ)
 
 /-- `MoulinScheme.eval` coincides pointwise with the dual `max_S min{β_S, p_i : i ∈ S}` formula
 of [SchummerVohra2007] (Definition 10.3, p. 250) with `β_S = E.alpha Sᶜ`. -/
 theorem eval_eq_maxMinEval (E : MoulinScheme ι a b) (x : ι → Set.Icc a b) :
     (E.eval x : ℝ) = maxMinEval E x := by
   let m : Set.Icc a b := ⟨maxMinEval E x, maxMinEval_mem_Icc E x⟩
-  refine le_antisymm ?_ ?_
-  · by_contra hgt
-    have hlt : (m : ℝ) < E.eval x := lt_of_not_ge hgt
-    have hlt' : (m : ℝ) < maxMinEval E x :=
-      (lt_maxMinEval_iff E x m).mpr ((E.lt_eval_iff x m).mp hlt)
-    exact lt_irrefl _ hlt'
-  · by_contra hgt
-    have hlt : (E.eval x : ℝ) < maxMinEval E x := lt_of_not_ge hgt
-    have hlt' : (E.eval x : ℝ) < E.eval x :=
-      (E.lt_eval_iff x (E.eval x)).mpr ((lt_maxMinEval_iff E x (E.eval x)).mp hlt)
-    exact lt_irrefl _ hlt'
+  refine le_antisymm (not_lt.mp fun hlt => ?_) (not_lt.mp fun hlt => ?_)
+  · exact lt_irrefl (m : ℝ) ((lt_maxMinEval_iff E x m).mpr ((E.lt_eval_iff x m).mp hlt))
+  · exact lt_irrefl (E.eval x : ℝ)
+      ((E.lt_eval_iff x (E.eval x)).mpr ((lt_maxMinEval_iff E x (E.eval x)).mp hlt))
 
 /-- A `MoulinScheme` always evaluates within the convex hull of the reported peaks. -/
 theorem eval_mem_peaks_bounds [Nonempty ι] (E : MoulinScheme ι a b) (x : ι → Set.Icc a b) :
@@ -163,11 +145,8 @@ theorem eval_mem_peaks_bounds [Nonempty ι] (E : MoulinScheme ι a b) (x : ι �
     Finset.exists_min_image Finset.univ (fun k => (x k : ℝ)) Finset.univ_nonempty
   obtain ⟨j, _, hj⟩ :=
     Finset.exists_max_image Finset.univ (fun k => (x k : ℝ)) Finset.univ_nonempty
-  refine ⟨⟨i, ?_⟩, ⟨j, ?_⟩⟩
-  · simpa only [E.eval_const] using E.eval_mono (x := fun _ => x i) (z := x) fun k =>
-      hi k (Finset.mem_univ k)
-  · simpa only [E.eval_const] using E.eval_mono (x := x) (z := fun _ => x j) fun k =>
-      hj k (Finset.mem_univ k)
+  exact ⟨⟨i, by simpa only [E.eval_const] using E.eval_mono fun k => hi k (Finset.mem_univ k)⟩,
+    ⟨j, by simpa only [E.eval_const] using E.eval_mono fun k => hj k (Finset.mem_univ k)⟩⟩
 
 end MoulinDuality
 
@@ -209,47 +188,30 @@ domain of single-peaked preferences. -/
 theorem ofMoulinScheme_isGroupStrategyProof (E : MoulinScheme ι a b) :
     (ofMoulinScheme E).IsGroupStrategyProof := by
   classical
-  rintro P Q A hPQ ⟨hle, i₀, hi₀A, hlt⟩
+  rintro P Q A hPQ ⟨hle, i₀, _, hlt⟩
   let p : ι → Set.Icc a b := fun i => (P i).peak
   let q : ι → Set.Icc a b := fun i => (Q i).peak
   let y : Set.Icc a b := E.eval p
   let y' : Set.Icc a b := E.eval q
   have hne : (y : ℝ) ≠ y' := fun heq => by
-    have hy : y = y' := Subtype.ext heq
-    have hlt' : (P i₀).Prefers y' y := hlt
-    rw [hy] at hlt'
-    exact (P i₀).prefers_irrefl y' hlt'
+    have hy : ofMoulinScheme E P = ofMoulinScheme E Q := Subtype.ext heq
+    exact (P i₀).prefers_irrefl _ (hy ▸ hlt)
   rcases lt_or_gt_of_ne hne with hy_lt | hy'_lt
-  · have hA_gt : ∀ i ∈ A, (y : ℝ) < p i := fun i hi => by
-      by_contra hle_p
-      exact (P i).prefers_of_between_right (le_of_not_gt hle_p) hy_lt (hle i hi)
-    have hsub : (Finset.univ.filter fun i => (p i : ℝ) ≤ y) ⊆
-        (Finset.univ.filter fun i => (q i : ℝ) ≤ y) := by
-      intro i hi
+  · have hsub : (Finset.univ.filter fun i => (p i : ℝ) ≤ y) ⊆
+        (Finset.univ.filter fun i => (q i : ℝ) ≤ y) := fun i hi => by
       have hpi : (p i : ℝ) ≤ y := (Finset.mem_filter.mp hi).2
-      have hiA : i ∉ A := fun h => (hA_gt i h).not_ge hpi
-      refine Finset.mem_filter.mpr ⟨Finset.mem_univ i, ?_⟩
-      simpa only [p, q, hPQ i hiA] using hpi
-    have h1 : (y : ℝ) < E.alpha (Finset.univ.filter fun i => (q i : ℝ) ≤ y) :=
-      (E.lt_eval_iff q y).mp hy_lt
-    have h2 : (y : ℝ) < E.eval p :=
-      (E.lt_eval_iff p y).mpr (h1.trans_le (E.antitone hsub))
-    exact lt_irrefl _ h2
-  · have hA_lt : ∀ i ∈ A, (p i : ℝ) < y := fun i hi => by
-      by_contra hge_p
-      exact (P i).prefers_of_between_left hy'_lt (le_of_not_gt hge_p) (hle i hi)
-    have hsub : (Finset.univ.filter fun i => (q i : ℝ) < y) ⊆
-        (Finset.univ.filter fun i => (p i : ℝ) < y) := by
-      intro i hi
+      have hiA : i ∉ A := fun h => (P i).prefers_of_between_right hpi hy_lt (hle i h)
+      exact Finset.mem_filter.mpr ⟨Finset.mem_univ i, by simpa only [p, q, hPQ i hiA] using hpi⟩
+    exact lt_irrefl (y : ℝ)
+      ((E.lt_eval_iff p y).mpr (((E.lt_eval_iff q y).mp hy_lt).trans_le (E.antitone hsub)))
+  · have hsub : (Finset.univ.filter fun i => (q i : ℝ) < y) ⊆
+        (Finset.univ.filter fun i => (p i : ℝ) < y) := fun i hi => by
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ i, ?_⟩
       by_cases hiA : i ∈ A
-      · exact hA_lt i hiA
+      · exact not_le.mp fun hge => (P i).prefers_of_between_left hy'_lt hge (hle i hiA)
       · simpa only [p, q, hPQ i hiA] using (Finset.mem_filter.mp hi).2
-    have h1 : E.alpha (Finset.univ.filter fun i => (q i : ℝ) < y) < y :=
-      (E.eval_lt_iff q y).mp hy'_lt
-    have h2 : (E.eval p : ℝ) < y :=
-      (E.eval_lt_iff p y).mpr ((E.antitone hsub).trans_lt h1)
-    exact lt_irrefl _ h2
+    exact lt_irrefl (y : ℝ)
+      ((E.eval_lt_iff p y).mpr ((E.antitone hsub).trans_lt ((E.eval_lt_iff q y).mp hy'_lt)))
 
 theorem ofMoulinScheme_isStrategyProof (E : MoulinScheme ι a b) :
     (ofMoulinScheme E).IsStrategyProof :=
@@ -394,27 +356,18 @@ theorem minPeakScheme_eval [Nonempty ι] (hab : a ≤ b) (x : ι → Set.Icc a b
       Finset.univ.inf' Finset.univ_nonempty (fun i => (x i : ℝ)) := by
   classical
   set m : ℝ := Finset.univ.inf' Finset.univ_nonempty (fun i => (x i : ℝ))
-  have hm_mem : m ∈ Set.Icc a b := by
-    obtain ⟨i₀⟩ := ‹Nonempty ι›
-    refine ⟨(Finset.le_inf'_iff _ _).mpr fun i _ => (x i).2.1,
+  obtain ⟨i₀, _, hi₀⟩ :=
+    Finset.exists_min_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
+  have hm_mem : m ∈ Set.Icc a b :=
+    ⟨(Finset.le_inf'_iff _ _).mpr fun i _ => (x i).2.1,
       (Finset.inf'_le (fun i => (x i : ℝ)) (Finset.mem_univ i₀)).trans (x i₀).2.2⟩
-  let mPt : Set.Icc a b := ⟨m, hm_mem⟩
-  refine le_antisymm ?_ ?_
-  · by_contra hgt
-    have hlt := ((minPeakScheme (ι := ι) hab).lt_eval_iff x mPt).mp (lt_of_not_ge hgt)
-    obtain ⟨i₀, _, hi₀⟩ :=
-      Finset.exists_min_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
-    have hmem : i₀ ∈ Finset.univ.filter fun i => (x i : ℝ) ≤ m := by
-      refine Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, ?_⟩
-      exact (Finset.le_inf'_iff _ _).mpr fun i hi => hi₀ i hi
+  refine le_antisymm (not_lt.mp fun hlt => ?_) ?_
+  · have hlt' := ((minPeakScheme (ι := ι) hab).lt_eval_iff x ⟨m, hm_mem⟩).mp hlt
     have hne : (Finset.univ.filter fun i => (x i : ℝ) ≤ m) ≠ ∅ :=
-      Finset.nonempty_iff_ne_empty.mp ⟨i₀, hmem⟩
-    have hα : (minPeakScheme (ι := ι) hab).alpha
-        (Finset.univ.filter fun i => (x i : ℝ) ≤ m) = a := by
-      change (if (Finset.univ.filter fun i => (x i : ℝ) ≤ m) = ∅ then b else a) = a
-      simp only [hne, ↓reduceIte]
-    rw [hα] at hlt
-    exact hlt.not_ge hm_mem.1
+      Finset.nonempty_iff_ne_empty.mp
+        ⟨i₀, Finset.mem_filter.mpr ⟨Finset.mem_univ i₀, (Finset.le_inf'_iff _ _).mpr hi₀⟩⟩
+    simp only [minPeakScheme, hne, ↓reduceIte] at hlt'
+    exact hlt'.not_ge hm_mem.1
   · obtain ⟨⟨i, hi⟩, _⟩ := eval_mem_peaks_bounds (minPeakScheme (ι := ι) hab) x
     exact (Finset.inf'_le (fun k => (x k : ℝ)) (Finset.mem_univ i)).trans hi
 
@@ -424,30 +377,19 @@ theorem maxPeakScheme_eval [Nonempty ι] (hab : a ≤ b) (x : ι → Set.Icc a b
       Finset.univ.sup' Finset.univ_nonempty (fun i => (x i : ℝ)) := by
   classical
   set m : ℝ := Finset.univ.sup' Finset.univ_nonempty (fun i => (x i : ℝ))
-  have hm_mem : m ∈ Set.Icc a b := by
-    obtain ⟨i₀⟩ := ‹Nonempty ι›
-    refine ⟨(x i₀).2.1.trans (Finset.le_sup' (fun i => (x i : ℝ)) (Finset.mem_univ i₀)),
+  obtain ⟨j₀, _, hj₀⟩ :=
+    Finset.exists_max_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
+  have hm_mem : m ∈ Set.Icc a b :=
+    ⟨(x j₀).2.1.trans (Finset.le_sup' (fun i => (x i : ℝ)) (Finset.mem_univ j₀)),
       (Finset.sup'_le_iff _ _).mpr fun i _ => (x i).2.2⟩
-  let mPt : Set.Icc a b := ⟨m, hm_mem⟩
-  refine le_antisymm ?_ ?_
+  refine le_antisymm ?_ (not_lt.mp fun hlt => ?_)
   · obtain ⟨_, ⟨j, hj⟩⟩ := eval_mem_peaks_bounds (maxPeakScheme (ι := ι) hab) x
     exact hj.trans (Finset.le_sup' (fun k => (x k : ℝ)) (Finset.mem_univ j))
-  · by_contra hlt
-    have hlt' := ((maxPeakScheme (ι := ι) hab).eval_lt_iff x mPt).mp (lt_of_not_ge hlt)
-    obtain ⟨j₀, _, hj₀⟩ :=
-      Finset.exists_max_image Finset.univ (fun i => (x i : ℝ)) Finset.univ_nonempty
-    have hnotmem : j₀ ∉ Finset.univ.filter fun i => (x i : ℝ) < m := by
-      intro hm
-      have hlt_j : (x j₀ : ℝ) < m := (Finset.mem_filter.mp hm).2
-      have hle_j : m ≤ (x j₀ : ℝ) := (Finset.sup'_le_iff _ _).mpr fun i hi => hj₀ i hi
-      linarith
-    have hne : (Finset.univ.filter fun i => (x i : ℝ) < m) ≠ Finset.univ := fun h =>
-      hnotmem (h.symm ▸ Finset.mem_univ j₀)
-    have hα : (maxPeakScheme (ι := ι) hab).alpha
-        (Finset.univ.filter fun i => (x i : ℝ) < m) = b := by
-      change (if (Finset.univ.filter fun i => (x i : ℝ) < m) = Finset.univ then a else b) = b
-      simp only [hne, ↓reduceIte]
-    rw [hα] at hlt'
+  · have hlt' := ((maxPeakScheme (ι := ι) hab).eval_lt_iff x ⟨m, hm_mem⟩).mp hlt
+    have hne : (Finset.univ.filter fun i => (x i : ℝ) < m) ≠ Finset.univ := fun h => by
+      have hj_mem : j₀ ∈ Finset.univ.filter fun i => (x i : ℝ) < m := h.symm ▸ Finset.mem_univ j₀
+      exact ((Finset.sup'_le_iff _ _).mpr hj₀).not_gt (Finset.mem_filter.mp hj_mem).2
+    simp only [maxPeakScheme, hne, ↓reduceIte] at hlt'
     exact hlt'.not_ge hm_mem.2
 
 private lemma ofMoulinScheme_eval_extreme [DecidableEq ι] (hab : a ≤ b)
@@ -475,36 +417,30 @@ theorem isStrategyProof_surjective_isIR_left_iff [Nonempty ι]
     (f.IsStrategyProof ∧ Function.Surjective f ∧ f.IsIndividuallyRational ⟨a, le_rfl, hab⟩) ↔
       f = ofMoulinScheme (minPeakScheme hab) := by
   classical
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨hf_sp, hf_onto, hf_ir⟩
     obtain ⟨E, rfl⟩ :=
       (isStrategyProof_and_surjective_iff_exists_moulinScheme hab f).mp ⟨hf_sp, hf_onto⟩
-    have hE : E = minPeakScheme hab := by
-      cases E with
-      | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
-        congr 1
-        funext T
-        by_cases hT : T = ∅
-        · subst hT; simp only [boundary_empty, ↓reduceIte]
-        · simp only [hT, ↓reduceIte]
-          obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr hT
-          let P : Profile ι a b :=
-            fun i => if i ∈ Tᶜ then Preference.rightExtreme hab else Preference.leftExtreme hab
-          have hir := hf_ir P i₀
-          have hi₀_not : i₀ ∉ Tᶜ := by simp only [Finset.mem_compl, not_not]; exact hi₀
-          simp only [P, hi₀_not, ↓reduceIte, Preference.leftExtreme_atLeast_iff] at hir
-          let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
-          have heval : (ofMoulinScheme E₀ P : ℝ) = alpha T :=
-            ofMoulinScheme_eval_extreme hab E₀ T
-          rw [heval] at hir
-          exact le_antisymm hir (mem_Icc T).1
-    rw [hE]
+    congr 1
+    cases E with
+    | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
+      congr 1; funext T
+      by_cases hT : T = ∅
+      · subst hT; simp only [boundary_empty, ↓reduceIte]
+      · simp only [hT, ↓reduceIte]
+        obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr hT
+        have hi₀' : i₀ ∉ Tᶜ := Finset.notMem_compl.mpr hi₀
+        let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
+        have hir := hf_ir
+          (fun i => if i ∈ Tᶜ then Preference.rightExtreme hab else Preference.leftExtreme hab) i₀
+        simp only [hi₀', ↓reduceIte, Preference.leftExtreme_atLeast_iff] at hir
+        rw [ofMoulinScheme_eval_extreme hab E₀ T] at hir
+        exact le_antisymm hir (mem_Icc T).1
   · rintro rfl
     refine ⟨ofMoulinScheme_isStrategyProof _, ofMoulinScheme_surjective _, fun P i => ?_⟩
-    have hle : ((ofMoulinScheme (minPeakScheme hab) P : Set.Icc a b) : ℝ) ≤ (P i).peak := by
-      rw [ofMoulinScheme, minPeakScheme_eval]
-      exact Finset.inf'_le (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
-    exact (P i).atLeast_of_between_left (ofMoulinScheme (minPeakScheme hab) P).2.1 hle
+    refine (P i).atLeast_of_between_left (ofMoulinScheme (minPeakScheme hab) P).2.1 ?_
+    rw [ofMoulinScheme, minPeakScheme_eval]
+    exact Finset.inf'_le (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
 
 /-- Symmetric right-endpoint counterpart to `isStrategyProof_surjective_isIR_left_iff` (a library
 addition not stated in [SchummerVohra2007], §10.2.2): the maximum-peak rule
@@ -515,45 +451,30 @@ theorem isStrategyProof_surjective_isIR_right_iff [Nonempty ι]
     (f.IsStrategyProof ∧ Function.Surjective f ∧ f.IsIndividuallyRational ⟨b, hab, le_rfl⟩) ↔
       f = ofMoulinScheme (maxPeakScheme hab) := by
   classical
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨hf_sp, hf_onto, hf_ir⟩
     obtain ⟨E, rfl⟩ :=
       (isStrategyProof_and_surjective_iff_exists_moulinScheme hab f).mp ⟨hf_sp, hf_onto⟩
-    have hE : E = maxPeakScheme hab := by
-      cases E with
-      | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
-        congr 1
-        funext T
-        by_cases hT : T = Finset.univ
-        · subst hT; simp only [boundary_univ, ↓reduceIte]
-        · simp only [hT, ↓reduceIte]
-          have hTc_ne : Tᶜ.Nonempty := by
-            rw [Finset.nonempty_iff_ne_empty]
-            intro h
-            apply hT
-            ext i
-            simp only [Finset.mem_univ, iff_true]
-            by_contra hi
-            have : i ∈ Tᶜ := Finset.mem_compl.mpr hi
-            rw [h] at this
-            exact Finset.notMem_empty i this
-          obtain ⟨i₀, hi₀⟩ := hTc_ne
-          let P : Profile ι a b :=
-            fun i => if i ∈ Tᶜ then Preference.rightExtreme hab else Preference.leftExtreme hab
-          have hir := hf_ir P i₀
-          simp only [P, hi₀, ↓reduceIte, Preference.rightExtreme_atLeast_iff] at hir
-          let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
-          have heval : (ofMoulinScheme E₀ P : ℝ) = alpha T :=
-            ofMoulinScheme_eval_extreme hab E₀ T
-          rw [heval] at hir
-          exact le_antisymm (mem_Icc T).2 hir
-    rw [hE]
+    congr 1
+    cases E with
+    | mk alpha mem_Icc antitone boundary_empty boundary_univ =>
+      congr 1; funext T
+      by_cases hT : T = Finset.univ
+      · subst hT; simp only [boundary_univ, ↓reduceIte]
+      · simp only [hT, ↓reduceIte]
+        obtain ⟨i₀, hi₀⟩ := Finset.nonempty_iff_ne_empty.mpr fun (h : Tᶜ = ∅) =>
+          hT (by simpa only [compl_compl, Finset.compl_empty] using congrArg compl h)
+        let E₀ : MoulinScheme ι a b := ⟨alpha, mem_Icc, antitone, boundary_empty, boundary_univ⟩
+        have hir := hf_ir
+          (fun i => if i ∈ Tᶜ then Preference.rightExtreme hab else Preference.leftExtreme hab) i₀
+        simp only [hi₀, ↓reduceIte, Preference.rightExtreme_atLeast_iff] at hir
+        rw [ofMoulinScheme_eval_extreme hab E₀ T] at hir
+        exact le_antisymm (mem_Icc T).2 hir
   · rintro rfl
     refine ⟨ofMoulinScheme_isStrategyProof _, ofMoulinScheme_surjective _, fun P i => ?_⟩
-    have hge : ((P i).peak : ℝ) ≤ ofMoulinScheme (maxPeakScheme hab) P := by
-      rw [ofMoulinScheme, maxPeakScheme_eval]
-      exact Finset.le_sup' (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
-    exact (P i).atLeast_of_between_right hge (ofMoulinScheme (maxPeakScheme hab) P).2.2
+    refine (P i).atLeast_of_between_right ?_ (ofMoulinScheme (maxPeakScheme hab) P).2.2
+    rw [ofMoulinScheme, maxPeakScheme_eval]
+    exact Finset.le_sup' (fun k => ((P k).peak : ℝ)) (Finset.mem_univ i)
 
 end IndividualRationality
 

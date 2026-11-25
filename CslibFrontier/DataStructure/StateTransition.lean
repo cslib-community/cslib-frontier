@@ -258,10 +258,8 @@ inductive ValidTranscript : D.State → D.Transcript → D.State → Prop
 /-- The empty transcript is valid iff the initial and final states coincide. -/
 @[simp]
 theorem validTranscript_nil_iff {D : StateTransitionSpec.{u, v, w}} (s s' : D.State) :
-    D.ValidTranscript s [] s' ↔ s = s' := by
-  constructor
-  · intro h; cases h; rfl
-  · rintro rfl; exact .nil s
+    D.ValidTranscript s [] s' ↔ s = s' :=
+  ⟨fun | .nil _ => rfl, fun h => h ▸ .nil s⟩
 
 /-- A nonempty transcript is valid iff its head step is admissible and permitted and its tail is
 valid from `st.nextState`. -/
@@ -270,13 +268,9 @@ theorem validTranscript_cons_iff {D : StateTransitionSpec.{u, v, w}} (s s' : D.S
     (tr : D.Transcript) :
     D.ValidTranscript s (st :: tr) s' ↔
       D.valid s st.op ∧ D.step s st.op st.nextState st.result ∧
-        D.ValidTranscript st.nextState tr s' := by
-  constructor
-  · intro h
-    cases h with
-    | cons _ hv hstep htr => exact ⟨hv, hstep, htr⟩
-  · rintro ⟨hv, hstep, htr⟩
-    exact .cons st hv hstep htr
+        D.ValidTranscript st.nextState tr s' :=
+  ⟨fun | .cons _ hv hstep htr => ⟨hv, hstep, htr⟩,
+    fun ⟨hv, hstep, htr⟩ => .cons st hv hstep htr⟩
 
 /-- Valid transcripts compose across concatenation. -/
 theorem ValidTranscript.append {D : StateTransitionSpec.{u, v, w}} {s s₁ s₂ : D.State}
@@ -326,22 +320,16 @@ theorem validOpSeq_append {D : StateTransitionSpec.{u, v, w}} {s : D.State} {xs 
       ∀ {tr s'}, tr.ops = xs → D.ValidTranscript s tr s' → D.ValidOpSeq s' ys := by
   induction xs generalizing s with
   | nil =>
-    refine ⟨trivial, fun {tr s'} hops htr => ?_⟩
-    cases tr with
-    | nil =>
-      cases htr
-      exact h
-    | cons _ _ => cases hops
+    refine ⟨trivial, ?_⟩
+    rintro (_ | _) _ ⟨⟩ htr
+    cases htr
+    exact h
   | cons o xs ih =>
     obtain ⟨hvo, hrest⟩ := h
-    refine ⟨⟨hvo, fun s₁ a hstep => (ih (hrest s₁ a hstep)).1⟩, fun {tr s'} hops htr => ?_⟩
-    cases tr with
-    | nil => cases hops
-    | cons st tr' =>
-      cases hops
-      cases htr with
-      | cons _ _ hstep htr' =>
-        exact (ih (hrest st.nextState st.result hstep)).2 rfl htr'
+    refine ⟨⟨hvo, fun s₁ a hstep => (ih (hrest s₁ a hstep)).1⟩, ?_⟩
+    rintro (_ | ⟨st, tr'⟩) _ ⟨⟩ htr
+    cases htr with
+    | cons _ _ hstep htr' => exact (ih (hrest st.nextState st.result hstep)).2 rfl htr'
 
 /-- Under `[D.Total]`, every demonically admissible operation sequence admits at least one valid
 transcript. -/
@@ -462,26 +450,16 @@ theorem ClientRun.validTranscript {D : StateTransitionSpec.{u, v, w}} {s s' : D.
 
 theorem clientRun_pure_iff {D : StateTransitionSpec.{u, v, w}} (s : D.State) (a v : α)
     (s' : D.State) (tr : D.Transcript) :
-    D.ClientRun s (.pure a) v s' tr ↔ v = a ∧ s' = s ∧ tr = [] := by
-  constructor
-  · intro h
-    cases h
-    exact ⟨rfl, rfl, rfl⟩
-  · rintro ⟨rfl, rfl, rfl⟩
-    exact .pure s' v
+    D.ClientRun s (.pure a) v s' tr ↔ v = a ∧ s' = s ∧ tr = [] :=
+  ⟨fun | .pure _ _ => ⟨rfl, rfl, rfl⟩, by rintro ⟨rfl, rfl, rfl⟩; exact .pure s' v⟩
 
 theorem clientRun_liftBind_iff {D : StateTransitionSpec.{u, v, w}} (s : D.State) (o : D.Op)
     (k : D.Result o → D.Client α) (v : α) (s₂ : D.State) (tr : D.Transcript) :
     D.ClientRun s (.liftBind o k) v s₂ tr ↔
       D.valid s o ∧ ∃ a s₁ tr', D.step s o s₁ a ∧
-        D.ClientRun s₁ (k a) v s₂ tr' ∧ tr = ⟨o, a, s₁⟩ :: tr' := by
-  constructor
-  · intro h
-    cases h with
-    | liftBind _ _ a hv hstep hrest =>
-      exact ⟨hv, a, _, _, hstep, hrest, rfl⟩
-  · rintro ⟨hv, a, s₁, tr', hstep, hrest, rfl⟩
-    exact .liftBind o k a hv hstep hrest
+        D.ClientRun s₁ (k a) v s₂ tr' ∧ tr = ⟨o, a, s₁⟩ :: tr' :=
+  ⟨fun | .liftBind _ _ a hv hstep hrest => ⟨hv, a, _, _, hstep, hrest, rfl⟩,
+    by rintro ⟨hv, a, s₁, tr', hstep, hrest, rfl⟩; exact .liftBind o k a hv hstep hrest⟩
 
 /-- Sequential client runs compose by concatenating their transcripts. -/
 theorem ClientRun.bind {D : StateTransitionSpec.{u, v, w}} {s s₁ s₂ : D.State} {p : D.Client α}
@@ -500,19 +478,14 @@ theorem clientRun_bind_iff {D : StateTransitionSpec.{u, v, w}} {s s₂ : D.State
     D.ClientRun s (p.bind k) b s₂ tr ↔
       ∃ a s₁ tr₁ tr₂, D.ClientRun s p a s₁ tr₁ ∧
         D.ClientRun s₁ (k a) b s₂ tr₂ ∧ tr = tr₁ ++ tr₂ := by
-  constructor
-  · intro h
-    induction p generalizing s tr with
-    | pure a =>
-      exact ⟨a, s, [], tr, .pure s a, h, rfl⟩
-    | liftBind o cont ih =>
-      change D.ClientRun s (.liftBind o fun r => (cont r).bind k) b s₂ tr at h
-      cases h with
-      | liftBind _ _ res hv hstep hrest =>
-        obtain ⟨a, s₁, tr₁, tr₂, hp, hk, rfl⟩ := ih res hrest
-        exact ⟨a, s₁, ⟨o, res, _⟩ :: tr₁, tr₂, .liftBind o cont res hv hstep hp, hk, rfl⟩
-  · rintro ⟨a, s₁, tr₁, tr₂, hp, hk, rfl⟩
-    exact hp.bind hk
+  refine ⟨fun h => ?_, by rintro ⟨_, _, _, _, hp, hk, rfl⟩; exact hp.bind hk⟩
+  induction p generalizing s tr with
+  | pure a => exact ⟨a, s, [], tr, .pure s a, h, rfl⟩
+  | liftBind o cont ih =>
+    rcases (clientRun_liftBind_iff s o (fun r => (cont r).bind k) b s₂ tr).mp h with
+      ⟨hv, res, _, _, hstep, hrest, rfl⟩
+    obtain ⟨a, s₁, tr₁, tr₂, hp, hk, rfl⟩ := ih res hrest
+    exact ⟨a, s₁, ⟨o, res, _⟩ :: tr₁, tr₂, .liftBind o cont res hv hstep hp, hk, rfl⟩
 
 /-- Demonic admissibility of an adaptive client `p` from state `s`:
 * `.pure a` is always admissible;
@@ -533,12 +506,8 @@ theorem demonicValid_pure_iff {D : StateTransitionSpec.{u, v, w}} (s : D.State) 
 theorem demonicValid_liftBind_iff {D : StateTransitionSpec.{u, v, w}} (s : D.State) (o : D.Op)
     (k : D.Result o → D.Client α) :
     D.DemonicValid s (.liftBind o k) ↔
-      D.valid s o ∧ ∀ s' a, D.step s o s' a → D.DemonicValid s' (k a) := by
-  constructor
-  · intro h
-    cases h with
-    | liftBind _ _ hv hk => exact ⟨hv, hk⟩
-  · rintro ⟨hv, hk⟩; exact .liftBind o k hv hk
+      D.valid s o ∧ ∀ s' a, D.step s o s' a → D.DemonicValid s' (k a) :=
+  ⟨fun | .liftBind _ _ hv hk => ⟨hv, hk⟩, fun ⟨hv, hk⟩ => .liftBind o k hv hk⟩
 
 /-- On a specification where every operation is valid in every state, every client is demonically
 admissible. -/
@@ -978,15 +947,10 @@ theorem validOpSeq_iff_validHistory (s : D.State) (ops : List D.Op) :
   | nil => rfl
   | cons o ops ih =>
     rw [validOpSeq_cons, validHistory_cons]
-    refine and_congr_right fun _ => ?_
-    constructor
-    · intro h
-      exact (ih (D.stepFn s o).1).mp (h (D.stepFn s o).1 (D.stepFn s o).2 (D.step_stepFn s o))
-    · intro h s' a hstep
-      have heq := (D.step_iff_stepFn s o s' a).mp hstep
-      have hs' : s' = (D.stepFn s o).1 := congrArg Prod.fst heq
-      subst hs'
-      exact (ih (D.stepFn s o).1).mpr h
+    refine and_congr_right fun _ =>
+      ⟨fun h => (ih _).mp (h _ _ (D.step_stepFn s o)), fun h s' a hstep => ?_⟩
+    obtain ⟨rfl, -⟩ := Prod.ext_iff.mp ((D.step_iff_stepFn s o s' a).mp hstep)
+    exact (ih _).mpr h
 
 /-- The unique canonical transcript determined by a specification `D` with `[D.HasStepFn f]` on
 an operation list `os` from state `s`. -/
@@ -1049,46 +1013,33 @@ theorem validTranscript_iff_run (s : D.State) (tr : D.Transcript) (s' : D.State)
       s' = (D.run s tr.ops).1 ∧
       tr = D.canonicalTranscript s tr.ops := by
   induction tr generalizing s with
-  | nil =>
-    simp [eq_comm]
+  | nil => simp [eq_comm]
   | cons st tr ih =>
     rcases st with ⟨o, a, s₁⟩
-    rw [validTranscript_cons_iff]
-    simp only [Transcript.ops_cons, validHistory_cons, run_cons, canonicalTranscript_cons,
-      step_iff_stepFn (D := D)]
-    constructor
-    · rintro ⟨hv_o, heq, htr⟩
-      have hs₁ : s₁ = (D.stepFn s o).1 := congrArg Prod.fst heq
-      have ha : a = (D.stepFn s o).2 := congrArg Prod.snd heq
-      subst hs₁; subst ha
-      obtain ⟨hv_rest, rfl, htr_eq⟩ := (ih (D.stepFn s o).1).mp htr
+    simp only [validTranscript_cons_iff, Transcript.ops_cons, validHistory_cons, run_cons,
+      canonicalTranscript_cons, step_iff_stepFn (D := D), Prod.ext_iff]
+    refine ⟨?_, ?_⟩
+    · rintro ⟨hv_o, ⟨rfl, rfl⟩, htr⟩
+      obtain ⟨hv_rest, rfl, htr_eq⟩ := (ih _).mp htr
       exact ⟨⟨hv_o, hv_rest⟩, rfl, congrArg _ htr_eq⟩
     · rintro ⟨⟨hv_o, hv_rest⟩, rfl, htr_eq⟩
       injection htr_eq with hst htr_tail
       cases hst
-      exact ⟨hv_o, Prod.mk.eta, (ih (D.stepFn s o).1).mpr ⟨hv_rest, rfl, htr_tail⟩⟩
+      exact ⟨hv_o, ⟨rfl, rfl⟩, (ih _).mpr ⟨hv_rest, rfl, htr_tail⟩⟩
 
 /-- Under `[D.HasStepFn f]`, demonic client admissibility
 `DemonicValid s p` is equivalent to `D.ValidHistory s (D.clientHistory s p)`. -/
 theorem demonicValid_iff_validHistory_runClient (s : D.State) (p : D.Client α) :
     D.DemonicValid s p ↔ D.ValidHistory s (D.clientHistory s p) := by
   induction p generalizing s with
-  | pure a =>
-    exact ⟨fun _ => trivial, fun _ => .pure s a⟩
+  | pure a => exact ⟨fun _ => trivial, fun _ => .pure s a⟩
   | liftBind o k ih =>
     rw [demonicValid_liftBind_iff, show D.clientHistory s (.liftBind o k) =
       o :: D.clientHistory (D.stepFn s o).1 (k (D.stepFn s o).2) from rfl, validHistory_cons]
-    refine and_congr_right fun _ => ?_
-    constructor
-    · intro h
-      exact (ih (D.stepFn s o).2 (D.stepFn s o).1).mp
-        (h (D.stepFn s o).1 (D.stepFn s o).2 (D.step_stepFn s o))
-    · intro h s' a hstep
-      have heq := (D.step_iff_stepFn s o s' a).mp hstep
-      have hs' : s' = (D.stepFn s o).1 := congrArg Prod.fst heq
-      have ha : a = (D.stepFn s o).2 := congrArg Prod.snd heq
-      subst hs'; subst ha
-      exact (ih (D.stepFn s o).2 (D.stepFn s o).1).mpr h
+    refine and_congr_right fun _ =>
+      ⟨fun h => (ih _ _).mp (h _ _ (D.step_stepFn s o)), fun h s' a hstep => ?_⟩
+    obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((D.step_iff_stepFn s o s' a).mp hstep)
+    exact (ih _ _).mpr h
 
 /-- Every client with an admissible deterministic history executes canonically. -/
 theorem clientRun_canonical (s : D.State) (p : D.Client α)
@@ -1096,8 +1047,7 @@ theorem clientRun_canonical (s : D.State) (p : D.Client α)
     D.ClientRun s p (D.clientResult s p) (D.clientState s p)
       (D.canonicalTranscript s (D.clientHistory s p)) := by
   induction p generalizing s with
-  | pure a =>
-    exact .pure s a
+  | pure a => exact .pure s a
   | liftBind o k ih =>
     exact .liftBind o k (D.stepFn s o).2 hv.1 (D.step_stepFn s o)
       (ih (D.stepFn s o).2 (D.stepFn s o).1 hv.2)
@@ -1110,13 +1060,9 @@ private theorem clientRun_imp_ofFn {s : D.State} {p : D.Client α}
     s' = D.clientState s p ∧
     tr = D.canonicalTranscript s (D.clientHistory s p) := by
   induction h with
-  | pure s a =>
-    exact ⟨trivial, rfl, rfl, rfl⟩
-  | @liftBind s s₁ s₂ o k res v tr hv hstep _ ih =>
-    have heq := (D.step_iff_stepFn s o s₁ res).mp hstep
-    have hs₁ : s₁ = (D.stepFn s o).1 := congrArg Prod.fst heq
-    have hres : res = (D.stepFn s o).2 := congrArg Prod.snd heq
-    subst hs₁; subst hres
+  | pure _ _ => exact ⟨trivial, rfl, rfl, rfl⟩
+  | liftBind _ _ _ hv hstep _ ih =>
+    obtain ⟨rfl, rfl⟩ := Prod.ext_iff.mp ((D.step_iff_stepFn _ _ _ _).mp hstep)
     obtain ⟨hv_rest, rfl, rfl, rfl⟩ := ih
     exact ⟨⟨hv, hv_rest⟩, rfl, rfl, rfl⟩
 
