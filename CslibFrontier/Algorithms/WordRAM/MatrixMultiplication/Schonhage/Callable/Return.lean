@@ -24,6 +24,13 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduc
 
 open Cslib.WordRAM
 
+private theorem frame_high_regs {x y : Data 163} {a b c : ℕ}
+    (yf : ∀ i : Fin 163, (∀ j : Fin 7, normalizeBank j ≠ i) →
+      y.regs i = (((x.set Reg.result a).set Reg.second b).set Reg.third c).regs i) :
+    ∀ i : Fin 163, 7 ≤ i.val → y.regs i = x.regs i := fun i hi => by
+  rw [yf i (fun j hj => by have h := congrArg Fin.val hj; change j.val = i.val at h; omega)]
+  repeat rw [Data.set_regs_of_ne (by intro h; subst h; exact absurd hi (by decide))]
+
 /-- Normalize precisely the local original input; high product/caller registers survive. -/
 theorem exec_restoreInput {W b n M : ℕ} (x : Data 163) (hb : x.regs Reg.base = b)
     (hn : x.regs Reg.inputSize = n) (hm : x.regs Reg.modulus = M) (hM : 0 < M)
@@ -35,12 +42,7 @@ theorem exec_restoreInput {W b n M : ℕ} (x : Data 163) (hb : x.regs Reg.base =
   unfold restoreInput
   wram_exec [hb, hn, hm]
   wram_call ArrayNormalize.exec renamed with y ⟨⟨ym, _, _, _⟩, yf⟩
-  refine ⟨by omega, ym, fun i hi => ?_⟩
-  rw [yf i (fun j hj => by have h := congrArg Fin.val hj; change j.val = i.val at h; omega)]
-  have h0 : i ≠ Reg.result := fun h => by subst h; exact absurd hi (by decide)
-  have h1 : i ≠ Reg.second := fun h => by subst h; exact absurd hi (by decide)
-  have h2 : i ≠ Reg.third := fun h => by subst h; exact absurd hi (by decide)
-  wram_simp
+  exact ⟨by omega, ym, frame_high_regs yf⟩
 
 /-- Normalize the answer span, preserving all high registers, and return its absolute pointer. -/
 theorem exec_returnOutput {W b o n M : ℕ} (x : Data 163) (hb : x.regs Reg.base = b)
@@ -55,11 +57,6 @@ theorem exec_returnOutput {W b o n M : ℕ} (x : Data 163) (hb : x.regs Reg.base
   unfold returnOutput
   wram_exec [hb, ho, hn, hm]
   wram_call ArrayNormalize.exec renamed [hfit'] with y ⟨⟨ym, yr, _, _⟩, yf⟩
-  refine ⟨by omega, ym, yr, fun i hi => ?_⟩
-  rw [yf i (fun j hj => by have h := congrArg Fin.val hj; change j.val = i.val at h; omega)]
-  have h0 : i ≠ Reg.result := fun h => by subst h; exact absurd hi (by decide)
-  have h1 : i ≠ Reg.second := fun h => by subst h; exact absurd hi (by decide)
-  have h2 : i ≠ Reg.third := fun h => by subst h; exact absurd hi (by decide)
-  wram_simp
+  exact ⟨by omega, ym, yr, frame_high_regs yf⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduct
