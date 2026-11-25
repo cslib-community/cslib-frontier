@@ -333,10 +333,8 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
     Fin.ext (congrArg (fun s : S => s.2.val) (hindex he))
   have hsep (i j : Fin m) (p : Fin (ns i + 1)) (q : Fin (ns j + 1))
       (he : inner i p = inner j q) : i = j := congrArg Sigma.fst (hindex he)
-  have hout : Function.Injective outer := by
-    fin_index [outer]
-  have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) :
-      inner i p ≠ outer q := by
+  have hout : Function.Injective outer := by fin_index [outer]
+  have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) : inner i p ≠ outer q := by
     fin_index [inner, outer]
   let emit : ∀ {r : ℕ}, (Fin k → Fin r) → (Fin (N + a + 1) → Fin r) → Code B r :=
     fun src tmp => (List.finRange m).foldr
@@ -379,15 +377,13 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
         · subst j
           change z'.regs (tmp (inner i 0)) = g (z.regs ∘ src) i at ho
           exact hz ▸ ho
-        · have hreg := hframe (tmp (inner j 0))
-            (fun q heq => hji (hsep i j q 0 (hi heq)).symm)
-          exact hreg.trans (hvals j (by simpa only [List.mem_cons, not_or] using And.intro hji hj))
+        · exact (hframe _ fun q heq => hji (hsep i j q 0 (hi heq)).symm).trans
+            (hvals j (by simp [hji, hj]))
       obtain ⟨y, hy, hyo, hym, hyf⟩ := ih z' hz' hvals'
       refine ⟨y, ?_, hyo, hym.trans hm, fun j hj =>
         (hyf j hj).trans (hframe j fun q => hj (inner i q))⟩
       simpa only [List.foldr_cons, List.map_cons, List.sum_cons, Nat.add_assoc] using he.seq hy
-  obtain ⟨y, hy, ho, hm, hf⟩ := run (List.finRange m) x rfl
-    (fun i hi => False.elim (hi (by simp)))
+  obtain ⟨y, hy, ho, hm, hf⟩ := run (List.finRange m) x rfl fun i hi => (hi (by simp)).elim
   refine ⟨y, ?_, ho, hm, hf⟩
   simpa only [List.ofFn_eq_map] using hy
 
