@@ -86,15 +86,11 @@ private theorem eval_update (σ : V → Bool) (v : V) (b : Bool) (c : Clause V) 
   · rintro ⟨⟨w, p⟩, hl, h⟩
     by_cases hw : w = v
     · subst w
-      rw [Function.update_self] at h
-      change b = p at h
-      subst p
-      cases b <;> simp_all
+      cases b <;> cases p <;> simp_all [Function.update_self]
     · exact Or.inr ⟨(w, p), ⟨hl, hw⟩, (Function.update_of_ne hw b σ).symm.trans h⟩
   · rintro ((⟨hl, rfl⟩ | ⟨hl, hb⟩) | ⟨l, ⟨hl, hv⟩, h⟩)
     · exact ⟨(v, true), hl, Function.update_self ..⟩
-    · refine ⟨(v, false), hl, ?_⟩
-      simpa using hb
+    · exact ⟨(v, false), hl, by simpa using hb⟩
     · exact ⟨l, hl, (Function.update_of_ne hv b σ).trans h⟩
 
 private theorem hits_clauseMask (vs : List V) (values : List Bool) (c : Clause V)
@@ -103,22 +99,16 @@ private theorem hits_clauseMask (vs : List V) (values : List Bool) (c : Clause V
       c.eval (updates σ vs.reverse values.reverse) := by
   induction vs generalizing values c with
   | nil =>
-    have hc : c = [] := List.eq_nil_iff_forall_not_mem.2 fun l hl =>
-      List.not_mem_nil (hbound l hl)
-    subst c
+    obtain rfl := List.eq_nil_iff_forall_not_mem.2 fun l hl => List.not_mem_nil (hbound l hl)
     cases values <;> simp_all [clauseMask, Clause.eval, updates]
   | cons v vs ih =>
-    cases values with
-    | nil => simp at hlen
-    | cons b values =>
-      have hb : ∀ l ∈ c.filter (fun l => l.1 != v), l.1 ∈ vs := by
-        intro l hl
-        obtain ⟨hc, hv⟩ := List.mem_filter.1 hl
-        exact (List.mem_cons.1 (hbound l hc)).resolve_left (bne_iff_ne.1 hv)
-      simp only [clauseMask, List.flatMap_cons, List.cons_append, List.nil_append,
+    rcases values with _ | ⟨b, values⟩
+    · simp at hlen
+    · simp only [clauseMask, List.flatMap_cons, List.cons_append, List.nil_append,
         Network.hits, List.reverse_cons]
-      rw [updates_append _ _ (by simpa using hlen),
-        ih values _ (by simpa using hlen) hb, eval_update]
+      rw [updates_append _ _ (by simpa using hlen), ih values _ (by simpa using hlen) fun l hl =>
+        let ⟨hc, hv⟩ := List.mem_filter.1 hl
+        (List.mem_cons.1 (hbound l hc)).resolve_left (bne_iff_ne.1 hv), eval_update]
       exact (Bool.or_assoc ..).symm
 
 private theorem satisfies_iff (vs : List V) (values : List Bool) (φ : CNF V)
@@ -127,13 +117,9 @@ private theorem satisfies_iff (vs : List V) (values : List Bool) (φ : CNF V)
       φ.eval (updates σ vs values) = true := by
   unfold Matrix.Satisfies CNF.eval Chain.literalValues
   simp only [List.all_map, Function.comp_def, List.all_eq_true]
-  apply forall₂_congr
-  intro c hc
-  have hb : ∀ l ∈ c, l.1 ∈ vs.reverse := by
-    intro l hl
-    exact List.mem_reverse.2 (hbound l.1 (List.mem_map.2
-      ⟨l, List.mem_flatten.2 ⟨c, hc, hl⟩, rfl⟩))
-  rw [hits_clauseMask _ _ _ (by simpa using hlen) hb σ]
+  refine forall₂_congr fun c hc => ?_
+  rw [hits_clauseMask _ _ _ (by simpa using hlen) (fun l hl =>
+    List.mem_reverse.2 (hbound l.1 (List.mem_map.2 ⟨l, List.mem_flatten.2 ⟨c, hc, hl⟩, rfl⟩))) σ]
   simp only [List.reverse_reverse]
 
 private theorem truth_rounds (ps : List (V × V)) (vs : List V) (values : List Bool)
@@ -151,17 +137,10 @@ private theorem truth_rounds (ps : List (V × V)) (vs : List V) (values : List B
   | cons p ps ih =>
     simp only [quantifiers, Chain.Truth, rounds, List.foldr_cons,
       eval_ex_eq_true_iff, eval_all_eq_true_iff]
-    apply exists_congr
-    intro b
-    apply forall_congr'
-    intro c
-    have hlen' : (vs ++ [p.1] ++ [p.2]).length = (values ++ [b] ++ [c]).length := by
-      simp [hlen]
-    have hbound' : ∀ v ∈ φ.vars,
-        v ∈ (vs ++ [p.1] ++ [p.2]) ++ roundVars ps := by
-      simpa only [roundVars, List.flatMap_cons, List.cons_append,
-        List.nil_append, List.append_assoc] using hbound
-    have h := ih (vs ++ [p.1] ++ [p.2]) (values ++ [b] ++ [c]) hlen' hbound'
+    refine exists_congr fun b => forall_congr' fun c => ?_
+    have h := ih (vs ++ [p.1] ++ [p.2]) (values ++ [b] ++ [c]) (by simp [hlen])
+      (by simpa only [roundVars, List.flatMap_cons, List.cons_append, List.nil_append,
+        List.append_assoc] using hbound)
     rw [updates_append (vs ++ [p.1]) (values ++ [b]) (by simp [hlen]),
       updates_append vs values hlen] at h
     simpa only [rounds, roundVars, List.flatMap_cons, List.cons_append,
@@ -172,12 +151,10 @@ Repeated variables are allowed, including both binders of a single round sharing
 theorem truth_iff_eval (ps : List (V × V)) (φ : CNF V)
     (hclosed : (rounds ps (ofCNF φ)).Closed) (σ : V → Bool) :
     Chain.Truth (Matrix.Satisfies (masks ps φ)) (quantifiers ps) [] ↔
-      (rounds ps (ofCNF φ)).eval σ = true := by
-  have hbound : ∀ v ∈ φ.vars, v ∈ roundVars ps := by
-    intro v hv
+      (rounds ps (ofCNF φ)).eval σ = true :=
+  truth_rounds ps [] [] φ rfl (fun v hv => by
     obtain ⟨c, hc, p, hl⟩ := CNF.mem_vars.1 hv
-    exact (closed_rounds_ofCNF_iff ps φ).1 hclosed c hc (v, p) hl
-  exact truth_rounds ps [] [] φ rfl (by simpa using hbound) σ
+    exact List.mem_append_right _ ((closed_rounds_ofCNF_iff ps φ).1 hclosed c hc (v, p) hl)) σ
 
 /-- **Source soundness of the actual circuit body.** From any legal inactive start in any
 containing diagram, reaching success implies truth of the closed upstream QBF. -/

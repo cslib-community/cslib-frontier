@@ -101,8 +101,8 @@ example : ([] : List Bool).length ≤ 2 * 0 ∧ ¬ (cmacRpf 2 (0, 0) []).length 
 every `k` (`10` under XOR with `k` on 2-bit blocks). -/
 theorem cmacRpf_nil_eq_single_key {n : ℕ} (hn : 0 < n) (k : BitString n) :
     cmacRpf n (k, k) [] = cmacRpf n (k, k) (true :: List.replicate (n - 1) false) := by
-  have hpad : Sponge.pad n [] = true :: List.replicate (n - 1) false :=
-    Sponge.pad_of_dvd hn (dvd_zero n)
+  have hpad : BitString.pad10star n [] = true :: List.replicate (n - 1) false :=
+    BitString.pad10star_of_dvd hn (dvd_zero n)
   have hlen : (true :: List.replicate (n - 1) false).length = n := by simp; omega
   simp [cmacRpf, cmacCore, hpad, hlen, hn]
 

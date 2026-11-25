@@ -82,9 +82,7 @@ theorem WellFormed.map [Fintype V] [Fintype E] [Fintype E']
   obtain ⟨weight, hw⟩ := h
   refine ⟨weight ∘ f.symm, ?_⟩
   rw [portMultiset_map, hw, ← Multiset.coe_mapAddMonoidHom, map_sum]
-  apply Fintype.sum_equiv f
-  intro e
-  simp [WeightedPort.map, Port.map]
+  exact Fintype.sum_equiv f _ _ fun _ => by simp [WeightedPort.map, Port.map]
 
 /-- Reindexing vertices bijectively preserves every endpoint occurrence. -/
 theorem WellFormed.reindex {V' : Type*} [Fintype V] [Fintype V'] [Fintype E]
@@ -110,20 +108,18 @@ theorem wellFormed_iff_filter [Fintype V] [Fintype E] [DecidableEq E]
     (G : ConstraintGraph V E) : G.WellFormed ↔
       ∀ e, ∃ w, G.portMultiset.filter (fun p => p.port.edge = e) =
         {⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩} := by
-  constructor
+  refine ⟨?_, fun h => ?_⟩
   · rintro ⟨weight, hw⟩ e
     refine ⟨weight e, ?_⟩
     let F : Multiset (WeightedPort E) →+ Multiset (WeightedPort E) :=
       { toFun := Multiset.filter (fun p => p.port.edge = e)
         map_zero' := Multiset.filter_zero _
         map_add' := Multiset.filter_add _ }
-    have hh := congrArg F hw
-    rw [map_sum] at hh
+    have hh := (congrArg F hw).trans (map_sum F _ _)
     simp only [F, AddMonoidHom.coe_mk, ZeroHom.coe_mk, Multiset.filter_add,
       Multiset.filter_singleton, Finset.sum_add_distrib] at hh
     simpa using hh
-  · intro h
-    choose weight hw using h
+  · choose weight hw using h
     refine ⟨weight, ?_⟩
     calc
       _ = ∑ e, G.portMultiset.filter (fun p => p.port.edge = e) := (sum_filter_edge _).symm
@@ -133,9 +129,8 @@ theorem wellFormed_iff_filter [Fintype V] [Fintype E] [DecidableEq E]
 theorem WellFormed.card_portMultiset [Fintype V] [Fintype E]
     {G : ConstraintGraph V E} (h : G.WellFormed) :
     G.portMultiset.card = 2 * Fintype.card E := by
-  obtain ⟨weight, hw⟩ := h
-  rw [hw]
-  simp [Nat.mul_comm]
+  obtain ⟨_, hw⟩ := h
+  simp [hw, Nat.mul_comm]
 
 end ConstraintGraph
 

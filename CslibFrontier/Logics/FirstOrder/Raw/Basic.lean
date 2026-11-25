@@ -129,43 +129,35 @@ private theorem ofNat_four_mul_add (p j : ℕ) (hj : j < 4) :
     else if j = 1 then rel p.unpair.1 (Denumerable.ofNat (List ℕ) p.unpair.2)
     else if j = 2 then imp (ofNat p.unpair.1) (ofNat p.unpair.2)
     else all p.unpair.1 (ofNat p.unpair.2) := by
-  rw [ofNat_succ]
-  have h1 : (4 * p + j) % 4 = j := by omega
-  have h2 : (4 * p + j) / 4 = p := by omega
-  rw [h1, h2]
+  rw [ofNat_succ, show (4 * p + j) % 4 = j by omega, show (4 * p + j) / 4 = p by omega]
 
 /-- `ofNat` is a left inverse of `toNat`. -/
 theorem ofNat_toNat : ∀ φ : RawFormula, ofNat φ.toNat = φ
   | falsum => ofNat_zero
   | equal x y => by
-    rw [toNat, ofNat_four_mul_add _ 0 (by omega)]
-    simp
+    rw [toNat]
+    simpa using ofNat_four_mul_add (Nat.pair x y) 0 (by omega)
   | rel r args => by
-    rw [toNat, show 4 * Nat.pair r (Encodable.encode args) + 2 =
-      4 * Nat.pair r (Encodable.encode args) + 1 + 1 from rfl, ofNat_four_mul_add _ 1 (by omega)]
-    simp
+    rw [toNat]
+    simpa using ofNat_four_mul_add (Nat.pair r (Encodable.encode args)) 1 (by omega)
   | imp φ ψ => by
-    rw [toNat,
-      show 4 * Nat.pair φ.toNat ψ.toNat + 3 = 4 * Nat.pair φ.toNat ψ.toNat + 2 + 1 from rfl,
-      ofNat_four_mul_add _ 2 (by omega)]
-    simp [ofNat_toNat φ, ofNat_toNat ψ]
+    rw [toNat]
+    simpa [ofNat_toNat φ, ofNat_toNat ψ] using
+      ofNat_four_mul_add (Nat.pair φ.toNat ψ.toNat) 2 (by omega)
   | all x φ => by
-    rw [toNat, show 4 * Nat.pair x φ.toNat + 4 = 4 * Nat.pair x φ.toNat + 3 + 1 from rfl,
-      ofNat_four_mul_add _ 3 (by omega)]
-    simp [ofNat_toNat φ]
+    rw [toNat]
+    simpa [ofNat_toNat φ] using ofNat_four_mul_add (Nat.pair x φ.toNat) 3 (by omega)
 
 /-- `ofNat` is a right inverse of `toNat`. -/
 theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
   | 0 => by rw [ofNat_zero, toNat]
   | m + 1 => by
-    have h1 := unpair_fst_div_four_lt m
-    have h2 := unpair_snd_div_four_lt m
-    have ih1 := toNat_ofNat (m / 4).unpair.1
-    have ih2 := toNat_ofNat (m / 4).unpair.2
-    have hm : 4 * (m / 4) + m % 4 = m := Nat.div_add_mod m 4
-    have hp := Nat.pair_unpair (m / 4)
+    have := unpair_fst_div_four_lt m
+    have := unpair_snd_div_four_lt m
+    have := toNat_ofNat (m / 4).unpair.1
+    have := toNat_ofNat (m / 4).unpair.2
     rw [ofNat_succ]
-    grind [toNat, Denumerable.encode_ofNat]
+    grind [toNat, Denumerable.encode_ofNat, Nat.div_add_mod m 4, Nat.pair_unpair (m / 4)]
 
 instance : Denumerable RawFormula :=
   Denumerable.mk' ⟨toNat, ofNat, ofNat_toNat, toNat_ofNat⟩
@@ -374,22 +366,20 @@ theorem realize_congr_var {I : ℕ → List M → Prop} :
     ∀ (φ : RawFormula) {v w : ℕ → M}, (∀ x < φ.varBound, v x = w x) →
       (φ.Realize I v ↔ φ.Realize I w)
   | falsum, _, _, _ => Iff.rfl
-  | equal x y, v, w, h => by
+  | equal x y, _, _, h => by
     simp only [Realize, varBound] at h ⊢
     rw [h x (by omega), h y (by omega)]
-  | rel r args, v, w, h => by
+  | rel _ args, _, _, h => by
     simp only [Realize, varBound] at h ⊢
     rw [List.map_congr_left fun x hx => h x (lt_varBound_of_mem hx)]
-  | imp φ ψ, v, w, h => by
+  | imp φ ψ, _, _, h => by
     simp only [Realize, varBound] at h ⊢
     rw [realize_congr_var φ fun x hx => h x (lt_max_of_lt_left hx),
       realize_congr_var ψ fun x hx => h x (lt_max_of_lt_right hx)]
-  | all x φ, v, w, h => by
+  | all x φ, _, _, h => by
     simp only [Realize, varBound] at h ⊢
-    refine forall_congr' fun m => realize_congr_var φ fun y hy => ?_
-    by_cases hyx : y = x
-    · subst hyx; simp
-    · simp [Function.update_of_ne hyx, h y (lt_max_of_lt_right hy)]
+    exact forall_congr' fun _ => realize_congr_var φ fun y hy => by
+      by_cases hyx : y = x <;> simp [hyx, h y (lt_max_of_lt_right hy)]
 
 /-- Satisfaction of `φ` depends only on the interpretations of relation symbol–arity pairs in
 `φ.atoms`. -/
@@ -399,14 +389,12 @@ theorem realize_congr_rel {I J : ℕ → List M → Prop} :
       (φ.Realize I v ↔ φ.Realize J v)
   | falsum, _, _ => Iff.rfl
   | equal _ _, _, _ => Iff.rfl
-  | rel r args, v, h => h r _ (by simp [atoms])
+  | rel r args, _, h => h r _ (by simp [atoms])
   | imp φ ψ, v, h => by
     simp only [Realize, atoms, List.mem_append] at h ⊢
     rw [realize_congr_rel φ v fun r as hr => h r as (Or.inl hr),
       realize_congr_rel ψ v fun r as hr => h r as (Or.inr hr)]
-  | all x φ, v, h => by
-    simp only [Realize, atoms] at h ⊢
-    exact forall_congr' fun m => realize_congr_rel φ _ h
+  | all _ φ, _, h => forall_congr' fun _ => realize_congr_rel φ _ h
 
 /-- Satisfaction of a raw formula is invariant under transporting both the interpretation and
 assignment along a bijection `e : M ≃ N`. -/
@@ -414,20 +402,11 @@ theorem realize_equiv {N : Type*} (e : M ≃ N) (I : ℕ → List M → Prop) :
     ∀ (φ : RawFormula) (v : ℕ → M),
       φ.Realize (fun r as => I r (as.map e.symm)) (e ∘ v) ↔ φ.Realize I v
   | falsum, _ => Iff.rfl
-  | equal x y, v => by simp [Realize]
-  | rel r args, v => by simp [Realize, Function.comp_def]
-  | imp φ ψ, v => by
-    simp only [Realize]
-    rw [realize_equiv e I φ v, realize_equiv e I ψ v]
-  | all x φ, v => by
-    simp only [Realize]
-    refine (e.forall_congr_right).symm.trans (forall_congr' fun m => ?_)
-    rw [← realize_equiv e I φ (Function.update v x m)]
-    congr! 1
-    funext y
-    by_cases hyx : y = x
-    · subst hyx; simp
-    · simp [Function.update_of_ne hyx]
+  | equal _ _, _ => by simp [Realize]
+  | rel _ _, _ => by simp [Realize, Function.comp_def]
+  | imp φ ψ, v => by simp only [Realize, realize_equiv e I φ v, realize_equiv e I ψ v]
+  | all x φ, v => e.forall_congr_right.symm.trans <| forall_congr' fun m => by
+      rw [← Function.comp_update, realize_equiv e I φ]
 
 /-! ### Finite satisfiability and finite validity -/
 

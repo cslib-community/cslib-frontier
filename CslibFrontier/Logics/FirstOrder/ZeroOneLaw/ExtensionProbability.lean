@@ -78,17 +78,13 @@ theorem binomialRandom_real_not_extensionAxiom_le (p : I) (n k : ℕ) (s : Fin k
         (1 - m ^ k) ^ (n - k) := fun x => by
     rw [SimpleGraph.binomialRandom_real_forall_not_witness, Fintype.card_fin]
     have hw : ∀ i, m ≤ if s i then (p : ℝ) else 1 - p := fun i => by
-      cases s i
-      · exact min_le_right _ _
-      · exact min_le_left _ _
+      cases s i <;> simp [m]
     have hle : m ^ k ≤ ∏ i, (if s i then (p : ℝ) else 1 - p) := by
       calc m ^ k = ∏ _i : Fin k, m := (Fin.prod_const k m).symm
         _ ≤ _ := Finset.prod_le_prod₀ (fun _ _ => hm0) fun i _ => hw i
     have hle1 : ∏ i, (if s i then (p : ℝ) else 1 - p) ≤ 1 :=
       Finset.prod_le_one₀ (fun i _ => hm0.trans (hw i)) fun i _ => by
-        cases s i
-        · exact sub_le_self _ (nonneg p)
-        · exact le_one p
+        cases s i <;> simp [nonneg p, le_one p]
     exact pow_le_pow_left₀ (sub_nonneg.2 hle1) (sub_le_sub_left hle 1) _
   -- The union bound over the tuples of distinct vertices.
   have hsub : {G : SimpleGraph (Fin n) | ¬Satisfies G (extensionAxiom k s)} ⊆
@@ -99,8 +95,7 @@ theorem binomialRandom_real_not_extensionAxiom_le (p : I) (n k : ℕ) (s : Fin k
     push Not at hG
     obtain ⟨x, hx, hG⟩ := hG
     refine Set.mem_biUnion (Finset.mem_coe.2 (Finset.mem_univ ⟨x, hx⟩)) fun z ⟨hz, hadj⟩ => ?_
-    obtain ⟨i, hi⟩ := hG z hz
-    rcases hi with ⟨h, hs⟩ | ⟨h, hs⟩
+    obtain ⟨i, ⟨h, hs⟩ | ⟨h, hs⟩⟩ := hG z hz
     · exact hs ((hadj i).1 h)
     · exact h ((hadj i).2 hs)
   calc G(Fin n, p).real {G | ¬Satisfies G (extensionAxiom k s)}
@@ -126,9 +121,7 @@ theorem tendsto_binomialRandom_real_extensionAxiom {p : I} (hp0 : 0 < (p : ℝ))
     squeeze_zero (fun _ => measureReal_nonneg)
       (fun n => binomialRandom_real_not_extensionAxiom_le p n k s)
       (tendsto_descFactorial_mul_pow_sub k hq0 hq1)
-  have h := hfail.const_sub 1
-  rw [sub_zero] at h
-  refine h.congr fun n => ?_
+  refine (sub_zero (1 : ℝ) ▸ hfail.const_sub 1).congr fun n => ?_
   rw [← Set.compl_ofPred, probReal_compl_eq_one_sub (Set.toFinite _).measurableSet, sub_sub_cancel]
 
 /-! ### `G(n, 1/2)` -/

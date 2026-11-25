@@ -88,17 +88,14 @@ def BinOp.isDivision : BinOp → Bool
 theorem evalUnOp_ok_of_typeOf {op : UnOp} {τ τ' : SqlType} (h : op.typeOf τ = some τ')
     {d : Datum} (hd : d.HasType τ) : ∃ d', evalUnOp op d = .ok d' ∧ d'.HasType τ' := by
   match op, τ, h with
-  | .not, .bool, h =>
-    cases h
+  | .not, .bool, rfl =>
     obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hd
     exact ⟨t.not.toDatum, by simp [evalUnOp, ht], Truth.toDatum_hasType _⟩
-  | .neg, .int, h =>
-    cases h
+  | .neg, .int, rfl =>
     obtain ⟨x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr hd
     refine ⟨x.map fun z => .int (negInt z), by simp [evalUnOp, hx], ?_⟩
     cases x <;> simp
-  | .isNull, _, h => cases h; exact ⟨_, rfl, rfl⟩
-  | .isNotNull, _, h => cases h; exact ⟨_, rfl, rfl⟩
+  | .isNull, _, rfl | .isNotNull, _, rfl => exact ⟨_, rfl, rfl⟩
 
 /-- A well-typed binary operator succeeds with a result of its type, unless it divides by zero,
 in which case the divisor is the integer `0`. -/
@@ -107,11 +104,9 @@ theorem evalBinOp_ok_or_divisionByZero {op : BinOp} {τ₁ τ₂ τ : SqlType}
     (∃ d, evalBinOp op a b = .ok d ∧ d.HasType τ) ∨
       (evalBinOp op a b = .error .divisionByZero ∧ op.isDivision ∧ b = some (.int 0)) := by
   match op, τ₁, τ₂, h with
-  | .arith op, .int, .int, h =>
-    cases h
-    obtain ⟨x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr ha
-    obtain ⟨y, hy⟩ := Datum.exists_asInt_eq_ok_iff.mpr hb
-    rcases x with _ | x <;> rcases y with _ | y
+  | .arith op, .int, .int, rfl =>
+    obtain ⟨_ | x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr ha <;>
+      obtain ⟨_ | y, hy⟩ := Datum.exists_asInt_eq_ok_iff.mpr hb
     case some.some =>
       rcases hz : op.eval x y with e | z
       · obtain ⟨rfl, hd, rfl⟩ := ArithOp.eval_eq_error hz
@@ -119,28 +114,21 @@ theorem evalBinOp_ok_or_divisionByZero {op : BinOp} {τ₁ τ₂ τ : SqlType}
       · exact .inl ⟨some (.int z), by simp [evalBinOp, hx, hy, hz], rfl⟩
     all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy], trivial⟩
   | .cmp op, τ₁, τ₂, h =>
-    simp only [BinOp.typeOf, Option.ite_none_right_eq_some, Option.some.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
+    obtain ⟨rfl, rfl⟩ : τ₁ = τ₂ ∧ SqlType.bool = τ := by simpa [BinOp.typeOf] using h
     obtain ⟨t, ht⟩ := CmpOp.exists_eval_eq_ok (op := op) ha hb
     exact .inl ⟨t.toDatum, by simp [evalBinOp, ht], Truth.toDatum_hasType _⟩
-  | .and, .bool, .bool, h =>
-    cases h
+  | .and, .bool, .bool, rfl =>
     obtain ⟨s, hs⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
     obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hb
     exact .inl ⟨(s ⊓ t).toDatum, by simp [evalBinOp, hs, ht], Truth.toDatum_hasType _⟩
-  | .or, .bool, .bool, h =>
-    cases h
+  | .or, .bool, .bool, rfl =>
     obtain ⟨s, hs⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
     obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hb
     exact .inl ⟨(s ⊔ t).toDatum, by simp [evalBinOp, hs, ht], Truth.toDatum_hasType _⟩
-  | .concat, .text, .text, h =>
-    cases h
-    obtain ⟨x, hx⟩ := Datum.exists_asText_eq_ok_iff.mpr ha
-    obtain ⟨y, hy⟩ := Datum.exists_asText_eq_ok_iff.mpr hb
-    rcases x with _ | x <;> rcases y with _ | y
-    case some.some =>
-      refine .inl ⟨some (.text (concatText x y)), ?_, rfl⟩
-      simp [evalBinOp, hx, hy]
+  | .concat, .text, .text, rfl =>
+    obtain ⟨_ | x, hx⟩ := Datum.exists_asText_eq_ok_iff.mpr ha <;>
+      obtain ⟨_ | y, hy⟩ := Datum.exists_asText_eq_ok_iff.mpr hb
+    case some.some => exact .inl ⟨some (.text (concatText x y)), by simp [evalBinOp, hx, hy], rfl⟩
     all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy], trivial⟩
 
 namespace Expr
@@ -196,10 +184,7 @@ instance (Γ : Fin n → SqlType) (e : Expr n) : Decidable (e.IsSafePredicate Γ
 
 private theorem eval_ne_ok_zero_of_isNonzeroIntLit {e : Expr n} (he : e.isNonzeroIntLit)
     (r : Row n) : e.eval r ≠ .ok (some (.int 0)) := by
-  match e, he with
-  | lit (.int z), he =>
-    simp only [isNonzeroIntLit, bne_iff_ne, ne_eq] at he
-    simpa using he
+  match e, he with | lit (.int _), he => simpa [isNonzeroIntLit] using he
 
 /-- Type soundness as a postcondition: on a row conforming to `Γ`, an expression of type `τ`
 returns `NULL` or a value of type `τ`, or divides by zero, which requires a division that is not
@@ -218,16 +203,15 @@ theorem eval_spec {Γ : Fin n → SqlType} {r : Row n} (hr : r.Conforms Γ) {e :
     obtain ⟨d', hd', hd'τ⟩ := evalUnOp_ok_of_typeOf hop hd
     simpa [hd'] using hd'τ
   | binary op e₁ e₂ ih₁ ih₂ =>
-    obtain ⟨τ₁, h₁, he⟩ := Option.bind_eq_some_iff.mp he
-    obtain ⟨τ₂, h₂, hop⟩ := Option.bind_eq_some_iff.mp he
-    refine ((ih₁ h₁).imp_error fun hs => by simp [divSafe, hs]).bind
-      fun a _ ha => ((ih₂ h₂).imp_error fun hs => by simp [divSafe, hs]).bind
-      fun b hb hbτ => ?_
+    obtain ⟨τ₁, h₁, τ₂, h₂, hop⟩ : ∃ τ₁, e₁.typeOf Γ = some τ₁ ∧
+        ∃ τ₂, e₂.typeOf Γ = some τ₂ ∧ op.typeOf τ₁ τ₂ = some τ := by
+      simpa only [typeOf, Option.bind_eq_bind, Option.bind_eq_some_iff] using he
+    refine ((ih₁ h₁).imp_error fun hs => by simp [divSafe, hs]).bind fun a _ ha =>
+      ((ih₂ h₂).imp_error fun hs => by simp [divSafe, hs]).bind fun b hb hbτ => ?_
     rcases evalBinOp_ok_or_divisionByZero hop ha hbτ with ⟨d, hd, hdτ⟩ | ⟨hd, hdiv, rfl⟩
     · simpa [hd] using hdτ
-    · have hlit : e₂.isNonzeroIntLit = false := by
-        by_contra hlit
-        exact eval_ne_ok_zero_of_isNonzeroIntLit (Bool.eq_true_of_not_eq_false hlit) r hb
+    · have hlit : e₂.isNonzeroIntLit = false := Bool.eq_false_iff.mpr fun h =>
+        eval_ne_ok_zero_of_isNonzeroIntLit h r hb
       simp [hd, divSafe, hdiv, hlit]
   | inList e vs ih =>
     obtain ⟨τ₀, h₀, hvs⟩ := Option.bind_eq_some_iff.mp he
@@ -278,8 +262,7 @@ theorem exists_eval_eq_ok_of_divSafe {Γ : Fin n → SqlType} {r : Row n} (hr : 
 theorem IsSafe.exists_eval_eq_ok {Γ : Fin n → SqlType} {e : Expr n} (hs : e.IsSafe Γ)
     {r : Row n} (hr : r.Conforms Γ) : ∃ d, e.eval r = .ok d := by
   obtain ⟨τ, hτ⟩ := Option.isSome_iff_exists.mp hs.1
-  obtain ⟨d, hd, -⟩ := exists_eval_eq_ok_of_divSafe hr hτ hs.2
-  exact ⟨d, hd⟩
+  exact (exists_eval_eq_ok_of_divSafe hr hτ hs.2).imp fun _ => And.left
 
 theorem IsSafePredicate.isSafe {Γ : Fin n → SqlType} {e : Expr n} (h : e.IsSafePredicate Γ) :
     e.IsSafe Γ :=
@@ -306,32 +289,20 @@ theorem typeOf_subst {σ : Fin n → Expr m} {Γ : Fin n → SqlType} {Δ : Fin 
 
 @[simp] theorem divSafe_rename (ρ : Fin n → Fin m) (e : Expr n) :
     (e.rename ρ).divSafe = e.divSafe := by
-  have hlit : ∀ e : Expr n, (e.rename ρ).isNonzeroIntLit = e.isNonzeroIntLit := by
-    intro e
-    cases e with
-    | lit v => cases v <;> rfl
-    | _ => rfl
+  have hlit (e : Expr n) : (e.rename ρ).isNonzeroIntLit = e.isNonzeroIntLit := by
+    cases e with | lit v => cases v <;> rfl | _ => rfl
   induction e <;> simp_all [rename, divSafe]
 
 /-- Substituting `divSafe` expressions into a `divSafe` expression keeps it `divSafe`. -/
 theorem divSafe_subst {σ : Fin n → Expr m} (hσ : ∀ i, (σ i).divSafe) {e : Expr n}
     (he : e.divSafe) : (e.subst σ).divSafe := by
-  have hlit : ∀ e : Expr n, e.isNonzeroIntLit → (e.subst σ).isNonzeroIntLit := by
-    intro e h
-    match e, h with
-    | lit (.int _), h => exact h
+  have hlit {e : Expr n} (h : e.isNonzeroIntLit) : (e.subst σ).isNonzeroIntLit :=
+    match e, h with | lit (.int _), h => h
   induction e with
-  | lit | null | col => simp_all [subst, divSafe]
-  | unary op e ih => simp_all [subst, divSafe]
   | binary op e₁ e₂ ih₁ ih₂ =>
-    simp only [divSafe, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_eq_eq_not,
-      Bool.not_true] at he
-    obtain ⟨⟨hdiv, h₁⟩, h₂⟩ := he
-    simp only [subst, divSafe, Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_eq_eq_not,
-      Bool.not_true, ih₁ h₁, ih₂ h₂, and_true]
-    exact hdiv.imp_right (hlit e₂)
-  | inList e vs ih => simp_all [subst, divSafe]
-  | caseWhen c a b ihc iha ihb => simp_all [subst, divSafe]
+    simp only [divSafe, subst, Bool.and_eq_true, Bool.or_eq_true] at he ⊢
+    exact ⟨⟨he.1.1.imp_right hlit, ih₁ he.1.2⟩, ih₂ he.2⟩
+  | _ => simp_all [subst, divSafe]
 
 theorem IsSafe.rename {Γ : Fin m → SqlType} {e : Expr n} (ρ : Fin n → Fin m)
     (h : e.IsSafe (Γ ∘ ρ)) : (e.rename ρ).IsSafe Γ := by

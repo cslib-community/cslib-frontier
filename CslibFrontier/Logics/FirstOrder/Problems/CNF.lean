@@ -147,13 +147,8 @@ def Satisfiable (M : Type*) [cnf.Structure M] : Prop :=
 /-- A clause is satisfied when it has a literal with the truth value of its polarity. -/
 theorem clauseSatisfied_iff (A : M → Prop) (c : M) :
     ClauseSatisfied A c ↔ ∃ l ∈ literals c, (A l.2 ↔ l.1 = true) := by
-  refine ⟨fun ⟨x, h⟩ => ?_, fun ⟨⟨b, x⟩, hl, h⟩ => ⟨x, ?_⟩⟩
-  · rcases h with h | h
-    · exact ⟨(true, x), h.1, by simp [h.2]⟩
-    · exact ⟨(false, x), h.1, by simp [h.2]⟩
-  · cases b
-    · exact .inr ⟨hl, by simpa using h⟩
-    · exact .inl ⟨hl, by simpa using h⟩
+  simp only [ClauseSatisfied, exists_or, Prod.exists, mem_literals, Bool.exists_bool, lit_false,
+    lit_true, Bool.false_eq_true, iff_false, iff_true, or_comm]
 
 /-- An assignment satisfies a CNF structure iff every clause has a literal matching its truth
 value. -/
@@ -166,10 +161,8 @@ theorem Satisfiable.of_equiv (e : M ≃[cnf] N) (h : Satisfiable M) : Satisfiabl
   obtain ⟨A, hA⟩ := h
   refine ⟨fun y => A (e.symm y), fun c => ?_⟩
   obtain ⟨x, hx⟩ := hA (e.symm c)
-  have hrel (R : cnf.Relations 2) : RelMap R ![c, e x] ↔ RelMap R ![e.symm c, x] := by
-    rw [← relMap_pair_equiv e, e.apply_symm_apply]
-  refine ⟨e x, ?_⟩
-  simpa only [hrel, e.symm_apply_apply] using hx
+  exact ⟨e x,
+    by simpa only [← relMap_pair_equiv e, e.apply_symm_apply, e.symm_apply_apply] using hx⟩
 
 /-- Isomorphic CNF structures are equisatisfiable. -/
 theorem satisfiable_iff_of_equiv (e : M ≃[cnf] N) : Satisfiable M ↔ Satisfiable N :=
@@ -178,9 +171,8 @@ theorem satisfiable_iff_of_equiv (e : M ≃[cnf] N) : Satisfiable M ↔ Satisfia
 /-- Every clause of a satisfiable CNF structure is nonempty. -/
 theorem Satisfiable.literals_nonempty (h : Satisfiable M) (c : M) : (literals c).Nonempty := by
   obtain ⟨A, hA⟩ := h
-  obtain ⟨x, ⟨hx, -⟩ | ⟨hx, -⟩⟩ := hA c
-  · exact ⟨(true, x), hx⟩
-  · exact ⟨(false, x), hx⟩
+  obtain ⟨l, hl, -⟩ := (clauseSatisfied_iff A c).1 (hA c)
+  exact ⟨l, hl⟩
 
 /-! ### 3-CNF structures -/
 
@@ -198,20 +190,17 @@ theorem encard_literals_le_three_iff (c : M) :
 
 /-- Being a 3-CNF structure is invariant under isomorphism. -/
 theorem isThreeCNF_iff_of_equiv (e : M ≃[cnf] N) : IsThreeCNF M ↔ IsThreeCNF N := by
-  have hlit (c : M) : literals (e c) = Prod.map id e '' literals c := by
+  have hcard (c : M) : (literals (e c)).encard = (literals c).encard := by
+    rw [← (Function.Injective.prodMap Function.injective_id e.injective).encard_image]
+    congr 1
     ext ⟨b, y⟩
     simp only [mem_literals, Set.mem_image, Prod.exists, Prod.map, id, Prod.mk.injEq]
-    refine ⟨fun h => ⟨b, e.symm y, ?_, rfl, e.apply_symm_apply y⟩, ?_⟩
-    · rwa [← relMap_pair_equiv e, e.apply_symm_apply]
-    · rintro ⟨b', x, hx, rfl, rfl⟩
-      rwa [← relMap_pair_equiv e] at hx
-  have hinj : Function.Injective (Prod.map (id : Bool → Bool) e) :=
-    Function.Injective.prodMap (fun _ _ h => h) e.injective
-  refine ⟨fun h c => ?_, fun h c => ?_⟩
-  · rw [← e.apply_symm_apply c, hlit, hinj.encard_image]
-    exact h _
-  · rw [← hinj.encard_image, ← hlit]
-    exact h _
+    refine ⟨fun h => ⟨b, e.symm y, by simpa [← relMap_pair_equiv e] using h, rfl,
+      e.apply_symm_apply y⟩, ?_⟩
+    rintro ⟨_, x, hx, rfl, rfl⟩
+    rwa [← relMap_pair_equiv e] at hx
+  exact ⟨fun h c => e.apply_symm_apply c ▸ (hcard _).trans_le (h _),
+    fun h c => (hcard c).symm.trans_le (h _)⟩
 
 /-! ### The classes SAT and 3SAT -/
 
@@ -241,15 +230,12 @@ theorem isThreeCNF_of_isEmpty [IsEmpty M] : IsThreeCNF M :=
   fun c => isEmptyElim c
 
 /-- Every structure with at most one element is a 3-CNF structure. -/
-theorem isThreeCNF_of_subsingleton [Subsingleton M] : IsThreeCNF M := by
-  intro c
-  rw [encard_literals_le_three_iff]
-  rintro ⟨l, -, hl⟩
+theorem isThreeCNF_of_subsingleton [Subsingleton M] : IsThreeCNF M := fun c => by
   have := Fintype.ofFinite M
+  refine (encard_literals_le_three_iff c).2 fun ⟨l, _, hl⟩ => ?_
   have h₁ := Fintype.card_le_of_injective l hl
-  have h₂ : Fintype.card M ≤ 1 := Fintype.card_le_one_iff_subsingleton.2 inferInstance
-  rw [Fintype.card_fin, Fintype.card_prod, Fintype.card_bool] at h₁
-  omega
+  have : Fintype.card M ≤ 1 := Fintype.card_le_one_iff_subsingleton.2 inferInstance
+  simp only [Fintype.card_fin, Fintype.card_prod, Fintype.card_bool] at h₁; omega
 
 /-! ### Copies -/
 
@@ -257,49 +243,37 @@ section Copies
 
 variable {J : Type*}
 
-private theorem literals_copies (j : J) (c : M) :
-    literals (M := Copies J M) ⟨j, c⟩ =
-      (fun l : Bool × M => (l.1, (⟨j, l.2⟩ : Copies J M))) '' literals c := by
-  ext ⟨b, ⟨j', x⟩⟩
-  simp only [mem_literals, Copies.relMap_copies_two, Set.mem_image, Prod.exists, Prod.mk.injEq]
-  constructor
-  · rintro ⟨rfl, hx⟩
-    exact ⟨b, x, hx, rfl, rfl⟩
-  · rintro ⟨b', x', hx, rfl, h⟩
-    cases h
-    exact ⟨rfl, hx⟩
-
 /-- A positive number of disjoint copies of a CNF structure is satisfiable exactly when the
 structure is. -/
 theorem satisfiable_copies_iff [Nonempty J] : Satisfiable (Copies J M) ↔ Satisfiable M := by
-  constructor
-  · rintro ⟨A, hA⟩
-    obtain ⟨j₀⟩ := ‹Nonempty J›
-    refine ⟨fun x => A ⟨j₀, x⟩, fun c => ?_⟩
-    obtain ⟨⟨j, x⟩, hx⟩ := hA ⟨j₀, c⟩
+  obtain ⟨j₀⟩ := ‹Nonempty J›
+  refine ⟨fun ⟨A, hA⟩ => ⟨fun x => A ⟨j₀, x⟩, fun c => ?_⟩,
+    fun ⟨A, hA⟩ => ⟨fun x => A x.val, fun ⟨j, c⟩ => ?_⟩⟩
+  · obtain ⟨⟨j, x⟩, hx⟩ := hA ⟨j₀, c⟩
     simp only [Copies.relMap_copies_two] at hx
-    rcases hx with ⟨⟨rfl, h⟩, hA⟩ | ⟨⟨rfl, h⟩, hA⟩
-    · exact ⟨x, .inl ⟨h, hA⟩⟩
-    · exact ⟨x, .inr ⟨h, hA⟩⟩
-  · rintro ⟨A, hA⟩
-    refine ⟨fun x => A x.val, fun ⟨j, c⟩ => ?_⟩
-    obtain ⟨x, hx⟩ := hA c
-    refine ⟨⟨j, x⟩, ?_⟩
-    simpa only [Copies.relMap_copies_two, true_and] using hx
+    rcases hx with ⟨⟨rfl, h⟩, hx⟩ | ⟨⟨rfl, h⟩, hx⟩
+    · exact ⟨x, .inl ⟨h, hx⟩⟩
+    · exact ⟨x, .inr ⟨h, hx⟩⟩
+  · obtain ⟨x, hx⟩ := hA c
+    exact ⟨⟨j, x⟩, by simpa only [Copies.relMap_copies_two, true_and] using hx⟩
 
 /-- A positive number of disjoint copies of a CNF structure is a 3-CNF structure exactly when the
 structure is. -/
 theorem isThreeCNF_copies_iff [Nonempty J] : IsThreeCNF (Copies J M) ↔ IsThreeCNF M := by
-  have hinj (j : J) : Function.Injective fun l : Bool × M => (l.1, (⟨j, l.2⟩ : Copies J M)) := by
-    intro l l' h
-    simp only [Prod.mk.injEq, Copies.mk.injEq, true_and] at h
-    exact Prod.ext h.1 h.2
-  refine ⟨fun h c => ?_, fun h ⟨j, c⟩ => ?_⟩
-  · obtain ⟨j₀⟩ := ‹Nonempty J›
-    rw [← (hinj j₀).encard_image, ← literals_copies]
-    exact h _
-  · rw [literals_copies, (hinj j).encard_image]
-    exact h c
+  have hcard (j : J) (c : M) :
+      (literals (M := Copies J M) ⟨j, c⟩).encard = (literals c).encard := by
+    have hinj : Function.Injective fun l : Bool × M => (l.1, (⟨j, l.2⟩ : Copies J M)) :=
+      fun _ _ h => Prod.ext (Prod.mk.inj h).1 (Copies.mk.inj (Prod.mk.inj h).2).2
+    rw [← hinj.encard_image]
+    congr 1
+    ext ⟨b, ⟨j', x⟩⟩
+    simp only [mem_literals, Copies.relMap_copies_two, Set.mem_image, Prod.exists, Prod.mk.injEq,
+      Copies.mk.injEq]
+    refine ⟨fun ⟨rfl, hx⟩ => ⟨b, x, hx, rfl, rfl, rfl⟩, ?_⟩
+    rintro ⟨_, _, hx, rfl, rfl, rfl⟩
+    exact ⟨rfl, hx⟩
+  obtain ⟨j₀⟩ := ‹Nonempty J›
+  exact ⟨fun h c => (hcard j₀ c).symm.trans_le (h _), fun h ⟨j, c⟩ => (hcard j c).trans_le (h c)⟩
 
 /-- SAT is invariant under copies. -/
 theorem copyInvariant_SAT : CopyInvariant SAT.{w} :=
@@ -326,7 +300,7 @@ elements related to it by the templates of that polarity. -/
 theorem relMap_lit_of_templates
     (hI : ∀ b ts, I.rel (lit b) ts = binaryRel (fun t w => Template.listFormula (temps t b) w) ts)
     (b : Bool) (c y : I.Model M) :
-    RelMap (lit b) ![c, y] ↔ ∃ τ ∈ temps c.1 b, τ.Holds c.2.1 y.toSigma := by
+    RelMap (lit b) ![c, y] ↔ ∃ τ ∈ temps c.1 b, τ.Holds c.coords y.toSigma := by
   rw [relMap_binaryRel (hI b), Template.realize_listFormula]
   rfl
 
@@ -336,26 +310,22 @@ theorem clauseSatisfied_iff_of_templates
     (hI : ∀ b ts, I.rel (lit b) ts = binaryRel (fun t w => Template.listFormula (temps t b) w) ts)
     (A : I.Model M → Prop) (c : I.Model M) :
     ClauseSatisfied A c ↔
-      (∃ τ ∈ temps c.1 true, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ A ⟨τ.target, y, hy⟩) ∨
-      (∃ τ ∈ temps c.1 false, τ.guard.Realize c.2.1 ∧
-        ∃ y hy, τ.Compat c.2.1 y ∧ ¬A ⟨τ.target, y, hy⟩) := by
-  have hp := relMap_lit_of_templates hI true c
-  have hn := relMap_lit_of_templates hI false c
-  simp only [lit_true, lit_false] at hp hn
-  constructor
-  · rintro ⟨⟨w, z, hz⟩, ⟨hr, ha⟩ | ⟨hr, ha⟩⟩
-    · obtain ⟨τ, hτ, hg, y, he, hc⟩ := (hp _).1 hr
-      obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 he
-      cases eq_of_heq h
-      exact .inl ⟨τ, hτ, hg, _, hz, hc, ha⟩
-    · obtain ⟨τ, hτ, hg, y, he, hc⟩ := (hn _).1 hr
-      obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 he
-      cases eq_of_heq h
-      exact .inr ⟨τ, hτ, hg, _, hz, hc, ha⟩
-  · rintro (⟨τ, hτ, hg, y, hy, hc, ha⟩ | ⟨τ, hτ, hg, y, hy, hc, ha⟩)
-    · exact ⟨⟨τ.target, y, hy⟩, .inl ⟨(hp _).2 ⟨τ, hτ, hg, y, rfl, hc⟩, ha⟩⟩
-    · exact ⟨⟨τ.target, y, hy⟩, .inr ⟨(hn _).2 ⟨τ, hτ, hg, y, rfl, hc⟩, ha⟩⟩
+      (∃ τ ∈ temps c.1 true, τ.guard.Realize c.coords ∧
+        ∃ y hy, τ.Compat c.coords y ∧ A ⟨τ.target, y, hy⟩) ∨
+      (∃ τ ∈ temps c.1 false, τ.guard.Realize c.coords ∧
+        ∃ y hy, τ.Compat c.coords y ∧ ¬A ⟨τ.target, y, hy⟩) := by
+  have key (b : Bool) (P : I.Model M → Prop) :
+      (∃ z, RelMap (lit b) ![c, z] ∧ P z) ↔
+        ∃ τ ∈ temps c.1 b, τ.guard.Realize c.coords ∧
+          ∃ y hy, τ.Compat c.coords y ∧ P ⟨τ.target, y, hy⟩ := by
+    simp only [relMap_lit_of_templates hI b c]
+    refine ⟨?_, fun ⟨τ, hτ, hg, y, hy, hc, hp⟩ => ⟨⟨τ.target, y, hy⟩, ⟨τ, hτ, hg, y, rfl, hc⟩, hp⟩⟩
+    rintro ⟨⟨_, z, hz⟩, ⟨τ, hτ, hg, y, he, hc⟩, hp⟩
+    obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 he
+    cases eq_of_heq h
+    exact ⟨τ, hτ, hg, z, hz, hc, hp⟩
+  simpa only [ClauseSatisfied, exists_or, lit_true, lit_false] using
+    or_congr (key true A) (key false _)
 
 end Templates
 
@@ -408,8 +378,7 @@ theorem realize_satSentence : satSentence.Realize M ↔ Satisfiable M := by
   change (∃ R : Unit → Set (Fin 1 → M),
     letI := ESO.varLanguage.structure (arity := fun _ : Unit => 1) R; M ⊨ satMatrix) ↔ _
   simp only [realize_satMatrix]
-  refine ⟨fun ⟨R, h⟩ => ⟨_, h⟩, fun ⟨A, hA⟩ => ⟨fun _ => {v | A (v 0)}, ?_⟩⟩
-  simpa using hA
+  exact ⟨fun ⟨_, h⟩ => ⟨_, h⟩, fun ⟨A, hA⟩ => ⟨fun _ => {v | A (v 0)}, by simpa using hA⟩⟩
 
 /-- **SAT is existential second-order definable.** -/
 theorem definable_SAT : ESO.Definable SAT.{w} :=
@@ -435,19 +404,15 @@ private theorem realize_iExs_fourLiteralsFormula (c : M) :
   simp only [Formula.realize_iSup, Formula.realize_iExs, fourLiteralsFormula,
     Formula.realize_inf, Formula.realize_iInf, Formula.realize_rel₂, Term.realize_var,
     Sum.elim_inl, Sum.elim_inr, Prod.forall]
-  constructor
-  · rintro ⟨bs, xs, hlit, hne⟩
-    refine ⟨fun i => (bs i, xs i), hlit, fun i j h => ?_⟩
-    by_contra hij
-    have hb : bs i = bs j := congrArg Prod.fst h
-    have hx : xs i = xs j := congrArg Prod.snd h
+  refine ⟨fun ⟨bs, xs, hlit, hne⟩ => ⟨fun i => (bs i, xs i), hlit, fun i j h => ?_⟩,
+    fun ⟨l, hlit, hinj⟩ => ⟨fun i => (l i).1, fun i => (l i).2, hlit, fun i j => ?_⟩⟩
+  · by_contra hij
     have := hne i j
     split_ifs at this with hc
-    · exact this ((realize_varEq (L := cnf) _ _ _).2 hx)
-    · exact hc ⟨hij, hb⟩
-  · rintro ⟨l, hlit, hinj⟩
-    refine ⟨fun i => (l i).1, fun i => (l i).2, hlit, fun i j => ?_⟩
-    split_ifs with h
+    · exact Formula.realize_not.1 this
+        ((realize_varEq (L := cnf) _ _ _).2 (congrArg Prod.snd h))
+    · exact hc ⟨hij, congrArg Prod.fst h⟩
+  · split_ifs with h
     · simp only [Formula.realize_not, realize_varEq, Sum.elim_inr]
       exact fun hx => h.1 (hinj (Prod.ext h.2 hx))
     · simp
@@ -455,12 +420,10 @@ private theorem realize_iExs_fourLiteralsFormula (c : M) :
 /-- The 3-CNF sentence holds exactly in the 3-CNF structures. -/
 theorem realize_threeCNFSentence : M ⊨ threeCNFSentence ↔ IsThreeCNF M := by
   simp only [threeCNFSentence, realize_closeAll, Formula.realize_not]
-  refine ⟨fun h c => ?_, fun h v => ?_⟩
-  · rw [encard_literals_le_three_iff, ← realize_iExs_fourLiteralsFormula]
-    exact h fun _ => c
-  · rw [show v = fun _ => v () from funext fun _ => rfl, realize_iExs_fourLiteralsFormula,
-      ← encard_literals_le_three_iff]
-    exact h _
+  exact ⟨fun h c => (encard_literals_le_three_iff c).2 <|
+      mt (realize_iExs_fourLiteralsFormula c).2 (h fun _ => c),
+    fun h v => (funext fun _ => rfl : v = fun _ => v ()) ▸
+      mt (realize_iExs_fourLiteralsFormula _).1 ((encard_literals_le_three_iff _).1 (h _))⟩
 
 /-- The sentence saying that no clause is empty: `∀ c, ∃ x, pos(c, x) ∨ neg(c, x)`. -/
 def nonemptyClausesSentence : cnf.Sentence :=
@@ -470,13 +433,8 @@ def nonemptyClausesSentence : cnf.Sentence :=
 theorem realize_nonemptyClausesSentence :
     M ⊨ nonemptyClausesSentence ↔ ∀ c : M, (literals c).Nonempty := by
   fo_simp [nonemptyClausesSentence]
-  refine forall_congr' fun c => ⟨fun ⟨x, hx⟩ => ?_, fun ⟨⟨b, x⟩, hx⟩ => ⟨x, ?_⟩⟩
-  · rcases hx with hx | hx
-    · exact ⟨(true, x), hx⟩
-    · exact ⟨(false, x), hx⟩
-  · cases b
-    · exact .inr hx
-    · exact .inl hx
+  simp only [Set.Nonempty, Prod.exists, mem_literals, Bool.exists_bool, lit_false, lit_true,
+    exists_or, or_comm]
 
 /-- **3-CNF structures form a first-order definable class.** -/
 theorem definable_isThreeCNF :

@@ -135,10 +135,9 @@ theorem measurableSet_unmatchedStraddleEvent [Finite E] (M : Set E) (q : ℝ) (R
     (t : ℝ) (v : V) : MeasurableSet (unmatchedStraddleEvent G M q R t v) := by
   classical
   unfold unmatchedStraddleEvent
-  by_cases hv : v ∈ G.matchedVertices M
-  · simp [hv]
-  · simp only [hv, not_false_eq_true, ↓reduceIte]
-    exact measurableSet_straddleEvent q R t v
+  split_ifs
+  · exact MeasurableSet.empty
+  · exact measurableSet_straddleEvent q R t v
 
 theorem dependsOn_unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (v : V) :
     DependsOn (· ∈ unmatchedStraddleEvent G M q R t v)
@@ -146,10 +145,9 @@ theorem dependsOn_unmatchedStraddleEvent (M : Set E) (q : ℝ) (R : ℕ) (t : �
   classical
   intro ω ω' hω
   unfold unmatchedStraddleEvent
-  by_cases hv : v ∈ G.matchedVertices M
-  · simp [hv]
-  · simp only [hv, not_false_eq_true, ↓reduceIte]
-    exact dependsOn_straddleEvent q R t v hω
+  split_ifs
+  · rfl
+  · exact dependsOn_straddleEvent q R t v hω
 
 omit [Fintype V] in
 private theorem closedBall_tgt_subset_src (hloop : G.Loopless) (e : E) (R : ℕ) :
@@ -326,15 +324,13 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   have hCost_le (i : ℕ) (_ : i < K) : P.real (badCost i) ≤ 4 * h * D / c ^ 2 := by
     have hS := measureReal_deviation_unmatchedStraddleEvent_le hdeg M q R (grid i) hcpos
     have hA := measureReal_deviation_closedBall_src_le hloop h3 R
-      (fun e => measurableSet_pairAnyEvent M q R (grid i) e)
-      (fun e => dependsOn_pairAnyEvent hloop M q R (grid i) e) hcpos
+      (measurableSet_pairAnyEvent M q R (grid i))
+      (dependsOn_pairAnyEvent hloop M q R (grid i)) hcpos
     have hB := measureReal_deviation_closedBall_src_le hloop h3 R
-      (fun e => measurableSet_pairBothEvent M q R (grid i) e)
-      (fun e => dependsOn_pairBothEvent hloop M q R (grid i) e) hcpos
-    refine (measureReal_union_le _ _).trans ?_
-    refine (add_le_add (measureReal_union_le _ _) hB).trans ?_
-    have hsum := add_le_add (add_le_add hS hA) (le_refl (3 / 2 * h * D / c ^ 2))
-    refine hsum.trans_eq ?_
+      (measurableSet_pairBothEvent M q R (grid i))
+      (dependsOn_pairBothEvent hloop M q R (grid i)) hcpos
+    refine ((measureReal_union_le _ _).trans
+      (add_le_add ((measureReal_union_le _ _).trans (add_le_add hS hA)) hB)).trans_eq ?_
     ring
   have hWin_le (i : ℕ) (_ : i < K) : P.real (badWin i) ≤ 3 / 2 * h * D / c ^ 2 :=
     measureReal_deviation_edgeScoreEvent_le hloop h3 q R
@@ -370,8 +366,7 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
       (hdev : ω ∉ deviation (edgeScoreEvent G q R p) c) :
       12 * ({e | p (edgeScore G q R ω e)}.ncard : ℝ) ≤ B := by
     refine (twelve_mul_ncard_edgeScore_tail_le hloop h3 unit hT hp hdev).trans ?_
-    refine le_trans ?_ hB1
-    dsimp [c, h]
+    dsimp [c, h] at hB1 ⊢
     linarith
   have htop_eq : -T + K * δ = T := by
     dsimp [δ]; field_simp; ring
@@ -382,29 +377,27 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   intro i hi
   have hthr : -T + ((i : ℝ) + 1) * δ = grid i + δ := by dsimp [grid]; ring
   rw [hthr]
-  have hnm := hmid i hi
-  have hS_nm : ω ∉ deviation (unmatchedStraddleEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inl (Or.inl h))
-  have hA_nm : ω ∉ deviation (pairAnyEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inl (Or.inr h))
-  have hB_nm : ω ∉ deviation (pairBothEvent G M q R (grid i)) c :=
-    fun h => hnm.1 (Or.inr h)
-  have hS := ncard_lt_of_notMem_deviation hS_nm
-  have hA := ncard_lt_of_notMem_deviation hA_nm
-  have hB := ncard_lt_of_notMem_deviation hB_nm
-  have hW := ncard_lt_of_notMem_deviation hnm.2
+  have hS := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inl (Or.inl h))
+  have hA := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inl (Or.inr h))
+  have hB := ncard_lt_of_notMem_deviation fun h => (hmid i hi).1 (Or.inr h)
+  have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
   have hS_eq : {v | ω ∈ unmatchedStraddleEvent G M q R (grid i) v} =
       {v | v ∉ G.matchedVertices M ∧ G.EdgeStraddles (edgeScore G q R ω) (grid i) v} := by
-    ext v; simp [unmatchedStraddleEvent, straddleEvent]
+    ext v
+    simp [unmatchedStraddleEvent, straddleEvent]
   have hA_eq : {e | ω ∈ pairAnyEvent G M q R (grid i) e} =
       {e | e ∈ M ∧ G.PairStraddlesAny (edgeScore G q R ω) (grid i) e} := by
-    ext e; simp [pairAnyEvent]
+    ext e
+    simp [pairAnyEvent]
   have hB_eq : {e | ω ∈ pairBothEvent G M q R (grid i) e} =
       {e | e ∈ M ∧ G.PairStraddlesBoth (edgeScore G q R ω) (grid i) e} := by
-    ext e; simp [pairBothEvent]
-  have hW_eq : {e | ω ∈ winEv i e} =
-      {e | grid i ≤ edgeScore G q R ω e ∧ edgeScore G q R ω e < grid i + δ} := rfl
-  rw [hS_eq] at hS; rw [hA_eq] at hA; rw [hB_eq] at hB; rw [hW_eq] at hW
+    ext e
+    simp [pairBothEvent]
+  rw [hS_eq] at hS
+  rw [hA_eq] at hA
+  rw [hB_eq] at hB
+  change ∑ e, P.real (winEv i e) + c >
+    ({e | grid i ≤ edgeScore G q R ω e ∧ edgeScore G q R ω e < grid i + δ}.ncard : ℝ) at hW
   have hWmean : ∑ e, P.real (winEv i e) ≤ 3 / 2 * h * (δ / √(2 * π)) := by
     refine (Finset.sum_le_sum fun e _ =>
       measureReal_window_le (unit e) (grid i) hδpos.le).trans_eq ?_
@@ -445,10 +438,9 @@ theorem exists_tail_window_grid {ξ : ℝ} (hξ : 0 < ξ) :
     have hKpos : (0 : ℝ) < K := Nat.cast_pos.mpr hK
     have hstep := mul_le_mul_of_nonneg_left hK_le (by positivity : 0 ≤ ξ * √(2 * π))
     rw [mul_div_cancel₀ _ (by positivity)] at hstep
-    have hle : 36 * T ≤ (ξ / 2) * (K * √(2 * π)) := by linarith
     have heq : 18 * (2 * T / K) / √(2 * π) = (36 * T) / (K * √(2 * π)) := by ring
     rw [heq, div_le_iff₀ (by positivity)]
-    exact hle
+    linarith
   exact ⟨T, K, hT, hK, htail, hwin⟩
 
 /-- For every `μ ≥ 0` and `ξ > 0`, explicit cutoff/grid parameters keep `matchingBoundOfMean μ T ε

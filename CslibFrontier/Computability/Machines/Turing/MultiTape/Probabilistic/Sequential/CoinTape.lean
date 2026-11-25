@@ -41,48 +41,29 @@ theorem step_withCoin_seq_left {S₀ S₁ : Type} (first : MultiTapePTM k Symbol
     (hc : c.tapes.state ≠ none) :
     ((first.seq second).withCoin bit).step (Sequential.left second c) =
       Sequential.left second ((first.withCoin bit).step c) := by
-  obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp hc
-  rw [Config.eq_iff_tapes_eq]
-  have hstate : (Sequential.left second c).tapes.state = some (.inl q) := by
-    simp [Sequential.left, Cfg.mapState, hq]
-  have hinput : (Sequential.left second c).tapes.inputSymbol = c.tapes.inputSymbol := rfl
-  have hwork : (Sequential.left second c).tapes.workTapeSymbols = c.tapes.workTapeSymbols := rfl
-  have hans : (Sequential.left second c).answerSymbols = c.answerSymbols := Subsingleton.elim _ _
-  have hmap (f : ReaderT Bool Id (MultiTapeMachine.Action k Symbol S₀ Empty)) :
-      (Sequential.leftAction second.initial <$> f) bit =
-        Sequential.leftAction second.initial (f bit) := rfl
-  simp only [MultiTapeMachine.step, hstate, hq, withCoin, seq, MultiTapeMachine.seq, hinput,
-    hwork, hans, hmap]
-  cases first.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
-  | step a s m =>
-    simp [Sequential.leftAction, Sequential.left, Config.step, Turing.Action.apply, Cfg.mapState]
-  | query op _ => exact op.elim
+  rcases c with ⟨⟨_ | q, _, _, _, _⟩, _⟩
+  · exact (hc rfl).elim
+  · rw [Config.eq_iff_tapes_eq]
+    dsimp only [MultiTapeMachine.step, Sequential.left, Cfg.mapState, Option.elim, Cfg.inputSymbol,
+      withCoin, seq, MultiTapeMachine.seq, Functor.map]
+    unfold Cfg.workTapeSymbols Config.answerSymbols
+    cases first.tr q _ _ _ bit with
+    | step a s m => simp [Sequential.leftAction, Config.step, Turing.Action.apply, Option.elim]
+    | query op _ => exact op.elim
 
 /-- With a fixed coin, the second phase of a sequential machine steps as the second machine. -/
 theorem step_withCoin_seq_right {S₀ S₁ : Type} (first : MultiTapePTM k Symbol S₀)
     (second : MultiTapePTM k Symbol S₁) (bit : Bool) (c : Config k Symbol S₁ Empty input) :
     ((first.seq second).withCoin bit).step (Sequential.right (State₀ := S₀) c) =
       Sequential.right ((second.withCoin bit).step c) := by
-  rw [Config.eq_iff_tapes_eq]
-  cases hq : c.tapes.state with
-  | none => simp [MultiTapeMachine.step, Sequential.right, Cfg.mapState, hq]
-  | some q =>
-    have hstate : (Sequential.right (State₀ := S₀) c).tapes.state = some (.inr q) := by
-      simp [Sequential.right, Cfg.mapState, hq]
-    have hinput : (Sequential.right (State₀ := S₀) c).tapes.inputSymbol =
-        c.tapes.inputSymbol := rfl
-    have hwork : (Sequential.right (State₀ := S₀) c).tapes.workTapeSymbols =
-        c.tapes.workTapeSymbols := rfl
-    have hans : (Sequential.right (State₀ := S₀) c).answerSymbols = c.answerSymbols :=
-      Subsingleton.elim _ _
-    have hmap (f : ReaderT Bool Id (MultiTapeMachine.Action k Symbol S₁ Empty)) :
-        (Sequential.rightAction (State₀ := S₀) <$> f) bit = Sequential.rightAction (f bit) := rfl
-    simp only [MultiTapeMachine.step, hstate, hq, withCoin, seq, MultiTapeMachine.seq, hinput,
-      hwork, hans, hmap]
-    cases second.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
-    | step a s m =>
-      simp [Sequential.rightAction, Sequential.right, Config.step, Turing.Action.apply,
-        Cfg.mapState]
+  rcases c with ⟨⟨_ | q, _, _, _, _⟩, _⟩
+  · rfl
+  · rw [Config.eq_iff_tapes_eq]
+    dsimp only [MultiTapeMachine.step, Sequential.right, Cfg.mapState, Option.map, Cfg.inputSymbol,
+      withCoin, seq, MultiTapeMachine.seq, Functor.map]
+    unfold Cfg.workTapeSymbols Config.answerSymbols
+    cases second.tr q _ _ _ bit with
+    | step a s m => simp [Sequential.rightAction, Config.step, Turing.Action.apply, Option.map]
     | query op _ => exact op.elim
 
 
@@ -127,12 +108,11 @@ theorem output_length_le_replay (machine : MultiTapePTM k Symbol State)
     (coins : List Bool) (cfg : Config k Symbol State Empty input) :
     cfg.tapes.output.length ≤
       (machine.runClosedConfigFromCoins coins cfg).tapes.output.length := by
-  obtain ⟨p, hhead, _, hlast⟩ := (machine.exists_runPath_toNTM_iff
-    (c := cfg.tapes)).mpr ⟨coins, rfl, rfl⟩
-  have h := p.length_output_mono (Fin.zero_le (Fin.last p.length))
-  change p.head.output.length ≤ p.last.output.length at h
-  rw [hhead, hlast] at h
-  simpa only [tapes_runClosedConfigFromCoins] using h
+  obtain ⟨p, hhead, _, hlast⟩ := (machine.exists_runPath_toNTM_iff (c := cfg.tapes)).mpr
+    ⟨coins, rfl, rfl⟩
+  have h : p.head.output.length ≤ p.last.output.length :=
+    p.length_output_mono (Fin.zero_le (Fin.last p.length))
+  simpa only [hhead, hlast, tapes_runClosedConfigFromCoins] using h
 
 /-- A halted configuration does not change when further coins are replayed. -/
 theorem replay_halted (machine : MultiTapePTM k Symbol State)
@@ -156,16 +136,13 @@ theorem completed_replay_mem_support (machine : MultiTapePTM k Symbol State)
     machine.runClosedConfigFromCoins coins initial ∈
       (ProbComp.eval (machine.runClosedConfigFrom time initial)).support := by
   by_cases hle : time ≤ coins.length
-  · have h := machine.runClosedConfigFromCoins_mem_support coins initial
-    rwa [eval_runClosedConfigFrom_eq_of_halted machine _ hle hhalt] at h
+  · simpa only [← eval_runClosedConfigFrom_eq_of_halted machine _ hle hhalt] using
+      machine.runClosedConfigFromCoins_mem_support coins initial
   · have h := machine.runClosedConfigFromCoins_mem_support
       (coins ++ List.replicate (time - coins.length) false) initial
-    have hlen : (coins ++ List.replicate (time - coins.length) false).length = time := by grind
-    rw [hlen] at h
-    simp only [runClosedConfigFromCoins, List.foldl_append] at h
-    change machine.runClosedConfigFromCoins (List.replicate (time - coins.length) false)
-      (machine.runClosedConfigFromCoins coins initial) ∈ _ at h
-    rwa [replay_halted machine _ _ hcoins] at h
+    rw [show (coins ++ List.replicate (time - coins.length) false).length = time by grind,
+      replay_append, replay_halted machine _ _ hcoins] at h
+    exact h
 
 /-- Bounds the output length of any replay given a bound on the support of the closed run. -/
 theorem replay_output_length_le (machine : MultiTapePTM k Symbol State)
@@ -178,19 +155,12 @@ theorem replay_output_length_le (machine : MultiTapePTM k Symbol State)
     (machine.runClosedConfigFromCoins coins (machine.initialConfig input)).tapes.output.length ≤
       bound := by
   let extra := List.replicate (time - coins.length) false
-  have hle : time ≤ (coins ++ extra).length := by grind
   have hfull := machine.runClosedConfigFromCoins_mem_support (coins ++ extra)
     (machine.initialConfig input)
-  rw [eval_runClosedConfigFrom_eq_of_halted machine _ hle hhalt] at hfull
-  have hout : (machine.runClosedConfigFromCoins (coins ++ extra)
-      (machine.initialConfig input)).tapes.output ∈
-      (ProbComp.eval (machine.runClosed time input)).support := by
-    rw [runClosed_eq_map, ProbComp.eval_map]
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨_, hfull, rfl⟩
-  have hlen := hbound _ hout
-  have hmono := output_length_le_replay machine extra
-    (machine.runClosedConfigFromCoins coins (machine.initialConfig input))
-  rw [← replay_append] at hmono
-  exact hmono.trans hlen
+  rw [eval_runClosedConfigFrom_eq_of_halted machine _ (by grind) hhalt] at hfull
+  refine (replay_append machine coins extra _ ▸ output_length_le_replay machine extra _).trans
+    (hbound _ ?_)
+  rw [runClosed_eq_map, ProbComp.eval_map]
+  exact (PMF.mem_support_map_iff _ _ _).mpr ⟨_, hfull, rfl⟩
 
 end Turing.MultiTapePTM

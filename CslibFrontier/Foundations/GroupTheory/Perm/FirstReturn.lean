@@ -38,25 +38,18 @@ theorem firstReturnWord_eq (f : α → α) (a : α) (bound : ℕ)
     simp only [following, List.length_map, List.length_range]
     omega
   have hidx : following.idxOf a = p - 1 := by
-    change following.findIdx (fun b => b == a) = p - 1
-    apply (List.findIdx_eq hi).mpr
-    constructor
+    refine (List.findIdx_eq hi).mpr ⟨?_, fun j hj => ?_⟩
     · simp only [following, List.getElem_map, List.getElem_range, beq_iff_eq]
       rw [Nat.sub_add_cancel hpos]
       exact iterate_minimalPeriod
-    · intro j hj
-      simp only [following, List.getElem_map, List.getElem_range, beq_eq_false_iff_ne]
-      intro he
-      have hle : p ≤ j + 1 := IsPeriodicPt.minimalPeriod_le (Nat.succ_pos j) he
-      omega
+    · simp only [following, List.getElem_map, List.getElem_range, beq_eq_false_iff_ne]
+      exact fun he => absurd (IsPeriodicPt.minimalPeriod_le (Nat.succ_pos j) he) (by omega)
   change a :: following.take (following.idxOf a) = _
   rw [hidx]
-  apply List.ext_getElem
-  · simp only [List.length_cons, List.length_take, List.length_map, List.length_range,
-      following]
+  refine List.ext_getElem ?_ fun i _ _ => ?_
+  · simp only [List.length_cons, List.length_take, following, List.length_map, List.length_range]
     omega
-  · intro i hi hj
-    cases i with
+  · cases i with
     | zero => simp
     | succ i =>
       simp only [List.getElem_cons_succ, List.getElem_take, following, List.getElem_map,

@@ -53,38 +53,30 @@ private def Compatible : Symbol Γ Q → Symbol Γ Q → Prop
 
 private theorem incoming_entry {x a : Symbol Γ Q} (ha : Entry a) (h : Compatible x a) :
     x = lb ∨ ∃ b, x = sym (b, false) := by
-  rcases a with ⟨a, _ | _⟩ | ⟨q, a, _ | _⟩ | _ | _ | _
-  all_goals try exact ha.elim
-  all_goals try cases q
-  all_goals try exact ha.elim
-  all_goals
-    rcases x with ⟨b, _ | _⟩ | ⟨q', b, _ | _⟩ | _ | _ | _
-    all_goals try cases q'
-    all_goals simp_all [Compatible, Entry]
+  rcases a with ⟨a, _ | _⟩ | ⟨q, a, _ | _⟩ | _ | _ | _ <;> try exact ha.elim
+  all_goals ((try cases q) <;> try exact ha.elim)
+  all_goals rcases x with ⟨b, _ | _⟩ | ⟨q', b, _ | _⟩ | _ | _ | _ <;>
+    (try cases q') <;> simp_all [Compatible, Entry]
 
 private theorem outgoing_exit {a x : Symbol Γ Q} (ha : Exit a) (h : Compatible a x) :
     x = rb ∨ ∃ b, x = sym (b, true) := by
-  rcases a with ⟨a, _ | _⟩ | ⟨q, a, _ | _⟩ | _ | _ | _
-  all_goals try exact ha.elim
-  all_goals try cases q
-  all_goals try exact ha.elim
-  all_goals
-    rcases x with ⟨b, _ | _⟩ | ⟨q', b, _ | _⟩ | _ | _ | _
-    all_goals try cases q'
-    all_goals simp_all [Compatible, Exit]
+  rcases a with ⟨a, _ | _⟩ | ⟨q, a, _ | _⟩ | _ | _ | _ <;> try exact ha.elim
+  all_goals ((try cases q) <;> try exact ha.elim)
+  all_goals rcases x with ⟨b, _ | _⟩ | ⟨q', b, _ | _⟩ | _ | _ | _ <;>
+    (try cases q') <;> simp_all [Compatible, Exit]
 
 private theorem not_into_lb (x : Symbol Γ Q) : ¬Compatible x lb := by
   cases x <;> simp [Compatible, Entry]
 
 private theorem chain_to_lb (p : List (Symbol Γ Q))
     (h : (p ++ [lb]).IsChain Compatible) : p = [] := by
-  induction p using List.reverseRecOn with
+  cases p using List.reverseRecOn with
   | nil => rfl
-  | append_singleton p x _ =>
-    have hs : (p ++ [x]).IsChain Compatible ∧ Compatible x lb := by
+  | append_singleton p x =>
+    have h' : (p ++ [x]).IsChain Compatible ∧ Compatible x lb := by
       simpa only [List.append_assoc, List.singleton_append, List.isChain_append_cons_cons,
         List.isChain_singleton, and_true] using h
-    exact (not_into_lb x hs.2).elim
+    exact (not_into_lb x h'.2).elim
 
 private theorem left_context {a : Symbol Γ Q} (p : List (Symbol Γ Q))
     (hc : (p ++ [a]).IsChain Compatible) (hh : (p ++ [a]).head? = some lb) (ha : Entry a) :
@@ -99,11 +91,10 @@ private theorem left_context {a : Symbol Γ Q} (p : List (Symbol Γ Q))
       simpa only [List.append_assoc, List.singleton_append, List.isChain_append_cons_cons,
         List.isChain_singleton, and_true] using hc
     rcases incoming_entry ha hs.2 with rfl | ⟨b, rfl⟩
-    · obtain rfl := chain_to_lb p hs.1
-      exact ⟨[], rfl⟩
-    · have hh' : (p ++ [sym (b, false)]).head? = some lb := by
-        cases p <;> simpa only [List.nil_append, List.cons_append, List.head?_cons] using hh
-      obtain ⟨L, hL⟩ := ih hs.1 hh' trivial
+    · exact ⟨[], by rw [chain_to_lb p hs.1]; rfl⟩
+    · obtain ⟨L, hL⟩ := ih hs.1
+        (by cases p <;> simpa only [List.nil_append, List.cons_append, List.head?_cons] using hh)
+        trivial
       exact ⟨b :: L, by simp [hL, List.reverse_cons]⟩
 
 private theorem not_from_rb (x : Symbol Γ Q) : ¬Compatible rb x := by
@@ -113,7 +104,7 @@ private theorem chain_from_rb (s : List (Symbol Γ Q))
     (h : (rb :: s).IsChain Compatible) : s = [] := by
   cases s with
   | nil => rfl
-  | cons x s => exact (not_from_rb x h.rel).elim
+  | cons x _ => exact (not_from_rb x h.rel).elim
 
 private theorem right_context {b : Symbol Γ Q} (s : List (Symbol Γ Q))
     (hc : (b :: s).IsChain Compatible) (hh : (b :: s).getLast? = some rb) (hb : Exit b) :
@@ -125,29 +116,23 @@ private theorem right_context {b : Symbol Γ Q} (s : List (Symbol Γ Q))
     contradiction
   | cons x s ih =>
     rcases outgoing_exit hb hc.rel with rfl | ⟨a, rfl⟩
-    · obtain rfl := chain_from_rb s hc.tail
-      exact ⟨[], rfl⟩
-    · have hh' : (sym (a, true) :: s).getLast? = some rb := by
-        simpa only [List.getLast?_cons_cons] using hh
-      obtain ⟨R, rfl⟩ := ih hc.tail hh' trivial
+    · exact ⟨[], by rw [chain_from_rb s hc.tail]; rfl⟩
+    · obtain ⟨R, rfl⟩ := ih hc.tail (by simpa only [List.getLast?_cons_cons] using hh) trivial
       exact ⟨a :: R, rfl⟩
 
 private theorem entry_compatible_left (a : Γ) {x : Symbol Γ Q} (hx : Entry x) :
     Compatible (sym (a, false)) x := by
-  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _
-  all_goals try cases q
-  all_goals simp_all [Entry, Compatible]
+  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _ <;>
+    (try cases q) <;> simp_all [Entry, Compatible]
 
 private theorem exit_compatible_right {x : Symbol Γ Q} (hx : Exit x) (a : Γ) :
     Compatible x (sym (a, true)) := by
-  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _
-  all_goals try cases q
-  all_goals simp_all [Exit, Compatible]
+  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _ <;>
+    (try cases q) <;> simp_all [Exit, Compatible]
 
 private theorem exit_compatible_rb {x : Symbol Γ Q} (hx : Exit x) : Compatible x rb := by
-  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _
-  all_goals try cases q
-  all_goals simp_all [Exit, Compatible]
+  rcases x with ⟨b, _ | _⟩ | ⟨q, b, _ | _⟩ | _ | _ | _ <;>
+    (try cases q) <;> simp_all [Exit, Compatible]
 
 private theorem chain_right {x : Symbol Γ Q} (hx : Exit x) (R : List Γ) :
     (x :: (R.map (fun a => sym (a, true)) ++ [rb])).IsChain Compatible := by
@@ -195,34 +180,26 @@ private theorem word_last (c : MicroCfg Γ Q) : (word c).getLast? = some rb := b
 private theorem prefix_context {c : MicroCfg Γ Q} {a b : Symbol Γ Q}
     {p s : List (Symbol Γ Q)} (hw : p ++ [a, b] ++ s = word c) (ha : Entry a) :
     ∃ L : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) := by
-  have hc := word_isChain c
-  rw [← hw] at hc
+  have hc := hw ▸ word_isChain c
+  have hh := hw ▸ word_head c
   simp only [List.append_assoc, List.cons_append, List.nil_append,
     List.isChain_append_cons_cons] at hc
-  have hh := word_head c
-  rw [← hw] at hh
-  have hh' : (p ++ [a]).head? = some lb := by
-    cases p <;> simpa only [List.nil_append, List.cons_append, List.head?_cons] using hh
-  exact left_context p hc.1 hh' ha
+  exact left_context p hc.1
+    (by cases p <;> simpa only [List.nil_append, List.cons_append, List.head?_cons] using hh) ha
 
 private theorem suffix_context {c : MicroCfg Γ Q} {a b : Symbol Γ Q}
     {p s : List (Symbol Γ Q)} (hw : p ++ [a, b] ++ s = word c) (hb : Exit b) :
     ∃ R : List Γ, s = R.map (fun b => sym (b, true)) ++ [rb] := by
-  have hc := word_isChain c
-  rw [← hw] at hc
+  have hc := hw ▸ word_isChain c
+  have hh := hw ▸ word_last c
   simp only [List.append_assoc, List.cons_append, List.nil_append,
     List.isChain_append_cons_cons] at hc
-  have hh := word_last c
-  rw [← hw] at hh
-  have hh' : (b :: s).getLast? = some rb := by
-    simpa only [List.append_assoc, List.cons_append, List.nil_append,
-      List.getLast?_append_cons, List.getLast?_cons_cons] using hh
-  exact right_context s hc.2.2 hh' hb
+  exact right_context s hc.2.2 (by simpa only [List.append_assoc, List.cons_append,
+    List.nil_append, List.getLast?_append_cons, List.getLast?_cons_cons] using hh) hb
 
 private theorem end_context {c : MicroCfg Γ Q} {a : Symbol Γ Q}
     {p s : List (Symbol Γ Q)} (hw : p ++ [a, rb] ++ s = word c) : s = [] := by
-  have hc := word_isChain c
-  rw [← hw] at hc
+  have hc := hw ▸ word_isChain c
   simp only [List.append_assoc, List.cons_append, List.nil_append,
     List.isChain_append_cons_cons] at hc
   exact chain_from_rb s hc.2.2
@@ -247,10 +224,10 @@ private theorem end_context_either {c : MicroCfg Γ Q} {a a' : Symbol Γ Q}
     (ha : Entry a) (ha' : Entry a') :
     ∃ L : List Γ, p = lb :: L.reverse.map (fun b => sym (b, false)) ∧ s = [] := by
   rcases hw with hw | hw
-  · obtain ⟨L, hL⟩ := prefix_context hw ha
-    exact ⟨L, hL, end_context hw⟩
-  · obtain ⟨L, hL⟩ := prefix_context hw ha'
-    exact ⟨L, hL, end_context hw⟩
+  · exact let ⟨L, hL⟩ := prefix_context hw ha
+    ⟨L, hL, end_context hw⟩
+  · exact let ⟨L, hL⟩ := prefix_context hw ha'
+    ⟨L, hL, end_context hw⟩
 
 variable [Inhabited Q]
 open Cslib.PostCorrespondence
@@ -268,10 +245,8 @@ private theorem write_occurrence {M : Turing.TM0.Machine Γ Q} {q q' : Q} {a b :
     Occurrence M p s ⟨[cell (.running q) (a, false), sym (t, true)],
       [cell (.running q') (b, false), sym (t, true)]⟩ := by
   obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-  refine ⟨.stable ⟨q, a, L, t :: R⟩, .stable ⟨q', b, L, t :: R⟩, ?_, ?_, ?_⟩
-  · simp [word, frame]
-  · simp [word, frame]
-  · simp [Phases.step, step, hM]
+  refine ⟨.stable ⟨q, a, L, t :: R⟩, .stable ⟨q', b, L, t :: R⟩, ?_, ?_,
+    by simp [Phases.step, step, hM]⟩ <;> simp [word, frame]
 
 private theorem writeEnd_occurrence {M : Turing.TM0.Machine Γ Q} {q q' : Q} {a b : Γ}
     {p s : List (Symbol Γ Q)} {c : MicroCfg Γ Q}
@@ -281,10 +256,8 @@ private theorem writeEnd_occurrence {M : Turing.TM0.Machine Γ Q} {q q' : Q} {a 
     Occurrence M p s ⟨[cell (.running q) (a, false), rb],
       [cell (.running q') (b, false), rb]⟩ := by
   obtain ⟨L, rfl, rfl⟩ := end_context_either hw trivial trivial
-  refine ⟨.stable ⟨q, a, L, []⟩, .stable ⟨q', b, L, []⟩, ?_, ?_, ?_⟩
-  · simp [word, frame]
-  · simp [word, frame]
-  · simp [Phases.step, step, hM]
+  refine ⟨.stable ⟨q, a, L, []⟩, .stable ⟨q', b, L, []⟩, ?_, ?_,
+    by simp [Phases.step, step, hM]⟩ <;> simp [word, frame]
 
 private theorem rule_occurrence {M : Turing.TM0.Machine Γ Q} {d : Domino (Symbol Γ Q)}
     {p s : List (Symbol Γ Q)} {c : MicroCfg Γ Q} (hd : Rule M d)
@@ -295,61 +268,55 @@ private theorem rule_occurrence {M : Turing.TM0.Machine Γ Q} {d : Domino (Symbo
   | writeEnd hM => exact writeEnd_occurrence hM hw
   | @rightBegin q a q' b hM =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.stable ⟨q, a, L, b :: R⟩, .moving .rightStart ⟨q', a, b, L, R⟩, ?_, ?_, ?_⟩ <;>
-      simp [word, frame, Phases.step, step, hM]
+    refine ⟨.stable ⟨q, a, L, b :: R⟩, .moving .rightStart ⟨q', a, b, L, R⟩, ?_, ?_,
+      by simp [Phases.step, step, hM]⟩ <;> simp [word, frame]
   | rightMark q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .rightStart ⟨q, a, b, L, R⟩,
-      .moving .rightBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame]
+    refine ⟨.moving .rightStart ⟨q, a, b, L, R⟩, .moving .rightBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
+      <;> simp [word, frame]
   | rightRelease q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .rightBoth ⟨q, a, b, L, R⟩,
-      .moving .rightEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame]
+    refine ⟨.moving .rightBoth ⟨q, a, b, L, R⟩, .moving .rightEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
+      <;> simp [word, frame]
   | rightActivate q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .rightEnd ⟨q, a, b, L, R⟩,
-      .stable ⟨q, b, a :: L, R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame, List.reverse_cons]
+    refine ⟨.moving .rightEnd ⟨q, a, b, L, R⟩, .stable ⟨q, b, a :: L, R⟩, ?_, ?_, rfl⟩ <;>
+      simp [word, frame, List.reverse_cons]
   | @leftBegin q a q' b hM =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.stable ⟨q, a, b :: L, R⟩, .moving .leftStart ⟨q', b, a, L, R⟩, ?_, ?_, ?_⟩ <;>
-      simp [word, frame, List.reverse_cons, Phases.step, step, hM]
+    refine ⟨.stable ⟨q, a, b :: L, R⟩, .moving .leftStart ⟨q', b, a, L, R⟩, ?_, ?_,
+      by simp [Phases.step, step, hM]⟩ <;> simp [word, frame, List.reverse_cons]
   | leftMark q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .leftStart ⟨q, a, b, L, R⟩,
-      .moving .leftBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame]
+    refine ⟨.moving .leftStart ⟨q, a, b, L, R⟩, .moving .leftBoth ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
+      <;> simp [word, frame]
   | leftRelease q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .leftBoth ⟨q, a, b, L, R⟩,
-      .moving .leftEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame]
+    refine ⟨.moving .leftBoth ⟨q, a, b, L, R⟩, .moving .leftEnd ⟨q, a, b, L, R⟩, ?_, ?_, rfl⟩
+      <;> simp [word, frame]
   | leftActivate q a b =>
     obtain ⟨L, R, rfl, rfl⟩ := pair_context_either hw trivial trivial trivial trivial
-    refine ⟨.moving .leftEnd ⟨q, a, b, L, R⟩,
-      .stable ⟨q, a, L, b :: R⟩, ?_, ?_, rfl⟩ <;> simp [word, frame]
+    refine ⟨.moving .leftEnd ⟨q, a, b, L, R⟩, .stable ⟨q, a, L, b :: R⟩, ?_, ?_, rfl⟩
+      <;> simp [word, frame]
 
 /-- Every forward rewrite from a phased word is its actual deterministic transition. -/
 theorem rewrites_word_iff {M : Turing.TM0.Machine Γ Q} {c : MicroCfg Γ Q}
     {w : List (Symbol Γ Q)} :
     Rewrites (Rule M) (word c) w ↔ ∃ d, Phases.step M c = some d ∧ word d = w := by
   classical
-  constructor
-  · rintro ⟨p, d, s, hd, hc, rfl⟩
-    obtain ⟨a, b, ha, hb, hs⟩ := rule_occurrence hd (Or.inl hc.symm)
-    obtain rfl := word_injective (ha.trans hc.symm)
-    exact ⟨b, hs, hb⟩
-  · rintro ⟨d, hs, rfl⟩
-    exact step_word hs
+  refine ⟨?_, fun ⟨d, hs, h⟩ => h ▸ step_word hs⟩
+  rintro ⟨p, d, s, hd, hc, rfl⟩
+  obtain ⟨a, b, ha, hb, hs⟩ := rule_occurrence hd (Or.inl hc.symm)
+  exact ⟨b, word_injective (ha.trans hc.symm) ▸ hs, hb⟩
 
 /-- Every reverse rewrite into a phased word recovers an actual predecessor. -/
 theorem rewrites_to_word_iff {M : Turing.TM0.Machine Γ Q} {c : MicroCfg Γ Q}
     {w : List (Symbol Γ Q)} :
     Rewrites (Rule M) w (word c) ↔ ∃ d, Phases.step M d = some c ∧ word d = w := by
   classical
-  constructor
-  · rintro ⟨p, d, s, hd, rfl, hc⟩
-    obtain ⟨a, b, ha, hb, hs⟩ := rule_occurrence hd (Or.inr hc.symm)
-    obtain rfl := word_injective (hb.trans hc.symm)
-    exact ⟨a, hs, ha⟩
-  · rintro ⟨d, hs, rfl⟩
-    exact step_word hs
+  refine ⟨?_, fun ⟨d, hs, h⟩ => h ▸ step_word hs⟩
+  rintro ⟨p, d, s, hd, rfl, hc⟩
+  obtain ⟨a, b, ha, hb, hs⟩ := rule_occurrence hd (Or.inr hc.symm)
+  exact ⟨a, word_injective (hb.trans hc.symm) ▸ hs, ha⟩
 
 end Cslib.Complexity.NCL.TM0Window.Rules

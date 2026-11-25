@@ -68,39 +68,12 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
   induction table generalizing found with
   | nil => cases found <;> rfl
   | cons entry table ih =>
-      by_cases hfound : found = true
-      · subst found
-        have hemit : firstMatchEmit ((query, true), entry) = none := by
-          simp [firstMatchEmit]
-        have hnext : firstMatchNext ((query, true), entry) = (query, true) := by
-          simp [firstMatchNext]
-        simp only [ite_true]
-        rw [streamEmit, hemit, encOption_none, List.nil_append, hnext]
-        simpa using ih true
+      cases found
       · by_cases heq : entry.1 = query
-        · have hfalse := Bool.of_not_eq_true hfound
-          subst found
-          have hemit : firstMatchEmit ((query, false), entry) = some entry.2 := by
-            simp [firstMatchEmit, heq]
-          have hnext : firstMatchNext ((query, false), entry) = (query, true) := by
-            simp [firstMatchNext, heq]
-          have hfirst : firstMatch (entry :: table, query) = some entry.2 := by
-            simp [firstMatch, heq]
-          rw [streamEmit, hemit, hnext, hfirst]
-          have htail := ih true
-          simp only [ite_true] at htail
-          rw [htail, List.append_nil]
-          rw [ite_eq_right hfound]
-        · have hfalse := Bool.of_not_eq_true hfound
-          subst found
-          have hemit : firstMatchEmit ((query, false), entry) = none := by
-            simp [firstMatchEmit, heq]
-          have hnext : firstMatchNext ((query, false), entry) = (query, false) := by
-            simp [firstMatchNext, heq]
-          have hfirst : firstMatch (entry :: table, query) = firstMatch (table, query) := by
-            simp [firstMatch, heq]
-          rw [streamEmit, hemit, encOption_none, List.nil_append, hnext, hfirst]
-          simpa using ih false
+        · simpa [streamEmit, firstMatchEmit, firstMatchNext, firstMatch, heq] using
+            congrArg (List.append (encOption encValue (some entry.2))) (ih true)
+        · simpa [streamEmit, firstMatchEmit, firstMatchNext, firstMatch, heq] using ih false
+      · simpa [streamEmit, firstMatchEmit, firstMatchNext] using ih true
 
 /-- Retained next-state callback for first-match scanning. -/
 @[expose] def firstMatchNextCompiler (encKey : Key ↪ List Bool)

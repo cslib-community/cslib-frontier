@@ -102,14 +102,9 @@ theorem signedCutValue_le_signedSdpValue_add {ends : ι → V × V} {a b : ι �
     (hopt : ∀ v' : V → F, (∀ i, ‖v' i‖ = 1) →
       signedSdpValue ends a b v' ≤ signedSdpValue ends a b v + ε)
     (side : V → Bool) : signedCutValue ends a b side ≤ signedSdpValue ends a b v + ε := by
-  cases isEmpty_or_nonempty ι with
-  | inl _ =>
-    have := hopt v hv
-    simp only [signedCutValue, signedSdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
-  | inr h =>
-    obtain ⟨e⟩ := h
-    rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
+  rcases isEmpty_or_nonempty ι with _ | ⟨⟨e⟩⟩
+  · simpa [signedCutValue, signedSdpValue] using hopt v hv
+  · rw [← signedSdpValue_signVector ends a b (hv (ends e).1) side]
     exact hopt _ (norm_signVector (hv (ends e).1) side)
 
 section SignedMeasurable
@@ -134,29 +129,15 @@ theorem integral_signedCutValue_hyperplaneSide (ends : ι → V × V) (a b : ι 
       ∑ e, (a e * (arccos ⟪v (ends e).1, v (ends e).2⟫ / π) +
         b e * (1 - arccos ⟪v (ends e).1, v (ends e).2⟫ / π)) := by
   unfold signedCutValue
-  have hint : ∀ e ∈ (Finset.univ : Finset ι), Integrable (fun r : F =>
-      (if hyperplaneSide v r (ends e).1 ≠ hyperplaneSide v r (ends e).2 then a e else 0) +
-        if hyperplaneSide v r (ends e).1 = hyperplaneSide v r (ends e).2 then b e else 0)
-      (stdGaussian F) := fun e _ =>
-    (integrable_ite_const _ (measurableSet_hyperplaneSide_ne v (ends e).1 (ends e).2) (a e)).add
-      (integrable_ite_const _ (measurableSet_hyperplaneSide_eq v (ends e).1 (ends e).2) (b e))
-  rw [integral_finsetSum _ hint]
+  have hne e := integrable_ite_const (stdGaussian F)
+    (measurableSet_hyperplaneSide_ne v (ends e).1 (ends e).2) (a e)
+  have heq e := integrable_ite_const (stdGaussian F)
+    (measurableSet_hyperplaneSide_eq v (ends e).1 (ends e).2) (b e)
+  rw [integral_finsetSum _ fun e _ => (hne e).fun_add (heq e)]
   refine Finset.sum_congr rfl fun e _ => ?_
-  rw [integral_add
-    (integrable_ite_const _ (measurableSet_hyperplaneSide_ne v (ends e).1 (ends e).2) (a e))
-    (integrable_ite_const _ (measurableSet_hyperplaneSide_eq v (ends e).1 (ends e).2) (b e))]
-  have hmul1 : (fun r : F =>
-      if hyperplaneSide v r (ends e).1 ≠ hyperplaneSide v r (ends e).2 then a e else 0) =
-      fun r : F => a e *
-        (if hyperplaneSide v r (ends e).1 ≠ hyperplaneSide v r (ends e).2 then (1 : ℝ) else 0) := by
-    ext r; split_ifs <;> ring
-  have hmul2 : (fun r : F =>
-      if hyperplaneSide v r (ends e).1 = hyperplaneSide v r (ends e).2 then b e else 0) =
-      fun r : F => b e *
-        (if hyperplaneSide v r (ends e).1 = hyperplaneSide v r (ends e).2 then (1 : ℝ) else 0) := by
-    ext r; split_ifs <;> ring
-  rw [hmul1, hmul2, integral_const_mul, integral_const_mul,
-    integral_hyperplaneSide_ne hv, integral_hyperplaneSide_eq hv]
+  rw [integral_add (hne e) (heq e), ← integral_hyperplaneSide_eq hv,
+    ← integral_hyperplaneSide_ne hv, ← integral_const_mul, ← integral_const_mul]
+  congr 1 <;> congr 1 <;> ext r <;> split_ifs <;> simp
 
 /-- **Goemans–Williamson, Theorem 7.2.1.1.** For nonnegative weights `a` and `b` and unit vectors
 `v`, the expected `signedCutValue` under random-hyperplane rounding is at least
@@ -310,10 +291,9 @@ theorem satSdpValue_liftAssignment (clauses : ι → Clause V)
     satSdpValue clauses w (liftAssignment u σ) = satValue clauses w σ := by
   unfold satSdpValue satValue liftAssignment
   refine Finset.sum_congr rfl fun j _ => ?_
-  rw [satSdpClause_signVector hu _ (hc j)]
-  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ := by
-    ext x; simp [truthAssignment]
-  rw [htr]
+  have htr : truthAssignment (fun o : Option V => o.elim true σ) = σ :=
+    funext fun x => by simp [truthAssignment]
+  rw [satSdpClause_signVector hu _ (hc j), htr]
   split_ifs <;> ring
 
 /-- `ε`-optimal unit vectors for `satSdpValue` beat every Boolean assignment up to `ε`. -/
@@ -331,22 +311,11 @@ variable [MeasurableSpace F] [BorelSpace F]
 
 private theorem measurableSet_literal_eval (v : Option V → F) (ℓ : Literal V) :
     MeasurableSet {r : F | ℓ.eval (satHyperplaneAssignment v r) = true} := by
-  rcases ℓ with ⟨x, b⟩
-  cases b
-  · have heq : {r : F | Literal.eval (satHyperplaneAssignment v r) (x, false) = true} =
-        {r : F | hyperplaneSide v r (some x) ≠ hyperplaneSide v r none} := by
-      ext r
-      cases h1 : hyperplaneSide v r (some x) <;> cases h0 : hyperplaneSide v r none <;>
-        simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h0]
-    rw [heq]
-    exact measurableSet_hyperplaneSide_ne v (some x) none
-  · have heq : {r : F | Literal.eval (satHyperplaneAssignment v r) (x, true) = true} =
-        {r : F | hyperplaneSide v r (some x) = hyperplaneSide v r none} := by
-      ext r
-      cases h1 : hyperplaneSide v r (some x) <;> cases h0 : hyperplaneSide v r none <;>
-        simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h0]
-    rw [heq]
-    exact measurableSet_hyperplaneSide_eq v (some x) none
+  rcases ℓ with ⟨x, _ | _⟩
+  · convert measurableSet_hyperplaneSide_ne v (some x) none using 3
+    simp [Literal.eval, satHyperplaneAssignment, truthAssignment]
+  · convert measurableSet_hyperplaneSide_eq v (some x) none using 3
+    simp [Literal.eval, satHyperplaneAssignment, truthAssignment]
 
 private theorem measurableSet_clause_eval (v : Option V → F) (c : Clause V) :
     MeasurableSet {r : F | c.eval (satHyperplaneAssignment v r) = true} := by
@@ -369,24 +338,14 @@ variable [FiniteDimensional ℝ F]
 private theorem integral_literal_eval {v : Option V → F} (hv : ∀ o, ‖v o‖ = 1) (ℓ : Literal V) :
     ∫ r : F, (if ℓ.eval (satHyperplaneAssignment v r) then (1 : ℝ) else 0) ∂stdGaussian F =
       1 - arccos ⟪litVector v ℓ, v none⟫ / π := by
-  rcases ℓ with ⟨x, b⟩
-  cases b
-  · have hev : (fun r : F =>
-        if Literal.eval (satHyperplaneAssignment v r) (x, false) then (1 : ℝ) else 0) =
-        fun r : F =>
-          if hyperplaneSide v r (some x) ≠ hyperplaneSide v r none then (1 : ℝ) else 0 := by
-      ext r
-      simp [Literal.eval, satHyperplaneAssignment, truthAssignment]
-    rw [hev, integral_hyperplaneSide_ne hv (some x) none, litVector]
-    simp [inner_neg_left, arccos_neg, sub_div]
-  · have hev : (fun r : F =>
-        if Literal.eval (satHyperplaneAssignment v r) (x, true) then (1 : ℝ) else 0) =
-        fun r : F =>
-          if hyperplaneSide v r (some x) = hyperplaneSide v r none then (1 : ℝ) else 0 := by
-      ext r
-      simp [Literal.eval, satHyperplaneAssignment, truthAssignment]
-    rw [hev, integral_hyperplaneSide_eq hv (some x) none, litVector]
-    simp
+  rcases ℓ with ⟨x, _ | _⟩
+  · refine (integral_congr_ae (ae_of_all _ fun r => ?_)).trans
+      ((integral_hyperplaneSide_ne hv (some x) none).trans ?_) <;>
+      simp [Literal.eval, satHyperplaneAssignment, truthAssignment, litVector, inner_neg_left,
+        arccos_neg, sub_div]
+  · refine (integral_congr_ae (ae_of_all _ fun r => ?_)).trans
+      ((integral_hyperplaneSide_eq hv (some x) none).trans ?_) <;>
+      simp [Literal.eval, satHyperplaneAssignment, truthAssignment, litVector]
 
 private theorem integral_literal_eval_ne {v : Option V → F} (hv : ∀ o, ‖v o‖ = 1)
     (ℓ₁ ℓ₂ : Literal V) :
@@ -395,40 +354,17 @@ private theorem integral_literal_eval_ne {v : Option V → F} (hv : ∀ o, ‖v 
       arccos ⟪litVector v ℓ₁, litVector v ℓ₂⟫ / π := by
   rcases ℓ₁ with ⟨x₁, b₁⟩
   rcases ℓ₂ with ⟨x₂, b₂⟩
-  by_cases hb : b₁ = b₂
-  · subst hb
-    have hev : (fun r : F =>
-        if Literal.eval (satHyperplaneAssignment v r) (x₁, b₁) ≠
-            Literal.eval (satHyperplaneAssignment v r) (x₂, b₁) then (1 : ℝ) else 0) =
-        fun r : F =>
-          if hyperplaneSide v r (some x₁) ≠ hyperplaneSide v r (some x₂) then (1 : ℝ) else 0 := by
-      ext r
-      cases b₁ <;> cases h1 : hyperplaneSide v r (some x₁) <;>
-        cases h2 : hyperplaneSide v r (some x₂) <;> cases h0 : hyperplaneSide v r none <;>
-        simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h2, h0]
-    rw [hev, integral_hyperplaneSide_ne hv (some x₁) (some x₂), litVector, litVector]
-    cases b₁ <;> simp
-  · have hev : (fun r : F =>
-        if Literal.eval (satHyperplaneAssignment v r) (x₁, b₁) ≠
-            Literal.eval (satHyperplaneAssignment v r) (x₂, b₂) then (1 : ℝ) else 0) =
-        fun r : F =>
-          if hyperplaneSide v r (some x₁) = hyperplaneSide v r (some x₂) then (1 : ℝ) else 0 := by
-      ext r
-      cases b₁ <;> cases b₂
-      · exact absurd rfl hb
-      · cases h1 : hyperplaneSide v r (some x₁) <;> cases h2 : hyperplaneSide v r (some x₂) <;>
-          cases h0 : hyperplaneSide v r none <;>
-          simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h2, h0]
-      · cases h1 : hyperplaneSide v r (some x₁) <;> cases h2 : hyperplaneSide v r (some x₂) <;>
-          cases h0 : hyperplaneSide v r none <;>
-          simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h2, h0]
-      · exact absurd rfl hb
-    rw [hev, integral_hyperplaneSide_eq hv (some x₁) (some x₂), litVector, litVector]
-    cases b₁ <;> cases b₂
-    · exact absurd rfl hb
-    · simp [inner_neg_left, arccos_neg, sub_div]
-    · simp [inner_neg_right, arccos_neg, sub_div]
-    · exact absurd rfl hb
+  have hne := integral_hyperplaneSide_ne hv (some x₁) (some x₂)
+  have heq := integral_hyperplaneSide_eq hv (some x₁) (some x₂)
+  have key : ∀ r, (Literal.eval (satHyperplaneAssignment v r) (x₁, b₁) ≠
+      Literal.eval (satHyperplaneAssignment v r) (x₂, b₂)) ↔
+      (hyperplaneSide v r (some x₁) ≠ hyperplaneSide v r (some x₂) ↔ b₁ = b₂) := fun r => by
+    cases b₁ <;> cases b₂ <;> cases h1 : hyperplaneSide v r (some x₁) <;>
+      cases h2 : hyperplaneSide v r (some x₂) <;> cases h0 : hyperplaneSide v r none <;>
+      simp [Literal.eval, satHyperplaneAssignment, truthAssignment, h1, h2, h0]
+  simp only [key]
+  cases b₁ <;> cases b₂ <;>
+    simp_all [litVector, inner_neg_left, inner_neg_right, arccos_neg, sub_div]
 
 private theorem goemansWilliamsonConstant_mul_satSdpClause_le_integral {v : Option V → F}
     (hv : ∀ o, ‖v o‖ = 1) {c : Clause V} (hc : c.length ≤ 2) :
@@ -439,37 +375,13 @@ private theorem goemansWilliamsonConstant_mul_satSdpClause_le_integral {v : Opti
   · simp only [satSdpClause, Clause.eval_cons, Clause.eval_nil, Bool.or_false]
     rw [integral_literal_eval hv ℓ₁]
     exact goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos (norm_litVector hv ℓ₁) (hv none)
-  · have hi1 : Integrable (fun r : F =>
-        if ℓ₁.eval (satHyperplaneAssignment v r) = true then (1 : ℝ) else 0) (stdGaussian F) :=
-      integrable_ite_const (stdGaussian F) (measurableSet_literal_eval v ℓ₁) 1
-    have hi2 : Integrable (fun r : F =>
-        if ℓ₂.eval (satHyperplaneAssignment v r) = true then (1 : ℝ) else 0) (stdGaussian F) :=
-      integrable_ite_const (stdGaussian F) (measurableSet_literal_eval v ℓ₂) 1
-    have hne_set : MeasurableSet {r : F | ℓ₁.eval (satHyperplaneAssignment v r) ≠
-        ℓ₂.eval (satHyperplaneAssignment v r)} := by
-      have hm : {r : F | ℓ₁.eval (satHyperplaneAssignment v r) ≠
-          ℓ₂.eval (satHyperplaneAssignment v r)} =
-          ({r | ℓ₁.eval (satHyperplaneAssignment v r) = true} \
-            {r | ℓ₂.eval (satHyperplaneAssignment v r) = true}) ∪
-          ({r | ℓ₂.eval (satHyperplaneAssignment v r) = true} \
-            {r | ℓ₁.eval (satHyperplaneAssignment v r) = true}) := by
-        ext r
-        rcases h1 : ℓ₁.eval (satHyperplaneAssignment v r) with _ | _ <;>
-          rcases h2 : ℓ₂.eval (satHyperplaneAssignment v r) with _ | _ <;>
-          simp only [Set.mem_union, Set.mem_sdiff, Set.mem_ofPred_eq, ne_eq, h1, h2,
-            Bool.false_eq_true, Bool.true_eq_false, not_false_eq_true, not_true_eq_false,
-            and_self, and_true, and_false, or_self, or_false, false_or]
-      rw [hm]
-      exact ((measurableSet_literal_eval v ℓ₁).diff (measurableSet_literal_eval v ℓ₂)).union
-        ((measurableSet_literal_eval v ℓ₂).diff (measurableSet_literal_eval v ℓ₁))
-    have hip : Integrable (fun r : F =>
-        if ℓ₁.eval (satHyperplaneAssignment v r) ≠ ℓ₂.eval (satHyperplaneAssignment v r)
-          then (1 : ℝ) else 0) (stdGaussian F) :=
-      integrable_ite_const (stdGaussian F) hne_set 1
-    have hi12 : Integrable (fun r : F =>
-        (if ℓ₁.eval (satHyperplaneAssignment v r) = true then (1 : ℝ) else 0) +
-          (if ℓ₂.eval (satHyperplaneAssignment v r) = true then 1 else 0)) (stdGaussian F) :=
-      hi1.add hi2
+  · have hm := measurableSet_literal_eval v
+    have hi : ∀ ℓ : Literal V, Integrable (fun r : F =>
+        if ℓ.eval (satHyperplaneAssignment v r) = true then (1 : ℝ) else 0) (stdGaussian F) :=
+      fun ℓ => integrable_ite_const _ (hm ℓ) 1
+    have hne : MeasurableSet {r : F | ℓ₁.eval (satHyperplaneAssignment v r) ≠
+        ℓ₂.eval (satHyperplaneAssignment v r)} :=
+      (measurableSet_eq_fun (measurable_to_bool (hm ℓ₁)) (measurable_to_bool (hm ℓ₂))).compl
     have hsplit : (fun r : F =>
         if Clause.eval (satHyperplaneAssignment v r) [ℓ₁, ℓ₂] then (1 : ℝ) else 0) =
         fun r : F =>
@@ -481,8 +393,9 @@ private theorem goemansWilliamsonConstant_mul_satSdpClause_le_integral {v : Opti
       simp only [Clause.eval_cons, Clause.eval_nil, Bool.or_false]
       cases ℓ₁.eval (satHyperplaneAssignment v r) <;>
         cases ℓ₂.eval (satHyperplaneAssignment v r) <;> norm_num
-    rw [hsplit, integral_div, integral_add hi12 hip, integral_add hi1 hi2,
-      integral_literal_eval hv ℓ₁, integral_literal_eval hv ℓ₂, integral_literal_eval_ne hv ℓ₁ ℓ₂]
+    rw [hsplit, integral_div, integral_add ((hi ℓ₁).fun_add (hi ℓ₂)) (integrable_ite_const _ hne 1),
+      integral_add (hi ℓ₁) (hi ℓ₂), integral_literal_eval hv ℓ₁, integral_literal_eval hv ℓ₂,
+      integral_literal_eval_ne hv ℓ₁ ℓ₂]
     have hgw1 := goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos
       (norm_litVector hv ℓ₁) (hv none)
     have hgw2 := goemansWilliamsonConstant_mul_one_add_le_one_sub_arccos
@@ -512,9 +425,8 @@ theorem goemansWilliamsonConstant_mul_satSdpValue_le_integral (clauses : ι → 
         w j * (if (clauses j).eval (satHyperplaneAssignment v r) then (1 : ℝ) else 0) := by
     ext r; split_ifs <;> ring
   rw [hmul, integral_const_mul]
-  have hcl := mul_le_mul_of_nonneg_left
+  simpa only [mul_left_comm] using mul_le_mul_of_nonneg_left
     (goemansWilliamsonConstant_mul_satSdpClause_le_integral hv (hc j)) (hw j)
-  simpa only [mul_left_comm] using hcl
 
 /-- **Goemans–Williamson MAX-2SAT `ε`-optimal guarantee.** If `v` are within `ε` of optimal for
 `satSdpValue`, then for every Boolean assignment `σ`, the expected rounded satisfied weight is at

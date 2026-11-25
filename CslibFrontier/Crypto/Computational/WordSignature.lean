@@ -175,32 +175,18 @@ any oracle-PPT forger. -/
 theorem isPPTOn_eufCmaGame (S : WordSignatureScheme) {adversary : Forger}
     (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :
     IsPPTOn encUnary encBool (S.eufCmaGame adversary) := by
-  have hrun := S.isPPTOn_run_signingOracle hadversary
   let P := (ℕ × (List Bool × List Bool)) × ((List Bool × List Bool) × List (List Bool))
   let encP : P ↪ List Bool :=
     encPair (encPair encUnary (encPair encBits encBits))
       (encPair (encPair encBits encBits) (encList encBits))
-  have hpost : ComputableInPolyTime
-      (fun pair : P =>
-        !pair.2.2.contains pair.2.1.1 && S.verify pair.1.2.1 pair.2.1.1 pair.2.1.2)
+  have hfresh : ComputableInPolyTime (fun pair : P => !pair.2.2.contains pair.2.1.1)
       encP encBool := by
-    have hpk : ComputableInPolyTime (fun pair : P => pair.1.2.1) encP encBits :=
-      (ComputableInPolyTime.fst _ _).snd'.fst'
-    have hmsg : ComputableInPolyTime (fun pair : P => pair.2.1.1) encP encBits :=
-      (ComputableInPolyTime.snd _ _).fst'.fst'
-    have hsig : ComputableInPolyTime (fun pair : P => pair.2.1.2) encP encBits :=
-      (ComputableInPolyTime.snd _ _).fst'.snd'
-    have hqueried : ComputableInPolyTime (fun pair : P => pair.2.2) encP (encList encBits) :=
-      (ComputableInPolyTime.snd _ _).snd'
-    have hfresh : ComputableInPolyTime (fun pair : P => !pair.2.2.contains pair.2.1.1)
-        encP encBool := by
-      refine (ComputableInPolyTime.decide_not
-        (ComputableInPolyTime.decide_mem hqueried hmsg)).of_enc_eq fun pair => ?_
-      apply congrArg encBool
-      rw [Bool.eq_iff_iff, decide_eq_true_eq]
-      simp only [Bool.not_eq_true', Bool.eq_false_iff, ne_eq, List.contains_iff_mem]
-    exact hfresh.bool_and' (S.computableInPolyTime_verify_comp hpk hmsg hsig)
-  exact S.keyGen_ppt.bind_with (hrun.bind_with hpost.isPPTOn)
+    refine (ComputableInPolyTime.decide_not (ComputableInPolyTime.decide_mem
+      (encIn := encP) (encA := encBits) (list := fun p : P => p.2.2)
+      (value := fun p : P => p.2.1.1) (by fun_prop) (by fun_prop))).of_enc_eq fun _ => ?_
+    simp
+  exact S.keyGen_ppt.bind_with ((S.isPPTOn_run_signingOracle hadversary).bind_with
+    (hfresh.bool_and' (by fun_prop)).isPPTOn)
 
 /-- The unrestricted-message EUF-CMA experiment is uniformly strict PPT, independently of unused
 auxiliary input. -/

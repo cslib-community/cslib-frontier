@@ -8,14 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
+-- Reads private `prob`, `meanGap_of_agree`, `mean_query_sqrt_le`, and `expansionContinuation`.
 import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -284,13 +278,9 @@ private theorem refresh_after_prefix {C : QuantumSigningForger} {α : Type}
   have bound (write) :
       |prob (expanded false write) - prob (expanded true write)| ≤
         4 * qH * √δ + (815 * qS + K) * δ := by
-    apply abs_common_bind U
-    intro B
-    apply abs_common_bind U
-    intro E
-    apply abs_common_bind V
-    intro v
-    apply (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans
+    refine abs_common_bind U _ _ fun B => ?_
+    refine abs_common_bind U _ _ fun E => ?_
+    refine abs_common_bind V _ _ fun v => (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans ?_
     exact before_gap s H B E A keys prog probe (fun y x l t m =>
       let T := replaceSuffix s A y B E
       let final := if write && m.isReady then

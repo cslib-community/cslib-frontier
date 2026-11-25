@@ -326,16 +326,10 @@ private theorem configurationJustesenSeedSchedulerScan_firstHalting_correct
   have hcorrect := configurationJustesenSourceLoop_correct ntm c w seed source target
     bits verdict hfirst hrun
   refine ⟨source, hsource, ?_⟩
-  have hedge : (fun u v => configurationJustesenSubdivisionAdjacent ntm c w seed u v = true) =
-      edge := by
-    funext u v
-    have hbits : (Cslib.BitString.equivFin _).symm seed =
-        fun j => frame.request.seed.testBit j.val := by
-      funext j
-      rw [Cslib.BitString.equivFin_symm_apply, hseed]
-    simp only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq, hbits, edge]
-    rfl
-  simpa only [hedge] using hcorrect
+  have hbits : (Cslib.BitString.equivFin _).symm seed =
+      fun j => frame.request.seed.testBit j.val :=
+    funext fun j => by rw [Cslib.BitString.equivFin_symm_apply, hseed]
+  simpa only [configurationJustesenSubdivisionAdjacent, decide_eq_true_eq, hbits] using hcorrect
 
 /-- A parsed scanner reply gives the first radius without a unique passing transcript,
 or gives the correct reachability answer with unique transcripts at every radius.
@@ -441,21 +435,15 @@ theorem configurationJustesenSeedScheduler_replay_correct
       (fun f hs hv _ => (hspec f hs hv).exists)
   have hunique :=
     SeedSchedulerMachine.subsingleton_successful_firstHalting setup scan start
-      SourceRoundLoop.reply w (by
-        intro f hs hv _
-        obtain ⟨_, _, unique⟩ := hspec f hs hv
-        intro left hl right hr
-        exact (unique left hl).trans (unique right hr).symm)
+      SourceRoundLoop.reply w fun f hs hv _ _ hl _ hr => (hspec f hs hv).unique hl hr
   obtain ⟨answer, hanswer⟩ := Option.isSome_iff_exists.mp hresult
   obtain ⟨actual, hactual, hpack⟩ := SeedSchedulerMachine.runSeedSchedulerFor_eq_of_firstHalting
     setup (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1
     (fun _ hp => configurationSeedSearchSetup_originalSourceID_lt_vertexCount ntm c w hp)
     (configurationSeedScheduler_seedLimit ntm c w) scan start SourceRoundLoop.reply w oracle
-    (by
-      intro f hs hv _ trace value hhalt hret
-      exact congrArg (fun x => [x])
-        (configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
-          ntm c w f hs hv trace value hhalt hret))
+    (fun f hs hv _ trace value hhalt hret => congrArg (fun x => [x])
+      (configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
+        ntm c w f hs hv trace value hhalt hret))
     bits answer hfirst hanswer
   obtain ⟨result, hmath, hmin, hleast, hreach⟩ :=
     configurationSeedSchedulerReference_correct ntm c w
@@ -479,10 +467,9 @@ theorem configurationJustesenSeedScheduler_replay_correct
       (configurationJustesenSeedScheduler_replay ntm c w trace)
   have hseed : selected.seed < setup.parameters.search.seedLimit :=
     (configurationSeedScheduler_seedLimit ntm c w).symm ▸ result.seed.isLt
-  refine ⟨selected, bits, hseed, hmin, hleast, hreach, (hhalt bits).mpr hfirst, ?_, ?_⟩
-  · exact (hreply bits).trans (hanswer.trans (congrArg some hselected))
-  · intro other hother hr
-    exact hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩
+  exact ⟨selected, bits, hseed, hmin, hleast, hreach, (hhalt bits).mpr hfirst,
+    (hreply bits).trans (hanswer.trans (congrArg some hselected)), fun other hother hr =>
+      hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩⟩
 
 /-- Every selector prefix of the fixed retained-field scheduler fits in logarithmically
 many bits in the original input length, including replays that reject. -/
@@ -595,14 +582,11 @@ theorem configurationJustesenSeedScheduler_exists_routines {k : ℕ} {State : Ty
   intro M entry S
   obtain ⟨hq, hh, ha⟩ := justesenSeedScheduler_observations_inSpace ntm c
   obtain ⟨C, hprefix⟩ := configurationJustesenSeedScheduler_length_run_le_log ntm c
-  have hsize : ∀ w bits, (encJustesenSeedSchedulerState
-      ((M.withInit (entry w)).run (encBits w) bits)).length ≤ C * S w := by
-    intro w bits
-    simpa only [run_withInit, encBits_apply] using hprefix w bits
   obtain ⟨R⟩ : Nonempty (Routines M entry encBits S) :=
     M.exists_routines hq (justesenSeedScheduler_next_inSpace ntm c) hh ha entry S
       (fun w => by simp only [encBits_apply, S, le_refl])
-      (configurationJustesenSeedSchedulerEntry_inSpace ntm c) ⟨C, hsize⟩
+      (configurationJustesenSeedSchedulerEntry_inSpace ntm c)
+      ⟨C, fun w bits => by simpa only [run_withInit, encBits_apply] using hprefix w bits⟩
   obtain ⟨L, d, hbounds⟩ := R.exists_logSpace_polyClock
     (time := configurationJustesenSeedSchedulerClock ntm c)
     (fun w => by simpa only [encBits_apply] using

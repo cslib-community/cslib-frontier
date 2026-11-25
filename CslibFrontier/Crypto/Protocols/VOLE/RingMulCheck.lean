@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.VOLE.RingMAC
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformBound
+import CslibFrontier.Tactic.UniformRelabel
 
 /-!
 # The masked multiplication check over `ZMod n`
@@ -109,16 +110,6 @@ theorem ringMulCheckSimulate_accepts (k_x k_y k_z delta : R) (kc : R × R) :
   unfold RingMulCheckAccepts ringMulCheckSimulate
   ring
 
-/-- The mask `(r, m_r) ↦ (k_r, c₁)` is a bijection of `R × R` for every key `Δ`. -/
-private def ringMulCheckMaskEquiv (x m_x y m_y m_z delta : R) : R × R ≃ R × R where
-  toFun rm := (rm.1 * delta + rm.2, voleMulCrossTerm x m_x y m_y m_z + rm.1)
-  invFun kc := (kc.2 - voleMulCrossTerm x m_x y m_y m_z,
-    kc.1 - (kc.2 - voleMulCrossTerm x m_x y m_y m_z) * delta)
-  left_inv rm := by
-    ext <;> dsimp only <;> ring
-  right_inv kc := by
-    ext <;> dsimp only <;> ring
-
 /-- **Exact simulation of the verifier's view.** If `x * y = z`, then under a uniform mask
 `(r, m_r)` the honest view `(k_r, c₁, c₀)` has the simulator's distribution, which uses only the
 keys and `Δ`. This holds for every key `Δ` and every finite commutative ring. -/
@@ -127,16 +118,13 @@ theorem ringMulCheckView_eq_simulate [Fintype R] [Nonempty R] {x y z : R}
     (PMF.uniformOfFintype (R × R)).map (ringMulCheckView x m_x y m_y m_z delta) =
       (PMF.uniformOfFintype (R × R)).map
         (ringMulCheckSimulate (x * delta + m_x) (y * delta + m_y) (z * delta + m_z) delta) := by
-  have hcomp : ringMulCheckView x m_x y m_y m_z delta =
-      ringMulCheckSimulate (x * delta + m_x) (y * delta + m_y) (z * delta + m_z) delta ∘
-        ringMulCheckMaskEquiv x m_x y m_y m_z delta := by
-    funext rm
-    have h := ringMulCheck_complete m_x m_y m_z rm.1 rm.2 delta hxyz
-    unfold RingMulCheckAccepts at h
-    simp only [ringMulCheckView, ringMulCheckSimulate, ringMulCheckMaskEquiv, ringMulCheckReply,
-      Function.comp_apply, Equiv.coe_fn_mk, Prod.mk.injEq, true_and] at h ⊢
-    linear_combination -h
-  rw [hcomp, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+  relabel_uniform
+    (fun rm : R × R => (rm.1 * delta + rm.2, voleMulCrossTerm x m_x y m_y m_z + rm.1)) with rm
+  have h := ringMulCheck_complete m_x m_y m_z rm.1 rm.2 delta hxyz
+  unfold RingMulCheckAccepts at h
+  simp only [ringMulCheckView, ringMulCheckSimulate, ringMulCheckReply,
+    Prod.mk.injEq, true_and] at h ⊢
+  linear_combination -h
 
 end CommRing
 

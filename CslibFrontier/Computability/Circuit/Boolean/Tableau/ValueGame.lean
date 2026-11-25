@@ -58,6 +58,8 @@ of [Ladner][Ladner1975].
 
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.wins_position_iff`: the existential player wins exactly
   the true claims.
+* `Cslib.Circuits.Boolean.Tableau.ValueGame.wins_position_outWire_iff`: the game on the claim that
+  the output wire is true decides the run of the machine.
 * `Cslib.Circuits.Boolean.Tableau.ValueGame.ends_position`,
   `Cslib.Circuits.Boolean.Tableau.ValueGame.reach_position`: plays end, and reachable positions are
   positions of claims about tableau wires.
@@ -128,6 +130,17 @@ noncomputable def next (b : Bool) : Claim :=
     if b then (gate tm c).2.reverse.headD 0 else (gate tm c).2.headD 0,
     if (gate tm c).1 = .not then !c.value else c.value⟩
 
+/-- The gate of a claim is the gate of its wire number past the input wires, in the tableau of its
+step count on inputs of its length. -/
+theorem gate_eq : gate tm c = gateCode tm c.input.length c.steps (c.wire - c.input.length) := by
+  rw [gate]
+
+/-- The claim after a move keeps the input and the step count. -/
+theorem next_eq (b : Bool) : next tm c b = ⟨c.input, c.steps,
+    if b then (gate tm c).2.reverse.headD 0 else (gate tm c).2.headD 0,
+    if (gate tm c).1 = .not then !c.value else c.value⟩ := by
+  rw [next]
+
 end Claim
 
 -- The word encoding of a claim (raw bits; the encoding is fixed later).
@@ -173,10 +186,7 @@ theorem position_eq_cons {c : Claim} {u x : Bool} {r : List Bool}
 /-- A terminal claim is won exactly when it is true. -/
 theorem wins_position_terminal {c : Claim} {r : Bool} (h : Claim.outcome tm c = some r) :
     Wins (update tm encC) (position tm encC c) ↔ r = true := by
-  simp only [position, h]
-  cases r
-  · simp [not_wins_nil]
-  · simp [wins_singleton_iff]
+  cases r <;> simp [position, h, not_wins_nil, wins_singleton_iff]
 
 /-- A non-terminal claim is won as a position of its player: some move wins for the existential
 player, every move for the universal player. -/
@@ -187,9 +197,9 @@ theorem wins_position_nonterminal {c : Claim} (h : Claim.outcome tm c = none) :
         else ∃ b, Wins (update tm encC) (position tm encC (Claim.next tm c b)) := by
   have he : position tm encC c = Claim.player tm c :: false :: encC c := by simp only [position, h]
   rw [he]
-  cases Claim.player tm c
-  · simp only [wins_false_cons_cons_iff, update_position_cons, Bool.false_eq_true, ↓reduceIte]
-  · simp only [wins_true_cons_cons_iff, update_position_cons, ↓reduceIte]
+  cases Claim.player tm c <;>
+    simp only [wins_false_cons_cons_iff, wins_true_cons_cons_iff, update_position_cons,
+      Bool.false_eq_true, ↓reduceIte]
 
 /-- **The circuit-value game computes the tableau**: from a claim about a wire, the existential
 player wins exactly when the claim is true. -/
@@ -254,23 +264,25 @@ theorem wins_position_iff (x : List Bool) (T : ℕ) :
       cases v <;> cases e₀ : val tm T x a₀ <;> cases e₁ : val tm T x a₁ <;>
         simp [Bool.forall_bool, Bool.exists_bool, h₀, h₁, e₀, e₁, interpretation]
 
+variable (encC) in
+/-- **The game on the output claim decides the run**: on an input `x` with `x.length < 2 * T`, the
+existential player wins from the claim that the output wire of the tableau of `T` steps is true
+exactly when `tm`, started on `x`, has written exactly `[true]` after `T` steps. -/
+theorem wins_position_outWire_iff {x : List Bool} {T : ℕ} (hn : x.length < 2 * T) :
+    Wins (update tm encC) (position tm encC ⟨x, T, outWire k State x.length T, true⟩) ↔
+      OutView.ofList (tm.runFrom (tm.initCfg x) T).output = .one true := by
+  rw [wins_position_iff x T _ (outWire_lt _ _) true]
+  exact (congrArg (· = true) (evalOutput_gates tm hn)).to_iff.trans decide_eq_true_iff
+
 /-! ### Plays end, and reachable positions -/
 
 private theorem next_arg_mem {c : Claim} (hne : (Claim.gate tm c).2 ≠ []) (b : Bool) :
     (Claim.next tm c b).wire ∈ (Claim.gate tm c).2 := by
-  obtain ⟨l, hl⟩ : ∃ l, (Claim.gate tm c).2 = l := ⟨_, rfl⟩
   cases b
-  · simp only [Claim.next, Bool.false_eq_true, ↓reduceIte, hl]
-    rw [hl] at hne
-    obtain ⟨a, l, rfl⟩ := List.exists_cons_of_ne_nil hne
-    simp
-  · simp only [Claim.next, ↓reduceIte, hl]
-    rw [hl] at hne
-    have : l.reverse ≠ [] := by simpa using hne
-    obtain ⟨a, l', hl'⟩ := List.exists_cons_of_ne_nil this
-    rw [hl']
-    have : a ∈ l.reverse := by rw [hl']; simp
-    simpa using List.mem_reverse.mp this
+  · obtain ⟨a, l, hl⟩ := List.exists_cons_of_ne_nil hne
+    simp [Claim.next, hl]
+  · obtain ⟨a, l', hl'⟩ := List.exists_cons_of_ne_nil (mt List.reverse_eq_nil_iff.mp hne)
+    simpa [Claim.next, hl'] using List.mem_reverse.mp (by simp [hl'])
 
 /-- At a non-terminal claim about a gate, every move goes to an earlier wire. -/
 theorem next_lt {c : Claim} (ho : Claim.outcome tm c = none)
@@ -380,7 +392,7 @@ private theorem length_inSpace : ComputableInSpace (fun c : Claim => c.input.len
 /-- The gate of the wire of a claim is computed within linear space in the encoded claim. -/
 theorem gate_inSpace :
     ComputableInSpace (Claim.gate tm) encClaim encGate fun c : Claim => (encClaim c).length :=
-  gateCode_inSpace tm length_inSpace steps_inSpace (BigOLe.refl _)
+  gateCode_inSpace tm length_inSpace steps_inSpace
     (budget_natSub wire_inSpace length_inSpace)
 
 /-- The claim after a move is computed within linear space in the encoded claim. -/
@@ -406,7 +418,7 @@ theorem next_inSpace (b : Bool) :
 
 /-- The outcome of a claim from finitely many data: whether the wire is an input, the input bit,
 the operation of the gate and the claimed value. -/
-private def outcomeOf : Bool × Bool × Op × Bool → Option Bool
+def outcomeOf : Bool × Bool × Op × Bool → Option Bool
   | (isInput, inBit, op, val) =>
     if isInput then some (inBit == val)
     else match op with
@@ -414,13 +426,15 @@ private def outcomeOf : Bool × Bool × Op × Bool → Option Bool
       | _ => none
 
 /-- The player of a claim from the operation of its gate and the claimed value. -/
-private def playerOf (q : Op × Bool) : Bool :=
+def playerOf (q : Op × Bool) : Bool :=
   match q.1 with
   | .and => q.2
   | .or => !q.2
   | _ => false
 
-private theorem outcome_eq (c : Claim) : Claim.outcome tm c =
+/-- The outcome of a claim depends only on whether its wire is an input, the input bit there, the
+operation of its gate and the claimed value. -/
+theorem outcome_eq_outcomeOf (c : Claim) : Claim.outcome tm c =
     outcomeOf (decide (c.wire < c.input.length), (c.input.drop c.wire).headD false,
       (Claim.gate tm c).1, c.value) := by
   unfold Claim.outcome outcomeOf
@@ -430,12 +444,15 @@ private theorem outcome_eq (c : Claim) : Claim.outcome tm c =
     rfl
   · simp only [h, ↓reduceIte, decide_false, Bool.false_eq_true]
 
-private theorem player_eq (c : Claim) :
+/-- The player of a claim depends only on the operation of its gate and the claimed value. -/
+theorem player_eq_playerOf (c : Claim) :
     Claim.player tm c = playerOf ((Claim.gate tm c).1, c.value) := by
   unfold Claim.player playerOf
   cases (Claim.gate tm c).1 <;> rfl
 
-private theorem position_eq (c : Claim) : position tm encC c =
+/-- The position of a claim: the won or lost terminal position when the claim has an outcome, and
+otherwise the player, a move cell and the encoded claim. -/
+theorem position_eq_ite (c : Claim) : position tm encC c =
     if (Claim.outcome tm c).isSome then
       (if (Claim.outcome tm c).getD false then [true] else [])
     else Claim.player tm c :: false :: encC c := by
@@ -463,7 +480,7 @@ theorem position_inSpace :
       (fun c : Claim => if (Claim.outcome tm c).getD false then [true] else [])
       encClaim encBits fun c : Claim => (encClaim c).length :=
     (budget_finite (encC := encBits) (fun q => if (outcomeOf q).getD false then [true] else [])
-      hq).of_enc_eq fun c => by simp only [outcome_eq]
+      hq).of_enc_eq fun c => by simp only [outcome_eq_outcomeOf]
   have hplayer := budget_finite (encC := encList encBool)
     (fun q : Op × Bool => [playerOf q, false]) (budget_prod hop value_inSpace)
   have hid : ComputableInSpace (fun c : Claim => encClaim c) encClaim encBits
@@ -471,11 +488,11 @@ theorem position_inSpace :
     (of_inO ComputableInDegree.id'.inO_one).of_enc_eq fun _ => rfl
   have hcons := ((budget_comp_linear listToBits hplayer).append hid
     (g := fun c => Claim.player tm c :: false :: encClaim c) (encD := encBits)
-    fun c => by simp [player_eq]).weaken (.add (.refl _) (.refl _))
+    fun c => by simp [player_eq_playerOf]).weaken (.add (.refl _) (.refl _))
   have hsome' : ComputableInSpace (fun c : Claim => (Claim.outcome tm c).isSome) encClaim encBool
       fun c : Claim => (encClaim c).length :=
-    hsome.of_enc_eq fun c => by simp only [outcome_eq]
-  exact (budget_ite hsome' hres hcons).of_enc_eq fun c => by rw [position_eq]
+    hsome.of_enc_eq fun c => by simp only [outcome_eq_outcomeOf]
+  exact (budget_ite hsome' hres hcons).of_enc_eq fun c => by rw [position_eq_ite]
 
 /-! ### Typed positions -/
 

@@ -63,13 +63,9 @@ private theorem checkSpan_eq_true_iff (g : AndOrGraph) (bound : ℕ) (ranks : Li
           u.2 ≤ v.2 + bound ∧ v.2 ≤ u.2 + bound)) = true ↔ Span g bound ranks := by
   have hz : g.vertices.zip ranks = List.ofFn fun i : Fin g.vertices.length =>
       (g.vertices.get i, ranks.getD i.val 0) := by
-    apply List.ext_getElem
-    · simp [hlen]
-    · intro i hi hj
-      have hr : i < ranks.length := by simpa only [hlen] using
-        (show i < g.vertices.length from by simpa only [List.length_ofFn] using hj)
-      simp only [List.getElem_zip, List.getElem_ofFn, List.get_eq_getElem]
-      rw [List.getD_eq_getElem _ _ hr]
+    refine List.ext_getElem (by simp [hlen]) fun i _ hj => ?_
+    have hr : i < ranks.length := by simpa [hlen] using hj
+    simp [hr]
   simp only [hz, Span, List.all_eq_true, List.mem_ofFn, forall_exists_index,
     forall_apply_eq_imp_iff, decide_eq_true_eq, and_imp]
 
@@ -77,14 +73,12 @@ private theorem checkBandwidth_eq_true_iff (g : AndOrGraph) (bound : ℕ) (ranks
     g.checkBandwidth bound ranks = true ↔ ranks.length = g.vertices.length ∧ ranks.Nodup ∧
       (∀ r ∈ ranks, r < g.vertices.length) ∧ Span g bound ranks := by
   simp only [checkBandwidth, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true]
-  constructor
-  · rintro ⟨⟨⟨hlen, hd⟩, hb⟩, hs⟩
-    exact ⟨hlen, hd, hb, (checkSpan_eq_true_iff g bound ranks hlen).mp
-      (by simpa only [List.all_eq_true, decide_eq_true_eq] using hs)⟩
-  · rintro ⟨hlen, hd, hb, hs⟩
-    exact ⟨⟨⟨hlen, hd⟩, hb⟩, by
-      simpa only [List.all_eq_true, decide_eq_true_eq] using
-        (checkSpan_eq_true_iff g bound ranks hlen).mpr hs⟩
+  exact ⟨fun ⟨⟨⟨hlen, hd⟩, hb⟩, hs⟩ =>
+      ⟨hlen, hd, hb, (checkSpan_eq_true_iff g bound ranks hlen).mp
+        (by simpa only [List.all_eq_true, decide_eq_true_eq] using hs)⟩,
+    fun ⟨hlen, hd, hb, hs⟩ => ⟨⟨⟨hlen, hd⟩, hb⟩,
+      by simpa only [List.all_eq_true, decide_eq_true_eq] using
+        (checkSpan_eq_true_iff g bound ranks hlen).mpr hs⟩⟩
 
 private theorem hasBandwidth_of_check (g : AndOrGraph) (bound : ℕ) (ranks : List ℕ)
     (h : g.checkBandwidth bound ranks = true) : g.graph.HasBandwidth bound := by
@@ -150,14 +144,13 @@ private theorem computableInPolyTime_spanTest {α : Type} {input : α ↪ List B
     (ha : ComputableInPolyTime a input encNat) (hb : ComputableInPolyTime b input encNat)
     (he : ComputableInPolyTime e input encNat) (hf : ComputableInPolyTime f input encNat) :
     ComputableInPolyTime (fun x => decide (e x = f x ∧ e x < count x →
-      a x ≤ b x + bound ∧ b x ≤ a x + bound)) input encBool := by
-  have hguard := ComputableInPolyTime.decide_and (he.decide_eq' hf) (he.binary_lt' hc)
-  have hspan := ComputableInPolyTime.decide_and
-    (ha.binary_le' (hb.binary_add' (ComputableInPolyTime.const bound)))
-    (hb.binary_le' (ha.binary_add' (ComputableInPolyTime.const bound)))
-  have himp := ComputableInPolyTime.bool_or'
-    (ComputableInPolyTime.bool_not.comp hguard) hspan
-  exact himp.of_enc_eq fun x => by
+      a x ≤ b x + bound ∧ b x ≤ a x + bound)) input encBool :=
+  (ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp
+      (ComputableInPolyTime.decide_and (he.decide_eq' hf) (he.binary_lt' hc)))
+    (ComputableInPolyTime.decide_and
+      (ha.binary_le' (hb.binary_add' (.const bound)))
+      (hb.binary_le' (ha.binary_add' (.const bound))))).of_enc_eq fun _ => by
     simp only [Function.comp_apply, encBool_apply, imp_iff_not_or, Bool.decide_or, decide_not]
 
 private theorem computableInPolyTime_portSpans {α : Type} {input : α ↪ List Bool}

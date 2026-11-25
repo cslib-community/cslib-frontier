@@ -215,15 +215,13 @@ entries in `A i`; the other gates compute the same function for every `T`. -/
 theorem value_congr (A : Fin t → Finset (Fin (2 ^ p))) {T T' : Fin (2 ^ p) → Bool} (κ : Gate p t)
     (h : ∀ i, κ.set = some i → ∀ y ∈ A i, T y = T' y) : value A T κ = value A T' κ := by
   cases κ with
-  | neg i => rfl
-  | zero => rfl
-  | grid y k => rfl
   | window i y =>
     funext x
     simp only [value_window]
     refine decide_eq_decide.mpr (and_congr_right fun _ => ?_)
     exact ⟨fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).symm.trans hT⟩,
       fun ⟨hm, hT⟩ => ⟨hm, (h i rfl _ hm).trans hT⟩⟩
+  | _ => rfl
 
 /-- The last input `2^p - 1`, whose window gates compute the windows of `T`. -/
 def lastIdx (p : ℕ) : Fin (2 ^ p) :=
@@ -323,16 +321,14 @@ private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2
     (y : Fin (2 ^ p)) (x : Fin p → Bool) :
     value A T (.grid y (lastBit p)) x = decide (BitString.equivFin p x = y) := by
   rw [value_grid]
-  refine decide_eq_decide.mpr ⟨fun h => ?_, fun h b _ => ?_⟩
+  refine decide_eq_decide.mpr ⟨fun h => ?_, ?_⟩
   · rw [← Equiv.eq_symm_apply]
     funext b
     rw [BitString.equivFin_symm_apply]
     refine h b ?_
     fin_index [lastBit]
-  · subst h
-    have hb := BitString.equivFin_symm_apply (BitString.equivFin p x) b
-    rw [Equiv.symm_apply_apply] at hb
-    exact hb
+  · rintro rfl b _
+    rw [← BitString.equivFin_symm_apply, Equiv.symm_apply_apply]
 
 private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
     (x : Fin p → Bool) (κ : Gate p t) :
@@ -411,17 +407,13 @@ private theorem early_litWire (κ : Gate p t) (y : Fin (2 ^ p)) (b : Fin p)
 omit [NeZero p] in
 private theorem early_ite {κ : Gate p t} {c : Prop} [Decidable c] {w₁ w₂ : Wire p (gateCount p t)}
     (h₁ : Early κ w₁) (h₂ : Early κ w₂) : Early κ (if c then w₁ else w₂) := by
-  split
-  · exact h₁
-  · exact h₂
+  split <;> assumption
 
 omit [NeZero p] in
 private theorem early_dite {κ : Gate p t} {c : Prop} [Decidable c] {w₁ : c → Wire p (gateCount p t)}
     {w₂ : ¬c → Wire p (gateCount p t)} (h₁ : ∀ h, Early κ (w₁ h)) (h₂ : ∀ h, Early κ (w₂ h)) :
     Early κ (if h : c then w₁ h else w₂ h) := by
-  split
-  · exact h₁ _
-  · exact h₂ _
+  split <;> [exact h₁ _; exact h₂ _]
 
 private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
     (κ : Gate p t) (a) : Early κ ((line A T κ).wires a) := by
@@ -447,13 +439,8 @@ private theorem line_early (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p)
     change Early _ (if a.val = 0 then _ else _)
     refine early_ite (early_dite (fun _ => early_gateWire ?_) fun hy0 => early_gateWire ?_)
       (early_ite (early_gateWire ?_) (early_gateWire ?_))
-    · simp only [Gate.val_equivFin_zero, Gate.val_equivFin_window]
-      omega
-    · simp only [Gate.val_equivFin_window]
-      omega
-    · simp only [Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
-      omega
-    · simp only [Gate.val_equivFin_zero, Gate.val_equivFin_window]
+    all_goals
+      simp only [Gate.val_equivFin_zero, Gate.val_equivFin_grid, Gate.val_equivFin_window, lastBit]
       omega
 
 /-- **The template as a program.** For `p ≥ 1`, a program over the constant-free De Morgan basis
@@ -498,12 +485,8 @@ private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
       (#C - 1) := by
   induction hC using Finset.Nonempty.cons_induction with
   | singleton a =>
-    have hf : (fun x : Fin n → Bool => decide (∃ b ∈ ({a} : Finset (Fin n)), x b = true)) =
-        fun x => x a := by
-      funext x
-      simp
-    rw [hf]
-    exact Synthesis.of_mem ⟨a, rfl⟩
+    simpa only [Finset.mem_singleton, exists_eq_left, Bool.decide_eq_true, Finset.card_singleton,
+      Nat.sub_self] using Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩
   | cons a s ha hs ih =>
     have hbin := Synthesis.binary (Synthesis.of_mem (s := inputs n) ⟨a, rfl⟩) ih
       Boolean.DeMorgan.Op.or

@@ -95,8 +95,7 @@ theorem le_mul_complexity [exact.IsComplete] (samples : Finset Sample) (f : (Fin
     (hε : ∀ a, ε ≤ #(S.failures samples a fun s => f (exactInput s))) :
     ε ≤ δ * complexity exact (single f) := by
   obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := exact) (f := single f)
-  rw [← hsize]
-  exact S.le_mul_size samples C (fun s _ => congrFun (hC (exactInput s)) 0) hδ hε
+  exact hsize ▸ S.le_mul_size samples C (fun s _ => congrFun (hC (exactInput s)) 0) hδ hε
 
 end Failures
 
@@ -134,9 +133,8 @@ theorem le_mul_complexity_of_le_hammingDist [exact.IsComplete]
     (hε : ∀ a, ε ≤ hammingDist (fun s => f (exactInput s)) (decode a)) :
     ε ≤ δ * complexity exact (single f) := by
   obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := exact) (f := single f)
-  rw [← hsize]
-  exact (hε _).trans ((S.hammingDist_le_cost hrel C fun s => congrFun (hC (exactInput s)) 0).trans
-    (C.program.cost_le_mul hδ))
+  exact hsize ▸ (hε _).trans ((S.hammingDist_le_cost hrel C fun s =>
+    congrFun (hC (exactInput s)) 0).trans (C.program.cost_le_mul hδ))
 
 end Hamming
 
@@ -157,11 +155,11 @@ theorem sum_programExceptions_le [DecidableEq Sample] (hμ : ∀ s, 0 ≤ μ s)
   | gate p line ih =>
     rw [programExceptions_gate, Fin.sum_univ_castSucc]
     simp only [Program.lines_gate_last, Program.lines_gate_castSucc, Line.mapWires_op]
-    have hunion := sum_union_inter (s₁ := S.programExceptions p)
-      (s₂ := S.exceptions line.op (p.trace approx approxInput ∘ line.wires)) (f := μ)
-    have hinter := sum_nonneg fun s (_ : s ∈ S.programExceptions p ∩
-      S.exceptions line.op (p.trace approx approxInput ∘ line.wires)) => hμ s
-    linarith [hw line.op (p.trace approx approxInput ∘ line.wires)]
+    linarith [sum_union_inter (s₁ := S.programExceptions p)
+        (s₂ := S.exceptions line.op (p.trace approx approxInput ∘ line.wires)) (f := μ),
+      sum_nonneg (s := S.programExceptions p ∩
+        S.exceptions line.op (p.trace approx approxInput ∘ line.wires)) fun s _ => hμ s,
+      hw line.op (p.trace approx approxInput ∘ line.wires)]
 
 variable [DecidableRel S.relation]
 

@@ -52,8 +52,7 @@ theorem exists_ratio_parityTest_of_not_isSafe [NeZero m]
         1 ≤ t ∧ (n : ℝ) ^ t ≤ ratio J a / 4 ∧ ratio J a ≤ (n : ℝ) ^ (2 * t) := by
     intro J a
     by_cases hR : 16 * (n : ℝ) ^ 2 ≤ ratio J a
-    · obtain ⟨t, ht⟩ := exists_power_threshold_of_ratio hnR hR
-      exact ⟨t, fun _ => ht⟩
+    · exact (exists_power_threshold_of_ratio hnR hR).imp fun _ ht _ => ht
     · exact ⟨1, fun h => False.elim (hR h)⟩
   choose order hord using hex
   have hbudget : ∀ I ⊆ F, ∀ J ⊆ F \ I, J.Nonempty → ∀ a : J → Fin m,
@@ -73,10 +72,8 @@ theorem exists_ratio_parityTest_of_not_isSafe [NeZero m]
       exact_mod_cast card_pos.mpr hA
     have hd : 0 < σ ^ #J * #(agreeOn Y J (ParityTest.extendAssignment J a)) := by positivity
     have hRnonneg : 0 ≤ ratio J a := by dsimp [ratio]; positivity
-    have htwo : 2 * (#{S : Finset I | S.card < order J a} + 1 : ℝ) ≤ ratio J a := by
-      linarith
-    have hmul := (le_div_iff₀ hd).mp htwo
-    simpa only [mul_assoc] using hmul
+    have htwo : 2 * (#{S : Finset I | S.card < order J a} + 1 : ℝ) ≤ ratio J a := by linarith
+    simpa only [mul_assoc] using (le_div_iff₀ hd).mp htwo
   obtain ⟨I, w, _, hcan, _, hPne, helig, hbias⟩ :=
     exists_parityTest_of_not_isSafe g σ F Y hY hσ.le (fun _ J a => order J a)
       hbudget x hunsafe
@@ -97,8 +94,7 @@ theorem exists_ratio_parityTest_of_not_isSafe [NeZero m]
       exact_mod_cast card_pos.mpr w.supported
     have hd : 0 < σ ^ w.conditioned.card * #(agreeOn Y w.conditioned w.assignment) := by positivity
     simp only [ratio, a, ParityTest.agreeOn_extend_restrict] at hupper
-    have hmul := (div_le_iff₀ hd).mp hupper
-    simpa only [mul_assoc] using hmul
+    simpa only [mul_assoc] using (div_le_iff₀ hd).mp hupper
 
 /-- Joint density lower-bounds the true conditioning ratio. The cardinality of the supported
 slice is not replaced by an average-case estimate. -/

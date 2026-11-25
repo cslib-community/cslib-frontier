@@ -245,10 +245,8 @@ theorem exists_computableInTimeAndSpace_reachableViews {α γ : Type} {enc : α 
   have hl : ∀ a, ∀ n ≤ Cslib.Reachability.closingRound ntm.viewSucc (ntm.initView (enc a)),
       (encList encFiniteCfg ((closeStep (ntm := ntm))^[n] [ntm.initView (enc a)])).length ≤
         2 ^ (2 * coreLengthBound k State (enc a).length (s a) + 1) *
-          (2 * viewLengthBound k State (enc a).length (s a) + 1) := by
-    intro a n hn
-    rw [closeStep_iterate hn]
-    exact length_encList_search_le (hs a) n
+          (2 * viewLengthBound k State (enc a).length (s a) + 1) := fun a n hn => by
+    simpa only [closeStep_iterate hn] using length_encList_search_le (hs a) n
   have hne : ∀ a, ∀ n < Cslib.Reachability.closingRound ntm.viewSucc (ntm.initView (enc a)),
       encList encFiniteCfg ((closeStep (ntm := ntm))^[n + 1] [ntm.initView (enc a)]) ≠ [] := by
     intro a n hn hnil

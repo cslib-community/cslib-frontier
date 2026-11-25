@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Foundations.Analysis.ENNRealNatDiv
 import CslibFrontier.Foundations.Data.List.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -169,15 +170,8 @@ private theorem lastCode_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
   obtain ⟨hv, hl⟩ := lsbValue_iterate_firstCode hi
   have hall := BitString.lsbValue_replicate_true (L + 1)
   simp only [lastCode, decide_eq_decide]
-  constructor
-  · intro h
-    rw [h] at hv
-    simp only [codeCount]
-    lia
-  · intro h
-    refine BitString.lsbValue_injective (by simp [hl]) ?_
-    simp only [codeCount] at h
-    lia
+  exact ⟨fun h => by rw [h] at hv; simp only [codeCount]; omega,
+    fun h => BitString.lsbValue_injective (by simp [hl]) (by simp only [codeCount] at h; omega)⟩
 
 private theorem true_mem_iterate_firstCode {i : ℕ} (hi : i < codeCount L) :
     true ∈ increment^[i] (firstCode L) := by
@@ -346,9 +340,7 @@ private theorem step_some_eq (L cap : ℕ) (leaf : List (List Bool × List Bool)
     (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
     GameTree.step L cap (firstCode L) increment (lastCode L) leaf (st, some v) =
       returnStep L cap st v := by
-  rcases st with _ | ⟨⟨u, w, sm, ac⟩, st⟩
-  · rfl
-  · rfl
+  rcases st with _ | ⟨⟨u, w, sm, ac⟩, st⟩ <;> rfl
 
 /-- Pushing a frame, or returning the leaf value at the maximal depth. -/
 def pushStep (L : ℕ) (st : List (GameTree.Frame (List Bool))) (v : ℕ) :
@@ -485,7 +477,11 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
     · have := length_encNat_le_of_le_two_pow (hgood.value v hst)
       enc_len
   simp only [encEvalState, length_encPair]
-  nlinarith
+  have hlist2 : 2 * (encList encFrame st.1).length ≤ 2 * fuel a * (14 * fuel a + 21) := by
+    calc 2 * (encList encFrame st.1).length
+        ≤ 2 * (fuel a * (2 * (7 * fuel a + 10) + 1)) := Nat.mul_le_mul_left 2 (hlist.trans hdepth)
+      _ = 2 * fuel a * (14 * fuel a + 21) := by ring
+  omega
 
 omit hfuel in
 /-- **The evaluation within polynomial space.** -/
@@ -502,13 +498,10 @@ theorem computableInPolySpace_evaluate [Finite Control] [Inhabited α]
     exact binary_two_pow.comp hexp
   have hinit : ComputableInPolyTime (fun a : α => ((a, [], none) : EvalState α)) enc
       (encEvalState enc) := by fun_prop
-  have hlen := hfuel.polyBounded_length
-  simp only [encUnary_apply, List.length_replicate] at hlen
   have hit := ComputableInPolySpace.iterate hn (.of_polyTime hinit)
     (computableInPolySpace_evalStep M hfuel)
     (B := fun a => 2 * (enc a).length + 2 * fuel a * (14 * fuel a + 21) + fuel a + 4)
-    (((((PolyBounded.const 2).mul .self).add (((PolyBounded.const 2).mul hlen).mul
-      (((PolyBounded.const 14).mul hlen).add (.const 21)))).add hlen).add (.const 4))
+    (by growth_poly)
     (fun a j _ => length_encEvalState_iterate_le M a j)
   have hpost : ComputableInPolyTime (fun s : EvalState α => s.2.2.getD 0)
       (encEvalState enc) encNat := by fun_prop
@@ -590,10 +583,7 @@ theorem IP_subset_PSPACE (enc : α ↪ List Bool) : IP enc ⊆ PSPACE enc := by
     have hcap : ComputableInPolyTime (fun a => 2 ^ fuel a) enc encNat :=
       ComputableInPolyTime.binary_two_pow.comp hfuel
     have hpost : ComputableInPolyTime (fun p : ℕ × ℕ => decide (p.1 < 2 * p.2))
-        (encPair encNat encNat) encBool :=
-      ComputableInPolyTime.binary_lt.comp ((ComputableInPolyTime.fst _ _).prod
-        (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.const 2)
-          (ComputableInPolyTime.snd _ _)))
+        (encPair encNat encNat) encBool := by fun_prop
     exact (ComputableInPolySpace.of_polyTime hpost).comp
       ((ComputableInPolySpace.of_polyTime hcap).prod
         (computableInPolySpace_evaluate M hfuel))

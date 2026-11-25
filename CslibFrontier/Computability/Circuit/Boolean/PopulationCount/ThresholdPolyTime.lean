@@ -34,9 +34,7 @@ theorem computableInPolyTime_linearThresholdCircuit :
     ComputableInPolyTime (fun p : ℕ × ℕ => (linearThresholdCircuit p.1 p.2).code)
       (encPair encUnary encUnary) encCode := by
   have hn := fst encUnary encUnary
-  have hq := snd encUnary encUnary
   have hn' := unary_to_binary.comp hn
-  have hq' := unary_to_binary.comp hq
   have hw : ComputableInPolyTime (fun p : ℕ × ℕ => Nat.clog 2 (p.1 + 1) + 1)
       (encPair encUnary encUnary) encUnary := by
     have hc := (unary_clog_const 2).comp
@@ -45,15 +43,10 @@ theorem computableInPolyTime_linearThresholdCircuit :
     fun_prop
   have hp := computableInPolyTime_compCode hn' (computableInPolyTime_leCircuit.comp hw)
     (computableInPolyTime_appendCode hn'
-      (computableInPolyTime_wordConstCode hn' hw hq')
+      (computableInPolyTime_wordConstCode hn' hw (unary_to_binary.comp (snd encUnary encUnary)))
       (computableInPolyTime_populationCountCircuit.comp hn))
-  have hz : ComputableInPolyTime (fun p : ℕ × ℕ => ([(Op.const false, [])], [p.1]))
-      (encPair encUnary encUnary) encCode := by fun_prop
-  have ht : ComputableInPolyTime (fun p : ℕ × ℕ => decide (p.2 ≤ p.1))
-      (encPair encUnary encUnary) encBool := by fun_prop
-  have h := ite_decide ht hp hz
-  apply h.of_enc_eq
-  intro p
+  refine (ite_decide (condition := fun p : ℕ × ℕ => p.2 ≤ p.1) (by fun_prop) hp
+    (no := fun p : ℕ × ℕ => ([(Op.const false, [])], [p.1])) (by fun_prop)).of_enc_eq fun p => ?_
   dsimp only [linearThresholdCircuit, Function.comp_apply]
   split_ifs with hq
   · rw [← compCode_code, ← appendCode_code, ← wordConstCode_eq]

@@ -69,9 +69,8 @@ variable {ι : Type*} [Fintype ι] {μ : ι → Measure ℝ} {f : ι → ℝ →
 /-- Under independent valuations with densities, almost every profile lies in the box
 `∏ᵢ [0, hᵢ]`. -/
 theorem ae_mem_box [∀ i, IsProbabilityMeasure (μ i)] (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i)) :
-    ∀ᵐ v ∂Measure.pi μ, ∀ i, v i ∈ Icc 0 (h i) := by
-  rw [ae_all_iff]
-  exact fun i => (Measure.quasiMeasurePreserving_eval μ i).ae (hμ i).ae_mem
+    ∀ᵐ v ∂Measure.pi μ, ∀ i, v i ∈ Icc 0 (h i) :=
+  ae_all_iff.mpr fun i => (Measure.quasiMeasurePreserving_eval μ i).ae (hμ i).ae_mem
 
 /-- Under independent valuations with densities, almost every profile is nonnegative. -/
 theorem ae_nonneg [∀ i, IsProbabilityMeasure (μ i)] (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i)) :
@@ -94,25 +93,21 @@ theorem integrable_myersonPayment (hμ : ∀ i, HasValueDensity (μ i) (f i) (h 
     (h i * B + B * h i) ?_
   filter_upwards [ae_mem_box hμ] with v hv
   have hv0 : 0 ≤ v := fun j => (hv j).1
-  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB v hv0)
   have h1 : ‖v i * x v i‖ ≤ h i * B := by
     rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hv i).1]
     exact mul_le_mul (hv i).2 (hB v hv0) (abs_nonneg _) ((hv i).1.trans (hv i).2)
   have h2 : ‖∫ z in (0 : ℝ)..v i, x (Function.update v i z) i‖ ≤ B * |v i - 0| :=
-    intervalIntegral.norm_integral_le_of_norm_le_const fun z hz => by
-      rw [uIoc_of_le (hv i).1] at hz
-      exact hB _ (update_nonneg hv0 i hz.1.le)
+    intervalIntegral.norm_integral_le_of_norm_le_const fun z hz =>
+      hB _ (update_nonneg hv0 i ((uIoc_of_le (hv i).1 ▸ hz).1).le)
   rw [sub_zero, abs_of_nonneg (hv i).1] at h2
-  have h3 : B * v i ≤ B * h i := mul_le_mul_of_nonneg_left (hv i).2 hB0
-  exact (norm_sub_le _ _).trans (by linarith)
+  exact (norm_sub_le _ _).trans
+    (by linarith [mul_le_mul_of_nonneg_left (hv i).2 ((abs_nonneg _).trans (hB v hv0))])
 
 omit [DecidableEq ι] in
 theorem integrable_virtualValue_mul (hμ : ∀ i, HasValueDensity (μ i) (f i) (h i)) (i : ι)
     (hx : Measurable fun v => x v i) (hB : ∀ v, 0 ≤ v → |x v i| ≤ B) :
     Integrable (fun v => virtualValue (μ i) (f i) (v i) * x v i) (Measure.pi μ) := by
-  have hφ : Integrable (fun v : ι → ℝ => virtualValue (μ i) (f i) (v i)) (Measure.pi μ) :=
-    integrable_comp_eval (hμ i).integrable_virtualValue
-  refine Integrable.mono' (hφ.norm.mul_const B)
+  refine Integrable.mono' ((integrable_comp_eval (hμ i).integrable_virtualValue).norm.mul_const B)
     (((hμ i).measurable_virtualValue.comp (measurable_pi_apply i)).mul hx).aestronglyMeasurable ?_
   filter_upwards [ae_nonneg hμ] with v hv
   rw [norm_mul]
@@ -126,12 +121,10 @@ theorem integral_myersonPayment_eq (hμ : ∀ i, HasValueDensity (μ i) (f i) (h
       ∫ v, virtualValue (μ i) (f i) (v i) * x v i ∂Measure.pi μ := by
   rw [← integral_integral_update μ (integrable_myersonPayment hμ i hx hB) i,
     ← integral_integral_update μ (integrable_virtualValue_mul hμ i hx hB) i]
-  refine integral_congr_ae ?_
-  filter_upwards [ae_nonneg hμ] with v hv
-  have key := (hμ i).integral_payment_eq_integral_virtualValue_mul
-    (g := fun z => x (Function.update v i z) i) (hx.comp (measurable_update v)) (B := B)
-    fun z hz => hB _ (update_nonneg hv i hz.1)
-  simpa only [myersonPayment, Function.update_self, Function.update_idem] using key
+  refine integral_congr_ae ((ae_nonneg hμ).mono fun v hv => ?_)
+  simpa only [myersonPayment, Function.update_self, Function.update_idem] using
+    (hμ i).integral_payment_eq_integral_virtualValue_mul (g := fun z => x (Function.update v i z) i)
+      (hx.comp (measurable_update v)) (B := B) fun z hz => hB _ (update_nonneg hv i hz.1)
 
 /-- **Expected revenue equals expected virtual welfare** ([Roughgarden2013CS364A], Lecture 5, §2,
 eqs. (5)–(6)): under Myerson's payments, for any allocation rule that is measurable and bounded on
@@ -154,9 +147,8 @@ theorem Mechanism.IsDSIC.integral_sum_payment_eq {M : Mechanism ι} (hM : M.IsDS
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ =
       ∫ v, ∑ i, virtualValue (μ i) (f i) (v i) * M.allocation v i ∂Measure.pi μ := by
   rw [← integral_sum_myersonPayment_eq hμ hx hB]
-  refine integral_congr_ae ?_
-  filter_upwards [ae_nonneg hμ] with v hv
-  exact Finset.sum_congr rfl fun i _ => hM.payment_eq_myersonPayment hN i hv
+  exact integral_congr_ae ((ae_nonneg hμ).mono fun v hv =>
+    Finset.sum_congr rfl fun i _ => hM.payment_eq_myersonPayment hN i hv)
 
 omit [Fintype ι] [∀ i, IsProbabilityMeasure (μ i)] in
 /-- An individually rational mechanism charges a zero bid at most zero. -/
@@ -179,16 +171,13 @@ theorem Mechanism.IsDSIC.integral_sum_payment_le {M : Mechanism ι} (hM : M.IsDS
       ∫ v, ∑ i, virtualValue (μ i) (f i) (v i) * M.allocation v i ∂Measure.pi μ := by
   rw [← integral_sum_myersonPayment_eq hμ hx hB]
   by_cases hint : Integrable (fun v => ∑ i, M.payment v i) (Measure.pi μ)
-  · refine integral_mono_ae hint
-      (integrable_finsetSum _ fun i _ =>
-        integrable_myersonPayment hμ i (hx i) fun v hv => hB v hv i) ?_
-    filter_upwards [ae_nonneg hμ] with v hv
-    refine Finset.sum_le_sum fun i _ => ?_
+  · refine integral_mono_ae hint (integrable_finsetSum _ fun i _ =>
+      integrable_myersonPayment hμ i (hx i) fun v hv => hB v hv i)
+      ((ae_nonneg hμ).mono fun v hv => Finset.sum_le_sum fun i _ => ?_)
     rw [hM.payment_eq i hv]
     linarith [hIR.payment_update_zero_nonpos i hv]
   · rw [integral_undef hint]
-    refine integral_nonneg_of_ae ?_
-    filter_upwards [ae_nonneg hμ] with v hv
-    exact Finset.sum_nonneg fun i _ => myersonPayment_nonneg hM.isMonotone hv i
+    exact integral_nonneg_of_ae ((ae_nonneg hμ).mono fun v hv =>
+      Finset.sum_nonneg fun i _ => myersonPayment_nonneg hM.isMonotone hv i)
 
 end Cslib.GameTheory.SingleParameter

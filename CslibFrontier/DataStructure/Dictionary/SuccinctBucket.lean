@@ -787,9 +787,7 @@ theorem expect_microCollCount_le_two_on {U n_max : ℕ}
     exact div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_filter_le _ _)) (by positivity)
   have hle : (#(S.erase u) : ℚ) / (2 ^ totalMicroBits n_max : ℚ) ≤ 2 := by
     rw [div_le_iff₀ (by positivity)]
-    have hcard : #(S.erase u) ≤ 2 * 2 ^ totalMicroBits n_max :=
-      hS.trans (le_two_mul_totalMicroBuckets n_max)
-    exact_mod_cast hcard
+    exact_mod_cast hS.trans (le_two_mul_totalMicroBuckets n_max)
   exact hexp.trans hle
 
 /-- **Expected bucket overflow bound:** under a 3-wise independent hash `H`, for any
@@ -810,13 +808,8 @@ theorem expect_bucketOvfCount_le_one_on {U n_max : ℕ}
   have hh_b : IsKWiseIndependentHash 3 H_b :=
     isKWiseIndependentHash_projLowBits (bucketBits_le_totalMicroBits n_max) hh
   let D : ℕ := 2 * numMicroPerBucket n_max
-  have hD : 1 ≤ D := by
-    dsimp only [D]
-    have := numMicroPerBucket_pos n_max
-    omega
-  have h2D : 2 * D = effBucketCap n_max := by
-    dsimp only [D, effBucketCap]
-    ring
+  have hD : 1 ≤ D := by dsimp only [D]; have := numMicroPerBucket_pos n_max; omega
+  have h2D : 2 * D = effBucketCap n_max := by dsimp only [D, effBucketCap]; ring
   have hSD : #(S.erase u) ≤ D * 2 ^ bucketBits n_max :=
     hS.trans (le_two_mul_numMicro_mul_numBuckets n_max)
   have hovf := expect_feistelXor_overflow_le_on le_rfl hD hh_b S u hSD hq
@@ -828,8 +821,7 @@ theorem expect_bucketOvfCount_le_one_on {U n_max : ℕ}
     rw [h2D]
     dsimp only [bucketOvfCount, feistelBucketHash, feistelMicroHash, H_b]
     simp only [projLowBits_feistelXor]
-  simp only [heq] at hovf
-  exact hovf
+  simpa only [heq] using hovf
 
 /-- **Master expected probe-excess bound:** under a 3-wise independent hash `H`, for any
 `S : Finset (Fin U)` with `#(S.erase u) ≤ n_max` such that `qOf` is quotient-injective on
@@ -912,43 +904,20 @@ theorem tsum_uniform_probeExcess_twoStage_le {ι₁ ι₂ : Type*}
         (if i₁ ∈ G then 3 else 2 * #(S.erase u)) * Fintype.card ι₂ := by
     split_ifs with hi₁
     · exact sum_probeExcess_le_three_mul_card_on hh S u hS (hG i₁ hi₁)
-    · calc (∑ i₂ : ι₂, probeExcess n_max (qOf i₁) H i₂ S u)
-          ≤ ∑ _i₂ : ι₂, (2 * #(S.erase u)) :=
-            sum_le_sum fun i₂ _ => probeExcess_le_two_mul_card (qOf i₁) H i₂ S u
-        _ = (2 * #(S.erase u)) * Fintype.card ι₂ := by
-            rw [sum_const, card_univ, smul_eq_mul, mul_comm]
+    · exact (sum_le_card_nsmul _ _ _ fun i₂ _ => probeExcess_le_two_mul_card (qOf i₁) H i₂ S u
+        ).trans_eq (by rw [card_univ, smul_eq_mul, mul_comm])
   have houter :
       (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) ≤
         (3 + C_bad) * Fintype.card ι₁ := by
-    have hsplit :
-        (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) =
-          ∑ i₁ ∈ univ.filter (· ∈ G), 3 +
-            ∑ i₁ ∈ univ.filter (· ∉ G), (2 * #(S.erase u)) := by
-      rw [← sum_ite]
-    have hG_le : ∑ _i₁ ∈ univ.filter (· ∈ G), 3 ≤ 3 * Fintype.card ι₁ := by
-      rw [sum_const, smul_eq_mul, mul_comm]
-      exact Nat.mul_le_mul_left 3 (card_filter_le _ _)
-    have hbad_eq : univ.filter (· ∉ G) = univ \ G := by
-      ext i₁
-      simp [mem_sdiff]
-    have hbad_le : ∑ _i₁ ∈ univ.filter (· ∉ G), (2 * #(S.erase u)) ≤ C_bad * Fintype.card ι₁ := by
-      rw [hbad_eq, sum_const, smul_eq_mul]
-      exact hbad
-    have hdist : (3 + C_bad) * Fintype.card ι₁ =
-        3 * Fintype.card ι₁ + C_bad * Fintype.card ι₁ := Nat.add_mul _ _ _
-    omega
+    rw [sum_ite, sum_const, sum_const, smul_eq_mul, smul_eq_mul, add_mul,
+      show univ.filter (· ∉ G) = univ \ G by ext; simp]
+    exact add_le_add ((Nat.mul_le_mul_right 3 (card_filter_le _ _)).trans_eq (mul_comm _ _)) hbad
   have hprod :
       (∑ p : ι₁ × ι₂, probeExcess n_max (qOf p.1) H p.2 S u) ≤
         (3 + C_bad) * Fintype.card (ι₁ × ι₂) := by
-    rw [Fintype.sum_prod_type]
-    calc (∑ i₁ : ι₁, ∑ i₂ : ι₂, probeExcess n_max (qOf i₁) H i₂ S u)
-        ≤ ∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u)) * Fintype.card ι₂ :=
-          sum_le_sum fun i₁ _ => hinner i₁
-      _ = (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) * Fintype.card ι₂ := by
-          rw [← sum_mul]
-      _ ≤ ((3 + C_bad) * Fintype.card ι₁) * Fintype.card ι₂ := by gcongr
-      _ = (3 + C_bad) * Fintype.card (ι₁ × ι₂) := by
-          rw [Fintype.card_prod, mul_assoc]
+    rw [Fintype.sum_prod_type, Fintype.card_prod, ← mul_assoc]
+    exact (sum_le_sum fun i₁ _ => hinner i₁).trans
+      (by rw [← sum_mul]; exact Nat.mul_le_mul_right _ houter)
   calc (∑' p : ι₁ × ι₂,
         (PMF.uniformOfFintype (ι₁ × ι₂)) p *
           (probeExcess n_max (qOf p.1) H p.2 S u : ℝ≥0∞))
@@ -1124,30 +1093,12 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
       have hclog : globalPtrBits n ≤ 3 * Dynamic.logLogFactor n + 1 :=
         Nat.clog_le_of_le_pow hpow
       have hll := Dynamic.one_le_logLogFactor n
-      have h4 : 4 * globalPtrBits n ≤ 20 * Dynamic.logLogFactor n := by omega
-      calc 4 * globalPtrBits n
-          ≤ 20 * Dynamic.logLogFactor n := h4
-        _ = 20 * 1 * Dynamic.logLogFactor n := by ring
-        _ ≤ 20 * n * Dynamic.logLogFactor n := by
-          gcongr
-          exact hn
+      calc 4 * globalPtrBits n ≤ 20 * 1 * Dynamic.logLogFactor n := by omega
+        _ ≤ 20 * n * Dynamic.logLogFactor n := by gcongr; exact hn
     · have hb_pos : 0 < bucketBits n := Nat.pos_of_ne_zero hb
       have hvar := globalMetaVarLen_mul_globalPtrBits_le n
-      have hptr := globalPtrBits_le_two_mul_slabScale hb_pos
-      have hcube := numBuckets_mul_slabScale_cubed_le hb_pos
-      have hscale := two_le_slabScale n
-      have hb_num := numBuckets_pos n
-      have h4L : 4 * globalPtrBits n ≤ 2 * n := by
-        calc 4 * globalPtrBits n
-            ≤ 4 * (2 * slabScale n) := by gcongr
-          _ = 2 * (4 * slabScale n) := by ring
-          _ ≤ 2 * ((slabScale n) ^ 2 * slabScale n) :=
-            Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hscale 2))
-          _ = 2 * (1 * (slabScale n) ^ 3) := by ring
-          _ ≤ 2 * (numBuckets n * (slabScale n) ^ 3) := by
-            gcongr
-            exact hb_num
-          _ ≤ 2 * n := Nat.mul_le_mul_left 2 hcube
+      have h2 := two_mul_numBuckets_mul_globalPtrBits_le_of_pos hb_pos
+      have h3 := Nat.le_mul_of_pos_left (globalPtrBits n) (numBuckets_pos n)
       have hll := Dynamic.one_le_logLogFactor n
       calc 4 * globalPtrBits n + globalMetaVarLen n * globalPtrBits n
           ≤ 20 * n := by omega

@@ -134,8 +134,8 @@ theorem components_inSpace (d : Desc) :
       (encPair eCfg (encOption encBool)) eSym
       (fun p => (encPair eCfg (encOption encBool) p).length) := by
     simpa only [input, decide_eq_true_eq] using
-      budget_ite hzero (budget_const none (.refl _)) hsym
-  have hctx := budget_prod (budget_prod (budget_const (encB := eDesc) d (.refl _)) hp) hin
+      budget_ite hzero (budget_const none) hsym
+  have hctx := budget_prod (budget_prod (budget_const (encB := eDesc) d) hp) hin
   have hstep := budget_comp_linear (of_inO stepWith_inO) hctx
   have hunary : ComputableInSpace (fun n : ℕ => encUnary n) encUnary encBits
       (fun n => (encUnary n).length) :=
@@ -150,11 +150,11 @@ theorem components_inSpace (d : Desc) :
   have hemit := budget_ite (budget_optionIsSome hstep.snd')
     (budget_finite (encC := encBits) (fun b : Bool => [b])
       (budget_comp_linear hbit (budget_optionGetD 0 hstep.snd')))
-    (budget_const [] (.refl _))
+    (budget_const [])
   have hhalt := budget_finite (encC := encBool) Bool.not
     (budget_optionIsSome (eCfg_state_budget hid))
   refine ⟨budget_natPred hpos, hstep.fst', hemit.of_enc_eq ?_,
-    hhalt.of_enc_eq ?_, budget_const [] (.refl _)⟩
+    hhalt.of_enc_eq ?_, budget_const []⟩
   · intro p
     change encBits (((stepWith d p.1 (input p.1 p.2)).2.map outputBit).toList) =
       encBits (if _ then _ else _)
@@ -181,22 +181,20 @@ theorem length_native_run_le {k : ℕ} {S : Type} [Fintype S]
         3 * (2 * descLen (desc eS eBit tm) + 5) * 2 *
           (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space + k := by
   have h := length_run_le (desc eS eBit tm) x t
-  rw [simSpace_desc] at h
-  exact h
+  rwa [simSpace_desc] at h
 
 /-- On an existing binary native machine, output is preserved at every clock. -/
 theorem output_native {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (x : List Bool) (t : ℕ) :
     (machine (desc eS eBit tm)).output x t =
       (tm.runFrom (tm.initCfg x) t).output := by
-  have h := simulate_desc eS eBit tm x t
-  have ho := congrArg Prod.fst h
-  rw [output_eq, show ((stepOut (desc eS eBit tm) (x.map eBit))^[t]
-    (init (desc eS eBit tm), [])).2 =
-      (tm.runFrom (tm.initCfg x) t).output.map eBit from ho]
-  rw [List.map_map]
-  have hb : outputBit ∘ eBit = id := by funext b; cases b <;> rfl
-  rw [hb, List.map_id]
+  have ho : ((stepOut (desc eS eBit tm) (x.map eBit))^[t] (init (desc eS eBit tm), [])).2 =
+      (tm.runFrom (tm.initCfg x) t).output.map eBit :=
+    congrArg Prod.fst (simulate_desc eS eBit tm x t)
+  have hb : outputBit ∘ eBit = id := by
+    funext b
+    cases b <;> rfl
+  rw [output_eq, ho, List.map_map, hb, List.map_id]
 
 /-- The complete native configuration is recovered from the saved state and the external
 output stream: finite control, input position, work tapes and work-head positions all agree. -/
@@ -205,10 +203,10 @@ theorem configuration_native {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm.runFrom (tm.initCfg x) t).map eS eBit =
       ((machine (desc eS eBit tm)).run x t).toCfg k (x.map eBit)
         (((machine (desc eS eBit tm)).output x t).map eBit) := by
-  rw [run_eq, output_native]
-  have ho := congrArg Prod.fst (simulate_desc eS eBit tm x t)
-  dsimp only [Prod.fst] at ho
-  rw [← ho]
+  have ho : (simulate (desc eS eBit tm) (x.map eBit) t).1 =
+      (tm.runFrom (tm.initCfg x) t).output.map eBit :=
+    congrArg Prod.fst (simulate_desc eS eBit tm x t)
+  rw [run_eq, output_native, ← ho]
   exact (toCfg_iterate eS eBit tm x t).1
 
 /-- The extracted halted flag agrees with native control, at every clock. -/
@@ -216,10 +214,9 @@ theorem halted_native {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (x : List Bool) (t : ℕ) :
     (machine (desc eS eBit tm)).halted ((machine (desc eS eBit tm)).run x t) =
       (tm.runFrom (tm.initCfg x) t).state.isNone := by
-  have h := congrArg Prod.snd (simulate_desc eS eBit tm x t)
   change ((machine (desc eS eBit tm)).run x t).state.isNone = _
   rw [run_eq]
-  exact h
+  exact congrArg Prod.snd (simulate_desc eS eBit tm x t)
 
 /-- The explicit saved-configuration budget extracted from native workspace. -/
 noncomputable def budget {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
@@ -263,11 +260,8 @@ theorem computableInSpace {k : ℕ} {S β : Type} [Fintype S] (eS : S ↪ ℕ)
     rw [halted_native, hhalt]
     rfl
   · intro p j hj
-    rw [halted_native]
-    have h := hpre p j hj
-    generalize (tm.runFrom
-      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) j).state = q at *
-    cases q <;> simp_all only [Option.isNone_some, ne_eq, not_true_eq_false]
+    rw [halted_native, Option.isNone_eq_false_iff, Option.isSome_iff_ne_none]
+    exact hpre p j hj
   · intro p
     rw [output_native]
     exact hout p
@@ -288,9 +282,8 @@ theorem computableInSpace_of_computes {k : ℕ} {S β : Type} [Fintype S] (eS : 
         (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   classical
   have hex (p : Simulation.Input) : ∃ t, (tm.runFrom
-      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) t).state = none := by
-    obtain ⟨t, ht, _⟩ := hcomp p
-    exact ⟨t, ht⟩
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) t).state = none :=
+    ⟨_, (hcomp p).choose_spec.1⟩
   apply computableInSpace eS tm encOut f (fun p => Nat.find (hex p)) W
     (fun p => Nat.find_spec (hex p))
     (fun p j hj => Nat.find_min (hex p) hj) ?_ hspace

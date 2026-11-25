@@ -62,29 +62,21 @@ theorem maskedSequence_validation_gap [Finite α]
         weightedTrial source mask
           (fun value => pure (predict code (observe value) == truth value))] - 1 / 2) := by
   let := Fintype.ofFinite α
-  have hpoint (value : α) (hsupport : value ∈ (ProbComp.eval source).support) :
-      Pr[candidates >>= fun code => pure (predict code (observe value) == truth value)] =
-        Pr[(fun guess => guess == truth value) <$>
-          maskedSequencePredictor source observe truth mask count test (observe value)] := by
-    apply congrArg (fun law : PMF Bool => (law true).toReal)
-    have h := congrArg (PMF.map (fun guess => guess == truth value)) (hrealize value hsupport)
-    simpa only [bind_pure_comp, ProbComp.eval_map, PMF.map_comp, Function.comp_def] using h
-  have hvalidation : Pr[candidates >>= fun code => weightedTrial source mask
-      (fun value => pure (predict code (observe value) == truth value))] =
-      Pr[weightedTrial source mask (fun value =>
-        candidates >>= fun code => pure (predict code (observe value) == truth value))] :=
+  rw [maskedSequence_prediction_gap,
     congrArg (fun law : PMF Bool => (law true).toReal)
-      (eval_weightedTrial_bind candidates source mask _)
-  rw [maskedSequence_prediction_gap, hvalidation, weightedTrial_probability]
-  simp only [add_sub_cancel_left]
-  congr 1
-  apply Finset.sum_congr rfl
-  intro value _
+      (eval_weightedTrial_bind candidates source mask _),
+    weightedTrial_probability, add_sub_cancel_left]
+  refine congrArg (_ * ·) (Finset.sum_congr rfl fun value _ => ?_)
   by_cases hsupport : value ∈ (ProbComp.eval source).support
-  · rw [hpoint value hsupport]
-    simp only [mul_assoc]
-  · have hzero : ProbComp.eval source value = 0 := by
-      simpa only [PMF.mem_support_iff, not_not] using hsupport
-    simp [hzero]
+  · have hpoint :
+        Pr[candidates >>= fun code => pure (predict code (observe value) == truth value)] =
+          Pr[(fun guess => guess == truth value) <$>
+            maskedSequencePredictor source observe truth mask count test (observe value)] :=
+      congrArg (fun law : PMF Bool => (law true).toReal) (by
+        simpa only [bind_pure_comp, ProbComp.eval_map, PMF.map_comp, Function.comp_def] using
+          congrArg (PMF.map (· == truth value)) (hrealize value hsupport))
+    rw [hpoint, mul_assoc]
+  · simp only [PMF.mem_support_iff, not_not] at hsupport
+    simp [hsupport]
 
 end Cslib.Crypto.Pseudoentropy

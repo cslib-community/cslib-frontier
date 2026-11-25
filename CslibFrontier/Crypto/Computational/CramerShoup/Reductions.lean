@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Game.Statistical
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -161,8 +162,7 @@ theorem advantage_bind_sampleCramerShoupPair_le (n : ℕ) (d : F.Desc)
       ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun σ =>
         (PMF.uniformOfFintype (ZMod (F.order d))).bind fun τ => k σ τ) ≤
       2 / 2 ^ n := by
-  simp only [sampleCramerShoupPair, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [sampleCramerShoupPair, pmf_norm]
   exact F.advantage_bind_sampleExp_pair_le n d k
 
 /-- Replacing `sampleCramerShoupTripleExponents n d` by three independent uniform draws on
@@ -184,8 +184,7 @@ theorem advantage_bind_sampleCramerShoupTripleExponents_le (n : ℕ) (d : F.Desc
       (ProbComp.eval (F.sampleExp n d)).bind fun a =>
         (ProbComp.eval (F.sampleCramerShoupPair n d)).bind fun bc =>
           k (a : ZMod (F.order d)) (bc.1 : ZMod (F.order d)) (bc.2 : ZMod (F.order d)) := by
-    simp only [sampleCramerShoupTripleExponents, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_bind, PMF.pure_bind, csExpA, csExpBC, csExpB, csExpC]
+    simp only [sampleCramerShoupTripleExponents, csExpA, csExpBC, csExpB, csExpC, pmf_norm]
   rw [hbind]
   refine (Game.advantage_triangle _
     ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
@@ -228,8 +227,7 @@ theorem advantage_bind_sampleCramerShoupSK_le (n : ℕ) (d : F.Desc)
             kZMod (p.1 : ZMod (F.order d)) (p.2 : ZMod (F.order d))
               (p₁.1 : ZMod (F.order d)) (p₁.2 : ZMod (F.order d))
               (p₂.1 : ZMod (F.order d)) (p₂.2 : ZMod (F.order d)) := by
-    simp only [sampleCramerShoupSK, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_bind, PMF.pure_bind]
+    simp only [sampleCramerShoupSK, pmf_norm]
     refine congrArg _ (funext fun p =>
       congrArg _ (funext fun p₁ => congrArg _ (funext fun p₂ => ?_)))
     exact hcast p.1 p.2 p₁.1 p₁.2 p₂.1 p₂.2
@@ -407,11 +405,8 @@ private theorem isPPTOn_run_cramerShoupPhase1Oracle
     (resources := fun a req => (F.cramerShoupPhase1Reply hasAD H isElem (d a) (sk a) req).length)
     (by polytime) ?_ (.const ()) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request state _ result hresult => by
-      have hresEq : result =
-          (F.cramerShoupPhase1Reply hasAD H isElem (d a) (sk a) request.2, state) := by
-        simpa [cramerShoupPhase1Oracle] using hresult
-      subst hresEq
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by simpa [cramerShoupPhase1Oracle] using hresult
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase1Oracle]
 
@@ -443,11 +438,8 @@ private theorem isPPTOn_run_cramerShoupPhase2Oracle
     (by polytime) ?_
     (ComputableInPolyTime.const ()) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request st _ result hresult => by
-      have hresEq : result =
-          (F.cramerShoupPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2, st) := by
-        simpa [cramerShoupPhase2Oracle] using hresult
-      subst hresEq
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by simpa [cramerShoupPhase2Oracle] using hresult
       exact ⟨trivial, le_rfl, Nat.le_add_right _ _⟩)
   ppt [cramerShoupPhase2Oracle]
 
@@ -495,17 +487,11 @@ private theorem isPPTOn_run_cramerShoupCollisionPhase2Oracle
     (by polytime) ?_
     (ComputableInPolyTime.const (none : Option (List Bool))) (fun _ _ => True)
     (fun _ => trivial) (by polytime)
-    (fun a request st _ result hresult => by
-      let q := splitCramerShoupQuery hasAD request.2
-      have hresEq : result =
-          (F.cramerShoupCollisionPhase2Reply hasAD H isElem (d a) (sk a) (ct a) (ad a) request.2,
-           if F.isCramerShoupCollision H (d a) q.1 q.2 (ct a) (ad a) &&
-               F.isCramerShoupHashInput hasAD isElem (d a) (extractCramerShoupTuple q.1 q.2) then
-             some (extractCramerShoupTuple q.1 q.2)
-           else st) := by
-        simpa [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle, q] using hresult
-      subst hresEq; dsimp only [q]
+    (fun _ _ _ _ result hresult => by
+      obtain rfl : result = _ := by
+        simpa [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle] using hresult
       refine ⟨trivial, Nat.le_add_right _ _, ?_⟩
+      dsimp only
       split_ifs <;> omega)
   ppt [cramerShoupCollisionPhase2Oracle, finderPhase2Oracle]
 
@@ -789,11 +775,8 @@ theorem decodeCramerShoup_eq_skNatOfZMod
     obtain ⟨w, hw⟩ := (hmem d _).mp hvw.2
     simp only [← hv, ← hw, skNatOfZMod, encodeProjHash2_encode, encodeProjHash_encode,
       csSkS, csSkT, csSkS₁, csSkT₁, csSkS₂, csSkT₂, ZMod.natCast_zmod_val]
-  · have hfalse : ((encBits4 (decodeBits4 ct) == ct) && isElem (d, csCtV (decodeBits4 ct)) &&
-        isElem (d, csCtW (decodeBits4 ct)) && isElem (d, csCtE (decodeBits4 ct))) = false := by
-      revert hvw
-      cases isElem (d, csCtV (decodeBits4 ct)) <;> cases isElem (d, csCtW (decodeBits4 ct)) <;> simp
-    simp [hfalse]
+  · cases hv : isElem (d, csCtV (decodeBits4 ct)) <;>
+      cases hw : isElem (d, csCtW (decodeBits4 ct)) <;> simp_all
 
 /-- `cramerShoupPhase1Oracle` depends on `sk` only through its residues modulo `F.order d`. -/
 theorem cramerShoupPhase1Oracle_eq_skNatOfZMod

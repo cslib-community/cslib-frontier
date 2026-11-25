@@ -211,9 +211,8 @@ theorem regProb_eq_sum_slice (ψ : State N (W × G)) (i : Fin N) :
 
 @[simp] theorem controlled_id :
     controlled (fun _ : G => (LinearIsometry.id : State N W →ₗᵢ[ℂ] State N W)) =
-      LinearIsometry.id := by
-  ext ψ p
-  rfl
+      LinearIsometry.id :=
+  LinearIsometry.ext fun _ => rfl
 
 end Control
 
@@ -304,21 +303,18 @@ flipped. -/
 theorem run_park {k : ℕ} {U : ℕ → State N W →ₗᵢ[ℂ] State N W} {ψ₀ : State N W}
     {x : Fin N → Bool} (hctrl : ∀ i w, (run U ψ₀ x k).ofLp (i, false, w) = 0) {t : ℕ}
     (hkt : k ≤ t) : run (park k U) ψ₀ x t = flipCtrl (run U ψ₀ x k) := by
-  have hlt : ∀ s, s < k → run (park k U) ψ₀ x s = run U ψ₀ x s := by
-    intro s hs
+  have hlt (s) (hs : s < k) : run (park k U) ψ₀ x s = run U ψ₀ x s := by
     induction s with
     | zero => simp [run, park, hs]
     | succ s ih => simp [run, park, hs, ih (by omega)]
-  have hk : run (park k U) ψ₀ x k = flipCtrl (run U ψ₀ x k) := by
+  induction t, hkt using Nat.le_induction with
+  | base =>
     cases k with
     | zero => simp [run, park]
     | succ k => simp [run, park, hlt k (by omega)]
-  induction t, hkt using Nat.le_induction with
-  | base => exact hk
-  | succ t hkt ih =>
-    have hgt : ¬ t + 1 < k := by omega
-    have hne : t + 1 ≠ k := by omega
-    simp only [run, park, hgt, hne, ite_false, LinearIsometry.id_apply, ih]
+  | succ t _ ih =>
+    simp only [run, park, show ¬ t + 1 < k by omega, show t + 1 ≠ k by omega, ite_false,
+      LinearIsometry.id_apply, ih]
     exact phaseOracle_eq_self fun i w => by simpa using hctrl i w
 
 /-! ### Agreement and splitting of runs -/
@@ -392,11 +388,12 @@ theorem hadCtrl_phaseOracle_hadCtrl_eq_permute (x : Fin N → Bool) (ψ : State 
   ext ⟨i, b, w⟩
   simp only [hadCtrl_apply, phaseOracle_apply, permute_apply, bitFlip_symm, bitFlip_apply]
   generalize (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) = c at h2 ⊢
-  cases b <;> cases x i <;> simp
-  · linear_combination (2 * ψ.ofLp (i, false, w)) * h2
-  · linear_combination (2 * ψ.ofLp (i, true, w)) * h2
-  · linear_combination (2 * ψ.ofLp (i, true, w)) * h2
-  · linear_combination (2 * ψ.ofLp (i, false, w)) * h2
+  cases b <;> cases x i <;>
+    simp only [Bool.and_self, Bool.and_true, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
+      one_mul, neg_mul, mul_neg, neg_neg, bne_self_eq_false, Bool.bne_true, Bool.bne_false,
+      Bool.not_false] <;>
+    first | linear_combination (2 * ψ.ofLp (i, false, w)) * h2
+          | linear_combination (2 * ψ.ofLp (i, true, w)) * h2
 
 /-- **Checking a parked output**: if `φ` has control bit `0`, then a Hadamard gate on the control
 bit, a query and another Hadamard gate write the queried bit into the control bit: the result has
@@ -469,15 +466,17 @@ noncomputable def twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N 
 noncomputable def twiceInit (ψ₀ : State N W) : State N (W × QueryBasis N W) :=
   WithLp.toLp 2 fun (i, b, w, q) => ψ₀.ofLp (i, b, w) * ψ₀.ofLp (QueryBasis.equiv q)
 
+omit [Fintype W] in
+private theorem slice_twiceInit (ψ₀ : State N W) (g : QueryBasis N W) :
+    slice g (twiceInit ψ₀) = ψ₀.ofLp (QueryBasis.equiv g) • ψ₀ := by
+  ext ⟨i, b, w⟩
+  simp [twiceInit, mul_comm]
+
 /-- Two copies of a unit state form a unit state. -/
 theorem norm_twiceInit {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) : ‖twiceInit ψ₀‖ = 1 := by
   have h : ‖twiceInit ψ₀‖ ^ 2 = 1 := by
     rw [norm_sq_eq_sum_slice]
-    have hslice : ∀ g, slice g (twiceInit ψ₀) = ψ₀.ofLp (QueryBasis.equiv g) • ψ₀ := by
-      intro g
-      ext ⟨i, b, w⟩
-      simp [twiceInit, mul_comm]
-    simp only [hslice, norm_smul, hψ₀, mul_one]
+    simp only [slice_twiceInit, norm_smul, hψ₀, mul_one]
     rw [Fintype.sum_equiv QueryBasis.equiv _ (fun p => ‖ψ₀.ofLp p‖ ^ 2) fun _ => rfl,
       ← EuclideanSpace.norm_sq_eq, hψ₀, one_pow]
   nlinarith [norm_nonneg (twiceInit ψ₀)]
@@ -490,14 +489,9 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
       (run U ψ₀ x T).ofLp (i, b, w) * (run U ψ₀ x T).ofLp (QueryBasis.equiv q) := by
   set F := run U ψ₀ x T
   -- The first run, with the second copy waiting.
-  have hfirst : ∀ g, slice g (run (fun s => controlled fun _ : QueryBasis N W => U s)
+  have hfirst (g) : slice g (run (fun s => controlled fun _ : QueryBasis N W => U s)
       (twiceInit ψ₀) x T) = ψ₀.ofLp (QueryBasis.equiv g) • F := by
-    intro g
-    rw [slice_run (fun _ s => U s)]
-    have : slice g (twiceInit ψ₀) = ψ₀.ofLp (QueryBasis.equiv g) • ψ₀ := by
-      ext ⟨i', b', w'⟩
-      simp [twiceInit, mul_comm]
-    rw [this, run_smul]
+    rw [slice_run (fun _ s => U s), slice_twiceInit, run_smul]
   -- The exchange.
   have hswap : run (twice T U) (twiceInit ψ₀) x T = (controlled fun _ => U 0)
       (permute swapCopy (run (fun s => controlled fun _ : QueryBasis N W => U s)
@@ -506,18 +500,17 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
     | zero => simp [run, twice]
     | succ T =>
       rw [run, run, run_congr (U' := fun s => controlled fun _ : QueryBasis N W => U s)
-        (fun s hs => by simp [twice, show s < T + 1 by omega])]
+        (fun s _ => by simp [twice, show s < T + 1 by omega])]
       simp [twice]
-  have hmid : ∀ g, slice g (run (twice T U) (twiceInit ψ₀) x T) =
+  have hmid (g) : slice g (run (twice T U) (twiceInit ψ₀) x T) =
       F.ofLp (QueryBasis.equiv g) • U 0 ψ₀ := by
-    intro g
     rw [hswap, slice_controlled, ← map_smul]
-    congr 1
+    refine congrArg (U 0) ?_
     ext ⟨i', b', w'⟩
-    have := congrArg (fun φ => φ.ofLp (g.index, g.ctrl, g.work)) (hfirst ⟨i', b', w'⟩)
-    simp only [slice_apply, PiLp.smul_apply, smul_eq_mul, permute_apply, QueryBasis.equiv_apply]
-      at this ⊢
-    exact this.trans (mul_comm _ _)
+    simpa only [slice_apply, PiLp.smul_apply, smul_eq_mul, permute_apply,
+      show swapCopy.symm (i', b', w', g) = (g.index, g.ctrl, g.work, ⟨i', b', w'⟩) from rfl,
+      QueryBasis.equiv_apply, mul_comm] using
+      congrArg (fun φ => φ.ofLp (g.index, g.ctrl, g.work)) (hfirst ⟨i', b', w'⟩)
   -- The second run, with the outcome of the first waiting.
   have hsecond : run (twice T U) (twiceInit ψ₀) x (T + T) = run
       (fun r => controlled fun _ : QueryBasis N W =>
@@ -526,12 +519,10 @@ theorem run_twice (T : ℕ) (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ
       simp [twice, show ¬ T + r + 1 < T by omega, show T + r + 1 ≠ T by omega,
         show T + r + 1 - T = r + 1 by omega]) _ _ _
   have hU : run (fun r => if r = 0 then LinearIsometry.id else U r) (U 0 ψ₀) x T = F :=
-    (run_add (T := 0) (by simp) (fun r => by simp) ψ₀ x T).symm.trans
-      (by rw [Nat.zero_add])
+    (run_add (T := 0) (by simp) (fun _ => by simp) ψ₀ x T).symm.trans (by rw [Nat.zero_add])
   have := congrArg (fun φ => φ.ofLp (i, b, w)) (slice_run (fun _ r => if r = 0 then
     LinearIsometry.id else U r) (run (twice T U) (twiceInit ψ₀) x T) x q T)
-  simp only [slice_apply] at this
-  rw [hsecond, this, hmid, run_smul, hU, PiLp.smul_apply, smul_eq_mul, mul_comm]
+  rw [hsecond, ← slice_apply q, this, hmid, run_smul, hU, PiLp.smul_apply, smul_eq_mul, mul_comm]
 
 /-- **The acceptance probability of running twice**: accepting when the outcome of either run lies
 in `S`, `twice` accepts with probability `1 - (1 - a)²`, where `a` is the probability that the
@@ -547,41 +538,34 @@ theorem measureProb_run_twice [DecidableEq W] {T : ℕ} {U : ℕ → State N W �
     fun (i, b, w, _) => (i, b, w)
   let sndCopy : Fin N × Bool × (W × QueryBasis N W) → Fin N × Bool × W :=
     fun (_, _, _, q) => QueryBasis.equiv q
-  have hprod : ∀ f₁ f₂ : Fin N × Bool × W → ℝ,
+  have hprod (f₁ f₂ : Fin N × Bool × W → ℝ) :
       ∑ p : Fin N × Bool × (W × QueryBasis N W), f₁ (fstCopy p) * f₂ (sndCopy p) =
         (∑ q, f₁ q) * ∑ g, f₂ g := by
-    intro f₁ f₂
-    rw [sum_split]
-    have hinner : ∀ g : QueryBasis N W,
-        (∑ q : Fin N × Bool × W,
-          f₁ (fstCopy (splitEquiv.symm (g, q))) * f₂ (sndCopy (splitEquiv.symm (g, q)))) =
+    have hinner (g : QueryBasis N W) :
+        (∑ q : Fin N × Bool × W, f₁ (fstCopy (splitEquiv.symm (g, q))) *
+          f₂ (sndCopy (splitEquiv.symm (g, q)))) =
         ∑ q : Fin N × Bool × W, f₁ q * f₂ (QueryBasis.equiv g) :=
-      fun _ => sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
+      sum_congr rfl fun ⟨_, _, _⟩ _ => rfl
+    rw [sum_split]
     simp_rw [hinner]
     rw [Fintype.sum_equiv QueryBasis.equiv _ (fun r => ∑ q, f₁ q * f₂ r) fun _ => rfl,
       sum_mul_sum, sum_comm]
   have hF : ∑ q, f q = 1 := by
     simp only [f, ← EuclideanSpace.norm_sq_eq, F, norm_run, hψ₀, one_pow]
-  have hS : measureProb F S = ∑ q, if q ∈ S then f q else 0 := by
-    rw [measureProb, sum_ite_mem, univ_inter]
   have hSc : ∑ q, (if q ∈ S then 0 else f q) = 1 - measureProb F S := by
-    rw [hS, ← hF, ← sum_sub_distrib]
-    exact sum_congr rfl fun q _ => by split_ifs <;> ring
-  have hsum : measureProb (run (twice T U) (twiceInit ψ₀) x (T + T))
-      (univ.filter fun (i, b, w, q) => (i, b, w) ∈ S ∨ QueryBasis.equiv q ∈ S) =
-      ∑ p : Fin N × Bool × (W × QueryBasis N W),
-        (f (fstCopy p) * f (sndCopy p) -
-          (fun q => if q ∈ S then 0 else f q) (fstCopy p) *
-            (fun q => if q ∈ S then 0 else f q) (sndCopy p)) := by
-    rw [measureProb, sum_filter]
-    refine sum_congr rfl ?_
-    rintro ⟨i, b, w, q⟩ _
-    dsimp only [fstCopy, sndCopy]
-    rw [run_twice, norm_mul, mul_pow]
-    by_cases h1 : (i, b, w) ∈ S
-    · simp [h1, f, F]
-    · by_cases h2 : (q.index, q.ctrl, q.work) ∈ S <;> simp [h1, h2, f, F]
-  rw [hsum, sum_sub_distrib, hprod f f,
+    rw [← hF, measureProb]
+    change (∑ q, if q ∈ S then 0 else f q) = (∑ q, f q) - ∑ q ∈ S, f q
+    rw [← univ_inter S, ← sum_ite_mem, ← sum_sub_distrib]
+    exact sum_congr rfl fun q _ => by by_cases hq : q ∈ S <;> simp [hq]
+  rw [measureProb, sum_filter, sum_congr rfl (g := fun p => f (fstCopy p) * f (sndCopy p) -
+      (if fstCopy p ∈ S then 0 else f (fstCopy p)) *
+        (if sndCopy p ∈ S then 0 else f (sndCopy p)))
+    fun ⟨i, b, w, q⟩ _ => by
+      dsimp only [fstCopy, sndCopy]
+      rw [run_twice, norm_mul, mul_pow]
+      by_cases h1 : (i, b, w) ∈ S <;> by_cases h2 : (q.index, q.ctrl, q.work) ∈ S <;>
+        simp [h1, h2, f, F],
+    sum_sub_distrib, hprod f f,
     hprod (fun q => if q ∈ S then 0 else f q) (fun q => if q ∈ S then 0 else f q), hF, hSc]
   ring
 

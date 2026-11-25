@@ -68,10 +68,8 @@ theorem commute_mixedGen (i j : σ) : Commute (mixedGen (R := R) s i) (mixedGen 
   refine LinearMap.ext fun p => ?_
   by_cases hi : s i <;> by_cases hj : s j
   · simpa [mixedGen, hi, hj] using commute_pderiv (R := R) i j p
-  · have hij : j ≠ i := fun h => hj (h ▸ hi)
-    simp [mixedGen, hi, hj, pderiv_X_of_ne hij]
-  · have hij : i ≠ j := fun h => hi (h ▸ hj)
-    simp [mixedGen, hi, hj, pderiv_X_of_ne hij]
+  · simp [mixedGen, hi, hj, pderiv_X_of_ne fun h : j = i => hj (h ▸ hi)]
+  · simp [mixedGen, hi, hj, pderiv_X_of_ne fun h : i = j => hi (h ▸ hj)]
   · simp [mixedGen, hi, hj, mul_left_comm]
 
 /-- A commutative subalgebra containing the operators of all variables: the double centralizer
@@ -83,10 +81,10 @@ private theorem mixedGen_mem (i : σ) : mixedGen (R := R) s i ∈ mixedSubalgebr
   fun _ hx => (hx _ ⟨i, rfl⟩).symm
 
 private theorem mixedSubalgebra_le :
-    mixedSubalgebra (R := R) s ≤ Subalgebra.centralizer R (Set.range (mixedGen (R := R) s)) := by
-  refine Subalgebra.centralizer_le R _ _ ?_
-  rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩
-  exact commute_mixedGen s j i
+    mixedSubalgebra (R := R) s ≤ Subalgebra.centralizer R (Set.range (mixedGen (R := R) s)) :=
+  Subalgebra.centralizer_le R _ _ <| by
+    rintro _ ⟨i, rfl⟩ _ ⟨j, rfl⟩
+    exact commute_mixedGen s j i
 
 private noncomputable instance : CommSemiring (mixedSubalgebra (R := R) s) where
   mul_comm a b := Subtype.ext (b.2 a (mixedSubalgebra_le s a.2))
@@ -133,8 +131,8 @@ theorem mixedOp_prod_X_monomial_of_pos {ι : Type*} (T : Finset ι) (c : ι → 
   | insert t T ht ih =>
     have h0 : (∑ t' ∈ T, Finsupp.single (c t') 1 : σ →₀ ℕ) (c t) = 0 := by
       rw [Finsupp.finsetSum_apply]
-      refine Finset.sum_eq_zero fun t' ht' => Finsupp.single_eq_of_ne' fun h => ht ?_
-      rwa [hinj (Finset.mem_insert_self _ _) (Finset.mem_insert_of_mem ht') h.symm]
+      exact Finset.sum_eq_zero fun t' ht' => Finsupp.single_eq_of_ne' fun h => ht
+        (hinj (Finset.mem_insert_self _ _) (Finset.mem_insert_of_mem ht') h.symm ▸ ht')
     rw [Finset.prod_insert ht, map_mul, mul_apply_eq_comp,
       ih (fun t' h => hc t' (Finset.mem_insert_of_mem h))
         (hinj.mono (Finset.coe_subset.2 (Finset.subset_insert _ _))),
@@ -154,8 +152,7 @@ theorem mixedOp_map (f : R →+* S) (Q p : MvPolynomial σ R) :
   | add Q₁ Q₂ h₁ h₂ => simp [h₁, h₂]
   | mul_X Q i h =>
     simp only [map_mul, mul_apply_eq_comp, map_X, h]
-    by_cases hi : s i
-    · rw [mixedOp_X_of_pos hi, mixedOp_X_of_pos hi, pderiv_map]
-    · rw [mixedOp_X_of_neg hi, mixedOp_X_of_neg hi, map_mul, map_X]
+    congr 1
+    by_cases hi : s i <;> simp [mixedGen, hi, pderiv_map]
 
 end MvPolynomial

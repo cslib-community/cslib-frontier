@@ -160,32 +160,17 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
 /-- The output record always has edge number four. -/
 @[simp] theorem output_val (x : PrenexCNF) : (output x).val = 4 := by
   rw [output, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
-    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
-  change ((OutputLatch.diagram.comp D).subst Gate.expand).num
-    ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
-      (compLeft OutputLatch.diagram D OutputLatch.mem)) = 4
-  exact (controller_num D OutputLatch.mem).trans (by decide +kernel)
+  exact (controller_num _ OutputLatch.mem).trans (by decide +kernel)
 
 /-- The outer try input always has edge number six. -/
 @[simp] theorem tryIn_val (x : PrenexCNF) : (tryIn x).val = 6 := by
   rw [tryIn, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
-    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
-  change ((OutputLatch.diagram.comp D).subst Gate.expand).num
-    ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
-      (compLeft OutputLatch.diagram D OutputLatch.attempt)) = 6
-  exact (controller_num D OutputLatch.attempt).trans (by decide +kernel)
+  exact (controller_num _ OutputLatch.attempt).trans (by decide +kernel)
 
 /-- The body's returned sat always has edge number zero. -/
 @[simp] theorem satOut_val (x : PrenexCNF) : (satOut x).val = 0 := by
   rw [satOut, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
-    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
-  change ((OutputLatch.diagram.comp D).subst Gate.expand).num
-    ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
-      (compLeft OutputLatch.diagram D OutputLatch.sat)) = 0
-  exact (controller_num D OutputLatch.sat).trans (by decide +kernel)
+  exact (controller_num _ OutputLatch.sat).trans (by decide +kernel)
 
 private theorem initial_legal (x : PrenexCNF) : (graph x).Legal (initialConfig x) := by
   rw [initialConfig_eq]

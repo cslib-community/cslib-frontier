@@ -338,10 +338,8 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   omega
 
 /-- `n ≥ 2` has at least two bits. -/
-private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N := by
-  by_contra h
-  have := Nat.size_le.mp (by omega : Nat.size N ≤ 1)
-  omega
+private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N :=
+  Nat.lt_size.mpr (by rwa [pow_one])
 
 /-- **Steps 2 to 5.** For `n ≥ 2` that is not a perfect power, at a word size of at least
 `8 (size n + 1)`, the answer is `1` exactly when `n` is prime. -/
@@ -358,7 +356,7 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
   obtain ⟨c, hcdef⟩ : ∃ c, Nat.clog 2 N = c := ⟨_, rfl⟩
   have hc : c ≤ s := hcdef ▸ Nat.clog_le_of_le_pow hNs.le
   have hcc : c * c ≤ s ^ 2 := by rw [sq]; exact Nat.mul_le_mul hc hc
-  have h1s : s ≤ s ^ 2 := by nlinarith
+  have h1s : s ≤ s ^ 2 := Nat.le_self_pow two_ne_zero s
   have h2s : s ^ 2 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have h5s : s ^ 5 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have hF2 : Fits w 2 := fits_poly hs hw (by omega)

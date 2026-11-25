@@ -93,19 +93,15 @@ theorem omitted_fine_cost_le (M c : ℕ) (hc : 0 < c) (h : ℤ) (hh : h < 0)
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
   have hhR : (h : ℝ) < 0 := by exact_mod_cast hh
   have habs : (h.natAbs : ℝ) = -(h : ℝ) := by
-    have heq : |(h : ℝ)| = (h.natAbs : ℝ) := by simp
-    rw [abs_of_neg hhR] at heq
-    exact heq.symm
-  have hcut : (M : ℝ) ≤ c * (1 + (h.natAbs : ℝ)) := by
-    exact_mod_cast homit
-  have hbudget : (M : ℝ) / (2 * c) ≤ (1 + (h.natAbs : ℝ)) / 2 := by
-    apply (div_le_iff₀ (by positivity : (0 : ℝ) < 2 * c)).2
-    nlinarith
+    rw [← abs_of_neg hhR]
+    simp
+  have hcut : (M : ℝ) ≤ c * (1 + (h.natAbs : ℝ)) := by exact_mod_cast homit
+  have hbudget : (M : ℝ) / (2 * c) ≤ (1 + -(h : ℝ)) / 2 := by
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [habs]
   rw [binNormCost, ite_eq_right (not_le.mpr hhR), scaleMajorant,
     ← Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  rw [habs] at hbudget ⊢
-  linarith
+  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- The sum of all actual omitted fine-bin norm costs is bounded independently of the number
 of bins. The exponential budget tail multiplies the same convergent scale majorant as the
@@ -128,17 +124,13 @@ theorem omission_tail_le_parent {A a u : ℝ} (M c i : ℕ) (hc : 0 < c)
     (2 : ℝ) ^ (1 / 2 - (M : ℝ) / (2 * c)) ≤
       (2 : ℝ) ^ (-precision (16 * c) A M i a u - A) := by
   have hcR : (0 : ℝ) < c := by exact_mod_cast hc
-  have hiR : (1 : ℝ) ≤ i := by exact_mod_cast hi
-  have hAi : A ≤ A * i := le_mul_of_one_le_right (by linarith) hiR
+  have hAi : A ≤ A * i := le_mul_of_one_le_right (by linarith) (by exact_mod_cast hi)
   have hla := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) ha.le ha1
   have hlu := Real.logb_nonpos (by norm_num : (1 : ℝ) < 2) hu.le hu1
   have hp : precision (16 * c) A M i a u ≤ (M : ℝ) / (16 * c) - A := by
-    dsimp only [precision]
-    linarith
+    dsimp only [precision]; linarith
   have hratio : (M : ℝ) / (2 * c) = 8 * ((M : ℝ) / (16 * c)) := by field_simp; ring
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  rw [hratio]
-  linarith
+  exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by linarith)
 
 /-- Omitted deterministic tables have a uniformly summable total norm, derived from their
 entry and row-mass bounds, rather than an assumed per-bin error certificate. This is the

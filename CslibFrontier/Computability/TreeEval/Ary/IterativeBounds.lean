@@ -55,12 +55,8 @@ private theorem controlBounds_cons (S : Ary.State K d r) (fr : Frame K d)
     (st : List (Frame K d)) (mode : Mode K d) {height rounds : ℕ}
     (hdepth : st.length + 1 ≤ height) (hround : fr.round < rounds)
     (hframes : ∀ g ∈ st, g.round < rounds) :
-    ControlBounds height rounds ⟨S, fr :: st, mode⟩ := by
-  refine ⟨by simpa only [List.length_cons] using hdepth, ?_⟩
-  intro g hg
-  rcases List.mem_cons.mp hg with rfl | hg
-  · exact hround
-  · exact hframes g hg
+    ControlBounds height rounds ⟨S, fr :: st, mode⟩ :=
+  ⟨by simpa only [List.length_cons] using hdepth, List.forall_mem_cons.mpr ⟨hround, hframes⟩⟩
 
 variable [Field K]
 
@@ -79,35 +75,32 @@ theorem controlBounds_step (T : Tree d b H) (hd : 0 < d)
     {q : Cfg K d r} (hq : ControlBounds H us.length q) :
     ControlBounds H us.length (step hd e E us T.nodeAt q) := by
   rcases q with ⟨S, st, mode⟩
-  obtain ⟨hdepth, hframes⟩ := hq
   cases mode with
   | call c t =>
     cases hread : T.nodeAt (path st) with
-    | leaf v =>
-      rw [step_call_leaf hd e E us T.nodeAt S st c t v hread]
-      exact ⟨hdepth, hframes⟩
+    | leaf v => exact (step_call_leaf hd e E us T.nodeAt S st c t v hread).symm ▸ hq
     | none =>
       simpa only [step, hread] using (show ControlBounds H us.length ⟨S, st, .ret⟩ from
-        ⟨hdepth, hframes⟩)
+        ⟨hq.1, hq.2⟩)
     | gate f =>
-      have hlt : st.length < H := by
-        simpa only [length_path] using length_lt_of_nodeAt_gate T hread
+      have hlt : st.length < H := length_path st ▸ length_lt_of_nodeAt_gate T hread
       cases us with
-      | nil =>
-        rw [step_call_gate_nil hd e E T.nodeAt S st c t f hread]
-        exact ⟨hdepth, hframes⟩
+      | nil => exact (step_call_gate_nil hd e E T.nodeAt S st c t f hread).symm ▸ hq
       | cons u us =>
         rw [step_call_gate_cons hd e E u us T.nodeAt S st c t f hread]
-        exact controlBounds_beginRound hd (u :: us) 0 c t S st hlt (by simp) hframes
+        exact controlBounds_beginRound hd (u :: us) 0 c t S st hlt (by simp) hq.2
   | ret =>
     cases st with
-    | nil => exact ⟨hdepth, hframes⟩
+    | nil => exact hq
     | cons fr st =>
-      have hfr : fr.round < us.length := hframes fr (List.mem_cons_self ..)
-      have htail : ∀ g ∈ st, g.round < us.length := fun g hg =>
-        hframes g (List.mem_cons_of_mem _ hg)
-      have hcons : st.length + 1 ≤ H := by simpa only [List.length_cons] using hdepth
-      by_cases hu : fr.undo = true
+      obtain ⟨hfr, htail⟩ := List.forall_mem_cons.mp hq.2
+      have hcons : st.length + 1 ≤ H := hq.1
+      cases hu : fr.undo
+      · by_cases hj : fr.child.val + 1 < d
+        · rw [step_ret_forward_next hd e E us T.nodeAt S fr st hu hj]
+          exact controlBounds_cons _ _ _ _ hcons hfr htail
+        · rw [step_ret_forward_last hd e E us T.nodeAt S fr st hu hj]
+          exact controlBounds_cons _ _ _ _ hcons hfr htail
       · by_cases hj : fr.child.val + 1 < d
         · rw [step_ret_undo_next hd e E us T.nodeAt S fr st hu hj]
           exact controlBounds_cons _ _ _ _ hcons hfr htail
@@ -116,13 +109,7 @@ theorem controlBounds_step (T : Tree d b H) (hd : 0 < d)
             exact controlBounds_beginRound hd us (fr.round + 1) fr.coeff fr.target _ st
               (by omega) hi htail
           · rw [step_ret_undo_last hd e E us T.nodeAt S fr st hu hj hi]
-            exact ⟨by change st.length ≤ H; omega, htail⟩
-      · have hu' : fr.undo = false := by grind
-        by_cases hj : fr.child.val + 1 < d
-        · rw [step_ret_forward_next hd e E us T.nodeAt S fr st hu' hj]
-          exact controlBounds_cons _ _ _ _ hcons hfr htail
-        · rw [step_ret_forward_last hd e E us T.nodeAt S fr st hu' hj]
-          exact controlBounds_cons _ _ _ _ hcons hfr htail
+            exact ⟨Nat.le_of_succ_le hcons, htail⟩
 
 /-- Every clocked prefix preserves compact control bounds. No termination or nonempty-round
 hypothesis is needed. -/

@@ -188,16 +188,12 @@ theorem cutoffCorrectionIter_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧ y �
   | succ k ih =>
     by_contra hxy
     apply h
-    have hCxy : C x y = 0 := by
-      by_contra h'; exact hxy (hA x y h')
+    have hCxy : C x y = 0 := by_contra fun h' => hxy (hA x y h')
     have hin : (C + cutoffCorrectionIter φ C k * C) x y = 0 := by
       simp only [Matrix.add_apply, Matrix.mul_apply, hCxy, zero_add]
-      refine Finset.sum_eq_zero fun z _ => ?_
-      by_cases hE : cutoffCorrectionIter φ C k x z = 0
-      · rw [hE, zero_mul]
-      by_cases hCz : C z y = 0
-      · rw [hCz, mul_zero]
-      exact absurd ⟨(ih x z hE).1, (hA z y hCz).2⟩ hxy
+      refine Finset.sum_eq_zero fun z _ => by_contra fun hmul => ?_
+      obtain ⟨hE, hCz⟩ := mul_ne_zero_iff.1 hmul
+      exact hxy ⟨(ih x z hE).1, (hA z y hCz).2⟩
     rw [cutoffCorrectionIter_succ]
     change φ y ((C + cutoffCorrectionIter φ C k * C) x y) = 0
     rw [hin, cutoff_zero hφ0 hφθ hθf]
@@ -212,15 +208,12 @@ theorem cutoffCorrection_residual_mem (hA : ∀ x y, C x y ≠ 0 → x ∈ A ∧
   apply h
   have hE : ∀ u v, cutoffCorrectionIter φ C k u v ≠ 0 → u ∈ A ∧ v ∈ A :=
     cutoffCorrectionIter_mem hφ0 hφθ hθf hA k
-  have hCxy : C x y = 0 := by by_contra h'; exact hxy (hA x y h')
-  have hExy : cutoffCorrectionIter φ C k x y = 0 := by by_contra h'; exact hxy (hE x y h')
+  have hCxy : C x y = 0 := by_contra fun h' => hxy (hA x y h')
+  have hExy : cutoffCorrectionIter φ C k x y = 0 := by_contra fun h' => hxy (hE x y h')
   simp only [Matrix.add_apply, Matrix.sub_apply, Matrix.mul_apply, hCxy, hExy, sub_zero, zero_add]
-  refine Finset.sum_eq_zero fun z _ => ?_
-  by_cases hEz : cutoffCorrectionIter φ C k x z = 0
-  · rw [hEz, zero_mul]
-  by_cases hCz : C z y = 0
-  · rw [hCz, mul_zero]
-  exact absurd ⟨(hE x z hEz).1, (hA z y hCz).2⟩ hxy
+  refine Finset.sum_eq_zero fun z _ => by_contra fun hmul => ?_
+  obtain ⟨hEz, hCz⟩ := mul_ne_zero_iff.1 hmul
+  exact hxy ⟨(hE x z hEz).1, (hA z y hCz).2⟩
 
 include hφ0 hφθ hθf in
 /-- The iterates of the cutoff correction of a strictly upper triangular matrix are strictly upper
@@ -414,9 +407,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
   classical
   -- the indicator of a large entry, scaled by `δ`, is at most the entry
   have hind : ∀ i x y, (if δ < G i x y then δ else 0) ≤ G i x y := fun i x y => by
-    split_ifs with h
-    · exact h.le
-    · exact hG0 i x y
+    split_ifs with h <;> [exact h.le; exact hG0 i x y]
   have hcount : ∀ i y, (#{x | δ < G i x y} : ℝ) * δ = ∑ x, if δ < G i x y then δ else 0 :=
     fun i y => by rw [Finset.sum_ite, Finset.sum_const_zero, add_zero, Finset.sum_const,
       nsmul_eq_mul]
@@ -425,8 +416,7 @@ theorem card_mul_le_of_incidences {V : Type*} [Fintype V] {k : ℕ}
     split_ifs with hx
     · exact (Finset.sum_le_sum fun y _ => hind i x y).trans (hGs i x)
     · refine le_of_eq (Finset.sum_eq_zero fun y _ => ?_)
-      have : G i x y = 0 := by by_contra h; exact hx (hGA i x y h)
-      simp [this, not_lt.mpr hδ.le]
+      simp [not_imp_comm.1 (hGA i x y) hx, not_lt.mpr hδ.le]
   calc (#O * N : ℝ) * δ = ∑ y ∈ O, (N : ℝ) * δ := by
         rw [Finset.sum_const, nsmul_eq_mul, mul_assoc]
     _ ≤ ∑ y ∈ O, ∑ i, ∑ x, if δ < G i x y then δ else 0 := by
@@ -523,16 +513,13 @@ theorem sub_rewardTransport_mulVec_le_of_rates (hP : ∀ l i j, 0 ≤ P l i j)
     (hAs : ∀ l, #(A (l + 1)) ≤ 2 * #(A l)) (l : ℕ) :
     0 ≤ p (z 0) - (rewardTransport P E l *ᵥ e) (z l) ∧
       p (z 0) - (rewardTransport P E l *ᵥ e) (z l) ≤ n * ((2 : ℝ) ^ c)⁻¹ ^ l := by
-  have hε : ∀ l x y, C l x y ≤ ((2 : ℝ) ^ (c + 1))⁻¹ ^ l := by
-    intro l
-    induction l with
-    | zero => simpa using hε0
-    | succ l ih => exact hεs l ih
-  have hAn : ∀ l, #(A l) ≤ 2 ^ l * n := by
-    intro l
-    induction l with
-    | zero => simpa using hA0
-    | succ l ih => rw [pow_succ]; linarith [hAs l]
+  have hε : ∀ l x y, C l x y ≤ ((2 : ℝ) ^ (c + 1))⁻¹ ^ l :=
+    Nat.rec (by simpa using hε0) hεs
+  have hAn : ∀ l, #(A l) ≤ 2 ^ l * n :=
+    Nat.rec (by simpa only [pow_zero, one_mul] using hA0)
+      fun l ih => by
+        rw [pow_succ]
+        linarith [hAs l]
   exact sub_rewardTransport_mulVec_le_pow hP hP1 hC hstep hp hp0 hp1 hz hε A hA hAn l
 
 end Hierarchy

@@ -50,17 +50,11 @@ def residuesRegisters (i : Fin 16) : Fin 28 := ⟨i.val, by omega⟩
 /-- Histogram registers occupy registers sixteen through twenty-six. -/
 def histogramRegisters (i : Fin 11) : Fin 28 := ⟨16 + i.val, by omega⟩
 
-private theorem residues_injective : Function.Injective residuesRegisters := by
-  intro i j h
-  apply Fin.ext
-  exact congrArg (fun i : Fin 28 => i.val) h
+private theorem residues_injective : Function.Injective residuesRegisters :=
+  fun _ _ h => Fin.ext (congrArg (Fin.val : Fin 28 → ℕ) h)
 
-private theorem histogram_injective : Function.Injective histogramRegisters := by
-  intro i j h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  dsimp [histogramRegisters] at this
-  omega
+private theorem histogram_injective : Function.Injective histogramRegisters :=
+  fun _ _ h => Fin.ext (Nat.add_left_cancel (congrArg (Fin.val : Fin 28 → ℕ) h))
 
 /-- Encoded integer input base. -/
 abbrev src : Fin 28 := 9
@@ -134,9 +128,7 @@ theorem exec {w M : ℕ} (x : Data 28) (values : ℕ → ℤ) (hM : 0 < M)
   have htwo : Fits (w + 2) 2 := (show Fits 2 2 from by decide).mono (by omega)
   have h1 : Fits (w + 2) 1 := htwo.of_le (by decide)
   have hraw : Fits (w + 2) M :=
-    ((encode_fits hmod).mono (by omega)).of_le (by
-      simp only [encode, Int.natAbs_natCast]
-      omega)
+    ((encode_fits hmod).mono (by omega)).of_le (by simp only [encode, Int.natAbs_natCast]; omega)
   obtain ⟨y, he, hym, hyt⟩ : ∃ y,
       ExecWithin (w + 2) program x y (34 * x.regs len + 5 * M + 18) ∧
       y.mem = memory x.mem values (x.regs len) M (x.regs scratch) (x.regs dst) ∧

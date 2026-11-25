@@ -128,14 +128,9 @@ theorem nonsink_gateWitness_mem {k r h : ℕ} {I : Type} (T : Tournament k)
     (i : Fin k) (hi : i ∈ gateCandidates T label F q x)
     (hs : i ∉ gateSinks T label F q x) :
     gateWitness T label F q x i ∈ gateCandidates T label F q x := by
-  have he : ∃ j ∈ gateCandidates T label F q x, T.Adj i j := by
-    by_contra hn
-    apply hs
-    apply Finset.mem_filter.mpr
-    refine ⟨hi, ?_⟩
-    intro j hj hij
-    exact hn ⟨j, hj, hij⟩
-  obtain ⟨j, hj, hij⟩ := he
+  obtain ⟨j, hj, hij⟩ : ∃ j ∈ gateCandidates T label F q x, T.Adj i j := by
+    contrapose! hs
+    exact Finset.mem_filter.mpr ⟨hi, hs⟩
   rwa [← gateCandidates_neighbor T label F hF q x i j hi hj hij]
 
 open scoped Classical in

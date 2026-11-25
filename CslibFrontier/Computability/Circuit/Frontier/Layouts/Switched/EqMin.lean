@@ -51,21 +51,16 @@ private theorem Fv_gram {E' : Type*} [NormedAddCommGroup E'] [InnerProductSpace 
   have hh : MeasurableSet {z : Fin 3 → ℝ | ∀ i, h ≤ z i} := by
     rw [Set.ofPred_forall]; exact MeasurableSet.iInter fun i =>
       measurableSet_le measurable_const (measurable_pi_apply i)
-  unfold Fv
-  have e1 := prob_eq_of_gram v v' hg hl
-  have e2 := prob_eq_of_gram v v' hg hh
-  simp only [Set.mem_ofPred_eq] at e1 e2
-  rw [e1, e2]
+  simpa only [Fv, Set.mem_ofPred_eq] using
+    congrArg₂ (· - ·) (prob_eq_of_gram v v' hg hl) (prob_eq_of_gram v v' hg hh)
 
 omit [BorelSpace E] in
 private theorem Fv_perm (v : Fin 3 → E) (σ : Equiv.Perm (Fin 3)) (h : ℝ) :
     Fv (v ∘ σ) h = Fv v h := by
   unfold Fv
-  congr 2
-  · ext x; simp only [Set.mem_ofPred_eq, Function.comp]
-    exact ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
-  · ext x; simp only [Set.mem_ofPred_eq, Function.comp]
-    exact ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
+  congr 2 <;>
+    · ext x
+      exact ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
 
 /-- The canonical triple with pivot `e₀`. -/
 private def canT (I J si sj ψ : ℝ) : Fin 3 → E3 :=
@@ -74,13 +69,8 @@ private def canT (I J si sj ψ : ℝ) : Fin 3 → E3 :=
 private theorem rotF_eq_Fv (I J si sj h ψ : ℝ) :
     Rot.rotF I J si sj h ψ = Fv (canT I J si sj ψ) h := by
   unfold Rot.rotF Fv
-  congr 2
-  · ext y
-    simp only [Rot.lowSet, Set.mem_ofPred_eq]
-    simp [Fin.forall_fin_succ, canT, inner_add_left, real_inner_smul_left]
-  · ext y
-    simp only [Rot.highSet, Set.mem_ofPred_eq]
-    simp [Fin.forall_fin_succ, canT, inner_add_left, real_inner_smul_left]
+  congr 2 <;> ext y <;>
+    simp [Rot.lowSet, Rot.highSet, Fin.forall_fin_succ, canT, inner_add_left, real_inner_smul_left]
 
 /-- The Gram entries of the canonical triple. -/
 private def canGram (I J si sj ψ : ℝ) : Fin 3 → Fin 3 → ℝ :=
@@ -130,36 +120,28 @@ private theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
     simp only [r0, r1, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
       real_inner_smul_right, hvv, h20, h21]
     ring
-  have hr0 : ‖r0‖ = sy := by
-    have : ‖r0‖ ^ 2 = 1 - y ^ 2 := by
-      rw [← real_inner_self_eq_norm_sq]
-      simp only [r0, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-        real_inner_smul_right, hvv, h20]
-      ring
-    rw [← Real.sqrt_sq (norm_nonneg r0), this]
-  have hr1 : ‖r1‖ = sz := by
-    have : ‖r1‖ ^ 2 = 1 - z ^ 2 := by
-      rw [← real_inner_self_eq_norm_sq]
-      simp only [r1, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-        real_inner_smul_right, hvv, h21]
-      ring
-    rw [← Real.sqrt_sq (norm_nonneg r1), this]
+  have hrnorm (i : Fin 3) : ‖remainder (v 2) (v i)‖ = √(1 - ⟪v i, v 2⟫ ^ 2) := by
+    rw [← Real.sqrt_sq (norm_nonneg (remainder (v 2) (v i)))]
+    congr 1
+    simp only [remainder, norm_sub_sq_real, real_inner_smul_right, norm_smul, Real.norm_eq_abs,
+      sq_abs, hv, one_pow, mul_one, real_inner_comm (v 2) (v i)]
+    ring
+  have hr0 : ‖r0‖ = sy := hrnorm 0
+  have hr1 : ‖r1‖ = sz := hrnorm 1
   have hcs : |x - y * z| ≤ sy * sz := by
-    rw [← hr01, ← hr0, ← hr1]; exact abs_real_inner_le_norm r0 r1
+    rw [← hr01, ← hr0, ← hr1]
+    exact abs_real_inner_le_norm r0 r1
   -- choose the angle
   obtain ⟨ψ, hψ0, hψπ, hπ, hcosψ⟩ : ∃ ψ, 0 ≤ ψ ∧ ψ ≤ π ∧ (sy * sz = 0 → ψ = π) ∧
       sy * sz * Real.cos ψ = x - y * z := by
     by_cases h0 : sy * sz = 0
     · refine ⟨π, Real.pi_pos.le, le_rfl, fun _ => rfl, ?_⟩
-      rw [h0] at hcs ⊢
-      have := abs_nonneg (x - y * z)
-      have h' : |x - y * z| = 0 := le_antisymm hcs this
-      rw [abs_eq_zero] at h'
-      linarith only [h']
+      rw [h0] at hcs
+      rw [h0, zero_mul, abs_nonpos_iff.mp hcs]
     · have hpos : 0 < sy * sz := lt_of_le_of_ne (by positivity) (Ne.symm h0)
       have hratio : -1 ≤ (x - y * z) / (sy * sz) ∧ (x - y * z) / (sy * sz) ≤ 1 := by
-        rw [div_le_one hpos, le_div_iff₀ hpos]
-        constructor <;> linarith only [(abs_le.mp hcs).1, (abs_le.mp hcs).2]
+        rw [div_le_one hpos, le_div_iff₀ hpos, neg_one_mul]
+        exact abs_le.mp hcs
       refine ⟨Real.arccos ((x - y * z) / (sy * sz)), Real.arccos_nonneg _, Real.arccos_le_pi _,
         fun h => absurd h h0, ?_⟩
       rw [Real.cos_arccos hratio.1 hratio.2, mul_div_cancel₀ _ h0]
@@ -244,9 +226,7 @@ private theorem norm_canT {I J si sj ψ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : s
     rw [h]; fin_cases i <;> simp only [canGram, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
       Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two,
       Matrix.head_cons, Matrix.tail_cons] <;> linarith only [hP, hR]
-  rcases sq_eq_one_iff.mp h1 with h' | h'
-  · exact h'
-  · linarith only [h', norm_nonneg (canT I J si sj ψ i)]
+  exact (pow_eq_one_iff_of_nonneg (norm_nonneg _) two_ne_zero).mp h1
 
 /-- **The move.** Lower the largest correlation `⟨v₀,v₁⟩` to `⟨v₀,v₂⟩ + ⟨v₁,v₂⟩ - 1`. -/
 private theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
@@ -350,9 +330,7 @@ private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ}
     rw [← measureReal_union]
     · congr 1; ext y; simp only [Set.mem_union, Set.mem_ofPred_eq]
       constructor
-      · intro h'; by_cases hc : ⟪e 0, y⟫ ≤ -h
-        · exact Or.inl hc
-        · exact Or.inr ⟨h', by linarith, by linarith⟩
+      · exact fun h' => (le_or_gt _ _).imp id fun hc => ⟨h', by linarith, by linarith⟩
       · rintro (h' | ⟨a, -, -⟩) <;> linarith
     · rw [Set.disjoint_left]; intro y h1 h2
       simp only [Set.mem_ofPred_eq] at h1 h2; linarith [h2.2.1]
@@ -450,13 +428,8 @@ private theorem core_step (w : Fin 3 → E) (hw : ∀ i, ‖w i‖ = 1) {h : ℝ
   have hPw' : Pot w' = 3 - 2 * ⟪w 0, w 2⟫ - 2 * ⟪w 1, w 2⟫ +
       max ⟪w 0, w 2⟫ ⟪w 1, w 2⟫ := by
     unfold Pot
-    rw [g01, g02, g12]
-    have hy1 : ⟪w 0, w 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hw 0) (hw 2)
     have hz1 : ⟪w 1, w 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hw 1) (hw 2)
-    rw [max_eq_right (by
-      rcases le_total ⟪w 0, w 2⟫ ⟪w 1, w 2⟫ with hc | hc
-      · rw [max_eq_right hc]; linarith only [hy1]
-      · rw [max_eq_left hc]; linarith only [hz1])]
+    rw [g01, g02, g12, max_eq_right (le_max_of_le_left (by linarith only [hz1]))]
     ring
   have hgrow : 3 / 2 * Pot w ≤ Pot w' := by
     rw [hPw, hPw']
@@ -503,15 +476,10 @@ private theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E
       all_goals linarith only [s1, s2, s3, hymax.1, hymax.2, real_inner_comm (v 1) (v 2)]
     · -- rotate
       have hzmax : ⟪v 0, v 1⟫ ≤ ⟪v 1, v 2⟫ ∧ ⟪v 0, v 2⟫ ≤ ⟪v 1, v 2⟫ := by
-        constructor
-        · by_contra hc; push Not at hc
-          rcases le_total ⟪v 0, v 2⟫ ⟪v 0, v 1⟫ with h' | h'
-          · exact hxmax ⟨h', hc.le⟩
-          · exact hymax ⟨h', by linarith only [hc, h']⟩
-        · by_contra hc; push Not at hc
-          rcases le_total ⟪v 0, v 2⟫ ⟪v 0, v 1⟫ with h' | h'
-          · exact hxmax ⟨h', by linarith only [hc, h']⟩
-          · exact hymax ⟨h', hc.le⟩
+        push Not at hxmax hymax
+        rcases le_total ⟪v 0, v 2⟫ ⟪v 0, v 1⟫ with h' | h'
+        · exact ⟨(hxmax h').le, h'.trans (hxmax h').le⟩
+        · exact ⟨h'.trans (hymax h').le, (hymax h').le⟩
       obtain ⟨a0, a1, a2⟩ := rot3_apply v
       have hPeq : Pot (v ∘ finRotate 3) = Pot v := by
         unfold Pot; rw [a0, a1, a2, real_inner_comm (v 0) (v 1), real_inner_comm (v 0) (v 2)]
@@ -530,31 +498,26 @@ private theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ
     have h1 : ⟪v 0, v 1⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 1)
     have h2 : ⟪v 0, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 0) (hv 2)
     have h3 : ⟪v 1, v 2⟫ ≤ 1 := real_inner_le_one_of_norm_eq_one (hv 1) (hv 2)
-    have hww : ∀ i, ⟪v i, v i⟫ = 1 := fun i => by
-      rw [real_inner_self_eq_norm_sq, hv i]; norm_num
-    unfold Pot at hP
-    have two : (⟪v 0, v 1⟫ = 1 ∧ ⟪v 0, v 2⟫ = 1) ∨ (⟪v 0, v 2⟫ = 1 ∧ ⟪v 1, v 2⟫ = 1) ∨
-        (⟪v 0, v 1⟫ = 1 ∧ ⟪v 1, v 2⟫ = 1) := by
+    have heq : v 1 = v 0 ∧ v 2 = v 0 := by
+      unfold Pot at hP
       rcases le_total ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ with ha | ha <;>
-      rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with hb | hb
+        rcases le_total ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫) with hb | hb
       · rw [max_eq_right hb, max_eq_right ha] at hP
-        left; constructor <;> linarith only [h1, h2, hP]
+        exact ⟨eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h2, hP]),
+          eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h1, h2, hP])⟩
       · rw [max_eq_left hb] at hP
-        right; left; constructor <;> linarith only [h2, h3, hP]
+        have e2 := eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h2, h3, hP])
+        exact ⟨(eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h2, h3, hP])).symm.trans e2, e2⟩
       · rw [max_eq_right hb, max_eq_left ha] at hP
-        right; right; constructor <;> linarith only [h1, h3, hP]
+        have e1 := eq_of_inner_eq_one (hv 0) (hv 1) (by linarith only [h1, h3, hP])
+        exact ⟨e1, (eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h1, h3, hP])).trans e1⟩
       · rw [max_eq_left hb] at hP
-        right; left; constructor <;> linarith only [h2, h3, hP]
-    rcases two with ⟨ha, hb⟩ | ⟨ha, hb⟩ | ⟨ha, hb⟩
-    · have e1 := eq_of_inner_eq_one (hv 0) (hv 1) ha
-      have e2 := eq_of_inner_eq_one (hv 0) (hv 2) hb
-      exact allEqual v hv hh ha hb (by rw [e1, e2]; exact hww 0)
-    · have e1 := eq_of_inner_eq_one (hv 0) (hv 2) ha
-      have e2 := eq_of_inner_eq_one (hv 1) (hv 2) hb
-      exact allEqual v hv hh (by rw [← e1, ← e2]; exact hww 2) ha hb
-    · have e1 := eq_of_inner_eq_one (hv 0) (hv 1) ha
-      have e2 := eq_of_inner_eq_one (hv 1) (hv 2) hb
-      exact allEqual v hv hh ha (by rw [e2, e1]; exact hww 0) hb
+        have e2 := eq_of_inner_eq_one (hv 0) (hv 2) (by linarith only [h2, h3, hP])
+        exact ⟨(eq_of_inner_eq_one (hv 1) (hv 2) (by linarith only [h2, h3, hP])).symm.trans e2, e2⟩
+    have h00 : ⟪v 0, v 0⟫ = 1 := by
+      rw [real_inner_self_eq_norm_sq, hv 0]
+      norm_num
+    exact allEqual v hv hh (heq.1 ▸ h00) (heq.2 ▸ h00) (by rw [heq.1, heq.2, h00])
   · obtain ⟨n, hn⟩ := exists_pow_lt_of_lt_one (half_pos hP) (by norm_num : (2 / 3 : ℝ) < 1)
     exact eq_pot hh n v hv (by linarith)
 

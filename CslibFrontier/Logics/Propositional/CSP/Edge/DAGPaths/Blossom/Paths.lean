@@ -78,13 +78,10 @@ theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : Lis
       have ha : decide (j < pivot - 1) = decide (j + 1 < pivot) := Bool.decide_congr (by omega)
       have hb : decide (pivot - 1 ≤ j + 1) = decide (pivot ≤ j + 1 + 1) :=
         Bool.decide_congr (by omega)
-      constructor
-      · apply List.mem_cons_of_mem
-        apply List.mem_cons_of_mem
-        simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, ha] using hh.1
-      · apply List.mem_cons_of_mem
-        apply List.mem_cons_of_mem
-        simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, hb] using hh.2
+      exact ⟨List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, ha] using hh.1)),
+        List.mem_cons_of_mem _ (List.mem_cons_of_mem _
+          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, hb] using hh.2))⟩
 
 /-- Every actual blossom arc is one of the two supplied ports of a particular cycle step. -/
 theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
@@ -193,25 +190,18 @@ theorem blossomDAG_pairedCopies [DecidableEq V] {w : Walk F} {ts : List ℕ} {pi
   have ha : a ∈ (blossomDAG w ts pivot).arcs := List.mem_toFinset.mpr hm.1
   have hb : b ∈ (blossomDAG w ts pivot).arcs := List.mem_toFinset.mpr hm.2
   have habc : a.copy = b.copy := Prod.ext (linked_constraint hw.1 (List.getElem_mem hj)) rfl
-  have hec : e.copy = a.copy := by
-    rcases heq with rfl | rfl
-    · rfl
-    · exact habc.symm
-  have hab : a ≠ b := by
-    intro hh
-    have hp := congrArg Arc.occurrence hh
-    have hn := hw.2.sublist ((List.singleton_sublist.mpr (List.getElem_mem hj)).flatMap
-      (fun s : Occurrence F × Occurrence F => [s.1, s.2]))
-    exact (List.nodup_cons.mp hn).1 (List.mem_singleton.mpr hp)
-  have hp : ∀ d ∈ (blossomDAG w ts pivot).arcs, d.copy = e.copy → d = a ∨ d = b := by
-    intro d hd0 hdc
-    exact blossomArcs_copy hw hd hj (List.mem_toFinset.mp hd0) (hdc.trans hec)
+  have hec : e.copy = a.copy := heq.elim (fun h => h ▸ rfl) fun h => h ▸ habc.symm
+  have hab : a ≠ b := fun hh =>
+    (List.nodup_cons.mp (hw.2.sublist ((List.singleton_sublist.mpr (List.getElem_mem hj)).flatMap
+      (fun s : Occurrence F × Occurrence F => [s.1, s.2])))).1
+      (List.mem_singleton.mpr (congrArg Arc.occurrence hh))
+  have hp (d : Arc F) (hd0 : d ∈ (blossomDAG w ts pivot).arcs) (hdc : d.copy = e.copy) :
+      d = a ∨ d = b :=
+    blossomArcs_copy hw hd hj (List.mem_toFinset.mp hd0) (hdc.trans hec)
   by_cases hjp : j < pivot
   · exact ⟨a, ha, b, hb, by simp [a, hjp], hec.symm, habc.symm.trans hec.symm, hab, hp⟩
-  · refine ⟨b, hb, a, ha, by simp [b]; omega,
-      habc.symm.trans hec.symm, hec.symm, hab.symm, ?_⟩
-    intro d hd0 hdc
-    exact (hp d hd0 hdc).symm
+  · exact ⟨b, hb, a, ha, by simp [b]; omega, habc.symm.trans hec.symm, hec.symm, hab.symm,
+      fun d hd0 hdc => (hp d hd0 hdc).symm⟩
 
 end DAG
 
