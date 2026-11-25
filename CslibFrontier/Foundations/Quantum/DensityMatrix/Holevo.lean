@@ -244,8 +244,8 @@ variable {ι κ : Type*} [Fintype ι] [DecidableEq ι] [Fintype κ] [DecidableEq
   -(ρ * cfc Real.log ρ).trace.re / Real.log 2
 
 private theorem isHermitian_diagonal_real {μ : Type*} [DecidableEq μ] (d : μ → ℝ) :
-    (diagonal fun i => (d i : ℂ)).IsHermitian := by
-  ext i j; by_cases h : i = j <;> simp [h, eq_comm]
+    (diagonal fun i => (d i : ℂ)).IsHermitian :=
+  Matrix.isHermitian_diagonal_of_self_adjoint _ (by ext i; simp)
 
 private theorem cfc_diagonal_real (f : ℝ → ℝ) (d : ι → ℝ) :
     cfc f (diagonal fun i => (d i : ℂ)) = diagonal fun i => (f (d i) : ℂ) := by
@@ -481,30 +481,17 @@ theorem vonNeumannEntropy_partialTrace_pureState_eq (ψ : EuclideanSpace ℂ (ι
       (posSemidef_conjTranspose_mul_self B).isHermitian,
     hblock₂, vonNeumannEntropy_conj_isometry hV₂ (posSemidef_conjTranspose_mul_self M).isHermitian]
 
-private theorem single_mul_mul_single {α β : Type*} [Fintype β] [DecidableEq α] [DecidableEq β]
-    (a : α) (b : β) (A : Matrix β β ℂ) (x y : α) :
-    (single a b (1 : ℂ) * A * single b a (1 : ℂ)) x y =
-      if x = a ∧ y = a then A b b else 0 := by
-  rw [Matrix.mul_apply, Finset.sum_eq_single b]
-  · rw [Matrix.mul_apply, Finset.sum_eq_single b]
-    · by_cases hx : x = a <;> by_cases hy : y = a <;> simp [hx, hy, Ne.symm]
-    · intro l _ hl; simp [Ne.symm hl]
-    · simp
-  · intro l _ hl; simp [Ne.symm hl]
-  · simp
-
 private theorem sum_single_conj_eq_diagonal (A : Matrix ι ι ℂ) :
     ∑ i : ι, single i i (1 : ℂ) * A * (single i i (1 : ℂ))ᴴ = diagonal fun i => A i i := by
   ext j k
   rw [Matrix.sum_apply]
-  simp_rw [conjTranspose_single, star_one, single_mul_mul_single]
+  simp only [conjTranspose_single, star_one, Matrix.single_mul_mul_single, one_mul, mul_one,
+    Matrix.single_apply]
   by_cases h : j = k
-  · subst h; simp
+  · subst h
+    simp
   · rw [diagonal_apply_ne _ h]
-    exact Finset.sum_eq_zero fun x _ => by
-      split_ifs with hx
-      · exact absurd (hx.1.trans hx.2.symm) h
-      · rfl
+    exact Finset.sum_eq_zero fun i _ => ite_eq_right fun ⟨hj, hk⟩ => h (hj.symm.trans hk)
 
 private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι ℂ}
     (hρ : IsDensityMatrix ρ) :
@@ -531,7 +518,9 @@ private theorem vonNeumannEntropy_le_vonNeumannEntropy_diag {ρ : Matrix ι ι �
         neg_eq_self] using (Complex.ext_iff.mp hh).2
     exact Complex.ext rfl hdiag_im
   have hΔπ : ∑ i : ι, K i * π * (K i)ᴴ = π := by
-    rw [sum_single_conj_eq_diagonal]; ext j k; by_cases h : j = k <;> simp [π, h]
+    rw [sum_single_conj_eq_diagonal]
+    ext j k
+    by_cases h : j = k <;> simp [π, h]
   have hk := relativeEntropy_kraus_le Finset.univ K hK hρ.posSemidef hπ_psd
   rw [hΔρ, hΔπ] at hk
   have hΔ_tr : Δρ.trace.re = 1 := by
@@ -907,16 +896,17 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
     rw [Matrix.sum_apply, Fintype.sum_prod_type]
     have hK_entry (y : Y) (i : ι) :
         (K (y, i) * ρ x * (K (y, i))ᴴ) y₁ y₂ =
-          if y₁ = y ∧ y₂ = y then (L y * ρ x * (L y)ᴴ) i i else 0 := by
+          if y = y₁ ∧ y = y₂ then (L y * ρ x * (L y)ᴴ) i i else 0 := by
       dsimp only [K]
       rw [show single y i (1 : ℂ) * L y * ρ x * (single y i (1 : ℂ) * L y)ᴴ =
           single y i (1 : ℂ) * (L y * ρ x * (L y)ᴴ) * single i y (1 : ℂ) by
-          rw [conjTranspose_mul, conjTranspose_single, star_one]; simp only [Matrix.mul_assoc],
-        single_mul_mul_single]
+          rw [conjTranspose_mul, conjTranspose_single, star_one]
+          simp only [Matrix.mul_assoc],
+        Matrix.single_mul_mul_single, one_mul, mul_one, Matrix.single_apply]
     simp_rw [hK_entry]
     by_cases hy : y₁ = y₂
     · subst hy
-      rw [diagonal_apply_eq, Finset.sum_eq_single y₁ (fun _ _ h => by simp [Ne.symm h]) (by simp)]
+      rw [diagonal_apply_eq, Finset.sum_eq_single y₁ (fun _ _ h => by simp [h]) (by simp)]
       simp only [and_self, ite_true]
       have him : (L y₁ * ρ x * (L y₁)ᴴ).trace.im = 0 :=
         (Complex.nonneg_iff.mp
@@ -926,10 +916,8 @@ theorem mutualInfo_measureDensity_le_holevoInformation [Fintype X] [Fintype Y]
       change (L y₁ * ρ x * (L y₁)ᴴ).trace = _
       exact Complex.ext (by rw [hcyc, Complex.ofReal_re]; rfl) (by rw [him, Complex.ofReal_im])
     · rw [diagonal_apply_ne _ hy]
-      exact Finset.sum_eq_zero fun y _ => Finset.sum_eq_zero fun _ _ => by
-        split_ifs with h
-        · exact absurd (h.1.trans h.2.symm) hy
-        · rfl
+      exact Finset.sum_eq_zero fun y _ => Finset.sum_eq_zero fun _ _ =>
+        ite_eq_right fun ⟨h1, h2⟩ => hy (h1.symm.trans h2)
   let q (x : X) : PMF Y := M.measureDensity (ρ x) (hρ x)
   let joint : PMF (X × Y) := p.bind fun x => (q x).map (x, ·)
   have hsnd : joint.map Prod.snd = p.bind q := by
