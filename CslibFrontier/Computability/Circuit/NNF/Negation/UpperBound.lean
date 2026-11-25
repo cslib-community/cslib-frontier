@@ -369,14 +369,10 @@ theorem iterate_ne_mate (k : ℕ) (y : V) : (M.cycleStepMap α β)^[k] y ≠ M.m
     | zero => intro; simpa using h
     | succ m ih =>
       intro hm
-      have h1 := ih (by omega)
       obtain ⟨j, hj⟩ : ∃ j, k - m = j + 1 := ⟨k - m - 1, by omega⟩
-      rw [hj] at h1
-      have h2 := congrArg (M.mate β) h1
+      have h2 := congrArg (M.mate β) (hj ▸ ih (by omega))
       rw [mate_iterate_succ, mate_mate_iterate] at h2
-      have h3 := congrArg (M.mate α) h2
-      rw [M.mate_mate] at h3
-      rw [show k - (m + 1) = j by omega, h3]
+      rw [show k - (m + 1) = j by omega, ← h2, M.mate_mate]
   obtain ⟨m, rfl | rfl⟩ := Nat.even_or_odd' k
   · have := hrefl m (by omega)
     rw [show 2 * m - m = m by omega] at this
