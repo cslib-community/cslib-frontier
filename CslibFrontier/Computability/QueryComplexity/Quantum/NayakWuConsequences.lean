@@ -176,37 +176,19 @@ private theorem approx_scale_le {F n m Δ d B : ℝ}
     (hcore : F * (√(n * d) + √m) ≤ B * d) :
     F * (√(n / Δ) + √m / Δ) ≤ 4 * B := by
   have hdiv : d / Δ ≤ 4 := (div_le_iff₀ hΔ).2 (by linarith)
-  have hsq_le : d ^ 2 * (n / Δ) ≤ 4 * (n * d) := by
-    calc
-      d ^ 2 * (n / Δ) = n * d * (d / Δ) := by ring
-      _ ≤ n * d * 4 := mul_le_mul_of_nonneg_left hdiv (mul_nonneg hn hd.le)
-      _ = 4 * (n * d) := by ring
-  have h1 : d * √(n / Δ) ≤ 2 * √(n * d) := by
-    calc
-      d * √(n / Δ) = √(d ^ 2) * √(n / Δ) := by rw [Real.sqrt_sq hd.le]
-      _ = √(d ^ 2 * (n / Δ)) := (Real.sqrt_mul (sq_nonneg d) _).symm
-      _ ≤ √(4 * (n * d)) := Real.sqrt_le_sqrt hsq_le
-      _ = 2 * √(n * d) := by
-            rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
-              Real.sqrt_sq (by norm_num)]
-  have h2 : d * (√m / Δ) ≤ 4 * √m := by
-    calc
-      d * (√m / Δ) = √m * (d / Δ) := by ring
-      _ ≤ √m * 4 := mul_le_mul_of_nonneg_left hdiv (Real.sqrt_nonneg m)
-      _ = 4 * √m := by ring
-  have hsum : d * (√(n / Δ) + √m / Δ) ≤ 4 * (√(n * d) + √m) := by
-    calc
-      d * (√(n / Δ) + √m / Δ) = d * √(n / Δ) + d * (√m / Δ) := by ring
-      _ ≤ 4 * √(n * d) + 4 * √m := add_le_add (by linarith [Real.sqrt_nonneg (n * d)]) h2
-      _ = 4 * (√(n * d) + √m) := by ring
-  have hmul : d * (F * (√(n / Δ) + √m / Δ)) ≤ d * (4 * B) := by
-    calc
-      d * (F * (√(n / Δ) + √m / Δ)) = F * (d * (√(n / Δ) + √m / Δ)) := by ring
-      _ ≤ F * (4 * (√(n * d) + √m)) := mul_le_mul_of_nonneg_left hsum hF
-      _ = 4 * (F * (√(n * d) + √m)) := by ring
-      _ ≤ 4 * (B * d) := mul_le_mul_of_nonneg_left hcore (by norm_num)
-      _ = d * (4 * B) := by ring
-  exact le_of_mul_le_mul_left hmul hd
+  have h1 : d * √(n / Δ) ≤ 2 * √(n * d) :=
+    calc d * √(n / Δ) = √(d ^ 2 * (n / Δ)) := by
+          rw [Real.sqrt_mul (sq_nonneg d), Real.sqrt_sq hd.le]
+      _ ≤ √(2 ^ 2 * (n * d)) := Real.sqrt_le_sqrt (by
+          rw [show d ^ 2 * (n / Δ) = n * d * (d / Δ) by ring]
+          linarith [mul_le_mul_of_nonneg_left hdiv (mul_nonneg hn hd.le)])
+      _ = 2 * √(n * d) := by rw [Real.sqrt_mul (sq_nonneg 2), Real.sqrt_sq two_pos.le]
+  have h2 : d * (√m / Δ) ≤ √m * 4 := by
+    rw [mul_div_left_comm]; exact mul_le_mul_of_nonneg_left hdiv (Real.sqrt_nonneg m)
+  refine le_of_mul_le_mul_left ?_ hd
+  have := mul_le_mul_of_nonneg_left (show d * (√(n / Δ) + √m / Δ) ≤ 4 * (√(n * d) + √m) by
+    linarith [Real.sqrt_nonneg (n * d)]) hF
+  linarith
 
 end Helpers
 
@@ -888,39 +870,22 @@ private theorem one_sub_mul_median_le_of_sim {ι V W α : Type*}
   have hfac := one_sub_two_mul_sqrt_nonneg ε
   have hdiff : (t₂ : ℝ) - t₁ < δ * n + 2 := by
     rw [sub_mul, one_mul] at ht₁_lt; rw [add_mul, one_mul] at ht₂_lt; linarith only [ht₁_lt, ht₂_lt]
+  have hT : (0 : ℝ) ≤ T_bool := Nat.cast_nonneg _
   by_cases hbig : 2 ≤ δ * n
-  · have hstep : (1 - 2 * √(ε * (1 - ε))) * n ≤ 8 * T_bool * (δ * n) := by
-      have hle2 : (t₂ : ℝ) - t₁ ≤ 2 * δ * n := by linarith only [hdiff, hbig]
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * n ≤ 4 * T_bool * ((t₂ : ℝ) - t₁) := hcard
-        _ ≤ 4 * T_bool * (2 * δ * n) := mul_le_mul_of_nonneg_left hle2 (by positivity)
-        _ = 8 * T_bool * (δ * n) := by ring
-    have hinv : (1 - 2 * √(ε * (1 - ε))) * (1 / δ) ≤ 8 * T_bool := by
-      refine le_of_mul_le_mul_right ?_ hδn₀
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * (1 / δ) * (δ * n)
-            = (1 - 2 * √(ε * (1 - ε))) * n := by field_simp [hδ₀.ne']
-        _ ≤ 8 * T_bool * (δ * n) := hstep
-    calc
-      (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) n
-          ≤ (1 - 2 * √(ε * (1 - ε))) * (1 / δ) := mul_le_mul_of_nonneg_left (min_le_left _ _) hfac
-      _ ≤ 8 * T_bool := hinv
-      _ ≤ 12 * T_bool := by linarith only [Nat.cast_nonneg (α := ℝ) T_bool]
+  · have hinv : (1 - 2 * √(ε * (1 - ε))) * (1 / δ) ≤ 8 * T_bool := by
+      rw [mul_one_div, div_le_iff₀ hδ₀]
+      refine le_of_mul_le_mul_right ?_ hn_pos
+      linarith [mul_le_mul_of_nonneg_left (show (t₂ : ℝ) - t₁ ≤ 2 * δ * n by linarith) hT]
+    calc _ ≤ (1 - 2 * √(ε * (1 - ε))) * (1 / δ) := mul_le_mul_of_nonneg_left (min_le_left _ _) hfac
+      _ ≤ 12 * T_bool := by linarith
   · have hlt4 : (t₂ - t₁ : ℕ) < 4 := by
       exact_mod_cast (show ((t₂ - t₁ : ℕ) : ℝ) < 4 by
         rw [Nat.cast_sub ht₁_lt_t₂.le]; linarith only [hdiff, hbig])
     have hle3 : (t₂ : ℝ) - t₁ ≤ 3 := by
       rw [← Nat.cast_sub ht₁_lt_t₂.le]
       exact_mod_cast (by omega : t₂ - t₁ ≤ 3)
-    have hstep : (1 - 2 * √(ε * (1 - ε))) * n ≤ 12 * T_bool := by
-      calc
-        (1 - 2 * √(ε * (1 - ε))) * n ≤ 4 * T_bool * ((t₂ : ℝ) - t₁) := hcard
-        _ ≤ 4 * T_bool * 3 := mul_le_mul_of_nonneg_left hle3 (by positivity)
-        _ = 12 * T_bool := by ring
-    calc
-      (1 - 2 * √(ε * (1 - ε))) * min (1 / δ) n
-          ≤ (1 - 2 * √(ε * (1 - ε))) * n := mul_le_mul_of_nonneg_left (min_le_right _ _) hfac
-      _ ≤ 12 * T_bool := hstep
+    calc _ ≤ (1 - 2 * √(ε * (1 - ε))) * n := mul_le_mul_of_nonneg_left (min_le_right _ _) hfac
+      _ ≤ 12 * T_bool := by linarith [mul_le_mul_of_nonneg_left hle3 hT]
 
 /-- **Corollary 1.6 (arbitrary unitary oracle, two-valued domain)** ([NayakWu1999]): any
 `T`-query value-query algorithm computing a `δ`-approximate median (`0 < δ < 1`, `1 ≤ |ι|`) on
