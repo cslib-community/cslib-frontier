@@ -140,8 +140,7 @@ private theorem Inv.mem_iff_of_adj {E : Set (CEdge V)} (I : Inv f L R E) {e : CE
   have hee' : e ≠ e' := by
     rintro rfl
     rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact hne rfl
-    · exact hne Sym2.eq_swap
+    exacts [hne rfl, hne Sym2.eq_swap]
   rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
   · exact I.nest e he e' he' hee'
   · exact (I.nest e he e' he' hee').symm
@@ -189,9 +188,7 @@ private theorem good_restrict {L : Finset V → Prop} (hL : Good L) (U : Finset 
     Good (Restrict L U) := by
   refine ⟨fun X ⟨hX, hXU⟩ => ⟨hL.1 X hX, ?_⟩, fun X Y ⟨hX, hXU⟩ ⟨hY, hYU⟩ =>
     ⟨hL.2 X Y hX hY, ?_⟩⟩
-  · rcases hXU with h | h
-    · exact Or.inr (Finset.compl_subset_compl.mpr h)
-    · exact Or.inl (compl_le_iff_compl_le.mp h)
+  · exact hXU.symm.imp compl_le_iff_compl_le.mp Finset.compl_subset_compl.mpr
   · rcases hXU with h | h
     · exact Or.inl (Finset.inter_subset_left.trans h)
     · rcases hYU with h' | h'
@@ -264,26 +261,16 @@ private theorem glue [Preorder β] {f : Finset V → β} (hsym : ∀ X, f Xᶜ =
   · -- Nesting: within each side by induction, across the sides by `side₁`/`side₂`, and for the
     -- new edge because each side lies on one side of `U`.
     intro e he e' he' hne
-    rcases he with (he | he) | he <;> rcases he' with (he' | he') | he'
+    rcases he with (he | he) | rfl <;> rcases he' with (he' | he') | rfl
     · exact I₁.nest e he e' he' hne
     · exact side₁ e he _ _ (outU₂ e' he').1 (outU₂ e' he').2
-    · rw [Set.mem_singleton_iff] at he'
-      subst he'
-      exact (out₁ e he r₂ hr₂U).symm
+    · exact (out₁ e he r₂ hr₂U).symm
     · exact side₂ e he _ _ (inU₁ e' he').1 (inU₁ e' he').2
     · exact I₂.nest e he e' he' hne
-    · rw [Set.mem_singleton_iff] at he'
-      subst he'
-      exact in₂ e he r₁ hr₁U
-    · rw [Set.mem_singleton_iff] at he
-      subst he
-      exact ⟨fun _ => (inU₁ e' he').2, fun _ => (inU₁ e' he').1⟩
-    · rw [Set.mem_singleton_iff] at he
-      subst he
-      exact ⟨fun h => absurd h (outU₂ e' he').1, fun h => absurd h (outU₂ e' he').2⟩
-    · rw [Set.mem_singleton_iff] at he he'
-      subst he he'
-      exact absurd rfl hne
+    · exact in₂ e he r₁ hr₁U
+    · exact ⟨fun _ => (inU₁ e' he').2, fun _ => (inU₁ e' he').1⟩
+    · exact ⟨fun h => absurd h (outU₂ e' he').1, fun h => absurd h (outU₂ e' he').2⟩
+    · exact absurd rfl hne
   · -- Chains: within each side, and across `U` through the new edge `r₁ r₂`.
     have cross : ∀ x ∈ R, ∀ y ∈ R, x ∈ U → y ∉ U →
         Relation.ReflTransGen (Step (E₁ ∪ E₂ ∪ {enew}) x y) x y := by
@@ -394,10 +381,8 @@ theorem exists_isGomoryHuTree [Nonempty V] {f : Finset V → β} (hsym : ∀ X, 
     SimpleGraph.edgeSide_eq_of_forall_adj htree hadj hS.left_mem hS.right_notMem
       (I.mem_iff_of_adj he)
   rcases hends with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-  · rw [hside]
-    exact hS
-  · rw [SimpleGraph.edgeSide_swap htree hadj, hside]
-    exact hS.compl hsym
+  · exact hside ▸ hS
+  · exact (SimpleGraph.edgeSide_swap htree hadj).symm ▸ hside ▸ hS.compl hsym
 
 end Construction
 
