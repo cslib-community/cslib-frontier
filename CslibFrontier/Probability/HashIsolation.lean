@@ -121,7 +121,12 @@ theorem IsTwoUniversal.conditionalEntropy_hash_le [Finite Seed] {seed : PMF Seed
   have hcollision (s : Seed) (x : Input) :
       (∃ p : Seed × Input, p ≠ (s, x) ∧ observe p = observe (s, x)) ↔
         ∃ y, y ≠ x ∧ f y = f x ∧ hash s y = hash s x := by
-    simp [observe, Prod.ext_iff, and_left_comm]
+    constructor
+    · rintro ⟨⟨t, y⟩, hne, heq⟩
+      obtain ⟨rfl, heq⟩ := Prod.mk.inj heq
+      exact ⟨y, fun hy => hne (hy ▸ rfl), Prod.mk.inj heq⟩
+    · rintro ⟨y, hy, hf, hh⟩
+      exact ⟨(s, y), fun heq => hy (congrArg Prod.snd heq), by simp [observe, hf, hh]⟩
   have hmass (s : Seed) (x : Input) : (pair (s, x)).toReal =
       (seed s).toReal * (source x).toReal := by
     simp only [pair, bind_map_prodMk_apply, ENNReal.toReal_mul]
