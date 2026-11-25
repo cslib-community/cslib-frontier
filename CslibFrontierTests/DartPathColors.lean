@@ -7,7 +7,7 @@ Authors: Erik Demaine
 module
 -- upstream: local-only (indexed path color regression)
 
-import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathOrder
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathRestriction
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import Mathlib.Data.Fin.VecNotation
@@ -94,6 +94,21 @@ example : rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c�
     (by decide) (by decide) (by decide) (by decide) (by decide)
   exact opposite
 
+private theorem crossingParity_of_embedding {K : Graph} {D : PolygonalDrawing K}
+    (hD : D.IsEmbedding) {a b : Fin K.edges.length} (hne : a ≠ b) :
+    (D.route a).intersectionParity (D.route b) = false := by
+  classical
+  unfold Cslib.Polygonal.Route.intersectionParity
+  refine Finset.sum_eq_zero fun s _ => Finset.sum_eq_zero fun t _ => ?_
+  apply Bool.eq_false_iff.mpr
+  intro h
+  obtain ⟨z, hz, hzt⟩ := of_decide_eq_true h
+  rw [openSegment_eq_image_lineMap] at hz
+  obtain ⟨w, hw, rfl⟩ := hz
+  exact hD.segment_interior_disjoint ⟨a, s⟩ ⟨b, t⟩
+    (fun he => hne (congrArg Sigma.fst he).symm) w hw
+    (openSegment_subset_segment ℝ _ _ hzt)
+
 -- The same three arms have an actual regular polygonal embedding.
 example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotation ∧
     (rotation.rotate.symm a₀ = c₀ ↔ rotation.rotate.symm a₁ ≠ c₁) := by
@@ -115,15 +130,41 @@ example : ∃ D : PolygonalDrawing G, D.HasRegularContacts ∧ D.Realizes rotati
   · intro a b hab i j
     have hne : (arms a i).1 ≠ (arms b j).1 :=
       (by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (arms a i).1 ≠ (arms b j).1) a b hab i j
-    unfold Cslib.Polygonal.Route.intersectionParity
-    refine Finset.sum_eq_zero fun s _ => Finset.sum_eq_zero fun t _ => ?_
-    apply Bool.eq_false_iff.mpr
-    intro h
-    obtain ⟨z, hz, hzt⟩ := of_decide_eq_true h
-    rw [openSegment_eq_image_lineMap] at hz
-    obtain ⟨w, hw, rfl⟩ := hz
-    exact hD.segment_interior_disjoint ⟨(arms a i).1, s⟩ ⟨(arms b j).1, t⟩
-      (fun he => hne (congrArg Sigma.fst he).symm) w hw
-      (openSegment_subset_segment ℝ _ _ hzt)
+    exact crossingParity_of_embedding hD hne
+
+private abbrev withSpurs : Graph :=
+  ⟨[0, 1, 2, 3, 4], [(0, 2), (2, 1), (0, 1), (0, 1), (2, 3), (0, 4)]⟩
+
+private def spurRotation : RotationSystem withSpurs where
+  rotate := Equiv.swap (0, false) (5, false) * Equiv.swap (0, false) (3, false) *
+    Equiv.swap (0, false) (2, false) * Equiv.swap (1, true) (2, true) *
+    Equiv.swap (1, true) (3, true) * Equiv.swap (0, true) (4, false) *
+    Equiv.swap (0, true) (1, false)
+  sameCycle_iff := by decide
+
+private def spurArms (k : Fin 3) (i : Fin (armLength k + 1)) : Dart withSpurs :=
+  ⟨Fin.castLE (by decide) (arms k i).1, (arms k i).2⟩
+
+private def spurSite (k : Fin 3) (_ : Fin (armLength k)) : ℕ := 2
+
+-- Extra edges at an internal vertex and a separator do not change the triple comparison.
+example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
+    spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
+    ((2, false) ∈ spurRotation.rotationInterval (0, false) (3, false) ↔
+      (2, true) ∉ spurRotation.rotationInterval (1, true) (3, true)) := by
+  classical
+  have hG : ∀ v ∈ withSpurs.incidenceVertices, v ∈ withSpurs.vertices := by decide
+  have genus : spurRotation.NumericalGenusZero := by
+    have check := RotationCertificate.verifyRotation_ofRotation spurRotation hG
+    rw [← RotationCertificate.decode_ofRotation spurRotation hG]
+    exact (RotationCertificate.verifyEuler_eq_true_iff check).mp (by decide +kernel)
+  obtain ⟨D, hD, hR⟩ := spurRotation.exists_polygonalDrawing hG genus
+  have hreg := hD.hasRegularContacts (fun d => RotationSystem.vertex_mem hG d) (by decide)
+  refine ⟨D, hreg, hR, by decide, ?_⟩
+  exact hreg.opposite_three_path_orders hD.simple hR hG (by decide : 0 ≠ 1)
+    spurArms spurSite (by decide) (by decide) (by decide) (by decide) (by decide)
+    (fun a b hab i j => crossingParity_of_embedding hD
+      ((by decide : ∀ a b : Fin 3, a ≠ b → ∀ i j, (spurArms a i).1 ≠ (spurArms b j).1)
+        a b hab i j))
 
 end CslibFrontierTests.DartPathColors
