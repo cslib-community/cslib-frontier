@@ -140,24 +140,12 @@ theorem distColoring_ne {s k n : ℕ} (hkn : k < n) {x : ZMod n → ℕ} (hx : F
   have hyN : ∀ i, y i < n := fun i => hxn _
   have hT := fastThreeColoringRule_toFun hyp hyN hs
   have hT' := fastThreeColoringRule_toFun (fun i => hyp (i + 1)) (fun i => hyN (i + 1)) hs
-  have e0 : (fun i => window x u (((j + 1 : ℕ) : ℤ) * i)) = y := by
-    funext i
-    simp only [window, hy]
-    congr 1
-    push_cast
-    ring
-  have e1 : (fun i => window x (u + ((j + 1 : ℕ) : ZMod n)) (((j + 1 : ℕ) : ℤ) * i)) =
-      fun i => y (i + 1) := by
-    funext i
-    simp only [window, hy]
-    congr 1
-    push_cast
-    ring
+  have e : (fun i => window x u (((j + 1 : ℕ) : ℤ) * i)) = y ∧
+      (fun i => window x (u + ((j + 1 : ℕ) : ZMod n)) (((j + 1 : ℕ) : ℤ) * i)) =
+        fun i => y (i + 1) := by
+    constructor <;> funext i <;> simp only [window, hy] <;> congr 1 <;> push_cast <;> ring
   simp only [Fin.coe_clamp] at hj
-  rw [e0, e1] at hj
-  have := hT.1
-  have := hT.2
-  have := hT'.2
+  rw [e.1, e.2] at hj
   omega
 
 /-! ### Anchors -/
@@ -213,31 +201,27 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
   | succ N ih =>
     intro v hv
     by_cases ha : (anchorRule k).apply c v = true
-    · exact ⟨0, by rw [abs_zero]; exact_mod_cast Nat.zero_le _, by rwa [Int.cast_zero, add_zero]⟩
+    · exact ⟨0, by simp, by rwa [Int.cast_zero, add_zero]⟩
     rw [anchorRule_apply] at ha
     push Not at ha
     obtain ⟨m, hm, hle⟩ := ha
-    have hkN : (k : ℤ) * ((N + 1 : ℕ) : ℤ) = k * N + k := by push_cast; ring
-    have hmk : (m : ℤ) + 1 ≤ k := by omega
-    by_cases h1 : c v < c (v + (m + 1))
-    · have h2 := hc (v - (m + 1)) m hm
-      rw [sub_add_cancel] at h2
-      have h3 := hle h1
-      obtain ⟨e, he, hae⟩ := ih (v - (m + 1)) (by omega)
-      refine ⟨e - (m + 1), ?_, ?_⟩
-      · rw [abs_le] at he ⊢
-        constructor <;> linarith [he.1, he.2]
-      · convert hae using 2
+    -- some node within distance `k` of `v` has a smaller colour
+    obtain ⟨s, hs, hcs⟩ : ∃ s : ℤ, |s| ≤ k ∧ c (v + s) < c v := by
+      by_cases h1 : c v < c (v + (m + 1))
+      · have h2 := hc (v - (m + 1)) m hm
+        rw [sub_add_cancel] at h2
+        have h3 := hle h1
+        refine ⟨-(m + 1), by rw [abs_le]; omega, ?_⟩
         push_cast
-        ring
-    · have h2 := hc v m hm
-      obtain ⟨e, he, hae⟩ := ih (v + (m + 1)) (by omega)
-      refine ⟨e + (m + 1), ?_, ?_⟩
-      · rw [abs_le] at he ⊢
-        constructor <;> linarith [he.1, he.2]
-      · convert hae using 2
+        rw [← sub_eq_add_neg]
+        omega
+      · have h2 := hc v m hm
+        refine ⟨m + 1, by rw [abs_le]; omega, ?_⟩
         push_cast
-        ring
+        omega
+    obtain ⟨e, he, hae⟩ := ih (v + s) (by omega)
+    refine ⟨s + e, (abs_add_le s e).trans (by push_cast; linarith), ?_⟩
+    rwa [Int.cast_add, ← add_assoc]
 
 /-- For a distance-`k` colouring with colours below `C`, every node has an anchor at most
 `2k (C - 1)` steps behind it. -/
@@ -251,12 +235,10 @@ theorem anchorRule_exists_sub {k n C : ℕ} {c : ZMod n → ℕ}
   obtain ⟨d, hd⟩ : ∃ d : ℕ, (d : ℤ) = ((k * (C - 1) : ℕ) : ℤ) - e :=
     ⟨_, Int.toNat_of_nonneg (by omega)⟩
   refine ⟨d, by omega, ?_⟩
-  have hv : v - (d : ZMod n) = v - ((k * (C - 1) : ℕ) : ZMod n) + (e : ZMod n) := by
-    rw [← Int.cast_natCast (R := ZMod n) d, hd]
-    push_cast
-    ring
-  rw [hv]
-  exact hae
+  convert hae using 2
+  rw [← Int.cast_natCast (R := ZMod n) d, hd]
+  push_cast
+  ring
 
 /-! ### Filling -/
 
@@ -284,13 +266,9 @@ private theorem firstTrue_spec (p : ℕ → Bool) (m : ℕ) (h : ∃ i < m, p i 
 private theorem firstTrue_eq (p : ℕ → Bool) (m : ℕ) {i : ℕ} (hi : p i = true)
     (hlt : ∀ j < i, p j = false) (hex : ∃ j < m, p j = true) : firstTrue p m = i := by
   rcases lt_trichotomy (firstTrue p m) i with h | h | h
-  · have := hlt _ h
-    rw [firstTrue_spec p m hex] at this
-    exact absurd this (by decide)
+  · simpa only [firstTrue_spec p m hex, Bool.true_eq_false] using hlt _ h
   · exact h
-  · have := firstTrue_min p m i h
-    rw [hi] at this
-    exact absurd this (by decide)
+  · simpa only [hi, Bool.true_eq_false] using firstTrue_min p m i h
 
 private theorem firstTrue_congr {p p' : ℕ → Bool} {m : ℕ} (h : ∀ i < m, p i = p' i) :
     firstTrue p m = firstTrue p' m := by
@@ -332,19 +310,12 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
   set P : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v - (i : ZMod n))) (D + 1) with hP
   set Q : ZMod n → ℕ := fun v => firstTrue (fun i : ℕ => a (v + ((i : ZMod n) + 1))) (D + 1)
     with hQ
-  have happly : ∀ v, (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := by
-    intro v
-    have e1 : (fun i : ℕ => window a v (-(i : ℤ))) = fun i : ℕ => a (v - (i : ZMod n)) := by
-      funext i
-      simp only [window]
-      push_cast
-      rw [sub_eq_add_neg]
+  have happly : ∀ v, (fillRule W D).apply a v = W (P v + Q v + 1) (P v) := fun v => by
+    have e1 : (fun i : ℕ => window a v (-(i : ℤ))) = fun i : ℕ => a (v - (i : ZMod n)) :=
+      funext fun i => by simp [window, sub_eq_add_neg]
     have e2 : (fun i : ℕ => window a v ((i : ℤ) + 1)) =
-        fun i : ℕ => a (v + ((i : ZMod n) + 1)) := by
-      funext i
-      simp only [window]
-      push_cast
-      rfl
+        fun i : ℕ => a (v + ((i : ZMod n) + 1)) :=
+      funext fun i => by simp [window]
     simp only [LocalRule.apply, fillRule, e1, e2, hP, hQ]
   have hPspec : ∀ v, P v ≤ D ∧ a (v - P v) = true ∧ ∀ i < P v, a (v - i) = false := by
     intro v
@@ -500,11 +471,7 @@ theorem IsFlexible.exists_solvesLCL {L : Type*} {R : L → L → Prop} {q : L} {
   refine ⟨(flexibleRule W (K - 1) s).toAlgorithm, fun x hx hxn => ?_⟩
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · exact absurd (hxn 0) (Nat.not_lt_zero _)
-  have : (flexibleRule W (K - 1) s).toAlgorithm.run x ((K - 1) * (s + 2 * 3 ^ (K - 1) + 2) + 1) =
-      (flexibleRule W (K - 1) s).apply x := by
-    rw [← flexibleRadius_eq]
-    exact funext fun v => LocalRule.toAlgorithm_run _ x v
-  rw [this]
+  rw [← flexibleRadius_eq, funext (LocalRule.toAlgorithm_run _ x)]
   exact flexibleRule_isSolution (fun m hm => (hW m (by omega)).1)
     (fun m hm => (hW m (by omega)).2.1) (fun m hm => (hW m (by omega)).2.2) (by omega) hs hx hxn
 

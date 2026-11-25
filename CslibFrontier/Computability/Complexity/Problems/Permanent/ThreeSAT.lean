@@ -109,11 +109,8 @@ theorem intPermanent_cnfToPermanentTable (φ : CNF ℕ) :
     IntPermanent (cnfToPermanentTable φ) = 12 ^ φ.length * SharpThreeSAT φ := by
   by_cases hφ : WellFormed φ
   · rw [intPermanent_cnfToPermanentTable_of_wellFormed hφ, permanent_fullMatrix hφ,
-      SharpThreeSAT, SharpSAT]
-    have : (φ.all fun c => decide (c.length ≤ 3)) = true := by
-      simp only [List.all_eq_true, decide_eq_true_eq]
-      exact fun c hc => (hφ c hc).2
-    rw [ite_eq_left this]
+      SharpThreeSAT, SharpSAT,
+      ite_eq_left (List.all_eq_true.2 fun c hc => decide_eq_true (hφ c hc).2)]
   · have hzero : IntPermanent (cnfToPermanentTable φ) = 0 := by
       rw [cnfToPermanentTable, ite_eq_right hφ]
       simp [IntPermanent, Matrix.permanent, tableMatrix_apply]
@@ -122,12 +119,9 @@ theorem intPermanent_cnfToPermanentTable (φ : CNF ℕ) :
     split_ifs with hall
     · obtain ⟨c, hc, hbad⟩ : ∃ c ∈ φ, ¬(1 ≤ c.length ∧ c.length ≤ 3) := by
         simpa [WellFormed] using hφ
-      have hc3 : c.length ≤ 3 := by
-        simp only [List.all_eq_true, decide_eq_true_eq] at hall
-        exact hall c hc
+      have hc3 : c.length ≤ 3 := of_decide_eq_true (List.all_eq_true.mp hall c hc)
       have hnil : c = [] := List.eq_nil_of_length_eq_zero (by omega)
-      rw [SharpSAT, modelCount_eq_zero_of_nil_mem (hnil ▸ hc)]
-      simp
+      simp [SharpSAT, modelCount_eq_zero_of_nil_mem (hnil ▸ hc)]
     · simp
 
 /-- The gadget entries lie in `{-1, 0, 1, 2, 3}`. -/
@@ -198,11 +192,7 @@ theorem mem_entries_cnfToPermanentTable (φ : CNF ℕ) :
     obtain ⟨l, -, rfl⟩ := List.mem_map.1 hx
     exact matrixEntry_mem hφ (List.mem_range.1 hk) l
   · rw [cnfToPermanentTable, ite_eq_right hφ] at hrow
-    simp only [List.mem_singleton] at hrow
-    subst hrow
-    simp only [List.mem_singleton] at hx
-    subst hx
-    decide
+    simp_all
 
 theorem computableInPolyTime_size : ComputableInPolyTime size encCNF encUnary := by
   fun_prop [size]
@@ -227,10 +217,6 @@ theorem computableInPolyTime_cnfToPermanentTable :
   have hrow : ComputableInPolyTime
       (fun p : CNF ℕ × ℕ => (List.range (size p.1)).map fun l => matrixEntry p.1 p.2 l)
       (encPair encCNF encUnary) (encList encIntBin) := by
-    fun_prop
-  have htable : ComputableInPolyTime
-      (fun φ : CNF ℕ => (List.range (size φ)).map fun k =>
-        (List.range (size φ)).map fun l => matrixEntry φ k l) encCNF encIntTable := by
     fun_prop
   have h : cnfToPermanentTable = fun φ => if decide (WellFormed φ) then
       (List.range (size φ)).map (fun k => (List.range (size φ)).map fun l => matrixEntry φ k l)
@@ -261,10 +247,13 @@ theorem metricReducible_sharpThreeSAT_intPermanent :
     computableInPolyTime_cnfToPermanentTable, ?_, fun φ => ?_⟩
   · unfold encCNF
     fun_prop
-  · simp only [intPermanent_cnfToPermanentTable]
-    rw [show (12 : ℤ) ^ φ.length = ((12 ^ φ.length : ℕ) : ℤ) by push_cast; rfl,
-      Int.toNat_natCast, show ((12 ^ φ.length : ℕ) : ℤ) * (SharpThreeSAT φ : ℤ) =
-        ((12 ^ φ.length * SharpThreeSAT φ : ℕ) : ℤ) by push_cast; rfl, Int.toNat_natCast,
-      Nat.mul_div_cancel_left _ (by positivity)]
+  · dsimp only
+    have hperm : IntPermanent (cnfToPermanentTable φ) =
+        ((12 ^ φ.length * SharpThreeSAT φ : ℕ) : ℤ) := by
+      rw [intPermanent_cnfToPermanentTable]
+      push_cast; rfl
+    have hpow : ((12 : ℤ) ^ φ.length).toNat = 12 ^ φ.length := by
+      norm_cast
+    rw [hperm, Int.toNat_natCast, hpow, Nat.mul_div_cancel_left _ (by positivity)]
 
 end Cslib.Complexity

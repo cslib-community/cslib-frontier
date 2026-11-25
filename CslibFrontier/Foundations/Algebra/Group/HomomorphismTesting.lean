@@ -106,20 +106,18 @@ theorem collision_lower (f : G → H) (x : G) :
     dsimp [bad, vote]
     by_cases h₁ : f (x + a) + f b = f ((x + a) + b)
     · by_cases h₂ : f a + f (x + b) = f (a + (x + b))
-      · have he : f (x + a) - f a = f (x + b) - f b := by
-          have hsum : x + a + b = a + (x + b) := by abel
-          rw [hsum] at h₁
-          exact sub_eq_sub_iff_add_eq_add.mpr (h₁.trans (h₂.symm.trans (add_comm _ _)))
+      · have he : f (x + a) - f a = f (x + b) - f b :=
+          sub_eq_sub_iff_add_eq_add.mpr
+            ((h₁.trans (congrArg f (by abel))).trans (h₂.symm.trans (add_comm _ _)))
         simp [h₁, h₂, he]
       · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
-    · by_cases h₂ : f a + f (x + b) = f (a + (x + b)) <;>
-        by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
+    · by_cases h₂ : f a + f (x + b) = f (a + (x + b))
+      · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
+      · by_cases hc : f (x + a) - f a = f (x + b) - f b <;> simp [h₁, h₂, hc]
   have h := expect_le_expect (s := univ) (fun a _ =>
     expect_le_expect (s := univ) (fun b _ => point a b))
-  have h₁ : (𝔼 a, 𝔼 b, bad (x + a) b) = rejection f := by
-    rw [show (𝔼 a, 𝔼 b, bad (x + a) b) = 𝔼 a, 𝔼 b, bad a b from
-      Fintype.expect_add_left (fun a => 𝔼 b, bad a b) x]
-    exact (rejection_eq_expect f).symm
+  have h₁ : (𝔼 a, 𝔼 b, bad (x + a) b) = rejection f :=
+    (Fintype.expect_add_left (fun a => 𝔼 b, bad a b) x).trans (rejection_eq_expect f).symm
   have h₂ : (𝔼 a, 𝔼 b, bad a (x + b)) = rejection f := by
     simp_rw [Fintype.expect_add_left]
     exact (rejection_eq_expect f).symm
@@ -142,11 +140,9 @@ theorem concentration (f : G → H) {φ : G → H} (hφ : IsPlurality f φ) (x :
       decide_eq_true_eq, ← Fintype.expect_boole]
   obtain ⟨b, hb⟩ := Probability.PMF.exists_le_toReal_of_le_collisionProbability
     ((Probability.PMF.uniformOfFintype G).map (vote f x)) (hc.symm ▸ collision_lower f x)
-  rw [Probability.PMF.toReal_uniformOfFintype_map_apply] at hb
-  rw [Fintype.expect_boole]
-  refine hb.trans ?_
-  rw [nnratCast_dens, nnratCast_dens]
-  exact div_le_div_of_nonneg_right (by exact_mod_cast hφ x b) (Nat.cast_nonneg _)
+  rw [Probability.PMF.toReal_uniformOfFintype_map_apply, nnratCast_dens] at hb
+  rw [Fintype.expect_boole, nnratCast_dens]
+  exact hb.trans (div_le_div_of_nonneg_right (by exact_mod_cast hφ x b) (Nat.cast_nonneg _))
 
 open Classical in
 /-- The error probability of the correction at each point is at most `2ε`. -/
@@ -167,23 +163,20 @@ theorem plurality_add (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
   have h₁ := correction_error f hφ x
   have h₂ := correction_error f hφ y
   have h₃ := correction_error f hφ (x + y)
+  have shift (z : G) : (𝔼 r, e z (r - y)) = 𝔼 r, e z r :=
+    Fintype.expect_equiv (Equiv.subRight y) _ _ fun _ => rfl
   have ht : (𝔼 r, (e x r + e y (r - y) + e (x + y) (r - y))) < 1 := by
-    have shift (z : G) : (𝔼 r, e z (r - y)) = 𝔼 r, e z r :=
-      Fintype.expect_equiv (Equiv.subRight y) _ _ fun _ => rfl
     rw [expect_add_distrib, expect_add_distrib, shift, shift]
     dsimp [e] at *
     linarith
   obtain ⟨r, -, hr⟩ := exists_lt_of_expect_lt univ_nonempty ht
-  have good : φ x = vote f x r ∧ φ y = vote f y (r - y) ∧
+  have ⟨hx, hy, hxy⟩ : φ x = vote f x r ∧ φ y = vote f y (r - y) ∧
       φ (x + y) = vote f (x + y) (r - y) := by
     dsimp [e] at hr
-    split_ifs at hr <;> simp_all <;> norm_num at hr
-  obtain ⟨hx, hy, hxy⟩ := good
-  rw [hx, hy, hxy]
-  dsimp [vote]
-  have ha : y + (r - y) = r := by abel
-  have hb : x + y + (r - y) = x + r := by abel
-  rw [ha, hb]
+    split_ifs at hr <;> simp_all
+    all_goals norm_num at hr
+  rw [hx, hy, hxy, vote, vote, vote, show y + (r - y) = r by abel,
+    show x + y + (r - y) = x + r by abel]
   abel
 
 open Classical in
@@ -205,18 +198,14 @@ theorem closeness (f : G → H) {φ : G → H} (hφ : IsPlurality f φ)
       exact expect_nonneg fun _ _ => by positivity
     · have hc := concentration f hφ x
       have hm : (𝔼 y, if vote f x y = φ x then (1 : ℝ) else 0) ≤
-          𝔼 y, if f x + f y ≠ f (x + y) then (1 : ℝ) else 0 := by
-        refine expect_le_expect fun y _ => ?_
-        by_cases hv : vote f x y = φ x
-        · have hn : f x + f y ≠ f (x + y) := by
-            intro he
-            apply hx
-            rw [← hv]
-            dsimp [vote]
-            rw [← he, add_sub_cancel_right]
-          simp [hv, hn]
-        · simp only [hv, ite_false]
-          positivity
+          𝔼 y, if f x + f y ≠ f (x + y) then (1 : ℝ) else 0 :=
+        expect_le_expect fun y _ => by
+          by_cases hv : vote f x y = φ x
+          · have hn : f x + f y ≠ f (x + y) := fun he =>
+              hx (by rw [← hv, vote, ← he, add_sub_cancel_right])
+            simp [hv, hn]
+          · simp only [hv, ite_false]
+            positivity
       simp only [hx, ne_eq, not_false_eq_true, ite_true, mul_one]
       linarith
   have h := expect_le_expect (s := univ) fun x _ => point x
@@ -252,14 +241,12 @@ private theorem disagreement_moments (f : G → H) (h : G →+ H) :
     rw [expect_comm]
     simp_rw [add_comm, ← mul_expect, Fintype.expect_add_left, ← expect_mul]
     ring
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa only [Fintype.expect_const] using hd
-  · simpa only [Fintype.expect_const] using hd
-  · change (𝔼 x : G, 𝔼 y : G, a (x + y)) = _
-    simpa only [Fintype.expect_add_left, Fintype.expect_const] using hd
-  · exact hab.trans (congrArg (· ^ 2) hd)
-  · exact hac.trans (congrArg (· ^ 2) hd)
-  · exact hbc.trans (congrArg (· ^ 2) hd)
+  exact ⟨by simpa only [Fintype.expect_const] using hd,
+    by simpa only [Fintype.expect_const] using hd,
+    by change (𝔼 x : G, 𝔼 y : G, a (x + y)) = _
+       simpa only [Fintype.expect_add_left, Fintype.expect_const] using hd,
+    hab.trans (congrArg (· ^ 2) hd), hac.trans (congrArg (· ^ 2) hd),
+    hbc.trans (congrArg (· ^ 2) hd)⟩
 
 open Classical in
 /-- Goldreich r5 Exercise 9.20(2), for any supplied homomorphism, not just a closest one. -/
@@ -269,19 +256,17 @@ theorem disagreement_sub_two_sq_le_onlyFirst (f : G → H) (h : G →+ H) :
       𝔼 x : G, 𝔼 y : G, if OnlyFirstDisagreement f h x y then (1 : ℝ) else 0 := by
   classical
   obtain ⟨ha, _, _, hab, hac, _⟩ := disagreement_moments f h
-  have point (x y : G) :
+  have hp := expect_le_expect (s := univ) fun x _ =>
+    expect_le_expect (s := univ) fun y _ => show
       (if f x ≠ h x then (1 : ℝ) else 0) -
         (if f x ≠ h x then 1 else 0) * (if f y ≠ h y then 1 else 0) -
         (if f x ≠ h x then 1 else 0) * (if f (x + y) ≠ h (x + y) then 1 else 0) ≤
-      if OnlyFirstDisagreement f h x y then 1 else 0 := by
-    dsimp [OnlyFirstDisagreement]
-    split_ifs <;> simp_all
-  have hp := expect_le_expect (s := univ) fun x _ =>
-    expect_le_expect (s := univ) fun y _ => point x y
+      if OnlyFirstDisagreement f h x y then 1 else 0 by
+        dsimp [OnlyFirstDisagreement]
+        split_ifs <;> simp_all
   simp only [expect_sub_distrib] at hp
-  dsimp only at ha hab hac
+  dsimp only at ha hab hac ⊢
   rw [ha, hab, hac] at hp
-  dsimp only
   linarith
 
 open Classical in
@@ -309,17 +294,11 @@ theorem three_mul_onlyFirst_le_rejection (f : G → H) (h : G →+ H) :
   have hp := expect_le_expect (s := univ) fun x _ =>
     expect_le_expect (s := univ) fun y _ => point x y
   obtain ⟨ha, hb, hc, hab, hac, hbc⟩ := disagreement_moments f h
-  change (𝔼 x : G, 𝔼 y : G, a x) = _ at ha
-  change (𝔼 x : G, 𝔼 y : G, a y) = _ at hb
-  change (𝔼 x : G, 𝔼 y : G, a (x + y)) = _ at hc
-  change (𝔼 x : G, 𝔼 y : G, a x * a y) = _ at hab
-  change (𝔼 x : G, 𝔼 y : G, a x * a (x + y)) = _ at hac
-  change (𝔼 x : G, 𝔼 y : G, a y * a (x + y)) = _ at hbc
-  have pull (b : G → G → ℝ) (c : ℝ) :
-      (𝔼 x, 𝔼 y, c * b x y) = c * (𝔼 x, 𝔼 y, b x y) := by
+  have pull (b : G → G → ℝ) (c : ℝ) : (𝔼 x, 𝔼 y, c * b x y) = c * (𝔼 x, 𝔼 y, b x y) := by
     simp_rw [← mul_expect]
   simp only [expect_add_distrib, expect_sub_distrib] at hp
   rw [pull _ 3, pull _ 2, pull _ 2] at hp
+  dsimp only [a] at hp ha hb hc hab hac hbc
   rw [ha, hb, hc, hab, hac, hbc, ← rejection_eq_expect] at hp
   linarith
 

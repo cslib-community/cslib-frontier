@@ -61,10 +61,9 @@ private theorem decoded_value (c D j : ℕ) (hj : j < (2 * D + 1) ^ c) :
 theorem measurementValues_injective (c D : ℕ) :
     Function.Injective (fun j : Fin ((2 * D + 1) ^ c) => measurementValues c D j) := by
   intro i j h
-  apply Fin.ext
-  have hv := congrArg
-    (fun word : List ℤ => Nat.ofDigits (2 * D + 1) (word.map fun z => (z + (D : ℤ)).toNat)) h
-  simpa only [decoded_value c D i i.isLt, decoded_value c D j j.isLt] using hv
+  exact Fin.ext (by
+    simpa only [decoded_value c D i i.isLt, decoded_value c D j j.isLt] using
+      congrArg (fun w : List ℤ => Nat.ofDigits (2 * D + 1) (w.map fun z => (z + (D : ℤ)).toNat)) h)
 
 /-- Every list of the declared length with coordinates in the signed interval has exactly one
 fitting index. This proves actual decoder coverage without materializing the box. -/
@@ -79,17 +78,12 @@ theorem measurementValues_coverage (c D : ℕ) (word : List ℤ) (hlen : word.le
     omega
   have hv : Nat.ofDigits (2 * D + 1) digits < (2 * D + 1) ^ c := by
     simpa [digits, hlen] using Nat.ofDigits_lt_base_pow_length_of_pos (by omega) digits hd
-  let j : Fin ((2 * D + 1) ^ c) := ⟨Nat.ofDigits (2 * D + 1) digits, hv⟩
-  have hj : measurementValues c D j = word := by
-    apply List.ext_getElem (by simp [hlen])
-    intro i hi hi'
-    simp only [measurementValues, List.getElem_map, List.getElem_range]
-    have he := digit_ofDigits (B := 2 * D + 1) (by omega) digits hd i (by simpa [digits] using hi')
+  have hj : measurementValues c D (Nat.ofDigits (2 * D + 1) digits) = word := by
+    refine List.ext_getElem (by simp [hlen]) fun i hi hi' => ?_
     have hz := hword word[i] (List.getElem_mem hi')
-    change (digit (2 * D + 1) (Nat.ofDigits (2 * D + 1) digits) i : ℤ) - D = word[i]
-    rw [he]
-    simp only [digits, List.getElem_map]
+    simp only [measurementValues, List.getElem_map, List.getElem_range,
+      digit_ofDigits (B := 2 * D + 1) (by omega) digits hd i (by simpa [digits] using hi'), digits]
     omega
-  exact ⟨j, hj, fun k hk => measurementValues_injective c D (hk.trans hj.symm)⟩
+  exact ⟨⟨_, hv⟩, hj, fun k hk => measurementValues_injective c D (hk.trans hj.symm)⟩
 
 end Cslib.Radix

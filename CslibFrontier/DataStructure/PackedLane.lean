@@ -72,16 +72,10 @@ theorem testBit_laneGet (W word j b : ℕ) :
 /-- Two words are equal when all of their `W`-bit lanes (`0 < W`) agree. -/
 theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
     (h : ∀ k, laneGet W a k = laneGet W b k) : a = b := by
-  apply Nat.eq_of_testBit_eq
-  intro t
-  have ht : t = (t / W) * W + t % W := by
-    rw [Nat.mul_comm, Nat.div_add_mod]
-  have hmod : t % W < W := Nat.mod_lt t hW
-  have ha := testBit_laneGet W a (t / W) (t % W)
-  have hb := testBit_laneGet W b (t / W) (t % W)
-  rw [h (t / W)] at ha
-  simp only [hmod, decide_true, Bool.true_and, ← ht] at ha hb
-  exact ha.symm.trans hb
+  refine Nat.eq_of_testBit_eq fun t => ?_
+  have h1 := congrArg (·.testBit (t % W)) (h (t / W))
+  simpa only [testBit_laneGet, Nat.mod_lt t hW, decide_true, Bool.true_and,
+    Nat.mul_comm _ W, Nat.div_add_mod] using h1
 
 private theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
     ∑ j ∈ range n, f j * 2 ^ (j * W) < 2 ^ (n * W) := by
@@ -105,53 +99,35 @@ theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j <
   | zero =>
     simp [laneGet]
   | succ m ih =>
-    rw [sum_range_succ]
+    have hT := sum_mul_pow_lt hf
+    rw [sum_range_succ] at hT ⊢
     set S := ∑ j ∈ range m, f j * 2 ^ (j * W)
     have hS_lt : S < 2 ^ (m * W) := sum_mul_pow_lt (fun j hj => hf j (Nat.lt_succ_of_lt hj))
-    have hfm_lt : f m < 2 ^ W := hf m (Nat.lt_succ_self m)
+    rcases lt_or_ge m k with hgt | hkm
+    · rw [ite_eq_right (by omega), laneGet_eq_div_mod, Nat.div_eq_of_lt (hT.trans_le
+        (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right W hgt))), Nat.zero_mod]
     have hor : S + f m * 2 ^ (m * W) = S ||| (f m <<< (m * W)) := by
       rw [← Nat.shiftLeft_eq, Nat.add_comm, Nat.shiftLeft_add_eq_or_of_lt hS_lt, Nat.or_comm]
     apply Nat.eq_of_testBit_eq
     intro b
-    rw [hor, testBit_laneGet]
+    rw [hor, testBit_laneGet, ite_eq_left (by omega)]
     by_cases hb : b < W
     · simp only [hb, decide_true, Bool.true_and, Nat.testBit_or, Nat.testBit_shiftLeft]
-      rcases lt_trichotomy k m with hlt | rfl | hgt
-      · have hk1 : k < m + 1 := by omega
-        have hnge : ¬(m * W ≤ k * W + b) := by
+      rcases hkm.lt_or_eq with hlt | rfl
+      · have hnge : ¬(m * W ≤ k * W + b) := by
           have : (k + 1) * W ≤ m * W := Nat.mul_le_mul_right W hlt
           rw [Nat.add_mul, one_mul] at this
           omega
         have hih := congrArg (fun x => x.testBit b)
           (ih (fun j hj => hf j (Nat.lt_succ_of_lt hj)))
         rw [testBit_laneGet] at hih
-        simpa [hk1, hlt, hnge, hb] using hih
-      · have hk1 : k < k + 1 := Nat.lt_succ_self k
-        have hge : k * W ≤ k * W + b := Nat.le_add_right _ _
-        have hS0 : S.testBit (k * W + b) = false :=
-          Nat.testBit_lt_two_pow (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) hge))
-        simp [hk1, hge, hS0]
-      · have hnk1 : ¬(k < m + 1) := by omega
-        have hge1 : (m + 1) * W ≤ k * W + b := by
-          have : (m + 1) * W ≤ k * W := Nat.mul_le_mul_right W hgt
-          omega
-        have hS0 : S.testBit (k * W + b) = false :=
-          Nat.testBit_lt_two_pow (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) (by
-            have : m * W ≤ (m + 1) * W := Nat.mul_le_mul_right W (by omega)
-            omega)))
-        simp only [hnk1, ↓reduceIte, Nat.zero_testBit, hS0, Bool.false_or]
-        by_cases hge : m * W ≤ k * W + b
-        · simp only [hge, decide_true, Bool.true_and]
-          refine Nat.testBit_lt_two_pow (hfm_lt.trans_le (Nat.pow_le_pow_right (by decide) ?_))
-          have : (m + 1) * W = m * W + W := by ring
-          omega
-        · simp [hge]
+        simpa [hlt, hnge, hb] using hih
+      · have hS0 : S.testBit (k * W + b) = false := Nat.testBit_lt_two_pow
+          (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) (Nat.le_add_right _ _)))
+        simp [hS0]
     · simp only [hb, decide_false, Bool.false_and]
-      split_ifs with hk1
-      · symm
-        exact Nat.testBit_lt_two_pow ((hf k hk1).trans_le
-          (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_lt hb)))
-      · simp
+      exact (Nat.testBit_lt_two_pow ((hf k (by omega)).trans_le
+        (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_lt hb)))).symm
 
 /-- Base-`2 ^ W` expansion of any word `< 2 ^ (n * W)` into its first `n` lanes. -/
 theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * W)) :
@@ -160,14 +136,12 @@ theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * 
   rw [laneGet_sum_mul_pow (fun j _ => laneGet_lt W word j)]
   split_ifs with hk
   · rfl
-  · apply Nat.eq_of_testBit_eq
-    intro b
+  · refine Nat.eq_of_testBit_eq fun b => ?_
     rw [testBit_laneGet, Nat.zero_testBit]
     by_cases hb : b < W
     · simp only [hb, decide_true, Bool.true_and]
-      refine Nat.testBit_lt_two_pow (hw.trans_le (Nat.pow_le_pow_right (by decide) ?_))
-      have : n * W ≤ k * W := Nat.mul_le_mul_right W (Nat.le_of_not_lt hk)
-      omega
+      exact Nat.testBit_lt_two_pow (hw.trans_le (Nat.pow_le_pow_right (by decide)
+        (by have := Nat.mul_le_mul_right W (Nat.le_of_not_lt hk); omega)))
     · simp [hb]
 
 /-- Words `< 2 ^ (n * W)` are uniquely determined by their first `n` `W`-bit lanes. -/

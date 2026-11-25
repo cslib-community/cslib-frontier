@@ -88,8 +88,7 @@ private theorem disjoint_right (r s : Elbow) (hsource : r.source < s.source)
     (htarget : r.target < s.target) (hr : r.source ≤ r.target)
     (hs : s.source ≤ s.target) (hbend : s.bend < r.bend) :
     ∀ p, ¬(r.Contains p ∧ s.Contains p) := by
-  intro p hp
-  rcases hp with ⟨hrp, hsp⟩
+  rintro p ⟨hrp, hsp⟩
   simp only [Elbow.Contains, Nat.min_eq_left hr, Nat.max_eq_right hr,
     Nat.min_eq_left hs, Nat.max_eq_right hs] at hrp hsp
   rcases hrp with h | h | h <;> rcases hsp with h' | h' | h' <;> omega
@@ -98,8 +97,7 @@ private theorem disjoint_left (r s : Elbow) (hsource : r.source < s.source)
     (htarget : r.target < s.target) (hr : r.target ≤ r.source)
     (hs : s.target ≤ s.source) (hbend : r.bend < s.bend) :
     ∀ p, ¬(r.Contains p ∧ s.Contains p) := by
-  intro p hp
-  rcases hp with ⟨hrp, hsp⟩
+  rintro p ⟨hrp, hsp⟩
   simp only [Elbow.Contains, Nat.min_eq_right hr, Nat.max_eq_left hr,
     Nat.min_eq_right hs, Nat.max_eq_left hs] at hrp hsp
   rcases hrp with h | h | h <;> rcases hsp with h' | h' | h' <;> omega
@@ -141,11 +139,8 @@ theorem OrderedRouting.top_iff {n : ℕ} {source target : Fin n → ℕ}
 theorem OrderedRouting.bottom_iff {n : ℕ} {source target : Fin n → ℕ}
     (r : OrderedRouting source target) (i : Fin n) (x : ℕ) :
     r.Contains i (x, 2 * (n + 1)) ↔ x = target i := by
-  have hu := (r.upper i).bend_lt
-  have hh := r.upper_height i
-  have hrow : ¬(r.upper i).Contains (x, 2 * (n + 1)) := by
-    intro hp
-    have := (r.upper i).row_le hp
+  have hrow : ¬(r.upper i).Contains (x, 2 * (n + 1)) := fun hp => by
+    have := r.upper_height i ▸ (r.upper i).row_le hp
     omega
   simp only [Contains, hrow, false_or]
   rw [show 2 * (n + 1) - (n + 1) = n + 1 by omega, ← r.lower_height i,

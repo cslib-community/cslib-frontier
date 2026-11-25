@@ -109,14 +109,11 @@ theorem step_cfg (q₀ : State)
   dsimp only
   rw [step_of_state (q := some q) rfl]
   have hz : (cfg (some q) pos counters output).workTapeSymbols =
-      fun i => if counters i = 0 then some true else none := by
-    funext i
-    simp [cfg, Cfg.workTapeSymbols, Function.update_apply]
-  simp only [machine, tr_ofTr, hz]
+      fun i => if counters i = 0 then some true else none :=
+    funext fun i => by simp [cfg, Cfg.workTapeSymbols, Function.update_apply]
   have hi (i : Fin k) : (if counters i = 0 then some true else none).isSome =
-      decide (counters i = 0) := by
-    split_ifs <;> simp_all
-  simp only [hi]
+      decide (counters i = 0) := by split_ifs <;> simp_all
+  simp only [machine, tr_ofTr, hz, hi]
   tm_step [cfg, movement_cast]
 
 /-- Initialization writes exactly the origin markers and starts every counter at zero. -/
@@ -150,25 +147,22 @@ theorem run_support (q₀ : State)
         · have hpos : c.workTapePos i = 0 := by
             -- Initialization control is present only at time zero.
             have hstate : t = 0 := by
-              cases t with
-              | zero => rfl
-              | succ t =>
-                rw [runFrom_succ] at hc
-                have hnever : ∀ c : Cfg k Bool (Option State) input,
+              rcases t with _ | t
+              · rfl
+              · rw [runFrom_succ] at hc
+                have hnever (c : Cfg k Bool (Option State) input) :
                     ((machine q₀ tr).step c).state ≠ some none := by
-                  intro c
                   cases hq : c.state with
                   | none => simp [hq]
                   | some q =>
                     rw [step_of_state hq]
                     cases q <;> simp [machine, Action.apply]
                 exact False.elim (hnever _ (hc ▸ hs))
-            subst t
+            subst hstate
             simpa [runFrom, MultiTapeNTM.initCfg, Cfg.init] using
               congrArg (fun c => c.workTapePos i) hc.symm
           exact hz.trans hpos
-        · apply ih
-          simpa [Function.update_of_ne hz] using h
+        · exact ih (by simpa [Function.update_of_ne hz] using h)
       | some q => simpa [machine, tr_ofTr] using ih
 
 private def increment : MultiTapeTM 1 Bool (Option Unit) :=
@@ -194,19 +188,14 @@ theorem exists_unbounded_visited_fixed_support :
         (tm.runFrom (tm.initCfg input) t).workTapes i z ≠ none → z = 0) ∧
       (∀ input, Function.Injective (fun t => tm.runFrom (tm.initCfg input) (t + 1))) ∧
       ∀ input s, ¬tm.RunsInSpace input s := by
-  refine ⟨increment, run_support _ _, ?_, ?_⟩
-  · intro input a b h
-    have := congrArg (fun c => c.workTapePos 0) h
-    simpa only [increment_run, cfg, Nat.cast_inj] using this
-  · intro input s h
-    let p := MultiTapeNTM.ComputationPath.ofDeterministic increment input (s + 2)
-    have hw := MultiTapeNTM.RunPath.inWindow_of_space_le
-      (p := p.toRunPath) (fun _ => rfl) (h p)
+  refine ⟨increment, run_support _ _, fun input a b h => ?_, fun input s h => ?_⟩
+  · simpa only [increment_run, cfg, Nat.cast_inj] using congrArg (fun c => c.workTapePos 0) h
+  · let p := MultiTapeNTM.ComputationPath.ofDeterministic increment input (s + 2)
+    have hw := MultiTapeNTM.RunPath.inWindow_of_space_le (p := p.toRunPath) (fun _ => rfl) (h p)
     have hz := mem_window.mp (hw p.last ⟨Fin.last _, rfl⟩ 0)
     rw [computationPath_last_eq_runFrom] at hz
     change ((increment.runFrom (increment.initCfg input) ((s + 1) + 1)).workTapePos 0).natAbs ≤ s
       at hz
-    simp only [increment_run, cfg, Int.natAbs_natCast] at hz
-    omega
+    simp only [increment_run, cfg, Int.natAbs_natCast] at hz; omega
 
 end Turing.MultiTapeTM.HeadCounter

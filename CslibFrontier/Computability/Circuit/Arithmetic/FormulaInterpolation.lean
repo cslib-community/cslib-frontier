@@ -96,8 +96,8 @@ theorem polynomial_coeffLast [CharZero K] {F : SPFormula K (n + 1)}
   refine sum_congr rfl fun j _ => ?_
   rw [polynomial_substFormula, smul_eq_C_mul, algebraMap_eq, ← hP]
   congr 3
-  funext k
-  refine Fin.lastCases ?_ (fun k => ?_) k <;> simp
+  ext k
+  exact Fin.lastCases (by simp) (fun _ => by simp) k
 
 /-- Taking a coefficient in the last variable does not increase the product-depth. -/
 theorem productDepth_coeffLast_le (i r : ℕ) (F : SPFormula K (n + 1)) :
@@ -120,20 +120,16 @@ theorem nodeCount_coeffLast_le (i r : ℕ) (F : SPFormula K (n + 1)) :
 private theorem aeval_C_mul_X_eq_sum {p : MvPolynomial (Fin n) K} {r : ℕ}
     (hr : p.totalDegree ≤ r) (c : K) :
     aeval (fun i => C c * X i) p = ∑ k ∈ range (r + 1), C c ^ k * homogeneousComponent k p := by
-  have hmon (s : Fin n →₀ ℕ) (a : K) :
-      aeval (fun i => C c * X i) (monomial s a) = C c ^ s.degree * monomial s a := by
-    rw [aeval_monomial, algebraMap_eq, monomial_eq, Finsupp.prod, Finsupp.prod]
-    simp only [mul_pow, prod_mul_distrib, prod_pow_eq_pow_sum, Finsupp.degree_apply]
-    ring
-  have hdeg (s : Fin n →₀ ℕ) (hs : s ∈ p.support) : s.degree ∈ range (r + 1) :=
-    mem_range_succ_iff.2 ((le_totalDegree hs).trans hr)
   calc aeval (fun i => C c * X i) p
       = ∑ s ∈ p.support, C c ^ s.degree * monomial s (p.coeff s) := by
-        conv_lhs => rw [← p.support_sum_monomial_coeff]
-        rw [map_sum]
-        exact sum_congr rfl fun s _ => hmon s _
+        conv_lhs => rw [← p.support_sum_monomial_coeff, map_sum]
+        refine sum_congr rfl fun s _ => ?_
+        rw [aeval_monomial, algebraMap_eq, monomial_eq, Finsupp.prod, Finsupp.prod]
+        simp only [mul_pow, prod_mul_distrib, prod_pow_eq_pow_sum, Finsupp.degree_apply]
+        ring
     _ = _ := by
-        rw [← sum_fiberwise_of_maps_to hdeg]
+        rw [← sum_fiberwise_of_maps_to
+          (fun s hs => mem_range_succ_iff.2 ((le_totalDegree hs).trans hr))]
         refine sum_congr rfl fun k _ => ?_
         rw [homogeneousComponent_apply, mul_sum]
         exact sum_congr rfl fun s hs => by rw [(mem_filter.1 hs).2]
@@ -158,16 +154,14 @@ theorem polynomial_lowPartFormula [CharZero K] {F : SPFormula K n} {r : ℕ}
   -- The polynomial of `F` with its inputs scaled by `c`, as a polynomial in `c`.
   let Q : Polynomial (MvPolynomial (Fin n) K) :=
     ∑ k ∈ range (r + 1), Polynomial.C (homogeneousComponent k F.polynomial) * Polynomial.X ^ k
-  have hQdeg : Q.natDegree < #(range (r + 1)) := by
-    rw [card_range]
-    exact Nat.lt_succ_of_le (Polynomial.natDegree_sum_le_of_forall_le _ _ fun k hk =>
-      (Polynomial.natDegree_C_mul_X_pow_le _ _).trans (mem_range_succ_iff.1 hk))
+  have hQdeg : Q.natDegree < #(range (r + 1)) :=
+    (card_range (r + 1)).symm ▸ Nat.lt_succ_of_le (Polynomial.natDegree_sum_le_of_forall_le _ _
+      fun _ hk => (Polynomial.natDegree_C_mul_X_pow_le _ _).trans (mem_range_succ_iff.1 hk))
   have hQcoeff (k : ℕ) : Q.coeff k = homogeneousComponent k F.polynomial := by
     simp only [Q, Polynomial.finsetSum_coeff, Polynomial.coeff_C_mul, Polynomial.coeff_X_pow,
       mul_ite, mul_one, mul_zero, sum_ite_eq, mem_range]
     split_ifs with h
-    · rfl
-    · exact (homogeneousComponent_eq_zero _ _ (by omega)).symm
+    exacts [rfl, (homogeneousComponent_eq_zero _ _ (by omega)).symm]
   have hQeval (c : K) : Q.eval (C c) = aeval (fun i => C c * X i) F.polynomial := by
     rw [aeval_C_mul_X_eq_sum hr, Polynomial.eval_finsetSum]
     exact sum_congr rfl fun k _ => by
@@ -177,8 +171,7 @@ theorem polynomial_lowPartFormula [CharZero K] {F : SPFormula K n} {r : ℕ}
     Nat.cast_injective.injOn hQdeg, algebraMap_eq, hQeval, smul_eq_C_mul]
   rw [sum_comm]
   refine sum_congr rfl fun j _ => ?_
-  rw [map_sum, sum_mul, polynomial_substFormula]
-  simp only [polynomial_affineInput, id, Pi.zero_apply, C_0, add_zero]
+  simp [map_sum, sum_mul, polynomial_substFormula, polynomial_affineInput]
 
 /-- Taking the homogeneous components of low degree does not increase the product-depth. -/
 theorem productDepth_lowPartFormula_le (d r : ℕ) (F : SPFormula K n) :

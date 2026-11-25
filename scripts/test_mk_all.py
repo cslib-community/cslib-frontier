@@ -4,13 +4,22 @@
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from aggregate_order import import_key  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = ROOT / ".lake/build/bin/mk_all"
 MODULE_HEADER = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
+
+
+def imports(*modules, keyword="import"):
+    """Import lines for `modules` in the order `mk_all` writes them (`aggregate_order.py`)."""
+    return "".join(f"{keyword} {module}\n" for module in sorted(modules, key=import_key))
 
 
 @unittest.skipUnless(BINARY.is_file(), "Build the local executable with lake build mk_all")
@@ -42,18 +51,28 @@ class MkAllTests(unittest.TestCase):
         self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
         return result
 
-    def test_default_generation_missing_roots_and_sorted_module_names(self):
+    def test_default_generation_missing_roots_and_hash_ordered_module_names(self):
         self.run_cli("--check", expected=2)
         self.assertFalse((self.root / "Plain.lean").exists())
         self.assertFalse((self.root / "relocated/Moved.lean").exists())
         self.run_cli(expected=2)
         self.assertEqual((self.root / "Plain.lean").read_text(),
-                         "import Plain.Alpha\nimport Plain.Zed\n")
+                         imports("Plain.Alpha", "Plain.Zed"))
         self.assertEqual((self.root / "relocated/Moved.lean").read_text(),
-                         "import Moved.Beta\nimport Moved.Sub.Child\n")
+                         imports("Moved.Beta", "Moved.Sub.Child"))
         self.assertFalse((self.root / "Moved.lean").exists())
         # Both roots must be visited despite the temporary source-directory changes.
         self.run_cli("--check")
+
+    def test_order_is_the_python_tools_order(self):
+        # Many siblings whose names differ only in their last characters, which FNV-1a without
+        # its finalizer would leave next to each other.
+        names = [f"Plain.Part{i}" for i in range(40)] + ["Plain.Alpha", "Plain.Zed"]
+        for name in names[:40]:
+            self.source(name.replace(".", "/") + ".lean")
+        self.run_cli("--lib", "Plain", expected=1)
+        self.assertEqual((self.root / "Plain.lean").read_text(), imports(*names))
+        self.assertNotEqual(imports(*names), "".join(f"import {n}\n" for n in sorted(names)))
 
     def test_moved_library_detects_missing_import_and_repairs_it(self):
         self.run_cli("--lib", "Moved", expected=1)
@@ -69,7 +88,8 @@ class MkAllTests(unittest.TestCase):
     def test_module_flag_and_inferred_style_and_library_subfolder(self):
         self.run_cli("--lib", "Moved", "--module", expected=1)
         self.assertEqual((self.root / "relocated/Moved.lean").read_text(),
-                         MODULE_HEADER + "public import Moved.Beta\npublic import Moved.Sub.Child\n")
+                         MODULE_HEADER + imports("Moved.Beta", "Moved.Sub.Child",
+                                                 keyword="public import"))
         self.source("relocated/Moved/Added.lean")
         self.run_cli("--lib", "Moved", expected=1)
         self.assertTrue((self.root / "relocated/Moved.lean").read_text().startswith(MODULE_HEADER))
@@ -96,7 +116,7 @@ class MkAllTests(unittest.TestCase):
         self.source("relocated/Moved/Untracked.lean")
         self.run_cli("--git", "--lib", "Moved", expected=1)
         self.assertEqual((self.root / "relocated/Moved.lean").read_text(),
-                         "import Moved.Beta\nimport Moved.Sub.Child\n")
+                         imports("Moved.Beta", "Moved.Sub.Child"))
         self.run_cli("--git", "--lib", "Moved", "--check")
         self.run_cli("--lib", "Moved", "--check", expected=1)
 

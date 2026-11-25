@@ -183,19 +183,14 @@ private theorem factorial_mul_pow_le {k l L B : ℕ} (hk : k ≤ 3 * L) (hl : l 
     k ! * (l * (B + 1) ^ 2 + 1) ^ k ≤ 2 ^ ((3 * L + 3) * (6 * L)) := by
   set T := 2 ^ (3 * L + 3) with hT
   have hT1 : 1 ≤ T := Nat.one_le_two_pow
-  have hkT : k ≤ T := by
-    calc k ≤ 3 * L + 3 := by omega
-      _ ≤ T := Nat.lt_two_pow_self.le
+  have hkT : k ≤ T := (by omega : k ≤ 3 * L + 3).trans Nat.lt_two_pow_self.le
   have hbase : l * (B + 1) ^ 2 + 1 ≤ T := by
     have h1 : l * (B + 1) ^ 2 + 1 ≤ (l + 1) * (B + 1) ^ 2 := by
       have : 1 ≤ (B + 1) ^ 2 := Nat.one_le_pow _ _ (Nat.succ_pos _)
       nlinarith
-    have h2 : l + 1 ≤ 2 ^ (L + 1) := by
-      calc l + 1 ≤ L + 2 := by omega
-        _ ≤ 2 ^ (L + 1) := Nat.lt_two_pow_self
-    have h3 : (B + 1) ^ 2 ≤ 2 ^ (2 * L + 2) := by
-      calc (B + 1) ^ 2 ≤ (2 ^ (L + 1)) ^ 2 := Nat.pow_le_pow_left hB 2
-        _ = 2 ^ (2 * L + 2) := by rw [← pow_mul]; ring_nf
+    have h2 : l + 1 ≤ 2 ^ (L + 1) := (by omega : l + 1 ≤ L + 2).trans Nat.lt_two_pow_self
+    have h3 : (B + 1) ^ 2 ≤ 2 ^ (2 * L + 2) :=
+      (Nat.pow_le_pow_left hB 2).trans_eq (by rw [← pow_mul]; ring_nf)
     calc l * (B + 1) ^ 2 + 1 ≤ (l + 1) * (B + 1) ^ 2 := h1
       _ ≤ 2 ^ (L + 1) * 2 ^ (2 * L + 2) := Nat.mul_le_mul h2 h3
       _ = T := by rw [hT, ← pow_add]; ring_nf
@@ -377,8 +372,7 @@ theorem notMem_of_certCheck {C : List LinearInequality} {q : List ℤ}
     simp only [vecMul, dotProduct, map_apply, matrix, of_apply, Pi.zero_apply]
     exact_mod_cast hz
   · have hz : ∑ i : Fin C.length, q.getD i 0 * C[i.1].bound < 0 := by
-      rw [← dotProduct_map_eq_sum_fin C LinearInequality.bound q]
-      exact hrhs
+      rw [← dotProduct_map_eq_sum_fin C LinearInequality.bound q]; exact hrhs
     simp only [dotProduct, rhs]
     exact_mod_cast hz
 

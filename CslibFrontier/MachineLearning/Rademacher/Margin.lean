@@ -117,8 +117,8 @@ theorem marginLoss_of_ge {ρ u : ℝ} (hρ : 0 < ρ) (hu : ρ ≤ u) : marginLos
 /-- On `[0, ρ]` (`ρ > 0`), the `ρ`-margin loss is the linear ramp `1 - u / ρ`. -/
 theorem marginLoss_of_mem_Icc {ρ u : ℝ} (hρ : 0 < ρ) (hu : u ∈ Set.Icc 0 ρ) :
     marginLoss ρ u = 1 - u / ρ := by
-  have h0 : 0 ≤ u / ρ := div_nonneg hu.1 hρ.le
-  have h1 : u / ρ ≤ 1 := (div_le_one hρ).2 hu.2
+  have := div_nonneg hu.1 hρ.le
+  have := (div_le_one hρ).2 hu.2
   rw [marginLoss_def, max_eq_right (by linarith), min_eq_right (by linarith)]
 
 /-- **Zero-one domination** [MohriRostamizadehTalwalkar2018, Section 5.4]: for `ρ > 0`, the
@@ -141,12 +141,10 @@ theorem marginLoss_le_boole {ρ : ℝ} (hρ : 0 < ρ) (u : ℝ) :
 [MohriRostamizadehTalwalkar2018, Section 5.4]. -/
 theorem lipschitzWith_marginLoss {ρ : ℝ} (hρ : 0 ≤ ρ) :
     LipschitzWith (1 / ρ).toNNReal (marginLoss ρ) := by
-  have hlin : LipschitzWith (1 / ρ).toNNReal (fun u : ℝ => 1 - u / ρ) := by
-    refine LipschitzWith.of_dist_le_mul fun x y => ?_
-    rw [Real.dist_eq, Real.dist_eq, Real.coe_toNNReal _ (one_div_nonneg.2 hρ),
-      show (1 - x / ρ) - (1 - y / ρ) = (y - x) / ρ by ring, abs_div, abs_of_nonneg hρ,
-      abs_sub_comm, div_eq_inv_mul, one_div]
-  exact (hlin.const_max 0).const_min 1
+  refine ((LipschitzWith.of_dist_le_mul fun x y => ?_).const_max 0).const_min 1
+  rw [Real.dist_eq, Real.dist_eq, Real.coe_toNNReal _ (one_div_nonneg.2 hρ),
+    sub_sub_sub_cancel_left, ← sub_div, abs_div, abs_of_nonneg hρ, abs_sub_comm,
+    one_div_mul_eq_div]
 
 /-- `NNReal`-parameterized form of `lipschitzWith_marginLoss`:
 `LipschitzWith (1 / ρ) (marginLoss ρ)`. -/
@@ -186,8 +184,8 @@ theorem empiricalMarginLoss_le_one (ρ : ℝ) (h : α → ℝ) {m : ℕ} (S : Fi
     empiricalMarginLoss ρ h S ≤ 1 := by
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [empiricalMarginLoss]
-  · have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
-    exact Finset.expect_le Finset.univ_nonempty fun _ _ => marginLoss_le_one _ _
+  have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
+  exact Finset.expect_le Finset.univ_nonempty fun _ _ => marginLoss_le_one _ _
 
 /-- The empirical `ρ`-margin loss is at most the fraction of sample points with signed margin at
 most `ρ` [MohriRostamizadehTalwalkar2018, (5.37)]. -/
@@ -227,12 +225,8 @@ theorem marginError_le_marginRisk [Fintype α] (D : PMF (α × Bool)) {ρ : ℝ}
   classical
   rw [Probability.PMF.toOuterMeasure_apply_toReal, marginRisk_def]
   refine Finset.sum_le_sum fun p _ => ?_
-  have hdom := boole_le_marginLoss hρ (signVal p.2 * h p.1)
-  by_cases hp : signVal p.2 * h p.1 ≤ 0
-  · simp only [Set.mem_ofPred_eq, hp, ↓reduceIte] at hdom ⊢
-    simpa only [mul_one] using mul_le_mul_of_nonneg_left hdom ENNReal.toReal_nonneg
-  · simp only [Set.mem_ofPred_eq, hp, ↓reduceIte]
-    exact mul_nonneg ENNReal.toReal_nonneg (marginLoss_nonneg _ _)
+  simpa only [Set.mem_ofPred_eq, mul_ite, mul_one, mul_zero] using
+    mul_le_mul_of_nonneg_left (boole_le_marginLoss hρ (signVal p.2 * h p.1)) ENNReal.toReal_nonneg
 
 /-! ### The `ρ`-margin loss class and contraction -/
 

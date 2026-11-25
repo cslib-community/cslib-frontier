@@ -69,21 +69,33 @@ private theorem readout_eq_of_views (hu : HWord.Legal (compatibility rules) u)
   simp only [decode, hleft, hright] at h
   exact Option.some.inj (h.symm.trans h')
 
+private theorem readout_eq_of_eq_off (hu : HWord.Legal (compatibility rules) u)
+    (hv : HWord.Legal (compatibility rules) v) (k : Fin (n + 3))
+    (he : ∀ j, j ≠ k → u j = v j) (i : Fin n)
+    (h1 : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) = k →
+      readout rules u hu i = readout rules v hv i)
+    (h2 : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) = k →
+      readout rules u hu i = readout rules v hv i) :
+    readout rules u hu i = readout rules v hv i := by
+  by_cases hk1 : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) = k
+  · exact h1 hk1
+  · by_cases hk2 : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) = k
+    · exact h2 hk2
+    · exact readout_eq_of_views rules hu hv i (congrArg code.symm (he _ hk1))
+        (congrArg code.symm (he _ hk2))
+
 /-- Changing only a pair's first coordinate can affect only the source letter on its left. -/
 theorem readout_first_off (hu : HWord.Legal (compatibility rules) u)
     (hv : HWord.Legal (compatibility rules) v) (k : Fin (n + 3))
     (he : ∀ j, j ≠ k → u j = v j) (a a' b : Option (Fin q))
     (hpu : code.symm (u k) = .pair a b) (hpv : code.symm (v k) = .pair a' b)
     (i : Fin n) (hi : i.val + 2 ≠ k.val) :
-    readout rules u hu i = readout rules v hv i := by
-  by_cases hk : i.val + 1 = k.val
-  · have hk' : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) = k := Fin.ext hk
-    have hu' := readout_pair_right rules hu i a b (by rw [hk']; exact hpu)
-    have hv' := readout_pair_right rules hv i a' b (by rw [hk']; exact hpv)
-    exact Option.some.inj (hu'.symm.trans hv')
-  · exact readout_eq_of_views rules hu hv i
-      (congrArg code.symm (he _ (fun h => hk (congrArg Fin.val h))))
-      (congrArg code.symm (he _ (fun h => hi (congrArg Fin.val h))))
+    readout rules u hu i = readout rules v hv i :=
+  readout_eq_of_eq_off rules hu hv k he i
+    (fun hk => Option.some.inj
+      ((readout_pair_right rules hu i a b (hk ▸ hpu)).symm.trans
+        (readout_pair_right rules hv i a' b (hk ▸ hpv))))
+    (fun hk => absurd (congrArg Fin.val hk) hi)
 
 /-- Changing only a pair's second coordinate can affect only the source letter on its right. -/
 theorem readout_second_off (hu : HWord.Legal (compatibility rules) u)
@@ -91,15 +103,12 @@ theorem readout_second_off (hu : HWord.Legal (compatibility rules) u)
     (he : ∀ j, j ≠ k → u j = v j) (a b b' : Option (Fin q))
     (hpu : code.symm (u k) = .pair a b) (hpv : code.symm (v k) = .pair a b')
     (i : Fin n) (hi : i.val + 1 ≠ k.val) :
-    readout rules u hu i = readout rules v hv i := by
-  by_cases hk : i.val + 2 = k.val
-  · have hk' : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) = k := Fin.ext hk
-    have hu' := readout_pair_left rules hu i a b (by rw [hk']; exact hpu)
-    have hv' := readout_pair_left rules hv i a b' (by rw [hk']; exact hpv)
-    exact Option.some.inj (hu'.symm.trans hv')
-  · exact readout_eq_of_views rules hu hv i
-      (congrArg code.symm (he _ (fun h => hi (congrArg Fin.val h))))
-      (congrArg code.symm (he _ (fun h => hk (congrArg Fin.val h))))
+    readout rules u hu i = readout rules v hv i :=
+  readout_eq_of_eq_off rules hu hv k he i
+    (fun hk => absurd (congrArg Fin.val hk) hi)
+    (fun hk => Option.some.inj
+      ((readout_pair_left rules hu i a b (hk ▸ hpu)).symm.trans
+        (readout_pair_left rules hv i a b' (hk ▸ hpv))))
 
 private theorem special_after {p q' : Symbol q r}
     (hp : ∀ a b, p ≠ .pair a b) (h : Compatible rules p q') :
@@ -118,32 +127,19 @@ theorem readout_eq_of_special (hu : HWord.Legal (compatibility rules) u)
     (hspecial : ∀ a b, code.symm (u k) ≠ .pair a b) :
     readout rules u hu = readout rules v hv := by
   funext i
-  by_cases hk1 : i.val + 1 = k.val
-  · have h1 : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) = k := Fin.ext hk1
-    have h2 : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) ≠ k := by
-      intro h
-      have hval := congrArg Fin.val h
-      change i.val + 2 = k.val at hval
-      omega
-    have hedge := edge_view rules hu ⟨i.val + 1, by omega⟩ ⟨i.val + 2, by omega⟩ rfl
-    rw [h1] at hedge
+  refine readout_eq_of_eq_off rules hu hv k he i (fun h1 => ?_) (fun h2 => ?_)
+  · have hne : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) ≠ k :=
+      fun h => by have := congrArg Fin.val (h1.trans h.symm); dsimp at this; omega
+    have hedge := h1 ▸ edge_view rules hu ⟨i.val + 1, by omega⟩ ⟨i.val + 2, by omega⟩ rfl
     obtain ⟨a, b, hp⟩ := special_after rules hspecial hedge
-    have hp' : code.symm (v ⟨i.val + 2, by omega⟩) = .pair a b := by rw [← he _ h2]; exact hp
     exact Option.some.inj ((readout_pair_left rules hu i a b hp).symm.trans
-      (readout_pair_left rules hv i a b hp'))
-  · by_cases hk2 : i.val + 2 = k.val
-    · have h2 : (⟨i.val + 2, by omega⟩ : Fin (n + 3)) = k := Fin.ext hk2
-      have h1 : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) ≠ k :=
-        fun h => hk1 (congrArg Fin.val h)
-      have hedge := edge_view rules hu ⟨i.val + 1, by omega⟩ ⟨i.val + 2, by omega⟩ rfl
-      rw [h2] at hedge
-      obtain ⟨a, b, hp⟩ := special_before rules hspecial hedge
-      have hp' : code.symm (v ⟨i.val + 1, by omega⟩) = .pair a b := by rw [← he _ h1]; exact hp
-      exact Option.some.inj ((readout_pair_right rules hu i a b hp).symm.trans
-        (readout_pair_right rules hv i a b hp'))
-    · exact readout_eq_of_views rules hu hv i
-        (congrArg code.symm (he _ (fun h => hk1 (congrArg Fin.val h))))
-        (congrArg code.symm (he _ (fun h => hk2 (congrArg Fin.val h))))
+      (readout_pair_left rules hv i a b (he _ hne ▸ hp)))
+  · have hne : (⟨i.val + 1, by omega⟩ : Fin (n + 3)) ≠ k :=
+      fun h => by have := congrArg Fin.val (h2.trans h.symm); dsimp at this; omega
+    have hedge := h2 ▸ edge_view rules hu ⟨i.val + 1, by omega⟩ ⟨i.val + 2, by omega⟩ rfl
+    obtain ⟨a, b, hp⟩ := special_before rules hspecial hedge
+    exact Option.some.inj ((readout_pair_right rules hu i a b hp).symm.trans
+      (readout_pair_right rules hv i a b (he _ hne ▸ hp)))
 
 private theorem incoming_mix {p : Symbol q r} {a a' b b' : Option (Fin q)}
     (h : Compatible rules p (.pair a b)) (h' : Compatible rules p (.pair a' b')) :
@@ -163,24 +159,18 @@ theorem mixed_pair_legal (hu : HWord.Legal (compatibility rules) u)
     HWord.Legal (compatibility rules) (Function.update u k (code (.pair a' b))) := by
   intro i j hij
   by_cases hi : i = k
-  · subst i
-    have hj : j ≠ k := by intro h; have := congrArg Fin.val h; omega
-    simp only [Function.update_self, Function.update_of_ne hj]
-    have hs := edge_view rules hu k j hij
-    have ht := edge_view rules hv k j hij
-    rw [hpu] at hs
-    rw [hpv, ← he j hj] at ht
-    have h := (compatibility_adj rules _ _).mpr (outgoing_mix rules hs ht)
-    simpa only [Equiv.apply_symm_apply] using h
+  · subst k
+    have hj : j ≠ i := Fin.ne_of_val_ne (by omega)
+    have hs := hpu ▸ edge_view rules hu i j hij
+    have ht := he j hj ▸ (hpv ▸ edge_view rules hv i j hij)
+    simpa only [Function.update_self, Function.update_of_ne hj, Equiv.apply_symm_apply] using
+      (compatibility_adj rules _ _).mpr (outgoing_mix rules hs ht)
   · by_cases hj : j = k
-    · subst j
-      simp only [Function.update_self, Function.update_of_ne hi]
-      have hs := edge_view rules hu i k hij
-      have ht := edge_view rules hv i k hij
-      rw [hpu] at hs
-      rw [hpv, ← he i hi] at ht
-      have h := (compatibility_adj rules _ _).mpr (incoming_mix rules hs ht)
-      simpa only [Equiv.apply_symm_apply] using h
+    · subst k
+      have hs := hpu ▸ edge_view rules hu i j hij
+      have ht := he i hi ▸ (hpv ▸ edge_view rules hv i j hij)
+      simpa only [Function.update_self, Function.update_of_ne hi, Equiv.apply_symm_apply] using
+        (compatibility_adj rules _ _).mpr (incoming_mix rules hs ht)
     · simpa only [Function.update_of_ne hi, Function.update_of_ne hj] using hu i j hij
 
 end Cslib.Complexity.NCL.HWord.RewriteGadget

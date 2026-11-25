@@ -55,7 +55,7 @@ example : ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k 
       (fun x => c * (Nat.log2 x.length + 1)) :=
   exists_recognizesInSpace_bAccepts encBits (fun _ => emitOne) (fun _ => 100)
     (fun x => Nat.log2 x.length + 1)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) fun _ => le_rfl
+    (ComputableInSpace.budget_const _)
+    (ComputableInSpace.budget_const _) fun _ => le_rfl
 
 end CslibFrontierTests.UniversalNondeterministicBudget

@@ -156,16 +156,12 @@ private theorem isOraclePPTOn_searchStepProgram {prog : List Bool → WordQueryC
       (encList (encPair encNat encBool))
       (fun pair => OracleComp.interpret ProbOracleComp.query
         (searchStepProgram prog pair.1 pair.2)) := by
-  have hlen : ComputableInPolyTime (fun pair : CNF ℕ × List (Literal ℕ) => pair.2.length)
-      (encPair encCNF (encList (encPair encNat encBool))) encUnary :=
-    (ComputableInPolyTime.length_list _).comp (ComputableInPolyTime.snd _ _)
-  have hvars : ComputableInPolyTime (fun pair : CNF ℕ × List (Literal ℕ) => pair.1.vars)
-      (encPair encCNF (encList (encPair encNat encBool))) (encList encNat) :=
-    computableInPolyTime_vars.comp (ComputableInPolyTime.fst _ _)
   have hnext : ComputableInPolyTime
       (fun pair : CNF ℕ × List (Literal ℕ) => pair.1.vars.getD pair.2.length 0)
       (encPair encCNF (encList (encPair encNat encBool))) encNat :=
-    ComputableInPolyTime.listGetDWithInput hvars hlen 0
+    ComputableInPolyTime.listGetDWithInput
+      (computableInPolyTime_vars.comp (ComputableInPolyTime.fst _ _))
+      ((ComputableInPolyTime.length_list _).comp (ComputableInPolyTime.snd _ _)) 0
   have hquery : ComputableInPolyTime
       (fun p : (CNF ℕ × List (Literal ℕ)) × ℕ => p.1.1 ++ units p.1.2 ++ [[(p.2, true)]])
       (encPair (encPair encCNF (encList (encPair encNat encBool))) encNat) encCNF := by
@@ -177,12 +173,7 @@ private theorem isOraclePPTOn_searchStepProgram {prog : List Bool → WordQueryC
     (hquery.comp (ComputableInPolyTime.id'.prod hnext)).of_enc_eq fun _ => rfl
   have hcond : ComputableInPolyTime
       (fun pair : CNF ℕ × List (Literal ℕ) => decide (pair.2.length < pair.1.vars.length))
-      (encPair encCNF (encList (encPair encNat encBool))) encBool := by
-    have hvarsLen : ComputableInPolyTime
-        (fun pair : CNF ℕ × List (Literal ℕ) => pair.1.vars.length)
-        (encPair encCNF (encList (encPair encNat encBool))) encUnary :=
-      (ComputableInPolyTime.length_list _).comp hvars
-    exact ComputableInPolyTime.unary_lt.comp (hlen.prod hvarsLen)
+      (encPair encCNF (encList (encPair encNat encBool))) encBool := by fun_prop
   have hpost : ComputableInPolyTime
       (fun p : (CNF ℕ × List (Literal ℕ)) × Bool =>
         p.1.2 ++ [(p.1.1.vars.getD p.1.2.length 0, p.2)])
@@ -193,12 +184,9 @@ private theorem isOraclePPTOn_searchStepProgram {prog : List Bool → WordQueryC
         (ComputableInPolyTime.snd _ _)) (ComputableInPolyTime.const []))
   have hyes := (hprog.preprocess hrequest).map_with
     (f := fun pair b => pair.2 ++ [(pair.1.vars.getD pair.2.length 0, b)]) hpost
-  have hno : IsOraclePPTOn (Operation := Unit)
-      (encPair encCNF (encList (encPair encNat encBool))) (encList (encPair encNat encBool))
-      (fun pair : CNF ℕ × List (Literal ℕ) => pure pair.2) :=
-    (ComputableInPolyTime.snd _ _).isOraclePPTOn
   refine (IsOraclePPTOn.ite (condition := fun pair : CNF ℕ × List (Literal ℕ) =>
-    pair.2.length < pair.1.vars.length) hcond hyes hno).congr fun pair State oracle s => ?_
+    pair.2.length < pair.1.vars.length) hcond hyes
+    (ComputableInPolyTime.snd _ _).isOraclePPTOn).congr fun pair State oracle s => ?_
   unfold searchStepProgram
   split_ifs <;> simp only [OracleComp.interpret_map, OracleComp.interpret_pure]
 
@@ -221,19 +209,20 @@ theorem computableInPolyTimeWithOracle_selfReduce (A : Set (List Bool)) :
     hcount (ComputableInPolyTime.const []) (isOraclePPTOn_searchStepProgram hprogCert)
     (fun φ i answers => answers.map Prod.fst = φ.vars.take i) (fun _ => rfl)
     (fun φ i answers hi hinv next hnext => by
-      have hlen : answers.length = i := by grind [List.length_take]
+      have hlen : answers.length = i := by
+        rw [← List.length_map (f := Prod.fst), hinv, List.length_take]; omega
       unfold searchStepProgram at hnext
       rw [ite_eq_left (by omega), OracleComp.interpret_map] at hnext
       obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-      have hlt : i < φ.vars.length := hi
-      rw [List.map_append, hinv, hlen, List.take_add_one, List.getElem?_eq_getElem hlt,
-        Option.toList_some, List.getD_eq_getElem _ _ hlt]
+      rw [List.map_append, hinv, hlen, List.take_add_one, List.getElem?_eq_getElem hi,
+        Option.toList_some, List.getD_eq_getElem _ _ hi]
       rfl)
     hsize
     (fun φ i answers hi hinv => by
       have hmem : ∀ l ∈ answers, l.1 ∈ φ.vars := fun l hl =>
         List.mem_of_mem_take (hinv ▸ List.mem_map_of_mem hl)
-      have hlen : answers.length ≤ φ.vars.length := by grind [List.length_take]
+      have hlen : answers.length ≤ φ.vars.length := by
+        rw [← List.length_map (f := Prod.fst), hinv, List.length_take]; omega
       simp only [encUnary_apply, List.length_replicate]
       exact (length_encList_le_of_mem_vars hmem).trans (Nat.mul_le_mul_right _ hlen))
   refine ⟨searchProgram prog, ?_, fun φ => interpret_searchProgram hprog φ⟩

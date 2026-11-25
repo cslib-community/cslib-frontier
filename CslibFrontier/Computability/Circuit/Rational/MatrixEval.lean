@@ -53,32 +53,25 @@ open Rational.Formula Rational.Output
 private theorem evalMatrix?_sound {n d : ℕ} (f : Formula n) (X : Tuple n d)
     {v : Mat d} (h : f.evalMatrix? X = some v) : Evaluates f X v := by
   induction f using inductionOn generalizing v with
-  | var i =>
-    obtain rfl : X i = v := Option.some.inj h
-    exact .var i
-  | const q =>
-    obtain rfl : algebraMap ℚ (Mat d) q = v := Option.some.inj h
-    exact .const q
+  | var i => exact Option.some.inj h ▸ .var i
+  | const q => exact Option.some.inj h ▸ .const q
   | add f g ihf ihg =>
-    obtain ⟨a, ha, b, hb, rfl⟩ : ∃ a, f.evalMatrix? X = some a ∧
-        ∃ b, g.evalMatrix? X = some b ∧ a + b = v := by
-      simpa only [evalMatrix?_add, bind, pure, Option.bind_eq_some_iff, Option.some.injEq] using h
+    simp only [evalMatrix?_add, bind, pure, Option.bind_eq_some_iff, Option.some.injEq] at h
+    obtain ⟨_, ha, _, hb, rfl⟩ := h
     exact Eval.add (ihf ha) (ihg hb)
   | mul f g ihf ihg =>
-    obtain ⟨a, ha, b, hb, rfl⟩ : ∃ a, f.evalMatrix? X = some a ∧
-        ∃ b, g.evalMatrix? X = some b ∧ a * b = v := by
-      simpa only [evalMatrix?_mul, bind, pure, Option.bind_eq_some_iff, Option.some.injEq] using h
+    simp only [evalMatrix?_mul, bind, pure, Option.bind_eq_some_iff, Option.some.injEq] at h
+    obtain ⟨_, ha, _, hb, rfl⟩ := h
     exact Eval.mul (ihf ha) (ihg hb)
   | inv f ih =>
-    rw [evalMatrix?_inv] at h
-    simp only [bind, Option.bind_eq_some_iff] at h
+    simp only [evalMatrix?_inv, bind, Option.bind_eq_some_iff] at h
     obtain ⟨a, ha, hb⟩ := h
     by_cases hd : a.det = 0
     · simp [hd] at hb
-    · have hv : a.det⁻¹ • a.adjugate = v := by simpa [hd] using hb
-      have hinv : a.det⁻¹ • a.adjugate = a⁻¹ := by rw [Matrix.inv_def, Ring.inverse_eq_inv']
+    · obtain rfl : a.det⁻¹ • a.adjugate = v := by simpa [hd] using hb
       have hu : IsUnit a.det := isUnit_iff_ne_zero.mpr hd
-      exact hv ▸ hinv ▸ Eval.inv (ih ha) (a.mul_nonsing_inv hu) (a.nonsing_inv_mul hu)
+      rw [← Ring.inverse_eq_inv', ← Matrix.inv_def]
+      exact Eval.inv (ih ha) (a.mul_nonsing_inv hu) (a.nonsing_inv_mul hu)
 
 private theorem evalMatrix?_complete {n d : ℕ} {f : Formula n} {X : Tuple n d}
     {v : Mat d} (h : Evaluates f X v) : f.evalMatrix? X = some v := by
@@ -106,50 +99,42 @@ theorem Formula.evalMatrix?_eq_some_iff {n d : ℕ} (f : Formula n) (X : Tuple n
   ⟨evalMatrix?_sound f X, evalMatrix?_complete⟩
 
 /-- A nonzero evaluation already supplies a point in the formula's domain. -/
-theorem Nonzero.admissible {n : ℕ} {f : Formula n} (hf : Nonzero f) : Admissible f := by
-  obtain ⟨d, hd, X, v, he, _⟩ := hf
-  exact ⟨d, hd, X, v, he⟩
+theorem Nonzero.admissible {n : ℕ} {f : Formula n} (hf : Nonzero f) : Admissible f :=
+  let ⟨d, hd, X, v, he, _⟩ := hf
+  ⟨d, hd, X, v, he⟩
 
 /-- Positive dimension makes an invertible hitting value a nonzero witness. -/
 theorem Hits.nonzero_iff {n s : ℕ} {H : Output n} (hH : Hits s H)
     (f : Formula n) (hf : f.nodeCount ≤ s) :
     Nonzero f ↔ ∃ X ∈ H.tuples, ∃ v, Evaluates f X v ∧ IsUnit v := by
   have : NeZero H.dimension := ⟨H.dimension_pos.ne'⟩
-  constructor
-  · intro h
-    exact hH f hf h.admissible h
-  · rintro ⟨X, _, v, he, hu⟩
-    exact ⟨H.dimension, H.dimension_pos, X, v, he, hu.ne_zero⟩
+  exact ⟨fun h => hH f hf h.admissible h,
+    fun ⟨X, _, v, he, hu⟩ => ⟨H.dimension, H.dimension_pos, X, v, he, hu.ne_zero⟩⟩
 
 /-- At any defined point, either the value of `f` or the value of `f + 1` is nonzero. -/
 theorem admissible_nonzero_or_add_one {n : ℕ} (f : Formula n) (hf : Admissible f) :
     Nonzero f ∨ Nonzero (.add f (.const 1)) := by
   obtain ⟨d, hd, X, v, he⟩ := hf
-  by_cases hv : v = 0
+  rcases eq_or_ne v 0 with rfl | hv
   · have : NeZero d := ⟨hd.ne'⟩
-    right
-    refine ⟨d, hd, X, v + 1, ?_, ?_⟩
-    · simpa only [Evaluates, map_one] using Eval.add he (Eval.const 1)
-    · simpa only [hv, zero_add] using (one_ne_zero : (1 : Mat d) ≠ 0)
+    exact Or.inr ⟨d, hd, X, 0 + 1,
+      by simpa only [Evaluates, map_one] using Eval.add he (Eval.const 1),
+      by simpa only [zero_add] using (one_ne_zero : (1 : Mat d) ≠ 0)⟩
   · exact Or.inl ⟨d, hd, X, v, he, hv⟩
 
 /-- A hitting list with an allowance of two more nodes also detects the domain of every formula. -/
 theorem Hits.admissible_iff {n s : ℕ} {H : Output n} (hH : Hits (s + 2) H)
     (f : Formula n) (hf : f.nodeCount ≤ s) :
     Admissible f ↔ ∃ X ∈ H.tuples, ∃ v, Evaluates f X v := by
-  constructor
-  · intro ha
-    rcases admissible_nonzero_or_add_one f ha with hn | hn
-    · obtain ⟨X, hX, v, he, _⟩ := hH f (by lia) ha hn
-      exact ⟨X, hX, v, he⟩
-    · have hsize : (Formula.add f (.const 1)).nodeCount ≤ s + 2 := by
-        simp only [nodeCount_add, nodeCount_const]
-        lia
-      obtain ⟨X, hX, v, he, _⟩ := hH (.add f (.const 1)) hsize hn.admissible hn
-      obtain ⟨a, _, hleft, _⟩ := eval_add_iff.mp he
-      exact ⟨X, hX, a, hleft⟩
-  · rintro ⟨X, _, v, he⟩
-    exact ⟨H.dimension, H.dimension_pos, X, v, he⟩
+  refine ⟨fun ha => ?_, fun ⟨X, _, v, he⟩ => ⟨H.dimension, H.dimension_pos, X, v, he⟩⟩
+  rcases admissible_nonzero_or_add_one f ha with hn | hn
+  · obtain ⟨X, hX, v, he, _⟩ := hH f (by lia) ha hn
+    exact ⟨X, hX, v, he⟩
+  · have hsize : (Formula.add f (.const 1)).nodeCount ≤ s + 2 := by
+      simp only [nodeCount_add, nodeCount_const]; omega
+    obtain ⟨X, hX, v, he, _⟩ := hH (.add f (.const 1)) hsize hn.admissible hn
+    obtain ⟨a, _, hleft, _⟩ := eval_add_iff.mp he
+    exact ⟨X, hX, a, hleft⟩
 
 /-- An invertible hit turns a nonzero formula into one with an admissible inverse. -/
 theorem Hits.admissible_inv_iff_nonzero {n s : ℕ} {H : Output n} (hH : Hits s H)
@@ -166,24 +151,13 @@ theorem Hits.admissible_inv_iff_nonzero {n s : ℕ} {H : Output n} (hH : Hits s 
 /-- The executable domain test searches exactly the defined evaluations on the list. -/
 theorem Output.admissibilityTest_iff {n : ℕ} (H : Output n) (f : Formula n) :
     H.admissibilityTest f = true ↔ ∃ X ∈ H.tuples, ∃ v, Evaluates f X v := by
-  simp only [admissibilityTest, List.any_eq_true, Option.isSome_iff_exists]
-  constructor
-  · rintro ⟨X, hX, v, hv⟩
-    exact ⟨X, hX, v, evalMatrix?_sound f X hv⟩
-  · rintro ⟨X, hX, v, hv⟩
-    exact ⟨X, hX, v, evalMatrix?_complete hv⟩
+  simp only [admissibilityTest, List.any_eq_true, Option.isSome_iff_exists, evalMatrix?_eq_some_iff]
 
 /-- The executable determinant test searches exactly the invertible evaluations on the list. -/
 theorem Output.nonzeroTest_iff {n : ℕ} (H : Output n) (f : Formula n) :
     H.nonzeroTest f = true ↔ ∃ X ∈ H.tuples, ∃ v, Evaluates f X v ∧ IsUnit v := by
-  simp only [nonzeroTest, List.any_eq_true, Option.any_eq_true, decide_eq_true_eq]
-  constructor
-  · rintro ⟨X, hX, v, hv, hd⟩
-    exact ⟨X, hX, v, evalMatrix?_sound f X hv,
-      (Matrix.isUnit_iff_isUnit_det v).mpr (isUnit_iff_ne_zero.mpr hd)⟩
-  · rintro ⟨X, hX, v, hv, hu⟩
-    exact ⟨X, hX, v, evalMatrix?_complete hv,
-      ((Matrix.isUnit_iff_isUnit_det v).mp hu).ne_zero⟩
+  simp only [nonzeroTest, List.any_eq_true, Option.any_eq_true, decide_eq_true_eq,
+    evalMatrix?_eq_some_iff, ← isUnit_iff_ne_zero, ← Matrix.isUnit_iff_isUnit_det]
 
 /-- A hitting list for `s + 2` nodes decides admissibility of formulas with at most `s` nodes. -/
 theorem Hits.admissibilityTest_eq_true_iff {n s : ℕ} {H : Output n}

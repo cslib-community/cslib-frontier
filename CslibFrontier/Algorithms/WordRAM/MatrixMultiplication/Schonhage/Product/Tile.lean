@@ -121,19 +121,14 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
       Nat.zero_add, Nat.add_zero, pa, pb, B] using And.intro hl hr
   have hlow : BandPreparation.memoryEnd L m N ≤ snapshotBase L m N qs.length ∧
       snapshotBase L m N qs.length ≤ offsetBase L m N qs.length ∧
-      offsetBase L m N qs.length ≤ groupedBase L m N qs.length := by
-    refine ⟨(producers_le_snapshot L m N qs.length).1, ?_, ?_⟩
-    · unfold offsetBase
-      omega
-    · unfold groupedBase originalBase codeBase
-      omega
+      offsetBase L m N qs.length ≤ groupedBase L m N qs.length :=
+    ⟨(producers_le_snapshot L m N qs.length).1, by unfold offsetBase; omega,
+      by unfold groupedBase originalBase codeBase; omega⟩
   have hout : groupedBase L m N qs.length + qs.length = outputBase L m N qs.length := rfl
   have hqueries : codeBase L m N qs.length + qs.length ≤ groupedBase L m N qs.length := by
-    unfold groupedBase originalBase
-    omega
+    unfold groupedBase originalBase; omega
   have hfree : outputBase L m N qs.length ≤ scratchBase L m N qs.length := by
-    unfold scratchBase
-    omega
+    unfold scratchBase; omega
   have hbefore : BandPreparation.memoryEnd L m N ≤ scratchBase L m N qs.length := by omega
   have hleft (τ : Leaf L) : arg.mem (pa + (Encoding.leafIndex τ).val) =
       Signed.encode (encodingL (bandArrayL (MaskTable.layout hm) X β) τ) := by
@@ -174,8 +169,7 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
   let u := k.extend bank arg
   have hhigh (i : Fin 160) (hi : 96 ≤ i.val) : u.regs i = arg.regs i :=
     Function.extend_apply' _ _ _ fun ⟨j, hj⟩ => by
-      have hv := congrArg Fin.val hj
-      change j.val = i.val at hv
+      have hv : j.val = i.val := congrArg Fin.val hj
       omega
   have up : Parameters L m N qs.length u := by regs_frame
   have ui : u.regs Reg.index = t := by regs_frame
@@ -234,9 +228,8 @@ public theorem exec_tileStep {w L m N A t E : ℕ} (hw : 0 < w) (hm : m ≤ L)
     have hbands := (Wanted.tileKey_eq_iff hm (qs.get i).1 (qs.get i).2 (β, γ) hT).mp htile
     change bandOf L m (qs.get i).1.val = β ∧ bandOf L m (qs.get i).2.val = γ at hbands
     have hr := kv j
-    rw [Nat.add_assoc, hap, hquery, ← hbands.1, ← hbands.2,
+    rwa [Nat.add_assoc, hap, hquery, ← hbands.1, ← hbands.2,
       thin_product_spec (MaskTable.layout hm) X Y qs.toFinset (qs.get i).1 (qs.get i).2
         (List.mem_toFinset.mpr (List.get_mem _ _))] at hr
-    exact hr
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

@@ -193,8 +193,7 @@ theorem integral_hyperplaneSide_ne_and_eq {v : V → F} (hv : ∀ x, ‖v x‖ =
   rw [hid, integral_hyperplaneSide_ne hv i j, integral_hyperplaneSide_ne hv i k,
     integral_hyperplaneSide_eq hv j k, inner_neg_left, inner_neg_left, arccos_neg, arccos_neg]
   have hpi := pi_ne_zero
-  field_simp
-  ring
+  field_simp; ring
 
 end TripleGaussian
 
@@ -240,13 +239,12 @@ theorem tripleCutValue_le_tripleSdpValue_add {triples : ι → V × V × V} {c d
     (side : V → Bool) : tripleCutValue triples c d side ≤ tripleSdpValue triples c d v + ε := by
   cases isEmpty_or_nonempty ι with
   | inl _ =>
-    have := hopt v hv
-    simp only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
+    simpa only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] using
+      hopt v hv
   | inr h =>
     obtain ⟨e⟩ := h
-    rw [← tripleSdpValue_signVector triples c d (hv (triples e).1) side]
-    exact hopt _ (norm_signVector (hv (triples e).1) side)
+    exact tripleSdpValue_signVector triples c d (hv (triples e).1) side ▸
+      hopt _ (norm_signVector (hv (triples e).1) side)
 
 section TripleMeasurable
 
@@ -283,59 +281,35 @@ theorem goemansWilliamsonDicutConstant_mul_tripleSdpValue_le_integral (triples :
     goemansWilliamsonDicutConstant * tripleSdpValue triples c d v ≤
       ∫ r, tripleCutValue triples c d (hyperplaneSide v r) ∂stdGaussian F := by
   unfold tripleCutValue
-  have hint : ∀ e ∈ (Finset.univ : Finset ι), Integrable (fun r : F =>
-      (if hyperplaneSide v r (triples e).1 ≠ hyperplaneSide v r (triples e).2.1 ∧
-          hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2 then c e else 0) +
-        if hyperplaneSide v r (triples e).1 = hyperplaneSide v r (triples e).2.1 ∧
-          hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2 then d e else 0)
-      (stdGaussian F) := fun e _ =>
-    (integrable_ite_const (stdGaussian F) (measurableSet_triple_ne_eq v _ _ _) _).add
-      (integrable_ite_const (stdGaussian F) (measurableSet_triple_all_eq v _ _ _) _)
-  rw [integral_finsetSum _ hint, tripleSdpValue, Finset.mul_sum]
+  rw [integral_finsetSum _ fun e _ => by
+      rcases triples e with ⟨i, j, k⟩
+      exact (integrable_ite_const (stdGaussian F) (measurableSet_triple_ne_eq v i j k) _).add
+        (integrable_ite_const (stdGaussian F) (measurableSet_triple_all_eq v i j k) _),
+    tripleSdpValue, Finset.mul_sum]
   refine Finset.sum_le_sum fun e _ => ?_
+  obtain ⟨i, j, k⟩ := triples e
+  dsimp only
   rw [integral_add
-    (integrable_ite_const (stdGaussian F) (measurableSet_triple_ne_eq v _ _ _) _)
-    (integrable_ite_const (stdGaussian F) (measurableSet_triple_all_eq v _ _ _) _)]
-  have hmul1 : (fun r : F => if hyperplaneSide v r (triples e).1 ≠
-      hyperplaneSide v r (triples e).2.1 ∧
-      hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2 then c e else 0) =
-      fun r : F => c e * (if hyperplaneSide v r (triples e).1 ≠
-        hyperplaneSide v r (triples e).2.1 ∧
-        hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2
-        then (1 : ℝ) else 0) := by
-    ext r; split_ifs <;> ring
-  have hmul2 : (fun r : F => if hyperplaneSide v r (triples e).1 =
-      hyperplaneSide v r (triples e).2.1 ∧
-      hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2 then d e else 0) =
-      fun r : F => d e * (if hyperplaneSide v r (triples e).1 =
-        hyperplaneSide v r (triples e).2.1 ∧
-        hyperplaneSide v r (triples e).2.1 = hyperplaneSide v r (triples e).2.2
-        then (1 : ℝ) else 0) := by
-    ext r; split_ifs <;> ring
-  rw [hmul1, hmul2, integral_const_mul, integral_const_mul,
-    integral_hyperplaneSide_ne_and_eq hv, integral_hyperplaneSide_all_eq hv]
+    (integrable_ite_const (stdGaussian F) (measurableSet_triple_ne_eq v i j k) _)
+    (integrable_ite_const (stdGaussian F) (measurableSet_triple_all_eq v i j k) _)]
+  have hmul : ∀ (P : F → Prop) [DecidablePred P] (a : ℝ),
+      ∫ r : F, (if P r then a else 0) ∂stdGaussian F =
+        a * ∫ r : F, (if P r then (1 : ℝ) else 0) ∂stdGaussian F := fun P _ a => by
+    rw [← integral_const_mul]
+    congr 1; ext r; split_ifs <;> ring
+  rw [hmul _ (c e), hmul _ (d e), integral_hyperplaneSide_ne_and_eq hv,
+    integral_hyperplaneSide_all_eq hv]
   have h1 := mul_le_mul_of_nonneg_left
-    (goemansWilliamsonDicutConstant_mul_sub_add_inner_le
-      (hv (triples e).1) (hv (triples e).2.1) (hv (triples e).2.2)) (hc e)
+    (goemansWilliamsonDicutConstant_mul_sub_add_inner_le (hv i) (hv j) (hv k)) (hc e)
   have h2 := mul_le_mul_of_nonneg_left
-    (goemansWilliamsonDicutConstant_mul_add_inner_le
-      (hv (triples e).1) (hv (triples e).2.1) (hv (triples e).2.2)) (hd e)
+    (goemansWilliamsonDicutConstant_mul_add_inner_le (hv i) (hv j) (hv k)) (hd e)
   calc goemansWilliamsonDicutConstant *
-        (c e * (1 - ⟪v (triples e).1, v (triples e).2.1⟫ -
-          ⟪v (triples e).1, v (triples e).2.2⟫ + ⟪v (triples e).2.1, v (triples e).2.2⟫) / 4 +
-        d e * (1 + ⟪v (triples e).1, v (triples e).2.1⟫ +
-          ⟪v (triples e).1, v (triples e).2.2⟫ + ⟪v (triples e).2.1, v (triples e).2.2⟫) / 4)
-      = c e * (goemansWilliamsonDicutConstant / 4 * (1 - ⟪v (triples e).1, v (triples e).2.1⟫ -
-          ⟪v (triples e).1, v (triples e).2.2⟫ + ⟪v (triples e).2.1, v (triples e).2.2⟫)) +
-        d e * (goemansWilliamsonDicutConstant / 4 * (1 + ⟪v (triples e).1, v (triples e).2.1⟫ +
-          ⟪v (triples e).1, v (triples e).2.2⟫ + ⟪v (triples e).2.1, v (triples e).2.2⟫)) := by
-        ring
-    _ ≤ c e * (1 - (arccos ⟪-v (triples e).1, v (triples e).2.1⟫ +
-          arccos ⟪-v (triples e).1, v (triples e).2.2⟫ +
-          arccos ⟪v (triples e).2.1, v (triples e).2.2⟫) / (2 * π)) +
-        d e * (1 - (arccos ⟪v (triples e).1, v (triples e).2.1⟫ +
-          arccos ⟪v (triples e).1, v (triples e).2.2⟫ +
-          arccos ⟪v (triples e).2.1, v (triples e).2.2⟫) / (2 * π)) := add_le_add h1 h2
+        (c e * (1 - ⟪v i, v j⟫ - ⟪v i, v k⟫ + ⟪v j, v k⟫) / 4 +
+         d e * (1 + ⟪v i, v j⟫ + ⟪v i, v k⟫ + ⟪v j, v k⟫) / 4)
+      = c e * (goemansWilliamsonDicutConstant / 4 * (1 - ⟪v i, v j⟫ - ⟪v i, v k⟫ + ⟪v j, v k⟫)) +
+        d e * (goemansWilliamsonDicutConstant / 4 *
+          (1 + ⟪v i, v j⟫ + ⟪v i, v k⟫ + ⟪v j, v k⟫)) := by ring
+    _ ≤ _ := add_le_add h1 h2
 
 /-- The `(β, ε)` guarantee for `(Q'')`. -/
 theorem goemansWilliamsonDicutConstant_mul_tripleCutValue_sub_le_integral
@@ -418,6 +392,12 @@ theorem dicutSdpValue_liftDicutSet (ends : ι → V × V) (w : ι → ℝ) {u : 
     ← dicutValue_eq_tripleCutValue]
   congr 1
 
+private theorem dicutValue_dicutHyperplaneSet_eq (ends : ι → V × V) (w : ι → ℝ)
+    (v : Option V → F) :
+    (fun r : F => dicutValue ends w (dicutHyperplaneSet v r)) =
+      fun r => tripleCutValue (dicutTriple ends) w 0 (hyperplaneSide v r) :=
+  funext fun r => dicutValue_eq_tripleCutValue ends w (hyperplaneSide v r)
+
 section DicutMeasurable
 
 variable [MeasurableSpace F] [BorelSpace F]
@@ -426,10 +406,7 @@ variable [MeasurableSpace F] [BorelSpace F]
 theorem integrable_dicutValue_dicutHyperplaneSet (ends : ι → V × V) (w : ι → ℝ)
     (v : Option V → F) (μ : Measure F) [IsFiniteMeasure μ] :
     Integrable (fun r => dicutValue ends w (dicutHyperplaneSet v r)) μ := by
-  have heq : (fun r : F => dicutValue ends w (dicutHyperplaneSet v r)) =
-      fun r => tripleCutValue (dicutTriple ends) w 0 (hyperplaneSide v r) := by
-    ext r; exact dicutValue_eq_tripleCutValue ends w (hyperplaneSide v r)
-  rw [heq]
+  rw [dicutValue_dicutHyperplaneSet_eq]
   exact integrable_tripleCutValue_hyperplaneSide (dicutTriple ends) w 0 v μ
 
 variable [FiniteDimensional ℝ F]
@@ -441,11 +418,7 @@ theorem goemansWilliamsonDicutConstant_mul_dicutSdpValue_le_integral (ends : ι 
     {w : ι → ℝ} (hw : ∀ e, 0 ≤ w e) {v : Option V → F} (hv : ∀ o, ‖v o‖ = 1) :
     goemansWilliamsonDicutConstant * dicutSdpValue ends w v ≤
       ∫ r, dicutValue ends w (dicutHyperplaneSet v r) ∂stdGaussian F := by
-  rw [dicutSdpValue_eq_tripleSdpValue]
-  have heq : (fun r : F => dicutValue ends w (dicutHyperplaneSet v r)) =
-      fun r => tripleCutValue (dicutTriple ends) w 0 (hyperplaneSide v r) := by
-    ext r; exact dicutValue_eq_tripleCutValue ends w (hyperplaneSide v r)
-  rw [heq]
+  rw [dicutSdpValue_eq_tripleSdpValue, dicutValue_dicutHyperplaneSet_eq]
   exact goemansWilliamsonDicutConstant_mul_tripleSdpValue_le_integral (dicutTriple ends) hw
     (fun _ => le_rfl) hv
 
@@ -515,25 +488,17 @@ theorem isBalancedDigraph_of_outdeg_eq_indeg [DecidableEq V]
   intro φ
   let V₀ : Finset V :=
     (Finset.univ.image fun e => (ends e).1) ∪ (Finset.univ.image fun e => (ends e).2)
-  have h1 : ∀ e : ι, (ends e).1 ∈ V₀ := fun e =>
-    Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ e))
-  have h2 : ∀ e : ι, (ends e).2 ∈ V₀ := fun e =>
-    Finset.mem_union_right _ (Finset.mem_image_of_mem _ (Finset.mem_univ e))
-  have hL : ∑ e, w e * φ (ends e).1 =
-      ∑ x ∈ V₀, φ x * ∑ e, if (ends e).1 = x then w e else 0 := by
+  have hsum : ∀ (f : ι → V), (∀ e, f e ∈ V₀) →
+      ∑ e, w e * φ (f e) = ∑ x ∈ V₀, φ x * ∑ e, if f e = x then w e else 0 := fun f hf => by
     simp_rw [Finset.mul_sum]
     rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun e _ => ?_
-    simp only [mul_ite, mul_zero, Finset.sum_ite_eq, h1 e, ↓reduceIte, mul_comm]
-  have hR : ∑ e, w e * φ (ends e).2 =
-      ∑ x ∈ V₀, φ x * ∑ e, if (ends e).2 = x then w e else 0 := by
-    simp_rw [Finset.mul_sum]
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    simp only [mul_ite, mul_zero, Finset.sum_ite_eq, h2 e, ↓reduceIte, mul_comm]
-  rw [hL, hR]
-  refine Finset.sum_congr rfl fun x _ => ?_
-  rw [hdeg x]
+    simp only [mul_ite, mul_zero, Finset.sum_ite_eq, hf e, ↓reduceIte, mul_comm]
+  rw [hsum (fun e => (ends e).1)
+      (fun e => Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ e))),
+    hsum (fun e => (ends e).2)
+      (fun e => Finset.mem_union_right _ (Finset.mem_image_of_mem _ (Finset.mem_univ e)))]
+  exact Finset.sum_congr rfl fun x _ => congrArg (φ x * ·) (hdeg x)
 
 omit [NormedAddCommGroup F] [InnerProductSpace ℝ F] in
 /-- On a balanced digraph, `2 * dicutValue ends w S = cutValue ends w S`. -/
@@ -543,13 +508,13 @@ theorem two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph {ends : ι → V × 
   have h0 : ∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0) =
       ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) :=
     hbal fun x => if S x then 1 else 0
-  have hid : ∀ e : ι,
+  have hid (e : ι) :
       2 * (if S (ends e).1 = true ∧ S (ends e).2 = false then w e else 0) -
         (if S (ends e).1 ≠ S (ends e).2 then w e else 0) =
         w e * (if S (ends e).1 then (1 : ℝ) else 0) -
           w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
-    intro e
-    cases S (ends e).1 <;> cases S (ends e).2 <;> simp; ring
+    cases S (ends e).1 <;> cases S (ends e).2 <;> simp
+    ring
   have hsum : 2 * dicutValue ends w S - cutValue ends w S =
       (∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0)) -
         ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
@@ -571,8 +536,7 @@ theorem two_mul_dicutSdpValue_eq_sdpValue_of_isBalancedDigraph {ends : ι → V 
       (∑ e, w e * ⟪v (some (ends e).1), v none⟫ - ∑ e, w e * ⟪v (some (ends e).2), v none⟫) /
         2 := by
     rw [Finset.mul_sum, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib, Finset.sum_div]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    ring
+    exact Finset.sum_congr rfl fun _ _ => by ring
   linarith
 
 variable [MeasurableSpace F] [BorelSpace F] [FiniteDimensional ℝ F] in
@@ -608,9 +572,7 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
   have hsdp := goemansWilliamsonConstant_mul_sdpValue_le_integral ends hw
     (v := fun x => v (some x)) (fun x => hv (some x))
   rw [← two_mul_dicutSdpValue_eq_sdpValue_of_isBalancedDigraph hbal v] at hsdp
-  have hbound : goemansWilliamsonConstant * dicutSdpValue ends w v ≤
-      (∫ r, cutValue ends w (hyperplaneSide (fun x => v (some x)) r) ∂stdGaussian F) / 2 := by
-    linarith
-  exact (mul_le_mul_of_nonneg_left (by linarith) goemansWilliamsonConstant_nonneg).trans hbound
+  exact (mul_le_mul_of_nonneg_left (sub_le_iff_le_add.mpr h1)
+    goemansWilliamsonConstant_nonneg).trans (by linarith)
 
 end Cslib.Algorithms.Lean.MaxDicut

@@ -146,10 +146,9 @@ theorem card_le_degree_of_fourierCoeff_ne_zero {f : BooleanFunction n} {S : Fins
 /-- Parity of `n` bits has degree `n`: read as signs, it is the character of all coordinates. -/
 theorem degree_parity : degree (parity n) = n := by
   refine le_antisymm (degree_le_card _) ?_
-  have h := card_le_degree_of_fourierCoeff_ne_zero (f := parity n) (S := univ) (by
-    rw [parity, fourierCoeff_signVal_parityOn]
-    simp)
-  rwa [card_univ, Fintype.card_fin] at h
+  simpa only [card_univ, Fintype.card_fin] using
+    card_le_degree_of_fourierCoeff_ne_zero (f := parity n) (S := univ)
+      (by simp [parity, fourierCoeff_signVal_parityOn])
 
 /-- The conjunction of `n` bits has degree `n`: read with values `0` and `1`, it is the monomial
 of all coordinates, whose top Fourier coefficient is `(-1)ⁿ / 2ⁿ`. -/
@@ -161,23 +160,21 @@ theorem degree_threshold_self : degree (threshold n n) = n := by
     by_cases hx : x = fun _ => true
     · subst hx
       simp [threshold_self]
-    · have : ¬∀ i, x i = true := fun h => hx (funext h)
-      simp [threshold_self, hx, this]
+    · simp [threshold_self, hx, show ¬∀ i, x i = true from fun h => hx (funext h)]
   have hne : fourierCoeff (fun x => bitVal ℝ (threshold n n x)) univ ≠ 0 := by
     rw [hfun, fourierCoeff_eq_sum]
     simp only [ite_mul, one_mul, zero_mul, sum_ite_eq', mem_univ, ↓reduceIte, chi_eq_prod_signVal,
       signVal_true, prod_const, card_univ]
     exact div_ne_zero (pow_ne_zero _ (neg_ne_zero.2 one_ne_zero)) (pow_ne_zero _ two_ne_zero)
-  have h := BitString.card_le_totalDegree_of_fourierCoeff_ne_zero hne
-  rwa [card_univ, Fintype.card_fin] at h
+  have hle := BitString.card_le_totalDegree_of_fourierCoeff_ne_zero hne
+  rwa [card_univ, Fintype.card_fin] at hle
 
 /-- The disjunction of `n` bits has degree `n`: it is the negation of the conjunction of the
 negated bits. -/
 theorem degree_threshold_one_right : degree (threshold n 1) = n := by
   have h : threshold n 1 = fun x => !threshold n n fun i => !x i := by
     funext x
-    rw [threshold_one_right, threshold_self, ← decide_not]
-    simp
+    simp [threshold_one_right, threshold_self, ← decide_not]
   rw [h, degree_not, degree_comp_not, degree_threshold_self]
 
 end QueryComplexity

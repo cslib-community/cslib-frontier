@@ -146,17 +146,11 @@ private theorem link_step {R : ℕ → ℕ → Prop} {a b : ℕ} (hrow : R (rowN
   rw [head?_step, Option.mem_some_iff] at hy
   subst hy
   unfold step at hx
-  cases hv : o a with
-  | none =>
-    simp only [hv, Option.map_none, Option.toList_none, List.getLast?_singleton,
-      Option.mem_def, Option.some.injEq] at hx
+  cases hv : o a <;>
+    simp only [hv, Option.map_none, Option.map_some, Option.toList_none, Option.toList_some,
+      List.getLast?_cons_cons, List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx <;>
     subst hx
-    exact hrow
-  | some j =>
-    simp only [hv, Option.map_some, Option.toList_some, List.getLast?_cons_cons,
-      List.getLast?_singleton, Option.mem_def, Option.some.injEq] at hx
-    subst hx
-    exact hclause j hv
+  exacts [hrow, hclause _ hv]
 
 /-- Steps over distinct row nodes, visiting each clause after at most one of them, have no
 repetitions. -/
@@ -168,14 +162,11 @@ private theorem nodup_flatMap_step {l : List ℕ} (hl : l.Nodup)
     cases o a <;> simp
   · intro x hx hx'
     rw [mem_step] at hx hx'
-    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩
-    · simp only [rowNode_inj] at h'
-      omega
-    · simp at h'
-    · simp at h'
-    · rw [clauseNode_inj] at h'
-      subst h'
-      exact hab (ho a b j hv hv')
+    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩ <;>
+      simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
+        clauseNode_ne_rowNode] at h'
+    · exact absurd h'.2 hab
+    · exact hab (ho a b j hv (h' ▸ hv'))
 
 end Step
 
@@ -205,10 +196,9 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
     visit M pick i s = some j ↔ j < M ∧ (pick j).row = i ∧ (pick j).slot = s := by
   constructor
   · intro h
-    have hmem := List.mem_of_find?_eq_some h
     have hp := List.find?_some h
     simp only [decide_eq_true_eq] at hp
-    exact ⟨List.mem_range.1 hmem, hp⟩
+    exact ⟨List.mem_range.1 (List.mem_of_find?_eq_some h), hp⟩
   · rintro ⟨hj, hi, hs⟩
     cases hv : visit M pick i s with
     | none =>
@@ -218,12 +208,9 @@ private theorem visit_eq_some_iff {i s j : ℕ} :
       have hmem := List.mem_range.1 (List.mem_of_find?_eq_some hv)
       have hp := List.find?_some hv
       simp only [decide_eq_true_eq] at hp
-      have h₁ := (hpick j hj).2.1
-      have h₂ := (hpick j' hmem).2.1
-      have := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
+      have hcl := hD.clause_eq _ (hpick j hj).1 _ (hpick j' hmem).1 (hi.trans hp.1.symm)
         (hs.trans hp.2.symm)
-      rw [h₁, h₂] at this
-      rw [this]
+      rw [← (hpick j hj).2.1, hcl, (hpick j' hmem).2.1]
 
 /-- A rightward traversal visits clause `j` after row node `a` exactly when `a` starts the slot
 of its picked detour. -/
@@ -231,11 +218,7 @@ private theorem rightVisit_eq_some_iff {i a j : ℕ} :
     rightVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 2 := by
   unfold rightVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 /-- A leftward traversal visits clause `j` after row node `a` exactly when `a` ends the slot of
 its picked detour. -/
@@ -243,11 +226,7 @@ private theorem leftVisit_eq_some_iff {i a j : ℕ} :
     leftVisit M pick i a = some j ↔
       j < M ∧ (pick j).row = i ∧ a = 3 * (pick j).slot + 3 := by
   unfold leftVisit
-  split_ifs with h
-  · rw [visit_eq_some_iff hD hpick]
-    omega
-  · simp only [false_iff]
-    omega
+  split_ifs with h <;> simp only [visit_eq_some_iff hD hpick, false_iff] <;> omega
 
 omit hD in
 /-- The arcs of the picked detour of a clause, in the direction of its row. -/
@@ -261,11 +240,9 @@ private theorem arc_detour {j : ℕ} (hj : j < M) :
   obtain ⟨hmem, hcl, hdir⟩ := hpick j hj
   have harc : ∀ e ∈ detourArcs (pick j), e ∈ arcs N slots D := fun e he =>
     List.mem_append_right _ (List.mem_flatMap.2 ⟨pick j, hmem, he⟩)
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have hb : (pick j).leftToRight = true := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
-  · have hb : (pick j).leftToRight = false := hdir ▸ h
-    exact ⟨harc _ (by simp [detourArcs, hb, hcl]), harc _ (by simp [detourArcs, hb, hcl])⟩
+  refine ⟨fun h => ?_, fun h => ?_⟩ <;>
+    exact ⟨harc _ (by simp [detourArcs, ← hdir, h, hcl]),
+      harc _ (by simp [detourArcs, ← hdir, h, hcl])⟩
 
 /-- No clause is visited across the right end of a row. -/
 private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none := by
@@ -379,9 +356,8 @@ private theorem isDirHamPath_hamPath :
     fun _ => List.cons_ne_nil _ _
   have hmem_block : ∀ {i v}, v ∈ topNode i :: rowPath slots M dir pick i ↔ v = topNode i ∨
       (∃ a < rowLength slots i, v = rowNode i a) ∨
-      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) := by
-    intro i v
-    rw [List.mem_cons, mem_rowPath hD hpick]
+      (∃ j < M, (pick j).row = i ∧ v = clauseNode j) :=
+    List.mem_cons.trans (or_congr_right (mem_rowPath hD hpick))
   refine ⟨?_, fun v => ?_, ?_, ?_, ?_⟩
   · -- No repetitions.
     rw [hamPath, List.nodup_append, List.nodup_flatMap]
@@ -396,15 +372,10 @@ private theorem isDirHamPath_hamPath :
         simp only [topNode_inj, rowNode_inj, clauseNode_inj, topNode_ne_rowNode,
           rowNode_ne_topNode, topNode_ne_clauseNode, clauseNode_ne_topNode,
           rowNode_ne_clauseNode, clauseNode_ne_rowNode] at h <;> grind
-    · rw [List.mem_singleton] at hw
-      subst hw
+    · obtain rfl := List.mem_singleton.1 hw
       obtain ⟨i, hi, hv⟩ := List.mem_flatMap.1 hv
-      rw [List.mem_range] at hi
-      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩
-      · simp only [ne_eq, topNode_inj]
-        omega
-      · simp
-      · simp
+      rcases hmem_block.1 hv with rfl | ⟨a, -, rfl⟩ | ⟨j, -, -, rfl⟩ <;>
+        simp [(List.mem_range.1 hi).ne]
   · -- Every vertex is visited.
     change v ∈ hamPath N slots M dir pick ↔ v ∈ vertices N slots M
     rw [mem_vertices, hamPath, List.mem_append, List.mem_flatMap, List.mem_singleton]

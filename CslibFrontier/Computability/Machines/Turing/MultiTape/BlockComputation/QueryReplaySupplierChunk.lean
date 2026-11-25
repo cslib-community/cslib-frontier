@@ -83,7 +83,7 @@ theorem machine_next_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 theorem machine_emit_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).emit (encPair encState (encOption encBool)) encBits
       (fun a => (encPair encState (encOption encBool) a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Stopping is exactly that of the checked replay. -/
 theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
@@ -95,7 +95,7 @@ theorem machine_halted_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
 /-- The query-machine finish stream is empty, because the caller consumes `answer` instead. -/
 theorem machine_finish_inSpace (M : MultiTapeTM k Bool Q) (e : Q ≃ Fin s) :
     ComputableInSpace (machine M e).finish encState encBits (fun a => (encState a).length) :=
-  budget_const [] (.refl _)
+  budget_const []
 
 /-- Packed-answer extraction uses native space linear in the actual returned-state storage.
 Neither the chunk width nor its offset causes allocation of its numeric magnitude. -/

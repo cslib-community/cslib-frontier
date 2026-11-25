@@ -164,22 +164,17 @@ theorem gCache_eq_of_mem_support_filterDecaps (sampleKey : ProbComp K)
     x.2.gCache = st.gCache := by
   by_cases hc : c = cStar
   · simp only [hc, ↓reduceIte] at hx
-    change x ∈ (ProbComp.eval (pure (none, st))).support at hx
-    rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hx
-    rw [hx]
+    rw [(PMF.mem_support_pure_iff (none, st) x).mp (ProbComp.eval_pure (none, st) ▸ hx)]
   · simp only [hc, ↓reduceIte] at hx
     cases hd : d st.gCache c
     · simp only [filterDecaps, hd, Bool.cond_false] at hx
-      change x ∈ (ProbComp.eval (pure (none, st))).support at hx
-      rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hx
-      rw [hx]
+      rw [(PMF.mem_support_pure_iff (none, st) x).mp (ProbComp.eval_pure (none, st) ▸ hx)]
     · simp only [filterDecaps, hd, Bool.cond_true] at hx
       change x ∈ (ProbComp.eval (simHashHq sampleKey c st >>= fun a =>
-        pure (some a.fst, a.snd))).support at hx
-      rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hx
-      obtain ⟨z, hz, hx⟩ := hx
-      rw [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hx
-      rw [hx]
+        pure (some a.1, a.2))).support at hx
+      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+        PMF.mem_support_pure_iff] at hx
+      obtain ⟨z, hz, rfl⟩ := hx
       exact simHashHq_gCache_eq _ _ _ _ hz
 
 omit [DecidableEq M] in

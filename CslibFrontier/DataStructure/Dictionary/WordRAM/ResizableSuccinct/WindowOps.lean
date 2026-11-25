@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 import CslibFrontier.Tactic.WramOmega
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Metadata and Circular-Window `Memory.Prog` Primitives
@@ -53,8 +54,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -567,13 +569,27 @@ theorem realizesBounded_writeCompDTGen :
 
 /-- When positive, the tail-capacity bound `maxTailItems N` is at most `N`. -/
 theorem maxTailItems_le_of_pos {N : ℕ} (hM : 0 < maxTailItems N) : maxTailItems N ≤ N := by
-  have hb_pos : 0 < bucketBits N := by
-    rcases Nat.eq_zero_or_pos (bucketBits N) with hb0 | hb
-    · simp [maxTailItems, tailCapPerBucket, hb0] at hM
-    · exact hb
+  have hb_pos : 0 < bucketBits N :=
+    Nat.pos_of_ne_zero fun hb0 => by simp [maxTailItems, tailCapPerBucket, hb0] at hM
   have h1 := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
   have h2 := globalMetaLen_le_of_bucketBits_pos hb_pos
   wram_omega [h1]
+
+private theorem denseOfCirc_eq_ite {M b_win c : ℕ} (hc : 0 < M → c < M) :
+    denseOfCirc M b_win c =
+      if M = 0 then b_win
+      else if c < b_win % M then b_win + (c + (M - b_win % M))
+      else b_win + (c - b_win % M) := by
+  dsimp only [denseOfCirc]
+  split_ifs with hM0 hlt
+  · rfl
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = c + (M - b_win % M) by omega, Nat.mod_eq_of_lt (by omega)]
+  · have := hc (Nat.pos_of_ne_zero hM0)
+    have := Nat.mod_lt b_win (Nat.pos_of_ne_zero hM0)
+    rw [show c + M - b_win % M = (c - b_win % M) + 1 * M by omega,
+      Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)]
 
 /-- Overflow-free evaluation of `denseOfCirc (cpMaxTail cp) b_win c` in `Memory.Prog`. -/
 def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
@@ -595,24 +611,10 @@ theorem clientResult_denseOfCircGenProg {U V w N b_win c : ℕ}
     (Memory.spec 0).clientResult s
         (denseOfCircGenProg (mkCompParams U V w N, (b_win, c))) =
       denseOfCirc (maxTailItems N) b_win c := by
-  dsimp only [denseOfCircGenProg, denseOfCirc]
+  rw [denseOfCirc_eq_ite hc]
+  dsimp only [denseOfCircGenProg]
   simp only [pure_bind, cpMaxTail_mk]
-  by_cases hM0 : maxTailItems N = 0
-  · rw [ite_eq_left hM0, ite_eq_left hM0]; rfl
-  · rw [ite_eq_right hM0, ite_eq_right hM0]
-    have hM_pos : 0 < maxTailItems N := Nat.pos_of_ne_zero hM0
-    have hc_lt : c < maxTailItems N := hc hM_pos
-    have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    by_cases hlt : c < b_win % maxTailItems N
-    · rw [ite_eq_left hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          c + (maxTailItems N - b_win % maxTailItems N) := by omega
-      rw [heq, Nat.mod_eq_of_lt (a := c + (maxTailItems N - b_win % maxTailItems N)) (by omega)]
-    · rw [ite_eq_right hlt, prog_clientResult_pure]
-      have heq : c + maxTailItems N - b_win % maxTailItems N =
-          (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-      rw [heq, Nat.add_mul_mod_self_right,
-        Nat.mod_eq_of_lt (a := c - b_win % maxTailItems N) (by omega)]
+  split_ifs <;> rfl
 
 /-- `denseOfCircGenProg` leaves the memory state unchanged. -/
 theorem clientState_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
@@ -657,17 +659,11 @@ theorem realizesBounded_denseOfCircGen :
     obtain ⟨hc_lt, hd_le⟩ := hM_cond hM_pos
     have hMN : maxTailItems N ≤ N := maxTailItems_le_of_pos hM_pos
     have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    unfold denseOfCirc at hd_le
-    rw [ite_eq_right hM_ne] at hd_le)
+    rw [denseOfCirc_eq_ite (fun _ => hc_lt), ite_eq_right hM_ne] at hd_le)
   all_goals try omega
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        c + (maxTailItems N - b_win % maxTailItems N) := by omega
-    rw [heq, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-    rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
+  all_goals (
+    split_ifs at hd_le
+    exact lt_of_le_of_lt (by omega) hU)
 
 /-- Map physical slot `g < N` to dense index `denseOfPhys N gm td g` in `Memory.Prog`. -/
 def denseOfPhysGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ

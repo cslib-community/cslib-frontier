@@ -127,57 +127,30 @@ private theorem exists_card_eq_and_mul_sum_le {n : Type*} [Fintype n] (c : n →
   have hmono : Monotone (c ∘ e ∘ σ) := Tuple.monotone_sort (c ∘ e)
   let emb : Fin N ↪ n := σ.toEmbedding.trans e.toEmbedding
   let S : Finset (Fin N) := univ.filter fun k : Fin N => k.val < a
-  let Sc : Finset (Fin N) := univ.filter fun k : Fin N => a ≤ k.val
-  have hS_card : #S = a := by
-    have hmap : S = (range a).attach.map
-        ⟨fun x => ⟨x.1, (mem_range.mp x.2).trans_le ha⟩, fun x y h => by
-          ext; exact Fin.mk.inj h⟩ := by
-      ext k
-      simp only [S, mem_filter, mem_univ, true_and, mem_map, mem_attach]
-      refine ⟨fun hk => ⟨⟨k.val, mem_range.mpr hk⟩, rfl⟩, ?_⟩
-      rintro ⟨⟨v, hv⟩, rfl⟩
-      exact mem_range.mp hv
-    rw [hmap, card_map, card_attach, card_range]
-  have hdisj : Disjoint S Sc := disjoint_filter.mpr fun _ _ h₁ h₂ => not_le_of_gt h₁ h₂
-  have hunion : S ∪ Sc = univ := by
-    ext k
-    simp only [S, Sc, mem_union, mem_filter, mem_univ, true_and]
-    exact iff_of_true (lt_or_ge k.val a) trivial
+  let Sc : Finset (Fin N) := univ.filter fun k : Fin N => ¬k.val < a
+  have hS_card : #S = a := Fin.card_filter_val_lt.trans (min_eq_right ha)
   have hSc_card : #Sc = N - a := by
-    have hcard := card_union_of_disjoint hdisj
-    rw [hunion, card_univ, Fintype.card_fin, hS_card] at hcard
+    have h := card_filter_add_card_filter_not (s := (univ : Finset (Fin N))) fun k => k.val < a
+    rw [card_univ, Fintype.card_fin] at h
+    change #S + #Sc = N at h
     omega
   let g : Fin N → ℕ := fun k => c (emb k)
-  have hcross : #Sc * ∑ x ∈ S, g x ≤ #S * ∑ y ∈ Sc, g y := by
-    calc #Sc * ∑ x ∈ S, g x
-        = ∑ x ∈ S, ∑ _y ∈ Sc, g x := by
-          rw [mul_sum]
-          refine sum_congr rfl fun x _ => ?_
-          rw [sum_const, smul_eq_mul]
-      _ ≤ ∑ x ∈ S, ∑ y ∈ Sc, g y := by
-          refine sum_le_sum fun x hx => sum_le_sum fun y hy => ?_
-          have hx' : x.val < a := (mem_filter.mp hx).2
-          have hy' : a ≤ y.val := (mem_filter.mp hy).2
-          exact hmono (Fin.mk_le_mk.mpr (hx'.le.trans hy'))
-      _ = #S * ∑ y ∈ Sc, g y := by
-          rw [sum_comm, mul_sum]
-          refine sum_congr rfl fun y _ => ?_
-          rw [sum_const, smul_eq_mul]
-  refine ⟨S.map emb, by rw [card_map, hS_card], ?_⟩
-  rw [sum_map]
-  change N * ∑ x ∈ S, g x ≤ a * ∑ i : n, c i
+  have hcross : (N - a) * ∑ x ∈ S, g x ≤ a * ∑ y ∈ Sc, g y := by
+    rw [← hSc_card, ← hS_card]
+    calc #Sc * ∑ x ∈ S, g x = ∑ x ∈ S, ∑ _y ∈ Sc, g x := by
+          simp only [sum_const, smul_eq_mul, mul_sum]
+      _ ≤ ∑ x ∈ S, ∑ y ∈ Sc, g y := sum_le_sum fun x hx => sum_le_sum fun y hy =>
+          hmono (Fin.mk_le_mk.mpr ((mem_filter.mp hx).2.le.trans (not_lt.mp (mem_filter.mp hy).2)))
+      _ = #S * ∑ y ∈ Sc, g y := by rw [sum_comm]; simp only [sum_const, smul_eq_mul, mul_sum]
   have htot : ∑ i : n, c i = ∑ x ∈ S, g x + ∑ y ∈ Sc, g y := by
-    calc ∑ i : n, c i = ∑ k : Fin N, g k := (Fintype.sum_equiv (σ.trans e) _ _ fun _ => rfl).symm
-      _ = ∑ k ∈ S ∪ Sc, g k := by rw [hunion]
-      _ = ∑ x ∈ S, g x + ∑ y ∈ Sc, g y := sum_union hdisj
-  rw [htot]
-  rw [hS_card, hSc_card] at hcross
-  have hN : a + (N - a) = N := Nat.add_sub_of_le ha
-  calc N * ∑ x ∈ S, g x
-      = a * ∑ x ∈ S, g x + (N - a) * ∑ x ∈ S, g x := by
-        rw [← add_mul, hN]
-    _ ≤ a * ∑ x ∈ S, g x + a * ∑ y ∈ Sc, g y := Nat.add_le_add_left hcross _
-    _ = a * (∑ x ∈ S, g x + ∑ y ∈ Sc, g y) := (mul_add _ _ _).symm
+    rw [sum_filter_add_sum_filter_not]
+    exact (Fintype.sum_equiv (σ.trans e) _ _ fun _ => rfl).symm
+  refine ⟨S.map emb, by rw [card_map, hS_card], ?_⟩
+  rw [sum_map, htot]
+  change N * ∑ x ∈ S, g x ≤ a * (∑ x ∈ S, g x + ∑ y ∈ Sc, g y)
+  calc N * ∑ x ∈ S, g x = a * ∑ x ∈ S, g x + (N - a) * ∑ x ∈ S, g x := by
+        rw [← add_mul, Nat.add_sub_of_le ha]
+    _ ≤ a * (∑ x ∈ S, g x + ∑ y ∈ Sc, g y) := by rw [mul_add]; exact Nat.add_le_add_left hcross _
 
 /-- Row-averaging reduction from a submatrix rank lower bound `#I * #J ≤ |n| * rank A_{I, J}` to
 the rigidity lower bound `|n| ^ 2 ≤ 4 * r * A.rigidity r` ([deWolf2006], §3, Theorem 2;
@@ -197,33 +170,22 @@ private theorem card_sq_le_four_mul_rigidity_of_submatrix {n K : Type*} [Fintype
   rw [← diffCount_eq_sum A B] at hIsum
   let badCols : Finset n := I.biUnion fun i => univ.filter fun j : n => A i j ≠ B i j
   let J : Finset n := badColsᶜ
-  have hbad_le : #badCols ≤ ∑ i ∈ I, rowDiff i := card_biUnion_le
   have hN_bad : N * #badCols ≤ 2 * r * diffCount A B :=
-    (Nat.mul_le_mul_left N hbad_le).trans hIsum
+    (Nat.mul_le_mul_left N card_biUnion_le).trans hIsum
   have hagree : A.submatrix (Subtype.val : I → n) (Subtype.val : J → n) =
       B.submatrix (Subtype.val : I → n) (Subtype.val : J → n) := by
     ext ⟨i, hi⟩ ⟨j, hj⟩
-    simp only [submatrix_apply]
     by_contra hne
-    have hmem : j ∈ badCols := mem_biUnion.mpr ⟨i, hi, mem_filter.mpr ⟨mem_univ j, hne⟩⟩
-    exact (mem_compl.mp hj) hmem
+    exact mem_compl.mp hj (mem_biUnion.mpr ⟨i, hi, mem_filter.mpr ⟨mem_univ j, hne⟩⟩)
   have hIJ : 2 * r * #J ≤ N * r := by
     calc 2 * r * #J = #I * #J := by rw [hI]
       _ ≤ N * (A.submatrix (Subtype.val : I → n) (Subtype.val : J → n)).rank := hsub I J
-      _ = N * (B.submatrix (Subtype.val : I → n) (Subtype.val : J → n)).rank := by rw [hagree]
-      _ ≤ N * B.rank := Nat.mul_le_mul_left N (rank_submatrix_le B _ _)
-      _ ≤ N * r := Nat.mul_le_mul_left N hB
-  have h2J : 2 * #J ≤ N := by
-    have h1 : r * (2 * #J) ≤ r * N := by linarith
-    exact Nat.le_of_mul_le_mul_left h1 hr0
+      _ ≤ N * r := by rw [hagree]; exact Nat.mul_le_mul_left N ((rank_submatrix_le B _ _).trans hB)
+  have h2J : 2 * #J ≤ N := Nat.le_of_mul_le_mul_left (by linarith : r * (2 * #J) ≤ r * N) hr0
   have hJ_compl : #J + #badCols = N := by
     simpa only [J] using card_compl_add_card badCols
   have hN_le : N ≤ 2 * #badCols := by omega
-  calc N ^ 2 = N * N := sq N
-    _ ≤ N * (2 * #badCols) := Nat.mul_le_mul_left N hN_le
-    _ = 2 * (N * #badCols) := by ring
-    _ ≤ 2 * (2 * r * diffCount A B) := Nat.mul_le_mul_left 2 hN_bad
-    _ = 4 * r * diffCount A B := by ring
+  linarith [Nat.mul_le_mul_left N hN_le]
 
 /-! ### General Hadamard matrices -/
 
@@ -233,11 +195,8 @@ theorem IsHadamard.rigidity_zero {n K : Type*} [Fintype n] [DecidableEq n] [Fiel
     {H : Matrix n n K} (hH : H.IsHadamard) :
     H.rigidity 0 = Fintype.card n ^ 2 := by
   classical
-  have hne (p : n × n) : H p.1 p.2 ≠ 0 := by
-    intro h0
-    have h1 := (Unitary.mem_iff.mp (hH.apply_mem p.1 p.2)).2
-    rw [h0, zero_mul] at h1
-    exact zero_ne_one h1
+  have hne (p : n × n) : H p.1 p.2 ≠ 0 := fun h0 => by
+    simpa only [h0, zero_mul, zero_ne_one] using (Unitary.mem_iff.mp (hH.apply_mem p.1 p.2)).2
   rw [Matrix.rigidity_zero, diffCount_eq_card_filter]
   have hfilt : (univ.filter fun p : n × n => H p.1 p.2 ≠ (0 : Matrix n n K) p.1 p.2) = univ :=
     filter_true_of_mem fun p _ => by simpa only [Matrix.zero_apply] using hne p
@@ -313,12 +272,8 @@ theorem IsHadamard.card_mul_le_rank_submatrix {n α β K : Type*} [Fintype n] [D
     rw [← hG_quad, re_star_dotProduct_mul_conjTranspose_mulVec M v,
       ← hR_quad, re_star_dotProduct_mul_conjTranspose_mulVec R v]
     simp_rw [hMR_entry]
-    have hmap : (∑ b : β, ‖(Rᴴ *ᵥ v) (g b)‖ ^ 2) =
-        ∑ k ∈ univ.map ⟨g, hg⟩, ‖(Rᴴ *ᵥ v) k‖ ^ 2 := by
-      rw [sum_map]
-      rfl
-    rw [hmap]
-    exact sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => sq_nonneg _
+    exact (sum_map univ ⟨g, hg⟩ fun k => ‖(Rᴴ *ᵥ v) k‖ ^ 2).symm.trans_le
+      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => sq_nonneg _)
   let nz : Finset α := univ.filter fun a => hG.eigenvalues a ≠ 0
   have hrank_G : #nz = M.rank := by
     rw [← rank_self_mul_conjTranspose M, hG.rank_eq_card_non_zero_eigs, Fintype.card_subtype]
@@ -329,11 +284,8 @@ theorem IsHadamard.card_mul_le_rank_submatrix {n α β K : Type*} [Fintype n] [D
     rw [← Finset.sum_filter_ne_zero] at h1
     exact_mod_cast h1
   have hbound : (Fintype.card α * Fintype.card β : ℝ) ≤ Fintype.card n * M.rank := by
-    rw [hsum]
-    calc ∑ a ∈ nz, hG.eigenvalues a
-        ≤ ∑ _a ∈ nz, (Fintype.card n : ℝ) := sum_le_sum fun a _ => heig_le a
-      _ = #nz * Fintype.card n := by rw [sum_const, nsmul_eq_mul]
-      _ = Fintype.card n * M.rank := by rw [hrank_G, mul_comm]
+    rw [hsum, ← hrank_G, mul_comm, ← nsmul_eq_mul, ← sum_const]
+    exact sum_le_sum fun a _ => heig_le a
   exact_mod_cast hbound
 
 /-- **Submatrix rank bound for `±1` Hadamard matrices in characteristic zero.** Over any field `K`
@@ -357,11 +309,9 @@ theorem IsHadamard.card_mul_le_rank_submatrix_of_trivialStar {n α β K : Type*}
     · simp only [H₀, of_apply, map_apply, h, h1_ne_neg1.symm, ↓reduceIte, map_neg, map_one]
   let H₁ : Matrix n n ℝ := H₀.map (Rat.castHom ℝ)
   have hconj_K : H₀ᴴ.map (Rat.castHom K) = Hᴴ := by
-    ext i j
-    simp only [conjTranspose_apply, star_trivial, map_apply, ← hmap_K]
+    ext i j; simp only [conjTranspose_apply, star_trivial, map_apply, ← hmap_K]
   have hconj_R : H₀ᴴ.map (Rat.castHom ℝ) = H₁ᴴ := by
-    ext i j
-    simp only [H₁, conjTranspose_apply, star_trivial, map_apply]
+    ext i j; simp only [H₁, conjTranspose_apply, star_trivial, map_apply]
   have hmul (X Y : Matrix n n ℚ)
       (hXY : X.map (Rat.castHom K) * Y.map (Rat.castHom K) = (Fintype.card n : K) • 1) :
       X.map (Rat.castHom ℝ) * Y.map (Rat.castHom ℝ) = (Fintype.card n : ℝ) • 1 := by
@@ -386,10 +336,9 @@ theorem IsHadamard.card_mul_le_rank_submatrix_of_trivialStar {n α β K : Type*}
     · rw [← hconj_R]
       exact hmul H₀ᴴ H₀ (by rw [hconj_K, hmap_K, hH.conjTranspose_mul])
   have hrank : (H.submatrix f g).rank = (H₁.submatrix f g).rank := by
-    have hsub_K : H.submatrix f g = (H₀.submatrix f g).map (Rat.castHom K) := by
-      rw [← hmap_K]; rfl
-    have hsub_R : H₁.submatrix f g = (H₀.submatrix f g).map (Rat.castHom ℝ) := rfl
-    rw [hsub_K, hsub_R, rank_map_of_field, rank_map_of_field]
+    rw [show H.submatrix f g = (H₀.submatrix f g).map (Rat.castHom K) by rw [← hmap_K]; rfl,
+      show H₁.submatrix f g = (H₀.submatrix f g).map (Rat.castHom ℝ) from rfl,
+      rank_map_of_field, rank_map_of_field]
   rw [hrank]
   exact hH₁.card_mul_le_rank_submatrix hf hg
 
@@ -459,8 +408,7 @@ theorem sylvesterHadamard_apply_eq_one_or_neg_one (R : Type*) [CommRing R] (k : 
 theorem sylvesterHadamard_zero (R : Type*) [CommRing R] :
     sylvesterHadamard R 0 = 1 := by
   ext i j
-  have hij : i = j := Fin.ext (by omega)
-  subst hij
+  obtain rfl : i = j := Fin.ext (by omega)
   simp [sylvesterHadamard]
 
 /-- For `k = 1`, `sylvesterHadamard R 1` is `!![1, 1; 1, -1]`. -/
@@ -498,12 +446,8 @@ theorem sylvesterHadamard_add_submatrix (R : Type*) [CommRing R] (k₁ k₂ : �
     kroneckerMap_apply, Fin.val_cast]
   let a : ℕ := (finProdFinEquiv (u, x)).val
   let b : ℕ := (finProdFinEquiv (v, y)).val
-  have ha : a = 2 ^ k₂ * u.val + x.val := by
-    change x.val + 2 ^ k₂ * u.val = 2 ^ k₂ * u.val + x.val
-    ring
-  have hb : b = 2 ^ k₂ * v.val + y.val := by
-    change y.val + 2 ^ k₂ * v.val = 2 ^ k₂ * v.val + y.val
-    ring
+  have ha : a = 2 ^ k₂ * u.val + x.val := show x.val + 2 ^ k₂ * u.val = _ from Nat.add_comm _ _
+  have hb : b = 2 ^ k₂ * v.val + y.val := show y.val + 2 ^ k₂ * v.val = _ from Nat.add_comm _ _
   change (∏ t ∈ range (k₁ + k₂), if a.testBit t && b.testBit t then (-1 : R) else 1) =
     (∏ t ∈ range k₁, if u.val.testBit t && v.val.testBit t then (-1 : R) else 1) *
       ∏ t ∈ range k₂, if x.val.testBit t && y.val.testBit t then (-1 : R) else 1
@@ -511,48 +455,32 @@ theorem sylvesterHadamard_add_submatrix (R : Type*) [CommRing R] (k₁ k₂ : �
   congr 1
   · refine prod_congr rfl fun t _ => ?_
     have hlt : ¬ k₂ + t < k₂ := by omega
-    have hbit_u : a.testBit (k₂ + t) = u.val.testBit t := by
-      rw [ha, Nat.testBit_two_pow_mul_add u.val x.isLt (k₂ + t), ite_eq_right hlt,
-        Nat.add_sub_cancel_left]
-    have hbit_v : b.testBit (k₂ + t) = v.val.testBit t := by
-      rw [hb, Nat.testBit_two_pow_mul_add v.val y.isLt (k₂ + t), ite_eq_right hlt,
-        Nat.add_sub_cancel_left]
-    rw [hbit_u, hbit_v]
+    rw [ha, hb, Nat.testBit_two_pow_mul_add u.val x.isLt, Nat.testBit_two_pow_mul_add v.val y.isLt,
+      ite_eq_right hlt, ite_eq_right hlt, Nat.add_sub_cancel_left]
   · refine prod_congr rfl fun t ht => ?_
-    have ht' : t < k₂ := mem_range.mp ht
-    have hbit_u : a.testBit t = x.val.testBit t := by
-      rw [ha, Nat.testBit_two_pow_mul_add u.val x.isLt t, ite_eq_left ht']
-    have hbit_v : b.testBit t = y.val.testBit t := by
-      rw [hb, Nat.testBit_two_pow_mul_add v.val y.isLt t, ite_eq_left ht']
-    rw [hbit_u, hbit_v]
+    rw [ha, hb, Nat.testBit_two_pow_mul_add u.val x.isLt, Nat.testBit_two_pow_mul_add v.val y.isLt,
+      ite_eq_left (mem_range.mp ht), ite_eq_left (mem_range.mp ht)]
 
 /-- `sylvesterHadamard R k` is a Hadamard matrix over every commutative `*`-ring. -/
 theorem isHadamard_sylvesterHadamard (R : Type*) [CommRing R] [StarRing R] (k : ℕ) :
     (sylvesterHadamard R k).IsHadamard := by
   induction k with
   | zero =>
+      have hij (i j : Fin (2 ^ 0)) : i = j := Fin.ext (by omega)
       refine ⟨fun i j => ?_, ?_, ?_⟩
-      · rw [sylvesterHadamard_zero]
-        have hij : i = j := Fin.ext (by omega)
-        subst hij
+      · rw [sylvesterHadamard_zero, hij i j]
         simp
-      · ext i j
-        have hij : i = j := Fin.ext (by omega)
-        subst hij
-        simp [sylvesterHadamard_zero]
-      · ext i j
-        have hij : i = j := Fin.ext (by omega)
-        subst hij
+      all_goals
+        ext i j
+        rw [hij i j]
         simp [sylvesterHadamard_zero]
   | succ k ih =>
       have h1 : (sylvesterHadamard R 1).IsHadamard := by
         refine ⟨fun i j => ?_, ?_, ?_⟩
         · rcases sylvesterHadamard_apply_eq_one_or_neg_one R 1 i j with h | h <;>
             rw [h] <;> simp [Unitary.mem_iff]
-        · ext i j
-          fin_cases i <;> fin_cases j <;>
-            simp [Matrix.mul_apply, Fin.sum_univ_two, sylvesterHadamard_one] <;> ring
-        · ext i j
+        all_goals
+          ext i j
           fin_cases i <;> fin_cases j <;>
             simp [Matrix.mul_apply, Fin.sum_univ_two, sylvesterHadamard_one] <;> ring
       have hk := h1.kronecker ih
@@ -624,34 +552,20 @@ theorem two_pow_le_four_mul_rigidity_sylvesterHadamard_two_pow {K : Type*} [Fiel
     have hrow_card {m : Type} [Fintype m] (A' B' : Matrix m m K) :
         diffCount A' B' = ∑ i : m, ∑ j : m, if A' i j ≠ B' i j then 1 else 0 := by
       rw [diffCount_eq_sum]
-      refine sum_congr rfl fun i _ => ?_
-      rw [sum_boole, Nat.cast_id]
+      simp only [sum_boole, Nat.cast_id]
     rw [hrow_card, ← e.sum_comp, Fintype.sum_prod_type]
     simp_rw [← e.sum_comp, Fintype.sum_prod_type]
-    refine sum_congr rfl fun u _ => ?_
-    rw [sum_comm]
-    refine sum_congr rfl fun v _ => ?_
-    rw [hrow_card]
-    rfl
+    exact sum_congr rfl fun u _ => by
+      rw [sum_comm]; exact sum_congr rfl fun v _ => by rw [hrow_card]; rfl
   have hsum_le :
       (2 ^ k₁) * (2 ^ k₁) * 2 ^ t ≤ diffCount (sylvesterHadamard K (k₁ + (t + 1))) B := by
     rw [hpart]
     calc (2 ^ k₁) * (2 ^ k₁) * 2 ^ t
         = ∑ _u : Fin (2 ^ k₁), ∑ _v : Fin (2 ^ k₁), 2 ^ t := by
           simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_assoc]
-      _ ≤ ∑ u : Fin (2 ^ k₁), ∑ v : Fin (2 ^ k₁),
-            diffCount
-              ((sylvesterHadamard K (k₁ + (t + 1))).submatrix
-                (fun x => e (u, x)) (fun y => e (v, y)))
-              (B.submatrix (fun x => e (u, x)) (fun y => e (v, y))) :=
-          sum_le_sum fun u _ => sum_le_sum fun v _ => htile_diff u v
-  calc 2 ^ (2 * (k₁ + (t + 1)))
-      = 2 ^ ((k₁ + (t + 1)) + (k₁ + (t + 1))) := by ring_nf
-    _ = 4 * 2 ^ t * ((2 ^ k₁) * (2 ^ k₁) * 2 ^ t) := by
-        rw [pow_add, pow_add, pow_add, pow_one]
-        ring
-    _ ≤ 4 * 2 ^ t * diffCount (sylvesterHadamard K (k₁ + (t + 1))) B :=
-        Nat.mul_le_mul_left _ hsum_le
+      _ ≤ _ := sum_le_sum fun u _ => sum_le_sum fun v _ => htile_diff u v
+  calc 2 ^ (2 * (k₁ + (t + 1))) = 4 * 2 ^ t * ((2 ^ k₁) * (2 ^ k₁) * 2 ^ t) := by ring
+    _ ≤ _ := Nat.mul_le_mul_left _ hsum_le
 
 /-- **Rigidity lower bound for Sylvester–Hadamard matrices in characteristic zero**
 ([Lokam2009], §2.2, Theorem 2.11 and §3.2.1, Theorem 3.8; [deWolf2006], §3, Theorem 2). Over any

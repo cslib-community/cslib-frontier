@@ -59,8 +59,7 @@ variable {x y z x' y' : List Label}
 /-- Boundary transport preserves the crossing count. -/
 theorem swapCount_cast {a' b' : List Color} (ha : a = a') (hb : b = b')
     (D : Wiring Γ a b x y) : swapCount (D.cast ha hb).diagram = swapCount D.diagram := by
-  cases ha
-  cases hb
+  subst ha hb
   rfl
 
 /-- Straight labeled wires. -/
@@ -91,8 +90,7 @@ theorem crossingPairs_cast {a' b' : List Color} (ha : a = a') (hb : b = b')
     (D : Wiring Γ a b x y) :
     (D.cast ha hb).diagram.crossingPairs (D.cast ha hb).labeling.label =
       D.diagram.crossingPairs D.labeling.label := by
-  cases ha
-  cases hb
+  subst ha hb
   rfl
 
 /-- Stacking wirings concatenates their labeled crossing events. -/
@@ -199,31 +197,23 @@ private theorem pull_front_trace {pre post ys : List Label} {y : Label}
     CrossingTrace (pre ++ y :: post) (y :: ys) (pre.reverse.map (·, y) ++ pairs) := by
   have hsub : (pre ++ post).Sublist (pre ++ y :: post) :=
     (List.Sublist.refl pre).append ((List.Sublist.refl post).cons y)
-  constructor
-  · intro a b hab
-    rcases List.mem_append.mp hab with hab | hab
+  refine ⟨fun a b hab => ?_, fun hn => ?_⟩
+  · rcases List.mem_append.mp hab with hab | hab
     · obtain ⟨z, hz, hzy⟩ := List.mem_map.mp hab
-      obtain ⟨ha, hb⟩ := Prod.mk.inj hzy
-      subst a
-      subst b
+      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hzy
       have hz' : z ∈ pre := List.mem_reverse.mp hz
-      have hzy : z ∈ ys := hp.mem_iff.mp (List.mem_append_left post hz')
       exact ⟨(List.singleton_sublist.mpr hz').append (.cons_cons y (List.nil_sublist _)),
-        (List.singleton_sublist.mpr hzy).cons_cons y⟩
+        (List.singleton_sublist.mpr (hp.mem_iff.mp (List.mem_append_left post hz'))).cons_cons y⟩
     · obtain ⟨hx, hy⟩ := ht.supports a b hab
       exact ⟨hx.trans hsub, hy.cons y⟩
-  · intro hn
-    have hn' : (y :: (pre ++ post)).Nodup := List.perm_middle.nodup_iff.mp hn
-    obtain ⟨hy, htail⟩ := List.nodup_cons.mp hn'
-    have hpre : pre.Nodup := htail.sublist (List.sublist_append_left _ _)
-    have hfront : (pre.reverse.map (·, y)).Nodup :=
-      List.Nodup.map (fun a b h => congrArg Prod.fst h) (List.nodup_reverse.mpr hpre)
-    refine List.nodup_append.mpr ⟨hfront, ht.nodup htail, ?_⟩
-    intro e he f hf hef
-    obtain ⟨z, _hz, rfl⟩ := List.mem_map.mp he
-    subst f
-    have hyin := (ht.supports z y hf).1.subset (show y ∈ [z, y] from by simp)
-    exact hy hyin
+  · obtain ⟨hy, htail⟩ := List.nodup_cons.mp (List.perm_middle.nodup_iff.mp hn)
+    refine List.nodup_append.mpr
+      ⟨List.Nodup.map (fun _ _ => congrArg Prod.fst)
+        (List.nodup_reverse.mpr (htail.sublist (List.sublist_append_left _ _))),
+        ht.nodup htail, fun e he f hf hef => ?_⟩
+    obtain ⟨z, _, rfl⟩ := List.mem_map.mp he
+    subst hef
+    exact hy ((ht.supports z y hf).1.subset (by simp))
 
 private structure BoundedWiring (a b : List Color) (xs ys : List Label) where
   wiring : Wiring Γ a b xs ys

@@ -154,40 +154,23 @@ private theorem exists_bisection_step {V_fin : Type}
     have hsub : {i : Fin n | leaf i ∈ insert (lay.symm ⟨t, ht⟩) (lay.initial t)} ⊆
         {i : Fin n | leaf i = lay.symm ⟨t, ht⟩} ∪ {i : Fin n | leaf i ∈ lay.initial t} :=
       fun _ hi => hi
-    have hle1 : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩}.ncard ≤ 1 := by
-      by_cases hex : ∃ i, leaf i = lay.symm ⟨t, ht⟩
-      · obtain ⟨i₀, hi₀⟩ := hex
-        have hsing : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩} = {i₀} := by
-          ext i; simp only [mem_ofPred_eq, mem_singleton_iff]
-          exact ⟨fun h => leaf.injective (h.trans hi₀.symm), fun h => h ▸ hi₀⟩
-        rw [hsing, ncard_singleton]
-      · push Not at hex
-        have hemp : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩} = ∅ := by
-          ext i; simp only [mem_ofPred_eq, mem_empty_iff_false, iff_false]; exact hex i
-        rw [hemp, ncard_empty]; exact Nat.zero_le 1
+    have hle1 : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩}.ncard ≤ 1 :=
+      (ncard_le_one (toFinite _)).mpr fun a (ha : leaf a = _) b (hb : leaf b = _) =>
+        leaf.injective (ha.trans hb.symm)
     have h1 := (ncard_le_ncard hsub (toFinite _)).trans (ncard_union_le _ _)
     omega
   have hgoal_le : n / 2 ≤ f (Nat.card V_fin) := by rw [hfV]; exact Nat.div_le_self n 2
-  have hex : ∃ t ≤ Nat.card V_fin, f t = n / 2 := by
-    suffices ∀ m ≤ Nat.card V_fin, n / 2 ≤ f m → ∃ t ≤ m, f t = n / 2 from
-      this (Nat.card V_fin) le_rfl hgoal_le
-    intro m
-    induction m with
-    | zero =>
-      intro _ hm0
-      exact ⟨0, le_rfl, by omega⟩
-    | succ m ihm =>
-      intro hmV hge
-      by_cases hprev : n / 2 ≤ f m
-      · obtain ⟨t, htm, ht_eq⟩ := ihm (by omega) hprev
-        exact ⟨t, by omega, ht_eq⟩
-      · have hst := hstep m (by omega)
-        exact ⟨m + 1, le_rfl, by omega⟩
-  obtain ⟨t, ht_le, ht_eq⟩ := hex
-  refine ⟨t, ?_, ht_eq⟩
-  rcases eq_or_lt_of_le ht_le with rfl | hlt
-  · exfalso; rw [hfV] at ht_eq; omega
-  · exact hlt
+  have hP : ∃ t, n / 2 ≤ f t := ⟨_, hgoal_le⟩
+  have hfeq : f (Nat.find hP) = n / 2 := by
+    have hspec := Nat.find_spec hP
+    by_cases h0 : Nat.find hP = 0
+    · rw [h0, hf0] at hspec ⊢; omega
+    · have := Nat.find_min hP (by omega : Nat.find hP - 1 < Nat.find hP)
+      have := hstep (Nat.find hP - 1) (by have := Nat.find_min' hP hgoal_le; omega)
+      rw [Nat.sub_add_cancel (by omega : 1 ≤ Nat.find hP)] at this
+      omega
+  refine ⟨Nat.find hP, (Nat.find_min' hP hgoal_le).lt_of_ne fun h => ?_, hfeq⟩
+  rw [h, hfV] at hfeq; omega
 
 /-- **Shared finite closed-set bisection supply-demand inequality** on a compiled multigraph `G`
 with embedded leaves `leaf : Fin m ↪ V_fin`. Every closed set (`edgeCut = ∅`) takes either at most
@@ -224,73 +207,52 @@ private theorem finite_bisection_supply_demand {V_fin E_fin : Type}
         ({j | leaf j ∈ Pset}.ncard : ℝ) ≤ slack + e_defic := by
       have hcrP := hcr_le Pset
       rw [hP, ncard_empty, Nat.cast_zero, mul_zero, zero_add] at hcrP
-      have hbis := ncard_le_cutRank_add_of_bisection hbis_M hPhalf
-      linarith
+      linarith [ncard_le_cutRank_add_of_bisection hbis_M hPhalf]
     by_cases hh : {j | leaf j ∈ Qset}.ncard ≤ m / 2
     · exact Or.inl (hsmall_side Qset hQ hh)
     · refine Or.inr ?_
       have hQc_cut : G.edgeCut Qsetᶜ = ∅ :=
         G.edgeCut_eq_empty_iff.mpr fun e' => not_iff_not.mpr (G.edgeCut_eq_empty_iff.mp hQ e')
-      have hcompl_set : {j | leaf j ∈ Qsetᶜ} = {j | leaf j ∈ Qset}ᶜ := rfl
       have hsum_m : {j | leaf j ∈ Qset}.ncard + {j | leaf j ∈ Qsetᶜ}.ncard = m := by
-        rw [hcompl_set]
-        have := ncard_add_ncard_compl {j | leaf j ∈ Qset}
-        rwa [Nat.card_eq_fintype_card (α := Fin m), Fintype.card_fin] at this
+        change {j | leaf j ∈ Qset}.ncard + ({j | leaf j ∈ Qset}ᶜ).ncard = m
+        rw [ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
       have hsum_r : ({j | leaf j ∈ Qset}.ncard : ℝ) + ({j | leaf j ∈ Qsetᶜ}.ncard : ℝ) = m := by
         exact_mod_cast hsum_m
-      have hh' : {j | leaf j ∈ Qsetᶜ}.ncard ≤ m / 2 := by omega
-      linarith [hsmall_side Qsetᶜ hQc_cut hh']
+      linarith [hsmall_side Qsetᶜ hQc_cut (by omega)]
   set W := G.component (lay.symm ⟨t, ht_lt⟩)
   have hW_cut : G.edgeCut W = ∅ := G.edgeCut_component _
   obtain ⟨hfront_W, hfront_le⟩ := hlay t ht_lt
   have hm_div2_lb : (m : ℝ) / 2 - 1 ≤ ((m / 2 : ℕ) : ℝ) := by
-    have h1 : m ≤ 2 * (m / 2) + 1 := by omega
-    have hr : (m : ℝ) ≤ (2 * (m / 2) + 1 : ℕ) := by exact_mod_cast h1
-    push_cast at hr; linarith
-  have hm_div2_ub : ((m / 2 : ℕ) : ℝ) ≤ (m : ℝ) / 2 := by
-    have h1 : 2 * (m / 2) ≤ m := Nat.mul_div_le m 2
-    have hr : ((2 * (m / 2) : ℕ) : ℝ) ≤ (m : ℝ) := Nat.cast_le.mpr h1
-    push_cast at hr; linarith
-  have hW_large : (m : ℝ) - (slack + e_defic) ≤ ({j | leaf j ∈ W}.ncard : ℝ) := by
-    rcases hclosed_dich W hW_cut with hWs | hWb
-    · exfalso
-      set Bset := lay.initial t \ W
-      have hB_cut : G.edgeCut Bset = ∅ := Multigraph.edgeCut_sdiff_eq_empty hW_cut hfront_W
-      have hB_sub : {j | leaf j ∈ Bset} ⊆ {j | leaf j ∈ lay.initial t} := fun _ hj => hj.1
-      have hinit_sub : {j | leaf j ∈ lay.initial t} ⊆
-          {j | leaf j ∈ Bset} ∪ {j | leaf j ∈ W} := by
-        intro j hj
-        by_cases hjW : leaf j ∈ W
-        · exact Or.inr hjW
-        · exact Or.inl ⟨hj, hjW⟩
-      have hB_le : {j | leaf j ∈ Bset}.ncard ≤ m / 2 :=
-        (ncard_le_ncard hB_sub (toFinite _)).trans_eq hXt
-      have hB_ge : m / 2 ≤ {j | leaf j ∈ Bset}.ncard + {j | leaf j ∈ W}.ncard :=
-        hXt ▸ (ncard_le_ncard hinit_sub (toFinite _)).trans (ncard_union_le _ _)
-      have hB_ge_r : ((m / 2 : ℕ) : ℝ) ≤
-          ({j | leaf j ∈ Bset}.ncard : ℝ) + ({j | leaf j ∈ W}.ncard : ℝ) := by
-        exact_mod_cast hB_ge
-      have hB_le_r : ({j | leaf j ∈ Bset}.ncard : ℝ) ≤ ((m / 2 : ℕ) : ℝ) := by
-        exact_mod_cast hB_le
-      rcases hclosed_dich Bset hB_cut with hBs | hBl <;> linarith
-    · exact hWb
-  have hρ_W := hρ_comp W hW_cut (G.ncard_component_le_ncard_touching_add_one _)
-  have hw_ρ_le : w_r * (G.cycleRankOn W : ℝ) ≤ w_r * ((s : ℝ) + 1) - m + (slack + e_defic) := by
+    have : (m : ℝ) ≤ 2 * ((m / 2 : ℕ) : ℝ) + 1 := by
+      exact_mod_cast (by omega : m ≤ 2 * (m / 2) + 1)
     linarith
+  have hm_div2_ub : ((m / 2 : ℕ) : ℝ) ≤ (m : ℝ) / 2 := Nat.cast_div_le
+  have hW_large : (m : ℝ) - (slack + e_defic) ≤ ({j | leaf j ∈ W}.ncard : ℝ) := by
+    refine (hclosed_dich W hW_cut).resolve_left fun hWs => ?_
+    set Bset := lay.initial t \ W
+    have hB_cut : G.edgeCut Bset = ∅ := Multigraph.edgeCut_sdiff_eq_empty hW_cut hfront_W
+    have hB_sub : {j | leaf j ∈ Bset} ⊆ {j | leaf j ∈ lay.initial t} := fun _ hj => hj.1
+    have hinit_sub : {j | leaf j ∈ lay.initial t} ⊆ {j | leaf j ∈ Bset} ∪ {j | leaf j ∈ W} :=
+      fun j hj => (em (leaf j ∈ W)).elim Or.inr fun hjW => Or.inl ⟨hj, hjW⟩
+    have hB_le : ({j | leaf j ∈ Bset}.ncard : ℝ) ≤ ((m / 2 : ℕ) : ℝ) := by
+      exact_mod_cast (ncard_le_ncard hB_sub (toFinite _)).trans_eq hXt
+    have hB_ge : ((m / 2 : ℕ) : ℝ) ≤
+        ({j | leaf j ∈ Bset}.ncard : ℝ) + ({j | leaf j ∈ W}.ncard : ℝ) := by
+      rw [← hXt]
+      exact_mod_cast (ncard_le_ncard hinit_sub (toFinite _)).trans (ncard_union_le _ _)
+    rcases hclosed_dich Bset hB_cut with hBs | hBl <;> linarith
+  have hw_ρ_le : w_r * (G.cycleRankOn W : ℝ) ≤ w_r * ((s : ℝ) + 1) - m + (slack + e_defic) := by
+    linarith [hρ_comp W hW_cut (G.ncard_component_le_ncard_touching_add_one _)]
   have hw_front_le : w_r * ((G.frontier lay t).ncard : ℝ) ≤
       (A + η) * (w_r * ((s : ℝ) + 1) - m + (slack + e_defic)) +
         w_r * η * Nat.card V_fin + w_r * C_lay := by
-    have hmul := mul_le_mul_of_nonneg_left hfront_le hw.le
-    have hmul_ρ := mul_le_mul_of_nonneg_left hw_ρ_le hAη
-    linarith
-  have hcr_t := hcr_le (lay.initial t)
-  change _ ≤ c_edge * ((G.frontier lay t).ncard : ℝ) + slack at hcr_t
-  have hbis_t := hbis_M {j | leaf j ∈ lay.initial t} hXt
+    linarith [mul_le_mul_of_nonneg_left hfront_le hw.le,
+      mul_le_mul_of_nonneg_left hw_ρ_le hAη]
+  have hcr_t : _ ≤ c_edge * ((G.frontier lay t).ncard : ℝ) + slack := hcr_le (lay.initial t)
   have hdem : (m : ℝ) / 2 - 1 - (slack + e_defic) ≤ c_edge * ((G.frontier lay t).ncard : ℝ) := by
-    linarith
-  have hw_dem := mul_le_mul_of_nonneg_left hdem hw.le
-  have hcw := mul_le_mul_of_nonneg_left hw_front_le hc_edge.le
-  linarith
+    linarith [hbis_M {j | leaf j ∈ lay.initial t} hXt]
+  linarith [mul_le_mul_of_nonneg_left hdem hw.le,
+    mul_le_mul_of_nonneg_left hw_front_le hc_edge.le]
 
 /-- Pure real arithmetic contradiction combining `finite_bisection_supply_demand` with sublinear
 error and slack bounds when `s ≤ (1 + w_r / (2 * c_edge * A) - ε₀) * n`. -/
@@ -308,9 +270,7 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
       c_edge * ((A + η) * (w_r * (s_r + 1) - w_r * n_r + (γ_coeff * n_r + sub_err)) +
         w_r * η * V_r + w_r * C_lay)) : False := by
   set c_star := 1 + w_r / (2 * c_edge * A)
-  have hc_star_pos : 1 < c_star := by
-    have : 0 < w_r / (2 * c_edge * A) := by positivity
-    linarith
+  have hc_star_pos : 1 < c_star := lt_add_of_pos_right 1 (by positivity)
   have hs_ub : s_r ≤ c_star * n_r := by nlinarith
   have hmain : c_edge * A * (w_r * (s_r - n_r)) ≤
       w_r * (w_r * n_r / 2) - w_r * c_edge * A * ε₀ * n_r := by
@@ -327,28 +287,23 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
     have h2 := mul_le_mul_of_nonneg_left hη_bound (by positivity : 0 ≤ c_edge * w_r * n_r)
     nlinarith
   have hslack_coef : w_r + c_edge * (A + η) ≤ w_r + 2 * c_edge * A := by
-    have := mul_le_mul_of_nonneg_left hη_le_A hc_edge.le
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hη_le_A hc_edge.le]
   have hγ_term : (w_r + c_edge * (A + η)) * (γ_coeff * n_r) ≤
       w_r * c_edge * A * ε₀ / 4 * n_r := by
-    have h1 : (w_r + c_edge * (A + η)) * (γ_coeff * n_r) ≤
-        (w_r + 2 * c_edge * A) * (γ_coeff * n_r) :=
-      mul_le_mul_of_nonneg_right hslack_coef (mul_nonneg hγ_nn (by linarith : 0 ≤ n_r))
-    have h2 := mul_le_mul_of_nonneg_right hγ_bound (by linarith : 0 ≤ n_r)
-    linarith
+    have hn0 : 0 ≤ n_r := by linarith
+    linarith [mul_le_mul_of_nonneg_right hslack_coef (mul_nonneg hγ_nn hn0),
+      mul_le_mul_of_nonneg_right hγ_bound hn0]
   have hsub_term : (w_r + c_edge * (A + η)) * sub_err +
       w_r + c_edge * ((A + η) * w_r + w_r * C_lay) ≤
       w_r * c_edge * A * ε₀ / 4 * n_r := by
-    have h1 := mul_le_mul_of_nonneg_right hslack_coef hsub_nn
     have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤
         c_edge * (2 * A * w_r + w_r * |C_lay|) :=
       mul_le_mul_of_nonneg_left
         (add_le_add (mul_le_mul_of_nonneg_right (by linarith : A + η ≤ 2 * A)
             (by linarith : 0 ≤ w_r))
           (mul_le_mul_of_nonneg_left (le_abs_self C_lay) (by linarith : 0 ≤ w_r))) hc_edge.le
-    linarith
-  have hpos_gap : 0 < w_r * c_edge * A * ε₀ / 4 * n_r := by positivity
-  linarith
+    linarith [mul_le_mul_of_nonneg_right hslack_coef hsub_nn]
+  linarith [show 0 < w_r * c_edge * A * ε₀ / 4 * n_r by positivity]
 
 /-- Common asymptotic helper: `4 * (2 * ⌊√n⌋ + 1) + 6 = o(n)`. -/
 private theorem isLittleO_sqrt_defic :
@@ -434,8 +389,7 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
   obtain ⟨lay, hlay⟩ := hC_lay net.V net.E net.G net.loopless net.maxDeg
   have hn24_r : (24 : ℝ) ≤ n := by exact_mod_cast hn24
   have hm_pos : 1 ≤ m_fn n := by
-    have hm_r : (1 : ℝ) ≤ m_fn n := by rw [hm_eq n]; nlinarith
-    exact_mod_cast hm_r
+    exact_mod_cast (show (1 : ℝ) ≤ m_fn n by rw [hm_eq n]; nlinarith)
   have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := by exact_mod_cast he_le n
   have hfin := finite_bisection_supply_demand (w_r := w_r) (e_defic := (e_fn n : ℝ)) net.G lay
     (by positivity) (fun t ht => hlay t ht t le_rfl (by omega)) hm_pos hw_pos_r leaf hc_edge
@@ -453,11 +407,9 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
     hA hη (min_le_left _ _) hw_ge_one hc_edge hε₀ hn24_r (Nat.cast_nonneg _)
     hγ_nn (by positivity) hsize net.card_V_le
     (by
+      have hB : 0 < Bcoef := by dsimp only [Bcoef]; positivity
       have h1 : η ≤ A * ε₀ / (4 * Bcoef) := min_le_right _ _
-      have h2 := mul_le_mul_of_nonneg_right h1 (by positivity : (0 : ℝ) ≤ Bcoef)
-      have h3 : A * ε₀ / (4 * Bcoef) * Bcoef = A * ε₀ / 4 := by
-        have hB : 0 < Bcoef := by dsimp only [Bcoef]; positivity
-        field_simp
+      rw [le_div_iff₀ (by positivity)] at h1
       change η * Bcoef ≤ A * ε₀ / 4
       linarith)
     hγ_bound
@@ -471,11 +423,9 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
 private theorem switched_coeff_eq (k c_sw : ℝ) (hk : k ≠ 0)
     (h : 1 + 2 * π / (3 * k * arccos (5 / 6)) = c_sw) :
     c_sw = 1 + 1 / (k * (2 * Switched.switchedCoefficient)) := by
-  have h1 := Switched.one_add_inv_two_mul_switchedCoefficient
-  have h2 : 1 / (2 * Switched.switchedCoefficient) = 2 * π / (3 * arccos (5 / 6)) := by linarith
-  have h3 : 1 / (k * (2 * Switched.switchedCoefficient)) =
-      1 / (2 * Switched.switchedCoefficient) / k := by field_simp
-  rw [h3, h2, ← h]
+  have h2 : 1 / (2 * Switched.switchedCoefficient) = 2 * π / (3 * arccos (5 / 6)) := by
+    linarith [Switched.one_add_inv_two_mul_switchedCoefficient]
+  rw [mul_comm k, ← div_div, h2, ← h]
   field_simp
 
 private theorem rat_sub_mul_le_switched {k c_sw c_rat ε : ℝ} (hk : 0 < k) (n : ℕ)
@@ -541,15 +491,13 @@ private theorem eventually_hardMatrix_sq_le_of_layoutBound {d : ℕ}
   set γ_sq : ℝ := c_edge * A * ε₀ / (4 * (1 + 2 * c_edge * A))
   have hγ : 0 < γ_sq := by positivity
   have hγ_le : γ_sq ≤ 1 / 8 := by
-    have hε0_le : ε₀ ≤ 1 / (2 * c_edge * A) := min_le_right _ _
-    have hAε : c_edge * A * ε₀ ≤ 1 / 2 := by
-      have := mul_le_mul_of_nonneg_left hε0_le (by positivity : (0 : ℝ) ≤ c_edge * A)
-      have heq : c_edge * A * (1 / (2 * c_edge * A)) = 1 / 2 := by field_simp
-      linarith
-    have hcA_pos : 0 < c_edge * A := mul_pos hc_edge hA
-    calc γ_sq = (c_edge * A * ε₀) / (4 * (1 + 2 * c_edge * A)) := rfl
-      _ ≤ (1 / 2) / (4 * 1) := div_le_div₀ (by norm_num) hAε (by norm_num) (by linarith)
-      _ = 1 / 8 := by norm_num
+    have hAε : c_edge * A * ε₀ ≤ 1 / 2 :=
+      calc c_edge * A * ε₀ ≤ c_edge * A * (1 / (2 * c_edge * A)) := by
+            gcongr; exact min_le_right _ _
+        _ = 1 / 2 := by field_simp
+    dsimp only [γ_sq]
+    rw [div_le_iff₀ (by positivity)]
+    linarith [mul_pos hc_edge hA]
   refine ⟨γ_sq, hγ, ?_⟩
   have hev := eventually_hardMatrix_contradiction hA hlayout (c_slack := 2) (by norm_num)
     hc_edge hε hγ.le (by linarith)
@@ -561,20 +509,12 @@ private theorem eventually_hardMatrix_sq_le_of_layoutBound {d : ℕ}
   refine ⟨hn24, fun net leaf val_sq hsize hcut_le hρ_le => ?_⟩
   by_contra! hgt
   refine hcontra net leaf hsize (fun P => ?_) hρ_le
-  have hlt : (2 : ℝ) ^ (-γ_sq * n) *
-      (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ) <
-      4 * (2 : ℝ) ^ (c_edge * ((net.G.edgeCut P).ncard : ℝ)) := by
-    rw [Real.rpow_natCast]
-    exact lt_of_lt_of_le (mul_lt_mul_of_pos_right hgt (by positivity)) (hcut_le P)
-  have hlhs : (2 : ℝ) ^ (-γ_sq * n +
-      ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ)) =
-      (2 : ℝ) ^ (-γ_sq * n) *
-        (2 : ℝ) ^ ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ) :=
-    Real.rpow_add two_pos _ _
-  have hrhs : (4 : ℝ) * (2 : ℝ) ^ (c_edge * ((net.G.edgeCut P).ncard : ℝ)) =
+  have hlt : (2 : ℝ) ^ (-γ_sq * n +
+      ((hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | leaf i ∈ P} : ℝ)) <
       (2 : ℝ) ^ (2 + c_edge * ((net.G.edgeCut P).ncard : ℝ)) := by
-    rw [show (4 : ℝ) = (2 : ℝ) ^ (2 : ℝ) by norm_num, ← Real.rpow_add two_pos]
-  rw [← hlhs, hrhs] at hlt
+    rw [Real.rpow_add two_pos, Real.rpow_add two_pos, Real.rpow_natCast,
+      show (2 : ℝ) ^ (2 : ℝ) = 4 by norm_num]
+    exact (mul_lt_mul_of_pos_right hgt (by positivity)).trans_le (hcut_le P)
   push_cast
   linarith [(Real.rpow_lt_rpow_left_iff one_lt_two).mp hlt]
 
@@ -658,10 +598,7 @@ theorem eventually_lt_twoQubitCount_bqp_hardForm_switched {ε : ℝ} (hε : 0 < 
   have hpow_lt : ∀ᶠ n : ℕ in atTop, (2 : ℝ) ^ (-γ * n) < 1 / 3 := by
     filter_upwards [tendsto_natCast_atTop_atTop.eventually
       (eventually_ge_atTop (2 / γ))] with n hn
-    have h1 : γ * (2 / γ) = 2 := by field_simp
-    have h2 : -γ * (n : ℝ) ≤ -2 := by
-      have hm := mul_le_mul_of_nonneg_left hn hγ.le
-      linarith
+    have h2 : -γ * (n : ℝ) ≤ -2 := by linarith [(div_le_iff₀ hγ).mp hn]
     calc (2 : ℝ) ^ (-γ * (n : ℝ))
         ≤ (2 : ℝ) ^ (-2 : ℝ) := Real.rpow_le_rpow_of_exponent_le one_lt_two.le h2
       _ < 1 / 3 := by norm_num
@@ -673,10 +610,7 @@ theorem eventually_lt_twoQubitCount_bqp_hardForm_switched {ε : ℝ} (hε : 0 < 
         (2 * quantumAcceptProb C q_out e x₀ y - 1) := by
     have hy := hbqp y
     simp only [mem_ofPred_eq]
-    by_cases hf : hardForm n y = true
-    · simp only [hf, ↓reduceIte] at hy ⊢; linarith
-    · simp only [Bool.not_eq_true] at hf
-      simp only [hf, Bool.false_eq_true, ↓reduceIte] at hy ⊢; linarith
+    split_ifs at hy ⊢ <;> linarith
   have hcorr_ge :
       1 / 3 ≤ quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀) := by
     rw [quantumCorrelation, le_div_iff₀ (by positivity)]
@@ -744,13 +678,8 @@ theorem eventually_lt_twoQubitCount_uqp_hardForm_of_layoutBound {d : ℕ} (hd : 
           ring
       _ ≤ 2 ^ 4 * 2 ^ (4 * (net.G.edgeCut P).ncard) := Nat.mul_le_mul_right _ (by norm_num)
       _ = 2 ^ (4 * (net.G.edgeCut P).ncard + 4) := by rw [← pow_add, add_comm]
-  have hnat : (hardMatrix n + (hardMatrix n)ᵀ).cutRank {i | net.leafIn i ∈ P} ≤
-      4 * (net.G.edgeCut P).ncard + 4 := by
-    by_contra! hgt
-    have := Nat.pow_lt_pow_right one_lt_two hgt
-    omega
   simp only [zero_mul, zero_add]
-  exact_mod_cast hnat
+  exact_mod_cast (Nat.pow_le_pow_iff_right one_lt_two).mp hpow
 
 /-- **Median-switched `UQP` unbounded-error lower bound (`1.446996 n`).** -/
 theorem eventually_lt_twoQubitCount_uqp_hardForm_switched {ε : ℝ} (hε : 0 < ε) :

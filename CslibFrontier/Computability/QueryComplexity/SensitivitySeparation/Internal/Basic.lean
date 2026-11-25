@@ -83,14 +83,13 @@ theorem le_blockSensitivityAt (f : (I → Bool) → Bool) (x : I → Bool)
     (hd : ∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B)
     (hb : ∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x) :
     blocks.card ≤ blockSensitivityAt f x := by
-  have h := Finset.le_sup (s := (Finset.univ : Finset (Finset (Finset I))))
-    (f := fun blocks =>
-      if (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
-          (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x)
-      then blocks.card else 0) (Finset.mem_univ blocks)
   have hv : (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
       (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x) := ⟨hd, hb⟩
-  simpa only [blockSensitivityAt, ite_eq_left hv] using h
+  simpa only [blockSensitivityAt, ite_eq_left hv] using
+    Finset.le_sup (s := (Finset.univ : Finset (Finset (Finset I))))
+      (f := fun blocks => if (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
+        (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x)
+        then blocks.card else 0) (Finset.mem_univ blocks)
 
 open scoped Classical in
 /-- If every family of pairwise disjoint nonempty blocks whose flips all change `f x` has
@@ -100,8 +99,7 @@ theorem blockSensitivityAt_le (f : (I → Bool) → Bool) (x : I → Bool) {n : 
       (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) →
       (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x) → blocks.card ≤ n) :
     blockSensitivityAt f x ≤ n := by
-  apply Finset.sup_le
-  intro blocks _
+  refine Finset.sup_le fun blocks _ => ?_
   split_ifs with hb
   · exact h blocks hb.1 hb.2
   · exact Nat.zero_le _
@@ -114,11 +112,10 @@ theorem exists_blockSensitivityAt_family (f : (I → Bool) → Bool) (x : I → 
       (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
       (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x) := by
   obtain ⟨blocks, _, hb⟩ := Finset.exists_mem_eq_sup
-    (Finset.univ : Finset (Finset (Finset I))) (by simp)
-    (fun blocks =>
+    (Finset.univ : Finset (Finset (Finset I))) (by simp) fun blocks =>
       if (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
           (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x)
-      then blocks.card else 0)
+      then blocks.card else 0
   by_cases hv : (∀ A ∈ blocks, ∀ B ∈ blocks, A ≠ B → Disjoint A B) ∧
       (∀ B ∈ blocks, B.Nonempty ∧ f (BitString.flipOn B x) ≠ f x)
   · exact ⟨blocks, by simpa only [blockSensitivityAt, ite_eq_left hv] using hb.symm, hv⟩
@@ -136,32 +133,28 @@ theorem le_blockSensitivityAt_of_family [Fintype K]
     (hd : Pairwise fun k l => Disjoint (blocks k) (blocks l))
     (hb : ∀ k, f (BitString.flipOn (blocks k) x) ≠ f x) :
     Fintype.card K ≤ blockSensitivityAt f x := by
-  have hinj : Function.Injective blocks := by
-    intro k l hkl
-    by_contra hnekl
-    obtain ⟨i, hi⟩ := hne k
-    exact Finset.disjoint_left.mp (hd hnekl) hi (by simpa [← hkl] using hi)
-  have hcard := le_blockSensitivityAt f x (Finset.univ.image blocks)
-    (by
-      intro A hA B hB hAB
-      obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp hA
-      obtain ⟨l, _, rfl⟩ := Finset.mem_image.mp hB
-      exact hd (fun h => hAB (congrArg blocks h)))
-    (by
-      intro B hB
-      obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp hB
-      exact ⟨hne k, hb k⟩)
-  simpa only [Finset.card_image_of_injective _ hinj, Finset.card_univ] using hcard
+  have hinj : Function.Injective blocks := fun k l hkl => by_contra fun hnekl =>
+    let ⟨i, hi⟩ := hne k
+    Finset.disjoint_left.mp (hd hnekl) hi (by simpa [← hkl] using hi)
+  simpa only [Finset.card_image_of_injective _ hinj, Finset.card_univ] using
+    le_blockSensitivityAt f x (Finset.univ.image blocks)
+      (by intro A hA B hB hAB
+          obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp hA
+          obtain ⟨l, _, rfl⟩ := Finset.mem_image.mp hB
+          exact hd fun h => hAB (congrArg blocks h))
+      (by intro B hB
+          obtain ⟨k, _, rfl⟩ := Finset.mem_image.mp hB
+          exact ⟨hne k, hb k⟩)
 
 /-- A function taking two different values has positive sensitivity. -/
 theorem sensitivity_pos_of_nonconstant (f : (I → Bool) → Bool)
     (h : ∃ x y, f x ≠ f y) : 0 < sensitivity f := by
   classical
   by_contra hn
-  have hz : sensitivity f = 0 := Nat.eq_zero_of_not_pos hn
-  have hi (x : I → Bool) (i : I) : f (BitString.flipOn {i} x) = f x := by
-    apply (sensitivityAt_eq_zero_iff f x).mp _ i
-    exact Nat.eq_zero_of_le_zero ((sensitivityAt_le_sensitivity f x).trans_eq hz)
+  have hi (x : I → Bool) (i : I) : f (BitString.flipOn {i} x) = f x :=
+    (sensitivityAt_eq_zero_iff f x).mp
+      (Nat.eq_zero_of_le_zero ((sensitivityAt_le_sensitivity f x).trans_eq
+        (Nat.eq_zero_of_not_pos hn))) i
   obtain ⟨x, y, hxy⟩ := h
   exact hxy (BitString.eq_of_singleton_invariant f hi x y)
 

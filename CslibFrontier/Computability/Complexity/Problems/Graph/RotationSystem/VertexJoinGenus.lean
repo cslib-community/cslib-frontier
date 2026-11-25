@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.VertexJoinComponents
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
 import CslibFrontier.Foundations.GroupTheory.Perm.InvariantPredicate
 import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbitJoin
 
@@ -18,6 +19,8 @@ The literal `mergeVertices` successor swap joins two different old vertex compon
 Its vertex and face orbit counts each decrease by one in their union, and every indexed
 edge is retained. The argument counts all permutation orbits, including fixed points.
 Declared point components require no darts and retain their conventional Euler equation.
+The same genus-zero conclusion applies when the joined rotation is given in different
+indexed dart coordinates, as in rejoining a split vertex.
 -/
 
 public section
@@ -36,9 +39,8 @@ private theorem card_orbitOn_component_union {G : Graph} (h k : Dart G)
   apply card_orbitOn_union
   · intro a
     have he := hf (f a) a (Perm.sameCycle_apply_left.mpr .rfl)
-    exact ⟨fun ha => ha.trans he, fun ha => ha.trans he.symm⟩
-  · intro t ht hs a ha
-    exact hc ((ht a ha).trans (hs a ha).symm)
+    exact ⟨(·.trans he), (·.trans he.symm)⟩
+  · exact fun _ ht hs a ha => hc ((ht a ha).trans (hs a ha).symm)
 
 /-- Different actual edge components cannot share a face orbit. -/
 theorem not_sameFace_of_not_sameComponent {G : Graph} (r : RotationSystem G)
@@ -62,18 +64,14 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
       SameComponent G a.vertex b.vertex := by
     rw [(r.sameCycle_iff a b).mp he]
     exact .refl (vertex_mem hG b)
-  have hedge (a b : Dart G) (he : (Dart.reversal G).SameCycle a b) :
-      SameComponent G a.vertex b.vertex := by
-    have he' := (sameCycle_reversal_iff a b).mp he
-    rcases a with ⟨i, u⟩
-    rcases b with ⟨j, v⟩
-    change i = j at he'
-    subst j
-    cases u <;> cases v
-    · exact .refl (vertex_mem hG _)
-    · exact sameComponent_reverse hG (i, false)
-    · exact sameComponent_reverse hG (i, true)
-    · exact .refl (vertex_mem hG _)
+  have hedge : ∀ a b : Dart G, (Dart.reversal G).SameCycle a b → SameComponent G a.vertex b.vertex
+    | ⟨i, u⟩, ⟨j, v⟩, he => by
+      obtain rfl : i = j := (sameCycle_reversal_iff (i, u) (j, v)).mp he
+      cases u <;> cases v
+      · exact .refl (vertex_mem hG _)
+      · exact sameComponent_reverse hG (i, false)
+      · exact sameComponent_reverse hG (i, true)
+      · exact .refl (vertex_mem hG _)
   have heuler (a : Dart G) :
       Nat.card (OrbitOn r.rotate (fun b => SameComponent G a.vertex b.vertex)) +
           Nat.card (OrbitOn r.faceNext (fun b => SameComponent G a.vertex b.vertex)) =
@@ -81,9 +79,8 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
           SameComponent G a.vertex b.vertex)) + 2 := by
     have he := (r.numericalGenusZero_iff_component_cards hG).mp hr a
     rw [card_componentFaceIndices, r.count_faceRepresentatives_eq_card_componentFace hG] at he
-    have hv := Nat.card_congr (r.vertexOrbitEquiv hG a)
-    have hε := Nat.card_congr (edgeOrbitEquiv G hG a)
-    simp only [Nat.card_eq_finsetCard] at hv hε
+    have hv := (Nat.card_congr (r.vertexOrbitEquiv hG a)).trans (Nat.card_eq_finsetCard _)
+    have hε := (Nat.card_congr (edgeOrbitEquiv G hG a)).trans (Nat.card_eq_finsetCard _)
     exact hv ▸ hε ▸ he
   apply (s.numericalGenusZero_iff_component_cards hH).mpr
   intro d
@@ -95,36 +92,27 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
   let q (b : Dart (mergeGraph h k)) := SameComponent (mergeGraph h k) (e a).vertex b.vertex
   have hpmap (b : Dart G) : p b ↔ q (e b) := by
     by_cases hh : hit
-    · have hroot : SameComponent (mergeGraph h k) (e a).vertex (e h).vertex := by
-        apply (sameComponent_mergeGraph_iff_join h k hG a h).mpr
-        rcases hh with hh | hh
-        · exact Or.inl hh
-        · exact Or.inr (Or.inr ⟨hh, .refl (vertex_mem hG h)⟩)
+    · have hroot := (sameComponent_mergeGraph_iff_join h k hG a h).mpr
+        (hh.imp id fun hh => Or.inr ⟨hh, .refl (vertex_mem hG h)⟩)
       have he : SameComponent (mergeGraph h k) (e a).vertex (e b).vertex ↔
           SameComponent (mergeGraph h k) (e h).vertex (e b).vertex :=
-        ⟨fun hb => hroot.symm.trans hb, fun hb => hroot.trans hb⟩
+        ⟨hroot.symm.trans, hroot.trans⟩
       simpa only [p, hh, ite_true, q, he] using
         (sameComponent_mergeGraph_left_iff h k hG b).symm
     · simpa only [p, hh, ite_false, q] using
-        (sameComponent_mergeGraph_unaffected_iff h k hG a b
-          (fun he => hh (Or.inl he)) (fun he => hh (Or.inr he))).symm
+        (sameComponent_mergeGraph_unaffected_iff h k hG a b (hh ∘ Or.inl) (hh ∘ Or.inr)).symm
   have hph : p h ↔ hit := by
-    by_cases hh : hit
-    · simp only [p, hh, ite_true, iff_true]
-      exact Or.inl (.refl (vertex_mem hG h))
-    · simp only [p, hh, ite_false, iff_false]
-      exact fun he => hh (Or.inl he)
+    by_cases hh : hit <;> simp only [p, hh, ite_true, ite_false]
+    · exact iff_of_true (.inl (.refl (vertex_mem hG h))) trivial
+    · exact iff_of_false (hh ∘ .inl) not_false
   have hpk : p k ↔ hit := by
-    by_cases hh : hit
-    · simp only [p, hh, ite_true, iff_true]
-      exact Or.inr (.refl (vertex_mem hG k))
-    · simp only [p, hh, ite_false, iff_false]
-      exact fun he => hh (Or.inr he)
-  have hp (f : Perm (Dart G))
-      (hf : ∀ b, SameComponent G b.vertex (f b).vertex) : ∀ b, p (f b) ↔ p b := by
-    intro b
+    by_cases hh : hit <;> simp only [p, hh, ite_true, ite_false]
+    · exact iff_of_true (.inr (.refl (vertex_mem hG k))) trivial
+    · exact iff_of_false (hh ∘ .inr) not_false
+  have hp (f : Perm (Dart G)) (hf : ∀ b, SameComponent G b.vertex (f b).vertex) (b : Dart G) :
+      p (f b) ↔ p b := by
     have ht (v : ℕ) : SameComponent G v (f b).vertex ↔ SameComponent G v b.vertex :=
-      ⟨fun he => he.trans (hf b).symm, fun he => he.trans (hf b)⟩
+      ⟨(·.trans (hf b).symm), (·.trans (hf b))⟩
     simp only [p, ht]
   have hpr := hp r.rotate (fun b => by
     rw [r.vertex_rotate]
@@ -162,5 +150,37 @@ theorem numericalGenusZero_mergeVertices_of_not_sameComponent {G : Graph}
   simp only [hph] at hv hf
   rw [card_componentFaceIndices, s.count_faceRepresentatives_eq_card_componentFace hH]
   split_ifs at hsource hv hf <;> omega
+
+/-- Joining corners in different components preserves numerical genus zero in any
+reversal-preserving dart coordinates. The new endpoint fibers are determined by the
+conjugated successor permutation. -/
+theorem numericalGenusZero_of_join_swap {G H : Graph} (r : RotationSystem G)
+    (s : RotationSystem H) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (hH : ∀ v ∈ H.incidenceVertices, v ∈ H.vertices) (hr : r.NumericalGenusZero)
+    (a b : Dart G) (hsep : ¬SameComponent G a.vertex b.vertex) (e : Dart G ≃ Dart H)
+    (hrev : ∀ d, e d.reverse = (e d).reverse)
+    (hjoin : ∀ d, e ((r.rotate * swap a b) d) = s.rotate (e d)) :
+    s.NumericalGenusZero := by
+  have hne : a.vertex ≠ b.vertex := fun h => hsep (h ▸ .refl (vertex_mem hG a))
+  let t := r.mergeVertices a b hne
+  let m := mergeDartEquiv a b
+  let f := m.symm.trans e
+  have hperm (d : Dart (mergeGraph a b)) : f (t.rotate d) = s.rotate (f d) := by
+    obtain ⟨d, rfl⟩ := m.surjective d
+    simpa only [t, m, f, rotate_mergeVertices, Equiv.permCongr_apply, Equiv.trans_apply,
+      Equiv.symm_apply_apply] using hjoin d
+  have hv (d g : Dart (mergeGraph a b)) : (f d).vertex = (f g).vertex ↔ d.vertex = g.vertex := by
+    rw [← s.sameCycle_iff, ← t.sameCycle_iff]
+    exact Perm.sameCycle_equiv_iff f t.rotate s.rotate hperm d g
+  have hf (d : Dart (mergeGraph a b)) : f d.reverse = (f d).reverse := by
+    obtain ⟨d, rfl⟩ := m.surjective d
+    simpa only [f, m, Equiv.trans_apply, ← mergeDartEquiv_reverse, Equiv.symm_apply_apply]
+      using hrev d
+  have ht : (t.transport f hv : RotationSystem H) = s :=
+    ext_rotate (Equiv.ext fun d => by
+      change f (t.rotate (f.symm d)) = s.rotate d
+      simpa only [Equiv.apply_symm_apply] using hperm (f.symm d))
+  exact ht ▸ t.numericalGenusZero_transport f hv hf (mergeGraph_endpoints_declared a b hG) hH
+    (r.numericalGenusZero_mergeVertices_of_not_sameComponent hG hr a b hne hsep)
 
 end Cslib.Complexity.Graph.RotationSystem

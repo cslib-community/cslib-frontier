@@ -126,11 +126,8 @@ private theorem integral_mul_pi_gaussianReal {α : Type*} [Fintype α] [Decidabl
 private theorem abs_gaussianPDFReal_le_one (x : ℝ) : |φ x| ≤ 1 := by
   rw [abs_of_nonneg (gaussianPDFReal_nonneg 0 1 x), gaussianPDFReal_def]
   simp only [sub_zero, NNReal.coe_one, mul_one]
-  have h2pi : (0 : ℝ) ≤ 2 * π := mul_nonneg zero_le_two pi_pos.le
-  have h1 : (√(2 * π))⁻¹ ≤ 1 := inv_le_one_of_one_le₀
-    ((le_sqrt zero_le_one h2pi).mpr (by linarith [two_le_pi]))
-  have h2 : exp (-x ^ 2 / 2) ≤ 1 :=
-    exp_le_one_iff.mpr (by rw [neg_div]; exact neg_nonpos.mpr (by positivity))
+  have h1 : (√(2 * π))⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_sqrt.2 (by linarith [two_le_pi]))
+  have h2 : exp (-x ^ 2 / 2) ≤ 1 := exp_le_one_iff.mpr (by nlinarith [sq_nonneg x])
   nlinarith [exp_nonneg (-x ^ 2 / 2)]
 
 private theorem prod_cdf_nonneg {ι : Type*} (s : Finset ι) (f : ι → ℝ) :
@@ -138,18 +135,24 @@ private theorem prod_cdf_nonneg {ι : Type*} (s : Finset ι) (f : ι → ℝ) :
   Finset.prod_nonneg fun i _ => cdf_nonneg (gaussianReal 0 1) (f i)
 
 private theorem prod_cdf_le_one {ι : Type*} (s : Finset ι) (f : ι → ℝ) :
-    ∏ i ∈ s, Φ (f i) ≤ 1 := by
-  induction s using Finset.cons_induction with
-  | empty => simp
-  | cons a s has ih =>
-    rw [Finset.prod_cons]
-    exact (mul_le_of_le_one_left (prod_cdf_nonneg s f)
-      (cdf_le_one (gaussianReal 0 1) (f a))).trans ih
+    ∏ i ∈ s, Φ (f i) ≤ 1 :=
+  Finset.prod_le_one₀ (fun i _ => cdf_nonneg _ (f i)) fun i _ => cdf_le_one _ (f i)
 
 private theorem abs_prod_cdf_le_one {ι : Type*} (s : Finset ι) (f : ι → ℝ) :
-    |∏ i ∈ s, Φ (f i)| ≤ 1 := by
-  rw [abs_of_nonneg (prod_cdf_nonneg s f)]
-  exact prod_cdf_le_one s f
+    |∏ i ∈ s, Φ (f i)| ≤ 1 :=
+  (abs_of_nonneg (prod_cdf_nonneg s f)).trans_le (prod_cdf_le_one s f)
+
+/-- Powers of the standard Gaussian cdf and of its complement lie in `[0, 1]`. -/
+private theorem cdf_pow_mem_Icc (x : ℝ) (k : ℕ) :
+    Φ x ^ k ∈ Icc 0 1 ∧ (1 - Φ x) ^ k ∈ Icc 0 1 :=
+  ⟨⟨pow_nonneg (cdf_nonneg _ x) k, pow_le_one₀ (cdf_nonneg _ x) (cdf_le_one _ x)⟩,
+    ⟨pow_nonneg (sub_nonneg.2 (cdf_le_one _ x)) k,
+      pow_le_one₀ (sub_nonneg.2 (cdf_le_one _ x)) (sub_le_self _ (cdf_nonneg _ x))⟩⟩
+
+private theorem abs_add_sub_le_two {a b : ℝ} (ha : a ∈ Icc 0 1) (hb : b ∈ Icc 0 1) :
+    |a + b| ≤ 2 ∧ |a - b| ≤ 2 :=
+  ⟨abs_le.2 ⟨by linarith [ha.1, hb.1], by linarith [ha.2, hb.2]⟩,
+    abs_le.2 ⟨by linarith [ha.1, hb.2], by linarith [ha.2, hb.1]⟩⟩
 
 private theorem integrable_abs_coord {α : Type*} [Fintype α] (γ : α) :
     Integrable (fun ω : α → ℝ => |ω γ|) (Measure.pi fun _ : α => gaussianReal 0 1) := by
@@ -187,6 +190,8 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
       ∫ ω, ∏ i, Φ (s * (t i - ⟪u i, WithLp.toLp 2 (ω ∘ Sum.inr)⟫))
         ∂Measure.pi (fun _ : V' ⊕ V => gaussianReal 0 1) := by
   classical
+  have hΦc := continuous_cdf_gaussianReal 0 one_ne_zero
+  have hφc := continuous_gaussianPDFReal 0 1
   set α := V' ⊕ V
   set P := Measure.pi fun _ : α => gaussianReal 0 1
   let bCoeff : κ → ℝ → α → ℝ := fun i τ γ =>
@@ -209,53 +214,29 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
       Finset.sum_const_zero, zero_add, sin_pi_div_two, one_mul, PiLp.inner_apply,
       RCLike.inner_apply, conj_trivial, Function.comp_apply]
     exact Finset.sum_congr rfl fun a _ => mul_comm (u i a) (ω (.inr a))
-  have hdot_diag (i : κ) (τ : ℝ) : ∑ γ, aCoeff i τ γ * bCoeff i τ γ = 0 := by
-    have hv2 : ∑ b : V', (v i b) ^ 2 = 1 := by
-      have h := congrArg (· ^ 2) (hv i)
-      simpa [EuclideanSpace.norm_eq, sq_sqrt (Finset.sum_nonneg fun _ _ => sq_nonneg _)] using h
-    have hu2 : ∑ a : V, (u i a) ^ 2 = 1 := by
-      have h := congrArg (· ^ 2) (hu i)
-      simpa [EuclideanSpace.norm_eq, sq_sqrt (Finset.sum_nonneg fun _ _ => sq_nonneg _)] using h
-    calc ∑ γ : α, aCoeff i τ γ * bCoeff i τ γ
-        = (-sin τ * cos τ) * ∑ b : V', (v i b) ^ 2 +
-            (cos τ * sin τ) * ∑ a : V, (u i a) ^ 2 := by
-          rw [Fintype.sum_sum_type, Finset.mul_sum, Finset.mul_sum]
-          congr 1 <;> refine Finset.sum_congr rfl fun _ _ => ?_ <;> simp [aCoeff, bCoeff] <;> ring
-      _ = 0 := by rw [hv2, hu2]; ring
-  have hdot_off {i j : κ} (hij : i ≠ j) (τ : ℝ) :
+  have hdot_off (i j : κ) (τ : ℝ) :
       ∑ γ, aCoeff i τ γ * bCoeff j τ γ = sin τ * cos τ * (⟪u i, u j⟫ - ⟪v i, v j⟫) := by
-    calc ∑ γ : α, aCoeff i τ γ * bCoeff j τ γ
-        = (-sin τ * cos τ) * ∑ b : V', v j b * v i b +
-            (cos τ * sin τ) * ∑ a : V, u j a * u i a := by
-          rw [Fintype.sum_sum_type, Finset.mul_sum, Finset.mul_sum]
-          congr 1 <;> refine Finset.sum_congr rfl fun _ _ => ?_ <;> simp [aCoeff, bCoeff] <;> ring
-      _ = sin τ * cos τ * (⟪u i, u j⟫ - ⟪v i, v j⟫) := by
-          simp only [PiLp.inner_apply, RCLike.inner_apply, conj_trivial]
-          ring
-  have habs_a (i : κ) (τ : ℝ) (γ : α) : |aCoeff i τ γ| ≤ 1 := by
+    simp only [α, Fintype.sum_sum_type, aCoeff, bCoeff, PiLp.inner_apply, RCLike.inner_apply,
+      conj_trivial, mul_sub, Finset.mul_sum]
+    rw [sub_eq_neg_add, ← Finset.sum_neg_distrib]
+    congr 1 <;> exact Finset.sum_congr rfl fun _ _ => by ring
+  have hdot_diag (i : κ) (τ : ℝ) : ∑ γ, aCoeff i τ γ * bCoeff i τ γ = 0 := by
+    rw [hdot_off, real_inner_self_eq_norm_sq, real_inner_self_eq_norm_sq, hu, hv, sub_self,
+      mul_zero]
+  have habs (i : κ) (τ : ℝ) (γ : α) : |aCoeff i τ γ| ≤ 1 ∧ |bCoeff i τ γ| ≤ 1 := by
+    have hs := abs_sin_le_one τ
+    have hc := abs_cos_le_one τ
     cases γ with
     | inl b =>
       have hb : |v i b| ≤ 1 := (PiLp.norm_apply_le (v i) b).trans_eq (hv i)
-      calc |-sin τ * v i b| = |sin τ| * |v i b| := by rw [abs_mul, abs_neg]
-        _ ≤ 1 * 1 := mul_le_mul (abs_sin_le_one τ) hb (abs_nonneg _) zero_le_one
-        _ = 1 := one_mul 1
+      simp only [aCoeff, bCoeff, abs_mul, abs_neg]
+      exact ⟨(mul_le_of_le_one_left (abs_nonneg _) hs).trans hb,
+        (mul_le_of_le_one_left (abs_nonneg _) hc).trans hb⟩
     | inr a =>
       have ha : |u i a| ≤ 1 := (PiLp.norm_apply_le (u i) a).trans_eq (hu i)
-      calc |cos τ * u i a| = |cos τ| * |u i a| := abs_mul _ _
-        _ ≤ 1 * 1 := mul_le_mul (abs_cos_le_one τ) ha (abs_nonneg _) zero_le_one
-        _ = 1 := one_mul 1
-  have habs_b (i : κ) (τ : ℝ) (γ : α) : |bCoeff i τ γ| ≤ 1 := by
-    cases γ with
-    | inl b =>
-      have hb : |v i b| ≤ 1 := (PiLp.norm_apply_le (v i) b).trans_eq (hv i)
-      calc |cos τ * v i b| = |cos τ| * |v i b| := abs_mul _ _
-        _ ≤ 1 * 1 := mul_le_mul (abs_cos_le_one τ) hb (abs_nonneg _) zero_le_one
-        _ = 1 := one_mul 1
-    | inr a =>
-      have ha : |u i a| ≤ 1 := (PiLp.norm_apply_le (u i) a).trans_eq (hu i)
-      calc |sin τ * u i a| = |sin τ| * |u i a| := abs_mul _ _
-        _ ≤ 1 * 1 := mul_le_mul (abs_sin_le_one τ) ha (abs_nonneg _) zero_le_one
-        _ = 1 := one_mul 1
+      simp only [aCoeff, bCoeff, abs_mul]
+      exact ⟨(mul_le_of_le_one_left (abs_nonneg _) hc).trans ha,
+        (mul_le_of_le_one_left (abs_nonneg _) hs).trans ha⟩
   let F : ℝ → (α → ℝ) → ℝ := fun τ ω => ∏ i, Φ (s * (t i - W i τ ω))
   let F' : ℝ → (α → ℝ) → ℝ := fun τ ω =>
     ∑ i, (-s * W' i τ ω * φ (s * (t i - W i τ ω))) *
@@ -266,8 +247,7 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
   have hW'_cont (i : κ) (τ : ℝ) : Continuous (W' i τ) :=
     continuous_finsetSum _ fun γ _ => continuous_const.mul (continuous_apply γ)
   have hF_meas (τ : ℝ) : AEStronglyMeasurable (F τ) P :=
-    (continuous_finsetProd _ fun i _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-      (continuous_const.mul (continuous_const.sub (hW_cont i τ)))).aestronglyMeasurable
+    (by fun_prop : Continuous (F τ)).aestronglyMeasurable
   have hF_int (τ : ℝ) : Integrable (F τ) P :=
     Integrable.mono' (integrable_const (1 : ℝ)) (hF_meas τ)
       (ae_of_all _ fun ω => (Real.norm_eq_abs _).trans_le (abs_prod_cdf_le_one _ _))
@@ -302,26 +282,17 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
             ∏ j ∈ Finset.univ.erase i, Φ (s * (t j - W j τ ω))| := Finset.abs_sum_le_sum_abs _ _
       _ ≤ ∑ _i : κ, s * ∑ γ : α, |ω γ| := by
           refine Finset.sum_le_sum fun i _ => ?_
-          have hprod := abs_prod_cdf_le_one (Finset.univ.erase i) (fun j => s * (t j - W j τ ω))
           have hW'_le : |W' i τ ω| ≤ ∑ γ : α, |ω γ| :=
             (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun γ _ => by
               rw [abs_mul]
-              exact mul_le_of_le_one_left (abs_nonneg _) (habs_a i τ γ))
+              exact mul_le_of_le_one_left (abs_nonneg _) (habs i τ γ).1)
           rw [abs_mul, abs_mul, abs_mul, abs_neg, abs_of_pos hs]
-          calc s * |W' i τ ω| * |φ (s * (t i - W i τ ω))| *
-                |∏ j ∈ Finset.univ.erase i, Φ (s * (t j - W j τ ω))|
-              ≤ s * (∑ γ : α, |ω γ|) * 1 * 1 := by
-                gcongr
-                exact abs_gaussianPDFReal_le_one _
-            _ = s * ∑ γ : α, |ω γ| := by ring
+          exact ((mul_le_of_le_one_right (by positivity) (abs_prod_cdf_le_one _ _)).trans
+            (mul_le_of_le_one_right (by positivity) (abs_gaussianPDFReal_le_one _))).trans
+            (by gcongr)
       _ = boundF' ω := by simp [boundF', Finset.sum_const, nsmul_eq_mul, mul_assoc]
-  have hF'_meas (τ : ℝ) : AEStronglyMeasurable (F' τ) P := by
-    refine (continuous_finsetSum _ fun i _ => ?_).aestronglyMeasurable
-    exact ((continuous_const.mul (hW'_cont i τ)).mul
-      ((continuous_gaussianPDFReal 0 1).comp
-        (continuous_const.mul (continuous_const.sub (hW_cont i τ))))).mul
-      (continuous_finsetProd _ fun j _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-        (continuous_const.mul (continuous_const.sub (hW_cont j τ))))
+  have hF'_meas (τ : ℝ) : AEStronglyMeasurable (F' τ) P :=
+    (by fun_prop : Continuous (F' τ)).aestronglyMeasurable
   have hΨ_deriv (τ : ℝ) : HasDerivAt Ψ (∫ ω, F' τ ω ∂P) τ :=
     (hasDerivAt_integral_of_dominated_loc_of_deriv_le (Metric.ball_mem_nhds τ one_pos)
       (Eventually.of_forall hF_meas) (hF_int τ) (hF'_meas τ)
@@ -342,17 +313,11 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
       rw [Finset.mul_sum, Finset.sum_mul, Finset.sum_mul]
       refine Finset.sum_congr rfl fun γ _ => ?_
       ring
-    have hGi_cont (i : κ) : Continuous (G_i i) :=
-      ((continuous_gaussianPDFReal 0 1).comp
-        (continuous_const.mul (continuous_const.sub (hW_cont i τ)))).mul
-        (continuous_finsetProd _ fun j _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-          (continuous_const.mul (continuous_const.sub (hW_cont j τ))))
+    have hGi_cont (i : κ) : Continuous (G_i i) := by fun_prop
     have hGi_le_one (i : κ) (ω : α → ℝ) : |G_i i ω| ≤ 1 := by
       rw [abs_mul]
-      calc |φ (s * (t i - W i τ ω))| * |∏ j ∈ Finset.univ.erase i, Φ (s * (t j - W j τ ω))|
-          ≤ 1 * 1 := mul_le_mul (abs_gaussianPDFReal_le_one _)
-            (abs_prod_cdf_le_one _ _) (abs_nonneg _) zero_le_one
-        _ = 1 := one_mul 1
+      exact (mul_le_of_le_one_left (abs_nonneg _) (abs_gaussianPDFReal_le_one _)).trans
+        (abs_prod_cdf_le_one _ _)
     have hGi_int (i : κ) : Integrable (G_i i) P :=
       Integrable.mono' (integrable_const 1) (hGi_cont i).aestronglyMeasurable
         (ae_of_all _ fun ω => (Real.norm_eq_abs _).trans_le (hGi_le_one i ω))
@@ -418,20 +383,7 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
         exact Finset.sum_congr rfl fun j _ => mul_comm _ _
       exact (hφ_upd.mul hprod_upd).congr_deriv (by simp only [dG, Function.update_eq_self])
     have hdG_int (i : κ) (γ : α) : Integrable (dG i γ) P := by
-      have hcont : Continuous (dG i γ) := by
-        refine Continuous.add ?_ ?_
-        · exact ((((continuous_const.mul (continuous_const.sub (hW_cont i τ))).mul
-            continuous_const).mul ((continuous_gaussianPDFReal 0 1).comp
-            (continuous_const.mul (continuous_const.sub (hW_cont i τ))))).mul
-            (continuous_finsetProd _ fun j _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-              (continuous_const.mul (continuous_const.sub (hW_cont j τ)))))
-        · exact ((continuous_gaussianPDFReal 0 1).comp
-            (continuous_const.mul (continuous_const.sub (hW_cont i τ)))).mul
-            (continuous_finsetSum _ fun j _ => (continuous_const.mul
-              ((continuous_gaussianPDFReal 0 1).comp
-                (continuous_const.mul (continuous_const.sub (hW_cont j τ))))).mul
-              (continuous_finsetProd _ fun l _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-                (continuous_const.mul (continuous_const.sub (hW_cont l τ)))))
+      have hcont : Continuous (dG i γ) := by fun_prop
       let dom : (α → ℝ) → ℝ := fun ω =>
         s ^ 2 * (|t i| + ∑ δ : α, |ω δ|) + (Fintype.card κ : ℝ) * s
       have hdom : Integrable dom P :=
@@ -444,45 +396,32 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
         refine (abs_sub _ _).trans (add_le_add le_rfl ?_)
         exact (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun δ _ => by
           rw [abs_mul]
-          exact mul_le_of_le_one_left (abs_nonneg _) (habs_b i τ δ))
-      have hp1 := abs_prod_cdf_le_one (Finset.univ.erase i) (fun j => s * (t j - W j τ ω))
+          exact mul_le_of_le_one_left (abs_nonneg _) (habs i τ δ).2)
       have hterm1 : |(s ^ 2 * (t i - W i τ ω) * bCoeff i τ γ * φ (s * (t i - W i τ ω))) *
           ∏ j ∈ Finset.univ.erase i, Φ (s * (t j - W j τ ω))| ≤
           s ^ 2 * (|t i| + ∑ δ : α, |ω δ|) := by
         rw [abs_mul, abs_mul, abs_mul, abs_mul, abs_of_pos (sq_pos_of_pos hs)]
-        calc s ^ 2 * |t i - W i τ ω| * |bCoeff i τ γ| * |φ (s * (t i - W i τ ω))| *
-              |∏ j ∈ Finset.univ.erase i, Φ (s * (t j - W j τ ω))|
-            ≤ s ^ 2 * (|t i| + ∑ δ : α, |ω δ|) * 1 * 1 * 1 := by
-              gcongr
-              · exact habs_b i τ γ
-              · exact abs_gaussianPDFReal_le_one _
-          _ = s ^ 2 * (|t i| + ∑ δ : α, |ω δ|) := by ring
+        have := (habs i τ γ).2
+        have := abs_gaussianPDFReal_le_one (s * (t i - W i τ ω))
+        have := abs_prod_cdf_le_one (Finset.univ.erase i) (fun j => s * (t j - W j τ ω))
+        calc _ ≤ s ^ 2 * (|t i| + ∑ δ : α, |ω δ|) * 1 * 1 * 1 := by gcongr
+          _ = _ := by ring
       have hterm2 : |φ (s * (t i - W i τ ω)) *
           ∑ j ∈ Finset.univ.erase i, (-s * bCoeff j τ γ * φ (s * (t j - W j τ ω))) *
             ∏ l ∈ (Finset.univ.erase i).erase j, Φ (s * (t l - W l τ ω))| ≤
           (Fintype.card κ : ℝ) * s := by
         rw [abs_mul]
-        calc |φ (s * (t i - W i τ ω))| *
-              |∑ j ∈ Finset.univ.erase i, (-s * bCoeff j τ γ * φ (s * (t j - W j τ ω))) *
-                ∏ l ∈ (Finset.univ.erase i).erase j, Φ (s * (t l - W l τ ω))|
-            ≤ 1 * ∑ j ∈ Finset.univ.erase i, s := by
-              refine mul_le_mul (abs_gaussianPDFReal_le_one _)
-                ((Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => ?_))
-                (abs_nonneg _) zero_le_one
-              rw [abs_mul, abs_mul, abs_mul, abs_neg, abs_of_pos hs]
-              have hp2 := abs_prod_cdf_le_one ((Finset.univ.erase i).erase j)
-                (fun l => s * (t l - W l τ ω))
-              calc s * |bCoeff j τ γ| * |φ (s * (t j - W j τ ω))| *
-                    |∏ l ∈ (Finset.univ.erase i).erase j, Φ (s * (t l - W l τ ω))|
-                  ≤ s * 1 * 1 * 1 := by
-                    gcongr
-                    · exact habs_b j τ γ
-                    · exact abs_gaussianPDFReal_le_one _
-                _ = s := by ring
-          _ ≤ (Fintype.card κ : ℝ) * s := by
-              rw [one_mul, Finset.sum_const, nsmul_eq_mul]
-              exact mul_le_mul_of_nonneg_right
-                (Nat.cast_le.mpr (Finset.card_le_univ _)) hs.le
+        refine (mul_le_of_le_one_left (abs_nonneg _) (abs_gaussianPDFReal_le_one _)).trans
+          ((Finset.abs_sum_le_sum_abs _ _).trans
+            ((Finset.sum_le_sum (g := fun _ => s) fun j _ => ?_).trans ?_))
+        · rw [abs_mul, abs_mul, abs_mul, abs_neg, abs_of_pos hs]
+          have := (habs j τ γ).2
+          have := abs_gaussianPDFReal_le_one (s * (t j - W j τ ω))
+          have := abs_prod_cdf_le_one ((Finset.univ.erase i).erase j) (fun l => s * (t l - W l τ ω))
+          calc _ ≤ s * 1 * 1 * 1 := by gcongr
+            _ = s := by ring
+        · rw [Finset.sum_const, nsmul_eq_mul]
+          exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr (Finset.card_le_univ _)) hs.le
       exact (abs_add_le _ _).trans (add_le_add hterm1 hterm2)
     have hstep (i : κ) :
         ∫ ω, (∑ γ : α, (-s * aCoeff i τ γ) * (ω γ * G_i i ω)) ∂P =
@@ -540,7 +479,7 @@ private theorem mollified_orthant_le {V V' κ : Type*} [Fintype V] [Fintype V'] 
       dsimp only
       rw [hpt, hdot_diag i τ, mul_zero, zero_add]
       refine Finset.sum_congr rfl fun j hj => ?_
-      rw [hdot_off (Finset.ne_of_mem_erase hj).symm τ]
+      rw [hdot_off i j τ]
       ring
     rw [integral_congr_ae (ae_of_all _ hF'_eq),
       integral_finsetSum _ fun i _ =>
@@ -610,6 +549,24 @@ private theorem tendsto_mollified_orthant {V κ : Type*} [Fintype V] [Fintype κ
       rw [← Finset.mul_prod_erase Finset.univ _ (Finset.mem_univ i₀)]
       exact mul_le_of_le_one_right (cdf_nonneg _ _) (prod_cdf_le_one _ _)
 
+private theorem integral_mollified_orthant_comp {W V₀ κ : Type*} [Fintype W] [Fintype V₀]
+    [Fintype κ] (w : κ → EuclideanSpace ℝ V₀) (t : κ → ℝ) (proj : (W → ℝ) → (V₀ → ℝ))
+    (hmp : MeasurePreserving proj (Measure.pi fun _ : W => gaussianReal 0 1)
+      (Measure.pi fun _ : V₀ => gaussianReal 0 1)) (m : ℕ) :
+    ∫ ω, ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪w i, WithLp.toLp 2 (proj ω)⟫))
+        ∂Measure.pi (fun _ : W => gaussianReal 0 1) =
+      ∫ ω₀, ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪w i, WithLp.toLp 2 ω₀⟫))
+        ∂Measure.pi (fun _ : V₀ => gaussianReal 0 1) := by
+  have hcont : Continuous fun ω₀ : V₀ → ℝ =>
+      ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪w i, WithLp.toLp 2 ω₀⟫)) :=
+    continuous_finsetProd _ fun i _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
+      (continuous_const.mul (continuous_const.sub (by fun_prop)))
+  have hmeas : AEStronglyMeasurable
+      (fun ω₀ : V₀ → ℝ => ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪w i, WithLp.toLp 2 ω₀⟫)))
+      (Measure.map proj (Measure.pi fun _ : W => gaussianReal 0 1)) := by
+    rw [hmp.map_eq]; exact hcont.aestronglyMeasurable
+  exact (integral_map hmp.measurable.aemeasurable hmeas).symm.trans (by rw [hmp.map_eq])
+
 /-- **Slepian's orthant inequality** [LedouxTalagrand1991, Corollary 3.12]
 [Vershynin2018, Section 7.2]: if `u` and `v` are finite families of unit vectors with
 `⟪v i, v j⟫ ≤ ⟪u i, u j⟫` for all `i ≠ j`, then standard Gaussian projections onto `u` are at
@@ -631,40 +588,11 @@ theorem le_measureReal_forall_inner_le_of_le_inner {V V' κ : Type*} [Fintype V]
       (Measure.pi fun _ : V' ⊕ V => gaussianReal 0 1)
       (Measure.pi fun _ : V => gaussianReal 0 1) :=
     measurePreserving_snd.comp (measurePreserving_sumPiEquivProdPi _)
-  have hint_l (m : ℕ) :
-      ∫ ω, ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪v i, WithLp.toLp 2 (ω ∘ Sum.inl)⟫))
-          ∂Measure.pi (fun _ : V' ⊕ V => gaussianReal 0 1) =
-        ∫ ω', ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪v i, WithLp.toLp 2 ω'⟫))
-          ∂Measure.pi (fun _ : V' => gaussianReal 0 1) := by
-    have hcont : Continuous fun ω' : V' → ℝ =>
-        ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪v i, WithLp.toLp 2 ω'⟫)) :=
-      continuous_finsetProd _ fun i _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-        (continuous_const.mul (continuous_const.sub (by fun_prop)))
-    have hmeas : AEStronglyMeasurable
-        (fun ω' : V' → ℝ => ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪v i, WithLp.toLp 2 ω'⟫)))
-        (Measure.map (fun ω : V' ⊕ V → ℝ => ω ∘ Sum.inl)
-          (Measure.pi fun _ : V' ⊕ V => gaussianReal 0 1)) := by
-      rw [hmp_l.map_eq]; exact hcont.aestronglyMeasurable
-    exact (integral_map hmp_l.measurable.aemeasurable hmeas).symm.trans (by rw [hmp_l.map_eq])
-  have hint_r (m : ℕ) :
-      ∫ ω, ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪u i, WithLp.toLp 2 (ω ∘ Sum.inr)⟫))
-          ∂Measure.pi (fun _ : V' ⊕ V => gaussianReal 0 1) =
-        ∫ ω, ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪u i, WithLp.toLp 2 ω⟫))
-          ∂Measure.pi (fun _ : V => gaussianReal 0 1) := by
-    have hcont : Continuous fun ω : V → ℝ =>
-        ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪u i, WithLp.toLp 2 ω⟫)) :=
-      continuous_finsetProd _ fun i _ => (continuous_cdf_gaussianReal 0 one_ne_zero).comp
-        (continuous_const.mul (continuous_const.sub (by fun_prop)))
-    have hmeas : AEStronglyMeasurable
-        (fun ω : V → ℝ => ∏ i, Φ (((m : ℝ) + 1) * (t i - ⟪u i, WithLp.toLp 2 ω⟫)))
-        (Measure.map (fun ω : V' ⊕ V → ℝ => ω ∘ Sum.inr)
-          (Measure.pi fun _ : V' ⊕ V => gaussianReal 0 1)) := by
-      rw [hmp_r.map_eq]; exact hcont.aestronglyMeasurable
-    exact (integral_map hmp_r.measurable.aemeasurable hmeas).symm.trans (by rw [hmp_r.map_eq])
   exact le_of_tendsto_of_tendsto (tendsto_mollified_orthant v hv0 t)
     (tendsto_mollified_orthant u hu0 t) (Eventually.of_forall fun m => by
       dsimp only
-      rw [← hint_l m, ← hint_r m]
+      rw [← integral_mollified_orthant_comp v t _ hmp_l m,
+        ← integral_mollified_orthant_comp u t _ hmp_r m]
       exact mollified_orthant_le hu hv huv t (by positivity))
 
 /-- Upper-orthant form of Slepian's inequality (`{∀ i, t i ≤ ⟪u i, ω⟫}`), deduced from
@@ -709,32 +637,13 @@ private noncomputable def equicorrVec {α : Type*} [DecidableEq α] (ρ : ℝ) (
 
 private theorem norm_equicorrVec {α : Type*} [Fintype α] [DecidableEq α] {ρ : ℝ}
     (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) (i : α) : ‖equicorrVec ρ i‖ = 1 := by
-  rw [EuclideanSpace.norm_eq]
-  have hsum : ∑ x : Unit ⊕ α, ‖equicorrVec ρ i x‖ ^ 2 = 1 := by
-    rw [Fintype.sum_sum_type, Finset.univ_unique, PUnit.default_eq_unit, Finset.sum_singleton]
-    simp only [equicorrVec, WithLp.ofLp_toLp, Real.norm_eq_abs, sq_abs, sq_sqrt hρ0]
-    have hrest : ∑ j : α, (if i = j then √(1 - ρ) else 0) ^ 2 = 1 - ρ := by
-      rw [Finset.sum_eq_single i]
-      · simp [sq_sqrt (sub_nonneg.mpr hρ1)]
-      · intro j _ hji
-        simp [Ne.symm hji]
-      · intro hi
-        exact absurd (Finset.mem_univ i) hi
-    linarith
-  rw [hsum, sqrt_one]
+  simp [EuclideanSpace.norm_eq, equicorrVec, Fintype.sum_sum_type, ite_pow, sq_sqrt hρ0,
+    sq_sqrt (sub_nonneg.2 hρ1)]
 
 private theorem inner_equicorrVec_of_ne {α : Type*} [Fintype α] [DecidableEq α] {ρ : ℝ}
     (hρ0 : 0 ≤ ρ) {i j : α} (hij : i ≠ j) :
     ⟪equicorrVec ρ i, equicorrVec ρ j⟫ = ρ := by
-  simp only [PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Fintype.sum_sum_type,
-    Finset.univ_unique, PUnit.default_eq_unit, Finset.sum_singleton, equicorrVec]
-  have hrest : ∑ l : α, (if j = l then √(1 - ρ) else 0) * (if i = l then √(1 - ρ) else 0) = 0 := by
-    refine Finset.sum_eq_zero fun l _ => ?_
-    by_cases hjl : j = l
-    · subst hjl
-      simp [hij]
-    · simp [hjl]
-  rw [hrest, add_zero, mul_self_sqrt hρ0]
+  simp [PiLp.inner_apply, Fintype.sum_sum_type, equicorrVec, ite_mul, hij.symm, mul_self_sqrt hρ0]
 
 /-- Straddling complement identity for a nonempty finite family of unit projections. -/
 private theorem measureReal_straddlesOn_eq_one_sub {V κ : Type*} [Fintype V] {s : Finset κ}
@@ -812,14 +721,21 @@ private theorem equicorr_orthants_eq {α : Type*} [Fintype α] [DecidableEq α] 
   have hproj (ω : Unit ⊕ α → ℝ) : proj ω = (ω (.inl ()), ω ∘ Sum.inr) := rfl
   have hinner (ω : Unit ⊕ α → ℝ) (i : α) :
       ⟪equicorrVec ρ i, WithLp.toLp 2 ω⟫ = √ρ * ω (.inl ()) + s * ω (.inr i) := by
-    simp only [PiLp.inner_apply, RCLike.inner_apply, conj_trivial, Fintype.sum_sum_type,
-      Finset.univ_unique, PUnit.default_eq_unit, Finset.sum_singleton, equicorrVec, s]
-    rw [Finset.sum_eq_single i]
-    · simp [mul_comm]
-    · intro j _ hji
-      simp [Ne.symm hji]
-    · intro hi
-      exact absurd (Finset.mem_univ i) hi
+    simp [PiLp.inner_apply, Fintype.sum_sum_type, equicorrVec, s, mul_comm]
+  have horth (S : Set (ℝ × (α → ℝ))) (hSm : MeasurableSet S) (f : ℝ → ℝ)
+      (hf0 : ∀ z, 0 ≤ f z) (hfc : Continuous f)
+      (hslice : ∀ z, (Measure.pi fun _ : α => gaussianReal 0 1) (Prod.mk z ⁻¹' S) =
+        ENNReal.ofReal (f z ^ Fintype.card α)) :
+      (Measure.pi fun _ : Unit ⊕ α => gaussianReal 0 1).real (proj ⁻¹' S) =
+        ∫ z, φ z * f z ^ Fintype.card α := by
+    rw [← map_measureReal_apply hmp.measurable hSm, hmp.map_eq, measureReal_def,
+      Measure.prod_apply hSm]
+    simp_rw [hslice]
+    rw [← integral_eq_lintegral_of_nonneg_ae
+      (ae_of_all _ fun z => pow_nonneg (hf0 z) _)
+      (hfc.pow _).aestronglyMeasurable,
+      integral_gaussianReal_eq_integral_smul one_ne_zero]
+    simp only [smul_eq_mul]
   have hlower :
       (Measure.pi fun _ : Unit ⊕ α => gaussianReal 0 1).real
         {ω | ∀ i : α, ⟪equicorrVec ρ i, WithLp.toLp 2 ω⟫ ≤ t} =
@@ -839,22 +755,14 @@ private theorem equicorr_orthants_eq {α : Type*} [Fintype α] [DecidableEq α] 
       exact forall_congr' fun i =>
         ⟨fun h => by linarith [mul_comm s (ω (.inr i))],
           fun h => by linarith [mul_comm s (ω (.inr i))]⟩
-    rw [hpre, ← map_measureReal_apply hmp.measurable hS₁m, hmp.map_eq, measureReal_def,
-      Measure.prod_apply hS₁m]
-    have hslice (z : ℝ) :
-        (Measure.pi fun _ : α => gaussianReal 0 1) (Prod.mk z ⁻¹' S₁) =
-          ENNReal.ofReal (Φ ((t - √ρ * z) / s) ^ Fintype.card α) := by
-      have heq : Prod.mk z ⁻¹' S₁ = Set.pi Set.univ fun _ : α => Iic ((t - √ρ * z) / s) := by
-        ext w; simp [S₁, Pi.le_def]
-      rw [heq, Measure.pi_pi]
-      simp only [Finset.prod_const, Finset.card_univ, ← ofReal_cdf,
-        ENNReal.ofReal_pow (cdf_nonneg _ _)]
-    simp_rw [hslice]
-    rw [← integral_eq_lintegral_of_nonneg_ae
-      (ae_of_all _ fun _ => pow_nonneg (cdf_nonneg _ _) _)
-      (((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow _).aestronglyMeasurable,
-      integral_gaussianReal_eq_integral_smul one_ne_zero]
-    simp only [smul_eq_mul]
+    rw [hpre]
+    refine horth S₁ hS₁m (fun z => Φ ((t - √ρ * z) / s)) (fun z => cdf_nonneg _ _)
+      ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)) fun z => ?_
+    have heq : Prod.mk z ⁻¹' S₁ = Set.pi Set.univ fun _ : α => Iic ((t - √ρ * z) / s) := by
+      ext w; simp [S₁, Pi.le_def]
+    rw [heq, Measure.pi_pi]
+    simp only [Finset.prod_const, Finset.card_univ, ← ofReal_cdf,
+      ENNReal.ofReal_pow (cdf_nonneg _ _)]
   have hupper :
       (Measure.pi fun _ : Unit ⊕ α => gaussianReal 0 1).real
         {ω | ∀ i : α, t ≤ ⟪equicorrVec ρ i, WithLp.toLp 2 ω⟫} =
@@ -874,43 +782,32 @@ private theorem equicorr_orthants_eq {α : Type*} [Fintype α] [DecidableEq α] 
       exact forall_congr' fun i =>
         ⟨fun h => by linarith [mul_comm s (ω (.inr i))],
           fun h => by linarith [mul_comm s (ω (.inr i))]⟩
-    rw [hpre, ← map_measureReal_apply hmp.measurable hS₂m, hmp.map_eq, measureReal_def,
-      Measure.prod_apply hS₂m]
-    have hslice (z : ℝ) :
-        (Measure.pi fun _ : α => gaussianReal 0 1) (Prod.mk z ⁻¹' S₂) =
-          ENNReal.ofReal ((1 - Φ ((t - √ρ * z) / s)) ^ Fintype.card α) := by
-      have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-      have heq : Prod.mk z ⁻¹' S₂ = Set.pi Set.univ fun _ : α => Ici ((t - √ρ * z) / s) := by
-        ext w; simp [S₂, Pi.le_def]
-      have h1d (a : ℝ) : gaussianReal 0 1 (Ici a) = ENNReal.ofReal (1 - Φ a) := by
-        have hreal : (gaussianReal 0 1).real (Ici a) = 1 - Φ a := by
-          rw [← compl_Iio, probReal_compl_eq_one_sub measurableSet_Iio,
-            measureReal_congr Iio_ae_eq_Iic, cdf_eq_real]
-        rw [← ofReal_measureReal (s := Ici a), hreal]
-      rw [heq, Measure.pi_pi]
-      simp only [Finset.prod_const, Finset.card_univ, h1d,
-        ENNReal.ofReal_pow (sub_nonneg.mpr (cdf_le_one _ _))]
-    simp_rw [hslice]
-    rw [← integral_eq_lintegral_of_nonneg_ae
-      (ae_of_all _ fun _ => pow_nonneg (sub_nonneg.mpr (cdf_le_one _ _)) _)
-      ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-        (by fun_prop))).pow _).aestronglyMeasurable,
-      integral_gaussianReal_eq_integral_smul one_ne_zero]
-    simp only [smul_eq_mul]
+    rw [hpre]
+    refine horth S₂ hS₂m (fun z => 1 - Φ ((t - √ρ * z) / s))
+      (fun z => sub_nonneg.mpr (cdf_le_one _ _))
+      (continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)))
+      fun z => ?_
+    have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
+    have heq : Prod.mk z ⁻¹' S₂ = Set.pi Set.univ fun _ : α => Ici ((t - √ρ * z) / s) := by
+      ext w; simp [S₂, Pi.le_def]
+    have h1d (a : ℝ) : gaussianReal 0 1 (Ici a) = ENNReal.ofReal (1 - Φ a) := by
+      have hreal : (gaussianReal 0 1).real (Ici a) = 1 - Φ a := by
+        rw [← compl_Iio, probReal_compl_eq_one_sub measurableSet_Iio,
+          measureReal_congr Iio_ae_eq_Iic, cdf_eq_real]
+      rw [← ofReal_measureReal (s := Ici a), hreal]
+    rw [heq, Measure.pi_pi]
+    simp only [Finset.prod_const, Finset.card_univ, h1d,
+      ENNReal.ofReal_pow (sub_nonneg.mpr (cdf_le_one _ _))]
   rw [hlower, hupper, equicorrNonStraddle, ← integral_add]
   · refine integral_congr_ae (ae_of_all _ fun z => ?_)
     simp only [s, mul_add]
-  · refine (integrable_gaussianPDFReal 0 1).mul_bdd
-      (((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow _).aestronglyMeasurable
-      (c := 1) (ae_of_all _ fun z => ?_)
-    rw [Real.norm_eq_abs, abs_of_nonneg (pow_nonneg (cdf_nonneg _ _) _)]
-    exact pow_le_one₀ (cdf_nonneg _ _) (cdf_le_one _ _)
-  · refine (integrable_gaussianPDFReal 0 1).mul_bdd
-      ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-        (by fun_prop))).pow _).aestronglyMeasurable
-      (c := 1) (ae_of_all _ fun z => ?_)
-    rw [Real.norm_eq_abs, abs_of_nonneg (pow_nonneg (sub_nonneg.mpr (cdf_le_one _ _)) _)]
-    exact pow_le_one₀ (sub_nonneg.mpr (cdf_le_one _ _)) (sub_le_self _ (cdf_nonneg _ _))
+  all_goals
+    have := continuous_cdf_gaussianReal 0 one_ne_zero
+    refine (integrable_gaussianPDFReal 0 1).mul_bdd
+      (by fun_prop : Continuous _).aestronglyMeasurable (c := 1) (ae_of_all _ fun z => ?_)
+    rw [Real.norm_eq_abs]
+  exacts [(abs_of_nonneg (cdf_pow_mem_Icc _ _).1.1).trans_le (cdf_pow_mem_Icc _ _).1.2,
+    (abs_of_nonneg (cdf_pow_mem_Icc _ _).2.1).trans_le (cdf_pow_mem_Icc _ _).2.2]
 
 /-- Threshold `t = 0` minimizes `equicorrNonStraddle k ρ t` over all `t : ℝ` for `k ≥ 1` and
 `0 ≤ ρ < 1`. -/
@@ -922,18 +819,13 @@ private theorem equicorrNonStraddle_zero_le {k : ℕ} (hk : 1 ≤ k) {ρ : ℝ} 
       simp only [equicorrNonStraddle, sqrt_zero, zero_mul, sub_zero, sqrt_one, div_one,
         integral_mul_const, integral_gaussianPDFReal_eq_one 0 one_ne_zero, one_mul]
     rw [h0 0, h0 t, cdf_gaussianReal_zero_zero one_ne_zero]
-    have hconv : ConvexOn ℝ (Ici (0 : ℝ)) (fun x : ℝ => x ^ k) := convexOn_pow k
-    have hconv2 := hconv.2
-    have hmid := hconv2 (mem_Ici.mpr (cdf_nonneg (gaussianReal 0 1) t))
-      (mem_Ici.mpr (sub_nonneg.mpr (cdf_le_one (gaussianReal 0 1) t)))
-      (by norm_num : (0 : ℝ) ≤ 2⁻¹) (by norm_num : (0 : ℝ) ≤ 2⁻¹)
-      (by norm_num : (2⁻¹ : ℝ) + 2⁻¹ = 1)
-    simp only [smul_eq_mul] at hmid
-    have hhalf : 2⁻¹ * Φ t + 2⁻¹ * (1 - Φ t) = (2⁻¹ : ℝ) := by ring
-    have h12 : (1 : ℝ) - 2⁻¹ = 2⁻¹ := by norm_num
-    rw [hhalf] at hmid
-    rw [h12]
-    linarith
+    obtain ⟨n, rfl⟩ : ∃ n, k = n + 1 := ⟨k - 1, by omega⟩
+    have h := add_pow_le (cdf_nonneg (gaussianReal 0 1) t)
+      (sub_nonneg.2 (cdf_le_one (gaussianReal 0 1) t)) (n + 1)
+    rw [add_sub_cancel, one_pow, Nat.add_sub_cancel] at h
+    calc _ = 1 / (2 : ℝ) ^ n := by
+          rw [show (1 : ℝ) - 2⁻¹ = 2⁻¹ by norm_num, pow_succ, inv_pow]; ring
+      _ ≤ _ := (div_le_iff₀' (by positivity)).2 h
   set c := √ρ
   set s := √(1 - ρ)
   have hc : 0 < c := sqrt_pos.mpr hρ_pos
@@ -957,35 +849,17 @@ private theorem equicorrNonStraddle_zero_le {k : ℕ} (hk : 1 ≤ k) {ρ : ℝ} 
   let g' : ℝ → ℝ → ℝ := fun u z =>
     φ z * ((k : ℝ) / s * φ ((u - c * z) / s) *
       (Φ ((u - c * z) / s) ^ (k - 1) - (1 - Φ ((u - c * z) / s)) ^ (k - 1)))
-  have hg_meas (u : ℝ) : AEStronglyMeasurable (g u) volume := by
-    refine Continuous.aestronglyMeasurable ?_
-    exact (continuous_gaussianPDFReal 0 1).mul
-      ((((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow k).add
-        ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-          (by fun_prop))).pow k))
-  have hg_int (u : ℝ) : Integrable (g u) volume := by
-    refine (integrable_gaussianPDFReal 0 1).mul_bdd
-      (((((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow k).add
-        ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-          (by fun_prop))).pow k)).aestronglyMeasurable)
-      (c := 2) (ae_of_all _ fun z => ?_)
-    have h1 : 0 ≤ Φ ((u - c * z) / s) ^ k := pow_nonneg (cdf_nonneg _ _) _
-    have h2 : 0 ≤ (1 - Φ ((u - c * z) / s)) ^ k :=
-      pow_nonneg (sub_nonneg.mpr (cdf_le_one _ _)) _
-    rw [Real.norm_eq_abs, abs_of_nonneg (add_nonneg h1 h2)]
-    have hp1 : Φ ((u - c * z) / s) ^ k ≤ 1 :=
-      pow_le_one₀ (cdf_nonneg (gaussianReal 0 1) _) (cdf_le_one (gaussianReal 0 1) _)
-    have hp2 : (1 - Φ ((u - c * z) / s)) ^ k ≤ 1 :=
-      pow_le_one₀ (sub_nonneg.mpr (cdf_le_one (gaussianReal 0 1) _))
-        (sub_le_self 1 (cdf_nonneg (gaussianReal 0 1) _))
-    linarith
-  have hg'_meas (u : ℝ) : AEStronglyMeasurable (g' u) volume := by
-    refine Continuous.aestronglyMeasurable ?_
-    exact (continuous_gaussianPDFReal 0 1).mul
-      ((continuous_const.mul ((continuous_gaussianPDFReal 0 1).comp (by fun_prop))).mul
-        ((((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow (k - 1)).sub
-          ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-            (by fun_prop))).pow (k - 1))))
+  have hΦc := continuous_cdf_gaussianReal 0 one_ne_zero
+  have hφc := continuous_gaussianPDFReal 0 1
+  have hg_meas (u : ℝ) : AEStronglyMeasurable (g u) volume :=
+    (by fun_prop : Continuous (g u)).aestronglyMeasurable
+  have hg_int (u : ℝ) : Integrable (g u) volume :=
+    (integrable_gaussianPDFReal 0 1).mul_bdd (by fun_prop : Continuous fun z =>
+        Φ ((u - c * z) / s) ^ k + (1 - Φ ((u - c * z) / s)) ^ k).aestronglyMeasurable
+      (c := 2) (ae_of_all _ fun z =>
+        (abs_add_sub_le_two (cdf_pow_mem_Icc _ k).1 (cdf_pow_mem_Icc _ k).2).1)
+  have hg'_meas (u : ℝ) : AEStronglyMeasurable (g' u) volume :=
+    (by fun_prop : Continuous (g' u)).aestronglyMeasurable
   have hg_deriv (z u : ℝ) : HasDerivAt (fun v => g v z) (g' u z) u := by
     have hlin : HasDerivAt (fun v : ℝ => (v - c * z) / s) (1 / s) u :=
       ((hasDerivAt_id' u).sub_const (c * z)).div_const s
@@ -1005,16 +879,8 @@ private theorem equicorrNonStraddle_zero_le {k : ℕ} (hk : 1 ≤ k) {ρ : ℝ} 
   have hg'_le (z u : ℝ) : ‖g' u z‖ ≤ dom z := by
     rw [Real.norm_eq_abs, abs_mul, abs_mul, abs_mul,
       abs_of_nonneg (gaussianPDFReal_nonneg 0 1 z), abs_of_nonneg (by positivity : 0 ≤ (k : ℝ) / s)]
-    have hsub : |Φ ((u - c * z) / s) ^ (k - 1) - (1 - Φ ((u - c * z) / s)) ^ (k - 1)| ≤ 2 := by
-      refine (abs_sub _ _).trans ?_
-      rw [abs_of_nonneg (pow_nonneg (cdf_nonneg _ _) _),
-        abs_of_nonneg (pow_nonneg (sub_nonneg.mpr (cdf_le_one _ _)) _)]
-      have hp1 : Φ ((u - c * z) / s) ^ (k - 1) ≤ 1 :=
-        pow_le_one₀ (cdf_nonneg (gaussianReal 0 1) _) (cdf_le_one (gaussianReal 0 1) _)
-      have hp2 : (1 - Φ ((u - c * z) / s)) ^ (k - 1) ≤ 1 :=
-        pow_le_one₀ (sub_nonneg.mpr (cdf_le_one (gaussianReal 0 1) _))
-          (sub_le_self 1 (cdf_nonneg (gaussianReal 0 1) _))
-      linarith
+    have hm := cdf_pow_mem_Icc ((u - c * z) / s) (k - 1)
+    have hsub := (abs_add_sub_le_two hm.1 hm.2).2
     calc φ z * ((k : ℝ) / s * |φ ((u - c * z) / s)| *
           |Φ ((u - c * z) / s) ^ (k - 1) - (1 - Φ ((u - c * z) / s)) ^ (k - 1)|)
         ≤ φ z * ((k : ℝ) / s * 1 * 2) := by
@@ -1051,22 +917,11 @@ private theorem equicorrNonStraddle_zero_le {k : ℕ} (hk : 1 ≤ k) {ρ : ℝ} 
       simp only [g', H, ← harg2, ← harg1]
       linear_combination ((k : ℝ) / s *
         (Φ ((u - c * z) / s) ^ (k - 1) - (1 - Φ ((u - c * z) / s)) ^ (k - 1))) * hsym
-    have hH_int : Integrable H volume := by
-      have hH_cont : Continuous fun y =>
-          Φ (s * u - c * y) ^ (k - 1) - Φ (-s * u + c * y) ^ (k - 1) :=
-        (((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow (k - 1)).sub
-          (((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow (k - 1))
-      refine (integrable_gaussianPDFReal 0 1).mul_bdd hH_cont.aestronglyMeasurable
-        (c := 2) (ae_of_all _ fun y => ?_)
-      rw [Real.norm_eq_abs]
-      refine (abs_sub _ _).trans ?_
-      rw [abs_of_nonneg (pow_nonneg (cdf_nonneg _ _) _),
-        abs_of_nonneg (pow_nonneg (cdf_nonneg _ _) _)]
-      have hp1 : Φ (s * u - c * y) ^ (k - 1) ≤ 1 :=
-        pow_le_one₀ (cdf_nonneg (gaussianReal 0 1) _) (cdf_le_one (gaussianReal 0 1) _)
-      have hp2 : Φ (-s * u + c * y) ^ (k - 1) ≤ 1 :=
-        pow_le_one₀ (cdf_nonneg (gaussianReal 0 1) _) (cdf_le_one (gaussianReal 0 1) _)
-      linarith
+    have hH_int : Integrable H volume :=
+      (integrable_gaussianPDFReal 0 1).mul_bdd (by fun_prop : Continuous fun y =>
+          Φ (s * u - c * y) ^ (k - 1) - Φ (-s * u + c * y) ^ (k - 1)).aestronglyMeasurable
+        (c := 2) (ae_of_all _ fun y =>
+          (abs_add_sub_le_two (cdf_pow_mem_Icc _ _).1 (cdf_pow_mem_Icc _ _).1).2)
     have hchg : ∫ z, H ((z - c * u) / s) = s * ∫ y, H y := by
       have heq : (fun z => H ((z - c * u) / s)) = fun z => H (s⁻¹ * (z + -(c * u))) := by
         funext z; congr 1; ring
@@ -1148,6 +1003,7 @@ theorem measureReal_straddlesOn_le_equicorr {V κ : Type*} [Fintype V] {s : Fins
 /-- Continuity of `equicorrStraddle k` at every correlation `ρ₀ ∈ (0, 1)`. -/
 theorem continuousAt_equicorrStraddle (k : ℕ) {ρ₀ : ℝ} (hρ0 : 0 < ρ₀) (hρ1 : ρ₀ < 1) :
     ContinuousAt (equicorrStraddle k) ρ₀ := by
+  have _ := hρ0 -- unused: `√` is continuous on all of `ℝ`
   by_cases hk : k ≤ 1
   · have hconst : equicorrStraddle k = fun _ => 0 := funext fun ρ => by simp [equicorrStraddle, hk]
     rw [hconst]
@@ -1156,29 +1012,16 @@ theorem continuousAt_equicorrStraddle (k : ℕ) {ρ₀ : ℝ} (hρ0 : 0 < ρ₀)
     funext fun ρ => by simp [equicorrStraddle, hk]
   rw [hfun]
   refine continuousAt_const.sub ?_
+  have hΦc := continuous_cdf_gaussianReal 0 one_ne_zero
+  have hφc := continuous_gaussianPDFReal 0 1
   refine continuousAt_of_dominated (bound := fun z => 2 * φ z)
-    (Eventually.of_forall fun ρ => ?_)
+    (Eventually.of_forall fun ρ => Continuous.aestronglyMeasurable (by fun_prop))
     (Eventually.of_forall fun ρ => ae_of_all _ fun z => ?_)
     ((integrable_gaussianPDFReal 0 1).const_mul 2)
     (ae_of_all _ fun z => ?_)
-  · refine Continuous.aestronglyMeasurable ?_
-    exact (continuous_gaussianPDFReal 0 1).mul
-      ((((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).pow k).add
-        ((continuous_const.sub ((continuous_cdf_gaussianReal 0 one_ne_zero).comp
-          (by fun_prop))).pow k))
-  · have h1 : 0 ≤ Φ ((0 - √ρ * z) / √(1 - ρ)) ^ k := pow_nonneg (cdf_nonneg _ _) _
-    have h2 : 0 ≤ (1 - Φ ((0 - √ρ * z) / √(1 - ρ))) ^ k :=
-      pow_nonneg (sub_nonneg.mpr (cdf_le_one _ _)) _
-    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (gaussianPDFReal_nonneg 0 1 z),
-      abs_of_nonneg (add_nonneg h1 h2)]
-    have hp1 : Φ ((0 - √ρ * z) / √(1 - ρ)) ^ k ≤ 1 :=
-      pow_le_one₀ (cdf_nonneg (gaussianReal 0 1) _) (cdf_le_one (gaussianReal 0 1) _)
-    have hp2 : (1 - Φ ((0 - √ρ * z) / √(1 - ρ))) ^ k ≤ 1 :=
-      pow_le_one₀ (sub_nonneg.mpr (cdf_le_one (gaussianReal 0 1) _))
-        (sub_le_self 1 (cdf_nonneg (gaussianReal 0 1) _))
-    have hb : Φ ((0 - √ρ * z) / √(1 - ρ)) ^ k + (1 - Φ ((0 - √ρ * z) / √(1 - ρ))) ^ k ≤ 2 := by
-      linarith
-    nlinarith [gaussianPDFReal_nonneg 0 1 z]
+  · rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (gaussianPDFReal_nonneg 0 1 z), mul_comm 2]
+    exact mul_le_mul_of_nonneg_left (abs_add_sub_le_two (cdf_pow_mem_Icc _ k).1
+      (cdf_pow_mem_Icc _ k).2).1 (gaussianPDFReal_nonneg 0 1 z)
   · have hden : √(1 - ρ₀) ≠ 0 := (sqrt_pos.mpr (sub_pos.mpr hρ1)).ne'
     have harg : ContinuousAt (fun ρ => (0 - √ρ * z) / √(1 - ρ)) ρ₀ :=
       (continuousAt_const.sub (continuous_sqrt.continuousAt.mul continuousAt_const)).div
@@ -1200,82 +1043,18 @@ private theorem four_mul_straddlesOn_fin_three {x : Fin 3 → ℝ} (hx : ∀ i, 
     (4 : ℝ) * (if (∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i) then 1 else 0) =
       ∑ p ∈ (Finset.univ : Finset (Fin 3)).offDiag,
         if (0 : ℝ) ∈ Ι (x p.1) (x p.2) then 1 else 0 := by
-  have hsum : ∑ p ∈ (Finset.univ : Finset (Fin 3)).offDiag,
-      (if (0 : ℝ) ∈ Ι (x p.1) (x p.2) then (1 : ℝ) else 0) =
-      (if (0 : ℝ) ∈ Ι (x 0) (x 1) then 1 else 0) +
-      (if (0 : ℝ) ∈ Ι (x 0) (x 2) then 1 else 0) +
-      (if (0 : ℝ) ∈ Ι (x 1) (x 0) then 1 else 0) +
-      (if (0 : ℝ) ∈ Ι (x 1) (x 2) then 1 else 0) +
-      (if (0 : ℝ) ∈ Ι (x 2) (x 0) then 1 else 0) +
-      (if (0 : ℝ) ∈ Ι (x 2) (x 1) then 1 else 0) := by
-    have hoff : (Finset.univ : Finset (Fin 3)).offDiag =
-        {(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)} := by decide
-    rw [hoff]
-    repeat rw [Finset.sum_insert (by decide)]
-    rw [Finset.sum_singleton]
-    ring
-  rw [hsum]
   have hstrad : ((∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i)) ↔
       (x 0 < 0 ∨ x 1 < 0 ∨ x 2 < 0) ∧ (0 ≤ x 0 ∨ 0 ≤ x 1 ∨ 0 ≤ x 2) := by
-    constructor
-    · rintro ⟨⟨i, hi⟩, ⟨j, hj⟩⟩
-      exact ⟨by fin_cases i <;> simp_all, by fin_cases j <;> simp_all⟩
-    · rintro ⟨h1, h2⟩
-      refine ⟨?_, ?_⟩
-      · rcases h1 with h | h | h
-        · exact ⟨0, h⟩
-        · exact ⟨1, h⟩
-        · exact ⟨2, h⟩
-      · rcases h2 with h | h | h
-        · exact ⟨0, h⟩
-        · exact ⟨1, h⟩
-        · exact ⟨2, h⟩
-  have neg_neg {a b : ℝ} (ha : a < 0) (hb : b < 0) :
-      (if (0 : ℝ) ∈ Ι a b then (1 : ℝ) else 0) = 0 := by
-    have h : (0 : ℝ) ∉ Ι a b := by rw [mem_uIoc]; rintro (⟨_, h2⟩ | ⟨_, h2⟩) <;> linarith
-    simp [h]
-  have pos_pos {a b : ℝ} (ha : 0 < a) (hb : 0 < b) :
-      (if (0 : ℝ) ∈ Ι a b then (1 : ℝ) else 0) = 0 := by
-    have h : (0 : ℝ) ∉ Ι a b := by rw [mem_uIoc]; rintro (⟨h1, _⟩ | ⟨h1, _⟩) <;> linarith
-    simp [h]
-  have neg_pos {a b : ℝ} (ha : a < 0) (hb : 0 < b) :
-      (if (0 : ℝ) ∈ Ι a b then (1 : ℝ) else 0) = 1 := by
-    have h : (0 : ℝ) ∈ Ι a b := mem_uIoc.mpr (Or.inl ⟨ha, hb.le⟩)
-    simp [h]
-  have pos_neg {a b : ℝ} (ha : 0 < a) (hb : b < 0) :
-      (if (0 : ℝ) ∈ Ι a b then (1 : ℝ) else 0) = 1 := by
-    rw [uIoc_comm, neg_pos hb ha]
-  have ite_true_s (h : (∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i)) :
-      (if (∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i) then (1 : ℝ) else 0) = 1 := by simp [h]
-  have ite_false_s (h : ¬ ((∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i))) :
-      (if (∃ i, x i < 0) ∧ (∃ i, 0 ≤ x i) then (1 : ℝ) else 0) = 0 := by simp [h]
-  rcases lt_or_gt_of_ne (hx 0) with h0 | h0 <;>
-    rcases lt_or_gt_of_ne (hx 1) with h1 | h1 <;>
-    rcases lt_or_gt_of_ne (hx 2) with h2 | h2
-  · rw [neg_neg h0 h1, neg_neg h0 h2, neg_neg h1 h0, neg_neg h1 h2, neg_neg h2 h0, neg_neg h2 h1,
-      ite_false_s (fun h => by rcases (hstrad.mp h).2 with h' | h' | h' <;> linarith)]
-    norm_num
-  · rw [neg_pos h0 h2, pos_neg h2 h0, neg_pos h1 h2, pos_neg h2 h1, neg_neg h0 h1, neg_neg h1 h0,
-      ite_true_s (hstrad.mpr ⟨Or.inl h0, Or.inr (Or.inr h2.le)⟩)]
-    norm_num
-  · rw [neg_pos h0 h1, pos_neg h1 h0, pos_neg h1 h2, neg_pos h2 h1, neg_neg h0 h2, neg_neg h2 h0,
-      ite_true_s (hstrad.mpr ⟨Or.inl h0, Or.inr (Or.inl h1.le)⟩)]
-    norm_num
-  · rw [neg_pos h0 h1, pos_neg h1 h0, neg_pos h0 h2, pos_neg h2 h0, pos_pos h1 h2, pos_pos h2 h1,
-      ite_true_s (hstrad.mpr ⟨Or.inl h0, Or.inr (Or.inl h1.le)⟩)]
-    norm_num
-  · rw [pos_neg h0 h1, neg_pos h1 h0, pos_neg h0 h2, neg_pos h2 h0, neg_neg h1 h2, neg_neg h2 h1,
-      ite_true_s (hstrad.mpr ⟨Or.inr (Or.inl h1), Or.inl h0.le⟩)]
-    norm_num
-  · rw [pos_neg h0 h1, neg_pos h1 h0, neg_pos h1 h2, pos_neg h2 h1, pos_pos h0 h2, pos_pos h2 h0,
-      ite_true_s (hstrad.mpr ⟨Or.inr (Or.inl h1), Or.inl h0.le⟩)]
-    norm_num
-  · rw [pos_pos h0 h1, pos_pos h1 h0, pos_neg h0 h2, neg_pos h2 h0, pos_neg h1 h2, neg_pos h2 h1,
-      ite_true_s (hstrad.mpr ⟨Or.inr (Or.inr h2), Or.inl h0.le⟩)]
-    norm_num
-  · rw [pos_pos h0 h1, pos_pos h1 h0, pos_pos h0 h2, pos_pos h2 h0, pos_pos h1 h2, pos_pos h2 h1,
-      ite_false_s (fun h => by rcases (hstrad.mp h).1 with h' | h' | h' <;> linarith)]
-    norm_num
+    simp only [Fin.exists_fin_succ, Fin.succ_zero_eq_one, Fin.succ_one_eq_two, IsEmpty.exists_iff,
+      or_false]
+  rw [show (Finset.univ : Finset (Fin 3)).offDiag =
+    {(0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1)} by decide]
+  repeat rw [Finset.sum_insert (by decide)]
+  rw [Finset.sum_singleton]
+  rcases lt_or_gt_of_ne (hx 0) with h0 | h0 <;> rcases lt_or_gt_of_ne (hx 1) with h1 | h1 <;>
+    rcases lt_or_gt_of_ne (hx 2) with h2 | h2 <;>
+    norm_num [hstrad, mem_uIoc, h0, h1, h2, h0.le, h1.le, h2.le, not_le.2 h0,
+      not_le.2 h1, not_le.2 h2, not_lt.2 h0.le, not_lt.2 h1.le, not_lt.2 h2.le]
 
 /-- Exact `k = 3` identity: `equicorrStraddle 3 ρ = (3 / (2π)) arccos ρ` for `ρ ∈ [0, 1)`. -/
 theorem equicorrStraddle_three {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ < 1) :
@@ -1341,50 +1120,25 @@ theorem equicorrStraddle_three {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ < 1) :
 
 private theorem integrable_gaussianPDFReal_mul_cdf_sub_half_pow (γ : ℝ) (d : ℕ) :
     Integrable (fun z => φ z * (Φ (γ * z) - 1 / 2) ^ d) volume := by
-  refine (integrable_gaussianPDFReal 0 1).mul_bdd
-    ((((continuous_cdf_gaussianReal 0 one_ne_zero).comp (by fun_prop)).sub
-      continuous_const).pow d).aestronglyMeasurable
+  have := continuous_cdf_gaussianReal 0 one_ne_zero
+  refine (integrable_gaussianPDFReal 0 1).mul_bdd (by fun_prop : Continuous _).aestronglyMeasurable
     (c := 1) (ae_of_all _ fun z => ?_)
-  have habs : |Φ (γ * z) - 1 / 2| ≤ 1 := by
-    rw [abs_le]
-    have h0 := cdf_nonneg (gaussianReal 0 1) (γ * z)
-    have h1 := cdf_le_one (gaussianReal 0 1) (γ * z)
-    exact ⟨by linarith, by linarith⟩
   rw [Real.norm_eq_abs, abs_pow]
-  exact pow_le_one₀ (abs_nonneg _) habs
+  exact pow_le_one₀ (abs_nonneg _) (abs_le.2 ⟨by linarith [cdf_nonneg (gaussianReal 0 1) (γ * z)],
+    by linarith [cdf_le_one (gaussianReal 0 1) (γ * z)]⟩)
 
 private theorem integral_gaussianPDFReal_mul_cdf_sub_half_pow_even (γ : ℝ) {d : ℕ}
     (hd : Even d) :
     ∫ z, φ z * (Φ (γ * z) - 1 / 2) ^ d =
       2 * ∫ z in Ioi (0 : ℝ), φ z * (Φ (γ * z) - 1 / 2) ^ d := by
-  have hae_set : (Iic (0 : ℝ) : Set ℝ) =ᵐ[volume] Iio 0 := by
-    rw [eventuallyEqSet_iff, ae_iff]
-    have hsub : {x : ℝ | ¬(x ∈ Iic (0 : ℝ) ↔ x ∈ Iio (0 : ℝ))} ⊆ {(0 : ℝ)} := by
-      intro x hx
-      simp only [mem_ofPred_eq, mem_Iic, mem_Iio, mem_singleton_iff] at hx ⊢
-      exact le_antisymm (by by_contra h; exact hx (iff_of_false h (by linarith)))
-        (by by_contra h; have hgt := lt_of_not_ge h; exact hx (iff_of_true hgt.le hgt))
-    exact measure_mono_null hsub Real.volume_singleton
-  have hψ_int := integrable_gaussianPDFReal_mul_cdf_sub_half_pow γ d
-  rw [← integral_add_compl measurableSet_Ioi hψ_int, compl_Ioi,
-    setIntegral_congr_set hae_set]
-  have hind : ∫ z, (Iio (0 : ℝ)).indicator (fun z => φ z * (Φ (γ * z) - 1 / 2) ^ d) z =
-      ∫ z, (Ioi (0 : ℝ)).indicator (fun z => φ z * (Φ (γ * z) - 1 / 2) ^ d) z := by
-    rw [← integral_neg_eq_self
-      (fun z => (Ioi (0 : ℝ)).indicator (fun z => φ z * (Φ (γ * z) - 1 / 2) ^ d) z)]
-    refine integral_congr_ae (ae_of_all _ fun z => ?_)
-    dsimp only
-    rcases lt_trichotomy z 0 with hz | rfl | hz
-    · rw [indicator_of_mem (mem_Iio.mpr hz), indicator_of_mem (mem_Ioi.mpr (neg_pos.mpr hz))]
-      have hφ : φ (-z) = φ z := by simp [gaussianPDFReal_def]
-      have hψ : Φ (γ * -z) - 1 / 2 = -(Φ (γ * z) - 1 / 2) := by
-        rw [mul_neg, cdf_gaussianReal_neg one_ne_zero]; ring
-      rw [hφ, hψ, Even.neg_pow hd]
-    · rw [indicator_of_notMem (by simp), neg_zero, indicator_of_notMem (by simp)]
-    · rw [indicator_of_notMem (not_lt.mpr hz.le),
-        indicator_of_notMem (not_lt.mpr (neg_nonpos.mpr hz.le))]
-  rw [integral_indicator measurableSet_Iio, integral_indicator measurableSet_Ioi] at hind
-  linarith
+  have hψ (z : ℝ) : φ (-z) * (Φ (γ * -z) - 1 / 2) ^ d = φ z * (Φ (γ * z) - 1 / 2) ^ d := by
+    rw [mul_neg, cdf_gaussianReal_neg one_ne_zero, show 1 - Φ (γ * z) - 1 / 2 =
+      -(Φ (γ * z) - 1 / 2) by ring, hd.neg_pow]
+    simp [gaussianPDFReal_def]
+  have h := integral_comp_neg_Ioi 0 fun z => φ z * (Φ (γ * z) - 1 / 2) ^ d
+  simp only [hψ, neg_zero] at h
+  rw [← integral_add_compl measurableSet_Ioi (integrable_gaussianPDFReal_mul_cdf_sub_half_pow γ d),
+    compl_Ioi, ← h, two_mul]
 
 /-- Closed-form quadratic moment of the centered Gaussian cdf from `equicorrStraddle_three`:
 `2 * ∫_{z > 0} φ(z) (Φ(γ z) - 1/2) ^ 2 = 1/4 - arccos ρ / (2π)` where `γ = √ρ / √(1 - ρ)`. -/
@@ -1398,7 +1152,7 @@ private theorem two_mul_integral_Ioi_cdf_sub_half_sq {ρ : ℝ} (hρ0 : 0 ≤ ρ
   have hpt (z : ℝ) :
       φ z * (Φ ((0 - √ρ * z) / √(1 - ρ)) ^ 3 + (1 - Φ ((0 - √ρ * z) / √(1 - ρ))) ^ 3) =
         1 / 4 * φ z + 3 * (φ z * (Φ (γ * z) - 1 / 2) ^ 2) := by
-    have harg : (0 - √ρ * z) / √(1 - ρ) = -(γ * z) := by simp [γ]; ring
+    have harg : (0 - √ρ * z) / √(1 - ρ) = -(γ * z) := by simp only [γ]; ring
     rw [harg, cdf_gaussianReal_neg one_ne_zero]
     ring
   have hψ_int := integrable_gaussianPDFReal_mul_cdf_sub_half_pow γ 2
@@ -1432,7 +1186,8 @@ private theorem exp_neg_taylor_even_odd (n : ℕ) {u : ℝ} (hu : 0 ≤ u) :
           (-∑ j ∈ Finset.range (n + 1), (-x) ^ j / (j.factorial : ℝ)) x := by
         have h1 : ∀ y : ℝ, ∑ j ∈ Finset.range (n + 2), (-y) ^ j / (j.factorial : ℝ) =
             1 + ∑ j ∈ Finset.range (n + 1), (-y) ^ (j + 1) / ((j + 1).factorial : ℝ) :=
-          fun y => by rw [Finset.sum_range_succ']; simp [add_comm]
+          fun y => by simp only [Finset.sum_range_succ', pow_zero, Nat.factorial_zero, Nat.cast_one,
+            div_one, add_comm]
         simp_rw [h1]
         refine ((hasDerivAt_const x (1 : ℝ)).add
           (HasDerivAt.fun_sum
@@ -1445,36 +1200,24 @@ private theorem exp_neg_taylor_even_odd (n : ℕ) {u : ℝ} (hu : 0 ≤ u) :
           field_simp [hne]
         · rw [zero_add, ← Finset.sum_neg_distrib]
       exact (hexp.sub hsum).congr_deriv (by simp only [E]; ring)
+    have hc : ContinuousOn (E (n + 1)) (Icc 0 u) :=
+      fun x _ => (hE_deriv x).continuousAt.continuousWithinAt
+    have hd (x : ℝ) (_ : x ∈ interior (Icc 0 u)) :
+        HasDerivWithinAt (E (n + 1)) (-E n x) (interior (Icc 0 u)) x :=
+      (hE_deriv x).hasDerivWithinAt
+    have hx (x : ℝ) (hx : x ∈ interior (Icc 0 u)) : 0 ≤ x := (interior_subset hx).1
     rcases Nat.even_or_odd n with hn | hn
     · refine ⟨fun h => absurd h (Nat.not_even_iff_odd.mpr (Even.add_one hn)), fun _ => ?_⟩
-      have hmono : MonotoneOn (E (n + 1)) (Icc 0 u) :=
-        monotoneOn_of_deriv_nonneg (convex_Icc 0 u)
-          (fun x _ => (hE_deriv x).continuousAt.continuousWithinAt)
-          (fun x _ => (hE_deriv x).differentiableAt.differentiableWithinAt)
-          (fun x hx => by
-            rw [interior_Icc] at hx
-            rw [(hE_deriv x).deriv]
-            have hle := (ih hx.1.le).1 hn
-            simp only [E]
-            linarith)
-      have hge := hmono ⟨le_rfl, hu⟩ ⟨hu, le_rfl⟩ hu
-      rw [hE0 (n + 1)] at hge
-      simp only [E] at hge
+      have := monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc 0 u) hc hd (fun x h => by
+        simp only [E]; linarith [(ih (hx x h)).1 hn]) ⟨le_rfl, hu⟩ ⟨hu, le_rfl⟩ hu
+      rw [hE0] at this
+      simp only [E] at this
       linarith
     · refine ⟨fun _ => ?_, fun h => absurd h (Nat.not_odd_iff_even.mpr (Odd.add_one hn))⟩
-      have hanti : AntitoneOn (E (n + 1)) (Icc 0 u) :=
-        antitoneOn_of_deriv_nonpos (convex_Icc 0 u)
-          (fun x _ => (hE_deriv x).continuousAt.continuousWithinAt)
-          (fun x _ => (hE_deriv x).differentiableAt.differentiableWithinAt)
-          (fun x hx => by
-            rw [interior_Icc] at hx
-            rw [(hE_deriv x).deriv]
-            have hge := (ih hx.1.le).2 hn
-            simp only [E]
-            linarith)
-      have hle := hanti ⟨le_rfl, hu⟩ ⟨hu, le_rfl⟩ hu
-      rw [hE0 (n + 1)] at hle
-      simp only [E] at hle
+      have := antitoneOn_of_hasDerivWithinAt_nonpos (convex_Icc 0 u) hc hd (fun x h => by
+        simp only [E]; linarith [(ih (hx x h)).2 hn]) ⟨le_rfl, hu⟩ ⟨hu, le_rfl⟩ hu
+      rw [hE0] at this
+      simp only [E] at this
       linarith
 
 /-- Odd Taylor lower bound for `exp (-u)` on `u ≥ 0`. -/
@@ -1689,7 +1432,10 @@ private theorem antitoneOn_rEvalEven_qExpOddPoly (m : ℕ) {a : ℚ} (ha : 0 ≤
         (((-a) ^ j / (j.factorial : ℚ) : ℚ) : ℝ) * y ^ (2 * j) =
         1 + ∑ j ∈ Finset.range (2 * m + 1),
           (((-a) ^ (j + 1) / ((j + 1).factorial : ℚ) : ℚ) : ℝ) * y ^ (2 * (j + 1)) :=
-      fun y => by rw [Finset.sum_range_succ']; simp [add_comm]
+      fun y => by
+        rw [Finset.sum_range_succ']
+        simp only [pow_zero, Nat.factorial_zero, Nat.cast_one, div_one, Rat.cast_one, mul_zero,
+          one_mul, add_comm]
     simp_rw [h1]
     refine ((hasDerivAt_const x (1 : ℝ)).add
       (HasDerivAt.fun_sum
@@ -1814,6 +1560,14 @@ private theorem nonneg_and_monotoneOn_inner {m : ℕ} {γ B : ℚ} (hγ : 0 ≤ 
   rw [← hrew_t]
   exact (Rat.cast_nonneg.mpr hpos).trans (hrew_B ▸ hanti)
 
+private theorem rEvalEven_qExpOddPoly_pow_le_exp (m : ℕ) {S : ℕ} (hS : 1 ≤ S) {x : ℝ}
+    (h0 : 0 ≤ rEvalEven (qExpOddPoly m (1 / (2 * (S : ℚ)))) x) :
+    rEvalEven (qExpOddPoly m (1 / (2 * (S : ℚ)))) x ^ S ≤ exp (-x ^ 2 / 2) := by
+  have hS0 : (S : ℝ) ≠ 0 := by positivity
+  calc _ ≤ exp (-x ^ 2 / (2 * S)) ^ S := pow_le_pow_left₀ h0 ((rEvalEven_qExpOddPoly_le_exp m
+        (by positivity) x).trans_eq (congrArg exp (by push_cast; ring))) S
+    _ = exp (-x ^ 2 / 2) := by rw [← exp_nat_mul]; congr 1; field_simp
+
 /-- Rational lower bound on the even centered-cdf moment
 `2 * ∫_{z > 0} φ(z) (Φ(γ z) - 1/2) ^ d`. -/
 @[expose] def qMomentLower (d m_in m_out S_out : ℕ) (γ_lo B s_hi : ℚ) : ℚ :=
@@ -1865,22 +1619,8 @@ private theorem le_two_mul_integral_Ioi_cdf_sub_half_pow {d m_in m_out S_out : �
           (mem_Ici.mpr hz.1) (mem_Ici.mpr hBR.le) hz.2
         rw [rEvalEven_qEval] at hanti
         exact (Rat.cast_nonneg.mpr hout_pos).trans hanti
-      have hbase_le : rEvalEven (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) z ≤
-          exp (-z ^ 2 / (2 * (S_out : ℝ))) := by
-        have h := rEvalEven_qExpOddPoly_le_exp m_out
-          (a := 1 / (2 * (S_out : ℚ))) (by positivity) z
-        convert h using 2
-        push_cast
-        ring
       have hp_out_le : rEvalEven p_out z ≤ exp (-z ^ 2 / 2) := by
-        rw [rEvalEven_pow]
-        calc rEvalEven (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) z ^ S_out
-            ≤ exp (-z ^ 2 / (2 * (S_out : ℝ))) ^ S_out := pow_le_pow_left₀ hbase_nn hbase_le S_out
-          _ = exp (-z ^ 2 / 2) := by
-              rw [← exp_nat_mul]
-              congr 1
-              have hSne : (S_out : ℝ) ≠ 0 := by positivity
-              field_simp [hSne]
+        rw [rEvalEven_pow]; exact rEvalEven_qExpOddPoly_pow_le_exp m_out hS hbase_nn
       have hp_out_nn : 0 ≤ rEvalEven p_out z := by
         rw [rEvalEven_pow]; exact pow_nonneg hbase_nn S_out
       have hq_le : z * rEvalEven q_in z ≤ √(2 * π) * ψ z := by
@@ -1942,22 +1682,11 @@ private theorem le_two_mul_integral_Ioi_cdf_sub_half_pow {d m_in m_out S_out : �
             ((strictMono_cdf_gaussianReal 0 one_ne_zero).monotone
               (mul_le_mul_of_nonneg_right hγ hBR.le)) _
     have hpB_le : (pB : ℝ) / (s_hi : ℝ) ≤ φ (B : ℝ) := by
-      have hbase_le : (qEval (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) (B ^ 2) : ℝ) ≤
-          exp (-(B : ℝ) ^ 2 / (2 * (S_out : ℝ))) := by
-        rw [← rEvalEven_qEval]
-        convert rEvalEven_qExpOddPoly_le_exp m_out
-          (a := 1 / (2 * (S_out : ℚ))) (by positivity) (B : ℝ) using 2
-        push_cast; ring
       have hpB_exp : (pB : ℝ) ≤ exp (-(B : ℝ) ^ 2 / 2) := by
         simp only [pB, Rat.cast_pow]
-        calc (qEval (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) (B ^ 2) : ℝ) ^ S_out
-            ≤ exp (-(B : ℝ) ^ 2 / (2 * (S_out : ℝ))) ^ S_out :=
-              pow_le_pow_left₀ (Rat.cast_nonneg.mpr hout_pos) hbase_le S_out
-          _ = exp (-(B : ℝ) ^ 2 / 2) := by
-              rw [← exp_nat_mul]
-              congr 1
-              have hSne : (S_out : ℝ) ≠ 0 := by positivity
-              field_simp [hSne]
+        rw [← rEvalEven_qEval]
+        exact rEvalEven_qExpOddPoly_pow_le_exp m_out hS
+          (by rw [rEvalEven_qEval]; exact Rat.cast_nonneg.mpr hout_pos)
       have hpB_nn : 0 ≤ (pB : ℝ) := by
         simp only [pB, Rat.cast_pow]; exact pow_nonneg (Rat.cast_nonneg.mpr hout_pos) S_out
       calc (pB : ℝ) / (s_hi : ℝ) ≤ (pB : ℝ) / √(2 * π) :=
@@ -2022,17 +1751,12 @@ theorem equicorrStraddle_le_of_poly {k m_in m_out S_out : ℕ}
     (hout_pos : 0 ≤ qEval (qExpOddPoly m_out (1 / (2 * (S_out : ℚ)))) (B ^ 2)) :
     equicorrStraddle k ρ ≤ (qEquicorrUpperCert k m_in m_out S_out arc_ub γ_lo B s_hi : ℝ) := by
   have hγ_le : (γ_lo : ℝ) ≤ √ρ / √(1 - ρ) := by
-    have hden : 0 < √(1 - ρ) := sqrt_pos.mpr (sub_pos.mpr hρ1)
-    rw [le_div_iff₀ hden]
-    have hnn : 0 ≤ (γ_lo : ℝ) * √(1 - ρ) :=
-      mul_nonneg (Rat.cast_nonneg.mpr hγ0) hden.le
-    rw [← sq_le_sq₀ hnn (sqrt_nonneg ρ), mul_pow, sq_sqrt (sub_nonneg.mpr hρ1.le),
-      sq_sqrt hρ0.le]
-    exact hγ
-  have hs_le : √(2 * π) ≤ (s_hi : ℝ) := by
-    rw [← sq_le_sq₀ (sqrt_nonneg _) (Rat.cast_nonneg.mpr hs_hi0),
-      sq_sqrt (mul_nonneg zero_le_two pi_pos.le)]
-    exact hs_hi
+    rw [le_div_iff₀ (sqrt_pos.mpr (sub_pos.mpr hρ1)),
+      le_sqrt (mul_nonneg (Rat.cast_nonneg.mpr hγ0) (sqrt_nonneg _)), mul_pow,
+      sq_sqrt (sub_nonneg.mpr hρ1.le)]
+    exacts [hγ, hρ0.le]
+  have hs_le : √(2 * π) ≤ (s_hi : ℝ) :=
+    (sqrt_le_sqrt hs_hi).trans_eq (sqrt_sq (Rat.cast_nonneg.mpr hs_hi0))
   set γ := √ρ / √(1 - ρ)
   let ψ : ℝ → ℝ := fun z => Φ (γ * z) - 1 / 2
   have hψ_int (d : ℕ) : Integrable (fun z => φ z * ψ z ^ d) volume :=
@@ -2043,102 +1767,58 @@ theorem equicorrStraddle_le_of_poly {k m_in m_out S_out : ℕ}
       two_mul_integral_Ioi_cdf_sub_half_sq hρ0.le hρ1]
     have : arccos ρ / (2 * π) = (arccos ρ / π) / 2 := by ring
     linarith
-  have hI4 : (qMomentLower 4 m_in m_out S_out γ_lo B s_hi : ℝ) ≤ ∫ z, φ z * ψ z ^ 4 :=
-    (le_two_mul_integral_Ioi_cdf_sub_half_pow (d := 4) hS
-      hγ0 hγ_le hB hs_le hin_pos hout_pos).trans_eq
-      (integral_gaussianPDFReal_mul_cdf_sub_half_pow_even γ (d := 4) ⟨2, rfl⟩).symm
-  have hI6 : (qMomentLower 6 m_in m_out S_out γ_lo B s_hi : ℝ) ≤ ∫ z, φ z * ψ z ^ 6 :=
-    (le_two_mul_integral_Ioi_cdf_sub_half_pow (d := 6) hS
-      hγ0 hγ_le hB hs_le hin_pos hout_pos).trans_eq
-      (integral_gaussianPDFReal_mul_cdf_sub_half_pow_even γ (d := 6) ⟨3, rfl⟩).symm
-  have hlin4 (c0 c2 c4 c6 : ℝ) :
-      ∫ z, (c0 * φ z + c2 * (φ z * ψ z ^ 2) + c4 * (φ z * ψ z ^ 4) + c6 * (φ z * ψ z ^ 6)) =
-        c0 + c2 * (∫ z, φ z * ψ z ^ 2) + c4 * (∫ z, φ z * ψ z ^ 4) +
-          c6 * (∫ z, φ z * ψ z ^ 6) := by
-    have hi0 : Integrable (fun z => c0 * φ z) volume :=
-      (integrable_gaussianPDFReal 0 1).const_mul c0
-    have hi2 : Integrable (fun z => c2 * (φ z * ψ z ^ 2)) volume := (hψ_int 2).const_mul c2
-    have hi4 : Integrable (fun z => c4 * (φ z * ψ z ^ 4)) volume := (hψ_int 4).const_mul c4
-    have hi6 : Integrable (fun z => c6 * (φ z * ψ z ^ 6)) volume := (hψ_int 6).const_mul c6
-    have hi02 : Integrable (fun z => c0 * φ z + c2 * (φ z * ψ z ^ 2)) volume := hi0.add hi2
-    have hi024 :
-        Integrable (fun z => c0 * φ z + c2 * (φ z * ψ z ^ 2) + c4 * (φ z * ψ z ^ 4)) volume :=
-      hi02.add hi4
-    rw [integral_add hi024 hi6, integral_add hi02 hi4, integral_add hi0 hi2,
-      integral_const_mul, integral_const_mul, integral_const_mul, integral_const_mul,
-      integral_gaussianPDFReal_eq_one 0 one_ne_zero, mul_one]
+  have hI (d : ℕ) (hd : Even d) :
+      (qMomentLower d m_in m_out S_out γ_lo B s_hi : ℝ) ≤ ∫ z, φ z * ψ z ^ d :=
+    (le_two_mul_integral_Ioi_cdf_sub_half_pow hS hγ0 hγ_le hB hs_le hin_pos hout_pos).trans_eq
+      (integral_gaussianPDFReal_mul_cdf_sub_half_pow_even γ hd).symm
+  have hI4 := hI 4 ⟨2, rfl⟩
+  have hI6 := hI 6 ⟨3, rfl⟩
   have hdef : equicorrStraddle k ρ = 1 - equicorrNonStraddle k ρ 0 := by
     simp [equicorrStraddle, show ¬ k ≤ 1 by omega]
   rw [hdef]
   have harg (z : ℝ) :
       Φ ((0 - √ρ * z) / √(1 - ρ)) ^ k + (1 - Φ ((0 - √ρ * z) / √(1 - ρ))) ^ k =
         (1 / 2 - ψ z) ^ k + (1 / 2 + ψ z) ^ k := by
-    have h1 : (0 - √ρ * z) / √(1 - ρ) = -(γ * z) := by simp [γ]; ring
+    have h1 : (0 - √ρ * z) / √(1 - ρ) = -(γ * z) := by simp only [γ]; ring
     rw [h1, cdf_gaussianReal_neg one_ne_zero]
     simp only [ψ]
     ring
-  set j4 : ℝ := (qMomentLower 4 m_in m_out S_out γ_lo B s_hi : ℝ)
-  set j6 : ℝ := (qMomentLower 6 m_in m_out S_out γ_lo B s_hi : ℝ)
-  set m2 : ℝ := ∫ z, φ z * ψ z ^ 2
-  set m4 : ℝ := ∫ z, φ z * ψ z ^ 4
-  set m6 : ℝ := ∫ z, φ z * ψ z ^ 6
+  have key (c0 c2 c4 c6 : ℝ) (hpt : ∀ z, φ z * ((1 / 2 - ψ z) ^ k + (1 / 2 + ψ z) ^ k) =
+      c0 * φ z + c2 * (φ z * ψ z ^ 2) + c4 * (φ z * ψ z ^ 4) + c6 * (φ z * ψ z ^ 6)) :
+      equicorrNonStraddle k ρ 0 = c0 + c2 * (∫ z, φ z * ψ z ^ 2) + c4 * (∫ z, φ z * ψ z ^ 4) +
+        c6 * (∫ z, φ z * ψ z ^ 6) := by
+    have hi := (integrable_gaussianPDFReal 0 1).const_mul c0
+    have h02 : Integrable fun z => c0 * φ z + c2 * (φ z * ψ z ^ 2) :=
+      hi.add ((hψ_int 2).const_mul c2)
+    have h024 : Integrable fun z => c0 * φ z + c2 * (φ z * ψ z ^ 2) + c4 * (φ z * ψ z ^ 4) :=
+      h02.add ((hψ_int 4).const_mul c4)
+    simp only [equicorrNonStraddle, harg]
+    rw [integral_congr_ae (ae_of_all _ hpt), integral_add h024 ((hψ_int 6).const_mul c6),
+      integral_add h02 ((hψ_int 4).const_mul c4), integral_add hi ((hψ_int 2).const_mul c2),
+      integral_const_mul, integral_const_mul, integral_const_mul, integral_const_mul,
+      integral_gaussianPDFReal_eq_one 0 one_ne_zero, mul_one]
   interval_cases k
-  · have hpt (z : ℝ) : φ z * ((1 / 2 - ψ z) ^ 4 + (1 / 2 + ψ z) ^ 4) =
-        1 / 8 * φ z + 3 * (φ z * ψ z ^ 2) + 2 * (φ z * ψ z ^ 4) + 0 * (φ z * ψ z ^ 6) := by ring
-    have heq : equicorrNonStraddle 4 ρ 0 = 1 / 8 + 3 * m2 + 2 * m4 + 0 * m6 := by
-      simp only [equicorrNonStraddle, harg, m2, m4, m6]
-      rw [integral_congr_ae (ae_of_all _ hpt), hlin4]
-    have hcert : (qEquicorrUpperCert 4 m_in m_out S_out arc_ub γ_lo B s_hi : ℝ) =
-        1 - (1 / 8 + 3 * (1 / 4 - (arc_ub : ℝ) / 2) + 2 * j4) := by
-      simp only [qEquicorrUpperCert, show ¬ (6 ≤ 4) by decide, ↓reduceIte,
-        show Nat.choose 4 2 = 6 by decide, show Nat.choose 4 4 = 1 by decide]
-      push_cast [j4]
-      ring
-    rw [heq, hcert]
+  · rw [key (1 / 8) 3 2 0 fun z => by ring]
+    simp only [qEquicorrUpperCert, show ¬ (6 ≤ 4) by decide, ↓reduceIte,
+      show Nat.choose 4 2 = 6 by decide, show Nat.choose 4 4 = 1 by decide]
+    push_cast
     linarith
-  · have hpt (z : ℝ) : φ z * ((1 / 2 - ψ z) ^ 5 + (1 / 2 + ψ z) ^ 5) =
-        1 / 16 * φ z + 5 / 2 * (φ z * ψ z ^ 2) + 5 * (φ z * ψ z ^ 4) + 0 * (φ z * ψ z ^ 6) := by
-      ring
-    have heq : equicorrNonStraddle 5 ρ 0 = 1 / 16 + 5 / 2 * m2 + 5 * m4 + 0 * m6 := by
-      simp only [equicorrNonStraddle, harg, m2, m4, m6]
-      rw [integral_congr_ae (ae_of_all _ hpt), hlin4]
-    have hcert : (qEquicorrUpperCert 5 m_in m_out S_out arc_ub γ_lo B s_hi : ℝ) =
-        1 - (1 / 16 + 5 / 2 * (1 / 4 - (arc_ub : ℝ) / 2) + 5 * j4) := by
-      simp only [qEquicorrUpperCert, show ¬ (6 ≤ 5) by decide, ↓reduceIte,
-        show Nat.choose 5 2 = 10 by decide, show Nat.choose 5 4 = 5 by decide]
-      push_cast [j4]
-      ring
-    rw [heq, hcert]
+  · rw [key (1 / 16) (5 / 2) 5 0 fun z => by ring]
+    simp only [qEquicorrUpperCert, show ¬ (6 ≤ 5) by decide, ↓reduceIte,
+      show Nat.choose 5 2 = 10 by decide, show Nat.choose 5 4 = 5 by decide]
+    push_cast
     linarith
-  · have hpt (z : ℝ) : φ z * ((1 / 2 - ψ z) ^ 6 + (1 / 2 + ψ z) ^ 6) =
-        1 / 32 * φ z + 15 / 8 * (φ z * ψ z ^ 2) + 15 / 2 * (φ z * ψ z ^ 4) +
-          2 * (φ z * ψ z ^ 6) := by ring
-    have heq : equicorrNonStraddle 6 ρ 0 = 1 / 32 + 15 / 8 * m2 + 15 / 2 * m4 + 2 * m6 := by
-      simp only [equicorrNonStraddle, harg, m2, m4, m6]
-      rw [integral_congr_ae (ae_of_all _ hpt), hlin4]
-    have hcert : (qEquicorrUpperCert 6 m_in m_out S_out arc_ub γ_lo B s_hi : ℝ) =
-        1 - (1 / 32 + 15 / 8 * (1 / 4 - (arc_ub : ℝ) / 2) + 15 / 2 * j4 + 2 * j6) := by
-      simp only [qEquicorrUpperCert, show (6 ≤ 6) by decide, ↓reduceIte,
-        show Nat.choose 6 2 = 15 by decide, show Nat.choose 6 4 = 15 by decide,
-        show Nat.choose 6 6 = 1 by decide]
-      push_cast [j4, j6]
-      ring
-    rw [heq, hcert]
+  · rw [key (1 / 32) (15 / 8) (15 / 2) 2 fun z => by ring]
+    simp only [qEquicorrUpperCert, show (6 ≤ 6) by decide, ↓reduceIte,
+      show Nat.choose 6 2 = 15 by decide, show Nat.choose 6 4 = 15 by decide,
+      show Nat.choose 6 6 = 1 by decide]
+    push_cast
     linarith
-  · have hpt (z : ℝ) : φ z * ((1 / 2 - ψ z) ^ 7 + (1 / 2 + ψ z) ^ 7) =
-        1 / 64 * φ z + 21 / 16 * (φ z * ψ z ^ 2) + 35 / 4 * (φ z * ψ z ^ 4) +
-          7 * (φ z * ψ z ^ 6) := by ring
-    have heq : equicorrNonStraddle 7 ρ 0 = 1 / 64 + 21 / 16 * m2 + 35 / 4 * m4 + 7 * m6 := by
-      simp only [equicorrNonStraddle, harg, m2, m4, m6]
-      rw [integral_congr_ae (ae_of_all _ hpt), hlin4]
-    have hcert : (qEquicorrUpperCert 7 m_in m_out S_out arc_ub γ_lo B s_hi : ℝ) =
-        1 - (1 / 64 + 21 / 16 * (1 / 4 - (arc_ub : ℝ) / 2) + 35 / 4 * j4 + 7 * j6) := by
-      simp only [qEquicorrUpperCert, show (6 ≤ 7) by decide, ↓reduceIte,
-        show Nat.choose 7 2 = 21 by decide, show Nat.choose 7 4 = 35 by decide,
-        show Nat.choose 7 6 = 7 by decide]
-      push_cast [j4, j6]
-      ring
-    rw [heq, hcert]
+  · rw [key (1 / 64) (21 / 16) (35 / 4) 7 fun z => by ring]
+    simp only [qEquicorrUpperCert, show (6 ≤ 7) by decide, ↓reduceIte,
+      show Nat.choose 7 2 = 21 by decide, show Nat.choose 7 4 = 35 by decide,
+      show Nat.choose 7 6 = 7 by decide]
+    push_cast
     linarith
 
 end Bounds

@@ -94,9 +94,7 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
     eventually_ge_atTop 1] with n hn hfreen hbign hn1
   intro σ I Acc c special _ M _ _ hfan L hE hS
   set o := c.outputs 0
-  have hSeq : S n = {x | c.program.trace I x o ∈ Acc} := by
-    ext x
-    exact hS x
+  have hSeq : S n = {x | c.program.trace I x o ∈ Acc} := Set.ext hS
   rw [hSeq] at hfreen hbign
   have hK1 := hfreen.pos
   have hKS : K n ≤ {x | c.program.trace I x o ∈ Acc}.ncard :=
@@ -125,8 +123,7 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
           (Nat.add_le_add_left (Compiler.maxDegreeLE hr hfan' _) _))
     have hR : (N.readAt (π.symm ⟨t, ht⟩)).ncard ≤ 1 :=
       Compiler.ncard_readAt_le (I.withConstants (L.readout 1)) (fun _ => univ) _
-    have : a ≤ (N.frontier π t).ncard + (r + 2) := by simp only [a]; omega
-    exact_mod_cast this
+    exact_mod_cast (show a ≤ (N.frontier π t).ncard + (r + 2) by simp only [a]; omega)
   have hρ : (N.cycleRankOn W : ℝ) + nW ≤ s + 1 := by
     have h := Compiler.cycleRankOn_add_ncard_readIn_le (I.withConstants (L.readout 1))
       (fun _ => univ) hfan' (N.edgeCut_component (π.symm ⟨t, ht⟩))
@@ -154,9 +151,8 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
     have h := hcount.trans (Nat.mul_le_mul_right _
       (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ hK2)))
     exact_mod_cast h
-  have hSpos : (0 : ℝ) < {x | c.program.trace I x o ∈ Acc}.ncard := by
-    have : 0 < {x | c.program.trace I x o ∈ Acc}.ncard := lt_of_lt_of_le hK1 hKS
-    exact_mod_cast this
+  have hSpos : (0 : ℝ) < {x | c.program.trace I x o ∈ Acc}.ncard :=
+    Nat.cast_pos.mpr (hK1.trans_le hKS)
   have hlogS : Real.logb q {x | c.program.trace I x o ∈ Acc}.ncard ≤
       2 * Real.logb q (K n) + Real.logb q (V + 1) + Real.logb q E + min a nW := by
     have hK0 : (0 : ℝ) < K n := by exact_mod_cast hK1
@@ -178,10 +174,17 @@ theorem eventually_lt_mul_card_of_ledger_min {r : ℕ} (hr : 2 ≤ r) {A : ℝ} 
   have hmin1 : ((min a nW : ℕ) : ℝ) ≤ a := by exact_mod_cast min_le_left a nW
   have hmin2 : ((min a nW : ℕ) : ℝ) ≤ nW := by exact_mod_cast min_le_right a nW
   rw [← hs]
-  refine hn s V (N.cycleRankOn W) (N.frontier π t).ncard (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-    hV ?_ ?_ (hπ t ht t le_rfl (by omega)).2
-  · linarith
-  · linarith
+  exact hn s V (N.cycleRankOn W) (N.frontier π t).ncard (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+    hV (by linarith) (by linarith) (hπ t ht t le_rfl (by omega)).2
+
+private theorem log_ledger_factor {q M : ℕ} (hq : 0 < q) (hM : 0 < M) (k : ℕ) :
+    Real.log ((min (q ^ k) M * M : ℕ) : ℝ) =
+      min (k * Real.log q) (Real.log M) + Real.log M := by
+  have hq' : (0 : ℝ) < q := Nat.cast_pos.mpr hq
+  have hM' : (0 : ℝ) < M := Nat.cast_pos.mpr hM
+  have hpow : (0 : ℝ) < (q : ℝ) ^ k := pow_pos hq' _
+  rw [Nat.cast_mul, Nat.cast_min, Nat.cast_pow, Real.log_mul (lt_min hpow hM').ne' hM'.ne',
+    Real.strictMonoOn_log.monotoneOn.map_min hpow hM', Real.log_pow]
 
 /-- **The tightened frontier lower bound with a ledger (`|U| ^ k · |M|`).** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger_min`, if `k log |U| + log |M| ≤ β(n)`, then `(r - 1) s >
@@ -201,17 +204,8 @@ theorem eventually_lt_mul_card_of_ledger_readout {r : ℕ} (hr : 2 ≤ r) {A : �
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
   refine hn σ I Acc c special M hfan L ?_ hS
-  have hEpos : (0 : ℝ) <
-      (min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) := by
-    exact_mod_cast Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
-  have hEle : ((min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) : ℝ) ≤
-      ((Nat.card U ^ Nat.card {g // special g} * Nat.card M : ℕ) : ℝ) := by
-    exact_mod_cast Nat.mul_le_mul_right _ (min_le_left _ _)
-  have hq0 : (0 : ℝ) < Nat.card U := by exact_mod_cast (Nat.card_pos (α := U))
-  have hM0 : (0 : ℝ) < Nat.card M := by exact_mod_cast (Nat.card_pos (α := M))
-  refine (Real.log_le_log hEpos hEle).trans ?_
-  rw [Nat.cast_mul, Nat.cast_pow, Real.log_mul (pow_pos hq0 _).ne' hM0.ne', Real.log_pow]
-  exact hM
+  rw [log_ledger_factor Nat.card_pos Nat.card_pos]
+  exact (add_le_add (min_le_left _ _) le_rfl).trans hM
 
 /-- **The frontier lower bound with a ledger.** Let `r ≥ 2` and assume the layout hypothesis for
 maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be `K_n`-rectangle-free sets over
@@ -235,16 +229,8 @@ theorem eventually_lt_mul_card_of_ledger {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA 
   filter_upwards [eventually_lt_mul_card_of_ledger_min.{u, v, w} hr hA hlayout hSK hβ2 hε] with n hn
   intro σ I Acc c special _ M _ _ hfan L hM hS
   refine hn σ I Acc c special M hfan L ?_ hS
-  have hEpos : (0 : ℝ) <
-      (min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) := by
-    exact_mod_cast Nat.mul_pos (lt_min (Nat.pow_pos Nat.card_pos) Nat.card_pos) Nat.card_pos
-  have hEle : ((min (Nat.card U ^ Nat.card {g // special g}) (Nat.card M) * Nat.card M : ℕ) : ℝ) ≤
-      ((Nat.card M * Nat.card M : ℕ) : ℝ) := by
-    exact_mod_cast Nat.mul_le_mul_right _ (min_le_right _ _)
-  have hM0 : (0 : ℝ) < Nat.card M := by exact_mod_cast (Nat.card_pos (α := M))
-  refine (Real.log_le_log hEpos hEle).trans ?_
-  rw [Nat.cast_mul, Real.log_mul hM0.ne' hM0.ne']
-  linarith
+  rw [log_ledger_factor Nat.card_pos Nat.card_pos, two_mul]
+  exact (add_le_add (min_le_right _ _) le_rfl).trans (add_le_add hM hM)
 
 /-- **The frontier lower bound with aggregate gates.** Under the hypotheses of
 `eventually_lt_mul_card_of_ledger`, for every `ε > 0` and all large `n`, every circuit deciding

@@ -247,10 +247,7 @@ theorem absRaw_eq_of_fibRawInv {n K : ℕ} {s : IndexedMinPQ.State n} {st : RawS
 theorem inv_of_fibRawInv {n K : ℕ} {s : IndexedMinPQ.State n} {g : Cell → ℕ}
     (h : FibRawInv n K s (view n g)) : Inv n K g ∧ abs n g = s := by
   have he := absRaw_eq_of_fibRawInv h
-  refine ⟨?_, he⟩
-  unfold Inv abs
-  rw [he]
-  exact h
+  exact ⟨by simpa only [Inv, abs, he] using h, he⟩
 
 /-- Credits per root and per two marks, in record operations. -/
 abbrev credit : ℕ := 24
@@ -312,16 +309,13 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     exact hdisj _ T_u.root_mem_nodes _
       (mem_forestNodes_iff.mpr ⟨R, hR, hRu ▸ R.root_mem_nodes⟩) rfl
   rcases hadd with ⟨h0, rfl⟩ | ⟨m, r, hm, hr, rfl⟩
-  · have hts0 : ts = [] := by
-      rcases hrl with ⟨h, _⟩ | ⟨_, _, hm', _⟩
-      · exact h
-      · omega
-    subst hts0
+  · obtain rfl : ts = [] := (hrl.resolve_right fun ⟨_, _, hm', _⟩ => by omega).1
     refine ⟨fun T hT => (hvalid T hT).frame_tree (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
       fun x hx => ?_, Or.inr ⟨T_u.root, [], rfl, IsCircList.singleton _ _ _, by simp,
-        fun T hT => by simp only [List.mem_singleton] at hT; subst hT; exact .refl _⟩⟩
-    have hx := hdesc T hT x hx T_u List.mem_cons_self
-    simp [Function.update_of_ne hx]
+        fun T hT => ?_⟩⟩
+    · simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self)]
+    · rw [List.mem_singleton.mp hT]
+      exact .refl _
   · obtain ⟨m', rtail, hm', hcirc, hperm, hle⟩ := hrl.resolve_left fun ⟨_, h0⟩ => by omega
     obtain rfl : m' = m := Fin.ext (by omega)
     obtain ⟨r', hr', hr'_mem⟩ := hcirc.right_head
@@ -332,12 +326,9 @@ theorem RootList.addRoot {n : ℕ} {st st' : RawState n} {T_u : FHTree n} {ts : 
     have hcirc' := hcirc.insertAfter hu_mr hr
     refine ⟨fun T hT => (hvalid T hT).frame_tree (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩)
       fun x hx => ?_, Or.inr ?_⟩
-    · have hxu := hdesc T hT x hx T_u List.mem_cons_self
-      have hxm := hdesc T hT x hx Rm hRm
-      have hxr := hdesc T hT x hx Rr hRr
-      rw [← hRm_eq] at hxm
-      rw [← hRr_eq] at hxr
-      simp [Function.update_of_ne hxu, Function.update_of_ne hxm, Function.update_of_ne hxr]
+    · simp [Function.update_of_ne (hdesc T hT x hx T_u List.mem_cons_self),
+        Function.update_of_ne (hRm_eq ▸ hdesc T hT x hx Rm hRm),
+        Function.update_of_ne (hRr_eq ▸ hdesc T hT x hx Rr hRr)]
     · have hperm' : (T_u.root :: m' :: rtail).Perm ((T_u :: ts).map FHTree.root) :=
         List.Perm.cons _ hperm
       by_cases hlt : IndexedMinPQ.PrioLT (T_u.root, st.key T_u.root) (m', st.key m')
@@ -550,12 +541,8 @@ theorem counts_lt_of_absent {K : ℕ} {s : IndexedMinPQ.State n} {st : RawState 
     simpa using (List.nodup_cons.mpr ⟨hv_fn, hnd⟩).length_le_card
   have hts := forestNodes_length_ge ts
   have hdom_lt : (IndexedMinPQ.dom s).card < n := by
-    have hsub : IndexedMinPQ.dom s ⊂ Finset.univ :=
-      Finset.ssubset_iff_subset_ne.mpr ⟨Finset.subset_univ _, fun he => by
-        have := IndexedMinPQ.notMem_dom_iff.mpr hv
-        rw [he] at this
-        exact this (Finset.mem_univ v)⟩
-    simpa using Finset.card_lt_card hsub
+    simpa using Finset.card_lt_card ((Finset.ssubset_univ_iff (s := IndexedMinPQ.dom s)).mpr
+      fun he => IndexedMinPQ.notMem_dom_iff.mpr hv (by simp [he]))
   simp only [List.length_cons] at hlen
   omega
 

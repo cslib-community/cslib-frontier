@@ -418,16 +418,8 @@ private theorem sum_ite_mem_fst [Fintype V] [DecidableEq V] {q : List (V × V)} 
       · simp [huv]
     simp only [hsplit, Finset.sum_add_distrib, List.map_cons, List.sum_cons, ih hq']
     congr 1
-    rw [Finset.sum_eq_single b]
-    · by_cases hua : u = a
-      · subst hua
-        simp
-      · have hne : a ≠ u := fun h => hua h.symm
-        simp [hua, hne]
-    · intro v _ hvb
-      simp [hvb]
-    · intro hb
-      exact absurd (Finset.mem_univ b) hb
+    rw [Finset.sum_eq_single b (fun _ _ hvb => by simp [hvb]) (by simp)]
+    simp [@eq_comm _ u a]
 
 /-- The in-arc count of `u` in `q`, obtained from `sum_ite_mem_fst` on the reversed arcs. -/
 private theorem sum_ite_mem_snd [Fintype V] [DecidableEq V] {q : List (V × V)} (hq : q.Nodup)
@@ -463,20 +455,55 @@ theorem sum_pathArcs_sign [Fintype V] [DecidableEq V] {p : List V} {s t : V}
       (if (v, u) ∈ pathArcs p then (1 : ℤ) else 0))) =
       (if s = u then 1 else 0) - (if t = u then 1 else 0) := by
   have hnodup := nodup_pathArcs hp
-  rw [Finset.sum_sub_distrib, sum_ite_mem_fst hnodup u, sum_ite_mem_snd hnodup u]
-  have hmap :
-      ((pathArcs p).map fun e => if e.1 = u then (1 : ℤ) else 0).sum -
-        ((pathArcs p).map fun e => if e.2 = u then (1 : ℤ) else 0).sum =
-      ((pathArcs p).map fun e =>
-        (if e.1 = u then (1 : ℤ) else 0) - (if e.2 = u then 1 else 0)).sum := by
-    induction pathArcs p with
-    | nil => simp
-    | cons e es ihe =>
-      simp only [List.map_cons, List.sum_cons]
-      omega
-  rw [hmap, map_pathArcs_sub_sum hs ht u]
+  rw [Finset.sum_sub_distrib, sum_ite_mem_fst hnodup u, sum_ite_mem_snd hnodup u,
+    ← map_pathArcs_sub_sum hs ht u]
+  induction pathArcs p with
+  | nil => simp
+  | cons _ _ ih =>
+    simp only [List.map_cons, List.sum_cons]
+    omega
 
 end PathLemmas
+
+section FoldMin
+
+/-- Folding `min ∘ w` over a list never exceeds the initial accumulator `init`. -/
+theorem foldl_min_le_init {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
+    es.foldl (fun acc a => min acc (w a)) init ≤ init := by
+  induction es generalizing init with
+  | nil => exact le_rfl
+  | cons a es' ih => exact le_trans (ih (min init (w a))) (Nat.min_le_left init (w a))
+
+/-- Folding `min ∘ w` over a list is at most `w x` for every element `x ∈ es`. -/
+theorem foldl_min_le_mem {α : Type*} (w : α → ℕ) {es : List α} (init : ℕ) {x : α}
+    (hx : x ∈ es) :
+    es.foldl (fun acc a => min acc (w a)) init ≤ w x := by
+  induction es generalizing init with
+  | nil => simp at hx
+  | cons a es' ih =>
+    rcases List.mem_cons.mp hx with rfl | hx'
+    · exact le_trans (foldl_min_le_init w es' (min init (w x))) (Nat.min_le_right init (w x))
+    · exact ih (min init (w a)) hx'
+
+/-- Folding `min ∘ w` over `es` from `init` equals either `init` or `w x` for some `x ∈ es`. -/
+theorem foldl_min_eq_init_or_mem {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
+    es.foldl (fun acc a => min acc (w a)) init = init ∨
+      ∃ x ∈ es, es.foldl (fun acc a => min acc (w a)) init = w x := by
+  induction es generalizing init with
+  | nil => exact .inl rfl
+  | cons a es' ih =>
+    simp only [List.foldl_cons]
+    by_cases hle : init ≤ w a
+    · rw [Nat.min_eq_left hle]
+      rcases ih init with hinit | ⟨x, hx, heq⟩
+      · exact .inl hinit
+      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
+    · rw [Nat.min_eq_right (Nat.le_of_not_le hle)]
+      rcases ih (w a) with hinit | ⟨x, hx, heq⟩
+      · exact .inr ⟨a, List.mem_cons_self, hinit⟩
+      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
+
+end FoldMin
 
 namespace Network
 
@@ -585,20 +612,9 @@ theorem value_eq_netFlow_across_cut [DecidableEq V] (f : N.Flow) {S : Finset V} 
         (∑ u ∈ S, ∑ v ∈ Finset.univ \ S, (f v u : ℤ)) := by
   have hval : f.value = ∑ u ∈ S, f.netOut u := by
     symm
-    refine Finset.sum_eq_single N.s (fun u hu hus => ?_) (fun hs => absurd hS.1 hs)
-    have hut : u ≠ N.t := fun h => hS.2 (h ▸ hu)
-    exact f.netOut_eq_zero hus hut
-  rw [hval]
-  simp only [netOut]
-  rw [Finset.sum_sub_distrib]
-  have hsplit₁ : ∑ u ∈ S, ∑ v, (f u v : ℤ) =
-      (∑ u ∈ S, ∑ v ∈ S, (f u v : ℤ)) + (∑ u ∈ S, ∑ v ∈ Finset.univ \ S, (f u v : ℤ)) := by
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun u _ => sum_univ_eq_add_sdiff S _
-  have hsplit₂ : ∑ u ∈ S, ∑ v, (f v u : ℤ) =
-      (∑ u ∈ S, ∑ v ∈ S, (f v u : ℤ)) + (∑ u ∈ S, ∑ v ∈ Finset.univ \ S, (f v u : ℤ)) := by
-    rw [← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun u _ => sum_univ_eq_add_sdiff S _
+    exact Finset.sum_eq_single N.s (fun u hu hus => f.netOut_eq_zero hus (fun h => hS.2 (h ▸ hu)))
+      (fun hs => absurd hS.1 hs)
+  simp only [hval, netOut, Finset.sum_sub_distrib, sum_univ_eq_add_sdiff S, Finset.sum_add_distrib]
   have hcomm : (∑ u ∈ S, ∑ v ∈ S, (f v u : ℤ)) = ∑ u ∈ S, ∑ v ∈ S, (f u v : ℤ) :=
     Finset.sum_comm
   omega
@@ -670,39 +686,6 @@ instance instDecidableIsAugmentingPath [DecidableEq V] (f : N.Flow) (p : List V)
     Decidable (f.IsAugmentingPath p) := by
   unfold IsAugmentingPath
   infer_instance
-
-private theorem foldl_min_le_init {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
-    es.foldl (fun acc a => min acc (w a)) init ≤ init := by
-  induction es generalizing init with
-  | nil => exact le_rfl
-  | cons a es' ih => exact le_trans (ih (min init (w a))) (Nat.min_le_left init (w a))
-
-private theorem foldl_min_le_mem {α : Type*} (w : α → ℕ) {es : List α} (init : ℕ) {x : α}
-    (hx : x ∈ es) :
-    es.foldl (fun acc a => min acc (w a)) init ≤ w x := by
-  induction es generalizing init with
-  | nil => simp at hx
-  | cons a es' ih =>
-    rcases List.mem_cons.mp hx with rfl | hx'
-    · exact le_trans (foldl_min_le_init w es' (min init (w x))) (Nat.min_le_right init (w x))
-    · exact ih (min init (w a)) hx'
-
-private theorem foldl_min_eq_init_or_mem {α : Type*} (w : α → ℕ) (es : List α) (init : ℕ) :
-    es.foldl (fun acc a => min acc (w a)) init = init ∨
-      ∃ x ∈ es, es.foldl (fun acc a => min acc (w a)) init = w x := by
-  induction es generalizing init with
-  | nil => exact .inl rfl
-  | cons a es' ih =>
-    simp only [List.foldl_cons]
-    by_cases hle : init ≤ w a
-    · rw [Nat.min_eq_left hle]
-      rcases ih init with hinit | ⟨x, hx, heq⟩
-      · exact .inl hinit
-      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
-    · rw [Nat.min_eq_right (Nat.le_of_not_le hle)]
-      rcases ih (w a) with hinit | ⟨x, hx, heq⟩
-      · exact .inr ⟨a, List.mem_cons_self, hinit⟩
-      · exact .inr ⟨x, List.mem_cons_of_mem a hx, heq⟩
 
 /-- Bottleneck residual capacity along vertex list `p` (`0` when `pathArcs p` is empty). -/
 @[expose] def bottleneck (f : N.Flow) (p : List V) : ℕ :=
@@ -823,19 +806,14 @@ theorem resCap_augment [DecidableEq V] (f : N.Flow) {p : List V}
   have hcoe₁ := (f.augment p hp hs ht δ hδ).resCap_coe u v
   have hcoe₂ := f.resCap_coe u v
   have hdiff := f.augmentFun_sub_eq hp δ u v
-  change ((f.augment p hp hs ht δ hδ).resCap u v : ℤ) = _ at hcoe₁
-  have hfun : (f.augment p hp hs ht δ hδ : V → V → ℕ) = f.augmentFun p δ := rfl
-  rw [hfun] at hcoe₁
+  change ((f.augment p hp hs ht δ hδ).resCap u v : ℤ) =
+    (N.cap u v : ℤ) - ((f.augmentFun p δ u v : ℤ) - (f.augmentFun p δ v u : ℤ)) at hcoe₁
   by_cases huv : (u, v) ∈ pathArcs p
   · have hvu : (v, u) ∉ pathArcs p := not_swap_mem_pathArcs hp huv
     have hle := hδ (u, v) huv
     simp only [huv, hvu, ↓reduceIte] at hdiff ⊢
     omega
-  · by_cases hvu : (v, u) ∈ pathArcs p
-    · simp only [huv, hvu, ↓reduceIte] at hdiff ⊢
-      omega
-    · simp only [huv, hvu, ↓reduceIte] at hdiff ⊢
-      omega
+  · by_cases hvu : (v, u) ∈ pathArcs p <;> simp only [huv, hvu, ↓reduceIte] at hdiff ⊢ <;> omega
 
 /-- Bottleneck augmentation along an augmenting path `p`. -/
 @[expose] def augmentByBottleneck [DecidableEq V] (f : N.Flow) (p : List V)
@@ -1051,64 +1029,30 @@ theorem Flow.isMaxFlow_ofReindex [Fintype V] [Fintype W] (e : V ≃ W) {N : Netw
 
 theorem isCut_cutOfReindex [Fintype V] [DecidableEq W] (e : V ≃ W) {N : Network V}
     {S : Finset W} (hS : (N.reindex e).IsCut S) : N.IsCut (cutOfReindex e S) := by
-  refine ⟨?_, ?_⟩
-  · simp only [cutOfReindex, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hS.1
-  · simp only [cutOfReindex, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hS.2
+  simpa [IsCut, cutOfReindex, reindex] using hS
 
 theorem cutCapacity_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [DecidableEq W]
     (e : V ≃ W) (N : Network V) (S : Finset W) :
     N.cutCapacity (cutOfReindex e S) = (N.reindex e).cutCapacity S := by
-  have hL :
-      N.cutCapacity (cutOfReindex e S) =
-        ∑ u : V, ∑ v : V, if e u ∈ S ∧ e v ∉ S then N.cap u v else 0 := by
-    unfold cutCapacity cutOfReindex
-    rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun u _ => ?_
-    by_cases hu : e u ∈ S
-    · simp only [hu, ↓reduceIte, true_and]
-      have hsdiff : Finset.univ \ Finset.univ.filter (fun v : V => e v ∈ S) =
-          Finset.univ.filter (fun v : V => e v ∉ S) := by
-        ext v
-        simp
-      rw [hsdiff, Finset.sum_filter]
-    · simp [hu]
-  have hR :
-      (N.reindex e).cutCapacity S =
-        ∑ x : W, ∑ y : W, if x ∈ S ∧ y ∉ S then N.cap (e.symm x) (e.symm y) else 0 := by
-    unfold cutCapacity reindex
-    have hsdiff : Finset.univ \ S = Finset.univ.filter (fun y : W => y ∉ S) := by
-      ext y
-      simp
-    have hmem : S = Finset.univ.filter (fun x : W => x ∈ S) := by
-      ext x
-      simp
-    rw [hsdiff]
-    conv_lhs => rw [hmem]
-    rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun x _ => ?_
-    by_cases hx : x ∈ S
-    · simp [hx, Finset.sum_filter]
-    · simp [hx]
-  rw [hL, hR, ← e.sum_comp]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  rw [← e.sum_comp]
-  simp
+  have hcut : cutOfReindex e S = S.map e.symm.toEmbedding := by
+    ext u
+    simp [cutOfReindex, Finset.mem_map_equiv]
+  have hsdiff : Finset.univ \ cutOfReindex e S = (Finset.univ \ S).map e.symm.toEmbedding := by
+    ext v
+    simp [cutOfReindex, Finset.mem_map_equiv]
+  rw [cutCapacity, hsdiff, hcut]
+  simp [cutCapacity, reindex, Finset.sum_map]
 
 theorem isMinCut_cutOfReindex [Fintype V] [Fintype W] [DecidableEq V] [DecidableEq W]
     (e : V ≃ W) {N : Network V} {S : Finset W} (hS : (N.reindex e).IsMinCut S) :
     N.IsMinCut (cutOfReindex e S) := by
   refine ⟨isCut_cutOfReindex e hS.1, fun T hT => ?_⟩
   have hT' : (N.reindex e).IsCut (T.map e.toEmbedding) := by
-    simp only [IsCut, reindex, Finset.mem_map_equiv, Equiv.symm_apply_apply]
-    exact hT
-  have h := hS.2 _ hT'
-  rw [← cutCapacity_cutOfReindex, ← cutCapacity_cutOfReindex] at h
+    simpa [IsCut, reindex, Finset.mem_map_equiv] using hT
   have hround : cutOfReindex e (T.map e.toEmbedding) = T := by
     ext x
     simp [cutOfReindex]
-  rwa [hround] at h
+  simpa only [← cutCapacity_cutOfReindex e N, hround] using hS.2 _ hT'
 
 end Reindex
 

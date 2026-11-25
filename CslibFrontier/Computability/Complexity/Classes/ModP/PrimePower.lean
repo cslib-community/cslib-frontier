@@ -59,11 +59,9 @@ variable {α : Type} {enc : α ↪ List Bool} {A B : Set α} {k : ℕ}
 theorem ModP_subset_ModP_of_dvd {j : ℕ} (hjk : j ∣ k) (hk : k ≠ 0) :
     ModP j enc ⊆ ModP k enc := by
   obtain ⟨h, rfl⟩ := hjk
-  have hh : h ≠ 0 := right_ne_zero_of_mul hk
   rintro A ⟨f, hf, hA⟩
   refine ⟨f * (h : α → ℕ), SharpP.mul_mem hf (SharpP.natCast_mem h), fun a => ?_⟩
-  rw [hA a, Pi.mul_apply, Pi.natCast_apply, Nat.cast_id, Nat.mul_mod_mul_right]
-  simp [hh]
+  simp [hA a, Nat.mul_mod_mul_right, right_ne_zero_of_mul hk]
 
 /-- **Prime-power moduli collapse to their prime** [Beigel and Gill, Theorem 30][BeigelGill1992]:
 `ModP (p ^ e) = ModP p` for prime `p` and `e ≥ 1`. A count is nonzero modulo `p ^ e` exactly when
@@ -130,11 +128,8 @@ theorem union_mem_ModP_of_isPrimePow (hk : IsPrimePow k) (hA : A ∈ ModP k enc)
   (ModP.booleanSubalgebraOfIsPrimePow hk enc).sup_mem hA hB
 
 /-- For prime-power moduli, complement closure identifies the two modular classes. -/
-theorem coModP_eq_ModP_of_isPrimePow (hk : IsPrimePow k) : coModP k enc = ModP k enc := by
-  ext A
-  constructor
-  · intro h
-    simpa using compl_mem_ModP_of_isPrimePow hk h
-  · exact compl_mem_ModP_of_isPrimePow hk
+theorem coModP_eq_ModP_of_isPrimePow (hk : IsPrimePow k) : coModP k enc = ModP k enc :=
+  Set.ext fun _ => ⟨fun h => by simpa using compl_mem_ModP_of_isPrimePow hk h,
+    compl_mem_ModP_of_isPrimePow hk⟩
 
 end Cslib.Complexity

@@ -245,68 +245,31 @@ theorem get_ofSpongeView_capacity (layout : SpongeLayout) (state : SpongeView la
 /-- Converting a selected sponge view to lanes and back preserves every state bit. -/
 theorem toSpongeView_ofSpongeView (layout : SpongeLayout) (state : SpongeView layout) :
     toSpongeView layout (ofSpongeView layout state) = state := by
-  apply Prod.ext <;> funext i
-  · have hlane : i.val / 64 < layout.rateLanes := by
-      have hi := i.isLt
-      omega
-    change ((ofSpongeView layout state).get ⟨i.val / 64, by
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD (i.val % 64) = state.1 i
-    rw [get_ofSpongeView_rate _ _ _ hlane,
+  have hlayout := layout.lane_count
+  apply Prod.ext <;> funext i <;> have hi := i.isLt
+  · simp only [toSpongeView]
+    rw [get_ofSpongeView_rate _ _ _ (by dsimp; omega),
       getLsbD_laneOfBits _ _ (Nat.mod_lt _ (by decide))]
-    apply congrArg state.1
-    apply Fin.ext
-    simpa [Nat.mul_comm] using Nat.div_add_mod i.val 64
-  · have hlane : ¬layout.rateLanes + i.val / 64 < layout.rateLanes := by omega
-    change ((ofSpongeView layout state).get ⟨layout.rateLanes + i.val / 64, by
-      have hi := i.isLt
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD (i.val % 64) = state.2 i
-    rw [get_ofSpongeView_capacity _ _ _ hlane,
+    exact congrArg state.1 (Fin.ext (by dsimp; omega))
+  · simp only [toSpongeView]
+    rw [get_ofSpongeView_capacity _ _ _ (by dsimp; omega),
       getLsbD_laneOfBits _ _ (Nat.mod_lt _ (by decide))]
-    apply congrArg state.2
-    apply Fin.ext
-    simpa only [Nat.add_sub_cancel_left, Nat.mul_comm] using Nat.div_add_mod i.val 64
+    exact congrArg state.2 (Fin.ext (by dsimp; omega))
 
 /-- Converting a lane state to a selected sponge view and back preserves every lane. -/
 theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
     ofSpongeView layout (toSpongeView layout A) = A := by
-  refine Vector.ext fun lane hlane => ?_
-  apply BitVec.eq_of_getLsbD_eq
-  intro z hz
+  have hlayout := layout.lane_count
+  refine Vector.ext fun lane hlane => BitVec.eq_of_getLsbD_eq fun z hz => ?_
+  change ((ofSpongeView layout (toSpongeView layout A)).get ⟨lane, hlane⟩).getLsbD z =
+    (A.get ⟨lane, hlane⟩).getLsbD z
   by_cases hrate : lane < layout.rateLanes
-  · have hdiv : (64 * lane + z) / 64 = lane := by omega
-    have hmod : (64 * lane + z) % 64 = z := by omega
-    change ((ofSpongeView layout (toSpongeView layout A)).get
-      ⟨lane, hlane⟩).getLsbD z = (A.get ⟨lane, hlane⟩).getLsbD z
-    rw [get_ofSpongeView_rate _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    change (A.get ⟨(64 * lane + z) / 64, by
-      have hlayout := layout.lane_count
-      omega⟩).getLsbD ((64 * lane + z) % 64) = _
-    have hlaneEq : (⟨(64 * lane + z) / 64, by
-        have hlayout := layout.lane_count
-        omega⟩ : Fin 25) = ⟨lane, hlane⟩ := Fin.ext hdiv
-    rw [hlaneEq, hmod]
-  · have hdiv : (64 * (lane - layout.rateLanes) + z) / 64 =
-        lane - layout.rateLanes := by omega
-    have hmod : (64 * (lane - layout.rateLanes) + z) % 64 = z := by omega
-    change ((ofSpongeView layout (toSpongeView layout A)).get
-      ⟨lane, hlane⟩).getLsbD z = (A.get ⟨lane, hlane⟩).getLsbD z
-    rw [get_ofSpongeView_capacity _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    change (A.get ⟨layout.rateLanes +
-      (64 * (lane - layout.rateLanes) + z) / 64, by
-        have hlayout := layout.lane_count
-        omega⟩).getLsbD ((64 * (lane - layout.rateLanes) + z) % 64) = _
-    have hlaneEq : (⟨layout.rateLanes +
-        (64 * (lane - layout.rateLanes) + z) / 64, by
-          have hlayout := layout.lane_count
-          omega⟩ : Fin 25) = ⟨lane, hlane⟩ := by
-      have hval : layout.rateLanes +
-          (64 * (lane - layout.rateLanes) + z) / 64 = lane := by
-        rw [hdiv]
-        exact Nat.add_sub_of_le (Nat.le_of_not_gt hrate)
-      exact Fin.ext hval
-    rw [hlaneEq, hmod]
+  · rw [get_ofSpongeView_rate _ _ _ hrate, getLsbD_laneOfBits _ z hz]
+    simp only [toSpongeView, show (64 * lane + z) % 64 = z by omega]
+    congr 2; exact Fin.ext (by dsimp; omega)
+  · rw [get_ofSpongeView_capacity _ _ _ hrate, getLsbD_laneOfBits _ z hz]
+    simp only [toSpongeView, show (64 * (lane - layout.rateLanes) + z) % 64 = z by omega]
+    congr 2; exact Fin.ext (by dsimp; omega)
 
 /-- Keccak-p[1600, 24] on a lane-aligned sponge view. -/
 @[expose] def keccakP1600Rounds24View (layout : SpongeLayout) (state : SpongeView layout) :
@@ -395,18 +358,14 @@ theorem bytesToBitsLE_toChunks {bits : List Bool} (h : 8 ∣ bits.length) :
 
 /-- Little-endian expansion preserves all the information in a byte string. -/
 theorem bytesToBitsLE_injective : Function.Injective bytesToBitsLE := by
-  intro xs
-  induction xs with
+  intro xs ys h
+  induction xs generalizing ys with
   | nil =>
-    intro ys h
     symm
     simpa [length_bytesToBitsLE] using congrArg List.length h
   | cons a xs ih =>
-    intro ys h
     cases ys with
-    | nil =>
-      have len := congrArg List.length h
-      simp [length_bytesToBitsLE] at len
+    | nil => simpa [length_bytesToBitsLE] using congrArg List.length h
     | cons b ys =>
       change byteBitsLE a ++ bytesToBitsLE xs = byteBitsLE b ++ bytesToBitsLE ys at h
       obtain ⟨head, tail⟩ := List.append_inj h (by simp [byteBitsLE])
@@ -489,20 +448,9 @@ theorem bytesToBitsLE_take (xs : List (Fin 256)) (n : ℕ) :
 @[simp] theorem length_squeezeBytesFor (layout : SpongeLayout)
     (blocks : List (BitString (64 * layout.rateLanes))) (count : ℕ) :
     (squeezeBytesFor layout blocks count).length = (8 * layout.rateLanes) * count := by
-  have hflat : ∀ states : List (BitString (64 * layout.rateLanes)),
-      (states.flatMap (rateBytesFor layout)).length =
-        (8 * layout.rateLanes) * states.length := by
-    intro states
-    induction states with
-    | nil => simp
-    | cons state states ih =>
-      rw [List.flatMap_cons, List.length_append, length_rateBytesFor, ih, List.length_cons]
-      rw [Nat.mul_add, Nat.mul_one]
-      exact Nat.add_comm _ _
-  have hcount :
-      (Sponge.hashBlocks (keccakP1600Rounds24View layout) Prod.fst count blocks).length = count :=
-    Sponge.length_squeeze _ _ _ _
-  rw [squeezeBytesFor, hflat, hcount]
+  simp only [squeezeBytesFor, List.length_flatMap, length_rateBytesFor, List.map_const',
+    List.sum_replicate, smul_eq_mul]
+  rw [Sponge.hashBlocks, Sponge.length_squeeze, Nat.mul_comm]
 
 private theorem take_flatMap_rateBytesFor (layout : SpongeLayout)
     (states : List (BitString (64 * layout.rateLanes))) (count : ℕ) :
@@ -536,7 +484,7 @@ squeeze the requested number of little-endian bytes. -/
     List (Fin 256) :=
   let suffixed := input ++ suffix
   let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
-  let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
+  let blocks := BitString.toBlocks (64 * layout.rateLanes) padded
   let rateBytes := 8 * layout.rateLanes
   let outputBlockCount := outputBytes ⌈/⌉ rateBytes
   (squeezeBytesFor layout blocks outputBlockCount).take outputBytes
@@ -556,9 +504,7 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
     (input : List Bool) (outputBytes : ℕ) :
     (bitSponge layout suffix input outputBytes).length = outputBytes := by
   rw [bitSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
-  exact le_smul_ceilDiv (a := 8 * layout.rateLanes) (b := outputBytes) (by
-    have hr := layout.rate_pos
-    omega)
+  exact le_smul_ceilDiv (Nat.mul_pos (by decide) layout.rate_pos)
 
 /-- A byte-aligned sponge returns exactly the requested byte count. -/
 @[simp] theorem length_byteSponge (layout : SpongeLayout) (suffix : List Bool)
@@ -570,16 +516,13 @@ bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
 theorem take_bitSponge (layout : SpongeLayout) (suffix : List Bool)
     (input : List Bool) {m n : ℕ} (h : m ≤ n) :
     (bitSponge layout suffix input n).take m = bitSponge layout suffix input m := by
+  have hr := layout.rate_pos
   rw [bitSponge, List.take_take, Nat.min_eq_left h, bitSponge]
   have hk : m ⌈/⌉ (8 * layout.rateLanes) ≤ n ⌈/⌉ (8 * layout.rateLanes) := by
     rw [Nat.ceilDiv_eq_add_pred_div, Nat.ceilDiv_eq_add_pred_div]
-    exact Nat.div_le_div_right (by
-      have hr := layout.rate_pos
-      omega)
+    exact Nat.div_le_div_right (by omega)
   have hm : m ≤ (8 * layout.rateLanes) * (m ⌈/⌉ (8 * layout.rateLanes)) :=
-    le_smul_ceilDiv (a := 8 * layout.rateLanes) (b := m) (by
-      have hr := layout.rate_pos
-      omega)
+    le_smul_ceilDiv (Nat.mul_pos (by decide) hr)
   calc
     (squeezeBytesFor layout _ (n ⌈/⌉ (8 * layout.rateLanes))).take m =
         ((squeezeBytesFor layout _ (n ⌈/⌉ (8 * layout.rateLanes))).take

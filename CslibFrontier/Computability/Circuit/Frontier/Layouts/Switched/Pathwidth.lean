@@ -95,14 +95,11 @@ theorem rank_lt_rank {y : Fin n → ℝ} {u v : Fin n} (h : y u < y v) :
 /-- For injective `y`, rank order equals label order. -/
 theorem rank_lt_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
     rank y u < rank y v ↔ y u < y v := by
-  constructor
-  · intro h
-    rcases lt_trichotomy (y u) (y v) with h' | h' | h'
-    · exact h'
-    · rw [hy h'] at h
-      exact absurd h (lt_irrefl _)
-    · exact absurd (rank_lt_rank h') (not_lt.mpr h.le)
-  · exact rank_lt_rank
+  refine ⟨fun h => ?_, rank_lt_rank⟩
+  rcases lt_trichotomy (y u) (y v) with h' | h' | h'
+  · exact h'
+  · exact absurd (hy h' ▸ h) (lt_irrefl _)
+  · exact absurd (rank_lt_rank h') h.not_gt
 
 /-- For injective `y`, weak rank order equals weak label order. -/
 theorem rank_le_iff {y : Fin n → ℝ} (hy : Function.Injective y) {u v : Fin n} :
@@ -142,18 +139,10 @@ theorem card_rank_eq_le {y : Fin n → ℝ} (hy : Function.Injective y) (i : ℕ
 theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
     rank y v < (Finset.univ.filter fun u => y u ≤ 0).card ↔ y v ≤ 0 := by
   classical
-  constructor
-  · intro h
-    by_contra hv
-    push Not at hv
-    apply absurd h
-    apply not_lt.mpr
-    apply Finset.card_le_card
-    intro u hu
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
+  refine ⟨fun h => by_contra fun hv => h.not_ge (Finset.card_le_card fun u hu => ?_), fun hv => ?_⟩
+  · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hu ⊢
     linarith
-  · intro hv
-    apply lt_of_lt_of_le _ (Finset.card_le_card
+  · apply lt_of_lt_of_le _ (Finset.card_le_card
       (s := Finset.univ.filter fun u => y u < y v ∨ u = v) _)
     · rw [Finset.filter_or, Finset.card_union_of_disjoint]
       · simp only [rank, Finset.filter_eq', Finset.mem_univ, ite_true, Finset.card_singleton]
@@ -172,36 +161,21 @@ end Rank
 
 /-! ### Cubic pathwidth-to-cutwidth bridge -/
 
-private theorem eq_of_score_lt {V E : Type*} [Finite E] {G : Multigraph V E}
-    {score : E → ℕ} {v : V} {m : ℕ} (hmed : G.IsMedian score v m)
+/-- At a vertex of degree three, two incident edges outside a set of at least two incident edges
+coincide. -/
+private theorem eq_of_two_le_ncard {V E : Type*} [Finite E] {G : Multigraph V E} {v : V}
+    {R : E → Prop} (h2 : 2 ≤ {f ∈ G.incidenceSet v | R f}.ncard)
     (hv : (G.incidenceSet v).ncard = 3) {a b : E}
-    (ha : a ∈ G.incidenceSet v) (hb : b ∈ G.incidenceSet v)
-    (hlt : score a < m) (hlt' : score b < m) : a = b := by
+    (ha : a ∈ G.incidenceSet v) (hb : b ∈ G.incidenceSet v) (hRa : ¬ R a) (hRb : ¬ R b) :
+    a = b := by
   by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | m ≤ score f} ⊆ G.incidenceSet v \ {a, b} := by
-    rintro f ⟨hf, hmf⟩
+  have hsub : {f ∈ G.incidenceSet v | R f} ⊆ G.incidenceSet v \ {a, b} := by
+    rintro f ⟨hf, hRf⟩
     refine ⟨hf, ?_⟩
     rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
+    exacts [hRa hRf, hRb hRf]
   have := ncard_le_ncard hsub
   rw [ncard_sdiff (by simp [insert_subset_iff, ha, hb]), ncard_pair hne, hv] at this
-  have := hmed.2
-  omega
-
-private theorem eq_of_lt_score {V E : Type*} [Finite E] {G : Multigraph V E}
-    {score : E → ℕ} {v : V} {m : ℕ} (hmed : G.IsMedian score v m)
-    (hv : (G.incidenceSet v).ncard = 3) {a b : E}
-    (ha : a ∈ G.incidenceSet v) (hb : b ∈ G.incidenceSet v)
-    (hlt : m < score a) (hlt' : m < score b) : a = b := by
-  by_contra hne
-  have hsub : {f ∈ G.incidenceSet v | score f ≤ m} ⊆ G.incidenceSet v \ {a, b} := by
-    rintro f ⟨hf, hmf⟩
-    refine ⟨hf, ?_⟩
-    rintro (rfl | rfl)
-    exacts [hmf.not_gt hlt, hmf.not_gt hlt']
-  have := ncard_le_ncard hsub
-  rw [ncard_sdiff (by simp [insert_subset_iff, ha, hb]), ncard_pair hne, hv] at this
-  have := hmed.1
   omega
 
 /-- **From vertex intervals (pathwidth) to a vertex layout (cutwidth) on cubic multigraphs.**
@@ -223,19 +197,12 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   have hKpos : 0 < K := Nat.succ_pos _
   let eIdx : E ≃ Fin (Fintype.card E) := Fintype.equivFin E
   let score : E → ℕ := fun a => tE a * K + (eIdx a).val
-  have hscore_inj : Function.Injective score := by
-    intro a b hab
-    have ha : (eIdx a).val < K := Nat.lt_succ_of_lt (eIdx a).isLt
-    have hb : (eIdx b).val < K := Nat.lt_succ_of_lt (eIdx b).isLt
-    have hq : tE a = tE b := by
-      have := congrArg (· / K) hab
-      simpa only [score, mul_comm _ K, Nat.mul_add_div hKpos, Nat.div_eq_of_lt ha,
-        Nat.div_eq_of_lt hb, add_zero] using this
-    have hr : (eIdx a).val = (eIdx b).val := by
-      have := hab
-      simp only [score, hq] at this
-      omega
-    exact eIdx.injective (Fin.ext hr)
+  have hscore_eq (a : E) : score a = (eIdx a).val + K * tE a := by
+    dsimp only [score]; rw [add_comm, mul_comm]
+  have hidx (a : E) : (eIdx a).val < K := Nat.lt_succ_of_lt (eIdx a).isLt
+  have hscore_inj : Function.Injective score := fun a b hab => eIdx.injective <| Fin.ext <| by
+    simpa only [hscore_eq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (hidx _)] using
+      congrArg (· % K) hab
   have hmed_exists : ∀ v, ∃ m, G.IsMedian score v m := fun v => G.exists_isMedian (h3 v) score
   choose med hmed using hmed_exists
   obtain ⟨π, hπ⟩ := Layout.exists_threshold med
@@ -247,14 +214,11 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   obtain ⟨m, hP, hPc⟩ := hπ t htlt
   let P : Set V := π.initial t
   have hdiv_mem (a : E) : score a / K = tE a := by
-    rw [show score a = (eIdx a).val + K * tE a by dsimp only [score]; rw [add_comm, mul_comm],
-      Nat.add_mul_div_left _ _ hKpos, Nat.div_eq_of_lt (Nat.lt_succ_of_lt (eIdx a).isLt), zero_add]
-  have ht_le_div {a : E} {m₀ : ℕ} (h : score a ≤ m₀) : tE a ≤ m₀ / K := by
-    rw [← hdiv_mem a]
-    exact Nat.div_le_div_right h
-  have hdiv_le_t {a : E} {m₀ : ℕ} (h : m₀ ≤ score a) : m₀ / K ≤ tE a := by
-    rw [← hdiv_mem a]
-    exact Nat.div_le_div_right h
+    rw [hscore_eq, Nat.add_mul_div_left _ _ hKpos, Nat.div_eq_of_lt (hidx a), zero_add]
+  have ht_le_div {a : E} {m₀ : ℕ} (h : score a ≤ m₀) : tE a ≤ m₀ / K :=
+    (hdiv_mem a).symm.trans_le (Nat.div_le_div_right h)
+  have hdiv_le_t {a : E} {m₀ : ℕ} (h : m₀ ≤ score a) : m₀ / K ≤ tE a :=
+    (Nat.div_le_div_right h).trans_eq (hdiv_mem a)
   set i : ℕ := min (m / K) T
   have hiT : i ≤ T := min_le_right _ _
   have hm_le_i {a : E} (h : score a ≤ m) : tE a ≤ i := le_min (ht_le_div h) (htE a)
@@ -295,15 +259,13 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
       have h2 : i ≤ tE a' := hi_le_m ((hPc _ hvP).trans hle')
       have hs1 := (hmem_t _ a hav).1
       have he2 := (hmem_t _ a' ha').2
-      refine ⟨?_, hvP⟩
-      rw [Finset.mem_coe, mem_intervalBag]
-      exact ⟨by omega, by omega⟩
+      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, hvP⟩
     · rintro a ⟨ha, hlt⟩ b ⟨hb, hlt'⟩ heq
       obtain ⟨hvP, hav⟩ := houtEnd ha
       obtain ⟨_, hbv⟩ := houtEnd hb
       rw [← heq] at hbv
-      exact eq_of_score_lt (hmed (outEnd a)) (h3 _) hav hbv
-        (hlt.trans_le (hPc _ hvP)) (hlt'.trans_le (hPc _ hvP))
+      exact eq_of_two_le_ncard (hmed (outEnd a)).2 (h3 _) hav hbv
+        (hlt.trans_le (hPc _ hvP)).not_ge (hlt'.trans_le (hPc _ hvP)).not_ge
   -- `F_gt` injects into `(intervalBag s e i : Set V) ∩ P`.
   let inEnd : E → V := fun a => if G.src a ∈ P then G.src a else G.tgt a
   have hinEnd {a : E} (ha : a ∈ G.edgeCut P) : inEnd a ∈ P ∧ a ∈ G.incidenceSet (inEnd a) := by
@@ -321,15 +283,13 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
       have h2 : i ≤ tE a := hi_le_m hgt.le
       have hs1 := (hmem_t _ a' ha').1
       have he2 := (hmem_t _ a hau).2
-      refine ⟨?_, huP⟩
-      rw [Finset.mem_coe, mem_intervalBag]
-      exact ⟨by omega, by omega⟩
+      exact ⟨mem_intervalBag.2 ⟨by omega, by omega⟩, huP⟩
     · rintro a ⟨ha, hgt⟩ b ⟨hb, hgt'⟩ heq
       obtain ⟨huP, hau⟩ := hinEnd ha
       obtain ⟨_, hbu⟩ := hinEnd hb
       rw [← heq] at hbu
-      exact eq_of_lt_score (hmed (inEnd a)) (h3 _) hau hbu
-        ((hP _ huP).trans_lt hgt) ((hP _ huP).trans_lt hgt')
+      exact eq_of_two_le_ncard (hmed (inEnd a)).1 (h3 _) hau hbu
+        ((hP _ huP).trans_lt hgt).not_ge ((hP _ huP).trans_lt hgt').not_ge
   -- Recombine the two disjoint parts of `intervalBag s e i`.
   have hsum : ((intervalBag s e i : Set V) \ P).ncard +
       ((intervalBag s e i : Set V) ∩ P).ncard = (intervalBag s e i).card := by
