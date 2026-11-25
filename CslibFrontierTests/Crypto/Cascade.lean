@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildRoutingPPT
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildTableLaw
 import Mathlib.Data.Set.Finite.List
 
@@ -247,3 +248,15 @@ example :
       simpa only [PMF.pi_uniformOfFintype] using
         cascadeChildPrefixGame_eq_childTableGame boundedWords (fun _ => 1) toggle
           (fun _ _ => visitBothParents) 2 1 (PMF.uniformOfFintype (BitString 1 → BitString 2))
+
+-- The first long query sends channel zero and reads at most two bits of its reply.
+example :
+    encodedCascadeChildRouter (boundedWords 2) (fun _ => 1) toggle 2 1 (do
+      let reply ← ProbOracleComp.query ((), [true, false])
+      return reply == [true, false]) =
+      (do
+        let reply ← ProbOracleComp.query ((), encCascadeChildRequest (0, [false]))
+        return reply.take 2 == [true, false]) := by
+  simp only [encodedCascadeChildRouter, cascadeChildRouter, bind_pure_comp,
+    OracleComp.interpret_map, StateT.run_map, ProbOracleComp.interpret_query]
+  simp [StateT.run, cascadeChildRoute, boundedWords, Functor.map_map]
