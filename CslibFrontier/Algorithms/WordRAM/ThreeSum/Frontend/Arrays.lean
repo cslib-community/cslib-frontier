@@ -66,8 +66,10 @@ theorem ScanReady.transfer {w : ℕ} {rs : List (ℕ × ℕ)} {x y : Data 48}
       (hj : j ≠ beta ∧ j ≠ beta' ∧ j ≠ digit ∧ j ≠ mode := by decide) :
       y.regs j = x.regs j := hr j hlt hj.1 hj.2.1 hj.2.2.1 hj.2.2.2
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14⟩ := h
-  constructor <;> (try simp only [eq len, eq zero, eq one, eq two, eq three, eq four, eq five,
-    eq Scan.keys, eq Scan.counts, eq magnitude, eq dst, hm]) <;> assumption
+  simp only [← eq len, ← eq zero, ← eq one, ← eq two, ← eq three, ← eq four, ← eq five,
+    ← eq Scan.keys, ← eq Scan.counts, ← eq magnitude, ← eq dst, ← hm]
+    at h1 h2 h3 h4 h6 h8 h10 h11 h12 h13 h14
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14⟩
 
 /-- Invoke the proved native scan from its actual arithmetic/layout context. -/
 theorem ScanReady.exec {w : ℕ} {rs : List (ℕ × ℕ)} {x : Data 48}

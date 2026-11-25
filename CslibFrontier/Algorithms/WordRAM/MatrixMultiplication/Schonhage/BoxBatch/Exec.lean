@@ -131,7 +131,9 @@ theorem exec_queryProgram {w L m t AA BB D V K A B Q O : ℕ}
         (show (Cond.lt Reg.next Reg.stop).Holds x from by
           simp only [Cond.Holds, hnext, hstop, List.length_cons]; omega) hbdy hy
       exact he.mono (by simp only [queryTime, List.map_cons, List.sum_cons]; omega)
-    iterate 3 (simp only [List.length_cons]; omega)
+    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using yn
+    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using ys
+    · simpa only [List.length_cons, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using yo
     · intro i
       refine Fin.cases ?_ (fun j => ?_) i
       · change y.mem (O + 0) = Signed.encode (BoxQuery.queryValue m t η a b)

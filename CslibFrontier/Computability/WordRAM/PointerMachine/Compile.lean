@@ -56,7 +56,15 @@ variable {w r : ℕ}
 private theorem body_length (pc : ℕ) (i : Instr .standard r) :
     (body (w := w) (blockSize w r) pc i).length ≤ blockSize w r := by
   cases i with
-  | op o => cases o <;> simp [body, operation, Cslib.PointerMachine.sequence, blockSize] <;> omega
+  | op o =>
+    cases o with
+    | load d a | store d a =>
+      simp only [body, List.length_map, operation, Cslib.PointerMachine.sequence,
+        List.length_append, List.length_cons, List.length_nil, List.length_map]
+      unfold blockSize
+      omega
+    | const d n | copy d n => simp [body, operation, blockSize]
+    | alu f d args => simp [body, operation, blockSize]
   | jump d | halt d | rand d s => simp [body, blockSize]
   | branch c d => cases c <;> simp [body, blockSize]
 

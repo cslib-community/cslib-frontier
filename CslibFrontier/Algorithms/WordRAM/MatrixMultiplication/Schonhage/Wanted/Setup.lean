@@ -61,12 +61,19 @@ theorem exec_setup {w L m N Q : ℕ} (x : Data 96)
   have hb : Fits w (bandSize L m) := hf _ (by omega)
   have ht2 : Fits w (numBands L m N * numBands L m N) := hf _ (by rw [← sq]; omega)
   simp only [bandSize] at hb
+  obtain ⟨hi, ht, hc, ho, hcur0, hcur, hco, horig, hefit⟩ :
+      Fits w (inputLimit Q) ∧ Fits w (tableAddress L Q) ∧ Fits w (countAddress L Q) ∧
+      Fits w (offsetAddress L m N Q) ∧ Fits w (offsetAddress L m N Q + numBands L m N ^ 2) ∧
+      Fits w (cursorAddressBase L m N Q) ∧ Fits w (codeAddress L m N Q) ∧
+      Fits w (originalAddress L m N Q) ∧ Fits w (memoryLimit L m N Q) := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> refine hf _ ?_ <;>
+      simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
+        countAddress, tableAddress, inputLimit] <;> omega
   simp only [memoryLimit, originalAddress, codeAddress, cursorAddressBase, offsetAddress,
-    countAddress, tableAddress, inputLimit, pow_two] at hf
-  have hefit := hf _ le_self_add
+    countAddress, tableAddress, inputLimit, pow_two] at hi ht hc ho hcur0 hcur hco horig hefit
   refine WP.exists_execWithin ?_
   unfold setup
-  wram_exec * [hQ, h4, h5, hq2, hb, ht2, hefit]
+  wram_exec * [hQ, h4, h5, hq2, hi, ht, hc, hb, ht2, ho, hcur0, hcur, hco, horig, hefit]
   refine ⟨?_, rfl⟩
   refine ⟨?_, ?_, by wram_simp, by wram_simp, by wram_simp; rfl,
     by wram_simp; simp only [offsetAddress, countAddress, tableAddress, inputLimit, pow_two],
