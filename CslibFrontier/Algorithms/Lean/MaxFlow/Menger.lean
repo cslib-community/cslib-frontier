@@ -537,9 +537,8 @@ theorem exists_internallyDisjoint_eq_isVertexCut [Finite V] (G : Digraph V) {s t
   have hst' : (splitNetwork G s t).s ≠ (splitNetwork G s t).t := by simp [splitNetwork]
   obtain ⟨f, -, hf, -, -⟩ := Network.exists_maxFlow_eq_minCut (splitNetwork G s t) hst'
   have hno := (f.isMaxFlow_iff_not_exists_augmentingPath hst').mp hf
-  have hRcut := f.reachableCut_isCut hno
-  have hsR : (s, true) ∈ f.reachableCut := hRcut.1
-  have htR : (t, false) ∉ f.reachableCut := hRcut.2
+  obtain ⟨hsR, htR⟩ : (s, true) ∈ f.reachableCut ∧ (t, false) ∉ f.reachableCut :=
+    f.reachableCut_isCut hno
   have hval := f.value_eq_cutCapacity_reachableCut hno
   have hprop : ∀ u v, G.Adj u v → (u, true) ∈ f.reachableCut → (v, false) ∈ f.reachableCut := by
     intro u v huv hu
@@ -703,17 +702,16 @@ private theorem unwrap_extDigraph_dipath {G : Digraph V} {A B : Set V} {p : List
     ∃ Q : List V, p = Sum.inl true :: (Q.map Sum.inr ++ [Sum.inl false]) ∧
       ∃ a ∈ A, ∃ b ∈ B, G.IsDipath a b Q := by
   obtain ⟨hnd, hhead, hlast, hchain⟩ := hp
-  rcases p with _ | ⟨_, _ | ⟨_ | a, r'⟩⟩
+  rcases p with _ | ⟨x, p⟩
   · simp at hhead
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead; simp at hlast
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead
-    rw [List.isChain_cons_cons] at hchain
-    exact absurd hchain.1 (by cases ‹Bool› <;> simp [extDigraph])
-  · simp only [List.head?_cons, Option.some.injEq] at hhead; subst hhead
-    rw [List.isChain_cons_cons] at hchain
-    obtain ⟨Q, hQeq, hQnd, hQhead, ⟨b, hbB, hQlast⟩, hQchain⟩ :=
-      unwrap_extDigraph_mid (List.nodup_cons.mp hnd).2 (by simpa using hlast) hchain.2 rfl
-    exact ⟨Q, by simp [hQeq], a, hchain.1, b, hbB, hQnd, hQhead, hQlast, hQchain⟩
+  obtain rfl : x = Sum.inl true := by simpa using hhead
+  rcases p with _ | ⟨_ | a, r'⟩
+  · simp at hlast
+  all_goals rw [List.isChain_cons_cons] at hchain
+  · exact absurd hchain.1 (by cases ‹Bool› <;> simp [extDigraph])
+  obtain ⟨Q, hQeq, hQnd, hQhead, ⟨b, hbB, hQlast⟩, hQchain⟩ :=
+    unwrap_extDigraph_mid (List.nodup_cons.mp hnd).2 (by simpa using hlast) hchain.2 rfl
+  exact ⟨Q, by simp [hQeq], a, hchain.1, b, hbB, hQnd, hQhead, hQlast, hQchain⟩
 
 /-- **Menger's theorem, directed `A`–`B` vertex-disjoint form, with a matching separator**
 ([Menger1927]; [Schrijver2017], §4.1, Theorem 4.1): in a finite digraph, for any vertex sets
@@ -736,27 +734,21 @@ theorem exists_vertexDisjoint_eq_isSeparator [Finite V] (G : Digraph V) (A B : S
     rw [← Finset.card_map ⟨Sum.inr, Sum.inr_injective⟩, hmap, hTm]
   have hYsep : G.IsSeparator A B ↑Y := by
     intro u hu v hv p ⟨hpnd, hps, hpt, hpchain⟩
-    let p' : List (Bool ⊕ V) := Sum.inl true :: (p.map Sum.inr ++ [Sum.inl false])
-    have hpne : p ≠ [] := fun h => by rw [h] at hps; simp at hps
+    rcases p with _ | ⟨x, xs⟩
+    · simp at hps
+    obtain rfl : x = u := by simpa using hps
+    let p' : List (Bool ⊕ V) := Sum.inl true :: ((x :: xs).map Sum.inr ++ [Sum.inl false])
     have hp'nd : p'.Nodup := List.nodup_cons.mpr
       ⟨by simp, List.nodup_append.mpr ⟨hpnd.map Sum.inr_injective, List.nodup_singleton _,
         fun _ h₁ _ h₂ => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp h₁; simp_all⟩⟩
-    have hp'chain : p'.IsChain (extDigraph G A B).Adj := by
-      have htail := isChain_extDigraph_append (G := G) (A := A) hpne hpt hpchain hv
-      rcases p with _ | ⟨x, xs⟩
-      · exact absurd rfl hpne
-      · obtain rfl : x = u := by simpa using hps
-        exact List.isChain_cons_cons.mpr ⟨hu, htail⟩
-    have hp'last : p'.getLast? = some (Sum.inl false) := by
-      change (Sum.inl true :: (p.map Sum.inr ++ [Sum.inl false])).getLast? = some (Sum.inl false)
-      rw [List.getLast?_cons_of_ne_nil (by simp), List.getLast?_append]; simp
-    obtain ⟨z, hz, hzT⟩ := hTcut.2.2 p' ⟨hp'nd, rfl, hp'last, hp'chain⟩
-    rcases List.mem_cons.mp hz with rfl | hz'
+    have hp'chain : p'.IsChain (extDigraph G A B).Adj := List.isChain_cons_cons.mpr
+      ⟨hu, isChain_extDigraph_append (List.cons_ne_nil _ _) hpt hpchain hv⟩
+    obtain ⟨z, hz, hzT⟩ := hTcut.2.2 p' ⟨hp'nd, rfl, by simp [p', List.getLast?_cons], hp'chain⟩
+    simp only [p', List.mem_cons, List.mem_append, List.mem_map, List.mem_nil_iff, or_false] at hz
+    rcases hz with rfl | ⟨w, hwp, rfl⟩ | rfl
     · exact absurd hzT hTcut.1
-    · rcases List.mem_append.mp hz' with hzmap | hzlast
-      · obtain ⟨w, hwp, rfl⟩ := List.mem_map.mp hzmap
-        exact ⟨w, hwp, Finset.mem_coe.mpr (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hzT⟩)⟩
-      · rw [List.mem_singleton] at hzlast; subst hzlast; exact absurd hzT hTcut.2.1
+    · exact ⟨w, List.mem_cons.mpr hwp, by simpa [Y] using hzT⟩
+    · exact absurd hzT hTcut.2.1
   refine ⟨m, Q, fun i => ⟨a i, ha i, b i, hb i, hQ i⟩, fun i j hij v hvi hvj => ?_, Y, hYsep,
     hYcard⟩
   rcases hdisj₀ hij (Sum.inr v) (by simp [hQeq i, hvi]) (by simp [hQeq j, hvj]) with h | h <;>
@@ -1035,8 +1027,7 @@ theorem isVertexConnected_iff_forall_exists_injective_internallyDisjoint [Finite
               (Nat.succ_le_succ (Finset.card_insert_le v T))
             rw [heq, Finset.card_univ] at this; omega
           obtain ⟨w, -, hwins⟩ := Finset.exists_of_ssubset (Finset.ssubset_univ_iff.mpr hne)
-          simp only [Finset.mem_insert, not_or] at hwins
-          obtain ⟨hwu, hwv, hwT⟩ := hwins
+          obtain ⟨hwu, hwv, hwT⟩ : w ≠ u ∧ w ≠ v ∧ w ∉ T := by simpa using hwins
           obtain ⟨huT, hvT, huvnr⟩ := isVertexSeparator_iff_not_reachable_induce.mp hT
           have step {a b : V} (haT : a ∉ T) (hab : a ≠ b) (haw : a ≠ w) (hbw : b ≠ w)
               (hnr : ¬ ((G.deleteEdges {s(a, b)}).induce (T : Set V)ᶜ).Reachable
