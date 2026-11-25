@@ -2459,6 +2459,7 @@ public import CslibFrontier.Computability.Communication.Nondeterministic.UniqueD
 public import CslibFrontier.Computability.Communication.Nondeterministic.UniqueDisjointnessUpper
 public import CslibFrontier.Computability.Communication.OneOut
 public import CslibFrontier.Computability.Communication.OneOutLargeRectangle
+public import CslibFrontier.Computability.Communication.OneOutLowerBound
 public import CslibFrontier.Computability.Communication.OneOutRectangle
 public import CslibFrontier.Computability.Communication.Operations
 public import CslibFrontier.Computability.Communication.Partition
