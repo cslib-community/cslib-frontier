@@ -393,8 +393,7 @@ theorem closeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
   obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
   have hj' := List.mem_range.mp hj
   have hrl := hrs.length_eq
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs]
+  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs ⊢
   have hlen : (rs.take j).length = (holes.take j).length := by
     simp only [List.length_take]
     omega
@@ -481,9 +480,7 @@ theorem isSome_holeWitness {K : ℕ} :
     rcases hν with hν | hν
     · -- A new hole.
       refine .inl ?_
-      split_ifs at hν with hK
-      swap
-      · simp at hν
+      split_ifs at hν with hK <;> [skip; simp at hν]
       obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
       obtain ⟨⟨s, t⟩, hss, rfl⟩ := Finset.mem_image.mp hν
       obtain ⟨-, hs⟩ := Finset.mem_filter.mp hss
