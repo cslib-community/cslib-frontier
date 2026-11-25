@@ -100,12 +100,10 @@ private theorem exec_body {w m n g p A : ℕ} (values : List ℤ)
   dsimp only
   intro z hz hc
   have hguard : z.regs Reg.index < z.regs Reg.limit := hc
-  have before : z.regs Reg.found = 0 := by
-    rcases hz.flag with h | h
-    · exact h
-    · have hlim := hz.limit
-      rw [h, ite_eq_left rfl] at hlim
-      omega
+  have before : z.regs Reg.found = 0 := hz.flag.resolve_right fun h => by
+    have hlim := hz.limit
+    rw [h, ite_eq_left rfl] at hlim
+    omega
   have lim : z.regs Reg.limit = M := by
     simpa only [before, zero_ne_one, ite_false] using hz.limit
   have hi : z.regs Reg.index < M := by omega
@@ -201,39 +199,28 @@ theorem exec_traverse {w m n g p A : ℕ} (values : List ℤ)
   let order : ℕ → InstanceIndex p := fun i =>
     if hi : i < M then f ⟨i, hi⟩ else ⟨⟨0, Nat.pos_of_ne_zero hp0⟩, 0, 0⟩
   have order_at (i : ℕ) (hi : i < M) : order i = f ⟨i, hi⟩ := dite_eq_left hi
-  have order_mem (i : ℕ) (hi : i < M) : order i ∈ I := by
-    rw [order_at i hi]
-    exact (hf _).1
+  have order_mem (i : ℕ) (hi : i < M) : order i ∈ I := order_at i hi ▸ (hf _).1
   have order_ord (i : ℕ) (hi : i < M) :
-      RecordProduct.recordOrdinal n (D m) g p V (order i) = i := by
-    rw [order_at i hi]
-    exact (hf _).2
+      RecordProduct.recordOrdinal n (D m) g p V (order i) = i := order_at i hi ▸ (hf _).2
   have sum_eq (charge : InstanceIndex p → ℕ) :
-      (∑ j ∈ Finset.range M, charge (order j)) = ∑ idx ∈ I, charge idx := by
-    apply Finset.sum_bij (fun i hi => f ⟨i, Finset.mem_range.mp hi⟩)
-    · exact fun i hi => (hf _).1
-    · intro i hi j hj heq
-      exact congrArg Fin.val (finj heq)
-    · intro idx hidx
-      obtain ⟨i, hi⟩ := fsurj idx hidx
-      exact ⟨i.val, Finset.mem_range.mpr i.isLt, hi⟩
-    · intro i hi
-      rw [order_at i (Finset.mem_range.mp hi)]
+      (∑ j ∈ Finset.range M, charge (order j)) = ∑ idx ∈ I, charge idx :=
+    Finset.sum_bij (fun i hi => f ⟨i, Finset.mem_range.mp hi⟩) (fun _ _ => (hf _).1)
+      (fun _ _ _ _ heq => congrArg Fin.val (finj heq))
+      (fun idx hidx => let ⟨i, hi⟩ := fsurj idx hidx; ⟨i.val, Finset.mem_range.mpr i.isLt, hi⟩)
+      (fun i hi => by rw [order_at i (Finset.mem_range.mp hi)])
   let charge := fun (idx : InstanceIndex p) =>
     recordBase (m := m) hn V a.mem idx + (40 * (n * D m) + 67)
   let B := fun i => charge (order i)
   let F := fun i => recordFailures (m := m) (g := g) hn V a.mem (order i)
   let C := 42 * pieceSize (D m) g + 28
-  have hF : (∑ j ∈ Finset.range M, F j) ≤ falsePositiveCount wAB wBC wAC p := by
-    rw [show (∑ j ∈ Finset.range M, F j) =
-      ∑ idx ∈ I, recordFailures (m := m) (g := g) hn V a.mem idx from
-        sum_eq (recordFailures (m := m) (g := g) hn V a.mem)]
-    exact sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi)
+  have hF : (∑ j ∈ Finset.range M, F j) ≤ falsePositiveCount wAB wBC wAC p :=
+    (sum_eq (recordFailures (m := m) (g := g) hn V a.mem)).trans_le
+      (sum_recordFailures_le hn V hout hD hDn hg hp I (fun _ hi => hi))
   let Inv := Invariant (m := m) (g := g) V a x order hn
   let Φ := fun z : Data 416 => remainingCharge B F C M (z.regs Reg.index) (z.regs Reg.found)
   have body : ∀ z, Inv z → (Cond.lt Reg.index Reg.limit).Holds z →
-      ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z := by
-    exact exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
+      ∃ y T, ExecWithin (w + 2) step z y T ∧ Inv y ∧ T + 2 + Φ y ≤ Φ z :=
+    exec_body values hlen hD hg hp hN hv hW a x hout hheap hn order order_mem order_ord
   have h1 : Fits (w + 2) 1 := (counter_fits hW).of_le (by unfold counterEnvelope; omega)
   obtain ⟨s, hs, sm, si, sl, sf, ss, so, sbank⟩ := exec_setup x h1
   have sInv : Inv s := by
