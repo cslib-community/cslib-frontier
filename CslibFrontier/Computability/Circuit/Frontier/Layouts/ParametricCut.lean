@@ -604,6 +604,19 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
   set U₁ := G.innerFrontierClass y t 1
   set U₂ := G.innerFrontierClass y t 2
   set E₂₂ := G.internalEdges U₂
+  have hL (v : V) : v ∈ L ↔ y v ≤ t ∧ G.innerCrossDeg y t v ≤ 1 := G.mem_lowerSublevel_iff h3 y t v
+  have hU₂L {v : V} (hv : v ∈ U₂) : v ∉ L := fun h => by
+    have := ((hL v).mp h).2; have := hv.2; omega
+  -- A lower vertex outside `L` has at most one incident edge to a lower vertex.
+  have hlow_eq {u : V} (hy : y u ≤ t) (hu : u ∉ L) {e₁ e₂ : E} (h₁ : e₁ ∈ G.incidenceSet u)
+      (hy₁ : y (G.otherEnd u e₁) ≤ t) (h₂ : e₂ ∈ G.incidenceSet u)
+      (hy₂ : y (G.otherEnd u e₂) ≤ t) : e₁ = e₂ := by
+    have := innerCrossDeg_add_low_eq (h3 u) y t
+    have : ¬G.innerCrossDeg y t u ≤ 1 := fun h => hu ((hL u).mpr ⟨hy, h⟩)
+    exact (ncard_le_one (s := {e ∈ G.incidenceSet u | y (G.otherEnd u e) ≤ t}) (toFinite _)).mp
+      (by omega) e₁ ⟨h₁, hy₁⟩ e₂ ⟨h₂, hy₂⟩
+  have hyE₂₂ {u : V} {e : E} (he : e ∈ E₂₂) : y (G.otherEnd u e) ≤ t := by
+    unfold otherEnd; split_ifs; exacts [he.2.1, he.1.1]
   let inEnd (e : E) : V := if G.src e ∈ L then G.src e else G.tgt e
   let outEnd (e : E) : V := if G.src e ∈ L then G.tgt e else G.src e
   let charge (e : E) : V := if t < y (outEnd e) then inEnd e else outEnd e
@@ -614,17 +627,19 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
     rw [mem_edgeCut] at he
     have hne := hloop e
     by_cases hs : G.src e ∈ L
-    · have ht : G.tgt e ∉ L := fun ht => he (iff_of_true hs ht)
-      have hin_eq : inEnd e = G.src e := by simp [inEnd, hs]
-      have hout_eq : outEnd e = G.tgt e := by simp [outEnd, hs]
-      rw [hin_eq, hout_eq]
-      exact ⟨hs, ht, Or.inl rfl, Or.inr rfl, by simp [otherEnd], by simp [otherEnd, hne]⟩
-    · have ht : G.tgt e ∈ L := by
-        by_contra ht; exact he (iff_of_false hs ht)
-      have hin_eq : inEnd e = G.tgt e := by simp [inEnd, hs]
-      have hout_eq : outEnd e = G.src e := by simp [outEnd, hs]
-      rw [hin_eq, hout_eq]
-      exact ⟨ht, hs, Or.inr rfl, Or.inl rfl, by simp [otherEnd, hne], by simp [otherEnd]⟩
+    · simp only [inEnd, outEnd, ite_eq_left hs]
+      exact ⟨hs, fun ht => he (iff_of_true hs ht), Or.inl rfl, Or.inr rfl, by simp [otherEnd],
+        by simp [otherEnd, hne]⟩
+    · simp only [inEnd, outEnd, ite_eq_right hs]
+      exact ⟨by_contra fun ht => he (iff_of_false hs ht), hs, Or.inr rfl, Or.inl rfl,
+        by simp [otherEnd, hne], by simp [otherEnd]⟩
+  have hend_eq {e : E} {u : V} (he : e ∈ G.edgeCut L) (hinc : e ∈ G.incidenceSet u) :
+      (u ∈ L → inEnd e = u) ∧ (u ∉ L → outEnd e = u) := by
+    obtain ⟨hin, hout, -⟩ := hends he
+    have hmem : inEnd e = u ∨ outEnd e = u := by
+      simp only [inEnd, outEnd]; split_ifs; exacts [hinc, hinc.symm]
+    exact ⟨fun hu => hmem.resolve_right fun h => hout (h ▸ hu),
+      fun hu => hmem.resolve_left fun h => hu (h ▸ hin)⟩
   have hdisjU : Disjoint U₁ U₂ :=
     disjoint_left.mpr fun _ h₁ h₂ => by
       simp only [U₁, U₂, innerFrontierClass, mem_ofPred_eq] at h₁ h₂
@@ -633,171 +648,84 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
   have hmaps : MapsTo charge (G.edgeCut L) (U₁ ∪ U₂) := by
     intro e he
     obtain ⟨hin, hout, he_in, he_out, hov_in, hov_out⟩ := hends he
-    obtain ⟨hy_in, hdeg_in⟩ := (G.mem_lowerSublevel_iff h3 y t (inEnd e)).mp hin
-    by_cases hgt : t < y (outEnd e)
-    · simp only [charge, hgt, ↓reduceIte]
-      left
-      have hge1 : 1 ≤ G.innerCrossDeg y t (inEnd e) := by
-        rw [innerCrossDeg, Nat.one_le_iff_ne_zero, ← pos_iff_ne_zero, ncard_pos (toFinite _)]
-        exact ⟨e, he_in, by rwa [hov_in]⟩
-      exact ⟨hy_in, le_antisymm hdeg_in hge1⟩
-    · simp only [charge, hgt, ↓reduceIte]
-      right
-      have hy_out : y (outEnd e) ≤ t := not_lt.mp hgt
-      have hnot_le1 : ¬G.innerCrossDeg y t (outEnd e) ≤ 1 := fun h1 =>
-        hout ((G.mem_lowerSublevel_iff h3 y t (outEnd e)).mpr ⟨hy_out, h1⟩)
-      have hlow1 :
-          1 ≤ {e' ∈ G.incidenceSet (outEnd e) | y (G.otherEnd (outEnd e) e') ≤ t}.ncard := by
-        rw [Nat.one_le_iff_ne_zero, ← pos_iff_ne_zero, ncard_pos (toFinite _)]
-        exact ⟨e, he_out, by rwa [hov_out]⟩
-      have hsum := innerCrossDeg_add_low_eq (h3 (outEnd e)) y t
-      exact ⟨hy_out, by omega⟩
+    obtain ⟨hy_in, hdeg_in⟩ := (hL _).mp hin
+    by_cases hgt : t < y (outEnd e) <;> simp only [charge, hgt, ↓reduceIte]
+    · exact Or.inl ⟨hy_in, le_antisymm hdeg_in
+        ((ncard_pos (toFinite _)).mpr ⟨e, he_in, by rwa [hov_in]⟩)⟩
+    · have hy_out : y (outEnd e) ≤ t := not_lt.mp hgt
+      have : ¬G.innerCrossDeg y t (outEnd e) ≤ 1 := fun h1 => hout ((hL _).mpr ⟨hy_out, h1⟩)
+      have : 0 < {e' ∈ G.incidenceSet (outEnd e) | y (G.otherEnd (outEnd e) e') ≤ t}.ncard :=
+        (ncard_pos (toFinite _)).mpr ⟨e, he_out, by rwa [hov_out]⟩
+      have := innerCrossDeg_add_low_eq (h3 (outEnd e)) y t
+      exact Or.inr ⟨hy_out, by omega⟩
   -- 2. `charge` is injective on `G.edgeCut L`.
   have hinj : InjOn charge (G.edgeCut L) := by
     intro e₁ he₁ e₂ he₂ heq
     obtain ⟨hin₁, hout₁, he_in₁, he_out₁, hov_in₁, hov_out₁⟩ := hends he₁
     obtain ⟨hin₂, hout₂, he_in₂, he_out₂, hov_in₂, hov_out₂⟩ := hends he₂
-    by_cases hgt₁ : t < y (outEnd e₁) <;> by_cases hgt₂ : t < y (outEnd e₂)
-    · simp only [charge, hgt₁, hgt₂, ↓reduceIte] at heq
-      have hdeg₁ := ((G.mem_lowerSublevel_iff h3 y t (inEnd e₁)).mp hin₁).2
-      have hle1 : {e ∈ G.incidenceSet (inEnd e₁) | t < y (G.otherEnd (inEnd e₁) e)}.ncard ≤ 1 :=
-        hdeg₁
+    by_cases hgt₁ : t < y (outEnd e₁) <;> by_cases hgt₂ : t < y (outEnd e₂) <;>
+      simp only [charge, hgt₁, hgt₂, ↓reduceIte] at heq
+    · have hle1 : {e ∈ G.incidenceSet (inEnd e₁) | t < y (G.otherEnd (inEnd e₁) e)}.ncard ≤ 1 :=
+        ((hL _).mp hin₁).2
       exact (ncard_le_one (toFinite _)).mp hle1 e₁ ⟨he_in₁, by rwa [hov_in₁]⟩ e₂
-        ⟨heq ▸ he_in₂, by rw [← heq] at hov_in₂; rwa [hov_in₂]⟩
-    · simp only [charge, hgt₁, hgt₂, ↓reduceIte] at heq
-      exact absurd (heq ▸ hin₁) hout₂
-    · simp only [charge, hgt₁, hgt₂, ↓reduceIte] at heq
-      exact absurd (heq ▸ hin₂) hout₁
-    · simp only [charge, hgt₁, hgt₂, ↓reduceIte] at heq
-      have hy_out₁ : y (outEnd e₁) ≤ t := not_lt.mp hgt₁
-      have hnot₁ : ¬G.innerCrossDeg y t (outEnd e₁) ≤ 1 := fun h1 =>
-        hout₁ ((G.mem_lowerSublevel_iff h3 y t (outEnd e₁)).mpr ⟨hy_out₁, h1⟩)
-      have hsum := innerCrossDeg_add_low_eq (h3 (outEnd e₁)) y t
-      have hlow_le1 :
-          {e ∈ G.incidenceSet (outEnd e₁) | y (G.otherEnd (outEnd e₁) e) ≤ t}.ncard ≤ 1 := by omega
-      have hy_in₁ := ((G.mem_lowerSublevel_iff h3 y t (inEnd e₁)).mp hin₁).1
-      have hy_in₂ := ((G.mem_lowerSublevel_iff h3 y t (inEnd e₂)).mp hin₂).1
-      exact (ncard_le_one (toFinite _)).mp hlow_le1 e₁ ⟨he_out₁, by rwa [hov_out₁]⟩ e₂
-        ⟨heq ▸ he_out₂, by rw [← heq] at hov_out₂; rwa [hov_out₂]⟩
+        ⟨heq ▸ he_in₂, by rw [heq, hov_in₂]; exact hgt₂⟩
+    · exact absurd (heq ▸ hin₁) hout₂
+    · exact absurd (heq ▸ hin₂) hout₁
+    · exact hlow_eq (not_lt.mp hgt₁) hout₁ he_out₁ (by rw [hov_out₁]; exact ((hL _).mp hin₁).1)
+        (heq ▸ he_out₂) (by rw [heq, hov_out₂]; exact ((hL _).mp hin₂).1)
   -- 3. Identify `(U₁ ∪ U₂) \ (charge '' G.edgeCut L)` as the endpoints of `E₂₂`.
   let U₂int : Set V := {u ∈ U₂ | ∃ e ∈ E₂₂, e ∈ G.incidenceSet u}
   have hcompl : (U₁ ∪ U₂) \ (charge '' G.edgeCut L) = U₂int := by
     ext u
     simp only [mem_sdiff, mem_union, mem_image, U₂int, mem_sep_iff]
     constructor
-    · rintro ⟨hu1 | hu2, hnot⟩
-      · exfalso
-        obtain ⟨hyu, hdeg1⟩ := hu1
-        obtain ⟨e, he_inc, hgt⟩ : ∃ e ∈ G.incidenceSet u, t < y (G.otherEnd u e) := by
-          have hne : {e ∈ G.incidenceSet u | t < y (G.otherEnd u e)}.Nonempty :=
-            nonempty_of_ncard_ne_zero (by rw [← innerCrossDeg, hdeg1]; omega)
-          obtain ⟨e, he⟩ := hne
-          exact ⟨e, he.1, he.2⟩
-        have huL : u ∈ L := (G.mem_lowerSublevel_iff h3 y t u).mpr ⟨hyu, by omega⟩
-        have hwL : G.otherEnd u e ∉ L := fun hw =>
-          hgt.not_ge ((G.mem_lowerSublevel_iff h3 y t _).mp hw).1
-        have he_cut : e ∈ G.edgeCut L := by
-          rw [G.mem_edgeCut_iff_otherEnd he_inc]
-          exact fun hiff => hwL (hiff.mp huL)
-        apply hnot
-        refine ⟨e, he_cut, ?_⟩
-        obtain ⟨-, -, -, -, hov_in, -⟩ := hends he_cut
-        have hu_eq : inEnd e = u := by
-          rcases he_inc with hs | ht_eq
-          · simp [inEnd, hs, huL]
-          · have hs_ne : G.src e ≠ u := ht_eq ▸ hloop e
-            have hs_eq : G.otherEnd u e = G.src e := by simp [otherEnd, hs_ne]
-            have hs_not : G.src e ∉ L := hs_eq ▸ hwL
-            simp [inEnd, hs_not, ht_eq]
-        have hout_eq : outEnd e = G.otherEnd u e := by rw [← hov_in, hu_eq]
-        simp [charge, hout_eq, hgt, hu_eq]
+    · rintro ⟨⟨hyu, hdeg1⟩ | hu2, hnot⟩
+      · obtain ⟨e, he_inc, hgt⟩ : {e ∈ G.incidenceSet u | t < y (G.otherEnd u e)}.Nonempty :=
+          nonempty_of_ncard_ne_zero (by rw [← innerCrossDeg, hdeg1]; omega)
+        have huL : u ∈ L := (hL u).mpr ⟨hyu, hdeg1.le⟩
+        have he_cut : e ∈ G.edgeCut L := (G.mem_edgeCut_iff_otherEnd he_inc).mpr fun h =>
+          hgt.not_ge ((hL _).mp (h.mp huL)).1
+        have hu_eq := (hend_eq he_cut he_inc).1 huL
+        have hout_eq : outEnd e = G.otherEnd u e := by rw [← (hends he_cut).2.2.2.2.1, hu_eq]
+        exact absurd ⟨e, he_cut, by simp only [charge, hout_eq, hgt, ↓reduceIte, hu_eq]⟩ hnot
       · refine ⟨hu2, ?_⟩
-        have hyu : y u ≤ t := hu2.1
-        have hdeg2 : G.innerCrossDeg y t u = 2 := hu2.2
-        have hsum := innerCrossDeg_add_low_eq (h3 u) y t
-        have hlow1 : {e ∈ G.incidenceSet u | y (G.otherEnd u e) ≤ t}.ncard = 1 := by omega
-        obtain ⟨e, he_low⟩ := nonempty_of_ncard_ne_zero (by rw [hlow1]; omega)
-        obtain ⟨he_inc, hyz⟩ := he_low
-        set z := G.otherEnd u e
+        have := innerCrossDeg_add_low_eq (h3 u) y t
+        have := hu2.2
+        obtain ⟨e, he_inc, hyz⟩ : {e ∈ G.incidenceSet u | y (G.otherEnd u e) ≤ t}.Nonempty :=
+          nonempty_of_ncard_ne_zero (by omega)
         obtain ⟨-, he_z, hov_z⟩ := otherEnd_symm_of_loopless hloop he_inc
-        have hu_notL : u ∉ L := fun huL => by
-          have := ((G.mem_lowerSublevel_iff h3 y t u).mp huL).2; omega
-        by_cases hzL : z ∈ L
-        · exfalso
-          have he_cut : e ∈ G.edgeCut L := by
-            rw [G.mem_edgeCut_iff_otherEnd he_inc]
-            exact fun hiff => hu_notL (hiff.mpr hzL)
-          apply hnot
-          refine ⟨e, he_cut, ?_⟩
-          have hout_eq : outEnd e = u := by
-            rcases he_inc with hs | ht_eq
-            · simp [outEnd, hs, hu_notL]
-            · have hs_ne : G.src e ≠ u := ht_eq ▸ hloop e
-              have hs_eq : z = G.src e := by simp [z, otherEnd, hs_ne]
-              have hs_in : G.src e ∈ L := hs_eq ▸ hzL
-              simp [outEnd, hs_in, ht_eq]
-          have hnot_gt : ¬t < y u := not_lt.mpr hyu
-          dsimp only [charge]
-          rw [hout_eq]
-          exact ite_eq_right_iff.mpr fun h => absurd h hnot_gt
-        · have hz_gt1 : ¬G.innerCrossDeg y t z ≤ 1 := fun h1 =>
-            hzL ((G.mem_lowerSublevel_iff h3 y t z).mpr ⟨hyz, h1⟩)
-          have hlow_z : 1 ≤ {e' ∈ G.incidenceSet z | y (G.otherEnd z e') ≤ t}.ncard := by
-            rw [Nat.one_le_iff_ne_zero, ← pos_iff_ne_zero, ncard_pos (toFinite _)]
-            exact ⟨e, he_z, by rwa [hov_z]⟩
-          have hsum_z := innerCrossDeg_add_low_eq (h3 z) y t
-          have hz2 : z ∈ U₂ := ⟨hyz, by omega⟩
+        by_cases hzL : G.otherEnd u e ∈ L
+        · have he_cut : e ∈ G.edgeCut L := (G.mem_edgeCut_iff_otherEnd he_inc).mpr fun h =>
+            hU₂L hu2 (h.mpr hzL)
+          refine absurd ⟨e, he_cut, ?_⟩ hnot
+          simp only [charge, (hend_eq he_cut he_inc).2 (hU₂L hu2), not_lt.mpr hu2.1, ↓reduceIte]
+        · have hz2 : G.otherEnd u e ∈ U₂ := by
+            have := innerCrossDeg_add_low_eq (h3 (G.otherEnd u e)) y t
+            have : ¬G.innerCrossDeg y t (G.otherEnd u e) ≤ 1 := fun h1 =>
+              hzL ((hL _).mpr ⟨hyz, h1⟩)
+            have : 0 < {e' ∈ G.incidenceSet (G.otherEnd u e) |
+                y (G.otherEnd (G.otherEnd u e) e') ≤ t}.ncard :=
+              (ncard_pos (toFinite _)).mpr ⟨e, he_z, by rw [hov_z]; exact hu2.1⟩
+            exact ⟨hyz, by omega⟩
           refine ⟨e, ?_, he_inc⟩
-          rcases he_inc with hs | ht_eq
-          · have ht_z : G.tgt e = z := by simp [z, otherEnd, hs]
-            exact ⟨hs ▸ hu2, ht_z ▸ hz2⟩
-          · have hs_ne : G.src e ≠ u := ht_eq ▸ hloop e
-            have hs_z : G.src e = z := by simp [z, otherEnd, hs_ne]
-            exact ⟨hs_z ▸ hz2, ht_eq ▸ hu2⟩
-    · rintro ⟨hu2, e, ⟨hs2, ht2⟩, he_inc⟩
+          unfold otherEnd at hz2
+          split_ifs at hz2 with hs
+          exacts [⟨hs ▸ hu2, hz2⟩, ⟨hz2, he_inc.resolve_left hs ▸ hu2⟩]
+    · rintro ⟨hu2, e, he22, he_inc⟩
       refine ⟨Or.inr hu2, ?_⟩
       rintro ⟨e', he'_cut, hcharge⟩
-      obtain ⟨hin', hout', he_in', he_out', hov_in', hov_out'⟩ := hends he'_cut
-      by_cases hgt' : t < y (outEnd e')
-      · simp only [charge, hgt', ↓reduceIte] at hcharge
-        have huL : u ∈ L := hcharge ▸ hin'
-        have := ((G.mem_lowerSublevel_iff h3 y t u).mp huL).2
-        have := hu2.2
-        omega
-      · simp only [charge, hgt', ↓reduceIte] at hcharge
-        have hsum := innerCrossDeg_add_low_eq (h3 u) y t
-        have hlow_le1 : {f ∈ G.incidenceSet u | y (G.otherEnd u f) ≤ t}.ncard ≤ 1 := by
-          have := hu2.2; omega
-        have hy_other_e : y (G.otherEnd u e) ≤ t := by
-          unfold otherEnd; split_ifs; exacts [ht2.1, hs2.1]
-        have hy_other_e' : y (G.otherEnd u e') ≤ t := by
-          rw [← hcharge, hov_out']
-          exact ((G.mem_lowerSublevel_iff h3 y t (inEnd e')).mp hin').1
-        have hee' : e' = e := (ncard_le_one (toFinite _)).mp hlow_le1 e'
-          ⟨hcharge ▸ he_out', hy_other_e'⟩ e ⟨he_inc, hy_other_e⟩
-        subst hee'
-        have hs_not : G.src e' ∉ L := fun h => by
-          have := ((G.mem_lowerSublevel_iff h3 y t _).mp h).2; have := hs2.2; omega
-        have ht_not : G.tgt e' ∉ L := fun h => by
-          have := ((G.mem_lowerSublevel_iff h3 y t _).mp h).2; have := ht2.2; omega
-        rcases he_in' with hs_eq | ht_eq
-        · exact hs_not (hs_eq ▸ hin')
-        · exact ht_not (ht_eq ▸ hin')
+      obtain ⟨hin', -, -, he_out', -, hov_out'⟩ := hends he'_cut
+      by_cases hgt' : t < y (outEnd e') <;> simp only [charge, hgt', ↓reduceIte] at hcharge
+      · exact hU₂L hu2 (hcharge ▸ hin')
+      · subst hcharge
+        obtain rfl := hlow_eq hu2.1 (hU₂L hu2) he_out'
+          (by rw [hov_out']; exact ((hL _).mp hin').1) he_inc (hyE₂₂ he22)
+        exact hU₂L (show inEnd e' ∈ U₂ by simp only [inEnd]; split_ifs; exacts [he22.1, he22.2])
+          hin'
   -- 4. `E₂₂` is a matching on `U₂int`, so `U₂int.ncard = 2 * E₂₂.ncard`.
   have hcard_U₂int : U₂int.ncard = 2 * E₂₂.ncard := by
     have := Fintype.ofFinite V
     have := Fintype.ofFinite E
-    have huniq : ∀ u ∈ U₂int, ∀ e₁ ∈ E₂₂, ∀ e₂ ∈ E₂₂,
-        e₁ ∈ G.incidenceSet u → e₂ ∈ G.incidenceSet u → e₁ = e₂ := by
-      intro u ⟨hu2, _⟩ e₁ ⟨hs₁, ht₁⟩ e₂ ⟨hs₂, ht₂⟩ hi₁ hi₂
-      have hsum := innerCrossDeg_add_low_eq (h3 u) y t
-      have hlow_le1 : {f ∈ G.incidenceSet u | y (G.otherEnd u f) ≤ t}.ncard ≤ 1 := by
-        have := hu2.2; omega
-      have hy₁ : y (G.otherEnd u e₁) ≤ t := by
-        unfold otherEnd; split_ifs; exacts [ht₁.1, hs₁.1]
-      have hy₂ : y (G.otherEnd u e₂) ≤ t := by
-        unfold otherEnd; split_ifs; exacts [ht₂.1, hs₂.1]
-      exact (ncard_le_one (toFinite _)).mp hlow_le1 e₁ ⟨hi₁, hy₁⟩ e₂ ⟨hi₂, hy₂⟩
     let F_U : Finset V := Finset.univ.filter (· ∈ U₂int)
     let F_E : Finset E := Finset.univ.filter (· ∈ E₂₂)
     have hcU : U₂int.ncard = F_U.card := by
@@ -809,16 +737,11 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
       rw [Finset.card_eq_sum_ones]
       refine Finset.sum_congr rfl fun u hu => ?_
       obtain ⟨hu2, e₀, he₀E, he₀I⟩ := (Finset.mem_filter.mp hu).2
-      symm
-      rw [Finset.sum_eq_single e₀]
+      rw [Finset.sum_eq_single_of_mem e₀ (Finset.mem_filter.mpr ⟨Finset.mem_univ e₀, he₀E⟩)
+        fun e' he' hne => ?_]
       · simp [he₀I]
-      · intro e' he' hne
-        have he'E := (Finset.mem_filter.mp he').2
-        simp only [ite_eq_right_iff]
-        intro hi'
-        exact absurd (huniq u ⟨hu2, e₀, he₀E, he₀I⟩ e' he'E e₀ he₀E hi' he₀I) hne
-      · intro hnot
-        exact absurd (Finset.mem_filter.mpr ⟨Finset.mem_univ e₀, he₀E⟩) hnot
+      · refine ite_eq_right_iff.mpr fun hi' => absurd ?_ hne
+        exact hlow_eq hu2.1 (hU₂L hu2) hi' (hyE₂₂ (Finset.mem_filter.mp he').2) he₀I (hyE₂₂ he₀E)
     have h2 : (∑ e ∈ F_E, ∑ u ∈ F_U, if e ∈ G.incidenceSet u then 1 else 0) = 2 * F_E.card := by
       rw [Finset.card_eq_sum_ones, Finset.mul_sum]
       refine Finset.sum_congr rfl fun e he => ?_
@@ -828,22 +751,17 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
         ext u
         simp only [Finset.mem_filter, F_U, Finset.mem_univ, true_and, Finset.mem_insert,
           Finset.mem_singleton, mem_incidenceSet]
-        constructor
-        · rintro ⟨-, h⟩; exact h.imp Eq.symm Eq.symm
-        · rintro (rfl | rfl)
-          · exact ⟨⟨hs2, e, ⟨hs2, ht2⟩, Or.inl rfl⟩, Or.inl rfl⟩
-          · exact ⟨⟨ht2, e, ⟨hs2, ht2⟩, Or.inr rfl⟩, Or.inr rfl⟩
+        refine ⟨fun ⟨_, h⟩ => h.imp Eq.symm Eq.symm, ?_⟩
+        rintro (rfl | rfl)
+        exacts [⟨⟨hs2, e, ⟨hs2, ht2⟩, Or.inl rfl⟩, Or.inl rfl⟩,
+          ⟨⟨ht2, e, ⟨hs2, ht2⟩, Or.inr rfl⟩, Or.inr rfl⟩]
       rw [hpair, Finset.card_pair (hloop e)]
       rfl
     rw [h1, Finset.sum_comm, h2]
   -- 5. Combine `hinj.ncard_image` with `(charge '' δ(L)) ⊔ U₂int = U₁ ⊔ U₂`.
-  have himg_sub : charge '' G.edgeCut L ⊆ U₁ ∪ U₂ := hmaps.image_subset
-  have hpart : (charge '' G.edgeCut L).ncard + ((U₁ ∪ U₂) \ (charge '' G.edgeCut L)).ncard =
-      (U₁ ∪ U₂).ncard := by
-    have := Set.ncard_sdiff_add_ncard_of_subset himg_sub (toFinite _)
-    omega
+  have hpart := Set.ncard_sdiff_add_ncard_of_subset hmaps.image_subset (toFinite _)
   rw [hinj.ncard_image, hcompl, hcard_U₂int, ncard_union_eq hdisjU] at hpart
-  exact hpart
+  omega
 
 /-- Subtracted form of the exact `L_-(t)` edge-cut identity:
 `|δ(L_-(t))| = |U₁(t)| + |U₂(t)| - 2 |E(U₂(t), U₂(t))|`. -/
