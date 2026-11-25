@@ -101,7 +101,11 @@ theorem exists_program_csp_treeDecomposition :
   obtain ⟨hval, hres, hcost⟩ := runTreeCSPProg_spec inst hw
   obtain ⟨y, n, hruns, hhalt, _, _, hn_le⟩ :=
     hexec w () inst.encode (fun j => Fin.elim0 j) (Nat.zero_le _)
-      (hw.of_le (by unfold TreeCSPInstance.wordBound; dsimp only; omega)) hin ⟨inst, rfl, hw⟩ hval
+      (hw.of_le <| by
+        unfold TreeCSPInstance.wordBound
+        dsimp only
+        omega)
+      hin ⟨inst, rfl, hw⟩ hval
   rw [clientResult_width, hres] at hhalt
   exact ⟨n + 1, ⟨⟨pc, y⟩, n, hruns, hhalt, rfl⟩,
     hn_le.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C (by omega)) 1)⟩
@@ -141,10 +145,11 @@ theorem exists_program_cspDecide_nice :
   refine ⟨r, C, prog, fun {_ _} [_] {q _ _} hq e sem F N hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofNice false q hq e sem F N
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
-  rw [show inst.result = if CSP.Satisfiable sem F then 1 else 0 by
+  have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
     dsimp only [inst, TreeCSPInstance.ofNice]
     rw [TreeCSPInstance.result_ofNiceTree_decide]
-    exact if_congr (cspDecideNice_eq_true_iff hq sem N) rfl rfl] at hexec
+    exact if_congr (cspDecideNice_eq_true_iff hq sem N) rfl rfl
+  rw [hres] at hexec
   exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
     (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofNice_le hq false e sem F N hk) 1)) 1)⟩
 
@@ -193,10 +198,11 @@ theorem exists_program_cspDecide_rooted :
   refine ⟨r, C, prog, fun {_ _} [_] {q _ _ _} hq e sem F R hk w hw => ?_⟩
   let inst := TreeCSPInstance.ofRooted false q hq e sem F R
   obtain ⟨steps, hexec, hsteps⟩ := hcomp inst w hw (inputFits_encode inst hw)
-  rw [show inst.result = if CSP.Satisfiable sem F then 1 else 0 by
+  have hres : inst.result = if CSP.Satisfiable sem F then 1 else 0 := by
     dsimp only [inst, TreeCSPInstance.ofRooted, TreeCSPInstance.ofNice]
     rw [TreeCSPInstance.result_ofNiceTree_decide]
-    exact if_congr (cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned) rfl rfl] at hexec
+    exact if_congr (cspDecideNice_eq_true_iff hq sem R.toNiceTreePruned) rfl rfl
+  rw [hres] at hexec
   exact ⟨steps, hexec, hsteps.trans (Nat.add_le_add_right (Nat.mul_le_mul_left C
     (Nat.add_le_add_right (TreeCSPInstance.stepBound_ofRooted_le hq false e sem F R hk) 1)) 1)⟩
 

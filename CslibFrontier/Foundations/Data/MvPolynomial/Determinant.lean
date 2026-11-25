@@ -39,8 +39,11 @@ theorem totalDegree_det_le {R σ ι : Type*} [CommRing R] [Fintype ι] [Decidabl
     (A : Matrix ι ι (MvPolynomial σ R)) (d : ℕ) (hA : ∀ i j, (A i j).totalDegree ≤ d) :
     A.det.totalDegree ≤ card ι * d := by
   rw [Matrix.det_apply]
-  exact totalDegree_finsetSum_le fun σ _ => (totalDegree_smul_le _ _).trans
-    ((totalDegree_finsetProd _ _).trans ((sum_le_sum fun _ _ => hA _ _).trans_eq (by simp)))
+  refine totalDegree_finsetSum_le fun σ _ => (totalDegree_smul_le _ _).trans ?_
+  calc (∏ i : ι, A (σ i) i).totalDegree
+      ≤ ∑ i : ι, (A (σ i) i).totalDegree := totalDegree_finsetProd _ _
+    _ ≤ ∑ _i : ι, d := sum_le_sum fun _ _ => hA _ _
+    _ = card ι * d := by simp
 
 variable {A σ κ : Type*} [CommRing A]
 
@@ -58,14 +61,16 @@ private theorem product_difference_degree_lt (s : Finset κ) (hs : s.Nonempty)
   | @insert a s ha ih =>
     have hda := hd a (Finset.mem_insert_self _ _)
     by_cases hs0 : s = ∅
-    · subst s; simpa using hda
+    · subst s
+      simpa using hda
     · have hf' : ∀ i ∈ s, (f i).totalDegree ≤ d := fun i hi => hf i (Finset.mem_insert_of_mem hi)
       have hsub := ih (Finset.nonempty_iff_ne_empty.mpr hs0) hf'
         (fun i hi => hg i (Finset.mem_insert_of_mem hi))
         fun i hi => hd i (Finset.mem_insert_of_mem hi)
+      have heq : f a * (∏ i ∈ s, f i) - g a * (∏ i ∈ s, g i) =
+          (f a - g a) * (∏ i ∈ s, f i) + g a * ((∏ i ∈ s, f i) - ∏ i ∈ s, g i) := by ring
       rw [Finset.prod_insert ha, Finset.prod_insert ha, Finset.card_insert_of_notMem ha,
-        Nat.add_mul, one_mul, show f a * (∏ i ∈ s, f i) - g a * (∏ i ∈ s, g i) =
-          (f a - g a) * (∏ i ∈ s, f i) + g a * ((∏ i ∈ s, f i) - ∏ i ∈ s, g i) by ring]
+        Nat.add_mul, one_mul, heq]
       have hp : (∏ i ∈ s, f i).totalDegree ≤ s.card * d :=
         (totalDegree_finsetProd _ _).trans ((Finset.sum_le_sum hf').trans_eq (by simp))
       have hm1 := totalDegree_mul (f a - g a) (∏ i ∈ s, f i)

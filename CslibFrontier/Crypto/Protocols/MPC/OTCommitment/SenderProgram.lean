@@ -207,10 +207,11 @@ theorem senderClosedProgram_eq
   simp only [StateT.lift, StateT.run, Phased.handler, OracleComp.sumHandler,
     Phased.advance, Phased.observe, bind_assoc, pure_bind, map_bind, map_pure]
   apply congrArg (Bind.bind (senderViewProgram choose receive k st))
-  apply funext; rintro ⟨tables, final⟩
-  apply congrArg (Bind.bind (BitString.sampleList k)); funext choices
+  funext ⟨tables, final⟩
+  apply congrArg (Bind.bind (BitString.sampleList k))
+  funext choices
   apply congrArg (Bind.bind (finish k final))
-  apply funext; rintro ⟨submission, out⟩
+  funext ⟨submission, out⟩
   by_cases h : openPairs choices (selectedBits tables choices) submission =
       some (extractPairs (tables.map fun t =>
         (t (boolPairToFin4 (false, false)), t (boolPairToFin4 (false, true))))) <;> simp [h]
@@ -229,10 +230,11 @@ theorem eval_senderClosedProgram
   simp only [pmf_norm, eval_senderViewProgram, BitString.eval_sampleList, BitString.uniformList,
     simulatedOpening]
   apply congrArg ((senderTables (senderOfPrograms choose receive) k st).bind)
-  apply funext; rintro ⟨ts, final⟩
-  apply congrArg ((PMF.uniformOfFintype (Fin k → Bool)).bind); funext choices
+  funext ⟨ts, final⟩
+  apply congrArg ((PMF.uniformOfFintype (Fin k → Bool)).bind)
+  funext choices
   apply congrArg ((ProbComp.eval (finish k final)).bind)
-  apply funext; rintro ⟨submission, out⟩
+  funext ⟨submission, out⟩
   simp only [List.map_ofFn, Function.comp_def, extractPairs_ofFn, selectedBits_ofFn,
     openPairs_decodeOpening]
   by_cases h : openResult choices (fun i => ts i (boolPairToFin4 (false, choices i)))

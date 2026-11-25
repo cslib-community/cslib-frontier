@@ -320,7 +320,8 @@ theorem evalPure_bcsProveROM (hTree : List Bool → List Bool)
     (encSym : Sym → List Bool) (x : Stmt) (w : Wit) :
     OracleComp.evalPure (bcsOracle hTree f) (bcsProveROM iop encSym x w) =
       bcsProve iop (fun _ => hTree) [] encSym (chainedFS f) x w := by
-  obtain ⟨htab, hrt, hch, -⟩ := evalPure_bcsProveRoundsProg hTree f iop encSym x w r le_rfl
+  obtain ⟨htab, hrt, hch, -⟩ :=
+    evalPure_bcsProveRoundsProg hTree f iop encSym x w r le_rfl
   rcases hout : OracleComp.evalPure (bcsOracle hTree f)
     (bcsProveRoundsProg iop encSym x w r le_rfl) with ⟨tables, roots, chals⟩
   rw [hout] at htab hrt hch

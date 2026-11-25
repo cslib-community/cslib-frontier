@@ -72,7 +72,8 @@ theorem self_mem_subtrees : ∀ t : Bracketing σ, t ∈ t.subtrees
 /-- The subtrees of a subtree are subtrees. -/
 theorem subtrees_subset_of_mem : ∀ {t s : Bracketing σ}, s ∈ t.subtrees →
     s.subtrees ⊆ t.subtrees
-  | leaf _, s, hs => by rw [List.mem_singleton.1 hs]
+  | leaf _, s, hs => by
+    rw [List.mem_singleton.1 hs]
   | node l r, s, hs => by
     rcases List.mem_cons.1 hs with rfl | hs
     · exact List.Subset.refl _
@@ -83,20 +84,25 @@ theorem subtrees_subset_of_mem : ∀ {t s : Bracketing σ}, s ∈ t.subtrees →
 /-- The two halves of a subtree are subtrees. -/
 theorem mem_subtrees_of_node {t l r : Bracketing σ} (h : node l r ∈ t.subtrees) :
     l ∈ t.subtrees ∧ r ∈ t.subtrees :=
-  ⟨subtrees_subset_of_mem h (List.mem_cons_of_mem _ (List.mem_append_left _ l.self_mem_subtrees)),
-    subtrees_subset_of_mem h (List.mem_cons_of_mem _ (List.mem_append_right _ r.self_mem_subtrees))⟩
+  ⟨subtrees_subset_of_mem h (List.mem_cons_of_mem _
+      (List.mem_append_left _ l.self_mem_subtrees)),
+    subtrees_subset_of_mem h (List.mem_cons_of_mem _
+      (List.mem_append_right _ r.self_mem_subtrees))⟩
 
 /-- A bracketing of `n` entries has `2 n - 1` subtrees. -/
 theorem length_subtrees : ∀ t : Bracketing σ, t.subtrees.length + 1 = 2 * t.leaves.length
   | leaf _ => rfl
   | node l r => by
-    have := l.length_subtrees; have := r.length_subtrees
-    simp only [subtrees, leaves, List.length_cons, List.length_append]; omega
+    have := l.length_subtrees
+    have := r.length_subtrees
+    simp only [subtrees, leaves, List.length_cons, List.length_append]
+    omega
 
 /-- The entries of a subtree form a sublist of the entries of the bracketing. -/
 theorem sublist_leaves_of_mem_subtrees : ∀ {t s : Bracketing σ}, s ∈ t.subtrees →
     s.leaves.Sublist t.leaves
-  | leaf _, s, hs => by rw [List.mem_singleton.1 hs]
+  | leaf _, s, hs => by
+    rw [List.mem_singleton.1 hs]
   | node l r, s, hs => by
     rcases List.mem_cons.1 hs with rfl | hs
     · exact List.Sublist.refl _
@@ -108,8 +114,8 @@ theorem sublist_leaves_of_mem_subtrees : ∀ {t s : Bracketing σ}, s ∈ t.subt
 theorem exists_leaves_eq (l : List σ) (hl : l ≠ []) :
     ∃ t : Bracketing σ, t.leaves = l ∧ t.height ≤ Nat.clog 2 l.length := by
   rcases Nat.lt_or_ge l.length 2 with h2 | h2
-  · obtain ⟨i, rfl⟩ : ∃ i, l = [i] :=
-      List.length_eq_one_iff.1 (by have := List.length_pos_iff.2 hl; omega)
+  · have hlen := List.length_pos_iff.2 hl
+    obtain ⟨i, rfl⟩ : ∃ i, l = [i] := List.length_eq_one_iff.1 (by omega)
     exact ⟨leaf i, rfl, Nat.zero_le _⟩
   · set k := (l.length + 1) / 2 with hk
     have hk1 : k < l.length := by omega

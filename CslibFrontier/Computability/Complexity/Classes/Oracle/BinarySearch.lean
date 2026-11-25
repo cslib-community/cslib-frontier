@@ -85,7 +85,8 @@ private theorem interpret_searchQuery (u : List Bool) (s : ℕ × ℕ) :
         (fun reply => (if reply == [true] then s.1 + 2 ^ (s.2 - 1) else s.1, s.2 - 1)) <$>
           (List.take 1 <$> ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
             ((), encPair encBits encNat (u, s.1 + 2 ^ (s.2 - 1)))) := by
-  unfold searchQuery; split <;> simp [OracleComp.interpret_map, OracleComp.interpret_query]
+  unfold searchQuery
+  split <;> simp [OracleComp.interpret_map, OracleComp.interpret_query]
 
 open Classical in
 /-- Against an oracle containing the code of `(u, k)` exactly when `k ≤ F`, a round of the search

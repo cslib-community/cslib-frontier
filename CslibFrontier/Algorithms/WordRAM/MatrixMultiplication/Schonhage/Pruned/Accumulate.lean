@@ -75,13 +75,16 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
   have hread (j : ℕ) (y : Data registers) (hj : j ≤ N) (hy : P j y) (i : ℕ) (hi : i < N) :
       y.mem (x.regs listBase + i) = input i := by
     refine (houtside j y hj hy _ fun h => ?_).trans (hinput i hi)
-    dsimp only [Block.Owns] at h; rcases hsepSource with hs | hs <;> omega
+    dsimp only [Block.Owns] at h
+    rcases hsepSource with hs | hs <;> omega
   have hstep (y : Data registers) (hy : P (y.regs index) y) (hk : y.regs index < N) :
       ∃ z, ExecWithin (w + 2) accumulateStep y z 29 ∧ P (y.regs index + 1) z ∧
         z.regs index = y.regs index + 1 := by
     obtain ⟨hmem, hf⟩ := hy
-    have hb := hf listBase (by decide); have hv := hf valueBase (by decide)
-    have hcptr := hf childValues (by decide); have ht := hf term (by decide)
+    have hb := hf listBase (by decide)
+    have hv := hf valueBase (by decide)
+    have hcptr := hf childValues (by decide)
+    have ht := hf term (by decide)
     have hq := hcode (y.regs index) hk
     have hquot : input (y.regs index) / 10 < capacity := (Nat.div_le_self _ _).trans_lt hq
     have hnot : x.regs valueBase + input (y.regs index) ∉ written (y.regs index) := by
@@ -95,9 +98,11 @@ theorem exec_accumulateLoop {w N capacity : ℕ} (x : Data registers) (input : �
     have hright (hs : selected true (y.regs term) (input (y.regs index))) :
         y.mem (y.regs childValues + input (y.regs index) / 10) =
           encode (B (input (y.regs index) / 10)) := by
-      rw [hcptr, houtside (y.regs index) y hk.le ⟨hmem, hf⟩ _ fun h => by
-        dsimp only [Block.Owns] at h; rcases hsepChild with hc | hc <;> omega]
-      exact hchild _ hk (ht ▸ hs)
+      rw [hcptr, houtside (y.regs index) y hk.le ⟨hmem, hf⟩]
+      · exact hchild _ hk (ht ▸ hs)
+      · intro h
+        dsimp only [Block.Owns] at h
+        rcases hsepChild with hc | hc <;> omega
     obtain ⟨z, hz, hi, hm, hregs⟩ := exec_accumulateStep (hV _ hk) (hB _ hk) y
       (input (y.regs index)) (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hmem, hf⟩ _ hk)
       (by regs_frame) (by regs_frame) (by regs_frame) (fun _ => hleft) hright

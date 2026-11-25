@@ -84,8 +84,9 @@ theorem iff_forall_prefix :
     IsPrefixFreeEncoding pf ↔ (∀ m, pf m ≠ []) ∧ (∀ m₁ m₂, pf m₁ <+: pf m₂ → m₁ = m₂) :=
   ⟨fun h => ⟨h.ne_nil, fun m₁ m₂ hpre =>
       h.injective (h.isPrefixFree_range _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre)⟩,
-    fun ⟨hne, hall⟩ => ⟨hne, fun m₁ m₂ heq => hall m₁ m₂ (heq ▸ List.prefix_refl _),
-      by rintro _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre; rw [hall m₁ m₂ hpre]⟩⟩
+    fun ⟨hne, hall⟩ => ⟨hne, fun m₁ m₂ heq => hall m₁ m₂ (heq ▸ List.prefix_refl _), by
+      rintro _ ⟨m₁, rfl⟩ _ ⟨m₂, rfl⟩ hpre
+      rw [hall m₁ m₂ hpre]⟩⟩
 
 /-- Precomposing a prefix-free encoding with an injective map yields a prefix-free encoding. -/
 theorem comp_injective (h : IsPrefixFreeEncoding pf) {e : M' → M} (he : Function.Injective e) :
@@ -175,14 +176,16 @@ theorem separatingBlock_prefix_incomparable {X : Type*} [BEq X] [LawfulBEq X]
   rcases lt_trichotomy u.length v.length with h | h | h
   · refine ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le, fun hp => ?_⟩
     have hle := hp.length_le
-    simp only [List.length_append, List.length_singleton] at hle; omega
+    simp only [List.length_append, List.length_singleton] at hle
+    omega
   · exact ⟨not_prefix_append_separatingBlock_of_length_le hab hne h.le,
       fun hp => hne (List.append_cancel_right (hp.eq_of_length (by simp [h]))).symm⟩
   · have hc : separatingBlock a b u v = separatingBlock a b v u := by
       simp only [separatingBlock, ite_eq_right (Nat.not_le_of_gt h), ite_eq_left h.le]
     refine ⟨fun hp => ?_, hc ▸ not_prefix_append_separatingBlock_of_length_le hab hne.symm h.le⟩
     have hle := hp.length_le
-    simp only [List.length_append, List.length_singleton] at hle; omega
+    simp only [List.length_append, List.length_singleton] at hle
+    omega
 
 /-- Find the first unused block among at most `used.length + 1` entries in an indexed alphabet. -/
 @[expose] def findFreshBlock {α : Type*} [BEq α] {size : ℕ} (blockAt : Fin size → α)

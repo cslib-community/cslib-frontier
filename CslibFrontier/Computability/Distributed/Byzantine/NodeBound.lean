@@ -125,17 +125,23 @@ theorem not_solvesByzantineAgreement {t R : ℕ} (h2 : 2 ≤ Fintype.card P)
   let e := Fintype.equivFin P
   let g : P → Fin 3 := fun i => ⟨2 * (e i : ℕ) % 3, Nat.mod_lt _ (by omega)⟩
   refine π.not_solvesByzantineAgreement_of_partition g (fun k => ?_)
-    (a := e.symm ⟨0, by omega⟩) (c := e.symm ⟨1, by omega⟩) (by simp [g]) (by simp [g])
-  rw [← Finset.card_range t]
-  refine Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3)
-    (fun i _ => by
+    (a := e.symm ⟨0, by omega⟩) (c := e.symm ⟨1, by omega⟩) ?_ ?_
+  · calc ({i | g i = k} : Finset P).card
+        ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3) ?_ ?_
+      _ = t := Finset.card_range t
+    · intro i _
       simp only [Finset.coe_range, Set.mem_Iio]
-      have := (e i).isLt; omega)
-    fun i hi j hj hij => e.injective <| Fin.ext <| by
+      have := (e i).isLt
+      omega
+    · intro i hi j hj hij
+      apply e.injective
+      ext
       have hi' := congrArg Fin.val (Finset.mem_filter.mp hi).2
       have hj' := congrArg Fin.val (Finset.mem_filter.mp hj).2
       dsimp only [g] at hi' hj' hij
       omega
+  · simp [g]
+  · simp [g]
 
 /-- **The hexagon argument** [Fischer, Lynch and Merritt, §3.1][FischerLynchMerritt1985]: three
 processes do not solve Byzantine agreement against one fault, for any fixed decision round

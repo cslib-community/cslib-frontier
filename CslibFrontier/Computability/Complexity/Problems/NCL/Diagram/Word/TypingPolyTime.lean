@@ -54,7 +54,8 @@ private theorem typeRunData_data (sl : Slice) (cs : List Color) :
   cases sl with
   | gen k a b vs => rfl
   | swap k =>
-    dsimp only [typeRunData, Slice.data]; simp only [ite_true]
+    dsimp only [typeRunData, Slice.data]
+    simp only [ite_true]
     by_cases hk : k + 2 ≤ cs.length
     · simp [Slice.typeRun, hk, List.getElem?_eq_getElem (by omega : k < cs.length),
         List.getElem?_eq_getElem (by omega : k + 1 < cs.length)]
@@ -67,7 +68,8 @@ private theorem typeRunData_data (sl : Slice) (cs : List Color) :
 private theorem computableInPolyTime_typeRunData :
     ComputableInPolyTime (fun p : Slice.Data × List Color => typeRunData p.1 p.2)
       (encPair Slice.encData (encList encColor)) (encOption (encList encColor)) := by
-  unfold typeRunData; fun_prop
+  unfold typeRunData
+  fun_prop
 
 /-- Check one structurally encoded layer against a color stack in polynomial time. -/
 @[fun_prop]
@@ -106,21 +108,26 @@ private theorem typeRun_length_le (sl : Slice) (cs out : List Color)
     dsimp only [typeRunData, Slice.data, Slice.Data.isSwap, Slice.Data.offset,
       Slice.Data.inputs, Slice.Data.outputs] at h
     simp only [Bool.false_eq_true, ite_false] at h
-    split_ifs at h; cases h
-    simp only [Slice.cost, List.length_append, List.length_take, List.length_drop]; omega
+    split_ifs at h
+    cases h
+    simp only [Slice.cost, List.length_append, List.length_take, List.length_drop]
+    omega
   | swap k =>
     dsimp only [typeRunData, Slice.data, Slice.Data.isSwap, Slice.Data.offset] at h
     simp only [ite_true] at h
-    split_ifs at h; cases h
+    split_ifs at h
+    cases h
     simp only [Slice.cost, List.length_append, List.length_take, List.length_drop,
-      List.length_cons, List.length_nil]; omega
+      List.length_cons, List.length_nil]
+    omega
 
 private theorem length_encColor (c : Color) : (encColor c).length = 1 := by
   cases c <;> rfl
 
 private theorem length_encColors (cs : List Color) :
     (encList encColor cs).length = 3 * cs.length := by
-  rw [length_encList]; simp [length_encColor, Nat.mul_comm]
+  rw [length_encList]
+  simp [length_encColor, Nat.mul_comm]
 
 private abbrev encTypes := encOption (encList encColor)
 
@@ -164,6 +171,7 @@ private theorem Word.computableInPolyTime_typeRun_empty :
 theorem Word.computableInPolyTime_wellTyped :
     ComputableInPolyTime (fun w : Word => decide (w.WellTyped [] [])) encWord encBool := by
   have := Word.computableInPolyTime_typeRun_empty
-  unfold Word.WellTyped; fun_prop
+  unfold Word.WellTyped
+  fun_prop
 
 end Cslib.Complexity.NCL

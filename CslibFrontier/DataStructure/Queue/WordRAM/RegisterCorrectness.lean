@@ -62,8 +62,9 @@ theorem popFront_contents {d : Input} (front back : List ℕ) (s : Memory.State)
       Block.HoldsList (d 2 + d 3) back.reverse s.mem := by
   cases front with
   | nil =>
-    exact ⟨by rw [clientResult_popFront, ite_eq_left (show d 0 = 0 from hF), hF, hB]; rfl,
-      Block.holdsList_nil _ _, hback⟩
+    refine ⟨?_, Block.holdsList_nil _ _, hback⟩
+    rw [clientResult_popFront, ite_eq_left (show d 0 = 0 from hF), hF, hB]
+    rfl
   | cons a front =>
     have hn : d 0 ≠ 0 := hF ▸ Nat.succ_ne_zero _
     have hp : Block.HoldsList (d 2) (front.reverse ++ [a]) s.mem := by
@@ -91,7 +92,7 @@ theorem dequeue_contents {w : ℕ} {d : Input} (front back : List ℕ) (s : Memo
       Block.HoldsList (d 2 + d 3) p.1.rear.reverse t.mem := by
   cases front with
   | nil =>
-    have hi := transfer_invariant hw ⟨by rw [hF, hB]; exact hc, hf⟩
+    have hi := transfer_invariant hw ⟨by simpa only [hF, hB] using hc, hf⟩
     have hr : (Memory.spec 0).clientResult s (transfer d) = ⟨back.length, 0⟩ := by
       simpa only [hF, hB, List.length_nil, Nat.zero_add] using hi.2.2.1
     let t := (Memory.spec 0).clientState s (transfer d)
@@ -102,15 +103,20 @@ theorem dequeue_contents {w : ℕ} {d : Input} (front back : List ℕ) (s : Memo
     have hs : (Memory.spec 0).clientState s (dequeue d) = t := by
       rw [dequeue, ite_eq_left (show d 0 = 0 from hF), StateTransitionSpec.clientState_bind, hr]
       exact clientState_popFront _ _ _
-    exact ⟨by
-      rw [dequeue, ite_eq_left (show d 0 = 0 from hF), StateTransitionSpec.clientResult_bind, hr]
-      exact hp.1, hs ▸ hp.2.1, hs ▸ hp.2.2⟩
+    refine ⟨?_, hs ▸ hp.2.1, hs ▸ hp.2.2⟩
+    rw [dequeue, ite_eq_left (show d 0 = 0 from hF), StateTransitionSpec.clientResult_bind, hr]
+    exact hp.1
   | cons a front =>
     have hn : d 0 ≠ 0 := hF ▸ Nat.succ_ne_zero _
     have hp := popFront_contents (a :: front) back s hF hB hfront hback
     have hs : (Memory.spec 0).clientState s (dequeue d) = s := by
       rw [dequeue, ite_eq_right hn, clientState_popFront]
-    exact ⟨by rw [dequeue, ite_eq_right hn]; exact hp.1,
-      by rw [hs]; exact hp.2.1, by rw [hs]; exact hp.2.2⟩
+    refine ⟨?_, ?_, ?_⟩
+    · rw [dequeue, ite_eq_right hn]
+      exact hp.1
+    · rw [hs]
+      exact hp.2.1
+    · rw [hs]
+      exact hp.2.2
 
 end Cslib.DataStructure.Queue.WordRAM.RegisterMetadata

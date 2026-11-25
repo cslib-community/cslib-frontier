@@ -91,18 +91,21 @@ variable [LinearOrder α]
 
 /-- Under the order's oracle, `eraseQ` evaluates to the pure erasure `erase`. -/
 @[simp] theorem eval_eraseQ : (eraseQ t k tr).eval orderOracle = erase t k tr := by
-  simpa [erase_def, eraseQ, leI] using Id.ext_iff.1
-    ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseM t LEQuery.ask (pure ()) k tr)
+  simpa [erase_def, eraseQ, leI] using
+    Id.ext_iff.1
+      ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseM t LEQuery.ask (pure ()) k tr)
 
 /-- Under the order's oracle, `eraseMinQ` evaluates to `eraseMin?`. -/
 @[simp] theorem eval_eraseMinQ : (eraseMinQ t tr).eval orderOracle = eraseMin? t tr := by
-  simpa [eraseMin?_def, eraseMinQ, leI] using Id.ext_iff.1
-    ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseMinM t LEQuery.ask (pure ()) tr)
+  simpa [eraseMin?_def, eraseMinQ, leI] using
+    Id.ext_iff.1
+      ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseMinM t LEQuery.ask (pure ()) tr)
 
 /-- Under the order's oracle, `eraseMaxQ` evaluates to `eraseMax?`. -/
 @[simp] theorem eval_eraseMaxQ : (eraseMaxQ t tr).eval orderOracle = eraseMax? t tr := by
-  simpa [eraseMax?_def, eraseMaxQ, leI] using Id.ext_iff.1
-    ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseMaxM t LEQuery.ask (pure ()) tr)
+  simpa [eraseMax?_def, eraseMaxQ, leI] using
+    Id.ext_iff.1
+      ((FreeM.isMonadHom_pure_eval orderOracle).map_eraseMaxM t LEQuery.ask (pure ()) tr)
 
 end Transfer
 
@@ -115,12 +118,14 @@ private theorem countQueries_rebalanceRightM (c : BTree α β) (k : α) (v : β)
     (rest : List (Triple α β)) :
     (rebalanceRightM t (pure () : FreeM (LEQuery α) Unit) c k v s rest).countQueries oracle
       = 0 := by
-  rw [rebalanceRightM_def]; split <;> simp
+  rw [rebalanceRightM_def]
+  split <;> simp
 
 /-- A repair against the left sibling compares no keys. -/
 private theorem countQueries_rebalanceLastM (prev : BTree α β) (k : α) (v : β) (c : BTree α β) :
     (rebalanceLastM t (pure () : FreeM (LEQuery α) Unit) prev k v c).countQueries oracle = 0 := by
-  rw [rebalanceLastM_def]; split <;> simp
+  rw [rebalanceLastM_def]
+  split <;> simp
 
 /-- Removing the least entry of a subtree compares no keys. -/
 private theorem countQueries_popMinM (tr : BTree α β) :
@@ -157,7 +162,8 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
           FreeM.eval_lift, hk, hk', ↓reduceIte, countQueries_popMinM, List.length_cons]
         split
         · simp; omega
-        · split <;> simp [countQueries_rebalanceLastM, countQueries_rebalanceRightM]; omega
+        · split <;> simp [countQueries_rebalanceLastM, countQueries_rebalanceRightM]
+          omega
       · simp [LEQuery.ask, hk, hk', countQueries_rebalanceRightM]; omega
     · cases tail with
       | nil => simp [LEQuery.ask, hk, countQueries_rebalanceLastM]; omega
@@ -208,8 +214,9 @@ theorem countQueries_eraseQ_le (h : IsWF t tr) :
 and the rest is the erasure of its key. -/
 theorem countQueries_eraseMinQ_le (h : IsWF t tr) :
     (eraseMinQ t tr).countQueries oracle ≤ 2 * t * tr.height := by
-  have h₀ := countQueries_minQ (oracle := oracle) tr; rw [minQ_def] at h₀
-  have h₁ := eval_minQ (tr := tr) oracle; rw [minQ_def] at h₁
+  have h₀ := countQueries_minQ (oracle := oracle) tr
+  have h₁ := eval_minQ (tr := tr) oracle
+  rw [minQ_def] at h₀ h₁
   simp only [eraseMinQ, eraseMinM_def, FreeM.countQueries_bind, h₀, h₁, zero_add]
   cases min? tr with
   | none => simp
@@ -219,8 +226,9 @@ theorem countQueries_eraseMinQ_le (h : IsWF t tr) :
 none, and the rest is the erasure of its key. -/
 theorem countQueries_eraseMaxQ_le (h : IsWF t tr) :
     (eraseMaxQ t tr).countQueries oracle ≤ 2 * t * tr.height := by
-  have h₀ := countQueries_maxQ (oracle := oracle) tr; rw [maxQ_def] at h₀
-  have h₁ := eval_maxQ (tr := tr) oracle; rw [maxQ_def] at h₁
+  have h₀ := countQueries_maxQ (oracle := oracle) tr
+  have h₁ := eval_maxQ (tr := tr) oracle
+  rw [maxQ_def] at h₀ h₁
   simp only [eraseMaxQ, eraseMaxM_def, FreeM.countQueries_bind, h₀, h₁, zero_add]
   cases max? tr with
   | none => simp

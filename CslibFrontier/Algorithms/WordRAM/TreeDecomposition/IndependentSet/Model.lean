@@ -161,8 +161,9 @@ theorem MWISInstance.result_ofRooted_eq_mwisFPT {V : Type*} {G : SimpleGraph V}
     dsimp only [inst, MWISInstance.adj, MWISInstance.ofRooted, f]
     have hm : 0 < m := Nat.zero_lt_of_lt (e x).isLt
     have hlt : (e x).val * m + (e u).val < m * m :=
-      (Nat.add_lt_add_left (e u).isLt _).trans_le
-        (Nat.succ_mul (e x).val m ▸ Nat.mul_le_mul_right m (e x).isLt)
+      calc (e x).val * m + (e u).val < (e x).val * m + m := Nat.add_lt_add_left (e u).isLt _
+        _ = ((e x).val + 1) * m := by rw [Nat.succ_mul]
+        _ ≤ m * m := Nat.mul_le_mul_right m (e x).isLt
     rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn, dite_eq_left hlt, Option.getD_some]
     have hdiv : ((e x).val * m + (e u).val) / m = (e x).val := by
       rw [Nat.mul_comm, Nat.mul_add_div hm, Nat.div_eq_of_lt (e u).isLt, Nat.add_zero]

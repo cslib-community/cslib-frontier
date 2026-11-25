@@ -151,36 +151,39 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
       · have hi : parents.idxOf parent < parents.length := List.idxOf_lt_length_iff.mpr hmem
         have hrow : rows[parents.idxOf parent]? = some (rows[parents.idxOf parent]'(hstate ▸ hi)) :=
           List.getElem?_eq_getElem (hstate ▸ hi)
-        rw [show routedOracle valid inLen family n depth distribution query
+        have hrouted : routedOracle valid inLen family n depth distribution query
               (⟨parents, short⟩, rows) =
             PMF.pure (respond (rows[parents.idxOf parent]'(hstate ▸ hi)),
-              ⟨parents, short⟩, rows) by
+              ⟨parents, short⟩, rows) := by
           simp [routedOracle, cascadeChildRoute, hv, hl, parent, suffix, hi.ne, hrow,
-            cascadeChildChannelOracle, pmf_norm, respond, List.take_of_length_le]]
+            cascadeChildChannelOracle, pmf_norm, respond, List.take_of_length_le]
+        rw [hrouted]
         refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
             parent, suffix, hrow, respond, pmf_norm], fun _ _ hnext => ?_⟩
         exact (Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hnext)).2 ▸ hstate
       · have hi : parents.idxOf parent = parents.length := List.idxOf_eq_length_iff.mpr hmem
         have hrow : rows[parents.idxOf parent]? = none := List.getElem?_eq_none (hi.trans hstate).ge
-        rw [show routedOracle valid inLen family n depth distribution query
+        have hrouted : routedOracle valid inLen family n depth distribution query
               (⟨parents, short⟩, rows) =
             distribution.map (fun row => (respond row, ⟨parents ++ [parent], short⟩,
-              rows ++ [row])) by
+              rows ++ [row])) := by
           simp [routedOracle, cascadeChildRoute, hv, hl, cascadeChildChannelOracle,
-            parent, suffix, hi, hstate, respond, List.take_of_length_le, pmf_norm]]
+            parent, suffix, hi, hstate, respond, List.take_of_length_le, pmf_norm]
+        rw [hrouted]
         refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
             hrow, parent, suffix, cache_append parents rows hstate parent hmem, respond,
             PMF.map_comp, Function.comp_def], fun _ _ hnext => ?_⟩
         obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
         obtain rfl := (Prod.mk.inj heq).2
         simp [alignedState, hstate]
-    · rw [show routedOracle valid inLen family n depth distribution query
+    · have hrouted : routedOracle valid inLen family n depth distribution query
             (⟨parents, short⟩, rows) =
           (cachedDistOracle (fun _ => true) (BitString.uniformList n) query short).map
-            (fun (reply, short') => (reply, ⟨parents, short'⟩, rows)) by
+            (fun (reply, short') => (reply, ⟨parents, short'⟩, rows)) := by
         simp [routedOracle, cascadeChildRoute, hv, hl, cachedRandomFunctionOracle,
           eval_cachedSamplerOracle, BitString.eval_sampleList, PMF.map_comp, Function.comp_def,
-          pmf_norm]]
+          pmf_norm]
+      rw [hrouted]
       refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, PMF.map_comp,
           Function.comp_def], fun _ _ hnext => ?_⟩
       obtain ⟨⟨_, _⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext

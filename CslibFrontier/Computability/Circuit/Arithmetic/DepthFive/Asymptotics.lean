@@ -108,10 +108,11 @@ private theorem Params.good_of_ceil (p : Params) (hn : 2 ^ 20 ≤ p.n)
   -- `α ^ ρ` is at most a constant times `1 / √n`
   have hlog : Real.log w ≤ w / 4 := (Real.log_le_iff_le_exp hw0).2 <| by
     linarith [Real.quadratic_le_exp_of_nonneg (by positivity : 0 ≤ w / 4)]
+  have h1ρ : 1 - p.ρ = p.s / p.m := by
+    rw [Params.ρ, eq_div_iff hm0.ne', sub_mul, div_mul_cancel₀ _ hm0.ne']
+    linarith
   have hρlog : (1 - p.ρ) * Real.log w ≤ 1 / 2 := by
-    rw [show 1 - p.ρ = p.s / p.m by
-      rw [Params.ρ, eq_div_iff hm0.ne', sub_mul, div_mul_cancel₀ _ hm0.ne']; linarith,
-      div_mul_eq_mul_div, div_le_iff₀ (by linarith)]
+    rw [h1ρ, div_mul_eq_mul_div, div_le_iff₀ (by linarith)]
     linarith [mul_le_mul hs hlog (Real.log_nonneg (by linarith)) hw0.le]
   have hx : p.α ^ p.ρ * Real.exp (2 / p.b) ≤ 2 / w :=
     calc p.α ^ p.ρ * Real.exp (2 / p.b)
@@ -130,9 +131,11 @@ private theorem Params.good_of_ceil (p : Params) (hn : 2 ^ 20 ≤ p.n)
     rw [div_le_iff₀ hw0, show w = _ from Real.sqrt_eq_rpow _, ← Real.rpow_add hn0,
       show -(2 : ℝ) / 5 + 1 / 2 = 10⁻¹ by norm_num,
       Real.le_rpow_inv_iff_of_pos two_pos.le hn0.le (by norm_num)]
-    norm_num; linarith
+    norm_num
+    linarith
   exact
-    { n_pos := (by lia), k_pos := mod_cast hk1, le_s := (by linarith), s_le := hs
+    { n_pos := by lia
+      k_pos := mod_cast hk1, le_s := by linarith, s_le := hs
       lam_ge := (le_div_iff₀ (by linarith)).2 hk, k_le_a := mod_cast hka
       four_n_le_a := mod_cast hna, four_n_le_b := mod_cast hnb, α_ge := hα, α_rpow_le_β := hβ
       β_le_α_rpow := hβx, β_le := hβx.trans hx, q_le := hq, q_le_rpow := hqr

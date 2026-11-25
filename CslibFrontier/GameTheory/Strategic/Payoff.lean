@@ -191,7 +191,8 @@ theorem mem_idowdsStep_iff {R : ∀ i, Set (S i)} {i : ι} {b : S i} :
 theorem idowdsStep_eq_cost (R : ∀ i, Set (S i)) :
     G.idowdsStep R = fun i =>
       { b | ∃ hb : b ∈ R i, ¬ (G.toCostGame.restrict R).IsWeaklyDominated i ⟨b, hb⟩ } := by
-  funext i; ext b
+  funext i
+  ext b
   simp only [mem_idowdsStep_iff, Set.mem_ofPred_eq]
   exact ⟨fun ⟨hb, hnd⟩ => ⟨hb, mt (G.isWeaklyDominatedOn_iff_toCostGame hb).mpr hnd⟩,
     fun ⟨hb, hnd⟩ => ⟨hb, mt (G.isWeaklyDominatedOn_iff_toCostGame hb).mp hnd⟩⟩
@@ -262,7 +263,8 @@ private theorem idowdsStep_cutoff_eq {G : PayoffGame ι (fun _ => Fin (T + 1))}
     G.idowdsStep (fun _ => { r : Fin (T + 1) | r.val ≤ m + 1 }) =
       fun _ => { r : Fin (T + 1) | r.val ≤ m } := by
   obtain ⟨hdom, hsurv⟩ := hbi m hm
-  funext i; ext r
+  funext i
+  ext r
   simp only [mem_idowdsStep_iff, Set.mem_ofPred_eq]
   refine ⟨fun ⟨hrle, hndom⟩ => ?_, fun hrle => ⟨Nat.le_succ_of_le hrle, hsurv i r hrle⟩⟩
   rcases Nat.eq_or_lt_of_le hrle with heq | hlt
@@ -277,7 +279,8 @@ theorem idowdsIter_eq_le_sub {G : PayoffGame ι (fun _ => Fin (T + 1))}
     G.idowdsIter k = fun _ => { r : Fin (T + 1) | r.val ≤ T - k } := by
   induction k with
   | zero =>
-    funext i; ext r
+    funext i
+    ext r
     simp [Nat.le_of_lt_succ r.isLt]
   | succ k ih =>
     rw [idowdsIter_succ, ih (Nat.le_of_succ_le hk), show T - k = (T - (k + 1)) + 1 by omega]
@@ -290,7 +293,8 @@ theorem idowdsIter_eq_singleton_zero {G : PayoffGame ι (fun _ => Fin (T + 1))}
     (hbi : G.HasBackwardInductionDominance) :
     G.idowdsIter T = fun _ => {0} := by
   rw [idowdsIter_eq_le_sub hbi le_rfl]
-  funext i; ext r
+  funext i
+  ext r
   simp only [Nat.sub_self, Set.mem_ofPred_eq, Nat.le_zero, Set.mem_singleton_iff, Fin.ext_iff,
     Fin.val_zero]
 

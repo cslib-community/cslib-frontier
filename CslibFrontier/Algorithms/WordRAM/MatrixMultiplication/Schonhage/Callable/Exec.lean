@@ -44,9 +44,12 @@ private theorem spans_le_budget (L m N Q : ℕ) :
     omega
   have hend : QueriedProduct.outputBase L m N Q + Q ≤ QueriedProduct.memoryEnd L m N Q := by
     unfold QueriedProduct.memoryEnd QueriedProduct.stampBase QueriedProduct.scratchBase
-    have := Nat.zero_le (2 * (L + 1) * 10 ^ L); have := Nat.zero_le (10 ^ L)
+    have := Nat.zero_le (2 * (L + 1) * 10 ^ L)
+    have := Nat.zero_le (10 ^ L)
     omega
-  exact ⟨hsep, by unfold QueriedProduct.wordBudget; omega⟩
+  refine ⟨hsep, ?_⟩
+  unfold QueriedProduct.wordBudget
+  omega
 
 /-- Caller-safe actual native product execution, for zero/one matrices with `D m ^ 18 ≤ N`, at
 depth `19 * m`. The only local memory premise is the original input block; all remaining target
@@ -76,14 +79,16 @@ theorem exec {W b m N : ℕ}
   have hM : 0 < windowSize N qs.length := Nat.two_pow_pos _
   obtain ⟨c, hc, cb, cM, cI, cQ, cO, cv, ci, cf⟩ := exec_core X Y qs x hb hinput hX hY hN hfit
   obtain ⟨s, hs, sm, sr⟩ := exec_restoreInput c cb cI cM hM (hfit.of_le (by omega))
-  obtain ⟨y, hy, ym, yr, yf⟩ := exec_returnOutput s (by regs_frame)
-    (show s.regs Reg.output = QueriedProduct.outputBase (19 * m) m N qs.length by regs_frame)
-    (show s.regs Reg.queryCount = qs.length by regs_frame)
-    (show s.regs Reg.modulus = windowSize N qs.length by regs_frame) hM (hfit.of_le (by omega))
-  refine ⟨y, (hc.seq (hs.seq hy)).mono (by unfold timeBound; omega), yr,
-    by regs_frame, by regs_frame, fun i => ?_, fun a ha => ?_, fun a ha => ?_⟩
-  · rw [ym, show b + (QueriedProduct.outputBase (19 * m) m N qs.length + i.val) =
-      (b + QueriedProduct.outputBase (19 * m) m N qs.length) + i.val by omega,
+  have sb : s.regs Reg.base = b := by regs_frame
+  have sM : s.regs Reg.modulus = windowSize N qs.length := by regs_frame
+  have sQ : s.regs Reg.queryCount = qs.length := by regs_frame
+  have sO : s.regs Reg.output = QueriedProduct.outputBase (19 * m) m N qs.length := by regs_frame
+  obtain ⟨y, hy, ym, yr, yf⟩ := exec_returnOutput s sb sO sQ sM hM (hfit.of_le (by omega))
+  refine ⟨y, (hc.seq (hs.seq hy)).mono (by dsimp only [timeBound]; omega), yr, ?_, ?_,
+    fun i => ?_, fun a ha => ?_, fun a ha => ?_⟩
+  · regs_frame
+  · regs_frame
+  · rw [ym, ← Nat.add_assoc,
       ArrayNormalize.normalizePrefix_read _ _ _ _ _ i.isLt, sm,
       ArrayNormalize.normalizePrefix_outside _ _ _ _ _ (by omega)]
     simpa only [Nat.add_assoc] using cv i

@@ -44,7 +44,8 @@ private theorem mod_pow_succ_of_multiplicity_two {x k : ℕ} (hx : x ≠ 0)
     ((pow_dvd_iff_le_multiplicity (by decide : (2 : ℕ) ≠ 1) hx).1
       (hy ▸ pow_succ 2 k ▸ Nat.mul_dvd_mul_left _ h)) (by omega)
   have hyrem : y % 2 = 1 := by
-    have := Nat.dvd_iff_mod_eq_zero.not.mp hyodd; omega
+    have := Nat.dvd_iff_mod_eq_zero.not.mp hyodd
+    omega
   rw [hy, pow_succ, Nat.mul_mod_mul_left, hyrem, Nat.mul_one]
 
 /-- A positive interval with multiplicity at most `m` contains at most
@@ -57,8 +58,10 @@ theorem card_filter_Icc_multiplicity_two_le {a b m k : ℕ} (ha : 0 < a) (hk : k
   have hD : 0 < D := by positivity
   have hE : 0 < E := by positivity
   have hfactor : D = E * 2 ^ (m - k) := by
-    dsimp [D, E]; rw [← pow_add]
-    congr 1; omega
+    dsimp [D, E]
+    rw [← pow_add]
+    congr 1
+    omega
   have hbound : b < D * (a / D + 1) := by
     by_contra! hb
     have hleft := Nat.lt_mul_div_succ a hD

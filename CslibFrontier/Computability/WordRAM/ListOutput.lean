@@ -70,10 +70,14 @@ theorem getElem_outputList (mem : ℕ → ℕ) (v i : ℕ) (hi : i < (outputList
 its entries. -/
 theorem outputList_eq_iff {mem : ℕ → ℕ} {v : ℕ} {l : List ℕ} :
     outputList mem v = l ↔ mem v = l.length ∧ Block.HoldsList (v + 1) l mem := by
-  refine ⟨?_, fun ⟨hlen, hl⟩ => List.ext_getElem (by simp [hlen]) fun i hi _ => by
-    rw [getElem_outputList]; exact hl.get i (by simpa [hlen] using hi)⟩
-  rintro rfl
-  exact ⟨(length_outputList mem v).symm, fun i => (getElem_outputList mem v i.val i.isLt).symm⟩
+  constructor
+  · rintro rfl
+    exact ⟨(length_outputList mem v).symm,
+      fun i => (getElem_outputList mem v i.val i.isLt).symm⟩
+  · rintro ⟨hlen, hl⟩
+    refine List.ext_getElem (by simp [hlen]) fun i hi _ => ?_
+    rw [getElem_outputList]
+    exact hl.get i (by simpa [hlen] using hi)
 
 /-- Returning address `0` of the initial memory outputs the input. -/
 theorem outputList_init (input : List ℕ) :
@@ -171,7 +175,8 @@ theorem getElem?_parkHalts_of_lt {pc : ℕ} (h : pc < p.length) :
 
 theorem getElem?_parkHalts_park (i : Fin r) :
     p.parkHalts[p.length + i]? = some (.jump (p.length + i)) := by
-  rw [parkHalts, List.getElem?_append_right (by simp)]; simp
+  rw [parkHalts, List.getElem?_append_right (by simp)]
+  simp
 
 /-- Every non-halting step of `p` is a step of `p.parkHalts`. -/
 theorem next_parkHalts {w : ℕ} {s t : State r} (h : Next w p s t) : Next w p.parkHalts s t := by

@@ -99,7 +99,9 @@ theorem mem_verts_matchingOfPositions_iff {S : Finset ℕ}
       ∃ i ∈ S, incident (G.edgeList.getD i (0, 0)) v = true := by
   refine ⟨?_, fun ⟨i, hi, hinc⟩ =>
     mem_verts_of_incident_positions hv (by rwa [positions_matchingOfPositions hS]) hinc⟩
-  rintro ⟨w, _, i, hi, h | h⟩ <;> exact ⟨i, hi, by rw [h]; simp [incident]⟩
+  rintro ⟨w, _, i, hi, he⟩
+  refine ⟨i, hi, ?_⟩
+  rcases he with h | h <;> rw [h] <;> simp [incident]
 
 /-- The executable coverage scan is exactly spanning of the returned Mathlib subgraph. -/
 theorem coversVertices_maximumMatching (G : Graph) :
@@ -127,7 +129,8 @@ theorem maximumMatchingSubgraph_isSpanning_iff (G : Graph) :
 /-- Complete successful perfect-search specification in the existing Mathlib subgraph model. -/
 theorem perfectMatching_spec {edges : List (ℕ × ℕ)} (h : G.perfectMatching = some edges) :
     edges = G.maximumMatching ∧ G.maximumMatchingSubgraph.IsPerfectMatching := by
-  unfold perfectMatching at h; dsimp only at h
+  unfold perfectMatching at h
+  dsimp only at h
   split at h
   · next hc =>
     exact ⟨(Option.some.inj h).symm, (maximumMatchingSubgraph_isMaximumMatching G).isMatching,
@@ -138,13 +141,15 @@ theorem perfectMatching_spec {edges : List (ℕ × ℕ)} (h : G.perfectMatching 
 theorem decidePerfectMatching_eq_true (G : Graph) :
     G.decidePerfectMatching = true ↔ ∃ M : G.induced.Subgraph, M.IsPerfectMatching := by
   rw [← maximumMatchingSubgraph_isSpanning_iff, ← coversVertices_maximumMatching]
-  unfold decidePerfectMatching perfectMatching; dsimp only
+  unfold decidePerfectMatching perfectMatching
+  dsimp only
   split <;> simp_all
 
 /-- Search fails exactly when the actual induced graph has no perfect matching. -/
 theorem perfectMatching_eq_none_iff (G : Graph) :
     G.perfectMatching = none ↔ ¬∃ M : G.induced.Subgraph, M.IsPerfectMatching := by
-  rw [← decidePerfectMatching_eq_true]; unfold decidePerfectMatching
+  rw [← decidePerfectMatching_eq_true]
+  unfold decidePerfectMatching
   cases G.perfectMatching <;> simp
 
 end Cslib.Complexity.Graph
@@ -161,9 +166,9 @@ theorem maximumMatchingSubgraph_adj_iff (G : Graph) (u v : {v // v ∈ G.vertice
     · exact Or.inr (List.mem_map.mpr ⟨i, List.mem_toFinset.mp hi, he⟩)
   · rintro (h | h) <;> obtain ⟨hm, hne, _, _⟩ := of_mem_maximumMatching h <;>
       obtain ⟨i, hi, he⟩ := List.mem_map.mp h
-    · exact ⟨by rw [induced_adj, toSimpleGraph_adj]; exact ⟨hne, Or.inl hm⟩,
+    · exact ⟨(induced_adj.trans toSimpleGraph_adj).mpr ⟨hne, Or.inl hm⟩,
         i, List.mem_toFinset.mpr hi, Or.inl he⟩
-    · exact ⟨by rw [induced_adj, toSimpleGraph_adj]; exact ⟨hne.symm, Or.inr hm⟩,
+    · exact ⟨(induced_adj.trans toSimpleGraph_adj).mpr ⟨hne.symm, Or.inr hm⟩,
         i, List.mem_toFinset.mpr hi, Or.inr he⟩
 
 end Cslib.Complexity.Graph

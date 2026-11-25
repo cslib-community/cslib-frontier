@@ -97,7 +97,8 @@ theorem wi_t_mul : (wi hp)ᵀ * wi hp = 1 := incl_t_mul _
 theorem wi_mul_apply (A : Matrix (Fin n) (Fin n) F2) (i j : Fin h) :
     (wi hp * A * (wi hp)ᵀ) i j =
       ∑ b, ∑ a, if i = we hp a ∧ j = we hp b then A a b else 0 := by
-  simp only [Matrix.mul_apply, wi, incl_apply, weEmb_apply, Matrix.transpose_apply, sum_mul]
+  simp only [Matrix.mul_apply, wi, incl_apply, weEmb_apply, Matrix.transpose_apply,
+    sum_mul]
   refine sum_congr rfl fun b _ => sum_congr rfl fun a _ => ?_
   by_cases h1 : i = we hp a <;> by_cases h2 : j = we hp b <;> simp [h1, h2]
 
@@ -119,7 +120,8 @@ theorem wi_mul_not' (A : Matrix (Fin n) (Fin n) F2) {j : Fin h} (hj : ∀ a, j �
 @[expose] def wm (A : Matrix (Fin n) (Fin n) F2) : Matrix (Fin h) (Fin h) F2 :=
   wi hp * A * (wi hp)ᵀ + (1 - wi hp * (1 : Matrix (Fin n) (Fin n) F2) * (wi hp)ᵀ)
 
-theorem wm_one : wm hp 1 = 1 := by simp [wm]
+theorem wm_one : wm hp 1 = 1 := by
+  simp [wm]
 
 theorem wm_mul (A B : Matrix (Fin n) (Fin n) F2) : wm hp (A * B) = wm hp A * wm hp B := by
   have hmul (C D : Matrix (Fin n) (Fin n) F2) :

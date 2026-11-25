@@ -106,7 +106,8 @@ theorem starStride_le (c e k : ℕ) : starStride c e k ≤ 10 ^ k := by
   induction k with
   | zero => simp [starStride]
   | succ k ih =>
-    rw [starStride]; split
+    rw [starStride]
+    split
     · exact Nat.pow_le_pow_right (by decide) (by omega)
     · exact ih.trans (Nat.pow_le_pow_right (by decide) (by omega))
 

@@ -188,7 +188,8 @@ theorem isPlanarOrthogonalDrawing_toDrawnPlanarThreeSATThree (φ : CNF ℕ) :
   · have hs := (ThreeSATThree.syntaxCheck_iff φ).1 hg
     simpa only [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg, ↓reduceIte] using
       SAT.ParsimoniousPlanar.isPlanarOrthogonalDrawing hs.1 hs.2
-  · simpa [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg] using rejection_drawing
+  · simpa [toPlanarThreeSATThree, toDrawnPlanarThreeSATThree, hg] using
+      rejection_drawing
 
 /-- Correctness for the supplied-drawing target, on every source formula. -/
 theorem mem_DrawnPlanarThreeSATThree_toDrawnPlanarThreeSATThree_iff (φ : CNF ℕ) :

@@ -94,7 +94,8 @@ theorem pderiv_potentialPolynomial (ell : ℕ) (a : Fin n → S) (j : Fin n) :
   · simp only [map_add, map_sub, pderiv_pow, pderiv_C_mul, pderiv_X_self,
       pderiv_C, Nat.add_sub_cancel, mul_one, add_zero]
     simp only [map_mul, map_natCast]; ring
-  · intro i _ hij; simp [hij]
+  · intro i _ hij
+    simp [hij]
   · simp
 
 /-- The deformation gradient gives the actual pure-power critical relations. -/

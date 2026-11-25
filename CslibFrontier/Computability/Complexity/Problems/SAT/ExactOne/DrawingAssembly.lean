@@ -51,10 +51,10 @@ private theorem placed_occurrence_routes (pcs : List PositivePlacedClause)
     ((Cslib.Logic.PL.occurrences (pcs.map Prod.fst)).map fun o =>
       (pcs.getD o.clause ([], (0, 0), [])).routes.getD o.pos []) =
         pcs.flatMap fun pc => pc.routes := by
-  rw [Cslib.Logic.PL.occurrences, List.zipIdx_map,
-    show pcs.flatMap (fun pc => pc.routes) = pcs.zipIdx.flatMap (fun pc => pc.1.routes) by
-      simpa only [List.flatMap_map, Function.comp_def] using
-        (congrArg (List.flatMap (·.routes)) (List.zipIdx_map_fst (l := pcs) (i := 0))).symm]
+  have hflat : pcs.flatMap (fun pc => pc.routes) = pcs.zipIdx.flatMap (fun pc => pc.1.routes) := by
+    simpa only [List.flatMap_map, Function.comp_def] using
+      (congrArg (List.flatMap (·.routes)) (List.zipIdx_map_fst (l := pcs) (i := 0))).symm
+  rw [Cslib.Logic.PL.occurrences, List.zipIdx_map, hflat]
   simp only [List.flatMap_map, List.map_flatMap, List.map_map, Function.comp_def]
   simp only [List.flatMap_def]
   apply congrArg List.flatten

@@ -86,7 +86,8 @@ theorem NodeLayout.inputs_of_stage {p k a b out scratch frames frame : ℕ}
       (d < frame + 6 ∨ frame + 14 ≤ d) → ν d = μ d) :
     (∀ i < 4 ^ (k + 1) * p, ν (a + i) = μ (a + i)) ∧
       (∀ i < 4 ^ (k + 1) * p, ν (b + i) = μ (b + i)) := by
-  have hs := hl.scratch_before; have hf := hl.frames_before
+  have hs := hl.scratch_before
+  have hf := hl.frames_before
   exact ⟨fun _ hi =>
       have h := (hl.input_outside hi).1
       hν _ h.1 (Or.inl h.2) (Or.inl (by omega)),
@@ -213,9 +214,22 @@ theorem exec_setup_ready {w : ℕ} (x : Data 64)
   have hf : y.regs Reg.frame =
       x.regs Reg.scratch + 4 ^ x.regs Reg.depth * x.regs Reg.modulus := by
     simpa only [Nat.mul_comm] using hframe.trans hframes
-  exact ⟨y, hy, ⟨⟨hparams _ (by decide), hparams _ (by decide), hparams _ (by decide),
-    hparams _ (by decide), hparams _ (by decide), hparams _ (by decide),
-    by simpa only [Nat.mul_comm] using hsize, by simpa only [Nat.mul_comm] using hframes,
-    hf, hactive, hzero, hone, hfour, hwidth⟩, hphase, by simpa only [hf] using hfields⟩, hmem⟩
+  exact ⟨y, hy, {
+    inputA_eq := hparams _ (by decide)
+    inputB_eq := hparams _ (by decide)
+    output_eq := hparams _ (by decide)
+    scratch_eq := hparams _ (by decide)
+    modulus_eq := hparams _ (by decide)
+    depth_eq := hparams _ (by decide)
+    size_eq := by simpa only [Nat.mul_comm] using hsize
+    frames_eq := by simpa only [Nat.mul_comm] using hframes
+    frame_eq := hf
+    phase_eq := hphase
+    active_eq := hactive
+    zero_eq := hzero
+    one_eq := hone
+    four_eq := hfour
+    frameWidth_eq := hwidth
+    frame_words := by simpa only [hf] using hfields }, hmem⟩
 
 end Cslib.Algorithms.WordRAM.Strassen

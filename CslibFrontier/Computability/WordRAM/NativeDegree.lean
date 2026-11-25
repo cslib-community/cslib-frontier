@@ -72,7 +72,8 @@ theorem fits_degree :
     (snd encUnary encNat)).mono (d' := 1) (e' := 1)
   have hsub := (unary_sub.comp (hsize.prod (fst encUnary encNat))).mono (d' := 2) (e' := 1)
   convert ((eq encUnary).comp (hsub.prod (const 0))).mono (d' := 2) (e' := 1) using 1
-  funext p; dsimp only [Function.comp_def]
+  funext p
+  dsimp only [Function.comp_def]
   refine decide_eq_decide.mpr ?_
   rw [fits_iff, encNat_apply, Nat.size_eq_bits_len, ← Nat.size_le]; omega
 

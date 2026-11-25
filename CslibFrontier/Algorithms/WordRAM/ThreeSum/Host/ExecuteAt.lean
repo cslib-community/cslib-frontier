@@ -84,7 +84,8 @@ theorem Callee.exec_instance {r w N U src workspace s : ℕ} (c : Callee r) (μ 
     (fun i j => hm ▸ (hmat i v j).2.2) (fun i j => by exact_mod_cast (hb i j v).1)
     (fun i j => by exact_mod_cast (hb v i j).2.1) (fun i j => by exact_mod_cast (hb i v j).2.2)
   refine ⟨b, he, hbool, hans, fun p hp => (hframe p hp).trans ?_⟩
-  rw [hm]; apply Fill.Args.outside_filled
+  rw [hm]
+  apply Fill.Args.outside_filled
   all_goals dsimp only [instanceArgsAt]; omega
 
 /-- Actual caller-argument execution with a Boolean Convolution verdict and a full prefix frame. -/

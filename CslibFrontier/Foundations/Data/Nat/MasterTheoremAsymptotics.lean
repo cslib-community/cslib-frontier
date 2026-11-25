@@ -69,12 +69,17 @@ theorem le_mul_rpow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)
     simpa [Nat.cast_sub hlt.le] using
       (Nat.cast_le (α := ℝ)).mpr (h.sub_mul_le_pow_clog ha hb hn₀ n)
   have hT : (T n : ℝ) ≤ (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * ((a ^ clog b n : ℕ) : ℝ) := by
-    rw [show (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * ((a ^ clog b n : ℕ) : ℝ) =
-      (((a : ℝ) - b ^ d) * T₀ + c * n₀ ^ d * b ^ d) * ((a ^ clog b n : ℕ) : ℝ) / (a - b ^ d) by
-        field_simp, le_div_iff₀ hpos]
+    have he : (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * ((a ^ clog b n : ℕ) : ℝ) =
+        (((a : ℝ) - b ^ d) * T₀ + c * n₀ ^ d * b ^ d) * ((a ^ clog b n : ℕ) : ℝ) /
+          (a - b ^ d) := by
+      field_simp
+    rw [he, le_div_iff₀ hpos]
     linarith
-  exact (hT.trans (mul_le_mul_of_nonneg_left (pow_clog_le_mul_rpow_logb hb ha hn)
-    (by positivity))).trans_eq (by ring)
+  calc (T n : ℝ) ≤ _ := hT
+    _ ≤ (T₀ + c * n₀ ^ d * b ^ d / (a - b ^ d)) * (a * (n : ℝ) ^ Real.logb b a) := by
+        gcongr
+        exact pow_clog_le_mul_rpow_logb hb ha hn
+    _ = _ := by ring
 
 /-- **Master theorem, case 1**: if `b ^ d < a`, then `T = O(n ^ log_b a)`. -/
 theorem isBigO_rpow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)
@@ -102,12 +107,19 @@ theorem isBigO_pow_mul_log (h : DivideConquerBound T a b n₀ T₀ fun n => c * 
     exact_mod_cast h.le_mul_pow_mul_clog ha hb hn₀ had (by omega : n ≠ 0)
   have hinner : (T₀ : ℝ) + c * n₀ ^ d * (clog b n : ℝ) ≤
       (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n := by
-    rw [show (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n =
-      T₀ * Real.logb b n + c * n₀ ^ d * (2 * Real.logb b n) by rw [Real.logb]; field_simp]
+    have e : (T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n =
+        T₀ * Real.logb b n + c * n₀ ^ d * (2 * Real.logb b n) := by
+      rw [Real.logb]
+      field_simp
+    rw [e]
     linarith [le_mul_of_one_le_right (Nat.cast_nonneg T₀) hL,
       mul_le_mul_of_nonneg_left (clog_le_two_mul_logb hb hn) (by positivity : (0 : ℝ) ≤ c * n₀ ^ d)]
-  exact (hmain.trans (mul_le_mul_of_nonneg_left hinner (by positivity))).trans_eq
-    (by rw [mul_pow]; ring)
+  calc (T n : ℝ) ≤ _ := hmain
+    _ ≤ ((b : ℝ) * n) ^ d * ((T₀ / Real.log b + c * n₀ ^ d * 2 / Real.log b) * Real.log n) :=
+        mul_le_mul_of_nonneg_left hinner (by positivity)
+    _ = _ := by
+        rw [mul_pow]
+        ring
 
 /-- **Master theorem, case 3**: if `a < b ^ d`, then `T = O(n ^ d)`. -/
 theorem isBigO_pow (h : DivideConquerBound T a b n₀ T₀ fun n => c * n ^ d)

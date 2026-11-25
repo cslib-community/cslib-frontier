@@ -57,9 +57,11 @@ private theorem vertexList_pairwise
     (hrow : Monotone (fun i => row (order.symm i))) :
     (vertexList N A order).Pairwise (fun a b => row a.1 ≤ row b.1) := by
   unfold vertexList List.sigma
-  refine pairwise_flatMap_row _ _ row (fun v : TargetVertex N A => row v.1)
-    (source_pairwise order row hrow) fun _ _ hw => ?_
-  obtain ⟨_, _, rfl⟩ := List.mem_map.mp hw; rfl
+  apply pairwise_flatMap_row _ _ row (fun v : TargetVertex N A => row v.1)
+    (source_pairwise order row hrow)
+  intro v w hw
+  obtain ⟨w, _, rfl⟩ := List.mem_map.mp hw
+  rfl
 
 /-- Source row of a numbered standard vertex. -/
 @[expose] def vertexRow (i : Fin (vertexList N A order).length) : ℕ :=
@@ -123,27 +125,25 @@ theorem vertexLabels_pairwise (hrow : Monotone (fun i => row (order.symm i))) :
       (fun a b => portRow N A order row a ≤ portRow N A order row b) := by
   unfold Planar.Embedding.Sources.vertexLabels
   rw [List.ofFn_eq_map, List.flatMap_map]
-  refine pairwise_flatMap_row (List.finRange _) _ (vertexRow N A order row)
-    (portRow N A order row) (by
-      rw [← List.ofFn_id]
-      exact List.pairwise_ofFn.mpr fun _ _ hij => monotone_vertexRow N A order row hrow hij.le)
-    fun i p hp => ?_
-  obtain ⟨p, hp', rfl⟩ := List.mem_map.mp hp
-  exact portRow_of_mem N A order row i p hp'
+  apply pairwise_flatMap_row (List.finRange _) _ (vertexRow N A order row) (portRow N A order row)
+  · rw [← List.ofFn_id]
+    exact List.pairwise_ofFn.mpr (fun _ _ hij => monotone_vertexRow N A order row hrow hij.le)
+  · intro i p hp
+    obtain ⟨p, hp', rfl⟩ := List.mem_map.mp hp
+    exact portRow_of_mem N A order row i p hp'
 
 /-- The actual edge-pair target list is ordered by owner row. -/
 theorem pairLabels_pairwise (hrow : Monotone (fun i => row (order.symm i))) :
     (Planar.Embedding.Sinks.pairLabels (List.finRange (edgeList N A order).length)).Pairwise
       (fun a b => ownerRow N A order row a.edge ≤ ownerRow N A order row b.edge) := by
   unfold Planar.Embedding.Sinks.pairLabels
-  refine pairwise_flatMap_row _ _ (ownerRow N A order row)
+  apply pairwise_flatMap_row _ _ (ownerRow N A order row)
     (fun p : Port (Fin (edgeList N A order).length) => ownerRow N A order row p.edge)
-    (by
-      rw [← List.ofFn_id]
-      exact List.pairwise_ofFn.mpr fun _ _ hij => monotone_ownerRow N A order row hrow hij.le)
-    fun _ _ hp => ?_
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl <;> rfl
+  · rw [← List.ofFn_id]
+    exact List.pairwise_ofFn.mpr (fun _ _ hij => monotone_ownerRow N A order row hrow hij.le)
+  · intro e p hp
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp
+    rcases hp with rfl | rfl <;> rfl
 
 /-- A bounded number of standard vertices per source cell bounds every numbered row fiber. -/
 theorem vertexRow_card_le [Fintype U] [Fintype C] [Fintype R] (B L : ℕ)
@@ -164,11 +164,13 @@ theorem vertexRow_card_le [Fintype U] [Fintype C] [Fintype R] (B L : ℕ)
     rcases hu : (vertexEquiv N A order).symm i.val with ⟨u, w⟩
     rcases hv' : (vertexEquiv N A order).symm j.val with ⟨v, z⟩
     rw [hu, hv'] at hv hn
-    change u = v at hv; subst v
+    change u = v at hv
+    subst v
     exact congrArg (Sigma.mk u)
       ((Diagram.vertexEquiv Prim.interp (cell N A u).diagram).injective (Fin.ext hn))
-  exact (Fintype.card_le_of_injective f hf).trans
-    (by rw [Fintype.card_prod, Fintype.card_fin]; exact Nat.mul_le_mul_right L (hrow r))
+  exact (Fintype.card_le_of_injective f hf).trans (by
+    rw [Fintype.card_prod, Fintype.card_fin]
+    exact Nat.mul_le_mul_right L (hrow r))
 
 /-- A bounded owner slot count per source cell bounds every numbered wire row fiber. -/
 theorem ownerRow_card_le [Fintype U] [Fintype C] [Fintype R] (B stride : ℕ)
@@ -186,8 +188,9 @@ theorem ownerRow_card_le [Fintype U] [Fintype C] [Fintype R] (B stride : ℕ)
     have hs := congrArg (fun x => x.2.val) hef
     dsimp only [f] at ho hs
     simp only [Sparse.code, ho, hs]
-  exact (Fintype.card_le_of_injective f hf).trans
-    (by rw [Fintype.card_prod, Fintype.card_fin]; exact Nat.mul_le_mul_right stride (hrow r))
+  exact (Fintype.card_le_of_injective f hf).trans (by
+    rw [Fintype.card_prod, Fintype.card_fin]
+    exact Nat.mul_le_mul_right stride (hrow r))
 
 private theorem filter_pairLabels_length {E : Type*} (es : List E) (p : E → Bool) :
     ((Planar.Embedding.Sinks.pairLabels es).filter (fun x => p x.edge)).length =

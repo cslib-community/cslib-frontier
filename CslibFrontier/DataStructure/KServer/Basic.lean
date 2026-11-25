@@ -137,7 +137,8 @@ theorem moveCost_self (s : Fin k → α) : moveCost M s s = 0 :=
 
 theorem moveCost_triangle (s t u : Fin k → α) :
     moveCost M s u ≤ moveCost M s t + moveCost M t u := by
-  unfold moveCost; rw [← Finset.sum_add_distrib]
+  unfold moveCost
+  rw [← Finset.sum_add_distrib]
   exact Finset.sum_le_sum fun _ _ => M.dist_triangle _ _ _
 
 /-- Relabeling both configurations by the same permutation does not change the movement. -/
@@ -232,7 +233,8 @@ def pairSum (s : Fin k → α) : Nat :=
 
 theorem pairSum_comp_perm (s : Fin k → α) (π : Equiv.Perm (Fin k)) :
     pairSum M (s ∘ π) = pairSum M s := by
-  unfold pairSum; simp only [Function.comp_apply]
+  unfold pairSum
+  simp only [Function.comp_apply]
   exact (Equiv.sum_comp π fun i => ∑ j, M.dist (s i) (s (π j))).trans
     (Finset.sum_congr rfl fun i _ => Equiv.sum_comp π fun j => M.dist (s i) (s j))
 

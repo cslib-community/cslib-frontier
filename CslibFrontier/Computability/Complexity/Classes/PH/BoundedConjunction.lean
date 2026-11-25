@@ -76,8 +76,10 @@ theorem mem_PiP_of_forall_lt {N : α → ℕ}
   have hguard : {x : α × List Bool | ¬ x.2.count true < N x.1} ∈ P (encPair enc encBits) :=
     ⟨fun x => !(decide (x.2.count true < N x.1)), by fun_prop, by simp⟩
   have hC : C ∈ PiP k (encPair enc encBits) := by
-    convert union_mem_PiP (PiP_mono (Nat.zero_le k) (PiP_zero ▸ hguard)) (hred.mem_PiP hB) using 1
-    ext; simp [C, or_iff_not_imp_left]
+    convert union_mem_PiP (PiP_mono (Nat.zero_le k) (PiP_zero ▸ hguard))
+      (hred.mem_PiP hB) using 1
+    ext x
+    simp [C, or_iff_not_imp_left]
   convert mem_PiP_of_forall_length (Nat.one_le_iff_ne_zero.mpr hk) hN hC using 1
   ext a
   refine ⟨fun h w _ hw => h _ hw, fun h i hi => ?_⟩
@@ -106,7 +108,8 @@ theorem mem_SigmaP_of_forall_lt {N : α → ℕ}
     have hred : PolyTimeReducible (encPair (encPair enc encBits) encUnary)
         (encPair (encPair enc encUnary) encBits) C D :=
       ⟨_, by
-        have hpair : ComputableInPolyTime (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
+        have hpair : ComputableInPolyTime
+            (fun x : (α × List Bool) × ℕ => (x.1.1, x.2))
             (encPair (encPair enc encBits) encUnary) (encPair enc encUnary) := by fun_prop
         have hm := hM.comp (ComputableInPolyTime.fst (encPair enc encBits) encUnary).fst'
         exact hpair.prod (((((ComputableInPolyTime.fst _ encUnary).snd').bitsDropWithInput

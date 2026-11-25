@@ -56,7 +56,8 @@ private theorem completion_population (L s : ℕ) :
 /-- An eligible slot denotes a box with the original finite box predicate. -/
 theorem slotCube_isBox {L m t s : ℕ} (h : Eligible L (m - t) s) :
     IsBox m t (slotCube L s) := by
-  apply isBox_starLowest; exact (completion_population L s).trans_le h.2
+  apply isBox_starLowest
+  exact (completion_population L s).trans_le h.2
 
 /-- Eligibility ensures that starring does not saturate before its supplied star count. -/
 theorem slotCube_star_count {L H s : ℕ} (h : Eligible L H s) :
@@ -122,10 +123,13 @@ theorem leafIndex_update_P0 {L : ℕ} (τ : Leaf L) (ℓ : Fin L) (d : Fin 10)
     (hτ : τ ℓ = .P0) :
     (Encoding.leafIndex (Function.update τ ℓ (Encoding.termDigits d))).val =
       (Encoding.leafIndex τ).val - (9 - d.val) * 10 ^ ℓ.val := by
+  have hfun : (fun j => Encoding.termDigits.symm
+      (Function.update τ ℓ (Encoding.termDigits d) j)) =
+      Function.update (fun j => Encoding.termDigits.symm (τ j)) ℓ d := by
+    funext j
+    by_cases h : j = ℓ <;> simp [h]
   unfold Encoding.leafIndex
-  rw [show (fun j => Encoding.termDigits.symm (Function.update τ ℓ (Encoding.termDigits d) j)) =
-    Function.update (fun j => Encoding.termDigits.symm (τ j)) ℓ d from
-      funext fun j => by by_cases h : j = ℓ <;> simp [h]]
+  rw [hfun]
   simpa [hτ, Encoding.termDigits] using Nat.finFunctionFinEquiv_update_of_le
     (fun j => Encoding.termDigits.symm (τ j)) ℓ d
     (by simpa [hτ, Encoding.termDigits] using Nat.le_of_lt_succ d.isLt)

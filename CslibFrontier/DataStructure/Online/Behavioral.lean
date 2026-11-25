@@ -152,12 +152,14 @@ theorem stepExpectedCost_le {w : ℕ}
       P.stepCost (B.project m) r (B.project m') ≤ w)
     {m : B.Mem} (hm : B.ValidMem m) (r : P.Req) :
     B.stepExpectedCost m r ≤ w := by
-  refine (tsum_le_tsum fun m' => ?_).trans_eq
-    (by rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul])
-  by_cases hmem : m' ∈ (B.step m r).support
-  · gcongr
-    exact Nat.cast_le.mpr (hw hm r m' hmem)
-  · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
+  calc B.stepExpectedCost m r
+      ≤ ∑' m', B.step m r m' * (w : ℝ≥0∞) := by
+        refine tsum_le_tsum fun m' => ?_
+        by_cases hmem : m' ∈ (B.step m r).support
+        · gcongr
+          exact Nat.cast_le.mpr (hw hm r m' hmem)
+        · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
+    _ = w := by rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul]
 
 /-- If every supported transition of `B` incurs step cost at most `w`, then `expectedCostFrom` on
 `reqs` is at most `w * reqs.length` on every valid memory. -/
@@ -171,11 +173,15 @@ theorem expectedCostFrom_le_mul_length {w : ℕ}
   | cons r rs ih =>
     rw [expectedCostFrom_cons_eq_add, List.length_cons, Nat.cast_add, Nat.cast_one, mul_add,
       mul_one, add_comm ((w : ℝ≥0∞) * rs.length) w]
-    refine add_le_add (B.stepExpectedCost_le hw hm r) ((tsum_le_tsum fun m' => ?_).trans_eq
-      (by rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul]))
-    by_cases hmem : m' ∈ (B.step m r).support
-    · exact mul_le_mul_of_nonneg_left (ih (B.valid_step r hm m' hmem).1) zero_le
-    · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
+    refine add_le_add (B.stepExpectedCost_le hw hm r) ?_
+    calc ∑' m', B.step m r m' * B.expectedCostFrom m' rs
+        ≤ ∑' m', B.step m r m' * ((w : ℝ≥0∞) * rs.length) := by
+          refine tsum_le_tsum fun m' => ?_
+          by_cases hmem : m' ∈ (B.step m r).support
+          · exact mul_le_mul_of_nonneg_left (ih (B.valid_step r hm m' hmem).1) zero_le
+          · simp [(PMF.apply_eq_zero_iff (B.step m r) m').mpr hmem]
+      _ = (w : ℝ≥0∞) * rs.length := by
+          rw [ENNReal.tsum_mul_right, (B.step m r).tsum_coe, one_mul]
 
 /-! ### Memory-distribution evolution -/
 

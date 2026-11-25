@@ -75,7 +75,8 @@ theorem two_le_filter_contains_iff {α : Type*} [DecidableEq α]
       · exact hhead i (Nat.lt_of_succ_lt_succ hi) hpj hpi
       · have ht := ih i j (Nat.lt_of_succ_lt_succ hi) (Nat.lt_of_succ_lt_succ hj)
           (by omega) hpi hpj
-        rw [List.filter_cons]; split_ifs
+        rw [List.filter_cons]
+        split_ifs
         · simp only [List.length_cons]; omega
         · exact ht
 
@@ -116,13 +117,17 @@ theorem any_id_le_of_forall₂ {u v : List Bool} (h : List.Forall₂ (· ≤ ·)
     u.any id ≤ v.any id := by
   induction h with
   | nil => exact le_rfl
-  | cons hab _ ih => simp only [List.any_cons, id]; exact max_le_max hab ih
+  | cons hab _ ih =>
+    simp only [List.any_cons, id]
+    exact max_le_max hab ih
 
 /-- `List.all id` is monotone with respect to `List.Forall₂ (· ≤ ·)`. -/
 theorem all_id_le_of_forall₂ {u v : List Bool} (h : List.Forall₂ (· ≤ ·) u v) :
     u.all id ≤ v.all id := by
   induction h with
   | nil => exact le_rfl
-  | cons hab _ ih => simp only [List.all_cons, id]; exact min_le_min hab ih
+  | cons hab _ ih =>
+    simp only [List.all_cons, id]
+    exact min_le_min hab ih
 
 end List

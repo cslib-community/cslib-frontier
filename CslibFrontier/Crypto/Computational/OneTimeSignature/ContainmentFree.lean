@@ -98,8 +98,9 @@ containment free if no image is a subset of the image of a distinct message. -/
 antichain under subset inclusion. -/
 theorem containmentFree_iff {M α : Type*} (P : M → Finset α) :
     ContainmentFree P ↔ Function.Injective P ∧ IsAntichain (· ⊆ ·) (Set.range P) :=
-  ⟨fun h => ⟨fun _ _ heq => by_contra fun hne => h hne heq.le,
-      by rintro _ ⟨m, rfl⟩ _ ⟨m', rfl⟩ hne; exact h fun hm => hne (congrArg P hm)⟩,
+  ⟨fun h => ⟨fun _ _ heq => by_contra fun hne => h hne heq.le, by
+      rintro _ ⟨m, rfl⟩ _ ⟨m', rfl⟩ hne
+      exact h fun hm => hne (congrArg P hm)⟩,
     fun ⟨hinj, hant⟩ _ _ hne => hant ⟨_, rfl⟩ ⟨_, rfl⟩ fun hP => hne (hinj hP)⟩
 
 /-- Any injective map into subsets of a common cardinality `ℓ` is containment free. -/
@@ -119,7 +120,9 @@ theorem card_le_choose_half_of_containmentFree {M α : Type*} [Fintype M] [Finty
   obtain ⟨hinj, hant⟩ := (containmentFree_iff P).1 hP
   have hant_img : IsAntichain (· ⊆ ·)
       ((Finset.univ.image P : Finset (Finset α)) : Set (Finset α)) :=
-    hant.subset fun _ hs => let ⟨m, _, hm⟩ := Finset.mem_image.1 (Finset.mem_coe.1 hs); ⟨m, hm⟩
+    hant.subset fun _ hs => by
+      obtain ⟨m, -, hm⟩ := Finset.mem_image.1 (Finset.mem_coe.1 hs)
+      exact ⟨m, hm⟩
   simpa [Finset.card_image_of_injective _ hinj] using hant_img.sperner
 
 /-- The word construction underlying `P_opt` ([BonehShoup2023], Section 14.2.1, pp. 588–589):

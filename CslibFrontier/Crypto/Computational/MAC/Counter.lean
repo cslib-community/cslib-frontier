@@ -379,7 +379,8 @@ private theorem counterHandler_bound {bound : ℕ → ℕ → ℕ} (c : ℕ × L
     obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
     have := List.length_take_le (bound c.1 request.2.length) raw
     simp only [length_encPair, encBits_apply, BitString.length_lowBits, encUnary_apply,
-      List.length_replicate]; omega
+      List.length_replicate]
+    omega
   · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hresult
     simp only [List.length_nil, encUnary_apply, List.length_replicate]; omega
 

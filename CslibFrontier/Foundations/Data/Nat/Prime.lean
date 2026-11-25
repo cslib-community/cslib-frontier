@@ -72,7 +72,8 @@ theorem selectBelow_sublist (T : ℕ) (ps : List ℕ) : (selectBelow T ps).Subli
   induction ps generalizing T with
   | nil => exact .slnil
   | cons p ps ih =>
-    simp only [selectBelow]; split_ifs
+    simp only [selectBelow]
+    split_ifs
     exacts [(ih _).cons_cons p, (ih T).cons p]
 
 /-- The greedy choice has product at most the budget `T ≥ 1`. -/
@@ -83,7 +84,9 @@ theorem prod_selectBelow_le {T : ℕ} (hT : 1 ≤ T) (ps : List ℕ) : (selectBe
     rw [List.prod_cons]
     rcases Nat.eq_zero_or_pos p with rfl | hp0
     · simp
-    · exact (Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))).trans (Nat.mul_div_le T p)
+    · calc p * (selectBelow (T / p) ps).prod ≤ p * (T / p) :=
+            Nat.mul_le_mul_left _ (ih ((Nat.one_le_div_iff hp0).2 hp))
+        _ ≤ T := Nat.mul_div_le T p
   | case3 T p ps _ ih => exact ih hT
 
 /-- **The greedy choice is large**: if every element of `ps` is positive and at most `B`, either
@@ -97,13 +100,19 @@ theorem prod_le_or_lt_mul_prod_selectBelow {B : ℕ} (T : ℕ) {ps : List ℕ}
   | cons p ps ih =>
     have hp := hps p List.mem_cons_self
     have hps' (q : ℕ) (hq : q ∈ ps) := hps q (List.mem_cons_of_mem _ hq)
-    simp only [selectBelow]; split_ifs with hpT
+    simp only [selectBelow]
+    split_ifs with hpT
     · rw [List.prod_cons, List.prod_cons]
       rcases ih (T / p) hps' with h | h
       · exact .inl (Nat.mul_le_mul_left _ h)
-      · exact .inr (((Nat.div_lt_iff_lt_mul hp.1).1 h).trans_eq (by ring))
-    · exact .inr <| (not_le.1 hpT).trans_le <| hp.2.trans <| Nat.le_mul_of_pos_right _ <|
-        List.prod_pos fun q hq => (hps' q ((selectBelow_sublist T ps).subset hq)).1
+      · right
+        calc T < B * (selectBelow (T / p) ps).prod * p := (Nat.div_lt_iff_lt_mul hp.1).1 h
+          _ = B * (p * (selectBelow (T / p) ps).prod) := by ring
+    · right
+      calc T < p := not_le.1 hpT
+        _ ≤ B := hp.2
+        _ ≤ B * (selectBelow T ps).prod := Nat.le_mul_of_pos_right _
+          (List.prod_pos fun q hq => (hps' q ((selectBelow_sublist T ps).subset hq)).1)
 
 /-- The product of `primesIoc a b` is the product of the primes in the interval `[a + 1, b]`. -/
 theorem prod_primesIoc (a b : ℕ) :
@@ -130,7 +139,8 @@ theorem four_pow_le_mul_prod_primesIoc (L : ℕ) :
   push_cast at h1
   have hsqrt4 : √(4 * (L : ℝ)) = 2 * √(L : ℝ) := by
     rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
-  have hs : √(L : ℝ) ≤ Nat.sqrt L + 1 := (Real.sqrt_le_left (by positivity)).2 <| by
+  have hs : √(L : ℝ) ≤ Nat.sqrt L + 1 := by
+    rw [Real.sqrt_le_left (by positivity)]
     exact_mod_cast (Nat.lt_succ_sqrt L).le.trans_eq (by rw [Nat.succ_eq_add_one]; ring)
   have hmul : √(L : ℝ) * Real.log (4 * L) ≤ (Nat.sqrt L + 1) * Real.log (4 * L + 1) := by
     rcases Nat.eq_zero_or_pos L with rfl | hL

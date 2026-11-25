@@ -60,7 +60,8 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
     have hdmem (i : Fin (n + 1)) : (d i).index ∈ word := (hindex i).symm ▸ hmem i
     have hdv (i : Fin (n + 1)) : (d i).vertex = v := fixedWord_dart_vertex hI hw (hdmem i)
     have hrank (i : Fin (n + 1)) : word.idxOf (d i).index = i.val := by
-      rw [hindex]; exact (hI.2.2.2 v word hw).1.idxOf_getElem _ (by omega)
+      rw [hindex]
+      exact (hI.2.2.2 v word hw).1.idxOf_getElem _ (by omega)
     have hdinj : Function.Injective d := fun i j heq =>
       Fin.ext (by rw [← hrank i, ← hrank j, heq])
     let w (i : Fin (n + 1)) := (referenceDrawing I).germ (subdivisionDart I (d i))
@@ -71,7 +72,8 @@ theorem exists_reference_spokes_at_cutPorts {I : FixedRotationInput} (hI : Valid
       (referenceDrawing_subdivisionDart_germ_ne_zero hI (d i))
     have hapos (i : Fin (n + 1)) : 0 < a i := div_pos (half_pos hρ) (hwpos i)
     have hp (i : Fin (n + 1)) : ‖p i - D.vertex v‖ = ρ / 2 := by
-      dsimp only [p]; rw [add_sub_cancel_left, norm_smul, Real.norm_of_nonneg (hapos i).le]
+      dsimp only [p]
+      rw [add_sub_cancel_left, norm_smul, Real.norm_of_nonneg (hapos i).le]
       exact div_mul_cancel₀ _ (hwpos i).ne'
     have hq (i : Fin (n + 1)) : ‖q i - D.vertex v‖ = ρ := by
       simpa only [q, hdv, dist_eq_norm] using hD.dist_cutPort hρ.le (d i)

@@ -84,7 +84,8 @@ theorem consistent_append_singleton (C : Finset (α → β)) (h : List (α × β
 
 theorem coe_consistent (C : Finset (α → β)) (h : List (α × β)) :
     (consistent C h : Set (α → β)) = versionSpace (C : Set (α → β)) h := by
-  ext c; simp [consistent, versionSpace]
+  ext c
+  simp [consistent, versionSpace]
 
 /-- Any learner `A` that always predicts a label with at least as many consistent voters as every
 realizable label eliminates at least half of `consistent C h` on each mistake. -/
@@ -111,7 +112,8 @@ private theorem two_pow_mistakesFrom_le_of_card_filter_le (C : Finset (α → β
     rw [consistent_append_singleton] at ih'
     rw [mistakesFrom_cons]
     split
-    · rw [zero_add]; exact ih'.trans (Finset.card_filter_le _ _)
+    · rw [zero_add]
+      exact ih'.trans (Finset.card_filter_le _ _)
     · rename_i hne
       have hle_vote := hvote h x y ⟨c, hc, hcx⟩
       have hunion := Finset.card_le_card (Finset.union_subset
@@ -149,7 +151,8 @@ private theorem card_filter_le_card_filter_halving (C : Finset (α → β)) (h :
   let candidates : Finset β := insert default ((consistent C h).image (fun c => c x))
   let vote : β → ℕ := fun z => ((consistent C h).filter (fun c => c x = z)).card
   have hmem : halving C h x ∈ candidates.filter (fun z => vote z = candidates.sup vote) := by
-    unfold halving; exact Finset.min'_mem _ _
+    unfold halving
+    exact Finset.min'_mem _ _
   obtain ⟨c, hc, rfl⟩ := hy
   exact (Finset.le_sup (f := vote)
     (Finset.mem_insert_of_mem (Finset.mem_image.mpr ⟨c, hc, rfl⟩))).trans_eq
@@ -216,10 +219,14 @@ theorem two_pow_le_card_of_hasMistakeTree {d : ℕ} (C : Finset (α → β))
     obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := hd
     let C₀ := C.filter fun c => c x = y₀
     let C₁ := C.filter fun c => c x = y₁
-    rw [show versionSpace (C : Set (α → β)) [(x, y₀)] = (C₀ : Set (α → β)) by
-      ext; simp [C₀, versionSpace]] at h0
-    rw [show versionSpace (C : Set (α → β)) [(x, y₁)] = (C₁ : Set (α → β)) by
-      ext; simp [C₁, versionSpace]] at h1
+    have hC₀ : versionSpace (C : Set (α → β)) [(x, y₀)] = (C₀ : Set (α → β)) := by
+      ext
+      simp [C₀, versionSpace]
+    have hC₁ : versionSpace (C : Set (α → β)) [(x, y₁)] = (C₁ : Set (α → β)) := by
+      ext
+      simp [C₁, versionSpace]
+    rw [hC₀] at h0
+    rw [hC₁] at h1
     have ih₀ := ih C₀ h0
     have ih₁ := ih C₁ h1
     have hdisj : Disjoint C₀ C₁ :=

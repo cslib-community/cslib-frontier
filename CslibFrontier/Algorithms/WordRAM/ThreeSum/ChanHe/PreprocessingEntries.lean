@@ -94,8 +94,11 @@ theorem entry_ends (l : Frontend.Layout) (U f : ℕ) (rs : List (ℕ × ℕ))
     (hcard : rs.length ≤ l.n) {t : ℕ} (ht : t < l.count) (j : Fin 3) :
     (entry l U f rs t).source j + ((entry l U f rs t).data j).length ≤ l.endpoint := by
   have hj := entry_slot ht j
-  exact ((Nat.add_le_add_left (entry_length_le l U f rs hcard t j) _).trans_eq
-    (l.pointer_succ _).symm).trans (l.pointer_mono (by omega))
+  calc (entry l U f rs t).source j + ((entry l U f rs t).data j).length
+      ≤ l.pointer (3 * t + j.val) + l.capacity :=
+        Nat.add_le_add_left (entry_length_le l U f rs hcard t j) _
+    _ = l.pointer (3 * t + j.val + 1) := (l.pointer_succ _).symm
+    _ ≤ l.pointer l.arrays := l.pointer_mono (by omega)
 
 /-- Traversing these exact entries produces precisely the unchanged finite Chan–He node list. -/
 theorem entries_output {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
@@ -116,7 +119,10 @@ theorem entries_output {input : List ℤ} {rs : List (ℕ × ℕ)} {U : ℕ}
           Frontend.Math.decodeRoot).flatMap fun T =>
             Cslib.Algorithms.ThreeSum.ChanHe.reduction input.length (2 * U) T.1 T.2.1 T.2.2 := by
         simp only [Traversal.Math.output, entries, List.flatMap_map, List.map_map,
-          Function.comp_def]; rfl
-    _ = _ := by rw [hr, Frontend.Math.roots_decoded hkeys hcounts hvalues]; rfl
+          Function.comp_def]
+        rfl
+    _ = _ := by
+        rw [hr, Frontend.Math.roots_decoded hkeys hcounts hvalues]
+        rfl
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Preprocessing

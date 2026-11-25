@@ -196,14 +196,25 @@ theorem exec_unitPotential_amortized_le {s : Finset α} {t t' : BinaryTree α} {
     (n : ℝ) + unitPotential t' - unitPotential t ≤ realOpCharge s o := by
   obtain ⟨ht, rfl⟩ := hr
   have hL : 0 ≤ Real.logb 2 (((elements t).card : ℝ) + 1) :=
-    Real.logb_nonneg (by norm_num) (by linarith [Nat.cast_nonneg (α := ℝ) (elements t).card])
+    Real.logb_nonneg (by norm_num)
+      (by linarith [Nat.cast_nonneg (α := ℝ) (elements t).card])
   simp only [realOpCharge]
   cases o with
-  | contains x => cases he; linarith [contains_unitPotential_amortized_le ht x]
-  | insert x => cases he; linarith [insert_unitPotential_amortized_le ht x]
-  | delete x => cases he; linarith [erase_unitPotential_amortized_le ht x]
-  | minimum => cases he; linarith [minimum_unitPotential_amortized_le ht]
-  | successor x => cases he; linarith [successor_unitPotential_amortized_le ht x]
+  | contains x =>
+    cases he
+    linarith [contains_unitPotential_amortized_le ht x]
+  | insert x =>
+    cases he
+    linarith [insert_unitPotential_amortized_le ht x]
+  | delete x =>
+    cases he
+    linarith [erase_unitPotential_amortized_le ht x]
+  | minimum =>
+    cases he
+    linarith [minimum_unitPotential_amortized_le ht]
+  | successor x =>
+    cases he
+    linarith [successor_unitPotential_amortized_le ht x]
 
 /-- Single-tree `OrderedSet.spec α` dictionary analogue of the **Balance Theorem with Updates**
 ([SleatorTarjan1985b], Section 3, Theorem 6, p. 665; real-valued telescoping form): for any
@@ -223,7 +234,8 @@ theorem executes_amortized_real_le {β : Type} {p : (spec α).Client β}
     have hop := exec_unitPotential_amortized_le hr hstep
     have htail := ih hr'
     simp only [total_cons, id_eq, StateTransitionSpec.runClient_liftBind, realHistoryCost_cons,
-      Nat.cast_add] at htail ⊢
+      Nat.cast_add]
+      at htail ⊢
     linarith
 
 /-- Starting from `.nil` (`SearchTree.rep_empty`), the real-valued total rotation count of any

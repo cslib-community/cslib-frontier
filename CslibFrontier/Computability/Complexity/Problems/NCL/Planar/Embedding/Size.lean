@@ -98,7 +98,8 @@ private theorem source_vertices {E : Type*} (vs : List (Vertex E)) (c : Port E �
     rw [length_vertexList_tensor]
     change 1 + (vertexList Prim.interp
       ((Sources.vertices c vs).diagram.subst Cell.expand)).length = vs.length + 1
-    rw [ih]; omega
+    rw [ih]
+    omega
 
 private theorem source_inner {E : Type*} (vs : List (Vertex E)) (c : Port E → Color) :
     ((Sources.vertices c vs).diagram.subst Cell.expand).innerCount =
@@ -118,7 +119,8 @@ private theorem cap_vertices {E : Type*} (es : List E) (c : E → Color) :
     change (vertexList Prim.interp ((Gadgets.Wire.cap (c e)).tensor
       ((Sinks.caps c es).diagram.subst Cell.expand))).length ≤ 16 * (es.length + 1)
     have := Gadgets.Wire.cap_length_vertexList_le (c e)
-    rw [length_vertexList_tensor]; omega
+    rw [length_vertexList_tensor]
+    omega
 
 private theorem cap_inner {E : Type*} (es : List E) (c : E → Color) :
     ((Sinks.caps c es).diagram.subst Cell.expand).innerCount ≤ 23 * es.length := by
@@ -127,7 +129,8 @@ private theorem cap_inner {E : Type*} (es : List E) (c : E → Color) :
   | cons e es ih =>
     have := Gadgets.Wire.cap_innerCount_le (c e)
     simp only [Sinks.caps, Sinks.tensor, Sinks.cap, subst, Cell.expand,
-      innerCount, List.length_cons]; omega
+      innerCount, List.length_cons]
+    omega
 
 private theorem routing_empty {a b : List Color} {xs ys : List (Port (Fin m))}
     (W : Wiring Cell a b xs ys) :

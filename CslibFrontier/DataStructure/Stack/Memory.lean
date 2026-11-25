@@ -302,9 +302,11 @@ theorem modifies_methods (hL : L.Valid w C) {s : Memory.State} (o : StackOp ℕ)
 /-- The layout's cells are allocated. -/
 theorem Inv.lt_frontier {s : Memory.State} (hs : Inv L s) {a : ℕ} (ha : a ∈ L.footprint) :
     a < s.frontier := by
-  have h₁ := hs.count_allocated; have h₂ := hs.items_allocated
+  have h₁ := hs.count_allocated
+  have h₂ := hs.items_allocated
   simp only [Layout.footprint, Finset.mem_union, Block.mem_footprint, Block.Owns] at ha
-  unfold Block.Allocated at h₁ h₂; omega
+  unfold Block.Allocated at h₁ h₂
+  omega
 
 /-- The array stack, with its layout's cells as a constant footprint. Stacks with disjoint
 layouts therefore share one memory as a product of stacks (`Memory.Framed.prod`). -/
@@ -317,7 +319,8 @@ def framed (hL : L.Valid w C) : Memory.Framed (Stack.spec w C) w :=
 /-- Every operation costs at most three memory units, so the stack needs no potential. -/
 theorem amortized (hL : L.Valid w C) :
     (framed hL).Amortized charge (fun _ _ => 3) fun _ => 0 := by
-  apply Refinement.Amortized.ofFn; intro s o _ _
+  apply Refinement.Amortized.ofFn
+  intro s o _ _
   cases o with
   | push _ =>
     simp [framed, Memory.Framed.ofStatic, refinement, methods, StateTransitionSpec.clientHistory,

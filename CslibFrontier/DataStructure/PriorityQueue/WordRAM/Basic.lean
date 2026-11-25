@@ -203,7 +203,8 @@ theorem encode_matches (P : PQCode B r_pq) {n : ℕ} (o : IndexedMinPQ.Op n)
     P.argMatch o (fun i => if P.input i then P.encode o i else regs i) := by
   obtain ⟨h21, h20, h2v, h2k, h10, h1v, h1k, h0v, h0k, hvk⟩ := P.nodup_dests
   cases o with
-  | isEmpty => simp [argMatch, encode, P.tag2_input, P.tag1_input, P.tag0_input]
+  | isEmpty =>
+    simp [argMatch, encode, P.tag2_input, P.tag1_input, P.tag0_input]
   | getKey v =>
     simp [argMatch, encode, P.tag2_input, P.tag1_input, P.tag0_input, P.argV_input,
       h20, h2v, h10, h1v, h0v.symm]
@@ -213,7 +214,8 @@ theorem encode_matches (P : PQCode B r_pq) {n : ℕ} (o : IndexedMinPQ.Op n)
   | decreaseKey v k =>
     simp [argMatch, encode, P.tag2_input, P.tag1_input, P.tag0_input, P.argV_input, P.argK_input,
       h21, h20, h2v, h2k, h1v.symm, h0v.symm, h1k.symm, h0k.symm, hvk.symm]
-  | extractMin => simp [argMatch, encode, P.tag2_input]
+  | extractMin =>
+    simp [argMatch, encode, P.tag2_input]
 
 /-! ### Basis-polymorphic inline caller blocks and execution lemmas -/
 

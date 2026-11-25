@@ -177,7 +177,8 @@ theorem searchDomain_compositeSearch : searchDomain compositeSearch = {N | 1 < N
 theorem setOf_composite_mem_P : {N : ℕ | 1 < N ∧ ¬N.Prime} ∈ P encNat := by
   obtain ⟨f, hf, hfp⟩ := mem_P.mp primes_mem_P
   refine mem_P.mpr ⟨fun N => decide (1 < N) && !f N, by fun_prop, fun N => ?_⟩
-  have := hfp N; cases hfN : f N <;> simp_all
+  have := hfp N
+  cases hfN : f N <;> simp_all
 
 private theorem length_encNat_le_of_lt {Q N : ℕ} (h : Q < N) :
     (encNat Q).length ≤ (encNat N).length := by
@@ -201,7 +202,8 @@ theorem divisorSearch_mem_FNP : divisorSearch ∈ FNP encNat := by
 theorem compositeSearch_mem_FPSearch : compositeSearch ∈ FPSearch encNat := by
   obtain ⟨c, hc, hcS⟩ := mem_P.mp setOf_composite_mem_P
   refine mem_FPSearch.mpr ⟨mem_FNP.mpr ⟨⟨.X, fun N w h => by simp [h.1]⟩,
-      fun x => decide (x.2 = encNat x.1) && c x.1, by fun_prop, fun N w => by
+      fun x => decide (x.2 = encNat x.1) && c x.1, by fun_prop,
+      fun N w => by
         simp only [compositeSearch, Bool.and_eq_true, decide_eq_true_eq, ← hcS N,
           Set.mem_ofPred_eq]⟩,
     fun N => if c N then some (encNat N) else none, by fun_prop, fun N => ?_⟩

@@ -71,7 +71,8 @@ theorem power_fits {w L m N : ℕ} (hfit : Fits w (wordBudget L m N))
   have hp : b ^ n ≤ 10 ^ L :=
     (Nat.pow_le_pow_left hb _).trans (Nat.pow_le_pow_right (by decide) hn)
   have hpos : 1 ≤ 10 ^ L := Nat.one_le_pow L 10 (by decide)
-  refine hfit.of_le ?_; unfold wordBudget
+  apply hfit.of_le
+  unfold wordBudget
   nlinarith only [hp, hn, hpos, Nat.zero_le N, Nat.zero_le (N * D m),
     Nat.zero_le (2 ^ L), Nat.zero_le (2 * numBands L m N * 10 ^ L)]
 
@@ -144,11 +145,13 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   wram_call (exec_headerPowers hm _ (by constructor <;> wram_simp) hfit)
     with z ⟨hbasic, hD, hN0, hS2, hS7, hS10, hzmem⟩
   wram_exec *
-  refine ⟨⟨by regs_frame, by wram_simp [hD], by wram_simp [hN0], by wram_simp [hS2],
-    by wram_simp [hS7], by wram_simp [hS10], ?_, ?_, ?_, ?_, ?_⟩, by wram_simp; exact hzmem⟩
+  refine ⟨?_, by wram_simp; exact hzmem⟩
+  refine ⟨by regs_frame, by wram_simp [hD], by wram_simp [hN0], by wram_simp [hS2],
+    by wram_simp [hS7], by wram_simp [hS10], ?_, ?_, ?_, ?_, ?_⟩
   all_goals
     wram_simp [hD, hN0, hS2, hS7, hS10]
     dsimp only [catalogueBase, tableBase, inverseBase, snapshotBase, inputEnd,
-      Encoding.scratchBase, Encoding.outputBase]; omega
+      Encoding.scratchBase, Encoding.outputBase]
+    omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

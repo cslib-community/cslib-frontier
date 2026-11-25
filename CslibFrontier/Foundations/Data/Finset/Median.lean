@@ -104,17 +104,21 @@ theorem abs_median_sub_le {v : ι → ℝ} {μ t : ℝ}
     (hv : Fintype.card ι < 2 * #{j | |v j - μ| ≤ t}) : |median v - μ| ≤ t := by
   classical
   have hlo := card_le_card (s := {j | |v j - μ| ≤ t}) (t := {j | μ - t ≤ v j}) fun j hj => by
-    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢; linarith
+    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢
+    linarith
   have hhi := card_le_card (s := {j | |v j - μ| ≤ t}) (t := {j | v j ≤ μ + t}) fun j hj => by
-    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢; linarith
+    simp only [mem_filter, mem_univ, true_and, abs_le] at hj ⊢
+    linarith
+  have h1 := le_median (v := v) (a := μ - t) (by omega)
+  have h2 := median_le (v := v) (b := μ + t) (by omega)
   rw [abs_le]
-  exact ⟨by linarith [le_median (v := v) (a := μ - t) (by omega)],
-    by linarith [median_le (v := v) (b := μ + t) (by omega)]⟩
+  constructor <;> linarith
 
 /-- The median of a nonempty constant family is the constant. -/
 @[simp] theorem median_const [Nonempty ι] (c : ℝ) : median (fun _ : ι => c) = c := by
   have := Fintype.card_pos (α := ι)
   refine le_antisymm (median_le ?_) (le_median ?_) <;>
-    (simp only [le_refl, Finset.filter_true, card_univ]; omega)
+  · simp only [le_refl, Finset.filter_true, card_univ]
+    omega
 
 end Cslib

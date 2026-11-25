@@ -249,11 +249,11 @@ the module documentation). -/
 theorem invert_crtKeyWith (desc : RSADesc) (hp2 : desc.p ≠ 2) (hq2 : desc.q ≠ 2) {qInv : ℕ}
     (hinv : qInv * desc.q ≡ 1 [MOD desc.p]) (y : ℕ) :
     (desc.crtKeyWith qInv).invert y = rsaInvert desc.modulus desc.d y := by
-  rw [RSACRTKey.invert, show (desc.crtKeyWith qInv).powP y =
-      rsaInvert desc.modulus desc.d y % desc.p by
-      rw [desc.powP_crtKeyWith hp2, rsaInvert, RSADesc.modulus, Nat.mod_mul_right_mod],
-    show (desc.crtKeyWith qInv).powQ y = rsaInvert desc.modulus desc.d y % desc.q by
-      rw [desc.powQ_crtKeyWith hq2, rsaInvert, RSADesc.modulus, Nat.mod_mul_left_mod]]
+  have hP : (desc.crtKeyWith qInv).powP y = rsaInvert desc.modulus desc.d y % desc.p := by
+    rw [desc.powP_crtKeyWith hp2, rsaInvert, RSADesc.modulus, Nat.mod_mul_right_mod]
+  have hQ : (desc.crtKeyWith qInv).powQ y = rsaInvert desc.modulus desc.d y % desc.q := by
+    rw [desc.powQ_crtKeyWith hq2, rsaInvert, RSADesc.modulus, Nat.mod_mul_left_mod]
+  rw [RSACRTKey.invert, hP, hQ]
   exact RSACRTKey.combine_mod_mod _ hinv (Nat.mod_lt _ desc.modulus_pos)
 
 /-- **Correctness of RSA-CRT inversion** with the key `crtKey`: for odd `p` and `q`, it equals
@@ -274,17 +274,19 @@ theorem gcd_val_pow_sub_eq_q (desc : RSADesc) {σ h : ℕ} (hσq : σ ≡ h ^ de
     simp [hv_def]
   have hvq : desc.q ∣ v := by
     have h1 : σ ^ desc.e ≡ h [MOD desc.q] :=
-      (hσq.pow _).trans <| by
-        rw [← pow_mul, mul_comm]
-        exact (rsa_pow_mul_modEq desc h).of_dvd (dvd_mul_left _ _)
+      calc σ ^ desc.e ≡ (h ^ desc.d) ^ desc.e [MOD desc.q] := hσq.pow _
+        _ = h ^ (desc.e * desc.d) := by rw [← pow_mul, mul_comm]
+        _ ≡ h [MOD desc.q] := (rsa_pow_mul_modEq desc h).of_dvd (dvd_mul_left _ _)
     exact Nat.modEq_zero_iff_dvd.1 (Nat.ModEq.add_right_cancel' h
       (by simpa only [zero_add] using (hv.of_dvd (dvd_mul_left _ _)).trans h1))
   have hvp : ¬ desc.p ∣ v := fun hdvd => hσp <| by
     have h1 : σ ^ desc.e ≡ h [MOD desc.p] :=
       (hv.of_dvd (dvd_mul_right _ _)).symm.trans
         (by simpa using (Nat.modEq_zero_iff_dvd.2 hdvd).add_right h)
-    exact ((rsa_pow_mul_modEq desc σ).of_dvd (dvd_mul_right _ _)).symm.trans
-      (pow_mul σ desc.e desc.d ▸ h1.pow _)
+    calc σ ≡ σ ^ (desc.e * desc.d) [MOD desc.p] :=
+          ((rsa_pow_mul_modEq desc σ).of_dvd (dvd_mul_right _ _)).symm
+      _ = (σ ^ desc.e) ^ desc.d := pow_mul _ _ _
+      _ ≡ h ^ desc.d [MOD desc.p] := h1.pow _
   change Nat.gcd v (desc.p * desc.q) = desc.q
   rw [Nat.Coprime.gcd_mul v ((Nat.coprime_primes desc.hp desc.hq).2 desc.hpq),
     Nat.gcd_eq_right hvq,
@@ -390,11 +392,12 @@ theorem computableInPolyTime_gcd_val_pow_sub {α : Type} {enc : α ↪ List Bool
     ComputableInPolyTime
       (fun a => Nat.gcd (((σ a : ZMod (n a)) ^ e a - (h a : ZMod (n a))).val) (n a))
       enc encNat := by
-  rw [show (fun a => Nat.gcd (((σ a : ZMod (n a)) ^ e a - (h a : ZMod (n a))).val) (n a)) =
-      fun a => Nat.gcd ((σ a ^ e a % n a + (n a - h a % n a)) % n a) (n a) by
+  have hfun : (fun a => Nat.gcd (((σ a : ZMod (n a)) ^ e a - (h a : ZMod (n a))).val) (n a)) =
+      fun a => Nat.gcd ((σ a ^ e a % n a + (n a - h a % n a)) % n a) (n a) := by
     funext a
     have : NeZero (n a) := ⟨(hn_pos a).ne'⟩
-    rw [val_natCast_pow_sub_natCast]]
+    rw [val_natCast_pow_sub_natCast]
+  rw [hfun]
   exact .binary_gcd'
     (.binary_mod' (.binary_add' (.binary_powMod hσ he hn hn_pos)
       (.binary_sub' hn (.binary_mod' hh hn))) hn) hn

@@ -152,7 +152,8 @@ theorem stepFn_methods (front back : List α) (o : QueueOp α) :
     | cons a front => rfl
     | nil =>
       simp only [StateTransitionSpec.clientState, StateTransitionSpec.clientResult]
-      rw [runClient_dequeue_nil]; simp
+      rw [runClient_dequeue_nil]
+      simp
 
 /-- Representation and behavior are proved once, before selecting a backend or cost model. -/
 def implementation : Module (queue α) (stackPair α) :=
@@ -183,15 +184,19 @@ theorem potential_step (s : (stackPair α).State) (o : QueueOp α) :
   cases o with
   | enqueue n =>
     change 1 + 2 * (n :: back).length ≤ 3 + 2 * back.length
-    simp only [List.length_cons]; omega
+    simp only [List.length_cons]
+    omega
   | dequeue =>
     cases front with
-    | cons a front => change 1 + 2 * back.length ≤ 3 + 2 * back.length; omega
+    | cons a front =>
+      change 1 + 2 * back.length ≤ 3 + 2 * back.length
+      omega
     | nil =>
       simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.clientState]
       rw [runClient_dequeue_nil]
       simp only [List.length_cons, List.length_append, List.length_nil]
-      rw [transferTrace_length]; omega
+      rw [transferTrace_length]
+      omega
 
 private theorem weighted_potential_step (K : Nat) {q : (queue α).State} {s : (stackPair α).State}
     (o : QueueOp α) (_ : implementation.rep q s) (_ : (queue α).valid q o) :
@@ -237,11 +242,11 @@ theorem realized_client_bound {C Trace β : Type} {exec : Execution (stackPair �
   obtain ⟨chunks, hc, ht⟩ := link_exec_decompose methods exec he
   have hv := (queue α).validHistory_of_forall_valid (fun _ _ => trivial)
     q ((queue α).clientHistory q p)
+  have ha := ((implementation.realize R).correct_client ⟨s, hrep, hbackend⟩ hv hc).1
   obtain ⟨s', hrep', hr', hb⟩ := implementation.amortized_client R B
     (fun _ s => K * (2 * s.2.length)) (fun _ _ => 3 * K)
     (weighted_potential_step K) hrep hbackend hv hc
-  refine ⟨((implementation.realize R).correct_client ⟨s, hrep, hbackend⟩ hv hc).1,
-    s', hrep', hr', ?_⟩
+  refine ⟨ha, s', hrep', hr', ?_⟩
   simpa only [ht, total_flatten, StateTransitionSpec.totalCost_const] using hb
 
 end Cslib.DataStructure.Queue

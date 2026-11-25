@@ -70,7 +70,8 @@ private theorem binaryWord_pad {small large value : ℕ} (hwidth : small ≤ lar
       List.replicate (large - small) false ++ binaryWord small value := by
   have hbits : value.bits.length ≤ small := Nat.size_eq_bits_len value ▸ Nat.size_le.2 hvalue
   simp only [binaryWord, ← List.append_assoc, ← List.replicate_add]
-  congr 2; omega
+  congr 2
+  omega
 
 /-- One four-byte FIPS 205 address word. -/
 abbrev AddressWord := Fin (2 ^ 32)
@@ -175,7 +176,8 @@ namespace Address
     (htree : a.treeAddress = b.treeAddress)
     (htype : a.addressType = b.addressType)
     (h5 : a.word5 = b.word5) (h6 : a.word6 = b.word6) (h7 : a.word7 = b.word7) : a = b := by
-  cases a; cases b
+  cases a
+  cases b
   simp_all
 
 /-- The big-endian four-byte encoding of an address type. -/
@@ -248,18 +250,21 @@ def toCompressedBytes (a : Address) : FixedBytes 22 :=
 /-- If a layer address fits in the retained byte, reading that byte recovers it. -/
 theorem binaryValue_drop24_addressWordBits_of_lt {x : AddressWord} (h : x.val < 2 ^ 8) :
     binaryValue ((addressWordBits x).drop 24) = x := by
-  rw [addressWordBits, binaryWord_pad (small := 8) (large := 32) (by decide) h]; simp
+  rw [addressWordBits, binaryWord_pad (small := 8) (large := 32) (by decide) h]
+  simp
 
 /-- If a tree address fits in the retained eight bytes, reading those bytes recovers it. -/
 theorem binaryValue_drop32_treeAddressBits_of_lt {x : TreeAddress} (h : x.val < 2 ^ 64) :
     binaryValue ((treeAddressBits x).drop 32) = x := by
-  rw [treeAddressBits, binaryWord_pad (small := 64) (large := 96) (by decide) h]; simp
+  rw [treeAddressBits, binaryWord_pad (small := 64) (large := 96) (by decide) h]
+  simp
 
 /-- Reading the retained type byte recovers the FIPS 205 type code. -/
 theorem binaryValue_drop24_typeBits (t : AddressType) :
     binaryValue ((typeBits t).drop 24) = t.toNat := by
   change binaryValue ((binaryWord 32 t.toNat).drop 24) = t.toNat
-  rw [binaryWord_pad (small := 8) (large := 32) (by decide) t.toNat_lt_256]; simp
+  rw [binaryWord_pad (small := 8) (large := 32) (by decide) t.toNat_lt_256]
+  simp
 
 /-- The bound under which the one-byte layer and eight-byte tree fields of the compressed SHA2
 address lose no information. FIPS 205 parameter sets satisfy these bounds at every call site. -/

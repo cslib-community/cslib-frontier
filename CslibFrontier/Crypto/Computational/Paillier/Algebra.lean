@@ -68,7 +68,8 @@ private theorem lt_two_mul_of_size_eq {p q : ℕ} (hp : 0 < p) (hsize : p.size =
   have hlow : 2 ^ (p.size - 1) ≤ p := Nat.lt_size.mp (by lia)
   have hhigh : q < 2 ^ p.size := hsize.symm ▸ Nat.lt_size_self q
   have hpow : 2 ^ p.size = 2 * 2 ^ (p.size - 1) := by
-    rw [← pow_succ']; exact congrArg (2 ^ ·) (by lia)
+    rw [← pow_succ']
+    exact congrArg (2 ^ ·) (by lia)
   lia
 
 /-- An odd prime `p` does not divide `q - 1` for an odd prime `q < 2 * p`. -/

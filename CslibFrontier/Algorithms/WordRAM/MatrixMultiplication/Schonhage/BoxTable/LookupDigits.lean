@@ -72,8 +72,11 @@ theorem rawCubeDigit_le_ten {L : ℕ} (π : Cube L) (k : ℕ) : rawCubeDigit π 
   | term lam =>
     simp only [cubeDigit, h, CubeSymbol.term.injEq]
     refine ⟨fun hh => ?_, fun hh => by simp [hh, Encoding.termDigits]⟩
-    have h9 := congrArg Encoding.termDigits (Fin.ext hh : Encoding.termDigits.symm lam = 9)
-    rwa [Encoding.termDigits.apply_symm_apply, show Encoding.termDigits 9 = .P0 by decide] at h9
+    calc
+      lam = Encoding.termDigits (Encoding.termDigits.symm lam) :=
+        (Encoding.termDigits.apply_symm_apply lam).symm
+      _ = Encoding.termDigits 9 := congrArg Encoding.termDigits (Fin.ext hh)
+      _ = .P0 := by decide
 
 /-- Native prefix completion is the ordinary little-endian weighted digit sum. -/
 theorem lookupCompletion_eq_sum (raw : ℕ → ℕ) (k : ℕ) :
@@ -92,8 +95,12 @@ theorem lookupCompletion_lt {raw : ℕ → ℕ} {k : ℕ} (hraw : ∀ i < k, raw
     have hk := ih fun i hi => hraw i (by omega)
     have hd : (if raw k = 10 then 9 else raw k) ≤ 9 := by
       split <;> have := hraw k (by omega) <;> omega
-    rw [lookupCompletion, pow_succ]
-    have := Nat.mul_le_mul_right (10 ^ k) hd; omega
+    calc
+      lookupCompletion raw (k + 1) <
+          10 ^ k + (if raw k = 10 then 9 else raw k) * 10 ^ k :=
+        Nat.add_lt_add_right hk _
+      _ ≤ 10 ^ k + 9 * 10 ^ k := Nat.add_le_add_left (Nat.mul_le_mul_right _ hd) _
+      _ = 10 ^ (k + 1) := by rw [pow_succ]; omega
 
 /-- Actual completion of all input digits is exactly the encoder's existing leaf index. -/
 theorem lookupCompletion_rawCubeDigit {L : ℕ} (π : Cube L) :
@@ -122,16 +129,19 @@ private theorem count_rawCubeDigit {L : ℕ} (π : Cube L) (p : ℕ → Prop) [D
 theorem count_rawCubeDigit_stars {L : ℕ} (π : Cube L) :
     Nat.count (fun i => rawCubeDigit π i = 10) L = π.starLevels.card := by
   rw [count_rawCubeDigit π (· = 10)]
-  congr 1; ext k
+  congr 1
+  ext k
   simp
 
 /-- The native population counter reads fixed P0 terms plus stars completed with P0. -/
 theorem count_rawCubeDigit_population {L : ℕ} (π : Cube L) :
     Nat.count (fun i => rawCubeDigit π i = 9 ∨ rawCubeDigit π i = 10) L =
       π.starLevels.card + π.P0Levels.card := by
-  rw [count_rawCubeDigit π (fun d => d = 9 ∨ d = 10),
-    show (univ.filter fun k : Fin L => cubeDigit π k = 9 ∨ cubeDigit π k = 10) =
-      π.starLevels ∪ π.P0Levels by ext k; simp [or_comm],
+  have hf : (univ.filter fun k : Fin L => cubeDigit π k = 9 ∨ cubeDigit π k = 10) =
+      π.starLevels ∪ π.P0Levels := by
+    ext k
+    simp [or_comm]
+  rw [count_rawCubeDigit π (fun d => d = 9 ∨ d = 10), hf,
     card_union_of_disjoint π.disjoint_starLevels_P0Levels]
 
 /-- Completing stars preserves the population counted by the native lookup scan. -/

@@ -49,8 +49,10 @@ theorem johnsonCurveBound_mul_cast_le
 /-- Internal helper: integer weights bounded by `M` sum to at most `M * |ι|` over any subset. -/
 theorem sum_le_mul_card_of_le {ι : Type*} [Fintype ι] {W : ι → ℕ} {M : ℕ}
     (hW : ∀ i, W i ≤ M) (S : Finset ι) : ∑ i ∈ S, W i ≤ M * Fintype.card ι :=
-  (Finset.sum_le_sum fun i _ => hW i).trans <| by
-    rw [Finset.sum_const, smul_eq_mul, mul_comm]; exact Nat.mul_le_mul_left M S.card_le_univ
+  calc ∑ i ∈ S, W i ≤ ∑ _i ∈ S, M := Finset.sum_le_sum fun i _ => hW i
+    _ = S.card * M := by rw [Finset.sum_const, smul_eq_mul]
+    _ ≤ Fintype.card ι * M := Nat.mul_le_mul_right M S.card_le_univ
+    _ = M * Fintype.card ι := Nat.mul_comm _ _
 
 /-- Internal helper: clears common denominator `M > 0` from rational weights `μ : ι → ℚ` with
 `μ i = a_i / M ≤ 1`, producing integer weights `W : ι → ℕ` and threshold `B_W = ⌈θ * M⌉₊` with
@@ -72,15 +74,17 @@ theorem rat_weights_to_nat
   have hW_le (i) : W i ≤ M := Nat.cast_le.1 ((div_le_one hM_posQ).1 (hW_eq i ▸ hμ_le i))
   refine ⟨W, fun i => hW_eq i ▸ div_nonneg (Nat.cast_nonneg _) hM_posQ.le, hW_le,
     sum_le_mul_card_of_le hW_le univ, fun S => ?_, ?_⟩
-  · rw [show ∑ i ∈ S, μ i = ((∑ i ∈ S, W i : ℕ) : ℚ) / M by
-      rw [Nat.cast_sum, sum_div]; exact sum_congr rfl fun i _ => hW_eq i,
-      le_div_iff₀ hM_posQ, Nat.ceil_le]
+  · have hsum_eq : ∑ i ∈ S, μ i = ((∑ i ∈ S, W i : ℕ) : ℚ) / M := by
+      rw [Nat.cast_sum, sum_div]
+      exact sum_congr rfl fun i _ => hW_eq i
+    rw [hsum_eq, le_div_iff₀ hM_posQ, Nat.ceil_le]
   · set B_W : ℕ := ⌈θ * (M : ℚ)⌉₊
     set t : ℕ := (B_W + M - 1) / M
-    have hBW : (B_W : ℚ) ≤ (M : ℚ) * t := by
-      exact_mod_cast (show B_W ≤ M * t by
-        have hmod : M * t + (B_W + M - 1) % M = B_W + M - 1 := Nat.div_add_mod _ _
-        have := Nat.mod_lt (B_W + M - 1) hM; omega)
+    have hBW_le_Mt : B_W ≤ M * t := by
+      have hmod : M * t + (B_W + M - 1) % M = B_W + M - 1 := Nat.div_add_mod _ _
+      have := Nat.mod_lt (B_W + M - 1) hM
+      omega
+    have hBW : (B_W : ℚ) ≤ (M : ℚ) * t := by exact_mod_cast hBW_le_Mt
     exact le_of_mul_le_mul_right (by linarith [Nat.le_ceil (θ * M)]) hM_posQ
 
 /-- Internal helper: substitutes `(m + 1) ^ 6 ≤ 64 / η ^ 6` into the explicit Siegel error bound
@@ -93,8 +97,10 @@ theorem siegel_eta_bound_le {n k m q : ℕ} {c η : ℝ}
   have hn : 1 ≤ n := hk.trans hkn
   have hρ_pos : 0 < (k : ℝ) / (n : ℝ) := by positivity
   have hq_pos : (0 : ℝ) < (q : ℝ) := Nat.cast_pos.2 hq
-  refine (by gcongr : _ ≤ 1800 * c * (64 / η ^ 6) * (n : ℝ) ^ 2 / (((k : ℝ) / n) * q)).trans_eq ?_
-  field_simp; ring
+  calc 1800 * c * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (q : ℝ))
+      ≤ 1800 * c * (64 / (η ^ 6)) * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (q : ℝ)) := by gcongr
+    _ = 115200 * c * ((n : ℝ) ^ 2) / (((k : ℝ) / (n : ℝ)) * (η ^ 6) * (q : ℝ)) := by
+        field_simp; ring
 
 theorem rat_weights_johnson_nat {ι : Type*} [Fintype ι] {k m D M : ℕ} (hM : 0 < M)
     {μ : ι → ℚ} (hμ_le : ∀ i, μ i ≤ 1) (hμ_den : ∀ i, ∃ a : ℕ, μ i = (a : ℚ) / M)
@@ -127,7 +133,8 @@ theorem ceilDiv_radius_le {n M : ℕ} {θ : ℚ} {R : ℝ} (hM : 0 < M) (hn : 1 
 /-- Internal helper: weights bounded by `1` sum to at most `|ι|` over any finite subset. -/
 theorem sum_le_card_of_le_one {ι : Type*} [Fintype ι] {μ : ι → ℚ}
     (hμ_le : ∀ i, μ i ≤ 1) (S : Finset ι) : ∑ i ∈ S, μ i ≤ (Fintype.card ι : ℚ) :=
-  (Finset.sum_le_sum fun i _ => hμ_le i).trans <| by
-    rw [Finset.sum_const, nsmul_eq_mul, mul_one]; exact_mod_cast S.card_le_univ
+  calc ∑ i ∈ S, μ i ≤ ∑ _i ∈ S, (1 : ℚ) := Finset.sum_le_sum fun i _ => hμ_le i
+    _ = (S.card : ℚ) := by rw [Finset.sum_const, nsmul_eq_mul, mul_one]
+    _ ≤ (Fintype.card ι : ℚ) := by exact_mod_cast S.card_le_univ
 
 end Cslib.Code

@@ -73,7 +73,8 @@ primes (`encList encUnary`) in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_firstOddPrimes :
     ComputableInPolyTime firstOddPrimes encUnary (encList encUnary) := by
-  unfold firstOddPrimes primeSearchBound; fun_prop
+  unfold firstOddPrimes primeSearchBound
+  fun_prop
 
 /-- Computing Sergeev's base-`5` discrete logarithm `dlogFiveModTwoPow r x` from unary modulus
 exponent `r` and binary integer `x` (`encPair encUnary encNat`) produces a binary natural
@@ -122,10 +123,12 @@ theorem computableInPolyTime_dlogFiveModTwoPow :
       have hlt : ((List.range (p.1 - 2)).take j).foldl (dlogFiveStep p.1 (normX p)) 0 < 2 ^ p.1 :=
         (foldl_dlogFiveStep_take_lt p.1 (normX p) (p.1 - 2) j hj).trans_le
           (Nat.pow_le_pow_right (by decide) (by omega))
-      rw [encNat_apply, Nat.size_eq_bits_len]
-      refine (Nat.size_le.mpr hlt).trans ?_
-      simpa only [encUnary_apply, List.length_replicate] using
-        length_le_encPair_left encUnary encNat p
+      calc (encNat (((List.range (p.1 - 2)).take j).foldl (dlogFiveStep p.1 (normX p)) 0)).length
+          = (((List.range (p.1 - 2)).take j).foldl (dlogFiveStep p.1 (normX p)) 0).size := by
+            rw [encNat_apply, Nat.size_eq_bits_len]
+        _ ≤ p.1 := Nat.size_le.mpr hlt
+        _ = (encUnary p.1).length := by simp only [encUnary_apply, List.length_replicate]
+        _ ≤ (encPair encUnary encNat p).length := length_le_encPair_left encUnary encNat p
 
 /-- Computing Sergeev's modulus exponent `sergeevModulusExp n k` from unary `(n, k)`
 (`encPair encUnary encUnary`) produces a unary exponent (`encUnary`) in polynomial time. -/

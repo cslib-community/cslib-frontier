@@ -82,20 +82,23 @@ private theorem computableInPolyTime_tolerance :
     ComputableInPolyTime (fun a : α × ℕ × ℕ => tolerance (R.len a.1) a.2.1) (encInput enc)
       encUnary := by
   have := R.computableInPolyTime_len_fst (encB := encPair encUnary encUnary)
-  unfold tolerance; fun_prop
+  unfold tolerance
+  fun_prop
 
 private theorem computableInPolyTime_sampleCount :
     ComputableInPolyTime (fun a : α × ℕ × ℕ => sampleCount (R.len a.1) a.2.1 a.2.2)
       (encInput enc) encUnary := by
   have := R.computableInPolyTime_len_fst (encB := encPair encUnary encUnary)
-  unfold sampleCount tolerance; fun_prop
+  unfold sampleCount tolerance
+  fun_prop
 
 private theorem computableInPolyTime_startsWith (b : Bool) :
     ComputableInPolyTime (startsWith b) (encOption encBits) encBool := by
   cases b <;> unfold startsWith <;> fun_prop
 
 private theorem sampleCount_pos (ℓ p t : ℕ) : 0 < sampleCount ℓ p t := by
-  unfold sampleCount tolerance; positivity
+  unfold sampleCount tolerance
+  positivity
 
 /-! ### Probabilistic polynomial time -/
 
@@ -131,12 +134,16 @@ private theorem isPPTOn_step
   have hchild : ComputableInPolyTime
       (fun u : (((α × ℕ × ℕ) × State α) × ℕ) × ℕ => R.child u.1.1.2.1 (decide (u.1.2 < u.2)))
       (encPair (encPair (encPair (encInput enc) (encState enc)) encUnary) encUnary) enc :=
-    R.child_polytime.comp ((by fun_prop : ComputableInPolyTime _ _ enc).prod (by fun_prop))
+    R.child_polytime.comp
+      ((by fun_prop : ComputableInPolyTime _ _ enc).prod
+        (by fun_prop))
   have hnext : ComputableInPolyTime
       (fun u : (((α × ℕ × ℕ) × State α) × ℕ) × ℕ =>
         R.next (sampleCount (R.len u.1.1.1.1) u.1.1.1.2.1 u.1.1.1.2.2) u.1.1.2 u.1.2 u.2)
       (encPair (encPair (encPair (encInput enc) (encState enc)) encUnary) encUnary)
-      (encState enc) := by unfold next; fun_prop
+      (encState enc) := by
+    unfold next
+    fun_prop
   exact IsPPTOn.bind_with (IsPPTOn.countTrue (R.isPPTOn_sample hS false) hN)
     (IsPPTOn.map_with
       ((IsPPTOn.countTrue (R.isPPTOn_sample hS true) hN).preprocess (.fst _ _)) hnext)

@@ -87,26 +87,26 @@ theorem comparisonLabeling_valid (G : Graph) (S : Finset ℕ) :
   by_cases hi : i.val < G.distinctVertices.length
   · have hs : G.matchingInstance[i.val].scope = G.matchingScope G.distinctVertices[i.val] := by
       simp [matchingInstance, hi]
-    rw [show G.matchingInstance[i.val].rel =
-          Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) by
-        simp [matchingInstance, hi],
-      show localTuple (G.comparisonLabeling S) i =
-          listSingle (G.matchingScope G.distinctVertices[i.val]).length
-            (G.comparisonPort S G.distinctVertices[i.val]) from
-        List.ext_getElem (by simp [localTuple, hs, listSingle]) fun j _ _ => by
-          simp [localTuple, comparisonLabeling, hi, listSingle, hs, eq_comm],
-      Table.sem_eq_true]
+    have hrel : G.matchingInstance[i.val].rel =
+        Table.exactlyOne (G.matchingScope G.distinctVertices[i.val]) := by
+      simp [matchingInstance, hi]
+    have htuple : localTuple (G.comparisonLabeling S) i =
+        listSingle (G.matchingScope G.distinctVertices[i.val]).length
+          (G.comparisonPort S G.distinctVertices[i.val]) := by
+      refine List.ext_getElem (by simp [localTuple, hs, listSingle]) fun j _ _ => ?_
+      simp [localTuple, comparisonLabeling, hi, listSingle, hs, eq_comm]
+    rw [hrel, htuple, Table.sem_eq_true]
     exact ⟨Table.wellFormed_exactlyOne _,
       List.mem_map.mpr ⟨_, List.mem_range.mpr (comparisonPort_lt G S _), rfl⟩⟩
   · have hs : G.matchingInstance[i.val].scope.length = 1 := by
       simp [matchingInstance, Nat.le_of_not_gt hi]
-    rw [show G.matchingInstance[i.val].rel = Table.pinTable false by
-        simp [matchingInstance, Nat.le_of_not_gt hi],
-      show localTuple (G.comparisonLabeling S) i = [false] from
-        List.ext_getElem (by simp [localTuple, hs]) fun j _ hk => by
-          obtain rfl : j = 0 := by simpa using hk
-          simp [localTuple, comparisonLabeling, hi],
-      Table.sem_eq_true]
+    have hrel : G.matchingInstance[i.val].rel = Table.pinTable false := by
+      simp [matchingInstance, Nat.le_of_not_gt hi]
+    have htuple : localTuple (G.comparisonLabeling S) i = [false] := by
+      refine List.ext_getElem (by simp [localTuple, hs]) fun j _ hk => ?_
+      obtain rfl : j = 0 := by simpa using hk
+      simp [localTuple, comparisonLabeling, hi]
+    rw [hrel, htuple, Table.sem_eq_true]
     simp [Table.pinTable]
 
 /-- The comparison for a matching selects each of its original graph edges at both endpoints. -/

@@ -89,7 +89,7 @@ theorem queryValue_eq_low_add_boxes {L m t : ℕ} (ht : t ≤ m) (η : OutStr L)
     simp only [mem_queryLeaves, lowLeaves, thresholdLeaves, mem_filter, mem_univ,
       true_and, mem_union]
     exact ⟨fun ⟨hc, ho⟩ => (lt_or_eq_of_le ho).imp (⟨hc, ·⟩) (⟨hc, ·⟩),
-      by rintro (⟨hc, ho⟩ | ⟨hc, ho⟩) <;> exact ⟨hc, by omega⟩⟩
+      fun | .inl ⟨hc, ho⟩ | .inr ⟨hc, ho⟩ => ⟨hc, by omega⟩⟩
   have hdisj : Disjoint (lowLeaves m t η) (thresholdLeaves m t η) :=
     disjoint_left.mpr fun _ hl hh =>
       ((mem_filter.mp hl).2.2.ne (mem_filter.mp hh).2.2).elim
@@ -119,7 +119,8 @@ theorem card_queryLeaves {L m : ℕ} (t : ℕ) (η : OutStr L)
     simp only [mem_queryLeaves, mem_biUnion, mem_range, mem_filter, mem_univ, true_and]
     refine ⟨fun ⟨hc, ho⟩ => ⟨(order m τ).toNat, ?_, hc,
       (Int.toNat_of_nonneg (order_nonneg hη hc)).symm⟩, fun ⟨_, _, hc, _⟩ => ⟨hc, by omega⟩⟩
-    have := order_nonneg hη hc; omega
+    have := order_nonneg hη hc
+    omega
   rw [hsort, card_biUnion fun d _ d' _ hne => disjoint_left.mpr fun _ hd hd' =>
     hne (by exact_mod_cast (mem_filter.mp hd).2.2.symm.trans (mem_filter.mp hd').2.2)]
   exact sum_congr rfl fun d _ => card_contributing_of_order η hη d

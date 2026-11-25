@@ -48,7 +48,8 @@ theorem div_two_pow_eq_iff_xor_lt (A B k : ℕ) : A / 2 ^ k = B / 2 ^ k ↔ A ^^
   · have := Nat.testBit_lt_two_pow (x := A ^^^ B) (i := i + k)
       (h.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
     rw [Nat.testBit_div_two_pow, Nat.testBit_div_two_pow]
-    revert this; rw [Nat.testBit_xor]
+    rw [Nat.testBit_xor] at this
+    revert this
     cases A.testBit (i + k) <;> cases B.testBit (i + k) <;> simp
 
 /-- **Splitting at the highest differing bit.** For `A < B` and `s = (A ^^^ B).size`, the two

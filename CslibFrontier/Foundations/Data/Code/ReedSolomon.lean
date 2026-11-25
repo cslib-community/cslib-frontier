@@ -99,8 +99,10 @@ points `α i`. -/
 theorem card_filter_eval_eq_eval_le (hα : Function.Injective α) {d : ℕ} {P Q : F[X]}
     (hP : P.natDegree ≤ d) (hQ : Q.natDegree ≤ d) (hne : P ≠ Q) :
     #{i | P.eval (α i) = Q.eval (α i)} ≤ d := by
-  have hsub : #{i | P.eval (α i) = Q.eval (α i)} = #{i | (P - Q).eval (α i) = 0} :=
-    congrArg card (by ext; simp [sub_eq_zero])
+  have hsub : #{i | P.eval (α i) = Q.eval (α i)} = #{i | (P - Q).eval (α i) = 0} := by
+    congr 1
+    ext
+    simp [sub_eq_zero]
   exact hsub ▸ (card_filter_eval_eq_zero_le hα (sub_ne_zero.2 hne)).trans
     ((natDegree_sub_le P Q).trans (max_le hP hQ))
 
@@ -109,11 +111,12 @@ weight at least `n - k + 1`. -/
 theorem le_hammingNorm_of_mem_reedSolomon (hα : Function.Injective α) {w : ι → F}
     (hw : w ∈ reedSolomon α k) (hw0 : w ≠ 0) : Fintype.card ι - k + 1 ≤ hammingNorm w := by
   obtain ⟨p, hp, rfl⟩ := mem_reedSolomon.1 hw
-  have hp0 : p ≠ 0 := by rintro rfl; exact hw0 (funext fun _ => eval_zero)
+  have hp0 : p ≠ 0 := fun hp0 => hw0 (hp0 ▸ funext fun _ => eval_zero)
   have := (natDegree_lt_iff_degree_lt hp0).2 hp
   have := card_filter_eval_eq_zero_le hα hp0
   have : #{i | p.eval (α i) = 0} + hammingNorm (fun i => p.eval (α i)) = Fintype.card ι := by
-    rw [hammingNorm, ← card_univ]; exact card_filter_add_card_filter_not _
+    rw [hammingNorm, ← card_univ]
+    exact card_filter_add_card_filter_not _
   have := hammingNorm_pos_iff.2 hw0
   omega
 
@@ -143,9 +146,12 @@ theorem minDist_reedSolomon (hα : Function.Injective α) (hk : 1 ≤ k)
       exact ⟨fun h => mem_sdiff.2 ⟨mem_univ _, fun hi => (mem_filter.1 h).2
         (Lagrange.eval_nodal_at_node hi)⟩, fun hi => mem_filter.2 ⟨mem_univ _,
         Lagrange.eval_nodal_not_at_node fun _ hj h => (mem_sdiff.1 hi).2 (hα h ▸ hj)⟩⟩
-    rw [hammingNorm, hne, card_univ_sdiff, hS]; omega
-  simpa only [hammingDist_zero_right, hnorm] using
-    minDist_le_hammingDist hw (Submodule.zero_mem _) (hammingNorm_pos_iff.1 (by omega))
+    rw [hammingNorm, hne, card_univ_sdiff, hS]
+    omega
+  calc minDist (reedSolomon α k : Set (ι → F))
+      ≤ hammingDist (fun i => (Lagrange.nodal S α).eval (α i)) 0 :=
+        minDist_le_hammingDist hw (Submodule.zero_mem _) (hammingNorm_pos_iff.1 (by omega))
+    _ = (Fintype.card ι - k + 1 : ℕ) := by rw [hammingDist_zero_right, hnorm]
 
 /-- **Unique decoding for Reed–Solomon codes.** With distinct points, inside the unique-decoding
 radius `2 * e + k ≤ n`, a word is within Hamming distance `e` of at most one codeword. -/
@@ -170,7 +176,9 @@ theorem finrank_reedSolomon (hα : Function.Injective α) (hkn : k ≤ Fintype.c
     eq_of_degree_sub_lt_of_eval_finset_eq (univ.image α)
       (by rw [card_image_of_injective _ hα, card_univ]
           exact (mem_degreeLT.1 ((degreeLT F k).sub_mem p.2 q.2)).trans_le (by exact_mod_cast hkn))
-      fun _ hx => by obtain ⟨i, -, rfl⟩ := mem_image.1 hx; exact congrFun h i
+      fun _ hx =>
+        let ⟨i, _, hi⟩ := mem_image.1 hx
+        hi ▸ congrFun h i
   rw [reedSolomon, ← LinearMap.range_domRestrict, LinearMap.finrank_range_of_inj hinj,
     (degreeLTEquiv F k).finrank_eq, Module.finrank_fin_fun]
 

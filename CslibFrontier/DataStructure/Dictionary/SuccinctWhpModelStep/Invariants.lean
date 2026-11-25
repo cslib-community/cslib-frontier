@@ -260,17 +260,20 @@ theorem fpAt_lt {c U n_max : ℕ} (θ : SeedWhp c U n_max) (fs : FastState)
 theorem keyValAt_eq_of_fields {c U n_max : ℕ} {θ₁ : BktSeed c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) :
     fs₁.keyValAt c U n_max θ₁ = fs₂.keyValAt c U n_max θ₁ := by
-  funext b loc; simp [FastState.keyValAt, FastState.physSlot, hq, hbp]
+  funext b loc
+  simp [FastState.keyValAt, FastState.physSlot, hq, hbp]
 
 theorem fpAt_eq_of_fields {c U n_max : ℕ} {θ : SeedWhp c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) (salt b : ℕ) :
     fs₁.fpAt c U n_max θ salt b = fs₂.fpAt c U n_max θ salt b := by
-  funext loc; simp [FastState.fpAt, keyValAt_eq_of_fields hq hbp]
+  funext loc
+  simp [FastState.fpAt, keyValAt_eq_of_fields hq hbp]
 
 theorem rKeyAt_eq_of_fields {c U n_max : ℕ} {θ : SeedWhp c U n_max} {fs₁ fs₂ : FastState}
     (hq : fs₁.quotArr = fs₂.quotArr) (hbp : fs₁.backPtr = fs₂.backPtr) :
     fs₁.rKeyAt c U n_max θ = fs₂.rKeyAt c U n_max θ := by
-  funext b loc; simp [FastState.rKeyAt, keyValAt_eq_of_fields hq hbp]
+  funext b loc
+  simp [FastState.rKeyAt, keyValAt_eq_of_fields hq hbp]
 
 theorem OvermarsBucketInv.of_eq_on {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs' : FastState} {b : ℕ}

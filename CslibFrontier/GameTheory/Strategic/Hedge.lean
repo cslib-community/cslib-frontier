@@ -163,8 +163,9 @@ theorem hedge_regret_le [∀ i, Nonempty (S i)] (hM : 0 < M) (hc : ∀ i s, |G.c
     obtain ⟨x, hx⟩ := Fintype.card_eq_one_iff.mp hone
     rw [hone, Nat.cast_one, Real.log_one, mul_zero, Real.sqrt_zero, mul_zero, add_zero]
     refine le_of_eq (sum_congr rfl fun t _ => ?_)
-    rw [show (∑ b, q t b * D t b) = ∑ b, q t b * D t a from
-      sum_congr rfl fun b _ => by rw [hx b, hx a], ← sum_mul, sum_hedgeProb, one_mul]
+    calc ∑ b, q t b * D t b = ∑ b, q t b * D t a :=
+          sum_congr rfl fun b _ => by rw [hx b, hx a]
+      _ = D t a := by rw [← sum_mul, sum_hedgeProb, one_mul]
   · set ℓ : ℕ → S i → ℝ := fun t b => D t b / M with hℓ
     have hprob (t) : prob (hedgeFactor √(Real.log (Fintype.card (S i)) / T)) ℓ t = q t :=
       G.prob_mwuLoss (fun i x => hedgeFactor √(Real.log (Fintype.card (S i)) / T) (x / M)) i t
@@ -172,7 +173,8 @@ theorem hedge_regret_le [∀ i, Nonempty (S i)] (hM : 0 < M) (hc : ∀ i s, |G.c
       rw [hℓ, abs_div, abs_of_pos hM, div_le_one hM]
       exact G.abs_deviationCost_le (hedgeProb_nonneg s) (sum_hedgeProb s) (hc i) b
     have h := hedge_regret_le_sqrt h2 hT hℓ1 a
-    simp only [hprob] at h; simp only [hℓ] at h
+    simp only [hprob] at h
+    simp only [hℓ] at h
     have e1 : ∑ t ∈ range T, ∑ b, q t b * (D t b / M) =
         (∑ t ∈ range T, ∑ b, q t b * D t b) / M := by
       simp_rw [← mul_div_assoc, ← sum_div]

@@ -126,7 +126,8 @@ theorem criticalBidMechanism_isDSIC {x : (ι → ℝ) → ι → ℝ} (hx : IsMo
   simp only [Mechanism.utility, criticalBidMechanism, criticalBid_update]
   rcases hbin b hb i with ha | ha <;> rcases hbin _ (update_nonneg hb i hv) i with ha' | ha' <;>
     rw [ha, ha']
-  · have := criticalBid_le hv ha'; linarith
+  · have := criticalBid_le hv ha'
+    linarith
   · by_contra hcon
     have := eq_one_of_criticalBid_lt hx hbin hb (hb i)
       (by rwa [Function.update_eq_self]) hv (by linarith)
@@ -149,7 +150,8 @@ theorem criticalBidMechanism_isNormalized {x : (ι → ℝ) → ι → ℝ} (hbi
   simp only [criticalBidMechanism, criticalBid_update]
   rcases hbin _ (update_nonneg hb i le_rfl) i with ha | ha
   · simp [ha]
-  · have := criticalBid_le le_rfl ha; have := criticalBid_nonneg x b i
+  · have := criticalBid_le le_rfl ha
+    have := criticalBid_nonneg x b i
     rw [ha, mul_one]; linarith
 
 /-- For a monotone 0-1 allocation rule, Myerson's payment is the critical bid of a winner and `0`

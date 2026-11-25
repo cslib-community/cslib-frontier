@@ -70,7 +70,8 @@ theorem maskBit_mass_ge (mask : ProbComp Bool) (truth bit : Bool) {mass : ℝ}
     (hbit : bit ∈ (ProbComp.eval (maskBit mask truth)).support) :
     mass / 2 ≤ (ProbComp.eval (maskBit mask truth) bit).toReal := by
   have hpositive : 0 < (ProbComp.eval (maskBit mask truth) bit).toReal :=
-    ENNReal.toReal_pos ((ProbComp.eval _).apply_pos_iff _ |>.mpr hbit).ne' (PMF.apply_ne_top _ _)
+    ENNReal.toReal_pos ((ProbComp.eval _).apply_pos_iff _ |>.mpr hbit).ne'
+      (PMF.apply_ne_top _ _)
   rw [eval_maskBit_apply] at hpositive ⊢
   split_ifs at hpositive ⊢
   · linarith [toReal_apply_le_one (ProbComp.eval mask) true]
@@ -153,9 +154,10 @@ theorem maskedSample_dyadic_mass_ge_eventually {α β : ℕ → Type}
       ∀ pair ∈ (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask)).support,
       (2 : ℝ) ^ (-((sourceBits n + n + 2 : ℕ) : ℝ)) ≤
         (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask) pair).toReal := by
-  have hvanishes := negligible_iff_coe.mp
-    ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
-      hbound) 0
+  have hvanishes :=
+    negligible_iff_coe.mp
+      ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
+        hbound) 0
   simp only [pow_zero, one_mul, NNReal.coe_mul, NNReal.coe_natCast, NNReal.coe_pow,
     NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at hvanishes
   filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn mask hmask

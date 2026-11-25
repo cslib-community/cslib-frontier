@@ -58,7 +58,8 @@ theorem argmin_map_equiv {α γ : Type*} {δ : Type*} [LinearOrder δ]
       cases acc with
       | none => rfl
       | some c =>
-        unfold List.argAux; simp only [Option.map_some, Function.comp_apply]
+        unfold List.argAux
+        simp only [Option.map_some, Function.comp_apply]
         split_ifs <;> rfl
   simpa [List.argmin, List.foldl_map] using hgen none
 

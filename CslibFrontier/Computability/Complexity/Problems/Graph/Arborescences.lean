@@ -98,7 +98,8 @@ private lemma any_eq_decide_mem (arcs : List (ℕ × ℕ)) (u v : ℕ) :
     (arcs.any fun e => decide (e.1 = u ∧ e.2 = v)) = decide ((u, v) ∈ arcs) := by
   rw [Bool.eq_iff_iff]
   simp only [List.any_eq_true, decide_eq_true_eq, Prod.exists]
-  exact ⟨fun ⟨a, b, hab, ha, hb⟩ => ha ▸ hb ▸ hab, fun h => ⟨u, v, h, rfl, rfl⟩⟩
+  exact ⟨fun ⟨a, b, hab, ha, hb⟩ => ha ▸ hb ▸ hab,
+    fun h => ⟨u, v, h, rfl, rfl⟩⟩
 
 open Classical in
 private lemma digraphLaplacianEntry_eq (G : Graph) (u v : {v // v ∈ G.vertices}) :
@@ -119,7 +120,9 @@ private lemma digraphLaplacianEntry_eq (G : Graph) (u v : {v // v ∈ G.vertices
     simp only [digraphLaplacianEntry, ↓reduceIte, hdiag,
       ← Finset.add_sum_erase _ _ (Finset.mem_univ u), add_sub_cancel_left,
       Digraph.adjMatrix_apply, Finset.sum_boole, Nat.cast_inj]
-    exact congrArg Finset.card (by ext w; simp [and_comm])
+    congr 1
+    ext w
+    simp [and_comm]
   · simp only [digraphLaplacianEntry, mt Subtype.ext huv, ↓reduceIte, huv, any_eq_decide_mem,
       Digraph.adjMatrix_apply, zero_sub, decide_eq_true_eq]
     dsimp only [toDigraph]
@@ -211,16 +214,22 @@ private lemma multiLaplacianEntry_eq {mem : ℕ → Prop} [Fintype {v // mem v}]
     simp only [multiLaplacianEntry, ↓reduceIte, ← Finset.add_sum_erase _ _ (Finset.mem_univ u),
       add_sub_cancel_left, Multidigraph.arcMatrix_apply, ← Nat.cast_sum, Nat.cast_inj,
       List.countP_eq_card_filter_getElem]
-    rw [show ∑ w ∈ Finset.univ.erase u, (Finset.univ.filter fun e => src e = u ∧ tgt e = w).card =
-        (Finset.univ.filter fun e => src e = u ∧ tgt e ≠ u).card by
+    have hfib :
+        ∑ w ∈ Finset.univ.erase u, (Finset.univ.filter fun e => src e = u ∧ tgt e = w).card =
+          (Finset.univ.filter fun e => src e = u ∧ tgt e ≠ u).card := by
       simpa only [Finset.filter_filter, Finset.mem_erase, Finset.mem_univ, and_true] using
         Finset.sum_card_fiberwise_eq_card_filter
-          (Finset.univ.filter fun e => src e = u) (Finset.univ.erase u) tgt]
-    exact congrArg Finset.card (by ext i; simp [src, tgt, Subtype.ext_iff])
+          (Finset.univ.filter fun e => src e = u) (Finset.univ.erase u) tgt
+    rw [hfib]
+    congr 1
+    ext i
+    simp [src, tgt, Subtype.ext_iff]
   · simp only [multiLaplacianEntry, mt Subtype.ext huv, ↓reduceIte, huv,
       Multidigraph.arcMatrix_apply, zero_sub, neg_inj, Nat.cast_inj,
       List.countP_eq_card_filter_getElem]
-    exact congrArg Finset.card (by ext i; simp [src, tgt, Subtype.ext_iff])
+    congr 1
+    ext i
+    simp [src, tgt, Subtype.ext_iff]
 
 /-- General directed matrix-tree reduction for `multiLaplacianCount`: for any duplicate-free list
 `vs` (characterizing `mem : ℕ → Prop`) closed under both endpoints of every arc in `arcs`, and any
@@ -276,7 +285,8 @@ private theorem computableInPolyTime_intBin_countP {α γ : Type}
 theorem computableInPolyTime_digraphLaplacianEntry :
     ComputableInPolyTime (fun p : (Graph × ℕ) × ℕ => p.1.1.digraphLaplacianEntry p.1.2 p.2)
       (encPair (encPair encGraph encNat) encNat) encIntBin := by
-  unfold digraphLaplacianEntry; fun_prop
+  unfold digraphLaplacianEntry
+  fun_prop
 
 /-- `Graph.digraphInArborescenceCount` is computable in polynomial time. -/
 @[fun_prop]
@@ -310,7 +320,8 @@ abbrev encArcList : List (ℕ × ℕ) ↪ List Bool :=
 @[fun_prop]
 theorem computableInPolyTime_validArcs :
     ComputableInPolyTime validArcs encGraph encArcList := by
-  unfold validArcs; fun_prop
+  unfold validArcs
+  fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_multiLaplacianEntry {γ : Type} {encIn : γ ↪ List Bool}
@@ -319,7 +330,8 @@ theorem computableInPolyTime_multiLaplacianEntry {γ : Type} {encIn : γ ↪ Lis
     ComputableInPolyTime
       (fun p : (γ × ℕ) × ℕ => multiLaplacianEntry (arcs p.1.1) p.1.2 p.2)
       (encPair (encPair encIn encNat) encNat) encIntBin := by
-  unfold multiLaplacianEntry; fun_prop
+  unfold multiLaplacianEntry
+  fun_prop
 
 /-- `multiLaplacianCount` is computable in polynomial time whenever its vertex list, arc list,
 and root vertex are. -/
@@ -339,7 +351,8 @@ theorem computableInPolyTime_multiLaplacianCount {γ : Type} {encIn : γ ↪ Lis
 theorem computableInPolyTime_multiInArborescenceCount :
     ComputableInPolyTime (fun p : Graph × ℕ => p.1.multiInArborescenceCount p.2)
       (encPair encGraph encNat) encNat := by
-  unfold multiInArborescenceCount; fun_prop
+  unfold multiInArborescenceCount
+  fun_prop
 
 /-- The number of spanning in-arborescences of the multidigraph `(G.arcSrc, G.arcTgt)` rooted at
 `r` is computable in polynomial time on `encPair encGraph encNat`. -/

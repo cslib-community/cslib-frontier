@@ -66,7 +66,10 @@ private theorem recursive_atom_definable {α : Type} (a b c : α) :
     BodyDefinable (L := L) size true (fun j v => ![v a, v b, v c] ∈ j.2) :=
   (PolarityDefinable.head_vars LFP.headMark (fun j : Candidate size => j.2)
     ![a, b, c]).congr fun _ v => by
-    rw [show v ∘ ![a, b, c] = ![v a, v b, v c] by ext k; fin_cases k <;> rfl]
+    have hv : v ∘ ![a, b, c] = ![v a, v b, v c] := by
+      ext k
+      fin_cases k <;> rfl
+    rw [hv]
 
 private theorem input_definable (input : ι → List Bool)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
@@ -76,9 +79,11 @@ private theorem input_definable (input : ι → List Bool)
     BodyDefinable (L := L) size sign
       (fun j v => inputAt (input j.1) (v a).val = s) :=
   (PolarityDefinable.ofFO ((inputFormula s).relabel (fun _ => a))).congr fun j v => by
-    rw [Language.Formula.realize_relabel, show v ∘ (fun _ : Fin 1 => a) = ![v a] by
+    have hv : v ∘ (fun _ : Fin 1 => a) = ![v a] := by
       funext k
-      fin_cases k; rfl]
+      fin_cases k
+      rfl
+    rw [Language.Formula.realize_relabel, hv]
     exact hinput j.1 s (v a)
 
 variable {m : ℕ} {State : Type} [Fintype State]
@@ -94,7 +99,8 @@ attribute [local aesop safe apply (rule_sets := [FODefinable])]
 private theorem read_definable {α : Type} (i : Fin m) (s : Option Bool) (t : α) :
     BodyDefinable (L := L) size true
       (fun j v => read (traceRow (State := State) j.2 (v t)) i s) := by
-  unfold read; fo_definable
+  unfold read
+  fo_definable
 
 attribute [local aesop safe apply (rule_sets := [FODefinable])] read_definable
 
@@ -113,7 +119,8 @@ private theorem situation_definable (input : ι → List Bool)
 private theorem elsewhere_definable {α : Type} (i : Fin m) (sign : Bool) (t a : α) :
     BodyDefinable (L := L) size true
       (fun j v => elsewhere (traceRow (State := State) j.2 (v t)) i sign (v a)) := by
-  simp only [elsewhere, ne_eq]; fo_definable
+  simp only [elsewhere, ne_eq]
+  fo_definable
 
 private theorem inputPrev_definable (input : ι → List Bool)
     (inputFormula : Option Bool → (Ordered.language L).Formula (Fin 1))
@@ -125,7 +132,9 @@ private theorem inputPrev_definable (input : ι → List Bool)
         (input j.1) (traceRow j.2 (v t)) d (v a)) := by
   cases d with
   | zero => exact traceRow_definable .inPos t a
-  | neg => simp only [inputPrev]; fo_definable
+  | neg =>
+    simp only [inputPrev]
+    fo_definable
   | pos =>
     exact ((numeral_definable false 0 a).neg.conj
       ((input_definable input inputFormula hinput true none a).conj
@@ -158,7 +167,8 @@ private theorem rowStep_definable (tm : MultiTapeTM m Bool State) (input : ι �
   have hs (y : Situation m State) :=
     situation_definable (size := size) input inputFormula hinput y t a
   have hi (d : SignType) :=
-    inputPrev_definable (size := size) (m := m) (State := State) input inputFormula hinput d t a
+    inputPrev_definable (size := size) (m := m) (State := State)
+      input inputFormula hinput d t a
   have hh (i : Fin m) (s : Bool) (d : SignType) :=
     headPrev_definable (L := L) (size := size) (State := State) i s d t a
   have he (i : Fin m) (s : Bool) :=

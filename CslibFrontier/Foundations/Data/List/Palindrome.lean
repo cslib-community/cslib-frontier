@@ -48,7 +48,8 @@ theorem Palindrome.iff_getElem? {l : List α} :
   refine ⟨fun h i hi => by rw [← getElem?_reverse hi, h], fun h => ext_getElem? fun i => ?_⟩
   by_cases hi : i < l.length
   · rw [getElem?_reverse hi, h i hi]
-  · rw [getElem?_eq_none (by simp; omega), getElem?_eq_none (by omega)]
+  · rw [getElem?_eq_none (by simpa only [length_reverse] using Nat.le_of_not_lt hi),
+      getElem?_eq_none (Nat.le_of_not_lt hi)]
 
 /-- A factor `l.extract a b` with `b ≤ l.length` is a palindrome iff the letters at positions
 symmetric about the midpoint of `[a, b)` agree. -/
