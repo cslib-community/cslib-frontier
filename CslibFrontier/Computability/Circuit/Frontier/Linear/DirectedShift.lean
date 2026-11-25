@@ -471,11 +471,9 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
       rw [integral_finsetSum Finset.univ fun v _ => hint_v v]
       refine Finset.sum_congr rfl fun v _ => ?_
       rw [integral_const_mul, integral_indicator_one (hmeas_v v)]
-    rw [hsum_v] at hI
-    exact hI
+    rwa [hsum_v] at hI
   -- Evaluate `∑_v σ(v) P(v ∈ P_d) = (1 / 2 - q) ∑_v |σ(v)| + (1 / 2) ∑_v σ(v)`.
-  have hsum_zero : (∑ v : V, (G.divergence v : ℝ)) = 0 := by
-    exact_mod_cast G.sum_divergence hloop
+  have hsum_zero : (∑ v : V, (G.divergence v : ℝ)) = 0 := mod_cast G.sum_divergence hloop
   have hdiv_eval :
       (∑ v : V, (G.divergence v : ℝ) * P.real {ω | v ∈ shiftedCut G (M ω) d}) =
         (1 - 2 * q) / 2 * (∑ v : V, |(G.divergence v : ℝ)|) := by
@@ -703,8 +701,7 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
       rfl
     linarith [hcast, hlinR]
   -- Total divergence is `0`, so `2 * (e_pm - e_mp) = ∑_v |σ(v)| ≥ |V|`:
-  have hsum_zero : (∑ v : V, (Q.divergence v : ℝ)) = 0 := by
-    exact_mod_cast Q.sum_divergence hloop
+  have hsum_zero : (∑ v : V, (Q.divergence v : ℝ)) = 0 := mod_cast Q.sum_divergence hloop
   have hflux_ge : h / 2 ≤ e_pm - e_mp := by
     have hpt (v : V) : |(Q.divergence v : ℝ)| =
         2 * (if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) - Q.divergence v := by
