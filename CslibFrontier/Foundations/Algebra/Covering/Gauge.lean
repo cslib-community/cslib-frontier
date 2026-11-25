@@ -89,6 +89,14 @@ private theorem prop_gauge_minimal {p₀ : M → ℝ} (h₀ : IsUpperFunctional 
   have h4 : OrderDual.ofDual m ≤ q := hmax.2 (y := OrderDual.toDual q) ⟨h1, h2⟩ h3
   exact le_antisymm (h3 t) (h4 t)
 
+private theorem prod_pow_ite_add_one {α β : Type*} [DecidableEq α] [CommMonoid β] {S : Finset α}
+    {y : α} (hy : y ∈ S) (f : α → β) (e : α → ℕ) :
+    ∏ z ∈ S, f z ^ (if z = y then e z + 1 else e z) = f y * ∏ z ∈ S, f z ^ e z := by
+  rw [← Finset.mul_prod_erase S _ hy, ← Finset.mul_prod_erase S (fun z => f z ^ e z) hy,
+    ite_eq_left rfl, pow_succ', mul_assoc]
+  congr 2
+  exact Finset.prod_congr rfl fun z hz => by rw [ite_eq_right (Finset.ne_of_mem_erase hz)]
+
 /-- Proof of Proposition A.5: the spectral radius `r` is at most the sum of its values along a
 cover. If `s` is covered by `t_1, …, t_l`, then `sⁿ` is covered by their words of length `n`, and
 the bound `p(t_jᵃ) ≤ c_δ (r(t_j) + δ)ᵃ` gives `r(s) ≤ ∑ r(t_j)`. Here `r(t)` is the infimum of
@@ -129,22 +137,7 @@ private theorem prop_gauge_radius_cover (h : IsUpperFunctional D p) {κ : Type} 
         set y := b k with hy
         have hyS : y ∈ S := Finset.mem_image_of_mem _ (Finset.mem_univ _)
         have h4 := ih (fun z => if z = y then e z + 1 else e z)
-        have e1 : ∏ z ∈ S, z ^ (if z = y then e z + 1 else e z) =
-            y * ∏ z ∈ S, z ^ e z := by
-          rw [← Finset.mul_prod_erase S _ hyS, ← Finset.mul_prod_erase S (fun z => z ^ e z) hyS]
-          rw [ite_eq_left rfl, pow_succ', mul_assoc]
-          congr 2
-          refine Finset.prod_congr rfl fun z hz => ?_
-          rw [ite_eq_right (Finset.ne_of_mem_erase hz)]
-        have e2 : ∏ z ∈ S, a z ^ (if z = y then e z + 1 else e z) =
-            a y * ∏ z ∈ S, a z ^ e z := by
-          rw [← Finset.mul_prod_erase S _ hyS,
-            ← Finset.mul_prod_erase S (fun z => a z ^ e z) hyS]
-          rw [ite_eq_left rfl, pow_succ', mul_assoc]
-          congr 2
-          refine Finset.prod_congr rfl fun z hz => ?_
-          rw [ite_eq_right (Finset.ne_of_mem_erase hz)]
-        rw [e1, e2] at h4
+        rw [prod_pow_ite_add_one hyS (fun z => z) e, prod_pow_ite_add_one hyS a e] at h4
         rw [← mul_assoc]
         refine h4.trans (le_of_eq ?_)
         ring
@@ -233,12 +226,10 @@ private theorem prop_gauge_radius_respects (h : IsUpperFunctional D p) {x y : M}
       _ ≤ C * (c * a + δ) ^ m := by gcongr; linarith
   rcases hc.eq_or_lt with rfl | hc
   · simpa using h2 _ (h.add_mem_radiusSet _ one_pos)
-  · have h3 : sInf (radiusSet p (t * x)) / c ≤ sInf (radiusSet p (t * y)) := by
-      refine le_csInf ⟨_, h.add_mem_radiusSet _ one_pos⟩ fun a ha => ?_
-      rw [div_le_iff₀ hc]
-      exact (h2 a ha).trans (mul_comm _ _).le
-    rw [div_le_iff₀ hc] at h3
-    exact h3.trans (mul_comm _ _).le
+  · have h3 : sInf (radiusSet p (t * x)) / c ≤ sInf (radiusSet p (t * y)) :=
+      le_csInf ⟨_, h.add_mem_radiusSet _ one_pos⟩ fun a ha =>
+        (div_le_iff₀ hc).2 ((h2 a ha).trans_eq (mul_comm _ _))
+    exact ((div_le_iff₀ hc).1 h3).trans_eq (mul_comm _ _)
 
 /-- If p((tⁿ)ᵐ) ≤ C·aᵐ for all m, then p(tᵐ) ≤ C′·bᵐ for all m, with bⁿ = a. -/
 private theorem prop_gauge_radius_root (h : IsUpperFunctional D p) {t : M} {n : ℕ} (hn : 0 < n)
@@ -290,9 +281,7 @@ theorem IsUpperFunctional.sInf_radiusSet_eq (h : IsUpperFunctional D p) (t : M) 
         (nhds (p (t ^ (n + 1)) ^ (((n + 1 : ℕ) : ℝ)⁻¹))) := by
       have h3 : Continuous fun δ : ℝ => (p (t ^ (n + 1)) + δ) ^ (((n + 1 : ℕ) : ℝ)⁻¹) :=
         (Real.continuous_rpow_const (by positivity)).comp (continuous_const.add continuous_id)
-      have h4 := h3.tendsto 0
-      rw [add_zero] at h4
-      exact h4.mono_left nhdsWithin_le_nhds
+      simpa only [add_zero] using (h3.tendsto 0).mono_left nhdsWithin_le_nhds
     exact ge_of_tendsto h2 (Filter.eventually_of_mem self_mem_nhdsWithin fun δ hδ => h1 δ hδ)
   · -- p(tⁿ)^(1/n) ≤ C^(1/n)·a, and C^(1/n) tends to 1
     rintro a ⟨ha, C, hC⟩
@@ -408,7 +397,6 @@ theorem IsUpperFunctional.exists_map_mul {p₀ : M → ℝ} (h₀ : IsUpperFunct
         IsUpperFunctional.exists_localize hp hf (prop_gauge_radius_pow hp hrad f)
     have hqp := hmin q hq (fun x y c hc hk => hqkeep x y c hc (hkeep x y c hc hk)) hqle
     have h1 := hqk s
-    rw [hqp, hqp, mul_one, inv_mul_eq_div, le_div_iff₀ hf] at h1
-    exact h1
+    rwa [hqp, hqp, mul_one, inv_mul_eq_div, le_div_iff₀ hf] at h1
 
 end Cslib.Covering
