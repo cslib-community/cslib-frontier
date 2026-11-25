@@ -72,12 +72,19 @@ theorem iterate_encode (tm : MultiTapeTM k Bool State) (input : List Bool) {t : 
       encode (Data.run tm input i) :=
   (iterate_encode_both tm input ht hi).1
 
+/-- The partial clock retains a successor throughout each source execution prefix. -/
+private theorem partial_iterate_encode (tm : MultiTapeTM k Bool State) (input : List Bool)
+    {t : ℕ} (ht : tm.HaltsAt (tm.initCfg input) t) {i : ℕ} (hi : i ≤ t) :
+    (fun c => c.bind (machine tm.q₀ tm.tr).step)^[i]
+      (some (initList (machine tm.q₀ tm.tr) input)) = some (encode (Data.run tm input i)) :=
+  (iterate_encode_both tm input ht hi).2
+
 /-- Mathlib's partial execution reaches each source prefix in exactly that many transitions. -/
 def prefixEvals (tm : MultiTapeTM k Bool State) (input : List Bool) {t : ℕ}
     (ht : tm.HaltsAt (tm.initCfg input) t) {i : ℕ} (hi : i ≤ t) :
     StateTransition.EvalsToInTime (machine tm.q₀ tm.tr).step
       (initList (machine tm.q₀ tm.tr) input) (some (encode (Data.run tm input i))) i :=
-  ⟨⟨i, (iterate_encode_both tm input ht hi).2⟩, le_rfl⟩
+  ⟨⟨i, partial_iterate_encode tm input ht hi⟩, le_rfl⟩
 
 end
 
