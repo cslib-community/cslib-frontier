@@ -165,11 +165,11 @@ private theorem card_vset_castSucc (τ : Fin n → Bool) (S : Finset (Fin n)) (j
       (if ∃ i : Fin n, (i : ℕ) + 1 = j ∧ τ i = false ∧ τ j = false ∧ (i ∈ S ∨ j ∈ S)
         then (n : ℝ)⁻¹ else 1) := by
   have hn : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.2 (NeZero.ne n)
+  have hnn : (n : ℝ) ^ 2 * (n : ℝ)⁻¹ = n := by field_simp
   by_cases hj : j = 0
   · subst hj
     have h0 (q : Fin n → Prop) : ¬ ∃ i : Fin n, (i : ℕ) + 1 = (0 : Fin n) ∧ q i := by
-      rintro ⟨i, hi, -⟩
-      simp at hi
+      rintro ⟨i, hi, -⟩; simp at hi
     rw [ite_eq_left rfl, ite_eq_right (h0 _), ite_eq_right (h0 _), mul_one, mul_one]
     have : vset τ S (Fin.castSucc 0) ⊆ {((0, 0), (0, 0))} := by
       intro x hx
@@ -198,9 +198,8 @@ private theorem card_vset_castSucc (τ : Fin n → Bool) (S : Finset (Fin n)) (j
         obtain ⟨⟨h₁, -⟩, ⟨h₂, -⟩⟩ := hmem x hx
         cases hi : τ i <;> cases hj : τ j <;> simp_all
       simp only [show (∃ i : Fin n, (i : ℕ) + 1 = j ∧ τ i ≠ τ j) from ⟨i, hi, hτ⟩, hg,
-        ↓reduceIte, mul_one]
-      calc ((vset τ S j.castSucc).card : ℝ) ≤ n := by exact_mod_cast this
-        _ = (n : ℝ) ^ 2 * (n : ℝ)⁻¹ := by field_simp
+        ↓reduceIte, mul_one, hnn]
+      exact_mod_cast this
     · by_cases hg : ∃ i : Fin n, (i : ℕ) + 1 = j ∧ τ i = false ∧ τ j = false ∧ (i ∈ S ∨ j ∈ S)
       · have : (vset τ S j.castSucc).card ≤ n := card_le_of_eq fun x hx => by
           obtain ⟨⟨h₁, h₁'⟩, ⟨h₂, h₂'⟩⟩ := hmem x hx
@@ -209,21 +208,12 @@ private theorem card_vset_castSucc (τ : Fin n → Bool) (S : Finset (Fin n)) (j
           simp only [hτi, hτj, Bool.false_eq_true, ↓reduceIte] at h₁ h₂
           have h₃ : x.1.1 = x.2.1 := hS.elim h₁' h₂'
           exact ⟨h₁.1, h₃, h₃.trans h₁.2⟩
-        simp only [hsw, hg, ↓reduceIte, mul_one]
-        calc ((vset τ S j.castSucc).card : ℝ) ≤ n := by exact_mod_cast this
-          _ = (n : ℝ) ^ 2 * (n : ℝ)⁻¹ := by field_simp
-      · have hτ : τ i = τ j := by
-          by_contra h
-          exact hsw ⟨i, hi, h⟩
-        have : (vset τ S j.castSucc).card ≤ n ^ 2 := by
-          refine card_le_of_pair ?_
-          · cases hτj : τ j
-            · refine Or.inr fun x hx => ?_
-              have h₂ := (hmem x hx).2.1
-              rwa [hτj] at h₂
-            · refine Or.inl fun x hx => ?_
-              have h₂ := (hmem x hx).2.1
-              rwa [hτj] at h₂
+        simp only [hsw, hg, ↓reduceIte, mul_one, hnn]
+        exact_mod_cast this
+      · have : (vset τ S j.castSucc).card ≤ n ^ 2 := card_le_of_pair <| by
+          cases hτj : τ j
+          · exact Or.inr fun x hx => by have h₂ := (hmem x hx).2.1; rwa [hτj] at h₂
+          · exact Or.inl fun x hx => by have h₂ := (hmem x hx).2.1; rwa [hτj] at h₂
         simp only [hsw, hg, ↓reduceIte, mul_one]
         exact_mod_cast this
 
