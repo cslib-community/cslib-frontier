@@ -75,13 +75,11 @@ theorem runFrom_map_state (M₁ M₂ : Machine I E) (f : M₂.State → M₁.Sta
   | pure a => rfl
   | query_bind q cont ih =>
     have hq : (M₁.handler q).run (f s) = Prod.map _root_.id f <$> (M₂.handler q).run s := by
-      cases q with
-      | inl k =>
-        change (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run (f s) =
+      rcases q with k | e
+      · change (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run (f s) =
           Prod.map _root_.id f <$> (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s
-        simp only [StateT.run_lift, bind_pure_comp, Functor.map_map]
-        rfl
-      | inr e => exact h e s
+        simp only [StateT.run_lift, bind_pure_comp, Functor.map_map]; rfl
+      · exact h e s
     rw [PFunctor.FreeM.bind_eq_bind, runFrom_bind, runFrom_bind, runFrom_call, runFrom_call,
       hq, bind_map_left, map_bind]
     exact bind_congr fun x => ih x.1 x.2
@@ -97,8 +95,7 @@ theorem comp_handle_map_state (A : Machine J E) (P₁ P₂ : Machine I J) (f : P
   change Equiv.prodAssoc _ _ _ <$> P₁.runFrom ((A.handle q).run sA) (f sP) =
     Prod.map _root_.id (Prod.map _root_.id f) <$>
       (Equiv.prodAssoc _ _ _ <$> P₂.runFrom ((A.handle q).run sA) sP)
-  rw [runFrom_map_state P₁ P₂ f h, Functor.map_map, Functor.map_map]
-  rfl
+  rw [runFrom_map_state P₁ P₂ f h, Functor.map_map, Functor.map_map]; rfl
 
 /-- Running against a composition runs against the outer machine, and runs the result against the
 inner machine. -/
@@ -107,22 +104,20 @@ theorem runFrom_comp (A : Machine J E) (P : Machine I J) (program : ProbOracleCo
     (A.comp P).runFrom program (sA, sP) =
       Equiv.prodAssoc _ _ _ <$> P.runFrom (A.runFrom program sA) sP := by
   simp only [runFrom]
-  rw [OracleComp.run_interpret_run_interpret, Functor.map_map]
   have hhandler : (fun q (state : A.State × P.State) =>
       (fun x : (probOracleSpec E q × A.State) × P.State => (x.1.1, x.1.2, x.2)) <$>
         (OracleComp.interpret P.handler ((A.handler q).run state.1)).run state.2) =
       (A.comp P).handler := by
     funext q state
-    cases q with
-    | inl n =>
-      change (fun x : (Fin (n + 1) × A.State) × P.State => (x.1.1, x.1.2, x.2)) <$>
+    rcases q with n | _
+    · change (fun x : (Fin (n + 1) × A.State) × P.State => (x.1.1, x.1.2, x.2)) <$>
           P.runFrom ((StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))).run state.1)
             state.2 =
         (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))).run state
       simp only [StateT.run_lift, bind_pure_comp, runFrom_map, runFrom_sample, Functor.map_map]
       rfl
-    | inr e => rfl
-  rw [hhandler]
+    · rfl
+  rw [OracleComp.run_interpret_run_interpret, Functor.map_map, hhandler]
   refine (id_map _).symm.trans ?_
   congr 1
 
@@ -167,13 +162,12 @@ theorem run_comp (A : Machine J E) (P : Machine OracleSpec.empty J) (program : P
 /-- The forwarding machine passes every call through and never changes its state. -/
 theorem runFrom_id (program : ProbOracleComp E α) (s : (Machine.id E).State) :
     (Machine.id E).runFrom program s = (fun a => (a, s)) <$> program := by
-  have hhandler : (Machine.id E).handler = fun q => StateT.lift (OracleComp.query q) := by
-    funext q
-    cases q with
-    | inl n => simp only [handler, Machine.id, ProbOracleComp.sample, ProbComp.unifFin,
-        OracleComp.substitute_query]
-    | inr e => rfl
-  rw [runFrom, hhandler, OracleComp.run_interpret_lift, OracleComp.interpret_query_eq_self]
+  rw [runFrom, show (Machine.id E).handler = fun q => StateT.lift (OracleComp.query q) from
+    funext fun
+      | .inl _ => by simp only [handler, Machine.id, ProbOracleComp.sample, ProbComp.unifFin,
+          OracleComp.substitute_query]
+      | .inr _ => rfl,
+    OracleComp.run_interpret_lift, OracleComp.interpret_query_eq_self]
 
 /-- Linking against the forwarding machine leaves a program unchanged. -/
 @[simp] theorem link_id (program : ProbOracleComp E α) : (Machine.id E).link program = program := by
@@ -218,13 +212,10 @@ theorem isQueryBounded_link {M : Machine I J} {t m : ℕ} (hM : M.IsBounded t)
 /-- A machine with at most `u` calls per activation on top of a machine with at most `t` makes at
 most `u * (t + 1) + t` calls per activation. -/
 theorem IsBounded.comp {A : Machine J E} {P : Machine I J} {u t : ℕ} (hA : A.IsBounded u)
-    (hP : P.IsBounded t) : (A.comp P).IsBounded (u * (t + 1) + t) := by
-  refine ⟨?_, fun q s => ?_⟩
-  · refine (hP.1.bind fun _ => hA.1.bind fun _ => .pure _ 0).mono ?_
-    rw [Nat.mul_succ]
-    omega
-  · refine ((OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (isQueryBounded_runFrom hP (hA.2 q s.1) s.2)).mono (Nat.le_add_right _ _)
+    (hP : P.IsBounded t) : (A.comp P).IsBounded (u * (t + 1) + t) :=
+  ⟨(hP.1.bind fun _ => hA.1.bind fun _ => .pure _ 0).mono (by rw [Nat.mul_succ]; omega),
+    fun q s => ((OracleComp.isCostBounded_map_iff _ _ _).mpr
+      (isQueryBounded_runFrom hP (hA.2 q s.1) s.2)).mono (Nat.le_add_right _ _)⟩
 
 /-! ### Lifting right-port programs and machines over an arbitrary left port -/
 
@@ -272,9 +263,7 @@ theorem isQueryBounded_liftRightProgram {program : ProbOracleComp R α} {m : ℕ
     (h : program.IsQueryBounded m) :
     (liftRightProgram L program).IsQueryBounded m := by
   refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl k => exact OracleComp.IsCostBounded.query _
-  | inr q => exact OracleComp.IsCostBounded.query _
+  cases q <;> exact OracleComp.IsCostBounded.query _
 
 /-- Lift a machine `M` from `R → E` to `L ⊕ₒ R → L ⊕ₒ E`, forwarding left-port queries
 unchanged and running right-port activations through `liftRightProgram`. -/
@@ -295,10 +284,8 @@ theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
   | pure a => rfl
   | query_bind q cont ih =>
     simp only [PFunctor.FreeM.bind_eq_bind]
-    cases q with
-    | inl k =>
-      have h₁ : liftRightProgram L
-          (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) =
+    rcases q with k | e
+    · have h₁ : liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inl k)) =
           ProbOracleComp.sample (ProbComp.unifFin k) := by
         rw [← liftRightProgram_sample L (R := R₁)]
         rfl
@@ -309,16 +296,14 @@ theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
         liftRightProgram_map, liftRightProgram_sample, bind_map_left]
       erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
       exact bind_congr fun a => ih a s
-    | inr e =>
-      rw [liftRightProgram_bind, Machine.runFrom_bind, liftRightProgram_bind]
+    · rw [liftRightProgram_bind, Machine.runFrom_bind, liftRightProgram_bind]
       erw [Machine.runFrom_bind]
-      have h₁ : (liftRight L S).runFrom
-          (liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e))) s =
-          liftRightProgram L (S.runFrom
-            (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e)) s) := by
-        erw [liftRightProgram_query, Machine.runFrom_query, Machine.runFrom_query]
-        rfl
-      exact (congrArg (fun m => m >>= _) h₁).trans
+      exact (congrArg (fun m => m >>= _)
+        (show (liftRight L S).runFrom
+            (liftRightProgram L (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e))) s =
+            liftRightProgram L (S.runFrom
+              (OracleComp.query (spec := probOracleSpec R₁) (Sum.inr e)) s) by
+          erw [liftRightProgram_query, Machine.runFrom_query, Machine.runFrom_query]; rfl)).trans
         (bind_congr fun (x : R₁ e × S.State) => ih x.1 x.2)
 
 /-- Lifting the forwarding machine yields the forwarding machine on the combined interface. -/
@@ -326,12 +311,10 @@ theorem runFrom_liftRight_liftRightProgram (S : Machine R₂ R₁)
     liftRight L (Machine.id R) = Machine.id (L ⊕ₒ R) := by
   simp only [liftRight, Machine.id]
   congr 1 with q s : 2
-  cases q with
-  | inl p => rfl
-  | inr q =>
-    change liftRightProgram L ((fun a => (a, s)) <$> ProbOracleComp.query q) = _
-    rw [liftRightProgram_map, liftRightProgram_query]
-    rfl
+  rcases q with _ | q
+  · rfl
+  · change liftRightProgram L ((fun a => (a, s)) <$> ProbOracleComp.query q) = _
+    rw [liftRightProgram_map, liftRightProgram_query]; rfl
 
 /-- Lifting a composition is composing the lifted machines. -/
 theorem liftRight_comp (A : Machine R₁ E) (S : Machine R₂ R₁) :

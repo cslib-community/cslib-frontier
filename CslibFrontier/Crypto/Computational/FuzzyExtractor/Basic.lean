@@ -163,9 +163,10 @@ theorem CorrectWithError.one_sub_le_succProbability [DecidableEq Key]
     {fe : FuzzyExtractor M Key Helper} {dis : M → M → ℕ} {t : ℕ} {δ : ℝ≥0}
     (h : fe.CorrectWithError dis t δ) {w w' : M} (hdis : dis w w' ≤ t) :
     1 - δ ≤ Game.succProbability (fe.reproduceGame w w') := by
-  have hfail := h w w' hdis
-  have hsum := Game.succProbability_add_failProbability (fe.reproduceGame w w')
-  exact tsub_le_iff_right.mpr (by rw [← hsum]; exact add_le_add_right hfail _)
+  refine tsub_le_iff_right.mpr
+    ((Game.succProbability_add_failProbability (fe.reproduceGame w w')).symm.trans_le ?_)
+  gcongr
+  exact h w w' hdis
 
 /-- Relaxing the error bound `δ` or shrinking the distance threshold `t` preserves
 `CorrectWithError`. -/
@@ -182,26 +183,19 @@ theorem Correct.reproduceGame_eq_pure_true [DecidableEq Key]
     (h : fe.Correct dis t) {w w' : M} (hdis : dis w w' ≤ t) :
     fe.reproduceGame w w' = PMF.pure true := by
   rw [reproduceGame_eq_bind]
-  calc
-    (ProbComp.eval (fe.gen w)).bind (fun rp =>
-        (ProbComp.eval (fe.rep w' rp.2)).bind (fun r' => PMF.pure (decide (r' = rp.1))))
-      = (ProbComp.eval (fe.gen w)).bind (fun _ => PMF.pure true) := by
-        refine PMF.bind_congr_on_support _ _ _ fun ⟨r, p⟩ hrp => ?_
-        calc
-          (ProbComp.eval (fe.rep w' p)).bind (fun r' => PMF.pure (decide (r' = r)))
-            = (ProbComp.eval (fe.rep w' p)).bind (fun _ => PMF.pure true) := by
-              refine PMF.bind_congr_on_support _ _ _ fun r' hr' => ?_
-              simp [h w w' hdis r p hrp r' hr']
-          _ = PMF.pure true := PMF.bind_const _ _
+  calc (ProbComp.eval (fe.gen w)).bind (fun rp =>
+        (ProbComp.eval (fe.rep w' rp.2)).bind fun r' => PMF.pure (decide (r' = rp.1)))
+      = (ProbComp.eval (fe.gen w)).bind fun _ => PMF.pure true :=
+        PMF.bind_congr_on_support _ _ _ fun ⟨r, p⟩ hrp => by
+          rw [← PMF.bind_const (ProbComp.eval (fe.rep w' p)) (PMF.pure true)]
+          exact PMF.bind_congr_on_support _ _ _ fun r' hr' => by simp [h w w' hdis r p hrp r' hr']
     _ = PMF.pure true := PMF.bind_const _ _
 
 /-- Zero-error correctness implies `CorrectWithError` with error `0`. -/
 theorem Correct.correctWithError_zero [DecidableEq Key]
     {fe : FuzzyExtractor M Key Helper} {dis : M → M → ℕ} {t : ℕ} (h : fe.Correct dis t) :
-    fe.CorrectWithError dis t 0 := by
-  intro w w' hdis
-  rw [h.reproduceGame_eq_pure_true hdis]
-  simp [Game.failProbability]
+    fe.CorrectWithError dis t 0 :=
+  fun _ _ hdis => by simp [Game.failProbability, h.reproduceGame_eq_pure_true hdis]
 
 /-- Zero-error correctness implies `CorrectWithError` for every error bound `δ`. -/
 theorem Correct.correctWithError [DecidableEq Key]
@@ -283,10 +277,8 @@ theorem realGame_eq_bind (fe : FuzzyExtractor M Key Helper) (W : PMF M)
 theorem idealGame_eq_bind [Fintype Key] [Nonempty Key] (fe : FuzzyExtractor M Key Helper)
     (W : PMF M) (D : Key → Helper → Experiment) :
     fe.idealGame W D = (fe.idealDistribution W).bind fun up => ProbComp.eval (D up.1 up.2) := by
-  simp only [idealGame, Game.withSetup, idealExperiment, idealDistribution, pmf_norm]
-  congr 1 with w : 1
-  congr 1 with ⟨r, p⟩
-  simp only [ProbComp.eval_uniform]
+  simp only [idealGame, Game.withSetup, idealExperiment, idealDistribution,
+    ProbComp.eval_uniform, pmf_norm]
 
 /-- The distinguishing advantage `δ^D((R, P), (U, P))` of `D` on source `W`
 ([FullerMengReyzin2020], Definition 2.2). -/
@@ -466,7 +458,7 @@ theorem Correct.sketchAndExtract [Fintype Seed] [Nonempty Seed]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
     PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, PMF.mem_support_uniformOfFintype,
     true_and, Prod.mk.injEq] at hrp hr'
-  obtain ⟨s, hs, x, rfl, rfl⟩ := hrp
+  obtain ⟨s, hs, _, rfl, rfl⟩ := hrp
   obtain ⟨wHat, hwHat, rfl⟩ := hr'
   rw [h w w' hdis s hs wHat hwHat]
 
@@ -478,18 +470,15 @@ theorem failProbability_reproduceGame_sketchAndExtract_le
     (ss : SecureSketch M Sketch) (ext : M → Seed → Key) (w w' : M) :
     Game.failProbability ((ss.sketchAndExtract ext).reproduceGame w w') ≤
       Game.failProbability (ss.recoverGame w w') := by
-  simp only [Game.failProbability]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   simp only [FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck, recoverGame, recoverCheck,
     sketchAndExtract, ProbComp.eval_uniform, pmf_norm]
-  refine PMF.bind_apply_mono_on_support _ false fun s _ => ?_
-  refine PMF.bind_apply_le_on_support _ fun x _ => ?_
-  refine PMF.bind_apply_mono_on_support _ false fun wHat _ => ?_
+  refine PMF.bind_apply_mono_on_support _ false fun s _ =>
+    PMF.bind_apply_le_on_support _ fun _ _ =>
+      PMF.bind_apply_mono_on_support _ false fun wHat _ => ?_
   by_cases hw : wHat = w
-  · subst hw
-    simp
-  · rw [decide_eq_false hw, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  · simp [hw]
+  · simpa only [decide_eq_false hw, PMF.pure_apply_self] using PMF.coe_le_one _ _
 
 /-- `δ`-error correctness of `sketchAndExtract` ([FullerMengReyzin2020], Lemma 2.5):
 if `ss` recovers `w` with error at most `δ` within distance `t`, then `ss.sketchAndExtract ext`

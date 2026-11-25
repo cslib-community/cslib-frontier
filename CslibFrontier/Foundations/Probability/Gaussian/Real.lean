@@ -57,22 +57,20 @@ namespace ProbabilityTheory
 /-- The Gaussian density is continuous. -/
 @[fun_prop]
 theorem continuous_gaussianPDFReal (μ : ℝ) (v : ℝ≥0) : Continuous (gaussianPDFReal μ v) := by
-  rw [gaussianPDFReal_def]
-  fun_prop
+  rw [gaussianPDFReal_def]; fun_prop
 
 /-- The Gaussian density is smooth. -/
 @[fun_prop]
 theorem contDiff_gaussianPDFReal {n : WithTop ℕ∞} (μ : ℝ) (v : ℝ≥0) :
     ContDiff ℝ n (gaussianPDFReal μ v) := by
-  rw [gaussianPDFReal_def]
-  fun_prop
+  rw [gaussianPDFReal_def]; fun_prop
 
 /-- The Gaussian density is at most its value `1 / √(2πv)` at the mean. -/
 theorem gaussianPDFReal_le (μ : ℝ) (v : ℝ≥0) (x : ℝ) :
     gaussianPDFReal μ v x ≤ (√(2 * π * v))⁻¹ := by
   rw [gaussianPDFReal]
-  refine mul_le_of_le_one_right (by positivity) (exp_le_one_iff.2 ?_)
-  exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.2 (sq_nonneg _)) (by positivity)
+  exact mul_le_of_le_one_right (by positivity)
+    (exp_le_one_iff.2 (div_nonpos_of_nonpos_of_nonneg (neg_nonpos.2 (sq_nonneg _)) (by positivity)))
 
 /-- A nondegenerate Gaussian gives each set at most the peak density `1 / √(2πv)` times its
 Lebesgue measure. -/
@@ -87,8 +85,8 @@ theorem gaussianReal_real_Iic_add_le (μ x : ℝ) {v : ℝ≥0} (hv : v ≠ 0) {
     (gaussianReal μ v).real (Iic (x + ε)) ≤ (gaussianReal μ v).real (Iic x) + ε / √(2 * π * v) := by
   rw [← Iic_union_Ioc_eq_Iic (le_add_of_nonneg_right hε),
     measureReal_union (Iic_disjoint_Ioc le_rfl) measurableSet_Ioc]
-  refine add_le_add le_rfl (ENNReal.toReal_le_of_le_ofReal (by positivity) ?_)
-  refine (gaussianReal_le_ofReal_mul_volume μ hv _).trans ?_
+  refine add_le_add le_rfl (ENNReal.toReal_le_of_le_ofReal (by positivity)
+    ((gaussianReal_le_ofReal_mul_volume μ hv _).trans ?_))
   rw [Real.volume_Ioc, add_sub_cancel_left, ← ENNReal.ofReal_mul (by positivity), inv_mul_eq_div]
 
 /-- If translating by `2 w` does not increase `f` to the right of `-w`, then the interval of
@@ -123,11 +121,9 @@ private theorem gaussianPDFReal_add_two_mul_le (v : ℝ≥0) {w x : ℝ} (hw : 0
 private theorem gaussianReal_zero_Icc_le (v : ℝ≥0) (c w : ℝ) :
     gaussianReal 0 v (Icc (c - w) (c + w)) ≤ gaussianReal 0 v (Icc (-w) w) := by
   rcases lt_or_ge w 0 with hw | hw
-  · rw [Icc_eq_empty (by linarith), measure_empty]
-    exact bot_le
+  · simp [Icc_eq_empty (by linarith : ¬ c - w ≤ c + w)]
   rcases eq_or_ne v 0 with rfl | hv
-  · rw [gaussianReal_zero_var, Measure.dirac_apply_of_mem (show (0 : ℝ) ∈ Icc (-w) w from
-      ⟨by linarith, hw⟩)]
+  · rw [gaussianReal_zero_var, Measure.dirac_apply_of_mem (mem_Icc.mpr ⟨by linarith, hw⟩)]
     exact prob_le_one
   rw [gaussianReal_apply_eq_integral _ hv, gaussianReal_apply_eq_integral _ hv,
     integral_Icc_eq_integral_Ioc, integral_Icc_eq_integral_Ioc,
@@ -135,21 +131,17 @@ private theorem gaussianReal_zero_Icc_le (v : ℝ≥0) (c w : ℝ) :
     ← intervalIntegral.integral_of_le (by linarith)]
   refine ENNReal.ofReal_le_ofReal ?_
   have hcont := continuous_gaussianPDFReal 0 v
-  have hmono : ∀ x, -w ≤ x → gaussianPDFReal 0 v (x + 2 * w) ≤ gaussianPDFReal 0 v x :=
-    fun x hx => gaussianPDFReal_add_two_mul_le v hw hx
+  have hmono := fun x => gaussianPDFReal_add_two_mul_le v hw (x := x)
   rcases le_total 0 c with hc | hc
   · exact intervalIntegral_shift_le hcont hc hmono
   -- Reflect through the mean, using that the density is even.
-  have hrefl : ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x =
-      ∫ x in (-c - w)..(-c + w), gaussianPDFReal 0 v x := by
-    calc ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x
-        = ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v (-x) := by
-          simp [gaussianPDFReal_def]
-      _ = _ := by
-          rw [intervalIntegral.integral_comp_neg]
-          congr 1 <;> ring
-  rw [hrefl]
-  exact intervalIntegral_shift_le hcont (by linarith) hmono
+  calc ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v x
+      = ∫ x in (c - w)..(c + w), gaussianPDFReal 0 v (-x) := by simp [gaussianPDFReal_def]
+    _ = ∫ x in (-c - w)..(-c + w), gaussianPDFReal 0 v x := by
+        rw [intervalIntegral.integral_comp_neg]
+        congr 1 <;> ring
+    _ ≤ ∫ x in (-w)..w, gaussianPDFReal 0 v x :=
+        intervalIntegral_shift_le hcont (by linarith) hmono
 
 /-- **Anderson's inequality on the line.** A Gaussian gives an interval of radius `w` the most
 mass when it is centered at the mean. -/

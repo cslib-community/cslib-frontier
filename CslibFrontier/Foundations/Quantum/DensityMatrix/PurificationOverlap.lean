@@ -63,8 +63,8 @@ omit [DecidableEq ι] [DecidableEq κ] in
 theorem inner_eq_trace_coefficients (ψ φ : EuclideanSpace ℂ (ι × κ)) :
     inner ℂ ψ φ = ((coefficients ψ)ᴴ * coefficients φ).trace := by
   simp only [EuclideanSpace.inner_eq_star_dotProduct, dotProduct, Pi.star_apply, Matrix.trace,
-    Fintype.sum_prod_type, Matrix.diag_apply, Matrix.mul_apply, conjTranspose_apply, coefficients]
-  simp only [mul_comm]
+    Fintype.sum_prod_type, Matrix.diag_apply, Matrix.mul_apply, conjTranspose_apply, coefficients,
+    mul_comm]
   rw [Finset.sum_comm]
 
 /-- Two purifications with equal left marginal can be aligned by a unitary on the right. -/
@@ -73,22 +73,18 @@ theorem exists_localUnitary_of_partialTraceRight_eq (ψ φ : EuclideanSpace ℂ 
     ∃ U ∈ unitaryGroup κ ℂ,
       WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp) = φ := by
   simp only [partialTraceRight_pureState_eq_coefficients] at h
-  have hGram : ((coefficients ψ)ᴴ)ᴴ * (coefficients ψ)ᴴ =
-      ((coefficients φ)ᴴ)ᴴ * (coefficients φ)ᴴ := by
-    simpa only [conjTranspose_conjTranspose] using h
-  obtain ⟨V, hV, he⟩ :=
-    exists_unitary_mul_eq_of_conjTranspose_mul_eq (coefficients ψ)ᴴ (coefficients φ)ᴴ hGram
-  have hUV : Vᴴᵀ ∈ unitaryGroup κ ℂ := by
-    rw [transpose_mem_unitaryGroup_iff, mem_unitaryGroup_iff, star_eq_conjTranspose,
+  obtain ⟨V, hV, he⟩ := exists_unitary_mul_eq_of_conjTranspose_mul_eq (coefficients ψ)ᴴ
+    (coefficients φ)ᴴ (by simpa only [conjTranspose_conjTranspose] using h)
+  refine ⟨Vᴴᵀ, ?_, ?_⟩
+  · rw [transpose_mem_unitaryGroup_iff, mem_unitaryGroup_iff, star_eq_conjTranspose,
       conjTranspose_conjTranspose]
-    exact (mem_unitaryGroup_iff').mp hV
-  refine ⟨Vᴴᵀ, hUV, ?_⟩
-  have ha := congrArg Matrix.conjTranspose he
-  simp only [conjTranspose_mul, conjTranspose_conjTranspose] at ha
-  have hcoeff := coefficients_one_kronecker (ι := ι) Vᴴᵀ ψ
-  rw [transpose_transpose, ha] at hcoeff
-  ext ⟨i, k⟩
-  exact congrFun (congrFun hcoeff i) k
+    exact mem_unitaryGroup_iff'.mp hV
+  · have ha := congrArg Matrix.conjTranspose he
+    simp only [conjTranspose_mul, conjTranspose_conjTranspose] at ha
+    have hcoeff := coefficients_one_kronecker (ι := ι) Vᴴᵀ ψ
+    rw [transpose_transpose, ha] at hcoeff
+    ext ⟨i, k⟩
+    exact congrFun (congrFun hcoeff i) k
 
 /-- Root fidelity, the trace norm of the product of the positive square roots.
 This convention leaves fidelity unsquared. -/
@@ -166,17 +162,16 @@ theorem exists_localUnitary_norm_sub_sq_eq (ψ φ : EuclideanSpace ℂ (ι × κ
           (partialTraceRight (pureState φ))) := by
   obtain ⟨U, hU, hoverlap⟩ := exists_localUnitary_inner_re_eq_rootFidelity ψ φ
   have h1 : (1 : Matrix ι ι ℂ) ⊗ₖ U ∈ unitaryGroup (ι × κ) ℂ := by
-    rw [mem_unitaryGroup_iff', star_eq_conjTranspose, conjTranspose_kronecker,
-      conjTranspose_one, ← mul_kronecker_mul, Matrix.one_mul,
-      show Uᴴ * U = 1 from (mem_unitaryGroup_iff').mp hU, one_kronecker_one]
+    rw [mem_unitaryGroup_iff', star_eq_conjTranspose, conjTranspose_kronecker, conjTranspose_one,
+      ← mul_kronecker_mul, Matrix.one_mul, show Uᴴ * U = 1 from mem_unitaryGroup_iff'.mp hU,
+      one_kronecker_one]
   have hn : ‖(WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp) :
       EuclideanSpace ℂ (ι × κ))‖ = ‖ψ‖ :=
     (mem_unitaryGroup_iff_forall_norm_toEuclideanCLM _).mp h1 ψ
   refine ⟨U, hU, ?_⟩
-  have hr : RCLike.re (inner ℂ
-      (WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp)) φ) = _ := hoverlap
-  rw [norm_sub_sq (𝕜 := ℂ), hn, hψ, hφ, hr]
-  change (1 : ℝ) ^ 2 - 2 * _ + 1 ^ 2 = _
+  rw [norm_sub_sq (𝕜 := ℂ), hn, hψ, hφ,
+    show RCLike.re (inner ℂ (WithLp.toLp 2 (((1 : Matrix ι ι ℂ) ⊗ₖ U) *ᵥ ψ.ofLp)) φ) = _ from
+      hoverlap]
   ring
 
 end Cslib.Quantum

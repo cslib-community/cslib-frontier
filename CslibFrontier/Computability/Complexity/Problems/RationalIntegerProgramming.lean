@@ -106,33 +106,30 @@ def clearDenominators (P : RationalIntegerProgram) : IntegerProgram :=
 private theorem clearRow_iff (c : Inequality) (n : ℕ) (x : Fin n → ℤ) :
     (∑ j : Fin n, (clearRow c).coeffs.getD j 0 * x j ≤ (clearRow c).rhs) ↔
       ∑ j : Fin n, c.coeffs.getD j 0 * (x j : ℚ) ≤ c.rhs := by
-  have hpos : 0 < denominator c := by
-    exact Nat.mul_pos c.rhs.pos (List.prod_pos (by simp [Rat.pos]))
-  have hdvd (q : ℚ) (hq : q ∈ c.coeffs ∨ q = c.rhs) : q.den ∣ denominator c := by
-    rcases hq with hq | rfl
-    · exact dvd_mul_of_dvd_right (List.dvd_prod (List.mem_map.mpr ⟨q, hq, rfl⟩)) _
-    · exact dvd_mul_right _ _
+  have hpos : 0 < denominator c := Nat.mul_pos c.rhs.pos (List.prod_pos (by simp [Rat.pos]))
+  have hdvd {q : ℚ} (hq : q ∈ c.coeffs ∨ q = c.rhs) : q.den ∣ denominator c :=
+    hq.elim (fun hq => dvd_mul_of_dvd_right (List.dvd_prod (List.mem_map.mpr ⟨q, hq, rfl⟩)) _)
+      fun h => h ▸ dvd_mul_right _ _
   have hentry (j : Fin n) :
       (((clearRow c).coeffs.getD j 0 : ℤ) : ℚ) =
         (denominator c : ℚ) * c.coeffs.getD j 0 := by
     have hmap : (clearRow c).coeffs.getD j 0 =
         clearEntry (denominator c) (c.coeffs.getD j 0) := by
       simpa [clearRow, clearEntry] using
-        (List.getD_map (l := c.coeffs) (d := 0) (n := j.val)
-          (clearEntry (denominator c)))
+        List.getD_map (l := c.coeffs) (d := 0) (n := j.val) (clearEntry (denominator c))
     rw [hmap]
-    rcases List.getD_mem_or c.coeffs j.val 0 with hj | hj
-    · exact (Rat.clearDenom_entry (hdvd _ (Or.inl hj))).symm
-    · rw [hj]
-      simp [clearEntry]
-  have hrhs : ((clearRow c).rhs : ℚ) = (denominator c : ℚ) * c.rhs :=
-    (Rat.clearDenom_entry (hdvd _ (Or.inr rfl))).symm
+    exact (List.getD_mem_or c.coeffs j.val 0).elim
+      (fun hj => (Rat.clearDenom_entry (hdvd (.inl hj))).symm)
+      fun hj => by
+        rw [hj]
+        simp [clearEntry]
   have hcast : (∑ j : Fin n, (clearRow c).coeffs.getD j 0 * x j ≤ (clearRow c).rhs) ↔
-      (∑ j : Fin n, (((clearRow c).coeffs.getD j 0 : ℤ) : ℚ) * (x j : ℚ) ≤
-        ((clearRow c).rhs : ℚ)) := by exact_mod_cast Iff.rfl
-  rw [hcast, hrhs]
+      ∑ j : Fin n, (((clearRow c).coeffs.getD j 0 : ℤ) : ℚ) * (x j : ℚ) ≤
+        ((clearRow c).rhs : ℚ) := by exact_mod_cast Iff.rfl
+  rw [hcast, show ((clearRow c).rhs : ℚ) = (denominator c : ℚ) * c.rhs from
+    (Rat.clearDenom_entry (hdvd (.inr rfl))).symm]
   simp only [hentry, mul_assoc, ← Finset.mul_sum]
-  exact mul_le_mul_iff_right₀ (show (0 : ℚ) < denominator c by exact_mod_cast hpos)
+  exact mul_le_mul_iff_right₀ (by exact_mod_cast hpos)
 
 private theorem nonnegRow_iff {n j : ℕ} (hj : j < n) (x : Fin n → ℤ) :
     (∑ k : Fin n, (nonnegRow n j).coeffs.getD k 0 * x k ≤ (nonnegRow n j).rhs) ↔
@@ -148,11 +145,8 @@ theorem satisfies_clearDenominators_iff (P : RationalIntegerProgram) (x : Fin P.
       ∑ j : Fin P.numVars, c.coeffs.getD j 0 * (x j : ℚ) ≤ c.rhs) := by
   simp only [clearDenominators, List.mem_append, or_imp, forall_and, List.forall_mem_map,
     List.mem_range, clearRow_iff]
-  constructor
-  · rintro ⟨hc, hn⟩
-    exact ⟨fun j => (nonnegRow_iff j.isLt x).mp (hn j j.isLt), hc⟩
-  · rintro ⟨hn, hc⟩
-    exact ⟨hc, fun j hj => (nonnegRow_iff hj x).mpr (hn ⟨j, hj⟩)⟩
+  exact ⟨fun ⟨hc, hn⟩ => ⟨fun j => (nonnegRow_iff j.isLt x).mp (hn j j.isLt), hc⟩,
+    fun ⟨hn, hc⟩ => ⟨hc, fun j hj => (nonnegRow_iff hj x).mpr (hn ⟨j, hj⟩)⟩⟩
 
 @[local fun_prop]
 private theorem computableInPolyTime_denominator :
@@ -185,13 +179,10 @@ private theorem satisfies_ofInteger_iff (P : IntegerProgram) (x : Fin P.numVars 
       ∑ j : Fin P.numVars, c.coeffs.getD j 0 * (x j : ℚ) ≤ c.rhs) ↔
       ∀ c ∈ P.constraints, ∑ j : Fin P.numVars, c.coeffs.getD j 0 * x j ≤ c.rhs := by
   simp only [ofInteger, List.forall_mem_map]
-  apply forall_congr'
-  intro c
-  apply forall_congr'
-  intro _
+  refine forall_congr' fun c => forall_congr' fun _ => ?_
   have hm (j : Fin P.numVars) : (c.coeffs.map (Int.cast : ℤ → ℚ)).getD j 0 =
       (c.coeffs.getD j 0 : ℚ) :=
-        List.getD_map (l := c.coeffs) (d := 0) (n := j.val) (Int.cast : ℤ → ℚ)
+    List.getD_map (l := c.coeffs) (d := 0) (n := j.val) (Int.cast : ℤ → ℚ)
   simp only [hm]
   exact_mod_cast Iff.rfl
 
@@ -201,19 +192,11 @@ private theorem poly_ofInteger : ComputableInPolyTime ofInteger IntegerProgram.e
 
 private theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
     ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ C ∈ ZeroOneIP := by
-  let P := IntegerProgram.ofZeroOne C
-  have hcast : ofInteger P ∈ Feasible ↔ ∃ x : Fin P.numVars → ℤ,
-      (∀ j, 0 ≤ x j) ∧ ∀ c ∈ P.constraints,
-        ∑ j : Fin P.numVars, c.coeffs.getD j 0 * x j ≤ c.rhs := by
-    exact exists_congr fun x => and_congr_right fun _ => satisfies_ofInteger_iff P x
-  rw [hcast, ← IntegerProgram.ofZeroOne_mem_iff C]
-  constructor
-  · rintro ⟨x, _, hx⟩
-    exact ⟨x, hx⟩
-  · intro h
-    obtain ⟨x, hx⟩ := h
-    have hn := (IntegerProgram.satisfies_ofZeroOne_iff C x).mp hx
-    exact ⟨x, fun j => (hn.1 j).1, hx⟩
+  rw [show ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ _ from
+    exists_congr fun x => and_congr_right fun _ => satisfies_ofInteger_iff _ x,
+    ← IntegerProgram.ofZeroOne_mem_iff C]
+  exact ⟨fun ⟨x, _, hx⟩ => ⟨x, hx⟩, fun ⟨x, hx⟩ =>
+    ⟨x, fun j => (((IntegerProgram.satisfies_ofZeroOne_iff C x).mp hx).1 j).1, hx⟩⟩
 
 /-- Rational-input integer programming with nonnegative integer unknowns is NP-complete
 ([AroraBarak07], January 8, 2007 draft, Theorem 2.17, printed p. 52 / PDF p. 68).

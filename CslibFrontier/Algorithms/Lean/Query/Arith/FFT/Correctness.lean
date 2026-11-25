@@ -78,17 +78,13 @@ theorem getElem_eval_powersFrom (ω : α) (r : ℕ) (c : α) (i : ℕ)
   fun_induction powersFrom ω r c generalizing i with
   | case1 => simp at hi -- 0
   | case2 c => -- 1
-    simp only [FreeM.eval_pure, List.length_singleton, Nat.lt_one_iff] at hi ⊢
-    subst hi
+    obtain rfl : i = 0 := by simpa using hi
     simp
   | case3 r c ih => -- r + 2
     simp only [FreeM.eval_bind, FreeM.eval_pure, doMul, FreeM.eval_lift] at hi ⊢
     rcases i with _ | i
     · simp
-    · simp only [List.getElem_cons_succ]
-      rw [ih]
-      simp only [honest]
-      ring
+    · simp only [List.getElem_cons_succ, ih, honest]; ring
 
 end FFT
 
@@ -117,13 +113,14 @@ theorem eval_fft {k : ℕ} {ω : α} {w : ℕ → α} (hw : ∀ j < 2 ^ k, w j =
     (hω : ω ^ 2 ^ k = -1) (a : Fin (2 ^ (k + 1)) → α) :
     (fft (k + 1) w a).eval honest = dft ω a := by
   induction k generalizing ω w with
-  | zero =>
-    refine eval_fft_step hw hω (fun b => ?_) a
-    exact (dft_fin_one _ b).symm
+  | zero => exact eval_fft_step hw hω (fun b => (dft_fin_one _ b).symm) a
   | succ k ih =>
-    refine eval_fft_step hw hω (fun b => ih (fun j hj => ?_) ?_ b) a
-    · rw [hw _ (by rw [pow_succ]; omega), pow_mul]
-    · rw [← pow_mul, ← pow_succ', hω]
+    have hw' (j : ℕ) (hj : j < 2 ^ k) : w (2 * j) = (ω ^ 2) ^ j := by
+      have hj' : 2 * j < 2 ^ (k + 1) := by
+        rw [pow_succ]
+        omega
+      rw [hw _ hj', pow_mul]
+    exact eval_fft_step hw hω (fun b => ih hw' (by rw [← pow_mul, ← pow_succ', hω]) b) a
 
 /-- The transform of length `1` is the DFT for every `ω`. -/
 theorem eval_fft_zero (w : ℕ → α) (ω : α) (a : Fin (2 ^ 0) → α) :
@@ -162,15 +159,14 @@ theorem eval_cyclicMul {k : ℕ} {ω : α} {w : ℕ → α} (hw : ∀ j < 2 ^ k,
     (a b : Fin (2 ^ (k + 1)) → α) :
     (cyclicMul (k + 1) w nInv a b).eval honest = cyclicConv a b := by
   have hω' : ω ^ 2 ^ (k + 1) = 1 := (IsPrincipalRoot.of_pow_two_pow_eq_neg_one hω).pow_eq_one
-  simp only [cyclicMul, FreeM.eval_bind, eval_fft hw hω, FreeM.eval_mOfFn]
   have hprod : (fun j => (doMul (dft ω a j) (dft ω b j) : FreeM (ArithQuery α) α).eval honest) =
       dft ω (cyclicConv a b) := by
     funext j
     rw [dft_cyclicConv hω']
     rfl
-  have hget : (List.Vector.ofFn (dft ω (cyclicConv a b))).get = dft ω (cyclicConv a b) :=
-    funext (List.Vector.get_ofFn _)
-  rw [hprod, hget, eval_ifft_dft hw hω hn]
+  simp only [cyclicMul, FreeM.eval_bind, eval_fft hw hω, FreeM.eval_mOfFn]
+  rw [hprod, show (List.Vector.ofFn (dft ω (cyclicConv a b))).get = dft ω (cyclicConv a b) from
+    funext (List.Vector.get_ofFn _), eval_ifft_dft hw hω hn]
 
 /-- **FFT multiplication is correct**: if `ω ^ (2 ^ k) = -1` and `nInv * 2 ^ (k + 1) = 1`, then
 `fftMul` computes the cyclic convolution of length `2 ^ (k + 1)`. -/
@@ -179,7 +175,7 @@ theorem eval_fftMul {k : ℕ} {ω nInv : α} (hω : ω ^ 2 ^ k = -1) (hn : nInv 
     (fftMul k ω nInv a b).eval honest = cyclicConv a b := by
   simp only [fftMul, FreeM.eval_bind]
   refine eval_cyclicMul (fun j hj => ?_) hω hn a b
-  have hlen := length_eval_powersFrom (fun {ι} => (honest : ArithQuery α ι → ι)) ω (2 ^ k) 1
+  have := length_eval_powersFrom (fun {ι} => (honest : ArithQuery α ι → ι)) ω (2 ^ k) 1
   rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega), Option.getD_some,
     getElem_eval_powersFrom, one_mul]
 
@@ -193,8 +189,7 @@ theorem eval_fftMul_coeff {k : ℕ} {ω nInv : α} (hω : ω ^ 2 ^ k = -1)
       (fun i : Fin (2 ^ (k + 1)) => q.coeff i)).eval honest =
       fun i : Fin (2 ^ (k + 1)) => (p * q).coeff i := by
   rw [eval_fftMul hω hn]
-  funext i
-  exact cyclicConv_coeff hpq i
+  exact funext (cyclicConv_coeff hpq)
 
 /-- **Fast polynomial multiplication**, as an equality of polynomials: summing the monomials of
 the output of `fftMul` recovers `p * q`. -/

@@ -64,10 +64,8 @@ open Cslib.Logic.PL Turing.MultiTapeTM
 /-- The support of a dense integer table is computable in polynomial time. -/
 theorem computableInPolyTime_supportTable :
     ComputableInPolyTime supportTable encIntTable encBoolTable := by
-  have h : supportTable = fun A => A.map fun row => row.map fun x => decide (0 < x.natAbs) := by
-    funext A
-    simp [supportTable]
-  rw [h]
+  rw [show supportTable = fun A => A.map fun row => row.map fun x => decide (0 < x.natAbs) from
+    funext fun _ => by simp [supportTable]]
   fun_prop
 
 theorem length_supportTable (A : List (List ℤ)) : (supportTable A).length = A.length :=
@@ -80,11 +78,10 @@ private theorem boolTableMatrix_supportTable (A : List (List ℤ)) :
       ((tableMatrix A).map fun x => if x ≠ 0 then (1 : ℕ) else 0).submatrix
         (finCongr (length_supportTable A)) (finCongr (length_supportTable A)) := by
   ext i j
-  rw [boolTableMatrix_apply, Matrix.submatrix_apply, Matrix.map_apply, tableMatrix_apply]
-  have hi : (supportTable A)[i] =
-      (A[i.val]'(length_supportTable A ▸ i.isLt)).map fun x => decide (x ≠ 0) :=
-    List.getElem_map _
-  rw [hi, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
+  rw [boolTableMatrix_apply, Matrix.submatrix_apply, Matrix.map_apply, tableMatrix_apply,
+    show (supportTable A)[i] = (A[i.val]'(length_supportTable A ▸ i.isLt)).map fun x =>
+      decide (x ≠ 0) from List.getElem_map _,
+    List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
   change _ = ite (((A[i.val]'_)[j.val]?).getD 0 ≠ 0) 1 0
   cases (A[i.val]'(length_supportTable A ▸ i.isLt))[j.val]? with
   | none => simp
@@ -134,12 +131,10 @@ private theorem threeSAT_mem_P_of_nonneg {c : ℤ} (hc : c ≠ 0) {r : CNF ℕ �
   · dsimp only
     rw [SharpThreeSAT.mem_ThreeSAT_iff]
     split_ifs with hφ
-    · have hφ' : ∀ C ∈ φ, C.length ≤ 3 := by simpa using hφ
-      obtain ⟨hnn, hperm⟩ := h φ hφ'
+    · obtain ⟨hnn, hperm⟩ := h φ (by simpa using hφ)
       rw [hdom, ← intPermanent_ne_zero_iff_zeroOnePermanent_supportTable hnn, hperm]
       simp [hc, Nat.pos_iff_ne_zero]
-    · have h0 : SharpThreeSAT φ = 0 := by simp [SharpThreeSAT, hφ]
-      rw [hdom, h0]
+    · rw [hdom, show SharpThreeSAT φ = 0 by simp [SharpThreeSAT, hφ]]
       simp [ZeroOnePermanent, Matrix.permanent_unique, boolTableMatrix_apply]
 
 /-- **Goldreich, Exercise 6.25.** Assuming `P ≠ NP`, Proposition 6.21 fails for every set `I` of
