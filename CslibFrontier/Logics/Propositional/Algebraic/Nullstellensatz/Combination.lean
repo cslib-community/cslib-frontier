@@ -43,44 +43,33 @@ theorem exists_isProof_of_sum {κ : Type*} {F : List (MvPolynomial V R)} (s : Fi
     (hd : ∀ t ∈ s, g t ≠ 0 → (f t).totalDegree + (g t).totalDegree ≤ d) :
     ∃ P, IsProof F P (∑ t ∈ s, f t * g t) ∧ degree F P ≤ d := by
   classical
-  induction s using Finset.induction_on with
-  | empty =>
-    refine ⟨0, ?_, ?_⟩
-    · simp [IsProof]
-    · rw [degree_le_iff]
-      intro i hi
-      exact absurd rfl hi
-  | insert t s hts ih =>
-    obtain ⟨P, hP, hPd⟩ := ih (fun t' ht' => hf t' (Finset.mem_insert_of_mem ht'))
-      (fun t' ht' => hd t' (Finset.mem_insert_of_mem ht'))
-    obtain ⟨i, hi⟩ := List.get_of_mem (hf t (Finset.mem_insert_self t s))
-    have hdt := hd t (Finset.mem_insert_self t s)
-    refine ⟨fun j => (Pi.single i (g t) : Fin F.length → MvPolynomial V R) j + P j, ?_, ?_⟩
-    · have h1 : IsProof F (Pi.single i (g t)) (F.get i * g t) := by
-        simp [IsProof, Pi.single_apply]
-      have h := h1.add hP
-      rw [Finset.sum_insert hts]
-      rwa [hi] at h
-    · rw [degree_le_iff] at hPd ⊢
-      intro j hj
-      by_cases hji : j = i
-      · subst hji
-        rw [Pi.single_eq_same] at hj ⊢
-        rw [hi]
-        by_cases hg : g t = 0
-        · rw [hg, zero_add] at hj ⊢
-          have := hPd j hj
-          rwa [hi] at this
-        by_cases hPj : P j = 0
-        · rw [hPj, add_zero]
-          exact hdt hg
-        have h2 := hPd j hPj
-        rw [hi] at h2
-        have h3 := hdt hg
-        have := totalDegree_add (g t) (P j)
-        omega
-      · rw [Pi.single_eq_of_ne hji, zero_add] at hj ⊢
-        exact hPd j hj
+  choose index hindex using fun t : s => List.get_of_mem (hf t.val t.property)
+  let supported := s.attach.filter fun t => g t.val ≠ 0
+  let fiber (i : Fin F.length) := supported.filter fun t => index t = i
+  let P (i : Fin F.length) := ∑ t ∈ fiber i, g t.val
+  refine ⟨P, ?_, degree_le_iff.2 ?_⟩
+  · change ∑ i, F.get i * P i = _
+    calc
+      _ = ∑ i, ∑ t ∈ fiber i, f t.val * g t.val := by
+        refine Finset.sum_congr rfl fun i _ => ?_
+        simp only [P, Finset.mul_sum]
+        exact Finset.sum_congr rfl fun t ht => by
+          rw [← (Finset.mem_filter.mp ht).2, hindex t]
+      _ = ∑ t ∈ supported, f t.val * g t.val := Finset.sum_fiberwise _ _ _
+      _ = ∑ t ∈ s.attach, f t.val * g t.val := by
+        refine Finset.sum_subset (Finset.filter_subset _ _) fun t ht hnot => ?_
+        have hz : g t.val = 0 := Classical.not_not.mp fun h => hnot (Finset.mem_filter.mpr ⟨ht, h⟩)
+        rw [hz, mul_zero]
+      _ = _ := Finset.sum_attach s (fun t => f t * g t)
+  · intro i hi
+    have hb (t) (ht : t ∈ fiber i) : (F.get i).totalDegree + (g t.val).totalDegree ≤ d := by
+      obtain ⟨ht', rfl⟩ := Finset.mem_filter.mp ht
+      rw [hindex t]
+      exact hd t.val t.property (Finset.mem_filter.mp ht').2
+    have hn : (fiber i).Nonempty := Finset.nonempty_of_ne_empty fun h => hi (by simp [P, h])
+    obtain ⟨t, ht, hmax⟩ := (fiber i).exists_mem_eq_sup hn (fun u => (g u.val).totalDegree)
+    have hP := (totalDegree_finsetSum (fiber i) (fun u => g u.val)).trans_eq hmax
+    exact (Nat.add_le_add_left hP _).trans (hb t ht)
 
 /-- Nullstellensatz refutability in degree `d` is monotone in the input list and in `d`. -/
 theorem RefutableInDegree.mono {F G : List (MvPolynomial V R)} {d e : ℕ}

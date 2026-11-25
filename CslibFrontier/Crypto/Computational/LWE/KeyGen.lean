@@ -187,15 +187,11 @@ theorem mem_support_sampleKeyInputs_iff (n m w η : ℕ) (inputs : KeyInputs n m
     inputs ∈ (ProbComp.eval (sampleKeyInputs n m w η)).support ↔
       ∀ i, (inputs.error i).natAbs ≤ η := by
   cases inputs
-  simp only [sampleKeyInputs, ProbComp.eval_bind, ProbComp.eval_pure,
-    eval_sampleVector, eval_sampleMatrix, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
-  simp only [PMF.mem_support_uniformOfFintype, true_and, KeyInputs.mk.injEq,
+  simp only [sampleKeyInputs, ProbComp.eval_bind, ProbComp.eval_pure, eval_sampleVector,
+    eval_sampleMatrix, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
+    PMF.mem_support_uniformOfFintype, true_and, KeyInputs.mk.injEq,
     ProbComp.mem_support_replicateFin_iff, mem_support_sampleCenteredBinomial_iff]
-  constructor
-  · rintro ⟨_, _, error, herror, rfl, rfl, rfl⟩
-    exact herror
-  · intro herror
-    exact ⟨_, _, _, herror, rfl, rfl, rfl⟩
+  exact ⟨fun ⟨_, _, _, h, rfl, rfl, rfl⟩ => h, fun h => ⟨_, _, _, h, rfl, rfl, rfl⟩⟩
 
 /-- Generate an LWE public matrix `[B * t + e | B]` and retain the sampled secret `t`. -/
 noncomputable def keyGen (n m w η : ℕ) :
@@ -366,8 +362,8 @@ theorem secretProductResidue_eq (n w row : ℕ) (secretWord ciphertextWord : Lis
   rw [List.map_range_eq_ofFn, List.sum_ofFn]
   change (value % (2 ^ w : ℤ)).toNat = _
   rw [← hcast]
-  have hv := congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)
-  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using hv.symm
+  simpa only [Int.toNat_natCast, Nat.cast_pow, Nat.cast_ofNat] using
+    (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) value)).symm
 
 /-- For `row : Fin r`, `secretProductResidue` computes the canonical residue of row `row` of
 `Matrix.ofBinary r (n + 1) w ciphertextWord` dotted with
@@ -429,12 +425,10 @@ theorem publicRowHead_eq {n m w : ℕ} (inputs : SerializedKeyInputs) (i : Fin m
       ∑ j : Fin n, ((inputs.publicPart.getD i.val []).getD j.val 0 : ZMod (2 ^ w)) *
         (inputs.secret.getD j.val 0 : ZMod (2 ^ w)) := by simp
   rw [← h]
-  have hv := congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w)
-    (((∑ j : Fin n,
+  simpa only [Int.toNat_natCast, Int.cast_add, Int.cast_natCast, Nat.cast_pow, Nat.cast_ofNat] using
+    (congrArg Int.toNat (ZMod.val_intCast (n := 2 ^ w) (((∑ j : Fin n,
       (inputs.publicPart.getD i.val []).getD j.val 0 * inputs.secret.getD j.val 0 : ℕ) : ℤ) +
-        inputs.error.getD i.val 0))
-  simpa only [Int.toNat_natCast, Int.cast_add, Int.cast_natCast, Nat.cast_pow,
-    Nat.cast_ofNat] using hv.symm
+        inputs.error.getD i.val 0))).symm
 
 /-- The total public-key computation is exactly the typed public matrix of the decoded inputs. -/
 theorem publicMatrixSerialized_eq (n m w : ℕ) (inputs : SerializedKeyInputs) :
@@ -571,23 +565,21 @@ theorem computableInPolyTime_publicRowHead {inputs : α → SerializedKeyInputs}
     ((encSerializedKeyInputs_publicPart_polyTime hinputs).prod hi)
   have hproduct : ComputableInPolyTime
       (fun p : α × ℕ => ((inputs p.1).publicPart.getD (i p.1) []).getD p.2 0 *
-        (inputs p.1).secret.getD p.2 0) (encPair input encUnary) encNat := by
-    apply binary_mul'
-    · exact (listGetD (encA := encNat) 0).comp
-        ((hrow.comp (fst input encUnary)).prod (snd input encUnary))
-    · exact (listGetD (encA := encNat) 0).comp
-        (((encSerializedKeyInputs_secret_polyTime hinputs).comp
-          (fst input encUnary)).prod (snd input encUnary))
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput
-      (f := fun a j => ((inputs a).publicPart.getD (i a) []).getD j 0 *
-        (inputs a).secret.getD j 0)
-      (range.comp hn) hproduct)
-  have herror := (listGetD (encA := encIntBin) 0).comp
-    ((encSerializedKeyInputs_error_polyTime hinputs).prod hi)
-  have hadd := (show ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
-    (encPair encIntBin encIntBin) encIntBin by fun_prop).comp
-      ((intBin_natCast.comp hsum).prod herror)
+        (inputs p.1).secret.getD p.2 0) (encPair input encUnary) encNat :=
+    binary_mul'
+      ((listGetD (encA := encNat) 0).comp
+        ((hrow.comp (fst input encUnary)).prod (snd input encUnary)))
+      ((listGetD (encA := encNat) 0).comp
+        (((encSerializedKeyInputs_secret_polyTime hinputs).comp (fst input encUnary)).prod
+          (snd input encUnary)))
+  have hsum := (by fun_prop : ComputableInPolyTime List.sum (encList encNat) encNat).comp
+    (mapWithInput (f := fun a j => ((inputs a).publicPart.getD (i a) []).getD j 0 *
+      (inputs a).secret.getD j 0) (range.comp hn) hproduct)
+  have hadd := (by fun_prop : ComputableInPolyTime (fun p : ℤ × ℤ => p.1 + p.2)
+    (encPair encIntBin encIntBin) encIntBin).comp
+      ((intBin_natCast.comp hsum).prod
+        ((listGetD (encA := encIntBin) 0).comp
+          ((encSerializedKeyInputs_error_polyTime hinputs).prod hi)))
   simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
     intBin_emodNat' hadd (binary_pow' (const 2) hw)
 

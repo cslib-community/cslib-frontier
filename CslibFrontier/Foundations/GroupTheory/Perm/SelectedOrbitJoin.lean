@@ -71,11 +71,8 @@ private theorem card_orbitOn_swap_join {α : Type} [Finite α] [DecidableEq α]
   classical
   have hne : h ≠ k := fun he => hc (he ▸ Perm.SameCycle.rfl)
   have hs (a : α) : p (swap h k a) ↔ p a := Equiv.predicate_swap p h k hm a
-  have hp' : ∀ a, p ((if incoming then swap h k * f else f * swap h k) a) ↔ p a := by
-    intro a
-    cases incoming
-    · exact (hp _).trans (hs a)
-    · exact (hs _).trans (hp a)
+  have hp' (a : α) : p ((if incoming then swap h k * f else f * swap h k) a) ↔ p a := by
+    cases incoming <;> simp [hs, hp]
   rw [← Nat.card_congr (subtypeOrbitEquiv _ p hp')]
   by_cases hh : p h
   · let h' : {a // p a} := ⟨h, hh⟩
@@ -83,14 +80,8 @@ private theorem card_orbitOn_swap_join {α : Type} [Finite α] [DecidableEq α]
     have he : (if incoming then swap h k * f else f * swap h k).subtypePerm hp' =
         if incoming then swap h' k' * f.subtypePerm hp else
           f.subtypePerm hp * swap h' k' := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
-      cases incoming
-      · change f (swap h k a.val) = f ((swap h' k' a).val)
-        rw [Subtype.val_injective.map_swap]
-      · change swap h k (f a.val) = (swap h' k' (f.subtypePerm hp a)).val
-        exact (Subtype.val_injective.map_swap h' k' (f.subtypePerm hp a)).symm
+      ext ⟨a, ha⟩
+      cases incoming <;> simp [Subtype.val_injective.map_swap, h', k']
     rw [he]
     have hn : h' ≠ k' := fun he => hne (congrArg Subtype.val he)
     have hncycle : ¬ (f.subtypePerm hp).SameCycle h' k' :=
@@ -104,16 +95,12 @@ private theorem card_orbitOn_swap_join {α : Type} [Finite α] [DecidableEq α]
   · have hk : ¬ p k := fun hk => hh (hm.mpr hk)
     have he : (if incoming then swap h k * f else f * swap h k).subtypePerm hp' =
         f.subtypePerm hp := by
-      apply Equiv.ext
-      intro a
-      apply Subtype.ext
+      ext ⟨a, ha⟩
       cases incoming
-      · change f (swap h k a.val) = f a.val
-        rw [swap_apply_of_ne_of_ne (show a.val ≠ h from fun he => hh (he ▸ a.property))
-          (show a.val ≠ k from fun he => hk (he ▸ a.property))]
-      · change swap h k (f a.val) = f a.val
-        exact swap_apply_of_ne_of_ne (fun he => hh (he ▸ (hp a.val).mpr a.property))
-          (fun he => hk (he ▸ (hp a.val).mpr a.property))
+      · exact congrArg f (swap_apply_of_ne_of_ne (fun he => hh (he ▸ ha))
+          (fun he => hk (he ▸ ha)))
+      · exact swap_apply_of_ne_of_ne (fun he => hh (he ▸ (hp a).mpr ha))
+          (fun he => hk (he ▸ (hp a).mpr ha))
     rw [he, Nat.card_congr (subtypeOrbitEquiv f p hp)]
     simp only [hh, ite_false, Nat.add_zero]
 

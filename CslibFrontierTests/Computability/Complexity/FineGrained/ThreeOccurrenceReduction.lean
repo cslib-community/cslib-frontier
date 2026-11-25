@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.FineGrained.ThreeOccurrenceReduction
+public import CslibFrontier.Computability.Complexity.FineGrained.SharpThreeOccurrenceReduction
 
 /-!
 # Tests for bounded-occurrence reductions and counting-sparsification leaf reductions
@@ -86,5 +86,21 @@ example {B L_coeff : ℕ}
       CountingSparsify.search 2 3 3 B (guardOccurrenceCounter 3 f) φ = φ.modelCount :=
   (CountingSparsify.exists_computableInO_search_threeOccurrence_of_promise
     (by decide) (by decide) (by decide) (by decide) le_rfl hTB hf hf_eq hδ ht).1
+
+/-- SH excludes a square-root exponent for both size parameters of bounded-occurrence 3SAT. -/
+example (h : SH) :
+    (¬DecidableInPowerExpTime ThreeSATThree encCNF CNF.numVars (1 / 2)) ∧
+      (¬DecidableInPowerExpTime ThreeSATThree encCNF List.length (1 / 2)) :=
+  ⟨h.not_decidableInPowerExpTime_threeSATThree_numVars (by norm_num) (by norm_num),
+    h.not_decidableInPowerExpTime_threeSATThree_length (by norm_num) (by norm_num)⟩
+
+/-- #SH excludes a square-root exponent for exact counting in both size parameters. -/
+example (h : SharpSH) :
+    (¬ComputableInPowerExpTime SharpThreeSATThree encCNF Turing.MultiTapeTM.encNat
+      CNF.numVars (1 / 2)) ∧
+    (¬ComputableInPowerExpTime SharpThreeSATThree encCNF Turing.MultiTapeTM.encNat
+      List.length (1 / 2)) :=
+  ⟨h.not_computableInPowerExpTime_sharpThreeSATThree_numVars (by norm_num) (by norm_num),
+    h.not_computableInPowerExpTime_sharpThreeSATThree_length (by norm_num) (by norm_num)⟩
 
 end Cslib.Complexity.Tests.ThreeOccurrenceReduction

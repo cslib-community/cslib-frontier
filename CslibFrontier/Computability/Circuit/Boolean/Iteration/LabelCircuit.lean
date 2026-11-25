@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Label
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -149,12 +150,10 @@ theorem cyclic_labels_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL
       rw [chooseRecord_of_forall_eq_false _ _ _ hnone]
       apply shortLabel_eq_canonicalLabel f K hx
       rcases hcover x with ⟨i, j, hij, hj, he⟩ | ⟨t, ht, i, hi⟩
-      · have := transientDepth_add_cycleLength_le_of_iterate_eq f x hij he
-        omega
-      · exfalso
-        have hj := hnone ⟨t, by omega⟩
+      · have := transientDepth_add_cycleLength_le_of_iterate_eq f x hij he; omega
+      · have hj := hnone ⟨t, by omega⟩
         simp only [flags, result, queries, lookupOr, decide_eq_false_iff_not] at hj
-        exact hj ⟨i, hi.symm, rfl⟩
+        exact (hj ⟨i, hi.symm, rfl⟩).elim
   · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
     unfold labelCost
     simp only [K, W, labelWidth] at hs ⊢
@@ -237,8 +236,7 @@ theorem cycle_label_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (
   refine ⟨labels.comp project, fun x => ?_, ?_⟩
   · rw [Circuit.eval_comp, hp x, hl _ (iterate_factorial_mem_periodicPts _ x),
       canonicalLabel_iterate_factorial]
-  · rw [Circuit.size_comp]
-    omega
+  · rw [Circuit.size_comp]; omega
 
 /-- **Square-root cycle labels.** Some circuit of size at most
 `120000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/
@@ -248,9 +246,6 @@ theorem cycle_labels_optimized (c : Circuit signature n n) :
       (out.size : ℝ) ≤ 120000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := cycle_label_circuit c L hL hLN
-  refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 60000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, hout, by cast_linarith [hs]⟩
 
 end Cslib.Circuits.Boolean.Iteration

@@ -18,8 +18,9 @@ existing arithmetic, list, option and conditional certificates. Composition uses
 whose workspace is linear in its own encoded argument; the caller's certificate pays for that
 argument. No rule infers a bound on the states of an iteration.
 
-Constants and the identity require the input encoding length to fit the requested budget.
-That side condition is explicit, including when the budget is not the input length.
+A constant fits every budget. The identity requires the input encoding length to fit the
+requested budget; that side condition is explicit, including when the budget is not the input
+length.
 -/
 
 public section
@@ -31,7 +32,7 @@ attribute [fun_prop] budget_comp_linear budget_prod fst' snd' budget_ite budget_
 attribute [fun_prop] budget_natSucc budget_natPred budget_natIsZero budget_natEq
   budget_natAdd budget_natMul budget_natDiv budget_natSub budget_natMod budget_natLt budget_natPow
 attribute [fun_prop] budget_cons budget_snoc budget_headD budget_tail budget_isEmpty budget_length
-  budget_optionSome budget_optionGetD budget_optionIsSome
+  budget_getD budget_set budget_optionSome budget_optionGetD budget_optionIsSome
 
 /-- Copy an encoded value when the caller's budget covers its input length. -/
 @[fun_prop]

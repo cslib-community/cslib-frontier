@@ -293,12 +293,9 @@ private theorem uniform_universal2Wins_le (d : F.Desc)
       γ' ≠ α * β' ∧ ρ' ≠ ρ := by
     intro t ht
     rcases List.mem_map.mp ht with ⟨⟨zHat, vHat, wHat, ρHat⟩, hq_mem, rfl⟩
-    have hfilt := (List.mem_filter.mp hq_mem).2
-    simp only [decide_eq_true_eq] at hfilt
-    rcases hfilt with ⟨hnonDH, hρ⟩
+    obtain ⟨hnonDH, hρ⟩ := of_decide_eq_true (List.mem_filter.mp hq_mem).2
     refine ⟨fun hEq => hnonDH ?_, hρ⟩
-    rw [← hchoose vHat, ← hchoose wHat, isDHTriple_generator_smul_iff]
-    exact hEq
+    rwa [← hchoose vHat, ← hchoose wHat, isDHTriple_generator_smul_iff]
   have hpoint (τ₂ : ZMod (F.order d)) :
       universal2Wins F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ
         (α • F.generator d) guesses =
@@ -316,12 +313,8 @@ private theorem uniform_universal2Wins_le (d : F.Desc)
       dsimp only [toTuple]
       rw [hchoose vHat, hchoose wHat, hz]
     · rintro ⟨⟨β', γ', ρ', z'⟩, ⟨⟨zHat, vHat, wHat, ρHat⟩, ⟨hmem, hfilt⟩, hto⟩, hz⟩
-      rcases Prod.mk.inj hto with ⟨hβ, hrest1⟩
-      rcases Prod.mk.inj hrest1 with ⟨hγ, hrest2⟩
-      rcases Prod.mk.inj hrest2 with ⟨hρ', hz'⟩
-      subst hβ hγ hρ' hz'
-      refine ⟨(zHat, vHat, wHat, ρHat), hmem, hfilt.1, hfilt.2, ?_⟩
-      dsimp only [toTuple] at hz
+      cases hto
+      refine ⟨_, hmem, hfilt.1, hfilt.2, ?_⟩
       rw [hchoose vHat, hchoose wHat] at hz
       exact hz.symm
   simp_rw [hpoint]
@@ -370,11 +363,7 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
         (v, w, ρ, st₁) ∈ (ProbComp.eval ((A.chooseChallenge st₀
           (projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d))).run
             (fun ((v', w'), ρ') => pure (projHash2 F d δ₁ 0 δ₂ 0 ρ' v' w')))).support := by
-      have haux :
-          projHash2Aux F d δ₁ 0 δ₂ 0 (α • F.generator d) =
-            (δ₁ • F.generator d, δ₂ • F.generator d) := by
-        simp only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero]
-      rwa [haux]
+      simpa only [projHash2Aux, projHashAux_generator_smul, mul_zero, add_zero] using hchal
     have hpost_z := hpost δ₁ 0 δ₂ 0 v w ρ st₁ hchal'
     rw [PMF.bind_comm]
     conv_lhs =>
@@ -383,12 +372,7 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     refine PMF.bind_apply_le_on_support _ fun ξ _ => ?_
     obtain ⟨β, rfl⟩ := F.smul_generator_surjective d v
     obtain ⟨γ, rfl⟩ := F.smul_generator_surjective d w
-    have hchal_eq (τ₂ : ZMod (F.order d)) :
-        projHash2 F d (δ₁ - α * (ξ - ρ * τ₂)) (ξ - ρ * τ₂) (δ₂ - α * τ₂) τ₂ ρ
-          (β • F.generator d) (γ • F.generator d) =
-        (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d :=
-      projHash2_fiber_challenge_eq F d α β γ δ₁ δ₂ ξ τ₂ ρ
-    simp only [hchal_eq]
+    simp only [projHash2_fiber_challenge_eq F d α β γ δ₁ δ₂ ξ]
     set z : F.Carrier d := (β * (δ₁ + ρ * δ₂) + (γ - α * β) * ξ) • F.generator d
     have hpost_congr (τ₂ : ZMod (F.order d)) :
         ProbComp.eval ((A.guess st₁ z).run
@@ -406,9 +390,8 @@ theorem succProbability_universal2GuessGame_le {State₀ State₁ : Type} (d : F
     have hlen : guesses.length ≤ Q := (hpost_z z).2 δ₁ 0 δ₂ 0 guesses hguesses
     simpa only [PMF.map, Function.comp_def, PMF.monad_pure_eq_pure] using
       uniform_universal2Wins_le F d α δ₁ δ₂ ξ ρ Q guesses hlen
-  have hne : ((Q : ℝ≥0∞) / (F.order d : ℝ≥0∞)) ≠ ⊤ := by
-    refine ENNReal.div_ne_top (ENNReal.natCast_ne_top Q) ?_
-    exact Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero
+  have hne : ((Q : ℝ≥0∞) / (F.order d : ℝ≥0∞)) ≠ ⊤ :=
+    ENNReal.div_ne_top (ENNReal.natCast_ne_top Q) (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)
   simpa only [Game.succProbability, ENNReal.toNNReal_div, ENNReal.toNNReal_natCast] using
     ENNReal.toNNReal_mono hne hbound
 

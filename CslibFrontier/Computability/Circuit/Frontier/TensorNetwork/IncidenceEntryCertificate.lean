@@ -218,20 +218,12 @@ theorem rowSumCertificate_bounds :
       (PolyBounded.self.mul (((PolyBounded.const 2).mul .self).add (.const 1))))
     (fun (P, ℓ, tests, sel) j _ => by
       rw [BooleanFold.prefix_accumulator]
-      have hz : (zero (truncFl ℓ)).length = ℓ := by simp
-      have hz' : ∀ x ∈ zero (truncFl ℓ), x < 2 ^ P := fun x hx => by
-        simp only [zero, List.mem_map] at hx
-        obtain ⟨_, -, rfl⟩ := hx
+      have hz' : ∀ x ∈ zero (truncFl ℓ), x < 2 ^ P := fun _ hx => by
+        obtain ⟨_, -, rfl⟩ := List.mem_map.mp hx
         exact Nat.two_pow_pos _
       obtain ⟨h1, h2, h3⟩ := foldl_rowBody P ℓ tests sel sel.length (lowBits sel.length)
-        (List.range j) _ hz hz'
-      have heq : List.foldl (fun acc i => rowBody ((sel.length, lowBits sel.length i), acc))
-          ((P, ℓ, tests, sel), zero (truncFl ℓ)) (List.range j) =
-          ((P, ℓ, tests, sel), (List.foldl (fun acc i => rowBody ((sel.length,
-            lowBits sel.length i), acc)) ((P, ℓ, tests, sel), zero (truncFl ℓ))
-              (List.range j)).2) :=
-        Prod.ext h1 rfl
-      rw [heq]
+        (List.range j) _ (by simp) hz'
+      rw [← Prod.eta (List.foldl _ _ _), h1]
       exact length_encRowState_le P ℓ tests sel _ h2 h3)
   exact ⟨h.1, h.2.imp fun _ hT => ⟨hT.1, fun P ℓ tests sel => hT.2 (P, ℓ, tests, sel)⟩⟩
 

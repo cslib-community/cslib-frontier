@@ -174,21 +174,19 @@ theorem run_interpret_popAnswer_run (fuel : ℕ) (input s : List Bool) :
     (MultiTapeMachine.run machine (fun choices => choices <$> (pure false : OracleComp _ Bool))
       (fun op word => OracleComp.query (op, word)) fuel input)).run s = _
   rw [← finiteRunFrom_init, finiteRunFrom, OracleComp.interpret_map, StateT.run_map]
-  have h : ∀ fuel, (OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer
+  have h (fuel : ℕ) : (OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer
       (OracleComp.iterate fuel (MultiTapeMachine.finiteStep machine
         (fun choices => choices <$> (pure false : OracleComp _ Bool))
         (fun op word => OracleComp.query (op, word)))
         (FiniteConfig.init machine.initial input))).run s =
       machine.popStep^[fuel] (FiniteConfig.init machine.initial input, s) := by
-    intro fuel
     induction fuel with
     | zero => rfl
     | succ fuel ih =>
       rw [OracleComp.iterate_succ, OracleComp.interpret_bind, StateT.run_bind,
         Function.iterate_succ_apply', ← ih]
       exact machine.run_interpret_popAnswer_finiteStep _ _
-  rw [h]
-  rfl
+  rw [h]; rfl
 
 /-- The configuration part of `popStep` is an instruction against the oracle answering the next
 bit. -/
@@ -200,9 +198,7 @@ private theorem fst_popStep (p : FiniteConfig k Bool Control Operation × List B
 private theorem length_snd_popStep_le (p : FiniteConfig k Bool Control Operation × List Bool) :
     (machine.popStep p).2.length ≤ p.2.length := by
   unfold popStep
-  split_ifs
-  · simp
-  · exact le_rfl
+  split_ifs <;> simp
 
 variable [Finite Control]
 
@@ -320,10 +316,8 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
     machine.computableInPolyTime_popRun c d
   have hsim_eq (a : α) (s : List Bool) : sim (a, s) = encOption encBits
       ((OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer (program a)).run s).1 :=
-    by
-    have h := hrun a (List Bool) (fun q s => OracleComp.popAnswer q s) s
-    rw [machine.run_interpret_popAnswer_run] at h
-    exact congrArg Prod.fst h
+    congrArg Prod.fst ((machine.run_interpret_popAnswer_run _ _ _).symm.trans
+      (hrun a (List Bool) (fun q s => OracleComp.popAnswer q s) s))
   -- the candidate solution for the list of answers given by the bits of `j`
   let D : Decoder (encOption encBits) := Decoder.option Decoder.bits
   let cand : α × ℕ → Option (List Bool) := fun x => D.decode (sim (x.1, Nat.bits x.2))
@@ -356,10 +350,8 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
     cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
     | none => simp [hj] at hw
     | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
       simp only [hj, Option.elim_some] at hw
-      simp only [ok, hw, Option.elim_some] at hokj
-      exact (hRV a w).2 hokj
+      exact (hRV a w).2 (by simpa only [ok, hw, Option.elim_some] using List.find?_some hj)
   · -- the true answers, as the bits of a number below `N a`
     obtain ⟨w₀, hw₀⟩ : ∃ w₀, f a = some w₀ := Option.ne_none_iff_exists'.mp
       fun h => (hsolve a).2 h ha
@@ -375,17 +367,13 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
         (fun i => by rw [getD_bits_foldr_bit, List.append_nil]),
         OracleComp.run_interpret_popAnswer, (hprog a).1, hw₀]
     have hok_true : ok (a, answers.foldr Nat.bit 0) = true := by
-      simp only [ok, hcand_true, Option.elim_some]
-      exact (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
+      simpa only [ok, hcand_true, Option.elim_some] using (hRV a w₀).1 ((hsolve a).1 w₀ hw₀)
     simp only [g] at hw
     cases hj : (List.range (N a)).find? (fun j => ok (a, j)) with
-    | none =>
-      have := List.find?_eq_none.mp hj (answers.foldr Nat.bit 0) (List.mem_range.mpr hlt)
-      simp [hok_true] at this
+    | none => exact List.find?_eq_none.mp hj _ (List.mem_range.mpr hlt) hok_true
     | some j =>
-      have hokj : ok (a, j) = true := List.find?_some (p := fun j => ok (a, j)) hj
       simp only [hj, Option.elim_some] at hw
-      simp [ok, hw] at hokj
+      simpa [ok, hw] using List.find?_some hj
 
 /-- **Logarithmically many queries do not help**
 [Goldreich, Exercise 2.10][Goldreich2006DraftR1]. A search problem in `PC` (`FNP`) solved in

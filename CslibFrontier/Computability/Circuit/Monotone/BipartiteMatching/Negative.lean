@@ -222,17 +222,10 @@ private theorem card_filter_contains_mul_two_pow_of_determined {U V : Finset (Fi
       have h := hD e (mem_insert_self e D) e' (mem_insert_of_mem he')
       exact ⟨fun h' => he (h (Or.inl h') ▸ he'), fun h' => he (h (Or.inr h') ▸ he')⟩
     have hfresh' : e.1 ∉ U ∪ D.image Prod.fst ∨ e.2 ∉ V ∪ D.image Prod.snd := by
-      rcases hfresh e (mem_insert_self e D) with h | h
-      · refine Or.inl fun h' => ?_
-        rcases mem_union.1 h' with h' | h'
-        · exact h h'
-        · obtain ⟨e', he', heq⟩ := mem_image.1 h'
-          exact (hne e' he').1 heq.symm
-      · refine Or.inr fun h' => ?_
-        rcases mem_union.1 h' with h' | h'
-        · exact h h'
-        · obtain ⟨e', he', heq⟩ := mem_image.1 h'
-          exact (hne e' he').2 heq.symm
+      simp only [mem_union, mem_image, not_or, not_exists, not_and]
+      exact (hfresh e (mem_insert_self e D)).imp
+        (fun h => ⟨h, fun e' he' heq => (hne e' he').1 heq.symm⟩)
+        (fun h => ⟨h, fun e' he' heq => (hne e' he').2 heq.symm⟩)
     have h2 := two_mul_card_filter_edge hS' hfresh'
     have hfilter : S.filter (fun c => Contains (ofColoring c) (insert e D)) =
         S'.filter fun c => c (.inl e.1) = c (.inr e.2) := by
@@ -302,14 +295,11 @@ private theorem exists_fresh {𝒟 𝒞 : Finset (Finset (Fin n × Fin n))} (h�
           exact Nat.mul_le_mul hU hV
   obtain ⟨D, hD, hDB⟩ := exists_mem_notMem_of_card_lt_card (hB.trans_lt hlt)
   have hfresh : ∀ e ∈ D, e.1 ∉ U ∨ e.2 ∉ V := fun e he => by
-    by_contra h
-    push Not at h
+    by_contra! h
     exact hDB (mem_filter.2 ⟨hD, e, he, h⟩)
   refine ⟨D, hD, fun hD𝒞 => ?_, hfresh⟩
   obtain ⟨e, he⟩ := hne D hD
-  rcases hfresh e he with h | h
-  · exact h (mem_biUnion.2 ⟨D, hD𝒞, mem_image_of_mem _ he⟩)
-  · exact h (mem_biUnion.2 ⟨D, hD𝒞, mem_image_of_mem _ he⟩)
+  rcases hfresh e he with h | h <;> exact h (mem_biUnion.2 ⟨D, hD𝒞, mem_image_of_mem _ he⟩)
 
 /-- **Many disjoint matchings are rarely all missed** [Jukna, proof of Lemma 9.37][Jukna2012]. If
 `𝒟` is a family of more than `(q s) ^ 2` pairwise disjoint nonempty matchings with at most `s`
@@ -427,15 +417,10 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
     exact hsub i h
   set 𝒟 := univ.image fun i => V i \ W
   have hcount := card_filter_forall_not_contains_mul_le (𝒟 := 𝒟) (s := s) (q := q)
-    (fun D hD => by
-      obtain ⟨i, -, rfl⟩ := mem_image.1 hD
-      exact (mem_matchings.1 (hF (hV i))).1.mono sdiff_subset)
-    (fun D hD => by
-      obtain ⟨i, -, rfl⟩ := mem_image.1 hD
-      exact sdiff_nonempty.2 (hsub i))
-    (fun D hD => by
-      obtain ⟨i, -, rfl⟩ := mem_image.1 hD
-      exact (card_le_card sdiff_subset).trans (mem_matchings.1 (hF (hV i))).2)
+    (Finset.forall_mem_image.2 fun i _ => (mem_matchings.1 (hF (hV i))).1.mono sdiff_subset)
+    (Finset.forall_mem_image.2 fun i _ => sdiff_nonempty.2 (hsub i))
+    (Finset.forall_mem_image.2 fun i _ =>
+      (card_le_card sdiff_subset).trans (mem_matchings.1 (hF (hV i))).2)
     (fun D hD D' hD' hDD' => by
       obtain ⟨i, -, rfl⟩ := mem_image.1 (mem_coe.1 hD)
       obtain ⟨j, -, rfl⟩ := mem_image.1 (mem_coe.1 hD')

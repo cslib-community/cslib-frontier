@@ -43,22 +43,17 @@ theorem card_mul_one_sub_le_two_pow_depth (μ : RandomizedDecisionTree ι β)
     (hμ : ∀ x ∈ S, μ.errorProb F x ≤ ε) : (S.card : ℝ) * (1 - ε) ≤ 2 ^ μ.depth := by
   classical
   have hw : ∑ t ∈ μ.weights.support, μ.weights t = 1 := μ.total
-  have hsucc : ∀ x, 1 - μ.errorProb F x =
+  have hsucc (x : ι → Bool) : 1 - μ.errorProb F x =
       ∑ t ∈ μ.weights.support, μ.weights t * if t.eval x = F x then 1 else 0 := by
-    intro x
     rw [errorProb_eq_sum, Finsupp.sum, sub_eq_iff_eq_add, ← sum_add_distrib]
-    refine hw.symm.trans (sum_congr rfl fun t _ => ?_)
-    split_ifs <;> ring
-  have htree : ∀ t ∈ μ.weights.support,
+    exact hw.symm.trans (sum_congr rfl fun t _ => by split_ifs <;> ring)
+  have htree (t) (ht : t ∈ μ.weights.support) :
       (∑ x ∈ S, if t.eval x = F x then (1 : ℝ) else 0) ≤ 2 ^ μ.depth := by
-    intro t ht
     rw [← natCast_card_filter]
-    have hcard := DecisionTree.card_le_two_pow_depth_of_injOn t
-      (S := S.filter fun x => t.eval x = F x) (hF.mono fun x hx => (mem_filter.mp hx).1)
-      (fun x hx => (mem_filter.mp hx).2)
-    have hpow : 2 ^ t.depth ≤ 2 ^ μ.depth := Nat.pow_le_pow_right two_pos (depth_le_depth ht)
-    exact_mod_cast hcard.trans hpow
-  calc (S.card : ℝ) * (1 - ε) = ∑ x ∈ S, (1 - ε) := by rw [sum_const, nsmul_eq_mul]
+    exact_mod_cast (t.card_le_two_pow_depth_of_injOn
+      (S := S.filter fun x => t.eval x = F x) (hF.mono fun _ hx => (mem_filter.mp hx).1)
+      fun _ hx => (mem_filter.mp hx).2).trans (Nat.pow_le_pow_right two_pos (depth_le_depth ht))
+  calc (S.card : ℝ) * (1 - ε) = ∑ _x ∈ S, (1 - ε) := by rw [sum_const, nsmul_eq_mul]
     _ ≤ ∑ x ∈ S, (1 - μ.errorProb F x) := sum_le_sum fun x hx => by linarith [hμ x hx]
     _ = ∑ t ∈ μ.weights.support, μ.weights t * ∑ x ∈ S, if t.eval x = F x then 1 else 0 := by
       simp only [hsucc, mul_sum]

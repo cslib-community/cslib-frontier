@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.AltFormula
 public import CslibFrontier.Computability.Circuit.Boolean.TopDown
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # Top-down lower bounds for alternating formulas
@@ -240,8 +241,7 @@ theorem two_rpow_lt_size_of_eval_eq_parity {d : ℕ} (hd : 2 ≤ d) :
   have h := lt_of_not_ge fun hle => hN n (le_of_max_le_left hn) hle _
     (solvesKW_kwProtocol hf ⟨0, le_of_max_le_right hn⟩)
   simp only [Fintype.card_sum, Fintype.card_fin, Fintype.card_prod, Fintype.card_bool] at h
-  push_cast at h
-  linarith
+  cast_linarith
 
 /-- **Korten's bound for alternating formulas, for majority**, extending [Korten2026]: the bound of
 `two_rpow_lt_size_of_eval_eq_parity` holds for majority, so the theorem of Lecomte and
@@ -261,7 +261,6 @@ theorem two_rpow_lt_size_of_eval_eq_majority {d : ℕ} (hd : 2 ≤ d) :
     hP.swapPlayers.comap_compl x y ((hneg x).trans hx) ((hneg y).trans hy)
   have h := lt_of_not_ge fun hle => hN n (le_of_max_le_left hn) hle _ hQ
   simp only [Fintype.card_sum, Fintype.card_fin, Fintype.card_prod, Fintype.card_bool] at h
-  push_cast at h
-  linarith
+  cast_linarith
 
 end Cslib.Circuits.Boolean.AltFormula

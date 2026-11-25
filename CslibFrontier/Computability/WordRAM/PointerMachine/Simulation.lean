@@ -41,13 +41,13 @@ theorem runs_compile {p : Program .standard r} {x y : State r} {n : ℕ}
       t.heap.length ≤ s.heap.length + n := by
   induction run with
   | refl => exact ⟨s, tree, avl, 0, .refl _, rep, pc, le_rfl, by omega, by omega, by omega⟩
-  | tail x y n steps next ih =>
+  | tail x y n _ next ih =>
     obtain ⟨t, tree', avl', time, run, rep', pc', grows, card, bound, space⟩ := ih
     obtain ⟨u, tree'', avl'', cost, last, rep'', pc'', grows', card', bound', space'⟩ :=
       step_compile p x y t tree' avl' rep' pc' next
-    have logBound := Nat.log_mono_right (b := 2) (Nat.add_le_add_right grows' 1)
-    refine ⟨u, tree'', avl'', time + cost, run.trans last, rep'', pc'',
-      grows.trans grows', by omega, ?_, by omega⟩
+    have := Nat.log_mono_right (b := 2) (Nat.add_le_add_right grows' 1)
+    refine ⟨u, tree'', avl'', time + cost, run.trans last, rep'', pc'', grows.trans grows',
+      by omega, ?_, by omega⟩
     calc
       time + cost ≤ n * (294 * Nat.log 2 (avl''.elements.card + 1) + 56) +
           (294 * Nat.log 2 (avl''.elements.card + 1) + 56) :=
@@ -71,17 +71,15 @@ theorem executes_compile {p : Program .standard r} {x : State r} {v n : ℕ}
   obtain ⟨y, m, run, halt, rfl⟩ := execution
   obtain ⟨t, tree', avl', time, run', rep', pc', _, card, bound, space⟩ :=
     runs_compile rep pc run
-  obtain ⟨u, finish, output, heap, finalRep⟩ :=
+  obtain ⟨u, ⟨k, last, terminal, cost⟩, output, heap, finalRep⟩ :=
     halt_compile p y v t tree' avl' rep' pc' halt
-  refine ⟨y, u, tree', avl', time + 2, ?_, output, by simpa using run, halt, finalRep,
-    by simpa using card,
-    ?_, by simpa [heap] using space⟩
-  · obtain ⟨k, last, terminal, cost⟩ := finish
-    exact ⟨time + k, run'.trans last, terminal, by omega⟩
-  · calc
-      time + 2 ≤ m * (294 * Nat.log 2 (avl'.elements.card + 1) + 56) +
-          (294 * Nat.log 2 (avl'.elements.card + 1) + 56) := Nat.add_le_add bound (by omega)
-      _ = (m + 1) * (294 * Nat.log 2 (avl'.elements.card + 1) + 56) := by simp [Nat.add_mul]
+  refine ⟨y, u, tree', avl', time + 2, ⟨time + k, run'.trans last, terminal, by omega⟩,
+    output, by simpa using run, halt, finalRep, by simpa using card, ?_,
+    by simpa [heap] using space⟩
+  calc
+    time + 2 ≤ m * (294 * Nat.log 2 (avl'.elements.card + 1) + 56) +
+        (294 * Nat.log 2 (avl'.elements.card + 1) + 56) := Nat.add_le_add bound (by omega)
+    _ = (m + 1) * (294 * Nat.log 2 (avl'.elements.card + 1) + 56) := by simp [Nat.add_mul]
 
 /-- Every successful standard word-RAM run from a list input has an actual pointer-machine
 execution returning the same word. For `n` source instructions and `N` input words it uses
@@ -97,15 +95,12 @@ theorem executes_input {p : Program .standard r} {input : List ℕ} {v n : ℕ}
       t.heap.length ≤ input.length + n ∧ t.Valid := by
   obtain ⟨y, t, tree, avl, time, run, output, _, _, _, card, bound, space⟩ :=
     executes_compile (inputState_represents w r input) (by simp [inputState]) execution
-  have positive := execution.pos
-  have initialCard : (inputKeys (input.length + 1)).elements.card = input.length + 1 := by
-    rw [elements_inputKeys, Finset.card_range]
-  rw [initialCard] at card
-  have logBound := Nat.log_mono_right (b := 2)
+  have := execution.pos
+  rw [elements_inputKeys, Finset.card_range] at card
+  have := Nat.log_mono_right (b := 2)
     (show avl.elements.card + 1 ≤ input.length + n + 1 by omega)
-  refine ⟨t, time, run, output, bound.trans (Nat.mul_le_mul_left n (by omega)), ?_,
-    run.valid (inputState_valid w r input)⟩
   rw [inputState_heap_length] at space
-  omega
+  exact ⟨t, time, run, output, bound.trans (Nat.mul_le_mul_left n (by omega)), by omega,
+    run.valid (inputState_valid w r input)⟩
 
 end Cslib.WordRAM.PointerMachine

@@ -103,33 +103,20 @@ theorem decodeControlData_controlEquiv [NeZero b] (c : BlockControl k State b) :
   have hx : (x : ℕ) = (finProdFinEquiv (((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st,
       finProdFinEquiv (finFunctionFinEquiv fun c => zmodEquiv b (off (finSuccEquiv k c)),
         OutputTrack.equivFin tr)) : ℕ) := rfl
-  have hdiv : (x : ℕ) / (b ^ (k + 1) * 3) =
-      ((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st := by
-    rw [hx, finProdFinEquiv_val_div]
   have hmod : (x : ℕ) % (b ^ (k + 1) * 3) = (finProdFinEquiv (finFunctionFinEquiv fun c =>
       zmodEquiv b (off (finSuccEquiv k c)), OutputTrack.equivFin tr) : ℕ) := by
     rw [hx, finProdFinEquiv_val_mod]
+  have hlt := (((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st).isLt
   have hst : stateOfFin e ⟨min s ((x : ℕ) / (b ^ (k + 1) * 3)) % (s + 1),
       Nat.mod_lt _ (by omega)⟩ = st := by
-    have hlt := (((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st).isLt
-    have hfin : (⟨min s ((x : ℕ) / (b ^ (k + 1) * 3)) % (s + 1), Nat.mod_lt _ (by omega)⟩ :
-        Fin (s + 1)) = ((Equiv.optionCongr e).trans (finSuccEquiv s).symm) st := by
-      ext
-      simp only
-      rw [hdiv, Nat.min_eq_right (by omega), Nat.mod_eq_of_lt hlt]
-    rw [hfin, stateOfFin, Equiv.symm_apply_apply]
+    rw [stateOfFin, Equiv.symm_apply_eq, Fin.ext_iff, Fin.val_mk, hx, finProdFinEquiv_val_div,
+      Nat.min_eq_right (Nat.le_of_lt_succ hlt), Nat.mod_eq_of_lt hlt]
   have htr : OutputTrack.equivFin.symm ⟨(x : ℕ) % (b ^ (k + 1) * 3) % 3,
       Nat.mod_lt _ (by omega)⟩ = tr := by
-    have hfin : (⟨(x : ℕ) % (b ^ (k + 1) * 3) % 3, Nat.mod_lt _ (by omega)⟩ : Fin 3) =
-        OutputTrack.equivFin tr := by
-      ext
-      simp only
-      rw [hmod, finProdFinEquiv_val_mod]
-    rw [hfin, Equiv.symm_apply_apply]
+    rw [Equiv.symm_apply_eq, Fin.ext_iff, Fin.val_mk, hmod, finProdFinEquiv_val_mod]
   have hoff : ∀ head,
       (x : ℕ) % (b ^ (k + 1) * 3) / 3 / b ^ ((finSuccEquiv k).symm head : ℕ) % b =
-        (off head).val := by
-    intro head
+        (off head).val := fun head => by
     rw [hmod, finProdFinEquiv_val_div, ← finFunctionFinEquiv_symm_apply_val,
       Equiv.symm_apply_apply, val_zmodEquiv, Equiv.apply_symm_apply]
   simp only [decodeControlData, controlData, hst, htr, hoff]
@@ -163,24 +150,14 @@ variable [NeZero b]
 theorem decodeLetter_letterEquiv (l : BlockLetter k State b) :
     decodeLetter e b (letterEquiv e l) = l := by
   rcases l with c | w
-  · have hval : (letterEquiv e (.inl c) : ℕ) = controlEquiv e c := by
-      simp [letterEquiv]
-    have hlt : (letterEquiv e (.inl c) : ℕ) < controlCount k s b := by
-      rw [hval]
-      exact (controlEquiv e c).isLt
-    rw [decodeLetter, dite_eq_left hlt]
-    congr 1
-    rw [Equiv.symm_apply_eq]
+  · have hval : (letterEquiv e (.inl c) : ℕ) = controlEquiv e c := by simp [letterEquiv]
+    rw [decodeLetter, dite_eq_left (hval ▸ (controlEquiv e c).isLt), Sum.inl.injEq,
+      Equiv.symm_apply_eq]
     exact Fin.ext hval.symm
   · have hval : (letterEquiv e (.inr w : BlockLetter k State b) : ℕ) =
-        controlCount k s b + contentsEquiv b w := by
-      simp [letterEquiv, controlCount]
-    rw [decodeLetter, dite_eq_right (by omega)]
-    congr 1
-    rw [Equiv.symm_apply_eq]
-    ext
-    simp only [hval, Nat.add_sub_cancel_left]
-    exact Nat.mod_eq_of_lt (contentsEquiv b w).isLt
+        controlCount k s b + contentsEquiv b w := by simp [letterEquiv, controlCount]
+    rw [decodeLetter, dite_eq_right (by omega), Sum.inr.injEq, Equiv.symm_apply_eq]
+    exact Fin.ext (by simp [hval, Nat.mod_eq_of_lt (contentsEquiv b w).isLt])
 
 /-- Below `letterCount`, the letter of a number is the numbered letter. -/
 theorem decodeLetter_of_lt {n : ℕ} (hn : n < letterCount k s b) :
@@ -406,26 +383,24 @@ theorem blockNetwork_tensor_decodeLetter (σ : ℕ) (u : Fin q ⊕ BlockEdge k q
         (explicitVertexEquiv k q (letterBits k s b) (.inl u)) := by
   set x : BlockEdge k q → BlockLetter k State b :=
     fun e' => decodeLetter e b (L (blockEdgeEquiv k q e'))
+  have hxl (i : Fin q) : x (.inl i) = decodeLetter e b (L i) := by
+    simp only [x, val_blockEdgeEquiv_inl]
+  have hxr (i' : Fin q) h d : x (.inr (i', h, d)) =
+      decodeLetter e b (L (q + (d + 3 * h + k * 3 * i'))) := by
+    simp only [x, val_blockEdgeEquiv_inr]
+  have hc3 {c : ℕ} (hc : c ∈ List.range (3 * b)) : c / b < 3 :=
+    Nat.div_lt_of_lt_mul (by simpa only [Nat.mul_comm] using List.mem_range.mp hc)
   rcases u with i | i | ⟨i, h₀, d₀⟩
   · rw [val_explicitVertexEquiv_interval, oldEntryNum, ite_eq_left i.isLt, intervalEntryNum,
       blockNetwork_tensor_interval]
-    have hxl : x (.inl i) = decodeLetter e b (L i) := by
-      simp only [x, val_blockEdgeEquiv_inl]
-    have hxr : ∀ (i' : Fin q) h d, x (.inr (i', h, d)) =
-        decodeLetter e b (L (q + (d + 3 * h + k * 3 * i'))) := by
-      intro i' h d
-      simp only [x, val_blockEdgeEquiv_inr]
     split_ifs with hcond
     · obtain ⟨hctl, hblk⟩ := hcond
       have hc : x (.inl i) = .inl (x (.inl i)).control := by
         obtain ⟨c, hc⟩ := (exists_decodeLetter_eq_inl_iff e b _).mpr hctl
-        rw [hxl, hc]
-        rfl
-      have hw : ∀ h d, x (.inr (i, h, d)) = .inr (x (.inr (i, h, d))).contents := by
-        intro h d
+        rw [hxl, hc]; rfl
+      have hw : ∀ h d, x (.inr (i, h, d)) = .inr (x (.inr (i, h, d))).contents := fun h d => by
         obtain ⟨w, hw⟩ := (exists_decodeLetter_eq_inr_iff e b _).mpr (hblk h d)
-        rw [hxr, hw]
-        rfl
+        rw [hxr, hw]; rfl
       rw [card_intervalHolds machine input b _ i hc hw, ← localIntervalCount_eq_intervalCount]
       congr 1
       · funext head
@@ -433,44 +408,30 @@ theorem blockNetwork_tensor_decodeLetter (σ : ℕ) (u : Fin q ⊕ BlockEdge k q
       · unfold inControl inControlNum
         split_ifs with h0
         · simp only [controlData, Pi.zero_apply, ZMod.val_zero]
-        · have : x (.inl ⟨i - 1, by omega⟩) = decodeLetter e b (L (i - 1)) := by
-            simp only [x, val_blockEdgeEquiv_inl]
-          rw [this, controlData_control_decodeLetter]
+        · rw [hxl ⟨i - 1, by omega⟩, controlData_control_decodeLetter]
       · funext h
         unfold windowCells inCellsNum
         refine List.map_congr_left fun c hc => ?_
-        have hc3 : c / b < 3 := by
-          rw [Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)]
-          simpa [Nat.mul_comm] using List.mem_range.mp hc
-        rw [dite_eq_left hc3, inWindow, lastBeforeNum_eq σ i h ⟨c / b, hc3⟩]
+        rw [dite_eq_left (hc3 hc), inWindow, lastBeforeNum_eq σ i h ⟨c / b, hc3 hc⟩]
         cases lastBefore (InWindow (scheduleOfNat k q σ) h
-            (portBlock (scheduleOfNat k q σ) i h ⟨c / b, hc3⟩)) i with
+            (portBlock (scheduleOfNat k q σ) i h ⟨c / b, hc3 hc⟩)) i with
         | none => rfl
         | some i' =>
           simp only [Option.elim_some, Option.map_some]
-          rw [hxr, contents_decodeLetter, ZMod.val_natCast, val_portOf σ i i' h ⟨c / b, hc3⟩]
+          rw [hxr, contents_decodeLetter, ZMod.val_natCast, val_portOf σ i i' h ⟨c / b, hc3 hc⟩]
       · rw [hxl, controlData_control_decodeLetter, controlDataOfNum, ite_eq_left hctl]
       · funext h
         unfold windowCells outCellsNum
         refine List.map_congr_left fun c hc => ?_
-        have hc3 : c / b < 3 := by
-          rw [Nat.div_lt_iff_lt_mul (Nat.pos_of_neZero b)]
-          simpa [Nat.mul_comm] using List.mem_range.mp hc
-        rw [dite_eq_left hc3]
+        rw [dite_eq_left (hc3 hc)]
         simp only
         rw [hxr, contents_decodeLetter, ZMod.val_natCast]
-    · refine card_intervalHolds_eq_zero machine input b _ i fun ⟨⟨c, hc⟩, hw⟩ => hcond ⟨?_, ?_⟩
-      · rw [hxl] at hc
-        exact (exists_decodeLetter_eq_inl_iff e b _).mp ⟨c, hc⟩
-      · intro h d
-        obtain ⟨w, hw⟩ := hw h d
-        rw [hxr] at hw
-        exact (exists_decodeLetter_eq_inr_iff e b _).mp ⟨w, hw⟩
+    · exact card_intervalHolds_eq_zero machine input b _ i fun ⟨⟨c, hc⟩, hw⟩ => hcond
+        ⟨(exists_decodeLetter_eq_inl_iff e b _).mp ⟨c, (hxl i).symm.trans hc⟩, fun h d =>
+          (exists_decodeLetter_eq_inr_iff e b _).mp ((hw h d).imp fun _ => (hxr i h d).symm.trans)⟩
   · rw [val_explicitVertexEquiv_sink, val_blockEdgeEquiv_inl, oldEntryNum,
-      ite_eq_right (by omega), blockNetwork_tensor_controlSink, Nat.add_sub_cancel_left]
-    have hxl : x (.inl i) = decodeLetter e b (L i) := by
-      simp only [x, val_blockEdgeEquiv_inl]
-    rw [hxl, acceptWeight_decodeLetter]
+      ite_eq_right (by omega), blockNetwork_tensor_controlSink, Nat.add_sub_cancel_left, hxl,
+      acceptWeight_decodeLetter]
   · rw [val_explicitVertexEquiv_sink, val_blockEdgeEquiv_inr, oldEntryNum,
       ite_eq_right (by omega), ite_eq_right (by omega), blockNetwork_tensor_blockSink]
 
@@ -646,10 +607,6 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
       split_ifs
       · rw [val_explicitEdgeEquiv_inl, Nat.add_comm]
       · rw [val_explicitEdgeEquiv_inr, Nat.add_left_comm, Nat.add_comm (r : ℕ)]
-    have hinc : ∀ e' : BlockEdge k q, (BN.src e' = u ∨ BN.tgt e' = u) ↔
-        (blockSrcNum k q (blockEdgeEquiv k q e') = ev (.inl u) ∨
-          edgeTargetNum k q σ (blockEdgeEquiv k q e') = ev (.inl u)) := fun e' => by
-      rw [hsrc, htgt]
     have hall : validNum k q s b σ P j (ev (.inl u)) = true ↔ ∀ e' : BlockEdge k q,
         (BN.src e' = u ∨ BN.tgt e' = u) →
           lettersAt k q (letterBits k s b) P j (ev (.inl u)) (blockEdgeEquiv k q e') <
@@ -658,14 +615,13 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
       simp only [List.mem_range, Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
         decide_eq_true_eq]
       constructor
-      · intro h e' he'
-        exact (h _ (blockEdgeEquiv k q e').isLt).resolve_left (not_not.mpr ((hinc e').mp he'))
+      · exact fun h e' he' => (h _ (blockEdgeEquiv k q e').isLt).resolve_left
+          (not_not.mpr ((or_congr (hsrc e') (htgt e')).mp he'))
       · intro h n hn
         obtain ⟨e', rfl⟩ : ∃ e', (blockEdgeEquiv k q e' : ℕ) = n :=
           ⟨(blockEdgeEquiv k q).symm ⟨n, hn⟩, by simp⟩
-        by_cases he' : BN.src e' = u ∨ BN.tgt e' = u
-        · exact Or.inr (h e' he')
-        · exact Or.inl (fun h' => he' ((hinc e').mpr h'))
+        exact or_iff_not_imp_left.mpr fun h' =>
+          h e' ((or_congr (hsrc e') (htgt e')).mpr (not_not.mp h'))
     split_ifs with h1 h2 h2
     · rw [← blockNetwork_tensor_decodeLetter]
       refine BN.tensor_congr _ _ _ fun e' he' => ?_
@@ -704,13 +660,9 @@ theorem explicitBlockNetwork_eq_explicitNetworkNum (σ : ℕ) :
     refine List.map_congr_left fun v _ => ?_
     simp only [Function.comp_apply]
     rw [map_val_explicitPorts, explicitTable_eq_explicitTableNum, Equiv.apply_symm_apply]
-  cases h : machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e with
-  | mk n vs =>
-    rw [h] at hv
-    have hn := numEdges_explicitBlockNetwork machine input b (scheduleOfNat k q σ) e
-    rw [h] at hn
-    simp only at hv hn
-    rw [explicitNetworkNum, hv, hn]
+  refine Eq.trans (b := ⟨(machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).numEdges,
+      (machine.explicitBlockNetwork input b (scheduleOfNat k q σ) e).vertices⟩) rfl ?_
+  rw [explicitNetworkNum, numEdges_explicitBlockNetwork, hv]
 
 end Tables
 
@@ -721,10 +673,7 @@ section PortCounts
 /-- Every explicit edge starts at an old vertex. -/
 theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
     explicitSrcNum k q m σ j < q * (3 * k + 2) := by
-  have hm : 0 < m := by
-    rcases Nat.eq_zero_or_pos m with rfl | hm
-    · simp at hj
-    · exact hm
+  have hm : 0 < m := Nat.pos_of_ne_zero (by rintro rfl; simp at hj)
   unfold explicitSrcNum
   split_ifs with hlt
   · have hn : j / m < q * (3 * k + 1) := (Nat.div_lt_iff_lt_mul hm).mpr hlt
@@ -733,10 +682,9 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
     · nlinarith
     · rcases Nat.eq_zero_or_pos k with rfl | hk
       · omega
-      · have : (j / m - q) / (k * 3) < q := by
-          rw [Nat.div_lt_iff_lt_mul (by omega)]
-          have : q * (3 * k + 1) = q + q * (k * 3) := by ring
-          omega
+      · have hmul : q * (3 * k + 1) = q + q * (k * 3) := by ring
+        have := (Nat.div_lt_iff_lt_mul (by omega : 0 < k * 3)).mpr
+          (by omega : j / m - q < q * (k * 3))
         nlinarith
   · have hn : (j - q * (3 * k + 1) * m) / m < q * (3 * k + 1) :=
       (Nat.div_lt_iff_lt_mul hm).mpr (by omega)
@@ -749,8 +697,7 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
         with
       | none => simp only [Option.getD_none]; nlinarith
       | some i' =>
-        have hmem := List.mem_of_find?_eq_some hf
-        rw [List.mem_range] at hmem
+        have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hf)
         simp only [Option.getD_some]
         nlinarith
 

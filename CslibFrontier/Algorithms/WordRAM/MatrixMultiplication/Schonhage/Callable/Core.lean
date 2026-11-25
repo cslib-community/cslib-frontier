@@ -92,12 +92,9 @@ theorem exec_core {W b m N : ℕ}
     (QueriedProduct.not_readsWidth true) sbound smatch hw_le hwindow
   refine ⟨y, hs.seq hy, ymatch.base_eq, ymatch.modulus_eq,
     (ymatch.regs _).trans pp.inputSize, (ymatch.regs _).trans pp.queryCount,
-    (ymatch.regs _).trans pp.output, ?_, ?_, ?_⟩
-  · intro i
-    exact (ymatch.mem _).trans (pv i)
-  · intro a ha
-    exact (ymatch.mem a).trans ((pf a (by omega)).trans ((vinput a ha).trans (hinput a ha).symm))
-  · intro a ha
-    exact (yframe a ha).trans (congrFun smem a)
+    (ymatch.regs _).trans pp.output, fun i => (ymatch.mem _).trans (pv i),
+    fun a ha => (ymatch.mem a).trans ((pf a (by omega)).trans
+      ((vinput a ha).trans (hinput a ha).symm)),
+    fun a ha => (yframe a ha).trans (congrFun smem a)⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduct

@@ -12,12 +12,14 @@ import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBFast
 -- `#guard` evaluates the checkers and the fixtures at compile time.
 public meta import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 public meta import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
+public meta import CslibFrontierTests.Logics.Propositional.VeriPBFast
 
 /-! The text front end of the VeriPB kernel-proof checker on proofs elaborated to the kernel format
 by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate`):
@@ -1840,32 +1842,30 @@ qed;
 #guard (checkOPB pres4
   (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_rm;\n"))).isNone
 
-/-- An `EQUIENUMERABLE` output of `pres4Rm` itself, after the steps `steps`. -/
-def presEnumOut (steps : String) : String :=
-  "pseudo-Boolean proof version 3.0\nf 6;\n" ++ steps ++
-    "output EQUIENUMERABLE FILE;\nconclusion NONE;\nend pseudo-Boolean proof;\n"
-
-/-- For `pres4Rm`, after `rmX5`: `preserved_add x5 : x1 >= 1` adds `x5` back, its goals negated
-as `11` and `13` and refuted with `5` and `6`. -/
-def readdX5 : String := "preserved_add x5 : 1 x1 >= 1 : subproof
-proofgoal #1
-pol 11 5 +;
-qed : 12;
-proofgoal #2
-pol 13 6 +;
-qed : 14;
-qed;
-"
-
--- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set.
--- Removing `x5` and adding it back leaves the core set, the preserved set (as `epreserved`
--- checks) and the output text the same, so only the change itself is rejected. VeriPB and CakePB
--- accept both: they compare only the final preserved sets.
+-- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set,
+-- and after removing `x5` and adding it back, which leaves the core set, the preserved set (as
+-- `epreserved` checks) and the output text the same. All three accept both.
 #guard (checkOPBOutput pres4Rm (presEnumOut "") pres4Rm).isSome
 #guard checkOPB pres4Rm (presProof 6 (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n")) ==
   some .noClaim
 #guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
-  pres4Rm).isNone
+  pres4Rm).isSome
+-- After removing `x5`, the output must preserve the new set `x1 x3`, in any order, not the old
+-- one: all three accept the first and reject the second.
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5)
+  (pres4Rm.replace "preserved: x1 x3 x5 ;" "preserved: x3 x1 ;")).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut rmX5) pres4Rm).isNone
+-- After removing `x5` and deleting its definition, `x5` is free: the output without it preserving
+-- `x1 x3` is accepted, and preserving `x1 x3 x5`, which would double the count, is rejected. All
+-- three agree.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5)) pres4Free).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ freeX5))
+  pres4FreeX5).isNone
+-- Removing `x5`, redefining it as `~x1` and adding it back: the output preserves `x1 x3 x5`
+-- again, but its projections are those of the input with `x5` flipped, in bijection and not
+-- equal. All three accept it, and reject the input as the output.
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Flip).isSome
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ flipX5)) pres4Rm).isNone
 
 /-! ### The order, dominance and preserved-set API under ordinary imports
 
@@ -1989,5 +1989,80 @@ example (h : (checkOPBOutput enum3 enumPartialProof).map (·.1) = some (.enumPar
 example (h : checkDIMACS php43 php43Kernel = some (.unsat 39)) :
     ∃ φ, parseDIMACS php43 = some φ ∧ ¬ φ.Satisfiable :=
   not_satisfiable_of_checkDIMACS h
+
+
+/-! ### The compiled checker
+
+The compiled checker `Cslib.Logic.PL.VeriPB.checkRedFast` reaches the same final state as the
+reference run on each fixture, or both reject
+(`CslibFrontierTests.Logics.Propositional.VeriPBFast.agree`). -/
+
+open CslibFrontierTests.Logics.Propositional.VeriPBFast in
+section
+
+#guard agreeOPB php32 php32Proof
+#guard agreeOPB php32 (php32Proof.replace "UNSAT : 12" "UNSAT : 11")
+#guard agreeDIMACS php43 php43Kernel
+#guard agreeDIMACS php43 php43Logged
+#guard agreeDIMACS php43 php43DropHint
+#guard agreeDIMACS php43 php43DeleteTwice
+#guard agreeOPB rotation rotationProof
+#guard agreeOPB rotation rotationNoGoal1
+#guard agreeOPB cover coverProof
+#guard agreeOPB cover coverBadRed
+#guard agreeOPB coverDecision coverDecisionSat
+#guard agreeOPB coverDecision objiDecision
+#guard agreeOPB cover objiProof
+#guard agreeOPB delOpt delOptProof
+#guard agreeOPB delDec delDecProof
+#guard agreeOPB ck ckProof
+#guard agreeOPB one coreProof
+#guard agreeOPB one deldProof
+#guard agreeOPB one uncheckedProof
+#guard agreeOPB one redNumProof
+#guard agreeOPB one redNumSubProof
+#guard agreeOPB one tcbProof
+#guard agreeOPB one tcbCheckedProof
+#guard agreeOPB one tcbDeleteProof
+#guard agreeOPB one satAsgProof
+#guard agreeOPB eqOpt objuProof
+#guard agreeOPB eqOpt objuLoggedProof
+#guard agreeOPB twoOpt objuCoreProof
+#guard agreeOPB twoOpt objuConstProof
+#guard agreeOPB cancelOpt cancelProof
+#guard agreeOPB enum3 enumProof
+#guard agreeOPB enum3 enumPartialProof
+#guard agreeOPB enum3 solxNone
+#guard agreeOPB enum3 delcPresProof
+#guard agreeOPB presOnly presOnlyProof
+#guard agreeOPB amo3Opt amo3OptImplicit
+#guard agreeOPB amo3OptPres amo3OptEnum
+#guard agreeOPB enumOut enumOutProof
+#guard agreeOPB sym2 domObjProof
+
+/-! Through ordinary imports: the compiled checker of output sections accepts `enumOut` with
+its output `EQUIENUMERABLE IMPLICIT`, and the equality theorems carry an acceptance by a
+reference checker over to the compiled one. -/
+
+#guard match parseOPB enumOut with
+  | some I =>
+    match parseProof I.constraints.length 1000 (noOutput enumOutProof) with
+    | some P =>
+      (checkRedOutputFast I.constraints I.objective P I.preserved ⟨.equienumerable, none⟩).isSome
+    | none => false
+  | none => false
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (h : checkRed F obj P pres = true) : checkRedFast F obj P pres = true := by
+  rw [checkRedFast_eq_checkRed]
+  exact h
+
+example (F : List PBConstr) (obj : Option Objective) (P : RedProof) (pres : Option (List ℕ))
+    (sec : OutputSection) (o : Output) (h : checkRedOutput F obj P pres sec = some o) :
+    checkRedOutputFast F obj P pres sec = some o := by
+  rw [checkRedOutputFast_eq_checkRedOutput]
+  exact h
+
+end
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

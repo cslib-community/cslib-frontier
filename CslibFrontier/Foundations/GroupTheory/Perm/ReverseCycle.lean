@@ -111,17 +111,15 @@ theorem sign_reverseCycle (σ : Perm α) (x : α) : sign (reverseCycle σ x) = s
 /-- Reversing a cycle preserves the relation of lying on a common cycle. -/
 theorem sameCycle_reverseCycle_iff {σ : Perm α} {x y z : α} :
     (reverseCycle σ x).SameCycle y z ↔ σ.SameCycle y z := by
-  constructor
-  · refine SameCycle.of_forall_sameCycle_apply fun y => ?_
-    rw [reverseCycle_apply]
+  refine ⟨SameCycle.of_forall_sameCycle_apply fun y => ?_,
+    SameCycle.of_forall_sameCycle_apply fun y => ?_⟩
+  · rw [reverseCycle_apply]
     split_ifs
-    · exact sameCycle_inv_apply_right'.2 (SameCycle.refl _ _)
-    · exact sameCycle_apply_right.2 (SameCycle.refl _ _)
-  · refine SameCycle.of_forall_sameCycle_apply fun y => ?_
-    by_cases h : σ.SameCycle x y
-    · have hy : reverseCycle σ x (σ y) = y := by
-        rw [reverseCycle_apply, ite_eq_left (sameCycle_apply_right.2 h), inv_apply_apply]
-      exact ⟨-1, by rw [_root_.zpow_neg_one, Perm.inv_eq_iff_eq, hy]⟩
+    · exact sameCycle_inv_apply_right'.2 (.refl _ _)
+    · exact sameCycle_apply_right.2 (.refl _ _)
+  · by_cases h : σ.SameCycle x y
+    · exact ⟨-1, by rw [_root_.zpow_neg_one, Perm.inv_eq_iff_eq, reverseCycle_apply,
+        ite_eq_left (sameCycle_apply_right.2 h), inv_apply_apply]⟩
     · exact ⟨1, by rw [zpow_one, reverseCycle_apply, ite_eq_right h]⟩
 
 /-- Reversing a cycle preserves the support. -/
@@ -162,34 +160,25 @@ theorem reverseCycle_ne {σ : Perm α} {x : α} (hx : Odd #(σ.cycleOf x).suppor
   intro h
   have hσx := apply_ne_of_odd_card_support_cycleOf hx
   have h1 : σ⁻¹ x = σ x := by
-    have := congrArg (· x) h
-    simpa only [reverseCycle_apply, ite_eq_left (SameCycle.refl _ _)] using this
+    simpa only [reverseCycle_apply, ite_eq_left (SameCycle.refl _ _)] using congrArg (· x) h
   have h2 : (σ ^ (2 : ℤ)) x = (σ ^ (0 : ℤ)) x := by
     rw [zpow_ofNat, pow_two, Perm.mul_apply, ← h1, apply_inv_apply, zpow_zero, one_apply]
-  rw [zpow_eq_zpow_on_iff σ hσx] at h2
   have hL := two_le_card_support_cycleOf_iff.2 hσx
   obtain ⟨k, hk⟩ := hx
-  rw [Int.zero_emod, Int.emod_eq_of_lt (by norm_num) (by omega)] at h2
+  rw [zpow_eq_zpow_on_iff σ hσx, Int.zero_emod, Int.emod_eq_of_lt (by norm_num) (by omega)] at h2
   omega
 
 /-- All cycle lengths of `σ` are even exactly when the cycle of every point has a support of even
 size (fixed points have empty `cycleOf` support). -/
 theorem forall_even_cycleType_iff {σ : Perm α} :
     (∀ n ∈ σ.cycleType, Even n) ↔ ∀ x, Even #(σ.cycleOf x).support := by
-  constructor
-  · intro h x
-    by_cases hx : σ x = x
-    · rw [(cycleOf_eq_one_iff σ).2 hx, support_one, card_empty]
-      exact Even.zero
-    · refine h _ ?_
-      rw [cycleType_def]
-      exact Multiset.mem_map_of_mem _ (cycleOf_mem_cycleFactorsFinset_iff.2 (mem_support.2 hx))
-  · intro h n hn
-    rw [cycleType_def, Multiset.mem_map] at hn
-    obtain ⟨c, hc, rfl⟩ := hn
-    have hcyc := (mem_cycleFactorsFinset_iff.1 hc).1
-    obtain ⟨a, ha⟩ := hcyc.nonempty_support
-    rw [Function.comp_apply, cycle_is_cycleOf ha hc]
-    exact h a
+  refine ⟨fun h x => ?_, fun h n hn => ?_⟩
+  · by_cases hx : σ x = x
+    · simp [(cycleOf_eq_one_iff σ).2 hx]
+    · exact h _ (cycleType_def σ ▸ Multiset.mem_map_of_mem _
+        (cycleOf_mem_cycleFactorsFinset_iff.2 (mem_support.2 hx)))
+  · obtain ⟨c, hc, rfl⟩ := Multiset.mem_map.1 (cycleType_def σ ▸ hn)
+    obtain ⟨a, ha⟩ := (mem_cycleFactorsFinset_iff.1 hc).1.nonempty_support
+    simpa only [Function.comp_apply, cycle_is_cycleOf ha hc] using h a
 
 end Equiv.Perm

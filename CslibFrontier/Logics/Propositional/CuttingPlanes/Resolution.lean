@@ -71,12 +71,9 @@ private theorem div_two_contra_add_two_nsmul (I : Ineq V) :
     (contra + 2 • I).div 2 = contra + I := by
   refine div_eq_of Nat.two_pos ?_ ?_ ?_
   · ext v
-    simp only [coeff_add, coeff_contra, coeff_nsmul, zero_add, Finsupp.smul_apply, smul_eq_mul,
-      nsmul_eq_mul, Nat.cast_ofNat]
-  · simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
-    push_cast
-    omega
-  · simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
+    simp [coeff_nsmul]
+  all_goals
+    simp only [bound_add, bound_contra, bound_nsmul, nsmul_eq_mul]
     push_cast
     omega
 

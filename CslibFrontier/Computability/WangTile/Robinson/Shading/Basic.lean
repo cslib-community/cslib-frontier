@@ -115,9 +115,7 @@ namespace ShadeState
 
 private theorem mem_edgeValues (value : Option Shade) :
     value ∈ (none :: Shade.all.map some) := by
-  rcases value with _ | shade
-  · simp
-  · simp
+  rcases value with _ | shade <;> simp
 
 /-- Every four-edge shade state occurs in the enumeration. -/
 @[simp] theorem mem_all (state : ShadeState) : state ∈ all := by
@@ -267,10 +265,8 @@ theorem componentAt_double_add (grid : Nat → Nat → Index)
     (x y dx dy : Nat) (hdx : dx < 2) (hdy : dy < 2) :
     componentAt grid (2 * x + dx) (2 * y + dy) =
       indexThick (grid x y) := by
-  unfold componentAt
-  have hx : (2 * x + dx) / 2 = x := by omega
-  have hy : (2 * y + dy) / 2 = y := by omega
-  rw [hx, hy]
+  simp only [componentAt, show (2 * x + dx) / 2 = x by omega,
+    show (2 * y + dy) / 2 = y by omega]
 
 /-- The inward south quarter has its north-facing bit set. -/
 theorem quadrantAt_quarterSouth_yBit (x south : Nat) :
@@ -455,8 +451,8 @@ theorem CycleOn.cycleShade
     omega
   have hsouth :
       (stateGrid (quarterWest west) (quarterSouth south)).east =
-        (stateGrid (quarterEast east) (quarterSouth south)).west := by
-    exact value_between (fun x => stateGrid x (quarterSouth south))
+        (stateGrid (quarterEast east) (quarterSouth south)).west :=
+    value_between (fun x => stateGrid x (quarterSouth south))
       ShadeState.east ShadeState.west hquarterWestEast
       (fun x _ _ => valid.hmatch x (quarterSouth south))
       (fun x hw he => (valid.rules x (quarterSouth south)).horizontal_eq (cycle.south_path hw he))
@@ -467,8 +463,8 @@ theorem CycleOn.cycleShade
     exact hsouth.symm.trans hshade
   have heast :
       (stateGrid (quarterEast east) (quarterSouth south)).north =
-        (stateGrid (quarterEast east) (quarterNorth north)).south := by
-    exact value_between (fun y => stateGrid (quarterEast east) y)
+        (stateGrid (quarterEast east) (quarterNorth north)).south :=
+    value_between (fun y => stateGrid (quarterEast east) y)
       ShadeState.north ShadeState.south hquarterSouthNorth
       (fun y _ _ => valid.vmatch (quarterEast east) y)
       (fun y hs hn => (valid.rules (quarterEast east) y).vertical_eq (cycle.east_path hs hn))
@@ -479,8 +475,8 @@ theorem CycleOn.cycleShade
     exact heast.symm.trans hseNorth
   have hnorth :
       (stateGrid (quarterWest west) (quarterNorth north)).east =
-        (stateGrid (quarterEast east) (quarterNorth north)).west := by
-    exact value_between (fun x => stateGrid x (quarterNorth north))
+        (stateGrid (quarterEast east) (quarterNorth north)).west :=
+    value_between (fun x => stateGrid x (quarterNorth north))
       ShadeState.east ShadeState.west hquarterWestEast
       (fun x _ _ => valid.hmatch x (quarterNorth north))
       (fun x hw he => (valid.rules x (quarterNorth north)).horizontal_eq (cycle.north_path hw he))
@@ -532,8 +528,8 @@ theorem CycleShade.south_at
     (valid : ValidShadeGrid grid stateGrid) {qx : Nat}
     (hwest : quarterWest west < qx) (heast : qx < quarterEast east) :
     (stateGrid qx (quarterSouth south)).west = some shade ∧
-      (stateGrid qx (quarterSouth south)).east = some shade := by
-  exact value_inside (fun x => stateGrid x (quarterSouth south))
+      (stateGrid qx (quarterSouth south)).east = some shade :=
+  value_inside (fun x => stateGrid x (quarterSouth south))
     ShadeState.east ShadeState.west hwest heast
     (fun x _ _ => valid.hmatch x (quarterSouth south))
     (fun x hw he => (valid.rules x (quarterSouth south)).horizontal_eq
@@ -548,8 +544,8 @@ theorem CycleShade.north_at
     (valid : ValidShadeGrid grid stateGrid) {qx : Nat}
     (hwest : quarterWest west < qx) (heast : qx < quarterEast east) :
     (stateGrid qx (quarterNorth north)).west = some shade ∧
-      (stateGrid qx (quarterNorth north)).east = some shade := by
-  exact value_inside (fun x => stateGrid x (quarterNorth north))
+      (stateGrid qx (quarterNorth north)).east = some shade :=
+  value_inside (fun x => stateGrid x (quarterNorth north))
     ShadeState.east ShadeState.west hwest heast
     (fun x _ _ => valid.hmatch x (quarterNorth north))
     (fun x hw he => (valid.rules x (quarterNorth north)).horizontal_eq
@@ -608,13 +604,9 @@ theorem value_isSome_eq_portPresent_of_allowed
       ⟨grid (port.x / 2) (port.y / 2), quadrantAt port.x port.y⟩
       (shadeGrid port.x port.y) = true) :
     (value shadeGrid port).isSome = portPresent grid port := by
-  rcases port with ⟨x, y, side⟩
-  have rules := allowedFor_iff.mp allowed
-  cases side
-  · exact rules.west_present
-  · exact rules.east_present
-  · exact rules.south_present
-  · exact rules.north_present
+  rcases port with ⟨x, y, _ | _ | _ | _⟩
+  exacts [(allowedFor_iff.mp allowed).west_present, (allowedFor_iff.mp allowed).east_present,
+    (allowedFor_iff.mp allowed).south_present, (allowedFor_iff.mp allowed).north_present]
 
 /-- Allowed shade states have exactly the red-graph incidence. -/
 theorem value_isSome_eq_portPresent
@@ -644,8 +636,7 @@ theorem Related.right_unique {parity : Bool} {a b c : Option Shade}
   · exact hab.symm.trans hac
   · obtain ⟨s, hs, hb⟩ := hab
     obtain ⟨t, ht, hc⟩ := hac
-    have hst : s = t := Option.some.inj (hs.symm.trans ht)
-    subst t
+    obtain rfl : s = t := Option.some.inj (hs.symm.trans ht)
     exact hb.trans hc.symm
 
 /-- Shade relations compose by taking the exclusive-or of their parities. -/
@@ -662,8 +653,7 @@ theorem Related.trans {first second third : Option Shade}
     exact firstRelation
   · rcases firstRelation with ⟨firstShade, rfl, rfl⟩
     rcases secondRelation with ⟨secondShade, heq, hthird⟩
-    simp only [Option.some.injEq] at heq
-    subst secondShade
+    obtain rfl := Option.some.inj heq
     simpa [Related] using Eq.symm hthird
 
 private theorem related_true_of_ne_of_present
@@ -674,11 +664,7 @@ private theorem related_true_of_ne_of_present
   · simp at hfirst
   rcases second with _ | second
   · simp at hsecond
-  refine ⟨first, rfl, congrArg some ?_⟩
-  exact Shade.eq_opposite_of_ne (by
-    intro heq
-    apply hne
-    exact congrArg some heq)
+  exact ⟨first, rfl, congrArg some (Shade.eq_opposite_of_ne fun heq => hne (congrArg some heq))⟩
 
 private theorem Link.sound_on {indexGrid : Nat → Nat → Index}
     {stateGrid : Nat → Nat → ShadeState} {region : Nat → Nat → Prop}
@@ -755,10 +741,8 @@ namespace ValidPortLabeling
 private theorem ne_of_related_true
     {first second : Option Shade}
     (related : Related true first second) : first ≠ second := by
-  rcases related with ⟨shade, rfl, rfl⟩
-  intro equal
-  simp only [Option.some.injEq] at equal
-  cases shade <;> contradiction
+  rintro rfl
+  rcases related with ⟨_ | _, rfl, h⟩ <;> cases h
 
 /-- Port incidence and parity-link consistency are exactly the local shade
 tile and edge-matching rules. -/
@@ -770,51 +754,20 @@ theorem validShadeGrid {indexGrid : Nat → Nat → Index}
     simp only [locallyAllowed]
     apply allowedFor_iff.mpr
     constructor
-    · simpa only [stateGrid, portPresent, componentAt] using
-        labeling.present ⟨x, y, .west⟩
-    · simpa only [stateGrid, portPresent, componentAt] using
-        labeling.present ⟨x, y, .east⟩
-    · simpa only [stateGrid, portPresent, componentAt] using
-        labeling.present ⟨x, y, .south⟩
-    · simpa only [stateGrid, portPresent, componentAt] using
-        labeling.present ⟨x, y, .north⟩
-    · intro hpath
-      change labeling.label ⟨x, y, .west⟩ =
-        labeling.label ⟨x, y, .east⟩
-      exact labeling.related (Link.horizontal x y hpath)
-    · intro hpath
-      change labeling.label ⟨x, y, .south⟩ =
-        labeling.label ⟨x, y, .north⟩
-      exact labeling.related (Link.vertical x y hpath)
-    · intro heast hsouth
-      change labeling.label ⟨x, y, .east⟩ =
-        labeling.label ⟨x, y, .south⟩
-      exact labeling.related (Link.eastSouth x y heast hsouth)
-    · intro heast hnorth
-      change labeling.label ⟨x, y, .east⟩ =
-        labeling.label ⟨x, y, .north⟩
-      exact labeling.related (Link.eastNorth x y heast hnorth)
-    · intro hwest hsouth
-      change labeling.label ⟨x, y, .west⟩ =
-        labeling.label ⟨x, y, .south⟩
-      exact labeling.related (Link.westSouth x y hwest hsouth)
-    · intro hwest hnorth
-      change labeling.label ⟨x, y, .west⟩ =
-        labeling.label ⟨x, y, .north⟩
-      exact labeling.related (Link.westNorth x y hwest hnorth)
-    · intro hhorizontal hvertical
-      change labeling.label ⟨x, y, .west⟩ ≠
-        labeling.label ⟨x, y, .south⟩
-      exact ne_of_related_true
-        (labeling.related (Link.crossing x y hhorizontal hvertical))
-  · intro x y
-    change labeling.label ⟨x, y, .east⟩ =
-      labeling.label ⟨x + 1, y, .west⟩
-    exact labeling.related (Link.horizontalMatch x y)
-  · intro x y
-    change labeling.label ⟨x, y, .north⟩ =
-      labeling.label ⟨x, y + 1, .south⟩
-    exact labeling.related (Link.verticalMatch x y)
+    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .west⟩
+    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .east⟩
+    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .south⟩
+    · simpa only [stateGrid, portPresent, componentAt] using labeling.present ⟨x, y, .north⟩
+    · exact fun hpath => labeling.related (Link.horizontal x y hpath)
+    · exact fun hpath => labeling.related (Link.vertical x y hpath)
+    · exact fun heast hsouth => labeling.related (Link.eastSouth x y heast hsouth)
+    · exact fun heast hnorth => labeling.related (Link.eastNorth x y heast hnorth)
+    · exact fun hwest hsouth => labeling.related (Link.westSouth x y hwest hsouth)
+    · exact fun hwest hnorth => labeling.related (Link.westNorth x y hwest hnorth)
+    · exact fun hhorizontal hvertical =>
+        ne_of_related_true (labeling.related (Link.crossing x y hhorizontal hvertical))
+  · exact fun x y => labeling.related (Link.horizontalMatch x y)
+  · exact fun x y => labeling.related (Link.verticalMatch x y)
 
 end ValidPortLabeling
 
@@ -933,13 +886,12 @@ def coarsen (fine : Nat → Nat → ShadeState) (x y : Nat) : ShadeState :=
 /-- Coarsening a valid twice-substituted assignment preserves all shade rules and matches. -/
 theorem ValidShadeGrid.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat → ShadeState}
     (hfine : ValidShadeGrid (iterateRefine 2 grid) fine) :
-    ValidShadeGrid grid (coarsen fine) := by
-  let labeling : ValidPortLabeling grid :=
+    ValidShadeGrid grid (coarsen fine) :=
+  ValidPortLabeling.validShadeGrid
     { label := fun port => value fine (refinedPort port)
       present := fun port =>
         (value_isSome_eq_portPresent hfine _).trans (refinedPort_present grid port)
       related := fun link => (Link.refine link).sound hfine }
-  exact labeling.validShadeGrid
 
 private theorem coarse_value {grid : Nat → Nat → Index}
     {fine : Nat → Nat → ShadeState}
@@ -947,10 +899,8 @@ private theorem coarse_value {grid : Nat → Nat → Index}
     (port : Port) (live : portPresent grid port = true)
     {shade : Shade} (start : value fine (sparsePort port) = some shade) :
     value (coarsen fine) port = some shade := by
-  have relation : value fine (sparsePort port) = value fine (refinedPort port) :=
-    (livePortPath grid port live).sound hfine
-  rw [value_coarsen]
-  exact relation.symm.trans start
+  rw [value_coarsen, ← start]
+  exact ((livePortPath grid port live).sound hfine).symm
 
 /-- A uniformly shaded refined cycle induces the same shade on its coarse ancestor. -/
 theorem CycleShade.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat → ShadeState}
@@ -962,23 +912,19 @@ theorem CycleShade.coarsen {grid : Nat → Nat → Index} {fine : Nat → Nat �
   have apply_port := coarse_value hfine
   constructor
   · apply apply_port ⟨quarterWest west, quarterSouth south, .east⟩
-    · have corner := cycle.southwest_corner
-      simp [portPresent, hasEast, corner.1]
+    · simp [portPresent, hasEast, cycle.southwest_corner.1]
     · simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterSouth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.southwest
   · apply apply_port ⟨quarterEast east, quarterSouth south, .west⟩
-    · have corner := cycle.southeast_corner
-      simp [portPresent, hasWest, corner.1]
+    · simp [portPresent, hasWest, cycle.southeast_corner.1]
     · simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterSouth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.southeast
   · apply apply_port ⟨quarterEast east, quarterNorth north, .west⟩
-    · have corner := cycle.northeast_corner
-      simp [portPresent, hasWest, corner.1]
+    · simp [portPresent, hasWest, cycle.northeast_corner.1]
     · simpa [value, sparsePort, sparseCoordinate, quarterEast, quarterNorth,
         ← Nat.mul_assoc] using shaded.northeast
   · apply apply_port ⟨quarterWest west, quarterNorth north, .east⟩
-    · have corner := cycle.northwest_corner
-      simp [portPresent, hasEast, corner.1]
+    · simp [portPresent, hasEast, cycle.northwest_corner.1]
     · simpa [value, sparsePort, sparseCoordinate, quarterWest, quarterNorth,
         Nat.add_div, ← Nat.mul_assoc] using shaded.northwest
 

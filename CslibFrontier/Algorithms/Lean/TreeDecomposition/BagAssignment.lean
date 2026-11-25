@@ -88,8 +88,7 @@ theorem ofRadix_eq_zero_of_notMem {q : ℕ} (L : List V) (m : ℕ) {x : V} (hx :
   | nil => rfl
   | cons v L ih =>
     rw [List.mem_cons, not_or] at hx
-    simp only [ofRadix, ite_eq_right (fun h => hx.1 h)]
-    exact ih (m / q) hx.2
+    simpa only [ofRadix, ite_eq_right fun h => hx.1 h] using ih (m / q) hx.2
 
 theorem ofRadix_cons_self {q : ℕ} (v : V) (L : List V) (m : ℕ) :
     ofRadix q (v :: L) m v = m % q := by
@@ -106,7 +105,7 @@ theorem toRadix_congr {q : ℕ} {L : List V} {α β : V → ℕ}
   | nil => rfl
   | cons v L ih =>
     simp only [toRadix, h v List.mem_cons_self,
-      ih (fun w hw => h w (List.mem_cons_of_mem _ hw))]
+      ih fun w hw => h w (List.mem_cons_of_mem _ hw)]
 
 omit [DecidableEq V] in
 theorem toRadix_lt {q : ℕ} (hq : 0 < q) (L : List V) (α : V → ℕ) :
@@ -115,27 +114,21 @@ theorem toRadix_lt {q : ℕ} (hq : 0 < q) (L : List V) (α : V → ℕ) :
   | nil => simp [toRadix]
   | cons v L ih =>
     simp only [toRadix, List.length_cons, Nat.pow_succ, Nat.mul_comm (q ^ L.length) q]
-    have hm : α v % q < q := Nat.mod_lt _ hq
+    have := Nat.mod_lt (α v) hq
     have hmul : q * (toRadix q L α + 1) ≤ q * q ^ L.length := Nat.mul_le_mul_left q ih
-    rw [Nat.mul_add, Nat.mul_one] at hmul
-    omega
+    rw [Nat.mul_add, Nat.mul_one] at hmul; omega
 
 theorem toRadix_ofRadix {q : ℕ} {L : List V} (hL : L.Nodup) {m : ℕ}
     (hm : m < q ^ L.length) : toRadix q L (ofRadix q L m) = m := by
   induction L generalizing m with
-  | nil =>
-    simp only [List.length_nil, Nat.pow_zero] at hm
-    simp only [toRadix]
-    omega
+  | nil => simp only [List.length_nil, Nat.pow_zero, toRadix] at hm ⊢; omega
   | cons v L ih =>
     rw [List.nodup_cons] at hL
     simp only [List.length_cons, Nat.pow_succ, Nat.mul_comm (q ^ L.length) q] at hm
-    have hmdiv : m / q < q ^ L.length := Nat.div_lt_of_lt_mul hm
-    have hrest : toRadix q L (ofRadix q (v :: L) m) = toRadix q L (ofRadix q L (m / q)) := by
-      refine toRadix_congr fun w hw => ?_
-      exact ofRadix_cons_ne (fun h => by subst h; exact hL.1 hw) L m
-    simp only [toRadix, ofRadix_cons_self, hrest, ih hL.2 hmdiv]
-    rw [Nat.mod_mod, Nat.mod_add_div]
+    have hrest : toRadix q L (ofRadix q (v :: L) m) = toRadix q L (ofRadix q L (m / q)) :=
+      toRadix_congr fun w hw => ofRadix_cons_ne (fun h : w = v => hL.1 (h ▸ hw)) L m
+    simp only [toRadix, ofRadix_cons_self, hrest, ih hL.2 (Nat.div_lt_of_lt_mul hm),
+      Nat.mod_mod, Nat.mod_add_div]
 
 theorem ofRadix_toRadix {q : ℕ} (hq : 0 < q) {L : List V} {α : V → ℕ}
     (hα : ∀ v ∈ L, α v < q) {x : V} (hx : x ∈ L) :
@@ -143,19 +136,14 @@ theorem ofRadix_toRadix {q : ℕ} (hq : 0 < q) {L : List V} {α : V → ℕ}
   induction L with
   | nil => exact absurd hx List.not_mem_nil
   | cons v L ih =>
-    have hmod : toRadix q (v :: L) α % q = α v := by
-      rw [toRadix_cons, Nat.add_mul_mod_self_left,
-        Nat.mod_eq_of_lt (Nat.mod_lt _ hq),
-        Nat.mod_eq_of_lt (hα v List.mem_cons_self)]
-    have hdiv : toRadix q (v :: L) α / q = toRadix q L α := by
-      rw [toRadix_cons, Nat.add_mul_div_left _ _ hq,
-        Nat.div_eq_of_lt (Nat.mod_lt _ hq), Nat.zero_add]
     by_cases hxv : x = v
     · subst hxv
-      rw [ofRadix_cons_self, hmod]
-    · have hxL : x ∈ L := (List.mem_cons.1 hx).resolve_left hxv
-      rw [ofRadix_cons_ne hxv, hdiv]
-      exact ih (fun w hw => hα w (List.mem_cons_of_mem _ hw)) hxL
+      rw [ofRadix_cons_self, toRadix_cons, Nat.add_mul_mod_self_left,
+        Nat.mod_eq_of_lt (Nat.mod_lt _ hq), Nat.mod_eq_of_lt (hα x List.mem_cons_self)]
+    · rw [ofRadix_cons_ne hxv, toRadix_cons, Nat.add_mul_div_left _ _ hq,
+        Nat.div_eq_of_lt (Nat.mod_lt _ hq), Nat.zero_add]
+      exact ih (fun w hw => hα w (List.mem_cons_of_mem _ hw))
+        ((List.mem_cons.1 hx).resolve_left hxv)
 
 end Radix
 

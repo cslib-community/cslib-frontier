@@ -66,8 +66,7 @@ private theorem runAtWidths_heq (G : UniformOracleCircuitFamily)
     (hlen : ℓ ≤ L n) (H : (Fin (a n) → Bool) → Fin (b n) → Bool) :
     HEq (runAtWidths G n ℓ q x hx hq (hG.oracle n ℓ hlen H))
       (G.run n x (hG.oracle n x.length (hx ▸ hlen) H)) := by
-  subst ℓ
-  subst q
+  subst ℓ q
   rfl
 
 private theorem runAtWidths_apply (F : UniformOracleCircuitFamily) (n ℓ q : ℕ)
@@ -81,8 +80,7 @@ private theorem runAtWidths_apply (F : UniformOracleCircuitFamily) (n ℓ q : �
         (embedState (blockEmb (2 * n + 1 + ℓ)
           (by rw [← hq]; exact (F.wellFormed n ℓ).input_le))
           (inputState (F.description n ℓ).width (encPair encUnary encBits (n, x))) ψ) := by
-  subst ℓ
-  subst q
+  subst ℓ q
   rw [runAtWidths, run_apply, initialState_apply]
 
 /-- Resume on the full saved register with exactly the supplied fixed-width classical input.
@@ -104,8 +102,8 @@ theorem resumeRun_eq_run (G : UniformOracleCircuitFamily)
     (H : (Fin (a n) → Bool) → Fin (b n) → Bool)
     (input : Fin t → Bool) :
     HEq (G.resumeRun hG n hlen rfl H input)
-      (G.run n (List.ofFn input) (hG.oracle n _ (by simpa using hlen) H)) := by
-  exact runAtWidths_heq G hG n _ _ _ _ rfl hlen H
+      (G.run n (List.ofFn input) (hG.oracle n _ (by simpa using hlen) H)) :=
+  runAtWidths_heq G hG n _ _ _ _ rfl hlen H
 
 /-- A cast-free execution equation for clients with a concrete register layout. The interpreter
 and input embedding are the same ones used by `run`. -/
@@ -180,14 +178,14 @@ theorem partialTraceLeft_resumeDensity (request : Fin r → Bool)
     (service : PMF (Fin s → Bool)) (ρ) :
     partialTraceLeft (G.resumeDensity hG n hlen hmem H κ nextInput request service ρ) =
       partialTraceLeft ρ := by
-  rw [resumeDensity_apply, partialTraceLeft_sum]
   have hscalar (c : ℝ) (σ : Matrix ((Fin (G.description n t).width → Bool) × κ)
       ((Fin (G.description n t).width → Bool) × κ) ℂ) :
       partialTraceLeft (c • σ) = c • partialTraceLeft σ := by
     simpa only [partialTraceLeftLinearMap_apply] using
       (partialTraceLeftLinearMap _ κ).map_smul_of_tower c σ
-  simp only [hscalar, partialTraceLeft_densityConj_kronecker (matrix_isometry _)]
-  rw [← sum_smul, Probability.PMF.sum_toReal, one_smul]
+  rw [resumeDensity_apply, partialTraceLeft_sum]
+  simp only [hscalar, partialTraceLeft_densityConj_kronecker (matrix_isometry _), ← sum_smul,
+    Probability.PMF.sum_toReal, one_smul]
 
 /-- The second-stage reply average preserves arbitrary input trace. -/
 theorem trace_resumeDensity (request : Fin r → Bool) (service : PMF (Fin s → Bool)) (ρ) :
@@ -215,14 +213,10 @@ theorem measureDensity_resumeDensity_eq {B : Type*} [Fintype B]
             (G.resumeRun hG n hlen hmem H (nextInput request reply)).toLinearMap ⊗ₖ
             (1 : Matrix κ κ ℂ)) ρ)
           (hρ.densityConj_kronecker (matrix_isometry _)) := by
-  have h := M.measureDensity_pmf_sum service
-    (fun reply => densityConj (Matrix.toEuclideanLin.symm
-      (G.resumeRun hG n hlen hmem H (nextInput request reply)).toLinearMap ⊗ₖ
-      (1 : Matrix κ κ ℂ)) ρ)
-    (fun _ => hρ.densityConj_kronecker (matrix_isometry _))
   ext b
   simpa only [POVM.measureDensity_apply, resumeDensity_apply] using
-    congrArg (fun p : PMF B => p b) h
+    congrArg (fun p : PMF B => p b)
+      (M.measureDensity_pmf_sum service _ fun _ => hρ.densityConj_kronecker (matrix_isometry _))
 
 end ReplyAverage
 
@@ -325,18 +319,14 @@ theorem measureDensity_runClassicalQuery_eq {B : Type*} [Fintype B]
   ext outcome
   symm
   rw [bindOnSupport_classicalDensityBranch_apply
-    (hL := fun request σ hσ =>
-      G.isDensityMatrix_resumeDensity hG n hnext hkeep H κ nextInput request
-        (service H request) hσ)]
-  rw [POVM.measureDensity_apply]
-  rw [← ENNReal.ofReal_sum_of_nonneg (fun request _ =>
-    M.densityProb_nonneg
-      (G.resumeDensity_posSemidef hG n hnext hkeep H κ nextInput request (service H request)
-        (classicalDensityBranch_posSemidef _ _
+      (hL := fun request σ hσ =>
+        G.isDensityMatrix_resumeDensity hG n hnext hkeep H κ nextInput request
+          (service H request) hσ),
+    POVM.measureDensity_apply, ← ENNReal.ofReal_sum_of_nonneg fun request _ =>
+      M.densityProb_nonneg (G.resumeDensity_posSemidef hG n hnext hkeep H κ nextInput request
+        (service H request) (classicalDensityBranch_posSemidef _ _
           (F.isDensityMatrix_runDensityWithReference n x
-            (hF.oracle n x.length hx H) κ hρ).posSemidef))
-      outcome)]
-  congr 1
+            (hF.oracle n x.length hx H) κ hρ).posSemidef)) outcome]
   simp only [runClassicalQuery, POVM.densityProb_sum]
 
 end ClassicalQuery

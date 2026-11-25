@@ -70,10 +70,8 @@ open Turing.MultiTapeTM.IterateWhile
 theorem words_injective : Function.Injective (fun p : List Bool × List Bool =>
     words (k := k) p.1 p.2) := by
   rintro ⟨vc, vn⟩ ⟨vc', vn'⟩ h
-  have hcur := congrFun h (curTape k)
-  have hnext := congrFun h (nextTape k)
-  simp only [words_cur, words_next] at hcur hnext
-  rw [hcur, hnext]
+  exact Prod.ext (by simpa only [words_cur] using congrFun h (curTape k))
+    (by simpa only [words_next] using congrFun h (nextTape k))
 
 /-! ### The deterministic phases -/
 
@@ -435,11 +433,9 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
     refine (RunsWords.iterateWhileRound (x := w₀) mark hp (l := L) (fun _ _ s w' s' hw' => ?_)
       []).mono ?_
     · rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hw'
-      obtain ⟨w'', hw'', heq⟩ := hw'
-      cases heq
+      obtain ⟨w'', hw'', ⟨⟩⟩ := hw'
       exact hpl _ hw''
-    · have := (hlength v hv).2
-      omega
+    · have := (hlength v hv).2; omega
   -- a round from an answer word ends the loop
   have hstop (vp v : List Bool) (hvp : vp.length ≤ L) (hv : v ∈ answer) (m : ℕ) :
       (ProbComp.eval (U.runClosedConfigFrom (R + (1 + m)) (startU vp v))).toOuterMeasure
@@ -548,10 +544,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
       · exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
       · rw [mul_one]
   refine (tsum_le_add_of_shift _ (fun _ => PMF.toOuterMeasure_le_one _ _) hshift).trans ?_
-  have hcast : (((3 * L + 6) + (5 * L + 11) : ℕ) : ℝ≥0∞) = ((8 * L + 17 : ℕ) : ℝ≥0∞) := by
-    congr 1
-    omega
-  rw [hcast]
+  rw [show 3 * L + 6 + (5 * L + 11) = 8 * L + 17 by omega]
   exact add_le_add le_rfl hU
 
 end Turing.MultiTapePTM

@@ -113,10 +113,9 @@ theorem eval_binCircuit (op : Op) (h : op.arity = 2) (C D : Circuit σ n 1) (x :
       interpretation op fun a => ![C.eval I x 0, D.eval I x 0] (Fin.cast h a) := by
   simp only [circuit_simps, binCircuit, Circuit.eval_mapOp (I := interpretation)]
   congr 1 with a : 1
-  refine Fin.cases ?_ (fun b => ?_) (Fin.cast h a)
-  · exact Fin.append_left _ _ 0
-  · rw [Subsingleton.elim b 0]
-    exact Fin.append_right _ _ 0
+  refine Fin.cases (Fin.append_left _ _ 0) (fun b => ?_) (Fin.cast h a)
+  rw [Subsingleton.elim b 0]
+  exact Fin.append_right _ _ 0
 
 /-- Evaluating `binCircuit` with a binary conjunction gate computes the conjunction of the outputs
 of `C` and `D`. -/
@@ -162,7 +161,7 @@ theorem parity_notMem_AC0 : Language.ofSlices parity ∉ AC0 := by
   obtain ⟨s, hlt, hs⟩ := (hpoly.eventually_lt_two_pow.and (Filter.eventually_ge_atTop 2)).exists
   obtain ⟨C, hCcomp, hCdepth, hCsize⟩ := hC (s * (16 * s + 1) ^ d)
   rw [Language.slice_ofSlices] at hCcomp
-  have h := Unbounded.two_pow_le_size_of_computes_parity hCcomp hs
+  have := Unbounded.two_pow_le_size_of_computes_parity hCcomp hs
     (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) hCdepth))
   omega
 
@@ -178,17 +177,15 @@ variable {σ : Signature} {I : Interpretation σ Bool} {L M : Language Bool}
 basis. -/
 theorem bot_mem (φ : Unbounded.signature.Hom σ) [φ.Preserves Unbounded.interpretation I] :
     (⊥ : Language Bool) ∈ ConstDepth I :=
-  mem_iff.2 ⟨1, fun _ => 1, by fun_prop, fun _ => ⟨constCircuit φ false, fun x => by
-    funext j
-    simp [single], depth_constCircuit_le _, (size_constCircuit _).le⟩⟩
+  mem_iff.2 ⟨1, fun _ => 1, by fun_prop, fun _ => ⟨constCircuit φ false,
+    fun _ => funext fun _ => by simp [single], depth_constCircuit_le _, (size_constCircuit _).le⟩⟩
 
 /-- The full language has constant-depth circuits over a basis containing the unbounded fan-in
 basis. -/
 theorem top_mem (φ : Unbounded.signature.Hom σ) [φ.Preserves Unbounded.interpretation I] :
     (⊤ : Language Bool) ∈ ConstDepth I :=
-  mem_iff.2 ⟨1, fun _ => 1, by fun_prop, fun _ => ⟨constCircuit φ true, fun x => by
-    funext j
-    simp [single], depth_constCircuit_le _, (size_constCircuit _).le⟩⟩
+  mem_iff.2 ⟨1, fun _ => 1, by fun_prop, fun _ => ⟨constCircuit φ true,
+    fun _ => funext fun _ => by simp [single], depth_constCircuit_le _, (size_constCircuit _).le⟩⟩
 
 /-- Over a basis containing the unbounded fan-in basis, constant-depth circuits are closed under
 complement. -/
@@ -197,10 +194,8 @@ theorem compl (φ : Unbounded.signature.Hom σ) [φ.Preserves Unbounded.interpre
   obtain ⟨d, size, hsize, hC⟩ := mem_iff.1 hL
   refine mem_iff.2 ⟨d + 1, fun n => size n + 1, by fun_prop, fun n => ?_⟩
   obtain ⟨C, hCc, hCd, hCs⟩ := hC n
-  refine ⟨notCircuit φ C, fun x => ?_, (depth_notCircuit_le C).trans (by omega),
-    by simpa using hCs⟩
-  funext j
-  simp [single, hCc x]
+  exact ⟨notCircuit φ C, fun x => funext fun _ => by simp [single, hCc x],
+    (depth_notCircuit_le C).trans (by omega), by simpa using hCs⟩
 
 /-- Two languages with constant-depth circuits, combined by a binary gate. -/
 private theorem binCircuit_mem (φ : Unbounded.signature.Hom σ)
@@ -213,7 +208,8 @@ private theorem binCircuit_mem (φ : Unbounded.signature.Hom σ)
   refine mem_iff.2 ⟨max d d' + 1, fun n => size n + size' n + 1, by fun_prop, fun n => ?_⟩
   obtain ⟨C, hCc, hCd, hCs⟩ := hC n
   obtain ⟨D, hDc, hDd, hDs⟩ := hC' n
-  refine ⟨binCircuit φ op h C D, fun x => ?_, (depth_binCircuit_le _ _ C D).trans (by omega),
+  refine ⟨binCircuit φ op h C D, fun x => ?_,
+    (depth_binCircuit_le _ _ C D).trans (by omega),
     by simp only [size_binCircuit]; omega⟩
   funext j
   rw [eval_binCircuit, hCc x, hDc x]

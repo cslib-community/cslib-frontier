@@ -501,14 +501,8 @@ private theorem mem_slotVisit_iff {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p))
 
 private theorem slotVisit_nodup {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     (ℓ : Fin (chainSlots p v)) : (slotVisit _hp b v ℓ).Nodup := by
-  have hdet : slotDetour b v ℓ = [] ∨ ∃ e c, slotDetour b v ℓ = [.clause e c] := by
-    unfold slotDetour
-    split
-    · split_ifs
-      exacts [.inr ⟨_, _, rfl⟩, .inl rfl]
-    · exact .inl rfl
-  unfold slotVisit
-  rcases hdet with h | ⟨e, c, h⟩ <;> split_ifs <;> simp [h]
+  unfold slotVisit slotDetour
+  rcases slotClause p v ℓ with _ | ⟨_, _⟩ <;> dsimp only <;> split_ifs <;> simp
 
 private theorem slotVisit_disjoint {p : ℕ} (_hp : 1 ≤ p) (b : Finset (Fin p)) (v : CorrVar p)
     {ℓ₁ ℓ₂ : Fin (chainSlots p v)} (hne : ℓ₁ ≠ ℓ₂) :
@@ -544,7 +538,11 @@ private theorem mem_varBlock_iff {p : ℕ} (hp : 1 ≤ p) (b : Finset (Fin p)) (
     · exact .inl rfl
     · by_cases hk : k.1 = 3 * chainSlots p v
       · exact .inr (.inl (congrArg _ (Fin.ext hk)))
-      · refine .inr (.inr ⟨⟨k.1 / 3, by have := k.2; simp only [chainLen] at this; omega⟩, .inl ?_⟩)
+      · have hk3 : k.1 / 3 < chainSlots p v := by
+          have := k.2
+          simp only [chainLen] at this
+          omega
+        refine .inr (.inr ⟨⟨k.1 / 3, hk3⟩, .inl ?_⟩)
         simp only [CorrDigraphV.chain.injEq, heq_eq_eq, true_and, Fin.ext_iff]
         omega
     · exact .inr (.inr ⟨_, .inr ⟨q, rfl, rfl⟩⟩)

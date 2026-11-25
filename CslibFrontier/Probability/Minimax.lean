@@ -233,16 +233,11 @@ theorem exists_errorProb_le (Acc : α → β → Prop) (μ : StdSimplex ℝ α) 
     {ε : ℝ} (h : ∀ b, μ.errorProb (fun a => Acc a b) ≤ ε) :
     ∃ a ∈ μ.weights.support, ν.errorProb (fun b => Acc a b) ≤ ε := by
   classical
-  obtain ⟨a, ha, hle⟩ :=
-    exists_mem_support_le_sum_mul μ fun a => ν.errorProb (fun b => Acc a b)
-  refine ⟨a, ha, hle.trans ?_⟩
-  have hswap : (μ.weights.sum fun a w => w * ν.errorProb (fun b => Acc a b)) =
-      ν.weights.sum fun b w => w * μ.errorProb (fun a => Acc a b) := by
-    simp only [errorProb, Finsupp.sum, Finset.mul_sum]
-    rw [Finset.sum_comm]
-    exact Finset.sum_congr rfl fun b _ => Finset.sum_congr rfl fun a _ => mul_left_comm _ _ _
-  rw [hswap]
-  exact sum_mul_le_of_forall_le fun b _ => h b
+  obtain ⟨a, ha, hle⟩ := exists_mem_support_le_sum_mul μ fun a => ν.errorProb (fun b => Acc a b)
+  refine ⟨a, ha, hle.trans ((le_of_eq ?_).trans (sum_mul_le_of_forall_le (μ := ν) fun b _ => h b))⟩
+  simp only [errorProb, Finsupp.sum, Finset.mul_sum]
+  exact Finset.sum_comm.trans <|
+    Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => mul_left_comm _ _ _
 
 /-- **Yao's minimax principle** for failure probabilities on a finite input space: if against every
 input distribution `ν` some strategy in `α` fails with probability at most `ε`, then some finitely
@@ -260,17 +255,14 @@ theorem exists_forall_errorProb_le [Finite β] [Nonempty α] (Acc : α → β �
   let rep : Set.range r → α := fun s => s.2.choose
   have hrep (s : Set.range r) (b : β) :
       (if Acc (rep s) b then 0 else 1 : ℝ) = if b ∈ s.1 then 1 else 0 := by
-    have : ¬Acc (rep s) b ↔ b ∈ s.1 := by
-      rw [← s.2.choose_spec]
-      rfl
-    by_cases hb : Acc (rep s) b <;> simp [hb, show b ∈ s.1 ↔ ¬Acc (rep s) b from this.symm]
+    have hmem : b ∈ s.1 ↔ ¬Acc (rep s) b := by rw [← s.2.choose_spec]; rfl
+    by_cases hb : Acc (rep s) b <;> simp [hb, hmem]
   obtain ⟨p, hp⟩ := exists_forall_sum_le_of_forall_exists_sum_le
     (fun (s : Set.range r) b => if b ∈ s.1 then 1 else 0) (c := ε) fun q => by
       obtain ⟨a, hq⟩ := h q
-      refine ⟨⟨r a, a, rfl⟩, ?_⟩
       rw [errorProb_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _] at hq
-      refine le_of_eq_of_le (Finset.sum_congr rfl fun b _ => ?_) hq
-      by_cases hb : Acc a b <;> simp [hb, r]
+      exact ⟨⟨r a, a, rfl⟩, le_of_eq_of_le
+        (Finset.sum_congr rfl fun b _ => by by_cases hb : Acc a b <;> simp [hb, r]) hq⟩
   refine ⟨p.map rep, fun b => ?_⟩
   rw [errorProb_eq_sum, StdSimplex.weights_map,
     Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
@@ -289,14 +281,14 @@ theorem exists_maxCost_le_and_forall_errorProb_le [Finite β] [Nonempty β]
   obtain ⟨a₀, ha₀, -⟩ := h (.single (Classical.arbitrary β))
   have : Nonempty {a : α // cost a ≤ d} := ⟨⟨a₀, ha₀⟩⟩
   obtain ⟨μ, hμ⟩ := exists_forall_errorProb_le (α := {a : α // cost a ≤ d})
-    (fun a b => Acc a.1 b) (ε := ε) fun ν => by
-      obtain ⟨a, ha, hν⟩ := h ν
-      exact ⟨⟨a, ha⟩, hν⟩
-  refine ⟨μ.map Subtype.val, fun b => ?_, maxCost_le_iff.mpr fun a ha => ?_⟩
-  · exact (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
-      (fun a => Acc a b) Subtype.val μ fun _ h => h).trans (hμ b)
-  · obtain ⟨a', -, rfl⟩ := exists_of_mem_support_map ha
-    exact a'.2
+    (fun a b => Acc a.1 b) (ε := ε) fun ν =>
+      let ⟨a, ha, hν⟩ := h ν
+      ⟨⟨a, ha⟩, hν⟩
+  refine ⟨μ.map Subtype.val, fun b => (errorProb_map_le (fun a : {a : α // cost a ≤ d} => Acc a.1 b)
+      (fun a => Acc a b) Subtype.val μ fun _ => id).trans (hμ b),
+    maxCost_le_iff.mpr fun a ha => ?_⟩
+  obtain ⟨a', -, rfl⟩ := exists_of_mem_support_map ha
+  exact a'.2
 
 end Strategies
 
@@ -352,11 +344,9 @@ theorem exists_mem_support_tsum_mul_le (μ : PMF α) (ν : PMF β) (loss : α �
     {ε : ℝ≥0∞} (h : ∀ b ∈ ν.support, ∑' a, μ a * loss a b ≤ ε) :
     ∃ a ∈ μ.support, ∑' b, ν b * loss a b ≤ ε := by
   obtain ⟨a, ha, hle⟩ := exists_mem_support_tsum_mul_le_tsum_mul μ ν loss
-  refine ⟨a, ha, hle.trans ((tsum_le_tsum (g := fun b => ν b * ε) fun b => ?_).trans ?_)⟩
+  refine ⟨a, ha, hle.trans ((tsum_le_tsum (g := fun b => ν b * ε) fun b => ?_).trans_eq ?_)⟩
   · by_cases hb : b ∈ ν.support
-    · dsimp
-      gcongr
-      exact h b hb
+    · exact mul_le_mul_of_nonneg_left (h b hb) zero_le
     · simp [(PMF.apply_eq_zero_iff ν b).mpr hb]
   · rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
 
@@ -378,12 +368,11 @@ theorem exists_mem_support_toOuterMeasure_le (μ : PMF α) (ν : PMF β) (E : α
   obtain ⟨a, ha, hle⟩ := exists_mem_support_tsum_mul_le μ ν
     (fun a b => if E a b then 1 else 0) (ε := ENNReal.ofReal ε) fun b hb => by
       have := h b hb
-      rw [← ENNReal.ofReal_le_ofReal_iff hε, ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top μ _),
+      rwa [← ENNReal.ofReal_le_ofReal_iff hε,
+        ENNReal.ofReal_toReal (PMF.toOuterMeasure_ne_top μ _),
         toOuterMeasure_eq_tsum_mul_ite] at this
-      simpa only [Set.mem_ofPred_eq] using this
-  refine ⟨a, ha, ENNReal.toReal_le_of_le_ofReal hε ?_⟩
-  rw [toOuterMeasure_eq_tsum_mul_ite]
-  simpa only [Set.mem_ofPred_eq] using hle
+  exact ⟨a, ha, ENNReal.toReal_le_of_le_ofReal hε
+    (by simpa only [toOuterMeasure_eq_tsum_mul_ite, Set.mem_ofPred_eq] using hle)⟩
 
 /-! ### The minimax theorem for probability mass functions -/
 
@@ -579,11 +568,10 @@ theorem exists_maxCost_le_and_forall_errorProb_le {cost : α → ℕ} {Acc : α 
     ∃ μ : PMF α, (∀ b ∈ D, errorProb Acc μ b ≤ ε) ∧ maxCost cost μ ≤ c := by
   obtain ⟨μ, -, hμ⟩ := exists_forall_toOuterMeasure_le
     (I := {a : α // cost a ≤ c}) (J := D) (fun a b => ¬Acc a.1 b.1) (ε := ε) fun ν => by
-      obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb => by
-        obtain ⟨b', -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
-        exact b'.2
-      refine ⟨⟨a, hc⟩, ?_⟩
-      rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp
+      obtain ⟨a, hc, hp⟩ := h (ν.map Subtype.val) fun b hb =>
+        let ⟨b', _, hb'⟩ := (PMF.mem_support_map_iff _ _ _).mp hb
+        hb' ▸ b'.2
+      exact ⟨⟨a, hc⟩, by rwa [errorProb, PMF.toOuterMeasure_map_apply] at hp⟩
   refine ⟨μ.map Subtype.val, fun b hb => ?_, maxCost_map_le_of_le cost Subtype.val μ fun a _ => a.2⟩
   rw [errorProb, PMF.toOuterMeasure_map_apply]
   exact hμ ⟨b, hb⟩

@@ -126,7 +126,7 @@ private theorem sum_sum_left (f : (Fin k → α) → ℝ) :
   refine sum_congr rfl fun x _ => ?_
   calc ∑ y, (iid p k x).toReal * (iid q k y).toReal * f x
       = (iid p k x).toReal * f x * ∑ y, (iid q k y).toReal := by
-        rw [mul_sum]; exact sum_congr rfl fun y _ => by ring
+        simp_rw [mul_right_comm _ _ (f x), ← mul_sum]
     _ = (iid p k x).toReal * f x := by rw [sum_toReal, mul_one]
 
 omit [DecidableEq α] in
@@ -250,16 +250,14 @@ private theorem bracket_le {k s s' t c c' R b r D : ℝ} (hk : 1 ≤ k) (hs : s 
   have h6 : (k - 1) * t ≤ (k - 1) * b := mul_le_mul_of_nonneg_left (by linarith) (by linarith)
   have h7 : k / 2 * (s + s') ≤ k * b :=
     (mul_le_mul_of_nonneg_left (by linarith : s + s' ≤ 2 * b) (by linarith)).trans_eq (by ring)
-  have hid :=
-    show (2 * k - 1) * b + (k ^ 2 - 1) * (2 * r * D) -
-        (k / 2 * (s + s') + (k - 1) * t + (k ^ 2 - 1) * R - (2 * k - 1) * (c + c') -
-          k * (k - 1) * ((s - t) ^ 2 + (s' - t) ^ 2) + k / 2 * (s ^ 2 + s' ^ 2) + (k - 1) * t ^ 2) =
-      (k * b - k / 2 * (s + s')) + ((k - 1) * b - (k - 1) * t) +
-        ((k ^ 2 - 1) * (2 * r * D) - (k ^ 2 - 1) * R) +
-        (2 * k - 1) * (c - s ^ 2 + (c' - s' ^ 2)) + k * (k - 1) * ((s - t) ^ 2 + (s' - t) ^ 2) +
-        1 / 2 * ((2 * k - 1) * (s ^ 2 + s' ^ 2)) + 1 / 2 * ((k - 1) * (s ^ 2 + s' ^ 2 - 2 * t ^ 2))
-      by ring
-  linarith
+  linarith [show (2 * k - 1) * b + (k ^ 2 - 1) * (2 * r * D) -
+      (k / 2 * (s + s') + (k - 1) * t + (k ^ 2 - 1) * R - (2 * k - 1) * (c + c') -
+        k * (k - 1) * ((s - t) ^ 2 + (s' - t) ^ 2) + k / 2 * (s ^ 2 + s' ^ 2) + (k - 1) * t ^ 2) =
+    (k * b - k / 2 * (s + s')) + ((k - 1) * b - (k - 1) * t) +
+      ((k ^ 2 - 1) * (2 * r * D) - (k ^ 2 - 1) * R) +
+      (2 * k - 1) * (c - s ^ 2 + (c' - s' ^ 2)) + k * (k - 1) * ((s - t) ^ 2 + (s' - t) ^ 2) +
+      1 / 2 * ((2 * k - 1) * (s ^ 2 + s' ^ 2)) + 1 / 2 * ((k - 1) * (s ^ 2 + s' ^ 2 - 2 * t ^ 2))
+    by ring]
 
 /-- **Variance bound for the collision statistic**: if `‖p‖₂², ‖q‖₂² ≤ b`, the statistic of
 `k ≥ 1` samples of each has variance at most
@@ -287,11 +285,11 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le_sqrt_sum_pow_four (p q : PM
   have hR : ∑ a, ((p a).toReal + (q a).toReal) * ((p a).toReal - (q a).toReal) ^ 2 ≤
       2 * Real.sqrt b * Real.sqrt (∑ a, ((p a).toReal - (q a).toReal) ^ 4) := by
     have hb : 0 ≤ b := (collisionProbability_nonneg p).trans hp
-    have hcs := sum_mul_sq_le_sq_mul_sq univ (fun a => (p a).toReal + (q a).toReal)
-      (fun a => ((p a).toReal - (q a).toReal) ^ 2)
-    have h4 (a : α) : (((p a).toReal - (q a).toReal) ^ 2) ^ 2 = ((p a).toReal - (q a).toReal) ^ 4 :=
-      by ring
-    simp only [h4] at hcs
+    have hcs : (∑ a, ((p a).toReal + (q a).toReal) * ((p a).toReal - (q a).toReal) ^ 2) ^ 2 ≤
+        (∑ a, ((p a).toReal + (q a).toReal) ^ 2) * ∑ a, ((p a).toReal - (q a).toReal) ^ 4 :=
+      (sum_mul_sq_le_sq_mul_sq univ (fun a => (p a).toReal + (q a).toReal)
+        fun a => ((p a).toReal - (q a).toReal) ^ 2).trans_eq
+        (congrArg _ (sum_congr rfl fun _ _ => by ring))
     have hA : ∑ a, ((p a).toReal + (q a).toReal) ^ 2 ≤ 4 * b := by
       have h : ∑ a, ((p a).toReal + (q a).toReal) ^ 2 = 2 * (collisionProbability p +
           collisionProbability q) - ∑ a, ((p a).toReal - (q a).toReal) ^ 2 := by
@@ -305,13 +303,14 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le_sqrt_sum_pow_four (p q : PM
     rw [mul_assoc, ← Real.sqrt_mul' _ hS, h2, ← Real.sqrt_mul (by norm_num)]
     refine Real.le_sqrt_of_sq_le (hcs.trans ?_)
     rw [← mul_assoc]
-    exact mul_le_mul_of_nonneg_right hA hS
-  have hbr := bracket_le hk1 hp hq (collisionProbability_sq_le_sum_pow_three p)
-    (collisionProbability_sq_le_sum_pow_three q) htt ht hR
-  have hk0 : (0 : ℝ) ≤ k - 1 := by linarith
-  calc (k - 1 : ℝ) * _ ≤ (k - 1) * ((2 * k - 1) * b +
+    gcongr
+  calc (k - 1 : ℝ) * _
+      ≤ (k - 1) * ((2 * k - 1) * b +
         (k ^ 2 - 1) * (2 * Real.sqrt b * Real.sqrt (∑ a, ((p a).toReal - (q a).toReal) ^ 4))) :=
-        mul_le_mul_of_nonneg_left hbr hk0
+        mul_le_mul_of_nonneg_left
+          (bracket_le hk1 hp hq (collisionProbability_sq_le_sum_pow_three p)
+            (collisionProbability_sq_le_sum_pow_three q) htt ht hR)
+          (by linarith)
     _ = _ := by ring
 
 /-- **Variance bound for the collision statistic** in `ℓ₂`: if `‖p‖₂², ‖q‖₂² ≤ b`, the statistic
@@ -333,8 +332,8 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le (p q : PMF α) {k : ℕ} (h
           sum_congr rfl fun a _ => by ring
       _ ≤ (∑ a, ((p a).toReal - (q a).toReal) ^ 2) ^ 2 :=
           sum_sq_le_sq_sum_of_nonneg fun _ _ => sq_nonneg _
-  have hc : 0 ≤ 2 * ((k : ℝ) - 1) ^ 2 * (k + 1) * Real.sqrt b := by positivity
-  linarith [mul_le_mul_of_nonneg_left h4 hc]
+  linarith [mul_le_mul_of_nonneg_left h4
+    (by positivity : 0 ≤ 2 * ((k : ℝ) - 1) ^ 2 * (k + 1) * Real.sqrt b)]
 
 omit [DecidableEq α] in
 /-- **Chebyshev's inequality** over two independent samples, from
@@ -353,9 +352,7 @@ private theorem mass_le {k : ℕ} (p q : PMF α) (A : (Fin k → α) → (Fin k 
   have h := sum_mul_ite_le_sum_mul_sq_div ((iid p k).bind fun x => (iid q k).map (x, ·))
     (fun z => f z.1 z.2) m hc (fun z => A z.1 z.2 = true) fun z hz => hA z.1 z.2 hz
   rw [hJ (fun z => if A z.1 z.2 = true then 1 else 0), hJ (fun z => (f z.1 z.2 - m) ^ 2)] at h
-  refine h.trans ?_
-  rw [div_le_iff₀ (by positivity)]
-  linarith
+  exact h.trans ((div_le_iff₀ (by positivity)).mpr (by linarith))
 
 /-- Arithmetic shared by completeness and soundness. If `36 √b ≤ (k - 1) E δ`, the squared `ℓ₂`
 distance satisfies `D ≤ r E` and `2 / 1296 + r / 18 ≤ c² / 4`, then the variance bound of
@@ -379,7 +376,7 @@ private theorem variance_le_mul_sq {k : ℕ} {b E δ D r c : ℝ} (hK : 0 < (k :
   have hB : K * (K + 1 + 1) ≤ (K + 1) ^ 2 :=
     by linarith [show (K + 1) ^ 2 - K * (K + 1 + 1) = 1 by ring]
   have hδ2 : δ ^ 2 ≤ δ := pow_le_of_le_one hδ0.le hδ1 two_ne_zero
-  have h1 : K * (2 * (K + 1) - 1) * S ^ 2 ≤ 2 / 1296 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ := by
+  have h1 : K * (2 * (K + 1) - 1) * S ^ 2 ≤ 2 / 1296 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ :=
     calc K * (2 * (K + 1) - 1) * S ^ 2 ≤ 2 * (K + 1) ^ 2 * ((K * E * δ) ^ 2 / 1296) := by gcongr
       _ = 2 / 1296 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ ^ 2 := by ring
       _ ≤ 2 / 1296 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ := by gcongr
@@ -388,7 +385,6 @@ private theorem variance_le_mul_sq {k : ℕ} {b E δ D r c : ℝ} (hK : 0 < (k :
       mul_le_mul (by linarith) hD hD0 (hS.trans (by linarith))
     have h2K : 0 ≤ 2 * K := by positivity
     calc 2 * K ^ 2 * (K + 1 + 1) * S * D = 2 * K * (K * (K + 1 + 1)) * (S * D) := by ring
-      _ ≤ 2 * K * (K + 1) ^ 2 * (S * D) := by gcongr
       _ ≤ 2 * K * (K + 1) ^ 2 * (K * E * δ / 36 * (r * E)) := by gcongr
       _ = r / 18 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ := by ring
   have hQ : 0 ≤ (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ := by positivity
@@ -402,22 +398,15 @@ omit [Fintype α] [DecidableEq α] in
 private theorem setup {p : PMF α} {k : ℕ} {ε δ b : ℝ} (hδ : 0 < δ)
     (hp : collisionProbability p ≤ b) (hk : 36 * Real.sqrt b ≤ (k - 1) * ε ^ 2 * δ) :
     0 < (k : ℝ) - 1 ∧ k ≠ 0 ∧ 0 < ε ^ 2 := by
-  have hb : 0 < b := (collisionProbability_pos p).trans_le hp
-  have hS : 0 < Real.sqrt b := Real.sqrt_pos.mpr hb
-  have hε : 0 ≤ ε ^ 2 := sq_nonneg ε
+  have hS : 0 < Real.sqrt b := Real.sqrt_pos.mpr ((collisionProbability_pos p).trans_le hp)
   have hK : 0 < (k : ℝ) - 1 := by
-    by_contra h
-    push Not at h
-    have : ((k : ℝ) - 1) * ε ^ 2 * δ ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonpos_of_nonneg h hε) hδ.le
-    linarith
-  refine ⟨hK, ?_, ?_⟩
+    by_contra! h
+    linarith [mul_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonpos_of_nonneg h (sq_nonneg ε)) hδ.le]
+  refine ⟨hK, ?_, (sq_nonneg ε).lt_of_ne' fun h => ?_⟩
   · rintro rfl
     norm_num at hK
-  · rcases hε.lt_or_eq with h | h
-    · exact h
-    · rw [← h] at hk
-      linarith
+  · rw [h] at hk
+    linarith
 
 /-- **Completeness of the `ℓ₂` closeness tester**: if `‖p‖₂², ‖q‖₂² ≤ b`, `‖p - q‖₂² ≤ ε² / 4`
 (that is, `‖p - q‖₂ ≤ ε / 2` for `0 < ε`) and `36 √b ≤ (k - 1) ε² δ`, the tester accepts with
@@ -429,12 +418,12 @@ theorem le_acceptProb₂_closenessTester {p q : PMF α} {k : ℕ} {ε δ b : ℝ
     1 - δ ≤ acceptProb₂ (closenessTester k ε) p q := by
   obtain ⟨hK, hk0, hε⟩ := setup hδ hp hk
   rcases le_or_gt 1 δ with hδ1 | hδ1
-  · have := acceptProb₂_nonneg (closenessTester k ε) p q
-    linarith
+  · linarith [acceptProb₂_nonneg (closenessTester k ε) p q]
   have hb : 0 ≤ b := ((collisionProbability_pos p).trans_le hp).le
   have hD0 : 0 ≤ ∑ a, ((p a).toReal - (q a).toReal) ^ 2 := sum_nonneg fun _ _ => sq_nonneg _
   have hN : (k.choose 2 : ℝ) = ((k - 1 : ℝ) + 1) * (k - 1) / 2 := by
     rw [Nat.cast_choose_two]; ring
+  have h0 : (0 : ℝ) ≤ k.choose 2 := Nat.cast_nonneg _
   unfold closenessTester
   rw [acceptProb₂_pure_eq_one_sub]
   suffices h : ∑ x, ∑ y, (iid p k x).toReal * (iid q k y).toReal *
@@ -444,11 +433,7 @@ theorem le_acceptProb₂_closenessTester {p q : PMF α} {k : ℕ} {ε δ b : ℝ
     ?_ (sum_sum_iid_mul_closenessStatistic_sub_sq_le p q hk0 hp hq) ?_
   · intro x y hxy
     simp only [Bool.not_eq_true', decide_eq_false_iff_not, not_le, closenessThreshold_eq] at hxy
-    rw [le_abs]
-    left
-    have : (k.choose 2 : ℝ) * ∑ a, ((p a).toReal - (q a).toReal) ^ 2 ≤
-        k.choose 2 * (ε ^ 2 / 4) := mul_le_mul_of_nonneg_left hpq (by rw [hN]; positivity)
-    linarith
+    exact le_abs.mpr (Or.inl (by linarith [mul_le_mul_of_nonneg_left hpq h0]))
   · exact (variance_le_mul_sq (E := ε ^ 2) (r := 1 / 4) (c := 1 / 4) hK hb hδ hδ1.le hk hD0
       (by linarith) (by norm_num)).trans_eq (by ring)
 
@@ -462,24 +447,20 @@ theorem acceptProb₂_closenessTester_le {p q : PMF α} {k : ℕ} {ε δ b : ℝ
     acceptProb₂ (closenessTester k ε) p q ≤ δ := by
   obtain ⟨hK, hk0, hε⟩ := setup hδ hp hk
   rcases le_or_gt 1 δ with hδ1 | hδ1
-  · have := acceptProb₂_le_one (closenessTester k ε) p q
-    linarith
+  · linarith [acceptProb₂_le_one (closenessTester k ε) p q]
   have hb : 0 ≤ b := ((collisionProbability_pos p).trans_le hp).le
-  set D := ∑ a, ((p a).toReal - (q a).toReal) ^ 2 with hD
+  set D := ∑ a, ((p a).toReal - (q a).toReal) ^ 2
   have hD0 : 0 < D := hε.trans_le hpq
   have hN : (k.choose 2 : ℝ) = ((k - 1 : ℝ) + 1) * (k - 1) / 2 := by
     rw [Nat.cast_choose_two]; ring
+  have h0 : (0 : ℝ) ≤ k.choose 2 := Nat.cast_nonneg _
   unfold closenessTester
   rw [acceptProb₂_pure]
   refine mass_le p q _ closenessStatistic _ (k.choose 2 * D / 2) δ _ (by rw [hN]; positivity)
     ?_ (sum_sum_iid_mul_closenessStatistic_sub_sq_le p q hk0 hp hq) ?_
   · intro x y hxy
     simp only [decide_eq_true_eq, closenessThreshold_eq] at hxy
-    rw [le_abs]
-    right
-    have : (k.choose 2 : ℝ) * ε ^ 2 ≤ k.choose 2 * D :=
-      mul_le_mul_of_nonneg_left hpq (by rw [hN]; positivity)
-    linarith
+    exact le_abs.mpr (Or.inr (by linarith [mul_le_mul_of_nonneg_left hpq h0]))
   · exact (variance_le_mul_sq (E := D) (r := 1) (c := 1 / 2) hK hb hδ hδ1.le
       (hk.trans (by gcongr)) hD0.le (one_mul D).ge (by norm_num)).trans_eq (by ring)
 
@@ -498,22 +479,17 @@ theorem isClosenessTester_closenessTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       show ((k : ℝ) - 1) * ((2 * ε) ^ 2 / (Fintype.card α : ℝ)) * (1 / 3) =
         4 / 3 * (((k : ℝ) - 1) * ε ^ 2) / Fintype.card α by ring, le_div_iff₀ hn]
     linarith
-  constructor
-  · intro p
-    have h := le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)
+  refine ⟨fun p => ?_, fun p q hpq => ?_⟩
+  · have h0 : ∑ a, ((p a).toReal - (p a).toReal) ^ 2 = 0 := by simp
+    linarith [le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)
       (collisionProbability_le_one p) (collisionProbability_le_one p) (key p)
-      (by simp only [sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-        sum_const_zero]; positivity)
-    linarith
-  · intro p q hpq
-    have hn := card_pos p
+      (h0.trans_le (by positivity))]
+  · have hn := card_pos p
     refine acceptProb₂_closenessTester_le (by norm_num) (collisionProbability_le_one p)
       (collisionProbability_le_one q) (key p) ?_
     -- Cauchy–Schwarz: `4 dist(p, q)² ≤ n ‖p - q‖₂²`.
-    have hcs := four_mul_dist_sq_le_card_mul_sum_sq p q
-    have h2 : 4 * ε ^ 2 ≤ 4 * dist p q ^ 2 :=
-      mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hε.le hpq 2) (by norm_num)
     rw [div_pow, Real.sq_sqrt hn.le, div_le_iff₀ hn, show (2 * ε) ^ 2 = 4 * ε ^ 2 by ring]
-    linarith
+    linarith [four_mul_dist_sq_le_card_mul_sum_sq p q,
+      mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hε.le hpq 2) (by norm_num : (0 : ℝ) ≤ 4)]
 
 end Cslib.DistributionTesting

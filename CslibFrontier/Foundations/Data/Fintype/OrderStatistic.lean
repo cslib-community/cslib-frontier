@@ -35,8 +35,10 @@ proving that any median minimizes `∑ i, |x i - y|` over `ℝ`.
 ## Main results
 
 * `Fintype.IsOrderStatistic.unique`, `Fintype.orderStatistic_isOrderStatistic`,
-  `Fintype.orderStatistic_eq_of_isOrderStatistic`, `Fintype.orderStatistic_fin_eq_mergeSort`:
-  uniqueness, rank characterization, and merge-sort correspondence.
+  `Fintype.orderStatistic_eq_of_isOrderStatistic`, `Fintype.orderStatistic_fin_eq_mergeSort`,
+  `Fintype.lt_orderStatistic_iff`, `Fintype.orderStatistic_comp_equiv`:
+  uniqueness, rank and threshold characterizations, merge-sort correspondence, and permutation
+  invariance.
 * `Fintype.sum_abs_sub_le_of_median_counts`, `Fintype.sum_abs_sub_lowerMedian_le`,
   `Fintype.sum_abs_sub_upperMedian_le`: on `ℝ`, any point with at most `|ι| / 2` elements strictly
   on each side (and in particular `lowerMedian x` and `upperMedian x`) minimizes `∑ i, |x i - y|`.
@@ -154,19 +156,54 @@ theorem orderStatistic_fin_eq_mergeSort {n : ℕ} (x : Fin (n + 1) → α) {k : 
     (List.ofFn x).mergeSort[k]? = some (orderStatistic x k) := by
   classical
   rw [← List.isOrderStatistic_iff_mergeSort]
-  have hcard : k < Fintype.card (Fin (n + 1)) := by simpa only [Fintype.card_fin] using hk
-  have hos := orderStatistic_isOrderStatistic x hcard
-  have hlist := isOrderStatistic_iff_list.1 hos
-  have huniv : (Finset.univ : Finset (Fin (n + 1))).val = ↑(List.finRange (n + 1)) := by
-    rw [Fin.univ_def]
+  have hlist := isOrderStatistic_iff_list.1
+    (orderStatistic_isOrderStatistic x (by simpa only [Fintype.card_fin] using hk))
   have hperm : (List.ofFn x).Perm ((Finset.univ.val.map x).sort (· ≤ ·)) := by
-    rw [← Multiset.coe_eq_coe, Multiset.sort_eq, huniv, List.ofFn_eq_map]
+    rw [← Multiset.coe_eq_coe, Multiset.sort_eq, Fin.univ_def, List.ofFn_eq_map]
     rfl
-  refine ⟨hperm.symm.subset hlist.mem, ?_, ?_⟩
-  · rw [hperm.countP_eq]
-    exact hlist.countP_lt_le
-  · rw [hperm.countP_eq]
-    exact hlist.lt_countP_le
+  exact ⟨hperm.symm.subset hlist.mem, hperm.countP_eq _ ▸ hlist.countP_lt_le,
+    hperm.countP_eq _ ▸ hlist.lt_countP_le⟩
+
+/-- Threshold characterization of the `k`-th order statistic: `t < orderStatistic x k` if and only
+if at most `k` indices satisfy `x i ≤ t`. -/
+theorem lt_orderStatistic_iff [Nonempty ι] (x : ι → α) {k : ℕ} (hk : k < Fintype.card ι) (t : α) :
+    t < orderStatistic x k ↔ (Finset.univ.filter fun i => x i ≤ t).card ≤ k := by
+  classical
+  have hos := orderStatistic_isOrderStatistic x hk
+  refine ⟨fun ht => (Finset.card_le_card fun i hi => Finset.mem_filter.mpr
+      ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2.trans_lt ht⟩).trans hos.2.1,
+    fun hcard => not_le.mp fun hle => not_lt_of_ge hcard (hos.2.2.trans_le
+      (Finset.card_le_card fun i hi => Finset.mem_filter.mpr
+        ⟨Finset.mem_univ i, (Finset.mem_filter.mp hi).2.trans hle⟩))⟩
+
+/-- Reindexing a family along an equivalence preserves every order statistic. -/
+theorem orderStatistic_comp_equiv {ι' : Type*} [Fintype ι'] [Nonempty ι] [Nonempty ι']
+    (e : ι' ≃ ι) (x : ι → α) (k : ℕ) :
+    orderStatistic (x ∘ e) k = orderStatistic x k := by
+  classical
+  rw [orderStatistic_eq_min, orderStatistic_eq_min x, Fintype.card_congr e]
+  set k' := min k (Fintype.card ι - 1)
+  have hk' : k' < Fintype.card ι :=
+    Nat.lt_of_le_of_lt (min_le_right _ _) (Nat.sub_lt Fintype.card_pos zero_lt_one)
+  have hk'_ι' : k' < Fintype.card ι' := by rwa [Fintype.card_congr e]
+  refine orderStatistic_eq_of_isOrderStatistic hk'_ι' ?_
+  have hos := orderStatistic_isOrderStatistic x hk'
+  have hcard : ∀ (p : α → Prop) [DecidablePred p],
+      (Finset.univ.filter fun c : ι' => p ((x ∘ e) c)).card =
+        (Finset.univ.filter fun i : ι => p (x i)).card := fun p _ =>
+    Finset.card_bij (fun c _ => e c)
+      (fun c hc => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hc).2⟩)
+      (fun _ _ _ _ h => e.injective h)
+      (fun i hi => ⟨e.symm i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, by
+        simpa only [Function.comp_apply, Equiv.apply_symm_apply] using
+          (Finset.mem_filter.mp hi).2⟩, e.apply_symm_apply i⟩)
+  refine ⟨?_, ?_, ?_⟩
+  · obtain ⟨i, hi⟩ := hos.1
+    exact ⟨e.symm i, by simp only [Function.comp_apply, Equiv.apply_symm_apply, hi]⟩
+  · rw [hcard (· < orderStatistic x k')]
+    exact hos.2.1
+  · rw [hcard (· ≤ orderStatistic x k')]
+    exact hos.2.2
 
 end Lemmas
 
@@ -181,74 +218,42 @@ theorem sum_abs_sub_le_of_median_counts {ι : Type*} [Fintype ι] {x : ι → �
     (hgt : 2 * (Finset.univ.filter fun i => y < x i).card ≤ Fintype.card ι) (z : ℝ) :
     ∑ i, |x i - y| ≤ ∑ i, |x i - z| := by
   classical
-  rcases le_total z y with hzy | hyz
-  · set L := Finset.univ.filter fun i => x i < y
+  have aux : ∀ {x : ι → ℝ} {y z : ℝ},
+      2 * (Finset.univ.filter fun i => x i < y).card ≤ Fintype.card ι → z ≤ y →
+      ∑ i, |x i - y| ≤ ∑ i, |x i - z| := by
+    intro x y z hlt' hzy
+    set L := Finset.univ.filter fun i => x i < y
     set R := Finset.univ.filter fun i => ¬ x i < y
     have hcard : L.card + R.card = Fintype.card ι := by
       simpa only [Finset.card_univ] using
         Finset.card_filter_add_card_filter_not (s := Finset.univ) (p := fun i => x i < y)
-    have hLR : (L.card : ℝ) ≤ R.card := by exact_mod_cast (by omega : L.card ≤ R.card)
-    have hL : ∑ i ∈ L, |x i - y| ≤ ∑ i ∈ L, |x i - z| + (L.card : ℝ) * (y - z) := by
+    have hLR : (L.card : ℝ) ≤ R.card := Nat.cast_le.2 (by omega)
+    have hL : ∑ i ∈ L, |x i - y| ≤ ∑ i ∈ L, |x i - z| + (L.card : ℝ) * (y - z) :=
       calc ∑ i ∈ L, |x i - y|
-          ≤ ∑ i ∈ L, (|x i - z| + (y - z)) := by
-            refine Finset.sum_le_sum fun i _ => ?_
-            have htri : |x i - y| ≤ |x i - z| + |z - y| := abs_sub_le (x i) z y
-            rwa [abs_of_nonpos (sub_nonpos.2 hzy), neg_sub] at htri
+        _ ≤ ∑ i ∈ L, (|x i - z| + (y - z)) :=
+              Finset.sum_le_sum fun i _ => by
+                simpa only [abs_of_nonpos (sub_nonpos.2 hzy), neg_sub] using abs_sub_le (x i) z y
         _ = ∑ i ∈ L, |x i - z| + (L.card : ℝ) * (y - z) := by
-            rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
-    have hR : ∑ i ∈ R, |x i - y| = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) := by
-      have hterm : ∀ i ∈ R, |x i - y| = |x i - z| - (y - z) := by
-        intro i hi
-        rw [Finset.mem_filter] at hi
-        have hxi : y ≤ x i := not_lt.1 hi.2
-        rw [abs_of_nonneg (sub_nonneg.2 hxi), abs_of_nonneg (sub_nonneg.2 (hzy.trans hxi))]
-        ring
-      rw [Finset.sum_congr rfl hterm, Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
-    have hsplit_y : ∑ i, |x i - y| = ∑ i ∈ L, |x i - y| + ∑ i ∈ R, |x i - y| :=
-      (Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)
-        (fun i => |x i - y|)).symm
-    have hsplit_z : ∑ i, |x i - z| = ∑ i ∈ L, |x i - z| + ∑ i ∈ R, |x i - z| :=
-      (Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)
-        (fun i => |x i - z|)).symm
-    have hdiff : ((L.card : ℝ) - R.card) * (y - z) ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 hLR) (sub_nonneg.2 hzy)
-    linarith
-  · set L := Finset.univ.filter fun i => x i ≤ y
-    set R := Finset.univ.filter fun i => ¬ x i ≤ y
-    have hReq : R = Finset.univ.filter fun i => y < x i := by
-      ext i
-      simp only [R, Finset.mem_filter, Finset.mem_univ, true_and, not_le]
-    have hcard : L.card + R.card = Fintype.card ι := by
-      simpa only [Finset.card_univ] using
-        Finset.card_filter_add_card_filter_not (s := Finset.univ) (p := fun i => x i ≤ y)
-    have hRL : (R.card : ℝ) ≤ L.card := by
-      have hcard' : L.card + (Finset.univ.filter fun i => y < x i).card = Fintype.card ι := by
-        simpa only [hReq] using hcard
-      exact_mod_cast (by omega : R.card ≤ L.card)
-    have hL : ∑ i ∈ L, |x i - y| = ∑ i ∈ L, |x i - z| - (L.card : ℝ) * (z - y) := by
-      have hterm : ∀ i ∈ L, |x i - y| = |x i - z| - (z - y) := by
-        intro i hi
-        rw [Finset.mem_filter] at hi
-        rw [abs_of_nonpos (sub_nonpos.2 hi.2), abs_of_nonpos (sub_nonpos.2 (hi.2.trans hyz))]
-        ring
-      rw [Finset.sum_congr rfl hterm, Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
-    have hR : ∑ i ∈ R, |x i - y| ≤ ∑ i ∈ R, |x i - z| + (R.card : ℝ) * (z - y) := by
+              rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
+    have hR : ∑ i ∈ R, |x i - y| = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) :=
       calc ∑ i ∈ R, |x i - y|
-          ≤ ∑ i ∈ R, (|x i - z| + (z - y)) := by
-            refine Finset.sum_le_sum fun i _ => ?_
-            have htri : |x i - y| ≤ |x i - z| + |z - y| := abs_sub_le (x i) z y
-            rwa [abs_of_nonneg (sub_nonneg.2 hyz)] at htri
-        _ = ∑ i ∈ R, |x i - z| + (R.card : ℝ) * (z - y) := by
-            rw [Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul]
-    have hsplit_y : ∑ i, |x i - y| = ∑ i ∈ L, |x i - y| + ∑ i ∈ R, |x i - y| :=
-      (Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i ≤ y)
-        (fun i => |x i - y|)).symm
-    have hsplit_z : ∑ i, |x i - z| = ∑ i ∈ L, |x i - z| + ∑ i ∈ R, |x i - z| :=
-      (Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i ≤ y)
-        (fun i => |x i - z|)).symm
-    have hdiff : ((R.card : ℝ) - L.card) * (z - y) ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 hRL) (sub_nonneg.2 hyz)
-    linarith
+        _ = ∑ i ∈ R, (|x i - z| - (y - z)) :=
+              Finset.sum_congr rfl fun i hi => by
+                have hxi := not_lt.1 (Finset.mem_filter.1 hi).2
+                rw [abs_of_nonneg (sub_nonneg.2 hxi), abs_of_nonneg (sub_nonneg.2 (hzy.trans hxi))]
+                ring
+        _ = ∑ i ∈ R, |x i - z| - (R.card : ℝ) * (y - z) := by
+              rw [Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]
+    have hsplit_y := Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)
+      (fun i => |x i - y|)
+    have hsplit_z := Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => x i < y)
+      (fun i => |x i - z|)
+    linarith [mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.2 hLR) (sub_nonneg.2 hzy)]
+  rcases le_total z y with hzy | hyz
+  · exact aux hlt hzy
+  · have hneg := aux (x := fun i => -x i) (y := -y) (z := -z)
+      (by simpa only [neg_lt_neg_iff] using hgt) (neg_le_neg hyz)
+    simpa only [neg_sub_neg, abs_sub_comm] using hneg
 
 private theorem sum_abs_sub_orderStatistic_le {ι : Type*} [Fintype ι] [Nonempty ι]
     (x : ι → ℝ) {k : ℕ} (hk : k < Fintype.card ι) (hle : 2 * k ≤ Fintype.card ι)

@@ -68,6 +68,7 @@ This computation and conclusion are ours and are not formalized.
 * `Cslib.BitString.monotone_tribes`: Tribes is monotone.
 * `Cslib.BitString.expect_bitVal_tribes`: the probability that Tribes is true.
 * `Cslib.BitString.expect_prod_tribe`: the tribes are independent.
+* `Cslib.BitString.card_eq_sum_card_tribePart`: `#T` equals the sum of `#(tribePart T j)`.
 * `Cslib.BitString.one_div_two_le_pow_tribesSize`,
   `Cslib.BitString.pow_tribesSize_add_one_lt_one_div_two`,
   `Cslib.BitString.two_pow_sub_one_le_tribesSize`, `Cslib.BitString.tribesSize_lt_two_pow`: the
@@ -124,10 +125,8 @@ theorem monotone_tribes (w s : ℕ) : Monotone (tribes w s) := fun x y hxy => by
   cases hx : tribes w s x
   · exact Bool.false_le _
   · obtain ⟨j, hj⟩ := tribes_eq_true_iff.1 hx
-    refine (tribes_eq_true_iff.2 ⟨j, fun i => ?_⟩).ge
-    have h := hxy (finProdFinEquiv (j, i))
-    rw [hj i] at h
-    exact le_antisymm (Bool.le_true _) h
+    exact (tribes_eq_true_iff.2 ⟨j, fun i =>
+      le_antisymm (Bool.le_true _) (hj i ▸ hxy (finProdFinEquiv (j, i)))⟩).ge
 
 /-! ### The probability of `true` -/
 
@@ -191,16 +190,17 @@ theorem expect_prod_tribe (g : Fin s → (Fin w → Bool) → ℝ) :
 /-- By `1 - x ≤ exp (-x)`, `(1 - 2 ^ (-w)) ^ (2 ^ w) ≤ exp (-1) < 1 / 2`. -/
 private theorem pow_two_pow_lt_one_div_two (w : ℕ) : (1 - (2⁻¹ : ℝ) ^ w) ^ 2 ^ w < 1 / 2 := by
   have h0 : 0 ≤ 1 - (2⁻¹ : ℝ) ^ w := sub_nonneg.2 (pow_le_one₀ (by norm_num) (by norm_num))
-  calc (1 - (2⁻¹ : ℝ) ^ w) ^ 2 ^ w ≤ Real.exp (-(2⁻¹ : ℝ) ^ w) ^ 2 ^ w := by
+  calc (1 - (2⁻¹ : ℝ) ^ w) ^ 2 ^ w
+      ≤ Real.exp (-(2⁻¹ : ℝ) ^ w) ^ 2 ^ w := by
         gcongr
         exact Real.one_sub_le_exp_neg _
     _ = Real.exp (-1) := by
         rw [← Real.exp_nat_mul, Nat.cast_pow, Nat.cast_ofNat, mul_neg, ← mul_pow,
           mul_inv_cancel₀ two_ne_zero, one_pow]
     _ < 1 / 2 := by
-        have h := Real.add_one_lt_exp (one_ne_zero : (1 : ℝ) ≠ 0)
         rw [Real.exp_neg, one_div]
-        exact inv_strictAnti₀ two_pos (by linarith)
+        exact inv_strictAnti₀ two_pos
+          (by linarith [Real.add_one_lt_exp (one_ne_zero : (1 : ℝ) ≠ 0)])
 
 /-- By Bernoulli's inequality, `(1 - 2 ^ (-w)) ^ (2 ^ (w - 1)) ≥ 1 / 2` for `w ≥ 1`. -/
 private theorem one_div_two_le_pow_two_pow_sub_one {w : ℕ} (hw : 1 ≤ w) :
@@ -228,12 +228,9 @@ noncomputable def tribesSize (w : ℕ) : ℕ :=
 theorem one_div_two_le_pow_tribesSize (w : ℕ) :
     1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ tribesSize w := by
   rcases Nat.eq_zero_or_pos (tribesSize w) with h | h
-  · rw [h, pow_zero]
-    norm_num
-  · have hmin : ¬(1 - (2⁻¹ : ℝ) ^ w) ^ (tribesSize w - 1 + 1) < 1 / 2 :=
-      Nat.find_min _ (Nat.sub_lt h one_pos : tribesSize w - 1 < tribesSize w)
-    rw [Nat.sub_add_cancel h] at hmin
-    exact not_lt.1 hmin
+  · norm_num [h]
+  · rw [← Nat.sub_add_cancel h]
+    exact not_lt.1 (Nat.find_min _ (Nat.sub_lt h one_pos))
 
 /-- `tribesSize w` is largest: one more tribe makes Tribes true with probability more than
 `1 / 2`. -/
@@ -243,11 +240,8 @@ theorem pow_tribesSize_add_one_lt_one_div_two (w : ℕ) :
 
 /-- `tribesSize w < 2 ^ w`, our bound. -/
 theorem tribesSize_lt_two_pow (w : ℕ) : tribesSize w < 2 ^ w := by
-  have hle : tribesSize w ≤ 2 ^ w - 1 := Nat.find_min' _ (show
-    (1 - (2⁻¹ : ℝ) ^ w) ^ (2 ^ w - 1 + 1) < 1 / 2 by
-      rw [Nat.sub_add_cancel Nat.one_le_two_pow]
-      exact pow_two_pow_lt_one_div_two w)
-  exact hle.trans_lt (Nat.sub_lt Nat.one_le_two_pow one_pos)
+  refine (Nat.find_min' _ ?_).trans_lt (Nat.sub_lt Nat.one_le_two_pow one_pos)
+  simpa [Nat.sub_add_cancel Nat.one_le_two_pow] using pow_two_pow_lt_one_div_two w
 
 /-- `2 ^ (w - 1) ≤ tribesSize w` for `w ≥ 1`, our bound. -/
 theorem two_pow_sub_one_le_tribesSize {w : ℕ} (hw : 1 ≤ w) : 2 ^ (w - 1) ≤ tribesSize w := by
@@ -265,14 +259,12 @@ The bound is ours; O'Donnell states `1 / 2 - O(log n / n)` for `n = s w`. -/
 theorem abs_expect_bitVal_tribes_sub_half_le
     (h₁ : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ s) (h₂ : (1 - (2⁻¹ : ℝ) ^ w) ^ (s + 1) < 1 / 2) :
     |𝔼 x, bitVal ℝ (tribes w s x) - 1 / 2| ≤ 2⁻¹ ^ w := by
-  rw [expect_bitVal_tribes]
+  rw [expect_bitVal_tribes, abs_le]
   have hb : 0 ≤ (2⁻¹ : ℝ) ^ w := by positivity
   have hb1 : (2⁻¹ : ℝ) ^ w ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   have ha : (1 - (2⁻¹ : ℝ) ^ w) ^ s ≤ 1 := pow_le_one₀ (by linarith) (by linarith)
-  have hm := mul_le_mul_of_nonneg_right ha hb
   rw [pow_succ] at h₂
-  rw [abs_le]
-  constructor <;> nlinarith
+  constructor <;> nlinarith [mul_le_mul_of_nonneg_right ha hb]
 
 /-! ### Coalitions -/
 
@@ -283,11 +275,11 @@ private def tribe (w : ℕ) (j : Fin s) : Finset (Fin (s * w)) :=
 private theorem mem_tribe {j : Fin s} {k : Fin (s * w)} :
     k ∈ tribe w j ↔ (finProdFinEquiv.symm k).1 = j := by
   rw [tribe, mem_map]
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨i, -, rfl⟩
-    exact congrArg Prod.fst (finProdFinEquiv.symm_apply_apply (j, i))
+    exact congrArg Prod.fst (finProdFinEquiv.symm_apply_apply _)
   · rintro rfl
-    exact ⟨(finProdFinEquiv.symm k).2, mem_univ _, finProdFinEquiv.apply_symm_apply k⟩
+    exact ⟨_, mem_univ _, finProdFinEquiv.apply_symm_apply k⟩
 
 private theorem card_tribe (j : Fin s) : #(tribe w j) = w := by
   rw [tribe, card_map, card_univ, Fintype.card_fin]
@@ -305,8 +297,7 @@ private theorem sum_card_tribe_inter (Q : Finset (Fin (s * w))) :
     ∑ j, #(tribe w j ∩ Q) = #Q := by
   rw [card_eq_sum_card_fiberwise (f := fun k => (finProdFinEquiv.symm k).1) (t := univ)
     fun _ _ => mem_coe.2 (mem_univ _)]
-  refine sum_congr rfl fun j _ => congrArg card ?_
-  ext k
+  refine sum_congr rfl fun j _ => congrArg card (Finset.ext fun k => ?_)
   rw [mem_inter, mem_filter, mem_tribe, and_comm]
 
 /-- If Tribes is undetermined at `x` by the bits outside `Q`, some tribe meets `Q` and is all
@@ -317,15 +308,13 @@ private theorem exists_tribe_of_isUndetermined {Q : Finset (Fin (s * w))} {x : B
   rw [isUndetermined_iff_of_monotone (monotone_tribes w s), tribes_eq_true_iff_tribe,
     ← Bool.not_eq_true, tribes_eq_true_iff_tribe] at h
   obtain ⟨⟨j, hj⟩, h0⟩ := h
-  have hx : ∀ k ∈ tribe w j \ Q, x k = true := fun k hk => by
-    rw [← piecewise_eq_of_notMem Q (fun _ => true) x (mem_sdiff.1 hk).2]
-    exact hj k (mem_sdiff.1 hk).1
+  have hx : ∀ k ∈ tribe w j \ Q, x k = true := fun k hk =>
+    piecewise_eq_of_notMem Q (fun _ => true) x (mem_sdiff.1 hk).2 ▸ hj k (mem_sdiff.1 hk).1
   refine ⟨j, ?_, hx⟩
   by_contra hne
   refine h0 ⟨j, fun k hk => ?_⟩
   have hkQ : k ∉ Q := fun hkQ => hne ⟨k, mem_inter.2 ⟨hk, hkQ⟩⟩
-  rw [piecewise_eq_of_notMem _ _ _ hkQ]
-  exact hx k (mem_sdiff.2 ⟨hk, hkQ⟩)
+  exact (piecewise_eq_of_notMem _ _ _ hkQ).trans (hx k (mem_sdiff.2 ⟨hk, hkQ⟩))
 
 /-- For numbers `a j ≥ 1`, `∑ 2 ^ a j ≤ 2 ^ ∑ a j`. -/
 private theorem sum_two_pow_le_two_pow_sum {α : Type*} (J : Finset α) (a : α → ℕ)
@@ -405,7 +394,7 @@ private theorem card_tribePart (T : Finset (Fin (s * w))) (j : Fin s) :
   rfl
 
 /-- The size of a set of coordinates is the sum of the sizes of its parts in the tribes. -/
-private theorem card_eq_sum_card_tribePart (T : Finset (Fin (s * w))) :
+theorem card_eq_sum_card_tribePart (T : Finset (Fin (s * w))) :
     #T = ∑ j, #(tribePart T j) := by
   simp only [card_tribePart, sum_card_tribe_inter]
 
@@ -476,7 +465,7 @@ theorem fourierCoeff_signVal_tribes_of_ne_empty {T : Finset (Fin (s * w))} (hT :
   have hfac (j : Fin s) : ((if tribePart T j = ∅ then 1 else 0) - b * (-1) ^ #(tribePart T j)) =
       if tribePart T j = ∅ then 1 - b else -b * (-1) ^ #(tribePart T j) := by
     split_ifs with h
-    · rw [h, card_empty, pow_zero, mul_one]
+    · simp [h]
     · ring
   simp_rw [hfac]
   rw [prod_ite, prod_const, prod_mul_distrib, prod_const, prod_pow_eq_pow_sum]
@@ -484,12 +473,9 @@ theorem fourierCoeff_signVal_tribes_of_ne_empty {T : Finset (Fin (s * w))} (hT :
   have hk : #({j | tribePart T j = ∅} : Finset (Fin s)) = s - k := by
     have := card_filter_add_card_filter_not (s := (univ : Finset (Fin s)))
       (fun j => tribePart T j = ∅)
-    rw [card_univ, Fintype.card_fin, hk'] at this
-    omega
+    rw [card_univ, Fintype.card_fin, hk'] at this; omega
   have hsum : ∑ j ∈ ({j | ¬tribePart T j = ∅} : Finset (Fin s)), #(tribePart T j) = #T := by
-    rw [sum_filter_of_ne fun j _ h => by rwa [Ne, card_eq_zero] at h,
-      ← card_eq_sum_card_tribePart]
-  rw [hk, hsum, hk', neg_pow, pow_add, mul_comm k w, pow_mul, hb]
-  ring
+    rw [sum_filter_of_ne fun _ _ h => by rwa [Ne, card_eq_zero] at h, ← card_eq_sum_card_tribePart]
+  rw [hk, hsum, hk', neg_pow, pow_add, mul_comm k w, pow_mul, hb]; ring
 
 end Cslib.BitString

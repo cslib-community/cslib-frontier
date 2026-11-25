@@ -73,12 +73,9 @@ theorem graphEdge_bounds {u v : ℕ} (h : graphEdge ntm B input u v = true) :
 theorem boundedGraph_eq :
     Cslib.InductiveCounting.Graph (vertexBound (k := k) B) (graphEdge ntm B input) =
       Edge ntm B input := by
-  funext u v
-  apply propext
-  constructor
-  · exact fun h => h.2.2
-  · intro h
-    exact ⟨(graphEdge_bounds ntm B input h).1, (graphEdge_bounds ntm B input h).2, h⟩
+  ext u v
+  exact ⟨fun h => h.2.2,
+    fun h => ⟨(graphEdge_bounds ntm B input h).1, (graphEdge_bounds ntm B input h).2, h⟩⟩
 
 variable {ntm B input}
 
@@ -93,15 +90,11 @@ theorem closed_iff_fits (hB : Fintype.card (Option State) + 1 < B) :
     Closed ntm B input ↔ ∀ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView input) v →
       Fits B (registers v) := by
   rw [Closed, Cslib.InductiveCounting.Safe, boundedGraph_eq]
-  constructor
-  · intro h
-    refine fits_of_not_overflow (fits_init hB) fun u hu ho => ?_
-    have := h u hu
-    rw [graphOverflow] at this
-    rw [Overflow, this] at ho
-    exact Bool.false_ne_true ho
-  · intro h u hu
-    exact Bool.eq_false_iff.mpr (not_overflow_of_fits h u hu)
+  refine ⟨fun h => fits_of_not_overflow (fits_init hB) fun u hu ho => ?_,
+    fun h u hu => Bool.eq_false_iff.mpr (not_overflow_of_fits h u hu)⟩
+  have hov : overflow ntm B input.length u input[queryIndex (k := k) B u]? = false := h u hu
+  rw [Overflow, hov] at ho
+  exact Bool.false_ne_true ho
 
 /-- On a closed radix, the controller's safety property for the accepting vertices is exactly the
 absence of an accepting native computation path. -/
@@ -111,13 +104,8 @@ theorem safe_iff_not_accepts (hB : Fintype.card (Option State) + 1 < B)
       (graphEdge ntm B input) (graphAccepting k State B input) ↔ ¬ ntm.Accepts input := by
   rw [Cslib.InductiveCounting.Safe, boundedGraph_eq,
     accepts_iff_reachable_bad ((closed_iff_fits hB).mp hc)]
-  constructor
-  · intro h ⟨u, hu, hb⟩
-    have hf : graphAccepting k State B input u = false := h u hu
-    rw [graphAccepting, hb] at hf
-    exact Bool.false_ne_true hf.symm
-  · intro h u hu
-    exact Bool.eq_false_iff.mpr fun hb => h ⟨u, hu, hb⟩
+  exact ⟨fun h ⟨u, hu, hb⟩ => Bool.false_ne_true ((h u hu).symm.trans hb),
+    fun h u hu => Bool.eq_false_iff.mpr fun hb => h ⟨u, hu, hb⟩⟩
 
 /-- A larger radix of a closed one is closed. -/
 theorem Closed.mono {B' : ℕ} (hB : Fintype.card (Option State) + 1 < B) (hBB : B ≤ B')

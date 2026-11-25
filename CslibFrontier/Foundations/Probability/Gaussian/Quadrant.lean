@@ -117,17 +117,15 @@ private theorem ae_cdf_ne (c : ℝ) : ∀ᵐ y ∂gaussianReal 0 1, Φ y ≠ c :
 to `[0, 1]`. -/
 private theorem measureReal_fst_cdf_le (ρ α : ℝ) :
     (correlatedGaussian ρ).real {p | Φ p.1 ≤ α} = max (min α 1) 0 := by
-  have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_fst
-    (measurableSet_cdf_le α)
-  rw [correlatedGaussian_map_fst, measureReal_setOf_cdf_le_clamp] at h
-  exact h.symm
+  change (correlatedGaussian ρ).real (Prod.fst ⁻¹' {x | Φ x ≤ α}) = _
+  rw [← map_measureReal_apply measurable_fst (measurableSet_cdf_le α),
+    correlatedGaussian_map_fst, measureReal_setOf_cdf_le_clamp]
 
 private theorem measureReal_snd_cdf_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (β : ℝ) :
     (correlatedGaussian ρ).real {p | Φ p.2 ≤ β} = max (min β 1) 0 := by
-  have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_snd
-    (measurableSet_cdf_le β)
-  rw [correlatedGaussian_map_snd hρ, measureReal_setOf_cdf_le_clamp] at h
-  exact h.symm
+  change (correlatedGaussian ρ).real (Prod.snd ⁻¹' {x | Φ x ≤ β}) = _
+  rw [← map_measureReal_apply measurable_snd (measurableSet_cdf_le β),
+    correlatedGaussian_map_snd hρ, measureReal_setOf_cdf_le_clamp]
 
 /-! ### The quadrant probability -/
 
@@ -201,18 +199,14 @@ theorem gaussianQuadrant_zero_left (ρ β : ℝ) : gaussianQuadrant ρ 0 β = 0 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 1) = α` for `α ∈ [0, 1]`. -/
 theorem gaussianQuadrant_one_right (ρ : ℝ) {α : ℝ} (h0 : 0 ≤ α) (h1 : α ≤ 1) :
     gaussianQuadrant ρ α 1 = α := by
-  have : {p : ℝ × ℝ | Φ p.1 ≤ α ∧ Φ p.2 ≤ 1} = {p | Φ p.1 ≤ α} := by
-    ext p
-    simp only [mem_ofPred_eq, cdf_le_one, and_true]
-  rw [gaussianQuadrant_def, this, measureReal_fst_cdf_le, min_eq_left h1, max_eq_left h0]
+  simp only [gaussianQuadrant_def, cdf_le_one, and_true, measureReal_fst_cdf_le,
+    min_eq_left h1, max_eq_left h0]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(1, β) = β` for `β ∈ [0, 1]`. -/
 theorem gaussianQuadrant_one_left {ρ : ℝ} (hρ : |ρ| ≤ 1) {β : ℝ} (h0 : 0 ≤ β) (h1 : β ≤ 1) :
     gaussianQuadrant ρ 1 β = β := by
-  have : {p : ℝ × ℝ | Φ p.1 ≤ 1 ∧ Φ p.2 ≤ β} = {p | Φ p.2 ≤ β} := by
-    ext p
-    simp only [mem_ofPred_eq, cdf_le_one, true_and]
-  rw [gaussianQuadrant_def, this, measureReal_snd_cdf_le hρ, min_eq_left h1, max_eq_left h0]
+  simp only [gaussianQuadrant_def, cdf_le_one, true_and, measureReal_snd_cdf_le hρ,
+    min_eq_left h1, max_eq_left h0]
 
 /-- `Λ_ρ(α, β) ≤ min α β` for `α, β ∈ [0, 1]`: the quadrant lies in each half-plane. -/
 theorem gaussianQuadrant_le_min {ρ : ℝ} (hρ : |ρ| ≤ 1) {α β : ℝ} (hα0 : 0 ≤ α) (hα1 : α ≤ 1)
@@ -320,15 +314,7 @@ private theorem measure_correlatedGaussian_fst_mem_cdf_le (ρ β : ℝ) {A : Set
   rw [correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop)), ← lintegral_indicator hA]
   refine lintegral_congr fun x => ?_
-  by_cases hx : x ∈ A
-  · rw [indicator_of_mem hx]
-    congr 1
-    ext y
-    simp only [mem_preimage, mem_ofPred_eq, hx, true_and]
-  · rw [indicator_of_notMem hx, ← measure_empty (μ := gaussianReal 0 1)]
-    congr 1
-    ext y
-    simp only [mem_preimage, mem_ofPred_eq, hx, false_and, mem_empty_iff_false]
+  by_cases hx : x ∈ A <;> simp [indicator, hx]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: positively correlated Gaussians are at least as
 likely as independent ones to lie in a lower quadrant, `αβ ≤ Λ_ρ(α, β)` for `ρ ∈ [0, 1]` and
@@ -362,13 +348,13 @@ theorem mul_le_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) {
       _ = ∫⁻ x in A, q x ∂gaussianReal 0 1 := by
           rw [← add_mul, measure_add_measure_compl hA, measure_univ, one_mul]
   have hΛ := measure_correlatedGaussian_fst_mem_cdf_le ρ β hA
-  have hβ := measure_correlatedGaussian_fst_mem_cdf_le ρ β MeasurableSet.univ
-  rw [Measure.restrict_univ] at hβ
+  have hβ := Measure.restrict_univ (μ := gaussianReal 0 1) ▸
+    measure_correlatedGaussian_fst_mem_cdf_le ρ β MeasurableSet.univ
   have e1 : (gaussianReal 0 1).real A = α :=
     measureReal_setOf_cdf_gaussianReal_le 0 one_ne_zero hα0 hα1
   have e2 : (correlatedGaussian ρ).real {p | p.1 ∈ univ ∧ Φ p.2 ≤ β} = β := by
-    simp only [mem_univ, true_and]
-    rw [measureReal_snd_cdf_le (abs_le.2 ⟨by linarith, hρ1⟩), min_eq_left hβ1, max_eq_left hβ0]
+    simp only [mem_univ, true_and, measureReal_snd_cdf_le (abs_le.2 ⟨by linarith, hρ1⟩),
+      min_eq_left hβ1, max_eq_left hβ0]
   rw [gaussianQuadrant_def]
   calc α * β = (gaussianReal 0 1 A *
         correlatedGaussian ρ {p | p.1 ∈ univ ∧ Φ p.2 ≤ β}).toReal := by
