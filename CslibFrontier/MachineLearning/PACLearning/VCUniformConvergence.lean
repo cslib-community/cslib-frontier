@@ -102,40 +102,14 @@ private theorem card_filter_le_abs_sum_mul_sub_half_le_of_abs_le {m : ℕ} (w : 
     (hw : ∀ i, |w i| ≤ 2) {ε : ℝ} (hε : 0 ≤ ε) :
     (#{σ : Fin m → Bool | m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
       2 * 2 ^ m * Real.exp (-(m * ε ^ 2 / 8)) := by
-  classical
-  have hcard : (#{σ : Fin m → Bool | m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|} : ℝ) ≤
-      2 ^ m := by
-    have := Finset.card_filter_le (Finset.univ : Finset (Fin m → Bool))
-      (fun σ => m * ε / 2 ≤ |∑ i, w i * (((σ i).toNat : ℝ) - 1 / 2)|)
-    simp only [Finset.card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at this
-    exact_mod_cast this
-  rcases Nat.eq_zero_or_pos m with rfl | hm
-  · exact hcard.trans (by simp)
-  set S := ∑ i, w i ^ 2 with hS
-  have hS4 : S ≤ 4 * m := by
-    calc S ≤ ∑ _i : Fin m, (4 : ℝ) := Finset.sum_le_sum fun i _ => by
-          have := sq_le_sq' (abs_le.1 (hw i)).1 (abs_le.1 (hw i)).2
-          linarith
-      _ = 4 * m := by simp [mul_comm]
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  rcases (Finset.sum_nonneg fun i _ => sq_nonneg (w i) : 0 ≤ S).eq_or_lt with hS0 | hSpos
-  · -- all weights vanish, so the sum is `0`
-    rcases hε.eq_or_lt with rfl | hεpos
-    · exact hcard.trans (by simp)
-    have hw0 (i : Fin m) : w i = 0 := pow_eq_zero_iff two_ne_zero |>.1 <|
-      (Finset.sum_eq_zero_iff_of_nonneg fun i _ => sq_nonneg (w i)).1 hS0.symm i (Finset.mem_univ _)
-    rw [Finset.filter_false_of_mem fun σ _ => by
-      simp only [hw0, zero_mul, Finset.sum_const_zero, abs_zero, not_le]; positivity,
-      Finset.card_empty, Nat.cast_zero]
-    positivity
-  · refine (Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le w
-      (t := m * ε / 2) (by positivity)).trans ?_
-    rw [Fintype.card_fin]
-    have hexp : m * ε ^ 2 / 8 ≤ 2 * (m * ε / 2) ^ 2 / S := by
-      rw [le_div_iff₀ hSpos]
-      have : 0 ≤ (m : ℝ) * ε ^ 2 := by positivity
-      nlinarith
-    exact mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 (neg_le_neg hexp)) (by positivity)
+  have h := Cslib.BitString.card_filter_le_abs_sum_mul_sub_half_le_of_abs_le w (fun _ => 2) hw
+    (t := m * ε / 2) (by positivity)
+  have hexp : 2 * ((m : ℝ) * ε / 2) ^ 2 / (m * 2 ^ 2) = m * ε ^ 2 / 8 := by
+    rcases eq_or_ne m 0 with rfl | hm
+    · simp
+    · field_simp [Nat.cast_ne_zero.mpr hm]
+      ring
+  simpa only [Fintype.card_fin, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hexp] using h
 
 /-- The double-sample event: some `g ∈ G` has counts on the two samples that differ by at least
 `m ε / 2`. -/

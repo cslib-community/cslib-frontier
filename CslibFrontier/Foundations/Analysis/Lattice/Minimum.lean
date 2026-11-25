@@ -156,8 +156,10 @@ theorem successiveMinimum_nonneg (L : Submodule ℤ E) (k : ℕ) : 0 ≤ success
 
 @[simp]
 theorem successiveMinimum_zero (L : Submodule ℤ E) : successiveMinimum L 0 = 0 := by
-  rw [successiveMinimum, show {r : ℝ | 0 ≤ r ∧
-    0 ≤ finrank ℝ (Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ r})} = Set.Ici 0 by ext; simp, csInf_Ici]
+  have h : {r : ℝ | 0 ≤ r ∧ 0 ≤ finrank ℝ (Submodule.span ℝ {v : E | v ∈ L ∧ ‖v‖ ≤ r})} =
+      Set.Ici 0 := by
+    ext r; simp
+  rw [successiveMinimum, h, csInf_Ici]
 
 variable [FiniteDimensional ℝ E]
 
@@ -167,7 +169,8 @@ theorem successiveMinimum_le_of_linearIndependent {L : Submodule ℤ E} {k : ℕ
     (hvr : ∀ i, ‖v i‖ ≤ r) : successiveMinimum L k ≤ r := by
   refine csInf_le ⟨0, fun _ hs => hs.1⟩ ⟨hr, ?_⟩
   rw [← Fintype.card_fin k, ← finrank_span_eq_card hli]
-  exact Submodule.finrank_mono (Submodule.span_mono <| by rintro _ ⟨i, rfl⟩; exact ⟨hvL i, hvr i⟩)
+  exact Submodule.finrank_mono
+    (Submodule.span_mono (Set.range_subset_iff.2 fun i => ⟨hvL i, hvr i⟩))
 
 /-- For a full-rank lattice, some radius makes the short lattice vectors span the whole space. -/
 private theorem exists_radius_finrank (L : Submodule ℤ E) [DiscreteTopology L] [IsZLattice ℝ L]

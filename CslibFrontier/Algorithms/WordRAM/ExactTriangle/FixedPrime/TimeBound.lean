@@ -57,26 +57,23 @@ theorem products_time_le {k n g p : ℕ} (hn : 0 < n) (values : ℕ → ℤ) (me
       125829120 * ((189 * k + 1 : ℕ) : ℝ) ^ 2 * ((9 * k + 1 : ℕ) : ℝ) *
         (D (9 * k) : ℝ) ^ (-(8 / 125 : ℝ)) * (n : ℝ) ^ 3 * g := by
   let I := instanceIndices (fun u v : Fin n => values (pairIndex (u, v))) (D (9 * k)) g p
-  let qs := fun idx => RecordProduct.decodedQueries hn mem
+  let qs (idx) := RecordProduct.decodedQueries hn mem
     (RecordProduct.recordQueries n (D (9 * k)) p idx)
     (RecordProduct.recordQueryCount n (D (9 * k)) p values idx)
   let R : ℝ := 31457280 * ((189 * k + 1 : ℕ) : ℝ) ^ 2 * ((9 * k + 1 : ℕ) : ℝ) *
     (D (9 * k) : ℝ) ^ (-(8 / 125 : ℝ)) * (n : ℝ) ^ 2
-  have hr (idx : InstanceIndex p) :
-      ((RecordBoxProduct.timeBound (m := 9 * k) (qs idx) + 1 : ℕ) : ℝ) ≤ R := by
-    apply RecordBoxProduct.thin_timeBound _ hN
-    rw [RecordProduct.decodedQueries_length]
-    exact (Nat.mul_le_mul_right (2 ^ (9 * k)) (min_le_left _ _)).trans
-      (RecordProduct.queryCap_mul_two_pow_le n (9 * k))
-  have hc : (I.card : ℝ) ≤ 4 * (n : ℝ) * g := by
-    exact card_instanceIndices_le _ hD
-      ((Nat.le_self_pow (by decide : 18 ≠ 0) (D (9 * k))).trans hN) hg hp
-  calc
-    _ = ∑ idx ∈ I, ((RecordBoxProduct.timeBound (m := 9 * k) (qs idx) + 1 : ℕ) : ℝ) := by
-      rw [Nat.cast_sum]
-    _ ≤ ∑ _idx ∈ I, R := Finset.sum_le_sum (fun idx _ => hr idx)
-    _ = I.card * R := by rw [Finset.sum_const, nsmul_eq_mul]
-    _ ≤ (4 * (n : ℝ) * g) * R := mul_le_mul_of_nonneg_right hc (by dsimp only [R]; positivity)
+  have hc : (I.card : ℝ) ≤ 4 * (n : ℝ) * g := card_instanceIndices_le _ hD
+    ((Nat.le_self_pow (by decide : 18 ≠ 0) (D (9 * k))).trans hN) hg hp
+  calc ((∑ idx ∈ I, (RecordBoxProduct.timeBound (m := 9 * k) (qs idx) + 1) : ℕ) : ℝ)
+      ≤ ∑ _idx ∈ I, R := by
+        rw [Nat.cast_sum]
+        refine Finset.sum_le_sum fun idx _ => RecordBoxProduct.thin_timeBound _ hN ?_
+        rw [RecordProduct.decodedQueries_length]
+        exact (Nat.mul_le_mul_right (2 ^ (9 * k)) (min_le_left _ _)).trans
+          (RecordProduct.queryCap_mul_two_pow_le n (9 * k))
+    _ ≤ (4 * (n : ℝ) * g) * R := by
+        rw [Finset.sum_const, nsmul_eq_mul]
+        exact mul_le_mul_of_nonneg_right hc (by dsimp only [R]; positivity)
     _ = _ := by dsimp only [R]; ring
 
 /-- Complete halt-inclusive charged bound, retaining the one-time producer and the single
@@ -95,44 +92,36 @@ theorem timeBound_le {k n g p : ℕ} (hn : 0 < n) (values : List ℤ) (mem : ℕ
           (D (9 * k) : ℝ) ^ (-(8 / 125 : ℝ)) * (n : ℝ) ^ 3 * g +
         (4 * (n : ℝ) * g) * ((5 * Nat.sqrt (D (9 * k)) + 8 * queryCap n (D (9 * k)) + 61 : ℕ) : ℝ) +
         (((42 * pieceSize (D (9 * k)) g + 28) * (F + 1) + 7 : ℕ) : ℝ) := by
-  let V := fun q => values.getD q 0
+  let V (q) := values.getD q 0
   let I := instanceIndices (fun u v : Fin n => V (pairIndex (u, v))) (D (9 * k)) g p
-  let qs := fun idx => RecordProduct.decodedQueries hn mem
+  let qs (idx) := RecordProduct.decodedQueries hn mem
     (RecordProduct.recordQueries n (D (9 * k)) p idx)
     (RecordProduct.recordQueryCount n (D (9 * k)) p V idx)
   let extra := 5 * Nat.sqrt (D (9 * k)) + 8 * queryCap n (D (9 * k)) + 61
   have hDn : D (9 * k) ≤ n := (Nat.le_self_pow (by decide : 18 ≠ 0) (D (9 * k))).trans hN
   have hprep : (RecordProduct.preparationTime n (D (9 * k)) g p values : ℝ) ≤
       690 * (n : ℝ) ^ 2 * D (9 * k) * g := by
-    have hnat : RecordProduct.preparationTime n (D (9 * k)) g p values ≤
-        690 * n ^ 2 * D (9 * k) * g := by
-      simpa only [RecordProduct.preparationTime, pow_two] using
-        PreparationBounds.computed_timeBound_le values hD hDn hg hp
-    exact_mod_cast hnat
+    exact_mod_cast (by simpa only [RecordProduct.preparationTime, pow_two] using
+      PreparationBounds.computed_timeBound_le values hD hDn hg hp :
+        RecordProduct.preparationTime n (D (9 * k)) g p values ≤ 690 * n ^ 2 * D (9 * k) * g)
   have hterms : (∑ idx ∈ I, recordBase (m := 9 * k) hn V mem idx) ≤
       (∑ idx ∈ I, (RecordBoxProduct.timeBound (m := 9 * k) (qs idx) + 1)) + I.card * extra := by
     rw [show I.card * extra = ∑ _idx ∈ I, extra by simp, ← Finset.sum_add_distrib]
-    apply Finset.sum_le_sum
-    intro idx _
+    refine Finset.sum_le_sum fun idx _ => ?_
     have hQ : RecordProduct.recordQueryCount n (D (9 * k)) p V idx ≤ queryCap n (D (9 * k)) :=
       min_le_left _ _
     dsimp only [recordBase, extra, qs]
     omega
-  have hc : (I.card : ℝ) ≤ 4 * (n : ℝ) * g := card_instanceIndices_le _ hD hDn hg hp
-  have hextra := mul_le_mul_of_nonneg_right hc (Nat.cast_nonneg extra : (0 : ℝ) ≤ extra)
+  have hextra := mul_le_mul_of_nonneg_right
+    (card_instanceIndices_le (fun u v : Fin n => V (pairIndex (u, v))) hD hDn hg hp)
+    (Nat.cast_nonneg extra : (0 : ℝ) ≤ extra)
   have hprod := products_time_le hn V mem hD hg hp hN
   have hcast := (Nat.cast_le (α := ℝ)).mpr hterms
+  dsimp only [I, qs] at hcast hprod
   push_cast at hcast hprod
-  have hbase : ((∑ idx ∈ I, recordBase (m := 9 * k) hn V mem idx : ℕ) : ℝ) ≤
-      125829120 * ((189 * k + 1 : ℕ) : ℝ) ^ 2 * ((9 * k + 1 : ℕ) : ℝ) *
-          (D (9 * k) : ℝ) ^ (-(8 / 125 : ℝ)) * (n : ℝ) ^ 3 * g + (4 * (n : ℝ) * g) * extra := by
-    dsimp only [I, qs] at hcast hprod ⊢
-    push_cast
-    linarith only [hcast, hextra, hprod]
   dsimp only [timeBound]
-  push_cast
-  dsimp only [I, V, extra] at hbase hprep ⊢
-  push_cast at hbase
-  linarith only [hbase, hprep]
+  dsimp only [I, V, extra] at hcast hextra hprod hprep ⊢
+  push_cast at hcast hextra hprod ⊢
+  linarith only [hcast, hextra, hprod, hprep]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.FixedPrime

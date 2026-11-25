@@ -367,9 +367,14 @@ private theorem exists_isGeodesic_via_endpoints [Finite V]
   obtain ⟨γ₂, hγ₂⟩ := exists_isGeodesic_vertex_vertex (W := W) u₁ (if b then d₂.snd else d₂.fst)
   have hjoin23 : γ₂ (vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst)) =
       endToDartCurve W d₂ b 0 := by rw [← dist_vertex, hγ₂.map_dist, endToDartCurve_zero]
+  have hjoin12 : dartRay W d₁ t₁ a
+      (if a then (1 - (t₁ : ℝ)) * W.weight d₁.edge else (t₁ : ℝ) * W.weight d₁.edge) =
+      splice (vertexDist W.graph W.weight u₁ (if b then d₂.snd else d₂.fst)) γ₂
+        (endToDartCurve W d₂ b) 0 := by
+    rw [splice_zero hL₂, hγ₂.map_zero]
+    exact dartToEndCurve_end W d₁ t₁ a
   refine ⟨_, isGeodesic_splice (endOffset_nonneg W d₁ t₁ a) (add_nonneg hL₂ hL₃)
-    (dartRay_zero W d₁ t₁ a)
-    (by rw [splice_zero hL₂, hγ₂.map_zero]; exact dartToEndCurve_end W d₁ t₁ a)
+    (dartRay_zero W d₁ t₁ a) hjoin12
     ((splice_end hL₃ hjoin23).trans (endToDartCurve_end W d₂ t₂ b))
     (by linarith [hdist]) (fun _ _ _ hst _ => dartRay_dist_le W d₁ t₁ a hst)
     (splice_lip hL₂ hL₃ hjoin23 (hγ₂.dist_le_sub (dist_vertex _ _))

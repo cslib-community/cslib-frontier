@@ -80,9 +80,10 @@ lemma polynomialLift_embed (R : Matrix (ZMod d) (ZMod d) K) :
   simp only [polynomialLift, map_sum, HahnSeries.coeff_sum, embed_monomial, lift,
     Matrix.sum_apply]
   refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ => ?_
-  rw [show exponent (Finsupp.single 0 a.val + Finsupp.single 1 b.val) =
-    toLex ((a.val : ℤ), (b.val : ℤ)) by simp [exponent]]
-  simp only [HahnSeries.coeff_single]; split_ifs <;> rfl
+  have he : exponent (Finsupp.single 0 a.val + Finsupp.single 1 b.val) =
+      toLex ((a.val : ℤ), (b.val : ℤ)) := by simp [exponent]
+  simp only [he, HahnSeries.coeff_single]
+  split_ifs <;> rfl
 
 /-- Evaluating `polynomialLift χ R` at `(1, 1)` recovers `R` when `χ` is primitive. -/
 lemma polynomialLift_specialize (hχ : χ.IsPrimitive) (R : Matrix (ZMod d) (ZMod d) K) :
@@ -217,14 +218,14 @@ private lemma lift_totalDegree_le (R : Matrix (ZMod d) (ZMod d) K[X]) (D : ℕ)
     (hR : ∀ i j, (R i j).natDegree ≤ D) (i j : ZMod d) :
     (lift χ R i j).totalDegree ≤ D + 2 * (d - 1) := by
   refine totalDegree_finsetSum_le fun a _ => totalDegree_finsetSum_le fun b _ => ?_
-  refine (totalDegree_mul _ _).trans ((Nat.add_le_add
-    ((totalDegree_mul _ _).trans (Nat.add_le_add
-      ((totalDegree_mul _ _).trans (Nat.add_le_add ((uni_totalDegree_le _).trans
-        (coeffP_natDegree_le χ R D hR a b)) (totalDegree_C _).le))
-      (totalDegree_pow _ _)))
-    (totalDegree_pow _ _)).trans ?_)
-  simp only [totalDegree_X, Nat.mul_one, Nat.add_zero]
-  have := ZMod.val_lt a; have := ZMod.val_lt b; omega
+  apply (totalDegree_mul _ _).trans
+  apply (Nat.add_le_add (totalDegree_mul _ _) (totalDegree_pow _ _)).trans
+  apply (Nat.add_le_add (Nat.add_le_add (totalDegree_mul _ _) (totalDegree_pow _ _)) le_rfl).trans
+  simp only [totalDegree_C, totalDegree_X, Nat.mul_one, Nat.add_zero]
+  have := (uni_totalDegree_le (coeffP χ R a b)).trans (coeffP_natDegree_le χ R D hR a b)
+  have := ZMod.val_lt a
+  have := ZMod.val_lt b
+  omega
 
 end
 end Rational.ThreeLift
@@ -294,15 +295,15 @@ theorem det_ne_zero (χ : AddChar (ZMod M) K) (hχ : χ.IsPrimitive)
     (polynomial (N := N) χ A points).det ≠ 0 := by
   let ψ : K →+* F E := (HahnSeries.C : E →+* F E).comp φ
   let τ : F E := HahnSeries.single 1 1
+  let W := fun α β =>
+    (Polynomial.eval₂RingHom ψ τ).mapMatrix (polyBlocks (M := M) (N := N) A points α β)
   have hr := PaddedRank.rank_ge w B M N q e hw hN hMN hqB he
     (fun i => φ (points i)) (φ.injective.comp hp) (fun i => ψ.mapMatrix (A i)) X hX
+  have hr' : (Fintype.card (Fin q) - 1) * M < (QuantumLift.blockOriginal W).rank := by
+    rw [Fintype.card_fin, raw_specialize φ A points, Matrix.rank_reindex]
+    exact (PaddedRank.numeric_gap w B M N q hq hqB hMN hM).trans_le hr
   have hd := QuantumLift.blockPolynomial_det_ne_zero (ψ.toMonoidHom.compAddChar χ)
-    (hχ.compMulHom_of_isPrimitive ψ.injective)
-    (fun α β => (Polynomial.eval₂RingHom ψ τ).mapMatrix
-      (polyBlocks (M := M) (N := N) A points α β))
-    (by simpa using hq) (by
-      rw [Fintype.card_fin, raw_specialize φ A points, Matrix.rank_reindex]
-      exact (PaddedRank.numeric_gap w B M N q hq hqB hMN hM).trans_le hr)
+    (hχ.compMulHom_of_isPrimitive ψ.injective) W (by simpa using hq) hr'
   exact fun hz => hd (by rw [← specialize χ ψ τ, ← RingHom.map_det, hz, map_zero])
 
 omit [CharZero K] in

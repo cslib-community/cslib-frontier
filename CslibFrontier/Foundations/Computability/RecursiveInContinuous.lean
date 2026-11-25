@@ -82,8 +82,7 @@ theorem continuous_iff_forall_exists_cylinder {F : (ℕ → ℕ) → ℕ → ℕ
       (isOpen_discrete _).preimage (continuous_pi_iff.1 hF n)
     obtain ⟨_, ⟨z, k, rfl⟩, hx, hsub⟩ := (isTopologicalBasis_cylinders fun _ : ℕ => ℕ)
       |>.exists_subset_of_mem_open (Set.mem_preimage.2 rfl) ho
-    refine ⟨k, fun y hy => hsub ?_⟩
-    rwa [← mem_cylinder_iff_eq.1 hx]
+    exact ⟨k, fun y hy => hsub (by rwa [← mem_cylinder_iff_eq.1 hx])⟩
   · obtain ⟨k, hk⟩ := h x n
     exact ⟨cylinder x k, fun y hy => (hk y hy).trans hx, isOpen_cylinder (fun _ : ℕ => ℕ) x k,
       self_mem_cylinder x k⟩
@@ -93,8 +92,7 @@ theorem continuous_iff_forall_exists_cylinder {F : (ℕ → ℕ) → ℕ → ℕ
 private theorem prefixOf_eq_iff {x y : ℕ → ℕ} {k : ℕ} :
     prefixOf y k = prefixOf x k ↔ y ∈ cylinder x k := by
   refine ⟨fun h i hi => ?_, fun h => List.map_congr_left fun i hi => h i (List.mem_range.1 hi)⟩
-  have := congrArg (·[i]?) h
-  simpa [prefixOf, hi] using this
+  simpa [prefixOf, hi] using congrArg (·[i]?) h
 
 /-- The answer of the oracle encoding `F` at `⟨n, σ⟩`: `v + 1` when every input whose prefix is
 `σ` has `n`-th output `v`, and `0` if there is no such `v`. -/
@@ -127,11 +125,10 @@ join of the oracle with the input `x`. -/
 private theorem hasUniformCode_query :
     HasUniformCode joined fun i m =>
       Part.some (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2)))) := by
-  have hp : HasUniformCode joined fun i => (i.1 : ℕ →. ℕ) :=
-    ⟨joinLeft, fun i => eval_joinLeft _ _⟩
-  have hpre : HasUniformCode joined fun i k => Part.some (encode (prefixOf i.2 k)) := by
-    obtain ⟨c, hc⟩ := hasUniformCode_prefixOf
-    exact ⟨c.subst joinRight, fun i => by rw [eval_subst, eval_joinRight, hc]⟩
+  have hp : HasUniformCode joined fun i => (i.1 : ℕ →. ℕ) := ⟨joinLeft, fun _ => eval_joinLeft ..⟩
+  obtain ⟨c, hc⟩ := hasUniformCode_prefixOf
+  have hpre : HasUniformCode joined fun i k => Part.some (encode (prefixOf i.2 k)) :=
+    ⟨c.subst joinRight, fun i => by rw [eval_subst, eval_joinRight, hc]⟩
   refine (hp.comp ((HasUniformCode.of_computable (Computable.fst.comp Computable.unpair)).pair
     (hpre.comp (HasUniformCode.of_computable (Computable.snd.comp Computable.unpair))))).of_eq
     fun i m => ?_
@@ -145,14 +142,12 @@ private theorem hasUniformCode_search :
       (Nat.rfind fun k => Part.some (decide
         (1 - i.1 (Nat.pair n (encode (prefixOf i.2 k))) = 0))).map
         fun k => i.1 (Nat.pair n (encode (prefixOf i.2 k))) - 1 := by
-  have hsub : ∀ {f : ℕ → ℕ}, Computable f →
-      HasUniformCode joined fun i m =>
-        Part.some (f (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2))))) :=
-    fun hf => ((HasUniformCode.of_computable hf).comp hasUniformCode_query).of_eq fun i m => by
-      simp
-  have htest := hsub (f := fun v => 1 - v)
+  have hsub {f : ℕ → ℕ} (hf : Computable f) : HasUniformCode joined fun i m =>
+      Part.some (f (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2))))) :=
+    ((HasUniformCode.of_computable hf).comp hasUniformCode_query).of_eq fun _ _ => by simp
+  have htest := hsub
     (_root_.Primrec.nat_sub.comp (_root_.Primrec.const 1) _root_.Primrec.id).to_comp
-  have hval := hsub (f := fun v => v - 1)
+  have hval := hsub
     (_root_.Primrec.nat_sub.comp _root_.Primrec.id (_root_.Primrec.const 1)).to_comp
   refine (hval.comp ((HasUniformCode.of_computable Computable.id).pair htest.rfind)).of_eq
     fun i n => ?_
@@ -170,12 +165,10 @@ theorem exists_code_continuous :
   rw [he (_, x)]
   simp only [Nat.unpair_pair, ofNat_encode]
   obtain ⟨k, hk⟩ := continuous_iff_forall_exists_cylinder.1 hF x n
+  have hnz := nbhd_ne_zero hk
   have hdom : (Nat.rfind fun k => Part.some (decide (1 - nbhd F n (prefixOf x k) = 0))).Dom :=
-    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by
-      have := nbhd_ne_zero hk
-      omega)).symm, fun _ => trivial⟩
-  have hspec :=
-    of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
+    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by omega)).symm, fun _ => trivial⟩
+  have hspec := of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
   rw [← Part.some_get hdom, Part.map_some, nbhd_eq (by omega)]
   simp
 
@@ -201,7 +194,7 @@ input. -/
 theorem continuous_iff_exists_code {F : (ℕ → ℕ) → ℕ → ℕ} :
     Continuous F ↔ ∃ (p : ℕ → ℕ) (c : Code), ∀ (x : ℕ → ℕ) n,
       eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n = Part.some (F x n) := by
-  refine ⟨fun hF => ?_, fun ⟨p, c, h⟩ => continuous_of_eval h⟩
+  refine ⟨fun hF => ?_, fun ⟨_, _, h⟩ => continuous_of_eval h⟩
   obtain ⟨e, he⟩ := exists_code_continuous
   obtain ⟨p, hp⟩ := he F hF
   exact ⟨p, e, hp⟩

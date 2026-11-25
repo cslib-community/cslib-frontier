@@ -59,9 +59,9 @@ private theorem ciphertext_eq_val (N : ℕ) [NeZero N] (m r : ℕ) (hr : r.Copri
       (oneAddPowHom N (.ofAdd (m : ZMod N)) *
         powSelfHom N (ZMod.unitOfCoprime r hr) : (ZMod (N ^ 2))ˣ) := by
     rw [natCast_ciphertext (NeZero.ne N)]
-    simp only [oneAddPowHom_apply, toAdd_ofAdd, ZMod.val_natCast,
-      ← oneAddUnit_pow_mod, powSelfHom_apply, Units.val_mul, Units.val_pow_eq_pow_val,
-      coe_oneAddUnit, coe_liftUnit, ZMod.coe_unitOfCoprime, ← ZMod.natCast_pow_self_mod]
+    simp only [oneAddPowHom_apply, toAdd_ofAdd, ZMod.val_natCast, ← oneAddUnit_pow_mod,
+      powSelfHom_apply, Units.val_mul, Units.val_pow_eq_pow_val, coe_oneAddUnit, coe_liftUnit,
+      ZMod.coe_unitOfCoprime, ← ZMod.natCast_pow_self_mod]
   rw [← h, ZMod.val_natCast]
   simp only [ciphertext, Nat.mod_mod]
 
@@ -79,8 +79,7 @@ theorem closeTo_encrypt_paillierEncrypt (d : Desc) (n m : ℕ)
       (↑((5 : ℝ≥0) / 2 ^ n)) by
     simpa only [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_pow,
       ENNReal.coe_ofNat] using h
-  apply Game.closeTo_iff_forall_advantage_bind_le.2
-  intro test
+  refine Game.closeTo_iff_forall_advantage_bind_le.2 fun test => ?_
   have h := Game.advantage_sampleModNat_units_le d.property.prime_fst d.property.prime_snd
     d.property.fst_ne_snd hsize.1 hsize.2
     (fun r => test (encNat (ciphertext d.modulus m (unitOrOne d.modulus r))))
@@ -110,8 +109,6 @@ theorem closeTo_addCiphertexts_encrypt (d : Desc) (n m₁ m₂ : ℕ)
   have hc₁ : c₁ ∈ (ProbComp.eval
       (paillierEncrypt d.modulus (m₁ : ZMod d.modulus))).support :=
     mem_support_paillierEncrypt.2 ⟨ZMod.unitOfCoprime r₁ hr₁, rfl⟩
-  have hword : ciphertext d.modulus m₁ r₁ = (c₁ : ZMod (d.modulus ^ 2)).val :=
-    ciphertext_eq_val d.modulus m₁ r₁ hr₁
   have hideal :
       (((ProbComp.eval (paillierEncrypt d.modulus (m₂ : ZMod d.modulus))).map
         (fun c : (ZMod (d.modulus ^ 2))ˣ => encNat (c : ZMod (d.modulus ^ 2)).val)).map
@@ -125,9 +122,9 @@ theorem closeTo_addCiphertexts_encrypt (d : Desc) (n m₁ m₂ : ℕ)
         simp only [PMF.map_comp]
         congr 1
         funext c₂
-        simp only [Function.comp_apply, addCiphertexts, ofBits_encNat, hword,
-          Units.val_mul, ZMod.val_mul]
-      _ = _ := by rw [eval_mul_paillierEncrypt hc₁]; simp only [Nat.cast_add]
+        simp only [Function.comp_apply, addCiphertexts, ofBits_encNat,
+          ciphertext_eq_val d.modulus m₁ r₁ hr₁, c₁, Units.val_mul, ZMod.val_mul]
+      _ = _ := by simp only [eval_mul_paillierEncrypt hc₁, Nat.cast_add]
   have h := (closeTo_encrypt_paillierEncrypt d n m₂ hsize).map
     (addCiphertexts (encNat d.modulus) (encNat (ciphertext d.modulus m₁ r₁)))
   rw [hideal] at h
@@ -144,9 +141,8 @@ theorem closeTo_addCiphertexts (d : Desc) (n m₁ m₂ : ℕ)
         let ct₂ ← encrypt n (encNat d.modulus) m₂
         return addCiphertexts (encNat d.modulus) ct₁ ct₂))
       (ProbComp.eval (encrypt n (encNat d.modulus) (m₁ + m₂))) (10 / 2 ^ n) := by
-  have h := CloseTo.bind_right (ProbComp.eval (encrypt n (encNat d.modulus) m₁))
-    (fun ct₁ hct₁ => closeTo_addCiphertexts_encrypt d n m₁ m₂ hsize hct₁)
-  simpa only [ProbComp.eval_bind, ProbComp.eval_pure, ← PMF.bind_pure_comp,
-    Function.comp_def, PMF.bind_const] using h
+  simpa only [ProbComp.eval_bind, ProbComp.eval_pure, ← PMF.bind_pure_comp, Function.comp_def,
+    PMF.bind_const] using CloseTo.bind_right (ProbComp.eval (encrypt n (encNat d.modulus) m₁))
+      fun _ => closeTo_addCiphertexts_encrypt d n m₁ m₂ hsize
 
 end Cslib.Crypto.Paillier

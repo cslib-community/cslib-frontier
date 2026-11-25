@@ -138,26 +138,22 @@ private theorem lookupDescendOrStop_spec {w base capNodes t u slot : ℕ} {x : D
     have hf_t4 : Fits w (nodeAddr base t u + 4 * t) := hfit.of_le (by omega)
     have hf_cs : Fits w (nodeAddr base t u + 4 * t + slot) := hfit.of_le (by omega)
     have hadd4 : nodeAddr base t u + t + t + t + t = nodeAddr base t u + 4 * t := by omega
-    let y : Data 20 :=
-      ((((((((x.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1 (nodeAddr base t u)).set rTmp2
-        0).set rTmp1 (nodeAddr base t u + t)).set rTmp1 (nodeAddr base t u + t + t)).set rTmp1
-        (nodeAddr base t u + t + t + t)).set rTmp1 (nodeAddr base t u + 4 * t)).set rTmp1
-        (nodeAddr base t u + 4 * t + slot)).set rCur (childAt base t x.mem u slot)
+    let y : Data 20 := ?childState
     have he : ExecWithin w lookupDescendOrStop x y 10 := by
       unfold lookupDescendOrStop
-      dsimp only [y, childAt]
+      dsimp only [y]
       wram_exec [hz, ho, hdeg, hsrc, hslot_reg, hsub2, hlf_eq, hlf0, hadd4,
         hf_au1, hf_au, hf_t1, hf_t2, hf_t3, hf_t4, hf_cs]
+      rfl
     refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
       by simp only [hlf0, ↓reduceIte]; exact ⟨rfl, by dsimp only [y]; wram_simp⟩⟩ <;>
       dsimp only [y] <;> wram_simp <;> assumption
-  · let y : Data 20 :=
-      (((x.set rTmp1 (nodeAddr base t u + 2 - 1)).set rTmp1 (nodeAddr base t u)).set rTmp2
-        (leafFlag base t x.mem u)).set rActive 0
+  · let y : Data 20 := ?leafState
     have he : ExecWithin w lookupDescendOrStop x y 10 := by
       unfold lookupDescendOrStop
       dsimp only [y]
       wram_exec [hz, ho, hsrc, hsub2, hlf_eq, hlf0, hf_au1, hf_au, hf0]
+      rfl
     refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, by simp only [hlf0, ↓reduceIte]; rfl⟩ <;>
       dsimp only [y] <;> wram_simp <;> assumption
 
@@ -195,18 +191,13 @@ private theorem lookupBranch_spec {w base capNodes t u k m slot : ℕ} {x : Data
         omega
       have hvs_eq : x.mem (nodeAddr base t u + (2 * t + 1) + slot) = valAt base t x.mem u slot :=
         rfl
-      let y : Data 20 :=
-        ((((((((x.set rTmp1 (nodeAddr base t u + 2 + slot)).set rTmp2 k).set rFound 1).set
-          rTmp1 (nodeAddr base t u + 2 + t)).set rTmp1
-          (nodeAddr base t u + 2 + t + t)).set rTmp1
-          (nodeAddr base t u + (2 * t + 1))).set rTmp1
-          (nodeAddr base t u + (2 * t + 1) + slot)).set rVal
-          (valAt base t x.mem u slot)).set rActive 0
+      let y : Data 20 := ?hitState
       have he : ExecWithin w lookupBranch x y 15 := by
         unfold lookupBranch
         dsimp only [y]
         wram_exec [ho, hdeg, hkey, hnk, hsrc, hslot_reg, hlt_m, hks_eq, heq_k, hv_arith, hvs_eq,
           hf_ks, hf1, hf0, hf_v1, hf_v2, hf_v3, hf_vs]
+        rfl
       refine ⟨y, he, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
       on_goal 7 => simp only [hlt_m, heq_k, and_self, ↓reduceIte]; refine ⟨?_, ?_, rfl⟩
       all_goals dsimp only [y]; wram_simp
@@ -389,13 +380,12 @@ theorem lookupCode_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Da
   have hf1 : Fits w 1 := hfit.of_le (by simp only [arenaWords]; omega)
   have hf_b1 : Fits w (base + 1) := hfit.of_le (by simp only [arenaWords]; omega)
   rcases hr.tree_spec with ⟨hcnt0, rfl⟩ | ⟨hcnt_pos, l, rfl, hv, hs, hrange⟩
-  · let y : Data 20 :=
-      ((((((x.set rZero 0).set rOne 1).set rFound 0).set rVal 0).set rTmp1
-        (base + 1)).set rCnt 0).set rZero 0
+  · let y : Data 20 := ?emptyState
     have he : ExecWithin w lookupCode x y 9 := by
       unfold lookupCode
       dsimp only [y]
       wram_exec [hr.base_eq, hcnt0, hf0, hf1, hf_b1]
+      rfl
     have hrep : Rep base capNodes t w .leaf y := by
       refine ⟨he.bounded hr.bounded, hr.two_le, ?_, ?_, hfit, hr.cnt_le_cap, Or.inl ⟨hcnt0, rfl⟩⟩
       · dsimp only [y]; wram_simp; exact hr.base_eq

@@ -79,18 +79,11 @@ private theorem det_glue_eq_zero_of_card_lt (rg cg : ι → Prop) [DecidablePred
   rw [det_apply]
   refine Finset.sum_eq_zero fun σ _ => ?_
   obtain ⟨j, hj⟩ : ∃ j, rg (σ j) ∧ ¬ cg j := by
-    by_contra hcon
-    push Not at hcon
-    refine absurd h (not_lt.2 ?_)
-    refine Finset.card_le_card_of_injOn (fun i => σ.symm i) ?_
-        (fun i _ j _ hij => σ.symm.injective hij)
-    intro i hi
-    have hi' : rg i := (Finset.mem_filter.1 hi).2
-    have := hcon (σ.symm i) (by simpa using hi')
-    simpa using this
-  have : ∏ i, glue rg cg N₁ N₂ (σ i) i = 0 :=
-    Finset.prod_eq_zero (Finset.mem_univ j) (by simp [glue_apply, hj.1, hj.2])
-  rw [this, smul_zero]
+    by_contra! hcon
+    exact h.not_ge (Finset.card_le_card_of_injOn σ.symm
+      (fun i hi => by simpa using hcon (σ.symm i) (by simpa using (Finset.mem_filter.1 hi).2))
+      (fun _ _ _ _ hij => σ.symm.injective hij))
+  rw [Finset.prod_eq_zero (Finset.mem_univ j) (by simp [glue_apply, hj.1, hj.2]), smul_zero]
 
 theorem det_glue_eq_zero_of_card_ne (rg cg : ι → Prop) [DecidablePred rg] [DecidablePred cg]
     (N₁ N₂ : Matrix ι ι R) (h : (univ.filter rg).card ≠ (univ.filter cg).card) :

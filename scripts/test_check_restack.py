@@ -38,6 +38,9 @@ def bib(*entries: str) -> str:
     return "\n\n".join(entries) + "\n"
 
 
+SOURCES = '# Sources\n\n<a id="alpha"></a>\n## alpha\n\nAlpha one.\nAlpha two.\n'
+
+
 LAKEFILE = 'name = "fixture"\n\n[[lean_lib]]\nname = "CslibFrontier"\n'
 PREAMBLE = "module  -- shake: keep-all --deprecated_module: ignore\n\n"
 # The style of `CslibFrontierResults.lean`.
@@ -769,6 +772,70 @@ class RestackTests(unittest.TestCase):
         code, out = self.check(approved, new)
         self.assertEqual(code, 1, out)
         self.assertIn("references.bib", out)
+
+    # `manual/sources.md` merges by entry and line, as `scripts/resolve_sources_conflict.py` does.
+
+    def sources_conflict(self, pr: tuple[str, str], main: tuple[str, str]) -> str:
+        """A PR replacing `pr[0]` by `pr[1]` in `manual/sources.md` approved, and `main` then
+        replacing `main[0]` by `main[1]`."""
+        self.on_main({".gitattributes": "CslibFrontier.lean merge=union\n"
+                                        "manual/sources.md merge=sourcesmd\n",
+                      "manual/sources.md": SOURCES})
+        approved = self.feature({"manual/sources.md": SOURCES.replace(*pr)})
+        self.on_main({"manual/sources.md": SOURCES.replace(*main)})
+        return approved
+
+    def test_sources_merge_written_by_the_driver_passes(self) -> None:
+        approved = self.sources_conflict(("Alpha one.", "Alpha one.\nAdded by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        self.git("config", "merge.sourcesmd.driver",
+                 f"{sys.executable} {ROOT / 'scripts' / 'resolve_sources_conflict.py'} "
+                 "--driver %O %A %B")
+        new = self.merge_main()
+        self.assertEqual(self.git("show", f"{new}:manual/sources.md") + "\n", SOURCES.replace(
+            "Alpha one.\nAlpha two.", "Alpha one.\nAdded by the PR.\nAlpha two, revised on main."))
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 0, out)
+
+    def test_sources_merge_dropping_a_pr_sentence_is_reported(self) -> None:
+        approved = self.sources_conflict(("Alpha one.", "Alpha one.\nAdded by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        new = self.merge_main({"manual/sources.md": SOURCES.replace(
+            "Alpha two.", "Alpha two, revised on main.")})
+        self.git("config", "merge.sourcesmd.driver", "true")
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 1, out)
+        self.assertIn("manual/sources.md", out)
+
+    def test_both_sides_editing_one_sentence_is_reported(self) -> None:
+        approved = self.sources_conflict(("Alpha two.", "Alpha two, revised by the PR."),
+                                         ("Alpha two.", "Alpha two, revised on main."))
+        new = self.merge_main({"manual/sources.md": SOURCES.replace(
+            "Alpha two.", "Alpha two, revised by the PR.")})
+        code, out = self.check(approved, new)
+        self.assertEqual(code, 1, out)
+        self.assertIn("manual/sources.md", out)
+
+    def test_partially_overlapping_provenance_insertion_is_reported(self) -> None:
+        approved = self.sources_conflict(
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved."),
+            ("Alpha two.", "Alpha two.\n\nRead in the same edition.\nTheorem 2.2 is proved."))
+        for candidate in (
+            # Keeping both paragraphs duplicates the shared lead-in.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n\n"
+            "Read in the same edition.\nTheorem 2.2 is proved.",
+            # Combining them by hand needs delta review rather than carrying approval mechanically.
+            "Alpha two.\n\nRead in the same edition.\nTheorem 1.1 is proved.\n"
+            "Theorem 2.2 is proved.",
+        ):
+            with self.subTest(candidate=candidate):
+                self.git("checkout", "-q", "feature")
+                self.git("reset", "--hard", approved)
+                new = self.merge_main({"manual/sources.md": SOURCES.replace("Alpha two.",
+                                                                            candidate)})
+                code, out = self.check(approved, new)
+                self.assertEqual(code, 1, out)
+                self.assertIn("manual/sources.md", out)
 
     def test_hidden_submodule_pointer_change_is_reported(self) -> None:
         self.git("checkout", "-q", "-b", "feature", "main")

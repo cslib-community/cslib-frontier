@@ -132,10 +132,13 @@ private theorem runScans_spec (wAB wBC wAC : Fin n → Fin n → ℤ) (D g : ℕ
     obtain ⟨ι, a, b⟩ := x
     cases hscan : scanOf wAB wBC wAC D g (ι, a, b) with
     | some c =>
+      -- The first scan finds `c`, and the scans stop.
       simp only [runScans, hscan]
       exact ⟨fun _ h => Option.some.inj h ▸ (scanPiece_eq_some hscan).2,
-        fun h => by simp at h, by simp⟩
+        fun h => by simp at h,
+        by simp⟩
     | none =>
+      -- The first scan fails, and the scans go on with the rest of the list.
       simp only [runScans, hscan]
       rw [List.filter_cons_of_pos (by simpa using hscan), List.length_cons]
       exact ⟨ihzero, fun h y hy => (List.mem_cons.mp hy).elim (· ▸ hscan) (ihnone h y), by omega⟩
@@ -174,6 +177,7 @@ theorem exists_mem_acceptedPairs (hD : 16 ≤ D) (hDn : D ≤ n) (hg1 : 1 ≤ g)
     (h0 : weightSum wAB wBC wAC a b c = 0) :
     ∃ ι : InstanceIndex p,
       (ι, (a, b)) ∈ acceptedPairs wAB wBC wAC D g p ans ∧ c ∈ piece n D g ι.piece := by
+  -- The piece of `c`, the residue class of `(a, b)` and the chunk of `(a, b)` in it.
   obtain ⟨k, ⟨hk, hck⟩, -⟩ := existsUnique_mem_piece hD hg1 c
   obtain ⟨ϱ, hab, -⟩ := existsUnique_mem_residueClass wAB hp (a, b)
   obtain ⟨j, hj, hW⟩ := Finset.mem_biUnion.mp
@@ -183,6 +187,7 @@ theorem exists_mem_acceptedPairs (hD : 16 ≤ D) (hDn : D ≤ n) (hg1 : 1 ≤ g)
     (mem_instanceIndices wAB _).mpr ⟨Finset.mem_range.mp hj, hk⟩
   have hquery : (a, b) ∈ (lopInstance wAB wBC wAC D g p ι).W := hW
   refine ⟨ι, mem_acceptedPairs.mpr ⟨hι, hquery, (Iff.of_eq (hans _ hι hquery)).mpr ?_⟩, hck⟩
+  -- The vertex `c` makes the oracle accept the pair.
   exact (hasCommonNeighbor_lopInstance_iff wAB wBC wAC hp hquery).mpr ⟨c, hck, by simp [h0]⟩
 
 /-- Proof of Theorem 17: "A failed scan, of a piece C_k for a pair (a,b), contains a c ∈ C_k with
@@ -208,6 +213,7 @@ theorem eq_of_mem_acceptedPairs {ι ι' : InstanceIndex p} {q : Fin n × Fin n}
   have hp : p ≠ 0 := fun h => (h ▸ ι.residue).elim0
   obtain ⟨hclass, hchunk⟩ := mem_lopInstance_W (mem_acceptedPairs.mp hx).2.1
   obtain ⟨hclass', hchunk'⟩ := mem_lopInstance_W (mem_acceptedPairs.mp hy).2.1
+  -- The pair determines its residue class, then its chunk; the vertex `c` determines the piece.
   have hresidue := (existsUnique_mem_residueClass wAB hp q).unique hclass hclass'
   exact InstanceIndex.ext hresidue ((hresidue ▸ hchunk).symm.trans hchunk')
     (((mem_piece c).mp hc).symm.trans ((mem_piece c).mp hc'))
@@ -231,6 +237,7 @@ theorem card_le_falsePositiveCount_of_distinct_scans
 theorem card_failedScans_le (hp : p ≠ 0)
     (hans : AnswersCorrect wAB wBC wAC D g p ans) :
     (failedScans wAB wBC wAC D g p ans).card ≤ falsePositiveCount wAB wBC wAC p := by
+  -- The scan of the piece `C_k` for the pair `(a, b)` contains the triples `(a, b, c)`, `c ∈ C_k`.
   refine card_le_falsePositiveCount_of_distinct_scans wAB wBC wAC _
     (fun x t => x.2 = (t.a, t.b) ∧ t.c ∈ piece n D g x.1.piece)
     (fun ⟨_, a, b⟩ hx => let ⟨c, hc, hfp⟩ := exists_isFalsePositive_of_mem_failedScans hp hans hx
@@ -248,7 +255,8 @@ theorem pieceSize_le_two_mul_sqrt_div (hg1 : 1 ≤ g) (hg : (g : ℝ) ≤ Real.s
   calc (pieceSize D g : ℝ) ≤ (sOf D : ℝ) / (g : ℝ) + 1 :=
         pieceSize_eq_ceil D g ▸ (Nat.ceil_lt_add_one (by positivity)).le
     _ ≤ Real.sqrt D / (g : ℝ) + Real.sqrt D / (g : ℝ) :=
-        add_le_add (div_le_div_of_nonneg_right (sOf_le_sqrt D) hg0.le) ((one_le_div hg0).mpr hg)
+        add_le_add (div_le_div_of_nonneg_right (sOf_le_sqrt D) hg0.le)
+          ((one_le_div hg0).mpr hg)
     _ = 2 * Real.sqrt D / (g : ℝ) := by ring
 
 /-- For `16 ≤ D ≤ n`, `1 ≤ g ≤ sqrt D`, `κ ≥ 1` and edge weights bounded by `n^κ`, bound
@@ -265,7 +273,9 @@ theorem falsePositiveCount_add_one_mul_pieceSize_le {κ : ℝ} (wAB wBC wAC : Fi
   have hlog : 1 ≤ Real.log n :=
     (Real.le_log_iff_exp_le (by linarith)).2 (Real.exp_one_lt_three.le.trans (by linarith))
   set B := κ * (n : ℝ) ^ 3 * Real.log n
-  have hfalse : (falsePositiveCount wAB wBC wAC p : ℝ) * Real.sqrt D ≤ falsePositiveConst * B := by
+  -- The two terms: `F(p) √D = O(B)` by the bound on `F(p)`, and `√D ≤ n ≤ n³ ≤ B`.
+  have hfalse : (falsePositiveCount wAB wBC wAC p : ℝ) * Real.sqrt D ≤
+      falsePositiveConst * B := by
     have hF := falsePositiveCount_le_const_mul hD hDn hκ wAB wBC wAC hT hp
     rwa [← mul_div_assoc, le_div_iff₀ (by linarith)] at hF
   have hone : Real.sqrt D ≤ B :=
@@ -277,7 +287,8 @@ theorem falsePositiveCount_add_one_mul_pieceSize_le {κ : ℝ} (wAB wBC wAC : Fi
       _ ≤ B := le_mul_of_one_le_right (by positivity) hlog
   calc ((falsePositiveCount wAB wBC wAC p : ℝ) + 1) * (pieceSize D g : ℝ)
       ≤ ((falsePositiveCount wAB wBC wAC p : ℝ) + 1) * (2 * Real.sqrt D / (g : ℝ)) := by
-        gcongr; exact pieceSize_le_two_mul_sqrt_div hg1 hg
+        gcongr
+        exact pieceSize_le_two_mul_sqrt_div hg1 hg
     _ = (2 * ((falsePositiveCount wAB wBC wAC p : ℝ) * Real.sqrt D) +
         2 * Real.sqrt D) / (g : ℝ) := by ring
     _ ≤ (2 * (falsePositiveConst * B) + 2 * B) / (g : ℝ) := by gcongr
@@ -298,15 +309,18 @@ theorem recovery_correct (hD : 16 ≤ D) (hDn : D ≤ n) (hg1 : 1 ≤ g)
   have hp0 : p ≠ 0 := (Nat.mem_sqrtPrimeWindow.mp hp.1).1.ne_zero
   obtain ⟨hzero, hnone, hcount⟩ := runScans_spec wAB wBC wAC D g L
   refine ⟨⟨hzero, fun hout ⟨a, b, c, h0⟩ => ?_⟩, ?_⟩
-  · obtain ⟨ι, hx, hc⟩ := exists_mem_acceptedPairs hD hDn hg1 hp0 hans h0
+  · -- "A zero triangle is always found": its scan cannot have failed.
+    obtain ⟨ι, hx, hc⟩ := exists_mem_acceptedPairs hD hDn hg1 hp0 hans h0
     exact scanPiece_eq_none_iff.mp (hnone hout _ ((hL.2 _).mpr hx)) c hc h0
-  · have hfailed : (L.filter fun x => decide (scanOf wAB wBC wAC D g x = none)).length
+  · -- All the scans except possibly the last one fail, and there are at most `F(p)` failed scans.
+    have hfailed : (L.filter fun x => decide (scanOf wAB wBC wAC D g x = none)).length
         ≤ (failedScans wAB wBC wAC D g p ans).card := by
       rw [← List.toFinset_card_of_nodup (hL.1.filter _)]
       refine Finset.card_le_card fun x hx => ?_
       obtain ⟨hxL, hxnone⟩ := List.mem_filter.mp (List.mem_toFinset.mp hx)
       exact Finset.mem_filter.mpr ⟨(hL.2 x).mp hxL, by simpa using hxnone⟩
-    have := card_failedScans_le hp0 hans; omega
+    have hF := card_failedScans_le hp0 hans
+    omega
 
 
 /-- Every finite set of accepted queries admits a duplicate-free scan order. -/
@@ -350,7 +364,8 @@ theorem recovery_vertexBound {κ : ℝ} (hD : 16 ≤ D) (hDn : D ≤ n) (hg1 : 1
   obtain ⟨hcorrect, hcount⟩ := recovery_correct hD hDn hg1 wAB wBC wAC hp hans hL
   refine ⟨hcorrect, (?_ : _ ≤ ((falsePositiveCount wAB wBC wAC p : ℝ) + 1) * _).trans
     (falsePositiveCount_add_one_mul_pieceSize_le wAB wBC wAC hD hDn hg1 hg hκ hw hp)⟩
-  gcongr; exact_mod_cast hcount
+  gcongr
+  exact_mod_cast hcount
 
 /-- Finite reduction equivalence: scanning all accepted queries returns `none` exactly when the
 original three matrices have no zero triangle. Any duplicate-free scan order works. -/

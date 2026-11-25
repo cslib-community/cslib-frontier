@@ -712,7 +712,8 @@ theorem isStrategyProof_and_surjective_iff_exists_moulinScheme
             Function.update y i₀ z i ≠ aPt ∧ Function.update y i₀ z i ≠ bPt) =
             (Finset.univ.filter fun i => y i ≠ aPt ∧ y i ≠ bPt).erase i₀ by
           rw [this, Finset.card_erase_of_mem hi₀, hcard]; rfl
-        ext j; rcases eq_or_ne j i₀ with rfl | hj <;> rcases hz with rfl | rfl <;> simp [*]
+        ext j
+        rcases eq_or_ne j i₀ with rfl | hj <;> rcases hz with rfl | rfl <;> simp [*]
       have hy_upd : Function.update y i₀ (y i₀) = y := Function.update_eq_self i₀ y
       calc
         (f y : ℝ) = (f (Function.update y i₀ (y i₀)) : ℝ) := by rw [hy_upd]

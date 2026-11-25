@@ -114,7 +114,7 @@ theorem dist_le_distPair (t : ℕ) (x y : S) :
     dist ((P ^ t) x) ((P ^ t) y) ≤ P.distPair t :=
   (le_ciSup (f := fun y => dist ((P ^ t) x) ((P ^ t) y)) (Finite.bddAbove_range _) y).trans <|
     le_ciSup (f := fun x => ⨆ y, dist ((P ^ t) x) ((P ^ t) y))
-      ⟨1, by rintro _ ⟨_, rfl⟩; exact Real.iSup_le (fun _ => dist_le_one _ _) zero_le_one⟩ x
+      ⟨1, fun _ ⟨_, h⟩ => h ▸ Real.iSup_le (fun _ => dist_le_one _ _) zero_le_one⟩ x
 
 theorem distPair_le {t : ℕ} {ε : ℝ} (h : ∀ x y, dist ((P ^ t) x) ((P ^ t) y) ≤ ε)
     (hε : 0 ≤ ε) : P.distPair t ≤ ε :=
@@ -147,15 +147,16 @@ theorem IsStationary.distToStationary_le_distPair (hπ : P.IsStationary π) (t :
 theorem distPair_le_two_mul_distToStationary (t : ℕ) :
     P.distPair t ≤ 2 * P.distToStationary π t := by
   refine P.distPair_le (fun x y => ?_) (by linarith [P.distToStationary_nonneg π t])
-  have := dist_triangle ((P ^ t) x) π ((P ^ t) y)
-  rw [dist_comm π] at this
-  linarith [P.dist_le_distToStationary π t x, P.dist_le_distToStationary π t y]
+  linarith [dist_triangle_right ((P ^ t) x) ((P ^ t) y) π,
+    P.dist_le_distToStationary π t x, P.dist_le_distToStationary π t y]
 
 theorem IsStationary.distToStationary_succ_le (hπ : P.IsStationary π) (t : ℕ) :
     P.distToStationary π (t + 1) ≤ P.distToStationary π t := by
   refine P.distToStationary_le π (fun x => ?_) (P.distToStationary_nonneg π t)
-  rw [pow_succ_apply]; nth_rw 1 [← hπ]
-  exact (dist_bind_le _ _ _).trans (P.dist_le_distToStationary π t x)
+  calc dist ((P ^ (t + 1)) x) π = dist (((P ^ t) x).bind P) (π.bind P) := by
+        rw [pow_succ_apply, hπ]
+    _ ≤ dist ((P ^ t) x) π := dist_bind_le _ _ _
+    _ ≤ _ := P.dist_le_distToStationary π t x
 
 /-- `d(t)` is non-increasing for stationary `π` ([LevinPeres2017], Exercise 4.2). -/
 theorem IsStationary.antitone_distToStationary (hπ : P.IsStationary π) :
@@ -209,12 +210,29 @@ theorem IsStationary.dist_mul_le_mul {P₁ P₂ : MarkovChain S} (hπ₂ : P₂.
     {δ₁ δ₂ : ℝ} (hb₁ : ∀ x, dist (P₁ x) π ≤ δ₁) (hb₂ : ∀ y, dist (P₂ y) π ≤ δ₂) (x : S) :
     dist ((P₁ * P₂) x) π ≤ δ₁ * (2 * δ₂) := by
   have hpair (a b : S) : dist (P₂ a) (P₂ b) ≤ 2 * δ₂ := by
-    have := dist_triangle (P₂ a) π (P₂ b)
-    rw [dist_comm π] at this
-    linarith [hb₂ a, hb₂ b]
+    linarith [dist_triangle_right (P₂ a) (P₂ b) π, hb₂ a, hb₂ b]
   rw [mul_apply, ← hπ₂]
   exact (dist_bind_le_mul (P₁ x) π P₂ hpair).trans
     (mul_le_mul_of_nonneg_right (hb₁ x) (by linarith [dist_nonneg.trans (hb₂ x)]))
+
+private theorem dist_prod_ofFn_succ_le {π : PMF S} {δ : ℝ} :
+    ∀ (m : ℕ) (Ps : Fin (m + 1) → MarkovChain S),
+      (∀ i, (Ps i).IsStationary π) →
+      (∀ i x, dist (Ps i x) π ≤ δ) →
+      ∀ x : S, dist (((List.ofFn Ps).prod) x) π ≤ (1 / 2 : ℝ) * (2 * δ) ^ (m + 1)
+  | 0, Ps, _, hδ, x => by
+    simp only [List.ofFn_succ, List.ofFn_zero, List.prod_cons, List.prod_nil, mul_one]
+    rw [pow_one]
+    linarith [hδ 0 x]
+  | m + 1, Ps, hstat, hδ, x => by
+    rw [List.ofFn_succ, List.prod_cons]
+    have htail : ((List.ofFn fun i : Fin (m + 1) => Ps i.succ).prod).IsStationary π :=
+      isStationary_list_prod (List.forall_mem_ofFn_iff.mpr fun i => hstat i.succ)
+    refine (htail.dist_mul_le_mul (hδ 0)
+      (dist_prod_ofFn_succ_le m (fun i => Ps i.succ) (fun i => hstat i.succ)
+        fun i => hδ i.succ) x).trans_eq ?_
+    rw [pow_succ]
+    ring
 
 /-- Composing `t ≥ 1` `π`-stationary Markov chains `Ps 0, …, Ps (t - 1)`, each within statistical
 distance `δ` of `π` from every start state, contracts statistical distance to at most
@@ -224,21 +242,7 @@ theorem dist_prod_ofFn_le {t : ℕ} (ht : 1 ≤ t) (Ps : Fin t → MarkovChain S
     (hstat : ∀ i, (Ps i).IsStationary π) {δ : ℝ} (hδ : ∀ i x, dist (Ps i x) π ≤ δ) (x : S) :
     dist (((List.ofFn Ps).prod) x) π ≤ (1 / 2 : ℝ) * (2 * δ) ^ t := by
   obtain ⟨m, rfl⟩ : ∃ m, t = m + 1 := ⟨t - 1, (Nat.sub_add_cancel ht).symm⟩
-  clear ht
-  revert x
-  induction m with
-  | zero =>
-    intro x
-    simp only [List.ofFn_succ, List.ofFn_zero, List.prod_cons, List.prod_nil, mul_one]
-    rw [pow_one]; linarith [hδ 0 x]
-  | succ m ih =>
-    intro x
-    rw [List.ofFn_succ, List.prod_cons]
-    have htail : ((List.ofFn fun i : Fin (m + 1) => Ps i.succ).prod).IsStationary π :=
-      isStationary_list_prod fun _ hQ => by
-        obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hQ; exact hstat i.succ
-    exact (htail.dist_mul_le_mul (hδ 0) (ih (fun i => Ps i.succ) (fun i => hstat i.succ)
-      fun i => hδ i.succ) x).trans_eq (by rw [pow_succ]; ring)
+  exact dist_prod_ofFn_succ_le m Ps hstat hδ x
 
 /-- Sharpened `t`-step stationary contraction `d(t) ≤ (1 / 2) * (2 d(1)) ^ t` for `1 ≤ t`. -/
 theorem IsStationary.distToStationary_le_half_mul_two_mul_pow (hπ : P.IsStationary π)
@@ -298,10 +302,12 @@ theorem IsStationary.mixingTime_le_ceil_logb_mul (hπ : P.IsStationary π) {ε :
     · simp [ENat.mul_top (Nat.cast_ne_zero.mpr h0.ne')]
   | coe t =>
     have ht := P.distToStationary_le_of_mixingTime_eq h
-    refine mod_cast P.mixingTime_le_of_distToStationary_le
-      ((hπ.distToStationary_mul_le ℓ t).trans ?_)
-    refine (pow_le_pow_left₀ (by linarith [P.distToStationary_nonneg π t])
-      (by linarith : 2 * P.distToStationary π t ≤ 2⁻¹) ℓ).trans ?_
-    rwa [inv_pow, inv_le_comm₀ (by positivity) hε]
+    refine mod_cast P.mixingTime_le_of_distToStationary_le ?_
+    calc P.distToStationary π (ℓ * t)
+      _ ≤ (2 * P.distToStationary π t) ^ ℓ := hπ.distToStationary_mul_le ℓ t
+      _ ≤ (2⁻¹ : ℝ) ^ ℓ :=
+          pow_le_pow_left₀ (mul_nonneg zero_le_two (P.distToStationary_nonneg π t))
+            (by linarith) ℓ
+      _ ≤ ε := by rwa [inv_pow, inv_le_comm₀ (by positivity) hε]
 
 end Cslib.Probability.MarkovChain

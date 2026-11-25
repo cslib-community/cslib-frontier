@@ -51,10 +51,12 @@ structure SourceLegal (s : C → Bool) : Prop where
 
 /-- The shared constraints express exactly nonempty compatible selections. -/
 theorem legal_source_iff (s : C → Bool) : N.sourceGraph.Legal s ↔ N.SourceLegal s := by
-  have hrow (u : U) : (N.sourceGraph (.inl u)).Sat s ↔ ∃ c, N.row c = u ∧ s c = true := by
+  have hrow (u : U) : (N.sourceGraph (.inl u)).Sat s ↔
+      ∃ c, N.row c = u ∧ s c = true := by
     simp [sourceGraph, Vertex.sat_clause_iff, Port.In, N.characters_complete]
   have hrel (r : R) : (N.sourceGraph (.inr r)).Sat s ↔
-      N.required r = true → s (N.endpoint r false) = false ∨ s (N.endpoint r true) = false := by
+      N.required r = true → s (N.endpoint r false) = false ∨
+        s (N.endpoint r true) = false := by
     cases hr : N.required r <;> cases hl : s (N.endpoint r false) <;>
       cases hh : s (N.endpoint r true) <;>
       simp [sourceGraph, Vertex.Sat, Vertex.inflow, Port.In, hr, hl, hh]

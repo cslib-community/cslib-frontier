@@ -69,23 +69,18 @@ open Finset
 
 theorem norm_absVec_le {κ : Type*} [Fintype κ] {u : EuclideanSpace ℝ κ} (hu : ‖u‖ ≤ 1) :
     ‖absVec u‖ ≤ 1 := by
-  rw [EuclideanSpace.norm_le_one_iff_sum_sq_le_one]
-  simp only [absVec_apply, sq_abs]
-  exact (EuclideanSpace.norm_le_one_iff_sum_sq_le_one u).1 hu
+  rw [EuclideanSpace.norm_le_one_iff_sum_sq_le_one] at hu ⊢
+  simpa only [absVec_apply, sq_abs] using hu
 
 theorem inner_toEuclideanCLM_le_absVec {κ : Type*} [Fintype κ] [DecidableEq κ]
     {Γ : Matrix κ κ ℝ} (hnonneg : ∀ x y, 0 ≤ Γ x y) (u v : EuclideanSpace ℝ κ) :
     inner ℝ u (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ v) ≤
       inner ℝ (absVec u) (Matrix.toEuclideanCLM (𝕜 := ℝ) Γ (absVec v)) := by
-  rw [Matrix.inner_toEuclideanCLM, Matrix.inner_toEuclideanCLM]
-  simp only [dotProduct, Matrix.mulVec, mul_sum, absVec_apply]
+  simp only [Matrix.inner_toEuclideanCLM, dotProduct, Matrix.mulVec, mul_sum, absVec_apply]
   refine sum_le_sum fun x _ => sum_le_sum fun y _ => ?_
-  have heq : u.ofLp x * (Γ x y * v.ofLp y) = Γ x y * (u.ofLp x * v.ofLp y) := by ring
-  have heqPos : |u.ofLp x| * (Γ x y * |v.ofLp y|) = Γ x y * (|u.ofLp x| * |v.ofLp y|) := by ring
-  rw [heq, heqPos]
-  refine mul_le_mul_of_nonneg_left ?_ (hnonneg x y)
-  rw [← abs_mul]
-  exact le_abs_self _
+  calc u.ofLp x * (Γ x y * v.ofLp y) = Γ x y * (u.ofLp x * v.ofLp y) := by ring
+    _ ≤ Γ x y * |u.ofLp x * v.ofLp y| := mul_le_mul_of_nonneg_left (le_abs_self _) (hnonneg x y)
+    _ = |u.ofLp x| * (Γ x y * |v.ofLp y|) := by rw [abs_mul]; ring
 
 /-- Operator norm bound from bilinear evaluations on vectors of norm at most `1`. -/
 theorem opNorm_toEuclideanCLM_le_of_inner {κ : Type*} [Fintype κ] [DecidableEq κ]
@@ -170,15 +165,9 @@ theorem opNorm_toEuclideanCLM_le_sqrt {κ : Type*} [Fintype κ] [DecidableEq κ]
 theorem abs_entry_le_norm_toEuclideanCLM {κ : Type*} [Fintype κ] [DecidableEq κ]
     (A : Matrix κ κ ℝ) (x y : κ) :
     |A x y| ≤ ‖Matrix.toEuclideanCLM (𝕜 := ℝ) A‖ := by
-  set ex : EuclideanSpace ℝ κ := EuclideanSpace.single x 1
-  set ey : EuclideanSpace ℝ κ := EuclideanSpace.single y 1
-  have hex : ‖ex‖ = 1 := by simp [ex, PiLp.norm_single]
-  have hey : ‖ey‖ = 1 := by simp [ey, PiLp.norm_single]
-  have hxy : inner ℝ ex (Matrix.toEuclideanCLM (𝕜 := ℝ) A ey) = A x y := by
-    rw [Matrix.inner_toEuclideanCLM]
-    simp [ex, ey, dotProduct, Matrix.mulVec]
-  rw [← hxy]
-  exact abs_inner_toEuclideanCLM_le_opNorm A hex.le hey.le
+  have h := abs_inner_toEuclideanCLM_le_opNorm A (u := EuclideanSpace.single x 1)
+    (v := EuclideanSpace.single y 1) (by simp [PiLp.norm_single]) (by simp [PiLp.norm_single])
+  simpa [Matrix.inner_toEuclideanCLM, dotProduct, Matrix.mulVec] using h
 
 /-- Cauchy–Schwarz for a finite real matrix bilinear form. Extracted from Samuel Schlesinger's
 Forster proof, and shared by the operator-norm and Hadamard-matrix bounds. -/

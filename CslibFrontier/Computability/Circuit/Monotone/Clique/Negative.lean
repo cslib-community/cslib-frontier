@@ -82,18 +82,21 @@ in `s \ K`, its second vertex lies in `s`, and the two vertices are distinct. -/
 
 private theorem card_collisionPairs_le {K s : Finset (Fin n)} (hs : s.card ≤ w) :
     (collisionPairs K s).card ≤ w ^ 2 :=
-  ((card_le_card (filter_subset _ _)).trans_eq (card_product _ _)).trans <|
-    (Nat.mul_le_mul ((card_le_card sdiff_subset).trans hs) hs).trans_eq (pow_two w).symm
+  calc (collisionPairs K s).card ≤ ((s \ K) ×ˢ s).card := card_le_card (filter_subset _ _)
+    _ = (s \ K).card * s.card := card_product _ _
+    _ ≤ w * w := Nat.mul_le_mul ((card_le_card sdiff_subset).trans hs) hs
+    _ = w ^ 2 := (pow_two w).symm
 
 /-- A choice of a collision pair in every petal. -/
 abbrev Profile (S : Finset (Finset (Fin n))) (K : Finset (Fin n)) : Type :=
   ∀ s : S, collisionPairs K s.1
 
 private theorem card_profile_le {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
-    (hS : ∀ s ∈ S, s.card ≤ w) : Fintype.card (Profile S K) ≤ (w ^ 2) ^ S.card :=
-  Fintype.card_pi.trans_le <| (prod_le_prod (g := fun _ : S => w ^ 2) fun s _ =>
-    (Fintype.card_coe _).trans_le (card_collisionPairs_le (hS s.1 s.2))).trans_eq
-      (by rw [prod_const, card_univ, Fintype.card_coe])
+    (hS : ∀ s ∈ S, s.card ≤ w) : Fintype.card (Profile S K) ≤ (w ^ 2) ^ S.card := by
+  rw [Fintype.card_pi]
+  calc ∏ s : S, Fintype.card (collisionPairs K s.1) ≤ ∏ _s : S, w ^ 2 :=
+        prod_le_prod fun s _ => (Fintype.card_coe _).trans_le (card_collisionPairs_le (hS s s.2))
+    _ = (w ^ 2) ^ S.card := by simp
 
 /-- The first vertices of the pairs of a profile. -/
 private def selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)} (π : Profile S K) :
@@ -119,13 +122,16 @@ private theorem card_selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
 /-- The second vertex of a collision pair is not selected. -/
 private theorem snd_notMem_selected {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
     (hS : (S : Set (Finset (Fin n))).Pairwise fun s t => s ∩ t ⊆ K)
-    (π : Profile S K) (s : S) : (π s).1.2 ∉ selected π := fun h => by
+    (π : Profile S K) (s : S) : (π s).1.2 ∉ selected π := by
+  intro h
   obtain ⟨t, -, hts⟩ := mem_image.1 h
   have hs := mem_collisionPairs.1 (π s).2
   have ht := mem_collisionPairs.1 (π t).2
   by_cases hst : s = t
-  · subst hst; exact hs.2.2.2 hts
-  · exact ht.2.1 (hS s.2 t.2 (fun e => hst (Subtype.ext e)) (mem_inter.2 ⟨hts ▸ hs.2.2.1, ht.1⟩))
+  · subst hst
+    exact hs.2.2.2 hts
+  · exact ht.2.1 (hS s.2 t.2 (fun e => hst (Subtype.ext e))
+      (mem_inter.2 ⟨hts ▸ hs.2.2.1, ht.1⟩))
 
 /-- The colourings giving both vertices of every pair of a profile the same colour. -/
 private def profileColorings (r : ℕ) {S : Finset (Finset (Fin n))} {K : Finset (Fin n)}
@@ -229,9 +235,13 @@ private theorem card_stepExceptions_le_of_relatesInSteps
   induction h with
   | refl => simp [stepExceptions]
   | tail G H m hFG hGH ih =>
-    exact ((card_le_card (stepExceptions_subset r F G H)).trans (card_union_le _ _)).trans <|
-      (Nat.add_le_add ih (card_stepExceptions_le_of_pluck hGH
-        (forall_card_le_of_relatesInSteps_pluck hFG hF))).trans_eq (Nat.succ_mul _ _).symm
+    calc (stepExceptions r F H).card
+        ≤ (stepExceptions r F G ∪ stepExceptions r G H).card :=
+          card_le_card (stepExceptions_subset r F G H)
+      _ ≤ m * pluckErrorCap n r p w + pluckErrorCap n r p w :=
+          (card_union_le _ _).trans (Nat.add_le_add ih (card_stepExceptions_le_of_pluck hGH
+            (forall_card_le_of_relatesInSteps_pluck hFG hF)))
+      _ = (m + 1) * pluckErrorCap n r p w := (Nat.succ_mul _ _).symm
 
 /-- A plucking normalisation makes at most as many errors as `pluckErrorCap n r p w` times the
 number of sets of the family. -/
@@ -336,11 +346,13 @@ theorem half_le_card_acceptedColorings (hn : 0 < n) (hr : 2 * w ^ 2 ≤ r)
     fun c => Set.InjOn c s
   rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin] at hsplit
   have hacc : (univ.filter fun c : Coloring n r => Set.InjOn c s).card ≤
-      (acceptedColorings r F).card := card_le_card fun c hc =>
-    mem_filter.2 ⟨mem_univ _, s, hs, contains_ofColoring_iff.2 (mem_filter.1 hc).2⟩
+      (acceptedColorings r F).card :=
+    card_le_card fun c hc => mem_filter.2 ⟨mem_univ _, s, hs,
+      contains_ofColoring_iff.2 (mem_filter.1 hc).2⟩
   have hpow : 2 * (w ^ 2 * r ^ (n - 1)) ≤ r ^ n := by
-    rw [← Nat.mul_assoc]
-    exact (Nat.mul_le_mul_right _ hr).trans_eq (by rw [← pow_succ', Nat.sub_add_cancel hn])
+    calc 2 * (w ^ 2 * r ^ (n - 1)) = 2 * w ^ 2 * r ^ (n - 1) := (Nat.mul_assoc _ _ _).symm
+      _ ≤ r * r ^ (n - 1) := Nat.mul_le_mul_right _ hr
+      _ = r ^ n := by rw [← pow_succ', Nat.sub_add_cancel hn]
   omega
 
 end Cslib.Circuits.Monotone.Negative

@@ -138,7 +138,9 @@ theorem card_toyState (n : ℕ) : Fintype.card (ToyState n) = 2 ^ n * n.factoria
 
 private theorem xor_cancel_query {n k : ℕ} (D : Fin n → Bool) (Q : Fin k → Fin n)
     (r : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
-    (fun j => xor (xor (D (Q j)) (r (π (Q j)))) (r (π (Q j)))) = D ∘ Q := by funext j; simp
+    (fun j => xor (xor (D (Q j)) (r (π (Q j)))) (r (π (Q j)))) = D ∘ Q := by
+  funext j
+  simp
 
 /-- `toyScheme n k` is perfectly correct (`IsCorrect`). -/
 theorem toyScheme_isCorrect (n k : ℕ) : (toyScheme n k).IsCorrect := by
@@ -163,10 +165,12 @@ theorem toyScheme_isPerfectlyDataPrivate (n k : ℕ) : (toyScheme n k).IsPerfect
   funext π
   relabel_uniform
     (fun (r : Fin n → Bool) m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) with r
-  rw [show ((fun m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) ∘ (π ∘ Q)) = r ∘ (π ∘ Q)
-    from funext fun j => by
-      have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-      simp [Function.comp_apply, hDj]]
+  have hq :
+      ((fun m => xor (r m) (xor (D₀ (π.symm m)) (D₁ (π.symm m)))) ∘ (π ∘ Q)) = r ∘ (π ∘ Q) := by
+    funext j
+    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+    simp [Function.comp_apply, hDj]
+  rw [hq]
   congr 1; congr 1; congr 1
   funext i
   simp only [Equiv.symm_apply_apply]
@@ -197,15 +201,21 @@ theorem toyScheme_isPerfectlyPrivateOn_injective (n k : ℕ) :
   obtain ⟨σ, rfl⟩ := exists_perm_comp_eq hQ₀ hQ₁
   simp only [Scheme.serverView, Scheme.serverViewAt, toyScheme, bind_assoc, pure_bind,
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  congr 1; funext r
+  congr 1
+  funext r
   relabel_uniform (Equiv.mulRight σ⁻¹) with π
-  rw [show (Equiv.mulRight σ⁻¹ π) ∘ (σ ∘ Q₀) = π ∘ Q₀ by ext j; simp [Equiv.mulRight]]
+  have hcomp : (Equiv.mulRight σ⁻¹ π) ∘ (σ ∘ Q₀) = π ∘ Q₀ := by
+    ext j
+    simp [Equiv.mulRight]
+  rw [hcomp]
 
 /-- When `k ≤ 1`, every query tuple `Q : Fin k → Fin n` is injective, so `toyScheme n k` is
 unconditionally perfectly private (`IsPerfectlyPrivate`). -/
 theorem toyScheme_isPerfectlyPrivate_of_le_one {n k : ℕ} (hk : k ≤ 1) :
     (toyScheme n k).IsPerfectlyPrivate := by
-  have hinj (Q : Fin k → Fin n) : Function.Injective Q := fun _ _ _ => by ext; omega
+  have hinj (Q : Fin k → Fin n) : Function.Injective Q := fun _ _ _ => by
+    ext
+    omega
   exact fun D Q₀ Q₁ => toyScheme_isPerfectlyPrivateOn_injective n k D Q₀ (hinj Q₀) Q₁ (hinj Q₁)
 
 /-- When `2 ≤ k` and `2 ≤ n`, `toyScheme n k` is **not** perfectly private over all batch tuples
@@ -285,7 +295,9 @@ for every `n` and `k`. -/
 
 private theorem parallel_xor_cancel_query {n k : ℕ} (D : Fin n → Bool) (Q : Fin k → Fin n)
     (r : Fin k → Fin n → Bool) (π : Fin k → Equiv.Perm (Fin n)) :
-    (fun j => xor (xor (D (Q j)) (r j (π j (Q j)))) (r j (π j (Q j)))) = D ∘ Q := by funext j; simp
+    (fun j => xor (xor (D (Q j)) (r j (π j (Q j)))) (r j (π j (Q j)))) = D ∘ Q := by
+  funext j
+  simp
 
 /-- `parallelToyScheme n k` is perfectly correct (`IsCorrect`). -/
 theorem parallelToyScheme_isCorrect (n k : ℕ) : (parallelToyScheme n k).IsCorrect := by
@@ -305,11 +317,13 @@ theorem parallelToyScheme_isPerfectlyDataPrivate (n k : ℕ) :
   funext π
   relabel_uniform (fun (r : Fin k → Fin n → Bool) j m =>
     xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))) with r
-  rw [show (fun j => xor (r j (π j (Q j)))
+  have hq : (fun j => xor (r j (π j (Q j)))
       (xor (D₀ ((π j).symm (π j (Q j)))) (D₁ ((π j).symm (π j (Q j)))))) =
-      fun j => r j (π j (Q j)) from funext fun j => by
-        have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
-        simp [hDj]]
+      fun j => r j (π j (Q j)) := by
+    funext j
+    have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+    simp [hDj]
+  simp only [hq]
   congr 1; congr 1; congr 1
   funext j i
   simp only [Equiv.symm_apply_apply]
@@ -323,7 +337,8 @@ theorem parallelToyScheme_isPerfectlyPrivate (n k : ℕ) :
   intro D Q₀ Q₁
   simp only [Scheme.serverView, Scheme.serverViewAt, parallelToyScheme, bind_assoc, pure_bind,
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  congr 1; funext r
+  congr 1
+  funext r
   relabel_uniform (Equiv.piCongrRight fun j => Equiv.mulRight (Equiv.swap (Q₀ j) (Q₁ j))) with π
   simp
 

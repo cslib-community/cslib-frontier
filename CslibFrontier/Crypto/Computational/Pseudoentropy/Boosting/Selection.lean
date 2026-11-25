@@ -130,28 +130,41 @@ theorem Valid.prediction_error_le {params : Parameters} (hparams : params.Valid)
   have hd : (0 : ℝ) < params.denominator := by exact_mod_cast params.denominator_pos
   have ht : (0 : ℝ) < params.predictionInverseTolerance := by
     exact_mod_cast params.predictionInverseTolerance_pos
-  have hc : (0 : ℝ) < params.clock := by dsimp only [clock]; push_cast; positivity
+  have hc : (0 : ℝ) < params.clock := by
+    dsimp only [clock]
+    push_cast
+    positivity
   have hnum : (1 : ℝ) ≤ params.densityNumerator := by exact_mod_cast hparams.1
   have hgain : 8 * (1 / (params.predictionInverseTolerance : ℝ)) ≤
       params.gamma * params.delta ^ 3 / 16 := by
-    rw [show params.gamma * params.delta ^ 3 / 16 =
-        (params.gamma * params.delta) * params.delta ^ 2 / 16 by ring, hparams.gamma_mul_delta,
-      show 8 * (1 / (params.predictionInverseTolerance : ℝ)) =
-        1 / (16 * params.inverseRate * (params.denominator : ℝ) ^ 2) by
-        unfold predictionInverseTolerance; push_cast; field_simp; norm_num]
-    unfold rate delta
-    exact (div_le_div_of_nonneg_right (one_le_pow₀ (n := 2) hnum) (by positivity)).trans_eq
-      (by field_simp)
+    have hform : params.gamma * params.delta ^ 3 / 16 =
+        (params.densityNumerator : ℝ) ^ 2 /
+          (16 * params.inverseRate * (params.denominator : ℝ) ^ 2) := by
+      have hring : params.gamma * params.delta ^ 3 / 16 =
+          (params.gamma * params.delta) * params.delta ^ 2 / 16 := by ring
+      rw [hring, hparams.gamma_mul_delta]
+      unfold rate delta
+      field_simp
+    have hbudget : 8 * (1 / (params.predictionInverseTolerance : ℝ)) =
+        1 / (16 * params.inverseRate * (params.denominator : ℝ) ^ 2) := by
+      unfold predictionInverseTolerance
+      push_cast
+      field_simp
+      norm_num
+    rw [hbudget, hform]
+    exact div_le_div_of_nonneg_right (one_le_pow₀ hnum) (by positivity)
   have hgrid : (params.clock : ℝ) * params.predictionInverseTolerance ≤
       dyadicSize params.predictionGridBound := by
     exact_mod_cast (lt_dyadicSize params.predictionGridBound).le
   have hround : (params.clock : ℝ) / (2 * dyadicSize params.predictionGridBound) ≤
-      (1 / params.predictionInverseTolerance) / 2 :=
-    (div_le_div_of_nonneg_left hc.le
-      (c := (2 : ℝ) * (params.clock * params.predictionInverseTolerance)) (by positivity)
-      (by linarith)).trans_eq (by field_simp)
-  rw [show (2 : ℝ) / params.predictionInverseTolerance =
-    2 * (1 / params.predictionInverseTolerance) by ring]
+      (1 / params.predictionInverseTolerance) / 2 := by
+    calc
+      _ ≤ (params.clock : ℝ) / (2 * (params.clock * params.predictionInverseTolerance)) :=
+        div_le_div_of_nonneg_left hc.le (by positivity) (by linarith)
+      _ = _ := by field_simp
+  have htwo : (2 : ℝ) / params.predictionInverseTolerance =
+      2 * (1 / params.predictionInverseTolerance) := div_eq_mul_one_div _ _
+  rw [htwo]
   linarith [one_div_pos.mpr ht]
 
 /-- The same inverse-polynomial advantage also holds on the majority stopping branch. -/
@@ -165,7 +178,9 @@ theorem Valid.majority_error_le {params : Parameters} (hparams : params.Valid) :
     exact_mod_cast Nat.mul_pos (Nat.mul_pos params.inverseRate_pos params.denominator_pos) hparams.1
   have hscale : (params.predictionInverseTolerance : ℝ) * params.delta =
       128 * (params.inverseRate * params.denominator * (params.densityNumerator : ℝ)) := by
-    unfold predictionInverseTolerance delta; push_cast; field_simp
+    unfold predictionInverseTolerance delta
+    push_cast
+    field_simp
   have hinverse : (1 : ℝ) / params.predictionInverseTolerance ≤ params.delta / 16 :=
     (div_le_iff₀ ht).mpr (by nlinarith)
   linarith
@@ -262,15 +277,21 @@ theorem State.Successful.selectSlope_error {source : ProbComp α} {observe : α 
     (by exact_mod_cast two_le_dyadicSize params.rateBound)
   have hgap : 1 ≤ (params.clock : ℝ) * (params.gamma * params.delta ^ 2 / 8) :=
     ((le_div_iff₀ (by positivity)).mpr (by linarith)).trans hparams.clock_budget
-  have hclock : (params.clock : ℝ) ≠ 0 := by dsimp only [Parameters.clock]; push_cast; positivity
+  have hclock : (params.clock : ℝ) ≠ 0 := by
+    dsimp only [Parameters.clock]
+    push_cast
+    positivity
+  have hcancel : params.delta * (params.clock * (params.gamma * params.delta ^ 2 / 8)) /
+      (2 * params.clock) = params.gamma * params.delta ^ 3 / 16 := by
+    field_simp
+    ring
   simp only [State.Successful, hactive, Bool.false_eq_true, ite_false] at hstate
   have h := selectSlope_dense_margin confidence inverseTolerance precision htolerance source
     (fun x => state.predictors.map fun code => evaluate code (observe x)) truth
     (bound := params.clock) hparams.delta_pos hparams.delta_le_one hgap
     (fun x => (abs_listVoteMargin_le _ _).trans
       (by exact_mod_cast (List.length_map _).le.trans hbounded.2.1)) hstate
-  rw [show params.delta * (params.clock * (params.gamma * params.delta ^ 2 / 8)) /
-    (2 * params.clock) = params.gamma * params.delta ^ 3 / 16 by field_simp; ring] at h
+  rw [hcancel] at h
   unfold State.margin
   simpa only [withVotes, Functor.map_map, Function.comp_def, State.votes] using h
 

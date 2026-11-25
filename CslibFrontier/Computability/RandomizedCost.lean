@@ -258,7 +258,8 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] {c : ℕ
     (hc : ∃ m : M, C.cost m ≤ c)
     (h : ∀ ν : PMF X, (∀ x ∈ ν.support, x ∈ A) → C.distributionalComplexity ε R ν ≤ c) :
     C.ecomplexity ε R A ≤ c := by
-  have : Nonempty {m : M // C.cost m ≤ c} := let ⟨m₀, hm₀⟩ := hc; ⟨⟨m₀, hm₀⟩⟩
+  obtain ⟨m₀, hm₀⟩ := hc
+  have : Nonempty {m : M // C.cost m ≤ c} := ⟨⟨m₀, hm₀⟩⟩
   obtain ⟨μ, hμ, hmax⟩ := PMF.exists_maxCost_le_and_forall_errorProb_le
     (cost := C.cost) (Acc := fun m x => R x (C.eval m x)) (D := A) (c := c) (ε := ε) fun ν hν =>
       let ⟨m, herr, hm⟩ := distributionalComplexity_le_iff.mp (h ν hν)
@@ -342,12 +343,11 @@ theorem Solves.amplify
   intro x hx
   set e : M → Bool := fun m => decide (C.eval m x ≠ f x)
   have he : ((μ.map e) true).toReal ≤ ε := by
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-      show e ⁻¹' {true} = {m | ¬f x = C.eval m x} by
-        ext
-        simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq,
-          Set.mem_ofPred_eq]
-        exact ne_comm]
+    have hpre : e ⁻¹' {true} = {m | ¬f x = C.eval m x} := by
+      ext
+      simp only [e, Set.mem_preimage, Set.mem_singleton_iff, decide_eq_true_eq, Set.mem_ofPred_eq]
+      exact ne_comm
+    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply, hpre]
     exact hμ x hx
   refine le_trans ?_ (PMF.iid_card_ge_le he hε r)
   rw [errorProb, PMF.errorProb, RandomizedCost.amplify, PMF.toOuterMeasure_map_apply, PMF.iid_map,

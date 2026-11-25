@@ -374,11 +374,14 @@ private theorem natCast_sum_two_pow_sub_length (m : ℕ) (L : List (List Bool))
   induction L with
   | nil => simp
   | cons a rest ih =>
+    have ha' : (2 : ℝ) ^ (m - a.length) = (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ m :=
+      calc (2 : ℝ) ^ (m - a.length)
+          = (2 : ℝ)⁻¹ ^ a.length * ((2 : ℝ) ^ (m - a.length) * (2 : ℝ) ^ a.length) := by
+            rw [mul_left_comm, ← mul_pow, inv_mul_cancel₀ two_ne_zero, one_pow, mul_one]
+        _ = (2 : ℝ)⁻¹ ^ a.length * (2 : ℝ) ^ m := by
+            rw [pow_sub_mul_pow (2 : ℝ) (hle a List.mem_cons_self)]
     simp only [List.map_cons, List.sum_cons, Nat.cast_add, Nat.cast_pow, Nat.cast_ofNat, add_mul,
-      ih fun w hw => hle w (List.mem_cons_of_mem a hw)]
-    congr 1
-    rw [← pow_sub_mul_pow (2 : ℝ) (hle a List.mem_cons_self), mul_left_comm, ← mul_pow,
-      inv_mul_cancel₀ two_ne_zero, one_pow, mul_one]
+      ha', ih fun w hw => hle w (List.mem_cons_of_mem a hw)]
 
 /-- Casting `codeScaledSum L` to `ℝ` equals the dyadic Kraft sum of `L` scaled by
 `2 ^ codeMaxLen L`. -/
@@ -423,7 +426,9 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
       rw [← ht, List.filter_append, List.map_append]
       exact List.prefix_append _ _
     simp only [hval, ← htail, List.map_append, List.sum_append, le_add_iff_nonneg_right]
-    exact List.sum_nonneg fun _ hr => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr; positivity
+    exact List.sum_nonneg fun _ hr => by
+      obtain ⟨_, _, rfl⟩ := List.mem_map.mp hr
+      positivity
   have htend : ∀ b, Tendsto (fun n => (num b n : ℝ) / (den b n : ℝ)) atTop
       (𝓝 (∑' p : {p : List Bool // ∃ y, (ofCode c).Produces p y ∧ flt b y = true},
         (2 : ℝ)⁻¹ ^ p.1.length)) := by
@@ -469,7 +474,8 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
     intro ε hε
     obtain ⟨F₀, hF₀⟩ : ∃ F₀ : Finset S, (∑' p : S, (2 : ℝ)⁻¹ ^ p.1.length) - ε <
         ∑ p ∈ F₀, (2 : ℝ)⁻¹ ^ p.1.length := by
-      by_contra! hall; linarith [hs.tsum_le_of_sum_le hall]
+      by_contra! hall
+      linarith [hs.tsum_le_of_sum_le hall]
     have hex_n : ∀ p : S, ∃ n, p.1 ∈ L b n := fun ⟨p, y, hp, hy⟩ =>
       let ⟨n, hn⟩ := produces_iff_exists_mem_codeProgramTable.mp hp
       ⟨n, List.mem_map.mpr ⟨(p, y), List.mem_filter.mpr ⟨hn, hy⟩, rfl⟩⟩
@@ -486,7 +492,7 @@ private theorem isLowerSemicomputable_code_filtered {β : Type*} [Primcodable β
         fun _ _ _ _ h => Subtype.ext h, hsum_eq n]
       exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => by positivity
     rw [Real.dist_eq, abs_lt]
-    exact ⟨by linarith, by linarith [hle_tsum n]⟩
+    constructor <;> linarith [hle_tsum n]
   exact isLowerSemicomputable_of_computable_monotone_tendsto hnum hden hpos hmono htend
 
 /-- Algorithmic probability `M.universalProb` is lower semicomputable for every prefix-free
@@ -502,7 +508,9 @@ theorem isLowerSemicomputable_universalProb_of_partrec_eval {α : Type*} [Primco
     simp only [Part.coe_some, Part.bind_some, Part.mem_map_iff, encodek, hprod]
     exact ⟨fun ⟨x, hx, hxy⟩ => ⟨x, hxy.symm, hx⟩, fun ⟨x, hxy, hx⟩ => ⟨x, hx, hxy.symm⟩⟩
   have hpf_c : (ofCode c).IsPrefixFree :=
-    hM.anti fun p ⟨y, hy⟩ => let ⟨x, _, hx⟩ := (hcode_eq p y).mp hy; ⟨x, hx⟩
+    hM.anti fun p ⟨y, hy⟩ =>
+      let ⟨x, _, hx⟩ := (hcode_eq p y).mp hy
+      ⟨x, hx⟩
   have hflt : Primrec₂ fun (x : α) (y : ℕ) => decide (y = encode x) :=
     Primrec₂.mk (Primrec.eq.comp Primrec.snd (Primrec.encode.comp Primrec.fst)).decide
   refine (isLowerSemicomputable_code_filtered hpf_c hflt).of_eq fun ⟨x, a, b⟩ => ?_
@@ -825,14 +833,15 @@ theorem exists_le_complexity_of_isLowerSemicomputable {α : Type*} [Primcodable 
     ⟨t₁, Option.isSome_iff_exists.mpr ⟨y, ht₁⟩⟩
   let t := Nat.find hex_t
   have ht : firstAccept (Nat.pair (encode (x, k)) t) = true := by
-    simp only [firstAccept, t, Nat.unpair_pair, Nat.find_spec hex_t, Bool.true_and, Bool.or_eq_true,
-      decide_eq_true_eq]
+    simp only [firstAccept, t, Nat.unpair_pair, Nat.find_spec hex_t, Bool.true_and,
+      Bool.or_eq_true, decide_eq_true_eq]
     exact or_iff_not_imp_left.mpr fun h0 => Option.isNone_iff_eq_none.mpr
       (Option.not_isSome_iff_eq_none.mp
         (Nat.find_min hex_t (Nat.sub_lt (Nat.pos_of_ne_zero h0) Nat.one_pos)))
   have hreq_val : req (Nat.pair (encode (x, k)) t) = some (k + 2, x) :=
     hreq_eq.mpr ⟨k, rfl, ht, Nat.unpair_pair _ _ ▸ rfl⟩
-  exact (hc _ (k + 2) x hreq_val).trans_eq (by push_cast; ring)
+  calc U.ecomplexity x ≤ ((k + 2 : ℕ) : ℕ∞) + c := hc _ (k + 2) x hreq_val
+    _ = (k : ℕ∞) + ((c + 2 : ℕ) : ℕ∞) := by push_cast; ring
 
 namespace DescriptionMethod
 
@@ -867,18 +876,22 @@ theorem MinorizesPrefixPartrec.exists_le_two_pow_mul_complexity_of_isLowerSemico
   refine ⟨hfin, ?_⟩
   have hpow_anti : ∀ {a b : ℕ}, a ≤ b → (2 : ℝ)⁻¹ ^ b ≤ (2 : ℝ)⁻¹ ^ a := fun hab =>
     pow_le_pow_of_le_one (by positivity) (by norm_num) hab
-  have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := by
-    by_cases h0 : k₀ = 0
-    · simpa [h0] using (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
-    · refine le_of_not_gt ?_
+  by_cases h0 : k₀ = 0
+  · calc μ x ≤ 1 := (hsummable.le_tsum x fun _ _ => hnonneg _).trans hle
+      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ c := by
+        rw [← mul_pow, mul_inv_cancel₀ two_ne_zero, one_pow]
+      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
+        mul_le_mul_of_nonneg_left (hpow_anti (by omega)) (by positivity)
+  · have hμ_le : μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := by
+      refine le_of_not_gt ?_
       simpa [Nat.sub_add_cancel (Nat.pos_of_ne_zero h0)] using
         Nat.find_min hex (show k₀ - 1 < k₀ by omega)
-  calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
-    _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by
-      rw [pow_add, mul_comm ((2 : ℝ)⁻¹ ^ k₀), ← mul_assoc, ← mul_pow,
-        mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
-    _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
-      mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
+    calc μ x ≤ (2 : ℝ)⁻¹ ^ k₀ := hμ_le
+      _ = (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ (k₀ + c) := by
+        rw [pow_add, mul_comm ((2 : ℝ)⁻¹ ^ k₀), ← mul_assoc, ← mul_pow,
+          mul_inv_cancel₀ two_ne_zero, one_pow, one_mul]
+      _ ≤ (2 : ℝ) ^ c * (2 : ℝ)⁻¹ ^ U.complexity x :=
+        mul_le_mul_of_nonneg_left (hpow_anti hkle) (by positivity)
 
 end DescriptionMethod
 

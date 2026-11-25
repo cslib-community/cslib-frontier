@@ -72,7 +72,8 @@ def exponent (m : Fin 2 →₀ ℕ) : Exponents := toLex ((m 0 : ℤ), (m 1 : �
 lemma exponent_injective : Function.Injective exponent := by
   intro m n h
   have h' : ((m 0 : ℤ), (m 1 : ℤ)) = ((n 0 : ℤ), (n 1 : ℤ)) := congrArg ofLex h
-  ext i; fin_cases i
+  ext i
+  fin_cases i
   · exact Int.ofNat.inj (Prod.mk.inj h').1
   · exact Int.ofNat.inj (Prod.mk.inj h').2
 
@@ -88,8 +89,10 @@ def embed : MvPolynomial (Fin 2) K →+* HahnSeries Exponents K :=
 lemma embed_monomial (m : Fin 2 →₀ ℕ) (a : K) :
     embed (monomial m a) = HahnSeries.single (exponent m) a := by
   rw [embed, eval₂Hom_monomial, Finsupp.prod_fintype _ _ (by simp)]
-  have he : (m 0 : Exponents) * toLex (1, 0) + (m 1 : Exponents) * toLex (0, 1) = exponent m := by
-    change toLex ((m 0 : ℤ) * 1 + (m 1 : ℤ) * 0, (m 0 : ℤ) * 0 + (m 1 : ℤ) * 1) = _; simp [exponent]
+  have he : (m 0 : Exponents) * toLex (1, 0) + (m 1 : Exponents) * toLex (0, 1) =
+      exponent m := by
+    change toLex ((m 0 : ℤ) * 1 + (m 1 : ℤ) * 0, (m 0 : ℤ) * 0 + (m 1 : ℤ) * 1) = _
+    simp [exponent]
   simp [variableSeries, Fin.prod_univ_two, HahnSeries.single_pow,
     HahnSeries.single_mul_single, HahnSeries.algebraMap_apply, HahnSeries.C_apply, he]
 
@@ -105,7 +108,8 @@ private lemma embed_coeff (p : MvPolynomial (Fin 2) K) (m : Fin 2 →₀ ℕ) :
 
 /-- The Hahn-series embedding `embed` is injective. -/
 lemma embed_injective : Function.Injective (embed (K := K)) := by
-  intro p q hpq; ext m
+  intro p q hpq
+  ext m
   simpa only [embed_coeff] using congrArg (HahnSeries.coeff · (exponent m)) hpq
 
 end
@@ -161,10 +165,11 @@ lemma kernelRows_mem (φ : D →+* Matrix κ κ E)
   rw [Fintype.sum_prod_type]
   simp_rw [Finset.sum_mul, mul_assoc]
   conv_lhs => arg 2; ext i; rw [Finset.sum_comm]
-  rw [Finset.sum_comm, show (∑ γ, ∑ i, ∑ α, x γ * (φ (v i) γ α * φ (A i j) α β)) =
-    (x ᵥ* φ ((v ᵥ* A) j)) β by
-      simp only [Matrix.vecMul, dotProduct, map_sum, map_mul, Matrix.sum_apply,
-        Matrix.mul_apply, Finset.mul_sum], hv]
+  have heq : (∑ γ, ∑ i, ∑ α, x γ * (φ (v i) γ α * φ (A i j) α β)) =
+      (x ᵥ* φ ((v ᵥ* A) j)) β := by
+    simp only [Matrix.vecMul, dotProduct, map_sum, map_mul, Matrix.sum_apply,
+      Matrix.mul_apply, Finset.mul_sum]
+  rw [Finset.sum_comm, heq, hv]
   simp
 
 /-- The rank gap obtained by block elimination over a division ring: a block-embedded matrix
@@ -181,7 +186,8 @@ theorem rank_gap (φ : D →+* Matrix κ κ E) (A : Matrix m m D) :
     (f := (kernelRows φ v).codRestrict _ (kernelRows_mem φ A v hv))
     fun _ _ h => kernelRows_injective φ v hv0 (congrArg Subtype.val h)
   have hrank := (blockEmbedding φ A).vecMulLinear.finrank_range_add_finrank_ker
-  have heq : finrank E (blockEmbedding φ A).vecMulLinear.range = (blockEmbedding φ A).rank := by
+  have heq : finrank E (blockEmbedding φ A).vecMulLinear.range =
+      (blockEmbedding φ A).rank := by
     rw [← Matrix.mulVecLin_transpose, ← Matrix.rank, Matrix.rank_transpose]
   rw [heq] at hrank
   simp only [Module.finrank_pi, Fintype.card_prod] at hdim hrank

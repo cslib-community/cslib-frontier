@@ -365,8 +365,7 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
       have ht2 : (∏ i ∈ t, (boolSign (y i) : K)) * ∏ i ∈ t, (boolSign (y i) : K) = 1 := by
         rw [prod_boolSign]
         exact boolSign_mul_self _
-      linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * h -
-        (∏ i ∈ B \ t, (boolSign (y i) : K)) * ht2
+      rw [← h, mul_assoc, ht2, mul_one]
     have hcut : (B \ t) ∆ T = (t ∆ T) ∆ B := by
       rw [← symmDiff_of_le ht, symmDiff_right_comm]
     have h₁ := card_symmDiff_le t T
@@ -378,21 +377,16 @@ private theorem signFunctional_toSign_exclude (h2 : (2 : K) ≠ 0)
       rw [hcut, cutSign_symmDiff hG hv (by omega) (by rw [← hcut]; omega),
         cutSign_of_isSmallCut hG hv, parityOn_singleton]
     have hpar : (∏ i ∈ B, (boolSign (y i) : K)) * boolSign (χ v) = -1 := by
-      rw [prod_boolSign, ← boolSign_xor]
-      revert hy
-      cases parityOn B y <;> cases χ v <;> simp [boolSign]
+      rw [prod_boolSign, ← boolSign_xor, Bool.xor_iff_ne.2 hy]
+      rfl
     rw [hprod, hsign]
     linear_combination (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) * hpar
-  set S := ∑ t ∈ B.powerset, (∏ i ∈ t, (boolSign (y i) : K)) * cutSign ends χ (t ∆ T) with hSdef
-  have hS : S = -S := by
-    rw [hSdef, ← sum_neg_distrib]
-    refine sum_nbij' (B \ ·) (B \ ·) (fun t _ => mem_powerset.2 Finset.sdiff_subset)
-      (fun t _ => mem_powerset.2 Finset.sdiff_subset)
-      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
-      (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
-      fun t ht => by rw [hflip t ht, neg_neg]
-  have h2S : (2 : K) * S = 0 := by linear_combination hS
-  exact (mul_eq_zero.1 h2S).resolve_left h2
+  refine sum_involution (fun t _ => B \ t) (fun t ht => by rw [hflip t ht, add_neg_cancel]) ?_
+    (fun _ _ => mem_powerset.2 Finset.sdiff_subset)
+    (fun t ht => Finset.sdiff_sdiff_eq_self (mem_powerset.1 ht))
+  intro t ht hn he
+  have hzero := eq_neg_iff_add_eq_zero.1 (he ▸ hflip t ht)
+  exact hn ((mul_eq_zero.1 ((two_mul _).trans hzero)).resolve_left h2)
 
 /-- The polynomials on which, after the change of variables, the sign functionals at all sets of at
 most `d` edges vanish. -/

@@ -46,16 +46,17 @@ still carries them differs from the replay.
 The replay uses the attributes in the new head's base commit (`--attr-source`) and no others: it
 ignores `core.attributesFile` and the system file, and refuses to run when `info/attributes` sets
 anything. It pins the merge settings, including the rename limit. It runs the tracked `bibkeys`
-driver of `references.bib` and `leanagg` driver of the aggregates as this checkout's
-`scripts/resolve_bib_conflict.py` and `scripts/resolve_aggregate_conflict.py`, makes every other
+driver of `references.bib`, `sourcesmd` driver of `manual/sources.md` and `leanagg` driver of the
+aggregates as this checkout's `scripts/resolve_bib_conflict.py`,
+`scripts/resolve_sources_conflict.py` and `scripts/resolve_aggregate_conflict.py`, makes every other
 configured merge driver report a conflict, and refuses a configured driver that would shadow a
 built-in one (`text`, `binary`, `union`). History is read without replace refs, grafts or the
 commit-graph file, `GIT_TEST_*` variables are dropped, and a shallow repository is refused.
 Local Git configuration and history-rewriting state therefore cannot change the result. The script
 still trusts the object store and the refs it is given, so the non-author who queues reruns it in
 their own clone after `git fetch origin`. Run it from a checkout of current `origin/main`, not of
-the PR, since the replay runs this checkout's code. A `references.bib` merge written by
-`scripts/resolve_bib_conflict.py`, with nothing else changed, passes.
+the PR, since the replay runs this checkout's code. A `references.bib` or `manual/sources.md`
+merge written by its driver, with nothing else changed, passes.
 
 Exit status: 0 when NEW is the replayed approved change; 1 when it differs (the differing paths
 and diffs are printed); 2 on a usage or Git error, including an approved change that is empty
@@ -99,10 +100,12 @@ BUILTIN_DRIVERS = frozenset({"text", "binary", "union"})
 # `GIT_TEST_*` variables are dropped too: `GIT_TEST_COMMIT_GRAPH`, for one, loads the commit-graph
 # file whatever `core.commitGraph` says.
 UNSET_VARIABLES = ("GIT_ATTR_SOURCE", "GIT_CONFIG", "GIT_SHALLOW_FILE")
-# The drivers that `.gitattributes` names for `references.bib` and the aggregates, and this
-# checkout's implementations.
+# The drivers that `.gitattributes` names for `references.bib`, `manual/sources.md` and the
+# aggregates, and this checkout's implementations.
 BIB_DRIVER = "bibkeys"
 BIB_RESOLVER = ROOT / "scripts" / "resolve_bib_conflict.py"
+SOURCES_DRIVER = "sourcesmd"
+SOURCES_RESOLVER = ROOT / "scripts" / "resolve_sources_conflict.py"
 AGGREGATE_DRIVER = "leanagg"
 AGGREGATE_RESOLVER = ROOT / "scripts" / "resolve_aggregate_conflict.py"
 CONFLICT_MARKER = re.compile(rb"^(<{7}|={7}|>{7})( |$)")
@@ -178,14 +181,14 @@ def check_local_attributes(root: Path) -> None:
 
 
 def driver_config(root: Path, scripts: Path | None = None) -> list[str]:
-    """`-c` options pinning every merge driver the replay could run: `bibkeys` and `leanagg` run
-    the resolvers in `scripts` (default this checkout's), and every other configured driver
-    reports a conflict without merging."""
+    """`-c` options pinning every merge driver the replay could run: `bibkeys`, `sourcesmd` and
+    `leanagg` run the resolvers in `scripts` (default this checkout's), and every other configured
+    driver reports a conflict without merging."""
     listed = git(root, "config", "--null", "--name-only", "--get-regexp",
                  r"^merge\..*\.driver$", ok=(0, 1))
     names = {key[len("merge."):-len(".driver")]
              for key in listed.stdout.decode("utf-8", "surrogateescape").split("\0") if key}
-    names -= {BIB_DRIVER, AGGREGATE_DRIVER}
+    names -= {BIB_DRIVER, SOURCES_DRIVER, AGGREGATE_DRIVER}
     if names & BUILTIN_DRIVERS:
         raise GitError(f"configured merge drivers {', '.join(sorted(names & BUILTIN_DRIVERS))} "
                        "would replace Git's built-in ones; run the check in another clone")
@@ -193,11 +196,13 @@ def driver_config(root: Path, scripts: Path | None = None) -> list[str]:
         raise GitError("a configured merge driver name contains `=` or a newline, so the replay "
                        "cannot disable it; run the check in another clone")
     # Git expands `%` in a driver command, so a literal `%` in a path is doubled.
-    resolvers = ((scripts / BIB_RESOLVER.name, scripts / AGGREGATE_RESOLVER.name) if scripts
-                 else (BIB_RESOLVER, AGGREGATE_RESOLVER))
-    python, bib, aggregate = (shlex.quote(str(p)).replace("%", "%%")
-                              for p in (sys.executable, *resolvers))
+    resolvers = (BIB_RESOLVER, SOURCES_RESOLVER, AGGREGATE_RESOLVER)
+    if scripts:
+        resolvers = tuple(scripts / resolver.name for resolver in resolvers)
+    python, bib, sources, aggregate = (shlex.quote(str(p)).replace("%", "%%")
+                                       for p in (sys.executable, *resolvers))
     options = ["-c", f"merge.{BIB_DRIVER}.driver={python} {bib} --driver %O %A %B",
+               "-c", f"merge.{SOURCES_DRIVER}.driver={python} {sources} --driver %O %A %B",
                "-c", f"merge.{AGGREGATE_DRIVER}.driver={python} {aggregate} %O %A %B"]
     for name in sorted(names):
         options += ["-c", f"merge.{name}.driver=exit 1"]

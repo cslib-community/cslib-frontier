@@ -121,11 +121,15 @@ theorem resetStateCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (x2 : Data
       TableStateAt g (init g) x3 ∧ x3.regs rOuterIdx = 0 := by
   unfold resetStateCode
   wram_exec [hc2.zero]
-  refine ⟨⟨by wram_simp [hc2], by simpa only [Data.set_mem] using hinp2,
+  refine ⟨⟨by wram_simp [hc2],
+    by simpa only [Data.set_mem] using hinp2,
     by simpa only [Data.set_mem] using hbkt2, List.length_replicate,
-    fun v _ _ => by simp only [Data.set_mem]; exact hzero2 _ (Nat.le_add_right _ _),
+    fun v _ _ => by
+      simp only [Data.set_mem]
+      exact hzero2 _ (Nat.le_add_right _ _),
     fun v hv fn hvf => by
-      simp only [State.get, init, List.getD_replicate _ hv] at hvf; nomatch hvf⟩,
+      simp only [State.get, init, List.getD_replicate _ hv] at hvf
+      nomatch hvf⟩,
     by wram_simp⟩
 
 private theorem visitListLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
@@ -139,7 +143,9 @@ private theorem visitListLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L))
   | nil =>
     generalize hp : x.regs rCurNode = p at hch
     generalize hl : ([] : List (Edge (Fin L → Fin L))) = l at hch
-    rcases hch with _ | ⟨_, _, _, _, _⟩; swap; · nomatch hl
+    rcases hch with _ | ⟨_, _, _, _, _⟩
+    swap
+    · nomatch hl
     exact ⟨x, ⟨2, by omega, .loop_exit
         (by simp only [Cond.holds_lt, hS.consts.zero, hp]; omega)⟩, hS, rfl, rfl⟩
   | cons e es' ih =>
@@ -240,18 +246,24 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
     ⟨hS.toTableStateAt.frame hc1 rfl (compBase g) (by wram_omega) hfr_comp,
       by have hp : S.potential ≤ slots g := hS.pot_le
          have hun : S1.unvisited = S.unvisited := rfl
-         change S1.potential ≤ slots g; unfold State.potential at hp ⊢
+         change S1.potential ≤ slots g
+         unfold State.potential at hp ⊢
          simp only [S1, hun, hst, List.length_cons] at hp ⊢; omega,
-      fun a ha => by rw [hfr_comp _ (by wram_omega)]; exact hS.cand_mem a ha,
+      fun a ha => by
+        rw [hfr_comp _ (by wram_omega)]
+        exact hS.cand_mem a ha,
       hsl1, fun v hv => hS.stack_lt v (hst ▸ List.mem_cons_of_mem u hv),
-      hstk1.frame fun a _ ha2 => hfr_comp a (by rw [List.length_reverse] at ha2; wram_omega),
+      hstk1.frame fun a _ ha2 => hfr_comp a (by
+        rw [List.length_reverse] at ha2
+        wram_omega),
       by simpa only [S1, List.length_cons] using hcl1,
       by simp only [S1, List.length_cons]; omega,
       fun v hv => (List.mem_cons.mp hv).elim (· ▸ hu_lt) (hS.comp_lt v),
       by simpa only [S1, List.reverse_cons, List.length_reverse, hx1m] using
         hS.comp_mem.append_one u⟩
   have hch1 : AdjChain g x1.mem (visBase g) (x1.regs rCurNode) (adj g u) := by
-    rw [hcn1]; exact (hS.bkt u hu_lt).frame le_rfl fun a _ ha => hfr_comp a (by wram_omega)
+    rw [hcn1]
+    exact (hS.bkt u hu_lt).frame le_rfl fun a _ ha => hfr_comp a (by wram_omega)
   obtain ⟨y, ⟨t2, ht2, hex2⟩, hSy, hrem2, hidx2⟩ :=
     visitListLoop_spec (w := w) g (adj g u) S1 x1 hS1 hch1 hw
   rw [scan_cons (List.finRange L) g hst]
@@ -348,12 +360,14 @@ private theorem sum_length_adj_le_fin {L : ℕ} (g : Graph (Fin L → Fin L)) :
     ∑ v ∈ Finset.range (slots g), (adj g v).length ≤ 2 * g.edges.length := by
   suffices ∀ (l : List (Edge (Fin L → Fin L))),
       ∑ v ∈ Finset.range (slots g), (l.filter (incident v)).length ≤ 2 * l.length from this _
-  intro l; induction l with
+  intro l
+  induction l with
   | nil => simp
   | cons e l ih =>
     have hcount (v : ℕ) : ((e :: l).filter (incident v)).length =
         (l.filter (incident v)).length + if incident v e then 1 else 0 := by
-      rw [List.filter_cons]; split_ifs <;> simp
+      rw [List.filter_cons]
+      split_ifs <;> simp
     simp only [hcount, Finset.sum_add_distrib, List.length_cons]
     have h2 : ∑ v ∈ Finset.range (slots g), (if incident v e = true then 1 else 0) ≤ 2 := by
       rw [Finset.sum_boole]
@@ -393,7 +407,10 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         ∃ y, ExecWithin w (ram[ rOuterIdx ← rOuterIdx + rOne ] : Code .standard 34) z4 y 1 ∧
           TableStateAt g S' y ∧ y.regs rOuterIdx = j + 1 := by
       wram_exec [hz4T.consts.one, hz4Idx]
-      exact ⟨hz4T.of_eq (by wram_simp [hz4T.consts]) (by wram_simp), by wram_simp⟩
+      exact ⟨hz4T.of_eq
+          (by wram_simp [hz4T.consts])
+          (by wram_simp),
+        by wram_simp⟩
     have hhead : ∃ z1, ExecWithin w stepHead z z1 5 ∧
         TableStateAt g S z1 ∧ z1.regs rSrc = e.src ∧ z1.regs rTmp1 = z.mem (visBase g + e.src) ∧
         z1.regs rOuterIdx = j := by
@@ -436,9 +453,11 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
           unvisited_push (hzT.len_table ▸ hs_lt) id
         have hsum := Finset.sum_erase_add _ (weightRAM g)
           (mem_unvisited (hzT.len_table ▸ hs_lt) hgs)
-        unfold creditRAM State.wpot; rw [hun]
+        unfold creditRAM State.wpot
+        rw [hun]
         simp only [start, hzComp, hzStk, List.map_cons, List.map_nil,
-          List.sum_cons, List.sum_nil, List.length_nil, mul_zero, add_zero]; omega
+          List.sum_cons, List.sum_nil, List.length_nil, mul_zero, add_zero]
+        omega
       have hcred_settle : creditRAM g (settle (List.finRange L) Tscan) =
           Tscan.wpot (weightRAM g) := by
         unfold creditRAM State.wpot
@@ -463,7 +482,8 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
     have hinit_cred : creditRAM g (init g) ≤
         (5 * L + 38) * slots g + (88 * L + 112) * g.edges.length := by
       have hun : (init g).unvisited = Finset.range (slots g) := by
-        ext v; simp [State.unvisited, init, State.get]
+        ext v
+        simp [State.unvisited, init, State.get]
       unfold creditRAM State.wpot
       rw [hun]
       simp only [init, List.map_nil, List.sum_nil, List.length_nil,
@@ -472,7 +492,8 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
       have hadj := Nat.mul_le_mul_left (visitPass L) (sum_length_adj_le_fin g)
       simp only [visitPass] at hadj ⊢; nlinarith
     exact ⟨y, ⟨t, by nlinarith, hexl⟩, hyT⟩
-  intro m; induction m with
+  intro m
+  induction m with
   | zero =>
     intro _ S z hzT hzIdx _ _
     simp only [Nat.sub_zero, List.drop_length, List.foldl_nil] at hzIdx ⊢
@@ -488,9 +509,11 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
       hstep_one j hj S z hzT hzIdx hzComp hzStk
     obtain ⟨y, t2, hex2, hcred2, hyT⟩ :=
       ih (by omega) (step (List.finRange L) g S g.edges[j]) z1 hz1T (by omega) hz1Comp hz1Stk
-    rw [show g.edges.drop j = g.edges[j] :: g.edges.drop (g.edges.length - m) by
-      rw [show g.edges.length - m = j + 1 by omega]; exact List.drop_eq_getElem_cons hj,
-      List.foldl_cons]
-    exact ⟨y, t1 + t2 + 2, .loop_iter hc_loop hex1 hex2, by simp only [Nat.mul_succ]; omega, hyT⟩
+    have hdrop : g.edges.drop j = g.edges[j] :: g.edges.drop (g.edges.length - m) := by
+      rw [show g.edges.length - m = j + 1 by omega]
+      exact List.drop_eq_getElem_cons hj
+    rw [hdrop, List.foldl_cons]
+    exact ⟨y, t1 + t2 + 2, .loop_iter hc_loop hex1 hex2,
+      by simp only [Nat.mul_succ]; omega, hyT⟩
 
 end Cslib.Complexity.UniqueGames.Propagation

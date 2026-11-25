@@ -710,12 +710,10 @@ private theorem advantage_four_hop {gReal exactReal ddhReal ddhRandom exactRando
     (hideal : Game.advantage exactRandom gRandom ≤ ord) :
     Game.advantage gReal gRandom ≤ Game.advantage ddhReal ddhRandom + ord + 2 * s := by
   rw [hreal]
-  have h1 := Game.advantage_triangle exactReal ddhReal gRandom
-  have h2 := Game.advantage_triangle ddhReal ddhRandom gRandom
-  have h3 := Game.advantage_triangle ddhRandom exactRandom gRandom
-  have hle := (h1.trans (add_le_add le_rfl (h2.trans (add_le_add le_rfl h3)))).trans
-    (add_le_add hsamp_real (add_le_add le_rfl (add_le_add hsamp_random hideal)))
-  refine hle.trans_eq ?_
+  refine (show Game.advantage exactReal gRandom ≤
+      s + (Game.advantage ddhReal ddhRandom + (s + ord)) by
+    game_trans [ddhReal, ddhRandom, exactRandom] using
+      [hsamp_real, le_rfl, hsamp_random, hideal]).trans_eq ?_
   ring
 
 private theorem ddhRealGame_eq_bind_ddhRealTupleLaw (setup : ℕ → PMF F.Desc)
@@ -1000,46 +998,29 @@ private theorem isPPTOn_encode_ddhShiftAndRerandomizeComp_ddhInput {pairCount : 
           x.leftPublic x.rightPublic x.candidateShared := by
   let E1 := encPair F.encDDHInput encNat
   let E2 := encPair E1 (encList (encPair encBits encBits))
-  have hx : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1) E1 F.encDDHInput :=
-    ComputableInPolyTime.fst F.encDDHInput encNat
-  have hρ : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.2) E1 encNat :=
-    ComputableInPolyTime.snd F.encDDHInput encNat
-  have hn : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.secParam) E1 encUnary :=
-    (F.encDDHInput_secParam_polyTime .id').comp hx
-  have hd : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.groupParameters) E1 F.encDesc :=
-    (F.encDDHInput_groupParameters_polyTime .id').comp hx
-  have hu : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.leftPublic) E1 encBits :=
-    (F.encDDHInput_leftPublic_polyTime .id').comp hx
-  have hv : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.rightPublic) E1 encBits :=
-    (F.encDDHInput_rightPublic_polyTime .id').comp hx
-  have hw : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ => F.encode q.1.groupParameters q.1.candidateShared) E1 encBits :=
-    (F.encDDHInput_candidateShared_polyTime .id').comp hx
-  have hshift := computableInPolyTime_encode_ddhShift hd hu hv hw hρ
-  have hu' : ComputableInPolyTime
+  have hn : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.secParam) E1 encUnary := by
+    fun_prop
+  have hd : ComputableInPolyTime (fun q : F.DDHInput × ℕ => q.1.groupParameters) E1 F.encDesc := by
+    fun_prop
+  have hshift : ComputableInPolyTime
       (fun q : F.DDHInput × ℕ =>
-        F.encode q.1.groupParameters
+        (F.encode q.1.groupParameters
           (F.ddhShift q.1.groupParameters q.1.leftPublic q.1.rightPublic
-            q.1.candidateShared q.2).1) E1 encBits :=
-    (ComputableInPolyTime.fst encBits encBits).comp hshift
-  have hw' : ComputableInPolyTime
-      (fun q : F.DDHInput × ℕ =>
-        F.encode q.1.groupParameters
+            q.1.candidateShared q.2).1,
+         F.encode q.1.groupParameters
           (F.ddhShift q.1.groupParameters q.1.leftPublic q.1.rightPublic
-            q.1.candidateShared q.2).2) E1 encBits :=
-    (ComputableInPolyTime.snd encBits encBits).comp hshift
-  have hinner := isPPTOn_encode_ddhFixedURerandomizeComp hn hd hu' hv hw'
-  have hrep := hinner.replicate (hpair.comp hn)
-  have hq : ComputableInPolyTime
-      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) => r.1) E2 E1 :=
-    ComputableInPolyTime.fst E1 (encList (encPair encBits encBits))
-  have hpairs : ComputableInPolyTime
-      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) => r.2)
-      E2 (encList (encPair encBits encBits)) :=
-    ComputableInPolyTime.snd E1 (encList (encPair encBits encBits))
-  have hpair_out := (hu'.comp hq).prod hpairs
+            q.1.candidateShared q.2).2)) E1 (encPair encBits encBits) :=
+    computableInPolyTime_encode_ddhShift hd (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+  have hrep := (isPPTOn_encode_ddhFixedURerandomizeComp
+    (v := fun q : F.DDHInput × ℕ => q.1.rightPublic) hn hd hshift.fst'
+    (by fun_prop) hshift.snd').replicate (hpair.comp hn)
+  have hpair_out : ComputableInPolyTime
+      (fun r : (F.DDHInput × ℕ) × List (List Bool × List Bool) =>
+        (F.encode r.1.1.groupParameters
+          (F.ddhShift r.1.1.groupParameters r.1.1.leftPublic r.1.1.rightPublic
+            r.1.1.candidateShared r.1.2).1, r.2))
+      E2 (encPair encBits (encList (encPair encBits encBits))) :=
+    (hshift.fst'.comp (by fun_prop)).prod (by fun_prop)
   have hsample := F.isPPTOn_sampleExp
     (F.encDDHInput_secParam_polyTime .id') (F.encDDHInput_groupParameters_polyTime .id')
   refine (hsample.bind_pair (hrep.map_pair hpair_out)).congr fun x => ?_

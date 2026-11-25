@@ -124,12 +124,16 @@ variable {α β : Type*}
 @[simp] theorem CNF.mem_toStdSat {φ : CNF α} {c : Std.Sat.CNF.Clause α} :
     c ∈ φ.toStdSat ↔ Clause.ofStdSat c ∈ φ := by
   simp only [Std.Sat.CNF.Internal.mem_iff, CNF.toStdSat, List.mem_toArray, List.mem_map]
-  exact ⟨fun ⟨_, hd, h⟩ => by subst h; simpa using hd, fun h => ⟨_, h, Clause.toStdSat_ofStdSat c⟩⟩
+  refine ⟨?_, fun h => ⟨_, h, Clause.toStdSat_ofStdSat c⟩⟩
+  rintro ⟨_, hd, rfl⟩
+  simpa using hd
 
 @[simp] theorem CNF.mem_ofStdSat {f : Std.Sat.CNF α} {c : Clause α} :
     c ∈ CNF.ofStdSat f ↔ Clause.toStdSat c ∈ f := by
   simp only [CNF.ofStdSat, List.mem_map, Array.mem_toList_iff, Std.Sat.CNF.Internal.mem_iff]
-  exact ⟨fun ⟨_, hd, h⟩ => by subst h; simpa using hd, fun h => ⟨_, h, Clause.ofStdSat_toStdSat c⟩⟩
+  refine ⟨?_, fun h => ⟨_, h, Clause.ofStdSat_toStdSat c⟩⟩
+  rintro ⟨_, hd, rfl⟩
+  simpa using hd
 
 /-! ### Evaluation, satisfiability, and variable occurrences -/
 

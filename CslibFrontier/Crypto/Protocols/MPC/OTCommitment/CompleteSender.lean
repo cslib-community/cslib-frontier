@@ -186,7 +186,9 @@ private theorem eval_realSenderHandler {Output : Type} (k : ℕ) (choices : List
       (fun request (s : Session) => PMF.pure ([], s.advance k request))
       (fun request st => ProbComp.eval (realSenderHandler k choices request st))
       (fun s => (s, selectedBits s.tables choices))
-      (fun request s => by rw [realSenderHandler_selected k choices hchoices request s]; simp)
+      (fun request s => by
+        rw [realSenderHandler_selected k choices hchoices request s]
+        simp)
       program .initial).symm
 
 private theorem eval_idealSenderHandler {Output : Type} (k : ℕ) (choices : List Bool)
@@ -203,7 +205,10 @@ private theorem eval_idealSenderHandler {Output : Type} (k : ℕ) (choices : Lis
       (fun request (s : Session) => PMF.pure ([], s.advance k request))
       (fun request st => ProbComp.eval (idealSenderHandler k choices request st))
       (fun s => (s, s.idealStore k choices (selectedBits s.tables choices)))
-      (fun request s => by rw [idealSenderHandler_store]; simp) program .initial).symm
+      (fun request s => by
+        rw [idealSenderHandler_store]
+        simp)
+      program .initial).symm
 
 /-- Real execution factors through the choice-independent complete sender session. The
 normal form is a consequence of actual row execution, not an assumption about the sender. -/
@@ -230,7 +235,8 @@ theorem eval_completeSenderIdeal {Output : Type} (k : ℕ)
         (s.idealStore k (List.ofFn choices) (selectedBits s.tables (List.ofFn choices))),
         out)) := by
   simp only [completeSenderIdeal, ProbComp.eval_bind, ProbComp.eval_pure,
-    BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, eval_idealSenderHandler]
+    BitString.eval_sampleList, BitString.uniformList, PMF.bind_map,
+    eval_idealSenderHandler]
   exact PMF.bind_comm _ _ _
 
 open scoped ENNReal

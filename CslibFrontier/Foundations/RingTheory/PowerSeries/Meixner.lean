@@ -127,13 +127,17 @@ private lemma mk_mul_one_add_pow (f : ℕ → ℕ → R) (a b : R) (hz0 : f 0 0 
 /-- `meixnerB y r` is the sequence of coefficients of `(1 + X)^r / (1 + y X)^(r + 1)`. -/
 theorem mk_meixnerB_mul_pow (y : R) (r : ℕ) :
     mk (meixnerB y r) * (1 + C y * X) ^ (r + 1) = (1 + X) ^ r := by
-  simpa using mk_mul_one_add_pow (meixnerB y) y 1 (by simp) (fun n => by simp; ring) (by simp)
+  simpa using mk_mul_one_add_pow (meixnerB y) y 1 (by simp)
+    (fun n => by simp; ring)
+    (by simp)
     (fun r n => by rw [meixnerB_succ]; ring) r
 
 /-- `meixnerC y r` is the sequence of coefficients of `(1 + y X)^r / (1 + X)^(r + 1)`. -/
 theorem mk_meixnerC_mul_pow (y : R) (r : ℕ) :
     mk (meixnerC y r) * (1 + X) ^ (r + 1) = (1 + C y * X) ^ r := by
-  simpa using mk_mul_one_add_pow (meixnerC y) 1 y (by simp) (fun n => by simp; ring) (by simp)
+  simpa using mk_mul_one_add_pow (meixnerC y) 1 y (by simp)
+    (fun n => by simp; ring)
+    (by simp)
     (fun r n => by rw [meixnerC_succ]; ring) r
 
 /-- Reciprocity: `yⁿ · meixnerB (1/y) r n = meixnerC y r n`, for an inverse `z` of `y`. -/

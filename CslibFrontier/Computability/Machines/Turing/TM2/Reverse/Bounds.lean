@@ -110,25 +110,16 @@ theorem reachable_stack_bound [Fintype State] (tm : MultiTapeTM k Bool State)
     (hs : tm.RunsInSpace input s) (i : ℕ) :
     totalStackLength ((TM2.stepTotal (machine tm.q₀ tm.tr).m)^[i]
       (initList (machine tm.q₀ tm.tr) input)) ≤ input.length + s + output.length := by
-  have hc' := hc
-  obtain ⟨t, ht, _⟩ := hc'
-  obtain ⟨u, _, hu⟩ := exists_haltsAt ht
+  obtain ⟨t, ht, -⟩ := id hc
+  obtain ⟨u, -, hu⟩ := exists_haltsAt ht
   have hraw : (Data.run tm input u).state = none := (Data.state_run tm input u).trans hu.halted
   by_cases hi : i ≤ u
   · rw [iterate_encode tm input hu hi]
     exact totalStackLength_run_le tm hc hs i
   · have heq : i = (i - (u + 1)) + (u + 1) := by omega
-    have hadd :
-        (TM2.stepTotal (machine tm.q₀ tm.tr).m)^[(i - (u + 1)) + (u + 1)]
-            (initList (machine tm.q₀ tm.tr) input) =
-          (TM2.stepTotal (machine tm.q₀ tm.tr).m)^[i - (u + 1)]
-            (TM2.stepTotal (machine tm.q₀ tm.tr).m
-              ((TM2.stepTotal (machine tm.q₀ tm.tr).m)^[u]
-                (initList (machine tm.q₀ tm.tr) input))) :=
-      (Function.iterate_add_apply _ (i - (u + 1)) (u + 1) _).trans
-        (congrArg (TM2.stepTotal (machine tm.q₀ tm.tr).m)^[i - (u + 1)]
-          (Function.iterate_succ_apply' _ u _))
-    rw [heq, hadd, iterate_encode tm input hu le_rfl, stepTotal_encode_halt tm _ hraw]
+    rw [heq, Function.iterate_add, Function.iterate_succ']
+    dsimp only [Function.comp_def]
+    rw [iterate_encode tm input hu le_rfl, stepTotal_encode_halt tm _ hraw]
     exact (cleanup_stack_bound tm.q₀ tm.tr _ rfl _).trans (totalStackLength_run_le tm hc hs u)
 
 /-- A native computation is simulated with a linear clock, including clearing every auxiliary

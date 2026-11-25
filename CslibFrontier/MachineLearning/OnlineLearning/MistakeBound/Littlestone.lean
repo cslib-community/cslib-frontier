@@ -167,7 +167,8 @@ the `right` (`y₁`) branch. -/
   match d, T with
   | 0, .leaf => rfl
   | _ + 1, .node _ _ _ _ l r => by
-      simp only [MistakeTree.path]; split <;> simp [l.length_path, r.length_path]
+      simp only [MistakeTree.path]
+      split <;> simp [l.length_path, r.length_path]
 
 /-- A mistake tree `T` *shatters* `C` when every root-to-leaf path of `T` is realizable by `C`
 [DanielySabatoBenDavidShalevShwartz2015; ShalevShwartzBenDavid2014, §21.1]. -/
@@ -181,12 +182,14 @@ theorem hasMistakeTree_iff_exists_tree {d : ℕ} {C : ConceptClass α β} :
     HasMistakeTree d C ↔ ∃ T : MistakeTree α β d, T.Shatters C := by
   induction d generalizing C with
   | zero => exact ⟨fun hC => ⟨.leaf, fun _ => realizable_nil.mpr hC⟩,
-      fun ⟨T, hT⟩ => by cases T; exact realizable_nil.mp (hT Fin.elim0)⟩
+      fun ⟨.leaf, hT⟩ => realizable_nil.mp (hT Fin.elim0)⟩
   | succ d ih =>
     refine ⟨fun ⟨x, y₀, y₁, hne, h0, h1⟩ =>
-        let ⟨T₀, hT₀⟩ := ih.mp h0; let ⟨T₁, hT₁⟩ := ih.mp h1
+        let ⟨T₀, hT₀⟩ := ih.mp h0
+        let ⟨T₁, hT₁⟩ := ih.mp h1
         ⟨.node x y₀ y₁ hne T₀ T₁, fun bs => by
-          simp only [MistakeTree.path]; split
+          simp only [MistakeTree.path]
+          split
           exacts [realizable_cons.mpr (hT₁ _), realizable_cons.mpr (hT₀ _)]⟩,
       fun ⟨.node x y₀ y₁ hne left right, hT⟩ =>
         ⟨x, y₀, y₁, hne,
@@ -252,7 +255,9 @@ theorem min_littlestoneDim_add_one_le (C : ConceptClass α β) (x : α) {y₀ y�
   generalize min (littlestoneDim (versionSpace C [(x, y₀)]))
     (littlestoneDim (versionSpace C [(x, y₁)])) = m at key ⊢
   cases m with
-  | top => rw [top_add, top_le_iff]; exact ENat.eq_top_iff_forall_ge.mpr fun n =>
+  | top =>
+    rw [top_add, top_le_iff]
+    exact ENat.eq_top_iff_forall_ge.mpr fun n =>
       (key n le_top).trans' (by exact_mod_cast Nat.le_succ n)
   | coe m => exact_mod_cast key m le_rfl
 
@@ -274,13 +279,16 @@ theorem exists_realizable_mistakesFrom_eq (A : OnlineLearner α β) {d : ℕ}
     obtain ⟨x, y₀, y₁, hne, h0, h1⟩ := hd
     let y : β := if A h x = y₀ then y₁ else y₀
     have hy_tree : HasMistakeTree d (versionSpace C [(x, y)]) := by
-      dsimp only [y]; split <;> assumption
+      dsimp only [y]
+      split <;> assumption
     have hy_ne : A h x ≠ y := by
       dsimp only [y]
-      split; exacts [‹_› ▸ hne, ‹_›]
+      split
+      exacts [‹_› ▸ hne, ‹_›]
     obtain ⟨S, hlen, hreal, hmis⟩ := ih hy_tree (h ++ [(x, y)])
-    exact ⟨(x, y) :: S, by simp [hlen], realizable_cons.mpr hreal, by
-      rw [mistakesFrom_cons, ite_eq_right hy_ne, hmis]; omega⟩
+    refine ⟨(x, y) :: S, by simp [hlen], realizable_cons.mpr hreal, ?_⟩
+    rw [mistakesFrom_cons, ite_eq_right hy_ne, hmis]
+    omega
 
 /-- A complete `d`-mistake tree for `C` forces every deterministic learner to err on all `d`
 rounds of some sequence of length `d` realizable by `C`. -/
@@ -294,7 +302,8 @@ DanielySabatoBenDavidShalevShwartz2015]: every deterministic learner makes at le
 `littlestoneDim C` mistakes in the worst case. -/
 theorem littlestoneDim_le_mistakeBound (A : OnlineLearner α β) (C : ConceptClass α β) :
     littlestoneDim C ≤ mistakeBound A C := littlestoneDim_le_iff.mpr fun _ hd =>
-  let ⟨_, _, hS, hm⟩ := exists_realizable_mistakes_eq A hd; hm ▸ mistakes_le_mistakeBound hS
+  let ⟨_, _, hS, hm⟩ := exists_realizable_mistakes_eq A hd
+  hm ▸ mistakes_le_mistakeBound hS
 
 theorem littlestoneDim_le_optimalMistakeBound (C : ConceptClass α β) :
     littlestoneDim C ≤ optimalMistakeBound C :=

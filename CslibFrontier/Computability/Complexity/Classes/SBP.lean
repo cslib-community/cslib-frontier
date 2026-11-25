@@ -78,12 +78,19 @@ theorem mem_SBP_iff_exists_pos_threshold : A ∈ SBP enc ↔
         fun a => k a + k a + 1, by fun_prop, fun _ => by positivity, fun a => ?_⟩,
     fun ⟨f, hf, k, hk, _, hA⟩ => ⟨f, hf, k, hk, hA⟩⟩
   simp only [Pi.add_apply, Pi.one_apply]
-  exact ⟨fun ha => by have := (hA a).1 ha; lia, fun ha => by have := (hA a).2 ha; lia⟩
+  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  · have := (hA a).1 ha
+    lia
+  · have := (hA a).2 ha
+    lia
 
 /-- Threshold one recognizes precisely the positive #P counts. -/
-theorem NP_subset_SBP : NP enc ⊆ SBP enc := fun A hA => by
+theorem NP_subset_SBP : NP enc ⊆ SBP enc := by
+  intro A hA
   obtain ⟨f, hf, hA⟩ := mem_NP_iff_exists_SharpP.mp hA
-  exact ⟨f, hf, fun _ => 1, .const 1, fun a => by rw [hA a]; constructor <;> intro <;> lia⟩
+  refine ⟨f, hf, fun _ => 1, .const 1, fun a => ?_⟩
+  rw [hA a]
+  constructor <;> intro h <;> lia
 
 /-- Amplifying BPP to error at most one quarter leaves a strict factor-two count gap. -/
 theorem BPP_subset_SBP : BPP enc ⊆ SBP enc := fun A hA => by
@@ -96,9 +103,11 @@ theorem BPP_subset_SBP : BPP enc ⊆ SBP enc := fun A hA => by
     (a ∉ A → 2 * (3 * acceptCount V a (p.eval (enc a).length)) < _)
   refine ⟨fun ha => ?_, fun ha => ?_⟩
   · have := errorExponentAt_true_iff.1 ((hA a).1 ha)
-    simp only [Polynomial.eval_ofNat] at this; lia
+    simp only [Polynomial.eval_ofNat] at this
+    lia
   · have := errorExponentAt_false_iff.1 ((hA a).2 ha)
-    simp only [Polynomial.eval_ofNat] at this; lia
+    simp only [Polynomial.eval_ofNat] at this
+    lia
 
 /-- The integer gap `2f - k + 1` is positive exactly on members, including zero thresholds. -/
 theorem SBP_subset_PP : SBP enc ⊆ PP enc := by
@@ -109,9 +118,11 @@ theorem SBP_subset_PP : SBP enc ⊆ PP enc := by
   change a ∈ A ↔ 0 < ((f a + f a : ℕ) : ℤ) - (k a : ℤ) + 1
   by_cases ha : a ∈ A
   · have := (hA a).1 ha
-    simp only [ha, true_iff]; lia
+    simp only [ha, true_iff]
+    lia
   · have := (hA a).2 ha
-    simp only [ha, false_iff]; lia
+    simp only [ha, false_iff]
+    lia
 
 /-- Precomposition preserves both the count and the binary FP threshold. -/
 theorem PolyTimeReducible.mem_SBP {encB : β ↪ List Bool} {B : Set β}
@@ -138,8 +149,8 @@ theorem union_mem_SBP (hA : A ∈ SBP enc) (hB : B ∈ SBP enc) : A ∪ B ∈ SB
         2).trans (Nat.le_add_left _ _)
   · have h1 : (2 * (f a * l a)) ^ 2 < (k a * l a) ^ 2 :=
       Nat.pow_lt_pow_left (by
-        rw [← mul_assoc]; exact Nat.mul_lt_mul_of_pos_right ((hA a).2 (mt Or.inl ha)) (hlpos a))
-        (by decide)
+        rw [← mul_assoc]
+        exact Nat.mul_lt_mul_of_pos_right ((hA a).2 (mt Or.inl ha)) (hlpos a)) (by decide)
     have h2 : (2 * (g a * k a)) ^ 2 < (k a * l a) ^ 2 :=
       Nat.pow_lt_pow_left (by
         rw [← mul_assoc, mul_comm (k a)]

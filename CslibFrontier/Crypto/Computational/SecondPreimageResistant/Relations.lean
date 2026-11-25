@@ -229,8 +229,11 @@ theorem isCollision_of_keyDigest_secondPreimage {H : List Bool → List Bool →
   simp only [CollisionResistantToOneWay.keyDigest] at h
   have hlength := congrArg List.length h
   simp only [List.length_append, hlen] at hlength
-  rw [← List.take_append_drop (candidate.length / 3) candidate,
-    (List.append_inj h (by omega)).1, heq]
+  calc
+    candidate =
+        candidate.take (candidate.length / 3) ++ candidate.drop (candidate.length / 3) :=
+      (List.take_append_drop _ _).symm
+    _ = key ++ message := by rw [(List.append_inj h (by omega)).1, heq]
 
 /-- **Exercise 8.23(d), concrete bound for `keyDigest H`**: finding a second preimage of
 `keyDigest H` at length `3 * n + r` with `r < 3` succeeds at most as often as
@@ -475,9 +478,10 @@ theorem not_oneWayOn_plantEasyBranch (k : ℕ) (H : List Bool → List Bool)
       Game.succProbability (ProbComp.eval
         (inversionGameOn (plantEasyBranch k H) valid (plantEasyBranchInverter k) n)) := by
     filter_upwards [Filter.eventually_ge_atTop k] with n hn
-    have hsplit : BitString.uniformList n =
-        (BitString.uniformList k).bind fun pref =>
-          (BitString.uniformList (n - k)).map (pref ++ ·) := by
+    have hsplit :
+        BitString.uniformList n =
+          (BitString.uniformList k).bind fun pref =>
+            (BitString.uniformList (n - k)).map (pref ++ ·) := by
       conv_lhs => rw [show n = k + (n - k) by omega]
       exact BitString.uniformList_add k (n - k)
     have hwin_suf (suf : List Bool) (hsuf : suf.length = n - k) :
@@ -498,7 +502,8 @@ theorem not_oneWayOn_plantEasyBranch (k : ℕ) (H : List Bool → List Bool)
           (le_of_eq ?_).trans (le_tsum _ (List.replicate k false))
       congr 1
       rw [PMF.bind_eq_pure_of_forall_mem_support fun suf hsuf => by
-        rw [hwin_suf suf (BitString.length_of_mem_support_uniformList hsuf)], PMF.pure_apply_self]
+        rw [hwin_suf suf (BitString.length_of_mem_support_uniformList hsuf)],
+        PMF.pure_apply_self]
     exact (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) henn).trans_eq' (ENNReal.toNNReal_coe _)
   exact not_negligible_const (pow_ne_zero k (by norm_num)) (negligible_of_eventually_le hneg hle)
 

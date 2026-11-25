@@ -134,7 +134,8 @@ private theorem length_gateRow {width : ℕ} {g : Op × List ℕ} (h : ∀ i ∈
     (gateRow width g).length = 3 + 2 * width := by
   rw [gateRow, List.length_append, List.length_append, Op.length_bits,
     length_unaryField _ _ (List.getD_le_of_forall_le h 0),
-    length_unaryField _ _ (List.getD_le_of_forall_le h 1)]; omega
+    length_unaryField _ _ (List.getD_le_of_forall_le h 1)]
+  omega
 
 /-- A row reads as its gate, when the gate has the arity of its operation. -/
 private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
@@ -148,7 +149,8 @@ private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
     rw [gateRow, List.append_assoc, List.getD_append _ _ _ _ (by simpa using hj)]
   have hdrop₀ : ((gateRow width (op, args)).drop 3).take width =
       unaryField width (args.getD 0 0) := by
-    rw [gateRow, List.append_assoc, List.drop_left' (Op.length_bits op), List.take_left' h₀]
+    rw [gateRow, List.append_assoc, List.drop_left' (Op.length_bits op),
+      List.take_left' h₀]
   have hdrop₁ : ((gateRow width (op, args)).drop (3 + width)).take width =
       unaryField width (args.getD 1 0) := by
     rw [gateRow, List.append_assoc, ← List.drop_drop, List.drop_left' (Op.length_bits op),
@@ -158,8 +160,12 @@ private theorem readRow_gateRow {width : ℕ} {g : Op × List ℕ}
   refine Prod.ext rfl ?_
   cases op with
   | const b => simp_all
-  | not => obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 harity; rfl
-  | and | or => obtain ⟨_, _, rfl⟩ := List.length_eq_two.1 harity; rfl
+  | not =>
+    obtain ⟨a, rfl⟩ := List.length_eq_one_iff.1 harity
+    rfl
+  | and | or =>
+    obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 harity
+    rfl
 
 /-! ### Certificates -/
 
@@ -168,13 +174,15 @@ def certLength (n s : ℕ) : ℕ := s + (n + s) + s * (3 + 2 * (n + s))
 
 /-- Certificate length is monotone in the number of inputs. -/
 theorem certLength_mono_left {m n : ℕ} (h : m ≤ n) (s : ℕ) : certLength m s ≤ certLength n s := by
-  unfold certLength; gcongr
+  unfold certLength
+  gcongr
 
 /-- The certificate length is at most `3 (n + s + 1) ^ 2`. -/
 theorem certLength_le_three_mul_sq (n s : ℕ) : certLength n s ≤ 3 * (n + s + 1) ^ 2 := by
-  have : 3 * (n + s + 1) ^ 2 =
+  have h : 3 * (n + s + 1) ^ 2 =
       certLength n s + (3 * n ^ 2 + s ^ 2 + 4 * n * s + 5 * n + s + 3) := by
-    unfold certLength; ring
+    unfold certLength
+    ring
   omega
 
 /-- The certificate of a circuit with `n` inputs and at most `s` gates, given by its gate list and
@@ -212,11 +220,15 @@ theorem readCertificate_certificate_append {n s : ℕ} {gates : List (Op × List
     (houtput : output ≤ n + s) (extra : List Bool) :
     readCertificate n s (certificate n s gates output ++ extra) = (gates, output) := by
   have hgate (j : ℕ) (hj : j < gates.length) :
-      gates[j].2.length = signature.Arity gates[j].1 ∧ ∀ i ∈ gates[j].2, i ≤ n + s :=
-    let ⟨h₁, h₂⟩ := hcode.getElem j hj; ⟨h₁, fun i hi => by have := h₂ i hi; omega⟩
-  have hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s := fun g hg =>
-    let ⟨j, hj, h⟩ := List.getElem_of_mem hg; h ▸ (hgate j hj).2
-  have hk := length_unaryField _ _ hs; have ho := length_unaryField _ _ houtput
+      gates[j].2.length = signature.Arity gates[j].1 ∧ ∀ i ∈ gates[j].2, i ≤ n + s := by
+    obtain ⟨h₁, h₂⟩ := hcode.getElem j hj
+    exact ⟨h₁, fun i hi => by have := h₂ i hi; omega⟩
+  have hgates : ∀ g ∈ gates, ∀ i ∈ g.2, i ≤ n + s := by
+    intro g hg
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
+    exact (hgate j hj).2
+  have hk := length_unaryField _ _ hs
+  have ho := length_unaryField _ _ houtput
   simp only [readCertificate, certificate, List.append_assoc]
   rw [List.take_left' hk, count_unaryField, ← List.drop_drop, List.drop_left' hk,
     List.take_left' ho, count_unaryField, List.drop_left' ho]
@@ -235,13 +247,14 @@ theorem readCertificate_certificate_code_append {n s : ℕ} (c : Circuit signatu
 
 /-- The certificate of a circuit with at most `s` gates has length `certLength n s`. -/
 theorem length_certificate_code {n s : ℕ} (c : Circuit signature n 1) (hs : c.size ≤ s) :
-    (certificate n s c.code.1 (c.outputs 0).toNat).length = certLength n s :=
-  length_certificate (Circuit.length_code_fst c ▸ hs)
-    (by have := (c.outputs 0).toNat_lt; omega) fun g hg i hi => by
-      obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
-      have := (c.isCodeFrom_code.getElem j hj).2 i hi
-      have : j < c.size := Circuit.length_code_fst c ▸ hj
-      omega
+    (certificate n s c.code.1 (c.outputs 0).toNat).length = certLength n s := by
+  refine length_certificate (Circuit.length_code_fst c ▸ hs) ?_ fun g hg i hi => ?_
+  · have := (c.outputs 0).toNat_lt
+    omega
+  · obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hg
+    have := (c.isCodeFrom_code.getElem j hj).2 i hi
+    have : j < c.size := Circuit.length_code_fst c ▸ hj
+    omega
 
 /-! ### Reading certificates in polynomial time -/
 

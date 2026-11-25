@@ -431,7 +431,8 @@ private theorem sinkViolation_of_sinkOfPotentialLineRel (hprom : LineSourcePromi
   have hSz : S (a, u) ≠ zeroVertex (n a) := fun hSz => by
     rcases hu with rfl | hin
     · exact hS0 hSz
-    · exact (hasPotentialIn_eq_true_iff.mp hin).2.2.1 (by rw [hSz, hP0] at hPS; exact hPS.symm)
+    · rw [hSz, hP0] at hPS
+      exact (hasPotentialIn_eq_true_iff.mp hin).2.2.1 hPS.symm
   refine ⟨hSu.symm, hPS, not_lt.mp fun hV => ?_⟩
   exact Bool.false_ne_true (hout ▸ hasPotentialOut_eq_true_iff.mpr ⟨hPS, hSu, hSz, hV⟩)
 

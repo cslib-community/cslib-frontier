@@ -134,22 +134,28 @@ private theorem ofNat_four_mul_add (p j : ℕ) (hj : j < 4) :
 /-- `ofNat` is a left inverse of `toNat`. -/
 theorem ofNat_toNat : ∀ φ : RawFormula, ofNat φ.toNat = φ
   | falsum => ofNat_zero
-  | equal x y => by rw [toNat]; simpa using ofNat_four_mul_add (Nat.pair x y) 0 (by omega)
+  | equal x y => by
+    rw [toNat]
+    simpa using ofNat_four_mul_add (Nat.pair x y) 0 (by omega)
   | rel r args => by
-    rw [toNat]; simpa using ofNat_four_mul_add (Nat.pair r (Encodable.encode args)) 1 (by omega)
+    rw [toNat]
+    simpa using ofNat_four_mul_add (Nat.pair r (Encodable.encode args)) 1 (by omega)
   | imp φ ψ => by
     rw [toNat]
     simpa [ofNat_toNat φ, ofNat_toNat ψ] using
       ofNat_four_mul_add (Nat.pair φ.toNat ψ.toNat) 2 (by omega)
   | all x φ => by
-    rw [toNat]; simpa [ofNat_toNat φ] using ofNat_four_mul_add (Nat.pair x φ.toNat) 3 (by omega)
+    rw [toNat]
+    simpa [ofNat_toNat φ] using ofNat_four_mul_add (Nat.pair x φ.toNat) 3 (by omega)
 
 /-- `ofNat` is a right inverse of `toNat`. -/
 theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
   | 0 => by rw [ofNat_zero, toNat]
   | m + 1 => by
-    have := unpair_fst_div_four_lt m; have := unpair_snd_div_four_lt m
-    have := toNat_ofNat (m / 4).unpair.1; have := toNat_ofNat (m / 4).unpair.2
+    have := unpair_fst_div_four_lt m
+    have := unpair_snd_div_four_lt m
+    have := toNat_ofNat (m / 4).unpair.1
+    have := toNat_ofNat (m / 4).unpair.2
     rw [ofNat_succ]
     grind [toNat, Denumerable.encode_ofNat, Nat.div_add_mod m 4, Nat.pair_unpair (m / 4)]
 
@@ -361,7 +367,8 @@ theorem realize_congr_var {I : ℕ → List M → Prop} :
       (φ.Realize I v ↔ φ.Realize I w)
   | falsum, _, _, _ => Iff.rfl
   | equal x y, _, _, h => by
-    simp only [Realize, varBound] at h ⊢; rw [h x (by omega), h y (by omega)]
+    simp only [Realize, varBound] at h ⊢
+    rw [h x (by omega), h y (by omega)]
   | rel _ args, _, _, h => by
     simp only [Realize, varBound] at h ⊢
     rw [List.map_congr_left fun x hx => h x (lt_varBound_of_mem hx)]

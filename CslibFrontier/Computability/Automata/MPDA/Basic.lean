@@ -109,15 +109,8 @@ theorem Op.apply_pop {i : Fin n} {γ : Γ} {σ σ' : Stacks n Γ} :
 @[expose] def Stacks.pair (s₀ s₁ : List Γ) : Stacks 2 Γ := fun i => if i = 0 then s₀ else s₁
 
 theorem Stacks.eq_pair_iff {σ : Stacks 2 Γ} {s₀ s₁ : List Γ} :
-    σ = Stacks.pair s₀ s₁ ↔ σ 0 = s₀ ∧ σ 1 = s₁ := by
-  constructor
-  · rintro rfl
-    exact ⟨rfl, rfl⟩
-  · rintro ⟨h₀, h₁⟩
-    funext i
-    match i with
-    | ⟨0, _⟩ => exact h₀
-    | ⟨1, _⟩ => exact h₁
+    σ = Stacks.pair s₀ s₁ ↔ σ 0 = s₀ ∧ σ 1 = s₁ :=
+  ⟨fun h => ⟨h ▸ rfl, h ▸ rfl⟩, fun ⟨h₀, h₁⟩ => funext fun | ⟨0, _⟩ => h₀ | ⟨1, _⟩ => h₁⟩
 
 theorem Stacks.empty_eq_pair : (Stacks.empty : Stacks 2 Γ) = Stacks.pair [] [] :=
   Stacks.eq_pair_iff.mpr ⟨rfl, rfl⟩
@@ -304,7 +297,7 @@ theorem IsVisibly.kind_eq {M : MPDA n State Symbol Γ} {κ : Symbol → OpKind n
     intro μ hμ
     rcases List.mem_cons.mp hμ with rfl | hμ
     · exact hM _ _ _ _ (configLTS_tr.mp htr).1
-    · exact ih μ hμ
+    · exact ih _ hμ
 
 /-- An MPDA accepts a word if it has a run labelled by that word that starts in an initial state
 with all stacks empty and ends in an accepting state with all stacks empty. -/

@@ -163,7 +163,8 @@ theorem IsStandaloneOpt.strict_lt_of_ne {P : ℝ → ℝ} {V C : ℝ} {zStar z :
   have hVsc : V * ((1 / 2 : ℝ) * P zStar + (1 / 2 : ℝ) * P z) < V * P m :=
     mul_lt_mul_of_pos_left hsc hV
   have hCm : C * (m : ℝ) = (1 / 2 : ℝ) * (C * (zStar : ℝ)) + (1 / 2 : ℝ) * (C * (z : ℝ)) := by
-    change C * ((1 / 2 : ℝ) * (zStar : ℝ) + (1 / 2 : ℝ) * (z : ℝ)) = _; ring
+    change C * ((1 / 2 : ℝ) * (zStar : ℝ) + (1 / 2 : ℝ) * (z : ℝ)) = _
+    ring
   linarith [hOpt m]
 
 /-- Under strict concavity of `P` on `[0, ∞)` and `0 < V`, the standalone optimal effort is
@@ -286,9 +287,9 @@ theorem IsStandaloneOpt.lt_of_ratio_lt_of_hasDerivAt {P : ℝ → ℝ} {P'₂ : 
   have hslope_lt := hball hy_dist (Set.mem_compl_singleton_iff.mpr hy_lt.ne)
   rw [slope_def_field] at hslope_lt
   have hden_pos : 0 < (z₁ : ℝ) - yR := sub_pos.mpr hy_lt
-  rw [show (P yR - P z₁) / (yR - (z₁ : ℝ)) = (P z₁ - P yR) / ((z₁ : ℝ) - yR) by
-    field_simp [sub_ne_zero.mpr hy_lt.ne, hden_pos.ne']; ring,
-    div_lt_div_iff₀ hden_pos hV₁] at hslope_lt
+  have hslope_eq : (P yR - P z₁) / (yR - (z₁ : ℝ)) = (P z₁ - P yR) / ((z₁ : ℝ) - yR) := by
+    field_simp [sub_ne_zero.mpr hy_lt.ne, hden_pos.ne']; ring
+  rw [hslope_eq, div_lt_div_iff₀ hden_pos hV₁] at hslope_lt
   have hy_opt : V₁ * (1 - P z₁) + C₁ * (z₁ : ℝ) ≤ V₁ * (1 - P yR) + C₁ * yR :=
     h₁ ⟨yR, le_max_left _ _⟩
   nlinarith
@@ -452,14 +453,18 @@ theorem isPureNash_totalEffortGame_iff {xBar : ι → ℝ≥0}
       rw [hbr i, tsub_pos_iff_lt] at hxi
       rw [totalEffort_eq_erase_add x i, hbr i, add_tsub_cancel_of_le hxi.le]
     have hsup_le : univ.sup xBar ≤ totalEffort x := Finset.sup_le fun i _ => by
-      rw [totalEffort_eq_erase_add x i, hbr i]; exact le_add_tsub
+      rw [totalEffort_eq_erase_add x i, hbr i]
+      exact le_add_tsub
     have hle_sup : totalEffort x ≤ univ.sup xBar := by
       by_cases hpos : totalEffort x = 0
-      · rw [hpos]; exact zero_le
+      · rw [hpos]
+        exact zero_le
       · obtain ⟨i, _, hxi⟩ : ∃ i ∈ univ, 0 < x i := by
-          by_contra hall; push Not at hall
+          by_contra hall
+          push Not at hall
           exact hpos (sum_eq_zero fun j hj => le_antisymm (hall j hj) zero_le)
-        rw [hpos_eq i hxi]; exact le_sup (mem_univ i)
+        rw [hpos_eq i hxi]
+        exact le_sup (mem_univ i)
     have htot_eq : totalEffort x = univ.sup xBar := le_antisymm hle_sup hsup_le
     refine ⟨htot_eq, fun i hlt => ?_⟩
     by_contra hne
@@ -467,11 +472,15 @@ theorem isPureNash_totalEffortGame_iff {xBar : ι → ℝ≥0}
   · refine (R.bestResponse_eq_iff_of_strictConcave hConc hVal hOpt x i).mpr ?_
     have hsum := totalEffort_eq_erase_add x i
     by_cases hchamp : xBar i = univ.sup xBar
-    · rw [← hchamp] at htot; rw [← htot, hsum, add_tsub_cancel_left]
+    · rw [← hchamp] at htot
+      calc x i = totalEffort x - ∑ j ∈ univ.erase i, x j := by
+            rw [hsum, add_tsub_cancel_left]
+        _ = xBar i - ∑ j ∈ univ.erase i, x j := by rw [htot]
     · have hlt : xBar i < univ.sup xBar := lt_of_le_of_ne (le_sup (mem_univ i)) hchamp
       have hxi0 : x i = 0 := hzero i hlt
-      rw [hxi0, show ∑ j ∈ univ.erase i, x j = univ.sup xBar by rw [← htot, hsum, hxi0, add_zero],
-        tsub_eq_zero_of_le hlt.le]
+      have hminus_eq : ∑ j ∈ univ.erase i, x j = univ.sup xBar := by
+        rw [← htot, hsum, hxi0, add_zero]
+      rw [hxi0, hminus_eq, tsub_eq_zero_of_le hlt.le]
 
 /-- **Varian's Fact 1, champion equilibrium** ([Varian2004], §3.1, p. 3): if `iStar` achieves the
 maximum standalone effort `xBar iStar` across all agents, then `Pi.single iStar (xBar iStar)` is a
@@ -504,11 +513,14 @@ theorem eq_single_of_isPureNash_totalEffortGame {xBar : ι → ℝ≥0} {iStar :
     hzero j (hsup.symm ▸ hStrict j (ne_of_mem_erase hj))
   have hiStar : x iStar = xBar iStar := by
     have hsum := totalEffort_eq_erase_add x iStar
-    rw [htot, hsup, sum_eq_zero hother, zero_add] at hsum; exact hsum.symm
+    rw [htot, hsup, sum_eq_zero hother, zero_add] at hsum
+    exact hsum.symm
   exact funext fun j => by
     by_cases hj : j = iStar
-    · subst hj; simpa only [Pi.single_eq_same] using hiStar
-    · rw [Pi.single_eq_of_ne hj]; exact hzero j (hsup.symm ▸ hStrict j hj)
+    · subst hj
+      simpa only [Pi.single_eq_same] using hiStar
+    · rw [Pi.single_eq_of_ne hj]
+      exact hzero j (hsup.symm ▸ hStrict j hj)
 
 /-- **Total-effort social optimum** ([Varian2004], §4.1, eq. (5), p. 6): if `iMin` has the minimum
 marginal effort cost among all agents and `xOpt` is the standalone optimum for total valuation
@@ -595,7 +607,8 @@ theorem wrongAgent_support_disjoint {xBar : ι → ℝ≥0} {iMin iStar : ι}
     Pi.single_eq_of_ne hne], ?_⟩
   by_contra hy_ne
   have hy_pos : 0 < (y iStar : ℝ) := NNReal.coe_pos.mpr (pos_iff_ne_zero.mpr hy_ne)
-  have hstrict_cost : R.unitCost iMin * (totalEffort y : ℝ) < ∑ j, R.unitCost j * (y j : ℝ) := by
+  have hstrict_cost : R.unitCost iMin * (totalEffort y : ℝ) <
+      ∑ j, R.unitCost j * (y j : ℝ) := by
     simp only [totalEffort, NNReal.coe_sum, mul_sum]
     exact sum_lt_sum (fun j _ => mul_le_mul_of_nonneg_right (hMin j) (y j).coe_nonneg)
       ⟨iStar, mem_univ iStar, mul_lt_mul_of_pos_right hCostLt hy_pos⟩
@@ -761,11 +774,15 @@ theorem isPureNash_weakestLinkGame_iff [Nontrivial ι] {xBar : ι → ℝ≥0}
       by_contra hlt
       have hgt : z < x i := lt_of_not_ge hlt
       have hij : jMin ≠ i := fun h => hgt.ne (h ▸ hjMin)
-      have hw_upd : weakestLink (Function.update x i z) = z := le_antisymm
-        (by simpa only [weakestLink, Function.update_of_ne hij, hjMin.symm] using
-          inf'_le (Function.update x i z) (mem_univ jMin))
-        (le_inf' _ _ fun k _ => if hk : k = i then by subst hk; simp
-          else by simp only [Function.update_of_ne hk]; exact inf'_le x (mem_univ k))
+      have hw_upd : weakestLink (Function.update x i z) = z := by
+        refine le_antisymm ?_ (le_inf' _ _ fun k _ => ?_)
+        · simpa only [weakestLink, Function.update_of_ne hij, hjMin.symm] using
+            inf'_le (Function.update x i z) (mem_univ jMin)
+        · by_cases hk : k = i
+          · subst hk
+            simp
+          · simp only [Function.update_of_ne hk]
+            exact inf'_le x (mem_univ k)
       have hle := hN i z
       dsimp only [weakestLinkGame, toCostGame] at hle
       rw [hw_upd, Function.update_self, show weakestLink x = z from rfl] at hle
@@ -882,7 +899,8 @@ theorem isPureNash_weakestLinkNegligenceGame_const {zOpt : ℝ≥0}
         Fintype.sum_eq_single i fun j hj => (hj (hother j)).elim
       simp only [weakestLinkNegligenceGame, le_rfl, ha, ↓reduceIte, h1,
         weakestLink_update_const_of_subsingleton hother, Function.update_self]
-      have h := hSoc a; rwa [hVeq, hCeq] at h
+      have h := hSoc a
+      rwa [hVeq, hCeq] at h
   · have hlt : a < zOpt := lt_of_not_ge ha
     simp only [weakestLinkNegligenceGame, le_rfl, ha, ↓reduceIte, h1,
       weakestLink_update_const_of_le i hlt.le, Function.update_self]
@@ -1148,20 +1166,25 @@ theorem expected_socialCost_le_of_isCoarseCorrelatedEquilibrium [Nonempty ι]
   have hsum_i : ∀ i : ι,
       σ.weights.sum (fun s w => w * (R.toCostGame agg).cost i s) ≤
         R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ) := fun i =>
-    (hσ i X').trans <| (sum_le_sum fun s _ => mul_le_mul_of_nonneg_left (show
-        (R.toCostGame agg).cost i (Function.update s i X') ≤
-          R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ) by
-      have hge : X' ≤ agg (Function.update s i X') := by
-        simpa only [Function.update_self] using hAgg_ge (Function.update s i X') i
-      have hP := hMono X'.coe_nonneg (agg (Function.update s i X')).coe_nonneg hge
-      simp only [toCostGame, Function.update_self]; nlinarith [hVal i])
-      (Convexity.StdSimplex.weights_nonneg s)).trans_eq
-        (by rw [← sum_mul, show ∑ s ∈ σ.support, σ.weights s = 1 from σ.total, one_mul])
+    calc σ.weights.sum (fun s w => w * (R.toCostGame agg).cost i s)
+        ≤ σ.weights.sum (fun s w => w * (R.toCostGame agg).cost i (Function.update s i X')) :=
+          hσ i X'
+      _ ≤ σ.weights.sum (fun _ w => w * (R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ))) := by
+          simp only [Finsupp.sum]
+          exact sum_le_sum fun s _ => mul_le_mul_of_nonneg_left (by
+            have hge : X' ≤ agg (Function.update s i X') := by
+              simpa only [Function.update_self] using hAgg_ge (Function.update s i X') i
+            have hP := hMono X'.coe_nonneg (agg (Function.update s i X')).coe_nonneg hge
+            simp only [toCostGame, Function.update_self]
+            nlinarith [hVal i]) (Convexity.StdSimplex.weights_nonneg s)
+      _ = R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ) := by
+          rw [Finsupp.sum, ← sum_mul, show ∑ s ∈ σ.support, σ.weights s = 1 from σ.total, one_mul]
   have hExp : σ.weights.sum (fun s w => w * (R.toCostGame agg).socialCost s) ≤
       (∑ i, R.val i) * (1 - R.prob X') + (∑ i, R.unitCost i) * (X' : ℝ) := by
     calc σ.weights.sum (fun s w => w * (R.toCostGame agg).socialCost s)
         = ∑ i, σ.weights.sum (fun s w => w * (R.toCostGame agg).cost i s) := by
-          simp only [Finsupp.sum, CostGame.socialCost, mul_sum]; exact sum_comm
+          simp only [Finsupp.sum, CostGame.socialCost, mul_sum]
+          exact sum_comm
       _ ≤ ∑ i, (R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ)) :=
           sum_le_sum fun i _ => hsum_i i
       _ = _ := by rw [sum_add_distrib, ← sum_mul, ← sum_mul]
@@ -1172,11 +1195,13 @@ theorem expected_socialCost_le_of_isCoarseCorrelatedEquilibrium [Nonempty ι]
   have hfail_nonneg : 0 ≤ (∑ i, R.val i) * (1 - R.prob X') :=
     mul_nonneg (sum_nonneg fun i _ => hVal i) (sub_nonneg.mpr (hProb_le_one X'))
   have hcost_scaled : (∑ i, R.unitCost i) * (X' : ℝ) ≤
-      ((∑ i, R.unitCost i) / cMin) * ∑ j, R.unitCost j * (x' j : ℝ) := by
-    rw [show (∑ i, R.unitCost i) * (X' : ℝ) = ((∑ i, R.unitCost i) / cMin) * (cMin * (X' : ℝ)) by
-      field_simp [hMin_pos.ne']]
-    exact mul_le_mul_of_nonneg_left (hAgg_cost x')
-      (div_nonneg (hMin_pos.le.trans hsum_cost_ge) hMin_pos.le)
+      ((∑ i, R.unitCost i) / cMin) * ∑ j, R.unitCost j * (x' j : ℝ) :=
+    calc (∑ i, R.unitCost i) * (X' : ℝ)
+        = ((∑ i, R.unitCost i) / cMin) * (cMin * (X' : ℝ)) := by
+            field_simp [hMin_pos.ne']
+      _ ≤ ((∑ i, R.unitCost i) / cMin) * ∑ j, R.unitCost j * (x' j : ℝ) :=
+          mul_le_mul_of_nonneg_left (hAgg_cost x')
+            (div_nonneg (hMin_pos.le.trans hsum_cost_ge) hMin_pos.le)
   have hsoc_x' : (R.toCostGame agg).socialCost x' =
       (∑ i, R.val i) * (1 - R.prob X') + ∑ j, R.unitCost j * (x' j : ℝ) := by
     simp only [CostGame.socialCost, toCostGame, sum_add_distrib, ← sum_mul, X']
@@ -1244,7 +1269,8 @@ theorem exists_totalEffortGame_socialCost_gt_mul {n : ℕ} (hn : 0 < n) {β : �
   have hε : 0 < ε := by
     by_cases h0 : β ≤ 0
     · simp only [ε, h0, ↓reduceIte, zero_lt_one]
-    · simp only [ε, h0, ↓reduceIte]; exact div_pos (sub_pos.mpr hβ) (by linarith)
+    · simp only [ε, h0, ↓reduceIte]
+      exact div_pos (sub_pos.mpr hβ) (by linarith)
   let R : SystemReliabilitySpec (Fin n) :=
     { val := fun _ => 1, unitCost := fun _ => 1 + ε, prob := fun z => min z 1 }
   have htot0 : totalEffort (0 : Fin n → ℝ≥0) = 0 := by simp [totalEffort]
@@ -1271,7 +1297,8 @@ theorem exists_totalEffortGame_socialCost_gt_mul {n : ℕ} (hn : 0 < n) {β : �
       have hgap : min (Xm + (y i : ℝ)) 1 - min Xm 1 ≤ (y i : ℝ) := by
         rcases le_total (Xm + (y i : ℝ)) 1 with h1 | h1
         · rw [min_eq_left h1, min_eq_left (by linarith)]; linarith
-        · rw [min_eq_right h1]; rcases le_total Xm 1 with h2 | h2 <;>
+        · rw [min_eq_right h1]
+          rcases le_total Xm 1 with h2 | h2 <;>
             simp only [min_eq_left, min_eq_right, h2] <;> linarith
       nlinarith
   let x' : Fin n → ℝ≥0 := Pi.single ⟨0, hn⟩ 1

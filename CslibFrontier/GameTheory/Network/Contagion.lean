@@ -757,9 +757,13 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro u hu
       have huD : u ∈ Sfin (j + 1) ∧ u ∉ Sfin j := Finset.mem_sdiff.mp hu
       have hbr : u ∈ bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) := by
-        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by rw [← hSfin_coe]; exact huD.1
+        have h1 : u ∈ (progressiveStep G q)^[j + 1] (S : Set V) := by
+          rw [← hSfin_coe]
+          exact huD.1
         rw [Function.iterate_succ_apply', progressiveStep] at h1
-        exact h1.resolve_left (by rw [← hSfin_coe]; exact huD.2)
+        refine h1.resolve_left ?_
+        rw [← hSfin_coe]
+        exact huD.2
       rw [mem_bestResponseStep_iff, ← hSfin_coe] at hbr
       have hncard : (G.neighborSet u ∩ (X : Set V)).ncard = (G.neighborFinset u ∩ X).card := by
         rw [← G.coe_neighborFinset, ← Finset.coe_inter, Set.ncard_coe_finset]
@@ -790,7 +794,9 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro n
       induction n with
       | zero => omega
-      | succ n ih => have := hdec n (hno n); omega
+      | succ n ih =>
+        have := hdec n (hno n)
+        omega
     have := hbound (edgeBoundaryCard G (Sfin 0) + 1)
     omega
   obtain ⟨k, hk⟩ := hstop

@@ -119,22 +119,12 @@ theorem toFinset_cleanup (x : RecoveryInput) (selected : List ℕ)
     rw [← hc, hselected, Finset.filter_image]
     exact Finset.card_image_of_injective _ Fin.val_injective
   ext i
-  constructor
-  · intro hi
-    obtain ⟨hirange, hdegree⟩ := List.mem_filter.mp (List.mem_toFinset.mp hi)
-    let v : Fin x.vertexCount := ⟨i, List.mem_range.mp hirange⟩
-    refine Finset.mem_image.mpr ⟨v, ?_, rfl⟩
-    simp only [SimpleGraph.recoverCliqueByDegree, Finset.mem_filter, Finset.mem_univ, true_and]
-    rw [← hcount v]
-    exact of_decide_eq_true hdegree
-  · intro hi
-    obtain ⟨v, hv, rfl⟩ := Finset.mem_image.mp hi
-    apply List.mem_toFinset.mpr
-    apply List.mem_filter.mpr
-    refine ⟨List.mem_range.mpr v.isLt, ?_⟩
-    apply decide_eq_true
-    rw [hcount v]
-    exact (Finset.mem_filter.mp hv).2
+  simp only [cleanup, List.mem_toFinset, List.mem_filter, List.mem_range, Finset.mem_image,
+    SimpleGraph.recoverCliqueByDegree, Finset.mem_filter, Finset.mem_univ, true_and,
+    decide_eq_true_eq]
+  refine ⟨fun ⟨hi, hd⟩ => ⟨⟨i, hi⟩, hcount ⟨i, hi⟩ ▸ hd, rfl⟩, ?_⟩
+  rintro ⟨v, hv, rfl⟩
+  exact ⟨v.isLt, (hcount v).symm ▸ hv⟩
 
 /-- Uniform native polynomial-time degree cleanup on arbitrary dense inputs and candidate lists. -/
 @[fun_prop] theorem computableInPolyTime_cleanup {α : Type} {encIn : α ↪ List Bool}

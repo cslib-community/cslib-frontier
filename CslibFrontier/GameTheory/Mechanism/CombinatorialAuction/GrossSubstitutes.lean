@@ -804,11 +804,13 @@ theorem IsEpsWalrasianEquilibrium.welfare_sub_sum_card_le {N M : Type*} [Fintype
     have hdem := heq.demand i (b.bundle i)
     rw [sum_personalizedPrice_self] at hdem
     have hq_le : ∑ j ∈ b.bundle i, personalizedPrice ε p (a.bundle i) j ≤
-        (∑ j ∈ b.bundle i, p j) + ((b.bundle i).card : ℝ) * ε := by
-      rw [← nsmul_eq_mul, ← sum_const, ← sum_add_distrib]
-      refine sum_le_sum fun j _ => ?_
-      dsimp only [personalizedPrice]
-      split_ifs <;> linarith
+        (∑ j ∈ b.bundle i, p j) + ((b.bundle i).card : ℝ) * ε :=
+      calc ∑ j ∈ b.bundle i, personalizedPrice ε p (a.bundle i) j
+          ≤ ∑ j ∈ b.bundle i, (p j + ε) := sum_le_sum fun j _ => by
+            dsimp only [personalizedPrice]
+            split_ifs <;> linarith
+        _ = (∑ j ∈ b.bundle i, p j) + ((b.bundle i).card : ℝ) * ε := by
+            rw [sum_add_distrib, sum_const, nsmul_eq_mul]
     linarith
   have hsum := sum_le_sum fun i (_ : i ∈ (univ : Finset N)) => hbidder i
   simp only [sum_sub_distrib, ← sum_mul] at hsum
@@ -851,7 +853,9 @@ theorem IsEpsWalrasianEquilibrium.welfare_le_of_card_le_one {N M : Type*} [Finty
     (hb : ∀ i : N, (b.bundle i).card ≤ 1) :
     welfare v b - (Fintype.card N : ℝ) * ε ≤ welfare v a := by
   have hcard_le : (∑ i : N, ((b.bundle i).card : ℝ)) ≤ (Fintype.card N : ℝ) :=
-    (sum_le_sum fun i _ => Nat.cast_le_one.2 (hb i)).trans_eq (by simp)
+    calc (∑ i : N, ((b.bundle i).card : ℝ))
+        ≤ ∑ _i : N, (1 : ℝ) := sum_le_sum fun i _ => Nat.cast_le_one.2 (hb i)
+      _ = (Fintype.card N : ℝ) := by simp
   have herr_le : (∑ i : N, ((b.bundle i).card : ℝ)) * ε ≤ (Fintype.card N : ℝ) * ε :=
     mul_le_mul_of_nonneg_right hcard_le hε
   linarith [heq.welfare_sub_sum_card_le hε b]
@@ -1131,7 +1135,9 @@ private theorem kelsoCrawfordLoop_terminates {N M : Type*} [Fintype N] [Fintype 
     intro st hst hlt
     exfalso
     have hsum_le : ∑ j : M, st.price j ≤ (Fintype.card M : ℝ) * valuationBound v :=
-      (sum_le_sum fun j _ => hst.price_le j).trans_eq (by rw [sum_const, card_univ, nsmul_eq_mul])
+      calc ∑ j : M, st.price j
+          ≤ ∑ _j : M, valuationBound v := sum_le_sum fun j _ => hst.price_le j
+        _ = (Fintype.card M : ℝ) * valuationBound v := by rw [sum_const, card_univ, nsmul_eq_mul]
     simp only [Nat.cast_zero, zero_mul] at hlt
     linarith
   | succ fuel ih =>

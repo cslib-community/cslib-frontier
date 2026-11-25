@@ -140,15 +140,18 @@ theorem AcceptWins.unique {accept : ι → ℝ → Prop} {b : ι → ℝ} {i j :
 
 theorem acceptAllocation_binary (accept : ι → ℝ → Prop) (b : ι → ℝ) (i : ι) :
     acceptAllocation accept b i = 0 ∨ acceptAllocation accept b i = 1 := by
-  unfold acceptAllocation; split_ifs <;> simp
+  unfold acceptAllocation
+  split_ifs <;> simp
 
 theorem acceptAllocation_eq_one_iff {accept : ι → ℝ → Prop} {b : ι → ℝ} {i : ι} :
     acceptAllocation accept b i = 1 ↔ AcceptWins accept b i := by
-  unfold acceptAllocation; split_ifs with h <;> simp [h]
+  unfold acceptAllocation
+  split_ifs with h <;> simp [h]
 
 theorem acceptAllocation_eq_zero_iff {accept : ι → ℝ → Prop} {b : ι → ℝ} {i : ι} :
     acceptAllocation accept b i = 0 ↔ ¬ AcceptWins accept b i := by
-  unfold acceptAllocation; split_ifs with h <;> simp [h]
+  unfold acceptAllocation
+  split_ifs with h <;> simp [h]
 
 theorem acceptAllocation_nonneg (accept : ι → ℝ → Prop) (b : ι → ℝ) (i : ι) :
     0 ≤ acceptAllocation accept b i := by
@@ -315,6 +318,7 @@ theorem acceptMechanism_strongGroupStrategyProof [Finite ι] {p : ι → ℝ} {a
       (acceptMechanism p accept).utility i (v i) b) :
     ∀ i, (acceptMechanism p accept).utility i (v i) b =
       (acceptMechanism p accept).utility i (v i) v := by
+  -- Consider the first bidder whose winning status changes between `v` and `b`.
   by_cases hall : ∀ k, AcceptWins accept v k ↔ AcceptWins accept b k
   · intro i
     simp only [Mechanism.utility, acceptMechanism, acceptAllocation_congr (hall i).symm]
@@ -322,6 +326,8 @@ theorem acceptMechanism_strongGroupStrategyProof [Finite ι] {p : ι → ℝ} {a
     obtain ⟨j₀, hj₀⟩ := Classical.not_forall.mp hall
     obtain ⟨k, _, hk_diff, hbefore⟩ :=
       exists_min_le (P := fun k => ¬ (AcceptWins accept v k ↔ AcceptWins accept b k)) hj₀
+    -- Can any `j < k` accept under `v` or `b`? Its earliest accepting `r < k` would win under
+    -- both `v` and `b` (since `r ∉ W`), making `k` lose under both, contradicting `hk_diff`.
     have hr_iff : ∀ r < k, AcceptWins accept v r ↔ AcceptWins accept b r :=
       fun r hr => Classical.not_not.mp (hbefore r hr)
     have hno_prev : ∀ (u : ι → ℝ),
@@ -479,7 +485,8 @@ private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept 
               simp only [payoff_cons, acceptRule, reward]
               by_cases hy : a y = true
               · simp only [hy, ↓reduceIte]
-              · simp only [hy]; exact ihy _ _
+              · simp only [hy]
+                exact ihy _ _
         simp only [acceptRule, Bool.eq_false_iff.mpr h0, Bool.false_eq_true, ↓reduceIte, hlose0,
           mul_zero, zero_add, hpay _ [v 0] [], ← ih (fun k' z => accept k'.succ z)
             (fun i z => hacc i.succ z) (fun j => v j.succ), hsucc]
@@ -744,7 +751,10 @@ theorem expectedRevenuePMF_swapped_tightBidderLaws (k : ℕ) :
   have hl0 : ¬ AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(0 : ℝ), 1] 0 :=
     fun hw => hlt0 hw.1
   have hw1 : AcceptWins (fun i z => ![(k + 1 : ℝ), 1] i ≤ z) ![(0 : ℝ), 1] 1 :=
-    ⟨by simp, fun j hj => by fin_cases j; exacts [hlt0, absurd hj (lt_irrefl _)]⟩
+    ⟨by simp,
+      fun j hj => by
+        fin_cases j
+        exacts [hlt0, absurd hj (lt_irrefl _)]⟩
   simp only [postedPrice, acceptMechanism, acceptAllocation_eq_one_iff.mpr hw0,
     acceptAllocation_eq_zero_iff.mpr hl1, acceptAllocation_eq_zero_iff.mpr hl0,
     acceptAllocation_eq_one_iff.mpr hw1, Matrix.cons_val_zero, Matrix.cons_val_one,
@@ -934,6 +944,7 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
       linarith
     · push Not at hprev
       obtain ⟨j, _, hpj⟩ := hprev
+      -- Since `p j ≤ v j`, the smallest `w` with `p w ≤ v w` wins, so `∑ k, alloc v k = 1`!
       obtain ⟨w, _, hwin⟩ := exists_min_le (P := fun k => p k ≤ v k) hpj
       have h1 := AcceptWins.sum_mul_acceptAllocation (accept := fun k z => p k ≤ z) hwin 1
       simp only [Pi.one_apply, one_mul] at h1
@@ -976,12 +987,13 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
         ring
       · have hφle : virtualValue (μ i) (f i) (v i) - t ≤ 0 :=
           le_of_not_gt fun hgt => hpi (hthr.2.2 (v i) (hv i).1 hgt.le)
-        rw [show (postedPrice p).allocation v i = 0 from
-          acceptAllocation_eq_zero_iff.mpr fun hw => hpi hw.1,
-          show excess i (v i) = 0 from max_eq_right hφle]
+        have halloc0 : (postedPrice p).allocation v i = 0 :=
+          acceptAllocation_eq_zero_iff.mpr fun hw => hpi hw.1
+        rw [halloc0, show excess i (v i) = 0 from max_eq_right hφle]
         ring
-    · rw [show (postedPrice p).allocation v i = 0 from
-        acceptAllocation_eq_zero_iff.mpr fun hw => hprev fun j hj => not_le.mp (hw.2 j hj)]
+    · have halloc0 : (postedPrice p).allocation v i = 0 :=
+        acceptAllocation_eq_zero_iff.mpr fun hw => hprev fun j hj => not_le.mp (hw.2 j hj)
+      rw [halloc0]
       ring
   -- Measurability & integrability of `priorReject`, `allReject`, and `excess`.
   have hm_prior : ∀ i, Measurable (priorReject i) := fun i =>
@@ -991,7 +1003,8 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
       measurable_const measurable_const
   have hint_prior : ∀ i, Integrable (priorReject i) (Measure.pi μ) := fun i =>
     Integrable.of_bound (hm_prior i).aestronglyMeasurable 1 (ae_of_all _ fun v => by
-      dsimp only [priorReject]; split_ifs <;> norm_num)
+      dsimp only [priorReject]
+      split_ifs <;> norm_num)
   have hint_alloc_sum : Integrable (fun v => ∑ i, (postedPrice p).allocation v i)
       (Measure.pi μ) :=
     integrable_finsetSum _ fun i _ =>

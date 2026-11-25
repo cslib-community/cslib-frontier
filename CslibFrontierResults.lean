@@ -81,3 +81,4 @@ import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.MajorityMultiplicativeComplexity
+import CslibFrontierResults.Entries.SatisfiabilityHypothesis

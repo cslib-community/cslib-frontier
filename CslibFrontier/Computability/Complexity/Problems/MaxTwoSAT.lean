@@ -276,26 +276,28 @@ theorem mem_MaxTwoSAT_toMaxTwoSAT_iff (φ : CNF ℕ) :
             rw [hp, countP_clauseGadget σ _ fun _ => rfl, ha, hb, hd]
             exact (gadgetScore_false_le _).trans_lt (by decide)⟩
     · rintro ⟨-, τ, hτ⟩
-      refine ⟨fun d hd => (let ⟨_, _, hd⟩ := List.mem_flatMap.1 hd; length_le_of_mem_gadget hd),
-        fun n => if n % 2 = 0 then τ (n / 2) else
-          majority (Literal.eval τ ((φ.getD (n / 2) []).headD (0, true)))
-            (Literal.eval τ ((φ.getD (n / 2) []).tail.headD (0, true)))
-            (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))),
-        le_of_eq ?_⟩
-      rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
-      · simp [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm]
-      rcases p with ⟨c, j⟩
-      obtain ⟨a, b, d, rfl⟩ := hzip c j hp
-      have hget : φ[j]? = some [a, b, d] := List.mem_zipIdx_iff_getElem?.1 hp
-      have hc := (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
-      dsimp only
-      rw [countP_clauseGadget _ τ fun _ => by simp]
-      simp only [show ¬(2 * j + 1) % 2 = 0 by omega, show (2 * j + 1) / 2 = j by omega,
-        ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some, List.headD_cons,
-        List.tail_cons]
-      exact gadgetScore_majority (by simpa [Clause.eval_cons, Bool.or_assoc] using hc)
+      refine ⟨fun d hd => ?_, fun n => if n % 2 = 0 then τ (n / 2) else
+        majority (Literal.eval τ ((φ.getD (n / 2) []).headD (0, true)))
+          (Literal.eval τ ((φ.getD (n / 2) []).tail.headD (0, true)))
+          (Literal.eval τ ((φ.getD (n / 2) []).tail.tail.headD (0, true))), le_of_eq ?_⟩
+      · obtain ⟨_, _, hd⟩ := List.mem_flatMap.1 hd
+        exact length_le_of_mem_gadget hd
+      · rw [List.map_congr_left (g := fun _ => 7) fun p hp => ?_]
+        · simp [List.map_const', List.sum_replicate, List.length_zipIdx, mul_comm]
+        rcases p with ⟨c, j⟩
+        obtain ⟨a, b, d, rfl⟩ := hzip c j hp
+        have hget : φ[j]? = some [a, b, d] := List.mem_zipIdx_iff_getElem?.1 hp
+        have hc := (CNF.eval_eq_true_iff _ _).1 hτ _ (List.mem_of_getElem? hget)
+        dsimp only
+        rw [countP_clauseGadget _ τ fun _ => by simp]
+        simp only [show ¬(2 * j + 1) % 2 = 0 by omega, show (2 * j + 1) / 2 = j by omega,
+          ↓reduceIte, List.getD_eq_getElem?_getD, hget, Option.getD_some, List.headD_cons,
+          List.tail_cons]
+        exact gadgetScore_majority (by simpa [Clause.eval_cons, Bool.or_assoc] using hc)
   · simp only [toMaxTwoSAT, hall, Bool.false_eq_true, ↓reduceIte]
-    exact iff_of_false (fun ⟨_, _, hσ⟩ => by simp at hσ) fun ⟨h3, _⟩ => hall (by simpa using h3)
+    refine iff_of_false (fun ⟨_, σ, hσ⟩ => ?_) fun ⟨h3, _⟩ => hall ?_
+    · simp at hσ
+    · simpa using h3
 
 /-! ### Polynomial time -/
 

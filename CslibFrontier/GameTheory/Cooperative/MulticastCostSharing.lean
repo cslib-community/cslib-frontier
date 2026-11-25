@@ -203,9 +203,11 @@ theorem depth_parent (v : V) : T.depth (T.parent v) = T.depth v - 1 := by
   · simp [hv, T.parent_root]
   · obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero (mt T.depth_eq_zero_iff.mp hv)
     have hle : T.depth (T.parent v) ≤ m := Nat.find_min' _ <| by
-      have h := T.parent_iter_depth v; rwa [hm, Function.iterate_succ_apply] at h
+      have h := T.parent_iter_depth v
+      rwa [hm, Function.iterate_succ_apply] at h
     have hge : T.depth v ≤ T.depth (T.parent v) + 1 := Nat.find_min' _ <| by
-      rw [Function.iterate_succ_apply]; exact T.parent_iter_depth (T.parent v)
+      rw [Function.iterate_succ_apply]
+      exact T.parent_iter_depth (T.parent v)
     omega
 
 theorem depth_parent_lt {v : V} (hv : v ≠ T.root) : T.depth (T.parent v) < T.depth v := by
@@ -223,7 +225,8 @@ theorem isAncestor_iff_iterate {u w : V} :
   constructor
   · rintro ⟨k, rfl⟩
     by_cases hroot : T.parent^[k] w = T.root
-    · rw [hroot, T.depth_root, Nat.sub_zero]; exact ⟨T.parent_iter_depth w, Nat.zero_le _⟩
+    · rw [hroot, T.depth_root, Nat.sub_zero]
+      exact ⟨T.parent_iter_depth w, Nat.zero_le _⟩
     · have hpos := Nat.pos_of_ne_zero (mt T.depth_eq_zero_iff.mp hroot)
       rw [T.depth_iterate_parent] at hpos ⊢
       exact ⟨by rw [show T.depth w - (T.depth w - k) = k by omega], by omega⟩
@@ -250,10 +253,15 @@ theorem IsAncestor.of_ancestors_of_depth_le {T : RootedTree V} {u₁ u₂ w : V}
     T.IsAncestor u₁ u₂ := by
   obtain ⟨hit₁, _⟩ := T.isAncestor_iff_iterate.mp h₁
   obtain ⟨hit₂, hd₂⟩ := T.isAncestor_iff_iterate.mp h₂
-  refine ⟨T.depth u₂ - T.depth u₁, (congrArg _ hit₂.symm).trans ?_⟩
-  rw [← Function.iterate_add_apply,
-    show T.depth u₂ - T.depth u₁ + (T.depth w - T.depth u₂) = T.depth w - T.depth u₁ by omega]
-  exact hit₁
+  refine ⟨T.depth u₂ - T.depth u₁, ?_⟩
+  calc
+    T.parent^[T.depth u₂ - T.depth u₁] u₂
+      = T.parent^[T.depth u₂ - T.depth u₁] (T.parent^[T.depth w - T.depth u₂] w) :=
+        congrArg _ hit₂.symm
+    _ = T.parent^[T.depth w - T.depth u₁] w := by
+        rw [← Function.iterate_add_apply]
+        exact congrArg (fun k => T.parent^[k] w) (by omega)
+    _ = u₁ := hit₁
 
 omit [DecidableEq V] in
 theorem IsAncestor.eq_or_isAncestor_parent {T : RootedTree V} {u w : V}
@@ -376,7 +384,8 @@ theorem orGame_isSubmodular {B : Type*} [DecidableEq B] (U : Finset B) {w : ℝ}
   have h2 : (∃ i ∈ S ∩ T, i ∈ U) → (∃ i ∈ S, i ∈ U) ∧ (∃ i ∈ T, i ∈ U) :=
     fun ⟨i, hi, hiU⟩ => ⟨⟨i, (Finset.mem_inter.mp hi).1, hiU⟩, ⟨i, (Finset.mem_inter.mp hi).2, hiU⟩⟩
   by_cases hS : ∃ i ∈ S, i ∈ U <;> by_cases hT : ∃ i ∈ T, i ∈ U
-  · simp only [h1, hS, hT, or_self, ↓reduceIte]; split_ifs <;> linarith
+  · simp only [h1, hS, hT, or_self, ↓reduceIte]
+    split_ifs <;> linarith
   · simp only [h1, hS, hT, or_false, ↓reduceIte,
       show ¬ ∃ i ∈ S ∩ T, i ∈ U from fun h => hT (h2 h).2, add_zero, le_rfl]
   · simp only [h1, hS, hT, false_or, ↓reduceIte,
@@ -394,7 +403,8 @@ theorem shapleyValue_orGame {B : Type*} [Fintype B] [DecidableEq B]
       have hiff : (∃ x ∈ insert j S, x ∈ U) ↔ ∃ x ∈ S, x ∈ U :=
         ⟨fun ⟨x, hx, hxU⟩ => ⟨x, (Finset.mem_insert.mp hx).resolve_left fun h => hjU (h ▸ hxU),
           hxU⟩, fun ⟨x, hx, hxU⟩ => ⟨x, Finset.mem_insert_of_mem hx, hxU⟩⟩
-      simp only [orGame_cost, hiff]; split_ifs <;> rfl
+      simp only [orGame_cost, hiff]
+      split_ifs <;> rfl
   have hsym_in : ∀ j ∈ U, ∀ k ∈ U,
       shapleyValue (orGame U w) j = shapleyValue (orGame U w) k := fun j hjU k hkU =>
     shapleyValue_isSymmetric (orGame U w) j k fun S _ _ => by
@@ -403,12 +413,19 @@ theorem shapleyValue_orGame {B : Type*} [Fintype B] [DecidableEq B]
         show ∃ x ∈ insert k S, x ∈ U from ⟨k, Finset.mem_insert_self k S, hkU⟩, ↓reduceIte]
   split_ifs with hiU
   · have htot := shapleyValue_isEfficient (orGame U w)
+    have hex_univ : ∃ x ∈ (Finset.univ : Finset B), x ∈ U := ⟨i, Finset.mem_univ i, hiU⟩
     have huniv : (orGame U w).cost Finset.univ = w := by
-      simp only [orGame_cost, show ∃ x ∈ (Finset.univ : Finset B), x ∈ U from
-        ⟨i, Finset.mem_univ i, hiU⟩, ↓reduceIte]
-    rw [huniv, ← Finset.sum_subset (Finset.subset_univ U) fun j _ hjU => hdum_out j hjU,
-      Finset.sum_congr rfl fun j hj => hsym_in j hj i hiU,
-      Finset.sum_const, nsmul_eq_mul, mul_comm] at htot
+      simp only [orGame_cost, hex_univ, ↓reduceIte]
+    have hsplit : (∑ j : B, shapleyValue (orGame U w) j) =
+        shapleyValue (orGame U w) i * (U.card : ℝ) :=
+      calc (∑ j : B, shapleyValue (orGame U w) j)
+          = ∑ j ∈ U, shapleyValue (orGame U w) j :=
+            (Finset.sum_subset (Finset.subset_univ U) fun j _ hjU => hdum_out j hjU).symm
+        _ = ∑ _j ∈ U, shapleyValue (orGame U w) i :=
+            Finset.sum_congr rfl fun j hj => hsym_in j hj i hiU
+        _ = shapleyValue (orGame U w) i * (U.card : ℝ) := by
+            rw [Finset.sum_const, nsmul_eq_mul, mul_comm]
+    rw [huniv, hsplit] at htot
     exact eq_div_of_mul_eq (Nat.cast_pos.mpr (Finset.card_pos.mpr ⟨i, hiU⟩)).ne' htot
   · exact hdum_out i hiU
 
@@ -485,7 +502,8 @@ theorem toCostSharingGame_mono : Monotone M.toCostSharingGame.cost := by
   refine Finset.sum_le_sum fun v _ => ?_
   split_ifs with hR hS
   · exact le_rfl
-  · exact absurd (let ⟨i, hi, h⟩ := hR; ⟨i, hRS hi, h⟩) hS
+  · obtain ⟨i, hi, h⟩ := hR
+    exact absurd ⟨i, hRS hi, h⟩ hS
   · exact M.edgeCost_nonneg v
   · exact le_rfl
 
@@ -502,9 +520,12 @@ theorem toCostSharingGame_isSubmodular [DecidableEq A] : M.toCostSharingGame.IsS
     have hiff : (∃ i ∈ T, M.tree.IsAncestor v (M.loc i)) ↔ ∃ i ∈ T, i ∈ U :=
       ⟨fun ⟨i, hi, h⟩ => ⟨i, hi, Finset.mem_filter.mpr ⟨hT hi, h⟩⟩,
        fun ⟨i, hi, h⟩ => ⟨i, hi, (Finset.mem_filter.mp h).2⟩⟩
-    simp only [orGame_cost, hiff]; split_ifs <;> rfl
-  rw [heq (R ∪ S) Subset.rfl, heq (R ∩ S) (Finset.inter_subset_left.trans Finset.subset_union_left),
-    heq R Finset.subset_union_left, heq S Finset.subset_union_right]
+    simp only [orGame_cost, hiff]
+    split_ifs <;> rfl
+  rw [heq (R ∪ S) Subset.rfl,
+    heq (R ∩ S) (Finset.inter_subset_left.trans Finset.subset_union_left),
+    heq R Finset.subset_union_left,
+    heq S Finset.subset_union_right]
   exact orGame_isSubmodular U (M.edgeCost_nonneg v) R S
 
 theorem toCostSharingGame_isNonneg : M.toCostSharingGame.IsNonneg :=
@@ -715,7 +736,8 @@ private theorem localNetWelfare_decomp {b : A → ℝ} {u : V} {R : Finset A}
   have hnot_u := M.tree.notMem_biUnion_children_subtreeNodes u
   have hpwd := M.tree.pairwiseDisjoint_children_subtreeNodes u
   have hRu_eq : Ru = (R.filter fun i => M.loc i = u) ∪
-      (M.tree.children u).biUnion (fun c => R.filter fun i => M.loc i ∈ M.tree.subtreeNodes c) := by
+      (M.tree.children u).biUnion
+        (fun c => R.filter fun i => M.loc i ∈ M.tree.subtreeNodes c) := by
     ext i
     simp only [Ru, Finset.mem_filter, hpart, Finset.mem_insert, Finset.mem_biUnion,
       Finset.mem_union]
@@ -733,7 +755,8 @@ private theorem localNetWelfare_decomp {b : A → ℝ} {u : V} {R : Finset A}
       Finset.disjoint_left.mp (hpwd hc₁ hc₂ hne_c)
         (Finset.mem_filter.mp hi₁).2 (Finset.mem_filter.mp hi₂).2
   have hu_active : ∃ i ∈ Ru, M.tree.IsAncestor u (M.loc i) :=
-    let ⟨i, hi⟩ := hne; ⟨i, hi, M.tree.mem_subtreeNodes.mp (Finset.mem_filter.mp hi).2⟩
+    let ⟨i, hi⟩ := hne
+    ⟨i, hi, M.tree.mem_subtreeNodes.mp (Finset.mem_filter.mp hi).2⟩
   have hchild_iff : ∀ c ∈ M.tree.children u, ∀ v ∈ M.tree.subtreeNodes c,
       ((∃ i ∈ Ru, M.tree.IsAncestor v (M.loc i)) ↔
         ∃ i ∈ R.filter (fun j => M.loc j ∈ M.tree.subtreeNodes c),
@@ -760,11 +783,11 @@ private theorem localNetWelfare_decomp {b : A → ℝ} {u : V} {R : Finset A}
     congr 1
     exact Finset.sum_congr rfl fun c hc => Finset.sum_congr rfl fun v hv => by
       simp only [hchild_iff c hc v hv]
+  have hsum_b : ∑ i ∈ Ru, b i = (∑ i ∈ R with M.loc i = u, b i) +
+      ∑ c ∈ M.tree.children u, ∑ i ∈ R with M.loc i ∈ M.tree.subtreeNodes c, b i := by
+    rw [hRu_eq, Finset.sum_union hdisj_head, Finset.sum_biUnion hpwd_agents]
   dsimp only [localNetWelfare]
-  rw [show ∑ i ∈ Ru, b i = (∑ i ∈ R with M.loc i = u, b i) +
-      ∑ c ∈ M.tree.children u, ∑ i ∈ R with M.loc i ∈ M.tree.subtreeNodes c, b i by
-        rw [hRu_eq, Finset.sum_union hdisj_head, Finset.sum_biUnion hpwd_agents],
-    hsum_cost, Finset.sum_sub_distrib]
+  rw [hsum_b, hsum_cost, Finset.sum_sub_distrib]
   ring
 
 section FintypeAgentsOnly
@@ -852,7 +875,10 @@ private theorem localNetWelfare_le_subtreeSurplus_and_upMsg {b : A → ℝ} (hb 
         M.localNetWelfare b v R ≤ M.upMsg b v) from hrec _ u le_rfl
   intro rem
   induction rem with
-  | zero => intro v hrem; have := M.tree.depth_le_maxDepth v; omega
+  | zero =>
+    intro v hrem
+    have := M.tree.depth_le_maxDepth v
+    omega
   | succ rem ih =>
     intro v hrem
     have hne_case : (R.filter fun i => M.loc i ∈ M.tree.subtreeNodes v).Nonempty →
@@ -860,17 +886,22 @@ private theorem localNetWelfare_le_subtreeSurplus_and_upMsg {b : A → ℝ} (hb 
       classical
       rw [M.localNetWelfare_decomp hne, subtreeSurplus, M.nodeWelfare_eq]
       have hres : (∑ i ∈ R with M.loc i = v, b i) ≤ ∑ i : A with M.loc i = v, max (b i) 0 :=
-        (Finset.sum_le_sum_of_subset_of_nonneg
-          (Finset.filter_subset_filter _ (Finset.subset_univ _)) fun i _ _ => hb i).trans
-            (Finset.sum_le_sum fun _ _ => le_max_left _ _)
+        calc (∑ i ∈ R with M.loc i = v, b i)
+            ≤ ∑ i : A with M.loc i = v, b i :=
+              Finset.sum_le_sum_of_subset_of_nonneg
+                (Finset.filter_subset_filter _ (Finset.subset_univ _)) fun i _ _ => hb i
+          _ ≤ ∑ i : A with M.loc i = v, max (b i) 0 :=
+              Finset.sum_le_sum fun _ _ => le_max_left _ _
       have hch : (∑ c ∈ M.tree.children v, M.localNetWelfare b c R) ≤
           ∑ c ∈ M.tree.children v, M.upMsg b c := Finset.sum_le_sum fun c hc => by
-        have := M.tree.depth_of_mem_children hc; have := M.tree.depth_le_maxDepth c
+        have := M.tree.depth_of_mem_children hc
+        have := M.tree.depth_le_maxDepth c
         exact (ih c (by omega)).2
       linarith
     refine ⟨hne_case, ?_⟩
     rcases (R.filter fun i => M.loc i ∈ M.tree.subtreeNodes v).eq_empty_or_nonempty with h | h
-    · rw [M.localNetWelfare_eq_zero_of_empty h]; exact le_max_left 0 _
+    · rw [M.localNetWelfare_eq_zero_of_empty h]
+      exact le_max_left 0 _
     · exact (hne_case h).trans (le_max_right 0 _)
 
 /-- **Pass 2 (top-down) activation bit** `topDownActive b u`: `true` at `root`, and propagated from
@@ -976,16 +1007,21 @@ private theorem localNetWelfare_twoPassReceivers_eq_subtreeSurplus
     fun u => hrec _ u le_rfl
   intro rem
   induction rem with
-  | zero => intro v hrem; have := M.tree.depth_le_maxDepth v; omega
+  | zero =>
+    intro v hrem
+    have := M.tree.depth_le_maxDepth v
+    omega
   | succ rem ih =>
     intro v hrem hact_v
     have hsurp_nonneg : 0 ≤ M.subtreeSurplus b v := by
       by_cases hv : v = M.tree.root
-      · rw [hv, M.subtreeSurplus_root]; exact M.nodeWelfare_nonneg b _
+      · rw [hv, M.subtreeSurplus_root]
+        exact M.nodeWelfare_nonneg b _
       · exact ((M.topDownActive_eq_true_iff b v).mp hact_v) v (M.tree.isAncestor_refl v) hv
     have hch_eq : ∀ c ∈ M.tree.children v, M.localNetWelfare b c R₂ = M.upMsg b c := fun c hc => by
       obtain ⟨hc_ne, hpc⟩ := M.tree.mem_children.mp hc
-      have := M.tree.depth_of_mem_children hc; have := M.tree.depth_le_maxDepth c
+      have := M.tree.depth_of_mem_children hc
+      have := M.tree.depth_le_maxDepth c
       by_cases hsc : 0 ≤ M.subtreeSurplus b c
       · have hact_c : M.topDownActive b c = true := by
           rw [M.topDownActive_of_ne_root b hc_ne, hpc, hact_v, Bool.true_and, decide_eq_true_eq]
@@ -1021,10 +1057,12 @@ private theorem localNetWelfare_twoPassReceivers_eq_subtreeSurplus
       have := M.edgeCost_nonneg v
       unfold subtreeSurplus at hsurp_nonneg ⊢
       linarith
-    · rw [M.localNetWelfare_decomp hne, subtreeSurplus, M.nodeWelfare_eq,
-        show (R₂.filter fun i => M.loc i = v) = Finset.univ.filter fun i : A => M.loc i = v by
-          ext i; simp only [R₂, twoPassReceivers, Finset.mem_filter, Finset.mem_univ, true_and]
-          exact ⟨And.right, fun hl => ⟨hl.symm ▸ hact_v, hl⟩⟩,
+    · have hflt_eq : (R₂.filter fun i => M.loc i = v) =
+          Finset.univ.filter fun i : A => M.loc i = v := by
+        ext i
+        simp only [R₂, twoPassReceivers, Finset.mem_filter, Finset.mem_univ, true_and]
+        exact ⟨And.right, fun hl => ⟨hl.symm ▸ hact_v, hl⟩⟩
+      rw [M.localNetWelfare_decomp hne, subtreeSurplus, M.nodeWelfare_eq, hflt_eq,
         Finset.sum_congr rfl fun i _ => (max_eq_left (hb i)).symm, Finset.sum_congr rfl hch_eq]
 
 /-- **Pass 1 root correctness**: on nonnegative bid profiles, `nodeWelfare b tree.root` equals the
@@ -1067,7 +1105,8 @@ theorem isGreatest_isWelfareMaximizingSet_mcReceivers (b : A → ℝ) :
   have hW_ne : W.Nonempty :=
     ⟨R₀, Finset.mem_filter.mpr ⟨Finset.mem_univ R₀, fun S => hR₀ S (Finset.mem_univ S)⟩⟩
   have hbi_max : ∀ U : Finset (Finset A), U.Nonempty →
-      (∀ R ∈ U, M.IsWelfareMaximizingSet b R) → M.IsWelfareMaximizingSet b (U.biUnion id) := by
+      (∀ R ∈ U, M.IsWelfareMaximizingSet b R) →
+      M.IsWelfareMaximizingSet b (U.biUnion id) := by
     intro U
     induction U using Finset.induction_on with
     | empty => exact fun h => absurd rfl h.ne_empty
@@ -1078,7 +1117,9 @@ theorem isGreatest_isWelfareMaximizingSet_mcReceivers (b : A → ℝ) :
       · rw [Finset.biUnion_insert]
         exact (hall R (Finset.mem_insert_self R U)).union
           (ih hUne fun S hS => hall S (Finset.mem_insert_of_mem hS))
-  have hmc : M.mcReceivers b = W.biUnion id := by ext x; simp [mcReceivers, W]
+  have hmc : M.mcReceivers b = W.biUnion id := by
+    ext x
+    simp [mcReceivers, W]
   rw [hmc]
   exact ⟨hbi_max W hW_ne fun R hR => (Finset.mem_filter.mp hR).2,
     fun R hR => Finset.subset_biUnion_of_mem id (Finset.mem_filter.mpr ⟨Finset.mem_univ R, hR⟩)⟩
@@ -1152,7 +1193,7 @@ theorem mcMechanism_utility_eq (u b : A → ℝ) (i : A) :
       ring
     simp only [hi, ↓reduceIte, hsum]; ring
   · have hsum : ∑ j ∈ M.mcReceivers b, Function.update b i (u i) j = ∑ j ∈ M.mcReceivers b, b j :=
-      Finset.sum_congr rfl fun j hj => Function.update_of_ne (by rintro rfl; exact hi hj) _ b
+      Finset.sum_congr rfl fun j hj => Function.update_of_ne (fun h : j = i => hi (h ▸ hj)) _ b
     have heq_w : M.maxNetWelfareWithout b i =
         (∑ j ∈ M.mcReceivers b, b j) - M.toCostSharingGame.cost (M.mcReceivers b) := by
       rw [← M.netWelfare_apply, M.netWelfare_mcReceivers]
@@ -1223,7 +1264,8 @@ theorem mcMechanism_payment_sum_le_cost (b : A → ℝ) :
     have hRU := (M.isGreatest_isWelfareMaximizingSet_mcReceivers b).1 (R ∪ W)
     refine ⟨R ∩ W, hiRW, Finset.inter_subset_left,
       le_antisymm (M.netWelfare_le_maxNetWelfareWithout hiRW) ?_⟩
-    unfold maxNetWelfareWithout; linarith [hW_eq]
+    unfold maxNetWelfareWithout
+    linarith [hW_eq]
   choose T hTi hTR hTeq using hex
   have hgap : ∀ S : Finset A,
       M.netWelfare b R - M.netWelfare b (R.filter fun x => ∀ i ∈ S, x ∈ T i) ≤
@@ -1244,13 +1286,17 @@ theorem mcMechanism_payment_sum_le_cost (b : A → ℝ) :
       linarith
   have hempty : (R.filter fun x => ∀ i ∈ R, x ∈ T i) = ∅ :=
     Finset.eq_empty_of_forall_notMem fun x hx =>
-      let ⟨hxR, hall⟩ := Finset.mem_filter.mp hx; hTi x (hall x hxR)
+      let ⟨hxR, hall⟩ := Finset.mem_filter.mp hx
+      hTi x (hall x hxR)
   have hmain := hgap R
   rw [hempty, M.netWelfare_empty, sub_zero] at hmain
   have hpay_sum : ∑ i ∈ R, M.mcMechanism.payment b i =
-      (∑ i ∈ R, b i) - ∑ i ∈ R, (M.netWelfare b R - M.netWelfare b (T i)) := by
-    rw [← Finset.sum_sub_distrib]
-    exact Finset.sum_congr rfl fun i hi => by rw [M.mcMechanism_payment_of_mem hi, ← hTeq i]; ring
+      (∑ i ∈ R, b i) - ∑ i ∈ R, (M.netWelfare b R - M.netWelfare b (T i)) :=
+    calc ∑ i ∈ R, M.mcMechanism.payment b i
+        = ∑ i ∈ R, (b i - (M.netWelfare b R - M.netWelfare b (T i))) :=
+          Finset.sum_congr rfl fun i hi => by rw [M.mcMechanism_payment_of_mem hi, ← hTeq i]; ring
+      _ = (∑ i ∈ R, b i) - ∑ i ∈ R, (M.netWelfare b R - M.netWelfare b (T i)) :=
+          Finset.sum_sub_distrib _ _
   change ∑ i ∈ R, M.mcMechanism.payment b i ≤ M.toCostSharingGame.cost R
   have hnwR : M.netWelfare b R = (∑ i ∈ R, b i) - M.toCostSharingGame.cost R := rfl
   linarith
@@ -1284,10 +1330,13 @@ theorem twoPassReceivers_eq_mcReceivers {b : A → ℝ} (hb : ∀ i, 0 ≤ b i) 
       (∑ v ∈ M.tree.subtreeNodes w,
           if ∃ j ∈ R_in, M.tree.IsAncestor v (M.loc j) then M.edgeCost v else 0) ≤
         M.toCostSharingGame.cost R - M.toCostSharingGame.cost R' := by
+    have hflt_sub : (Finset.univ.filter fun v => v ∈ M.tree.subtreeNodes w) =
+        M.tree.subtreeNodes w := by
+      ext v
+      simp
     rw [M.toCostSharingGame_cost_eq_sum R, M.toCostSharingGame_cost_eq_sum R',
       ← Finset.sum_sub_distrib, ← Finset.sum_filter_add_sum_filter_not Finset.univ
-        (fun v => v ∈ M.tree.subtreeNodes w), show (Finset.univ.filter fun v =>
-          v ∈ M.tree.subtreeNodes w) = M.tree.subtreeNodes w by ext; simp]
+        (fun v => v ∈ M.tree.subtreeNodes w), hflt_sub]
     have hin_eq : ∀ v ∈ M.tree.subtreeNodes w,
         (if ∃ j ∈ R, M.tree.IsAncestor v (M.loc j) then M.edgeCost v else 0) -
           (if ∃ j ∈ R', M.tree.IsAncestor v (M.loc j) then M.edgeCost v else 0) =
@@ -1326,16 +1375,19 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
     M.twoPassPayment b i = M.mcMechanism.payment b i := by
   have hserv := M.twoPassReceivers_eq_mcReceivers hb
   by_cases hact : M.topDownActive b (M.loc i) = true
-  · have hi_mc : i ∈ M.mcReceivers b := by rw [← hserv]; exact M.mem_twoPassReceivers.mpr hact
+  · have hi_mc : i ∈ M.mcReceivers b := by
+      rw [← hserv]
+      exact M.mem_twoPassReceivers.mpr hact
     let b' := Function.update b i 0
     have hb' : ∀ j, 0 ≤ b' j := fun j => by
       rcases eq_or_ne j i with rfl | hne
       · simp [b']
       · simpa [b', Function.update_of_ne hne] using hb j
     have hnw_eq : ∀ R, i ∉ R → M.netWelfare b' R = M.netWelfare b R := fun R hiR => by
-      simp only [netWelfare]; congr 1
+      simp only [netWelfare]
+      congr 1
       exact Finset.sum_congr rfl fun j hj =>
-        Function.update_of_ne (by rintro rfl; exact hiR hj) 0 b
+        Function.update_of_ne (fun h : j = i => hiR (h ▸ hj)) 0 b
     have hwithout : M.maxNetWelfareWithout b i = M.maxNetWelfare b' := by
       classical
       refine le_antisymm (Finset.sup'_le _ _ fun R hR =>
@@ -1344,7 +1396,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
       by_cases hiR : i ∈ R
       · refine le_trans ?_ (M.netWelfare_le_maxNetWelfareWithout (Finset.notMem_erase i R))
         have hsum : ∑ j ∈ R, b' j = ∑ j ∈ R.erase i, b j := by
-          rw [← Finset.sum_erase_add _ _ hiR]; simp only [b', Function.update_self, add_zero]
+          rw [← Finset.sum_erase_add _ _ hiR]
+          simp only [b', Function.update_self, add_zero]
           exact Finset.sum_congr rfl fun j hj =>
             Function.update_of_ne (Finset.ne_of_mem_erase hj) 0 b
         have := M.toCostSharingGame_mono (Finset.erase_subset i R)
@@ -1355,7 +1408,10 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
           ¬ M.tree.IsAncestor v (M.loc i) → M.upMsg b' v = M.upMsg b v from fun v => hrec _ v le_rfl
       intro rem
       induction rem with
-      | zero => intro v hrem; have := M.tree.depth_le_maxDepth v; omega
+      | zero =>
+        intro v hrem
+        have := M.tree.depth_le_maxDepth v
+        omega
       | succ rem ih =>
         intro v hrem hnot_anc
         have hres : (∑ j : A with M.loc j = v, max (b' j) 0) =
@@ -1366,7 +1422,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
             simp [b', Function.update_of_ne hji]
         have hch : ∑ c ∈ M.tree.children v, M.upMsg b' c = ∑ c ∈ M.tree.children v, M.upMsg b c :=
           Finset.sum_congr rfl fun c hc => by
-            have := M.tree.depth_of_mem_children hc; have := M.tree.depth_le_maxDepth c
+            have := M.tree.depth_of_mem_children hc
+            have := M.tree.depth_le_maxDepth c
             have huc : M.tree.IsAncestor v c :=
               (M.tree.mem_children.mp hc).2 ▸ M.tree.isAncestor_parent_self c
             exact ih c (by omega) fun hci => hnot_anc (huc.trans hci)
@@ -1400,7 +1457,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
           have hcongr : ∑ j ∈ Floc.erase i, max (b' j) 0 = ∑ j ∈ Floc.erase i, max (b j) 0 :=
             Finset.sum_congr rfl fun j hj => by
               simp [b', Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-          rw [hcongr]; simp [b']
+          rw [hcongr]
+          simp [b']
         change (∑ j ∈ Floc, max (b' j) 0) + _ = ((∑ j ∈ Floc, max (b j) 0) + _) - b i
         rw [hch, hsum_b']; ring
       | succ k ih =>
@@ -1423,7 +1481,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
             ∑ j : A with M.loc j = M.tree.parent w, max (b j) 0 :=
           Finset.sum_congr rfl fun j hj => by
             have hji : j ≠ i := fun h => by
-              have := M.tree.depth_parent_lt hw_ne; have hle := hwi.depth_le
+              have := M.tree.depth_parent_lt hw_ne
+              have hle := hwi.depth_le
               rw [← h, (Finset.mem_filter.mp hj).2] at hle; omega
             simp [b', Function.update_of_ne hji]
         have hch_other : ∑ c ∈ (M.tree.children (M.tree.parent w)).erase w, M.upMsg b' c =
@@ -1435,7 +1494,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
               (M.tree.mem_subtreeNodes.mpr hci) (M.tree.mem_subtreeNodes.mpr hwi)
         rw [hres, ← Finset.sum_erase_add _ (M.upMsg b') hw_child,
           ← Finset.sum_erase_add _ (M.upMsg b) hw_child, hch_other, hup_w]
-        change _ = _ - min (upDrop k) (M.subtreeSurplus b w); ring
+        change _ = _ - min (upDrop k) (M.subtreeSurplus b w)
+        ring
     have hshift : ∀ (m : ℕ) (u : V) (x : ℝ),
         min (Nat.rec x (fun r acc =>
             min acc (M.subtreeSurplus b (M.tree.parent^[r] (M.tree.parent u)))) m)
@@ -1443,7 +1503,9 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
         Nat.rec x (fun r acc => min acc (M.subtreeSurplus b (M.tree.parent^[r] u))) (m + 1) := by
       intro m
       induction m with
-      | zero => intro _ _; rfl
+      | zero =>
+        intro _ _
+        rfl
       | succ m ihm =>
         intro u x
         change min (min _ _) _ = min _ (M.subtreeSurplus b (M.tree.parent^[m + 1] u))
@@ -1454,7 +1516,9 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
           Nat.rec (b i) (fun r acc => min acc (M.subtreeSurplus b (M.tree.parent^[r] u))) d := by
       intro d
       induction d with
-      | zero => intro u hd; rw [M.tree.depth_eq_zero_iff.mp hd, M.topDownThreshold_root]; rfl
+      | zero =>
+        intro u hd
+        rw [M.tree.depth_eq_zero_iff.mp hd, M.topDownThreshold_root]; rfl
       | succ d ih =>
         intro u hd
         have hu_ne : u ≠ M.tree.root := fun hr => by rw [hr, M.tree.depth_root] at hd; omega
@@ -1462,19 +1526,26 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
         have ihp := ih (M.tree.parent u) (by have := M.tree.depth_parent u; omega)
         cases hth : M.topDownThreshold b (M.tree.parent u) with
         | none =>
-          rw [hth] at ihp; dsimp only at ihp ⊢; conv_lhs => rw [ihp]
+          rw [hth] at ihp
+          dsimp only at ihp ⊢
+          conv_lhs => rw [ihp]
           exact hshift d u (b i)
         | some mp =>
-          rw [hth] at ihp; dsimp only at ihp ⊢; conv_lhs => rw [← min_assoc, ihp]
+          rw [hth] at ihp
+          dsimp only at ihp ⊢
+          conv_lhs => rw [← min_assoc, ihp]
           exact hshift d u (b i)
     have hroot_nw := hup_nw (M.tree.depth (M.loc i)) le_rfl
     rw [M.tree.parent_iter_depth] at hroot_nw
     have hdrop_match := hthresh_eq (M.tree.depth (M.loc i)) (M.loc i) rfl
-    rw [M.mcMechanism_payment_of_mem hi_mc, hwithout, ← M.nodeWelfare_root_eq_maxNetWelfare hb',
-      M.netWelfare_mcReceivers, ← M.nodeWelfare_root_eq_maxNetWelfare hb, hroot_nw]
+    rw [M.mcMechanism_payment_of_mem hi_mc, hwithout,
+      ← M.nodeWelfare_root_eq_maxNetWelfare hb', M.netWelfare_mcReceivers,
+      ← M.nodeWelfare_root_eq_maxNetWelfare hb, hroot_nw]
     simp only [twoPassPayment, hact, ↓reduceIte]
     cases hth : M.topDownThreshold b (M.loc i) with
-    | none => rw [hth] at hdrop_match; dsimp only [upDrop] at hdrop_match ⊢; linarith
+    | none =>
+      rw [hth] at hdrop_match
+      dsimp only [upDrop] at hdrop_match ⊢; linarith
     | some m =>
       rw [hth] at hdrop_match
       dsimp only [upDrop] at hdrop_match ⊢
@@ -1483,7 +1554,9 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
       · rw [min_eq_left h, max_eq_left (by linarith)]; ring
       · rw [min_eq_right h, max_eq_right (by linarith)]; ring
   · have hfalse : M.topDownActive b (M.loc i) = false := Bool.eq_false_iff.mpr hact
-    have hi_not : i ∉ M.mcReceivers b := by rw [← hserv]; simp [twoPassReceivers, hfalse]
+    have hi_not : i ∉ M.mcReceivers b := by
+      rw [← hserv]
+      simp [twoPassReceivers, hfalse]
     simp [twoPassPayment, hfalse, M.mcMechanism_payment_of_notMem hi_not]
 
 end FiniteAgents
@@ -1570,13 +1643,20 @@ theorem not_mcMechanism_isGroupStrategyproof_singleLink {A : Type*} [Fintype A] 
   have hserv_u : I.mcReceivers u = ∅ := by
     rcases (I.mcReceivers u).eq_empty_or_nonempty with hemp | hRne
     · exact hemp
-    · have hle : ∑ k ∈ I.mcReceivers u, u k ≤ ∑ k ∈ pair, u k :=
-        sum_le_of_eq_zero_outside
-          (fun k _ hk => by
-            simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hk; simp [u, hk])
-          (fun k _ => by dsimp [u]; split_ifs <;> linarith)
-      rw [Finset.sum_pair hne] at hle
-      simp only [u, true_or, or_true, ↓reduceIte] at hle
+    · have hle : ∑ k ∈ I.mcReceivers u, u k ≤ 2 * C / 3 :=
+        calc ∑ k ∈ I.mcReceivers u, u k
+            ≤ ∑ k ∈ pair, u k :=
+              sum_le_of_eq_zero_outside
+                (fun k _ hk => by
+                  simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hk
+                  simp [u, hk])
+                (fun k _ => by
+                  dsimp [u]
+                  split_ifs <;> linarith)
+          _ = 2 * C / 3 := by
+              rw [Finset.sum_pair hne]
+              simp only [u, true_or, or_true, ↓reduceIte]
+              ring
       have hge := I.maxNetWelfare_nonneg u
       rw [← I.netWelfare_mcReceivers u, MulticastInstance.netWelfare_apply,
         singleLinkMulticast_cost] at hge
@@ -1600,9 +1680,13 @@ theorem not_mcMechanism_isGroupStrategyproof_singleLink {A : Type*} [Fintype A] 
     rcases S.eq_empty_or_nonempty with rfl | hSne
     · simp; linarith
     · simp only [hSne, ↓reduceIte]
-      have hle : ∑ k ∈ S, b' k ≤ ∑ k ∈ pair, b' k :=
-        sum_le_of_eq_zero_outside (fun k _ hk => hb'_out k hk) fun k _ => hb'_nn k
-      rw [Finset.sum_pair hne, hb'_in i₀ (by simp [pair]), hb'_in i₁ (by simp [pair])] at hle
+      have hle : ∑ k ∈ S, b' k ≤ 4 * C :=
+        calc ∑ k ∈ S, b' k
+            ≤ ∑ k ∈ pair, b' k :=
+              sum_le_of_eq_zero_outside (fun k _ hk => hb'_out k hk) fun k _ => hb'_nn k
+          _ = 4 * C := by
+              rw [Finset.sum_pair hne, hb'_in i₀ (by simp [pair]), hb'_in i₁ (by simp [pair])]
+              ring
       linarith
   have hpair_sub : pair ⊆ I.mcReceivers b' :=
     (I.isGreatest_isWelfareMaximizingSet_mcReceivers b').2 hpair_max
@@ -1627,15 +1711,17 @@ theorem not_mcMechanism_isGroupStrategyproof_singleLink {A : Type*} [Fintype A] 
       rcases R.eq_empty_or_nonempty with rfl | hRne
       · simp [hC.le]
       · simp only [hRne, ↓reduceIte]
-        have hsum_le : ∑ x ∈ R, b' x ≤ ∑ x ∈ ({other} : Finset A), b' x :=
-          sum_le_of_eq_zero_outside (fun x hxR hxo => hb'_out x fun hxp => by
-            simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hxp hother_pair hk
-            simp only [Finset.mem_singleton] at hxo
-            rcases hxp with rfl | rfl <;> rcases hother_pair with rfl | rfl <;>
-              rcases hk with rfl | rfl <;>
-                first | exact hxo rfl | exact hkR hxR | exact hother_ne rfl)
-            fun x _ => hb'_nn x
-        rw [Finset.sum_singleton, hb'_in other hother_pair] at hsum_le
+        have hsum_le : ∑ x ∈ R, b' x ≤ 2 * C :=
+          calc ∑ x ∈ R, b' x
+              ≤ ∑ x ∈ ({other} : Finset A), b' x :=
+                sum_le_of_eq_zero_outside (fun x hxR hxo => hb'_out x fun hxp => by
+                  simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hxp hother_pair hk
+                  simp only [Finset.mem_singleton] at hxo
+                  rcases hxp with rfl | rfl <;> rcases hother_pair with rfl | rfl <;>
+                    rcases hk with rfl | rfl <;>
+                      first | exact hxo rfl | exact hkR hxR | exact hother_ne rfl)
+                  fun x _ => hb'_nn x
+            _ = 2 * C := by rw [Finset.sum_singleton, hb'_in other hother_pair]
         linarith
     rw [le_antisymm hle_without hge_without, hnw_b', hb'_in k hk]; ring
   have hutil_u : ∀ k ∈ pair, I.mcMechanism.utility u u k = 0 := fun k _ => by
@@ -1644,7 +1730,8 @@ theorem not_mcMechanism_isGroupStrategyproof_singleLink {A : Type*} [Fintype A] 
     simp [hserv_u, I.mcMechanism_payment_of_notMem hk_not]
   have hutil_b' : ∀ k ∈ pair, I.mcMechanism.utility u b' k = C / 3 := fun k hk => by
     have huk : u k = C / 3 := by
-      simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hk; simp [u, hk]
+      simp only [pair, Finset.mem_insert, Finset.mem_singleton] at hk
+      simp [u, hk]
     rw [CostSharingMechanism.utility_eq]
     simp [hpair_sub hk, hpay_zero k hk, huk]
   refine ⟨u, z, pair, fun k hk => by rw [hutil_u k hk, hutil_b' k hk]; linarith,
@@ -1690,7 +1777,8 @@ theorem not_exists_dsic_budgetBalanced_welfareMaximizing_singleLink
       · simpa [bLow, Function.update_of_ne hkm] using hbHigh_nn k
     have hm_bLow : bLow m = C / 3 := Function.update_self m (C / 3) bHigh
     have ho_bLow : bLow o = 3 * C / 4 := by
-      dsimp only [bLow]; rw [Function.update_of_ne hmo.symm]
+      dsimp only [bLow]
+      rw [Function.update_of_ne hmo.symm]
       rcases hpair with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp [bHigh]
     have hm_in_low : m ∈ M.serviced bLow := by
       by_contra hm_not
@@ -1701,18 +1789,22 @@ theorem not_exists_dsic_budgetBalanced_welfareMaximizing_singleLink
       rcases (M.serviced bLow).eq_empty_or_nonempty with hemp | hSne
       · simp [hemp] at hmax_low; linarith
       · simp only [hSne, ↓reduceIte] at hmax_low
-        have hsum_le : ∑ k ∈ M.serviced bLow, bLow k ≤ ∑ k ∈ ({o} : Finset A), bLow k :=
-          sum_le_of_eq_zero_outside (fun k hkS hko => by
-            have hkm : k ≠ m := fun h => hm_not (h ▸ hkS)
-            dsimp only [bLow]; rw [Function.update_of_ne hkm]
-            have hko' : k ≠ o := Finset.notMem_singleton.mp hko
-            rcases hpair with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp [bHigh, hkm, hko'])
-            fun k _ => hbLow_nn k
-        rw [Finset.sum_singleton, ho_bLow] at hsum_le
+        have hsum_le : ∑ k ∈ M.serviced bLow, bLow k ≤ 3 * C / 4 :=
+          calc ∑ k ∈ M.serviced bLow, bLow k
+              ≤ ∑ k ∈ ({o} : Finset A), bLow k :=
+                sum_le_of_eq_zero_outside (fun k hkS hko => by
+                  have hkm : k ≠ m := fun h => hm_not (h ▸ hkS)
+                  dsimp only [bLow]
+                  rw [Function.update_of_ne hkm]
+                  have hko' : k ≠ o := Finset.notMem_singleton.mp hko
+                  rcases hpair with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp [bHigh, hkm, hko'])
+                  fun k _ => hbLow_nn k
+            _ = 3 * C / 4 := by rw [Finset.sum_singleton, ho_bLow]
         linarith
     have hpay_low : M.payment bLow m ≤ C / 3 := (hvp.2 bLow m hm_in_low).trans_eq hm_bLow
     have hupd_high : Function.update bLow m (3 * C / 4) = bHigh := by
-      ext k; rcases eq_or_ne k m with rfl | hkm
+      ext k
+      rcases eq_or_ne k m with rfl | hkm
       · rcases hpair with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp [bLow, bHigh]
       · simp [bLow, Function.update_of_ne hkm]
     by_cases hm_in_high : m ∈ M.serviced bHigh
@@ -1728,13 +1820,15 @@ theorem not_exists_dsic_budgetBalanced_welfareMaximizing_singleLink
     rw [singleLinkMulticast_cost] at h1 h2
     simp only [hserv_ne, ↓reduceIte, one_mul] at h1 h2; linarith
   have hsum_le : ∑ k ∈ M.serviced bHigh, M.payment bHigh k ≤
-      ∑ k ∈ ({i₀, i₁} : Finset A), M.payment bHigh k :=
-    sum_le_of_eq_zero_outside
-      (fun k _ hk => by
-        simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hk
-        exact hpay_zero_out k hk.1 hk.2)
-      fun k _ => hnpt bHigh k
-  rw [Finset.sum_pair hne] at hsum_le
+      M.payment bHigh i₀ + M.payment bHigh i₁ :=
+    calc ∑ k ∈ M.serviced bHigh, M.payment bHigh k
+        ≤ ∑ k ∈ ({i₀, i₁} : Finset A), M.payment bHigh k :=
+          sum_le_of_eq_zero_outside
+            (fun k _ hk => by
+              simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hk
+              exact hpay_zero_out k hk.1 hk.2)
+            fun k _ => hnpt bHigh k
+      _ = M.payment bHigh i₀ + M.payment bHigh i₁ := Finset.sum_pair hne
   linarith
 
 private theorem sum_le_harmonic_sub_mul {A : Type*}
@@ -1748,14 +1842,19 @@ private theorem sum_le_harmonic_sub_mul {A : Type*}
       ∑ x ∈ T, b x ≤ ((harmonic (s + m) : ℝ) - (harmonic s : ℝ)) * C from fun T => hrec _ T rfl
   intro m
   induction m with
-  | zero => intro T hc _; rw [Finset.card_eq_zero.mp hc]; simp
+  | zero =>
+    intro T hc _
+    rw [Finset.card_eq_zero.mp hc]
+    simp
   | succ m ih =>
     intro T hc hpeel
     obtain ⟨x, hxT, hbx⟩ := hpeel T (Finset.card_pos.mp (by omega)) Subset.rfl
     have ih_er := ih (T.erase x) (by rw [Finset.card_erase_of_mem hxT, hc]; omega) fun U hU hUT =>
       hpeel U hU (hUT.trans (Finset.erase_subset x T))
     have hh : (harmonic (s + (m + 1)) : ℝ) = (harmonic (s + m) : ℝ) + ((s + m + 1 : ℕ) : ℝ)⁻¹ := by
-      rw [show s + (m + 1) = (s + m) + 1 by omega, harmonic_succ]; push_cast; ring
+      rw [show s + (m + 1) = (s + m) + 1 by omega, harmonic_succ]
+      push_cast
+      ring
     rw [hc, show s + (m + 1) = s + m + 1 by omega, div_eq_mul_inv, mul_comm] at hbx
     rw [← Finset.sum_erase_add _ _ hxT, hh]; linarith
 
@@ -1798,7 +1897,8 @@ theorem netWelfare_sub_shMechanism_le_harmonic_sub_one
         ∃ x ∈ U, b x ≤ C / ((S.card + U.card : ℕ) : ℝ) := fun U hUne hU_sub => by
       have hdisj : Disjoint S U :=
         Finset.disjoint_left.mpr fun x hxS hxU => (Finset.mem_sdiff.mp (hU_sub hxU)).2 hxS
-      by_contra hall; push Not at hall
+      by_contra hall
+      push Not at hall
       have hwSU : I.shScheme.IsWilling b (S ∪ U) := fun x hx => by
         rcases Finset.mem_union.mp hx with hxS | hxU
         · exact (I.shScheme_isCrossMonotone Finset.subset_union_left hxS).trans (hS_willing x hxS)
@@ -1809,7 +1909,8 @@ theorem netWelfare_sub_shMechanism_le_harmonic_sub_one
       exact (Finset.mem_sdiff.mp (hU_sub huU)).2 (hgreat.2 hwSU (Finset.mem_union_right S huU))
     have hsum_diff := sum_le_harmonic_sub_mul (b := b) (C := C) S.card (R \ S) hpeel
     have hcard_SR : S.card + (R \ S).card ≤ Fintype.card A := by
-      rw [← Finset.card_union_of_disjoint Finset.disjoint_sdiff]; exact Finset.card_le_univ _
+      rw [← Finset.card_union_of_disjoint Finset.disjoint_sdiff]
+      exact Finset.card_le_univ _
     have hmono_SR : (harmonic (S.card + (R \ S).card) : ℝ) ≤ (harmonic (Fintype.card A) : ℝ) := by
       exact_mod_cast harmonic_mono hcard_SR
     rcases S.eq_empty_or_nonempty with hSemp | hSne
@@ -1855,9 +1956,12 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
   have hbb_eq := (ξ.isBudgetBalanced_one_iff _).mp hbb
   have hchain : ∀ r : ℕ, r ≤ n →
       ∃ (W : Finset A) (seq : Fin r → A),
-        W.card = n - r ∧ Function.Injective seq ∧ (∀ t : Fin r, seq t ∉ W) ∧
-        (∀ t : Fin r, C / ((n - t.1 : ℕ) : ℝ) ≤
-          ξ.share (W ∪ (Finset.univ.filter fun s : Fin r => t ≤ s).image seq) (seq t)) := by
+        W.card = n - r ∧
+        Function.Injective seq ∧
+        (∀ t : Fin r, seq t ∉ W) ∧
+        (∀ t : Fin r,
+          C / ((n - t.1 : ℕ) : ℝ) ≤
+            ξ.share (W ∪ (Finset.univ.filter fun s : Fin r => t ≤ s).image seq) (seq t)) := by
     intro r
     induction r with
     | zero => exact fun _ => ⟨Finset.univ, Fin.elim0, by simp [n], fun x => Fin.elim0 x,
@@ -1869,7 +1973,8 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
       have hsum_W₀ : ∑ x ∈ W₀, ξ.share W₀ x = C := by
         simpa [singleLinkMulticast_cost, hW₀_ne] using hbb_eq W₀
       obtain ⟨a, haW₀, ha_ge⟩ : ∃ a ∈ W₀, C / (W₀.card : ℝ) ≤ ξ.share W₀ a := by
-        by_contra hall; push Not at hall
+        by_contra hall
+        push Not at hall
         have hlt := Finset.sum_lt_sum_of_nonempty hW₀_ne hall
         have hcpos : (0 : ℝ) < W₀.card := Nat.cast_pos.mpr (Finset.card_pos.mpr hW₀_ne)
         rw [Finset.sum_const, nsmul_eq_mul, mul_div_cancel₀ _ hcpos.ne'] at hlt; linarith
@@ -1887,7 +1992,8 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
         · rfl
       · intro t
         rcases Fin.eq_castSucc_or_eq_last t with ⟨t', rfl⟩ | rfl
-        · simp only [seq₁, Fin.snoc_castSucc]; exact fun h => hnotW₀ t' (Finset.erase_subset a W₀ h)
+        · simp only [seq₁, Fin.snoc_castSucc]
+          exact fun h => hnotW₀ t' (Finset.erase_subset a W₀ h)
         · simp [seq₁, W₁]
       · intro t
         rcases Fin.eq_castSucc_or_eq_last t with ⟨t', rfl⟩ | rfl
@@ -1909,17 +2015,20 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
                 · exact Or.inr ⟨Fin.last r, Fin.le_last _, by simp [seq₁]⟩
                 · exact Or.inl (Finset.mem_erase.mpr ⟨hxa, hx⟩)
               · exact Or.inr ⟨s'.castSucc, Fin.castSucc_le_castSucc_iff.mpr hts', by simp [seq₁]⟩
-          rw [hset_eq]; exact hshare₀ t'
+          rw [hset_eq]
+          exact hshare₀ t'
         · simp only [seq₁, Fin.snoc_last, Fin.val_last]
           have hflt : (Finset.univ.filter fun s : Fin (r + 1) => Fin.last r ≤ s) =
               {Fin.last r} := by
-            ext s; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
+            ext s
+            simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
             exact ⟨fun h => le_antisymm (Fin.le_last s) h, fun h => h ▸ le_rfl⟩
           have hset_W₀ : W₁ ∪ ({Fin.last r} : Finset (Fin (r + 1))).image seq₁ = W₀ := by
             rw [Finset.image_singleton]
             simp only [seq₁, Fin.snoc_last, W₁]
             rw [Finset.union_comm, Finset.singleton_union, Finset.insert_erase haW₀]
-          rw [hflt, hset_W₀, ← hW₀_card]; exact ha_ge
+          rw [hflt, hset_W₀, ← hW₀_card]
+          exact ha_ge
   obtain ⟨W, seq, hW_card, hinj, _, hshare⟩ := hchain n le_rfl
   have hW_emp : W = ∅ := Finset.card_eq_zero.mp (by omega)
   let eqv : Fin n ≃ A := Equiv.ofBijective seq
@@ -1976,7 +2085,9 @@ theorem exists_welfareLoss_gt_harmonic_sub_one
     conv_rhs => rw [cast_harmonic, Finset.sum_mul]
     refine Finset.sum_congr rfl fun m hm => ?_
     have hlt := Finset.mem_range.mp hm
-    rw [show n - (n - 1 - m) = m + 1 by omega, div_eq_mul_inv, mul_comm]; push_cast; rfl
+    rw [show n - (n - 1 - m) = m + 1 by omega, div_eq_mul_inv, mul_comm]
+    push_cast
+    rfl
   refine ⟨b, hb_nn, ?_⟩
   rw [ξ.moulinMechanism_serviced, hserv_emp, (singleLinkMulticast A C hC.le).netWelfare_empty,
     sub_zero, MulticastInstance.netWelfare_apply, singleLinkMulticast_cost, hsum_b]
@@ -2070,7 +2181,9 @@ private theorem sum_digits_lt_pow {B : ℕ} (hB : 1 ≤ B) (f : ℕ → ℕ) :
     have hmul : f m * B ^ m ≤ (B - 1) * B ^ m :=
       Nat.mul_le_mul_right _ (Nat.le_sub_one_of_lt (hf m (by omega)))
     have hsub : (B - 1) * B ^ m + B ^ m = B * B ^ m := by
-      cases B with | zero => omega | succ b => simp [Nat.succ_mul]
+      cases B with
+      | zero => omega
+      | succ b => simp [Nat.succ_mul]
     omega
 
 private theorem digits_eq_of_sum_eq {B : ℕ} (hB : 1 ≤ B) (f g : ℕ → ℕ) :
@@ -2083,16 +2196,25 @@ private theorem digits_eq_of_sum_eq {B : ℕ} (hB : 1 ≤ B) (f g : ℕ → ℕ)
   | succ m ih =>
     intro hf hg hsum
     rw [Finset.sum_range_succ, Finset.sum_range_succ] at hsum
-    have hlt_imp : ∀ p q : ℕ → ℕ, (∀ i < m, p i < B) → p m < q m →
-        ∑ i ∈ Finset.range m, p i * B ^ i + p m * B ^ m <
-          ∑ i ∈ Finset.range m, q i * B ^ i + q m * B ^ m := fun p q hp hlt => by
-      have h1 := sum_digits_lt_pow hB p m hp
-      have h2 : p m * B ^ m + B ^ m ≤ q m * B ^ m := by
-        simpa [add_mul, one_mul] using Nat.mul_le_mul_right (B ^ m) hlt
-      omega
-    have htop : f m = g m := le_antisymm
-      (not_lt.mp fun h => (hlt_imp g f (fun i hi => hg i (by omega)) h).ne' hsum)
-      (not_lt.mp fun h => (hlt_imp f g (fun i hi => hf i (by omega)) h).ne hsum)
+    have htop : f m = g m := by
+      by_contra hne
+      rcases lt_or_gt_of_ne hne with hlt | hgt
+      · refine (?_ : ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m <
+            ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m).ne hsum
+        calc ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m
+            < B ^ m + f m * B ^ m :=
+              Nat.add_lt_add_right (sum_digits_lt_pow hB f m fun i hi => hf i (by omega)) _
+          _ = f m * B ^ m + B ^ m := Nat.add_comm _ _
+          _ ≤ g m * B ^ m := by simpa [add_mul, one_mul] using Nat.mul_le_mul_right (B ^ m) hlt
+          _ ≤ ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m := Nat.le_add_left _ _
+      · refine (?_ : ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m <
+            ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m).ne' hsum
+        calc ∑ i ∈ Finset.range m, g i * B ^ i + g m * B ^ m
+            < B ^ m + g m * B ^ m :=
+              Nat.add_lt_add_right (sum_digits_lt_pow hB g m fun i hi => hg i (by omega)) _
+          _ = g m * B ^ m + B ^ m := Nat.add_comm _ _
+          _ ≤ f m * B ^ m := by simpa [add_mul, one_mul] using Nat.mul_le_mul_right (B ^ m) hgt
+          _ ≤ ∑ i ∈ Finset.range m, f i * B ^ i + f m * B ^ m := Nat.le_add_left _ _
     have hrest : ∑ i ∈ Finset.range m, f i * B ^ i = ∑ i ∈ Finset.range m, g i * B ^ i := by
       rw [htop] at hsum; omega
     intro i hi
@@ -2107,15 +2229,22 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
   set L : ℕ := (k + 1).factorial
   let cnt (z : Cslib.BitString k) (t : Fin k) : ℕ :=
     1 + (Finset.univ.filter fun r : Fin k => t ≤ r ∧ z r = true).card
-  let dig (z : Cslib.BitString k) (n : ℕ) : ℕ := if h : n < k then L / cnt z ⟨n, h⟩ else 0
-  have hcnt_bounds : ∀ z t, 1 ≤ cnt z t ∧ cnt z t ≤ k + 1 := fun z t =>
-    ⟨by dsimp [cnt]; omega, by
-      have := Finset.card_le_univ (Finset.univ.filter fun r : Fin k => t ≤ r ∧ z r = true)
-      rw [Fintype.card_fin] at this; dsimp [cnt]; omega⟩
+  let dig (z : Cslib.BitString k) (n : ℕ) : ℕ :=
+    if h : n < k then L / cnt z ⟨n, h⟩ else 0
+  have hcnt_bounds : ∀ z t, 1 ≤ cnt z t ∧ cnt z t ≤ k + 1 := fun z t => by
+    refine ⟨?_, ?_⟩
+    · dsimp [cnt]
+      omega
+    · have := Finset.card_le_univ (Finset.univ.filter fun r : Fin k => t ≤ r ∧ z r = true)
+      rw [Fintype.card_fin] at this
+      dsimp [cnt]
+      omega
   have hcnt_dvd : ∀ z t, cnt z t ∣ L := fun z t =>
     Nat.dvd_factorial (hcnt_bounds z t).1 (hcnt_bounds z t).2
   have hdig_lt : ∀ z n, n < k → dig z n < L + 1 := fun z n hn => by
-    simp only [dig, hn, ↓reduceDIte]; have := Nat.div_le_self L (cnt z ⟨n, hn⟩); omega
+    simp only [dig, hn, ↓reduceDIte]
+    have := Nat.div_le_self L (cnt z ⟨n, hn⟩)
+    omega
   have heval : ∀ z : Cslib.BitString k,
       pathBottomShare k z = ((∑ n ∈ Finset.range k, dig z n * (L + 1) ^ n : ℕ) : ℝ) := fun z => by
     let Sz : Finset (Fin k ⊕ Unit) :=
@@ -2175,9 +2304,12 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
           change (z r = true ∧
               (pathRootedTree k).IsAncestor ⟨n + 1, hn_lt⟩ ⟨r.1 + 1, by omega⟩) ↔
             (⟨n, hnk⟩ : Fin k) ≤ r ∧ z r = true
-          rw [pathRootedTree_isAncestor_iff, Fin.le_def]; dsimp
+          rw [pathRootedTree_isAncestor_iff, Fin.le_def]
+          dsimp
           exact ⟨fun ⟨hz, hle⟩ => ⟨by omega, hz⟩, fun ⟨hle, hz⟩ => ⟨hz, by omega⟩⟩
-        | inr u => cases u; simp [Sz, hanc_bot, A_n]
+        | inr u =>
+          cases u
+          simp [Sz, hanc_bot, A_n]
       rw [hflt_eq, Finset.card_insert_of_notMem (by simp [A_n]), Finset.card_map]
       dsimp [cnt]; omega
     simp only [termNat, hn_lt, ↓reduceDIte, hanc_bot, ↓reduceIte, hedge, hcard_Sz, dig, hnk]
@@ -2191,22 +2323,30 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
   have hdig_eq := digits_eq_of_sum_eq (Nat.le_add_left 1 L) (dig x) (dig x') k
     (hdig_lt x) (hdig_lt x') (Nat.cast_injective heq)
   have hcnt_eq : ∀ t : Fin k, cnt x t = cnt x' t := fun t => by
-    have hd := hdig_eq t.1 t.2; simp only [dig, t.2, ↓reduceDIte] at hd
-    have h1 := Nat.div_mul_cancel (hcnt_dvd x t); rw [hd] at h1
+    have hd := hdig_eq t.1 t.2
+    simp only [dig, t.2, ↓reduceDIte] at hd
+    have h1 := Nat.div_mul_cancel (hcnt_dvd x t)
+    rw [hd] at h1
     have hdiv_pos : 0 < L / cnt x' t :=
       Nat.div_pos ((hcnt_bounds x' t).2.trans (Nat.self_le_factorial (k + 1))) (hcnt_bounds x' t).1
     exact Nat.eq_of_mul_eq_mul_left hdiv_pos (h1.trans (Nat.div_mul_cancel (hcnt_dvd x' t)).symm)
   suffices htail : ∀ m (t : Fin k), k - t.1 ≤ m → x t = x' t from funext fun t => htail _ t le_rfl
   intro m
   induction m with
-  | zero => intro t hm; have := t.2; omega
+  | zero =>
+    intro t hm
+    have := t.2
+    omega
   | succ m ih =>
     intro t hm
     have hstrict : (Finset.univ.filter fun r : Fin k => t < r ∧ x r = true) =
         Finset.univ.filter fun r : Fin k => t < r ∧ x' r = true := by
-      ext r; simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      ext r
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       exact and_congr_right fun htr => by
-        have : t.1 < r.1 := htr; have := r.2; rw [ih r (by omega)]
+        have : t.1 < r.1 := htr
+        have := r.2
+        rw [ih r (by omega)]
     have hsplit : ∀ z : Cslib.BitString k,
         cnt z t = 1 + (if z t = true then 1 else 0) +
           (Finset.univ.filter fun r : Fin k => t < r ∧ z r = true).card := fun z => by
@@ -2214,14 +2354,18 @@ theorem pathBottomShare_injective (k : ℕ) : Function.Injective (pathBottomShar
       have hpart : (Finset.univ.filter fun r : Fin k => t ≤ r ∧ z r = true) =
           (if z t = true then {t} else ∅) ∪
             Finset.univ.filter (fun r : Fin k => t < r ∧ z r = true) := by
-        ext r; simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
+        ext r
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
         by_cases hrt : r = t
-        · subst hrt; by_cases hzt : z r = true <;> simp [hzt]
-        · simp only [show (t ≤ r) ↔ (t < r) from
-            ⟨fun h => lt_of_le_of_ne h (Ne.symm hrt), le_of_lt⟩]
+        · subst hrt
+          by_cases hzt : z r = true <;> simp [hzt]
+        · have hle_iff : (t ≤ r) ↔ (t < r) :=
+            ⟨fun h => lt_of_le_of_ne h (Ne.symm hrt), le_of_lt⟩
+          simp only [hle_iff]
           split_ifs <;> simp [hrt]
       rw [hpart, Finset.card_union_of_disjoint (by split_ifs <;> simp)]
-      split_ifs <;> simp; omega
+      split_ifs <;> simp
+      omega
     have hc := hcnt_eq t
     rw [hsplit x, hsplit x', hstrict] at hc
     cases hx : x t <;> cases hx' : x' t <;> simp_all
@@ -2262,7 +2406,8 @@ theorem mem_pathMulticast_shMechanism_serviced_iff (k : ℕ) (x y : Cslib.BitStr
     let vt : Fin (k + 2) := ⟨t.1 + 1, by omega⟩
     have hvt_cost_pos : 0 < I.edgeCost vt := by
       simp only [I, pathMulticast, vt, show ¬ (t.1 + 1 = 0 ∨ t.1 + 1 = k + 1) by omega, ↓reduceIte]
-      have := Nat.factorial_pos (k + 1); positivity
+      have := Nat.factorial_pos (k + 1)
+      positivity
     have hcard_pos : (0 : ℝ) < ((S.filter fun j => I.tree.IsAncestor vt (I.loc j)).card : ℝ) := by
       exact_mod_cast Finset.card_pos.mpr
         ⟨Sum.inl t, Finset.mem_filter.mpr ⟨hmem, I.tree.isAncestor_refl vt⟩⟩
@@ -2280,7 +2425,9 @@ theorem mem_pathMulticast_shMechanism_serviced_iff (k : ℕ) (x y : Cslib.BitStr
         · exact absurd hj (hinact_out _ hgreat.1 t hxt)
         · exact Finset.mem_union_left _
             (Finset.mem_map.mpr ⟨t, Finset.mem_filter.mpr ⟨Finset.mem_univ t, hxt⟩, rfl⟩)
-      | inr u => cases u; exact Finset.mem_union_right _ (Finset.mem_singleton_self _)
+      | inr u =>
+        cases u
+        exact Finset.mem_union_right _ (Finset.mem_singleton_self _)
     have heq_serv : I.shScheme.moulinServiced b = Sx ∪ {Sum.inr ()} :=
       le_antisymm hsub (Finset.union_subset (hgreat.2 (hSx_will_any Sx))
         (Finset.singleton_subset_iff.mpr hinr_serv))
@@ -2288,7 +2435,8 @@ theorem mem_pathMulticast_shMechanism_serviced_iff (k : ℕ) (x y : Cslib.BitStr
     rwa [heq_serv, MulticastInstance.shScheme_share] at hw_bot
   · have hw_both : I.shScheme.IsWilling b (Sx ∪ {Sum.inr ()}) := fun j hj =>
       (Finset.mem_union.mp hj).elim (hSx_will_any _ j) fun h => by
-        rw [Finset.mem_singleton.mp h, MulticastInstance.shScheme_share]; exact hle
+        rw [Finset.mem_singleton.mp h, MulticastInstance.shScheme_share]
+        exact hle
     exact hgreat.2 hw_both (Finset.mem_union_right Sx (Finset.mem_singleton_self _))
 
 /-- **`(k + 1)`-bit deterministic cut communication lower bound for `SH` on path trees**
@@ -2299,15 +2447,19 @@ theorem le_ecomplexityFun_pathMulticast_shServiced {k : ℕ} (hk : 0 < k) :
     (k + 1 : ℕ∞) ≤ Cslib.Communication.Protocol.ecomplexityFun
       (fun x y : Cslib.BitString k =>
         decide (Sum.inr () ∈ (pathMulticast k).shMechanism.serviced (pathBidProfile k x y))) := by
-  rw [show (fun x y : Cslib.BitString k =>
+  have hfun :
+      (fun x y : Cslib.BitString k =>
         decide (Sum.inr () ∈ (pathMulticast k).shMechanism.serviced (pathBidProfile k x y))) =
-      fun x y : Cslib.BitString k => decide (pathBottomShare k x ≤ pathBottomShare k y) from
-    funext fun x => funext fun y => by simp only [mem_pathMulticast_shMechanism_serviced_iff]]
+      fun x y : Cslib.BitString k => decide (pathBottomShare k x ≤ pathBottomShare k y) :=
+    funext fun x => funext fun y => by simp only [mem_pathMulticast_shMechanism_serviced_iff]
+  rw [hfun]
   let S : Finset (Cslib.BitString k × Cslib.BitString k) :=
     (Finset.univ : Finset (Cslib.BitString k)).image fun x => (x, x)
   have hfool : Cslib.Communication.IsFoolingSet
       (fun x y : Cslib.BitString k => decide (pathBottomShare k x ≤ pathBottomShare k y)) true S :=
-    ⟨fun _ hp => by obtain ⟨x, -, rfl⟩ := Finset.mem_image.mp hp; simp,
+    ⟨fun _ hp => by
+       obtain ⟨x, -, rfl⟩ := Finset.mem_image.mp hp
+       simp,
      fun _ hp _ hq h₁ h₂ => by
        obtain ⟨x, -, rfl⟩ := Finset.mem_image.mp hp
        obtain ⟨x', -, rfl⟩ := Finset.mem_image.mp hq
@@ -2318,7 +2470,8 @@ theorem le_ecomplexityFun_pathMulticast_shServiced {k : ℕ} (hk : 0 < k) :
     let x₀ : Cslib.BitString k := fun _ => false
     let x₁ : Cslib.BitString k := fun _ => true
     have hne : pathBottomShare k x₀ ≠ pathBottomShare k x₁ := fun h => by
-      have := congrFun (pathBottomShare_injective k h) ⟨0, hk⟩; simp [x₀, x₁] at this
+      have := congrFun (pathBottomShare_injective k h) ⟨0, hk⟩
+      simp [x₀, x₁] at this
     rcases lt_or_gt_of_ne hne with h | h
     · exact ⟨x₁, x₀, by simp [not_le.mpr h]⟩
     · exact ⟨x₀, x₁, by simp [not_le.mpr h]⟩

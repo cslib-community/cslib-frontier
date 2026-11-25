@@ -212,9 +212,12 @@ theorem exists_filter_of_not_invalid {n : ℕ} (sources : Fin n → Set U) (x : 
       ∀ l, x l = true → F (sources l) := by
   obtain ⟨F, hF, hl, hmax⟩ := Semifilter.exists_isUltra_of_labels (sets pairs) (label pairs y)
     none rfl rfl
-    (fun i j hij hi => by by_contra hj; exact h ⟨j, by simpa using hj, Or.inl ⟨i, hij, hi⟩⟩)
+    (fun i j hij hi => by
+      by_contra hj
+      exact h ⟨j, by simpa using hj, Or.inl ⟨i, hij, hi⟩⟩)
     (fun i j hij => by
-      by_contra h'; simp only [not_or, Bool.not_eq_true] at h'
+      by_contra h'
+      simp only [not_or, Bool.not_eq_true] at h'
       exact h ⟨i, h'.1, Or.inr (Or.inl ⟨j, hij, h'.2⟩)⟩)
   exact ⟨F, hF, hl, fun l hx => (hmax _).mpr fun j hj hsub =>
     h ⟨j, hj, Or.inr (Or.inr ⟨l, hsub, hx⟩)⟩⟩
@@ -245,7 +248,8 @@ noncomputable def compactPointLabels (u : U) : Fin (compactSize pairs) → Bool 
       rw [show Fin.natAdd pairs.length (Fin.natAdd pairs.length i) = inter pairs i from rfl,
         expandLabels_inter, Bool.eq_iff_iff]
       simp only [compactPointLabels, Fin.append_left, Fin.append_right, pointLabels,
-        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq, Set.mem_inter_iff]
+        sets_left, sets_right, sets_inter, Bool.and_eq_true, decide_eq_true_eq,
+        Set.mem_inter_iff]
 
 /-- The extended point certificate labels `i` by `true` if and only if `u ∈ sets pairs i`. -/
 @[simp] theorem label_pointLabels (u : U) (i : Option (Fin (size pairs))) :

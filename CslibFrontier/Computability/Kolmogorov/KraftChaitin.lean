@@ -90,7 +90,7 @@ theorem PrefixDisjoint.ne {u v : List Bool} (h : PrefixDisjoint u v) : u ≠ v :
 /-- If `u` is prefix-disjoint with `y` and `x` extends `u`, then `x` is prefix-disjoint with `y`. -/
 theorem PrefixDisjoint.of_prefix_left {u x y : List Bool} (huy : PrefixDisjoint u y)
     (hux : u <+: x) : PrefixDisjoint x y :=
-  ⟨fun hxy => huy.1 (hux.trans hxy), fun hyx =>
+  ⟨fun hxy => huy.1 (by trans x <;> assumption), fun hyx =>
     (List.prefix_or_prefix_of_prefix hux hyx).elim huy.1 huy.2⟩
 
 theorem prefixDisjoint_append_false_true (u : List Bool) :
@@ -1098,8 +1098,9 @@ theorem kraftChaitin_of_sum_le_one {α : Type*} [Primcodable α] {req : ℕ → 
     have hcast : ((∑ i ∈ Finset.range n, f i : ℚ) : ℝ) =
         ∑ i ∈ Finset.range n,
           (match req i with | Option.none => (0 : ℝ) | some (ℓ, _) => (2 : ℝ)⁻¹ ^ ℓ) :=
-      (map_sum (Rat.castHom ℝ) _ _).trans
-        (Finset.sum_congr rfl fun i _ => by dsimp only [f]; cases req i <;> simp)
+      (map_sum (Rat.castHom ℝ) _ _).trans <| Finset.sum_congr rfl fun i _ => by
+        dsimp only [f]
+        cases req i <;> simp
     exact_mod_cast (hcast ▸ hbound n)
   have hreq₂ : Computable₂ fun (_ : Unit) (i : ℕ) => req i :=
     Computable₂.mk <| hreq.comp Computable.snd

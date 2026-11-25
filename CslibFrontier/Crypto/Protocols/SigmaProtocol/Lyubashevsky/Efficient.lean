@@ -269,25 +269,11 @@ def lyubashevskyExtractorAdapter
 theorem computableInPolyTime_lyubashevskyExtractorAdapter :
     ComputableInPolyTime lyubashevskyExtractorAdapter
       (encPair encLyubashevskyParams (encPair encBits (encPair encBits
-        (encPair encBits (encPair encBits (encPair encBits encBits)))))) encBits := by
-  let encPack := encPair (encPair encUnary encUnary)
-    (encPair (encPair encBits encBits) (encPair encBits encBits))
-  have hpack : ComputableInPolyTime
-      (fun inp : LyubashevskyParams × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool =>
-        let (p, _, _, c, z, c', z') := inp
-        encPack ((p.m, p.k), ((c, z), (c', z'))))
-      (encPair encLyubashevskyParams (encPair encBits (encPair encBits
         (encPair encBits (encPair encBits (encPair encBits encBits)))))) encBits :=
-    (by fun_prop : ComputableInPolyTime
-      (fun inp : LyubashevskyParams × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool =>
-        let (p, _, _, c, z, c', z') := inp
-        ((p.m, p.k), ((c, z), (c', z'))))
-      (encPair encLyubashevskyParams (encPair encBits (encPair encBits
-        (encPair encBits (encPair encBits (encPair encBits encBits))))))
-      encPack).encoding_comp
-  exact computableInPolyTime_lyubashevskyExtractWord.comp hpack
+  computableInPolyTime_lyubashevskyExtractWord.comp
+    (by fun_prop : ComputableInPolyTime _ _
+      (encPair (encPair encUnary encUnary)
+        (encPair (encPair encBits encBits) (encPair encBits encBits)))).encoding_comp
 
 /-- `lyubashevskyExtractorAdapter` realizes the typed extractor `lyubashevskyExtract` across all
 parameter records `p : LyubashevskyParams`. -/
@@ -470,25 +456,24 @@ theorem lyubashevskyVerifyEqList_ofFn (n m k q : ℕ)
       decide (A *ᵥ (Int.cast ∘ z) = w + T *ᵥ (Int.cast ∘ lyubashevskyChallenge c)) := by
   rw [Bool.eq_iff_iff, lyubashevskyVerifyEqList, challengeIntList_ofFn,
     List.all_eq_true, decide_eq_true_eq, funext_iff]
-  constructor
-  · intro h i
-    have hi := h i.val (List.mem_range.mpr i.isLt)
-    rw [decide_eq_true_eq, zmodReduce_eq_cast, zmodReduce_eq_cast] at hi
-    have hcast := Function.LeftInverse.injective ZMod.intCast_zmod_cast hi
-    rw [ListMatrix.intCast_dotProduct_matrix_ofFn A z i] at hcast
-    rw [Int.cast_add,
-      ListMatrix.intCast_dotProduct_matrix_ofFn T (lyubashevskyChallenge c) i] at hcast
-    simp only [List.getD_ofFn, ZMod.intCast_zmod_cast] at hcast
-    exact hcast
-  · intro h j hj
-    have hj_lt : j < n := List.mem_range.mp hj
-    let i : Fin n := ⟨j, hj_lt⟩
-    rw [decide_eq_true_eq, zmodReduce_eq_cast, zmodReduce_eq_cast]
-    congr 1
-    rw [ListMatrix.intCast_dotProduct_matrix_ofFn A z i, Int.cast_add,
-      ListMatrix.intCast_dotProduct_matrix_ofFn T (lyubashevskyChallenge c) i]
-    rw [List.getD_ofFn_of_lt _ hj_lt, ZMod.intCast_zmod_cast]
-    exact h i
+  have hrow (i : Fin n) :
+      (zmodReduce q (ListMatrix.dotProduct m
+          ((List.ofFn fun r : Fin n => List.ofFn fun col : Fin m => ZMod.cast (A r col)).getD
+            i.val []) (List.ofFn z)) =
+        zmodReduce q
+          ((List.ofFn fun r : Fin n => ZMod.cast (w r)).getD i.val 0 +
+            ListMatrix.dotProduct k
+              ((List.ofFn fun r : Fin n => List.ofFn fun col : Fin k => ZMod.cast (T r col)).getD
+                i.val []) (List.ofFn (lyubashevskyChallenge c)))) ↔
+      (A *ᵥ (Int.cast ∘ z)) i = (w + T *ᵥ (Int.cast ∘ lyubashevskyChallenge c)) i := by
+    rw [zmodReduce_eq_cast, zmodReduce_eq_cast,
+      (Function.LeftInverse.injective ZMod.intCast_zmod_cast).eq_iff,
+      ListMatrix.intCast_dotProduct_matrix_ofFn A z i, Int.cast_add,
+      ListMatrix.intCast_dotProduct_matrix_ofFn T (lyubashevskyChallenge c) i,
+      List.getD_ofFn, ZMod.intCast_zmod_cast]
+    rfl
+  refine ⟨fun h i => (hrow i).mp (decide_eq_true_eq.mp (h i.val (List.mem_range.mpr i.isLt))),
+    fun h j hj => decide_eq_true ((hrow ⟨j, List.mem_range.mp hj⟩).mpr (h _))⟩
 
 @[simp]
 theorem decode_encZModMatrix (n m q : ℕ) (M : Matrix (Fin n) (Fin m) (ZMod q)) :
@@ -584,50 +569,26 @@ theorem computableInPolyTime_lyubashevskySimulatePostprocess :
   let encIn := encPair (encPair encLyubashevskyParams (encPair encBits encBits)) (encList encIntBin)
   have hcond : ComputableInPolyTime
       (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        let ((p, _, _), z) := inp
-        inBoxList p.m (p.γ - p.β) z)
+        inBoxList inp.1.1.m (inp.1.1.γ - inp.1.1.β) inp.2)
       encIn encBool := by
     unfold inBoxList encIn
     fun_prop
   have hw_list : ComputableInPolyTime
       (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        let ((p, yw, cw), z) := inp
-        lyubashevskySimCommitList p.n p.m p.k p.q
-          (intMatrixDecoder.decode (unframe yw))
-          (intMatrixDecoder.decode (dropFrame yw))
-          z cw)
+        lyubashevskySimCommitList inp.1.1.n inp.1.1.m inp.1.1.k inp.1.1.q
+          (intMatrixDecoder.decode (unframe inp.1.2.1))
+          (intMatrixDecoder.decode (dropFrame inp.1.2.1))
+          inp.2 inp.1.2.2)
       encIn (encList encIntBin) := by
     unfold lyubashevskySimCommitList encIn
     fun_prop
-  have hw : ComputableInPolyTime
-      (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        let ((p, yw, cw), z) := inp
-        encList encIntBin
-          (lyubashevskySimCommitList p.n p.m p.k p.q
-            (intMatrixDecoder.decode (unframe yw))
-            (intMatrixDecoder.decode (dropFrame yw))
-            z cw))
-      encIn encBits :=
-    hw_list.encoding_comp
-  have hz : ComputableInPolyTime
-      (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        encOption (encList encIntBin) (some inp.2))
-      encIn encBits :=
-    ((ComputableInPolyTime.optionSome (encList encIntBin)).comp
-      (ComputableInPolyTime.snd _ _)).encoding_comp
-  have hsome : ComputableInPolyTime
-      (fun inp : (LyubashevskyParams × List Bool × List Bool) × List ℤ =>
-        let ((p, yw, cw), z) := inp
-        some (
-          encList encIntBin
-            (lyubashevskySimCommitList p.n p.m p.k p.q
-              (intMatrixDecoder.decode (unframe yw))
-              (intMatrixDecoder.decode (dropFrame yw))
-              z cw),
-          encOption (encList encIntBin) (some z)))
-      encIn (encOption (encPair encBits encBits)) :=
-    (ComputableInPolyTime.optionSome (encPair encBits encBits)).comp (hw.prod hz)
-  exact hcond.ite' hsome (ComputableInPolyTime.const none)
+  have hz := ((ComputableInPolyTime.optionSome (encList encIntBin)).comp
+    (ComputableInPolyTime.snd (encPair encLyubashevskyParams (encPair encBits encBits))
+      (encList encIntBin))).encoding_comp
+  exact hcond.ite'
+    ((ComputableInPolyTime.optionSome (encPair encBits encBits)).comp
+      (hw_list.encoding_comp.prod hz))
+    (ComputableInPolyTime.const none)
 
 /-- Coin-realized deterministic simulator for Lyubashevsky's identification protocol: map
 `m * width` fair coin bits to `z ∈ [-γ, γ]^m` via `sampleIntBoxListCoins` and apply
@@ -661,21 +622,11 @@ noncomputable def lyubashevskySimulateWord
 theorem isPPTOn_lyubashevskySimulateWord :
     IsPPTOn (encSimulatorWordInput encLyubashevskyParams)
       encCommitResponseOrAbort lyubashevskySimulateWord := by
-  let encIn := encPair encLyubashevskyParams (encPair encBits encBits)
-  have hγ : ComputableInPolyTime
-      (fun inp : LyubashevskyParams × List Bool × List Bool => inp.1.γ) encIn encNat := by
-    unfold encIn
-    fun_prop
-  have hm : ComputableInPolyTime
-      (fun inp : LyubashevskyParams × List Bool × List Bool => inp.1.m) encIn encUnary := by
-    unfold encIn
-    fun_prop
-  have hwidth : ComputableInPolyTime
-      (fun inp : LyubashevskyParams × List Bool × List Bool => inp.1.width) encIn encUnary := by
-    unfold encIn
-    fun_prop
-  exact (isPPTOn_sampleIntBoxList hγ hm hwidth).map_with
+  refine (isPPTOn_sampleIntBoxList ?_ ?_ ?_).map_with
     computableInPolyTime_lyubashevskySimulatePostprocess
+  all_goals
+    unfold encSimulatorWordInput
+    fun_prop
 
 /-- `lyubashevskySimulateWord` has the same evaluation law as running `lyubashevskySimulateCoins`
 on `m * width` uniform fair coin bits. -/

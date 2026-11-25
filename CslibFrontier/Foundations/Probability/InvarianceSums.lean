@@ -128,8 +128,9 @@ theorem abs_integral_comp_sum_sub_le (hμ : ∀ i, MemLp id 3 (μ i)) (hν : ∀
   rw [integral_pi_piecewise_insert_sub μ ν ht hint, ← Real.norm_eq_abs]
   refine (norm_integral_le_of_norm_le_const (ae_of_all _ fun v => ?_)).trans_eq
     (by rw [probReal_univ, mul_one])
-  simp_rw [fun z => show ∑ i, Function.update v t z i = ∑ i ∈ univ \ {t}, v i + z * 1 by
-    rw [sum_update_of_mem (mem_univ t), mul_one, add_comm], Real.norm_eq_abs]
+  have hsum (z : ℝ) : ∑ i, Function.update v t z i = ∑ i ∈ univ \ {t}, v i + z * 1 := by
+    rw [sum_update_of_mem (mem_univ t), mul_one, add_comm]
+  simp only [hsum, Real.norm_eq_abs]
   refine (abs_integral_sub_integral_le_of_moments (n := 2) (by exact_mod_cast hν t)
     (by exact_mod_cast hμ t) (fun j hj => ?_) hψ hC _ 1).trans_eq ?_
   · interval_cases j <;> simp [(h₁ t).symm, (h₂ t).symm]
@@ -167,8 +168,9 @@ theorem abs_integral_comp_sum_sub_le_of_lipschitzWith (hμ : ∀ i, MemLp id 3 (
     (by positivity) (fun φ C hφ hC => ⟨integrable_comp_of_memLp (n := 2) hφ hC (h3 μ hμ),
       integrable_comp_of_memLp (n := 2) hφ hC (h3 ν hν),
       (abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hφ hC).trans ?_⟩) hψ).trans_eq (by ring)
-  rw [mul_pow, show (γ ^ (1 / 3 : ℝ)) ^ 3 = γ by
-    simpa using Real.rpow_inv_natCast_pow hγ (n := 3) (by norm_num)]
+  have he : (γ ^ (1 / 3 : ℝ)) ^ 3 = γ := by
+    simpa using Real.rpow_inv_natCast_pow hγ (n := 3) (by norm_num)
+  rw [mul_pow, he]
   nlinarith [mul_nonneg ((abs_nonneg _).trans (hC 0)) hγ]
 
 /-! ### The Lévy distance: Corollary 11.61 -/
@@ -187,8 +189,9 @@ theorem measureReal_sum_le_le_add_div_pow (hμ : ∀ i, MemLp id 3 (μ i))
 /-- The arithmetic of Corollary 11.61: `2² · 4³ · γ / 6 ≤ (3 γ^(1/4))⁴` for `γ ≥ 0`. -/
 private theorem pow_mul_div_six_le {γ : ℝ} (hγ : 0 ≤ γ) :
     2 ^ (3 - 1) * ((3 : ℕ) + 1 : ℝ) ^ 3 * (γ / 6) ≤ (3 * γ ^ (1 / 4 : ℝ)) ^ (3 + 1) := by
-  rw [mul_pow, show (γ ^ (1 / 4 : ℝ)) ^ (3 + 1) = γ by
-    simpa using Real.rpow_inv_natCast_pow hγ (n := 4) (by norm_num)]
+  have he : (γ ^ (1 / 4 : ℝ)) ^ (3 + 1) = γ := by
+    simpa using Real.rpow_inv_natCast_pow hγ (n := 4) (by norm_num)
+  rw [mul_pow, he]
   linarith
 
 /-- **Corollary 11.61**, upper bound [O'Donnell, Corollary 11.61][ODonnell2014]: in the setting of
@@ -234,28 +237,69 @@ theorem abs_measureReal_sum_le_sub_cdf_le_of_hasLaw (hμ : ∀ i, MemLp id 3 (μ
     |(Measure.pi μ).real {z | ∑ i, z i ≤ u} - cdf (gaussianReal 0 1) u| ≤
       9 / 2 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) ^ (1 / 4 : ℝ) := by
   have hΦ (v : ℝ) : (Measure.pi ν).real {z | ∑ i, z i ≤ v} = cdf (gaussianReal 0 1) v := by
-    rw [cdf_eq_real, ← hG.map_eq, map_measureReal_apply (by fun_prop) measurableSet_Iic]; rfl
+    rw [cdf_eq_real, ← hG.map_eq, map_measureReal_apply (by fun_prop) measurableSet_Iic]
+    rfl
   have hanti (v : ℝ) {ε : ℝ} (hε : 0 ≤ ε) :
       cdf (gaussianReal 0 1) (v + ε) ≤ cdf (gaussianReal 0 1) v + ε / 2 := by
+    have h2 : 2 ≤ √(2 * π * ((1 : ℝ≥0) : ℝ)) := by
+      rw [NNReal.coe_one, mul_one]
+      exact Real.le_sqrt_of_sq_le (by nlinarith [Real.two_le_pi])
     rw [cdf_eq_real, cdf_eq_real]
-    exact (gaussianReal_real_Iic_add_le 0 v one_ne_zero hε).trans (add_le_add le_rfl
-      (div_le_div_of_nonneg_left hε two_pos (by
-        rw [NNReal.coe_one, mul_one]; exact Real.le_sqrt_of_sq_le (by nlinarith [Real.two_le_pi]))))
+    exact (gaussianReal_real_Iic_add_le 0 v one_ne_zero hε).trans
+      (add_le_add le_rfl (div_le_div_of_nonneg_left hε two_pos h2))
   set ε := 3 * (∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)) ^ (1 / 4 : ℝ) with hε
-  have hε0 : 0 ≤ ε := by have := sum_integral_abs_pow_three_nonneg μ ν; positivity
+  have hε0 : 0 ≤ ε := by
+    have := sum_integral_abs_pow_three_nonneg μ ν
+    positivity
   have hup := measureReal_sum_le_le_add μ ν hμ hν h₁ h₂ u
   have hlo := measureReal_sum_le_sub_le μ ν hμ hν h₁ h₂ u
   rw [← hε, hΦ] at hup hlo
   have hb := hanti (u - ε) hε0
   rw [sub_add_cancel] at hb
-  exact abs_sub_le_iff.2 ⟨by linarith [hanti u hε0], by linarith⟩
+  rw [abs_sub_le_iff]
+  constructor <;> linarith [hanti u hε0]
 
 /-! ### The Gaussian comparison family -/
+
+/-- The law of `σ g` for a standard Gaussian `g` is in `L³`. -/
+private theorem memLp_map_gaussianReal_const_mul (σ : ℝ) :
+    MemLp id 3 ((gaussianReal 0 1).map (σ * ·)) :=
+  (memLp_map_measure_iff aestronglyMeasurable_id (measurable_const_mul σ).aemeasurable).2
+    ((memLp_id_gaussianReal (μ := 0) (v := 1) 3).const_mul σ)
 
 /-- The integral of a continuous `g` against the law of `σ z` is the integral of `g (σ z)`. -/
 private theorem integral_map_gaussianReal_const_mul (σ : ℝ) {g : ℝ → ℝ} (hg : Continuous g) :
     ∫ s, g s ∂(gaussianReal 0 1).map (σ * ·) = ∫ s, g (σ * s) ∂gaussianReal 0 1 :=
   integral_map (measurable_const_mul σ).aemeasurable hg.aestronglyMeasurable
+
+/-- If the `σ i` have `∑ σᵢ² = 1`, then the sum of independent `Yᵢ ∼ σᵢ · N(0, 1)` is a standard
+Gaussian. -/
+private theorem hasLaw_sum_pi_map_gaussianReal {σ : ι → ℝ} (hσ : ∑ i, σ i ^ 2 = 1) :
+    HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1)
+      (Measure.pi fun i => (gaussianReal 0 1).map (σ i * ·)) := by
+  refine ⟨by fun_prop, ?_⟩
+  rw [← Measure.pi_map_pi fun i => (measurable_const_mul (σ i)).aemeasurable,
+    Measure.map_map (by fun_prop) (by fun_prop)]
+  have he : ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) :=
+    funext fun _ => by simp [dotProduct]
+  have hσσ : σ ⬝ᵥ σ = 1 := by simpa [dotProduct, sq] using hσ
+  rw [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ, Real.sqrt_one]
+  simp
+
+/-- `9/2 · a^(1/4) ≤ 6 γ^(1/4)` when `0 ≤ a ≤ 3 γ`, as `3^(1/4) ≤ 4/3`. -/
+private theorem nine_div_two_mul_rpow_le {a γ : ℝ} (ha : 0 ≤ a) (h : a ≤ 3 * γ) :
+    9 / 2 * a ^ (1 / 4 : ℝ) ≤ 6 * γ ^ (1 / 4 : ℝ) := by
+  have hγ : 0 ≤ γ := by linarith
+  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 := by
+    rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
+    exact (Real.rpow_le_rpow (by norm_num) (show (3 : ℝ) ≤ (4 / 3) ^ 4 by norm_num)
+      (by norm_num)).trans_eq (Real.pow_rpow_inv_natCast (by norm_num) (by norm_num))
+  calc 9 / 2 * a ^ (1 / 4 : ℝ) ≤ 9 / 2 * (3 * γ) ^ (1 / 4 : ℝ) :=
+        mul_le_mul_of_nonneg_left (Real.rpow_le_rpow ha h (by norm_num)) (by norm_num)
+    _ = 9 / 2 * 3 ^ (1 / 4 : ℝ) * γ ^ (1 / 4 : ℝ) := by
+        rw [Real.mul_rpow (by norm_num) hγ, mul_assoc]
+    _ ≤ 9 / 2 * (4 / 3) * γ ^ (1 / 4 : ℝ) := by gcongr
+    _ = 6 * γ ^ (1 / 4 : ℝ) := by norm_num
 
 /-- **Corollary 11.62** [O'Donnell, Corollary 11.62][ODonnell2014]: in the setting of the
 Berry–Esseen Theorem, let `X₁, …, Xₙ` be independent real random variables with laws `μ i` in
@@ -285,38 +329,12 @@ theorem abs_measureReal_sum_le_sub_cdf_le (hμ : ∀ i, MemLp id 3 (μ i))
     rw [abs_of_nonneg (Real.sqrt_nonneg _), mul_comm]
     exact mul_le_mul integral_abs_pow_three_gaussianReal_le
       (sqrt_integral_sq_pow_three_le (hμ i)) (by positivity) (by norm_num)
-  have hlaw : HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1)
-      (Measure.pi fun i => (gaussianReal 0 1).map (σ i * ·)) := by
-    refine ⟨by fun_prop, ?_⟩
-    rw [← Measure.pi_map_pi fun i => (measurable_const_mul (σ i)).aemeasurable,
-      Measure.map_map (by fun_prop) (by fun_prop),
-      show ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) by
-        funext; simp [dotProduct],
-      pi_gaussianReal_map_dotProduct_eq_map_const_mul,
-      show σ ⬝ᵥ σ = 1 by simpa [dotProduct, ← sq, hσ2] using h₂, Real.sqrt_one]
-    simp
   refine (abs_measureReal_sum_le_sub_cdf_le_of_hasLaw μ _ hμ
-    (fun i => (memLp_map_measure_iff aestronglyMeasurable_id
-      (measurable_const_mul (σ i)).aemeasurable).2
-      ((memLp_id_gaussianReal (μ := 0) (v := 1) 3).const_mul (σ i)))
-    (fun i => (h₁ i).trans (hY1 i).symm) (fun i => (hY2 i).symm) hlaw u).trans ?_
-  have hγ : 0 ≤ ∑ i, ∫ s, |s| ^ 3 ∂μ i :=
-    sum_nonneg fun _ _ => integral_nonneg fun _ => by positivity
-  have hle : ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂(gaussianReal 0 1).map (σ i * ·)) ≤
-      3 * ∑ i, ∫ s, |s| ^ 3 ∂μ i := by
-    rw [mul_sum]; exact sum_le_sum fun i _ => by linarith [hY3 i]
-  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 := by
-    rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
-    exact (Real.rpow_le_rpow (by norm_num) (show (3 : ℝ) ≤ (4 / 3) ^ 4 by norm_num)
-      (by norm_num)).trans_eq (Real.pow_rpow_inv_natCast (by norm_num) (by norm_num))
-  calc 9 / 2 * (∑ i, (∫ s, |s| ^ 3 ∂μ i +
-          ∫ s, |s| ^ 3 ∂(gaussianReal 0 1).map (σ i * ·))) ^ (1 / 4 : ℝ)
-      ≤ 9 / 2 * (3 * ∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ) :=
-        mul_le_mul_of_nonneg_left (Real.rpow_le_rpow (sum_integral_abs_pow_three_nonneg _ _) hle
-          (by norm_num)) (by norm_num)
-    _ = 9 / 2 * 3 ^ (1 / 4 : ℝ) * (∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ) := by
-        rw [Real.mul_rpow (by norm_num) hγ, mul_assoc]
-    _ ≤ 9 / 2 * (4 / 3) * (∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ) := by gcongr
-    _ = 6 * (∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ) := by norm_num
+    (fun i => memLp_map_gaussianReal_const_mul (σ i)) (fun i => (h₁ i).trans (hY1 i).symm)
+    (fun i => (hY2 i).symm) (hasLaw_sum_pi_map_gaussianReal ((sum_congr rfl
+      fun i _ => hσ2 i).trans h₂)) u).trans
+    (nine_div_two_mul_rpow_le (sum_integral_abs_pow_three_nonneg _ _) ?_)
+  rw [mul_sum]
+  exact sum_le_sum fun i _ => by linarith [hY3 i]
 
 end ProbabilityTheory

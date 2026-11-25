@@ -167,11 +167,14 @@ private theorem crossIn_insert {W : V → V → ℕ} (hW : IsMultigraph W) {A : 
   by_cases hxC : x ∈ C
   · rw [Finset.filter_insert, ite_eq_left hxC, Finset.filter_insert, ite_eq_right (not_not.mpr hxC),
       Finset.sum_insert (by simp [hx]), add_comm]
-    exact congrArg (_ + ·) (Finset.sum_congr (by ext; simp [hxC]) fun a _ => hW.1 x a)
-  · rw [Finset.filter_insert, ite_eq_right hxC, Finset.filter_insert, ite_eq_left hxC,
-      show (A.filter fun a => ¬(a ∈ C ↔ x ∈ C)) = A.filter (· ∈ C) by ext; simp [hxC],
-      ← Finset.sum_add_distrib]
-    exact Finset.sum_congr rfl fun _ _ => by rw [Finset.sum_insert (by simp [hx]), add_comm]
+    exact congrArg (_ + ·)
+      (Finset.sum_congr (Finset.ext fun _ => by simp [hxC]) fun a _ => hW.1 x a)
+  · have hfilter : (A.filter fun a => ¬(a ∈ C ↔ x ∈ C)) = A.filter (· ∈ C) :=
+      Finset.ext fun _ => by simp [hxC]
+    rw [Finset.filter_insert, ite_eq_right hxC, Finset.filter_insert, ite_eq_left hxC,
+      hfilter, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun _ _ => ?_
+    rw [Finset.sum_insert (by simp [hx]), add_comm]
 
 omit [Fintype V] in
 private theorem crossIn_le_insert {W : V → V → ℕ} (hW : IsMultigraph W) {A : Finset V} {x : V}
@@ -200,8 +203,9 @@ private theorem inv_cons {W : V → V → ℕ} (hW : IsMultigraph W) {A : Finset
     {l : List V} (hx : x ∉ A) (hma : ∀ y ∈ l, attachWeight W A y ≤ attachWeight W A x)
     (hinv : Inv W C A last (x :: l)) : Inv W C (insert x A) x l := by
   intro y hy hyx
-  rw [show sameSide C (insert x A) y = sameSide C A y from
-    (Finset.filter_insert ..).trans (ite_eq_right fun h => hyx h.symm)]
+  have hsame : sameSide C (insert x A) y = sameSide C A y :=
+    (Finset.filter_insert ..).trans (ite_eq_right fun h => hyx h.symm)
+  rw [hsame]
   by_cases hxl : x ∈ C ↔ last ∈ C
   · exact (hinv y (List.mem_cons_of_mem x hy) fun h => hyx (h.trans hxl.symm)).trans
       (crossIn_le_insert C hW hx)

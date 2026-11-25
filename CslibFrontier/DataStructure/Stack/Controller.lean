@@ -78,17 +78,15 @@ public def program (n : ℕ) : Memory.Prog ℕ := do
 /-- `run` is the client linked to the stack's methods. -/
 public theorem run_eq_link (L : Stack.Memory.Layout) (w n : ℕ) :
     run L n = link (Stack.Memory.methods L w 1) (client w n) := by
-  refine congrArg (Stack.Memory.push L n >>= ·) (funext fun _ => ?_)
-  refine congrArg (Stack.Memory.pop L >>= ·) (funext fun a => ?_)
+  refine congrArg (Stack.Memory.push L n >>= ·) (funext fun _ =>
+    congrArg (Stack.Memory.pop L >>= ·) (funext fun a => ?_))
   rcases a with _ | v
   · rfl
   · by_cases hv : v = 0
     · simp only [hv, ↓reduceIte]
-      refine congrArg (Stack.Memory.push L 1 >>= ·) (funext fun _ => ?_)
-      refine congrArg (Stack.Memory.pop L >>= ·) (funext fun b => ?_)
-      cases b <;> rfl
-    · simp only [hv, ↓reduceIte]
-      rfl
+      exact congrArg (Stack.Memory.push L 1 >>= ·) (funext fun _ =>
+        congrArg (Stack.Memory.pop L >>= ·) (funext fun b => by cases b <;> rfl))
+    · simp only [hv, ↓reduceIte]; rfl
 
 /-- The word-valued function computed by the client. -/
 public def positive (n : ℕ) : ℕ := max n 1
@@ -144,28 +142,24 @@ public theorem program_spec {w n : ℕ} {s : Memory.State} (hf : Fits w (s.front
   let L : Stack.Memory.Layout := ⟨⟨s.frontier, 1⟩, ⟨s.frontier + 1, 1⟩⟩
   have hL : L.Valid w 1 := Stack.Memory.valid_allocLayout hf
   obtain ⟨hinv, habs⟩ := Stack.Memory.inv_allocLayout (C := 1) s
-  have hv := validHistory_client hL.capacity_fits hn
-  rw [← habs] at hv
-  have hlink : (Stack.Memory.refinement hL).methods = Stack.Memory.methods L w 1 := rfl
-  have habs' : (Stack.Memory.refinement hL).abs = Stack.Memory.abs L := rfl
+  have hv := habs ▸ validHistory_client hL.capacity_fits hn
   obtain ⟨hvE, hres, -, -⟩ := (Stack.Memory.refinement hL).simulates_client (client w n) hinv hv
   have hcost := (show (Stack.Memory.refinement hL).Amortized Memory.charge
     (fun _ _ => 3) (fun _ => 0) from Stack.Memory.amortized hL).client (client w n) hinv hv
-  rw [hlink, ← run_eq_link] at hvE hres hcost
-  rw [habs', habs] at hres hcost
+  rw [show (Stack.Memory.refinement hL).methods = Stack.Memory.methods L w 1 from rfl,
+    ← run_eq_link] at hvE hres hcost
+  rw [show (Stack.Memory.refinement hL).abs = Stack.Memory.abs L from rfl, habs] at hres hcost
   have hrun := Stack.Memory.runClient_allocLayout_bind (w := w) 1 (fun L => run L n) s
+  simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientHistory] at hres hvE
   refine ⟨?_, ?_, ?_⟩
-  · simp only [StateTransitionSpec.clientResult, program] at hres ⊢
+  · simp only [StateTransitionSpec.clientResult, program]
     rw [hrun, hres]
     exact clientResult_client w n
-  · simp only [StateTransitionSpec.clientHistory, program] at hvE ⊢
-    rw [hrun]
+  · simp only [StateTransitionSpec.clientHistory, program, hrun]
     exact ⟨hf.of_le (by omega), hf, hvE⟩
   · rw [StateTransitionSpec.totalCost_const] at hcost
     have hlen := length_clientHistory_client w n
-    rw [memoryCost_eq_totalCost w]
-    simp only [StateTransitionSpec.clientHistory, program]
-    rw [hrun]
+    simp only [memoryCost_eq_totalCost w, StateTransitionSpec.clientHistory, program, hrun]
     change 2 + (1 + (Memory.spec w).totalCost Memory.charge ⟨clear s.mem s.frontier 1,
       s.frontier + 1 + 1⟩ ((Memory.spec w).clientHistory ⟨clear s.mem s.frontier 1,
         s.frontier + 1 + 1⟩ (run L n))) ≤ 15

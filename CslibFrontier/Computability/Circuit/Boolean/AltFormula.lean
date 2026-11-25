@@ -143,12 +143,15 @@ value. -/
 theorem eval_neg {d : ℕ} (f : AltFormula n d) (op : AltOp) (x : BitString n) :
     eval op.dual (neg f) x = !eval op f x := by
   induction d generalizing op with
-  | zero => simp only [neg, mapInputs, eval, Literal.eval]; cases x f.1 <;> cases f.2 <;> rfl
+  | zero =>
+    simp only [neg, mapInputs, eval, Literal.eval]
+    cases x f.1 <;> cases f.2 <;> rfl
   | succ d ih =>
+    have hn : neg f = f.map neg := rfl
     have ha (g : AltFormula n d) : eval .and (neg g) x = !eval .or g x := ih g .or
     have ho (g : AltFormula n d) : eval .or (neg g) x = !eval .and g x := ih g .and
-    cases op <;> simp [show neg f = f.map neg from rfl, AltOp.dual, eval, List.all_map,
-      List.any_map, Function.comp_def, List.not_all_eq_any_not, List.not_any_eq_all_not, ha, ho]
+    cases op <;> simp [hn, AltOp.dual, eval, List.all_map, List.any_map, Function.comp_def,
+      List.not_all_eq_any_not, List.not_any_eq_all_not, ha, ho]
 
 /-- An alternating formula of depth two with a conjunction at the root is a formula in conjunctive
 normal form. -/
@@ -212,10 +215,12 @@ theorem size_merge_le {d : ℕ} {ι : Type*} [Fintype ι] (fs : ι → AltFormul
       size (d := d + 1) ls.flatten ≤ 1 + (ls.map size).sum := by
     induction ls with
     | nil => simp [size]
-    | cons _ _ ih =>
+    | cons f ls ih =>
       simp only [List.flatten_cons, size, List.map_append, List.sum_append, List.map_cons,
-        List.sum_cons] at *; omega
-  simpa [merge, List.map_map, Function.comp_def, Finset.sum_map_toList] using h (univ.toList.map fs)
+        List.sum_cons] at *
+      omega
+  simpa [merge, List.map_map, Function.comp_def, Finset.sum_map_toList] using
+    h (univ.toList.map fs)
 
 /-- A constant, as an alternating formula of any depth at least two. -/
 def constant (n d : ℕ) (op : AltOp) (b : Bool) : AltFormula n (d + 2) :=
@@ -251,9 +256,12 @@ noncomputable def cnf (f : BitString n → Bool) : AltFormula n 2 :=
 
 /-- `cnf f` evaluates to `f x` on every input `x` with root operation `.and`. -/
 theorem eval_cnf (f : BitString n → Bool) (x : BitString n) : eval .and (cnf f) x = f x := by
-  rw [Bool.eq_iff_iff, cnf, eval_gate_and]; simp only [eval_excludingClause]
-  exact ⟨fun h => by cases hf : f x with | false => exact (h ⟨x, hf⟩ rfl).elim | true => rfl,
-    fun h y he => Bool.noConfusion (h.symm.trans (he ▸ y.2))⟩
+  rw [Bool.eq_iff_iff, cnf, eval_gate_and]
+  simp only [eval_excludingClause]
+  refine ⟨fun h => ?_, fun h y he => Bool.noConfusion (h.symm.trans (he ▸ y.2))⟩
+  cases hf : f x with
+  | false => exact (h ⟨x, hf⟩ rfl).elim
+  | true => rfl
 
 /-- The canonical CNF formula `cnf f` has size at most `2 ^ n + 1`. -/
 theorem size_cnf_le (f : BitString n → Bool) : size (cnf f) ≤ 2 ^ n + 1 := by
@@ -344,7 +352,8 @@ def literalsCircuit (n : ℕ) : Circuit Unbounded.signature n (n + n) :=
 /-- `literalsCircuit n` evaluates to the vector `literals x` of positive and negated inputs. -/
 theorem eval_literalsCircuit (x : BitString n) :
     (literalsCircuit n).eval Unbounded.interpretation x = literals x := by
-  rw [literalsCircuit, Circuit.eval_append, Circuit.eval_pi]; rfl
+  rw [literalsCircuit, Circuit.eval_append, Circuit.eval_pi]
+  rfl
 
 /-- `literalsCircuit n` uses `n` gates (one negation per input). -/
 theorem size_literalsCircuit (n : ℕ) : (literalsCircuit n).size = n := by
@@ -359,7 +368,8 @@ def deMorganLiteralsCircuit (n : ℕ) : Circuit Boolean.signature n (n + n) :=
 inputs. -/
 theorem eval_deMorganLiteralsCircuit (x : BitString n) :
     (deMorganLiteralsCircuit n).eval Boolean.interpretation x = literals x := by
-  rw [deMorganLiteralsCircuit, Circuit.eval_append, Circuit.eval_pi]; rfl
+  rw [deMorganLiteralsCircuit, Circuit.eval_append, Circuit.eval_pi]
+  rfl
 
 /-- `deMorganLiteralsCircuit n` uses `n` gates (one negation per input). -/
 theorem size_deMorganLiteralsCircuit (n : ℕ) : (deMorganLiteralsCircuit n).size = n := by
@@ -383,12 +393,14 @@ first. -/
 theorem exists_circuit {d : ℕ} (op : AltOp) (f : AltFormula n d) :
     ∃ c : Circuit Unbounded.signature n 1,
       c.Computes Unbounded.interpretation (single (eval op f)) ∧
-        c.depthWith Unbounded.andOrCost ≤ d ∧ c.depth ≤ d + 1 ∧ c.size = size f + n :=
-  ⟨(toFormula op f).toCircuit.comp (literalsCircuit n), fun x => funext fun _ => by
-      rw [Circuit.eval_comp, eval_literalsCircuit, Formula.eval_toCircuit, eval_toFormula]; rfl,
-    by circuit_bound, by circuit_bound, by
-      rw [Circuit.size_comp, size_literalsCircuit, Formula.size_toCircuit, size_toFormula,
-        Nat.add_comm]⟩
+        c.depthWith Unbounded.andOrCost ≤ d ∧ c.depth ≤ d + 1 ∧ c.size = size f + n := by
+  refine ⟨(toFormula op f).toCircuit.comp (literalsCircuit n), fun x => funext fun _ => ?_,
+    ?_, ?_, ?_⟩
+  · rw [Circuit.eval_comp, eval_literalsCircuit, Formula.eval_toCircuit, eval_toFormula]; rfl
+  · circuit_bound
+  · circuit_bound
+  · rw [Circuit.size_comp, size_literalsCircuit, Formula.size_toCircuit, size_toFormula,
+      Nat.add_comm]
 
 end AltFormula
 

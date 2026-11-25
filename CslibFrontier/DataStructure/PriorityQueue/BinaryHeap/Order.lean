@@ -82,10 +82,8 @@ theorem UpOrdered.swap (h : UpOrdered f S a) (ha : 2 ≤ a) (haS : a ≤ S)
     rcases eq_or_ne (i / 2) a with hia2 | hia2
     · rw [hia2, hga]; exact h₂ hia2 ha
     rcases eq_or_ne (i / 2) (a / 2) with hip | hip
-    · have hp := h₁ hia
-      rw [hip] at hp
-      rw [hip, hgp]
-      exact hlt.le.trans hp
+    · rw [hip, hgp]
+      exact hlt.le.trans (hip ▸ h₁ hia)
     · rw [hgo (i / 2) (by omega) (by omega) hia2 hip]
       exact h₁ hia
   · intro hip hp2
@@ -93,10 +91,8 @@ theorem UpOrdered.swap (h : UpOrdered f S a) (ha : 2 ≤ a) (haS : a ≤ S)
     rw [hgo (a / 2 / 2) (by omega) (by omega) (by omega) (by omega)]
     rcases eq_or_ne i a with rfl | hia
     · rw [hga]; exact hpa
-    · have hp := h₁ hia
-      rw [hip] at hp
-      rw [hgo i (by omega) hiS hia (by omega)]
-      exact hpa.trans hp
+    · rw [hgo i (by omega) hiS hia (by omega)]
+      exact hpa.trans (hip ▸ h₁ hia)
 
 /-- A heap with one downward defect at `a` is ordered once `a` is ordered with its children. -/
 theorem DownOrdered.ordered (h : DownOrdered f S a)
@@ -128,10 +124,8 @@ theorem DownOrdered.swap (h : DownOrdered f S a) (hc : c / 2 = a) (hcS : c ≤ S
     · rw [hgo i (by omega) hiS hia' hic', hgo (i / 2) (by omega) (by omega) hia hic]
       exact h₁ hia
   · intro hic _
-    have hp := h₁ (by omega)
-    rw [hic] at hp
     rw [hc, hga, hgo i (by omega) hiS (by omega) (by omega)]
-    exact hp
+    exact hic ▸ h₁ (by omega)
 
 end Order
 
@@ -163,42 +157,40 @@ theorem HeapShape.swap {mem : ℕ → ℕ} {a b : ℕ} (h : HeapShape N base S m
   have hpa := h.pos_vertex a ha haS
   have hpb := h.pos_vertex b hb hbS
   have hne : mem (base + N + a) ≠ mem (base + N + b) := fun he => hab (by rw [← hpa, ← hpb, he])
-  have hH : ∀ i, 1 ≤ i → i ≤ S → m' (base + N + i) = if i = b then mem (base + N + a)
+  have hH (i : ℕ) (hi : 1 ≤ i) (hiS : i ≤ S) : m' (base + N + i) = if i = b then mem (base + N + a)
       else if i = a then mem (base + N + b) else mem (base + N + i) := by
-    intro i hi hiS
     simp only [m', swapMem, Function.update_apply]; split_ifs <;> omega
-  have hP : ∀ v < N, m' (base + 2 * N + 1 + v) = if v = mem (base + N + a) then b
+  have hP (v : ℕ) (hv : v < N) : m' (base + 2 * N + 1 + v) = if v = mem (base + N + a) then b
       else if v = mem (base + N + b) then a else mem (base + 2 * N + 1 + v) := by
-    intro v hv
     simp only [m', swapMem, Function.update_apply]; split_ifs <;> omega
-  have hD : ∀ c, c ≤ base + N ∨ base + 3 * N < c → m' c = mem c := by
-    intro c hc
+  have hD (c : ℕ) (hc : c ≤ base + N ∨ base + 3 * N < c) : m' c = mem c := by
     simp only [m', swapMem, Function.update_apply]; split_ifs <;> omega
   have hK : ∀ v < N, m' (base + v) = mem (base + v) := fun _ hv => hD _ (Or.inl (by omega))
-  refine ⟨⟨hSN, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, hD⟩
+  refine ⟨⟨h.size_le, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, hD⟩
   · intro i hi hiS
-    rw [hH i hi hiS]; split_ifs; exacts [hva, hvb, h.vertex_lt i hi hiS]
+    rw [hH i hi hiS]
+    split_ifs
+    exacts [hva, hvb, h.vertex_lt i hi hiS]
   · intro i hi hiS
     rw [hH i hi hiS]
     split_ifs with h1 h2
     · rw [hP _ hva, ite_eq_left rfl, h1]
     · rw [hP _ hvb, ite_eq_right hne.symm, ite_eq_left rfl, h2]
     · have hpi := h.pos_vertex i hi hiS
-      have h1' : mem (base + N + i) ≠ mem (base + N + a) := fun he => h2 (by rw [← hpi, he, hpa])
-      have h2' : mem (base + N + i) ≠ mem (base + N + b) := fun he => h1 (by rw [← hpi, he, hpb])
-      rw [hP _ (h.vertex_lt i hi hiS), ite_eq_right h1', ite_eq_right h2', hpi]
+      rw [hP _ (h.vertex_lt i hi hiS), ite_eq_right fun he => h2 (by rw [← hpi, he, hpa]),
+        ite_eq_right fun he => h1 (by rw [← hpi, he, hpb]), hpi]
   · intro v hv
-    rw [hP v hv]; split_ifs; exacts [hbS, haS, h.pos_le v hv]
+    rw [hP v hv]
+    split_ifs
+    exacts [hbS, haS, h.pos_le v hv]
   · intro v hv hv0
     rw [hP v hv] at hv0 ⊢
     split_ifs at hv0 ⊢ with h1 h2
     · rw [hH b hb hbS, ite_eq_left rfl, h1]
     · rw [hH a ha haS, ite_eq_right hab, ite_eq_left rfl, h2]
     · have hvp := h.vertex_pos v hv hv0
-      have hle := h.pos_le v hv
-      have h1' : mem (base + 2 * N + 1 + v) ≠ b := fun he => h2 (by rw [← hvp, he])
-      have h2' : mem (base + 2 * N + 1 + v) ≠ a := fun he => h1 (by rw [← hvp, he])
-      rw [hH _ (by omega) hle, ite_eq_right h1', ite_eq_right h2', hvp]
+      rw [hH _ (by omega) (h.pos_le v hv), ite_eq_right fun he => h2 (by rw [← hvp, he]),
+        ite_eq_right fun he => h1 (by rw [← hvp, he]), hvp]
   · simp only [heapEntry]
     rw [hH a ha haS, ite_eq_right hab, ite_eq_left rfl, hK _ hvb]
   · simp only [heapEntry]

@@ -165,20 +165,13 @@ in `S` iff `u ∈ S`. -/
 theorem card_walksFrom_zero (adj : Fin n → Fin n → Bool) (S : Finset (Fin n)) (u : Fin n) :
     #(walksFrom adj S 0 u) = walkCountFrom adj S 0 u := by
   by_cases hu : u ∈ S
-  · have hset : walksFrom adj S 0 u = {fun _ => u} := by
-      ext w
-      simp only [walksFrom, Finset.mem_filter, Finset.mem_univ, true_and, isWalk_one,
-        Finset.mem_singleton]
-      exact ⟨fun ⟨hw0, _⟩ => funext fun i => Fin.eq_zero i ▸ hw0,
-        fun h => by subst h; exact ⟨rfl, fun _ => hu⟩⟩
-    rw [hset, Finset.card_singleton, walkCountFrom, ite_eq_left hu]
-  · have hset : walksFrom adj S 0 u = ∅ := by
-      ext w
-      simp only [walksFrom, Finset.mem_filter, Finset.mem_univ, true_and, isWalk_one,
-        Finset.notMem_empty, iff_false, not_and]
-      intro hw0 hS
-      exact hu (hw0 ▸ hS 0)
-    rw [hset, Finset.card_empty, walkCountFrom, ite_eq_right hu]
+  · rw [walkCountFrom, ite_eq_left hu]
+    refine Finset.card_eq_one.mpr ⟨fun _ => u, ?_⟩
+    ext w
+    simp +contextual [walksFrom, hu, funext_iff, Fin.forall_fin_one]
+  · rw [walkCountFrom, ite_eq_right hu, Finset.card_eq_zero, walksFrom, Finset.filter_eq_empty_iff]
+    rintro w - ⟨rfl, -, hS⟩
+    exact hu (hS 0)
 
 /-- Inductive step: partitioning `(k + 2)`-vertex walks starting at `u` by their second vertex
 `w 1` (`Finset.card_eq_sum_card_fiberwise`) and removing `u` bijects each fiber with
@@ -210,13 +203,9 @@ theorem card_walksFrom_succ (adj : Fin n → Fin n → Bool) (S : Finset (Fin n)
       rw [htail, hw'.1]
       exact ⟨⟨⟨huv.2, hw'.2.1⟩, fun i => Fin.cases huv.1 (fun j => hw'.2.2 j) i⟩, rfl⟩
   · rw [ite_eq_right huv, Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-    intro w hw
+    rintro w hw rfl
     simp only [walksFrom, Finset.mem_filter, Finset.mem_univ, true_and, isWalk_succ_succ] at hw
-    intro hw1
-    have hadj : adj u v = true := by
-      rw [← hw.1, ← hw1]
-      exact hw.2.1.1
-    exact huv ⟨hw.1 ▸ hw.2.2 0, hadj⟩
+    exact huv ⟨hw.1 ▸ hw.2.2 0, hw.1 ▸ hw.2.1.1⟩
 
 /-- **`walkCountFrom` counts `(k + 1)`-vertex walks inside `S` starting at `u`.** -/
 theorem card_walksFrom (adj : Fin n → Fin n → Bool) (S : Finset (Fin n)) (k : ℕ) (u : Fin n) :
@@ -267,10 +256,7 @@ variable {n : ℕ}
 
 @[simp] theorem maskCard_eq_card_maskSet (n k : ℕ) :
     maskCard n k = #(maskSet n k) := by
-  have huniv : (univ : Finset (Fin n)) = (List.finRange n).toFinset := by
-    ext i
-    simp
-  rw [maskCard, maskSet, huniv, ← List.toFinset_filter,
+  rw [maskCard, maskSet, ← List.toFinset_finRange, ← List.toFinset_filter,
     List.toFinset_card_of_nodup ((List.nodup_finRange n).filter _),
     List.countP_eq_length_filter]
 

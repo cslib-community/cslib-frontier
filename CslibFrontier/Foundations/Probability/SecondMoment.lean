@@ -117,16 +117,19 @@ theorem variance_sum_indicator_le (F : Finset κ) {A : κ → Set Ω}
     (hD : ∀ k ∈ F, #{l ∈ F | G k l} ≤ D) :
     Var[fun ω => ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω; P] ≤ #F * D := by
   rw [variance_fun_sum' fun k hk => memLp_indicator_one (hA k hk)]
-  refine (sum_le_sum fun k hk => sum_le_sum (g := fun l => if G k l then (1 : ℝ) else 0)
-    fun l hl => ?_).trans ?_
-  · rw [covariance_indicator_one (hA k hk) (hA l hl)]
-    split_ifs with hkl
-    · have : P.real (A k ∩ A l) ≤ 1 := measureReal_le_one
-      nlinarith [measureReal_nonneg (μ := P) (s := A k), measureReal_nonneg (μ := P) (s := A l)]
-    · rw [measureReal_def, (hG k hk l hl hkl).measure_inter_eq_mul, ENNReal.toReal_mul,
-        measureReal_def, measureReal_def, sub_self]
-  · simpa [sum_boole] using sum_le_sum fun k hk => (by exact_mod_cast hD k hk :
-      (#{l ∈ F | G k l} : ℝ) ≤ D)
+  calc ∑ k ∈ F, ∑ l ∈ F, cov[(A k).indicator 1, (A l).indicator 1; P]
+      ≤ ∑ k ∈ F, ∑ l ∈ F, if G k l then (1 : ℝ) else 0 := by
+        refine sum_le_sum fun k hk => sum_le_sum fun l hl => ?_
+        rw [covariance_indicator_one (hA k hk) (hA l hl)]
+        split_ifs with hkl
+        · have : P.real (A k ∩ A l) ≤ 1 := measureReal_le_one
+          nlinarith [measureReal_nonneg (μ := P) (s := A k), measureReal_nonneg (μ := P) (s := A l)]
+        · rw [measureReal_def, (hG k hk l hl hkl).measure_inter_eq_mul, ENNReal.toReal_mul,
+            measureReal_def, measureReal_def, sub_self]
+    _ = ∑ k ∈ F, (#{l ∈ F | G k l} : ℝ) := by
+        simp only [sum_boole]
+    _ ≤ ∑ _k ∈ F, (D : ℝ) := sum_le_sum fun k hk => by exact_mod_cast hD k hk
+    _ = #F * D := by simp
 
 /-- **Second-moment concentration.** If events `A k` and `A l` with `¬ G k l` are independent,
 and each `k ∈ F` is related by `G` to at most `D` indices of `F`, then the number of events
@@ -142,8 +145,9 @@ theorem measureReal_le_abs_sum_indicator_sub_le (F : Finset κ) {A : κ → Set 
     (memLp_finsetSum F fun k hk => memLp_indicator_one (hA k hk)) hc
   rw [integral_sum_indicator_one (P := P) F hA] at cheb
   rw [measureReal_def]
-  exact ENNReal.toReal_le_of_le_ofReal (by positivity) <| cheb.trans <|
-    ENNReal.ofReal_le_ofReal (by gcongr; exact variance_sum_indicator_le F hA G hG hD)
+  refine ENNReal.toReal_le_of_le_ofReal (by positivity) (cheb.trans (ENNReal.ofReal_le_ofReal ?_))
+  gcongr
+  exact variance_sum_indicator_le F hA G hG hD
 
 /-- **The second moment method** [Alon and Spencer, Section 4.3][AlonSpencer2016]: under a
 probability measure, a square integrable random variable `X` with `E X > 0` is nonpositive with
@@ -152,11 +156,13 @@ theorem measureReal_nonpos_le_variance_div_sq {X : Ω → ℝ} (hX : MemLp X 2 P
     P.real {ω | X ω ≤ 0} ≤ Var[X; P] / P[X] ^ 2 := by
   have hsub : {ω | X ω ≤ 0} ⊆ {ω | P[X] ≤ |X ω - P[X]|} := fun ω hω => by
     rw [Set.mem_ofPred_eq] at hω ⊢
-    rw [abs_sub_comm]; exact le_abs.2 (Or.inl (by linarith))
-  refine (measureReal_mono hsub).trans ?_
-  rw [measureReal_def]
-  exact ENNReal.toReal_le_of_le_ofReal (div_nonneg (variance_nonneg _ _) (sq_nonneg _))
-    (meas_ge_le_variance_div_sq hX hX₀)
+    rw [abs_sub_comm]
+    exact le_abs.2 (Or.inl (by linarith))
+  calc P.real {ω | X ω ≤ 0} ≤ P.real {ω | P[X] ≤ |X ω - P[X]|} := measureReal_mono hsub
+    _ ≤ Var[X; P] / P[X] ^ 2 := by
+      rw [measureReal_def]
+      exact ENNReal.toReal_le_of_le_ofReal (div_nonneg (variance_nonneg _ _) (sq_nonneg _))
+        (meas_ge_le_variance_div_sq hX hX₀)
 
 /-- **The second moment method for a count of events**
 [Alon and Spencer, Section 4.3][AlonSpencer2016]. Under a probability measure, if the events `A k`
@@ -169,6 +175,7 @@ theorem measureReal_forall_notMem_le (F : Finset κ) {A : κ → Set Ω}
       (∑ k ∈ F, ∑ l ∈ F, P.real (A k ∩ A l) - (∑ k ∈ F, P.real (A k)) ^ 2) /
         (∑ k ∈ F, P.real (A k)) ^ 2 := by
   set Y : Ω → ℝ := fun ω => ∑ k ∈ F, (A k).indicator (1 : Ω → ℝ) ω with hYdef
+  have hY : MemLp Y 2 P := memLp_finsetSum F fun k hk => memLp_indicator_one (hA k hk)
   have hmean : P[Y] = ∑ k ∈ F, P.real (A k) := integral_sum_indicator_one F hA
   have hvar : Var[Y; P] =
       ∑ k ∈ F, ∑ l ∈ F, P.real (A k ∩ A l) - (∑ k ∈ F, P.real (A k)) ^ 2 := by
@@ -177,11 +184,12 @@ theorem measureReal_forall_notMem_le (F : Finset κ) {A : κ → Set Ω}
     exact sum_congr rfl fun k hk => by
       rw [← sum_sub_distrib]
       exact sum_congr rfl fun l hl => covariance_indicator_one (hA k hk) (hA l hl)
-  refine (measureReal_mono fun ω hω => ?_).trans
-    ((measureReal_nonpos_le_variance_div_sq (memLp_finsetSum F fun k hk =>
-      memLp_indicator_one (hA k hk)) (hmean ▸ hS)).trans_eq (by rw [hvar, hmean]))
-  rw [Set.mem_ofPred_eq] at hω ⊢
-  exact (sum_eq_zero fun k hk => Set.indicator_of_notMem (hω k hk) _).le
+  have hsub : {ω | ∀ k ∈ F, ω ∉ A k} ⊆ {ω | Y ω ≤ 0} := fun ω hω => by
+    rw [Set.mem_ofPred_eq] at hω ⊢
+    exact (sum_eq_zero fun k hk => Set.indicator_of_notMem (hω k hk) _).le
+  calc P.real {ω | ∀ k ∈ F, ω ∉ A k} ≤ P.real {ω | Y ω ≤ 0} := measureReal_mono hsub
+    _ ≤ Var[Y; P] / P[Y] ^ 2 := measureReal_nonpos_le_variance_div_sq hY (hmean ▸ hS)
+    _ = _ := by rw [hvar, hmean]
 
 end General
 
@@ -222,10 +230,11 @@ theorem indepFun_pi_of_dependsOn {β γ : Type*} [MeasurableSpace β] [Measurabl
   have hg_eq (ω) : g ω = g (e.symm (fun i => ω₀ i.1, (e ω).2)) := hgT fun _ hi => by
     simp [e, MeasurableEquiv.piEquivPiSubtypeProd, Equiv.piEquivPiSubtypeProd_symm_apply,
       Set.disjoint_right.1 hST hi]
-  rw [show f ⁻¹' A ∩ g ⁻¹' B = e ⁻¹' (C ×ˢ D) by ext ω; simp [C, D, hf_eq ω, hg_eq ω],
-    show f ⁻¹' A = e ⁻¹' (C ×ˢ Set.univ) by ext ω; simp [C, hf_eq ω],
-    show g ⁻¹' B = e ⁻¹' (Set.univ ×ˢ D) by ext ω; simp [D, hg_eq ω],
-    he.measure_preimage_equiv, he.measure_preimage_equiv, he.measure_preimage_equiv,
+  have hAB : f ⁻¹' A ∩ g ⁻¹' B = e ⁻¹' (C ×ˢ D) :=
+    Set.ext fun ω => by simp [C, D, hf_eq ω, hg_eq ω]
+  have hA : f ⁻¹' A = e ⁻¹' (C ×ˢ Set.univ) := Set.ext fun ω => by simp [C, hf_eq ω]
+  have hB : g ⁻¹' B = e ⁻¹' (Set.univ ×ˢ D) := Set.ext fun ω => by simp [D, hg_eq ω]
+  rw [hAB, hA, hB, he.measure_preimage_equiv, he.measure_preimage_equiv, he.measure_preimage_equiv,
     Measure.prod_prod, Measure.prod_prod, Measure.prod_prod, measure_univ, measure_univ,
     mul_one, one_mul]
 

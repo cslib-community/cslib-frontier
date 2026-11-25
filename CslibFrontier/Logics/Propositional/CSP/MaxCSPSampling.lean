@@ -83,23 +83,25 @@ private theorem uniformSample_abs_sub_ge_le {m : ℕ} (hm : 0 < m) (s : ℕ)
   have hdiv_pos : 0 < (m : ℝ) / (s : ℝ) := div_pos (Nat.cast_pos.mpr hm) (Nat.cast_pos.mpr hs)
   have hm_ne : (m : ℝ) ≠ 0 := (Nat.cast_pos.mpr hm).ne'
   have hs_ne : (s : ℝ) ≠ 0 := (Nat.cast_pos.mpr hs).ne'
-  unfold uniformSamplePMF
-  rw [(pi_uniformOfFintype (α := fun _ : Fin s => Fin m)).symm, show
-    {ω : Fin s → Fin m |
-      δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i|} =
-    {ω : Fin s → Fin m |
-      (s : ℝ) * δ ≤ |(∑ j : Fin s, val (ω j)) -
-        ∑ _ : Fin s, ∑ i : Fin m, ((uniformOfFintype (Fin m)) i).toReal * val i|} by
+  have hevent :
+      {ω : Fin s → Fin m |
+        δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i|} =
+      {ω : Fin s → Fin m |
+        (s : ℝ) * δ ≤ |(∑ j : Fin s, val (ω j)) -
+          ∑ _ : Fin s, ∑ i : Fin m,
+            ((uniformOfFintype (Fin m)) i).toReal * val i|} := by
     ext ω
     simp only [Set.mem_ofPred_eq, uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, inv_mul_eq_div, ← Finset.sum_div, Finset.sum_const,
       Finset.card_univ, nsmul_eq_mul]
-    rw [show (m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i =
-        ((m : ℝ) / (s : ℝ)) * ((∑ j : Fin s, val (ω j)) - ((s : ℝ) * ∑ i : Fin m, val i) / m)
-        by field_simp,
-      abs_mul, abs_of_pos hdiv_pos,
-      show δ * (m : ℝ) = ((m : ℝ) / (s : ℝ)) * ((s : ℝ) * δ) by field_simp]
-    exact mul_le_mul_iff_right₀ hdiv_pos]
+    have hscale : (m : ℝ) / (s : ℝ) * (∑ j : Fin s, val (ω j)) - ∑ i : Fin m, val i =
+        ((m : ℝ) / (s : ℝ)) * ((∑ j : Fin s, val (ω j)) - ((s : ℝ) * ∑ i : Fin m, val i) / m) := by
+      field_simp
+    have hlhs : δ * (m : ℝ) = ((m : ℝ) / (s : ℝ)) * ((s : ℝ) * δ) := by field_simp
+    rw [hscale, abs_mul, abs_of_pos hdiv_pos, hlhs]
+    exact mul_le_mul_iff_right₀ hdiv_pos
+  unfold uniformSamplePMF
+  rw [(pi_uniformOfFintype (α := fun _ : Fin s => Fin m)).symm, hevent]
   simpa only [Fintype.card_fin] using pi_sum_abs_sub_mean_ge_card_mul
     (fun _ : Fin s => uniformOfFintype (Fin m)) (fun _ i => val i) (fun _ i _ => hval i) hδ
 
@@ -114,13 +116,25 @@ private theorem uniformSample_exists_abs_sub_ge_le {D : Type*} [Fintype D] {n m 
   let B (x : Fin n → D) : Set (Fin s → Fin m) :=
     {ω | δ * (m : ℝ) ≤ |(m : ℝ) / (s : ℝ) * (∑ j : Fin s, evalAt (ω j) x) -
       ∑ i : Fin m, evalAt i x|}
+  have heq : {ω : Fin s → Fin m | ∃ x : Fin n → D, ω ∈ B x} =
+      ⋃ x ∈ (Finset.univ : Finset (Fin n → D)), B x := by
+    ext ω
+    simp only [Set.mem_ofPred_eq, Set.mem_iUnion, Finset.mem_univ, exists_true_left]
   change ((uniformSamplePMF m hm s).toOuterMeasure {ω | ∃ x, ω ∈ B x}).toReal ≤ _
-  rw [show {ω : Fin s → Fin m | ∃ x, ω ∈ B x} = ⋃ x ∈ (Finset.univ : Finset (Fin n → D)), B x by
-    ext ω; simp]
-  refine ((toOuterMeasure_toReal_biUnion_finset_le _ _ _).trans (Finset.sum_le_sum fun x _ =>
-    uniformSample_abs_sub_ge_le hm s (fun i => evalAt i x) (fun i => heval i x) hδ)).trans_eq ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
-    nsmul_eq_mul, Nat.cast_pow]; ring
+  rw [heq]
+  calc ((uniformSamplePMF m hm s).toOuterMeasure
+        (⋃ x ∈ (Finset.univ : Finset (Fin n → D)), B x)).toReal
+      ≤ ∑ x ∈ (Finset.univ : Finset (Fin n → D)),
+          ((uniformSamplePMF m hm s).toOuterMeasure (B x)).toReal :=
+        toOuterMeasure_toReal_biUnion_finset_le _ _ _
+    _ ≤ ∑ _x ∈ (Finset.univ : Finset (Fin n → D)),
+          (2 * Real.exp (-2 * (s : ℝ) * δ ^ 2)) :=
+        Finset.sum_le_sum fun x _ =>
+          uniformSample_abs_sub_ge_le hm s (fun i => evalAt i x) (fun i => heval i x) hδ
+    _ = (Fintype.card D : ℝ) ^ n * 2 * Real.exp (-2 * (s : ℝ) * δ ^ 2) := by
+        simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+          nsmul_eq_mul, Nat.cast_pow]
+        ring
 
 private theorem abs_scale_sup_sub_le {α : Type*} {c optS optF ε : ℝ} (hc : 0 ≤ c)
     {sScore fScore : α → ℝ}
@@ -128,7 +142,8 @@ private theorem abs_scale_sup_sub_le {α : Type*} {c optS optF ε : ℝ} (hc : 0
     (hf_le : ∀ x, fScore x ≤ optF) (hs_le : ∀ x, sScore x ≤ optS)
     (hunif : ∀ x, |c * sScore x - fScore x| ≤ ε) :
     |c * optS - optF| ≤ ε := by
-  obtain ⟨xStar, rfl⟩ := hStar; obtain ⟨xHat, rfl⟩ := hHat
+  obtain ⟨xStar, rfl⟩ := hStar
+  obtain ⟨xHat, rfl⟩ := hHat
   exact abs_le.mpr
     ⟨by linarith [(abs_le.mp (hunif xStar)).1, mul_le_mul_of_nonneg_left (hs_le xStar) hc],
      by linarith [(abs_le.mp (hunif xHat)).2, hf_le xHat]⟩
@@ -271,7 +286,9 @@ theorem sample_score_abs_sub_ge_le [Inhabited D] (sem : Rel → List D → Bool)
       (fun i => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x))
       (fun i => by
         dsimp only [WeightedConstraint.evalWeight]
-        split_ifs <;> [exact hw _ (List.getElem_mem _); exact ⟨le_rfl, zero_le_one⟩]) hδ
+        split_ifs
+        · exact hw _ (List.getElem_mem _)
+        · exact ⟨le_rfl, zero_le_one⟩) hδ
 
 /-- **Uniform subsampling concentration over a general finite domain `D`** (`|D| ^ n * 2 * exp`). -/
 theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
@@ -288,7 +305,9 @@ theorem exists_sample_score_abs_sub_ge_le [Fintype D] [Inhabited D] (sem : Rel �
       (fun i x => F.constraints[i].evalWeight sem (MaxCSP.assignment F.numVars x))
       (fun i x => by
         dsimp only [WeightedConstraint.evalWeight]
-        split_ifs <;> [exact hw _ (List.getElem_mem _); exact ⟨le_rfl, zero_le_one⟩]) hδ
+        split_ifs
+        · exact hw _ (List.getElem_mem _)
+        · exact ⟨le_rfl, zero_le_one⟩) hδ
 
 /-- **Boolean uniform subsampling concentration (`2 ^ (n + 1) * exp (-2 * s * δ ^ 2)`).** -/
 theorem boolean_exists_sample_score_abs_sub_ge_le (sem : Rel → List Bool → Bool)

@@ -406,7 +406,8 @@ private theorem inner_sum_proj_orthonormal {M r : ℕ} {e : Fin r → EuclideanS
     · simp [hi]
   · intro k _ hki
     rw [inner_smul_right, horth i k hki.symm, mul_zero]
-  · intro hi; exact absurd (Finset.mem_univ i) hi
+  · intro hi
+    exact absurd (Finset.mem_univ i) hi
 
 private theorem exists_orthonormal_expansion {M : ℕ} :
     ∀ (r : ℕ) (v : Fin r → EuclideanSpace ℝ (Fin M)),
@@ -441,7 +442,8 @@ private theorem exists_orthonormal_expansion {M : ℕ} :
       simp only [e, Fin.snoc_last, elast]
       split_ifs with hw
       · exact Or.inr rfl
-      · left; rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr (norm_nonneg w)),
+      · left
+        rw [norm_smul, Real.norm_of_nonneg (inv_nonneg.mpr (norm_nonneg w)),
           inv_mul_cancel₀ (norm_ne_zero_iff.mpr hw)]
     refine ⟨e, horth, hnorm, fun j => ?_⟩
     refine Fin.lastCases ?_ (fun j₀ => ?_) j
@@ -1006,7 +1008,8 @@ theorem winProb_oddCycleGame_parity {n : ℕ} [NeZero n] (hn : Odd n) (hn3 : 3 �
   obtain ⟨k, hk⟩ := hn
   have hn_pos : (0 : ℝ) < n := by positivity
   have : Fact (1 < n) := ⟨by omega⟩
-  have hedge (s : ZMod n) : ((color s ^^ color (s + 1)) = true) ↔ s ≠ last := by
+  have hedge (s : ZMod n) :
+      ((color s ^^ color (s + 1)) = true) ↔ s ≠ last := by
     by_cases hs : s = last
     · subst hs
       rw [hlast_succ]
@@ -1070,21 +1073,22 @@ theorem value_oddCycleGame {n : ℕ} [NeZero n] (hn : Odd n) (hn3 : 3 ≤ n) :
     obtain ⟨sb₀, hsb₀⟩ := not_forall.mp hnot_all
     rw [winProb_oddCycleGame, ← Finset.add_sum_erase _ _ (Finset.mem_univ sb₀),
       ite_eq_right_iff.mpr (fun h => absurd h hsb₀), zero_add]
-    have hsum_le : (∑ x ∈ Finset.univ.erase sb₀,
-        if (ha x.1 ^^ hb (bif x.2 then x.1 + 1 else x.1)) =
-            decide (x.1 + 1 = bif x.2 then x.1 + 1 else x.1)
-        then (2 * (n : ℝ))⁻¹ else 0) ≤
-        ((2 * n - 1 : ℕ) : ℝ) * (2 * (n : ℝ))⁻¹ := by
-      refine (Finset.sum_le_sum fun x _ => by
-        split_ifs
-        · exact le_rfl
-        · positivity).trans_eq ?_
-      rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
-        Fintype.card_prod, ZMod.card, Fintype.card_bool, mul_comm, nsmul_eq_mul]
     have hn_pos : (0 : ℝ) < n := by positivity
-    refine hsum_le.trans_eq ?_
-    rw [Nat.cast_sub (by omega)]
-    push_cast; field_simp
+    calc
+      (∑ x ∈ Finset.univ.erase sb₀,
+          if (ha x.1 ^^ hb (bif x.2 then x.1 + 1 else x.1)) =
+              decide (x.1 + 1 = bif x.2 then x.1 + 1 else x.1)
+          then (2 * (n : ℝ))⁻¹ else 0)
+          ≤ ((2 * n - 1 : ℕ) : ℝ) * (2 * (n : ℝ))⁻¹ := by
+        refine (Finset.sum_le_sum fun x _ => by
+          split_ifs
+          · exact le_rfl
+          · positivity).trans_eq ?_
+        rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
+          Fintype.card_prod, ZMod.card, Fintype.card_bool, mul_comm, nsmul_eq_mul]
+      _ = 1 - 1 / (2 * (n : ℝ)) := by
+        rw [Nat.cast_sub (by omega)]
+        push_cast; field_simp
   · rw [← winProb_oddCycleGame_parity hn hn3]
     exact (oddCycleGame n).winProb_le_value _ _
 
@@ -1136,6 +1140,7 @@ theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
   have hsub := quantumWinProb_sub_trivialWinProb (isXORGame_oddCycleGame n) (oddCycleStrategy n)
   rw [show (oddCycleGame n).trivialWinProb = 1 / 2 from trivialWinProb_xorGame _ _] at hsub
   have hn_ne : (n : ℝ) ≠ 0 := by positivity
+  -- Evaluate the question-weighted correlation sum by pulling back along `oddCycleQuestions`:
   have hprob (s t : ZMod n) :
       ((oddCycleGame n).questions (s, t)).toReal =
         if s = t ∨ s + 1 = t then (2 * (n : ℝ))⁻¹ else 0 := by
@@ -1148,9 +1153,11 @@ theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
       (fun h => absurd (Finset.mem_univ s) h)]
     have hne := zmod_add_one_ne_self hn3 s
     by_cases hst : s = t
-    · subst t; simp [hne.symm, ENNReal.toReal_inv, mul_comm]
+    · subst t
+      simp [hne.symm, ENNReal.toReal_inv, mul_comm]
     · by_cases hsucc : s + 1 = t
-      · subst t; simp [hne, ENNReal.toReal_inv, mul_comm]
+      · subst t
+        simp [hne, ENNReal.toReal_inv, mul_comm]
       · simp [hst, hsucc, Ne.symm hst, Ne.symm hsucc]
   have hrow (s : ZMod n) :
       (∑ t : ZMod n, ((oddCycleGame n).questions (s, t)).toReal *
@@ -1172,18 +1179,24 @@ theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
       Bool.false_eq_true]
     have hcos0 : cos (2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s)) =
         cos (π / (2 * (n : ℝ))) := by
-      rw [show 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s) = -(π / (2 * (n : ℝ))) by
-        unfold oddCycleAliceAngle oddCycleBobAngle; ring, cos_neg]
+      have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n s) =
+          -(π / (2 * (n : ℝ))) := by
+        unfold oddCycleAliceAngle oddCycleBobAngle
+        ring
+      rw [hang, cos_neg]
     have : Fact (1 < n) := ⟨by omega⟩
+    -- Show `-cos (2 * (α_s - β_{s+1})) = cos (π / (2n))`:
     have hcos1 : -cos (2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1))) =
         cos (π / (2 * (n : ℝ))) := by
       by_cases hlt : s.val + 1 < n
       · have hval : (s + 1).val = s.val + 1 := by
           rw [ZMod.val_add, ZMod.val_one, Nat.mod_eq_of_lt hlt]
-        rw [show 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
-            -(π - π / (2 * (n : ℝ))) by
-          unfold oddCycleAliceAngle oddCycleBobAngle; rw [hval, Nat.cast_add, Nat.cast_one]
-          field_simp; ring, cos_neg, cos_pi_sub, neg_neg]
+        have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
+            -(π - π / (2 * (n : ℝ))) := by
+          unfold oddCycleAliceAngle oddCycleBobAngle
+          rw [hval, Nat.cast_add, Nat.cast_one]
+          field_simp; ring
+        rw [hang, cos_neg, cos_pi_sub, neg_neg]
       · have hsv : s.val = n - 1 := by have := s.val_lt; omega
         have hval0 : (s + 1).val = 0 := by
           rw [ZMod.val_add, ZMod.val_one, hsv, show n - 1 + 1 = n by omega, Nat.mod_self]
@@ -1193,12 +1206,14 @@ theorem quantumWinProb_oddCycleGame_oddCycleStrategy {n : ℕ} [NeZero n]
           rw [hk, show 2 * k + 1 - 1 = 2 * k by omega]
           push_cast
           rfl
-        rw [show 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
-            -(π - π / (2 * (n : ℝ))) + (k : ℝ) * (2 * π) by
+        have hang : 2 * (oddCycleAliceAngle n s - oddCycleBobAngle n (s + 1)) =
+            -(π - π / (2 * (n : ℝ))) + (k : ℝ) * (2 * π) := by
           unfold oddCycleAliceAngle oddCycleBobAngle
           rw [hsv, hval0, Nat.cast_zero, mul_zero, sub_zero, hn_sub]
-          field_simp; rw [hn_eq]; ring,
-          cos_add_nat_mul_two_pi _ k, cos_neg, cos_pi_sub, neg_neg]
+          field_simp
+          rw [hn_eq]
+          ring
+        rw [hang, cos_add_nat_mul_two_pi _ k, cos_neg, cos_pi_sub, neg_neg]
     simp only [hcos0, mul_inv]
     linear_combination (2⁻¹ * (n : ℝ)⁻¹) * hcos1
   simp_rw [hrow] at hsub

@@ -381,14 +381,19 @@ theorem isOraclePPT_encPRFReduction (hP : ComputableInPolyTime P encUnary encPar
   have hvalid : ComputableInPolyTime
       (fun z : ((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool) =>
         (kpke P).IsMessagePair z.1.1.1 z.1.2.1 (ChoiceOut.msg₀ z.2) (ChoiceOut.msg₁ z.2)) E₂
-      encBool := by simp only [WordPKE.IsMessagePair, kpke]; fun_prop
+      encBool := by
+        simp only [WordPKE.IsMessagePair, kpke]
+        fun_prop
   refine IsOraclePPTOn.cond hvalid ?_ (ComputableInPolyTime.const false).isOraclePPTOn
   refine (isOraclePPTOn_queryNoise (P := fun z => P z.1.1.1)
     (count := fun z => 2 * (P z.1.1.1).k + 1) (width := fun z => encWidth (P z.1.1.1))
     hP₂ (by fun_prop) (ComputableInPolyTime.encWidth (hP₂.comp (ComputableInPolyTime.fst E₂ _))
       (ComputableInPolyTime.snd E₂ encUnary))
     (bound := fun z => (P z.1.1.1).n * (2 * (P z.1.1.1).η₁) + (P z.1.1.1).n * (2 * (P z.1.1.1).η₂))
-    (by fun_prop) fun _ _ => by unfold encWidth; split_ifs <;> omega).bind_with ?_
+    (by fun_prop)
+    fun _ _ => by
+      unfold encWidth
+      split_ifs <;> omega).bind_with ?_
   let E₃ := encPair E₂ encBits
   have hκ₃ : ComputableInPolyTime
       (fun z : (((ℕ × List Bool) × (List Bool × List Bool)) × ChoiceOut (List Bool)) × List Bool =>
@@ -501,9 +506,11 @@ theorem eval_prfIdealGame_encPRFReduction (κ : ℕ) :
       omega
     have hw₂ (N) (_ : N ∈ Finset.range (P κ).k) :
         encWidth (P κ) ((P κ).k + N) = (P κ).n * (2 * (P κ).η₂) := by
-      unfold encWidth; split_ifs <;> omega
+      unfold encWidth
+      split_ifs <;> omega
     have hlast : encWidth (P κ) (2 * (P κ).k) = (P κ).n * (2 * (P κ).η₂) := by
-      unfold encWidth; split_ifs <;> omega
+      unfold encWidth
+      split_ifs <;> omega
     rw [Finset.sum_range_succ, hlast, show 2 * (P κ).k = (P κ).k + (P κ).k by omega,
       Finset.sum_range_add, Finset.sum_congr rfl hw₁, Finset.sum_congr rfl hw₂, Finset.sum_const,
       Finset.sum_const, Finset.card_range, smul_eq_mul, smul_eq_mul]

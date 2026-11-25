@@ -306,7 +306,8 @@ theorem activeSetProb_eq_sum_liveGraphWeight
           (hP _ _ fun e he => by
             simp [toE, digraphEquivEdgeFinset, show e ∉ E₁ from fun h => he (hE₁F h)]).mpr hPE₀,
           fun e he => by
-            simp only [toE, digraphEquivEdgeFinset]; exact Finset.mem_union.mpr (Or.inr (hinE₁ he)),
+            simp only [toE, digraphEquivEdgeFinset]
+            exact Finset.mem_union.mpr (Or.inr (hinE₁ he)),
           fun e he => by
             have he₀ : e ∉ E₀ := fun h => (Finset.mem_sdiff.mp (hE₀F h)).2 (hout he)
             have he₁ : e ∉ E₁ := fun h => Finset.disjoint_left.mp hdisjE₁ h he
@@ -338,7 +339,9 @@ theorem activeSetProb_eq_sum_liveGraphWeight
     rw [hbij, Finset.sum_product, ← hFV, Finset.mul_sum]
     refine Finset.sum_congr rfl fun E₀ _ => ?_
     rw [Finset.sum_mul]
-    exact Finset.sum_congr rfl fun _ _ => by dsimp only; exact mul_comm _ _
+    refine Finset.sum_congr rfl fun _ _ => ?_
+    dsimp only
+    exact mul_comm _ _
   have h0 := IC.toCascadeModel.activeSetProb_eq_of_step hvalid S A
     (fun active tried =>
       ∑ H : Digraph V with
@@ -372,8 +375,11 @@ theorem activeSetProb_eq_sum_liveGraphWeight
               (∀ e ∈ outEdges, ¬ H.Adj e.1 e.2) ↔ ∀ w ∉ active, ∀ u ∈ tried w, ¬ H.Adj u w := by
             intro H
             simp only [outEdges, Finset.mem_biUnion, Finset.mem_compl, Finset.mem_map]
-            exact ⟨fun h w hw u hu => h (u, w) ⟨w, hw, u, hu, rfl⟩, fun h ⟨u, w⟩ ⟨w', hw', u',
-              hu', heq⟩ => by change (u', w') = (u, w) at heq; cases heq; exact h w hw' u hu'⟩
+            exact ⟨fun h w hw u hu => h (u, w) ⟨w, hw, u, hu, rfl⟩,
+              fun h ⟨u, w⟩ ⟨w', hw', u', hu', heq⟩ => by
+                change (u', w') = (u, w) at heq
+                cases heq
+                exact h w hw' u hu'⟩
           refine Finset.sum_subset (fun H hH => ?_) fun H hH hnot => ?_
           · simp only [Finset.mem_filter, Finset.mem_univ, Finset.notMem_empty, IsEmpty.forall_iff,
               implies_true, true_and, hmem_out] at hH ⊢
@@ -417,7 +423,7 @@ theorem activeSetProb_eq_sum_liveGraphWeight
       rw [← Finset.sum_filter_add_sum_filter_not S_all (fun H : Digraph V => H.Adj u v),
         IC.toCascadeModel_prob]
       congr 1
-      · -- `H.Adj u v` branch: apply `hfactor` on incoming edges `F = {e | e.2 = v}`.
+      · -- `H.Adj u v` branch: factor out incoming edges to `v`.
         let F : Finset (V × V) := Finset.univ.filter fun e => e.2 = v
         let P (H : Digraph V) : Prop :=
           (∀ w ∉ insert v active, ∀ x ∈ tried' w, ¬ H.Adj x w) ∧
@@ -456,12 +462,14 @@ theorem activeSetProb_eq_sum_liveGraphWeight
               have hwa : w ∉ active := fun h => hw (Finset.mem_insert.mpr (Or.inr h))
               exact hno w hwa x (by simpa only [tried', Function.update_of_ne hwv] using hx)
             · rintro ⟨x, y⟩ ⟨x', hx', heq⟩
-              change (x', v) = (x, y) at heq; cases heq
+              change (x', v) = (x, y) at heq
+              cases heq
               exact hno v hv_inact x hx'
           · rintro ⟨⟨hno, hr⟩, huvH, hout⟩
             refine ⟨⟨fun w hw x hx => ?_, (hreach_ins H huvH).trans hr⟩, huvH⟩
             by_cases hwv : w = v
-            · subst hwv; exact hout (x, w) ⟨x, hx, rfl⟩
+            · subst hwv
+              exact hout (x, w) ⟨x, hx, rfl⟩
             · exact hno w (fun h => (Finset.mem_insert.mp h).elim hwv hw) x
                 (by simpa only [tried', Function.update_of_ne hwv] using hx)
         have hrhs_eq : (∑ H : Digraph V with P H, liveGraphWeight IC H) =
@@ -476,9 +484,13 @@ theorem activeSetProb_eq_sum_liveGraphWeight
           (Finset.singleton_subset_iff.mpr (by simp [F]))
           (fun e he => by
             rcases Finset.mem_map.mp he with ⟨_, _, heq⟩
-            rw [← heq]; simp only [F, Finset.mem_filter, Finset.mem_univ, true_and]; rfl)
+            rw [← heq]
+            simp only [F, Finset.mem_filter, Finset.mem_univ, true_and]
+            rfl)
           (Finset.disjoint_singleton_left.mpr fun h => by
-            rcases Finset.mem_map.mp h with ⟨_, hx, heq⟩; cases heq; exact hu_untried hx)
+            rcases Finset.mem_map.mp h with ⟨_, hx, heq⟩
+            cases heq
+            exact hu_untried hx)
           hP, ← hrhs_eq, Finset.prod_singleton, IC.survivalProb_toCascadeModel v (tried v),
           Finset.prod_map]
         rfl
@@ -493,11 +505,14 @@ theorem activeSetProb_eq_sum_liveGraphWeight
             · exact hno w hw x (by simpa [tried', Function.update_of_ne hwv] using hx), hr⟩,
           fun ⟨hno', hr⟩ => ⟨⟨fun w hw x hx => by
             by_cases hwv : w = v
-            · subst hwv; exact hno' w hv_inact x (by simp [tried', hx])
+            · subst hwv
+              exact hno' w hv_inact x (by simp [tried', hx])
             · exact hno' w hw x (by simp [tried', Function.update_of_ne hwv, hx]), hr⟩,
             hno' v hv_inact u (by simp [tried'])⟩⟩)
   rw [h0]
-  exact Finset.sum_congr (by ext H; simp) fun _ _ => rfl
+  refine Finset.sum_congr ?_ fun _ _ => rfl
+  ext H
+  simp
 
 /-- **Live-Edge Expectation Formula** ([KempeKleinbergTardos2003]; [Kleinberg2007], Section 24.4,
 p. 625): expected influence in the Independent Cascade Model equals the weighted sum of reachable
@@ -579,8 +594,16 @@ private theorem measurePreserving_reflectUnit {c : ℝ} (hc0 : 0 ≤ c) :
       ext z
       simp only [mem_preimage, reflectUnit, J, mem_union, mem_inter_iff, mem_sdiff]
       by_cases hz : z ∈ Ioo c 1
-      · simp [hz, show (1 + c) - z ∈ Ioo c 1 from ⟨by linarith [hz.2], by linarith [hz.1]⟩]
-      · have hz' : (1 + c) - z ∉ Ioo c 1 := fun h => hz ⟨by linarith [h.2], by linarith [h.1]⟩
+      · have hz' : (1 + c) - z ∈ Ioo c 1 := by
+          refine ⟨?_, ?_⟩
+          · linarith [hz.2]
+          · linarith [hz.1]
+        simp [hz, hz']
+      · have hz' : (1 + c) - z ∉ Ioo c 1 := fun h => by
+          apply hz
+          refine ⟨?_, ?_⟩
+          · linarith [h.2]
+          · linarith [h.1]
         simp [hz, hz']
     rw [hpre]
     have hdisj1 : Disjoint ((fun z : ℝ => (1 + c) - z) ⁻¹' (s ∩ J)) (s \ J) :=

@@ -55,8 +55,9 @@ theorem exists_MX {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
     simp only [enc, Nat.mod_eq_of_lt hn, binaryValue_binaryWord]
   have hct (j : ℕ) : ∃ r : List Bool × List Unit, j < tr.length → cn r = enc L (j + 1) := by
     by_cases hj : j < tr.length
-    · obtain ⟨u, m, e⟩ := exists_carry_cut (w := enc L (j + 1))
-        (by rw [henc_val (by omega), henc_len]; omega)
+    · obtain ⟨u, m, e⟩ := exists_carry_cut (w := enc L (j + 1)) (by
+        rw [henc_val (by omega), henc_len]
+        omega)
       exact ⟨(u, List.replicate m ()), fun _ => by rw [e, cn, List.length_replicate]⟩
     · exact ⟨([], []), fun h => absurd h hj⟩
   choose ct hct using hct
@@ -65,13 +66,15 @@ theorem exists_MX {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
   let cts : List (List Bool × List Unit) := (List.range tr.length).map ct
   let sts : List (P.Rl × List (Fin 9 → Bool)) := tr.map fun st => (st.1, unb L st.2)
   have hmap : sts.map nst = tr := by
-    simp only [sts, List.map_map]; conv_rhs => rw [← List.map_id tr]
+    simp only [sts, List.map_map]
+    conv_rhs => rw [← List.map_id tr]
     refine List.map_congr_left fun st hst => Prod.ext rfl (funext fun i => ?_)
     simp only [Function.comp_apply, id_eq, nst, cw, unb_proj,
       Nat.mod_eq_of_lt (lt_of_le_of_lt (hle st hst i) (Nat.lt_of_succ_lt hT1)),
       binaryValue_binaryWord]
   have hlen : ∀ s ∈ sts, s.2.length = l0.length + 1 := fun s hs => by
-    obtain ⟨st, -, rfl⟩ := List.mem_map.1 hs; simp [l0, length_unb, hL]
+    obtain ⟨st, -, rfl⟩ := List.mem_map.1 hs
+    simp [l0, length_unb, hL]
   let lkw : List (Sy M K) :=
     encW ((sts.map fun s => cont (P.lk s.1) (ldc P s.1 s.2)).map fun c => (true, oc c))
   obtain ⟨xu, hxu⟩ : ∃ xu : XU M K, IMU xu (encW (recs 0 (lsN L tr))) := by
@@ -79,7 +82,9 @@ theorem exists_MX {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
       (by simp [dfN])).2 fun y hy => ?_
     obtain ⟨_, hρ, rfl⟩ := List.mem_map.1 hy
     obtain ⟨st, hst, rfl⟩ := List.mem_map.1 hρ
-    exact List.mem_map.2 ⟨Mach.ld st, by rw [dfN]; simpa [σi] using h5 st hst, rfl⟩
+    refine List.mem_map.2 ⟨Mach.ld st, ?_, rfl⟩
+    rw [dfN]
+    simpa [σi] using h5 st hst
   let x : XP P := ⟨l0, cts, sts, unb L fin, (enc L (tr.length + 1)).tail, lkw, xu⟩
   have hl0 : l0.length + 1 = L := by simp [l0, hL]
   have hcts : cts.map cn = (List.range tr.length).map fun j => enc L (j + 1) := by

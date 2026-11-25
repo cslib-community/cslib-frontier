@@ -133,7 +133,8 @@ theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
             Function.update_of_ne (by omega : tabBase g + s * L + a ≠ candBase g + k)]
           by_cases hak : a = k
           · subst hak; exact Function.update_self _ _ _
-          · rw [Function.update_of_ne (by omega)]; exact hzTab a (by omega)
+          · rw [Function.update_of_ne (by omega)]
+            exact hzTab a (by omega)
         · intro a ha
           simp only [Data.write_mem, Data.set_mem]
           by_cases hak : a = k
@@ -167,7 +168,8 @@ theorem startCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
       fun v hv fn hvf => ?_⟩,
     potential_start hT.len_table (hT.len_table ▸ hs),
     fun a ha => by
-      rw [hym, Function.update_of_ne (by wram_omega), Function.update_of_ne (by wram_omega)]
+      rw [hym, Function.update_of_ne (by wram_omega),
+        Function.update_of_ne (by wram_omega)]
       exact hcand2 a ha,
     hstk3, fun u hu => (List.mem_singleton.mp hu) ▸ hs,
     by simp only [start, List.reverse_singleton, holdsList_cons_iff, holdsList_nil, and_true, hym,
@@ -286,13 +288,18 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
             | false =>
               have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp only [hck, Bool.toNat_false]
               have hk' := hkeep (by
-                rw [hck_mem, hck0]; simp only [cVal, hk, ↓reduceDIte, hck, Bool.false_and,
+                rw [hck_mem, hck0]
+                simp only [cVal, hk, ↓reduceDIte, hck, Bool.false_and,
                   Bool.toNat_false])
               unfold pruneBody
               wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
-              exact ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
-                by wram_simp [hzR], by simpa only [Data.set_mem] using hk'.1,
-                by simpa only [Data.set_mem] using hk'.2⟩, by wram_simp⟩
+              exact ⟨⟨by wram_simp [hzC],
+                  by wram_simp [hzT2],
+                  by wram_simp [hzT3],
+                  by wram_simp [hzR],
+                  by simpa only [Data.set_mem] using hk'.1,
+                  by simpa only [Data.set_mem] using hk'.2⟩,
+                by wram_simp⟩
             | true =>
               have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
               have hfk_lt := (f ⟨k, hk⟩).isLt
@@ -313,14 +320,19 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 fits_top hw (by wram_omega)
               by_cases heq_val : (e.constraint (f ⟨k, hk⟩)).val = (h ⟨k, hk⟩).val
               · have hk' := hkeep (by
-                  rw [hck_mem, hck1]; simp only [cVal, hk, ↓reduceDIte, hck, Fin.ext heq_val,
+                  rw [hck_mem, hck1]
+                  simp only [cVal, hk, ↓reduceDIte, hck, Fin.ext heq_val,
                     decide_true, Bool.and_self, Bool.toNat_true])
                 unfold pruneBody
                 wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
-                  by wram_simp [hzR], by simpa only [Data.set_mem] using hk'.1,
-                  by simpa only [Data.set_mem] using hk'.2⟩, by wram_simp⟩
+                exact ⟨⟨by wram_simp [hzC],
+                    by wram_simp [hzT2],
+                    by wram_simp [hzT3],
+                    by wram_simp [hzR],
+                    by simpa only [Data.set_mem] using hk'.1,
+                    by simpa only [Data.set_mem] using hk'.2⟩,
+                  by wram_simp⟩
               · have hpws := prefix_write_step hzCand hzFr
                   (show Function.update z.mem (candBase g + k) 0 =
                     Function.update z.mem (candBase g + k) (cVal k) by
@@ -330,12 +342,20 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
                   hck_mem, hck1, hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC], by wram_simp [hzT2], by wram_simp [hzT3],
-                  by wram_simp [hzR], by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-                  by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, by wram_simp⟩)
-          (by rw [hlab2]; exact Nat.zero_le _)
-          (by rw [hlab2]; exact ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,
-            fun _ h => by omega, fun addr _ => congrFun (hm2'.trans hm1) addr⟩)
+                exact ⟨⟨by wram_simp [hzC],
+                    by wram_simp [hzT2],
+                    by wram_simp [hzT3],
+                    by wram_simp [hzR],
+                    by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
+                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩,
+                  by wram_simp⟩)
+          (by
+            rw [hlab2]
+            exact Nat.zero_le _)
+          (by
+            rw [hlab2]
+            exact ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,
+              fun _ h => by omega, fun addr _ => congrFun (hm2'.trans hm1) addr⟩)
       rw [hlab2, Nat.sub_zero] at hx3
       have hpr_eq : prune S e =
           { S with cand := fun a => S.cand a && decide (e.constraint (f a) = h a) } := by
@@ -346,7 +366,9 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
       rw [hpr_eq]
       exact ⟨hS.toTableStateAt.frame hyC rfl (candBase g) (by wram_omega)
           (fun a ha => hyFr a (by omega)),
-        by rw [← hpr_eq]; exact (step_prune S e).potential_le.trans hS.pot_le,
+        by
+          rw [← hpr_eq]
+          exact (step_prune S e).potential_le.trans hS.pot_le,
         fun a ha => by simpa only [cVal, ha, ↓reduceDIte] using hyCand a ha,
         hyR.stackLen.trans hS.stack_len, hS.stack_lt,
         hS.stack_mem.frame (fun a _ _ => hyFr a (by wram_omega)),

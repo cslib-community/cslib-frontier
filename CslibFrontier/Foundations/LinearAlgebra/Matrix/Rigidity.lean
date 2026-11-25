@@ -140,15 +140,19 @@ theorem exists_rigidity_eq (A : Matrix m n K) (r : ℕ) :
 theorem le_rigidity_iff {A : Matrix m n K} {r s : ℕ} :
     s ≤ A.rigidity r ↔ ∀ B : Matrix m n K, B.rank ≤ r → s ≤ diffCount A B :=
   ⟨fun h _ hB => h.trans (rigidity_le hB),
-    fun h => let ⟨B, hB, hAB⟩ := exists_rigidity_eq A r; hAB ▸ h B hB⟩
+    fun h =>
+      let ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
+      hAB ▸ h B hB⟩
 
 /-- Rigidity decreases as the target rank grows. -/
 theorem rigidity_antitone (A : Matrix m n K) : Antitone A.rigidity := fun r _ hr =>
-  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A r; hAB ▸ rigidity_le (hB.trans hr)
+  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A r
+  hAB ▸ rigidity_le (hB.trans hr)
 
 /-- At target rank zero, the rigidity is the number of nonzero entries. -/
 theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 :=
-  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A 0; (rank_eq_zero_iff.1 (Nat.le_zero.1 hB) ▸ hAB).symm
+  let ⟨_, hB, hAB⟩ := exists_rigidity_eq A 0
+  (rank_eq_zero_iff.1 (Nat.le_zero.1 hB) ▸ hAB).symm
 
 /-- No changes are needed when the rank is already at most `r`. -/
 theorem rigidity_eq_zero_iff {A : Matrix m n K} {r : ℕ} : A.rigidity r = 0 ↔ A.rank ≤ r := by
@@ -173,10 +177,12 @@ theorem rank_le_diffCount_zero (C : Matrix m n K) : C.rank ≤ diffCount C 0 := 
 /-- **Each change lowers the rank by at most one**: the rank of `B` is at least the rank of `A`
 minus the number of entries where they differ. -/
 theorem rank_sub_diffCount_le_rank (A B : Matrix m n K) : A.rank - diffCount A B ≤ B.rank := by
-  have h := rank_add_le B (A - B); rw [add_sub_cancel] at h
+  have h := rank_add_le B (A - B)
+  rw [add_sub_cancel] at h
   have : diffCount (A - B) 0 = diffCount A B :=
     congrArg Set.ncard (Set.ext fun _ => not_congr sub_eq_zero)
-  have := rank_le_diffCount_zero (A - B); omega
+  have := rank_le_diffCount_zero (A - B)
+  omega
 
 /-- **Rigidity is at least the rank deficit**: at least `rank A - r` entries must be changed to
 bring the rank of `A` down to `r`. -/
@@ -194,7 +200,8 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
   classical
   have := Fintype.ofFinite m
   obtain ⟨κ, a, ha, hspan, hli⟩ := exists_linearIndependent' K A.row
-  have : Finite κ := Finite.of_injective a ha; have := Fintype.ofFinite κ
+  have : Finite κ := Finite.of_injective a ha
+  have := Fintype.ofFinite κ
   have hκ : r ≤ Fintype.card κ := by
     rwa [← finrank_span_eq_card hli, hspan, ← A.rank_eq_finrank_span_row]
   let e₁ : Fin r → κ := (Fintype.equivFin κ).symm ∘ Fin.castLE hκ
@@ -203,7 +210,8 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
     ((hli.comp e₁ he₁ : LinearIndependent K (A.submatrix (a ∘ e₁) id).row).rank_matrix).trans
       (Fintype.card_fin r)
   obtain ⟨κ', b, hb, hspan', hli'⟩ := exists_linearIndependent' K (A.submatrix (a ∘ e₁) id).col
-  have : Finite κ' := Finite.of_injective b hb; have := Fintype.ofFinite κ'
+  have : Finite κ' := Finite.of_injective b hb
+  have := Fintype.ofFinite κ'
   have hκ' : Fintype.card κ' = r := by
     rw [← finrank_span_eq_card hli', hspan', ← rank_eq_finrank_span_cols, hf_rank]
   let e₂ : Fin r ≃ κ' := Fintype.equivOfCardEq (by rw [Fintype.card_fin, hκ'])
@@ -225,20 +233,29 @@ theorem rigidity_le_mul_sub [Fintype m] (A : Matrix m n K) (r : ℕ) :
   · simp [rigidity_eq_zero_iff.mpr hle]
   obtain ⟨f, g, M', hf, hg, hMM', hM'M⟩ := exists_submatrix_mul_eq_one_of_le_rank hlt.le
   let B : Matrix m n K := A.submatrix id g * M' * A.submatrix f id
+  have hBrank : B.rank ≤ r :=
+    (rank_mul_le_right _ _).trans ((rank_le_card_height _).trans_eq (Fintype.card_fin r))
   have hBf : B.submatrix f id = A.submatrix f id := by
-    change A.submatrix f g * M' * A.submatrix f id = _; rw [hMM', Matrix.one_mul]
+    calc B.submatrix f id
+        = (A.submatrix id g * M').submatrix f id * A.submatrix f id := rfl
+      _ = A.submatrix f g * M' * A.submatrix f id := rfl
+      _ = A.submatrix f id := by rw [hMM', Matrix.one_mul]
   have hBg : B.submatrix id g = A.submatrix id g := by
-    change A.submatrix id g * M' * A.submatrix f g = _
-    rw [Matrix.mul_assoc, hM'M, Matrix.mul_one]
+    calc B.submatrix id g
+        = A.submatrix id g * M' * (A.submatrix f id).submatrix id g := rfl
+      _ = A.submatrix id g * (M' * A.submatrix f g) := Matrix.mul_assoc _ _ _
+      _ = A.submatrix id g := by rw [hM'M, Matrix.mul_one]
   have hsub : {p : m × n | A p.1 p.2 ≠ B p.1 p.2} ⊆ (Set.range f)ᶜ ×ˢ (Set.range g)ᶜ :=
     fun ⟨_, _⟩ hij => ⟨fun ⟨a, ha⟩ => hij (ha ▸ congr_fun₂ hBf.symm a _),
       fun ⟨b, hb⟩ => hij (hb ▸ congr_fun₂ hBg.symm _ b)⟩
-  refine (rigidity_le <| (rank_mul_le_right _ _).trans
-    ((rank_le_card_height _).trans_eq (Fintype.card_fin r))).trans
-    ((Set.ncard_le_ncard hsub).trans_eq ?_)
-  rw [Set.ncard_prod, Set.ncard_compl, Set.ncard_compl, Set.ncard_range_of_injective hf,
-    Set.ncard_range_of_injective hg]
-  simp only [Nat.card_eq_fintype_card, Fintype.card_fin]
+  refine (rigidity_le hBrank).trans ?_
+  calc diffCount A B
+      ≤ ((Set.range f)ᶜ ×ˢ (Set.range g)ᶜ).ncard := Set.ncard_le_ncard hsub
+    _ = (Set.range f)ᶜ.ncard * (Set.range g)ᶜ.ncard := Set.ncard_prod
+    _ = (Fintype.card m - r) * (Fintype.card n - r) := by
+        rw [Set.ncard_compl, Set.ncard_compl, Set.ncard_range_of_injective hf,
+          Set.ncard_range_of_injective hg]
+        simp only [Nat.card_eq_fintype_card, Fintype.card_fin]
 
 /-- **Upper bound on the rigidity of a square matrix** ([Valiant1977]; [Lokam2009], §2.1, p. 11).
 Every `n × n` matrix over a field has rigidity at most `(|n| - r) ^ 2` at target rank `r`. -/
@@ -257,16 +274,19 @@ theorem rigidity_one (r : ℕ) : (1 : Matrix n n K).rigidity r = Fintype.card n 
   refine le_antisymm ?_ (by simpa [rank_one] using rank_sub_le_rigidity (1 : Matrix n n K) r)
   rcases le_total (Fintype.card n) r with h | h
   · simp [Nat.sub_eq_zero_of_le h, rigidity_eq_zero_iff.2 (rank_one.trans_le h)]
+  -- keep `r` diagonal entries and zero the others
   obtain ⟨S, hS⟩ := Finset.exists_subset_card_eq (s := (Finset.univ : Finset n)) h
   let w : n → K := fun i => if i ∈ S then 1 else 0
   have hrank : (diagonal w).rank = r := by
-    rw [rank_diagonal, Fintype.card_subtype, ← hS.2]; exact congrArg Finset.card (by ext; simp [w])
+    rw [rank_diagonal, Fintype.card_subtype, ← hS.2]
+    exact congrArg Finset.card (Finset.ext fun _ => by simp [w])
   refine (rigidity_le (B := diagonal w) hrank.le).trans_eq ?_
   have hset : {p : n × n | (1 : Matrix n n K) p.1 p.2 ≠ diagonal w p.1 p.2} =
       (fun i => (i, i)) '' ((Sᶜ : Finset n) : Set n) := by
     ext ⟨i, j⟩
     by_cases hij : i = j
-    · subst hij; by_cases hi : i ∈ S <;> simp [w, hi]
+    · subst hij
+      by_cases hi : i ∈ S <;> simp [w, hi]
     · simp [one_apply_ne hij, hij, Ne.symm hij]
   rw [diffCount, hset, Set.ncard_image_of_injective _ (fun _ _ h => (Prod.ext_iff.1 h).1),
     Set.ncard_coe_finset, Finset.card_compl, hS.2]

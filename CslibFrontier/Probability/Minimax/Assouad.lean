@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.BitString.Flip
 public import CslibFrontier.Probability.Minimax.LeCam
 import CslibFrontier.Probability.PMF.ToReal
+import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
 /-!
 # Assouad's hypercube minimax lower-bound lemma
@@ -220,19 +221,10 @@ theorem assouad_avg_ge (P : (ι → Bool) → PMF X)
         ∑ v : ι → Bool, dist (P v) (P (Function.update v i (!v i)))) ≤
       (Fintype.card (ι → Bool) : ℝ)⁻¹ *
         ∑ v : ι → Bool, ∑ x : X, (P v x).toReal * loss (est x) v := by
-  refine (hypercube_sum_coord_avg_ge
-    (d := fun i v => dist (P v) (P (Function.update v i (!v i))))
-    (F := fun i v => ∑ x : X, (P v x).toReal * coordLoss i (est x) v) fun i v =>
-      leCam_add_ge (P v) (P (Function.update v i (!v i)))
-        (fun x => hcoord_nn i (est x) v)
-        (fun x => hcoord_nn i (est x) (Function.update v i (!v i)))
-        (fun x => hsep i (est x) v)).trans
-    (mul_le_mul_of_nonneg_left (Finset.sum_le_sum fun v _ => ?_)
-      (inv_nonneg.mpr (Nat.cast_nonneg _)))
-  rw [Finset.sum_comm]
-  refine Finset.sum_le_sum fun x _ => ?_
-  rw [← Finset.mul_sum]
-  exact mul_le_mul_of_nonneg_left (hsum_le (est x) v) ENNReal.toReal_nonneg
+  let _ : MeasurableSpace X := ⊤
+  simpa only [PMF.integral_eq_sum, smul_eq_mul, dist_eq_tvDist_toMeasure_div_two] using
+    assouad_measure_avg_ge (fun v => (P v).toMeasure) hcoord_nn hsum_le hsep est
+      (fun _ _ => Integrable.of_finite) (fun _ => Integrable.of_finite)
 
 /-- **Assouad's lemma on `PMF` (worst-case vertex form)**. -/
 theorem assouad_exists_ge (P : (ι → Bool) → PMF X)

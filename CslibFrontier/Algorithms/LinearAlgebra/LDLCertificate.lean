@@ -129,7 +129,8 @@ product, so that the kernel evaluates it. -/
 /-- `rowsMul` computes the matrix product, with no shape hypothesis on `A` or `B`. -/
 theorem ofLists_rowsMul [NonUnitalNonAssocSemiring α] (l m n : ℕ) (A B : List (List α)) :
     ofLists l n (rowsMul l m n A B) = ofLists l m A * ofLists m n B := by
-  rw [ofLists_mul]; congr 1
+  rw [ofLists_mul]
+  congr 1
   refine List.map_congr_left fun row _ => List.map_congr_left fun col _ => ?_
   rw [rowDot_eq_sum _ (List.length_take_le _ _), ListMatrix.dotProduct_eq]
   exact Finset.sum_congr rfl fun _ _ => by simp [ofList_apply, List.getD_eq_getElem?_getD]
@@ -324,7 +325,8 @@ private theorem entry_eq_of_scaled {q : ℚ} {S : ℕ} {D : ℤ}
     (h : q.num * (S : ℤ) = D * q.den) : q * S = D := by
   have h' : (q.num : ℚ) * S = D * q.den := by exact_mod_cast h
   rw [← Rat.mul_den_eq_num] at h'
-  exact mul_right_cancel₀ (by positivity : (q.den : ℚ) ≠ 0) (by linear_combination h')
+  apply mul_right_cancel₀ (Nat.cast_ne_zero.2 q.den_pos.ne')
+  linear_combination h'
 
 /-- An accepted witness factors the matrix: `M = L * diagonal d * Lᵀ` over `ℚ`. -/
 theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
@@ -335,12 +337,15 @@ theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
   have hi : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
   have hj : (j : ℕ) < c.lower.length := hlen ▸ j.is_lt
   have hMi : (i : ℕ) < rows.length := hrows ▸ i.is_lt
-  have hMij : (j : ℕ) < rows[(i : ℕ)].length := by rw [hrow _ (List.getElem_mem hMi)]; exact j.is_lt
+  have hMij : (j : ℕ) < rows[(i : ℕ)].length := (hrow _ (List.getElem_mem hMi)).symm ▸ j.is_lt
+  -- the integer identity at entry `(i, j)`
   have h₁ := all_zip_getElem hcheck hMi (by simpa using hi)
   have h₂ := all_zip_getElem (by simpa only [List.getElem_map] using h₁) hMij (by simpa using hj)
   have hq := entry_eq_of_scaled (by simpa only [List.getElem_map, beq_iff_eq] using h₂)
+  -- the integer dot product, as a sum over `Fin n`
   rw [rowDot_eq_sum (n := n) _ (by simp [scaleRow, hdlen])] at hq
   simp only [getD_zipWith_mul, Int.cast_sum, Int.cast_mul, cast_getD_scaleRow] at hq
+  -- divide out the scales
   have := denLcm_pos c.lower[(i : ℕ)]
   have := denLcm_pos c.lower[(j : ℕ)]
   have := denLcm_pos c.diag

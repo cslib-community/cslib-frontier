@@ -109,7 +109,9 @@ theorem exists_short_hash_split (size width count : ℕ) (hsize : 0 < size) (hco
       have hcancel : 2 * (1 / (16 * (count : ℝ))) = 1 / (8 * count) := by ring
       linarith only [hroot, hinv, hcancel]
   · calc (2 : ℝ) ^ (width - initial + 1)
-      _ ≤ (2 : ℝ) ^ (margin + 7) := pow_le_pow_right₀ (by norm_num) (by dsimp [initial]; omega)
+      _ ≤ (2 : ℝ) ^ (margin + 7) :=
+        pow_le_pow_right₀ (by norm_num)
+          (by dsimp [initial]; omega)
       _ = _ := by rw [pow_add, hpower]; norm_num; ring
 
 open Classical in
@@ -137,7 +139,8 @@ theorem matrix_fiber_correlation_le {n count initial rest : ℕ} {Image : Type*}
   let hash (rows : Fin count → BitString n) x :=
     append.symm (LinearHash.hash (rows ∘ Fin.castLE hlen) x)
   have hsource : ∀ x ∈ source.support, f x = image := by
-    rintro x hx; obtain ⟨preimage, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    rintro x hx
+    obtain ⟨preimage, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact preimage.property
   have h := correlation_le_guessInverter f image source hsource
     (fun rows digest => predictor rows (append digest)) seed hash precision hp
@@ -146,13 +149,15 @@ theorem matrix_fiber_correlation_le {n count initial rest : ℕ} {Image : Type*}
       if initial = 0 then 0 else
         2 * Real.sqrt ((2 : ℝ) ^ initial / Nat.card {x // f x = image}) := by
     split_ifs with hzero
-    · subst initial; rw [seededHash_eq_uniform_of_subsingleton, dist_self, mul_zero]
+    · subst initial
+      rw [seededHash_eq_uniform_of_subsingleton, dist_self, mul_zero]
     · have hhash : IsTwoUniversal seed (fun rows x => (hash rows x).1) :=
         LinearHash.isTwoUniversal_prefix (by omega : initial ≤ count)
       have hdist := hhash.leftover_hash source
       simp only [source, collisionProbability_map_of_injective _ _ Subtype.val_injective,
-        collisionProbability_uniform, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin,
-        Nat.cast_pow, Nat.cast_ofNat, ← div_eq_mul_inv] at hdist
+        collisionProbability_uniform,
+        Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
+        ← div_eq_mul_inv] at hdist
       rw [Nat.card_eq_fintype_card]
       dsimp only [source]
       linarith only [hdist]
@@ -186,8 +191,9 @@ theorem matrix_fiber_correlation_le_of_length {n count width : ℕ} {Image : Typ
   have haccuracy := one_div_le_one_div_of_le (b := (precision : ℝ))
     (by exact_mod_cast Nat.mul_pos (by decide) hcount : (0 : ℝ) < 8 * count) (by exact_mod_cast hp)
   have hweighted := mul_le_mul_of_nonneg_right hguess (ENNReal.toReal_nonneg
-    (a := ((guessInverter f predictor (PMF.uniformOfFintype (Fin count → BitString n))
-      precision image).map (fun x => f x == image)) true))
+    (a := ((guessInverter f predictor
+      (PMF.uniformOfFintype (Fin count → BitString n)) precision image).map
+        (fun x => f x == image)) true))
   have hcancel : 1 / (8 * (count : ℝ)) + 1 / (8 * count) = 1 / (4 * count) := by ring
   linarith only [h, herror, haccuracy, hweighted, hcancel]
 
@@ -295,21 +301,24 @@ theorem matrixPrediction_correlation_le {n count : ℕ} [NeZero count] {Image : 
       simpa only [← Nat.cast_ofNat (R := ℝ) (n := 2), Real.natFloor_logb_natCast] using
         Nat.lt_floor_add_one (Real.logb 2 (Nat.card {y // f y = f x}))
     have hmargin : (Real.logb 2 (Nat.card {y // f y = f x}) + 4) / (count : ℝ) ≤
-        ((Nat.log 2 (Nat.card {y // f y = f x}) : ℝ) + 6) / count - 1 / (4 * count) :=
-      (div_le_div_of_nonneg_right
-        (b := (Nat.log 2 (Nat.card {y // f y = f x}) : ℝ) + 23 / 4)
-        (by linarith only [hlog]) (Nat.cast_nonneg count)).trans_eq (by ring)
+        ((Nat.log 2 (Nat.card {y // f y = f x}) : ℝ) + 6) / count - 1 / (4 * count) := by
+      calc
+        _ ≤ ((Nat.log 2 (Nat.card {y // f y = f x}) : ℝ) + 23 / 4) / count :=
+          div_le_div_of_nonneg_right (by linarith only [hlog]) (Nat.cast_nonneg count)
+        _ = _ := by ring
     rw [hgroup]
     dsimp only [success]
     linarith only [h, hmargin]
   have havg := Finset.sum_le_sum (s := Finset.univ) (fun x _ =>
     mul_le_mul_of_nonneg_left (hpoint x) (ENNReal.toReal_nonneg (a := source x)))
-  have ha (value : ℝ) : 2 * value - 1 = -1 + 2 * value := by ring
-  rw [sum_conditionalSnd_map, show (∑ x, (source x).toReal * correlation (f x) x) =
-      2 * (matrixPrediction f predictor true).toReal - 1 by
+  rw [sum_conditionalSnd_map] at havg
+  have hprediction : (∑ x, (source x).toReal * correlation (f x) x) =
+      2 * (matrixPrediction f predictor true).toReal - 1 := by
+    have ha (value : ℝ) : 2 * value - 1 = -1 + 2 * value := by ring
     simp only [correlation, ha, sum_affine, agreement_eq_probability,
-      matrixPrediction, monad_bind_eq_bind, bind_apply_toReal, source]] at havg
-  refine havg.trans_eq ?_
+      matrixPrediction, monad_bind_eq_bind, bind_apply_toReal, source]
+  rw [hprediction] at havg
+  apply havg.trans_eq
   simp only [mul_add, mul_sub, mul_one, ← mul_div_assoc, Finset.sum_add_distrib,
     Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.sum_mul, sum_toReal, one_mul,
     mul_left_comm _ (128 * (dyadicSize (16 * count) : ℝ) ^ 2), ← Finset.mul_sum,

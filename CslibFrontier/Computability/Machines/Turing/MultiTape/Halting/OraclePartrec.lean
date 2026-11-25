@@ -141,8 +141,9 @@ theorem primrec_stepWith (M : OracleDesc) :
       | none => { p.2.1 with ordinary := { p.2.1.ordinary with state := none } }
       | some a => p.2.1.applyInstruction p.1 p.2.2 a.2 := by
     let key : Primrec fun p : StepInput × ℕ => p.1.2.1.ordinary.key p.1.1 p.2 :=
-      primrec_scfg_key.comp ((Config.primrec_ordinary.comp (c.comp Primrec.fst)).pair
-        ((Primrec.fst.comp Primrec.fst).pair Primrec.snd))
+      primrec_scfg_key.comp
+        ((Config.primrec_ordinary.comp (c.comp Primrec.fst)).pair
+          ((Primrec.fst.comp Primrec.fst).pair Primrec.snd))
     refine Primrec₂.mk ((Primrec.option_casesOn
       (primrec_find_table.comp (Primrec.const M.table) key) (hhalt.comp Primrec.fst)
       (hact.comp₂ (Primrec.fst.comp Primrec.fst).to₂ Primrec₂.right)).of_eq fun p => ?_)

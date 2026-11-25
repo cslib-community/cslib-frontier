@@ -230,12 +230,14 @@ theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ Sigma
   obtain ⟨cV, dV, hcV⟩ := hTV.exists_le
   obtain ⟨c₁, d₁, _, h₁⟩ := exists_computableInO_eval (enc := enc) p₁
   obtain ⟨c₂, d₂, _, h₂⟩ := exists_computableInO_eval (enc := enc) p₂
+  -- the cut blocks, within linear time plus polynomials of the instance length
   have hu := (ComputableInO.of_linear ComputableInDegree.bitsTake).comp
     (((ComputableInO.fst encBits encBits).comp_linear (ComputableInO.snd enc _)).prod h₁)
   have hv := (ComputableInO.of_linear ComputableInDegree.bitsTake).comp
     (((ComputableInO.snd encBits encBits).comp_linear (ComputableInO.snd enc _)).prod h₂)
   have hcut := hu.append hv (encOut := encBits) (g := fun x : α × (List Bool × List Bool) =>
     cutBlocks (p₁.eval (enc x.1).length) (p₂.eval (enc x.1).length) x.2.1 x.2.2) fun _ => rfl
+  -- the polynomial of the instance length that the certificates must exceed
   obtain ⟨c₀, d₀, hR⟩ : ∃ c₀ d₀ : ℕ, ∀ n,
       4 * (c₁ * (n + 1) ^ d₁ + c₂ * (n + 1) ^ d₂) + p₁.eval n + p₂.eval n +
         cV * (2 * n + 2 + p₁.eval n + p₂.eval n + 1) ^ dV ≤ c₀ * (n + 1) ^ d₀ :=
@@ -251,7 +253,8 @@ theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ Sigma
     omega
   refine ⟨d₀, mem_SigmaTwoTIME_of_time_le (c := c₀ * 2 ^ d₀) (K := 8)
     (hVO.comp ((ComputableInO.fst enc _).prod hcut)) (fun a L hL u v _ _ => ?_) fun a L hL => ?_⟩
-  · have hRL := hRL a L hL
+  · -- the running time
+    have hRL := hRL a L hL
     have hpre : (encPair enc encBits (a, cutBlocks (p₁.eval (enc a).length)
         (p₂.eval (enc a).length) u v)).length ≤
         2 * (enc a).length + 2 + p₁.eval (enc a).length + p₂.eval (enc a).length := by
@@ -259,10 +262,12 @@ theorem exists_mem_SigmaTwoTIME_of_mem_SigmaP_two {A : Set α} (hA : A ∈ Sigma
     have hTVa := (hcV (a, cutBlocks (p₁.eval (enc a).length) (p₂.eval (enc a).length) u v)).trans
       (Nat.mul_le_mul_left cV (Nat.pow_le_pow_left (Nat.add_le_add_right hpre 1) dV))
     enc_len [Function.comp_apply, hu, hv] at hTVa ⊢
-  · have hRL := hRL a L hL
+  · -- correctness
+    have hRL := hRL a L hL
     rw [hA a]
     simp only [List.map_cons, List.map_nil, alternation_true_cons, alternation_false_cons,
       alternation_nil, List.append_nil, Function.comp_apply, cutBlocks]
+    -- the padded blocks quantify, through their prefixes, over the original blocks
     exact ((List.exists_length_eq_take_iff (P := fun u => ∀ v : List Bool, v.length = L →
         V (a, u ++ v.take (p₂.eval (enc a).length)) = true) (by omega)).trans
       (exists_congr fun u => and_congr_right fun _ =>

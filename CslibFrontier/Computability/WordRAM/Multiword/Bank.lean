@@ -59,8 +59,7 @@ theorem mem_regs {j : Fin n} {i : Fin (capacity n + 4)} (hi : i ∈ regs j) :
   omega
 
 /-- Every register of `regs j` is a non-scratch digit register (`IsDigit`). -/
-theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := by
-  intro i hi
+theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := fun _ hi => by
   have := mem_regs hi
   wram_omega
 
@@ -69,13 +68,11 @@ theorem nodup_regs (j : Fin n) : (regs j).Nodup :=
   nodup_registers _ _ _
 
 /-- Distinct bank entries occupy disjoint lists of physical registers. -/
-theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) := by
-  apply List.disjoint_left.mpr
-  intro i hi hj
-  have := mem_regs hi
-  have := mem_regs hj
-  have hne : j.val ≠ k.val := fun h => hjk (Fin.ext h)
-  omega
+theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) :=
+  List.disjoint_left.mpr fun _ hi hj => by
+    have := mem_regs hi
+    have := mem_regs hj
+    exact absurd (Fin.ext (by omega)) hjk
 
 /-- Bounded half-word digits and the values of all virtual registers. -/
 def Encodes (w : ℕ) (x : Data (capacity n + 4)) (v : Fin n → ℕ) : Prop :=
@@ -91,15 +88,11 @@ theorem encodes_update {w : ℕ} {x y : Data (capacity n + 4)} {v : Fin n → �
   intro j
   by_cases hj : j = d
   · subst j
-    simpa only [Function.update_self] using And.intro hy hz
-  · have he (i : Fin (capacity n + 4)) (hi : i ∈ regs j) : y.regs i = x.regs i := by
-      have hb := mem_regs hi
-      exact hp i (by omega) (fun hd => List.disjoint_left.mp (disjoint_regs hj) hi hd)
+    simpa only [Function.update_self] using ⟨hy, hz⟩
+  · have he (i : Fin (capacity n + 4)) (hi : i ∈ regs j) : y.regs i = x.regs i :=
+      hp i (by have := mem_regs hi; omega) (List.disjoint_left.mp (disjoint_regs hj) hi)
     rw [Function.update_of_ne hj]
-    refine ⟨fun i hi => ?_, ?_⟩
-    · rw [he i hi]
-      exact (hx j).1 i hi
-    · exact (value_congr he).trans (hx j).2
+    exact ⟨fun i hi => he i hi ▸ (hx j).1 i hi, (value_congr he).trans (hx j).2⟩
 
 /-- Every six-word value fits in one bank entry, including odd physical widths. -/
 theorem six_word_capacity {w : ℕ} (hw : 2 ≤ w) : 2 ^ (6 * w) ≤ radix w ^ 18 := by

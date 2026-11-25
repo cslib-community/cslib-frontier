@@ -77,11 +77,11 @@ variable {F : Type} [Field F]
 def line {k : ℕ} (y w : Fin k → F) (t : F) : Fin k → F := fun j => y j + t * (w j - y j)
 
 theorem line_zero {k : ℕ} (y w : Fin k → F) : line y w 0 = y := by
-  funext j
+  funext
   simp [line]
 
 theorem line_one {k : ℕ} (y w : Fin k → F) : line y w 1 = w := by
-  funext j
+  funext
   simp [line]
 
 /-- The multilinear extension of `W`, restricted to the line through `y` and `w`: a polynomial of
@@ -94,9 +94,7 @@ noncomputable def restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Boo
 theorem eval_restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) (t : F) :
     (restrictLine y w W).eval t = eval (line y w t) (multilinearExtension W) := by
   rw [restrictLine, FiniteField.eval_eval₂_line]
-  congr 2
-  funext j
-  exact add_comm _ _
+  exact congrArg (eval · (multilinearExtension W)) (funext fun _ => add_comm _ _)
 
 theorem natDegree_restrictLine_le {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) :
     (restrictLine y w W).natDegree ≤ k :=
@@ -296,9 +294,7 @@ theorem samplers_iterate_round {n : ℕ} (d : ℕ) (P : MvPolynomial (Fin n) F) 
       (W := fun _ => Unit) (Sumcheck.round d P) k).verifier.samplers = sumcheckSamplers k := by
   induction k with
   | zero => rfl
-  | succ k ih =>
-    rw [samplers_iterate_succ, ih]
-    rfl
+  | succ k ih => rw [samplers_iterate_succ, ih]; rfl
 
 /-- The sumcheck stage of layer `i`, for the values `W` of layer `i`: on a claim `(z, v)` about
 layer `i + 1`, sumcheck on the summand `f_z`, bundled over `z`. -/
@@ -317,15 +313,13 @@ layer above. -/
 theorem mem_language_rel_zero (W : (Fin (C.width i) → Bool) → F) (x : LayerClaim C F (i + 1)) :
     x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0) ↔
       x ∈ C.layerLang (i + 1) (C.step i W) := by
-  have hpoint : ∀ b : Fin (C.sumcheckVars i - 0) → Bool,
+  have hpoint (b : Fin (C.sumcheckVars i - 0) → Bool) :
       Sumcheck.point x.claim.challenges b = bitPoint (R := F) b := by
-    intro b
-    funext j
+    funext
     simp only [Sumcheck.point, Nat.not_lt_zero, dite_false, bitPoint, bitVal]
     rfl
   simp only [language, Sumcheck.rel, Sumcheck.partialSum, hpoint, layerLang, Set.mem_ofPred_eq,
-    exists_const]
-  rw [← C.sum_eval_summand i W x.point]
+    exists_const, ← C.sum_eval_summand i W x.point]
   rfl
 
 /-- The sumcheck stage is perfectly complete. -/
@@ -367,9 +361,8 @@ theorem sumcheckStage_rbrSound (W : (Fin (C.width i) → Bool) → F) :
         Sumcheck.round_rbrSound 2 _ (C.degreeOf_summand_le i W z) hj
   have hL : {x : LayerClaim C F (i + 1) |
       x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0)} =
-      C.layerLang (i + 1) (C.step i W) := Set.ext fun x => C.mem_language_rel_zero i W x
-  rw [hL] at h
-  exact h
+      C.layerLang (i + 1) (C.step i W) := Set.ext (C.mem_language_rel_zero i W)
+  rwa [hL] at h
 
 /-! ### The output and input steps -/
 
@@ -414,32 +407,24 @@ theorem toOuterMeasure_eval_eq_zero_le {k d : ℕ} {p : MvPolynomial (Fin k) F} 
     (ProbComp.eval (ProbComp.uniform (Fin k → F))).toOuterMeasure {r | eval r p = 0} ≤
       (d : ℝ≥0∞) / Fintype.card F := by
   classical
-  have hq : 0 < Fintype.card F := Fintype.card_pos
-  have hN : (Finset.univ.filter fun r : Fin k → F => eval r p = 0).card * Fintype.card F ≤
-      d * Fintype.card F ^ k :=
-    card_filter_eval_eq_zero_mul_card_le hp hdeg
+  have hq0 : (Fintype.card F : ℝ≥0∞) ≠ 0 := mod_cast Fintype.card_pos.ne'
+  have hqt : (Fintype.card F : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
   rw [ProbComp.eval_uniform, Probability.PMF.toOuterMeasure_uniformOfFintype, Fintype.card_fun,
     Fintype.card_fin]
   set N := (Finset.univ.filter (· ∈ {r : Fin k → F | eval r p = 0})).card
-  have hN' : ((N : ℝ≥0∞) * Fintype.card F) ≤ d * (Fintype.card F : ℝ≥0∞) ^ k := by
-    have : N = (Finset.univ.filter fun r : Fin k → F => eval r p = 0).card := rfl
-    rw [this]
-    exact_mod_cast hN
-  have hq0 : (Fintype.card F : ℝ≥0∞) ≠ 0 := by exact_mod_cast hq.ne'
-  have hqt : (Fintype.card F : ℝ≥0∞) ≠ ⊤ := ENNReal.natCast_ne_top _
-  have hk0 : (Fintype.card F : ℝ≥0∞) ^ k ≠ 0 := pow_ne_zero _ hq0
-  have hkt : (Fintype.card F : ℝ≥0∞) ^ k ≠ ⊤ := ENNReal.pow_ne_top hqt
+  have hN' : (N : ℝ≥0∞) * Fintype.card F ≤ d * (Fintype.card F : ℝ≥0∞) ^ k :=
+    mod_cast (card_filter_eval_eq_zero_mul_card_le hp hdeg :
+      (Finset.univ.filter fun r : Fin k → F => eval r p = 0).card * Fintype.card F ≤ _)
   push_cast
   calc (N : ℝ≥0∞) * ((Fintype.card F : ℝ≥0∞) ^ k)⁻¹
-      = N * ((Fintype.card F : ℝ≥0∞) ^ k)⁻¹ *
-          ((Fintype.card F : ℝ≥0∞) * (Fintype.card F : ℝ≥0∞)⁻¹) := by
-        rw [ENNReal.mul_inv_cancel hq0 hqt, mul_one]
-    _ = (N * Fintype.card F) * ((Fintype.card F : ℝ≥0∞) ^ k)⁻¹ *
-          (Fintype.card F : ℝ≥0∞)⁻¹ := by ring
+      = (N * Fintype.card F) * ((Fintype.card F : ℝ≥0∞) ^ k)⁻¹ * (Fintype.card F : ℝ≥0∞)⁻¹ := by
+        rw [mul_right_comm (N : ℝ≥0∞), mul_assoc (_ * _), ENNReal.mul_inv_cancel hq0 hqt, mul_one]
     _ ≤ (d * (Fintype.card F : ℝ≥0∞) ^ k) * ((Fintype.card F : ℝ≥0∞) ^ k)⁻¹ *
           (Fintype.card F : ℝ≥0∞)⁻¹ := by gcongr
     _ = d / Fintype.card F := by
-        rw [mul_assoc (d : ℝ≥0∞), ENNReal.mul_inv_cancel hk0 hkt, mul_one, div_eq_mul_inv]
+        rw [mul_assoc (d : ℝ≥0∞),
+          ENNReal.mul_inv_cancel (pow_ne_zero _ hq0) (ENNReal.pow_ne_top hqt),
+          mul_one, div_eq_mul_inv]
 
 omit [DecidableEq F] in
 omit [Fintype F] [DecidableEq F] in
@@ -481,16 +466,12 @@ theorem outputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     | some (r, _) => eval r (multilinearExtension D) = eval r (multilinearExtension (C.output x)),
     fun D hD h => hD h, fun D => ⟨?_, fun r => ?_⟩⟩
   · intro hD
-    change D ≠ C.output x at hD
-    change (ProbComp.eval (ProbComp.uniform _)).toOuterMeasure
-      {r | eval r (multilinearExtension D) = eval r (multilinearExtension (C.output x))} ≤ _
     have hset : {r : Fin (C.width C.depth) → F | eval r (multilinearExtension D) =
         eval r (multilinearExtension (C.output x))} =
         {r | eval r (multilinearExtension D - multilinearExtension (C.output x)) = 0} := by
-      ext r
+      ext
       simp [sub_eq_zero]
-    rw [hset]
-    exact toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
+    exact hset ▸ toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
       (totalDegree_multilinearExtension_sub_le _ _)
   · rintro hS ⟨y, hy, hout⟩
     rw [outputStep_outputOn] at hout
@@ -540,10 +521,8 @@ theorem layer_complete (x : (Fin (C.width 0) → Bool) → F) (i : ℕ) :
     (C.layer x i).Complete World.plain
       (fun y _ => y ∈ C.layerLang (i + 1) (C.value x (i + 1)))
       (fun y _ => y ∈ C.layerLang i (C.value x i)) 0 := by
-  have h := (C.sumcheckStage_complete i (C.value x i)).append
-    (C.lineStep_complete i (C.value x i))
-  rw [add_zero] at h
-  exact h
+  have h := (C.sumcheckStage_complete i (C.value x i)).append (C.lineStep_complete i (C.value x i))
+  rwa [add_zero] at h
 
 theorem layer_rbrSound (x : (Fin (C.width 0) → Bool) → F) (i : ℕ) :
     (C.layer x i).verifier.RbrSound (C.layerLang (i + 1) (C.value x (i + 1)))
@@ -580,8 +559,7 @@ theorem descend_complete (x : (Fin (C.width 0) → Bool) → F) :
   | 0 => C.inputStep_complete x
   | m + 1 => by
     have h := (C.layer_complete x m).append (descend_complete x m)
-    rw [add_zero] at h
-    exact h
+    rwa [add_zero] at h
 
 theorem descend_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     ∀ m, (C.descend x m).verifier.RbrSound (C.layerLang m (C.value x m)) Set.univ
@@ -614,8 +592,7 @@ probability one. -/
 theorem protocol_complete (x : (Fin (C.width 0) → Bool) → F) :
     (C.protocol x).Complete World.plain (fun D _ => D = C.output x) Accept 0 := by
   have h := (C.outputStep_complete x).append (C.descend_complete x C.depth)
-  rw [add_zero] at h
-  exact h
+  rwa [add_zero] at h
 
 /-- **Soundness of GKR** [Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015],
 [Thaler, §4.6][Thaler2022]: any prover convinces the verifier of a wrong output with probability
@@ -628,12 +605,8 @@ theorem protocol_sound (x : (Fin (C.width 0) → Bool) → F) :
   convert h using 1
   · rfl
   · simp only [PerChallenge.sum, add_zero, sumcheckVars, Nat.cast_add, Nat.cast_sum, Nat.cast_mul,
-      Nat.cast_ofNat]
-    rw [ENNReal.add_div]
-    simp only [div_eq_mul_inv, Finset.sum_mul]
-    congr 1
-    refine Finset.sum_congr rfl fun i _ => ?_
-    ring
+      Nat.cast_ofNat, div_eq_mul_inv, add_mul, Finset.sum_mul]
+    exact congrArg (_ + ·) (Finset.sum_congr rfl fun _ _ => by ring)
 
 end LayeredCircuit
 

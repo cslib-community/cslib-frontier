@@ -341,7 +341,12 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
                 rcases List.mem_cons.1 hp with rfl | hp
                 · rfl
                 · exact absurd hp1 (hq p hp).symm
-            exact (sum_congr rfl fun a _ => if_congr (hiff a) rfl rfl).trans (by simp)
+            calc (∑ a : Act i qh,
+                    if ∀ p ∈ (⟨qh, qa⟩ :: σ), p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p
+                    then β qh a else 0)
+                = ∑ a : Act i qh, if a = qa then β qh a else 0 :=
+                  sum_congr rfl fun a _ => if_congr (hiff a) rfl rfl
+              _ = β qh qa := by simp
           have htail : (∑ a : Act i qh,
               if ∀ p ∈ σ, p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p then β qh a else 0) = 1 := by
             rw [← (hβ qh).sum_eq_one]

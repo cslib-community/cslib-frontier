@@ -56,14 +56,9 @@ private theorem Slice.run_next_le (s : Slice) (st : Word.State) :
 
 private theorem Slice.run_length_wires_le (s : Slice) (st : Word.State) :
     (s.run st).wires.length ≤ st.wires.length + s.cost := by
-  cases s with
-  | gen k a b vs =>
-    simp only [run, cost, List.length_append, List.length_take, List.length_ofFn, List.length_drop]
-    omega
-  | swap k =>
-    simp only [run, cost, List.length_append, List.length_take, List.length_cons, List.length_nil,
-      List.length_drop]
-    omega
+  cases s <;>
+    simp only [run, cost, List.length_append, List.length_take, List.length_ofFn, List.length_cons,
+      List.length_nil, List.length_drop] <;> omega
 
 private theorem Slice.run_wires_le (s : Slice) (st : Word.State)
     (h : ∀ e ∈ st.wires, e ≤ st.next) : ∀ e ∈ (s.run st).wires, e ≤ (s.run st).next := by
@@ -75,19 +70,15 @@ private theorem Slice.run_wires_le (s : Slice) (st : Word.State)
   cases s with
   | gen k a b vs =>
     simp only [run, List.mem_append, List.mem_ofFn]
-    intro e he
-    rcases he with (he | ⟨i, rfl⟩) | he
+    rintro e ((he | ⟨i, rfl⟩) | he)
     · exact (h e ((List.take_sublist k _).subset he)).trans (Nat.le_add_right ..)
     · omega
     · exact (h e ((List.drop_sublist (k + a.length) _).subset he)).trans (Nat.le_add_right ..)
   | swap k =>
     simp only [run, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
-    intro e he
-    rcases he with (he | rfl | rfl) | he
-    · exact h e ((List.take_sublist k _).subset he)
-    · exact hg _
-    · exact hg _
-    · exact h e ((List.drop_sublist (k + 2) _).subset he)
+    rintro e ((he | rfl | rfl) | he)
+    exacts [h e ((List.take_sublist k _).subset he), hg _, hg _,
+      h e ((List.drop_sublist (k + 2) _).subset he)]
 
 /-- Running a word preserves bounded wire labels and adds at most its cost to both counters. -/
 theorem Word.run_resources (w : Word) (st : Word.State)
@@ -113,14 +104,9 @@ theorem Word.run_verts_append (w : Word) (st : Word.State) (vs : List (Vertex �
   | nil => rfl
   | cons s w ih =>
     have hs : s.run ⟨st.wires, st.next, vs ++ st.verts⟩ =
-        let out := s.run st
-        ⟨out.wires, out.next, vs ++ out.verts⟩ := by
+        ⟨(s.run st).wires, (s.run st).next, vs ++ (s.run st).verts⟩ := by
       cases s <;> simp [Slice.run, List.append_assoc]
-    change Word.run w (s.run ⟨st.wires, st.next, vs ++ st.verts⟩) =
-      let out := Word.run w (s.run st)
-      ⟨out.wires, out.next, vs ++ out.verts⟩
-    rw [hs]
-    exact ih (s.run st)
+    simpa only [Word.run, List.foldl_cons, hs] using ih (s.run st)
 
 namespace Diagram
 

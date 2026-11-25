@@ -75,8 +75,10 @@ theorem nsmul_unit_injective (a d : Point) (hd : UnitVector d) :
 
 private theorem dilated_endpoint {a b : Point} (hab : a.1 = b.1 ∨ a.2 = b.2) (k : ℕ) :
     k • b = k • a + (k * length a b) • direction a b := by
-  conv_lhs => rw [← add_length_direction hab]
-  rw [smul_add, smul_smul]
+  calc
+    k • b = k • (a + length a b • direction a b) :=
+      congrArg (k • ·) (add_length_direction hab).symm
+    _ = k • a + (k * length a b) • direction a b := by rw [smul_add, smul_smul]
 
 /-- A cut shorter than the dilation factor lies on every dilated proper first segment. -/
 theorem cutPoint_mem_segment {a b : Point} (hab : AxisAligned a b)
@@ -84,7 +86,8 @@ theorem cutPoint_mem_segment {a b : Point} (hab : AxisAligned a b)
     realPoint (cutPoint k radius a b) ∈ segment (k • a) (k • b) := by
   have hrad : radius < k * length a b := by nlinarith [length_pos_of_axisAligned hab]
   have hm : cutPoint k radius a b ∈ walk (k • a) (direction a b) (k * length a b) := by
-    rw [walk_eq_map_range]; exact List.mem_map.mpr ⟨radius, List.mem_range.mpr (by omega), rfl⟩
+    rw [walk_eq_map_range]
+    exact List.mem_map.mpr ⟨radius, List.mem_range.mpr (by omega), rfl⟩
   rw [dilated_endpoint hab.1, ← support_walk _ _ _ (direction_unit a b)]
   exact Or.inl ⟨_, hm, rfl⟩
 
@@ -210,12 +213,15 @@ dilation factor is larger than twice their radius. -/
 theorem eq_of_inPointBoxes {a b : Point} {k radius : ℕ} (hr : 2 * radius < k)
     {p : ℝ × ℝ} (ha : inPointBox (k • a) radius p) (hb : inPointBox (k • b) radius p) :
     a = b := by
+  -- One coordinate at a time: two `radius`-intervals about distinct multiples of `k` are disjoint.
   have hcoord {u v : ℤ} {q : ℝ} (hu₁ : (k : ℝ) * u - radius ≤ q) (hu₂ : q ≤ (k : ℝ) * u + radius)
       (hv₁ : (k : ℝ) * v - radius ≤ q) (hv₂ : q ≤ (k : ℝ) * v + radius) : u = v := by
     by_contra h
     rcases lt_or_gt_of_ne h with hd | hd
-    · have : (u : ℝ) + 1 ≤ v := mod_cast hd; cast_nlinarith [hr]
-    · have : (v : ℝ) + 1 ≤ u := mod_cast hd; cast_nlinarith
+    · have : (u : ℝ) + 1 ≤ v := mod_cast hd
+      cast_nlinarith [hr]
+    · have : (v : ℝ) + 1 ≤ u := mod_cast hd
+      cast_nlinarith
   simp only [inPointBox, Prod.smul_fst, Prod.smul_snd, Int.nsmul_eq_mul, Int.cast_mul,
     Int.cast_natCast] at ha hb
   exact Prod.ext (hcoord ha.1 ha.2.1 hb.1 hb.2.1) (hcoord ha.2.2.1 ha.2.2.2 hb.2.2.1 hb.2.2.2)

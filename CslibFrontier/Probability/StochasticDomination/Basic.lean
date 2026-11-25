@@ -499,17 +499,11 @@ theorem stochasticallyDominates_real_iff_Ici {μ ν : Measure ℝ}
     StochasticallyDominates μ ν ↔ ∀ x : ℝ, ν (Set.Ici x) ≤ μ (Set.Ici x) := by
   refine ⟨fun h x => h.Ici_le x, fun h U _ hU => ?_⟩
   have hIoi (a : ℝ) : ν (Set.Ioi a) ≤ μ (Set.Ioi a) := by
-    have hEq (m : Measure ℝ) :
-        m (Set.Ioi a) = ⨆ n : ℕ, m (Set.Ici (a + 1 / ((n : ℝ) + 1))) := by
-      have hUeq : Set.Ioi a = ⋃ n : ℕ, Set.Ici (a + 1 / ((n : ℝ) + 1)) := by
-        ext y
-        simp only [Set.mem_Ioi, Set.mem_iUnion, Set.mem_Ici]
-        refine ⟨fun hy => ?_, fun ⟨n, hn⟩ => ?_⟩
-        · exact (exists_nat_one_div_lt (sub_pos.mpr hy)).imp fun n hn => by linarith
-        · linarith [Nat.one_div_pos_of_nat (α := ℝ) (n := n)]
-      have hmono : Monotone fun n : ℕ => Set.Ici (a + 1 / ((n : ℝ) + 1)) :=
-        fun i j hij => Set.Ici_subset_Ici.mpr (by gcongr)
-      rw [hUeq, hmono.measure_iUnion]
+    obtain ⟨u, hanti, hlt, hlim⟩ := exists_seq_strictAnti_tendsto a
+    have hmono : Monotone fun n => Set.Ici (u n) :=
+      fun _ _ hij => Set.Ici_subset_Ici.mpr (hanti.antitone hij)
+    have hEq (m : Measure ℝ) : m (Set.Ioi a) = ⨆ n, m (Set.Ici (u n)) := by
+      rw [← iUnion_Ici_eq_Ioi_of_lt_of_tendsto hlt hlim, hmono.measure_iUnion]
     rw [hEq ν, hEq μ]
     exact iSup_mono fun n => h _
   rcases isUpperSet_real_eq hU with rfl | rfl | ⟨a, rfl | rfl⟩
@@ -523,18 +517,14 @@ theorem stochasticallyDominates_real_iff_Ioi {μ ν : Measure ℝ}
   refine ⟨fun h x => h.Ioi_le x, fun h => ?_⟩
   rw [stochasticallyDominates_real_iff_Ici]
   intro a
-  have hEq (m : Measure ℝ) [IsFiniteMeasure m] :
-      m (Set.Ici a) = ⨅ n : ℕ, m (Set.Ioi (a - 1 / ((n : ℝ) + 1))) := by
-    have hIeq : Set.Ici a = ⋂ n : ℕ, Set.Ioi (a - 1 / ((n : ℝ) + 1)) := by
-      ext y
-      simp only [Set.mem_Ici, Set.mem_iInter, Set.mem_Ioi]
-      refine ⟨fun hy n => ?_, fun hy => ?_⟩
-      · linarith [Nat.one_div_pos_of_nat (α := ℝ) (n := n)]
-      · refine le_of_forall_pos_lt_add fun ε hε => ?_
-        obtain ⟨n, hn⟩ := exists_nat_one_div_lt hε
-        linarith [hy n]
-    have hanti : Antitone fun n : ℕ => Set.Ioi (a - 1 / ((n : ℝ) + 1)) :=
-      fun i j hij => Set.Ioi_subset_Ioi (by gcongr)
+  obtain ⟨u, hmono, hlt, hlim⟩ := exists_seq_strictMono_tendsto a
+  have hIeq : Set.Ici a = ⋂ n, Set.Ioi (u n) := by
+    ext y
+    simp only [Set.mem_Ici, Set.mem_iInter, Set.mem_Ioi]
+    exact ⟨fun hy n => (hlt n).trans_le hy, fun hy => le_of_tendsto' hlim fun n => (hy n).le⟩
+  have hanti : Antitone fun n => Set.Ioi (u n) :=
+    fun _ _ hij => Set.Ioi_subset_Ioi (hmono.monotone hij)
+  have hEq (m : Measure ℝ) [IsFiniteMeasure m] : m (Set.Ici a) = ⨅ n, m (Set.Ioi (u n)) := by
     rw [hIeq, hanti.measure_iInter (fun _ => measurableSet_Ioi.nullMeasurableSet)
       ⟨0, measure_ne_top m _⟩]
   rw [hEq ν, hEq μ]

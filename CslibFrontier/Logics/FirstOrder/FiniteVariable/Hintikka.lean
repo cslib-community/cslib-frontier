@@ -119,13 +119,16 @@ theorem partialIsoOn_iff_holds {S : Set (Fin k)} {a : Fin k → M} {b : Fin k �
         Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.range_subset_iff] at hS
       simpa only [AtomicIndex.holds_inr] using hrel R f hS
   · intro h
-    refine ⟨fun i hi j hj => by simpa only [AtomicIndex.holds_inl] using h (.inl ⟨(i, j)⟩) (by
+    refine ⟨fun i hi j hj => ?_, fun R f hf => ?_⟩
+    · simpa only [AtomicIndex.holds_inl] using h (.inl ⟨(i, j)⟩) (by
         simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_equal,
           Finset.coe_insert, Finset.coe_singleton, Set.insert_subset_iff,
-          Set.singleton_subset_iff]; exact ⟨hi, hj⟩),
-      fun R f hf => by simpa only [AtomicIndex.holds_inr] using h (.inr ⟨⟨_, R⟩, f⟩) (by
+          Set.singleton_subset_iff]
+        exact ⟨hi, hj⟩)
+    · simpa only [AtomicIndex.holds_inr] using h (.inr ⟨⟨_, R⟩, f⟩) (by
         simp only [AtomicIndex.toFiniteVariable, FiniteVariable.GenFormula.freeVars_rel,
-          Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.range_subset_iff]; exact hf)⟩
+          Finset.coe_image, Finset.coe_univ, Set.image_univ, Set.range_subset_iff]
+        exact hf)
 
 /-- With all pebbles placed, a partial isomorphism on the placed pebbles is a partial isomorphism
 in the sense of the Ehrenfeucht–Fraïssé game. -/
@@ -191,7 +194,9 @@ theorem PebbleType.succ_ext_iff {n : ℕ} {T T' : PebbleType L k (n + 1)} :
 `n`-round `k`-pebble game between them. -/
 theorem pebbleType_eq_iff : ∀ {n : ℕ} {S : Set (Fin k)} {a : Fin k → M} {b : Fin k → N},
     pebbleType (L := L) n S a = pebbleType n S b ↔ PebbleWins L n S a b
-  | 0, _, _, _ => by rw [pebbleWins_zero]; exact pebbleAtoms_eq_iff
+  | 0, _, _, _ => by
+    rw [pebbleWins_zero]
+    exact pebbleAtoms_eq_iff
   | n + 1, _, _, _ => by
     rw [pebbleWins_succ, PebbleType.succ_ext_iff, pebbleType_succ, pebbleType_succ,
       pebbleAtoms_eq_iff]
@@ -356,13 +361,14 @@ theorem DuplicatorWins.pebbleWins_comp :
     ∀ {n m : ℕ} {a : Fin m → M} {b : Fin m → N}, DuplicatorWins L n a b →
       ∀ (σ : Fin k → Fin m) (S : Set (Fin k)), PebbleWins L n S (a ∘ σ) (b ∘ σ)
   | 0, _, _, _, h, σ, S => pebbleWins_zero.2 (h.partialIso.partialIsoOn_comp σ S)
-  | _ + 1, m, _, _, h, σ, S => pebbleWins_succ.2 ⟨h.partialIso.partialIsoOn_comp σ S,
-      fun i c => let ⟨d, hd⟩ := h.forth c; ⟨d, by
-        simpa only [snoc_comp_update] using
-          hd.pebbleWins_comp (Function.update (Fin.castSucc ∘ σ) i (Fin.last m)) (insert i S)⟩,
-      fun i d => let ⟨c, hc⟩ := h.back d; ⟨c, by
-        simpa only [snoc_comp_update] using
-          hc.pebbleWins_comp (Function.update (Fin.castSucc ∘ σ) i (Fin.last m)) (insert i S)⟩⟩
+  | _ + 1, m, _, _, h, σ, S => by
+    refine pebbleWins_succ.2 ⟨h.partialIso.partialIsoOn_comp σ S, fun i c => ?_, fun i d => ?_⟩
+    · obtain ⟨d, hd⟩ := h.forth c
+      exact ⟨d, by simpa only [snoc_comp_update] using
+        hd.pebbleWins_comp (Function.update (Fin.castSucc ∘ σ) i (Fin.last m)) (insert i S)⟩
+    · obtain ⟨c, hc⟩ := h.back d
+      exact ⟨c, by simpa only [snoc_comp_update] using
+        hc.pebbleWins_comp (Function.update (Fin.castSucc ∘ σ) i (Fin.last m)) (insert i S)⟩
 
 /-- A winning position of the `n`-round Ehrenfeucht–Fraïssé game from `(a, b)` wins the `n`-round
 `k`-pebble game from `(S, a, b)` for every set `S` of placed pebbles, in every language. -/

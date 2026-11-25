@@ -268,20 +268,8 @@ theorem isPPTOn_keyGenWord :
     ((hL.comp (ComputableInPolyTime.fst E encMatrixResidues)).comp
       (ComputableInPolyTime.fst (encPair E encMatrixResidues) encBits))
   refine isPPTOn_sampleMatrixResidues.bind_with (hs.bind_with (he.bind_with ?_))
-  let F := encPair (encPair (encPair E encMatrixResidues) encBits) encBits
-  exact (ComputableInPolyTime.keyWords
-    (by fun_prop : ComputableInPolyTime
-      (fun y : (((Params × ℕ) × List (List (List ℕ))) × List Bool) × List Bool => y.1.1.1.1) F
-      encParams)
-    (by fun_prop : ComputableInPolyTime
-      (fun y : (((Params × ℕ) × List (List (List ℕ))) × List Bool) × List Bool => y.1.1.2) F
-      encMatrixResidues)
-    (by fun_prop : ComputableInPolyTime
-      (fun y : (((Params × ℕ) × List (List (List ℕ))) × List Bool) × List Bool => y.1.2) F
-      encBits)
-    (by fun_prop : ComputableInPolyTime
-      (fun y : (((Params × ℕ) × List (List (List ℕ))) × List Bool) × List Bool => y.2) F
-      encBits)).isPPTOn
+  exact ComputableInPolyTime.isPPTOn
+    (ComputableInPolyTime.keyWords (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))
 
 end PolyTime
 
@@ -427,21 +415,17 @@ polynomial time from the unary security parameter. -/
 theorem kpke_isEfficient {P : ℕ → Params} (hP : ComputableInPolyTime P encUnary encParams) :
     (kpke P).IsEfficient where
   msgLen := by
-    change ComputableInPolyTime (fun κ => (P κ).n) encUnary encUnary
+    dsimp only [kpke]
     fun_prop
   coinLen := by
-    change ComputableInPolyTime (fun κ => coinLength (P κ)) encUnary encUnary
-    unfold coinLength
+    dsimp only [kpke, coinLength]
     fun_prop
   ctLen := by
-    change ComputableInPolyTime (fun κ => ctLength (P κ)) encUnary encUnary
-    unfold ctLength
+    dsimp only [kpke, ctLength]
     fun_prop
   keyGen := by
     change IsPPTOn encUnary (encPair encBits encBits) fun κ => keyGenWord (P κ) κ
-    have h : ComputableInPolyTime (fun κ => (P κ, κ)) encUnary (encPair encParams encUnary) :=
-      hP.prod ComputableInPolyTime.id'
-    simpa only using isPPTOn_keyGenWord.preprocess h
+    simpa only using isPPTOn_keyGenWord.preprocess (hP.prod .id')
   encDet := by
     change ComputableInPolyTime (fun x : ℕ × List Bool × List Bool × List Bool =>
       encDetWord (P x.1) x.2.1 x.2.2.1 x.2.2.2) encEncDetInput encBits
@@ -482,6 +466,10 @@ theorem length_encDetWord_le (P : Params) (pk m coins : List Bool) :
     (encDetWord P pk m coins).length ≤ ctLength P := by
   simp only [encDetWord, encCiphertextResidues, encPair_apply, List.length_append, length_frame,
     encryptResidues, ctLength]
+  have hcomp {d : ℕ} {xs : List ℕ} (hxs : xs.length ≤ P.n) :
+      (encList encNat (compressResidues P.q d xs)).length ≤ P.n * (2 * d + 1) :=
+    length_encList_encNat_le (by simpa [compressResidues] using hxs)
+      fun _ hx => lt_of_mem_compressResidues hx
   have hu : (encPolyVecResidues (((List.range P.k).map fun i =>
       addResidues P.q (negacyclicInnerResidues P.n P.q
         ((publicKeyDecoder.decode pk).1.map fun row => row.getD i [])
@@ -494,30 +482,20 @@ theorem length_encDetWord_le (P : Params) (pk m coins : List Bool) :
     intro y hy
     simp only [List.map_map, List.mem_map, List.mem_range, Function.comp_apply] at hy
     obtain ⟨i, -, rfl⟩ := hy
-    have := length_encList_encNat_le (n := P.n) (d := P.du)
-      (xs := compressResidues P.q P.du (addResidues P.q (negacyclicInnerResidues P.n P.q
+    have hle : (addResidues P.q (negacyclicInnerResidues P.n P.q
         ((publicKeyDecoder.decode pk).1.map fun row => row.getD i [])
         (cbdVecResidues P.k P.n P.q P.η₁ (coins.take (P.k * (P.n * (2 * P.η₁))))))
         ((cbdVecResidues P.k P.n P.q P.η₂ ((coins.drop (P.k * (P.n * (2 * P.η₁)))).take
-          (P.k * (P.n * (2 * P.η₂))))).getD i [])))
-      (by
-        simp only [compressResidues, List.length_map]
-        refine (length_addResidues_le _ _ _).trans ?_
-        simp [negacyclicInnerResidues])
-      fun x hx => lt_of_mem_compressResidues hx
+          (P.k * (P.n * (2 * P.η₂))))).getD i [])).length ≤ P.n :=
+      (length_addResidues_le _ _ _).trans (by simp [negacyclicInnerResidues])
+    have := hcomp (d := P.du) hle
     omega
-  have hv := length_encList_encNat_le (n := P.n) (d := P.dv)
-    (xs := compressResidues P.q P.dv (addResidues P.q (addResidues P.q
-      (negacyclicInnerResidues P.n P.q (publicKeyDecoder.decode pk).2
-        (cbdVecResidues P.k P.n P.q P.η₁ (coins.take (P.k * (P.n * (2 * P.η₁))))))
-      (cbdResidues P.n P.q P.η₂ (coins.drop (P.k * (P.n * (2 * P.η₁)) +
-        P.k * (P.n * (2 * P.η₂))))))
-      (messageResidues P.n P.q m)))
-    (by
-      simp only [compressResidues, List.length_map]
-      refine (length_addResidues_le _ _ _).trans ((length_addResidues_le _ _ _).trans ?_)
-      simp [negacyclicInnerResidues])
-    fun x hx => lt_of_mem_compressResidues hx
+  have hv := hcomp (d := P.dv) ((length_addResidues_le P.q _ (messageResidues P.n P.q m)).trans
+    ((length_addResidues_le P.q _ (cbdResidues P.n P.q P.η₂
+      (coins.drop (P.k * (P.n * (2 * P.η₁)) + P.k * (P.n * (2 * P.η₂)))))).trans
+      (by simp [negacyclicInnerResidues] :
+        (negacyclicInnerResidues P.n P.q (publicKeyDecoder.decode pk).2
+          (cbdVecResidues P.k P.n P.q P.η₁ (coins.take (P.k * (P.n * (2 * P.η₁)))))).length ≤ P.n)))
   omega
 
 /-- **K-PKE ciphertexts fit their ciphertext space.** -/

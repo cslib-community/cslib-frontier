@@ -259,34 +259,27 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
       linarith
     have hu_bound : ∀ D : ℕ, (maxCircuitWidthUpper 2 D : ℝ) + 2 ≤ 4 * α ^ D := by
       intro D
-      induction D using Nat.strong_induction_on with
-      | _ D ih =>
-        match D with
-        | 0 =>
-          rw [maxCircuitWidthUpper_zero le_rfl, pow_zero]
-          norm_num
-        | 1 =>
-          have h1 : maxCircuitWidthUpper 2 1 = 2 := by
-            rw [maxCircuitWidthUpper, Finset.sum_range_succ, Finset.sum_range_one, Nat.sub_zero,
-              Nat.sub_self, maxConsistentWidth_zero_left le_rfl,
-              maxConsistentWidth_zero_right le_rfl]
-          rw [h1, pow_one, Nat.cast_ofNat]
-          linarith
-        | m + 2 =>
-          have hrec := maxCircuitWidthUpper_recurrence (k := 2) le_rfl (by omega : 2 ≤ m + 2)
-          simp only [Finset.Ico_self, Finset.sum_empty, zero_add, Nat.add_sub_cancel] at hrec
-          have hrec_r : (maxCircuitWidthUpper 2 (m + 2) : ℝ) + 2 =
-              2 * ((maxCircuitWidthUpper 2 m : ℝ) + 2) := by
-            have hcast : (maxCircuitWidthUpper 2 (m + 2) : ℝ) =
-                2 * (maxCircuitWidthUpper 2 m : ℝ) + 2 := by exact_mod_cast hrec
-            linarith
-          have hih := ih m (by omega)
-          have hpow : α ^ (m + 2) = 2 * α ^ m := by
-            rw [pow_add, hα_sq, mul_comm]
-          linarith
+      induction D using Nat.twoStepInduction with
+      | zero =>
+        rw [maxCircuitWidthUpper_zero le_rfl, pow_zero]
+        norm_num
+      | one =>
+        have h1 : maxCircuitWidthUpper 2 1 = 2 := by
+          rw [maxCircuitWidthUpper, Finset.sum_range_succ, Finset.sum_range_one, Nat.sub_zero,
+            Nat.sub_self, maxConsistentWidth_zero_left le_rfl,
+            maxConsistentWidth_zero_right le_rfl]
+        rw [h1, pow_one, Nat.cast_ofNat]
+        linarith only [hα1]
+      | more m ih _ =>
+        have hrec := maxCircuitWidthUpper_recurrence (k := 2) le_rfl (by lia : 2 ≤ m + 2)
+        simp only [Finset.Ico_self, Finset.sum_empty, zero_add, Nat.add_sub_cancel] at hrec
+        have hcast : (maxCircuitWidthUpper 2 (m + 2) : ℝ) =
+            2 * (maxCircuitWidthUpper 2 m : ℝ) + 2 := by exact_mod_cast hrec
+        rw [hcast, pow_add, hα_sq]
+        linarith only [ih]
     have hN_w : N ≤ maxCircuitWidthUpper 2 c.depth := width_le_maxCircuitWidthUpper_two hN hopt hfan
     have hN_r : (N : ℝ) ≤ (maxCircuitWidthUpper 2 c.depth : ℝ) := by exact_mod_cast hN_w
-    linarith [hu_bound c.depth]
+    linarith only [hN_r, hu_bound c.depth]
   · have hk3 : 3 ≤ k := by omega
     set α := alphaRoot k
     have hα1 := one_lt_alphaRoot hk
@@ -298,8 +291,7 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
       intro m
       have hvs : 0 ≤ vStar k m :=
         Finset.sum_nonneg fun d _ => V_nonneg k d (m - d)
-      have hbm : 0 ≤ b * (3 / 2 : ℝ) ^ m := mul_nonneg hb_pos.le (by positivity)
-      linarith
+      exact add_nonneg (add_nonneg hvs (mul_nonneg hb_pos.le (by positivity))) zero_le_one
     have hA1 : 1 ≤ A := le_add_of_nonneg_right (Finset.sum_nonneg fun m _ => hterm_nn m)
     set B : ℕ → ℝ := fun D => A * α ^ D - b * (3 / 2 : ℝ) ^ D - 1
     have hV_le_B : ∀ D : ℕ, vStar k D ≤ B D := by
@@ -322,11 +314,8 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
           have hb_mul : b * ((3 / 2 : ℝ) ^ (D - k) * prefixCharPoly k (3 / 2)) =
               (3 / 2 : ℝ) ^ D := by
             dsimp only [b]
-            have h1 : (3 / 2 : ℝ) ^ k / prefixCharPoly k (3 / 2) *
-                ((3 / 2 : ℝ) ^ (D - k) * prefixCharPoly k (3 / 2)) =
-                (3 / 2 : ℝ) ^ k * (3 / 2 : ℝ) ^ (D - k) := by
-              field_simp [hp32.ne']
-            rw [h1, ← pow_add, Nat.add_sub_of_le hkD]
+            rw [div_mul_eq_mul_div, ← mul_assoc, mul_div_cancel_right₀ _ hp32.ne',
+              ← pow_add, Nat.add_sub_of_le hkD]
           have hconst : (∑ j ∈ Finset.Ico 2 k, (1 : ℝ)) = ((k - 2 : ℕ) : ℝ) := by
             simp only [Finset.sum_const, Nat.card_Ico, nsmul_eq_mul, mul_one]
           have hk_cast : ((k - 1 : ℕ) : ℝ) = ((k - 2 : ℕ) : ℝ) + 1 := by
@@ -342,7 +331,7 @@ theorem width_le_mul_alphaRoot_pow {k : ℕ} (hk : 2 ≤ k) :
                 ← Finset.mul_sum, hconst]
             dsimp only [B]
             rw [hsum_B, hk_cast]
-            nlinarith [hrec_α, hrec_32, hb_mul]
+            linear_combination A * hrec_α - b * hrec_32 + hb_mul
           have hV_rec := vStar_recurrence hk3 hkD
           have hsum_le : ∑ j ∈ Finset.Ico 2 k, vStar k (D - j) ≤
               ∑ j ∈ Finset.Ico 2 k, B (D - j) := by

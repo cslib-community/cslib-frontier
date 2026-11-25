@@ -79,7 +79,10 @@ private theorem forall₂_getD {α β : Type*} {R : α → β → Prop} {l₁ : 
     R (l₁.getD i d₁) (l₂.getD i d₂) := by
   induction h generalizing i with
   | nil => exact hd
-  | cons hab _ ih => cases i with | zero => exact hab | succ i => exact ih i
+  | cons hab _ ih =>
+    cases i with
+    | zero => exact hab
+    | succ i => exact ih i
 
 /-- **Evaluation preserves relations.** If two interpretations take related arguments to related
 values, then evaluating a gate list from related inputs, with related defaults, gives related
@@ -104,9 +107,9 @@ theorem evalCode_rel {σ : Signature.{v}} {U₁ U₂ : Type u} (R : U₁ → U�
 theorem ofFn_elim_eq_map {σ : Signature.{v}} {U : Type u} (d : U) (values : List U)
     (g : σ.Op × List ℕ) (h : g.2.length = σ.Arity g.1) :
     List.ofFn (fun a : Fin (σ.Arity g.1) => g.2[a.val]?.elim d (values.getD · d)) =
-      g.2.map (values.getD · d) :=
-  List.ext_getElem (by simp [h]) fun _ _ h₂ => by
-    simp [List.getElem?_eq_getElem (by simpa using h₂)]
+      g.2.map (values.getD · d) := by
+  refine List.ext_getElem (by simp [h]) fun _ _ h₂ => ?_
+  simp [List.getElem?_eq_getElem (by simpa using h₂)]
 
 /-- **Folds by position are evaluations.** Appending, for each gate, a function of its operation
 and of the values of its arguments read by position is `evalCode` for the interpretation applying
@@ -202,9 +205,11 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      simp [interpretation_and, show ¬∀ j, b j = true from
-        fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))]
-    · cases hc; simp [interpretation_and, fun i => (h i true (h₂ i)).symm]
+      have hnb : ¬∀ j, b j = true :=
+        fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))
+      simp [interpretation_and, hnb]
+    · cases hc
+      simp [interpretation_and, fun i => (h i true (h₂ i)).symm]
     · cases hc
   | or m =>
     simp only [kleeneInterpretation, kleeneOp, kleeneOr, List.mem_ofFn, all_ofFn_beq] at hc
@@ -212,7 +217,8 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
     · obtain ⟨i, hi⟩ := h₁
       cases hc
       simp [interpretation_or, show ∃ j, b j = true from ⟨i, (h i true hi).symm⟩]
-    · cases hc; simp [interpretation_or, fun i => (h i false (h₂ i)).symm]
+    · cases hc
+      simp [interpretation_or, fun i => (h i false (h₂ i)).symm]
     · cases hc
 
 /-- **On known arguments, Kleene's operations are the Boolean operations.** -/
@@ -294,8 +300,12 @@ theorem getD_kleeneEval_of_lt (ρ : List (Option Bool)) (gates : List (Op × Lis
 theorem kleeneOp_map_some_ne_none (op : Op) {l : List Bool} (hl : l.length = op.arity) :
     kleeneOp op (l.map some) ≠ none := by
   cases op with
-  | not => obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hl; simp [kleeneOp]
-  | and _ | or _ => simp only [kleeneOp, kleeneAnd, kleeneOr]; split_ifs <;> simp_all
+  | not =>
+    obtain ⟨_, rfl⟩ := List.length_eq_one_iff.1 hl
+    simp [kleeneOp]
+  | and _ | or _ =>
+    simp only [kleeneOp, kleeneAnd, kleeneOr]
+    split_ifs <;> simp_all
 
 /-- **The Kleene value of a gate** of a well-formed gate list is its operation applied to the
 values of its arguments. -/

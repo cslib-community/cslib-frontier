@@ -262,9 +262,7 @@ theorem bucketOf_map {r : ℕ} (f : X → Fin (r + 1)) (keys : List X) (j : Fin 
   | nil => rfl
   | cons x xs ih =>
     simp only [bucketOf, List.map_cons, List.zip_cons_cons, List.filter_cons] at ih ⊢
-    by_cases hx : f x = j
-    · simp [hx, ih]
-    · simp [hx, ih]
+    by_cases hx : f x = j <;> simp [hx, ih]
 
 theorem bucketOf_sublist {r : ℕ} (keys : List X) (vs : List (Fin (r + 1))) (j : Fin (r + 1)) :
     (bucketOf keys vs j).Sublist keys := by
@@ -288,12 +286,9 @@ theorem sum_length_bucketOf_le {r : ℕ} (keys : List X) (vs : List (Fin (r + 1)
     cases vs with
     | nil => simp [bucketOf]
     | cons v vs =>
-      have hstep : ∀ j, (bucketOf (x :: xs) (v :: vs) j).length =
+      have hstep (j : Fin (r + 1)) : (bucketOf (x :: xs) (v :: vs) j).length =
           (bucketOf xs vs j).length + if v = j then 1 else 0 := by
-        intro j
-        by_cases hv : v = j
-        · simp [bucketOf, hv]
-        · simp [bucketOf, hv]
+        by_cases hv : v = j <;> simp [bucketOf, hv]
       simp only [hstep, sum_add_distrib, sum_ite_eq, mem_univ, ↓reduceIte, List.length_cons]
       exact Nat.add_le_add_right (ih vs) 1
 
@@ -491,9 +486,7 @@ theorem evalWith_build_none_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r)
       ≤ 2⁻¹ ^ fuel + ((keys.length - 1 + 1 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
         gcongr
         exact evalWith_retry_none_le _ _ _ (toOuterMeasure_not_topGood_le hF hkeys) fuel
-    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by
-        push_cast
-        ring
+    _ = ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) * 2⁻¹ ^ fuel := by push_cast; ring
 
 /-- The block of a bucket costs at most twice one attempt in expectation, whatever the fuel. -/
 theorem expectedCost_buildSecondary_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.hash r))
@@ -531,9 +524,7 @@ theorem expectedCost_build_draw_le (hF : ∀ r, IsTwoUniversal (F.seed r) (F.has
           refine (expectedCost_retry_le_two_mul _ _ _ _
             (toOuterMeasure_not_topGood_le hF hkeys) fuel).trans ?_
           simp
-      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by
-          push_cast
-          ring
+      _ = 2 * ((keys.length - 1 + 2 : ℕ) : ℝ≥0∞) := by push_cast; ring
 
 /-- **Expected hash evaluations.** The construction for a duplicate-free list of `n` keys makes at
 most `4 n` hash evaluations in expectation, whatever the fuel: two expected attempts of `n`

@@ -218,8 +218,8 @@ private theorem val_pow_mod_sq_eq_one_iff (d : Desc) (u : (ZMod (d.modulus ^ 2))
   rw [Units.ext_iff, Units.val_pow_eq_pow_val, Units.val_one]
   conv_rhs => rw [← ZMod.natCast_zmod_val (u : ZMod (d.modulus ^ 2)), ← Nat.cast_pow,
     ← ZMod.natCast_mod]
-  exact ⟨fun h => by rw [h, Nat.cast_one], fun h => by
-    simpa only [ZMod.val_natCast, Nat.mod_mod, ZMod.val_one] using congrArg ZMod.val h⟩
+  refine ⟨fun h => by rw [h, Nat.cast_one], fun h => ?_⟩
+  simpa only [ZMod.val_natCast, Nat.mod_mod, ZMod.val_one] using congrArg ZMod.val h
 
 private theorem powSelfHom_pow_totient (N : ℕ) [NeZero N] (b : (ZMod N)ˣ) :
     (Paillier.powSelfHom N b) ^ N.totient = 1 := by
@@ -259,9 +259,9 @@ theorem dcrRealGame_factorToDCR (setup : ℕ → PMF Desc)
 private theorem unitsEquiv_pow_totient_eq_one_iff (d : Desc)
     (p : Multiplicative (ZMod d.modulus) × (ZMod d.modulus)ˣ) :
     (Paillier.unitsEquiv d.modulus d.coprime_totient p) ^ d.modulus.totient = 1 ↔ p.1 = 1 := by
-  rw [show Paillier.unitsEquiv d.modulus d.coprime_totient p =
-      Paillier.oneAddPowHom d.modulus p.1 * Paillier.powSelfHom d.modulus p.2 from rfl,
-    mul_pow (Paillier.oneAddPowHom d.modulus p.1) (Paillier.powSelfHom d.modulus p.2),
+  have heq : Paillier.unitsEquiv d.modulus d.coprime_totient p =
+      Paillier.oneAddPowHom d.modulus p.1 * Paillier.powSelfHom d.modulus p.2 := rfl
+  rw [heq, mul_pow (Paillier.oneAddPowHom d.modulus p.1) (Paillier.powSelfHom d.modulus p.2),
     powSelfHom_pow_totient, mul_one]
   refine ⟨fun hpow => ?_, fun h1 => by rw [h1, map_one, one_pow]⟩
   have hdvdN : orderOf (Paillier.oneAddPowHom d.modulus p.1) ∣ d.modulus :=
@@ -287,9 +287,14 @@ private theorem two_mul_card_filter_pow_totient_eq_one_le (d : Desc) :
       (fun b _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _,
         (unitsEquiv_pow_totient_eq_one_iff d (1, b)).mpr rfl⟩)
       (fun _ _ _ _ h => congrArg Prod.snd (e.injective h)) fun y hy => ?_).symm
-    have hp1 : (e.symm y).1 = 1 := (unitsEquiv_pow_totient_eq_one_iff d (e.symm y)).mp
-      (by rw [e.apply_symm_apply]; exact (Finset.mem_filter.mp hy).2)
-    exact ⟨(e.symm y).2, Finset.mem_univ _, by rw [← hp1, Prod.mk.eta, e.apply_symm_apply]⟩
+    have hp1 : (e.symm y).1 = 1 := by
+      apply (unitsEquiv_pow_totient_eq_one_iff d (e.symm y)).mp
+      rw [e.apply_symm_apply]
+      exact (Finset.mem_filter.mp hy).2
+    refine ⟨(e.symm y).2, Finset.mem_univ _, ?_⟩
+    calc e (1, (e.symm y).2)
+        = e ((e.symm y).1, (e.symm y).2) := by rw [hp1]
+      _ = y := by rw [Prod.mk.eta, e.apply_symm_apply]
   rw [hcard, ← Fintype.card_congr e.toEquiv, Fintype.card_prod,
     Fintype.card_congr Multiplicative.toAdd, ZMod.card]
   exact Nat.mul_le_mul_right _ d.one_lt_modulus

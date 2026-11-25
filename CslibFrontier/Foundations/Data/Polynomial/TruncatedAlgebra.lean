@@ -155,16 +155,12 @@ theorem coeff_zero (i : ℕ) : coeff i (0 : Truncated R r) = 0 := by
 @[simp]
 theorem coeff_one (i : ℕ) : coeff i (1 : Truncated R r) = if i = 0 ∧ 0 < r then 1 else 0 := by
   rw [← map_one (mk r), coeff_mk, Polynomial.coeff_one]
-  by_cases hi0 : i = 0
-  · subst hi0; simp
-  · simp [hi0]
+  by_cases hi0 : i = 0 <;> simp [hi0]
 
 theorem coeff_C (a : R) (i : ℕ) :
     coeff i (mk r (C a)) = if i = 0 ∧ 0 < r then a else 0 := by
   rw [coeff_mk, Polynomial.coeff_C]
-  by_cases hi0 : i = 0
-  · subst hi0; simp
-  · simp [hi0]
+  by_cases hi0 : i = 0 <;> simp [hi0]
 
 @[simp]
 theorem coeff_algebraMap (a : R) (i : ℕ) :
@@ -174,17 +170,13 @@ theorem coeff_algebraMap (a : R) (i : ℕ) :
 @[simp]
 theorem coeff_var (i : ℕ) : coeff i (var R r) = if i = 1 ∧ 1 < r then 1 else 0 := by
   rw [var, coeff_mk, Polynomial.coeff_X]
-  by_cases hi : i = 1
-  · subst hi; simp
-  · by_cases hir : i < r <;> simp [hi, hir, eq_comm]
+  by_cases hi : i = 1 <;> by_cases hir : i < r <;> simp_all [eq_comm]
 
 @[simp]
 theorem coeff_var_pow (k i : ℕ) :
     coeff i ((var R r) ^ k) = if i = k ∧ k < r then 1 else 0 := by
   rw [var, ← map_pow, coeff_mk, Polynomial.coeff_X_pow]
-  by_cases hik : i = k
-  · subst hik; simp
-  · by_cases hir : i < r <;> simp [hik, hir]
+  by_cases hik : i = k <;> by_cases hir : i < r <;> simp_all
 
 @[simp]
 theorem coeff_add (i : ℕ) (x y : Truncated R r) :
@@ -275,17 +267,11 @@ theorem coeff_toPoly (x : Truncated R r) (i : ℕ) : (toPoly x).coeff i = coeff 
   rw [toPoly, ← Polynomial.lcoeff_apply, map_sum]
   simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow]
   by_cases hi : i < r
-  · rw [Finset.sum_eq_single i]
-    · simp
-    · intro b _ hbi
-      simp [hbi.symm]
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_range.mpr hi))
+  · rw [Finset.sum_eq_single i (fun _ _ hbi => by simp [hbi.symm])
+      (fun h => absurd (Finset.mem_range.mpr hi) h)]
+    simp
   · rw [coeff_eq_zero_of_le (not_lt.mp hi)]
-    refine Finset.sum_eq_zero fun b hb => ?_
-    have hb_lt : b < r := Finset.mem_range.mp hb
-    have hne : i ≠ b := fun h => hi (h ▸ hb_lt)
-    simp [hne]
+    exact Finset.sum_eq_zero fun b hb => by simp [show i ≠ b from fun h => hi (h ▸ mem_range.mp hb)]
 
 @[simp]
 theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
@@ -299,27 +285,18 @@ theorem toPoly_mk (p : R[X]) :
   conv_rhs => rw [← Polynomial.lcoeff_apply, map_sum]
   simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow]
   by_cases hi : i < r
-  · simp only [hi, ↓reduceIte]
-    symm
-    rw [Finset.sum_eq_single i]
-    · simp
-    · intro b _ hbi
-      simp [hbi.symm]
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_range.mpr hi))
-  · simp only [hi, ↓reduceIte]
-    symm
-    exact Finset.sum_eq_zero fun b hb => by
-      have hne : i ≠ b := fun h => hi (h ▸ Finset.mem_range.mp hb)
-      simp [hne]
+  · rw [ite_eq_left hi, Finset.sum_eq_single i (fun _ _ hbi => by simp [hbi.symm])
+      (fun h => absurd (Finset.mem_range.mpr hi) h)]
+    simp
+  · rw [ite_eq_right hi]
+    exact (Finset.sum_eq_zero fun b hb => by
+      simp [show i ≠ b from fun h => hi (h ▸ mem_range.mp hb)]).symm
 
 theorem natDegree_toPoly_lt (hr : 0 < r) (x : Truncated R r) : (toPoly x).natDegree < r := by
   by_cases h0 : toPoly x = 0
-  · rw [h0, Polynomial.natDegree_zero]
-    exact hr
+  · simpa [h0] using hr
   · rw [Polynomial.natDegree_lt_iff_degree_lt h0, Polynomial.degree_lt_iff_coeff_zero]
-    intro m hm
-    rw [coeff_toPoly, coeff_eq_zero_of_le hm]
+    exact fun m hm => by rw [coeff_toPoly, coeff_eq_zero_of_le hm]
 
 theorem toPoly_mk_eq_trunc (p : R[X]) : toPoly (mk r p) = PowerSeries.trunc r (p : R⟦X⟧) := by
   ext i
@@ -433,36 +410,24 @@ theorem mul_unitInv {x : Truncated R r} {u : Rˣ} (hu : coeff 0 x = u) :
     x * unitInv u x = 1 := by
   by_cases hr : r = 0
   · subst hr
-    have hsub : Subsingleton (Truncated R 0) :=
-      Ideal.Quotient.subsingleton_iff.mpr (by simp)
-    exact Subsingleton.elim _ _
+    exact @Subsingleton.elim _ (Ideal.Quotient.subsingleton_iff.mpr (by simp)) _ _
   · have hrpos : 0 < r := Nat.pos_of_ne_zero hr
     let y : Truncated R r := 1 - algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * x
     have hy0 : coeff 0 y = 0 := by
-      simp only [y, coeff_sub, coeff_one, hrpos, and_self, ↓reduceIte]
-      rw [coeff_mul_range hrpos, Finset.sum_range_one, Nat.sub_zero, coeff_algebraMap]
-      simp only [hrpos, and_self, ↓reduceIte, hu]
-      simp [Units.inv_mul]
+      simp [y, coeff_mul_range hrpos, coeff_algebraMap, hrpos, hu]
     have hinv := one_sub_mul_geomInv hy0
-    have h1y : 1 - y = algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * x := sub_sub_cancel 1 _
-    rw [h1y] at hinv
+    rw [show 1 - y = algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * x from sub_sub_cancel 1 _] at hinv
     change x * (algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * geomInv y) = 1
     linear_combination hinv
 
 /-- An element of `Truncated R r` (for `r > 0`) is a unit iff its constant coefficient is a unit
 in `R`. -/
 theorem isUnit_iff (hr : 0 < r) {x : Truncated R r} : IsUnit x ↔ IsUnit (coeff 0 x) := by
-  constructor
-  · rintro ⟨u, hu⟩
-    have hcoeff : coeff 0 (u : Truncated R r) * coeff 0 ((u⁻¹ : (Truncated R r)ˣ) : Truncated R r) =
-        1 := by
-      have h1 := congrArg (coeff 0) u.mul_inv
-      rw [coeff_one, coeff_mul_range hr, Finset.sum_range_one, Nat.sub_zero] at h1
-      simpa only [hr, and_self, ↓reduceIte] using h1
-    rw [hu] at hcoeff
-    exact isUnit_iff_exists_inv.mpr ⟨_, hcoeff⟩
-  · rintro ⟨u, hu⟩
-    exact isUnit_iff_exists_inv.mpr ⟨unitInv u x, mul_unitInv hu.symm⟩
+  refine ⟨?_, fun ⟨u, hu⟩ => isUnit_iff_exists_inv.mpr ⟨unitInv u x, mul_unitInv hu.symm⟩⟩
+  rintro ⟨u, rfl⟩
+  have h1 := congrArg (coeff 0) u.mul_inv
+  rw [coeff_one, coeff_mul_range hr, Finset.sum_range_one, Nat.sub_zero] at h1
+  exact isUnit_iff_exists_inv.mpr ⟨_, by simpa only [hr, and_self, ↓reduceIte] using h1⟩
 
 end UnitsAndNilpotency
 

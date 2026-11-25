@@ -98,7 +98,8 @@ theorem runs_dr [Finite M] :
       (Runs.const (F := A) fun z : Zc K =>
         on {lsT} [(Sy.dot : Sy M K)] z ++ on {.tp (.bk b) false} [be b, Sy.dot] z)
   refine (h.congr
-    ⟨fun d => ⟨d.head, (((d.flag, ()), d.tail), ())⟩, fun y => ⟨y.2.1.1.1, y.1, y.2.1.2⟩,
+    ⟨fun d => ⟨d.head, (((d.flag, ()), d.tail), ())⟩,
+     fun y => ⟨y.2.1.1.1, y.1, y.2.1.2⟩,
      fun _ => rfl, fun _ => rfl⟩
     (fun d z => ?_) fun _ => by simp).mono ?_
   · obtain ⟨f, b, w⟩ := d
@@ -155,7 +156,8 @@ theorem runs_co [Fintype M] :
   refine (h.congr
     ⟨fun m => (fun i => m ((Fintype.equivFin (Bl K)).symm i), ()),
      fun y b => y.1 (Fintype.equivFin (Bl K) b),
-     fun _ => by funext b; simp, fun ⟨_, _⟩ => by ext; simp⟩
+     fun _ => by funext b; simp,
+     fun ⟨_, _⟩ => by ext; simp⟩
     (fun _ _ => rfl) fun _ => by simp).mono ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul,
     Finset.card_singleton, List.length_singleton]
@@ -230,6 +232,8 @@ theorem runs_fi [Finite M] : Runs (14 + 3 + (Fintype.card (Bl K) * 7 + 1) + 7 + 
   refine (((h2.kstar fun _ => ⟨lsT, by simp [on, rw']⟩).mul
       (Runs.word (F := A) (Z := Zc K) {lsT} [(Sy.bar : Sy M K)])).congr
     ⟨fun l => (l, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
-    (fun _ _ => rfl) fun _ => by simp).mono (by rw [hc]; simp)
+    (fun _ _ => rfl) fun _ => by simp).mono ?_
+  rw [hc]
+  simp
 
 end Cslib.Circuits.Arithmetic.Separation.Uni

@@ -96,9 +96,8 @@ private theorem DuplicatorStrategy.exists_satisfies {p : ℕ} (S : DuplicatorStr
   refine ⟨σ', _, hσ', Finset.subset_union_left, hag, ?_⟩
   by_contra hns
   refine S.not_falsifies hσ' A hA fun l hl => ?_
-  refine ⟨Finset.mem_union_right _ (Finset.mem_image_of_mem _ (List.mem_toFinset.2 hl)), ?_⟩
-  exact fun he => hns ⟨l, hl, Finset.mem_union_right _
-    (Finset.mem_image_of_mem _ (List.mem_toFinset.2 hl)), he⟩
+  have hld := Finset.mem_union_right d (Finset.mem_image_of_mem Prod.fst (List.mem_toFinset.2 hl))
+  exact ⟨hld, fun he => hns ⟨l, hl, hld, he⟩⟩
 
 omit [DecidableEq V] in
 /-- Satisfaction survives enlarging the domain, keeping the assignment on it. -/
@@ -126,17 +125,12 @@ private theorem exists_subset_satisfies {σ : V → Bool} {d : Finset V} (N : Fi
     (h : ∀ c ∈ N, Satisfies σ d c) :
     ∃ d' ⊆ d, d'.card ≤ N.card ∧ ∀ c ∈ N, Satisfies σ d' c := by
   classical
-  induction N using Finset.induction_on with
-  | empty => exact ⟨∅, Finset.empty_subset _, le_rfl, by simp⟩
-  | @insert c N hcN ih =>
-    obtain ⟨d', hd', hcard, hsat⟩ := ih fun c' hc' => h c' (Finset.mem_insert_of_mem hc')
-    obtain ⟨l, hl, hld, he⟩ := h c (Finset.mem_insert_self _ _)
-    refine ⟨insert l.1 d', Finset.insert_subset hld hd', ?_, fun c' hc' => ?_⟩
-    · rw [Finset.card_insert_of_notMem hcN]
-      exact (Finset.card_insert_le _ _).trans (Nat.succ_le_succ hcard)
-    · rcases Finset.mem_insert.1 hc' with rfl | hc'
-      · exact ⟨l, hl, Finset.mem_insert_self _ _, he⟩
-      · exact (hsat c' hc').mono (Finset.subset_insert _ _) fun _ _ => rfl
+  choose l hl hd he using fun c : {c // c ∈ N} => h c c.2
+  let vars := N.attach.image fun c => (l c).1
+  refine ⟨vars, Finset.image_subset_iff.2 fun c _ => hd c,
+    Finset.card_image_le.trans_eq Finset.card_attach, fun c hc => ?_⟩
+  let c' : {c // c ∈ N} := ⟨c, hc⟩
+  exact ⟨l c', hl c', Finset.mem_image_of_mem _ (Finset.mem_attach _ c'), he c'⟩
 
 /-! ### The invariant -/
 
@@ -165,30 +159,23 @@ private theorem Inv.step {k p s : ℕ} {S : DuplicatorStrategy φ p} (hk : ∀ c
   | @download A hA =>
     by_cases hAN : A ∈ N
     · -- satisfy the other clauses of `N`, then extend to satisfy `A`
-      have hN₀ : N.erase A ⊆ M := fun c hc => by
-        rcases Finset.mem_insert.1 (hN (Finset.mem_of_mem_erase hc)) with rfl | hc'
-        exacts [absurd rfl (Finset.ne_of_mem_erase hc), hc']
       have hcard₀ := Finset.card_erase_add_one hAN
-      obtain ⟨σ, d, hσ, hd, hsat⟩ := h _ hN₀ (by omega)
+      obtain ⟨σ, d, hσ, hd, hsat⟩ := h _ (Finset.subset_insert_iff.1 hN) (by omega)
       have hAk := hk A hA
       obtain ⟨σ', d', hσ', hdd', hag, hA'⟩ := S.exists_satisfies hσ hA (by omega)
       have hsat' : ∀ c ∈ N, Satisfies σ' d' c := fun c hc =>
         if hcA : c = A then hcA ▸ hA' else (hsat c (Finset.mem_erase.2 ⟨hcA, hc⟩)).mono hdd' hag
       obtain ⟨d'', hd'', hcard'', hsat''⟩ := exists_subset_satisfies N hsat'
       exact ⟨σ', d'', S.restrict hσ' hd'', hcard'', hsat''⟩
-    · refine h N (fun c hc => ?_) hNs
-      rcases Finset.mem_insert.1 (hN hc) with rfl | hc'
-      exacts [absurd hc hAN, hc']
+    · exact h N ((Finset.subset_insert_iff_of_notMem hAN).1 hN) hNs
   | @infer c₁ c₂ v h₁ h₂ _ _ =>
     by_cases hR : c₁.resolvent c₂ v ∈ N ∧ c₁.resolvent c₂ v ∉ M
     · -- satisfy the parents of the resolvent and the other clauses of `N`
       obtain ⟨hRN, hRM⟩ := hR
       have hMs : M.card + 1 ≤ s := Finset.card_insert_of_notMem hRM ▸ hcard
       set N' := insert c₁ (insert c₂ (N.erase (c₁.resolvent c₂ v)))
-      have hN' : N' ⊆ M := by
-        refine Finset.insert_subset h₁ (Finset.insert_subset h₂ fun c hc => ?_)
-        rcases Finset.mem_insert.1 (hN (Finset.mem_of_mem_erase hc)) with rfl | hc'
-        exacts [absurd rfl (Finset.ne_of_mem_erase hc), hc']
+      have hN' : N' ⊆ M :=
+        Finset.insert_subset h₁ (Finset.insert_subset h₂ (Finset.subset_insert_iff.1 hN))
       obtain ⟨σ, d, hσ, -, hsat⟩ := h N' hN' (by have := Finset.card_le_card hN'; omega)
       have hsat' : ∀ c ∈ N, Satisfies σ d c := fun c hc => by
         by_cases hcR : c = c₁.resolvent c₂ v

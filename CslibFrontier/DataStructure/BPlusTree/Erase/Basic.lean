@@ -657,31 +657,24 @@ private theorem eraseRest_spec {rest : List (Branch α β)}
       rw [toList_rebalanceRight, hpe, List.flatMap_cons, Branch.child_mk,
         SortedAssoc.erase_append, htail]
 
-/-- Model equation of erasure from a subtree, under what the search uses: the separator
-convention, sorted entries, and occupied children at `2 ≤ t`, which makes them non-empty. -/
-private theorem toList_eraseSubtree_of (ht : 2 ≤ t) (k : α) (tr : BPlusTree α β)
-    (hp : Separated tr) (hs : tr.toList.IsSortedAssoc)
-    (ho : ∀ c ∈ tr.children, Occupied t c) :
+/-- Model equation of erasure from a subtree under the search invariant. -/
+private theorem toList_eraseSubtree_of (k : α) (tr : BPlusTree α β)
+    (h : SearchInvariant t tr) :
     (eraseSubtree t k tr).toList = SortedAssoc.erase k tr.toList := by
   induction tr with
   | leaf entries =>
-    rw [toList_leaf] at hs
-    rw [eraseSubtree_leaf_of_isSortedAssoc hs, toList_leaf, toList_leaf]
+    rw [eraseSubtree_leaf_of_isSortedAssoc (by simpa only [toList_leaf] using h.sorted),
+      toList_leaf, toList_leaf]
   | node first rest ihf ihr =>
-    have hof : Occupied t first := ho first List.mem_cons_self
-    have hor : ∀ e ∈ rest, Occupied t e.child := fun e he =>
-      ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
-    have hs' := hs
-    rw [toList_node, List.isSortedAssoc_append_iff] at hs'
+    have hp := h.separated
+    have hmem : ∀ e ∈ rest, e.child ∈ (BPlusTree.node first rest).children :=
+      fun e he => List.mem_cons_of_mem _ (List.mem_map_of_mem he)
     rw [eraseSubtree_node, toList_node, toList_node]
     exact eraseRest_spec (fun e he p hp' => hp.le_of_mem he hp')
-      (fun e he => List.ne_nil_of_length_pos ((hor e he).size_pos ht)) hp.pairwise
-      (fun e he => ihr e he (hp.of_mem_rest he)
-        (hs.sublist (toList_sublist_of_mem_children
-          (List.mem_cons_of_mem _ (List.mem_map_of_mem he))))
-        fun c hc => (hor e he).of_mem_children hc)
+      (fun e he => List.ne_nil_of_length_pos ((h.occupied _ (hmem e he)).size_pos h.two_le))
+      hp.pairwise (fun e he => ihr e he (h.child (hmem e he)))
       first _ (fun e he p hp' => hp.lt_of_mem_first he hp')
-      (ihf hp.first hs'.1 fun c hc => hof.of_mem_children hc)
+      (ihf (h.child List.mem_cons_self))
 
 /-! ### The shape of the result -/
 
@@ -888,44 +881,43 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
           List.forall_mem_cons.2 ⟨sc, hrs⟩, fun x hx => Or.inl (hsub.subset hx)⟩
 
 /-- Erasure from a subtree keeps the separator convention. -/
-private theorem separated_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree α β)
-    (hp : Separated tr) (hs : tr.toList.IsSortedAssoc) (hb : Balanced tr)
-    (ho : ∀ c ∈ tr.children, Occupied t c)
+private theorem separated_eraseSubtree (k : α) (tr : BPlusTree α β)
+    (h : SearchInvariant t tr) (hb : Balanced tr)
     (hpos : (∀ entries, tr ≠ .leaf entries) → 1 ≤ tr.width) :
     Separated (eraseSubtree t k tr) := by
   induction tr with
   | leaf entries => exact .leaf
   | node first rest ihf ihr =>
-    obtain ⟨hgf, hgr⟩ := good_of_balanced_node hb ho
+    obtain ⟨hgf, hgr⟩ := good_of_balanced_node hb h.occupied
+    have hp := h.separated
+    have ht := h.two_le
     have hpos := hpos (by simp)
     simp only [width_node] at hpos
     have hne : rest ≠ [] := by rintro rfl; simp at hpos
     -- what the three inductions give for a child of the node
     have hchild : ∀ c ∈ (BPlusTree.node first rest).children, Good t first.height c →
-        Separated c → (Separated c → c.toList.IsSortedAssoc → Balanced c →
-          (∀ c' ∈ c.children, Occupied t c') →
+        (SearchInvariant t c → Balanced c →
           ((∀ entries, c ≠ .leaf entries) → 1 ≤ c.width) → Separated (eraseSubtree t k c)) →
         Underfull t first.height (eraseSubtree t k c) ∧ Separated (eraseSubtree t k c) ∧
           (eraseSubtree t k c).toList.Sublist c.toList := by
-      intro c hc hg hsc ih
-      have hcs : c.toList.IsSortedAssoc := hs.sublist (toList_sublist_of_mem_children hc)
-      have hco : ∀ c' ∈ c.children, Occupied t c' := fun _ hc' => hg.occupied.of_mem_children hc'
+      intro c hc hg ih
+      have hsc := h.child hc
       have hcp : (∀ entries, c ≠ .leaf entries) → 1 ≤ c.width := fun _ => by
         have := hg.occupied.le_width
         omega
-      refine ⟨?_, ih hsc hcs hg.balanced hco hcp, ?_⟩
-      · have := (eraseFits_eraseSubtree ht k c hg.balanced hco hcp hcs).underfull hg.occupied
+      refine ⟨?_, ih hsc hg.balanced hcp, ?_⟩
+      · have hfit := eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp hsc.sorted
+        have := hfit.underfull hg.occupied
         rwa [hg.height_eq] at this
-      · rw [toList_eraseSubtree_of ht k c hsc hcs hco, SortedAssoc.erase_def]
+      · rw [toList_eraseSubtree_of k c hsc, SortedAssoc.erase_def]
         exact List.filter_sublist
-    obtain ⟨uf, sf, subf⟩ := hchild first List.mem_cons_self hgf hp.first ihf
+    obtain ⟨uf, sf, subf⟩ := hchild first List.mem_cons_self hgf ihf
     have hrest := fun e (he : e ∈ rest) =>
-      hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he)
-        (hp.of_mem_rest he) (ihr e he)
+      hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he) (ihr e he)
     obtain ⟨l₁, l₂, l₃, -⟩ := linked_eraseRest ht
       (fun e he => ⟨hgr e he, (hrest e he).1, hp.of_mem_rest he, (hrest e he).2.1,
         (hrest e he).2.2⟩)
-      hgf uf hp.first sf subf hp.linked (by rwa [toList_node] at hs)
+      hgf uf hp.first sf subf hp.linked (by simpa only [toList_node] using h.sorted)
     obtain ⟨-, g₂, -, -⟩ := good_eraseRest (fun e he => ⟨hgr e he, (hrest e he).1⟩) hgf uf hne
     rw [eraseSubtree_node]
     exact separated_node_of_linked l₁ l₂ l₃ fun e he =>
@@ -939,7 +931,7 @@ variable {tr : BPlusTree α β}
 theorem toList_erase (h : IsWF t tr) (k : α) :
     (erase t k tr).toList = SortedAssoc.erase k tr.toList := by
   rw [erase_eq_collapse, toList_collapse,
-    toList_eraseSubtree_of h.two_le k tr h.separated h.sorted h.occupied_of_mem_children]
+    toList_eraseSubtree_of k tr h.searchInvariant]
 
 /-- Erasure preserves well-formedness. -/
 theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
@@ -951,8 +943,7 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   have hco := hfit.children_occupied
   have hk₁ := hfit.width_le
   clear hfit
-  have hp := separated_eraseSubtree ht k tr h.separated h.sorted h.balanced
-    h.occupied_of_mem_children h.width_pos
+  have hp := separated_eraseSubtree k tr h.searchInvariant h.balanced h.width_pos
   have hs : (BPlusTree.erase t k tr).toList.IsSortedAssoc := by
     rw [toList_erase h]
     exact SortedAssoc.isSortedAssoc_erase h.sorted

@@ -39,15 +39,6 @@ private theorem integrable_abs_mul_phi : Integrable fun x => |x| * phi x := by
   have : -(1 / 2) * x ^ 2 = -x ^ 2 / 2 := by ring
   rw [this]; ring
 
-private theorem tendsto_phi_atBot : Tendsto phi atBot (𝓝 0) := by
-  have h1 : Tendsto (fun x : ℝ => -x ^ 2 / 2) atBot atBot := by
-    apply tendsto_atBot_mono' atBot _ tendsto_id
-    filter_upwards [eventually_le_atBot (-2 : ℝ)] with x hx
-    simp only [id]; nlinarith
-  have h2 := (Real.tendsto_exp_atBot.comp h1).const_mul ((Real.sqrt (2 * π))⁻¹)
-  rw [mul_zero] at h2
-  exact h2.congr (fun x => (phi_eq x).symm)
-
 private theorem tendsto_phi_atTop : Tendsto phi atTop (𝓝 0) := by
   have h1 : Tendsto (fun x : ℝ => -x ^ 2 / 2) atTop atBot := by
     apply tendsto_atBot_mono' atTop _ tendsto_neg_atTop_atBot
@@ -56,6 +47,10 @@ private theorem tendsto_phi_atTop : Tendsto phi atTop (𝓝 0) := by
   have h2 := (Real.tendsto_exp_atBot.comp h1).const_mul ((Real.sqrt (2 * π))⁻¹)
   rw [mul_zero] at h2
   exact h2.congr (fun x => (phi_eq x).symm)
+
+private theorem tendsto_phi_atBot : Tendsto phi atBot (𝓝 0) :=
+  (tendsto_phi_atTop.comp tendsto_neg_atBot_atTop).congr fun x => by
+    simp only [Function.comp_apply, phi_eq, neg_sq]
 
 variable {I J si sj h : ℝ}
 
@@ -139,8 +134,7 @@ theorem ibp_low {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin θ
         kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)) =
         (Iio a).indicator (fun x₁ => phi x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) := by
       funext x₁
-      rw [hind]
-      by_cases h' : x₁ ∈ Iio a <;> simp [Set.indicator, h']
+      simp only [hind, ← Set.indicator_mul_left, ← Set.indicator_mul_right, one_mul]
     rw [e, integral_indicator measurableSet_Iio, setIntegral_congr_set Iio_ae_eq_Iic]
     have hftc := integral_Iic_of_hasDerivAt_of_tendsto (a := a) (m := 0)
       (f := gfun (J := J) (sj := sj) (h := h) θ x₀)
@@ -173,8 +167,7 @@ theorem ibp_high {θ x₀ : ℝ} (hsi : 0 < si) (hsj : 0 < sj) (hθ : Real.sin �
         kernel (J := J) (sj := sj) (h := h) θ x₀ x₁)) =
         (Ici a).indicator (fun x₁ => phi x₁ * kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) := by
       funext x₁
-      rw [hind]
-      by_cases h' : x₁ ∈ Ici a <;> simp [Set.indicator, h']
+      simp only [hind, ← Set.indicator_mul_left, ← Set.indicator_mul_right, one_mul]
     rw [e, integral_indicator measurableSet_Ici, setIntegral_congr_set Ioi_ae_eq_Ici.symm]
     have hftc := integral_Ioi_of_hasDerivAt_of_tendsto (a := a) (m := 0)
       (f := gfun (J := J) (sj := sj) (h := h) θ x₀)

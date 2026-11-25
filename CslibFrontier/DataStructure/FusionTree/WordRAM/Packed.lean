@@ -79,9 +79,7 @@ private theorem packedDifference_eq {b n q : ℕ} (s : ℕ → ℕ) (hq : q < 2 
         q * queryMultiplier b n = packedNode b n s := by
     rw [query_mul_multiplier]
     simp only [packRadix, packedNode, ← Finset.sum_add_distrib, ← add_mul]
-    apply Finset.sum_congr rfl
-    intro i _
-    rw [Nat.sub_add_cancel (by omega)]
+    exact Finset.sum_congr rfl fun i _ => by rw [Nat.sub_add_cancel (by omega)]
   unfold packedDifference
   omega
 
@@ -91,20 +89,17 @@ theorem packedDifference_field {b n q i : ℕ} (s : ℕ → ℕ)
     packedDifference b n s q / 2 ^ ((b + 1) * i) % 2 ^ (b + 1) =
       2 ^ b + s i - q := by
   rw [packedDifference_eq s hq, pow_mul]
-  apply packRadix_field (Nat.two_pow_pos _) _ _ hi
-  intro j hj
+  refine packRadix_field (Nat.two_pow_pos _) _ (fun j hj => ?_) hi
   have := hs j hj
-  rw [pow_succ]
-  omega
+  rw [pow_succ]; omega
 
 /-- Every bit of a field agrees with the corresponding bit of its scalar difference. -/
 private theorem packedDifference_testBit {b n q i j : ℕ} (s : ℕ → ℕ)
     (hs : ∀ k < n, s k < 2 ^ b) (hq : q < 2 ^ b) (hi : i < n) (hj : j < b + 1) :
     (packedDifference b n s q).testBit (j + (b + 1) * i) =
       (2 ^ b + s i - q).testBit j := by
-  have h := congrArg (fun x : ℕ => x.testBit j) (packedDifference_field s hs hq hi)
-  simpa only [Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow,
-    decide_eq_true hj, Bool.true_and] using h
+  simpa only [Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow, decide_eq_true hj,
+    Bool.true_and] using congrArg (fun x : ℕ => x.testBit j) (packedDifference_field s hs hq hi)
 
 /-- The guard of field `i` records `q ≤ s i`. Sortedness is unnecessary for this step. -/
 theorem packedDifference_guard {b n q i : ℕ} (s : ℕ → ℕ)
@@ -114,36 +109,28 @@ theorem packedDifference_guard {b n q i : ℕ} (s : ℕ → ℕ)
   have hs' := hs i hi
   have hp := Nat.two_pow_pos b
   by_cases h : q ≤ s i
-  · have hd : (2 ^ b + s i - q) / 2 ^ b = 1 :=
-      Nat.div_eq_of_lt_le (by omega) (by omega)
-    simp [hd, h]
-  · have hd : 2 ^ b + s i - q < 2 ^ b := by omega
-    simp [Nat.div_eq_of_lt hd, h]
+  · have hlo : 1 * 2 ^ b ≤ 2 ^ b + s i - q := by omega
+    simp [Nat.div_eq_of_lt_le hlo (by omega), h]
+  · simp [Nat.div_eq_of_lt (by omega : 2 ^ b + s i - q < 2 ^ b), h]
 
 /-- The precomputed node fits the total field width. -/
 theorem packedNode_lt {b n : ℕ} (s : ℕ → ℕ) (hs : ∀ i < n, s i < 2 ^ b) :
     packedNode b n s < 2 ^ ((b + 1) * n) := by
   rw [packedNode, pow_mul]
-  apply packRadix_lt
-  intro i hi
+  refine packRadix_lt _ fun i hi => ?_
   have := hs i hi
-  rw [pow_succ]
-  omega
+  rw [pow_succ]; omega
 
 /-- The multiplier fits even for zero sketches. -/
 theorem queryMultiplier_lt (b n : ℕ) : queryMultiplier b n < 2 ^ ((b + 1) * n) := by
   rw [queryMultiplier, pow_mul]
-  apply packRadix_lt
-  intro i _
-  exact Nat.one_lt_two_pow (by omega)
+  exact packRadix_lt _ fun _ _ => Nat.one_lt_two_pow (by omega)
 
 /-- The actual multiplication intermediate fits the total field width. -/
 theorem query_mul_multiplier_lt {b n q : ℕ} (hq : q < 2 ^ b) :
     q * queryMultiplier b n < 2 ^ ((b + 1) * n) := by
   rw [query_mul_multiplier, pow_mul]
-  apply packRadix_lt
-  intro i _
-  exact hq.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
+  exact packRadix_lt _ fun _ _ => hq.trans_le (Nat.pow_le_pow_right (by decide) (by omega))
 
 /-- The subtraction result fits, so checked overflow needs no modular wraparound. -/
 theorem packedDifference_lt {b n q : ℕ} (s : ℕ → ℕ)
@@ -186,16 +173,13 @@ theorem parallelCompare_exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 5)
     (query_mul_multiplier_lt hq).trans_le (Nat.pow_le_pow_right (by decide) hw)
   have hd : Fits w (packedDifference b n s q) :=
     (packedDifference_lt s hs).trans_le (Nat.pow_le_pow_right (by decide) hw)
-  have h₁ : Exec w (.op (.bin .mul 3 0 2)) x (x.set 3 (q * queryMultiplier b n)) 1 := by
-    simpa only [hxq, hxm, BinOp.eval] using
-      (Exec.bin (x := x) (d := 3) (i := 0) (j := 2) (f := .mul) (by
-        simpa only [BinOp.eval, hxq, hxm] using hm))
-  have h₂ : Exec w (.op (.bin .sub 4 1 3)) (x.set 3 (q * queryMultiplier b n))
-      (parallelCompareResult x b n s q) 1 := by
-    simpa [parallelCompareResult, packedDifference, hxn, Data.set] using
-      (Exec.bin (x := x.set 3 (q * queryMultiplier b n))
-        (d := 4) (i := 1) (j := 3) (f := .sub) (by
-          simpa [packedDifference, hxn, Data.set] using hd))
-  exact .seq h₁ h₂
+  exact .seq (show Exec w (.op (.bin .mul 3 0 2)) x (x.set 3 (q * queryMultiplier b n)) 1 by
+      simpa only [hxq, hxm, BinOp.eval] using Exec.bin (x := x) (d := 3) (i := 0) (j := 2)
+        (f := .mul) (by simpa only [BinOp.eval, hxq, hxm] using hm))
+    (show Exec w (.op (.bin .sub 4 1 3)) (x.set 3 (q * queryMultiplier b n))
+        (parallelCompareResult x b n s q) 1 by
+      simpa [parallelCompareResult, packedDifference, hxn, Data.set] using
+        Exec.bin (x := x.set 3 (q * queryMultiplier b n)) (d := 4) (i := 1) (j := 3) (f := .sub)
+          (by simpa [packedDifference, hxn, Data.set] using hd))
 
 end Cslib.DataStructure.FusionTree.WordRAM

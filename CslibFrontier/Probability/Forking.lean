@@ -120,8 +120,10 @@ theorem bad_reply_le [DecidableEq H] (first : PMF S)
     ((fork first A).map (fun r => r.any fun (_, a, b) => bad (reply a) (reply b)) true) ≤
       Finset.univ.sup (fun c => (PMF.uniformOfFintype H).map (bad c) true) := by
   simp only [fork, onTapes, pmf_norm]
-  apply Probability.PMF.bind_apply_le_on_support; intro s _
-  apply Probability.PMF.bind_apply_le_on_support; intro h _
+  apply Probability.PMF.bind_apply_le_on_support
+  intro s _
+  apply Probability.PMF.bind_apply_le_on_support
+  intro h _
   cases hj : (A s h).1 with
   | none => simp
   | some j =>
@@ -129,7 +131,8 @@ theorem bad_reply_le [DecidableEq H] (first : PMF S)
       (Finset.mem_univ (h j)))
     rw [← Probability.PMF.pi_map_eval (fun _ : Fin q => PMF.uniformOfFintype H) j,
       Probability.PMF.pi_uniformOfFintype, PMF.map_comp, ← PMF.bind_pure_comp]
-    apply Probability.PMF.bind_apply_mono_on_support; intro h' _
+    apply Probability.PMF.bind_apply_mono_on_support
+    intro h' _
     by_cases hf : (A s (splice j h h')).1 = some j ∧ h j ≠ h' j
     · simp [hf, named s h j hj, named s (splice j h h') j hf.1, splice, Function.comp_def]
     · simp [hf]
@@ -295,10 +298,13 @@ theorem sq_div_sub_le_fork (first : PMF S) (A : S → (Fin q → H) → Option (
     · simp
     · rw [div_le_iff₀ (Nat.cast_pos.2 hq), mul_comm]
       simpa using sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := a)
-  refine (sub_le_sub_right hcs _).trans ?_
-  rw [Finset.sum_div, ← Finset.sum_sub_distrib]
-  refine Finset.sum_le_sum fun j _ => ?_
-  simpa only [a, acceptAt_eq_once, forkAt_eq_twice] using Rewinding.sq_sub_le_twice _ _ _
+  calc (∑ j, a j) ^ 2 / q - (∑ j, a j) / Fintype.card H
+      ≤ ∑ j, a j ^ 2 - ∑ j, a j / Fintype.card H := by
+        rw [Finset.sum_div]
+        linarith
+    _ = ∑ j, (a j ^ 2 - a j / Fintype.card H) := by rw [Finset.sum_sub_distrib]
+    _ ≤ _ := Finset.sum_le_sum fun j _ => by
+        simpa only [a, acceptAt_eq_once, forkAt_eq_twice] using Rewinding.sq_sub_le_twice _ _ _
 
 /-- The forking lemma solved for the acceptance probability: `acc ≤ q / |H| + √(q · frk)`. -/
 theorem le_add_sqrt_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fin q) × β) :
@@ -316,7 +322,10 @@ theorem le_add_sqrt_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fi
       calc (ε - q / N) ^ 2
           ≤ (ε - q / N) ^ 2 + (ε - q / N) * (q / N) :=
             le_add_of_nonneg_right (mul_nonneg (by linarith) (by positivity))
-        _ = q * (ε ^ 2 / q - ε / N) := by have := hq.ne'; field_simp; ring
+        _ = q * (ε ^ 2 / q - ε / N) := by
+            have := hq.ne'
+            field_simp
+            ring
         _ ≤ _ := mul_le_mul_of_nonneg_left (sq_div_sub_le_fork first A) hq.le
     linarith [le_abs_self (ε - q / N), Real.abs_le_sqrt hsq]
 
