@@ -50,46 +50,26 @@ theorem unary_padicValNat_two :
     have hmod : ComputableInPolyTime (fun state : ℕ × ℕ => decide (state.1 % 2 = 0))
         (encPair encUnary encUnary) encBool :=
       unary_eq' (unary_mod.comp ((fst encUnary encUnary).prod (const 2))) (const 0)
-    have hnext : ComputableInPolyTime (fun state : ℕ × ℕ => (state.1 / 2, state.2 + 1))
-        (encPair encUnary encUnary) (encPair encUnary encUnary) := by
-      fun_prop
-    exact ite_decide h0 id' (ite_decide hmod hnext id')
+    exact ite_decide h0 id' (ite_decide hmod (by fun_prop) id')
   obtain ⟨hefficient, hspec⟩ := iterate_spec (count := id)
     (init := fun n => (n, 0)) (encIn := encUnary) id' (by fun_prop) hstep
     (fun n i state => state.1 + state.2 ≤ n ∧ (n = 0 → state = (0, 0)) ∧
       (0 < n → 0 < state.1 ∧ (state.1 % 2 = 1 ∨ state.1 + i ≤ n) ∧
         padicValNat 2 state.1 + state.2 = padicValNat 2 n))
-    (fun n => by
-      refine ⟨by simp, fun hn0 => by simp [hn0], fun hn => ?_⟩
-      exact ⟨hn, Or.inr (by omega), by simp⟩)
-    (fun n i state _ h => by
-      dsimp only [padicValStep]
-      by_cases h0 : state.1 = 0
-      · have h0_b : decide (state.1 = 0) = true := decide_eq_true h0
-        simp only [h0_b, ↓reduceIte]
-        refine ⟨h.1, h.2.1, fun hn_pos => ?_⟩
-        exact absurd h0 (h.2.2 hn_pos).1.ne'
-      · have h0_b : decide (state.1 = 0) = false := decide_eq_false h0
-        simp only [h0_b, Bool.false_eq_true, ↓reduceIte]
-        have hpos : 0 < n := Nat.pos_of_ne_zero fun hn0 => h0 (congrArg Prod.fst (h.2.1 hn0))
-        obtain ⟨hs1, hdisj, hval⟩ := h.2.2 hpos
-        by_cases hmod : state.1 % 2 = 0
-        · have hmod_b : decide (state.1 % 2 = 0) = true := decide_eq_true hmod
-          simp only [hmod_b, ↓reduceIte]
-          have hdiv_pos : 0 < state.1 / 2 := by omega
-          have hdiv_eq : state.1 = 2 * (state.1 / 2) := by omega
-          have hprog : state.1 + i ≤ n := hdisj.resolve_left (by omega)
-          have hdiv_val : padicValNat 2 state.1 = padicValNat 2 (state.1 / 2) + 1 := by
-            simp only [Nat.padicValNat_def]
-            conv_lhs => rw [hdiv_eq, Nat.multiplicity_mul (by decide) (by omega),
-              Nat.Prime.multiplicity_self, add_comm]
-          refine ⟨by omega, fun hn0 => absurd hn0 hpos.ne', fun _ => ?_⟩
-          refine ⟨hdiv_pos, Or.inr (by omega), ?_⟩
-          rw [hdiv_val] at hval
-          omega
-        · have hmod_b : decide (state.1 % 2 = 0) = false := decide_eq_false hmod
-          simp only [hmod_b, Bool.false_eq_true, ↓reduceIte]
-          exact ⟨h.1, fun hn0 => absurd hn0 hpos.ne', fun _ => ⟨hs1, Or.inl (by omega), hval⟩⟩)
+    (fun n => ⟨by simp, fun hn0 => by simp [hn0], fun hn => ⟨hn, Or.inr (by omega), by simp⟩⟩)
+    (fun n i state _ ⟨hle, hz, hpos⟩ => by
+      rcases Nat.eq_zero_or_pos n with rfl | hn
+      · obtain rfl := hz rfl
+        simp [padicValStep]
+      obtain ⟨hs1, hdisj, hval⟩ := hpos hn
+      simp only [padicValStep, decide_eq_true_eq, hs1.ne', ↓reduceIte]
+      split_ifs with hmod
+      · have hd := Nat.dvd_of_mod_eq_zero hmod
+        have := Nat.multiplicity_div hd
+        have := one_le_multiplicity_of_dvd hs1.ne' hd
+        simp only [Nat.padicValNat_def] at hval ⊢
+        exact ⟨by omega, fun h => absurd h hn.ne', fun _ => ⟨by omega, by omega, by omega⟩⟩
+      · exact ⟨hle, fun h => absurd h hn.ne', fun _ => ⟨hs1, Or.inl (by omega), hval⟩⟩)
     (size := fun n => 2 * n + 2)
     (polyBounded (show ComputableInPolyTime
       (fun n : ℕ => 2 * n + 2) encUnary encUnary from by fun_prop))
@@ -100,18 +80,9 @@ theorem unary_padicValNat_two :
     have h := hspec n
     simp only [id_eq] at h
     rcases Nat.eq_zero_or_pos n with rfl | hn
-    · rw [h.2.1 rfl]
-      simp [Nat.padicValNat_def]
-    · obtain ⟨hs1, hdisj, hval⟩ := h.2.2 hn
-      have hodd : (padicValStep^[n] (n, 0)).1 % 2 = 1 :=
-        hdisj.resolve_right (by omega)
-      have hnot_dvd : ¬ 2 ∣ (padicValStep^[n] (n, 0)).1 :=
-        Nat.dvd_iff_mod_eq_zero.not.mpr (by omega)
-      have hzero : padicValNat 2 (padicValStep^[n] (n, 0)).1 = 0 := by
-        rw [Nat.padicValNat_def]
-        exact multiplicity_eq_zero_of_not_dvd hnot_dvd
-      rw [hzero, zero_add] at hval
-      exact hval
+    · simp [h.2.1 rfl, Nat.padicValNat_def]
+    obtain ⟨hs1, hdisj, hval⟩ := h.2.2 hn
+    rwa [Nat.padicValNat_def, multiplicity_eq_zero_of_not_dvd (by omega), zero_add] at hval
   simpa only [Function.comp_def, id_eq, hresult] using hefficient.snd'
 
 end Turing.MultiTapeTM.ComputableInPolyTime
