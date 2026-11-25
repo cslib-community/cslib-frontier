@@ -665,16 +665,7 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
       simp only [mem_ofPred_eq, Finset.coe_filter, Finset.mem_compl, Mfin, Finset.mem_filter,
         Finset.mem_univ, true_and, slack, col, ecol, P₀, decide_eq_true_eq,
         decide_eq_false_iff_not, not_lt]
-      constructor
-      · rintro ⟨hm, hs, ht, hsc⟩
-        exact ⟨hm, ite_eq_left ⟨hs, ht, hsc⟩⟩
-      · rintro ⟨hm, h1⟩
-        refine ⟨hm, ?_⟩
-        by_contra hnot
-        have h0 : (if G.matchingKey M score (G.src e) < t ∧
-            G.matchingKey M score (G.tgt e) < t ∧ t ≤ score e then 1 else 0) = 0 :=
-          ite_eq_right hnot
-        omega
+      split_ifs with h <;> simp [h]
     rw [hset, ncard_coe_finset, Finset.card_filter]
     refine Finset.sum_congr rfl fun e _ => ?_
     dsimp only [slack]
@@ -694,30 +685,11 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
       ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) =
       ∑ v : V, ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v),
         boolDiff (col v) (ecol e) := by
-    have hinner (e : E) :
-        boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e) =
-        ∑ v : V, if e ∈ G.incidenceSet v then boolDiff (col v) (ecol e) else 0 := by
-      have hpair : (Finset.univ.filter fun v : V => e ∈ G.incidenceSet v) =
-          {G.src e, G.tgt e} := by
-        ext v; simp [mem_incidenceSet, eq_comm]
-      rw [← Finset.sum_filter, hpair, Finset.sum_pair (hloop e)]
-    calc ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e))
-        = ∑ e : E, if e ∉ M then
-            ∑ v : V, if e ∈ G.incidenceSet v then boolDiff (col v) (ecol e) else 0 else 0 := by
-          have hmf : Mfinᶜ = Finset.univ.filter (· ∉ M) := by
-            ext e; simp [Mfin]
-          rw [hmf, Finset.sum_filter]
-          refine Finset.sum_congr rfl fun e _ => ?_
-          by_cases he : e ∈ M <;> simp [he, hinner]
-      _ = ∑ e : E, ∑ v : V, if e ∉ M ∧ e ∈ G.incidenceSet v then
-            boolDiff (col v) (ecol e) else 0 := by
-          refine Finset.sum_congr rfl fun e _ => ?_
-          by_cases he : e ∈ M <;> simp [he]
-      _ = ∑ v : V, ∑ e : E, if e ∉ M ∧ e ∈ G.incidenceSet v then
-            boolDiff (col v) (ecol e) else 0 := Finset.sum_comm
-      _ = ∑ v : V, ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v),
-            boolDiff (col v) (ecol e) := by
-          refine Finset.sum_congr rfl fun v _ => (Finset.sum_filter _ _).symm
+    rw [Finset.sum_comm' (t' := Mfinᶜ) (s' := fun e => {G.src e, G.tgt e}) ?_]
+    · exact Finset.sum_congr rfl fun e _ => by rw [Finset.sum_pair (hloop e)]
+    · intro v e
+      simp [Mfin, mem_incidenceSet, eq_comm]
+      tauto
   -- Split vertex sum into unmatched vertices and matched pairs.
   let vsum (v : V) : ℕ :=
     ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v), boolDiff (col v) (ecol e)
@@ -816,6 +788,8 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
   have hsub : (Finset.univ.filter fun v => p (G.matchingKey M score v)) ⊆ Efin.biUnion hit := by
     intro v hv
     have hpv : p (G.matchingKey M score v) := (Finset.mem_filter.mp hv).2
+    have hmem (f : E) (hpf : p (score f)) (hf : v ∈ hit f) : v ∈ Efin.biUnion hit :=
+      Finset.mem_biUnion.mpr ⟨f, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hpf⟩, hf⟩
     by_cases hmat : v ∈ G.matchedVertices M
     · obtain ⟨e, heM, hev⟩ := hmat
       obtain ⟨a, b, c, d, _, _, hsrc, htgt⟩ := exists_outer_edges h3 e
@@ -833,36 +807,22 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
       have hmem_t (f : E) (hf : f ∈ G.incidenceSet (G.tgt e)) : G.tgt e ∈ hit f := by
         rcases hf with h | h <;> simp [hit, h]
       have hmem_ms (f : E) (hf : f ∈ G.incidenceSet (G.tgt e)) : G.src e ∈ hit f := by
-        rcases hf with h | h
-        · simp [hit, h, mate_tgt hM hloop heM]
-        · simp [hit, h, mate_tgt hM hloop heM]
+        rcases hf with h | h <;> simp [hit, h, mate_tgt hM hloop heM]
       have hmem_mt (f : E) (hf : f ∈ G.incidenceSet (G.src e)) : G.tgt e ∈ hit f := by
-        rcases hf with h | h
-        · simp [hit, h, mate_src hM heM]
-        · simp [hit, h, mate_src hM heM]
-      rcases hev with hvs | hvt
-      · rw [← hvs, hks] at hpv
-        rw [← hvs]
+        rcases hf with h | h <;> simp [hit, h, mate_src hM heM]
+      rcases hev with rfl | rfl
+      · rw [hks] at hpv
         rcases pairKey_mem (score a) (score b) (score c) (score d) with h | h | h | h
-        · exact Finset.mem_biUnion.mpr
-            ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_s a hinc_a⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨b, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_s b hinc_b⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨c, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_ms c hinc_c⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨d, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_ms d hinc_d⟩
-      · rw [← hvt, hkt] at hpv
-        rw [← hvt]
+        · exact hmem a (h ▸ hpv) (hmem_s a hinc_a)
+        · exact hmem b (h ▸ hpv) (hmem_s b hinc_b)
+        · exact hmem c (h ▸ hpv) (hmem_ms c hinc_c)
+        · exact hmem d (h ▸ hpv) (hmem_ms d hinc_d)
+      · rw [hkt] at hpv
         rcases pairKey_mem (score c) (score d) (score a) (score b) with h | h | h | h
-        · exact Finset.mem_biUnion.mpr
-            ⟨c, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_t c hinc_c⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨d, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_t d hinc_d⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_mt a hinc_a⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨b, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_mt b hinc_b⟩
+        · exact hmem c (h ▸ hpv) (hmem_t c hinc_c)
+        · exact hmem d (h ▸ hpv) (hmem_t d hinc_d)
+        · exact hmem a (h ▸ hpv) (hmem_mt a hinc_a)
+        · exact hmem b (h ▸ hpv) (hmem_mt b hinc_b)
     · obtain ⟨e₀, e₁, e₂, _, _, _, hinc, hkey⟩ := matchingKey_unmatched h3 score hmat
       rw [hkey] at hpv
       have hmed : median3 (score e₀) (score e₁) (score e₂) = score e₀ ∨
@@ -882,33 +842,17 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
       have hmem_v (f : E) (hf : f ∈ G.incidenceSet v) : v ∈ hit f := by
         rcases hf with h | h <;> simp [hit, h]
       rcases hmed with h | h | h
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₀ (by rw [hinc]; simp)⟩
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₁, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₁ (by rw [hinc]; simp)⟩
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₂, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₂ (by rw [hinc]; simp)⟩
-  have hcard_hit (e : E) : (hit e).card ≤ 4 := by
-    refine (Finset.card_insert_le _ _).trans ?_
-    refine Nat.add_le_add_right ((Finset.card_insert_le _ _).trans ?_) 1
-    refine Nat.add_le_add_right ((Finset.card_insert_le _ _).trans ?_) 1
-    simp
-  have h1 : {v | p (G.matchingKey M score v)}.ncard =
-      (Finset.univ.filter fun v => p (G.matchingKey M score v)).card := by
-    have : {v | p (G.matchingKey M score v)} =
-        ((Finset.univ.filter fun v => p (G.matchingKey M score v)) : Set V) := by ext v; simp
-    rw [this, ncard_coe_finset]
-  have h2 : {e | p (score e)}.ncard = Efin.card := by
-    have : {e | p (score e)} = (Efin : Set E) := by ext e; simp [Efin]
-    rw [this, ncard_coe_finset]
-  rw [h1, h2]
+      · exact hmem e₀ (h ▸ hpv) (hmem_v e₀ (by rw [hinc]; simp))
+      · exact hmem e₁ (h ▸ hpv) (hmem_v e₁ (by rw [hinc]; simp))
+      · exact hmem e₂ (h ▸ hpv) (hmem_v e₂ (by rw [hinc]; simp))
+  have h1 : {v | p (G.matchingKey M score v)} =
+      ((Finset.univ.filter fun v => p (G.matchingKey M score v)) : Set V) := by ext v; simp
+  have h2 : {e | p (score e)} = (Efin : Set E) := by ext e; simp [Efin]
+  rw [h1, h2, ncard_coe_finset, ncard_coe_finset]
   calc (Finset.univ.filter fun v => p (G.matchingKey M score v)).card
       ≤ (Efin.biUnion hit).card := Finset.card_le_card hsub
     _ ≤ ∑ e ∈ Efin, (hit e).card := Finset.card_biUnion_le
-    _ ≤ ∑ _e ∈ Efin, 4 := Finset.sum_le_sum fun e _ => hcard_hit e
+    _ ≤ ∑ _e ∈ Efin, 4 := Finset.sum_le_sum fun _ _ => Finset.card_le_four
     _ = 4 * Efin.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
 
 /-- Adding vertices `P \ P₀` to a vertex set `P₀ ⊆ P` increases the edge cut by at most
