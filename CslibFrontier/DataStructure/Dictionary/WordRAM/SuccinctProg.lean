@@ -644,12 +644,8 @@ theorem slabSize_le_max_n_one (n_max : ℕ) : slabSize n_max ≤ max n_max 1 := 
     have hK := (slabSize_eq_sq_of_pos hb_pos).1
     have hB := numBuckets_pos n_max
     have hS := two_le_slabScale n_max
-    have : slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 := by
-      rw [hK]
-      calc (slabScale n_max) ^ 2 = 1 * ((slabScale n_max) ^ 2 * 1) := by ring
-        _ ≤ numBuckets n_max * ((slabScale n_max) ^ 2 * slabScale n_max) :=
-          Nat.mul_le_mul hB (Nat.mul_le_mul_left _ (by omega))
-        _ = numBuckets n_max * (slabScale n_max) ^ 3 := by ring
+    have : slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 :=
+      hK ▸ (Nat.pow_le_pow_right (by omega) (by norm_num)).trans (Nat.le_mul_of_pos_left _ hB)
     omega
 
 theorem dirSlabsPerBucket_le_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n_max) :
@@ -745,6 +741,16 @@ theorem memoryCost_resolveIndexedSlotProg_le {U V w n_max h_space : ℕ}
     memoryCost (resolveIndexedSlotProg U V w n_max h_space d) s ≤ 4 := by
   unfold resolveIndexedSlotProg readGMProg; prog_cost [memoryCost_readPackedProg]
 
+private theorem div_slabSize_lt_dirSlabs {n_max j : ℕ} (hb_pos : 0 < bucketBits n_max)
+    (hj_cap : j < effBucketCap n_max) : j / slabSize n_max < dirSlabsPerBucket n_max :=
+  Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm, ← effBucketCap_eq_dirSlabs_mul_slabSize hb_pos])
+
+private theorem resolveIndexedSlot_dir_lt {n_max b j : ℕ}
+    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) (hj_cap : j < effBucketCap n_max) :
+    gmSlabDirBase n_max + b * dirSlabsPerBucket n_max + j / slabSize n_max <
+      globalMetaLen n_max :=
+  gmSlabDirIdx_lt hb_pos hb (div_slabSize_lt_dirSlabs hb_pos hj_cap)
+
 theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     (d : (ℕ × ℕ) × ℕ) (s : Memory.State)
     (hinv : SlotStoreInv n_max (gmAt d.1.1 U V w n_max h_space s.mem))
@@ -763,16 +769,11 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
     rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
       clientResult_readGMProg s hq_lt, show 4 + 3 * d.1.2 = gmQIdx d.1.2 from rfl]
     split_ifs with hj_slab
-    · have hs_dir : d.2 / slabSize n_max < dirSlabsPerBucket n_max := by
-        have hcap := effBucketCap_eq_dirSlabs_mul_slabSize hb_pos
-        exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm, ← hcap]; exact hj_cap)
+    · have hs_dir := div_slabSize_lt_dirSlabs hb_pos hj_cap
       have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w n_max h_space s.mem (gmQIdx d.1.2) :=
         Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-      have hdir_lt : gmSlabDirBase n_max + d.1.2 * dirSlabsPerBucket n_max +
-          d.2 / slabSize n_max < globalMetaLen n_max :=
-        gmSlabDirIdx_lt hb_pos hb hs_dir
       rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
-        clientResult_readGMProg s hdir_lt]
+        clientResult_readGMProg s (resolveIndexedSlot_dir_lt hb_pos hb hj_cap)]
       have hdir_eq := (hinv.multi_slab hb_pos).dir_eq d.1.2 hb (d.2 / slabSize n_max) hs_q hs_dir
       unfold gmSlabDirIdx at hdir_eq
       rw [hdir_eq]
@@ -785,15 +786,6 @@ theorem clientResult_resolveIndexedSlotProg {U V w n_max h_space : ℕ}
       rw [StateTransitionSpec.clientResult_bind, clientState_readGMProg,
         clientResult_readGMProg s hptr_lt]
       rfl
-
-private theorem resolveIndexedSlot_dir_lt {n_max b j : ℕ}
-    (hb_pos : 0 < bucketBits n_max) (hb : b < numBuckets n_max) (hj_cap : j < effBucketCap n_max) :
-    gmSlabDirBase n_max + b * dirSlabsPerBucket n_max + j / slabSize n_max <
-      globalMetaLen n_max := by
-  have hcap := effBucketCap_eq_dirSlabs_mul_slabSize hb_pos
-  have hs_dir : j / slabSize n_max < dirSlabsPerBucket n_max :=
-    Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm, ← hcap]; exact hj_cap)
-  exact gmSlabDirIdx_lt hb_pos hb hs_dir
 
 private theorem resolveIndexedSlot_slab_fit {U V w₀ n_max h_space w : ℕ}
     (hw : 0 < w₀) (hnU : n_max ≤ U) (hU : U < 2 ^ w₀)
@@ -811,9 +803,7 @@ private theorem resolveIndexedSlot_slab_fit {U V w₀ n_max h_space w : ℕ}
   have hj_slab := hc
   have hq_lt : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
   rw [clientResult_readGMProg _ hq_lt] at hj_slab
-  have hs_dir : d.2 / slabSize n_max < dirSlabsPerBucket n_max := by
-    have hcap := effBucketCap_eq_dirSlabs_mul_slabSize hb_pos
-    exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm, ← hcap]; exact hj_cap)
+  have hs_dir := div_slabSize_lt_dirSlabs hb_pos hj_cap
   have hs_q : d.2 / slabSize n_max < gmAt d.1.1 U V w₀ n_max h_space s.mem (gmQIdx d.1.2) :=
     Nat.div_lt_of_lt_mul (by unfold gmQIdx; rw [Nat.mul_comm]; exact hj_slab)
   have hdir_lt := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
@@ -1152,11 +1142,7 @@ theorem gmAt_writeGMProg {U V w n_max h_space base idx val : ℕ}
     gmAt base U V w n_max h_space
         ((Memory.spec 0).clientState s (writeGMProg U V w n_max h_space ((base, idx), val))).mem =
       Function.update (gmAt base U V w n_max h_space s.mem) idx val := by
-  have hmem : ((Memory.spec 0).clientState s
-      (writeGMProg U V w n_max h_space ((base, idx), val))).mem =
-      writePacked (base + offGM U V w n_max h_space) (globalPtrBits n_max) w s.mem idx val := rfl
   unfold gmAt
-  rw [hmem]
   exact readPacked_writePacked_bounded hw hidx hval s.mem
 
 /-- Pure state effect of `writeGMProg`. -/
