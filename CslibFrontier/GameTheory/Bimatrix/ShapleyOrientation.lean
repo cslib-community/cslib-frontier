@@ -63,6 +63,14 @@ namespace Cslib.GameTheory.LemkeHowson
 
 open Matrix
 
+private lemma det_submatrix_col_equiv {κ ι R : Type*} [CommRing R] [Fintype ι]
+    {k : ℕ} (A : Matrix κ ι R) (f : Fin k → κ) (e : Fin k ≃ ι) :
+    open Classical in
+    (A.submatrix f e).det = (A.submatrix (f ∘ e.symm) id).det := by
+  classical
+  rw [show A.submatrix f e = (A.submatrix (f ∘ e.symm) id).submatrix e e by ext; simp,
+    Matrix.det_submatrix_equiv_self]
+
 section Signs
 
 variable {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
@@ -72,43 +80,30 @@ variable {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
   SignType.sign c
 
 theorem signOfK_mul (a b : K) : signOfK (a * b) = signOfK a * signOfK b := by
-  dsimp [signOfK]
-  rw [sign_mul, SignType.coe_mul]
+  simp only [signOfK, sign_mul, SignType.coe_mul]
 
 omit [IsStrictOrderedRing K] in
 theorem signOfK_ne_zero {a : K} (ha : a ≠ 0) : signOfK a ≠ 0 := by
-  dsimp [signOfK]
-  rcases lt_or_gt_of_ne ha with h | h <;> simp [h]
+  rcases lt_or_gt_of_ne ha with h | h <;> simp [signOfK, h]
 
 omit [IsStrictOrderedRing K] in
 theorem signOfK_sq {a : K} (ha : a ≠ 0) : signOfK a * signOfK a = 1 := by
-  dsimp [signOfK]
-  rcases lt_or_gt_of_ne ha with h | h <;> simp [h]
+  rcases lt_or_gt_of_ne ha with h | h <;> simp [signOfK, h]
 
 theorem signOfK_eq_neg_of_mul_lt_zero {a b : K} (h : a * b < 0) :
     signOfK b = -signOfK a := by
   have ha : a ≠ 0 := fun ha0 => by simp [ha0] at h
-  have hmul : signOfK (a * b) = -1 := by
-    dsimp [signOfK]
-    simp [h]
-  rw [signOfK_mul] at hmul
-  calc signOfK b = 1 * signOfK b := (one_mul _).symm
-    _ = (signOfK a * signOfK a) * signOfK b := by rw [signOfK_sq ha]
-    _ = signOfK a * (signOfK a * signOfK b) := mul_assoc _ _ _
-    _ = signOfK a * (-1) := by rw [hmul]
-    _ = -signOfK a := mul_neg_one _
+  have hmul : signOfK a * signOfK b = -1 := by rw [← signOfK_mul]; simp [signOfK, h]
+  calc signOfK b = signOfK a * signOfK a * signOfK b := by rw [signOfK_sq ha, one_mul]
+    _ = -signOfK a := by rw [mul_assoc, hmul, mul_neg_one]
 
 theorem signOfK_intCast (z : ℤ) : signOfK (z : K) = z.sign := by
-  dsimp [signOfK]
-  rw [sign_intCast, ← Int.sign_eq_sign]
+  rw [signOfK, sign_intCast, ← Int.sign_eq_sign]
 
 theorem signOfK_neg_one_pow (k : ℕ) : signOfK ((-1 : K) ^ k) = (-1 : ℤ) ^ k := by
-  dsimp [signOfK]
-  rw [sign_pow, SignType.coe_pow]
-  have : (SignType.sign (-1 : K) : ℤ) = -1 := by
-    rw [show (-1 : K) = ((-1 : ℤ) : K) by simp, sign_intCast, ← Int.sign_eq_sign]
-    rfl
-  rw [this]
+  rw [signOfK, sign_pow, SignType.coe_pow,
+    show (-1 : K) = ((-1 : ℤ) : K) by simp, sign_intCast, ← Int.sign_eq_sign]
+  rfl
 end Signs
 
 section HalfEdge
@@ -142,20 +137,12 @@ private lemma card_inter_eq_one_of_acl {m n : ℕ} (hcard : Fintype.card κ = m 
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hk₀ : k₀ ∉ T₁ ∪ T₂) :
     (T₁ ∩ T₂).card = 1 := by
   have hunion : T₁ ∪ T₂ = Finset.univ.erase k₀ := by
-    ext k
-    simp only [Finset.mem_union, Finset.mem_erase, Finset.mem_univ, and_true]
-    constructor
-    · rintro (hk | hk) hkeq
-      · exact hk₀ (Finset.mem_union.2 (.inl (hkeq ▸ hk)))
-      · exact hk₀ (Finset.mem_union.2 (.inr (hkeq ▸ hk)))
-    · exact hacl k
-  have hucard : (T₁ ∪ T₂).card = m + n - 1 := by
-    rw [hunion, Finset.card_erase_of_mem (Finset.mem_univ k₀), Finset.card_univ, hcard]
+    ext k; simp only [Finset.mem_union, Finset.mem_erase, Finset.mem_univ, and_true]
+    exact ⟨fun h hkeq => hk₀ (Finset.mem_union.2 (hkeq ▸ h)), hacl k⟩
   have hadd := Finset.card_union_add_card_inter T₁ T₂
-  rw [hT₁, hT₂, hucard] at hadd
-  have hpos : 1 ≤ m + n := by
-    have : 0 < Fintype.card κ := Fintype.card_pos_iff.2 ⟨k₀⟩
-    omega
+  rw [hT₁, hT₂, hunion, Finset.card_erase_of_mem (Finset.mem_univ k₀), Finset.card_univ,
+    hcard] at hadd
+  have : 0 < Fintype.card κ := Fintype.card_pos_iff.2 ⟨k₀⟩
   omega
 
 omit [LinearOrder κ] in
@@ -164,11 +151,8 @@ lemma inter_eq_empty_of_mem_union {m n : ℕ} (hcard : Fintype.card κ = m + n)
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hk₀ : k₀ ∈ T₁ ∪ T₂) :
     T₁ ∩ T₂ = ∅ := by
   have hunion : T₁ ∪ T₂ = Finset.univ := by
-    ext k
-    simp only [Finset.mem_univ, iff_true, Finset.mem_union]
-    by_cases hk : k = k₀
-    · exact hk ▸ Finset.mem_union.1 hk₀
-    · exact hacl k hk
+    ext k; simp only [Finset.mem_univ, iff_true, Finset.mem_union]
+    exact if hk : k = k₀ then hk ▸ Finset.mem_union.1 hk₀ else hacl k hk
   have hadd := Finset.card_union_add_card_inter T₁ T₂
   rw [hT₁, hT₂, hunion, Finset.card_univ, hcard] at hadd
   exact Finset.card_eq_zero.1 (by omega)
@@ -177,73 +161,54 @@ lemma mem_inter_of_acl_not_mem {m n : ℕ} (hcard : Fintype.card κ = m + n)
     {T₁ T₂ : Finset κ} (hT₁ : T₁.card = m) (hT₂ : T₂.card = n) {k₀ : κ}
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hk₀ : k₀ ∉ T₁ ∪ T₂) :
     leaveLabel T₁ T₂ k₀ ∈ T₁ ∩ T₂ ∧ T₁ ∩ T₂ = {leaveLabel T₁ T₂ k₀} := by
-  have h1 := card_inter_eq_one_of_acl hcard hT₁ hT₂ hacl hk₀
-  obtain ⟨l, hl⟩ := Finset.card_eq_one.1 h1
+  obtain ⟨l, hl⟩ := Finset.card_eq_one.1 (card_inter_eq_one_of_acl hcard hT₁ hT₂ hacl hk₀)
   have hne : (T₁ ∩ T₂).Nonempty := ⟨l, by simp [hl]⟩
   have hleave : leaveLabel T₁ T₂ k₀ = l := by
-    rw [leaveLabel, ite_eq_right hk₀, dite_eq_left hne]
-    simp only [hl, Finset.min'_singleton]
-  rw [hleave]
-  exact ⟨by simp [hl], hl⟩
+    rw [leaveLabel, ite_eq_right hk₀, dite_eq_left hne]; simp [hl]
+  exact hleave ▸ ⟨by simp [hl], hl⟩
 
 private lemma halfEdgeFun_bijective_left {m n : ℕ} (hcard : Fintype.card κ = m + n)
     {T₁ T₂ : Finset κ} (hT₁ : T₁.card = m) (hT₂ : T₂.card = n) {k₀ : κ}
     (hacl : ∀ k, k ≠ k₀ → k ∈ T₁ ∨ k ∈ T₂) (hact : k₀ ∉ T₂) :
     Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ false) := by
   rw [Fintype.bijective_iff_injective_and_card]
-  refine ⟨?_, by simp [hcard]⟩
-  intro a b hab
+  refine ⟨fun a b hab => ?_, by simp [hcard]⟩
   let ord₁ := (T₁.orderIsoOfFin hT₁).toEquiv
   let ord₂ := (T₂.orderIsoOfFin hT₂).toEquiv
   by_cases hk₀ : k₀ ∈ T₁ ∪ T₂
-  · have hdisj := inter_eq_empty_of_mem_union hcard hT₁ hT₂ hacl hk₀
-    have hleave : leaveLabel T₁ T₂ k₀ = k₀ := by simp [leaveLabel, hk₀]
-    have hval : ∀ x, halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ false x =
+  · have hdisj := Finset.eq_empty_iff_forall_notMem.1
+      (inter_eq_empty_of_mem_union hcard hT₁ hT₂ hacl hk₀)
+    have hval (x) : halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ false x =
         Sum.elim (fun i => (ord₁ i : κ)) (fun j => (ord₂ j : κ)) x := by
-      intro x
-      cases x with
-      | inl i =>
-        dsimp only [halfEdgeFun]
-        rw [hleave]
-        dsimp only [Sum.elim_inl]
-        split_ifs with h
-        · exact h.symm
+      rcases x with i | j
+      · simp only [halfEdgeFun, Sum.elim_inl, leaveLabel, hk₀, ↓reduceIte]
+        split_ifs with h; · exact h.symm
         · rfl
-      | inr j => rfl
+      · rfl
     rw [hval a, hval b] at hab
-    rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂
-    · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
-    · exfalso
+    rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂ <;>
       simp only [Sum.elim_inl, Sum.elim_inr] at hab
-      exact Finset.eq_empty_iff_forall_notMem.1 hdisj (ord₁ i₁ : κ)
-        (Finset.mem_inter.2 ⟨(ord₁ i₁).2, hab ▸ (ord₂ j₂).2⟩)
-    · exfalso
-      simp only [Sum.elim_inr, Sum.elim_inl] at hab
-      exact Finset.eq_empty_iff_forall_notMem.1 hdisj (ord₂ j₁ : κ)
-        (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).2, (ord₂ j₁).2⟩)
+    · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
+    · exact absurd (Finset.mem_inter.2 ⟨(ord₁ i₁).2, hab ▸ (ord₂ j₂).2⟩) (hdisj _)
+    · exact absurd (Finset.mem_inter.2 ⟨hab ▸ (ord₁ i₂).2, (ord₂ j₁).2⟩) (hdisj _)
     · exact congrArg Sum.inr (ord₂.injective (Subtype.ext hab))
   · obtain ⟨_, hinter⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ hacl hk₀
     set l := leaveLabel T₁ T₂ k₀
     have hk₀1 : k₀ ∉ T₁ := fun h => hk₀ (Finset.mem_union.2 (.inl h))
-    have hnot2 : ∀ i : Fin m, (ord₁ i : κ) ≠ l → (ord₁ i : κ) ∉ T₂ := fun i hi h2 => by
-      have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).2, h2⟩
-      rw [hinter, Finset.mem_singleton] at hm
-      exact hi hm
+    have hcross (i : Fin m) (j : Fin n)
+        (h : (if (ord₁ i : κ) = l then k₀ else (ord₁ i : κ)) = (ord₂ j : κ)) : False := by
+      split_ifs at h with h1
+      · exact hact (h ▸ (ord₂ j).2)
+      · have hm : (ord₁ i : κ) ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨(ord₁ i).2, h ▸ (ord₂ j).2⟩
+        rw [hinter, Finset.mem_singleton] at hm; exact h1 hm
     rcases a with i₁ | j₁ <;> rcases b with i₂ | j₂
-    · simp only [halfEdgeFun, Sum.elim_inl] at hab
-      split_ifs at hab with h1 h2
+    · simp only [halfEdgeFun, Sum.elim_inl] at hab; split_ifs at hab with h1 h2
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext (h1.trans h2.symm)))
       · exact absurd (hab.symm ▸ (ord₁ i₂).2) hk₀1
       · exact absurd (hab ▸ (ord₁ i₁).2) hk₀1
       · exact congrArg Sum.inl (ord₁.injective (Subtype.ext hab))
-    · simp only [halfEdgeFun, Sum.elim_inl, Sum.elim_inr] at hab
-      split_ifs at hab with h1
-      · exact absurd (hab ▸ (ord₂ j₂).2) hact
-      · exact absurd (hab ▸ (ord₂ j₂).2) (hnot2 i₁ h1)
-    · simp only [halfEdgeFun, Sum.elim_inr, Sum.elim_inl] at hab
-      split_ifs at hab with h2
-      · exact absurd (hab ▸ (ord₂ j₁).2) hact
-      · exact absurd (hab ▸ (ord₂ j₁).2) (hnot2 i₂ h2)
+    · exact (hcross i₁ j₂ hab).elim
+    · exact (hcross i₂ j₁ hab.symm).elim
     · exact congrArg Sum.inr (ord₂.injective (Subtype.ext hab))
 
 omit [Fintype κ] in
@@ -253,15 +218,11 @@ private lemma halfEdgeFun_swap {m n : ℕ} (T₁ T₂ : Finset κ) (hT₁ : T₁
     halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side) =
       halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side ∘ Equiv.sumComm (Fin n) (Fin m) := by
   funext x
-  have hun : T₂ ∪ T₁ = T₁ ∪ T₂ := Finset.union_comm T₂ T₁
-  have hin : T₂ ∩ T₁ = T₁ ∩ T₂ := Finset.inter_comm T₂ T₁
   have hleave : leaveLabel T₂ T₁ k₀ = leaveLabel T₁ T₂ k₀ := by
-    simp only [leaveLabel, hun, hin]
+    simp only [leaveLabel, Finset.union_comm T₂ T₁, Finset.inter_comm T₂ T₁]
   cases side <;> rcases x with i | j <;>
     simp only [halfEdgeFun, Bool.not_false, Bool.not_true, Function.comp_apply,
-      Equiv.sumComm_apply, Sum.swap_inl, Sum.swap_inr, Sum.elim_inl, Sum.elim_inr]
-  · rw [hleave]
-  · rw [hleave]
+      Equiv.sumComm_apply, Sum.swap_inl, Sum.swap_inr, Sum.elim_inl, Sum.elim_inr, hleave]
 
 theorem halfEdgeFun_bijective_of_acl {m n : ℕ} (hcard : Fintype.card κ = m + n)
     {T₁ T₂ : Finset κ} (hT₁ : T₁.card = m) (hT₂ : T₂.card = n) {k₀ : κ}
@@ -272,14 +233,9 @@ theorem halfEdgeFun_bijective_of_acl {m n : ℕ} (hcard : Fintype.card κ = m + 
   · exact halfEdgeFun_bijective_left hcard hT₁ hT₂ hacl hact
   · have hswap := halfEdgeFun_bijective_left (by omega : Fintype.card κ = n + m) hT₂ hT₁
       (fun k hk => (hacl k hk).symm) hact
-    have hcomp : halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ true =
-        halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ false ∘ (Equiv.sumComm (Fin n) (Fin m)).symm := by
-      funext x
-      have hs := congrFun (halfEdgeFun_swap T₁ T₂ hT₁ hT₂ k₀ true)
-        ((Equiv.sumComm (Fin n) (Fin m)).symm x)
-      simpa only [Bool.not_true, Function.comp_apply, Equiv.apply_symm_apply] using hs.symm
-    rw [hcomp]
-    exact hswap.comp (Equiv.sumComm (Fin n) (Fin m)).symm.bijective
+    have hcomp := halfEdgeFun_swap T₂ T₁ hT₂ hT₁ k₀ false
+    simp only [Bool.not_false] at hcomp
+    exact hcomp ▸ hswap.comp (Equiv.sumComm (Fin m) (Fin n)).bijective
 
 end HalfEdge
 
@@ -311,33 +267,20 @@ private lemma halfEdgeIndex_swap {m n : ℕ} (A₁ : Matrix κ ι₁ K) (A₂ : 
         (!side) =
       halfEdgeIndex A₁ A₂ e₁ e₂ ref T₁ T₂ hT₁ hT₂ k₀ side := by
   classical
-  have hcomp : halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side) =
-      halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side ∘ Equiv.sumComm (Fin n) (Fin m) :=
-    halfEdgeFun_swap T₁ T₂ hT₁ hT₂ k₀ side
+  have hcomp := halfEdgeFun_swap T₁ T₂ hT₁ hT₂ k₀ side
   by_cases hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side)
-  · have hbij' : Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) := by
-      rw [hcomp]
-      exact hbij.comp (Equiv.sumComm (Fin n) (Fin m)).bijective
-    rw [halfEdgeIndex, dite_eq_left hbij', halfEdgeIndex, dite_eq_left hbij]
-    dsimp only
-    set π : Equiv.Perm (Fin m ⊕ Fin n) := (Equiv.ofBijective _ hbij).trans ref.symm
-    set π' : Equiv.Perm (Fin n ⊕ Fin m) :=
-      (Equiv.ofBijective _ hbij').trans ((Equiv.sumComm (Fin n) (Fin m)).trans ref).symm
-    have hπ : π' = Equiv.permCongr (Equiv.sumComm (Fin m) (Fin n)) π := by
-      ext x
-      simp only [π', π, Equiv.trans_apply, Equiv.symm_trans_apply, Equiv.ofBijective_apply,
-        hcomp, Function.comp_apply, Equiv.permCongr_apply, Equiv.sumComm_symm,
-        Equiv.sumComm_apply]
-    rw [hπ, Equiv.Perm.sign_permCongr]
-    ring
-  · have hbij' : ¬ Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) := by
-      intro h
-      have hcomp' : halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side =
-          halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side) ∘ (Equiv.sumComm (Fin n) (Fin m)).symm := by
-        funext x
-        have hs := congrFun hcomp ((Equiv.sumComm (Fin n) (Fin m)).symm x)
-        simpa only [Function.comp_apply, Equiv.apply_symm_apply] using hs.symm
-      exact hbij (hcomp' ▸ h.comp (Equiv.sumComm (Fin n) (Fin m)).symm.bijective)
+  · have hbij' : Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) :=
+      hcomp ▸ hbij.comp (Equiv.sumComm (Fin n) (Fin m)).bijective
+    rw [halfEdgeIndex, dite_eq_left hbij', halfEdgeIndex, dite_eq_left hbij]; dsimp only
+    have hπ : (Equiv.ofBijective _ hbij').trans ((Equiv.sumComm (Fin n) (Fin m)).trans ref).symm =
+        Equiv.permCongr (Equiv.sumComm (Fin m) (Fin n))
+          ((Equiv.ofBijective _ hbij).trans ref.symm) := by
+      ext x; simp [hcomp, Equiv.permCongr_apply]
+    rw [hπ, Equiv.Perm.sign_permCongr]; ring
+  · have hbij' : ¬ Function.Bijective (halfEdgeFun T₂ T₁ hT₂ hT₁ k₀ (!side)) := fun h => by
+      have hc2 := halfEdgeFun_swap T₂ T₁ hT₂ hT₁ k₀ (!side)
+      simp only [Bool.not_not] at hc2
+      exact hbij (hc2 ▸ h.comp (Equiv.sumComm (Fin m) (Fin n)).bijective)
     rw [halfEdgeIndex, dite_eq_right hbij', halfEdgeIndex, dite_eq_right hbij]
 
 omit [DecidableEq κ] [IsStrictOrderedRing K] in
@@ -346,11 +289,7 @@ private lemma det_tight_submatrix_ne_zero {k : ℕ} {ι : Type*} [Fintype ι]
     (hT : (tightRows A b z).card = k) :
     (A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT i : κ)) e).det ≠ 0 := by
   classical
-  have hsub : A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT i : κ)) e =
-      (A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT (e.symm i) : κ)) id).submatrix
-        e e := by
-    ext i j; simp
-  rw [hsub, Matrix.det_submatrix_equiv_self]
+  rw [det_submatrix_col_equiv]
   exact hz.det_submatrix_ne_zero (e.symm.trans ((tightRows A b z).orderIsoOfFin hT).toEquiv)
 
 private lemma units_coe_sign (u : ℤˣ) : (u : ℤ).sign = (u : ℤ) := by
@@ -390,21 +329,15 @@ theorem halfEdgeIndex_true_eq_neg_false {m n : ℕ}
   classical
   set T₁ := tightRows A₁ b₁ p.x
   set T₂ := tightRows A₂ b₂ p.y
-  have hk₀ : k₀ ∉ T₁ ∪ T₂ := by
-    intro hmem
-    apply hncl
-    rw [completelyLabeled_iff]
-    intro k
-    by_cases hk : k = k₀
-    · exact Finset.mem_union.1 (hk ▸ hmem)
-    · exact p.almostCompletelyLabeled k hk
+  have hk₀ : k₀ ∉ T₁ ∪ T₂ := fun hmem => hncl <| completelyLabeled_iff.2 fun k =>
+    if hk : k = k₀ then Finset.mem_union.1 (hk ▸ hmem) else p.almostCompletelyLabeled k hk
   have hk₀1 : k₀ ∉ T₁ := fun h => hk₀ (Finset.mem_union.2 (.inl h))
   have hk₀2 : k₀ ∉ T₂ := fun h => hk₀ (Finset.mem_union.2 (.inr h))
   have hbij_f :=
     halfEdgeFun_bijective_of_acl hcard hT₁ hT₂ p.almostCompletelyLabeled (side := false) hk₀2
   have hbij_t :=
     halfEdgeFun_bijective_of_acl hcard hT₁ hT₂ p.almostCompletelyLabeled (side := true) hk₀1
-  obtain ⟨hmem, hinter⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ p.almostCompletelyLabeled hk₀
+  obtain ⟨hmem, _⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ p.almostCompletelyLabeled hk₀
   set l := leaveLabel T₁ T₂ k₀
   have hl₁ : l ∈ T₁ := (Finset.mem_inter.1 hmem).1
   have hl₂ : l ∈ T₂ := (Finset.mem_inter.1 hmem).2
@@ -420,77 +353,66 @@ theorem halfEdgeIndex_true_eq_neg_false {m n : ℕ}
     rcases x with i | j
     · by_cases hi : i = a
       · subst hi
-        simp only [halfEdgeFun, Function.comp_apply, Equiv.swap_apply_left, Sum.elim_inl,
-          Sum.elim_inr]
+        dsimp only [halfEdgeFun, Function.comp_apply]
+        rw [Equiv.swap_apply_left, Sum.elim_inl, Sum.elim_inr]
         exact ha.trans hb.symm
-      · have hne_l : (ord₁ i : κ) ≠ l := fun h =>
+      · have hne_l : ((T₁.orderIsoOfFin hT₁).toEquiv i : κ) ≠ leaveLabel T₁ T₂ k₀ := fun h =>
           hi (ord₁.injective (Subtype.ext (h.trans ha.symm)))
-        have hne_swap : (Sum.inl i : Fin m ⊕ Fin n) ≠ Sum.inl a := fun h => hi (Sum.inl.inj h)
-        have hne_swap' : (Sum.inl i : Fin m ⊕ Fin n) ≠ Sum.inr b := by simp
-        simp only [halfEdgeFun, Function.comp_apply,
-          Equiv.swap_apply_of_ne_of_ne hne_swap hne_swap', Sum.elim_inl]
-        rw [ite_eq_right hne_l]
+        have hs : Equiv.swap (Sum.inl a) (Sum.inr b) (Sum.inl i) = Sum.inl i :=
+          Equiv.swap_apply_of_ne_of_ne (by simpa using hi) (by simp)
+        dsimp only [halfEdgeFun, Function.comp_apply]
+        rw [hs]
+        dsimp only [Sum.elim_inl]
+        exact (ite_eq_right hne_l).symm
     · by_cases hj : j = b
       · subst hj
         dsimp only [halfEdgeFun, Function.comp_apply]
-        rw [Equiv.swap_apply_right, Sum.elim_inr, Sum.elim_inl]
-        change (if (ord₂ b : κ) = l then k₀ else (ord₂ b : κ)) =
-          if (ord₁ a : κ) = l then k₀ else (ord₁ a : κ)
-        rw [hb, ha]
-      · have hne_l : (ord₂ j : κ) ≠ l := fun h =>
+        rw [Equiv.swap_apply_right]
+        dsimp only [Sum.elim_inl, Sum.elim_inr]
+        have ha' : ((T₁.orderIsoOfFin hT₁).toEquiv a : κ) = leaveLabel T₁ T₂ k₀ := ha
+        have hb' : ((T₂.orderIsoOfFin hT₂).toEquiv b : κ) = leaveLabel T₁ T₂ k₀ := hb
+        rw [ite_eq_left hb', ite_eq_left ha']
+      · have hne_l : ((T₂.orderIsoOfFin hT₂).toEquiv j : κ) ≠ leaveLabel T₁ T₂ k₀ := fun h =>
           hj (ord₂.injective (Subtype.ext (h.trans hb.symm)))
-        have hne_swap : (Sum.inr j : Fin m ⊕ Fin n) ≠ Sum.inl a := by simp
-        have hne_swap' : (Sum.inr j : Fin m ⊕ Fin n) ≠ Sum.inr b := fun h => hj (Sum.inr.inj h)
-        simp only [halfEdgeFun, Function.comp_apply,
-          Equiv.swap_apply_of_ne_of_ne hne_swap hne_swap', Sum.elim_inr]
-        rw [ite_eq_right hne_l]
+        have hs : Equiv.swap (Sum.inl a) (Sum.inr b) (Sum.inr j) = Sum.inr j :=
+          Equiv.swap_apply_of_ne_of_ne (by simp) (by simpa using hj)
+        dsimp only [halfEdgeFun, Function.comp_apply]
+        rw [hs]
+        dsimp only [Sum.elim_inr]
+        exact ite_eq_right hne_l
   rw [halfEdgeIndex, dite_eq_left hbij_t, halfEdgeIndex, dite_eq_left hbij_f]
   dsimp only
   set π_f := (Equiv.ofBijective _ hbij_f).trans ref.symm
   set π_t := (Equiv.ofBijective _ hbij_t).trans ref.symm
-  have hπ : π_t = (Equiv.swap (Sum.inl a) (Sum.inr b)).trans π_f := by
+  have hπ : π_t = π_f * Equiv.swap (Sum.inl a) (Sum.inr b) := by
     ext x
-    simp only [π_t, π_f, Equiv.trans_apply, Equiv.ofBijective_apply, hswap_fun, Function.comp_apply]
+    simp only [π_t, π_f, Equiv.Perm.mul_apply, Equiv.trans_apply, Equiv.ofBijective_apply,
+      hswap_fun, Function.comp_apply]
   have hsign : (Equiv.Perm.sign π_t : ℤ) = -(Equiv.Perm.sign π_f : ℤ) := by
-    have hmul : ((Equiv.swap (Sum.inl a) (Sum.inr b)).trans π_f :
-        Equiv.Perm (Fin m ⊕ Fin n)) = π_f * Equiv.swap (Sum.inl a) (Sum.inr b) := rfl
-    rw [hπ, hmul, Equiv.Perm.sign_mul, Equiv.Perm.sign_swap (by simp)]
-    simp [Units.val_neg]
+    rw [hπ, Equiv.Perm.sign_mul, Equiv.Perm.sign_swap (by simp)]; simp [Units.val_neg]
   change (Equiv.Perm.sign π_t : ℤ) * _ * _ = -((Equiv.Perm.sign π_f : ℤ) * _ * _)
-  rw [hsign]
-  ring
+  rw [hsign]; ring
 
 omit [Fintype κ] [LinearOrder κ] in
 private lemma exists_unique_entering_of_pivot {m : ℕ} {T₁ T₁' : Finset κ} {l : κ}
     (hT₁ : T₁.card = m) (hT₁' : T₁'.card = m) (hl : l ∈ T₁) (_hl' : l ∉ T₁')
     (hsub : T₁.erase l ⊆ T₁') :
     ∃ (l' : κ) (_hl'mem : l' ∈ T₁'), T₁.erase l = T₁'.erase l' := by
-  have hcard_erase : (T₁.erase l).card = m - 1 := by
-    rw [Finset.card_erase_of_mem hl, hT₁]
-  have hcard_sdiff : (T₁' \ T₁.erase l).card = 1 := by
+  have hsdiff : (T₁' \ T₁.erase l).card = 1 := by
     have hadd := Finset.card_sdiff_add_card_inter T₁' (T₁.erase l)
-    have hinter : T₁' ∩ T₁.erase l = T₁.erase l := Finset.inter_eq_right.2 hsub
-    rw [hinter, hT₁', hcard_erase] at hadd
-    have hmpos : 1 ≤ m := by
-      rw [← hT₁]
-      exact Finset.card_pos.2 ⟨l, hl⟩
+    rw [Finset.inter_eq_right.2 hsub, hT₁', Finset.card_erase_of_mem hl, hT₁] at hadd
+    have : 1 ≤ m := hT₁ ▸ Finset.card_pos.2 ⟨l, hl⟩
     omega
-  obtain ⟨l', hl'sdiff⟩ := Finset.card_eq_one.1 hcard_sdiff
-  have hl'mem : l' ∈ T₁' \ T₁.erase l := by simp [hl'sdiff]
-  refine ⟨l', (Finset.mem_sdiff.1 hl'mem).1, ?_⟩
-  ext k
-  simp only [Finset.mem_erase]
-  constructor
-  · intro hk
-    refine ⟨?_, hsub (Finset.mem_erase.2 hk)⟩
-    rintro rfl
-    exact (Finset.mem_sdiff.1 hl'mem).2 (Finset.mem_erase.2 hk)
-  · rintro ⟨hkne, hkT'⟩
-    by_contra hnot
-    have hk_sdiff : k ∈ T₁' \ T₁.erase l := by
-      refine Finset.mem_sdiff.2 ⟨hkT', fun hm => hnot (Finset.mem_erase.1 hm)⟩
-    rw [hl'sdiff, Finset.mem_singleton] at hk_sdiff
-    exact hkne hk_sdiff
+  obtain ⟨l', hl's⟩ := Finset.card_eq_one.1 hsdiff
+  have hl'm : l' ∈ T₁' \ T₁.erase l := hl's ▸ Finset.mem_singleton_self l'
+  refine ⟨l', (Finset.mem_sdiff.1 hl'm).1, ?_⟩
+  ext k; simp only [Finset.mem_erase]
+  refine ⟨fun hk => ⟨fun h => (Finset.mem_sdiff.1 hl'm).2 (h ▸ Finset.mem_erase.2 hk),
+    hsub (Finset.mem_erase.2 hk)⟩, fun ⟨hkne, hkT'⟩ => ?_⟩
+  by_contra hnot
+  have hks : k ∈ T₁' \ T₁.erase l :=
+    Finset.mem_sdiff.2 ⟨hkT', fun hm => hnot (Finset.mem_erase.1 hm)⟩
+  exact hkne (Finset.mem_singleton.1 (hl's ▸ hks))
 
 private lemma leaveLabel_eq_dropped {m n : ℕ} (hcard : Fintype.card κ = m + n)
     {T₁ T₁' T₂ : Finset κ} (hT₁ : T₁.card = m) (hT₂ : T₂.card = n) {k₀ l : κ}
@@ -500,19 +422,15 @@ private lemma leaveLabel_eq_dropped {m n : ℕ} (hcard : Fintype.card κ = m + n
   have hl_or : l ≠ k₀ → l ∈ T₂ := fun hne => (hacl' l hne).resolve_left hl'
   by_cases hk₀1 : k₀ ∈ T₁
   · have hmem_u : k₀ ∈ T₁ ∪ T₂ := Finset.mem_union.2 (.inl hk₀1)
-    have hdisj := inter_eq_empty_of_mem_union hcard hT₁ hT₂ hacl hmem_u
-    have hl_not2 : l ∉ T₂ := fun hl2 =>
-      Finset.eq_empty_iff_forall_notMem.1 hdisj l (Finset.mem_inter.2 ⟨hl, hl2⟩)
-    have hl_eq : l = k₀ := by
-      by_contra hne
-      exact hl_not2 (hl_or hne)
+    have hdisj := Finset.eq_empty_iff_forall_notMem.1
+      (inter_eq_empty_of_mem_union hcard hT₁ hT₂ hacl hmem_u)
+    have hl_eq : l = k₀ := by_contra fun hne =>
+      hdisj l (Finset.mem_inter.2 ⟨hl, hl_or hne⟩)
     simp [leaveLabel, hmem_u, hl_eq]
   · have hk₀ : k₀ ∉ T₁ ∪ T₂ := fun h => (Finset.mem_union.1 h).elim hk₀1 hk₀2
-    have hne_k₀ : l ≠ k₀ := fun h => hk₀1 (h ▸ hl)
     obtain ⟨_, hinter⟩ := mem_inter_of_acl_not_mem hcard hT₁ hT₂ hacl hk₀
-    have hl_inter : l ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨hl, hl_or hne_k₀⟩
-    rw [hinter, Finset.mem_singleton] at hl_inter
-    exact hl_inter.symm
+    have hl_inter : l ∈ T₁ ∩ T₂ := Finset.mem_inter.2 ⟨hl, hl_or fun h => hk₀1 (h ▸ hl)⟩
+    exact (Finset.mem_singleton.1 (hinter ▸ hl_inter)).symm
 
 /-- Moving across a left (`A₁`) pivot edge of `LemkeHowson.graph` reverses
 `halfEdgeIndex · false`. -/
@@ -529,52 +447,37 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
       -halfEdgeIndex A₁ A₂ e₁ e₂ ref (tightRows A₁ b₁ p.x) (tightRows A₂ b₂ p.y) hT₁p hT₂p k₀
         false := by
   classical
-  have hvertexAdj : VertexAdj A₁ b₁ p.x q.x := by
-    rcases (graph_adj.1 hadj) with ⟨hx, _⟩ | ⟨_, ha⟩
-    · exact absurd hx hne
-    · exact ha
+  have hvertexAdj : VertexAdj A₁ b₁ p.x q.x :=
+    (graph_adj.1 hadj).elim (fun h => absurd h.1 hne) And.right
   set T₁p := tightRows A₁ b₁ p.x
   set T₁q := tightRows A₁ b₁ q.x
   set T₂p := tightRows A₂ b₂ p.y
-  have hacl_q : ∀ k, k ≠ k₀ → k ∈ T₁q ∨ k ∈ T₂p := by
-    intro k hk
+  have hacl_q : ∀ k, k ≠ k₀ → k ∈ T₁q ∨ k ∈ T₂p := fun k hk => by
     simpa only [T₂p, hqy] using q.almostCompletelyLabeled k hk
-  have hnot_sub : ¬ T₁p ⊆ T₁q :=
+  obtain ⟨l, hlp, hlq⟩ := Finset.not_subset.1
     fun h => hne (p.isVertex_x.eq_of_tightRows_subset h).symm
-  obtain ⟨l, hlp, hlq⟩ := Finset.not_subset.1 hnot_sub
   have hsub : T₁p.erase l ⊆ T₁q := by
     have hinter_sub : T₁p ∩ T₁q ⊆ T₁p.erase l := fun k hk =>
       Finset.mem_erase.2 ⟨fun h => hlq (h ▸ (Finset.mem_inter.1 hk).2), (Finset.mem_inter.1 hk).1⟩
-    rw [vertexAdj_iff] at hvertexAdj
-    rcases hvertexAdj with ⟨-, -, -, hcard_inter⟩
-    have hcard_inter' : Fintype.card ι₁ ≤ (T₁p ∩ T₁q).card + 1 := hcard_inter
-    have hcard_i : Fintype.card ι₁ = m := by
-      have := p.isVertex_x.card_tightRows hnd₁
-      omega
-    have heq : T₁p ∩ T₁q = T₁p.erase l := Finset.eq_of_subset_of_card_le hinter_sub (by
-      rw [Finset.card_erase_of_mem hlp, hT₁p]; omega)
+    rcases vertexAdj_iff.1 hvertexAdj with ⟨-, -, -, hcard_inter⟩
+    change Fintype.card ι₁ ≤ (T₁p ∩ T₁q).card + 1 at hcard_inter
+    have : Fintype.card ι₁ = m := (p.isVertex_x.card_tightRows hnd₁).symm.trans hT₁p
+    have heq := Finset.eq_of_subset_of_card_le hinter_sub (by
+      rw [Finset.card_erase_of_mem hlp, hT₁p]
+      omega)
     exact heq ▸ Finset.inter_subset_right
   obtain ⟨l', hl'q, herase⟩ := exists_unique_entering_of_pivot hT₁p hT₁q hlp hlq hsub
-  have hl'p : l' ∉ T₁p := by
-    intro hmem
-    have hne_ll' : l' ≠ l := fun h => hlq (h ▸ hl'q)
-    have hmem_e : l' ∈ T₁p.erase l := Finset.mem_erase.2 ⟨hne_ll', hmem⟩
-    rw [herase] at hmem_e
-    exact (Finset.notMem_erase l' T₁q) hmem_e
-  have hk₀2 : k₀ ∉ T₂p := by
-    intro hk2
-    have hmem_u : k₀ ∈ T₁p ∪ T₂p := Finset.mem_union.2 (.inr hk2)
-    have hdisj := inter_eq_empty_of_mem_union hcard hT₁p hT₂p p.almostCompletelyLabeled hmem_u
-    have hl_not2 : l ∉ T₂p := fun hl2 =>
-      Finset.eq_empty_iff_forall_notMem.1 hdisj l (Finset.mem_inter.2 ⟨hlp, hl2⟩)
-    have hne_k₀ : l ≠ k₀ := fun h => hl_not2 (h ▸ hk2)
-    rcases hacl_q l hne_k₀ with h | h
-    · exact hlq h
-    · exact hl_not2 h
-  have hleave_p : leaveLabel T₁p T₂p k₀ = l :=
-    leaveLabel_eq_dropped hcard hT₁p hT₂p p.almostCompletelyLabeled hacl_q hk₀2 hlp hlq
-  have hleave_q : leaveLabel T₁q T₂p k₀ = l' :=
-    leaveLabel_eq_dropped hcard hT₁q hT₂p hacl_q p.almostCompletelyLabeled hk₀2 hl'q hl'p
+  have hl'p : l' ∉ T₁p := fun hmem =>
+    Finset.notMem_erase l' T₁q (herase ▸ Finset.mem_erase.2 ⟨fun h => hlq (h ▸ hl'q), hmem⟩)
+  have hk₀2 : k₀ ∉ T₂p := fun hk2 => by
+    have hdisj := Finset.eq_empty_iff_forall_notMem.1 (inter_eq_empty_of_mem_union hcard
+      hT₁p hT₂p p.almostCompletelyLabeled (Finset.mem_union.2 (.inr hk2)))
+    have hl2 : l ∉ T₂p := fun h => hdisj l (Finset.mem_inter.2 ⟨hlp, h⟩)
+    exact (hacl_q l fun h => hl2 (h ▸ hk2)).elim hlq hl2
+  have hleave_p := leaveLabel_eq_dropped hcard hT₁p hT₂p p.almostCompletelyLabeled hacl_q hk₀2
+    hlp hlq
+  have hleave_q := leaveLabel_eq_dropped hcard hT₁q hT₂p hacl_q p.almostCompletelyLabeled hk₀2
+    hl'q hl'p
   suffices h : ∀ (T₂q : Finset κ) (hT₂q' : T₂q.card = n), T₂q = T₂p →
       halfEdgeIndex A₁ A₂ e₁ e₂ ref T₁q T₂q hT₁q hT₂q' k₀ false =
         -halfEdgeIndex A₁ A₂ e₁ e₂ ref T₁p T₂p hT₁p hT₂p k₀ false from
@@ -582,119 +485,80 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
   rintro _ hT₂q' rfl
   have hbij_p :=
     halfEdgeFun_bijective_of_acl hcard hT₁p hT₂p p.almostCompletelyLabeled (side := false) hk₀2
-  have hbij_q :=
-    halfEdgeFun_bijective_of_acl hcard hT₁q hT₂p hacl_q (side := false) hk₀2
-  rw [halfEdgeIndex, dite_eq_left hbij_q, halfEdgeIndex, dite_eq_left hbij_p]
-  dsimp only
+  have hbij_q := halfEdgeFun_bijective_of_acl hcard hT₁q hT₂p hacl_q (side := false) hk₀2
+  rw [halfEdgeIndex, dite_eq_left hbij_q, halfEdgeIndex, dite_eq_left hbij_p]; dsimp only
   let ord₁p := (T₁p.orderIsoOfFin hT₁p).toEquiv
   let ord₁q := (T₁q.orderIsoOfFin hT₁q).toEquiv
   let e_piv : Fin m ≃ T₁q := pivotBasisEquiv ord₁p hlp hl'q herase
   set σ₁ : Equiv.Perm (Fin m) := e_piv.trans ord₁q.symm
-  have hfun_comp : ∀ x : Fin m ⊕ Fin n,
+  have hfun_comp (x : Fin m ⊕ Fin n) :
       halfEdgeFun T₁q T₂p hT₁q hT₂q' k₀ false (Equiv.sumCongr σ₁ (Equiv.refl (Fin n)) x) =
         halfEdgeFun T₁p T₂p hT₁p hT₂p k₀ false x := by
-    intro x
     rcases x with i | j
-    · dsimp only [Equiv.sumCongr_apply, Sum.map_inl, halfEdgeFun, Sum.elim_inl]
-      rw [hleave_p, hleave_q]
-      change (if (ord₁q (σ₁ i) : κ) = l' then k₀ else (ord₁q (σ₁ i) : κ)) =
-        if (ord₁p i : κ) = l then k₀ else (ord₁p i : κ)
-      have he_eq : (ord₁q (σ₁ i) : κ) = (e_piv i : κ) :=
-        congrArg Subtype.val (ord₁q.apply_symm_apply (e_piv i))
-      rw [he_eq, show (e_piv i : κ) = if i = ord₁p.symm ⟨l, hlp⟩ then l' else (ord₁p i : κ) from
-        coe_pivotBasisEquiv_apply ord₁p hlp hl'q herase i]
-      by_cases hi : i = ord₁p.symm ⟨l, hlp⟩
-      · have hor : (ord₁p i : κ) = l := by
-          subst hi; exact congrArg Subtype.val (ord₁p.apply_symm_apply ⟨l, hlp⟩)
-        rw [ite_eq_left hi, ite_eq_left hor]
-        simp only [↓reduceIte]
-      · have hor_ne_l : (ord₁p i : κ) ≠ l := fun h => by
-          apply hi; apply ord₁p.injective; apply Subtype.ext
-          simpa only [Equiv.apply_symm_apply] using h
-        have hor_ne_l' : (ord₁p i : κ) ≠ l' := by
-          have hm : (ord₁p i : κ) ∈ T₁p.erase l := Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).2⟩
-          rw [herase] at hm
-          exact (Finset.mem_erase.1 hm).1
-        simp [hi, hor_ne_l, hor_ne_l']
+    swap
     · rfl
+    dsimp only [Equiv.sumCongr_apply, Sum.map_inl, halfEdgeFun, Sum.elim_inl]
+    rw [hleave_p, hleave_q]
+    change (if (ord₁q (σ₁ i) : κ) = l' then k₀ else (ord₁q (σ₁ i) : κ)) =
+      if (ord₁p i : κ) = l then k₀ else (ord₁p i : κ)
+    have hσ_eq : (ord₁q (σ₁ i) : κ) = (e_piv i : κ) :=
+      congrArg Subtype.val (ord₁q.apply_symm_apply (e_piv i))
+    rw [hσ_eq, coe_pivotBasisEquiv_apply ord₁p hlp hl'q herase i]
+    by_cases hi : i = ord₁p.symm ⟨l, hlp⟩
+    · subst hi
+      rw [congrArg Subtype.val (ord₁p.apply_symm_apply ⟨l, hlp⟩)]
+      simp only [↓reduceIte]
+    · have hor_ne_l : (ord₁p i : κ) ≠ l := fun h =>
+        hi (ord₁p.injective (Subtype.ext (by simpa only [Equiv.apply_symm_apply] using h)))
+      have hor_ne_l' : (ord₁p i : κ) ≠ l' :=
+        (Finset.mem_erase.1 (herase ▸ Finset.mem_erase.2 ⟨hor_ne_l, (ord₁p i).2⟩)).1
+      simp [hi, hor_ne_l, hor_ne_l']
   set π_p := (Equiv.ofBijective _ hbij_p).trans ref.symm
   set π_q := (Equiv.ofBijective _ hbij_q).trans ref.symm
-  have hπ : π_p = (Equiv.sumCongr σ₁ (Equiv.refl (Fin n))).trans π_q := by
+  have hπ : π_p = π_q * Equiv.sumCongr σ₁ (Equiv.refl (Fin n)) := by
     ext x
-    simp only [π_p, π_q, Equiv.trans_apply, Equiv.ofBijective_apply, hfun_comp]
+    simp only [π_p, π_q, Equiv.Perm.mul_apply, Equiv.trans_apply, Equiv.ofBijective_apply,
+      hfun_comp]
   have hsign_pi : (Equiv.Perm.sign π_p : ℤ) =
       (Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign σ₁ : ℤ) := by
-    rw [hπ]
-    change (Equiv.Perm.sign (π_q * Equiv.sumCongr σ₁ (Equiv.refl (Fin n))) : ℤ) = _
-    rw [Equiv.Perm.sign_mul, Equiv.Perm.sign_sumCongr, Equiv.Perm.sign_refl, mul_one]
+    rw [hπ, Equiv.Perm.sign_mul, Equiv.Perm.sign_sumCongr, Equiv.Perm.sign_refl, mul_one]
     simp [Units.val_mul]
   let M₁p := A₁.submatrix (fun i => (T₁p.orderIsoOfFin hT₁p i : κ)) e₁
   let M₁q := A₁.submatrix (fun i => (T₁q.orderIsoOfFin hT₁q i : κ)) e₁
-  let M₂ := A₂.submatrix (fun j => (T₂p.orderIsoOfFin hT₂p j : κ)) e₂
   let e₁' : ι₁ ≃ T₁p := e₁.symm.trans ord₁p
   let e₂' : ι₁ ≃ T₁q := e₁.symm.trans ord₁q
   have hdet_lt := p.isVertex_x.det_submatrix_pivot_mul_lt_zero q.isVertex_x hne hlp hl'q herase
     e₁' e₂'
   dsimp only at hdet_lt
-  have hM₁p_det : (A₁.submatrix (fun i => (e₁' i : κ)) id).det = M₁p.det := by
-    have hsub : M₁p = (A₁.submatrix (fun i => (e₁' i : κ)) id).submatrix e₁ e₁ := by
-      ext i j; simp [M₁p, e₁', ord₁p]
-    rw [hsub, Matrix.det_submatrix_equiv_self]
-  have hM₁q_det : (A₁.submatrix (fun i => (e₂' i : κ)) id).det = M₁q.det := by
-    have hsub : M₁q = (A₁.submatrix (fun i => (e₂' i : κ)) id).submatrix e₁ e₁ := by
-      ext i j; simp [M₁q, e₂', ord₁q]
-    rw [hsub, Matrix.det_submatrix_equiv_self]
+  have hM₁p_det : (A₁.submatrix (fun i => (e₁' i : κ)) id).det = M₁p.det :=
+    (det_submatrix_col_equiv A₁ (fun i => (ord₁p i : κ)) e₁).symm
+  have hM₁q_det : (A₁.submatrix (fun i => (e₂' i : κ)) id).det = M₁q.det :=
+    (det_submatrix_col_equiv A₁ (fun i => (ord₁q i : κ)) e₁).symm
   have hperm_eq : (pivotBasisEquiv e₁' hlp hl'q herase).trans e₂'.symm =
       e₁.permCongr σ₁ := by
     ext i
-    rw [Equiv.trans_apply, Equiv.permCongr_apply]
-    change e₁ (ord₁q.symm (pivotBasisEquiv e₁' hlp hl'q herase i)) =
-      e₁ (ord₁q.symm (e_piv (e₁.symm i)))
     apply congrArg (fun z => e₁ (ord₁q.symm z))
     apply Subtype.ext
     rw [coe_pivotBasisEquiv_apply, coe_pivotBasisEquiv_apply]
-    have hsym : e₁'.symm ⟨l, hlp⟩ = e₁ (ord₁p.symm ⟨l, hlp⟩) := rfl
-    rw [hsym]
-    by_cases hi : e₁.symm i = ord₁p.symm ⟨l, hlp⟩
-    · have hi' : i = e₁ (ord₁p.symm ⟨l, hlp⟩) := (Equiv.symm_apply_eq e₁).1 hi
-      rw [ite_eq_left hi', ite_eq_left hi]
-    · have hi' : i ≠ e₁ (ord₁p.symm ⟨l, hlp⟩) := fun h => hi ((Equiv.symm_apply_eq e₁).2 h)
-      rw [ite_eq_right hi', ite_eq_right hi]
-      rfl
+    change (if i = e₁ (ord₁p.symm ⟨l, hlp⟩) then l' else (ord₁p (e₁.symm i) : κ)) =
+      if e₁.symm i = ord₁p.symm ⟨l, hlp⟩ then l' else (ord₁p (e₁.symm i) : κ)
+    simp only [← Equiv.symm_apply_eq e₁]
   rw [hM₁p_det, hM₁q_det, hperm_eq, Equiv.Perm.sign_permCongr] at hdet_lt
   have hsign_det : (Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det) = -1 := by
     have hneg1 : signOfK (((Equiv.Perm.sign σ₁ : ℤ) : K) * (M₁p.det * M₁q.det)) = -1 := by
-      dsimp [signOfK]
-      rw [sign_neg hdet_lt]
-      rfl
-    rw [signOfK_mul, signOfK_mul, signOfK_intCast, units_coe_sign] at hneg1
-    exact hneg1
-  have hM₂_ne : M₂.det ≠ 0 := det_tight_submatrix_ne_zero p.isVertex_y e₂ hT₂p
-  have hM₁q_ne : M₁q.det ≠ 0 := by
-    rw [← hM₁q_det]
-    exact q.isVertex_x.det_submatrix_ne_zero e₂'
-  set idx_p : ℤ := (Equiv.Perm.sign π_p : ℤ) * signOfK M₁p.det * signOfK M₂.det
-  set idx_q : ℤ := (Equiv.Perm.sign π_q : ℤ) * signOfK M₁q.det * signOfK M₂.det
-  have hidx_q_sq : idx_q * idx_q = 1 := by
-    calc idx_q * idx_q
-        = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
-            (signOfK M₁q.det * signOfK M₁q.det) * (signOfK M₂.det * signOfK M₂.det) := by ring
-      _ = 1 * 1 * 1 := by rw [Int.units_coe_mul_self, signOfK_sq hM₁q_ne, signOfK_sq hM₂_ne]
-      _ = 1 := by ring
-  have hprod : idx_p * idx_q = -1 := by
-    calc idx_p * idx_q
-        = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
-            ((Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det)) *
-            (signOfK M₂.det * signOfK M₂.det) := by
-          dsimp only [idx_p, idx_q]
-          rw [hsign_pi]
-          ring
-      _ = 1 * (-1) * 1 := by rw [Int.units_coe_mul_self, hsign_det, signOfK_sq hM₂_ne]
-      _ = -1 := by ring
-  change idx_q = -idx_p
-  calc idx_q = -(idx_p * idx_q) * idx_q := by rw [hprod]; ring
-    _ = -idx_p * (idx_q * idx_q) := by ring
-    _ = -idx_p := by rw [hidx_q_sq, mul_one]
+      rw [signOfK, sign_neg hdet_lt]; rfl
+    rwa [signOfK_mul, signOfK_mul, signOfK_intCast, units_coe_sign] at hneg1
+  have hM₁q_ne : M₁q.det ≠ 0 := hM₁q_det ▸ q.isVertex_x.det_submatrix_ne_zero e₂'
+  have h1 : signOfK M₁q.det = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) := by
+    calc signOfK M₁q.det
+        = -((Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det)) *
+            signOfK M₁q.det := by rw [hsign_det]; ring
+      _ = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) *
+            (signOfK M₁q.det * signOfK M₁q.det) := by ring
+      _ = -((Equiv.Perm.sign σ₁ : ℤ) * signOfK M₁p.det) := by rw [signOfK_sq hM₁q_ne, mul_one]
+  change (Equiv.Perm.sign π_q : ℤ) * signOfK M₁q.det * _ =
+    -((Equiv.Perm.sign π_p : ℤ) * signOfK M₁p.det * _)
+  rw [h1, hsign_pi]; ring
 
 /-- Moving across a right (`A₂`) pivot edge of `LemkeHowson.graph` reverses
 `halfEdgeIndex · true`. -/
@@ -784,44 +648,33 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
     (ref.injective.comp Sum.inr_injective) hT₂ hT₂_eq hA₂
   have hcomp : halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side = ref ∘ Equiv.sumCongr σ₁ σ₂ := by
     funext x
-    cases side <;> rcases x with i | j
-    · dsimp only [halfEdgeFun, Function.comp_apply, Equiv.sumCongr_apply, Sum.map_inl]
-      rw [hleave]
-      dsimp only [Sum.elim_inl]
-      by_cases h : ((T₁.orderIsoOfFin hT₁).toEquiv i : κ) = k₀
-      · rw [ite_eq_left h]; exact h.symm.trans (hσ₁_val i)
-      · rw [ite_eq_right h]; exact hσ₁_val i
+    cases side <;> rcases x with i | j <;>
+      dsimp only [halfEdgeFun, Function.comp_apply, Equiv.sumCongr_apply, Sum.map_inl,
+        Sum.map_inr, Sum.elim_inl, Sum.elim_inr]
+    · rw [hleave]
+      split_ifs with h
+      · exact h.symm.trans (hσ₁_val i)
+      · exact hσ₁_val i
     · exact hσ₂_val j
     · exact hσ₁_val i
-    · dsimp only [halfEdgeFun, Function.comp_apply, Equiv.sumCongr_apply, Sum.map_inr]
-      rw [hleave]
-      dsimp only [Sum.elim_inr]
-      by_cases h : ((T₂.orderIsoOfFin hT₂).toEquiv j : κ) = k₀
-      · rw [ite_eq_left h]; exact h.symm.trans (hσ₂_val j)
-      · rw [ite_eq_right h]; exact hσ₂_val j
-  have hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side) := by
-    rw [hcomp]
-    exact ref.bijective.comp (Equiv.sumCongr σ₁ σ₂).bijective
-  rw [halfEdgeIndex, dite_eq_left hbij]
-  dsimp only
-  set π := (Equiv.ofBijective _ hbij).trans ref.symm
-  have hπ : π = Equiv.sumCongr σ₁ σ₂ := by
-    ext x
-    simp only [π, Equiv.trans_apply, Equiv.ofBijective_apply, hcomp, Function.comp_apply,
-      Equiv.symm_apply_apply]
-  have hsign_pi : (Equiv.Perm.sign π : ℤ) =
-      (Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ) := by
-    rw [hπ, Equiv.Perm.sign_sumCongr, Units.val_mul]
-  rw [hsign_pi, hs₁, hs₂]
+    · rw [hleave]
+      split_ifs with h
+      · exact h.symm.trans (hσ₂_val j)
+      · exact hσ₂_val j
+  have hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side) :=
+    hcomp ▸ ref.bijective.comp (Equiv.sumCongr σ₁ σ₂).bijective
+  rw [halfEdgeIndex, dite_eq_left hbij]; dsimp only
+  have hπ : (Equiv.ofBijective _ hbij).trans ref.symm = Equiv.sumCongr σ₁ σ₂ := by
+    ext x; simp [hcomp]
+  rw [hπ, Equiv.Perm.sign_sumCongr, Units.val_mul, hs₁, hs₂]
   calc ((Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ)) *
         ((Equiv.Perm.sign σ₁ : ℤ) * (-1 : ℤ) ^ m) *
         ((Equiv.Perm.sign σ₂ : ℤ) * (-1 : ℤ) ^ n)
       = ((Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₁ : ℤ)) *
           ((Equiv.Perm.sign σ₂ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ)) *
           ((-1 : ℤ) ^ m * (-1 : ℤ) ^ n) := by ring
-    _ = 1 * 1 * (-1 : ℤ) ^ (m + n) := by
-        rw [Int.units_coe_mul_self, Int.units_coe_mul_self, pow_add]
-    _ = (-1 : ℤ) ^ (m + n) := by ring
+    _ = (-1 : ℤ) ^ (m + n) := by
+        rw [Int.units_coe_mul_self, Int.units_coe_mul_self, ← pow_add]; ring
 
 end Orientation
 
