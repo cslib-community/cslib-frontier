@@ -154,18 +154,11 @@ private theorem coeff_prod_choices {τ : Type} [Fintype τ] [DecidableEq τ] (f 
   · intro l hl
     rw [Finset.mem_finsuppAntidiag] at hl
     simpa using hl.1
-  · intro d hd
-    simp only [Finset.mem_filter] at hd
-    rw [Finset.mem_finsuppAntidiag]
-    exact ⟨by simpa using hd.2, Finset.subset_univ _⟩
-  · intro l _
-    ext p
-    simp
-  · intro d _
-    funext p
-    simp
-  · intro l _
-    rfl
+  · exact fun d hd => Finset.mem_finsuppAntidiag.2
+      ⟨by simpa using (Finset.mem_filter.1 hd).2, Finset.subset_univ _⟩
+  · exact fun l _ => by ext; simp
+  · exact fun d _ => by funext; simp
+  · exact fun _ _ => rfl
 
 /-- Proof of Lemma N.3, extraction of a coefficient: the coefficient of `ε ^ D` of the image of a
 tensor `z` under local maps with polynomial entries is a sum of at most `(D + 1) ^ |I|` restrictions
@@ -180,9 +173,8 @@ private theorem le_coeff (F : SpectralPoint K I)
     (if p = p₀ then (if (∑ q, (d q).1) = D then (1 : K) else 0) else 1) * (Φ p a c).coeff (d p)
   have hs : s.CoveredBy fun _ : I → Fin (D + 1) => z := by
     refine ⟨L, fun x => ?_⟩
-    simp only
-        [h, polyApp, Polynomial.finsetSum_coeff, coeff_mul_C, coeff_prod_choices, localApply,
-            Finset.sum_mul]
+    simp only [h, polyApp, Polynomial.finsetSum_coeff, coeff_mul_C, coeff_prod_choices, localApply,
+      Finset.sum_mul]
     rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun d _ => Finset.sum_congr rfl fun y _ => ?_
     rw [Finset.prod_mul_distrib, Finset.prod_ite_eq' univ p₀, ite_eq_left (Finset.mem_univ _)]
@@ -243,9 +235,7 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
         rw [← polyApp_prod (α := fun _ q => t.Index q) c L fun q j =>
             x q (pick q (fun a => u a.1) j), polyApp, localApply,
           Finset.mul_sum]
-        refine Finset.sum_congr rfl fun y _ => ?_
-        rw [map_mul]
-        exact mul_left_comm _ _ _
+        exact Finset.sum_congr rfl fun y _ => by rw [map_mul]; exact mul_left_comm _ _ _
       simp only [e]
       rw [← Fintype.sum_prod_type']
       refine Fintype.sum_equiv
@@ -286,20 +276,15 @@ private theorem le_type_bound (F : SpectralPoint K I) [Nonempty A] (π : A → I
 factor. -/
 private theorem le_of_pow_le_poly {x B C : ℝ} (a : ℕ) (hB : 0 ≤ B)
     (h : ∀ N : ℕ, x ^ N ≤ C * ((N : ℝ) + 1) ^ a * B ^ N) : x ≤ B := by
-  by_contra hlt
-  rw [not_le] at hlt
+  by_contra! hlt
   have hx : 0 < x := hB.trans_lt hlt
-  have hr : B / x < 1 := (div_lt_one hx).2 hlt
-  have hr0 : 0 ≤ B / x := by positivity
   have hlim : Filter.Tendsto (fun N : ℕ => C * 2 ^ a * ((N : ℝ) ^ a * (B / x) ^ N)) Filter.atTop
       (nhds 0) := by
-    simpa using (tendsto_pow_const_mul_const_pow_of_lt_one a hr0 hr).const_mul (C * 2 ^ a)
+    simpa using (tendsto_pow_const_mul_const_pow_of_lt_one a (by positivity)
+      ((div_lt_one hx).2 hlt)).const_mul (C * 2 ^ a)
   obtain ⟨N, hN, hN1⟩ :=
       ((hlim.eventually (eventually_lt_nhds one_pos)).and (Filter.eventually_ge_atTop 1)).exists
-  have hC : 0 ≤ C := by
-    have := h 0
-    simp only [pow_zero, Nat.cast_zero, zero_add, one_pow, mul_one] at this
-    linarith
+  have hC : 0 ≤ C := zero_le_one.trans (by simpa using h 0)
   have h1 : (1 : ℝ) ≤ C * ((N : ℝ) + 1) ^ a * (B / x) ^ N := by
     rw [div_pow, mul_div_assoc', le_div_iff₀ (pow_pos hx N), one_mul]
     exact h N
@@ -341,10 +326,8 @@ private theorem pow_le_few (F : SpectralPoint K I) [Nonempty A] [Nonempty κ] (�
       τ _ => ?_).trans
     (le_of_eq ?_)
   · rcases isEmpty_or_nonempty {w : Fin N → κ // wordType w = τ} with he | ⟨⟨w₀, hw₀⟩⟩
-    · have h0 : ∀ x, v τ x = 0 := fun x => by
-        change (∑ w : {w : Fin N → κ // wordType w = τ}, G w x).coeff (N * D) = 0
-        rw [Finset.univ_eq_empty, Finset.sum_empty, coeff_zero]
-      rw [F.eq_zero h0]
+    · rw [F.eq_zero fun x => (by
+        simp only [v, Finset.univ_eq_empty, Finset.sum_empty, coeff_zero] : v τ x = 0)]
       positivity
     let W := {w : Fin N → κ // wordType w = τ}
     let num := Fintype.equivFin W
@@ -364,9 +347,8 @@ private theorem pow_le_few (F : SpectralPoint K I) [Nonempty A] [Nonempty κ] (�
         (fun m => (σ m).symm) _
       hv).trans ?_
     refine mul_le_mul_of_nonneg_left ?_ (by positivity)
-    rw [hB, mul_pow, ← Real.rpow_natCast ((Fintype.card κ : ℝ) ^ F.unitExponent π),
-        ← Real.rpow_mul (by positivity),
-      mul_comm (F.unitExponent π), Real.rpow_mul (by positivity), Real.rpow_natCast]
+    rw [hB, mul_pow, ← Real.rpow_mul_natCast (by positivity), mul_comm (F.unitExponent π),
+      Real.rpow_natCast_mul (by positivity)]
     refine mul_le_mul (Real.rpow_le_rpow (by positivity) ?_ (F.unitExponent_nonneg π)) ?_
       (Finset.prod_nonneg fun _ _ => F.nonneg _) (by positivity)
     · exact_mod_cast (Fintype.card_subtype_le _).trans_eq (by simp)
@@ -397,13 +379,9 @@ theorem SpectralPoint.apply_le_of_borderCoveredBy (F : SpectralPoint K I)
       refine (F.le_card t).trans ?_
       exact_mod_cast Fintype.card_le_one_iff_subsingleton.2 (@Pi.instSubsingleton I t.Index hsub)
     obtain ⟨L, hL⟩ := h
-    have hk : ∃ k y, (b k).entry y ≠ 0 := by
-      by_contra hne
-      push Not at hne
-      exact hx
-          (by have :=
-              (hL x D le_rfl).trans (ite_eq_left rfl); simpa [hne, localApply] using this.symm)
-    obtain ⟨k, y, hy⟩ := hk
+    obtain ⟨k, y, hy⟩ : ∃ k y, (b k).entry y ≠ 0 := by
+      by_contra! hne
+      exact hx (by simpa [hne, localApply] using ((hL x D le_rfl).trans (ite_eq_left rfl)).symm)
     refine h1.trans (one_le_mul_of_one_le_of_one_le ?_ ((F.one_le hy).trans (hM k)))
     exact Real.one_le_rpow (by exact_mod_cast Fintype.card_pos) (F.unitExponent_nonneg π)
   · refine le_of_pow_le_poly (C := ((D : ℝ) + 1) ^ Fintype.card I)
@@ -412,11 +390,8 @@ theorem SpectralPoint.apply_le_of_borderCoveredBy (F : SpectralPoint K I)
     have h2 : ((N * D : ℕ) : ℝ) + 1 ≤ ((D : ℝ) + 1) * ((N : ℝ) + 1) := by
       push_cast
       nlinarith [Nat.cast_nonneg (α := ℝ) N, Nat.cast_nonneg (α := ℝ) D]
-    calc ((N : ℝ) + 1) ^ Fintype.card κ * (((N * D : ℕ) : ℝ) + 1) ^ Fintype.card I
-        ≤ ((N : ℝ) + 1) ^ Fintype.card κ * (((D : ℝ) + 1) * ((N : ℝ) + 1)) ^ Fintype.card I :=
-            by gcongr
-      _ = ((D : ℝ) + 1) ^ Fintype.card I * ((N : ℝ) + 1) ^ (Fintype.card κ + Fintype.card I) := by
-        rw [mul_pow, pow_add]
-        ring
+    calc _ ≤ ((N : ℝ) + 1) ^ Fintype.card κ *
+          (((D : ℝ) + 1) * ((N : ℝ) + 1)) ^ Fintype.card I := by gcongr
+      _ = _ := by rw [mul_pow, pow_add]; ring
 
 end Cslib.PartyTensor

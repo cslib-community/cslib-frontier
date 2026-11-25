@@ -267,8 +267,7 @@ theorem route_reaches [Finite I] (hnext : T.next.IsCycleOn Set.univ) {J : ∀ i,
   · exact hheads i
   · by_cases hs : s = T.side J g
     · exact hs ▸ (hgad g).1
-    · have : s = !T.side J g := by revert hs; cases s <;> cases T.side J g <;> simp
-      exact this ▸ (hgad g).2.2
+    · exact Bool.eq_not_of_ne hs ▸ (hgad g).2.2
   · exact (hgad g).2.1
 
 omit [Fintype I] [DecidableEq G] [∀ i, Fintype (O i)] in
@@ -320,9 +319,7 @@ theorem routePerm_isCycleOn (hnext : T.next.IsCycleOn Set.univ) {J : ∀ i, O i}
   have key : ∀ v, (routePerm hnext hJ).SameCycle (.head i₀) v := by
     intro v
     obtain ⟨m, hm⟩ := route_reaches hnext hJ i₀ v
-    refine ⟨m, ?_⟩
-    rw [zpow_natCast, Equiv.Perm.coe_pow]
-    exact hm
+    exact ⟨m, by rwa [zpow_natCast, Equiv.Perm.coe_pow]⟩
   exact (key u).symm.trans (key v)
 
 /-! ## From a cycle to a selection -/
@@ -393,15 +390,13 @@ theorem exists_selection [Finite I] (hσ : σ.IsCycleOn Set.univ) (he : ∀ p, T
     · simp only [route]
       split_ifs with h
       · exact h ▸ (hd g).1
-      · have : s = !d g := by revert h; cases s <;> cases d g <;> simp
-        rw [this, Bool.not_not]
+      · rw [Bool.eq_not_of_ne (Ne.symm h), Bool.not_not]
         exact (hd g).2.2
     · exact (hd g).2.1
   have hactive : ∀ g s v, σ v = .tip g s → v ≠ .mid g → d g = s := by
     intro g s v hv hne
     by_contra hs
-    have : s = !d g := by revert hs; cases s <;> cases d g <;> simp
-    exact hne (σ.injective (hv.trans (this ▸ (hd g).2.1).symm))
+    exact hne (σ.injective (hv.trans (Bool.eq_not_of_ne (Ne.symm hs) ▸ (hd g).2.1).symm))
   have hchosen : ∀ i (j : ℕ) (hj : j < T.len ⟨i, J i⟩),
       d (T.slot.symm ⟨⟨i, J i⟩, j, hj⟩).1 = (T.slot.symm ⟨⟨i, J i⟩, j, hj⟩).2 := by
     intro i j
@@ -464,9 +459,7 @@ theorem exists_selection [Finite I] (hσ : σ.IsCycleOn Set.univ) (he : ∀ p, T
       induction m with
       | zero => trivial
       | succ m ih => rw [pow_succ', Equiv.Perm.mul_apply]; exact hstep _ ih
-    have h := this m
-    rw [hm] at h
-    exact h
+    exact (hm ▸ this m : A (.mid g))
   have hiff : ∀ g s, T.Sel J (g, s) ↔ d g = s := fun g s => ⟨hsel (g, s), fun h => h ▸ hall g⟩
   have hv : T.Valid J := fun g => by rw [hiff, hiff]; cases d g <;> simp
   refine ⟨J, hv, fun p => ?_⟩
@@ -515,9 +508,7 @@ theorem hamiltonianCycleSum_weight {R : Type*} [CommSemiring R] (hnext : T.next.
       exact absurd (place_zero_injective hpar (mem_filter.1 ho).2) hne
     have h2 : ∀ p : (G × Bool) ⊕ G, T.weight w (Vtx.equivSum.symm (.inr p))
         (routePerm hnext hv (Vtx.equivSum.symm (.inr p))) = 1 := by
-      rintro (⟨g, s⟩ | g)
-      · exact ite_eq_left (edge_route J _ (.tip g s))
-      · exact ite_eq_left (edge_route J _ (.mid g))
+      rintro (⟨g, s⟩ | g) <;> exact ite_eq_left (edge_route J _ _)
     rw [Finset.prod_congr rfl fun p _ => h2 p, Finset.prod_const_one, mul_one]
     exact Finset.prod_congr rfl fun i _ => (h1 i).symm
 
@@ -755,23 +746,17 @@ public theorem exists_hamiltonianCycleSum_eq_gridSum {R : Type*} [CommSemiring R
   · simp only [Row.weight]
     by_cases hex : ∃ o : Opt s, T.place ⟨s, o⟩ 0 = b
     · obtain ⟨o, ho⟩ := hex
-      rw [Finset.sum_eq_single o]
-      · cases s with
-        | edge n => exact Or.inr (Or.inr ⟨n, o.1, o.2, rfl⟩)
-        | _ => exact Or.inr (Or.inl rfl)
-      · intro o' ho' hne
-        exact absurd (Row.place_zero_injective (gridRow_noParallel hv hw)
-          ((mem_filter.1 ho').2.trans ho.symm)) hne
-      · exact fun h => absurd (mem_filter.2 ⟨mem_univ o, ho⟩) h
+      rw [Finset.sum_eq_single_of_mem o (mem_filter.2 ⟨mem_univ o, ho⟩) fun o' ho' hne =>
+        absurd (Row.place_zero_injective (gridRow_noParallel hv hw)
+          ((mem_filter.1 ho').2.trans ho.symm)) hne]
+      cases s with
+      | edge n => exact Or.inr (Or.inr ⟨n, o.1, o.2, rfl⟩)
+      | _ => exact Or.inr (Or.inl rfl)
     · exact Or.inl (Finset.sum_eq_zero fun o ho => absurd ⟨o, (mem_filter.1 ho).2⟩ hex)
-  · simp only [Row.weight]
+  all_goals
+    simp only [Row.weight]
     split_ifs
-    · exact Or.inr (Or.inl rfl)
-    · exact Or.inl rfl
-  · simp only [Row.weight]
-    split_ifs
-    · exact Or.inr (Or.inl rfl)
-    · exact Or.inl rfl
+    exacts [Or.inr (Or.inl rfl), Or.inl rfl]
 
 
 

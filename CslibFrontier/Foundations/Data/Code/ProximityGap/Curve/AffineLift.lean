@@ -95,25 +95,19 @@ private theorem all_close_dir_of_line_correlatedAgreement
     ∀ d : Fin m → F, ∃ c ∈ C,
       B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => (∑ j : Fin m, d j • u j) i = c i), W i := by
   classical
-  obtain ⟨z_ne, hz_ne⟩ := Finset.card_pos.1 (Nat.pos_of_ne_zero fun h0 => by
-    rw [h0, Nat.mul_zero] at hT; exact Nat.not_lt_zero _ hT)
+  obtain ⟨z_ne, hz_ne⟩ : T.Nonempty := Finset.card_pos.1 (Nat.pos_of_ne_zero fun h0 => by
+    simp [h0] at hT)
   have hBW_le_tot : B_W ≤ ∑ i : ι, W i :=
     let ⟨_, _, hge⟩ := hclose z_ne hz_ne
     hge.trans (Finset.sum_le_sum_of_subset fun _ _ => mem_univ _)
   intro d
   by_cases hd0 : ∀ j : Fin m, d j = 0
-  · refine ⟨0, C.zero_mem, ?_⟩
-    rw [show (∑ j : Fin m, d j • u j) = 0 from Finset.sum_eq_zero fun j _ => by
-      rw [hd0 j, zero_smul]]
-    simpa only [Pi.zero_apply, eq_self, filter_true_of_mem (fun _ _ => trivial)] using hBW_le_tot
+  · exact ⟨0, C.zero_mem, by simpa [hd0] using hBW_le_tot⟩
   · push Not at hd0; obtain ⟨j₀, hj₀⟩ := hd0
     have hm_pos : 1 ≤ m := Fin.pos j₀
-    have hT_gt : B_line * (Fintype.card F) ^ (m - 1) < T.card := Nat.lt_of_mul_lt_mul_left <| by
-      calc Fintype.card F * (B_line * (Fintype.card F) ^ (m - 1))
-          = B_line * (Fintype.card F) ^ m := by
-              conv_rhs => rw [← Nat.sub_add_cancel hm_pos, pow_succ]
-              ring
-        _ < Fintype.card F * T.card := hT
+    have hT_gt : B_line * (Fintype.card F) ^ (m - 1) < T.card :=
+      Nat.lt_of_mul_lt_mul_left (a := Fintype.card F) <| by
+        rwa [mul_left_comm, ← pow_succ', Nat.sub_add_cancel hm_pos]
     let H := Finset.univ.filter fun z : Fin m → F => z j₀ = 0
     have hsum_lt : (∑ _z ∈ H, B_line) <
         ∑ z ∈ H, ((Finset.univ : Finset F).filter fun t => z + t • d ∈ T).card := by
@@ -176,18 +170,13 @@ private theorem all_close_affine_of_line_correlatedAgreement
     obtain ⟨_, _, rfl⟩ := mem_image.1 hx₀; obtain ⟨p, _, hp⟩ := mem_image.1 hx₁
     exact p.1.ne_zero (by simpa only [consF, Fin.cons_zero] using congrFun hp 0)
   have hT_bar_gt : B_line * (Fintype.card F) ^ (ℓ + 1) < Fintype.card F * (T₀ ∪ T₁).card := by
-    have hq2 : 2 ≤ Fintype.card F := Fintype.one_lt_card
+    have hq : 1 ≤ Fintype.card F := Fintype.card_pos
     have h1 := Nat.mul_lt_mul_of_pos_right (lt_card_field_of_density_threshold hT)
       (Nat.pow_pos (Fintype.card_pos (α := F)) (n := ℓ))
     have h2 := Nat.mul_le_mul_left (Fintype.card F - 1) hT.le
-    rw [Finset.card_union_of_disjoint hdisj, hT₀_card, hT₁_card]
-    calc B_line * (Fintype.card F) ^ (ℓ + 1)
-        = (1 + (Fintype.card F - 1)) * (B_line * (Fintype.card F) ^ ℓ) := by
-          rw [show 1 + (Fintype.card F - 1) = Fintype.card F by omega, pow_succ]; ring
-      _ = B_line * (Fintype.card F) ^ ℓ +
-            (Fintype.card F - 1) * (B_line * (Fintype.card F) ^ ℓ) := by ring
-      _ < _ := Nat.add_lt_add_of_lt_of_le h1 h2
-      _ = Fintype.card F * ((Fintype.card F) ^ ℓ + (Fintype.card F - 1) * T.card) := by ring
+    rw [Finset.card_union_of_disjoint hdisj, hT₀_card, hT₁_card, pow_succ]
+    zify [hq] at h1 h2 ⊢
+    linarith
   have hall := all_close_dir_of_line_correlatedAgreement hline 0 u' (T₀ ∪ T₁) hT_bar_gt
     fun x hx => by
     rw [zero_add]
@@ -391,15 +380,10 @@ theorem exists_weighted_correlatedAgreement_affine_of_divergence
           w₁, hw₁C, fun i hi => (hag_z i (hsub hi)).2⟩
     have hmem_K (d : Fin (ℓ' + 2) → F) :
         ∃ w ∈ C, ∀ i ∈ D_star v_star, (∑ j, d j • u j) i = w i := by
-      have : d ∈ agreeDirSubmodule C u (D_star v_star) := hK_top ▸ Submodule.mem_top
-      exact this
+      exact (hK_top ▸ Submodule.mem_top : d ∈ agreeDirSubmodule C u (D_star v_star))
     have hex_j (j : Fin (ℓ' + 2)) : ∃ vj ∈ C, ∀ i ∈ D_star v_star, u j i = vj i := by
       obtain ⟨vj, hvj, hag⟩ := hmem_K (Pi.single j 1)
-      refine ⟨vj, hvj, fun i hi => ?_⟩
-      have hsingle : (∑ r : Fin (ℓ' + 2), Pi.single (M := fun _ => F) j (1 : F) r • u r) = u j := by
-        rw [Finset.sum_eq_single j (fun r _ hr => by simp [Pi.single_eq_of_ne hr])
-          (fun h => absurd (mem_univ j) h), Pi.single_eq_same, one_smul]
-      rw [← hsingle]; exact hag i hi
+      exact ⟨vj, hvj, fun i hi => by simpa [Pi.single_apply, ite_smul, ite_apply] using hag i hi⟩
     choose v hvC hv_ag using hex_j
     obtain ⟨w_neg, hw_negC, hag_neg⟩ := hmem_K (-z_star)
     have hD_sum : ∑ i ∈ D_star v_star, W i = agreeW u_star v_star := by

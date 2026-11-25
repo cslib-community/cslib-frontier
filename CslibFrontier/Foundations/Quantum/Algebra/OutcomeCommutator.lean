@@ -55,34 +55,21 @@ private theorem mixed_and_pairDefect_le (φ : AlgState A)
   let e (a : α) (b : β) := Q.effect (some b) * (P.effect (some a) - R.effect (some a))
   have he : (∑ a, ∑ b, φ.norm (e a b) ^ 2) ≤ successfulCopyDefect φ P R :=
     sum_le_sum fun a _ => sum_norm_some_effect_mul_sq_le φ Q hQ _
-  let p (a : α) := P.effect (some a)
-  let q (b : β) := Q.effect (some b)
-  let r (a : α) := R.effect (some a)
-  have h (a : α) (b : β) :
-      p a * q b - q b * r a = (p a * q b - q b * p a) + e a b := by
-    simp only [e, p, q, r, mul_sub]
-    abel
-  constructor
-  · unfold mixedDefect successfulPairDefect
+  -- each commutator is the other one plus `±e`
+  have key (u v d : α → β → A) (hd : ∀ a b, φ.norm (d a b) = φ.norm (e a b))
+      (h : ∀ a b, u a b = v a b + d a b) : (∑ a, ∑ b, φ.norm (u a b) ^ 2) ≤
+        2 * ((∑ a, ∑ b, φ.norm (v a b) ^ 2) + successfulCopyDefect φ P R) := by
     calc
-      _ ≤ ∑ a : α, ∑ b : β, 2 * (φ.norm (p a * q b - q b * p a) ^ 2 + φ.norm (e a b) ^ 2) :=
+      _ ≤ ∑ a : α, ∑ b : β, 2 * (φ.norm (v a b) ^ 2 + φ.norm (e a b) ^ 2) :=
         sum_le_sum fun a _ => sum_le_sum fun b _ => by
-          change φ.norm (p a * q b - q b * r a) ^ 2 ≤ _
-          rw [h]
+          rw [h, ← hd]
           exact φ.norm_add_sq_le _ _
       _ ≤ _ := by
-        simp only [← mul_sum, sum_add_distrib, mul_le_mul_iff_right₀ (by norm_num : (0 : ℝ) < 2)]
-        exact add_le_add_right he _
-  · unfold mixedDefect successfulPairDefect
-    calc
-      _ ≤ ∑ a : α, ∑ b : β, 2 * (φ.norm (p a * q b - q b * r a) ^ 2 + φ.norm (e a b) ^ 2) :=
-        sum_le_sum fun a _ => sum_le_sum fun b _ => by
-          change φ.norm (p a * q b - q b * p a) ^ 2 ≤ _
-          rw [show p a * q b - q b * p a = (p a * q b - q b * r a) + -e a b by rw [h]; abel]
-          simpa only [φ.norm_neg] using φ.norm_add_sq_le (p a * q b - q b * r a) (-e a b)
-      _ ≤ _ := by
-        simp only [← mul_sum, sum_add_distrib, mul_le_mul_iff_right₀ (by norm_num : (0 : ℝ) < 2)]
-        exact add_le_add_right he _
+        simp only [← mul_sum, sum_add_distrib]
+        linarith only [he]
+  exact ⟨key _ _ e (fun _ _ => rfl) fun a b => by simp only [e, mul_sub]; abel,
+    key _ _ (fun a b => -e a b) (fun _ _ => φ.norm_neg _) fun a b => by
+      simp only [e, mul_sub]; abel⟩
 
 private theorem mixedDefect_eq (φ : AlgState A)
     (P R : Measurement (Option α) A) (Q : Measurement (Option β) A)
@@ -104,11 +91,8 @@ private theorem mixedDefect_eq (φ : AlgState A)
   have hx : star (p * q) * (p * q) = q * p * q := by
     rw [star_mul, hp, hq, mul_assoc, ← mul_assoc p p, show p * p = p from hP _, ← mul_assoc]
   have hy : star (q * r) * (q * r) = q * r := by
-    rw [star_mul, hq, hr, hs.eq]
-    calc
-      _ = q * (r * q) * r := by simp only [mul_assoc]
-      _ = q * q * (r * r) := by rw [hs.eq]; simp only [mul_assoc]
-      _ = _ := by rw [show q * q = q from hQ _, show r * r = r from hR _]
+    rw [star_mul, hq, hr, mul_assoc, ← mul_assoc q q, show q * q = q from hQ _, ← mul_assoc,
+      hs.eq, mul_assoc, show r * r = r from hR _]
   change φ.norm (p * q - q * r) ^ 2 = _
   have he := norm_sub_sq (𝕜 := ℂ) (φ.toPreGNS (p * q)) (φ.toPreGNS (q * r))
   rw [← map_sub, φ.inner_toPreGNS] at he
@@ -200,17 +184,10 @@ private theorem mixedDefect_le_average_map (φ : AlgState A)
       (fun a b => (commute_map_right R _ _ (fun a' => (hRQ a' b).symm) a).symm)]
     simp only [map_option_effect_some, mul_sum, sum_mul, map_sum, Complex.re_sum]
     simp only [sum_add_distrib, sum_sub_distrib, ← mul_sum]
-    have hfirst :
-        (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * p a * q b)).re) =
-          ∑ a : α, ∑ b : β, (φ (q b * p a * q b)).re := by
-      simp_rw [sum_comm (s := univ) (f := fun (b : β) (a : α) =>
-        (φ (q b * p a * q b)).re)]
-      exact sum_fiberwise univ (f x) _
-    have hsecond :
-        (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * r a)).re) =
-          ∑ a : α, ∑ b : β, (φ (q b * r a)).re := by
-      simp_rw [sum_comm (s := univ) (f := fun (b : β) (a : α) => (φ (q b * r a)).re)]
-      exact sum_fiberwise univ (f x) _
+    have hfib (g : α → β → ℝ) :
+        (∑ c : γ, ∑ b : β, ∑ a with f x a = c, g a b) = ∑ a : α, ∑ b : β, g a b := by
+      rw [← sum_fiberwise univ (f x) fun a => ∑ b, g a b]
+      exact sum_congr rfl fun c _ => sum_comm
     have hthird :
         (∑ c : γ, ∑ b : β, ∑ a' with f x a' = c,
           ∑ a with f x a = c, (φ (q b * p a * q b * r a')).re) =
@@ -218,40 +195,23 @@ private theorem mixedDefect_le_average_map (φ : AlgState A)
       rw [← sum_paired_fibers (f x) w]
       refine sum_congr rfl fun c _ => ?_
       rw [sum_comm]
-      calc
-        _ = ∑ a' with f x a' = c, ∑ a with f x a = c,
-            ∑ b : β, (φ (q b * p a * q b * r a')).re := by
-          exact sum_congr rfl fun a' _ => sum_comm
-        _ = _ := sum_comm
-    change (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * p a * q b)).re) +
-      (∑ c : γ, ∑ b : β, ∑ a with f x a = c, (φ (q b * r a)).re) -
-        2 * (∑ c : γ, ∑ b : β, ∑ a' with f x a' = c,
-          ∑ a with f x a = c, (φ (q b * p a * q b * r a')).re) = _
-    rw [hfirst, hsecond, hthird]
-  have hmean (a a' : α) :
-      (𝔼 x, if f x a' = f x a then w a a' else 0) ≤
-        (if a' = a then w a a' else κ * w a a') := by
+      exact (sum_congr rfl fun a' _ => sum_comm).trans sum_comm
+    rw [hfib, hfib, hthird]
+  -- the diagonal survives every map; off the diagonal a collision costs at most `κ`
+  have hmean (a a' : α) : (𝔼 x, if f x a' = f x a then w a a' else 0) ≤
+      (if a' = a then w a a' else 0) + κ * w a a' := by
     by_cases h : a' = a
     · subst a'
-      simp only [ite_true, Fintype.expect_const, le_rfl]
-    · rw [ite_eq_right h]
-      have he (x : X) : (if f x a' = f x a then w a a' else 0) =
-          (if f x a' = f x a then (1 : ℝ) else 0) * w a a' := by
-        split_ifs <;> simp
-      simp only [he, ← expect_mul]
-      exact mul_le_mul_of_nonneg_right (hcol _ _ (Ne.symm h)) (hw a a')
+      simp only [ite_true, Fintype.expect_const]
+      linarith only [mul_nonneg hκ (hw a a)]
+    · simpa only [ite_eq_right h, zero_add, expect_mul, ite_mul, one_mul, zero_mul] using
+        mul_le_mul_of_nonneg_right (hcol _ _ (Ne.symm h)) (hw a a')
   have hcolmean :
       (𝔼 x, ∑ a, ∑ a', if f x a' = f x a then w a a' else 0) ≤ ∑ a, w a a + κ := by
     simp only [expect_sum_comm]
-    calc
-      _ ≤ ∑ a, ∑ a', if a' = a then w a a' else κ * w a a' :=
-        sum_le_sum fun a _ => sum_le_sum fun a' _ => hmean a a'
-      _ ≤ ∑ a, ∑ a', ((if a' = a then w a a' else 0) + κ * w a a') := by
-        refine sum_le_sum fun a _ => sum_le_sum fun a' _ => ?_
-        split_ifs <;> linarith [mul_nonneg hκ (hw a a')]
-      _ ≤ _ := by
-        simp only [sum_add_distrib, sum_ite_eq', mem_univ, ite_true, ← mul_sum]
-        linarith only [mul_le_mul_of_nonneg_left hmass hκ]
+    refine (sum_le_sum fun a _ => sum_le_sum fun a' _ => hmean a a').trans ?_
+    simp only [sum_add_distrib, sum_ite_eq', mem_univ, ite_true, ← mul_sum]
+    linarith only [mul_le_mul_of_nonneg_left hmass hκ]
   simp only [hraw, hmap, expect_sub_distrib, Fintype.expect_const, ← mul_expect]
   linarith only [hcolmean]
 

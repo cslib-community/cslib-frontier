@@ -308,11 +308,7 @@ theorem columnPacking_of_count {a b c t d h : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
     by_cases hj : j = Fin.last (c + 1)
     · subst hj
       simp [primalTargets, fullOrMid]
-    · have hjc : j.val ≤ c := by
-        have := j.isLt
-        have := Fin.val_ne_of_ne hj
-        rw [Fin.val_last] at this
-        omega
+    · have hjc : j.val ≤ c := Nat.lt_succ_iff.1 (Fin.lt_last_iff_ne_last.2 hj)
       simp [primalTargets, fullOrMid, hj, hjc]
   rw [hT] at hprim
   -- amplify, and keep the balanced pairs of words, numbered by `Fin (w₀ ^ 2)`
@@ -369,12 +365,7 @@ theorem nextLength_spec {c L : ℕ} (hc : 2 ≤ c) (hL : 1 ≤ L) :
   generalize (3 * L - 1 + m) / (m + 1) = q at hdm h2 ⊢
   generalize (3 * L - 1 + m) % (m + 1) = r at hdm hml
   generalize hP : (m + 1) * q = P at hdm h2 ⊢
-  have hq : 1 ≤ q := by
-    rcases Nat.eq_zero_or_pos q with hq | hq
-    · subst hq
-      rw [mul_zero] at hP
-      omega
-    · exact hq
+  have hq : 1 ≤ q := Nat.pos_of_ne_zero fun hq => by subst hq; rw [mul_zero] at hP; omega
   omega
 
 /-- **Iterated rounds** ([Pass][Pass2026], proof of Theorem 4.3): `k` rounds from `L₀ = 1` give a
@@ -679,13 +670,10 @@ theorem exists_rank_mm_lt_rpow {τ : ℝ} (hτ : 9 / 4 < τ) :
     push_cast
     nlinarith [hd2, this]
   have hΛ2 : 2 ≤ Λ := by
-    rcases Nat.lt_or_ge Λ 2 with hcon | hcon
-    · exfalso
-      have h1 : (Λ : ℝ) ≤ 1 := by exact_mod_cast Nat.lt_succ_iff.1 hcon
-      have h2 : (Λ : ℝ) ^ τ ≤ 1 := Real.rpow_le_one (Nat.cast_nonneg _) h1 hτ0.le
-      have h3 : (1 : ℝ) ≤ rho c ^ (6 * d) := one_le_pow₀ (one_le_rho hc)
-      linarith
-    · exact hcon
+    by_contra! hcon
+    have h1 : (Λ : ℝ) ≤ 1 := by exact_mod_cast Nat.lt_succ_iff.1 hcon
+    linarith [Real.rpow_le_one (Nat.cast_nonneg _) h1 hτ0.le,
+      one_le_pow₀ (n := 6 * d) (one_le_rho hc)]
   -- the number of rounds
   have hw0 : (0 : ℝ) < w := by exact_mod_cast hw1
   obtain ⟨k, hk1, hk⟩ := exists_lt_pow_of_lt (mul_nonneg (by norm_num) (pow_nonneg hρ0 _)) hΛτ

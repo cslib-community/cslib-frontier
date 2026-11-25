@@ -305,18 +305,13 @@ theorem exists_isLinearized_range_eq [Finite F] (W : Submodule (ZMod 2) F) :
     rw [← hkerP, LinearMap.mem_ker, IsLinearized.toLinearMap_apply, ← eval_comp, hPQ]
     simp [FiniteField.pow_card]
   -- the image of `Q` is all of `W`, by counting
-  have hle : LinearMap.range hQ.toLinearMap ≤ W := by
-    rintro _ ⟨x, rfl⟩
-    exact hrange x
   have heq : LinearMap.range hQ.toLinearMap = W := by
-    refine Submodule.eq_of_le_of_finrank_eq hle ?_
+    refine Submodule.eq_of_le_of_finrank_eq (by rintro _ ⟨x, rfl⟩; exact hrange x) ?_
     have := LinearMap.finrank_range_add_finrank_ker hQ.toLinearMap
     rw [hkerQ] at this
     omega
-  intro y
-  refine ⟨fun hy => ?_, fun ⟨x, hx⟩ => hx ▸ hrange x⟩
-  rw [← heq] at hy
-  obtain ⟨x, rfl⟩ := hy
+  refine fun y => ⟨fun hy => ?_, fun ⟨x, hx⟩ => hx ▸ hrange x⟩
+  obtain ⟨x, rfl⟩ := heq ▸ hy
   exact ⟨x, rfl⟩
 
 /-! ### Coefficient vectors indexed by `ZMod n` -/
@@ -365,8 +360,7 @@ theorem eq_zero_of_linearizedEval_eq_zero {n : ℕ} [NeZero n] {b : ZMod n → F
     (h : ∀ x ∈ S, linearizedEval b x = 0) : b = 0 := by
   classical
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · funext j
-    exact hb j (Nat.zero_le _)
+  · exact funext fun j => hb j (Nat.zero_le _)
   set p : F[X] := ∑ j, C (b j) * X ^ 2 ^ j.val with hp
   have heval : ∀ x, p.eval x = linearizedEval b x := fun x => by
     simp [hp, linearizedEval, eval_finsetSum]
@@ -377,24 +371,15 @@ theorem eq_zero_of_linearizedEval_eq_zero {n : ℕ} [NeZero n] {b : ZMod n → F
       · simp [hj]
       · have : j.val < m := not_le.1 fun h => hj (hb j h)
         exact (natDegree_C_mul_X_pow_le _ _).trans (Nat.pow_le_pow_right two_pos (by omega))
-    calc p.natDegree ≤ 2 ^ (m - 1) := this
-      _ < 2 ^ m := Nat.pow_lt_pow_right (by norm_num) (by omega)
-      _ ≤ S.card := hS
-  have hp0 : p = 0 := by
-    refine eq_zero_of_natDegree_lt_card_of_eval_eq_zero p (f := ((↑) : S → F))
-      Subtype.val_injective (fun x => ?_) (by simpa using hdeg)
-    rw [heval]
-    exact h x x.2
+    exact this.trans_lt ((Nat.pow_lt_pow_right (by norm_num) (by omega)).trans_le hS)
+  have hp0 : p = 0 := eq_zero_of_natDegree_lt_card_of_eval_eq_zero p (f := ((↑) : S → F))
+    Subtype.val_injective (fun x => by rw [heval]; exact h x x.2) (by simpa using hdeg)
   funext j
   have := congrArg (fun q => q.coeff (2 ^ j.val)) hp0
   simp only [hp, finsetSum_coeff, coeff_C_mul_X_pow, coeff_zero] at this
-  rw [Finset.sum_eq_single j] at this
-  · simpa using this
-  · intro j' _ hj'
-    rw [ite_eq_right_iff]
-    intro h
-    exact absurd (ZMod.val_injective _ (Nat.pow_right_injective le_rfl h).symm) hj'
-  · simp
+  rw [Finset.sum_eq_single_of_mem j (Finset.mem_univ j) fun j' _ hj' => ite_eq_right_iff.2 fun h =>
+    absurd (ZMod.val_injective _ (Nat.pow_right_injective le_rfl h).symm) hj'] at this
+  simpa using this
 
 /-- If every element `y` of a subspace `W` satisfies `y ^ 2 ^ k = c * y` with `0 < k < n`, then
 `W` has at most as many elements as some proper subfield of `F`. -/
@@ -420,9 +405,8 @@ theorem exists_subfield_card_le [Finite F] {n k : ℕ} (hn : finrank (ZMod 2) F 
     · obtain ⟨y₀, hy₀W, hy₀⟩ := hW
       have hc : c ≠ 0 := by
         rintro rfl
-        have := h y₀ hy₀W
-        rw [zero_mul] at this
-        exact hy₀ (pow_eq_zero_iff (pow_ne_zero _ two_ne_zero) |>.1 this)
+        exact hy₀ (pow_eq_zero_iff (pow_ne_zero _ two_ne_zero) |>.1
+          ((h y₀ hy₀W).trans (zero_mul _)))
       let f : W → K := fun y => ⟨y / y₀, (hmem _).2 (by
         rw [div_pow, h y y.2, h y₀ hy₀W, mul_div_mul_left _ _ hc])⟩
       exact Nat.card_le_card_of_injective f fun y y' hyy' =>
@@ -464,13 +448,10 @@ private theorem IsLinearized.eval_eq_linearizedEval {n : ℕ} [NeZero n] {Q : F[
     simp only [coeff_C_mul_X_pow]
     by_cases hi : ∃ e < n, i = 2 ^ e
     · obtain ⟨e, he, rfl⟩ := hi
-      rw [Finset.sum_eq_single (e : ZMod n)]
+      rw [Finset.sum_eq_single (e : ZMod n) (fun j _ hj => ?_) (by simp)]
       · simp [a, ZMod.val_cast_of_lt he]
-      · intro j _ hj
-        rw [ite_eq_right_iff]
-        intro h
-        exact absurd (by rw [Nat.pow_right_injective le_rfl h, ZMod.natCast_zmod_val]) hj
-      · simp
+      · exact ite_eq_right_iff.2 fun h =>
+          absurd (by rw [Nat.pow_right_injective le_rfl h, ZMod.natCast_zmod_val]) hj
     · push Not at hi
       rw [Finset.sum_eq_zero fun j _ =>
         ite_eq_right_iff.2 fun h => absurd h (hi j.val (ZMod.val_lt j))]
@@ -571,13 +552,10 @@ private theorem coeffPattern_gap [Finite F] {n s d : ℕ} [NeZero n]
     (hSzero : ∀ x ∈ S, linearizedEval a x = 0)
     (ρ : ℕ) (hρ1 : 1 ≤ ρ) (hρd : ρ + d ≤ n) :
     ∃ c < d - 1, a ((ρ + c : ℕ) : ZMod n) ≠ 0 := by
-  by_contra hall
-  push Not at hall
+  by_contra! hall
   obtain ⟨c₀, hc₀⟩ := linearizedEval_pow_eq_mul_of_gap hn hρ1 hρd hlead hcan hScard hSzero hall
-  have hW' : ∀ y ∈ W, y ^ 2 ^ (n - d + 1 - ρ) = c₀ * y := by
-    intro y hy
-    obtain ⟨x, rfl⟩ := hWa y hy
-    exact hc₀ x
+  have hW' : ∀ y ∈ W, y ^ 2 ^ (n - d + 1 - ρ) = c₀ * y := fun y hy => by
+    obtain ⟨x, rfl⟩ := hWa y hy; exact hc₀ x
   obtain ⟨K, hK, hcard⟩ := exists_subfield_card_le hn (by omega) (by omega) W c₀ hW'
   have hWcard : Nat.card W = 2 ^ d := by
     rw [Module.natCard_eq_pow_finrank (K := ZMod 2) (V := W), Nat.card_zmod, hd]
@@ -614,9 +592,7 @@ theorem exists_coeffPattern [Finite F] {n s : ℕ} [NeZero n] (hn : finrank (ZMo
   set S : Finset F := Finset.univ.filter fun x => Q.eval x = 0 with hSdef
   have hScard : S.card = 2 ^ (n - d) := by
     have hrange : LinearMap.range hQ.toLinearMap = W := by
-      ext y
-      rw [LinearMap.mem_range, hQW y]
-      rfl
+      ext y; rw [LinearMap.mem_range, hQW y]; rfl
     have hker : finrank (ZMod 2) (LinearMap.ker hQ.toLinearMap) = n - d := by
       have := LinearMap.finrank_range_add_finrank_ker hQ.toLinearMap
       rw [hrange, hd, hn] at this
@@ -627,15 +603,9 @@ theorem exists_coeffPattern [Finite F] {n s : ℕ} [NeZero n] (hn : finrank (ZMo
     exact Fintype.card_congr (Equiv.subtypeEquivRight fun x => by simp)
   have hSzero : ∀ x ∈ S, linearizedEval a x = 0 := fun x hx =>
     hQa x ▸ (Finset.mem_filter.1 hx).2
-  have hmemW : ∀ x, linearizedEval a x ∈ W := fun x =>
-    (hQW _).2 ⟨x, hQa x⟩
-  refine ⟨a, hmemW, ⟨hdn, hlead ▸ one_ne_zero, hcan, ?_, ?_⟩⟩
-  · -- the constant coefficient is nonzero
-    exact coeffPattern_zero_ne hn hdn hlead hcan hScard.ge hSzero
-  · -- the gap property
-    refine coeffPattern_gap hn hs hd hsW ?_ hlead hcan hScard.ge hSzero
-    intro y hy
-    obtain ⟨x, rfl⟩ := (hQW y).1 hy
-    exact ⟨x, (hQa x).symm⟩
+  exact ⟨a, fun x => (hQW _).2 ⟨x, hQa x⟩, hdn, hlead ▸ one_ne_zero, hcan,
+    coeffPattern_zero_ne hn hdn hlead hcan hScard.ge hSzero,
+    coeffPattern_gap hn hs hd hsW (fun y hy => let ⟨x, hx⟩ := (hQW y).1 hy
+      ⟨x, (hQa x).symm.trans hx⟩) hlead hcan hScard.ge hSzero⟩
 
 end Cslib

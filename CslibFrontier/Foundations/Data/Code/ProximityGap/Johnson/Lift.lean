@@ -149,15 +149,7 @@ private theorem map_evalMismatchPoly {A : Type*} [CommRing A]
         show φ (C (C (a - x₀))) ^ k = φ (C (C ((a - x₀) ^ k))) by rw [← map_pow, ← C_pow, ← C_pow],
         ← hWk k hk]
       ring
-    rw [map_sub, map_add, map_mul, map_pow, map_sum, map_mul, C_pow, map_pow, map_pow]
-    have hsum_map :
-        ∑ k ∈ Icc 1 (μ * d),
-          φ (recPoly S x₀ s k * γ ^ (2 * (μ * d - k)) * C (C ((a - x₀) ^ k))) =
-        ∑ k ∈ Icc 1 (μ * d),
-          φ (recPoly S x₀ s k) * g ^ (2 * (μ * d - k)) * φ (C (C ((a - x₀) ^ k))) :=
-      Finset.sum_congr rfl fun k _ => by rw [map_mul, map_mul, map_pow]
-    rw [hsum_map]
-    change φ X * g ^ (2 * (μ * d) - 1) + _ - φ (C w) ^ μ * g ^ (2 * (μ * d) - 1) = _
+    simp only [map_sub, map_add, map_mul, map_pow, map_sum] at hWeval ⊢
     linear_combination -hWeval
 
 private theorem spec_recPoly_at_point {S : F[X][X][X]} {x₀ : F} {w D μ : ℕ}
@@ -224,12 +216,10 @@ private theorem resultant_evalMismatch_natDegree_le {ι : Type*} [DecidableEq F]
   intro Ei
   have hs_le_DY : S.natDegree ≤ D_Y := (Nat.le_mul_of_pos_left _ hμ_pos).trans hμs_le
   have hF_le_DY : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
-  have hμF_sq : Fstar.natDegree * (μ * r) ≤ r * D_Y ^ 2 := by
-    have h1 : μ * Fstar.natDegree ≤ D_Y := (Nat.mul_le_mul_left μ hF_deg_le).trans hμs_le
+  have hμF_sq : Fstar.natDegree * (μ * r) ≤ r * D_Y ^ 2 :=
     calc Fstar.natDegree * (μ * r) = r * (μ * Fstar.natDegree) := by ring
-      _ ≤ r * D_Y := Nat.mul_le_mul_left r h1
-      _ ≤ r * (D_Y * D_Y) := Nat.mul_le_mul_left r (Nat.le_mul_of_pos_right D_Y hDY_pos)
-      _ = r * D_Y ^ 2 := by ring
+      _ ≤ r * D_Y ^ 2 := Nat.mul_le_mul_left r <|
+        ((Nat.mul_le_mul_left μ hF_deg_le).trans hμs_le).trans (Nat.le_self_pow two_ne_zero _)
   have hw_degZ : degZ₂ (C ((curveWord u i) ^ μ)) ≤ μ * r := by
     rw [degZ₂_C]
     exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ
@@ -252,10 +242,8 @@ private theorem resultant_evalMismatch_natDegree_le {ι : Type*} [DecidableEq F]
     (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hEi_degZ)
   split_ifs at hres hEi_degZ hEi_degY with h0
   · rw [Nat.zero_max] at hres; rw [Nat.max_zero] at hEi_degY
-    have h1 : 1 ≤ 4 * D * D_Y := by
-      have := Nat.mul_le_mul (show 1 ≤ 4 * D by omega) hDY_pos; simpa using this
     have h2 : Ei.natDegree * B_Z ≤ 4 * D * D_Y * B_Z :=
-      Nat.mul_le_mul_right B_Z (hEi_degY.trans h1)
+      Nat.mul_le_mul_right B_Z (hEi_degY.trans (Nat.mul_pos (by omega) hDY_pos))
     exact hres.trans ((Nat.add_le_add hμF_sq h2).trans_eq (add_comm _ _))
   · have ha : Fstar.natDegree * (2 * (μ * d) * B_Z) ≤ 2 * D * D_Y * B_Z :=
       (Nat.mul_le_mul hF_le_DY
@@ -383,12 +371,8 @@ theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] [Decidab
   let j_L : F[X] →+* L := ι_L.comp ι_K
   have hι_K_inj : Function.Injective ι_K := IsFractionRing.injective F[X] K
   have hj_L_inj : Function.Injective j_L := (RingHom.injective ι_L).comp hι_K_inj
-  have hF_L_deg : (Fstar.map j_L).degree ≠ 0 := fun h => by
-    have hm0 : Fstar.map j_L ≠ 0 := (Polynomial.map_ne_zero_iff hj_L_inj).2 hF_irred.ne_zero
-    rw [Polynomial.degree_eq_natDegree hm0, Polynomial.natDegree_map_eq_of_injective hj_L_inj] at h
-    have : Fstar.natDegree = 0 := by exact_mod_cast h
-    omega
-  obtain ⟨ystar, hystar⟩ := IsAlgClosed.exists_root (Fstar.map j_L) hF_L_deg
+  obtain ⟨ystar, hystar⟩ := IsAlgClosed.exists_root (Fstar.map j_L) <| by
+    rw [degree_map_eq_of_injective hj_L_inj]; exact (natDegree_pos_iff_degree_pos.1 hF_deg1).ne'
   let φstar : F[X][X] →+* L := Polynomial.eval₂RingHom j_L ystar
   have hφstar_eq (f : F[X][X]) : φstar f = (f.map j_L).eval ystar := by
     simp [φstar, Polynomial.eval_map]
@@ -419,11 +403,9 @@ theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] [Decidab
       if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
     rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, coeff_sum_Icc_C_mul_X_pow]
     simp [hk1]
-  have hμ_char_L : μ = 1 ∨ ∃ (p e : ℕ), CharP L p ∧ p.Prime ∧ μ = p ^ e := by
-    rcases hμ_char with rfl | ⟨p, e, _, hp, rfl⟩
-    · exact Or.inl rfl
-    · have hFL_inj : Function.Injective (j_L.comp C) := hj_L_inj.comp Polynomial.C_injective
-      exact Or.inr ⟨p, e, charP_of_injective_ringHom hFL_inj p, hp, rfl⟩
+  have hμ_char_L : μ = 1 ∨ ∃ (p e : ℕ), CharP L p ∧ p.Prime ∧ μ = p ^ e :=
+    hμ_char.imp_right fun ⟨p, e, _, hp, he⟩ =>
+      ⟨p, e, charP_of_injective_ringHom (f := j_L.comp C) (hj_L_inj.comp C_injective) p, hp, he⟩
   obtain ⟨Ptilde, hPtilde_deg, hPtilde_pow⟩ := exists_pow_eq_poly_of_not_dvd hμ_pos hμ_char_L
     hΨ_deg fun k hndiv => by
       have hk1 : 1 ≤ k := Nat.pos_of_ne_zero fun h0 => hndiv (h0 ▸ dvd_zero μ)

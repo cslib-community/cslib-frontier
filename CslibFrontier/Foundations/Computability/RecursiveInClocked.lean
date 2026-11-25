@@ -750,11 +750,6 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
   | comp cf cg ihf ihg =>
     exact ClockedComp.computable_play_bind ihg (ClockedComp.computable_play_comp ihf snd)
   | prec cf cg ihf ihg =>
-    have e : toClocked (prec cf cg) = fun n =>
-        Nat.rec (motive := fun _ => ClockedComp natOracleSpec ℕ) (toClocked cf n.unpair.1)
-          (fun y ih => ih >>= fun i => toClocked cg (Nat.pair n.unpair.1 (Nat.pair y i)))
-          n.unpair.2 := by
-      rw [toClocked]
     have h := ClockedComp.computable_play_natRec (m := fun n : ℕ => n.unpair.2)
       (P := fun n : ℕ => toClocked cf n.unpair.1)
       (g := fun z : ℕ × ℕ × ℕ => toClocked cg (Nat.pair z.1.unpair.1 (Nat.pair z.2.1 z.2.2)))
@@ -764,13 +759,9 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
         ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp (Computable.unpair.comp fst))
           ((Primrec₂.to_comp Primrec₂.natPair).comp (fst.comp snd) (snd.comp snd))))
     dsimp only at h
-    rw [e]
+    rw [toClocked]
     exact h
   | rfind' cf ihf =>
-    have e : toClocked (rfind' cf) = fun n =>
-        (· + n.unpair.2) <$> ClockedComp.rfind fun i =>
-          (fun x => decide (x = 0)) <$> toClocked cf (Nat.pair n.unpair.1 (i + n.unpair.2)) := by
-      rw [toClocked]
     have hp := ClockedComp.computable_play_map
       (P := fun z : ℕ × ℕ => toClocked cf (Nat.pair z.1.unpair.1 (z.2 + z.1.unpair.2)))
       (f := fun _ x => decide (x = 0))
@@ -784,7 +775,7 @@ theorem computable_play_toClocked (c : Code) : Computable (ClockedComp.play c.to
       ((Primrec₂.to_comp _root_.Primrec.nat_add).comp snd
         (snd.comp (Computable.unpair.comp fst))).to₂
     dsimp only at h
-    rw [e]
+    rw [toClocked]
     exact h
 
 /-- The dialogue of the compiled program of a code is computable. -/
