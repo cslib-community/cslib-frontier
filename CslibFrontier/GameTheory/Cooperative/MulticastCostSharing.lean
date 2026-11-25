@@ -324,16 +324,19 @@ theorem subtreeNodes_eq_insert_biUnion (u : V) :
     T.subtreeNodes u = insert u ((T.children u).biUnion T.subtreeNodes) := by
   ext w
   simp only [mem_subtreeNodes, Finset.mem_insert, Finset.mem_biUnion, mem_children]
-  refine ⟨fun huw => ?_, fun h => h.elim (fun h => h ▸ T.isAncestor_refl w)
-    fun ⟨c, ⟨_, hc⟩, hcw⟩ => (hc ▸ T.isAncestor_parent_self c).trans hcw⟩
-  by_cases hwu : w = u
-  · exact Or.inl hwu
-  · obtain ⟨hit, hle⟩ := T.isAncestor_iff_iterate.mp huw
-    have hlt : T.depth u < T.depth w := lt_of_le_of_ne hle fun h => hwu (by simpa [h] using hit)
-    let k := T.depth w - (T.depth u + 1)
-    have hdc : T.depth (T.parent^[k] w) = T.depth u + 1 := by rw [T.depth_iterate_parent]; omega
-    refine Or.inr ⟨T.parent^[k] w, ⟨fun hr => by rw [hr, T.depth_root] at hdc; omega, ?_⟩, k, rfl⟩
-    rwa [show T.depth w - T.depth u = k + 1 by omega, Function.iterate_succ_apply'] at hit
+  constructor
+  · intro huw
+    by_cases hwu : w = u
+    · exact Or.inl hwu
+    · obtain ⟨hit, hle⟩ := T.isAncestor_iff_iterate.mp huw
+      have hlt : T.depth u < T.depth w := lt_of_le_of_ne hle fun h => hwu (by simpa [h] using hit)
+      let k := T.depth w - (T.depth u + 1)
+      have hdc : T.depth (T.parent^[k] w) = T.depth u + 1 := by rw [T.depth_iterate_parent]; omega
+      refine Or.inr ⟨T.parent^[k] w, ⟨fun hr => by rw [hr, T.depth_root] at hdc; omega, ?_⟩, k, rfl⟩
+      rwa [show T.depth w - T.depth u = k + 1 by omega, Function.iterate_succ_apply'] at hit
+  · rintro (rfl | ⟨c, ⟨_, rfl⟩, hcw⟩)
+    · exact T.isAncestor_refl w
+    · exact (T.isAncestor_parent_self c).trans hcw
 
 /-- Maximum depth across `V`, used for well-founded bottom-up recursion on `T`. -/
 def maxDepth : ℕ :=

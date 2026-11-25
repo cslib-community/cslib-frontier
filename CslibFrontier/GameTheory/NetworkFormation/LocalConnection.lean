@@ -538,11 +538,6 @@ theorem NoDoubleEdges.isSocialOptimum_iff_isOptimalNetwork {α : ℝ} {s : Profi
   rw [IsSocialOptimum, isOptimalNetwork_iff_forall_profile]
   simp only [hnd.socialECost_eq_networkECost]
 
-omit [Fintype V] in
-private theorem preconnected_top : (⊤ : SimpleGraph V).Preconnected := by
-  classical
-  exact fun u v => if huv : u = v then huv ▸ Reachable.rfl else Adj.reachable (by simp [huv])
-
 private theorem sum_dist_starGraph_center (r : V) :
     (∑ v : V, (starGraph r).dist r v) = Fintype.card V - 1 := by
   classical

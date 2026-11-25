@@ -425,10 +425,6 @@ private theorem measurable_measureReal_Ici (μ : Measure ℝ) [IsFiniteMeasure �
     Measurable fun t => μ.real (Ici t) :=
   Antitone.measurable fun _ _ h => measureReal_mono (Ici_subset_Ici.2 h)
 
-private theorem measureReal_le_one (μ : Measure ℝ) [IsProbabilityMeasure μ] (s : Set ℝ) :
-    μ.real s ≤ 1 :=
-  (measureReal_mono (subset_univ s)).trans_eq probReal_univ
-
 private theorem integrableOn_Ioc_of_unit {f : ℝ → ℝ} (hf : Measurable f)
     (h0 : ∀ t, 0 ≤ f t) (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntegrableOn f (Ioc a b) :=
   Integrable.of_bound hf.aestronglyMeasurable 1 (Filter.Eventually.of_forall fun t => by
@@ -459,10 +455,10 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
   have hm_Fs : Measurable fun t => μ_s.real (Iic t) := measurable_measureReal_Iic μ_s
   have hm_Fb : Measurable fun t => μ_b.real (Ici t) := measurable_measureReal_Ici μ_b
   have hFs_int : IntegrableOn (fun t => μ_s.real (Iic t)) (Ioc a_b b_b) :=
-    integrableOn_Ioc_of_unit hm_Fs (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one _ _)
+    integrableOn_Ioc_of_unit hm_Fs (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one)
       a_b b_b
   have hFb_int : IntegrableOn (fun t => μ_b.real (Ici t)) (Ioc a_s b_s) :=
-    integrableOn_Ioc_of_unit hm_Fb (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one _ _)
+    integrableOn_Ioc_of_unit hm_Fb (fun _ => measureReal_nonneg) (fun _ => measureReal_le_one)
       a_s b_s
   -- Buyer expected payment: E[p_b] = E[v_b 1_{v_s ≤ v_b}] - U_b(a_b) - ∫_{a_b}^{b_b} (1-F_b) F_s
   have hEb : ∫ p, M.buyerPayment p.1 p.2 ∂(μ_b.prod μ_s) =
@@ -481,7 +477,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       refine Integrable.of_bound (measurable_id.mul hm_Fs).aestronglyMeasurable (max |a_b| |b_b|) ?_
       filter_upwards [hb_supp] with v_b hv
       rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
-      exact mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one _ _)|>.trans
+      exact mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one)|>.trans
         (abs_le_max_of_mem_Icc hv)
     have hi2 : Integrable (fun v_b => ∫ t in a_b..v_b, μ_s.real (Iic t)) μ_b := by
       refine Integrable.of_bound
@@ -490,7 +486,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_b - a_b) 0) ?_
       filter_upwards [hb_supp] with v_b hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one _ _
+      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one
       · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.1)]
         exact (sub_le_sub_right hv.2 a_b).trans (le_max_left _ _)
     have hi1' : Integrable
@@ -517,7 +513,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       refine Integrable.of_bound (measurable_id.mul hm_Fb).aestronglyMeasurable (max |a_s| |b_s|) ?_
       filter_upwards [hs_supp] with v_s hv
       rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg measureReal_nonneg]
-      exact (mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one _ _)).trans
+      exact (mul_le_of_le_one_right (abs_nonneg _) (measureReal_le_one)).trans
         (abs_le_max_of_mem_Icc hv)
     have hi2 : Integrable (fun v_s => ∫ t in v_s..b_s, μ_b.real (Ici t)) μ_s := by
       refine Integrable.of_bound
@@ -526,7 +522,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
         (max (b_s - a_s) 0) ?_
       filter_upwards [hs_supp] with v_s hv
       refine (intervalIntegral.norm_integral_le_of_norm_le_const (C := 1) fun t _ => ?_).trans ?_
-      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one _ _
+      · rw [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg]; exact measureReal_le_one
       · rw [one_mul, abs_of_nonneg (sub_nonneg.2 hv.2)]
         exact (sub_le_sub_left hv.1 b_s).trans (le_max_left _ _)
     have hi1' : Integrable
@@ -587,8 +583,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
   have hg_int : IntegrableOn g (Ioc L U) :=
     integrableOn_Ioc_of_unit (hm_Fb.mul hm_Fs)
       (fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
-      (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one _ _)).trans
-        (measureReal_le_one _ _))
+      (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one)).trans
+        (measureReal_le_one))
       L U
   have hI {c d : ℝ} (hsub : Ioc c d ⊆ Ioc L U) :
       ∫ t in Ioc c d, g t = ∫ t in Ioc L U, (Ioc c d).indicator g t := by
@@ -681,8 +677,8 @@ theorem budget_surplus_neg_of_hasValueDensityOn {M : Mechanism}
       integrableOn_Ioc_of_unit
         ((measurable_measureReal_Ici μ_b).mul (measurable_measureReal_Iic μ_s))
         (fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)
-        (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one _ _)).trans
-          (measureReal_le_one _ _))
+        (fun _ => (mul_le_of_le_one_right measureReal_nonneg (measureReal_le_one)).trans
+          (measureReal_le_one))
         (max a_b a_s) (min b_b b_s)
     rw [setIntegral_pos_iff_support_of_nonneg_ae
       (Filter.Eventually.of_forall fun _ => mul_nonneg measureReal_nonneg measureReal_nonneg)

@@ -181,7 +181,8 @@ theorem natCast_maxFlowValue (inst : Instance) :
   by_cases hst : inst.s = inst.t
   · simp [out, relabelToFrontDense, relabelToFront, relabelToFrontWith, hst, toNetwork,
       Network.Flow.value, Network.Flow.netOut, Network.Flow.zero]
-  · rw [out, (relabelToFrontDense_correct (N := inst.toNetwork) hst).2.2.1]
+  · obtain ⟨_, _, hval, _⟩ := relabelToFrontDense_correct (N := inst.toNetwork) hst
+    rw [out, hval]
     exact Int.toNat_of_nonneg (Int.natCast_nonneg _)
 
 theorem maxFlowValue_le (inst : Instance) :

@@ -186,8 +186,12 @@ private theorem speed_sum_mul_le_of_expectedLoad_ge (G : LoadBalancingGame ι M)
         rw [← (hp.1 i).sum_eq_one]
         exact sum_le_univ_sum_of_nonneg fun j => (hp.1 i).nonneg j
       nlinarith [G.weight_nonneg i]
-    · rw [ite_eq_right hi, sum_eq_zero fun j hj => ((hp.1 i).nonneg j).eq_or_lt.elim Eq.symm
-        fun hpos => absurd (hmap i j hj hpos) hi, zero_mul]
+    · have hzero : ∑ j ∈ S₁, p i j = 0 := by
+        refine sum_eq_zero fun j hj => ?_
+        rcases ((hp.1 i).nonneg j).eq_or_lt with h | hpos
+        · exact h.symm
+        · exact absurd (hmap i j hj hpos) hi
+      rw [ite_eq_right hi, hzero, zero_mul]
   have h3 := G.sum_weight_Aopt_mem_le hAopt S₂
   exact le_of_mul_le_mul_left (a := G.optMakespan) (by linarith) hopt
 
