@@ -490,21 +490,16 @@ private theorem length_encodeAux {W : ℕ} :
   intro h ws h1
   fun_induction encodeAux W h ws <;> simp_all
 
+omit [DecidableEq α] in
+private theorem ne_nil_of_isHistory {W : ℕ} :
+    ∀ {h : List α} {ws : List (List α)}, IsHistory W h ws → ∀ u ∈ ws, u ≠ []
+  | _, [], _, _, hu => nomatch hu
+  | _, _ :: _, ⟨hne, _, hws⟩, _, hu =>
+    (List.mem_cons.1 hu).elim (· ▸ hne) (ne_nil_of_isHistory hws _)
+
 /-- The phrases of the greedy parse are nonempty. -/
-theorem ne_nil_of_mem_parse {W : ℕ} {x u : List α} (hu : u ∈ parse W x) : u ≠ [] := by
-  have key : ∀ (n : ℕ) (h r : List α), ∀ u ∈ parseAux W n h r, u ≠ [] := by
-    intro n
-    induction n with
-    | zero => intro h r u hu; simp [parseAux] at hu
-    | succ n ih =>
-      intro h r u hu
-      rcases r with _ | ⟨a, r⟩
-      · simp [parseAux] at hu
-      · rw [parseAux, List.mem_cons] at hu
-        rcases hu with rfl | hu
-        · simp
-        · exact ih _ _ u hu
-  exact key _ _ _ u hu
+theorem ne_nil_of_mem_parse {W : ℕ} {x u : List α} (hu : u ∈ parse W x) : u ≠ [] :=
+  ne_nil_of_isHistory (isHistory_parse W x) u hu
 
 /-- The code has one triple per phrase. -/
 theorem length_encode (W : ℕ) (x : List α) : (encode W x).length = (parse W x).length :=
