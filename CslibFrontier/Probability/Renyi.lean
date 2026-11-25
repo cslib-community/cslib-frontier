@@ -173,8 +173,7 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
   set U : ℝ≥0∞ := ∑' x, u x
   set V : ℝ≥0∞ := ∑' x, v x
   rcases eq_or_ne U 0 with hU0 | hU0
-  · rw [hU0, zero_mul]
-    exact zero_le
+  · simp [hU0]
   by_cases hsupp : ∃ x, u x ≠ 0 ∧ v x = 0
   · obtain ⟨x₀, hu₀, hv₀⟩ := hsupp
     have htop : u x₀ * (u x₀ / v x₀) ^ t = ⊤ := by
@@ -228,26 +227,15 @@ private theorem mul_div_rpow_tsum_le {α : ℝ} (hα : 1 < α) {u v : X → ℝ�
       _ = ENNReal.ofReal (1 / α) * M + ENNReal.ofReal (t / α) * (V * (U / V) ^ α) := by
           rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right]
   have hV_eq : V * (U / V) ^ α = U * (U / V) ^ t := by
-    have hVP : 0 < V.toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hV0
-    have hR_pos : 0 < U.toReal / V.toReal := by
-      dsimp only [R] at hR; ennreal_to_real at hR; exact hR
-    ennreal_to_real
-    calc V.toReal * (U.toReal / V.toReal) ^ α
-        = V.toReal * ((U.toReal / V.toReal) ^ (1 : ℝ) * (U.toReal / V.toReal) ^ t) := by
-          rw [← Real.rpow_add hR_pos]
-          exact congrArg (fun e => V.toReal * (U.toReal / V.toReal) ^ e) (by dsimp only [t]; ring)
-      _ = U.toReal * (U.toReal / V.toReal) ^ t := by
-          rw [Real.rpow_one]
-          field_simp [hVP.ne']
+    rw [show α = 1 + t by dsimp only [t]; ring, ENNReal.rpow_add _ _ hUV0 hUV_top, ENNReal.rpow_one,
+      ← mul_assoc, ENNReal.mul_div_cancel hV0 hV]
   rw [hV_eq] at hsum_ineq
   have hL_top : U * (U / V) ^ t ≠ ⊤ := ENNReal.mul_ne_top hU hUV_rpow_t
   generalize U * (U / V) ^ t = L at hsum_ineq hL_top ⊢
   ennreal_to_real at hsum_ineq ⊢
-  have hw : 1 / α + t / α = 1 := by dsimp only [t]; field_simp; ring
   have h1L : 1 / α * L.toReal + t / α * L.toReal = L.toReal := by
-    rw [← add_mul, hw, one_mul]
-  have hmul_le : (1 / α) * L.toReal ≤ (1 / α) * M.toReal := by linarith
-  exact le_of_mul_le_mul_left hmul_le (by positivity)
+    rw [← add_mul, ← add_div, show 1 + t = α by dsimp only [t]; ring, div_self hα0.ne', one_mul]
+  exact le_of_mul_le_mul_left (by linarith : 1 / α * L.toReal ≤ 1 / α * M.toReal) (by positivity)
 
 end Moment
 
