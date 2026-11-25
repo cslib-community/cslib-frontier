@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.ThreePathRestriction
 import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.Connected
+import Mathlib.Data.Fin.VecNotation
 
 /-!
 # Three choices through a separating pair
@@ -17,6 +19,8 @@ import CslibFrontier.Computability.Complexity.Problems.Graph.DartConnectivity
 The prescribed darts into three disjoint vertex sets determine opposite cyclic orders
 at two marked ends. The connecting paths are extracted inside the sets. A direct edge
 between the two ends can take the place of any such path.
+`HasRegularContacts.rotationDistance_lt_iff_of_separating_components` gives reversed rank
+comparisons for an arbitrary family of component and direct-edge representatives.
 -/
 
 public section
@@ -153,5 +157,123 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
   simpa only [first, last] using
     hD.opposite_three_path_orders hsimple hR hG huv path site start finish allSites outside
       allEdges even
+
+/-- From a common reference choice, the ranks of different separating components are reversed
+at the two marked vertices. A choice is either a component of the graph with the two vertices
+deleted, represented by darts entering it at both ends, or one indexed direct edge. The result
+applies to any representatives of the stated choices. -/
+theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G : Graph}
+    {D : PolygonalDrawing G} {r : RotationSystem G} {marked : ℕ → Prop}
+    (hD : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple) (hR : D.Realizes r)
+    (hG : ∀ w ∈ G.incidenceVertices, w ∈ G.vertices) (heven : D.EvenCrossings marked)
+    {u : ℕ} (v : {w : ℕ // w ≠ u}) (hu : marked u) (hv : marked v.val)
+    {ι : Type*} (a b : ι → Dart G) (ha : ∀ k, (a k).vertex = u)
+    (hb : ∀ k, (b k).vertex = v.val) (haInj : Function.Injective fun k => (a k).1)
+    (component : ι → Option
+      ((G.toSimpleGraph.induce {w | w ≠ u}).induce {w | w ≠ v}).ConnectedComponent)
+    (hcomponents : ∀ ⦃i j C⦄, component i = some C → component j = some C → i = j)
+    (hports : ∀ k, match component k with
+      | none => b k = (a k).reverse
+      | some C => (a k).reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp) ∧
+          (b k).reverse.vertex ∈ Subtype.val '' (Subtype.val '' C.supp))
+    {o i j : ι} (hoi : o ≠ i) (hoj : o ≠ j) :
+    r.rotationDistance (a o) (a i) < r.rotationDistance (a o) (a j) ↔
+      r.rotationDistance (b o) (b j) < r.rotationDistance (b o) (b i) := by
+  classical
+  by_cases hij : i = j
+  · subst j
+    simp
+  let K := (G.toSimpleGraph.induce {w | w ≠ u}).induce {w | w ≠ v}
+  let projection : K →g G.toSimpleGraph := ⟨fun w => w.val.val, fun h => h⟩
+  let S (k : ι) : Set ℕ := (component k).elim ∅ (fun C => projection '' C.supp)
+  have avoid (k : ι) : u ∉ S k ∧ v.val ∉ S k := by
+    cases hc : component k with
+    | none => simp [S, hc]
+    | some C =>
+      change u ∉ (component k).elim ∅ (fun C => projection '' C.supp) ∧
+        v.val ∉ (component k).elim ∅ (fun C => projection '' C.supp)
+      rw [hc]
+      refine ⟨?_, ?_⟩
+      · rintro ⟨w, _, he⟩
+        exact w.val.property he
+      · rintro ⟨w, _, he⟩
+        exact w.property (Subtype.ext he)
+  have disjoint : Pairwise fun i j => Disjoint (S i) (S j) := by
+    intro x y hxy
+    cases hc : component x with
+    | none => simp [S, hc]
+    | some C =>
+      cases he : component y with
+      | none => simp [S, he]
+      | some E =>
+        have hCE : C ≠ E := fun h => hxy (hcomponents hc (h.symm ▸ he))
+        have hCE' := SimpleGraph.pairwise_disjoint_supp_connectedComponent K hCE
+        simp only [S, hc, he, Option.elim_some, Set.disjoint_left]
+        rintro w ⟨p, hp, rfl⟩ ⟨q, hq, hw⟩
+        have hpq : q = p := Subtype.ext (Subtype.ext hw)
+        exact Set.disjoint_left.mp hCE' hp (hpq ▸ hq)
+  have paths (k : ι) : b k = (a k).reverse ∨
+      ∃ (ha' : (a k).reverse.vertex ∈ S k) (hb' : (b k).reverse.vertex ∈ S k),
+        (G.toSimpleGraph.induce (S k)).Reachable
+          ⟨(a k).reverse.vertex, ha'⟩ ⟨(b k).reverse.vertex, hb'⟩ := by
+    have hp := hports k
+    cases hc : component k with
+    | none =>
+      rw [hc] at hp
+      exact Or.inl hp
+    | some C =>
+      rw [hc] at hp
+      have hs : S k = projection '' C.supp := by simp only [S, hc, Option.elim_some]
+      have hmem : (a k).reverse.vertex ∈ projection '' C.supp ∧
+          (b k).reverse.vertex ∈ projection '' C.supp := by
+        change (a k).reverse.vertex ∈ (fun w => w.val.val) '' C.supp ∧
+          (b k).reverse.vertex ∈ (fun w => w.val.val) '' C.supp
+        simpa only [Set.image_image] using hp
+      right
+      rw [hs]
+      exact ⟨hmem.1, hmem.2, C.reachable_induce_image projection hmem.1 hmem.2⟩
+  have aNe {x y : ι} (hxy : x ≠ y) : a x ≠ a y :=
+    fun he => hxy (haInj (congrArg Prod.fst he))
+  have bNe {x y : ι} (hxy : x ≠ y) : b x ≠ b y := by
+    intro he
+    have shared := congrArg (fun d : Dart G => d.reverse.vertex) he
+    rcases paths x with hx | ⟨_, hx, _⟩ <;> rcases paths y with hy | ⟨_, hy, _⟩
+    · have hrev := congrArg Dart.reverse (hx.symm.trans (he.trans hy))
+      exact aNe hxy (by simpa only [Dart.reverse_reverse] using hrev)
+    · rw [hx, Dart.reverse_reverse, ha] at shared
+      exact (avoid y).1 (shared.symm ▸ hy)
+    · rw [hy, Dart.reverse_reverse, ha] at shared
+      exact (avoid x).1 (shared ▸ hx)
+    · exact Set.disjoint_left.mp (disjoint hxy) hx (shared.symm ▸ hy)
+  let triple : Fin 3 → ι := ![o, i, j]
+  have htriple : Function.Injective triple := by
+    intro x y he
+    fin_cases x <;> fin_cases y
+    all_goals
+      first
+      | rfl
+      | exact (hoi he).elim
+      | exact (hoi he.symm).elim
+      | exact (hoj he).elim
+      | exact (hoj he.symm).elim
+      | exact (hij he).elim
+      | exact (hij he.symm).elim
+  have compare :
+      a i ∈ r.rotationInterval (a o) (a j) ↔ b i ∉ r.rotationInterval (b o) (b j) :=
+    hD.opposite_orders_of_induced_reachable hsimple hR hG heven (Ne.symm v.property) hu hv
+      (a ∘ triple) (b ∘ triple) (fun k => ha (triple k)) (fun k => hb (triple k))
+      (haInj.comp htriple) (S ∘ triple) (fun _ _ h => disjoint (htriple.ne h))
+      (fun k => avoid (triple k)) (fun k => paths (triple k))
+  rw [r.mem_rotationInterval_iff_lt_distance _ _ _ ((ha o).trans (ha i).symm)
+      ((ha o).trans (ha j).symm) (aNe hoi) (aNe hij) (aNe hoj),
+    r.mem_rotationInterval_iff_lt_distance _ _ _ ((hb o).trans (hb i).symm)
+      ((hb o).trans (hb j).symm) (bNe hoi) (bNe hij) (bNe hoj)] at compare
+  have rankNe : r.rotationDistance (b o) (b i) ≠ r.rotationDistance (b o) (b j) := by
+    intro he
+    have hi := r.pow_rotationDistance (b o) (b i) ((hb o).trans (hb i).symm)
+    have hj := r.pow_rotationDistance (b o) (b j) ((hb o).trans (hb j).symm)
+    rw [he] at hi
+    exact bNe hij (hi.symm.trans hj)
+  exact compare.trans (by omega)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

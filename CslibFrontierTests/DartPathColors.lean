@@ -145,13 +145,21 @@ private def spurRotation : RotationSystem withSpurs where
 private def spurArms (k : Fin 3) (i : Fin (armLength k + 1)) : Dart withSpurs :=
   ⟨Fin.castLE (by decide) (arms k i).1, (arms k i).2⟩
 
-private def interiorSets (k : Fin 3) : Set ℕ := if k = 0 then {2} else ∅
+private abbrev one : {w : ℕ // w ≠ 0} := ⟨1, by decide⟩
+private abbrev awayPair := (withSpurs.toSimpleGraph.induce {w | w ≠ 0}).induce {w | w ≠ one}
+private abbrev two : {w : {x : ℕ // x ≠ 0} // w ≠ one} := ⟨⟨2, by decide⟩, by decide⟩
+private abbrev armComponent := awayPair.connectedComponentMk two
+
+private def spurComponents (k : Fin 3) : Option awayPair.ConnectedComponent :=
+  if k = 0 then some armComponent else none
 
 -- Extra edges at an internal vertex and a separator do not change the triple comparison.
 example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realizes spurRotation ∧
     spurRotation.rotate.symm (spurArms 0 0).reverse ≠ spurArms 0 1 ∧
-    ((2, false) ∈ spurRotation.rotationInterval (0, false) (3, false) ↔
-      (2, true) ∉ spurRotation.rotationInterval (1, true) (3, true)) := by
+    (spurRotation.rotationDistance (0, false) (2, false) <
+      spurRotation.rotationDistance (0, false) (3, false) ↔
+      spurRotation.rotationDistance (1, true) (3, true) <
+        spurRotation.rotationDistance (1, true) (2, true)) := by
   classical
   have hG : ∀ v ∈ withSpurs.incidenceVertices, v ∈ withSpurs.vertices := by decide
   have genus : spurRotation.NumericalGenusZero := by
@@ -165,22 +173,20 @@ example : ∃ D : PolygonalDrawing withSpurs, D.HasRegularContacts ∧ D.Realize
   let last (k : Fin 3) := (spurArms k (Fin.last (armLength k))).reverse
   have heven : D.EvenCrossings (fun w => w = 0 ∨ w = 1) :=
     fun _ _ hne _ => crossingParity_of_embedding hD hne
-  exact hreg.opposite_orders_of_induced_reachable hD.simple hR hG heven
-    (by decide : 0 ≠ 1) (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
-    interiorSets (by
-      intro i j hij
-      by_cases hi : i = 0
-      · have hj : j ≠ 0 := fun h => hij (hi.trans h.symm)
-        simp [interiorSets, hi, hj]
-      · simp [interiorSets, hi])
-    (by
-      intro k
-      by_cases hk : k = 0 <;> simp [interiorSets, hk]) (by
-      have h₂ : 2 ∈ interiorSets 0 := by simp [interiorSets]
-      intro k
-      fin_cases k
-      · exact Or.inr ⟨h₂, h₂, .rfl⟩
-      · exact Or.inl rfl
-      · exact Or.inl rfl)
+  apply hreg.rotationDistance_lt_iff_of_separating_components hD.simple hR hG heven
+    one (Or.inl rfl) (Or.inr rfl) first last (by decide) (by decide) (by decide)
+    spurComponents _ _ (o := 0) (i := 1) (j := 2) (by decide) (by decide)
+  · intro i j C hi hj
+    have eqZero {k : Fin 3} (h : spurComponents k = some C) : k = 0 := by
+      by_contra hne
+      simp [spurComponents, hne] at h
+    exact (eqZero hi).trans (eqZero hj).symm
+  · have hin : (2 : ℕ) ∈ Subtype.val '' (Subtype.val '' armComponent.supp) :=
+      ⟨two.val, ⟨two, rfl, rfl⟩, rfl⟩
+    intro k
+    fin_cases k
+    · exact ⟨hin, hin⟩
+    · rfl
+    · rfl
 
 end CslibFrontierTests.DartPathColors
