@@ -8,7 +8,8 @@ module
 -- upstream: local-only (ordinary-import tests for drawings with crossings)
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.IntersectionParity
-import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Converse
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Equivalence
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -392,16 +393,22 @@ private theorem all_selected_even : G.VertexEven (fun _ => true) := by
 -- The even case has a real crossing on each of the two middle zigzag segments.
 example : (openSegment ℝ left right ∩
     openSegment ℝ ((zig false).point (1 : Fin 4).castSucc)
-      ((zig false).point (1 : Fin 4).succ)).Nonempty ∧ rotation.NumericalGenusZero := by
+      ((zig false).point (1 : Fin 4).succ)).Nonempty ∧
+    ∃ E : PolygonalDrawing G, E.IsEmbedding ∧ E.Realizes rotation := by
   refine ⟨(hit_iff false 1).mpr (Or.inr ⟨rfl, rfl⟩), ?_⟩
-  apply (regular false).numericalGenusZero_of_pairwise_even_crossings
-    (simple false) _ (realizes false) (by decide)
-  intro e f h
-  fin_cases e <;> fin_cases f
-  · exact (h rfl).elim
-  · exact crossing_parity false
-  · exact (Route.intersectionParity_symm _ _).trans (crossing_parity false)
-  · exact (h rfl).elim
+  have heven : ∀ e f, e ≠ f →
+      ((drawing false).route e).intersectionParity ((drawing false).route f) = false := by
+    intro e f h
+    fin_cases e <;> fin_cases f
+    · exact (h rfl).elim
+    · exact crossing_parity false
+    · exact (Route.intersectionParity_symm _ _).trans (crossing_parity false)
+    · exact (h rfl).elim
+  obtain ⟨r, hr, E, hE, hEr⟩ :=
+    (regular false).exists_embedding_of_pairwise_even_crossings (simple false) heven (by decide)
+  have heq : r = rotation :=
+    RotationSystem.ext_rotate (Equiv.ext fun d => hr.rotate_eq (realizes false) d)
+  exact ⟨E, hE, heq ▸ hEr⟩
 
 -- The single crossing in the odd case cancels the selected straight edge's label.
 example :
