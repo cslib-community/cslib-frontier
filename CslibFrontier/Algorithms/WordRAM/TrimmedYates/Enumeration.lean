@@ -408,105 +408,96 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
         y.regs i = x.regs i := by
   intro cList
   have hfit_d : Fits w d := hfit_mask.of_le Nat.lt_two_pow_self.le
-  have hrun : ∃ y, ExecWithin w extractCoords x y (11 * d + 5) ∧
-      y.regs rCoordsLen = cList.length ∧
-      (∀ j (hj : j < cList.length), y.mem (coordsPtr + j) = cList[j].val) ∧
-      (∀ a, a < coordsPtr ∨ coordsPtr + d ≤ a → y.mem a = x.mem a) := by
-    let curAt (b : ℕ) := ((List.finRange d).take b).filter (· ∈ C)
-    let P (b : ℕ) (s : Data numRegs) : Prop :=
-      s.regs rZero = 0 ∧ s.regs rOne = 1 ∧ s.regs Reg.dim = d ∧
-      s.regs rCoordsPtr = coordsPtr ∧ s.regs rCoordsLen = (curAt b).length ∧
-      s.regs rTrieRem = setMask C / 2 ^ b ∧
-      (∀ j (hj : j < (curAt b).length), s.mem (coordsPtr + j) = (curAt b)[j].val) ∧
-      (∀ a, a < coordsPtr ∨ coordsPtr + (curAt b).length ≤ a → s.mem a = x.mem a)
-    have hbody (s : Data numRegs) (hs : P (s.regs rGenIdx) s) (hb : s.regs rGenIdx < d) :
-        ∃ z, ExecWithin w extractStep s z 9 ∧ P (s.regs rGenIdx + 1) z ∧
-          z.regs rGenIdx = s.regs rGenIdx + 1 := by
-      generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
-      dsimp only [P] at hs
-      obtain ⟨hsz, hso, hsd, hscp, hscl, hsrem, hsmem, hsframe⟩ := hs
-      let cur := curAt b
-      change s.regs rCoordsLen = cur.length at hscl
-      change ∀ j (hj : j < cur.length), s.mem (coordsPtr + j) = cur[j].val at hsmem
-      change ∀ a, a < coordsPtr ∨ coordsPtr + cur.length ≤ a → s.mem a = x.mem a at hsframe
-      have hcur_len_le : cur.length ≤ b := by
-        calc cur.length ≤ ((List.finRange d).take b).length := List.length_filter_le _ _
-          _ ≤ b := by simp
-      let ib : Fin d := ⟨b, hb⟩
-      have htake1 : (List.finRange d).take (b + 1) = (List.finRange d).take b ++ [ib] := by
-        rw [List.take_succ_eq_append_getElem (by simp [hb])]
-        simp [ib]
-      have hrem_fit : Fits w (s.regs rTrieRem) := by
-        rw [hsrem]; exact hfit_mask.of_le ((Nat.div_le_self _ _).trans (setMask_lt C).le)
-      have hand_fit : Fits w (s.regs rTrieRem &&& 1) :=
-        hfit_d.of_le (by rw [Nat.and_one_is_mod]; omega)
-      have hshr_fit : Fits w (s.regs rTrieRem >>> 1) := by
-        rw [Nat.shiftRight_eq_div_pow]; exact hrem_fit.of_le (Nat.div_le_self _ _)
-      have hb1_fit : Fits w (b + 1) := hfit_d.of_le (by omega)
-      have hbit_iff : s.regs rTrieRem &&& 1 = (if ib ∈ C then 1 else 0) := by
-        rw [hsrem, Nat.and_one_is_mod]
-        have htb := testBit_setMask C ib
-        rw [Nat.testBit_eq_decide_div_mod_eq, decide_eq_decide] at htb
-        change setMask C / 2 ^ b % 2 = if ib ∈ C then 1 else 0
-        have hmod2 : setMask C / 2 ^ b % 2 < 2 := Nat.mod_lt _ Nat.two_pos
-        by_cases hmemC : ib ∈ C
-        · simp only [hmemC, ↓reduceIte]; exact htb.mpr hmemC
-        · have h0 : setMask C / 2 ^ b % 2 ≠ 1 := mt htb.mp hmemC
-          simp only [hmemC, ↓reduceIte]; omega
-      have hshr_eq : s.regs rTrieRem >>> 1 = setMask C / 2 ^ (b + 1) := by
-        rw [hsrem, Nat.shiftRight_eq_div_pow, pow_one, Nat.div_div_eq_div_mul, pow_succ]
-      by_cases hmemC : ib ∈ C
-      · have hbit1 : s.regs rTrieRem &&& 1 = 1 := by simp [hbit_iff, hmemC]
-        have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
-        have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
-        have hcur1 : curAt (b + 1) = cur ++ [ib] := by
-          dsimp only [curAt, cur]
-          rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
-            List.filter_nil]
-        unfold extractStep
-        wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
-        dsimp only [P]
-        rw [hcur1]
-        simp only [List.length_append, List.length_singleton]
-        refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by wram_simp [hscl],
-          by wram_simp [hshr_eq], fun j hj => ?_, fun a ha => ?_⟩, by wram_simp⟩
-        · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
-          · wram_simp [List.getElem_append_left hj]; exact hsmem j hj
-          · wram_simp [List.getElem_concat_length, ib]
-        · wram_simp; exact hsframe a (by omega)
-      · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
-        have hcur1 : curAt (b + 1) = cur := by
-          dsimp only [curAt, cur]
-          rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
-            List.filter_nil, List.append_nil]
-        unfold extractStep
-        wram_exec [hsz, hso, hscl, hb_eq, hbit0]
-        dsimp only [P]
-        rw [hcur1]
-        exact ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-          by wram_simp [hshr_eq], by wram_simp; exact hsmem, by wram_simp; exact hsframe⟩,
-          by wram_simp⟩
-    let x₀ := ((x.set rTrieRem (setMask C)).set rCoordsLen 0).set rGenIdx 0
-    have hinit : ExecWithin (B := .standard) w
-        (ram[ rTrieRem ← rTrieKey; rCoordsLen ← #0; rGenIdx ← #0 ]) x x₀ 3 := by
-      wram_exec [hk]
-    have hx₀ : P (x₀.regs rGenIdx) x₀ := by
-      dsimp only [P, curAt]
-      simp [x₀, hz, ho, hd, hcptr]
-    obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
-      (by simp [x₀]) hx₀
-    obtain ⟨_, _, _, _, hycl, _, hymem, hyframe⟩ := hyP
-    have hcur_d : curAt d = cList := by
-      dsimp only [curAt, cList]
-      rw [List.take_of_length_le (by simp)]
-    rw [hcur_d] at hycl hymem hyframe
-    have hcList_le : cList.length ≤ d := by
-      calc cList.length ≤ (List.finRange d).length := List.length_filter_le _ _
-        _ = d := List.length_finRange
-    refine ⟨y, (hinit.seq hloop).mono (by simp [x₀]; omega), hycl, hymem,
-      fun a ha => hyframe a (by omega)⟩
-  obtain ⟨y, he, hycl, hymem, hyframe⟩ := hrun
-  exact ⟨y, he, hycl, hymem, hyframe, fun i hi => he.regs_eq (extractCoords_preserves i hi)⟩
+  let curAt (b : ℕ) := ((List.finRange d).take b).filter (· ∈ C)
+  let P (b : ℕ) (s : Data numRegs) : Prop :=
+    s.regs rZero = 0 ∧ s.regs rOne = 1 ∧ s.regs Reg.dim = d ∧
+    s.regs rCoordsPtr = coordsPtr ∧ s.regs rCoordsLen = (curAt b).length ∧
+    s.regs rTrieRem = setMask C / 2 ^ b ∧
+    (∀ j (hj : j < (curAt b).length), s.mem (coordsPtr + j) = (curAt b)[j].val) ∧
+    (∀ a, a < coordsPtr ∨ coordsPtr + (curAt b).length ≤ a → s.mem a = x.mem a)
+  have hbody (s : Data numRegs) (hs : P (s.regs rGenIdx) s) (hb : s.regs rGenIdx < d) :
+      ∃ z, ExecWithin w extractStep s z 9 ∧ P (s.regs rGenIdx + 1) z ∧
+        z.regs rGenIdx = s.regs rGenIdx + 1 := by
+    generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
+    dsimp only [P] at hs
+    obtain ⟨hsz, hso, hsd, hscp, hscl, hsrem, hsmem, hsframe⟩ := hs
+    let cur := curAt b
+    change s.regs rCoordsLen = cur.length at hscl
+    change ∀ j (hj : j < cur.length), s.mem (coordsPtr + j) = cur[j].val at hsmem
+    change ∀ a, a < coordsPtr ∨ coordsPtr + cur.length ≤ a → s.mem a = x.mem a at hsframe
+    have hcur_len_le : cur.length ≤ b := by
+      calc cur.length ≤ ((List.finRange d).take b).length := List.length_filter_le _ _
+        _ ≤ b := by simp
+    let ib : Fin d := ⟨b, hb⟩
+    have htake1 : (List.finRange d).take (b + 1) = (List.finRange d).take b ++ [ib] := by
+      rw [List.take_succ_eq_append_getElem (by simp [hb])]
+      simp [ib]
+    have hrem_fit : Fits w (s.regs rTrieRem) := by
+      rw [hsrem]; exact hfit_mask.of_le ((Nat.div_le_self _ _).trans (setMask_lt C).le)
+    have hand_fit : Fits w (s.regs rTrieRem &&& 1) :=
+      hfit_d.of_le (by rw [Nat.and_one_is_mod]; omega)
+    have hshr_fit : Fits w (s.regs rTrieRem >>> 1) := by
+      rw [Nat.shiftRight_eq_div_pow]; exact hrem_fit.of_le (Nat.div_le_self _ _)
+    have hb1_fit : Fits w (b + 1) := hfit_d.of_le (by omega)
+    have hbit_iff : s.regs rTrieRem &&& 1 = (if ib ∈ C then 1 else 0) := by
+      have htb : setMask C / 2 ^ b % 2 = 1 ↔ ib ∈ C := by
+        simpa [Nat.testBit_eq_decide_div_mod_eq] using testBit_setMask C ib
+      rw [hsrem, Nat.and_one_is_mod]
+      split_ifs with hmemC <;> [exact htb.2 hmemC; exact Nat.mod_two_ne_one.1 (mt htb.1 hmemC)]
+    have hshr_eq : s.regs rTrieRem >>> 1 = setMask C / 2 ^ (b + 1) := by
+      rw [hsrem, Nat.shiftRight_eq_div_pow, pow_one, Nat.div_div_eq_div_mul, pow_succ]
+    by_cases hmemC : ib ∈ C
+    · have hbit1 : s.regs rTrieRem &&& 1 = 1 := by simp [hbit_iff, hmemC]
+      have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
+      have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
+      have hcur1 : curAt (b + 1) = cur ++ [ib] := by
+        dsimp only [curAt, cur]
+        rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
+          List.filter_nil]
+      unfold extractStep
+      wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
+      dsimp only [P]
+      rw [hcur1]
+      simp only [List.length_append, List.length_singleton]
+      refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by wram_simp [hscl],
+        by wram_simp [hshr_eq], fun j hj => ?_, fun a ha => ?_⟩, by wram_simp⟩
+      · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
+        · wram_simp [List.getElem_append_left hj]; exact hsmem j hj
+        · wram_simp [List.getElem_concat_length, ib]
+      · wram_simp; exact hsframe a (by omega)
+    · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
+      have hcur1 : curAt (b + 1) = cur := by
+        dsimp only [curAt, cur]
+        rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
+          List.filter_nil, List.append_nil]
+      unfold extractStep
+      wram_exec [hsz, hso, hscl, hb_eq, hbit0]
+      dsimp only [P]
+      rw [hcur1]
+      exact ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+        by wram_simp [hshr_eq], by wram_simp; exact hsmem, by wram_simp; exact hsframe⟩,
+        by wram_simp⟩
+  let x₀ := ((x.set rTrieRem (setMask C)).set rCoordsLen 0).set rGenIdx 0
+  have hinit : ExecWithin (B := .standard) w
+      (ram[ rTrieRem ← rTrieKey; rCoordsLen ← #0; rGenIdx ← #0 ]) x x₀ 3 := by
+    wram_exec [hk]
+  have hx₀ : P (x₀.regs rGenIdx) x₀ := by
+    dsimp only [P, curAt]
+    simp [x₀, hz, ho, hd, hcptr]
+  obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
+    (by simp [x₀]) hx₀
+  obtain ⟨_, _, _, _, hycl, _, hymem, hyframe⟩ := hyP
+  have hcur_d : curAt d = cList := by
+    dsimp only [curAt, cList]
+    rw [List.take_of_length_le (by simp)]
+  rw [hcur_d] at hycl hymem hyframe
+  have hcList_le : cList.length ≤ d := by
+    calc cList.length ≤ (List.finRange d).length := List.length_filter_le _ _
+      _ = d := List.length_finRange
+  have he : ExecWithin w extractCoords x y (11 * d + 5) :=
+    (hinit.seq hloop).mono (by simp [x₀]; omega)
+  exact ⟨y, he, hycl, hymem, fun a ha => hyframe a (by omega),
+    fun i hi => he.regs_eq (extractCoords_preserves i hi)⟩
 
 /-- Flip `(Y, #Y) ↦ (C \ Y, #C - #Y)` in place at `rDomPtr` for `p < rDomLen`. -/
 private def flipStep : Code .standard numRegs := ram[
@@ -540,53 +531,49 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
       HoldsDom y.mem domPtr (ys.map (C \ ·)) ∧
       (∀ a, a < domPtr ∨ domPtr + 2 * ys.length ≤ a → y.mem a = x.mem a) ∧
       ∀ i : Fin numRegs, i ≠ rTrieTmp ∧ i ≠ rGenPos ∧ i ≠ rGenTmp → y.regs i = x.regs i := by
-  have hrun : ∃ y, ExecWithin w flipHighDom x y (12 * ys.length + 3) ∧
-      HoldsDom y.mem domPtr (ys.map (C \ ·)) ∧
-      (∀ a, a < domPtr ∨ domPtr + 2 * ys.length ≤ a → y.mem a = x.mem a) := by
-    let P (p : ℕ) (s : Data numRegs) : Prop :=
-      s.regs rOne = 1 ∧ s.regs rTrieKey = setMask C ∧ s.regs rCoordsLen = #C ∧
-      s.regs rDomPtr = domPtr ∧ s.regs rDomLen = ys.length ∧
-      (∀ j (hj : j < ys.length), j < p →
-        s.mem (domPtr + 2 * j) = setMask (C \ ys[j]) ∧
-        s.mem (domPtr + 2 * j + 1) = #(C \ ys[j])) ∧
-      (∀ j (hj : j < ys.length), p ≤ j →
-        s.mem (domPtr + 2 * j) = setMask ys[j] ∧ s.mem (domPtr + 2 * j + 1) = #ys[j]) ∧
-      (∀ a, a < domPtr ∨ domPtr + 2 * ys.length ≤ a → s.mem a = x.mem a)
-    have hbody (s : Data numRegs) (hs : P (s.regs rGenPos) s) (hp : s.regs rGenPos < ys.length) :
-        ∃ z, ExecWithin w flipStep s z 10 ∧ P (s.regs rGenPos + 1) z ∧
-          z.regs rGenPos = s.regs rGenPos + 1 := by
-      generalize hp_eq : s.regs rGenPos = p at hs hp ⊢
-      dsimp only [P] at hs
-      obtain ⟨hso, hsk, hscl, hsdp, hsdl, hdone, htodo, hsframe⟩ := hs
-      obtain ⟨hmk_p, hsz_p⟩ := htodo p hp le_rfl
-      have hsub_p : ys[p] ⊆ C := hys_sub ys[p] (List.getElem_mem hp)
-      have hf_xor : Fits w (setMask C ^^^ setMask ys[p]) := by
-        rw [← setMask_sdiff hsub_p]; exact hfit_mask.of_le (setMask_lt _).le
-      have hcard : #C ≤ d := by simpa using Finset.card_le_univ C
-      have h2p : p + p = 2 * p := by omega
-      unfold flipStep
-      wram_exec [hso, hsk, hscl, hsdp, hp_eq, h2p, hmk_p, hsz_p]
-      refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-        fun j hj hj' => ?_, fun j hj hj' => ?_, fun a ha => ?_⟩, by wram_simp [hp_eq]⟩
-      · obtain hjp | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj'
-        · wram_simp; exact hdone j hj hjp
-        · wram_simp [setMask_sdiff hsub_p, card_sdiff_of_subset hsub_p, hmk_p, hsz_p]
-      · wram_simp; exact htodo j hj (by omega)
-      · wram_simp; exact hsframe a ha
-    let x₀ := x.set rGenPos 0
-    have hinit : ExecWithin (B := .standard) w (ram[ rGenPos ← #0 ]) x x₀ 1 := by wram_exec
-    have hx₀ : P (x₀.regs rGenPos) x₀ := by
-      refine ⟨by simp [x₀, ho], by simp [x₀, hk], by simp [x₀, hcl], by simp [x₀, hdptr],
-        by simp [x₀, hdlen], by simp [x₀], fun j hj _ => hdom j hj, fun _ _ => rfl⟩
-    obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.2.2.1) hbody
-      (by simp [x₀]) hx₀
-    obtain ⟨_, _, _, _, _, hydone, _, hyframe⟩ := hyP
-    refine ⟨y, (hinit.seq hloop).mono (by simp [x₀]; omega), ?_, hyframe⟩
-    intro j hj
-    rw [List.length_map] at hj
-    simpa only [List.getElem_map] using hydone j hj hj
-  obtain ⟨y, he, hydom, hyframe⟩ := hrun
-  exact ⟨y, he, hydom, hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
+  let P (p : ℕ) (s : Data numRegs) : Prop :=
+    s.regs rOne = 1 ∧ s.regs rTrieKey = setMask C ∧ s.regs rCoordsLen = #C ∧
+    s.regs rDomPtr = domPtr ∧ s.regs rDomLen = ys.length ∧
+    (∀ j (hj : j < ys.length), j < p →
+      s.mem (domPtr + 2 * j) = setMask (C \ ys[j]) ∧
+      s.mem (domPtr + 2 * j + 1) = #(C \ ys[j])) ∧
+    (∀ j (hj : j < ys.length), p ≤ j →
+      s.mem (domPtr + 2 * j) = setMask ys[j] ∧ s.mem (domPtr + 2 * j + 1) = #ys[j]) ∧
+    (∀ a, a < domPtr ∨ domPtr + 2 * ys.length ≤ a → s.mem a = x.mem a)
+  have hbody (s : Data numRegs) (hs : P (s.regs rGenPos) s) (hp : s.regs rGenPos < ys.length) :
+      ∃ z, ExecWithin w flipStep s z 10 ∧ P (s.regs rGenPos + 1) z ∧
+        z.regs rGenPos = s.regs rGenPos + 1 := by
+    generalize hp_eq : s.regs rGenPos = p at hs hp ⊢
+    dsimp only [P] at hs
+    obtain ⟨hso, hsk, hscl, hsdp, hsdl, hdone, htodo, hsframe⟩ := hs
+    obtain ⟨hmk_p, hsz_p⟩ := htodo p hp le_rfl
+    have hsub_p : ys[p] ⊆ C := hys_sub ys[p] (List.getElem_mem hp)
+    have hf_xor : Fits w (setMask C ^^^ setMask ys[p]) := by
+      rw [← setMask_sdiff hsub_p]; exact hfit_mask.of_le (setMask_lt _).le
+    have hcard : #C ≤ d := by simpa using Finset.card_le_univ C
+    have h2p : p + p = 2 * p := by omega
+    unfold flipStep
+    wram_exec [hso, hsk, hscl, hsdp, hp_eq, h2p, hmk_p, hsz_p]
+    refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      fun j hj hj' => ?_, fun j hj hj' => ?_, fun a ha => ?_⟩, by wram_simp [hp_eq]⟩
+    · obtain hjp | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj'
+      · wram_simp; exact hdone j hj hjp
+      · wram_simp [setMask_sdiff hsub_p, card_sdiff_of_subset hsub_p, hmk_p, hsz_p]
+    · wram_simp; exact htodo j hj (by omega)
+    · wram_simp; exact hsframe a ha
+  let x₀ := x.set rGenPos 0
+  have hinit : ExecWithin (B := .standard) w (ram[ rGenPos ← #0 ]) x x₀ 1 := by wram_exec
+  have hx₀ : P (x₀.regs rGenPos) x₀ := by
+    refine ⟨by simp [x₀, ho], by simp [x₀, hk], by simp [x₀, hcl], by simp [x₀, hdptr],
+      by simp [x₀, hdlen], by simp [x₀], fun j hj _ => hdom j hj, fun _ _ => rfl⟩
+  obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.2.2.1) hbody
+    (by simp [x₀]) hx₀
+  obtain ⟨_, _, _, _, _, hydone, _, hyframe⟩ := hyP
+  have he : ExecWithin w flipHighDom x y (12 * ys.length + 3) :=
+    (hinit.seq hloop).mono (by simp [x₀]; omega)
+  refine ⟨y, he, fun j hj => ?_, hyframe, fun i hi => he.regs_eq (flipHighDom_preserves i hi)⟩
+  rw [List.length_map] at hj
+  simpa only [List.getElem_map] using hydone j hj hj
 
 /-- Write `[0, 1, ..., d - 1]` (`List.finRange d`) to `rCoordsPtr[0 .. Reg.dim - 1]`. -/
 private def initCoordsStep : Code .standard numRegs := ram[
@@ -610,38 +597,35 @@ theorem exec_initIdentityCoords {w d coordsPtr : ℕ} (x : Data numRegs)
         y.mem (coordsPtr + j) = (List.finRange d)[j].val) ∧
       (∀ a, a < coordsPtr ∨ coordsPtr + d ≤ a → y.mem a = x.mem a) ∧
       ∀ i : Fin numRegs, i ≠ rGenIdx ∧ i ≠ rGenTmp → y.regs i = x.regs i := by
-  have hrun : ∃ y, ExecWithin w initIdentityCoords x y (5 * d + 3) ∧
-      (∀ j (hj : j < d), y.mem (coordsPtr + j) = j) ∧
-      (∀ a, a < coordsPtr ∨ coordsPtr + d ≤ a → y.mem a = x.mem a) := by
-    let P (b : ℕ) (s : Data numRegs) : Prop :=
-      s.regs rOne = 1 ∧ s.regs Reg.dim = d ∧ s.regs rCoordsPtr = coordsPtr ∧
-      (∀ j < b, s.mem (coordsPtr + j) = j) ∧
-      (∀ a, a < coordsPtr ∨ coordsPtr + b ≤ a → s.mem a = x.mem a)
-    have hbody (s : Data numRegs) (hs : P (s.regs rGenIdx) s) (hb : s.regs rGenIdx < d) :
-        ∃ z, ExecWithin w initCoordsStep s z 3 ∧ P (s.regs rGenIdx + 1) z ∧
-          z.regs rGenIdx = s.regs rGenIdx + 1 := by
-      generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
-      obtain ⟨hso, hsd, hscp, hdone, hsframe⟩ := hs
-      have hf_addr : Fits w (coordsPtr + b) := hfit_mem.of_le (by omega)
-      have hf_b1 : Fits w (b + 1) := hfit_d.of_le (by omega)
-      unfold initCoordsStep
-      wram_exec [hso, hscp, hb_eq]
-      refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, fun j hj => ?_, fun a ha => ?_⟩,
-        by wram_simp⟩
-      · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
-        · wram_simp; exact hdone j hj
-        · wram_simp
-      · wram_simp; exact hsframe a (by omega)
-    let x₀ := x.set rGenIdx 0
-    have hinit : ExecWithin (B := .standard) w (ram[ rGenIdx ← #0 ]) x x₀ 1 := by wram_exec
-    have hx₀ : P (x₀.regs rGenIdx) x₀ :=
-      ⟨by simp [x₀, ho], by simp [x₀, hd], by simp [x₀, hcptr],
-       by simp [x₀], fun _ _ => rfl⟩
-    obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.1) hbody
-      (by simp [x₀]) hx₀
-    obtain ⟨_, _, _, hydone, hyframe⟩ := hyP
-    exact ⟨y, (hinit.seq hloop).mono (by simp [x₀]; omega), hydone, hyframe⟩
-  obtain ⟨y, he, hydone, hyframe⟩ := hrun
+  let P (b : ℕ) (s : Data numRegs) : Prop :=
+    s.regs rOne = 1 ∧ s.regs Reg.dim = d ∧ s.regs rCoordsPtr = coordsPtr ∧
+    (∀ j < b, s.mem (coordsPtr + j) = j) ∧
+    (∀ a, a < coordsPtr ∨ coordsPtr + b ≤ a → s.mem a = x.mem a)
+  have hbody (s : Data numRegs) (hs : P (s.regs rGenIdx) s) (hb : s.regs rGenIdx < d) :
+      ∃ z, ExecWithin w initCoordsStep s z 3 ∧ P (s.regs rGenIdx + 1) z ∧
+        z.regs rGenIdx = s.regs rGenIdx + 1 := by
+    generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
+    obtain ⟨hso, hsd, hscp, hdone, hsframe⟩ := hs
+    have hf_addr : Fits w (coordsPtr + b) := hfit_mem.of_le (by omega)
+    have hf_b1 : Fits w (b + 1) := hfit_d.of_le (by omega)
+    unfold initCoordsStep
+    wram_exec [hso, hscp, hb_eq]
+    refine ⟨⟨by regs_frame, by regs_frame, by regs_frame, fun j hj => ?_, fun a ha => ?_⟩,
+      by wram_simp⟩
+    · obtain hj | rfl := Nat.lt_succ_iff_lt_or_eq.mp hj
+      · wram_simp; exact hdone j hj
+      · wram_simp
+    · wram_simp; exact hsframe a (by omega)
+  let x₀ := x.set rGenIdx 0
+  have hinit : ExecWithin (B := .standard) w (ram[ rGenIdx ← #0 ]) x x₀ 1 := by wram_exec
+  have hx₀ : P (x₀.regs rGenIdx) x₀ :=
+    ⟨by simp [x₀, ho], by simp [x₀, hd], by simp [x₀, hcptr],
+     by simp [x₀], fun _ _ => rfl⟩
+  obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.1) hbody
+    (by simp [x₀]) hx₀
+  obtain ⟨_, _, _, hydone, hyframe⟩ := hyP
+  have he : ExecWithin w initIdentityCoords x y (5 * d + 3) :=
+    (hinit.seq hloop).mono (by simp [x₀]; omega)
   refine ⟨y, he, fun j hj => ?_, hyframe,
     fun i hi => he.regs_eq (initIdentityCoords_preserves i hi)⟩
   rw [List.length_finRange] at hj
