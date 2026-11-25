@@ -158,14 +158,12 @@ private theorem mem_viewsFrom_iff (a : α) (word : List Bool × List Bool) :
     have hρ := BitString.mem_enumList.mp hw
     have hb := BitString.mem_enumList.mp hbs
     rw [hwidth hρ] at hb
-    have hr : List.ofFn (fun i : Fin (V.coins a) => ρ[i.val]'(hρ.symm ▸ i.isLt)) = ρ := by
-      apply List.ext_getElem (by simp [hρ])
-      simp
+    have hr : List.ofFn (fun i : Fin (V.coins a) => ρ[i.val]'(hρ.symm ▸ i.isLt)) = ρ :=
+      List.ext_getElem (by simp [hρ]) (by simp)
     let u : V.View a := ⟨fun i => ρ[i.val]'(hρ.symm ▸ i.isLt),
       fun i => bits[i.val]'(by simpa only [hr, ← hb] using i.isLt)⟩
     have huv : V.viewWords u = (ρ, bits) := by
-      refine Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) ?_)
-      intros
+      refine Prod.ext hr (List.ext_getElem (by simp [viewWords, u, hr, hb]) fun _ _ _ => ?_)
       simp [viewWords, u]
     have hu : V.keep a (V.viewWords u) = true := huv ▸ hk
     obtain ⟨haccepts, hconsistent⟩ := Bool.and_eq_true_iff.mp hu

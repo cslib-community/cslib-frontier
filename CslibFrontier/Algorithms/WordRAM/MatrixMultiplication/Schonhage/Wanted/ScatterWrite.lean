@@ -52,22 +52,16 @@ theorem exec_scatterWrite {w L m N Q n v : ℕ} (key : ℕ → ℕ) (hn : n < Q)
   have h2 := Nat.zero_le (2 ^ L)
   have hf (v : ℕ) (hv : v ≤ memoryLimit L m N Q) : Fits w v := hl.of_le (by omega)
   have hcursor : Fits w (cursorAddressBase L m N Q + key n) := hf _ (by
-    unfold cursorAddressBase offsetAddress countAddress tableAddress inputLimit
-    omega)
+    unfold cursorAddressBase offsetAddress countAddress tableAddress inputLimit; omega)
   have hcode : Fits w (codeAddress L m N Q + p) := hf _ (by
-    unfold memoryLimit originalAddress
-    omega)
-  have horig : Fits w (originalAddress L m N Q + p) := hf _ (by
-    unfold memoryLimit
-    omega)
+    unfold memoryLimit originalAddress; omega)
+  have horig : Fits w (originalAddress L m N Q + p) := hf _ (by unfold memoryLimit; omega)
   have hnext : Fits w (p + 1) := hf _ (by omega)
   have hnnext : Fits w (n + 1) := hf _ (by omega)
   have hcurcode : cursorAddressBase L m N Q + key n < codeAddress L m N Q := by
-    unfold codeAddress
-    omega
+    unfold codeAddress; omega
   have hcodeorig : codeAddress L m N Q + p < originalAddress L m N Q := by
-    unfold originalAddress
-    omega
+    unfold originalAddress; omega
   dsimp only [p] at hcode horig hnext
   simp only [packRegisters, code] at hv
   refine WP.exists_execWithin ?_

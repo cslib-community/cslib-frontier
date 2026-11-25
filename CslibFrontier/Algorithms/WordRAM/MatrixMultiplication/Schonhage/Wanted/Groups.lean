@@ -90,30 +90,23 @@ theorem code_span_eq_wantedStrings {L m N : ℕ} (hm : m ≤ L)
   rw [CountingSort.scatter_span_image key qs.length t _ values hv]
   simp only [wantedStrings, image_image, Function.comp_def]
   ext code
+  simp only [mem_image, mem_filter, mem_range, List.mem_toFinset]
   constructor
-  · intro hc
-    obtain ⟨i, hi, hc⟩ := mem_image.mp hc
-    obtain ⟨hin, hik⟩ := mem_filter.mp hi
-    have hiQ := mem_range.mp hin
+  · rintro ⟨i, ⟨hiQ, hik⟩, hc⟩
     have hp : inputPairs qs i = ((qs.get ⟨i, hiQ⟩).1.val, (qs.get ⟨i, hiQ⟩).2.val) :=
       inputPairs_get qs ⟨i, hiQ⟩
     have hk : tileKey L m N ((qs.get ⟨i, hiQ⟩).1.val, (qs.get ⟨i, hiQ⟩).2.val) = t := by
       simpa only [key, Function.comp_def, hp] using hik
     have hband := (tileKey_eq_iff hm (qs.get ⟨i, hiQ⟩).1 (qs.get ⟨i, hiQ⟩).2 T hT).mp hk
-    exact mem_image.mpr ⟨qs.get ⟨i, hiQ⟩,
-      mem_filter.mpr ⟨List.mem_toFinset.mpr (List.get_mem _ _), hband⟩,
-      by simpa only [values, hp] using hc⟩
-  · intro hc
-    obtain ⟨q, hq, hc⟩ := mem_image.mp hc
-    obtain ⟨hq, hband⟩ := mem_filter.mp hq
-    obtain ⟨i, rfl⟩ := List.mem_iff_get.mp (List.mem_toFinset.mp hq)
+    exact ⟨qs.get ⟨i, hiQ⟩, ⟨List.get_mem _ _, hband⟩, by simpa only [values, hp] using hc⟩
+  · rintro ⟨q, ⟨hq, hband⟩, hc⟩
+    obtain ⟨i, rfl⟩ := List.mem_iff_get.mp hq
     have hp := inputPairs_get qs i
     have hk : key i.val = t := by
       dsimp only [key, Function.comp_def]
       rw [hp]
       exact (tileKey_eq_iff hm (qs.get i).1 (qs.get i).2 T hT).mpr hband
-    exact mem_image.mpr ⟨i.val, mem_filter.mpr ⟨mem_range.mpr i.isLt, hk⟩,
-      by simpa only [values, hp] using hc⟩
+    exact ⟨i.val, ⟨i.isLt, hk⟩, by simpa only [values, hp] using hc⟩
 
 /-- The actual stored original indices are in range, injective, and cover every input
 position. Equal original coordinate pairs therefore retain their separate occurrences. -/

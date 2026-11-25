@@ -75,20 +75,14 @@ theorem modulus_budget_le_envelope (x : Data 128) (H n m Λ U N : ℕ)
         ≤ (3 * S) ^ 2 * (3 * S) := Nat.mul_le_mul (Nat.pow_le_pow_left ha 2) hb
       _ = 27 * S ^ 3 := by ring
   have hns : x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6) ≤ 3 * n := by
-    have h₀ := hlen 0
-    have h₁ := hlen 1
-    have h₂ := hlen 2
-    change x.regs (slot 2) ≤ n at h₀
-    change x.regs (slot 4) ≤ n at h₁
-    change x.regs (slot 6) ≤ n at h₂
+    have h₀ : x.regs (slot 2) ≤ n := hlen 0
+    have h₁ : x.regs (slot 4) ≤ n := hlen 1
+    have h₂ : x.regs (slot 6) ≤ n := hlen 2
     omega
   have hss : x.regs (slot 1) + x.regs (slot 3) + x.regs (slot 5) ≤ 3 * H := by
-    have h₀ := hsrc 0
-    have h₁ := hsrc 1
-    have h₂ := hsrc 2
-    change x.regs (slot 1) + x.regs (slot 2) ≤ H at h₀
-    change x.regs (slot 3) + x.regs (slot 4) ≤ H at h₁
-    change x.regs (slot 5) + x.regs (slot 6) ≤ H at h₂
+    have h₀ : x.regs (slot 1) + x.regs (slot 2) ≤ H := hsrc 0
+    have h₁ : x.regs (slot 3) + x.regs (slot 4) ≤ H := hsrc 1
+    have h₂ : x.regs (slot 5) + x.regs (slot 6) ≤ H := hsrc 2
     omega
   have hbudget : Modulus.budget ((modulusState x).comap kernel) ≤
       7 * H + 3 * n + (3 * n + 1) ^ 2 * (3 * Λ + m + 1) + m ^ 2 + m + 100 := by
@@ -115,17 +109,13 @@ theorem node_budget_le_envelope (x : Data 128) (H n m Λ U N M : ℕ)
   let S := H + n + m ^ 2 + Λ + m + U + N + 100
   have hS : 1 ≤ S := by dsimp [S]; omega
   have hns : (recordLayout x M).total ≤ 3 * n := by
-    have h₀ := hlen 0
-    have h₁ := hlen 1
-    have h₂ := hlen 2
     change x.regs (arrayLength 0) + x.regs (arrayLength 1) + x.regs (arrayLength 2) ≤ 3 * n
-    omega
+    linarith [hlen 0, hlen 1, hlen 2]
   have hinner : (recordLayout x M).base + (recordLayout x M).total + M +
       (recordLayout x M).N + (recordLayout x M).U + 1 ≤ 3 * S := by
     change x.regs heap + (recordLayout x M).total + M + x.regs groups +
       x.regs magnitude + 1 ≤ 3 * S
-    dsimp only [S]
-    omega
+    dsimp only [S]; omega
   calc (recordLayout x M).budget
       ≤ 4096 * (3 * S) ^ 2 := Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hinner 2)
     _ = 36864 * S ^ 2 := by ring

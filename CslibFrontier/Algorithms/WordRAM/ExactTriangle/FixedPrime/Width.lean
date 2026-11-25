@@ -96,24 +96,16 @@ theorem admissionWidth_le_log {n D g p A κ : ℕ} (hn : 1 ≤ n)
   have hb : 2 ≤ b := by dsimp only [b]; omega
   have hb1 : 1 ≤ b := by omega
   have hnB : n ≤ b := by dsimp only [b]; omega
-  have hfour : p * n * n * n ≤ b ^ 4 := by
-    calc
-      _ ≤ b * b * b * b := Nat.mul_le_mul
-        (Nat.mul_le_mul (Nat.mul_le_mul (hp.trans hnB) hnB) hnB) hnB
-      _ = b ^ 4 := by ring
+  have hfour : p * n * n * n ≤ b ^ 4 :=
+    (Nat.mul_le_mul (Nat.mul_le_mul (Nat.mul_le_mul (hp.trans hnB) hnB) hnB) hnB).trans_eq
+      (by ring)
   have htwo : n * n ≤ b ^ 2 := by simpa only [pow_two] using Nat.mul_le_mul hnB hnB
   have h4pos : 1 ≤ b ^ 4 := Nat.one_le_pow _ _ hb1
   have h2pos : 1 ≤ b ^ 2 := Nat.one_le_pow _ _ hb1
-  have hleft : p * n * n * n + 1 ≤ b ^ 5 := by
-    calc
-      _ ≤ 2 * b ^ 4 := by omega
-      _ ≤ b * b ^ 4 := Nat.mul_le_mul_right _ hb
-      _ = b ^ 5 := by ring
-  have hright : n * n + 1 ≤ b ^ 3 := by
-    calc
-      _ ≤ 2 * b ^ 2 := by omega
-      _ ≤ b * b ^ 2 := Nat.mul_le_mul_right _ hb
-      _ = b ^ 3 := by ring
+  have hleft : p * n * n * n + 1 ≤ b ^ 5 :=
+    (show _ ≤ 2 * b ^ 4 by omega).trans ((Nat.mul_le_mul_right _ hb).trans_eq (by ring))
+  have hright : n * n + 1 ≤ b ^ 3 :=
+    (show _ ≤ 2 * b ^ 2 by omega).trans ((Nat.mul_le_mul_right _ hb).trans_eq (by ring))
   have hprod : (p * n * n * n + 1) * (n * n + 1) ≤ b ^ 8 :=
     (Nat.mul_le_mul hleft hright).trans_eq (by ring)
   have hn8 : n ≤ b ^ 8 := hnB.trans (Nat.le_self_pow (by decide) b)

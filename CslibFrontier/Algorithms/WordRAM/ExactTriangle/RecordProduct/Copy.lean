@@ -63,26 +63,19 @@ theorem exec_copyInputs {W b A Q s t q : ℕ} (x : Data 320)
     (by wram_simp) (by wram_simp) (by wram_simp)
     (by omega) (hfit.of_le (by omega))) with y ⟨ym, ysrc, ydst, ylen, yr⟩
   wram_simp at ym
-  refine ⟨by wram_simp; omega, ?_, ?_, ?_, ?_, ?_⟩
-  · intro j hj
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm,
+  refine ⟨by wram_simp; omega, fun j hj => ?_, fun j hj => ?_, fun j hj => ?_, fun j hj => ?_,
+    fun i hi hne => ?_⟩
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm,
       ArrayCopy.copyPrefix_outside (by omega), am, ArrayCopy.copyPrefix_read hj]
-  · intro j hj
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm, ArrayCopy.copyPrefix_read hj,
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm, ArrayCopy.copyPrefix_read hj,
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro j hj
-    rw [show b + 5 + 2 * A + j = b + 5 + A + A + j by omega,
-      ym, ArrayCopy.copyPrefix_read (by omega), cm,
-      ArrayCopy.copyPrefix_outside (by omega), am,
+  · rw [show b + 5 + 2 * A + j = b + 5 + A + A + j by omega, ym, ArrayCopy.copyPrefix_read
+      (by omega), cm, ArrayCopy.copyPrefix_outside (by omega), am,
       ArrayCopy.copyPrefix_outside (by omega)]
-  · intro j hj
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm,
-      ArrayCopy.copyPrefix_outside (by omega), am,
-      ArrayCopy.copyPrefix_outside (by omega)]
-  · intro i hi hne
-    have hsource : i ≠ Reg.source := fun h => by subst h; exact absurd hi (by decide)
-    have hdest : i ≠ Reg.destination := fun h => by subst h; exact absurd hi (by decide)
-    have hlen : i ≠ Reg.length := fun h => by subst h; exact absurd hi (by decide)
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), cm, ArrayCopy.copyPrefix_outside
+      (by omega), am, ArrayCopy.copyPrefix_outside (by omega)]
+  · obtain ⟨hsource, hdest, hlen⟩ : i ≠ Reg.source ∧ i ≠ Reg.destination ∧ i ≠ Reg.length := by
+      refine ⟨?_, ?_, ?_⟩ <;> rintro rfl <;> exact absurd hi (by decide)
     rw [yr i (Or.inl hi)]
     wram_simp [hsource, hdest, hlen, hne, cr i (Or.inl hi), ar i (Or.inl hi)]
 

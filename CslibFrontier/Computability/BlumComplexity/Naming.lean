@@ -916,18 +916,16 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
     (ht' : ∀ n, t' n ∈ Φ.name i n) {e S₀ : ℕ} (hS₀ : ∀ s, S₀ ≤ s → act Φ i s ≠ some e) :
     ∀ᶠ x in atTop, (Halts Φ (ofNat Code e) x (t x) ↔ Halts Φ (ofNat Code e) x (t' x)) := by
   classical
-  have heK₀ := le_key_hist (Φ := Φ) i e S₀
-  generalize hK : key (hist Φ i S₀) e S₀ = K at heK₀
+  have heK := le_key_hist (Φ := Φ) i e S₀
+  generalize hK : key (hist Φ i S₀) e S₀ = K at heK
   have hkey : ∀ s, S₀ ≤ s → key (hist Φ i s) e s = K := fun s hs =>
     (key_hist_stable hs fun b hb _ => hS₀ b hb).trans hK
-  have heK : e ≤ K := heK₀
   have hV : ∀ e', ∀ᶠ s in atTop, (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') := by
     intro e'
     rcases quiet_eventually_const (Φ := Φ) i K e' with h | h
+    · filter_upwards [h] with s hs using iff_of_true hs h
     · filter_upwards [h] with s hs
-      exact iff_of_true hs h
-    · filter_upwards [h] with s hs
-      exact iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
+        using iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
   have hall : ∀ᶠ s in atTop, ∀ e' ∈ {e' | e' < K + 1},
       (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') :=
     (Set.finite_lt_nat (K + 1)).eventually_all.2 fun e' _ => hV e'

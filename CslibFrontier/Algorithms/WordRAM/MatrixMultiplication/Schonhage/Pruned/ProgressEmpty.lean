@@ -68,11 +68,7 @@ theorem exec_progress_empty {w L f a0 b0 n d p E : ℕ}
     ?_, ?_, ?_, ?_⟩⟩
   · intro j
     change z.mem (f + 4 * d + j.val) = ![S.card, p, 10 ^ d, k.val + 1] j
-    fin_cases j
-    · exact (hfirst 0 (by decide)).trans (hy.frame 0)
-    · exact (hfirst 1 (by decide)).trans (hy.frame 1)
-    · exact (hfirst 2 (by decide)).trans (hy.frame 2)
-    · exact hterm
+    fin_cases j <;> first | exact hterm | (refine (hfirst _ ?_).trans (hy.frame _); simp)
   · intro i hi
     exact (hmod _ (notMem_nodeWrites_list hd.le (hi.trans_le hx.card_le))).trans
       (hy.requests i hi)
@@ -83,14 +79,9 @@ theorem exec_progress_empty {w L f a0 b0 n d p E : ℕ}
     have hc : Pruned.childResult a b S (Encoding.termDigits k) (Fin.tail q) = 0 := by
       simp [Pruned.childResult, hempty]
     simp only [hc, ite_self, add_zero]
-  · rw [hepoch]
-    exact hy.epoch_le.trans (Nat.le_succ _)
-  · rw [hepoch]
-    have he := hy.epoch_upper
-    nlinarith only [he]
-  · intro q hq
-    rw [hepoch]
-    exact htable.stamp_le q hq
+  · exact hepoch ▸ hy.epoch_le.trans (Nat.le_succ _)
+  · rw [hepoch]; nlinarith only [hy.epoch_upper]
+  · exact fun q hq => hepoch ▸ htable.stamp_le q hq
   · simpa only [Finset.union_self] using hy.footprint.trans hmod
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

@@ -114,15 +114,7 @@ theorem exec_solveFromTries {w d s baseFree rootF rootG qPtr W : ℕ}
       (200 * (d + 1) ^ 2 * (lowCount d s + Cs.length * H_pos)) := by
     refine (he_pre.seq hloop_q).mono ?_
     rw [hs₆_qi, Nat.sub_zero]
-    have hassoc :
-        4 + (5 * d + 3 + (3 + (d * (20 * lowCount d s + 12) + 8 +
-          (5 + (tripleTime d (lowCount d s) + 8))))) +
-          (Cs.length * (180 * (d + 1) ^ 2 * H_pos + 2) + 2) =
-        4 + (5 * d + 3 + (3 + (d * (20 * lowCount d s + 12) + 8 +
-          (5 + (tripleTime d (lowCount d s) +
-            (8 + (Cs.length * (180 * (d + 1) ^ 2 * H_pos + 2) + 2))))))) := by omega
-    rw [hassoc]
-    exact solve_total_time_le (lowCount_pos d s) hH_pos1
+    exact Eq.trans_le (by omega) (solve_total_time_le (lowCount_pos d s) hH_pos1)
   refine ⟨y, htot, ?_, ?_, ?_⟩
   · rw [hy_out]
     refine List.ext_getElem (by simp [hy_ob]) fun j hj1 _ => ?_
@@ -207,18 +199,7 @@ private theorem exec_inputCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth 
       hf_solve_sp hw.2
   refine ⟨y, (he_setup.seq he_solve).mono ?_, hy_list, hy_fit⟩
   rw [Instance.timeBound, Instance.numEntries]
-  have hass :
-      13 + (inst.leftEntries.length * (23 * inst.d + 40) + 11 +
-        (5 + (inst.rightEntries.length * (23 * inst.d + 40) + 11 + 3))) +
-        200 * (inst.d + 1) ^ 2 *
-          (lowCount inst.d inst.s + inst.queries.length * max 1 (highPeak inst.s inst.queries)) =
-      13 + (inst.leftEntries.length * (23 * inst.d + 40) + 11 +
-        (5 + (inst.rightEntries.length * (23 * inst.d + 40) + 11 +
-          (3 + 200 * (inst.d + 1) ^ 2 *
-            (lowCount inst.d inst.s +
-              inst.queries.length * max 1 (highPeak inst.s inst.queries)))))) := by omega
-  rw [hass]
-  exact input_total_time_le (lowCount_pos inst.d inst.s)
+  exact Eq.trans_le (by omega) (input_total_time_le (lowCount_pos inst.d inst.s))
 
 /-- `program` computes the encoded covering-product query answers within `Instance.timeBound`
 instructions on every width satisfying `Instance.FitsWidth`. -/
@@ -234,15 +215,8 @@ theorem computesListInTime_program :
       (inst.queries.map (coveringProduct inst.leftFn inst.rightFn)).map Signed.encode)
     fun inst w hw _ => by simpa using exec_inputCode inst hw
   refine hraw.mono (fun inst _ => ?_) (fun _ _ h => h)
-  have hpos : 0 < inst.timeBound := by
-    dsimp only [Instance.timeBound]
-    have h1 : 0 < 250 * (inst.d + 1) ^ 2 :=
-      Nat.mul_pos (by decide) (Nat.pow_pos (Nat.succ_pos inst.d))
-    have h2 : 0 < inst.numEntries + lowCount inst.d inst.s +
-        inst.queries.length * max 1 (highPeak inst.s inst.queries) := by
-      have := lowCount_pos inst.d inst.s
-      omega
-    exact Nat.mul_pos h1 h2
+  have hpos : 0 < inst.timeBound :=
+    Nat.mul_pos (by positivity) (by have := lowCount_pos inst.d inst.s; omega)
   omega
 
 /-- **Complete initialized Word-RAM bound for [ChanItakuraMaYu2026], Theorem 2.2 / Problem 2.1.**

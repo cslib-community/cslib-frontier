@@ -274,20 +274,12 @@ lemma foldl_push_inO {γ : Type} {encIn : γ ↪ List Bool} {list : γ → List 
     (R := fun x => (2 * ((encCountdown (cd x)).length + (list x).length) + 3) ^ 2)
     (Q := fun x => 2 * ((encCountdown (cd x)).length + (list x).length) + 3)
     (B := fun x => (encCountdown (cd x)).length + (list x).length)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
-      simp only [length_encPair, encBool_apply, List.length_singleton]
-      exact Nat.pow_le_pow_left (by omega) 2)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
-      simp only [length_encPair, encBool_apply, List.length_singleton]
-      omega)
-    (fun x i hi => by
-      have := length_encCountdown_foldl ((list x).take i) (cd x)
-      have := List.length_take_le' i (list x)
-      omega)
+    (fun x i _ => ?_) (fun x i _ => ?_) (fun x i _ => ?_)
+  any_goals
+    have := length_encCountdown_foldl ((list x).take i) (cd x)
+    have := List.length_take_le' i (list x)
+    try simp only [length_encPair, encBool_apply, List.length_singleton]
+    first | omega | exact Nat.pow_le_pow_left (by omega) 2
   refine h.mono 64 (fun x => ?_) fun x => ?_
   all_goals
     simp only [encBits_apply]

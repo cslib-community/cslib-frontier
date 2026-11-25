@@ -41,47 +41,31 @@ theorem emit_admitted (published : Bool) {a : Arena} {w : ℕ} (x : Data 128) (e
     ∃ y, ExecWithin (w + 2) (if published then visit else localVisit) x y (visitTime a.n a.m a.N) ∧
       Nonempty (Emission (Nat.primesLE a.m) a.Λ e x y published) := by
   rcases hc with ⟨hm, hΛ, hU, hN, hb, hcard, ht, hstack, hcap, hz, hone⟩
+  obtain ⟨h₀, h₁, h₂, -⟩ := ha
   have hsum := envelope_ge_sum a.ceiling a.n a.m a.Λ a.U a.N
   have hbound {z : ℤ} (hz : z.natAbs ≤ envelope a.ceiling a.n a.m a.Λ a.U a.N) :
       GenericRAM.Signed.Fits w z := GenericRAM.Signed.Fits.of_natAbs_le hw.2.2 hz
   have hunsigned := Signed.unsigned_fits_of_signed hw.2.2
   have hlen (j : Fin 3) : x.regs (arrayLength j) ≤ a.n := by
-    rw [hl.2.2]
-    exact hv.length_le j
+    rw [hl.2.2]; exact hv.length_le j
   have hsource (j : Fin 3) : x.regs (arraySource j) + x.regs (arrayLength j) ≤ a.ceiling := by
-    rw [hl.2.1, hl.2.2]
-    exact (hsrc j).trans hheap
-  have hbitmapBase : x.regs bitmap ≤ a.ceiling := by
-    rw [hb]
-    have h₀ := ha.1
-    have h₁ := ha.2.1
-    have h₂ := ha.2.2.1
-    omega
+    rw [hl.2.1, hl.2.2]; exact (hsrc j).trans hheap
+  have hbitmapBase : x.regs bitmap ≤ a.ceiling := by rw [hb]; omega
   obtain ⟨y, he, hem⟩ := emit_with_publication published x e hl (by simpa only [hU] using hv) hs
     (by rw [hm]; exact hw.1)
     (by apply hbound; simp only [hm, Int.natAbs_natCast]; omega)
     (hunsigned.of_le (modulus_budget_le_envelope x a.ceiling a.n a.m a.Λ a.U a.N hheap
       hsource hlen hm.le hΛ.le
       (by rw [hcard]; exact Nat.card_primesLE_le a.m) hbitmapBase))
-    (by
-      intro M _ hM
-      apply hbound
+    (fun M _ hM => hbound (by
       simp only [Int.natAbs_natCast]
       exact node_budget_le_envelope x a.ceiling a.n a.m a.Λ a.U a.N M hheap hlen
-        (by simpa only [hm] using hM) hU.le hN.le)
+        (by simpa only [hm] using hM) hU.le hN.le))
     (by rw [hm, hN]; exact hw.2.1)
     (by rw [hm, hcard])
-    (by
-      rw [hb, hm]
-      have h₀ := ha.1
-      have h₁ := ha.2.1
-      have h₂ := ha.2.2.1
-      omega)
+    (by rw [hb, hm]; omega)
     (by simpa only [Arena.Bitmap, hm, hb] using hbitmap)
-    (by
-      intro j i hi
-      apply hbound
-      exact (hv.natAbs_le j i hi).trans (by omega))
+    (fun j i hi => hbound ((hv.natAbs_le j i hi).trans (by omega)))
     hsrc hone htable
   exact ⟨y, by simpa only [hm, hN] using he, by simpa only [hm, hΛ] using hem⟩
 

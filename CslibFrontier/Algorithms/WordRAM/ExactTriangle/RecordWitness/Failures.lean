@@ -81,8 +81,7 @@ theorem actual_success_iff {m n g p : ℕ} (values : ℕ → ℤ)
   let first := idx.piece * pieceSize (D m) g
   let length := min (pieceSize (D m) g) (n - first)
   have pair_mem (i : Fin qs.length) : qs.get i ∈ chunkOf wAB (D m) p idx.residue idx.chunk := by
-    rw [← hset, List.mem_toFinset]
-    exact List.get_mem _ _
+    rw [← hset, List.mem_toFinset]; exact List.get_mem _ _
   constructor
   · rintro ⟨i, hi, -, c, hlo, hhi, hz⟩
     let j : Fin qs.length := ⟨i, hi⟩
@@ -110,16 +109,11 @@ theorem actual_success_iff {m n g p : ℕ} (values : ℕ → ℤ)
       exact ⟨c, hc, by rw [hz]⟩
     have hprod := (RecordProduct.product_ne_zero_iff values wAB wBC wAC hD hg hp
       hvaluesBC hvaluesAC idx q.1 q.2).mpr hpair
-    refine ⟨j.val, j.isLt, ?_, c.val, ?_, ?_, ?_⟩
-    · intro hzero
-      apply hprod
-      have he := hanswer j
+    obtain ⟨hlo, hhi⟩ := (mem_piece_iff_interval hD hg c).mp hc
+    refine ⟨j.val, j.isLt, fun hzero => hprod (Signed.encode_injective ?_), c.val, hlo, hhi, ?_⟩
+    · have he := hanswer j
       rw [hj] at he
-      apply Signed.encode_injective
       exact he.symm.trans hzero
-    · exact ((mem_piece_iff_interval hD hg c).mp hc).1
-    · exact ((mem_piece_iff_interval hD hg c).mp hc).2
-    · rw [ha, hb, hj, hAB, hBC, hAC]
-      exact hz
+    · rw [ha, hb, hj, hAB, hBC, hAC]; exact hz
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
