@@ -27,20 +27,6 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean.DFS
 open Reg
 
-local macro "reg_ne" : tactic =>
-  `(tactic| exact Fin.ne_of_val_ne (by
-    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cThree, nVerts, offB, edgeB, visB, finB, stkB,
-      curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt, compIdxReg, oldFinReg, uReg, vReg,
-      jReg, jEndReg, addr, outReg] at *
-    omega))
-
-local macro "regs_lt" : tactic =>
-  `(tactic| (
-    repeat (first
-      | rw [Data.write_regs_apply]
-      | rw [Data.set_regs_of_ne (by reg_ne)])
-    try rfl))
-
 local macro "mem_upd" : tactic =>
   `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
@@ -274,8 +260,9 @@ private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2']
   dsimp only [PopPost]
-  refine ⟨dfsRegs_of_frame hregs fun r hr => by regs_lt, ?_, fun v => ?_, by wram_simp,
-    by wram_simp, by wram_simp, fun a ha => by wram_simp, fun r hr => by regs_lt⟩
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
+    by wram_simp, by wram_simp, fun a ha => by wram_simp,
+    fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => Function.update_of_ne (by omega) _ _)
@@ -345,9 +332,9 @@ private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
   wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end]
   dsimp only [SkipPost]
-  refine ⟨dfsRegs_of_frame hregs fun r hr => by regs_lt, ?_, fun v => ?_, by wram_simp,
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun v => ?_, by wram_simp,
     by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
-    fun a ha => by wram_simp, fun r hr => by regs_lt⟩
+    fun a ha => by wram_simp, fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => Function.update_of_ne (by omega) _ _)
@@ -432,9 +419,10 @@ private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
     hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
     hoff_v0, hoff_v1]
   dsimp only [PushPost]
-  refine ⟨dfsRegs_of_frame hregs fun r hr => by regs_lt, ?_, fun w_v => ?_, by wram_simp,
+  refine ⟨dfsRegs_of_frame hregs fun r hr => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
     by wram_simp [hfc], by wram_simp [hstk0], by wram_simp; omega, by wram_simp [hstk2],
-    by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp, fun r hr => by regs_lt⟩
+    by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
+    fun r hr => by rcases hr with hr | rfl | rfl <;> wram_simp⟩
   · mem_upd
     exact hcsr.of_eqOn
       (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
@@ -681,9 +669,10 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
     wram_exec [hregs.czero, hregs.hvis, hu, hvis_1]
     dsimp only [RootPost]
     rw [hs_eq]
-    exact ⟨dfsRegs_of_frame hregs fun reg hreg => by regs_lt, by mem_upd; exact hcsr,
+    exact ⟨dfsRegs_of_frame hregs fun reg hreg => by wram_simp, by mem_upd; exact hcsr,
       fun w_v => by mem_upd; exact hvis w_v, by wram_simp; simpa using hfc,
-      fun _ hq => by simp at hq, fun _ _ => rfl, fun reg hreg => by regs_lt⟩
+      fun _ hq => by simp at hq, fun _ _ => rfl,
+      fun reg hreg => by rcases hreg with hreg | rfl | rfl <;> wram_simp⟩
   · have hvis_0 : x.mem (visAddr + r.val) = 0 := by simpa [hmem] using hvis_r
     set vis₁ := insert r vis
     have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
@@ -711,9 +700,9 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
       unfold dfsPushRoot
       wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1]
       dsimp only [PushRootPost]
-      refine ⟨dfsRegs_of_frame hregs fun reg hreg => by regs_lt, ?_, fun w_v => ?_, by wram_simp,
+      refine ⟨dfsRegs_of_frame hregs fun reg hreg => by wram_simp, ?_, fun w_v => ?_, by wram_simp,
         by wram_simp [hfc], by wram_simp, by wram_simp, by wram_simp, fun a ha => by wram_simp,
-        fun reg hreg => by regs_lt⟩
+        fun reg hreg => by rcases hreg with hreg | rfl | rfl <;> wram_simp⟩
       · mem_upd
         exact hcsr.of_eqOn
           (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
