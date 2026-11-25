@@ -184,17 +184,11 @@ private theorem rangeR_spec {s : Store α β H} {fuel : ℕ} {lo hi : α} {root 
       | zero => omega
       | succ fuel =>
         obtain ⟨hdf, hdr⟩ := (denotes_some_node_iff s h first rest).mp hd
-        have hchildren : ∀ c ∈ (BTree.node first rest).children, ∀ r,
-            Denotes s r c → c.height ≤ fuel →
-            eval s (rangeR fuel lo hi r) = BTree.range lo hi c ∧
-              countQueries s (rangeR fuel lo hi r) = rangeVisits lo hi c := by
-          intro c hc r hdc hcf
-          simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
-          rcases hc with rfl | ⟨e, he, rfl⟩
-          · exact ih₁ hdc hcf
-          · exact ih₂ e he hdc hcf
         simp only [rangeR, eval_bind, eval_readNode, countQueries_bind, countQueries_readNode]
-        exact rangeScan_spec hdf hdr hchildren hf
+        refine rangeScan_spec hdf hdr (fun c hc r hdc hcf => ?_) hf
+        simp only [BTree.children_node, List.mem_cons, List.mem_map] at hc
+        rcases hc with rfl | ⟨e, he, rfl⟩
+        exacts [ih₁ hdc hcf, ih₂ e he hdc hcf]
 
 /-- `rangeR` evaluates to `BTree.range` whenever `root` denotes `tr` and `tr.height ≤ fuel`. -/
 theorem eval_rangeR {s : Store α β H} {fuel : ℕ} {root : Option H} {tr : BTree α β}
