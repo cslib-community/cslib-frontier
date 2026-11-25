@@ -120,11 +120,15 @@ theorem eq_of_cutsCorner_of_le (hg : ∀ ⦃i i' j j'⦄, i ≤ i' → j ≤ j' 
   rw [Prod.mk.injEq] at hne
   have hlt : a < c ∨ (a = c ∧ b < d) := by omega
   have hF : ∀ {u v : Bool}, u ≤ v → u = true → v = false → False := by decide
-  cases hval : g (a + 1) b <;> rcases hlt with h | ⟨rfl, h⟩
-  · exact hF (hg (by omega) (Nat.succ_le_succ hbd)) hp1 (hq2.symm.trans (hv.symm.trans hval))
-  · exact hF (hg le_rfl (by omega)) hp1 (hv.symm.trans hval)
-  · exact hF (hg (by omega) hbd) hval hq0
-  · exact hF (hg le_rfl (by omega)) (hp2.symm.trans hval) hq0
+  cases hval : g (a + 1) b
+  · -- outer corners: `g (a + 1) (b + 1) = true` lies below a `false` corner of `q`
+    rcases hlt with h | ⟨rfl, h⟩
+    · exact hF (hg (by omega) (Nat.succ_le_succ hbd)) hp1 (hq2.symm.trans (hv.symm.trans hval))
+    · exact hF (hg le_rfl (by omega)) hp1 (hv.symm.trans hval)
+  · -- inner corners: a `true` corner of `p` lies below `g c d = false`
+    rcases hlt with h | ⟨rfl, h⟩
+    · exact hF (hg (by omega) hbd) hval hq0
+    · exact hF (hg le_rfl (by omega)) (hp2.symm.trans hval) hq0
 
 /-- **Chains**: a grid function monotone in both coordinates cuts a corner of at most two squares
 of any chain of the product order. -/
@@ -152,15 +156,20 @@ theorem card_filter_cutsCorner_gridBorder_le_of_monotone
       rw [hs, mem_filter, mem_gridBorder] at hp hq
       exact hP p q hp.1.1 hp.1.2.1 hq.1.1 hq.1.2.1 hp.2 hq.2
   have hA := hchain A (fun p => p.1 = 0 ∨ p.2 + 1 = m) rfl fun _ _ _ _ _ _ _ _ => by
-    simp only [Prod.le_def]; omega
+    simp only [Prod.le_def]
+    omega
   have hB := hchain B (fun p => p.2 = 0 ∨ p.1 + 1 = m) rfl fun _ _ _ _ _ _ _ _ => by
-    simp only [Prod.le_def]; omega
-  refine (card_le_card fun p hp => ?_).trans ((card_union_le _ _).trans (add_le_add hA hB))
-  rw [mem_filter, mem_gridBorder] at hp
-  simp only [A, B, mem_union, mem_filter, mem_gridBorder]
-  by_cases hA : p.1 = 0 ∨ p.2 + 1 = m
-  · exact Or.inl ⟨⟨hp.1, hA⟩, hp.2⟩
-  · exact Or.inr ⟨⟨hp.1, by omega⟩, hp.2⟩
+    simp only [Prod.le_def]
+    omega
+  calc #((gridBorder m).filter fun p => CutsCorner g p.1 p.2)
+      ≤ #((A.filter fun p => CutsCorner g p.1 p.2) ∪ B.filter fun p => CutsCorner g p.1 p.2) :=
+        card_le_card fun p hp => by
+          rw [mem_filter, mem_gridBorder] at hp
+          simp only [A, B, mem_union, mem_filter, mem_gridBorder]
+          by_cases hA : p.1 = 0 ∨ p.2 + 1 = m
+          · exact Or.inl ⟨⟨hp.1, hA⟩, hp.2⟩
+          · exact Or.inr ⟨⟨hp.1, by omega⟩, hp.2⟩
+    _ ≤ 2 + 2 := (card_union_le _ _).trans (add_le_add hA hB)
 
 /-- Reflecting the first coordinate, `i ↦ m - i`, maps cut squares to cut squares. -/
 theorem cutsCorner_reflect_fst {m i j : ℕ} (hi : i < m) :

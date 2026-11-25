@@ -169,8 +169,10 @@ def markInverter (adversary : Inverter) : Inverter :=
 
 /-- `markInverter adversary` is uniform strict PPT when `adversary` is. -/
 theorem isPPT_markInverter {adversary : Inverter} (hadversary : IsPPT encBits adversary) :
-    IsPPT encBits (markInverter adversary) :=
-  hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits) (by unfold mark; polytime)
+    IsPPT encBits (markInverter adversary) := by
+  refine hadversary.preprocess (ComputableInPolyTime.fst encUnary encBits) ?_
+  unfold mark
+  polytime
 
 /-- Inverting `collapse g` succeeds at most as often as inverting `g` with the marked challenge,
 plus the probability `2^-(n / 2)` of a low-zero input. -/
@@ -181,13 +183,14 @@ theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
         (1 / 2) ^ (n / 2) := by
   have hlow : (BitString.uniformList n).bind (fun x => PMF.pure (lowZero x)) true ≤
       ((1 / 2 : ℝ≥0) ^ (n / 2) : ℝ≥0) := by
-    rw [show (BitString.uniformList n).bind (fun x => PMF.pure (lowZero x)) =
+    have hcongr : (BitString.uniformList n).bind (fun x => PMF.pure (lowZero x)) =
         ((BitString.uniformList n).map (List.take (n / 2))).bind
-          (fun w => PMF.pure (decide (w = List.replicate (n / 2) false))) by
+          (fun w => PMF.pure (decide (w = List.replicate (n / 2) false))) := by
       rw [PMF.bind_map]
       exact PMF.bind_congr_on_support _ _ _ fun x hx => by
-        rw [Function.comp_apply, lowZero, BitString.length_of_mem_support_uniformList hx],
-      PMF.bind_pure_decide_eq_apply_true', BitString.uniformList_take (Nat.div_le_self n 2)]
+        rw [Function.comp_apply, lowZero, BitString.length_of_mem_support_uniformList hx]
+    rw [hcongr, PMF.bind_pure_decide_eq_apply_true',
+      BitString.uniformList_take (Nat.div_le_self n 2)]
     refine (BitString.uniformList_apply_le _ _).trans_eq ?_
     rw [ENNReal.coe_pow, one_div, one_div, ENNReal.coe_inv two_ne_zero, ENNReal.coe_ofNat,
       ENNReal.inv_pow]
@@ -220,9 +223,13 @@ theorem succProbability_inversionGame_collapse_le (g : List Bool → List Bool)
 /-- **`collapse g` is one-way** when `g` is one-way. -/
 theorem oneWay_collapse {g : List Bool → List Bool} (hg : OneWay g) : OneWay (collapse g) := by
   have hpoly := hg.polyTime
-  refine OneWay.of_inversion_negligible (by unfold collapse lowZero mark; polytime) fun A hA =>
-    negligible_of_le ((hg.inversion_negligible _ (isPPT_markInverter hA)).add
-      ((negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).div_const (by norm_num : 0 < 2)))
+  refine OneWay.of_inversion_negligible ?_ fun A hA => ?_
+  · unfold collapse lowZero mark
+    polytime
+  · have hhalf : Negligible fun n => (1 / 2 : ℝ≥0) ^ (n / 2) :=
+      (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).div_const
+        (by norm_num : 0 < 2)
+    exact negligible_of_le ((hg.inversion_negligible _ (isPPT_markInverter hA)).add hhalf)
       (succProbability_inversionGame_collapse_le g A)
 
 end IterateCounterexample

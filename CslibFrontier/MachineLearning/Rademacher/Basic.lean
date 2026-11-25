@@ -129,11 +129,13 @@ theorem rademacherAverage_eq_expect_ciSup_sum_div {ι : Type*} {m : ℕ} (a : ι
 
 /-- The correlation of a fixed vector with a uniformly random sign vector has mean zero. -/
 private theorem expect_expect_signVal_mul_eq_zero {m : ℕ} (b : Fin m → ℝ) :
-    𝔼 σ : Fin m → Bool, 𝔼 i, signVal (σ i) * b i = 0 :=
-  (Finset.expect_congr rfl fun σ _ => by
-    simp only [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
-    exact congrArg (· / _) (Finset.sum_congr rfl fun i _ => mul_comm _ _)).trans
-    (by rw [← Finset.expect_div, expect_sum_mul_signVal_eq_zero, zero_div])
+    𝔼 σ : Fin m → Bool, 𝔼 i, signVal (σ i) * b i = 0 := by
+  calc 𝔼 σ : Fin m → Bool, 𝔼 i, signVal (σ i) * b i
+      = 𝔼 σ : Fin m → Bool, (∑ i, b i * signVal (σ i)) / m :=
+        Finset.expect_congr rfl fun σ _ => by
+          simp only [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
+          exact congrArg (· / _) (Finset.sum_congr rfl fun i _ => mul_comm _ _)
+    _ = 0 := by rw [← Finset.expect_div, expect_sum_mul_signVal_eq_zero, zero_div]
 
 /-- The Rademacher average of a single vector is `0`. -/
 theorem rademacherAverage_unique {ι : Type*} [Unique ι] {m : ℕ} (a : ι → Fin m → ℝ) :
@@ -149,10 +151,12 @@ theorem rademacherAverage_of_isEmpty {ι : Type*} [IsEmpty ι] {m : ℕ} (a : ι
 /-- The Rademacher average of a nonempty bounded family is nonnegative: its supremum dominates any
 single member, whose correlation with random signs has mean zero. -/
 theorem rademacherAverage_nonneg {ι : Type*} [Nonempty ι] {m : ℕ} {a : ι → Fin m → ℝ} {B : ℝ}
-    (ha : ∀ j i, |a j i| ≤ B) : 0 ≤ rademacherAverage a :=
-  let ⟨j₀⟩ := ‹Nonempty ι›
-  (expect_expect_signVal_mul_eq_zero (a j₀)).symm.trans_le
-    (Finset.expect_le_expect fun σ _ => le_ciSup (bddAbove_range_expect_signVal_mul a ha σ) j₀)
+    (ha : ∀ j i, |a j i| ≤ B) : 0 ≤ rademacherAverage a := by
+  obtain ⟨j₀⟩ := ‹Nonempty ι›
+  calc (0 : ℝ) = 𝔼 σ : Fin m → Bool, 𝔼 i, signVal (σ i) * a j₀ i :=
+        (expect_expect_signVal_mul_eq_zero _).symm
+    _ ≤ rademacherAverage a := Finset.expect_le_expect fun σ _ =>
+        le_ciSup (bddAbove_range_expect_signVal_mul a ha σ) j₀
 
 /-- **Monotonicity.** If every vector of `a` occurs in the bounded family `b`, the Rademacher
 average of `a` is at most that of `b`. -/
@@ -191,8 +195,11 @@ theorem rademacherAverage_add_mul_signVal_mul {ι : Type*} {m : ℕ} {a : ι →
       ⨆ j, 𝔼 i, signVal (σ i) * (c i + β * (signVal (s i) * a j i)) =
         𝔼 i, signVal (σ i) * c i + β * ⨆ j, 𝔼 i, signVal (σ i ^^ s i) * a j i := by
     obtain ⟨M, hM⟩ := bddAbove_range_expect_signVal_mul a ha fun i => σ i ^^ s i
-    rw [Real.mul_iSup_of_nonneg hβ, add_ciSup ⟨β * M, by
-      rintro _ ⟨j, rfl⟩; exact mul_le_mul_of_nonneg_left (hM ⟨j, rfl⟩) hβ⟩]
+    have hbddβ : BddAbove (Set.range fun j => β * 𝔼 i, signVal (σ i ^^ s i) * a j i) := by
+      refine ⟨β * M, ?_⟩
+      rintro _ ⟨j, rfl⟩
+      exact mul_le_mul_of_nonneg_left (hM ⟨j, rfl⟩) hβ
+    rw [Real.mul_iSup_of_nonneg hβ, add_ciSup hbddβ]
     refine iSup_congr fun j => ?_
     rw [Finset.mul_expect, ← Finset.expect_add_distrib]
     exact Finset.expect_congr rfl fun i _ => by rw [signVal_xor]; ring
@@ -222,16 +229,19 @@ theorem rademacherAverage_le_mul_sqrt {ι : Type*} [Fintype ι] {m : ℕ} (a : �
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp [rademacherAverage, Real.iSup_const_zero]
   have hm' : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  refine (rademacherAverage_le a (r := B * √m) (by positivity) fun j => ?_).trans_eq ?_
-  · refine (Finset.sum_le_sum (g := fun _ => B ^ 2) fun i _ => ?_).trans_eq ?_
-    · rw [← sq_abs]
-      exact pow_le_pow_left₀ (abs_nonneg _) (ha j i) 2
-    · rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_pow,
-        Real.sq_sqrt hm'.le, mul_comm]
-  · rw [Real.sqrt_div' _ hm'.le]
-    field_simp
-    rw [Real.sq_sqrt hm'.le]
-    ring
+  have h := rademacherAverage_le a (r := B * √m) (by positivity) fun j => by
+    calc ∑ i, a j i ^ 2 ≤ ∑ _i : Fin m, B ^ 2 :=
+          Finset.sum_le_sum fun i _ => by
+            rw [← sq_abs]
+            exact pow_le_pow_left₀ (abs_nonneg _) (ha j i) 2
+      _ = (B * √m) ^ 2 := by
+          rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_pow,
+            Real.sq_sqrt hm'.le, mul_comm]
+  refine h.trans_eq ?_
+  rw [Real.sqrt_div' _ hm'.le]
+  field_simp
+  rw [Real.sq_sqrt hm'.le]
+  ring
 
 /-! ### Function classes -/
 
@@ -284,8 +294,10 @@ theorem empiricalRademacherComplexity_le_of_finite {F : Set (Z → ℝ)} {B : �
   · simp [empiricalRademacherComplexity, rademacherAverage, Real.iSup_const_zero]
   rcases F.eq_empty_or_nonempty with rfl | ⟨f₀, hf₀⟩
   · simp [empiricalRademacherComplexity_empty]
-  have hPa : ∀ p : hP.toFinset, ∀ i, |(p : Fin m → ℝ) i| ≤ B := fun ⟨_, hp⟩ _ =>
-    let ⟨f, hf, hfp⟩ := hP.mem_toFinset.1 hp; hfp ▸ hF f hf _
+  have hPa : ∀ p : hP.toFinset, ∀ i, |(p : Fin m → ℝ) i| ≤ B := by
+    rintro ⟨_, hp⟩ _
+    obtain ⟨f, hf, rfl⟩ := hP.mem_toFinset.1 hp
+    exact hF f hf _
   rw [empiricalRademacherComplexity_def, Set.ncard_eq_toFinset_card _ hP, ← Fintype.card_coe]
   exact (rademacherAverage_le_of_forall_exists hPa
     fun (f : F) => ⟨⟨_, hP.mem_toFinset.2 ⟨f, f.2, rfl⟩⟩, rfl⟩).trans

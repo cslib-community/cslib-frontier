@@ -83,7 +83,8 @@ theorem measurableSet_straddlesOn [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (S : 
     MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
   have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
       (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩ (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
-    ext ω; simp [StraddlesOn]
+    ext ω
+    simp [StraddlesOn]
   exact hset ▸ ((toFinite S).measurableSet_biUnion fun f _ =>
     measurable_edgeScore q R f measurableSet_Iio).inter
     ((toFinite S).measurableSet_biUnion fun f _ => measurable_edgeScore q R f measurableSet_Ici)
@@ -143,19 +144,23 @@ theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Finset E}
   have hint {C : Set (V → ℝ)} (hC : MeasurableSet C) : Integrable (C.indicator 1) P :=
     (integrable_const (1 : ℝ)).indicator hC
   -- Pointwise, a straddling vertex has at least four separated ordered pairs of edges.
-  rw [← integral_indicator_one hAm, ← integral_const_mul]
-  refine (integral_mono ((hint hAm).const_mul 4)
-    (integrable_finsetSum s.offDiag fun p _ => hint (hBm p))
-    (Pi.le_def.mpr fun ω => ?_)).trans_eq ?_
-  · simp only [indicator_apply, Pi.one_apply, Finset.sum_boole]
+  have hpt (ω : V → ℝ) : (4 : ℝ) * (straddleEvent G q R t v).indicator (1 : (V → ℝ) → ℝ) ω ≤
+      ∑ p ∈ s.offDiag, (B p).indicator (1 : (V → ℝ) → ℝ) ω := by
+    simp only [indicator_apply, Pi.one_apply, Finset.sum_boole]
     split_ifs with hω
     · obtain ⟨⟨e, he, hlt⟩, ⟨e', he', hle⟩⟩ := hω
       rw [← hs] at he he'
       rw [mul_one]
       exact_mod_cast four_le_card_filter_offDiag hcard (edgeScore G q R ω) he he' hlt hle
     · simp
-  · rw [integral_finsetSum _ fun p _ => hint (hBm p)]
-    exact Finset.sum_congr rfl fun p _ => integral_indicator_one (hBm p)
+  rw [← integral_indicator_one hAm, ← integral_const_mul]
+  calc ∫ ω, 4 * (straddleEvent G q R t v).indicator 1 ω ∂P
+      ≤ ∫ ω, ∑ p ∈ s.offDiag, (B p).indicator 1 ω ∂P :=
+        integral_mono ((hint hAm).const_mul 4)
+          (integrable_finsetSum s.offDiag fun p _ => hint (hBm p)) (Pi.le_def.mpr hpt)
+    _ = ∑ p ∈ s.offDiag, P.real (B p) := by
+        rw [integral_finsetSum _ fun p _ => hint (hBm p)]
+        exact Finset.sum_congr rfl fun p _ => integral_indicator_one (hBm p)
 
 /-- **Jensen bound on the six off-diagonal `arccos` angles at a degree-`3` vertex** in a loopless
 multigraph of maximum degree at most `3`, given a lower bound `6 * a` on the off-diagonal
@@ -168,13 +173,14 @@ theorem sum_arccos_edgeVector_offDiag_le_of_average [Finite E] (hloop : G.Loople
     ∑ p ∈ s.offDiag, arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ≤ 6 * arccos a := by
   have hoff : (s.offDiag.card : ℝ) = 6 := by rw [Finset.offDiag_card, hcard]; norm_num
   have hunit (e : E) : ‖edgeVector G q R e‖ = 1 := norm_edgeVector hloop hdeg hq (by linarith) hρ e
+  have hcap (e : E) (he : e ∈ s) : √((1 + ρ₀) / 2) ≤
+      ⟪edgeVector G q R e, unitKernelRow G.toSimpleGraph q R v⟫ :=
+    le_inner_edgeVector hloop hdeg hq hρ₀ hρ (hs ▸ he)
   have hjensen := Real.sum_arccos_le_card_mul_arccos s.offDiag (fun p hp => by
     obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hp
     refine ⟨?_, (real_inner_le_norm _ _).trans_eq (by rw [hunit, hunit, one_mul])⟩
     have := InnerProductGeometry.two_mul_sq_sub_one_le_inner (norm_unitKernelRow q R v)
-      (hunit p.1) (hunit p.2) (sqrt_nonneg _)
-      (le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact h1))
-      (le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact h2))
+      (hunit p.1) (hunit p.2) (sqrt_nonneg _) (hcap _ h1) (hcap _ h2)
     rw [sq_sqrt (by linarith)] at this
     linarith) (hoff ▸ haverage)
   rwa [hoff] at hjensen

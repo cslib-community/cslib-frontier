@@ -174,8 +174,9 @@ private theorem exists_tree_budgetValue_le (f : (ι → Bool) → Option β) (c 
 private theorem budgetValue_le_of_forall {f : (ι → Bool) → Option β} {c : ℕ}
     {ν : (ι → Bool) → ℝ} {b : ℝ}
     (h : ∀ t : DecisionTree ι β, t.depth ≤ c → t.weightedSuccess ν f ≤ b) :
-    budgetValue f c ν ≤ b :=
-  let ⟨t, ht, hle⟩ := exists_tree_budgetValue_le f c ν; hle.trans (h t ht)
+    budgetValue f c ν ≤ b := by
+  obtain ⟨t, ht, hle⟩ := exists_tree_budgetValue_le f c ν
+  exact hle.trans (h t ht)
 
 end Budget
 
@@ -245,12 +246,18 @@ private theorem productSuccess_le_prod_budgetValue (f : J → (ι → Bool) → 
         c ν h (c h - 1) (restrictWeight (ν h) q b)]
       rw [prod_update_of_mem (mem_univ h), sdiff_singleton_eq_erase]
     rw [productSuccess_node]
-    refine ((add_le_add (ih₀ _ _ (hν' false) h₀) (ih₁ _ _ (hν' true) h₁)).trans_eq ?_).trans
-      ((mul_le_mul_of_nonneg_right
-        (Nat.sub_add_cancel h0 ▸ budgetValue_add_le (f h) (c h - 1) (ν h) q)
-        (prod_nonneg fun j _ => budgetValue_nonneg (f j) (c j) (hν j))).trans_eq
-        (mul_prod_erase univ (fun j => budgetValue (f j) (c j) (ν j)) (mem_univ h)))
-    rw [hprod, hprod, add_mul]
+    calc _ ≤ _ := add_le_add (ih₀ _ _ (hν' false) h₀) (ih₁ _ _ (hν' true) h₁)
+      _ = (budgetValue (f h) (c h - 1) (restrictWeight (ν h) q false) +
+            budgetValue (f h) (c h - 1) (restrictWeight (ν h) q true)) *
+          ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) := by
+            rw [hprod, hprod, add_mul]
+      _ ≤ budgetValue (f h) (c h) (ν h) *
+          ∏ j ∈ univ.erase h, budgetValue (f j) (c j) (ν j) :=
+            mul_le_mul_of_nonneg_right
+              (Nat.sub_add_cancel h0 ▸ budgetValue_add_le (f h) (c h - 1) (ν h) q)
+              (prod_nonneg fun j _ => budgetValue_nonneg (f j) (c j) (hν j))
+      _ = ∏ j, budgetValue (f j) (c j) (ν j) :=
+        mul_prod_erase univ (fun j => budgetValue (f j) (c j) (ν j)) (mem_univ h)
 
 end DirectProduct
 
