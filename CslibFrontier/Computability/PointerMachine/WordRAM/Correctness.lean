@@ -31,20 +31,18 @@ namespace Cslib.PointerMachine.WordRAM.Scalars
 
 variable {M : Model} {L : Layout} (S : Scalars M L)
 
+private theorem le_foldr_max {α : Type*} (f : α → ℕ) {l : List α} {x : α} (hx : x ∈ l) :
+    f x ≤ l.foldr (fun y acc => max (f y) acc) 1 := by
+  simpa only [List.foldr_map, Function.comp_def] using
+    List.le_max_of_le' 1 (List.mem_map.mpr ⟨x, hx, rfl⟩) (le_refl (f x))
+
 private theorem blockSize_bound {code : List (Instr M L)} {i : Instr M L} (hi : i ∈ code) :
-    (S.effect i).size + 2 ≤ S.blockSize code := by
-  have h := List.le_max_of_le' 1
-    (List.mem_map.mpr ⟨i, hi, rfl⟩ :
-      (S.effect i).size + 2 ∈ code.map (fun j => (S.effect j).size + 2))
-    (le_refl ((S.effect i).size + 2))
-  simpa only [blockSize, List.foldr_map, Function.comp_def] using h
+    (S.effect i).size + 2 ≤ S.blockSize code :=
+  le_foldr_max (fun j => (S.effect j).size + 2) hi
 
 private theorem overhead_bound {code : List (Instr M L)} {i : Instr M L} (hi : i ∈ code) :
-    S.effectTime i + 2 ≤ S.overhead code := by
-  have h := List.le_max_of_le' 1
-    (List.mem_map.mpr ⟨i, hi, rfl⟩ : S.effectTime i + 2 ∈ code.map (fun j => S.effectTime j + 2))
-    (le_refl (S.effectTime i + 2))
-  simpa only [overhead, List.foldr_map, Function.comp_def] using h
+    S.effectTime i + 2 ≤ S.overhead code :=
+  le_foldr_max (fun j => S.effectTime j + 2) hi
 
 private theorem length_block {code : List (Instr M L)} {i : Instr M L} (hi : i ∈ code) (pc : ℕ) :
     (S.block (S.blockSize code) pc i).length = S.blockSize code := by
@@ -102,25 +100,17 @@ private theorem step_compile {w : ℕ} {code : List (Instr M L)}
   have hcost := S.overhead_bound (List.mem_of_getElem? hi)
   cases i with
   | halt => exact (hne rfl).elim
-  | goto t =>
-    simp only [rawBlock] at hc
-    have hr := he.runs hc.append_left
-    refine ⟨z, n + 1, by omega, hr.tail _ _ _ _ ?_, hz.with_pc _⟩
-    exact Cslib.WordRAM.step_jump
-      (by simpa only [Cslib.WordRAM.Code.length_assemble, Instr.next] using hc.append_right.head)
   | ifPtrEq a b t =>
     simp only [rawBlock] at hc
-    have hr := he.runs hc.append_left
     obtain ⟨m, hm, hmrun⟩ := branch_jump_runs (w := w) (z := z)
       (by simpa only [Cslib.WordRAM.Code.length_assemble] using hc.append_right)
     have hcond : (Cslib.WordRAM.Cond.eq (ptrReg L a) (ptrReg L b)).Holds z ↔ x.ptr a = x.ptr b := by
       simp only [Cslib.WordRAM.Cond.holds_eq, hz.ptr, Instr.effect]
       exact ptrWord_injective.eq_iff
     refine ⟨z, n + m, by omega, ?_, hz.with_pc _⟩
-    simpa only [Instr.next, hcond, mul_ite] using hr.trans hmrun
+    simpa only [Instr.next, hcond, mul_ite] using (he.runs hc.append_left).trans hmrun
   | ifTest p a b t =>
     simp only [rawBlock] at hc
-    have hr := he.runs hc.append_left
     obtain ⟨m, hm, hmrun⟩ := branch_jump_runs (w := w) (z := z)
       (by simpa only [Cslib.WordRAM.Code.length_assemble] using hc.append_right)
     have hcond : (Cslib.WordRAM.Cond.lt (zeroReg L) (valueReg L)).Holds z ↔
@@ -128,13 +118,12 @@ private theorem step_compile {w : ℕ} {code : List (Instr M L)}
       simp only [Cslib.WordRAM.Cond.holds_lt, hz.zero, ht]
       cases M.evalTest p (x.data a) (x.data b) <;> simp
     refine ⟨z, n + m, by omega, ?_, hz.with_pc _⟩
-    simpa only [Instr.next, hcond, mul_ite] using hr.trans hmrun
+    simpa only [Instr.next, hcond, mul_ite] using (he.runs hc.append_left).trans hmrun
   | _ =>
     simp only [rawBlock] at hc
-    have hr := he.runs hc.append_left
-    refine ⟨z, n + 1, by omega, hr.tail _ _ _ _ ?_, hz.with_pc _⟩
+    refine ⟨z, n + 1, by omega, (he.runs hc.append_left).tail _ _ _ _ ?_, hz.with_pc _⟩
     exact Cslib.WordRAM.step_jump
-        (by simpa only [Cslib.WordRAM.Code.length_assemble, Instr.next] using hc.append_right.head)
+      (by simpa only [Cslib.WordRAM.Code.length_assemble, Instr.next] using hc.append_right.head)
 
 /-- Compile a run from represented input, preserving the complete final state. The overhead is
 constant for a fixed source program and scalar implementation. Fitting words are required at
