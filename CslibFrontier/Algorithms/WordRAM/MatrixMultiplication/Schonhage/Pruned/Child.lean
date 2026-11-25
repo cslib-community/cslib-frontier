@@ -132,17 +132,11 @@ theorem postScan_memory {L f d E g : ℕ} {S : Finset ℕ} {μ₀ μ ν : ℕ �
       (Block.mk (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L) (10 ^ L)).footprint ∪
       (Block.mk g 4).footprint) μ₀ ν ∧
     ∀ a < f + 4 * (L + 1), μ a = μ₀ a := by
-  have hlistAway (q : ℕ) : ¬(Block.mk g 4).Owns
-      (f + 4 * (L + 1) + (d + 1) * 10 ^ L + q) := by
-    change ¬(g ≤ _ ∧ _ < g + 4)
+  have hAway (a : ℕ) (ha : f + 4 * (L + 1) ≤ a) : a ∉ (Block.mk g 4).footprint := by
+    simp only [Block.mem_footprint, Block.Owns]
     omega
-  have hstampAway (q : ℕ) : ¬(Block.mk g 4).Owns
-      (f + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L + q) := by
-    change ¬(g ≤ _ ∧ _ < g + 4)
-    omega
-  refine ⟨htable.congr
-      (fun i _ => hframe _ (by simpa only [Block.mem_footprint] using hlistAway i))
-      (fun q _ => hframe _ (by simpa only [Block.mem_footprint] using hstampAway q)),
+  refine ⟨htable.congr (fun i _ => hframe _ (hAway _ (by omega)))
+      (fun q _ => hframe _ (hAway _ (by omega))),
     fun c hc => ?_, fun a ha => hscan a ?_⟩
   · have hn := Finset.notMem_union.mp hc
     exact (hframe c hn.2).trans (hscan c hn.1)
@@ -198,22 +192,11 @@ theorem exec_node_child {w L f a0 b0 d N p k : ℕ} (x : Data registers)
     simpa only [Cond.holds_lt, hv0, hvc'] using Finset.card_pos.mpr hne
   have he : ExecWithin w step x y (20 * N + 42) :=
     (hstep (hy.branch_pos hnonempty)).mono (by omega)
-  have hfbase : v.regs frames + v.regs nextLevel * 4 = f + 4 * (d + 1) := by
-    rw [hvf, hvn]
-    omega
+  have hfbase : v.regs frames + v.regs nextLevel * 4 = f + 4 * (d + 1) := by rw [hvf, hvn]; omega
   have hchildFrame : Modifies (Block.mk (f + 4 * (d + 1)) 4).footprint v.mem y.mem := by
     simpa only [hfbase] using hpushFrame
   obtain ⟨hymem, hymod, _⟩ := postScan_memory htable' hscanMod hchildFrame (by omega)
-  refine ⟨y, he, hregs.of_step he, hyl.trans hvn, hym,
-    by regs_frame, by regs_frame,
-    hymem, ?_, ?_, ?_, ?_, hymod⟩
-  · rw [hmem, hfbase, hvc']
-    simp
-  · rw [hmem, hfbase, hvp, hvt, hvst]
-    simp
-  · rw [hmem, hfbase, hvst]
-    simp [pow_succ]
-  · rw [hmem, hfbase]
-    simp
+  refine ⟨y, he, hregs.of_step he, hyl.trans hvn, hym, by regs_frame, by regs_frame,
+    hymem, ?_, ?_, ?_, ?_, hymod⟩ <;> rw [hmem, hfbase] <;> simp [hvc', hvp, hvt, hvst, pow_succ]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery
