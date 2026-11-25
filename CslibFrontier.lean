@@ -3944,6 +3944,7 @@ public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.ShortDesc
 public import CslibFrontier.Probability.SaksZhou.SweepNisan
 public import CslibFrontier.Probability.BitString.List.All
+public import CslibFrontier.Foundations.Analysis.CoerciveMinimum
 public import CslibFrontier.Computability.Streaming.Basic
 public import CslibFrontier.Foundations.NumberTheory.Primality.StrongLiars
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.ThreeSource.Padding
