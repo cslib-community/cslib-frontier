@@ -64,20 +64,12 @@ theorem packWords_lt (f : ℕ → Bool) (h B : ℕ) (r : Fin B) :
 theorem packWords_congr {f g : ℕ → Bool} {h B : ℕ}
     (heq : ∀ a < B * h, f a = g a) : packWords f h B = packWords g h B := by
   funext r
-  apply Nat.eq_of_testBit_eq
-  intro b
+  refine Nat.eq_of_testBit_eq fun b => ?_
   by_cases hb : b < h
-  · rw [packWords, packWords, Nat.testBit_ofBits_lt _ _ hb,
-      Nat.testBit_ofBits_lt _ _ hb]
-    apply heq
-    have hr : (r.val + 1) * h ≤ B * h :=
-      Nat.mul_le_mul_right h (Nat.succ_le_iff.mpr r.isLt)
-    exact (Nat.add_lt_add_left hb _).trans_le (by
-      rw [← Nat.succ_mul]
-      exact hr)
-  · have hb' := Nat.le_of_not_gt hb
-    rw [packWords, packWords, Nat.testBit_ofBits_ge _ _ hb',
-      Nat.testBit_ofBits_ge _ _ hb']
+  · rw [packWords, packWords, Nat.testBit_ofBits_lt _ _ hb, Nat.testBit_ofBits_lt _ _ hb]
+    exact heq _ ((Nat.add_lt_add_left hb _).trans_le
+      (Nat.succ_mul r.val h ▸ Nat.mul_le_mul_right h r.isLt))
+  · simp only [packWords, Nat.testBit_ofBits_ge _ _ (Nat.le_of_not_gt hb)]
 
 /-- Read one bit of a fixed tuple; unused addresses are false. -/
 def readPackedBit {B : ℕ} (h : ℕ) (w : Fin B → ℕ) (a : ℕ) : Bool :=
@@ -89,21 +81,14 @@ theorem readPackedBit_eq_word {B h a : ℕ} (hh : 0 < h) (w : Fin B → ℕ) (ha
       (w ⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩).testBit (a % h) := by
   apply Bool.eq_iff_iff.mpr
   simp only [readPackedBit, decide_eq_true_eq]
-  constructor
-  · rintro ⟨r, b, heq, hbit⟩
-    have hdiv : a / h = r.val := by
-      rw [← heq, Nat.mul_comm r.val h, Nat.mul_add_div hh, Nat.div_eq_of_lt b.isLt,
-        Nat.add_zero]
-    have hmod : a % h = b.val := by
-      rw [← heq, Nat.mul_comm r.val h, Nat.mul_add_mod_self_left,
-        Nat.mod_eq_of_lt b.isLt]
-    have hr : (⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩ : Fin B) = r := Fin.ext hdiv
-    rw [hr, hmod]
-    exact hbit
-  · intro hbit
-    refine ⟨⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩,
-      ⟨a % h, Nat.mod_lt _ hh⟩, ?_, hbit⟩
-    simpa only [Nat.mul_comm] using Nat.div_add_mod a h
+  refine ⟨?_, fun hbit => ⟨⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩, ⟨a % h, Nat.mod_lt _ hh⟩,
+    by simpa only [Nat.mul_comm] using Nat.div_add_mod a h, hbit⟩⟩
+  rintro ⟨r, b, rfl, hbit⟩
+  have hdiv : (r.val * h + b.val) / h = r.val := by
+    rw [Nat.mul_comm, Nat.mul_add_div hh, Nat.div_eq_of_lt b.isLt, Nat.add_zero]
+  have hmod : (r.val * h + b.val) % h = b.val := by
+    rw [Nat.mul_comm, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt b.isLt]
+  rwa [show (⟨_, _⟩ : Fin B) = r from Fin.ext hdiv, hmod]
 
 /-- Direct division/remainder compiler implementation of `readPackedBit`. -/
 def readPackedBitImpl {B : ℕ} (h : ℕ) (w : Fin B → ℕ) (a : ℕ) : Bool :=
@@ -195,31 +180,23 @@ theorem packWords_readPackedField {h B s : ℕ} (hh : 0 < h) (hs : 0 < s)
     packWords
         (fun a => (readPackedField h w (a / s * s) s).testBit (a % s)) h B = w := by
   funext r
-  apply Nat.eq_of_testBit_eq
-  intro b
+  refine Nat.eq_of_testBit_eq fun b => ?_
   by_cases hb : b < h
-  · rw [packWords, Nat.testBit_ofBits_lt _ _ hb, readPackedField,
-      Nat.testBit_ofBits_lt _ _ (Nat.mod_lt _ hs)]
-    have haddress : (r.val * h + b) / s * s + (r.val * h + b) % s = r.val * h + b := by
-      simpa only [Nat.mul_comm] using Nat.div_add_mod (r.val * h + b) s
-    rw [haddress]
-    have ha : r.val * h + b < B * h := by
-      have hr : (r.val + 1) * h ≤ B * h :=
-        Nat.mul_le_mul_right h (Nat.succ_le_iff.mpr r.isLt)
-      exact (Nat.add_lt_add_left hb _).trans_le (by
-        rw [← Nat.succ_mul]
-        exact hr)
-    rw [readPackedBit_eq_word hh w ha]
+  · have ha : r.val * h + b < B * h := (Nat.add_lt_add_left hb _).trans_le
+      (Nat.succ_mul r.val h ▸ Nat.mul_le_mul_right h r.isLt)
+    rw [packWords, Nat.testBit_ofBits_lt _ _ hb, readPackedField,
+      Nat.testBit_ofBits_lt _ _ (Nat.mod_lt _ hs),
+      show (r.val * h + b) / s * s + (r.val * h + b) % s = r.val * h + b by
+        simpa only [Nat.mul_comm] using Nat.div_add_mod (r.val * h + b) s,
+      readPackedBit_eq_word hh w ha]
     have hdiv : (r.val * h + b) / h = r.val := by
-      rw [Nat.mul_comm r.val h, Nat.mul_add_div hh, Nat.div_eq_of_lt hb, Nat.add_zero]
+      rw [Nat.mul_comm, Nat.mul_add_div hh, Nat.div_eq_of_lt hb, Nat.add_zero]
     have hmod : (r.val * h + b) % h = b := by
-      rw [Nat.mul_comm r.val h, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hb]
-    rw [show (⟨(r.val * h + b) / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩ : Fin B) = r by
-      exact Fin.ext hdiv, hmod]
-  · have hb' := Nat.le_of_not_gt hb
-    rw [packWords, Nat.testBit_ofBits_ge _ _ hb']
-    exact (Nat.testBit_lt_two_pow (lt_of_lt_of_le (hw r)
-      (Nat.pow_le_pow_right (by decide) hb'))).symm
+      rw [Nat.mul_comm, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hb]
+    rw [show (⟨_, _⟩ : Fin B) = r from Fin.ext hdiv, hmod]
+  · rw [packWords, Nat.testBit_ofBits_ge _ _ (Nat.le_of_not_gt hb)]
+    exact (Nat.testBit_lt_two_pow ((hw r).trans_le
+      (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_gt hb)))).symm
 
 /-- Pack `n` radix-`base` fields, least significant field first. -/
 def packRadix (base n : ℕ) (f : ℕ → ℕ) : ℕ :=
@@ -227,13 +204,8 @@ def packRadix (base n : ℕ) (f : ℕ → ℕ) : ℕ :=
 
 private theorem packRadix_succ (base n : ℕ) (f : ℕ → ℕ) :
     packRadix base (n + 1) f = f 0 + base * packRadix base n (fun i => f (i + 1)) := by
-  simp only [packRadix, Finset.sum_range_succ', pow_succ, pow_zero, mul_one,
-    Finset.mul_sum]
-  rw [add_comm]
-  congr 1
-  apply Finset.sum_congr rfl
-  intro i _
-  ring
+  simp only [packRadix, Finset.sum_range_succ', pow_succ, pow_zero, mul_one, Finset.mul_sum]
+  exact (add_comm _ _).trans (congrArg (f 0 + ·) (Finset.sum_congr rfl fun _ _ => by ring))
 
 /-- Bounded fields fit the total radix capacity, including the empty tuple. -/
 theorem packRadix_lt {base n : ℕ} (f : ℕ → ℕ)
@@ -241,12 +213,8 @@ theorem packRadix_lt {base n : ℕ} (f : ℕ → ℕ)
   induction n with
   | zero => simp [packRadix]
   | succ n ih =>
-    rw [packRadix, Finset.sum_range_succ]
-    have hp := ih (fun i hi => hf i (by omega))
-    have hn := hf n (by omega)
-    rw [pow_succ]
-    change packRadix base n f + f n * base ^ n < base ^ n * base
-    nlinarith
+    rw [packRadix, Finset.sum_range_succ, ← packRadix, pow_succ]
+    nlinarith [ih fun i hi => hf i (by omega), hf n (Nat.lt_succ_self n)]
 
 /-- Reading a radix field recovers its entire value, with no contributions from other fields. -/
 theorem packRadix_field {base n i : ℕ} (hb : 0 < base) (f : ℕ → ℕ)

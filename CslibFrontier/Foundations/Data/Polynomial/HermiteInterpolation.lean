@@ -113,18 +113,16 @@ theorem X_sub_C_pow_dvd_iff_taylor_coeff {r : R} {n : ℕ} {p : R[X]} :
 /-- `(X - r) ^ n` divides `p` exactly when `z ^ n` divides `p (r + α z)`, for a unit `α`. -/
 theorem X_sub_C_pow_dvd_iff_X_pow_dvd_comp (α : Rˣ) {r : R} {n : ℕ} {p : R[X]} :
     (X - C r) ^ n ∣ p ↔ X ^ n ∣ p.comp (C r + C (α : R) * X) := by
-  have hσ : (C r + C (α : R) * X).comp (C (↑α⁻¹ : R) * (X - C r)) = X := by
-    simp only [add_comp, C_comp, mul_comp, X_comp]
-    rw [← mul_assoc, ← C_mul, Units.mul_inv, C_1, one_mul, add_sub_cancel]
-  have hτ : (X - C r).comp (C r + C (α : R) * X) = C (α : R) * X := by
-    simp only [sub_comp, X_comp, C_comp, add_sub_cancel_left]
   constructor
   · rintro ⟨q, rfl⟩
-    rw [mul_comp, pow_comp, hτ, mul_pow, mul_comm (C _ ^ n), mul_assoc]
+    rw [mul_comp, pow_comp, sub_comp, X_comp, C_comp, add_sub_cancel_left, mul_pow,
+      mul_comm (C _ ^ n), mul_assoc]
     exact dvd_mul_right _ _
   · rintro ⟨q, hq⟩
     have hp : p = (p.comp (C r + C (α : R) * X)).comp (C (↑α⁻¹ : R) * (X - C r)) := by
-      rw [comp_assoc, hσ, comp_X]
+      rw [comp_assoc]
+      simp only [add_comp, C_comp, mul_comp, X_comp, ← mul_assoc, ← C_mul, Units.mul_inv, C_1,
+        one_mul, add_sub_cancel, comp_X]
     rw [hp, hq, mul_comp, pow_comp, X_comp, mul_pow, mul_comm (C _ ^ n), mul_assoc]
     exact dvd_mul_right _ _
 
@@ -204,14 +202,13 @@ theorem eq_sum_hermiteBasis_mul_of_dvd (ht : (s : Set ι).Pairwise fun i j => Is
   refine sub_eq_zero.mp (eq_zero_of_forall_X_sub_C_pow_dvd (J := J) ht ?_ fun k hk => ?_)
   · refine (degree_sub_le _ _).trans_lt (max_lt hp ((degree_sum_le _ _).trans_lt ?_))
     refine (Finset.sup_lt_iff (WithBot.bot_lt_coe _)).mpr fun i hi => ?_
-    by_cases hri : r i = 0
-    · rw [hri, mul_zero, degree_zero]
-      exact WithBot.bot_lt_coe _
+    rcases eq_or_ne (r i) 0 with hri | hri
+    · rw [hri, mul_zero, degree_zero]; exact WithBot.bot_lt_coe _
     refine degree_le_natDegree.trans_lt ?_
     rw [← Finset.add_sum_erase s J hi, Nat.cast_lt]
-    have hri' := (natDegree_lt_iff_degree_lt hri).mpr (hr i hi)
-    have hE := natDegree_hermiteBasis_le s t J i
-    have hmul := natDegree_mul_le (p := hermiteBasis s t J i) (q := r i)
+    have := (natDegree_lt_iff_degree_lt hri).mpr (hr i hi)
+    have := natDegree_hermiteBasis_le s t J i
+    have := natDegree_mul_le (p := hermiteBasis s t J i) (q := r i)
     omega
   · rw [← Finset.add_sum_erase s _ hk, ← sub_sub]
     exact dvd_sub (hdvd k hk) (Finset.dvd_sum fun i hi =>
@@ -293,21 +290,18 @@ theorem eq_sum_hermiteBasis_mul_hermiteQuotient
     p = ∑ i ∈ s, hermiteBasis s t J i *
       (hermiteQuotient s t J α i (p.comp (C (t i) + C (α : R) * X))).comp
         (C (↑α⁻¹ : R) * (X - C (t i))) := by
-  have hτσ : ∀ r : R, (C (↑α⁻¹ : R) * (X - C r)).comp (C r + C (α : R) * X) = X := fun r => by
-    simp only [mul_comp, sub_comp, C_comp, X_comp, add_sub_cancel_left]
-    rw [← mul_assoc, ← C_mul, Units.inv_mul, C_1, one_mul]
   refine eq_sum_hermiteBasis_mul_of_dvd ht hp _ (fun i _ => ?_) fun i hi => ?_
   · set q := hermiteQuotient s t J α i (p.comp (C (t i) + C (α : R) * X))
-    by_cases hq : q = 0
-    · rw [hq, zero_comp, degree_zero]
-      exact WithBot.bot_lt_coe _
-    refine (degree_le_natDegree.trans (Nat.cast_le.mpr natDegree_comp_le)).trans_lt ?_
+    rcases eq_or_ne q 0 with hq | hq
+    · simp [hq]
     have hlin : (C (↑α⁻¹ : R) * (X - C (t i))).natDegree ≤ 1 :=
       (natDegree_C_mul_le _ _).trans (natDegree_X_sub_C_le _)
-    refine lt_of_le_of_lt (Nat.cast_le.mpr ((Nat.mul_le_mul_left _ hlin).trans (mul_one _).le)) ?_
-    exact Nat.cast_lt.mpr
-      ((natDegree_lt_iff_degree_lt hq).mpr (degree_hermiteQuotient_lt _ _ _ _ _ _))
-  · rw [X_sub_C_pow_dvd_iff_X_pow_dvd_comp α, sub_comp, mul_comp, comp_assoc, hτσ, comp_X]
+    have hdeg := (natDegree_lt_iff_degree_lt hq).mpr (degree_hermiteQuotient_lt _ _ _ _ _ _)
+    exact degree_le_natDegree.trans_lt (Nat.cast_lt.mpr
+      ((natDegree_comp_le.trans (Nat.mul_le_mul_left _ hlin)).trans_lt (by omega)))
+  · rw [X_sub_C_pow_dvd_iff_X_pow_dvd_comp α, sub_comp, mul_comp, comp_assoc]
+    simp only [mul_comp, sub_comp, C_comp, X_comp, add_sub_cancel_left, ← mul_assoc, ← C_mul,
+      Units.inv_mul, C_1, one_mul, comp_X]
     exact X_pow_dvd_sub_mul_hermiteQuotient ht _ hi _
 
 /-- **Hermite reconstruction of a value (D.9).** Under the hypotheses of
@@ -384,9 +378,8 @@ theorem hermiteMatrix_mulVec (t : Fin Q → ℤ) {p : R[X]} (hp : p.degree < ↑
 theorem det_hermiteMatrix_ne_zero {t : Fin Q → ℤ} (ht : Function.Injective t) :
     (hermiteMatrix t J).det ≠ 0 := by
   intro h0
-  have h0' : ((hermiteMatrix t J).map (Int.cast : ℤ → ℚ)).det = 0 := by
-    rw [← Int.cast_det, h0, Int.cast_zero]
-  obtain ⟨v, hv, hV⟩ := exists_mulVec_eq_zero_iff.mpr h0'
+  obtain ⟨v, hv, hV⟩ := exists_mulVec_eq_zero_iff.mpr
+    (show ((hermiteMatrix t J).map (Int.cast : ℤ → ℚ)).det = 0 by rw [← Int.cast_det, h0]; rfl)
   -- the polynomial whose coefficient of `X ^ (finProdFinEquiv c)` is `v c`
   set p : ℚ[X] := ((degreeLTEquiv ℚ (Q * J)).symm (v ∘ finProdFinEquiv.symm) : ℚ[X])
   have hcoeff : (fun c => p.coeff (finProdFinEquiv c)) = v := _root_.funext fun c => by
@@ -399,9 +392,7 @@ theorem det_hermiteMatrix_ne_zero {t : Fin Q → ℤ} (ht : Function.Injective t
     isUnit_iff_ne_zero.mpr (sub_ne_zero.mpr (by exact_mod_cast ht.ne hij))
   have hjet := hermiteMatrix_mulVec t hp
   rw [hcoeff, hV] at hjet
-  refine hv ?_
-  rw [← hcoeff, eq_zero_of_taylorJet_eq_zero hunit hp hjet.symm]
-  rfl
+  exact hv (hcoeff ▸ by rw [eq_zero_of_taylorJet_eq_zero hunit hp hjet.symm]; rfl)
 
 /-- **Cramer's rule for confluent Hermite interpolation**, over any commutative ring: for `p` of
 degree less than `Q * J`, the determinant of the Hermite matrix times the coefficient of
