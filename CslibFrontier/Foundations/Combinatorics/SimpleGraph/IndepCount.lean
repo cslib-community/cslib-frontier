@@ -94,22 +94,15 @@ private def flipAt (v₀ : V) (p : V → V → Bool × Bool) (u w : V) : Bool ×
 
 private theorem flipAt_symm (G : SimpleGraph V) {v₀ : V} {p : V → V → Bool × Bool}
     (hp : ∀ u w, G.Adj u w → p w u = (p u w).swap) :
-    ∀ u w, G.Adj u w → flipAt v₀ p w u = (flipAt v₀ p u w).swap := by
-  intro u w hadj
-  have h := hp u w hadj
-  ext <;> simp [flipAt, h]
+    ∀ u w, G.Adj u w → flipAt v₀ p w u = (flipAt v₀ p u w).swap := fun u w hadj => by
+  ext <;> simp [flipAt, hp u w hadj]
 
 /-- Toggle coordinate `v₀` of a Boolean assignment. -/
 private def toggleAt (v₀ : V) (x : V → Bool) : V → Bool :=
   Function.update x v₀ (!x v₀)
 
-private theorem toggleAt_involutive (v₀ : V) : Function.Involutive (toggleAt (V := V) v₀) := by
-  intro x
-  funext w
-  by_cases hw : w = v₀
-  · subst hw
-    simp [toggleAt]
-  · simp [toggleAt, hw]
+private theorem toggleAt_involutive (v₀ : V) : Function.Involutive (toggleAt (V := V) v₀) :=
+  fun x => by simp [toggleAt]
 
 end PolarityHelpers
 
@@ -202,8 +195,7 @@ private theorem card_twoSatFinset_le_flipAt (v₀ : V) {p : V → V → Bool × 
     · have hw : w ≠ v₀ := (G.ne_of_adj hadj).symm
       simp only [hw, ↓reduceIte]
       cases h01 : (p v₀ w).1
-      · exact hA0 w hadj h01
-      · exact hB1 w hadj h01
+      exacts [hA0 w hadj h01, hB1 w hadj h01]
   rw [hp_card, hflip_card, hA', hB', ← Finset.card_union_add_card_inter A B]
   exact Nat.add_le_add_right
     (Finset.card_le_card (Finset.union_subset (Finset.filter_subset _ R)
@@ -328,10 +320,7 @@ theorem indepSetCount_star [Finite V] (G : SimpleGraph V) (v₀ : V)
       ext x
       simp only [S0, mem_ofPred_eq, mem_range]
       refine ⟨fun hx0 => ⟨fun w => x w.1, funext fun w => ?_⟩, ?_⟩
-      · by_cases hw : w = v₀
-        · subst hw
-          simp [hx0]
-        · simp [hw]
+      · by_cases hw : w = v₀ <;> simp [hw, hx0]
       · rintro ⟨y, rfl⟩
         simp
     have hinj : Function.Injective
@@ -393,9 +382,7 @@ theorem indepSetCount_pathGraph : ∀ n : ℕ, (pathGraph n).indepSetCount = Nat
     have hbot : pathGraph 1 = ⊥ := by
       ext i j
       simp only [pathGraph_adj, bot_adj, iff_false]
-      have hi : (i : ℕ) < 1 := i.isLt
-      have hj : (j : ℕ) < 1 := j.isLt
-      rintro (h | h) <;> omega
+      omega
     rw [hbot, indepSetCount_bot, Nat.card_eq_fintype_card, Fintype.card_fin]
     rfl
   | n + 2 => by
