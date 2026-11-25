@@ -373,6 +373,48 @@ private theorem length_prefix_add_frame_table_lt {a : EncodedStructure} (ha : v.
   rw [← List.length_append, ← v.encStructurePrefix_succ a idx]
   omega
 
+private theorem realize_layoutIsElem_iff (a : EncodedStructure) (B : ℕ)
+    (I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B))
+    (R : ∀ i : LayoutVar v.count, Set (Fin (layoutArity v.count i) → Fin B)) (j : Fin B) :
+    (letI := v.powerStructure a B;
+      letI := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in;
+      letI := ESO.varLanguage.structure (arity := layoutArity v.count) R;
+      (FO.rel₁ v.layoutIsElem (0 : Fin 1)).Realize ![j]) ↔ (j : ℕ) < (encUnary a.1).length := by
+  let _ := v.powerStructure a B
+  let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
+  let _ := ESO.varLanguage.structure (arity := layoutArity v.count) R
+  rw [FO.realize_rel₁, encUnary_apply, List.length_replicate]; rfl
+
+private theorem realize_top_iff_getElem?_encUnary (a : EncodedStructure) (B : ℕ)
+    (I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B))
+    (R : ∀ i : LayoutVar v.count, Set (Fin (layoutArity v.count i) → Fin B))
+    (j : Fin B) (hj : (j : ℕ) < (encUnary a.1).length) :
+    (letI := v.powerStructure a B;
+      letI := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in;
+      letI := ESO.varLanguage.structure (arity := layoutArity v.count) R;
+      (⊤ : v.layoutMatrixLanguage.Formula (Fin 1)).Realize ![j]) ↔
+      (encUnary a.1)[(j : ℕ)]? = some true := by
+  let _ := v.powerStructure a B
+  let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
+  let _ := ESO.varLanguage.structure (arity := layoutArity v.count) R
+  simp only [Formula.realize_top, true_iff, encUnary_apply] at hj ⊢
+  rw [List.getElem?_eq_getElem hj, List.getElem_replicate]
+
+private theorem realize_layoutInTable_iff {a : EncodedStructure} (ha : v.WellFormed a) (B : ℕ)
+    (I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B))
+    (R : ∀ i : LayoutVar v.count, Set (Fin (layoutArity v.count i) → Fin B))
+    (idx : Fin v.count) (j : Fin B) :
+    (letI := v.powerStructure a B;
+      letI := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in;
+      letI := ESO.varLanguage.structure (arity := layoutArity v.count) R;
+      (FO.rel₁ (v.layoutInTable idx) (0 : Fin 1)).Realize ![j]) ↔
+      (j : ℕ) < (v.table a (v.symbol idx)).length := by
+  let _ := v.powerStructure a B
+  let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
+  let _ := ESO.varLanguage.structure (arity := layoutArity v.count) R
+  rw [FO.realize_rel₁, Vocabulary.WellFormed.length_table v ha (v.symbol idx)]
+  exact v.relMap_powerInTable a B idx ![j]
+
 private theorem realize_layoutTableBit_iff {a : EncodedStructure} (ha : v.WellFormed a) (B : ℕ)
     (I_in : ∀ b : Bool, Set (Fin ((fun _ : Bool => 1) b) → Fin B))
     (R : ∀ i : LayoutVar v.count, Set (Fin (layoutArity v.count i) → Fin B))
@@ -444,12 +486,8 @@ private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFo
     | zero =>
       obtain ⟨hnext, hout⟩ :=
         FO.nextBase_and_getElem?_frame_of_realize_frameChunkSentence hlt
-          (v.length_frame_encUnary_lt ha hB)
-          (fun j => by rw [FO.realize_rel₁, encUnary_apply, List.length_replicate]; rfl)
-          (fun j hj => by
-            simp only [Formula.realize_top, true_iff, encUnary_apply] at hj ⊢
-            rw [List.getElem?_eq_getElem hj, List.getElem_replicate])
-          hbase0' hchunk0
+          (v.length_frame_encUnary_lt ha hB) (v.realize_layoutIsElem_iff a B I_in R)
+          (v.realize_top_iff_getElem?_encUnary a B I_in R) hbase0' hchunk0
       simp only [Nat.zero_add, Nat.sub_zero, ← v.encStructurePrefix_zero a] at hnext hout
       exact ⟨hnext, fun p hp => hout p (Nat.zero_le _) hp⟩
     | succ m ih =>
@@ -459,9 +497,7 @@ private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFo
       obtain ⟨hnext, hout⟩ :=
         FO.nextBase_and_getElem?_frame_of_realize_frameChunkSentence hlt
           (v.length_prefix_add_frame_table_lt ha hB idx)
-          (fun j => by
-            rw [FO.realize_rel₁, Vocabulary.WellFormed.length_table v ha (v.symbol idx)]
-            exact v.relMap_powerInTable a B idx ![j])
+          (v.realize_layoutInTable_iff ha B I_in R idx)
           (v.realize_layoutTableBit_iff ha B I_in R idx) hbase_m (hchunks idx)
       refine ⟨fun z => ?_, fun p hp => ?_⟩
       · rw [← List.length_append, ← hsucc_eq] at hnext
@@ -526,10 +562,7 @@ private theorem realize_layoutMatrix_complete {a : EncodedStructure} (ha : v.Wel
   fo_simp [layoutMatrix, FO.realize_isZero hlt]
   refine ⟨⟨⟨fun x => hbase0 (x 0), ?_⟩, ?_⟩, ?_⟩
   · refine FO.realize_frameChunkSentence_of_canonical hlt (v.length_frame_encUnary_lt ha hB)
-      (fun j => by rw [FO.realize_rel₁, encUnary_apply, List.length_replicate]; rfl)
-      (fun j hj => by
-        simp only [Formula.realize_top, true_iff, encUnary_apply] at hj ⊢
-        rw [List.getElem?_eq_getElem hj, List.getElem_replicate])
+      (v.realize_layoutIsElem_iff a B I_in R) (v.realize_top_iff_getElem?_encUnary a B I_in R)
       hbase0 (fun z => by rw [hbase_char]; simp [v.encStructurePrefix_zero])
       (fun j p => by change ((j : ℕ) ≤ a.1 ∧ (p : ℕ) = 2 * (j : ℕ)) ↔ _; simp)
       (fun p _ hp => by
@@ -540,9 +573,7 @@ private theorem realize_layoutMatrix_complete {a : EncodedStructure} (ha : v.Wel
     have hsucc_eq := v.encStructurePrefix_succ a idx
     refine FO.realize_frameChunkSentence_of_canonical hlt
       (v.length_prefix_add_frame_table_lt ha hB idx)
-      (fun j => by
-        rw [FO.realize_rel₁, Vocabulary.WellFormed.length_table v ha (v.symbol idx)]
-        exact v.relMap_powerInTable a B idx ![j])
+      (v.realize_layoutInTable_iff ha B I_in R idx)
       (v.realize_layoutTableBit_iff ha B I_in R idx)
       (fun z => by rw [hbase_char]; simp)
       (fun z => by rw [hbase_char, ← List.length_append, ← hsucc_eq]; simp)
