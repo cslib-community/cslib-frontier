@@ -69,10 +69,7 @@ theorem average_axisCollision_le
     rw [Measurement.map_effect, hr]
     simp only [C, Measurement.map_effect, sum_filter, decide_eq_true_eq, ← sum_sub_distrib, hv]
     refine sum_congr rfl fun f _ => ?_
-    by_cases h : f = r u g
-    · subst f
-      simp [hv]
-    · simp [h]
+    by_cases h : f = r u g <;> simp [h, hv]
   let w (u : Point F (n + 1)) (g : BoundedPolynomial F (n + 1) d)
       (f : PolynomialFunction F d) := (S.state (T.effect g * (B u).effect f)).re
   have hw (u : Point F (n + 1)) (g : BoundedPolynomial F (n + 1) d)
