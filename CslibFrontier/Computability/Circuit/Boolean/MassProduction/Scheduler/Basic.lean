@@ -61,15 +61,12 @@ theorem List.Perm.exists_equiv_ofFn {α : Type*} {n : ℕ} {f g : Fin n → α}
   have hf : (List.ofFn f).length = n := List.length_ofFn
   have hg : (List.ofFn g).length = n := List.length_ofFn
   refine ⟨⟨fun i => Fin.cast hg (h.idxBij (Fin.cast hf.symm i)),
-    fun j => Fin.cast hf (h.symm.idxBij (Fin.cast hg.symm j)), fun i => ?_, fun j => ?_⟩,
-    fun i => ?_⟩
-  · simp only [Fin.cast_cast, Fin.cast_eq_self, List.Perm.idxBij_symm_idxBij]
-  · simp only [Fin.cast_cast, Fin.cast_eq_self, List.Perm.idxBij_idxBij_symm]
-  · have hi := h.getElem_idxBij_eq_getElem (Fin.cast hf.symm i)
-    simp only [List.getElem_ofFn, Fin.val_cast] at hi
-    simp only [Equiv.coe_fn_mk]
-    rw [← hi]
-    rfl
+    fun j => Fin.cast hf (h.symm.idxBij (Fin.cast hg.symm j)),
+    fun _ => by simp [List.Perm.idxBij_symm_idxBij],
+    fun _ => by simp [List.Perm.idxBij_idxBij_symm]⟩, fun i => ?_⟩
+  have hi := h.getElem_idxBij_eq_getElem (Fin.cast hf.symm i)
+  simp only [List.getElem_ofFn, Fin.val_cast, Fin.eta] at hi
+  exact hi.symm.trans (congrArg g (Fin.ext (by simp)))
 
 namespace Cslib.Circuits
 
@@ -81,16 +78,12 @@ namespace Boolean
 theorem eq_true_iff_lt_card_of_sorted {k : ℕ} (g : Fin k → Bool)
     (sorted : ∀ i j, i ≤ j → g i = false → g j = false) (j : Fin k) :
     g j = true ↔ j.val < #{i | g i = true} := by
-  constructor
-  · intro hj
-    have hsub : Iic j ⊆ ({i | g i = true} : Finset (Fin k)) := by grind
-    have := card_le_card hsub
+  refine ⟨fun hj => ?_, fun hj => ?_⟩
+  · have := card_le_card (show Iic j ⊆ ({i | g i = true} : Finset (Fin k)) by grind)
     rw [Fin.card_Iic] at this
     lia
-  · intro hj
-    by_contra hn
-    have hsub : ({i | g i = true} : Finset (Fin k)) ⊆ Iio j := by grind
-    have := card_le_card hsub
+  · by_contra hn
+    have := card_le_card (show ({i | g i = true} : Finset (Fin k)) ⊆ Iio j by grind)
     rw [Fin.card_Iio] at this
     lia
 
@@ -111,8 +104,7 @@ theorem sort_flag_eq_true_iff {α : Type*} (φ : α → Fin 1 → Bool) (p : ℕ
     (fun j j' hjj' hj => ?_) j
   have h := apply_zero_le_of_toLex_le
     (BitonicSort.antitone_sort (fun r => toLex (φ r)) p input hjj')
-  rw [hj] at h
-  exact Bool.eq_false_iff.mpr fun h' => by rw [h'] at h; exact absurd h (by decide)
+  exact Bool.eq_false_iff.mpr fun h' => absurd (hj ▸ h' ▸ h) (by decide)
 
 /-- The disjunction of the first `j + 1` of `r` functions. -/
 def prefixOr {r : ℕ} (F : Fin r → BooleanFunction n) (j : ℕ) : BooleanFunction n :=
@@ -122,21 +114,18 @@ private theorem prefixOr_zero {r : ℕ} (F : Fin r → BooleanFunction n) (h : 0
     prefixOr F 0 = F ⟨0, h⟩ := by
   funext x
   rw [Bool.eq_iff_iff, prefixOr, decide_eq_true_iff]
-  constructor
-  · rintro ⟨e, he, hx⟩
-    rwa [show e = ⟨0, h⟩ from Fin.ext (by lia)] at hx
-  · exact fun hx => ⟨⟨0, h⟩, le_rfl, hx⟩
+  exact ⟨fun ⟨e, he, hx⟩ => (show e = ⟨0, h⟩ from Fin.ext (Nat.eq_zero_of_le_zero he)) ▸ hx,
+    fun hx => ⟨⟨0, h⟩, le_rfl, hx⟩⟩
 
 private theorem prefixOr_succ {r : ℕ} (F : Fin r → BooleanFunction n) (j : ℕ) (h : j + 1 < r) :
     prefixOr F (j + 1) = fun x => prefixOr F j x || F ⟨j + 1, h⟩ x := by
   funext x
   rw [Bool.eq_iff_iff, Bool.or_eq_true, prefixOr, prefixOr, decide_eq_true_iff,
     decide_eq_true_iff]
-  constructor
-  · rintro ⟨e, he, hx⟩
-    rcases Nat.lt_or_ge e.val (j + 1) with hlt | hge
+  refine ⟨fun ⟨e, he, hx⟩ => ?_, ?_⟩
+  · rcases Nat.lt_or_ge e.val (j + 1) with hlt | hge
     · exact Or.inl ⟨e, by lia, hx⟩
-    · exact Or.inr (by rwa [show e = ⟨j + 1, h⟩ from Fin.ext (by lia)] at hx)
+    · exact Or.inr ((show e = ⟨j + 1, h⟩ from Fin.ext (by lia)) ▸ hx)
   · rintro (⟨e, he, hx⟩ | hx)
     · exact ⟨e, by lia, hx⟩
     · exact ⟨⟨j + 1, h⟩, le_rfl, hx⟩
@@ -150,16 +139,14 @@ theorem Synthesis.prefixOr {r : ℕ} {s : Set (BooleanFunction n)} (F : Fin r �
     (hF : ∀ e, F e ∈ s) :
     Synthesis interpretation s (Set.range fun e : Fin r => Boolean.prefixOr F e.val) r := by
   suffices h : ∀ J ≤ r, Synthesis interpretation s
-      {f | ∃ e : Fin r, e.val < J ∧ f = Boolean.prefixOr F e.val} J by
-    exact (h r le_rfl).mono Set.Subset.rfl (by rintro _ ⟨e, rfl⟩; exact ⟨e, e.isLt, rfl⟩) le_rfl
+      {f | ∃ e : Fin r, e.val < J ∧ f = Boolean.prefixOr F e.val} J from
+    (h r le_rfl).mono Set.Subset.rfl (fun _ ⟨e, he⟩ => ⟨e, e.isLt, he.symm⟩) le_rfl
   intro J
   induction J with
   | zero =>
-    intro _
-    exact Synthesis.of_subset (by rintro _ ⟨e, he, -⟩; exact absurd he (Nat.not_lt_zero _))
+    exact fun _ => Synthesis.of_subset fun _ ⟨e, he, _⟩ => absurd he (Nat.not_lt_zero _)
   | succ J ih =>
     intro hJ
-    have hprev := ih (by lia)
     have hstep : Synthesis interpretation (s ∪ {f | ∃ e : Fin r, e.val < J ∧
         f = Boolean.prefixOr F e.val}) {Boolean.prefixOr F J} 1 := by
       rcases J with _ | J
@@ -168,10 +155,9 @@ theorem Synthesis.prefixOr {r : ℕ} {s : Set (BooleanFunction n)} (F : Fin r �
       · rw [prefixOr_succ F J hJ]
         exact (Synthesis.of_mem (Or.inr ⟨⟨J, by lia⟩, by simp, rfl⟩)).or
           (Synthesis.of_mem (Or.inl (hF _)))
-    refine (hprev.comp hstep).mono Set.Subset.rfl ?_ le_rfl
-    rintro _ ⟨e, he, rfl⟩
+    refine ((ih (by lia)).comp hstep).mono Set.Subset.rfl (fun _ ⟨e, he, hf⟩ => ?_) le_rfl
     rcases Nat.lt_or_ge e.val J with hlt | hge
-    · exact Or.inl ⟨e, hlt, rfl⟩
-    · exact Or.inr (by rw [show e.val = J by lia]; rfl)
+    · exact Or.inl ⟨e, hlt, hf⟩
+    · exact Or.inr (hf.trans (by rw [show e.val = J by lia]))
 
 end Cslib.Circuits

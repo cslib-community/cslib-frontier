@@ -145,10 +145,8 @@ theorem deformedContraction_one (N : TensorNetwork R Bool V E) (side : V → Boo
   simp only [deformedContraction, Matrix.one_mulVec, affineFactor_bit, Fintype.prod_boole,
     ← funext_iff, mul_ite, mul_one, mul_zero, Finset.sum_ite_eq', Finset.mem_univ, ite_true]
   refine Finset.sum_congr rfl fun X _ => ?_
-  have h := Finset.prod_filter_mul_prod_filter_not Finset.univ (fun v => side v = true)
-    (fun v => N.tensor v X)
-  simp only [Bool.not_eq_true] at h
-  exact h
+  simpa only [Bool.not_eq_true] using Finset.prod_filter_mul_prod_filter_not Finset.univ
+    (fun v => side v = true) (fun v => N.tensor v X)
 
 /-- Deformed contraction commutes with ring homomorphisms. -/
 theorem deformedContraction_map {S : Type*} [CommRing S] (f : R →+* S)
@@ -158,9 +156,8 @@ theorem deformedContraction_map {S : Type*} [CommRing S] (f : R →+* S)
   refine Finset.sum_congr rfl fun X _ => Finset.sum_congr rfl fun Y _ => ?_
   congr 1
   refine Finset.prod_congr rfl fun e _ => ?_
-  have hv : (W.map f).mulVec (fun e' => if X e' then (1 : S) else 0) =
-      fun e => f (W.mulVec (fun e' => if X e' then (1 : R) else 0) e) := by
-    ext e
+  have hv : (W.map f).mulVec (fun e' => if X e' then (1 : S) else 0) e =
+      f (W.mulVec (fun e' => if X e' then (1 : R) else 0) e) := by
     simp only [Matrix.mulVec, dotProduct, Matrix.map_apply, map_sum, map_mul, apply_ite f,
       map_one, map_zero]
   rw [hv]
@@ -182,8 +179,7 @@ theorem mem_cauchyGrid {L : ℕ} {t : ℤ} : t ∈ cauchyGrid L ↔ -(L : ℤ) �
 /-- The difference of two slots of a packet lies on the grid. -/
 theorem sub_mem_cauchyGrid {L : ℕ} {x y : ℕ} (hx : x < L) (hy : y < L) :
     (y : ℤ) - x ∈ cauchyGrid L := by
-  rw [mem_cauchyGrid]
-  omega
+  rw [mem_cauchyGrid]; omega
 
 /-- The *Cauchy kernel* at `d` on the grid of `L` slots: `C(T) / (C'(0) (T - d))`, where
 `C(T) = ∏_{t ∈ S} (T - t)`. For `d ∈ S` it is the polynomial `C'(0)⁻¹ ∏_{t ∈ S, t ≠ d} (T - t)`
@@ -196,17 +192,14 @@ noncomputable def cauchyKernel (L : ℕ) (d : ℤ) : ℚ[X] :=
 theorem eval_zero_nodal_erase_zero {L : ℕ} (hL : 0 < L) :
     (Lagrange.nodal ((cauchyGrid L).erase 0) (Int.cast : ℤ → ℚ)).eval 0 =
       (derivative (Lagrange.nodal (cauchyGrid L) (Int.cast : ℤ → ℚ))).eval 0 := by
-  have h0 : (0 : ℤ) ∈ cauchyGrid L := by rw [mem_cauchyGrid]; omega
-  have := Lagrange.eval_nodal_derivative_eval_node_eq (v := (Int.cast : ℤ → ℚ)) h0
-  simpa using this.symm
+  simpa using (Lagrange.eval_nodal_derivative_eval_node_eq (v := (Int.cast : ℤ → ℚ))
+    (by rw [mem_cauchyGrid]; omega : (0 : ℤ) ∈ cauchyGrid L)).symm
 
 /-- `C'(0)` is nonzero: the grid has distinct points. -/
 theorem eval_zero_nodal_erase_zero_ne_zero (L : ℕ) :
     (Lagrange.nodal ((cauchyGrid L).erase 0) (Int.cast : ℤ → ℚ)).eval 0 ≠ 0 := by
   rw [Lagrange.eval_nodal, Finset.prod_ne_zero_iff]
-  intro t ht
-  have : t ≠ 0 := Finset.ne_of_mem_erase ht
-  simpa [sub_eq_zero, eq_comm] using this
+  exact fun t ht => by simpa [sub_eq_zero, eq_comm] using Finset.ne_of_mem_erase ht
 
 /-- On the grid, the kernel has degree `2 L - 1`, so a deformed contraction along a Cauchy matrix
 has degree at most `M (2 L - 1)` in `T` for `M` edges. -/
@@ -256,8 +249,7 @@ theorem cauchyMatrix_eval_zero {E P : Type*} [DecidableEq E] [DecidableEq P] {L 
   split_ifs with hp he he
   · subst he; simp [eval_zero_cauchyKernel_zero]
   · rw [eval_zero_cauchyKernel hL, ite_eq_right]
-    intro h
-    exact he (hinj e e' hp (by omega))
+    exact fun h => he (hinj e e' hp (by omega))
   · subst he; exact absurd rfl hp
   · exact eval_zero
 
@@ -278,21 +270,18 @@ theorem eval_zero_deformedContraction_cauchyMatrix (N : TensorNetwork R Bool V E
   have h := deformedContraction_map (Polynomial.evalRingHom (0 : R)) (N.map Polynomial.C) side
     ((cauchyMatrix L packet slot).map (Polynomial.mapRingHom (algebraMap ℚ R)))
   rw [coe_evalRingHom] at h
-  rw [← h]
   have hN : (N.map Polynomial.C).map (Polynomial.evalRingHom (0 : R)) = N := by
     cases N
     simp [map]
+  have heval : (eval (0 : R) ∘ ⇑(Polynomial.mapRingHom (algebraMap ℚ R))) =
+      (algebraMap ℚ R) ∘ (eval 0) := funext fun p => by
+    simp only [Function.comp_apply, coe_mapRingHom, eval_map, eval₂_at_zero,
+      coeff_zero_eq_eval_zero]
   have hW : ((cauchyMatrix L packet slot).map (Polynomial.mapRingHom (algebraMap ℚ R))).map
       (eval 0) = 1 := by
-    rw [Matrix.map_map]
-    have : (eval (0 : R) ∘ ⇑(Polynomial.mapRingHom (algebraMap ℚ R))) =
-        (algebraMap ℚ R) ∘ (eval 0) := by
-      ext p
-      simp only [Function.comp_apply, coe_mapRingHom, eval_map, eval₂_at_zero,
-        coeff_zero_eq_eval_zero]
-    rw [this, ← Matrix.map_map, cauchyMatrix_eval_zero hslot hinj,
+    rw [Matrix.map_map, heval, ← Matrix.map_map, cauchyMatrix_eval_zero hslot hinj,
       Matrix.map_one _ (map_zero _) (map_one _)]
-  rw [hN, hW, deformedContraction_one]
+  rw [← h, hN, hW, deformedContraction_one]
 
 end TensorNetwork
 

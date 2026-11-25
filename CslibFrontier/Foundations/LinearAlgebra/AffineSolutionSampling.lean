@@ -92,9 +92,7 @@ def sampleSolution (y : V) (r : U) : Option U :=
 /-- Every successful shifted sample solves the original affine system. -/
 theorem map_eq_of_sampleSolution_eq_some {y : V} {r x : U}
     (h : solver.sampleSolution y r = some x) : A x = y := by
-  unfold sampleSolution at h
-  rw [Option.map_eq_some_iff] at h
-  obtain ⟨x', hx', rfl⟩ := h
+  obtain ⟨x', hx', rfl⟩ := Option.map_eq_some_iff.mp h
   rw [A.map_add, solver.map_eq_of_solve_eq_some hx']
   abel
 
@@ -135,21 +133,15 @@ theorem retrySampleSolution_eq_some_iff {attempts : List Attempt}
   rw [List.findSome?_eq_some_iff]
   constructor
   · rintro ⟨before, a', after, hattempts, hcurrent, hbefore⟩
-    rw [Option.map_eq_some_iff] at hcurrent
-    obtain ⟨x', hx', hpair⟩ := hcurrent
-    have ha : a' = a := congrArg Prod.fst hpair
-    have hx : x' = x := congrArg Prod.snd hpair
-    subst a'
-    subst x'
+    obtain ⟨x', hx', hpair⟩ := Option.map_eq_some_iff.mp hcurrent
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj hpair
     refine ⟨before, after, hattempts, hx', fun a' ha' ↦ ?_⟩
     simpa only [Option.map_eq_none_iff,
       AffineSolutionSolver.sampleSolution_eq_none_iff] using hbefore a' ha'
   · rintro ⟨before, after, hattempts, hcurrent, hbefore⟩
-    refine ⟨before, a, after, hattempts, ?_, ?_⟩
-    · rw [hcurrent, Option.map_some]
-    · intro a' ha'
-      rw [Option.map_eq_none_iff, AffineSolutionSolver.sampleSolution_eq_none_iff]
-      exact hbefore a' ha'
+    refine ⟨before, a, after, hattempts, by simp [hcurrent], fun a' ha' ↦ ?_⟩
+    simpa only [Option.map_eq_none_iff,
+      AffineSolutionSolver.sampleSolution_eq_none_iff] using hbefore a' ha'
 
 /-- A returned attempt belongs to the input list, and its returned vector solves that attempt's
 affine system. -/
@@ -159,9 +151,8 @@ theorem mem_and_map_eq_of_retrySampleSolution_eq_some {attempts : List Attempt}
     {target : Attempt → V} {randomness : Attempt → U} {a : Attempt} {x : U}
     (h : retrySampleSolution attempts system solver target randomness = some (a, x)) :
     a ∈ attempts ∧ system a x = target a := by
-  rw [retrySampleSolution_eq_some_iff] at h
-  obtain ⟨before, after, rfl, hcurrent, -⟩ := h
-  refine ⟨by simp, (solver a).map_eq_of_sampleSolution_eq_some hcurrent⟩
+  obtain ⟨before, after, rfl, hcurrent, -⟩ := retrySampleSolution_eq_some_iff.mp h
+  exact ⟨by simp, (solver a).map_eq_of_sampleSolution_eq_some hcurrent⟩
 
 /-- Bounded retries fail exactly when every listed attempt has a nonsurjective system. No
 probability or independence premise is hidden in this deterministic statement. -/

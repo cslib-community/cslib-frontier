@@ -67,9 +67,7 @@ theorem iterate_basisStep_counter (p a x : ℕ) (n : ℕ) :
       (basisStep^[n] ((p, a, x), 0, 1 % p)).2.1 = n := by
   induction n with
   | zero => exact ⟨rfl, rfl⟩
-  | succ n ih =>
-    rw [Function.iterate_succ_apply']
-    simp [basisStep, ih.1, ih.2]
+  | succ n ih => simp [Function.iterate_succ_apply', basisStep, ih.1, ih.2]
 
 /-- Every intermediate accumulator fits within the modulus plus one, including malformed
 zero-modulus inputs and the initial accumulator. -/
@@ -78,8 +76,7 @@ theorem basisWeight_le (p n a x : ℕ) : basisWeight p n a x ≤ p + 1 := by
   | zero => exact (Nat.mod_le _ _).trans (by omega)
   | succ n =>
     rw [basisWeight, Function.iterate_succ_apply']
-    have hp := (iterate_basisStep_counter p a x n).1
-    simp only [basisStep, hp]
+    simp only [basisStep, (iterate_basisStep_counter p a x n).1]
     split_ifs with hz
     · omega
     · exact (Nat.mod_lt _ (Nat.pos_of_ne_zero hz)).le.trans (by omega)
@@ -90,21 +87,18 @@ theorem basisWeight_lt {p : ℕ} (hp : 0 < p) (n a x : ℕ) : basisWeight p n a 
   | zero => exact Nat.mod_lt _ hp
   | succ n =>
     rw [basisWeight, Function.iterate_succ_apply']
-    have hpar := (iterate_basisStep_counter p a x n).1
-    simp only [basisStep, hpar, hp.ne', ↓reduceIte]
+    simp only [basisStep, (iterate_basisStep_counter p a x n).1, hp.ne', ↓reduceIte]
     exact Nat.mod_lt _ hp
 
 variable {p : ℕ} [Fact p.Prime]
 
 private theorem cast_unitInv_residue {v : ℕ} (hv : 0 < v) (hvp : v < p) :
     ((unitInv p (v - 1) : ℕ) : ZMod p) = (v : ZMod p)⁻¹ := by
-  have hne : (v : ZMod p) ≠ 0 := by
-    intro h
-    have := congrArg ZMod.val h
-    simp only [ZMod.val_natCast, Nat.mod_eq_of_lt hvp, ZMod.val_zero] at this
-    omega
   rw [unitInv, cast_powMod, Nat.sub_add_cancel hv]
-  exact ZMod.pow_card_sub_two_eq_inv hne
+  refine ZMod.pow_card_sub_two_eq_inv fun h => ?_
+  have := congrArg ZMod.val h
+  simp only [ZMod.val_natCast, Nat.mod_eq_of_lt hvp, ZMod.val_zero] at this
+  omega
 
 /-- A scalar factor agrees with the corresponding field quotient, unless `j` is another symbol
 with the residue of `a`. -/
@@ -114,12 +108,10 @@ theorem cast_basisFactor {a j : ℕ} (h : j ≠ a → (a : ZMod p) ≠ (j : ZMod
   by_cases hja : j = a
   · simp [basisFactor, hja]
   · have hdlt : addMod p a (negMod p j) < p := Nat.mod_lt _ (Fact.out : p.Prime).pos
-    have hdpos : 0 < addMod p a (negMod p j) := by
-      by_contra hn
-      have hz : addMod p a (negMod p j) = 0 := by omega
-      have hcast := congrArg (fun n : ℕ => (n : ZMod p)) hz
-      simp only [cast_addMod, cast_negMod, Nat.cast_zero] at hcast
-      exact h hja (eq_of_sub_eq_zero (by simpa only [sub_eq_add_neg] using hcast))
+    have hdpos : 0 < addMod p a (negMod p j) := Nat.pos_of_ne_zero fun hz => h hja <|
+      eq_of_sub_eq_zero <| by
+        simpa only [sub_eq_add_neg, cast_addMod, cast_negMod, Nat.cast_zero] using
+          congrArg (fun n : ℕ => (n : ZMod p)) hz
     rw [basisFactor, ite_eq_right hja, cast_mulMod, cast_addMod, cast_negMod,
       cast_unitInv_residue hdpos hdlt, cast_addMod, cast_negMod, ite_eq_right hja]
     simp only [sub_eq_add_neg]
@@ -136,13 +128,11 @@ private theorem cast_basisWeight_eq_prod (s a x : ℕ) :
   induction s with
   | zero => simp [basisWeight]
   | succ s ih =>
-    have hpar := (iterate_basisStep_counter p a x s).1
-    have hcounter := (iterate_basisStep_counter p a x s).2
     rw [basisWeight, Function.iterate_succ_apply']
-    simp only [basisStep, hpar, hcounter, (Fact.out : p.Prime).ne_zero, ↓reduceIte,
-      cast_mulMod, Finset.prod_range_succ]
-    change ((basisWeight p s a x : ℕ) : ZMod p) * _ = _
-    rw [ih]
+    simp only [basisStep, (iterate_basisStep_counter p a x s).1,
+      (iterate_basisStep_counter p a x s).2, (Fact.out : p.Prime).ne_zero, ↓reduceIte,
+      cast_mulMod, Finset.prod_range_succ, ← ih]
+    rfl
 
 private theorem cast_basisWeight_prod {s a : ℕ} (ha : a < s) (x : ℕ) :
     ((basisWeight p s a x : ℕ) : ZMod p) =

@@ -103,20 +103,18 @@ theorem correlation_le_guessInverter [Fintype Seed]
   have hpoint (s : Seed) (x : BitString n) :
       (source x).toReal * (2 * agreement (predictor s (hash s x)) x - 1) ≤
         (source x).toReal * (1 / (precision : ℝ) + 2 * success s (hash s x)) := by
-    by_cases hx : x ∈ source.support
-    · apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-      simpa only [hsource x hx, success] using
+    rcases eq_or_ne (source x) 0 with hx | hx
+    · simp [hx]
+    · refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
+      simpa only [hsource x ((PMF.mem_support_iff _ _).2 hx), success] using
         correlation_le_invertFixed f (predictor s (hash s x)) x precision hp
-    · have hx0 : source x = 0 := by simpa only [PMF.mem_support_iff, not_not] using hx
-      simp only [hx0, ENNReal.toReal_zero, zero_mul, le_refl]
   have hprediction :
       (∑ s, (seed s).toReal * ∑ x, (source x).toReal *
         (2 * agreement (predictor s (hash s x)) x - 1)) ≤
       1 / (precision : ℝ) + 2 *
-        ∑ s, (seed s).toReal * ∑ x, (source x).toReal * success s (hash s x) := by
-    apply sum_le_affine
-    intro s
-    exact (Finset.sum_le_sum fun x _ => hpoint s x).trans_eq (sum_affine source _ _ _)
+        ∑ s, (seed s).toReal * ∑ x, (source x).toReal * success s (hash s x) :=
+    sum_le_affine seed fun s =>
+      (Finset.sum_le_sum fun x _ => hpoint s x).trans_eq (sum_affine source _ _ _)
   have hguess := score_le_uniform_guess (seededHash seed source hash) seed success hsuccess
   simp only [pmf_norm, seededHash, sum_bind_mul, sum_map_mul] at hguess
   have hprob : (((guessInverter f predictor seed precision image).map
@@ -145,10 +143,8 @@ theorem _root_.Cslib.Probability.IsTwoUniversal.correlation_le_guessInverter [Fi
       2 * Fintype.card Suffix *
         (((guessInverter f predictor seed precision image).map
           (fun x => f x == image)) true).toReal := by
-  have h := Pseudoentropy.correlation_le_guessInverter
-    f image source hsource predictor seed hash precision hp
-  have hdist := hhash.leftover_hash source
-  linarith
+  linarith [Pseudoentropy.correlation_le_guessInverter
+    f image source hsource predictor seed hash precision hp, hhash.leftover_hash source]
 
 open Classical in
 /-- On a uniform fiber, the extraction error depends on its size. No regularity assumption
@@ -172,12 +168,11 @@ theorem _root_.Cslib.Probability.IsTwoUniversal.fiber_correlation_le_guessInvert
   let source := (PMF.uniformOfFintype {x // f x = image}).map Subtype.val
   have hsource : ∀ x ∈ source.support, f x = image := by
     intro x hx
-    obtain ⟨preimage, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    obtain ⟨preimage, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact preimage.property
-  have h := IsTwoUniversal.correlation_le_guessInverter
-    f image source hsource predictor hhash precision hp
   simpa only [source, sum_map_mul,
     collisionProbability_map_of_injective _ _ Subtype.val_injective,
-    collisionProbability_uniform, Nat.card_eq_fintype_card, div_eq_mul_inv] using h
+    collisionProbability_uniform, Nat.card_eq_fintype_card, div_eq_mul_inv] using
+    IsTwoUniversal.correlation_le_guessInverter f image source hsource predictor hhash precision hp
 
 end Cslib.Crypto.Pseudoentropy

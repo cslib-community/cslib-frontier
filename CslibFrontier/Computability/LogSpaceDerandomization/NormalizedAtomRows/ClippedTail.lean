@@ -63,14 +63,12 @@ lemma actual_tail_le_envelope
   dsimp only
   unfold actualClippedTail meanRowTail firstOverflowNoiseTail
   rw [←sum_add_distrib, ←sum_add_distrib, ←sum_add_distrib]
-  apply sum_le_sum
-  intro j _
+  refine sum_le_sum fun j _ => ?_
   by_cases he : meanFirstEvent t D suffix k m j η G n K Δ raw σ x
   · have ho := he.1
     simp only [he, ho, ↓reduceIte, Fin.isValue, one_ne_zero]
     rw [←sum_add_distrib, ←sum_add_distrib, ←sum_add_distrib]
-    apply sum_le_sum
-    intro i _
+    refine sum_le_sum fun i _ => ?_
     have hh := actual_two_mask_row_max HP s t Ls (side P k) Lt D sourceSuffix suffix k G hG ζ
       (actualPrefix Δ raw i) (hz i) σ x
     dsimp only at hh
@@ -91,8 +89,7 @@ lemma actual_tail_le_envelope
       actualNoiseMax s t Ls (side P k) Lt D sourceSuffix suffix k G Δ raw 1 i σ x := by
       simpa only [actualClippedMean, actualNoiseMax, Fin.isValue, one_ne_zero, ↓reduceIte,
         div_one, abs_div, abs_abs, hden] using hh
-    have hm := mul_le_mul_of_nonneg_left hh' (by positivity : 0 ≤ (28 : ℝ) ^ (m - i))
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hh' (by positivity : 0 ≤ (28 : ℝ) ^ (m - i))]
   · simp only [he, ↓reduceIte, zero_add]
     apply add_nonneg <;> split_ifs
     all_goals first
@@ -134,18 +131,13 @@ theorem integrated_actual_clipped_tail_capacity
       (actualClippedTail HP s t Ls Lt D sourceSuffix suffix k m η G ζ n K Δ raw) ≤
       (((2 + 256 * M / η) * (εμ 0 + εμ 1)) / 63 + (εz 0 + εz 1) * (7 / 9)) ^ 4 := by
   have hb := integrated_two_mask_envelope_capacity HP s t hst Ls Lt D hD sourceSuffix suffix H hk
-    hLt
-    G hG ζ hη hNu hmass m n K hn Δ raw εμ εz hεμ hεz B hB hμ hbudget hzbudget
+    hLt G hG ζ hη hNu hmass m n K hn Δ raw εμ εz hεμ hεz B hB hμ hbudget hzbudget
   dsimp only at hb ⊢
-  apply le_trans (vertex_mono_nonneg (retainedMask s Ls D sourceSuffix) hNu _ _ ?_ ?_) hb
-  · intro σ x
-    unfold actualClippedTail
-    apply sum_nonneg
-    intro j _
-    split_ifs
-    · exact sum_nonneg fun i _ => mul_nonneg (by positivity) kthLargest_nonneg
-    · exact le_rfl
-  · intro σ x
-    exact actual_tail_le_envelope HP s t Ls Lt D sourceSuffix suffix k m η G hG ζ _ K Δ raw hz σ x
+  refine (vertex_mono_nonneg (retainedMask s Ls D sourceSuffix) hNu _ _
+    (fun σ x => sum_nonneg fun j _ => ?_)
+    (actual_tail_le_envelope HP s t Ls Lt D sourceSuffix suffix k m η G hG ζ _ K Δ raw hz)).trans hb
+  split_ifs
+  · exact sum_nonneg fun i _ => mul_nonneg (by positivity) kthLargest_nonneg
+  · exact le_rfl
 
 end Matrix.HierarchyParams.H4RankEnvironment.NormalizedMoments

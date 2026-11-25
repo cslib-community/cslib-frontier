@@ -66,11 +66,9 @@ theorem edgesOf_reverse_map_swap (s : List (Occurrence F × Occurrence F)) :
 theorem Linked.finishFrom_reverse {v : V} {s : List (Occurrence F × Occurrence F)}
     (h : Linked v s) :
     finishFrom (finishFrom v s) (s.reverse.map Prod.swap) = v := by
-  cases s with
-  | nil => rfl
-  | cons a s =>
-    rcases a with ⟨o, p⟩
-    rw [List.reverse_cons, List.map_append, finishFrom_append]
+  rcases s with _ | ⟨⟨o, p⟩, s⟩
+  · rfl
+  · rw [List.reverse_cons, List.map_append, finishFrom_append]
     exact h.1
 
 /-- Incidence linkage is preserved by reversing a trail's candidate steps. -/
@@ -82,7 +80,6 @@ theorem Linked.reverse {v : V} {s : List (Occurrence F × Occurrence F)}
     rcases a with ⟨o, p⟩
     obtain ⟨ho, hc, hs⟩ := h
     rw [List.reverse_cons, List.map_append]
-    change Linked (finishFrom p.var s) (s.reverse.map Prod.swap ++ [(p, o)])
     exact (ih hs).snoc hs.finishFrom_reverse.symm hc.symm
 
 /-- The endpoint of a reversed linked candidate is its original starting variable. -/
@@ -101,19 +98,11 @@ theorem IsWalk.reverse {w : Walk F} (h : w.IsWalk) : w.reverse.IsWalk :=
 theorem IsWalk.append {w z : Walk F} (hw : w.IsWalk) (hz : z.IsWalk)
     (hend : w.finish = z.start) (hd : List.Disjoint w.edges z.edges) :
     (w.append z).IsWalk := by
-  constructor
+  refine ⟨?_, ?_⟩
   · change Linked w.start (w.steps ++ z.steps)
-    rw [linked_append_iff]
-    refine ⟨hw.1, ?_⟩
-    change Linked w.finish z.steps
-    rw [hend]
-    exact hz.1
+    exact (linked_append_iff ..).mpr ⟨hw.1, show Linked w.finish z.steps from hend.symm ▸ hz.1⟩
   · rw [edges_append]
-    apply List.nodup_append.mpr
-    refine ⟨hw.2, hz.2, ?_⟩
-    intro a ha b hb he
-    subst b
-    exact hd ha hb
+    exact List.nodup_append.mpr ⟨hw.2, hz.2, fun a ha _ hb he => hd ha (he ▸ hb)⟩
 
 /-- The set of flipped incidences is independent of traversal orientation. -/
 theorem flip_reverse (w : Walk F) (f : OccurrenceLabeling F Bool) :
@@ -125,14 +114,11 @@ theorem PrefixValid.take {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} {s : List (Occurrence F × Occurrence F)}
     (h : PrefixValid sem f s) (n : ℕ) : PrefixValid sem f (s.take n) := by
   induction n generalizing f s with
-  | zero =>
-    cases s with
-    | nil => exact h
-    | cons a s => exact h.1
+  | zero => cases s <;> first | exact h | exact h.1
   | succ n ih =>
     cases s with
     | nil => exact h
-    | cons a s => exact ⟨h.1, ih h.2⟩
+    | cons _ _ => exact ⟨h.1, ih h.2⟩
 
 /-- Internal consistency is inherited by a shorter candidate prefix. -/
 theorem InternallyConsistent.take {f : OccurrenceLabeling F Bool}
@@ -141,13 +127,9 @@ theorem InternallyConsistent.take {f : OccurrenceLabeling F Bool}
   induction n generalizing s with
   | zero => trivial
   | succ n ih =>
-    cases s with
-    | nil => trivial
-    | cons a s =>
-      refine ⟨?_, ih h.2⟩
-      rcases h.1 with hs | hc
-      · exact Or.inl (by simp only [hs, List.take_nil])
-      · exact Or.inr hc
+    rcases s with _ | ⟨a, s⟩
+    · trivial
+    · exact ⟨h.1.imp (fun hs => by simp [hs]) id, ih h.2⟩
 
 /-- Every variable-ended prefix inherits the f-prefix conditions. -/
 theorem IsFPrefix.take {sem : Rel → List Bool → Bool}

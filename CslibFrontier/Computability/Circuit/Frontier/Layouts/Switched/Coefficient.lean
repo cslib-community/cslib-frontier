@@ -97,9 +97,7 @@ theorem rStar_pos : 0 < rStar := by
 /-- `r* < 1`. -/
 theorem rStar_lt_one : rStar < 1 := by
   unfold rStar
-  have : 2 * √2 < 3 := by
-    nlinarith [sq_sqrt (show (0 : ℝ) ≤ 2 by norm_num), sqrt_nonneg 2]
-  linarith
+  nlinarith [sq_sqrt (show (0 : ℝ) ≤ 2 by norm_num), sqrt_nonneg 2]
 
 /-- The switched cubic layout coefficient is strictly positive. -/
 theorem switchedCoefficient_pos : 0 < switchedCoefficient := by
@@ -111,9 +109,8 @@ theorem one_add_inv_two_mul_switchedCoefficient :
     1 + 1 / (2 * switchedCoefficient) = 1 + 2 * π / (3 * arccos (5 / 6)) := by
   have h : 0 < arccos (5 / 6) := arccos_pos.mpr (by norm_num)
   unfold switchedCoefficient
-  congr 1
   field_simp
-  norm_num
+  ring
 
 /-- The exact strict comparison `c₃ < p`: the switched Gaussian sweep coefficient
 `(3 / (4π)) arccos (5 / 6) ≈ 0.139822` is strictly below the edge-score median Gaussian
@@ -124,15 +121,12 @@ theorem switchedCoefficient_lt_gaussianCoefficient :
   set α := arccos ((1 + 2 * √2) / 4)
   have hsq2 : √2 ^ 2 = 2 := sq_sqrt (by norm_num)
   have hcos_lt : (1 + 4 * √2) / 8 < 5 / 6 := by
-    have h12 : 12 * √2 < 17 := by
-      have : (12 * √2) ^ 2 < 17 ^ 2 := by linear_combination 144 * hsq2
-      nlinarith [sqrt_nonneg 2]
-    linarith
+    have : (12 * √2) ^ 2 < 17 ^ 2 := by linear_combination 144 * hsq2
+    nlinarith [sqrt_nonneg 2]
   have hlo : (0 : ℝ) ≤ (1 + 2 * √2) / 4 := by positivity
   have hhi : (1 + 2 * √2) / 4 ≤ 1 := by
     have : √2 < 3 / 2 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
     linarith
-  have hα_nonneg : 0 ≤ α := arccos_nonneg _
   have hα_le : α ≤ π / 2 := arccos_le_pi_div_two.mpr hlo
   have hcos_double : cos (2 * α) = (1 + 4 * √2) / 8 := by
     rw [cos_two_mul, cos_arccos (by linarith) hhi]
@@ -140,12 +134,12 @@ theorem switchedCoefficient_lt_gaussianCoefficient :
   have hangle : arccos (5 / 6) < 2 * α := by
     have hlt := arccos_lt_arccos (neg_one_le_cos (2 * α)) (hcos_double.symm ▸ hcos_lt)
       (by norm_num)
-    rwa [arccos_cos (by linarith) (by linarith)] at hlt
+    rwa [arccos_cos (mul_nonneg zero_le_two (arccos_nonneg _)) (by linarith)] at hlt
   unfold switchedCoefficient Gaussian.gaussianCoefficient
-  have hpi : 0 < π := pi_pos
-  have h1 : 3 / (4 * π) * arccos (5 / 6) < 3 / (4 * π) * (2 * α) := by gcongr
-  have h2 : 3 / (4 * π) * (2 * α) = 3 / (2 * π) * α := by ring
-  linarith
+  have : 3 / (4 * π) * arccos (5 / 6) < 3 / (4 * π) * (2 * α) := by
+    have := pi_pos
+    gcongr
+  linarith [show 3 / (4 * π) * (2 * α) = 3 / (2 * π) * α by ring]
 
 /-- Sharp upper bound on `arccos (5 / 6) ≈ 0.58568554`: by `cos_bound` at
 `5856858 / (256 * 10^7)` and eight doublings, `cos (5856858 / 10^7) ≤ 5 / 6`. -/
@@ -171,12 +165,10 @@ theorem arccos_five_sixths_le : arccos (5 / 6) ≤ 5856858 / 10000000 := by
       (v := 95742707542009 / 100000000000000) (by norm_num)
     have h8 := Gaussian.cos_two_mul_le (by norm_num) h7
       (v := 41666660474747 / 50000000000000) (by norm_num)
-    have hval : (5856858 / 10000000 : ℝ) =
-        2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (5856858 / 2560000000)))))))) := by norm_num
-    rw [hval]
-    exact h8.trans (by norm_num)
-  have hle : cos (5856858 / 10000000) ≤ 5 / 6 := hcos
-  exact (arccos_le_arccos hle).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_d20]))
+    simpa only [show (2 * (2 * (2 * (2 * (2 * (2 * (2 * (2 * (5856858 / 2560000000 : ℝ))))))))) =
+      5856858 / 10000000 by norm_num] using h8.trans (by norm_num)
+  have hpi : (5856858 / 10000000 : ℝ) ≤ π := by linarith [pi_gt_d20]
+  exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) hpi)
 
 /-- **The sharpened numerical bound.** The circuit coefficient
 `1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972` is at least `457597 / 100000 = 4.57597`. -/
@@ -197,8 +189,7 @@ theorem circuitCoefficient_ge_183_div_40 :
 least `278798 / 100000 = 2.78798`. -/
 theorem correlationThreshold_ge :
     (278798 / 100000 : ℝ) ≤ 1 + π / (3 * arccos (5 / 6)) := by
-  have h := circuitCoefficient_ge_457597
-  have heq : 2 * π / (3 * arccos (5 / 6)) = 2 * (π / (3 * arccos (5 / 6))) := by ring
-  linarith
+  linarith [circuitCoefficient_ge_457597,
+    show 2 * π / (3 * arccos (5 / 6)) = 2 * (π / (3 * arccos (5 / 6))) by ring]
 
 end Cslib.Circuits.Frontier.Switched

@@ -75,10 +75,8 @@ theorem card_filter_heavy_mul_le (S : Finset V) {a ρ M : ℝ} {d : V → ℝ} (
     (hd : ∀ w ∈ S, 0 ≤ d w) (hmass : a * ∑ w ∈ S, d w ≤ M) :
     (#{w ∈ S | ρ / 4 < d w} : ℝ) * (a * ρ) ≤ 4 * M := by
   classical
-  have hcount : (#{w ∈ S | ρ / 4 < d w} : ℝ) * (ρ / 4) ≤ ∑ w ∈ S, d w :=
-    card_filter_mul_le_sum S _ d hd fun _ _ hw => hw.le
-  have h := (mul_le_mul_of_nonneg_left hcount ha).trans hmass
-  linarith
+  linarith [mul_le_mul_of_nonneg_left
+    (card_filter_mul_le_sum S (fun w => ρ / 4 < d w) d hd fun _ _ => le_of_lt) ha, hmass]
 
 open Classical in
 /-- Conditional rarity of a true heavy count, without division. The endpoint `y` may be
@@ -108,17 +106,13 @@ theorem card_filter_heavyCountEvent_mul_le (Y : Ω → V → Prop) (T : Finset �
   simp only [hevent] at hcount
   have hn : (n : ℝ) ≤ 2 * (((n + 1) / 2 : ℕ) : ℝ) := by
     exact_mod_cast (show n ≤ 2 * ((n + 1) / 2) by omega)
-  have hmassD : (#D : ℝ) * (a * ρ) ≤ 4 * M :=
-    card_filter_heavy_mul_le S ha hd hmass
   have hmassc : c * a * #D * ρ ≤ 4 * c * M := by
-    have h := mul_le_mul_of_nonneg_left hmassD hc
-    nlinarith
+    nlinarith [mul_le_mul_of_nonneg_left (card_filter_heavy_mul_le S (ρ := ρ) ha hd hmass) hc]
   calc
-    _ ≤ (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) *
-        (2 * (((n + 1) / 2 : ℕ) : ℝ)) * ρ :=
+    _ ≤ (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * (2 * (((n + 1) / 2 : ℕ) : ℝ)) * ρ :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hn (by positivity)) hρ.le
-    _ = 2 * ((#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) *
-        (((n + 1) / 2 : ℕ) : ℝ)) * ρ := by ring
+    _ = 2 * ((#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * (((n + 1) / 2 : ℕ) : ℝ)) * ρ := by
+      ring
     _ ≤ 2 * (#T * (1 + c * a * #D)) * ρ :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hcount (by norm_num)) hρ.le
     _ = #T * (2 * (ρ + c * a * #D * ρ)) := by ring
@@ -139,15 +133,13 @@ theorem card_filter_heavyCountEvent_le (Y : Ω → V → Prop) (T : Finset Ω)
     (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) ≤
       (2 * (1 + 4 * c * M) / ((n : ℝ) * ρ)) * #T := by
   classical
-  have h := card_filter_heavyCountEvent_mul_le Y T S y ha hρ hc hd hmass hpair n
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   rw [div_mul_eq_mul_div, le_div_iff₀ (mul_pos hn' hρ)]
-  calc
-    _ = (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * n * ρ := by ring
-    _ ≤ #T * (2 * (ρ + 4 * c * M)) := h
-    _ ≤ #T * (2 * (1 + 4 * c * M)) :=
-      mul_le_mul_of_nonneg_left
-        (mul_le_mul_of_nonneg_left (add_le_add hρ1 le_rfl) (by norm_num)) (by positivity)
+  calc _ = (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) * n * ρ := by ring
+    _ ≤ #T * (2 * (ρ + 4 * c * M)) :=
+      card_filter_heavyCountEvent_mul_le Y T S y ha hρ hc hd hmass hpair n
+    _ ≤ #T * (2 * (1 + 4 * c * M)) := mul_le_mul_of_nonneg_left
+      (mul_le_mul_of_nonneg_left (add_le_add hρ1 le_rfl) (by norm_num)) (by positivity)
     _ = _ := by ring
 
 open Classical in
@@ -162,12 +154,11 @@ theorem card_filter_heavyCountEvent_div_card_le (Y : Ω → V → Prop) (T : Fin
     (#{σ ∈ T | heavyCountEvent Y S d ρ n σ} : ℝ) / #T ≤
       2 * (1 + 4 * c * M) / ((n : ℝ) * ρ) := by
   classical
-  have hM : 0 ≤ M := (mul_nonneg ha (sum_nonneg hd)).trans hmass
   rcases T.eq_empty_or_nonempty with rfl | hT
-  · simp only [filter_empty, card_empty, Nat.cast_zero, zero_div]
+  · have : 0 ≤ M := (mul_nonneg ha (sum_nonneg hd)).trans hmass
+    simp only [filter_empty, card_empty, Nat.cast_zero, zero_div]
     positivity
-  have hTpos : (0 : ℝ) < #T := by exact_mod_cast hT.card_pos
-  exact (div_le_iff₀ hTpos).mpr
+  exact (div_le_iff₀ (by exact_mod_cast hT.card_pos)).mpr
     (card_filter_heavyCountEvent_le Y T S y ha hρ hρ1 hc hd hmass hpair hn)
 
 open Classical in
@@ -183,8 +174,7 @@ theorem card_filter_heavyCountEvent_product_div_card_le {Γ : Type*}
       2 * (1 + 4 * c * M) / ((n : ℝ) * ρ) := by
   classical
   refine card_filter_heavyCountEvent_div_card_le (fun (σ : Γ × Ω) w => Y σ.2 w)
-    (R ×ˢ T) S y ha hρ hρ1 hc hd hmass ?_ hn
-  intro w hw hdw hwy
+    (R ×ˢ T) S y ha hρ hρ1 hc hd hmass (fun w hw hdw hwy => ?_) hn
   have hset : {σ ∈ R ×ˢ T | Y σ.2 w} = R ×ˢ {σ ∈ T | Y σ w} := by
     ext σ
     simp [and_assoc]

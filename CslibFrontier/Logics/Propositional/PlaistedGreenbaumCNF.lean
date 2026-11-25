@@ -131,8 +131,7 @@ transformation.** -/
 theorem mem_tseitinCNF_of_mem_plaistedGreenbaumCNF {A : Proposition Atom}
     {c : Clause (Atom ⊕ Proposition Atom)} (hc : c ∈ A.plaistedGreenbaumCNF) :
     c ∈ A.tseitinCNF := by
-  simp only [plaistedGreenbaumCNF, List.mem_cons] at hc
-  rcases hc with rfl | hc
+  rcases List.mem_cons.mp hc with rfl | hc
   · exact List.mem_cons_self
   · exact List.mem_cons_of_mem _ (mem_tseitinDefs_of_mem_plaistedGreenbaumDefs hc)
 
@@ -145,10 +144,8 @@ theorem eval_plaistedGreenbaumCNF_tseitinExtend (v : Atom → Bool) (A : Proposi
   cases h : A.eval v
   · simp [plaistedGreenbaumCNF, h]
   · rw [CNF.eval_eq_true_iff]
-    intro c hc
-    have := (eval_tseitinCNF_tseitinExtend v A).trans h
-    rw [CNF.eval_eq_true_iff] at this
-    exact this c (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
+    exact fun c hc => (CNF.eval_eq_true_iff ..).mp ((eval_tseitinCNF_tseitinExtend v A).trans h) c
+      (mem_tseitinCNF_of_mem_plaistedGreenbaumCNF hc)
 
 /-- Under an assignment satisfying the definitional clauses needed at polarity `pol`, if the
 variable of `A` has the value `pol` then so does `A` at the atoms. -/
@@ -157,12 +154,7 @@ theorem eval_eq_of_eval_plaistedGreenbaumDefs {σ : Atom ⊕ Proposition Atom �
     (hvar : σ A.tseitinVar = pol) : A.eval (σ ∘ Sum.inl) = pol := by
   induction A generalizing pol with
   | atom x => exact hvar
-  | falsum =>
-    cases pol
-    · rfl
-    · simp only [plaistedGreenbaumDefs, CNF.eval_cons, Clause.eval_cons, Literal.eval_mk,
-        Clause.eval_nil, CNF.eval_nil, Bool.or_false, Bool.and_true, beq_iff_eq] at h
-      exact absurd (hvar.symm.trans h) Bool.noConfusion
+  | falsum => cases pol <;> simp_all [plaistedGreenbaumDefs, tseitinVar]
   | and A B ihA ihB | or A B ihA ihB | imp A B ihA ihB =>
     cases pol <;>
     · simp only [plaistedGreenbaumDefs, CNF.eval_append, Bool.and_eq_true] at h
@@ -170,8 +162,8 @@ theorem eval_eq_of_eval_plaistedGreenbaumDefs {σ : Atom ⊕ Proposition Atom �
       simp only [tseitinVar] at hvar
       simp only [CNF.eval_cons, Clause.eval_cons, Literal.eval_mk, CNF.eval_nil, Clause.eval_nil,
         hvar] at hgate
-      have ihA' := fun p => @ihA p
-      have ihB' := fun p => @ihB p
+      have ihA' := @ihA
+      have ihB' := @ihB
       simp only [eval_and_bool, eval_or_bool, eval_imp_bool]
       revert hgate ihA' ihB' hA hB
       cases σ A.tseitinVar <;> cases σ B.tseitinVar <;>
@@ -194,24 +186,18 @@ theorem not_forall_eq_of_eval_plaistedGreenbaumCNF [Nonempty Atom] :
         σ ∘ Sum.inl = τ ∘ Sum.inl → ∀ y ∈ A.plaistedGreenbaumCNF.vars, σ y = τ y := by
   intro h
   obtain ⟨x⟩ := ‹Nonempty Atom›
-  let τ : Atom ⊕ Proposition Atom → Bool
-    | .inr (.and _ _) => false
-    | _ => true
-  have := h (.or (.and (.atom x) (.atom x)) (.atom x)) (fun _ => true) τ rfl rfl rfl
-    (.inr (.and (.atom x) (.atom x)))
+  let τ : Atom ⊕ Proposition Atom → Bool | .inr (.and _ _) => false | _ => true
+  exact Bool.noConfusion <| h (.or (.and (.atom x) (.atom x)) (.atom x)) (fun _ => true) τ
+    rfl rfl rfl (.inr (.and (.atom x) (.atom x)))
     (CNF.mem_vars.2 ⟨[(.inr (.and (.atom x) (.atom x)), false), (.inl x, true)],
       by simp [plaistedGreenbaumCNF, plaistedGreenbaumDefs, tseitinVar], false,
       List.mem_cons_self⟩)
-  exact Bool.noConfusion this
 
 /-- **The Plaisted–Greenbaum transformation preserves satisfiability.** -/
 theorem satisfiable_plaistedGreenbaumCNF_iff (A : Proposition Atom) :
-    A.plaistedGreenbaumCNF.Satisfiable ↔ ∃ v : Atom → Bool, A.eval v = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    exact ⟨σ ∘ Sum.inl, eval_of_eval_plaistedGreenbaumCNF hσ⟩
-  · rintro ⟨v, hv⟩
-    exact ⟨tseitinExtend v, (eval_plaistedGreenbaumCNF_tseitinExtend v A).trans hv⟩
+    A.plaistedGreenbaumCNF.Satisfiable ↔ ∃ v : Atom → Bool, A.eval v = true :=
+  ⟨fun ⟨σ, hσ⟩ => ⟨σ ∘ Sum.inl, eval_of_eval_plaistedGreenbaumCNF hσ⟩,
+    fun ⟨v, hv⟩ => ⟨tseitinExtend v, (eval_plaistedGreenbaumCNF_tseitinExtend v A).trans hv⟩⟩
 
 /-! ### Size -/
 

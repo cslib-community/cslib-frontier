@@ -164,25 +164,19 @@ noncomputable def reduction (ℓ : ℕ) {σ : Type}
 theorem isQueryBounded_reduction (ℓ : ℕ) {σ : Type}
     (A : TwoStage Unit (MessagePair (List D)) (List D) Bool σ) :
     (reduction ℓ A).IsQueryBounded ℓ := by
-  have hbody : ∀ (b : Bool) (p : MessagePair (List D) × σ),
-      (if distinctAdmissible ℓ p.1.msg₀ p.1.msg₁ then do
-          let c ← (p.1.select b).mapM ProbOracleComp.query
-          (· == b) <$> ProbOracleComp.sample (A.guess p.2 c)
-        else return false == b : ProbOracleComp (fun _ : D => D) Bool).IsQueryBounded ℓ := by
-    intro b p
-    split_ifs with h
-    · have hlen : (p.1.select b).length ≤ ℓ := by
-        simp only [distinctAdmissible, decide_eq_true_eq] at h
-        cases b <;> simp only [MessagePair.select_false, MessagePair.select_true] <;> omega
-      have hq : ((p.1.select b).mapM ProbOracleComp.query).IsQueryBounded ℓ :=
-        (OracleComp.IsCostBounded.mapM fun x _ =>
-          ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) x).mono (by simpa using hlen)
-      exact (hq.bind fun c =>
-        (OracleComp.isCostBounded_map_iff (· == b) _ _).mpr
-          (ProbOracleComp.IsQueryBounded.sample (A.guess p.2 c))).mono (by omega)
-    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-  exact ((ProbOracleComp.IsQueryBounded.sample _).bind fun b =>
-    (ProbOracleComp.IsQueryBounded.sample _).bind fun p => hbody b p).mono (by omega)
+  refine ((ProbOracleComp.IsQueryBounded.sample _).bind fun b =>
+    (ProbOracleComp.IsQueryBounded.sample _).bind fun p => ?_ :
+      (reduction ℓ A).IsQueryBounded (0 + (0 + ℓ))).mono (by omega)
+  split_ifs with h
+  · have hlen : (p.1.select b).length ≤ ℓ := by
+      simp only [distinctAdmissible, decide_eq_true_eq] at h
+      cases b <;> simp only [MessagePair.select_false, MessagePair.select_true] <;> omega
+    exact (((OracleComp.IsCostBounded.mapM fun x _ =>
+      ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) x).mono
+        (by simpa using hlen)).bind fun c =>
+      (OracleComp.isCostBounded_map_iff (· == b) _ _).mpr
+        (ProbOracleComp.IsQueryBounded.sample (A.guess p.2 c))).mono (by omega)
+  · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
 
 /-- Against a fixed function `f`, the reduction draws the hidden bit, runs `A` on the challenge
 `m_b.map f`, and returns whether `A` guessed the bit. -/
@@ -197,9 +191,7 @@ private theorem run_reduction (f : D → D) (ℓ : ℕ) {σ : Type}
         return false == b := by
   simp only [reduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
   refine bind_congr fun b => bind_congr fun p => ?_
-  split_ifs
-  · simp [ProbOracleComp.run_mapM_query]
-  · rfl
+  split_ifs <;> simp [ProbOracleComp.run_mapM_query]
 
 /-- The real block-cipher experiment of `ECB.reduction ℓ A` against a keyed permutation `E` is the
 bit-guessing form of the one-time experiment against `Cipher.ecb E`: when the reduction's oracle is
@@ -226,8 +218,8 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
     (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₀.map ⇑π) =
       (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₁.map ⇑π) := by
   let x : Fin m₀.length ↪ D := ⟨fun i => m₀[i], List.nodup_iff_injective_get.mp h₀⟩
-  let y : Fin m₀.length ↪ D := ⟨fun i => m₁[i.cast hlen], (List.nodup_iff_injective_get.mp h₁).comp
-    (Fin.cast_injective hlen)⟩
+  let y : Fin m₀.length ↪ D := ⟨fun i => m₁[i.cast hlen],
+    (List.nodup_iff_injective_get.mp h₁).comp (Fin.cast_injective hlen)⟩
   obtain ⟨τ, hτ⟩ := Equiv.Perm.exists_smul_eq_embedding x y
   have hm : m₁ = m₀.map τ := by
     refine List.ext_getElem (by simp [hlen]) fun i hi₁ hi₂ => ?_
@@ -238,9 +230,7 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
           (fun π : Equiv.Perm D => m₀.map ⇑π) := by rw [PMF.uniformOfFintype_map_equiv]
     _ = (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₁.map ⇑π) := by
       rw [PMF.map_comp, hm]
-      congr 1
-      funext π
-      simp [Function.comp_def]
+      exact congrArg _ (funext fun π => by simp [Function.comp_def])
 
 /-- **Theorem 4.1, equation (4.3)** ([BonehShoup2023], pp. 104–105): for the ECB cipher of a
 block cipher `E` over finite types, with challenge pairs restricted to sequences of at most `ℓ`
