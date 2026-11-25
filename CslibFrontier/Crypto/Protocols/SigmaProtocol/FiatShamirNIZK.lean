@@ -427,11 +427,15 @@ private theorem nizkRealExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fi
   cases q with
   | inl xy =>
     obtain ⟨x, y⟩ := xy
-    cases hv : valid x y
-    · simp only [nizkRealExtHandler, nizkRealHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
+    by_cases hv : valid x y = true
     · simp only [nizkRealExtHandler, nizkRealHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+        PMF.monad_pure_eq_pure, PMF.map_bind]
+      refine congrArg (PMF.bind _) (funext fun coins => ?_)
+      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
+      simp only [PMF.pure_map]
+    · simp only [Bool.not_eq_true] at hv
+      simp only [nizkRealExtHandler, nizkRealHandler, hv, Bool.false_eq_true, ↓reduceIte,
+        PMF.pure_map]
   | inr yt =>
     simp only [nizkRealExtHandler, nizkRealHandler, PMF.map_comp]
     exact PMF.map_id _
@@ -446,11 +450,14 @@ private theorem nizkSimExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fin
   cases q with
   | inl xy =>
     obtain ⟨x, y⟩ := xy
-    cases hv : valid x y
-    · simp only [nizkSimExtHandler, nizkSimHandler, hv, Bool.false_eq_true, ↓reduceIte,
-        PMF.pure_map]
+    by_cases hv : valid x y = true
     · simp only [nizkSimExtHandler, nizkSimHandler, hv, ↓reduceIte, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
+        PMF.monad_pure_eq_pure, PMF.map_bind]
+      refine congrArg (PMF.bind _) (funext fun (prf, cache') => ?_)
+      simp only [PMF.pure_map]
+    · simp only [Bool.not_eq_true] at hv
+      simp only [nizkSimExtHandler, nizkSimHandler, hv, Bool.false_eq_true, ↓reduceIte,
+        PMF.pure_map]
   | inr yt =>
     simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
     exact PMF.map_id _
