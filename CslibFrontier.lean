@@ -3295,6 +3295,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSyst
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionGenus
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionParity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeDeletionTransport
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.EdgeEndJoin
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Equality
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceCounts
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.FaceDartColors
