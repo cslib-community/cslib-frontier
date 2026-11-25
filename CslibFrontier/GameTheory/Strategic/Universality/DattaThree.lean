@@ -215,23 +215,19 @@ theorem card_sparseTable_add_le (F : Fin m → MvPolynomial (Fin n) ℝ) :
   have hsub : sparseTable F ⊆ insert 0 (univ.biUnion fun j => (Iic (degreeVec (F j))).erase 0) :=
     fun e he => by
       obtain ⟨j, s, hs, hes⟩ := mem_sparseTable.1 he
-      by_cases h0 : e = 0
-      · exact mem_insert.2 (.inl h0)
-      · exact mem_insert_of_mem (mem_biUnion.2 ⟨j, mem_univ j,
+      exact if h0 : e = 0 then mem_insert.2 (.inl h0)
+        else mem_insert_of_mem (mem_biUnion.2 ⟨j, mem_univ j,
           mem_erase.2 ⟨h0, mem_Iic.2 (hes.trans (le_degreeVec hs))⟩⟩)
-  have hcard : ∀ j, #((Iic (degreeVec (F j))).erase 0) + 1 = ∏ i, (1 + degreeOf i (F j)) :=
-    fun j => by
-      rw [card_erase_add_one (mem_Iic.2 zero_le), Finsupp.card_Iic_eq_prod]
-      simp
   calc #(sparseTable F) + m
-      ≤ 1 + ∑ j, #((Iic (degreeVec (F j))).erase 0) + ∑ _j : Fin m, 1 := by
+      ≤ (1 + ∑ j, #((Iic (degreeVec (F j))).erase 0)) + ∑ _j : Fin m, 1 := by
         simp only [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
-        gcongr
-        exact (card_le_card hsub).trans ((card_insert_le _ _).trans (by
-          rw [add_comm]; gcongr; exact card_biUnion_le))
+        exact Nat.add_le_add_right ((card_le_card hsub).trans ((card_insert_le _ _).trans
+          (by rw [add_comm]; exact Nat.add_le_add_left card_biUnion_le 1))) _
     _ = 1 + ∑ j, ∏ i, (1 + degreeOf i (F j)) := by
         rw [add_assoc, ← sum_add_distrib]
-        simp only [hcard]
+        refine congrArg (1 + ·) (sum_congr rfl fun j _ => ?_)
+        rw [card_erase_add_one (mem_Iic.2 zero_le), Finsupp.card_Iic_eq_prod]
+        simp
 
 /-- **The sparse table against the full box.** If every `F j` has degree at most `d` in every
 variable, the sparse table has at most `(d + 1)ⁿ` elements. -/
@@ -258,11 +254,9 @@ theorem expoPow_sub_single (x : Fin n → ℝ) {e : Fin n →₀ ℕ} {l : Fin n
   ring
 
 private theorem sum_sub_single_lt {e : Fin n →₀ ℕ} {l : Fin n} (hl : e l ≠ 0) :
-    ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i := by
-  refine sum_lt_sum (fun i _ => ?_) ⟨l, mem_univ l, ?_⟩
-  · simp
-  · simp only [Finsupp.tsub_apply, Finsupp.single_eq_same]
-    omega
+    ∑ i, (e - Finsupp.single l 1 : Fin n →₀ ℕ) i < ∑ i, e i :=
+  sum_lt_sum (fun _ _ => by simp) ⟨l, mem_univ l, by
+    simp only [Finsupp.tsub_apply, Finsupp.single_eq_same]; omega⟩
 
 theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
   simp [expoPow]
@@ -270,9 +264,7 @@ theorem expoPow_zero (x : Fin n → ℝ) : expoPow x 0 = 1 := by
 /-- On a table closed downwards, the only `e` without a lowered neighbour in the table is `0`. -/
 private theorem eq_zero_of_forall_sub_single_notMem (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)))
     {e : E} (h : ¬∃ l, e.1 l ≠ 0 ∧ e.1 - Finsupp.single l 1 ∈ E) : e.1 = 0 := by
-  ext l
-  by_contra hl
-  exact h ⟨l, hl, hE tsub_le_self e.2⟩
+  ext l; exact by_contra fun hl => h ⟨l, hl, hE tsub_le_self e.2⟩
 
 /-- On a table closed downwards, the monomial chain forces `K b_e = xᵉ`. -/
 theorem bobScale_mul_eq_expoPow (hE : IsLowerSet (E : Set (Fin n →₀ ℕ))) {q : Coord E m → ℝ}
@@ -375,17 +367,15 @@ theorem expoPow_le_one {x : Fin n → ℝ} (hx : ∀ i, 0 ≤ x i) (hx1 : ∀ i,
 /-- Bob's weights `xᵉ / K` sum to less than `1` on the open simplex. -/
 theorem sum_expoPow_div_lt_one {x : Fin n → ℝ} (hx : ∀ i, 0 < x i) (hx1 : ∑ i, x i < 1) :
     ∑ e : E, expoPow x e / bobScale E < 1 := by
-  have hle : ∀ i, x i ≤ 1 := fun i =>
+  have hle (i : Fin n) : x i ≤ 1 :=
     (single_le_sum (fun j _ => (hx j).le) (mem_univ i)).trans hx1.le
   calc ∑ e : E, expoPow x e / bobScale E
-      ≤ ∑ _e : E, 1 / bobScale E :=
-        sum_le_sum fun e _ => div_le_div_of_nonneg_right
-          (expoPow_le_one (fun i => (hx i).le) hle e) bobScale_pos.le
-    _ = #E / bobScale E := by
-        simp [div_eq_mul_inv]
+      ≤ ∑ _e : E, 1 / bobScale E := sum_le_sum fun e _ =>
+        div_le_div_of_nonneg_right (expoPow_le_one (fun i => (hx i).le) hle e) bobScale_pos.le
     _ < 1 := by
-        rw [div_lt_one bobScale_pos]
-        linarith
+      simp only [sum_const, card_univ, Fintype.card_coe, nsmul_eq_mul, ← div_eq_mul_one_div,
+        div_lt_one bobScale_pos]
+      linarith
 
 /-- **The three-player construction** (original variant of the proof of Theorem 5 of
 [Datta2003]). If the table `E` is closed downwards and contains the exponents of every monomial of
@@ -409,50 +399,33 @@ theorem isTotallyMixedNash_game_iff (hE : IsLowerSet (E : Set (Fin n →₀ ℕ)
       (∀ j : Fin m, j.val < n → q (cCoord (.inr j)) = critterWeight E m) ∧
       (∀ j, 0 < q (cCoord (.inr j))) ∧ ∑ s, q (cCoord s) < 1 := by
   rw [game, CostGame.isTotallyMixedNash_simplexGame_iff (isBlockAffine_equation F)
-    (notMem_vars_equation F)]
-  have hb : (∀ e : E, q (bCoord e) = expoPow (fun i => q (aCoord i)) e / bobScale E) ↔
-      ∀ e : E, bobScale E * q (bCoord e) = expoPow (fun i => q (aCoord i)) e := by
-    refine forall_congr' fun e => ?_
-    rw [eq_div_iff bobScale_pos.ne', mul_comm]
-  rw [hb]
-  constructor
-  · rintro ⟨hpos, hsum, heq⟩
-    have hchain := bobScale_mul_eq_expoPow hE fun e => heq .critter (.inl e)
-    refine ⟨⟨fun i => hpos _, hsum .alice, fun j => ?_⟩, hchain, fun e => ?_, fun j hj => ?_,
-      fun j => hpos _, hsum .critter⟩
-    · rw [← eval_encode (hF j) hchain]
-      exact heq .critter (.inr j)
-    · have := heq .bob e
-      simp only [equation, map_sub, eval_X, eval_C] at this
-      linarith
-    · have := heq .alice ⟨j, hj⟩
-      simp only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C] at this
-      linarith
-  · rintro ⟨⟨ha, hasum, hF0⟩, hchain, hcb, hca, hcpos, hcsum⟩
-    refine ⟨fun v => ?_, fun w => ?_, fun w t => ?_⟩
-    · rcases v with ⟨_ | _ | _, t⟩
-      · exact ha t
-      · rw [← mul_pos_iff_of_pos_left bobScale_pos]
-        exact (hchain t).symm ▸ expoPow_pos ha t
-      · rcases t with e | j
-        · exact (hcb e).symm ▸ critterWeight_pos
-        · exact hcpos j
-    · rcases w with _ | _ | _
-      · exact hasum
-      · have := sum_expoPow_div_lt_one (E := E) ha hasum
-        refine lt_of_eq_of_lt (sum_congr rfl fun e _ => ?_) this
-        rw [eq_div_iff bobScale_pos.ne', mul_comm]
-        exact hchain e
-      · exact hcsum
-    · rcases w with _ | _ | _
-      · simp only [equation]
-        split_ifs with h
-        · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
-        · simp
-      · simp [equation, hcb]
-      · rcases t with e | j
-        · exact eval_chainEq_of_eq hE hchain e
-        · simp only [equation]
-          rw [eval_encode (hF j) hchain, hF0]
+    (notMem_vars_equation F), forall_congr' fun e : E => by
+      rw [eq_div_iff bobScale_pos.ne', mul_comm]]
+  refine ⟨fun ⟨hpos, hsum, heq⟩ => ?_,
+    fun ⟨⟨ha, hasum, hF0⟩, hchain, hcb, hca, hcpos, hcsum⟩ => ⟨?_, ?_, ?_⟩⟩
+  · have hchain := bobScale_mul_eq_expoPow hE fun e => heq .critter (.inl e)
+    refine ⟨⟨fun _ => hpos _, hsum .alice, fun j => ?_⟩, hchain, fun e => ?_, fun j hj => ?_,
+      fun _ => hpos _, hsum .critter⟩
+    · rw [← eval_encode (hF j) hchain]; exact heq .critter (.inr j)
+    · simpa only [equation, map_sub, eval_X, eval_C, sub_eq_zero] using heq .bob e
+    · simpa only [equation, j.2, ↓reduceDIte, map_sub, eval_X, eval_C, sub_eq_zero] using
+        heq .alice ⟨j, hj⟩
+  · rintro ⟨_ | _ | _, t⟩
+    · exact ha t
+    · exact (mul_pos_iff_of_pos_left bobScale_pos).1 ((hchain t).symm ▸ expoPow_pos ha t)
+    · exact t.rec (fun e => (hcb e).symm ▸ critterWeight_pos) hcpos
+  · rintro (_ | _ | _)
+    · exact hasum
+    · refine lt_of_eq_of_lt (sum_congr rfl fun e _ => ?_) (sum_expoPow_div_lt_one ha hasum)
+      rw [eq_div_iff bobScale_pos.ne', mul_comm]; exact hchain e
+    · exact hcsum
+  · rintro (_ | _ | _) t
+    · simp only [equation]; split_ifs with h
+      · simp [hca _ (show (⟨t, h⟩ : Fin m).val < n from t.2)]
+      · simp
+    · simp [equation, hcb]
+    · rcases t with e | j
+      · exact eval_chainEq_of_eq hE hchain e
+      · simp only [equation, eval_encode (hF j) hchain, hF0]
 
 end Cslib.GameTheory.DattaThree

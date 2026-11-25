@@ -81,11 +81,8 @@ theorem isTrimmed_append_singleton (l : List R) {a : R} (ha : a ≠ 0) :
 /-- Every nonempty trimmed list decomposes as `l ++ [a]` with `a ≠ 0`. -/
 theorem IsTrimmed.exists_append_singleton {p : List R} (hp : IsTrimmed p) (hne : p ≠ []) :
     ∃ l a, a ≠ 0 ∧ p = l ++ [a] := by
-  obtain ⟨l, a, rfl⟩ := List.eq_nil_or_concat p |>.resolve_left hne
-  refine ⟨l, a, ?_, by simp⟩
-  intro ha
-  subst ha
-  exact hp (by simp)
+  obtain ⟨l, a, rfl⟩ := (List.eq_nil_or_concat p).resolve_left hne
+  exact ⟨l, a, fun ha => hp (by simp [ha]), by simp⟩
 
 /-- Mapping along a zero-reflecting function preserves `IsTrimmed`. -/
 theorem IsTrimmed.map {S : Type*} [Zero S] {p : List R} (hp : IsTrimmed p) (f : R → S)
@@ -123,10 +120,8 @@ theorem isTrimmed_trim (p : List R) : IsTrimmed (trim p) := by
     split_ifs with h
     · exact isTrimmed_nil
     · rcases eq_or_ne (trim p) [] with hnil | hne
-      · have ha : a ≠ 0 := fun ha => h ⟨ha, List.isEmpty_iff.mpr hnil⟩
-        simpa [IsTrimmed, hnil] using ha
-      · rw [IsTrimmed, List.getLast?_cons_of_ne_nil hne]
-        exact ih
+      · simpa [IsTrimmed, hnil] using fun ha => h ⟨ha, List.isEmpty_iff.mpr hnil⟩
+      · rwa [IsTrimmed, List.getLast?_cons_of_ne_nil hne]
 
 /-- A list ending in a nonzero element is unchanged by `trim`. -/
 theorem trim_append_singleton (l : List R) {a : R} (ha : a ≠ 0) :
@@ -199,8 +194,7 @@ private theorem coeff_last_of_ne_nil {p : List R} (hne : p ≠ []) :
 theorem IsTrimmed.coeff_last_ne_zero {p : List R} (hp : IsTrimmed p) (hne : p ≠ []) :
     (ofCoeffList p).coeff (p.length - 1) ≠ 0 := by
   obtain ⟨l, a, ha, rfl⟩ := hp.exists_append_singleton hne
-  rw [coeff_last_of_ne_nil hne, List.getLastD_concat]
-  exact ha
+  rwa [coeff_last_of_ne_nil hne, List.getLastD_concat]
 
 /-- Every nonempty trimmed list represents a nonzero polynomial. -/
 theorem IsTrimmed.ofCoeffList_ne_zero {p : List R} (hp : IsTrimmed p) (hne : p ≠ []) :
@@ -244,16 +238,14 @@ theorem IsTrimmed.eq_of_ofCoeffList_eq {p q : List R} (hp : IsTrimmed p) (hq : I
     (h : ofCoeffList p = ofCoeffList q) : p = q := by
   rcases eq_or_ne p [] with rfl | hp0
   · exact (hq.eq_nil_iff.mpr (h.symm.trans ofCoeffList_nil)).symm
-  · have hq0 : q ≠ [] := fun hnil => hp.ofCoeffList_ne_zero hp0 (by rw [h, hnil, ofCoeffList_nil])
+  · have hq0 : q ≠ [] := fun hnil => hp.ofCoeffList_ne_zero hp0 (by simp [h, hnil])
+    have hdeg := (hp.natDegree_ofCoeffList hp0).symm.trans
+      ((congrArg natDegree h).trans (hq.natDegree_ofCoeffList hq0))
     have hplen := List.length_pos_of_ne_nil hp0
     have hqlen := List.length_pos_of_ne_nil hq0
-    have hdeg : (ofCoeffList p).natDegree = (ofCoeffList q).natDegree := congrArg natDegree h
-    rw [hp.natDegree_ofCoeffList hp0, hq.natDegree_ofCoeffList hq0] at hdeg
-    have hlen : p.length = q.length := by omega
-    refine List.ext_getElem hlen fun i hi hi' => ?_
-    have hc := congrArg (fun P => P.coeff i) h
+    refine List.ext_getElem (by omega) fun i hi hi' => ?_
     simpa only [coeff_ofCoeffList, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hi']
-      using hc
+      using congrArg (fun P => P.coeff i) h
 
 section DecidableEq
 
@@ -286,19 +278,16 @@ theorem length_trim_eq_natDegree_add_one {p : List R} (hp : ofCoeffList p ≠ 0)
   have hne : trim p ≠ [] := mt (trim_eq_nil_iff p).mp hp
   have hpos := List.length_pos_of_ne_nil hne
   have hdeg := (isTrimmed_trim p).natDegree_ofCoeffList hne
-  rw [ofCoeffList_trim] at hdeg
-  omega
+  rw [ofCoeffList_trim] at hdeg; omega
 
 /-- Vanishing of coefficients at and above `n` bounds `(trim p).length ≤ n`. -/
 theorem length_trim_le_of_coeff_eq_zero {p : List R} {n : ℕ}
     (h : ∀ k ≥ n, (ofCoeffList p).coeff k = 0) : (trim p).length ≤ n := by
   rcases eq_or_ne (trim p) [] with hnil | hne
   · simp [hnil]
-  · by_contra hlt
-    have hpos := List.length_pos_of_ne_nil hne
-    have h0 := h ((trim p).length - 1) (by omega)
-    rw [← ofCoeffList_trim p] at h0
-    exact (isTrimmed_trim p).coeff_last_ne_zero hne h0
+  · refine not_lt.mp fun hlt => (isTrimmed_trim p).coeff_last_ne_zero hne ?_
+    rw [ofCoeffList_trim]
+    exact h _ (Nat.le_sub_one_of_lt hlt)
 
 end DecidableEq
 
@@ -310,18 +299,13 @@ private theorem length_zipWithAll {α β γ : Type*} (f : Option α → Option �
     (p : List α) (q : List β) : (List.zipWithAll f p q).length = max p.length q.length := by
   induction p generalizing q with
   | nil => simp
-  | cons a p ih =>
-    cases q with
-    | nil => simp
-    | cons b q => simp [ih, Nat.succ_max_succ]
+  | cons a p ih => cases q <;> simp [ih, Nat.succ_max_succ]
 
 private theorem sum_map_range {M : Type*} [AddCommMonoid M] (f : ℕ → M) (n : ℕ) :
     ((List.range n).map f).sum = ∑ i ∈ Finset.range n, f i := by
   induction n with
   | zero => simp
-  | succ n ih =>
-    rw [List.range_succ, List.map_append, List.sum_append, Finset.sum_range_succ, ih]
-    simp
+  | succ n ih => simp [List.range_succ, Finset.sum_range_succ, ih]
 
 section Semiring
 
@@ -401,9 +385,7 @@ theorem length_shift_le (k : ℕ) (p : List R) : (shift k p).length ≤ k + p.le
 /-- `mul p q` is trimmed. -/
 theorem isTrimmed_mul (p q : List R) : IsTrimmed (mul p q) := by
   unfold mul
-  split_ifs
-  · exact isTrimmed_nil
-  · exact isTrimmed_trim _
+  split_ifs; exacts [isTrimmed_nil, isTrimmed_trim _]
 
 /-- `trim` is the identity on `mul p q`. -/
 @[simp] theorem trim_mul (p q : List R) : trim (mul p q) = mul p q :=
@@ -421,12 +403,10 @@ theorem length_mul_le (p q : List R) : (mul p q).length ≤ p.length + q.length 
     ofCoeffList (mul p q) = ofCoeffList p * ofCoeffList q := by
   unfold mul
   split_ifs with h
-  · simp only [Bool.or_eq_true, List.isEmpty_iff] at h
-    rcases h with rfl | rfl <;> simp
+  · rcases (by simpa [List.isEmpty_iff] using h : p = [] ∨ q = []) with rfl | rfl <;> simp
   · simp only [Bool.not_eq_true, Bool.or_eq_false_iff, List.isEmpty_eq_false_iff] at h
-    rcases h with ⟨hp, hq⟩
-    have hp_pos := List.length_pos_of_ne_nil hp
-    have hq_pos := List.length_pos_of_ne_nil hq
+    have hp_pos := List.length_pos_of_ne_nil h.1
+    have hq_pos := List.length_pos_of_ne_nil h.2
     rw [ofCoeffList_trim]
     ext k
     rw [coeff_ofCoeffList, coeff_mul, Finset.Nat.sum_antidiagonal_eq_sum_range_succ
@@ -436,11 +416,9 @@ theorem length_mul_le (p q : List R) : (mul p q).length ≤ p.length + q.length 
     · rw [List.getD_eq_getElem _ _ (by simpa using hk), List.getElem_map, List.getElem_range,
         sum_map_range]
     · rw [List.getD_eq_default _ _ (by simp only [List.length_map, List.length_range]; omega)]
-      symm
-      refine Finset.sum_eq_zero fun i hi => ?_
-      rw [Finset.mem_range] at hi
+      refine (Finset.sum_eq_zero fun i hi => ?_).symm
       by_cases hip : i < p.length
-      · rw [List.getD_eq_default q _ (by omega), mul_zero]
+      · rw [List.getD_eq_default q _ (by rw [Finset.mem_range] at hi; omega), mul_zero]
       · rw [List.getD_eq_default p _ (by omega), zero_mul]
 
 /-- Formal derivative of a coefficient list, returning a trimmed list. -/

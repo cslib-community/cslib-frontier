@@ -118,17 +118,14 @@ theorem spillUniv_mul_two_pow_lt (X r_sp : ℕ) :
   have hle := Nat.div_mul_le_self (X + 2 ^ memBits X r_sp - 1) (2 ^ memBits X r_sp)
   wram_omega
 
-theorem spillUniv_pos {X : ℕ} (hX : 1 ≤ X) (r_sp : ℕ) : 0 < spillUniv X r_sp := by
-  by_contra h
-  have h0 : spillUniv X r_sp = 0 := Nat.eq_zero_of_not_pos h
-  have hle := le_spillUniv_mul_two_pow X r_sp
-  rw [h0, zero_mul] at hle
-  omega
+theorem spillUniv_pos {X : ℕ} (hX : 1 ≤ X) (r_sp : ℕ) : 0 < spillUniv X r_sp :=
+  Nat.pos_of_ne_zero fun h0 => by
+    have hle := le_spillUniv_mul_two_pow X r_sp
+    rw [h0, zero_mul] at hle; omega
 
 theorem encode_div_lt {X : ℕ} (r_sp : ℕ) (x : Fin X) :
-    x.val / 2 ^ memBits X r_sp < spillUniv X r_sp := by
-  have hcov := le_spillUniv_mul_two_pow X r_sp
-  exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact lt_of_lt_of_le x.isLt hcov)
+    x.val / 2 ^ memBits X r_sp < spillUniv X r_sp :=
+  Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact x.isLt.trans_le (le_spillUniv_mul_two_pow _ _))
 
 /-- Encode `x : Fin X` into spillover index `k = x / 2 ^ M` and memory word `m = x % 2 ^ M`. -/
 @[expose]
@@ -158,19 +155,12 @@ theorem decodeVal_injective (X r_sp : ℕ) :
     Function.Injective (decodeVal (X := X) (r_sp := r_sp)) := by
   rintro ⟨k₁, m₁⟩ ⟨k₂, m₂⟩ h
   dsimp only [decodeVal] at h
-  have hdiv : k₁.val = k₂.val := by
-    have h1 : (k₁.val * 2 ^ memBits X r_sp + m₁.val) / 2 ^ memBits X r_sp = k₁.val := by
-      rw [Nat.mul_comm, Nat.mul_add_div (Nat.two_pow_pos _),
-        Nat.div_eq_zero_iff.mpr (.inr m₁.isLt), add_zero]
-    have h2 : (k₂.val * 2 ^ memBits X r_sp + m₂.val) / 2 ^ memBits X r_sp = k₂.val := by
-      rw [Nat.mul_comm, Nat.mul_add_div (Nat.two_pow_pos _),
-        Nat.div_eq_zero_iff.mpr (.inr m₂.isLt), add_zero]
-    rw [← h1, ← h2, h]
-  ext
-  · exact hdiv
-  · dsimp only
-    rw [hdiv] at h
-    omega
+  have hdiv (k : Fin (spillUniv X r_sp)) (m : Fin (2 ^ memBits X r_sp)) :
+      (k.val * 2 ^ memBits X r_sp + m.val) / 2 ^ memBits X r_sp = k.val := by
+    rw [Nat.mul_comm, Nat.mul_add_div (Nat.two_pow_pos _),
+      Nat.div_eq_zero_iff.mpr (.inr m.isLt), add_zero]
+  have hk : k₁.val = k₂.val := by rw [← hdiv k₁ m₁, ← hdiv k₂ m₂, h]
+  exact Prod.ext (Fin.ext hk) (Fin.ext (by rw [hk] at h; exact Nat.add_left_cancel h))
 
 @[simp]
 theorem encode_decodeVal {X r_sp : ℕ}
@@ -179,7 +169,7 @@ theorem encode_decodeVal {X r_sp : ℕ}
   decodeVal_injective X r_sp (decodeVal_encode r_sp ⟨decodeVal km, h⟩)
 
 theorem encode_injective {X : ℕ} (r_sp : ℕ) :
-    Function.Injective (encode (X := X) r_sp) := fun x₁ x₂ h =>
+    Function.Injective (encode (X := X) r_sp) := fun _ _ h =>
   Fin.ext (by simpa using congrArg decodeVal h)
 
 @[simp]
@@ -190,15 +180,11 @@ theorem decode?_encode {X : ℕ} (r_sp : ℕ) (x : Fin X) :
 theorem decode?_eq_some_iff {X : ℕ} (r_sp : ℕ)
     (km : Fin (spillUniv X r_sp) × Fin (2 ^ memBits X r_sp)) (x : Fin X) :
     decode? r_sp km = some x ↔ encode r_sp x = km := by
-  constructor
-  · intro h
-    dsimp only [decode?] at h
-    split_ifs at h with hlt
-    · injection h with hx
-      rw [← hx]
-      exact encode_decodeVal km hlt
-  · rintro rfl
-    exact decode?_encode r_sp x
+  refine ⟨fun h => ?_, by rintro rfl; exact decode?_encode r_sp x⟩
+  dsimp only [decode?] at h
+  split_ifs at h with hlt
+  injection h with hx
+  exact hx ▸ encode_decodeVal km hlt
 
 /-- Exact bijection between `Fin X` and valid spillover pairs `{km // decodeVal km < X}`. -/
 def equiv (X r_sp : ℕ) :
@@ -232,33 +218,27 @@ private theorem mul_two_pow_memBits_le {X r_sp : ℕ} (hr : r_sp ≤ X) :
 
 /-- When `r_sp ≤ X`, `r_sp ≤ spillUniv X r_sp`. -/
 theorem le_spillUniv_of_le {X r_sp : ℕ} (hrX : r_sp ≤ X) :
-    r_sp ≤ spillUniv X r_sp := by
-  have h1 := mul_two_pow_memBits_le hrX
-  have h2 := le_spillUniv_mul_two_pow X r_sp
-  exact Nat.le_of_mul_le_mul_right (h1.trans h2) (Nat.two_pow_pos _)
+    r_sp ≤ spillUniv X r_sp :=
+  Nat.le_of_mul_le_mul_right ((mul_two_pow_memBits_le hrX).trans (le_spillUniv_mul_two_pow X r_sp))
+    (Nat.two_pow_pos _)
 
 /-- When `r_sp * 2 ^ M < X` (for `r_sp ≤ X`, i.e. when `X ≠ r_sp * 2 ^ M`),
 `r_sp < spillUniv X r_sp`. -/
 theorem lt_spillUniv_of_mul_two_pow_lt {X r_sp : ℕ} (h : r_sp * 2 ^ memBits X r_sp < X) :
-    r_sp < spillUniv X r_sp := by
-  have hcov := le_spillUniv_mul_two_pow X r_sp
-  exact Nat.lt_of_mul_lt_mul_right (lt_of_lt_of_le h hcov)
+    r_sp < spillUniv X r_sp :=
+  Nat.lt_of_mul_lt_mul_right (h.trans_le (le_spillUniv_mul_two_pow X r_sp))
 
 /-- Upper bound `K ≤ 2 * r_sp` in Lemma 3.8. -/
 theorem spillUniv_le_two_mul {X r_sp : ℕ} (hr : 1 ≤ r_sp) :
     spillUniv X r_sp ≤ 2 * r_sp := by
   by_cases hXr : X ≤ r_sp
   · rw [spillUniv_of_le hXr]; omega
-  · have hlog : X / r_sp < 2 ^ (memBits X r_sp + 1) := by
-      rw [memBits_eq_log_div]
-      exact Nat.lt_pow_succ_log_self Nat.one_lt_two (X / r_sp)
+  · have hlog : X / r_sp < 2 * 2 ^ memBits X r_sp := by
+      simpa only [memBits_eq_log_div, Nat.pow_succ'] using
+        Nat.lt_pow_succ_log_self Nat.one_lt_two (X / r_sp)
     have hXlt : X < 2 * r_sp * 2 ^ memBits X r_sp := by
-      have hdiv := Nat.div_add_mod X r_sp
-      have hmod : X % r_sp < r_sp := Nat.mod_lt X hr
-      rw [Nat.pow_succ'] at hlog
-      nlinarith
+      nlinarith [Nat.div_add_mod X r_sp, Nat.mod_lt X hr]
     have hP : 0 < 2 ^ memBits X r_sp := Nat.two_pow_pos _
-    dsimp only [spillUniv]
     refine Nat.le_of_lt_succ (Nat.div_lt_of_lt_mul ?_)
     rw [Nat.succ_eq_add_one, Nat.mul_add, Nat.mul_one, Nat.mul_comm (2 ^ memBits X r_sp)]
     omega
@@ -268,21 +248,17 @@ theorem mul_spillUniv_mul_two_pow_le {X r_sp : ℕ} (hr : 1 ≤ r_sp) :
     r_sp * (spillUniv X r_sp * 2 ^ memBits X r_sp) ≤ (r_sp + 1) * X := by
   by_cases hXr : X ≤ r_sp
   · rw [spillUniv_of_le hXr, memBits_of_le hXr]; nlinarith
-  · have hle : r_sp * 2 ^ memBits X r_sp ≤ X := mul_two_pow_memBits_le (Nat.le_of_not_ge hXr)
-    have hlt := spillUniv_mul_two_pow_lt X r_sp
-    nlinarith
+  · nlinarith [mul_two_pow_memBits_le (Nat.le_of_not_ge hXr), spillUniv_mul_two_pow_lt X r_sp]
 
 /-- Rational ratio form of Lemma 3.8: `(K * 2 ^ M) / X ≤ 1 + 1 / r_sp`. -/
 theorem spillUniv_mul_two_pow_div_le_rat {X r_sp : ℕ} (hX : 1 ≤ X) (hr : 1 ≤ r_sp) :
     ((spillUniv X r_sp * 2 ^ memBits X r_sp : ℕ) : ℚ) / X ≤ 1 + 1 / r_sp := by
   have hX0 : (0 : ℚ) < X := by positivity
   have hr0 : (0 : ℚ) < r_sp := by positivity
-  have hnat : (r_sp : ℚ) * (spillUniv X r_sp * 2 ^ memBits X r_sp : ℕ) ≤
-      ((r_sp : ℚ) + 1) * X := by exact_mod_cast mul_spillUniv_mul_two_pow_le (X := X) hr
   rw [div_le_iff₀ hX0]
-  have hcalc : (1 + 1 / (r_sp : ℚ)) * X * r_sp = ((r_sp : ℚ) + 1) * X := by
-    field_simp
-  nlinarith
+  nlinarith [show (r_sp : ℚ) * (spillUniv X r_sp * 2 ^ memBits X r_sp : ℕ) ≤
+      ((r_sp : ℚ) + 1) * X by exact_mod_cast mul_spillUniv_mul_two_pow_le (X := X) hr,
+    show (1 + 1 / (r_sp : ℚ)) * X * r_sp = ((r_sp : ℚ) + 1) * X by field_simp]
 
 /-- When `X ≤ r_sp`, the spillover representation incurs zero bit redundancy (`Footnote 4`). -/
 theorem memBits_add_logb_spillUniv_eq_of_le {X r_sp : ℕ} (hXr : X ≤ r_sp) :
@@ -296,67 +272,48 @@ theorem memBits_add_logb_spillUniv_le {X r_sp : ℕ} (hX : 1 ≤ X) (hr : 1 ≤ 
   have hKpos : (0 : ℝ) < spillUniv X r_sp := by exact_mod_cast spillUniv_pos hX r_sp
   have hXpos : (0 : ℝ) < X := by positivity
   have hrpos : (0 : ℝ) < r_sp := by positivity
-  have h2Mpos : (0 : ℝ) < (2 : ℝ) ^ memBits X r_sp := by positivity
-  have hlhs : (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp) =
-      Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := by
-    rw [Real.logb_mul hKpos.ne' h2Mpos.ne', Real.logb_two_pow]
-    ring
   have hprod_le : (spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp ≤
       X * (1 + 1 / (r_sp : ℝ)) := by
-    have hnat : (r_sp : ℝ) * ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) ≤
-        ((r_sp : ℝ) + 1) * X := by exact_mod_cast mul_spillUniv_mul_two_pow_le (X := X) hr
-    have hcalc : X * (1 + 1 / (r_sp : ℝ)) * r_sp = ((r_sp : ℝ) + 1) * X := by
-      field_simp
-    nlinarith
+    nlinarith [show (r_sp : ℝ) * ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) ≤
+        ((r_sp : ℝ) + 1) * X by exact_mod_cast mul_spillUniv_mul_two_pow_le (X := X) hr,
+      show X * (1 + 1 / (r_sp : ℝ)) * r_sp = ((r_sp : ℝ) + 1) * X by field_simp]
   have hlog1 : Real.log (1 + 1 / (r_sp : ℝ)) ≤ 1 / (r_sp : ℝ) := by
-    have h := Real.log_le_sub_one_of_pos (by positivity : (0 : ℝ) < 1 + 1 / (r_sp : ℝ))
-    linarith
+    linarith [Real.log_le_sub_one_of_pos (by positivity : (0 : ℝ) < 1 + 1 / (r_sp : ℝ))]
   have hlogb : Real.logb 2 (1 + 1 / (r_sp : ℝ)) ≤ 2 / (r_sp : ℝ) := by
     rw [Real.logb, div_le_div_iff₀ (Real.log_pos (by norm_num)) hrpos]
-    have hmul : Real.log (1 + 1 / (r_sp : ℝ)) * r_sp ≤ 1 := by
-      calc Real.log (1 + 1 / (r_sp : ℝ)) * r_sp
-          ≤ (1 / (r_sp : ℝ)) * r_sp := mul_le_mul_of_nonneg_right hlog1 hrpos.le
-        _ = 1 := one_div_mul_cancel hrpos.ne'
-    linarith [Real.log_two_gt_d9]
-  calc (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp)
-      = Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := hlhs
-    _ ≤ Real.logb 2 (X * (1 + 1 / (r_sp : ℝ))) :=
-        Real.logb_le_logb_of_le (by norm_num) (by positivity) hprod_le
-    _ = Real.logb 2 X + Real.logb 2 (1 + 1 / (r_sp : ℝ)) :=
-        Real.logb_mul hXpos.ne' (by positivity)
-    _ ≤ Real.logb 2 X + 2 / (r_sp : ℝ) := by linarith
+    linarith [Real.log_two_gt_d9,
+      (mul_le_mul_of_nonneg_right hlog1 hrpos.le).trans_eq (one_div_mul_cancel hrpos.ne')]
+  have hlhs : (memBits X r_sp : ℝ) + Real.logb 2 (spillUniv X r_sp) =
+      Real.logb 2 ((spillUniv X r_sp : ℝ) * (2 : ℝ) ^ memBits X r_sp) := by
+    rw [Real.logb_mul hKpos.ne' (by positivity), Real.logb_two_pow]
+    ring
+  linarith [Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hprod_le,
+    Real.logb_mul (b := 2) hXpos.ne' (by positivity : (1 + 1 / (r_sp : ℝ)) ≠ 0)]
 
 /-- Batch `ℕ` bound across `n` payloads at spillover parameter `r_sp = n`:
 `(K * 2 ^ M) ^ n ≤ 3 * X ^ n` (since `(1 + 1 / n) ^ n ≤ e < 3`). -/
 theorem pow_spillUniv_mul_two_pow_le_three_mul {X n : ℕ} (hn : 1 ≤ n) :
     (spillUniv X n * 2 ^ memBits X n) ^ n ≤ 3 * X ^ n := by
   have hnR : (0 : ℝ) < n := by positivity
-  have h1n : (1 + 1 / (n : ℝ)) ^ n ≤ 3 := by
-    calc (1 + 1 / (n : ℝ)) ^ n
-        = (1 / (n : ℝ) + 1) ^ n := by ring
+  have h1n : (1 + 1 / (n : ℝ)) ^ n ≤ 3 :=
+    calc (1 + 1 / (n : ℝ)) ^ n = (1 / (n : ℝ) + 1) ^ n := by ring
       _ ≤ (Real.exp (1 / (n : ℝ))) ^ n :=
-          pow_le_pow_left₀ (by positivity) (Real.add_one_le_exp (1 / (n : ℝ))) n
+          pow_le_pow_left₀ (by positivity) (Real.add_one_le_exp _) n
       _ = Real.exp 1 := by
           rw [← Real.exp_nat_mul]
-          congr 1
-          field_simp
+          exact congrArg Real.exp (by field_simp)
       _ ≤ 3 := by linarith [Real.exp_one_lt_d9]
   have hpow_nat : (n + 1) ^ n ≤ 3 * n ^ n := by
-    have hR : ((n : ℝ) + 1) ^ n ≤ 3 * (n : ℝ) ^ n := by
-      have heq : ((n : ℝ) + 1) ^ n = (1 + 1 / (n : ℝ)) ^ n * (n : ℝ) ^ n := by
-        rw [← mul_pow]; congr 1; field_simp
-      rw [heq]
-      exact mul_le_mul_of_nonneg_right h1n (by positivity)
-    exact_mod_cast hR
-  have hstep := Nat.pow_le_pow_left (mul_spillUniv_mul_two_pow_le (X := X) hn) n
-  have hbound : n ^ n * (spillUniv X n * 2 ^ memBits X n) ^ n ≤ n ^ n * (3 * X ^ n) :=
-    calc n ^ n * (spillUniv X n * 2 ^ memBits X n) ^ n
-        = (n * (spillUniv X n * 2 ^ memBits X n)) ^ n := (Nat.mul_pow _ _ _).symm
-      _ ≤ ((n + 1) * X) ^ n := hstep
-      _ = (n + 1) ^ n * X ^ n := Nat.mul_pow _ _ _
-      _ ≤ 3 * n ^ n * X ^ n := Nat.mul_le_mul_right _ hpow_nat
-      _ = n ^ n * (3 * X ^ n) := by ring
-  exact Nat.le_of_mul_le_mul_left hbound (Nat.pow_pos hn)
+    exact_mod_cast (show ((n : ℝ) + 1) ^ n = (1 + 1 / (n : ℝ)) ^ n * (n : ℝ) ^ n by
+      rw [← mul_pow]; exact congrArg (· ^ n) (by field_simp)).trans_le
+      (mul_le_mul_of_nonneg_right h1n (by positivity))
+  refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := n) hn)
+  calc n ^ n * (spillUniv X n * 2 ^ memBits X n) ^ n
+      = (n * (spillUniv X n * 2 ^ memBits X n)) ^ n := (Nat.mul_pow _ _ _).symm
+    _ ≤ ((n + 1) * X) ^ n := Nat.pow_le_pow_left (mul_spillUniv_mul_two_pow_le hn) n
+    _ = (n + 1) ^ n * X ^ n := Nat.mul_pow _ _ _
+    _ ≤ 3 * n ^ n * X ^ n := Nat.mul_le_mul_right _ hpow_nat
+    _ = n ^ n * (3 * X ^ n) := by ring
 
 private theorem clog_two_mul_two_pow {a : ℕ} (ha : 1 ≤ a) (m : ℕ) :
     Nat.clog 2 (a * 2 ^ m) = Nat.clog 2 a + m := by
