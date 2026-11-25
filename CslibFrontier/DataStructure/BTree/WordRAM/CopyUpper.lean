@@ -115,30 +115,24 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have haz_le := nodeAddr_add_le_arena (base := base) hz_cap (o := 6 * t) le_rfl
   have hsep : nodeAddr base t c + 6 * t ≤ nodeAddr base t z ∨
       nodeAddr base t z + 6 * t ≤ nodeAddr base t c := nodeAddr_sep base t hcz
-  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_ac : Fits w (nodeAddr base t c) := hfit.of_le (by omega)
-  have hf_ac1 : Fits w (nodeAddr base t c + 1) := hfit.of_le (by omega)
-  have hf_ac2 : Fits w (nodeAddr base t c + 2) := hfit.of_le (by omega)
-  have hf_ac2t : Fits w (nodeAddr base t c + 2 + t) := hfit.of_le (by omega)
-  have hf_zmul : Fits w (z * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_zb0 : Fits w (base + z * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_zb1 : Fits w (base + z * (6 * t) + 1) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_az : Fits w (nodeAddr base t z) := hfit.of_le (by omega)
-  have hf_az1 : Fits w (nodeAddr base t z + 1) := hfit.of_le (by omega)
-  have hf_az2 : Fits w (nodeAddr base t z + 2) := hfit.of_le (by omega)
-  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   have hna_c : base + c * (6 * t) + 1 + 1 = nodeAddr base t c := by
     simp only [nodeAddr, nodeStride]; omega
   have hna_z : base + z * (6 * t) + 1 + 1 = nodeAddr base t z := by
     simp only [nodeAddr, nodeStride]; omega
+  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_ac : Fits w (nodeAddr base t c) := hfit.of_le (by omega)
+  have hf_ac1 : Fits w (nodeAddr base t c + 1) := hfit.of_le (by omega)
+  have hf_ac2 : Fits w (nodeAddr base t c + 2) := hfit.of_le (by omega)
+  have hf_ac2t : Fits w (nodeAddr base t c + 2 + t) := hfit.of_le (by omega)
+  have hf_zmul : Fits w (z * (6 * t)) := hfit.of_le (by omega)
+  have hf_zb0 : Fits w (base + z * (6 * t)) := hfit.of_le (by omega)
+  have hf_zb1 : Fits w (base + z * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_az : Fits w (nodeAddr base t z) := hfit.of_le (by omega)
+  have hf_az1 : Fits w (nodeAddr base t z + 1) := hfit.of_le (by omega)
+  have hf_az2 : Fits w (nodeAddr base t z + 2) := hfit.of_le (by omega)
+  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   -- Step 1: `copyUpperPre1` + `copyArrayCode` (keys)
   let x₁ : Data 20 :=
     (((((((((((((x.set rSrc (c * (6 * t))).set rSrc (base + c * (6 * t))).set rSrc
@@ -318,17 +312,10 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
     intro addr hnot
     rw [hymem]
-    apply memCopyUpper_outside ht
-    · by_contra hc_in
-      apply hnot
-      simp only [Block.mem_footprint, Block.Owns, nodeStride] at hc_in ⊢
-      have := base_lt_nodeAddr base t c 0
-      omega
-    · by_contra hz_in
-      apply hnot
-      simp only [Block.mem_footprint, Block.Owns, nodeStride] at hz_in ⊢
-      have := base_lt_nodeAddr base t z 0
-      omega
+    have := base_lt_nodeAddr base t c 0
+    have := base_lt_nodeAddr base t z 0
+    apply memCopyUpper_outside ht <;> by_contra h_in <;> apply hnot <;>
+      simp only [Block.mem_footprint, Block.Owns, nodeStride] at h_in ⊢ <;> omega
   refine ⟨y, hfull, hfull.bounded hbdd, hymem, hmod, ?_, fun reg hnot => ?_⟩
   · dsimp only [y]; wram_simp; exact hz₅
   · have hnot' := hnot
