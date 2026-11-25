@@ -133,27 +133,22 @@ theorem card_overloaded_le (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar)
     (fun i x => (hseq.sum_input_le hC1 i x).1) A
     (fun i x y h => (hseq.input_mem hA i x y h).1) (mul_pos hδ₀ hf) O hN
   rw [sum_fin_succ_cast] at hcount
-  have hNJ : J / (4 * Cπ * f) < N := by
-    simp only [N]; push_cast; exact Nat.lt_floor_add_one _
-  have hJN : (J : ℝ) * δ₀ < 4 * Cπ * N * δ₀ * f := by
-    rw [div_lt_iff₀ (by positivity)] at hNJ
-    nlinarith
-  have hkpos : (0 : ℝ) < k * (k + 1) := by
-    have : (0 : ℝ) < k := by exact_mod_cast hk
-    positivity
+  have hNJ : (J : ℝ) < N * (4 * Cπ * f) :=
+    (div_lt_iff₀ (by positivity)).mp <| by
+      simpa only [N, Nat.cast_add, Nat.cast_one] using Nat.lt_floor_add_one (J / (4 * Cπ * f))
+  have hkpos : (0 : ℝ) < k := Nat.cast_pos.mpr hk
   -- `#O N δ₀ f ≤ #A k (k + 1) / 2` and `2 C_π m k (k + 1) ≤ δ₀ J < 4 C_π N δ₀ f`
-  have key : (m : ℝ) * #O * (2 * Cπ * k * (k + 1)) ≤ #A * (2 * Cπ * k * (k + 1)) := by
-    have h1 : (m : ℝ) * #O * (2 * Cπ * k * (k + 1)) ≤ #O * (δ₀ * J) := by
-      have := mul_le_mul_of_nonneg_left hJm (Nat.cast_nonneg (α := ℝ) #O)
-      nlinarith
-    have h2 : (#O : ℝ) * (δ₀ * J) ≤ #O * (4 * Cπ * N * δ₀ * f) :=
-      mul_le_mul_of_nonneg_left (by nlinarith) (Nat.cast_nonneg _)
-    have h3 : (#O : ℝ) * (4 * Cπ * N * δ₀ * f) ≤ #A * (2 * Cπ * k * (k + 1)) := by
-      have := mul_le_mul_of_nonneg_left hcount (by positivity : (0 : ℝ) ≤ 4 * Cπ)
-      nlinarith
-    linarith
-  have : (m : ℝ) * #O ≤ #A := le_of_mul_le_mul_right key (by positivity)
-  exact_mod_cast this
+  have key : (m : ℝ) * #O * (2 * Cπ * k * (k + 1)) ≤ #A * (2 * Cπ * k * (k + 1)) :=
+    calc (m : ℝ) * #O * (2 * Cπ * k * (k + 1))
+        = #O * (2 * Cπ * m * k * (k + 1)) := by ring
+      _ ≤ #O * (δ₀ * J) := by gcongr
+      _ ≤ #O * (δ₀ * (N * (4 * Cπ * f))) := by gcongr
+      _ = 4 * Cπ * ((#O : ℝ) * N * (δ₀ * f)) := by ring
+      _ ≤ 4 * Cπ * (#A * (k * (k + 1) / 2)) := by
+          have := mul_le_mul_of_nonneg_left hcount (by positivity : (0 : ℝ) ≤ 4 * Cπ)
+          linarith
+      _ = #A * (2 * Cπ * k * (k + 1)) := by ring
+  exact_mod_cast le_of_mul_le_mul_right key (by positivity)
 
 /-- **Corrected pilot columns have few large entries** [OpenAI2026LogSpace, Lemma 4.3 (3)]. Under
 the hypotheses of `Matrix.le_columnDetector` with row-sum bound `k`, if `γ` vanishes from `4 / 5`
@@ -248,7 +243,7 @@ theorem detectedStage_rates (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar
       #(copyCover (m := m) A (overloaded M)) ≤ 2 * #A := by
   intro M E D
   have hct : ∀ t, 0 ≤ t → c t ≤ t := fun t ht =>
-    (hcθ t).trans (max_le (by nlinarith [mul_pos hθ hf]) ht)
+    (hcθ t).trans (max_le (by linarith [mul_pos hθ hf]) ht)
   have hO := card_overloaded_le (K := K) (k := k) (m := m) hch hf hCπ hϕ0 hϕ1 hδ₀ hϕδ hρ1 hJ hC0
     hC1 hA hc0 hct hγ0 hγ1 hJm
   refine copyStage_rates (φ := fun y t => c t * γ (M y)) (θ := θ) (L := L) (m := m) (χ := χ)

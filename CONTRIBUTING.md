@@ -7,12 +7,13 @@ in `.lake/packages/cslib/` after fetching dependencies. [AGENTS.md](AGENTS.md) d
 repository's workflow, file layout, proof, validation and review requirements. Upstream
 submissions follow the target repository's current process.
 
-For setup, start with [Build a checkout](README.md#build-a-checkout). The
+For setup, start with [Get oriented and build](manual/workflows/getting-started.md). The
 [guide](https://www.cslib.io/cslib-frontier/guide/) and
-[checked examples](README.md#start-here) introduce the APIs before you change them.
+[examples by topic](manual/README.md#library-map) introduce the APIs before you change them.
 
 ## Proposing and contributing work
 
+A suggestion can start with a result you would like to see and a source or example.
 Agree on a substantial development before implementing it. An issue in this repository, written
 with the [development template](.github/ISSUE_TEMPLATE/development.md), is one good way to
 propose a new direction; a pull request can also start the discussion. There is no separate
@@ -42,6 +43,12 @@ branches that add entries between the same neighbours conflict as text;
 `scripts/resolve_bib_conflict.py` merges the file entry by entry and refuses when both sides
 changed one entry. To have `git merge` use it for `references.bib`, run once per clone:
 `git config merge.bibkeys.driver 'python3 scripts/resolve_bib_conflict.py --driver %O %A %B'`.
+The manual's [bibliography](manual/sources.md) has one too, which merges its entries by key and
+the lines of each entry three ways, so edits to different lines of one entry merge:
+`git config merge.sourcesmd.driver 'python3 scripts/resolve_sources_conflict.py --driver %O %A %B'`.
+That file has one sentence per line, so that such edits touch different lines;
+`python3 scripts/sources_format.py --write` writes it so, and `scripts/check_operator_manual.py`
+reports lines that are not.
 The `mk_all` import aggregates have a similar opt-in driver, which merges their import lines as
 sets and writes them sorted:
 `git config merge.leanagg.driver 'python3 scripts/resolve_aggregate_conflict.py %O %A %B'`.
@@ -385,9 +392,10 @@ rerun `--update`.
 AI-assisted and human-written contributions follow the same standards. Disclose which AI tools
 you used and for what in the PR description. The contributor is responsible for the result and
 for resolving review findings; a generated proof or review is not evidence of human approval.
-Maintainers decide scope and acceptance, and arrange the independent API and correctness reviews
-required by [AGENTS.md](AGENTS.md#review-cycle). Contributors need not install a maintainer's
-agent tooling to submit a change.
+Maintainers decide scope. The independent API and correctness review required by
+[AGENTS.md](AGENTS.md#review-cycle) decides acceptance: agents perform it, and humans spot-check
+merged code rather than gating it. Contributors need not install a maintainer's agent tooling to
+submit a change.
 
 Use the [validation sequence](AGENTS.md#validation-sequence) for the project gates and
 when focused local checks or hosted CI supply the required evidence. `scripts/build.sh` and
@@ -490,7 +498,8 @@ scope, findings and their resolution, and any remaining limitations. Preserve en
 there for another contributor to assess the change; a path into a local `.lake/` directory is not
 a durable review record. Recheck changes made after review and identify the final reviewed revision.
 Link the hosted CI run for the final revision rather than asserting which checks passed. Keep review
-verdicts short: the revision, the verdict and the findings, linking evidence rather than pasting it.
+verdicts short: the [verdict line](policy/review.md#verdicts-claims-and-holds), which names the
+revision and reviewer, and the findings, linking evidence rather than pasting it.
 For descriptions with Lean declaration names, `python3 scripts/check_pr_names.py --pr N` can
 catch backticked names absent from the PR head. CI posts the same advisory notice; fix relevant
 findings without requiring a duplicate local run.

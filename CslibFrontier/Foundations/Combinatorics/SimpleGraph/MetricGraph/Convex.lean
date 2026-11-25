@@ -301,15 +301,10 @@ private lemma exists_cut_dart_of_notMem (hT : W.graph.IsTree) {S : Finset V}
       by_cases hy : y ∈ S
       · refine ⟨⟨(y, x), hadj.symm⟩, hx, hy, .refl x⟩
       · obtain ⟨d, hd_snd, hd_fst, hreach⟩ := ih hy hz
-        refine ⟨d, hd_snd, hd_fst, ?_⟩
-        have hne_e : s(x, y) ≠ d.edge := fun he => by
-          rcases Sym2.eq_iff.mp he with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-          · exact hx hd_fst
-          · exact hy hd_fst
-        have hne_adj : (W.graph.deleteEdges {d.edge}).Adj x y := by
-          rw [deleteEdges_adj]
-          exact ⟨hadj, fun h => hne_e (Set.mem_singleton_iff.mp h)⟩
-        exact hne_adj.reachable.trans hreach
+        have hadj' : (W.graph.deleteEdges {d.edge}).Adj x y := ⟨hadj, fun he => by
+          rcases Sym2.eq_iff.mp (Set.mem_singleton_iff.mp he.1) with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+          exacts [hx hd_fst, hy hd_fst]⟩
+        exact ⟨d, hd_snd, hd_fst, hadj'.reachable.trans hreach⟩
   obtain ⟨d, hd_snd, hd_fst, hreach⟩ := hstep q hv hu₀
   refine ⟨d, ?_, ?_⟩
   · rw [edgeProj_vertex_eq_weight_iff]
@@ -322,15 +317,10 @@ private lemma exists_cut_dart_of_notMem (hT : W.graph.IsTree) {S : Finset V}
     obtain ⟨p, hp⟩ := (W.connected d.fst u).exists_isPath
     have hsplit : d.snd ∈ p.support := by
       by_contra hsnd
-      have hne : ∀ e ∈ p.edges, e ≠ d.edge := fun e he hed => by
-        rw [hed] at he
-        have hed' : s(d.fst, d.snd) ∈ p.edges := he
-        exact hsnd (p.snd_mem_support_of_mem_edges hed')
-      have hr : (W.graph.deleteEdges {d.edge}).Reachable d.fst u :=
-        ⟨p.toDeleteEdges {d.edge} (fun e he hmem => by
-          rw [Set.mem_singleton_iff] at hmem
-          exact hne e he hmem)⟩
-      exact hnot hr.symm
+      refine hnot ⟨(p.toDeleteEdges {d.edge} fun e he hmem => hsnd ?_).reverse⟩
+      rw [Set.mem_singleton_iff] at hmem
+      subst hmem
+      exact p.snd_mem_support_of_mem_edges he
     exact hd_snd (hS.mem_of_mem_support hd_fst hu hp hsplit)
 
 theorem vertex_mem_subtree_iff (hT : W.graph.IsTree) {S : Finset V}
@@ -447,28 +437,17 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
         (p₂.dart_snd_mem_support_of_mem_darts hd₂)
     have h1_ne_u : d₁.snd ≠ u' := fun heq => hu'not (heq ▸ h1_mem)
     have h2_ne_u : d₂.snd ≠ u' := fun heq => hu'not (heq ▸ h2_mem)
-    have h1_ne_2 : d₁.snd ≠ d₂.snd := by
-      intro heq
-      have he1 : d₁.edge ∈ p₁.edges := by
-        simpa [Walk.edges_reverse] using Walk.edge_mem_edges_of_mem_darts hd₁
-      have he2 : d₂.edge ∈ p₂.edges := Walk.edge_mem_edges_of_mem_darts hd₂
-      have he_eq : d₁.edge = d₂.edge := by
-        change s(d₁.fst, d₁.snd) = s(d₂.fst, d₂.snd)
-        rw [show d₁.fst = v' from rfl, show d₂.fst = v' from rfl, heq]
-      have hnodup : p.edges.Nodup := hp.isTrail.edges_nodup
-      rw [← Walk.take_spec p hv'p, Walk.edges_append, List.nodup_append] at hnodup
-      exact hnodup.2.2 d₁.edge he1 d₂.edge he2 he_eq
-    have hcard3 : ({u', d₁.snd, d₂.snd} : Finset V).card ≤ 2 := by
-      refine hdeg v' hv'_S {u', d₁.snd, d₂.snd} fun x hx => ?_
+    have h1_ne_2 : d₁.snd ≠ d₂.snd := fun heq => by
+      have hnodup := hp.isTrail.edges_nodup
+      rw [← hp_spec, Walk.edges_append, List.nodup_append] at hnodup
+      exact hnodup.2.2 d₁.edge
+        (by simpa [Walk.edges_reverse] using Walk.edge_mem_edges_of_mem_darts hd₁) d₂.edge
+        (Walk.edge_mem_edges_of_mem_darts hd₂) (congrArg (fun x => s(v', x)) heq)
+    have hcard := hdeg v' hv'_S {u', d₁.snd, d₂.snd} fun x hx => by
       simp only [Finset.mem_insert, Finset.mem_singleton] at hx
       rcases hx with rfl | rfl | rfl
-      · exact ⟨hu'S, hadj.symm⟩
-      · exact ⟨hp_in_S _ h1_mem, d₁.adj⟩
-      · exact ⟨hp_in_S _ h2_mem, d₂.adj⟩
-    have hc3 : ({u', d₁.snd, d₂.snd} : Finset V).card = 3 := by
-      rw [Finset.card_insert_of_notMem, Finset.card_insert_of_notMem, Finset.card_singleton]
-      · exact fun h => h1_ne_2 (Finset.mem_singleton.mp h)
-      · simp [h1_ne_u.symm, h2_ne_u.symm]
+      exacts [⟨hu'S, hadj.symm⟩, ⟨hp_in_S _ h1_mem, d₁.adj⟩, ⟨hp_in_S _ h2_mem, d₂.adj⟩]
+    rw [Finset.card_eq_three.mpr ⟨_, _, _, h1_ne_u.symm, h2_ne_u.symm, h1_ne_2, rfl⟩] at hcard
     omega
   refine ⟨a, ha, b, hb, Set.Subset.antisymm ?_ fun z hz => ⟨a, ha, b, hb, hz⟩⟩
   rintro z ⟨u, hu, v, hv, hz⟩
@@ -482,29 +461,20 @@ theorem exists_adj_mem_branch_of_mem_subtree (hT : W.graph.IsTree) {S : Finset V
     (hy_S : y ∈ subtree W S) (hy_ne : y ≠ vertex c) :
     ∃ w ∈ S, W.graph.Adj c w ∧ y ∈ branch (vertex c) (vertex w) := by
   classical
-  have hne_univ : (Set.univ : Set W.graph.Dart).Nonempty := by
-    obtain ⟨u, _, v, _, hy_uv⟩ := hy_S
-    by_cases huv : u = v
-    · subst huv
-      rw [interval_eq_singleton_self] at hy_uv
-      have huc : u ≠ c := fun h => hy_ne (hy_uv.trans (h ▸ rfl))
-      obtain ⟨p⟩ := W.connected u c
-      exact ⟨p.firstDart (Walk.not_nil_of_ne huc), Set.mem_univ _⟩
-    · obtain ⟨p⟩ := W.connected u v
-      exact ⟨p.firstDart (Walk.not_nil_of_ne huv), Set.mem_univ _⟩
-  obtain ⟨d₀⟩ := hne_univ
+  obtain ⟨d₀⟩ : Nonempty W.graph.Dart := by
+    induction y using ind with
+    | vertex v =>
+      obtain ⟨p⟩ := W.connected v c
+      exact ⟨p.firstDart (Walk.not_nil_of_ne fun h => hy_ne (h ▸ rfl))⟩
+    | edgePoint d _ _ _ => exact ⟨d⟩
   obtain ⟨wmin, hwmin_pos, hwmin_le⟩ := exists_min_dart_weight (W := W) d₀
   have hdy : 0 < Dist.dist (vertex c : MetricGraph W) y := _root_.dist_pos.mpr hy_ne.symm
-  let r := min wmin (Dist.dist (vertex c : MetricGraph W) y) / 2
+  set r := min wmin (Dist.dist (vertex c : MetricGraph W) y) / 2 with hr
   have hr_pos : 0 < r := by positivity
   have hr_lt_w : ∀ d : W.graph.Dart, r < W.weight d.edge := fun d => by
-    have hd : wmin ≤ W.weight d.edge := hwmin_le d
-    have : r ≤ wmin / 2 := div_le_div_of_nonneg_right (min_le_left _ _) (by norm_num)
-    linarith
+    linarith [hwmin_le d, min_le_left wmin (Dist.dist (vertex c : MetricGraph W) y)]
   have hr_le_dy : r ≤ Dist.dist (vertex c : MetricGraph W) y := by
-    have : r ≤ Dist.dist (vertex c : MetricGraph W) y / 2 :=
-      div_le_div_of_nonneg_right (min_le_right _ _) (by norm_num)
-    linarith
+    linarith [min_le_right wmin (Dist.dist (vertex c : MetricGraph W) y)]
   obtain ⟨p, hp_mem, hp_dist, _⟩ :=
     exists_mem_interval_dist_eq (vertex c) y ⟨hr_pos.le, hr_le_dy⟩
   obtain ⟨d, t, hd_fst, ht0, ht1, rfl, _⟩ :=
@@ -568,13 +538,10 @@ theorem IsSubtreeVertexSet.removeBranch (hT : W.graph.IsTree) {S : Finset V}
   rw [mem_removeBranch_iff hT hadj] at hu hv ⊢
   refine ⟨hS.mem_of_mem_support hu.1 hv.1 hp hx, ?_⟩
   obtain ⟨q, hq⟩ := (hu.2.trans hv.2.symm).exists_isPath
-  let q' := q.map (SimpleGraph.Hom.ofLE (W.graph.deleteEdges_le {s(c, w)}))
-  have hq' : q'.IsPath := hq.map (fun _ _ h => h)
-  have hpath : (⟨p, hp⟩ : W.graph.Path u v) = ⟨q', hq'⟩ :=
-    (hT.isAcyclic.subsingleton_path u v).elim _ _
-  have hpq : p = q' := congrArg Subtype.val hpath
-  rw [hpq] at hx
-  have hx' : x ∈ q.support := by simpa [q', Walk.support_map] using hx
+  have hpq : p = q.map (SimpleGraph.Hom.ofLE (W.graph.deleteEdges_le {s(c, w)})) :=
+    congrArg Subtype.val ((hT.isAcyclic.subsingleton_path u v).elim ⟨p, hp⟩
+      ⟨_, hq.map fun _ _ h => h⟩)
+  have hx' : x ∈ q.support := by simpa [hpq, Walk.support_map] using hx
   have hrx : (W.graph.deleteEdges {s(c, w)}).Reachable x u := ⟨(q.takeUntil x hx').reverse⟩
   exact hrx.trans hu.2
 
@@ -604,19 +571,12 @@ theorem subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}
       mem_branch_vertex_iff_edgeProj_pos hT hadj, mem_removeBranch_iff hT hadj,
       mem_removeBranch_iff hT hadj]
     by_cases he : d'.edge = d.edge
-    · constructor
-      · rintro ⟨⟨_, hr1⟩, ⟨_, hr2⟩⟩
-        rcases (dart_edge_eq_iff d' d).mp he with rfl | rfl
-        · exact absurd hr2 hbridge
-        · exact absurd hr1 hbridge
-      · rintro ⟨_, hnot⟩
-        exfalso
-        apply hnot
-        rcases (dart_edge_eq_iff d' d).mp he with rfl | rfl
-        · rw [edgeProj_edgePoint_self]
-          exact mul_pos ht0 (W.dart_weight_pos d)
-        · rw [edgeProj_edgePoint_symm]
-          exact mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos d)
+    · rcases (dart_edge_eq_iff d' d).mp he with rfl | rfl
+      · rw [edgeProj_edgePoint_self]
+        exact iff_of_false (fun h => hbridge h.2.2) fun h => h.2 (mul_pos ht0 (W.dart_weight_pos _))
+      · rw [edgeProj_edgePoint_symm]
+        exact iff_of_false (fun h => hbridge h.1.2) fun h =>
+          h.2 (mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos _))
     · have hadj_del : (W.graph.deleteEdges {d.edge}).Adj d'.fst d'.snd :=
         ⟨d'.adj, fun h => he (Set.mem_singleton_iff.mp h.1)⟩
       rw [edgeProj_edgePoint_of_edge_ne hT he, not_lt]
@@ -636,10 +596,9 @@ theorem gate_subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}
     gate (subtree W (removeBranch W S c w)) z = vertex c := by
   refine gate_eq_of_forall_mem_interval
     (vertex_mem_subtree W ((mem_removeBranch_iff hT hadj).mpr ⟨hc, .refl c⟩)) fun z' hz' => ?_
-  rw [subtree_removeBranch hT hS hc hadj] at hz'
-  have hz'_not := hz'.2
-  rw [← branch_eq_of_mem hT hbr] at hz'_not
-  exact of_not_not hz'_not
+  rw [subtree_removeBranch hT hS hc hadj, Set.mem_inter_iff, Set.mem_compl_iff,
+    ← branch_eq_of_mem hT hbr] at hz'
+  exact of_not_not hz'.2
 
 end RemoveBranch
 

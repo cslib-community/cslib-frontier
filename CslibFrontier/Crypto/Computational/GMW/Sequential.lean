@@ -241,19 +241,7 @@ private theorem computableInPolyTime_seqStep {α : Type} {input : α ↪ List Bo
     funext a
     rcases h : (st a).2 with _ | ⟨coins, rest⟩ <;> simp [seqStep, h]
   rw [heq]
-  have hlist := hst.snd'
-  have hcoins := (ComputableInPolyTime.headD (encA := encProverCoins) ⟨[], []⟩).comp' hlist
-  have hempty :=
-    (ComputableInPolyTime.listIsEmpty' encProverCoins).comp' hlist
-  have htail :=
-    (ComputableInPolyTime.listTail encProverCoins).comp' hlist
-  exact hempty.ite' (.const ([], (false, [])))
-    (hst.fst'.ite'
-      ((computableInPolyTime_honestReply2 hs hφ hcoins
-        (ComputableInPolyTime.bitsRowWithInput (.const 3) (.const 0) hq)).prod
-        ((ComputableInPolyTime.const false).prod htail))
-      ((computableInPolyTime_honestReply1 hg hm hφ hcoins hq).prod
-        ((ComputableInPolyTime.const true).prod hlist)))
+  fun_prop
 
 theorem isPPTOn_runSeq_honest {α Caller : Type} {enc : α ↪ List Bool}
     {input : Caller ↪ List Bool}
@@ -770,7 +758,7 @@ theorem mem_support_sessionStep {k : ℕ} {Control : Type}
     st'.1 ≤ T ∧ FiniteConfig.SpaceBound W (T - st'.1) limit st'.2 := by
   simp only [sessionStep] at hst'
   obtain ⟨full, hfull, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hst'
-  have hinv := OracleComp.iterate_invariant
+  exact OracleComp.iterate_invariant
     (fun (_ : ℕ) (s : ℕ × ℕ × FiniteConfig k Bool Control Unit) =>
       s.1 ≤ T ∧ FiniteConfig.SpaceBound W (T - s.1) limit s.2.2)
     ⟨hrem, hcfg⟩
@@ -778,7 +766,6 @@ theorem mem_support_sessionStep {k : ℕ} {Control : Type}
       obtain ⟨h1, -, h3⟩ := mem_support_oneSessionStep machine limit hs1 hs2 hnext
       exact ⟨h1.trans hs1, h3⟩)
     full hfull
-  exact hinv
 
 /-- Running `runSeq` from the exhausted prover state `(false, [])` answers every query with `[]`,
 independently of `generator`, `s`, `m`, and `φ`. -/

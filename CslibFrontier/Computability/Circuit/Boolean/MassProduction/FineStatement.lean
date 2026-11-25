@@ -154,42 +154,29 @@ theorem exists_rat_coefficient {γ ε : ℝ} (hγ : 0 ≤ γ) (hγ1 : γ < 1) (h
   set ρ : ℚ := 1 - 1 / κ with hρ
   have hρv : (ρ : ℝ) = 1 - 1 / (κ : ℝ) := by simp [hρ]
   have hρlow : γ < (ρ : ℝ) := by
-    rw [hρv]
-    have := (div_lt_iff₀ hgap).mp hlow
-    have : 1 / (κ : ℝ) < 1 - γ := (div_lt_iff₀ hκ).mpr (by nlinarith)
-    linarith
+    rw [hρv]; linarith [(one_div_lt hκ hgap).mpr hlow]
   have hρup : (ρ : ℝ) < 1 := by
-    rw [hρv]
-    have := one_div_pos.mpr hκ
-    linarith
-  have hρ0 : 0 ≤ ρ := by exact_mod_cast hγ.trans hρlow.le
-  have hnum : 0 ≤ ρ.num := Rat.num_nonneg.mpr hρ0
+    rw [hρv]; linarith [one_div_pos.mpr hκ]
+  have hnum : 0 ≤ ρ.num := Rat.num_nonneg.mpr (by exact_mod_cast hγ.trans hρlow.le)
   have hfrac : (ρ : ℝ) = (ρ.num.toNat : ℝ) / ρ.den := by
-    rw [Rat.cast_def]
-    congr 1
-    exact_mod_cast (Int.toNat_of_nonneg hnum).symm
+    rw [Rat.cast_def]; congr 1; exact_mod_cast (Int.toNat_of_nonneg hnum).symm
   have hden : 0 < (ρ.den : ℝ) := by exact_mod_cast ρ.den_pos
   have hproper : ρ.num.toNat < ρ.den := by
-    rw [hfrac] at hρup
-    have := (div_lt_iff₀ hden).mp hρup
-    exact_mod_cast (by simpa using this : (ρ.num.toNat : ℝ) < ρ.den)
+    rw [hfrac, div_lt_one hden] at hρup
+    exact_mod_cast hρup
   have hident : (κ : ℝ) * ((ρ.den - ρ.num.toNat : ℕ) : ℝ) = ρ.den := by
-    rw [Nat.cast_sub hproper.le]
-    have h1 := div_mul_cancel₀ (1 : ℝ) (ne_of_gt hκ)
-    have h2 := (eq_div_iff (ne_of_gt hden)).mp hfrac
-    rw [hρv] at h2
-    nlinarith
+    rw [Nat.cast_sub hproper.le, ← (eq_div_iff hden.ne').mp hfrac, hρv, sub_mul, one_mul,
+      sub_sub_cancel, ← mul_assoc, mul_one_div_cancel hκ.ne', one_mul]
   have herr : 0 < target - (κ : ℝ) := sub_pos.mpr hup
   obtain ⟨P, hP⟩ := exists_nat_gt ((κ : ℝ) / (target - κ))
-  have hP0 : 0 < P := by
-    have : (0 : ℝ) < P := (div_pos hκ herr).trans hP
-    exact_mod_cast this
+  have hP0 : 0 < P := by exact_mod_cast (div_pos hκ herr).trans hP
   have hPs := (div_lt_iff₀ herr).mp hP
+  rw [mul_sub] at hPs
   refine ⟨ρ.num.toNat, ρ.den, P, hproper, hP0, by rwa [← hfrac], ?_⟩
-  have hlead : ((P : ℝ) + 1) * κ ≤ target * P := by nlinarith
   calc ((P : ℝ) + 1) * ρ.den = (((P : ℝ) + 1) * κ) * ((ρ.den - ρ.num.toNat : ℕ) : ℝ) := by
         rw [mul_assoc, hident]
-    _ ≤ target * P * ((ρ.den - ρ.num.toNat : ℕ) : ℝ) := by gcongr
+    _ ≤ target * P * ((ρ.den - ρ.num.toNat : ℕ) : ℝ) :=
+        mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg _)
 
 /-- A real copy budget `2 ^ (γ n)` below a rational exponent `num / den` is within the core
 budget `2 ^ (⌊num n / den⌋ + 1)`. -/

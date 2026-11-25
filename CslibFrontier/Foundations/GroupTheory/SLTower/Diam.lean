@@ -46,10 +46,8 @@ def PL (h2 : 2 ≤ h) (n : ℕ) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (N : ℕ) 
 
 omit [NeZero h] in
 theorem lay_zero : lay (h := h) (n := n) 0 (trace_zero _ _) = 1 := by
-  refine Subtype.ext ?_
-  rw [lay_val, layMat]
-  ext a b
-  simp
+  refine Subtype.ext <| Matrix.ext fun a b => ?_
+  simp [lay_val, layMat]
 
 theorem PL.zero (N : ℕ) : PL h2 n 0 N :=
     ⟨trace_zero _ _, by rw [lay_zero]; exact WL.one.mono (Nat.zero_le _)⟩
@@ -86,10 +84,8 @@ theorem lay_single (i j : Fin h) (hij : i ≠ j) (htr : (Matrix.single i j (1 : 
   rw [lay_val, layMat, SpecialLinearGroup.transvection_coe]
   congr 1
   ext a b
-  rw [Matrix.smul_apply, Matrix.map_apply, Matrix.single_apply, Matrix.single_apply, smul_eq_mul]
-  split_ifs
-  · rw [map_one, mul_one]
-  · rw [map_zero, mul_zero]
+  simp only [Matrix.smul_apply, Matrix.map_apply, Matrix.single_apply, smul_eq_mul]
+  split_ifs <;> simp
 
 
 theorem PL.single (h3 : 3 ≤ h) (i j : Fin h) (hij : i ≠ j) : PL h2 n (Matrix.single i j 1)
@@ -118,16 +114,9 @@ theorem lay_diag (i : Fin h) (hi : i ≠ 0) :
     rw [layMat, ← hσ]
     congr 1
     ext a b
-    rw [Matrix.smul_apply, Matrix.map_apply, Matrix.add_apply, Matrix.add_apply,
-        Matrix.single_apply,
-      Matrix.single_apply, Matrix.single_apply, Matrix.single_apply, smul_eq_mul, map_add, mul_add]
-    congr 1
-    · split_ifs
-      · rw [map_one, mul_one]
-      · rw [map_zero, mul_zero]
-    · split_ifs
-      · rw [map_one, mul_one]
-      · rw [map_zero, mul_zero]
+    simp only [Matrix.smul_apply, Matrix.map_apply, Matrix.add_apply, Matrix.single_apply,
+      smul_eq_mul, map_add, mul_add]
+    congr 1 <;> split_ifs <;> simp
   rw [lay_val, hl]
   set a := Matrix.single (0 : Fin h) i σ with ha
   set b := Matrix.single i (0 : Fin h) (1 : R (n + 2)) with hb
@@ -159,10 +148,7 @@ theorem PL.diag (h3 : 3 ≤ h) (i : Fin h) : PL h2 n (Matrix.single i i 1 + Matr
     (5 * bQ h n) := by
   by_cases hi : i = 0
   · subst hi
-    have : (Matrix.single 0 0 1 + Matrix.single 0 0 1 : Matrix (Fin h) (Fin h) (ZMod 2)) = 0 := by
-      rw [← Matrix.single_add]
-      exact Matrix.single_zero _ _
-    rw [this]
+    rw [← Matrix.single_add, show (1 + 1 : ZMod 2) = 0 by decide, Matrix.single_zero]
     exact PL.zero _
   · refine ⟨trace_diag i, ?_⟩
     rw [lay_diag i hi]
@@ -195,9 +181,7 @@ theorem sum_layer (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) :
     · subst hij
       rw [ite_eq_left rfl, ite_eq_left rfl, Matrix.add_apply, Matrix.single_apply,
           Matrix.single_apply, mul_add]
-      congr 1
-      · split_ifs <;> simp
-      · split_ifs <;> simp
+      congr 1 <;> split_ifs <;> simp
     · rw [ite_eq_right hij, ite_eq_right hij, Matrix.single_apply, add_zero]
       split_ifs <;> simp
   rw [Finset.sum_congr rfl fun p _ => h1 p, Finset.sum_add_distrib, Finset.sum_ite_eq' univ (a, b),
@@ -207,9 +191,8 @@ theorem sum_layer (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trace = 0) :
           0 := by
     rw [Fintype.sum_prod_type]
     by_cases hab : 0 = a ∧ 0 = b
-    · obtain ⟨rfl, rfl⟩ := hab
-      simp only [and_self, ite_true, Finset.sum_ite_eq, mem_univ]
-      exact hA
+    · rcases hab with ⟨rfl, rfl⟩
+      simpa [Matrix.trace] using hA
     · simp [hab]
   rw [h3, add_zero]
 
@@ -220,8 +203,7 @@ theorem PL.all (h3 : 3 ≤ h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trac
         (5 * bQ h n) (by
     rintro ⟨i, j⟩ -
     simp only
-    have key : ∀ c : ZMod 2, c = 0 ∨ c = 1 := by decide
-    rcases key (A i j) with h0 | h1
+    rcases (by decide : ∀ c : ZMod 2, c = 0 ∨ c = 1) (A i j) with h0 | h1
     · rw [h0, zero_smul]
       exact PL.zero _
     · rw [h1, one_smul]
@@ -235,22 +217,13 @@ theorem PL.all (h3 : 3 ≤ h) (A : Matrix (Fin h) (Fin h) (ZMod 2)) (hA : A.trac
 theorem red_tt (k : Fin h) : red (n + 1) (tt (n + 1) k) = tt n k := by
   rw [tt, tt]
   split_ifs
-  · exact red_t _
-  · exact map_one _
+  exacts [red_t _, map_one _]
 
 theorem redG_gen (k : Fin h) : redG (gen h2 k : G h (n + 1)) = gen h2 k := by
-  refine Subtype.ext ?_
-  ext a b
-  rw [redG_apply, gen_val, gen_val, transvection, transvection, Matrix.add_apply, Matrix.add_apply,
-      map_add,
-    Matrix.single_apply, Matrix.single_apply]
-  congr 1
-  · by_cases hab : a = b
-    · subst hab; simp
-    · rw [Matrix.one_apply_ne hab, Matrix.one_apply_ne hab, map_zero]
-  · split_ifs
-    · exact red_tt k
-    · exact map_zero _
+  refine Subtype.ext <| Matrix.ext fun a b => ?_
+  simp only [redG_apply, gen_val, transvection, Matrix.add_apply, map_add,
+    Matrix.one_apply, Matrix.single_apply]
+  congr 1 <;> split_ifs <;> simp [red_tt]
 
 /-- From level n to level n + 1. -/
 theorem WL.lift (h3 : 3 ≤ h) {N : ℕ} (hN : ∀ g : G h n, WL h2 g N) (g : G h (n + 1)) :

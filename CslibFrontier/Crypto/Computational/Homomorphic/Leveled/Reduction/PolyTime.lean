@@ -181,18 +181,10 @@ theorem isPPT_leveledAdversary
       · exact (hlinkFalse.choose.on.preprocess (by fun_prop)).map
           (computableInPolyTime_tagLeveledChoice false false)
   · dsimp only [leveledAdversary]
-    have hstate : ComputableInPolyTime
-        (fun p : ℕ × List Bool × List Bool => p.2.1)
-        (encPair encUnary (encPair encBits encBits)) encBits := by fun_prop
-    have htail1 := ComputableInPolyTime.bitsTail.comp hstate
-    have htail2 := ComputableInPolyTime.bitsTail.comp htail1
-    have hhead1 := (ComputableInPolyTime.headD (encA := encBool) true).comp hstate
-    have hhead2 := (ComputableInPolyTime.headD (encA := encBool) true).comp htail1
     have hforward : ComputableInPolyTime
         (fun p : ℕ × List Bool × List Bool => (p.1, p.2.1.tail.tail, p.2.2))
         (encPair encUnary (encPair encBits encBits))
-        (encPair encUnary (encPair encBits encBits)) :=
-      (ComputableInPolyTime.fst _ _).prod (htail2.prod (by fun_prop))
+        (encPair encUnary (encPair encBits encBits)) := by fun_prop
     apply IsPPTOn.cond (by polytime)
     · apply IsPPTOn.cond (by polytime)
       · exact (ComputableInPolyTime.const false).isPPTOn

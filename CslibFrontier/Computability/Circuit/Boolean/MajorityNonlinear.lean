@@ -65,18 +65,14 @@ private theorem two_mul_le_add_sum_digits_of_centralBinom_denominator (r k : ℕ
     (h : ∃ z : ℤ, (r.centralBinom : ℝ) / (4 : ℝ) ^ r = z / (2 : ℝ) ^ k) :
     2 * r ≤ k + (Nat.digits 2 r).sum := by
   obtain ⟨z, hz⟩ := h
-  have hpow : (4 : ℝ) ^ r = (2 : ℝ) ^ (2 * r) := by norm_num [pow_mul]
-  rw [hpow] at hz
-  have hmul : (r.centralBinom : ℝ) * (2 : ℝ) ^ k = z * (2 : ℝ) ^ (2 * r) :=
-    (div_eq_div_iff (by positivity) (by positivity)).mp hz
+  rw [show (4 : ℝ) ^ r = (2 : ℝ) ^ (2 * r) by norm_num [pow_mul]] at hz
   have hmulZ : (r.centralBinom : ℤ) * (2 : ℤ) ^ k = z * (2 : ℤ) ^ (2 * r) := by
-    exact_mod_cast hmul
+    exact_mod_cast (div_eq_div_iff (by positivity) (by positivity)).mp hz
   have hdvdZ : (2 : ℤ) ^ (2 * r) ∣ (r.centralBinom : ℤ) * (2 : ℤ) ^ k :=
     ⟨z, hmulZ.trans (mul_comm _ _)⟩
   have hdvd : 2 ^ (2 * r) ∣ r.centralBinom * 2 ^ k := by exact_mod_cast hdvdZ
-  have hval : 2 * r ≤ (r.centralBinom * 2 ^ k).factorization 2 :=
-    (Nat.prime_two.pow_dvd_iff_le_factorization
-      (mul_ne_zero (Nat.centralBinom_ne_zero r) (pow_ne_zero k (by decide)))).mp hdvd
+  have hval := (Nat.prime_two.pow_dvd_iff_le_factorization
+    (mul_ne_zero (Nat.centralBinom_ne_zero r) (pow_ne_zero k (by decide)))).mp hdvd
   rw [Nat.factorization_mul (Nat.centralBinom_ne_zero r) (pow_ne_zero k (by decide)),
     Finsupp.add_apply, Nat.factorization_centralBinom_two,
     Nat.factorization_pow_self Nat.prime_two] at hval
@@ -97,27 +93,23 @@ theorem Circuit.sub_sum_digits_le_nonlinearCost_of_eval_eq_majority
   · obtain ⟨z, hz⟩ :=
       c.exists_fourierCoeff_signVal_eval_eq_intCast_div_two_pow_nonlinearCost I hArity j ∅
     simp only [hmajority, fourierCoeff_signVal_majority_two_mul_empty] at hz
-    have hbound := two_mul_le_add_sum_digits_of_centralBinom_denominator r
-      (c.program.cost (Boolean.nonlinearCost I)) ⟨-z, by
-        simpa only [Nat.centralBinom_eq_two_mul_choose, Int.cast_neg, neg_div, neg_neg] using
-          congrArg Neg.neg hz⟩
+    have hbound := two_mul_le_add_sum_digits_of_centralBinom_denominator r _ ⟨-z, by
+      simpa only [Nat.centralBinom_eq_two_mul_choose, Int.cast_neg, neg_div, neg_neg] using
+        congrArg Neg.neg hz⟩
     have hDigits : (Nat.digits 2 (2 * r)).sum = (Nat.digits 2 r).sum := by
-      by_cases hr : r = 0
-      · subst r
-        simp
-      · simpa using congrArg List.sum
-          (Nat.digits_add 2 (by decide) 0 r (by decide) (Or.inr hr))
+      rcases eq_or_ne r 0 with rfl | hr
+      · simp
+      · simpa using congrArg List.sum (Nat.digits_add 2 (by decide) 0 r (by decide) (.inr hr))
     omega
   · obtain ⟨z, hz⟩ :=
       c.exists_fourierCoeff_signVal_eval_eq_intCast_div_two_pow_nonlinearCost I hArity j
         {⟨0, by omega⟩}
     simp only [hmajority, fourierCoeff_signVal_majority_singleton] at hz
-    have hbound := two_mul_le_add_sum_digits_of_centralBinom_denominator r
-      (c.program.cost (Boolean.nonlinearCost I)) ⟨z, by
-        simpa only [Nat.centralBinom_eq_two_mul_choose] using hz⟩
+    have hbound := two_mul_le_add_sum_digits_of_centralBinom_denominator r _ ⟨z, by
+      simpa only [Nat.centralBinom_eq_two_mul_choose] using hz⟩
     have hDigits : (Nat.digits 2 (2 * r + 1)).sum = (Nat.digits 2 r).sum + 1 := by
       simpa [Nat.add_comm] using congrArg List.sum
-        (Nat.digits_add 2 (by decide) 1 r (by decide) (Or.inl (by decide)))
+        (Nat.digits_add 2 (by decide) 1 r (by decide) (.inl (by decide)))
     omega
 
 namespace Boolean.Zhegalkin

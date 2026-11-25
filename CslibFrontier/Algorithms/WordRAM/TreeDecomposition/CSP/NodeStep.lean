@@ -228,41 +228,28 @@ theorem iterNodesProg_realizes :
   Realizes.iterate₀ WordEncoding.encode WordEncoding.encode nodeStep_realizes (fun _ _ => by
     unfold nodeStep; dsimp only; rw [memoryCost_bind', memoryCost_read]; omega)
 
+/-- Running `n₁ + n₂` iterations runs `n₁` iterations and then `n₂` more. -/
+private theorem iterate_add {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ) (n₁ n₂ : ℕ)
+    (a : σ) : iterate body d (n₁ + n₂) a = iterate body d n₁ a >>= iterate body d n₂ := by
+  induction n₁ generalizing a with
+  | zero => rw [Nat.zero_add]; exact (pure_bind a _).symm
+  | succ n₁ ih =>
+    rw [Nat.succ_add]
+    exact (congrArg (body (d, a) >>= ·) (funext ih)).trans (bind_assoc _ _ _).symm
+
 theorem clientState_iterate_add {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
     (n₁ n₂ : ℕ) (a : σ) (s : Memory.State) :
     (Memory.spec 0).clientState s (iterate body d (n₁ + n₂) a) =
       (Memory.spec 0).clientState ((Memory.spec 0).clientState s (iterate body d n₁ a))
         (iterate body d n₂ ((Memory.spec 0).clientResult s (iterate body d n₁ a))) := by
-  induction n₁ generalizing a s with
-  | zero =>
-    rw [Nat.zero_add]
-    rfl
-  | succ n₁ ih =>
-    rw [Nat.succ_add]
-    change (Memory.spec 0).clientState s (body (d, a) >>= iterate body d (n₁ + n₂)) =
-      (Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d n₁))
-        (iterate body d n₂ ((Memory.spec 0).clientResult s (body (d, a) >>= iterate body d n₁)))
-    rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientResult_bind, ih]
+  rw [iterate_add, StateTransitionSpec.clientState_bind]
 
 theorem clientResult_iterate_add {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
     (n₁ n₂ : ℕ) (a : σ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (iterate body d (n₁ + n₂) a) =
       (Memory.spec 0).clientResult ((Memory.spec 0).clientState s (iterate body d n₁ a))
         (iterate body d n₂ ((Memory.spec 0).clientResult s (iterate body d n₁ a))) := by
-  induction n₁ generalizing a s with
-  | zero =>
-    rw [Nat.zero_add]
-    rfl
-  | succ n₁ ih =>
-    rw [Nat.succ_add]
-    change (Memory.spec 0).clientResult s (body (d, a) >>= iterate body d (n₁ + n₂)) =
-      (Memory.spec 0).clientResult
-        ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d n₁))
-        (iterate body d n₂ ((Memory.spec 0).clientResult s (body (d, a) >>= iterate body d n₁)))
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientResult_bind, ih]
+  rw [iterate_add, StateTransitionSpec.clientResult_bind]
 
 theorem memoryCost_iterate_add {δ σ : Type} (body : δ × σ → Memory.Prog σ) (d : δ)
     (n₁ n₂ : ℕ) (a : σ) (s : Memory.State) :
@@ -270,21 +257,7 @@ theorem memoryCost_iterate_add {δ σ : Type} (body : δ × σ → Memory.Prog �
       memoryCost (iterate body d n₁ a) s +
         memoryCost (iterate body d n₂ ((Memory.spec 0).clientResult s (iterate body d n₁ a)))
           ((Memory.spec 0).clientState s (iterate body d n₁ a)) := by
-  induction n₁ generalizing a s with
-  | zero =>
-    rw [Nat.zero_add]
-    change memoryCost (iterate body d n₂ a) s = 0 + memoryCost (iterate body d n₂ a) s
-    omega
-  | succ n₁ ih =>
-    rw [Nat.succ_add]
-    change memoryCost (body (d, a) >>= iterate body d (n₁ + n₂)) s =
-      memoryCost (body (d, a) >>= iterate body d n₁) s +
-        memoryCost (iterate body d n₂ ((Memory.spec 0).clientResult s (body (d, a) >>=
-          iterate body d n₁)))
-          ((Memory.spec 0).clientState s (body (d, a) >>= iterate body d n₁))
-    rw [memoryCost_bind', memoryCost_bind', StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientState_bind, ih]
-    omega
+  rw [iterate_add, memoryCost_bind']
 
 theorem validHistory_iterate_add {w : ℕ} {δ σ : Type} (body : δ × σ → Memory.Prog σ)
     (d : δ) (n₁ n₂ : ℕ) (a : σ) (s : Memory.State)
@@ -294,20 +267,8 @@ theorem validHistory_iterate_add {w : ℕ} {δ σ : Type} (body : δ × σ → M
       (Memory.spec w).ValidHistory s₁ ((Memory.spec w).clientHistory s₁ (iterate body d n₂ r₁))) :
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (iterate body d (n₁ + n₂) a)) := by
-  induction n₁ generalizing a s with
-  | zero =>
-    rw [Nat.zero_add]
-    exact hv₂
-  | succ n₁ ih =>
-    rw [Nat.succ_add]
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (body (d, a) >>= iterate body d (n₁ + n₂)))
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (body (d, a) >>= iterate body d n₁)) at hv₁
-    obtain ⟨hb, hrest⟩ := (validHistory_bind' w (body (d, a)) (iterate body d n₁) s).1 hv₁
-    refine validHistory_bind_step hb (ih _ _ hrest ?_)
-    dsimp only
-    rwa [← StateTransitionSpec.clientState_bind, ← StateTransitionSpec.clientResult_bind]
+  rw [iterate_add]
+  exact validHistory_bind_step hv₁ hv₂
 
 theorem iterationSafe_add {δ σ : Type} (body : δ × σ → Memory.Prog σ)
     (safe : ℕ → (δ × σ) → Memory.State → Prop) (w : ℕ) (d : δ)

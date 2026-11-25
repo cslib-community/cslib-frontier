@@ -107,10 +107,8 @@ private theorem prob_inner_lt (r : E) (α : ℝ) :
     have huu : ⟪u, u⟫ = 1 := by
       rw [real_inner_self_eq_norm_sq, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hnr.ne']
       norm_num
-    have hrx : ∀ x : E, ⟪r, x⟫ = ‖r‖ * ⟪u, x⟫ := by
-      intro x
-      simp only [u, real_inner_smul_left]
-      field_simp
+    have hrx : ∀ x : E, ⟪r, x⟫ = ‖r‖ * ⟪u, x⟫ := fun x => by
+      simp only [u, real_inner_smul_left]; field_simp
     have hs : MeasurableSet {w : ℝ | ‖r‖ * w < α} := measurableSet_lt (by fun_prop) measurable_const
     rw [lawLt, ← stdGaussian_map_inner_unit_sq huu, map_measureReal_apply (by fun_prop) hs]
     congr 1
@@ -148,11 +146,8 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
   set r₀ := remainder w₂ w₀
   set r₁ := remainder w₂ w₁
   have hw2 : ⟪w₂, w₂⟫ = 1 := by rw [real_inner_self_eq_norm_sq, h₂]; norm_num
-  have hcs : ∀ w : E, ‖w‖ = 1 → -1 ≤ ⟪w₂, w⟫ ∧ ⟪w₂, w⟫ ≤ 1 := by
-    intro w hw
-    have := abs_real_inner_le_norm w₂ w
-    rw [hw, h₂, mul_one] at this
-    exact abs_le.mp this
+  have hcs : ∀ w : E, ‖w‖ = 1 → -1 ≤ ⟪w₂, w⟫ ∧ ⟪w₂, w⟫ ≤ 1 := fun w hw =>
+    abs_le.mp (by have := abs_real_inner_le_norm w₂ w; rwa [hw, h₂, mul_one] at this)
   have hnorm : ∀ w : E, ‖w‖ = 1 → ‖remainder w₂ w‖ = Real.sin (Real.arccos ⟪w₂, w⟫) := by
     intro w hw
     rw [Real.sin_arccos]
@@ -165,11 +160,11 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
     rw [← hsq, Real.sqrt_sq (norm_nonneg _)]
   have hcos : ∀ w : E, ‖w‖ = 1 → Real.cos (Real.arccos ⟪w₂, w⟫) = ⟪w₂, w⟫ := fun w hw =>
     Real.cos_arccos (hcs w hw).1 (hcs w hw).2
+  have horth (w : E) : ⟪w₂, remainder w₂ w⟫ = 0 := by
+    simp only [remainder, inner_sub_right, real_inner_smul_right, hw2, mul_one, sub_self]
   have hdecomp : ∀ (w x : E), ⟪w, x⟫ = ⟪w₂, w⟫ * ⟪w₂, x⟫ + ⟪remainder w₂ w, remainder w₂ x⟫ := by
     intro w x
-    have horth : ⟪w₂, remainder w₂ w⟫ = 0 := by
-      simp only [remainder, inner_sub_right, real_inner_smul_right, hw2, mul_one, sub_self]
-    rw [inner_remainder_of_orth horth]
+    rw [inner_remainder_of_orth (horth w)]
     simp only [remainder, inner_sub_left, real_inner_smul_left]
     ring
   -- the event as a function of `(⟨w₂,x⟩, remainder x)`
@@ -186,10 +181,8 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
     tauto
   rw [hev, real_disintegrate h₂ hS]
   -- compare the integrands pointwise
-  have hsin₀ : 0 ≤ Real.sin (Real.arccos c₀) := Real.sin_nonneg_of_nonneg_of_le_pi
-    (Real.arccos_nonneg _) (Real.arccos_le_pi _)
-  have hsin₁ : 0 ≤ Real.sin (Real.arccos c₁) := Real.sin_nonneg_of_nonneg_of_le_pi
-    (Real.arccos_nonneg _) (Real.arccos_le_pi _)
+  have hsin₀ : 0 ≤ Real.sin (Real.arccos c₀) := by rw [Real.sin_arccos]; positivity
+  have hsin₁ : 0 ≤ Real.sin (Real.arccos c₁) := by rw [Real.sin_arccos]; positivity
   have hint2 : Integrable (fun z => (stdGaussian E).real {x | (z, remainder w₂ x) ∈ S})
       (gaussianReal 0 1) := by
     refine Integrable.of_bound (C := 1) (measurable_cond hS).aestronglyMeasurable
@@ -207,12 +200,8 @@ theorem triangle_lemma {w₀ w₁ w₂ : E} (h₀ : ‖w₀‖ = 1) (h₁ : ‖w
           {x | ⟪r₀, x⟫ < h - c₀ * z} ∩ {x | ⟪r₁, x⟫ < h - c₁ * z} := by
         ext x
         simp only [S, Set.mem_ofPred_eq, Set.mem_inter_iff, hz, true_and]
-        have e0 : ⟪r₀, remainder w₂ x⟫ = ⟪r₀, x⟫ := inner_remainder_of_orth (by
-          simp only [r₀, remainder, inner_sub_right, real_inner_smul_right, hw2, mul_one,
-            sub_self]) x
-        have e1 : ⟪r₁, remainder w₂ x⟫ = ⟪r₁, x⟫ := inner_remainder_of_orth (by
-          simp only [r₁, remainder, inner_sub_right, real_inner_smul_right, hw2, mul_one,
-            sub_self]) x
+        have e0 : ⟪r₀, remainder w₂ x⟫ = ⟪r₀, x⟫ := inner_remainder_of_orth (horth w₀) x
+        have e1 : ⟪r₁, remainder w₂ x⟫ = ⟪r₁, x⟫ := inner_remainder_of_orth (horth w₁) x
         rw [e0, e1]
         constructor <;> rintro ⟨a, b⟩ <;> constructor <;> linarith
       rw [hslice, hcos w₀ h₀, hcos w₁ h₁, ← hnorm w₀ h₀, ← hnorm w₁ h₁,

@@ -221,10 +221,7 @@ theorem div_two_mul_le_dens_goodTrials (hm : 0 < m) {ε : ℝ} (hε₀ : 0 ≤ �
   refine le_trans ?_ (Fintype.expect_sub_le_dens_filter
     (fun t => mod_cast trialAgreement_le_one D f test t) (by positivity))
   have h := half_add_div_le_expect_trialAgreement D f test hm hε
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  have hsplit : ε / m = ε / (2 * m) + ε / (2 * m) := by
-    field_simp
-    ring
+  have hsplit : ε / (2 * m) = ε / m / 2 := by ring
   linarith
 
 /-- **Repeated sampling.** Let `0 < m`, `0 ≤ ε`, and let a deterministic test accept generated

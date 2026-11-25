@@ -93,8 +93,7 @@ theorem bregmanDiv_three_point (ψ : E → ℝ) (gradψ : E → E) (x y z : E) :
     bregmanDiv ψ gradψ x y + bregmanDiv ψ gradψ y z - bregmanDiv ψ gradψ x z =
       ⟪gradψ z - gradψ y, x - y⟫ := by
   simp only [bregmanDiv]
-  have h1 : x - z = (x - y) + (y - z) := by abel
-  rw [h1, inner_add_right, inner_sub_left]
+  rw [show x - z = (x - y) + (y - z) by abel, inner_add_right, inner_sub_left]
   ring
 
 /-- **Generalized Pythagorean inequality for Bregman projections**: if `y'` satisfies the
@@ -103,21 +102,18 @@ first-order optimality condition `0 ≤ ⟪gradψ y' - gradψ y, u - y'⟫` agai
 theorem bregman_pythagorean (ψ : E → ℝ) (gradψ : E → E) {u y' y : E}
     (hopt : 0 ≤ ⟪gradψ y' - gradψ y, u - y'⟫) :
     bregmanDiv ψ gradψ u y' + bregmanDiv ψ gradψ y' y ≤ bregmanDiv ψ gradψ u y := by
-  have h := bregmanDiv_three_point ψ gradψ u y' y
-  have hneg : ⟪gradψ y - gradψ y', u - y'⟫ = -⟪gradψ y' - gradψ y, u - y'⟫ := by
-    rw [← neg_sub (gradψ y') (gradψ y), inner_neg_left]
-  linarith
+  linarith [bregmanDiv_three_point ψ gradψ u y' y,
+    show ⟪gradψ y - gradψ y', u - y'⟫ = -⟪gradψ y' - gradψ y, u - y'⟫ by
+      rw [← neg_sub (gradψ y') (gradψ y), inner_neg_left]]
 
 /-- For the Euclidean generator `ψ x = ‖x‖ ^ 2 / 2` with gradient `gradψ x = x`, the Bregman
 divergence is half the squared Euclidean distance `‖x - y‖ ^ 2 / 2`. -/
 theorem bregmanDiv_sq_norm_half (x y : E) :
     bregmanDiv (fun z : E => ‖z‖ ^ 2 / 2) id x y = ‖x - y‖ ^ 2 / 2 := by
   simp only [bregmanDiv, id_eq]
-  have hexp : ‖x - y‖ ^ 2 = ‖x‖ ^ 2 - 2 * ⟪y, x⟫ + ‖y‖ ^ 2 := by
-    rw [norm_sub_sq_real, real_inner_comm]
-  have hsub : ⟪y, x - y⟫ = ⟪y, x⟫ - ‖y‖ ^ 2 := by
-    rw [inner_sub_right, real_inner_self_eq_norm_sq]
-  linarith
+  linarith [show ‖x - y‖ ^ 2 = ‖x‖ ^ 2 - 2 * ⟪y, x⟫ + ‖y‖ ^ 2 by
+      rw [norm_sub_sq_real, real_inner_comm],
+    show ⟪y, x - y⟫ = ⟪y, x⟫ - ‖y‖ ^ 2 by rw [inner_sub_right, real_inner_self_eq_norm_sq]]
 
 /-- First-order optimality condition for one **online mirror descent** step on `K`:
 `x' ∈ argmin_{z ∈ K} { η * ⟪g, z⟫ + B_ψ(z, x) }`. -/
@@ -131,12 +127,8 @@ theorem isOMDStep_metricProjection_euclidean {K : Set E} (hne : K.Nonempty)
     IsOMDStep K id η g x (metricProjection K (x - η • g)) := by
   refine ⟨metricProjection_mem hne hc hK (x - η • g), fun u hu => ?_⟩
   set p := metricProjection K (x - η • g)
-  have hvar : ⟪(x - η • g) - p, u - p⟫ ≤ 0 :=
-    inner_sub_metricProjection_le_zero hc hK (x - η • g) hu
-  have hre : η • g + (p - x) = -((x - η • g) - p) := by abel
-  simp only [id_eq]
-  rw [hre, inner_neg_left]
-  linarith
+  simp only [id_eq, show η • g + (p - x) = -((x - η • g) - p) by abel, inner_neg_left]
+  linarith [inner_sub_metricProjection_le_zero hc hK (x - η • g) hu]
 
 /-- **Fundamental single-step inequality for online mirror descent**: under strong convexity
 `μ / 2 * (primal (b - a)) ^ 2 ≤ B_ψ(a, b)` and dual pairing `⟪a, b⟫ ≤ dual a * primal b`,
@@ -150,29 +142,21 @@ theorem omd_step_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E} {primal dual
     η * ⟪g, x - u⟫ ≤
       bregmanDiv ψ gradψ u x - bregmanDiv ψ gradψ u x' +
         η ^ 2 * (dual g) ^ 2 / (2 * μ) := by
-  have hx' : x' ∈ K := hstep.1
   have hopt := hstep.2 u hu
-  rw [inner_add_left, real_inner_smul_left] at hopt
-  have h3 := bregmanDiv_three_point ψ gradψ u x' x
+  have hneg : ⟪g, u - x'⟫ = -⟪g, x' - u⟫ := by rw [← neg_sub x' u, inner_neg_right]
+  rw [inner_add_left, real_inner_smul_left, hneg] at hopt
+  have hgx : η * ⟪g, x' - u⟫ ≤ ⟪gradψ x' - gradψ x, u - x'⟫ := by linarith
   have hsym : ⟪gradψ x' - gradψ x, u - x'⟫ = -⟪gradψ x - gradψ x', u - x'⟫ := by
     rw [← neg_sub (gradψ x) (gradψ x'), inner_neg_left]
-  have hgx : η * ⟪g, x' - u⟫ ≤ ⟪gradψ x' - gradψ x, u - x'⟫ := by
-    rw [show ⟪g, u - x'⟫ = -⟪g, x' - u⟫ by rw [← neg_sub x' u, inner_neg_right]] at hopt
-    linarith
   have hsplit : η * ⟪g, x - u⟫ = η * ⟪g, x - x'⟫ + η * ⟪g, x' - u⟫ := by
-    have : x - u = (x - x') + (x' - u) := by abel
-    rw [this, inner_add_right]
+    rw [show x - u = (x - x') + (x' - u) by abel, inner_add_right]
     ring
-  have hdiv_ge : μ / 2 * (primal (x - x')) ^ 2 ≤ bregmanDiv ψ gradψ x' x :=
-    hsc x' hx' x hx
-  have hdual : η * ⟪g, x - x'⟫ ≤ η * (dual g * primal (x - x')) :=
-    mul_le_mul_of_nonneg_left (hpair g (x - x')) hη
   have hquad : η * (dual g * primal (x - x')) - μ / 2 * (primal (x - x')) ^ 2 ≤
       η ^ 2 * (dual g) ^ 2 / (2 * μ) := by
     rw [le_div_iff₀ (by positivity : 0 < 2 * μ)]
-    have hsq : 0 ≤ (μ * primal (x - x') - η * dual g) ^ 2 := sq_nonneg _
-    nlinarith
-  linarith
+    nlinarith [sq_nonneg (μ * primal (x - x') - η * dual g)]
+  linarith [bregmanDiv_three_point ψ gradψ u x' x, hsc x' hstep.1 x hx,
+    mul_le_mul_of_nonneg_left (hpair g (x - x')) hη]
 
 /-- Telescoping inner-product bound for **online mirror descent** with a constant step size
 `η > 0`. -/
@@ -186,56 +170,27 @@ theorem omd_sum_inner_le_of_const {K : Set E} {ψ : E → ℝ} {gradψ : E → E
     ∑ t ∈ range T, ⟪grad t (x t), x t - u⟫ ≤
       bregmanDiv ψ gradψ u (x 0) / η +
         η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 := by
-  have hx_mem : ∀ t ≤ T, x t ∈ K := by
-    intro t ht
-    induction t with
-    | zero => exact hx0
-    | succ t _ => exact (hstep t (by omega)).1
+  have hx_mem : ∀ t ≤ T, x t ∈ K := fun | 0, _ => hx0 | t + 1, ht => (hstep t (by omega)).1
   have hper : ∀ t ∈ range T,
       ⟪grad t (x t), x t - u⟫ ≤
         (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η +
-          η * (dual (grad t (x t))) ^ 2 / (2 * μ) := by
-    intro t ht
-    rw [mem_range] at ht
-    have hs := omd_step_le hμ hη.le hpair hsc (hx_mem t ht.le) hu (hstep t ht)
-    have hdiv := div_le_div_of_nonneg_right hs hη.le
+          η * (dual (grad t (x t))) ^ 2 / (2 * μ) := fun t ht => by
+    have hlt := mem_range.mp ht
+    have hdiv := div_le_div_of_nonneg_right
+      (omd_step_le hμ hη.le hpair hsc (hx_mem t hlt.le) hu (hstep t hlt)) hη.le
     rw [mul_div_cancel_left₀ _ hη.ne'] at hdiv
-    have hrhs :
-        (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1)) +
-            η ^ 2 * (dual (grad t (x t))) ^ 2 / (2 * μ)) / η =
-          (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η +
-            η * (dual (grad t (x t))) ^ 2 / (2 * μ) := by
-      field_simp
-    exact hdiv.trans_eq hrhs
-  have hsum :
-      ∑ t ∈ range T, ⟪grad t (x t), x t - u⟫ ≤
-        ∑ t ∈ range T,
-          ((bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η +
-            η * (dual (grad t (x t))) ^ 2 / (2 * μ)) :=
-    Finset.sum_le_sum hper
-  have htele :
-      ∑ t ∈ range T, (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η =
-        (bregmanDiv ψ gradψ u (x 0) - bregmanDiv ψ gradψ u (x T)) / η := by
-    rw [← Finset.sum_div]
-    congr 1
-    exact Finset.sum_range_sub' (fun t => bregmanDiv ψ gradψ u (x t)) T
-  have hnonneg : 0 ≤ bregmanDiv ψ gradψ u (x T) := by
-    have := hsc u hu (x T) (hx_mem T le_rfl)
-    have hsq : 0 ≤ μ / 2 * (primal (x T - u)) ^ 2 := by positivity
-    linarith
+    exact hdiv.trans_eq (by field_simp)
+  have hsum := (Finset.sum_le_sum hper).trans_eq (Finset.sum_add_distrib ..)
   have hdual_sum :
       ∑ t ∈ range T, η * (dual (grad t (x t))) ^ 2 / (2 * μ) =
         η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 := by
     rw [Finset.mul_sum]
-    refine Finset.sum_congr rfl fun t _ => ?_
-    ring
-  rw [Finset.sum_add_distrib, htele, hdual_sum] at hsum
-  have hdrop :
-      (bregmanDiv ψ gradψ u (x 0) - bregmanDiv ψ gradψ u (x T)) / η ≤
-        bregmanDiv ψ gradψ u (x 0) / η := by
-    apply div_le_div_of_nonneg_right _ hη.le
-    linarith
-  linarith
+    exact Finset.sum_congr rfl fun _ _ => by ring
+  rw [← Finset.sum_div, Finset.sum_range_sub' (fun t => bregmanDiv ψ gradψ u (x t)) T,
+    hdual_sum] at hsum
+  have hnn : 0 ≤ bregmanDiv ψ gradψ u (x T) :=
+    (by positivity : 0 ≤ μ / 2 * (primal (x T - u)) ^ 2).trans (hsc u hu (x T) (hx_mem T le_rfl))
+  linarith [div_le_div_of_nonneg_right (sub_le_self (bregmanDiv ψ gradψ u (x 0)) hnn) hη.le]
 
 /-- Static regret of **online mirror descent** with a constant step size `η > 0`:
 `∑ t < T, (f t (x t) - f t u) ≤ B / η + T * η * G ^ 2 / (2 * μ)`. -/
@@ -251,36 +206,25 @@ theorem omd_regret_le_const {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     {u : E} (hu : u ∈ K) (hB : bregmanDiv ψ gradψ u (x 0) ≤ B) :
     ∑ t ∈ range T, (f t (x t) - f t u) ≤
       B / η + (T : ℝ) * η * G ^ 2 / (2 * μ) := by
-  have hx_mem : ∀ t ≤ T, x t ∈ K := by
-    intro t ht
-    induction t with
-    | zero => exact hx0
-    | succ t _ => exact (hstep t (by omega)).1
-  have hloss : ∑ t ∈ range T, (f t (x t) - f t u) ≤
-      ∑ t ∈ range T, ⟪grad t (x t), x t - u⟫ := by
-    refine Finset.sum_le_sum fun t ht => ?_
-    rw [mem_range] at ht
-    have hs := hsub t ht (x t) (hx_mem t ht.le) u hu
-    have hneg : ⟪grad t (x t), u - x t⟫ = -⟪grad t (x t), x t - u⟫ := by
-      rw [← neg_sub (x t) u, inner_neg_right]
-    linarith
-  have hinner := omd_sum_inner_le_of_const hμ hη hpair hsc grad x T hx0 hstep hu
+  have hx_mem : ∀ t ≤ T, x t ∈ K := fun | 0, _ => hx0 | t + 1, ht => (hstep t (by omega)).1
+  have hloss : ∑ t ∈ range T, (f t (x t) - f t u) ≤ ∑ t ∈ range T, ⟪grad t (x t), x t - u⟫ :=
+    Finset.sum_le_sum fun t ht => by
+      have hs := hsub t (mem_range.mp ht) (x t) (hx_mem t (mem_range.mp ht).le) u hu
+      rw [← neg_sub (x t) u, inner_neg_right] at hs
+      linarith
   have hgs : ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 ≤ (T : ℝ) * G ^ 2 := by
     calc ∑ t ∈ range T, (dual (grad t (x t))) ^ 2
-        ≤ ∑ _t ∈ range T, G ^ 2 := by
-          refine Finset.sum_le_sum fun t ht => ?_
-          rw [mem_range] at ht
-          exact sq_le_sq' (by linarith [hdual_nonneg t ht, hG]) (hgrad t ht)
+        ≤ ∑ _t ∈ range T, G ^ 2 := Finset.sum_le_sum fun t ht =>
+          sq_le_sq' (by linarith [hdual_nonneg t (mem_range.mp ht), hG])
+            (hgrad t (mem_range.mp ht))
       _ = (T : ℝ) * G ^ 2 := by simp
-  have hdiv : bregmanDiv ψ gradψ u (x 0) / η ≤ B / η :=
-    div_le_div_of_nonneg_right hB hη.le
-  have hcoeff : 0 ≤ η / (2 * μ) := by positivity
   have hterm : η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2 ≤
       (T : ℝ) * η * G ^ 2 / (2 * μ) := by
     calc η / (2 * μ) * ∑ t ∈ range T, (dual (grad t (x t))) ^ 2
-        ≤ η / (2 * μ) * ((T : ℝ) * G ^ 2) := mul_le_mul_of_nonneg_left hgs hcoeff
+        ≤ η / (2 * μ) * ((T : ℝ) * G ^ 2) := mul_le_mul_of_nonneg_left hgs (by positivity)
       _ = (T : ℝ) * η * G ^ 2 / (2 * μ) := by ring
-  linarith
+  linarith [omd_sum_inner_le_of_const hμ hη hpair hsc grad x T hx0 hstep hu,
+    div_le_div_of_nonneg_right hB hη.le]
 
 /-- Static regret of **online mirror descent** with horizon-tuned constant step size
 `η = √(2 * μ * B) / (G * √T)`: `∑ t < T, (f t (x t) - f t u) ≤ G * √(2 * B * T / μ)`
@@ -301,30 +245,26 @@ theorem omd_regret_le_tuned {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     ∑ t ∈ range T, (f t (x t) - f t u) ≤
       G * Real.sqrt (2 * B * (T : ℝ) / μ) := by
   have hTr : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  have hη : 0 < Real.sqrt (2 * μ * B) / (G * Real.sqrt T) := by positivity
-  have hbase := omd_regret_le_const hμ hη hG.le hpair hsc f grad x T hx0 hstep hsub
-    hdual_nonneg hgrad hu hB
-  refine hbase.trans_eq ?_
-  have h1 : B / (Real.sqrt (2 * μ * B) / (G * Real.sqrt T)) =
-      G * Real.sqrt (2 * B * (T : ℝ) / μ) / 2 := by
-    have hl : 0 ≤ B / (Real.sqrt (2 * μ * B) / (G * Real.sqrt T)) := by positivity
-    have hr : 0 ≤ G * Real.sqrt (2 * B * (T : ℝ) / μ) / 2 := by positivity
-    rw [← Real.sqrt_sq hl, ← Real.sqrt_sq hr]
-    congr 1
-    simp only [div_pow, mul_pow, Real.sq_sqrt (by positivity : 0 ≤ 2 * μ * B),
-      Real.sq_sqrt hTr.le, Real.sq_sqrt (by positivity : 0 ≤ 2 * B * (T : ℝ) / μ)]
+  set s := Real.sqrt (2 * μ * B)
+  set r := Real.sqrt T
+  have hs_pos : 0 < s := by positivity
+  have hr_pos : 0 < r := by positivity
+  have hs2 : s ^ 2 = 2 * μ * B := Real.sq_sqrt (by positivity)
+  have hr2 : r ^ 2 = T := Real.sq_sqrt hTr.le
+  refine (omd_regret_le_const hμ (by positivity) hG.le hpair hsc f grad x T hx0 hstep hsub
+    hdual_nonneg hgrad hu hB).trans_eq ?_
+  have hcomb : B / (s / (G * r)) + (T : ℝ) * (s / (G * r)) * G ^ 2 / (2 * μ) =
+      G * s * r / μ := by
     field_simp
-  have h2 : (T : ℝ) * (Real.sqrt (2 * μ * B) / (G * Real.sqrt T)) * G ^ 2 / (2 * μ) =
-      G * Real.sqrt (2 * B * (T : ℝ) / μ) / 2 := by
-    have hl : 0 ≤ (T : ℝ) * (Real.sqrt (2 * μ * B) / (G * Real.sqrt T)) * G ^ 2 / (2 * μ) := by
-      positivity
-    have hr : 0 ≤ G * Real.sqrt (2 * B * (T : ℝ) / μ) / 2 := by positivity
-    rw [← Real.sqrt_sq hl, ← Real.sqrt_sq hr]
+    rw [hs2, hr2]
+    ring
+  have hsr : s * r / μ = Real.sqrt (2 * B * (T : ℝ) / μ) := by
+    rw [← Real.sqrt_sq (show 0 ≤ s * r / μ by positivity)]
     congr 1
-    simp only [div_pow, mul_pow, Real.sq_sqrt (by positivity : 0 ≤ 2 * μ * B),
-      Real.sq_sqrt hTr.le, Real.sq_sqrt (by positivity : 0 ≤ 2 * B * (T : ℝ) / μ)]
+    rw [div_pow, mul_pow, hs2, hr2]
     field_simp
-  linarith
+  rw [hcomb, ← hsr]
+  ring
 
 /-- Telescoping inner-product bound for **online mirror descent** with arbitrary nonincreasing
 positive step sizes `η : ℕ → ℝ` on a domain whose Bregman divergence to `u` is bounded by `D`. -/
@@ -338,29 +278,17 @@ theorem omd_sum_inner_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     {u : E} (hu : u ∈ K) (hD : ∀ t ≤ T, bregmanDiv ψ gradψ u (x t) ≤ D) :
     ∑ t ∈ range (T + 1), ⟪grad t (x t), x t - u⟫ ≤
       D / η T + ∑ t ∈ range (T + 1), η t * (dual (grad t (x t))) ^ 2 / (2 * μ) := by
-  have hx_mem : ∀ t ≤ T + 1, x t ∈ K := by
-    intro t ht
-    induction t with
-    | zero => exact hx0
-    | succ t _ => exact (hstep t (by omega)).1
+  have hx_mem : ∀ t ≤ T + 1, x t ∈ K := fun | 0, _ => hx0 | t + 1, ht => (hstep t (by omega)).1
   have hper : ∀ t ∈ range (T + 1),
       ⟪grad t (x t), x t - u⟫ ≤
         (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η t +
-          η t * (dual (grad t (x t))) ^ 2 / (2 * μ) := by
-    intro t ht
-    rw [mem_range] at ht
-    have htle : t ≤ T := Nat.lt_succ_iff.mp ht
+          η t * (dual (grad t (x t))) ^ 2 / (2 * μ) := fun t ht => by
+    have htle : t ≤ T := Nat.lt_succ_iff.mp (mem_range.mp ht)
     have hηt : 0 < η t := hη_pos t
-    have hs := omd_step_le hμ hηt.le hpair hsc (hx_mem t (by omega)) hu (hstep t htle)
-    have hdiv := div_le_div_of_nonneg_right hs hηt.le
+    have hdiv := div_le_div_of_nonneg_right
+      (omd_step_le hμ hηt.le hpair hsc (hx_mem t (by omega)) hu (hstep t htle)) hηt.le
     rw [mul_div_cancel_left₀ _ hηt.ne'] at hdiv
-    have hrhs :
-        (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1)) +
-            η t ^ 2 * (dual (grad t (x t))) ^ 2 / (2 * μ)) / η t =
-          (bregmanDiv ψ gradψ u (x t) - bregmanDiv ψ gradψ u (x (t + 1))) / η t +
-            η t * (dual (grad t (x t))) ^ 2 / (2 * μ) := by
-      field_simp
-    exact hdiv.trans_eq hrhs
+    exact hdiv.trans_eq (by field_simp)
   have hsum := (Finset.sum_le_sum hper).trans_eq (Finset.sum_add_distrib ..)
   have habel : ∀ n ≤ T,
       ∑ t ∈ range (n + 1),
@@ -370,36 +298,22 @@ theorem omd_sum_inner_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     induction n with
     | zero =>
       simp only [zero_add, range_one, sum_singleton]
-      have h0 := hD 0 (Nat.zero_le T)
-      have hsub := div_le_div_of_nonneg_right h0 (hη_pos 0).le
-      linarith [sub_div (bregmanDiv ψ gradψ u (x 0)) (bregmanDiv ψ gradψ u (x 1)) (η 0)]
+      linarith [div_le_div_of_nonneg_right (hD 0 (Nat.zero_le T)) (hη_pos 0).le,
+        sub_div (bregmanDiv ψ gradψ u (x 0)) (bregmanDiv ψ gradψ u (x 1)) (η 0)]
     | succ k ih =>
       rw [Finset.sum_range_succ]
-      have ih' := ih (by omega)
-      have hinv : 0 ≤ 1 / η (k + 1) - 1 / η k := by
-        rw [sub_nonneg]
-        exact one_div_le_one_div_of_le (hη_pos (k + 1)) (hη_anti k)
-      have hk := hD (k + 1) hn
-      have hmul : bregmanDiv ψ gradψ u (x (k + 1)) * (1 / η (k + 1) - 1 / η k) ≤
-          D * (1 / η (k + 1) - 1 / η k) :=
-        mul_le_mul_of_nonneg_right hk hinv
-      have hre :
-          D / η k - bregmanDiv ψ gradψ u (x (k + 1)) / η k +
-              (bregmanDiv ψ gradψ u (x (k + 1)) -
-                bregmanDiv ψ gradψ u (x (k + 2))) / η (k + 1) =
-            D / η k +
-              bregmanDiv ψ gradψ u (x (k + 1)) * (1 / η (k + 1) - 1 / η k) -
-              bregmanDiv ψ gradψ u (x (k + 2)) / η (k + 1) := by
-        ring
-      have hre2 : D / η k + D * (1 / η (k + 1) - 1 / η k) = D / η (k + 1) := by ring
-      linarith
-  have hnonneg : 0 ≤ bregmanDiv ψ gradψ u (x (T + 1)) := by
-    have := hsc u hu (x (T + 1)) (hx_mem (T + 1) le_rfl)
-    have hsq : 0 ≤ μ / 2 * (primal (x (T + 1) - u)) ^ 2 := by positivity
-    linarith
-  have htail : 0 ≤ bregmanDiv ψ gradψ u (x (T + 1)) / η T :=
-    div_nonneg hnonneg (hη_pos T).le
-  linarith [habel T le_rfl]
+      have hinv : 0 ≤ 1 / η (k + 1) - 1 / η k :=
+        sub_nonneg.mpr (one_div_le_one_div_of_le (hη_pos (k + 1)) (hη_anti k))
+      linarith [ih (by omega), mul_le_mul_of_nonneg_right (hD (k + 1) hn) hinv,
+        show D / η k - bregmanDiv ψ gradψ u (x (k + 1)) / η k +
+            (bregmanDiv ψ gradψ u (x (k + 1)) - bregmanDiv ψ gradψ u (x (k + 2))) / η (k + 1) =
+          D / η k + bregmanDiv ψ gradψ u (x (k + 1)) * (1 / η (k + 1) - 1 / η k) -
+            bregmanDiv ψ gradψ u (x (k + 2)) / η (k + 1) by ring,
+        show D / η k + D * (1 / η (k + 1) - 1 / η k) = D / η (k + 1) by ring]
+  have hnn : 0 ≤ bregmanDiv ψ gradψ u (x (T + 1)) :=
+    (by positivity : 0 ≤ μ / 2 * (primal (x (T + 1) - u)) ^ 2).trans
+      (hsc u hu (x (T + 1)) (hx_mem (T + 1) le_rfl))
+  linarith [habel T le_rfl, div_nonneg hnn (hη_pos T).le]
 
 /-- Horizon-independent static regret of **online mirror descent** with step sizes
 `η t = √(μ * D) / (G * √(t + 1))`:
@@ -424,27 +338,16 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
   | succ m =>
     let η : ℕ → ℝ := fun t => Real.sqrt (μ * D) / (G * Real.sqrt ((t : ℝ) + 1))
     have hη_pos : ∀ t, 0 < η t := fun t => by dsimp only [η]; positivity
-    have hη_anti : ∀ t, η (t + 1) ≤ η t := by
-      intro t
-      dsimp only [η]
-      apply div_le_div_of_nonneg_left (Real.sqrt_nonneg _) (by positivity)
-      apply mul_le_mul_of_nonneg_left _ hG.le
-      apply Real.sqrt_le_sqrt
-      push_cast
-      linarith
-    have hx_mem : ∀ t ≤ m + 1, x t ∈ K := by
-      intro t ht
-      induction t with
-      | zero => exact hx0
-      | succ t _ => exact (hstep t (by omega)).1
+    have hη_anti : ∀ t, η (t + 1) ≤ η t := fun t =>
+      div_le_div_of_nonneg_left (Real.sqrt_nonneg _) (by positivity)
+        (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (by push_cast; linarith)) hG.le)
+    have hx_mem : ∀ t ≤ m + 1, x t ∈ K := fun | 0, _ => hx0 | t + 1, ht => (hstep t (by omega)).1
     have hloss : ∑ t ∈ range (m + 1), (f t (x t) - f t u) ≤
-        ∑ t ∈ range (m + 1), ⟪grad t (x t), x t - u⟫ := by
-      refine Finset.sum_le_sum fun t ht => ?_
-      rw [mem_range] at ht
-      have hs := hsub t ht (x t) (hx_mem t (by omega)) u hu
-      have hneg : ⟪grad t (x t), u - x t⟫ = -⟪grad t (x t), x t - u⟫ := by
-        rw [← neg_sub (x t) u, inner_neg_right]
-      linarith
+        ∑ t ∈ range (m + 1), ⟪grad t (x t), x t - u⟫ :=
+      Finset.sum_le_sum fun t ht => by
+        have hs := hsub t (mem_range.mp ht) (x t) (hx_mem t (mem_range.mp ht).le) u hu
+        rw [← neg_sub (x t) u, inner_neg_right] at hs
+        linarith
     have hinner := omd_sum_inner_le hμ hpair hsc η hη_pos hη_anti grad x m hx0
       (fun t ht => hstep t (Nat.lt_succ_of_le ht)) hu
       (fun t ht => hD t (Nat.lt_succ_of_le ht))
@@ -454,52 +357,40 @@ theorem omd_regret_le_sqrt {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
             ∑ t ∈ range (m + 1), 1 / Real.sqrt ((t : ℝ) + 1) := by
       rw [Finset.mul_sum]
       refine Finset.sum_le_sum fun t ht => ?_
-      rw [mem_range] at ht
+      have hlt := mem_range.mp ht
       have hsq : (dual (grad t (x t))) ^ 2 ≤ G ^ 2 :=
-        sq_le_sq' (by linarith [hdual_nonneg t ht, hG]) (hgrad t ht)
+        sq_le_sq' (by linarith [hdual_nonneg t hlt, hG]) (hgrad t hlt)
       calc η t * (dual (grad t (x t))) ^ 2 / (2 * μ)
-          ≤ η t * G ^ 2 / (2 * μ) := by
-            have hη_le : 0 ≤ η t := (hη_pos t).le
-            exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq hη_le) (by positivity)
+          ≤ η t * G ^ 2 / (2 * μ) :=
+            div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hsq (hη_pos t).le)
+              (by positivity)
         _ = Real.sqrt (μ * D) * G / (2 * μ) * (1 / Real.sqrt ((t : ℝ) + 1)) := by
             dsimp only [η]
-            have hGne : G ≠ 0 := hG.ne'
             field_simp
-    have hharm : ∑ t ∈ range (m + 1), 1 / Real.sqrt ((t : ℝ) + 1) ≤
-        2 * Real.sqrt ((m : ℝ) + 1) := by
-      have h := sum_range_one_div_sqrt_succ_le m
-      linarith
-    have hcoeff_nonneg : 0 ≤ Real.sqrt (μ * D) * G / (2 * μ) := by positivity
-    have hterm2 :
-        Real.sqrt (μ * D) * G / (2 * μ) *
-            ∑ t ∈ range (m + 1), 1 / Real.sqrt ((t : ℝ) + 1) ≤
-          Real.sqrt (μ * D) * G / (2 * μ) * (2 * Real.sqrt ((m : ℝ) + 1)) :=
-      mul_le_mul_of_nonneg_left hharm hcoeff_nonneg
-    have hcast : ((m + 1 : ℕ) : ℝ) = (m : ℝ) + 1 := by push_cast; ring
-    have hcomb :
-        D / η m + Real.sqrt (μ * D) * G / (2 * μ) * (2 * Real.sqrt ((m : ℝ) + 1)) =
-          2 * G * Real.sqrt (D * ((m + 1 : ℕ) : ℝ) / μ) := by
-      have hm_nn : 0 ≤ (m : ℝ) + 1 := by positivity
-      have hhalf1 : D / η m = G * Real.sqrt (D * ((m : ℝ) + 1) / μ) := by
+    have hterm2 := mul_le_mul_of_nonneg_left
+      ((sum_range_one_div_sqrt_succ_le m).trans
+        (by linarith : 2 * Real.sqrt ((m : ℝ) + 1) - 1 ≤ 2 * Real.sqrt ((m : ℝ) + 1)))
+      (by positivity : 0 ≤ Real.sqrt (μ * D) * G / (2 * μ))
+    set s := Real.sqrt (μ * D)
+    set r := Real.sqrt ((m : ℝ) + 1)
+    have hs_pos : 0 < s := by positivity
+    have hr_pos : 0 < r := by positivity
+    have hs2 : s ^ 2 = μ * D := Real.sq_sqrt (by positivity)
+    have hr2 : r ^ 2 = (m : ℝ) + 1 := Real.sq_sqrt (by positivity)
+    have hcomb : D / η m + s * G / (2 * μ) * (2 * r) =
+        2 * G * Real.sqrt (D * ((m + 1 : ℕ) : ℝ) / μ) := by
+      have h1 : D / η m + s * G / (2 * μ) * (2 * r) = 2 * G * s * r / μ := by
         dsimp only [η]
-        have hl : 0 ≤ D / (Real.sqrt (μ * D) / (G * Real.sqrt ((m : ℝ) + 1))) := by positivity
-        have hr : 0 ≤ G * Real.sqrt (D * ((m : ℝ) + 1) / μ) := by positivity
-        rw [← Real.sqrt_sq hl, ← Real.sqrt_sq hr]
-        congr 1
-        simp only [div_pow, mul_pow, Real.sq_sqrt (by positivity : 0 ≤ μ * D),
-          Real.sq_sqrt hm_nn, Real.sq_sqrt (by positivity : 0 ≤ D * ((m : ℝ) + 1) / μ)]
+        change D / (s / (G * r)) + s * G / (2 * μ) * (2 * r) = 2 * G * s * r / μ
         field_simp
-      have hhalf2 : Real.sqrt (μ * D) * G / (2 * μ) * (2 * Real.sqrt ((m : ℝ) + 1)) =
-          G * Real.sqrt (D * ((m : ℝ) + 1) / μ) := by
-        have hl : 0 ≤ Real.sqrt (μ * D) * G / (2 * μ) * (2 * Real.sqrt ((m : ℝ) + 1)) := by
-          positivity
-        have hr : 0 ≤ G * Real.sqrt (D * ((m : ℝ) + 1) / μ) := by positivity
-        rw [← Real.sqrt_sq hl, ← Real.sqrt_sq hr]
+        rw [hs2]
+        ring
+      have hsr : s * r / μ = Real.sqrt (D * ((m : ℝ) + 1) / μ) := by
+        rw [← Real.sqrt_sq (show 0 ≤ s * r / μ by positivity)]
         congr 1
-        simp only [div_pow, mul_pow, Real.sq_sqrt (by positivity : 0 ≤ μ * D),
-          Real.sq_sqrt hm_nn, Real.sq_sqrt (by positivity : 0 ≤ D * ((m : ℝ) + 1) / μ)]
+        rw [div_pow, mul_pow, hs2, hr2]
         field_simp
-      rw [hcast, hhalf1, hhalf2]
+      rw [h1, show ((m + 1 : ℕ) : ℝ) = (m : ℝ) + 1 by push_cast; ring, ← hsr]
       ring
     linarith
 

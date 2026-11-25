@@ -836,15 +836,7 @@ private theorem orset_main_ind (n : ℕ) :
         have hu_eq : u = a :=
           hH.unique_add_tag u huH a haH p n xa p n xa hu_op hop_a rfl rfl
         exact hnot_prec (hu_eq ▸ hu_prec)
-      ext t
-      simp only [Finset.mem_insert, Finset.mem_sdiff]
-      constructor
-      · rintro (rfl | ⟨hts, htnot⟩)
-        · exact ⟨Or.inl rfl, hnot_in⟩
-        · exact ⟨Or.inr hts, htnot⟩
-      · rintro ⟨rfl | hts, htnot⟩
-        · exact Or.inl rfl
-        · exact Or.inr ⟨hts, htnot⟩
+      exact (Finset.insert_sdiff_of_notMem s hnot_in).symm
     have hcomm : ConcurrentCommute orsetEffect prec hH.effOf (H : Set Ev) := by
       intro e₁ he₁ e₂ he₂ _ hn₁₂ hn₂₁ s
       have he₁H : e₁ ∈ H := he₁
@@ -863,10 +855,7 @@ private theorem orset_main_ind (n : ℕ) :
           exact (h_add_rem e₂ he₂H e₁ he₁H p₂ n₂ x₂ x₁ hop₂ hop₁ hn₂₁ s).symm
         | remove x₂ =>
           rw [hrem_eq e₁ he₁H x₁ hop₁, hrem_eq e₂ he₂H x₂ hop₂]
-          simp only [orsetEffect]
-          ext t
-          simp only [Finset.mem_sdiff]
-          exact and_right_comm
+          exact sdiff_sdiff_comm
     -- Step 3: Prove every causal linearization `l` of `H` folds to `orsetSurvivingTags`.
     refine ⟨hcomm, fun l hl => ?_⟩
     rcases l.eq_nil_or_concat with rfl | ⟨initL, e_last, hconcat⟩
@@ -887,17 +876,10 @@ private theorem orset_main_ind (n : ℕ) :
         intro y hyH hprec
         have hy_l : y ∈ initL ++ [e_last] := (hl.2.1 y).mpr hyH
         have hidx_lt := hl.2.2 e_last he_last_mem_l y hy_l hprec
-        have hidx_last : (initL ++ [e_last]).idxOf e_last = initL.length := by
-          rw [List.idxOf_append_of_notMem he_not_init, List.idxOf_cons_self, Nat.add_zero]
-        have hidx_y_lt : (initL ++ [e_last]).idxOf y < initL.length + 1 := by
-          simpa using List.idxOf_lt_length_of_mem hy_l
-        rcases List.mem_append.mp hy_l with hy_in | hy_end
-        · have hidx_y : (initL ++ [e_last]).idxOf y < initL.length := by
-            rw [List.idxOf_append_of_mem hy_in]
-            exact List.idxOf_lt_length_of_mem hy_in
-          omega
-        · rw [List.mem_singleton.mp hy_end] at hprec
-          exact irrefl e_last hprec
+        rw [List.idxOf_append_of_notMem he_not_init, List.idxOf_cons_self, Nat.add_zero] at hidx_lt
+        have hidx_y := List.idxOf_lt_length_of_mem hy_l
+        rw [List.length_append, List.length_singleton] at hidx_y
+        omega
       let H' := H.erase e_last
       have hH'_sub : H' ⊆ H := Finset.erase_subset e_last H
       have hH'_closed : IsCausallyClosed prec H' := by
@@ -908,21 +890,13 @@ private theorem orset_main_ind (n : ℕ) :
         exact he_max u huH (hveq ▸ hvu)
       have hlin_init : IsCausalLinearization prec H' initL := by
         refine ⟨hnodup_init, fun u => ?_, fun u₁ hu₁ u₂ hu₂ hprec => ?_⟩
-        · simp only [H', Finset.mem_erase]
-          constructor
-          · intro hu_in
-            exact ⟨fun hueq => he_not_init (hueq ▸ hu_in),
-              (hl.2.1 u).mp (List.mem_append_left [e_last] hu_in)⟩
-          · rintro ⟨hu_ne, huH⟩
-            rcases List.mem_append.mp ((hl.2.1 u).mpr huH) with hu_in | hu_end
-            · exact hu_in
-            · exact absurd (List.mem_singleton.mp hu_end) hu_ne
+        · simp only [H', Finset.mem_erase, ← hl.2.1 u, List.mem_append, List.mem_singleton]
+          exact ⟨fun h => ⟨fun h' => he_not_init (h' ▸ h), Or.inl h⟩,
+            fun ⟨hne, h⟩ => h.resolve_right hne⟩
         · have hlt_app := hl.2.2 u₁ (List.mem_append_left _ hu₁)
             u₂ (List.mem_append_left _ hu₂) hprec
           rwa [List.idxOf_append_of_mem hu₁, List.idxOf_append_of_mem hu₂] at hlt_app
-      have hcard_H' : H'.card < n := by
-        rw [← hcard]
-        exact Finset.card_erase_lt_of_mem he_last_H
+      have hcard_H' : H'.card < n := hcard ▸ Finset.card_erase_lt_of_mem he_last_H
       let hH' : ORSetCausalHistory P α Ev prec H' := hH.restrict hH'_sub hH'_closed
       have hfold_init : initL.foldl (fun s e => orsetEffect (hH.effOf e) s) ∅ =
           orsetSurvivingTags prec hH.opOf H' :=

@@ -186,11 +186,7 @@ private theorem toOuterMeasure_uniform_linearForm_eq_le [NeZero q] (hq : q.Prime
     ext x
     simp only [Set.mem_ofPred_eq]
     rw [hsum]
-    constructor
-    · intro hx
-      linear_combination hx
-    · intro hx
-      linear_combination hx
+    constructor <;> intro hx <;> linear_combination hx
 
 /-! ### Tabulating queries -/
 

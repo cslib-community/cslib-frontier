@@ -211,10 +211,10 @@ theorem isReasonable_multilinearEval {B : ℝ} (hμ : ∀ i, IsReasonable B id (
   classical
   have h4 : MemLp (multilinearEval c) (4 : ℕ) (Measure.pi μ) :=
     memLp_multilinearEval μ (by norm_num) (fun i => by exact_mod_cast (hμ i).memLp) c
-  refine ⟨by exact_mod_cast h4, ?_⟩
-  exact integral_multilinearEval_pow_four_le_aux μ (le_max_right B 9)
-    (fun i => (hμ i).mono (le_max_left B 9)) h1 h3 univ k c
-    (fun S hS => absurd (subset_univ S) hS) hc
+  exact ⟨by exact_mod_cast h4,
+    integral_multilinearEval_pow_four_le_aux μ (le_max_right B 9)
+      (fun i => (hμ i).mono (le_max_left B 9)) h1 h3 univ k c
+      (fun S hS => absurd (subset_univ S) hS) hc⟩
 
 /-- **The Bonami Lemma** for independent variables satisfying Hypothesis 11.65 (the case
 `B = 9`, variance `1`, of [O'Donnell, Corollary 9.6][ODonnell2014],

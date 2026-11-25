@@ -51,10 +51,9 @@ private theorem range'_forM_eq (f : ℕ → Memory.Prog Unit) (b k i : ℕ)
   induction k generalizing i with
   | zero => rfl
   | succ k ih =>
-    have hg : i < b := by omega
     rw [List.range'_succ]
     change (f i >>= fun _ => (List.range' (i + 1) k).forM f) = _
-    rw [boundedWhile, ite_eq_left hg]
+    rw [boundedWhile, ite_eq_left (by omega)]
     simp only [bind_assoc, pure_bind]
     exact congrArg (fun p => f i >>= fun _ => p) (ih (i + 1) (by omega))
 
@@ -118,21 +117,17 @@ theorem loopView_eq (M : Methods (spec n K V) (Memory.spec w)) (k : ℕ) :
   induction k with
   | zero => rfl
   | succ k ih =>
-    have hg : k + 1 ≠ 0 := by omega
     unfold loopView
-    rw [boundedWhile, ite_eq_left hg]
+    rw [boundedWhile, ite_eq_left (by omega)]
     simp only [loopStep, bind_assoc, Nat.add_sub_cancel]
     change (M (.inl .extractMin) >>= _) = _
     unfold loop link queue
     congr 1 with e : 1
-    cases e with
-    | none =>
-      simp only [pure_bind, boundedWhile_of_not (fun (_ : Unit) (a : ℕ) => a ≠ 0)
+    rcases e with _ | ⟨u, du⟩
+    · simp only [pure_bind, boundedWhile_of_not (fun (_ : Unit) (a : ℕ) => a ≠ 0)
         (loopStep M) () k 0 (by simp)]
       rfl
-    | some e =>
-      rcases e with ⟨u, du⟩
-      dsimp only
+    · dsimp only
       rw [scanView_eq]
       simp only [bind_assoc, pure_bind]
       change (link M (scan (K := K) (V := V) u du) >>= fun _ => loopView M k) =

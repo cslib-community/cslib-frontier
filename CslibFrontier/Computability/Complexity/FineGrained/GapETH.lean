@@ -391,34 +391,19 @@ theorem exists_reduction_GapKSAT_to_MaxKSATThreshold (P : GapKSATSpec) :
       (∀ φ, (f φ).numVars = φ.numVars) ∧
       (∀ φ ∈ (GapKSAT P).yes, f φ ∈ MaxKSATThreshold P.width) ∧
       (∀ φ ∈ (GapKSAT P).no, f φ ∉ MaxKSATThreshold P.width) := by
-  have hgap : 0 < P.gap := P.gap_pos
-  let den : ℕ := ⌈2 / P.gap⌉₊ + 1
-  have hden_pos : 0 < den := Nat.succ_pos _
+  obtain ⟨q, hsq, hqc⟩ := exists_rat_btwn P.soundness_lt_completeness
+  have hq0 : (0 : ℝ) ≤ q := P.soundness_nonneg.trans hsq.le
+  let den : ℕ := q.den
+  let num : ℕ := q.num.toNat
+  have hden_pos : 0 < den := q.den_pos
   have hdenR_pos : (0 : ℝ) < den := Nat.cast_pos.mpr hden_pos
-  have htwo_lt_div : 2 / P.gap < (den : ℝ) := by
-    have hceil : 2 / P.gap ≤ (⌈2 / P.gap⌉₊ : ℝ) := Nat.le_ceil _
-    have hlt : (⌈2 / P.gap⌉₊ : ℝ) < (den : ℝ) := by
-      dsimp only [den]
-      push_cast
-      linarith
-    exact hceil.trans_lt hlt
-  have hgap_den : 2 < (den : ℝ) * P.gap := (div_lt_iff₀ hgap).mp htwo_lt_div
-  let num : ℕ := ⌊P.soundness * (den : ℝ)⌋₊ + 1
-  have hs_den_nn : 0 ≤ P.soundness * (den : ℝ) :=
-    mul_nonneg P.soundness_nonneg hdenR_pos.le
-  have hs_lt_num : P.soundness * (den : ℝ) < (num : ℝ) := by
-    have hlt := Nat.lt_floor_add_one (P.soundness * (den : ℝ))
-    have hnum_eq : (num : ℝ) = (⌊P.soundness * (den : ℝ)⌋₊ : ℝ) + 1 := by
-      dsimp only [num]; push_cast; rfl
-    linarith
-  have hnum_lt_c : (num : ℝ) < P.completeness * (den : ℝ) := by
-    have hfl : (⌊P.soundness * (den : ℝ)⌋₊ : ℝ) ≤ P.soundness * (den : ℝ) :=
-      Nat.floor_le hs_den_nn
-    have hnum_eq : (num : ℝ) = (⌊P.soundness * (den : ℝ)⌋₊ : ℝ) + 1 := by
-      dsimp only [num]; push_cast; rfl
-    have hgap_eq : (den : ℝ) * P.gap = P.completeness * (den : ℝ) - P.soundness * (den : ℝ) := by
-      rw [GapKSATSpec.gap]; ring
-    linarith
+  have hnum : (num : ℝ) = q * den := by
+    rw [Rat.cast_def, div_mul_cancel₀ _ hdenR_pos.ne']
+    exact_mod_cast Int.toNat_of_nonneg (Rat.num_nonneg.mpr (by exact_mod_cast hq0))
+  have hs_lt_num : P.soundness * (den : ℝ) < (num : ℝ) :=
+    hnum ▸ mul_lt_mul_of_pos_right hsq hdenR_pos
+  have hnum_lt_c : (num : ℝ) < P.completeness * (den : ℝ) :=
+    hnum ▸ mul_lt_mul_of_pos_right hqc hdenR_pos
   let cutoff (m : ℕ) : ℕ := if m == 0 then 0 else (num * m) / den + 1
   let f (φ : CNF ℕ) : MaxSATThresholdInput :=
     { formula := φ, cutoff := cutoff φ.length }
@@ -439,53 +424,33 @@ theorem exists_reduction_GapKSAT_to_MaxKSATThreshold (P : GapKSATSpec) :
     rcases Nat.eq_zero_or_pos φ.length with hm0 | hm_pos
     · rw [hm0]
       exact ⟨fun _ => false, Nat.zero_le _⟩
-    · have hbeq : (φ.length == 0) = false := beq_eq_false_iff_ne.mpr hm_pos.ne'
-      simp only [hbeq, Bool.false_eq_true, ↓reduceIte]
-      obtain ⟨σ, hσ_eq⟩ := φ.exists_countUnsat_div_eq_unsatVal
-      refine ⟨σ, ?_⟩
-      set sat : ℕ := φ.length - φ.countUnsat σ
-      have hmR : (0 : ℝ) < φ.length := Nat.cast_pos.mpr hm_pos
-      have hunsat_le : (φ.countUnsat σ : ℝ) ≤ (1 - P.completeness) * (φ.length : ℝ) :=
-        (div_le_iff₀ hmR).mp (hσ_eq.trans_le hφ.2)
-      have hsatR : (sat : ℝ) = (φ.length : ℝ) - (φ.countUnsat σ : ℝ) :=
-        Nat.cast_sub (φ.countUnsat_le_length σ)
-      have hc_le_sat : P.completeness * (φ.length : ℝ) ≤ (sat : ℝ) := by linarith
-      have hreal_lt : (num : ℝ) * (φ.length : ℝ) < (sat : ℝ) * (den : ℝ) := by
-        have h1 : (num : ℝ) * (φ.length : ℝ) < (P.completeness * (den : ℝ)) * (φ.length : ℝ) :=
-          mul_lt_mul_of_pos_right hnum_lt_c hmR
-        have h2 : (P.completeness * (φ.length : ℝ)) * (den : ℝ) ≤ (sat : ℝ) * (den : ℝ) := by gcongr
-        linarith
-      have hnat_lt : num * φ.length < sat * den := by exact_mod_cast hreal_lt
-      have hdiv_lt : ((num * φ.length) / den) * den < sat * den :=
-        (Nat.div_mul_le_self _ _).trans_lt hnat_lt
-      exact Nat.succ_le_of_lt ((Nat.mul_lt_mul_right hden_pos).mp hdiv_lt)
+    simp only [beq_eq_false_iff_ne.mpr hm_pos.ne', Bool.false_eq_true, ↓reduceIte]
+    obtain ⟨σ, hσ_eq⟩ := φ.exists_countUnsat_div_eq_unsatVal
+    refine ⟨σ, (Nat.div_lt_iff_lt_mul hden_pos).mpr ?_⟩
+    have hmR : (0 : ℝ) < φ.length := Nat.cast_pos.mpr hm_pos
+    have hunsat_le : (φ.countUnsat σ : ℝ) ≤ (1 - P.completeness) * (φ.length : ℝ) :=
+      (div_le_iff₀ hmR).mp (hσ_eq.trans_le hφ.2)
+    have hreal_lt : (num : ℝ) * φ.length < (φ.length - φ.countUnsat σ : ℝ) * den := by
+      linarith [mul_le_mul_of_nonneg_right hunsat_le hdenR_pos.le,
+        mul_lt_mul_of_pos_right hnum_lt_c hmR]
+    rw [← Nat.cast_sub (φ.countUnsat_le_length σ)] at hreal_lt
+    exact_mod_cast hreal_lt
   · rw [mem_no_GapKSAT] at hφ
     have hpos_val : 0 < φ.unsatVal := by linarith [hφ.2, P.soundness_lt_one]
     have hm_pos : 0 < φ.length := CNF.length_pos_of_unsatVal_pos hpos_val
     obtain ⟨-, σ, hσ⟩ := hmem
     dsimp only [f, cutoff] at hσ
-    have hbeq : (φ.length == 0) = false := beq_eq_false_iff_ne.mpr hm_pos.ne'
-    simp only [hbeq, Bool.false_eq_true, ↓reduceIte] at hσ
-    set sat : ℕ := φ.length - φ.countUnsat σ
-    have hmod_eq := Nat.mod_add_div (num * φ.length) den
-    have hmod_lt : (num * φ.length) % den < den := Nat.mod_lt _ hden_pos
-    have hmul_le : den * ((num * φ.length) / den + 1) ≤ den * sat :=
-      Nat.mul_le_mul_left den hσ
-    rw [Nat.mul_succ] at hmul_le
-    have hnat_lt : num * φ.length < den * sat := by omega
-    have hreal_lt : (num : ℝ) * (φ.length : ℝ) < (den : ℝ) * (sat : ℝ) := by
+    simp only [beq_eq_false_iff_ne.mpr hm_pos.ne', Bool.false_eq_true, ↓reduceIte] at hσ
+    have hnat_lt : num * φ.length < (φ.length - φ.countUnsat σ) * den :=
+      (Nat.div_lt_iff_lt_mul hden_pos).mp hσ
+    have hreal_lt : (num : ℝ) * φ.length < (φ.length - φ.countUnsat σ : ℝ) * den := by
+      rw [← Nat.cast_sub (φ.countUnsat_le_length σ)]
       exact_mod_cast hnat_lt
     have hmR : (0 : ℝ) < φ.length := Nat.cast_pos.mpr hm_pos
     have hunsat_ge : (1 - P.soundness) * (φ.length : ℝ) ≤ (φ.countUnsat σ : ℝ) :=
       (le_div_iff₀ hmR).mp (hφ.2.trans (φ.unsatVal_le σ))
-    have hsatR : (sat : ℝ) = (φ.length : ℝ) - (φ.countUnsat σ : ℝ) :=
-      Nat.cast_sub (φ.countUnsat_le_length σ)
-    have hsat_le : (sat : ℝ) ≤ P.soundness * (φ.length : ℝ) := by linarith
-    have h1 : (den : ℝ) * (sat : ℝ) ≤ (P.soundness * (den : ℝ)) * (φ.length : ℝ) := by
-      have hm := mul_le_mul_of_nonneg_left hsat_le hdenR_pos.le
-      linarith
-    have h2 : (P.soundness * (den : ℝ)) * (φ.length : ℝ) < (num : ℝ) * (φ.length : ℝ) := by gcongr
-    linarith
+    linarith [mul_le_mul_of_nonneg_right hunsat_ge hdenR_pos.le,
+      mul_lt_mul_of_pos_right hs_lt_num hmR]
 
 /-- Any deterministic `2 ^ (δ * n) * poly(L)` decider for `MaxKSATThreshold P.width` (`δ ≥ 0`)
 transfers to `GapKSAT P`. -/

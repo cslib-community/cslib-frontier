@@ -70,9 +70,7 @@ private theorem blockCount_update_of_ne (b : Bool) (x : BitString (s * w)) {j j'
   unfold blockCount
   congr 1
   refine filter_congr fun i' _ => ?_
-  rw [update_of_ne]
-  intro h
-  exact hj (congrArg Prod.fst (finProdFinEquiv.injective h))
+  rw [update_of_ne fun h => hj (congrArg Prod.fst (finProdFinEquiv.injective h))]
 
 /-- Setting a bit to `b` in a block without bits equal to `b` leaves exactly one. -/
 private theorem blockCount_update_of_eq_zero (b : Bool) {x : BitString (s * w)} {j : Fin s}
@@ -115,11 +113,9 @@ private theorem one_sub_mul_sqrt_le_two_mul_of_blockCount (b : Bool)
     (1 - δ) * √(w * s) ≤ 2 * T := by
   classical
   rcases Nat.eq_zero_or_pos w with hw | hw
-  · subst hw
-    simp
+  · simp [hw]
   rcases Nat.eq_zero_or_pos s with hs | hs
-  · subst hs
-    simp
+  · simp [hs]
   set A : Finset (BitString (s * w)) :=
     {x | ∃ j₀, blockCount b x j₀ = 0 ∧ ∀ j ≠ j₀, blockCount b x j = 1}
   set B : Finset (BitString (s * w)) := {y | ∀ j, blockCount b y j = 1}
@@ -156,8 +152,7 @@ private theorem one_sub_mul_sqrt_le_two_mul_of_blockCount (b : Bool)
     by_cases hj : j = j₀
     · subst hj
       exact blockCount_update_of_eq_zero b h0 i
-    · rw [blockCount_update_of_ne b x hj]
-      exact h1 j hj
+    · exact (blockCount_update_of_ne b x hj _ _).trans (h1 j hj)
   have hm' : ∀ y ∈ B, s ≤ #{k | update y k (!y k) ∈ A} := by
     intro y hy
     have h1 : ∀ j, blockCount b y j = 1 := (mem_filter.1 hy).2
@@ -170,9 +165,8 @@ private theorem one_sub_mul_sqrt_le_two_mul_of_blockCount (b : Bool)
       _ ≤ _ := card_le_card_of_injOn (fun j => finProdFinEquiv (j, g j)) (fun j _ => ?_)
           fun j _ j' _ h => congrArg Prod.fst (finProdFinEquiv.injective h)
     refine mem_filter.2 ⟨mem_univ _, mem_filter.2 ⟨mem_univ _, j,
-      blockCount_update_of_eq_one b (h1 j) (hg j), fun j' hj' => ?_⟩⟩
-    rw [blockCount_update_of_ne b y hj']
-    exact h1 j'
+      blockCount_update_of_eq_one b (h1 j) (hg j), fun j' hj' =>
+        (blockCount_update_of_ne b y hj' _ _).trans (h1 j')⟩⟩
   refine one_sub_mul_sqrt_le_two_mul_of_neighbors U hψ₀ T hA (fun x hx k hk => ?_) hm hm'
   obtain ⟨j₀, h0, h1⟩ := (mem_filter.1 hx).2
   refine hδ x _ (fun j => ?_) ⟨j₀, h0⟩ (mem_filter.1 hk).2
@@ -194,8 +188,7 @@ theorem one_sub_mul_sqrt_le_two_mul_of_tribes
   refine one_sub_mul_sqrt_le_two_mul_of_blockCount false U hψ₀ T fun x y hx hx0 hy => ?_
   obtain ⟨j₀, h0⟩ := hx0
   have htx : tribes w s x = true := tribes_eq_true_iff.2 ⟨j₀, fun i => by
-    have := filter_eq_empty_iff.1 (card_eq_zero.1 h0) (mem_univ i)
-    simpa using this⟩
+    simpa using filter_eq_empty_iff.1 (card_eq_zero.1 h0) (mem_univ i)⟩
   have hty : tribes w s y = false := by
     by_contra hne
     obtain ⟨j, hj⟩ := tribes_eq_true_iff.1 (Bool.not_eq_false _ ▸ hne)
@@ -225,10 +218,9 @@ theorem one_sub_mul_sqrt_le_two_mul_of_forall_exists
     (1 - 2 * √(ε * (1 - ε))) * √(w * s) ≤ 2 * T := by
   refine one_sub_mul_sqrt_le_two_mul_of_blockCount true U hψ₀ T fun x y hx hx0 hy => ?_
   obtain ⟨j₀, h0⟩ := hx0
-  have hfx : decide (∀ j : Fin s, ∃ i : Fin w, x (finProdFinEquiv (j, i)) = true) = false := by
-    refine decide_eq_false fun hall => ?_
-    obtain ⟨i, hi⟩ := hall j₀
-    exact filter_eq_empty_iff.1 (card_eq_zero.1 h0) (mem_univ i) hi
+  have hfx : decide (∀ j : Fin s, ∃ i : Fin w, x (finProdFinEquiv (j, i)) = true) = false :=
+    decide_eq_false fun hall =>
+      (hall j₀).elim fun i => filter_eq_empty_iff.1 (card_eq_zero.1 h0) (mem_univ i)
   have hfy : decide (∀ j : Fin s, ∃ i : Fin w, y (finProdFinEquiv (j, i)) = true) = true := by
     refine decide_eq_true fun j => ?_
     obtain ⟨i, hi⟩ := card_eq_one.1 (hy j)

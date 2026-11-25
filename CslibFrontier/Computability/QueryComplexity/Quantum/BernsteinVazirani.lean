@@ -105,43 +105,27 @@ theorem run_bernsteinVazirani_apply (e : Fin N ≃ (K → Bool)) (x : Fin N → 
   · simp
   · simp only [Bool.true_and, ite_neg_one_one, Prod.mk.injEq, and_true,
       EmbeddingLike.apply_eq_iff_eq, mul_ite, mul_one, mul_zero, sum_ite_eq', mem_univ, ite_true,
-      zero_dotProduct, Bool.zero_eq_false, signVal_false, Complex.ofReal_one]
-    rw [mul_sum, mul_sum, Complex.ofReal_sum]
-    refine sum_congr rfl fun a _ => ?_
-    simp only [Complex.ofReal_mul]
-    rw [← h2]
-    ring
+      zero_dotProduct, Bool.zero_eq_false, signVal_false, Complex.ofReal_one, mul_sum,
+      Complex.ofReal_sum, Complex.ofReal_mul, ← h2]
+    exact sum_congr rfl fun _ _ => by ring
 
 /-- **One query recovers `s`**: after one query on the truth table of `a ↦ s ⬝ᵥ a`, the
 Bernstein–Vazirani algorithm is in the basis state `|s, 1⟩`. -/
 theorem run_bernsteinVazirani (e : Fin N ≃ (K → Bool)) (s : K → Bool) :
     run (bernsteinVazirani e) (bernsteinVaziraniInit e) (linearTable e s) 1 =
       ket (e.symm s, true, ()) := by
-  have h2 : (((Real.sqrt (2 ^ Fintype.card K))⁻¹ : ℝ) : ℂ) *
-      (((Real.sqrt (2 ^ Fintype.card K))⁻¹ : ℝ) : ℂ) * ((2 ^ Fintype.card K : ℝ) : ℂ) = 1 := by
-    rw [← Complex.ofReal_mul, ← Complex.ofReal_mul, ← mul_inv,
-      Real.mul_self_sqrt (by positivity), inv_mul_cancel₀ (by positivity), Complex.ofReal_one]
-  ext ⟨i, b, u⟩
-  simp only [run, bernsteinVazirani, bernsteinVaziraniInit, hadamardTransform_apply,
-    phaseOracle_apply, ket_apply, Equiv.prodCongr_apply, Equiv.prodCongr_symm, Prod.map,
-    Equiv.refl_apply, Equiv.refl_symm, Equiv.apply_symm_apply]
+  ext ⟨i, b, ⟨⟩⟩
+  rw [run_bernsteinVazirani_apply, ket_apply]
   cases b
   · simp
-  · simp only [Bool.true_and, linearTable, Equiv.apply_symm_apply, ite_neg_one_one,
-      Prod.mk.injEq, and_true, EmbeddingLike.apply_eq_iff_eq, mul_ite, mul_one, mul_zero,
-      sum_ite_eq', mem_univ, ite_true, zero_dotProduct, Bool.zero_eq_false, signVal_false,
-      Complex.ofReal_one]
-    have key : ∑ x : K → Bool, ((signVal (x ⬝ᵥ e i) : ℝ) : ℂ) *
-        (((signVal (s ⬝ᵥ x) : ℝ) : ℂ) * (((Real.sqrt (2 ^ Fintype.card K))⁻¹ : ℝ) : ℂ)) =
-        (((Real.sqrt (2 ^ Fintype.card K))⁻¹ : ℝ) : ℂ) *
-          ((∑ x : K → Bool, signVal (e i ⬝ᵥ x) * signVal (s ⬝ᵥ x) : ℝ) : ℂ) := by
-      push_cast
-      rw [mul_sum]
-      exact sum_congr rfl fun x _ => by rw [dotProduct_comm x (e i)]; ring
-    rw [key, sum_signVal_dotProduct_mul_signVal_dotProduct]
+  · simp only [ite_true, linearTable, Equiv.apply_symm_apply, Prod.mk.injEq, and_true]
+    have hsum : (∑ a : K → Bool, signVal (s ⬝ᵥ a) * signVal (a ⬝ᵥ e i)) =
+        ∑ a : K → Bool, signVal (e i ⬝ᵥ a) * signVal (s ⬝ᵥ a) :=
+      sum_congr rfl fun a _ => by rw [dotProduct_comm a (e i), mul_comm]
+    rw [hsum, sum_signVal_dotProduct_mul_signVal_dotProduct]
     simp only [e.eq_symm_apply]
     split_ifs
-    · rw [← mul_assoc, h2]
+    · rw [inv_mul_cancel₀ (by positivity), Complex.ofReal_one]
     · simp
 
 /-- **Measuring the query register gives `s` with certainty.** -/

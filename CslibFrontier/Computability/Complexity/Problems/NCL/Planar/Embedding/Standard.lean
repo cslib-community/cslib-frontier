@@ -46,12 +46,10 @@ private theorem source_ports (cs : List Color) (need : ℕ) :
 private theorem source_andOr {E : Type*} (v : Vertex E) (c : Port E → Color)
     (ha : v.IsAndOr) (hc : ∀ p ∈ v.ports, p.weight = (c p.port).weight) :
     (genVertex [] ((v.ports.map WeightedPort.port).map c) v.minInflow).checkAndOr = true := by
-  have hweights : v.ports.map (fun p => (c p.port).weight) = v.ports.map WeightedPort.weight :=
-    List.map_congr_left (fun p hp => (hc p hp).symm)
   have he : (Sources.spec c (v.ports.map WeightedPort.port) v.minInflow).checkAndOr =
       v.checkAndOr := by
-    simp only [Vertex.checkAndOr, Sources.spec, List.map_map, Function.comp_def]
-    rw [hweights]
+    simp only [Vertex.checkAndOr, Sources.spec, List.map_map, Function.comp_def,
+      List.map_congr_left fun p hp => (hc p hp).symm]
   calc
     _ = ((genVertex [] ((v.ports.map WeightedPort.port).map c) v.minInflow).map
         (Sources.sourceLabel c (v.ports.map WeightedPort.port))).checkAndOr :=
@@ -65,12 +63,9 @@ private theorem source_standard {E : Type*} (v : Vertex E) (c : Port E → Color
     (ha : v.IsAndOr) (hc : ∀ p ∈ v.ports, p.weight = (c p.port).weight) :
     (Cell.expand (.source ((v.ports.map WeightedPort.port).map c) v.minInflow)).checkGens
       (fun g => (g.length == 1) && Prim.checkStandard g) = true := by
-  have hs : Prim.checkStandard
-      [genVertex [] ((v.ports.map WeightedPort.port).map c) v.minInflow] = true := by
-    simp only [Prim.checkStandard, List.all_cons, List.all_nil, Bool.and_true,
-      source_andOr v c ha hc, source_loopFree, source_ports]
-  simpa only [Cell.expand, checkGens, List.length_singleton,
-    beq_self_eq_true, Bool.true_and] using hs
+  simp only [Cell.expand, checkGens, List.length_singleton, beq_self_eq_true,
+    Prim.checkStandard, List.all_cons, List.all_nil, Bool.and_true,
+    source_andOr v c ha hc, source_loopFree, source_ports]
 
 private theorem sources_standard {E : Type*} (vs : List (Vertex E)) (c : Port E → Color)
     (ha : ∀ v ∈ vs, v.IsAndOr) (hc : ∀ v ∈ vs, ∀ p ∈ v.ports, p.weight = (c p.port).weight) :

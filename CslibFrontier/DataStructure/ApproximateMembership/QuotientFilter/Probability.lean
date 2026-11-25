@@ -183,9 +183,8 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
           (by rw [Finset.card_pair hne]; decide) (fun _ => v)
         rwa [← hset, Finset.card_pair hne, Fintype.card_fin (2 ^ b)] at hc
       · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-    have hmul : 2 ^ b * (#{β : Bot | H β x' = H β y'} * 2 ^ b) = 2 ^ b * Fintype.card Bot := by
-      linear_combination hsq
-    exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos b) hmul).le
+    exact (Nat.eq_of_mul_eq_mul_left (Nat.two_pow_pos b) (by linear_combination hsq :
+      2 ^ b * (#{β : Bot | H β x' = H β y'} * 2 ^ b) = 2 ^ b * Fintype.card Bot)).le
   have hprod : #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} =
       ∑ α : Top, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} := by
     simp only [Finset.card_filter]
@@ -199,10 +198,7 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
       #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
       Fintype.card Top * Fintype.card Bot :=
     (Finset.sum_le_sum fun _ _ => Nat.mul_le_mul_right _ (Finset.card_le_univ _)).trans <| by
-      rw [Finset.sum_const, smul_eq_mul]
-      calc #{α | eqTop α} * (Fintype.card Bot * 2 ^ b)
-          = (#{α | eqTop α} * 2 ^ b) * Fintype.card Bot := by ring
-        _ ≤ Fintype.card Top * Fintype.card Bot := Nat.mul_le_mul_right _ hbad
+      rw [Finset.sum_const, smul_eq_mul]; exact (Nat.mul_le_mul_right _ hbad).trans_eq' (by ring)
   have hsum_good : (∑ α ∈ Finset.univ.filter (fun α => ¬eqTop α),
       #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} * 2 ^ b) ≤
       Fintype.card Top * Fintype.card Bot :=
@@ -234,7 +230,7 @@ theorem card_falsePositive_mul_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (hU : U 
       (Finset.univ.filter fun θ : QuotSeed w₀ n => quotHash U w₀ n θ x = quotHash U w₀ n θ u) ×ˢ
         (Finset.univ.filter fun γ : RemSeed w₀ => remHash U w₀ k γ x = remHash U w₀ k γ u))
       fun p hp => ?_).trans
-      (Finset.card_biUnion_le.trans (by simp only [Finset.card_product]; exact le_rfl))
+      (Finset.card_biUnion_le.trans_eq (by simp only [Finset.card_product]))
     simpa only [FP, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
       Finset.mem_product] using hp
   have h2S : 2 * #S ≤ 2 ^ b := by
@@ -424,20 +420,17 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
   let Bad : Finset Top := Finset.univ \ Good
   have hgood_each (α : Top) (hα : α ∈ Good) :
       (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤ 289 * Fintype.card Bot := by
-    have hsub := sum_seedClusterBound_sub_one_goodTop_le hU hS u hα
     have hle : (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
         (∑ β : Bot, (seedClusterBound U w₀ n S u (α, β) - 1)) + Fintype.card Bot := by
       rw [show Fintype.card Bot = ∑ _ : Bot, 1 by simp, ← Finset.sum_add_distrib]
       exact Finset.sum_le_sum fun _ _ => by omega
-    linarith
+    linarith [sum_seedClusterBound_sub_one_goodTop_le hU hS u hα]
   have hsum_good : (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
       289 * Fintype.card (QuotSeed w₀ n) :=
     (Finset.sum_le_sum hgood_each).trans <| by
       rw [Finset.sum_const, smul_eq_mul, Fintype.card_prod]
-      calc #Good * (289 * Fintype.card Bot)
-          = 289 * (#Good * Fintype.card Bot) := by ring
-        _ ≤ 289 * (Fintype.card Top * Fintype.card Bot) :=
-            Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ (Finset.card_le_univ Good))
+      exact (Nat.mul_le_mul_left 289 (Nat.mul_le_mul_right _ (Finset.card_le_univ Good))).trans_eq'
+        (by ring)
   have hT_le : #T ≤ 2 ^ b := by
     have := Finset.card_insert_le u (S.erase u)
     have := Finset.card_erase_le (s := S) (a := u) |>.trans (card_le_effCap hU hS)
@@ -458,11 +451,8 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
     rw [Finset.sum_congr rfl fun α hα => Finset.sum_congr rfl fun β _ =>
       show seedClusterBound U w₀ n S u (α, β) = 2 ^ b by
         dsimp only [seedClusterBound]; exact ite_eq_right (Finset.mem_sdiff.mp hα).2]
-    simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul]
-    rw [Fintype.card_prod]
-    calc #Bad * (Fintype.card Bot * 2 ^ b)
-        = (#Bad * 2 ^ b) * Fintype.card Bot := by ring
-      _ ≤ Fintype.card Top * Fintype.card Bot := Nat.mul_le_mul_right _ hbad_card
+    simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, Fintype.card_prod]
+    exact (Nat.mul_le_mul_right _ hbad_card).trans_eq' (by ring)
   rw [Fintype.sum_prod_type, ← Finset.sum_sdiff (Finset.subset_univ Good)]
   linarith
 

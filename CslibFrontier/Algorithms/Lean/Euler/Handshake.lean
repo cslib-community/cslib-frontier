@@ -58,10 +58,8 @@ theorem sum_map_degree {H : List (α × α)} {V : List α} (hV : V.Nodup)
   | nil => induction V <;> simp_all
   | cons e H ih =>
     have he := hH e List.mem_cons_self
-    have h1 := sum_map_ite_eq_count V e.1
-    have h2 := sum_map_ite_eq_count V e.2
-    rw [List.count_eq_one_of_mem hV he.1] at h1
-    rw [List.count_eq_one_of_mem hV he.2] at h2
+    have h1 := (sum_map_ite_eq_count V e.1).trans (List.count_eq_one_of_mem hV he.1)
+    have h2 := (sum_map_ite_eq_count V e.2).trans (List.count_eq_one_of_mem hV he.2)
     have hsplit : (V.map (degree (e :: H))).sum =
         (V.map fun x => if x = e.1 then 1 else 0).sum +
           (V.map fun x => if x = e.2 then 1 else 0).sum + (V.map (degree H)).sum := by
@@ -78,16 +76,9 @@ private theorem even_sum_iff_even_length_filter_odd (V : List α) (f : α → �
   induction V with
   | nil => simp
   | cons a V ih =>
-    rw [List.map_cons, List.sum_cons, List.filter_cons]
-    by_cases ha : Odd (f a)
-    · simp only [ha, decide_true, ↓reduceIte, List.length_cons]
-      rw [Nat.even_add, Nat.even_add_one, ih]
-      simp only [Nat.not_even_iff_odd.symm] at ha
-      tauto
-    · simp only [ha, decide_false, Bool.false_eq_true, ↓reduceIte]
-      rw [Nat.even_add, ih]
-      have : Even (f a) := Nat.not_odd_iff_even.1 ha
-      tauto
+    simp only [List.map_cons, List.sum_cons, List.filter_cons, Nat.even_add, ih]
+    by_cases ha : Even (f a) <;>
+      simp [ha, ← Nat.not_even_iff_odd, Nat.even_add_one]
 
 /-- **The handshake lemma** for list multigraphs: among the vertices of a duplicate-free list
 containing every endpoint, an even number have odd degree. -/

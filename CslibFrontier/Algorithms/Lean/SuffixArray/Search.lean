@@ -129,36 +129,27 @@ theorem cmpSuffix_eq_gt_iff (w : Array α) (p : List α) (i : ℕ) :
     cmpSuffix w p i = .gt ↔ (w.toList.drop i).take p.length < p := by
   rw [cmpSuffix_eq]
   split_ifs with h1 h2
-  · simp only [false_iff, not_lt]
-    exact le_of_lt h1
-  · simp only [false_iff, not_lt]
-    exact le_of_eq h2
-  · simp only [true_iff]
-    exact lt_of_le_of_ne (not_lt.mp h1) (Ne.symm h2)
+  · simp [h1.le]
+  · simp [h2.le]
+  · simp [lt_of_le_of_ne (not_lt.mp h1) (Ne.symm h2)]
 
 /-- `cmpSuffix` reports `.eq` or `.gt` iff the window of the suffix is at most `p`. -/
 theorem cmpSuffix_ne_lt_iff (w : Array α) (p : List α) (i : ℕ) :
     cmpSuffix w p i ≠ .lt ↔ (w.toList.drop i).take p.length ≤ p := by
   rw [cmpSuffix_eq]
   split_ifs with h1 h2
-  · simp only [ne_eq, not_true_eq_false, false_iff, not_le]
-    exact h1
-  · simp only [ne_eq, reduceCtorEq, not_false_eq_true, true_iff]
-    exact le_of_eq h2.symm
-  · simp only [ne_eq, reduceCtorEq, not_false_eq_true, true_iff]
-    exact not_lt.mp h1
+  · simp [h1]
+  · simp [h2.symm.le]
+  · simp [not_lt.mp h1]
 
 /-- `cmpSuffix` reports `.eq` iff `p` is a prefix of the suffix. -/
 theorem cmpSuffix_eq_eq_iff (w : Array α) (p : List α) (i : ℕ) :
     cmpSuffix w p i = .eq ↔ p <+: w.toList.drop i := by
   rw [cmpSuffix_eq, List.prefix_iff_eq_take]
   split_ifs with h1 h2
-  · simp only [false_iff]
-    exact ne_of_lt h1
-  · simp only [true_iff]
-    exact h2
-  · simp only [false_iff]
-    exact h2
+  · exact iff_of_false (by decide) (ne_of_lt h1)
+  · exact iff_of_true rfl h2
+  · exact iff_of_false (by decide) h2
 
 end Compare
 
@@ -219,6 +210,19 @@ private theorem take_drop_le_take_drop {w : Array α} {sa : Array ℕ}
     exact List.take_le_take_of_le (le_of_lt this) n
   · exact le_refl _
 
+private theorem lowerBound_lt_iff {n : ℕ} (f : ℕ → Bool) {P : ∀ r, r < n → Prop}
+    (hf : ∀ r (hr : r < n), f r = true ↔ P r hr)
+    (hmono : ∀ r r' (hr : r < n) (hr' : r' < n), r ≤ r' → P r' hr' → P r hr) :
+    lowerBound f 0 n ≤ n ∧ ∀ r (hr : r < n), P r hr ↔ r < lowerBound f 0 n := by
+  obtain ⟨-, hle, hlt, hge⟩ := lowerBound_spec f (lo := 0) (hi := n)
+    fun m m' _ hmm' hm' h =>
+      (hf m (by omega)).2 (hmono m m' (by omega) hm' hmm' ((hf m' hm').1 h))
+  refine ⟨hle, fun r hr => ⟨fun h => ?_, fun h => (hf r hr).1 (hlt r (Nat.zero_le _) h)⟩⟩
+  by_contra hc
+  have hfalse := hge r (by omega) hr
+  rw [← Bool.not_eq_true, hf r hr] at hfalse
+  exact hfalse h
+
 /-- **Correctness of suffix-array search**: on a suffix array, `searchArray` returns ranks
 `lo ≤ hi ≤ |sa|` such that the suffix of rank `r` starts with `p` exactly when `lo ≤ r < hi`. -/
 theorem searchArray_spec {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w.toList sa.toList)
@@ -227,48 +231,30 @@ theorem searchArray_spec {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w.
       ∀ (r : ℕ) (hr : r < sa.size),
         p <+: w.toList.drop sa[r] ↔ (searchArray w sa p).1 ≤ r ∧ r < (searchArray w sa p).2 := by
   simp only [searchArray]
-  obtain ⟨-, hlo2, hlo3, hlo4⟩ := lowerBound_spec (probeBelow w sa p) (lo := 0) (hi := sa.size)
-    (fun m m' _ hmm' hm' h => by
-      rw [probeBelow_eq_true_iff w sa p (by omega)] at h ⊢
-      exact lt_of_le_of_lt (take_drop_le_take_drop hsa hmm' hm' _) h)
-  obtain ⟨-, hhi2, hhi3, hhi4⟩ := lowerBound_spec (probeAtMost w sa p) (lo := 0) (hi := sa.size)
-    (fun m m' _ hmm' hm' h => by
-      rw [probeAtMost_eq_true_iff w sa p (by omega)] at h ⊢
-      exact le_trans (take_drop_le_take_drop hsa hmm' hm' _) h)
+  obtain ⟨hlo_le, hbelow⟩ := lowerBound_lt_iff (probeBelow w sa p)
+    (fun r hr => probeBelow_eq_true_iff w sa p hr)
+    (fun m m' _ hm' hmm' h => lt_of_le_of_lt (take_drop_le_take_drop hsa hmm' hm' p.length) h)
+  obtain ⟨hhi_le, hatmost⟩ := lowerBound_lt_iff (probeAtMost w sa p)
+    (fun r hr => probeAtMost_eq_true_iff w sa p hr)
+    (fun m m' _ hm' hmm' h => le_trans (take_drop_le_take_drop hsa hmm' hm' p.length) h)
   set lo := lowerBound (probeBelow w sa p) 0 sa.size
   set hi := lowerBound (probeAtMost w sa p) 0 sa.size
-  have hbelow : ∀ (r : ℕ) (hr : r < sa.size),
-      (w.toList.drop sa[r]).take p.length < p ↔ r < lo := by
-    intro r hr
-    refine ⟨fun h => ?_, fun h => (probeBelow_eq_true_iff w sa p hr).mp (hlo3 r (Nat.zero_le _) h)⟩
-    by_contra hc
-    have := hlo4 r (by omega) hr
-    rw [← Bool.not_eq_true, probeBelow_eq_true_iff w sa p hr] at this
-    exact this h
-  have hatmost : ∀ (r : ℕ) (hr : r < sa.size),
-      (w.toList.drop sa[r]).take p.length ≤ p ↔ r < hi := by
-    intro r hr
-    refine ⟨fun h => ?_, fun h => (probeAtMost_eq_true_iff w sa p hr).mp (hhi3 r (Nat.zero_le _) h)⟩
-    by_contra hc
-    have := hhi4 r (by omega) hr
-    rw [← Bool.not_eq_true, probeAtMost_eq_true_iff w sa p hr] at this
-    exact this h
-  have hlohi : lo ≤ hi := by grind
-  refine ⟨hlohi, by omega, fun r hr => ?_⟩
+  have hlohi : lo ≤ hi := by
+    by_contra h
+    have hlt : hi < sa.size := by omega
+    have := (hatmost hi hlt).1 ((hbelow hi hlt).2 (by omega)).le
+    omega
+  refine ⟨hlohi, hhi_le, fun r hr => ?_⟩
   rw [List.prefix_iff_eq_take]
   constructor
   · intro h
-    refine ⟨?_, (hatmost r hr).mp (le_of_eq h.symm)⟩
+    refine ⟨?_, (hatmost r hr).1 h.symm.le⟩
     by_contra hc
-    have := (hbelow r hr).mpr (by omega)
-    rw [← h] at this
-    exact lt_irrefl _ this
+    exact ((hbelow r hr).2 (by omega)).ne h.symm
   · rintro ⟨h1, h2⟩
-    have hle := (hatmost r hr).mpr h2
-    have hnlt : ¬ (w.toList.drop sa[r]).take p.length < p := fun h => by
-      have := (hbelow r hr).mp h
-      omega
-    exact (le_antisymm hle (not_lt.mp hnlt)).symm
+    have hnlt : ¬ (w.toList.drop sa[r]).take p.length < p :=
+      fun h => by have := (hbelow r hr).1 h; omega
+    exact (le_antisymm ((hatmost r hr).2 h2) (not_lt.mp hnlt)).symm
 
 /-- **Correctness of suffix-array search** on lists. -/
 theorem search_spec {w : List α} {sa : List ℕ} (hsa : IsSuffixArray w sa) (p : List α) :

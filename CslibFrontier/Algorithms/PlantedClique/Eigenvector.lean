@@ -130,8 +130,7 @@ theorem secondEigenvector_alignment (G : SimpleGraph (Fin n)) [DecidableRel G.Ad
         (S.card : ℝ) / 256) :
     ∃ s : ℝ, (s = 1 ∨ s = -1) ∧ ‖secondEigenvector G - s • unitIndicator S‖ ^ 2 ≤ 49 / 2048 := by
   have hnthree : 3 ≤ n := by have := hS.card_pos; omega
-  have huniv : (univ : Finset (Fin n)).Nonempty := by
-    exact ⟨⟨0, by omega⟩, mem_univ _⟩
+  have huniv : (univ : Finset (Fin n)).Nonempty := ⟨⟨0, by omega⟩, mem_univ _⟩
   let T := (G.adjMatrix ℝ).toEuclideanLin
   have hT : T.IsSymmetric := Matrix.isSymmetric_toEuclideanLin_iff.mpr (G.isHermitian_adjMatrix ℝ)
   have herr (y : EuclideanSpace ℝ (Fin n)) :
@@ -150,10 +149,8 @@ theorem secondEigenvector_alignment (G : SimpleGraph (Fin n)) [DecidableRel G.Ad
       simp only [card_univ, Fintype.card_fin]
       module
     rw [heq]
-    have hb := (ContinuousLinearMap.le_opNorm _ y).trans
-      (mul_le_mul_of_nonneg_right hnoise (norm_nonneg y))
-    convert hb using 1
-    ring
+    exact ((ContinuousLinearMap.le_opNorm _ y).trans
+      (mul_le_mul_of_nonneg_right hnoise (norm_nonneg y))).trans_eq (by ring)
   have hab : 2 * ((S.card : ℝ) / 2) ≤ (n : ℝ) / 2 := by
     have hsparse' : (4096 : ℝ) * S.card ≤ n := by exact_mod_cast hsparse
     have hk : (0 : ℝ) ≤ S.card := Nat.cast_nonneg _
@@ -227,11 +224,9 @@ theorem recoverFromApproximateSecondEigenvector_eq
   have hexact : ‖ε • secondEigenvector G - (ε * s) • unitIndicator S‖ ≤ 5 / 32 := by
     rw [mul_smul, ← smul_sub, norm_smul, hεnorm, one_mul]
     nlinarith [norm_nonneg (secondEigenvector G - s • unitIndicator S)]
-  have hnear : ‖v - (ε * s) • unitIndicator S‖ ≤ 11 / 64 := by
+  have hsq : ‖v - (ε * s) • unitIndicator S‖ ^ 2 ≤ 1 / 32 := by
     have ht := norm_sub_le_norm_sub_add_norm_sub v (ε • secondEigenvector G)
       ((ε * s) • unitIndicator S)
-    linarith
-  have hsq : ‖v - (ε * s) • unitIndicator S‖ ^ 2 ≤ 1 / 32 := by
     nlinarith [norm_nonneg (v - (ε * s) • unitIndicator S)]
   have hoverlap : 16 *
       (S \ List.selectLargest (fun i => |v i|) S.card (List.finRange n)).card ≤ S.card := by
@@ -286,11 +281,9 @@ theorem recoverEigenvector_sample_eq (S : Finset (Fin n)) (ω : Coins n)
     (hnoise : ‖Matrix.toEuclideanCLM (n := Fin n) (𝕜 := ℝ) (noise S ω)‖ ≤
       36 * Real.sqrt n)
     (hdegree : ∀ v ∉ S, 8 * (S.filter ((sample S ω).Adj v)).card ≤ 5 * S.card) :
-    recoverEigenvector (sample S ω) S.card = S := by
-  apply recoverEigenvector_eq_of_opNorm_le (sample S ω) S hk hsparse
-  · intro i hi j hj hij
-    exact sample_adj_of_mem S ω hi hj hij
-  · exact opNorm_raw_residual_le_card_div_256 S ω hn hsize hnoise
-  · exact hdegree
+    recoverEigenvector (sample S ω) S.card = S :=
+  recoverEigenvector_eq_of_opNorm_le (sample S ω) S hk hsparse
+    (fun _ hi _ hj hij => sample_adj_of_mem S ω hi hj hij)
+    (opNorm_raw_residual_le_card_div_256 S ω hn hsize hnoise) hdegree
 
 end Cslib.Algorithms.PlantedClique

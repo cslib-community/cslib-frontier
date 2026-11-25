@@ -163,25 +163,12 @@ private def matrixPartVal (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ) (r : Fin
 private theorem card_matrixRowParts_le (A : Matrix (Fin m) (Fin n) Bool) (s : ℕ)
     {p : ℕ} (hp : 0 < p) (r : Fin m) :
     #(matrixRowParts A s p r) ≤ p + 1 := by
+  have hite (P : Prop) [Decidable P] (z : Fin m ⊕ Bool) : #(if P then {z} else ∅) ≤ 1 := by
+    split_ifs <;> simp
   unfold matrixRowParts
-  set peerPart := ((sectionPeers p r).filter fun r' =>
-      (pairedCols (hasFullCol A s) p (r.1 / p) (min r r') (max r r')).Nonempty).map
-        Function.Embedding.inl
-  set oddPart : Finset (Fin m ⊕ Bool) :=
-    if (oddCols (hasFullCol A s) p r).Nonempty then {Sum.inr false} else ∅
-  set tailPart : Finset (Fin m ⊕ Bool) :=
-    if (matrixTailSet A s r).Nonempty then {Sum.inr true} else ∅
-  have hc1 : #peerPart ≤ p - 1 := by
-    rw [card_map]
-    exact (card_le_card (filter_subset _ _)).trans (card_sectionPeers_le hp r)
-  have hc2 : #oddPart ≤ 1 := by
-    dsimp only [oddPart]
-    split_ifs <;> simp
-  have hc3 : #tailPart ≤ 1 := by
-    dsimp only [tailPart]
-    split_ifs <;> simp
-  have hu1 := card_union_le (peerPart ∪ oddPart) tailPart
-  have hu2 := card_union_le peerPart oddPart
+  refine (card_union_le _ _).trans <| (add_le_add ((card_union_le _ _).trans <| add_le_add
+    ((card_map _).trans_le <| (card_filter_le _ _).trans (card_sectionPeers_le hp r))
+    (hite _ _)) (hite _ _)).trans ?_
   omega
 
 
@@ -190,65 +177,13 @@ private theorem sum_matrixRowParts_eq (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ
     (∑ k ∈ matrixRowParts A s p r, matrixPartVal A s p r k x) =
       ∑ j : Fin n, if A r j then x j else 0 := by
   unfold matrixRowParts
-  set peerPart := ((sectionPeers p r).filter fun r' =>
-      (pairedCols (hasFullCol A s) p (r.1 / p) (min r r') (max r r')).Nonempty).map
-        Function.Embedding.inl
-  set oddPart : Finset (Fin m ⊕ Bool) :=
-    if (oddCols (hasFullCol A s) p r).Nonempty then {Sum.inr false} else ∅
-  set tailPart : Finset (Fin m ⊕ Bool) :=
-    if (matrixTailSet A s r).Nonempty then {Sum.inr true} else ∅
-  have hd12 : Disjoint peerPart oddPart := by
-    rw [Finset.disjoint_left]
-    intro z hz1 hz2
-    obtain ⟨_, _, rfl⟩ := mem_map.mp hz1
-    dsimp only [oddPart] at hz2
-    split_ifs at hz2 <;> simp at hz2
-  have hd123 : Disjoint (peerPart ∪ oddPart) tailPart := by
-    rw [Finset.disjoint_left]
-    intro z hz12 hz3
-    dsimp only [tailPart] at hz3
-    split_ifs at hz3 with hne
-    · rw [mem_singleton.mp hz3] at hz12
-      rcases mem_union.mp hz12 with hz1 | hz2
-      · obtain ⟨_, _, habs⟩ := mem_map.mp hz1
-        nomatch habs
-      · dsimp only [oddPart] at hz2
-        split_ifs at hz2 <;> simp at hz2
-    · exact notMem_empty _ hz3
-  rw [sum_union hd123, sum_union hd12, sum_map]
-  have hpeers_sum :
-      (∑ r' ∈ (sectionPeers p r).filter (fun r' =>
-          (pairedCols (hasFullCol A s) p (r.1 / p) (min r r') (max r r')).Nonempty),
-        matrixPairVal A s p (r.1 / p, (min r r', max r r')) x) =
-      ∑ r' ∈ sectionPeers p r, matrixPairVal A s p (r.1 / p, (min r r', max r r')) x := by
-    rw [sum_filter]
-    refine sum_congr rfl fun r' _ => ?_
-    split_ifs with hne
-    · rfl
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [matrixPairVal, hne]
-  have hodd_sum :
-      (∑ k ∈ oddPart, matrixPartVal A s p r k x) = matrixOddVal A s p r x := by
-    dsimp only [oddPart]
-    split_ifs with hne
-    · simp [matrixPartVal]
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [matrixOddVal, hne]
-  have htail_sum :
-      (∑ k ∈ tailPart, matrixPartVal A s p r k x) = ∑ j ∈ matrixTailSet A s r, x j := by
-    dsimp only [tailPart]
-    split_ifs with hne
-    · simp [matrixPartVal]
-    · rw [not_nonempty_iff_eq_empty] at hne
-      simp [hne]
-  change (∑ r' ∈ (sectionPeers p r).filter _,
-        matrixPairVal A s p (r.1 / p, (min r r', max r r')) x) +
-      (∑ k ∈ oddPart, matrixPartVal A s p r k x) +
-      (∑ k ∈ tailPart, matrixPartVal A s p r k x) = _
-  rw [hpeers_sum, hodd_sum, htail_sum]
-  have hfull := (sum_filter_hasCol_eq (hasFullCol A s) p (fun c => fullColVal c x) r).symm
-  unfold matrixPairVal matrixOddVal
-  rw [hfull, sum_row_eq_fullCol_add_tail A hs r x]
+  rw [sum_union, sum_union, sum_map, sum_row_eq_fullCol_add_tail A hs r x, sum_filter_hasCol_eq]
+  · refine congrArg₂ (· + ·) (congrArg₂ (· + ·) ?_ ?_) ?_
+    · exact sum_filter_of_ne fun _ _ h => nonempty_of_sum_ne_zero h
+    · rcases (oddCols (hasFullCol A s) p r).eq_empty_or_nonempty with h | h <;>
+        simp [h, matrixPartVal, matrixOddVal]
+    · rcases (matrixTailSet A s r).eq_empty_or_nonempty with h | h <;> simp [h, matrixPartVal]
+  all_goals split_ifs <;> simp
 
 /-- **Explicit active-square additive matrix bound**
 ([Sergeev, Lemma 1, pp. 2–3][Sergeev2013AdditiveMultiplicative]):
@@ -375,15 +310,13 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     rw [hfun] at hs_r
     have hcard := card_matrixRowParts_le A s hp r
     exact hs_r.mono Set.Subset.rfl Set.Subset.rfl (by omega) le_rfl
+  have hrows := CostSynthesis.biUnion nonempRows (fun r => {rowFn r})
+    (fun _ => p) (fun _ => 0) hrow_synth
   by_cases hall_ne : #nonempRows = m
-  · have hrows := CostSynthesis.biUnion nonempRows (fun r => {rowFn r})
-      (fun _ => p) (fun _ => 0) hrow_synth
-    have htot := hpre.trans (hrows.mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
+  · have htot := hpre.trans (hrows.mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
     have hall_univ : nonempRows = univ := eq_univ_of_card nonempRows (by simp [hall_ne])
-    have htarget : Set.range rowFn ⊆ ⋃ r ∈ nonempRows, {rowFn r} := by
-      rintro _ ⟨r, rfl⟩
-      rw [hall_univ, Set.mem_iUnion₂]
-      exact ⟨r, mem_univ r, rfl⟩
+    have htarget : Set.range rowFn ⊆ ⋃ r ∈ nonempRows, {rowFn r} :=
+      Set.range_subset_iff.mpr fun r => Set.mem_biUnion (hall_univ ▸ mem_univ r) rfl
     have hcost :
         ((n * 2 ^ s) / s + A.activeSquare / (2 * s) + (m ⌈/⌉ p) * 2 ^ s * (n ⌈/⌉ s)) +
           ∑ _ ∈ nonempRows, p ≤ matrixBound A s p := by
@@ -393,39 +326,28 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     obtain ⟨c, hc, hsize, -⟩ :=
       (htot.mono Set.Subset.rfl htarget hcost (wa' := 0) (by simp)).exists_circuit_outputs
     exact ⟨c, hc, hsize⟩
-  · have hle_m1 : #nonempRows ≤ m - 1 := by
-      have hle : #nonempRows ≤ m := (card_filter_le _ _).trans_eq (by simp)
-      omega
-    have hzero_gate : CostSynthesis I w0 stage3Set {fun _ => (0 : G)} 1 0 := by
+  · have hzero_gate : CostSynthesis I w0 stage3Set {fun _ => (0 : G)} 1 0 := by
       simpa only [I, w0, interpretation_zero] using
         CostSynthesis.gate (I := I) (w := w0) (s := stage3Set) Op.zero Fin.elim0 fun i => i.elim0
-    have hrows := CostSynthesis.biUnion nonempRows (fun r => {rowFn r})
-      (fun _ => p) (fun _ => 0) hrow_synth
     have htot := hpre.trans
       ((hzero_gate.union hrows).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
     have htarget : Set.range rowFn ⊆ {fun _ => (0 : G)} ∪ ⋃ r ∈ nonempRows, {rowFn r} := by
       rintro _ ⟨r, rfl⟩
       by_cases hr : r ∈ nonempRows
-      · refine Or.inr ?_
-        rw [Set.mem_iUnion₂]
-        exact ⟨r, hr, rfl⟩
-      · refine Or.inl ?_
-        have hempty : matrixRowParts A s p r = ∅ := by
-          rcases (matrixRowParts A s p r).eq_empty_or_nonempty with h0 | hne
-          · exact h0
-          · exact (hr (mem_filter.mpr ⟨mem_univ r, hne⟩)).elim
-        funext x
-        dsimp only [rowFn]
-        rw [← sum_matrixRowParts_eq A hs p r x, hempty, sum_empty]
-    have hcost4 : 1 + ∑ _ ∈ nonempRows, p ≤ m * p := by
-      rw [sum_const, smul_eq_mul]
-      calc 1 + #nonempRows * p ≤ p + (m - 1) * p :=
-            Nat.add_le_add hp (Nat.mul_le_mul_right p hle_m1)
-        _ = (1 + (m - 1)) * p := by ring
-        _ = m * p := by rw [Nat.add_sub_of_le hm]
+      · exact Or.inr (Set.mem_biUnion hr rfl)
+      · have hempty : matrixRowParts A s p r = ∅ :=
+          not_nonempty_iff_eq_empty.mp fun hne => hr (mem_filter.mpr ⟨mem_univ r, hne⟩)
+        exact Or.inl (funext fun x =>
+          (sum_matrixRowParts_eq A hs p r x).symm.trans (by rw [hempty, sum_empty]))
+    -- At least one row is empty, so `1 + #nonempRows * p ≤ m * p`.
+    have hcost4 := Nat.mul_le_mul_right p
+      (show #nonempRows + 1 ≤ m from
+        lt_of_le_of_ne ((card_filter_le _ _).trans_eq (by simp)) hall_ne)
+    rw [add_one_mul] at hcost4
     have hcost :
         ((n * 2 ^ s) / s + A.activeSquare / (2 * s) + (m ⌈/⌉ p) * 2 ^ s * (n ⌈/⌉ s)) +
           (1 + ∑ _ ∈ nonempRows, p) ≤ matrixBound A s p := by
+      rw [sum_const, smul_eq_mul]
       unfold matrixBound
       omega
     obtain ⟨c, hc, hsize, -⟩ :=
@@ -450,9 +372,7 @@ theorem exists_circuit_matrix_le {ε : ℝ} (hε : 0 < ε) :
   let C : ℕ := ⌈((4 + 2 * 34 : ℕ) : ℝ) / ε⌉₊ + 10
   obtain ⟨L₁, hL₁8, _, hL₁⟩ := exists_log_threshold C
   let M₁ : ℕ := 2 ^ L₁
-  have hM₁_ge2 : 2 ≤ M₁ := by
-    have : 2 ^ 1 ≤ 2 ^ L₁ := Nat.pow_le_pow_right (by norm_num) (by omega)
-    simpa [M₁] using this
+  have hM₁_ge2 : 2 ≤ M₁ := le_self_pow (by norm_num) (by omega)
   let B : ℝ := (3 * (M₁ : ℝ) + 3) * Real.logb 2 M₁
   let N₀ : ℕ := M₁ + ⌈B / ε⌉₊ + 1
   refine ⟨N₀, fun {m n} hm hN₀ G _ A => ?_⟩
@@ -494,28 +414,18 @@ theorem exists_circuit_matrix_le {ε : ℝ} (hε : 0 < ε) :
       nlinarith
     have hcast11 : (matrixBound A 1 1 : ℝ) ≤ (3 * (M₁ : ℝ) + 3) * (m + n : ℝ) := by
       exact_mod_cast hmb11
-    have hlog_le : Real.logb 2 m ≤ Real.logb 2 M₁ := by
-      unfold Real.logb
-      exact div_le_div_of_nonneg_right
-        (Real.log_le_log (by positivity) (by exact_mod_cast hm_lt.le))
-        (Real.log_nonneg (by norm_num))
+    have hlog_le : Real.logb 2 m ≤ Real.logb 2 M₁ :=
+      Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast (by omega : 0 < m))
+        (by exact_mod_cast hm_lt.le)
     have hB_le : B ≤ ε * (m + n : ℝ) := by
-      have hceil_B : B / ε ≤ (⌈B / ε⌉₊ : ℝ) := Nat.le_ceil _
-      have hmn_ge : (⌈B / ε⌉₊ : ℝ) ≤ (m + n : ℝ) := by
-        have : ⌈B / ε⌉₊ ≤ m + n := by omega
-        exact_mod_cast this
-      have hdiv : B / ε ≤ m + n := hceil_B.trans hmn_ge
-      rwa [div_le_iff₀ hε, mul_comm] at hdiv
+      have hmn_ge : (⌈B / ε⌉₊ : ℝ) ≤ (m + n : ℝ) := by exact_mod_cast (by omega : ⌈B / ε⌉₊ ≤ m + n)
+      exact (div_le_iff₀' hε).mp ((Nat.le_ceil _).trans hmn_ge)
     have herr_ge : (3 * (M₁ : ℝ) + 3) * (m + n : ℝ) ≤ ε * ((m + n : ℝ) ^ 2 / Real.logb 2 m) := by
       rw [mul_div_assoc', le_div_iff₀ hlogm_pos]
       calc (3 * (M₁ : ℝ) + 3) * (m + n : ℝ) * Real.logb 2 m
-          ≤ (3 * (M₁ : ℝ) + 3) * (m + n : ℝ) * Real.logb 2 M₁ :=
-            mul_le_mul_of_nonneg_left hlog_le (by positivity)
-        _ = B * (m + n : ℝ) := by
-            dsimp only [B]
-            ring
-        _ ≤ (ε * (m + n : ℝ)) * (m + n : ℝ) :=
-            mul_le_mul_of_nonneg_right hB_le (by positivity)
+          ≤ (3 * (M₁ : ℝ) + 3) * (m + n : ℝ) * Real.logb 2 M₁ := by gcongr
+        _ = B * (m + n : ℝ) := by dsimp only [B]; ring
+        _ ≤ (ε * (m + n : ℝ)) * (m + n : ℝ) := by gcongr
         _ = ε * (m + n : ℝ) ^ 2 := by ring
     have hS_nonneg : 0 ≤ (A.activeSquare : ℝ) / (2 * Real.logb 2 m) := by positivity
     linarith

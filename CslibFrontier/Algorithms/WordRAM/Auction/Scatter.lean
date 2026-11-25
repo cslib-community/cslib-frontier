@@ -99,28 +99,9 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
       (∀ i j : Fin ws.n, s'.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j)) ∧
       outputList s'.mem ws.outBase = (List.finRange ws.n).map fun i => (st.objectOf i).val := by
   obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
-  have howner_some : ∀ j : Fin ws.n, ∃ i : Fin ws.n, st.owner j = some i := fun j => by
-    cases ho : st.owner j with
-    | some i => exact ⟨i, rfl⟩
-    | none =>
-      exfalso
-      have hcard : (Finset.univ.image st.objectOf).card = ws.n := by
-        rw [Finset.card_image_of_injective _ fun i₁ i₂ e =>
-          Option.some_injective _
-            ((hinv.owner_objectOf hfree i₁).symm.trans (by
-              rw [e]; exact hinv.owner_objectOf hfree i₂)),
-          Finset.card_univ, Fintype.card_fin]
-      have hsub : Finset.univ.image st.objectOf ⊆ Finset.univ.erase j := by
-        intro x hx
-        obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hx
-        refine Finset.mem_erase.mpr ⟨fun hEq => ?_, Finset.mem_univ _⟩
-        have := hinv.owner_objectOf hfree i
-        rw [hEq, ho] at this
-        cases this
-      have hlt := (Finset.card_le_card hsub).trans_lt
-        (Finset.card_erase_lt_of_mem (Finset.mem_univ j))
-      rw [hcard, Finset.card_univ, Fintype.card_fin] at hlt
-      exact Nat.lt_irrefl _ hlt
+  have howner_some (j : Fin ws.n) : ∃ i : Fin ws.n, st.owner j = some i :=
+    ⟨_, (congrArg st.owner (hinv.objectOf_personOf hfree j)).symm.trans
+      (hinv.owner_objectOf hfree _)⟩
   let s₁ : Memory.State := ⟨Function.update s₀.mem ws.outBase ws.n, s₀.frontier⟩
   have hit := iterate_spec scatterStep ScatterStepSafe w ws 2 ws.n
     (fun k idx s => idx = k ∧ s.frontier = s₀.frontier ∧
@@ -168,18 +149,14 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         refine ⟨rfl, hsfr, ?_, fun a ha => ?_, fun j hj i hi => ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hhdr
         · rw [Function.update_of_ne (by omega)]; exact hlow a ha
-        · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | heq
-          · have hij_ne : i ≠ ik := fun hEq => by
-              subst hEq
-              have hj_eq : j = jk := hinv.owner_inj j jk i hi hik
-              exact absurd (congrArg Fin.val hj_eq) (ne_of_lt hlt')
-            rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hij_ne; omega)]
-            exact hscat j hlt' i hi
-          · have hj_eq : j = jk := Fin.ext heq
-            subst hj_eq
-            have hi_eq : i = ik := Option.some_injective _ (hi.symm.trans hik)
-            subst hi_eq
-            exact Function.update_self _ _ _)
+        · by_cases hii : i = ik
+          · subst hii
+            obtain rfl : j = jk := hinv.owner_inj j jk i hi hik
+            exact Function.update_self _ _ _
+          · have hjk : j.val ≠ k := fun h => hii (Option.some_injective _
+              (hi.symm.trans ((congrArg st.owner (Fin.ext h : j = jk)).trans hik)))
+            rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hii; omega)]
+            exact hscat j (by omega) i hi)
     0 s₁ ⟨rfl, rfl, Function.update_self _ _ _,
       fun a ha => Function.update_of_ne (by omega) _ _,
       fun _ h => absurd h (Nat.not_lt_zero _)⟩
@@ -199,7 +176,7 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
     have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
     exact (hlow _ (by omega)).trans (ham.hC i j)
   · rw [clientState_bind_write, clientState_bind, clientState_pure, outputList_eq_iff]
-    refine ⟨by simp only [List.length_map, List.length_finRange]; exact hhdr, fun idx => ?_⟩
+    refine ⟨by simpa only [List.length_map, List.length_finRange] using hhdr, fun idx => ?_⟩
     have hi_lt : idx.val < ws.n := by simpa using idx.isLt
     let iFin : Fin ws.n := ⟨idx.val, hi_lt⟩
     change ((Memory.spec 0).clientState s₁ (iterate scatterStep ws ws.n 0)).mem

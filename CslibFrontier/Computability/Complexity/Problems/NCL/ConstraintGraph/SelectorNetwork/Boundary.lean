@@ -47,21 +47,15 @@ private theorem ofFn_get_cast {α β : Type*} (xs : List α) {n : ℕ} (h : n = 
 private theorem ofFn_port (v : Vert U C R) :
     List.ofFn (fun i : Fin ((cell N A v).top.length + (cell N A v).bottom.length) =>
       port N A v (finSumFinEquiv.symm i)) = boundaryList N A v := by
+  have hcast (w : Vert U C R) (i : Fin (cell N A w).top.length) :
+      i.castLE (Nat.le_add_right _ _) = i.castAdd (cell N A w).bottom.length := rfl
   rcases v with u | (c | r)
-  · rw [List.ofFn_add]
-    have hcast (i : Fin (cell N A (.inl u)).top.length) :
-        i.castLE (Nat.le_add_right _ _) = i.castAdd (cell N A (.inl u)).bottom.length := rfl
+  case inr.inr => rfl
+  all_goals
+    rw [List.ofFn_add]
     simp only [hcast, finSumFinEquiv_symm_apply_castAdd,
       finSumFinEquiv_symm_apply_natAdd, port, ofFn_get_cast]
     rfl
-  · rw [List.ofFn_add]
-    have hcast (i : Fin (cell N A (.inr (.inl c))).top.length) :
-        i.castLE (Nat.le_add_right _ _) =
-          i.castAdd (cell N A (.inr (.inl c))).bottom.length := rfl
-    simp only [hcast, finSumFinEquiv_symm_apply_castAdd,
-      finSumFinEquiv_symm_apply_natAdd, port, ofFn_get_cast]
-    rfl
-  · rfl
 
 /-- Applying a shared-wire interpretation to the finite boundary map gives the same list. -/
 theorem ofFn_map_port {α : Type*} (f : Edge C R → α) (v : Vert U C R) :

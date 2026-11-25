@@ -65,9 +65,7 @@ theorem one_add_sq_mul_le_eval_T (n : ℕ) {μ : ℝ} (hμ : 0 ≤ μ) :
     obtain ⟨h₁, h₂⟩ := ih
     have h₃ : 1 + ((k + 1 : ℕ) : ℝ) ^ 2 * μ ≤ a (k + 1) := by push_cast; nlinarith
     refine ⟨h₃, ?_⟩
-    have ha1 : 1 ≤ a (k + 1) := by
-      have : (0 : ℝ) ≤ ((k + 1 : ℕ) : ℝ) ^ 2 * μ := by positivity
-      linarith
+    have ha1 : 1 ≤ a (k + 1) := (le_add_of_nonneg_right (by positivity)).trans h₃
     have ha : μ ≤ μ * a (k + 1) := by nlinarith
     rw [hrec]
     push_cast at h₃ ⊢
@@ -93,15 +91,8 @@ theorem approxDegree_threshold_one_right_le {d : ℕ} (hd : 2 * n ≤ d ^ 2 + 1)
     approxDegree (1 / 3) (threshold n 1) ≤ d := by
   rcases lt_or_ge n 2 with hn | hn
   · -- at most one bit: the disjunction itself has degree `n ≤ d`
-    refine (approxDegree_le_degree).trans ?_
-    rw [degree_threshold_one_right]
-    rcases Nat.lt_or_ge d 1 with hd1 | hd1
-    · interval_cases d
-      omega
-    · omega
-  have hN : (1 : ℝ) ≤ n - 1 := by
-    have : (2 : ℝ) ≤ n := by exact_mod_cast hn
-    linarith
+    exact approxDegree_le_degree.trans (by rw [degree_threshold_one_right]; nlinarith)
+  have hN : (1 : ℝ) ≤ n - 1 := by linarith [show (2 : ℝ) ≤ n by exact_mod_cast hn]
   set N : ℝ := n - 1
   have hN0 : 0 < N := by linarith
   -- `L k = (n - k) / (n - 1)`, from `L 0 = 1 + 1 / N` down to `L n = 0`
@@ -112,16 +103,10 @@ theorem approxDegree_threshold_one_right_le {d : ℕ} (hd : 2 * n ≤ d ^ 2 + 1)
   set τ := (Chebyshev.T ℝ d).eval (L.eval 0)
   have hτ : 3 ≤ τ := by
     have h := Chebyshev.one_add_sq_mul_le_eval_T d (μ := 1 / N) (by positivity)
-    have hL0 : L.eval 0 = 1 + 1 / N := by
-      rw [hL]
-      field_simp
-      ring
-    have hd' : 2 * N ≤ (d : ℝ) ^ 2 := by
-      have : (2 * n : ℝ) ≤ d ^ 2 + 1 := by exact_mod_cast hd
-      linarith
+    have hL0 : L.eval 0 = 1 + 1 / N := by rw [hL]; field_simp; ring
     have : 2 ≤ (d : ℝ) ^ 2 * (1 / N) := by
       rw [mul_one_div, le_div_iff₀ hN0]
-      exact hd'
+      linarith [show (2 * n : ℝ) ≤ d ^ 2 + 1 by exact_mod_cast hd]
     simp only [τ, hL0]
     linarith
   have hτ0 : 0 < τ := by linarith
@@ -146,23 +131,16 @@ theorem approxDegree_threshold_one_right_le {d : ℕ} (hd : 2 * n ≤ d ^ 2 + 1)
     simp
   · -- an input of weight `k ≥ 1`: `|Q k - 1| ≤ 1 / τ ≤ 1 / 3`
     have hk : (1 : ℝ) ≤ weight x := by exact_mod_cast hpos
-    have hkn : (weight x : ℝ) ≤ n := by
-      have := weight_le x
-      rw [Fintype.card_fin] at this
-      exact_mod_cast this
+    have hkn : (weight x : ℝ) ≤ n := by exact_mod_cast (weight_le x).trans_eq (Fintype.card_fin n)
     have hu : |L.eval (weight x : ℝ)| ≤ 1 := by
-      rw [hL, abs_le]
-      constructor
-      · rw [le_div_iff₀ hN0]; linarith
-      · rw [div_le_iff₀ hN0]; linarith
+      rw [hL, abs_le, le_div_iff₀ hN0, div_le_iff₀ hN0]
+      constructor <;> linarith
     have hT := Chebyshev.abs_eval_T_real_le_one d hu
-    have h1 : decide (1 ≤ weight x) = true := decide_eq_true hpos
-    rw [h1, bitVal_true, sub_sub_cancel_left, abs_neg, abs_mul, abs_inv, abs_of_pos hτ0]
-    calc τ⁻¹ * |(Chebyshev.T ℝ d).eval (L.eval (weight x : ℝ))| ≤ τ⁻¹ * 1 := by gcongr
-      _ ≤ 1 / 3 := by
-        rw [mul_one, inv_le_comm₀ hτ0 (by norm_num)]
-        norm_num
-        exact hτ
+    rw [decide_eq_true (p := 1 ≤ weight x) hpos, bitVal_true, sub_sub_cancel_left, abs_neg,
+      abs_mul, abs_inv, abs_of_pos hτ0]
+    refine (mul_le_of_le_one_right (inv_nonneg.2 hτ0.le) hT).trans ?_
+    rw [inv_le_comm₀ hτ0 (by norm_num)]
+    norm_num [hτ]
 
 /-- `adeg(OR_n) ≤ ⌊√(2n)⌋ + 1`. -/
 theorem approxDegree_threshold_one_right_le_sqrt :

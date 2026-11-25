@@ -107,55 +107,26 @@ private theorem eps_poly_bound (n C eps : ℕ) (hε : 0 < eps) :
       42 * (n ^ 2 * (C / eps + 1) + 1) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have hC_lt : C < (C / eps + 1) * eps := by
-      rw [Nat.add_mul, one_mul]
-      exact Nat.lt_div_mul_add hε
-    have heps_le : eps ≤ (C / eps + 1) * eps :=
-      Nat.le_mul_of_pos_left eps (Nat.succ_pos (C / eps))
-    have hCeps_le : C + eps ≤ 2 * (C / eps + 1) * eps := by
-      calc C + eps ≤ (C / eps + 1) * eps + (C / eps + 1) * eps :=
-            Nat.add_le_add (le_of_lt hC_lt) heps_le
-        _ = 2 * (C / eps + 1) * eps := by ring
-    have hmul_le : n * (C + eps) ≤ (2 * n * (C / eps + 1)) * eps := by
-      calc n * (C + eps) ≤ n * (2 * (C / eps + 1) * eps) := Nat.mul_le_mul_left n hCeps_le
-        _ = (2 * n * (C / eps + 1)) * eps := by ring
-    have hdiv_le : n * (C + eps) / eps ≤ 2 * n * (C / eps + 1) :=
-      (Nat.div_le_div_right hmul_le).trans_eq (Nat.mul_div_cancel _ hε)
-    have h1_le : 1 ≤ n * (C / eps + 1) := Nat.mul_pos hn (Nat.succ_pos _)
-    have hbids_le : n * (C + eps) / eps + 1 ≤ 3 * n * (C / eps + 1) := by
-      calc n * (C + eps) / eps + 1
-          ≤ 2 * n * (C / eps + 1) + n * (C / eps + 1) := Nat.add_le_add hdiv_le h1_le
-        _ = 3 * n * (C / eps + 1) := by ring
-    have h4n : 4 * n + 6 ≤ 10 * n := by omega
-    have hprod : (n * (C + eps) / eps + 1) * (4 * n + 6) ≤ 30 * (n ^ 2 * (C / eps + 1)) := by
-      calc (n * (C + eps) / eps + 1) * (4 * n + 6)
-          ≤ (3 * n * (C / eps + 1)) * (10 * n) := Nat.mul_le_mul hbids_le h4n
-        _ = 30 * (n ^ 2 * (C / eps + 1)) := by ring
-    have hquad : 3 * (n * n) + 5 * n + 4 ≤ 12 * (n ^ 2 * (C / eps + 1)) := by
-      have hn2 : 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := by nlinarith
-      calc 3 * (n * n) + 5 * n + 4 ≤ 12 * n ^ 2 := hn2
-        _ = 12 * (n ^ 2 * 1) := by ring
-        _ ≤ 12 * (n ^ 2 * (C / eps + 1)) :=
-          Nat.mul_le_mul_left 12 (Nat.mul_le_mul_left _ (Nat.succ_pos _))
-    linarith
+  have hq : 1 ≤ C / eps + 1 := Nat.succ_pos _
+  have hC : C + eps ≤ 2 * (C / eps + 1) * eps := by
+    have := Nat.lt_div_mul_add (a := C) hε
+    nlinarith
+  have hdiv : n * (C + eps) / eps ≤ 2 * n * (C / eps + 1) :=
+    Nat.div_le_of_le_mul (by nlinarith [Nat.mul_le_mul_left n hC])
+  calc _ ≤ (2 * n * (C / eps + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 5 * n + 3 + 1 := by gcongr
+    _ ≤ _ := by
+      nlinarith [Nat.mul_le_mul_left (n * n) hq, Nat.mul_le_mul_left (n * (C / eps + 1)) hn,
+        Nat.mul_le_mul_left n hq]
 
 private theorem scaled_poly_bound (n C : ℕ) :
     (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) + 3 * (n * n) + 7 * n + 3 + 1 ≤
       34 * (n ^ 3 * C + n ^ 2 + 1) := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp
-  · have h1 : (n + 1) * C + 1 ≤ 2 * n * C + 1 := by
-      have : n + 1 ≤ 2 * n := by omega
-      nlinarith
-    have h2 : n * ((n + 1) * C + 1) + 1 ≤ 2 * n ^ 2 * C + 2 * n := by nlinarith
-    have h3 : 4 * n + 6 ≤ 10 * n := by omega
-    have hprod : (n * ((n + 1) * C + 1) + 1) * (4 * n + 6) ≤
-        20 * (n ^ 3 * C) + 20 * n ^ 2 := by
-      calc (n * ((n + 1) * C + 1) + 1) * (4 * n + 6)
-          ≤ (2 * n ^ 2 * C + 2 * n) * (10 * n) := Nat.mul_le_mul h2 h3
-        _ = 20 * (n ^ 3 * C) + 20 * n ^ 2 := by ring
-    have hquad : 3 * (n * n) + 7 * n + 4 ≤ 14 * n ^ 2 := by nlinarith
-    linarith [Nat.zero_le (n ^ 3 * C)]
+  have h : n * ((n + 1) * C + 1) + 1 ≤ 2 * n ^ 2 * C + 2 * n := by
+    nlinarith [Nat.mul_le_mul_left (n * C) hn]
+  calc _ ≤ (2 * n ^ 2 * C + 2 * n) * (4 * n + 6) + 3 * (n * n) + 7 * n + 3 + 1 := by gcongr
+    _ ≤ _ := by nlinarith [Nat.mul_le_mul_left (n ^ 2 * C) hn, Nat.mul_le_mul_left n hn]
 
 private theorem init_words_spec {w : ℕ} (inst : Instance) (hw : Fits w inst.wordBound) :
     InputFits w inst.encode ∧
@@ -165,9 +136,7 @@ private theorem init_words_spec {w : ℕ} (inst : Instance) (hw : Fits w inst.wo
   refine ⟨inst.inputFits_encode hw,
     hw.of_le (by rw [inst.encode_length]; unfold Instance.wordBound; nlinarith),
     ?_, by rw [inst.encode_length]; omega⟩
-  rintro ⟨_ | _, hj⟩
-  · rfl
-  · omega
+  rintro ⟨_ | _, hj⟩ <;> first | rfl | omega
 
 private theorem scaled_steps_le {m C₁ mc n C : ℕ}
     (hsteps : m + 1 ≤ C₁ * (mc + 0 + 1) + 1)
@@ -214,10 +183,7 @@ theorem exists_epsAuction_program :
     have hfit_len : Fits w (inst.encode.length + 1) :=
       hw.of_le (by rw [inst.encode_length]; unfold EpsInstance.wordBound; nlinarith)
     have hlayout : ∀ j : Fin 2, inst.encode.getD j.val 0 = pairWords (inst.n, inst.eps) j := by
-      rintro ⟨_ | _ | _, hj⟩
-      · rfl
-      · rfl
-      · omega
+      rintro ⟨_ | _ | _, hj⟩ <;> first | rfl | omega
     have hk : 2 ≤ inst.encode.length := by rw [inst.encode_length]; omega
     obtain ⟨hsafe, hv, hmc, hout, hfit_out⟩ := epsMainProg_spec inst hε hC hw
     obtain ⟨y, m, hruns₀, hhalt₀, hmem, _, hsteps⟩ :=

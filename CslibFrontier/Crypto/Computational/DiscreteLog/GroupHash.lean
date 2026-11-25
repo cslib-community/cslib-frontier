@@ -175,7 +175,7 @@ theorem computableInPolyTime_validGroupHashInput {blockLen : F.Desc → ℕ}
       (fun p : ℕ × (F.Desc × List Bool) × List Bool =>
         F.validGroupHashInput blockLen p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair (encPair F.encDesc encBits) encBits)) encBool := by
-  have hbt := hblock
+  have _ := hblock
   unfold validGroupHashInput
   polytime
 
@@ -186,8 +186,8 @@ theorem computableInPolyTime_groupHash {blockLen : F.Desc → ℕ}
     ComputableInPolyTime
       (fun p : (F.Desc × List Bool) × List Bool => F.groupHash blockLen p.1 p.2)
       (encPair (encPair F.encDesc encBits) encBits) encBits := by
-  have hbt := hblock
-  have hped := F.computableInPolyTime_encodePedersenCommit
+  have _ := hblock
+  have _ := F.computableInPolyTime_encodePedersenCommit
   unfold groupHash
   polytime
 
@@ -210,14 +210,13 @@ theorem extractNat_eq_of_isCollisionFor_groupHash (blockLen : F.Desc → ℕ)
   rw [isCollisionFor_eq_true_iff, validGroupHashInput_eq_true_iff,
     validGroupHashInput_eq_true_iff, groupHash_encode, groupHash_encode] at hcoll
   rcases hcoll with ⟨hx_len, hy_len, hne, hhash⟩
-  change x.length = 2 * w at hx_len
-  change y.length = 2 * w at hy_len
+  dsimp only at hx_len hy_len
   -- Two `w`-bit words that agree modulo the order are equal.
   have hcast {u v : List Bool} (hu : u.length = w) (hv : v.length = w)
       (h : (ofBits u : ZMod (F.order d)) = ofBits v) : u = v := by
     have hval := congrArg ZMod.val h
-    rw [ZMod.val_natCast_of_lt ((ofBits_lt_two_pow u).trans_le (by rw [hu]; exact hsize)),
-      ZMod.val_natCast_of_lt ((ofBits_lt_two_pow v).trans_le (by rw [hv]; exact hsize))] at hval
+    rw [ZMod.val_natCast_of_lt ((ofBits_lt_two_pow u).trans_le (hu ▸ hsize)),
+      ZMod.val_natCast_of_lt ((ofBits_lt_two_pow v).trans_le (hv ▸ hsize))] at hval
     exact ofBits_injective_of_length_eq (hu.trans hv.symm) hval
   refine F.extractNat_eq_of_pedersenCommit_eq d α (fun h => hne ?_) (F.encode_injective d hhash)
   rw [← List.take_append_drop w x, ← List.take_append_drop w y,
@@ -259,17 +258,13 @@ theorem succProbability_collisionGameFor_groupHash_le_discreteLogGame
     discreteLogGame, groupHashToDLAdversary,
     PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-  refine PMF.bind_apply_mono_on_support (setup n) true fun d hd => ?_
-  refine PMF.bind_apply_mono_on_support (PMF.uniformOfFintype (ZMod (F.order d))) true fun α _ => ?_
-  refine PMF.bind_apply_mono_on_support
-    (ProbComp.eval (adversary n (d, F.encode d (α • F.generator d)))) true fun pair _ => ?_
-  by_cases hcoll :
-      isCollisionFor (Param := F.Desc × List Bool) (Digest := fun _ => List Bool)
-        (F.groupHash blockLen) (F.validGroupHashInput blockLen)
-        n (d, F.encode d (α • F.generator d)) pair.1 pair.2 = true
-  · have hextract :=
-      F.extractNat_eq_of_isCollisionFor_groupHash blockLen n d α (hsize d hd) hcoll
-    simp [hcoll, hextract]
+  refine PMF.bind_apply_mono_on_support (setup n) true fun d hd =>
+    PMF.bind_apply_mono_on_support _ true fun α _ =>
+      PMF.bind_apply_mono_on_support _ true fun pair _ => ?_
+  by_cases hcoll : isCollisionFor (Param := F.Desc × List Bool) (Digest := fun _ => List Bool)
+      (F.groupHash blockLen) (F.validGroupHashInput blockLen)
+      n (d, F.encode d (α • F.generator d)) pair.1 pair.2 = true
+  · simp [hcoll, F.extractNat_eq_of_isCollisionFor_groupHash blockLen n d α (hsize d hd) hcoll]
   · simp [Bool.eq_false_iff.mpr hcoll]
 
 /-- `groupHashToDLAdversary` is uniform strict PPT whenever `blockLen` is computable in polynomial
@@ -282,17 +277,8 @@ theorem isPPTOn_groupHashToDLAdversary {blockLen : F.Desc → ℕ}
     IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
       (fun p => F.groupHashToDLAdversary blockLen adversary p.1 p.2) := by
   unfold groupHashToDLAdversary
-  refine hA.bind_with ?_
-  have hbt := hblock
-  have hextract : ComputableInPolyTime
-      (fun p : (ℕ × (F.Desc × List Bool)) × (List Bool × List Bool) =>
-        (extractNat (F.order p.1.2.1)
-          (ofBits (p.2.2.drop (blockLen p.1.2.1))) (ofBits (p.2.1.take (blockLen p.1.2.1)))
-          (ofBits (p.2.1.drop (blockLen p.1.2.1))) (ofBits (p.2.2.take (blockLen p.1.2.1)))).bits)
-      (encPair (encPair encUnary (encPair F.encDesc encBits)) (encPair encBits encBits))
-      encBits := by
-    fun_prop
-  exact hextract.isPPTOn
+  have _ := hblock
+  exact hA.bind_with (ComputableInPolyTime.isPPTOn (by fun_prop))
 
 /-- **Collision resistance of the discrete-logarithm hash family under the discrete-logarithm
 assumption** ([KatzLindell2020], Section 9.4.2, Theorem 9.79, pp. 358–359): if
@@ -308,10 +294,8 @@ theorem DiscreteLog.collisionResistantForOn_groupHash {F : PrimeOrderGroupFamily
     CollisionResistantForOn (Param := F.Desc × List Bool) (Digest := fun _ => List Bool)
       (encPair F.encDesc encBits) (F.groupHashSetup setup) (F.groupHash blockLen)
       (F.validGroupHashInput blockLen) := by
-  refine CollisionResistantForOn.of_negligible fun adversary hA => ?_
-  refine negligible_of_eventually_le
-    (hDL (F.groupHashToDLAdversary blockLen adversary)
-      (F.isPPTOn_groupHashToDLAdversary hblock hA)) ?_
+  refine CollisionResistantForOn.of_negligible fun adversary hA => negligible_of_eventually_le
+    (hDL _ (F.isPPTOn_groupHashToDLAdversary hblock hA)) ?_
   filter_upwards [hsize] with n hn
   exact F.succProbability_collisionGameFor_groupHash_le_discreteLogGame
     setup blockLen adversary n hn

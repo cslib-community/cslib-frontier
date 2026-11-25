@@ -101,13 +101,8 @@ theorem recognizeCoalitionDist_eq_pure_true_of_authorized [Fintype Secret] [None
       (scheme.viewDist P s secret).map (fun v => decide (scheme.reconstruct s v = secret)) =
         PMF.pure true := by
     rw [viewDist, AccessStructure.viewDistOf, PMF.map_comp]
-    have hconst :
-        ((fun v => decide (scheme.reconstruct s v = secret)) ∘
-          fun k i => scheme.share k secret i.1) =
-          Function.const Key true := by
-      funext k
-      simp [scheme.correct k secret s hs]
-    rw [hconst, PMF.map_const]
+    simp only [Function.comp_def, scheme.correct _ secret s hs, decide_true]
+    exact PMF.map_const P true
   simp [recognizeCoalitionDist, hview]
 
 /-- Any deterministic guesser `guess` applied to an unauthorized coalition's view recovers a
@@ -149,9 +144,8 @@ theorem recognizeCoalitionDist_true_eq_one_iff [Fintype Secret] [Nontrivial Secr
   · intro h1
     by_contra hs
     rw [scheme.recognizeCoalitionDist_true_of_not_authorized hP hs] at h1
-    have hcard : 1 < Fintype.card Secret := Fintype.one_lt_card
-    have hne : (Fintype.card Secret : ℝ≥0∞) ≠ 1 := by
-      exact_mod_cast ne_of_gt hcard
+    have hne : (Fintype.card Secret : ℝ≥0∞) ≠ 1 :=
+      mod_cast (Fintype.one_lt_card (α := Secret)).ne'
     exact hne (ENNReal.inv_eq_one.mp h1)
   · intro hs
     rw [scheme.recognizeCoalitionDist_eq_pure_true_of_authorized P hs, PMF.pure_apply_self]
@@ -169,12 +163,8 @@ theorem not_perfectlyCorrect_of_authorized_empty {Secret Key Party : Type*} {Sha
   obtain ⟨k⟩ := ‹Nonempty Key›
   obtain ⟨m₀, m₁, hne⟩ := exists_pair_ne Secret
   have hview : (fun i : (∅ : Finset Party) => share k m₀ i.1) =
-      fun i : (∅ : Finset Party) => share k m₁ i.1 := by
-    ext ⟨_, hi⟩
-    exact False.elim (Finset.notMem_empty _ hi)
-  have h0 := hcorr k m₀ ∅ hempty
-  have h1 := hcorr k m₁ ∅ hempty
-  rw [hview, h1] at h0
-  exact hne h0.symm
+      fun i : (∅ : Finset Party) => share k m₁ i.1 :=
+    funext fun ⟨_, hi⟩ => nomatch Finset.notMem_empty _ hi
+  exact hne ((hcorr k m₀ ∅ hempty).symm.trans (hview ▸ hcorr k m₁ ∅ hempty))
 
 end Cslib.Crypto.Protocols.SecretSharing

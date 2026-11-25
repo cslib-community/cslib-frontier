@@ -127,10 +127,7 @@ theorem isOraclePPTOn_schnorrLeakedNonceWordAdversary (F : PrimeOrderGroupFamily
       (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool =>
         (Decoder.bits.pair Decoder.bits).decode x.2.2.2.1)
       E (encPair encBits encBits) := by
-    have hsig : ComputableInPolyTime
-        (fun x : F.Desc × ℕ × List Bool × List Bool × List Bool => x.2.2.2.1) E encBits := by
-      fun_prop
-    exact (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp hsig
+    exact (Decoder.bits.pair Decoder.bits).computableInPolyTime.comp (by fun_prop)
   have hfst : ComputableInPolyTime (fun p : List Bool × List Bool => p.1)
       (encPair encBits encBits) encBits :=
     ComputableInPolyTime.fst encBits encBits
@@ -246,15 +243,10 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
   have ofBits_eq_zero_of_fail {c : BitString m} (hc : fail c = true) :
       ofBits (List.ofFn c) = 0 := by
     by_contra hne
-    have hltpow : ofBits (List.ofFn c) < 2 ^ m := by
-      have h := ofBits_lt_two_pow (List.ofFn c)
-      rwa [List.length_ofFn] at h
-    have hlt : ofBits (List.ofFn c) < F.order d := lt_of_lt_of_le hltpow hm
-    have hmod : (ofBits (List.ofFn c) : ZMod (F.order d)) ≠ 0 := by
-      intro hz
-      have hv := congrArg ZMod.val hz
-      rw [ZMod.val_natCast, ZMod.val_zero, Nat.mod_eq_of_lt hlt] at hv
-      exact hne hv
+    have hlt : ofBits (List.ofFn c) < F.order d :=
+      lt_of_lt_of_le (by simpa only [List.length_ofFn] using ofBits_lt_two_pow (List.ofFn c)) hm
+    have hmod : (ofBits (List.ofFn c) : ZMod (F.order d)) ≠ 0 := fun hz =>
+      hne (Nat.eq_zero_of_dvd_of_lt ((CharP.cast_eq_zero_iff _ (F.order d) _).mp hz) hlt)
     have hok :=
       F.schnorrRelatedNonceExtractWord_schnorrSignCoins d α rZ msg (List.ofFn c) hmod
     simp only [fail, Bool.not_eq_true', decide_eq_false_iff_not] at hc

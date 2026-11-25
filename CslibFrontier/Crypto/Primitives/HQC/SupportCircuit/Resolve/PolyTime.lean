@@ -84,25 +84,6 @@ theorem supportScanStepCode_eq_code (bits offset count : ℕ) :
     Circuit.code_wiring_eq_map fun _ => rfl
   have hid : (Circuit.id signature bits).code = ([], List.range bits) :=
     Circuit.code_wiring_id
-  have hleft :
-      compCode (bits + count * bits) ([], List.range bits) ([], List.range bits) =
-        ((Circuit.id signature bits).comp
-          (Circuit.wiring signature (Fin.castAdd (count * bits)))).code := by
-    calc
-      _ = compCode (bits + count * bits) (Circuit.id signature bits).code
-          (Circuit.wiring signature (Fin.castAdd (count * bits))).code := by
-            rw [hid, hfirst]
-      _ = _ := compCode_code _ _
-  have hright :
-      compCode (bits + count * bits) (supportScanCircuit bits (offset + 1) count).code
-        ([], (List.range (count * bits)).map (bits + ·)) =
-      ((supportScanCircuit bits (offset + 1) count).comp
-        (Circuit.wiring signature (Fin.natAdd bits))).code := by
-    calc
-      _ = compCode (bits + count * bits)
-          (supportScanCircuit bits (offset + 1) count).code
-          (Circuit.wiring signature (Fin.natAdd bits)).code := by rw [hsecond]
-      _ = _ := compCode_code _ _
   have hparallel :
       appendCode (bits + count * bits)
         (compCode (bits + count * bits) ([], List.range bits) ([], List.range bits))
@@ -110,7 +91,8 @@ theorem supportScanStepCode_eq_code (bits offset count : ℕ) :
           ([], (List.range (count * bits)).map (bits + ·))) =
       ((Circuit.id signature bits).parallel
         (supportScanCircuit bits (offset + 1) count)).code := by
-    rw [hleft, hright, appendCode_code]
+    rw [← congrArg₂ (compCode _) hid hfirst, ← hsecond, compCode_code, compCode_code,
+      appendCode_code]
     rfl
   simp only [supportScanStepCode]
   rw [← hout, ← hin, hparallel, collisionScanCode_eq_code,
@@ -132,18 +114,10 @@ encoding. -/
       (fun a => (count a + 1) * bits a) enc encUnary := by fun_prop
   have hsplitCount : ComputableInPolyTime
       (fun a => bits a + count a * bits a) enc encUnary := by fun_prop
-  have hinputRange : ComputableInPolyTime
-      (fun a => List.range ((count a + 1) * bits a)) enc (encList encNat) := by
+  have hrange {n : α → ℕ} (hn : ComputableInPolyTime n enc encUnary) :
+      ComputableInPolyTime (fun a => List.range (n a)) enc (encList encNat) := by
     simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      unary_to_binary.map.comp (range.comp hinputCount)
-  have hsplitRange : ComputableInPolyTime
-      (fun a => List.range (bits a + count a * bits a)) enc (encList encNat) := by
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      unary_to_binary.map.comp (range.comp hsplitCount)
-  have hbitsRange : ComputableInPolyTime
-      (fun a => List.range (bits a)) enc (encList encNat) := by
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-      unary_to_binary.map.comp (range.comp hb)
+      unary_to_binary.map.comp (range.comp hn)
   have hsuffixRange : ComputableInPolyTime
       (fun a => (List.range (count a * bits a)).map (bits a + ·))
       enc (encList encNat) := by
@@ -154,17 +128,17 @@ encoding. -/
   have hscan := computableInPolyTime_collisionScanCircuit hb ho hc
   simp only [← collisionScanCode_eq_code] at hscan
   have hleft := computableInPolyTime_compCode (unary_to_binary.comp hsplitCount)
-    ((const (encOut := encList encGate) []).prod hbitsRange)
-    ((const (encOut := encList encGate) []).prod hbitsRange)
+    ((const (encOut := encList encGate) []).prod (hrange hb))
+    ((const (encOut := encList encGate) []).prod (hrange hb))
   have hright := computableInPolyTime_compCode (unary_to_binary.comp hsplitCount) hsuffix
     ((const (encOut := encList encGate) []).prod hsuffixRange)
   have hparallel := computableInPolyTime_appendCode (unary_to_binary.comp hsplitCount)
     hleft hright
   exact computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    ((const (encOut := encList encGate) []).prod hinputRange)
+    ((const (encOut := encList encGate) []).prod (hrange hinputCount))
     (computableInPolyTime_compCode (unary_to_binary.comp hinputCount) hscan
       (computableInPolyTime_compCode (unary_to_binary.comp hinputCount) hparallel
-        ((const (encOut := encList encGate) []).prod hsplitRange)))
+        ((const (encOut := encList encGate) []).prod (hrange hsplitCount))))
 
 /-- Emit the complete descending pass. The bounded index is total on malformed raw fold inputs. -/
 @[expose] def supportScanCode (bits offset count : ℕ) : Code :=
@@ -194,10 +168,7 @@ private theorem supportScanCode_prefix (bits offset count i : ℕ) (hi : i ≤ c
 theorem supportScanCode_eq_code (bits offset count : ℕ) :
     supportScanCode bits offset count = (supportScanCircuit bits offset count).code := by
   have h := supportScanCode_prefix bits offset count count (Nat.le_refl count)
-  rw [List.take_range, Nat.min_self] at h
-  have hoff : offset + count - count = offset := by omega
-  rw [hoff] at h
-  exact h
+  rwa [List.take_range, Nat.min_self, Nat.add_sub_cancel] at h
 
 private abbrev ResolveParameters := ℕ × (ℕ × ℕ)
 

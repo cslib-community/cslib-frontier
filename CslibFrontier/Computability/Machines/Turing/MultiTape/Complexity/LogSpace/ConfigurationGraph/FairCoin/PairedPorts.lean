@@ -104,23 +104,16 @@ private theorem mem_pairSortedTargets (a b : Option ℕ) (v : ℕ) :
       simp [eq_comm]
 
 private theorem nodup_pairSortedTargets (a b : Option ℕ) : (pairSortedTargets a b).Nodup := by
-  rcases a with _ | v₀ <;> rcases b with _ | v₁
-  · simp [pairSortedTargets]
-  · simp [pairSortedTargets]
-  · simp [pairSortedTargets]
-  · dsimp only [pairSortedTargets]
-    split_ifs with h₁ h₂
-    · simp [Nat.ne_of_lt h₁]
-    · simp [Nat.ne_of_lt h₂]
-    · simp
-
-private theorem length_pairSortedTargets_le (a b : Option ℕ) :
-    (pairSortedTargets a b).length ≤ 2 := by
   rcases a with _ | v₀ <;> rcases b with _ | v₁ <;> dsimp only [pairSortedTargets]
   · simp
   · simp
   · simp
-  · split_ifs <;> simp
+  · split_ifs with h₁ h₂ <;> simp [Nat.ne_of_lt, *]
+
+private theorem length_pairSortedTargets_le (a b : Option ℕ) :
+    (pairSortedTargets a b).length ≤ 2 := by
+  rcases a with _ | v₀ <;> rcases b with _ | v₁ <;> dsimp only [pairSortedTargets] <;>
+    (try split_ifs) <;> simp
 
 /-- Insert `x` into a strictly increasing `List ℕ`, discarding duplicates. -/
 private def insertSortedNat (x : ℕ) : List ℕ → List ℕ
@@ -194,17 +187,14 @@ private def getElemOptFuel : ℕ → List ℕ → ℕ → Option ℕ
 
 private theorem getElemOptFuel_eq :
     ∀ (fuel : ℕ) (l : List ℕ) (q : ℕ), l.length ≤ fuel → getElemOptFuel fuel l q = l[q]?
-  | 0, l, q, hl => by
-    cases l with
-    | nil => simp [getElemOptFuel]
-    | cons _ _ => simp at hl
-  | fuel + 1, [], q, _ => by simp [getElemOptFuel]
-  | fuel + 1, y :: ys, 0, _ => by simp [getElemOptFuel]
-  | fuel + 1, y :: ys, q + 1, hl => by
-    have hys : ys.length ≤ fuel := by simpa using hl
+  | 0, [], _, _ => rfl
+  | 0, _ :: _, _, hl => by simp at hl
+  | fuel + 1, [], _, _ => by simp [getElemOptFuel]
+  | fuel + 1, _ :: _, 0, _ => by simp [getElemOptFuel]
+  | fuel + 1, _ :: ys, q + 1, hl => by
     simp only [getElemOptFuel, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte,
       Nat.add_one_ne_zero, List.tail_cons, Nat.add_sub_cancel, List.getElem?_cons_succ]
-    exact getElemOptFuel_eq fuel ys q hys
+    exact getElemOptFuel_eq fuel ys q (by simpa using hl)
 
 /-- Fuel-unrolled `l.idxOf u` for fixed-length lists in `ComputableInSpace`. -/
 private def idxOfFuel : ℕ → List ℕ → ℕ → ℕ
@@ -216,19 +206,15 @@ private def idxOfFuel : ℕ → List ℕ → ℕ → ℕ
 
 private theorem idxOfFuel_eq :
     ∀ (fuel : ℕ) (l : List ℕ) (u : ℕ), l.length ≤ fuel → idxOfFuel fuel l u = l.idxOf u
-  | 0, l, u, hl => by
-    cases l with
-    | nil => simp [idxOfFuel]
-    | cons _ _ => simp at hl
-  | fuel + 1, [], u, _ => by simp [idxOfFuel]
+  | 0, [], _, _ => rfl
+  | 0, _ :: _, _, hl => by simp at hl
+  | fuel + 1, [], _, _ => by simp [idxOfFuel]
   | fuel + 1, y :: ys, u, hl => by
-    have hys : ys.length ≤ fuel := by simpa using hl
     simp only [idxOfFuel, List.isEmpty_cons, Bool.false_eq_true, ↓reduceIte,
       List.headD_cons, List.tail_cons, List.idxOf_cons]
     by_cases hyu : y = u
     · simp [hyu]
-    · have hbeq : (y == u) = false := beq_false_of_ne hyu
-      simp [hyu, hbeq, idxOfFuel_eq fuel ys u hys]
+    · simp [hyu, beq_false_of_ne hyu, idxOfFuel_eq fuel ys u (by simpa using hl)]
 
 section FuelBudgets
 
@@ -552,13 +538,10 @@ theorem lt_vertexBound_of_mem_coinOutTargetsWithSymbol (machine : MultiTapePTM k
     (hv : v ∈ coinOutTargetsWithSymbol machine B n u symbol) :
     u < vertexBound (k := k) B ∧ v < vertexBound (k := k) B := by
   have hpos := (mem_coinOutTargetsWithSymbol_iff machine B n u v symbol).mp hv
-  constructor
-  · by_contra hu
-    rw [coinCountWithSymbol_eq_zero_of_source_ge machine (Nat.le_of_not_lt hu) symbol] at hpos
-    omega
-  · by_contra hv'
-    rw [coinCountWithSymbol_eq_zero_of_target_ge machine (Nat.le_of_not_lt hv') symbol] at hpos
-    omega
+  exact ⟨Nat.not_le.mp fun hu =>
+      (coinCountWithSymbol_eq_zero_of_source_ge machine hu symbol ▸ hpos).false,
+    Nat.not_le.mp fun hv' =>
+      (coinCountWithSymbol_eq_zero_of_target_ge machine hv' symbol ▸ hpos).false⟩
 
 theorem coinOutTargetsWithSymbol_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
     {B n u : α → ℕ} {symbol : α → Option Bool} (machine : MultiTapePTM k Bool State)
@@ -727,10 +710,7 @@ private theorem exists_predRecipe_of_edgeWithSymbol {B n u v : ℕ} {symbol : Op
     obtain ⟨altInput, prevOutput, hpred⟩ := predRegisters_eq_of_step hB hin_lt hout_lt hm hf
     refine ⟨.step t altInput prevOutput, ?_, ?_⟩
     · simp only [predRecipes, List.mem_cons, List.mem_flatMap, List.mem_append]
-      refine Or.inr ⟨t, ?_, mem_stepRecipesFor t altInput prevOutput⟩
-      cases bit
-      · exact Or.inl hmem
-      · exact Or.inr hmem
+      exact Or.inr ⟨t, by cases bit <;> simp [hmem], mem_stepRecipesFor t altInput prevOutput⟩
     · dsimp only [evalPredRecipe]
       rw [hpred, pack_readRegisters_of_lt_vertexBound hu_lt]
 
@@ -794,27 +774,11 @@ private theorem mem_collectInSources_map_iff (machine : MultiTapePTM k Bool Stat
           0 < coinCountWithSymbol machine B w.length u v w[queryIndex (k := k) B u]?
   | [] => by simp [collectInSources]
   | rec :: recs => by
-    simp only [List.map_cons, collectInSources]
     have ih := mem_collectInSources_map_iff machine B w v u recs
-    split_ifs with hpos
-    · rw [mem_insertSortedNat, ih]
-      constructor
-      · rintro (rfl | ⟨⟨rec', hmem, heq⟩, hpos'⟩)
-        · exact ⟨⟨rec, List.mem_cons_self, rfl⟩, hpos⟩
-        · exact ⟨⟨rec', List.mem_cons_of_mem rec hmem, heq⟩, hpos'⟩
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        rcases List.mem_cons.mp hmem with rfl | hmem'
-        · exact Or.inl heq.symm
-        · exact Or.inr ⟨⟨rec', hmem', heq⟩, hpos'⟩
-    · rw [ih]
-      constructor
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        exact ⟨⟨rec', List.mem_cons_of_mem rec hmem, heq⟩, hpos'⟩
-      · rintro ⟨⟨rec', hmem, heq⟩, hpos'⟩
-        rcases List.mem_cons.mp hmem with rfl | hmem'
-        · subst heq
-          exact absurd hpos' hpos
-        · exact ⟨⟨rec', hmem', heq⟩, hpos'⟩
+    simp only [List.map_cons, collectInSources, List.mem_cons, exists_eq_or_imp]
+    rcases eq_or_ne u (evalPredRecipe rec B v) with rfl | hne
+    · split_ifs with hpos <;> simp [mem_insertSortedNat, ih, hpos]
+    · split_ifs <;> simp [mem_insertSortedNat, ih, hne, Ne.symm hne]
 
 /-- Incoming sources of `v` computed from pre-queried input symbols aligned with `predRecipes`. -/
 noncomputable def coinInSourcesWithSymbols (machine : MultiTapePTM k Bool State)
@@ -965,44 +929,32 @@ theorem clockedOutCount_le_two (machine : MultiTapePTM k Bool State)
 theorem clockedOutPort_eq_none_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a : ℕ} (ha : clockedVertexBound (k := k) D d w.length ≤ a)
     (p : ℕ) : clockedOutPort machine D d w a p = none := by
-  dsimp only [clockedOutPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutPort, ite_eq_right_iff]; omega
 
 theorem clockedOutPort_eq_none_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (a : ℕ) {p : ℕ} (hp : 2 ≤ p) :
     clockedOutPort machine D d w a p = none := by
-  dsimp only [clockedOutPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutPort, ite_eq_right_iff]; omega
 
 theorem clockedInPort_eq_none_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {b : ℕ} (hb : clockedVertexBound (k := k) D d w.length ≤ b)
     (q : ℕ) : clockedInPort machine D d w b q = none := by
-  dsimp only [clockedInPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedInPort, ite_eq_right_iff]; omega
 
 theorem clockedInPort_eq_none_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (b : ℕ) {q : ℕ} (hq : inPortBound machine ≤ q) :
     clockedInPort machine D d w b q = none := by
-  dsimp only [clockedInPort]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedInPort, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_ge_bound (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a : ℕ} (ha : clockedVertexBound (k := k) D d w.length ≤ a)
     (p : ℕ) : clockedOutCount machine D d w a p = 0 := by
-  dsimp only [clockedOutCount, clockedOutCountWithSymbol]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutCount, clockedOutCountWithSymbol, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_port_ge (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} (a : ℕ) {p : ℕ} (hp : 2 ≤ p) :
     clockedOutCount machine D d w a p = 0 := by
-  dsimp only [clockedOutCount, clockedOutCountWithSymbol]
-  rw [ite_eq_right]
-  omega
+  simp only [clockedOutCount, clockedOutCountWithSymbol, ite_eq_right_iff]; omega
 
 theorem clockedOutCount_eq_zero_of_outPort_eq_none (machine : MultiTapePTM k Bool State)
     {D d : ℕ} {w : List Bool} {a p : ℕ} (h : clockedOutPort machine D d w a p = none) :

@@ -52,16 +52,13 @@ theorem complexity_ite_le (a f g : BooleanFunction n) :
   have h := complexity_comp_le (I := interpretation)
     (fun x => Fin.append (Fin.append (single a x) (single f x)) (single g x))
     (single fun y : Fin (1 + 1 + 1) → Bool => if y 0 then y 1 else y 2)
-  have heq : (single fun y : Fin (1 + 1 + 1) → Bool => if y 0 then y 1 else y 2) ∘
-      (fun x => Fin.append (Fin.append (single a x) (single f x)) (single g x)) =
-      single fun x => if a x then f x else g x := by
-    funext x j
-    rfl
-  rw [heq] at h
-  refine h.trans ?_
   have happ := (complexity_append_le (I := interpretation)
     (fun x => Fin.append (single a x) (single f x)) (single g)).trans
     (Nat.add_le_add_right (complexity_append_le (I := interpretation) (single a) (single f)) _)
+  have heq : (single fun y : Fin (1 + 1 + 1) → Bool => if y 0 then y 1 else y 2) ∘
+      (fun x => Fin.append (Fin.append (single a x) (single f x)) (single g x)) =
+      single fun x => if a x then f x else g x := rfl
+  rw [heq] at h
   omega
 
 /-- **Finite conjunction**: the conjunction of the tests `F i` over `i ∈ s`, each costing at most
@@ -83,10 +80,9 @@ theorem complexity_decide_forall_mem_le {ι : Type*} (s : Finset ι)
       funext x
       simp
     rw [heq, card_insert_of_notMem hi]
-    refine (complexity_and_le _ _).trans ?_
-    refine (Nat.add_le_add_right (Nat.add_le_add (hF i (mem_insert_self i s))
-      (ih fun j hj => hF j (mem_insert_of_mem hj))) 1).trans (le_of_eq ?_)
-    ring
+    exact (complexity_and_le _ _).trans ((Nat.add_le_add_right
+      (Nat.add_le_add (hF i (mem_insert_self i s))
+        (ih fun j hj => hF j (mem_insert_of_mem hj))) 1).trans_eq (by ring))
 
 /-- **Finite disjunction**: the disjunction of the tests `F i` over `i ∈ s`, each costing at most
 `c` gates, costs at most `#s (c + 1) + 1` gates. As in `complexity_decide_forall_mem_le`, the
@@ -107,10 +103,9 @@ theorem complexity_decide_exists_mem_le {ι : Type*} (s : Finset ι)
       funext x
       simp
     rw [heq, card_insert_of_notMem hi]
-    refine (complexity_or_le _ _).trans ?_
-    refine (Nat.add_le_add_right (Nat.add_le_add (hF i (mem_insert_self i s))
-      (ih fun j hj => hF j (mem_insert_of_mem hj))) 1).trans (le_of_eq ?_)
-    ring
+    exact (complexity_or_le _ _).trans ((Nat.add_le_add_right
+      (Nat.add_le_add (hF i (mem_insert_self i s))
+        (ih fun j hj => hF j (mem_insert_of_mem hj))) 1).trans_eq (by ring))
 
 /-- The substitution that feeds block `j` of a flat tuple of `k` blocks from the input and fixes
 every other block to the corresponding bits of `z`. -/
@@ -123,10 +118,7 @@ def blockInputs {k : ℕ} (z : Fin k → BitString n) (j : Fin k) : Fin (k * n) 
     (x : BitString n) :
     BitString.block (substitute (blockInputs z j) x) = Function.update z j x := by
   funext i a
-  by_cases hij : i = j
-  · subst hij
-    simp [substitute, blockInputs]
-  · simp [substitute, blockInputs, hij]
+  rcases eq_or_ne i j with rfl | hij <;> simp [substitute, blockInputs, *]
 
 /-- **Reading one block**: fixing every block but block `j` to the bits of `z` costs at most two
 more gates than reading all of them. -/
@@ -135,8 +127,7 @@ theorem complexity_single_block_le {k : ℕ} (G : (Fin k → BitString n) → Bo
     complexity interpretation (single fun x : BitString n => G (Function.update z j x)) ≤
       complexity interpretation (single fun y : BitString (k * n) => G (BitString.block y)) +
         2 := by
-  have h := complexity_substitute_le (blockInputs z j) fun y => G (BitString.block y)
-  simp only [block_substitute_blockInputs] at h
-  exact h
+  simpa only [block_substitute_blockInputs] using
+    complexity_substitute_le (blockInputs z j) fun y => G (BitString.block y)
 
 end Cslib.Circuits.Boolean

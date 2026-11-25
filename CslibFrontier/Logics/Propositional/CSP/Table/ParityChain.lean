@@ -50,14 +50,8 @@ theorem wellFormed_evenTable (width : ℕ) : (evenTable width).wellFormed = true
 /-- The table includes the exact-arity guard even for malformed supplied rows. -/
 theorem sem_evenTable (width : ℕ) (row : List Bool) :
     (evenTable width).sem row = true ↔ row.length = width ∧ wordParity row = false := by
-  rw [sem_eq_true]
-  constructor
-  · rintro ⟨_, hrow⟩
-    exact ⟨length_of_mem_enumList (List.mem_filter.mp hrow).1,
-      (by simpa only [Bool.not_eq_true'] using (List.mem_filter.mp hrow).2)⟩
-  · rintro ⟨hlen, hp⟩
-    exact ⟨wellFormed_evenTable width,
-      List.mem_filter.mpr ⟨mem_enumList.mpr hlen, (by simpa only [Bool.not_eq_true'] using hp)⟩⟩
+  rw [sem_eq_true, wellFormed_evenTable]
+  simp [evenTable, mem_enumList]
 
 /-- Explicit tables denote the existing parity relation, without a second Boolean model. -/
 theorem booleanRelation_evenTable (width : ℕ) :
@@ -181,42 +175,29 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
     let σ' := Function.update σ fresh (σ first ^^ σ b)
     have hfirst := hbound first (by simp)
     have hb := hbound b (by simp)
-    have hread (v : ℕ) (hv : v < fresh) : σ' v = σ v := by
-      exact Function.update_of_ne (by omega) _ _
+    have hread (v : ℕ) (hv : v < fresh) : σ' v = σ v := Function.update_of_ne (by omega) _ _
     have hnext : ∀ v ∈ fresh :: c :: d :: rest, v < fresh + 1 := by
       intro v hv
       rcases List.mem_cons.mp hv with rfl | hv
       · omega
-      · exact (hbound v (List.mem_cons_of_mem first (List.mem_cons_of_mem b hv))).trans
-          (Nat.lt_succ_self fresh)
+      · exact (hbound v (by simp [hv])).trans (Nat.lt_succ_self fresh)
     have hparity' : wordParity ((fresh :: c :: d :: rest).map σ') = false := by
-      have he : (c :: d :: rest).map σ' = (c :: d :: rest).map σ := by
-        apply List.map_congr_left
-        intro v hv
-        exact hread v (hbound v (List.mem_cons_of_mem first (List.mem_cons_of_mem b hv)))
-      change (σ' fresh ^^ wordParity ((c :: d :: rest).map σ')) = false
-      rw [he]
-      rw [show σ' fresh = (σ first ^^ σ b) from Function.update_self _ _ _]
-      rw [Bool.xor_assoc]
+      have he : (c :: d :: rest).map σ' = (c :: d :: rest).map σ :=
+        List.map_congr_left fun v hv => hread v (hbound v (by simp [hv]))
+      simp only [List.map_cons, wordParity_cons, he, σ', Function.update_self, Bool.xor_assoc]
       exact hparity
     obtain ⟨τ, hτ, heval⟩ := ih σ' hnext hparity'
-    refine ⟨τ, ?_, ?_⟩
-    · intro v hv
-      have hv' : v < fresh + 1 ∨ fresh + 1 + ((c :: d :: rest).length - 2) ≤ v := by
-        simp only [List.length_cons] at hv ⊢
-        omega
-      rw [hτ v hv']
-      exact Function.update_of_ne (by simp only [List.length_cons] at hv; omega) _ _
-    · have htfirst : τ first = σ first := (hτ first (.inl (by omega))).trans
-        (hread first hfirst)
-      have htb : τ b = σ b := (hτ b (.inl (by omega))).trans (hread b hb)
-      have htfresh : τ fresh = (σ first ^^ σ b) := by
-        rw [hτ fresh (.inl (by omega))]
-        exact Function.update_self _ _ _
-      simp only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval]
+    refine ⟨τ, fun v hv => ?_, ?_⟩
+    · simp only [List.length_cons] at hv
+      rw [hτ v (by simp only [List.length_cons]; omega)]
+      exact Function.update_of_ne (by omega) _ _
+    · simp only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval]
       refine ⟨(sem_evenTable 3 _).mpr ⟨rfl, ?_⟩, heval⟩
-      simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
-        Bool.xor_false, htfirst, htb, htfresh]
+      simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil, Bool.xor_false]
+      rw [hτ first (.inl (by omega)), hτ b (.inl (by omega)), hτ fresh (.inl (by omega)),
+        hread first hfirst, hread b hb]
+      dsimp only [σ']
+      rw [Function.update_self]
       cases σ first <;> cases σ b <;> rfl
   | _ => -- at most two boundary entries left
     refine ⟨σ, fun _ _ => rfl, ?_⟩

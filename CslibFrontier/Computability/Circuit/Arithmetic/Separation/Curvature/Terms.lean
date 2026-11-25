@@ -51,17 +51,15 @@ open Matrix Finset
 
 theorem lt_of_mem_of_energy_le {S : Finset ℕ} {E i : ℕ} (h : energy S ≤ E) (hi : i ∈ S) : i < E :=
     by
-  have : 2 * i + 1 ≤ energy S := Finset.single_le_sum (f := fun i => 2 * i + 1)
-      (fun _ _ => Nat.zero_le _) hi
+  have : 2 * i + 1 ≤ energy S :=
+    Finset.single_le_sum (f := fun i => 2 * i + 1) (fun _ _ => Nat.zero_le _) hi
   omega
 
 theorem mem_lowStates {E : ℕ} {s : Finset ℕ × Finset ℕ} :
     s ∈ lowStates E ↔ s.1.card = s.2.card ∧ energy s.1 + energy s.2 ≤ E := by
-  unfold lowStates
-  rw [mem_filter, mem_product, mem_powerset, mem_powerset]
-  refine ⟨fun h => h.2, fun h => ⟨⟨fun i hi => ?_, fun i hi => ?_⟩, h⟩⟩
-  · exact mem_range.2 (lt_of_mem_of_energy_le (by omega) hi)
-  · exact mem_range.2 (lt_of_mem_of_energy_le (by omega) hi)
+  simp only [lowStates, mem_filter, mem_product, mem_powerset]
+  exact ⟨fun h => h.2, fun h => ⟨⟨fun _ hi => mem_range.2 (lt_of_mem_of_energy_le (by omega) hi),
+    fun _ hi => mem_range.2 (lt_of_mem_of_energy_le (by omega) hi)⟩, h⟩⟩
 
 section
 
@@ -127,11 +125,9 @@ theorem termMat_eq_glue (T : Finset (ρ ⊕ ρ)) (X : Matrix p p R) (A : Matrix 
     termMat T X A A' Y B B' =
       Matrix.glue (rowGroup T) colGroup (termMat T X A A' 0 0 0) (termMat T 0 0 0 Y B B') := by
   ext i j
-  rcases i with (i | i) | (i | i)
-  · rcases j with (j | j) |
-      (j | j) <;> simp [termMat, Matrix.glue_apply, rowGroup, colGroup, topRows]
-  · rcases j with (j | j) |
-      (j | j) <;> simp [termMat, Matrix.glue_apply, rowGroup, colGroup, topRows]
+  rcases i with i | (i | i)
+  · rcases i with i | i <;> rcases j with (j | j) | (j | j) <;>
+      simp [termMat, Matrix.glue_apply, rowGroup, colGroup, topRows]
   · by_cases hi : Sum.inl i ∈ T <;> rcases j with (j | j) | (j | j) <;>
       simp [termMat, Matrix.glue_apply, rowGroup, colGroup, lowRows, unitRows, hi]
   · by_cases hi : Sum.inr i ∈ T <;> rcases j with (j | j) | (j | j) <;>
@@ -142,10 +138,8 @@ theorem card_colGroup : (univ.filter (colGroup : (p ⊕ q) ⊕ (ρ ⊕ ρ) → P
     Fintype.card p + Fintype.card ρ := by
   have h : univ.filter (colGroup : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop) =
       disjSum (disjSum univ ∅) (disjSum univ ∅) := by
-    ext i
-    rcases i with (i | i) | (i | i) <;> simp [colGroup]
-  rw [h]
-  simp [Finset.card_univ]
+    ext ((i | i) | (i | i)) <;> simp [colGroup]
+  simp [h, Finset.card_univ]
 
 omit [DecidableEq p] [DecidableEq q] in
 theorem card_rowGroup (T : Finset (ρ ⊕ ρ)) :
@@ -153,11 +147,9 @@ theorem card_rowGroup (T : Finset (ρ ⊕ ρ)) :
     Fintype.card p + Fintype.card ρ + T.toRight.card := by
   have h : univ.filter (rowGroup T : (p ⊕ q) ⊕ (ρ ⊕ ρ) → Prop) =
       disjSum (disjSum univ ∅) (disjSum T.toLeftᶜ T.toRight) := by
-    ext i
-    rcases i with (i | i) | (i | i) <;> simp [rowGroup]
-  rw [h]
+    ext ((i | i) | (i | i)) <;> simp [rowGroup]
   have := Finset.card_add_card_compl T.toLeft
-  simp only [card_disjSum, Finset.card_univ, card_empty]
+  simp only [h, card_disjSum, Finset.card_univ, card_empty]
   omega
 
 end

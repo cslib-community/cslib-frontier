@@ -60,9 +60,8 @@ private theorem overmarsBucketStepBounds_update_valArr {U n_max b : ℕ}
   rcases hbnds with ⟨hb, hce, hlr, hor, hcnt, hq, hbp, hact⟩
   refine ⟨hb, hce, hlr, hor, hcnt, hq, hbp, ?_⟩
   unfold overmarsAfterActivate at hact ⊢
-  by_cases hc : fs.overmarsActive b = 0 ∧ 5 * (slabScale n_max) ^ 12 ≤ fs.liveInsCount b
-  · dsimp only; rw [ite_eq_left hc] at hact ⊢; exact hact
-  · dsimp only; rw [ite_eq_right hc] at hact ⊢; exact hact
+  dsimp only at hact ⊢
+  split_ifs at hact ⊢ <;> exact hact
 
 /-- Overwrite value `v_val` at physical slot `(b, loc)` (`d = (((cp, base), (b, loc)), v_val)`). -/
 @[irreducible] private def fastInsertWriteOvGenProg :
@@ -86,10 +85,9 @@ private theorem realizes_fastInsertWriteOvGen :
     rcases d with ⟨⟨⟨cp, base⟩, ⟨b, loc⟩⟩, v_val⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
+    obtain rfl := henv.2.2.1
     obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
-    simp only [hps_st, hps_res, wp_large_nMax hth] at *
+    simp only [hps_st, hps_res, wp_large_nMax henv.2.2.2.1] at *
     first
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -110,24 +108,18 @@ private theorem fastInsertWriteOvGenProg_fastStep {c U V w n_max base b loc v_va
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ
       { fs with valArr := Function.update fs.valArr (fs.physSlot n_max b loc) v_val } s s' := by
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hps_st, hps_res, hps_lt, hps_mc, hps_vp⟩ :=
     physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
   obtain ⟨hwv_mc, hwv_vp, hwv_step⟩ :=
     writeValGenProg_fastStep henv hps_lt hv_lt hseed hrep (v_val := v_val) (s := s)
   dsimp only
-  unfold fastInsertWriteOvGenProg; dsimp only
-  have hs'_eq : (Memory.spec 0).clientState s
-      (physSlotGenProg (((cp, base), b), loc) >>= fun p =>
-        writeValGenProg (((cp, base), p), v_val)) =
-      (Memory.spec 0).clientState s
-        (writeValGenProg (((cp, base), fs.physSlot n_max b loc), v_val)) := by
-    rw [clientState_bind, hps_st, hps_res]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hwv_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hps_st, hps_res]; dsimp only [cp] at hps_mc hwv_mc ⊢; omega
-  · refine validProg_bind hps_vp ?_; rw [hps_st, hps_res]; exact hwv_vp
+  unfold fastInsertWriteOvGenProg
+  dsimp only
+  refine ⟨?_, validProg_bind hps_vp ?_, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hps_st, hps_res]
+    omega
+  · rwa [hps_st, hps_res]
+  · rwa [clientState_bind, hps_st, hps_res]
 
 /-- Hit branch of `fastInsert`: overwrite `valArr[physSlot b loc] := v_val` and run `overmarsStep`,
 returning `1` (`d = (((wp, base), (b, loc)), v_val)`). -/
@@ -161,23 +153,19 @@ theorem realizes_fastInsertOverwriteGen :
     rcases d with ⟨⟨⟨wp, base⟩, ⟨b, loc⟩⟩, v_val⟩
     dsimp only at *
     simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hv, hb, hloc_b, hv_v⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
-    have hth := henv.2.2.2.1
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv, hb, hloc_b, hv_v⟩ := h
+    obtain rfl := henv.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-      simp [mkWhpParams, Nat.not_lt.mpr hth]
+      simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
     have hloc : loc < totalLocalCoordsWhp n_max := hloc_b.trans_le (hv.bktCount_le b hb)
     have hbp : capFrontWhp n_max ≤ loc →
         fs.backPtr b (loc - capFrontWhp n_max) < poolSizeWhp n_max :=
       fun hcf => (hv.backPtr_valid b hb _ (by omega)).1
-    have hv_pow := val_lt_two_pow_valBits hv_v
-    obtain ⟨_, _, hwv_step⟩ :=
-      fastInsertWriteOvGenProg_fastStep henv hb hloc hbp hv_pow hseed hrep (s := s)
-    have hbnds0 : OvermarsBucketStepBounds U n_max b fs :=
-      OvermarsBucketStepBounds.of_core_and_pre hv.toCore hb
-        (OvermarsBucketInv.toPre (hv.overmars_valid b hb))
+    obtain ⟨_, _, hwv_step⟩ := fastInsertWriteOvGenProg_fastStep henv hb hloc hbp
+      (val_lt_two_pow_valBits hv_v) hseed hrep (s := s)
     have hbnds_ov := overmarsBucketStepBounds_update_valArr
-      (Function.update fs.valArr (fs.physSlot n_max b loc) v_val) hbnds0
+      (Function.update fs.valArr (fs.physSlot n_max b loc) v_val)
+      (OvermarsBucketStepBounds.of_core_and_pre hv.toCore hb (hv.overmars_valid b hb).toPre)
     rw [hcp_eq] at *
     first
     | exact henv.fits_const (by decide)
@@ -200,41 +188,34 @@ theorem fastInsertOverwriteGenProg_spec {c U V w n_max base b loc v_val : ℕ}
     memoryCost prog s ≤ 32 * hashEvalCostWhp c + 39332 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (overmarsStep c U n_max θ b fs_ov) s s' := by
-  have hth := henv.2.2.2.1
   have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    simp [mkWhpParams, Nat.not_lt.mpr hth]
+    simp [mkWhpParams, Nat.not_lt.mpr henv.2.2.2.1]
   set cp := mkWhpCoreParams c U V w n_max
   have hloc : loc < totalLocalCoordsWhp n_max := hloc_b.trans_le (hv.bktCount_le b hb)
   have hbp : capFrontWhp n_max ≤ loc → fs.backPtr b (loc - capFrontWhp n_max) < poolSizeWhp n_max :=
     fun hcf => (hv.backPtr_valid b hb _ (by omega)).1
-  have hv_pow := val_lt_two_pow_valBits hv_v
-  obtain ⟨hwv_mc, hwv_vp, hwv_step⟩ :=
-    fastInsertWriteOvGenProg_fastStep henv hb hloc hbp hv_pow hseed hrep (s := s)
+  obtain ⟨hwv_mc, hwv_vp, hwv_step⟩ := fastInsertWriteOvGenProg_fastStep henv hb hloc hbp
+    (val_lt_two_pow_valBits hv_v) hseed hrep (s := s)
   set s1 := (Memory.spec 0).clientState s
     (fastInsertWriteOvGenProg (((cp, base), (b, loc)), v_val))
   set fs_ov : FastState :=
     { fs with valArr := Function.update fs.valArr (fs.physSlot n_max b loc) v_val }
   have hbnds_ov : OvermarsBucketStepBounds U n_max b fs_ov :=
     overmarsBucketStepBounds_update_valArr _
-      (OvermarsBucketStepBounds.of_core_and_pre hv.toCore hb
-        (OvermarsBucketInv.toPre (hv.overmars_valid b hb)))
+      (OvermarsBucketStepBounds.of_core_and_pre hv.toCore hb (hv.overmars_valid b hb).toPre)
   obtain ⟨hom_mc, hom_vp, hom_step⟩ :=
     overmarsStepGenProg_fastStep (fs := fs_ov) henv hbnds_ov hwv_step.2.1 hwv_step.2.2.1 (s := s1)
   dsimp only
-  unfold fastInsertOverwriteGenProg; dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (fastInsertWriteOvGenProg (((cp, base), (b, loc)), v_val) >>= fun _ =>
-        overmarsStepGenProg ((mkWhpParams c U V w n_max, base), b) >>= fun _ => pure 1) =
-      (Memory.spec 0).clientState s1
-        (overmarsStepGenProg ((mkWhpParams c U V w n_max, base), b)) := by
-    rw [clientState_bind, clientState_bind, clientState_pure_whp]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, ?_, hwv_step.trans hom_step⟩
+  unfold fastInsertOverwriteGenProg
+  dsimp only
+  rw [hwp1]
+  refine ⟨?_, ?_, validProg_bind hwv_vp (validProg_bind hom_vp (validProg_pure _)), ?_⟩
   · rw [clientResult_bind, clientResult_bind, clientResult_pure_whp]
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
-    dsimp only [s1, cp] at hwv_mc hom_mc ⊢; omega
-  · exact validProg_bind hwv_vp (validProg_bind hom_vp (validProg_pure _))
+    dsimp only [s1, cp] at hwv_mc hom_mc ⊢
+    omega
+  · rw [clientState_bind, clientState_bind, clientState_pure_whp]
+    exact hwv_step.trans hom_step
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

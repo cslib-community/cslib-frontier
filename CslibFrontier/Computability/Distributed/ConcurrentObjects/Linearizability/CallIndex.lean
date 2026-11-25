@@ -262,26 +262,17 @@ theorem isSequential_getElem?_even_isResp_false {L : History P Op Resp} {k : ℕ
     ev.isResp = false := by
   rcases History.isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
   · have hk : k < cs.length := by
-      obtain ⟨hlt, _⟩ := List.getElem?_eq_some_iff.mp hget
-      rw [History.length_flatMap_toEvents] at hlt; omega
+      have := (List.getElem?_eq_some_iff.mp hget).1
+      rw [History.length_flatMap_toEvents] at this; omega
     rw [flatMap_toEvents_getElem?_even cs k hk, Option.some.injEq] at hget
     rw [← hget]; rfl
-  · by_cases hk : k < cs.length
-    · have hlt : 2 * k < (cs.flatMap OpCall.toEvents).length := by
-        rw [History.length_flatMap_toEvents]; omega
-      rw [List.getElem?_append_left hlt, flatMap_toEvents_getElem?_even cs k hk,
-        Option.some.injEq] at hget
+  · rw [List.getElem?_append, History.length_flatMap_toEvents] at hget
+    split_ifs at hget with hk
+    · rw [flatMap_toEvents_getElem?_even cs k (by omega), Option.some.injEq] at hget
       rw [← hget]; rfl
-    · have hge : (cs.flatMap OpCall.toEvents).length ≤ 2 * k := by
-        rw [History.length_flatMap_toEvents]; omega
-      rw [List.getElem?_append_right hge, History.length_flatMap_toEvents] at hget
-      cases hd : 2 * k - 2 * cs.length with
-      | zero =>
-        rw [hd, List.getElem?_cons_zero, Option.some.injEq] at hget
-        rw [← hget]; rfl
-      | succ m =>
-        rw [hd, List.getElem?_cons_succ, List.getElem?_nil] at hget
-        nomatch hget
+    · rw [List.getElem?_singleton] at hget
+      split_ifs at hget
+      cases hget; rfl
 
 /-- Number of calls in `calls` invoked by process `p`. -/
 @[expose]
@@ -396,36 +387,24 @@ theorem exists_opIdAt_of_lt_countProcCalls [DecidableEq P]
   induction calls generalizing e with
   | nil => simp only [countProcCalls_nil] at hlt; omega
   | cons c rest ih =>
+    obtain ⟨q, n⟩ := e
+    dsimp only at hlt
     rw [countProcCalls_cons] at hlt
-    by_cases hcp : c.proc = e.proc
+    have hsucc {j : ℕ} (hj : j < rest.length) :
+        opIdAt (c :: rest) (j + 1) (Nat.succ_lt_succ hj) = ⟨(opIdAt rest j hj).proc,
+          if c.proc = (opIdAt rest j hj).proc then (opIdAt rest j hj).idx + 1
+          else (opIdAt rest j hj).idx⟩ := by
+      simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons]; rfl
+    by_cases hcp : c.proc = q
     · simp only [hcp, ↓reduceIte] at hlt
-      cases hidx : e.idx with
-      | zero =>
-        refine ⟨0, Nat.zero_lt_succ _, ?_⟩
-        ext
-        · exact hcp
-        · simp only [opIdAt, List.take_zero, countProcCalls_nil, hidx]
-      | succ k =>
-        rw [hidx] at hlt
-        obtain ⟨j', hj', heq⟩ := ih ⟨e.proc, k⟩ (by dsimp only; omega)
-        refine ⟨j' + 1, Nat.succ_lt_succ hj', ?_⟩
-        have hproc : rest[j'].proc = e.proc := congrArg OpId.proc heq
-        have hcnt : countProcCalls rest[j'].proc (rest.take j') = k := congrArg OpId.idx heq
-        ext
-        · simp only [opIdAt, List.getElem_cons_succ, hproc]
-        · simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons,
-            hproc, hcp, ↓reduceIte, hidx]
-          rw [← hproc, hcnt]
+      rcases n with _ | k
+      · exact ⟨0, Nat.zero_lt_succ _, by
+          simp only [opIdAt, List.getElem_cons_zero, hcp, List.take_zero, countProcCalls_nil]⟩
+      · obtain ⟨j', hj', heq⟩ := ih ⟨q, k⟩ (by dsimp only; omega)
+        exact ⟨j' + 1, Nat.succ_lt_succ hj', by simp only [hsucc hj', heq, hcp, ↓reduceIte]⟩
     · simp only [hcp, ↓reduceIte] at hlt
-      obtain ⟨j', hj', heq⟩ := ih e hlt
-      refine ⟨j' + 1, Nat.succ_lt_succ hj', ?_⟩
-      have hproc : rest[j'].proc = e.proc := congrArg OpId.proc heq
-      have hcnt : countProcCalls rest[j'].proc (rest.take j') = e.idx := congrArg OpId.idx heq
-      ext
-      · simp only [opIdAt, List.getElem_cons_succ, hproc]
-      · simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons,
-          hproc, hcp, ↓reduceIte]
-        rw [← hproc, hcnt]
+      obtain ⟨j', hj', heq⟩ := ih ⟨q, n⟩ hlt
+      exact ⟨j' + 1, Nat.succ_lt_succ hj', by simp only [hsucc hj', heq, hcp, ↓reduceIte]⟩
 
 end CallIndexing
 

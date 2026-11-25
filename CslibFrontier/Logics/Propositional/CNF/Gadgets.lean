@@ -60,12 +60,8 @@ theorem eval_glue (sites : List I) (gadget : I → CNF (V ⊕ W))
         (Sum.elim (fun v => σ (.inl v)) (fun w => σ (.inr (i, w)))) = true := by
   rw [glue, eval_flatMap_eq_true_iff]
   refine forall₂_congr fun i _ => ?_
-  rw [eval_relabel]
-  have h : σ ∘ Sum.map id (fun w => (i, w)) =
-      Sum.elim (fun v => σ (.inl v)) (fun w => σ (.inr (i, w))) := by
-    funext x
-    cases x <;> rfl
-  rw [h]
+  rw [eval_relabel, show σ ∘ Sum.map id (fun w => (i, w)) =
+    Sum.elim (fun v => σ (.inl v)) (fun w => σ (.inr (i, w))) by ext (_ | _) <;> rfl]
 
 /-- For a fixed assignment of the shared variables, the private assignments of distinct gadgets
 can be chosen independently. -/
@@ -73,15 +69,11 @@ theorem exists_eval_glue_iff (sites : List I) (gadget : I → CNF (V ⊕ W)) (σ
     (∃ τ : I × W → Bool, (glue sites gadget).eval (Sum.elim σ τ) = true) ↔
       ∀ i ∈ sites, ∃ τ : W → Bool, (gadget i).eval (Sum.elim σ τ) = true := by
   classical
-  constructor
-  · rintro ⟨τ, hτ⟩ i hi
-    exact ⟨fun w => τ (i, w), (eval_glue sites gadget (Sum.elim σ τ)).1 hτ i hi⟩
-  · intro h
-    let τ : I × W → Bool := fun p =>
-      if hi : p.1 ∈ sites then (h p.1 hi).choose p.2 else false
-    refine ⟨τ, (eval_glue sites gadget (Sum.elim σ τ)).2 ?_⟩
-    intro i hi
-    simpa only [τ, hi, dite_true, Sum.elim_inl, Sum.elim_inr] using (h i hi).choose_spec
+  refine ⟨fun ⟨τ, hτ⟩ i hi => ⟨fun w => τ (i, w),
+    (eval_glue sites gadget (Sum.elim σ τ)).1 hτ i hi⟩, fun h => ?_⟩
+  refine ⟨fun p => if hi : p.1 ∈ sites then (h p.1 hi).choose p.2 else false,
+    (eval_glue sites gadget _).2 fun i hi => ?_⟩
+  simpa only [hi, dite_true, Sum.elim_inl, Sum.elim_inr] using (h i hi).choose_spec
 
 /-- The assembly is satisfiable exactly when one shared assignment extends to each local gadget.
 -/
@@ -89,14 +81,10 @@ theorem satisfiable_glue_iff (sites : List I) (gadget : I → CNF (V ⊕ W)) :
     (glue sites gadget).Satisfiable ↔
       ∃ σ : V → Bool, ∀ i ∈ sites,
         ∃ τ : W → Bool, (gadget i).eval (Sum.elim σ τ) = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    refine ⟨fun v => σ (.inl v), ?_⟩
-    intro i hi
-    exact ⟨fun w => σ (.inr (i, w)), (eval_glue sites gadget σ).1 hσ i hi⟩
-  · rintro ⟨σ, hσ⟩
-    obtain ⟨τ, hτ⟩ := (exists_eval_glue_iff sites gadget σ).2 hσ
-    exact ⟨Sum.elim σ τ, hτ⟩
+  refine ⟨fun ⟨σ, hσ⟩ => ⟨fun v => σ (.inl v), fun i hi =>
+    ⟨fun w => σ (.inr (i, w)), (eval_glue sites gadget σ).1 hσ i hi⟩⟩, fun ⟨σ, hσ⟩ => ?_⟩
+  obtain ⟨τ, hτ⟩ := (exists_eval_glue_iff sites gadget σ).2 hσ
+  exact ⟨Sum.elim σ τ, hτ⟩
 
 /-- The number of clauses is the sum of the numbers of clauses in the local gadgets. -/
 theorem length_glue (sites : List I) (gadget : I → CNF (V ⊕ W)) :
@@ -110,7 +98,6 @@ theorem length_vars_glue (sites : List I) (gadget : I → CNF (V ⊕ W)) :
   | nil => rfl
   | cons i sites ih =>
     change ((gadget i).relabel (Sum.map id (fun w => (i, w))) ++ glue sites gadget).vars.length = _
-    rw [vars_append, List.length_append, vars_relabel, List.length_map, ih]
-    rfl
+    simp [vars_append, vars_relabel, ih]
 
 end Cslib.Logic.PL.CNF

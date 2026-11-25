@@ -103,8 +103,8 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
         ← map_star (oneKronecker (ι := ι)), ← map_mul (kroneckerOne (κ := ι)),
         ← map_mul (oneKronecker (ι := ι)), kroneckerOne_apply, oneKronecker_apply]
       exact congrArg Complex.re (hφ _ _)
-    simp only [he] at hround
-    simpa only [Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using hround
+    simpa only [he, Measurement.toPOVM_effect, show (9 : ℝ) * (2 * ζ) = 18 * ζ by ring] using
+      hround
 
 private theorem boundedness_le_evaluatedGap
     (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
@@ -318,14 +318,11 @@ private theorem projective_budget (m ε δ r : ℝ) (hm : 1 ≤ m)
   have hyu : y ≤ u := Real.le_sqrt_of_sq_le (by nlinarith only [mul_nonneg hy (sub_nonneg.mpr hy1)])
   have hm₀ : 0 ≤ m := zero_le_one.trans hm
   have hζ : ζ ≤ 300 * m * x := by
-    change 100 * m * (√ε + √δ + √r) ≤ _
     have he : √ε ≤ x := Real.sqrt_le_sqrt (le_max_left _ _)
     have hd : √δ ≤ x := Real.sqrt_le_sqrt ((le_max_left _ _).trans (le_max_right _ _))
     have hrr : √r ≤ x := Real.sqrt_le_sqrt ((le_max_right _ _).trans (le_max_right _ _))
-    calc
-      _ ≤ 100 * m * (x + x + x) := mul_le_mul_of_nonneg_left
-        (add_le_add (add_le_add he hd) hrr) (by positivity)
-      _ = _ := by ring
+    exact (mul_le_mul_of_nonneg_left (add_le_add (add_le_add he hd) hrr)
+      (by positivity : (0 : ℝ) ≤ 100 * m)).trans_eq (by ring)
   have hs : s ≤ 74 * m * y := by
     apply Real.sqrt_le_iff.mpr
     refine ⟨by positivity, ?_⟩
@@ -417,18 +414,11 @@ theorem exists_projectiveSymmetricSelfImprovement
       intro a
       cases a <;> simp [P, POVM.const, POVM.toMeasurement_effect]
     have hκ : 1 ≤ κ := by
-      have hpow : 1 ≤ r ^ (1 / 32 : ℝ) :=
-        Real.one_le_rpow (le_of_not_ge hr1) (by norm_num)
-      calc
-        1 ≤ 3000 * (n + 1 : ℝ) * (r ^ (1 / 32 : ℝ)) := by
-          calc 1 ≤ (n + 1 : ℝ) := hm
-               _ ≤ 3000 * (n + 1 : ℝ) * (r ^ (1 / 32 : ℝ)) := by
-                 calc (n + 1 : ℝ) ≤ 3000 * (n + 1 : ℝ) := by linarith
-                      _ ≤ _ := le_mul_of_one_le_right (by positivity) hpow
-        _ ≤ κ := by
-          apply mul_le_mul_of_nonneg_left _ (by positivity)
-          linarith only [Real.rpow_nonneg hε.1 (1 / 32 : ℝ),
-            Real.rpow_nonneg hδ.1 (1 / 32 : ℝ)]
+      have hpow : 1 ≤ r ^ (1 / 32 : ℝ) := Real.one_le_rpow (le_of_not_ge hr1) (by norm_num)
+      have hsum : 1 ≤ ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ) := by
+        linarith only [hpow, Real.rpow_nonneg hε.1 (1 / 32 : ℝ), Real.rpow_nonneg hδ.1 (1 / 32 : ℝ)]
+      calc (1 : ℝ) ≤ 3000 * (n + 1 : ℝ) * 1 := by linarith only [hm]
+        _ ≤ κ := mul_le_mul_of_nonneg_left hsum (by positivity)
     have hscore : (𝔼 u : Point F (n + 1), ∑ g : Poly,
         (C.state ((QuantumStrategy.rightMeasurement G).effect (some g) *
           (decodedPoint C.alice u).effect (MvPolynomial.eval u g.val))).re) ≤ 1 := by

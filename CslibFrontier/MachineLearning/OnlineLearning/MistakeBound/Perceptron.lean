@@ -110,39 +110,31 @@ theorem perceptron_invariant (u : E) {γ R : ℝ} (h S : List (E × Bool))
     obtain ⟨x, y⟩ := p
     obtain ⟨ih1, ih2⟩ := ih (h ++ [(x, y)]) (fun p hp => hmargin p (List.mem_cons_of_mem _ hp))
       (fun p hp => hR p (List.mem_cons_of_mem _ hp))
-    have hm : γ ≤ signedLabel y * ⟪u, x⟫ := hmargin (x, y) List.mem_cons_self
-    have hx : ‖x‖ ≤ R := hR (x, y) List.mem_cons_self
-    have happ : h ++ (x, y) :: S = (h ++ [(x, y)]) ++ S := by simp
-    rw [happ, mistakesFrom_cons]
-    rw [perceptronWeight_append_singleton] at ih1 ih2
+    have hm := hmargin (x, y) List.mem_cons_self
+    have hx := hR (x, y) List.mem_cons_self
+    rw [show h ++ (x, y) :: S = (h ++ [(x, y)]) ++ S by simp, mistakesFrom_cons]
+    simp only [perceptronWeight_append_singleton, perceptronStep] at ih1 ih2
     by_cases hc : perceptron h x = y
-    · have hw : perceptronStep (perceptronWeight h) (x, y) = perceptronWeight h :=
-        ite_eq_left hc
-      rw [hw] at ih1 ih2
-      simp only [hc, ↓reduceIte, zero_add]
-      exact ⟨ih1, ih2⟩
-    · have hw : perceptronStep (perceptronWeight h) (x, y) =
-          perceptronWeight h + signedLabel y • x :=
-        ite_eq_right hc
-      rw [hw] at ih1 ih2
+    · have hc' : (decide (0 < ⟪perceptronWeight h, x⟫) = y) := hc
+      rw [ite_eq_left hc'] at ih1 ih2
+      simpa only [hc, ↓reduceIte, zero_add] using And.intro ih1 ih2
+    · -- the update increases `⟪u, w⟫` by `s(y) ⟪u, x⟫ ≥ γ`
+      have hc' : ¬(decide (0 < ⟪perceptronWeight h, x⟫) = y) := hc
+      rw [ite_eq_right hc', inner_add_right, real_inner_smul_right] at ih1
+      rw [ite_eq_right hc'] at ih2
       simp only [hc, ↓reduceIte, Nat.cast_add, Nat.cast_one]
-      -- the update increases `⟪u, w⟫` by `s(y) ⟪u, x⟫ ≥ γ`
-      have hinner : ⟪u, perceptronWeight h + signedLabel y • x⟫ =
-          ⟪u, perceptronWeight h⟫ + signedLabel y * ⟪u, x⟫ := by
-        rw [inner_add_right, real_inner_smul_right]
       -- the cross term is nonpositive on a mistake
       have hcross : signedLabel y * ⟪perceptronWeight h, x⟫ ≤ 0 := by
         cases y <;> simp only [perceptron, decide_eq_true_eq, decide_eq_false_iff_not,
-          not_lt, signedLabel_true, signedLabel_false] at hc ⊢ <;> linarith
+          not_lt, signedLabel_true, signedLabel_false] at hc ⊢
+        · linarith
+        · linarith
       have hnorm : ‖perceptronWeight h + signedLabel y • x‖ ^ 2 ≤
           ‖perceptronWeight h‖ ^ 2 + R ^ 2 := by
         rw [norm_add_sq_real, real_inner_smul_right, norm_smul, mul_pow, Real.norm_eq_abs,
           sq_abs, signedLabel_sq, one_mul]
-        have hx2 : ‖x‖ ^ 2 ≤ R ^ 2 := pow_le_pow_left₀ (norm_nonneg x) hx 2
-        nlinarith
-      constructor
-      · rw [hinner] at ih1; nlinarith
-      · nlinarith
+        nlinarith [pow_le_pow_left₀ (norm_nonneg x) hx 2]
+      exact ⟨by nlinarith, by nlinarith⟩
 
 /-- **Novikoff's perceptron convergence theorem** [Novikoff1962] [Block1962]
 [ShalevShwartzBenDavid2014, §21.4]: if `u` separates the sequence `S` with margin `γ ≥ 0` and all
@@ -157,18 +149,16 @@ theorem mistakes_perceptron_mul_sq_le (u : E) {γ R : ℝ} (hγ : 0 ≤ γ) (S :
   change (mistakes perceptron S : ℝ) * γ ≤ _ at h1
   change _ ≤ (mistakes perceptron S : ℝ) * R ^ 2 at h2
   set m : ℝ := (mistakes perceptron S : ℝ)
-  set w := perceptronWeight S
   have hm0 : 0 ≤ m := Nat.cast_nonneg _
-  have hcs : ⟪u, w⟫ ≤ ‖u‖ * ‖w‖ := real_inner_le_norm u w
-  have hmγ : m * γ ≤ ‖u‖ * ‖w‖ := h1.trans hcs
-  have hsq : (m * γ) ^ 2 ≤ ‖u‖ ^ 2 * ‖w‖ ^ 2 := by
-    rw [← mul_pow]; exact pow_le_pow_left₀ (mul_nonneg hm0 hγ) hmγ 2
+  have hsq : (m * γ) ^ 2 ≤ ‖u‖ ^ 2 * ‖perceptronWeight S‖ ^ 2 :=
+    mul_pow ‖u‖ _ 2 ▸ pow_le_pow_left₀ (mul_nonneg hm0 hγ)
+      (h1.trans (real_inner_le_norm u _)) 2
   rcases hm0.lt_or_eq with hpos | hzero
-  · have : m * (m * γ ^ 2) ≤ m * (R ^ 2 * ‖u‖ ^ 2) := by
-      have hu2 : 0 ≤ ‖u‖ ^ 2 := sq_nonneg _
-      nlinarith
-    exact le_of_mul_le_mul_left this hpos
-  · rw [← hzero]; simp only [zero_mul]; positivity
+  · refine le_of_mul_le_mul_left ?_ hpos
+    rw [mul_pow] at hsq
+    nlinarith [mul_le_mul_of_nonneg_left h2 (sq_nonneg ‖u‖)]
+  · rw [← hzero, zero_mul]
+    positivity
 
 /-- The perceptron bound for a separator of norm at most `1` and margin `γ > 0`: at most
 `(R / γ)²` mistakes [ShalevShwartzBenDavid2014, §21.4]. -/
@@ -176,26 +166,20 @@ theorem mistakes_perceptron_le (u : E) (hu : ‖u‖ ≤ 1) {γ R : ℝ} (hγ : 
     (S : List (E × Bool)) (hmargin : ∀ p ∈ S, γ ≤ signedLabel p.2 * ⟪u, p.1⟫)
     (hR : ∀ p ∈ S, ‖p.1‖ ≤ R) :
     (mistakes perceptron S : ℝ) ≤ (R / γ) ^ 2 := by
-  have h := mistakes_perceptron_mul_sq_le u hγ.le S hmargin hR
-  have hu2 : ‖u‖ ^ 2 ≤ 1 := by
-    have := pow_le_pow_left₀ (norm_nonneg u) hu 2; simpa using this
   rw [div_pow, le_div_iff₀ (by positivity)]
-  nlinarith [sq_nonneg R]
+  nlinarith [mistakes_perceptron_mul_sq_le u hγ.le S hmargin hR,
+    pow_le_pow_left₀ (norm_nonneg u) hu 2, sq_nonneg R]
 
 /-- A sequence separated by `u` with a positive margin is realizable by the halfspace
 `x ↦ decide (0 < ⟪u, x⟫)`. -/
 theorem realizable_of_margin (u : E) {γ : ℝ} (hγ : 0 < γ) (S : List (E × Bool))
     (hmargin : ∀ p ∈ S, γ ≤ signedLabel p.2 * ⟪u, p.1⟫) :
     Realizable {fun x => decide (0 < ⟪u, x⟫)} S := by
-  refine realizable_iff.mpr ⟨_, rfl, fun p hp => ?_⟩
-  have h := hmargin p hp
-  obtain ⟨x, y⟩ := p
-  cases y
-  · simp only [signedLabel_false, neg_one_mul] at h
-    simp only [decide_eq_false_iff_not, not_lt]
-    linarith
-  · simp only [signedLabel_true, one_mul] at h
-    simp only [decide_eq_true_eq]
-    linarith
+  refine realizable_iff.mpr ⟨_, rfl, fun ⟨x, y⟩ hp => ?_⟩
+  have h := hmargin (x, y) hp
+  cases y <;> simp only [signedLabel_false, signedLabel_true, neg_one_mul, one_mul,
+    decide_eq_false_iff_not, decide_eq_true_eq, not_lt] at h ⊢
+  · linarith
+  · linarith
 
 end Cslib.MachineLearning.OnlineLearning.MistakeBound

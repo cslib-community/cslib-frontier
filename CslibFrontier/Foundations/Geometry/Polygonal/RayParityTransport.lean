@@ -75,8 +75,6 @@ theorem rayParity_lineMap_add_eq_sum_intersections_of_even {ι : Type*} [Fintype
     · simp only [y, hj, ↓reduceIte]
   have hcut (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t)) :
       ∃ u ∈ Set.Ioo (0 : ℝ) 1, point u = z := by
-    change z ∈ segment ℝ (AffineMap.lineMap (a i) (b i) s)
-      (AffineMap.lineMap (a i) (b i) t) at hz
     rw [← image_segment ℝ (AffineMap.lineMap (a i) (b i)) s t] at hz
     obtain ⟨u, hu, huz⟩ := hz
     exact ⟨u, (convex_Ioo (0 : ℝ) 1).segment_subset hs ht hu, huz⟩
@@ -84,43 +82,39 @@ theorem rayParity_lineMap_add_eq_sum_intersections_of_even {ι : Type*} [Fintype
     by_cases hj : j = i
     · simp [y, hj, Bool.zero_eq_false] at hy
     · exact ⟨hj, by simpa only [y, ite_eq_right hj] using hy⟩
-  have hav (j : ι) (hy : y j = true) {z : ℂ} (hz : z ∈ segment ℝ (point s) (point t)) :
-      z ≠ a j ∧ z ≠ b j := by
-    obtain ⟨u, hu, rfl⟩ := hcut z hz
-    exact hnodes j (hother j hy).1 (hother j hy).2 u hu
   have hjump (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t)) :
       (∑ j, y j * (decide ((a j).im = z.im ∧ z.re < (a j).re) +
         decide ((b j).im = z.im ∧ z.re < (b j).re))) = 0 := by
     obtain ⟨u, hu, rfl⟩ := hcut z hz
+    have hdiff : (b i).im - (a i).im ≠ 0 := sub_ne_zero.mpr (hheight i).symm
     have him : (point u).im = (a i).im + u * ((b i).im - (a i).im) :=
       lineMap_im (a i) (b i) u
-    have ha : (a i).im ≠ (point u).im := by
-      rw [him]
-      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [hu.1]
-    have hb : (b i).im ≠ (point u).im := by
-      rw [him]
-      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [hu.2]
+    have ha : (a i).im ≠ (point u).im := fun h =>
+      mul_ne_zero hu.1.ne' hdiff (by linarith)
+    have hb : (b i).im ≠ (point u).im := fun h =>
+      mul_ne_zero (sub_ne_zero.mpr hu.2.ne') hdiff (by linarith)
     rw [← sum_rayParity_endpoint_jumps_eq_zero a b x heven (point u)]
-    apply Finset.sum_congr rfl
-    intro j _
+    refine Finset.sum_congr rfl fun j _ => ?_
     by_cases hj : j = i
     · subst j
       simp only [ha, hb, false_and, decide_false, ← Bool.zero_eq_false, add_zero, mul_zero]
     · simp only [y, hj, ↓reduceIte]
-  have hcd : (point s).im ≠ (point t).im := by
-    rw [show (point s).im = (a i).im + s * ((b i).im - (a i).im) from
-      lineMap_im (a i) (b i) s,
-      show (point t).im = (a i).im + t * ((b i).im - (a i).im) from
-      lineMap_im (a i) (b i) t]
-    intro heq
-    apply hst
-    exact mul_right_cancel₀ (sub_ne_zero.mpr (hheight i).symm) (by linarith)
+  have hcd : (point s).im ≠ (point t).im := fun heq => by
+    have hs' : (point s).im = (a i).im + s * ((b i).im - (a i).im) := lineMap_im (a i) (b i) s
+    have ht' : (point t).im = (a i).im + t * ((b i).im - (a i).im) := lineMap_im (a i) (b i) t
+    exact hst (mul_right_cancel₀ (sub_ne_zero.mpr (hheight i).symm) (by linarith))
   rw [hremove s, hremove t]
   exact rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
     a b y (point s) (point t) hheight hcd
     (fun j hy => hsAvoid j (hother j hy).1 (hother j hy).2)
     (fun j hy => htAvoid j (hother j hy).1 (hother j hy).2)
-    (fun j hy hz => (hav j hy hz).1 rfl) (fun j hy hz => (hav j hy hz).2 rfl) hjump
+    (fun j hy hz =>
+      let ⟨u, hu, huz⟩ := hcut _ hz
+      (hnodes j (hother j hy).1 (hother j hy).2 u hu).1 huz)
+    (fun j hy hz =>
+      let ⟨u, hu, huz⟩ := hcut _ hz
+      (hnodes j (hother j hy).1 (hother j hy).2 u hu).2 huz)
+    hjump
 
 /-- Ray parity on the open interior of one segment is constant if no other listed
 segment meets that interior. The segment itself is omitted by the strict base-point

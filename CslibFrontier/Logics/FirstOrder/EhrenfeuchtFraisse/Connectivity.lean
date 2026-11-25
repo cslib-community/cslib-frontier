@@ -195,18 +195,13 @@ private theorem stepTwoGraph_fin_connected_of_odd {m : ℕ} (hm : Odd m) :
     (h x).symm.trans (h y)
   intro x
   obtain ⟨j, hj | hj⟩ := Nat.even_or_odd' x.1
-  · have := reachable_even h0 j (by omega)
-    convert this using 1
-    exact Fin.ext hj
-  · have ht : 0 < t := by have := x.2; omega
-    have h1 : 1 < 2 * t + 1 := by omega
-    have h10 : (stepTwoGraph (Fin (2 * t + 1))).Reachable ⟨0, h0⟩ ⟨1, h1⟩ :=
-      (reachable_even h0 t (by omega)).trans (SimpleGraph.Adj.reachable
-        ((stepTwoGraph_adj_fin_iff _ _).2 ⟨by simp only; omega, .inr (.inl ⟨rfl, rfl⟩)⟩))
-    refine h10.trans ?_
-    have := reachable_odd h1 j (by omega)
-    convert this using 1
-    exact Fin.ext hj
+  · exact (show (⟨2 * j, by omega⟩ : Fin _) = x from Fin.ext hj.symm) ▸
+      reachable_even h0 j (by omega)
+  · have h1 : 1 < 2 * t + 1 := by have := x.2; omega
+    exact ((reachable_even h0 t (by omega)).trans <| SimpleGraph.Adj.reachable <|
+      (stepTwoGraph_adj_fin_iff _ _).2 ⟨by simp only; omega, .inr (.inl ⟨rfl, rfl⟩)⟩).trans
+      ((show (⟨2 * j + 1, by omega⟩ : Fin _) = x from Fin.ext hj.symm) ▸
+        reachable_odd h1 j (by omega))
 
 private theorem not_stepTwoGraph_fin_connected_of_even {m : ℕ} (hm : Even m) :
     ¬ (stepTwoGraph (Fin m)).Connected := by
@@ -229,11 +224,9 @@ private theorem not_stepTwoGraph_fin_connected_of_even {m : ℕ} (hm : Even m) :
   exact absurd (key _ h01) (by simp)
 
 /-- The step-two graph on `Fin m` is connected exactly when `m` is odd. -/
-theorem stepTwoGraph_fin_connected_iff {m : ℕ} : (stepTwoGraph (Fin m)).Connected ↔ Odd m := by
-  rcases Nat.even_or_odd m with h | h
-  · exact ⟨fun hc => absurd hc (not_stepTwoGraph_fin_connected_of_even h),
-      fun ho => absurd h (Nat.not_even_iff_odd.2 ho)⟩
-  · exact ⟨fun _ => h, fun _ => stepTwoGraph_fin_connected_of_odd h⟩
+theorem stepTwoGraph_fin_connected_iff {m : ℕ} : (stepTwoGraph (Fin m)).Connected ↔ Odd m :=
+  ⟨fun h => Nat.not_even_iff_odd.1 fun he => not_stepTwoGraph_fin_connected_of_even he h,
+    stepTwoGraph_fin_connected_of_odd⟩
 
 /-! ### Transport along order isomorphisms -/
 

@@ -135,10 +135,11 @@ theorem uniform_exists_abs_empiricalCoeff_sub_ge_le (f : (ι → Bool) → Bool)
       fourierCoeff (fun x => signVal (f x)) S|} =
         ⋃ S ∈ T, {x : Fin m → ι → Bool | γ ≤ |empiricalCoeff (examples f x) S -
           fourierCoeff (fun x => signVal (f x)) S|} := by
-    ext x; simp
+    ext x
+    simp
   rw [hU]
-  refine (MeasureTheory.measure_biUnion_finset_le T _).trans ?_
-  refine (sum_le_sum fun S _ => uniform_abs_empiricalCoeff_sub_ge_le f S hγ).trans_eq ?_
+  refine (MeasureTheory.measure_biUnion_finset_le T _).trans
+    ((sum_le_sum fun S _ => uniform_abs_empiricalCoeff_sub_ge_le f S hγ).trans_eq ?_)
   rw [sum_const, nsmul_eq_mul, ← ENNReal.ofReal_natCast, ← ENNReal.ofReal_mul (by positivity)]
 
 /-! ### The low-degree algorithm -/
@@ -171,10 +172,8 @@ theorem uniform_lt_uniformError_lowDegreeHypothesis_le (f : (ι → Bool) → Bo
     by_contra hgood
     simp only [Set.mem_ofPred_eq, not_exists, not_and, not_le] at hgood
     have herr := hammingDist_signRound_sum_mul_chi_div_le f T (empiricalCoeff (examples f x))
-    have hcompl : Tᶜ = ({S : Finset ι | t < #S} : Finset (Finset ι)) := by
-      rw [hT, compl_filter]
-      simp only [not_le]
-    rw [hcompl] at herr
+    rw [hT, compl_filter] at herr
+    simp only [not_le] at herr
     have hest : ∑ S ∈ T, (fourierCoeff F S - empiricalCoeff (examples f x) S) ^ 2 ≤ ε / 2 := by
       calc ∑ S ∈ T, (fourierCoeff F S - empiricalCoeff (examples f x) S) ^ 2
           ≤ ∑ _S ∈ T, γ ^ 2 := sum_le_sum fun S hS => by
@@ -184,10 +183,7 @@ theorem uniform_lt_uniformError_lowDegreeHypothesis_le (f : (ι → Bool) → Bo
             rw [sum_const, nsmul_eq_mul, hγsq]
             change N * (ε / (2 * N)) = ε / 2
             field_simp
-    have : uniformError f (lowDegreeHypothesis t (examples f x)) ≤ ε := by
-      refine herr.trans ?_
-      linarith
-    exact absurd hx (not_lt.2 this)
+    exact absurd hx (not_lt.2 (herr.trans (by linarith)))
   refine (μ.mono hsub).trans ((uniform_exists_abs_empiricalCoeff_sub_ge_le f T hγ).trans_eq ?_)
   rw [hγsq]
   congr 1

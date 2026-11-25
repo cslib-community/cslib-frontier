@@ -100,10 +100,10 @@ section UniqueAndDecoder
 
 private lemma hammingDist_row_le {ι κ M : Type*} [Fintype ι] [DecidableEq M] [DecidableEq (κ → M)]
     (W₁ W₂ : ι → κ → M) (r : κ) :
-    hammingDist (fun i => W₁ i r) (fun i => W₂ i r) ≤ hammingDist W₁ W₂ := by
-  refine Finset.card_le_card fun i hi => ?_
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
-  exact fun hEq => hi (congrFun hEq r)
+    hammingDist (fun i => W₁ i r) (fun i => W₂ i r) ≤ hammingDist W₁ W₂ :=
+  Finset.card_le_card fun i hi => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi ⊢
+    exact fun h => hi (congrFun h r)
 
 /-- **Unique decoding for interleaved Reed–Solomon codes**: with distinct evaluation points
 `α : ι → F` and `2 * e + k ≤ |ι|`, at most one interleaved codeword
@@ -118,11 +118,9 @@ theorem eq_of_mem_interleavedLinear_reedSolomon {F ι κ : Type*} [Field F] [Dec
     V₁ = V₂ := by
   classical
   funext i r
-  have hr : (fun j => V₁ j r) = (fun j => V₂ j r) :=
-    eq_of_hammingDist_le_reedSolomon (f := fun j => W j r) hα hunique
-      (mem_interleavedLinear.1 hV₁ r) (mem_interleavedLinear.1 hV₂ r)
-      ((hammingDist_row_le W V₁ r).trans hd₁) ((hammingDist_row_le W V₂ r).trans hd₂)
-  exact congrFun hr i
+  exact congrFun (eq_of_hammingDist_le_reedSolomon (f := fun j => W j r) hα hunique
+    (mem_interleavedLinear.1 hV₁ r) (mem_interleavedLinear.1 hV₂ r)
+    ((hammingDist_row_le W V₁ r).trans hd₁) ((hammingDist_row_le W V₂ r).trans hd₂)) i
 
 private def acceptIfClose {F ι κ : Type*} [Semiring F] [Fintype ι]
     [DecidableEq (κ → F)] (α : ι → F) (e : ℕ) (W : ι → κ → F) (P : κ → F[X]) : Option (κ → F[X]) :=
@@ -151,7 +149,7 @@ theorem degree_lt_of_berlekampWelchInterleaved_eq_some {F ι κ : Type*} [Field 
   classical
   unfold berlekampWelchInterleaved acceptIfClose at h
   split_ifs at h with hsome _
-  obtain rfl := Option.some.inj h
+  cases h
   exact degree_lt_of_berlekampWelch_eq_some (Option.some_get (hsome r)).symm
 
 /-- **Joint distance soundness of `berlekampWelchInterleaved`**: for every received matrix `W`, an
@@ -164,8 +162,7 @@ theorem hammingDist_le_of_berlekampWelchInterleaved_eq_some {F ι κ : Type*} [F
   classical
   unfold berlekampWelchInterleaved acceptIfClose at h
   split_ifs at h with _ hdist
-  obtain rfl := Option.some.inj h
-  exact hdist
+  exact Option.some.inj h ▸ hdist
 
 /-- **Characterization of `berlekampWelchInterleaved` in the unique-decoding regime**
 (`2 * e + k ≤ |ι|`): with distinct evaluation points `α : ι → F`, the decoder returns `some P` if
@@ -178,16 +175,12 @@ theorem berlekampWelchInterleaved_eq_some_iff {F ι κ : Type*} [Field F] [Finty
       (∀ r : κ, (P r).degree < k) ∧ hammingDist (fun i r => (P r).eval (α i)) W ≤ e := by
   classical
   refine ⟨fun h => ⟨degree_lt_of_berlekampWelchInterleaved_eq_some h,
-    hammingDist_le_of_berlekampWelchInterleaved_eq_some h⟩, ?_⟩
-  rintro ⟨hdeg, hdist⟩
-  have hbw (r : κ) : berlekampWelch α e k (fun i => W i r) = some (P r) :=
-    berlekampWelch_eq_some hα hunique (hdeg r)
-      ((hammingDist_row_le (fun i r => (P r).eval (α i)) W r).trans hdist)
-  have hsome : ∀ r : κ, (berlekampWelch α e k fun i => W i r).isSome := fun r => by
-    rw [hbw r]; rfl
-  have hget : (fun r : κ => (berlekampWelch α e k fun i => W i r).get (hsome r)) = P := by
-    funext r
-    exact Option.some.inj ((Option.some_get (hsome r)).trans (hbw r))
+    hammingDist_le_of_berlekampWelchInterleaved_eq_some h⟩, fun ⟨hdeg, hdist⟩ => ?_⟩
+  have hbw (r : κ) := berlekampWelch_eq_some hα hunique (hdeg r)
+    ((hammingDist_row_le (fun i r => (P r).eval (α i)) W r).trans hdist)
+  have hsome : ∀ r : κ, (berlekampWelch α e k fun i => W i r).isSome := fun r => by simp [hbw r]
+  have hget : (fun r : κ => (berlekampWelch α e k fun i => W i r).get (hsome r)) = P :=
+    funext fun r => Option.some.inj ((Option.some_get (hsome r)).trans (hbw r))
   unfold berlekampWelchInterleaved
   rw [dite_eq_left hsome, hget]
   exact ite_eq_left hdist
@@ -201,29 +194,18 @@ theorem berlekampWelchInterleaved_eq_none_iff {F ι κ : Type*} [Field F] [Finty
     berlekampWelchInterleaved α e k W = none ↔
       ∀ V ∈ interleavedLinear κ (reedSolomon α k), e < hammingDist W V := by
   classical
-  constructor
-  · intro hnone V hV
-    by_contra hle
-    have hdist : hammingDist W V ≤ e := Nat.le_of_not_lt hle
-    have hmem : ∀ r : κ, ∃ p : F[X], p.degree < k ∧ (fun i => p.eval (α i)) = fun i => V i r :=
-      fun r => mem_reedSolomon.1 (mem_interleavedLinear.1 hV r)
-    let P : κ → F[X] := fun r => (hmem r).choose
-    have hP_deg : ∀ r : κ, (P r).degree < k := fun r => (hmem r).choose_spec.1
-    have hP_eval : (fun i r => (P r).eval (α i)) = V :=
-      funext fun i => funext fun r => congrFun (hmem r).choose_spec.2 i
-    have hsome := (berlekampWelchInterleaved_eq_some_iff hα hunique (W := W) (P := P)).2
-      ⟨hP_deg, by rwa [hP_eval, hammingDist_comm]⟩
-    rw [hsome] at hnone
-    exact Option.some_ne_none _ hnone
-  · intro hfar
-    rcases hbw : berlekampWelchInterleaved α e k W with _ | P
+  refine ⟨fun hnone V hV => not_le.1 fun hdist => ?_, fun hfar => ?_⟩
+  · choose P hP_deg hP_eval using fun r => mem_reedSolomon.1 (mem_interleavedLinear.1 hV r)
+    have hVEq : (fun i r => (P r).eval (α i)) = V := funext fun i => funext fun r =>
+      congrFun (hP_eval r) i
+    exact Option.some_ne_none _ (((berlekampWelchInterleaved_eq_some_iff hα hunique
+      (W := W) (P := P)).2 ⟨hP_deg, by rwa [hVEq, hammingDist_comm]⟩).symm.trans hnone)
+  · rcases hbw : berlekampWelchInterleaved α e k W with _ | P
     · rfl
-    · have hV : (fun i r => (P r).eval (α i)) ∈ interleavedLinear κ (reedSolomon α k) :=
-        mem_interleavedLinear.2 fun r =>
-          eval_mem_reedSolomon α (degree_lt_of_berlekampWelchInterleaved_eq_some hbw r)
-      have hdist := hammingDist_le_of_berlekampWelchInterleaved_eq_some hbw
-      rw [hammingDist_comm] at hdist
-      exact absurd hdist (hfar _ hV).not_ge
+    · exact absurd (hammingDist_comm (fun i r => (P r).eval (α i)) W ▸
+        hammingDist_le_of_berlekampWelchInterleaved_eq_some hbw)
+        (hfar _ (mem_interleavedLinear.2 fun r => eval_mem_reedSolomon α
+          (degree_lt_of_berlekampWelchInterleaved_eq_some hbw r))).not_ge
 
 end UniqueAndDecoder
 
@@ -263,12 +245,9 @@ private lemma toOuterMeasure_sum_pow_smul_le_div_of_curve {F ι : Type*}
     exact Nat.zero_le e
   · refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
     rw [mul_comm (B (r + 1))]
-    refine Nat.mul_le_mul_left (Fintype.card F) ?_
-    by_contra hlt
-    push Not at hlt
-    obtain ⟨D', hD', v, hv, hag⟩ := hca r (fun j i => W i j) _ hlt fun z hz => by
-      rw [curve_eval_eq_sum_pow]
-      exact (Finset.mem_filter.1 hz).2
+    refine Nat.mul_le_mul_left (Fintype.card F) (le_of_not_gt fun hlt => ?_)
+    obtain ⟨D', hD', v, hv, hag⟩ := hca r (fun j i => W i j) _ hlt fun z hz =>
+      curve_eval_eq_sum_pow W z ▸ (Finset.mem_filter.1 hz).2
     obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2 ⟨D', hD', v, hv, hag⟩
     exact (hfar V hV).not_ge hdist
 
@@ -313,8 +292,7 @@ theorem exists_unique_mem_interleavedLinear_reedSolomon_of_pow
     ∃! V : ι → Fin m → F,
       V ∈ interleavedLinear (Fin m) (reedSolomon α k) ∧ hammingDist W V ≤ e := by
   have hex : ∃ V ∈ interleavedLinear (Fin m) (reedSolomon α k), hammingDist W V ≤ e := by
-    by_contra hfar
-    push Not at hfar
+    by_contra! hfar
     exact hprob.not_ge (toOuterMeasure_sum_pow_smul_reedSolomon_close_le hα hunique hfar)
   obtain ⟨V, hV, hdist⟩ := hex
   exact ⟨V, ⟨hV, hdist⟩, fun V' ⟨hV', hdist'⟩ =>
@@ -359,13 +337,10 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le_johnson_exact
   classical
   refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_div Fintype.card_pos ?_
   rw [Fintype.card_fun, Fintype.card_fin]
-  by_contra hlt
-  push Not at hlt
+  refine le_of_not_gt fun hlt => ?_
   obtain ⟨D', hD', _, _, v, hv, hag⟩ :=
     exists_correlatedAgreement_affine_johnson hα hk hm_GS hk_le hinterp hroot 0
-      (fun r i => W i r) _ hlt fun z hz => by
-        rw [zero_add_sum_smul_eq]
-        exact (Finset.mem_filter.1 hz).2
+      (fun r i => W i r) _ hlt fun z hz => zero_add_sum_smul_eq W z ▸ (Finset.mem_filter.1 hz).2
   obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', hD', v, hv, fun i hi r => (hag i hi).2 r⟩
   exact (hfar V hV).not_ge hdist
@@ -399,13 +374,10 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le_johnson
   refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_dens_le _ T
     (fun z hz => Finset.mem_coe.2 (Finset.mem_filter.2 ⟨Finset.mem_univ z, hz⟩)) ?_
   rw [Finset.nnratCast_dens, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow]
-  by_contra hlt
-  push Not at hlt
+  refine le_of_not_gt fun hlt => ?_
   obtain ⟨D', hD', _, _, v, hv, hag⟩ :=
     exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm_GS he 0
-      (fun r i => W i r) T hlt fun z hz => by
-        rw [zero_add_sum_smul_eq]
-        exact (Finset.mem_filter.1 hz).2
+      (fun r i => W i r) T hlt fun z hz => zero_add_sum_smul_eq W z ▸ (Finset.mem_filter.1 hz).2
   obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', hD', v, hv, fun i hi r => (hag i hi).2 r⟩
   exact (hfar V hV).not_ge hdist
@@ -510,19 +482,15 @@ theorem toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson
   · rw [Nat.add_sub_cancel]
     rcases Nat.eq_zero_or_pos r with rfl | hr
     · have hemp : {z : F | ∃ c ∈ reedSolomon α k,
-          hammingDist (fun i => ∑ r : Fin 1, z ^ (r : ℕ) • W i r) c ≤ e} = ∅ := by
-        ext z
-        simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-        rintro ⟨c, hc, hd⟩
-        have hV : (fun i (_ : Fin 1) => c i) ∈ interleavedLinear (Fin 1) (reedSolomon α k) :=
-          mem_interleavedLinear.2 fun _ => hc
-        have hd' : hammingDist W (fun i (_ : Fin 1) => c i) ≤ e := by
-          refine le_trans (Finset.card_le_card fun i hi => ?_) hd
+          hammingDist (fun i => ∑ r : Fin 1, z ^ (r : ℕ) • W i r) c ≤ e} = ∅ :=
+        Set.eq_empty_iff_forall_notMem.2 fun z ⟨c, hc, hd⟩ => by
+          refine (hfar (fun i _ => c i) (mem_interleavedLinear.2 fun _ => hc)).not_ge
+            (le_trans (Finset.card_le_card fun i hi => ?_) hd)
           simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.sum_univ_one, Fin.val_zero,
             pow_zero, one_smul] at hi ⊢
           exact fun hEq => hi (funext fun j => Fin.eq_zero j ▸ hEq)
-        exact (hfar _ hV).not_ge hd'
-      simp only [hemp, MeasureTheory.measure_empty, zero_le]
+      rw [hemp]
+      simp
     · let T : Finset F := Finset.univ.filter fun z =>
         ∃ c ∈ reedSolomon α k, hammingDist (fun i => ∑ j : Fin (r + 1), z ^ (j : ℕ) • W i j) c ≤ e
       refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_dens_le _ T
@@ -533,15 +501,13 @@ theorem toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson
       have hcard_le := le_of_not_gt fun hlt => by
         obtain ⟨D', hD', v, hv, hag⟩ :=
           exists_correlatedAgreement_curve_johnson hα hk (by omega) hk_sub hinterp hroot
-            (fun j i => W i j) T hlt fun z hz => by
-              rw [curve_eval_eq_sum_pow]
-              exact (Finset.mem_filter.1 hz).2
+            (fun j i => W i j) T hlt fun z hz =>
+              curve_eval_eq_sum_pow W z ▸ (Finset.mem_filter.1 hz).2
         obtain ⟨V, hV, hdist⟩ :=
           exists_mem_interleavedLinear_hammingDist_le_iff.2 ⟨D', hD', v, hv, hag⟩
         exact (hfar V hV).not_ge hdist
-      have hcardR : (T.card : ℝ) ≤ _ := (Nat.cast_le.2 hcard_le).trans hjb
-      simpa only [div_div] using
-        div_le_div_of_nonneg_right hcardR (Nat.cast_nonneg (Fintype.card F))
+      simpa only [div_div] using div_le_div_of_nonneg_right
+        ((Nat.cast_le.2 hcard_le).trans hjb) (Nat.cast_nonneg (Fintype.card F))
 
 /-- **Original explicit-constant interleaved Reed–Solomon proximity bound up to `1 - √ρ - η`
 (single-scalar power batching)** (in the setting of

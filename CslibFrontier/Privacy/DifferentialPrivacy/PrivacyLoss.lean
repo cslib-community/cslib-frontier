@@ -65,10 +65,8 @@ private theorem mul_div_rpow_add_le {E t P Q : ℝ} (hE : 1 < E) (ht : 0 ≤ t) 
   have hEinv : E⁻¹ < E := (inv_lt_one_of_one_lt₀ hE).trans hE
   have hD : 0 < E - E⁻¹ := sub_pos.mpr hEinv
   have hw0 : 0 < P / Q := div_pos hP hQ
-  have hwle : P / Q ≤ E := by rw [div_le_iff₀ hQ]; exact hPQ
-  have hwge : E⁻¹ ≤ P / Q := by
-    rw [le_div_iff₀ hQ, inv_mul_le_iff₀ hE0]
-    exact hQP
+  have hwle : P / Q ≤ E := (div_le_iff₀ hQ).2 hPQ
+  have hwge : E⁻¹ ≤ P / Q := (le_div_iff₀ hQ).2 ((inv_mul_le_iff₀ hE0).2 hQP)
   have ha : 0 ≤ (E - P / Q) / (E - E⁻¹) := div_nonneg (by linarith) hD.le
   have hb : 0 ≤ (P / Q - E⁻¹) / (E - E⁻¹) := div_nonneg (by linarith) hD.le
   have hab : (E - P / Q) / (E - E⁻¹) + (P / Q - E⁻¹) / (E - E⁻¹) = 1 := by
@@ -142,9 +140,7 @@ theorem renyiMoment_le_of_le_mul {p q : R → ℝ≥0∞} {ε α : ℝ} (hε : 0
     rcases eq_or_ne (q r) 0 with hq0 | hq0
     · have hp0 : p r = 0 := by simpa [hq0] using hpq r
       simp [hp0, hq0]
-    rcases eq_or_ne (p r) 0 with hp0 | hp0
-    · have : q r = 0 := by simpa [hp0] using hqp r
-      exact absurd this hq0
+    have hp0 : p r ≠ 0 := fun hp0 => hq0 (by simpa [hp0] using hqp r)
     have hP : 0 < (p r).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hp0
     have hQ : 0 < (q r).toReal := by ennreal_to_real using pos_iff_ne_zero.mpr hq0
     have hPQ : (p r).toReal ≤ E * (q r).toReal := by ennreal_to_real using hpq r

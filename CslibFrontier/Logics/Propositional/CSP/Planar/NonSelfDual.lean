@@ -90,17 +90,13 @@ private theorem exists_normalized_minimal_failure {R : Set (Fin m → Bool)} {k 
 
 private theorem parity_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.parity 3 (fun j => a j + b) = Cslib.parity 3 a + b := by
-  have heq : a = ![a 0, a 1, a 2] := by ext j; fin_cases j <;> rfl
-  rw [heq]
-  generalize a 0 = x, a 1 = y, a 2 = z
-  cases x <;> cases y <;> cases z <;> cases b <;> decide
+  revert a b
+  decide
 
 private theorem majority_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.majority 3 (fun j => a j + b) = Cslib.majority 3 a + b := by
-  have heq : a = ![a 0, a 1, a 2] := by ext j; fin_cases j <;> rfl
-  rw [heq]
-  generalize a 0 = x, a 1 = y, a 2 = z
-  cases x <;> cases y <;> cases z <;> cases b <;> decide
+  revert a b
+  decide
 
 /-- Every relation of arity at most one is preserved by ternary parity, including empty
 and nullary relations. -/
@@ -328,15 +324,13 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
     exact proper_even_impossible hz hu (fun j => hc j false) hv he j
   have hex : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
     by_contra hh
-    have hall (k : Fin 3) : Cslib.parityOn Finset.univ (a k) = true := by
-      have : Cslib.parityOn Finset.univ (a k) ≠ false := fun h => hh ⟨k, h⟩
-      cases h : Cslib.parityOn Finset.univ (a k) <;> simp_all
+    simp only [not_exists, Bool.not_eq_false] at hh
     have heq : a 0 + a 1 + a 2 = (0 : Fin (n + 1) → Bool) := by
       convert hout using 1
       ext i
       simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
     have he := congrArg (Cslib.parityOn Finset.univ) heq
-    rw [Cslib.parityOn_add, Cslib.parityOn_add, hall, hall, hall] at he
+    rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh] at he
     have hzpar : Cslib.parityOn Finset.univ (0 : Fin (n + 1) → Bool) = false := by
       rw [Cslib.parityOn_eq_sum]
       change (∑ _ : Fin (n + 1), (0 : Bool)) = 0

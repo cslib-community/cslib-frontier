@@ -48,15 +48,10 @@ private theorem finite_draw (s : Level) (pair : MLDSA.PublicKey s.params) (H : X
   have : NeZero s.params.q := ⟨by cases s <;> decide⟩
   unfold publicDraw draw
   simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  apply finite_bind (Set.toFinite _)
-  intro d _
+  refine finite_bind (Set.toFinite _) fun d _ => ?_
   split
-  · apply finite_bind (Set.toFinite _)
-    intro _ _
-    simp
-  · apply finite_bind (simulateFreshSigningAttempt_support_finite ..)
-    intro _ _
-    simp
+  · exact finite_bind (Set.toFinite _) fun _ _ => by simp
+  · exact finite_bind (simulateFreshSigningAttempt_support_finite ..) fun _ _ => by simp
 
 private theorem finite_retries {α ι : Type} (p : PMF (Option α)) (hp : p.support.Finite)
     (l : List ι) : (l.findSomeM? fun _ => p).support.Finite := by
@@ -132,12 +127,7 @@ private theorem secretRow_sq_le (C : QuantumSigningForger) (s : Level) (base : X
         H v.publicSeed pk
   have fin : V.support.Finite := by
     dsimp only [V, Xofs.sampleSecretExpansionViews]
-    apply finite_bind (Set.toFinite _)
-    intro _ _
-    apply finite_bind (Set.toFinite _)
-    intro _ _
-    apply finite_bind (Set.toFinite _)
-    intro _ _
+    iterate 3 refine finite_bind (Set.toFinite _) fun _ _ => ?_
     rw [PMF.support_map]
     exact (Set.toFinite _).image _
   have bound : gap (C.secretRowDeviceGame s base ha hb share) ref ≤ 4 * m *
@@ -164,8 +154,7 @@ private theorem secretRow_sq_le (C : QuantumSigningForger) (s : Level) (base : X
   calc
     _ ≤ 4 * (m : ℝ) * ∑ _j ∈ Finset.range m, ((2 : ℝ) ^ 256)⁻¹ := by
       apply mul_le_mul_of_nonneg_left _ (by positivity)
-      apply Finset.sum_le_sum
-      intro j _
+      refine Finset.sum_le_sum fun j _ => ?_
       have p := C.secretRow_changedResponse_le s base ha hb share j
       change ((V.bind fun v => v.refreshKeySeed.bind fun H => hits v H j) true) ≤ _ at p
       exact (ENNReal.toReal_mono (by norm_num : (2 ^ 256 : ENNReal)⁻¹ ≠ ⊤) p).trans_eq (by

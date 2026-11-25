@@ -110,20 +110,14 @@ private theorem mulVec_incidenceMatrix_le_iff [DecidableEq A] (G : CostSharingGa
     (α : A → ℝ) :
     incidenceMatrix *ᵥ α ≤ G.cost ↔ G.IsCoreFeasible α := by
   refine forall_congr' fun S => ?_
-  have hrow : (incidenceMatrix *ᵥ α) S = ∑ j ∈ S, α j := by
-    simp only [Matrix.mulVec, dotProduct, incidenceMatrix, ite_mul, one_mul, zero_mul,
-      ← Finset.sum_filter]
-    refine Finset.sum_congr ?_ fun _ _ => rfl
-    ext j
-    simp
-  rw [hrow]
+  simp only [Matrix.mulVec, dotProduct, incidenceMatrix, ite_mul, one_mul, zero_mul,
+    ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
 
 private theorem vecMul_incidenceMatrix_eq_iff [DecidableEq A] (w : Finset A → ℝ) :
     (0 ≤ w ∧ w ᵥ* incidenceMatrix = fun _ => 1) ↔ IsBalancedWeights w := by
   refine and_congr Iff.rfl ⟨fun h j => ?_, fun h => funext fun j => ?_⟩
-  · have hj := congr_fun h j
-    simpa only [Matrix.vecMul, dotProduct, incidenceMatrix, mul_ite, mul_one, mul_zero,
-      ← Finset.sum_filter] using hj
+  · simpa only [Matrix.vecMul, dotProduct, incidenceMatrix, mul_ite, mul_one, mul_zero,
+      ← Finset.sum_filter] using congr_fun h j
   · simpa only [Matrix.vecMul, dotProduct, incidenceMatrix, mul_ite, mul_one, mul_zero,
       ← Finset.sum_filter] using h j
 
@@ -139,16 +133,13 @@ theorem exists_isGreatest_isLeast_coreLP [DecidableEq A] (G : CostSharingGame A)
     let B : ℝ := ∑ T : Finset A, |G.cost T|
     have hB : 0 ≤ B := Finset.sum_nonneg fun T _ => abs_nonneg (G.cost T)
     refine ⟨fun _ => -B, (G.mulVec_incidenceMatrix_le_iff _).2 fun S => ?_⟩
-    by_cases hS : S.Nonempty
-    · have hcard : (1 : ℝ) ≤ S.card := by exact_mod_cast Finset.one_le_card.2 hS
-      have hBS : |G.cost S| ≤ B :=
-        Finset.single_le_sum (fun T _ => abs_nonneg (G.cost T)) (Finset.mem_univ S)
-      have hsum : ∑ _j ∈ S, (-B) = -(S.card : ℝ) * B := by
-        simp [nsmul_eq_mul]
-      have hmul : B ≤ (S.card : ℝ) * B := le_mul_of_one_le_left hB hcard
-      linarith [neg_abs_le (G.cost S)]
-    · rw [Finset.not_nonempty_iff_eq_empty.1 hS]
-      simp
+    rcases S.eq_empty_or_nonempty with rfl | hS
+    · simp
+    have hcard : (1 : ℝ) ≤ S.card := by exact_mod_cast Finset.one_le_card.2 hS
+    have hBS : |G.cost S| ≤ B :=
+      Finset.single_le_sum (fun T _ => abs_nonneg (G.cost T)) (Finset.mem_univ S)
+    rw [Finset.sum_const, nsmul_eq_mul]
+    linarith [le_mul_of_one_le_left hB hcard, neg_abs_le (G.cost S)]
   have hD : ∃ w : Finset A → ℝ, 0 ≤ w ∧ w ᵥ* incidenceMatrix = fun _ => 1 :=
     ⟨_, (vecMul_incidenceMatrix_eq_iff _).2 isBalancedWeights_univ⟩
   obtain ⟨v, hG, hL⟩ :=
@@ -299,11 +290,7 @@ private theorem integralBalanced_support_spec [DecidableEq A] (G : CostSharingGa
     intro S₁ h₁ S₂ h₂ hne
     refine Finset.disjoint_left.2 fun j hj₁ hj₂ => ?_
     have hsub_pair : ({S₁, S₂} : Finset (Finset A)) ⊆ Finset.univ.filter (fun T => j ∈ T) := by
-      intro T hT
-      rcases Finset.mem_insert.1 hT with rfl | hT'
-      · exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₁⟩
-      · rw [Finset.mem_singleton.1 hT']
-        exact Finset.mem_filter.2 ⟨Finset.mem_univ _, hj₂⟩
+      simpa [Finset.insert_subset_iff] using And.intro hj₁ hj₂
     have hle := Finset.sum_le_sum_of_subset hsub_pair (f := w)
     rw [Finset.sum_pair hne, hw_one S₁ h₁, hw_one S₂ h₂, hw j] at hle
     omega
@@ -348,27 +335,19 @@ private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharing
     refine ⟨fun S => if S ∈ P then 1 else 0, fun j => ?_, ?_⟩
     · have hj : j ∈ P.biUnion id := hunion.symm ▸ Finset.mem_univ j
       obtain ⟨S₀, hS₀P, hjS₀⟩ := Finset.mem_biUnion.1 hj
-      rw [Finset.sum_eq_single S₀]
+      rw [Finset.sum_eq_single_of_mem S₀ (Finset.mem_filter.2 ⟨Finset.mem_univ S₀, hjS₀⟩)]
       · simp [hS₀P]
-      · intro S hS hne
-        simp only [ite_eq_right_iff, one_ne_zero, imp_false]
-        intro hSP
-        exact Finset.disjoint_left.1 (hdisj hSP hS₀P hne) (Finset.mem_filter.1 hS).2 hjS₀
-      · intro hnot
-        exact absurd (Finset.mem_filter.2 ⟨Finset.mem_univ S₀, hjS₀⟩) hnot
+      · exact fun S hS hne => ite_eq_right fun hSP =>
+          Finset.disjoint_left.1 (hdisj hSP hS₀P hne) (Finset.mem_filter.1 hS).2 hjS₀
     · simp only [Nat.cast_ite, Nat.cast_one, Nat.cast_zero, ite_mul, one_mul, zero_mul,
         ← Finset.sum_filter, Finset.filter_mem_eq_inter, Finset.univ_inter]
-  have hne : valid.Nonempty := by
-    obtain ⟨P, hP, _⟩ := hmem_valid isIntegralBalancedWeights_univ
-    exact ⟨P, hP⟩
+  have hne : valid.Nonempty := (hmem_valid isIntegralBalancedWeights_univ).imp fun _ h => h.1
   obtain ⟨P₀, hP₀, hmin⟩ := valid.exists_min_image (fun P => ∑ S ∈ P, G.cost S) hne
   obtain ⟨w₀, hw₀, hsum₀⟩ := hof_valid hP₀
   refine ⟨∑ S ∈ P₀, G.cost S, ⟨w₀, hw₀, hsum₀⟩, ?_⟩
   rintro _ ⟨w, hw, rfl⟩
   obtain ⟨P, hP, hsum⟩ := hmem_valid hw
-  dsimp only
-  rw [hsum]
-  exact hmin P hP
+  exact (hmin P hP).trans_eq hsum.symm
 
 /-- The optimal integral value of LP `(15.2)` over `IsIntegralBalancedWeights`
 ([JainMahdian2007], Section 15.2.2, p. 389). -/
@@ -379,21 +358,15 @@ noncomputable def integralLpOpt (G : CostSharingGame A) : ℝ :=
 theorem isLeast_integralBalanced_integralLpOpt [DecidableEq A] (G : CostSharingGame A) :
     IsLeast ((fun w : Finset A → ℕ => ∑ S : Finset A, (w S : ℝ) * G.cost S) ''
       {w | IsIntegralBalancedWeights w}) G.integralLpOpt := by
-  have hspec := (@exists_isLeast_integralBalanced A _ (Classical.decEq A) G).choose_spec
-  have heq : {w : Finset A → ℕ | IsIntegralBalancedWeights w} =
-      {w : Finset A → ℕ | @IsIntegralBalancedWeights A _ (Classical.decEq A) w} := by
-    congr!
-  rw [heq]
-  exact hspec
+  obtain rfl : ‹DecidableEq A› = Classical.decEq A := Subsingleton.elim _ _
+  exact (@exists_isLeast_integralBalanced A _ (Classical.decEq A) G).choose_spec
 
 theorem lpOpt_le_integralLpOpt (G : CostSharingGame A) :
     G.lpOpt ≤ G.integralLpOpt := by
   classical
   obtain ⟨⟨w, hw, hsum⟩, -⟩ := G.isLeast_integralBalanced_integralLpOpt
-  have hbal : IsBalancedWeights (fun S => (w S : ℝ)) := by
-    refine ⟨fun _ => Nat.cast_nonneg _, fun j => ?_⟩
-    dsimp only
-    rw [← Nat.cast_sum, hw j, Nat.cast_one]
+  have hbal : IsBalancedWeights (fun S => (w S : ℝ)) :=
+    ⟨fun _ => Nat.cast_nonneg _, fun j => by dsimp only; rw [← Nat.cast_sum, hw j, Nat.cast_one]⟩
   exact hsum ▸ G.isLeast_balanced_lpOpt.2 ⟨fun S => (w S : ℝ), hbal, rfl⟩
 
 /-- For a subadditive cost-sharing game, the **optimal integral value of LP `(15.2)` is precisely
@@ -516,15 +489,10 @@ private theorem sum_le_coalitionValue_of_feasible [Fintype G]
     obtain ⟨i₀, hi₀⟩ := id hS
     have hsup_nn : 0 ≤ S.sup' hS (fun k => E.utility k g) :=
       (E.utility_nonneg i₀ g).trans (Finset.le_sup' (fun k => E.utility k g) hi₀)
-    calc
-      ∑ i ∈ S, E.utility i g * x i g
-        ≤ ∑ i ∈ S, (S.sup' hS (fun k => E.utility k g)) * x i g :=
-          Finset.sum_le_sum fun i hi =>
-            mul_le_mul_of_nonneg_right (Finset.le_sup' (fun k => E.utility k g) hi) (hx.1 i hi g)
-      _ = (S.sup' hS (fun k => E.utility k g)) * ∑ i ∈ S, x i g :=
-          (Finset.mul_sum _ _ _).symm
-      _ ≤ (S.sup' hS (fun k => E.utility k g)) * ∑ i ∈ S, E.endowment i g :=
-          mul_le_mul_of_nonneg_left (hx.2 g) hsup_nn
+    calc ∑ i ∈ S, E.utility i g * x i g ≤ ∑ i ∈ S, S.sup' hS (E.utility · g) * x i g :=
+        Finset.sum_le_sum fun i hi =>
+          mul_le_mul_of_nonneg_right (Finset.le_sup' (E.utility · g) hi) (hx.1 i hi g)
+      _ ≤ _ := by rw [← Finset.mul_sum]; exact mul_le_mul_of_nonneg_left (hx.2 g) hsup_nn
   · rw [Finset.not_nonempty_iff_eq_empty.1 hS]
     simp [coalitionValue]
 
@@ -545,8 +513,7 @@ theorem isGreatest_exactRedistribution [Fintype G]
       refine ⟨fun i _ g => ?_, fun g => ?_⟩
       · simp only [xStar]
         split_ifs
-        · exact Finset.sum_nonneg fun j _ => E.endowment_nonneg j g
-        · exact le_rfl
+        exacts [Finset.sum_nonneg fun j _ => E.endowment_nonneg j g, le_rfl]
       · simp only [xStar, Finset.sum_ite_eq' S (winner g), hwinner_mem g, ↓reduceIte]
     refine ⟨⟨xStar, hxStar, ?_⟩, ?_⟩
     · dsimp only

@@ -93,17 +93,9 @@ theorem computableInPolyTime_prgFromPRF
       (encPair encBits encBits) encBits)
     (hx : ComputableInPolyTime
       (fun n => List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)) encUnary (encList encBits)) :
-    ComputableInPolyTime (prgFromPRF family ℓ inLen x) encBits encBits := by
-  have hpts : ComputableInPolyTime
-      (fun seed : List Bool => List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i))
-      encBits (encList encBits) := hx.comp ComputableInPolyTime.length_bits
-  have hmapped : ComputableInPolyTime
-      (fun seed : List Bool =>
-        (List.ofFn fun i : Fin (ℓ seed.length) => List.ofFn (x seed.length i)).map
-          (family seed))
-      encBits (encList encBits) :=
-    ComputableInPolyTime.mapWithInput hpts hfamily
-  exact (ComputableInPolyTime.bitsFlatten hmapped)
+    ComputableInPolyTime (prgFromPRF family ℓ inLen x) encBits encBits :=
+  ComputableInPolyTime.bitsFlatten
+    (ComputableInPolyTime.mapWithInput (hx.comp ComputableInPolyTime.length_bits) hfamily)
 
 end Construction
 
@@ -204,41 +196,30 @@ theorem eval_prgRealGame_prgFromPRF
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) (n : ℕ) :
     ProbComp.eval (prgRealGame (prgFromPRF family ℓ inLen x) A n) =
       ProbComp.eval (prfRealGame inLen family (prgFromPRFReduction ℓ inLen outLen x A) n) := by
-  simp only [prgRealGame, prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList]
-  refine PMF.ext fun b => ?_
-  simp only [PMF.bind_apply]
-  refine tsum_congr fun key => ?_
-  by_cases hmem : key ∈ (BitString.uniformList n).support
-  · have hkeyLen : key.length = n := BitString.length_of_mem_support_uniformList hmem
-    have hquery (q : BitString (inLen n)) :
-        (BitString.ofList (outLen n) <$>
-          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-            ((), List.ofFn q)).run
-          (fun request => pure (prfOracle family (inLen n) key request.2)) =
-        pure (BitString.ofList (outLen n) (family key (List.ofFn q))) := by
-      simp only [ProbOracleComp.run_map, ProbOracleComp.run_query, map_pure, prfOracle,
-        List.length_ofFn, ite_true]
-    have hconcat :
-        (List.ofFn fun i : Fin (ℓ n) =>
-          List.ofFn (BitString.ofList (outLen n) (family key (List.ofFn (x n i))))).flatten =
-        prgFromPRF family ℓ inLen x key := by
-      rw [prgFromPRF]
-      congr 1
-      rw [hkeyLen, List.map_ofFn]
-      congr 1
-      funext i
-      exact BitString.ofFn_ofList
-        ((hlength key _ (by rw [List.length_ofFn, hkeyLen])).trans (congrArg outLen hkeyLen))
-    have hbody :
-        ProbComp.eval (A n (prgFromPRF family ℓ inLen x key)) =
-          ProbComp.eval ((prgFromPRFReduction ℓ inLen outLen x A n []).run
-            fun request => pure (prfOracle family (inLen n) key request.2)) := by
-      simp only [prgFromPRFReduction, PRF.prgReduction, ProbOracleComp.run_simulate,
-        ProbOracleComp.run_bind, hquery, PRF.run_queryPoints, pure_bind, ProbOracleComp.run_sample,
-        hconcat]
-    rw [hbody]
-  · simp only [PMF.mem_support_iff, ne_eq, not_not] at hmem
-    simp [hmem]
+  simp only [prgRealGame, prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList,
+    BitString.uniformList, PMF.bind_map, Function.comp_def]
+  congr 1 with k : 1
+  have hquery (q : BitString (inLen n)) :
+      (BitString.ofList (outLen n) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), List.ofFn q)).run
+        (fun request => pure (prfOracle family (inLen n) (List.ofFn k) request.2)) =
+      pure (BitString.ofList (outLen n) (family (List.ofFn k) (List.ofFn q))) := by
+    simp only [ProbOracleComp.run_map, ProbOracleComp.run_query, map_pure, prfOracle,
+      List.length_ofFn, ite_true]
+  have hconcat :
+      (List.ofFn fun i : Fin (ℓ n) =>
+        List.ofFn (BitString.ofList (outLen n)
+          (family (List.ofFn k) (List.ofFn (x n i))))).flatten =
+      prgFromPRF family ℓ inLen x (List.ofFn k) := by
+    rw [prgFromPRF, List.length_ofFn, List.map_ofFn]
+    congr 2
+    funext i
+    exact BitString.ofFn_ofList
+      ((hlength _ _ (by simp only [List.length_ofFn])).trans (by rw [List.length_ofFn]))
+  simp only [prgFromPRFReduction, PRF.prgReduction, ProbOracleComp.run_simulate,
+    ProbOracleComp.run_bind, hquery, PRF.run_queryPoints, pure_bind, ProbOracleComp.run_sample,
+    hconcat]
 
 /-- The uniform-word PRG ideal experiment equals the word PRF ideal experiment of
 `prgFromPRFReduction`. -/
@@ -304,17 +285,9 @@ theorem indistinguishable_prgFromPRF
     ComputationallyIndistinguishable (generatorEnsemble (prgFromPRF family ℓ inLen x))
       (fun n => BitString.uniformList (ℓ n * outLen n)) := by
   intro A hA
-  have heq : (fun n => Game.advantage
-      (distinguishingGame (generatorEnsemble (prgFromPRF family ℓ inLen x) n) (A n))
-      (distinguishingGame (BitString.uniformList (ℓ n * outLen n)) (A n))) =
-      fun n => Game.advantage
-        (ProbComp.eval (prfRealGame inLen family (prgFromPRFReduction ℓ inLen outLen x A) n))
-        (ProbComp.eval (prfIdealGame inLen outLen (prgFromPRFReduction ℓ inLen outLen x A) n)) := by
-    funext n
-    simpa only [eval_prgRealGame, eval_prgIdealGame] using
-      advantage_prgFromPRF_eq hfamily.length_eq x A n
-  rw [heq]
-  exact hfamily.secure _ (isOraclePPT_prgFromPRFReduction hx hout hA)
+  have hsec := hfamily.secure _ (isOraclePPT_prgFromPRFReduction hx hout hA)
+  simpa only [← advantage_prgFromPRF_eq hfamily.length_eq x A, eval_prgRealGame,
+    eval_prgIdealGame] using hsec
 
 private theorem computableInPolyTime_outLen_of_pos
     {family : List Bool → List Bool → List Bool} {ℓ inLen outLen : ℕ → ℕ}
@@ -327,20 +300,15 @@ private theorem computableInPolyTime_outLen_of_pos
   have heq (n : ℕ) :
       outLen n = (family (List.replicate n false)
         ((List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD [])).length := by
-    let q := (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD []
-    have hmem : q ∈ List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i) := by
-      have hn := hpos n
-      dsimp only [q]
-      cases hlist : (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)) with
-      | nil =>
-        have hlen := congrArg List.length hlist
-        simp only [List.length_ofFn, List.length_nil] at hlen
-        omega
-      | cons => simp
-    obtain ⟨i, hi⟩ := List.mem_ofFn.mp hmem
-    have hqLen : q.length = inLen n := by rw [← hi, List.length_ofFn]
-    simpa only [List.length_replicate] using (hfamily.length_eq (List.replicate n false) q
-      (by simpa only [List.length_replicate] using hqLen)).symm
+    have hhead :
+        (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD [] =
+          List.ofFn (x n ⟨0, hpos n⟩) := by
+      simp only [List.headD_eq_head?_getD, List.head?_eq_getElem?, List.getElem?_ofFn, hpos n,
+        ↓reduceDIte, Option.getD_some]
+    rw [hhead]
+    simpa only [List.length_replicate] using
+      (hfamily.length_eq (List.replicate n false) (List.ofFn (x n ⟨0, hpos n⟩))
+        (by simp only [List.length_ofFn, List.length_replicate])).symm
   have hpoly : ComputableInPolyTime
       (fun n => (family (List.replicate n false)
         ((List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD [])).length)

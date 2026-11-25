@@ -96,12 +96,8 @@ theorem ofMask_subset (L : List V) (m : ℕ) : ofMask L m ⊆ L.toFinset := by
   induction L generalizing m with
   | nil => exact Finset.empty_subset _
   | cons v L ih =>
-    intro x hx
-    rw [mem_ofMask_cons] at hx
-    rw [List.toFinset_cons, Finset.mem_insert]
-    rcases hx with ⟨-, rfl⟩ | hx
-    · exact .inl rfl
-    · exact .inr (ih _ hx)
+    rw [List.toFinset_cons]
+    exact fun x hx => Finset.mem_insert.2 ((mem_ofMask_cons.1 hx).imp And.right fun h => ih _ h)
 
 theorem toMask_lt (L : List V) (S : Finset V) : toMask L S < 2 ^ L.length := by
   induction L with
@@ -115,57 +111,37 @@ theorem toMask_congr {L : List V} {S T : Finset V} (h : ∀ x ∈ L, x ∈ S ↔
   induction L with
   | nil => rfl
   | cons v L ih =>
-    simp only [toMask]
-    rw [ih fun x hx => h x (List.mem_cons_of_mem v hx)]
-    by_cases hv : v ∈ S
-    · rw [ite_eq_left hv, ite_eq_left ((h v List.mem_cons_self).1 hv)]
-    · rw [ite_eq_right hv, ite_eq_right fun hT => hv ((h v List.mem_cons_self).2 hT)]
+    simp only [toMask, ih fun x hx => h x (List.mem_cons_of_mem v hx), h v List.mem_cons_self]
 
 theorem ofMask_toMask (L : List V) (S : Finset V) : ofMask L (toMask L S) = S ∩ L.toFinset := by
   induction L with
   | nil => simp [ofMask]
   | cons v L ih =>
-    have hdiv : ((if v ∈ S then 1 else 0) + 2 * toMask L S) / 2 = toMask L S := by
-      split_ifs <;> omega
     by_cases hv : v ∈ S
-    · have hmod : ((if v ∈ S then 1 else 0) + 2 * toMask L S) % 2 = 1 := by grind
-      simp only [toMask, ofMask, hmod, hdiv, ih, ite_true, List.toFinset_cons]
-      rw [Finset.inter_insert_of_mem hv]
-    · have hmod : ¬((if v ∈ S then 1 else 0) + 2 * toMask L S) % 2 = 1 := by grind
-      simp only [toMask, ofMask, hmod, hdiv, ih, ite_false, List.toFinset_cons]
-      rw [Finset.inter_insert_of_notMem hv]
+    · simp [toMask, ofMask, hv, ih, Finset.inter_insert_of_mem,
+        show (1 + 2 * toMask L S) % 2 = 1 by omega,
+        show (1 + 2 * toMask L S) / 2 = toMask L S by omega]
+    · simp [toMask, ofMask, hv, ih, Finset.inter_insert_of_notMem]
 
 theorem toMask_ofMask {L : List V} (hL : L.Nodup) {m : ℕ} (hm : m < 2 ^ L.length) :
     toMask L (ofMask L m) = m := by
   induction L generalizing m with
-  | nil =>
-    rw [List.length_nil, pow_zero] at hm
-    rw [toMask]
-    omega
+  | nil => simp [toMask] at hm ⊢; omega
   | cons v L ih =>
-    rw [List.nodup_cons] at hL
-    have hm' : m / 2 < 2 ^ L.length := by grind
-    have hrest : toMask L (ofMask (v :: L) m) = toMask L (ofMask L (m / 2)) := by
-      refine toMask_congr fun x hx => ?_
-      have hxv : x ≠ v := fun h => hL.1 (h ▸ hx)
-      rw [mem_ofMask_cons]
-      simp [hxv]
+    obtain ⟨hvL, hL⟩ := List.nodup_cons.1 hL
+    rw [toMask_cons, toMask_congr (T := ofMask L (m / 2)) fun x hx => by
+        simp [mem_ofMask_cons, show x ≠ v from fun e => hvL (e ▸ hx)],
+      ih hL (by simp only [List.length_cons, pow_succ] at hm; omega)]
     have hv : v ∈ ofMask (v :: L) m ↔ m % 2 = 1 := by
-      have hvL : v ∉ ofMask L (m / 2) := fun h => hL.1 (List.mem_toFinset.1 (ofMask_subset L _ h))
-      rw [mem_ofMask_cons]
-      simp [hvL]
-    rw [toMask_cons, hrest, ih hL.2 hm']
-    by_cases h : m % 2 = 1
-    · rw [ite_eq_left (hv.2 h)]
-      omega
-    · rw [ite_eq_right fun h' => h (hv.1 h')]
-      omega
+      have hvL' : v ∉ ofMask L (m / 2) := fun h => hvL (List.mem_toFinset.1 (ofMask_subset L _ h))
+      simp [mem_ofMask_cons, hvL']
+    simp only [hv]
+    split_ifs <;> omega
 
 theorem toMask_eq_toMask_iff {L : List V} {S T : Finset V} :
     toMask L S = toMask L T ↔ S ∩ L.toFinset = T ∩ L.toFinset := by
   refine ⟨fun h => by rw [← ofMask_toMask, h, ofMask_toMask], fun h => toMask_congr fun x hx => ?_⟩
-  have := congrArg (x ∈ ·) h
-  simpa [List.mem_toFinset.2 hx] using this
+  simpa [List.mem_toFinset.2 hx] using congrArg (x ∈ ·) h
 
 theorem powerset_toFinset_eq_image (L : List V) :
     L.toFinset.powerset = (Finset.range (2 ^ L.length)).image (ofMask L) := by
@@ -285,20 +261,12 @@ theorem restrictMask_eq_toMask (LB : List V) {LP : List V} (hLP : LP.Nodup) (s :
   | nil => rfl
   | cons u LP ih =>
     obtain ⟨hu, hLP⟩ := List.nodup_cons.1 hLP
-    simp only [restrictMask, memBag_eq_decide, ih hLP, decide_eq_true_eq, toMask]
-    have hmem : u ∈ ofMask (u :: LP) s ∩ LB.toFinset ↔ s % 2 = 1 ∧ u ∈ LB := by
-      rw [Finset.mem_inter, mem_ofMask_cons, List.mem_toFinset]
-      constructor
-      · rintro ⟨⟨h, -⟩ | h, h'⟩
-        · exact ⟨h, h'⟩
-        · exact absurd (List.mem_toFinset.1 (ofMask_subset LP _ h)) hu
-      · rintro ⟨h, h'⟩
-        exact ⟨.inl ⟨h, rfl⟩, h'⟩
+    have hu' : u ∉ ofMask LP (s / 2) := fun h => hu (List.mem_toFinset.1 (ofMask_subset LP _ h))
+    simp only [restrictMask, memBag_eq_decide, ih hLP, decide_eq_true_eq, toMask,
+      Finset.mem_inter, mem_ofMask_cons, and_true, hu', or_false, List.mem_toFinset]
     rw [toMask_congr (S := ofMask (u :: LP) s ∩ LB.toFinset)
-      (T := ofMask LP (s / 2) ∩ LB.toFinset) fun x hx => ?_]
-    · simp only [hmem]
-    · have hxu : x ≠ u := fun h => hu (h ▸ hx)
-      simp [mem_ofMask_cons, hxu]
+      (T := ofMask LP (s / 2) ∩ LB.toFinset) fun x hx => by
+        simp [mem_ofMask_cons, show x ≠ u from fun e => hu (e ▸ hx)]]
 
 theorem forgetWeight_eq_sum (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.Nodup) (t : ℕ) :
     forgetWeight w LP LB t = ∑ v ∈ ofMask LB t \ LP.toFinset, w v := by
@@ -306,17 +274,11 @@ theorem forgetWeight_eq_sum (w : V → ℕ) (LP : List V) {LB : List V} (hLB : L
   | nil => simp [forgetWeight, ofMask]
   | cons u LB ih =>
     obtain ⟨hu, hLB⟩ := List.nodup_cons.1 hLB
-    simp only [forgetWeight, memBag_eq_decide, ih hLB]
     have huA : u ∉ ofMask LB (t / 2) \ LP.toFinset := fun h =>
       hu (List.mem_toFinset.1 (ofMask_subset LB _ (Finset.mem_sdiff.1 h).1))
-    rw [ofMask_cons]
-    by_cases ht : t % 2 = 1 <;> by_cases huP : u ∈ LP
-    · simp [ht, huP, Finset.insert_sdiff_of_mem _ (List.mem_toFinset.2 huP)]
-    · rw [ite_eq_left ht, Finset.insert_sdiff_of_notMem _ (fun h => huP (List.mem_toFinset.1 h)),
-        Finset.sum_insert huA]
-      simp [ht, huP]
-    · simp [ht]
-    · simp [ht]
+    simp only [forgetWeight, memBag_eq_decide, ih hLB, ofMask_cons]
+    by_cases ht : t % 2 = 1 <;> by_cases huP : u ∈ LP <;>
+      simp [ht, huP, huA, Finset.insert_sdiff_of_mem, Finset.insert_sdiff_of_notMem]
 
 theorem noAdjMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V)
     (m : ℕ) : noAdjMask G x L m = true ↔ ∀ y ∈ ofMask L m, ¬G.Adj x y := by
@@ -325,17 +287,7 @@ theorem noAdjMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (
   | cons u L ih =>
     simp only [noAdjMask, Bool.and_eq_true, ih, Bool.not_eq_true', Bool.and_eq_false_iff,
       decide_eq_false_iff_not, mem_ofMask_cons]
-    constructor
-    · rintro ⟨h, h'⟩ y (⟨hm, rfl⟩ | hy)
-      · rcases h' with h' | h'
-        · exact absurd hm h'
-        · exact h'
-      · exact h y hy
-    · intro h
-      refine ⟨fun y hy => h y (.inr hy), ?_⟩
-      by_cases hm : m % 2 = 1
-      · exact .inr (h u (.inl ⟨hm, rfl⟩))
-      · exact .inl hm
+    by_cases hm : m % 2 = 1 <;> simp [hm, or_imp, forall_and, and_comm]
 
 theorem indepMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     indepMask G L m = true ↔ G.IsIndepSet (↑(ofMask L m) : Set V) := by
@@ -343,19 +295,12 @@ theorem indepMask_eq_true_iff (G : SimpleGraph V) [DecidableRel G.Adj] (L : List
   | nil => simp [indepMask, ofMask]
   | cons u L ih =>
     simp only [indepMask, Bool.and_eq_true, ih, Bool.or_eq_true, Bool.not_eq_true',
-      decide_eq_false_iff_not, noAdjMask_eq_true_iff]
-    rw [ofMask_cons]
+      decide_eq_false_iff_not, noAdjMask_eq_true_iff, ofMask_cons]
     by_cases hm : m % 2 = 1
-    · rw [ite_eq_left hm, Finset.coe_insert]
-      simp only [isIndepSet_iff]
-      rw [Set.pairwise_insert]
-      constructor
-      · rintro ⟨h, h' | h'⟩
-        · exact absurd hm h'
-        · exact ⟨h, fun b hb _ => ⟨h' b hb, fun hba => h' b hb hba.symm⟩⟩
-      · rintro ⟨h, h'⟩
-        refine ⟨h, .inr fun y hy hadj => ?_⟩
-        exact (h' y hy (G.ne_of_adj hadj)).1 hadj
+    · simp only [hm, ↓reduceIte, not_true_eq_false, false_or, Finset.coe_insert, isIndepSet_iff,
+        Set.pairwise_insert]
+      exact ⟨fun ⟨h, h'⟩ => ⟨h, fun b hb _ => ⟨h' b hb, fun hba => h' b hb hba.symm⟩⟩,
+        fun ⟨h, h'⟩ => ⟨h, fun y hy hadj => (h' y hy (G.ne_of_adj hadj)).1 hadj⟩⟩
     · simp [hm]
 
 end LoopSpecs

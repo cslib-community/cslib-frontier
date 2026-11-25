@@ -97,21 +97,16 @@ theorem eval_zeroLinkAdversary (E : Scheme) (depth : ℕ → ℕ)
   simp only [pmf_norm, Encryption.game, Encryption.gameOn, ↓reduceIte, zeroLinkAdversary,
     Scheme.publicKeyChainHybrid_zero, Scheme.generateKeys, OracleComp.replicate_succ, publicKeyGame,
     List.map_cons, List.getD_cons_zero]
-  apply Probability.PMF.bind_congr_on_support
-  intro first hfirst
-  apply Probability.PMF.bind_congr_on_support
-  intro rest hrest
-  have hlinks : E.encryptZeroKeyLinks n ((first.1, (rest.headD ([], [])).2) :: rest) =
-      E.encryptZeroKeyLinks n (first :: rest) := by
-    cases rest with
-    | nil => rfl
-    | cons second tail =>
-      have hsecond : second ∈ (ProbComp.eval (E.keyGen n)).support :=
-        ((ProbComp.mem_support_replicate_iff (depth n) (E.keyGen n) (second :: tail)).mp
-          hrest).2 second (by simp)
-      exact E.encryptZeroKeyLinks_cons_congr n (first.1, second.2) first (second :: tail)
-        ((hwidth second hsecond).trans (hwidth first hfirst).symm)
-  rw [hlinks]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun first hfirst =>
+    Probability.PMF.bind_congr_on_support _ _ _ fun rest hrest => ?_
+  rcases rest with _ | ⟨second, tail⟩
+  · rfl
+  · have hsecond : second ∈ (ProbComp.eval (E.keyGen n)).support :=
+      ((ProbComp.mem_support_replicate_iff (depth n) (E.keyGen n) (second :: tail)).mp
+        hrest).2 second (by simp)
+    dsimp only [List.headD_cons]
+    rw [E.encryptZeroKeyLinks_cons_congr n (first.1, second.2) first (second :: tail)
+      ((hwidth second hsecond).trans (hwidth first hfirst).symm)]
 
 private theorem eval_tagLeveledChoice_false_false (E : Scheme) (depth capacity : ℕ → ℕ)
     (adversary : Encryption.Adversary) (bit : Bool) (n : ℕ) :
@@ -231,32 +226,27 @@ theorem eval_leveledAdversary (E : Scheme) (depth capacity : ℕ → ℕ)
   simp only [leveledAdversary_choose, bind_assoc, ProbComp.eval_bind, ProbComp.eval_uniform]
   pmf_swap with first second
   cases first <;> cases second
-  · simp only [Bool.false_eq_true, ↓reduceIte]
-    simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
-      eval_tagLeveledChoice_false_false E depth capacity adversary bit n
-  · simp only [Bool.false_eq_true, ↓reduceIte]
-    simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
-      eval_tagLeveledChoice_false_true E depth capacity adversary bit n
+  · simpa only [Bool.false_eq_true, ↓reduceIte, Encryption.game, Encryption.gameOn,
+      ProbComp.eval_bind] using eval_tagLeveledChoice_false_false E depth capacity adversary bit n
+  · simpa only [Bool.false_eq_true, ↓reduceIte, Encryption.game, Encryption.gameOn,
+      ProbComp.eval_bind] using eval_tagLeveledChoice_false_true E depth capacity adversary bit n
   · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind, PMF.bind_bind]
     pmf_swap with keepLink
     cases keepLink
     · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-      rw [← PMF.bind_const (ProbComp.eval (sampleDyadicCoin (capacity n) 1)) (PMF.pure false)]
-      rw [PMF.bind_comm]
+      rw [← PMF.bind_const (ProbComp.eval (sampleDyadicCoin (capacity n) 1)) (PMF.pure false),
+        PMF.bind_comm]
       congr 1 with _ : 1
       simpa only [ProbComp.eval_bind] using
         eval_rejectLeveledChoice E depth capacity adversary bit n
     · simp only [↓reduceIte]
       pmf_swap with keepBit
       cases keepBit
-      · simp only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-        simpa only [ProbComp.eval_bind] using
-          eval_rejectLeveledChoice E depth capacity adversary bit n
-      · simp only [↓reduceIte]
-        simpa only [Encryption.game, Encryption.gameOn, ↓reduceIte, ProbComp.eval_bind] using
+      · simpa only [Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind,
+          ProbComp.eval_bind] using eval_rejectLeveledChoice E depth capacity adversary bit n
+      · simpa only [↓reduceIte, Encryption.game, Encryption.gameOn, ProbComp.eval_bind] using
           eval_tagLeveledChoice_true_false E depth capacity adversary bit n
-  · simp only [↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-    simpa only [ProbComp.eval_bind] using
+  · simpa only [↓reduceIte, ProbComp.eval_pure, PMF.pure_bind, ProbComp.eval_bind] using
       eval_rejectLeveledChoice E depth capacity adversary bit n
 
 private theorem succProbability_uniform_bool (f : Bool → Game) :
@@ -414,17 +404,11 @@ theorem advantage_game_le_mul_leveledAdversary (E : Scheme) (budget capacity : �
     exact_mod_cast dyadicSize_le (2 * budget n)
   have hcap : (dyadicSize (capacity n) : ℝ≥0) ≤ 2 * (capacity n + 1) := by
     exact_mod_cast dyadicSize_le (capacity n)
+  let adv := Encryption.advantage (Encryption.game E.keyGen E.encrypt
+    (leveledAdversary E (fun n => 2 * budget n) capacity adversary)) n
   calc
-    4 * (dyadicSize (2 * budget n) : ℝ≥0) * dyadicSize (capacity n) *
-        Encryption.advantage (Encryption.game E.keyGen E.encrypt
-          (leveledAdversary E (fun n => 2 * budget n) capacity adversary)) n
-      ≤ 4 * (2 * (2 * budget n + 1 : ℝ≥0)) * (2 * (capacity n + 1)) *
-        Encryption.advantage (Encryption.game E.keyGen E.encrypt
-          (leveledAdversary E (fun n => 2 * budget n) capacity adversary)) n := by
-        gcongr
-    _ = 16 * (2 * budget n + 1 : ℝ≥0) * (capacity n + 1) *
-        Encryption.advantage (Encryption.game E.keyGen E.encrypt
-          (leveledAdversary E (fun n => 2 * budget n) capacity adversary)) n := by
-        ring
+    4 * (dyadicSize (2 * budget n) : ℝ≥0) * dyadicSize (capacity n) * adv
+      ≤ 4 * (2 * (2 * budget n + 1 : ℝ≥0)) * (2 * (capacity n + 1)) * adv := by gcongr
+    _ = 16 * (2 * budget n + 1 : ℝ≥0) * (capacity n + 1) * adv := by ring
 
 end Cslib.Crypto.Homomorphic.Leveled

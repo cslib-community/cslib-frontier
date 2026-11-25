@@ -186,8 +186,7 @@ theorem AC0Mod_subset_AC0Mod_mul_left {k : ℕ} (hk : 0 < k) (q : ℕ) :
 theorem AC0Mod_subset_AC0Mod_of_dvd {q q' : ℕ} (hq' : 0 < q') (h : q ∣ q') :
     AC0Mod q ⊆ AC0Mod q' := by
   obtain ⟨k, rfl⟩ := h
-  have hk : 0 < k := Nat.pos_of_mul_pos_left hq'
-  exact AC0Mod_subset_AC0Mod_mul_right q hk
+  exact AC0Mod_subset_AC0Mod_mul_right q (Nat.pos_of_mul_pos_left hq')
 
 /-! ### Definition of `ACC⁰` and closure properties -/
 
@@ -211,16 +210,14 @@ theorem AC0_subset_ACC0 : AC0 ⊆ ACC0 :=
 /-- **AC⁰[q] ⊆ ACC⁰** for every modulus `q : ℕ` (including `q = 0, 1`). -/
 theorem AC0Mod_subset_ACC0 (q : ℕ) : AC0Mod q ⊆ ACC0 := by
   rcases q with _ | _ | q
-  · rw [AC0Mod_zero]
-    exact AC0_subset_ACC0
-  · rw [AC0Mod_one]
-    exact AC0_subset_ACC0
+  · exact AC0Mod_zero.symm ▸ AC0_subset_ACC0
+  · exact AC0Mod_one.symm ▸ AC0_subset_ACC0
   · exact fun _ hL => mem_ACC0_iff.2 ⟨q + 2, by omega, hL⟩
 
 /-- **`ACC⁰` is the union of `AC⁰[q]` over all `q : ℕ`.** -/
-theorem ACC0_eq_iUnion_AC0Mod : ACC0 = ⋃ q, AC0Mod q := by
-  refine Subset.antisymm (iUnion₂_subset fun q _ => subset_iUnion AC0Mod q) ?_
-  exact iUnion_subset AC0Mod_subset_ACC0
+theorem ACC0_eq_iUnion_AC0Mod : ACC0 = ⋃ q, AC0Mod q :=
+  Subset.antisymm (iUnion₂_subset fun q _ => subset_iUnion AC0Mod q)
+    (iUnion_subset AC0Mod_subset_ACC0)
 
 /-- Membership in `ACC⁰` is equivalent to membership in `AC⁰[q]` for some `q : ℕ`. -/
 theorem mem_ACC0_iff_exists_AC0Mod {L : Language Bool} :
@@ -241,12 +238,8 @@ theorem modGate_mem_ACC0 (q : ℕ) : Language.ofSlices (modGate q) ∈ ACC0 :=
   AC0Mod_subset_ACC0 q (modGate_mem_AC0Mod q)
 
 /-- **Parity is in `AC⁰[2]`.** -/
-theorem parity_mem_AC0Mod_two : Language.ofSlices parity ∈ AC0Mod 2 := by
-  have h : Language.ofSlices parity = Language.ofSlices (modGate 2) := by
-    congr 1 with n : 1
-    exact (modGate_two_eq_parity n).symm
-  rw [h]
-  exact modGate_mem_AC0Mod 2
+theorem parity_mem_AC0Mod_two : Language.ofSlices parity ∈ AC0Mod 2 :=
+  congrArg Language.ofSlices (funext modGate_two_eq_parity) ▸ modGate_mem_AC0Mod 2
 
 /-- **Parity is in `ACC⁰`.** -/
 theorem parity_mem_ACC0 : Language.ofSlices parity ∈ ACC0 :=
@@ -310,29 +303,27 @@ theorem top_mem : (⊤ : Language Bool) ∈ ACC0 :=
   AC0_subset_ACC0 (ConstDepth.top_mem (Signature.Hom.id _))
 
 /-- **`ACC⁰` is closed under complement.** -/
-theorem compl (hL : L ∈ ACC0) : Lᶜ ∈ ACC0 := by
-  obtain ⟨q, hq, hLq⟩ := mem_ACC0_iff.1 hL
-  exact mem_ACC0_iff.2 ⟨q, hq, AC0Mod.compl hLq⟩
+theorem compl (hL : L ∈ ACC0) : Lᶜ ∈ ACC0 :=
+  let ⟨q, hq, hLq⟩ := mem_ACC0_iff.1 hL
+  mem_ACC0_iff.2 ⟨q, hq, AC0Mod.compl hLq⟩
 
 /-- **`ACC⁰` is closed under intersection**: circuits with moduli `q₁` and `q₂` embed into
 `AC⁰[q₁ * q₂]`. -/
 theorem inf (hL : L ∈ ACC0) (hM : M ∈ ACC0) : L ⊓ M ∈ ACC0 := by
   obtain ⟨q₁, hq₁, hL₁⟩ := mem_ACC0_iff.1 hL
   obtain ⟨q₂, hq₂, hM₂⟩ := mem_ACC0_iff.1 hM
-  refine mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, ?_⟩
-  exact AC0Mod.inf
+  exact mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, AC0Mod.inf
     (AC0Mod_subset_AC0Mod_mul_right q₁ (by omega) hL₁)
-    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)
+    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)⟩
 
 /-- **`ACC⁰` is closed under union**: circuits with moduli `q₁` and `q₂` embed into
 `AC⁰[q₁ * q₂]`. -/
 theorem sup (hL : L ∈ ACC0) (hM : M ∈ ACC0) : L ⊔ M ∈ ACC0 := by
   obtain ⟨q₁, hq₁, hL₁⟩ := mem_ACC0_iff.1 hL
   obtain ⟨q₂, hq₂, hM₂⟩ := mem_ACC0_iff.1 hM
-  refine mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, ?_⟩
-  exact AC0Mod.sup
+  exact mem_ACC0_iff.2 ⟨q₁ * q₂, by nlinarith, AC0Mod.sup
     (AC0Mod_subset_AC0Mod_mul_right q₁ (by omega) hL₁)
-    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)
+    (AC0Mod_subset_AC0Mod_mul_left (by omega) q₂ hM₂)⟩
 
 end ACC0
 

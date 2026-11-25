@@ -145,20 +145,18 @@ theorem ClauseSet.sparsification (k : ℕ) {ε : ℝ} (hε : 0 < ε) :
   set K := max k 1
   have hK : 1 ≤ K := le_max_right _ _
   obtain ⟨α, hα, hcount⟩ := Sparsification.exists_sum_choose_le hK hε
-  have hθ := Sparsification.one_le_threshold hK hα
   refine ⟨2 * ∑ j ∈ range K, Sparsification.threshold K α j, fun V _ _ φ hφ => ?_⟩
   have hφK : ∀ C ∈ φ, C.card ≤ K := fun C hC => (hφ C hC).trans (le_max_left _ _)
   obtain ⟨Ψ, hcard, hleaves, hcover⟩ := Sparsification.exists_leaves hK hα φ hφK
   refine ⟨Ψ, (Nat.cast_le.mpr hcard).trans (by exact_mod_cast hcount (Fintype.card V)),
     fun ψ hψ => ?_, fun x hx => ?_⟩
   · obtain ⟨hsparse, hrefine, hsat⟩ := hleaves ψ hψ
-    have hψK : ∀ C ∈ ψ, C.card ≤ K := fun C hC => by
-      obtain ⟨D, hD, hCD⟩ := hrefine C hC
-      exact (card_le_card hCD).trans (hφK D hD)
-    refine ⟨fun C hC => ?_, Sparsification.occurrences_le_of_sparse hθ hsparse hψK, fun x hx => ?_⟩
-    · obtain ⟨D, hD, hCD⟩ := hrefine C hC
-      exact (card_le_card hCD).trans (hφ D hD)
-    · exact mem_solutions.mpr (hsat x (mem_solutions.mp hx))
+    have hw {m} (hm : ∀ D ∈ φ, D.card ≤ m) (C) (hC : C ∈ ψ) : C.card ≤ m :=
+      let ⟨D, hD, hCD⟩ := hrefine C hC
+      (card_le_card hCD).trans (hm D hD)
+    exact ⟨hw hφ, Sparsification.occurrences_le_of_sparse
+      (Sparsification.one_le_threshold hK hα) hsparse (hw hφK),
+      fun x hx => mem_solutions.mpr (hsat x (mem_solutions.mp hx))⟩
   · obtain ⟨ψ, hψ, hψx⟩ := hcover x (mem_solutions.mp hx)
     exact mem_biUnion.mpr ⟨ψ, hψ, mem_solutions.mpr hψx⟩
 
@@ -176,19 +174,19 @@ theorem CNF.sparsification (k : ℕ) {ε : ℝ} (hε : 0 < ε) :
         ∀ x, φ.eval x = true → ∃ F ∈ Fs, F.eval x = true := by
   obtain ⟨c, hc⟩ := ClauseSet.sparsification k hε
   refine ⟨c, fun V _ _ φ hφ => ?_⟩
-  obtain ⟨Ψ, hcard, hleaves, hcover⟩ := hc V φ.toClauseSet fun C hC => by
-    obtain ⟨cl, hcl, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC
-    exact hle.trans (hφ cl hcl)
+  obtain ⟨Ψ, hcard, hleaves, hcover⟩ := hc V φ.toClauseSet fun C hC =>
+    let ⟨cl, hcl, hle⟩ := CNF.exists_card_le_of_mem_toClauseSet hC
+    hle.trans (hφ cl hcl)
   refine ⟨Ψ.toList.map ClauseSet.toCNF, by simpa using hcard, fun F hF => ?_, fun x hx => ?_⟩
   · obtain ⟨ψ, hψ, rfl⟩ := List.mem_map.mp hF
     obtain ⟨hwidth, hocc, hsol⟩ := hleaves ψ (Finset.mem_toList.mp hψ)
-    refine ⟨fun cl hcl => ClauseSet.length_le_of_mem_toCNF hwidth hcl,
+    refine ⟨fun _ => ClauseSet.length_le_of_mem_toCNF hwidth,
       fun v => (ClauseSet.occurrences_toCNF ψ v).trans_le (hocc v), fun x hx => ?_⟩
     rw [← CNF.sat_toClauseSet_iff, ← ClauseSet.mem_solutions]
     exact hsol (ClauseSet.mem_solutions.mpr ((ClauseSet.eval_toCNF_eq_true_iff ψ x).mp hx))
   · obtain ⟨ψ, hψ, hψx⟩ := Finset.mem_biUnion.mp
       (hcover (ClauseSet.mem_solutions.mpr ((CNF.sat_toClauseSet_iff φ x).mpr hx)))
-    refine ⟨ψ.toCNF, List.mem_map.mpr ⟨ψ, Finset.mem_toList.mpr hψ, rfl⟩, ?_⟩
-    exact (ClauseSet.eval_toCNF_eq_true_iff ψ x).mpr (ClauseSet.mem_solutions.mp hψx)
+    exact ⟨ψ.toCNF, List.mem_map.mpr ⟨ψ, Finset.mem_toList.mpr hψ, rfl⟩,
+      (ClauseSet.eval_toCNF_eq_true_iff ψ x).mpr (ClauseSet.mem_solutions.mp hψx)⟩
 
 end Cslib.Logic.PL

@@ -128,25 +128,27 @@ theorem foldl_wfStep_eq_iff (ts : List (QBF.Kind × ℕ)) (n : ℕ) :
       simp only [Bool.true_and, Bool.and_eq_true, decide_eq_true_eq] at hok
       obtain ⟨hn, hok⟩ := hok
       obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hn
+      have unary (ctor : QBF ℕ → QBF ℕ) (htok : ∀ φ, (ctor φ).tokens = (k, v) :: φ.tokens)
+          (hl : φs.length = n + 1) :
+          ∃ ψs : List (QBF ℕ), ψs.length = n + 1 ∧ (k, v) :: ts = (ψs.map QBF.tokens).flatten := by
+        obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one hl
+        exact ⟨ctor φ :: φs, by simpa using hl, by simp [htok, hts]⟩
+      have binary (ctor : QBF ℕ → QBF ℕ → QBF ℕ)
+          (htok : ∀ φ ψ, (ctor φ ψ).tokens = (k, v) :: φ.tokens ++ ψ.tokens)
+          (hl : φs.length = n + 2) :
+          ∃ ψs : List (QBF ℕ), ψs.length = n + 1 ∧ (k, v) :: ts = (ψs.map QBF.tokens).flatten := by
+        obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one hl
+        obtain ⟨ψ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hl)
+        exact ⟨ctor φ ψ :: φs, by simpa using hl, by simp [htok, hts]⟩
       cases k <;> simp only [arity, tokenOk, decide_eq_true_eq] at hlen hok
       · exact ⟨.var v :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
       · subst hok; exact ⟨.top :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
       · subst hok; exact ⟨.bot :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
-      · subst hok
-        obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        exact ⟨.not φ :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
-      · subst hok
-        obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        obtain ⟨ψ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        exact ⟨.and φ ψ :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
-      · subst hok
-        obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        obtain ⟨ψ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        exact ⟨.or φ ψ :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
-      · obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        exact ⟨.ex v φ :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
-      · obtain ⟨φ, φs, rfl⟩ := List.exists_cons_of_length_eq_add_one (by simpa using hlen)
-        exact ⟨.all v φ :: φs, by simpa using hlen, by simp [QBF.tokens, hts]⟩
+      · subst hok; exact unary .not (fun _ => rfl) (by simpa using hlen)
+      · subst hok; exact binary .and (fun _ _ => rfl) (by simpa using hlen)
+      · subst hok; exact binary .or (fun _ _ => rfl) (by simpa using hlen)
+      · exact unary (.ex v) (fun _ => rfl) (by simpa using hlen)
+      · exact unary (.all v) (fun _ => rfl) (by simpa using hlen)
     · rw [Bool.not_eq_true] at hok
       rw [hok] at h
       have h1 := congrArg Prod.fst h
@@ -205,35 +207,21 @@ theorem wellFormed_iff (ts : List (QBF.Kind × ℕ)) :
 
 private theorem wellFormed_pt : ComputableInPolyTime wellFormed
     (encList encToken) encBool := by
+  have hok : ComputableInPolyTime tokenOk encToken encBool := by
+    refine ComputableInPolyTime.finite_cases (tag := fun t : QBF.Kind × ℕ => t.1)
+      (tagEncoding := encKind) (branch := fun k t => match k with
+        | .var | .ex | .all => true
+        | _ => decide (t.2 = 0)) (ComputableInPolyTime.fst encKind encNat) ?_
+    intro k
+    cases k <;> first | exact ComputableInPolyTime.const _ | fun_prop
+  have harity : ComputableInPolyTime arity encKind encUnary := .of_finite arity
+  have hpos : ComputableInPolyTime (fun n : ℕ => decide (n ≠ 0)) encUnary encBool :=
+    (ComputableInPolyTime.unary_lt' (.const 0) .id').of_enc_eq
+      fun _ => by simp [Nat.pos_iff_ne_zero]
   have hstep : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) => wfStep p.1 p.2)
       (encPair (encPair encBool encUnary) encToken) (encPair encBool encUnary) := by
-    have hok : ComputableInPolyTime tokenOk encToken encBool := by
-      refine ComputableInPolyTime.finite_cases (tag := fun t : QBF.Kind × ℕ => t.1)
-        (tagEncoding := encKind) (branch := fun k t => match k with
-          | .var | .ex | .all => true
-          | _ => decide (t.2 = 0)) (ComputableInPolyTime.fst encKind encNat) ?_
-      intro k
-      cases k <;> first | exact ComputableInPolyTime.const _ | fun_prop
-    have hn : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) => p.1.2)
-        (encPair (encPair encBool encUnary) encToken) encUnary := by fun_prop
-    have hpos : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) =>
-        decide (p.1.2 ≠ 0)) (encPair (encPair encBool encUnary) encToken) encBool :=
-      (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.const 0) hn).of_enc_eq
-        fun p => by simp [Nat.pos_iff_ne_zero]
-    have harity : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) =>
-        arity p.2.1) (encPair (encPair encBool encUnary) encToken) encUnary :=
-      (ComputableInPolyTime.of_finite arity).comp
-        ((ComputableInPolyTime.fst encKind encNat).comp
-          (ComputableInPolyTime.snd (encPair encBool encUnary) encToken))
-    have hb : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) => p.1.1)
-        (encPair (encPair encBool encUnary) encToken) encBool := by fun_prop
-    have hokp : ComputableInPolyTime (fun p : (Bool × ℕ) × (QBF.Kind × ℕ) => tokenOk p.2)
-        (encPair (encPair encBool encUnary) encToken) encBool :=
-      hok.comp (ComputableInPolyTime.snd (encPair encBool encUnary) encToken)
-    exact ((ComputableInPolyTime.of_finite (fun q : Bool × Bool × Bool =>
-      q.1 && q.2.1 && q.2.2)).comp (hb.prod (hpos.prod hokp))).prod
-      (ComputableInPolyTime.unary_add.comp ((ComputableInPolyTime.unary_sub.comp
-        (hn.prod (ComputableInPolyTime.const 1))).prod harity))
+    unfold wfStep
+    fun_prop
   have hfold := ComputableInPolyTime.foldl_of_bounded_growth
     (encB := encPair encBool encUnary)
     (encIn := encList encToken) (encL := encList encToken)
@@ -326,7 +314,8 @@ theorem image_TQBF_mem_PSPACE : encQBF '' TQBF ∈ PSPACE encBits := by
         (w.length + (encQBF .bot).length + 1) ^ e + w.length)) (fun _ => le_rfl) fun w => ?_) ?_
     fun w => ?_
   · have hlen : (encQBF (decodeQBF w)).length ≤ w.length + (encQBF .bot).length := by
-      grind [encQBF_decodeQBF]
+      rw [encQBF_decodeQBF]
+      split_ifs <;> omega
     have := Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) e
     simp only [encBits_apply]
     split_ifs <;> omega
