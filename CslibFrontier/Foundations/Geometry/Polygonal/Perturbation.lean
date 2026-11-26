@@ -187,11 +187,8 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
   let S := (e : ι) × Fin (p e).segments
   let left (d : S) : N := ⟨d.1, d.2.castSucc⟩
   let right (d : S) : N := ⟨d.1, d.2.succ⟩
-  have hnondeg (d : S) : point (left d) ≠ point (right d) := by
-    intro h
-    have hval := congrArg (fun d : N => d.2.val) (hpoint h)
-    change d.2.val = d.2.val + 1 at hval
-    omega
+  have hnondeg (d : S) : point (left d) ≠ point (right d) := fun h =>
+    Nat.succ_ne_self d.2.val (congrArg (fun x : N => x.2.val) (hpoint h)).symm
   have hmovable : ∀ d : S, point (left d) ∈ Set.range placed ∨
       point (right d) ∈ Set.range placed := fun ⟨e, i⟩ =>
     Fin.cases (.inr ⟨⟨e, ⟨0, hbends e⟩⟩, rfl⟩) (fun k => .inl ⟨⟨e, k⟩, rfl⟩) i
@@ -205,11 +202,9 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
       exact congrArg (Sigma.mk e) (Fin.castSucc_inj.mp (eq_of_heq hij))
     · have hv : d.2.val = f.2.val + 1 := congrArg (fun x : N => x.2.val) (hpoint h)
       rcases (hEq ▸ Or.inr rfl : point (right d) ∈ ({point (left f), point (right f)} : Set ℂ))
-        with hr | hr
-      · have ht : d.2.val + 1 = f.2.val := congrArg (fun x : N => x.2.val) (hpoint hr)
-        omega
-      · have ht : d.2.val + 1 = f.2.val + 1 := congrArg (fun x : N => x.2.val) (hpoint hr)
-        omega
+        with hr | hr <;> have ht := congrArg (fun x : N => x.2.val) (hpoint hr)
+      all_goals simp only [left, right, Fin.val_castSucc, Fin.val_succ] at ht
+      all_goals omega
   have hcompare (d : S) (a b : ℂ) (ha : a ∈ fixed ∪ Set.range placed)
       (hb : b ∈ fixed ∪ Set.range placed) (hab : a ≠ b)
       (hne : ({point (left d), point (right d)} : Set ℂ) ≠ {a, b}) :

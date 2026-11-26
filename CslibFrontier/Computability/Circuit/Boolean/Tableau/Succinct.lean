@@ -504,18 +504,15 @@ theorem eval_clauseOf {x : List Bool} {n T : ℕ} {σ : ℕ → Bool}
           op.value (σ (left.label n T t c)) (σ (right.label n T t c)))
     (j tag p : ℕ) : (clauseOf tm x n T j tag p).eval σ = true := by
   unfold clauseOf
-  split_ifs with hj h₀ hp h₁ hp' h₂ h₃
+  split_ifs with hj h₀ hp h₁ hp' h₂ h₃ <;> try exact eval_tautology σ
   · exact (forall_eval_tseitinClause_iff _ _ _ _ σ).2 (hconst _) _
-  · exact eval_tautology σ
   · simpa using hin p hp'.2
-  · exact eval_tautology σ
   · split
     · split_ifs with h
-      · exact (forall_eval_posClause_iff tm σ _ _ _ _ _).2 (hpos _ h.1 _ _ h.2) _
-      · exact eval_tautology σ
+      exacts [(forall_eval_posClause_iff tm σ _ _ _ _ _).2 (hpos _ h.1 _ _ h.2) _,
+        eval_tautology σ]
     · exact eval_tautology σ
   · simpa using hout
-  all_goals exact eval_tautology σ
 
 /-! ### Comparison with the Tseitin formula of the tableau -/
 
@@ -727,13 +724,11 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
   have htaut (h : (v, s) ∈ tautology) : v < 2 ^ labelBits k State T := by
     simp [tautology] at h
     omega
-  split_ifs at hvC with hj h₀ hp h₁ hp' h₂ h₃
+  split_ifs at hvC with hj h₀ hp h₁ hp' h₂ h₃ <;> try exact htaut hvC
   · rcases mem_tseitinClause hvC with rfl | rfl | rfl
     exacts [constLabel_lt hT _, h0, h0]
-  · exact htaut hvC
   · obtain ⟨rfl, -⟩ : v = inputLabel (idx / 16) ∧ _ := by simpa [unitClause] using hvC
     exact inputLabel_lt (by omega)
-  · exact htaut hvC
   · split at hvC
     · rename_i l _
       split_ifs at hvC with h
@@ -753,6 +748,5 @@ theorem lt_two_pow_labelBits_of_mem_vars {n T : ℕ} (hn : n < 2 * T) {x : List 
     · exact htaut hvC
   · obtain ⟨rfl, -⟩ : v = outLabel k State T ∧ _ := by simpa [unitClause] using hvC
     exact posLabel_lt _ (Nat.two_pow_pos _) le_rfl
-  all_goals exact htaut hvC
 
 end Cslib.Circuits.Boolean.Tableau

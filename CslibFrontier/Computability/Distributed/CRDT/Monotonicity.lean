@@ -279,14 +279,11 @@ theorem _root_.Monotone.semilatticeCoordinationFreeConsistent [Nonempty P]
 theorem semilatticeCoordinationFreeConsistent_iff_monotone [Nontrivial P]
     {emit : S → Finset Fact} :
     SemilatticeCoordinationFreeConsistent P emit ↔ Monotone emit := by
-  constructor
-  · intro hcfc s₁ s₂ hs f hf
-    obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
-    -- Split-brain partition: `p₁` holds `s₁` while every peer `q ≠ p₁` (including `p₂`) holds `s₂`.
-    have hsub := hcfc (fun q => if q = p₁ then s₁ else s₂) [] p₁
-    rw [globalMergedState_splitBrain hp₁₂ hs] at hsub
-    exact hsub (by simpa [runGossipEmit, initIrrevocableState] using hf)
-  · exact Monotone.semilatticeCoordinationFreeConsistent
+  refine ⟨fun hcfc s₁ s₂ hs f hf => ?_, Monotone.semilatticeCoordinationFreeConsistent⟩
+  obtain ⟨p₁, _, hp₁₂⟩ := exists_pair_ne P
+  -- Split-brain partition: `p₁` holds `s₁` while every peer `q ≠ p₁` (including `p₂`) holds `s₂`.
+  exact globalMergedState_splitBrain hp₁₂ hs ▸
+    hcfc (fun q => if q = p₁ then s₁ else s₂) [] p₁ (by simpa [runGossipEmit, initIrrevocableState])
 
 omit [Fintype P] in
 private theorem foldl_hops_achieves_pairs (emit : S → Finset Fact)
@@ -396,13 +393,10 @@ theorem semilatticeObservableConsistent_iff_monotone {P S Out : Type*}
     [Fintype P] [DecidableEq P] [Nontrivial P] [SemilatticeSup S] [Preorder Out]
     {q : S → Out} :
     SemilatticeObservableConsistent P q ↔ Monotone q := by
-  constructor
-  · intro hobs s₁ s₂ hs
-    obtain ⟨p₁, p₂, hp₁₂⟩ := exists_pair_ne P
-    have hle := hobs (fun r => if r = p₁ then s₁ else s₂) [] p₁
-    rw [globalMergedState_splitBrain hp₁₂ hs] at hle
-    simpa [gossipReplicaStates] using hle
-  · exact Monotone.semilatticeObservableConsistent
+  refine ⟨fun hobs s₁ s₂ hs => ?_, Monotone.semilatticeObservableConsistent⟩
+  obtain ⟨p₁, _, hp₁₂⟩ := exists_pair_ne P
+  simpa [gossipReplicaStates, globalMergedState_splitBrain hp₁₂ hs] using
+    hobs (fun r => if r = p₁ then s₁ else s₂) [] p₁
 
 /-! ### Positive Monotone CRDT Query Instantiations -/
 

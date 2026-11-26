@@ -107,11 +107,11 @@ theorem minEntropy_map_conditionalSnd_ge_of_apply_ge [Fintype L] (J : PMF (L × 
   intro y
   have henn : (J.map Prod.fst) ℓ * (conditionalSnd J ℓ).map f y ≤
       ((J.map Prod.snd).map f) y := by
-    rw [PMF.map_apply f (conditionalSnd J ℓ) y, ← ENNReal.tsum_mul_left]
     have hlhs : (∑' a, (J.map Prod.fst) ℓ * if y = f a then conditionalSnd J ℓ a else 0) =
-        ∑' a, if y = f a then J (ℓ, a) else 0 := tsum_congr fun a => by
-      split_ifs <;> simp only [marginal_mul_conditionalSnd, mul_zero]
-    rw [hlhs, PMF.map_comp, PMF.map_apply, tsum_prod']
+        ∑' a, if y = f a then J (ℓ, a) else 0 :=
+      tsum_congr fun a => by split_ifs <;> simp only [marginal_mul_conditionalSnd, mul_zero]
+    rw [PMF.map_apply f (conditionalSnd J ℓ) y, ← ENNReal.tsum_mul_left, hlhs,
+      PMF.map_comp, PMF.map_apply, tsum_prod']
     exact le_tsum (f := fun l : L => ∑' a : α, if y = (f ∘ Prod.snd) (l, a) then J (l, a) else 0) ℓ
   have hreal : ((J.map Prod.fst) ℓ).toReal * (((conditionalSnd J ℓ).map f) y).toReal ≤
       (((J.map Prod.snd).map f) y).toReal :=
@@ -160,18 +160,16 @@ theorem dist_bind_pair_le_of_compl_le [Fintype L] [Fintype β] (μ : PMF L) (p q
         refine Finset.sum_le_sum fun ℓ _ => ?_
         have h0 : 0 ≤ (μ ℓ).toReal := ENNReal.toReal_nonneg
         by_cases hG : ℓ ∈ G
-        · rw [ite_eq_right (show ℓ ∉ Gᶜ from not_not.mpr hG), zero_add]
+        · rw [ite_eq_right (Set.notMem_compl_iff.mpr hG), zero_add]
           by_cases hsupp : ℓ ∈ μ.support
           · exact mul_le_mul_of_nonneg_left (hgood ℓ hG hsupp) h0
           · simp [(μ.apply_eq_zero_iff ℓ).mpr hsupp]
-        · rw [ite_eq_left (show ℓ ∈ Gᶜ from hG)]
+        · rw [ite_eq_left (Set.mem_compl hG)]
           nlinarith [dist_le_one (p ℓ) (q ℓ), mul_nonneg h0 hε]
     _ = (μ.toOuterMeasure Gᶜ).toReal + ε := by
         rw [Finset.sum_add_distrib, ← Finset.sum_mul, sum_toReal, one_mul,
           toOuterMeasure_apply_toReal]
-        congr 1
-        refine Finset.sum_congr rfl fun ℓ _ => ?_
-        by_cases h : ℓ ∈ Gᶜ <;> simp [h]
+        exact congrArg (· + ε) (Finset.sum_congr rfl fun ℓ _ => by by_cases h : ℓ ∈ Gᶜ <;> simp [h])
     _ ≤ δ + ε := by linarith
 
 /-- **Good/bad split averaging for mixtures**: discarding the revealed observation from
@@ -183,8 +181,7 @@ theorem dist_bind_le_of_compl_le [Finite L] [Fintype β] (μ : PMF L) (p q : L �
     dist (μ.bind p) (μ.bind q) ≤ δ + ε := by
   let _ := Fintype.ofFinite L
   have hmap (k : L → PMF β) : (μ.bind fun ℓ => (k ℓ).map (ℓ, ·)).map Prod.snd = μ.bind k := by
-    rw [PMF.map_bind]
-    exact congrArg (μ.bind ·) (funext fun _ => (PMF.map_comp _ _ _).trans (PMF.map_id _))
+    simp [PMF.map_bind, PMF.map_comp, PMF.map_id]
   rw [← hmap p, ← hmap q]
   exact (dist_map_le _ _ Prod.snd).trans
     (dist_bind_pair_le_of_compl_le μ p q G hε hbad hgood)
@@ -264,10 +261,8 @@ theorem exists_dist_le_and_le_minEntropy_map_of_dist_uniform [Fintype α] [Finty
     linarith
   · rw [le_minEntropy_iff]
     intro y
-    rw [map_apply_toReal]
-    have hmap_y : (∑ a, if y = f a then (A' a).toReal else 0) =
-        min (((A.map f) y).toReal) u / (1 - d) := by
-      rw [← hfiber y, Finset.sum_div]
+    have hmap_y : ((A'.map f) y).toReal = min (((A.map f) y).toReal) u / (1 - d) := by
+      rw [map_apply_toReal, ← hfiber y, Finset.sum_div]
       exact Finset.sum_congr rfl fun a _ => by split_ifs <;> simp [hA'_toReal]
     rw [hmap_y]
     calc min (((A.map f) y).toReal) u / (1 - d)

@@ -313,11 +313,10 @@ theorem jouxFinder_success {stage : T → M → ProbOracleComp spec T} (O : (q :
     1 - 2 ^ b * ((1 + ε) / 2) ^ f / 2 ≤
       ((ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run
         fun x => pure (O x))).toOuterMeasure (jouxSuccess step b t)).toReal := by
-  have h := jouxFinder_failure_le O step hstage D hD s hε f b t ht
-  have hadd := Probability.PMF.toOuterMeasure_toReal_add_compl
-    (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run fun x => pure (O x)))
-    (jouxSuccess step b t)
-  linarith
+  linarith [jouxFinder_failure_le O step hstage D hD s hε f b t ht,
+    Probability.PMF.toOuterMeasure_toReal_add_compl
+      (ProbComp.eval ((jouxFinder stage (ProbComp.uniform M) s f b t).run fun x => pure (O x)))
+      (jouxSuccess step b t)]
 
 /-- With attempts that find no collision with probability at most `1/2`, a budget of `3 b`
 attempts leaves success probability at least `1/2`: the bound is `(27/32) ^ b / 2`. -/
@@ -387,11 +386,10 @@ theorem isMulticollision_merkleDamgardChain {ℓ : ℕ} {iv : List Bool}
   refine ⟨by rw [Finset.card_image_of_injective _ (List.map_injective_iff.mpr List.ofFn_injective),
     Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ, BitString.card],
     fun x hx y hy => ?_⟩
-  obtain ⟨_, hx', rfl⟩ := Finset.mem_image.mp hx
-  obtain ⟨_, hy', rfl⟩ := Finset.mem_image.mp hy
-  obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx'
-  obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy'
-  simp only [merkleDamgardChain_append, ← foldl_blockStep, hc.foldl_jouxMessage]
+  obtain ⟨σ, -, rfl⟩ := by simpa only [Finset.image_image, Finset.mem_image] using hx
+  obtain ⟨τ, -, rfl⟩ := by simpa only [Finset.image_image, Finset.mem_image] using hy
+  simp only [Function.comp_apply, merkleDamgardChain_append, ← foldl_blockStep,
+    hc.foldl_jouxMessage]
 
 /-- The outputs of `merkleDamgardJouxFinder` that are `b` pairs whose `2 ^ b` selections, each
 followed by any common list of blocks `tail`, are a `2 ^ b`-collision of the chain from `iv`. One
@@ -507,9 +505,7 @@ private theorem merkleDamgard_flatMap_ofFn {g : ℕ} (ms : List (BitString g)) :
         (h k (List.replicate k.length false ++ mdEndBlock k.length)) := by
   simp only [merkleDamgard, mdBlocks, merkleDamgardChain_cons]
   generalize h k (List.replicate k.length false ++ mdEndBlock k.length) = t
-  induction ms generalizing t with
-  | nil => simp
-  | cons m ms ih => simp [List.flatMap_cons, ih]
+  induction ms generalizing t <;> simp [List.flatMap_cons, *]
 
 /-- Lists of `g`-bit groups of the same length with the same concatenation are equal. -/
 private theorem flatMap_ofFn_inj {g : ℕ} {ms ms' : List (BitString g)}

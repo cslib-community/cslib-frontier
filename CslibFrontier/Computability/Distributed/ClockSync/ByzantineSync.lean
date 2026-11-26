@@ -142,13 +142,10 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
     rw [List.length_take] at hi
     exact hsg_sort.getElem_le_getElem_of_le (by omega)
   have hcnt_f : k + 1 ≤ sf.countP (· ≤ B) := by
-    rw [hsf_perm.countP_eq, List.countP_map]
-    refine hcnt_g.trans ?_
-    rw [List.countP_map]
-    exact List.countP_mono_left fun x hx hgx =>
-      decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx))
-  by_contra hlt
-  rw [not_le] at hlt
+    simp only [hsf_perm.countP_eq, List.countP_map] at hcnt_g ⊢
+    exact hcnt_g.trans (List.countP_mono_left fun x hx hgx =>
+      decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx)))
+  by_contra! hlt
   have hdrop : (sf.drop k).countP (· ≤ B) = 0 := List.countP_eq_zero.mpr fun y hy => by
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hy
     rw [List.length_drop] at hj
@@ -349,9 +346,7 @@ theorem lockstepDriftFreeByzantineOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < 
           lockstepDriftFreeByzantineOffsetIter t d_min d_max F adv c δ R q| ≤
         δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min) := by
   induction R with
-  | zero =>
-    intro p q hp hq
-    simpa [lockstepDriftFreeByzantineOffsetIter] using hc p hp q hq
+  | zero => exact fun hp hq => by simpa [lockstepDriftFreeByzantineOffsetIter] using hc _ hp _ hq
   | succ r ih =>
     intro p q hp hq
     refine (lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r) _ (δ r)

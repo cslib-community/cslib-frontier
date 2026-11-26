@@ -265,8 +265,7 @@ private theorem resolve_cur_lt {l' : Loc k State} {cs : ColSel} {g : Guard}
     (Ref.node false l' cs g).resolve n T t c < wire n T t l c := by
   simp only [Ref.resolve, wire, Bool.false_eq_true, ↓reduceIte]
   split_ifs with hg
-  · exact Nat.add_lt_add_left (h hg) _
-  · omega
+  exacts [Nat.add_lt_add_left (h hg) _, by omega]
 
 end Earlier
 
@@ -305,9 +304,7 @@ private theorem resolve_lt_of_gfStart_le {n T t c : ℕ} (ht : 1 ≤ t) (hc : c 
     cases cs with
     | same => exact hc
     | prev => simp only [ColSel.apply]; omega
-    | next =>
-      cases hr rfl
-      simpa only [ColSel.apply, Guard.test, decide_eq_true_eq] using hg
+    | next => simpa only [ColSel.apply, hr rfl, Guard.test, decide_eq_true_eq] using hg
     | last => simp [ColSel.apply, numCols]
 
 omit [DecidableEq State] in
@@ -436,9 +433,7 @@ private theorem mem_argsOf {op : Op} {a b i : ℕ} (h : i ∈ argsOf op a b) : i
 
 private theorem length_gateAt (n T t c : ℕ) (l : Loc k State) :
     (gateAt tm n T t c l).2.length = signature.Arity (gateAt tm n T t c l).1 := by
-  unfold gateAt
-  split_ifs
-  exacts [rfl, length_argsOf _ _ _]
+  by_cases ht : t = 0 <;> simp [gateAt, ht, length_argsOf]
 
 /-- A gate at a position reads earlier wires. -/
 private theorem lt_of_mem_gateAt {n T t c : ℕ} {l : Loc k State} (hl : l.ColOK T c) {i : ℕ}
@@ -461,8 +456,7 @@ theorem isCodeFrom_gates (n T : ℕ) : Program.IsCodeFrom signature n 0 (gates t
     rw [← hw, gateCode_wire tm hl]
     refine ⟨length_gateAt tm _ _ _ _ _, fun i hi => ?_⟩
     have := lt_of_mem_gateAt tm hl hi
-    rw [wire_sub] at hw ⊢
-    simp only [wire] at this; omega
+    simp only [wire] at hw this ⊢; omega
 
 /-- Every gate of the tableau has as many arguments as its operation takes, and its arguments are
 earlier wires. -/
@@ -477,8 +471,7 @@ omit [DecidableEq State] in
 theorem outWire_lt (n T : ℕ) : outWire k State n T < n + numGates k State T := by
   have := Loc.offset_lt (k := k) (State := State) (T := T)
     (l := .gf (.out (.one true)) true 7) (c := 0) rfl
-  simp only [outWire, wire, numGates, Nat.succ_mul]
-  omega
+  simp only [outWire, wire, numGates, Nat.succ_mul]; omega
 
 /-- The raw gate list `gates tm n T` and output wire `outWire k State n T` form a valid circuit
 code. -/

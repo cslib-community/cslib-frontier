@@ -176,12 +176,9 @@ private theorem expect_norm_compressed_action_sub_sq_le
     WithLp.toLp 2 ((E * A₀ x - R x * E) *ᵥ ψ.ofLp)
   let after (x : F) : EuclideanSpace ℂ K :=
     WithLp.toLp 2 ((D * R x - C x * D) *ᵥ (E *ᵥ ψ.ofLp))
-  have hb : (𝔼 x, ‖before x‖ ^ 2) ≤ δ + η := by
-    refine (expect_le_expect (s := (univ : Finset F)) fun x _ =>
-      norm_compressed_action_sub_sq_le ψ E P (A x) (B x) (R x) hP hPP hPE (hPB x)
-        (A₀ x) (hA₀ x)).trans ?_
-    rw [expect_add_distrib]
-    exact add_le_add hr hc
+  have hb : (𝔼 x, ‖before x‖ ^ 2) ≤ δ + η :=
+    (expect_le_expect fun x _ => norm_compressed_action_sub_sq_le ψ E P (A x) (B x) (R x)
+      hP hPP hPE (hPB x) (A₀ x) (hA₀ x)).trans ((expect_add_distrib ..).le.trans (add_le_add hr hc))
   have hsplit (x : F) :
       (WithLp.toLp 2 (((D * E) * A₀ x - C x * (D * E)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ K) =
         WithLp.toLp 2 (D *ᵥ (before x).ofLp) + after x := by
@@ -217,10 +214,8 @@ private theorem map_average_basisObservable
     e (𝔼 d, pauliBraidingBasisObservable M b x d) =
       𝔼 d, pauliBraidingBasisObservable N b x d := by
   classical
-  have he := map_expect (e.restrictScalars ℚ≥0) (fun d => pauliBraidingBasisObservable M b x d) univ
-  change e _ = 𝔼 d, e _ at he
-  rw [he]
-  refine expect_congr rfl fun d _ => ?_
+  refine (map_expect (e.restrictScalars ℚ≥0)
+    (fun d => pauliBraidingBasisObservable M b x d) univ).trans (expect_congr rfl fun d _ => ?_)
   let q := PauliConsistencyQuestion.ofChecked b x d
   let f : (Bool × Bool) ⊕ Bool → Bool := Sum.elim q.braidingCheckedBit fun _ => false
   change e (((M q.toBraidingQuestion).map f).observable) =
