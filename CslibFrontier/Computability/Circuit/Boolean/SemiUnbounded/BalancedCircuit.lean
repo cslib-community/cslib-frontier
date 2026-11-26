@@ -350,8 +350,7 @@ lemma growthBound_pos (k : ℕ) : 1 ≤ growthBound k := by
 
 lemma two_mul_growthBound_le (k : ℕ) : 2 * growthBound k ≤ growthBound (k + 2) := by
   have := growthBound_pos k
-  simp only [growthBound]
-  omega
+  simp only [growthBound]; omega
 
 /-- Every two phases (6 rounds) at least double the covered tree size:
 `2 ^ j ≤ growthBound (2 * j)`. -/
@@ -724,8 +723,7 @@ private lemma eval_orP_orQ_complete :
         | refl _ => exact (eval_orP_zero_iff _ _).mpr (.inl rfl)
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
         | pushPop _ sub | trans sub _ =>
-          have := sub.size_pos
-          simp only [RealTree.size, growthBound] at hsz; omega,
+          exact absurd sub.size_pos (by simp only [RealTree.size, growthBound] at hsz; omega),
      fun Ctx hsz => by
         cases Ctx with
         | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inl ⟨rfl, rfl⟩)
@@ -734,11 +732,9 @@ private lemma eval_orP_orQ_complete :
           | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inr h)
           | pushPop _ _ => simp [RealCtx.size, growthBound] at hsz
           | transLeft l _ | transRight _ l =>
-            have := l.size_pos
-            simp only [RealCtx.size, growthBound] at hsz; omega
+            exact absurd l.size_pos (by simp only [RealCtx.size, growthBound] at hsz; omega)
         | transLeft l _ | transRight _ l =>
-          have := l.size_pos
-          simp only [RealCtx.size, growthBound] at hsz; omega⟩
+          exact absurd l.size_pos (by simp only [RealCtx.size, growthBound] at hsz; omega)⟩
   | k + 1, hk => by
     obtain ⟨ihP, ihQ⟩ := eval_orP_orQ_complete k (by omega)
     have hP1 {u v} (T : RealTree stay pushPop u v) (hsz : T.size ≤ growthBound (k + 1)) :
@@ -755,9 +751,7 @@ private lemma eval_orP_orQ_complete :
     · obtain ⟨a, b, a', b', Ctop, Cbot, htopLt, hbotLe, hmid⟩ :=
         realCtx_split_at (K := Ctx.size - growthBound k) Ctx (by omega) (Nat.sub_le _ _)
       have hkpos := growthBound_pos k
-      have htopLe : Ctop.size ≤ growthBound k := by
-        simp only [growthBound] at hsz
-        omega
+      have htopLe : Ctop.size ≤ growthBound k := by simp only [growthBound] at hsz; omega
       have hEvalTop : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 2, by omega⟩ u v a b) :=
         eval_orQ_mono (by omega) (by omega) (ihQ Ctop htopLe)
       have hEvalBot : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 1, by omega⟩ a' b' x y) :=

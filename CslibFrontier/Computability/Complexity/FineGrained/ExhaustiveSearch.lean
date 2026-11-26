@@ -165,8 +165,7 @@ private theorem exists_search_length_bounds {f : α × ℕ → β} {ν : α → 
       (Nat.mul_le_mul_left cf (Nat.pow_le_pow_left (by have := hpair a hk; omega) df))⟩
   have := hpair a hk
   rw [iterate_step_init, encState, length_encPair]
-  simp only [encBool_apply, List.length_singleton]
-  omega
+  simp only [encBool_apply, List.length_singleton]; omega
 
 /-- Time bound for a leaf, with a common query exponent and length bound for each search input. -/
 private noncomputable def leafTime (nd : α → ℕ) (queryExponent : α → ℝ) (k e : ℕ)
@@ -256,14 +255,11 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
       ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
       Cp * ((encA a).length + 1) ^ E := by
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a (rounds ν a) le_rfl) 1) da
-    exact_mod_cast (by omega : ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
-      ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
-      Cp * ((encA a).length + 1) ^ E)
+    norm_cast; omega
   have hB : ((st a : ℝ) + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
       Cp * ((encA a).length + 1) ^ E := by
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
-    exact_mod_cast (by omega : (st a + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
-      Cp * ((encA a).length + 1) ^ E)
+    norm_cast; omega
   have hR : (rounds ν a : ℝ) + 1 ≤ 2 * (2 : ℝ) ^ branchExponent a := by
     have h₁ : (rounds ν a : ℝ) ≤ 2 ^ branchExponent a := by
       rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
@@ -271,8 +267,7 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
     linarith
   have hleaf : (leafTime nd queryExponent k e a : ℝ) ≤
       k * Cp * 2 ^ queryExponent a * ((encA a).length + 1) ^ E + (k + 1) := by
-    have hnd : ((nd a : ℝ) + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E := by
-      exact_mod_cast (show (nd a + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E by omega)
+    have hnd : ((nd a : ℝ) + 1) ^ e ≤ Cp * ((encA a).length + 1) ^ E := by norm_cast; omega
     have hceil := Nat.ceil_lt_add_one (show (0 : ℝ) ≤
       k * (2 ^ queryExponent a * ((nd a : ℝ) + 1) ^ e) + k by positivity)
     have := mul_le_mul_of_nonneg_left hnd

@@ -105,9 +105,8 @@ theorem networkPolynomial_size_ge_of_sqrt_le {K : Type} [Field K] (hK : FlatCase
     Sum.elim (fun a => cubeEndPoint a.1 (bif a.2 then 1 else 0))
       fun o => if o.2 then x o.1 else -x o.1
   set δ : ℝ := 1 / (1000 * k) with hδ
-  have hPV : univ.image (fun a => pos (.inl a)) ⊆ univ.image pos := fun y hy => by
-    obtain ⟨a, -, rfl⟩ := mem_image.1 hy
-    exact mem_image_of_mem _ (mem_univ _)
+  have hPV : univ.image (fun a => pos (.inl a)) ⊆ univ.image pos :=
+    image_subset_iff.2 fun a _ => mem_image_of_mem _ (mem_univ _)
   obtain ⟨F, c, hc, hF, hg⟩ := exists_spectralPoint_cube hK _ _ hPV
     ⟨_, mem_image_of_mem _ (mem_univ ⟨⟨⟨0, by omega⟩, ⟨1, by omega⟩, Fin.mk_lt_mk.2 one_pos⟩,
       false⟩)⟩
@@ -119,14 +118,12 @@ theorem networkPolynomial_size_ge_of_sqrt_le {K : Type} [Field K] (hK : FlatCase
   let place (z : (Σ _ : Pair k, Bool) ⊕ (Finset (Fin k) × Bool)) : univ.image pos :=
     ⟨pos z, mem_image_of_mem _ (mem_univ z)⟩
   set F' := F.pull place
-  have hF' (a b) : |c * F'.wireExponent a b - dist (pos a) (pos b)| < δ := by
-    rw [F.pull_wireExponent]
-    exact hF _ _
+  have hF' (a b) : |c * F'.wireExponent a b - dist (pos a) (pos b)| < δ :=
+    F.pull_wireExponent place a b ▸ hF _ _
   have hg' : c * F'.unitExponent Sum.inl ≤ √k + δ := by
     refine (congrArg (c * ·) ?_).trans_le hg
-    refine (F.pull_unitExponent _ _).trans (F.unitExponent_congr_range _ _ ?_)
-    ext ⟨y, hy⟩
-    simp [place, Subtype.ext_iff]
+    exact (F.pull_unitExponent _ _).trans (F.unitExponent_congr_range _ _
+      (Set.ext fun ⟨_, _⟩ => by simp [place, Subtype.ext_iff]))
   -- Lemma E.7 with the cover of the network tensor by the hub tensors, with the hubs `(S, true)`
   -- and `(S, false)`
   have hcov := networkTensor_coveredBy_hubTensor hP hk Sum.inl (fun S => .inr (S, true))
@@ -175,16 +172,13 @@ theorem networkPolynomial_size_ge_of_sqrt_le {K : Type} [Field K] (hK : FlatCase
               h3 ⟨e, false⟩
             have h6 : c * _ ≤ dist (cubeEndPoint e 1) (if e.high ∈ A then x A else -x A) + δ :=
               h3 ⟨e, true⟩
-            rw [Fintype.sum_bool]
-            linarith
+            rw [Fintype.sum_bool]; linarith
       _ ≤ _ := by
-          rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hN]
-          linarith
+          rw [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, hN]; linarith
   have hm : c * F'.wireExponent (.inr (A, true)) (.inr (A, false)) ≤ 4 / (9 * √k) + δ := by
     have h3 : dist (pos (.inr (A, true))) (pos (.inr (A, false))) = 4 / (9 * √k) := by
       change dist (x A) (-x A) = _
-      rw [dist_self_neg, hxn]
-      ring
+      rw [dist_self_neg, hxn]; ring
     linarith [(abs_lt.1 (hF' (.inr (A, true)) (.inr (A, false)))).2]
   have key := rate_numbers (by exact_mod_cast (by omega : 1 ≤ k)) hℓ hc rfl hδ
     (Real.logb_nonneg one_lt_two (by exact_mod_cast hs)) hw hh hm hg' h2
@@ -251,14 +245,12 @@ theorem exists_two_rpow_lt_of_networkPolynomial (κ : ℕ) : ∃ m₀ : ℕ, ∀
   have hL4 : Real.logb 2 m ^ (4 / 3 : ℝ) ≤ ((12 * r : ℕ) : ℝ) ^ 4 := by
     refine (Real.rpow_le_rpow (Real.logb_nonneg one_lt_two (by exact_mod_cast hm0)) hL
       (by norm_num)).trans_eq ?_
-    rw [← Real.rpow_natCast _ 3, ← Real.rpow_mul (Nat.cast_nonneg _)]
-    norm_num
+    rw [← Real.rpow_natCast _ 3, ← Real.rpow_mul (Nat.cast_nonneg _)]; norm_num
   -- and `8 · 2 ^ (r⁴) ≤ 2 ^ (25 r⁴ / 4) ≤ 5 s`
   have h8 : (2 : ℝ) ^ ((r : ℝ) ^ 4 + 3) ≤ 5 * s :=
     (Real.rpow_le_rpow_of_exponent_le one_le_two
       (by nlinarith [one_le_pow₀ (n := 4) (by linarith : (1 : ℝ) ≤ r)])).trans hlow
-  rw [Real.rpow_add two_pos] at h8
-  norm_num at h8
+  rw [Real.rpow_add two_pos] at h8; norm_num at h8
   calc (2 : ℝ) ^ (Real.logb 2 m ^ (4 / 3 : ℝ) / 1600 ^ 2) ≤ 2 ^ ((r : ℝ) ^ 4) :=
         Real.rpow_le_rpow_of_exponent_le one_le_two (by
           rw [div_le_iff₀ (by norm_num)]

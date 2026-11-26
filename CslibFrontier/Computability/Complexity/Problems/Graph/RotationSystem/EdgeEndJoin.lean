@@ -64,10 +64,8 @@ private theorem sameCycle_after_join_swap {α : Type} [Finite α] [DecidableEq �
   by_contra hn
   have joined := (card_orbits_swap_mul f x y hne).2 hsep
   have undo := (card_orbits_swap_mul g x y hne).2 hn
-  have he : Equiv.swap x y * g = f := by simp [g, ← mul_assoc]
-  change Nat.card (Quotient (Perm.SameCycle.setoid g)) + 1 =
-    Nat.card (Quotient (Perm.SameCycle.setoid f)) at joined
-  rw [he] at undo
+  rw [Equiv.swap_mul_self_mul] at undo
+  change Nat.card (Quotient (Perm.SameCycle.setoid g)) + 1 = _ at joined
   omega
 
 /-- Identify corresponding ends of two nonloop marker edges in different components. The
@@ -130,13 +128,11 @@ theorem numericalGenusZero_mergeEdgeEnds {G : Graph} (r : RotationSystem G)
   · rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint,
       Function.update_self, Function.update_of_ne h₂, id_eq]
   · have frontA : (e a).vertex = a.vertex := by
-      simp only [e, vertex_mergeDartEquiv,
-        Function.update_of_ne (fun he => h₁ (hh.trans he)), id_eq]
+      simp only [e, vertex_mergeDartEquiv, Function.update_of_ne (mt hh.trans h₁), id_eq]
     have otherB : a.vertex ≠ b'.vertex :=
       bv.symm ▸ fun he => hsep (he.symm ▸ (sameComponent_reverse hG b).symm)
-    rw [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, frontA,
+    rwa [Equiv.trans_apply, Equiv.trans_apply, endpoint, endpoint, frontA,
       Function.update_of_ne otherB, Function.update_of_ne h₂, id_eq, av]
-    exact ha
 
 private theorem lifted_rotationWord_eq {G H : Graph} (s : RotationSystem H)
     (lift : Dart H ↪ Dart G) (root : Dart H) (tail : List ℕ)
@@ -278,8 +274,7 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
   have hnb : Dart.vertex (G := mergeGraph a' b') ((f b).1, false) ≠
       Dart.vertex ((f b).1, true) := by
     rw [← htag false, ← htag true]
-    rcases b with ⟨i, _ | _⟩
-    exacts [hb', hb'.symm]
+    rcases b with ⟨i, _ | _⟩ <;> first | exact hb' | exact hb'.symm
   obtain ⟨H, s, e', hV, hEdges, hz, he', hstep⟩ := t.exists_numericalGenusZero_deleteNonloopEdge
     (mergeGraph_endpoints_declared a' b' (mergeGraph_endpoints_declared h k hG))
     hgenus (f b).1 hnb
@@ -290,9 +285,7 @@ theorem exists_numericalGenusZero_glueMarkerEdges {G : Graph} (r : RotationSyste
     have hc := he' d
     rw [← hLift d, hcoords] at hc
     exact ⟨hc.1.symm, hc.2.1, hc.2.2⟩
-  have hEdges' : H.edges = (G.relabel names).edges.eraseIdx b.1.val := by
-    change H.edges = (mergeGraph a' b').edges.eraseIdx b.1.val at hEdges
-    rwa [hgraph] at hEdges
+  have hEdges' : H.edges = (G.relabel names).edges.eraseIdx b.1.val := hgraph ▸ hEdges
   have hSize : H.edges.length + 1 = G.edges.length := by
     have := b.1.isLt
     rw [hEdges', List.length_eraseIdx_of_lt (by simp [Graph.relabel])]

@@ -103,12 +103,11 @@ private theorem cycleLabelVisits_first (f : BitVec n → BitVec n) (hf : Functio
   have hwide : cyclicDistance f x y < 2 ^ (n + 1) :=
     hd.trans_le (Nat.pow_le_pow_right (by decide) (by lia))
   have hfirst := cyclic_first_hit f x y (hf.mem_periodicPts y) hc
-  dsimp only
+  rw [hdepth, Nat.zero_add] at hfirst
   simp only [visitScheduleFirst, cycleLabelVisits, Fin.append_left, Fin.append_right,
     BitString.equivBitVec_getLsbD, BitVec.toNat_setWidth, cycleLabelDistance_toNat f hf x y hc,
     Nat.mod_eq_of_lt hwide]
-  exact ⟨by simpa only [hdepth, Nat.zero_add] using hfirst.1,
-    by simpa only [hdepth, Nat.zero_add] using hfirst.2, hd⟩
+  exact ⟨hfirst.1, hfirst.2, hd⟩
 
 private theorem cycleLabelVisits_period (f : BitVec n → BitVec n) (hf : Function.Injective f)
     (x y : BitVec n) :
@@ -127,8 +126,7 @@ theorem cycleLabelVisits_spec (f : BitVec n → BitVec n) (hf : Function.Injecti
     (x y : BitVec n) (t : ℕ) :
     f^[t] x = y ↔ visitScheduleContains
       (cycleLabelVisits (wordCycleLabel f x) (wordCycleLabel f y)) t := by
-  unfold visitScheduleContains
-  rw [cycleLabelVisits_flag f hf, cycleLabelVisits_period f hf]
+  rw [visitScheduleContains, cycleLabelVisits_flag f hf, cycleLabelVisits_period f hf]
   refine ⟨fun ht => ?_, fun ⟨hr, ht⟩ => ?_⟩
   · have hd := cycleLabelVisits_first f hf x y ⟨t, ht⟩
     exact ⟨⟨t, ht⟩, (visit_schedule_of_first f x y _ hd.1 hd.2.1 t).mp ht⟩
@@ -171,9 +169,8 @@ theorem synthesis_cycleLabelVisits (s : Set (BitString a → Bool))
     | left i =>
       induction i using Fin.addCases with
       | left i =>
-        simpa only [cycleLabelVisits, Fin.append_left] using
-          (show (fun z => decide (labelRepresentative (x z) =
-            labelRepresentative (y z))) ∈ src from Or.inr (Or.inr rfl))
+        simp only [cycleLabelVisits, Fin.append_left]
+        exact Or.inr (Or.inr rfl)
       | right i =>
         simpa only [cycleLabelVisits, Fin.append_left, Fin.append_right] using hd ⟨i, rfl⟩
     | right i =>
@@ -234,12 +231,10 @@ theorem sparse_counter_visit_schedule (f : Equiv.Perm (BitVec n)) :
   have hspec (z : BitString (n + n)) (t : ℕ) :
       (f : BitVec n → BitVec n)^[t] (BitString.equivBitVec (inputLeft z)) =
           BitString.equivBitVec (inputRight z) ↔
-        visitScheduleContains (out.eval Boolean.interpretation z) t := by
-    rw [ho z]
-    exact cycleLabelVisits_spec f f.injective _ _ t
+        visitScheduleContains (out.eval Boolean.interpretation z) t :=
+    ho z ▸ cycleLabelVisits_spec f f.injective _ _ t
   refine ⟨out, hspec, fun z T => ?_, hs⟩
-  rw [← visitScheduleCount_spec]
-  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
+  simpa only [hspec z] using visitScheduleCount_spec (out.eval Boolean.interpretation z) T
 
 /-- The existence flag and first hitting time have the same sparse circuit bound. -/
 theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
@@ -288,10 +283,10 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
           BitString.equivBitVec (inputRight z)} =
             visitScheduleCount (out.eval Boolean.interpretation z) T) ∧
       out.size ≤ 2 * encode.size + 1200 * (n + 3) * ((disagreement f g).card + 1) := by
-  have hr := disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle
   let conjugate := e.permCongrHom f
   obtain ⟨middle, hm, _, hs⟩ := sparse_counter_visit_schedule conjugate
-  have hs' : middle.size ≤ 1200 * (n + 3) * ((disagreement f g).card + 1) := hr ▸ hs
+  have hs' : middle.size ≤ 1200 * (n + 3) * ((disagreement f g).card + 1) :=
+    disagreement_semiconj_card (f : BitVec n → BitVec n) g e (· + 1) hcycle ▸ hs
   let x := fun z : BitString (n + n) => encode.eval Boolean.interpretation (inputLeft z)
   let y := fun z : BitString (n + n) => encode.eval Boolean.interpretation (inputRight z)
   have hx := Synthesis.circuit (I := Boolean.interpretation) (s := inputs (n + n))
@@ -323,7 +318,6 @@ theorem sparse_coordinate_visit_schedule (f g e : Equiv.Perm (BitVec n))
         visitScheduleContains (out.eval Boolean.interpretation z) t := by
     simp only [ho z, ← hm (args z) t, hex, hey, ← (hconj.iterate_right t).eq, e.injective.eq_iff]
   refine ⟨out, hspec, fun z T => ?_, by lia⟩
-  rw [← visitScheduleCount_spec]
-  exact congrArg Set.ncard (Set.ext fun t => and_congr_right fun _ => hspec z t)
+  simpa only [hspec z] using visitScheduleCount_spec (out.eval Boolean.interpretation z) T
 
 end Cslib.Circuits.Boolean.Iteration

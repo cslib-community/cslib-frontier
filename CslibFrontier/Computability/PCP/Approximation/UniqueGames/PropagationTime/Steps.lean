@@ -214,8 +214,7 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
       x1.regs rCurNode = x.mem (headBase g + u) ∧
       x1.regs rRem = x.regs rRem ∧ x1.regs rOuterIdx = x.regs rOuterIdx ∧
       x1.mem = Function.update x.mem (compBase g + S.comp.length) u := by
-    have hlen_u : x.regs rStackLen = rest.length + 1 := by
-      simp only [hS.stack_len, hst, List.length_cons]
+    have hlen_u : x.regs rStackLen = rest.length + 1 := by simp [hS.stack_len, hst]
     have : Fits w (stackBase g + rest.length) := fits_top hw (by wram_omega)
     have : Fits w (compBase g + S.comp.length) := fits_top hw (by wram_omega)
     have : Fits w (S.comp.length + 1) := fits_top hw (by wram_omega)
@@ -351,15 +350,12 @@ private theorem sum_length_adj_le_fin {L : ℕ} (g : Graph (Fin L → Fin L)) :
   | cons e l ih =>
     have hcount (v : ℕ) : ((e :: l).filter (incident v)).length =
         (l.filter (incident v)).length + if incident v e then 1 else 0 := by
-      rw [List.filter_cons]
-      split_ifs <;> simp
-    simp only [hcount, Finset.sum_add_distrib, List.length_cons]
-    have h2 : ∑ v ∈ Finset.range (slots g), (if incident v e = true then 1 else 0) ≤ 2 := by
-      rw [Finset.sum_boole]
-      refine (Finset.card_le_card (t := {e.src, e.dst}) fun v hv => ?_).trans Finset.card_le_two
-      simp only [Finset.mem_filter, Finset.mem_insert, Finset.mem_singleton, incident,
-        Bool.or_eq_true, beq_iff_eq] at hv ⊢
-      omega
+      cases h : incident v e <;> simp [h]
+    have h2 : ((Finset.range (slots g)).filter fun v => incident v e = true).card ≤ 2 :=
+      (Finset.card_le_card (t := {e.src, e.dst}) fun v hv => by
+        have hv' : e.src = v ∨ e.dst = v := by simpa [incident] using (Finset.mem_filter.mp hv).2
+        rcases hv' with rfl | rfl <;> simp).trans Finset.card_le_two
+    simp only [hcount, Finset.sum_add_distrib, Finset.sum_boole, Nat.cast_id, List.length_cons]
     omega
 
 /-- Specification for `stepsLoop`. -/
@@ -444,10 +440,9 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
         omega
       have hcred_settle : creditRAM g (settle (List.finRange L) Tscan) =
           Tscan.wpot (weightRAM g) := by
-        unfold creditRAM State.wpot
-        rw [unvisited_settle (List.finRange L) Tscan]
+        rw [creditRAM, State.wpot, unvisited_settle (List.finRange L) Tscan]
         simp only [settle, hstk_end, List.map_nil, List.sum_nil, List.length_nil, mul_zero,
-          add_zero]
+          add_zero, State.wpot]
       unfold creditRAM at hcred_e hcred_start hcred_settle ⊢
       exact ⟨y, th + ((ts + (te + tf) + 1) + ti),
         hexh.seq ((Exec.branch_pos hc_br (hexs.seq (hexe.seq hexf))).seq hexi),

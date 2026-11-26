@@ -371,9 +371,7 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     fun x => ?_, fun x kx hx => ?_, ?_, by simp [newNode, hnr], ?_,
     fun d hd => hcons d hd, hrl'⟩
   · rcases eq_or_ne x v with rfl | hxv <;> simp [forestNodes, FHTree.nodes, hdom x, *]
-  · rcases eq_or_ne x v with rfl | hxv
-    · simp [newNode]
-    · simpa [newNode, hxv] using hin x
+  · rcases eq_or_ne x v with rfl | hxv <;> simp [newNode, hin x, *]
   · rcases eq_or_ne x v with rfl | hxv
     · obtain rfl : k = kx := by simpa using hx
       simp [newNode, hk]
@@ -474,18 +472,17 @@ theorem wp_addRoot {g : Cell → ℕ} {u : Fin n}
         numRoots := (view n g).numRoots + 1 } := fun x => by
       simp only [view_update_left, view_update_right, view_update_minRoot, view_update_numRoots]
       rfl
-    by_cases hlt : IndexedMinPQ.RawPrioLT (↑u, g (Cell.key ↑u)) (↑m, g (Cell.key ↑m))
-    · simp only [hlt, ite_true, Record.wp_bind, Record.wp_read, Record.wp_write,
+    have hlt_eq : IndexedMinPQ.RawPrioLT (↑u, g (Cell.key ↑u)) (↑m, g (Cell.key ↑m)) =
+        IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m) := rfl
+    by_cases hlt : IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m)
+    · simp only [hlt_eq, hlt, ite_true, Record.wp_bind, Record.wp_read, Record.wp_write,
         Function.update_apply, reduceCtorEq, ite_false, Cell.ok, true_and]
-      refine ⟨hfit.of_le hu, hnr, hQ _ _ (by omega) (Or.inr ⟨m, r, hm, hr, ?_⟩)⟩
-      simp only [show IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m) from hlt,
-        ite_true]
-      exact hview _
-    · simp only [hlt, ite_false, Record.wp_bind, Record.wp_read, Record.wp_write,
+      exact ⟨hfit.of_le hu, hnr, hQ _ _ (by omega)
+        (Or.inr ⟨m, r, hm, hr, by simpa only [hlt, ite_true] using hview _⟩)⟩
+    · simp only [hlt_eq, hlt, ite_false, Record.wp_bind, Record.wp_read, Record.wp_write,
         Function.update_apply, reduceCtorEq, Cell.ok, true_and]
       refine ⟨hnr, hQ _ _ (by omega) (Or.inr ⟨m, r, hm, hr, ?_⟩)⟩
-      simp only [show ¬IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m) from hlt,
-        ite_false, view_update_left, view_update_right, view_update_numRoots, ← hm]
+      simp only [hlt, ite_false, view_update_left, view_update_right, view_update_numRoots, ← hm]
       rfl
 
 /-- The root list of a valid heap is empty or headed by the minimum root, as `addRoot` needs. -/
@@ -526,12 +523,9 @@ theorem wp_isEmpty {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) :
 needed: the abstraction reads the same two cells. -/
 theorem wp_getKey {g : Cell → ℕ} (v : Fin n) :
     Record.wp (Cell.ok n) w (getKey v) (fun a g' t => a = abs n g v ∧ g' = g ∧ t ≤ 2) g := by
-  have hv := v.isLt
-  by_cases h0 : g (.inHeap v) = 0
-  · simp only [getKey, Record.wp_read_bind, h0, ite_true, Record.wp_pure, Cell.ok]
-    exact ⟨hv, by simp [abs, absRaw, view, h0], trivial, by omega⟩
-  · simp only [getKey, Record.wp_read_bind, h0, ite_false, Record.wp_pure, Cell.ok]
-    exact ⟨hv, hv, by simp [abs, absRaw, view, h0], trivial, by omega⟩
+  by_cases h0 : g (.inHeap v) = 0 <;>
+    · simp only [getKey, Record.wp_read_bind, Record.wp_pure, Cell.ok, h0, ite_true, ite_false]
+      simp [abs, absRaw, view, h0, v.isLt]
 
 /-- **Insertion.** `insert v k` stores `v` with key `k`, preserves the invariant, and costs at most
 `19` operations plus one credit for the new root. -/

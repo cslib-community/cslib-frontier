@@ -102,13 +102,9 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     3 + a₀ * (p + 1) ^ b₀, dv + dg + 1 + q * b₀,
     (hite.mono 1 (fun x => ?_) (fun x => ?_)).of_enc_eq (fun _ => rfl),
     fun x => ?_, fun x => ?_, fun x => ?_⟩
-  · dsimp only [T, P]
-    split_ifs <;> omega
-  · dsimp only [S, P]
-    split_ifs <;> omega
-  · by_cases hx : valid x = true
-    · simp [hx, hspec₀ (g' x), hvalid_imp x hx, g']
-    · simp [hx]
+  · split_ifs <;> simp only [T, P] <;> omega
+  · split_ifs <;> simp only [S, P] <;> omega
+  · by_cases hx : valid x = true <;> simp [hx, hspec₀ (g' x), hvalid_imp x, g']
   · have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have hX1 : (1 : ℝ) ≤ (2 : ℝ) ^ ((A : ℝ) * interpolationScale (g x).numVars) :=
       Real.one_le_rpow (by norm_num) (mul_nonneg (Nat.cast_nonneg A) (interpolationScale_nonneg _))
@@ -246,9 +242,8 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
   let C_bound : ℕ := 2 + K * (p + 1) ^ e₀ + (p + 1) ^ b₀ + M ^ d₃ + 1
   refine ⟨fun x => fPow x * countCNF (fCNF x), A, e, b, fun x => ?_,
     htot.mono C_bound (fun x => ?_) (fun x => ?_)⟩
-  · by_cases hvx : valid x = true
-    · simp [fPow, fCNF, hvx, hcountCNF_spec (φ x) (hvalid_imp x hvx).1]
-    · simp [fPow, fCNF, hvx]
+  · by_cases hvx : valid x = true <;>
+      simp [fPow, fCNF, hvx, fun h => hcountCNF_spec (φ x) (hvalid_imp x h).1]
   all_goals
     set Y : ℕ := (encA x).length + 1
     have hY1 : 1 ≤ Y := Nat.le_add_left 1 _
@@ -266,8 +261,7 @@ public theorem exists_shiftedCounter_of_polyTime_toCNF {α : Type} {encA : α �
         (Nat.mul_le_mul_left c_pair (Nat.add_le_add hSpair_le (Nat.one_le_pow B₁ Y hY1)))
       dsimp only [Function.comp_apply] at h1
       refine Nat.pow_le_pow_mul_pow_of_le_mul_pow ?_ d₃
-      dsimp only [M]
-      nlinarith [Nat.one_le_pow B₁ Y hY1]
+      dsimp only [M]; nlinarith [Nat.one_le_pow B₁ Y hY1]
   · set N : ℕ := ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale (μ x))⌉₊
     have hN1 : 1 ≤ N := Nat.one_le_ceil_iff.mpr (Real.rpow_pos_of_pos (by norm_num) _)
     have hnum_le : (fCNF x).numVars ≤ C * μ x + D := by

@@ -107,9 +107,7 @@ private theorem power_pack_zero (T : ℕ) (x : BitString k) (i : Fin k) :
   dsimp only [power]
   rw [leftWord_pack, rightWord_pack]
   simp only [pack, Fin.append_right]
-  by_cases hz : (equivBitVec x).toNat = 0
-  · simp [advance, remainder, hz]
-  · simp [advance, remainder, hz, Nat.pos_of_ne_zero hz]
+  by_cases hz : (equivBitVec x).toNat = 0 <;> simp [advance, remainder, hz, pos_iff_ne_zero]
 
 /-- A circuit for `power T` yields a circuit for `remainder T` with at most one extra gate. -/
 theorem remainder_of_power (T : ℕ) (c : Circuit signature (k + k) (k + k))
@@ -255,9 +253,7 @@ theorem short_power_circuit (k m T : ℕ) (hT : T < 2 ^ m) :
       out.size ≤ 110 * (m + 1) * (k + 1) := by
   obtain ⟨rem, hr, hs⟩ := short_remainder_circuit k m T hT
   obtain ⟨out, ho, hb⟩ := power_of_remainder T rem hr
-  refine ⟨out, ho, ?_⟩
-  have hm : 4 * m ≤ 4 * m * (k + 1) := Nat.le_mul_of_pos_right _ (by omega)
-  nlinarith
+  exact ⟨out, ho, by nlinarith [Nat.le_mul_of_pos_right (4 * m) (Nat.succ_pos k)]⟩
 
 /-- Any exponent whose counter power requires more than `lowerBudget k` gates needs
 `lowerBudget k < 110 * (m + 1) * (k + 1)`. -/
@@ -273,9 +269,8 @@ theorem hard_power_exponent_capacity (k m T : ℕ) (hT : T < 2 ^ m)
     (hard : ∀ c : Circuit signature (k + k) (k + k),
       c.Computes interpretation (power T) → lowerBudget k < c.size) :
     2 ^ k < 112640 * (m + 1) * (k + 1) ^ 2 := by
-  have h : 2 ^ k / (1024 * (k + 1)) < 110 * (m + 1) * (k + 1) :=
-    hard_power_requires_long_exponent k m T hT hard
-  have hlt := (Nat.div_lt_iff_lt_mul (by positivity)).mp h
+  have hlt := (Nat.div_lt_iff_lt_mul (by positivity)).mp
+    (hard_power_requires_long_exponent k m T hT hard)
   nlinarith
 
 end ModulusCounter

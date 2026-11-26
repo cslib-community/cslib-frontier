@@ -96,13 +96,10 @@ private theorem le_split (k : ℕ) (hk : k ≤ b) (x y : Fin (2 ^ b)) :
   have hx := Nat.mod_add_div x.val (2 ^ k)
   have hy := Nat.mod_add_div y.val (2 ^ k)
   refine ⟨fun h => ⟨Nat.div_le_div_right h, fun he => ?_⟩, fun ⟨h, he⟩ => ?_⟩
-  · rw [he] at hx
-    lia
+  · rw [he] at hx; omega
   · obtain hlt | hq := h.lt_or_eq
     · exact le_of_not_gt fun hn => hlt.not_ge (Nat.div_le_div_right hn.le)
-    · have hmod := he hq
-      rw [hq] at hx
-      lia
+    · rw [hq] at hx; omega
 
 private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitString a → Fin (2 ^ b))
     (hv : wires (fun x => (BitString.equivFin b).symm (v x)) ⊆ s)
@@ -148,8 +145,7 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
       grind
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
-  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul, k]
-  lia
+  simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul, k]; omega
 
 private def beforeFlag (flags : Fin M → Bool) (t : ℕ) : Bool :=
   decide (∃ i : Fin M, i.val < t ∧ flags i = true)
@@ -265,9 +261,9 @@ private theorem shortWalk_spec (f : BitString b → BitString b) (K : ℕ) (star
     shortWalk f K start (bitCode height) (bitCode target) = f^[height.val - target.val] start := by
   have hd : (BitString.equivBitVec (bitCode height) - BitString.equivBitVec (bitCode target)).toNat
       = height.val - target.val := by
-    rw [BitVec.toNat_sub_of_le (by simpa only [BitVec.le_def, code_toNat] using
-      (show target.val ≤ height.val from h)), code_toNat, code_toNat]
-  rw [shortWalk, selectBits_of_toNat_lt _ _ (by rw [hd]; lia)]
+    rw [BitVec.toNat_sub_of_le (by simpa only [BitVec.le_def, code_toNat] using Fin.le_def.mp h),
+      code_toNat, code_toNat]
+  rw [shortWalk, selectBits_of_toNat_lt _ _ (by rw [hd]; omega)]
   simp only [hd]
 
 private theorem synthesis_shortWalk (s : Set (BooleanFunction a)) (c : Circuit signature b b)
@@ -442,10 +438,10 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
     have htarget : (target (Fin.append h t)).val = transientDepth f h - u := by
       change (targetWord (Fin.append h t)).toNat = _
       simp only [targetWord, hTime, hDepth hh]
-      rw [BitVec.toNat_sub_of_le]
-      · simp only [code_toNat, BitVec.toNat_setWidth, htrunc, depthCode]
-      · simp only [BitVec.le_def, code_toNat, BitVec.toNat_setWidth, htrunc]
-        exact htrans.le
+      rw [BitVec.toNat_sub_of_le (by
+        simpa only [BitVec.le_def, code_toNat, BitVec.toNat_setWidth, htrunc, depthCode] using
+          htrans.le)]
+      simp only [code_toNat, BitVec.toNat_setWidth, htrunc, depthCode]
     conv_rhs => rw [← hStart h t]
     refine hresult (Fin.append h t) u
       (by simp only [v, hStart, hpre hh, bitCode, Equiv.apply_symm_apply]; rfl)
@@ -455,7 +451,7 @@ theorem transient_window_circuit {n : ℕ} (c : Circuit signature n n) (H : Fins
         transientDepth f y ≤ transientDepth f h - u + K :=
       if short : u ≤ K then ⟨h, hh, ⟨0, Nat.zero_le _, rfl⟩, Nat.sub_le _ _, by lia⟩
       else hcover h hh u (Nat.lt_of_not_ge short) htrans
-    have hm : marks (equiv ⟨y, hy⟩) = y := by simp [marks]
-    exact ⟨equiv ⟨y, hy⟩, by simpa only [hm, hStart, htarget] using ⟨ha, hl, hb⟩⟩
+    exact ⟨equiv ⟨y, hy⟩, by simpa only [marks, Equiv.symm_apply_apply, hStart, htarget] using
+      ⟨ha, hl, hb⟩⟩
 
 end Cslib.Circuits.Boolean.Iteration

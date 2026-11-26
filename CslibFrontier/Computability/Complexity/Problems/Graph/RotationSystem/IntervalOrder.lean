@@ -121,8 +121,7 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   have hb : rb < n := r.rotationDistance_lt_period hob
   have hc : rc < n := r.rotationDistance_lt_period hoc
   have hd : dist < n := by
-    have h := r.rotationDistance_lt_period (hoa.symm.trans hoc)
-    rwa [r.period_eq o a hoa] at h
+    simpa only [r.period_eq o a hoa] using r.rotationDistance_lt_period (hoa.symm.trans hoc)
   have hneab : ra ≠ rb := fun h => hab ((r.rotationDistance_eq_iff_eq o a b hoa hob).mp h)
   have hnebc : rb ≠ rc := fun h => hbc ((r.rotationDistance_eq_iff_eq o b c hob hoc).mp h)
   have hneac : ra ≠ rc := fun h => hac ((r.rotationDistance_eq_iff_eq o a c hoa hoc).mp h)
@@ -219,8 +218,7 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
     exact ⟨_, a, b, hab, rfl⟩
   obtain ⟨a, b, hbounds, hwidth⟩ := Nat.find_spec hex
   obtain ⟨ha, hb, hab, hcover⟩ := hbounds
-  refine ⟨a, b, ha, hb, hab, fun z hz => ⟨hcover z hz, ?_⟩⟩
-  intro hzspan
+  refine ⟨a, b, ha, hb, hab, fun z hz => ⟨hcover z hz, fun hzspan => ?_⟩⟩
   by_contra hza
   have hnA (d : Dart G) (hd : d.vertex = v) (hc : color d ≠ color a) :
       r.portRank d ≠ r.portRank a :=
@@ -367,15 +365,12 @@ theorem rotationDistance_le_iff_portRank_between (a b d : Dart G)
     fun h => hdb (r.portRank_injective d b (had.symm.trans hab) h)
   have hdist : r.rotationDistance a d ≠ r.rotationDistance a b := fun h =>
     hdb ((r.pow_rotationDistance a d had).symm.trans (h ▸ r.pow_rotationDistance a b hab))
-  by_cases he : a = b
-  · subst b
-    have hpos := r.rotationDistance_pos_of_ne a d had hda
-    rw [r.rotationDistance_self]
-    omega
-  have had' : a ≠ d := Ne.symm hda
+  rcases eq_or_ne a b with rfl | he
+  · have hpos := r.rotationDistance_pos_of_ne a d had hda
+    rw [r.rotationDistance_self]; omega
   have hinterval := (r.mem_rotationInterval_iff_lt_distance a d b had hab
-    had' hdb he).symm.trans
-      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) had' hdb he)
+    (Ne.symm hda) hdb he).symm.trans
+      (r.mem_rotationInterval_iff_portRank a d b had (had.symm.trans hab) (Ne.symm hda) hdb he)
   omega
 
 /-- The clockwise betweenness of distinct triples starting at a dart fixes its successor.

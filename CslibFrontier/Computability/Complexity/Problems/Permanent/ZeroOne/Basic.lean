@@ -241,8 +241,7 @@ theorem permanent_entryChain (L : ℕ) :
   | zero =>
     rintro N _ u v w E rfl _ _ _ hw
     obtain rfl : w = 0 := by simpa using hw
-    refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
-    simp [edgeMatrix, entryChain_zero]
+    exact congrArg Matrix.permanent (Matrix.ext fun _ _ => by simp [edgeMatrix, entryChain_zero])
   | succ L ih =>
     intro N M u v w E hM hE hu hv hw
     rw [entryChain_succ, ← List.append_assoc]
@@ -304,11 +303,10 @@ theorem permanent_tableChain (L : ℕ) :
         exact ⟨by omega, by omega, h3⟩]
     have hrest : Within N (E ++ ts) := hE.append fun e he => by
       obtain ⟨h1, h2, _⟩ := hts e (List.mem_cons_of_mem _ he); exact ⟨h1, h2⟩
-    rw [edgeMatrix_perm _ (show (E ++ entryChain N t.src t.dst t.weight L ++ ts).Perm
-        ((E ++ ts) ++ entryChain N t.src t.dst t.weight L) by
-      rw [List.append_assoc, List.append_assoc]
-      exact List.Perm.append_left _ List.perm_append_comm),
-      permanent_entryChain L _ rfl hrest htu htv htw]
+    have hperm : (E ++ entryChain N t.src t.dst t.weight L ++ ts).Perm
+        ((E ++ ts) ++ entryChain N t.src t.dst t.weight L) := by
+      simpa only [List.append_assoc] using List.Perm.append_left E List.perm_append_comm
+    rw [edgeMatrix_perm _ hperm, permanent_entryChain L _ rfl hrest htu htv htw]
     refine congrArg Matrix.permanent (edgeMatrix_perm _ ?_)
     simpa only [List.append_assoc, List.singleton_append] using
       List.Perm.append_left E (List.perm_append_comm (l₁ := ts) (l₂ := [t]))
@@ -356,9 +354,8 @@ theorem edgeWeight_entryChain_le_one {N u v w L i j : ℕ} (hu : u < N) (hv : v 
     (hij : N ≤ i ∨ N ≤ j) : edgeWeight (entryChain N u v w L) i j ≤ 1 := by
   set κ := if N ≤ i then (i - N) / 2 else (j - N) / 2 + 1
   rw [entryChain, edgeWeight_flatMap, sum_range_eq_of_eq_zero_of_ne (κ := κ)]
-  · by_cases hκ : κ < L
-    · rw [ite_eq_left hκ]; exact edgeWeight_chainLevel_le_one N u v w κ i j hu hv
-    · rw [ite_eq_right hκ]; exact Nat.zero_le 1
+  · split_ifs with hκ
+    exacts [edgeWeight_chainLevel_le_one N u v w κ i j hu hv, Nat.zero_le 1]
   · intro k hk
     by_contra hne
     simp only [chainLevel, edgeWeight_cons, edgeWeight_nil] at hne
@@ -422,14 +419,12 @@ theorem edgeWeight_tableChain_le_one (L : ℕ) :
     by_cases hbig : N + 2 * L ≤ i ∨ N + 2 * L ≤ j
     · rw [edgeWeight_eq_zero_of_within (within_entryChain htu htv) hbig, zero_add]
       exact ih hts' hbig
-    · have hzero : edgeWeight (ts.map fun t => ⟨t.src, t.dst,
-          if 0 < L then (if t.weight.testBit 0 then 1 else 0) else 0⟩) i j = 0 :=
-        edgeWeight_eq_zero fun e he hei hej => by
+    · rw [edgeWeight_tableChain_of_lt L ts hts' (by omega) (by omega),
+        edgeWeight_eq_zero (E := ts.map _) (fun e he hei hej => by
           obtain ⟨t', ht', rfl⟩ := List.mem_map.1 he
           have := hts t' (List.mem_cons_of_mem _ ht')
-          dsimp only at hei hej
-          omega
-      rw [edgeWeight_tableChain_of_lt L ts hts' (by omega) (by omega), hzero, add_zero]
+          dsimp only at hei hej; omega),
+        add_zero]
       exact edgeWeight_entryChain_le_one htu htv hij
 
 end PermanentZeroOne

@@ -46,10 +46,8 @@ private theorem integrable_dom3 {f : ℝ → ℝ → ℝ → ℝ}
   have h1 : Integrable (fun p : ℝ × ℝ => (1 : ℝ) * |p.2|) (γ1.prod γ1) :=
     (integrable_const (1 : ℝ)).mul_prod integrable_abs_gaussian
   have hbound : Integrable (fun q : (ℝ × ℝ) × ℝ => |q.1.2| + M)
-      ((γ1.prod γ1).prod (volume.restrict s)) := by
-    refine Integrable.add ?_ (integrable_const M)
-    simpa using h1.mul_prod
-      (integrable_const (1 : ℝ) : Integrable (fun _ : ℝ => (1 : ℝ)) (volume.restrict s))
+      ((γ1.prod γ1).prod (volume.restrict s)) :=
+    Integrable.add (by simpa using h1.mul_prod (integrable_const (1 : ℝ))) (integrable_const M)
   exact hbound.mono' hf.aestronglyMeasurable
     (ae_of_all _ fun _ => (Real.norm_eq_abs _).trans_le (hb _ _ _))
 
@@ -152,8 +150,7 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
   have hsn : 0 < Real.sin θ := Real.sin_pos_of_pos_of_lt_pi hθ0 hθπ
   have hθ : Real.sin θ ≠ 0 := hsn.ne'
   -- integrability in `x₁`
-  have hk : ∀ x₀, Integrable (fun x₁ => kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 := by
-    intro x₀
+  have hk (x₀ : ℝ) : Integrable (fun x₁ => kernel (J := J) (sj := sj) (h := h) θ x₀ x₁) γ1 := by
     refine ((integrable_abs_gaussian.div_const 2).add (integrable_const
       |Real.cos θ / Real.sin θ|)).mono' ?_ (ae_of_all _ fun x₁ => ?_)
     · unfold kernel dbeta beta
@@ -168,11 +165,10 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
         have := hg1 x₀ x₁
         rw [Real.norm_eq_abs, abs_of_nonneg this.1]
         exact this.2)
-  have hinner : ∀ x₀, ∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
+  have hinner (x₀ : ℝ) : ∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *
       kernel (J := J) (sj := sj) (h := h) θ x₀ x₁ ∂γ1 =
       -((if x₀ < h then (1 : ℝ) else -1) *
         gfun (J := J) (sj := sj) (h := h) θ x₀ ((h - I * x₀) / si)) := by
-    intro x₀
     simp_rw [add_mul]
     rw [integral_add (hbk (g := indA I si h) measurable_indA indA_mem x₀)
       (hbk (g := indB I si h) measurable_indB indB_mem x₀), ibp_low hsi hsj hθ,
@@ -197,9 +193,7 @@ private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 =
     field_simp
     ring
   convert reflect_nonneg hD using 1
-  congr 1
-  funext x₀
-  rw [hb x₀, ha x₀]; ring
+  exact congrArg _ (funext fun x₀ => by rw [hb x₀, ha x₀]; ring)
 
 /-- **ROT on the open interval.** -/
 theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
@@ -236,8 +230,7 @@ theorem rot_mono_open {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
     refine ((measurable_indA.comp measurable_fst).add (measurable_indB.comp measurable_fst)).mul ?_
     unfold kernel dbeta beta
     exact (continuous_phi.measurable.comp (by fun_prop)).mul (by fun_prop)
-  have hfb : ∀ x₀ x₁ θ, |f x₀ x₁ θ| ≤ |x₁| + M := by
-    intro x₀ x₁ θ
+  have hfb (x₀ x₁ θ : ℝ) : |f x₀ x₁ θ| ≤ |x₁| + M := by
     simp only [hf, Set.indicator]
     split_ifs with hθ
     · have hab : 0 ≤ indA I si h x₀ x₁ + indB I si h x₀ x₁ ∧

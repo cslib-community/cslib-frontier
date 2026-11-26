@@ -173,12 +173,10 @@ theorem localKernel_mul_eq {a i v : ℕ} {t d₀ d j u₀ : ℤ} (ht : t ∈ cau
   have hYd : C ((2 : ℚ) ^ v) * (C (u₀ : ℚ) + C (2 ^ (a + 1 - v)) * X -
       C (2 ^ (i + 1 - v) * (j : ℚ))) = Y - C (d : ℚ) := by
     rw [mul_sub, mul_add, ← C_mul, ← mul_assoc, ← C_mul, ← C_mul, h1, h2, h3]
-    simp only [Y, C_sub]
-    ring
+    simp only [Y, C_sub]; ring
   have hYd₀ : C ((2 : ℚ) ^ v) * (C (u₀ : ℚ) + C (2 ^ (a + 1 - v)) * X) = Y - C (d₀ : ℚ) := by
     rw [mul_add, ← C_mul, ← mul_assoc, ← C_mul, h1, h2]
-    simp only [Y, C_sub]
-    ring
+    simp only [Y, C_sub]; ring
   have hcomp {e} (he : e ∈ cauchyGrid (2 ^ a)) :
       (cauchyKernel (2 ^ a) e).comp Y * (Y - C (e : ℚ)) =
         (C ((Lagrange.nodal ((cauchyGrid (2 ^ a)).erase 0) (Int.cast : ℤ → ℚ)).eval 0)⁻¹ *
@@ -313,13 +311,11 @@ theorem not_dvd_sub_sub_of_testBit_eq {t : ℤ} {i x y₀ : ℕ} (hti : (2 : ℤ
   have hm : ¬ (2 : ℤ) ∣ m := fun ⟨c, hc⟩ => hti' ⟨c, by rw [hc, pow_succ]; ring⟩
   obtain ⟨c, rfl⟩ : ∃ c, m = 2 * c + 1 := ⟨m / 2, by omega⟩
   rw [Nat.testBit_eq_decide_div_mod_eq, Nat.testBit_eq_decide_div_mod_eq, decide_eq_decide] at hbit
-  obtain ⟨K, hK⟩ : ∃ K, 2 ^ i = K := ⟨_, rfl⟩
-  have hKpos : 0 < K := hK ▸ by positivity
-  have hpow : (2 : ℤ) ^ i = K := by exact_mod_cast hK
-  have hpow' : (2 : ℤ) ^ (i + 1) = 2 * K := by rw [pow_succ, hpow, mul_comm]
-  have hy₀' : y₀ < K * 2 := by rw [← hK, ← pow_succ]; exact hy₀
-  rw [hK] at hbit
-  rw [hpow', hpow] at hn
+  set K := 2 ^ i with hK
+  have hKpos : 0 < K := by positivity
+  have hpow : (2 : ℤ) ^ i = K := mod_cast hK.symm
+  have hy₀' : y₀ < K * 2 := by simpa only [pow_succ, ← hK] using hy₀
+  rw [pow_succ, hpow, mul_comm (K : ℤ) 2] at hn
   -- Digit `i` of both is `h`; write `x = K (2 q + h) + lx` and `y₀ = K h + ly`.
   have hy₀K : y₀ / K < 2 := Nat.div_lt_of_lt_mul hy₀'
   have hh : x / K % 2 = y₀ / K := by grind
@@ -441,11 +437,8 @@ private theorem cauchyValueMatrix_eq_add_sum
       rw [htgt, hsrc, ← hq]
       split_ifs <;> simp only [hσ]
     have hb : (slot e).testBit i = (slot e').testBit i := by
-      by_contra hb
-      apply hloc
-      rw [htgt, hsrc, ← hq]
-      revert hb
-      cases (slot e).testBit i <;> cases (slot e').testBit i <;> simp
+      rw [htgt, hsrc, ← hq] at hloc
+      cases h1 : (slot e).testBit i <;> cases h2 : (slot e').testBit i <;> simp [h1, h2] at hloc ⊢
     have h2a : 2 ^ (i + 1) ≤ 2 ^ a := Nat.pow_le_pow_right two_pos hia
     have hy₀lt : slot e' % 2 ^ (i + 1) < 2 ^ (i + 1) := Nat.mod_lt _ (by positivity)
     obtain ⟨y₀, hy₀⟩ : ∃ y₀ : Fin (2 ^ (i + 1)), (y₀ : ℕ) = slot e' % 2 ^ (i + 1) :=

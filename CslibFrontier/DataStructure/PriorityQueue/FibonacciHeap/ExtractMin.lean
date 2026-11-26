@@ -211,10 +211,9 @@ theorem wp_link {g : Cell → ℕ} {T₁ T₂ : FHTree n} (h₁ : ValidRoot (vie
     {Q : ℕ → (Cell → ℕ) → ℕ → Prop}
     (hQ : ∀ g' t (T : FHTree n), t ≤ 11 → Linked (view n g) (view n g') T₁ T₂ T → Q T.root g' t) :
     Record.wp (Cell.ok n) w (link T₁.root T₂.root) Q g := by
-  have hd₁ : (view n g).deg T₁.root + 1 ≤ n := by
-    rw [ValidSubtree.deg_root h₁.1]; change T₁.deg + 1 ≤ n; omega
-  have hd₂ : (view n g).deg T₂.root + 1 ≤ n := by
-    rw [ValidSubtree.deg_root h₂.1]; change T₂.deg + 1 ≤ n; omega
+  have hd₁ : (view n g).deg T₁.root + 1 ≤ n := ValidSubtree.deg_root h₁.1 ▸ Nat.le_of_succ_le hdn
+  have hd₂ : (view n g).deg T₂.root + 1 ≤ n :=
+    (ValidSubtree.deg_root h₂.1).trans hdeg.symm ▸ Nat.le_of_succ_le hdn
   simp only [link, Record.wp_read_bind, Cell.ok]
   refine ⟨T₁.root.isLt, T₂.root.isLt, ?_⟩
   by_cases hlt : IndexedMinPQ.RawPrioLT (↑T₂.root, g (.key ↑T₂.root))
@@ -376,11 +375,9 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   have hm' : g .minRoot = m.val + 1 := hm
   have hmn := m.isLt
   have hdeg : g (.deg m) = cs.length := hD.deg
-  have hnr : g .numRoots - 1 = E.length := by
-    rw [show g .numRoots = _ from hD.numRoots]
-    omega
-  have hszn : (view n g).sz ≤ n := by
-    rw [hD.sz]; exact (Finset.card_le_univ _).trans (by simp)
+  have hnr : g .numRoots - 1 = E.length :=
+    (congrArg (· - 1) hD.numRoots).trans (Nat.add_sub_cancel _ _)
+  have hszn : (view n g).sz ≤ n := hD.sz ▸ (Finset.card_le_univ _).trans_eq (Fintype.card_fin n)
   simp only [extractMin, Record.wp_read_bind, Record.wp_write_bind, hm', Nat.add_one_ne_zero,
     ite_false, Nat.add_sub_cancel, Function.update_apply, reduceCtorEq, Cell.ok, true_and,
     hdeg, hnr]
@@ -390,9 +387,8 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
       detachState (view n g) m := by
     simp only [view_update_inHeap, view_update_sz]; rfl
   refine Record.wp_mono ?_ (wp_scatterList hfit true (Nat.lt_succ_self n) cs.length
-    (by rw [hv₁]; exact hD.scatterChildren) rfl fun y hy => by
-      change (view n g).child m - 1 = y.val
-      rw [hD.child y hy, Nat.add_sub_cancel])
+    (hv₁ ▸ hD.scatterChildren) rfl fun y hy =>
+      (congrArg (· - 1) (hD.child y hy)).trans (Nat.add_sub_cancel _ _))
   rintro md₁ g₂ t₁ ⟨slots₁, hc₁, ht₁⟩
   rw [hv₁] at hc₁
   rw [Record.wp_bind]

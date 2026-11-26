@@ -71,8 +71,7 @@ theorem encodeCode_lt_prec (cf cg : Code) :
 
 /-- The subcode of `Code.rfind' cf` has a strictly smaller Gödel number than `rfind' cf`. -/
 theorem encodeCode_lt_rfind' (cf : Code) : encodeCode cf < encodeCode (rfind' cf) := by
-  simp only [encodeCode]
-  omega
+  simp only [encodeCode]; omega
 
 /-- Structural recursion on `Nat.RecursiveIn.Code` with tupled branch functions is primitive
 recursive. Adapted from `Nat.Partrec.Code.primrec_recOn'` with an additional `oracle` branch. -/
@@ -322,14 +321,11 @@ theorem primrec_evaln :
         rw [hg (Nat.pair_lt_pair_right _ lf)]
         rcases n.unpair.2 with - | y
         · rfl
-        simp only
-        rw [hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
+        simp only [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
         cases evaln σ k' _ _ <;> simp [k, hg (Nat.pair_lt_pair_right _ lg)]
       · rw [hg (Nat.pair_lt_pair_right _ (encodeCode_lt_rfind' cf))]
-        rcases evaln σ k cf n with - | - | x
-        · rfl
-        · simp
-        · simpa using hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)
+        rcases evaln σ k cf n with - | - | x <;>
+          simp [k, hg (Nat.pair_lt_pair_left _ k'.lt_succ_self)]
   (Primrec.option_bind
     (Primrec.list_getElem?.comp (this.comp Primrec.fst
       (Primrec.encode_iff.2 (Primrec.fst.comp Primrec.snd))) (Primrec.snd.comp Primrec.snd))

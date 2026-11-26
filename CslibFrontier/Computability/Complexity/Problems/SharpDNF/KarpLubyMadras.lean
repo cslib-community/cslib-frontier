@@ -110,8 +110,7 @@ private theorem countP_range_le_of_lt (p : ℕ → Bool) {w : ℕ} (hp : ∀ k, 
     by_cases hn : p n = true
     · have hlt := hp n hn
       have hle : (List.range n).countP p ≤ n := List.countP_le_length.trans_eq List.length_range
-      simp only [hn, ite_true]
-      omega
+      simp only [hn, ite_true]; omega
     · simpa [hn] using countP_range_le_of_lt p hp n
 
 /-- The minimum width is at most the number of variables. -/
@@ -245,12 +244,9 @@ theorem eval_trial_true_toReal (φ : DNF V) :
     have hw := Term.width_le_length (CNF.nodup_distinctVars φ) (DNF.mem_distinctVars_of_mem hmem)
     rw [CNF.length_distinctVars] at hw
     have hpad : padding φ i + CNF.numVars φ =
-        (φ.getD i []).width + (CNF.numVars φ - minWidth φ) := by
-      unfold padding
-      omega
+        (φ.getD i []).width + (CNF.numVars φ - minWidth φ) := by dsimp only [padding]; omega
     rw [hpad, pow_add]
-    push_cast
-    field_simp
+    push_cast; field_simp
   simp only [trial, ProbComp.eval_bind, ProbComp.eval_sampleDyadicIndex, PMF.bind_map]
   rw [PMF.bind_apply_toReal]
   simp only [Function.comp_apply, PMF.uniformOfFintype_apply, Fintype.card_fin, ENNReal.toReal_inv,
@@ -269,8 +265,7 @@ theorem eval_trial_true_toReal (φ : DNF V) :
     exact Finset.sum_congr rfl fun i hi => by
       simpa only [Finset.mem_range.1 hi, ↓reduceIte] using hterm i (Finset.mem_range.1 hi)
   rw [hsplit, ← Finset.sum_div, ← sum_firstCount φ]
-  push_cast
-  ring
+  push_cast; ring
 
 /-! ### The estimator -/
 
@@ -367,8 +362,7 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
     have hμN : μ * N = K * c := by rw [hμ]; field_simp
     have hrw : ((s * N : ℕ) : ℝ) / (K : ℕ) - c = ((s : ℝ) - μ) * N / K := by
       push_cast
-      field_simp
-      linarith
+      field_simp; linarith
     rw [hrw, abs_div, abs_mul, abs_of_pos hNpos, abs_of_pos hKR, div_le_div_iff₀ hKR hpR]
     rw [one_div, inv_mul_eq_div, lt_div_iff₀ hpR] at hlt
     nlinarith [abs_nonneg ((s : ℝ) - μ)]
@@ -376,22 +370,22 @@ theorem approxWithin_estimate (φ : DNF V) {p : ℕ} (hp : 0 < p) (t : ℕ) :
       goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t := by
     refine (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans (hchern.trans ?_)
     have hexp : (t + 1 : ℝ) ≤ (1 / p) ^ 2 * μ / 3 := by
+      have hdiv : (1 : ℝ) / p ^ 2 * (3 * (t + 1) * p ^ 2 * c / N) / 3 = (t + 1) * (c / N) := by
+        field_simp
       rw [hμ, hK_def]
       push_cast
-      rw [div_pow, one_pow, show (1 : ℝ) / p ^ 2 * (3 * (t + 1) * p ^ 2 * c / N) / 3 =
-        (t + 1) * (c / N) by field_simp]
+      rw [div_pow, one_pow, hdiv]
       nlinarith [(one_le_div hNpos).2 hNcR]
-    have he : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp (1 : ℝ)]
     have hpow : (2 : ℝ) ^ (t + 1) ≤ Real.exp (t + 1) := by
-      rw [show ((t : ℝ) + 1) = ((t + 1 : ℕ) : ℝ) by push_cast; ring, ← Real.exp_one_pow]
-      exact pow_le_pow_left₀ (by norm_num) he _
+      have ht1 : ((t : ℝ) + 1) = ((t + 1 : ℕ) : ℝ) := by push_cast; ring
+      rw [ht1, ← Real.exp_one_pow]
+      exact pow_le_pow_left₀ (by norm_num)
+        (by linarith [Real.add_one_le_exp (1 : ℝ)]) _
     calc 2 * Real.exp (-((1 / p) ^ 2 * μ / 3)) ≤ 2 * Real.exp (-(t + 1)) := by
           gcongr
       _ = 2 / Real.exp (t + 1) := by rw [Real.exp_neg, div_eq_mul_inv]
       _ ≤ 2 / 2 ^ (t + 1) := by gcongr
-      _ = (1 / 2 : ℝ) ^ t := by
-          rw [pow_succ, one_div_pow]
-          field_simp
+      _ = (1 / 2 : ℝ) ^ t := by rw [pow_succ, one_div_pow]; field_simp
   linarith [Probability.PMF.toOuterMeasure_toReal_add_compl
     (ProbComp.eval (OracleComp.countTrue (trialBudget φ p t) (trial φ))) good]
 

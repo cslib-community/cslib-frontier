@@ -285,11 +285,8 @@ private lemma duellingCycle_step {Learner V : Type*} [DecidableEq Learner] [Deci
   set s11 := ([SynodAction.recvPhase1b 1 0 b₁ none, .recvPhase1b 1 1 b₁ none] :
     List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) s9
   have hmTr : (synodLts majorityQuorumsFin3).MTr s (duellingCycle v₀ k) s11 :=
-    LTS.MTr.comp _
-      (LTS.MTr.comp _
-        (LTS.MTr.comp _ (LTS.MTr.comp _ mtr1 mtr2) mtr3)
-        (LTS.MTr.single _ tr9))
-      mtr5
+    LTS.MTr.comp _ mtr1 (LTS.MTr.comp _ mtr2
+      (LTS.MTr.comp _ mtr3 (LTS.MTr.stepL tr9 mtr5)))
   have hs11_p0 : s11.proposers 0 = s5.proposers 0 :=
     (hs11_po 0 h01).trans ((congrArg (fun u => u.proposers 0) hs9_eq).trans (hs8_po 0 h01))
   have hs11_acc8 : s11.acceptors = s8.acceptors :=
@@ -362,18 +359,15 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
     ωSequence.mk (duellingCycle v₀)
   have hstep (k : ℕ) :=
     duellingCycle_step (Learner := Learner) v₀ v₁ k (ts k) (duellingStateSeq_inv v₀ v₁ k)
-  have hpos : ∀ k, 0 < (xls k).length := fun k => by
-    simp only [xls, get_fun, duellingCycle, List.length_cons, List.length_nil]
-    omega
+  have hpos (k : ℕ) : 0 < (xls k).length := by
+    simp only [xls, get_fun, duellingCycle, List.length_cons, List.length_nil]; omega
   have : Inhabited (SynodAction (Fin 2) (Fin 3) Learner V) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hstep k).1) hpos
   have hmtr n := hexec.extract_mTr ((cumLen_strictMono hpos).id_le n)
   refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_,
     fun k => ⟨xls.cumLen (k + 1), (hts (k + 1)).symm ▸ (hstep k).2.2⟩, ?_, ?_⟩
   · simpa only [cumLen_zero, ts, get_fun, duellingStateSeq, inputs] using hts 0
-  · refine (forall_flatten_iff hpos
-        (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>
-          act ≠ .stutter ∧ ∀ m, act ≠ .drop m)).mpr
+  · refine (forall_flatten_iff hpos fun act => act ≠ .stutter ∧ ∀ m, act ≠ .drop m).mpr
       fun k => List.forall_iff_forall_mem.mpr fun act hact => ?_
     simp only [xls, get_fun, duellingCycle, List.mem_cons, List.not_mem_nil, or_false] at hact
     rcases hact with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>

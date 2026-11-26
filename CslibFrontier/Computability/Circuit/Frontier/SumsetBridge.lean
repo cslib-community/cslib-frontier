@@ -122,9 +122,7 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
         exact_mod_cast (by omega : n ≤ 3 * (n / 2))
       simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
       have hlog_le : Real.log (K n) ≤ Real.log ((q : ℝ) ^ (n / 2)) := by
-        rw [Real.log_pow]
-        have := (le_abs_self (Real.log (K n))).trans hn
-        nlinarith
+        rw [Real.log_pow]; nlinarith [le_abs_self (Real.log (K n))]
       exact_mod_cast (Real.log_le_log_iff (by exact_mod_cast hKn) (by positivity)).mp hlog_le
     set c' := max c 0
     have hc'half : c' < 1 / 2 := max_lt hc (by norm_num)
@@ -135,8 +133,7 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
       obtain ⟨X, -, hX⟩ := exists_subset_card_eq (s := (univ : Set (Fin n))) (n := n / 2)
         (by rw [ncard_univ, Nat.card_eq_fintype_card, Fintype.card_fin]; exact Nat.div_le_self n 2)
       have hXc : n / 2 ≤ Xᶜ.ncard := by
-        have := ncard_add_ncard_compl X
-        rw [Nat.card_eq_fintype_card, Fintype.card_fin] at this
+        have := (ncard_add_ncard_compl X).trans (Fintype.card_fin n ▸ Nat.card_eq_fintype_card)
         omega
       have hA : K n ≤ (univ : Set (X → U)).ncard := by
         rwa [ncard_univ, Nat.card_fun, Nat.card_coe_set_eq, hX]
@@ -155,9 +152,8 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
         linarith [neg_le_abs ((S n).ncard - (q : ℝ) ^ n / 2),
           mul_le_mul_of_nonneg_right hb_le hqn_pos.le]
       have hS_pos : (0 : ℝ) < (S n).ncard := lt_of_lt_of_le (by positivity) hS_lower
-      have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n := by
-        rw [← hcard_univ]
-        exact_mod_cast ncard_le_ncard (subset_univ (S n)) (toFinite _)
+      have hS_upper : ((S n).ncard : ℝ) ≤ (q : ℝ) ^ n :=
+        hcard_univ ▸ Nat.cast_le.mpr (ncard_le_ncard (subset_univ (S n)) (toFinite _))
       have hlog_low : Real.log (1 / 2 - c') + n * Real.log q ≤ Real.log (S n).ncard := by
         simpa only [Real.log_mul hgap.ne' hqn_pos.ne', Real.log_pow] using
           (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
@@ -294,17 +290,17 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
       (PMF.uniformOfFintype R).map Subtype.val := by
     simp only [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def,
       PMF.uniformOfFintype_bind_map]
-    rw [show (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
-      Subtype.val ∘ rectProdEquiv X A B from rfl, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    have hrect : (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
+        Subtype.val ∘ rectProdEquiv X A B := rfl
+    rw [hrect, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
   let proj : BitString m → Bool := fun y => eqBoolEquiv val (y j)
   have hunif : (PMF.uniformOfFintype (BitString m)).map proj = PMF.uniformOfFintype Bool := by
-    rw [show proj = ⇑(eqBoolEquiv val) ∘ (fun y : BitString m => y j) from rfl, ← PMF.map_comp,
-      ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
+    have hproj : proj = ⇑(eqBoolEquiv val) ∘ fun y : BitString m => y j := rfl
+    rw [hproj, ← PMF.map_comp, ← PMF.pi_uniformOfFintype (α := fun _ : Fin m => Bool),
       PMF.pi_map_eval, PMF.uniformOfFintype_map_equiv]
   let pOut : PMF Bool := (PMF.uniformOfFintype R).map (fun r : R => decide (ext r.val j = val))
   have hpOut : ((pA.bind fun x => pB.map fun y => x + y).map ext).map proj = pOut := by
-    rw [hsum, PMF.map_comp, PMF.map_comp]
-    rfl
+    simp only [hsum, PMF.map_comp]; rfl
   have hdist : dist pOut (PMF.uniformOfFintype Bool) ≤ ε := by
     rw [← hpOut, ← hunif]
     exact (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
@@ -320,10 +316,8 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
       hcard R, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
   have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcard R ▸ Fintype.card_pos (α := R)
-  have h_eq : ((R ∩ S).ncard : ℝ) - R.ncard / 2 =
-      (((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2) * R.ncard := by field_simp
-  rw [h_eq, abs_mul, abs_of_pos hR_pos]
-  exact mul_le_mul_of_nonneg_right hdist hR_pos.le
+  rwa [div_sub' hR_pos.ne', mul_one_div, abs_div, abs_of_pos hR_pos,
+    div_le_iff₀ hR_pos] at hdist
 
 private theorem isLittleO_log_two_pow {k : ℕ → ℕ}
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ)) :
@@ -408,9 +402,8 @@ theorem mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor
           c.Decides I Acc {x : BitString n | (Language.ofSlices f).slice n x = true} →
             (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n < c.multiarySize := by
   refine ⟨Cslib.Complexity.ofSlices_mem_P hf, fun δ hδ => ?_⟩
-  filter_upwards [eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
-    (fun _ => 0) (fun _ => true) hext hk hε hδ] with n hn σ I Acc c hfan hdec
-  rw [Language.slice_ofSlices] at hdec
-  exact hn σ I Acc c hfan hdec
+  exact (eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
+    (fun _ => 0) (fun _ => true) hext hk hε hδ).mono fun n hn σ I Acc c hfan hdec =>
+      hn σ I Acc c hfan (by simpa only [Language.slice_ofSlices] using hdec)
 
 end Cslib.Circuits.Frontier

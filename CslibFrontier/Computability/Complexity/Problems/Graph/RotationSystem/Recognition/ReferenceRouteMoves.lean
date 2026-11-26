@@ -126,14 +126,12 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
     apply Set.subset_inter
     · apply (convex_closedBall c ρ).segment_subset (Metric.mem_closedBall_self hρ.le)
       rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
-      have ha := hbound _ (Finset.mem_insert_of_mem
-        (Finset.mem_image_of_mem (fun a : Dart G => ρ / (length a + 1)) (Finset.mem_univ a)))
-      have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos (dist_nonneg : 0 ≤ length a) one_pos)).mp
-        (hδ.2.trans_lt ha)
-      change δ * length a ≤ ρ
-      nlinarith [hδ.1]
+      have hd := (lt_div_iff₀ (by positivity : 0 < length a + 1)).mp (hδ.2.trans_lt
+        (hbound _ (Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_univ a)))))
+      dsimp only [length] at hd; linarith [hδ.1]
     · have hc : c ∈ (ref.route a.1).support := by
-        rw [show c = (ref.route a.1).endpoint a.2 from (ref.endpoint_eq a.1 a.2).symm]
+        change ref.vertex (Dart.vertex (a.1, a.2)) ∈ _
+        rw [← ref.endpoint_eq a.1 a.2]
         cases a.2 <;> exact (ref.route a.1).point_mem_support _
       have hm : m ∈ (ref.route a.1).support :=
         (ref.route a.1).at_mem_support 0 (by constructor <;> norm_num)
@@ -246,9 +244,8 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
         point v ∉ segment ℝ a b := by
       rw [segment_eq_image_lineMap]
       rintro ⟨t, ht, heq⟩
-      have hhit : (ref.route e).eval 0 t = ref.vertex v.val :=
-        (Route.eval_line a b 0 t).trans heq
-      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v) hhit
+      obtain ⟨side, _, hs⟩ := referenceDrawing_vertex_contacts hI e 0 ht (hvertex v)
+        ((Route.eval_line a b 0 t).trans heq)
       exact hne side hs
     by_cases hfixed : frozen e
     · refine ⟨ref.route e, fun _ => rfl, fun _ => rfl,
@@ -268,23 +265,21 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
     have hhalf : (1 / 2 : ℝ) ∈ Set.Ioo 0 1 := by constructor <;> norm_num
     have hδ' : 1 - δ ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr hδ.2, sub_lt_self _ hδ.1⟩
     have hc : c = L (δ / 2) := by
-      rw [show c = AffineMap.lineMap (L 0) (L (1 / 2)) δ by simp [c, m, L], ← L.apply_lineMap]
-      exact congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring)
+      simpa only [c, m, L, AffineMap.lineMap_apply_zero] using
+        (L.apply_lineMap 0 (1 / 2) δ).symm.trans
+          (congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring))
     have hd : d = L (1 - δ / 2) := by
-      rw [show d = AffineMap.lineMap (L (1 / 2)) (L 1) (1 - δ) by simp [d, m, L],
-        ← L.apply_lineMap]
-      exact congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring)
+      simpa only [d, m, L, AffineMap.lineMap_apply_one] using
+        (L.apply_lineMap (1 / 2) 1 (1 - δ)).symm.trans
+          (congrArg L (by rw [AffineMap.lineMap_apply_ring']; ring))
     have hopen (v : V) : point v ∉ openSegment ℝ a b := by
       rw [openSegment_eq_image_lineMap]
       rintro ⟨t, ht, heq⟩
-      have hhit : (ref.route e).eval 0 t = ref.vertex v.val :=
-        (Route.eval_line a b 0 t).trans heq
-      obtain ⟨side, hs, _⟩ :=
-        referenceDrawing_vertex_contacts hI e 0 ⟨ht.1.le, ht.2.le⟩ (hvertex v) hhit
-      have htEnd := (Route.atEnd_line_iff a b 0 t side).mp hs
+      obtain ⟨side, hs, _⟩ := referenceDrawing_vertex_contacts hI e 0 ⟨ht.1.le, ht.2.le⟩
+        (hvertex v) ((Route.eval_line a b 0 t).trans heq)
       cases side
-      · exact ht.1.ne' htEnd
-      · exact ht.2.ne htEnd
+      · exact ht.1.ne' ((Route.atEnd_line_iff a b 0 t false).mp hs)
+      · exact ht.2.ne ((Route.atEnd_line_iff a b 0 t true).mp hs)
     have hm : m ∈ openSegment ℝ a b := lineMap_mem_openSegment ℝ a b hhalf
     have hmid : m ∉ points := fun h =>
       let ⟨v, _, hv⟩ := Finset.mem_map.mp h

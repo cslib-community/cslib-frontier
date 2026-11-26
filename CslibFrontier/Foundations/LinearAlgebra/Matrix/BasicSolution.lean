@@ -136,15 +136,12 @@ private theorem exists_gram_system [DecidableEq n] {A : Matrix m n ℤ} {b : m �
     if y j ≠ 0 ∧ y k ≠ 0 then ∑ i, A i j * A i k else if j = k then 1 else 0
   let c : n → ℤ := fun j => if y j ≠ 0 then ∑ i, A i j * b i else 0
   set GK : Matrix n n K := G.map (Int.cast : ℤ → K) with hGK
-  have hGK_apply : ∀ j k, GK j k =
+  have hGK_apply (j k : n) : GK j k =
       if y j ≠ 0 ∧ y k ≠ 0 then ((AKᵀ * AK) j k) else if j = k then 1 else 0 := by
-    intro j k
-    rw [hGK, hAK, map_apply]
-    simp only [G, of_apply]
+    simp only [GK, AK, G, map_apply, of_apply]
     split_ifs <;> push_cast <;> rfl
   -- Off the support `G` acts as the identity; on it, as `Aᵀ A` on vectors supported there.
-  have hG0 : ∀ (v : n → K) j, y j = 0 → (GK *ᵥ v) j = v j := by
-    intro v j hj
+  have hG0 (v : n → K) (j : n) (hj : y j = 0) : (GK *ᵥ v) j = v j := by
     simp [mulVec, dotProduct, hGK_apply, hj]
   have hG1 : ∀ v : n → K, (∀ k, y k = 0 → v k = 0) → ∀ j, y j ≠ 0 →
       (GK *ᵥ v) j = ((AKᵀ * AK) *ᵥ v) j := by
@@ -234,10 +231,9 @@ theorem exists_int_nonneg_mulVec_eq {A : Matrix m n ℤ} {b : m → ℤ} {B : �
       (fun j => (p j : K)) = (d : K) • y ∧ d ≤ N ∧ ∀ j, |p j| ≤ N := by
     have hp := intCast_cramer_eq_det_smul hGy
     rcases lt_or_gt_of_ne hd0 with hneg | hpos
-    · refine ⟨-G.det, -cramer G c, neg_pos.2 hneg, ?_, by rwa [← abs_of_neg hneg],
-        fun j => by simpa using hpbound j⟩
-      simp only [Pi.neg_apply, Int.cast_neg, neg_smul, ← hp]
-      rfl
+    · exact ⟨-G.det, -cramer G c, neg_pos.2 hneg,
+        by simp only [Pi.neg_apply, Int.cast_neg, neg_smul, ← hp]; rfl,
+        by rwa [← abs_of_neg hneg], fun j => by simpa using hpbound j⟩
     · exact ⟨G.det, cramer G c, hpos, hp, (le_abs_self _).trans hdbound, hpbound⟩
   refine ⟨d, p, hd, fun j => ?_, ?_, hdN, fun j => (le_abs_self _).trans (hpN j)⟩
   · exact_mod_cast (show (0 : K) ≤ p j by
@@ -269,8 +265,7 @@ theorem exists_int_mulVec_le {A : Matrix m n ℤ} {b : m → ℤ} {B : ℕ}
     (congrArg (· *ᵥ z) (nonnegForm_map A (Int.castRingHom K))).trans hAz
   obtain ⟨d, p', hd, hp', hAp', hdN, hpN⟩ := exists_int_nonneg_mulVec_eq hA' hb' hz hAz'
   have hcard : Fintype.card (n ⊕ n ⊕ m) = 2 * Fintype.card n + Fintype.card m := by
-    simp only [Fintype.card_sum]
-    omega
+    simp only [Fintype.card_sum]; omega
   rw [hcard] at hdN hpN
   refine ⟨d, fun j => p' (Sum.inl j) - p' (Sum.inr (Sum.inl j)), hd, fun i => ?_, hdN, fun j => ?_⟩
   · rw [nonnegForm_mulVec] at hAp'

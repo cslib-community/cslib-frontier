@@ -128,10 +128,7 @@ noncomputable def estimate (R : SelfReducible enc W) (S : α → ℕ → ProbCom
 
 theorem preimage_startsWith (b : Bool) :
     startsWith b ⁻¹' {true} = some '' {w : List Bool | w.head? = some b} := by
-  ext o
-  simp only [Set.mem_preimage, Set.mem_singleton_iff, startsWith_eq_true_iff, Set.mem_image,
-    Set.mem_ofPred_eq]
-  grind
+  ext (_ | w) <;> simp [startsWith_eq_true_iff]
 
 /-- An almost uniform sampler's frequency of outputs beginning with `b` is within its tolerance
 of the fraction of witnesses beginning with `b`. -/
@@ -230,9 +227,7 @@ private theorem good_update {x : α} {p i : ℕ} {s : State α} (hs : R.Good x p
   have hM : (16 : ℝ) ≤ tolerance (R.len x) p := by exact_mod_cast sixteen_le_tolerance _ _
   have hθ : 0 ≤ 1 - θ := by rw [sub_nonneg, div_le_one (by linarith only [hM])]; linarith only [hM]
   have hpow : 0 ≤ (1 - θ) ^ i := pow_nonneg hθ i
-  refine ⟨?_, Nat.mul_pos hden hc, ha, ?_, ?_⟩
-  · rw [R.len_child s.1 hlen b]
-    omega
+  refine ⟨by rw [R.len_child s.1 hlen b]; omega, Nat.mul_pos hden hc, ha, ?_, ?_⟩
   · push_cast
     calc (1 - θ) ^ (i + 1) * (s.2.2 * c) * (W x).card
         = c * ((1 - θ) ^ i * s.2.2 * (W x).card) * (1 - θ) := by ring
@@ -435,10 +430,8 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
   set μ := ProbComp.eval (OracleComp.iterate ℓ (R.step S ℓ p t) (x, 1, 1))
   set good := (fun s : State α => (if [] ∈ W s.1 then s.2.1 else 0, s.2.2)) ⁻¹'
     {out | ApproxWithin (W x).card p out.1 out.2}
-  have hsub : goodᶜ ⊆ {s | ¬ R.Good x p ℓ s} := fun s hs hgood =>
-    hs (R.approxWithin_of_good hp hgood)
-  have hbad : (μ.toOuterMeasure goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t :=
-    (PMF.toOuterMeasure_toReal_mono _ hsub).trans (hfail.trans hℓ)
+  have hsub : goodᶜ ⊆ {s | ¬ R.Good x p ℓ s} := fun _ hs hg => hs (R.approxWithin_of_good hp hg)
+  have hbad := (PMF.toOuterMeasure_toReal_mono μ hsub).trans (hfail.trans hℓ)
   linarith only [hbad, Probability.PMF.toOuterMeasure_toReal_add_compl μ good]
 
 end Cslib.Complexity.SelfReducible

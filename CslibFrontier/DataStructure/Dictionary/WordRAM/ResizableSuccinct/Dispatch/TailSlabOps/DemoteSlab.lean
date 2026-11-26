@@ -193,8 +193,7 @@ private theorem compDemoteSlab_loop_step {metaBase itemBase U V w N m_cap b : �
   obtain ⟨hloopK, _, _⟩ :=
     iterate_demoteStepProg_spec (w := ghostW w) hwg hb_pos (slabSize N) 0 s_fix (by omega) hloop0
   rw [Nat.zero_add, Nat.sub_self, Nat.add_zero] at hcpl_loop
-  rw [Nat.zero_add] at hloopK
-  exact ⟨hfr_loop, hcpl_loop, hloopK, hcost_loop, hsafe_loop⟩
+  exact ⟨hfr_loop, hcpl_loop, by simpa only [Nat.zero_add] using hloopK, hcost_loop, hsafe_loop⟩
 
 private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     {s_fix s : Memory.State}
@@ -236,13 +235,12 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
   set s_pop := (Memory.spec 0).clientState s₁
     (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b))
   have hs'_eq : s' = s_pop := by
-    dsimp only [s', d, compDemoteSlabGenProg, compDemoteLoopGenProg]
-    simp only [pure_bind, cpSlabSize_mk]
+    simp only [s', d, compDemoteSlabGenProg, compDemoteLoopGenProg, pure_bind, cpSlabSize_mk]
     rw [StateTransitionSpec.clientState_bind]
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState s_fix₁
       (gmPopSlabProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
-    dsimp only [s_fix', demoteSlabProg, demoteSlabGenProg]
-    simp only [demoteLoopGenProg_mk, p_slabSize_mk, gmPopSlabGenProg_mk, demoteLoopProg]
+    simp only [s_fix', demoteSlabProg, demoteSlabGenProg, demoteLoopGenProg_mk, p_slabSize_mk,
+      gmPopSlabGenProg_mk, demoteLoopProg]
     rw [StateTransitionSpec.clientState_bind]
   have hf_fields := gmPopSlab_preserves_tail hloopK.b_lt hslab1
   refine ⟨by rw [hs'_eq]; exact hfr_loop.trans (CompOpFrame.of_gmFrame hfr_pop), ?_, ?_⟩
@@ -265,12 +263,10 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       fun i => by rw [hfr_pop.dt_eq]; exact hcpl_loop.dt_lt i,
       fun idx hidx => ?_,
       fun idx hidx => ?_⟩
-    · rw [htot_eq'] at hidx ⊢
-      rw [congrFun hfr_pop.quot_eq idx, hgm0', hfr_pop.dt_eq, hq_fpop]
-      exact hcpl_loop.quot_eq idx hidx
-    · rw [htot_eq'] at hidx ⊢
-      rw [congrFun hfr_pop.val_eq idx, hgm0', hfr_pop.dt_eq, hv_fpop]
-      exact hcpl_loop.val_eq idx hidx
+    · rw [htot_eq', congrFun hfr_pop.quot_eq idx, hgm0', hfr_pop.dt_eq, hq_fpop]
+      exact hcpl_loop.quot_eq idx (htot_eq' ▸ hidx)
+    · rw [htot_eq', congrFun hfr_pop.val_eq idx, hgm0', hfr_pop.dt_eq, hv_fpop]
+      exact hcpl_loop.val_eq idx (htot_eq' ▸ hidx)
   · dsimp only [d, compDemoteSlabGenProg]
     simp only [pure_bind, cpSlabSize_mk, Realization.memoryCost_bind']
     change memoryCost (iterate compDemoteStepGenProg

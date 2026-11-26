@@ -144,8 +144,7 @@ private theorem ceilDivFour_liftCoordinate
 private theorem liftCoordinate_mod_four
     {coordinate : ℕ} (positive : 0 < coordinate) :
     liftCoordinate coordinate % 4 = 1 := by
-  unfold liftCoordinate
-  omega
+  simp only [liftCoordinate]; omega
 
 private theorem inFrame_succ_liftCoordinate
     (depth : ℕ) {coordinate : ℕ} (positive : 0 < coordinate) :
@@ -159,17 +158,14 @@ private theorem liftCoordinate_centerResidue
     (center : coordinate % period depth = 2 * scale depth + 1) :
     liftCoordinate coordinate % period (depth + 1) =
       2 * scale (depth + 1) + 1 := by
-  have decomposition := Nat.mod_add_div coordinate (period depth)
-  have scaleEq : scale (depth + 1) = 4 * scale depth := by
-    simp [scale, pow_succ, Nat.mul_comm]
+  have scaleEq : scale (depth + 1) = 4 * scale depth := by simp [scale, pow_succ, Nat.mul_comm]
   have expression : liftCoordinate coordinate =
       2 * scale (depth + 1) + 1 + period (depth + 1) * (coordinate / period depth) := by
-    rw [period_succ, scaleEq, Nat.mul_assoc, liftCoordinate]
-    omega
+    have := Nat.mod_add_div coordinate (period depth)
+    rw [period_succ, scaleEq, Nat.mul_assoc, liftCoordinate]; omega
   have centerLt : 2 * scale (depth + 1) + 1 < period (depth + 1) := by
-    rw [period_eq_four_mul_scale]
     have := scale_pos (depth + 1)
-    omega
+    rw [period_eq_four_mul_scale]; omega
   rw [expression, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt centerLt]
 
 /-- For coordinates at residue one modulo four, inherited positive-depth
@@ -190,7 +186,7 @@ private theorem depthAt_liftCoordinate
       cases depthAt bound coordinate with
       | some depth => simp
       | none =>
-          rw [Option.map_none, inFrame_succ_liftCoordinate (bound + 1) positive]
+          rw [inFrame_succ_liftCoordinate (bound + 1) positive]
           cases inFrame (bound + 1) coordinate <;> simp
 
 private theorem onFrameBoundary_eq_false_of_liftCoordinate
@@ -307,10 +303,8 @@ private theorem indexZero_crossing_centered :
         have coarseYPositive : 0 < coarseY := Nat.succ_pos _
         have coarseXMod : coarseX % 4 = 1 := by simp only [coarseX]; omega
         have coarseYMod : coarseY % 4 = 1 := by simp only [coarseY]; omega
-        have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by
-          simp only [coarseX, liftCoordinate]; omega
-        have fineYEq : 2 * y + 1 = liftCoordinate coarseY := by
-          simp only [coarseY, liftCoordinate]; omega
+        have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by rw [liftCoordinate]; omega
+        have fineYEq : 2 * y + 1 = liftCoordinate coarseY := by rw [liftCoordinate]; omega
         obtain ⟨depth, coarseCentered⟩ := inductionHypothesis (x / 4) (y / 4)
           parentXBound parentYBound parentZero
           (horizontalCarrier_of_liftCoordinate levelPositive coarseXPositive coarseYPositive
@@ -319,15 +313,11 @@ private theorem indexZero_crossing_centered :
             coarseXMod coarseYMod (fineXEq ▸ fineYEq ▸ vertical))
         exact ⟨depth + 1, fineXEq.symm ▸ fineYEq.symm ▸ coarseCentered.lift levelPositive
           coarseXPositive coarseYPositive coarseXMod coarseYMod⟩
-      · have fineXEq : 2 * x + 1 = liftCoordinate coarseX := by
-          simp only [coarseX, liftCoordinate]; omega
-        have fineYEq : 2 * y + 1 = liftCoordinate coarseY := by
-          simp only [coarseY, liftCoordinate]; omega
-        have xCenter : liftCoordinate coarseX % period 1 = 2 * scale 1 + 1 := by
-          simp only [coarseX, liftCoordinate, period, scale]; omega
-        have yCenter : liftCoordinate coarseY % period 1 = 2 * scale 1 + 1 := by
-          simp only [coarseY, liftCoordinate, period, scale]; omega
-        exact ⟨1, fineXEq.symm ▸ fineYEq.symm ▸ centeredAtOne levelPositive xCenter yCenter⟩
+      · have xCenter : (2 * x + 1) % period 1 = 2 * scale 1 + 1 := by
+          simp only [period, scale]; omega
+        have yCenter : (2 * y + 1) % period 1 = 2 * scale 1 + 1 := by
+          simp only [period, scale]; omega
+        exact ⟨1, centeredAtOne levelPositive xCenter yCenter⟩
       · have xOpening : (2 * x + 1) % period 1 = frameStartResidue 1 := by
           simp only [period, frameStartResidue, scale]; omega
         have yInside : inFrame 1 (2 * y + 1) = true := by

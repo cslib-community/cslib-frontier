@@ -193,15 +193,13 @@ segment lists. -/
 theorem consecutivePairs_join {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
     (q ++ r.tail).consecutivePairs = q.consecutivePairs ++ r.consecutivePairs := by
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
   induction q with
   | nil => simp at hq
   | cons a q ih =>
     rcases q with _ | ⟨b, q⟩
-    · rcases r with _ | ⟨b, r⟩
-      · simp at hr
-      · obtain rfl : a = p := Option.some.inj hq
-        obtain rfl : b = a := Option.some.inj hr
-        rfl
+    · cases Option.some.inj hq
+      rfl
     · exact congrArg ((a, b) :: ·) (ih (by simpa only [List.getLast?_cons_cons] using hq))
 
 /-- Joining routes at their common endpoint takes the union of their full real supports. -/
@@ -210,13 +208,11 @@ theorem support_join {q r : Route} {p : Point}
     support (q ++ r.tail) = support q ∪ support r := by
   have hmem := List.mem_of_getLast? hq
   have hpairs := consecutivePairs_join hq hr
-  rcases r with _ | ⟨b, r⟩
-  · simp at hr
-  · obtain rfl : b = p := Option.some.inj hr
-    ext z
-    simp only [support, Set.mem_ofPred_eq, List.mem_append, List.mem_cons,
-      List.tail_cons, Set.mem_union, or_and_right, exists_or, exists_eq_left]
-    aesop
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
+  ext z
+  simp only [support, Set.mem_ofPred_eq, List.mem_append, List.mem_cons,
+    List.tail_cons, Set.mem_union, or_and_right, exists_or, exists_eq_left]
+  aesop
 
 /-- A route joined at a common endpoint has the last endpoint of the second route. -/
 theorem last_join {q r : Route} {p : Point}
@@ -320,10 +316,8 @@ private theorem join_eq_dropLast_append {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
     q ++ r.tail = q.dropLast ++ r := by
   obtain ⟨initial, rfl⟩ := List.getLast?_eq_some_iff.1 hq
-  rcases r with _ | ⟨a, r⟩
-  · simp at hr
-  · obtain rfl : a = p := Option.some.inj hr
-    simp
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
+  simp
 
 /-- A flat enumeration of the unit subdivision: emit each segment without its last point, then
 emit the route's final endpoint. This form supports bounded polynomial-time implementations. -/

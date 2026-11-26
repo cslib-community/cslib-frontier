@@ -65,9 +65,8 @@ private noncomputable abbrev frames (μ : ℕ) : ℝ :=
   (Fintype.card (GLM (Fin μ)) : ℝ) ^ 2 * Fintype.card (Mt μ)
 
 private theorem frames_pos : 0 < frames μ := by
-  unfold frames
-  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := by exact_mod_cast Fintype.card_pos
-  positivity
+  have : (0 : ℝ) < Fintype.card (GLM (Fin μ)) := mod_cast Fintype.card_pos
+  rw [frames]; positivity
 
 /-- The squared sides minus the squared diagonals of the quadrangles with sides `p · dg S · q`
 and `p · dg T · q`, added over all `p`, `q` and `a`, are `2 (D(|S|)² + D(|T|)² − D(|S| + |T|)²)`
@@ -111,8 +110,7 @@ private theorem meanSq_le (hw : IsPrice K w) {r : ℕ} (hr : r ≤ μ) :
 private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     w a (a + W) ^ 2 ≤ (Fintype.card (Mt μ) : ℝ) ^ 2 * meanSq w W.rank := by
   have hc : (0 : ℝ) < Fintype.card (Mt μ) := by exact_mod_cast Fintype.card_pos
-  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := by
-    exact_mod_cast card_pos.2 ⟨W, by simp⟩
+  have hn : (0 : ℝ) < #{V : Mt μ | V.rank = W.rank} := mod_cast card_pos.2 ⟨W, by simp⟩
   have h1 : w a (a + W) ^ 2 ≤ #{V : Mt μ | V.rank = W.rank} *
       rankMean (fun V => w a (a + V)) W.rank := by
     rw [rankMean, mul_div_cancel₀ _ hn.ne']
@@ -121,12 +119,10 @@ private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
     rw [meanSq, mul_div_cancel₀ _ hc.ne']
     exact single_le_sum (f := fun a => rankMean (fun V => w a (a + V)) W.rank)
       (fun _ _ => rankMean_nonneg _ _) (mem_univ a)
-  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := by
-    exact_mod_cast card_le_univ _
+  have h3 : (#{V : Mt μ | V.rank = W.rank} : ℝ) ≤ Fintype.card (Mt μ) := mod_cast card_le_univ _
   calc _ ≤ _ := h1
-    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) := by
-      gcongr
-      exact rankMean_nonneg _ _
+    _ ≤ (Fintype.card (Mt μ) : ℝ) * (Fintype.card (Mt μ) * meanSq w W.rank) :=
+      mul_le_mul h3 h2 (rankMean_nonneg _ _) hc.le
     _ = _ := by ring
 
 /-! ### Step 2: a price with equality -/
@@ -174,8 +170,7 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     rw [Nat.add_sub_cancel' hr, e] at h3
     linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
-  · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]
-    exact max_lt (by exact_mod_cast hμ) hMμ
+  · exact (Real.sq_sqrt (le_max_of_le_left zero_le_one)).trans_lt (max_lt (mod_cast hμ) hMμ)
   rw [distAtRank, distAtRank, ← Real.sqrt_mul (le_max_of_le_left zero_le_one)]
   refine Real.sqrt_le_sqrt ?_
   rcases (meanSq_nonneg w 1).eq_or_lt with h0 | h1
@@ -334,8 +329,7 @@ private theorem exists_transversal (hμ : 3 ≤ μ) {V W : Mt μ} (hV : V.rank =
     (hW : W.rank = 1) : ∃ Z : Mt μ, Z.rank = 1 ∧ Transversal ![V, Z] ∧ Transversal ![W, Z] := by
   have hc := Submodule.finrank_add_le_finrank_add_finrank (colSpace V) (colSpace W)
   have hr := Submodule.finrank_add_le_finrank_add_finrank (rowSpace V) (rowSpace W)
-  rw [finrank_colSpace, finrank_colSpace] at hc
-  rw [finrank_rowSpace, finrank_rowSpace] at hr
+  simp only [finrank_colSpace, finrank_rowSpace] at hc hr
   obtain ⟨u, hu⟩ := exists_notMem (A := colSpace V ⊔ colSpace W) (by omega)
   obtain ⟨x, hx⟩ := exists_notMem (A := rowSpace V ⊔ rowSpace W) (by omega)
   have hu0 : u ≠ 0 := fun e => hu (e ▸ zero_mem _)

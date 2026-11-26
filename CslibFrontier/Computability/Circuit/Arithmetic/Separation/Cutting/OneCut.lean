@@ -126,9 +126,7 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
   have hτ1 : 1 ≤ τ := (Nat.one_le_pow _ _ (by omega)).trans hτ
   have hKT : tU ≤ K * T := by
     rw [hT, Nat.mul_add, Nat.mul_one]
-    have := Nat.div_add_mod tU K
-    have := Nat.mod_lt tU hK0
-    omega
+    exact (Nat.div_add_mod tU K).symm.le.trans (Nat.add_le_add_left (Nat.mod_lt tU hK0).le _)
   have hτtU : 2 * τ ≤ tU := by
     rw [htU]
     exact (Nat.le_mul_of_pos_left _ (Nat.succ_pos CU)).trans
@@ -167,9 +165,7 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
     exact Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 1
   have hsK : s ≤ K * ℓ := by
     rw [hℓ, Nat.mul_add, Nat.mul_one]
-    have := Nat.div_add_mod s K
-    have := Nat.mod_lt s hK0
-    omega
+    exact (Nat.div_add_mod s K).symm.le.trans (Nat.add_le_add_left (Nat.mod_lt s hK0).le _)
   -- the numbers below `X`
   obtain ⟨X, hX⟩ : ∃ X, X = v ^ b₁ := ⟨_, rfl⟩
   have hvX {p : ℕ} (hp : p ≤ b₁) : v ^ p ≤ X := hX ▸ vp hp
@@ -178,15 +174,12 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
     rw [pow_succ, Nat.mul_comm 3]
     exact Nat.mul_le_mul_left _ (by omega)
   have h1v (p : ℕ) : 1 ≤ v ^ p := Nat.one_le_pow _ _ (by omega)
-  have hsmall {x : ℕ} (hx : x ≤ v ^ Cp) : x + 1 ≤ X := by
-    have := h3v Cp
-    have := h1v Cp
-    have := hvX (show Cp + 1 ≤ b₁ by omega)
-    omega
-  have hKv2 : K + K + 1 ≤ v ^ (e + 1 + 1) := by
-    have := h3v (e + 1)
-    have := h1v (e + 1)
-    omega
+  have h2v (p : ℕ) {x y : ℕ} (hx : x ≤ v ^ p) (hy : y ≤ v ^ p) : x + y + 1 ≤ v ^ (p + 1) :=
+    (Nat.add_le_add (Nat.add_le_add hx hy) (h1v p)).trans
+      ((by ring : v ^ p + v ^ p + v ^ p = 3 * v ^ p).le.trans (h3v p))
+  have hsmall {x : ℕ} (hx : x ≤ v ^ Cp) : x + 1 ≤ X :=
+    (h2v Cp hx (Nat.zero_le _)).trans (hvX (by omega))
+  have hKv2 : K + K + 1 ≤ v ^ (e + 1 + 1) := h2v (e + 1) hKv hKv
   have hKX : K + K + 1 ≤ X := hKv2.trans (hvX (by omega))
   have hKK : (K + K) * (K + K) ≤ v ^ (2 * (e + 1 + 1)) := by
     rw [two_mul, pow_add]
@@ -197,10 +190,7 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
       (Nat.mul_le_mul hKK pc.load_le).trans (by rw [← pow_add]; exact vp (by omega))
     have h2 : Fintype.card pc.moves.Channel * pc.U1 ≤ v ^ (2 * (Cp + e) + 4) :=
       (Nat.mul_le_mul pc.card_channel_le pc.U1_le).trans (by rw [← pow_add]; exact vp (by omega))
-    have := h3v (2 * (Cp + e) + 4)
-    have := h1v (2 * (Cp + e) + 4)
-    have := hvX (show 2 * (Cp + e) + 4 + 1 ≤ b₁ by omega)
-    omega
+    exact (h2v _ h1 h2).trans (hvX (by omega))
   -- the roles
   have hlawmem (x : Fin pc.E) : pc.moves.law x ∈ relayLaw A :: laws := by
     cases hx : pc.isLaw x
@@ -238,15 +228,12 @@ theorem exists_oneCut (hθ : (Function.support θ).Finite) (hgen : ∀ a, ∃ w 
     omega
   have hXX : X ≤ X * X := Nat.le_mul_of_pos_left X (by omega)
   have hX30 : 30 * (X * X) ≤ X ^ 3 := by
-    rw [show X ^ 3 = X * (X * X) by ring]
-    exact Nat.mul_le_mul_right _ (by omega)
+    have hcube : X ^ 3 = X * (X * X) := by ring
+    exact hcube ▸ Nat.mul_le_mul_right _ (by omega)
   have hS : Fintype.card (Option S) ≤ X := by rw [Fintype.card_option]; omega
   have hRow : Fintype.card (RowData (K + K)) + 1 ≤ X := by
-    rw [RowData.card_eq]
-    have := h3v (2 * (e + 1 + 1))
-    have := h1v (2 * (e + 1 + 1))
-    have := hvX (show 2 * (e + 1 + 1) + 1 ≤ b₁ by omega)
-    omega
+    rw [RowData.card_eq, two_mul]
+    exact (h2v _ hKK hKK).trans (hvX (by omega))
   have hE := hsmall pc.moves_le
   have hN := hsmall pc.card_channel_le
   have hpS := hsmall pc.steps_le

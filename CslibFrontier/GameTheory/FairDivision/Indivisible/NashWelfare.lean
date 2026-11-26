@@ -198,26 +198,23 @@ private theorem bestMNWState_spec (hn : 0 < n) :
 /-- `W.maxNashWelfareAllocation hn` satisfies `W.IsMaxNashWelfare`. -/
 theorem isMaxNashWelfare_maxNashWelfareAllocation (hn : 0 < n) :
     W.IsMaxNashWelfare (W.maxNashWelfareAllocation hn) := by
-  let xs := BundleAllocation.completeAllocationList n m
-  have hxs : ∀ B ∈ xs, B.IsComplete :=
+  obtain ⟨hcomp, -, -, hall⟩ := W.bestMNWState_spec hn
+    (BundleAllocation.completeAllocationList n m)
     fun _ hB => BundleAllocation.mem_completeAllocationList_iff.1 hB
-  obtain ⟨hcomp, -, -, hall⟩ := W.bestMNWState_spec hn xs hxs
-  refine ⟨hcomp, fun B hB => ?_, fun B hB hcard => ?_⟩
-  · exact (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim (·.le) (·.1.le)
-  · exact (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim
-      (fun hlt => absurd hcard hlt.ne) And.right
+  exact ⟨hcomp, fun B hB =>
+      (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim (·.le) (·.1.le),
+    fun B hB hcard => (hall B (BundleAllocation.mem_completeAllocationList_iff.2 hB)).elim
+      (fun hlt => absurd hcard hlt.ne) And.right⟩
 
 /-- Every instance with `0 < n` (or `m = 0`) admits a Maximum Nash Welfare allocation. -/
 theorem exists_isMaxNashWelfare (h : 0 < n ∨ m = 0) :
     ∃ A : BundleAllocation n m, W.IsMaxNashWelfare A := by
   rcases h with hn | rfl
   · exact ⟨W.maxNashWelfareAllocation hn, W.isMaxNashWelfare_maxNashWelfareAllocation hn⟩
-  · have hemp (B : BundleAllocation n 0) : W.posAgents B = ∅ := by
-      ext i
-      simp [Finset.eq_empty_of_forall_notMem fun g : Fin 0 => g.elim0]
-    exact ⟨BundleAllocation.empty, fun g => g.elim0,
-      fun B _ => by simp [hemp B],
-      fun B _ _ => by simp [nashProduct, hemp]⟩
+  · have hemp (B : BundleAllocation n 0) : W.posAgents B = ∅ :=
+      Finset.ext fun _ => by simp [Finset.eq_empty_of_forall_notMem fun g : Fin 0 => g.elim0]
+    exact ⟨BundleAllocation.empty, fun g => g.elim0, fun B _ => by simp [hemp B],
+      fun _ _ _ => by simp [nashProduct, hemp]⟩
 
 end Defs
 
@@ -417,13 +414,11 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
       BundleAllocation.isComplete_transferGood j i g₁ hg₁ hcompA, fun k => ?_, i, ?_⟩
     · simp only [toMonotoneValuation_val]
       rcases eq_or_ne k i with rfl | hki
-      · rw [W.bundleVal_transfer_target hji hg₁]
-        linarith
+      · rw [W.bundleVal_transfer_target hji hg₁]; linarith
       · rcases eq_or_ne k j with rfl | hkj
         · rw [W.bundleVal_transfer_source hji hg₁, huj0, hwjg₁, sub_zero]
         · rw [BundleAllocation.transferGood_bundle_other A g₁ hg₁ hki hkj]
-    · simp only [toMonotoneValuation_val, W.bundleVal_transfer_target hji hg₁]
-      linarith
+    · simp only [toMonotoneValuation_val, W.bundleVal_transfer_target hji hg₁]; linarith
 
 /-- **Maximum Nash Welfare simultaneously achieves `EF1` and Pareto optimality**
 ([CaragiannisKurokawaMoulinProcacciaShahWang2019]): for any `0 < n` and any nonnegative additive

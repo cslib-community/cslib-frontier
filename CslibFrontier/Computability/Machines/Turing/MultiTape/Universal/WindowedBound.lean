@@ -115,8 +115,7 @@ theorem WInv.extract {D B h L : ℕ} {w : Win} (hw : WInv D B h L w) (r : ℕ) :
     simp only [Windowed.extract, List.mem_map] <;> rintro _ ⟨t, ht, rfl⟩
   · simp [cut]
   · have := hw.cells t ht
-    simp only [Windowed.cells, cut, List.length_take] at this ⊢
-    omega
+    simp only [Windowed.cells, cut, List.length_take] at this ⊢; omega
   · intro o ho
     simp only [cut, List.mem_append] at ho
     exact hw.val t ht o (List.mem_append.mpr (ho.imp List.mem_of_mem_take List.mem_of_mem_take))
@@ -128,9 +127,7 @@ theorem winv_initWin (d : Desc) (x : List ℕ) :
     ?_, ?_, ?_⟩ <;>
     simp only [initWin, List.mem_cons, List.mem_replicate]
   · rintro t (rfl | ⟨-, rfl⟩) <;> simp
-  · rintro t (rfl | ⟨-, rfl⟩)
-    · simp [cells]; omega
-    · simp [cells]
+  · rintro t (rfl | ⟨-, rfl⟩) <;> simp [cells, Nat.add_comm]
   · rintro t (rfl | ⟨-, rfl⟩) o ho
     · simp only [List.cons_append, List.nil_append, List.mem_cons, List.mem_map] at ho
       rcases ho with rfl | ⟨a, ha, rfl⟩
@@ -419,9 +416,8 @@ private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     cases hop : e.2.output <;> simp_all
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     refine ⟨?_, fun o ho => (List.mem_append.mp ho).elim (ih₁.2 o) (ih₂.2 o)⟩
-    have h₂ := ih₂.1
-    simp only [r₂, w₁, r₁, List.length_append] at h₂ ⊢
-    linarith [ih₁.1, firstHalf_add_half (n + 2)]
+    simp only [r₂, r₁, List.length_append]
+    linarith [ih₁.1, ih₂.1, firstHalf_add_half (n + 2)]
 
 /-- The windowed simulation of `n` steps emits at most `n` symbols. -/
 theorem length_sim_out (d : Desc) (n : ℕ) (w : Win) : (sim d n w).2.length ≤ n :=

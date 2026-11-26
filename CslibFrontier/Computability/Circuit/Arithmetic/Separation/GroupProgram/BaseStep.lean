@@ -246,24 +246,18 @@ theorem simulates_base (hκ : Function.Injective (Sum.elim key dkey)) (hub : 0 <
       (fun j => rfl) hst hΨ]).trans ?_
     simp only [mul_sum]
     rw [sum_comm]
-    refine sum_congr rfl fun R _ => ?_
-    rw [sum_comm]
-    refine sum_congr rfl fun C _ => ?_
+    refine sum_congr rfl fun R _ => sum_comm.trans (sum_congr rfl fun C _ => ?_)
     rw [partyWeight_block, blockWeight]
     by_cases hF : InitialFits ub U0 cb (fun s => ρ s (Fin.castAdd K κ)) (fun a b => n a b)
       (Fin.castAdd K κ) R C
     swap
     · simp [hF]
+    simp only [hF, and_true, ↓reduceIte, sides_iff_blockEmission]
     by_cases h0 : ∀ b, R none b = []
-    · rw [ite_eq_left hF, ite_eq_left h0, sum_mul]
-      refine sum_congr rfl fun u _ => ?_
-      have h := sides_iff_blockEmission (List.ofFn u) R C
-      by_cases he : Tape.emit (List.ofFn u) = blockEmission R C <;> simp_all
-      rfl
-    · rw [ite_eq_left hF, ite_eq_right h0, zero_mul]
-      refine sum_eq_zero fun u _ => ?_
-      have h := sides_iff_blockEmission (List.ofFn u) R C
-      simp_all
+    · simp only [h0, implies_true, true_and, ↓reduceIte, mul_ite, mul_zero, ite_mul, zero_mul,
+        sum_mul]
+      exact sum_congr rfl fun _ _ => by split_ifs <;> rfl
+    · simp [h0]
   | right κ =>
     rw [Fin.addCases_right, instructionSem,
       weightedSum_packSem_base mu cb kinds hκ hub hp hρ (o := o)

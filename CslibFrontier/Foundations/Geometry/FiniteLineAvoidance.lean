@@ -53,9 +53,7 @@ theorem exists_mem_ball_avoiding_lines {ι : Type*} [Finite ι]
   have hnorm : 0 < ‖u‖ := norm_pos_iff.mpr hu
   obtain ⟨t, ht, hnot⟩ := (Set.Ioo_infinite (mul_pos hρ hnorm)).exists_notMem_finset bad
   let w := z + (t : ℂ) / u
-  have huw : u * w = u * z + (t : ℂ) := by
-    dsimp only [w]
-    field_simp [hu]
+  have huw : u * w = u * z + (t : ℂ) := by simp [w, mul_add, mul_div_cancel₀ _ hu]
   refine ⟨w, ?_, ?_⟩
   · simpa only [Metric.mem_ball, dist_eq_norm, w, add_sub_cancel_left, norm_div,
       Complex.norm_real, Real.norm_eq_abs, abs_of_pos ht.1] using (div_lt_iff₀ hnorm).mpr ht.2
@@ -111,8 +109,7 @@ private theorem affineSpan_pair_inter_subsingleton {a b c d : ℂ}
     ((↑(affineSpan ℝ ({a, b} : Set ℂ)) : Set ℂ) ∩
       ↑(affineSpan ℝ ({c, d} : Set ℂ))).Subsingleton := by
   intro x hx y hy
-  by_contra hxy
-  exact hne ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hxy).symm.trans
+  exact by_contra fun hxy => hne ((affineSpan_pair_eq_of_mem_of_mem_of_ne hx.1 hy.1 hxy).symm.trans
     (affineSpan_pair_eq_of_mem_of_mem_of_ne hx.2 hy.2 hxy))
 
 /-- Segments on distinct supporting lines share at most one point. -/
@@ -260,11 +257,7 @@ theorem exists_injective_perturbation_avoiding_spans_and_crossings {ι : Type*} 
             · exact hspans j hj a b (hpresent ▸ ha') (hpresent ▸ hb') hab hja hjb h
       · rw [hpool, hplaced]
         exact (hpresent.symm ▸ htriple).insert_point hwcross
-  obtain ⟨q, hnear, hinj, hfixed, hspans, htriple⟩ := extend Finset.univ
-  refine ⟨q, fun i => hnear i (Finset.mem_univ i),
-    fun _ _ => hinj (Finset.mem_univ _) (Finset.mem_univ _),
-    fun i => hfixed i (Finset.mem_univ i), ?_, ?_⟩
-  · simpa only [Finset.coe_univ, Set.image_univ] using fun i => hspans i (Finset.mem_univ i)
-  · simpa only [Finset.coe_univ, Set.image_univ] using htriple
+  simpa only [Finset.mem_univ, true_imp_iff, Finset.coe_univ, Set.image_univ, Set.injOn_univ] using
+    extend Finset.univ
 
 end Cslib

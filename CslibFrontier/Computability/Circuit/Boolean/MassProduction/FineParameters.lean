@@ -135,9 +135,7 @@ theorem dimension_mul_fieldWidth_le (n : ℕ) :
             (dimension num den X * blockWidth num den X) *
             (dimension num den X * blockWidth num den X) + 3 * Nat.log 2 (n + 2) := by ring
       _ ≤ prefixWidth num den X n := by omega
-  · right
-    unfold fieldWidth blocks
-    rw [Nat.sub_eq_zero_of_le (by omega), Nat.zero_div, Nat.mul_zero]
+  · exact Or.inr (by simp [fieldWidth, blocks, Nat.sub_eq_zero_of_le (not_le.mp h).le])
 
 /-- The scheduler budget: `(dimension - 2) * fieldWidth n` eventually exceeds `depth n` by any
 fixed amount. -/
@@ -194,7 +192,6 @@ theorem eventually_le_blocks (hden : 0 < den) (c : ℕ) :
   filter_upwards [Nat.eventually_add_mul_log_add_le ((X + 1) * (c * (dimension num den X *
       blockWidth num den X) + 1)) (3 * (X + 1)) 2 one_lt_two] with n hn
   have hp := lt_mul_prefixWidth_add_one (X := X) (num := num) hden n
-  unfold blocks
   have := Nat.lt_of_mul_lt_mul_left (a := X + 1) (b := c * (dimension num den X *
     blockWidth num den X) + 1 + 3 * Nat.log 2 (n + 2)) (c := prefixWidth num den X n + 1)
     (by linarith)
@@ -204,10 +201,9 @@ theorem eventually_le_blocks (hden : 0 < den) (c : ℕ) :
 theorem eventually_le_suffixWidth (hnd : num < den) (hX : 0 < X) (c : ℕ) :
     ∀ᶠ n in atTop, c ≤ suffixWidth num den X n := by
   filter_upwards [eventually_ge_atTop ((X + 1) * den * c)] with n hn
-  have h := mul_le_suffixWidth (X := X) hnd.le n
-  have h1 : n ≤ X * (den - num) * n :=
-    Nat.le_mul_of_pos_left n (Nat.mul_pos hX (by omega))
-  exact Nat.le_of_mul_le_mul_left (hn.trans (h1.trans h)) (Nat.mul_pos (by omega) (by omega))
+  exact Nat.le_of_mul_le_mul_left (hn.trans ((Nat.le_mul_of_pos_left n
+    (Nat.mul_pos hX (by omega))).trans (mul_le_suffixWidth hnd.le n)))
+    (Nat.mul_pos (by omega) (by omega))
 
 /-- Slack `X = 16 (P + 1)` in three factors costs less than `1 / (2 P)`. -/
 theorem two_mul_slack_le (P : ℕ) :
@@ -338,19 +334,16 @@ theorem eventually_overhead_le (hnd : num < den) (hX : 0 < X) (P A E : ℕ) :
       (by have := three_le_dimension (num := num) (den := den) (X := X); omega)
     omega
   have hpow : 2 ^ p + 2 ^ q ≤ 4 * 2 ^ (n - n / c) := by
-    have h1 : 2 ^ p ≤ 2 ^ (n - n / c) := Nat.pow_le_pow_right (by norm_num) (by omega)
+    have h1 : 2 ^ p ≤ 2 ^ (n - n / c) := Nat.pow_le_pow_right two_pos (by omega)
     have h2 : 2 ^ q ≤ 2 * 2 ^ (n - n / c) := by
-      calc 2 ^ q ≤ 2 ^ (n - n / c + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      calc 2 ^ q ≤ 2 ^ (n - n / c + 1) := Nat.pow_le_pow_right two_pos (by omega)
         _ = 2 * 2 ^ (n - n / c) := by rw [pow_succ]; ring
     omega
-  have hsplit : 2 ^ n = 2 ^ (n / c) * 2 ^ (n - n / c) := by
-    rw [← pow_add]; congr 1; have := Nat.div_le_self n c; omega
-  have hgap : den - num ≤ den := Nat.sub_le _ _
   calc 2 * P * (den - num) * n * (A * (2 ^ p + 2 ^ q) * (n + 1) ^ E)
-      ≤ 2 * P * den * (n + 1) * (A * (4 * 2 ^ (n - n / c)) * (n + 1) ^ E) := by gcongr; omega
+      ≤ 2 * P * den * (n + 1) * (A * (4 * 2 ^ (n - n / c)) * (n + 1) ^ E) := by gcongr <;> omega
     _ = 8 * P * den * A * (n + 1) ^ (E + 1) * 2 ^ (n - n / c) := by ring
     _ ≤ 2 ^ (n / c) * 2 ^ (n - n / c) := Nat.mul_le_mul_right _ hn
-    _ = 2 ^ n := hsplit.symm
+    _ = 2 ^ n := by rw [← pow_add, Nat.add_sub_of_le (Nat.div_le_self n c)]
     _ ≤ den * 2 ^ n := Nat.le_mul_of_pos_left _ (by omega)
 
 end Cslib.Circuits.Boolean.MassProduction.Fine

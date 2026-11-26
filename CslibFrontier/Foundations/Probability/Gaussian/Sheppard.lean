@@ -180,8 +180,7 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
     · rw [indicator_of_mem (hiff.2 hθ), indicator_of_mem hθ, Pi.one_apply, mul_one,
         gaussianPDF, gaussianPDF, ← ENNReal.ofReal_mul (gaussianPDFReal_nonneg _ _ _),
         gaussianPDFReal_mul_polar, ← ENNReal.ofReal_mul hr.le]
-      congr 1
-      ring
+      exact congrArg ENNReal.ofReal (by ring)
     · rw [indicator_of_notMem (mt hiff.1 hθ), indicator_of_notMem hθ, mul_zero, mul_zero]
   rw [setLIntegral_congr_fun polarCoord.open_target.measurableSet hint,
     polarCoord_target, Measure.volume_eq_prod, ← Measure.prod_restrict,
@@ -189,9 +188,7 @@ theorem gaussianReal_prod_setOf_abs_le_mul_abs {k : ℝ} (hk : 0 ≤ k) :
       (g := B.indicator 1) (by fun_prop) ((measurable_one.indicator hBm).aemeasurable),
     lintegral_radial, lintegral_indicator_one hBm, Measure.restrict_apply hBm,
     volume_angle_set hk, ← ENNReal.ofReal_mul (by positivity)]
-  congr 1
-  field_simp
-  ring
+  exact congrArg ENNReal.ofReal (by field_simp; ring)
 
 /-- `gaussianReal 0 s` is the image of the standard Gaussian under `x ↦ √s x`. -/
 private theorem gaussianReal_map_sqrt_mul (s : ℝ≥0) :
@@ -274,14 +271,12 @@ theorem measureReal_stdGaussian_mem_uIoc_le_arctan {u v : E} (huv : ‖u‖ = �
         rw [← map_measureReal_apply hpair hSm, stdGaussian_map_inner_prod hba]
     _ ≤ ((gaussianReal 0 (‖u + v‖₊ ^ 2)).prod (gaussianReal 0 (‖v - u‖₊ ^ 2))).real
           {p : ℝ × ℝ | |p.1| ≤ 1 * |p.2|} := by
-        simp only [one_mul]
-        exact ENNReal.toReal_mono (measure_ne_top _ _)
+        simpa only [measureReal_def, hS, one_mul] using ENNReal.toReal_mono (measure_ne_top _ _)
           (gaussianReal_prod_setOf_abs_sub_le_abs_le _ _ _)
     _ = 2 / π * arctan (‖v - u‖ / ‖u + v‖) := by
         rw [measureReal_def, gaussianReal_prod_setOf_abs_le_mul_abs_of_ne_zero hs0 zero_le_one,
           hsqrt, hsqrt, one_mul, ENNReal.toReal_ofReal]
-        have := arctan_nonneg.2 (by positivity : 0 ≤ ‖v - u‖ / ‖u + v‖)
-        positivity
+        exact mul_nonneg (by positivity) (arctan_nonneg.2 (by positivity))
 
 /-- **Sheppard's bound.** If `u` and `v` have equal norms, a threshold lies between `⟪u, X⟫` and
 `⟪v, X⟫`, for a standard Gaussian vector `X`, with probability at most `angle u v / π`. -/
