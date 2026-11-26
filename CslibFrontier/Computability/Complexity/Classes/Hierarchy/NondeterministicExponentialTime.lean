@@ -347,8 +347,7 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
     simp only [A₃, add_mul]
     refine Nat.add_le_add (Nat.mul_le_mul_left Cℓ h₁) ?_
     rw [h42, ← pow_mul]
-    apply two_pow_le_two_pow_mul
-    ring_nf; omega
+    exact two_pow_le_two_pow_mul (by nlinarith only [])
   -- the tests
   have hcheap : cheap k (x, v) ≤ A₁ * M := by
     have hN : (encPair encBits encBits (x, v)).length + 1 ≤ 2 * V := by enc_len [hv', ← hn]
@@ -357,11 +356,8 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
       _ ≤ (2 * V) ^ 2 * (4 ^ ((k + 2) * (n + 1))) ^ 2 :=
           Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hN 2)
       _ = 2 ^ (2 + 2 * ((k + 1) * (n + 2)) + 4 * ((k + 2) * (n + 1))) := by
-          rw [hVdef, h42]
-          simp only [mul_pow, ← pow_mul, ← pow_add]; ring_nf
-      _ ≤ A₁ * M := by
-          apply two_pow_le_two_pow_mul
-          ring_nf; omega
+          simp only [hVdef, h42, mul_pow, ← pow_mul, ← pow_add]; ring_nf
+      _ ≤ A₁ * M := two_pow_le_two_pow_mul (by nlinarith only [])
   -- the simulation, when the description is short
   have hacc (h₀ : Diagonal.shortDesc (unframe x) = true) :
       accBound D (unframe (unframe x), x ++ [false], v) ≤ A₂ * M := by
@@ -376,12 +372,9 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
           simp only [accBound, List.length_append, List.length_singleton, hv', ← hn]
           exact Nat.mul_le_mul (Nat.pow_le_pow_left hb 4) (Nat.pow_le_pow_left hw 4)
       _ = 81 * (CD + 3) ^ 4 * 2 ^ (8 * ((k + 1) * (n + 2))) := by
-          rw [hVdef]
-          simp only [mul_pow, ← pow_mul]
-          ring
-      _ ≤ 81 * (CD + 3) ^ 4 * (2 ^ (16 * k + 16) * M) := by
-          apply Nat.mul_le_mul_left _ (two_pow_le_two_pow_mul ?_)
-          ring_nf; omega
+          simp only [hVdef, mul_pow, ← pow_mul]; ring
+      _ ≤ 81 * (CD + 3) ^ 4 * (2 ^ (16 * k + 16) * M) :=
+          Nat.mul_le_mul_left _ (two_pow_le_two_pow_mul (by nlinarith only []))
       _ = A₂ * M := by ring
   clear_value B₀ A₁ A₂ A₃ M V
   -- the brute force, at the end of an interval
@@ -406,8 +399,7 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
           _ ≤ 2 ^ (P + 1) * certLen k P := Nat.mul_le_mul_right _ hK
           _ = horizon k P := by
               rw [certLen, horizon, ← pow_add]
-              congr 1
-              ring
+              exact congrArg (2 ^ ·) (by ring)
       exact ((Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans hE).trans (Nat.le_add_right _ _)
     · have hle : K * ((encPair encBits encBits (unframe (unframe x), frame (unframe x))).length +
           certLen k P) ≤ B₀ :=
