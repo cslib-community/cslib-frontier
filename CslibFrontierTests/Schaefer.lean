@@ -77,12 +77,22 @@ example (encUnit : Unit ↪ List Bool) : CSPSAT eqArity eqSem ∈ P (encCSP encU
 -- Equality has both satisfying and nonsatisfying tuples, including sparse/repeated scopes.
 example : eqSem () [false, true] = false := by decide
 example : eqSem () [true, true] = true := by decide
-example : [⟨(), [2 ^ 80, 2 ^ 80]⟩] ∈ CSPSAT eqArity eqSem := by
+private theorem eq_repeated_mem : [⟨(), [2 ^ 80, 2 ^ 80]⟩] ∈ CSPSAT eqArity eqSem := by
   exact ⟨by decide, fun _ => false, rfl⟩
-example : [⟨(), [0]⟩] ∉ CSPSAT eqArity eqSem := by
+
+private theorem eq_malformed_not_mem : [⟨(), [0]⟩] ∉ CSPSAT eqArity eqSem := by
   intro h
   have := h.1 ⟨(), [0]⟩ (by simp)
   simp [eqArity] at this
+
+-- A single reduction preserves the variable bound and rejects malformed scopes.
+example (encUnit : Unit ↪ List Bool) :
+    ∃ f : CSP Unit ℕ → CNF ℕ,
+      (f [⟨(), [2 ^ 80, 2 ^ 80]⟩]).numVars ≤ 1 ∧
+      f [⟨(), [2 ^ 80, 2 ^ 80]⟩] ∈ SAT ∧ f [⟨(), [0]⟩] ∉ SAT := by
+  obtain ⟨f, _, hmem, hsize⟩ := CSPSAT.exists_reduction_toSAT_numVars encUnit eqArity eqSem
+  exact ⟨f, (hsize _).trans (by decide), (hmem _).mp eq_repeated_mem,
+    mt (hmem _).mpr eq_malformed_not_mem⟩
 
 private def naeArity (_ : Unit) : ℕ := 3
 private def naeSem (_ : Unit) : List Bool → Bool

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.PolyTime.CSP.Boolean
 public import CslibFrontier.Computability.Complexity.Reduction
+public import CslibFrontier.Computability.Complexity.Problems.SAT
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 import CslibFrontier.Computability.Complexity.Reduction.Guard
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
@@ -39,6 +40,8 @@ claimed.
 
 * `Cslib.Complexity.CSPSAT.polyTimeReducible_of_guard`: a compiler that is faithful on
   well-formed instances, guarded by exact arity, is a polynomial-time reduction.
+* `Cslib.Complexity.CSPSAT.exists_reduction_toSAT_numVars`: native compilation to CNF without
+  introducing variables.
 * `Cslib.Complexity.CSPSAT.mem_NP`: membership in native NP for a finite relation alphabet.
 -/
 
@@ -75,21 +78,46 @@ theorem polyTimeReducible_of_guard [Finite Rel] {β : Type} {encB : β ↪ List 
     rw [mem_iff, CSP.validArity_eq_true_iff]
     exact and_congr_right (hcorrect F)
 
+/-- For a fixed finite Boolean language, the guarded forbidden-assignment compiler reduces
+exact-arity CSP satisfiability to CNF SAT without introducing variables. Malformed inputs map
+to the variable-free rejecting formula. -/
+theorem exists_reduction_toSAT_numVars [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel → ℕ)
+    (sem : Rel → List Bool → Bool) :
+    ∃ f : CSP Rel ℕ → CNF ℕ,
+      ComputableInPolyTime f (encCSP encRel encNat) encCNF ∧
+      (∀ F, F ∈ CSPSAT arity sem ↔ f F ∈ SAT) ∧
+      (∀ F, (f F).numVars ≤ F.numVars) := by
+  classical
+  let _ := Fintype.ofFinite Rel
+  let k := Finset.univ.sup arity
+  let reduce (F : CSP Rel ℕ) : CNF ℕ :=
+    if CSP.validArity arity F then F.toCNFBounded k sem else [[]]
+  refine ⟨reduce, (CSP.computableInPolyTime_validArity encRel arity).ite
+    (CSP.computableInPolyTime_toCNFBounded_of_finite encRel encNat k sem)
+    (ComputableInPolyTime.const [[]]), ?_, ?_⟩
+  · intro F
+    dsimp only [reduce]
+    split_ifs with h
+    · have hf := (CSP.validArity_eq_true_iff arity F).mp h
+      have hw : ∀ c ∈ F, c.scope.length ≤ k := fun c hc =>
+        (hf c hc).le.trans (Finset.le_sup (Finset.mem_univ c.rel))
+      rw [mem_iff, and_iff_right hf, mem_SAT, CSP.toCNFBounded_eq_toCNF hw, CSP.satisfiable_toCNF]
+    · have hf := mt (CSP.validArity_eq_true_iff arity F).mpr h
+      simp [mem_iff, hf, mem_SAT, CNF.Satisfiable, CNF.eval, Clause.eval]
+  · intro F
+    dsimp only [reduce]
+    split_ifs
+    · exact Finset.card_le_card fun v hv =>
+        List.mem_toFinset.mpr (CSP.mem_vars_toCNFBounded (List.mem_toFinset.mp hv))
+    · simp [CNF.numVars, CNF.vars]
+
 /-- Every fixed finite Boolean constraint language has a native NP satisfiability problem,
 under framed list/pair encodings with binary variable indices. -/
 theorem mem_NP [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel → ℕ)
     (sem : Rel → List Bool → Bool) : CSPSAT arity sem ∈ NP (encCSP encRel encNat) := by
-  classical
-  let _ := Fintype.ofFinite Rel
-  let k := Finset.univ.sup arity
-  have hbound (R : Rel) : arity R ≤ k := Finset.le_sup (Finset.mem_univ R)
-  have hred : PolyTimeReducible (encCSP encRel encNat) encCNF (CSPSAT arity sem) SAT := by
-    refine polyTimeReducible_of_guard encRel arity sem [[]]
-      (CSP.computableInPolyTime_toCNFBounded_of_finite encRel encNat k sem) (fun F hF => ?_)
-      (by simp [mem_SAT, CNF.Satisfiable, CNF.eval, Clause.eval])
-    have hw : ∀ c ∈ F, c.scope.length ≤ k := fun c hc => (hF c hc).le.trans (hbound c.rel)
-    rw [mem_SAT, CSP.toCNFBounded_eq_toCNF hw, CSP.satisfiable_toCNF]
-  exact hred.mem_NP SAT.mem_NP
+  obtain ⟨f, hpoly, hmem, _⟩ := exists_reduction_toSAT_numVars encRel arity sem
+  exact (show PolyTimeReducible (encCSP encRel encNat) encCNF (CSPSAT arity sem) SAT from
+    ⟨f, hpoly, hmem⟩).mem_NP SAT.mem_NP
 
 end CSPSAT
 
