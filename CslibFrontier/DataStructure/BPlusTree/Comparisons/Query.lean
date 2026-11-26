@@ -143,6 +143,197 @@ variable [LinearOrder α]
 
 end Transfer
 
+/-! ### Comparison counts -/
+
+variable (oracle : {ι : Type} → LEQuery α ι → ι)
+
+/-- The within-node separator search makes at most one comparison per separator. -/
+theorem countQueries_slotM_le (k : α) (rest : List (Branch α β)) :
+    (slotM LEQuery.ask k rest).countQueries oracle ≤ rest.length := by
+  induction rest with
+  | nil => simp [slotM]
+  | cons e rest ih =>
+    obtain ⟨s, c⟩ := e
+    by_cases h : oracle (.le s k) = true
+    · simp [slotM, h]; omega
+    · simp [slotM, h]
+
+/-- The minimum search makes no comparison. -/
+@[simp] theorem countQueries_minQ (tr : BPlusTree α β) : (minQ tr).countQueries oracle = 0 := by
+  rw [minQ]
+  fun_induction minM (pure () : FreeM (LEQuery α) Unit) tr <;> simp [*]
+
+/-- The maximum search makes no comparison. -/
+@[simp] theorem countQueries_maxQ (tr : BPlusTree α β) : (maxQ tr).countQueries oracle = 0 := by
+  rw [maxQ]
+  fun_induction maxM (pure () : FreeM (LEQuery α) Unit) tr <;> simp [*]
+
+/-- The membership test makes as many comparisons as lookup. -/
+@[simp] theorem countQueries_containsQ (k : α) :
+    (containsQ k tr).countQueries oracle = (lookupQ k tr).countQueries oracle := by
+  simp [containsQ, containsM, lookupQ]
+
+private theorem countQueries_scan_lookupM_le (k : α) (l : List (α × β)) :
+    (SortedAssoc.lookupM LEQuery.ask k l).countQueries oracle ≤ l.length + 1 := by
+  induction l with
+  | nil => simp [SortedAssoc.lookupM]
+  | cons e l ih =>
+    obtain ⟨k', v⟩ := e
+    by_cases h : oracle (.le k k') = true
+    · by_cases h' : oracle (.le k' k) = true <;> simp [SortedAssoc.lookupM, h, h']
+    · simp [SortedAssoc.lookupM, h]; omega
+
+private theorem countQueries_scan_rankM_le (k : α) (l : List (α × β)) :
+    (SortedAssoc.rankM LEQuery.ask k l).countQueries oracle ≤ l.length := by
+  induction l with
+  | nil => simp [SortedAssoc.rankM]
+  | cons e l ih =>
+    by_cases h : oracle (.le k e.1) = true
+    · simp [SortedAssoc.rankM, h]
+    · simp [SortedAssoc.rankM, h]; omega
+
+private theorem countQueries_scan_predM_le (k : α) (l : List (α × β)) :
+    (SortedAssoc.predM LEQuery.ask k l).countQueries oracle ≤ l.length := by
+  induction l with
+  | nil => simp [SortedAssoc.predM]
+  | cons e l ih =>
+    by_cases h : oracle (.le k e.1) = true
+    · simp [SortedAssoc.predM, h]
+    · simp [SortedAssoc.predM, h]; omega
+
+private theorem countQueries_scan_succM_le (k : α) (l : List (α × β)) :
+    (SortedAssoc.succM LEQuery.ask k l).countQueries oracle ≤ l.length := by
+  induction l with
+  | nil => simp [SortedAssoc.succM]
+  | cons e l ih =>
+    by_cases h : oracle (.le e.1 k) = true
+    · simp [SortedAssoc.succM, h]; omega
+    · simp [SortedAssoc.succM, h]
+
+/-- Lookup in a leaf makes at most one comparison per entry and one more to test equality. -/
+theorem countQueries_lookupQ_leaf_le (k : α) (entries : List (α × β)) :
+    (lookupQ k (.leaf entries)).countQueries oracle ≤ entries.length + 1 := by
+  simpa [lookupQ, lookupM] using countQueries_scan_lookupM_le oracle k entries
+
+/-- Rank in a leaf makes at most one comparison per entry. -/
+theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) :
+    (rankQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  simpa [rankQ, rankM] using countQueries_scan_rankM_le oracle k entries
+
+/-- Predecessor search in a leaf makes at most one comparison per entry. -/
+theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
+    (predQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  simpa [predQ, predM] using countQueries_scan_predM_le oracle k entries
+
+/-- Successor search in a leaf makes at most one comparison per entry. -/
+theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
+    (succQ k (.leaf entries)).countQueries oracle ≤ entries.length := by
+  simpa [succQ, succM] using countQueries_scan_succM_le oracle k entries
+
+private theorem countQueries_node_le_of_step {f : BPlusTree α β → ℕ}
+    (hnil : ∀ first, f (node first []) = f first)
+    (hcons : ∀ first s c rest,
+      f (node first ((s, c) :: rest)) ≤ 1 + max (f first) (f (node c rest)))
+    (first : BPlusTree α β) (rest : List (Branch α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, f c ≤ B) :
+    f (node first rest) ≤ rest.length + B := by
+  induction rest generalizing first with
+  | nil => have := hB first List.mem_cons_self; rw [hnil]; omega
+  | cons e rest ih =>
+    obtain ⟨s, c⟩ := e
+    have := hcons first s c rest
+    have := hB first List.mem_cons_self
+    have := ih c fun c' hc' => hB c' (List.mem_cons_of_mem _ hc')
+    simp only [List.length_cons] at this ⊢
+    omega
+
+/-- Lookup at a node makes at most one comparison per separator beyond what it makes in the
+child it descends into. -/
+theorem countQueries_lookupQ_node_le (k : α) (first : BPlusTree α β)
+    (rest : List (Branch α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, (lookupQ k c).countQueries oracle ≤ B) :
+    (lookupQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
+  countQueries_node_le_of_step (fun _ => by simp [lookupQ, lookupM])
+    (fun _ s _ _ => by
+      by_cases h : oracle (.le s k) = true <;> simp [lookupQ, lookupM, h])
+    first rest hB
+
+/-- Predecessor search at a node makes at most one comparison per separator beyond what it makes
+in the child it descends into: the sibling fallback is a maximum search, which asks nothing. -/
+theorem countQueries_predQ_node_le (k : α) (first : BPlusTree α β)
+    (rest : List (Branch α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, (predQ k c).countQueries oracle ≤ B) :
+    (predQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
+  countQueries_node_le_of_step (fun _ => by simp [predQ, predM])
+    (fun _ s _ _ => by
+      by_cases h : oracle (.le s k) = true <;> simp [predQ, predM, h, ← maxQ_def])
+    first rest hB
+
+/-- Successor search at a node makes at most one comparison per separator beyond what it makes
+in the child it descends into: the sibling fallback is a minimum search, which asks nothing. -/
+theorem countQueries_succQ_node_le (k : α) (first : BPlusTree α β)
+    (rest : List (Branch α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, (succQ k c).countQueries oracle ≤ B) :
+    (succQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
+  countQueries_node_le_of_step (fun _ => by simp [succQ, succM])
+    (fun _ s _ _ => by
+      by_cases h : oracle (.le s k) = true <;> simp [succQ, succM, h, ← minQ_def])
+    first rest hB
+
+/-- Rank at a node makes at most one comparison per separator beyond what it makes in the child
+it descends into. -/
+theorem countQueries_rankQ_node_le (k : α) (first : BPlusTree α β)
+    (rest : List (Branch α β)) {B : ℕ}
+    (hB : ∀ c ∈ (node first rest).children, (rankQ k c).countQueries oracle ≤ B) :
+    (rankQ k (node first rest)).countQueries oracle ≤ rest.length + B :=
+  countQueries_node_le_of_step (fun _ => by simp [rankQ, rankM])
+    (fun _ s _ _ => by
+      by_cases h : oracle (.le s k) = true <;> simp [rankQ, rankM, h])
+    first rest hB
+
+/-! ### Comparison bounds -/
+
+section Bounds
+
+variable [LinearOrder α]
+
+/-- Lookup in a well-formed tree makes at most `2 * t - 1` comparisons per level and one more,
+under every oracle. -/
+theorem countQueries_lookupQ_le (h : IsWF t tr) (k : α) :
+    (lookupQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height + 1 :=
+  le_mul_height_add_of_scan (countQueries_lookupQ_leaf_le oracle k)
+    (fun _ _ _ => countQueries_lookupQ_node_le oracle k _ _) h.width_le h.occupied_of_mem_children
+
+/-- The membership test in a well-formed tree makes at most `2 * t - 1` comparisons per level and
+one more, under every oracle. -/
+theorem countQueries_containsQ_le (h : IsWF t tr) (k : α) :
+    (containsQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height + 1 := by
+  rw [countQueries_containsQ]
+  exact countQueries_lookupQ_le oracle h k
+
+/-- Predecessor search in a well-formed tree makes at most `2 * t - 1` comparisons per level,
+under every oracle. -/
+theorem countQueries_predQ_le (h : IsWF t tr) (k : α) :
+    (predQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height :=
+  le_mul_height_add_of_scan (c := 0) (countQueries_predQ_leaf_le oracle k)
+    (fun _ _ _ => countQueries_predQ_node_le oracle k _ _) h.width_le h.occupied_of_mem_children
+
+/-- Successor search in a well-formed tree makes at most `2 * t - 1` comparisons per level,
+under every oracle. -/
+theorem countQueries_succQ_le (h : IsWF t tr) (k : α) :
+    (succQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height :=
+  le_mul_height_add_of_scan (c := 0) (countQueries_succQ_leaf_le oracle k)
+    (fun _ _ _ => countQueries_succQ_node_le oracle k _ _) h.width_le h.occupied_of_mem_children
+
+/-- Rank in a well-formed tree makes at most `2 * t - 1` comparisons per level, under every
+oracle. -/
+theorem countQueries_rankQ_le (h : IsWF t tr) (k : α) :
+    (rankQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height :=
+  le_mul_height_add_of_scan (c := 0) (countQueries_rankQ_leaf_le oracle k)
+    (fun _ _ _ => countQueries_rankQ_node_le oracle k _ _) h.width_le h.occupied_of_mem_children
+
+end Bounds
+
 end Comparisons
 
 end Cslib.DataStructure.BPlusTree
