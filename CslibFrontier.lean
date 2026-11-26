@@ -6762,6 +6762,7 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.RowCompression
 public import CslibFrontier.Computability.PCP.Approximation.KCenter
 public import CslibFrontier.Algorithms.WordRAM.Arborescence.Internal.BasicSpec
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RankSupport
+public import CslibFrontier.Computability.Complexity.FineGrained.SharpTwoSATPower
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.InputSetup
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.SingleTape
 public import CslibFrontier.Computability.Probabilistic.RejectionSampling

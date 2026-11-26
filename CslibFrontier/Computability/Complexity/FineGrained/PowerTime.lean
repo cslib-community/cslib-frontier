@@ -30,6 +30,7 @@ length of its output.
 
 * `Cslib.Complexity.ComputableInPowerExpTime.comp` and
   `Cslib.Complexity.ComputableInPowerExpTime.comp_polyTime`: composition with parameter blowup.
+* `Cslib.Complexity.ComputableInPowerExpTime.prod`: pair two outputs at a common power.
 * `Cslib.Complexity.DecidableInPowerExpTime.mono_measure`: enlarge the instance parameter.
 * `Cslib.Complexity.DecidableInPowerExpTime.of_reduction`: transfer along a reduction with an
   exponential time bound and a power bound on the target parameter.
@@ -71,6 +72,30 @@ theorem DecidableInPowerExpTime.mono_measure {ν : α → ℕ} {p : ℝ}
   have hparam := Real.rpow_le_rpow (by positivity : 0 ≤ (μA a + 1 : ℝ)) hbase hp
   exact (two_rpow_mul_pow_le_two_rpow_mul_pow
     (mul_le_mul_of_nonneg_left hparam (Nat.cast_nonneg C)) le_rfl).trans (by simp)
+
+/-- Computing two functions on the same input and pairing their outputs preserves their
+common power in the exponent. -/
+theorem ComputableInPowerExpTime.prod {f : α → β} {g : α → γ} {p : ℝ}
+    (hf : ComputableInPowerExpTime f encA encB μA p)
+    (hg : ComputableInPowerExpTime g encA encC μA p) :
+    ComputableInPowerExpTime (fun a => (f a, g a)) encA (encPair encB encC) μA p := by
+  obtain ⟨C, e, hf⟩ := hf
+  obtain ⟨D, d, hg⟩ := hg
+  obtain ⟨t, c, hf, ht⟩ := hf.exists_computableInO
+  obtain ⟨u, k, hg, hu⟩ := hg.exists_computableInO
+  let R (a : α) : ℝ := (2 : ℝ) ^ (max C D * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ max e d
+  have hbound (a : α) : ((t a + u a : ℕ) : ℝ) ≤ (c + k : ℕ) * R a + (c + k : ℕ) := by
+    have hf' : (2 : ℝ) ^ (C * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ e ≤ R a :=
+      two_rpow_mul_pow_le_two_rpow_mul_pow (mul_le_mul_of_nonneg_right
+        (by exact_mod_cast le_max_left C D) (by positivity)) (le_max_left e d)
+    have hg' : (2 : ℝ) ^ (D * (μA a + 1 : ℝ) ^ p) * ((encA a).length + 1) ^ d ≤ R a :=
+      two_rpow_mul_pow_le_two_rpow_mul_pow (mul_le_mul_of_nonneg_right
+        (by exact_mod_cast le_max_right C D) (by positivity)) (le_max_right e d)
+    push_cast
+    linarith [ht a, hu a, mul_le_mul_of_nonneg_left hf' c.cast_nonneg,
+      mul_le_mul_of_nonneg_left hg' k.cast_nonneg]
+  exact ⟨max C D, max e d, (ComputableInTimeO.of_computableInO (hf.prod hg) hbound).mono
+    (c + k) (fun _ => le_rfl) (fun _ => by positivity)⟩
 
 /-- Composing a map of power `q` and parameter blowup `O((μA + 1) ^ b)` with a function
 of power `p ≥ 0` gives power `max q (b * p)`. The time to compute the first map also bounds
