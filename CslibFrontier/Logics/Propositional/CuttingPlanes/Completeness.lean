@@ -391,21 +391,18 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
   set J₀ : Ineq V := (nonneg v₀ + leOne v₀) +
     ∑ v ∈ I.coeff.support, (|I.coeff v|).toNat • (falseLit τ₀ v).toIneq
   have hJ₀ : ∃ s, DerivableInSize Γ ⟨I.coeff, J₀.bound⟩ s := by
-    have hdrv : DerivableInSize Γ J₀ _ :=
-      ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support
-        fun v hv => (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
-          (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))
     have hterm (v : V) : |I.coeff v| * sgn τ₀ v = I.coeff v := by
-      rcases lt_or_ge (I.coeff v) 0 with h | h
-      · simp [sgn, τ₀, h, abs_of_neg h]
-      · simp [sgn, τ₀, h.not_gt, abs_of_nonneg h]
-    have e : J₀ = ⟨I.coeff, J₀.bound⟩ := by
-      refine Ineq.ext ?_ rfl
+      by_cases h : I.coeff v < 0 <;> simp [sgn, τ₀, h, abs_of_neg, abs_of_nonneg, le_of_not_gt]
+    have e : J₀ = ⟨I.coeff, J₀.bound⟩ := Ineq.ext (by
       simp only [J₀, coeff_add, coeff_sum, coeff_nsmul, coeff_falseLit, nonneg_add_leOne,
         coeff_neg, coeff_contra, neg_zero, zero_add, Finsupp.smul_single, nsmul_eq_mul,
         Int.toNat_of_nonneg (abs_nonneg _), hterm]
-      exact Finsupp.sum_single I.coeff
-    exact ⟨_, e ▸ hdrv⟩
+      exact Finsupp.sum_single I.coeff) rfl
+    exact ⟨_, by
+      rw [← e]
+      exact ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support
+        fun v hv => (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
+          (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))⟩
   -- Iterate the step from `min c₀ b` up to `b`.
   set c₀ : ℤ := min J₀.bound I.bound
   have hstep : ∀ n : ℕ, c₀ + n ≤ I.bound → ∃ s, DerivableInSize Γ ⟨I.coeff, c₀ + n⟩ s := by
@@ -414,15 +411,12 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
     | zero => exact fun _ => by simpa using hlow (b := c₀) (min_le_left _ _) hJ₀
     | succ n ih =>
       intro hn
-      obtain ⟨s, hs⟩ := ih (by omega)
+      obtain ⟨_, hs⟩ := ih (by omega)
       simpa [add_assoc] using exists_derivableInSize_succ hΓ₀ (fun τ hτ => by
-        have := himp τ hτ
-        have := lhs_congr (I := ⟨I.coeff, c₀ + n⟩) (J := I) rfl τ
-        simp only [Holds] at *; omega) hs
+        rw [lhs_congr (I := ⟨I.coeff, c₀ + n⟩) (J := I) rfl]
+        exact lt_of_lt_of_le (by omega) (himp τ hτ)) hs
   obtain ⟨s, hs⟩ := hstep (I.bound - c₀).toNat (by omega)
-  have e : (⟨I.coeff, c₀ + (I.bound - c₀).toNat⟩ : Ineq V) = I := by
-    ext <;> simp
-    omega
+  have e : (⟨I.coeff, c₀ + (I.bound - c₀).toNat⟩ : Ineq V) = I := Ineq.ext rfl (by dsimp; omega)
   exact ⟨s, e ▸ hs⟩
 
 /-- **Cutting planes derive exactly the implied inequalities**: over a nonempty type of variables,
