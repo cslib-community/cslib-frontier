@@ -262,16 +262,11 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (fun b' hb' => Function.update_of_ne (hne_live b' hb') _ _)
       (fun b' hb' => Function.update_of_ne (hne_om b' hb') _ _)
       (fun _ _ _ _ => rfl) hc0.bufOld_valid ?_ hclk0
-    dsimp only [ValidEpochStage]
-    simp only [show s1.rebStage = 2 from hs2_0, Nat.reduceEqDiff, ↓reduceIte]
-    rw [show s1.dirtyCount = fs.dirtyCount from hdc0,
-      show s1.dirtyBuckets = fs.dirtyBuckets from hdb0,
-      show s1.bktCount = fs.bktCount from hbkt0,
-      show s1.locState = fs.locState from hls0,
-      show s1.oldEp = fs.oldEp from hoe0]
-    dsimp only [s1, FastState.rebSliceIdx, FastState.rebRole]
-    rw [hdb0, Function.update_self, Nat.min_zero]
-    exact ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨rfl, rfl⟩,
+    dsimp only [ValidEpochStage, s1, FastState.rebSliceIdx, FastState.rebRole,
+      FastState.oldEp] at hoe0 ⊢
+    simp only [hs2_0, Nat.reduceEqDiff, ↓reduceIte, hdc0, hdb0, hbkt0, hls0, hoe0,
+      Function.update_self, Nat.min_zero]
+    exact ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨trivial, trivial⟩,
       fun _ hl => absurd hl (Nat.not_lt_zero _), fun _ => none,
       validWhpSlice_zero _ 0 _,
       SliceMapRel.empty_of_not _ _ 0 fun _ h => absurd h (Nat.not_lt_zero _)⟩⟩
@@ -370,11 +365,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
               rw [hst_sw] at hin₁ hin₂
               rw [hfp_sw] at hfeq
-              by_cases hbb : b' = b
-              · subst hbb
-                rw [hsw_b.1] at hin₁ hin₂
-                rw [hsw_b.2.1] at hfeq
-                exact hinj' l₁ hl₁ l₂ hl₂ ((hinL_sw_b _).mp hin₁) ((hinL_sw_b _).mp hin₂) hfeq
+              rcases eq_or_ne b' b with rfl | hbb
+              · exact hinj' l₁ hl₁ l₂ hl₂ ((hinL_sw_b _).mp (hsw_b.1 ▸ hin₁))
+                  ((hinL_sw_b _).mp (hsw_b.1 ▸ hin₂)) (hsw_b.2.1 ▸ hfeq)
               · rw [(hsw_o b' hbb).1, ← hs2] at hin₁ hin₂; rw [(hsw_o b' hbb).2.1] at hfeq
                 exact hc.live_fp_inj b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq
             live_valid := fun b' hb' => by
@@ -462,12 +455,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                 simp [inLiveTree, hst, hdf1]
               · simp [inLiveTree, beq_false_of_ne hst])
             (by
-              dsimp only [FastState.oldEp]
-              simp only [show (3 : ℕ) ≤ 3 by decide, ↓reduceIte]
+              simp only [FastState.oldEp, le_refl, ↓reduceIte]
               exact hbo) ?_ rfl
-          dsimp only [ValidEpochStage]
-          simp only [show ¬(3 = 0) by decide, show ¬(3 = 1) by decide, show ¬(3 = 2) by decide,
-            ↓reduceIte]
+          simp only [ValidEpochStage, Nat.reduceEqDiff, ↓reduceIte]
           exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
         · rw [ite_eq_right hall_done]
           exact reset_step (fs.dirtyIdx + 1) 0

@@ -169,17 +169,11 @@ theorem integral_sum_payment_reserve_le_vickrey_succ
   have hB_vic : ∀ v : Fin (n + 1) → ℝ, 0 ≤ v → ∀ i, |allocation v i| ≤ 1 := fun v _ i => by
     rcases allocation_binary v i with h | h <;> rw [h] <;> norm_num
   -- Rewrite both sides as expected virtual welfare
-  have hLHS : ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
-        ∂Measure.pi (fun _ : Fin n => μ) =
-      ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i ∂Measure.pi (fun _ : Fin n => μ) :=
-    integral_sum_myersonPayment_eq (fun _ => hμ)
-      (fun i => measurable_reserveAllocation hφm i) hB_res
-  have hRHS : ∫ v, ∑ i : Fin (n + 1), (Vickrey.mechanism (ι := Fin (n + 1))).payment v i
-        ∂Measure.pi (fun _ : Fin (n + 1) => μ) =
-      ∫ v, ∑ i : Fin (n + 1), φ (v i) * allocation v i ∂Measure.pi (fun _ : Fin (n + 1) => μ) :=
+  dsimp only [myerson]
+  rw [integral_sum_myersonPayment_eq (fun _ => hμ)
+      (fun i => measurable_reserveAllocation hφm i) hB_res,
     mechanism_isDSIC.integral_sum_payment_eq mechanism_isNormalized (fun _ => hμ)
-      (fun i => measurable_allocation i) hB_vic
-  rw [hLHS, hRHS]
+      (fun i => measurable_allocation i) hB_vic]
   -- Step 1: expected virtual welfare of `auxAllocation` on Fin (n + 1) equals the LHS
   have haux_int : ∀ i : Fin (n + 1),
       Integrable (fun v : Fin (n + 1) → ℝ => φ (v i) * auxAllocation φ v i)
@@ -281,8 +275,11 @@ theorem integral_sum_payment_le_vickrey_succ_of_isBayesNash
     Finset.sum_nonpos fun i _ => h0 i
   have hvw_le : ∫ v, ∑ i : Fin n, φ (v i) * M.allocation (fun j => β j (v j)) i
         ∂Measure.pi (fun _ : Fin n => μ) ≤
-      ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i
+      ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
         ∂Measure.pi (fun _ : Fin n => μ) := by
+    dsimp only [myerson, φ]
+    rw [integral_sum_myersonPayment_eq (fun _ => hμ)
+      (fun i => measurable_reserveAllocation hμ.measurable_virtualValue i) hB_res]
     have hmax := isVirtualWelfareMaximizing_reserveAllocation (ι := Fin n)
       (hreg.strictMonoOn_Ioi hμ).monotoneOn (virtualValue_le μ f 0)
     have hIntL : Integrable (fun v : Fin n → ℝ =>
@@ -303,12 +300,6 @@ theorem integral_sum_payment_le_vickrey_succ_of_isBayesNash
     refine integral_mono_ae hIntL hIntR ?_
     filter_upwards [ae_mem_box fun _ : Fin n => hμ] with v hv
     exact (hmax v fun j => (hv j).1).2 _ (hMX _ fun j => hBN.nonneg (hv j))
-  have hMyerson : ∫ v, ∑ i : Fin n, φ (v i) * reserveAllocation φ v i
-        ∂Measure.pi (fun _ : Fin n => μ) =
-      ∫ v, ∑ i : Fin n, (myerson (reserveAllocation φ)).payment v i
-        ∂Measure.pi (fun _ : Fin n => μ) :=
-    (integral_sum_myersonPayment_eq (fun _ => hμ)
-      (fun i => measurable_reserveAllocation hμ.measurable_virtualValue i) hB_res).symm
   linarith [integral_sum_payment_reserve_le_vickrey_succ hμ hreg n]
 
 end Vickrey

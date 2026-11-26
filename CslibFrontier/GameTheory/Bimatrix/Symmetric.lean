@@ -335,9 +335,8 @@ theorem symmReduction_pos_and_isNash [Nonempty M] [Nonempty N] {G : BimatrixGame
     (isSymmetric_symmReduction G).isSymmetricNash_iff_isBestResponse₁.1 hz
   have hz_mix : IsMixedStrategy z := hbr.isMixedStrategy
   have hAz : G.symmReduction.A = G.symmReductionMatrix := rfl
-  have hsum : ∑ i : M, z (.inl i) + ∑ j : N, z (.inr j) = 1 := by
-    rw [← Fintype.sum_sum_type]
-    exact hz_mix.sum_eq_one
+  have hsum : ∑ i : M, z (.inl i) + ∑ j : N, z (.inr j) = 1 :=
+    Fintype.sum_sum_type z ▸ hz_mix.sum_eq_one
   have hsx_pos : 0 < ∑ i : M, z (.inl i) := by
     refine (sum_nonneg fun i _ => hz_mix.nonneg (.inl i)).lt_of_ne fun hsx0 => ?_
     have hx : (fun i => z (.inl i)) = 0 := funext fun i =>
@@ -349,9 +348,8 @@ theorem symmReduction_pos_and_isNash [Nonempty M] [Nonempty N] {G : BimatrixGame
       (hbr.le_payoff₁ (.inl (Classical.arbitrary M))).trans_eq (hbr.payoff₁_eq_of_pos hj₁)
     rw [hAz, mulVec_symmReductionMatrix_inl, mulVec_symmReductionMatrix_inr, hx, zero_vecMul]
       at hval
-    have hpos := hy_mix.dotProduct_pos (hA (Classical.arbitrary M))
-    rw [dotProduct_comm] at hpos
-    exact absurd hval (not_le.2 hpos)
+    exact absurd hval
+      (not_le.2 (by simpa [mulVec, dotProduct_comm] using hy_mix.dotProduct_pos (hA _)))
   have hsy_pos : 0 < ∑ j : N, z (.inr j) := by
     refine (sum_nonneg fun j _ => hz_mix.nonneg (.inr j)).lt_of_ne fun hsy0 => ?_
     have hy : (fun j => z (.inr j)) = 0 := funext fun j =>
@@ -402,13 +400,10 @@ theorem isSymmetricNash_symmReduction_of_isNash {G : BimatrixGame M N}
     · rw [Fintype.sum_sum_type]
       simp only [z, Sum.elim_inl, Sum.elim_inr, Pi.smul_apply, smul_eq_mul, ← mul_sum,
         hx.sum_eq_one, hy.sum_eq_one, mul_one, hαβ]
-  have hAz : G.symmReduction.A = G.symmReductionMatrix := rfl
-  have hval_inl : ∀ i : M, (G.symmReduction.A *ᵥ z) (.inl i) = β * (G.A *ᵥ y) i := fun i => by
-    rw [hAz, mulVec_symmReductionMatrix_inl]
-    exact congrFun (mulVec_smul G.A β y) i
-  have hval_inr : ∀ j : N, (G.symmReduction.A *ᵥ z) (.inr j) = α * (x ᵥ* G.B) j := fun j => by
-    rw [hAz, mulVec_symmReductionMatrix_inr]
-    exact congrFun (smul_vecMul α x G.B) j
+  have hval_inl (i : M) : (G.symmReduction.A *ᵥ z) (.inl i) = β * (G.A *ᵥ y) i :=
+    (mulVec_symmReductionMatrix_inl G z i).trans (congrFun (mulVec_smul G.A β y) i)
+  have hval_inr (j : N) : (G.symmReduction.A *ᵥ z) (.inr j) = α * (x ᵥ* G.B) j :=
+    (mulVec_symmReductionMatrix_inr G z j).trans (congrFun (smul_vecMul α x G.B) j)
   have hcommon : β * u = α * v := by dsimp only [α, β]; ring
   refine ((isSymmetric_symmReduction G).isSymmetricNash_iff_pureBestResponse).2
     ⟨hz_mix, fun k hk => isPureBestResponse₁_iff.2 fun k' => ?_⟩

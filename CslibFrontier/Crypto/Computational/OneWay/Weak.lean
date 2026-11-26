@@ -200,11 +200,11 @@ theorem WeakOneWay.exists_monotone_poly {f : List Bool → List Bool} (hf : Weak
 theorem OneWay.weakOneWayAt_half {f : List Bool → List Bool} (hf : OneWay f) :
     WeakOneWayAt f (fun _ => 1 / 2) := by
   refine ⟨hf.polyTime, fun adversary hPPT => ?_⟩
-  have hneg := (hf.inversion_negligible adversary hPPT).eventually_le_inv_polynomial
-    (PolynomiallyBounded.const 3) (fun _ => by omega)
-  filter_upwards [hneg] with n hn
-  linarith [show (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤ 1 / 3
-    from mod_cast hn]
+  filter_upwards [(hf.inversion_negligible adversary hPPT).eventually_le_inv_polynomial
+    (PolynomiallyBounded.const 3) (fun _ => by omega)] with n hn
+  have hn' : (Game.succProbability (ProbComp.eval (inversionGame f adversary n)) : ℝ) ≤ 1 / 3 :=
+    mod_cast hn
+  linarith
 
 /-- Every strong one-way function is a weak one-way function. -/
 theorem OneWay.weakOneWay {f : List Bool → List Bool} (hf : OneWay f) : WeakOneWay f :=
@@ -312,14 +312,7 @@ theorem computableInPolyTime_reindex {m : ℕ → ℕ} {core : ℕ → List Bool
   have htake : ComputableInPolyTime
       (fun x : List Bool => x.take (m (GeneratorReindex.parameter m x.length))) encBits encBits :=
     ComputableInPolyTime.bitsTakeWithInput ComputableInPolyTime.id' (hm.comp hparam)
-  have hpair : ComputableInPolyTime
-      (fun x : List Bool =>
-        (GeneratorReindex.parameter m x.length,
-          core (GeneratorReindex.parameter m x.length)
-            (x.take (m (GeneratorReindex.parameter m x.length)))))
-      encBits (encPair encUnary encBits) :=
-    hparam.prod (hcore.comp (hparam.prod htake))
-  exact hpair.of_enc_eq fun _ => rfl
+  exact (hparam.prod (hcore.comp (hparam.prod htake))).of_enc_eq fun _ => rfl
 
 /-- The parameter-indexed inversion game for `core` at input length `m n`.
 Scores `core n (candidate.take (m n)) == core n input` by truncating the inverter's candidate to
@@ -498,8 +491,7 @@ theorem weakOneWay {m : ℕ → ℕ} {core : ℕ → List Bool → List Bool}
   have h1 : (Game.succProbability
         (ProbComp.eval (inversionGame (reindex m core) adversary M)) : ℝ) ≤
       (Game.succProbability (ProbComp.eval (familyInversionGame m core familyAdv
-        (GeneratorReindex.parameter m M))) : ℝ) := by
-    exact_mod_cast hred hM0
+        (GeneratorReindex.parameter m M))) : ℝ) := mod_cast hred hM0
   have hdiv := one_div_le_one_div_of_le ((Nat.cast_pos (α := ℝ)).mpr (hq _))
     ((Nat.cast_le (α := ℝ)).mpr (Polynomial.eval_mono q (GeneratorReindex.parameter_le m M)))
   linarith

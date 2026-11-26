@@ -329,9 +329,7 @@ theorem numComponents_merge_of_not_rel {p : Partition n} {x y : Fin n}
     have hzy := mem_classOf.mp (hz ▸ Finset.mem_union_right _ (p.self_mem_classOf y))
     simp [p.trans (p.symm hzx) hzy] at h
   rw [Finset.card_insert_of_notMem hunion_not_erase]
-  have hy_mem : p.classOf y ∈ p.components.erase (p.classOf x) :=
-    Finset.mem_erase.mpr ⟨hne, p.classOf_mem_components y⟩
-  have hcard₁ := Finset.card_erase_add_one hy_mem
+  have hcard₁ := Finset.card_erase_add_one (Finset.mem_erase.mpr ⟨hne, p.classOf_mem_components y⟩)
   have hcard₂ := Finset.card_erase_add_one (p.classOf_mem_components x)
   omega
 
@@ -420,11 +418,7 @@ theorem eval_spanningForestEdges_cons {n : ℕ} {E : Type} (endpts : E → Fin n
       let rest := eval (spec n) (spanningForestEdges endpts es) (p.merge (endpts e).1 (endpts e).2)
       (if !p.rel (endpts e).1 (endpts e).2 then e :: rest.1 else rest.1, rest.2) := by
   simp only [spanningForestEdges, union, eval_lift_bind', spec]
-  change eval (spec n)
-      ((spanningForestEdges endpts es).bind fun rest =>
-        pure (if !p.rel (endpts e).1 (endpts e).2 then e :: rest else rest))
-      (p.merge (endpts e).1 (endpts e).2) = _
-  rw [eval_bind, eval_pure']
+  rw [← PFunctor.FreeM.bind_eq_bind, eval_bind, eval_pure']
 
 /-- Exact operation history issued by `spanningForestEdges endpts es`: one `Op.union` call per input
 edge in order. -/
@@ -435,15 +429,10 @@ theorem runClient_spanningForestEdges_history {n : ℕ} {E : Type} (endpts : E �
   induction es generalizing p with
   | nil => rfl
   | cons e es ih =>
-    simp only [spanningForestEdges, union, spec, List.map_cons]
-    change Op.union (endpts e).1 (endpts e).2 ::
-        (spec n).clientHistory (p.merge (endpts e).1 (endpts e).2)
-          ((spanningForestEdges endpts es) >>= fun rest =>
-            pure (if !p.rel (endpts e).1 (endpts e).2 then e :: rest else rest)) =
-      Op.union (endpts e).1 (endpts e).2 ::
-        List.map (fun e => Op.union (endpts e).1 (endpts e).2) es
-    rw [StateTransitionSpec.clientHistory_bind, ih, StateTransitionSpec.clientHistory_pure,
+    rw [spanningForestEdges, StateTransitionSpec.clientHistory_bind,
+      StateTransitionSpec.clientHistory_bind, ih, StateTransitionSpec.clientHistory_pure,
       List.append_nil]
+    rfl
 
 /-- `spanningForestEdges endpts es` issues `es.length` operations. -/
 theorem runClient_spanningForestEdges_length {n : ℕ} {E : Type} (endpts : E → Fin n × Fin n)

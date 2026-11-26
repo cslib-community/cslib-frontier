@@ -323,10 +323,8 @@ private theorem clientProfit_eq_clientSurplus_sub [Fintype ι] [DecidableEq ι] 
     conv_lhs => rw [← Finset.insert_erase (Finset.mem_univ i)]
     exact Finset.fold_insert (Finset.notMem_erase i Finset.univ)
   rw [hfold]
-  let m := (Finset.univ.erase i).fold min (G.value j) fun i' => G.serviceCost j i' (s i')
-  change max 0 (m - G.serviceCost j i (s i)) =
-    (G.value j - min (G.serviceCost j i (s i)) m) - (G.value j - m)
-  rcases le_total (G.serviceCost j i (s i)) m with h | h
+  rcases le_total (G.serviceCost j i (s i))
+      ((Finset.univ.erase i).fold min (G.value j) fun i' => G.serviceCost j i' (s i')) with h | h
   · linarith [min_eq_left h, max_eq_right (sub_nonneg.mpr h)]
   · linarith [min_eq_right h, max_eq_left (sub_nonpos.mpr h)]
 
@@ -654,19 +652,15 @@ theorem exists_withOpeningCost_poa_gt (C : ℝ) :
   have hM1 : 1 ≤ M := le_trans (by norm_num) (le_max_left 2 (C + 1))
   have hMC : C < M := lt_of_lt_of_le (by linarith) (le_max_right 2 (C + 1))
   refine ⟨openingCostTrapGame M, openingCostTrapFee M, ![false, false], ![true, true],
-    ?_, ?_, ?_, ?_, ?_⟩
-  · intro _ i b
-    dsimp only [openingCostTrapGame]
+    fun _ _ b => ?_, fun i b => ?_, ?_, ?_, ?_⟩
+  · dsimp only [openingCostTrapGame]
     split_ifs <;> constructor <;> linarith
-  · intro i b
-    dsimp only [openingCostTrapFee]
+  · dsimp only [openingCostTrapFee]
     split_ifs <;> linarith
-  · have hpot :=
-      ((openingCostTrapGame M).isBasic_withOpeningCost (openingCostTrapFee M)).isExactPotential
-    refine hpot.isGeneralizedOrdinalPotential.isPureNash_of_forall_update_le
-      (neg_le_neg_of_fin_two_bool_update
-        ((openingCostTrapGame M).withOpeningCost (openingCostTrapFee M)).profileValue ?_ ?_) <;>
-    · simp [openingCostTrap_profileValue hM1]
+  · refine ((openingCostTrapGame M).isBasic_withOpeningCost
+      (openingCostTrapFee M)).isExactPotential.isGeneralizedOrdinalPotential
+      |>.isPureNash_of_forall_update_le (neg_le_neg_of_fin_two_bool_update _ ?_ ?_) <;>
+    simp [openingCostTrap_profileValue hM1]
   · simp [openingCostTrap_profileValue hM1]
   · simpa [openingCostTrap_profileValue hM1] using hMC
 

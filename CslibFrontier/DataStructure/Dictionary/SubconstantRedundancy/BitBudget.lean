@@ -444,16 +444,11 @@ theorem totalTreeBits_le_padded_infoBits_add
     dsimp only [allRootTablesBits]
     nlinarith [Nat.mul_le_mul_left (P.numNodes 1 * P.tableCap 1)
       (hquot_le 1 le_rfl (by have := P.two_le_depth; omega))]
-  have hleaves := P.allLeavesBits_le_padded_infoBits_add
-  have hnonleaf := nonLeaf_infoBits_conservation hcap1 P.val_pos hnL_le hU3
-  have hd_mul :
-      (∑ ℓ ∈ Finset.Ico 2 P.depth, P.numNodes ℓ * P.tableCap ℓ) *
-          (q_base + Nat.clog 2 P.valBound) +
-        P.rootValPoolCap * (q_base + Nat.clog 2 P.valBound) =
-      d * (q_base + Nat.clog 2 P.valBound) := by
-    rw [← Nat.add_mul, hd_eq]
+  have hd_mul := (Nat.add_mul _ _ (q_base + Nat.clog 2 P.valBound)).symm.trans
+    (congrArg (· * (q_base + Nat.clog 2 P.valBound)) hd_eq)
   dsimp only [totalTreeBits, redundancySlack]
-  linarith
+  linarith [P.allLeavesBits_le_padded_infoBits_add,
+    nonLeaf_infoBits_conservation hcap1 P.val_pos hnL_le hU3]
 
 end TreeSchedule
 

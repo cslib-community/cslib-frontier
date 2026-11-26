@@ -526,10 +526,8 @@ theorem ValidSubtree.exists_cut {n : ℕ} {st st' : RawState n} {pending : Optio
         exact (List.mem_cons.mp hx_in_cw).resolve_left (Ne.symm hroot_eq)
       obtain ⟨T_cut, c', hcut_r, hc'_r, hp_in_c', hperm_ci, hvalid_cut, hvalid_c'⟩ :=
         go (hsub cs[i] hi_mem) hnd_ci hcur_desc (hs.restrict hi_mem)
-      have hc'_mem : c' ∈ cs.set i c' := List.mem_iff_getElem.mpr
-        ⟨i, by simpa only [List.length_set] using hi, by simp⟩
       refine ⟨T_cut, .node u (cs.set i c'), hcut_r, rfl,
-        child_mem_node hc'_mem hp_in_c',
+        child_mem_node (List.mem_iff_getElem.mpr ⟨i, by simpa using hi, by simp⟩) hp_in_c',
         List.perm_middle.trans (List.Perm.cons u (forestNodes_set_perm cs i hi T_cut c' hperm_ci)),
         hvalid_cut,
         hs.replace_child_valid hi hnd hx_in_cw
@@ -630,9 +628,8 @@ theorem FibRawInv.empty {n K_max : ℕ} {st : RawState n}
     fun v => by simp [forestNodes, IndexedMinPQ.empty],
     fun v => ⟨by simp [hin v, IndexedMinPQ.empty], by rw [hin v]; omega⟩,
     fun _ _ h => by simp [IndexedMinPQ.empty] at h,
-    by simp [hsz, IndexedMinPQ.dom_empty], hnr, ?_, hcons, Or.inl ⟨rfl, hmin⟩⟩
-  have hm0 : markedCount st = 0 := by simp [markedCount, markedSet, hin]
-  omega
+    by simp [hsz, IndexedMinPQ.dom_empty], hnr,
+    by simp [hnm, markedCount, markedSet, hin], hcons, Or.inl ⟨rfl, hmin⟩⟩
 
 /-- All scalar counters of a valid Fibonacci heap are bounded by `n`. -/
 theorem FibRawInv.bounds {n K_max : ℕ} {s : IndexedMinPQ.State n} {st : RawState n}
@@ -851,8 +848,8 @@ theorem SlotInv.insert_empty {n sz maxDeg : ℕ} {st : RawState n} {slotTrees : 
     · exact hT_deg ▸ Function.update_self d _ st.cons
     · exact (Function.update_of_ne (hnone R hR_tl) _ st.cons).trans (hhit R hR_tl)
   · have hne_d : d' ≠ d := fun e => hnone' T_cur List.mem_cons_self (hT_deg.trans e.symm)
-    rw [show st'.cons = Function.update st.cons d _ from rfl, Function.update_of_ne hne_d]
-    exact hemp d' hd' fun R hR => hnone' R (List.mem_cons_of_mem T_cur hR)
+    exact (Function.update_of_ne hne_d _ st.cons).trans
+      (hemp d' hd' fun R hR => hnone' R (List.mem_cons_of_mem T_cur hR))
 
 /-- Once every degree `< maxDeg + 1` has been cleared from `SlotInv`, `slotTrees = []` and all
 entries `st.cons d` (`d ≤ n`) are `0`. -/
@@ -924,14 +921,12 @@ theorem ValidSubtree.lower_key_no_cut {n : ℕ} {st st' : RawState n} {T : FHTre
         exact IndexedMinPQ.PrioLT.of_le_of_lt
           (by dsimp only [IndexedMinPQ.PrioLE]; omega) (hprio c hc)
       · rw [hk_other u List.mem_cons_self hvu.symm]
-        rcases eq_or_ne c.root v with hcv | hv_cr
-        · rw [hcv, hk_v]
-          rcases hord with hroot | ⟨p, hpv, hnlt⟩
-          · exact absurd hroot hvu
-          · obtain rfl : u = p := Fin.ext (by have := hpar c hc; rw [hcv, hpv] at this; omega)
-            exact (IndexedMinPQ.prioLT_or_prioLT_of_ne (hcv ▸ hu_ne_cr) (st.key u) k).resolve_right
-              hnlt
-        · rw [hk_other c.root hcr_in hv_cr]; exact hprio c hc
+        rcases eq_or_ne v c.root with rfl | hv_cr
+        · obtain ⟨p, hpv, hnlt⟩ := hord.resolve_left hvu
+          obtain rfl : u = p := Fin.ext (Nat.add_right_cancel ((hpar c hc).symm.trans hpv))
+          rw [hk_v]
+          exact (IndexedMinPQ.prioLT_or_prioLT_of_ne hu_ne_cr (st.key u) k).resolve_right hnlt
+        · exact hk_other c.root hcr_in hv_cr.symm ▸ hprio c hc
     · intro i hi
       have hci := hunch (cs[i]).root (child_mem_node (List.getElem_mem hi) (cs[i]).root_mem_nodes)
       rw [hci.2.2.1, hci.2.1]
@@ -942,11 +937,9 @@ theorem ValidSubtree.lower_key_no_cut {n : ℕ} {st st' : RawState n} {T : FHTre
           (fun x hx => hk_other x (child_mem_node hc hx))
           (fun x hx => hunch x (child_mem_node hc hx))
           (fun x hx => hptr x (child_desc_mem_forestNodes hc hx)) ?_
-        rcases eq_or_ne v c.root with hvr | _
-        · exact Or.inl hvr
-        · exact hord.elim (fun hroot =>
-            absurd ((hroot.trans (FHTree.root_node u cs)) ▸ mem_forestNodes_iff.mpr ⟨c, hc, hvc⟩)
-              hnd_u) Or.inr
+        exact if hvr : v = c.root then Or.inl hvr else hord.elim (fun hroot =>
+          absurd ((hroot.trans (FHTree.root_node u cs)) ▸ mem_forestNodes_iff.mpr ⟨c, hc, hvc⟩)
+            hnd_u) Or.inr
       · refine (hsub c hc).frame (fun x hx => ?_) (fun x hx => ?_)
         · let hxn := hunch x (child_mem_node hc hx)
           exact ⟨hxn.1, hxn.2.1, hxn.2.2.1, hxn.2.2.2,

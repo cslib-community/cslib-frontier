@@ -531,9 +531,8 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
     have hrv : 1 ≤ uf.rank v + d := Nat.le_trans hd (Nat.le_add_left d _)
     have hrvp : uf.rank v + d < uf.rank (uf.parent v) + d :=
       Nat.add_lt_add_right (uf.rank_lt hvroot) d
-    have hack_v : Nat.ackermann (lvl u) (uf.rank v + d) ≤ uf.rank (uf.parent v) + d := by
-      rw [hlvl]
-      exact ackermann_ackLevel_le hrv hrvp
+    have hack_v : Nat.ackermann (lvl u) (uf.rank v + d) ≤ uf.rank (uf.parent v) + d :=
+      hlvl ▸ ackermann_ackLevel_le hrv hrvp
     have hpv_root : uf.rank (uf.parent v) + d ≤ uf.rank (uf.rootD u) + d := by
       have hle := Batteries.UnionFind.le_rank_root (self := uf) (x := uf.parent v)
       rw [Batteries.UnionFind.rootD_parent, findPath_rootD uf x hvPath,
@@ -546,12 +545,10 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
     have hsum_le :
         ∑ u ∈ Finset.range uf.size,
             (nodePotential zs q d uf' u + if u ∈ S_drop then 1 else 0) ≤
-          ∑ u ∈ Finset.range uf.size, nodePotential zs q d uf u := by
-      refine Finset.sum_le_sum fun u hu => ?_
-      split_ifs with hud
-      · exact hpot_drop u hud
-      · rw [Nat.add_zero]
-        exact hpot_le u (Finset.mem_range.mp hu)
+          ∑ u ∈ Finset.range uf.size, nodePotential zs q d uf u :=
+      Finset.sum_le_sum fun u hu => by
+        by_cases hud : u ∈ S_drop <;> simp only [hud, ↓reduceIte, Nat.add_zero]
+        exacts [hpot_drop u hud, hpot_le u (Finset.mem_range.mp hu)]
     unfold potentialCore
     rw [compressWithSteps_size uf x]
     rwa [Finset.sum_add_distrib, ← Finset.sum_filter (fun u => u ∈ S_drop) (fun _ => (1 : ℕ)),
@@ -562,14 +559,12 @@ private theorem findSteps_add_potentialCore_le {uf : Batteries.UnionFind}
     let S_keep_nonroots := S_keep.filter (fun u => uf.parent u ≠ u)
     have hsplit := Finset.card_filter_add_card_filter_not (s := S_keep)
       (p := fun u => uf.parent u = u)
-    have hroots : S_keep_roots.card ≤ 1 := by
-      refine Finset.card_le_one.mpr fun a ha b hb => ?_
+    have hroots : S_keep_roots.card ≤ 1 := Finset.card_le_one.mpr fun a ha b hb => by
       rw [Finset.mem_filter, Finset.mem_sdiff] at ha hb
-      have ha_root := (Batteries.UnionFind.rootD_eq_self.mpr ha.2).symm.trans
-        (findPath_rootD uf x (List.mem_toFinset.mp ha.1.1))
-      have hb_root := (Batteries.UnionFind.rootD_eq_self.mpr hb.2).symm.trans
-        (findPath_rootD uf x (List.mem_toFinset.mp hb.1.1))
-      exact ha_root.trans hb_root.symm
+      exact ((Batteries.UnionFind.rootD_eq_self.mpr ha.2).symm.trans
+        (findPath_rootD uf x (List.mem_toFinset.mp ha.1.1))).trans
+        ((Batteries.UnionFind.rootD_eq_self.mpr hb.2).symm.trans
+          (findPath_rootD uf x (List.mem_toFinset.mp hb.1.1))).symm
     have hnonroots : S_keep_nonroots.card ≤ q := by
       have hmap : Set.MapsTo lvl (S_keep_nonroots : Set ℕ) (Finset.range q : Set ℕ) := by
         intro u hu
@@ -737,11 +732,8 @@ private theorem link_pot_core {uf : Batteries.UnionFind}
           hcr zs
     cases zs
     · simp only [Bool.false_eq_true, ↓reduceIte]
-      have hx_pot : nodePotential false q d uf x.1 = q * (uf.rank x.1 + d) := by
-        simp [nodePotential, hx]
-      have hy_pot : nodePotential false q d uf y.1 = q * (uf.rank y.1 + d) := by
-        simp [nodePotential, hy]
-      split_ifs at haux_res <;> rw [hx_pot, hy_pot] at haux_res <;> omega
+      simp only [nodePotential, hx, hy, ↓reduceIte, Bool.false_and, Bool.false_eq_true] at haux_res
+      split_ifs at haux_res <;> omega
     · simp only [↓reduceIte]
       have hnode_le : ∀ u : Fin uf.size, uf.parent u.1 = u.1 →
           q * (uf.rank u.1 + d) ≤ nodePotential true q d uf u.1 + q * d := by

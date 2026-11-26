@@ -409,20 +409,16 @@ theorem runWith_apply_restrict {O : (Fin n → Option Bool) → Fin n → Option
           refine tsum_eq_zero_iff.mpr fun b => ite_eq_right fun e => hτ ?_
           funext y
           rcases eq_or_ne y x with rfl | hy
-          · rw [eq_none_of_mem_support_runWith hsupp hxi]
-            simp [T, restrict, hxi]
+          · simp [T, restrict, hxi, eq_none_of_mem_support_runWith hsupp hxi]
           · simpa only [hT'x, x, Function.update_of_ne hy] using (congrFun e y).symm
         · rw [(PMF.apply_eq_zero_iff _ _).mpr hsupp, zero_mul]
-    · have hle : n ≤ i := not_lt.mp h
-      have hpref : prefixSet π (i + 1) = prefixSet π i := by
+    · have hpref : prefixSet π (i + 1) = prefixSet π i := by
         ext x
         simp only [mem_prefixSet]
         omega
-      have hcnt : unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i := by
-        refine congrArg card (Finset.ext fun j => ?_)
-        simp only [mem_filter, mem_univ, true_and]
-        exact and_congr_left fun _ => by omega
-      rw [runWith_succ_of_le O π hle, hpref, hcnt, ih]
+      have hcnt : unforcedCountWith O σ π (i + 1) = unforcedCountWith O σ π i :=
+        congrArg card (filter_congr fun _ _ => and_congr_left fun _ => by omega)
+      rw [runWith_succ_of_le O π (not_lt.mp h), hpref, hcnt, ih]
 
 /-- **A PPZ run in a fixed order produces the solution with probability `2^{-u}`**, where `u`
 counts the unforced variables along the run that agrees with `σ`. -/
@@ -577,11 +573,9 @@ theorem forced_ne_none_of_isLast {φ : CNF (Fin n)} {σ : Fin n → Bool} {x : F
     have := hall m hm
     split_ifs at this ⊢ with hmx
     · exact this
-    · have hmem : m.1 ∈ prefixSet π (π.symm x) := by
-        rw [mem_prefixSet]
-        exact hlast m.1 (List.mem_toFinset.mpr (List.mem_map_of_mem hm)) hmx
-      simp only [restrict, hmem, ite_true]
-      exact congrArg some (Bool.eq_not_iff.2 this)
+    · have hmem : m.1 ∈ prefixSet π (π.symm x) :=
+        mem_prefixSet.2 (hlast m.1 (List.mem_toFinset.mpr (List.mem_map_of_mem hm)) hmx)
+      simp [restrict, hmem, Bool.eq_not_iff.2 this]
   unfold forced
   split_ifs with h1 h2 <;> try exact Option.some_ne_none _
   cases hσx : σ x <;> rw [hσx] at hunit
@@ -695,11 +689,9 @@ theorem round_success_of_satisfiable {k : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)}
     rw [Cslib.Probability.PMF.toOuterMeasure_apply_toReal,
       ← sum_image (f := fun τ => ((round φ) τ).toReal) fun σ _ τ _ h => hg h]
     refine le_trans (le_of_eq (sum_congr rfl fun τ hτ => ?_))
-      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun τ _ _ => by positivity)
+      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity)
     obtain ⟨σ, hσ, rfl⟩ := mem_image.mp hτ
-    have : g σ ∈ {τ | ∃ σ, φ.eval σ = true ∧ τ = fun x => some (σ x)} :=
-      ⟨σ, (mem_filter.mp hσ).2, rfl⟩
-    simp only [this, ite_true]
+    exact (ite_eq_left ⟨σ, (mem_filter.mp hσ).2, rfl⟩).symm
   -- Each satisfying assignment contributes `2^{-(1 - 1/k) n} · 2^{isolation - n}`.
   have hterm : ∀ σ ∈ S, (2 : ℝ) ^ (-((1 - 1 / (k : ℝ)) * n)) *
       ((2 : ℝ) ^ (Cslib.BitString.isolation S σ) / 2 ^ n) ≤ ((round φ) (g σ)).toReal := by
