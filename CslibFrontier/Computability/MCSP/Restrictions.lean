@@ -7,20 +7,28 @@ Authors: Uladzislau Artsemyeu
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+public import CslibFrontier.Computability.Circuit.Boolean.CountingBound
 public import CslibFrontier.Computability.Circuit.Support
 public import CslibFrontier.Computability.MCSP.Basic
+public import Mathlib.Data.Finset.Piecewise
+import CslibFrontier.Computability.Circuit.Boolean.BinaryCost
+import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
 import Mathlib.Data.Finset.Sigma
 import Mathlib.Data.Finset.Sum
 
 /-!
 # Restrictions and two-corner lower bounds for quadratic MCSP
 
+The two-corner certificate bound and quadratic-slice restriction analysis in this file are
+original to this formalization, while [KabanetsCai2000] and [OliveiraPichSanthanam2019] are cited
+for the MCSP and GapMCSP definitions and circuit counting.
+
 Every circuit deciding exact MCSP at quadratic cutoff `s m = m ^ 2` accepts at most
-`2 ^ descriptionBitBound m` truth tables (`card_accepting_mcspSquare_le`), using the counting
-bound [KabanetsCai2000; OliveiraPichSanthanam2019]. In any restriction around an accepted truth
-table, inessential free positions span an accepting subcube (`pow_card_inessential_le`), yielding
-an `N - descriptionBitBound m - 1` size lower bound (`mcspSquare_near_linear`).
+`2 ^ descriptionBitBound m` truth tables (`card_accepting_mcspSquare_le`), using
+`card_computableFunctions_le_two_pow` [KabanetsCai2000; OliveiraPichSanthanam2019]. In any
+restriction around an accepted truth table, inessential free positions span an accepting subcube
+(`pow_card_inessential_le`), yielding an `N - descriptionBitBound m - 1` size lower bound
+(`mcspSquare_near_linear`).
 
 Tracking backward certificate requests from both constant truth tables (`0^N` and `1^N`) shows
 that disjoint input polarities cannot share input demands, while binary gates contribute at most
@@ -28,15 +36,13 @@ three distinct argument requests when demanded at both polarities (`CornerCertif
 the unconditional De Morgan circuit lower bound
 `2 * 2 ^ m ≤ complexity interpretation (single (mcspSquare m)) + 1 + 2 * descriptionBitBound m`
 (`mcspSquare_two_certificate_lower_bound`), and
-`119255 ≤ complexity interpretation (single (mcspSquare 16))` (`mcspSquare_sixteen_lower_bound`).
+`120277 ≤ complexity interpretation (single (mcspSquare 16))` (`mcspSquare_sixteen_lower_bound`).
 
 ## Main definitions
 
-* `Cslib.MCSP.Restrictions.WireAccounting`: live wires, argument pins, repeated uses, and missing
-  argument slots in a one-output De Morgan circuit.
 * `Cslib.MCSP.Restrictions.mcspSquare`: exact MCSP slice at gate cutoff `m ^ 2` on `2 ^ m` bits.
-* `Cslib.MCSP.Restrictions.descriptionBitBound`: explicit `O(m ^ 2 * log m)` upper bound on the
-  binary description length of accepted tables.
+* `Cslib.MCSP.Restrictions.descriptionBitBound`: binary description bit bound
+  `computableFunctionsLogBound m (m ^ 2)`.
 * `Cslib.MCSP.Restrictions.CornerCertificates`: backward certificate demands for constant inputs.
 
 ## Main results
@@ -48,7 +54,7 @@ the unconditional De Morgan circuit lower bound
 * `Cslib.MCSP.Restrictions.mcspSquare_near_linear`: near-linear gate lower bound `N - B(m) - 1`.
 * `Cslib.MCSP.Restrictions.mcspSquare_two_certificate_lower_bound`: unconditional two-corner
   lower bound `2 * N - 2 * B(m) - 1`.
-* `Cslib.MCSP.Restrictions.mcspSquare_sixteen_lower_bound`: finite bound at `m = 16` (`119255`).
+* `Cslib.MCSP.Restrictions.mcspSquare_sixteen_lower_bound`: finite bound at `m = 16` (`120277`).
 
 ## References
 
@@ -63,135 +69,9 @@ namespace Cslib.MCSP.Restrictions
 
 open Cslib.Circuits Cslib.Circuits.Boolean
 
-namespace WireAccounting
-
-variable {n g : ℕ}
-
-/-- Wires found by following argument pins backwards from the designated output. -/
-inductive Live (p : Program signature n g) (root : Wire n g) : Wire n g → Prop where
-  | output : Live p root root
-  | argument {k : Fin g} (h : Live p root (.gate k))
-      (a : Fin (signature.Arity (p.lines k).op)) :
-      Live p root ((p.lines k).wires a)
-
-/-- Input coordinates whose wires are live for `root`. -/
-noncomputable def inputs (p : Program signature n g) (root : Wire n g) : Finset (Fin n) :=
-  open scoped Classical in Finset.univ.filter fun i => Live p root (.input i)
-
-/-- Gate indices whose outputs are live for `root`. -/
-noncomputable def gates (p : Program signature n g) (root : Wire n g) : Finset (Fin g) :=
-  open scoped Classical in Finset.univ.filter fun k => Live p root (.gate k)
-
-/-- All wires live for `root`. -/
-noncomputable def wires (p : Program signature n g) (root : Wire n g) : Finset (Wire n g) :=
-  open scoped Classical in Finset.univ.filter (Live p root)
-
-/-- Argument pins are counted separately, even when two pins read the same wire. -/
-noncomputable def pins (p : Program signature n g) (root : Wire n g) :
-    Finset (Σ k : Fin g, Fin (signature.Arity (p.lines k).op)) :=
-  (gates p root).sigma fun _ => Finset.univ
-
-/-- Distinct wires read by at least one live argument pin. -/
-noncomputable def pinSources (p : Program signature n g) (root : Wire n g) : Finset (Wire n g) :=
-  (pins p root).image fun a => (p.lines a.1).wires a.2
-
-/-- For each wire read by a live gate, charge every use beyond its first use. -/
-noncomputable def repeatedUses (p : Program signature n g) (root : Wire n g) : ℕ :=
-  (pins p root).card - (pinSources p root).card
-
-/-- Missing argument slots at live gates, relative to a two-input gate. -/
-noncomputable def missingPins (p : Program signature n g) (root : Wire n g) : ℕ :=
-  2 * (gates p root).card - (pins p root).card
-
-private theorem card_wires (p : Program signature n g) (root : Wire n g) :
-    (wires p root).card = (inputs p root).card + (gates p root).card := by
-  classical
-  have h : (wires p root).map (Wire.equiv n g).toEmbedding =
-      (inputs p root).disjSum (gates p root) := by
-    ext w
-    cases w with
-    | inl i =>
-      rw [Finset.mem_map_equiv]
-      simp [wires, inputs, Wire.equiv]
-    | inr k =>
-      rw [Finset.mem_map_equiv]
-      simp [wires, gates, Wire.equiv]
-  simpa using congrArg Finset.card h
-
-private theorem wires_eq (p : Program signature n g) (root : Wire n g) :
-    wires p root = insert root (pinSources p root) := by
-  classical
-  ext w
-  simp only [wires, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-    pinSources, Finset.mem_image, pins, Finset.mem_sigma, gates, and_true]
-  constructor
-  · intro hw
-    cases hw with
-    | output => exact Or.inl rfl
-    | argument h a => exact Or.inr ⟨⟨_, a⟩, h, rfl⟩
-  · rintro (rfl | ⟨⟨k, a⟩, hk, rfl⟩)
-    · exact Live.output
-    · exact Live.argument hk a
-
-/-- Wire accounting for an arbitrary one-output De Morgan circuit, including dead gates. -/
-theorem inputs_add_charges_le (p : Program signature n g) (root : Wire n g) :
-    (inputs p root).card + repeatedUses p root + missingPins p root ≤ g + 1 := by
-  classical
-  have hG : (gates p root).card ≤ g := by
-    simpa using Finset.card_le_univ (gates p root)
-  have hW : (wires p root).card ≤ (pinSources p root).card + 1 := by
-    rw [wires_eq]
-    exact Finset.card_insert_le ..
-  have hDistinct : (pinSources p root).card ≤ (pins p root).card := Finset.card_image_le
-  have hPins : (pins p root).card ≤ 2 * (gates p root).card := by
-    rw [pins, Finset.card_sigma]
-    calc
-      _ ≤ ∑ _k ∈ gates p root, (2 : ℕ) := by
-        apply Finset.sum_le_sum
-        intro k _
-        simpa using (Program.fanInAtMost_iff.mp p.fanInAtMost_two k)
-      _ = _ := by simp [Nat.mul_comm]
-  rw [card_wires] at hW
-  unfold repeatedUses missingPins
-  omega
-
-private theorem live_of_mem_support (p : Program signature n g) (root : Wire n g)
-    {w : Wire n g} (hw : Live p root w) {i : Fin n} (hi : i ∈ p.wireSupport w) :
-    Live p root (.input i) := by
-  revert hw hi
-  refine p.wire_induction (P := fun w => Live p root w → i ∈ p.wireSupport w →
-    Live p root (.input i)) ?_ ?_ w
-  · intro j hj hi
-    simpa using (show i = j from by simpa using hi) ▸ hj
-  · intro k ih hk hi
-    change i ∈ p.trace (supportInterpretation signature n) (fun j => {j}) (.gate k) at hi
-    rw [p.trace_gate] at hi
-    obtain ⟨a, _, ha⟩ := Finset.mem_biUnion.mp hi
-    exact ih a (Live.argument hk a) ha
-
-/-- Every essential coordinate of a computed function is a live input of the circuit. -/
-theorem essential_mem_inputs {f : BitString n → Bool} {c : Circuit signature n 1}
-    (hc : c.Computes interpretation (single f)) {i : Fin n} (hi : EssentialAt f i) :
-    i ∈ inputs c.program (c.outputs 0) := by
-  classical
-  have hDep : DependsOn f (c.inputSupport : Set (Fin n)) := by
-    intro x y h
-    exact congrFun (hc.dependsOn h) 0
-  obtain ⟨j, hj⟩ := (Circuit.mem_inputSupport (c := c)).mp (hi.mem_support hDep)
-  have hj0 : j = 0 := Subsingleton.elim ..
-  subst j
-  exact Finset.mem_filter.mpr ⟨Finset.mem_univ _, live_of_mem_support _ _ Live.output hj⟩
-
-end WireAccounting
-
 section Restrictions
 
 variable {n : ℕ}
-
-/-- Hold the truth-table entries outside `free` at their values in `center`. -/
-@[expose] def restrictTable (center : BitString n) (free : Finset (Fin n))
-    (values : BitString n) : BitString n :=
-  fun i => if i ∈ free then values i else center i
 
 /-- Subset of `free` coordinates that are essential for `f`. -/
 noncomputable def essentialPositions (f : BitString n → Bool) (free : Finset (Fin n)) :
@@ -199,15 +79,16 @@ noncomputable def essentialPositions (f : BitString n → Bool) (free : Finset (
   open scoped Classical in free.filter (EssentialAt f)
 
 /-- Finset of all truth tables accepted by `f`. -/
-@[expose] noncomputable def acceptingTables (f : BitString n → Bool) : Finset (BitString n) :=
+noncomputable def acceptingTables (f : BitString n → Bool) : Finset (BitString n) :=
   Finset.univ.filter fun t => f t = true
 
+/-- Membership in `acceptingTables f` characterizes accepted truth tables. -/
 @[simp] theorem mem_acceptingTables {f : BitString n → Bool} {t : BitString n} :
     t ∈ acceptingTables f ↔ f t = true := by
   simp [acceptingTables]
 
 /-- Inessential coordinates can be changed together without changing the result. -/
-theorem eq_of_agree_off {f : BitString n → Bool} (ignored : Finset (Fin n))
+private theorem eq_of_agree_off {f : BitString n → Bool} (ignored : Finset (Fin n))
     (h : ∀ i ∈ ignored, ¬ EssentialAt f i) {x y : BitString n}
     (agree : ∀ i ∉ ignored, x i = y i) : f x = f y := by
   induction ignored using Finset.induction_on generalizing x with
@@ -232,10 +113,10 @@ theorem eq_of_agree_off {f : BitString n → Bool} (ignored : Finset (Fin n))
 /-- Inessential free positions in an accepting restriction generate an accepting subcube. -/
 theorem pow_card_inessential_le (f : BitString n → Bool) (center : BitString n)
     (free : Finset (Fin n)) (hCenter : f center = true) :
-    2 ^ (free \ essentialPositions (fun x => f (restrictTable center free x)) free).card ≤
+    2 ^ (free \ essentialPositions (fun x => f (free.piecewise x center)) free).card ≤
       (acceptingTables f).card := by
   classical
-  let restricted := fun x => f (restrictTable center free x)
+  let restricted := fun x => f (free.piecewise x center)
   let ignored := free \ essentialPositions restricted free
   have hFree : ignored ⊆ free := Finset.sdiff_subset
   have hInessential : ∀ i ∈ ignored, ¬EssentialAt restricted i := by
@@ -248,14 +129,15 @@ theorem pow_card_inessential_le (f : BitString n → Bool) (center : BitString n
       intro i hi
       simp [table, hi]
     have hRestricted := eq_of_agree_off ignored hInessential hAgree
-    have hTable : restrictTable center free (table bits) = table bits := by
+    have hTable : free.piecewise (table bits) center = table bits := by
       funext i
       by_cases hi : i ∈ free
-      · simp [restrictTable, hi]
-      · simp [restrictTable, table, hi, show i ∉ ignored from fun h => hi (hFree h)]
-    have hSelf : restrictTable center free center = center := by
+      · simp [Finset.piecewise_eq_of_mem _ _ _ hi]
+      · simp [Finset.piecewise_eq_of_notMem _ _ _ hi, table,
+          show i ∉ ignored from fun h => hi (hFree h)]
+    have hSelf : free.piecewise center center = center := by
       funext i
-      simp [restrictTable]
+      simp [Finset.piecewise]
     simpa [restricted, hTable, hSelf, acceptingTables, hCenter] using hRestricted
   let into (bits : (i : ignored) → Bool) : acceptingTables f := ⟨table bits, hAccept bits⟩
   have hInjective : Function.Injective into := by
@@ -270,57 +152,33 @@ theorem pow_card_inessential_le (f : BitString n → Bool) (center : BitString n
 end Restrictions
 
 /-- The exact MCSP slice with a quadratic cutoff on the represented function's arity. -/
-@[expose] noncomputable def mcspSquare (m : ℕ) : BitString (2 ^ m) → Bool :=
+noncomputable def mcspSquare (m : ℕ) : BitString (2 ^ m) → Bool :=
   (GapMCSP.yesSet fun j => j ^ 2).slice (2 ^ m)
 
-/-- An upper bound on the number of binary digits needed to index the accepted tables. -/
-@[expose] def descriptionBitBound (m : ℕ) : ℕ :=
-  let b := (m + 1).log2 + 1
-  4 * b + (3 + 4 * b) * m ^ 2
+/-- Characterization of truth tables accepted by `mcspSquare m`. -/
+@[simp] theorem mcspSquare_eq_true_iff (m : ℕ) (T : BitString (2 ^ m)) :
+    mcspSquare m T = true ↔
+      complexity interpretation (single ((MCSP.truthTable m).symm T)) ≤ m ^ 2 :=
+  GapMCSP.slice_yesSet_eq_true_iff
 
-/-- Accepted table count of `mcspSquare m`, retaining the `(m ^ 2)!` factor. -/
-theorem card_accepting_mcspSquare_mul_factorial_le (m : ℕ) :
-    (acceptingTables (mcspSquare m)).card * (m ^ 2).factorial ≤ 2 ^ descriptionBitBound m := by
-  classical
-  let s := m ^ 2
-  let b := (m + 1).log2 + 1
-  have hAccepted : (↑(acceptingTables (mcspSquare m)) : Set (BitString (2 ^ m))) =
-      {T | (⟨m, T, s⟩ : MCSP.Instance) ∈ Cslib.MCSP} := by
-    ext T
-    simp [acceptingTables, mcspSquare, s, MCSP.mem_iff, MCSP.Instance.function]
-  rw [← Set.ncard_coe_finset, hAccepted, MCSP.ncard_setOf_mem]
-  have hCount := Boolean.card_computableFunctions_mul_factorial_le m s
-  have hmb : m + 1 ≤ 2 ^ b := (Nat.lt_log2_self (n := m + 1)).le
-  have hBase : m + s + 1 ≤ 2 ^ (2 * b) := by
-    rw [Nat.mul_comm 2, pow_mul]
-    exact (show m + s + 1 ≤ (m + 1) ^ 2 by dsimp [s]; nlinarith).trans
-      (Nat.pow_le_pow_left hmb 2)
-  have hGate : 5 * (m + s + 1) ^ 2 ≤ 2 ^ (3 + 4 * b) := by
-    calc
-      _ ≤ 2 ^ 3 * (2 ^ (2 * b)) ^ 2 :=
-        Nat.mul_le_mul (by decide) (Nat.pow_le_pow_left hBase 2)
-      _ = _ := by rw [← pow_mul, ← pow_add]; congr 1; omega
-  calc
-    (computableFunctions m s).card * s.factorial ≤
-      (s + 1) * (5 * (m + s + 1) ^ 2) ^ s * (m + s) := hCount
-    _ ≤ 2 ^ (2 * b) * (2 ^ (3 + 4 * b)) ^ s * 2 ^ (2 * b) :=
-      Nat.mul_le_mul (Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hGate s)) (by omega)
-    _ = _ := by
-      change _ = 2 ^ (4 * b + (3 + 4 * b) * s)
-      rw [← pow_mul, ← pow_add, ← pow_add]
-      congr 1
-      omega
+/-- An upper bound on the number of binary digits needed to index the accepted tables. -/
+abbrev descriptionBitBound (m : ℕ) : ℕ :=
+  computableFunctionsLogBound m (m ^ 2)
 
 /-- Sparsity upper bound on the accepted tables of `mcspSquare m`. -/
 theorem card_accepting_mcspSquare_le (m : ℕ) :
-    (acceptingTables (mcspSquare m)).card ≤ 2 ^ descriptionBitBound m :=
-  (Nat.le_mul_of_pos_right _ (Nat.factorial_pos _)).trans
-    (card_accepting_mcspSquare_mul_factorial_le m)
+    (acceptingTables (mcspSquare m)).card ≤ 2 ^ descriptionBitBound m := by
+  have hAccepted : (↑(acceptingTables (mcspSquare m)) : Set (BitString (2 ^ m))) =
+      {T | (⟨m, T, m ^ 2⟩ : MCSP.Instance) ∈ Cslib.MCSP} := by
+    ext T
+    simp [MCSP.mem_iff, MCSP.Instance.function]
+  rw [← Set.ncard_coe_finset, hAccepted, MCSP.ncard_setOf_mem]
+  exact card_computableFunctions_le_two_pow m (m ^ 2)
 
 /-- Both constant truth tables are accepted by `mcspSquare m` for `1 ≤ m`. -/
 theorem mcspSquare_constant_table (m : ℕ) (hm : 1 ≤ m) (b : Bool) :
     mcspSquare m (fun _ => b) = true := by
-  rw [mcspSquare, GapMCSP.slice_yesSet_eq_true_iff]
+  rw [mcspSquare_eq_true_iff]
   change complexity interpretation (single (fun _ : BitString m => b)) ≤ m ^ 2
   rw [Boolean.complexity_const]
   exact Nat.one_le_pow _ _ hm
@@ -329,10 +187,10 @@ theorem mcspSquare_constant_table (m : ℕ) (hm : 1 ≤ m) (b : Bool) :
 theorem mcspSquare_restriction_loss (m : ℕ) (center : BitString (2 ^ m))
     (free : Finset (Fin (2 ^ m))) (accepted : mcspSquare m center = true) :
     free.card ≤
-      (essentialPositions (fun x => mcspSquare m (restrictTable center free x)) free).card +
+      (essentialPositions (fun x => mcspSquare m (free.piecewise x center)) free).card +
         descriptionBitBound m := by
   classical
-  let ess := essentialPositions (fun x => mcspSquare m (restrictTable center free x)) free
+  let ess := essentialPositions (fun x => mcspSquare m (free.piecewise x center)) free
   have hPow := (pow_card_inessential_le (mcspSquare m) center free accepted).trans
     (card_accepting_mcspSquare_le m)
   change 2 ^ (free \ ess).card ≤ 2 ^ descriptionBitBound m at hPow
@@ -342,41 +200,37 @@ theorem mcspSquare_restriction_loss (m : ℕ) (center : BitString (2 ^ m))
   change free.card ≤ ess.card + descriptionBitBound m
   omega
 
-/-- Wire-accounting lower bound for any circuit computing `mcspSquare m`. -/
-theorem mcspSquare_wire_bound (m : ℕ) (hm : 1 ≤ m) (c : Circuit signature (2 ^ m) 1)
-    (hc : c.Computes interpretation (single (mcspSquare m))) :
-    2 ^ m + WireAccounting.repeatedUses c.program (c.outputs 0) +
-      WireAccounting.missingPins c.program (c.outputs 0) ≤
-        c.size + 1 + descriptionBitBound m := by
-  classical
-  have hRestricted := mcspSquare_restriction_loss m (fun _ => false) Finset.univ
-    (mcspSquare_constant_table m hm false)
-  have hIdentity (x : BitString (2 ^ m)) :
-      restrictTable (fun _ => false) Finset.univ x = x := by
-    funext i
-    simp [restrictTable]
-  simp only [hIdentity, Finset.card_univ, Fintype.card_fin] at hRestricted
-  change 2 ^ m ≤ (essentialPositions (mcspSquare m) Finset.univ).card + _ at hRestricted
-  have hEss : (essentialPositions (mcspSquare m) Finset.univ).card ≤
-      (WireAccounting.inputs c.program (c.outputs 0)).card := by
-    apply Finset.card_le_card
-    intro i hi
-    exact WireAccounting.essential_mem_inputs hc (Finset.mem_filter.mp hi).2
-  have hCharge := WireAccounting.inputs_add_charges_le c.program (c.outputs 0)
-  omega
-
 /-- A near-linear lower bound in `N = 2^m`, with an explicit `O(m^2 log m)` loss. -/
 theorem mcspSquare_near_linear (m : ℕ) (hm : 1 ≤ m) :
     2 ^ m ≤ complexity interpretation (single (mcspSquare m)) + 1 + descriptionBitBound m := by
+  classical
   obtain ⟨c, hc, hSize⟩ := exists_computes_size_eq_complexity
     (I := interpretation) (f := single (mcspSquare m))
-  have h := mcspSquare_wire_bound m hm c hc
+  have hRestricted := mcspSquare_restriction_loss m (fun _ => false) Finset.univ
+    (mcspSquare_constant_table m hm false)
+  have hUniv : (fun x => mcspSquare m (Finset.univ.piecewise x fun _ => false)) =
+      mcspSquare m := by
+    funext x
+    exact congrArg (mcspSquare m)
+      (funext fun i => Finset.piecewise_eq_of_mem _ _ _ (Finset.mem_univ i))
+  rw [hUniv] at hRestricted
+  simp only [Finset.card_univ, Fintype.card_fin] at hRestricted
+  have hEss : ∀ i ∈ essentialPositions (mcspSquare m) Finset.univ,
+      EssentialAt (single (mcspSquare m)) i := by
+    intro i hi
+    obtain ⟨x, y, hxy, hne⟩ := (Finset.mem_filter.mp hi).2
+    exact ⟨x, y, hxy, fun h => hne (congrFun h 0)⟩
+  have hCard := (c.essential_le_cost_binaryCost hc hEss).trans
+    (Nat.add_le_add_left c.program.cost_binaryCost_le 1)
+  change 2 ^ m ≤ (essentialPositions (mcspSquare m) Finset.univ).card +
+    descriptionBitBound m at hRestricted
   omega
 
 namespace CornerCertificates
 
 /-- Select argument pins sufficient to certify a gate's value at an assignment. -/
-def selectedPins : (op : Op) → (Fin (signature.Arity op) → Bool) → Finset (Fin (signature.Arity op))
+@[expose] def selectedPins :
+    (op : Op) → (Fin (signature.Arity op) → Bool) → Finset (Fin (signature.Arity op))
   | .const _, _ => ∅
   | .not, _ => {0}
   | .and, x => if x 0 then (if x 1 then Finset.univ else {1}) else {0}
@@ -413,8 +267,7 @@ theorem agrees_of_selectedPins (op : Op) (x y : Fin (signature.Arity op) → Boo
     · have ha := h0.1 (by simp [selectedPins, hx0])
       simp [interpretation, hx0, ha]
 
-/-- Index a requirement by the source wire and its required Boolean value. -/
-def argumentStates {W : Type*} [DecidableEq W] (op : Op)
+private def argumentStates {W : Type*} [DecidableEq W] (op : Op)
     (sources : Fin (signature.Arity op) → W) (x : Fin (signature.Arity op) → Bool) :
     Finset (W × Bool) :=
   (selectedPins op x).image fun a => (sources a, x a)
@@ -508,17 +361,15 @@ private theorem union_bound {W : Type*} [DecidableEq W] (op : Op)
 variable {n g : ℕ}
 
 /-- Value of wire `w` when every input is set to the constant `b`. -/
-def cornerValue (p : Program signature n g) (b : Bool) (w : Wire n g) : Bool :=
+@[expose] def cornerValue (p : Program signature n g) (b : Bool) (w : Wire n g) : Bool :=
   p.trace interpretation (fun _ => b) w
 
-/-- Argument `(wire, value)` states requested by gate `k` on the constant input `b`. -/
-def cornerArguments (p : Program signature n g) (k : Fin g) (b : Bool) :
+private def cornerArguments (p : Program signature n g) (k : Fin g) (b : Bool) :
     Finset (Wire n g × Bool) :=
   argumentStates (p.lines k).op (p.lines k).wires
     (fun a => cornerValue p b ((p.lines k).wires a))
 
-/-- Evaluation equation for `cornerValue` at gate `k`. -/
-theorem cornerValue_gate (p : Program signature n g) (b : Bool) (k : Fin g) :
+private theorem cornerValue_gate (p : Program signature n g) (b : Bool) (k : Fin g) :
     cornerValue p b (.gate k) = interpretation (p.lines k).op
       (fun a => cornerValue p b ((p.lines k).wires a)) :=
   p.trace_gate interpretation (fun _ => b) k
@@ -527,16 +378,17 @@ theorem cornerValue_gate (p : Program signature n g) (b : Bool) (k : Fin g) :
 inductive Needed (p : Program signature n g) (root : Wire n g) : Wire n g × Bool → Prop where
   | output : Needed p root (root, true)
   | argument {k : Fin g} {b : Bool} (h : Needed p root (.gate k, cornerValue p b (.gate k)))
-      {key : Wire n g × Bool} (ha : key ∈ cornerArguments p k b) : Needed p root key
+      {a : Fin (signature.Arity (p.lines k).op)}
+      (ha : a ∈ selectedPins (p.lines k).op
+        (fun j => cornerValue p b ((p.lines k).wires j))) :
+      Needed p root ((p.lines k).wires a, cornerValue p b ((p.lines k).wires a))
 
-/-- All `(wire, value)` states needed by either constant-input certificate. -/
-noncomputable def neededStates (p : Program signature n g) (root : Wire n g) :
+private noncomputable def neededStates (p : Program signature n g) (root : Wire n g) :
     Finset (Wire n g × Bool) :=
   open scoped Classical in Finset.univ.filter (Needed p root)
 
-/-- Boolean values at wire `w` needed by either constant-input certificate. -/
-noncomputable def neededValues (p : Program signature n g) (root : Wire n g) (w : Wire n g) :
-    Finset Bool :=
+private noncomputable def neededValues (p : Program signature n g) (root : Wire n g)
+    (w : Wire n g) : Finset Bool :=
   open scoped Classical in Finset.univ.filter fun b => Needed p root (w, b)
 
 /-- Input coordinates whose constant value `b` is needed by a corner certificate. -/
@@ -544,10 +396,9 @@ noncomputable def cornerInputs (p : Program signature n g) (root : Wire n g) (b 
     Finset (Fin n) :=
   open scoped Classical in Finset.univ.filter fun i => Needed p root (.input i, b)
 
-/-- Union of requested argument states at gate `k` across its needed corner polarities. -/
-noncomputable def requestedArguments (p : Program signature n g) (root : Wire n g) (k : Fin g) :
-    Finset (Wire n g × Bool) :=
-  open scoped Classical in
+open scoped Classical in
+private noncomputable def requestedArguments (p : Program signature n g) (root : Wire n g)
+    (k : Fin g) : Finset (Wire n g × Bool) :=
   (if Needed p root (.gate k, cornerValue p false (.gate k)) then cornerArguments p k false
     else ∅) ∪
     (if Needed p root (.gate k, cornerValue p true (.gate k)) then cornerArguments p k true
@@ -631,29 +482,26 @@ private theorem card_neededStates (p : Program signature n g) (root : Wire n g) 
   classical
   simpa [neededStates, cornerInputs, neededValues] using card_stateSet (Needed p root)
 
-/-- Count a repeated request for the same wire and value only after its first use. -/
-noncomputable def repeatedStateRequests (p : Program signature n g) (root : Wire n g) : ℕ :=
-  (∑ k : Fin g, (requestedArguments p root k).card) -
-    ((Finset.univ : Finset (Fin g)).biUnion (requestedArguments p root)).card
-
-/-- Total input corner demands plus cross-gate state reuse is bounded by `g + 1`. -/
-theorem card_cornerInputs_add_reuse_le (p : Program signature n g) (root : Wire n g) :
-    (cornerInputs p root false).card + (cornerInputs p root true).card +
-      repeatedStateRequests p root ≤ g + 1 := by
+/-- Total input corner demands for both constant inputs are bounded by `g + 1`. -/
+theorem card_cornerInputs_le (p : Program signature n g) (root : Wire n g) :
+    (cornerInputs p root false).card + (cornerInputs p root true).card ≤ g + 1 := by
   classical
   let allArgs := (Finset.univ : Finset (Fin g)).biUnion (requestedArguments p root)
   have hSub : neededStates p root ⊆ insert (root, true) allArgs := by
     intro key hKey
-    have hn := (Finset.mem_filter.mp hKey).2
-    cases hn with
+    have hKey' : Needed p root key := (Finset.mem_filter.mp hKey).2
+    induction hKey' with
     | output => exact Finset.mem_insert_self ..
-    | @argument k b hk key ha =>
+    | @argument k b h a ha =>
       apply Finset.mem_insert_of_mem
       apply Finset.mem_biUnion.mpr
       refine ⟨k, Finset.mem_univ _, ?_⟩
-      cases b with
-      | false => exact Finset.mem_union_left _ (by simpa [hk] using ha)
-      | true => exact Finset.mem_union_right _ (by simpa [hk] using ha)
+      have hArg : ((p.lines k).wires a, cornerValue p b ((p.lines k).wires a)) ∈
+          cornerArguments p k b :=
+        Finset.mem_image.mpr ⟨a, ha, rfl⟩
+      cases b
+      · simpa [requestedArguments, h] using Finset.mem_union_left _ hArg
+      · simpa [requestedArguments, h] using Finset.mem_union_right _ hArg
   have hSize := Finset.card_le_card hSub
   have hDistinct : allArgs.card ≤ ∑ k : Fin g, (requestedArguments p root k).card :=
     Finset.card_biUnion_le
@@ -665,7 +513,6 @@ theorem card_cornerInputs_add_reuse_le (p : Program signature n g) (root : Wire 
   have hSum' : (∑ k : Fin g, (requestedArguments p root k).card) ≤
       (∑ k : Fin g, (neededValues p root (.gate k)).card) + g := by
     simpa [Finset.sum_add_distrib] using hSum
-  change _ + ((∑ k : Fin g, (requestedArguments p root k).card) - allArgs.card) ≤ _
   omega
 
 /-- Agreeing on the needed corner inputs forces the circuit output to `true`. -/
@@ -684,7 +531,7 @@ theorem agrees_on_cornerInputs (p : Program signature n g) (root : Wire n g) (b 
       rw [p.trace_gate, cornerValue_gate]
       apply agrees_of_selectedPins
       intro a ha
-      exact ih a (Needed.argument hk (Finset.mem_image.mpr ⟨a, ha, rfl⟩))
+      exact ih a (Needed.argument hk ha)
   exact (hTrace root (hRoot.symm ▸ Needed.output)).trans hRoot
 
 end CornerCertificates
@@ -702,16 +549,16 @@ private theorem mcspSquare_cornerInputs_bound (m : ℕ) (hm : 1 ≤ m)
   have hRoot : cornerValue c.program b (c.outputs 0) = true := by
     change c.eval interpretation center 0 = true
     exact (congrFun (hc center) 0).trans hCenter
-  have hAll (x : BitString (2 ^ m)) : mcspSquare m (restrictTable center free x) = true := by
+  have hAll (x : BitString (2 ^ m)) : mcspSquare m (free.piecewise x center) = true := by
     have hTrace := agrees_on_cornerInputs c.program (c.outputs 0) b hRoot
-      (restrictTable center free x) (fun i hi => by
+      (free.piecewise x center) (fun i hi => by
         have hNot : i ∉ free := fun h => (Finset.mem_sdiff.mp h).2 hi
-        simp [restrictTable, hNot, center])
-    change c.eval interpretation (restrictTable center free x) 0 = true at hTrace
+        simp [Finset.piecewise_eq_of_notMem _ _ _ hNot, center])
+    change c.eval interpretation (free.piecewise x center) 0 = true at hTrace
     rw [hc] at hTrace
     exact hTrace
   have hEmpty :
-      essentialPositions (fun x => mcspSquare m (restrictTable center free x)) free = ∅ := by
+      essentialPositions (fun x => mcspSquare m (free.piecewise x center)) free = ∅ := by
     ext i
     simp [essentialPositions, EssentialAt, hAll]
   have hLoss := mcspSquare_restriction_loss m center free hCenter
@@ -722,30 +569,22 @@ private theorem mcspSquare_cornerInputs_bound (m : ℕ) (hm : 1 ≤ m)
   change 2 ^ m ≤ fixed.card + descriptionBitBound m
   omega
 
-/-- A two-certificate lower bound for every circuit deciding the quadratic MCSP slice. -/
-theorem mcspSquare_two_certificate_size_bound (m : ℕ) (hm : 1 ≤ m)
-    (c : Circuit signature (2 ^ m) 1) (hc : c.Computes interpretation (single (mcspSquare m))) :
-    2 * 2 ^ m + repeatedStateRequests c.program (c.outputs 0) ≤
-      c.size + 1 + 2 * descriptionBitBound m := by
-  have h0 := mcspSquare_cornerInputs_bound m hm c hc false
-  have h1 := mcspSquare_cornerInputs_bound m hm c hc true
-  have hSum := card_cornerInputs_add_reuse_le c.program (c.outputs 0)
-  omega
-
 /-- Near twice the truth-table length, with an explicit loss of order `m^2 log m`. -/
 theorem mcspSquare_two_certificate_lower_bound (m : ℕ) (hm : 1 ≤ m) :
     2 * 2 ^ m ≤ complexity interpretation (single (mcspSquare m)) +
       1 + 2 * descriptionBitBound m := by
   obtain ⟨c, hc, hSize⟩ := exists_computes_size_eq_complexity
     (I := interpretation) (f := single (mcspSquare m))
-  have h := mcspSquare_two_certificate_size_bound m hm c hc
+  have h0 := mcspSquare_cornerInputs_bound m hm c hc false
+  have h1 := mcspSquare_cornerInputs_bound m hm c hc true
+  have hSum := card_cornerInputs_le c.program (c.outputs 0)
   omega
 
 /-- Finite circuit size lower bound for `mcspSquare 16` (`N = 65536`, cutoff `256`). -/
 theorem mcspSquare_sixteen_lower_bound :
-    119255 ≤ complexity interpretation (single (mcspSquare 16)) := by
+    120277 ≤ complexity interpretation (single (mcspSquare 16)) := by
   have h := mcspSquare_two_certificate_lower_bound 16 (by decide)
-  have hBits : descriptionBitBound 16 = 5908 := by decide
+  have hBits : descriptionBitBound 16 = 5397 := by decide
   rw [hBits] at h
   omega
 
