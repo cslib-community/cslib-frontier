@@ -15,8 +15,8 @@ public import CslibFrontier.DataStructure.BPlusTree.Comparisons.Query
 Checked examples for the comparison counts of the point queries of
 `Cslib.DataStructure.BPlusTree`: values and the transfer lemmas under the order's oracle; counts
 on a tree where the lookup and rank bounds are attained, on a root that is a leaf, on a node
-with no separators, on a predecessor search that takes the sibling fallback, and under two
-oracles that are not orders; and the bounds applied to a well-formed tree.
+with no separators, on predecessor and successor searches that take the sibling fallback, and
+under two oracles that are not orders; and the bounds applied to a well-formed tree.
 -/
 
 public section
@@ -67,6 +67,11 @@ example : (predQ 3 twoLevels).eval BTree.orderOracle = some (2, "b") := by
   simp [twoLevels, pred?_leaf, SortedAssoc.predM, leI]
 
 example : (succQ 2 gap).eval BTree.orderOracle = some (3, "c") := by
+  simp [gap, succ?_leaf, SortedAssoc.succM, leI]
+
+/-- The sibling fallback of the successor: the search for `1` ends in the first leaf, which has
+no key above `1`; the answer is the least entry of the next child. -/
+example : (succQ 1 gap).eval BTree.orderOracle = some (3, "c") := by
   simp [gap, succ?_leaf, SortedAssoc.succM, leI]
 
 example : (rankQ 7 full).eval BTree.orderOracle = 6 := by
@@ -129,15 +134,24 @@ descent. -/
 example : (predQ 3 twoLevels).countQueries BTree.orderOracle = 3 := by
   simp [twoLevels, predQ_def, predM, SortedAssoc.predM, ← maxQ_def]
 
+/-- Likewise for the successor: one comparison at the node and one in the leaf, none in the
+fallback. -/
+example : (succQ 1 gap).countQueries BTree.orderOracle = 2 := by
+  simp [gap, succQ_def, succM, SortedAssoc.succM, ← minQ_def]
+
 example : (lookupQ 2 gap).countQueries BTree.orderOracle = 3 := by
   simp [gap, lookupQ_def, lookupM, SortedAssoc.lookupM]
 
 /-- Under an oracle that is not an order the value is wrong, but the count stays within the
-bound. -/
-example : (lookupQ 6 full).countQueries trueOracle = 5 := by
+bound of `7`. -/
+example :
+    (lookupQ 6 full).eval trueOracle = some "d" ∧
+      (lookupQ 6 full).countQueries trueOracle = 5 := by
   simp [full, lookupQ_def, lookupM, SortedAssoc.lookupM, trueOracle]
 
-example : (lookupQ 6 full).countQueries falseOracle = 2 := by
+example :
+    (lookupQ 6 full).eval falseOracle = none ∧
+      (lookupQ 6 full).countQueries falseOracle = 2 := by
   simp [full, lookupQ_def, lookupM, SortedAssoc.lookupM, falseOracle]
 
 example : (minQ full).countQueries falseOracle = 0 ∧ (maxQ full).countQueries falseOracle = 0 := by
@@ -152,11 +166,17 @@ example :
     (lookupQ 1 (.leaf [(1, "a")] : BPlusTree ℕ String)).countQueries BTree.orderOracle = 2 := by
   simp [lookupQ_def, lookupM, SortedAssoc.lookupM]
 
-/-- A node with no separators, which is not well-formed, costs what its only child costs. -/
+/-- A full root leaf attains the bound at height `1`, which is `2 * t` and not `0`. -/
 example :
-    (lookupQ 1 (.node (.leaf [(1, "a")]) [] : BPlusTree ℕ String)).countQueries
-      BTree.orderOracle = 2 := by
+    (lookupQ 3 (.leaf [(1, "a"), (2, "b"), (3, "c")] : BPlusTree ℕ String)).countQueries
+      BTree.orderOracle = 2 * 2 := by
   simp [lookupQ_def, lookupM, SortedAssoc.lookupM]
+
+/-- A node with no separators, which is not well-formed, costs what its only child costs, under
+every oracle. -/
+example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) (c : BPlusTree ℕ String) :
+    (lookupQ k (.node c [])).countQueries oracle = (lookupQ k c).countQueries oracle := by
+  simp [lookupQ_def, lookupM]
 
 /-- The bounds applied to a well-formed tree, under every oracle and for every key. -/
 example (oracle : {ι : Type} → LEQuery ℕ ι → ι) (k : ℕ) :
