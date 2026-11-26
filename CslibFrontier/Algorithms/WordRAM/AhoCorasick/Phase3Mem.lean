@@ -143,14 +143,14 @@ theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → 
             obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
             exact hrc ⟨hu_eq, hc_eq⟩
           rw [Function.update_of_ne hne]; exact hM.delta_cell u hu c hc
-      fail_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.fail_cell u hu
-      depth_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by rw [Function.update_of_ne (by omega)]; exact hM.queue_cell i hi }
+      fail_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.fail_cell u hu)
+      depth_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.depth_cell u hu)
+      term_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.term_cell u hu)
+      outHead_cell := fun u hu =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell u hu)
+      outNext_cell := fun u hu =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.outNext_cell u hu)
+      queue_cell := fun i hi => (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell i hi) }
 
 private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s fval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -176,18 +176,15 @@ private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {m
       fail_cell := fun u hu => by
         dsimp only; rw [Function.update_of_ne (by omega)]
         exact bfsMem_preserves_table hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        dsimp only
-        exact bfsMem_preserves_table (fun j hj => by
-          rw [Function.update_of_ne (by omega)]; exact hM.queue_cell j hj) i hi }
+      depth_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.depth_cell _ hu]
+      term_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell _ hu]
+      outHead_cell := fun _ hu => by
+        simp (disch := omega) [Function.update_of_ne, hM.outHead_cell _ hu]
+      outNext_cell := fun _ hu => by
+        simp (disch := omega) [Function.update_of_ne, hM.outNext_cell _ hu]
+      queue_cell := fun i hi =>
+        bfsMem_preserves_table (fun j hj =>
+          (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell j hj)) i hi }
 
 private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s onval ohval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -209,21 +206,17 @@ private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : �
       delta_cell := fun u hu c hc => by
         have := hmul u hu c hc; simp (disch := omega) only [Function.update_of_ne]
         exact hM.delta_cell u hu c hc
-      fail_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        dsimp only
-        exact bfsMem_preserves_table (fun v hv => by
-          rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell v hv) u hu
+      fail_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.fail_cell _ hu]
+      depth_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.depth_cell _ hu]
+      term_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell _ hu]
+      outHead_cell := fun u hu =>
+        bfsMem_preserves_table (fun v hv =>
+          (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell v hv)) u hu
       outNext_cell := fun u hu => by
         dsimp only; rw [Function.update_of_ne (by omega)]
         exact bfsMem_preserves_table hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.queue_cell i hi }
+      queue_cell := fun _ hi => by
+        simp (disch := omega) [Function.update_of_ne, hM.queue_cell _ hi] }
 
 /-- Combined five-write update preserving `BFSMem` when enqueuing child state `s`. -/
 theorem bfsMem_of_enqueue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
