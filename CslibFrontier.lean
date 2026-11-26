@@ -6620,6 +6620,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.TM2
 public import CslibFrontier.Computability.Circuit.Frontier.Projection
 public import CslibFrontier.Computability.Circuit.Boolean.Rectifier.Asymptotic
 public import CslibFrontier.DataStructure.CountMin.Program
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Bits
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg.DelRemove
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.AndreevTwoBlocksLowerBound
@@ -9599,6 +9600,7 @@ public import CslibFrontier.Computability.Circuit.MapOp
 public import CslibFrontier.Crypto.Computational.CorrelationRobust
 public import CslibFrontier.DataStructure.PriorityQueue.WordRAM.Basic
 public import CslibFrontier.Computability.WordRAM.Blocks
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackPropagator
 public import CslibFrontier.Logics.FirstOrder.Ordered.Successor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.IterateWhile
 public import CslibFrontier.Foundations.Control.Monad.FindM
