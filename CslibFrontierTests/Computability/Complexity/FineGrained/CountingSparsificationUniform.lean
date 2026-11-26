@@ -74,6 +74,29 @@ example :
     (encNat (rounds 1 twoUnits)).length = 5 ∧
     rounds 0 ([] : CNF ℕ) = 4 := by
   decide
+
+-- One bit per leaf suffices for detection. Declaring too few variables rejects the same formula.
+example :
+    let g : Context × CNF ℕ → ℕ := fun x => min 1 x.2.modelCount
+    let disjunction : CNF ℕ := [[(0, true), (1, true)]]
+    0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, 2) disjunction ∧
+      ¬ (0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, 1) disjunction) := by
+  intro g disjunction
+  have hM2 : 2 ≤ countingThresholdBase 2 1 := two_le_countingThresholdBase _ _
+  have hM : 1 ≤ countingThresholdBase 2 1 := (by decide : 1 ≤ 2).trans hM2
+  have hTB := countingTreeBound_countingThresholdBase (by decide : 1 ≤ 2) (by decide : 1 ≤ 1)
+  have hcorrect (n : ℕ) :
+      0 < searchDeclaredWith Prod.snd MOf BOf 2 2 g (true, n) disjunction ↔
+        CNF.validDeclaredInput 2 n disjunction = true ∧ disjunction.Satisfiable :=
+    searchDeclaredWith_pos_iff_of_normalized (NOf := Prod.snd) (MOf := MOf) (BOf := BOf)
+      (k := 2) (p := (true, n)) (g := g) hM (by decide : 1 ≤ 2) hM2 le_rfl hTB
+      (fun ψ _ _ _ _ _ => by
+        change 0 < min 1 ψ.modelCount ↔ ψ.Satisfiable
+        simp only [lt_min_iff, zero_lt_one, true_and, CNF.modelCount_pos_iff]) disjunction
+  have hsat : disjunction.Satisfiable := ⟨fun _ => true, by decide⟩
+  have hinvalid : CNF.validDeclaredInput 2 1 disjunction ≠ true := by decide
+  exact ⟨(hcorrect 2).mpr ⟨by decide, hsat⟩, fun h => hinvalid ((hcorrect 1).mp h).1⟩
+
 example (payload : Bool) (N : ℕ) (φ : CNF ℕ) :
     (encInput ((payload, N), φ)).length = 2 * N + 7 + (encCNF φ).length := by
   simp only [encInput, encContext, length_encPair, encUnary_apply, List.length_replicate,
