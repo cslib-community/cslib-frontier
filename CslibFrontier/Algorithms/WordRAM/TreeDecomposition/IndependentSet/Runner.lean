@@ -169,17 +169,12 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     (L0 := inst.bagAt zeroFin) (tbl0 := tblFinal zeroFin)
     (arr0 := (tablesInst inst.adj inst.wt n inst.parFin inst.bagAt n)[zeroFin]) (s := s₂)
     hlay₂.adj_holds hlay₂.wt_holds rfl h0_bag h0_len.symm (inst.bagAt_mem_lt zeroFin)
-    h0_tbl (by
-      dsimp only [rpArgs]
-      rwa [h0_pow])
-    (by
+    h0_tbl (h0_tlen.trans h0_pow.symm) (by
       dsimp only [rpArgs]
       rw [h0_pow]
       exact hagree₂ zeroFin)
-  have hm1' : s₀.mem 1 = m := hm1
-  have hm2' : s₀.mem 2 = n := hm2
-  have hd_lt (off : ℕ) (hoff : off < 4) : descBase + off < s₂.frontier := by
-    have hdesc : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
+  have hd_lt (off : ℕ) (_ : off < 4) : descBase + off < s₂.frontier := by
+    have : descBase + 4 * (n + 1) ≤ s₂.frontier := hlay₂.desc_hi
     omega
   have hr_st (s : Memory.State) (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
   have hr_res (s : Memory.State) (a : ℕ) :
@@ -188,9 +183,9 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
   · unfold runMWISProg
     dsimp only
     refine validHistory_read_bind (by omega) ?_
-    rw [hm1']
+    rw [hm1]
     refine validHistory_read_bind (by omega) ?_
-    rw [hm2']
+    rw [hm2]
     refine validHistory_bind_step hv_init (validHistory_bind_step hv_proc ?_)
     refine validHistory_read_bind (by simpa only [Nat.add_zero] using hd_lt 0 (by decide)) ?_
     refine validHistory_read_bind (hd_lt 1 (by decide)) ?_
@@ -198,8 +193,8 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     exact validHistory_read_bind (hd_lt 3 (by decide)) hv_rp
   · unfold runMWISProg
     dsimp only
-    rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1',
-      StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2',
+    rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm1,
+      StateTransitionSpec.clientResult_bind, hr_st, hr_res, hm2,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
     change (Memory.spec 0).clientResult s₂ (Memory.read descBase >>= _) = inst.result
     iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
@@ -208,20 +203,19 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     rw [h0_pow]
   · unfold runMWISProg
     dsimp only
-    rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1',
-      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2',
+    rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1,
+      memoryCost_bind', memoryCost_read, hr_st, hr_res, hm2,
       memoryCost_bind', memoryCost_bind']
     change 1 + (1 + (memoryCost (initNodesProg ⟨rawBagsPtr, n + 1⟩) s₀ +
       (memoryCost (processNodesProg procArgs) s₁ +
         memoryCost (Memory.read descBase >>= _) s₂))) ≤ inst.stepBound
     iterate 4 rw [memoryCost_bind', memoryCost_read, hr_st, hr_res]
     have h0_len_le : (inst.bagAt zeroFin).length ≤ M := inst.bagAt_length_le zeroFin
-    have hc_rp_M : memoryCost (rootPassProg rpArgs) s₂ ≤ 2 ^ M * (5 * M ^ 2 + 5 * M + 17) :=
-      hc_rp.trans (by
-        dsimp only [rpArgs]
-        rw [h0_len, h0_pow]
-        exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) h0_len_le)
-          (rp_cost_poly_le h0_len_le))
+    have hc_rp_M : memoryCost (rootPassProg rpArgs) s₂ ≤ 2 ^ M * (5 * M ^ 2 + 5 * M + 17) := by
+      refine hc_rp.trans ?_
+      dsimp only [rpArgs]
+      rw [h0_len, h0_pow]
+      exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) h0_len_le) (rp_cost_poly_le h0_len_le)
     dsimp only [s₀, s₁, descBase, rawBagsPtr, procArgs, rpArgs, m, n, M,
       MWISInstance.stepBound] at hc_init hc_proc hc_rp_M ⊢
     exact total_stepBound_le (Nat.one_le_pow M 2 (by decide)) hc_init hc_proc hc_rp_M
@@ -249,8 +243,7 @@ private theorem runMWISProg_init_helper {w : ℕ} (inst : MWISInstance)
   have hfit_raw : Fits w (Memory.State.init inst.encode).frontier := hfit_init_peak.of_le (by omega)
   obtain ⟨_, hdesc_eq, hfr₁, hlay₁, _⟩ :=
     initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak hfit_raw
-  refine ⟨hdesc_eq, ?_, hlay₁⟩
-  simpa only [hfr₀] using hfr₁
+  exact ⟨hdesc_eq, hfr₀ ▸ hfr₁, hlay₁⟩
 
 /-- Exact-basis Word-RAM realization certificate for `runMWISProg`. -/
 theorem runMWISProg_realizes :
