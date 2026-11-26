@@ -98,11 +98,9 @@ private theorem sketch_lt_query_of_prefix {n w cut q : ℕ} {keys : Fin n → �
     (hne : keys i >>> cut ≠ q >>> cut) :
     sketch (relevantBits w keys) (keys i) < sketch (relevantBits w keys) q := by
   let p := highestDiff w (keys i) (keys j)
-  have hp : cut ≤ p := by
-    by_contra h
-    have heq := (highestDiff_lt_iff_shiftRight_eq (hbound i) (hbound j)
-      (Nat.ne_of_lt (hsorted hij))).mp (by omega : p < cut)
-    exact hne (heq.trans hprefix)
+  have hp : cut ≤ p := not_lt.mp fun h =>
+    hne (((highestDiff_lt_iff_shiftRight_eq (hbound i) (hbound j)
+      (Nat.ne_of_lt (hsorted hij))).mp h).trans hprefix)
   obtain ⟨h₀, h₁⟩ := highestDiff_bits_of_lt (hbound i) (hbound j) (hsorted hij)
   apply projectBits_lt (relevantBits w keys).sortedLT_sort.pairwise
     ((Finset.mem_sort _).mpr (highestDiff_mem_relevantBits_of_lt hsorted hbound hij)) h₀
@@ -119,11 +117,9 @@ private theorem query_lt_sketch_of_prefix {n w cut q : ℕ} {keys : Fin n → �
     (hne : keys j >>> cut ≠ q >>> cut) :
     sketch (relevantBits w keys) q < sketch (relevantBits w keys) (keys j) := by
   let p := highestDiff w (keys i) (keys j)
-  have hp : cut ≤ p := by
-    by_contra h
-    have heq := (highestDiff_lt_iff_shiftRight_eq (hbound i) (hbound j)
-      (Nat.ne_of_lt (hsorted hij))).mp (by omega : p < cut)
-    exact hne (heq.symm.trans hprefix)
+  have hp : cut ≤ p := not_lt.mp fun h =>
+    hne (((highestDiff_lt_iff_shiftRight_eq (hbound i) (hbound j)
+      (Nat.ne_of_lt (hsorted hij))).mp h).symm.trans hprefix)
   obtain ⟨h₀, h₁⟩ := highestDiff_bits_of_lt (hbound i) (hbound j) (hsorted hij)
   apply projectBits_lt (relevantBits w keys).sortedLT_sort.pairwise
     ((Finset.mem_sort _).mpr (highestDiff_mem_relevantBits_of_lt hsorted hbound hij))
@@ -201,9 +197,8 @@ theorem exists_sketchNeighbor_min_highestDiff {n w q : ℕ} {keys : Fin n → �
     (fun i => highestDiff w (keys i) q) ⟨⟨0, hn⟩, Finset.mem_univ _⟩
   obtain ⟨j, hj, hprefix⟩ := exists_sketchNeighbor_prefix hsorted hbound
     ⟨i, shiftRight_highestDiff_add_one_eq (hbound i) hq (hmiss i)⟩
-  have hle : highestDiff w (keys j) q ≤ highestDiff w (keys i) q := by
-    have := (highestDiff_lt_iff_shiftRight_eq (hbound j) hq (hmiss j)).mpr hprefix
-    omega
+  have hle : highestDiff w (keys j) q ≤ highestDiff w (keys i) q :=
+    Nat.le_of_lt_succ ((highestDiff_lt_iff_shiftRight_eq (hbound j) hq (hmiss j)).mpr hprefix)
   exact ⟨j, hj, fun k => hle.trans (hi k (Finset.mem_univ _))⟩
 
 /-- Minimizing over the at most two sketch neighbors therefore minimizes over every key. -/
@@ -322,12 +317,10 @@ theorem boundaryRank_eq_upperRank {n w q : ℕ} {keys : Fin n → ℕ}
 
 /-- The inclusive rank of a stored key is its index plus one. -/
 theorem upperRank_apply {n : ℕ} {values : Fin n → ℕ} (hsorted : StrictMono values)
-    (i : Fin n) : upperRank values (values i) = i.val + 1 := by
-  have heq : (Finset.univ.filter fun j => values j ≤ values i) = Finset.Iic i := by
-    ext j
+    (i : Fin n) : upperRank values (values i) = i.val + 1 :=
+  (congrArg Finset.card (Finset.ext fun j => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_Iic,
-      hsorted.le_iff_le]
-  simp only [upperRank, heq, Fin.card_Iic]
+      hsorted.le_iff_le])).trans (Fin.card_Iic i)
 
 /-- An exact hit has its true inclusive rank already, before correction. -/
 theorem upperRank_sketch_apply {n w : ℕ} {keys : Fin n → ℕ}
@@ -366,12 +359,9 @@ theorem sketchSuccessor_eq_some_iff {n w q : ℕ} {keys : Fin n → ℕ} (i : Fi
     sketchSuccessor w keys q = some i ↔ i.val = sketchRank w keys q := by
   unfold sketchSuccessor
   by_cases h : sketchRank w keys q < n
-  · rw [Fin.ofNat?_eq_some_of_lt _ _ h]
-    simp only [Option.some.injEq, Fin.ext_iff]
-    exact eq_comm
-  · rw [Fin.ofNat?_eq_none_of_not_lt _ _ h]
-    simpa only [reduceCtorEq, false_iff] using
-      fun hi : i.val = sketchRank w keys q => h (hi ▸ i.isLt)
+  · simp only [Fin.ofNat?_eq_some_of_lt _ _ h, Option.some.injEq, Fin.ext_iff, eq_comm]
+  · simp only [Fin.ofNat?_eq_none_of_not_lt _ _ h, reduceCtorEq, false_iff]
+    exact fun hi => h (hi ▸ i.isLt)
 
 /-- The two optional candidates are exactly the immediate sketch neighbors. -/
 theorem isSketchNeighbor_iff {n w q : ℕ} {keys : Fin n → ℕ} (i : Fin n) :
@@ -477,14 +467,11 @@ theorem correctedRank_eq_upperRank {n w q : ℕ} {keys : Fin n → ℕ}
     (hsorted : StrictMono keys) (hbound : ∀ i, keys i < 2 ^ w) (hq : q < 2 ^ w) :
     correctedRank w keys q = upperRank keys q := by
   cases hj : bestSketchNeighbor w keys q with
-  | none =>
-    obtain rfl := bestSketchNeighbor_eq_none_iff.mp hj
-    simp [correctedRank, hj, upperRank]
+  | none => simp [correctedRank, hj, bestSketchNeighbor_eq_none_iff.mp hj, upperRank]
   | some j =>
-    rw [correctedRank, hj]
-    dsimp only
+    simp only [correctedRank, hj]
     split_ifs with hhit
-    · subst hhit; exact upperRank_sketch_apply hsorted hbound j
+    · exact hhit ▸ upperRank_sketch_apply hsorted hbound j
     · have hmiss := miss_of_bestSketchNeighbor hsorted hbound hj hhit
       exact boundaryRank_eq_upperRank hsorted hbound hq hmiss j
         (bestSketchNeighbor_highestDiff_le hmiss hj)

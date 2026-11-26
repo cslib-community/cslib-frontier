@@ -275,33 +275,19 @@ private theorem epochTickStageAllGenProg_fastStep {c U V w n_max base : ℕ}
       (2 * cTabWhp c + 32 * hashEvalCostWhp c + 43949) + 1 from rfl]
   simp only [pure_bind]
   refine readHdr_bind_fastStep (by dsimp [hdrRebStage, largeSpaceWhp]; omega) hh.rebStage ?_
-  dsimp only [epochTickStage]
-  by_cases hs0 : fs.rebStage = 0
+  dsimp only [epochTickStage, cp]
+  split_ifs with hs0 hs1 hs2 hs3 hs4
   · obtain ⟨m, v, st⟩ := epochTickStage0GenProg_fastStep henv hcore hs0 hseed hrep (s := s)
-    simp only [hs0, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs0, ite_eq_right hs0]
-  by_cases hs1 : fs.rebStage = 1
+    exact ⟨by omega, v, st⟩
   · obtain ⟨m, v, st⟩ := epochTickStage1GenProg_fastStep henv hcore hpre hs1 hseed hrep (s := s)
-    simp only [hs1, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs1, ite_eq_right hs1]
-  by_cases hs2 : fs.rebStage = 2
+    exact ⟨by omega, v, st⟩
   · obtain ⟨m, v, st⟩ := epochTickStage2GenProg_fastStep henv hcore hpre hs2 hseed hrep (s := s)
-    simp only [hs2, ↓reduceIte]
     exact ⟨by omega, v, st⟩
-  rw [ite_eq_right hs2, ite_eq_right hs2]
-  by_cases hs3 : fs.rebStage = 3
   · obtain ⟨m, v, st⟩ := epochTickStage3GenProg_fastStep henv hcore hs3 hseed hrep (s := s)
-    simp only [hs3, ↓reduceIte]
     exact ⟨by omega, v, st⟩
-  rw [ite_eq_right hs3, ite_eq_right hs3]
-  by_cases hs4 : fs.rebStage = 4
   · obtain ⟨m, v, st⟩ := epochTickStage4GenProg_fastStep henv hcore hs4 hseed hrep (s := s)
-    simp only [hs4, ↓reduceIte]
-    exact ⟨by dsimp only [cp] at m ⊢; omega, v, st⟩
-  rw [ite_eq_right hs4, ite_eq_right hs4]
-  exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
+    exact ⟨by omega, v, st⟩
+  · exact ⟨by simp [memoryCost_pure], validProg_pure _, FastStateStep.refl hseed hrep⟩
 
 /-- Execute the epoch-clock increment / rollover of `epochTick` when rollover is known to succeed
 (`d = (cp, base)`). -/

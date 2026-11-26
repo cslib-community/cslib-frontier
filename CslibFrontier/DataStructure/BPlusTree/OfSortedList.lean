@@ -514,13 +514,11 @@ private theorem good_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
     · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · rw [pack_cons_of_drop_eq_cons ss hd]
-      have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
-      rw [hd] at hmem
       have hlen' := congrArg List.length hd
       simp only [List.length_drop, List.length_cons] at hlen'
       obtain ⟨hf', hr'⟩ := ih (first := c) (rest := rest') (by omega)
-        (hr _ (hmem _ List.mem_cons_self))
-        (fun e he => hr e (hmem e (List.mem_cons_of_mem _ he)))
+        (hr _ (List.mem_of_mem_drop (hd ▸ List.mem_cons_self)))
+        (fun e he => hr e (List.mem_of_mem_drop (hd ▸ List.mem_cons_of_mem _ he)))
       refine ⟨good_node hf (fun e he => hr e (List.mem_of_mem_take he))
         (by rw [List.length_take]; omega) (by rw [List.length_take]; omega), ?_⟩
       rintro e (_ | ⟨_, he⟩)
@@ -581,15 +579,11 @@ private theorem good_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α �
     (hss : ∀ s ∈ ss, t - 1 ≤ s ∧ s ≤ 2 * t - 1) (hsum : ss.sum = l.length) :
     ∀ e ∈ leafBranches ss l, Good t 1 e.child ∧ HeadKey e := by
   induction ss generalizing l with
-  | nil =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l => simp at hsum
+  | nil => rcases l with _ | ⟨p, l⟩ <;> simp [leafBranches_nil] at hsum ⊢
   | cons s ss ih =>
-    cases l with
-    | nil => simp [leafBranches_nil]
-    | cons p l =>
-      obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
+    rcases l with _ | ⟨p, l⟩
+    · simp [leafBranches_nil]
+    · obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
       rw [List.sum_cons] at hsum
       rw [leafBranches_cons_cons]
       intro e he
@@ -651,11 +645,8 @@ private theorem separated_node {first : BPlusTree α β} {rest : List (Branch α
   obtain ⟨-, hrs, hfr⟩ := List.isSortedAssoc_append_iff.1 hs
   refine .node hf hr (fun e he p hp => ?_) ?_ fun e he p hp => ?_
   · obtain ⟨v, l, hl⟩ := hk e he
-    have hc : e.child.toList.IsSortedAssoc := by
-      refine hrs.sublist ?_
-      rw [List.flatMap_def]
-      exact List.sublist_flatten_of_mem
-        (List.mem_map_of_mem (f := fun e : Branch α β => e.child.toList) he)
+    have hc : e.child.toList.IsSortedAssoc :=
+      hrs.sublist (List.flatMap_def .. ▸ List.sublist_flatten_of_mem (List.mem_map_of_mem he))
     rw [hl] at hc hp
     rcases List.mem_cons.1 hp with rfl | hp
     · exact le_rfl

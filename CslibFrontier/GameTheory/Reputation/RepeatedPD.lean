@@ -250,9 +250,7 @@ theorem length_le_length_historyAfter (σ₁ σ₂ : PDStrategy) (h : PDHistory)
     h.length ≤ (historyAfter σ₁ σ₂ h t).length := by
   induction t generalizing h with
   | zero => exact le_rfl
-  | succ t ih =>
-    have hstep : h.length ≤ (h ++ [PDRound.mk (σ₁ h) (σ₂ h)]).length := by simp
-    exact hstep.trans (ih (h ++ [⟨σ₁ h, σ₂ h⟩]))
+  | succ t ih => exact (by simp : h.length ≤ (h ++ [PDRound.mk (σ₁ h) (σ₂ h)]).length).trans (ih _)
 
 /-- Player 1's normalized discounted continuation payoff from public history `h`. -/
 noncomputable def contPayoff₁ (δ : ℝ) (σ₁ σ₂ : PDStrategy) (h : PDHistory) : ℝ :=
@@ -352,14 +350,11 @@ private theorem forall_contPayoff₁_le_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ�
     have hgt (h' : PDHistory) (hlen : h.length < h'.length) : σ₁' h' = σ₁ h' :=
       ite_eq_right fun heq => Nat.lt_irrefl _ (heq ▸ hlen)
     have htail : contPayoff₁ δ σ₁' σ₂ (h ++ [⟨a, σ₂ h⟩]) =
-        contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) := by
-      unfold contPayoff₁
-      congr 1
-      ext t
-      rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)]
-    have hbell := contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h
-    simp only [σ₁', ↓reduceIte, htail] at hbell
-    exact hbell ▸ h₁ h σ₁'
+        contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) :=
+      congrArg (discountedPayoff δ) (funext fun t => by
+        rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)])
+    have hle := h₁ h σ₁'
+    rwa [contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h, show σ₁' h = a from ite_eq_left rfl, htail] at hle
   · have hbd (n : ℕ) : ∀ h' : PDHistory,
         contPayoff₁ δ σ₁' σ₂ h' - contPayoff₁ δ σ₁ σ₂ h' ≤ 4 * δ ^ n := by
       induction n with
@@ -445,9 +440,7 @@ private theorem historyAfter_grim_of_not_allCooperated {h : PDHistory}
 private theorem allCooperated_map_swap (h : PDHistory) :
     allCooperated (h.map PDRound.swap) = allCooperated h := by
   simp only [allCooperated, List.all_map]
-  congr 1
-  ext ⟨a₁, a₂⟩
-  cases a₁ <;> cases a₂ <;> rfl
+  exact congrArg h.all (funext fun ⟨a₁, a₂⟩ => by cases a₁ <;> cases a₂ <;> rfl)
 
 private theorem swapStrategy_grim : swapStrategy grim = grim := by
   ext h
@@ -517,18 +510,14 @@ theorem not_isSPNE_naiveGrim {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
   rw [isSPNE_iff_noOneShotDev hδ₀ hδ₁]
   rintro ⟨h₁, _⟩
   let h0 : PDHistory := [⟨.defect, .cooperate⟩]
-  have ha : naiveGrim₁ h0 = .cooperate := rfl
-  have hb : naiveGrim₂ h0 = .defect := rfl
-  have hosd := h₁ h0 .defect
   have hzero (a : PDAction) :
       contPayoff₁ δ naiveGrim₁ naiveGrim₂ (h0 ++ [⟨a, .defect⟩]) = 0 := by
     simp [contPayoff₁, roundAt_naiveGrim_both_defected (h := h0 ++ [⟨a, .defect⟩]) rfl rfl,
       pdPayoff, discountedPayoff_const hδ₀ hδ₁]
-  have hfollow : contPayoff₁ δ naiveGrim₁ naiveGrim₂ h0 = -(1 - δ) := by
-    rw [contPayoff₁_bellman hδ₀ hδ₁, ha, hb, hzero]
-    norm_num [pdPayoff]
-  rw [hb, hfollow, hzero] at hosd
-  norm_num [pdPayoff] at hosd
+  have hosd := h₁ h0 .defect
+  rw [contPayoff₁_bellman hδ₀ hδ₁ naiveGrim₁ naiveGrim₂ h0] at hosd
+  simp only [naiveGrim₁, naiveGrim₂, h0, List.all_cons, List.all_nil, reduceCtorEq, decide_true,
+    decide_false, Bool.and_true, Bool.false_eq_true, ↓reduceIte, hzero, pdPayoff] at hosd
   linarith
 
 /-- **Tit-for-Tat** for player 1: cooperate initially, then copy player 2's last action
@@ -578,14 +567,12 @@ private theorem contPayoff₁_titForTat_some {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ
   have hl2 : h2Hist.getLast? = some r := by
     cases r; exact List.getLast?_concat ..
   have hper : contPayoff₁ δ titForTat₁ titForTat₂ h2Hist =
-      contPayoff₁ δ titForTat₁ titForTat₂ h := by
-    unfold contPayoff₁
-    congr 1; ext t
-    rw [roundAt_titForTat_of_getLast hl2 t, roundAt_titForTat_of_getLast hl t]
+      contPayoff₁ δ titForTat₁ titForTat₂ h :=
+    congrArg (discountedPayoff δ) (funext fun t => by
+      rw [roundAt_titForTat_of_getLast hl2 t, roundAt_titForTat_of_getLast hl t])
   rw [hper] at h2
   rw [h2] at h1
-  have hpos : 0 < 1 + δ := by linarith
-  field_simp [hpos.ne']
+  field_simp [(by linarith : (1 + δ) ≠ 0)]
   nlinarith
 
 private theorem swapStrategy_titForTat₁ : swapStrategy titForTat₁ = titForTat₂ := by
@@ -631,22 +618,20 @@ theorem isSPNE_titForTat_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
   constructor
   · rintro ⟨h₁, h₂⟩
     have hlo : 1 / 2 ≤ δ := by
-      have hosd := h₁ [] .defect
+      have hosd := mul_le_mul_of_nonneg_right (h₁ [] .defect) hpos.le
       rw [contPayoff₁_titForTat_nil hδ₀ hδ₁,
         contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)] at hosd
       simp only [titForTat₂, List.getLast?_nil, pdPayoff] at hosd
-      have hmul := mul_le_mul_of_nonneg_right hosd hpos.le
-      field_simp [hpos.ne'] at hmul
+      field_simp [hpos.ne'] at hosd
       nlinarith
     have hhi : δ ≤ 1 / 2 := by
       let h0 : PDHistory := [⟨.defect, .cooperate⟩]
-      have hosd := h₂ h0 .cooperate
       have hl0 : h0.getLast? = some ⟨.defect, .cooperate⟩ := rfl
+      have hosd := mul_le_mul_of_nonneg_right (h₂ h0 .cooperate) hpos.le
       rw [contPayoff₂_titForTat_some hδ₀ hδ₁ hl0,
         contPayoff₂_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)] at hosd
       simp only [titForTat₁, hl0, pdPayoff] at hosd
-      have hmul := mul_le_mul_of_nonneg_right hosd hpos.le
-      field_simp [hpos.ne'] at hmul
+      field_simp [hpos.ne'] at hosd
       nlinarith
     linarith
   · rintro rfl

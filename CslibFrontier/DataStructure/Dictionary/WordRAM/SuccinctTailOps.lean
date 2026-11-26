@@ -251,11 +251,11 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
           (hr_d.trans_le (htail.r_le _ hb_d)) hr ((Nat.div_add_mod' d _).trans heq)
         rw [hb_eq, hr_eq] at hr_d
         omega
-      refine ⟨hb_d, ?_, ?_⟩
-      · rw [hr_fn _ hb_d]
-        split_ifs with hbeq
-        exacts [Nat.lt_succ_of_lt (hbeq ▸ hr_d), hr_d]
-      · rw [hptr_val d (htail.owner_lt_maxTailItems ht_old), ite_eq_right hd_ne, hptr_d]
+      refine ⟨hb_d, ?_, by
+        rw [hptr_val d (htail.owner_lt_maxTailItems ht_old), ite_eq_right hd_ne, hptr_d]⟩
+      rw [hr_fn _ hb_d]
+      split_ifs with hbeq
+      exacts [Nat.lt_succ_of_lt (hbeq ▸ hr_d), hr_d]
 
 theorem slabBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     (hb : b < numBuckets n_max)
@@ -287,12 +287,9 @@ theorem slotOf_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · unfold slotOf
     rw [ite_eq_right hb0, hpres.2.2.2.2.1 b hb, ite_eq_right (by omega),
       Nat.add_sub_cancel_left, gmTailPtrIdx,
-      hptr_val _ (mul_tailCapPerBucket_add_lt_maxTailItems hb hr)]
-    simp only [↓reduceIte]
-  · unfold bCount at hj
-    simp only [hb0, ↓reduceIte, hb'] at hj
-    unfold slotOf
-    rw [ite_eq_right hb0, ite_eq_right hb0, hpres.2.2.2.2.1 b' hb']
+      hptr_val _ (mul_tailCapPerBucket_add_lt_maxTailItems hb hr), ite_eq_left rfl]
+  · simp only [bCount, hb0, ↓reduceIte, hb'] at hj
+    simp only [slotOf, hb0, ↓reduceIte, hpres.2.2.2.2.1 b' hb']
     split_ifs with hj_slab
     · rw [hptr]
     · have hr'_cap : j - gm (gmQIdx b') * slabSize n_max < tailCapPerBucket n_max :=
@@ -525,12 +522,9 @@ theorem ntails_lt_maxTailItems_of_r_lt {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ
       (Finset.range (maxTailItems n_max)).erase d_new := fun d hd => by
     rcases Finset.mem_image.mp hd with ⟨t, ht, rfl⟩
     rw [Finset.mem_range] at ht
-    refine Finset.mem_erase.mpr ⟨fun heq => ?_,
+    refine Finset.mem_erase.mpr ⟨fun heq => (htail.owner_valid t ht).2.1.ne ?_,
       Finset.mem_range.mpr (htail.owner_lt_maxTailItems ht)⟩
-    have hr_t := (htail.owner_valid t ht).2.1
-    obtain ⟨hd_eq, hm_eq⟩ := mul_add_div_mod_of_lt (b := b) hr_lt
-    rw [heq, hd_eq, hm_eq] at hr_t
-    exact Nat.lt_irrefl _ hr_t
+    rw [heq, (mul_add_div_mod_of_lt hr_lt).1, (mul_add_div_mod_of_lt hr_lt).2]
   have hcard := Finset.card_le_card hsub
   rw [Finset.card_image_of_injOn hinj, Finset.card_range,
     Finset.card_erase_of_mem (Finset.mem_range.mpr hd_new_lt), Finset.card_range] at hcard

@@ -456,12 +456,10 @@ theorem abs_eq_update {s s' : Memory.State} {v : Fin n} {x : Option ℕ}
       (s'.mem (L.base + 2 * n + 1 + u) = 0 ↔ s.mem (L.base + 2 * n + 1 + u) = 0))
     (hv : abs L s' v = x) : abs L s' = Function.update (abs L s) v x := by
   funext u
-  by_cases huv : u = v
-  · subst huv
-    rw [Function.update_self, hv]
-  · rw [Function.update_of_ne huv]
-    obtain ⟨hk, hp⟩ := hother u huv
-    simp only [abs, stateOfMem, hk, hp]
+  rcases eq_or_ne v u with rfl | huv
+  · rw [Function.update_self, hv]
+  · obtain ⟨hk, hp⟩ := hother u huv.symm
+    simp only [Function.update_of_ne huv.symm, abs, stateOfMem, hk, hp]
 
 /-! ## The operations -/
 
@@ -492,12 +490,9 @@ theorem Inv.size_lt (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
 theorem heapInv_update_size (hL : L.Valid w K) {S : ℕ} {m : ℕ → ℕ}
     (h : HeapInv n L.base S m) (x : ℕ) :
     HeapInv n L.base S (Function.update m L.size.base x) := by
-  apply h.congr_mem
-  intro a ha hzero
-  apply Function.update_of_ne
-  intro he
+  refine h.congr_mem fun a ha hzero => Function.update_of_ne (fun he => ?_) x m
   rcases hL.size_separate with hout | hslot
-  · exact hout (by rw [← he]; exact Block.mem_footprint.mp ha)
+  · exact hout (he ▸ Block.mem_footprint.mp ha)
   · exact hzero (he.trans hslot)
 
 
@@ -536,9 +531,8 @@ theorem insert_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) {v : 
     Triple w s (insert L v k) (8 * Nat.log 2 n + 9) (Post L s (.insert v k)) := by
   obtain ⟨hnone, hk⟩ := hv
   have hA := hs.arrays_allocated
-  have hp : s.mem (L.base + 2 * n + 1 + v) = 0 := by
-    by_contra h
-    simp [abs, stateOfMem, h] at hnone
+  have hp : s.mem (L.base + 2 * n + 1 + v) = 0 :=
+    by_contra fun h => by simp [abs, stateOfMem, h] at hnone
   have hSn := hs.heap.size_lt v.isLt hp
   have hsz := size_location hL
   have hlog := Nat.log_mono_right (b := 2) (show s.mem L.size.base + 1 ≤ n by omega)
@@ -572,9 +566,8 @@ theorem decreaseKey_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) 
     Triple w s (decreaseKey L v k) (8 * Nat.log 2 n + 6) (Post L s (.decreaseKey v k)) := by
   obtain ⟨⟨k₀, hk₀, hle⟩, hk⟩ := hv
   have hA := hs.arrays_allocated
-  have hp : s.mem (L.base + 2 * n + 1 + v) ≠ 0 := by
-    intro h
-    simp [abs, stateOfMem, h] at hk₀
+  have hp : s.mem (L.base + 2 * n + 1 + v) ≠ 0 :=
+    fun h => by simp [abs, stateOfMem, h] at hk₀
   have hkey : s.mem (L.base + v) = k₀ := by simpa [abs, stateOfMem, hp] using hk₀
   have hsz := size_location hL
   have hpS := hs.heap.pos_le v v.isLt
@@ -628,10 +621,9 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
   simp only [Nat.add_zero, hS]
   split
   next h0 =>
-    refine Triple.pure (post_self hs ?_)
-    have hfind : IndexedMinPQ.findMin (abs L s) = none :=
-      IndexedMinPQ.findMin_eq_none_iff.mpr (hinv.size_eq_zero_iff.mp h0)
-    simp only [IndexedMinPQ.step, hfind]
+    exact Triple.pure (post_self hs (by
+      simp only [IndexedMinPQ.step, abs,
+        IndexedMinPQ.findMin_eq_none_iff.mpr (hinv.size_eq_zero_iff.mp h0)]))
   next h0 =>
     have hS1 : 1 ≤ S := Nat.one_le_iff_ne_zero.mpr h0
     have hroot := hinv.vertex_lt 1 le_rfl hS1
@@ -640,7 +632,6 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
     split
     next h1 =>
       subst h1
-      have hzero := hinv.extract_one
       refine Triple.write_bind (pos_lt hA hroot) (fits_zero w) <|
         Triple.write_bind (hs.size_lt hL) (fits_zero w) <| Triple.pure ?_
       refine post_extract (u := s.mem (L.base + n + 1)) hroot hfind ?_
@@ -650,8 +641,8 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
           simp only [Nat.add_zero]
           exact ⟨by update_simp, by update_simp; rfl⟩
         · simp only [abs, stateOfMem, Nat.add_zero]; update_simp
-      · simp only [Nat.add_zero, Function.update_self]
-        exact heapInv_update_size hL hzero 0
+      · simpa only [Nat.add_zero, Function.update_self] using
+          heapInv_update_size hL hinv.extract_one 0
       · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
         simp only [Nat.add_zero]; update_simp
     next h1 =>
@@ -670,8 +661,7 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
       refine post_extract (u := s.mem (L.base + n + 1)) hroot hfind ?_
         ⟨hs.size_allocated.mono (by rw [hr.frontier_eq]), hA.mono (by rw [hr.frontier_eq]), ?_⟩
         hr.frontier_eq fun a ha => ?_
-      · have habs' := hr.abs_eq
-        refine abs_eq_update (fun u hu => ?_) ?_
+      · refine abs_eq_update (fun u hu => ?_) ?_
         · have hu' : (u : ℕ) ≠ s.mem (L.base + n + 1) := Fin.val_ne_of_ne hu
           have hp := hpos' u u.isLt
           have hk' := hr.outside (L.base + u) (.inl (by omega))
@@ -680,8 +670,7 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
           exact ⟨by update_simp; rw [hk']; update_simp, by update_simp; rw [hp', hp]; simp [hu']⟩
         · have hp := (hr.pos_eq_zero _ hroot).mpr ((hpos' _ hroot).mpr (.inr rfl))
           simp only [abs, stateOfMem, Nat.add_zero]; update_simp; simp [hp]
-      · simp only [Nat.add_zero, Function.update_self]
-        exact heapInv_update_size hL hinv' _
+      · simpa only [Nat.add_zero, Function.update_self] using heapInv_update_size hL hinv' _
       · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
         have hout := hr.outside a (by omega)
         simp only [Layout.heap, Layout.pos, Nat.add_zero] at hout ⊢

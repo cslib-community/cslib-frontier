@@ -185,23 +185,15 @@ private theorem bestMNWState_spec (hn : 0 < n) :
     let cB := (W.posAgents B).card
     let pB := W.nashProduct B
     split_ifs with h₁ h₂
-    · refine ⟨hB_comp, rfl, rfl, fun X hX => ?_⟩
-      rcases List.mem_cons.1 hX with rfl | hmem
-      · exact W.leMNW_refl X
-      · exact W.leMNW_trans (hall_rest X hmem) (Or.inl (hC_eq ▸ h₁))
-    · refine ⟨hB_comp, rfl, rfl, fun X hX => ?_⟩
-      rcases List.mem_cons.1 hX with rfl | hmem
-      · exact W.leMNW_refl X
-      · exact W.leMNW_trans (hall_rest X hmem)
-          (Or.inr ⟨hC_eq ▸ h₂.1, (hP_eq ▸ h₂.2).le⟩)
-    · refine ⟨hA_comp, hC_eq, hP_eq, fun X hX => ?_⟩
-      rcases List.mem_cons.1 hX with rfl | hmem
-      · rcases lt_trichotomy cB bestC with hlt | heq | hgt
-        · exact Or.inl (hC_eq ▸ hlt)
-        · have hleP : pB ≤ bestP := not_lt.1 fun hltP => h₂ ⟨heq.symm, hltP⟩
-          exact Or.inr ⟨hC_eq ▸ heq, hP_eq ▸ hleP⟩
-        · exact absurd hgt h₁
-      · exact hall_rest X hmem
+    · exact ⟨hB_comp, rfl, rfl, List.forall_mem_cons.2
+        ⟨W.leMNW_refl B, fun X hX => W.leMNW_trans (hall_rest X hX) (Or.inl (hC_eq ▸ h₁))⟩⟩
+    · exact ⟨hB_comp, rfl, rfl, List.forall_mem_cons.2 ⟨W.leMNW_refl B, fun X hX =>
+        W.leMNW_trans (hall_rest X hX) (Or.inr ⟨hC_eq ▸ h₂.1, (hP_eq ▸ h₂.2).le⟩)⟩⟩
+    · refine ⟨hA_comp, hC_eq, hP_eq, List.forall_mem_cons.2 ⟨?_, hall_rest⟩⟩
+      rcases lt_trichotomy cB bestC with hlt | heq | hgt
+      · exact Or.inl (hC_eq ▸ hlt)
+      · exact Or.inr ⟨hC_eq ▸ heq, hP_eq ▸ not_lt.1 fun hltP => h₂ ⟨heq.symm, hltP⟩⟩
+      · exact absurd hgt h₁
 
 /-- `W.maxNashWelfareAllocation hn` satisfies `W.IsMaxNashWelfare`. -/
 theorem isMaxNashWelfare_maxNashWelfareAllocation (hn : 0 < n) :
@@ -359,14 +351,13 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
         W.bundleVal_transfer_target hji hg
       have huBj : W.bundleVal j (B.bundle j) = W.bundleVal j (A.bundle j) - W.weight j g :=
         W.bundleVal_transfer_source hji hg
-      have hpos_eq : W.posAgents B = W.posAgents A := by
-        ext k
-        simp only [mem_posAgents]
+      have hpos_eq : W.posAgents B = W.posAgents A := Finset.ext fun k => by
         rcases eq_or_ne k i with rfl | hki
-        · simp [huBi, hi_pos, show 0 < W.bundleVal k (A.bundle k) + W.weight k g by linarith]
+        · simp [huBi, hi_pos, add_pos hi_pos hw_ig_pos]
         · rcases eq_or_ne k j with rfl | hkj
           · simp [huBj, hj_pos, hrem_j_pos]
-          · rw [BundleAllocation.transferGood_bundle_other A g hg hki hkj]
+          · rw [mem_posAgents, mem_posAgents,
+              BundleAllocation.transferGood_bundle_other A g hg hki hkj]
       have hpair_lt : W.bundleVal i (A.bundle i) * W.bundleVal j (A.bundle j) <
           W.bundleVal i (B.bundle i) * W.bundleVal j (B.bundle j) := by
         rw [huBi, huBj]

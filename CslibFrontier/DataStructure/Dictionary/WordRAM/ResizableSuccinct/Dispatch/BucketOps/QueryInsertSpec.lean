@@ -161,10 +161,8 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
     rw [hcpl.gm_eq]; exact ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
   obtain ⟨hst_sb, hres_sb, hcost_sb⟩ := compSearchBucketGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
-  have hsb_fix := searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m)
-    rfl hm_lt
-  dsimp only at hsb_fix
-  have hres_branch := hsb_fix.2.2
+  have hres_branch :=
+    (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).2.2
   have hbm := bucketMapOfState_feistelBucket henv.le_U (hValOfSeed U N θ) s_abs u
   have hc_res : (Memory.spec 0).clientResult s
       (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q))) = ((b, q), m) :=
@@ -290,20 +288,18 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
       FixedCoupled metaBase itemBase U V w N s_fix' s' := by
   intro q b m res_sb d_wv s'
   set h_q := hValOfSeed U N θ q
-  have hsrch := compInsertSearchWithHashGenProg_dict_spec henv hfit_off hinv hcpl hm_items u
-  obtain ⟨_, _, _, hf_iff, hf_slot, _⟩ := hsrch
-  have hsome : (s_abs u).isSome := hf_iff.mp hfound
+  obtain ⟨_, _, _, hf_iff, hf_slot, _⟩ :=
+    compInsertSearchWithHashGenProg_dict_spec henv hfit_off hinv hcpl hm_items u
   obtain ⟨j_hit, hj_bc, hphys_eq⟩ := hf_slot hfound
   obtain ⟨L, hb_inv⟩ := hinv.hbucket
   have hb_lt : b < numBuckets N := feistelBucket_lt (bucketBits N) (hValOfSeed U N θ) u.val
   have hm_lt : m < numMicroPerBucket N := mOfSeed_lt U N θ q
-  have hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem) := by
-    rw [hcpl.gm_eq]; exact hb_inv.hslot
+  have hslot : SlotStoreInv N (compGmAt metaBase U w N s.mem) := hcpl.gm_eq ▸ hb_inv.hslot
   have hv_lt : v < 2 ^ valBits V := hv.trans_le (Nat.le_pow_clog (by decide) V)
   have hwf := ghostDictParamsWf henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
   have hg_env := ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
   have hins_fix := insertWithHashProg_dict_spec (w := ghostW w) hwf hg_env θ hinv u v
-    ⟨Or.inr hsome, hv⟩
+    ⟨Or.inr (hf_iff.mp hfound), hv⟩
   set s_fix' := (Memory.spec 0).clientState s_fix
     (insertWithHashProg U V (ghostW w) N (((0, u.val), v), h_q))
   have hst_sb_fix :
@@ -322,15 +318,16 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
     (slotOf_lt_and_injective hslot).1 b hb_lt j_hit hj_bc
   have eff_wv_fix := writeValProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) hwf.1 hphys_lt hv_lt s_fix
-  have hgm'_eq : compGmAt metaBase U w N s'.mem = compGmAt metaBase U w N s.mem := by
-    dsimp only [s', d_wv]
-    rw [hphys_eq]
-    exact hcpl_wv.gm_eq.trans (eff_wv_fix.2.2.2.2.2.trans hcpl.gm_eq.symm)
-  refine ⟨⟨U, V, N, m_items, s_fix, b, j_hit, rfl, henv, hcpl, hslot, hm_items,
-      hb_lt, hj_bc, hphys_eq⟩,
-    ?_, hgm'_eq, memoryCost_compWritePhysValGenProg_le _ s, s_fix', hins_fix.2.2.2.1, ?_⟩
-  · dsimp only [s', d_wv]; rw [hphys_eq]; exact hfr_wv
-  · dsimp only [s', d_wv]; rw [hs_fix'_eq, hphys_eq]; exact hcpl_wv
+  have hd_eq : d_wv = (((mkCompParams U V w N, (metaBase, itemBase)),
+      slotOf N (compGmAt metaBase U w N s.mem) b j_hit), v) :=
+    congrArg (fun p => (((mkCompParams U V w N, (metaBase, itemBase)), p), v)) hphys_eq
+  dsimp only [s']
+  rw [hd_eq]
+  exact ⟨⟨U, V, N, m_items, s_fix, b, j_hit, rfl, henv, hcpl, hslot, hm_items,
+      hb_lt, hj_bc, rfl⟩,
+    hfr_wv, hcpl_wv.gm_eq.trans (eff_wv_fix.2.2.2.2.2.trans hcpl.gm_eq.symm),
+    memoryCost_compWritePhysValGenProg_le _ s, s_fix', hins_fix.2.2.2.1,
+    (hphys_eq ▸ hs_fix'_eq).symm ▸ hcpl_wv⟩
 
 /-- Dictionary-level specification of Phase 2b (miss path: `found ≠ 1`, executed after
 `growZeroCode` extends `s` to `s_grown` with `s_grown.mem = s.mem` and `n + 1 ≤ m_cap`) of split
@@ -370,31 +367,26 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
     henv_grown.le_pow_V
   have hg_env := ghostDictEnvGen henv_grown.pos_w henv_grown.le_U henv_grown.lt_pow_U
     henv_grown.le_pow_V
-  have hslot : SlotStoreInv N (compGmAt metaBase U w N s_grown.mem) := by
-    rw [hmem_grown, hcpl.gm_eq]; exact hb_inv.hslot
+  have hslot : SlotStoreInv N (compGmAt metaBase U w N s_grown.mem) :=
+    hmem_grown ▸ hcpl.gm_eq ▸ hb_inv.hslot
   have hcpl_grown : FixedCoupled metaBase itemBase U V w N s_fix s_grown :=
     ⟨hmem_grown ▸ hcpl.gm_eq, hmem_grown ▸ hcpl.lm_eq, hmem_grown ▸ hcpl.win_inv,
      fun i => hmem_grown ▸ hcpl.td_lt i, fun i => hmem_grown ▸ hcpl.dt_lt i,
      fun d hd => hmem_grown ▸ hcpl.quot_eq d (hmem_grown ▸ hd),
      fun d hd => hmem_grown ▸ hcpl.val_eq d (hmem_grown ▸ hd)⟩
-  have htot_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) < N := by
-    rwa [hmem_grown]
-  have hm_cap_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) + 1 ≤ m_cap := by
-    rwa [hmem_grown]
+  have htot_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) < N := hmem_grown ▸ htot_lt
+  have hm_cap_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) + 1 ≤ m_cap :=
+    hmem_grown ▸ hm_cap
   have hq_lt : q < 2 ^ quotientBits U N :=
     keyQuotient_lt_two_pow_quotientBits henv_grown.le_U u.isLt
-  have hq_shift : u.val >>> bucketBits N < 2 ^ quotientBits U N := by
-    rwa [Nat.shiftRight_eq_div_pow]
   have hv_lt : v < 2 ^ valBits V := hv.trans_le (Nat.le_pow_clog (by decide) V)
-  have hold_grown : lmHead N (compLmAt metaBase U w N s_grown.mem) b m ≤ effBucketCap N := by
-    rw [hmem_grown, hcpl.lm_eq]
-    exact (hb_inv.hchains.1 b hb_lt m hm_lt).head_le_cap
-  have hcard_lt : (Dictionary.dom s_abs).card < N := by
-    rw [← hinv.htot]
-    change totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N
-    rwa [← hcpl.gm_eq]
+  have hold_grown : lmHead N (compLmAt metaBase U w N s_grown.mem) b m ≤ effBucketCap N :=
+    hmem_grown ▸ hcpl.lm_eq ▸ (hb_inv.hchains.1 b hb_lt m hm_lt).head_le_cap
+  have htot_fix :
+      totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N :=
+    hcpl.gm_eq ▸ htot_lt
   have hins_fix := insertWithHashProg_dict_spec (w := ghostW w) hwf hg_env θ hinv u v
-    ⟨Or.inl hcard_lt, hv⟩
+    ⟨Or.inl (hinv.htot ▸ htot_fix), hv⟩
   set h_q := hValOfSeed U N θ q
   set s_fix' := (Memory.spec 0).clientState s_fix
     (insertWithHashProg U V (ghostW w) N (((0, u.val), v), h_q))
@@ -403,28 +395,25 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
         (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m)) =
         s_fix :=
     (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).1
-  have htot_fix :
-      totalSlots N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) < N := by
-    rwa [← hcpl.gm_eq]
+  have hbc_eq : bCount N (compGmAt metaBase U w N s_grown.mem) b =
+      bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b :=
+    hmem_grown ▸ hcpl.gm_eq ▸ rfl
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState s_fix
         (pushBackSlotProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), v)))
       (prependIfIndexedProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
         (((0, b), m), bCount N (compGmAt metaBase U w N s_grown.mem) b)) := by
-    rw [show bCount N (compGmAt metaBase U w N s_grown.mem) b =
-        bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b from by
-      rw [hmem_grown, hcpl.gm_eq]; rfl]
+    rw [hbc_eq]
     exact insertWithHashProg_clientState_miss U V (ghostW w) N u.val v h_q s_fix b q m
       (and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q)
       (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl hst_sb_fix hmiss htot_fix hb_lt
   obtain ⟨hfr_app, hcpl_app, hcost_app⟩ := compInsertAppendNewGenProg_effect
     henv_grown hcpl_grown hslot hb_lt hm_lt htot_grown hm_cap_grown hq_lt hv_lt hold_grown
   rw [hmem_grown] at hcost_app
-  refine ⟨⟨U, V, N, m_cap, s_fix, rfl, u.isLt.trans henv_grown.lt_pow_U, hq_shift, hv_lt,
+  exact ⟨⟨U, V, N, m_cap, s_fix, rfl, u.isLt.trans henv_grown.lt_pow_U,
+      (Nat.shiftRight_eq_div_pow u.val (bucketBits N)).symm ▸ hq_lt, hv_lt,
       henv_grown, hcpl_grown, hslot, hb_lt, hm_lt, htot_grown, hm_cap_grown, hold_grown⟩,
-    hfr_app, hcost_app, s_fix', hins_fix.2.2.2.1, ?_⟩
-  rw [hs_fix'_eq]
-  exact hcpl_app
+    hfr_app, hcost_app, s_fix', hins_fix.2.2.2.1, hs_fix'_eq.symm ▸ hcpl_app⟩
 
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

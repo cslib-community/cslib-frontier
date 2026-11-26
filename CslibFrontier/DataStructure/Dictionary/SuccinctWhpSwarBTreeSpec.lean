@@ -171,20 +171,17 @@ private theorem descendToLeaf_reaches_leaf {isRoot : Bool}
       fun cnt' nd' mapFn' hcnt_le' hmap_other hv_new => ?_⟩
     obtain ⟨T', hroot', hset', hht', hpot', hv'⟩ :=
       hlift_c cnt' nd' mapFn' hcnt_le' hmap_other hv_new
-    have hset_eq : ∀ i, (Function.update cs r T' i).nodeSet = (cs i).nodeSet :=
-      (Function.forall_update_iff cs fun i t => t.nodeSet = (cs i).nodeSet).2
-        ⟨hset', fun _ _ => rfl⟩
-    have hht_eq : ∀ i, (Function.update cs r T' i).height = (cs i).height :=
-      (Function.forall_update_iff cs fun i t => t.height = (cs i).height).2
-        ⟨hht', fun _ _ => rfl⟩
+    have hset_eq (i) : (Function.update cs r T' i).nodeSet = (cs i).nodeSet := by
+      rcases eq_or_ne i r with rfl | hi <;> simp [*]
+    have hht_eq (i) : (Function.update cs r T' i).height = (cs i).height := by
+      rcases eq_or_ne i r with rfl | hi <;> simp [*]
     have hnodes_idx : Function.update nodes _ nd' idx = nodes idx :=
       Function.update_of_ne (ne_of_mem_of_not_mem hmem_c (hnot r)).symm nd' nodes
     refine ⟨.branch idx cnt (Function.update cs r T'), rfl, ?_, ?_,
       Nat.add_le_add_left (sum_le_sum fun i _ => ?_) _, ?_⟩
     · simp only [BTreeTree.nodeSet, hset_eq]
     · simp only [BTreeTree.height, hht_eq]
-    · exact (Function.forall_update_iff cs fun i t =>
-        t.potential tMin ≤ (cs i).potential tMin).2 ⟨hpot', fun _ _ => le_rfl⟩ i
+    · rcases eq_or_ne i r with rfl | hi <;> simp [*]
     · simp only [ValidSubtree, hnodes_idx, hset_eq, hht_eq]
       refine ⟨hidx, hmeta, hdeg, hcnt_le, hkw, hvw, hlo0, hhi_last, hmono, hnot, hdisj, hht,
         fun i => ?_⟩
@@ -514,11 +511,10 @@ theorem splitFullNode_spec {isRoot : Bool} {fpBits W_val tMin alloc alloc' lo hi
       · rw [ite_eq_left (hij.trans hj), ite_eq_left hj]
         exact hmono i j hij (by omega)
       · rcases href q hq1 (hq2.trans hsep_hi.le) with ⟨r₀, hr₀, hkr₀, hmr₀⟩ | ⟨hno, hmno⟩
-        · have hr₀_lt : r₀ < tMin := by
+        · have hr₀_lt : r₀ < tMin := not_le.mp fun h => by
             have := hmono (tMin - 1) r₀
             omega
-          exact .inl ⟨r₀, hr₀_lt, by rw [ite_eq_left hr₀_lt, hkr₀],
-            by rw [ite_eq_left hr₀_lt, hmr₀]⟩
+          exact .inl ⟨r₀, hr₀_lt, by simp [hr₀_lt, hkr₀, hmr₀]⟩
         · exact .inr ⟨fun r hr => by rw [ite_eq_left hr]; exact hno r (by omega), hmno⟩
     · simp only [ValidSubtree, hr_nd, laneGet_wordDropLow]
       refine ⟨hr_lt, trivial, by omega, wordDropLow_lt (by rwa [hcnt_sum]),
@@ -637,16 +633,16 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
         rw [Nat.succ_mul] at this
         rw [Nat.shiftLeft_eq, Nat.two_mul, Nat.pow_add]
         omega
+      have hne1 : sl.root ≠ sl.alloc + 1 := by omega
       simp only [ValidSubtree, Function.update_self, ↓reduceIte, le_refl, Nat.one_mul,
         Nat.sub_self, hlane0]
       refine ⟨by omega, trivial, trivial, by omega, hsep_lt, hvals_lt, Nat.zero_le _, hsep_hi,
-        fun i j hij hj => by omega, Fin.forall_fin_two.2 ⟨fun h => ?_, fun h => ?_⟩, ?_, hht_root,
-        Fin.forall_fin_two.2 ⟨⟨hval0.trans hrtL.symm, ?_⟩, ⟨hval1.trans hrtR.symm, ?_⟩⟩⟩
-      · simpa [hroot_lt.ne] using hsubL h
-      · simpa [show sl.root ≠ sl.alloc + 1 by omega] using hsubR h
-      · simp [Fin.forall_fin_two, hdisjLR, hdisjLR.symm]
-      · simpa [childLo, childHi, hlane0] using hvL
-      · simpa [childLo, childHi, hlane0] using hvR
+        fun i j hij hj => by omega,
+        Fin.forall_fin_two.2 ⟨mt (hsubL ·) (by simp [hroot_lt.ne]), mt (hsubR ·) (by simp [hne1])⟩,
+        by simp [Fin.forall_fin_two, hdisjLR, hdisjLR.symm], hht_root,
+        Fin.forall_fin_two.2
+          ⟨⟨hval0.trans hrtL.symm, by simpa [childLo, childHi, hlane0] using hvL⟩,
+            ⟨hval1.trans hrtR.symm, by simpa [childLo, childHi, hlane0] using hvR⟩⟩⟩
   · simp only [splitRootIfFull, beq_iff_eq, hfull, ↓reduceIte]
     exact ⟨halloc_pos, by omega, trivial, T, hroot, by omega, by omega, le_rfl, hv⟩
 

@@ -283,13 +283,10 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         exact ⟨hqb_f2.trans (congrArg (· - 1) hqb1_f), hrb_f2⟩
       have hother_all : ∀ b' < numBuckets N, b' ≠ b →
           compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
-          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := by
-        intro b' hb' hne
-        rw [hs'_eq, hcpl2.gm_eq]
-        exact ⟨(hother_f2 b' hb' hne).1.trans (by
-            rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.2.1 b' hb']),
-          (hother_f2 b' hb' hne).2.trans (by
-            rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne])⟩
+          compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := fun b' hb' hne => by
+        rw [hs'_eq, hcpl2.gm_eq, (hother_f2 b' hb' hne).1, (hother_f2 b' hb' hne).2,
+          ← hcpl1.gm_eq, hgm1_eq]
+        exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
       have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = slabSize N := by
         unfold popBackWork
@@ -331,18 +328,15 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).1 ∧
           compGmAt metaBase U w N s'.mem (gmRIdx b) =
             (popBackCounts (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b))).2 := by
-        unfold popBackCounts
-        rw [ite_eq_right hndem1, hs'_eq, hqb1_s, hrb1_s]
-        exact ⟨rfl, rfl⟩
+        simp only [popBackCounts, ite_eq_right hndem1, hs'_eq, hqb1_s, hrb1_s, and_self]
       have hother_all : ∀ b' < numBuckets N, b' ≠ b →
           compGmAt metaBase U w N s'.mem (gmQIdx b') = gm₀ (gmQIdx b') ∧
           compGmAt metaBase U w N s'.mem (gmRIdx b') = gm₀ (gmRIdx b') := fun b' hb' hne => by
         rw [hs'_eq, hgm1_eq]
         exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
-      have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 := by
-        unfold popBackWork
-        exact ite_eq_right hndem1
+      have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 :=
+        ite_eq_right hndem1
       rw [hwork, Nat.add_zero] at hpot
       exact ⟨hs'_eq ▸ hfr1, hs'_eq ▸ hs_fix'_eq ▸ hcpl1, by omega⟩
 
@@ -405,11 +399,8 @@ private theorem compDemoteSlabPre_of_removeTail {metaBase itemBase U V w N m_cap
   have ⟨_, hslab1⟩ := slabBijection_gmRemoveTail hb hr_pos htail₀ hslab₀
   have hSN0 := hslot.multi_total_le hb_pos
   have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N) 0 b s_fix₁ := by
-    refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
-    · rw [← hcpl1.gm_eq, hgm1_eq]; exact htail1
-    · rw [← hcpl1.gm_eq, hgm1_eq]; exact hslab1
-    · rw [← hcpl1.gm_eq]; exact hr0_eq
-    · rw [← hcpl1.gm_eq]; exact hq_pos_eq
+    refine ⟨hb, hcpl1.gm_eq ▸ hgm1_eq ▸ htail1, hcpl1.gm_eq ▸ hgm1_eq ▸ hslab1,
+      hcpl1.gm_eq ▸ hr0_eq, hcpl1.gm_eq ▸ hq_pos_eq, fun b' hb' hne => ?_, ?_⟩
     · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
       exact hslot.multi_r_bounds hb_pos b' hb'
     · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
@@ -435,25 +426,24 @@ private theorem realizesBounded_compPopBackMultiGen :
     have hr_lt := gmRIdx_lt hb_pos hb
     have hq_lt := gmQIdx_lt hb_pos hb
     have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-    have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl)
+    have hr_eq : gmQIdx b + 1 = gmRIdx b := rfl
+    obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
+    have henv1 := (henv.of_mem_eq (s' := (Memory.spec 0).clientState s
+      (compRemoveLastTailItemGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)))
+      (by rw [hfr1.frontier_eq])).compMetaEnv)
   · exact ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hcpl, hslot, hb, hr_pos, hm_cap⟩
   all_goals try {
     change Fits w _
     refine fits_of_le_globalMetaLen_comp hb_pos henv.pos_w henv.le_U henv.lt_pow_U ?_
     unfold gmRIdx gmQIdx at *; omega
   }
-  · obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
-    exact ⟨(henv.of_mem_eq (by rw [hfr1.frontier_eq])).compMetaEnv,
-      by simp only [cpN_mk, hq_eq, hr_eq]; exact hr_lt⟩
-  · obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
-    exact ⟨(henv.of_mem_eq (by
-      rw [clientState_readCompGMGenProg, hfr1.frontier_eq])).compMetaEnv,
-      by simp only [cpN_mk, hq_eq]; exact hq_lt⟩
-  · obtain ⟨hfr1, _⟩ := compRemoveLastTailItem_effect henv hb_pos hcpl hslot hb hr_pos hm_cap
-    simp only [hq_eq, hr_eq]
+  · exact ⟨henv1, by simpa only [cpN_mk, hq_eq, hr_eq] using hr_lt⟩
+  · exact ⟨(henv.of_mem_eq (by rw [clientState_readCompGMGenProg, hfr1.frontier_eq])).compMetaEnv,
+      by simpa only [cpN_mk, hq_eq] using hq_lt⟩
+  · simp only [hq_eq, hr_eq]
     rw [clientResult_readCompGMGenProg hr_lt, clientState_readCompGMGenProg,
       clientResult_readCompGMGenProg hq_lt, clientState_readCompGMGenProg]
-    exact ⟨(henv.of_mem_eq (by rw [hfr1.frontier_eq])).compMetaEnv, fun hr0_eq hq_pos_eq =>
+    exact ⟨henv1, fun hr0_eq hq_pos_eq =>
       compDemoteSlabPre_of_removeTail henv hb_pos hcpl hslot hb hr_pos hm_cap hr0_eq hq_pos_eq⟩
 
 private def CompPopBackSinglePre (w : ℕ) : CompParams × ℕ → Memory.State → Prop

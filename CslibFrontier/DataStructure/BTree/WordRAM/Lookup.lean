@@ -216,8 +216,7 @@ private theorem lookupBranch_spec {w base capNodes t u k m slot : ℕ} {x : Data
       dsimp only [x'] at hbr hb_y hst_y hfnd_y hval_y
       wram_simp at hbr hb_y hst_y hfnd_y hval_y
       split_ifs at hbr ⊢
-      · exact ⟨hbr.1, hbr.2, hfnd_y, hval_y⟩
-      · exact ⟨hbr, hfnd_y, hval_y⟩
+      exacts [⟨hbr.1, hbr.2, hfnd_y, hval_y⟩, ⟨hbr, hfnd_y, hval_y⟩]
   · obtain ⟨y, hdesc, hmem_y, hz_y, ho_y, hb_y, hd_y, hst_y, hk_y, hfnd_y, hval_y, hbr⟩ :=
       lookupDescendOrStop_spec (x := x) ht hu_cap (by omega) hfit hz ho hdeg hsrc hslot_reg
     have he : ExecWithin w lookupBranch x y 15 := by
@@ -228,8 +227,7 @@ private theorem lookupBranch_spec {w base capNodes t u k m slot : ℕ} {x : Data
     refine ⟨y, he, hmem_y, hz_y, ho_y, hb_y, hd_y, hst_y, hk_y.trans hkey, ?_⟩
     simp only [hlt_m, false_and, ↓reduceIte]
     split_ifs at hbr ⊢
-    · exact ⟨hbr.1, hbr.2, hfnd_y, hval_y⟩
-    · exact ⟨hbr, hfnd_y, hval_y⟩
+    exacts [⟨hbr.1, hbr.2, hfnd_y, hval_y⟩, ⟨hbr, hfnd_y, hval_y⟩]
 
 private theorem lookupStep_spec {w base capNodes t u k : ℕ} {x : Data 20}
     (ht : 2 ≤ t) (hu_cap : u < capNodes) (hm_le : numKeys base t x.mem u ≤ 2 * t - 1)
@@ -264,8 +262,7 @@ private theorem lookupStep_spec {w base capNodes t u k : ℕ} {x : Data 20}
     lookupBranch_spec ht hu_cap hm_le hslot_le hfit hz₂ ho₂ hd₂ hk₂ hnk₂ hsrc₂ hslot₂
   have hfull : ExecWithin w lookupStep x y (16 * t + 19) :=
     (h12.seq h3).mono (by omega)
-  rw [hmem₂] at hbr₃
-  rw [hact₂, hfnd₂, hval₂] at hbr₃
+  rw [hmem₂, hact₂, hfnd₂, hval₂] at hbr₃
   exact ⟨y, hfull, hfull.bounded hbdd, hmem₃.trans hmem₂, hz₃, ho₃, hb₃.trans hb₂_reg, hd₃,
     hst₃.trans hst₂, hk₃, hbr₃⟩
 
@@ -308,9 +305,8 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
     · simp only [hhit] at hbr
       obtain ⟨hfnd₁, hval₁, hact₁⟩ := hbr
       have hlk := lookup_readTree_eq_some hs hhit.1 hhit.2
-      refine ⟨x₁, lookupLoop_of_stop hstep hz hact hz₁ hact₁, hmem₁, hb₁_reg, hd₁, ?_, ?_⟩
-      · rw [hlk, hfnd₁]; rfl
-      · rw [hlk, hval₁]; rfl
+      refine ⟨x₁, lookupLoop_of_stop hstep hz hact hz₁ hact₁, hmem₁, hb₁_reg, hd₁, ?_, ?_⟩ <;>
+        simp only [hlk, hfnd₁, hval₁, Option.isSome_some, Option.getD_some, ↓reduceIte]
     · have hgt_all := keyAt_gt_of_slotCount_not_hit (fun _ _ => hs.keys_strict) hhit
       rcases l with _ | l
       · have hlf_ne : leafFlag base t x.mem u ≠ 0 := by simp [hv.leafFlag_eq]
@@ -330,9 +326,8 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
         have hs_c : SortedNode l base t x₁.mem (childAt base t x.mem u slot) :=
           hmem₁ ▸ hs.child_sorted hslot_lt1
         have hcap_c : readNodeSet l base t x₁.mem (childAt base t x.mem u slot) ⊆
-            Finset.range capNodes := by
-          rw [hmem₁]
-          exact (child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hcap
+            Finset.range capNodes :=
+          hmem₁ ▸ (child_subset_readNodeSet l base t x.mem u slot hslot_lt1).trans hcap
         obtain ⟨y, hy_rec, hmem_y, hb_y, hd_y, hfnd_y, hval_y⟩ :=
           ih l (Nat.lt_succ_self l) hb₁ hv_c hs_c hcap_c hz₁ ho₁ hb₁_reg hd₁ hst₁ hk₁ hcur₁
             (hact₁.trans hact) (hfnd₁.trans hfound0) (hval₁.trans hval0)
@@ -341,11 +336,9 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
         have hlk := lookup_readTree_succ_eq_child hs hsc.1 hsc.2.1 hgt_all
         have : (16 * t + 21) * (l + 1 + 1) = (16 * t + 21) * (l + 1) + (16 * t + 21) :=
           Nat.mul_succ _ _
-        rw [hmem₁] at hfnd_y hval_y
-        refine ⟨y, (hstep.loop_iter hcond_in hy_rec).mono (by omega), hmem_y.trans hmem₁,
-          hb_y, hd_y, ?_, ?_⟩
-        · rwa [hlk]
-        · rwa [hlk]
+        rw [hmem₁, ← hlk] at hfnd_y hval_y
+        exact ⟨y, (hstep.loop_iter hcond_in hy_rec).mono (by omega), hmem_y.trans hmem₁,
+          hb_y, hd_y, hfnd_y, hval_y⟩
 
 /-- `lookupCode` evaluates `BTree.lookup k tr` in at most `(16 * t + 21) * tr.height + 16`
 standard Word-RAM instructions without modifying memory, preserving `Rep`. -/

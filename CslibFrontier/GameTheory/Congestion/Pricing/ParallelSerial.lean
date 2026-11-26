@@ -238,19 +238,15 @@ private theorem serial_link_markup_ge_of_bestResponse [DecidableEq Path]
   let effLat : Path → ℝ → ℝ := fun m u =>
     serialPathLatency latency m u + if m = i then restP else 0
   let effPrice : Path → ℝ := fun m => if m = i then p i j else serialPathPrice p m
-  have heff_sum : ∀ m u, effLat m u + effPrice m =
-      serialPathLatency latency m u + serialPathPrice p m := fun m u => by
-    by_cases hmi : m = i
-    · subst hmi
-      simp only [effLat, effPrice, ↓reduceIte, restP, serialPathPrice]
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
+  have heff_sum (m : Path) (u : ℝ) : effLat m u + effPrice m =
+      serialPathLatency latency m u + serialPathPrice p m := by
+    rcases eq_or_ne m i with rfl | hmi
+    · simp only [effLat, effPrice, ↓reduceIte, restP, serialPathPrice,
+        ← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
       ring
     · simp [effLat, effPrice, hmi]
   have hw_eff : IsPricedWardrop d R effLat effPrice x := by
-    refine ⟨hw.1, fun a b ha => ?_, fun a ha => ?_, fun ⟨m, hm⟩ => hw.2.2.2 ⟨m, ?_⟩⟩
-    · simpa only [heff_sum] using hw.2.1 a b ha
-    · simpa only [heff_sum] using hw.2.2.1 a ha
-    · simpa only [heff_sum] using hm
+    simpa only [IsPricedWardrop, heff_sum] using hw
   have hp_eff : ∀ m, 0 ≤ effPrice m := fun m => by
     by_cases hmi : m = i
     · simp [effPrice, hmi, hp i j]
@@ -278,20 +274,15 @@ private theorem serial_link_markup_ge_of_bestResponse [DecidableEq Path]
       simp only [effPrice, ↓reduceIte]
       have hw_upd : IsPricedWardrop d R (serialPathLatency latency)
           (serialPathPrice (updateSerialPrice p i j (p' i))) x' := by
-        have hcost_upd : ∀ m u,
+        have hcost_upd (m : Path) (u : ℝ) :
             serialPathLatency latency m u + serialPathPrice (updateSerialPrice p i j (p' i)) m =
-              effLat m u + p' m := fun m u => by
-          by_cases hmi : m = i
-          · subst hmi
-            rw [serialPathPrice_updateSerialPrice_self]
-            simp only [effLat, ↓reduceIte, restP]
+              effLat m u + p' m := by
+          rcases eq_or_ne m i with rfl | hmi
+          · simp only [serialPathPrice_updateSerialPrice_self, effLat, ↓reduceIte, restP]
             ring
-          · rw [serialPathPrice_updateSerialPrice_of_ne p hmi, hp'comp m hmi]
-            simp [effLat, effPrice, hmi]
-        refine ⟨hw'.1, fun a b ha => ?_, fun a ha => ?_, fun ⟨m, hm⟩ => hw'.2.2.2 ⟨m, ?_⟩⟩
-        · simpa only [hcost_upd] using hw'.2.1 a b ha
-        · simpa only [hcost_upd] using hw'.2.2.1 a ha
-        · simpa only [hcost_upd] using hm
+          · simp [serialPathPrice_updateSerialPrice_of_ne p hmi, hp'comp m hmi, effLat, effPrice,
+              hmi]
+        simpa only [IsPricedWardrop, hcost_upd] using hw'
       rcases hchange with ⟨m, hm, hne⟩ | hle
       · exact hbr (p' i) x' (hp'0 i) (Or.inl (by simpa [effPrice, hm] using hne)) hw_upd
       · exact hbr (p' i) x' (hp'0 i) (Or.inr hle) hw_upd
@@ -322,12 +313,9 @@ theorem IsStrictSerialOligopolyEquilibrium.mul_pathLatencyDeriv_le_price [Decida
     x i * serialPathLatencyDeriv latencyDeriv i (x i) ≤ p i j :=
   serial_link_markup_ge_of_bestResponse h hstrict.1 hstrict.2.1 i j
     fun p' x' hp' hcond hw' => by
-      rcases hcond with hne | hle
+      rcases eq_or_ne p' (p i j) with rfl | hne
+      · exact mul_le_mul_of_nonneg_left (hcond.resolve_left (not_not.mpr rfl)) (hstrict.1 i j)
       · exact (hstrict.2.2 i j p' x' hp' hne hw').le
-      · by_cases hne : p' = p i j
-        · subst hne
-          exact mul_le_mul_of_nonneg_left hle (hstrict.1 i j)
-        · exact (hstrict.2.2 i j p' x' hp' hne hw').le
 
 private theorem serial_surplus_half_of_markup_and_sum_eq [∀ i, Nonempty (SerialLink i)] {d R : ℝ}
     {latency latencyDeriv : (i : Path) → SerialLink i → ℝ → ℝ}
@@ -470,18 +458,15 @@ theorem serialTightness_smoothConvex (n : ℕ) :
     SmoothConvexSerialLatencies (serialTightnessLatency n) (serialTightnessLatencyDeriv n) := by
   intro i
   rcases Fin.exists_fin_two.mp ⟨i, rfl⟩ with rfl | rfl
-  · refine ⟨fun _ => rfl, fun _ _ _ _ _ _ => le_rfl, fun _ => ?_, fun _ x _ => ?_⟩
-    · exact ⟨convex_Ici 0, fun _ _ _ _ w₁ w₂ _ _ _ => by simp [serialTightnessLatency]⟩
-    · simp only [serialTightnessLatencyDeriv, ↓reduceIte]
-      exact hasDerivAt_const x 0
-  · refine ⟨fun _ => by simp [serialTightnessLatency], fun _ a _ b _ hab => ?_,
-      fun _ => ?_, fun j x _ => ?_⟩
-    · simp only [serialTightnessLatency, one_ne_zero, ↓reduceIte]; linarith
-    · refine ⟨convex_Ici 0, fun a _ b _ w₁ w₂ _ _ _ => ?_⟩
-      simp only [serialTightnessLatency, one_ne_zero, ↓reduceIte, smul_eq_mul]
-      linarith
-    · dsimp only [serialTightnessLatency, serialTightnessLatencyDeriv, one_ne_zero, ↓reduceIte]
-      exact (hasDerivAt_id x).div_const 2
+  · exact ⟨fun _ => rfl, fun _ _ _ _ _ _ => le_rfl,
+      fun _ => ⟨convex_Ici 0, fun _ _ _ _ _ _ _ _ _ => by simp [serialTightnessLatency]⟩,
+      fun _ x _ => hasDerivAt_const x 0⟩
+  · refine ⟨fun _ => by simp [serialTightnessLatency],
+      fun _ _ _ _ _ hab => div_le_div_of_nonneg_right hab zero_le_two,
+      fun _ => ⟨convex_Ici 0, fun _ _ _ _ _ _ _ _ _ => ?_⟩,
+      fun _ x _ => (hasDerivAt_id x).div_const 2⟩
+    simp only [serialTightnessLatency, one_ne_zero, ↓reduceIte, smul_eq_mul]
+    linarith
 
 private theorem serialTightness_pathLatency_zero (n : ℕ) (u : ℝ) :
     serialPathLatency (serialTightnessLatency n) 0 u = 0 := by

@@ -134,27 +134,23 @@ theorem matQ_mulVec (y : N → ℝ) : G.matQ *ᵥ y = Sum.elim (G.A *ᵥ y) (-y)
 
 omit [Fintype N] [DecidableEq N] in
 @[simp]
-theorem matP_mulVec_inl (x : M → ℝ) (i : M) : (G.matP *ᵥ x) (.inl i) = -x i := by
-  rw [matP_mulVec]
-  rfl
+theorem matP_mulVec_inl (x : M → ℝ) (i : M) : (G.matP *ᵥ x) (.inl i) = -x i :=
+  congrFun (matP_mulVec x) (.inl i)
 
 omit [Fintype N] [DecidableEq N] in
 @[simp]
-theorem matP_mulVec_inr (x : M → ℝ) (j : N) : (G.matP *ᵥ x) (.inr j) = (x ᵥ* G.B) j := by
-  rw [matP_mulVec]
-  rfl
+theorem matP_mulVec_inr (x : M → ℝ) (j : N) : (G.matP *ᵥ x) (.inr j) = (x ᵥ* G.B) j :=
+  congrFun (matP_mulVec x) (.inr j)
 
 omit [Fintype M] [DecidableEq M] in
 @[simp]
-theorem matQ_mulVec_inl (y : N → ℝ) (i : M) : (G.matQ *ᵥ y) (.inl i) = (G.A *ᵥ y) i := by
-  rw [matQ_mulVec]
-  rfl
+theorem matQ_mulVec_inl (y : N → ℝ) (i : M) : (G.matQ *ᵥ y) (.inl i) = (G.A *ᵥ y) i :=
+  congrFun (matQ_mulVec y) (.inl i)
 
 omit [Fintype M] [DecidableEq M] in
 @[simp]
-theorem matQ_mulVec_inr (y : N → ℝ) (j : N) : (G.matQ *ᵥ y) (.inr j) = -y j := by
-  rw [matQ_mulVec]
-  rfl
+theorem matQ_mulVec_inr (y : N → ℝ) (j : N) : (G.matQ *ᵥ y) (.inr j) = -y j :=
+  congrFun (matQ_mulVec y) (.inr j)
 
 omit [DecidableEq N] in
 theorem inl_mem_tightRows_matP {i : M} : .inl i ∈ tightRows G.matP (rhsP M N) x ↔ x i = 0 := by
@@ -518,8 +514,7 @@ an even number of those (`Cslib.GameTheory.LemkeHowson.even_ncard_completelyLabe
 theorem IsNondegenerate.odd_ncard_isNash [Nonempty M] [Nonempty N] (hG : G.IsNondegenerate) :
     Odd {p : (M → ℝ) × (N → ℝ) | G.IsNash p.1 p.2}.ncard := by
   obtain ⟨c, hA, hB⟩ := G.exists_addConst_pos
-  have := (isNondegenerate_addConst.2 hG).odd_ncard_isNash_of_pos hA hB
-  simpa only [isNash_addConst] using this
+  simpa only [isNash_addConst] using (isNondegenerate_addConst.2 hG).odd_ncard_isNash_of_pos hA hB
 
 omit [DecidableEq M] [DecidableEq N] in
 /-- A nondegenerate bimatrix game has a Nash equilibrium. This is the special case of Nash's

@@ -76,15 +76,13 @@ def height : Tree → ℕ
 /-- Every child has strictly smaller height than its parent node. -/
 theorem height_lt_node_of_mem {m : ℕ} {cs : List Tree} {t : Tree} (ht : t ∈ cs) :
     t.height < (node m cs).height := by
-  have hh : t.height ≤ (cs.map height).foldr max 0 := by
-    induction cs with
-    | nil => simp at ht
-    | cons u us ih =>
-      rcases List.mem_cons.mp ht with rfl | ht
-      · simp
-      · exact (ih ht).trans (by simp)
-  simp only [height]
-  omega
+  simp only [height, Nat.lt_succ_iff]
+  induction cs with
+  | nil => simp at ht
+  | cons u us ih =>
+    rcases List.mem_cons.mp ht with rfl | ht
+    · exact Nat.le_max_left _ _
+    · exact (ih ht).trans (Nat.le_max_right _ _)
 
 /-- An indexed child has strictly smaller height than its parent node. -/
 theorem height_getElem_lt_node (m : ℕ) (cs : List Tree) (i : Fin cs.length) :
@@ -286,15 +284,13 @@ private theorem selectChild_spec {q : ℕ} {cs : List Tree} {t : Tree}
     simp only [selectChild] at h
     cases hs : selectChild q us with
     | none =>
-      simp only [hs, Option.or] at h
-      split at h
-      · cases h; exact ⟨List.mem_cons_self, ‹_›⟩
-      · contradiction
+      rw [hs, Option.none_or] at h
+      split_ifs at h with hle
+      exact Option.some.inj h ▸ ⟨List.mem_cons_self, hle⟩
     | some v =>
-      simp only [hs, Option.or, Option.some.injEq] at h
-      subst v
-      have ⟨hm, hle⟩ := ih hs
-      exact ⟨List.mem_cons_of_mem u hm, hle⟩
+      rw [hs, Option.some_or, Option.some.injEq] at h
+      subst h
+      exact ⟨List.mem_cons_of_mem u (ih hs).1, (ih hs).2⟩
 
 /-- Any child selected by `selectChild` belongs to the input child list. -/
 theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
@@ -423,16 +419,11 @@ theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
     cases htail : listPredecessor q xs with
     | none =>
       have hnone := (listPredecessor_eq_none_iff q xs).mp htail
-      simp only [listPredecessor, htail, Option.or] at hp
-      split at hp
-      · cases hp
-        refine ⟨by simp, by assumption, ?_⟩
-        intro y hy hyq
-        rcases List.mem_cons.mp hy with rfl | hy
-        · exact le_rfl
-        · have := hnone y hy
-          omega
-      · contradiction
+      rw [listPredecessor, htail, Option.none_or] at hp
+      split_ifs at hp with hx
+      obtain rfl := Option.some.inj hp
+      exact ⟨List.mem_cons_self, hx, List.forall_mem_cons.mpr
+        ⟨fun _ => le_rfl, fun y hy hyq => absurd hyq (not_le_of_gt (hnone y hy))⟩⟩
     | some r =>
       obtain rfl : r = p := by simpa [listPredecessor, htail, Option.or] using hp
       obtain ⟨hmem, hle, hmax⟩ := ih hsort htail
@@ -444,17 +435,12 @@ theorem listPredecessor_eq_some_iff {q p : ℕ} {xs : List ℕ}
     (hs : xs.Pairwise (· ≤ ·)) :
     listPredecessor q xs = some p ↔
       p ∈ xs ∧ p ≤ q ∧ ∀ x ∈ xs, x ≤ q → x ≤ p := by
-  constructor
-  · exact listPredecessor_some_spec hs
-  · intro hp
-    cases hr : listPredecessor q xs with
-    | none =>
-      have := (listPredecessor_eq_none_iff q xs).mp hr p hp.1
-      omega
-    | some r =>
-      have hs := listPredecessor_some_spec hs hr
-      have hpr : p = r := le_antisymm (hs.2.2 p hp.1 hp.2.1) (hp.2.2 r hs.1 hs.2.1)
-      simp only [hpr]
+  refine ⟨listPredecessor_some_spec hs, fun hp => ?_⟩
+  cases hr : listPredecessor q xs with
+  | none => exact absurd hp.2.1 (not_le_of_gt ((listPredecessor_eq_none_iff q xs).mp hr p hp.1))
+  | some r =>
+    have hsr := listPredecessor_some_spec hs hr
+    exact congrArg some (le_antisymm (hp.2.2 r hsr.1 hsr.2.1) (hsr.2.2 p hp.1 hp.2.1))
 
 /-- Inclusive predecessor correctness for every sorted distinct input and every natural query. -/
 theorem predecessor_build_eq_some_iff {B q p : ℕ} (hB : 2 ≤ B) {xs : List ℕ}

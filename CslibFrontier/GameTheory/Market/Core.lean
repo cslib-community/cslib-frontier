@@ -130,8 +130,7 @@ prefers their core bundle `x i` to their initial endowment `E.endowment i`. -/
 theorem IsInCore.individuallyRational {E : ExchangeMarket I G} {x : I → G → ℝ}
     (hcore : E.IsInCore x) (i : I) :
     E.utility i (E.endowment i) ≤ E.utility i (x i) := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   exact hcore.2 {i} E.endowment ⟨singleton_nonempty i,
     fun j hj g => mem_singleton.1 hj ▸ E.endowment_nonneg i g, fun _ => le_rfl,
     fun j hj => mem_singleton.1 hj ▸ hlt.le, ⟨i, mem_singleton_self i, hlt⟩⟩
@@ -350,13 +349,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         dsimp only [w₂]
         split_ifs with h
         exacts [mul_nonneg ht₂_pos.le (hα₂_pos i h).le, le_rfl]
-      have hα_pos : ∀ i ∈ S, 0 < α i := by
-        intro i hi
+      have hα_pos : ∀ i ∈ S, 0 < α i := fun i hi => by
         rcases mem_union.1 hi with hi₁ | hi₂
-        · have hw₁_pos : 0 < w₁ i := by simp [w₁, hi₁, mul_pos ht₁_pos (hα₁_pos i hi₁)]
-          linarith [hw₂_nn i]
-        · have hw₂_pos : 0 < w₂ i := by simp [w₂, hi₂, mul_pos ht₂_pos (hα₂_pos i hi₂)]
-          linarith [hw₁_nn i]
+        · linarith [hw₂_nn i, show 0 < w₁ i by simp [w₁, hi₁, mul_pos ht₁_pos (hα₁_pos i hi₁)]]
+        · linarith [hw₁_nn i, show 0 < w₂ i by simp [w₂, hi₂, mul_pos ht₂_pos (hα₂_pos i hi₂)]]
       have hsum_w₁ : ∑ i ∈ S, w₁ i = t₁ := by
         rw [sum_ite_mem, inter_eq_right.2 subset_union_left, ← mul_sum, hα₁_sum, mul_one]
       have hsum_w₂ : ∑ i ∈ S, w₂ i = t₂ := by
@@ -437,14 +433,11 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       (univ.filter (fun c : Fin r => c.val < k i)).map
         ⟨fun c => (i, c), fun _ _ h => (Prod.mk.inj h).2⟩
     let C : Finset (I × Fin r) := S.biUnion slice
-    have hslice_disj : (S : Set I).PairwiseDisjoint slice := by
-      intro i₁ _ i₂ _ hne
-      change Disjoint (slice i₁) (slice i₂)
-      rw [Finset.disjoint_left]
-      intro ic hic₁ hic₂
-      obtain ⟨c₁, -, rfl⟩ := mem_map.1 hic₁
-      obtain ⟨c₂, -, heq⟩ := mem_map.1 hic₂
-      exact hne (Prod.mk.inj heq).1.symm
+    have hslice_disj : (S : Set I).PairwiseDisjoint slice := fun i₁ _ i₂ _ hne =>
+      Finset.disjoint_left.2 fun _ hic₁ hic₂ => by
+        obtain ⟨_, -, rfl⟩ := mem_map.1 hic₁
+        obtain ⟨_, -, heq⟩ := mem_map.1 hic₂
+        exact hne (Prod.mk.inj heq).1.symm
     have hcard_slice : ∀ i ∈ S, (slice i).card = k i := by
       intro i hi
       have hki_le : k i ≤ r := le_sup' k hi
@@ -469,9 +462,8 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       have hsum_C (f : I → ℝ) : ∑ ic ∈ C, f ic.1 = ∑ i ∈ S, (k i : ℝ) * f i := by
         rw [Finset.sum_biUnion hslice_disj]
         refine sum_congr rfl fun i hi => ?_
-        have hconst : ∀ ic ∈ slice i, f ic.1 = f i := fun ic hic => by
-          obtain ⟨c, -, rfl⟩ := mem_map.1 hic
-          rfl
+        have hconst : ∀ ic ∈ slice i, f ic.1 = f i := fun _ hic =>
+          congrArg (fun p => f p.1) (mem_map.1 hic).choose_spec.2.symm
         rw [sum_congr rfl hconst, sum_const, hcard_slice i hi, nsmul_eq_mul]
       simp only [replica_endowment]
       rw [hsum_C (fun i => b i g), hsum_C (fun i => E.endowment i g)]
@@ -541,13 +533,9 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
   have hsum_le : ∑ i : I, expenditure p (x i) ≤ ∑ i : I, E.income p i := by
     rw [E.sum_income p]
     exact hx_feas.sum_expenditure_le_totalSupply hp_nn
-  have hexp_eq_inc : ∀ i : I, expenditure p (x i) = E.income p i := by
-    intro i
-    by_contra hne
-    have hlt : E.income p i < expenditure p (x i) := lt_of_le_of_ne (hinc_le_exp i) (Ne.symm hne)
-    have : ∑ j : I, E.income p j < ∑ j : I, expenditure p (x j) :=
-      sum_lt_sum (fun j _ => hinc_le_exp j) ⟨i, mem_univ i, hlt⟩
-    linarith
+  have hexp_eq_inc : ∀ i : I, expenditure p (x i) = E.income p i := fun i =>
+    ((sum_eq_sum_iff_of_le fun j _ => hinc_le_exp j).1
+      (le_antisymm (sum_le_sum fun j _ => hinc_le_exp j) hsum_le) i (mem_univ i)).symm
   have hex0 : expenditure p (E.excessDemand x) = 0 := by
     rw [E.expenditure_excessDemand]
     exact sum_eq_zero fun i _ => by rw [hexp_eq_inc i, sub_self]
