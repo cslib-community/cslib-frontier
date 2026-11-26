@@ -237,18 +237,12 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
   let R : (ι → M) → (ι → M) → Prop := fun A' A =>
     LexDesc (G.load A') (G.load A) ∨
       (G.load A' = G.load A ∧ G.toCostGame.socialCost A' < G.toCostGame.socialCost A)
-  have : Std.Irrefl R := ⟨fun A h => by
-    rcases h with h | ⟨-, hlt⟩
-    · exact lexDesc_irrefl _ h
-    · exact lt_irrefl _ hlt⟩
-  have : IsTrans (ι → M) R := ⟨fun A₁ A₂ A₃ h₁₂ h₂₃ => by
-    rcases h₁₂ with h₁ | ⟨heq₁, hlt₁⟩
-    · rcases h₂₃ with h₂ | ⟨heq₂, -⟩
-      · exact Or.inl (lexDesc_trans h₁ h₂)
-      · exact Or.inl (heq₂ ▸ h₁)
-    · rcases h₂₃ with h₂ | ⟨heq₂, hlt₂⟩
-      · exact Or.inl (heq₁.symm ▸ h₂)
-      · exact Or.inr ⟨heq₁.trans heq₂, hlt₁.trans hlt₂⟩⟩
+  have : Std.Irrefl R := ⟨fun A h =>
+    h.elim (lexDesc_irrefl _) fun ⟨_, hlt⟩ => lt_irrefl _ hlt⟩
+  have : IsTrans (ι → M) R := ⟨by
+    rintro A₁ A₂ A₃ (h₁ | ⟨heq₁, hlt₁⟩) (h₂ | ⟨heq₂, hlt₂⟩)
+    exacts [.inl (lexDesc_trans h₁ h₂), .inl (heq₂ ▸ h₁),
+      .inl (heq₁.symm ▸ h₂), .inr ⟨heq₁.trans heq₂, hlt₁.trans hlt₂⟩]⟩
   have hwf : WellFounded R := Finite.wellFounded_of_trans_of_irrefl R
   refine Subrelation.wf (r := R) ?_ hwf
   rintro A' A ⟨i, b, rfl, hlt⟩
@@ -331,9 +325,8 @@ private theorem isSatisfied_after_bestResponse {G : LoadBalancingGame ι M} (hId
   have hmin_load (k : M) : G.load A b ≤ G.load A k := by
     simpa only [hId b, hId k, div_one, add_le_add_iff_right] using hmin k
   have hlt_a : G.load A b + G.weight i < G.load A (A i) := by
-    simp only [IsSatisfied, not_forall, not_le] at hunsat
-    obtain ⟨k, hk⟩ := hunsat
-    rw [hId k, div_one] at hk
+    obtain ⟨k, hk⟩ := not_forall.mp hunsat
+    rw [not_le, hId k, div_one] at hk
     linarith [hmin_load k]
   have hne : b ≠ A i := fun h => by linarith [h ▸ hlt_a, G.weight_nonneg i]
   have hload_ge (k : M) : G.load A b ≤ G.load (Function.update A i b) k := by
@@ -640,10 +633,9 @@ theorem IsIdentical.isPureNash_lptSchedule {m : ℕ} [NeZero m]
       speed := G.speed
       weight_nonneg := fun i => G.weight_nonneg (e i)
       speed_pos := G.speed_pos }
-  have hIds : Gs.IsIdentical := hId
   have hLPT : Gs.IsRelatedLPT
       (Cslib.Algorithms.Lean.Scheduling.listSchedule (m := m) Gs.weight) :=
-    (hIds.isRelatedLPT_iff_isListSchedule _).mpr
+    (IsIdentical.isRelatedLPT_iff_isListSchedule (G := Gs) hId _).mpr
       (Cslib.Algorithms.Lean.Scheduling.isListSchedule_listSchedule Gs.weight)
   exact G.isPureNash_comp_symm e
     (hLPT.isPureNash (Cslib.Algorithms.Lean.Scheduling.antitone_comp_lptOrder G.weight))

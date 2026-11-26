@@ -313,12 +313,9 @@ theorem effBucketPosBits_le (n : ℕ) :
     effBucketPosBits n ≤ 6 * Dynamic.logLogFactor n := by
   unfold effBucketPosBits
   have hcap : effBucketCap n = 2 ^ (microBits n + 2) := by
-    unfold effBucketCap numMicroPerBucket
-    rw [Nat.pow_add]
-    ring
-  have hpow : min n (effBucketCap n) + 1 ≤ 2 ^ (microBits n + 3) := by grind
+    rw [effBucketCap, numMicroPerBucket, Nat.pow_add, Nat.mul_comm]
   have hclog : Nat.clog 2 (min n (effBucketCap n) + 1) ≤ microBits n + 3 :=
-    Nat.clog_le_of_le_pow hpow
+    Nat.clog_le_of_le_pow (by grind)
   have h1 := microBits_le_three_mul_logLogFactor n
   have h2 := Dynamic.one_le_logLogFactor n
   omega
@@ -571,15 +568,13 @@ theorem pushBackCounts_bounds {K q r : ℕ} (hK : 1 ≤ K) (hr : r < 2 * K) :
 theorem popBackCounts_sum {K q r : ℕ} (hr : 1 ≤ r) :
     (popBackCounts K q r).1 * K + (popBackCounts K q r).2 = q * K + r - 1 := by
   unfold popBackCounts
-  split_ifs with h
-  · dsimp only
-    rcases h with ⟨rfl, hq⟩
+  split_ifs with h <;> dsimp only
+  · rcases h with ⟨rfl, hq⟩
     have hmul : (q - 1) * K + K = q * K := by
       calc (q - 1) * K + K = (q - 1 + 1) * K := by ring
         _ = q * K := by rw [Nat.sub_add_cancel hq]
     omega
-  · dsimp only
-    omega
+  · omega
 
 /-- `popBackCounts` preserves `r' < 2 * K` and `(0 < q' → 1 ≤ r')`. -/
 theorem popBackCounts_bounds {K q r : ℕ} (hK : 1 ≤ K) (hr1 : 1 ≤ r) (hr2 : r < 2 * K) :
@@ -696,14 +691,9 @@ theorem feistelMicroHash_eq_iff {U : ℕ} (n_max : ℕ) (qOf : Fin U → Q)
     feistelMicroHash n_max qOf H i u₁ = feistelMicroHash n_max qOf H i u₂ ↔
       feistelBucketHash n_max qOf H i u₁ = feistelBucketHash n_max qOf H i u₂ ∧
         feistelLocalMicro n_max qOf H i u₁ = feistelLocalMicro n_max qOf H i u₂ := by
-  constructor
-  · intro h
-    refine ⟨congrArg (projLowBits (bucketBits_le_totalMicroBits n_max)) h, Fin.ext ?_⟩
-    rw [← feistelMicroHash_val_div n_max qOf H i u₁, ← feistelMicroHash_val_div n_max qOf H i u₂,
-      h]
-  · rintro ⟨hb, hm⟩
-    apply Fin.ext
-    rw [feistelMicroHash_val_eq, feistelMicroHash_val_eq, hb, hm]
+  refine ⟨fun h => ⟨congrArg (projLowBits (bucketBits_le_totalMicroBits n_max)) h, Fin.ext ?_⟩,
+    fun ⟨hb, hm⟩ => Fin.ext (by rw [feistelMicroHash_val_eq, feistelMicroHash_val_eq, hb, hm])⟩
+  rw [← feistelMicroHash_val_div n_max qOf H i u₁, ← feistelMicroHash_val_div n_max qOf H i u₂, h]
 
 omit [Fintype ι] in
 /-- `feistelBucketHash` agrees with `feistelBucket` on the integer hash output `(H i (qOf u)).val`.
@@ -778,16 +768,13 @@ theorem expect_bucketOvfCount_le_one_on {U n_max : ℕ}
   have h2D : 2 * D = effBucketCap n_max := by dsimp only [D, effBucketCap]; ring
   have hSD : #(S.erase u) ≤ D * 2 ^ bucketBits n_max :=
     hS.trans (le_two_mul_numMicro_mul_numBuckets n_max)
-  have hovf := expect_feistelXor_overflow_le_on le_rfl hD hh_b S u hSD hq
-  have heq (i : ι) :
+  have heq (i : ι) : bucketOvfCount n_max qOf H i S u =
       #{x ∈ S.erase u |
-          feistelXor (bucketBits n_max) (bucketBits n_max) le_rfl qOf H_b i x =
-            feistelXor (bucketBits n_max) (bucketBits n_max) le_rfl qOf H_b i u} - 2 * D =
-        bucketOvfCount n_max qOf H i S u := by
+        feistelXor (bucketBits n_max) (bucketBits n_max) le_rfl qOf H_b i x =
+          feistelXor (bucketBits n_max) (bucketBits n_max) le_rfl qOf H_b i u} - 2 * D := by
     rw [h2D]
-    dsimp only [bucketOvfCount, feistelBucketHash, feistelMicroHash, H_b]
-    simp only [projLowBits_feistelXor]
-  simpa only [heq] using hovf
+    simp only [bucketOvfCount, feistelBucketHash, feistelMicroHash, H_b, projLowBits_feistelXor]
+  simpa only [heq] using expect_feistelXor_overflow_le_on le_rfl hD hh_b S u hSD hq
 
 /-- **Master expected probe-excess bound:** under a 3-wise independent hash `H`, for any
 `S : Finset (Fin U)` with `#(S.erase u) ≤ n_max` such that `qOf` is quotient-injective on
@@ -1071,12 +1058,8 @@ theorem globalMetaLen_le_of_bucketBits_pos {n : ℕ} (hb : 0 < bucketBits n) :
     hc ▸ Nat.clog_mono_right 2
       ((hk.trans (Nat.log_mono_right (le_max_left n 4))).trans (Nat.log_le_clog 2 _))
   have hll1 := Dynamic.one_le_logLogFactor n
-  have hll2 : 2 ≤ Dynamic.logLogFactor n :=
-    hll_of (k := 4) (by omega)
-      (by decide)
-  have hll3 : 3 ≤ Dynamic.logLogFactor n :=
-    hll_of (k := 5) (by omega)
-      (by decide)
+  have hll2 : 2 ≤ Dynamic.logLogFactor n := hll_of (k := 4) (by omega) rfl
+  have hll3 : 3 ≤ Dynamic.logLogFactor n := hll_of (k := 5) (by omega) rfl
   have hS8 : 8 ≤ slabScale n := Nat.pow_le_pow_right (by decide : 0 < 2) hll3
   have hB1 : 1 ≤ numBuckets n := numBuckets_pos n
   have hcube := numBuckets_mul_slabScale_cubed_le hb

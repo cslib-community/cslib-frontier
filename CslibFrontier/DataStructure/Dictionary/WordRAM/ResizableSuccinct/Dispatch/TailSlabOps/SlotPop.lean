@@ -246,11 +246,8 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
       have hSN0 := hslot.multi_total_le hb_pos
       have hpre_dem : DemoteSlabInv U V (ghostW w) N (epochHashSpace U (ghostW w) N)
           0 b s_fix₁ := by
-        refine ⟨hb, ?_, ?_, ?_, ?_, fun b' hb' hne => ?_, ?_⟩
-        · exact hcpl1.gm_eq ▸ hgm1_eq ▸ htail1
-        · exact hcpl1.gm_eq ▸ hgm1_eq ▸ hslab1
-        · rw [hrb1_f, hr0]
-        · rw [hqb1_f]; omega
+        refine ⟨hb, hcpl1.gm_eq ▸ hgm1_eq ▸ htail1, hcpl1.gm_eq ▸ hgm1_eq ▸ hslab1,
+          hrb1_f.trans hr0, hqb1_f.symm ▸ hq_pos, fun b' hb' hne => ?_, ?_⟩
         · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.2.2.2.1 b' hb' hne, hpres1.2.2.2.2.1 b' hb']
           exact hslot.multi_r_bounds hb_pos b' hb'
         · rw [← hcpl1.gm_eq, hgm1_eq, hpres1.1, hpres1.2.1]; omega
@@ -288,10 +285,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
           ← hcpl1.gm_eq, hgm1_eq]
         exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
-      have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = slabSize N := by
-        unfold popBackWork
-        rw [hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩]
-      rw [hwork] at hpot
+      rw [popBackWork, hr1_eq, ite_eq_left ⟨rfl, hq_pos⟩] at hpot
       have h58_le : 58 * slabSize N ≤ 98 * slabSize N := Nat.mul_le_mul_right _ (by decide)
       exact ⟨hs'_eq ▸ hfr1.trans hfr2, hs'_eq ▸ hs_fix'_eq ▸ hcpl2, by omega⟩
     · have hndem1 : ¬ (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) :=
@@ -335,9 +329,7 @@ theorem compPopBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b : ℕ}
         rw [hs'_eq, hgm1_eq]
         exact ⟨hpres1.2.2.2.2.1 b' hb', hpres1.2.2.2.1 b' hb' hne⟩
       have hpot := slotPotential_popBack_le hb_pos hb hr_pos hr2_lt hupd hother_all
-      have hwork : popBackWork (slabSize N) (gm₀ (gmQIdx b)) (gm₀ (gmRIdx b)) = 0 :=
-        ite_eq_right hndem1
-      rw [hwork, Nat.add_zero] at hpot
+      rw [popBackWork, ite_eq_right hndem1, Nat.add_zero] at hpot
       exact ⟨hs'_eq ▸ hfr1, hs'_eq ▸ hs_fix'_eq ▸ hcpl1, by omega⟩
 
 private def CompPopBackFinishPre (w : ℕ) :

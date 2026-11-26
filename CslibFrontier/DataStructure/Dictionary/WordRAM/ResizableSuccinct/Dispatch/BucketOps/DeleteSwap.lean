@@ -267,27 +267,19 @@ private theorem compCopyLastPayloadGenProg_effect {metaBase itemBase U V w N m_c
       StateTransitionSpec.clientState_bind, clientState_readValProg,
       clientResult_readValProg s_fix hphys_last_lt,
       StateTransitionSpec.clientState_bind]
-  have hq_lt : quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last <
-      2 ^ quotientBits U N := quotAt_lt _ _ _ _ _ _ _
-  have hv_lt : valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last <
-      2 ^ valBits V := valAt_lt _ _ _ _ _ _ _ _
-  have hcpl1 := hcpl.writeQuot_slotOf henv.pos_w henv.meta_le_item hslot hb hj_del hq_lt
+  have hcpl1 := hcpl.writeQuot_slotOf henv.pos_w henv.meta_le_item hslot hb hj_del
+    (quotAt_lt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
   obtain ⟨_, hgm1, htd1, _⟩ := writeCompQuot_meta_frame (metaBase := metaBase)
     (U := U) (V := V) (N := N)
     (q := quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
     henv.pos_w henv.meta_le_item hd_dst_lt s.mem
-  set s₁ : Memory.State := {
-    mem := writeCompQuot itemBase U V w N s.mem d_dst
-      (quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last),
-    frontier := s.frontier }
-  have hslot1 : SlotStoreInv N (compGmAt metaBase U w N s₁.mem) := hgm1.symm ▸ hslot
-  have hj_del1 : j_del < bCount N (compGmAt metaBase U w N s₁.mem) b := hgm1.symm ▸ hj_del
-  have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item hslot1 hb hj_del1 hv_lt
+  have hcpl2 := hcpl1.writeVal_slotOf henv.pos_w henv.meta_le_item (hgm1.symm ▸ hslot) hb
+    (hgm1.symm ▸ hj_del)
+    (valAt_lt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem phys_last)
   simp only [hgm1, htd1] at hcpl2
   rw [hs'_eq, hs_fix'_eq]
-  refine ⟨⟨rfl, fun a _ hi => ?_⟩, hcpl2⟩
-  exact (writeCompVal_outside henv.pos_w hd_dst_cap _ hi).trans
-    (writeCompQuot_outside henv.pos_w hd_dst_cap s.mem hi)
+  exact ⟨⟨rfl, fun a _ hi => (writeCompVal_outside henv.pos_w hd_dst_cap _ hi).trans
+    (writeCompQuot_outside henv.pos_w hd_dst_cap s.mem hi)⟩, hcpl2⟩
 
 private theorem realizesBounded_compCopyLastPayloadGen :
     RealizesBounded .exact compCopyLastPayloadGenProg

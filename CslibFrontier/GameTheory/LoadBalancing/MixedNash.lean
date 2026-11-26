@@ -82,14 +82,11 @@ product distribution of mixed strategies `p`: `∑ A, productWeight p A * makesp
 theorem expectedLoad_eq_sum_productWeight (G : LoadBalancingGame ι M) {p : ι → M → ℝ}
     (hp : ∀ i, ∑ j, p i j = 1) (j : M) :
     G.expectedLoad p j = ∑ A : ι → M, productWeight p A * G.load A j := by
-  have hload : ∀ A : ι → M, G.load A j = ∑ i, if A i = j then G.weight i / G.speed j else 0 :=
-    fun A => by simp [load, UnrelatedLoadBalancingGame.load, toUnrelated, sum_filter]
-  rw [expectedLoad]
-  simp_rw [hload, mul_sum]
+  simp only [expectedLoad, load, UnrelatedLoadBalancingGame.load, toUnrelated, sum_filter, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun i _ => ?_
-  rw [sum_productWeight_mul_apply (fun k _ => hp k) (fun m => if m = j then _ else 0)]
-  simp
+  simpa using (sum_productWeight_mul_apply (fun k _ => hp k)
+    (fun m => if m = j then G.weight i / G.speed j else 0)).symm
 
 omit [DecidableEq ι] [DecidableEq M] in
 /-- Speed-weighted expected loads sum to the total job weight. -/
@@ -99,10 +96,8 @@ theorem sum_speed_mul_expectedLoad (G : LoadBalancingGame ι M) {p : ι → M �
   simp only [expectedLoad, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun i _ => ?_
-  have hterm (j : M) : G.speed j * (p i j * (G.weight i / G.speed j)) = p i j * G.weight i := by
-    have := (G.speed_pos j).ne'
-    field_simp
-  simp [hterm, ← sum_mul, hp i]
+  simp_rw [mul_left_comm (G.speed _) (p i _), mul_div_cancel₀ _ (G.speed_pos _).ne',
+    ← sum_mul, hp i, one_mul]
 
 /-- Point-mass mixed profiles recover the deterministic makespan. -/
 theorem expectedMakespan_single [Nonempty M] (G : LoadBalancingGame ι M) (A : ι → M) :
@@ -362,13 +357,10 @@ theorem IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan
     have hEc_le : G.toCostGame.expectedCost p i ≤ (W + G.weight i) / 2 := by
       have h0 := hp.2 i 0
       have h1 := hp.2 i 1
-      rw [G.deviationCost_toCostGame hp1 i 0, hId 0, div_one] at h0
-      rw [G.deviationCost_toCostGame hp1 i 1, hId 1, div_one] at h1
+      simp only [G.deviationCost_toCostGame hp1, hId 0, hId 1, div_one] at h0 h1
       have hsumE : G.expectedLoad p 0 + G.expectedLoad p 1 = W := by
         simpa only [Fin.sum_univ_two, hId 0, hId 1, one_mul] using G.sum_speed_mul_expectedLoad hp1
-      have hsumW : p i 0 * G.weight i + p i 1 * G.weight i = G.weight i := by
-        rw [← add_mul, ← Fin.sum_univ_two, hp1 i, one_mul]
-      linarith
+      linarith [congrArg (· * G.weight i) ((Fin.sum_univ_two (p i)).symm.trans (hp1 i))]
     -- Pointwise gap bound: `makespan A - cost i A ≤ (1_{A i ≠ heaviest A}) * (W - 2 * w_i)`.
     have hpt (A : ι → Fin 2) :
         G.makespan A - G.toCostGame.cost i A ≤

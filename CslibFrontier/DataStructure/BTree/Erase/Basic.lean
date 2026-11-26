@@ -450,9 +450,8 @@ theorem toList_popMin {tr : BTree α β} :
     · cases rest <;> simp [ihf.1 hf]
     rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
     · simp [ihf.2 _ _ hf]
-    · refine ⟨by simp, fun e' tr' h => ?_⟩
-      simp only [Option.some.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
+    · refine ⟨by simp, ?_⟩
+      rintro _ _ ⟨rfl, rfl⟩
       rw [toList_node, toList_node, toList_rebalanceRight, ihf.2 _ _ hf, List.cons_append]
 
 /-- Collapsing an empty root keeps the entries. -/
@@ -801,14 +800,11 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         simp only [h₁, ↓reduceIte]
         rcases hpm : popMin t c with _ | ⟨⟨k₂, v₂⟩, c'⟩
         · simp [toList_popMin.1 hpm]
-        · have hcm := toList_popMin.2 _ _ hpm
-          rcases rest with _ | ⟨⟨k₃, v₃, c₃⟩, rest₃⟩
-          · simp only
-            rw [toList_rebalanceLast, hcm]
+        · rcases rest with _ | ⟨⟨k₃, v₃, c₃⟩, rest₃⟩
+          · rw [toList_rebalanceLast, toList_popMin.2 _ _ hpm]
             simp
-          · simp only [toListRest_cons, List.cons_append]
-            rw [toList_rebalanceRight, hcm]
-            simp
+          · simp only [toListRest_cons, List.cons_append, toList_rebalanceRight,
+              toList_popMin.2 _ _ hpm]
       · -- the key is below this triple: erase from the child before it, then repair that child
         have hk : k < k' := lt_of_le_of_ne h₁ fun h => h₂ (h ▸ le_rfl)
         simp only [h₁, h₂, ↓reduceIte]
@@ -824,8 +820,7 @@ theorem eraseRest_spec {rest : List (Triple α β)}
         SortedAssoc.erase_of_forall_ne fun p hp => ((hlt p hp).trans hk).ne
       simp only [h₁, ↓reduceIte]
       rcases rest with _ | ⟨e, rest⟩
-      · simp only
-        rw [toList_rebalanceLast]
+      · rw [toList_rebalanceLast]
         simp [SortedAssoc.erase_append, SortedAssoc.erase_cons, hk.ne, hpre', hcc hcs]
       · simp only [toListRest_cons, List.cons_append]
         rw [ih c (eraseSubtree t k c) hcl hcc]
@@ -928,8 +923,7 @@ theorem IsWF.erase (h : IsWF t tr) (k : α) : IsWF t (erase t k tr) := by
   rcases c with _ | ⟨f, _ | ⟨e, r⟩⟩
   · exact ⟨ht, by simp [collapse], by simp [collapse], by simp [collapse], .leaf, hs⟩
   · simp only [collapse] at hs ⊢
-    have hf : Occupied t f := hco f (by simp)
-    exact hf.isWF ht (hb.of_mem_children (c := f) (by simp)) hs
+    exact (hco f (by simp)).isWF ht (hb.of_mem_children (c := f) (by simp)) hs
   · simp only [collapse, rootKeys_node] at hs hk₁ ⊢
     exact ⟨ht, by simp only [rootKeys_node]; omega, fun _ => by simp, hco, hb, hs⟩
 
@@ -975,8 +969,7 @@ unchanged elsewhere. -/
   rw [lookup_eq_of_isSortedAssoc hs, toList_erase_of_isSortedAssoc h,
     lookup_eq_of_isSortedAssoc h]
   split_ifs with hk
-  · subst hk
-    exact SortedAssoc.lookup_erase_self
+  · exact hk ▸ SortedAssoc.lookup_erase_self
   · exact SortedAssoc.lookup_erase_of_ne hk
 
 /-- Lookup after erasure fails at the erased key and is unchanged elsewhere. -/

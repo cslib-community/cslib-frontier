@@ -171,9 +171,8 @@ theorem gmAppendTail_preserves_nonTail {n_max : ℕ} (gm : ℕ → ℕ) {b : ℕ
     (∀ b' < numBuckets n_max, ∀ s < dirSlabsPerBucket n_max,
       gmAppendTail n_max gm b (gmSlabDirIdx n_max b' s) = gm (gmSlabDirIdx n_max b' s)) ∧
     (∀ idx, gmSlabMetaBase n_max ≤ idx → gmAppendTail n_max gm b idx = gm idx) := by
-  have hd_lt : b * tailCapPerBucket n_max + gm (gmRIdx b) < maxTailItems n_max :=
-    mul_tailCapPerBucket_add_lt_maxTailItems hb hr
-  exact gmTailWrite_preserves_nonTail gm (gm (gmRIdx b) + 1) (gm 1 + 1) hb hd_lt ht
+  exact gmTailWrite_preserves_nonTail gm (gm (gmRIdx b) + 1) (gm 1 + 1) hb
+    (mul_tailCapPerBucket_add_lt_maxTailItems hb hr) ht
 
 theorem gmAppendTail_tail {n_max : ℕ} (gm : ℕ → ℕ) {b : ℕ}
     (hb : b < numBuckets n_max) (hr : gm (gmRIdx b) < tailCapPerBucket n_max)
@@ -186,9 +185,8 @@ theorem gmAppendTail_tail {n_max : ℕ} (gm : ℕ → ℕ) {b : ℕ}
       gmAppendTail n_max gm b (gmTailOwnerIdx n_max t) =
         if t = gm 1 then b * tailCapPerBucket n_max + gm (gmRIdx b)
         else gm (gmTailOwnerIdx n_max t)) := by
-  have hd_lt : b * tailCapPerBucket n_max + gm (gmRIdx b) < maxTailItems n_max :=
-    mul_tailCapPerBucket_add_lt_maxTailItems hb hr
-  exact gmTailWrite_tail gm (gm 1) (gm (gmRIdx b) + 1) (gm 1 + 1) hb hd_lt
+  exact gmTailWrite_tail gm (gm 1) (gm (gmRIdx b) + 1) (gm 1 + 1) hb
+    (mul_tailCapPerBucket_add_lt_maxTailItems hb hr)
 
 theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     (hb : b < numBuckets n_max)
@@ -227,8 +225,7 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     rw [gmTailPtrIdx, hptr_val _ hd'_lt, hpres.2.1]
     split_ifs with hdeq
     · omega
-    · have hlt := htail.ptr_lt b' hb' r' (hold hdeq)
-      wram_omega [hlt]
+    · wram_omega [htail.ptr_lt b' hb' r' (hold hdeq)]
   · obtain ⟨hd'_lt, hold⟩ := hslot_info b' hb' r' hr'
     rw [gmTailPtrIdx, hptr_val _ hd'_lt]
     split_ifs with hdeq
@@ -249,8 +246,7 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       have hd_ne : d ≠ d_new := fun heq => by
         obtain ⟨hb_eq, hr_eq⟩ := flat_descriptor_inj
           (hr_d.trans_le (htail.r_le _ hb_d)) hr ((Nat.div_add_mod' d _).trans heq)
-        rw [hb_eq, hr_eq] at hr_d
-        omega
+        exact (hb_eq ▸ hr_d).ne hr_eq
       refine ⟨hb_d, ?_, by
         rw [hptr_val d (htail.owner_lt_maxTailItems ht_old), ite_eq_right hd_ne, hptr_d]⟩
       rw [hr_fn _ hb_d]
@@ -308,10 +304,8 @@ private theorem gmRemoveTail_indices_lt {n_max : ℕ} {gm : ℕ → ℕ} {b : �
     (htail : TailBijection n_max gm (fun b' => gm (gmRIdx b')) (gm 1)) :
     gm (gmTailPtrIdx n_max b (gm (gmRIdx b) - 1)) < maxTailItems n_max ∧
     gm (gmTailOwnerIdx n_max (gm 1 - 1)) < maxTailItems n_max := by
-  have hr_del_lt : gm (gmRIdx b) - 1 < gm (gmRIdx b) := by omega
-  have ht_del_lt : gm (gmTailPtrIdx n_max b (gm (gmRIdx b) - 1)) < gm 1 :=
-    htail.ptr_lt b hb _ hr_del_lt
-  exact ⟨lt_of_lt_of_le ht_del_lt htail.ntails_le, htail.owner_lt_maxTailItems (by omega)⟩
+  have ht_del_lt := htail.ptr_lt b hb _ (by omega : gm (gmRIdx b) - 1 < gm (gmRIdx b))
+  exact ⟨ht_del_lt.trans_le htail.ntails_le, htail.owner_lt_maxTailItems (by omega)⟩
 
 theorem gmRemoveTail_preserves_nonTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     (hb : b < numBuckets n_max) (hr_pos : 1 ≤ gm (gmRIdx b))
@@ -359,7 +353,6 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   set d_last := gm (gmTailOwnerIdx n_max t_last)
   have hr_del_cap : r_del < tailCapPerBucket n_max := lt_of_lt_of_le (by omega) (htail.r_le b hb)
   have ht_del_lt : t_del < gm 1 := htail.ptr_lt b hb r_del (by omega)
-  have ht_del_max : t_del < maxTailItems n_max := lt_of_lt_of_le ht_del_lt htail.ntails_le
   have ht_last_lt : t_last < gm 1 := by omega
   obtain ⟨hb_last, hr_last, hptr_last⟩ := htail.owner_valid t_last ht_last_lt
   have hown_del : gm (gmTailOwnerIdx n_max t_del) = d_del := htail.owner_ptr b hb r_del (by omega)
@@ -406,7 +399,7 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · obtain ⟨hr'_old, hd'_lt, hne_del⟩ := hslot_info hb' hr'
     rw [gmTailPtrIdx, hptr_val _ hd'_lt]
     split_ifs with hdeq
-    · simp [hown_val t_del ht_del_max, hdeq]
+    · simp [hown_val t_del (ht_del_lt.trans_le htail.ntails_le), hdeq]
     · have ht'_lt := htail.ptr_lt b' hb' r' hr'_old
       have ht'_ne : gm (gmTailPtrIdx n_max b' r') ≠ t_del := fun h =>
         hne_del (by rw [← htail.owner_ptr b' hb' r' hr'_old, h, hown_del])
@@ -822,15 +815,13 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
       hw (by omega : g_del < n_max) (valAt_lt (mem := s₁.mem) (idx := g_last) ..) s₁
   let s₂ := (Memory.spec 0).clientState s₁
     (writeValProg U V w n_max h_space ((base, g_del), valAt base U V w n_max h_space s₁.mem g_last))
-  have ht_del_le : t_del ≤ n_max := le_trans (le_of_lt ht_del_lt) hnt_le
-  have ht_last_le : t_last ≤ n_max := le_trans (Nat.sub_le _ _) hnt_le
   obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
     writeGM_tailWrite_effect (U := U) (V := V) (w := w) (h_space := h_space) (base := base)
       (b := b) (d := d_last) (t := t_del) (r := r_del) (nt := t_last) hw s₂ hptr_last
-      (lt_two_pow_globalPtrBits_of_le_n_max ht_del_le) hown_del
+      (lt_two_pow_globalPtrBits_of_le_n_max (ht_del_lt.le.trans hnt_le)) hown_del
       (lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_last])) hr_idx
       (lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_del])) h1_lt
-      (lt_two_pow_globalPtrBits_of_le_n_max ht_last_le)
+      (lt_two_pow_globalPtrBits_of_le_n_max ((Nat.sub_le _ _).trans hnt_le))
   let wGM idx val := writeGMProg U V w n_max h_space ((base, idx), val)
   have hst : s' = (Memory.spec 0).clientState
       ((Memory.spec 0).clientState

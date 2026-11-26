@@ -283,8 +283,7 @@ theorem countQueries_dubinsSpanierQ_le (n : ℕ)
     (oracle : {ι : Type} → RWQuery (Fin n) ι → ι) :
     (dubinsSpanierQ n).countQueries oracle ≤ n ^ 2 := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · rw [dubinsSpanierQ, FreeM.countQueries_map]
-    simp only [dubinsSpanierAux, FreeM.countQueries_pure, zero_pow (by omega : 2 ≠ 0), le_refl]
+  · exact le_rfl
   · rw [countQueries_dubinsSpanierQ hn oracle]
     have hle : n * (n + 1) ≤ 2 * n ^ 2 := by nlinarith
     omega
@@ -399,11 +398,9 @@ theorem isProportional_dubinsSpanierQ {n : ℕ} {v : Fin n → CakeValuation}
   rw [dubinsSpanierQ, FreeM.eval_map]
   dsimp only [SubDivision.toDividedCake]
   rw [CakeValuation.bundleVal_singleton, ← CakeValuation.pieceVal]
-  have hrem : ∀ r : Fin n, (n : ℝ) / (n : ℝ) ≤ v r 0 1 := by
-    intro r
-    have hn_ne : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr r.pos.ne'
-    rw [div_self hn_ne, (v r).apply_zero_one]
-  exact dubinsSpanierAux_proportional ho n le_rfl (by norm_num) id hrem i
+  exact dubinsSpanierAux_proportional ho n le_rfl zero_le_one id
+    (fun r => by simp [div_self ((Nat.cast_ne_zero (R := ℝ)).mpr r.pos.ne'),
+      (v r).apply_zero_one]) i
 
 /-! ### 3. Even–Paz Divide-and-Conquer Proportional Division (`n` Agents, `O(n log n)` Queries) -/
 
@@ -444,11 +441,7 @@ private theorem ofFn_sumElim_splitFinEquiv {α : Type} {m k : ℕ} (hk : k ≤ m
   refine List.ext_getElem (by simp only [List.length_ofFn, List.length_append]; omega)
     fun i hi1 hi2 => ?_
   simp only [List.length_ofFn] at hi1
-  by_cases hik : i < k
-  · rw [List.getElem_append_left (by rw [List.length_ofFn]; omega)]
-    simp [splitFinEquiv, hik]
-  · rw [List.getElem_append_right (by rw [List.length_ofFn]; omega)]
-    simp [splitFinEquiv, hik]
+  by_cases hik : i < k <;> simp [List.getElem_append, splitFinEquiv, hik]
 
 private noncomputable def evenPazAux (n : ℕ) (m : ℕ) (a b : ℝ) (agents : Fin m → Fin n) :
     FreeM (RWQuery (Fin n)) (SubDivision m) :=

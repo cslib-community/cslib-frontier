@@ -260,13 +260,10 @@ private theorem scarf_payoff_lemma {A : Type*} [Fintype A] [Nonempty A] (G : NTU
     exact abs_le.2 ⟨by linarith [hstep q₁ q₂],
       by linarith [dist_comm q₂ q₁ ▸ hstep q₂ q₁]⟩
   have hcont : Continuous (fun q => sSup (TSet q)) :=
-    Metric.continuous_iff.2 fun q ε hε => ⟨ε / M, div_pos hε hM_pos, fun q' hq' => by
-      rw [Real.dist_eq]
-      exact (ht_lip q' q).trans_lt ((mul_lt_mul_of_pos_left hq' hM_pos).trans_eq
-        (mul_div_cancel₀ _ hM_pos.ne'))⟩
+    Metric.continuous_iff.2 fun q ε hε => ⟨ε / M, div_pos hε hM_pos, fun q' hq' =>
+      (Real.dist_eq _ _).trans_lt ((ht_lip q' q).trans_lt ((lt_div_iff₀' hM_pos).1 hq'))⟩
   have hv_le (q : A → ℝ) (_ : ∀ i, 0 ≤ q i) (_ : ∑ i, q i = 1) (i : A) :
       v i ≤ base q i + sSup (TSet q) := by
-    dsimp only [base]
     linarith [le_csSup (hT_bdd q) (hsing_mem q i)]
   have hpos_of_mem (q : A → ℝ) (hq0 : ∀ i, 0 ≤ q i) (hq1 : ∑ i, q i = 1)
       (S : Finset A) (hSne : S.Nonempty) (hS : (fun i => base q i + sSup (TSet q)) ∈ G.feasible S)
@@ -515,9 +512,8 @@ theorem inCore_toNTUGame_iff [Fintype A] (G : CooperativeGame A) (x : A → ℝ)
       · simp
       · by_contra hlt
         have hcard : (0 : ℝ) < S.card := Nat.cast_pos.2 (Finset.card_pos.2 hS)
-        let δ : ℝ := (G.val S - ∑ i ∈ S, x i) / S.card
-        have hδ : 0 < δ := div_pos (sub_pos.2 (not_le.1 hlt)) hcard
-        refine hno S hS ⟨fun i => x i + δ, ?_, fun i _ => lt_add_of_pos_right _ hδ⟩
+        refine hno S hS ⟨fun i => x i + (G.val S - ∑ j ∈ S, x j) / S.card, ?_,
+          fun _ _ => lt_add_of_pos_right _ (div_pos (sub_pos.2 (not_le.1 hlt)) hcard)⟩
         rw [mem_toNTUGame_feasible, Finset.sum_add_distrib, Finset.sum_const, nsmul_eq_mul,
           mul_div_cancel₀ _ hcard.ne']
         linarith
@@ -544,12 +540,11 @@ theorem toNTUGame_isBounded [Finite A] [Nonempty A] (G : CooperativeGame A) :
   refine ⟨fun i => ⟨G.val {i}, fun _ ⟨x, hx, hxt⟩ => hxt ▸ by simpa using hx⟩, ?_⟩
   let f : Finset A → ℝ := fun S => G.val S - ∑ j ∈ S, G.val {j}
   let M : ℝ := Finset.univ.sup' Finset.univ_nonempty f
-  let vmax : ℝ := Finset.univ.sup' Finset.univ_nonempty fun i : A => G.val {i}
-  refine ⟨vmax + max M 0, fun S _ x hx hir i hi => ?_⟩
-  have hsub : x i - G.val {i} ≤ ∑ j ∈ S, x j - ∑ j ∈ S, G.val {j} := by
-    rw [← Finset.sum_sub_distrib]
-    exact Finset.single_le_sum
-      (fun j hj => sub_nonneg.2 (G.individualValue_toNTUGame j ▸ hir j hj)) hi
+  refine ⟨(Finset.univ.sup' Finset.univ_nonempty fun i : A => G.val {i}) + max M 0,
+    fun S _ x hx hir i hi => ?_⟩
+  have hsub := Finset.single_le_sum
+    (fun j hj => sub_nonneg.2 (G.individualValue_toNTUGame j ▸ hir j hj)) hi
+  rw [Finset.sum_sub_distrib] at hsub
   linarith [Finset.le_sup' f (Finset.mem_univ S), (mem_toNTUGame_feasible G S x).1 hx,
     Finset.le_sup' (fun k : A => G.val {k}) (Finset.mem_univ i), le_max_left M 0]
 

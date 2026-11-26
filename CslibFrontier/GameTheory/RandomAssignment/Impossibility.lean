@@ -232,10 +232,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hA : ∀ i o : Fin 4, φ pA i o = 1 / 4 :=
     (List.ofFn_inj.mp rfl : pA = fun _ => prefABCD) ▸ uniform_of_ete hfeas hete prefABCD
   -- 2. Profile pB = (abcd, abcd, bacd, abcd): row 2 = (0, 1/2, 1/4, 1/4).
-  have hB2_sw := ab_step pA pB 2 rfl rfl
-  have hB2_c : φ pB 2 2 = 1 / 4 := by rw [hB2_sw.1, hA]
-  have hB2_ab : φ pB 2 0 + φ pB 2 1 = 1 / 2 := by
-    rw [hB2_sw.2.2, hA, hA]; norm_num
+  obtain ⟨hB2_c, -, hB2_ab⟩ := ab_step pA pB 2 rfl rfl
+  rw [hA] at hB2_c
+  rw [hA, hA] at hB2_ab
   have hB2_a0 : φ pB 2 0 = 0 :=
     zero_of_noTwoCycle_col (hfeas pB) (hntc pB) 2 0 1 (by linarith only [hB2_ab])
       hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -246,10 +245,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hB0_b : φ pB 0 1 = 1 / 6 := by linarith only [hBcol 1, hB2_b]
   have hB0_c : φ pB 0 2 = 1 / 4 := by linarith only [hBcol 2, hB2_c]
   -- 3. Profile pC = (abcd, abcd, abcd, acbd): row 3 = (1/4, 0, 1/2, 1/4).
-  have hC3_sw := bc_step pA pC 3 rfl rfl
-  have hC3_a : φ pC 3 0 = 1 / 4 := by rw [hC3_sw.1, hA]
-  have hC3_bc : φ pC 3 1 + φ pC 3 2 = 1 / 2 := by
-    rw [hC3_sw.2.2, hA, hA]; norm_num
+  obtain ⟨hC3_a, -, hC3_bc⟩ := bc_step pA pC 3 rfl rfl
+  rw [hA] at hC3_a
+  rw [hA, hA] at hC3_bc
   have hC3_b0 : φ pC 3 1 = 0 :=
     zero_of_noTwoCycle_col (hfeas pC) (hntc pC) 3 1 2 (by linarith only [hC3_bc])
       hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -260,14 +258,12 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hC2_b : φ pC 2 1 = 1 / 3 := by linarith only [hCcol 1, hC3_b0]
   have hC2_c : φ pC 2 2 = 1 / 6 := by linarith only [hCcol 2, hC3_c]
   -- 4. Profile pR = (abcd, abcd, bacd, acbd): rows 0,1 = (1/3, 5/24, 5/24, 1/4).
-  have hR3_sw := bc_step pB pR 3 rfl rfl
-  have hR2_sw := ab_step pC pR 2 rfl rfl
-  have hR3_a : φ pR 3 0 = 1 / 3 := by rw [hR3_sw.1, hete pB 3 0 rfl, hB0_a]
-  have hR3_bc : φ pR 3 1 + φ pR 3 2 = 5 / 12 := by
-    rw [hR3_sw.2.2, hete pB 3 0 rfl, hB0_b, hB0_c]; norm_num
-  have hR2_ab : φ pR 2 0 + φ pR 2 1 = 7 / 12 := by
-    rw [hR2_sw.2.2, hC2_a, hC2_b]; norm_num
-  have hR2_c : φ pR 2 2 = 1 / 6 := by rw [hR2_sw.1, hC2_c]
+  obtain ⟨hR3_a, -, hR3_bc⟩ := bc_step pB pR 3 rfl rfl
+  obtain ⟨hR2_c, -, hR2_ab⟩ := ab_step pC pR 2 rfl rfl
+  rw [hete pB 3 0 rfl, hB0_a] at hR3_a
+  rw [hete pB 3 0 rfl, hB0_b, hB0_c] at hR3_bc
+  rw [hC2_a, hC2_b] at hR2_ab
+  rw [hC2_c] at hR2_c
   have hR2_a0 : φ pR 2 0 = 0 :=
     zero_of_noTwoCycle_col (hfeas pR) (hntc pR) 2 0 1 (by linarith only [hR2_ab])
       hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -283,10 +279,9 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hR1_c : φ pR 1 2 = 5 / 24 := by
     linarith only [hcol pR 2, congrFun hR_ete01 2, hR2_c, hR3_c]
   -- 5. Profile pP2 = (abcd, bacd, bacd, abcd): rows 0,3 = (1/2, 0, 1/4, 1/4).
-  have hP2_sw := ab_step pB pP2 1 rfl rfl
-  have hP2_1c : φ pP2 1 2 = 1 / 4 := by rw [hP2_sw.1, hete pB 1 0 rfl, hB0_c]
-  have hP2_1ab : φ pP2 1 0 + φ pP2 1 1 = 1 / 2 := by
-    rw [hP2_sw.2.2, hete pB 1 0 rfl, hB0_a, hB0_b]; norm_num
+  obtain ⟨hP2_1c, -, hP2_1ab⟩ := ab_step pB pP2 1 rfl rfl
+  rw [hete pB 1 0 rfl, hB0_c] at hP2_1c
+  rw [hete pB 1 0 rfl, hB0_a, hB0_b] at hP2_1ab
   have hP2_ete12 : φ pP2 1 = φ pP2 2 := hete pP2 1 2 rfl
   have hP2_ete03 : φ pP2 0 = φ pP2 3 := hete pP2 0 3 rfl
   have hP2_1a0 : φ pP2 1 0 = 0 := hz pP2 1 0 fun hpos => by
@@ -299,36 +294,30 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   have hP2_3c : φ pP2 3 2 = 1 / 4 := by
     linarith only [hcol pP2 2, congrFun hP2_ete03 2, congrFun hP2_ete12 2, hP2_1c]
   -- 6. Profile pU = (abcd, bacd, bacd, acbd): pin φ pU 0 2 = 1/3 via pR → pU and pP2 → pU.
-  have hU1_sw := ab_step pR pU 1 rfl rfl
-  have hU1_c : φ pU 1 2 = 5 / 24 := by rw [hU1_sw.1, hR1_c]
-  have hU1_ab : φ pU 1 0 + φ pU 1 1 = 13 / 24 := by
-    rw [hU1_sw.2.2, hR1_a, hR1_b]; norm_num
+  obtain ⟨hU1_c, -, hU1_ab⟩ := ab_step pR pU 1 rfl rfl
+  rw [hR1_c] at hU1_c
+  rw [hR1_a, hR1_b] at hU1_ab
   have hU_ete12 : φ pU 1 = φ pU 2 := hete pU 1 2 rfl
   have hU3_b0 : φ pU 3 1 = 0 := hz pU 3 1 fun h => hntc pU 3 1 0 1 h hlt_acbd_01
     (by linarith only [hcol pU 1, congrFun hU_ete12 1, hnn pU 0 1, hnn pU 3 1, hU1_ab])
     hlt_bacd_10
-  have hU3_sw := bc_step pP2 pU 3 rfl rfl
   have hU3_c : φ pU 3 2 = 1 / 4 := by
-    have hbc : φ pU 3 1 + φ pU 3 2 = 1 / 4 := by
-      rw [hU3_sw.2.2, hP2_3b, hP2_3c]; norm_num
-    linarith only [hbc, hU3_b0]
+    linarith only [(bc_step pP2 pU 3 rfl rfl).2.2, hP2_3b, hP2_3c, hU3_b0]
   have hU0_c_third : φ pU 0 2 = 1 / 3 := by
     linarith only [hcol pU 2, congrFun hU_ete12 2, hU1_c, hU3_c]
   -- 7. Profile pA' = (bacd, bacd, bacd, bacd): all entries = 1/4.
   have hA' : ∀ i o : Fin 4, φ pA' i o = 1 / 4 :=
     (List.ofFn_inj.mp rfl : pA' = fun _ => prefBACD) ▸ uniform_of_ete hfeas hete prefBACD
   -- 8. Profile pB' = (bacd, bacd, bacd, abcd): row 3 = (1/2, 0, 1/4, 1/4).
-  have hB'3_sw := ba_step pA' pB' 3 rfl rfl
-  have hB'3_c : φ pB' 3 2 = 1 / 4 := by rw [hB'3_sw.1, hA']
-  have hB'3_ba : φ pB' 3 1 + φ pB' 3 0 = 1 / 2 := by
-    rw [hB'3_sw.2.2, hA', hA']; norm_num
+  obtain ⟨hB'3_c, -, hB'3_ba⟩ := ba_step pA' pB' 3 rfl rfl
+  rw [hA'] at hB'3_c
+  rw [hA', hA'] at hB'3_ba
   have hB'3_b0 : φ pB' 3 1 = 0 :=
     zero_of_noTwoCycle_col (hfeas pB') (hntc pB') 3 1 0 (by linarith only [hB'3_ba])
       hlt_abcd_01 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
   -- 9. Profile pC' = (bacd, bacd, bacd, acbd): row 0 gets c = 1/4.
-  have hC'3_sw := bc_step pB' pC' 3 rfl rfl
   have hC'3_bc : φ pC' 3 1 + φ pC' 3 2 = 1 / 4 := by
-    rw [hC'3_sw.2.2, hB'3_b0, hB'3_c]; norm_num
+    linarith only [(bc_step pB' pC' 3 rfl rfl).2.2, hB'3_b0, hB'3_c]
   have hC'3_b0 : φ pC' 3 1 = 0 :=
     zero_of_noTwoCycle_col (hfeas pC') (hntc pC') 3 1 2 (by linarith only [hC'3_bc])
       hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -337,8 +326,7 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     fin_cases k <;> first | exact absurd rfl hk | rfl
   have hC'0_c : φ pC' 0 2 = 1 / 4 := by linarith only [hC'col 2, hC'3_c]
   -- Final step: agent 0 swaps b ↔ a from pC' to pU, keeping φ · 0 2 unchanged: 1/3 = 1/4!
-  have hC'U_sw := ba_step pC' pU 0 rfl rfl
-  linarith only [hC'U_sw.1, hC'0_c, hU0_c_third]
+  linarith only [(ba_step pC' pU 0 rfl rfl).1, hC'0_c, hU0_c_third]
 
 /-- Embed a `4`-agent strict ordering `π : Equiv.Perm (Fin 4)` into `Equiv.Perm (Fin n)` for
 `n ≥ 4`, fixing every dummy index `k ≥ 4`. -/
@@ -396,13 +384,11 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
   have hrank_dummy : ∀ (j y : Fin n), 4 ≤ j.val → j ≠ y →
       (padProfile hn p j).symm j < (padProfile hn p j).symm y := by
     intro j y hj hne
-    have hp : padProfile hn p j = Equiv.swap ⟨0, by omega⟩ j := by
-      simp [padProfile, show ¬ j.val < 4 by omega]
-    rw [hp, Equiv.symm_swap, Equiv.swap_apply_right, Fin.lt_def]
-    refine Nat.pos_of_ne_zero fun hv => hne ?_
-    have h0 : Equiv.swap (⟨0, by omega⟩ : Fin n) j y = ⟨0, by omega⟩ := Fin.ext hv
-    rw [Equiv.swap_apply_eq_iff, Equiv.swap_apply_left] at h0
-    exact h0.symm
+    simp only [padProfile, hj.not_gt, ↓reduceDIte, Equiv.symm_swap, Equiv.swap_apply_right,
+      Fin.lt_def]
+    refine Nat.pos_of_ne_zero fun hv => hne (Eq.symm ?_)
+    simpa only [Equiv.swap_apply_eq_iff, Equiv.swap_apply_left] using
+      (Fin.ext hv : Equiv.swap (⟨0, by omega⟩ : Fin n) j y = ⟨0, by omega⟩)
   -- A dummy row `j` with positive off-diagonal mass on `v` would be a trade source into `v`.
   have hdummy_src : ∀ j : Fin n, 4 ≤ j.val → j ≠ v → 0 < M j v → False := by
     intro j hj4 hjne hpos
@@ -514,9 +500,7 @@ theorem bogomolnaiaMoulin_impossibility {n : ℕ} (hn : 4 ≤ n) (φ : Assignmen
         (padProfile hn p ⟨u.val, by omega⟩).symm ⟨x.val, by omega⟩ <
           (padProfile hn p ⟨u.val, by omega⟩).symm ⟨y.val, by omega⟩ := by
       intro u x y hxy
-      simp only [padProfile, u.isLt, ↓reduceDIte]
-      rw [padPerm_symm_lt hn (p u) x, padPerm_symm_lt hn (p u) y]
-      exact hxy
+      simpa only [padProfile, u.isLt, ↓reduceDIte, padPerm_symm_lt, Fin.eta, Fin.lt_def] using hxy
     exact (heff (padProfile hn p)).not_twoCycle hib (hp_rank i a b hij) hja (hp_rank j b a hji)
   have hψ_ete : ∀ p : Profile 4, IsEqualTreatmentOfEquals p (ψ p) := by
     intro p i j hij

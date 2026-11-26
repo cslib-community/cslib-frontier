@@ -83,18 +83,15 @@ private theorem decodeDict_modeCandidateOps_eq (withQueries : Bool) {U V n t₀ 
   let step₀ := n + stride * t₀
   let pref_bef := (s.modeOps withQueries).take step₀
   obtain ⟨hvh, hlen, hst⟩ := validHistory_and_run_modeCandidateOps withQueries s ht₀ hB hdisj
-  have hpost_eq : (D_det.runInterval step₀ (memAt D_det (s.modeOps withQueries) step₀)
-      (s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 =
-      (D_det.runSeq (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 := by
-    symm; dsimp only [memAt, pref_bef, step₀]
+  have hpost_eq : (D_det.runSeq (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 =
+      (D_det.runInterval step₀ (memAt D_det (s.modeOps withQueries) step₀)
+        (s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 := by
     rw [IndexedScheme.runSeq, IndexedScheme.runInterval_append, Nat.zero_add,
       s.length_take_modeOps withQueries (Nat.le_of_add_right_le ht₀)]
     rfl
-  have hle : (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB).length ≤
-      modeHorizon withQueries n := by
-    rw [hlen]; exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀) n
-  have hdec := decodeDict_runSeq_eq hcorr hvh hle
-  rw [hlen, ← hpost_eq] at hdec
+  have hdec := decodeDict_runSeq_eq hcorr hvh
+    (hlen.trans_le (Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀) n))
+  rw [hlen, hpost_eq] at hdec
   exact hdec.trans hst
 
 private theorem dom_eq_of_ite_some_eq {α β : Type*} [DecidableEq α] {S₁ S₂ : Finset α}
@@ -417,10 +414,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       refine (clog_two_lt_logb_add_one (pow_pos (by omega : 0 < V) m)).le.trans ?_
       rw [Nat.cast_pow, Real.logb_pow]
     have hm2 : ((m₂ sb).length : ℝ) ≤ benchmarkBits U V n + R := by
-      dsimp only [m₂]
-      rw [length_encodeFintype, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin,
-        ← pow_mul, Nat.clog_pow _ _ (by norm_num), mul_comm]
-      exact hspace
+      simpa only [m₂, length_encodeFintype, Fintype.card_fun, Fintype.card_fin, ← pow_mul,
+        Nat.clog_pow _ _ Nat.one_lt_two, mul_comm] using hspace
     have hm3 : ((m₃ sb).length : ℝ) ≤ (m : ℝ) * t := by
       simpa only [m₃, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using hSB_cap
     have hm4 : ((m₄ sb).length : ℝ) ≤ (m : ℝ) * t := by

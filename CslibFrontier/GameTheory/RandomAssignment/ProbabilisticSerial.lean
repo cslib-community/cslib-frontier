@@ -287,14 +287,12 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   · intro o ho
     by_cases hpos : 0 < s.rem o
     · rw [hexh_new o hpos ho, hel_eq]
-    · rw [hexh_old o (hz o hpos), hel_eq]
-      linarith [hinv.exhaust_le o (hz o hpos)]
+    · linarith [hexh_old o (hz o hpos), hel_eq, hinv.exhaust_le o (hz o hpos)]
   · intro i a b hpos' hlt
     obtain ⟨ha0, horder⟩ : s.rem a = 0 ∧ (s.rem b = 0 → s.exhaustTime a < s.exhaustTime b) := by
       rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
-      · have hfav : favObject p s.rem h i = b := by
-          by_contra hne
-          simp [halloc_eq, ← hzero, hne] at hpos'
+      · have hfav : favObject p s.rem h i = b :=
+          by_contra fun hne => by simp [halloc_eq, ← hzero, hne] at hpos'
         exact ⟨le_antisymm (favObject_lt_le_zero p s.rem h i a (hfav ▸ hlt)) (hinv.rem_nonneg a),
           fun hb0 => absurd hb0 (hfav ▸ favObject_rem_pos p s.rem h i).ne'⟩
       · exact hinv.trade_order i a b hold hlt
@@ -484,16 +482,14 @@ private lemma eatingStep_padded {n : ℕ} (hn : 3 ≤ n) (p : Profile n) (s : Ea
     unfold eatingDemand; simp_rw [hfav_all]
     by_cases ho : o.val < 3
     · simp only [ho, ↓reduceDIte, coreCount]
-      symm
-      refine Finset.card_bij (fun a _ => Fin.castLE hn a) (fun a ha => ?_)
-        (fun a _ b _ h => Fin.castLE_injective hn h) fun i hi => ?_
-      · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha ⊢
-        simp [ha]
-      · have hi3 : i.val < 3 := by
-          by_contra hnot
-          simp [hnot, Fin.ext_iff] at hi
-          omega
-        exact ⟨⟨i.val, hi3⟩, by simpa [hi3, Fin.ext_iff] using hi, rfl⟩
+      refine (Finset.card_bij (fun a _ => Fin.castLE hn a)
+        (fun a ha => by simpa [Fin.ext_iff] using ha)
+        (fun a _ b _ h => Fin.castLE_injective hn h) fun i hi => ?_).symm
+      have hi3 : i.val < 3 := by
+        by_contra hnot
+        simp [hnot, Fin.ext_iff] at hi
+        omega
+      exact ⟨⟨i.val, hi3⟩, by simpa [hi3, Fin.ext_iff] using hi, rfl⟩
     · simp only [ho, ↓reduceDIte]
       refine Finset.card_eq_one.mpr ⟨o, Finset.ext fun i => ?_⟩
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
@@ -659,10 +655,9 @@ private lemma eval_psManip_three {n : ℕ} (hn : 3 ≤ n) (p : Profile n)
   have hs3_zero : ∀ o : Fin n, s3.rem o = 0 := fun o => by
     rw [hs3_rem' o]; by_cases ho : o.val < 3 <;> simp [padVec, ho, hr₃_zero, hd₃_zero]
   intro a
-  change ((eatingStep p)^[n] s0).alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = _
-  rw [eq_iter_three_of_rem_zero hn p hs3_zero]
-  change s3.alloc ⟨2, by omega⟩ ⟨a.val, by omega⟩ = _
-  rw [hs3_a a, hs2_a a, hs1_a a]
+  rw [probabilisticSerial, eq_iter_three_of_rem_zero hn p hs3_zero]
+  refine (hs3_a a).trans ?_
+  rw [hs2_a a, hs1_a a]
   exact congrArg (· + _ + _) (zero_add _)
 
 private lemma coreCount_t0 (j : Fin 3) : coreCount ![0, 0, 1] j = ![2, 1, 0] j := by
@@ -761,22 +756,20 @@ from `3/4` to `1/2 + 1/3 = 5/6` by misreporting `0 > 1 > 2 > …`. -/
 theorem not_isSDStrategyProof_probabilisticSerial {n : ℕ} (hn : 3 ≤ n) :
     ¬ IsSDStrategyProof (probabilisticSerial (n := n)) := by
   intro hsp
-  set p := psManipProfile hn
-  have hdom := hsp p ⟨2, by omega⟩ (Equiv.refl (Fin n)) ⟨1, by omega⟩
+  have hdom := hsp (psManipProfile hn) ⟨2, by omega⟩ (Equiv.refl (Fin n)) ⟨1, by omega⟩
   have hiic : Finset.Iic (⟨1, by omega⟩ : Fin n) =
       {⟨0, by omega⟩, ⟨1, by omega⟩} := by
     ext r
     simp only [Finset.mem_Iic, Finset.mem_insert, Finset.mem_singleton, Fin.le_def, Fin.ext_iff]
     omega
   have hsum (x : Fin n → ℝ) :
-      upperContourSum (p ⟨2, by omega⟩) x ⟨1, by omega⟩ =
+      upperContourSum (psManipProfile hn ⟨2, by omega⟩) x ⟨1, by omega⟩ =
         x ⟨1, by omega⟩ + x ⟨0, by omega⟩ := by
-    dsimp only [upperContourSum, p]
+    dsimp only [upperContourSum]
     rw [hiic, Finset.sum_pair (by simp [Fin.ext_iff]), psManip_eq_swap01 hn ⟨2, by omega⟩ rfl]
     simp
   rw [hsum, hsum] at hdom
   obtain ⟨⟨ht0, ht1, _⟩, ⟨hm0, hm1, _⟩⟩ := probabilisticSerial_manip_values hn
-  rw [ht0, ht1, hm0, hm1] at hdom
   linarith
 
 end Cslib.GameTheory.RandomAssignment

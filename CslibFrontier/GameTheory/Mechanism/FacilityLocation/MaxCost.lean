@@ -638,11 +638,8 @@ private lemma leftmost_rightmost_two_plus_mid [DecidableEq ι] {i₁ i₂ : ι} 
       rightmost (fun j : ι => if j = i₁ then a else if j = i₂ then b else m) = b := by
   refine leftmost_rightmost_of_bounds (i₀ := i₁) (i₁ := i₂) (by simp) (by simp [h12.symm]) ?_
   intro j
-  by_cases hj1 : j = i₁
-  · subst hj1; simp [ham.trans hmb]
-  · by_cases hj2 : j = i₂
-    · subst hj2; simp [hj1, ham.trans hmb]
-    · simp [hj1, hj2, ham, hmb]
+  by_cases hj1 : j = i₁ <;> by_cases hj2 : j = i₂ <;>
+    simp [hj1, hj2, h12.symm, ham, hmb, ham.trans hmb]
 
 private lemma leftmost_rightmost_update_first [DecidableEq ι] {i₁ i₂ : ι} (h12 : i₁ ≠ i₂)
     {a₀ a b m : ℝ} (ham : a ≤ m) (hmb : m ≤ b) :
@@ -678,12 +675,11 @@ theorem not_isStrategyProof_centerMechanism [DecidableEq ι] (hcard : 2 ≤ Fint
   let x : ι → ℝ := fun j => if j = i₁ then 0 else if j = i₂ then 1 else 1
   have hx : leftmost x = 0 ∧ rightmost x = 1 :=
     leftmost_rightmost_two_plus_mid h12 zero_le_one le_rfl
-  let x' : ι → ℝ := Function.update x i₂ 2
-  have hx' : leftmost x' = 0 ∧ rightmost x' = 2 :=
+  have hx' : leftmost (Function.update x i₂ 2) = 0 ∧ rightmost (Function.update x i₂ 2) = 2 :=
     leftmost_rightmost_update_second h12 zero_le_one one_le_two
+  have hx2 : x i₂ = 1 := by simp [x, h12.symm]
   have hle := hsp x i₂ 2
-  rw [show x i₂ = 1 by simp [x, h12.symm], show Function.update x i₂ 2 = x' from rfl,
-    center, hx.1, hx.2, center, hx'.1, hx'.2, Real.dist_eq, Real.dist_eq] at hle
+  rw [hx2, center, hx.1, hx.2, center, hx'.1, hx'.2, Real.dist_eq, Real.dist_eq] at hle
   norm_num at hle
 
 /-! ### Tight deterministic `2`-approximation (Theorems 3.1 and 3.2) -/
@@ -884,13 +880,11 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
   have hleft_mem : l < l' → ∃ i ∈ A, x i = l := fun _ => by
     obtain ⟨i, hi⟩ := exists_eq_leftmost x
     refine ⟨i, by_contra fun hni => ?_, hi⟩
-    have heq : x' i = l := (Finset.piecewise_eq_of_notMem A z x hni).trans hi
-    linarith [leftmost_le x' i]
+    linarith [leftmost_le x' i, (Finset.piecewise_eq_of_notMem A z x hni).trans hi]
   have hright_mem : r' < r → ∃ i ∈ A, x i = r := fun _ => by
     obtain ⟨i, hi⟩ := exists_eq_rightmost x
     refine ⟨i, by_contra fun hni => ?_, hi⟩
-    have heq : x' i = r := (Finset.piecewise_eq_of_notMem A z x hni).trans hi
-    linarith [le_rightmost x' i]
+    linarith [le_rightmost x' i, (Finset.piecewise_eq_of_notMem A z x hni).trans hi]
   have hcL : l ≤ l' → expectedCost (lrmMechanism x') l = (l' + r') / 2 - l := fun _ => by
     rw [expectedCost_lrmMechanism, abs_of_nonpos (by linarith), abs_of_nonpos (by linarith),
       abs_of_nonpos (by dsimp [center]; linarith)]
@@ -911,9 +905,8 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
         abs_of_nonneg (a := x i - l') (by linarith),
         abs_of_nonpos (a := x i - r') (by linarith)]
       have hcen_diff : |center x' - center x| ≤ ((l - l') + (r' - r)) / 2 := by
-        rw [abs_le]
-        dsimp [center]
-        constructor <;> linarith
+        rw [center, center, abs_le]
+        exact ⟨by linarith, by linarith⟩
       change 1 / 4 * (x i - l) + 1 / 4 * -(x i - r) + 1 / 2 * |x i - center x| ≤
         1 / 4 * (x i - l') + 1 / 4 * -(x i - r') + 1 / 2 * |x i - center x'|
       linarith [abs_sub_le (x i) (center x') (center x)]
@@ -953,10 +946,8 @@ theorem not_isGroupStrategyProof_lrmMechanism [DecidableEq ι] (hcard : 3 ≤ Fi
     ¬ (lrmMechanism (ι := ι)).IsGroupStrategyProof := by
   intro hgsp
   obtain ⟨i₁, i₂, h12⟩ := Fintype.one_lt_card_iff.mp (lt_of_lt_of_le (by decide) hcard)
-  have hcard_lt : ({i₁, i₂} : Finset ι).card < (Finset.univ : Finset ι).card := by
-    have := Finset.card_le_two (a := i₁) (b := i₂)
-    rw [Finset.card_univ]
-    omega
+  have hcard_lt : ({i₁, i₂} : Finset ι).card < (Finset.univ : Finset ι).card :=
+    lt_of_le_of_lt Finset.card_le_two (by rw [Finset.card_univ]; omega)
   obtain ⟨i₃, _, hi₃⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard_lt
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi₃
   let x : ι → ℝ := fun j => if j = i₁ then 0 else if j = i₂ then 1 else 1 / 2
@@ -971,9 +962,7 @@ theorem not_isGroupStrategyProof_lrmMechanism [DecidableEq ι] (hcard : 3 ≤ Fi
   · rw [Finset.piecewise_univ, expectedECost_le_iff_expectedCost_le
       (lrmMechanism_hasFiniteCost z (x j)) (lrmMechanism_hasFiniteCost x (x j)),
       expectedCost_lrmMechanism, expectedCost_lrmMechanism, hx.1, hx.2, hcen_x, hz.1, hz.2, hcen_z]
-    by_cases hj1 : j = i₁
-    · subst hj1; simp [x]; norm_num
-    · by_cases hj2 : j = i₂ <;> simp [x, hj1, hj2, h12.symm] <;> norm_num
+    by_cases hj1 : j = i₁ <;> by_cases hj2 : j = i₂ <;> simp [x, hj1, hj2, h12.symm] <;> norm_num
   · rw [Finset.piecewise_univ, expectedECost_lt_iff_expectedCost_lt
       (lrmMechanism_hasFiniteCost z (x i₃)) (lrmMechanism_hasFiniteCost x (x i₃)),
       expectedCost_lrmMechanism, expectedCost_lrmMechanism, hx.1, hx.2, hcen_x, hz.1, hz.2, hcen_z]
