@@ -15,8 +15,3 @@ example : AC0Mod 4 = AC0Mod 2 := AC0Mod_prime_power_eq 2 (k := 2) (by decide)
 -- Weights two and four agree mod two and differ mod four.
 example : modGate 4 4 (fun i => decide (i.val < 2)) = true := by decide
 example : modGate 4 4 (fun _ => true) = false := by decide
-
-#print axioms AC0Mod_prime_power_eq
-#print axioms primePowerGateCircuit_correct
-#print axioms primePowerGateCircuit_depth
-#print axioms primePowerGateCircuit_size
