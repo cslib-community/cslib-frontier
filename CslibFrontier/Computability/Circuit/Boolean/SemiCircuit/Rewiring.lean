@@ -83,24 +83,18 @@ theorem eqnsHold_iff (val : ℕ → Bool) : (C.moveAffine J e).EqnsHold val ↔
     C.EqnsHold val ∧ (affEqn (C.gate J) J).Holds val := by
   constructor
   · intro hv
-    refine ⟨fun e' he' => ?_, ?_⟩
-    · rw [← h.eqn_of_mem he']; exact hv e' (Finset.mem_insert_of_mem he')
-    · have := hv e (Finset.mem_insert_self _ _)
-      change (Function.update C.eqn e _ e).Holds val at this
-      rwa [Function.update_self] at this
+    refine ⟨fun e' he' => h.eqn_of_mem he' ▸ hv e' (Finset.mem_insert_of_mem he'), ?_⟩
+    simpa only [moveAffine, Function.update_self] using hv e (Finset.mem_insert_self _ _)
   · rintro ⟨hv, hJv⟩ e' he'
     rcases Finset.mem_insert.1 he' with rfl | he'
-    · change (Function.update C.eqn e' _ e').Holds val
-      rwa [Function.update_self]
-    · rw [h.eqn_of_mem he']; exact hv e' he'
+    · simpa only [moveAffine, Function.update_self] using hJv
+    · simpa only [h.eqn_of_mem he'] using hv e' he'
 
 private theorem live_eq : (C.moveAffine J e).live = C.live := by
   ext i
-  simp only [live, Finset.mem_union]
-  change (i ∈ C.params ∨ i ∈ insert J C.aux) ∨ i ∈ C.gates.erase J ↔ _
-  simp only [Finset.mem_insert, Finset.mem_erase]
-  by_cases hiJ : i = J
-  · subst hiJ; simp [h.mem]
+  simp only [live, moveAffine, Finset.mem_union, Finset.mem_insert, Finset.mem_erase]
+  rcases eq_or_ne i J with rfl | hiJ
+  · simp [h.mem]
   · simp [hiJ]
 
 end MoveOK
@@ -135,28 +129,23 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
       out_live := fun i hi => hlive ▸ hC.out_live i hi
       solvable := fun u => ?_
       unique := fun val val' hagree heq heq' a ha => ?_ }
-  · change i ∈ insert J C.aux at ha
-    rcases Finset.mem_insert.1 ha with rfl | ha
+  · rcases Finset.mem_insert.1 (show i ∈ insert J C.aux from ha) with rfl | ha
     · exact hJp hp
     · exact hC.notMem_aux_of_mem_params hp ha
-  · change i ∈ insert J C.aux at ha
-    change i ∈ C.gates.erase J at hg
-    rcases Finset.mem_insert.1 ha with rfl | ha
+  · rcases Finset.mem_insert.1 (show i ∈ insert J C.aux from ha) with rfl | ha
     · exact Finset.notMem_erase i _ hg
     · exact hC.notMem_gates_of_mem_aux ha (Finset.mem_of_mem_erase hg)
   · change t ∈ C.params ∪ insert J C.aux
-    have hsub : ∀ t ∈ C.params ∪ C.aux, t ∈ C.params ∪ insert J C.aux := fun t ht => by
-      rcases Finset.mem_union.1 ht with hp | ha
-      · exact Finset.mem_union_left _ hp
-      · exact Finset.mem_union_right _ (Finset.mem_insert_of_mem ha)
+    have hsub : C.params ∪ C.aux ⊆ C.params ∪ insert J C.aux :=
+      Finset.union_subset_union_right (Finset.subset_insert _ _)
     rcases Finset.mem_insert.1 he' with rfl | he'
     · change t ∈ (Function.update C.eqn e' _ e').terms at ht
       rw [Function.update_self] at ht
       rcases mem_affEqn ht with rfl | ht
       · exact Finset.mem_union_right _ (Finset.mem_insert_self _ _)
-      · exact hsub t (h.mem_params_or_aux hC ht)
+      · exact hsub (h.mem_params_or_aux hC ht)
     · rw [h.eqn_of_mem he'] at ht
-      exact hsub t (hC.terms_subset e' he' ht)
+      exact hsub (hC.terms_subset e' he' ht)
   · rcases Finset.mem_insert.1 he' with rfl | he'
     · change (Function.update C.eqn e' _ e').terms.card ≤ 3
       rw [Function.update_self]
@@ -173,8 +162,7 @@ theorem WellFormed.moveAffine (hC : C.WellFormed) {J e : ℕ} (h : C.MoveOK J e)
   · obtain ⟨heq, hJv⟩ := (h.eqnsHold_iff val).1 heq
     obtain ⟨heq', hJv'⟩ := (h.eqnsHold_iff val').1 heq'
     have hagree' := hC.unique val val' hagree heq heq'
-    change a ∈ insert J C.aux at ha
-    rcases Finset.mem_insert.1 ha with rfl | ha
+    rcases Finset.mem_insert.1 (show a ∈ insert J C.aux from ha) with rfl | ha
     · rw [(affEqn_holds h.affine _ _).1 hJv, (affEqn_holds h.affine _ _).1 hJv']
       refine Gate.eval_congr fun i hi => ?_
       rcases Finset.mem_union.1 (h.mem_params_or_aux hC hi) with hp | ha

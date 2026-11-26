@@ -140,9 +140,7 @@ theorem mulAddPass_digit_le (a cy : ℕ) (ds : List ℕ) : ∀ d ∈ (mulAddPass
   | cons d ds ih =>
     intro e he
     simp only [mulAddPass, List.mem_cons] at he
-    rcases he with rfl | he
-    · omega
-    · exact ih _ e he
+    exact he.elim (fun _ => by omega) (ih _ e)
 
 /-- **The value of a multiply-add.** -/
 theorem ofDigits_mulAddDigits (a cy : ℕ) (ds : List ℕ) :
@@ -263,15 +261,9 @@ theorem decDigits_digit_le {ds : List ℕ} (hds : ∀ d ∈ ds, d ≤ 1) : ∀ d
   | nil => simp [decDigits]
   | cons d ds ih =>
     intro e he
-    by_cases h0 : d = 0
-    · simp only [decDigits, h0, ↓reduceIte, List.mem_cons] at he
-      rcases he with rfl | he
-      · decide
-      · exact ih (fun d' hd' => hds d' (by simp [hd'])) e he
-    · simp only [decDigits, h0, ↓reduceIte, List.mem_cons] at he
-      rcases he with rfl | he
-      · decide
-      · exact hds e (by simp [he])
+    by_cases h0 : d = 0 <;> simp only [decDigits, h0, ↓reduceIte, List.mem_cons] at he
+    · exact he.elim Nat.le_of_eq (ih (fun d' hd' => hds d' (List.mem_cons_of_mem d hd')) e)
+    · exact he.elim (· ▸ Nat.zero_le 1) fun h => hds e (List.mem_cons_of_mem d h)
 
 /-- **Amortized cost of a decrement.** The digits read, minus two, are paid for by the zero digits
 consumed. -/
@@ -282,8 +274,8 @@ theorem decSteps_add_count_le (ds : List ℕ) :
   | cons d ds ih =>
     by_cases h0 : d = 0
     · subst h0
-      simp only [decSteps, decDigits, ↓reduceIte, List.count_cons_self, List.count_cons]
-      simp only [beq_iff_eq, one_ne_zero, ↓reduceIte, Nat.add_zero]
+      simp only [decSteps, decDigits, ↓reduceIte, List.count_cons_self, List.count_cons,
+        beq_iff_eq, one_ne_zero, Nat.add_zero]
       omega
     · simp only [decSteps, h0, ↓reduceIte, decDigits, List.count_cons_self, List.count_cons,
         beq_iff_eq, Nat.add_zero]

@@ -56,9 +56,7 @@ private theorem scalar_floor_bound (ε : ℝ) (hε : 0 < ε) :
         c.Computes interpretation (single f) ∧
         c.size ≤ ⌊(1 + ε) * (2 : ℝ) ^ q / q⌋₊ := by
   obtain ⟨q₀, hq₀⟩ := Lupanov.exists_circuit ε hε
-  refine ⟨q₀, fun q hq f => ?_⟩
-  obtain ⟨c, hc, hs⟩ := hq₀ q hq f
-  exact ⟨c, hc, Nat.le_floor hs⟩
+  exact ⟨q₀, fun q hq f => (hq₀ q hq f).imp fun _ h => ⟨h.1, Nat.le_floor h.2⟩⟩
 
 private theorem synthesisBudget_floor_le (q p : ℕ) (R : ℝ) (hR : 0 ≤ R) :
     (affineControllerSynthesisBudget q p ⌊R⌋₊ : ℝ) ≤
@@ -78,10 +76,9 @@ theorem affine_controller_power_lupanov (ε : ℝ) (hε : 0 < ε) :
         (c.size : ℝ) ≤ (q + p * (p + 1) : ℕ) * ((1 + ε) * (2 : ℝ) ^ q / q) +
           (p * (5 * (p + 1) + 1) : ℕ) := by
   obtain ⟨q₀, hq₀⟩ := scalar_floor_bound ε hε
-  refine ⟨q₀, fun q hq p g a T => ?_⟩
-  obtain ⟨c, hc, hs⟩ := affine_controller_power_of_scalar_bound g a _ (hq₀ q hq) T
-  refine ⟨c, hc, (Nat.cast_le.mpr hs).trans ?_⟩
-  exact synthesisBudget_floor_le q p _ (by positivity)
+  refine ⟨q₀, fun q hq p g a T =>
+    (affine_controller_power_of_scalar_bound g a _ (hq₀ q hq) T).imp fun _ ⟨hc, hs⟩ =>
+      ⟨hc, (Nat.cast_le.mpr hs).trans (synthesisBudget_floor_le q p _ (by positivity))⟩⟩
 
 /-- The same asymptotic coefficient-synthesis bound at each conditional binary stage
 computes an input exponent with `m` bits. -/
@@ -93,13 +90,11 @@ theorem affine_controller_variable_time_lupanov (ε : ℝ) (hε : 0 < ε) :
         (c.size : ℝ) ≤ m * ((q + p * (p + 1) : ℕ) * ((1 + ε) * (2 : ℝ) ^ q / q) +
           (p * (5 * (p + 1) + 1) : ℕ) + (4 * (q + p) : ℕ)) := by
   obtain ⟨q₀, hq₀⟩ := scalar_floor_bound ε hε
-  refine ⟨q₀, fun q hq p g a m => ?_⟩
-  obtain ⟨c, hc, hs⟩ :=
-    affine_controller_variable_time_of_scalar_bound g a _ (hq₀ q hq) m
-  refine ⟨c, hc, (Nat.cast_le.mpr hs).trans ?_⟩
-  simp only [Nat.cast_mul, Nat.cast_add]
+  refine ⟨q₀, fun q hq p g a m =>
+    (affine_controller_variable_time_of_scalar_bound g a _ (hq₀ q hq) m).imp fun _ ⟨hc, hs⟩ =>
+      ⟨hc, (Nat.cast_le.mpr hs).trans ?_⟩⟩
+  have hb := synthesisBudget_floor_le q p ((1 + ε) * (2 : ℝ) ^ q / q) (by positivity)
+  push_cast at hb ⊢
   gcongr
-  simpa only [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_one] using
-    synthesisBudget_floor_le q p ((1 + ε) * (2 : ℝ) ^ q / q) (by positivity)
 
 end Cslib.Circuits.Boolean.Iteration

@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Parameters
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Serialized.PolyTime
 import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Serialized.Correctness
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Generated-key GSW security from the exact decision-LWE assumption
@@ -139,14 +140,8 @@ theorem indCPA_of_decisionLWE {n m w η : ℕ → ℕ}
   intro adversary hadversary
   have hsource := hLWE.encoded (lweDistinguisher n m w adversary)
     (isPPT_lweDistinguisher hn hm hw hadversary)
-  have hrows : PolynomiallyBounded (fun k => (n k + 1) * w k) := by
-    have : PolynomiallyBounded n := hn.polynomiallyBounded
-    have : PolynomiallyBounded w := hw.polynomiallyBounded
-    fun_prop
-  have herror := negligible_mul_sqrt_pow_two_div_pow_two hrows hmargin
-  apply negligible_of_le
-    ((hsource.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)).add herror)
-  exact advantage_game_le n m w η adversary
+  have := negligible_sqrt_pow_two_div_pow_two hmargin
+  negligible [hidingError] using advantage_game_le n m w η adversary
 
 /-- The positive-noise parameter family supplies every dimension/runtime/entropy premise.
 Only decision LWE for its precise centered-binomial law remains a security assumption. -/

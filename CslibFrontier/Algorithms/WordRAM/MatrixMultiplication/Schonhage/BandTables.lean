@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPopulation
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Charged materialization of the subset tables
@@ -64,40 +65,19 @@ theorem TablesPrefix.step {L m inv tab t : ℕ} {μ μ' : ℕ → ℕ}
   constructor
   · intro a ha
     by_cases hat : a = t
-    · subst a
-      unfold tableStep
-      split
-      · exact Function.update_self _ _ _
-      · rw [Function.update_of_ne (by omega), Function.update_self]
-    · have haold : a < t := by omega
-      unfold tableStep
-      split
-      · rw [Function.update_of_ne (by omega)]
-        exact h.inverse a haold
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.inverse a haold
+    · subst a; update_simp [tableStep]
+    · update_simp [tableStep]; exact h.inverse a (by omega)
   · intro a ha hselected
     by_cases hat : a = t
-    · subst a
-      simp only [tableStep, hselected, ↓reduceIte, Function.update_self]
+    · subst a; update_simp [tableStep]
     · have haold : a < t := by omega
       have hpop := (lookup_ne_zero_iff L m a).mp hselected |>.2.1
       have hless := prefixCount_lt hpop haold
-      unfold tableStep
-      split
-      · rw [Function.update_of_ne (by omega)]
-        exact h.forward a haold hselected
-      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.forward a haold hselected
+      update_simp [tableStep]
+      exact h.forward a haold hselected
   · intro a hi hf
-    have hia : a ≠ inv + t := by omega
-    have hta : a ≠ tab + prefixCount L m t := by omega
-    unfold tableStep
-    split
-    · rw [Function.update_of_ne hia]
-      exact h.frame a hi hf
-    · rw [Function.update_of_ne hta, Function.update_of_ne hia]
-      exact h.frame a hi hf
+    update_simp [tableStep]
+    exact h.frame a hi hf
 
 /-- Execute the stores after the population loop. The code neither searches a supplied
 table nor receives a table-validity certificate. -/
@@ -112,53 +92,20 @@ theorem exec_tableWrite {w : ℕ} (L m inv tab t : ℕ) (x : Data 96)
       y.regs mask = t + 1 ∧ y.regs rank = prefixCount L m (t + 1) ∧
       (∀ i, i ≠ address → i ≠ temporary → i ≠ mask → i ≠ rank → y.regs i = x.regs i) := by
   have hbound := prefixCount_le L m t
-  have ha : Fits w (inv + t) := hfit.of_le (by omega)
-  have htaddr : Fits w (tab + prefixCount L m t) := hfit.of_le (by omega)
-  have hr : Fits w (prefixCount L m t + 1) := hfit.of_le (by omega)
-  have ht1 : Fits w (t + 1) := hfit.of_le (by omega)
-  by_cases hp : MaskTable.population L t = m
-  · by_cases hselected : prefixCount L m t < K0 L m * K0 L m
-    · let y := (((((((x.set address (inv + t)).write (inv + t) 0).set temporary
-          (prefixCount L m t + 1)).write (inv + t) (prefixCount L m t + 1)).set
-          address (tab + prefixCount L m t)).write (tab + prefixCount L m t) t).set
-          rank (prefixCount L m t + 1)).set mask (t + 1)
-      refine ⟨y, ?_, ?_, ?_, ?_, ?_⟩
-      · ram_eval [tableWrite, y, hinv, htab, hmask, hrank, hpop, hm, hsq, h0, h1,
-          ha, htaddr, hr, ht1, hp, hselected,
-          inverse, table, mask, rank, population, inner, square, zero, one, address,
-          temporary, Fin.mk.injEq]
-      · simp [y, tableStep, lookup, ht, hp, hselected, Data.write, Data.set,
-          Function.update_idem]
-      · simp [y, Data.set, address, temporary, mask, rank]
-      · simp [y, Data.set, address, temporary, mask, rank, prefixCount_succ, hp]
-      · intro i ha ht hm hr
-        simp only [y, Data.set_regs, Data.write_regs,
-          Function.update_of_ne ha, Function.update_of_ne ht,
-          Function.update_of_ne hm, Function.update_of_ne hr]
-    · let y := ((((x.set address (inv + t)).write (inv + t) 0).set rank
-          (x.regs rank)).set rank (prefixCount L m t + 1)).set mask (t + 1)
-      refine ⟨y, ?_, ?_, ?_, ?_, ?_⟩
-      · ram_eval [tableWrite, y, hinv, htab, hmask, hrank, hpop, hm, hsq, h0, h1,
-          ha, ht1, hr, hp, hselected, inverse, table, mask, rank, population, inner,
-          square, zero, one, address, temporary, Fin.mk.injEq]
-      · simp [y, tableStep, lookup, ht, hp, hselected, Data.write, Data.set]
-      · simp [y, Data.set, address, mask, rank]
-      · simp [y, Data.set, address, mask, rank, prefixCount_succ, hp]
-      · intro i ha _ hm hr
-        simp only [y, Data.set_regs, Data.write_regs, Function.update_of_ne ha,
-          Function.update_of_ne hm, Function.update_of_ne hr]
-  · let y := (((x.set address (inv + t)).write (inv + t) 0).set rank
-        (x.regs rank)).set mask (t + 1)
-    refine ⟨y, ?_, ?_, ?_, ?_, ?_⟩
-    · ram_eval [tableWrite, y, hinv, htab, hmask, hrank, hpop, hm, hsq, h0, h1,
-        ha, ht1, hp, inverse, mask, rank, population, inner, zero, one,
-        address, Fin.mk.injEq]
-    · simp [y, tableStep, lookup, ht, hp, Data.write, Data.set]
-    · simp [y, Data.set, address, mask, rank]
-    · simp [y, Data.set, address, mask, rank, prefixCount_succ, hp, hrank]
-    · intro i ha _ hm hr
-      simp only [y, Data.set_regs, Data.write_regs, Function.update_of_ne ha,
-        Function.update_of_ne hm, Function.update_of_ne hr]
+  suffices ∃ y, ExecWithin w tableWrite x y 10 ∧ y.mem = tableStep L m inv tab t x.mem ∧
+      y.regs mask = t + 1 ∧ y.regs rank = prefixCount L m (t + 1) by
+    obtain ⟨y, he, hm', hmt, hrk⟩ := this
+    refine ⟨y, he, hm', hmt, hrk, fun i ha htmp hm_ne hr_ne => he.regs_eq ?_⟩
+    revert i ha htmp hm_ne hr_ne
+    simp only [tableWrite, Code.Preserves, Op.dest, Op.bin]
+    decide
+  unfold tableWrite
+  wram_exec *
+  · rename_i hp
+    wram_simp [tableStep, lookup, ht, hp, hc, prefixCount_succ, Function.update_idem]
+  · rename_i hp
+    wram_simp [tableStep, lookup, ht, hp, hc, prefixCount_succ]
+  · wram_simp [tableStep, lookup, ht, hc, prefixCount_succ, hrank, false_and]
 
 /-- Persistent scalar parameters read by the table loops. These are register contents only;
 there is no execution, fit or cost assumption in this postcondition. -/
@@ -182,15 +129,6 @@ structure TableParameters (L m inv tab : ℕ) (x : Data 96) : Prop where
   /-- Constant two. -/
   two : x.regs two = 2
 
-private def tableParameterRegisters : Finset (Fin 96) :=
-  {levels, inner, masks, inverse, table, square, zero, one, two}
-
-private theorem TableParameters.of_eq {L m inv tab : ℕ} {x y : Data 96}
-    (hx : TableParameters L m inv tab x)
-    (h : ∀ i ∈ tableParameterRegisters, y.regs i = x.regs i) :
-    TableParameters L m inv tab y := by
-  regs_frame
-
 /-- The complete native scan computes both tables, with all inner population scans and
 outer controls charged. Outside memory may contain arbitrary caller data. -/
 theorem exec_tables {w : ℕ} (L m inv tab : ℕ) (x : Data 96)
@@ -203,65 +141,34 @@ theorem exec_tables {w : ℕ} (L m inv tab : ℕ) (x : Data 96)
         y.mem (tab + (pairRank gh).val) = (selectedMask gh).val) ∧
       (∀ a, ¬(inv ≤ a ∧ a < inv + 2 ^ L) → ¬(tab ≤ a ∧ a < tab + 2 ^ L) →
         y.mem a = x.mem a) := by
-  have h0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-  let start := (x.set mask 0).set rank 0
-  have hs : ExecWithin (B := .standard) w (ram[ mask ← #0; rank ← #0 ]) x start 2 := by
-    ram_eval [start, h0, mask, rank, Fin.mk.injEq]
-  have hstart : TableParameters L m inv tab start := hx.of_eq (by
-    intro i hi
-    have hf : ∀ i ∈ tableParameterRegisters, i ≠ mask ∧ i ≠ rank := by decide
-    simp only [start, Data.set_regs, Function.update_of_ne (hf i hi).1,
-      Function.update_of_ne (hf i hi).2])
   let P (j : ℕ) (y : Data 96) : Prop :=
     TableParameters L m inv tab y ∧
       y.regs rank = prefixCount L m j ∧
       TablesPrefix L m inv tab j x.mem y.mem
-  have hi : P (start.regs mask) start := by
-    refine ⟨hstart, ?_, ?_⟩
-    · simp [start, mask, rank, prefixCount_zero]
-    · simpa [start, mask, rank] using TablesPrefix.zero L m inv tab x.mem
   have hb (y : Data 96) (hy : P (y.regs mask) y) (htlt : y.regs mask < 2 ^ L) :
       ∃ z, ExecWithin w tableBody y z (6 * L + 15) ∧ P (y.regs mask + 1) z ∧
         z.regs mask = y.regs mask + 1 := by
     obtain ⟨hp, hrank, hmem⟩ := hy
-    obtain ⟨u, hu, hpop, humem, huf⟩ := exec_population L (y.regs mask) y hp.levels rfl
-      hp.one hp.two (hfit.of_le (by omega))
-    have hup : TableParameters L m inv tab u := hp.of_eq (by
-      intro i hi
-      have hf : ∀ i ∈ tableParameterRegisters,
-          i ≠ residue ∧ i ≠ population ∧ i ≠ counter ∧ i ≠ digit := by decide
-      exact huf i (hf i hi).1 (hf i hi).2.1 (hf i hi).2.2.1 (hf i hi).2.2.2)
-    have hut : u.regs mask = y.regs mask :=
-      huf mask (by decide) (by decide) (by decide) (by decide)
-    have hur : u.regs rank = prefixCount L m (y.regs mask) := by regs_frame
-    obtain ⟨z, hz, hzmem, hzt, hzr, _⟩ := exec_tableWrite L m inv tab (y.regs mask) u
-      htlt hup.inverse hup.table hut hur hpop hup.inner hup.square hup.zero hup.one
-      (hfit.of_le (by omega))
-    have he : ExecWithin w tableBody y z (6 * L + 15) := hu.seq hz
-    have hzp : TableParameters L m inv tab z := hp.of_eq (by
-      intro i hi
-      apply he.regs_eq
-      have hf : ∀ i ∈ tableParameterRegisters, tableBody.Preserves i := by
-        simp only [tableBody, tableWrite, populationCode, Code.Preserves, Op.dest, Op.bin]
-        decide
-      exact hf i hi)
-    refine ⟨z, he, ⟨hzp, hzr, ?_⟩, hzt⟩
+    refine WP.exists_execWithin ?_
+    unfold tableBody
+    wram_call (exec_population L (y.regs mask) y hp.levels rfl hp.one hp.two
+      (hfit.of_le (by omega))) with u ⟨hpop, humem, huf⟩
+    wram_call (exec_tableWrite (w := w) L m inv tab (y.regs mask)) [htlt]
+      with z ⟨hzmem, hzt, hzr, _⟩
+    refine ⟨by omega, ⟨by regs_frame, hzr, ?_⟩, hzt⟩
     rw [hzmem, humem]
     exact hmem.step htlt hsep
-  obtain ⟨y, he, ⟨hyp, hyrank, hymem⟩, _⟩ := ExecWithin.loop_count P
-    (fun _ hy => hy.1.masks) hb (by simp [start, mask, rank]) hi
-  have hwhole : ExecWithin w tablesCode x y ((6 * L + 17) * 2 ^ L + 4) := by
-    apply (hs.seq he).mono
-    have hs0 : start.regs mask = 0 := by simp [start, mask, rank]
-    rw [hs0, Nat.sub_zero]
-    nlinarith
-  refine ⟨y, hwhole, hyp, ?_, ?_, hymem.frame⟩
-  · intro a ha
-    exact hymem.inverse a ha
-  · intro gh
-    have hlookup : lookup L m (selectedMask gh).val ≠ 0 := by rw [lookup_selectedMask]; omega
-    have hb : (selectedMask gh).val < 2 ^ L := (selectedMask gh).isLt
-    have h := hymem.forward (selectedMask gh).val hb hlookup
-    simpa only [prefixCount_selectedMask] using h
+  unfold tablesCode
+  wram_exec *
+  wram_call (ExecWithin.loop_count P (fun _ hy => hy.1.masks) hb
+    (by wram_simp; exact Nat.zero_le _)
+    (by refine ⟨by regs_frame, by wram_simp [prefixCount_zero],
+      by wram_simp; exact TablesPrefix.zero L m inv tab x.mem⟩))
+    with y ⟨⟨hyp, _, hymem⟩, ht⟩
+  refine ⟨by wram_simp [ht]; nlinarith, hyp, hymem.inverse, ?_, hymem.frame⟩
+  intro gh
+  have hlookup : lookup L m (selectedMask gh).val ≠ 0 := by rw [lookup_selectedMask]; omega
+  simpa only [prefixCount_selectedMask] using
+    hymem.forward (selectedMask gh).val (selectedMask gh).isLt hlookup
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

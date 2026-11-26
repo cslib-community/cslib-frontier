@@ -70,7 +70,7 @@ private theorem eval_select {a t n m r : ℕ} (cs : Fin a → Fin t) (rs : Fin n
     (c : Fin t → BitString 2) (x : Fin m → BitString r) :
     (select cs rs).eval interpretation (pack c x) = pack (c ∘ cs) (x ∘ rs) := by
   apply ext <;> funext j bit <;>
-    simp [controls, records, select, layout, Circuit.eval_wiringOn, pack, BitString.block,
+    simp [circuit_simps, controls, records, select, layout, pack, BitString.block,
       BitString.blocksEquiv_symm_apply, -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 /-- Reverse a comparison layer, reading the saved decision and its complement. -/
@@ -95,14 +95,9 @@ private theorem unlayer_input {n r : ℕ} (flags : BitString n)
           (fun bit => Fin.natAdd (n * 2) (finProdFinEquiv (Fin.natAdd n j, bit)))) bit)) =
       Fin.append ![flags j, !flags j] (Fin.append (x (Fin.castAdd n j)) (x (Fin.natAdd n j))) := by
   funext bit
-  cases bit using Fin.addCases with
-  | left bit =>
-    simp only [Fin.addCases_left, pack, Fin.append_left, BitString.blocksEquiv_symm_apply,
-      Equiv.symm_apply_apply, pairs]
-  | right bit =>
-    cases bit using Fin.addCases <;>
-      simp only [Fin.addCases_right, Fin.addCases_left, pack, Fin.append_right, Fin.append_left,
-        BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply]
+  refine Fin.addCases (fun bit => ?_) (Fin.addCases (fun bit => ?_) (fun bit => ?_)) bit <;>
+    simp only [Fin.addCases_left, Fin.addCases_right, pack, Fin.append_left, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply, pairs]
 
 private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) → BitString r) :
     BitString.block ((unlayer n r).eval interpretation (pack (pairs flags) x)) =
@@ -145,7 +140,7 @@ private theorem eval_unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 +
           (pack (c ∘ Fin.natAdd a) (x ∘ Fin.natAdd n)))) := by
   funext j bit
   cases j using Fin.addCases <;>
-    simp [unhalves, Circuit.eval_wiringOn, BitString.block, eval_select,
+    simp [circuit_simps, unhalves, BitString.block, eval_select,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
 
 private theorem cost_unhalves {a b n r : ℕ} (left : Circuit signature (a * 2 + n * r) (n * r))
@@ -172,7 +167,7 @@ private theorem eval_unchain {a b n r : ℕ} (first : Circuit signature (a * 2 +
   congr 1 with i : 1
   cases i using Fin.addCases with
   | left i =>
-    simp [Circuit.eval_wiringOn, layout, pack, BitString.blocksEquiv_symm_apply,
+    simp [circuit_simps, layout, pack, BitString.blocksEquiv_symm_apply,
       -finProdFinEquiv_symm_apply, -Fin.natAdd_eq_addNat]
   | right i =>
     simp only [Fin.append_right, pack, BitString.blocksEquiv_symm_apply, BitString.block,

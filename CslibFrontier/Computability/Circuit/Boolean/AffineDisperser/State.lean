@@ -158,14 +158,11 @@ theorem Valid.exists_affine_embedding {f : BooleanFunction n} (hS : S.Valid f) :
       ∀ u, ∃ val, S.Consistent val ∧ g u = S.phi val := by
   set F := S.params \ S.pairs.image Prod.fst
   have hF : F.card = S.a := hS.card_sdiff_image Prod.fst fun _ _ => Or.inl rfl
-  have hFp : F ⊆ S.params := Finset.sdiff_subset
-  refine ⟨S.phi ∘ spread F hF, hS.phi_affine _ _ (isAffine_spread F hF) ?_, ?_, fun u => ?_⟩
-  · intro pr hpr
-    refine Or.inl fun u v => ?_
-    have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
+  refine ⟨S.phi ∘ spread F hF, hS.phi_affine _ _ (isAffine_spread F hF) fun pr hpr =>
+    Or.inl fun u v => ?_, fun u v h => eq_of_spread hF fun i hi =>
+      hS.phi_injective _ _ h i (Finset.sdiff_subset hi), fun u => ?_⟩
+  · have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
     rw [spread_of_notMem hF u this, spread_of_notMem hF v this]
-  · intro u v h
-    exact eq_of_spread hF fun i hi => hS.phi_injective _ _ h i (hFp hi)
   · obtain ⟨val, hval, hcons⟩ := hS.wf.exists_consistent (spread F hF u)
     exact ⟨val, hcons, (hS.phi_congr val _ hval).symm⟩
 
@@ -176,12 +173,11 @@ theorem Valid.exists_out_ne_of_le {f : BooleanFunction n} {d : ℕ} (hS : S.Vali
     ∃ val val', S.Consistent val ∧ S.Consistent val' ∧ S.out.eval val ≠ S.out.eval val' := by
   set F := S.params \ S.pairs.image Prod.fst
   have hF : F.card = S.a := hS.card_sdiff_image Prod.fst fun _ _ => Or.inl rfl
-  have hFp : F ⊆ S.params := Finset.sdiff_subset
   obtain ⟨-, -, val, val', h, h', -, -, hne⟩ := Valid.exists_out_ne hS hf (spread F hF)
     (isAffine_spread F hF) (fun pr hpr => Or.inl fun u v => by
       have : pr.1 ∉ F := fun h => (Finset.mem_sdiff.1 h).2 (Finset.mem_image_of_mem _ hpr)
       rw [spread_of_notMem hF u this, spread_of_notMem hF v this])
-    (fun u v h => eq_of_spread hF fun i hi => h i (hFp hi)) ha
+    (fun u v h => eq_of_spread hF fun i hi => h i (Finset.sdiff_subset hi)) ha
   exact ⟨val, val', h, h', hne⟩
 
 /-- If `d < a`, the output of a valid state for an affine disperser for dimension `d` is not

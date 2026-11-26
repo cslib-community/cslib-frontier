@@ -128,19 +128,17 @@ theorem abs_sum_mul_signVal_le [Fintype X] [Fintype Y]
           ∑ y with y ∈ p.bob i, (ν (x, y)).toReal * signVal (f x y)| := by
         congr 1
         refine sum_congr rfl fun i _ => ?_
-        rw [mul_sum]
-        refine sum_congr rfl fun x hx => ?_
-        rw [mul_sum]
-        refine sum_congr rfl fun y hy => ?_
+        simp_rw [mul_sum]
+        refine sum_congr rfl fun x hx => sum_congr rfl fun y hy => ?_
         rw [run_eq_output (mem_filter.mp hx).2 (mem_filter.mp hy).2]
         ring
     _ ≤ ∑ i, |signVal (p.output i) * ∑ x with x ∈ p.alice i,
           ∑ y with y ∈ p.bob i, (ν (x, y)).toReal * signVal (f x y)| :=
         abs_sum_le_sum_abs _ _
-    _ ≤ ∑ _i : Fin p.size, discrepancy ν f := by
-        refine sum_le_sum fun i _ => ?_
-        rw [abs_mul, abs_signVal, one_mul]
-        exact abs_sum_le_discrepancy ν f _ _
+    _ ≤ ∑ _i : Fin p.size, discrepancy ν f :=
+        sum_le_sum fun i _ => by
+          rw [abs_mul, abs_signVal, one_mul]
+          exact abs_sum_le_discrepancy ν f _ _
     _ = p.size * discrepancy ν f := by simp
 
 /-- Every monochromatic tiling has size times discrepancy at least one, for any input PMF. -/
@@ -149,11 +147,8 @@ theorem one_le_size_mul_discrepancy [Finite X] [Finite Y]
     (ν : PMF (X × Y)) : 1 ≤ p.size * discrepancy ν f := by
   let := Fintype.ofFinite X
   let := Fintype.ofFinite Y
-  have h := p.abs_sum_mul_signVal_le ν f
-  rw [hp] at h
-  simp only [mul_assoc, signVal_mul_self, mul_one] at h
-  rw [← Fintype.sum_prod_type', PMF.sum_toReal, abs_one] at h
-  exact h
+  simpa only [hp, mul_assoc, signVal_mul_self, mul_one, ← Fintype.sum_prod_type',
+    PMF.sum_toReal, abs_one] using p.abs_sum_mul_signVal_le ν f
 
 end RectanglePartition
 
@@ -171,10 +166,8 @@ theorem one_div_discrepancy_le_tilingNumber [Finite X] [Finite Y]
     (ν : PMF (X × Y)) (f : X → Y → Bool) :
     1 / discrepancy ν f ≤ (tilingNumber f).toNat := by
   have h := one_le_tilingNumber_mul_discrepancy ν f
-  have hd : 0 < discrepancy ν f := by
-    have hn : (0 : ℝ) ≤ (tilingNumber f).toNat := Nat.cast_nonneg _
-    nlinarith [discrepancy_nonneg (ν := ν) (f := f)]
-  exact (div_le_iff₀ hd).mpr h
+  have hn : (0 : ℝ) ≤ (tilingNumber f).toNat := Nat.cast_nonneg _
+  exact (div_le_iff₀ (by nlinarith [discrepancy_nonneg (ν := ν) (f := f)])).mpr h
 
 namespace Protocol
 
@@ -197,14 +190,10 @@ theorem sum_mul_signVal_eq [Fintype X] [Fintype Y] (p : Protocol X Y Bool) (ν :
       1 - 2 * p.distributionalError ν (fun x y b => f x y = b) := by
   classical
   rw [distributionalError, PMF.errorProb_eq_sum, ← PMF.sum_toReal ν, mul_sum,
-    ← sum_sub_distrib, ← Fintype.sum_prod_type' (fun x y =>
-      (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y))]
+    ← sum_sub_distrib, ← Fintype.sum_prod_type']
   refine sum_congr rfl fun q _ => ?_
   rw [mul_assoc, signVal_mul_signVal]
-  by_cases h : f q.1 q.2 = p.run q.1 q.2
-  · simp [h]
-  · simp only [h, ite_false]
-    ring
+  split_ifs <;> ring
 
 /-- **The discrepancy bound** for deterministic protocols: a protocol erring with probability at
 most `1 / 2 - γ` on inputs drawn from `ν` has `2 γ ≤ 2 ^ depth · disc_ν(f)`. -/
@@ -215,7 +204,7 @@ theorem two_mul_le_two_pow_mul_discrepancy [Finite X] [Finite Y] (p : Protocol X
   have := Fintype.ofFinite Y
   have h := p.abs_sum_mul_signVal_le ν f
   rw [p.sum_mul_signVal_eq] at h
-  have hleaves : (p.leafCount : ℝ) ≤ 2 ^ p.depth := by exact_mod_cast p.leafCount_le_two_pow_depth
+  have hleaves : (p.leafCount : ℝ) ≤ 2 ^ p.depth := mod_cast p.leafCount_le_two_pow_depth
   calc 2 * γ ≤ |1 - 2 * p.distributionalError ν (fun x y b => f x y = b)| :=
         le_trans (by linarith) (le_abs_self _)
     _ ≤ p.leafCount * discrepancy ν f := h
@@ -232,7 +221,7 @@ theorem Solves.two_mul_le_two_pow_mul_discrepancy [Finite X] [Finite Y] {μ : Pu
     {γ : ℝ} {c : ℕ} (hμ : μ.Solves (1 / 2 - γ) (fun x y b => f x y = b) Set.univ Set.univ)
     (hc : μ.depth ≤ c) (ν : PMF (X × Y)) : 2 * γ ≤ 2 ^ c * discrepancy ν f := by
   obtain ⟨p, hp, herr⟩ := hμ.exists_distributionalError_le ν fun _ _ => ⟨trivial, trivial⟩
-  have hd : p.depth ≤ c := by exact_mod_cast (depth_le_depth hp).trans hc
+  have hd : p.depth ≤ c := mod_cast (depth_le_depth hp).trans hc
   exact (p.two_mul_le_two_pow_mul_discrepancy herr).trans
     (mul_le_mul_of_nonneg_right (pow_le_pow_right₀ one_le_two hd) discrepancy_nonneg)
 
@@ -240,9 +229,9 @@ theorem Solves.two_mul_le_two_pow_mul_discrepancy [Finite X] [Finite Y] {μ : Pu
 error `1 / 2 - γ`, then `2 γ ≤ 2 ^ c · disc_ν(f)` for every distribution `ν`. -/
 theorem two_mul_le_two_pow_mul_discrepancy [Finite X] [Finite Y] {γ : ℝ} {c : ℕ}
     (h : ecomplexityFun (1 / 2 - γ) f ≤ c) (ν : PMF (X × Y)) :
-    2 * γ ≤ 2 ^ c * discrepancy ν f := by
-  obtain ⟨μ, hμ, hc⟩ := ecomplexity_le_iff.mp h
-  exact hμ.two_mul_le_two_pow_mul_discrepancy hc ν
+    2 * γ ≤ 2 ^ c * discrepancy ν f :=
+  let ⟨_, hμ, hc⟩ := ecomplexity_le_iff.mp h
+  hμ.two_mul_le_two_pow_mul_discrepancy hc ν
 
 end PublicCoin
 
@@ -256,25 +245,18 @@ theorem discrepancy_dotProduct_sq_mul_two_pow_le (n : ℕ) :
   obtain ⟨A, B, hAB⟩ := exists_abs_sum_eq_discrepancy
     (PMF.uniformOfFintype (BitString n × BitString n)) (fun x y => x ⬝ᵥ y)
   rw [← hAB]
-  have hcard : Fintype.card (BitString n × BitString n) = 2 ^ n * 2 ^ n := by
-    simp [Fintype.card_prod]
-  simp only [PMF.uniformOfFintype_apply, hcard, ← mul_sum]
-  set S := ∑ x ∈ A, ∑ y ∈ B, signVal (x ⬝ᵥ y)
-  have hS := BitString.sq_sum_signVal_dotProduct_le A B
-  rw [Fintype.card_fin] at hS
-  have hA : (#A : ℝ) ≤ 2 ^ n := by
-    exact_mod_cast (card_le_univ A).trans_eq (by simp)
-  have hB : (#B : ℝ) ≤ 2 ^ n := by
-    exact_mod_cast (card_le_univ B).trans_eq (by simp)
-  have hN : (0 : ℝ) < 2 ^ n := by positivity
-  have hAB' : (#A : ℝ) * #B ≤ 2 ^ n * 2 ^ n :=
-    mul_le_mul hA hB (Nat.cast_nonneg _) hN.le
-  rw [abs_mul, mul_pow, sq_abs, sq_abs]
+  simp only [PMF.uniformOfFintype_apply, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin,
+    Fintype.card_bool, ← mul_sum, abs_mul, mul_pow, sq_abs]
   push_cast
   rw [ENNReal.toReal_inv, ENNReal.toReal_mul]
   simp only [ENNReal.toReal_pow, ENNReal.toReal_ofNat]
-  have hS' : S ^ 2 ≤ 2 ^ n * 2 ^ n * 2 ^ n :=
-    hS.trans (mul_le_mul_of_nonneg_right hAB' hN.le)
+  have hS := BitString.sq_sum_signVal_dotProduct_le A B
+  rw [Fintype.card_fin] at hS
+  have hA : (#A : ℝ) ≤ 2 ^ n := mod_cast (card_le_univ A).trans_eq (by simp)
+  have hB : (#B : ℝ) ≤ 2 ^ n := mod_cast (card_le_univ B).trans_eq (by simp)
+  have hAB' : (#A : ℝ) * #B ≤ 2 ^ n * 2 ^ n :=
+    mul_le_mul hA hB (Nat.cast_nonneg _) (by positivity)
+  have hS' := hS.trans (mul_le_mul_of_nonneg_right hAB' (by positivity))
   rw [inv_pow, mul_assoc, inv_mul_le_iff₀ (by positivity)]
   nlinarith
 
@@ -285,17 +267,16 @@ theorem PublicCoin.Solves.sq_mul_two_pow_le_four_pow_of_dotProduct {n c : ℕ} {
     {μ : PublicCoin (BitString n) (BitString n) Bool}
     (hμ : μ.Solves (1 / 2 - γ) (fun x y b => x ⬝ᵥ y = b) Set.univ Set.univ) (hc : μ.depth ≤ c)
     (hγ : 0 ≤ γ) : (2 * γ) ^ 2 * 2 ^ n ≤ 4 ^ c := by
-  set D := discrepancy (PMF.uniformOfFintype (BitString n × BitString n)) (fun x y => x ⬝ᵥ y)
   have h := hμ.two_mul_le_two_pow_mul_discrepancy hc
     (PMF.uniformOfFintype (BitString n × BitString n))
-  have hD := discrepancy_dotProduct_sq_mul_two_pow_le n
-  have hsq : (2 * γ) ^ 2 ≤ (2 ^ c * D) ^ 2 := pow_le_pow_left₀ (by linarith) h 2
-  have h4 : ((2 : ℝ) ^ c) ^ 2 = 4 ^ c := by rw [← pow_mul, mul_comm, pow_mul]; norm_num
-  have hN : (0 : ℝ) ≤ 2 ^ n := by positivity
-  calc (2 * γ) ^ 2 * 2 ^ n ≤ (2 ^ c * D) ^ 2 * 2 ^ n := mul_le_mul_of_nonneg_right hsq hN
-    _ = 4 ^ c * (D ^ 2 * 2 ^ n) := by rw [mul_pow, h4, mul_assoc]
-    _ ≤ 4 ^ c * 1 := mul_le_mul_of_nonneg_left hD (by positivity)
-    _ = 4 ^ c := mul_one _
+  have hsq := pow_le_pow_left₀ (by linarith) h 2
+  have h4 : ((2 : ℝ) ^ c) ^ 2 = 4 ^ c := by
+    rw [← pow_mul, mul_comm, pow_mul]
+    norm_num
+  calc (2 * γ) ^ 2 * 2 ^ n ≤ _ := mul_le_mul_of_nonneg_right hsq (by positivity)
+    _ = 4 ^ c * (_ ^ 2 * 2 ^ n) := by rw [mul_pow, h4, mul_assoc]
+    _ ≤ 4 ^ c :=
+      mul_le_of_le_one_right (by positivity) (discrepancy_dotProduct_sq_mul_two_pow_le n)
 
 /-- **The inner product needs `Ω(n)` bits with public coins**: computing the inner product modulo
 two of two `n`-bit strings with error `1 / 3` needs at least `(n - 3) / 2` bits. -/
@@ -307,18 +288,19 @@ theorem PublicCoin.le_two_mul_ecomplexityFun_dotProduct_add_three (n : ℕ) :
   | top => simp
   | coe c =>
     obtain ⟨μ, hμ, hc⟩ := PublicCoin.ecomplexity_le_iff.mp h.le
-    have hμ' : μ.Solves (1 / 2 - 1 / 6) (fun x y b => x ⬝ᵥ y = b) Set.univ Set.univ :=
-      hμ.mono (by norm_num) subset_rfl subset_rfl
-    have hbound := hμ'.sq_mul_two_pow_le_four_pow_of_dotProduct hc (by norm_num)
-    have hreal : (2 : ℝ) ^ n ≤ 9 * 4 ^ c := by nlinarith
+    have hbound := (hμ.mono (ε' := 1 / 2 - 1 / 6) (by norm_num) subset_rfl subset_rfl
+      ).sq_mul_two_pow_le_four_pow_of_dotProduct hc (by norm_num)
+    have h2 : 2 ^ n ≤ 9 * 4 ^ c := by
+      exact_mod_cast (show (2 : ℝ) ^ n ≤ 9 * 4 ^ c by nlinarith)
     have hnat : 2 ^ n < 2 ^ (2 * c + 4) := by
-      have : 2 ^ n ≤ 9 * 4 ^ c := by exact_mod_cast hreal
-      calc 2 ^ n ≤ 9 * 4 ^ c := this
+      calc 2 ^ n ≤ 9 * 4 ^ c := h2
         _ < 16 * 4 ^ c := by
-          have h4 : 0 < 4 ^ c := by positivity
+          have : 0 < 4 ^ c := by positivity
           omega
-        _ = 2 ^ (2 * c + 4) := by rw [pow_add, pow_mul]; norm_num; ring
-    have hn := (Nat.pow_lt_pow_iff_right (by norm_num : 1 < 2)).mp hnat
+        _ = 2 ^ (2 * c + 4) := by
+          rw [pow_add, pow_mul, mul_comm]
+          norm_num
+    have hn := (Nat.pow_lt_pow_iff_right one_lt_two).mp hnat
     exact_mod_cast (by omega : n ≤ 2 * c + 3)
 
 /-- **The inner product needs `Ω(n)` bits with private coins**: computing the inner product modulo

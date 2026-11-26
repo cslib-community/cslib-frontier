@@ -98,8 +98,7 @@ private theorem card_filter_le_card_mem_le {β : Type*} [DecidableEq β] {h : �
   classical
   calc #{t ∈ Fintype.piFinset fun _ : Fin m => G | h ≤ #{i | t i ∈ D}}
       ≤ #((powersetCard h univ).biUnion fun J =>
-          Fintype.piFinset fun i : Fin m => if i ∈ J then D else G) := by
-        refine card_le_card fun t ht => ?_
+          Fintype.piFinset fun i : Fin m => if i ∈ J then D else G) := card_le_card fun t ht => by
         obtain ⟨htT, hcard⟩ := mem_filter.mp ht
         obtain ⟨J, hJ, rfl⟩ := exists_subset_card_eq hcard
         refine mem_biUnion.mpr ⟨J, mem_powersetCard.mpr ⟨subset_univ J, rfl⟩,
@@ -109,13 +108,13 @@ private theorem card_filter_le_card_mem_le {β : Type*} [DecidableEq β] {h : �
         · exact Fintype.mem_piFinset.mp htT i
     _ ≤ ∑ J ∈ powersetCard h univ, #(Fintype.piFinset fun i : Fin m => if i ∈ J then D else G) :=
         card_biUnion_le
-    _ = ∑ _J ∈ powersetCard h (univ : Finset (Fin m)), #D ^ h * #G ^ (m - h) := by
-        refine sum_congr rfl fun J hJ => ?_
-        rw [mem_powersetCard] at hJ
-        rw [Fintype.card_piFinset]
-        simp only [apply_ite card, prod_ite, prod_const, filter_mem_eq_inter, univ_inter, hJ.2]
-        rw [filter_not, filter_mem_eq_inter, univ_inter, card_sdiff_of_subset hJ.1, hJ.2,
-          card_univ, Fintype.card_fin]
+    _ = ∑ _J ∈ powersetCard h (univ : Finset (Fin m)), #D ^ h * #G ^ (m - h) :=
+        sum_congr rfl fun J hJ => by
+          rw [mem_powersetCard] at hJ
+          simp only [Fintype.card_piFinset, apply_ite card, prod_ite, prod_const,
+            filter_mem_eq_inter, univ_inter, hJ.2]
+          rw [filter_not, filter_mem_eq_inter, univ_inter, card_sdiff_of_subset hJ.1, hJ.2,
+            card_univ, Fintype.card_fin]
     _ ≤ 2 ^ m * #D ^ h * #G ^ (m - h) := by
         rw [sum_const, card_powersetCard, card_univ, Fintype.card_fin, smul_eq_mul, mul_assoc]
         exact Nat.mul_le_mul_right _ (Nat.choose_le_two_pow m h)
@@ -137,13 +136,10 @@ theorem exists_card_le_sixteen_mul_eval {β : Type*} (eval : β → α → Bool)
   obtain ⟨x₀, -⟩ := Function.ne_iff.mp (hmaj (fun _ => g₀) fun _ => hg₀)
   set r := #G
   set h := m - m / 2
-  have hr : 0 < r := card_pos.mpr ⟨g₀, hg₀⟩
-  have hh : 0 < h := by omega
   set T := Fintype.piFinset fun _ : Fin m => G
   -- Every tuple is refuted by at least half of its entries at some input.
   have hcover : T ⊆ univ.biUnion fun x =>
-      {t ∈ T | h ≤ #{i | t i ∈ {g ∈ G | eval g x ≠ f x}}} := by
-    intro t ht
+      {t ∈ T | h ≤ #{i | t i ∈ {g ∈ G | eval g x ≠ f x}}} := fun t ht => by
     have htG := Fintype.mem_piFinset.mp ht
     obtain ⟨x, hx⟩ := Function.ne_iff.mp (hmaj t htG)
     refine mem_biUnion.mpr ⟨x, mem_univ x, mem_filter.mpr ⟨ht, ?_⟩⟩
@@ -151,23 +147,24 @@ theorem exists_card_le_sixteen_mul_eval {β : Type*} (eval : β → α → Bool)
     ext i
     simp [htG i]
   have hcount : r ^ m * 16 ^ h ≤
-      ∑ x : α, 2 ^ m * (16 ^ h * #{g ∈ G | eval g x ≠ f x} ^ h) * r ^ (m - h) := by
+      ∑ x : α, 2 ^ m * (16 ^ h * #{g ∈ G | eval g x ≠ f x} ^ h) * r ^ (m - h) :=
     calc r ^ m * 16 ^ h = #T * 16 ^ h := by simp [T, r]
       _ ≤ (∑ x : α, #{t ∈ T | h ≤ #{i | t i ∈ {g ∈ G | eval g x ≠ f x}}}) * 16 ^ h :=
           Nat.mul_le_mul_right _ ((card_le_card hcover).trans card_biUnion_le)
       _ ≤ (∑ x : α, 2 ^ m * #{g ∈ G | eval g x ≠ f x} ^ h * r ^ (m - h)) * 16 ^ h :=
-          Nat.mul_le_mul_right _ (sum_le_sum fun x _ =>
-            card_filter_le_card_mem_le (by omega) _ _)
+          Nat.mul_le_mul_right _ (sum_le_sum fun _ _ => card_filter_le_card_mem_le (by omega) _ _)
       _ = ∑ x : α, 2 ^ m * (16 ^ h * #{g ∈ G | eval g x ≠ f x} ^ h) * r ^ (m - h) := by
-          rw [sum_mul]; exact sum_congr rfl fun x _ => by ring
+          rw [sum_mul]
+          exact sum_congr rfl fun _ _ => by ring
   -- But at each input fewer than a sixteenth of `G` is refuted.
   have hlt : ∑ x : α, 2 ^ m * (16 ^ h * #{g ∈ G | eval g x ≠ f x} ^ h) * r ^ (m - h) <
-      ∑ _x : α, 2 ^ m * r ^ h * r ^ (m - h) := by
-    refine sum_lt_sum_of_nonempty ⟨x₀, mem_univ _⟩ fun x _ => ?_
-    have := Nat.pow_lt_pow_left (hx x) hh.ne'
-    rw [mul_pow] at this
-    gcongr
-  have hfour : Fintype.card α * 2 ^ m ≤ 16 ^ h := by
+      ∑ _x : α, 2 ^ m * r ^ h * r ^ (m - h) :=
+    sum_lt_sum_of_nonempty ⟨x₀, mem_univ _⟩ fun x _ => by
+      have : 0 < r := card_pos.mpr ⟨g₀, hg₀⟩
+      have := Nat.pow_lt_pow_left (hx x) (by omega : h ≠ 0)
+      rw [mul_pow] at this
+      gcongr
+  have hfour : Fintype.card α * 2 ^ m ≤ 16 ^ h :=
     calc Fintype.card α * 2 ^ m ≤ 2 ^ m * 2 ^ m := Nat.mul_le_mul_right _ hα
       _ = 4 ^ m := by rw [← mul_pow]; norm_num
       _ ≤ 4 ^ (2 * h) := Nat.pow_le_pow_right (by norm_num) (by omega)
@@ -207,20 +204,20 @@ theorem exists_card_filter_le_eval {β : Type*} (eval : β → α → Bool)
     obtain ⟨S, hS, hcard⟩ := ih
     set G := {g ∈ F | ∀ x ∈ S, eval g x = f x}
     rcases G.eq_empty_or_nonempty with hG | hG
-    · refine ⟨S, by omega, ?_⟩
-      rw [show {g ∈ F | ∀ x ∈ S, eval g x = f x} = G from rfl, hG, card_empty, mul_zero]
-      exact Nat.zero_le _
+    · exact ⟨S, by omega, by simp [G, hG]⟩
     obtain ⟨x, hx⟩ := exists_card_le_sixteen_mul_eval eval hm hα hG fun g hg =>
       hmaj g fun i => (mem_filter.mp (hg i)).1
     have hsplit := card_filter_add_card_filter_not (s := G) (fun g => eval g x = f x)
     have hstep : 16 * #{g ∈ G | eval g x = f x} ≤ 15 * #G := by grind
     have key : 16 ^ (k + 1) * #{g ∈ G | eval g x = f x} ≤ 15 ^ (k + 1) * #F :=
-      calc 16 ^ (k + 1) * #{g ∈ G | eval g x = f x} =
-          16 ^ k * (16 * #{g ∈ G | eval g x = f x}) := by ring
-        _ ≤ 16 ^ k * (15 * #G) := Nat.mul_le_mul_left _ hstep
+      calc 16 ^ (k + 1) * #{g ∈ G | eval g x = f x}
+          ≤ 16 ^ k * (15 * #G) := by
+            rw [pow_succ, mul_assoc]
+            exact Nat.mul_le_mul_left _ hstep
         _ = 15 * (16 ^ k * #G) := by ring
-        _ ≤ 15 * (15 ^ k * #F) := Nat.mul_le_mul_left _ hcard
-        _ = 15 ^ (k + 1) * #F := by ring
+        _ ≤ 15 ^ (k + 1) * #F := by
+          rw [show 15 ^ (k + 1) * #F = 15 * (15 ^ k * #F) by ring]
+          exact Nat.mul_le_mul_left _ hcard
     classical
     refine ⟨insert x S, (card_insert_le x S).trans (by omega), ?_⟩
     convert key using 3
@@ -274,14 +271,11 @@ theorem isAntiChecker_computableFunctions_iff {f : BooleanFunction n} {S : Set (
     IsAntiChecker (computableFunctions n s) f S ↔ s < complexityOn interpretation S (single f) := by
   rw [← not_le, complexityOn_le_iff]
   simp only [Circuit.computesOn_single_iff]
-  constructor
-  · rintro hS ⟨c, hc, hsize⟩
-    obtain ⟨x, hx, hne⟩ := hS (fun y => c.eval interpretation y 0)
-      (Boolean.mem_computableFunctions.mpr
-        ⟨c, Circuit.computes_single_iff.mpr fun _ => rfl, hsize⟩)
+  refine ⟨fun hS ⟨c, hc, hsize⟩ => ?_, fun h g hg => ?_⟩
+  · obtain ⟨x, hx, hne⟩ := hS (fun y => c.eval interpretation y 0)
+      (Boolean.mem_computableFunctions.mpr ⟨c, Circuit.computes_single_iff.mpr fun _ => rfl, hsize⟩)
     exact hne (hc x hx)
-  · intro h g hg
-    obtain ⟨c, hcg, hsize⟩ := Boolean.mem_computableFunctions.mp hg
+  · obtain ⟨c, hcg, hsize⟩ := Boolean.mem_computableFunctions.mp hg
     by_contra! hgS
     exact h ⟨c, fun x hx => (Circuit.computes_single_iff.mp hcg x).trans (hgS x hx), hsize⟩
 
@@ -328,11 +322,9 @@ theorem exists_lt_complexityOn {m b : ℕ} (hm : 0 < m) (hnm : n ≤ m) {f : Boo
       complexity interpretation (single f))
     (hb : #(computableFunctions n s) < 2 ^ b) :
     ∃ S : Finset (BitString n), #S ≤ 16 * b ∧ s < complexityOn interpretation S (single f) := by
-  have hα : Fintype.card (BitString n) ≤ 2 ^ m := by
-    rw [BitString.card]
-    exact Nat.pow_le_pow_right two_pos hnm
-  obtain ⟨S, hS, hanti⟩ :=
-    exists_isAntiChecker hm hα _ (strictMajority_ne_of_lt_complexity hf) hb
+  obtain ⟨S, hS, hanti⟩ := exists_isAntiChecker hm
+    (BitString.card (n := n) ▸ Nat.pow_le_pow_right two_pos hnm) _
+    (strictMajority_ne_of_lt_complexity hf) hb
   exact ⟨S, hS, isAntiChecker_computableFunctions_iff.mp hanti⟩
 
 /-- **Small anti-checkers against circuits**, as Succinct MCSP: under the hypotheses of
@@ -345,6 +337,6 @@ theorem exists_ofFunction_notMem {m b : ℕ} (hm : 0 < m) (hnm : n ≤ m) {f : B
     ∃ S : Finset (BitString n), #S ≤ 16 * b ∧
       SuccinctMCSP.Instance.ofFunction f S s ∉ SuccinctMCSP := by
   obtain ⟨S, hS, hlt⟩ := exists_lt_complexityOn hm hnm hf hb
-  exact ⟨S, hS, by rw [SuccinctMCSP.ofFunction_mem_iff, not_le]; exact hlt⟩
+  exact ⟨S, hS, not_le.mpr hlt ∘ SuccinctMCSP.ofFunction_mem_iff.mp⟩
 
 end Cslib.MCSP

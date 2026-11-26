@@ -33,17 +33,12 @@ theorem outsideScope_eq_filter (vs scope : List ℕ) :
     ((outsidePositions scope.length (positions vs scope)).map fun j => scope.getD j 0) =
       scope.filter (fun v => !vs.contains v) := by
   have he : outsidePositions scope.length (positions vs scope) =
-      (List.range scope.length).filter (fun j => !vs.contains (scope.getD j 0)) := by
-    unfold outsidePositions
-    apply List.filter_congr
-    intro j hj
-    have hb := List.mem_range.mp hj
-    simp [positions, hb]
+      (List.range scope.length).filter (fun j => !vs.contains (scope.getD j 0)) :=
+    List.filter_congr fun j hj => by simp [positions, List.mem_range.mp hj]
   rw [he]
-  have hf := List.filter_map (f := fun j => scope.getD j 0)
-    (p := fun v => !vs.contains v) (l := List.range scope.length)
-  simp only [Function.comp_def] at hf
-  rw [← hf, List.map_getD_range]
+  exact (List.filter_map (f := fun j => scope.getD j 0)
+    (p := fun v => !vs.contains v) (l := List.range scope.length)).symm.trans
+    (congrArg _ (List.map_getD_range scope 0))
 
 /-- No selected coordinate means that deletion leaves the whole ordered scope unchanged. -/
 theorem filter_eq_self_of_positions_empty {vs scope : List ℕ}
@@ -66,8 +61,8 @@ theorem scope_constraint (f : OccurrenceLabeling F Bool) (vs : List ℕ) (i : Fi
   unfold constraint
   split
   next hp =>
-    have he := List.isEmpty_iff.mp hp
-    simpa only [List.append_nil] using (filter_eq_self_of_positions_empty he).symm
+    simpa only [List.append_nil] using
+      (filter_eq_self_of_positions_empty (List.isEmpty_iff.mp hp)).symm
   next hp =>
     dsimp only
     rw [outsideScope_eq_filter]
@@ -79,26 +74,18 @@ theorem positive_constraint (f : OccurrenceLabeling F Bool) (vs : List ℕ)
   split
   · rfl
   next hp =>
-    have he : positions vs F[i.val].scope ≠ [] := by simpa using hp
-    have hs := scope_ne_nil_of_positions_ne_nil he
-    simp [List.isEmpty_eq_false_iff.mpr hs]
+    simp [List.isEmpty_eq_false_iff.mpr
+      (scope_ne_nil_of_positions_ne_nil (mt List.isEmpty_iff.mpr hp))]
 
 /-- Adding the central nonempty exactly-one scope increases the positive count by exactly one.
 Nullary original constraints are preserved and are not charged to this measure. -/
 theorem positiveCount_contract (f : OccurrenceLabeling F Bool) (vs : List ℕ)
     (hne : touched F vs ≠ []) : (contract f vs).positiveCount = F.positiveCount + 1 := by
-  have hscope : connectors F vs ≠ [] := by
-    intro he
-    have hh := congrArg List.length he
-    simp only [length_connectors, List.length_nil, List.length_eq_zero_iff] at hh
-    exact hne hh
+  have hscope : connectors F vs ≠ [] := mt List.map_eq_nil_iff.mp hne
   have he : ((List.ofFn (constraint f vs)).map fun c => !c.scope.isEmpty) =
       F.map (fun c => !c.scope.isEmpty) := by
-    simp only [List.map_ofFn, Function.comp_def]
-    have hp : (fun i => !(constraint f vs i).scope.isEmpty) =
-        (fun i : Fin F.length => !F[i.val].scope.isEmpty) := funext (positive_constraint f vs)
-    rw [hp]
-    exact List.ofFn_getElem_eq_map F (fun c => !c.scope.isEmpty)
+    rw [List.map_ofFn, ← List.ofFn_getElem_eq_map]
+    exact congrArg List.ofFn (funext (positive_constraint f vs))
   have hcount := congrArg (List.countP id) he
   simp only [List.countP_map, Function.comp_def, id_eq] at hcount
   simpa [positiveCount, contract, List.filter_append, List.isEmpty_eq_false_iff.mpr hscope,
@@ -136,20 +123,17 @@ theorem vars_contract (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
       · split at hv
         · cases hv
         next hp =>
-          have he := List.mem_singleton.mp hv
-          refine Or.inr (List.mem_map.mpr ⟨i, ?_, he.symm⟩)
-          exact (mem_touched vs i).mpr (by simpa using hp)
-    · have he := List.mem_singleton.mp hc
-      subst c
+          exact Or.inr (List.mem_map.mpr ⟨i, (mem_touched vs i).mpr (by simpa using hp),
+            (List.mem_singleton.mp hv).symm⟩)
+    · obtain rfl := List.mem_singleton.mp hc
       exact Or.inr hv
   · rintro (⟨hv, hn⟩ | hv)
     · obtain ⟨o, rfl⟩ := (exists_occurrence_iff v).mpr hv
-      apply List.mem_flatMap.mpr
-      refine ⟨constraint f vs o.1, List.mem_append_left _ (List.mem_ofFn.mpr ⟨o.1, rfl⟩), ?_⟩
+      refine List.mem_flatMap.mpr
+        ⟨constraint f vs o.1, List.mem_append_left _ (List.mem_ofFn.mpr ⟨o.1, rfl⟩), ?_⟩
       rw [scope_constraint]
-      apply List.mem_append_left
-      apply List.mem_filter.mpr
-      exact ⟨List.getElem_mem o.2.isLt, by simpa using hn⟩
+      exact List.mem_append_left _
+        (List.mem_filter.mpr ⟨List.getElem_mem o.2.isLt, by simpa using hn⟩)
     · exact List.mem_flatMap.mpr ⟨⟨exactlyOne (connectors F vs), connectors F vs⟩,
         List.mem_append_right _ (List.mem_singleton_self _), hv⟩
 
@@ -193,34 +177,23 @@ connector scope. This permutation does not reorder the constructed CSP itself. -
 theorem vars_contract_perm (f : OccurrenceLabeling F Bool) (vs : List ℕ) :
     (contract f vs).vars.Perm
       (F.vars.filter (fun v => !vs.contains v) ++ connectors F vs ++ connectors F vs) := by
-  let ids := List.finRange F.length
-  let outside (i : Fin F.length) := F[i.val].scope.filter fun v => !vs.contains v
-  let added (i : Fin F.length) :=
-    if (positions vs F[i.val].scope).isEmpty then [] else [connector F i]
-  have hf : ids.map (fun i => F[i.val]) = F := by
-    rw [← List.ofFn_eq_map]
-    simp
-  have hflat := congrArg (List.flatMap Constraint.scope) hf
-  simp only [List.flatMap_map] at hflat
-  have hout : ids.flatMap outside = F.vars.filter (fun v => !vs.contains v) := by
-    rw [show ids.flatMap outside =
-      (ids.flatMap fun i => F[i.val].scope).filter (fun v => !vs.contains v) from
-        List.filter_flatMap.symm]
-    exact congrArg (List.filter fun v => !vs.contains v) hflat
-  have hscope : (List.ofFn (constraint f vs)).flatMap Constraint.scope =
-      ids.flatMap (fun i => outside i ++ added i) := by
-    rw [List.ofFn_eq_map, List.flatMap_map]
-    apply List.flatMap_congr
-    intro i hi
-    exact scope_constraint f vs i
+  have hout : (List.finRange F.length).flatMap
+      (fun i => F[i.val].scope.filter fun v => !vs.contains v) =
+      F.vars.filter (fun v => !vs.contains v) := by
+    rw [← List.filter_flatMap,
+      ← List.flatMap_map (f := fun i : Fin F.length => F[i.val]) (g := Constraint.scope),
+      ← List.ofFn_eq_map, List.ofFn_getElem]
+    rfl
   have he : (contract f vs).vars =
-      ids.flatMap (fun i => outside i ++ added i) ++ connectors F vs := by
+      (List.finRange F.length).flatMap
+        (fun i => F[i.val].scope.filter (fun v => !vs.contains v) ++
+          if (positions vs F[i.val].scope).isEmpty then [] else [connector F i]) ++
+      connectors F vs := by
     simp only [contract, vars, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
-      List.append_nil, hscope]
-  rw [he]
-  have hp := (List.flatMap_append_perm ids outside added).symm.append_right (connectors F vs)
-  simpa only [hout, show ids.flatMap added = connectors F vs from flatMap_connectors F vs]
-    using hp
+      List.append_nil, List.ofFn_eq_map, List.flatMap_map]
+    exact congrArg (· ++ connectors F vs) (List.flatMap_congr fun i _ => scope_constraint f vs i)
+  rw [he, ← hout, ← flatMap_connectors F vs]
+  exact (List.flatMap_append_perm _ _ _).symm.append_right _
 
 /-- Each output name retains its two old outside occurrences, or is a fresh connector with
 one old-constraint port and one central port. No enumeration below a binary name is involved. -/
@@ -230,12 +203,8 @@ theorem count_vars_contract (f : OccurrenceLabeling F Bool) (vs : List ℕ) (v :
   rw [(vars_contract_perm f vs).count_eq]
   simp only [List.count_append]
   by_cases hv : v ∈ vs
-  · have hz : (F.vars.filter fun w => !vs.contains w).count v = 0 := by
-      simp [List.count_eq_zero, hv]
-    simp only [hv, ↓reduceIte, hz]
-    omega
-  · rw [List.count_filter (by simpa using hv)]
-    simp only [hv, ↓reduceIte]
+  · simp [hv, List.count_eq_zero, Nat.two_mul]
+  · rw [List.count_filter (by simpa using hv), ite_eq_right hv]
     omega
 
 /-- Actual contraction preserves the edge-instance model at arbitrary finite table arities. -/
@@ -243,8 +212,7 @@ theorem edge_contract (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) (vs 
     EdgeInstance (contract f vs) := by
   apply edgeInstance_of_count_vars
   · intro i
-    have hi : (contract f vs)[i.val] ∈ contract f vs := List.getElem_mem i.isLt
-    rcases List.mem_append.mp hi with hi | hi
+    rcases List.mem_append.mp (List.getElem_mem i.isLt) with hi | hi
     · obtain ⟨j, hj⟩ := List.mem_ofFn.mp hi
       rw [← hj]
       unfold constraint
@@ -252,34 +220,24 @@ theorem edge_contract (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool) (vs 
       · exact hF.scope_nodup j
       · dsimp only
         rw [outsideScope_eq_filter]
-        apply List.nodup_append.mpr
-        refine ⟨(hF.scope_nodup j).filter _, by simp, ?_⟩
-        intro a ha b hb he
-        have hb' := List.mem_singleton.mp hb
-        apply connector_not_mem j
-        have hm := (List.mem_filter.mp ha).1
-        exact (he.trans hb') ▸ List.mem_flatMap.mpr
-          ⟨F[j.val], List.getElem_mem j.isLt, hm⟩
+        refine List.nodup_append.mpr ⟨(hF.scope_nodup j).filter _, by simp, fun a ha b hb he => ?_⟩
+        rw [List.mem_singleton.mp hb] at he
+        exact connector_not_mem j (he ▸ List.mem_flatMap.mpr
+          ⟨F[j.val], List.getElem_mem j.isLt, (List.mem_filter.mp ha).1⟩)
     · rw [List.mem_singleton.mp hi]
       exact nodup_connectors F vs
   · intro v hv
     rw [count_vars_contract]
-    have hm : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (connectors F vs).toFinset := by
-      rw [← vars_contract f vs]
-      exact List.mem_toFinset.mpr hv
-    rcases mem_union.mp hm with hm | hm
+    rcases mem_union.mp (vars_contract f vs ▸ List.mem_toFinset.mpr hv) with hm | hm
     · obtain ⟨hv, hn⟩ := mem_sdiff.mp hm
-      have hnew : v ∉ connectors F vs := by
-        intro hh
-        obtain ⟨i, hi, he⟩ := List.mem_map.mp hh
-        exact connector_not_mem i (he ▸ List.mem_toFinset.mp hv)
-      rw [ite_eq_right (by simpa using hn), hF.count_vars (List.mem_toFinset.mp hv),
+      have hnew : v ∉ connectors F vs := fun hh => by
+        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hh
+        exact connector_not_mem i (List.mem_toFinset.mp hv)
+      rw [ite_eq_right (mt List.mem_toFinset.mpr hn), hF.count_vars (List.mem_toFinset.mp hv),
         List.count_eq_zero.mpr hnew]
     · obtain ⟨i, hi, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hm)
-      have hz : F.vars.count (connector F i) = 0 := List.count_eq_zero.mpr (connector_not_mem i)
-      have hc : (connectors F vs).count (connector F i) = 1 :=
-        List.count_eq_one_of_mem (nodup_connectors F vs) (List.mem_map.mpr ⟨i, hi, rfl⟩)
-      rw [hz, hc]
+      rw [List.count_eq_zero.mpr (connector_not_mem i),
+        List.count_eq_one_of_mem (nodup_connectors F vs) (List.mem_map.mpr ⟨i, hi, rfl⟩)]
       split <;> rfl
 
 end Cslib.Logic.PL.CSP.Blossom

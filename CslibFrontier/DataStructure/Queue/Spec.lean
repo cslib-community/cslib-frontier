@@ -178,8 +178,8 @@ theorem transferTrace_length (back : List α) : (transferTrace back).length = 2 
 /-- The queue has a three-call amortized bound; rear-stack credit remains private to the module.
 This counts stack calls, not execution of pure continuations or machine instructions. -/
 theorem potential_step (s : (stackPair α).State) (o : QueueOp α) :
-    ((stackPair α).runClient s (methods o)).2.2.length +
-        2 * ((stackPair α).runClient s (methods o)).2.1.2.length ≤ 3 + 2 * s.2.length := by
+    ((stackPair α).clientHistory s (methods o)).length +
+        2 * ((stackPair α).clientState s (methods o)).2.length ≤ 3 + 2 * s.2.length := by
   obtain ⟨front, back⟩ := s
   cases o with
   | enqueue n =>
@@ -192,6 +192,7 @@ theorem potential_step (s : (stackPair α).State) (o : QueueOp α) :
       change 1 + 2 * back.length ≤ 3 + 2 * back.length
       omega
     | nil =>
+      simp only [StateTransitionSpec.clientHistory, StateTransitionSpec.clientState]
       rw [runClient_dequeue_nil]
       simp only [List.length_cons, List.length_append, List.length_nil]
       rw [transferTrace_length]
@@ -199,8 +200,8 @@ theorem potential_step (s : (stackPair α).State) (o : QueueOp α) :
 
 private theorem weighted_potential_step (K : Nat) {q : (queue α).State} {s : (stackPair α).State}
     (o : QueueOp α) (_ : implementation.rep q s) (_ : (queue α).valid q o) :
-    (stackPair α).totalCost (fun _ _ => K) s ((stackPair α).runClient s (methods o)).2.2 +
-        K * (2 * ((stackPair α).runClient s (methods o)).2.1.2.length) ≤
+    (stackPair α).totalCost (fun _ _ => K) s ((stackPair α).clientHistory s (methods o)) +
+        K * (2 * ((stackPair α).clientState s (methods o)).2.length) ≤
       3 * K + K * (2 * s.2.length) := by
   rw [StateTransitionSpec.totalCost_const]
   simpa only [Nat.mul_add, Nat.add_mul, Nat.mul_comm K] using
@@ -214,12 +215,12 @@ theorem realized_client {C Trace β : Type} {exec : Execution (stackPair α) C T
     {q : List α} {s : (stackPair α).State} {c : C}
     (hrep : implementation.rep q s) (hbackend : R.rep s c) :
     ∃ c' traces s',
-      Executes exec (link methods p) c ((queue α).runClient q p).1 c' traces ∧
-      implementation.rep ((queue α).runClient q p).2.1 s' ∧ R.rep s' c' ∧
+      Executes exec (link methods p) c ((queue α).clientResult q p) c' traces ∧
+      implementation.rep ((queue α).clientState q p) s' ∧ R.rep s' c' ∧
       total weight traces + K * (2 * s'.2.length) ≤
-        ((queue α).runClient q p).2.2.length * (3 * K) + K * (2 * s.2.length) := by
+        ((queue α).clientHistory q p).length * (3 * K) + K * (2 * s.2.length) := by
   have hv := (queue α).validHistory_of_forall_valid (fun _ _ => trivial)
-    q ((queue α).runClient q p).2.2
+    q ((queue α).clientHistory q p)
   obtain ⟨c', chunks, he, _⟩ := (implementation.realize R).exists_executes p ⟨s, hrep, hbackend⟩ hv
   obtain ⟨s', hrep', hr', ht⟩ := implementation.amortized_client R B
     (fun _ s => K * (2 * s.2.length)) (fun _ _ => 3 * K)
@@ -234,13 +235,13 @@ theorem realized_client_bound {C Trace β : Type} {exec : Execution (stackPair �
     {q : List α} {s : (stackPair α).State} {c c' : C} {a : β} {traces : List Trace}
     (hrep : implementation.rep q s) (hbackend : R.rep s c)
     (he : Executes exec (link methods p) c a c' traces) :
-    a = ((queue α).runClient q p).1 ∧ ∃ s',
-      implementation.rep ((queue α).runClient q p).2.1 s' ∧ R.rep s' c' ∧
+    a = (queue α).clientResult q p ∧ ∃ s',
+      implementation.rep ((queue α).clientState q p) s' ∧ R.rep s' c' ∧
       total weight traces + K * (2 * s'.2.length) ≤
-        ((queue α).runClient q p).2.2.length * (3 * K) + K * (2 * s.2.length) := by
+        ((queue α).clientHistory q p).length * (3 * K) + K * (2 * s.2.length) := by
   obtain ⟨chunks, hc, ht⟩ := link_exec_decompose methods exec he
   have hv := (queue α).validHistory_of_forall_valid (fun _ _ => trivial)
-    q ((queue α).runClient q p).2.2
+    q ((queue α).clientHistory q p)
   have ha := ((implementation.realize R).correct_client ⟨s, hrep, hbackend⟩ hv hc).1
   obtain ⟨s', hrep', hr', hb⟩ := implementation.amortized_client R B
     (fun _ s => K * (2 * s.2.length)) (fun _ _ => 3 * K)

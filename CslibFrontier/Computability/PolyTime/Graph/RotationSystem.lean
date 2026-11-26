@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -41,6 +43,19 @@ namespace Cslib.Complexity.Graph.RotationCertificate
 
 open Turing.MultiTapeTM
 
+attribute [fun_prop] encRotationCertificate_successor_polyTime encRotationCertificate_mk_polyTime
+
+/-- Saturating binary-indexed lookup in a computed framed list with a fixed fallback, scoped to
+`Cslib.Complexity.Graph.RotationCertificate` so modules using unary `List.getD` incur no extra
+`fun_prop` search branch. -/
+@[scoped fun_prop] theorem listGetD_binary_encList {α β : Type}
+    {input : α ↪ List Bool} {enc : β ↪ List Bool} (fallback : β)
+    {table : α → List β} {index : α → ℕ}
+    (ht : ComputableInPolyTime table input (encList enc))
+    (hi : ComputableInPolyTime index input encNat) :
+    ComputableInPolyTime (fun x => (table x).getD (index x) fallback) input enc :=
+  ComputableInPolyTime.listGetD_binary fallback ht hi
+
 /-- Reading the supplied binary successor table is a projection of its structure encoding. -/
 @[fun_prop] theorem computableInPolyTime_successor :
     ComputableInPolyTime RotationCertificate.successor encRotationCertificate (encList encNat) :=
@@ -52,7 +67,11 @@ theorem incidenceVertices_polyTime :
   unfold incidenceVertices encGraph
   fun_prop
 
-attribute [local fun_prop] incidenceVertices_polyTime ComputableInPolyTime.listGetD_binary
+/-- Enumerating listed endpoint occurrences of a computed graph is native polynomial-time. -/
+@[fun_prop] theorem incidenceVertices_polyTime' {α : Type} {enc : α ↪ List Bool}
+    {G : α → Graph} (hG : ComputableInPolyTime G enc encGraph) :
+    ComputableInPolyTime (fun x => (G x).incidenceVertices) enc (encList encNat) := by
+  simpa only [Function.comp_def] using incidenceVertices_polyTime.comp hG
 
 /-- The table and unary iteration count are paired and framed before the binary start index. -/
 abbrev encRotationWalk := encPair (encPair (encList encNat) encUnary) encNat
@@ -71,18 +90,23 @@ theorem computableInPolyTime_walk :
     (count := fun x => x.1.2) (init := fun x => x.2)
     (step := fun table i => table.getD i 0) (encState := encNat) hpar
     (by unfold encRotationWalk; fun_prop) (by unfold encRotationWalk; fun_prop)
-    (ComputableInPolyTime.listGetD_binary 0
-      (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.snd _ _))
-    hpar.polyBounded_length ?_
-  intro x state
-  have hb : (encNat (x.1.1.getD state 0)).length ≤ (encList encNat x.1.1).length := by
-    by_cases hi : state < x.1.1.length
-    · rw [List.getD_eq_getElem _ _ hi]
-      exact SizedListEncoding.length_elem_le (encA := encNat) (encL := encList encNat)
-        x.1.1 _ (List.getElem_mem hi)
-    · rw [List.getD_eq_default _ _ (by omega)]
-      simp [encNat_apply]
-  exact hb.trans (Nat.le_add_left _ _)
+    (by fun_prop) hpar.polyBounded_length fun x state => ?_
+  by_cases hi : state < x.1.1.length
+  · rw [List.getD_eq_getElem _ _ hi]
+    exact (SizedListEncoding.length_elem_le (encA := encNat) (encL := encList encNat)
+      x.1.1 _ (List.getElem_mem hi)).trans (Nat.le_add_left _ _)
+  · rw [List.getD_eq_default _ _ (by omega)]
+    simp [encNat_apply]
+
+/-- Iterating a computed binary-indexed successor table for a computed unary step count from a
+computed binary start index is native polynomial-time. -/
+@[fun_prop] theorem computableInPolyTime_walk_comp {α : Type} {enc : α ↪ List Bool}
+    {table : α → List ℕ} {steps start : α → ℕ}
+    (ht : ComputableInPolyTime table enc (encList encNat))
+    (hs : ComputableInPolyTime steps enc encUnary)
+    (hi : ComputableInPolyTime start enc encNat) :
+    ComputableInPolyTime (fun x => walk (table x) (steps x) (start x)) enc encNat := by
+  simpa only [Function.comp_def] using computableInPolyTime_walk.comp ((ht.prod hs).prod hi)
 
 /-- Orbit input: unary dart count, binary successor list, then two binary dart indices.
 Each left part is framed by its enclosing pair. -/
@@ -95,12 +119,7 @@ theorem computableInPolyTime_orbitBool :
       orbitBool x.1.1 x.1.2 x.2.1 x.2.2)
       encRotationOrbit encBool := by
   unfold orbitBool encRotationOrbit
-  apply ComputableInPolyTime.anyWithInput (encA := encUnary) (by fun_prop)
-  apply ComputableInPolyTime.decide_eq'
-  · exact computableInPolyTime_walk.comp
-      (g := fun p : ((ℕ × List ℕ) × (ℕ × ℕ)) × ℕ => ((p.1.1.2, p.2), p.1.2.1))
-      (by unfold encRotationWalk; fun_prop)
-  · fun_prop
+  fun_prop
 
 /-- Bounded orbit scanning composes native table, binary endpoint and unary clock computations.
 The clock is explicit; the runtime certificate applies to every raw table and index, without
@@ -110,8 +129,9 @@ theorem orbitBool_polyTime {α : Type} {enc : α ↪ List Bool}
     (hn : ComputableInPolyTime n enc encUnary)
     (ht : ComputableInPolyTime table enc (encList encNat))
     (hi : ComputableInPolyTime i enc encNat) (hj : ComputableInPolyTime j enc encNat) :
-    ComputableInPolyTime (fun x => orbitBool (n x) (table x) (i x) (j x)) enc encBool :=
-  computableInPolyTime_orbitBool.comp ((hn.prod ht).prod (hi.prod hj))
+    ComputableInPolyTime (fun x => orbitBool (n x) (table x) (i x) (j x)) enc encBool := by
+  simpa only [Function.comp_def] using
+    computableInPolyTime_orbitBool.comp ((hn.prod ht).prod (hi.prod hj))
 
 attribute [local fun_prop] orbitBool_polyTime
 
@@ -122,45 +142,33 @@ theorem range_binary :
     (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
       ComputableInPolyTime.range
 
-private theorem fiberCheck_polyTime :
-    ComputableInPolyTime (fun p : (ℕ × List ℕ) × List ℕ =>
-      (List.range p.1.1).all fun i => (List.range p.1.1).all fun j =>
-        decide (orbitBool p.1.1 p.2 i j = decide (p.1.2.getD i 0 = p.1.2.getD j 0)))
-      (encPair (encPair encUnary (encList encNat)) (encList encNat)) encBool := by
-  apply ComputableInPolyTime.allWithInput (encA := encNat) (range_binary.comp (by fun_prop))
-  apply ComputableInPolyTime.allWithInput (encA := encNat) (range_binary.comp (by fun_prop))
-  apply ComputableInPolyTime.decide_eq'
-  · exact orbitBool_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-  · apply ComputableInPolyTime.decide_eq'
-    · exact ComputableInPolyTime.listGetD_binary (encA := encNat) 0 (by fun_prop) (by fun_prop)
-    · exact ComputableInPolyTime.listGetD_binary (encA := encNat) 0 (by fun_prop) (by fun_prop)
+/-- Enumerating `List.range (n x)` with binary-encoded entries from a computed unary count,
+scoped to `Cslib.Complexity.Graph.RotationCertificate` so unary `List.range` callers incur no
+extra `fun_prop` search branch. -/
+@[scoped fun_prop] theorem range_binary' {α : Type} {enc : α ↪ List Bool} {n : α → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary) :
+    ComputableInPolyTime (fun x => List.range (n x)) enc (encList encNat) := by
+  simpa only [Function.comp_def] using range_binary.comp hn
+
+/-- Testing whether a computed list enumerates every vertex of another computed list once is
+native polynomial-time. -/
+@[fun_prop] theorem _root_.Cslib.Complexity.Graph.computableInPolyTime_enumeratesBool_comp
+    {α : Type} {enc : α ↪ List Bool} {V p : α → List ℕ}
+    (hV : ComputableInPolyTime V enc (encList encNat))
+    (hp : ComputableInPolyTime p enc (encList encNat)) :
+    ComputableInPolyTime (fun x => enumeratesBool (V x) (p x)) enc encBool := by
+  simpa only [Function.comp_def] using computableInPolyTime_enumeratesBool.comp (hV.prod hp)
 
 /-- Every part of rotation validation runs natively in polynomial time in the graph and table
 encodings, without an assumed checker, recognizer, or well-formedness hypothesis. -/
 @[fun_prop] theorem computableInPolyTime_verifyRotation :
     ComputableInPolyTime (fun x : Graph × RotationCertificate => verifyRotation x.1 x.2)
       encGraphRotationCertificate encBool := by
-  unfold verifyRotation
-  have hsuccessor := encRotationCertificate_successor_deg.computableInPolyTime
-  have hinc : ComputableInPolyTime incidenceVertices encGraph (encList encNat) := by
-    unfold incidenceVertices encGraph
-    fun_prop
-  have hG : ComputableInPolyTime (fun x : Graph × RotationCertificate => x.1)
-      encGraphRotationCertificate encGraph := by fun_prop
-  have hc : ComputableInPolyTime (fun x : Graph × RotationCertificate => x.2.successor)
-      encGraphRotationCertificate (encList encNat) := hsuccessor.comp (by fun_prop)
-  have hn : ComputableInPolyTime (fun x : Graph × RotationCertificate => 2 * x.1.edges.length)
-      encGraphRotationCertificate encUnary := by
-    fun_prop
-  apply ComputableInPolyTime.bool_and'
-  · apply ComputableInPolyTime.bool_and'
-    · apply ComputableInPolyTime.bool_and'
-      · apply ComputableInPolyTime.allWithInput (hinc.comp hG)
-        unfold encGraphRotationCertificate encGraph
-        fun_prop
-      · exact ComputableInPolyTime.decide_eq' (by fun_prop) hn
-    · exact computableInPolyTime_enumeratesBool.comp ((range_binary.comp hn).prod hc)
-  · exact fiberCheck_polyTime.comp ((hn.prod (hinc.comp hG)).prod hc)
+  unfold verifyRotation encGraphRotationCertificate
+  apply ComputableInPolyTime.bool_and' (by fun_prop)
+  apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
+  apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
+  fun_prop
 
 private theorem componentStep_polyTime :
     ComputableInPolyTime (fun p : Graph × List ℕ => componentStep p.1 p.2)
@@ -180,12 +188,10 @@ theorem computableInPolyTime_componentVertices :
     (par := fun p : Graph × ℕ => p.1) (count := fun p => p.1.vertices.length)
     (init := fun p => [p.2]) (step := componentStep)
     (by fun_prop) (by fun_prop) (by fun_prop)
-    componentStep_polyTime hv.polyBounded_length ?_
-  intro p state
-  simp only [componentStep, encList_append, List.length_append]
-  apply Nat.add_le_add_left
-  rw [length_encList, length_encList]
-  exact (List.filter_sublist.map (fun n : ℕ => 2 * (encNat n).length + 1)).sum_le_sum (by simp)
+    componentStep_polyTime hv.polyBounded_length fun p state => ?_
+  simp only [componentStep, encList_append, List.length_append, length_encList]
+  exact Nat.add_le_add_left
+    ((List.filter_sublist.map (fun n : ℕ => 2 * (encNat n).length + 1)).sum_le_sum (by simp)) _
 
 private theorem componentBool_polyTime {α : Type} {enc : α ↪ List Bool}
     {G : α → Graph} {root v : α → ℕ} (hG : ComputableInPolyTime G enc encGraph)
@@ -212,53 +218,35 @@ binary successors; no validity or endpoint-declaration premise is used. -/
 theorem faceTable_polyTime :
     ComputableInPolyTime (fun p : Graph × RotationCertificate => faceTable p.1 p.2)
       encGraphRotationCertificate (encList encNat) := by
-  unfold faceTable encGraphRotationCertificate encGraph
-  apply ComputableInPolyTime.mapWithInput (encA := encNat) (range_binary.comp (by fun_prop))
-  apply ComputableInPolyTime.unary_to_binary.comp
-  exact ComputableInPolyTime.idxOfWithInput
-    (computableInPolyTime_successor.comp (by fun_prop))
-    (reverseIndex_polyTime.comp (ComputableInPolyTime.snd _ _))
+  unfold faceTable encGraphRotationCertificate
+  apply ComputableInPolyTime.mapWithInput (encA := encNat) (by fun_prop)
+  exact ComputableInPolyTime.unary_to_binary.comp
+    (ComputableInPolyTime.idxOfWithInput (by fun_prop) (by fun_prop))
+
+private theorem faceTable_polyTime_comp {α : Type} {enc : α ↪ List Bool}
+    {G : α → Graph} {c : α → RotationCertificate}
+    (hG : ComputableInPolyTime G enc encGraph)
+    (hc : ComputableInPolyTime c enc encRotationCertificate) :
+    ComputableInPolyTime (fun x => faceTable (G x) (c x)) enc (encList encNat) := by
+  simpa only [Function.comp_def] using faceTable_polyTime.comp (hG.prod hc)
 
 private theorem faceRepBool_polyTime :
     ComputableInPolyTime (fun p : (ℕ × List ℕ) × ℕ => faceRepBool p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary (encList encNat)) encNat) encBool := by
   unfold faceRepBool
-  apply ComputableInPolyTime.allWithInput (encA := encNat) (range_binary.comp (by fun_prop))
-  refine ComputableInPolyTime.bool_or.comp (g := fun p : ((ℕ × List ℕ) × ℕ) × ℕ =>
-    (!orbitBool p.1.1.1 p.1.1.2 p.1.2 p.2, decide (p.1.2 ≤ p.2))) ?_
-  apply ComputableInPolyTime.prod
-  · have ho : ComputableInPolyTime (fun p : ((ℕ × List ℕ) × ℕ) × ℕ =>
-        orbitBool p.1.1.1 p.1.1.2 p.1.2 p.2)
-        (encPair (encPair (encPair encUnary (encList encNat)) encNat) encNat) encBool :=
-      orbitBool_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    exact ComputableInPolyTime.bool_not.comp ho
-  · exact ComputableInPolyTime.binary_le.comp
-      (((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.snd _ _))
+  apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (by fun_prop))
+    (ComputableInPolyTime.binary_le' (by fun_prop) (by fun_prop))
 
 private theorem faceRepBool_polyTime' {α : Type} {enc : α ↪ List Bool}
     {n i : α → ℕ} {table : α → List ℕ} (hn : ComputableInPolyTime n enc encUnary)
     (ht : ComputableInPolyTime table enc (encList encNat))
     (hi : ComputableInPolyTime i enc encNat) :
-    ComputableInPolyTime (fun x => faceRepBool (n x) (table x) (i x)) enc encBool :=
-  faceRepBool_polyTime.comp ((hn.prod ht).prod hi)
+    ComputableInPolyTime (fun x => faceRepBool (n x) (table x) (i x)) enc encBool := by
+  simpa only [Function.comp_def] using faceRepBool_polyTime.comp ((hn.prod ht).prod hi)
 
-attribute [local fun_prop] faceRepBool_polyTime' faceTable_polyTime
-
-private theorem vertexCount_polyTime :
-    ComputableInPolyTime (fun p : Graph × ℕ =>
-      p.1.distinctVertices.countP (componentBool p.1 p.2))
-      (encPair encGraph encNat) encUnary := by
-  apply ComputableInPolyTime.countPWithInput (by fun_prop)
-  fun_prop
-
-private theorem edgeCount_polyTime :
-    ComputableInPolyTime (fun p : Graph × ℕ =>
-      p.1.edges.countP (fun e => componentBool p.1 p.2 e.1))
-      (encPair encGraph encNat) encUnary := by
-  apply ComputableInPolyTime.countPWithInput (encA := encPair encNat encNat)
-    (by fun_prop)
-  fun_prop
+attribute [local fun_prop] faceTable_polyTime_comp faceRepBool_polyTime'
 
 private theorem faceCount_polyTime :
     ComputableInPolyTime (fun p : (Graph × RotationCertificate) × ℕ =>
@@ -266,54 +254,23 @@ private theorem faceCount_polyTime :
         componentBool p.1.1 p.2 (p.1.1.incidenceVertices.getD i 0) &&
           faceRepBool (2 * p.1.1.edges.length) (faceTable p.1.1 p.1.2) i)
       (encPair encGraphRotationCertificate encNat) encUnary := by
-  have hG₀ : ComputableInPolyTime
-      (fun p : (Graph × RotationCertificate) × ℕ => p.1.1)
-      (encPair encGraphRotationCertificate encNat) encGraph := by fun_prop
-  have hlen : ComputableInPolyTime
-      (fun p : (Graph × RotationCertificate) × ℕ => 2 * p.1.1.edges.length)
-      (encPair encGraphRotationCertificate encNat) encUnary := by
-    exact ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
-      ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp
-        (encGraph_edges_polyTime hG₀))
-  apply ComputableInPolyTime.countPWithInput (encA := encNat)
-    (range_binary.comp hlen)
-  have hG : ComputableInPolyTime
-      (fun p : ((Graph × RotationCertificate) × ℕ) × ℕ => p.1.1.1)
-      (encPair (encPair encGraphRotationCertificate encNat) encNat) encGraph := by fun_prop
-  have hn : ComputableInPolyTime
-      (fun p : ((Graph × RotationCertificate) × ℕ) × ℕ => 2 * p.1.1.1.edges.length)
-      (encPair (encPair encGraphRotationCertificate encNat) encNat) encUnary := by
-    exact ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 2)
-      ((ComputableInPolyTime.length_list (encPair encNat encNat)).comp
-        (encGraph_edges_polyTime hG))
-  exact (componentBool_polyTime hG (by fun_prop)
-    (ComputableInPolyTime.listGetD_binary 0
-      (incidenceVertices_polyTime.comp hG) (by fun_prop))).bool_and'
-      (faceRepBool_polyTime' hn (faceTable_polyTime.comp
-        (g := fun p : ((Graph × RotationCertificate) × ℕ) × ℕ => p.1.1) (by fun_prop))
-        (by fun_prop))
+  unfold encGraphRotationCertificate
+  apply ComputableInPolyTime.countPWithInput (encA := encNat) (by fun_prop)
+  fun_prop
 
 /-- Componentwise Euler verification is native polynomial-time in the actual encoded graph
 and successor table. No connectivity, permutation, or index-bound premise is required. -/
 @[fun_prop] theorem computableInPolyTime_verifyEuler :
     ComputableInPolyTime (fun p : Graph × RotationCertificate => verifyEuler p.1 p.2)
       encGraphRotationCertificate encBool := by
-  unfold verifyEuler encGraphRotationCertificate encGraph
-  apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
-  have hp : ComputableInPolyTime (fun p : (Graph × RotationCertificate) × ℕ => (p.1.1, p.2))
-      (encPair encGraphRotationCertificate encNat) (encPair encGraph encNat) := by fun_prop
-  have hv := vertexCount_polyTime.comp hp
-  have he := edgeCount_polyTime.comp hp
   have hf := faceCount_polyTime
-  apply ComputableInPolyTime.ite
-  · apply ComputableInPolyTime.anyWithInput
-      (incidenceVertices_polyTime.comp (g := fun p : (Graph × RotationCertificate) × ℕ => p.1.1)
-        (by fun_prop))
-    fun_prop
-  · exact ComputableInPolyTime.decide_eq'
-      (ComputableInPolyTime.unary_add' hv hf)
-      (ComputableInPolyTime.unary_add' he (ComputableInPolyTime.const 2))
-  · exact ComputableInPolyTime.const true
+  unfold verifyEuler encGraphRotationCertificate
+  apply ComputableInPolyTime.allWithInput (encA := encNat) (by fun_prop)
+  apply ComputableInPolyTime.ite (by fun_prop)
+    (ComputableInPolyTime.decide_eq'
+      (ComputableInPolyTime.unary_add' (by fun_prop) hf)
+      (ComputableInPolyTime.unary_add' (by fun_prop) (ComputableInPolyTime.const 2)))
+    (ComputableInPolyTime.const true)
 
 /-- The full finite supplied-certificate verifier has a native polynomial-time certificate. -/
 @[fun_prop] theorem computableInPolyTime_verifyGenusZero :
@@ -321,5 +278,14 @@ and successor table. No connectivity, permutation, or index-bound premise is req
       encGraphRotationCertificate encBool := by
   unfold verifyGenusZero
   exact computableInPolyTime_verifyRotation.bool_and' computableInPolyTime_verifyEuler
+
+/-- Verifying a computed graph against a computed rotation certificate runs in native
+polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_verifyGenusZero_comp {α : Type} {enc : α ↪ List Bool}
+    {G : α → Graph} {c : α → RotationCertificate}
+    (hG : ComputableInPolyTime G enc encGraph)
+    (hc : ComputableInPolyTime c enc encRotationCertificate) :
+    ComputableInPolyTime (fun x => verifyGenusZero (G x) (c x)) enc encBool := by
+  simpa only [Function.comp_def] using computableInPolyTime_verifyGenusZero.comp (hG.prod hc)
 
 end Cslib.Complexity.Graph.RotationCertificate

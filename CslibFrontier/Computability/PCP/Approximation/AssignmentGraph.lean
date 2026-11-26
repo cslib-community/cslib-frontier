@@ -287,13 +287,12 @@ theorem card_toFinset_vertices_assignmentGraph {φ : CNF ℕ} (hφ : ¬φ.all Li
       (Finset.range φ.length ×ˢ Finset.range 7).image fun p => Nat.pair p.1 p.2 := by
     ext v
     rw [assignmentGraph_of_not_all hφ, List.mem_toFinset, Finset.mem_image]
-    simp only [List.mem_map, mem_assignmentRecords]
+    simp only [List.mem_map, mem_assignmentRecords, Finset.mem_product, Finset.mem_range,
+      Prod.exists]
     constructor
     · rintro ⟨r, ⟨i, hi, k, hk, rfl⟩, rfl⟩
-      exact ⟨(i, k), Finset.mem_product.2 ⟨Finset.mem_range.2 hi, Finset.mem_range.2 hk⟩, rfl⟩
-    · rintro ⟨⟨i, k⟩, hik, rfl⟩
-      obtain ⟨hi, hk⟩ := Finset.mem_product.1 hik
-      rw [Finset.mem_range] at hi hk
+      exact ⟨i, k, ⟨hi, hk⟩, rfl⟩
+    · rintro ⟨i, k, ⟨hi, hk⟩, rfl⟩
       exact ⟨_, ⟨i, hi, k, hk, rfl⟩, rfl⟩
   rw [hset, Finset.card_image_of_injective _ fun p q h => Prod.ext (Nat.pair_eq_pair.1 h).1
     (Nat.pair_eq_pair.1 h).2, Finset.card_product, Finset.card_range, Finset.card_range,
@@ -361,11 +360,8 @@ theorem exists_card_add_countUnsat_le_of_assignmentGraph {φ : CNF ℕ}
     (hS : (assignmentGraph φ).toSimpleGraph.IsIndepSet (S : Set ℕ)) :
     ∃ σ : ℕ → Bool, S.card + φ.countUnsat σ ≤ φ.length := by
   classical
-  have hrec : ∀ v ∈ S, ∃ r ∈ assignmentRecords φ, recordVertex r = v := by
-    intro v hv
-    have := hSV v hv
-    rw [assignmentGraph_of_not_all hφ] at this
-    exact List.mem_map.1 this
+  have hrec : ∀ v ∈ S, ∃ r ∈ assignmentRecords φ, recordVertex r = v := fun v hv =>
+    List.mem_map.1 (by simpa only [assignmentGraph_of_not_all hφ] using hSV v hv)
   choose! R hR hRv using hrec
   have hnc : ∀ u ∈ S, ∀ v ∈ S, u ≠ v → recordConflict (R u) (R v) = false := by
     intro u hu v hv huv
@@ -376,11 +372,9 @@ theorem exists_card_add_countUnsat_le_of_assignmentGraph {φ : CNF ℕ}
   by_cases hE : ∃ v ∈ S, (R v).lits = []
   · -- A vertex of an empty clause is adjacent to every other vertex.
     obtain ⟨v, hv, hvE⟩ := hE
-    have hall : ∀ w ∈ S, w = v := by
-      intro w hw
+    have hall : ∀ w ∈ S, w = v := fun w hw => by
       by_contra hwv
-      have := hnc v hv w hw (Ne.symm hwv)
-      simp [recordConflict, hvE] at this
+      simpa [recordConflict, hvE] using hnc v hv w hw (Ne.symm hwv)
     have hS1 : S.card ≤ 1 :=
       Finset.card_le_one.2 fun a ha b hb => (hall a ha).trans (hall b hb).symm
     obtain ⟨c, hc, hce⟩ : ∃ c ∈ φ, c ≠ [] := by
@@ -462,10 +456,7 @@ theorem indepNum_assignmentGraph {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length ≤
     push_cast
     ring
   rw [card_toFinset_vertices_assignmentGraph hφ, h7]
-  have hm : 0 < φ.length := by
-    rcases φ with _ | _
-    · simp at hφ
-    · simp
+  have hm : 0 < φ.length := List.length_pos_iff.2 (by rintro rfl; simp at hφ)
   have hm' : (0 : ℝ) < φ.length := by exact_mod_cast hm
   apply le_antisymm
   · obtain ⟨S, hSV, hS⟩ := mem_IndependentSet_iff.1
@@ -473,22 +464,21 @@ theorem indepNum_assignmentGraph {φ : CNF ℕ} (h3 : ∀ c ∈ φ, c.length ≤
     obtain ⟨σ, hσ⟩ := exists_card_add_countUnsat_le_of_assignmentGraph h3 hφ hSV hS.isIndepSet
     have hc : S.card = (assignmentGraph φ).indepNum := hS.card_eq
     have hle := (le_div_iff₀ hm').1 (φ.unsatVal_le σ)
-    have hcast : ((S.card + φ.countUnsat σ : ℕ) : ℝ) ≤ φ.length := by exact_mod_cast hσ
-    push_cast at hcast
+    have hcast : (S.card : ℝ) + φ.countUnsat σ ≤ φ.length := by exact_mod_cast hσ
     rw [← hc]
     nlinarith
   · obtain ⟨σ, hσ⟩ := φ.exists_countUnsat_div_eq_unsatVal
     have h := length_sub_countUnsat_le_indepNum_assignmentGraph h3 hφ σ
-    have hcu := CNF.countUnsat_le_length σ φ
-    have hcast : ((φ.length - φ.countUnsat σ : ℕ) : ℝ) ≤ (assignmentGraph φ).indepNum := by
-      exact_mod_cast h
-    rw [Nat.cast_sub hcu] at hcast
-    rw [← hσ, sub_mul, div_mul_cancel₀ _ hm'.ne', one_mul]
-    exact hcast
+    rw [← hσ, sub_mul, div_mul_cancel₀ _ hm'.ne', one_mul,
+      ← Nat.cast_sub (CNF.countUnsat_le_length σ φ)]
+    exact_mod_cast h
 
 /-! ### Polynomial time -/
 
-local notation "encLit" => encPair encNat encBool
+/-- Encoding of a literal `(x, b)` over `ℕ`: the variable index `x` in little-endian binary
+(`encNat`), framed, followed by the polarity bit `b` (`encBool`). -/
+private abbrev encLit : Literal ℕ ↪ List Bool :=
+  encPair encNat encBool
 
 private theorem computableInPolyTime_assignLits (bs : List Bool) :
     ComputableInPolyTime (fun c : Clause ℕ => assignLits c bs) (encList encLit)

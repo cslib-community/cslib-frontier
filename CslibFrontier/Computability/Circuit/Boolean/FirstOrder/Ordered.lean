@@ -79,12 +79,10 @@ def termValue {α : Type*} (v : α → Fin n) : (language L).Term α → Fin n
 @[simp]
 theorem termValue_eq_realize [L.Structure (Fin n)] {α : Type*} (v : α → Fin n)
     (t : (language L).Term α) : termValue v t = t.realize v := by
-  cases t with
-  | var x => rfl
-  | func f ts =>
-    cases f with
-    | inl f => exact isEmptyElim f
-    | inr c => cases c <;> rfl
+  rcases t with x | ⟨f | c, _⟩
+  · rfl
+  · exact isEmptyElim f
+  · cases c <;> rfl
 
 /-- Compile an ordered formula on `Fin n`: input relations read their original atomic facts,
 numeric atoms become constants, and universal quantifiers become conjunctions over the universe.
@@ -122,22 +120,19 @@ theorem eval_toUnbounded_atomsOf [L.Structure (Fin n)] (e : Atom L n ≃ Fin N) 
     simp only [toUnbounded, eval_constUnbounded, decide_eq_true_iff, BoundedFormula.Realize,
       termValue_eq_realize]
   | rel R ts =>
-    cases R with
-    | inl R =>
-      simp only [toUnbounded, Formula.eval_input, Function.comp_apply]
+    rcases R with R | (_ | _)
+    · simp only [toUnbounded, Formula.eval_input, Function.comp_apply]
       refine (iff_of_eq (congrArg
         (fun a : Atom L n => atomsOf (L := L) (Equiv.refl _) a = true)
         (e.symm_apply_apply _))).trans ?_
       simp only [atomsOf, decide_eq_true_iff, BoundedFormula.Realize, termValue_eq_realize]
       rfl
-    | inr R =>
-      cases R <;>
-        simp only [toUnbounded, eval_constUnbounded, decide_eq_true_iff, BoundedFormula.Realize,
-          termValue_eq_realize] <;> rfl
+    all_goals
+      simp only [toUnbounded, eval_constUnbounded, decide_eq_true_iff, BoundedFormula.Realize,
+        termValue_eq_realize]
+      rfl
   | imp φ ψ ihφ ihψ => simp only [toUnbounded, eval_imp_iff, ihφ, ihψ, BoundedFormula.Realize]
-  | all φ ih =>
-    simp only [toUnbounded, eval_all_iff, BoundedFormula.Realize]
-    exact forall_congr' fun a => ih _
+  | all φ ih => simp [toUnbounded, BoundedFormula.Realize, ih]
 
 /-- The compiled formula's depth is bounded independently of the universe size. -/
 theorem depth_toUnbounded_le (e : Atom L n ≃ Fin N) {k : ℕ}

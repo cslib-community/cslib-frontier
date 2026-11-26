@@ -147,13 +147,9 @@ theorem run_scanning (δ : Bool × Bool → Bool) (p : Runtime.Input) {k : ℕ}
       (2 * (encData p.data).length + 2 + k) + 1 by omega,
       QueryMachine.run_succ, ih (by omega)]
     have hlt : k < 2 * width p.data := by omega
-    have hd : data ⟨loaded p, k, value δ p k⟩ = p.data := by
-      simp only [data, loaded, List.reverse_reverse, Runtime.decode_encData]
     have hh : (machine δ).halted ⟨loaded p, k, value δ p k⟩ = false := by
-      simp only [machine, hd]
-      have hr : Runtime.machine.halted (loaded p) = true := rfl
-      rw [hr]
-      simp only [hlt, decide_true, Bool.not_true, Bool.true_and]
+      simp only [machine, loaded, data, Runtime.machine, List.reverse_reverse,
+        Runtime.decode_encData, Option.isSome_some, hlt, decide_true, Bool.not_true, Bool.true_and]
     rw [QueryMachine.step, hh]
     simp only [Bool.false_eq_true, ↓reduceIte]
     rw [read_loaded]
@@ -254,7 +250,7 @@ theorem components_inSpace (δ : Bool × Bool → Bool) :
     (encState_mk_budget hrt (budget_natSucc hpos) hδ)
     (encState_mk_budget (budget_comp_linear Runtime.next_inSpace
       (budget_prod hrt (snd encState (encOption encBool)))) hpos hacc)
-  refine ⟨hq, hnext, budget_const [] (.refl _), ?_, hfinish⟩
+  refine ⟨hq, hnext, budget_const [], ?_, hfinish⟩
   simpa only [machine, two_mul] using hhalt
 
 /-- Explicit encoding cost: saved accessor state, binary loop counter and one bit. -/
@@ -272,25 +268,21 @@ theorem length_run_le (δ : Bool × Bool → Bool) (p : Runtime.Input) {t : ℕ}
   have hcounter : ∀ k ≤ 2 * width p.data,
       (encNat k).length ≤ 4 * ((encData p.data).length + 1) := by
     intro k hk
-    have hc := length_encNat_le_self p.data.suffix.length
-    have hcut : p.data.cut < 2 ^ (encNat p.data.cut).length := by
-      rw [encNat_apply, Nat.size_eq_bits_len]; exact Nat.lt_size_self _
-    have hsuffix : p.data.suffix.length < 2 ^ (encNat p.data.suffix.length).length := by
-      rw [encNat_apply, Nat.size_eq_bits_len]; exact Nat.lt_size_self _
-    have hc' : (encNat p.data.cut).length ≤ (encData p.data).length :=
-      encData_cut_length_le p.data
+    have hlt_pow (m : ℕ) : m < 2 ^ (encNat m).length := by
+      rw [encNat_apply, Nat.size_eq_bits_len]
+      exact Nat.lt_size_self m
     have hs' : (encNat p.data.suffix.length).length ≤ (encData p.data).length + 1 := by
-      have := encData_suffix_length_le p.data
-      simp only [encBits_apply] at this
+      have h1 := encData_suffix_length_le p.data
+      have h2 := length_encNat_le_self p.data.suffix.length
+      simp only [encBits_apply] at h1
       omega
-    have hpow : width p.data < 2 ^ ((encData p.data).length + 2) := by
-      have h₁ := hcut.trans_le (Nat.pow_le_pow_right (by omega : 1 ≤ 2) hc')
-      have h₂ := hsuffix.trans_le (Nat.pow_le_pow_right (by omega : 1 ≤ 2) hs')
-      dsimp only [width]
-      rw [pow_succ, pow_succ]
-      omega
+    have h₁ := (hlt_pow p.data.cut).trans_le
+      (Nat.pow_le_pow_right (by omega : 1 ≤ 2) (encData_cut_length_le p.data))
+    have h₂ := (hlt_pow p.data.suffix.length).trans_le
+      (Nat.pow_le_pow_right (by omega : 1 ≤ 2) hs')
     have hkpow : k < 2 ^ ((encData p.data).length + 3) := by
-      rw [pow_succ]
+      dsimp only [width] at hk
+      rw [pow_succ, pow_succ, pow_succ]
       omega
     have := length_encNat_le_of_lt_two_pow hkpow
     omega
@@ -387,17 +379,15 @@ theorem evaluate_word (δ : Bool × Bool → Bool) (cut : ℕ) (suffix x : List 
   let w := word x cut suffix
   have hm : ((List.range w.length).map fun j => w.getD (j % w.length) false) = w := by
     apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp only [List.getElem_map, List.getElem_range, Nat.mod_eq_of_lt hi',
-      List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi', Option.getD_some]
+    intro i _ hi
+    simp only [List.getElem_map, List.getElem_range, Nat.mod_eq_of_lt hi,
+      List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi, Option.getD_some]
   have hs : ((List.range w.length).map fun j =>
       w.getD ((w.length + j) % w.length) false) = w := by
     simpa only [Nat.add_mod, Nat.mod_self, Nat.zero_add, Nat.mod_mod] using hm
   change ((List.range (2 * w.length)).map fun j => w.getD (j % w.length) false).foldl
     (fun a b => δ (a, b)) false = _
   rw [two_mul, List.range_add, List.map_append, List.map_map, hm]
-  change (w ++ (List.range w.length).map (fun j =>
-    w.getD ((w.length + j) % w.length) false)).foldl (fun a b => δ (a, b)) false = _
-  rw [hs]
+  simp only [Function.comp_def, hs, w]
 
 end Turing.VirtualWord.Evaluator

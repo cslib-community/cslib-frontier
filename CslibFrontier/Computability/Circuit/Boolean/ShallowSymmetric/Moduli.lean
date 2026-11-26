@@ -46,21 +46,14 @@ theorem exists_moduli (r : ℕ) : ∃ C : ℕ, 1 ≤ C ∧ ∀ k : ℕ, 1 ≤ k 
   refine ⟨1 + ∑ i, p i, by omega, fun k hk => ?_⟩
   let m (i : Fin r) := p i ^ (Nat.log (p i) k + 1)
   have hp (i : Fin r) : (p i).Prime := Nat.prime_nth_prime i.val
-  refine ⟨m, ?_, ?_, ?_⟩
-  · intro i j hij
-    apply Nat.coprime_pow_primes _ _ (hp i) (hp j)
-    intro heq
-    apply hij
-    apply Fin.ext
-    exact (Nat.nth_strictMono Nat.infinite_setOfPred_prime).injective heq
-  · intro i
-    exact Nat.lt_pow_succ_log_self (hp i).one_lt k
-  · intro i
-    have hi : p i ≤ ∑ j, p j := single_le_sum (fun j _ => Nat.zero_le (p j)) (mem_univ i)
-    calc
-      m i = p i * p i ^ Nat.log (p i) k := by simp [m, pow_succ, Nat.mul_comm]
-      _ ≤ p i * k := Nat.mul_le_mul_left _ (Nat.pow_log_le_self _ (by omega))
-      _ ≤ (1 + ∑ j, p j) * k := Nat.mul_le_mul_right _ (by omega)
+  refine ⟨m, fun i j hij => Nat.coprime_pow_primes _ _ (hp i) (hp j) fun heq =>
+    hij (Fin.ext ((Nat.nth_strictMono Nat.infinite_setOfPred_prime).injective heq)),
+    fun i => Nat.lt_pow_succ_log_self (hp i).one_lt k, fun i => ?_⟩
+  have hi : p i ≤ ∑ j, p j := single_le_sum (fun j _ => Nat.zero_le (p j)) (mem_univ i)
+  calc
+    m i = p i * p i ^ Nat.log (p i) k := by simp [m, pow_succ, Nat.mul_comm]
+    _ ≤ p i * k := Nat.mul_le_mul_left _ (Nat.pow_log_le_self _ (by omega))
+    _ ≤ (1 + ∑ j, p j) * k := Nat.mul_le_mul_right _ (by omega)
 
 /-- The product of `r` moduli exceeding `k` exceeds `k^r`. -/
 theorem pow_lt_prod_moduli {r k : ℕ} (hr : 0 < r) (m : Fin r → ℕ)

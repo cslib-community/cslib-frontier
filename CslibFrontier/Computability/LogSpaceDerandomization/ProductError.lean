@@ -62,15 +62,13 @@ theorem abs_sum_mul_sub_mul_le {α : Type*} (T : Finset α)
     |(∑ z ∈ T, a z * b z) - ∑ z ∈ T, a' z * b' z| ≤
       ∑ z ∈ T, (CA * |b z - b' z| + |a z - a' z| * CB) := by
   rw [← sum_sub_distrib]
-  apply (abs_sum_le_sum_abs _ _).trans
-  apply sum_le_sum
-  intro z hz
-  rw [show a z * b z - a' z * b' z =
-    a z * (b z - b' z) + (a z - a' z) * b' z by ring]
-  exact (abs_add_le _ _).trans (by
-    rw [abs_mul, abs_mul]
-    exact add_le_add (mul_le_mul_of_nonneg_right (ha z hz) (abs_nonneg _))
-      (mul_le_mul_of_nonneg_left (hb' z hz) (abs_nonneg _)))
+  refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun z hz => ?_)
+  have hsub : a z * b z - a' z * b' z = a z * (b z - b' z) + (a z - a' z) * b' z := by ring
+  rw [hsub]
+  refine (abs_add_le _ _).trans ?_
+  rw [abs_mul, abs_mul]
+  exact add_le_add (mul_le_mul_of_nonneg_right (ha z hz) (abs_nonneg _))
+    (mul_le_mul_of_nonneg_left (hb' z hz) (abs_nonneg _))
 
 private theorem root_mul_sub_pow_le {s : ℕ} (hs : s ≠ 0) {a a' b b' : ℝ}
     (ha : 0 ≤ a) (ha' : 0 ≤ a') (hb : 0 ≤ b) (hb' : 0 ≤ b') :
@@ -175,22 +173,21 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
       intro σ x
       conv_rhs => rw [mul_sum, sum_filter]
       refine sum_le_sum fun z _ => ?_
-      by_cases hz : F' σ x z = 0
-      · simp [hz]
-      · simp only [hz, ne_eq, not_false_eq_true, ↓reduceIte]
-        rw [← mul_sum]
+      split_ifs with hz
+      · rw [← mul_sum]
         exact mul_le_mul_of_nonneg_right (hFbound σ x z) (sum_nonneg fun y _ => heB σ z y)
+      · simp [not_not.mp hz]
     have hrelease : (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
         ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
           ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y ≤
-        Kc * (f / u) * rootDistPow s N f Z Y B B' := by
-      exact sourceRelease_le_rowNormPow hN hu hf (fun σ x z => F' σ x z ≠ 0) hcol
+        Kc * (f / u) * rootDistPow s N f Z Y B B' :=
+      sourceRelease_le_rowNormPow hN hu hf (fun σ x z => F' σ x z ≠ 0) hcol
         (fun σ z y => B σ z y ^ (s⁻¹ : ℝ) - B' σ z y ^ (s⁻¹ : ℝ))
     calc
       _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
           CF * ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
-            ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y := by
-        exact mul_le_mul_of_nonneg_left
+            ∑ y ∈ ({y | Y σ y} : Finset V), eB σ z y :=
+        mul_le_mul_of_nonneg_left
           (expect_le_expect fun σ _ => sum_le_sum fun x _ => hpoint σ x) (by positivity)
       _ = CF * ((N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V),
           ∑ z ∈ ({z | Z σ z} : Finset V) with F' σ x z ≠ 0,
@@ -204,10 +201,8 @@ theorem rootDistPow_mul_le (hs : s ≠ 0) (hN : 0 < N) (hu : 0 < u) (hf : 0 < f)
       ∑ y ∈ ({y | Y σ y} : Finset V), ∑ z ∈ ({z | Z σ z} : Finset V),
         (B σ z y * eF σ x z + F' σ x z * eB σ z y) =
       (∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), B σ z y * eF σ x z) +
-        ∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y := by
-    intro σ x
-    rw [sum_comm]
-    simp only [sum_add_distrib]
+        ∑ z ∈ ({z | Z σ z} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V), F' σ x z * eB σ z y :=
+    fun _ _ => sum_comm.trans (by simp only [sum_add_distrib])
   rw [rootDistPow, rowNormPow]
   calc
     _ ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
@@ -280,7 +275,12 @@ theorem correctionAtom_denseAtom_rootDistPow_le
     (fun σ => correctionAtom_nonneg hQ0 hρF0 hτ0 (hg'0 σ) (drawF σ))
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
     (fun σ => denseAtom_nonneg hk0 hρB0 (drawB σ))
-    (by positivity) (by positivity) ?_ ?_ ?_ ?_
+    (by positivity) (by positivity) ?_ ?_
+    (fun σ z _ =>
+      (card_le_card fun _ hy => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩).trans
+        (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
+          hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le)
+    (fun σ z _ => (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ) z).le)
   · intro σ x z
     calc
       _ ≤ |correctionAtom I τ KF Kc f (G' σ) X Z Zt Q hF ρF (g' σ) (drawF σ) x z| :=
@@ -298,13 +298,5 @@ theorem correctionAtom_denseAtom_rootDistPow_le
       _ ≤ 2 * |k (H σ z y / b)| := abs_denseAtom_le hρB0 hρB1 _ _ _
       _ = 2 * k (H σ z y / b) := by rw [abs_of_nonneg (hk0 _)]
       _ ≤ _ := mul_le_mul_of_nonneg_left (hkbound σ z y) (by norm_num)
-  · intro σ z _
-    refine (card_le_card ?_).trans
-      (card_filter_denseAtom_ne_zero_lt (h := hB) (a := b) (G := H σ)
-        hYt hKB heB hkzero hgB hρBclose (drawB σ) z).le
-    intro y hy
-    exact mem_filter.mpr ⟨mem_univ _, (mem_filter.mp hy).2⟩
-  · intro σ z _
-    exact (card_filter_correctionAtom_col_ne_zero_lt hKc hIQ hgF hτclose (drawF σ) z).le
 
 end Matrix

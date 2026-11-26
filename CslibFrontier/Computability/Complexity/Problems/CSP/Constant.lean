@@ -55,27 +55,20 @@ theorem mem_P_of_constant [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel
   let possible : Rel → Bool := fun R => decide ((CSP.booleanRelation arity sem R).Nonempty)
   let solver : CSP Rel ℕ → Bool := fun F =>
     F.validArity arity && F.all (fun c => possible c.rel)
-  have hp : ComputableInPolyTime possible encRel encBool := ComputableInPolyTime.of_finite _
-  have hall : ComputableInPolyTime
-      (fun F : CSP Rel ℕ => F.all (fun c => possible c.rel)) (encCSP encRel encNat) encBool := by
-    exact ComputableInPolyTime.allWithInput ComputableInPolyTime.id'
-      (hp.comp (encConstraint_rel_polyTime (ComputableInPolyTime.snd _ _)))
-  have hs : ComputableInPolyTime solver (encCSP encRel encNat) encBool := by
-    exact ComputableInPolyTime.bool_and.comp
-      ((CSP.computableInPolyTime_validArity encRel arity).prod hall)
-  refine ⟨solver, hs, fun F => ?_⟩
+  refine ⟨solver, ComputableInPolyTime.bool_and.comp
+    ((CSP.computableInPolyTime_validArity encRel arity).prod
+      (ComputableInPolyTime.allWithInput ComputableInPolyTime.id'
+        ((ComputableInPolyTime.of_finite possible).comp
+          (encConstraint_rel_polyTime (ComputableInPolyTime.snd _ _))))), fun F => ?_⟩
   change F.WellFormed arity ∧ F.Satisfiable sem ↔ solver F = true
   simp only [solver, Bool.and_eq_true, CSP.validArity_eq_true_iff, List.all_eq_true]
-  constructor
-  · rintro ⟨hF, σ, hσ⟩
-    refine ⟨hF, fun c hc => ?_⟩
-    exact decide_eq_true (nonempty_of_eval (hF c hc) ((List.all_eq_true.mp hσ) c hc))
-  · rintro ⟨hF, hpossible⟩
-    refine ⟨hF, fun _ => b, List.all_eq_true.mpr (fun c hc => ?_)⟩
-    have hne : (CSP.booleanRelation arity sem c.rel).Nonempty :=
-      of_decide_eq_true (hpossible c hc)
-    have hconst := (CSP.hasPolymorphism_const_iff arity sem b).mp hb c.rel hne
-    change sem c.rel (List.ofFn (fun _ : Fin (arity c.rel) => b)) = true at hconst
-    simpa only [Constraint.eval, List.ofFn_const, List.map_const', hF c hc] using hconst
+  refine ⟨fun ⟨hF, _, hσ⟩ => ⟨hF, fun c hc =>
+    decide_eq_true (nonempty_of_eval (hF c hc) ((List.all_eq_true.mp hσ) c hc))⟩, ?_⟩
+  rintro ⟨hF, hpossible⟩
+  refine ⟨hF, fun _ => b, List.all_eq_true.mpr fun c hc => ?_⟩
+  have hconst := (CSP.hasPolymorphism_const_iff arity sem b).mp hb c.rel
+    (of_decide_eq_true (hpossible c hc))
+  change sem c.rel (List.ofFn (fun _ : Fin (arity c.rel) => b)) = true at hconst
+  simpa only [Constraint.eval, List.ofFn_const, List.map_const', hF c hc] using hconst
 
 end Cslib.Complexity.CSPSAT

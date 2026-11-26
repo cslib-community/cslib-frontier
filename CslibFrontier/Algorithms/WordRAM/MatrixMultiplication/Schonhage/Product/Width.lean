@@ -44,14 +44,10 @@ public theorem admissionWidth_pos (L m N Q A : ℕ) : 0 < admissionWidth L m N Q
 /-- Mathlib's ceiling logarithm supplies both numerical admission hypotheses. -/
 public theorem admission_bounds {W L m N Q A : ℕ} (hW : admissionWidth L m N Q A ≤ W) :
     0 < W - 2 ∧ magnitudeBound L A < 2 ^ ((W - 2) - 1) ∧ Fits W (wordBudget L m N Q) := by
-  have hs : Nat.clog 2 (magnitudeBound L A + wordBudget L m N Q + 1) ≤ (W - 2) - 1 := by
-    unfold admissionWidth at hW
-    omega
-  refine ⟨by unfold admissionWidth at hW; omega, ?_, ?_⟩
-  · exact fits_of_lt_clog_le
-      (by omega : magnitudeBound L A < magnitudeBound L A + wordBudget L m N Q + 1) hs
-  · exact fits_of_lt_clog_le
-      (by omega : wordBudget L m N Q < magnitudeBound L A + wordBudget L m N Q + 1) (by omega)
+  unfold admissionWidth at hW
+  have hs : Nat.clog 2 (magnitudeBound L A + wordBudget L m N Q + 1) ≤ (W - 2) - 1 := by omega
+  exact ⟨by omega, fits_of_lt_clog_le (by omega) hs,
+    fits_of_lt_clog_le (by omega) (hs.trans (by omega))⟩
 
 /-- Both real input modes run at every sufficiently wide physical width. All product values,
 the charged halt and complete restored-input/outside frame refer to the same actual run. -/
@@ -73,7 +69,7 @@ public theorem runs_wide {W L m N A : ℕ} (hm : m ≤ L) (bits : Bool)
         y.mem a = (State.init (input bits L X Y qs) : State 160).data.mem a) := by
   obtain ⟨hw, hmagnitude, haddress⟩ := admission_bounds hW
   have htwo : W - 2 + 2 = W := by unfold admissionWidth at hW; omega
-  have h := runs hw hm bits X Y qs hX hY hbits hmagnitude (by simpa only [htwo] using haddress)
-  simpa only [htwo] using h
+  simpa only [htwo] using
+    runs hw hm bits X Y qs hX hY hbits hmagnitude (by simpa only [htwo] using haddress)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

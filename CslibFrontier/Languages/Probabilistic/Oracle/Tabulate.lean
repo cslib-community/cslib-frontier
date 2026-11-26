@@ -96,11 +96,10 @@ theorem isCostBounded_tabulate_eq {T : Type} [DecidableEq T] (f : Query → T) (
       (ih hps.2).bind fun table =>
         IsCostBounded.pure (Function.update table p a) 0).mono ?_
     by_cases h1 : f (q p) = t
-    · have h2 : ¬ ∃ p' ∈ ps, f (q p') = t := by
-        rintro ⟨p', hp', hp't⟩
-        exact hps.1 (hq (hp't.trans h1.symm) ▸ hp')
+    · have h2 : ¬∃ p' ∈ ps, f (q p') = t := fun ⟨p', hp', hp't⟩ =>
+        hps.1 (hq (hp't.trans h1.symm) ▸ hp')
       simp [h1, h2]
-    · by_cases h2 : ∃ p' ∈ ps, f (q p') = t <;> simp [h1, h2]
+    · simp [h1]
 
 /-- Uniform `1`-bound form of `isCostBounded_tabulate_eq`: when `ps` has no duplicates and
 `f ∘ q` is injective, at most one tabulated query has image `t` under `f` for every `t`. -/

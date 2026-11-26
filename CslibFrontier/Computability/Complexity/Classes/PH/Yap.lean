@@ -212,37 +212,27 @@ theorem PiP_three_subset_SigmaP_three_of_coNP_subset_NPPoly
   ext a
   have hA_iff : a ∈ A ↔ ∀ u₁ : List Bool, u₁.length = p₁.eval (enc a).length →
       ∃ u₂ : List Bool, u₂.length = p₂.eval (enc a).length ∧ (a, u₁ ++ u₂) ∉ E := by
-    rw [hAV a]
-    simp only [List.map_cons, List.map_nil,
-      alternation_false_cons, alternation_true_cons, alternation_nil]
-    refine forall_congr' fun u₁ => imp_congr_right fun _ => ?_
-    refine exists_congr fun u₂ => and_congr_right fun _ => ?_
-    simp [E, List.append_assoc]
+    simp [hAV a, alternation_false_cons, alternation_true_cons, alternation_nil, E,
+      List.append_assoc]
   rw [hA_iff]
   simp only [Set.mem_ofPred_eq, Set.mem_inter_iff]
   constructor
   · intro ha
-    have hK' : (adv (M.eval (enc a).length)).length ≤ K.eval (enc a).length := hK (enc a).length
     have hframe_le : (frame (adv (M.eval (enc a).length))).length ≤ W.eval (enc a).length := by
-      simp only [length_frame, W, Polynomial.eval_add, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, Polynomial.eval_one]
+      have := hK (enc a).length
+      simp only [id_eq, length_frame, W, Polynomial.eval_add,
+        Polynomial.eval_mul, Polynomial.eval_ofNat, Polynomial.eval_one] at this ⊢
       omega
     let w := frame (adv (M.eval (enc a).length)) ++
       List.replicate (W.eval (enc a).length - (frame (adv (M.eval (enc a).length))).length) false
     have hw : w.length = W.eval (enc a).length := by
-      rw [List.length_append, List.length_replicate, Nat.add_sub_cancel' hframe_le]
+      simp only [w, List.length_append, List.length_replicate]; omega
     have hunf : unframe w = adv (M.eval (enc a).length) := unframe_frame_append _ _
     refine ⟨w, hw, fun s hs ⟨hBs, hEs⟩ => ?_, fun u₁ hu₁ => ?_⟩
-    · dsimp only at hs hBs hEs
-      rw [hunf, ← hlen a s hs] at hBs
-      exact (hEB (a, s)).2 hBs hEs
-    · dsimp only at hu₁
-      obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
+    · exact (hEB (a, s)).2 (by rwa [hlen a s hs, ← hunf]) hEs
+    · obtain ⟨u₂, hu₂, hnotE⟩ := ha u₁ hu₁
       have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]
-      refine ⟨u₂, hu₂, ?_⟩
-      dsimp only [Set.mem_ofPred_eq]
-      rw [hunf, ← hlen a (u₁ ++ u₂) hs]
-      exact (hEB (a, u₁ ++ u₂)).1 hnotE
+      exact ⟨u₂, hu₂, by have h := (hEB (a, u₁ ++ u₂)).1 hnotE; rwa [hlen a _ hs, ← hunf] at h⟩
   · rintro ⟨w, -, hSound, hMain⟩ u₁ hu₁
     obtain ⟨u₂, hu₂, hBu⟩ := hMain u₁ hu₁
     have hs : (u₁ ++ u₂).length = m.eval (enc a).length := by simp [m, hu₁, hu₂]
@@ -293,9 +283,7 @@ theorem coNP_encBits_subset_NPPoly_iff :
 theorem NP_encBits_subset_coNPPoly_iff :
     NP encBits ⊆ coNPPoly encBits ↔
       ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ coNPPoly encB := by
-  rw [← coNP_subset_NPPoly_iff, coNP_encBits_subset_NPPoly_iff]
-  exact ⟨fun h _ encB => coNP_subset_NPPoly_iff.1 (h encB),
-    fun h _ encB => coNP_subset_NPPoly_iff.2 (h encB)⟩
+  simp only [← coNP_subset_NPPoly_iff, coNP_encBits_subset_NPPoly_iff]
 
 /-! ### Collapse of the polynomial hierarchy -/
 

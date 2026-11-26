@@ -63,8 +63,7 @@ backwards by a forward implication. This reuses the ordinary implication-clause 
 /-- A link enforces exactly the direction needed for its literal's truth. -/
 theorem eval_link_iff (σ : V → Bool) (b : Bool) (previous next : V) :
     (link b previous next).eval σ = true ↔ (σ next = b → σ previous = b) := by
-  cases b <;> cases hp : σ previous <;> cases hn : σ next <;>
-    simp [link, Clause.eval_imp, hp, hn]
+  grind [link, Clause.eval_imp]
 
 /-- All links hold exactly when literal truth propagates across every gap. -/
 theorem eval_links_iff (σ : V → Bool) (b : Bool) (cells : List (V × V)) :
@@ -91,10 +90,9 @@ theorem propagate (σ : V → Bool) (b : Bool) (first : V × V) (rest : List (V 
   | nil => exact (hcells first List.mem_cons_self).trans hlast
   | cons next rest ih =>
     rw [links_cons_cons, eval_cons, Bool.and_eq_true] at hlinks
-    have hn : σ next.1 = b := ih next
-      (fun c hc => hcells c (List.mem_cons_of_mem _ hc)) hlinks.2
-      (by simpa only [List.getLastD_cons] using hlast)
-    exact (hcells first List.mem_cons_self).trans ((eval_link_iff σ b _ _).1 hlinks.1 hn)
+    exact (hcells first List.mem_cons_self).trans ((eval_link_iff σ b _ _).1 hlinks.1
+      (ih next (fun c hc => hcells c (List.mem_cons_of_mem _ hc)) hlinks.2
+        (by simpa only [List.getLastD_cons] using hlast)))
 
 /-- The propagation rule for a possibly empty list, with nonemptiness stated explicitly.
 The fallback only makes the endpoint expressions total; it is unused under this hypothesis. -/
@@ -169,20 +167,20 @@ theorem eval_replacementClauses_iff (φ : CNF V) (wire : Occurrence V → List (
       ∀ clause ci, (clause, ci) ∈ φ.zipIdx → ∃ lit li, (lit, li) ∈ clause.zipIdx ∧
         σ ((wire ⟨ci, li, lit⟩).getLastD (fallback, fallback)).2 = lit.2 := by
   rw [replacementClauses, eval_map_eq_true_iff, Prod.forall]
-  refine forall₂_congr fun clause ci => forall_congr' fun _ => ?_
+  refine forall₂_congr fun clause _ => forall_congr' fun _ => ?_
   rw [Clause.eval_eq_true_iff]
   constructor
-  · rintro ⟨_, hmem, htruth⟩
-    obtain ⟨⟨lit, li⟩, hl, rfl⟩ := List.mem_map.mp hmem
-    exact ⟨lit, li, hl, htruth⟩
-  · rintro ⟨lit, li, hl, htruth⟩
-    exact ⟨_, List.mem_map.mpr ⟨(lit, li), hl, rfl⟩, htruth⟩
+  · rintro ⟨_, hm, ht⟩
+    obtain ⟨⟨lit, li⟩, hl, rfl⟩ := List.mem_map.mp hm
+    exact ⟨lit, li, hl, ht⟩
+  · rintro ⟨lit, li, hl, ht⟩
+    exact ⟨_, List.mem_map.mpr ⟨(lit, li), hl, rfl⟩, ht⟩
 
 /-- The global link block holds exactly when every occurrence's wire links hold. -/
 theorem eval_allLinks_iff (φ : CNF V) (wire : Occurrence V → List (W × W)) (σ : W → Bool) :
     (allLinks φ wire).eval σ = true ↔
-      ∀ o ∈ Cslib.Logic.PL.occurrences φ, (links o.lit.2 (wire o)).eval σ = true := by
-  exact eval_flatMap_eq_true_iff σ _ _
+      ∀ o ∈ Cslib.Logic.PL.occurrences φ, (links o.lit.2 (wire o)).eval σ = true :=
+  eval_flatMap_eq_true_iff σ _ _
 
 /-- Satisfaction projects back to the ordinary source formula when the caller proves local
 cell equality and agreement between the first entries and source variable values. -/
@@ -193,19 +191,14 @@ theorem eval_assemble_sound (φ : CNF V) (wire : Occurrence V → List (W × W))
     (hfirst : ∀ o ∈ Cslib.Logic.PL.occurrences φ,
       σ ((wire o).headD (fallback, fallback)).1 = τ o.lit.1)
     (h : (assemble φ wire fallback).eval σ = true) : φ.eval τ = true := by
-  have h' := h
-  rw [assemble, eval_append, Bool.and_eq_true] at h'
-  have hr := (eval_replacementClauses_iff φ wire fallback σ).1 h'.1
-  have hw := (eval_allLinks_iff φ wire σ).1 h'.2
+  rw [assemble, eval_append, Bool.and_eq_true, eval_replacementClauses_iff, eval_allLinks_iff] at h
   rw [← List.zipIdx_map_fst 0 φ, eval_map_eq_true_iff, Prod.forall]
   intro clause ci hc
-  obtain ⟨lit, li, hl, hv⟩ := hr clause ci hc
+  obtain ⟨lit, li, hl, hv⟩ := h.1 clause ci hc
   have ho := mk_mem_occurrences_of_mem_zipIdx hc hl
-  apply (Clause.eval_eq_true_iff τ clause).2
-  refine ⟨lit, List.fst_mem_of_mem_zipIdx hl, ?_⟩
-  have hp := propagate_of_ne_nil σ lit.2 fallback (wire ⟨ci, li, lit⟩)
-    (hne _ ho) (hcells _ ho) (hw _ ho) hv
-  exact (hfirst _ ho).symm.trans hp
+  exact (Clause.eval_eq_true_iff τ clause).2 ⟨lit, List.fst_mem_of_mem_zipIdx hl,
+    (hfirst _ ho).symm.trans (propagate_of_ne_nil σ lit.2 fallback _ (hne _ ho) (hcells _ ho)
+      (h.2 _ ho) hv)⟩
 
 /-- A source satisfying assignment extends through the link assembly whenever the caller
 supplies one compatible target assignment constant along each occurrence's nonempty wire.
@@ -241,14 +234,9 @@ theorem eval_assemble_complete (φ : CNF V) (wire : Occurrence V → List (W × 
 /-- Clause replacement preserves all original clause widths. -/
 theorem map_length_replacementClauses (φ : CNF V) (wire : Occurrence V → List (W × W))
     (fallback : W) : (replacementClauses φ wire fallback).map List.length = φ.map List.length := by
-  calc
-    (replacementClauses φ wire fallback).map List.length
-      = (φ.zipIdx.map Prod.fst).map List.length := by
-          simp only [replacementClauses, List.map_map, Function.comp_def]
-          refine List.map_congr_left ?_
-          rintro ⟨clause, ci⟩ _
-          simp only [List.length_map, List.length_zipIdx]
-    _ = φ.map List.length := by rw [List.zipIdx_map_fst]
+  conv_rhs => rw [← List.zipIdx_map_fst 0 φ, List.map_map]
+  simp only [replacementClauses, List.map_map, Function.comp_def, List.length_map,
+    List.length_zipIdx]
 
 /-- The link block has one clause per gap of each occurrence's wire. -/
 theorem length_allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)) :
@@ -276,9 +264,9 @@ theorem length_vars_allLinks (φ : CNF V) (wire : Occurrence V → List (W × W)
         2 * (os.map fun o => (wire o).length - 1).sum := by
     induction os with
     | nil => rfl
-    | cons o os ih =>
-      rw [List.flatMap_cons, CNF.vars_append, List.length_append, length_vars_links, ih]
-      simp only [List.map_cons, List.sum_cons, Nat.mul_add]
+    | cons _ _ ih =>
+      simp only [List.flatMap_cons, CNF.vars_append, List.length_append, length_vars_links, ih,
+        List.map_cons, List.sum_cons, Nat.mul_add]
   exact total _
 
 /-- Exact total literal count, with no distinctness assumptions on signal variables. -/

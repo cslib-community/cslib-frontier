@@ -142,9 +142,8 @@ private theorem natCast_powMod {N : ℕ} (hN : N ≠ 0) (x e : ℕ) :
 /-- For `0 < N` and `0 < e`, if `b ^ e mod N` is a unit modulo `N`, then so is `b`. -/
 private theorem coprime_of_coprime_powMod {N b e : ℕ} (hN : 0 < N) (he : 0 < e)
     (h : Nat.Coprime (powMod N b e) N) : Nat.Coprime b N := by
-  refine (Nat.coprime_pow_left_iff he b N).mp ?_
-  rw [Nat.Coprime, ← (Nat.mod_modEq (b ^ e) N).gcd_eq, ← powMod_of_ne_zero hN.ne']
-  exact h
+  rw [powMod_of_ne_zero hN.ne', Nat.Coprime, (Nat.mod_modEq (b ^ e) N).gcd_eq] at h
+  exact (Nat.coprime_pow_left_iff he b N).mp h
 
 section Accumulator
 
@@ -185,8 +184,7 @@ theorem guoVerifySubset_subsetWitness [DecidableEq X] (N g : ℕ) (H : X → ℕ
     guoVerifySubset N (guoCommit N g H S) (guoExponent H T) (guoSubsetWitness N g H S T) =
       true := by
   rw [guoVerifySubset, guoSubsetWitness, powMod_powMod, guoCommit, guoExponent, guoExponent,
-    guoExponent, Finset.prod_sdiff hT]
-  exact beq_self_eq_true _
+    guoExponent, Finset.prod_sdiff hT, beq_self_eq_true]
 
 /-- Correctness of membership proofs ([BonehShoup2023], §10.9, pp. 421–422): for `x ∈ S`, Alice's
 proof `π_x` verifies against the commitment to `S`. -/
@@ -209,8 +207,7 @@ theorem guoVerifySubset_pair [DecidableEq X] (N g : ℕ) (H : X → ℕ) {S : Fi
 the exponent `e * f`, then `b ^ f mod N` passes it with the exponent `e`. -/
 theorem guoVerifySubset_split {N c e f b : ℕ} (h : guoVerifySubset N c (e * f) b = true) :
     guoVerifySubset N c e (powMod N b f) = true := by
-  rw [guoVerifySubset, powMod_powMod, mul_comm]
-  exact h
+  rwa [guoVerifySubset, powMod_powMod, mul_comm]
 
 /-- Anyone can aggregate two membership proofs ([BonehShoup2023], §10.9, pp. 422–423): if `b₁`
 and `b₂` pass Bob's check against a unit `c` with coprime exponents `e` and `f`, then Shamir's
@@ -262,13 +259,10 @@ private theorem dvd_guoNonMemCoeff_mul_add_one {h E : ℕ} (hh : 0 < h) (hcop : 
     h ∣ guoNonMemCoeff h E * E + 1 := by
   have hr : E % h < h := Nat.mod_lt _ hh
   have hc : Nat.Coprime (h - E % h) h := by
-    refine (Nat.coprime_self_sub_left hr.le).mpr ?_
-    rw [Nat.Coprime, (Nat.mod_modEq E h).gcd_eq]
-    exact hcop.symm
-  have h1 : (h - E % h) * guoNonMemCoeff h E ≡ 1 [MOD h] := BinaryGcd.mul_modInv_modEq_one hh hc
+    rwa [Nat.coprime_self_sub_left hr.le, Nat.Coprime, (Nat.mod_modEq E h).gcd_eq, Nat.gcd_comm]
   have h2 : guoNonMemCoeff h E * E + 1 ≡
       guoNonMemCoeff h E * (E % h) + (h - E % h) * guoNonMemCoeff h E [MOD h] :=
-    ((Nat.mod_modEq E h).symm.mul_left _).add h1.symm
+    ((Nat.mod_modEq E h).symm.mul_left _).add (BinaryGcd.mul_modInv_modEq_one hh hc).symm
   rw [mul_comm (guoNonMemCoeff h E) (E % h), ← add_mul, Nat.add_sub_cancel' hr.le] at h2
   exact Nat.modEq_zero_iff_dvd.mp (h2.trans (Nat.mul_mod_right h _))
 
@@ -280,22 +274,18 @@ theorem guoVerifyNonMem_witness {N g h E : ℕ} (hg : Nat.Coprime g N) (hh : 0 <
     guoVerifyNonMem N g (powMod N g E) h (guoNonMemWitness N g h E)
       (-(guoNonMemCoeff h E : ℤ)) = true := by
   obtain ⟨β, hβ⟩ := dvd_guoNonMemCoeff_mul_add_one hh hcop
-  have hwit : guoNonMemWitness N g h E = powMod N g β := by
-    rw [guoNonMemWitness, hβ, Nat.mul_div_cancel_left _ hh]
-  rw [guoVerifyNonMem, hwit]
+  rw [guoVerifyNonMem, guoNonMemWitness, hβ, Nat.mul_div_cancel_left _ hh]
   simp only [powMod_powMod, Int.natAbs_neg, Int.natAbs_natCast, Bool.and_eq_true,
     decide_eq_true_eq]
   refine ⟨coprime_powMod hg E, ?_⟩
   rcases Nat.eq_zero_or_pos N with rfl | hN
-  · obtain rfl : g = 1 := Nat.coprime_zero_right g |>.mp hg
+  · obtain rfl : g = 1 := (Nat.coprime_zero_right g).mp hg
     split_ifs <;> simp [powMod]
   · generalize guoNonMemCoeff h E = k at hβ ⊢
     rcases Nat.eq_zero_or_pos k with rfl | hk
-    · have hβ1 : β * h = 1 := by rw [mul_comm]; omega
-      simp [hβ1, powMod_of_ne_zero hN.ne']
-    · have hneg : -(k : ℤ) < 0 := by omega
-      rw [ite_eq_left hneg, beq_iff_eq, powMod_of_ne_zero hN.ne', powMod_of_ne_zero hN.ne',
-        Nat.mul_mod_mod, ← pow_succ', mul_comm β h, ← hβ, mul_comm E k]
+    · simp [show β * h = 1 by rw [mul_comm]; omega, powMod_of_ne_zero hN.ne']
+    · rw [ite_eq_left (by omega : -(k : ℤ) < 0), beq_iff_eq, powMod_of_ne_zero hN.ne',
+        powMod_of_ne_zero hN.ne', Nat.mul_mod_mod, ← pow_succ', mul_comm β h, ← hβ, mul_comm E k]
 
 /-- For a prime `H x` distinct from the hashes of the elements of `S`, which are prime too, `H x`
 is coprime to the exponent `E` of `S` ([BonehShoup2023], §10.9, p. 422). -/
@@ -310,8 +300,7 @@ prime and `gcd(H(x), E) ≠ 1`, then some `y ∈ S` with `y ≠ x` has `H y = H 
 theorem exists_collision_of_not_coprime_guoExponent {H : X → ℕ} {S : Finset X} {x : X}
     (hx : (H x).Prime) (hS : ∀ y ∈ S, (H y).Prime) (hxS : x ∉ S)
     (h : ¬ Nat.Coprime (H x) (guoExponent H S)) : ∃ y ∈ S, y ≠ x ∧ H y = H x := by
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   exact h (coprime_guoExponent hx hS fun y hy => hno y hy (ne_of_mem_of_not_mem hy hxS))
 
 /-- Correctness of non-membership proofs for a committed set ([BonehShoup2023], §10.9,
@@ -342,32 +331,30 @@ theorem powMod_guoForgeryRoot {N g c h a b : ℕ} {γ : ℤ}
     (hmem : guoVerifySubset N c h a = true) (hnon : guoVerifyNonMem N g c h b γ = true) :
     powMod N (guoForgeryRoot N a b γ) h = g % N := by
   simp only [guoVerifySubset, beq_iff_eq] at hmem
-  simp only [guoVerifyNonMem, Bool.and_eq_true, decide_eq_true_eq] at hnon
-  obtain ⟨hcN, hbranch⟩ := hnon
+  obtain ⟨hcN, hbranch⟩ : Nat.Coprime c N ∧ _ := by
+    simpa only [guoVerifyNonMem, Bool.and_eq_true, decide_eq_true_eq] using hnon
   rcases Nat.eq_zero_or_pos N with rfl | hN
-  · obtain rfl : c = 1 := Nat.coprime_zero_right c |>.mp hcN
+  · obtain rfl : c = 1 := (Nat.coprime_zero_right c).mp hcN
     split_ifs at hbranch <;> simp_all [powMod]
-  have hN' := hN.ne'
-  have hc : (c : ZMod N) = (a : ZMod N) ^ h := by rw [← hmem, natCast_powMod hN']
-  have hcast {x y : ℕ} (hxy : x = y) : (x : ZMod N) = y := congrArg _ hxy
-  rw [powMod_of_ne_zero hN', ← ZMod.natCast_eq_natCast_iff', Nat.cast_pow, guoForgeryRoot,
-    ZMod.natCast_mod, Nat.cast_mul, natCast_powMod hN', mul_pow, ← pow_mul, mul_comm _ h]
+  have hc : (c : ZMod N) = (a : ZMod N) ^ h := by rw [← hmem, natCast_powMod hN.ne']
+  rw [powMod_of_ne_zero hN.ne', ← ZMod.natCast_eq_natCast_iff', Nat.cast_pow, guoForgeryRoot,
+    ZMod.natCast_mod, Nat.cast_mul, natCast_powMod hN.ne', mul_pow, ← pow_mul, mul_comm _ h]
   by_cases hγ : γ < 0
   · rw [ite_eq_left hγ, beq_iff_eq] at hbranch
-    rw [ite_eq_left hγ]
     have hb : (b : ZMod N) ^ h = g * (c : ZMod N) ^ γ.natAbs := by
-      simpa [natCast_powMod hN', ZMod.natCast_mod] using hcast hbranch
+      simpa [natCast_powMod hN.ne', ZMod.natCast_mod] using
+        congrArg (Nat.cast : ℕ → ZMod N) hbranch
     rcases Nat.eq_zero_or_pos h with rfl | hh
-    · simpa [hc] using hb
-    have ha : Nat.Coprime a N := coprime_of_coprime_powMod hN hh (hmem ▸ hcN)
+    · simpa [hγ, hc] using hb
     have hinv : (a : ZMod N) * (BinaryGcd.modInv a N : ZMod N) = 1 := by
-      simpa using (ZMod.natCast_eq_natCast_iff _ _ _).mpr (BinaryGcd.mul_modInv_modEq_one hN ha)
-    rw [hb, hc, ← pow_mul, mul_assoc, ← mul_pow, hinv, one_pow, mul_one]
+      simpa using (ZMod.natCast_eq_natCast_iff _ _ _).mpr
+        (BinaryGcd.mul_modInv_modEq_one hN (coprime_of_coprime_powMod hN hh (hmem ▸ hcN)))
+    rw [ite_eq_left hγ, hb, hc, ← pow_mul, mul_assoc, ← mul_pow, hinv, one_pow, mul_one]
   · rw [ite_eq_right hγ, beq_iff_eq] at hbranch
-    rw [ite_eq_right hγ]
     have hb : (b : ZMod N) ^ h * (c : ZMod N) ^ γ.natAbs = g := by
-      simpa [natCast_powMod hN', ZMod.natCast_mod] using hcast hbranch
-    rw [← hb, hc, ← pow_mul]
+      simpa [natCast_powMod hN.ne', ZMod.natCast_mod] using
+        congrArg (Nat.cast : ℕ → ZMod N) hbranch
+    rw [ite_eq_right hγ, ← hb, hc, ← pow_mul]
 
 /-! ### Polynomial-time certificates -/
 
@@ -389,19 +376,14 @@ theorem computableInPolyTime_guoVerifyNonMem {N g c h b : α → ℕ} {γ : α �
     (hb : ComputableInPolyTime b enc encNat) (hγ : ComputableInPolyTime γ enc encIntBin) :
     ComputableInPolyTime (fun a => guoVerifyNonMem (N a) (g a) (c a) (h a) (b a) (γ a))
       enc encBool := by
-  have habs : ComputableInPolyTime (fun a => (γ a).natAbs) enc encNat :=
-    ComputableInPolyTime.intBin_natAbs.comp hγ
   have hbh := computableInPolyTime_powMod hN hb hh
-  have hcγ := computableInPolyTime_powMod hN hc habs
-  exact ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.binary_gcd' hc hN)
-      (ComputableInPolyTime.const 1))
-    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.intBin_isNeg.comp hγ)
-      (ComputableInPolyTime.beq hbh
-        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hg hcγ) hN))
-      (ComputableInPolyTime.beq
-        (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN)
-        (ComputableInPolyTime.binary_mod' hg hN)))
+  have hcγ := computableInPolyTime_powMod hN hc (e := fun a => (γ a).natAbs) (by fun_prop)
+  have hm1 := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hg hcγ) hN
+  have hm2 := ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN
+  have hm3 := ComputableInPolyTime.binary_mod' hg hN
+  have hcop : ComputableInPolyTime (fun a => decide (Nat.Coprime (c a) (N a))) enc encBool := by
+    fun_prop [Nat.Coprime]
+  fun_prop [guoVerifyNonMem]
 
 /-- Alice's exponent `E` for the set of elements of a list is computable in polynomial time whenever
 the list is, on `encList encX`, and `H` is, with binary values. The machine erases the list's
@@ -418,12 +400,13 @@ theorem computableInPolyTime_guoExponent_toFinset {β : Type} [DecidableEq β]
       (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.fst _ _).snd'
         (ComputableInPolyTime.snd _ _))
   have hset (a : α) : ((l a).eraseDupsBy fun x y => decide (x = y)).toFinset = (l a).toFinset :=
-    Finset.ext fun x => by simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
-  rw [show (fun a => guoExponent H (l a).toFinset) =
-      fun a => (((l a).eraseDupsBy fun x y => decide (x = y)).map H).prod from
+    Finset.ext fun _ => by simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
+  have hfn : (fun a => guoExponent H (l a).toFinset) =
+      fun a => (((l a).eraseDupsBy fun x y => decide (x = y)).map H).prod :=
     funext fun a => by
       rw [← hset a]
-      exact List.prod_toFinset H (List.nodup_eraseDupsBy_eq _)]
+      exact List.prod_toFinset H (List.nodup_eraseDupsBy_eq _)
+  rw [hfn]
   exact ComputableInPolyTime.binary_prod.comp ((ComputableInPolyTime.map hH).comp he)
 
 /-- Alice's commitment to the set of elements of a list is computable in polynomial time whenever
@@ -439,6 +422,7 @@ theorem computableInPolyTime_guoCommit_toFinset {β : Type} [DecidableEq β]
 
 /-- Alice's non-membership coefficient `guoNonMemCoeff h E`, the natural number `-γ` on `encNat`,
 is computable in polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. -/
+@[local fun_prop]
 theorem computableInPolyTime_guoNonMemCoeff {h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
     ComputableInPolyTime (fun a => guoNonMemCoeff (h a) (E a)) enc encNat :=
@@ -450,9 +434,8 @@ polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. This i
 in `guoVerifyNonMem_witness` and `computableInPolyTime_guoVerifyNonMem`. -/
 theorem computableInPolyTime_neg_guoNonMemCoeff {h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
-    ComputableInPolyTime (fun a => -(guoNonMemCoeff (h a) (E a) : ℤ)) enc encIntBin :=
-  ComputableInPolyTime.intBin_neg.comp
-    (ComputableInPolyTime.intBin_natCast.comp (computableInPolyTime_guoNonMemCoeff hh hE))
+    ComputableInPolyTime (fun a => -(guoNonMemCoeff (h a) (E a) : ℤ)) enc encIntBin := by
+  fun_prop
 
 /-- Alice's non-membership group element is computable in polynomial time whenever `N`, `g`, `h`
 and `E` are, as natural numbers on `encNat`. -/
@@ -461,10 +444,7 @@ theorem computableInPolyTime_guoNonMemWitness {N g h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
     ComputableInPolyTime (fun a => guoNonMemWitness (N a) (g a) (h a) (E a)) enc encNat :=
   computableInPolyTime_powMod hN hg
-    (ComputableInPolyTime.binary_div'
-      (ComputableInPolyTime.binary_add'
-        (ComputableInPolyTime.binary_mul' (computableInPolyTime_guoNonMemCoeff hh hE) hE)
-        (ComputableInPolyTime.const 1)) hh)
+    (e := fun a => (guoNonMemCoeff (h a) (E a) * E a + 1) / h a) (by fun_prop)
 
 /-- The root `guoForgeryRoot` is computable in polynomial time whenever `N`, `a` and `b` are, as
 natural numbers on `encNat`, and `γ` is, as an integer on `encIntBin`. -/
@@ -475,8 +455,7 @@ theorem computableInPolyTime_guoForgeryRoot {N a b : α → ℕ} {γ : α → �
   ComputableInPolyTime.binary_mod'
     (ComputableInPolyTime.binary_mul' hb
       (computableInPolyTime_powMod hN
-        (ComputableInPolyTime.ite_decide (ComputableInPolyTime.intBin_isNeg.comp hγ)
-          (ComputableInPolyTime.binary_modInv' ha hN) ha)
-        (ComputableInPolyTime.intBin_natAbs.comp hγ))) hN
+        (x := fun x => if γ x < 0 then BinaryGcd.modInv (a x) (N x) else a x)
+        (e := fun x => (γ x).natAbs) (by fun_prop) (by fun_prop))) hN
 
 end Cslib.Crypto

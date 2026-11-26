@@ -101,4 +101,12 @@ theorem depth_balanced_le (op : Circuit σ (r + r) r) (unit : Circuit σ n r)
   List.apply_balancedFold_le depth (fun C D' => (depth_comp_le _ _).trans
     ((Nat.add_comm _ _).trans_le (Nat.add_le_add_right (depth_append_le C D') _))) hl hunit
 
+/-- Depth of a balanced tree of circuits, combining the leaf bound `D` and the empty-list fallback
+with `max`. -/
+theorem depth_balanced_le_max (op : Circuit σ (r + r) r) (unit : Circuit σ n r)
+    {l : List (Circuit σ n r)} {D : ℕ} (hl : ∀ C ∈ l, C.depth ≤ D) :
+    (balanced op unit l).depth ≤ max D unit.depth + op.depth * Nat.clog 2 l.length :=
+  depth_balanced_le op unit (fun C hC => (hl C hC).trans (Nat.le_max_left _ _))
+    (fun _ => Nat.le_max_right _ _)
+
 end Cslib.Circuits.Circuit

@@ -74,10 +74,9 @@ theorem unitPath_eq_subdivide (G : Graph)
     exact Layout.route_wireLength_le hi
       (List.idxOf_lt_length_iff.2 (hG _ (List.getElem_mem hi)).1)
       (List.idxOf_lt_length_iff.2 (hG _ (List.getElem_mem hi)).2) _ _
-  unfold unitPath
-  rw [List.getD_eq_getElem _ _ (by simpa using hi)]
-  simp only [unitPaths, List.getElem_map]
-  exact subdivideWithin_eq_of_wireLength_le (canonical_orthogonal G hG hloop hi) hwire
+  rw [unitPath, List.getD_eq_getElem _ _ (by simpa using hi)]
+  simpa only [unitPaths, List.getElem_map] using
+    subdivideWithin_eq_of_wireLength_le (canonical_orthogonal G hG hloop hi) hwire
 
 /-- Canonical unit paths preserve both original indexed edge endpoints. -/
 theorem unitPath_endpoints (G : Graph)
@@ -118,13 +117,8 @@ theorem unitPath_first_neighbor (G : Graph)
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
     simp [Layout.route, List.consecutivePairs]
   rw [Layout.fanWalk] at hf
-  have hp : [_ , _] <:+: [Layout.center (G.vertices.idxOf (G.edgeEndpoint i false)),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i false)) +
-        Layout.portStep (portAt G.canonicalPorts i false),
-      Layout.elbow (G.vertices.idxOf (G.edgeEndpoint i false))
-        (portAt G.canonicalPorts i false)] := ⟨[], [_], rfl⟩
   exact (infix_head_pair_getD (unitPath_nodup G hG hloop hi)
-    (hp.trans hf) (unitPath_endpoints G hG hloop hi).1 d).2
+    (List.IsInfix.trans ⟨[], [_], rfl⟩ hf) (unitPath_endpoints G hG hloop hi).1 d).2
 
 /-- The penultimate unit point is the target center plus its canonical port direction. -/
 theorem unitPath_last_neighbor (G : Graph)
@@ -145,13 +139,8 @@ theorem unitPath_last_neighbor (G : Graph)
     rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
     simp [Layout.route, List.consecutivePairs]
   rw [Layout.returnFanWalk] at hf
-  have hp : [_ , _] <:+: [Layout.elbow (G.vertices.idxOf (G.edgeEndpoint i true))
-      (portAt G.canonicalPorts i true),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i true)) +
-        Layout.portStep (portAt G.canonicalPorts i true),
-      Layout.center (G.vertices.idxOf (G.edgeEndpoint i true))] := ⟨[_], [], rfl⟩
   exact (infix_last_pair_getD (unitPath_nodup G hG hloop hi)
-    (hp.trans hf) (unitPath_endpoints G hG hloop hi).2 d).2
+    (List.IsInfix.trans ⟨[_], [], rfl⟩ hf) (unitPath_endpoints G hG hloop hi).2 d).2
 
 /-- The immediate unit neighbor at a chosen end of an indexed canonical path. -/
 def endpointNeighbor (G : Graph) (i : ℕ) (side : Bool) : Point :=
@@ -166,8 +155,8 @@ theorem endpointNeighbor_eq (G : Graph)
     G.endpointNeighbor i side = Layout.center (G.vertices.idxOf (G.edgeEndpoint i side)) +
       Layout.portStep (portAt G.canonicalPorts i side) := by
   cases side
-  · exact unitPath_first_neighbor G hG hloop hi (0, 0)
-  · exact unitPath_last_neighbor G hG hloop hi (0, 0)
+  exacts [unitPath_first_neighbor G hG hloop hi (0, 0),
+    unitPath_last_neighbor G hG hloop hi (0, 0)]
 
 /-- Different edge occurrences at the same source center use different unit neighbors. -/
 theorem endpointNeighbor_ne (G : Graph)
@@ -215,9 +204,8 @@ theorem unitPath_bounds (G : Graph)
     {p : Point} (hp : p ∈ G.unitPath i) :
     0 ≤ p.1 ∧ p.1 ≤ 8 * (G.vertices.length : ℤ) ∧
       0 ≤ p.2 ∧ p.2 ≤ 8 * (G.vertices.length : ℤ) + 2 * G.edges.length := by
-  have hp' := (mem_unitPath_iff_support G hG hloop hi p).1 hp
-  apply point_bounds_of_mem_support (canonical_orthogonal G hG hloop hi) _ hp'
-  intro q hq
+  refine point_bounds_of_mem_support (canonical_orthogonal G hG hloop hi) (fun q hq => ?_)
+    ((mem_unitPath_iff_support G hG hloop hi p).1 hp)
   rw [getElem_orthogonalRoutes G G.canonicalPorts hi] at hq
   exact Layout.route_bounds hi (List.idxOf_lt_length_iff.2 (hG _ (List.getElem_mem hi)).1)
     (List.idxOf_lt_length_iff.2 (hG _ (List.getElem_mem hi)).2) _ _ hq
@@ -227,10 +215,8 @@ theorem unitPath_ne_nil (G : Graph)
     (hG : ∀ edge ∈ G.edges, edge.1 ∈ G.vertices ∧ edge.2 ∈ G.vertices)
     (hloop : ∀ edge ∈ G.edges, edge.1 ≠ edge.2) {i : ℕ} (hi : i < G.edges.length) :
     G.unitPath i ≠ [] := by
-  intro h
-  have he := (unitPath_endpoints G hG hloop hi).1
-  rw [h] at he
-  cases he
+  rintro h
+  simpa [h] using (unitPath_endpoints G hG hloop hi).1
 
 /-- A source grid center lies on a canonical unit path exactly when its position index is one
 of that graph edge's two endpoint indices. -/
@@ -268,15 +254,8 @@ theorem unitPath_not_endpoints (G : Graph)
     List.mem_map.2 ⟨_, List.mem_range.2
       (List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hi side)), rfl⟩
   have he := unitPath_endpoints G hG hloop hi
-  constructor
-  · intro hp
-    apply hcenter
-    rw [← Option.some.inj (he.1.symm.trans hp)]
-    exact hcenters false
-  · intro hp
-    apply hcenter
-    rw [← Option.some.inj (he.2.symm.trans hp)]
-    exact hcenters true
+  exact ⟨fun hp => hcenter (Option.some.inj (he.1.symm.trans hp) ▸ hcenters false),
+    fun hp => hcenter (Option.some.inj (he.2.symm.trans hp) ▸ hcenters true)⟩
 
 /-- An occupied point away from source centers has a genuine predecessor and successor at
 every occurrence index. Together with `unitPath_nodup`, that occurrence index is unique. -/
@@ -286,21 +265,18 @@ theorem unitPath_interior_index (G : Graph)
     (hk : k < (G.unitPath i).length) {p : Point} (heq : (G.unitPath i)[k] = p)
     (hcenter : p ∉ G.orthogonalPositions) : 0 < k ∧ k + 1 < (G.unitPath i).length := by
   have hne := unitPath_not_endpoints G hG hloop hi hcenter
-  constructor
-  · by_contra h
-    apply hne.1
-    obtain rfl : k = 0 := by omega
-    rw [List.head?_eq_getElem?, List.getElem?_eq_getElem hk, heq]
-  · by_contra h
-    apply hne.2
-    rw [List.getLast?_eq_getElem?, show (G.unitPath i).length - 1 = k by omega,
-      List.getElem?_eq_getElem hk, heq]
+  refine ⟨Nat.pos_of_ne_zero fun h =>
+    hne.1 (by rw [List.head?_eq_getElem?, ← h, List.getElem?_eq_getElem hk, heq]),
+    by_contra fun h => hne.2 ?_⟩
+  have hk' : (G.unitPath i).length - 1 = k := by omega
+  rw [List.getLast?_eq_getElem?, hk', List.getElem?_eq_getElem hk, heq]
 
 private theorem pair_mem_at {r : Route} {k : ℕ} (hk : k + 1 < r.length) :
     (r[k], r[k + 1]) ∈ r.consecutivePairs := by
-  have hlen : k < r.consecutivePairs.length := by grind
-  have hm : r.consecutivePairs[k] ∈ r.consecutivePairs := List.getElem_mem hlen
-  simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using hm
+  have hlen : k < r.consecutivePairs.length := by
+    simp only [List.consecutivePairs, List.length_zip, List.length_tail]; omega
+  simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
+    List.getElem_mem hlen
 
 /-- The two actual predecessor/successor lookups at a nonvertex cell are unit neighbors. -/
 theorem unitPath_neighbor_lengths (G : Graph)
@@ -314,11 +290,9 @@ theorem unitPath_neighbor_lengths (G : Graph)
   have hprev : k - 1 < (G.unitPath i).length := by omega
   rw [List.getD_eq_getElem _ _ hprev, List.getD_eq_getElem _ _ hlast]
   constructor
-  · have hpair := pair_mem_at (r := G.unitPath i) (k := k - 1) (by omega)
-    have h := unitPath_unit G hG hloop hi hpair
-    simpa only [Nat.sub_add_cancel (show 1 ≤ k by omega), heq] using h
-  · have h := unitPath_unit G hG hloop hi (pair_mem_at hlast)
-    simpa only [heq] using h
+  · simpa only [Nat.sub_add_cancel h0, heq] using
+      unitPath_unit G hG hloop hi (pair_mem_at (k := k - 1) (by omega))
+  · simpa only [heq] using unitPath_unit G hG hloop hi (pair_mem_at hlast)
 
 /-- A nonvertex cell's predecessor and successor are distinct, so its two ports differ. -/
 theorem unitPath_neighbors_distinct (G : Graph)
@@ -328,10 +302,9 @@ theorem unitPath_neighbors_distinct (G : Graph)
     (hcenter : p ∉ G.orthogonalPositions) :
     (G.unitPath i).getD (k - 1) p ≠ (G.unitPath i).getD (k + 1) p := by
   obtain ⟨h0, hlast⟩ := unitPath_interior_index G hG hloop hi hk heq hcenter
-  rw [List.getD_eq_getElem _ _ (show k - 1 < (G.unitPath i).length by omega),
-    List.getD_eq_getElem _ _ hlast]
-  intro h
-  have hindex := (unitPath_nodup G hG hloop hi).getElem_inj_iff.1 h
+  have hprev : k - 1 < (G.unitPath i).length := by omega
+  rw [List.getD_eq_getElem _ _ hprev, List.getD_eq_getElem _ _ hlast, ne_eq,
+    (unitPath_nodup G hG hloop hi).getElem_inj_iff]
   omega
 
 /-- The vertical column assigned to one canonical graph incidence. -/
@@ -359,9 +332,8 @@ theorem BridgeStemCrossing.horizontal {G : Graph} {i j : ℕ} {side : Bool} {p :
       p.1 < max (G.pathColumn i false) (G.pathColumn i true) := by
   have hp := hc.point
   rcases hc with ⟨_, _, _, hlo, hhi, _⟩ | ⟨_, _, _, hlo, hhi, _⟩
-  · simpa only [hp, pathColumn, Layout.elbow] using And.intro hlo hhi
-  · simp only [pathColumn, Layout.elbow, min_self, max_self] at hlo hhi
-    omega
+  · simpa only [hp, pathColumn, Layout.elbow] using ⟨hlo, hhi⟩
+  · simp only [pathColumn, Layout.elbow, min_self, max_self] at hlo hhi; omega
 
 /-- The crossing lies strictly above the stem's elbow and below its top endpoint. -/
 theorem BridgeStemCrossing.vertical {G : Graph}
@@ -375,11 +347,8 @@ theorem BridgeStemCrossing.vertical {G : Graph}
     (List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hj side))
     (portAt G.canonicalPorts j side)
   rcases hc with ⟨_, _, _, _, _, hlo, hhi⟩ | ⟨_, _, _, hlo, hhi, _⟩
-  · rw [hp]
-    change _ < Layout.track G.vertices.length i ∧ _
-    omega
-  · simp only [pathColumn, Layout.elbow, min_self, max_self] at hlo hhi
-    omega
+  · simp only [hp]; omega
+  · simp only [pathColumn, Layout.elbow, min_self, max_self] at hlo hhi; omega
 
 /-- Actual contact of two distinct canonical unit paths is a vertex center or a strict
 bridge/stem crossing, in one of the two orientations. -/
@@ -406,16 +375,11 @@ theorem unitPath_contact (G : Graph)
     (canonical_index_port_ne G hG hdeg hi hj hij true false)
     (canonical_index_port_ne G hG hdeg hi hj hij true true) hp' hq'
   rcases hc with ⟨w, hw, _, heq⟩ | h | h | h | h
-  · apply Or.inl
-    have hw' : w < G.vertices.length := by
-      rcases hw with rfl | rfl
-      · exact hindex i hi false
-      · exact hindex i hi true
-    exact List.mem_map.2 ⟨w, List.mem_range.2 hw', (realPoint_injective heq).symm⟩
-  · exact Or.inr (Or.inl ⟨false, h⟩)
-  · exact Or.inr (Or.inl ⟨true, h⟩)
-  · exact Or.inr (Or.inr ⟨false, h⟩)
-  · exact Or.inr (Or.inr ⟨true, h⟩)
+  exacts [.inl (List.mem_map.2 ⟨w, List.mem_range.2
+      (hw.elim (fun h => h ▸ hindex i hi false) (fun h => h ▸ hindex i hi true)),
+      (realPoint_injective heq).symm⟩),
+    .inr (.inl ⟨false, h⟩), .inr (.inl ⟨true, h⟩),
+    .inr (.inr ⟨false, h⟩), .inr (.inr ⟨true, h⟩)]
 
 /-- Unique canonical tracks and incidence columns admit at most the named two paths through
 their intersection, independently of whether that intersection is actually occupied. -/
@@ -442,27 +406,19 @@ theorem unitPath_on_column_track (G : Graph)
   have hstem (b : Bool) (hs : realPoint (G.pathColumn j side, Layout.track G.vertices.length i) ∈
       Layout.stem G.vertices.length k (G.vertices.idxOf (G.edgeEndpoint k b))
         (portAt G.canonicalPorts k b)) : k = i ∨ k = j := by
-    by_cases hkj : k = j
-    · exact Or.inr hkj
-    · have hx := (Layout.mem_stem.1 hs).1
-      change (G.pathColumn j side : ℝ) = (G.pathColumn k b : ℝ) at hx
-      have hx' : G.pathColumn j side = G.pathColumn k b := by exact_mod_cast hx
-      unfold pathColumn at hx'
-      have heq := Layout.column_injective hx'
-      exact False.elim (canonical_index_port_ne G hG hdeg hj hk (Ne.symm hkj) side b
-        (Prod.ext heq.1 heq.2))
-  simp only [Set.mem_union] at hp'
+    obtain rfl | hkj := eq_or_ne k j
+    · exact .inr rfl
+    · have heq := Layout.column_injective (Int.cast_inj.1 (Layout.mem_stem.1 hs).1)
+      exact (canonical_index_port_ne G hG hdeg hj hk hkj.symm side b (Prod.ext heq.1 heq.2)).elim
   rcases hp' with (((hp' | hp') | hp') | hp') | hp'
-  · exact False.elim (hfan false hp')
+  · exact (hfan false hp').elim
   · exact hstem false hp'
-  · have hy := (Layout.mem_bridge.1 hp').1
-    change (Layout.track G.vertices.length i : ℝ) = (Layout.track G.vertices.length k : ℝ) at hy
-    have hy' : Layout.track G.vertices.length i = Layout.track G.vertices.length k :=
-      by exact_mod_cast hy
-    simp only [Layout.track] at hy'
-    exact Or.inl (by omega)
+  · have hy : Layout.track G.vertices.length i = Layout.track G.vertices.length k :=
+      Int.cast_inj.1 (Layout.mem_bridge.1 hp').1
+    simp only [Layout.track] at hy
+    exact .inl (by omega)
   · exact hstem true hp'
-  · exact False.elim (hfan true hp')
+  · exact (hfan true hp').elim
 
 /-- Outside declared vertex centers, any two distinct occupied paths exclude every third path. -/
 theorem unitPath_atMostTwo (G : Graph)
@@ -473,11 +429,9 @@ theorem unitPath_atMostTwo (G : Graph)
     {p : Point} (hcenter : p ∉ G.orthogonalPositions)
     (hp : p ∈ G.unitPath i) (hq : p ∈ G.unitPath j) (hr : p ∈ G.unitPath k) : k = i ∨ k = j := by
   rcases unitPath_contact G hG hloop hdeg hi hj hij hp hq with h | ⟨side, hc⟩ | ⟨side, hc⟩
-  · exact False.elim (hcenter h)
-  · rw [hc.point] at hr
-    exact unitPath_on_column_track G hG hloop hdeg hj hk side hr
-  · rw [hc.point] at hr
-    exact (unitPath_on_column_track G hG hloop hdeg hi hk side hr).symm
+  exacts [(hcenter h).elim,
+    unitPath_on_column_track G hG hloop hdeg hj hk side (hc.point ▸ hr),
+    (unitPath_on_column_track G hG hloop hdeg hi hk side (hc.point ▸ hr)).symm]
 
 /-- Every nonvertex shared point belongs to the original finite quadratic candidate cover. -/
 theorem unitPath_shared_mem_crossingCandidates (G : Graph)
@@ -488,11 +442,9 @@ theorem unitPath_shared_mem_crossingCandidates (G : Graph)
     (hcenter : p ∉ G.orthogonalPositions) (hp : p ∈ G.unitPath i) (hq : p ∈ G.unitPath j) :
     p ∈ G.crossingCandidates G.canonicalPorts := by
   rcases unitPath_contact G hG hloop hdeg hi hj hij hp hq with h | ⟨side, hc⟩ | ⟨side, hc⟩
-  · exact False.elim (hcenter h)
-  · rw [hc.point]
-    exact mem_crossingCandidates G G.canonicalPorts hi hj side
-  · rw [hc.point]
-    exact mem_crossingCandidates G G.canonicalPorts hj hi side
+  exacts [(hcenter h).elim,
+    hc.point.symm ▸ mem_crossingCandidates G G.canonicalPorts hi hj side,
+    hc.point.symm ▸ mem_crossingCandidates G G.canonicalPorts hj hi side]
 
 /-- Every strict canonical crossing avoids every original source vertex center. -/
 theorem BridgeStemCrossing.not_vertex_center {G : Graph} {i j : ℕ} {side : Bool} {p : Point}
@@ -508,18 +460,12 @@ private theorem listed_on_upper_track {n e f u v : ℕ} (hu : u < n) (hv : v < n
     (s t : Fin 3) {p : Point} (hp : p ∈ Layout.route n f u v s t)
     (hy : p.2 = Layout.track n e) :
     p = (Layout.column u s, Layout.track n f) ∨ p = (Layout.column v t, Layout.track n f) := by
-  have hcu : (Layout.center u).2 < Layout.track n e := by grind [Layout.center, Layout.track]
-  have hcv : (Layout.center v).2 < Layout.track n e := by grind [Layout.center, Layout.track]
   have heu := Layout.elbow_below_track (e := e) hu s
   have hev := Layout.elbow_below_track (e := e) hv t
   simp only [Layout.route, List.mem_cons, List.not_mem_nil, or_false] at hp
-  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl
-  · exfalso; omega
-  · exfalso; omega
-  · exact Or.inl rfl
-  · exact Or.inr rfl
-  · exfalso; omega
-  · exfalso; omega
+  rcases hp with rfl | rfl | rfl | rfl | rfl | rfl <;>
+    simp_all only [Layout.center, Layout.track, or_true, true_or] <;>
+    omega
 
 /-- A crossing is not any listed point of either original polygonal route, including its
 elbows and upper endpoints. Thus no crossing occurs at a bend. -/
@@ -534,21 +480,15 @@ theorem BridgeStemCrossing.not_listed {G : Graph}
     List.idxOf_lt_length_iff.2 (edgeEndpoint_mem G hG hk b)
   have hrow : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hc.point
   have hx := hc.horizontal
+  dsimp only [pathColumn] at hx
   have hy := hc.vertical hG hj
-  constructor
-  · intro hp
-    rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
-    have htop := listed_on_upper_track (hindex i hi false) (hindex i hi true) _ _ hp hrow
-    rcases htop with heq | heq
-    · have heq' : p.1 = G.pathColumn i false := congrArg Prod.fst heq
-      omega
-    · have heq' : p.1 = G.pathColumn i true := congrArg Prod.fst heq
-      omega
-  · intro hp
-    rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hp
-    have htop := listed_on_upper_track (hindex j hj false) (hindex j hj true) _ _ hp hrow
-    rcases htop with heq | heq <;>
-      have heq' : p.2 = Layout.track G.vertices.length j := congrArg Prod.snd heq <;> omega
+  refine ⟨fun hp => ?_, fun hp => ?_⟩
+  · rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hp
+    rcases listed_on_upper_track (hindex i hi false) (hindex i hi true) _ _ hp hrow with
+      rfl | rfl <;> omega
+  · rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hp
+    rcases listed_on_upper_track (hindex j hj false) (hindex j hj true) _ _ hp hrow with
+      rfl | rfl <;> omega
 
 /-- A strict crossing produces actual consecutive opposite horizontal/vertical unit neighbors
 on its two paths. Both the positions and their traversal order come from the canonical data. -/
@@ -562,47 +502,29 @@ theorem BridgeStemCrossing.neighbors {G : Graph}
   have hrj := canonical_orthogonal G hG hloop hj
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi] at hri
   rw [getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj] at hrj
-  have hp := hc.point
-  have hpx : p.1 = G.pathColumn j side := congrArg Prod.fst hp
-  have hpy : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hp
+  have hpx : p.1 = G.pathColumn j side := congrArg Prod.fst hc.point
+  have hpy : p.2 = Layout.track G.vertices.length i := congrArg Prod.snd hc.point
   have hx := hc.horizontal
   have hy := hc.vertical hG hj
   constructor
   · rw [unitPath_eq_subdivide G hG hloop hi,
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hi]
-    apply subdivide_horizontal hri
-      (e := ((G.pathColumn i false, Layout.track G.vertices.length i),
-        (G.pathColumn i true, Layout.track G.vertices.length i)))
-    · simp [Layout.route, List.consecutivePairs, pathColumn]
-    · rfl
-    · exact hpy
-    · exact hx
+    exact subdivide_horizontal hri
+      (a := (G.pathColumn i false, Layout.track G.vertices.length i))
+      (b := (G.pathColumn i true, Layout.track G.vertices.length i))
+      (by simp [Layout.route, List.consecutivePairs, pathColumn]) rfl hpy hx
   · rw [unitPath_eq_subdivide G hG hloop hj,
       getElem_orthogonalRoutes_endpoint G G.canonicalPorts hj]
-    cases side
-    · apply subdivide_vertical hrj
-        (e := (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-          (portAt G.canonicalPorts j false),
-          (G.pathColumn j false, Layout.track G.vertices.length j)))
-      · simp [Layout.route, List.consecutivePairs, pathColumn]
-      · rfl
-      · exact hpx
-      · change min (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-          (portAt G.canonicalPorts j false)).2 (Layout.track G.vertices.length j) < p.2 ∧
-          p.2 < max (Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j false))
-            (portAt G.canonicalPorts j false)).2 (Layout.track G.vertices.length j)
-        omega
-    · apply subdivide_vertical hrj
-        (e := ((G.pathColumn j true, Layout.track G.vertices.length j),
-          Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)))
-      · simp [Layout.route, List.consecutivePairs, pathColumn]
-      · rfl
-      · exact hpx
-      · change min (Layout.track G.vertices.length j) (Layout.elbow
-          (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)).2 < p.2 ∧
-          p.2 < max (Layout.track G.vertices.length j) (Layout.elbow
-            (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j true)).2
-        omega
+    let e := Layout.elbow (G.vertices.idxOf (G.edgeEndpoint j side))
+      (portAt G.canonicalPorts j side)
+    let t := (G.pathColumn j side, Layout.track G.vertices.length j)
+    have hseg : (if side then (t, e) else (e, t)) ∈
+        (Layout.route G.vertices.length j (G.vertices.idxOf (G.edgeEndpoint j false))
+          (G.vertices.idxOf (G.edgeEndpoint j true)) (portAt G.canonicalPorts j false)
+          (portAt G.canonicalPorts j true)).consecutivePairs := by
+      cases side <;> simp [e, t, Layout.route, List.consecutivePairs, pathColumn]
+    cases side <;>
+      exact subdivide_vertical hrj hseg rfl hpx (by dsimp only [e, t]; omega)
 
 /-- Every actual nonvertex contact has one horizontally straight path and one vertically
 straight path, with opposite immediate unit neighbors. -/
@@ -615,8 +537,7 @@ theorem unitPath_crossing_neighbors (G : Graph)
     (StraightThrough (G.unitPath i) p (1, 0) ∧ StraightThrough (G.unitPath j) p (0, 1)) ∨
       (StraightThrough (G.unitPath i) p (0, 1) ∧ StraightThrough (G.unitPath j) p (1, 0)) := by
   rcases unitPath_contact G hG hloop hdeg hi hj hij hp hq with h | ⟨side, hc⟩ | ⟨side, hc⟩
-  · exact False.elim (hcenter h)
-  · exact Or.inl (hc.neighbors hG hloop hi hj)
-  · exact Or.inr (hc.neighbors hG hloop hj hi).symm
+  exacts [(hcenter h).elim, .inl (hc.neighbors hG hloop hi hj),
+    .inr (hc.neighbors hG hloop hj hi).symm]
 
 end Cslib.Complexity.Graph

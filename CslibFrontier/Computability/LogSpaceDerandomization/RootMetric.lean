@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Tactic.PositivityLemma
 public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Foundations.Analysis.RootError
@@ -89,9 +90,11 @@ end Definitions
 variable {s : ℕ} {N u : ℝ} {X Y : Ω → V → Prop} [∀ σ v, Decidable (X σ v)]
   [∀ σ v, Decidable (Y σ v)]
 
+@[positivity_lemma]
 theorem rowNormPow_nonneg (hNu : 0 ≤ N * u) (Z : Ω → V → V → ℝ) : 0 ≤ rowNormPow s N u X Y Z := by
   unfold rowNormPow; positivity
 
+@[positivity_lemma]
 theorem vertexNormPow_nonneg (hNu : 0 ≤ N * u) (v : Ω → V → ℝ) :
     0 ≤ vertexNormPow s N u X v := by
   unfold vertexNormPow; positivity
@@ -113,11 +116,10 @@ theorem rowNormPow_le_mul (hNu : 0 ≤ N * u) {c : ℝ} {Z Z' : Ω → V → V �
   calc (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
         |Z σ x y| ^ s
       ≤ (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
-        c * |Z' σ x y| ^ s := by
-        refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.2 hNu)
-        refine sum_le_sum fun x hx => sum_le_sum fun y hy => ?_
-        simp only [mem_filter, mem_univ, true_and] at hx hy
-        exact h σ x y hx hy
+        c * |Z' σ x y| ^ s :=
+        mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => sum_le_sum fun x hx =>
+          sum_le_sum fun y hy => h σ x y (by simpa using hx) (by simpa using hy))
+          (inv_nonneg.2 hNu)
     _ = _ := by simp only [← mul_sum, ← mul_expect]; ring
 
 /-- **Ordinary error is controlled by root error** [OpenAI2026LogSpace, (5.21)], integrated: for
@@ -132,8 +134,6 @@ theorem rowNormPow_sub_le_rootDistPow (hs : s ≠ 0) (hNu : 0 ≤ N * u) {C : �
   refine rowNormPow_le_mul hNu fun σ x y hx hy => ?_
   obtain ⟨h0, h1⟩ := hH σ x y hx hy
   obtain ⟨h0', h1'⟩ := hH' σ x y hx hy
-  have hk : 0 ≤ (s : ℝ) * C ^ (((s : ℝ) - 1) / s) :=
-    mul_nonneg (Nat.cast_nonneg s) (Real.rpow_nonneg (h0.trans h1) _)
   rw [← mul_pow]
   exact pow_le_pow_left₀ (abs_nonneg _) (abs_sub_le_mul_abs_rpow_inv_sub hs h0 h0' h1 h1') s
 
@@ -144,9 +144,8 @@ theorem rowNormPow_le_of_card_le (hs : s ≠ 0) (hNu : 0 ≤ N * u) {B : ℝ} (h
     (hK : ∀ σ x, X σ x → #{y ∈ ({y | Y σ y} : Finset V) | Z σ x y ≠ 0} ≤ K) :
     rowNormPow s N u X Y Z ≤ K * B ^ s * vertexNormPow s N u X fun _ _ => 1 := by
   unfold rowNormPow vertexNormPow
-  have hrow : ∀ σ, ∀ x ∈ ({x | X σ x} : Finset V),
-      ∑ y ∈ ({y | Y σ y} : Finset V), |Z σ x y| ^ s ≤ K * B ^ s := fun σ x hx => by
-    simp only [mem_filter, mem_univ, true_and] at hx
+  have hrow (σ : Ω) (x : V) (hx : x ∈ ({x | X σ x} : Finset V)) :
+      ∑ y ∈ ({y | Y σ y} : Finset V), |Z σ x y| ^ s ≤ K * B ^ s := by
     rw [← sum_filter_of_ne (p := fun y => Z σ x y ≠ 0) fun y _ h hy =>
       h (by rw [hy, abs_zero, zero_pow hs])]
     calc ∑ y ∈ ({y | Y σ y} : Finset V) with Z σ x y ≠ 0, |Z σ x y| ^ s
@@ -155,16 +154,16 @@ theorem rowNormPow_le_of_card_le (hs : s ≠ 0) (hNu : 0 ≤ N * u) {B : ℝ} (h
       _ ≤ K * B ^ s := by
           rw [sum_const, nsmul_eq_mul]
           gcongr
-          exact_mod_cast hK σ x hx
+          exact_mod_cast hK σ x (by simpa using hx)
   calc (N * u)⁻¹ * 𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), ∑ y ∈ ({y | Y σ y} : Finset V),
         |Z σ x y| ^ s
-      ≤ (N * u)⁻¹ * 𝔼 σ, (#({x | X σ x} : Finset V) : ℝ) * (K * B ^ s) := by
-        refine mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => ?_) (inv_nonneg.2 hNu)
-        rw [← nsmul_eq_mul, ← sum_const]
-        exact sum_le_sum (hrow σ)
+      ≤ (N * u)⁻¹ * 𝔼 σ, (#({x | X σ x} : Finset V) : ℝ) * (K * B ^ s) :=
+        mul_le_mul_of_nonneg_left
+          (expect_le_expect fun σ _ => by
+            simpa only [sum_const, nsmul_eq_mul] using sum_le_sum (hrow σ))
+          (inv_nonneg.2 hNu)
     _ = _ := by
         rw [← expect_mul]
-        simp only [abs_one, one_pow, sum_const, nsmul_eq_mul, mul_one]
-        ring
+        simp only [abs_one, one_pow, sum_const, nsmul_eq_mul, mul_one]; ring
 
 end Cslib

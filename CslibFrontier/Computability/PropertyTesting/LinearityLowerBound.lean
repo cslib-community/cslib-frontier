@@ -74,15 +74,11 @@ private theorem eval_eq_true_of_card_queries_le_two_of_parity_complete
   classical
   obtain ⟨x, y, hqueries⟩ := exists_subset_pair_of_card_le_two (t.queries f) hcard
   obtain ⟨S, hSx, hSy⟩ := BitString.exists_parityOn_agrees_pair hf x y
-  have hagree : ∀ z ∈ t.queries f, parityOn S z = f z := by
-    intro z hz
-    have h := hqueries hz
-    simp only [mem_insert, mem_singleton] at h
-    rcases h with rfl | rfl
+  have hagree : ∀ z ∈ t.queries f, parityOn S z = f z := fun z hz => by
+    rcases mem_insert.1 (hqueries hz) with rfl | hz
     · exact hSx
-    · exact hSy
-  rw [← t.eval_eq_of_forall_mem_queries hagree]
-  exact hcomplete S
+    · exact mem_singleton.1 hz ▸ hSy
+  exact t.eval_eq_of_forall_mem_queries hagree ▸ hcomplete S
 
 /-- A tree that accepts all parities and makes at most two adaptive queries accepts every table
 that is false at zero. -/
@@ -120,19 +116,12 @@ theorem exists_three_le_depth_of_parity_complete
     ∃ t ∈ μ.support, 3 ≤ t.depth := by
   classical
   by_contra! hdepth
-  have hzero : μ.toOuterMeasure {t | t.eval f ≠ true} = 0 := by
-    apply (PMF.toOuterMeasure_apply_eq_zero_iff μ _).2
-    apply Set.disjoint_left.2
-    intro t ht hfail
-    apply hfail
-    apply t.eval_eq_true_of_depth_le_two_of_parity_complete (by have := hdepth t ht; omega)
-    · intro S
-      have hdisjoint := (PMF.toOuterMeasure_apply_eq_zero_iff μ _).1 (hcomplete S)
-      by_contra hnot
-      exact Set.disjoint_left.1 hdisjoint ht hnot
-    · exact hf
-  rw [hzero] at hreject
-  exact lt_irrefl _ hreject
+  refine hreject.ne' ((PMF.toOuterMeasure_apply_eq_zero_iff μ _).2 ?_)
+  refine Set.disjoint_left.2 fun t ht hfail => hfail ?_
+  refine t.eval_eq_true_of_depth_le_two_of_parity_complete (by have := hdepth t ht; omega) ?_ hf
+  intro S
+  by_contra hnot
+  exact Set.disjoint_left.1 ((PMF.toOuterMeasure_apply_eq_zero_iff μ _).1 (hcomplete S)) ht hnot
 
 end BitString
 
@@ -147,16 +136,10 @@ theorem three_le_depth_of_parity_complete (μ : RandomizedDecisionTree (ι → B
     {f : (ι → Bool) → Bool} (hf : f 0 = false)
     (hreject : 0 < μ.errorProb (fun _ => true) f) : 3 ≤ μ.depth := by
   by_contra! hdepth
-  have hzero : μ.errorProb (fun _ => true) f = 0 := by
-    apply errorProb_eq_zero_iff.2
-    intro t ht
-    apply t.eval_eq_true_of_depth_le_two_of_parity_complete
-      ((depth_le_depth ht).trans (by omega))
-    · intro S
-      exact errorProb_eq_zero_iff.1 (hcomplete S) t ht
-    · exact hf
-  rw [hzero] at hreject
-  exact lt_irrefl _ hreject
+  refine hreject.ne' (errorProb_eq_zero_iff.2 fun t ht => ?_)
+  exact t.eval_eq_true_of_depth_le_two_of_parity_complete
+    ((depth_le_depth ht).trans (Nat.le_of_lt_succ hdepth))
+    (fun S => errorProb_eq_zero_iff.1 (hcomplete S) t ht) hf
 
 end RandomizedDecisionTree
 

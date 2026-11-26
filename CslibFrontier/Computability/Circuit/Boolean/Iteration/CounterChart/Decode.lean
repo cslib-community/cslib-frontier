@@ -63,10 +63,8 @@ private theorem phaseDistance_toNat (j : Fin R) (p : BitVec (chartWidth n))
       (p.toNat + cycleLength f (chart.first j) -
         phase f (chart.first j) % cycleLength f (chart.first j)) %
         cycleLength f (chart.first j) := by
-  unfold phaseDistance
-  rw [toNat_addResidue]
-  · rw [period_toNat, negativePhase_toNat, Nat.add_mod_mod]
-    rw [Nat.mod_eq_of_lt (phase_lt f _)]
+  rw [phaseDistance, toNat_addResidue]
+  · rw [period_toNat, negativePhase_toNat, Nat.add_mod_mod, Nat.mod_eq_of_lt (phase_lt f _)]
     congr 1
     have := phase_lt f (chart.first j)
     lia
@@ -101,17 +99,13 @@ private theorem phaseDistance_hit (hf : Function.Injective f) (j : Fin R) (y : B
       (chart.first j) = y := by
   have hy := hf.mem_periodicPts y
   obtain ⟨t, ht⟩ := (exists_iterate_eq_iff_canonicalCycle_eq f (chart.first j) y hy).mpr hc
-  have hl : cycleLength f y = cycleLength f (chart.first j) := by
-    rw [← ht, cycleLength_iterate]
   have hp := chart_ofNat_toNat ((phase_lt f y).le.trans (cycleLength_le_words f y))
   have hz : transientDepth f (chart.first j) = 0 :=
     transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts _)
-  have hd : (chart.phaseDistance j (BitVec.ofNat (chartWidth n) (phase f y))).toNat =
-      cyclicDistance f (chart.first j) y := by
-    rw [chart.phaseDistance_toNat j _ (by rw [hp, ← hl]; exact phase_lt f y), hp]
-    simp only [cyclicDistance, hz, Nat.add_zero]
-  have hhit := (cyclic_first_hit f (chart.first j) y hy hc).1
-  simpa only [hz, Nat.zero_add, hd] using hhit
+  rw [chart.phaseDistance_toNat j _
+    (hp.trans_lt ((phase_lt f y).trans_eq (by rw [← ht, cycleLength_iterate]))), hp]
+  simpa only [cyclicDistance, hz, Nat.add_zero, Nat.zero_add] using
+    (cyclic_first_hit f (chart.first j) y hy hc).1
 
 /-- Recover the word by adding the phase distance to the interval start. -/
 noncomputable def decodedRow (j : Fin R) (p : BitVec (chartWidth n)) : BitVec n :=
@@ -139,12 +133,9 @@ private theorem decodedRow_spec (hf : Function.Injective f) (j : Fin R) (y : Bit
     (hy : chart.decodeFlag j (canonicalCycle f y)
       (BitVec.ofNat (chartWidth n) (phase f y)) = true) :
     chart.decodedRow j (BitVec.ofNat (chartWidth n) (phase f y)) = y := by
-  have hy' : canonicalCycle f y = canonicalCycle f (chart.first j) ∧
-      (chart.phaseDistance j (BitVec.ofNat (chartWidth n) (phase f y))).toNat <
-        chart.stop j - chart.start j := by
-    simpa only [decodeFlag, Bool.and_eq_true, BitVec.ult, decide_eq_true_eq, length_toNat] using hy
-  rw [chart.decodedRow_eq, ← chart.path j _ hy'.2]
-  exact chart.phaseDistance_hit hf j y hy'.1.symm
+  simp only [decodeFlag, Bool.and_eq_true, BitVec.ult, decide_eq_true_eq, length_toNat] at hy
+  rw [chart.decodedRow_eq, ← chart.path j _ hy.2]
+  exact chart.phaseDistance_hit hf j y hy.1.symm
 
 /-- Select a matching interval and return its decoded word. -/
 noncomputable def decode (rep : BitVec n) (p : BitVec (chartWidth n)) : BitString n :=

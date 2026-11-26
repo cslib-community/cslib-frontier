@@ -102,12 +102,9 @@ theorem cutWeight_sdiff_add_cutWeight_sdiff_le_of_symm {W : V → V → M}
     (hWs : ∀ u v, W u v = W v u) (hWn : ∀ u v, 0 ≤ W u v) (A B : Finset V) :
     cutWeight W (A \ B) + cutWeight W (B \ A) ≤ cutWeight W A + cutWeight W B := by
   have h := cutWeight_union_add_cutWeight_inter_le_of_nonneg W hWn A Bᶜ
-  rw [cutWeight_compl_of_symm hWs B, ← Finset.sdiff_eq_inter_compl] at h
-  have hu : A ∪ Bᶜ = (B \ A)ᶜ := by
-    ext x
-    simp only [Finset.mem_union, Finset.mem_compl, Finset.mem_sdiff]
-    tauto
-  rw [hu, cutWeight_compl_of_symm hWs] at h
+  have hu : A ∪ Bᶜ = (B \ A)ᶜ := Finset.ext fun _ => by simp; tauto
+  rw [cutWeight_compl_of_symm hWs B, ← Finset.sdiff_eq_inter_compl, hu,
+    cutWeight_compl_of_symm hWs] at h
   rwa [add_comm (cutWeight W (A \ B))]
 
 end Ordered
@@ -152,26 +149,20 @@ theorem exists_cutWeight_eq_minCutBetween (W : V → V → ℕ) {s t : V} (hst :
     ⟨_, {s}, Finset.mem_singleton_self s, fun h => hst (Finset.mem_singleton.mp h).symm, rfl⟩
 
 theorem le_minCutBetween_iff (W : V → V → ℕ) {s t : V} (hst : s ≠ t) (m : ℕ) :
-    m ≤ minCutBetween W s t ↔ ∀ X : Finset V, s ∈ X → t ∉ X → m ≤ cutWeight W X := by
-  constructor
-  · intro hm X hs ht
-    exact hm.trans (minCutBetween_le_cutWeight W hs ht)
-  · intro h
+    m ≤ minCutBetween W s t ↔ ∀ X : Finset V, s ∈ X → t ∉ X → m ≤ cutWeight W X :=
+  ⟨fun hm _ hs ht => hm.trans (minCutBetween_le_cutWeight W hs ht), fun h => by
     obtain ⟨X, hs, ht, hX⟩ := exists_cutWeight_eq_minCutBetween W hst
-    exact hX ▸ h X hs ht
+    exact hX ▸ h X hs ht⟩
 
 /-- A set containing `s` and missing `t` is a minimum `s`–`t` cut exactly when its weight is at
 most that of every such set. -/
 theorem cutWeight_eq_minCutBetween_iff (W : V → V → ℕ) {s t : V} {X : Finset V} (hs : s ∈ X)
     (ht : t ∉ X) :
     cutWeight W X = minCutBetween W s t ↔
-      ∀ Y : Finset V, s ∈ Y → t ∉ Y → cutWeight W X ≤ cutWeight W Y := by
-  have hst : s ≠ t := fun h => ht (h ▸ hs)
-  constructor
-  · intro hX Y hsY htY
-    exact hX ▸ minCutBetween_le_cutWeight W hsY htY
-  · intro h
-    exact le_antisymm ((le_minCutBetween_iff W hst _).mpr h) (minCutBetween_le_cutWeight W hs ht)
+      ∀ Y : Finset V, s ∈ Y → t ∉ Y → cutWeight W X ≤ cutWeight W Y :=
+  ⟨fun hX _ hsY htY => hX ▸ minCutBetween_le_cutWeight W hsY htY, fun h =>
+    le_antisymm ((le_minCutBetween_iff W (fun he : s = t => ht (he ▸ hs)) _).mpr h)
+      (minCutBetween_le_cutWeight W hs ht)⟩
 
 /-- The minimum cut weight between two vertices of a multigraph is symmetric. -/
 theorem minCutBetween_comm {W : V → V → ℕ} (hW : IsMultigraph W) (s t : V) :
@@ -201,13 +192,9 @@ attained at least twice: if `λ(u, v) < λ(v, w)` then `λ(u, w) = λ(u, v)`. -/
 theorem minCutBetween_eq_of_lt {W : V → V → ℕ} (hW : IsMultigraph W) {u v w : V} (huv : u ≠ v)
     (h : minCutBetween W u v < minCutBetween W v w) :
     minCutBetween W u w = minCutBetween W u v := by
-  have huw : u ≠ w := by
-    rintro rfl
-    rw [minCutBetween_comm hW v u] at h
-    exact lt_irrefl _ h
+  have huw : u ≠ w := fun he => lt_irrefl _ (he ▸ minCutBetween_comm hW v u ▸ h)
   have h1 := min_le_minCutBetween W huw v
-  have h2 := min_le_minCutBetween W huv w
-  rw [minCutBetween_comm hW w v] at h2
+  have h2 := minCutBetween_comm hW w v ▸ min_le_minCutBetween W huv w
   rw [min_le_iff] at h1 h2
   omega
 

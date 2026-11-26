@@ -135,13 +135,10 @@ Lecture 3, (4)). -/
 theorem IsTruthfulOn.monotoneOn {X P : ℝ → ℝ} {s : Set ℝ} (hT : IsTruthfulOn X P s) :
     MonotoneOn X s := by
   intro w hw v hv hwv
-  have h1 := hT v hv w hw
-  have h2 := hT w hw v hv
-  by_contra hlt'
-  have hlt := not_le.1 hlt'
   rcases hwv.lt_or_eq with hwv' | rfl
-  · nlinarith
-  · exact lt_irrefl _ hlt
+  · by_contra! hlt
+    nlinarith [hT v hv w hw, hT w hw v hv]
+  · exact le_rfl
 
 variable {ι : Type*}
 
@@ -236,10 +233,8 @@ theorem IsVirtualWelfareMaximizing.isMonotone [DecidableEq ι] {φ : ι → ℝ 
   · have h1 := (hx _ (update_nonneg hb i hz)).2 _ (hx _ (update_nonneg hb i hz')).1
     have h2 := (hx _ (update_nonneg hb i hz')).2 _ (hx _ (update_nonneg hb i hz)).1
     simp only [sum_update_weight φ b _ i] at h1 h2
-    have hφlt := hφ i hz hz' hlt
-    by_contra hcon
-    have := lt_of_not_ge hcon
-    nlinarith
+    by_contra! hcon
+    nlinarith [hφ i hz hz' hlt]
   · exact le_rfl
 
 /-- Every welfare-maximizing allocation rule is monotone, whatever its tie-breaking: this is
@@ -254,12 +249,11 @@ theorem IsWelfareMaximizing.isMonotone [DecidableEq ι] {X : Set (ι → ℝ)}
 /-- A welfare-maximizing allocation rule exists for every finite nonempty feasible set. -/
 theorem exists_isWelfareMaximizing {X : Set (ι → ℝ)} (hX : X.Finite) (hne : X.Nonempty) :
     ∃ x, IsWelfareMaximizing X x := by
-  have : ∀ b : ι → ℝ, ∃ y ∈ X, ∀ y' ∈ X, ∑ i, b i * y' i ≤ ∑ i, b i * y i := by
-    intro b
+  have h : ∀ b : ι → ℝ, ∃ y, y ∈ X ∧ ∀ y' ∈ X, ∑ i, b i * y' i ≤ ∑ i, b i * y i := fun b => by
     obtain ⟨y, hy, hmax⟩ := hX.toFinset.exists_max_image (fun y => ∑ i, b i * y i)
       (hX.toFinset_nonempty.2 hne)
     exact ⟨y, hX.mem_toFinset.1 hy, fun y' hy' => hmax y' (hX.mem_toFinset.2 hy')⟩
-  choose x hxX hxmax using this
+  choose x hxX hxmax using h
   exact ⟨x, fun b _ => ⟨hxX b, hxmax b⟩⟩
 
 end Welfare

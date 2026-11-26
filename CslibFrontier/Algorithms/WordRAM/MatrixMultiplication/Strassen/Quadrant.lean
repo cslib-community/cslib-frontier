@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged quadrant-pointer computation
@@ -31,30 +32,19 @@ theorem exec_quadrant {w t : ℕ} (base dst : Fin 64) (x : Data 64)
     ∃ y, ExecWithin w (quadrant base dst t) x y 3 ∧ y.mem = x.mem ∧
       y.regs dst = x.regs base + t * x.regs Reg.quarter ∧
       ∀ i, i ≠ dst → i ≠ Reg.temporary → y.regs i = x.regs i := by
-  have hqt : Reg.quarter ≠ Reg.temporary := by decide
-  have hprod : Fits w (t * x.regs Reg.quarter) := hw.of_le (by
-    have hmul := Nat.mul_le_mul_right (x.regs Reg.quarter) (show t ≤ 3 by omega)
-    omega)
-  have hsum : Fits w (x.regs base + t * x.regs Reg.quarter) := hw.of_le (by
-    have hmul := Nat.mul_le_mul_right (x.regs Reg.quarter) (show t ≤ 3 by omega)
-    omega)
-  have htag : Fits w t := hw.of_le (by omega)
+  have hmul := Nat.mul_le_mul_right (x.regs Reg.quarter) (show t ≤ 3 by omega)
+  have hprod : Fits w (t * x.regs Reg.quarter) := by fits [hmul]
+  have hsum : Fits w (x.regs base + t * x.regs Reg.quarter) := by fits [hmul]
+  apply WP.exists_execWithin
+  unfold quadrant
   by_cases ht0 : t = 0
-  · let y := x.set dst (x.regs base)
-    have he : ExecWithin w (quadrant base dst t) x y 1 := by
-      simpa only [quadrant, ht0, ite_true, y] using
-        (ExecWithin.copy (B := .standard) (w := w) (d := dst) (s := base) (x := x))
-    refine ⟨y, he.mono (by decide), rfl, ?_, ?_⟩
-    · simp only [y, Data.set, Function.update_self, ht0, Nat.zero_mul, Nat.add_zero]
-    · intro i hi htemp
-      exact Function.update_of_ne hi _ _
-  · let y := ((x.set Reg.temporary t).set Reg.temporary
-      (t * x.regs Reg.quarter)).set dst (x.regs base + t * x.regs Reg.quarter)
-    have he : ExecWithin w (quadrant base dst t) x y 3 := by
-      ram_eval [quadrant, ht0, y, htag, hprod, hsum, hbt, hqt, Reg.temporary, Reg.quarter]
-    refine ⟨y, he, rfl, ?_, ?_⟩
-    · simp only [y, Data.set, Function.update_self]
-    · intro i hi htemp
-      simp only [y, Data.set, Function.update_of_ne hi, Function.update_of_ne htemp]
+  · simp only [ht0, ↓reduceIte]
+    wram_exec
+    wram_simp [ht0, Nat.zero_mul]
+    exact fun i hi _ => Data.set_regs_of_ne hi _
+  · simp only [ht0, ↓reduceIte]
+    wram_exec
+    wram_simp
+    exact fun i hi htemp => by wram_simp
 
 end Cslib.Algorithms.WordRAM.Strassen

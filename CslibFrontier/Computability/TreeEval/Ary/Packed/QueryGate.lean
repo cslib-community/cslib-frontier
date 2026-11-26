@@ -30,11 +30,37 @@ namespace Cslib.TreeEval.Ary.Packed.QueryGate
 
 open Turing Cslib.BitString
 
-/-- Supplier context, modulus, alphabet size, coordinate count, point and assignment limit. -/
+/-- Supplier context, modulus, alphabet size, coordinate count, point and assignment limit:
+`(context, (modulus, alphabet, coords), point, limit)`. -/
 abbrev Params (γ : Type) := γ × (ℕ × ℕ × ℕ) × List ℕ × ℕ
 
-/-- Parameters, the current assignment index and the sum accumulator. -/
+/-- The field modulus `p` of `Params`. -/
+abbrev Params.modulus {γ : Type} (p : Params γ) : ℕ := p.2.1.1
+
+/-- The alphabet size `s` of `Params`. -/
+abbrev Params.alphabet {γ : Type} (p : Params γ) : ℕ := p.2.1.2.1
+
+/-- The coordinate count `n` of `Params`. -/
+abbrev Params.coords {γ : Type} (p : Params γ) : ℕ := p.2.1.2.2
+
+/-- The interpolation point of `Params`. -/
+abbrev Params.point {γ : Type} (p : Params γ) : List ℕ := p.2.2.1
+
+/-- The assignment loop limit of `Params`. -/
+abbrev Params.limit {γ : Type} (p : Params γ) : ℕ := p.2.2.2
+
+/-- Parameters, the current assignment index and the sum accumulator:
+`(params, counter, acc)`. -/
 abbrev State (γ : Type) := Params γ × ℕ × ℕ
+
+/-- The fixed interpolation parameters of a caller state. -/
+abbrev State.params {γ : Type} (st : State γ) : Params γ := st.1
+
+/-- The current assignment index of a caller state. -/
+abbrev State.counter {γ : Type} (st : State γ) : ℕ := st.2.1
+
+/-- The running modular sum accumulator of a caller state. -/
+abbrev State.acc {γ : Type} (st : State γ) : ℕ := st.2.2
 
 variable {γ τ : Type}
 
@@ -43,12 +69,12 @@ def initial (q : Params γ) : State γ := (q, 0, 0)
 
 /-- One local sum update after the table subroutine returns. -/
 def resume (answer : τ → ℕ) (q : State γ) (t : τ) : State γ :=
-  (q.1, gridSumStep q.1.2.1.1 q.1.2.1.2.1 q.1.2.1.2.2
-    (fun _ => answer t) q.1.2.2.1 q.2)
+  (q.params, gridSumStep q.params.modulus q.params.alphabet q.params.coords
+    (fun _ => answer t) q.params.point q.2)
 
 /-- Request one entry whenever the assignment index is below the explicit loop limit. -/
 def request (start : State γ → τ) (q : State γ) : Option τ :=
-  if q.2.1 < q.1.2.2.2 then some (start q) else none
+  if q.counter < q.params.limit then some (start q) else none
 
 /-- The controller only advances when its table subroutine returns. -/
 def controller (q : Params γ) : QueryMachine (State γ) where
@@ -56,7 +82,7 @@ def controller (q : Params γ) : QueryMachine (State γ) where
   query _ := 0
   next := Prod.fst
   emit _ := []
-  halted st := decide (st.1.2.2.2 ≤ st.2.1)
+  halted st := decide (st.params.limit ≤ st.counter)
   finish _ := []
 
 /-- The complete assignment loop and its same-original-input table subroutine. -/
@@ -66,29 +92,23 @@ def machine (q : Params γ) (N : QueryMachine τ) (start : State γ → τ)
 
 /-- Pure assignment-loop states, used only to state the simulation invariant. -/
 def sumState (q : Params γ) (table : ℕ → ℕ) (j : ℕ) : State γ :=
-  (q, (gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1)^[j] (0, 0))
+  (q, (gridSumStep q.modulus q.alphabet q.coords table q.point)^[j] (0, 0))
 
 @[simp] theorem sumState_zero (q : Params γ) (table : ℕ → ℕ) :
     sumState q table 0 = initial q := rfl
 
 /-- The assignment counter advances by one after each returned entry. -/
 theorem sumState_counter (q : Params γ) (table : ℕ → ℕ) (j : ℕ) :
-    (sumState q table j).2.1 = j := by
+    (sumState q table j).counter = j := by
   induction j with
   | zero => rfl
   | succ j ih =>
     rw [sumState, Function.iterate_succ_apply']
-    change ((gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1)
-      ((gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1)^[j] (0, 0))).1 = j + 1
-    change ((gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1)^[j]
-      (0, 0)).1 = j at ih
-    change ((gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1)^[j]
-      (0, 0)).1 + 1 = j + 1
     exact congrArg (· + 1) ih
 
 /-- Every caller-prefix accumulator is reduced; no earlier table values are retained. -/
 theorem sumState_acc_lt (q : Params γ) (table : ℕ → ℕ) (j : ℕ)
-    (hp : 0 < q.2.1.1) : (sumState q table j).2.2 < q.2.1.1 := by
+    (hp : 0 < q.modulus) : (sumState q table j).acc < q.modulus := by
   cases j with
   | zero => exact hp
   | succ j =>
@@ -101,20 +121,20 @@ theorem resume_sumState (q : Params γ) (table : ℕ → ℕ) (j : ℕ)
     (answer : τ → ℕ) (t : τ) (ht : answer t = table j) :
     resume answer (sumState q table j) t = sumState q table (j + 1) := by
   have hc := sumState_counter q table j
-  have hstep : gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2
-      (fun _ => answer t) q.2.2.1 (sumState q table j).2 =
-      gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1
+  have hstep : gridSumStep q.modulus q.alphabet q.coords
+      (fun _ => answer t) q.point (sumState q table j).2 =
+      gridSumStep q.modulus q.alphabet q.coords table q.point
         (sumState q table j).2 := by
     simp only [gridSumStep, hc, ht]
-  change (q, gridSumStep q.2.1.1 q.2.1.2.1 q.2.1.2.2
-    (fun _ => answer t) q.2.2.1 (sumState q table j).2) = _
+  change (q, gridSumStep q.modulus q.alphabet q.coords
+    (fun _ => answer t) q.point (sumState q table j).2) = _
   rw [hstep]
   simp only [sumState, Function.iterate_succ_apply']
 
 /-- One table call implements one sum iteration, with one entry and one return step. -/
 theorem runFrom_one (q : Params γ) (N : QueryMachine τ) (start : State γ → τ)
     (answer : τ → ℕ) (w : List Bool) (table : ℕ → ℕ) (j T : ℕ)
-    (hj : j < q.2.2.2)
+    (hj : j < q.limit)
     (hpre : ∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false)
     (hhalt : N.halted (N.runFrom w (start (sumState q table j)) T) = true)
     (hanswer : answer (N.runFrom w (start (sumState q table j)) T) = table j) :
@@ -123,13 +143,12 @@ theorem runFrom_one (q : Params γ) (N : QueryMachine τ) (start : State γ → 
   have hc := sumState_counter q table j
   rw [← resume_sumState q table j answer _ hanswer]
   apply QueryMachine.withCalls_runFrom_call
-  · change decide (q.2.2.2 ≤ (sumState q table j).2.1) = false
+  · change decide (q.limit ≤ (sumState q table j).counter) = false
     rw [hc]
     exact decide_eq_false (by omega)
-  · change (if (sumState q table j).2.1 < q.2.2.2 then
+  · change (if (sumState q table j).counter < q.limit then
       some (start (sumState q table j)) else none) = _
-    rw [hc]
-    simp only [hj, ↓reduceIte]
+    simp only [hc, hj, ↓reduceIte]
   · exact hpre
   · exact hhalt
 
@@ -137,11 +156,11 @@ theorem runFrom_one (q : Params γ) (N : QueryMachine τ) (start : State γ → 
 The supplier contract is required at each actual requested state, including the current sum. -/
 theorem exists_runFrom_sumState (q : Params γ) (N : QueryMachine τ)
     (start : State γ → τ) (answer : τ → ℕ) (w : List Bool) (table : ℕ → ℕ)
-    (hsupplier : ∀ j < q.2.2.2, ∃ T,
+    (hsupplier : ∀ j < q.limit, ∃ T,
       (∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false) ∧
       N.halted (N.runFrom w (start (sumState q table j)) T) = true ∧
       answer (N.runFrom w (start (sumState q table j)) T) = table j)
-    (j : ℕ) (hj : j ≤ q.2.2.2) :
+    (j : ℕ) (hj : j ≤ q.limit) :
     ∃ T, (machine q N start answer).runFrom w (.inl (initial q)) T =
       .inl (sumState q table j) := by
   induction j with
@@ -157,22 +176,17 @@ theorem exists_runFrom_sumState (q : Params γ) (N : QueryMachine τ)
 Its final accumulator, rather than the deliberately empty output stream, is the result. -/
 theorem exists_runFrom_interpolateGrid (q : Params γ) (N : QueryMachine τ)
     (start : State γ → τ) (answer : τ → ℕ) (w : List Bool) (table : ℕ → ℕ)
-    (hlimit : q.2.2.2 = q.2.1.2.1 ^ q.2.1.2.2)
-    (hsupplier : ∀ j < q.2.2.2, ∃ T,
+    (hlimit : q.limit = q.alphabet ^ q.coords)
+    (hsupplier : ∀ j < q.limit, ∃ T,
       (∀ i < T, N.halted (N.runFrom w (start (sumState q table j)) i) = false) ∧
       N.halted (N.runFrom w (start (sumState q table j)) T) = true ∧
       answer (N.runFrom w (start (sumState q table j)) T) = table j) :
     ∃ T, (machine q N start answer).runFrom w (.inl (initial q)) T =
-      .inl (q, q.2.2.2,
-        interpolateGrid q.2.1.1 q.2.1.2.1 q.2.1.2.2 table q.2.2.1) := by
-  obtain ⟨T, hT⟩ := exists_runFrom_sumState q N start answer w table hsupplier q.2.2.2 le_rfl
-  refine ⟨T, hT.trans ?_⟩
-  congr 1
-  apply Prod.ext
-  · rfl
-  · apply Prod.ext
-    · exact sumState_counter q table q.2.2.2
-    · simp only [sumState, interpolateGrid, hlimit]
+      .inl (q, q.limit,
+        interpolateGrid q.modulus q.alphabet q.coords table q.point) := by
+  obtain ⟨T, hT⟩ := exists_runFrom_sumState q N start answer w table hsupplier q.limit le_rfl
+  refine ⟨T, hT.trans (congrArg Sum.inl (Prod.ext rfl (Prod.ext (sumState_counter ..) ?_)))⟩
+  simp only [sumState, interpolateGrid, hlimit]
 
 /-- The one-entry table consumed by the existing counter gate extension. -/
 def gateTable {s b d r : ℕ} (hs : 0 < s)

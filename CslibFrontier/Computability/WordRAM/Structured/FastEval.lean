@@ -35,12 +35,18 @@ not certify a runtime bound.
   `Cslib.WordRAM.Data` it represents.
 * `Cslib.WordRAM.Code.evalFast`: the interpreter on `FastData`.
 * `Cslib.WordRAM.Code.evalImpl`: `Code.eval` computed with `Code.evalFast`.
+* `Cslib.WordRAM.Program.runFast`, `Cslib.WordRAM.Program.runFastList`: fast compiled
+  interpreters for flat `Program`s on `FastData`, returning scalar or length-prefixed list outputs.
 
 ## Main results
 
 * `Cslib.WordRAM.Code.evalFast_toData`: `Code.evalFast` computes `Code.eval`.
 * `Cslib.WordRAM.Code.eval_eq_evalImpl`: proved compiler replacement of `Code.eval` by
   `Code.evalImpl`.
+* `Cslib.WordRAM.Program.runFast_eq_run`: `Program.runFast` agrees identically with
+  `Cslib.WordRAM.run`.
+* `Cslib.WordRAM.Program.runFastList_sound`: a halting `Program.runFastList` result yields a
+  corresponding `Runs`/`step = .halt` execution with the returned length-prefixed array.
 -/
 
 public section
@@ -222,11 +228,7 @@ theorem Code.evalFast_toData (w fuel : ℕ) (c : Code B r) (x : FastData r) :
       rfl
   | branch c pos neg ihp ihn =>
     simp only [evalFast, eval, Cond.holdsFast_eq, decide_eq_true_eq]
-    split
-    · rw [← ihp, Option.map_map, Option.map_map]
-      rfl
-    · rw [← ihn, Option.map_map, Option.map_map]
-      rfl
+    split <;> simp only [← ihp, ← ihn, Option.map_map] <;> rfl
   | loop c body ih =>
     exact evalLoopFast_toData c (fun y => ih y) fuel x
   | rand dst src => rfl
@@ -240,5 +242,138 @@ def Code.evalImpl (w fuel : ℕ) (c : Code B r) (x : Data r) : Option (Data r ×
 theorem Code.eval_eq_evalImpl : @Code.eval = @Code.evalImpl := by
   funext B r w fuel c x
   rw [Code.evalImpl, Code.evalFast_toData, FastData.toData_ofData]
+
+/-! ## Fast compiled interpreter for flat `Program`s -/
+
+private def Program.runFastLoop (w : ℕ) (arr : Array (Instr B r)) :
+    ℕ → ℕ → FastData r → ℕ → Option (FastData r × ℕ × ℕ)
+  | 0, _, _, _ => none
+  | fuel + 1, pc, x, steps =>
+    match arr[pc]? with
+    | none => none
+    | some (.op o) =>
+      match o.evalFast w x with
+      | some x' => runFastLoop w arr fuel (pc + 1) x' (steps + 1)
+      | none => none
+    | some (.jump t) => runFastLoop w arr fuel t x (steps + 1)
+    | some (.branch c t) =>
+      runFastLoop w arr fuel (if c.holdsFast x then t else pc + 1) x (steps + 1)
+    | some (.halt i) => some (x, x.reg i, steps + 1)
+    | some (.rand _ _) => none
+
+/-- Fast compiled interpreter for a flat `Program B r` from `State.init input`, returning
+`(haltingOutput, steps)` within `fuel` instructions. -/
+def Program.runFast (w fuel : ℕ) (p : Program B r) (input : List ℕ) : Option (ℕ × ℕ) :=
+  (Program.runFastLoop w p.toArray fuel 0 (.ofData (.init input)) 0).map
+    fun (_, v, steps) => (v, steps)
+
+/-- Fast compiled list-output interpreter for a flat `Program B r` from `State.init input`,
+returning the length-prefixed array at the halting address and the exact instruction count. -/
+def Program.runFastList (w fuel : ℕ) (p : Program B r) (input : List ℕ) :
+    Option (List ℕ × ℕ) :=
+  (Program.runFastLoop w p.toArray fuel 0 (.ofData (.init input)) 0).map
+    fun (x, v, steps) => ((List.range (x.read v)).map (fun i => x.read (v + 1 + i)), steps)
+
+private theorem Program.runFastLoop_map_eq_run (w : ℕ) (p : Program B r) (fuel pc : ℕ)
+    (x : FastData r) (steps : ℕ) :
+    (Program.runFastLoop w p.toArray fuel pc x steps).map (fun r => (r.2.1, r.2.2)) =
+      (run w p fuel ⟨pc, x.toData⟩).map (fun vn => (vn.1, vn.2 + steps)) := by
+  induction fuel generalizing pc x steps with
+  | zero => rfl
+  | succ fuel ih =>
+    rw [runFastLoop, run_succ, List.getElem?_toArray]
+    cases hp : p[pc]? with
+    | none => simp [step, hp]
+    | some instr =>
+      have hshift (s' : State r) :
+          (run w p fuel s').map (fun vn => (vn.1, vn.2 + (steps + 1))) =
+            ((run w p fuel s').map fun vn => (vn.1, vn.2 + 1)).map
+              fun vn => (vn.1, vn.2 + steps) := by
+        cases run w p fuel s' <;> simp [Nat.add_assoc, Nat.add_comm 1]
+      cases instr with
+      | op o =>
+        have hop := Op.evalFast_toData w o x
+        cases ho : o.evalFast w x <;> rw [ho] at hop
+        · simp [step, hp, ho, ← hop]
+        · simpa only [step, hp, ho, ← hop, Option.map_some, ih] using hshift _
+      | jump t => simpa only [step, hp, ih] using hshift _
+      | branch c t =>
+        by_cases hc : c.Holds x.toData <;>
+          simpa only [step, hp, Cond.holdsFast_eq, hc, decide_true, decide_false,
+            Bool.false_eq_true, ↓reduceIte, ih] using hshift _
+      | halt i =>
+        simp only [step, hp, Option.map_some, FastData.toData, Option.some.injEq, Prod.mk.injEq,
+          true_and]
+        omega
+      | rand _ _ =>
+        simp [step, hp]
+
+/-- `Program.runFast` agrees identically with `Cslib.WordRAM.run`. -/
+theorem Program.runFast_eq_run (w fuel : ℕ) (p : Program B r) (input : List ℕ) :
+    p.runFast w fuel input = run w p fuel (.init input) := by
+  unfold Program.runFast
+  rw [Program.runFastLoop_map_eq_run, FastData.toData_ofData]
+  change (run w p fuel (.init input)).map (fun vn => (vn.1, vn.2 + 0)) = _
+  cases run w p fuel (.init input) <;> simp
+
+private theorem Program.runFastLoop_sound {w : ℕ} {p : Program B r} {fuel pc steps : ℕ}
+    {x y : FastData r} {v n : ℕ}
+    (h : Program.runFastLoop w p.toArray fuel pc x steps = some (y, v, n)) :
+    ∃ pc' m, Runs w p ⟨pc, x.toData⟩ ⟨pc', y.toData⟩ m ∧
+      step w p ⟨pc', y.toData⟩ = .halt v ∧ n = m + 1 + steps := by
+  induction fuel generalizing pc x steps with
+  | zero => cases h
+  | succ fuel ih =>
+    rw [runFastLoop, List.getElem?_toArray] at h
+    cases hp : p[pc]? with
+    | none => simp [hp] at h
+    | some instr =>
+      rw [hp] at h
+      cases instr with
+      | op o =>
+        dsimp only at h
+        have hop := Op.evalFast_toData w o x
+        cases ho : o.evalFast w x with
+        | none => simp [ho] at h
+        | some x' =>
+          rw [ho] at h hop
+          obtain ⟨pc', m, hr, hh, rfl⟩ := ih h
+          have hnext : Next w p ⟨pc, x.toData⟩ ⟨pc + 1, x'.toData⟩ := by
+            simp [Next, step, hp, ← hop]
+          exact ⟨pc', m + 1, hr.head _ _ _ _ hnext, hh, by omega⟩
+      | jump t =>
+        obtain ⟨pc', m, hr, hh, rfl⟩ := ih h
+        have hnext : Next w p ⟨pc, x.toData⟩ ⟨t, x.toData⟩ := by simp [Next, step, hp]
+        exact ⟨pc', m + 1, hr.head _ _ _ _ hnext, hh, by omega⟩
+      | branch c t =>
+        obtain ⟨pc', m, hr, hh, rfl⟩ := ih h
+        have hnext : Next w p ⟨pc, x.toData⟩
+            ⟨if c.holdsFast x then t else pc + 1, x.toData⟩ := by
+          simp only [Next, step, hp, Cond.holdsFast_eq]
+          by_cases hc : c.Holds x.toData <;> simp [hc]
+        exact ⟨pc', m + 1, hr.head _ _ _ _ hnext, hh, by omega⟩
+      | halt i =>
+        obtain ⟨rfl, rfl, rfl⟩ := Option.some.inj h
+        exact ⟨pc, 0, .refl _, by simp [step, hp, FastData.toData], by omega⟩
+      | rand _ _ => cases h
+
+/-- A halting `Program.runFastList` result yields a corresponding halting execution of `p` from
+`State.init input` whose pre-halt memory holds `l` as a length-prefixed array at the returned
+address `v`. -/
+theorem Program.runFastList_sound {w fuel : ℕ} {p : Program B r} {input l : List ℕ} {n : ℕ}
+    (h : p.runFastList w fuel input = some (l, n)) :
+    ∃ t m v, Runs w p (.init input) t m ∧ step w p t = .halt v ∧
+      (List.range (t.data.mem v)).map (fun i => t.data.mem (v + 1 + i)) = l ∧
+      n = m + 1 := by
+  unfold Program.runFastList at h
+  cases hloop : Program.runFastLoop w p.toArray fuel 0 (.ofData (.init input)) 0 with
+  | none => simp [hloop] at h
+  | some yvn =>
+    obtain ⟨y, v, n'⟩ := yvn
+    rw [hloop] at h
+    obtain ⟨rfl, rfl⟩ := Option.some.inj h
+    obtain ⟨pc', m, hr, hh, rfl⟩ := Program.runFastLoop_sound hloop
+    rw [FastData.toData_ofData] at hr
+    exact ⟨⟨pc', y.toData⟩, m, v, hr, hh, rfl, by omega⟩
 
 end Cslib.WordRAM

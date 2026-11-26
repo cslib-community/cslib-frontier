@@ -84,22 +84,16 @@ private theorem cylinder_step (F : Semifilter ↥(targetᶜ)) (v : Fin n → Boo
     (hnext : ¬ F (cylinder target (k.val + 1) v h)) :
     ¬ F.PreservesPair (cylinder target k.val v h, {x | x.val k = v k}) := by
   intro hp
-  apply hnext
-  apply F.monotone _ (hp hprev (hv k))
-  intro x hx
-  change h (splice (k.val + 1) v x.val) = true
-  have heq : splice (k.val + 1) v x.val = splice k.val v x.val := by
-    funext i
-    unfold splice
-    split_ifs with h1 h2
-    · rfl
-    · have hi : i = k := Fin.ext (by lia)
-      subst i
-      exact hx.2
-    · lia
-    · rfl
-  rw [heq]
-  exact hx.1
+  refine hnext (F.monotone (fun x hx => ?_) (hp hprev (hv k)))
+  suffices splice (k.val + 1) v x.val = splice k.val v x.val by simpa [cylinder, this] using hx.1
+  funext i
+  unfold splice
+  split_ifs with h1 h2
+  · rfl
+  · have hi : i = k := Fin.ext (by lia)
+    exact hi ▸ hx.2
+  · lia
+  · rfl
 
 private theorem path_cover (F : Semifilter ↥(targetᶜ)) (v : Fin n → Bool)
     (hv : ∀ i, F {x | x.val i = v i}) (h : (Fin n → Bool) → Bool)
@@ -107,26 +101,24 @@ private theorem path_cover (F : Semifilter ↥(targetᶜ)) (v : Fin n → Bool)
     ∃ k : Fin n, ¬ F.PreservesPair
       (cylinder target k.val v h, {x | x.val k = v k}) := by
   by_contra! hnone
-  have all : ∀ k, k ≤ n → F (cylinder target k v h) := by
-    intro k hk
+  have all : ∀ k ≤ n, F (cylinder target k v h) := fun k hk => by
     induction k with
     | zero =>
-      have heq : cylinder target 0 v h = Set.univ := by
-        ext x
-        have hp : splice 0 v x.val = v := by ext i; simp [splice]
-        simp [cylinder, hp, hh]
-      rw [heq]
-      exact F.apply_univ
+      suffices cylinder target 0 v h = Set.univ from this ▸ F.apply_univ
+      ext x
+      have hs : splice 0 v x.val = v := by
+        ext i
+        simp [splice]
+      simp [cylinder, hh, hs]
     | succ k ih =>
       by_contra hn
       exact cylinder_step F v hv h ⟨k, by lia⟩ (ih (by lia)) hn (hnone ⟨k, by lia⟩)
-  apply hF
-  have heq : cylinder target n v h = {x | h x.val = true} := by
-    ext x
-    have hp : splice n v x.val = x.val := by ext i; simp [splice, i.isLt]
-    simp [cylinder, hp]
-  rw [← heq]
-  exact all n le_rfl
+  suffices cylinder target n v h = {x | h x.val = true} from hF (this ▸ all n le_rfl)
+  ext x
+  have hs : splice n v x.val = x.val := by
+    ext i
+    simp [splice, i.isLt]
+  simp [cylinder, hs]
 
 
 private noncomputable def oneIf (p : Prop) : ℝ :=
@@ -139,32 +131,26 @@ private theorem expect_involution {Ω : Type*} [Fintype Ω] (e : Ω → Ω)
 private def flipAt (v : Fin n → Bool) (h : (Fin n → Bool) → Bool)
     (x : Fin n → Bool) : Bool := if x = v then !h x else h x
 
-private theorem flipAt_involutive (v : Fin n → Bool) : Function.Involutive (flipAt v) := by
-  intro h
-  funext x
-  by_cases hx : x = v <;> simp [flipAt, hx]
+private theorem flipAt_involutive (v : Fin n → Bool) : Function.Involutive (flipAt v) :=
+  fun h => funext fun x => by by_cases hx : x = v <;> simp [flipAt, hx]
 
 private theorem flipAt_restrict (v : target) (h : (Fin n → Bool) → Bool) :
     {x : ↥(targetᶜ) | flipAt v.val h x.val = true} = {x | h x.val = true} := by
   ext x
-  have hx : x.val ≠ v.val := fun h => x.property (h ▸ v.property)
-  simp [flipAt, hx]
+  simp [flipAt, show x.val ≠ v.val from fun h => x.property (h ▸ v.property)]
 
 private theorem rejection_eq_twice_error (F : Semifilter ↥(targetᶜ)) (v : target) :
     (𝔼 h : (Fin n → Bool) → Bool, oneIf (¬ F {x | h x.val = true})) =
       2 * 𝔼 h : (Fin n → Bool) → Bool,
         oneIf (h v.val = true ∧ ¬ F {x | h x.val = true}) := by
   classical
-  let err := fun h : (Fin n → Bool) → Bool =>
-    oneIf (h v.val = true ∧ ¬ F {x | h x.val = true})
+  let err (h : (Fin n → Bool) → Bool) := oneIf (h v.val = true ∧ ¬ F {x | h x.val = true})
   have pointwise (h : (Fin n → Bool) → Bool) :
       oneIf (¬ F {x | h x.val = true}) = err h + err (flipAt v.val h) := by
     dsimp only [err]
     rw [flipAt_restrict v h]
-    by_cases hf : F {x | h x.val = true} <;> cases hv : h v.val <;>
-      simp [oneIf, flipAt, hf, hv]
-  simp_rw [pointwise]
-  rw [Finset.expect_add_distrib, expect_involution _ (flipAt_involutive v.val)]
+    by_cases hf : F {x | h x.val = true} <;> cases hv : h v.val <;> simp [oneIf, flipAt, hf, hv]
+  simp_rw [pointwise, Finset.expect_add_distrib, expect_involution _ (flipAt_involutive v.val)]
   change (𝔼 h, err h) + (𝔼 h, err h) = 2 * 𝔼 h, err h
   ring
 
@@ -173,31 +159,23 @@ private theorem complement_estimate (F : Semifilter ↥(targetᶜ)) :
       𝔼 h : (Fin n → Bool) → Bool,
         hit F ({x | h x.val = true}, {x | h x.val ≠ true}) := by
   classical
-  have pointwise (h : (Fin n → Bool) → Bool) :
-      (1 : ℝ) ≤ oneIf (¬ F {x | h x.val = true}) +
-        oneIf (¬ F {x | (!h x.val) = true}) +
-        hit F ({x | h x.val = true}, {x | h x.val ≠ true}) := by
-    have hcomp : {x : ↥(targetᶜ) | (!h x.val) = true} = {x | h x.val ≠ true} := by
+  have pointwise (h : (Fin n → Bool) → Bool) : (1 : ℝ) ≤ oneIf (¬ F {x | h x.val = true}) +
+      oneIf (¬ F {x | (!h x.val) = true}) + hit F ({x | h x.val = true}, {x | h x.val ≠ true}) := by
+    have hnot : {x : ↥(targetᶜ) | (!h x.val) = true} = {x | h x.val ≠ true} := by
       ext x
       cases h x.val <;> simp
-    rw [hcomp]
+    rw [hnot]
     have hempty : ({x : ↥(targetᶜ) | h x.val = true} ∩ {x | h x.val ≠ true}) = ∅ := by
       ext x
       simp
-    by_cases ha : F {x | h x.val = true} <;>
-      by_cases hb : F {x | h x.val ≠ true} <;>
-      simp only [oneIf, hit, Semifilter.PreservesPair, ha, hb, hempty,
-        F.not_apply_empty, not_true_eq_false, not_false_eq_true, true_implies,
-        false_implies, ite_true, ite_false] <;> norm_num
-  have hh := Finset.expect_le_expect (s := Finset.univ) (fun h _ => pointwise h)
-  rw [Fintype.expect_const, Finset.expect_add_distrib, Finset.expect_add_distrib] at hh
-  have hnot : Function.Involutive (fun h : (Fin n → Bool) → Bool => fun x => !h x) := by
-    intro h
-    funext x
-    simp
-  have he := expect_involution _ hnot
-    (fun h => oneIf (¬ F {x | h x.val = true}))
-  rw [he] at hh
+    by_cases ha : F {x | h x.val = true} <;> by_cases hb : F {x | h x.val ≠ true} <;>
+      simp only [oneIf, hit, Semifilter.PreservesPair, ha, hb, hempty, F.not_apply_empty,
+        not_true_eq_false, not_false_eq_true, true_implies, false_implies, ite_true, ite_false] <;>
+      norm_num
+  have hh := Finset.expect_le_expect (s := Finset.univ) fun h _ => pointwise h
+  rw [Fintype.expect_const, Finset.expect_add_distrib, Finset.expect_add_distrib,
+    expect_involution (fun h x => !h x) (fun h => funext fun x => by simp)
+      (fun h => oneIf (¬ F {x | h x.val = true}))] at hh
   linarith
 
 
@@ -206,22 +184,17 @@ private def shiftTable (k : ℕ) (v : Fin n → Bool) (h : (Fin n → Bool) → 
   h (fun i => if i.val < k then x i else x i ^^ v i)
 
 private theorem shiftTable_involutive (k : ℕ) (v : Fin n → Bool) :
-    Function.Involutive (shiftTable k v) := by
-  intro h
-  funext x
-  apply congrArg h
-  funext i
-  by_cases hi : i.val < k <;> simp [hi]
+    Function.Involutive (shiftTable k v) :=
+  fun h => funext fun x => congrArg h <| funext fun i => by by_cases hi : i.val < k <;> simp [hi]
 
 private theorem cylinder_shift (k : ℕ) (v : Fin n → Bool) (h : (Fin n → Bool) → Bool) :
     cylinder target k (fun _ => false) (shiftTable k v h) = cylinder target k v h := by
   ext x
-  change (h _ = true) ↔ (h _ = true)
-  have he : (fun i => if i.val < k then splice k (fun _ => false) x.val i
-      else splice k (fun _ => false) x.val i ^^ v i) = splice k v x.val := by
-    funext i
-    by_cases hi : i.val < k <;> simp [splice, hi]
-  rw [he]
+  suffices (fun i => if i.val < k then splice k (fun _ => false) x.val i
+      else splice k (fun _ => false) x.val i ^^ v i) = splice k v x.val by
+    simp [cylinder, shiftTable, this]
+  funext i
+  by_cases hi : i.val < k <;> simp [splice, hi]
 
 private theorem expect_cylinder (F : Semifilter ↥(targetᶜ)) (k : Fin n)
     (v : Fin n → Bool) (b : Bool) :
@@ -229,9 +202,9 @@ private theorem expect_cylinder (F : Semifilter ↥(targetᶜ)) (k : Fin n)
       hit F (cylinder target k.val v h, {x | x.val k = b})) =
     𝔼 h : (Fin n → Bool) → Bool,
       hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}) := by
-  have he := expect_involution (shiftTable k.val v) (shiftTable_involutive k.val v)
+  simpa only [cylinder_shift] using expect_involution (shiftTable k.val v)
+    (shiftTable_involutive k.val v)
     (fun h => hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}))
-  simpa only [cylinder_shift] using he
 
 private theorem error_le_hits (F : Semifilter ↥(targetᶜ)) (v : Fin n → Bool)
     (hv : ∀ i, F {x | x.val i = v i}) :
@@ -281,29 +254,22 @@ private theorem sample_sum_bound (F : Semifilter ↥(targetᶜ)) (v : target)
     (hv : ∀ i, F {x | x.val i = v.val i}) :
     1 ≤ 4 * ∑ level : Option (Fin n), ∑ b : Bool,
       𝔼 h : (Fin n → Bool) → Bool, hit F (booleanPairSample target level b h) := by
-  have he := error_le_hits F v.val hv
-  have hr := rejection_eq_twice_error F v
-  have hc := complement_estimate F
-  rw [hr] at hc
   have hnonneg (p : Set ↥(targetᶜ) × Set ↥(targetᶜ)) : 0 ≤ hit F p := by
     unfold hit
     split_ifs <;> norm_num
   have hsum : (∑ k : Fin n, 𝔼 h : (Fin n → Bool) → Bool,
         hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = v.val k})) ≤
       ∑ k : Fin n, ∑ b : Bool, 𝔼 h : (Fin n → Bool) → Bool,
-        hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}) := by
-    apply Finset.sum_le_sum
-    intro k _
-    exact Finset.single_le_sum (f := fun b : Bool =>
-      𝔼 h : (Fin n → Bool) → Bool,
-        hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}))
-      (fun b _ => Finset.expect_nonneg fun h _ => hnonneg _)
-      (Finset.mem_univ (v.val k))
-  have hroot : 0 ≤ 𝔼 h : (Fin n → Bool) → Bool,
-      hit F ({x | h x.val = true}, {x | h x.val ≠ true}) :=
-    Finset.expect_nonneg fun h _ => hnonneg _
+        hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}) :=
+    Finset.sum_le_sum fun k _ => Finset.single_le_sum (f := fun b : Bool => 𝔼 h,
+      hit F (cylinder target k.val (fun _ => false) h, {x | x.val k = b}))
+      (fun _ _ => Finset.expect_nonneg fun _ _ => hnonneg _) (Finset.mem_univ (v.val k))
+  have hc := complement_estimate F
+  rw [rejection_eq_twice_error F v] at hc
   rw [sample_sum]
-  linarith
+  linarith [error_le_hits F v.val hv,
+    Finset.expect_nonneg (s := Finset.univ) fun (h : (Fin n → Bool) → Bool) _ =>
+      hnonneg ({x | h x.val = true}, {x | h x.val ≠ true})]
 
 open Classical in
 /-- Uniformly sampling the level, polarity, and full truth table covers every matching-literal
@@ -321,8 +287,7 @@ theorem le_booleanPairSample_expect (F : Semifilter ↥(targetᶜ)) (v : target)
   simp only [Fintype.card_option, Fintype.card_fin, Nat.cast_add, Nat.cast_one]
   simp_rw [Fintype.expect_eq_sum_div_card (fun b : Bool => _)]
   simp only [Fintype.card_bool, Nat.cast_ofNat, ← Finset.sum_div]
-  have hpos : (0 : ℝ) < n + 1 := by positivity
-  apply (div_le_div_iff₀ (by positivity) hpos).mpr
+  rw [div_le_div_iff₀ (by positivity) (by positivity)]
   nlinarith
 
 
@@ -336,17 +301,14 @@ theorem exists_pair_weight_ge {W : Type*} [Fintype W]
     ∃ p : Set ↥(targetᶜ) × Set ↥(targetᶜ),
       (∑ w, μ w) / (8 * n + 8) ≤
         ∑ w, μ w * if ¬ (F w).PreservesPair p then 1 else 0 := by
-  have hb : (∑ w, μ w) / (8 * n + 8) ≤
-      ∑ w, μ w * (𝔼 level : Option (Fin n), 𝔼 b : Bool,
-        𝔼 h : (Fin n → Bool) → Bool, hit (F w) (booleanPairSample target level b h)) := by
-    rw [Finset.sum_div]
-    exact Finset.sum_le_sum fun w _ => by
-      simpa only [div_eq_mul_inv, one_mul, hit] using
-        mul_le_mul_of_nonneg_left (le_booleanPairSample_expect (F w) (v w) (hv w)) (hμ w)
   have he : (∑ w, μ w) / (8 * n + 8) ≤
       𝔼 level : Option (Fin n), 𝔼 b : Bool, 𝔼 h : (Fin n → Bool) → Bool,
         ∑ w, μ w * hit (F w) (booleanPairSample target level b h) := by
-    simpa only [Finset.mul_expect, Finset.expect_sum_comm] using hb
+    simp_rw [Finset.expect_sum_comm, ← Finset.mul_expect]
+    rw [Finset.sum_div]
+    refine Finset.sum_le_sum fun w _ => ?_
+    simpa only [div_eq_mul_inv, one_mul, hit] using
+      mul_le_mul_of_nonneg_left (le_booleanPairSample_expect (F w) (v w) (hv w)) (hμ w)
   obtain ⟨level, _, hl⟩ := Finset.exists_le_of_le_expect Finset.univ_nonempty he
   obtain ⟨b, _, hb⟩ := Finset.exists_le_of_le_expect Finset.univ_nonempty hl
   obtain ⟨h, _, hh⟩ := Finset.exists_le_of_le_expect Finset.univ_nonempty hb
@@ -365,11 +327,10 @@ theorem fixedDistribution_counting_bound {W : Type*} [Fintype W]
     0 < d ∧ 1 / d ≤ 8 * n + 8 := by
   obtain ⟨p, hp⟩ := exists_pair_weight_ge F v hv μ hμ
   rw [hprob] at hp
-  have hden : (0 : ℝ) < 8 * n + 8 := by positivity
   have hle := hp.trans (hd p)
   have hdpos : 0 < d := lt_of_lt_of_le (by positivity) hle
   refine ⟨hdpos, (div_le_iff₀ hdpos).mpr ?_⟩
-  have hh := (div_le_iff₀ hden).mp hle
+  have := (div_le_iff₀ (by positivity : (0 : ℝ) < 8 * n + 8)).mp hle
   nlinarith
 
 end Cslib.Circuits.Fusion

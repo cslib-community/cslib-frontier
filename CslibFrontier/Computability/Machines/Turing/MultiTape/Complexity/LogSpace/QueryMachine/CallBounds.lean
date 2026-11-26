@@ -51,13 +51,10 @@ theorem withCalls_runFrom_call_encoding_le {s : σ} {start : τ} {T C D : ℕ}
     (t : ℕ) (ht : t ≤ T + 2) :
     (encWithCalls encS encT ((M.withCalls N request resume).runFrom w (.inl s) t)).length ≤
       2 * C + D + 2 := by
-  by_cases hzero : t = 0
-  · subst t
-    rw [runFrom_zero, withCalls_encoding_inl_length]
-    omega
-  by_cases hfinal : t = T + 2
-  · subst t
-    rw [withCalls_runFrom_call M N request resume w s start T hs hrequest hpre hhalt,
+  rcases eq_or_ne t 0 with rfl | hzero
+  · rw [runFrom_zero, withCalls_encoding_inl_length]; omega
+  rcases eq_or_ne t (T + 2) with rfl | hfinal
+  · rw [withCalls_runFrom_call M N request resume w s start T hs hrequest hpre hhalt,
       withCalls_encoding_inl_length]
     omega
   rw [show t = 1 + (t - 1) by omega, runFrom_add,
@@ -99,10 +96,7 @@ theorem exists_runFrom_search_encoding_le {α : Type*} (enc : σ ↪ List Bool) 
   obtain ⟨n, rfl⟩ := Nat.exists_eq_add_of_le hle
   clear hle
   induction n generalizing lo with
-  | zero =>
-    refine ⟨0, .inl ⟨rfl, fun j hj hj' => absurd hj' (by omega)⟩, fun t ht => ?_⟩
-    rw [Nat.le_zero.mp ht]
-    exact hlo
+  | zero => exact ⟨0, .inl ⟨rfl, fun _ h₁ h₂ => by omega⟩, fun t ht => Nat.le_zero.mp ht ▸ hlo⟩
   | succ n ih =>
     cases hj : hit lo with
     | some a =>
@@ -116,12 +110,9 @@ theorem exists_runFrom_search_encoding_le {α : Type*} (enc : σ ↪ List Bool) 
       rw [show lo + (n + 1) = lo + 1 + n by omega]
       refine ⟨T + U, ?_, runFrom_add_encoding_le enc (c lo) hTB (by simpa only [hT] using hUB)⟩
       rw [runFrom_add, hT]
-      refine hU.imp (fun h => ⟨h.1, fun j h₁ h₂ => ?_⟩) ?_
-      · rcases Nat.eq_or_lt_of_le h₁ with rfl | h₁
-        · exact hj
-        · exact h.2 j h₁ h₂
-      · rintro ⟨j, a, h₁, h₂, h₃, h₄⟩
-        exact ⟨j, a, by omega, h₂, h₃, h₄⟩
+      exact hU.imp
+        (fun h => ⟨h.1, fun j h₁ h₂ => (Nat.eq_or_lt_of_le h₁).elim (· ▸ hj) (h.2 j · h₂)⟩)
+        fun ⟨j, a, h₁, h₂, h₃, h₄⟩ => ⟨j, a, by omega, h₂, h₃, h₄⟩
 
 /-- A loop of runs from `c j` to `c (j + 1)` for `j < n`, each encoded in `B` bits at every
 clock, is one run from `c 0` to `c n` encoded in `B` bits at every clock. -/
@@ -130,10 +121,9 @@ theorem exists_runFrom_chain_encoding_le (enc : σ ↪ List Bool) {B : ℕ} (c :
     (hstep : ∀ j < n, ∃ T,
       M.runFrom w (c j) T = c (j + 1) ∧ ∀ t ≤ T, (enc (M.runFrom w (c j) t)).length ≤ B) :
     ∃ T, M.runFrom w (c 0) T = c n ∧ ∀ t ≤ T, (enc (M.runFrom w (c 0) t)).length ≤ B := by
-  obtain ⟨T, ⟨hT, -⟩ | ⟨_, a, -⟩, hB⟩ :=
-    exists_runFrom_search_encoding_le enc c (fun _ => (none : Option Empty)) (fun _ a => a.elim)
-      (Nat.zero_le n) h0 (fun j _ hj _ => hstep j hj) (fun _ a => a.elim)
-  · exact ⟨T, hT, hB⟩
-  · exact a.elim
+  rcases exists_runFrom_search_encoding_le enc c (fun _ => (none : Option Empty))
+      (fun _ a => a.elim) (Nat.zero_le n) h0 (fun j _ hj _ => hstep j hj)
+      (fun _ a => a.elim) with ⟨T, ⟨hT, -⟩ | ⟨_, ⟨⟩, -⟩, hB⟩
+  exact ⟨T, hT, hB⟩
 
 end Turing.QueryMachine

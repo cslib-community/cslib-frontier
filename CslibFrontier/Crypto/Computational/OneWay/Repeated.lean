@@ -25,6 +25,7 @@ import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Repeated one-way functions
@@ -428,9 +429,6 @@ theorem OneWayOn.repeatedInversion_negligible {f : List Bool → List Bool}
       Game.succProbability (ProbComp.eval (repeatedInversionGameOn f valid t adversary n)) := by
   have hinv_neg := hf.negligible (repeatedInverter f t adversary)
     (isPPT_repeatedInverter hf.polyTime ht hadversary)
-  have hpoly : PolynomiallyBounded fun n => dyadicSize (t n) :=
-    dyadicSize_polynomiallyBounded.comp ht.polynomiallyBounded
-  exact negligible_of_le (hinv_neg.polynomiallyBounded_mul hpoly) fun n =>
-    succProbability_repeatedInversionGameOn_le f t adversary (hvalid n)
+  negligible using fun n => succProbability_repeatedInversionGameOn_le f t adversary (hvalid n)
 
 end Cslib.Crypto

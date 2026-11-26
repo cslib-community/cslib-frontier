@@ -11,7 +11,9 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Tactic.Linarith
 
 /-!
 # Statistical distance (`CloseTo`) on probability mass functions
@@ -45,8 +47,11 @@ distance.
 * `Cslib.Probability.CloseTo.bind`: combined first-stage and continuation error addition.
 * `Cslib.Probability.CloseTo.abs_toReal_sub_le`: closeness bounds the real probability difference
   on every event by `ε`.
-* `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) ν` is
+* `Cslib.Probability.CloseTo.of_one_sub_mul_le`,
+  `Cslib.Probability.CloseTo.of_le_apply`: a distribution pointwise dominating `(1 - ε) * ν` is
   `ε`-close to `ν`.
+* `Cslib.Probability.closeTo_pure_iff`: `CloseTo μ (PMF.pure b) ε` holds iff
+  `μ.toOuterMeasure {b}ᶜ ≤ ε`.
 * `Cslib.Probability.CloseTo.toReal_apply_le_of_uniformOfFintype`: a distribution `δ`-close to
   `PMF.uniformOfFintype α` assigns mass at most `1 / Fintype.card α + δ` to every atom.
 -/
@@ -60,15 +65,15 @@ namespace Cslib.Probability
 /-- `μ` is within statistical distance `ε` of `ν`: no event is more likely under `μ` than under
 `ν` by more than `ε`. Quantifying over all events makes this symmetric, and it is the total
 variation distance on any type, finite or not. -/
-@[expose] def CloseTo {α : Type} (μ ν : PMF α) (ε : ℝ≥0∞) : Prop :=
+@[expose] def CloseTo {α : Type*} (μ ν : PMF α) (ε : ℝ≥0∞) : Prop :=
   ∀ event : Set α, μ.toOuterMeasure event ≤ ν.toOuterMeasure event + ε
 
 /-- Every distribution is `0`-close to itself. -/
-@[simp] theorem CloseTo.refl {α : Type} (μ : PMF α) : CloseTo μ μ 0 :=
+@[simp] theorem CloseTo.refl {α : Type*} (μ : PMF α) : CloseTo μ μ 0 :=
   fun _ => by rw [add_zero]
 
 /-- Enlarging the error bound preserves statistical closeness. -/
-theorem CloseTo.mono {α : Type} {μ ν : PMF α} {ε δ : ℝ≥0∞} (h : CloseTo μ ν ε)
+theorem CloseTo.mono {α : Type*} {μ ν : PMF α} {ε δ : ℝ≥0∞} (h : CloseTo μ ν ε)
     (hle : ε ≤ δ) : CloseTo μ ν δ :=
   fun event => (h event).trans (add_le_add le_rfl hle)
 
@@ -85,7 +90,7 @@ theorem PMF.toOuterMeasure_eq_add_tsum_tsub {α : Type*} (μ ν : PMF α) {s : S
 
 /-- Statistical closeness is the positive-part sum `∑' a, (μ a - ν a)` (truncated subtraction in
 `ℝ≥0∞`) being at most `ε`: the event `{a | ν a < μ a}` is the worst case. -/
-theorem closeTo_iff_tsum_tsub_le {α : Type} {μ ν : PMF α} {ε : ℝ≥0∞} :
+theorem closeTo_iff_tsum_tsub_le {α : Type*} {μ ν : PMF α} {ε : ℝ≥0∞} :
     CloseTo μ ν ε ↔ ∑' a, (μ a - ν a) ≤ ε := by
   refine ⟨fun h => ?_, fun h event => ?_⟩
   · have h := h {a | ν a < μ a}
@@ -110,17 +115,18 @@ theorem PMF.tsum_tsub_comm {α : Type*} (μ ν : PMF α) : ∑' a, (μ a - ν a)
   simp only [h, max_comm]
 
 /-- Statistical closeness is symmetric, on any type. -/
-theorem CloseTo.symm {α : Type} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε) :
+theorem CloseTo.symm {α : Type*} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε) :
     CloseTo ν μ ε :=
   closeTo_iff_tsum_tsub_le.2 <| (PMF.tsum_tsub_comm ν μ).trans_le (closeTo_iff_tsum_tsub_le.1 h)
 
 /-- Statistical closeness is preserved by postprocessing. -/
-theorem CloseTo.map {α β : Type} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε) (f : α → β) :
+theorem CloseTo.map {α : Type*} {β : Type*} {μ ν : PMF α} {ε : ℝ≥0∞}
+    (h : CloseTo μ ν ε) (f : α → β) :
     CloseTo (μ.map f) (ν.map f) ε := fun event => by
   simpa only [PMF.toOuterMeasure_map_apply] using h (f ⁻¹' event)
 
 /-- Statistical closeness errors add along a chain. -/
-theorem CloseTo.trans {α : Type} {μ ν ρ : PMF α} {ε δ : ℝ≥0∞} (h₁ : CloseTo μ ν ε)
+theorem CloseTo.trans {α : Type*} {μ ν ρ : PMF α} {ε δ : ℝ≥0∞} (h₁ : CloseTo μ ν ε)
     (h₂ : CloseTo ν ρ δ) : CloseTo μ ρ (ε + δ) := fun event =>
   (h₁ event).trans <| by
     rw [add_comm ε δ, ← add_assoc]
@@ -128,7 +134,7 @@ theorem CloseTo.trans {α : Type} {μ ν ρ : PMF α} {ε δ : ℝ≥0∞} (h₁
 
 /-- Data processing in the first stage: replacing `μ` by an `ε`-close `ν` before a common
 randomized continuation `f` preserves `ε`-closeness, without finiteness assumptions. -/
-theorem CloseTo.bind_left {α β : Type} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε)
+theorem CloseTo.bind_left {α : Type*} {β : Type*} {μ ν : PMF α} {ε : ℝ≥0∞} (h : CloseTo μ ν ε)
     (f : α → PMF β) : CloseTo (μ.bind f) (ν.bind f) ε := fun event => by
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
   calc
@@ -147,7 +153,7 @@ theorem CloseTo.bind_left {α β : Type} {μ ν : PMF α} {ε : ℝ≥0∞} (h :
 
 /-- Pointwise statistical closeness of continuations on `μ.support` is preserved across
 `PMF.bind`. -/
-theorem CloseTo.bind_right {α β : Type} (μ : PMF α) {f g : α → PMF β} {ε : ℝ≥0∞}
+theorem CloseTo.bind_right {α : Type*} {β : Type*} (μ : PMF α) {f g : α → PMF β} {ε : ℝ≥0∞}
     (h : ∀ a ∈ μ.support, CloseTo (f a) (g a) ε) :
     CloseTo (μ.bind f) (μ.bind g) ε := fun event => by
   rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
@@ -164,31 +170,28 @@ theorem CloseTo.bind_right {α β : Type} (μ : PMF α) {f g : α → PMF β} {�
 
 /-- Combining `CloseTo.bind_left` and `CloseTo.bind_right` adds the first-stage and continuation
 errors. -/
-theorem CloseTo.bind {α β : Type} {μ ν : PMF α} {f g : α → PMF β} {ε δ : ℝ≥0∞}
+theorem CloseTo.bind {α : Type*} {β : Type*} {μ ν : PMF α} {f g : α → PMF β} {ε δ : ℝ≥0∞}
     (h₁ : CloseTo μ ν ε) (h₂ : ∀ a ∈ ν.support, CloseTo (f a) (g a) δ) :
     CloseTo (μ.bind f) (ν.bind g) (ε + δ) :=
   (h₁.bind_left f).trans (CloseTo.bind_right ν h₂)
 
 /-- Closeness within a real tolerance `ε ≥ 0` bounds the real difference of the probabilities of
 every event by `ε`. -/
-theorem CloseTo.abs_toReal_sub_le {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
+theorem CloseTo.abs_toReal_sub_le {β : Type*} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
     (h : CloseTo μ ν (ENNReal.ofReal ε)) (E : Set β) :
     |(μ.toOuterMeasure E).toReal - (ν.toOuterMeasure E).toReal| ≤ ε := by
-  have hμ := PMF.toOuterMeasure_ne_top μ E
-  have hν := PMF.toOuterMeasure_ne_top ν E
-  have h₁ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hν, ENNReal.ofReal_ne_top⟩) (h E)
-  have h₂ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hμ, ENNReal.ofReal_ne_top⟩) (h.symm E)
-  rw [ENNReal.toReal_add hν ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₁
-  rw [ENNReal.toReal_add hμ ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₂
+  have h₁ := h E
+  have h₂ := h.symm E
+  ennreal_to_real at h₁ h₂
   rw [abs_le]
   constructor <;> linarith
 
-/-- A law dominating `(1 - ε) ν` pointwise is within statistical distance `ε` of `ν`. -/
-theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
-    (h : ∀ b, ENNReal.ofReal (1 - ε) * ν b ≤ μ b) :
-    CloseTo μ ν (ENNReal.ofReal ε) := by
+/-- A law dominating `(1 - ε) * ν` pointwise in `ℝ≥0∞` is within statistical distance `ε` of `ν`. -/
+theorem CloseTo.of_one_sub_mul_le {β : Type*} {μ ν : PMF β} {ε : ℝ≥0∞}
+    (h : ∀ b, (1 - ε) * ν b ≤ μ b) :
+    CloseTo μ ν ε := by
   refine CloseTo.symm fun E => ?_
-  have hle : ENNReal.ofReal (1 - ε) * ν.toOuterMeasure E ≤ μ.toOuterMeasure E := by
+  have hle : (1 - ε) * ν.toOuterMeasure E ≤ μ.toOuterMeasure E := by
     rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
     refine tsum_le_tsum fun b => ?_
     by_cases hb : b ∈ E
@@ -197,30 +200,49 @@ theorem CloseTo.of_le_apply {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤
     · simp only [Set.indicator_of_notMem hb, mul_zero, le_refl]
   have hν := PMF.toOuterMeasure_le_one ν E
   rcases le_or_gt 1 ε with hε1 | hε1
-  · exact hν.trans ((ENNReal.one_le_ofReal.2 hε1).trans le_add_self)
+  · exact (hν.trans hε1).trans le_add_self
   calc ν.toOuterMeasure E
-      = ENNReal.ofReal (1 - ε) * ν.toOuterMeasure E + ENNReal.ofReal ε * ν.toOuterMeasure E := by
-        rw [← add_mul, ← ENNReal.ofReal_add (by linarith) hε, sub_add_cancel, ENNReal.ofReal_one,
-          one_mul]
-    _ ≤ μ.toOuterMeasure E + ENNReal.ofReal ε :=
+      = (1 - ε) * ν.toOuterMeasure E + ε * ν.toOuterMeasure E := by
+        rw [← add_mul, tsub_add_cancel_of_le hε1.le, one_mul]
+    _ ≤ μ.toOuterMeasure E + ε :=
         add_le_add hle (mul_le_of_le_one_right zero_le hν)
+
+/-- A law dominating `(1 - ε) ν` pointwise is within statistical distance `ε` of `ν`. -/
+theorem CloseTo.of_le_apply {β : Type*} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
+    (h : ∀ b, ENNReal.ofReal (1 - ε) * ν b ≤ μ b) :
+    CloseTo μ ν (ENNReal.ofReal ε) := by
+  refine CloseTo.of_one_sub_mul_le fun b => ?_
+  simpa only [ENNReal.ofReal_sub 1 hε, ENNReal.ofReal_one] using h b
+
+/-- `μ` is within statistical distance `ε` of `PMF.pure b` if and only if `{b}ᶜ` has `μ`-measure at
+most `ε`. -/
+theorem closeTo_pure_iff {β : Type*} {μ : PMF β} {b : β} {ε : ℝ≥0∞} :
+    CloseTo μ (PMF.pure b) ε ↔ μ.toOuterMeasure {b}ᶜ ≤ ε := by
+  constructor
+  · intro h
+    have hc := h {b}ᶜ
+    rw [PMF.toOuterMeasure_pure_apply, Set.mem_compl_singleton_iff, ite_eq_right (not_not.mpr rfl),
+      zero_add] at hc
+    exact hc
+  · intro h E
+    by_cases hb : b ∈ E
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_left hb]
+      exact (PMF.toOuterMeasure_le_one μ E).trans le_self_add
+    · rw [PMF.toOuterMeasure_pure_apply, ite_eq_right hb, zero_add]
+      refine (μ.toOuterMeasure.mono fun x hx => ?_).trans h
+      rw [Set.mem_compl_singleton_iff]
+      rintro rfl
+      exact hb hx
 
 /-- If `ν` is within statistical distance `δ` of the uniform distribution on a finite nonempty
 type `α`, every atom of `ν` has real probability at most `1 / Fintype.card α + δ`. -/
-theorem CloseTo.toReal_apply_le_of_uniformOfFintype {α : Type} [Fintype α] [Nonempty α]
+theorem CloseTo.toReal_apply_le_of_uniformOfFintype {α : Type*} [Fintype α] [Nonempty α]
     {ν : PMF α} {δ : ℝ≥0} (h : CloseTo (PMF.uniformOfFintype α) ν δ) (a : α) :
     (ν a).toReal ≤ 1 / Fintype.card α + δ := by
   have ha := h.symm {a}
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
     PMF.uniformOfFintype_apply] at ha
-  have hinv_ne : (Fintype.card α : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
-  have hne : (Fintype.card α : ℝ≥0∞)⁻¹ + (δ : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hinv_ne, ENNReal.coe_ne_top⟩
-  calc (ν a).toReal
-      ≤ ((Fintype.card α : ℝ≥0∞)⁻¹ + δ).toReal := ENNReal.toReal_mono hne ha
-    _ = 1 / Fintype.card α + δ := by
-      rw [ENNReal.toReal_add hinv_ne ENNReal.coe_ne_top,
-        ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, one_div]
+  ennreal_to_real at ha
+  linarith [one_div (Fintype.card α : ℝ)]
 
 end Cslib.Probability

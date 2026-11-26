@@ -99,12 +99,10 @@ private theorem shiftBy_nisanRow (f : FreeAlgebra K X) (u : FreeMonoid X) (x : X
   simp [shiftBy, nisanRow, LinearMap.funLeft, mul_assoc]
 
 private theorem nisanRowSpace_le_comap_shiftBy (f : FreeAlgebra K X) (k : ℕ) (x : X) :
-    nisanRowSpace f k ≤ (nisanRowSpace f (k + 1)).comap (shiftBy x) := by
-  refine Submodule.span_le.mpr ?_
-  rintro _ ⟨u, rfl⟩
-  refine Submodule.subset_span ⟨Fin.snoc u x, ?_⟩
-  exact (congrArg (nisanRow f) (FreeMonoid.ofFn_snoc u x)).trans
-    (shiftBy_nisanRow f _ x).symm
+    nisanRowSpace f k ≤ (nisanRowSpace f (k + 1)).comap (shiftBy x) :=
+  Submodule.span_le.mpr fun _ ⟨u, hu⟩ => hu ▸ Submodule.subset_span
+    ⟨Fin.snoc u x, (congrArg (nisanRow f) (FreeMonoid.ofFn_snoc u x)).trans
+      (shiftBy_nisanRow f _ x).symm⟩
 
 /-- For `f` homogeneous of degree `d`, elements of the row space of layer `k` vanish off the words
 of length `d - k`. -/
@@ -112,13 +110,13 @@ theorem apply_eq_zero_of_mem_nisanRowSpace {f : FreeAlgebra K X} {d k : ℕ}
     (hf : f.IsHomogeneous d) {g : FreeMonoid X → K} (hg : g ∈ nisanRowSpace f k) {v : FreeMonoid X}
     (hv : k + v.toList.length ≠ d) : g v = 0 := by
   induction hg using Submodule.span_induction with
-  | mem g hg =>
+  | mem _ hg =>
     obtain ⟨u, rfl⟩ := hg
-    refine hf.coeff_eq_zero ?_
-    rwa [FreeMonoid.toList_mul, List.length_append, FreeMonoid.length_ofFn]
+    exact hf.coeff_eq_zero
+      (by rwa [FreeMonoid.toList_mul, List.length_append, FreeMonoid.length_ofFn])
   | zero => rfl
-  | add g g' _ _ hg hg' => simp [hg, hg']
-  | smul a g _ hg => simp [hg]
+  | add _ _ _ _ hg hg' => simp [hg, hg']
+  | smul _ _ _ hg => simp [hg]
 
 /-- For `f` homogeneous of degree `k + m`, `rank M_k(f)` is the dimension of the span of the rows
 of the words of length `k`. -/
@@ -132,12 +130,11 @@ theorem rank_nisanMatrix_eq_finrank_nisanRowSpace [Fintype X] {f : FreeAlgebra K
     rw [← Set.range_comp]
     congr 1 with u v : 2
     simp [Matrix.row, nisanRow, restr]
-  have hinj : Function.Injective (restr ∘ₗ (nisanRowSpace f k).subtype) := by
-    refine (injective_iff_map_eq_zero _).mpr fun g hg => Subtype.ext (funext fun v => ?_)
-    by_cases hv : v.toList.length = m
-    · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq v hv
-      exact congrFun hg u
-    · exact apply_eq_zero_of_mem_nisanRowSpace hf g.2 (by omega)
+  have hinj : Function.Injective (restr ∘ₗ (nisanRowSpace f k).subtype) :=
+    (injective_iff_map_eq_zero _).mpr fun g hg => Subtype.ext <| funext fun v =>
+      if hv : v.toList.length = m then
+        (FreeMonoid.exists_ofFn_eq v hv).elim fun u hu => hu ▸ congrFun hg u
+      else apply_eq_zero_of_mem_nisanRowSpace hf g.2 (by omega)
   rw [Matrix.rank_eq_finrank_span_row, hrow, Submodule.span_image,
     ← LinearMap.finrank_range_of_inj hinj, LinearMap.range_comp, Submodule.range_subtype]
   rfl
@@ -150,10 +147,7 @@ theorem nisanRow_one (f : FreeAlgebra K X) : nisanRow f 1 = fun w => coeff w f :
 /-- For nonzero `f`, the row space of layer `0` is a line: `rank M_0(f) = 1`. -/
 theorem finrank_nisanRowSpace_zero {f : FreeAlgebra K X} (hf : f ≠ 0) :
     Module.finrank K (nisanRowSpace f 0) = 1 := by
-  have hrange :
-      Set.range (fun u : Fin 0 → X => nisanRow f (FreeMonoid.ofFn u)) = {nisanRow f 1} := by
-    rw [Set.range_unique, FreeMonoid.ofFn_zero]
-  rw [nisanRowSpace, hrange]
+  rw [nisanRowSpace, Set.range_unique, FreeMonoid.ofFn_zero]
   refine finrank_span_singleton fun h => ?_
   obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf
   exact hw (by simpa [nisanRow_one] using congrFun h w)
@@ -167,16 +161,14 @@ instance [Finite X] (f : FreeAlgebra K X) (k : ℕ) : FiniteDimensional K (nisan
 theorem finrank_nisanRowSpace_deg [Finite X] {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d) (hf : f ≠ 0) : Module.finrank K (nisanRowSpace f d) = 1 := by
   have := Fintype.ofFinite X
-  have hle : Module.finrank K (nisanRowSpace f d) ≤ 1 := by
-    rw [← rank_nisanMatrix_eq_finrank_nisanRowSpace (m := 0) hd]
-    exact (Matrix.rank_le_card_width _).trans (by simp)
-  refine le_antisymm hle (Module.finrank_pos_iff_exists_ne_zero.mpr ?_)
+  refine le_antisymm
+    (by rw [← rank_nisanMatrix_eq_finrank_nisanRowSpace (m := 0) hd]
+        exact (Matrix.rank_le_card_width _).trans (by simp))
+    (Module.finrank_pos_iff_exists_ne_zero.mpr ?_)
   obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf
   obtain ⟨u, hu⟩ := FreeMonoid.exists_ofFn_eq w (hd w hw)
-  refine ⟨⟨nisanRow f w, Submodule.subset_span ⟨u, congrArg (nisanRow f) hu⟩⟩,
-    fun h => hw ?_⟩
-  have := congrFun (congrArg Subtype.val h) 1
-  simpa [nisanRow] using this
+  exact ⟨⟨nisanRow f w, Submodule.subset_span ⟨u, congrArg (nisanRow f) hu⟩⟩,
+    fun h => hw (by simpa [nisanRow] using congrFun (congrArg Subtype.val h) 1)⟩
 
 /-- For nonzero `f` homogeneous of degree `k + m`, `rank M_k(f) ≥ 1`: the row of the first `k`
 letters of a word with nonzero coefficient is nonzero. -/
@@ -185,13 +177,11 @@ theorem one_le_rank_nisanMatrix [Fintype X] {f : FreeAlgebra K X} {k m : ℕ}
   rw [rank_nisanMatrix_eq_finrank_nisanRowSpace hf]
   refine Nat.one_le_iff_ne_zero.mpr (Module.finrank_pos_iff_exists_ne_zero.mpr ?_).ne'
   obtain ⟨w, hw⟩ := exists_coeff_ne_zero hf0
-  have hlen : w.toList.length = k + m := hf w hw
   obtain ⟨u, hu⟩ := FreeMonoid.exists_ofFn_eq (k := k) (FreeMonoid.ofList (w.toList.take k))
-    (by simp; omega)
+    (by simp [hf w hw])
   refine ⟨⟨nisanRow f (FreeMonoid.ofFn u), Submodule.subset_span ⟨u, rfl⟩⟩, fun h => hw ?_⟩
-  have h' := congrFun (congrArg Subtype.val h) (FreeMonoid.ofList (w.toList.drop k))
-  change coeff (FreeMonoid.ofFn u * _) f = 0 at h'
-  rwa [hu, ← FreeMonoid.ofList_append, List.take_append_drop, FreeMonoid.ofList_toList] at h'
+  simpa [nisanRow, hu, ← FreeMonoid.ofList_append, List.take_append_drop] using
+    congrFun (congrArg Subtype.val h) (FreeMonoid.ofList (w.toList.drop k))
 
 /-- For nonzero `f` homogeneous of degree `d`, the first Nisan matrix has rank `1`:
 `rank M_0(f) = 1`. -/
@@ -237,29 +227,20 @@ omit [Fintype X] in
 private theorem smul_eq_nisanRow_one {f : FreeAlgebra K X} (hf : f ≠ 0) {g : FreeMonoid X → K}
     (hg : g ∈ nisanRowSpace f 0) (hg0 : g ≠ 0) :
     g (witness f) ≠ 0 ∧ (nisanRow f 1 (witness f) / g (witness f)) • g = nisanRow f 1 := by
-  rw [nisanRowSpace_zero, Submodule.mem_span_singleton] at hg
-  obtain ⟨a, rfl⟩ := hg
-  have hρ : nisanRow f 1 (witness f) ≠ 0 := by
-    simpa [nisanRow] using coeff_witness hf
-  have ha : a ≠ 0 := by
-    rintro rfl
-    exact hg0 (zero_smul K _)
+  obtain ⟨a, rfl⟩ := Submodule.mem_span_singleton.mp (nisanRowSpace_zero f ▸ hg)
+  have hρ : nisanRow f 1 (witness f) ≠ 0 := by simpa [nisanRow] using coeff_witness hf
+  have ha : a ≠ 0 := fun h => hg0 (h ▸ zero_smul K _)
   refine ⟨by simpa using And.intro ha hρ, ?_⟩
-  rw [smul_smul]
-  convert one_smul K (nisanRow f 1) using 2
-  simp only [Pi.smul_apply, smul_eq_mul]
-  field_simp
+  rw [smul_smul, Pi.smul_apply, smul_eq_mul, div_mul_eq_div_div_swap, div_self hρ,
+    one_div_mul_cancel ha, one_smul]
 
 private theorem rowBasis_apply_one_ne_zero {f : FreeAlgebra K X} {d : ℕ}
     (hd : f.IsHomogeneous d)
     (i : Fin (Module.finrank K (nisanRowSpace f d))) :
-    (rowBasis f d i : FreeMonoid X → K) 1 ≠ 0 := by
-  intro h
-  refine (rowBasis f d).ne_zero i (Subtype.ext (funext fun v => ?_))
-  by_cases hv : v.toList.length = 0
-  · rw [show v = 1 from FreeMonoid.ext (List.length_eq_zero_iff.mp hv)]
-    exact h
-  · exact apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).2 (by omega)
+    (rowBasis f d i : FreeMonoid X → K) 1 ≠ 0 := fun h =>
+  (rowBasis f d).ne_zero i <| Subtype.ext <| funext fun v =>
+    if hv : v.toList.length = 0 then FreeMonoid.ext (List.length_eq_zero_iff.mp hv) ▸ h
+    else apply_eq_zero_of_mem_nisanRowSpace hd (rowBasis f d i).2 (by omega)
 
 private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (k : ℕ) (i : Fin (Module.finrank K (nisanRowSpace f k))) :
@@ -267,11 +248,9 @@ private theorem rowScale_ne_zero {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomog
   unfold rowScale
   split_ifs with hk hkd
   · subst hk
-    have hne : (rowBasis f 0 i : FreeMonoid X → K) ≠ 0 := fun h =>
-      (rowBasis f 0).ne_zero i (Subtype.ext h)
-    have h1 := (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 hne).1
-    have h2 : nisanRow f 1 (witness f) ≠ 0 := by simpa [nisanRow] using coeff_witness hf
-    exact div_ne_zero h2 h1
+    exact div_ne_zero (by simpa [nisanRow] using coeff_witness hf)
+      (smul_eq_nisanRow_one hf (rowBasis f 0 i).2
+        fun h => (rowBasis f 0).ne_zero i (Subtype.ext h)).1
   · subst hkd
     exact inv_ne_zero (rowBasis_apply_one_ne_zero hd i)
   · exact one_ne_zero
@@ -305,23 +284,19 @@ private noncomputable abbrev optABP (f : FreeAlgebra K X) (d : ℕ) (hd : f.IsHo
 private theorem shiftBy_srow {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (k : ℕ) (x : X) (i : Fin (Module.finrank K (nisanRowSpace f k))) :
     shiftBy x (srow f d k i) = ∑ j, optWeight f d k x i j • srow f d (k + 1) j := by
-  have hsum := (rowBasis f (k + 1)).sum_repr
+  have hval := congrArg Subtype.val <| (rowBasis f (k + 1)).sum_repr
     ((shiftBy x).restrict (shiftBy_mem f k x) (rowBasis f k i))
-  have hval := congrArg Subtype.val hsum
   rw [LinearMap.coe_restrict_apply, Submodule.coe_sum] at hval
   rw [srow, map_smul, ← hval, Finset.smul_sum]
   refine Finset.sum_congr rfl fun j _ => ?_
-  have hj := rowScale_ne_zero hd hf (k + 1) j
-  simp only [srow, optWeight, Submodule.coe_smul, smul_smul]
-  congr 1
-  field_simp
+  simp only [srow, optWeight, Submodule.coe_smul, smul_smul,
+    div_mul_cancel₀ _ (rowScale_ne_zero hd hf (k + 1) j)]
 
 private theorem srow_zero {f : FreeAlgebra K X} {d : ℕ} (hf : f ≠ 0)
     (i : Fin (Module.finrank K (nisanRowSpace f 0))) : srow f d 0 i = nisanRow f 1 := by
-  have hne : (rowBasis f 0 i : FreeMonoid X → K) ≠ 0 := fun h =>
-    (rowBasis f 0).ne_zero i (Subtype.ext h)
   rw [srow, rowScale, ite_eq_left rfl]
-  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 hne).2
+  exact (smul_eq_nisanRow_one hf (rowBasis f 0 i).2 fun h =>
+    (rowBasis f 0).ne_zero i (Subtype.ext h)).2
 
 private theorem srow_deg_apply_one {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hd0 : d ≠ 0) (i : Fin (Module.finrank K (nisanRowSpace f d))) : srow f d d i 1 = 1 := by
@@ -334,31 +309,24 @@ private theorem nisanRow_ofFn_eq_sum {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsH
       ∑ i, coeff (FreeMonoid.ofFn u) ((optABP f d hd hf).pre k i) • srow f d k i := by
   induction k with
   | zero =>
-    have hw : FreeMonoid.ofFn u = 1 := FreeMonoid.ofFn_zero u
-    have hcard : Fintype.card (Fin (Module.finrank K (nisanRowSpace f 0))) = 1 := by
-      rw [Fintype.card_fin]
-      exact finrank_nisanRowSpace_zero hf
-    obtain ⟨i₀, hi₀⟩ := Fintype.card_eq_one_iff.mp hcard
-    rw [Fintype.sum_eq_single i₀ (fun i hi => absurd (hi₀ i) hi), hw, srow_zero hf]
-    rw [NoncommABP.pre_zero, coeff_one, Finsupp.single_eq_same, one_smul]
+    obtain ⟨i₀, hi₀⟩ := Fintype.card_eq_one_iff.mp <|
+      (Fintype.card_fin _).trans (finrank_nisanRowSpace_zero hf)
+    rw [Fintype.sum_eq_single i₀ (fun i hi => absurd (hi₀ i) hi), FreeMonoid.ofFn_zero,
+      srow_zero hf, NoncommABP.pre_zero, coeff_one, Finsupp.single_eq_same, one_smul]
   | succ k ih =>
     rw [← Fin.snoc_init_self u, FreeMonoid.ofFn_snoc, ← shiftBy_nisanRow, ih, map_sum]
     simp only [map_smul, shiftBy_srow hd hf, Finset.smul_sum, smul_smul]
     rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    rw [← Finset.sum_smul]
-    congr 1
-    exact ((optABP f d hd hf).coeff_pre_succ k j _ _).symm
+    exact Finset.sum_congr rfl fun j _ => by
+      rw [← Finset.sum_smul, ← (optABP f d hd hf).coeff_pre_succ]
 
 private theorem polynomial_optABP {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (hd0 : d ≠ 0) : (optABP f d hd hf).polynomial = f := by
   refine ext_coeff fun w => ?_
   by_cases hw : w.toList.length = d
   · obtain ⟨u, rfl⟩ := FreeMonoid.exists_ofFn_eq w hw
-    have h := congrFun (nisanRow_ofFn_eq_sum hd hf d u) 1
-    simp only [nisanRow, mul_one, Finset.sum_apply, Pi.smul_apply, smul_eq_mul,
-      srow_deg_apply_one hd hd0] at h
-    rw [h, NoncommABP.polynomial, map_sum]
+    simpa [nisanRow, srow_deg_apply_one hd hd0, NoncommABP.polynomial] using
+      (congrFun (nisanRow_ofFn_eq_sum hd hf d u) 1).symm
   · rw [hd.coeff_eq_zero hw, (optABP f d hd hf).isHomogeneous_polynomial.coeff_eq_zero hw]
 
 /-- **Nisan's theorem, exactness** ([Nisan1991NonCommutative], Theorem 1;
@@ -368,10 +336,9 @@ of degree `d ≥ 1` is computed by a homogeneous layered ABP whose layer `k` has
 theorem NoncommABP.exists_width_eq_rank {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (hd0 : d ≠ 0) :
     ∃ A : NoncommABP K X d, A.polynomial = f ∧
-      ∀ k m, k + m = d → A.width k = (nisanMatrix k m f).rank := by
-  refine ⟨optABP f d hd hf, polynomial_optABP hd hf hd0, fun k m hkm => ?_⟩
-  subst hkm
-  exact (rank_nisanMatrix_eq_finrank_nisanRowSpace hd).symm
+      ∀ k m, k + m = d → A.width k = (nisanMatrix k m f).rank :=
+  ⟨optABP f d hd hf, polynomial_optABP hd hf hd0, fun _ _ hkm =>
+    (rank_nisanMatrix_eq_finrank_nisanRowSpace (hkm ▸ hd)).symm⟩
 
 /-- **Nisan's theorem** ([Nisan1991NonCommutative], Theorem 1; [Saptharishi2026Survey],
 Theorem 11.2). The least size of a homogeneous layered ABP computing a nonzero homogeneous `f` of
@@ -380,14 +347,11 @@ survey's displayed statement leaves out the final term `rank M_d(f) = 1`. -/
 theorem NoncommABP.isLeast_size {f : FreeAlgebra K X} {d : ℕ} (hd : f.IsHomogeneous d)
     (hf : f ≠ 0) (hd0 : d ≠ 0) :
     IsLeast {s | ∃ A : NoncommABP K X d, A.polynomial = f ∧ A.size = s}
-      (∑ k ∈ Finset.range (d + 1), (nisanMatrix k (d - k) f).rank) := by
-  refine ⟨?_, ?_⟩
-  · obtain ⟨A, hA, hw⟩ := NoncommABP.exists_width_eq_rank hd hf hd0
-    refine ⟨A, hA, Finset.sum_congr rfl fun k hk => hw k (d - k) ?_⟩
-    rw [Finset.mem_range] at hk
-    omega
-  · rintro s ⟨A, rfl, rfl⟩
-    exact A.sum_rank_nisanMatrix_le_size
+      (∑ k ∈ Finset.range (d + 1), (nisanMatrix k (d - k) f).rank) :=
+  ⟨(let ⟨A, hA, hw⟩ := NoncommABP.exists_width_eq_rank hd hf hd0
+    ⟨A, hA, Finset.sum_congr rfl fun k hk =>
+      hw k (d - k) (by have := Finset.mem_range.1 hk; omega)⟩),
+    fun _ ⟨A, hA, hs⟩ => hA ▸ hs ▸ A.sum_rank_nisanMatrix_le_size⟩
 
 end Finite
 

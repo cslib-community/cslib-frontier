@@ -96,11 +96,8 @@ theorem succProbability_rsaInversionGame_le_of_nonUnitFrac_le
         let x' ← (A n desc.publicKey (desc.publicKey.eval x)).eval
         pure (decide (x' = x))) =
         (PMF.uniformOfFintype (ZMod desc.modulus)).bind k := by
-      have hunif : PMF.uniformOfFintype (Fin desc.modulus) =
-          (PMF.uniformOfFintype (ZMod desc.modulus)).map (ZMod.finEquiv desc.modulus).symm :=
-        (PMF.uniformOfFintype_map_equiv (ZMod.finEquiv desc.modulus).symm.toEquiv).symm
       change (PMF.uniformOfFintype (Fin desc.modulus)).bind _ = _
-      rw [hunif, PMF.bind_map]
+      rw [← PMF.uniformOfFintype_map_equiv (ZMod.finEquiv desc.modulus).symm.toEquiv, PMF.bind_map]
       rfl
     have h2 : (do
         let x ← PMF.uniformOfFintype (ZMod desc.modulus)ˣ
@@ -113,14 +110,11 @@ theorem succProbability_rsaInversionGame_le_of_nonUnitFrac_le
       simp only [k, unitResidue_eq_finEquiv_symm]
     rw [h1, h2]
     exact (Game.advantage_bind_units_le desc.modulus k).trans (hδ desc hdesc)
-  have hreal : ((rsaInversionGame gen A n).succProbability : ℝ) ≤
-      ((rsaUnitInversionGame gen A n).succProbability : ℝ) + δ := by
-    have hcoe : |((rsaInversionGame gen A n).succProbability : ℝ) -
-        (rsaUnitInversionGame gen A n).succProbability| ≤ δ := by
-      rw [← Game.coe_advantage]
-      exact_mod_cast hadv
-    linarith [(abs_sub_le_iff.mp hcoe).1]
-  exact_mod_cast hreal
+  have hcoe : |((rsaInversionGame gen A n).succProbability : ℝ) -
+      (rsaUnitInversionGame gen A n).succProbability| ≤ δ := by
+    simpa only [Game.coe_advantage] using NNReal.coe_le_coe.mpr hadv
+  rw [← NNReal.coe_le_coe, NNReal.coe_add]
+  linarith [(abs_sub_le_iff.mp hcoe).1]
 
 /-- **Boneh–Shoup Exercise 10.26 (§10.11, printed p. 431):** running the same inverter `A` in both
 games (no new reduction is defined), if every key in `(gen n).support` has primes satisfying
@@ -142,11 +136,9 @@ theorem RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le {gen : RSAGen} {δ : ℕ → �
     (hδ : Negligible δ)
     (hbound : ∀ᶠ n in Filter.atTop, ∀ desc ∈ (gen n).support,
       ((desc.modulus - desc.modulus.totient : ℕ) : ℝ≥0) / desc.modulus ≤ δ n)
-    (h : RSAUnitOneWay gen) : RSAOneWay gen := by
-  intro A hA
-  refine negligible_of_eventually_le ((h A hA).add hδ) ?_
-  filter_upwards [hbound] with n hn
-  exact succProbability_rsaInversionGame_le_of_nonUnitFrac_le gen A hn
+    (h : RSAUnitOneWay gen) : RSAOneWay gen := fun A hA =>
+  negligible_of_eventually_le ((h A hA).add hδ) <|
+    hbound.mono fun _ hn => succProbability_rsaInversionGame_le_of_nonUnitFrac_le gen A hn
 
 /-- Asymptotic converse of Theorem 10.5 (`RSAOneWay.rsaUnitOneWay`): `RSAUnitOneWay gen` implies
 `RSAOneWay gen` whenever `n ≤ desc.p.size ∧ n ≤ desc.q.size` holds eventually on `(gen n).support`

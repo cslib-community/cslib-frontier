@@ -55,12 +55,9 @@ theorem card_filter_powerset_card_le_eq_sum_choose (s : Finset α) (D : ℕ) :
         #{S ∈ (s.powerset.filter fun T ↦ #T ≤ D) | #S = j} :=
       card_eq_sum_card_fiberwise fun S hS ↦
         mem_coe.2 (mem_range.2 (Nat.lt_succ_of_le (mem_filter.1 (mem_coe.1 hS)).2))
-    _ = _ := by
-      apply sum_congr rfl
-      intro j hj
+    _ = _ := sum_congr rfl fun j hj ↦ by
       rw [← card_powersetCard]
-      congr 1
-      ext S
+      refine congrArg card (ext fun S ↦ ?_)
       simp only [mem_filter, mem_powerset, mem_powersetCard]
       exact ⟨fun h ↦ ⟨h.1.1, h.2⟩,
         fun h ↦ ⟨⟨h.1, h.2.le.trans (Nat.le_of_lt_succ (mem_range.1 hj))⟩, h.2⟩⟩
@@ -80,10 +77,8 @@ theorem card_filter_card_le_mul_pow_le (s : Finset α) (d z : ℕ) (hz : 1 ≤ z
   classical
   have hsum := sum_pow_mul_eq_add_pow (1 : ℕ) z s
   simp only [one_pow, one_mul, add_comm 1 z] at hsum
-  rw [← hsum]
-  refine card_filter_mul_le_sum _ _ _ (fun _ _ ↦ Nat.zero_le _) ?_
-  intro t _ ht
-  exact Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left ht _)
+  exact hsum ▸ card_filter_mul_le_sum _ _ _ (fun _ _ ↦ Nat.zero_le _) fun _ _ ht ↦
+    Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left ht _)
 
 /-- The subsets of size at most one third of the ground set have exponential base
 `(27 / 4) ^ (1 / 3)`. This is an exact integer inequality, including the empty ground set. -/
@@ -92,8 +87,7 @@ theorem card_filter_card_le_third_pow_three_mul_four_pow_le (s : Finset α) :
   have h := card_filter_card_le_mul_pow_le s (#s / 3) 2 (by decide)
   have hp : 4 ^ #s ≤ (2 ^ (#s - #s / 3)) ^ 3 := by
     calc
-      4 ^ #s = (2 ^ 2) ^ #s := rfl
-      _ = 2 ^ (2 * #s) := (pow_mul _ _ _).symm
+      4 ^ #s = 2 ^ (2 * #s) := (pow_mul 2 2 #s).symm
       _ ≤ 2 ^ ((#s - #s / 3) * 3) := Nat.pow_le_pow_right (by decide) (by omega)
       _ = (2 ^ (#s - #s / 3)) ^ 3 := pow_mul _ _ _
   calc
@@ -103,7 +97,6 @@ theorem card_filter_card_le_third_pow_three_mul_four_pow_le (s : Finset α) :
     _ = (#{t ∈ s.powerset | #t ≤ #s / 3} * 2 ^ (#s - #s / 3)) ^ 3 :=
       (mul_pow _ _ _).symm
     _ ≤ (3 ^ #s) ^ 3 := Nat.pow_le_pow_left h 3
-    _ = (3 ^ 3) ^ #s := pow_right_comm _ _ _
-    _ = 27 ^ #s := rfl
+    _ = 27 ^ #s := pow_right_comm 3 #s 3
 
 end Finset

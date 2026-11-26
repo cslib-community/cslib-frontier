@@ -35,7 +35,7 @@ private theorem fixedList {α β ι : Type} (encA : α ↪ List Bool) (encB : β
     ComputableInSpace (fun a => items.map (fun i => f i a)) encA (encList encB)
       (fun a => (encA a).length) := by
   induction items with
-  | nil => exact budget_const [] (.refl _)
+  | nil => exact budget_const []
   | cons i items ih => exact budget_cons (hf i) ih
 
 /-- Binary schedule and current source interval. -/
@@ -53,10 +53,10 @@ theorem provider_inSpace (k : ℕ) (p : Fin (k * 3)) :
   have hs := fst encNat encNat
   have hn := snd encNat encNat
   have hsearch := budget_comp_linear (ScheduleRead.search_inSpace k (hd.1.val + 1))
-    (budget_prod hs (budget_prod hn (budget_const (encB := encNat) hd.2.val (.refl _))))
+    (budget_prod hs (budget_prod hn (budget_const (encB := encNat) hd.2.val)))
   have hindex := budget_natSucc (budget_optionGetD 0 hsearch)
   refine (budget_ite (budget_optionIsSome hsearch) hindex
-    (budget_const (encB := encNat) 0 (.refl _))).of_enc_eq ?_
+    (budget_const (encB := encNat) 0)).of_enc_eq ?_
   rintro ⟨σ, n⟩
   change encNat (((ScheduleRead.search k (hd.1.val + 1) (σ, n, hd.2.val)).map
     fun j => j + 1).getD 0) = encNat (if
@@ -80,16 +80,15 @@ theorem child_inSpace (k : ℕ) :
   have hq := hr.fst'
   have hn := hr.snd'.fst'
   have hj := hr.snd'.snd'
-  have hzero := budget_const (encIn := encChildArgs) (encB := encNat) 0 (.refl _)
-  have hpred := budget_natSub hn (budget_const (encB := encNat) 1 (.refl _))
+  have hzero :=
+    budget_const (Bs := fun a => (encChildArgs a).length) (encIn := encChildArgs) (encB := encNat) 0
+  have hpred := budget_natSub hn (budget_const (encB := encNat) 1)
   have hbelow := budget_natLt hpred hq
-  have hchild := budget_natLt hj (budget_const (encB := encNat) (k * 3 + 1) (.refl _))
+  have hchild := budget_natLt hj (budget_const (encB := encNat) (k * 3 + 1))
   have hguard := budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (budget_prod hbelow hchild)
   have hproviders := budget_comp_linear (providers_inSpace k) (budget_prod hs hpred)
-  have hlookup := budget_comp_linear (getD.weaken (.of_le_linear 8 8 fun _ => le_rfl))
-    (budget_prod hproviders
-    (budget_natSub hj (budget_const (encB := encNat) 1 (.refl _))))
+  have hlookup := budget_getD hproviders (budget_natSub hj (budget_const (encB := encNat) 1))
   refine (budget_ite (budget_natIsZero hn) hzero (budget_ite hguard
     (budget_ite (budget_natIsZero hj) hpred hlookup) hzero)).of_enc_eq ?_
   rintro ⟨σ, q, n, j⟩

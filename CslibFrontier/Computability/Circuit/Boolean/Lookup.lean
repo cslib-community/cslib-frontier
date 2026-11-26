@@ -61,24 +61,20 @@ theorem complexity_le_lookup (D : (Fin a → Bool) → Fin r → Bool) :
     complexity interpretation D ≤ 2 ^ a * (2 * a + 1) + r * (2 ^ a + 1) := by
   classical
   let minterm : (Fin a → Bool) → BooleanFunction a := fun v x => decide ((fun i => x (id i)) = v)
-  have hmin : Synthesis interpretation (inputs a) (Set.range minterm)
-      (∑ _v : Fin a → Bool, (2 * a + 1)) :=
-    Synthesis.family minterm _ fun v => synthesis_minterm id v
+  have hmin := Synthesis.family (I := interpretation) (s := inputs a) minterm _ fun v =>
+    synthesis_minterm id v
   have hout (j : Fin r) : Synthesis interpretation (inputs a ∪ Set.range minterm) {fun x => D x j}
       (2 ^ a + 1) := by
     have h := Synthesis.exists_mem (s := inputs a ∪ Set.range minterm)
       (univ.filter fun v => D v j = true) minterm (fun _ => 0)
       fun v _ => Synthesis.of_mem (Set.mem_union_right _ ⟨v, rfl⟩)
-    refine (Synthesis.congr_iff h fun x => ?_).mono Set.Subset.rfl Set.Subset.rfl ?_
-    · simp [minterm]
-    · simp only [zero_add, sum_const, smul_eq_mul, mul_one]
-      have hcard : (univ.filter fun v : Fin a → Bool => D v j = true).card ≤ 2 ^ a := by
-        simpa [Fintype.card_fun] using card_le_univ (univ.filter fun v => D v j = true)
-      omega
-  have hall := hmin.trans (Synthesis.family (fun j x => D x j) _ hout)
-  obtain ⟨c, hc, hsize⟩ := hall.exists_circuit_outputs
-  refine (complexity_le_of_computes c hc).trans (hsize.trans ?_)
-  simp
+    refine (Synthesis.congr_iff h fun x => by simp [minterm]).mono Set.Subset.rfl Set.Subset.rfl ?_
+    have : #(univ.filter fun v : Fin a → Bool => D v j = true) ≤ 2 ^ a := by
+      simpa [Fintype.card_fun] using card_le_univ (univ.filter fun v => D v j = true)
+    simp only [zero_add, sum_const, smul_eq_mul, mul_one]; omega
+  obtain ⟨c, hc, hsize⟩ :=
+    (hmin.trans (Synthesis.family (fun j x => D x j) _ hout)).exists_circuit_outputs
+  exact (complexity_le_of_computes c hc).trans (hsize.trans (by simp))
 
 /-- **Local maps.** A map whose `r` outputs each depend on at most `t` of its inputs costs at most
 `r * (2 ^ t * (2 * t + 3) + 1)` gates: compute each output from its truth table on those inputs. -/
@@ -86,11 +82,9 @@ theorem complexity_le_mul_of_forall_dependsOn (f : (Fin n → Bool) → Fin r �
     (hf : ∀ j, ∃ s : Finset (Fin n), #s ≤ t ∧ DependsOn (fun x => f x j) s) :
     complexity interpretation f ≤ r * (2 ^ t * (2 * t + 3) + 1) := by
   refine (complexity_pi_le (I := interpretation) fun j x => f x j).trans ?_
-  calc _ ≤ ∑ _j : Fin r, (2 ^ t * (2 * t + 3) + 1) := by
-        refine sum_le_sum fun j _ => ?_
+  calc _ ≤ ∑ _j : Fin r, (2 ^ t * (2 * t + 3) + 1) := sum_le_sum fun j _ => by
         obtain ⟨s, hs, hdep⟩ := hf j
-        refine (complexity_le_of_dependsOn hdep).trans ?_
-        gcongr
+        exact (complexity_le_of_dependsOn hdep).trans (by gcongr)
     _ = _ := by simp
 
 /-- **Reading a selected answer.** On inputs `z ++ x`, returning the answer bit
@@ -107,28 +101,20 @@ theorem complexity_select_le {q : ℕ} (s : Finset (Fin n)) (sel : (s → Bool) 
   have hmin (v : s → Bool) : Synthesis interpretation (inputs (q + n))
       {fun zx => decide (restr zx = v)} (2 * #s + 1) := by
     have hmin_eq (zx : Fin (q + n) → Bool) :
-        decide ((fun i => zx (wires i)) = v ∘ s.equivFin.symm) = decide (restr zx = v) := by
-      refine decide_eq_decide.2 ⟨fun h => funext fun i => ?_, fun h => ?_⟩
-      · simpa [wires, restr] using congrFun h (s.equivFin i)
-      · subst h
-        rfl
+        decide ((fun i => zx (wires i)) = v ∘ s.equivFin.symm) = decide (restr zx = v) :=
+      decide_eq_decide.2 ⟨fun h => funext fun i => by
+          simpa [wires, restr] using congrFun h (s.equivFin i),
+        fun h => h ▸ rfl⟩
     simpa only [hmin_eq] using synthesis_minterm wires (v ∘ s.equivFin.symm)
   have h := Synthesis.exists_mem (s := inputs (q + n)) (univ : Finset (s → Bool))
     (fun v zx => decide (restr zx = v) && zx (Fin.castAdd n (sel v)))
     (fun _ => 2 * #s + 2) fun v _ => by
-      have hread : Synthesis interpretation (inputs (q + n))
-          {fun zx => zx (Fin.castAdd n (sel v))} 0 :=
-        Synthesis.of_mem ⟨Fin.castAdd n (sel v), rfl⟩
-      simpa only [Nat.add_zero, Nat.add_assoc] using (hmin v).and hread
-  have hsel := Synthesis.congr_iff
-    (g := fun zx => zx (Fin.castAdd n (sel (restr zx)))) h fun zx => by
+      simpa only [Nat.add_zero, Nat.add_assoc] using
+        (hmin v).and (Synthesis.of_mem ⟨Fin.castAdd n (sel v), rfl⟩)
+  have hsel := Synthesis.congr_iff (g := fun zx => zx (Fin.castAdd n (sel (restr zx)))) h
+    fun zx => by
       simp only [decide_eq_true_eq, mem_univ, true_and, Bool.and_eq_true]
-      constructor
-      · rintro ⟨v, hv, hz⟩
-        rw [hv]
-        exact hz
-      · intro hz
-        exact ⟨restr zx, rfl, hz⟩
+      exact ⟨fun ⟨_, hv, hz⟩ => hv ▸ hz, fun hz => ⟨restr zx, rfl, hz⟩⟩
   simpa [restr, Fintype.card_coe, Nat.add_assoc] using hsel.complexity_le
 
 end Cslib.Circuits.Boolean

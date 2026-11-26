@@ -133,23 +133,18 @@ theorem statisticallyIndistinguishable_iff_indistinguishable {α : ℕ → Type}
     {X Y : ∀ n, PMF (α n)} :
     StatisticallyIndistinguishable X Y ↔
       Game.Indistinguishable (fun (test : ∀ n, α n → Game) n => (X n).bind (test n))
-        (fun test n => (Y n).bind (test n)) (fun _ => True) := by
-  refine ⟨fun h => h.indistinguishable, fun h => ?_⟩
-  refine ⟨_, h (fun n a => PMF.pure (decide (Y n a < X n a))) trivial, fun n => ?_⟩
-  exact Game.closeTo_advantage_map_decide_lt (X n) (Y n)
+        (fun test n => (Y n).bind (test n)) (fun _ => True) :=
+  ⟨StatisticallyIndistinguishable.indistinguishable, fun h =>
+    ⟨_, h (fun n a => PMF.pure (decide (Y n a < X n a))) trivial,
+      fun n => Game.closeTo_advantage_map_decide_lt (X n) (Y n)⟩⟩
 
 /-- On finite types, statistical indistinguishability says that the statistical distance
 `dist (X n) (Y n)` of [BonehShoup2023], Definition 3.5, is negligible: Definition 3.6 as printed. -/
 theorem statisticallyIndistinguishable_iff_negligible_nndist {α : ℕ → Type}
     [∀ n, Fintype (α n)] {X Y : ∀ n, PMF (α n)} :
-    StatisticallyIndistinguishable X Y ↔ Negligible fun n => nndist (X n) (Y n) := by
-  constructor
-  · rintro ⟨ε, hε, h⟩
-    exact negligible_of_le hε fun n => by
-      have hd := closeTo_coe_iff_dist_le.mp (h n)
-      rw [← NNReal.coe_le_coe, coe_nndist]
-      exact hd
-  · intro h
-    exact ⟨_, h, fun n => closeTo_coe_iff_dist_le.mpr (by rw [coe_nndist])⟩
+    StatisticallyIndistinguishable X Y ↔ Negligible fun n => nndist (X n) (Y n) :=
+  ⟨fun ⟨ε, hε, h⟩ => negligible_of_le hε fun n => by
+      simpa only [← NNReal.coe_le_coe, coe_nndist] using closeTo_coe_iff_dist_le.mp (h n),
+   fun h => ⟨_, h, fun _ => closeTo_coe_iff_dist_le.mpr (by rw [coe_nndist])⟩⟩
 
 end Cslib.Crypto

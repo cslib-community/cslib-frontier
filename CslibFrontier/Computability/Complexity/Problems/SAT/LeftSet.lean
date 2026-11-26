@@ -122,19 +122,15 @@ theorem eval_atLeast (σ : ℕ → Bool) (a : List (Literal ℕ)) :
   | nil => simp
   | cons l a ih =>
     obtain ⟨v, b⟩ := l
-    have h₁ : ¬(true < false) := by decide
-    have h₃ : false < true := by decide
     simp only [List.map_cons, List.cons_le_cons_iff']
-    cases b with
-    | true =>
-      rw [atLeast_cons_true, CNF.eval_cons, Bool.and_eq_true, ih]
-      rcases hv : σ v <;> simp [hv, h₁]
-    | false =>
-      rw [atLeast_cons_false, CNF.eval_eq_true_iff]
+    cases b
+    · rw [atLeast_cons_false, CNF.eval_eq_true_iff]
       simp only [List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂,
         Clause.eval_cons, Literal.eval_mk, Bool.or_eq_true, beq_iff_eq]
       rw [← ih, CNF.eval_eq_true_iff]
-      cases σ v <;> simp [h₃]
+      cases σ v <;> simp [show false < true by decide]
+    · rw [atLeast_cons_true, CNF.eval_cons, Bool.and_eq_true, ih]
+      cases h : σ v <;> simp [h, Clause.eval_cons, Literal.eval_mk, show ¬(true < false) by decide]
 
 /-- **Satisfiability with a lexicographic lower bound:** `SAT.atLeast a ++ φ` is satisfiable
 exactly when some satisfying assignment of `φ` is lexicographically at least `a`. -/
@@ -195,20 +191,14 @@ theorem mem_LeftSAT_iff_atLeast {φ : CNF ℕ} {w : List Bool} :
     ⟨φ, w⟩ ∈ LeftSAT ↔ w.length = φ.vars.length ∧ SAT.atLeast (φ.vars.zip w) ++ φ ∈ SAT := by
   rw [mem_LeftSAT, SAT.atLeast_append_mem_SAT_iff]
   refine and_congr_right fun hw => exists_congr fun σ => and_congr_right fun _ => ?_
-  have hsnd : (φ.vars.zip w).map Prod.snd = w := List.map_snd_zip (by omega)
-  have hfst : ((φ.vars.zip w).map fun l => σ l.1) = φ.vars.map σ := by
-    rw [show (fun l : ℕ × Bool => σ l.1) = σ ∘ Prod.fst from rfl, ← List.map_map,
-      List.map_fst_zip (by omega)]
-  rw [hsnd, hfst]
+  rw [List.map_snd_zip (by omega), show (fun l : ℕ × Bool => σ l.1) = σ ∘ Prod.fst from rfl,
+    ← List.map_map, List.map_fst_zip (by omega)]
 
 /-- The all-`false` word is lexicographically least among the words of its length. -/
 private theorem replicate_false_le : ∀ {w : List Bool}, List.replicate w.length false ≤ w
   | [] => le_rfl
-  | b :: w => by
-    rw [List.length_cons, List.replicate_succ, List.cons_le_cons_iff']
-    cases b
-    · exact .inr ⟨rfl, replicate_false_le⟩
-    · exact .inl rfl
+  | false :: _ => List.cons_le_cons_iff'.2 (.inr ⟨rfl, replicate_false_le⟩)
+  | true :: _ => List.cons_le_cons_iff'.2 (.inl rfl)
 
 /-- A word padded with `false` is at most a word of the same length exactly when it is at most
 the prefix of that word of its own length. -/
@@ -230,22 +220,13 @@ theorem SAT.atLeast_append_mem_SAT_iff_mem_LeftSAT {φ : CNF ℕ} {a : List (Lit
     atLeast a ++ φ ∈ SAT ↔
       ⟨φ, a.map Prod.snd ++ List.replicate (φ.vars.length - a.length) false⟩ ∈ LeftSAT := by
   have hlen : a.length ≤ φ.vars.length := by grind [List.length_map, List.length_take]
-  rw [atLeast_append_mem_SAT_iff, mem_LeftSAT]
-  have hlen' : (a.map Prod.snd ++ List.replicate (φ.vars.length - a.length) false).length =
-      φ.vars.length := by
-    simp only [List.length_append, List.length_map, List.length_replicate]
-    omega
-  refine ⟨fun ⟨σ, hσ, hle⟩ => ⟨hlen', σ, hσ, ?_⟩, fun ⟨_, σ, hσ, hle⟩ => ⟨σ, hσ, ?_⟩⟩
-  all_goals
-    have hval : (a.map fun l => σ l.1) = (φ.vars.map σ).take (a.map Prod.snd).length := by
-      rw [List.length_map, ← List.map_take, ← ha, List.map_map]
-      rfl
-  · have := (append_replicate_false_le_iff (y := a.map Prod.snd) (v := φ.vars.map σ)
-      (by simpa using hlen)).2 (hval ▸ hle)
-    simpa using this
-  · rw [hval]
-    refine (append_replicate_false_le_iff (by simpa using hlen)).1 ?_
-    simpa using hle
+  rw [atLeast_append_mem_SAT_iff, mem_LeftSAT, and_iff_right (by simp; omega)]
+  refine exists_congr fun σ => and_congr_right fun _ => ?_
+  have hval : (a.map fun l => σ l.1) = (φ.vars.map σ).take (a.map Prod.snd).length := by
+    rw [List.length_map, ← List.map_take, ← ha, List.map_map]
+    rfl
+  simpa [hval] using (append_replicate_false_le_iff (y := a.map Prod.snd) (v := φ.vars.map σ)
+    (by simpa using hlen)).symm
 
 /-! ### Reductions -/
 
@@ -276,11 +257,9 @@ theorem LeftSAT_polyTimeReducible_SAT :
     fun_prop
   · rw [mem_LeftSAT_iff_atLeast]
     dsimp only
-    split
-    · simp_all
-    · simp only [false_and, false_iff, *]
-      rintro ⟨σ, hσ⟩
-      simp at hσ
+    split_ifs with h
+    · exact and_iff_right h
+    · exact iff_of_false (not_and_of_not_left _ h) fun ⟨_, hσ⟩ => by simp at hσ
 
 /-- **The left set of `SAT` is in `NP`.** -/
 theorem LeftSAT_mem_NP : LeftSAT ∈ NP encLeftSAT :=

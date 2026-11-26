@@ -56,29 +56,8 @@ theorem padding_values (L : Layout) :
       16 * L.U + 10 = encode (Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + L.gap) ∧
       40 * L.U + 26 = encode (Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 3 * L.gap) ∧
       44 * L.U + 30 = encode (-Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 4 * L.gap) := by
-  have h₀ : 10 * (L.gap : ℤ) = ((60 * L.U + 40 : ℕ) : ℤ) := by
-    dsimp only [Layout.gap]
-    push_cast
-    ring
-  have h₁ : Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + (L.gap : ℤ) =
-      ((8 * L.U + 5 : ℕ) : ℤ) := by
-    dsimp only [Cslib.Algorithms.ThreeSum.ChanHe.pad, Layout.gap]
-    push_cast
-    ring
-  have h₂ : Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 3 * (L.gap : ℤ) =
-      ((20 * L.U + 13 : ℕ) : ℤ) := by
-    dsimp only [Cslib.Algorithms.ThreeSum.ChanHe.pad, Layout.gap]
-    push_cast
-    ring
-  have h₃ : -Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 4 * (L.gap : ℤ) =
-      ((22 * L.U + 15 : ℕ) : ℤ) := by
-    dsimp only [Cslib.Algorithms.ThreeSum.ChanHe.pad, Layout.gap]
-    push_cast
-    ring
-  rw [h₀, h₁, h₂, h₃]
-  simp only [encode, Int.natAbs_natCast, Int.natCast_nonneg, not_lt_of_ge,
-    ↓reduceIte, Nat.add_zero]
-  omega
+  dsimp only [Cslib.Algorithms.ThreeSum.ChanHe.pad, Layout.gap]
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> simp only [encode] <;> split_ifs <;> omega
 
 /-- Reading initialized packed memory at any fitting index. -/
 theorem paddingMemory_read (L : Layout) (mem : ℕ → ℕ) {u : ℕ} (hu : u < 4 * L.N) :
@@ -156,25 +135,12 @@ theorem memory_cells (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ �
       memory L values mem (L.packed + 4 * i + 3) = encode
         (Cslib.Algorithms.ThreeSum.ChanHe.arrZ (node L values).S₃ L.M L.U i + 4 * L.gap) := by
   have hp (c : ℕ) (hc : c < 4) :
-      paddingMemory L mem (L.packed + (4 * i + c)) =
+      paddingMemory L mem (L.packed + 4 * i + c) =
         Padding.pattern (120 * L.U + 80) (16 * L.U + 10)
-          (40 * L.U + 26) (44 * L.U + 30) (4 * i + c) :=
-    paddingMemory_read L mem (by omega)
-  have hp₀ : paddingMemory L mem (L.packed + 4 * i) = encode (10 * (L.gap : ℤ)) := by
-    have he := hp 0 (by decide)
-    simpa [Padding.pattern, (padding_values L).1] using he
-  have hp₁ : paddingMemory L mem (L.packed + 4 * i + 1) =
-      encode (Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + L.gap) := by
-    have he := hp 1 (by decide)
-    simpa [Padding.pattern, Nat.add_assoc, (padding_values L).2.1] using he
-  have hp₂ : paddingMemory L mem (L.packed + 4 * i + 2) =
-      encode (Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 3 * L.gap) := by
-    have he := hp 2 (by decide)
-    simpa [Padding.pattern, Nat.add_assoc, (padding_values L).2.2.1] using he
-  have hp₃ : paddingMemory L mem (L.packed + 4 * i + 3) =
-      encode (-Cslib.Algorithms.ThreeSum.ChanHe.pad L.U + 4 * L.gap) := by
-    have he := hp 3 (by decide)
-    simpa [Padding.pattern, Nat.add_assoc, (padding_values L).2.2.2] using he
+          (40 * L.U + 26) (44 * L.U + 30) (4 * i + c) := by
+    rw [Nat.add_assoc]
+    exact paddingMemory_read L mem (by omega)
+  obtain ⟨e₀, e₁, e₂, e₃⟩ := padding_values L
   have other (j : Fin 3) (μ : ℕ → ℕ) (c : ℕ) (hc : c < 4) (hne : c ≠ j.val + 1) :
       roundMemory L values j μ (L.packed + 4 * i + c) = μ (L.packed + 4 * i + c) := by
     simpa only [Nat.add_assoc] using roundMemory_other L values j μ
@@ -184,22 +150,22 @@ theorem memory_cells (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ �
     rw [show L.packed + 4 * i = L.packed + 4 * i + 0 by omega,
       other 2 _ 0 (by decide) (by decide), other 1 _ 0 (by decide) (by decide),
       other 0 _ 0 (by decide) (by decide)]
-    exact hp₀
+    simpa [Padding.pattern, e₀] using hp 0 (by decide)
   · change roundMemory L values 2 _ _ = _
     rw [other 2 _ 1 (by decide) (by decide), other 1 _ 1 (by decide) (by decide)]
     simpa +decide [Layout.tag, node] using roundMemory_arrXY L values 0 (paddingMemory L mem)
-      (by decide) hM (hinj 0) hi (by simpa [Layout.tag] using hp₁)
+      (by decide) hM (hinj 0) hi (by simpa [Layout.tag, Padding.pattern, e₁] using hp 1 (by decide))
   · change roundMemory L values 2 _ _ = _
     rw [other 2 _ 2 (by decide) (by decide)]
     simpa +decide [Layout.tag, node, Nat.cast_mul] using roundMemory_arrXY L values 1
       (roundMemory L values 0 (paddingMemory L mem)) (by decide) hM (hinj 1) hi (by
         change roundMemory L values 0 (paddingMemory L mem) (L.packed + 4 * i + 2) = _
         rw [other 0 _ 2 (by decide) (by decide)]
-        simpa [Layout.tag, Nat.cast_mul] using hp₂)
+        simpa [Layout.tag, Nat.cast_mul, Padding.pattern, e₂] using hp 2 (by decide))
   · change roundMemory L values 2 _ _ = _
     apply roundMemory_arrZ L values _ hM (hinj 2) hi
     rw [other 1 _ 3 (by decide) (by decide), other 0 _ 3 (by decide) (by decide)]
-    exact hp₃
+    simpa [Padding.pattern, e₃] using hp 3 (by decide)
 
 /-- Every one of the `4N` native output cells equals the existing mathematical `Node.oneArray`.
 This includes column-zero sentinels, empty and heavy buckets, and the entire padded tail. -/
@@ -240,43 +206,20 @@ theorem memory_heavy (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ �
           (Place.heavyList (values j) (L.n j) L.M (L.n j)).length ∧
         ∀ k (hk : k < (Place.heavyList (values j) (L.n j) L.M (L.n j)).length),
           roundMemory L values j μ (L.heavy j + k) =
-            encode ((Place.heavyList (values j) (L.n j) L.M (L.n j))[k]) := by
-    constructor
-    · exact CountPlace.memory_descriptor ..
-    · intro k hk
-      exact CountPlace.memory_heavy _ _ _ _ _ _ _ _ _ _ _ _ _
-        (L.heavy_end_le_packed j) (by dsimp only [Layout.heavy]; omega) hk
+            encode ((Place.heavyList (values j) (L.n j) L.M (L.n j))[k]) :=
+    ⟨CountPlace.memory_descriptor .., fun _ hk => CountPlace.memory_heavy _ _ _ _ _ _ _ _ _ _ _ _ _
+      (L.heavy_end_le_packed j) (by dsimp only [Layout.heavy]; omega) hk⟩
   have hnext := L.next_descriptor
-  have hdesc01 : L.descriptor 0 < L.descriptor 1 := by
-    dsimp only [Layout.heavy] at hnext
-    omega
-  have hdesc12 : L.descriptor 1 < L.descriptor 2 := by
-    dsimp only [Layout.heavy] at hnext
-    omega
-  fin_cases j <;> simp only [Fin.mk_zero, Fin.mk_one]
-  · obtain ⟨hc, hd⟩ := hround 0 (paddingMemory L mem)
-    constructor
-    · change roundMemory L values 2 _ _ = _
-      rw [roundMemory_before L values 2 _ hM hN (by omega),
-        roundMemory_before L values 1 _ hM hN (by omega)]
-      exact hc
-    · intro k hk
-      have hlen := Place.length_heavyList_le (values 0) (L.n 0) L.M (L.n 0)
-      change roundMemory L values 2 _ _ = _
-      rw [roundMemory_before L values 2 _ hM hN (by omega),
-        roundMemory_before L values 1 _ hM hN (by omega)]
-      exact hd k hk
-  · obtain ⟨hc, hd⟩ := hround 1 (roundMemory L values 0 (paddingMemory L mem))
-    constructor
-    · change roundMemory L values 2 _ _ = _
-      rw [roundMemory_before L values 2 _ hM hN (by omega)]
-      exact hc
-    · intro k hk
-      have hlen := Place.length_heavyList_le (values 1) (L.n 1) L.M (L.n 1)
-      change roundMemory L values 2 _ _ = _
-      rw [roundMemory_before L values 2 _ hM hN (by omega)]
-      exact hd k hk
-  · exact hround 2 (roundMemory L values 1 (roundMemory L values 0 (paddingMemory L mem)))
+  have : L.heavy 0 = L.descriptor 0 + 1 ∧ L.heavy 1 = L.descriptor 1 + 1 := ⟨rfl, rfl⟩
+  have hlen := Place.length_heavyList_le (values j) (L.n j) L.M (L.n j)
+  unfold memory
+  fin_cases j <;> simp only [Fin.mk_zero, Fin.mk_one] at hlen ⊢
+  · refine ⟨?_, fun k hk => ?_⟩ <;> rw [roundMemory_before L values 2 _ hM hN (by omega),
+      roundMemory_before L values 1 _ hM hN (by omega)]
+    exacts [(hround 0 _).1, (hround 0 _).2 k hk]
+  · refine ⟨?_, fun k hk => ?_⟩ <;> rw [roundMemory_before L values 2 _ hM hN (by omega)]
+    exacts [(hround 1 _).1, (hround 1 _).2 k hk]
+  · exact hround 2 _
 
 /-- Each complete round preserves all memory outside the concrete allocation. -/
 theorem roundMemory_outside (L : Layout) (values : Fin 3 → ℕ → ℤ) (j : Fin 3)
@@ -286,15 +229,9 @@ theorem roundMemory_outside (L : Layout) (values : Fin 3 → ℕ → ℤ) (j : F
   have hb := L.base_le_descriptor j
   have hd := L.descriptor_lt_packed j
   have hn := L.n_le_total j
-  have hp : L.packed + 4 * L.N ≤ L.endpoint := by
-    dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
-    omega
-  have hk : L.scratch + L.n j ≤ L.hist := Nat.add_le_add_left hn _
-  have hh : L.hist + L.M = L.endpoint := rfl
-  have hs : L.scratch = L.packed + 4 * L.N := rfl
-  have hout : L.heavy j = L.descriptor j + 1 := rfl
   apply CountPlace.memory_outside _ _ _ _ _ _ _ _ _ _ _ _ L.N _ hM hN
     (by omega) (by split_ifs <;> omega)
+  all_goals dsimp only [Layout.endpoint, Layout.hist, Layout.scratch, Layout.heavy] at ha ⊢
   all_goals rcases ha with ha | ha <;> omega
 
 /-- Inputs, caller memory before the allocation, and memory beyond its endpoint are preserved. -/
@@ -307,8 +244,7 @@ theorem memory_outside (L : Layout) (values : Fin 3 → ℕ → ℤ) (mem : ℕ 
     dsimp only [Layout.endpoint, Layout.hist, Layout.scratch]
     omega
   have hb : L.base ≤ L.packed := by dsimp only [Layout.packed]; omega
-  have hnot : ¬(L.packed ≤ a ∧ a < L.packed + 4 * L.N) := by
-    rcases ha with ha | ha <;> omega
+  have hnot : ¬(L.packed ≤ a ∧ a < L.packed + 4 * L.N) := by rcases ha with ha | ha <;> omega
   simp only [paddingMemory, Padding.memory, hnot, ↓reduceIte]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.NodePacking

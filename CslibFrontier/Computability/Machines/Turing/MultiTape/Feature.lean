@@ -66,13 +66,8 @@ theorem mem_window_iff_abs_le {T : ℕ} {z : ℤ} : z ∈ window T ↔ |z| ≤ T
 def windowList (T : ℕ) : List ℤ := (List.range (2 * T + 1)).map fun i : ℕ => (i : ℤ) - T
 
 @[simp] theorem mem_windowList {T : ℕ} {z : ℤ} : z ∈ windowList T ↔ |z| ≤ T := by
-  rw [windowList, List.mem_map, abs_le]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    have := List.mem_range.1 hi
-    omega
-  · intro h
-    exact ⟨(z + T).toNat, List.mem_range.2 (by omega), by omega⟩
+  simp only [windowList, List.mem_map, List.mem_range, abs_le]
+  exact ⟨fun ⟨_, _, _⟩ => by omega, fun _ => ⟨(z + T).toNat, by omega, by omega⟩⟩
 
 @[simp] theorem length_windowList (T : ℕ) : (windowList T).length = 2 * T + 1 := by
   simp [windowList]
@@ -188,9 +183,7 @@ theorem holds_sit_iff (y : Situation k State) :
 theorem holds_sit_iff_eq {q : State} (hq : cfg.state = some q) (y : Situation k State) :
     (sit y).Holds cfg ↔ y = cfg.situation q := by
   obtain ⟨q', s, r⟩ := y
-  simp only [Holds, hq, Option.some.injEq, Cfg.situation, Prod.mk.injEq]
-  exact ⟨fun ⟨h₁, h₂, h₃⟩ => ⟨h₁.symm, h₂.symm, h₃.symm⟩,
-    fun ⟨h₁, h₂, h₃⟩ => ⟨h₁.symm, h₂.symm, h₃.symm⟩⟩
+  simp [Holds, hq, Cfg.situation, eq_comm]
 
 /-- In a halted configuration, no situation holds. -/
 theorem not_holds_sit (h : cfg.state = none) (y : Situation k State) : ¬(sit y).Holds cfg := by
@@ -239,16 +232,12 @@ theorem holds_step_inPos_iff (j : ℕ) :
   · simp only [holds_state, hq, reduceCtorEq, false_and, false_or, Finset.mem_filter,
       Finset.mem_product, Finset.mem_univ, true_and, holds_inPos,
       step_eq_apply tm hq, Action.apply_inputPos, val_moveInputPos_eq_moveInputPosNat]
-    constructor
-    · intro h
-      have hlt := cfg.inputPos.isLt
-      have := le_add_one_of_moveInputPosNat_eq hlt h
-      refine ⟨(cfg.situation q, cfg.inputPos.val), ⟨?_, hlt, h⟩, (holds_sit_iff_eq hq _).2 rfl, rfl⟩
-      simp only [Finset.mem_insert, Finset.mem_singleton]
-      omega
-    · rintro ⟨⟨y, j'⟩, ⟨-, -, hy⟩, hsit, rfl⟩
-      obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-      exact hy
+    refine ⟨fun h => ⟨(cfg.situation q, cfg.inputPos.val), ⟨?_, cfg.inputPos.isLt, h⟩,
+      (holds_sit_iff_eq hq _).2 rfl, rfl⟩, ?_⟩
+    · have := le_add_one_of_moveInputPosNat_eq cfg.inputPos.isLt h
+      simp only [Finset.mem_insert, Finset.mem_singleton]; omega
+    · rintro ⟨⟨y, _⟩, ⟨-, -, hy⟩, hsit, rfl⟩
+      exact (holds_sit_iff_eq hq y).1 hsit ▸ hy
 
 /-- The step equation for a work head within the window `|z| ≤ T`, for a head that was within
 the window. -/
@@ -262,14 +251,11 @@ theorem holds_step_head_iff {T : ℕ} (hb : |cfg.workTapePos i| ≤ T) (z : ℤ)
   · simp [hq, not_holds_sit hq]
   · simp only [holds_state, hq, reduceCtorEq, false_and, false_or, Finset.mem_filter,
       Finset.mem_univ, true_and, holds_head, step_eq_apply tm hq, Action.apply_workTapePos]
-    constructor
-    · rintro rfl
-      refine ⟨cfg.situation q, ?_, (holds_sit_iff_eq hq _).2 rfl, ?_⟩ <;>
-        rw [add_sub_cancel_right]
-      exact hb
-    · rintro ⟨y, -, hsit, hpos⟩
-      obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-      rw [hpos, sub_add_cancel]
+    refine ⟨?_, fun ⟨y, _, hsit, hpos⟩ => by
+      rw [← (holds_sit_iff_eq hq y).1 hsit, hpos, sub_add_cancel]⟩
+    rintro rfl
+    exact ⟨cfg.situation q, by rwa [add_sub_cancel_right], (holds_sit_iff_eq hq _).2 rfl,
+      (add_sub_cancel_right _ _).symm⟩
 
 /-- The step equation for a work cell. -/
 theorem holds_step_cell_iff (z : ℤ) (s : Option Bool) :
@@ -284,23 +270,10 @@ theorem holds_step_cell_iff (z : ℤ) (s : Option Bool) :
   · simp only [holds_state, hq, reduceCtorEq, false_or, Finset.mem_filter, Finset.mem_product,
       Finset.mem_univ, true_and, holds_head, holds_cell, step_eq_apply tm hq,
       Action.apply_workTapes_eq_ite]
-    by_cases hz : z = cfg.workTapePos i
-    · rw [ite_eq_left hz]
-      constructor
-      · intro h
-        exact Or.inr ⟨(cfg.situation q, cfg.workTapes i z), by simpa [Cfg.situation,
-          Cfg.workTapeSymbols, hz, actionOf] using h, (holds_sit_iff_eq hq _).2 rfl, hz.symm, rfl⟩
-      · rintro (⟨-, h⟩ | ⟨⟨y, s'⟩, hy, hsit, -, rfl⟩)
-        · exact absurd hz.symm h
-        · obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-          simpa [Cfg.situation, Cfg.workTapeSymbols, hz, actionOf] using hy
-    · rw [ite_eq_right hz]
-      constructor
-      · intro h
-        exact Or.inl ⟨h, fun h' => hz h'.symm⟩
-      · rintro (⟨h, -⟩ | ⟨y, -, -, hhead, -⟩)
-        · exact h
-        · exact absurd hhead.symm hz
+    by_cases hz : cfg.workTapePos i = z
+    · subst hz
+      simp [Prod.exists, holds_sit_iff_eq hq]
+    · simp [hz, Ne.symm hz]
 
 /-- The step equation for the output. -/
 theorem holds_step_out_iff (o : OutView) :
@@ -311,15 +284,8 @@ theorem holds_step_out_iff (o : OutView) :
           (sit y.1).Holds cfg ∧ (out y.2).Holds cfg := by
   rcases hq : cfg.state with _ | q
   · simp [hq, not_holds_sit hq]
-  · simp only [holds_state, hq, reduceCtorEq, false_and, false_or, Finset.mem_filter,
-      Finset.mem_product, Finset.mem_univ, true_and, holds_out, step_eq_apply tm hq,
-      Action.apply_output, OutView.ofList_append_toList]
-    constructor
-    · intro h
-      exact ⟨(cfg.situation q, OutView.ofList cfg.output), h, (holds_sit_iff_eq hq _).2 rfl, rfl⟩
-    · rintro ⟨⟨y, o'⟩, hy, hsit, rfl⟩
-      obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-      exact hy
+  · simp [hq, step_eq_apply tm hq, OutView.ofList_append_toList, Prod.exists,
+      holds_sit_iff_eq hq]
 
 end Step
 
@@ -428,25 +394,19 @@ theorem mem_basic {φ : Feature k State} :
     φ ∈ basic n T ↔ (∃ q, φ = state q) ∨ (∃ j < n + 2, φ = inPos j) ∨
       (∃ i, ∃ z : ℤ, |z| ≤ T ∧ φ = head i z) ∨
         (∃ i, ∃ z : ℤ, ∃ s, |z| ≤ T ∧ φ = cell i z s) ∨ ∃ o, φ = out o := by
-  rw [mem_basic_iff_exists_mem_groups]
-  constructor
-  · rintro ⟨g, hg, hφ⟩
-    rcases mem_groups.1 hg with rfl | rfl | ⟨i, rfl⟩ | ⟨i, z, hz, rfl⟩ | rfl <;>
+  simp only [mem_basic_iff_exists_mem_groups, mem_groups]
+  refine ⟨?_, ?_⟩
+  · rintro ⟨_, rfl | rfl | ⟨i, rfl⟩ | ⟨i, z, hz, rfl⟩ | rfl, hφ⟩ <;>
       obtain ⟨a, ha, rfl⟩ := List.mem_map.1 hφ
-    · exact Or.inl ⟨a, rfl⟩
-    · exact Or.inr (Or.inl ⟨a, List.mem_range.1 ha, rfl⟩)
-    · exact Or.inr (Or.inr (Or.inl ⟨i, a, mem_windowList.1 ha, rfl⟩))
-    · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨i, z, a, hz, rfl⟩)))
-    · exact Or.inr (Or.inr (Or.inr (Or.inr ⟨a, rfl⟩)))
+    exacts [.inl ⟨a, rfl⟩, .inr (.inl ⟨a, List.mem_range.1 ha, rfl⟩),
+      .inr (.inr (.inl ⟨i, a, mem_windowList.1 ha, rfl⟩)),
+      .inr (.inr (.inr (.inl ⟨i, z, a, hz, rfl⟩))), .inr (.inr (.inr (.inr ⟨a, rfl⟩)))]
   · rintro (⟨q, rfl⟩ | ⟨j, hj, rfl⟩ | ⟨i, z, hz, rfl⟩ | ⟨i, z, s, hz, rfl⟩ | ⟨o, rfl⟩)
-    · exact ⟨_, mem_groups.2 (Or.inl rfl), List.mem_map_of_mem (mem_states q)⟩
-    · exact ⟨_, mem_groups.2 (Or.inr (Or.inl rfl)), List.mem_map_of_mem (List.mem_range.2 hj)⟩
-    · exact ⟨_, mem_groups.2 (Or.inr (Or.inr (Or.inl ⟨i, rfl⟩))),
-        List.mem_map_of_mem (mem_windowList.2 hz)⟩
-    · exact ⟨_, mem_groups.2 (Or.inr (Or.inr (Or.inr (Or.inl ⟨i, z, hz, rfl⟩)))),
-        List.mem_map_of_mem (mem_symbols s)⟩
-    · exact ⟨_, mem_groups.2 (Or.inr (Or.inr (Or.inr (Or.inr rfl)))),
-        List.mem_map_of_mem (OutView.mem_all o)⟩
+    exacts [⟨_, .inl rfl, List.mem_map_of_mem (mem_states q)⟩,
+      ⟨_, .inr (.inl rfl), List.mem_map_of_mem (List.mem_range.2 hj)⟩,
+      ⟨_, .inr (.inr (.inl ⟨i, rfl⟩)), List.mem_map_of_mem (mem_windowList.2 hz)⟩,
+      ⟨_, .inr (.inr (.inr (.inl ⟨i, z, hz, rfl⟩))), List.mem_map_of_mem (mem_symbols s)⟩,
+      ⟨_, .inr (.inr (.inr (.inr rfl))), List.mem_map_of_mem (OutView.mem_all o)⟩]
 
 theorem state_mem_basic (q : Option State) : state q ∈ (basic n T : List (Feature k State)) :=
   mem_basic.2 (Or.inl ⟨q, rfl⟩)
@@ -521,64 +481,25 @@ theorem holds_step_iff_exists_stepTerms (hn : input.length = n)
     refine or_congr (by simp) ⟨fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩,
       fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩⟩ <;>
       simp_all [List.mem_filter, Finset.mem_filter]
-  · rw [holds_step_head_iff tm (hb i)]
-    simp [stepTerms, or_and_right, exists_or]
+  · simp [holds_step_head_iff tm (hb i), stepTerms, or_and_right, exists_or]
   · rw [holds_step_cell_iff]
-    simp only [stepTerms, List.mem_cons, List.mem_map, List.mem_filter, exists_eq_or_imp,
-      Term.holds_cons, Term.holds_nil, iff_true, Bool.false_eq_true, iff_false, and_true]
-    simp [and_or_left, or_assoc, and_assoc]
+    simp [stepTerms, and_or_left, or_assoc, and_assoc]
   · rw [holds_step_out_iff]
     simp [stepTerms, or_and_right, exists_or]
 
 /-- A feature has at most `4 |Situation| + 2` terms in its step equation. -/
 theorem length_stepTerms_le (φ : Feature k State) :
     (stepTerms tm n T φ).length ≤ 4 * Fintype.card (Situation k State) + 2 := by
-  have hf {α : Type} (l : List α) (p : α → Bool) : (l.filter p).length ≤ l.length :=
-    List.length_filter_le p l
-  cases φ with
-  | state q =>
-    have := hf situations fun y => decide ((tm.actionOf y).state = q)
-    simp only [stepTerms, List.length_append, List.length_map, length_situations] at this ⊢
-    split_ifs <;> simp only [List.length_singleton, List.length_nil] <;> omega
-  | inPos j =>
-    have := hf (situations ×ˢ [j - 1, j, j + 1]) fun p =>
-      decide (p.2 < n + 2 ∧ moveInputPosNat n p.2 (tm.actionOf p.1).inputTape = j)
-    simp only [List.length_product, length_situations, List.length_cons, List.length_nil] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | head i z =>
-    have := hf situations fun y => decide (|z - (((tm.actionOf y).workTapes i).2 : ℤ)| ≤ T)
-    simp only [length_situations] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | cell i z s =>
-    have := hf (situations ×ˢ symbols) fun p =>
-      decide (((tm.actionOf p.1).workTapes i).1.getD p.2 = s)
-    simp only [List.length_product, length_situations, length_symbols] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | out o =>
-    have := hf (situations ×ˢ OutView.all) fun p => decide (p.2.push (tm.actionOf p.1).output = o)
-    simp only [List.length_product, length_situations, OutView.length_all] at this
-    simp only [stepTerms, List.length_cons, List.length_map]
-    omega
-  | read | inRead | sit => simp [stepTerms]
+  cases φ <;>
+    grind [stepTerms, List.length_filter_le, List.length_product, length_situations,
+      length_symbols, OutView.length_all]
 
 /-- Every term of a step equation has at most three literals. -/
 theorem length_le_three_of_mem_stepTerms {φ : Feature k State} {c : Term k State}
     (hc : c ∈ stepTerms tm n T φ) : c.length ≤ 3 := by
   cases φ <;>
-    simp only [stepTerms, List.mem_append, List.mem_cons, List.mem_map, List.not_mem_nil] at hc
-  · rcases hc with hc | ⟨y, -, rfl⟩
-    · split_ifs at hc
-      · obtain rfl := List.mem_singleton.1 hc
-        simp
-      · simp at hc
-    · simp
-  · rcases hc with rfl | ⟨_, -, rfl⟩ <;> simp
-  · rcases hc with rfl | ⟨_, -, rfl⟩ <;> simp
-  · rcases hc with rfl | rfl | ⟨_, -, rfl⟩ <;> simp
-  · rcases hc with rfl | ⟨_, -, rfl⟩ <;> simp
+    simp only [stepTerms, List.mem_append, List.mem_cons, List.mem_map, List.not_mem_nil] at hc <;>
+    grind
 
 /-- The terms of a basic feature are made of basic features, their negations, and situations. -/
 theorem mem_basic_of_mem_stepTerms {φ : Feature k State} (hφ : φ ∈ basic n T)
@@ -606,15 +527,11 @@ theorem mem_basic_of_mem_stepTerms {φ : Feature k State} (hφ : φ ∈ basic n 
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl <;> rcases hl with rfl | rfl
     exacts [Or.inl (state_mem_basic _), Or.inl (head_mem_basic i hz), hsit y rfl,
       Or.inl (head_mem_basic i hy)]
-  · rcases hc with rfl | rfl | ⟨⟨y, s'⟩, -, rfl⟩
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl
-      exacts [Or.inl (cell_mem_basic i hz s), Or.inl (state_mem_basic _)]
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl
-      exacts [Or.inl (cell_mem_basic i hz s), Or.inl (head_mem_basic i hz)]
-    · simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-      rcases hl with rfl | rfl | rfl
+  · rcases hc with rfl | rfl | ⟨⟨y, s'⟩, -, rfl⟩ <;>
+      simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
+    · exact hl.elim (· ▸ Or.inl (cell_mem_basic i hz s)) (· ▸ Or.inl (state_mem_basic _))
+    · exact hl.elim (· ▸ Or.inl (cell_mem_basic i hz s)) (· ▸ Or.inl (head_mem_basic i hz))
+    · rcases hl with rfl | rfl | rfl
       exacts [hsit y rfl, Or.inl (head_mem_basic i hz), Or.inl (cell_mem_basic i hz s')]
   · rcases hc with rfl | ⟨⟨y, o'⟩, -, rfl⟩ <;>
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl <;> rcases hl with rfl | rfl

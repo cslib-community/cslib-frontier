@@ -234,18 +234,13 @@ theorem solves_pure (A : Algorithm σ α β) {R : List α → β → Prop} {m : 
     Solves (PMF.pure A) 0 R m := by
   classical
   intro s hs
-  unfold errorProb
-  rw [PMF.toOuterMeasure_pure_apply]
-  split_ifs with h
-  · exact absurd (hA s hs) h
-  · rfl
+  simp [errorProb, PMF.toOuterMeasure_pure_apply, hA s hs]
 
 /-- A deterministic algorithm keeps its memory bound as a randomized one. -/
 theorem spaceLE_pure {A : Algorithm σ α β} {m b : ℕ} (hA : A.SpaceLE m b) :
     SpaceLE (PMF.pure A) m b := by
   intro A' hA'
-  rw [PMF.support_pure, Set.mem_singleton_iff] at hA'
-  exact hA' ▸ hA
+  exact (PMF.mem_support_pure_iff _ _).1 hA' ▸ hA
 
 /-- The error of an algorithm drawn with a uniformly random seed is the fraction of the seeds on
 which it errs. -/
@@ -277,8 +272,7 @@ theorem SpaceLE.map_reduce {α' β' : Type*} {μ : Randomized σ α β} {m b : �
     (h : μ.SpaceLE (p.length + m) b) (g : α' → α) (d : β → β') :
     SpaceLE (μ.map fun A => A.reduce p g d) m b := by
   intro A' hA'
-  rw [PMF.support_map] at hA'
-  obtain ⟨A, hA, rfl⟩ := hA'
+  obtain ⟨A, hA, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hA'
   exact (h A hA).reduce p g d
 
 end Randomized

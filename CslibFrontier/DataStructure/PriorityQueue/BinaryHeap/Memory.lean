@@ -13,6 +13,7 @@ public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Order
 public import CslibFrontier.DataStructure.StateTransition.Refinement
 public import Mathlib.Data.Nat.Log
 public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -127,12 +128,10 @@ abbrev compactLayout (n base : ℕ) : Layout n := ⟨⟨base + n, 1⟩, base⟩
 
 /-- The compact layout owns precisely the original three-array block. -/
 theorem compactLayout_footprint (n base : ℕ) :
-    (compactLayout n base).footprint = (Block.mk base (space n)).footprint := by
-  apply Finset.union_eq_right.mpr
-  intro a ha
-  rw [Block.mem_footprint] at ha ⊢
-  dsimp only [compactLayout, Block.Owns, space] at ha ⊢
-  omega
+    (compactLayout n base).footprint = (Block.mk base (space n)).footprint :=
+  Finset.union_eq_right.mpr fun a ha => by
+    simp only [Block.mem_footprint, compactLayout, Block.Owns, space] at ha ⊢
+    omega
 
 /-- Compact storage adds no extra word or width requirement. -/
 theorem valid_compactLayout {n base w K : ℕ} (hn : Fits w n) (hK : Fits w K) :
@@ -167,7 +166,6 @@ def siftUp (k : ℕ) : Prog Unit :=
     else pure ()
   else pure ()
 termination_by k
-decreasing_by omega
 
 /-- One step of sift-down: if the child entry `(vc, kc)` at position `c` has higher priority than
 the entry `(vk, kk)` at position `k`, swap them and continue with `next`. -/
@@ -195,7 +193,6 @@ def siftDown (S k : ℕ) : Prog Unit :=
     else sink L k (2 * k) vk kk vl kl (siftDown S (2 * k))
   else pure ()
 termination_by S + 1 - k
-decreasing_by all_goals omega
 
 /-- Test for emptiness: read the size. -/
 def isEmpty : Prog Bool := do
@@ -206,9 +203,7 @@ def isEmpty : Prog Bool := do
 through the typed indexed-PQ operations; the program accepts the runtime index word directly. -/
 def getKey (v : ℕ) : Prog (Option ℕ) := do
   let p ← L.pos.get v
-  if p = 0 then pure none else do
-    let k ← L.key.get v
-    pure (some k)
+  if p = 0 then pure none else some <$> L.key.get v
 
 /-- Insert the absent handle `v` with key `k`: store the key, append `v` at the end of the heap,
 and sift it up. -/
@@ -375,7 +370,6 @@ theorem siftUp_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
         IndexedMinPQ.not_rawPrioLT_iff_rawPrioLE.mp hlt⟩, Rearranges.refl s⟩
   · exact Triple.pure ⟨⟨hshape, hord.ordered fun h => absurd h h2⟩, Rearranges.refl s⟩
 termination_by k
-decreasing_by omega
 
 /-- One step of sift-down: a swap with the child when it has higher priority, then `next`. -/
 theorem sink_triple {s : Memory.State} {k c vk kk vc kc cost : ℕ} {next : Prog Unit}
@@ -413,8 +407,7 @@ theorem siftDown_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
         Triple w s (sink L k c (s.mem (L.base + n + k)) (s.mem (L.base + s.mem (L.base + n + k)))
           (s.mem (L.base + n + c)) (s.mem (L.base + s.mem (L.base + n + c))) (siftDown L S c))
           (10 * (Nat.log 2 S - (Nat.log 2 k + 1)) + 6 + 4)
-          fun _ s' => HeapInv n L.base S s'.mem ∧ Rearranges L s s' := by
-      intro c hck hcS hcmin
+          fun _ s' => HeapInv n L.base S s'.mem ∧ Rearranges L s s' := fun c hck hcS hcmin => by
       obtain ⟨-, -, hmin⟩ := minChild_spec (f := heapEntry n L.base s.mem) (S := S) (a := k) h2.2
       rw [← hcmin] at hmin
       refine sink_triple hn hA (by omega) (by omega) hvk (hshape.vertex_lt c (by omega) hcS)
@@ -447,19 +440,13 @@ theorem siftDown_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
     exact Triple.pure ⟨⟨hshape, hord.ordered fun i hi hiS hia => absurd hiS (by omega)⟩,
       Rearranges.refl s⟩
 termination_by S + 1 - k
-decreasing_by omega
 
 /-! ## The abstraction -/
 
 /-- A rearrangement represents the same queue. -/
 theorem Rearranges.abs_eq {s s' : Memory.State} (h : Rearranges L s s') : abs L s' = abs L s := by
   funext ⟨v, hv⟩
-  have hk := h.outside (L.base + v) (.inl (by omega))
-  have hp := h.pos_eq_zero v hv
-  simp only [abs, stateOfMem, hk]
-  by_cases h0 : s.mem (L.base + 2 * n + 1 + v) = 0
-  · simp [h0, hp.mpr h0]
-  · simp [h0, mt hp.mp h0]
+  simp only [abs, stateOfMem, h.outside (L.base + v) (.inl (by omega)), h.pos_eq_zero v hv]
 
 /-- A memory that keeps the key and the presence of every handle but `v` represents the queue
 updated at `v`. -/
@@ -468,15 +455,10 @@ theorem abs_eq_update {s s' : Memory.State} {v : Fin n} {x : Option ℕ}
       (s'.mem (L.base + 2 * n + 1 + u) = 0 ↔ s.mem (L.base + 2 * n + 1 + u) = 0))
     (hv : abs L s' v = x) : abs L s' = Function.update (abs L s) v x := by
   funext u
-  by_cases huv : u = v
-  · subst huv
-    rw [Function.update_self, hv]
-  · rw [Function.update_of_ne huv]
-    obtain ⟨hk, hp⟩ := hother u huv
-    simp only [abs, stateOfMem, hk]
-    by_cases h0 : s.mem (L.base + 2 * n + 1 + u) = 0
-    · simp [h0, hp.mpr h0]
-    · simp [h0, mt hp.mp h0]
+  rcases eq_or_ne v u with rfl | huv
+  · rw [Function.update_self, hv]
+  · obtain ⟨hk, hp⟩ := hother u huv.symm
+    simp only [Function.update_of_ne huv.symm, abs, stateOfMem, hk, hp]
 
 /-! ## The operations -/
 
@@ -492,11 +474,10 @@ theorem not_mem_footprint (hL : L.Valid w K) {a : ℕ} (ha : a ∉ L.footprint) 
 /-- The size cell is outside the array block or at its unused heap position zero. -/
 theorem size_location (hL : L.Valid w K) :
     L.size.base < L.base ∨ L.size.base = L.base + n ∨
-      L.base + 3 * n + 1 ≤ L.size.base := by
-  rcases hL.size_separate with h | h
-  · simp only [Block.Owns, not_and_or, not_le, not_lt, space] at h
-    omega
-  · exact Or.inr (Or.inl h)
+      L.base + 3 * n + 1 ≤ L.size.base :=
+  hL.size_separate.elim
+    (fun h => by simp only [Block.Owns, not_and_or, not_le, not_lt, space] at h; omega)
+    (Or.inr ∘ Or.inl)
 
 /-- The size cell is allocated. -/
 theorem Inv.size_lt (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
@@ -506,14 +487,10 @@ theorem Inv.size_lt (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
 /-- A heap invariant survives a write to the size cell. -/
 theorem heapInv_update_size (hL : L.Valid w K) {S : ℕ} {m : ℕ → ℕ}
     (h : HeapInv n L.base S m) (x : ℕ) :
-    HeapInv n L.base S (Function.update m L.size.base x) := by
-  apply h.congr_mem
-  intro a ha hzero
-  apply Function.update_of_ne
-  intro he
-  rcases hL.size_separate with hout | hslot
-  · exact hout (by rw [← he]; exact Block.mem_footprint.mp ha)
-  · exact hzero (he.trans hslot)
+    HeapInv n L.base S (Function.update m L.size.base x) :=
+  h.congr_mem fun a ha hzero => Function.update_of_ne
+    (fun (he : a = L.size.base) => hL.size_separate.elim (· (he ▸ Block.mem_footprint.mp ha))
+      (hzero <| he.trans ·)) x m
 
 
 variable (L) in
@@ -551,9 +528,8 @@ theorem insert_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) {v : 
     Triple w s (insert L v k) (8 * Nat.log 2 n + 9) (Post L s (.insert v k)) := by
   obtain ⟨hnone, hk⟩ := hv
   have hA := hs.arrays_allocated
-  have hp : s.mem (L.base + 2 * n + 1 + v) = 0 := by
-    by_contra h
-    simp [abs, stateOfMem, h] at hnone
+  have hp : s.mem (L.base + 2 * n + 1 + v) = 0 :=
+    by_contra fun h => by simp [abs, stateOfMem, h] at hnone
   have hSn := hs.heap.size_lt v.isLt hp
   have hsz := size_location hL
   have hlog := Nat.log_mono_right (b := 2) (show s.mem L.size.base + 1 ≤ n by omega)
@@ -566,26 +542,20 @@ theorem insert_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) {v : 
     Triple.write_bind (heap_lt hA (by omega)) (hL.n_fits.of_le v.isLt.le) <|
     Triple.write_bind (pos_lt hA v.isLt) (hL.n_fits.of_le (by omega)) ?_
   obtain ⟨hshape, hord⟩ := (heapInv_update_size hL hs.heap (s.mem L.size.base + 1)).push v.isLt
-    (c := k) (by rw [Function.update_of_ne (by omega)]; exact hp)
+    (c := k) (by update_simp; exact hp)
   refine Triple.mono (siftUp_triple hL.n_fits hA (by omega) le_rfl hshape hord) le_rfl ?_
   rintro _ s' ⟨hinv, hr⟩
   have hsize : s'.mem L.size.base = s.mem L.size.base + 1 := by
-    rw [hr.outside _ (by omega)]
-    simp only [Function.update_apply]
-    split_ifs <;> omega
+    rw [hr.outside _ (by omega)]; update_simp
   refine ⟨?_, ⟨hs.size_allocated.mono (by rw [hr.frontier_eq]),
     hA.mono (by rw [hr.frontier_eq]), hsize ▸ hinv⟩, hr.frontier_eq, fun a ha => ?_⟩
   · rw [hr.abs_eq]
     refine Prod.ext (abs_eq_update (fun u hu => ?_) ?_).symm rfl
     · have hu' : (u : ℕ) ≠ v := Fin.val_ne_of_ne hu
-      simp only [Function.update_apply]
-      refine ⟨?_, ?_⟩ <;> split_ifs <;> omega
-    · simp only [abs, stateOfMem, Function.update_apply]
-      split_ifs <;> first | rfl | (exfalso; omega)
+      exact ⟨by update_simp, by update_simp; rfl⟩
+    · simp only [abs, stateOfMem]; update_simp
   · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
-    rw [hr.outside a (by omega)]
-    simp only [Function.update_apply]
-    split_ifs <;> omega
+    rw [hr.outside a (by omega)]; update_simp
 
 /-- `decreaseKey` lowers the key and sifts the handle up, within `8 ⌊log₂ n⌋ + 6` memory units. -/
 theorem decreaseKey_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) {v : Fin n}
@@ -593,9 +563,8 @@ theorem decreaseKey_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) 
     Triple w s (decreaseKey L v k) (8 * Nat.log 2 n + 6) (Post L s (.decreaseKey v k)) := by
   obtain ⟨⟨k₀, hk₀, hle⟩, hk⟩ := hv
   have hA := hs.arrays_allocated
-  have hp : s.mem (L.base + 2 * n + 1 + v) ≠ 0 := by
-    intro h
-    simp [abs, stateOfMem, h] at hk₀
+  have hp : s.mem (L.base + 2 * n + 1 + v) ≠ 0 :=
+    fun h => by simp [abs, stateOfMem, h] at hk₀
   have hkey : s.mem (L.base + v) = k₀ := by simpa [abs, stateOfMem, hp] using hk₀
   have hsz := size_location hL
   have hpS := hs.heap.pos_le v v.isLt
@@ -610,21 +579,16 @@ theorem decreaseKey_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) 
     le_rfl ?_
   rintro _ s' ⟨hinv, hr⟩
   have hsize : s'.mem L.size.base = s.mem L.size.base := by
-    rw [hr.outside _ (by omega)]
-    exact Function.update_of_ne (show L.size.base ≠ L.base + v by omega) _ _
+    rw [hr.outside _ (by omega)]; update_simp
   refine ⟨?_, ⟨hs.size_allocated.mono (by rw [hr.frontier_eq]),
     hA.mono (by rw [hr.frontier_eq]), hsize ▸ hinv⟩, hr.frontier_eq, fun a ha => ?_⟩
   · rw [hr.abs_eq]
     refine Prod.ext (abs_eq_update (fun u hu => ?_) ?_).symm rfl
     · have hu' : (u : ℕ) ≠ v := Fin.val_ne_of_ne hu
-      simp only [Function.update_apply]
-      refine ⟨?_, ?_⟩ <;> split_ifs <;> omega
-    · simp only [abs, stateOfMem, Function.update_apply]
-      split_ifs <;> first | rfl | (exfalso; omega)
+      exact ⟨by update_simp, by update_simp; rfl⟩
+    · simp only [abs, stateOfMem]; update_simp; simp [hp]
   · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
-    rw [hr.outside a (by omega)]
-    simp only [Function.update_apply]
-    split_ifs <;> omega
+    rw [hr.outside a (by omega)]; update_simp
 
 /-- The answer for a handle. -/
 theorem entry_of_lt {u : ℕ} (hu : u < n) (k : ℕ) : entry n u k = some (⟨u, hu⟩, k) :=
@@ -654,10 +618,9 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
   simp only [Nat.add_zero, hS]
   split
   next h0 =>
-    refine Triple.pure (post_self hs ?_)
-    have hfind : IndexedMinPQ.findMin (abs L s) = none :=
-      IndexedMinPQ.findMin_eq_none_iff.mpr (hinv.size_eq_zero_iff.mp h0)
-    simp only [IndexedMinPQ.step, hfind]
+    exact Triple.pure (post_self hs (by
+      simp only [IndexedMinPQ.step, abs,
+        IndexedMinPQ.findMin_eq_none_iff.mpr (hinv.size_eq_zero_iff.mp h0)]))
   next h0 =>
     have hS1 : 1 ≤ S := Nat.one_le_iff_ne_zero.mpr h0
     have hroot := hinv.vertex_lt 1 le_rfl hS1
@@ -666,24 +629,19 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
     split
     next h1 =>
       subst h1
-      have hzero := hinv.extract_one
       refine Triple.write_bind (pos_lt hA hroot) (fits_zero w) <|
         Triple.write_bind (hs.size_lt hL) (fits_zero w) <| Triple.pure ?_
       refine post_extract (u := s.mem (L.base + n + 1)) hroot hfind ?_
         ⟨hs.size_allocated, hA, ?_⟩ rfl fun a ha => ?_
       · refine abs_eq_update (fun u hu => ?_) ?_
         · have hu' : (u : ℕ) ≠ s.mem (L.base + n + 1) := Fin.val_ne_of_ne hu
-          simp only [Nat.add_zero, Function.update_apply]
-          refine ⟨?_, ?_⟩ <;> split_ifs <;> omega
-        · simp only [abs, stateOfMem, Nat.add_zero,
-            Function.update_apply]
-          split_ifs <;> first | rfl | (exfalso; omega)
-      · have h := heapInv_update_size hL hzero 0
-        simp only [Nat.add_zero, Function.update_self]
-        exact h
+          simp only [Nat.add_zero]
+          exact ⟨by update_simp, by update_simp; rfl⟩
+        · simp only [abs, stateOfMem, Nat.add_zero]; update_simp
+      · simpa only [Nat.add_zero, Function.update_self] using
+          heapInv_update_size hL hinv.extract_one 0
       · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
-        simp only [Nat.add_zero, Function.update_apply]
-        split_ifs <;> omega
+        simp only [Nat.add_zero]; update_simp
     next h1 =>
       have hS2 : 2 ≤ S := by omega
       have hlast := hinv.vertex_lt S (by omega) le_rfl
@@ -700,27 +658,20 @@ theorem extractMin_triple (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
       refine post_extract (u := s.mem (L.base + n + 1)) hroot hfind ?_
         ⟨hs.size_allocated.mono (by rw [hr.frontier_eq]), hA.mono (by rw [hr.frontier_eq]), ?_⟩
         hr.frontier_eq fun a ha => ?_
-      · have habs' := hr.abs_eq
-        refine abs_eq_update (fun u hu => ?_) ?_
+      · refine abs_eq_update (fun u hu => ?_) ?_
         · have hu' : (u : ℕ) ≠ s.mem (L.base + n + 1) := Fin.val_ne_of_ne hu
           have hp := hpos' u u.isLt
           have hk' := hr.outside (L.base + u) (.inl (by omega))
           have hp' := hr.pos_eq_zero u u.isLt
-          simp only [Layout.heap, Layout.pos, Nat.add_zero, Function.update_apply]
-            at hp hk' hp' ⊢
-          refine ⟨?_, ?_⟩
-          · split_ifs <;> first | omega | (rw [hk']; split_ifs <;> omega)
-          · split_ifs <;> omega
+          simp only [Layout.heap, Layout.pos, Nat.add_zero] at hp hk' hp' ⊢
+          exact ⟨by update_simp; rw [hk']; update_simp, by update_simp; rw [hp', hp]; simp [hu']⟩
         · have hp := (hr.pos_eq_zero _ hroot).mpr ((hpos' _ hroot).mpr (.inr rfl))
-          simp only [abs, stateOfMem, Nat.add_zero, Function.update_apply]
-          split_ifs <;> first | rfl | (exfalso; omega)
-      · simp only [Nat.add_zero, Function.update_self]
-        exact heapInv_update_size hL hinv' _
+          simp only [abs, stateOfMem, Nat.add_zero]; update_simp; simp [hp]
+      · simpa only [Nat.add_zero, Function.update_self] using heapInv_update_size hL hinv' _
       · obtain ⟨ha₁, ha₂⟩ := not_mem_footprint hL ha
-        have := hr.outside a (by omega)
-        simp only [Layout.heap, Layout.pos, Nat.add_zero, Function.update_apply]
-          at this ⊢
-        split_ifs at this ⊢ <;> omega
+        have hout := hr.outside a (by omega)
+        simp only [Layout.heap, Layout.pos, Nat.add_zero] at hout ⊢
+        update_simp; rw [hout]; update_simp
 
 /-- **Each operation realizes the specified step** within `opCost n` memory units, keeps the
 invariant, and changes neither the frontier nor any cell outside the layout. -/
@@ -747,16 +698,14 @@ theorem methods_run (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
 /-- An operation changes no cell outside the layout. -/
 theorem methods_frame (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a := by
-  obtain ⟨-, -, -, -, -, h⟩ := methods_run hL hs o hv
-  exact h
+    ∀ a ∉ L.footprint, ((Memory.spec w).clientState s (ops L o)).mem a = s.mem a :=
+  (methods_run hL hs o hv).2.2.2.2.2
 
 /-- An operation leaves the frontier where it was. -/
 theorem methods_frontier (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s)
     (o : IndexedMinPQ.Op n) (hv : IndexedMinPQ.valid K (abs L s) o) :
-    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier := by
-  obtain ⟨-, -, -, -, h, -⟩ := methods_run hL hs o hv
-  exact h
+    ((Memory.spec w).clientState s (ops L o)).frontier = s.frontier :=
+  (methods_run hL hs o hv).2.2.2.2.1
 
 /-! ## The refinement and its frame -/
 
@@ -810,9 +759,8 @@ def framed (hL : L.Valid w K) : Memory.Framed (indexedMinPQSpec n K) w :=
 potential. -/
 theorem amortized (hL : L.Valid w K) :
     (framed hL).Amortized charge (fun _ _ => opCost n) fun _ => 0 :=
-  Refinement.Amortized.ofFn fun {_} o hs hv => by
-    obtain ⟨-, hc, -⟩ := methods_run (w := w) hL hs o hv
-    exact Nat.add_le_add_right hc 0
+  Refinement.Amortized.ofFn fun {_} o hs hv =>
+    Nat.add_le_add_right (methods_run (w := w) hL hs o hv).2.1 0
 
 /-- The cost of one operation is `O(log n)`: at most `14 (⌊log₂ n⌋ + 1)`. -/
 theorem opCost_le (n : ℕ) : opCost n ≤ 14 * (Nat.log 2 n + 1) := by wram_omega
@@ -826,23 +774,17 @@ theorem inv_empty {s : Memory.State} (hsize : L.size.Allocated s) (hA : L.arrays
   have hshape : HeapShape n L.base 0 s.mem :=
     ⟨Nat.zero_le _, fun _ h1 h2 => by omega, fun _ h1 h2 => by omega,
       fun v hv => (hpos v hv).le, fun v hv h0 => absurd (hpos v hv) h0⟩
-  refine ⟨⟨hsize, hA, ?_⟩, hshape.stateOfMem_zero⟩
-  rw [hcount]
-  exact ⟨hshape, fun _ h1 h2 => by omega⟩
+  exact ⟨⟨hsize, hA, hcount.symm ▸ ⟨hshape, fun _ h1 h2 => by omega⟩⟩, hshape.stateOfMem_zero⟩
 
 /-- A locally zero owned block supplies the compact empty heap, without a global `ZeroAbove`
 assumption. Native initialization must still pay its actual reservation and setup instructions. -/
 theorem inv_compactLayout {base : ℕ} {s : Memory.State}
     (hA : (Block.mk base (space n)).Allocated s)
     (hz : ∀ a, (Block.mk base (space n)).Owns a → s.mem a = 0) :
-    Inv (compactLayout n base) s ∧ abs (compactLayout n base) s = IndexedMinPQ.empty n := by
-  apply inv_empty
-  · dsimp only [Block.Allocated, compactLayout, space] at hA ⊢
-    omega
-  · exact hA
-  · exact hz _ (by wram_omega)
-  · intro v hv
-    exact hz _ (by wram_omega)
+    Inv (compactLayout n base) s ∧ abs (compactLayout n base) s = IndexedMinPQ.empty n :=
+  inv_empty (by wram_omega [hA]) hA
+    (hz _ (by wram_omega)) fun _ _ =>
+    hz _ (by wram_omega)
 
 /-! ## Allocation -/
 
@@ -882,13 +824,10 @@ theorem le_of_mem_footprint_allocated {f a : ℕ} (ha : a ∈ (allocated n f).fo
 is empty. -/
 theorem inv_allocated {s : Memory.State} (hz : ZeroAbove s) :
     Inv (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ ∧
-      abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n := by
-  apply inv_empty
-  · wram_omega
-  · wram_omega
-  · exact hz _ le_rfl
-  · intro v _
-    exact hz _ (by dsimp only [allocated]; omega)
+      abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n :=
+  inv_empty (by wram_omega)
+    (by wram_omega) (hz _ le_rfl) fun _ _ =>
+    hz _ (by dsimp only [allocated]; omega)
 
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Memory

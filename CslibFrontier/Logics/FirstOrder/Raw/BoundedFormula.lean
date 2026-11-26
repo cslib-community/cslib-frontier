@@ -120,14 +120,9 @@ theorem rawVar_inr (i : Fin n) : rawVar (α := α) (.inr i) = 2 * i := rfl
 
 @[simp]
 theorem varOfRaw_rawVar (v : α ⊕ Fin n) : varOfRaw n (rawVar v) = some v := by
-  rcases v with a | i
-  · have h1 : (2 * encode a + 1) % 2 = 1 := by omega
-    have h2 : (2 * encode a + 1) / 2 = encode a := by omega
-    simp [varOfRaw, h1, h2]
-  · have h1 : 2 * (i : ℕ) % 2 = 0 := by omega
-    have h2 : 2 * (i : ℕ) / 2 = i := by omega
-    simp [varOfRaw, h1, h2]
+  rcases v with a | i <;> simp [varOfRaw, Nat.mul_add_div two_pos]
 
+/-- If `y` decodes to the variable `v` at depth `n`, then `rawVar v = y`. -/
 theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some v) :
     rawVar v = y := by
   unfold varOfRaw at h
@@ -139,20 +134,15 @@ theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some
     rw [rawVar_inl, decode₂_eq_some.1 ha]
     omega
 
+/-- `varOfRaw n y` is defined iff `y` is a valid variable name at depth `n` (`RawFormula.NameOk`)
+whose free names lie in the range of `encode`. -/
 theorem isSome_varOfRaw {y : ℕ} :
     (varOfRaw (α := α) n y).isSome ↔ RawFormula.NameOk (· ∈ Set.range (encode : α → ℕ)) n y := by
   unfold varOfRaw RawFormula.NameOk
   split_ifs with h1 h2
-  · simp only [Option.isSome_some, true_iff]
-    exact Or.inl h1
-  · rw [Option.isSome_map, Option.isSome_iff_exists]
-    simp only [decode₂_eq_some, Set.mem_range]
-    constructor
-    · rintro ⟨a, ha⟩
-      exact Or.inr ⟨h2, a, ha⟩
-    · rintro (⟨h, -⟩ | ⟨-, h⟩)
-      · omega
-      · exact h
+  · exact iff_of_true rfl (Or.inl h1)
+  · simp only [Option.isSome_map, Option.isSome_iff_exists, decode₂_eq_some, Set.mem_range]
+    exact ⟨fun ⟨a, ha⟩ => Or.inr ⟨h2, a, ha⟩, fun h => h.elim (fun ⟨he, _⟩ => by omega) And.right⟩
   · simp only [Option.isSome_none, Bool.false_eq_true, false_iff]
     omega
 
@@ -216,9 +206,7 @@ theorem isSome_fromRaw : ∀ {n} {χ : RawFormula},
       RawFormula.WellScoped (· ∈ Set.range (encode : α → ℕ))
         (fun r k => ∃ R : Σ l, L.Relations l, encode R = r ∧ R.1 = k) n χ
   | _, .falsum => by simp [fromRaw, RawFormula.WellScoped]
-  | n, .equal x y => by
-    rw [fromRaw, isSome_map₂, isSome_varOfRaw, isSome_varOfRaw]
-    rfl
+  | n, .equal x y => by simp only [fromRaw, isSome_map₂, isSome_varOfRaw]; rfl
   | n, .rel r ys => by
     rw [fromRaw, relOfRaw, RawFormula.WellScoped]
     simp only [← isSome_varOfRaw]
@@ -231,21 +219,14 @@ theorem isSome_fromRaw : ∀ {n} {χ : RawFormula},
       have hr := decode₂_eq_some.1 hR
       rw [Option.bind_some]
       split_ifs with hc
-      · simp only [Option.isSome_some, true_iff]
-        exact ⟨⟨R, hr, hc.1.symm⟩, hc.2⟩
+      · exact iff_of_true rfl ⟨⟨R, hr, hc.1.symm⟩, hc.2⟩
       · simp only [Option.isSome_none, Bool.false_eq_true, false_iff, not_and]
         rintro ⟨R', hR', hl⟩ hs
-        obtain rfl := encode_injective (hR'.trans hr.symm)
-        exact hc ⟨hl.symm, hs⟩
-  | n, .imp χ₁ χ₂ => by
-    rw [fromRaw, isSome_map₂, isSome_fromRaw, isSome_fromRaw]
-    rfl
+        exact hc ⟨encode_injective (hR'.trans hr.symm) ▸ hl.symm, hs⟩
+  | n, .imp χ₁ χ₂ => by simp only [fromRaw, isSome_map₂, isSome_fromRaw]; rfl
   | n, .all x χ => by
     rw [fromRaw, RawFormula.WellScoped]
-    split_ifs with hx
-    · rw [Option.isSome_map, isSome_fromRaw]
-      simp [hx]
-    · simp [hx]
+    split_ifs with hx <;> simp [hx, isSome_fromRaw]
 
 variable [L.IsRelational]
 
@@ -299,6 +280,7 @@ theorem quantifierDepth_toRaw : ∀ {n} (φ : L.BoundedFormula α n),
     simp only [toRaw_all, RawFormula.quantifierDepth_all, quantifierRank_all,
       quantifierDepth_toRaw φ]
 
+/-- `fromRaw n` is a left inverse to `toRaw`. -/
 theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw = some φ
   | _, falsum => rfl
   | n, equal t₁ t₂ => by
@@ -306,51 +288,36 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
     obtain ⟨w, rfl⟩ := term_eq_var t₂
     simp [fromRaw]
   | n, @rel _ _ _ l R ts => by
-    have hs : ∀ y ∈ List.ofFn (fun i => rawTerm (ts i)), (varOfRaw (α := α) n y).isSome := by
-      intro y hy
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hy
-      obtain ⟨v, hv⟩ := term_eq_var (ts i)
-      simp [hv]
+    have hs : ∀ y ∈ List.ofFn (fun i => rawTerm (ts i)), (varOfRaw (α := α) n y).isSome :=
+      List.forall_mem_ofFn_iff.2 fun i => by
+        obtain ⟨v, hv⟩ := term_eq_var (ts i)
+        simp [hv]
     rw [toRaw_rel, fromRaw, relOfRaw, encodek₂, Option.bind_some,
       dite_eq_left ⟨List.length_ofFn, hs⟩]
     congr 2
     funext i
     obtain ⟨v, hv⟩ := term_eq_var (ts i)
-    have key : ∀ (y : ℕ) (h : (varOfRaw (α := α) n y).isSome), y = rawVar v →
-        Term.var (L := L) ((varOfRaw n y).get h) = ts i := by
-      rintro y h rfl
-      rw [hv, Option.get_of_eq_some h (varOfRaw_rawVar v)]
-    exact key _ _ (by simp [hv])
-  | _, imp φ ψ => by
-    rw [toRaw_imp, fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
-    rfl
-  | n, all φ => by
-    rw [toRaw_all, fromRaw, ite_eq_left rfl, fromRaw_toRaw φ]
-    rfl
+    rw [Option.get_of_eq_some _ (a := v) (by simp [hv]), hv]
+  | _, imp φ ψ => by simp [fromRaw, fromRaw_toRaw φ, fromRaw_toRaw ψ]
+  | n, all φ => by simp [fromRaw, fromRaw_toRaw φ]
 
+/-- `toRaw` inverts `fromRaw n` wherever `fromRaw n` is defined. -/
 theorem toRaw_of_fromRaw :
     ∀ {n} {χ : RawFormula} {φ : L.BoundedFormula α n}, fromRaw n χ = some φ → φ.toRaw = χ
-  | _, .falsum, _, h => by
-    cases h
-    rfl
+  | _, .falsum, _, rfl => rfl
   | n, .equal x y, _, h => by
-    rw [fromRaw, Option.map₂_eq_some_iff] at h
-    obtain ⟨v, w, hv, hw, rfl⟩ := h
+    obtain ⟨v, w, hv, hw, rfl⟩ := Option.map₂_eq_some_iff.1 h
     simp [rawVar_of_varOfRaw hv, rawVar_of_varOfRaw hw]
   | n, .rel r ys, φ, h => by
-    rw [fromRaw, relOfRaw, Option.bind_eq_some_iff] at h
-    obtain ⟨R, hR, h⟩ := h
+    obtain ⟨R, hR, h⟩ := Option.bind_eq_some_iff.1 h
     split_ifs at h with hc
     cases h
     rw [toRaw_rel]
-    congr 1
-    · exact decode₂_eq_some.1 hR
-    · refine List.ext_getElem (by simp [hc.1]) fun i h₁ h₂ => ?_
-      simp only [List.getElem_ofFn, rawTerm_var]
-      exact rawVar_of_varOfRaw (Option.some_get _).symm
+    refine congrArg₂ _ (decode₂_eq_some.1 hR) (List.ext_getElem (by simp [hc.1]) fun i h₁ h₂ => ?_)
+    simp only [List.getElem_ofFn, rawTerm_var]
+    exact rawVar_of_varOfRaw (Option.some_get _).symm
   | n, .imp χ₁ χ₂, _, h => by
-    rw [fromRaw, Option.map₂_eq_some_iff] at h
-    obtain ⟨φ, ψ, hφ, hψ, rfl⟩ := h
+    obtain ⟨φ, ψ, hφ, hψ, rfl⟩ := Option.map₂_eq_some_iff.1 h
     rw [toRaw_imp, toRaw_of_fromRaw hφ, toRaw_of_fromRaw hψ]
   | n, .all x χ, _, h => by
     rw [fromRaw] at h
@@ -377,15 +344,11 @@ omit [L.IsRelational] in
 private theorem primrecRel_isRelCode :
     PrimrecRel fun r k => ∃ R : Σ l, L.Relations l, encode R = r ∧ R.1 = k := by
   obtain ⟨l, -, hl⟩ := Finite.exists_univ_list (Σ l, L.Relations l)
-  refine (PrimrecRel.exists_mem_list (R := fun (a : ℕ × ℕ) (b : ℕ × ℕ) => a = b)
-    Primrec.eq).comp (Primrec.const (l.map fun R => (encode R, R.1))) Primrec.id |>.of_eq ?_
-  · intro p
-    constructor
-    · rintro ⟨_, hm, rfl⟩
-      obtain ⟨R, -, rfl⟩ := List.mem_map.1 hm
-      exact ⟨R, rfl, rfl⟩
-    · rintro ⟨R, h1, h2⟩
-      exact ⟨_, List.mem_map.2 ⟨R, hl R, rfl⟩, Prod.ext h1 h2⟩
+  refine ((PrimrecRel.exists_mem_list (R := (· = · : ℕ × ℕ → _)) Primrec.eq).comp
+    (Primrec.const (l.map fun R => (encode R, R.1))) Primrec.id).of_eq fun ⟨r, k⟩ => ?_
+  simp only [List.mem_map]
+  exact ⟨fun ⟨_, ⟨R, _, rfl⟩, h⟩ => ⟨R, (Prod.mk.inj h).1, (Prod.mk.inj h).2⟩,
+    fun ⟨R, h1, h2⟩ => ⟨_, ⟨R, hl R, rfl⟩, Prod.ext h1 h2⟩⟩
 
 /-- **The raw coding of bounded formulas**: `φ` is coded by the code of `toRaw φ`. It is a
 definition, available as an instance after
@@ -421,37 +384,43 @@ end RawCoding
 
 open scoped RawCoding
 
+/-- Under `RawCoding`, the code of a bounded formula `φ` is the code of `φ.toRaw`. -/
 theorem encode_eq_encode_toRaw (φ : L.BoundedFormula α n) : encode φ = encode φ.toRaw := by
   rfl
 
 /-- A function into bounded formulas is primitive recursive iff its raw formulas are. -/
 theorem primrec_iff_primrec_toRaw {β : Type*} [Primcodable β] {f : β → L.BoundedFormula α n} :
     Primrec f ↔ Primrec fun b => (f b).toRaw :=
-  Primrec.encode_iff.symm.trans <| by
-    simp only [encode_eq_encode_toRaw]
-    exact Primrec.encode_iff
+  Primrec.encode_iff.symm.trans (by simpa only [encode_eq_encode_toRaw] using Primrec.encode_iff)
 
+/-- The translation `toRaw` is primitive recursive under `RawCoding`. -/
 theorem primrec_toRaw : Primrec (toRaw : L.BoundedFormula α n → RawFormula) :=
   primrec_iff_primrec_toRaw.1 Primrec.id
 
+/-- The partial inverse `fromRaw n` is primitive recursive under `RawCoding`. -/
 theorem primrec_fromRaw : Primrec (fromRaw (L := L) (α := α) n) := by
   refine (Primrec.decode (α := L.BoundedFormula α n)).comp Primrec.encode |>.of_eq fun χ => ?_
   change (decode (encode χ) : Option RawFormula).bind (fromRaw n) = _
   rw [encodek, Option.bind_some]
 
+/-- Implication `BoundedFormula.imp` is primitive recursive under `RawCoding`. -/
 theorem primrec_imp : Primrec₂ (imp : L.BoundedFormula α n → _ → _) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_imp (primrec_toRaw.comp Primrec.fst)
     (primrec_toRaw.comp Primrec.snd))
 
+/-- Universal quantification `BoundedFormula.all` is primitive recursive under `RawCoding`. -/
 theorem primrec_all : Primrec (all : L.BoundedFormula α (n + 1) → L.BoundedFormula α n) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_all (Primrec.const _) primrec_toRaw)
 
+/-- Negation `BoundedFormula.not` is primitive recursive under `RawCoding`. -/
 theorem primrec_not : Primrec (BoundedFormula.not : L.BoundedFormula α n → _) :=
   primrec_iff_primrec_toRaw.2 (RawFormula.primrec_neg primrec_toRaw)
 
+/-- Existential quantification `BoundedFormula.ex` is primitive recursive under `RawCoding`. -/
 theorem primrec_ex : Primrec (BoundedFormula.ex : L.BoundedFormula α (n + 1) → _) :=
   primrec_not.comp (primrec_all.comp primrec_not)
 
+/-- Encoding a variable reference via `rawVar` is primitive recursive. -/
 theorem primrec_rawVar : Primrec (rawVar : α ⊕ Fin n → ℕ) :=
   (Primrec.sumCasesOn Primrec.id
     (Primrec.nat_double_succ.comp (Primrec.encode.comp Primrec.snd)).to₂
@@ -493,10 +462,8 @@ private theorem toRaw_eq_rename (e₁ e₂ : Encodable (Σ l, L.Relations l)) :
   let σ := (List.range B).map fun r => ((@decode₂ _ e₁ r).map fun R => @encode _ e₂ R).getD r
   have hB : ∀ R, @encode _ e₁ R < B := fun R => Nat.lt_succ_of_le
     (List.le_max_of_le' 0 (List.mem_map.2 ⟨R, hl R, rfl⟩) le_rfl)
-  have hσ : ∀ R, σ.getD (@encode _ e₁ R) (@encode _ e₁ R) = @encode _ e₂ R := by
-    intro R
-    rw [List.getD_eq_getElem?_getD]
-    simp [σ, hB R, @encodek₂ _ e₁]
+  have hσ (R) : σ.getD (@encode _ e₁ R) (@encode _ e₁ R) = @encode _ e₂ R := by
+    simp [List.getD_eq_getElem?_getD, σ, hB R, @encodek₂ _ e₁]
   refine ⟨σ, fun φ => ?_⟩
   induction φ with
   | falsum => rfl
@@ -543,26 +510,24 @@ theorem realize_toRaw {I : ℕ → List M → Prop}
     ∀ {n} (φ : L.BoundedFormula α n) {ρ : ℕ → M} {v : α → M} {xs : Fin n → M},
       (∀ w, ρ (rawVar w) = Sum.elim v xs w) → (φ.toRaw.Realize I ρ ↔ φ.Realize v xs)
   | _, falsum, _, _, _, _ => Iff.rfl
-  | _, equal t₁ t₂, ρ, v, xs, hρ => by
+  | _, equal _ _, _, _, _, hρ => by
     rw [toRaw_equal, RawFormula.realize_equal, rawTerm_realize hρ, rawTerm_realize hρ]
     rfl
-  | _, rel R ts, ρ, v, xs, hρ => by
-    rw [toRaw_rel, RawFormula.realize_rel, List.map_ofFn]
-    simp only [Function.comp_def, rawTerm_realize hρ]
+  | _, rel R _, _, _, _, hρ => by
+    simp only [toRaw_rel, RawFormula.realize_rel, List.map_ofFn, Function.comp_def,
+      rawTerm_realize hρ]
     exact hI R _
-  | _, imp φ ψ, ρ, v, xs, hρ => by
-    simp only [toRaw_imp, RawFormula.realize_imp, realize_toRaw hI φ hρ, realize_toRaw hI ψ hρ]
-    rfl
+  | _, imp φ ψ, _, _, _, hρ => by
+    simp [RawFormula.realize_imp, realize_toRaw hI φ hρ, realize_toRaw hI ψ hρ]
   | k, all φ, ρ, v, xs, hρ => by
     simp only [toRaw_all, RawFormula.realize_all]
     refine forall_congr' fun m => realize_toRaw hI φ fun w => ?_
     rcases w with a | i
-    · rw [Function.update_of_ne (by simp; omega)]
-      simpa using hρ (.inl a)
-    · refine Fin.lastCases ?_ (fun j => ?_) i
-      · simp
-      · rw [Function.update_of_ne (by simp; omega)]
-        simpa using hρ (.inr j)
+    · rw [rawVar, Function.update_of_ne (by omega)]
+      simpa only [rawVar, Sum.elim_inl] using hρ (.inl a)
+    · refine Fin.lastCases (by simp) (fun j => ?_) i
+      rw [rawVar, Fin.val_castSucc, Function.update_of_ne (by omega)]
+      simpa only [rawVar, Sum.elim_inr, Fin.snoc_castSucc] using hρ (.inr j)
 
 end Semantics
 
@@ -587,9 +552,11 @@ carrier is in `Type`. -/
 def FinValid (φ : L.Sentence) : Prop :=
   ∀ (M : Type) [L.Structure M] [Finite M] [Nonempty M], M ⊨ φ
 
+/-- `φ.not` is finitely valid iff `φ` is not finitely satisfiable. -/
 theorem finValid_not_iff (φ : L.Sentence) : FinValid φ.not ↔ ¬FinSat φ := by
   simp only [FinValid, FinSat, realize_not, not_exists]
 
+/-- `φ` is finitely valid iff `φ.not` is not finitely satisfiable. -/
 theorem finValid_iff_not_finSat_not (φ : L.Sentence) : FinValid φ ↔ ¬FinSat φ.not := by
   simp only [FinValid, FinSat, realize_not, not_exists, not_not]
 
@@ -608,36 +575,26 @@ theorem exists_structure_realize_iff_toRaw (M : Type*) [Nonempty M] (φ : L.Sent
     let I : ℕ → List M → Prop := fun r as =>
       ∃ (l : ℕ) (R : L.Relations l) (xs : Fin l → M),
         encode (⟨l, R⟩ : Σ l, L.Relations l) = r ∧ List.ofFn xs = as ∧ Structure.RelMap R xs
-    have hI : ∀ {l} (R : L.Relations l) (xs : Fin l → M),
-        I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) ↔ Structure.RelMap R xs := by
-      intro l R xs
-      constructor
-      · rintro ⟨l', R', xs', he, hx, hR⟩
+    have hI {l} (R : L.Relations l) (xs : Fin l → M) :
+        I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) ↔ Structure.RelMap R xs :=
+      ⟨fun ⟨_, _, _, he, hx, hR⟩ => by
         obtain ⟨rfl, hR'⟩ := Sigma.mk.inj_iff.1 (encode_injective he)
-        obtain rfl := eq_of_heq hR'
-        rw [List.ofFn_inj] at hx
-        rwa [← hx]
-      · exact fun h => ⟨l, R, xs, rfl, rfl, h⟩
-    refine ⟨I, fun _ => m, (realize_toRaw hI φ fun w => ?_).2 h⟩
-    rcases w with a | i
-    · exact a.elim
-    · exact i.elim0
+        cases hR'
+        rwa [← List.ofFn_inj.1 hx],
+       fun h => ⟨l, R, xs, rfl, rfl, h⟩⟩
+    exact ⟨I, fun _ => m, (realize_toRaw hI φ fun w => w.elim Empty.elim Fin.elim0).2 h⟩
   · rintro ⟨I, ρ, h⟩
     let _ : L.Structure M :=
       { RelMap := fun {l} R xs => I (encode (⟨l, R⟩ : Σ l, L.Relations l)) (List.ofFn xs) }
-    refine ⟨inferInstance, (realize_toRaw (fun R xs => Iff.rfl) φ fun w => ?_).1 h⟩
-    rcases w with a | i
-    · exact a.elim
-    · exact i.elim0
+    exact ⟨inferInstance,
+      (realize_toRaw (fun _ _ => Iff.rfl) φ fun w => w.elim Empty.elim Fin.elim0).1 h⟩
 
 /-- A sentence is finitely satisfiable iff its raw formula is. -/
 theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) := by
-  constructor
-  · rintro ⟨M, hS, hf, hn, h⟩
-    obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
+  refine ⟨fun ⟨M, hS, hf, hn, h⟩ => ?_, fun ⟨M, hf, hn, I, ρ, h⟩ => ?_⟩
+  · obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
     exact ⟨M, hf, hn, I, ρ, h'⟩
-  · rintro ⟨M, hf, hn, I, ρ, h⟩
-    obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
+  · obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
     exact ⟨M, hS, hf, hn, h'⟩
 
 /-- A sentence is finitely valid iff its raw formula is. -/
