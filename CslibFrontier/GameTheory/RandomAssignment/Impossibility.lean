@@ -104,8 +104,7 @@ private lemma prefABCD_eq_swap_bacd :
 private lemma col_sum_four {M : Matrix (Fin 4) (Fin 4) ℝ}
     (hM : M ∈ doublyStochastic ℝ (Fin 4)) (o : Fin 4) :
     M 0 o + M 1 o + M 2 o + M 3 o = 1 := by
-  have h := sum_col_of_mem_doublyStochastic hM o
-  simpa [Fin.sum_univ_four, add_assoc] using h
+  simpa [Fin.sum_univ_four, add_assoc] using sum_col_of_mem_doublyStochastic hM o
 
 private lemma inv_adjSwap {φ : AssignmentRule 4} (hsp : IsSDStrategyProof φ)
     (p : Profile 4) (i : Fin 4) (k : Fin 4) (hk : k.val + 1 < 4)
@@ -171,11 +170,9 @@ private lemma uniform_of_ete {φ : AssignmentRule 4}
     (hfeas : IsFeasible φ) (hete : ∀ p, IsEqualTreatmentOfEquals p (φ p))
     (π : Equiv.Perm (Fin 4)) (i o : Fin 4) :
     φ (fun _ => π) i o = 1 / 4 := by
-  have heq : ∀ j : Fin 4, φ (fun _ => π) j o = φ (fun _ => π) i o := fun j =>
+  have heq (j : Fin 4) : φ (fun _ => π) j o = φ (fun _ => π) i o :=
     congrFun (hete (fun _ => π) j i rfl) o
-  have hcol := col_sum_four (hfeas (fun _ => π)) o
-  rw [heq 0, heq 1, heq 2, heq 3] at hcol
-  linarith
+  linarith [col_sum_four (hfeas (fun _ => π)) o, heq 0, heq 1, heq 2, heq 3]
 
 /-- **Bogomolnaia–Moulin impossibility theorem for `n = 4`** ([BogomolnaiaMoulin2001], locator
 unverified): even weakening `sd`-efficiency to pairwise `NoTwoCycle`, no feasible assignment rule
@@ -233,8 +230,7 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     (List.ofFn_inj.mp rfl : pA = fun _ => prefABCD) ▸ uniform_of_ete hfeas hete prefABCD
   -- 2. Profile pB = (abcd, abcd, bacd, abcd): row 2 = (0, 1/2, 1/4, 1/4).
   obtain ⟨hB2_c, -, hB2_ab⟩ := ab_step pA pB 2 rfl rfl
-  rw [hA] at hB2_c
-  rw [hA, hA] at hB2_ab
+  simp only [hA] at hB2_c hB2_ab
   have hB2_a0 : φ pB 2 0 = 0 :=
     zero_of_noTwoCycle_col (hfeas pB) (hntc pB) 2 0 1 (by linarith only [hB2_ab])
       hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -260,10 +256,8 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   -- 4. Profile pR = (abcd, abcd, bacd, acbd): rows 0,1 = (1/3, 5/24, 5/24, 1/4).
   obtain ⟨hR3_a, -, hR3_bc⟩ := bc_step pB pR 3 rfl rfl
   obtain ⟨hR2_c, -, hR2_ab⟩ := ab_step pC pR 2 rfl rfl
-  rw [hete pB 3 0 rfl, hB0_a] at hR3_a
-  rw [hete pB 3 0 rfl, hB0_b, hB0_c] at hR3_bc
-  rw [hC2_a, hC2_b] at hR2_ab
-  rw [hC2_c] at hR2_c
+  simp only [hete pB 3 0 rfl, hB0_a, hB0_b, hB0_c] at hR3_a hR3_bc
+  simp only [hC2_a, hC2_b, hC2_c] at hR2_ab hR2_c
   have hR2_a0 : φ pR 2 0 = 0 :=
     zero_of_noTwoCycle_col (hfeas pR) (hntc pR) 2 0 1 (by linarith only [hR2_ab])
       hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
@@ -280,8 +274,7 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     linarith only [hcol pR 2, congrFun hR_ete01 2, hR2_c, hR3_c]
   -- 5. Profile pP2 = (abcd, bacd, bacd, abcd): rows 0,3 = (1/2, 0, 1/4, 1/4).
   obtain ⟨hP2_1c, -, hP2_1ab⟩ := ab_step pB pP2 1 rfl rfl
-  rw [hete pB 1 0 rfl, hB0_c] at hP2_1c
-  rw [hete pB 1 0 rfl, hB0_a, hB0_b] at hP2_1ab
+  simp only [hete pB 1 0 rfl, hB0_a, hB0_b, hB0_c] at hP2_1c hP2_1ab
   have hP2_ete12 : φ pP2 1 = φ pP2 2 := hete pP2 1 2 rfl
   have hP2_ete03 : φ pP2 0 = φ pP2 3 := hete pP2 0 3 rfl
   have hP2_1a0 : φ pP2 1 0 = 0 := hz pP2 1 0 fun hpos => by
@@ -295,8 +288,7 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     linarith only [hcol pP2 2, congrFun hP2_ete03 2, congrFun hP2_ete12 2, hP2_1c]
   -- 6. Profile pU = (abcd, bacd, bacd, acbd): pin φ pU 0 2 = 1/3 via pR → pU and pP2 → pU.
   obtain ⟨hU1_c, -, hU1_ab⟩ := ab_step pR pU 1 rfl rfl
-  rw [hR1_c] at hU1_c
-  rw [hR1_a, hR1_b] at hU1_ab
+  simp only [hR1_a, hR1_b, hR1_c] at hU1_c hU1_ab
   have hU_ete12 : φ pU 1 = φ pU 2 := hete pU 1 2 rfl
   have hU3_b0 : φ pU 3 1 = 0 := hz pU 3 1 fun h => hntc pU 3 1 0 1 h hlt_acbd_01
     (by linarith only [hcol pU 1, congrFun hU_ete12 1, hnn pU 0 1, hnn pU 3 1, hU1_ab])
@@ -435,10 +427,10 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
       have ha4 : 4 ≤ a.val := not_lt.mp (Finset.mem_filter.mp ha_hi).2
       have ho4 : o.val < 4 := (Finset.mem_filter.mp ho_lo).2
       have hoS : o ∈ S := Finset.mem_filter.mpr ⟨Finset.mem_univ _, Or.inl ⟨ho4, a, ha4, hMao⟩⟩
+      have ho_eq : o = ⟨(⟨o.val, ho4⟩ : Fin 4).val, ho4.trans_le hn⟩ := rfl
       have hjpref : (padProfile hn p j).symm o < (padProfile hn p j).symm v := by
         simp only [padProfile, not_le.mp hj4, ↓reduceDIte, Fin.lt_def]
-        rw [show o = ⟨(⟨o.val, ho4⟩ : Fin 4).val, ho4.trans_le hn⟩ from rfl,
-          padPerm_symm_lt hn _ ⟨o.val, ho4⟩, padPerm_symm_ge hn _ v hv4]
+        rw [ho_eq, padPerm_symm_lt hn _ ⟨o.val, ho4⟩, padPerm_symm_ge hn _ v hv4]
         exact ((p _).symm ⟨o.val, ho4⟩).isLt.trans_le hv4
       exact hsrc o hoS ⟨j, hpos, hjpref⟩
 
@@ -472,10 +464,8 @@ theorem bogomolnaiaMoulin_impossibility {n : ℕ} (hn : 4 ≤ n) (φ : Assignmen
     (hsp : IsSDStrategyProof φ) : False := by
   let ψ : AssignmentRule 4 := fun p =>
     Matrix.of fun i o => φ (padProfile hn p) ⟨i.val, by omega⟩ ⟨o.val, by omega⟩
-  have hsum4 : ∀ (p : Profile 4) (f : Fin n → ℝ),
-      (∀ k : Fin n, 4 ≤ k.val → f k = 0) →
+  have hsum4 (f : Fin n → ℝ) (hzero : ∀ k : Fin n, 4 ≤ k.val → f k = 0) :
       ∑ j : Fin 4, f ⟨j.val, by omega⟩ = ∑ j : Fin n, f j := by
-    intro p f hzero
     rw [← Finset.sum_subset (Finset.subset_univ (Finset.univ.map (Fin.castLEEmb hn)))
       fun j _ hj => hzero j (not_lt.mp fun h =>
         hj (Finset.mem_map.mpr ⟨⟨j.val, h⟩, Finset.mem_univ _, rfl⟩)), Finset.sum_map]
@@ -486,29 +476,22 @@ theorem bogomolnaiaMoulin_impossibility {n : ℕ} (hn : 4 ≤ n) (φ : Assignmen
     have hM := mem_doublyStochastic_iff_sum.mp (hfeas (padProfile hn p))
     obtain ⟨hrow0, hcol0⟩ := dummy_block_zero hn p (heff (padProfile hn p))
     refine ⟨fun i o => hM.1 _ _, fun i => ?_, fun o => ?_⟩
-    · simp only [ψ, Matrix.of_apply]
-      rw [hsum4 p (fun o => φ (padProfile hn p) ⟨i.val, by omega⟩ o)
-        (fun k hk => hrow0 ⟨i.val, by omega⟩ k i.isLt hk)]
-      exact hM.2.1 ⟨i.val, by omega⟩
-    · simp only [ψ, Matrix.of_apply]
-      rw [hsum4 p (fun i => φ (padProfile hn p) i ⟨o.val, by omega⟩)
-        (fun k hk => hcol0 k ⟨o.val, by omega⟩ hk o.isLt)]
-      exact hM.2.2 ⟨o.val, by omega⟩
-  have hψ_ntc : ∀ p : Profile 4, NoTwoCycle p (ψ p) := by
-    intro p i j a b hib hij hja hji
-    have hp_rank : ∀ (u x y : Fin 4), (p u).symm x < (p u).symm y →
+    · simpa only [ψ, Matrix.of_apply,
+        hsum4 (fun o => φ (padProfile hn p) ⟨i.val, by omega⟩ o)
+          (fun k hk => hrow0 ⟨i.val, by omega⟩ k i.isLt hk)] using hM.2.1 ⟨i.val, by omega⟩
+    · simpa only [ψ, Matrix.of_apply,
+        hsum4 (fun i => φ (padProfile hn p) i ⟨o.val, by omega⟩)
+          (fun k hk => hcol0 k ⟨o.val, by omega⟩ hk o.isLt)] using hM.2.2 ⟨o.val, by omega⟩
+  have hψ_ntc : ∀ p : Profile 4, NoTwoCycle p (ψ p) := fun p i j a b hib hij hja hji =>
+    have hp_rank (u x y : Fin 4) (hxy : (p u).symm x < (p u).symm y) :
         (padProfile hn p ⟨u.val, by omega⟩).symm ⟨x.val, by omega⟩ <
           (padProfile hn p ⟨u.val, by omega⟩).symm ⟨y.val, by omega⟩ := by
-      intro u x y hxy
       simpa only [padProfile, u.isLt, ↓reduceDIte, padPerm_symm_lt, Fin.eta, Fin.lt_def] using hxy
-    exact (heff (padProfile hn p)).not_twoCycle hib (hp_rank i a b hij) hja (hp_rank j b a hji)
-  have hψ_ete : ∀ p : Profile 4, IsEqualTreatmentOfEquals p (ψ p) := by
-    intro p i j hij
-    funext o
-    have hpad : padProfile hn p ⟨i.val, by omega⟩ = padProfile hn p ⟨j.val, by omega⟩ := by
-      simp only [padProfile, i.isLt, j.isLt, ↓reduceDIte, hij]
-    exact congrFun (hete (padProfile hn p) ⟨i.val, by omega⟩ ⟨j.val, by omega⟩ hpad)
-      ⟨o.val, by omega⟩
+    (heff (padProfile hn p)).not_twoCycle hib (hp_rank i a b hij) hja (hp_rank j b a hji)
+  have hψ_ete : ∀ p : Profile 4, IsEqualTreatmentOfEquals p (ψ p) := fun p i j hij =>
+    funext fun o => congrFun (hete (padProfile hn p) ⟨i.val, i.isLt.trans_le hn⟩
+      ⟨j.val, j.isLt.trans_le hn⟩ (by simp only [padProfile, i.isLt, j.isLt, ↓reduceDIte, hij]))
+      ⟨o.val, o.isLt.trans_le hn⟩
   have hψ_sp : IsSDStrategyProof ψ := by
     intro p i π' k
     have hdom := hsp (padProfile hn p) ⟨i.val, by omega⟩ (padPerm hn π') ⟨k.val, by omega⟩

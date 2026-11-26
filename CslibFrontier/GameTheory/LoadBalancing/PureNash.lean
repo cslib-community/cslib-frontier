@@ -266,11 +266,9 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
       rw [hload, Function.update_of_ne hki]
   · left
     have hla : G.load (Function.update A i b) (A i) < G.load A (A i) := by
-      rw [G.load_update_self_of_ne A i hne]
-      linarith [div_pos hwpos (G.speed_pos (A i))]
+      rw [G.load_update_self_of_ne A i hne]; linarith [div_pos hwpos (G.speed_pos (A i))]
     have hlb : G.load A b < G.load A (A i) := by
-      rw [G.load_update_of_ne A i hne] at hlt'
-      linarith [div_pos hwpos (G.speed_pos b)]
+      rw [G.load_update_of_ne A i hne] at hlt'; linarith [div_pos hwpos (G.speed_pos b)]
     exact lexDesc_of_two_below hla hlt' hlb fun j h1 h2 => G.load_update_other A i h1 h2
 
 /-- **Existence of pure Nash equilibria** ([Vocking2007]): every uniformly
@@ -326,16 +324,13 @@ private theorem isSatisfied_after_bestResponse {G : LoadBalancingGame ι M} (hId
     simpa only [hId b, hId k, div_one, add_le_add_iff_right] using hmin k
   have hlt_a : G.load A b + G.weight i < G.load A (A i) := by
     obtain ⟨k, hk⟩ := not_forall.mp hunsat
-    rw [not_le, hId k, div_one] at hk
-    linarith [hmin_load k]
+    rw [not_le, hId k, div_one] at hk; linarith [hmin_load k]
   have hne : b ≠ A i := fun h => by linarith [h ▸ hlt_a, G.weight_nonneg i]
   have hload_ge (k : M) : G.load A b ≤ G.load (Function.update A i b) k := by
     rcases eq_or_ne k b with rfl | hkb
-    · rw [G.load_update_of_ne A i hne, hId k, div_one]
-      linarith [G.weight_nonneg i]
+    · rw [G.load_update_of_ne A i hne, hId k, div_one]; linarith [G.weight_nonneg i]
     · rcases eq_or_ne k (A i) with rfl | hka
-      · rw [G.load_update_self_of_ne A i hne, hId (A i), div_one]
-        linarith
+      · rw [G.load_update_self_of_ne A i hne, hId (A i), div_one]; linarith
       · exact (G.load_update_other A i hka hkb).symm ▸ hmin_load k
   refine ⟨fun k => ?_, fun j hj hwij k => ?_⟩
   · rw [Function.update_self, G.load_update_of_ne A i hne, hId b, hId k, div_one]
@@ -343,12 +338,10 @@ private theorem isSatisfied_after_bestResponse {G : LoadBalancingGame ι M} (hId
   have hji : j ≠ i := fun h => hunsat (h ▸ hj)
   rw [Function.update_of_ne hji, hId k, div_one]
   by_cases hjb : A j = b
-  · rw [hjb, G.load_update_of_ne A i hne, hId b, div_one]
-    linarith [hload_ge k]
+  · rw [hjb, G.load_update_of_ne A i hne, hId b, div_one]; linarith [hload_ge k]
   · have hle_prev : G.load (Function.update A i b) (A j) ≤ G.load A (A j) := by
       by_cases hja : A j = A i
-      · rw [hja, G.load_update_self_of_ne A i hne]
-        linarith [div_nonneg (G.weight_nonneg i) (G.speed_pos (A i)).le]
+      · rw [hja, G.load_update_self_of_ne A i hne, hId (A i), div_one]; linarith [G.weight_nonneg i]
       · rw [G.load_update_other A i hja hjb]
     have hjb_sat : G.load A (A j) ≤ G.load A b + G.weight j := by
       simpa only [hId b, div_one] using hj b
@@ -501,8 +494,7 @@ theorem IsRelatedLPT.isPureNash {G : LoadBalancingGame (Fin n) M} {A : Fin n →
   set S : Finset (Fin n) := univ.filter fun r => A r = A i
   have hSne : S.Nonempty := ⟨i, mem_filter.mpr ⟨mem_univ i, rfl⟩⟩
   let r : Fin n := S.max' hSne
-  have hrS : r ∈ S := max'_mem S hSne
-  have hAr : A r = A i := (mem_filter.mp hrS).2
+  have hAr : A r = A i := (mem_filter.mp (max'_mem S hSne)).2
   have hir : i ≤ r := le_max' S i (mem_filter.mpr ⟨mem_univ i, rfl⟩)
   -- Since `r` is the last job on machine `A i`, its post-insertion load equals `G.load A (A i)`.
   have hload_r : G.load A (A i) = G.prefixLoad A r (A r) + G.weight r / G.speed (A r) := by
@@ -607,8 +599,7 @@ theorem IsIdentical.prefixLoad_eq_scheduling {m : ℕ} {G : LoadBalancingGame (F
     (hId : G.IsIdentical) (A : Fin n → Fin m) (k : ℕ) (j : Fin m) :
     G.prefixLoad A k j = Cslib.Algorithms.Lean.Scheduling.prefixLoad G.weight A k j := by
   rw [prefixLoad, Cslib.Algorithms.Lean.Scheduling.prefixLoad_def]
-  refine sum_congr rfl fun r _ => ?_
-  rw [hId j, div_one]
+  exact sum_congr rfl fun _ _ => by rw [hId j, div_one]
 
 /-- On identical machines (`Fin n` jobs, `Fin m` machines), greedy post-insertion LPT
 (`IsRelatedLPT`) coincides with Graham's list-scheduling condition

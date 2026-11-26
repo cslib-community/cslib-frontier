@@ -275,9 +275,8 @@ theorem four_le_effBucketCap (n : ℕ) : 4 ≤ effBucketCap n := by
   omega
 
 /-- `effBucketCap n` is always positive. -/
-theorem effBucketCap_pos (n : ℕ) : 0 < effBucketCap n := by
-  have := four_le_effBucketCap n
-  omega
+theorem effBucketCap_pos (n : ℕ) : 0 < effBucketCap n :=
+  (by decide : 0 < 4).trans_le (four_le_effBucketCap n)
 
 /-- When `bucketBits n = 0`, `n < effBucketCap n` (so bucket `0` never overflows
 `effBucketCap n`). -/
@@ -389,18 +388,14 @@ theorem effBucketPosBits_le_of_lt_pow {U w n : ℕ} (hnU : n ≤ U) (hU : U < 2 
 /-- When `0 < bucketBits n`, `globalPtrBits n ≤ 2 * slabScale n`. -/
 theorem globalPtrBits_le_two_mul_slabScale {n : ℕ} (hb : 0 < bucketBits n) :
     globalPtrBits n ≤ 2 * slabScale n := by
-  have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hscale := two_le_slabScale n
-  have hb_pos := numBuckets_pos n
-  have hcube8 : 8 ≤ (slabScale n) ^ 3 := Nat.pow_le_pow_left hscale 3
-  have hn8 : 8 ≤ n := hcube8.trans ((Nat.le_mul_of_pos_left _ hb_pos).trans hcube)
-  have hmax : max n 4 = n := max_eq_left (by omega)
-  have hle2n : n + 1 ≤ 2 * max n 4 := by omega
+  have hn8 : 8 ≤ n := (Nat.pow_le_pow_left hscale 3).trans
+    ((Nat.le_mul_of_pos_left _ (numBuckets_pos n)).trans (numBuckets_mul_slabScale_cubed_le hb))
   have hclog1 : Nat.clog 2 (n + 1) ≤ Nat.clog 2 (max n 4) + 1 := by
     calc Nat.clog 2 (n + 1)
-        ≤ Nat.clog 2 (2 * max n 4) := Nat.clog_mono_right 2 hle2n
+        ≤ Nat.clog 2 (2 * max n 4) := Nat.clog_mono_right 2 (by omega)
       _ = Nat.clog 2 (max n 4) + 1 := by
-        rw [Nat.clog_of_two_le (by decide : 1 < 2) (by omega : 2 ≤ 2 * max n 4)]
+        rw [Nat.clog_of_two_le (by decide) (by omega)]
         congr 2
         omega
   have hclog2 : Nat.clog 2 (max n 4) ≤ slabScale n := by
@@ -859,8 +854,7 @@ theorem tsum_uniform_probeExcess_twoStage_le {ι₁ ι₂ : Type*}
   have houter :
       (∑ i₁ : ι₁, (if i₁ ∈ G then 3 else 2 * #(S.erase u))) ≤
         (3 + C_bad) * Fintype.card ι₁ := by
-    rw [sum_ite, sum_const, sum_const, smul_eq_mul, smul_eq_mul, add_mul,
-      show univ.filter (· ∉ G) = univ \ G by ext; simp]
+    rw [sum_ite, sum_const, sum_const, smul_eq_mul, smul_eq_mul, add_mul, filter_notMem_eq_sdiff]
     exact add_le_add ((Nat.mul_le_mul_right 3 (card_filter_le _ _)).trans_eq (mul_comm _ _)) hbad
   have hprod :
       (∑ p : ι₁ × ι₂, probeExcess n_max (qOf p.1) H p.2 S u) ≤
@@ -1026,15 +1020,11 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
   · unfold globalMetaLen
     rw [Nat.right_distrib]
     by_cases hb : bucketBits n = 0
-    · have hvar : globalMetaVarLen n = 0 := by simp [globalMetaVarLen, hb]
-      rw [hvar, Nat.zero_mul, Nat.add_zero]
+    · simp only [globalMetaVarLen, hb, ↓reduceIte, Nat.zero_mul, Nat.add_zero]
       have hlog : Nat.log 2 n ≤ 3 * Dynamic.logLogFactor n := by grind [bucketBits]
-      have hlt : n < 2 ^ (Nat.log 2 n + 1) := Nat.lt_pow_succ_log_self (by decide) n
-      have hpow : n + 1 ≤ 2 ^ (3 * Dynamic.logLogFactor n + 1) :=
-        (by omega : n + 1 ≤ 2 ^ (Nat.log 2 n + 1)).trans
-          (Nat.pow_le_pow_right (by decide) (by omega))
       have hclog : globalPtrBits n ≤ 3 * Dynamic.logLogFactor n + 1 :=
-        Nat.clog_le_of_le_pow hpow
+        Nat.clog_le_of_le_pow ((Nat.lt_pow_succ_log_self (by decide) n).trans_le
+          (Nat.pow_le_pow_right (by decide) (by omega)))
       have hll := Dynamic.one_le_logLogFactor n
       calc 4 * globalPtrBits n ≤ 20 * 1 * Dynamic.logLogFactor n := by omega
         _ ≤ 20 * n * Dynamic.logLogFactor n := by gcongr; exact hn
@@ -1108,16 +1098,15 @@ theorem tableArrays_words_le_succinctWords {U V w n_max C_hdr : ℕ} :
     (n_max * quotientBits U n_max + n_max * valBits V +
       localMetaLen n_max * effBucketPosBits n_max) 32
     (globalMetaLen n_max) (globalPtrBits n_max) w
-  have hlm := localMetaLen_mul_effBucketPosBits_le n_max
-  have hgm := globalMetaLen_mul_globalPtrBits_le n_max
   have haux : localMetaLen n_max * effBucketPosBits n_max +
       globalMetaLen n_max * globalPtrBits n_max ≤
       74 * n_max * Dynamic.logLogFactor n_max :=
-    (Nat.add_le_add hlm hgm).trans_eq (by ring)
-  have hmaster := succinct_space_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
-    (C_aux := 74) (C_pad := 35) (C_hdr := C_hdr) haux
-  rw [show 74 + 5 = 79 from rfl,
-    ← Nat.add_assoc (n_max * quotientBits U n_max + n_max * valBits V)] at hmaster
+    (Nat.add_le_add (localMetaLen_mul_effBucketPosBits_le n_max)
+      (globalMetaLen_mul_globalPtrBits_le n_max)).trans_eq (by ring)
+  have hmaster : _ ≤ Dynamic.succinctWords 79 (35 + C_hdr) U V w n_max :=
+    succinct_space_le_succinctWords (U := U) (V := V) (w := w) (n_max := n_max)
+      (C_aux := 74) (C_pad := 35) (C_hdr := C_hdr) haux
+  rw [← Nat.add_assoc (n_max * quotientBits U n_max + n_max * valBits V)] at hmaster
   omega
 
 end Cslib.DataStructure.Dictionary.SuccinctBucket

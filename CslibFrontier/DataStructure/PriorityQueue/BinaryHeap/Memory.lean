@@ -407,8 +407,7 @@ theorem siftDown_triple (hn : Fits w n) {S : ℕ} {s : Memory.State} {k : ℕ}
         Triple w s (sink L k c (s.mem (L.base + n + k)) (s.mem (L.base + s.mem (L.base + n + k)))
           (s.mem (L.base + n + c)) (s.mem (L.base + s.mem (L.base + n + c))) (siftDown L S c))
           (10 * (Nat.log 2 S - (Nat.log 2 k + 1)) + 6 + 4)
-          fun _ s' => HeapInv n L.base S s'.mem ∧ Rearranges L s s' := by
-      intro c hck hcS hcmin
+          fun _ s' => HeapInv n L.base S s'.mem ∧ Rearranges L s s' := fun c hck hcS hcmin => by
       obtain ⟨-, -, hmin⟩ := minChild_spec (f := heapEntry n L.base s.mem) (S := S) (a := k) h2.2
       rw [← hcmin] at hmin
       refine sink_triple hn hA (by omega) (by omega) hvk (hshape.vertex_lt c (by omega) hcS)
@@ -475,11 +474,10 @@ theorem not_mem_footprint (hL : L.Valid w K) {a : ℕ} (ha : a ∉ L.footprint) 
 /-- The size cell is outside the array block or at its unused heap position zero. -/
 theorem size_location (hL : L.Valid w K) :
     L.size.base < L.base ∨ L.size.base = L.base + n ∨
-      L.base + 3 * n + 1 ≤ L.size.base := by
-  rcases hL.size_separate with h | h
-  · simp only [Block.Owns, not_and_or, not_le, not_lt, space] at h
-    omega
-  · exact Or.inr (Or.inl h)
+      L.base + 3 * n + 1 ≤ L.size.base :=
+  hL.size_separate.elim
+    (fun h => by simp only [Block.Owns, not_and_or, not_le, not_lt, space] at h; omega)
+    (Or.inr ∘ Or.inl)
 
 /-- The size cell is allocated. -/
 theorem Inv.size_lt (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
@@ -489,11 +487,10 @@ theorem Inv.size_lt (hL : L.Valid w K) {s : Memory.State} (hs : Inv L s) :
 /-- A heap invariant survives a write to the size cell. -/
 theorem heapInv_update_size (hL : L.Valid w K) {S : ℕ} {m : ℕ → ℕ}
     (h : HeapInv n L.base S m) (x : ℕ) :
-    HeapInv n L.base S (Function.update m L.size.base x) := by
-  refine h.congr_mem fun a ha hzero => Function.update_of_ne (fun he => ?_) x m
-  rcases hL.size_separate with hout | hslot
-  · exact hout (he ▸ Block.mem_footprint.mp ha)
-  · exact hzero (he.trans hslot)
+    HeapInv n L.base S (Function.update m L.size.base x) :=
+  h.congr_mem fun a ha hzero => Function.update_of_ne
+    (fun (he : a = L.size.base) => hL.size_separate.elim (· (he ▸ Block.mem_footprint.mp ha))
+      (hzero <| he.trans ·)) x m
 
 
 variable (L) in
@@ -777,20 +774,17 @@ theorem inv_empty {s : Memory.State} (hsize : L.size.Allocated s) (hA : L.arrays
   have hshape : HeapShape n L.base 0 s.mem :=
     ⟨Nat.zero_le _, fun _ h1 h2 => by omega, fun _ h1 h2 => by omega,
       fun v hv => (hpos v hv).le, fun v hv h0 => absurd (hpos v hv) h0⟩
-  refine ⟨⟨hsize, hA, ?_⟩, hshape.stateOfMem_zero⟩
-  rw [hcount]
-  exact ⟨hshape, fun _ h1 h2 => by omega⟩
+  exact ⟨⟨hsize, hA, hcount.symm ▸ ⟨hshape, fun _ h1 h2 => by omega⟩⟩, hshape.stateOfMem_zero⟩
 
 /-- A locally zero owned block supplies the compact empty heap, without a global `ZeroAbove`
 assumption. Native initialization must still pay its actual reservation and setup instructions. -/
 theorem inv_compactLayout {base : ℕ} {s : Memory.State}
     (hA : (Block.mk base (space n)).Allocated s)
     (hz : ∀ a, (Block.mk base (space n)).Owns a → s.mem a = 0) :
-    Inv (compactLayout n base) s ∧ abs (compactLayout n base) s = IndexedMinPQ.empty n := by
-  refine inv_empty ?_ hA ?_ fun _ _ => ?_
-  · wram_omega [hA]
-  · exact hz _ (by wram_omega)
-  · exact hz _ (by wram_omega)
+    Inv (compactLayout n base) s ∧ abs (compactLayout n base) s = IndexedMinPQ.empty n :=
+  inv_empty (by wram_omega [hA]) hA
+    (hz _ (by wram_omega)) fun _ _ =>
+    hz _ (by wram_omega)
 
 /-! ## Allocation -/
 
@@ -830,11 +824,10 @@ theorem le_of_mem_footprint_allocated {f a : ℕ} (ha : a ∈ (allocated n f).fo
 is empty. -/
 theorem inv_allocated {s : Memory.State} (hz : ZeroAbove s) :
     Inv (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ ∧
-      abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n := by
-  refine inv_empty ?_ ?_ (hz _ le_rfl) fun _ _ => ?_
-  · wram_omega
-  · wram_omega
-  · exact hz _ (by dsimp only [allocated]; omega)
+      abs (allocated n s.frontier) ⟨s.mem, s.frontier + 1 + space n⟩ = IndexedMinPQ.empty n :=
+  inv_empty (by wram_omega)
+    (by wram_omega) (hz _ le_rfl) fun _ _ =>
+    hz _ (by dsimp only [allocated]; omega)
 
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Memory

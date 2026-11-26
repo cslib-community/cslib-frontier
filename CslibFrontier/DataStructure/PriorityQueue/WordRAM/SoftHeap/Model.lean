@@ -275,24 +275,19 @@ private theorem SHTree.itemPhiSum_nonneg (rt : ℕ) (t : SHTree) : 0 ≤ t.itemP
   induction t using SHTree.ind with
   | node id r ck items l r' ihL ihR =>
     simp only [SHTree.itemPhiSum_node]
-    have h1 : (0 : ℚ) ≤ (items.length : ℚ) * itemPhi rt r :=
-      mul_nonneg (Nat.cast_nonneg _) (itemPhi_nonneg rt r)
-    have hL : (0 : ℚ) ≤ l.elim 0 (SHTree.itemPhiSum rt) := by
-      cases l with
+    refine add_nonneg (add_nonneg (mul_nonneg (Nat.cast_nonneg _) (itemPhi_nonneg rt r)) ?_) ?_
+    · cases l with
       | none => exact le_rfl
       | some c => exact ihL c rfl
-    have hR : (0 : ℚ) ≤ r'.elim 0 (SHTree.itemPhiSum rt) := by
-      cases r' with
+    · cases r' with
       | none => exact le_rfl
       | some c => exact ihR c rfl
-    linarith
 
 /-- `phi` is always non-negative. -/
 private theorem SHTree.phi_nonneg (rt : ℕ) (t : SHTree) : 0 ≤ t.phi rt := by
   unfold SHTree.phi
-  have h1 := t.itemPhiSum_nonneg rt
-  have h2 : (0 : ℚ) ≤ (t.nodeCount : ℚ) := Nat.cast_nonneg _
-  linarith
+  have := t.itemPhiSum_nonneg rt
+  positivity
 
 /-- `itemPhiSum ≤ (2 * rt + 3) * allEntries.length`. -/
 private theorem SHTree.itemPhiSum_le (rt : ℕ) (t : SHTree) :
@@ -301,8 +296,9 @@ private theorem SHTree.itemPhiSum_le (rt : ℕ) (t : SHTree) :
   | node id r ck items l r' ihL ihR =>
     simp only [SHTree.itemPhiSum_node, SHTree.allEntries_node,
       List.length_append, List.length_map]
-    have hi : (items.length : ℚ) * itemPhi rt r ≤ (2 * (rt : ℚ) + 3) * (items.length : ℚ) := by
-      nlinarith [itemPhi_le_zero rt r, show (0 : ℚ) ≤ items.length from Nat.cast_nonneg _]
+    have hi : (items.length : ℚ) * itemPhi rt r ≤ (2 * (rt : ℚ) + 3) * (items.length : ℚ) :=
+      (mul_le_mul_of_nonneg_left (itemPhi_le_zero rt r) (Nat.cast_nonneg _)).trans_eq
+        (mul_comm _ _)
     have hL : l.elim 0 (SHTree.itemPhiSum rt) ≤
         (2 * (rt : ℚ) + 3) * (l.elim [] SHTree.allEntries).length := by
       cases l with
@@ -357,19 +353,11 @@ private theorem SHTree.corrupted_le_sum_countRank {rt lb K : ℕ} {t : SHTree} (
   induction t using SHTree.ind generalizing lb with
   | node id r ck items l r' ihL ihR =>
     rcases ht with ⟨_, hcap, _, _, hrt, _, _, hl, _, hr⟩
-    have hcount_root : 0 < SHTree.countRank r (.node id r ck items l r') := by
-      simp
-    have hrK : r ≤ K := hK r hcount_root
-    have hK_L : ∀ c, l = some c → ∀ k, 0 < c.countRank k → k ≤ K := by
-      intro c hc k hk
-      apply hK k
-      simp [hc]
-      omega
-    have hK_R : ∀ c, r' = some c → ∀ k, 0 < c.countRank k → k ≤ K := by
-      intro c hc k hk
-      apply hK k
-      simp [hc]
-      omega
+    have hrK : r ≤ K := hK r (by simp)
+    have hK_L : ∀ c, l = some c → ∀ k, 0 < c.countRank k → k ≤ K := fun c hc k hk =>
+      hK k (by simp only [SHTree.countRank_node, hc, Option.elim_some]; omega)
+    have hK_R : ∀ c, r' = some c → ∀ k, 0 < c.countRank k → k ≤ K := fun c hc k hk =>
+      hK k (by simp only [SHTree.countRank_node, hc, Option.elim_some]; omega)
     have hroot : ((items.map (fun it => (it, ck))).filter
         (fun p => decide (p.1.origKey < p.2))).length ≤
         if rt + 1 ≤ r then sizeCap rt r else 0 := by
@@ -410,17 +398,9 @@ private theorem SHTree.corrupted_le_sum_countRank {rt lb K : ℕ} {t : SHTree} (
         intro k _
         simp only [SHTree.countRank_node]
         split_ifs <;> ring
-      rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, Finset.sum_add_distrib]
-      have hroot_sum : ∑ k ∈ Finset.Icc (rt + 1) K, (if r = k then sizeCap rt k else 0) =
-          if rt + 1 ≤ r then sizeCap rt r else 0 := by
-        have : ∑ k ∈ Finset.Icc (rt + 1) K, (if r = k then sizeCap rt k else 0) =
-            ∑ k ∈ Finset.Icc (rt + 1) K, (if k = r then sizeCap rt k else 0) :=
-          Finset.sum_congr rfl fun k _ => by simp only [eq_comm]
-        rw [this, Finset.sum_ite_eq']
-        by_cases hgt : rt + 1 ≤ r
-        · simp [Finset.mem_Icc, hgt, hrK]
-        · simp [Finset.mem_Icc, hgt]
-      rw [hroot_sum]
+      rw [Finset.sum_congr rfl hterm, Finset.sum_add_distrib, Finset.sum_add_distrib,
+        Finset.sum_ite_eq]
+      simp [Finset.mem_Icc, hrK]
     simp only [SHTree.allEntries_node, List.filter_append, List.length_append]
     omega
 
@@ -441,17 +421,12 @@ private theorem SHTree.corrupted_le_sum_countRank {rt lb K : ℕ} {t : SHTree} (
 /-- `popDeficit` is always non-negative. -/
 private theorem popDeficit_nonneg (rt : ℕ) (t : SHTree) : 0 ≤ popDeficit rt t := by
   unfold popDeficit
-  split_ifs
-  · positivity
-  · exact le_rfl
+  split_ifs <;> positivity
 
 /-- `totalPhi` is always non-negative. -/
 theorem totalPhi_nonneg (rt : ℕ) (roots : List SHTree) : 0 ≤ totalPhi rt roots := by
-  unfold totalPhi
-  refine List.sum_nonneg ?_
-  intro x hx
-  simp only [List.mem_map] at hx
-  rcases hx with ⟨t, _, rfl⟩
+  refine List.sum_nonneg fun x hx => ?_
+  rcases List.mem_map.mp hx with ⟨t, _, rfl⟩
   have h1 := t.phi_nonneg rt
   have h2 : (0 : ℚ) ≤ rootCredit t.rank := by unfold rootCredit; positivity
   have h3 := popDeficit_nonneg rt t
@@ -1021,13 +996,10 @@ private theorem tree_phi_le_fuel {rt ic₀ nc₀ maxItems : ℕ} {t : SHTree}
     simpa [SHTree.allItems] using t.itemPhiSum_le rt
   have hall_q : (t.allItems.length : ℚ) ≤ (maxItems : ℚ) := by exact_mod_cast hall_len
   have hnc_q : (t.nodeCount : ℚ) ≤ 2 * (maxItems : ℚ) := by exact_mod_cast hnc_len
-  have hmul : 120 * ((2 * (rt : ℚ) + 3) * (t.allItems.length : ℚ)) ≤
-      120 * ((2 * (rt : ℚ) + 3) * (maxItems : ℚ)) := by
-    have hcoeff : (0 : ℚ) ≤ 120 * (2 * (rt : ℚ) + 3) := by positivity
-    nlinarith
-  have hm_nonneg : (0 : ℚ) ≤ maxItems := Nat.cast_nonneg _
-  have hrt_nonneg : (0 : ℚ) ≤ rt := Nat.cast_nonneg _
-  have hrtm : (0 : ℚ) ≤ (rt : ℚ) * (maxItems : ℚ) := mul_nonneg hrt_nonneg hm_nonneg
+  have hmul : (2 * (rt : ℚ) + 3) * (t.allItems.length : ℚ) ≤
+      (2 * (rt : ℚ) + 3) * (maxItems : ℚ) :=
+    mul_le_mul_of_nonneg_left hall_q (by positivity)
+  have hrtm : (0 : ℚ) ≤ (rt : ℚ) * (maxItems : ℚ) := by positivity
   unfold SHTree.phi shFuelBound
   push_cast
   linarith
@@ -1591,15 +1563,7 @@ private theorem SHInv.forestEntries_length_le {w ic₀ nc₀ maxItems maxNodes :
     (hinv : SHInv w ic₀ nc₀ maxItems maxNodes h roots created s) :
     (forestEntries roots).length ≤ h.itemCount - ic₀ := by
   have hlen : (forestItemIds roots).length = (forestEntries roots).length := by
-    clear hinv
-    induction roots with
-    | nil => rfl
-    | cons t rest ih =>
-      have h1 : forestItemIds (t :: rest) = t.itemIds ++ forestItemIds rest := rfl
-      have h2 : forestEntries (t :: rest) = t.allEntries ++ forestEntries rest := rfl
-      have ht : t.itemIds.length = t.allEntries.length := by
-        simp [SHTree.itemIds, SHTree.allItems]
-      rw [h1, h2, List.length_append, List.length_append, ht, ih]
+    simp [forestItemIds, forestEntries, SHTree.itemIds, SHTree.allItems]
   have hnd : ((forestItemIds roots).map (fun id => id - (ic₀ + 1))).Nodup := by
     refine List.Nodup.map_on ?_ hinv.itemIds_nodup
     intro a ha b hb _

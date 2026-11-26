@@ -487,11 +487,8 @@ theorem update_slotOf_gmRemoveTail {α : Type*} (arr : ℕ → α) {n_max : ℕ}
 /-! ## Section 2: `Memory.Prog` tail allocation and compaction operations (`realize`) -/
 
 theorem lt_two_pow_globalPtrBits_of_le_n_max {n_max x : ℕ} (hx : x ≤ n_max) :
-    x < 2 ^ globalPtrBits n_max := by
-  unfold globalPtrBits
-  have hpow : n_max + 1 ≤ 2 ^ Nat.clog 2 (n_max + 1) :=
-    Nat.le_pow_clog (by decide : 1 < 2) (n_max + 1)
-  omega
+    x < 2 ^ globalPtrBits n_max :=
+  hx.trans_lt (lt_two_pow_globalPtrBits n_max)
 
 theorem lt_two_pow_globalPtrBits_of_le_globalMetaLen {n_max x : ℕ}
     (hb_pos : 0 < bucketBits n_max) (hx : x ≤ globalMetaLen n_max) :
@@ -805,14 +802,14 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
   set d_last := gm (gmTailOwnerIdx n_max t_last)
   set g_last := n_max - 1 - t_last
   set g_del := n_max - 1 - t_del
+  have hg_last : g_last < n_max := by omega
+  have hg_del : g_del < n_max := by omega
   obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
-    writeQuotProg_effect (base := base) (U := U) (V := V) (w := w) (h_space := h_space)
-      hw (by omega : g_del < n_max) (quotAt_lt ..) s
+    writeQuotProg_effect (V := V) hw hg_del (quotAt_lt ..) s
   let s₁ := (Memory.spec 0).clientState s
     (writeQuotProg U w n_max h_space ((base, g_del), quotAt base U w n_max h_space s.mem g_last))
   obtain ⟨hf2, hout2, hq2, hv2, hl2, hg2⟩ :=
-    writeValProg_effect (base := base) (U := U) (V := V) (w := w) (h_space := h_space)
-      hw (by omega : g_del < n_max) (valAt_lt (mem := s₁.mem) (idx := g_last) ..) s₁
+    writeValProg_effect (U := U) hw hg_del (valAt_lt (mem := s₁.mem) (idx := g_last) ..) s₁
   let s₂ := (Memory.spec 0).clientState s₁
     (writeValProg U V w n_max h_space ((base, g_del), valAt base U V w n_max h_space s₁.mem g_last))
   obtain ⟨hf3, hout3, hq3, hv3, hl3, hg3⟩ :=
@@ -831,17 +828,16 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
     simp only [s', wGM, removeLastTailItemProg, removeLastTailItemGenProg, readGMGenProg_mk,
       writeGMGenProg_mk, readQuotGenProg_mk, writeQuotGenProg_mk, readValGenProg_mk,
       writeValGenProg_mk, p_tailCap_mk, p_gmTailPtrBase_mk, p_gmTailOwnerBase_mk, p_nMaxSubOne_mk]
-    have hptr_del' : gmTailPtrBase n_max +
-        (b * tailCapPerBucket n_max + (gm (4 + 3 * b + 1) - 1)) < _ := hptr_del
+    dsimp only [r_del, gmRIdx] at hptr_del
     rw [StateTransitionSpec.clientState_bind, clientState_readGMProg,
       clientResult_readGMProg s hr_idx, StateTransitionSpec.clientState_bind,
-      clientState_readGMProg, clientResult_readGMProg s hptr_del',
+      clientState_readGMProg, clientResult_readGMProg s hptr_del,
       StateTransitionSpec.clientState_bind, clientState_readGMProg, clientResult_readGMProg s h1_lt,
       StateTransitionSpec.clientState_bind, clientState_readGMProg,
       clientResult_readGMProg s hown_last, StateTransitionSpec.clientState_bind,
-      clientState_readQuotProg, clientResult_readQuotProg s (by omega : g_last < n_max),
+      clientState_readQuotProg, clientResult_readQuotProg s hg_last,
       StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      clientState_readValProg, clientResult_readValProg _ (by omega : g_last < n_max)]
+      clientState_readValProg, clientResult_readValProg _ hg_last]
     repeat rw [StateTransitionSpec.clientState_bind]
     rfl
   rw [hst]

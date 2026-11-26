@@ -464,8 +464,7 @@ theorem hasMaxCostApproxRatio_deterministic_iff [Nonempty G] (f : (ι → G) →
       ∀ x : ι → G, maxCost x (f x) ≤ α * optMaxCost x := by
   rw [hasMaxCostApproxRatio_iff_expectedMaxCost_le (M := deterministic f) hα
     fun x => hasFiniteCost_dirac (f x)]
-  refine forall_congr' fun x => ?_
-  simp only [expectedMaxCost_deterministic]
+  exact forall_congr' fun x => by simp only [expectedMaxCost_deterministic]
 
 end Measurable
 
@@ -804,10 +803,10 @@ theorem lrmPMF_apply_of_lt {x : ι → ℝ} (hlt : leftmost x < rightmost x) :
   refine ⟨?_, ?_, ?_⟩
   · simp only [happly, ↓reduceIte, hlt.ne, hlc.ne, add_zero]; norm_num
   · simp only [happly, ↓reduceIte, hlt.ne', hcr.ne', zero_add, add_zero]; norm_num
-  · simp only [happly, ↓reduceIte, hlc.ne', hcr.ne, zero_add]
-    rw [show (4 : ℝ≥0∞) = 2 * 2 by norm_num,
+  · have h4 : (4 : ℝ≥0∞) = 2 * 2 := by norm_num
+    simp only [happly, ↓reduceIte, hlc.ne', hcr.ne, zero_add, h4, one_div,
       ENNReal.mul_inv (Or.inl two_ne_zero) (Or.inl ENNReal.ofNat_ne_top),
-      ← mul_add, ENNReal.inv_two_add_inv_two, mul_one, one_div]
+      ← mul_add, ENNReal.inv_two_add_inv_two, mul_one]
 
 theorem lrmMechanism_hasFiniteCost (x : ι → ℝ) : HasFiniteCost (lrmMechanism x) :=
   hasFiniteCost_ofPMF_map_finite _ _
@@ -823,7 +822,6 @@ theorem expectedCost_lrmMechanism (x : ι → ℝ) (loc : ℝ) :
     ENNReal.toReal_inv, ENNReal.toReal_natCast, Real.dist_eq, Matrix.cons_val_zero,
     Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three, Matrix.head_cons,
     Matrix.tail_cons]
-  norm_num
   ring
 
 /-- On every profile `x : ι → ℝ`, `lrmMechanism` incurs expected maximum cost identically equal to
@@ -840,10 +838,8 @@ theorem expectedMaxCost_lrmMechanism (x : ι → ℝ) :
 `lrmMechanism` achieves maximum-cost approximation ratio `3 / 2`. -/
 theorem lrmMechanism_hasMaxCostApproxRatio :
     (lrmMechanism (ι := ι)).HasMaxCostApproxRatio (3 / 2) := by
-  rw [Mechanism.hasMaxCostApproxRatio_iff_expectedMaxCost_le (by norm_num)
-    lrmMechanism_hasFiniteCost]
-  intro x
-  rw [expectedMaxCost_lrmMechanism]
+  exact (Mechanism.hasMaxCostApproxRatio_iff_expectedMaxCost_le (by norm_num)
+    lrmMechanism_hasFiniteCost).mpr fun x => (expectedMaxCost_lrmMechanism x).le
 
 private theorem expectedCost_lrm_leftmost (x : ι → ℝ) :
     expectedCost (lrmMechanism x) (leftmost x) = (rightmost x - leftmost x) / 2 := by
@@ -886,29 +882,28 @@ theorem lrmMechanism_isWeakGroupStrategyProof [DecidableEq ι] :
     refine ⟨i, by_contra fun hni => ?_, hi⟩
     linarith [le_rightmost x' i, (Finset.piecewise_eq_of_notMem A z x hni).trans hi]
   have hcL : l ≤ l' → expectedCost (lrmMechanism x') l = (l' + r') / 2 - l := fun _ => by
-    rw [expectedCost_lrmMechanism, abs_of_nonpos (by linarith), abs_of_nonpos (by linarith),
-      abs_of_nonpos (by dsimp [center]; linarith)]
-    dsimp [center]; ring
+    rw [expectedCost_lrmMechanism, center, abs_of_nonpos (by linarith),
+      abs_of_nonpos (by linarith), abs_of_nonpos (by linarith)]
+    ring
   have hcR : r' ≤ r → expectedCost (lrmMechanism x') r = r - (l' + r') / 2 := fun _ => by
-    rw [expectedCost_lrmMechanism, abs_of_nonneg (by linarith), abs_of_nonneg (by linarith),
-      abs_of_nonneg (by dsimp [center]; linarith)]
-    dsimp [center]; ring
+    rw [expectedCost_lrmMechanism, center, abs_of_nonneg (by linarith),
+      abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)]
+    ring
   rcases le_or_gt l' l with hll | hll
   · rcases le_or_gt r r' with hrr | hrr
     · -- Case 1: `l' ≤ l` and `r ≤ r'` (interval expands on both sides).
       obtain ⟨i, hiA⟩ := hA
       refine ⟨i, hiA, ?_⟩
-      have hxi_l := leftmost_le x i
-      have hxi_r := le_rightmost x i
-      rw [expectedCost_lrmMechanism, expectedCost_lrmMechanism,
-        abs_of_nonneg (sub_nonneg.mpr hxi_l), abs_of_nonpos (sub_nonpos.mpr hxi_r),
-        abs_of_nonneg (a := x i - l') (by linarith),
-        abs_of_nonpos (a := x i - r') (by linarith)]
-      have hcen_diff : |center x' - center x| ≤ ((l - l') + (r' - r)) / 2 := by
+      dsimp only [l, r, l', r'] at hll hrr
+      have hcen_diff : |center x' - center x| ≤
+          ((leftmost x - leftmost x') + (rightmost x' - rightmost x)) / 2 := by
         rw [center, center, abs_le]
-        exact ⟨by linarith, by linarith⟩
-      change 1 / 4 * (x i - l) + 1 / 4 * -(x i - r) + 1 / 2 * |x i - center x| ≤
-        1 / 4 * (x i - l') + 1 / 4 * -(x i - r') + 1 / 2 * |x i - center x'|
+        constructor <;> linarith
+      rw [expectedCost_lrmMechanism, expectedCost_lrmMechanism,
+        abs_of_nonneg (sub_nonneg.mpr (leftmost_le x i)),
+        abs_of_nonpos (sub_nonpos.mpr (le_rightmost x i)),
+        abs_of_nonneg (a := x i - leftmost x') (by linarith [leftmost_le x i]),
+        abs_of_nonpos (a := x i - rightmost x') (by linarith [le_rightmost x i])]
       linarith [abs_sub_le (x i) (center x') (center x)]
     · -- Case 3: `l' ≤ l` and `r' < r` (rightmost agent must be in `A` and strictly loses).
       obtain ⟨i, hiA, hxi⟩ := hright_mem hrr
@@ -983,8 +978,8 @@ theorem three_halves_le_of_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ Finty
     (zero_le_one.trans (happrox.one_le hcard)) hfin).mp happrox
   obtain ⟨i₁, i₂, h12⟩ := Fintype.one_lt_card_iff.mp hcard
   let x : ι → ℝ := fun j => if j = i₁ then 0 else if j = i₂ then 1 else 1 / 2
-  have hhalf := exists_expectedCost_ge_half_dist (hfin x) (0 : ℝ) 1
-  rw [show dist (0 : ℝ) 1 / 2 = 1 / 2 by rw [Real.dist_eq]; norm_num] at hhalf
+  have hhalf : 1 / 2 ≤ expectedCost (M x) 0 ∨ 1 / 2 ≤ expectedCost (M x) 1 := by
+    simpa [Real.dist_eq] using exists_expectedCost_ge_half_dist (hfin x) (0 : ℝ) 1
   have hdev (i : ι) (z : ℝ) {c l r : ℝ}
       (hx' : leftmost (Function.update x i z) = l ∧ rightmost (Function.update x i z) = r)
       (hxi : x i = c) (hge : 1 / 2 ≤ expectedCost (M x) c)

@@ -124,8 +124,7 @@ theorem sum_slotAlloc_mul [Fintype ι] [DecidableEq ι] (μ : Fin k → ℝ) (v 
     (σ : Fin k ↪ ι) : ∑ j : ι, slotAlloc μ σ j * v j = welfare μ v σ := by
   simp only [slotAlloc, Finset.sum_mul, ite_mul, zero_mul]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  simp only [Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
+  simp only [Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte, welfare]
 
 /-- An assignment `σ : Fin k ↪ ι` is **optimal** if it maximizes social welfare `welfare μ v` over
 all full assignments of `k` distinct bidders to the `k` slots. -/
@@ -195,8 +194,7 @@ theorem IsAssortative.isOptimal [Finite ι] {μ : Fin k → ℝ} {v : ι → ℝ
       by_cases hy : y ∈ Set.range σ
       · obtain ⟨r, rfl⟩ := hy
         rw [slotAlloc_apply_slot, slotAlloc_apply_slot]
-        refine hμ (le_of_not_ge fun hir => ?_)
-        exact not_lt_of_ge (hσ.antitone hir) hxy
+        exact hμ (le_of_not_ge fun hir => not_lt_of_ge (hσ.antitone hir) hxy)
       · exact absurd (hσ.unassigned_le i y hy) (not_le_of_gt hxy)
     · rw [slotAlloc_of_not_mem_range μ σ hx]
       exact slotAlloc_nonneg hμ_nonneg σ y
@@ -261,19 +259,16 @@ theorem isOptimal_iff_isAssortative [Finite ι] {μ : Fin k → ℝ} {v : ι →
 theorem exists_isOptimal [Fintype ι] (μ : Fin k → ℝ) (v : ι → ℝ) (hk : k ≤ Fintype.card ι) :
     ∃ σ : Fin k ↪ ι, IsOptimal μ v σ := by
   classical
-  have hne : Nonempty (Fin k ↪ ι) :=
-    ⟨(Fin.castLEEmb hk).trans (Fintype.equivFin ι).symm.toEmbedding⟩
-  obtain ⟨σ, -, hσ⟩ := Finset.exists_max_image (Finset.univ : Finset (Fin k ↪ ι))
-    (welfare μ v) Finset.univ_nonempty
+  have : Nonempty (Fin k ↪ ι) := ⟨(Fin.castLEEmb hk).trans (Fintype.equivFin ι).symm.toEmbedding⟩
+  obtain ⟨σ, -, hσ⟩ := Finset.exists_max_image Finset.univ (welfare μ v) Finset.univ_nonempty
   exact ⟨σ, fun τ => hσ τ (Finset.mem_univ τ)⟩
 
 /-- An assortative assignment exists whenever there are at least `k` bidders. -/
 theorem exists_isAssortative [Fintype ι] (v : ι → ℝ) (hk : k ≤ Fintype.card ι) :
-    ∃ σ : Fin k ↪ ι, IsAssortative v σ := by
-  let μ₀ : Fin k → ℝ := fun i => (k : ℝ) - (i.val : ℝ)
-  have hμ₀ : StrictAnti μ₀ := fun _ _ hab => sub_lt_sub_left (Nat.cast_lt.mpr hab) _
-  have hμ₀_pos : ∀ i : Fin k, 0 < μ₀ i := fun i => sub_pos.mpr (Nat.cast_lt.mpr i.isLt)
-  exact (exists_isOptimal μ₀ v hk).imp fun _ hσ => hσ.isAssortative hμ₀ hμ₀_pos
+    ∃ σ : Fin k ↪ ι, IsAssortative v σ :=
+  (exists_isOptimal (fun i : Fin k => (k : ℝ) - i.val) v hk).imp fun _ hσ =>
+    hσ.isAssortative (fun _ _ hab => sub_lt_sub_left (Nat.cast_lt.mpr hab) _)
+      fun i => sub_pos.mpr (Nat.cast_lt.mpr i.isLt)
 
 /-- An assignment `σ : Fin k ↪ ι` with slot prices `p : Fin k → ℝ` (expected payments per
 impression) is **locally envy-free** with respect to CTRs `μ` and per-click values `v`
@@ -544,12 +539,11 @@ theorem minEnvyFreePrice_nonneg [Fintype ι] [DecidableEq ι] {μ : Fin k → �
     (i : Fin k) : 0 ≤ minEnvyFreePrice μ v σ i := by
   refine Finset.sum_nonneg fun r _ => mul_nonneg ?_ ?_
   · split_ifs with h
-    · exact sub_nonneg.mpr (hμ (show r ≤ ⟨r.val + 1, h⟩ by change r.val ≤ r.val + 1; omega))
+    · exact sub_nonneg.mpr (hμ (Fin.le_def.mpr (Nat.le_succ r.val)))
     · rw [sub_zero]; exact hμ_nonneg r
   · unfold nextSlotValue
     split_ifs
-    · exact hv _
-    · exact maxUnassignedValue_nonneg hv σ
+    exacts [hv _, maxUnassignedValue_nonneg hv σ]
 
 /-- For any assortative assignment and nonnegative values, `minEnvyFreePrice` is a locally
 envy-free slot price vector. -/

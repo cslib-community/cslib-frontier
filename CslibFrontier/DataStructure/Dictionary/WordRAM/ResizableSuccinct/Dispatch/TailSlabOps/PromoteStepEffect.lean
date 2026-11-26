@@ -98,10 +98,8 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
     hcpl.gm_eq.symm
   have htail : TailBijection N gm (fun b' => gm (gmRIdx b')) (gm 1) :=
     tailBijection_of_gm_eq hcpl.gm_eq htail_fix
-  have hrb : gm (gmRIdx b) = 2 * slabSize N - k := by
-    dsimp only [gm]; rw [hcpl.gm_eq]; exact hrb_fix
-  have htot_N : b_win + gm 1 ≤ N := by
-    dsimp only [b_win, gm]; rw [hcpl.gm_eq]; exact htot_fix
+  have hrb : gm (gmRIdx b) = 2 * slabSize N - k := by simpa only [gm, hcpl.gm_eq] using hrb_fix
+  have htot_N : b_win + gm 1 ≤ N := by simpa only [b_win, gm, hcpl.gm_eq] using htot_fix
   have hr_le_nt : gm (gmRIdx b) ≤ gm 1 := r_le_ntails_of_tailBijection htail hb
   have hn1_eq : n' + 1 = gm 1 := by dsimp only [n']; omega
   have hr_top_eq : r_top = gm (gmRIdx b) - 1 := by dsimp only [r_top, u]; omega
@@ -137,20 +135,17 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
       (compPromoteMoveItemsProg (((mkCompParams U V w N, itemBase), b_win),
         (d_u, (d_top, d_last)))) = (qA g_u, vA g_u) := by
     dsimp only [compPromoteMoveItemsProg]
-    rw [StateTransitionSpec.clientResult_bind, clientResult_readCompQuotGenProg hp_u.2.1,
-      clientState_readCompQuotGenProg, StateTransitionSpec.clientResult_bind,
+    repeat rw [StateTransitionSpec.clientResult_bind]
+    rw [clientResult_readCompQuotGenProg hp_u.2.1, clientState_readCompQuotGenProg,
       clientResult_readCompValGenProg hp_u.2.1, clientState_readCompValGenProg,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure,
-      hqu_eq, hvu_eq]
+      StateTransitionSpec.clientResult_pure, hqu_eq, hvu_eq]
   have hmv_st : (Memory.spec 0).clientState s
       (compPromoteMoveItemsProg (((mkCompParams U V w N, itemBase), b_win),
         (d_u, (d_top, d_last)))) = s₃ := by
     dsimp only [compPromoteMoveItemsProg]
-    rw [StateTransitionSpec.clientState_bind, clientState_readCompQuotGenProg,
-      StateTransitionSpec.clientState_bind, clientState_readCompValGenProg,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
+    repeat rw [StateTransitionSpec.clientState_bind]
+    rw [clientState_readCompQuotGenProg, clientState_readCompValGenProg,
+      StateTransitionSpec.clientState_pure]
   set s₄ := (Memory.spec 0).clientState s₃
     (winShrinkLeftGenProg ((mkCompParams U V w N, metaBase), (b_win, n')))
   set s₅ := (Memory.spec 0).clientState s₄
@@ -242,8 +237,7 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
       (valAt_lt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem g_u)
       (hg_f3b.trans hg_f3a) (hl_f3b.trans hl_f3a) (hq_f3b.trans hq_f3a)
       (hv_f3b.trans (congrArg (fun f => Function.update f _ _) hv_f3a))
-    dsimp only at h
-    dsimp only [s₆, s₅]
+    dsimp only [s₆, s₅] at h ⊢
     rw [clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
     rwa [htd2_eq] at h
   have hgm6_eq : compGmAt metaBase U w N s₆.mem = gm :=

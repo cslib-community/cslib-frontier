@@ -418,7 +418,7 @@ lemma exists_simple_tradeCycle {n : ℕ} {p : Profile n} {P : Matrix (Fin n) (Fi
       simpa only [Nat.mod_eq_of_lt hlt'] using hrel
   have hm2 : 2 ≤ m := by
     by_contra hlt
-    have h0 : (0 + 1) % m = 0 := by rw [show m = 1 by lia]
+    have h0 : (0 + 1) % m = 0 := Nat.mod_eq_zero_of_dvd ⟨1, by omega⟩
     obtain ⟨_, _, hlt'⟩ := hget_chain 0 hm_pos
     exact lt_irrefl _ (by simpa only [h0] using hlt')
   exact ⟨m, hm2, fun j => (x :: t)[j.val],
@@ -436,10 +436,8 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
     obtain ⟨m, hm2, c, hc_inj, hstep⟩ := exists_simple_tradeCycle ha
     have hmpos : 0 < m := by lia
     let : NeZero m := ⟨hmpos.ne'⟩
-    have hrotate (j : Fin m) :
-        finRotate m j = ⟨(j.val + 1) % m, Nat.mod_lt _ hmpos⟩ := by
-      apply Fin.ext
-      rw [finRotate_apply, Fin.val_add, Fin.val_one', Nat.mod_eq_of_lt (show 1 < m by lia)]
+    have hrotate (j : Fin m) : finRotate m j = ⟨(j.val + 1) % m, Nat.mod_lt _ hmpos⟩ :=
+      Fin.ext (by rw [finRotate_apply, Fin.val_add, Fin.val_one', Nat.mod_eq_of_lt hm2])
     simp only [← hrotate] at hstep
     choose agent hpos hpref using hstep
     let next : Fin m → Fin n := fun j => c (finRotate m j)
@@ -464,12 +462,10 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
         have hneg_le : ∑ j : Fin m, (if agent j = i ∧ c j = o then ε else 0) ≤ P i o := by
           by_cases hex : ∃ j : Fin m, agent j = i ∧ c j = o
           · obtain ⟨j, rfl, rfl⟩ := hex
-            rw [Finset.sum_eq_single j]
-            · simp [hε_le j]
-            · intro j' _ hj'
-              have hne : ¬ (agent j' = agent j ∧ c j' = c j) := fun h => hj' (hc_inj h.2)
-              simp [hne]
-            · intro hj; exact absurd (Finset.mem_univ j) hj
+            rw [Finset.sum_eq_single j
+              (fun j' _ hj' => ite_eq_right fun h => hj' (hc_inj h.2))
+              (fun hj => absurd (Finset.mem_univ j) hj)]
+            simp [hε_le j]
           · rw [Finset.sum_eq_zero fun j _ => ite_eq_right_iff.mpr fun h => absurd ⟨j, h⟩ hex]
             exact hPds.1 i o
         rw [Finset.sum_sub_distrib]
@@ -500,7 +496,8 @@ theorem isSDEfficient_iff_isAcyclicTrade {n : ℕ} (p : Profile n) (P : Matrix (
       intro i k j
       by_cases hck : agent j = i ∧ (p i).symm (c j) ≤ k
       · obtain ⟨rfl, h⟩ := hck
-        simp [show (p (agent j)).symm (next j) ≤ k from (hpref j).le.trans h, h]
+        have hnext : (p (agent j)).symm (next j) ≤ k := (hpref j).le.trans h
+        simp [hnext, h]
       · simp only [hck, ↓reduceIte, sub_zero]
         split_ifs <;> linarith
     have hweak : ∀ i : Fin n, SDDominates (p i) (Q i) (P i) := fun i k =>
@@ -599,15 +596,12 @@ theorem IsSDEfficient.isExPostEfficient {n : ℕ} {p : Profile n} {P : Matrix (F
     have hdiff : (0 : ℝ) ≤ (if (p i).symm (ν i) ≤ k then 1 else 0) -
         (if (p i).symm (μ i) ≤ k then 1 else 0) := by
       by_cases hμ : (p i).symm (μ i) ≤ k
-      · have hν : (p i).symm (ν i) ≤ k := (hweak i).trans hμ
-        simp [hμ, hν]
-      · simp only [hμ, ↓reduceIte, sub_zero]
-        split_ifs <;> norm_num
+      · simp [hμ, (hweak i).trans hμ]
+      · split_ifs <;> norm_num
     nlinarith [hwμ.le]
   refine heff.2 ⟨Q, hQds, hQ_dom, i₀, hQ_dom i₀, (p i₀).symm (ν i₀), ?_⟩
   rw [hQ_uc]
-  have hnot : ¬ (p i₀).symm (μ i₀) ≤ (p i₀).symm (ν i₀) := hstrict.not_ge
-  simp only [le_refl, ↓reduceIte, hnot, sub_zero, mul_one]
+  simp only [le_refl, ↓reduceIte, hstrict.not_ge, sub_zero, mul_one]
   linarith
 
 end Cslib.GameTheory.RandomAssignment

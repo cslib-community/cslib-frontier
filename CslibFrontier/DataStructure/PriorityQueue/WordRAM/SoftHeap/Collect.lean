@@ -202,9 +202,7 @@ private theorem filter_map_entries_eq_corrVals (ck : ℕ) (items : List SHItem) 
   | nil => rfl
   | cons it rest ih =>
     rw [corrVals_cons, List.map_cons, List.filter_cons]
-    by_cases h : it.origKey < ck
-    · simp [h, ih]
-    · simp [h, ih]
+    by_cases h : it.origKey < ck <;> simp [h, ih]
 
 private def nodeCorruptedAt (roots : List SHTree) (idx : ℕ) : List ℕ :=
   ((forestNodeEntries roots).filter (fun e => decide (e.1 = idx))).flatMap
@@ -269,61 +267,32 @@ private theorem collectItemsStep_spec {w itemBase ck outBase hd tail curOut : �
       if it.origKey < ck then ⟨Function.update s.mem (outBase + curOut) it.val, s.frontier⟩
       else s := by
   rcases ItemListRep.pop hil with ⟨_, hval, hkey, _⟩
-  by_cases hcor : it.origKey < ck
-  · have hout := hlt_out hcor
-    have hval_fit : Fits w it.val := hval ▸ hwf.mem_fits (itemBase + 3 * it.id)
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      refine validHistory_read_bind (by omega) ?_
-      rw [hkey, hval]
-      simp only [hcor, ↓reduceIte]
-      exact validHistory_write_bind hout hval_fit (validHistory_pure w _ _)
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-      rw [hkey]
-      simp only [hcor, ↓reduceIte, memoryCost_bind', memoryCost_write, memoryCost_pure]
-      decide
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat rw [clientResult_bind_read]
-      rw [hkey]
-      simp only [hcor, ↓reduceIte, clientResult_bind_write]
-      rfl
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat rw [clientState_bind_read]
-      rw [hkey, hval]
-      simp only [hcor, ↓reduceIte]
-      rfl
-  · refine ⟨?_, ?_, ?_, ?_⟩
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)
-      refine validHistory_read_bind (by omega) ?_
-      rw [hkey]
-      simp only [hcor, ↓reduceIte]
-      exact validHistory_pure w _ _
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
-      rw [hkey]
-      simp only [hcor, ↓reduceIte, memoryCost_pure]
-      decide
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat rw [clientResult_bind_read]
-      rw [hkey]
-      simp only [hcor, ↓reduceIte]
-      rfl
-    · dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
-      collectCurItem, collectCurOut]
-      repeat rw [clientState_bind_read]
-      rw [hkey]
-      simp only [hcor, ↓reduceIte]
-      rfl
+  dsimp only [collectItemsStep, collectItemBase, collectCKey, collectOutBase,
+    collectCurItem, collectCurOut]
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+      (validHistory_read_bind (by omega) ?_))
+    rw [hkey]
+    split_ifs with hcor
+    · rw [hval]
+      exact validHistory_write_bind (hlt_out hcor) (hval ▸ hwf.mem_fits _)
+        (validHistory_pure w _ _)
+    · exact validHistory_pure w _ _
+  · repeat (rw [memoryCost_bind', memoryCost_read, clientResult_read, clientState_read])
+    rw [hkey]
+    split_ifs
+    · simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]; decide
+    · simp only [memoryCost_pure]; decide
+  · repeat rw [clientResult_bind_read]
+    rw [hkey]
+    split_ifs
+    · simp only [clientResult_bind_write]; rfl
+    · rfl
+  · repeat rw [clientState_bind_read]
+    rw [hkey]
+    split_ifs
+    · rw [hval]; rfl
+    · rfl
 
 private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
     (items : List SHItem) (hd tail curOut fuel : ℕ) {s : Memory.State}
@@ -403,9 +372,7 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
           dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]; omega
         · simp only [corrVals_cons, hcor, ↓reduceIte] at hcap
           dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]; exact hcap
-      have hfit₁ : Fits w (curOut + 1) := by
-        have : curOut ≤ outCap := by omega
-        exact hout_fit.of_le (by omega)
+      have hfit₁ : Fits w (curOut + 1) := hout_fit.of_le (by omega)
       have hih := ih nxt (if nxt = 0 then 0 else tail) curOut₁ fuel' hwf₁ hrest₁
         (by simp only [List.length_cons] at hfuel; omega) hcap₁
         (fun it' hit' => hfr₁ ▸ hlt_items it' (List.mem_cons_of_mem _ hit'))
@@ -482,10 +449,11 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
             have hget := hget_ih j hj
             dsimp only [curOut₁] at hget
             simp only [hcor, ↓reduceIte] at hget
-            rw [show outBase + curOut + (j + 1) = outBase + (curOut + 1) + j by omega]
+            have haddr : outBase + curOut + (j + 1) = outBase + (curOut + 1) + j := by omega
+            rw [haddr]
             dsimp only [curOut₁]
             simp only [hcor, ↓reduceIte]
-            exact hget.trans rfl
+            exact hget
         · simp only [corrVals_cons, hcor, ↓reduceIte] at hi ⊢
           dsimp only [curOut₁] at hget_ih ⊢
           simp only [hcor, ↓reduceIte] at hget_ih ⊢
@@ -513,20 +481,20 @@ private theorem collectItems_spec {w itemBase ck outBase hd tail curOut fuel out
       outBase + curOut ≤ a ∧ a < outBase + curOut + (corrVals ck items).length) ∧
     ∀ i, ∀ hi : i < (corrVals ck items).length,
       s'.mem (outBase + curOut + i) = (corrVals ck items)[i] := by
-  have hbw := collectItems_while_spec items hd tail curOut fuel h16 hwf hil hfuel hcap hlt_items
-    hout_lt hout_fit hdisj
-  rcases hbw with ⟨hv, hsafe, hm, hres, hfr, hmem, hget⟩
-  refine ⟨?_, ⟨h16, hsafe⟩, ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [collectItems]; exact validHistory_bind_step hv (validHistory_pure w _ _)
-  · dsimp only [collectItems]; rw [memoryCost_bind', memoryCost_pure, add_zero]; exact hm
-  · dsimp only [collectItems]; rw [StateTransitionSpec.clientResult_bind]; exact hres
-  · dsimp only [collectItems]; rw [StateTransitionSpec.clientState_bind]; exact hfr
+  rcases collectItems_while_spec items hd tail curOut fuel h16 hwf hil hfuel hcap hlt_items
+    hout_lt hout_fit hdisj with ⟨hv, hsafe, hm, hres, hfr, hmem, hget⟩
+  dsimp only [collectItems]
+  refine ⟨validHistory_bind_step hv (validHistory_pure w _ _), ⟨h16, hsafe⟩, ?_, ?_, ?_, ?_, ?_⟩
+  · rw [memoryCost_bind', memoryCost_pure, add_zero]
+    exact hm
+  · rw [StateTransitionSpec.clientResult_bind]
+    exact hres
+  · rw [StateTransitionSpec.clientState_bind]
+    exact hfr
   · intro a ha
-    dsimp only [collectItems] at ha
     rw [StateTransitionSpec.clientState_bind] at ha
     exact hmem a ha
   · intro i hi
-    dsimp only [collectItems]
     rw [StateTransitionSpec.clientState_bind]
     exact hget i hi
 
@@ -847,9 +815,9 @@ private theorem collectNode_iterate_spec
         exact (List.getElem_append_left hjc (bs := restWritten)).symm
       · have hge : c₀.length ≤ j := by omega
         have hk : j - c₀.length < restWritten.length := by omega
-        rw [show outBase + curOut + j = outBase + (curOut + c₀.length) + (j - c₀.length) by
-          omega]
-        rw [hget_ih (j - c₀.length) hk]
+        have haddr : outBase + curOut + j = outBase + (curOut + c₀.length) + (j - c₀.length) := by
+          omega
+        rw [haddr, hget_ih (j - c₀.length) hk]
         simp only [hwritten_eq]
         exact (List.getElem_append_right (h₁ := hge)
           (h₂ := by rw [List.length_append]; omega)).symm
@@ -997,7 +965,7 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
     rw [hres_raw, ← Nat.add_assoc]
     exact hmem_it a ha
   · rw [hs_raw]; exact hinv'
-  · rw [hres_raw, show outCount + written.length - outCount = written.length by omega]
+  · rw [hres_raw, Nat.add_sub_cancel_left]
     have hrange_eq : (List.range written.length).map
         (fun i => ((Memory.spec 0).clientState s
           (shCollectCorrupted (h, nc₀, outBase, outCount, fuel))).mem
