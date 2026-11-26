@@ -52,8 +52,8 @@ its slack at every assignment (`Cslib.Logic.PL.VeriPB.slack_normalize`).
 * `Cslib.Logic.PL.VeriPB.propagate_eq_none_of_forall`, `Cslib.Logic.PL.VeriPB.mem_of_propagate`:
   unit propagation is complete for conflicts and for implied literals.
 * `Cslib.Logic.PL.VeriPB.RupOk.conflict`, `Cslib.Logic.PL.VeriPB.RupOk.imp`,
-  `Cslib.Logic.PL.VeriPB.rup_of_rupOk`: a `rup` step is accepted when its hints are justified by
-  implications.
+  `Cslib.Logic.PL.VeriPB.RupOk.imps`, `Cslib.Logic.PL.VeriPB.rup_of_rupOk`: a `rup` step is
+  accepted when its hints are justified by implications.
 * `Cslib.Logic.PL.VeriPB.slack_normalize`, `Cslib.Logic.PL.VeriPB.holds_add_iff`: the slack of a
   normalized constraint and of a sum.
 -/
@@ -307,6 +307,32 @@ theorem RupOk.imp {db : List (ℕ × PBConstr)} {neg c : PBConstr} {h : Hint} {h
     · exact mem_of_propagate hd hρ hp fun σ hσ hcσ =>
         hk σ (fun m hm => hσ m (hK m hm)) hcσ l hl
     · exact hsub l (hK l hl)
+
+/-- **More literals justify the same run.** -/
+theorem RupOk.mono {db : List (ℕ × PBConstr)} {neg : PBConstr} {hs : List Hint}
+    {K K' : List (Literal ℕ)} (h : RupOk db neg hs K) (hK : ∀ l ∈ K, l ∈ K') :
+    RupOk db neg hs K' :=
+  fun ρ hρ hK' => h ρ hρ fun l hl => hK' l (hK l hl)
+
+/-- A run of hints each of which implies one literal from `K`. -/
+theorem RupOk.imps {db : List (ℕ × PBConstr)} {neg : PBConstr} {K₀ : List (Literal ℕ)}
+    {rest : List Hint} :
+    ∀ (xs : List (Hint × Literal ℕ)) (K : List (Literal ℕ)), (∀ l ∈ K₀, l ∈ K) →
+      (∀ x ∈ xs, ∃ c, resolve db neg x.1 = some c ∧ (c.terms.map termVar).Nodup ∧
+        ∀ σ, Consistent σ K₀ → c.Holds σ → Literal.eval σ x.2 = true) →
+      RupOk db neg rest (xs.map (·.2) ++ K) → RupOk db neg (xs.map (·.1) ++ rest) K
+  | [], K, _, _, h => by simpa using h
+  | x :: xs, K, hK, hx, h => by
+    obtain ⟨c, hc, hd, hi⟩ := hx x List.mem_cons_self
+    refine RupOk.imp (L := [x.2]) hc hd
+      (fun σ hσ hcσ => by
+        have := hi σ (fun l hl => hσ l (hK l hl)) hcσ
+        intro l hl; simp only [List.mem_singleton] at hl; subst hl; exact this) ?_
+    refine RupOk.imps xs ([x.2] ++ K) (fun l hl => List.mem_append_right _ (hK l hl))
+      (fun y hy => hx y (List.mem_cons_of_mem _ hy)) (RupOk.mono h ?_)
+    intro l hl
+    simp only [List.map_cons, List.mem_append, List.mem_cons] at hl ⊢
+    tauto
 
 /-- **A `rup` step is accepted** when its hints are justified from the empty trail. -/
 theorem rup_of_rupOk {db : List (ℕ × PBConstr)} {c : PBConstr} {hs : List Hint}

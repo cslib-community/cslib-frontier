@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.DynamicProgramming
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
+import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 import Mathlib.Algebra.BigOperators.Fin
 
@@ -45,7 +45,7 @@ Layer `i + 1` takes the states of layer `i` and those with item `i` added, if th
 only the states that no other state *dominates*, by weighing no more and earning no less. The
 layers and their proof are written by the state-graph emitter of
 `CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP`, shared with the knapsack propagator,
-with dominance merging and pruning on (`Cslib.Logic.PL.VeriPB.Knapsack.optMode`). The answer is the
+with dominance merging and pruning on (`Cslib.Logic.PL.VeriPB.Knapsack.Mode`). The answer is the
 profit of the selection of `Cslib.Algorithms.Lean.Knapsack.profitDP`. The proof follows §3.1 of
 the paper:
 * it logs that selection with `soli`, which adds the objective-improving constraint
@@ -85,8 +85,7 @@ turns acceptance into optimality; acceptance itself holds on every instance
   `Cslib.Logic.PL.VeriPB.chosen n σ`, shared with the clique encoding.
 * `Cslib.Logic.PL.VeriPB.Knapsack.certify`: the proof-logging dynamic program, which returns a
   `Cslib.Logic.PL.VeriPB.Certificate`: a claimed optimum and a candidate proof, written on the
-  shared emitter (`Cslib.Logic.PL.VeriPB.Knapsack.optMode`,
-  `Cslib.Logic.PL.VeriPB.Knapsack.optInst`, `Cslib.Logic.PL.VeriPB.Knapsack.optSteps`).
+  shared emitter.
 
 ## Main results
 
@@ -151,15 +150,15 @@ theorem encodes (w p : Fin n → ℕ) (B : ℕ) :
 
 /-- The options of the optimization: merge the dominated states and drop the transitions that
 overflow the capacity. -/
-def optMode : Mode := ⟨true, true⟩
+private def optMode : Mode := ⟨true, true⟩
 
 /-- The ℕ-indexed instance of the optimization: all items free, no profit bound. -/
-def optInst (w p : Fin n → ℕ) (B : ℕ) : Inst := Inst.ofFin w p B 0 fun _ => none
+private def optInst (w p : Fin n → ℕ) (B : ℕ) : Inst := Inst.ofFin w p B 0 fun _ => none
 
 /-- The steps of the dynamic program after the solution: the layers, then for each state of the
 last layer the forward half of `P` plus the improving constraint `2`, then the contradiction by
 RUP. Returns the proof and the number of the contradiction. -/
-def optSteps (I : Inst) : Acc × ℕ :=
+private def optSteps (I : Inst) : ProofLog × ℕ :=
   let f := I.forward optMode
   let rn := f.2.headD ⟨0, [], [], 0⟩
   let e₂ := f.1.push (rn.nodes.map fun u => .step (.pol [.id u.pf, .id 2, .add]))
