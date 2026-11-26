@@ -166,8 +166,7 @@ private theorem forget_congr {B P : Finset V} {f g : Finset V → ℕ}
     forget G w B P f S = forget G w B P g S := by
   unfold forget
   refine Finset.sup_congr rfl fun T hT => ?_
-  rw [Finset.mem_filter, Finset.mem_powerset] at hT
-  rw [h T hT.1 hT.2.1]
+  rw [h T (Finset.mem_powerset.1 (Finset.mem_filter.1 hT).1) (Finset.mem_filter.1 hT).2.1]
 
 /-- The message computed from the intended table of a child is the intended message. -/
 private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
@@ -192,8 +191,7 @@ private theorem forget_opt {c : Fin (n + 1)} {S : Finset V}
       obtain ⟨hxs, hxP, hxJT⟩ := hK x hx
       have hys := mem_subtreeVerts_of_adj hxs hxP hxy
       have hyB := mem_bag_of_mem_subtreeVerts_of_mem_bag_parent hys (hSP hy)
-      have hyT : y ∈ T := by
-        have := Finset.mem_inter.2 ⟨hy, hyB⟩; rw [← hTP] at this; exact (Finset.mem_inter.1 this).1
+      have hyT : y ∈ T := (Finset.mem_inter.1 (hTP ▸ Finset.mem_inter.2 ⟨hy, hyB⟩)).1
       exact isIndepSet_iff_forall.1 hJi x hxJT y (Finset.mem_union_right _ hyT) hxy
     have hKS : G.IsIndepSet (↑((T \ R.bag (R.parent c)) ∪ J ∪ S) : Set V) := by
       refine isIndepSet_iff_forall.2 fun x hx y hy hxy => ?_
@@ -329,8 +327,8 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
     tables R w t i S = ∑ c ∈ (R.children i).filter (fun c => n - t < c.val), msg R w c S := by
   induction t generalizing i S with
   | zero =>
-    rw [Finset.filter_false_of_mem fun c _ => by have := c.isLt; omega, Finset.sum_empty]
-    rfl
+    exact (Finset.sum_eq_zero fun c hc =>
+      absurd (Finset.mem_filter.1 hc).2 (Nat.lt_succ_iff.1 c.isLt).not_gt).symm
   | succ t ih =>
     let j : Fin (n + 1) := Fin.ofNat (n + 1) (n - t)
     have hjv : j.val = n - t := val_ofNat_sub (by omega)
@@ -344,10 +342,9 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
           tables R w t j T = opt R w j T := by
         intro T hT hTi
         rw [ih (by omega) hT hTi, opt_eq_sum hTi]
-        refine Finset.sum_congr (Finset.filter_true_of_mem fun c hc => ?_) fun _ _ => rfl
-        have := lt_of_mem_children hc
-        rw [Fin.lt_def] at this
-        omega
+        exact Finset.sum_congr
+          (Finset.filter_true_of_mem fun c hc => hjv ▸ Fin.lt_def.1 (lt_of_mem_children hc))
+          fun _ _ => rfl
       rw [forget_congr hjopt, forget_opt hSi hS, ih (by omega) hSi hS]
       have hjmem : j ∈ R.children (R.parent j) := mem_children.2 ⟨hj0, rfl⟩
       have hfilter : (R.children (R.parent j)).filter (fun c => n - (t + 1) < c.val) =
@@ -360,23 +357,20 @@ private theorem tables_eq_sum {t : ℕ} (ht : t ≤ n) {i : Fin (n + 1)} {S : Fi
         · exact ⟨hjmem, by omega⟩
         · exact ⟨hc, by omega⟩
       have hjnot : j ∉ (R.children (R.parent j)).filter (fun c => n - t < c.val) := by
-        rw [Finset.mem_filter]; omega
+        simp [hjv]
       rw [hfilter, Finset.sum_insert hjnot, Nat.add_comm]
     · rw [Function.update_of_ne hi, ih (by omega) hSi hS]
-      refine Finset.sum_congr ?_ fun _ _ => rfl
-      ext c
+      refine Finset.sum_congr (Finset.ext fun c => ?_) fun _ _ => rfl
       simp only [Finset.mem_filter]
       refine and_congr_right fun hc => ?_
-      have hcj : c ≠ j := by rintro rfl; exact hi (mem_children.1 hc).2.symm
-      have := Fin.val_ne_of_ne hcj
+      have := Fin.val_ne_of_ne (j := j) fun h : c = j => hi (h ▸ (mem_children.1 hc).2.symm)
       omega
 
 private theorem tables_eq_opt {i : Fin (n + 1)} {S : Finset V} (hSi : S ⊆ R.bag i)
     (hS : G.IsIndepSet (↑S : Set V)) : tables R w n i S = opt R w i S := by
   rw [tables_eq_sum le_rfl hSi hS, opt_eq_sum hS]
   refine Finset.sum_congr (Finset.filter_true_of_mem fun c hc => ?_) fun _ _ => rfl
-  have := lt_of_mem_children hc
-  rw [Fin.lt_def] at this
+  have := Fin.lt_def.1 (lt_of_mem_children hc)
   omega
 
 /-- **Correctness.** The value of the dynamic program is the maximum weight of an independent
@@ -386,11 +380,10 @@ theorem isGreatest_mwisValue (R : G.RootedTreeDecomposition n) (w : V → ℕ) :
       (mwisValue R w) := by
   have hval : mwisValue R w =
       ((R.bag 0).powerset.filter fun S : Finset V => G.IsIndepSet (↑S : Set V)).sup
-        fun S => (∑ v ∈ S, w v) + opt R w 0 S := by
-    unfold mwisValue
-    refine Finset.sup_congr rfl fun S hS => ?_
-    rw [Finset.mem_filter, Finset.mem_powerset] at hS
-    rw [tables_eq_opt hS.1 hS.2]
+        fun S => (∑ v ∈ S, w v) + opt R w 0 S :=
+    Finset.sup_congr rfl fun S hS => by
+      rw [tables_eq_opt (Finset.mem_powerset.1 (Finset.mem_filter.1 hS).1)
+        (Finset.mem_filter.1 hS).2]
   refine ⟨?_, ?_⟩
   · obtain ⟨S, hS, hSeq⟩ := Finset.exists_mem_eq_sup
       ((R.bag 0).powerset.filter fun S : Finset V => G.IsIndepSet (↑S : Set V))
