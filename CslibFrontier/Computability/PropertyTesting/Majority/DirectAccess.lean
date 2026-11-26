@@ -102,14 +102,10 @@ theorem majorityDirectAccess_eq_majorityTester {n k : ℕ} [NeZero n] {δ : ℚ}
   funext r
   simp only [Function.comp_apply, decideReplies, validRequests, List.countP_map,
     List.countP_filter, List.map_ofFn, List.countP_ofFn, ofBits_ofFn, List.headD_cons]
-  apply congrArg (fun verdict : Bool => (verdict, ()))
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq, decide_eq_true_eq,
-    majorityTester_passes_iff_sampleAccepts hk hδ x r]
-  unfold weight
+  refine congrArg (·, ()) (Bool.eq_iff_iff.mpr ?_)
+  rw [decide_eq_true_eq, decide_eq_true_eq, majorityTester_passes_iff_sampleAccepts hk hδ x r]
   apply eq_iff_iff.mp
-  apply congrArg (majoritySampleAccepts n k δ)
-  apply congrArg Finset.card
+  congr 2
   ext j
   by_cases hj : (equivFin _ (r j)).val < n <;> simp [zeroExtend, hj]
 
@@ -173,8 +169,7 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
   suffices h : (ProbOracleComp.sample coins >>= fun words =>
       decideReplies k δ n <$> (validRequests n words).mapM readBit).IsQueryBounded (0 + k) by
     simpa only [Nat.zero_add] using h
-  apply hsample.bind_on_support
-  intro words hwords
+  refine hsample.bind_on_support fun words hwords => ?_
   have hlen' := hlen words (by simpa only [ProbOracleComp.support_sample] using hwords)
   have htraverse : ((validRequests n words).mapM readBit).IsQueryBounded
       ((validRequests n words).length * 1) :=
@@ -186,9 +181,8 @@ theorem majorityDirectAccess_timeAndQueries (k : ℕ) (δ : ℚ) :
           (spec := fun _ : Unit × List Bool => List Bool) ((), word)).bind
           (fun reply : List Bool => OracleComp.IsCostBounded.pure (reply.take 1) 0)
   rw [map_eq_bind_pure_comp]
-  have hresult := htraverse.bind
-    (fun replies => OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0)
-  exact hresult.mono
+  exact (htraverse.bind fun replies =>
+    OracleComp.IsCostBounded.pure (decideReplies k δ n replies) 0).mono
     (by simpa only [Nat.add_zero, Nat.mul_one, validRequests, ← hlen'] using
       List.length_filter_le _ words)
 
@@ -199,11 +193,9 @@ private theorem majorityDirectAccess_acceptProb {n k : ℕ} [NeZero n] {δ : ℚ
   classical
   rw [ProbOracleComp.acceptProbWith, majorityDirectAccess_eq_majorityTester hk hδ,
     PMF.map_comp, PMF.toReal_uniformOfFintype_map_apply_true,
-    Cslib.PCP.LocalTest.acceptProb_eq_card_div]
-  rw [Finset.dens_eq_card_div_card]
+    Cslib.PCP.LocalTest.acceptProb_eq_card_div, Finset.dens_eq_card_div_card]
   push_cast
-  congr 2
-  apply congrArg Finset.card
+  congr 3
   ext r
   simp
 
@@ -222,19 +214,14 @@ theorem exists_majorityDirectAccess {δ : ℝ} (hδ : 0 < δ) :
   obtain ⟨q, hq, hqδ⟩ := exists_rat_btwn hδ
   obtain ⟨k, hk⟩ := exists_nat_ge (16 / (q : ℝ) ^ 2)
   have hbudget : (16 : ℝ) ≤ k * (q : ℝ) ^ 2 := (div_le_iff₀ (pow_pos hq _)).mp hk
-  have hkpos : 0 < k := by
-    by_contra! h
-    have : k = 0 := by omega
-    norm_num [this] at hbudget
+  have hkpos : 0 < k := Nat.pos_of_ne_zero fun h0 => by norm_num [h0] at hbudget
   have hqpos : 0 < q := by exact_mod_cast hq
   obtain ⟨t, ht, hcert⟩ := majorityDirectAccess_timeAndQueries k q
   refine ⟨k, t, majorityDirectAccess k q, ht, hcert, ?_, ?_⟩
   · intro n x hx
     have hn : n ≠ 0 := by
       rintro rfl
-      have := strictMajority_eq_true_iff.mp hx
-      have := weight_le_length x
-      omega
+      exact absurd (strictMajority_eq_true_iff.mp hx) (not_lt_of_ge (weight_le_length x))
     let _ : NeZero n := ⟨hn⟩
     rw [majorityDirectAccess_acceptProb hkpos hqpos.le]
     exact (majorityTester_spec hqpos hbudget).2.1 x hx

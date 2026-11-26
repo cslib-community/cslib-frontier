@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.MicroSearchOps
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Overflow-Free Word-Delta Evaluators, Feistel Coordinates, and Dispatch Helpers
@@ -46,8 +47,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -133,11 +135,9 @@ theorem realizesBounded_compGrowDeltaGen :
 theorem validProg_compGrowDeltaGen {w : ℕ} (d : CompParams × ℕ) (s : Memory.State) :
     ValidProg w 0 s (compGrowDeltaGenProg d) := by
   rcases d with ⟨cp, n⟩
-  dsimp only [compGrowDeltaGenProg]
   refine validProg_bind (validProg_compItemWordsGen _ s) ?_
   rw [clientState_compItemWordsGenProg]
-  refine validProg_bind (validProg_compItemWordsGen _ s) ?_
-  exact validProg_pure _
+  exact validProg_bind (validProg_compItemWordsGen _ s) (validProg_pure _)
 
 /-- Evaluate `compactedItemWords U V w N n - compactedItemWords U V w N (n - 1)` (`∈ {0, 1, 2}`)
 overflow-free in `Memory.Prog` (`¬ReadsWidth`). -/
@@ -203,11 +203,9 @@ theorem realizesBounded_compShrinkDeltaGen :
 theorem validProg_compShrinkDeltaGen {w : ℕ} (d : CompParams × ℕ) (s : Memory.State) :
     ValidProg w 0 s (compShrinkDeltaGenProg d) := by
   rcases d with ⟨cp, n⟩
-  dsimp only [compShrinkDeltaGenProg]
   refine validProg_bind (validProg_compItemWordsGen _ s) ?_
   rw [clientState_compItemWordsGenProg]
-  refine validProg_bind (validProg_compItemWordsGen _ s) ?_
-  exact validProg_pure _
+  exact validProg_bind (validProg_compItemWordsGen _ s) (validProg_pure _)
 
 /-- Shared Feistel `(b, q, m)` coordinate extractor from `(u, h_q)` (`¬ReadsWidth`). -/
 def compFeistelCoordsProg : CompParams × (ℕ × ℕ) → Memory.Prog ((ℕ × ℕ) × ℕ)
@@ -252,10 +250,8 @@ theorem realizesBounded_compFeistelCoords :
       CompFeistelCoordsPre (fun _ _ => 0) := by
   realize
   rcases d with ⟨cp, ⟨u, h_q⟩⟩
-  obtain ⟨hu, hhq, _, hmask⟩ := h
-  refine Nat.xor_lt_two_pow ?_ ?_
-  · exact lt_of_le_of_lt Nat.and_le_right hmask
-  · exact lt_of_le_of_lt Nat.and_le_right hmask
+  exact Nat.xor_lt_two_pow (Nat.and_le_right.trans_lt h.2.2.2)
+    (Nat.and_le_right.trans_lt h.2.2.2)
 
 theorem validProg_compFeistelCoords {w : ℕ} (d : CompParams × (ℕ × ℕ)) (s : Memory.State) :
     ValidProg w 0 s (compFeistelCoordsProg d) := by
@@ -268,16 +264,8 @@ theorem fits_compFeistelCoords {U V w N u h_q metaBase : ℕ} {s : Memory.State}
     (hu : Fits w u) (hhq : h_q < 2 ^ totalMicroBits N) :
     CompFeistelCoordsPre w (mkCompParams U V w N, (u, h_q)) s := by
   have hcp := fits_mkCompParams (U := U) (V := V) (w := w) (N := N) hw hnU hU hV hfit_off
-  have hmicro_le_w : totalMicroBits N ≤ w := by
-    have htot_le : totalMicroBuckets N ≤ max N 1 := totalMicroBuckets_le N
-    have hmax_lt : max N 1 < 2 ^ w := max_n_one_lt_two_pow_w hw hnU hU
-    have hpow : 2 ^ totalMicroBits N ≤ max N 1 := htot_le
-    by_contra hgt
-    have hgt' : w < totalMicroBits N := Nat.lt_of_not_ge hgt
-    have := Nat.pow_le_pow_right two_pos (Nat.succ_le_of_lt hgt')
-    have : 2 ^ w < 2 ^ (w + 1) := Nat.pow_lt_pow_right (by decide) (Nat.lt_succ_self w)
-    omega
-  exact ⟨hu, lt_of_lt_of_le hhq (Nat.pow_le_pow_right two_pos hmicro_le_w),
+  have hpow : 2 ^ totalMicroBits N ≤ max N 1 := totalMicroBuckets_le N
+  exact ⟨hu, hhq.trans (hpow.trans_lt (max_n_one_lt_two_pow_w hw hnU hU)),
     hcp ⟨20, by decide⟩, hcp ⟨21, by decide⟩⟩
 
 

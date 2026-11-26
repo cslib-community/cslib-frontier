@@ -65,13 +65,10 @@ theorem sum_length_proj [Fintype Z] (o : List (Z × Γ)) :
   induction o with
   | nil => simp
   | cons a o ih =>
-    have hlen : ∀ z, (proj (a :: o) z).length =
-        (proj o z).length + if a.1 = z then 1 else 0 := by
-      intro z
+    have hlen (z) : (proj (a :: o) z).length = (proj o z).length + if a.1 = z then 1 else 0 := by
       rw [proj_cons]
-      by_cases h : a.1 = z <;> simp [h]
-    simp only [hlen, Finset.sum_add_distrib, ih, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte,
-      List.length_cons]
+      split_ifs <;> simp
+    simp [hlen, Finset.sum_add_distrib, ih]
 
 end Basic
 
@@ -103,15 +100,11 @@ theorem mem_anti {Z Γ : Type*} [Fintype Z] [DecidableEq Z] [DecidableEq Γ]
     {v : Z → List Γ} {p : (Z → List Γ) × (Z → List Γ)} :
     p ∈ anti v ↔ ∀ z, p.1 z ++ p.2 z = v z := by
   simp only [anti, Finset.mem_image, Fintype.mem_piFinset, Finset.mem_range]
-  constructor
+  refine ⟨?_, fun h => ⟨fun z => (p.1 z).length, fun z => ?_, ?_⟩⟩
   · rintro ⟨k, -, rfl⟩ z
     simp
-  · intro h
-    refine ⟨fun z => (p.1 z).length, fun z => ?_, ?_⟩
-    · rw [← h z]; simp; omega
-    · ext1
-      · funext z; simp only; rw [← h z]; simp
-      · funext z; simp only; rw [← h z]; simp
+  · simp [← h z]; omega
+  · refine Prod.ext (funext fun z => ?_) (funext fun z => ?_) <;> simp [← h z]
 
 theorem hat_add (f g : Series F (Z × Γ)) (v : Z → List Γ) :
     hat (f + g) v = hat f v + hat g v := by
@@ -128,41 +121,28 @@ theorem hat_sum {ι : Type*} (s : Finset ι) (f : ι → Series F (Z × Γ)) (v 
 
 theorem hat_one [DecidableEq Γ] (v : Z → List Γ) :
     hat (Series.one : Series F (Z × Γ)) v = if v = fun _ => [] then 1 else 0 := by
-  simp only [hat, Series.one, Finset.sum_ite_eq', mem_fib, proj_nil]
-  by_cases h : v = fun _ => []
-  · simp [h]
-  · simp [h, Ne.symm h]
+  simp only [hat, Series.one, Finset.sum_ite_eq', mem_fib, proj_nil, eq_comm]
 
 theorem hat_mul [DecidableEq Γ] (f g : Series F (Z × Γ)) (v : Z → List Γ) :
     hat (Series.mul f g) v = ∑ p ∈ anti v, hat f p.1 * hat g p.2 := by
   simp only [hat, Series.mul, Finset.sum_mul_sum, Finset.sum_sigma']
   refine Finset.sum_bij'
-    (i := fun x _ =>
-      ⟨⟨proj (x.1.take x.2), proj (x.1.drop x.2)⟩, x.1.take x.2, x.1.drop x.2⟩)
-    (j := fun y _ => ⟨y.2.1 ++ y.2.2, y.2.1.length⟩) ?_ ?_ ?_ ?_ ?_
+    (fun x _ => ⟨⟨proj (x.1.take x.2), proj (x.1.drop x.2)⟩, x.1.take x.2, x.1.drop x.2⟩)
+    (fun y _ => ⟨y.2.1 ++ y.2.2, y.2.1.length⟩) ?_ ?_ ?_ ?_ fun _ _ => rfl
   · rintro ⟨o, k⟩ h
     simp only [Finset.mem_sigma, mem_fib, Finset.mem_range] at h
-    simp only [Finset.mem_sigma, mem_anti, mem_fib, and_true]
-    intro z
-    rw [← proj_append, List.take_append_drop, h.1]
+    simp [mem_anti, mem_fib, ← proj_append, h.1]
   · rintro ⟨⟨v₁, v₂⟩, a, b⟩ h
     simp only [Finset.mem_sigma, mem_anti, mem_fib] at h
-    obtain ⟨h1, h2, h3⟩ := h
     simp only [Finset.mem_sigma, mem_fib, Finset.mem_range, List.length_append]
-    refine ⟨?_, by omega⟩
-    funext z
-    rw [proj_append, h2, h3]
-    exact h1 z
+    exact ⟨funext fun z => by rw [proj_append, h.2.1, h.2.2, h.1 z], by omega⟩
   · rintro ⟨o, k⟩ h
     simp only [Finset.mem_sigma, mem_fib, Finset.mem_range] at h
     simp only [List.take_append_drop, List.length_take, Sigma.mk.injEq, heq_eq_eq, true_and]
     omega
   · rintro ⟨⟨v₁, v₂⟩, a, b⟩ h
     simp only [Finset.mem_sigma, mem_anti, mem_fib] at h
-    obtain ⟨_, h2, h3⟩ := h
-    simp [h2, h3]
-  · rintro ⟨o, k⟩ _
-    rfl
+    simp [h.2.1, h.2.2]
 
 /-- The part of a series supported on non-empty words. -/
 @[expose] def Series.ne {Z Γ : Type*} (f : Series F (Z × Γ)) : Series F (Z × Γ) :=
@@ -182,18 +162,14 @@ theorem kstar_eq (f : Series F (Z × Γ)) :
 theorem hat_ne [DecidableEq Γ] (f : Series F (Z × Γ)) (v : Z → List Γ) :
     hat (Series.ne f) v = if v = fun _ => [] then 0 else hat f v := by
   split_ifs with h
-  · rw [hat]
-    refine Finset.sum_eq_zero fun o ho => ?_
-    rw [mem_fib, h] at ho
-    have ho_nil : o = [] := by
-      have hlen := sum_length_proj o
-      rw [ho] at hlen
-      simpa using hlen.symm
-    simp [Series.ne, ho_nil]
-  · rw [hat, hat]
-    refine Finset.sum_congr rfl fun o ho => ?_
-    rw [mem_fib] at ho
-    have ho_ne : o ≠ [] := by rintro rfl; exact h (by rw [← ho]; rfl)
+  · refine Finset.sum_eq_zero fun o ho => ?_
+    have hlen := sum_length_proj o
+    rw [mem_fib.mp ho, h] at hlen
+    simp [Series.ne, List.eq_nil_of_length_eq_zero (by simpa using hlen.symm)]
+  · refine Finset.sum_congr rfl fun o ho => ?_
+    have ho_ne : o ≠ [] := by
+      rintro rfl
+      exact h (mem_fib.mp ho).symm
     simp [Series.ne, ho_ne]
 
 /-- The convolution recursion for `hat` of a Kleene star. -/

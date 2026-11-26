@@ -133,11 +133,9 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
 theorem isClassical_samplerClassicalCodes (n : ℕ)
     (code : List (Op × List ℕ) × List ℕ) :
     IsClassical (samplerWidth n code) (samplerClassicalCodes n code) := by
-  unfold samplerClassicalCodes
-  refine IsClassical.append.mpr ⟨isClassical_codes le_rfl (by
-    unfold samplerWidth samplerOutputStart samplerZero
-    omega), ?_⟩
-  exact isClassical_outputCopyCodes (by unfold samplerOutputStart; omega) (by rfl)
+  exact IsClassical.append.mpr ⟨isClassical_codes le_rfl
+    (by dsimp only [samplerWidth, samplerOutputStart, samplerZero]; omega),
+    isClassical_outputCopyCodes (by dsimp only [samplerOutputStart]; omega) le_rfl⟩
 
 /-- Every gate emitted by the reversible sampler is valid for its declared register width. -/
 theorem wellFormed_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List ℕ) :
@@ -164,14 +162,11 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
     (hj : j < outputs.length) :
     readBit (classicalRun (outputCopyCodes z base outputs) X) (base + j) =
       readBit X (outQubit z (outputs.getD j 0)) := by
-  have hclass := isClassical_outputCopyCodes (W := W) hzb hW
-  have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := by
-    intro g hg
-    obtain ⟨b, t, cs⟩ := g
-    obtain ⟨hb, hg'⟩ := hclass (b, t, cs) hg
-    change b = false at hb
-    subst b
-    exact hg'.2.2 t (List.mem_cons_self ..)
+  have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := fun g hg => by
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
+    have := (List.mem_zipIdx hp).2.1
+    dsimp only
+    omega
   have hnd : ((outputCopyCodes z base outputs).map fun g => g.2.1).Nodup := by
     rw [outputCopyCodes, List.map_map]
     change (outputs.zipIdx.map ((fun i => base + i) ∘ Prod.snd)).Nodup
@@ -206,45 +201,31 @@ theorem samplerReadout_classicalRun {n m : ℕ} (C : Circuits.Circuit signature 
   let X₀ := inputState W (List.ofFn x)
   let X₁ := classicalRun (codes n z C.code.1) X₀
   have hx : (List.ofFn x).length = n := List.length_ofFn
-  have hzW : z < W := by
-    dsimp only [W, z]
-    unfold samplerWidth samplerOutputStart samplerZero
-    omega
-  have hX₀ (p : ℕ) : readBit X₀ p = (List.ofFn x).getD p false := by
-    exact readBit_inputState (by
-      dsimp only [W]
-      unfold samplerWidth samplerOutputStart samplerZero
-      omega) p
+  have hz : z = n + C.code.1.length := rfl
+  have hb : base = z + 1 := rfl
+  have hW : W = base + C.code.2.length := rfl
+  have hzW : z < W := by omega
+  have hX₀ (p : ℕ) : readBit X₀ p = (List.ofFn x).getD p false :=
+    readBit_inputState (by omega) p
   have hcodes (p : ℕ) : readBit X₁ p =
-      (evalCode interpretation false (List.ofFn x) C.code.1).getD p false := by
-    exact readBit_classicalRun_codes le_rfl hzW hx hX₀ p
+      (evalCode interpretation false (List.ofFn x) C.code.1).getD p false :=
+    readBit_classicalRun_codes le_rfl hzW hx hX₀ p
   have hzero (j : ℕ) (hj : j < C.code.2.length) : readBit X₁ (base + j) = false := by
     rw [hcodes]
     apply List.getD_eq_default
     have hlen : (evalCode interpretation false (List.ofFn x) C.code.1).length = z := by
       simp [hx, z, samplerZero]
-    rw [hlen]
-    dsimp only [base, z]
-    unfold samplerOutputStart samplerZero
     omega
   funext j
   change readBit (classicalRun (samplerClassicalCodes n C.code) X₀) (base + j) =
     C.eval interpretation x j
   rw [samplerClassicalCodes, classicalRun_append]
   change readBit (classicalRun (outputCopyCodes z base C.code.2) X₁) (base + j) = _
-  rw [readBit_classicalRun_outputCopyCodes (by
-      dsimp only [base, z]
-      unfold samplerOutputStart
-      omega) (by
-      dsimp only [W, base]
-      unfold samplerWidth
-      rfl) X₁ hzero (by simp [Circuit.code])]
+  rw [readBit_classicalRun_outputCopyCodes (by omega) hW.ge X₁ hzero (by simp [Circuit.code])]
   have hout : C.code.2.getD j.val 0 = (C.outputs j).toNat := by
     simp [Circuit.code, List.getD_eq_getElem?_getD]
   have houtz : (C.outputs j).toNat ≤ z := by
-    dsimp only [z]
-    unfold samplerZero
-    rw [Circuit.length_code_fst]
+    rw [hz, Circuit.length_code_fst]
     exact (C.outputs j).toNat_lt.le
   rw [hout, outQubit, min_eq_right houtz, hcodes,
     Circuit.eval_eq_evalOutput]
@@ -265,8 +246,7 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
   let U : Qubits W →ₗᵢ[ℂ] Qubits W :=
     (Circuit.eval (Circuit.ofCodes W (samplerClassicalCodes n C.code))).toLinearIsometry
   have hnW : 0 + n ≤ W := by
-    dsimp only [W]
-    unfold samplerWidth samplerOutputStart samplerZero
+    simp only [W, samplerWidth, samplerOutputStart, samplerZero]
     omega
   have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ := by
     dsimp only [X, X₀]
@@ -275,8 +255,7 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
   have hXinj : Function.Injective X := by
     intro r r' h
     rw [hX, hX] at h
-    have := congrArg (· ∘ blockEmb 0 hnW) h
-    simpa using this
+    simpa using congrArg (· ∘ blockEmb 0 hnW) h
   have hv : Orthonormal ℂ fun r => ket (X r) :=
     (EuclideanSpace.orthonormal_single (𝕜 := ℂ)).comp X hXinj
   have hX₀ (i : Fin n) : X₀ (blockEmb 0 hnW i) = false := by
@@ -296,20 +275,15 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
       measureProb (U (ket (X r))) {a | samplerReadout C a = y} =
         if C.eval interpretation r = y then 1 else 0 := by
     rw [hbasis, measureProb_ket]
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    rw [show samplerReadout C
-        (classicalRun (samplerClassicalCodes n C.code) (X r)) = C.eval interpretation r by
-      simpa only [X, W] using samplerReadout_classicalRun C r]
+    simpa only [Finset.mem_filter, Finset.mem_univ, true_and, X, W] using
+      congrArg (fun v => if v = y then (1 : ℝ) else 0) (samplerReadout_classicalRun C r)
   have hprob (y : BitString m) :
       measureProb (Circuit.run (Circuit.ofCodes W (samplerCodes n C.code)) X₀)
           {a | samplerReadout C a = y} =
         (Finset.dens {r : BitString n | C.eval interpretation r = y} : ℝ) := by
-    rw [hstate]
-    have key := measureProb_map_sum_orthonormal U hv (fun _ : BitString n => s ^ n)
+    rw [hstate, measureProb_map_sum_orthonormal U hv (fun _ : BitString n => s ^ n)
       {a | samplerReadout C a = y} (fun r => C.eval interpretation r = y)
-      (fun r h => by rw [hyr y r, ite_eq_left h])
-      (fun r h => by rw [hyr y r, ite_eq_right h])
-    rw [key]
+      (fun r h => by rw [hyr y r, ite_eq_left h]) (fun r h => by rw [hyr y r, ite_eq_right h])]
     have hs : ‖s ^ n‖ ^ 2 = 1 / 2 ^ n := by
       rw [norm_pow, ← pow_mul, mul_comm, pow_mul, Complex.norm_real, Real.norm_eq_abs,
         sq_abs, inv_pow, Real.sq_sqrt (by norm_num), one_div, inv_pow]
@@ -318,8 +292,7 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
     simp only [hs, Finset.sum_const, nsmul_eq_mul, Fintype.card_fun, Fintype.card_bool,
       Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv]
     ring_nf
-  apply PMF.ext
-  intro y
+  refine PMF.ext fun y => ?_
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
   change (measureOut (Circuit.run (Circuit.ofCodes W (samplerCodes n C.code)) X₀)
       (Circuit.norm_run _ _) (samplerReadout C) y).toReal =
@@ -370,10 +343,10 @@ theorem computableInPolyTime_samplerCodes {n : γ → ℕ}
   have hzero : ComputableInPolyTime (fun a => samplerZero (n a) (code a)) enc encUnary := by
     unfold samplerZero
     fun_prop
-  have hstart := computableInPolyTime_samplerOutputStart hn hcode
   have hcompile := computableInPolyTime_codes hn hzero
     (gates := fun a => (code a).1) (by fun_prop)
-  have hcopy := computableInPolyTime_outputCopyCodes hzero hstart
+  have hcopy := computableInPolyTime_outputCopyCodes hzero
+    (computableInPolyTime_samplerOutputStart hn hcode)
     (outputs := fun a => (code a).2) (by fun_prop)
   have hhad := computableInPolyTime_hadamardCodes (o := fun _ => 0) (p := n)
     (by fun_prop) hn

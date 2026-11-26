@@ -236,16 +236,14 @@ theorem length_merklePath (leaves : List (List Bool)) (i : ℕ) :
 theorem length_of_mem_merkleLeafLevel {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {leaves : List (List Bool)} {y : List Bool} (hy : y ∈ merkleLeafLevel H k leaves) :
     y.length = ℓ := by
-  simp only [merkleLeafLevel, List.mem_map] at hy
-  obtain ⟨_, _, rfl⟩ := hy
+  rcases List.mem_map.mp hy with ⟨_, _, rfl⟩
   exact hlen _
 
 /-- Parents have `ℓ` bits when every digest of `H k` does. -/
 theorem length_of_mem_merkleParents {ℓ : ℕ} (hlen : ∀ x, (H k x).length = ℓ)
     {level : List (List Bool)} {y : List Bool} (hy : y ∈ merkleParents H k level) :
     y.length = ℓ := by
-  simp only [merkleParents, List.mem_map] at hy
-  obtain ⟨_, _, rfl⟩ := hy
+  rcases List.mem_map.mp hy with ⟨_, _, rfl⟩
   exact hlen _
 
 /-! ### Correctness of honest openings -/
@@ -274,7 +272,6 @@ private theorem hash_head_merkleInputs_take (leaves : List (List Bool)) {i : ℕ
     H k ((((merklePath H k leaves i).take j).foldl (merkleInputsStep H k)
       ([leaves.getD i []], i)).1.headD []) =
       (merkleLevel H k leaves j).getD (i / 2 ^ j) [] := by
-  set d := Nat.clog 2 leaves.length
   induction j with
   | zero =>
     have hlt : i < (merkleLeafLevel H k leaves).length := by simpa using hi
@@ -283,24 +280,20 @@ private theorem hash_head_merkleInputs_take (leaves : List (List Bool)) {i : ℕ
     rw [List.getD_eq_getElem _ _ hlt]
     simp only [merkleLeafLevel, List.getElem_map, List.getElem_range]
   | succ j ih =>
-    have hjd : j < d := hj
-    have hpath : j < (merklePath H k leaves i).length := by simpa using hjd
+    have hpath : j < (merklePath H k leaves i).length := by simpa using hj
     rw [List.take_succ_eq_append_getElem hpath, merkleInputs_append]
     have hsnd := snd_foldl_merkleInputsStep (H := H) (k := k) (leaves.getD i []) i
       ((merklePath H k leaves i).take j)
     rw [List.length_take_of_le hpath.le] at hsnd
-    simp only [merkleInputsStep, List.headD_cons, hsnd, ih hjd.le]
+    simp only [merkleInputsStep, List.headD_cons, hsnd, ih (Nat.le_of_succ_le hj)]
     have hsib : (merklePath H k leaves i)[j] =
         (merkleLevel H k leaves j).getD (merkleSibling (i / 2 ^ j)) [] := by
       simp [merklePath_eq]
     rw [hsib, merkleLevel_succ]
-    have hlevel := length_merkleLevel (H := H) (k := k) leaves j
     have hq : i / 2 ^ (j + 1) < (merkleLevel H k leaves j).length / 2 := by
-      rw [hlevel, Nat.div_div_eq_div_mul, ← pow_succ]
+      rw [length_merkleLevel, Nat.div_div_eq_div_mul, ← pow_succ]
       exact Nat.div_lt_div_of_lt_of_dvd (pow_dvd_pow 2 (by omega)) hi
-    rw [getD_merkleParents hq]
-    have hdiv : i / 2 ^ (j + 1) = i / 2 ^ j / 2 := by rw [pow_succ, Nat.div_div_eq_div_mul]
-    rw [hdiv]
+    rw [getD_merkleParents hq, pow_succ, ← Nat.div_div_eq_div_mul]
     rcases Nat.mod_two_eq_zero_or_one (i / 2 ^ j) with hp | hp
     · have h1 : 2 * (i / 2 ^ j / 2) = i / 2 ^ j := by omega
       simp only [hp, ↓reduceIte, merkleSibling, h1]
@@ -347,12 +340,10 @@ private theorem scanFinds_step {inputs₁ inputs₂ : List (List Bool)} {i : ℕ
     (h : ScanFinds H k inputs₁ inputs₂) (sibling₁ sibling₂ : List Bool) :
     ScanFinds H k (merkleInputsStep H k (inputs₁, i) sibling₁).1
       (merkleInputsStep H k (inputs₂, i) sibling₂).1 := by
-  have hinj := (encPair encBits encBits).injective
-  by_cases hi : i % 2 = 0
-  · simp only [merkleInputsStep, hi, ↓reduceIte]
-    exact scanFinds_cons h fun hab => congrArg Prod.fst (hinj hab)
-  · simp only [merkleInputsStep, hi, ↓reduceIte]
-    exact scanFinds_cons h fun hab => congrArg Prod.snd (hinj hab)
+  unfold merkleInputsStep
+  split_ifs
+  · exact scanFinds_cons h fun hab => congrArg Prod.fst ((encPair encBits encBits).injective hab)
+  · exact scanFinds_cons h fun hab => congrArg Prod.snd ((encPair encBits encBits).injective hab)
 
 private theorem scanFinds_foldl {inputs₁ inputs₂ : List (List Bool)} {i : ℕ}
     (h : ScanFinds H k inputs₁ inputs₂) (path₁ path₂ : List (List Bool))
@@ -361,16 +352,13 @@ private theorem scanFinds_foldl {inputs₁ inputs₂ : List (List Bool)} {i : �
       (path₂.foldl (merkleInputsStep H k) (inputs₂, i)).1 := by
   induction path₁ generalizing path₂ inputs₁ inputs₂ i with
   | nil =>
-    rw [List.length_nil, eq_comm, List.length_eq_zero_iff] at hlen
-    subst hlen
+    obtain rfl := List.length_eq_zero_iff.mp hlen.symm
     exact h
   | cons sibling₁ path₁ ih =>
     cases path₂ with
     | nil => simp at hlen
     | cons sibling₂ path₂ =>
-      simp only [List.foldl_cons]
-      have hstep := scanFinds_step (i := i) h sibling₁ sibling₂
-      exact ih hstep path₂ (by simpa using hlen)
+      exact ih (scanFinds_step h sibling₁ sibling₂) path₂ (Nat.succ.inj hlen)
 
 /-- **Binding**, the deterministic reduction behind [BonehShoup2023], Theorem 8.8: two openings
 of position `i` to different leaves, along paths of equal length and with the same recomputed
@@ -383,13 +371,10 @@ theorem isCollision_extractMerkleCollision {leaf₁ leaf₂ : List Bool} {i : �
     (hroot : merkleRootOfPath H k leaf₁ i path₁ = merkleRootOfPath H k leaf₂ i path₂) :
     isCollision H (fun _ _ => true) n k (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).1
       (extractMerkleCollision H k leaf₁ leaf₂ i path₁ path₂).2 = true := by
-  have hbase : ScanFinds H k [leaf₁] [leaf₂] := by
-    intro hhash
-    exact ⟨leaf₁, leaf₂, by simp [hne], by simpa using hhash⟩
+  have hbase : ScanFinds H k [leaf₁] [leaf₂] :=
+    fun hhash => ⟨leaf₁, leaf₂, by simp [hne], hhash⟩
   obtain ⟨x₁, x₂, hfind, hhash⟩ := scanFinds_foldl (i := i) hbase path₁ path₂ hlen hroot
-  have hne' : x₁ ≠ x₂ := by
-    have := List.find?_some hfind
-    simpa using this
+  have hne' : x₁ ≠ x₂ := by simpa using List.find?_some hfind
   rw [extractMerkleCollision, merkleInputs, merkleInputs, hfind, Option.getD_some]
   simp [isCollision, hne', hhash]
 

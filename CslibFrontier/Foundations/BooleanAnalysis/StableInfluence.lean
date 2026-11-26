@@ -75,6 +75,8 @@ derivative `2ρ`: zero, its level-one weight, at `0` and two, its total influenc
 * `Cslib.BitString.hasDerivAt_noiseStability_zero`,
   `Cslib.BitString.hasDerivAt_noiseStability_one`: the derivative is `W¹[f]` at `ρ = 0` and
   `I[f]` at `ρ = 1` (Proposition 2.51).
+* `Cslib.BitString.pow_mul_fourierCoeff_sq_le_stableInfluence`: each term of the Fourier formula
+  bounds the stable influence.
 * `Cslib.BitString.stableInfluence_mono`, `Cslib.BitString.stableInfluence_noiseOp_le`,
   `Cslib.BitString.influence_noiseOp_le_stableInfluence`: stable influences increase with the
   rate, do not increase under noise, and bound the influences of the noised function.
@@ -132,6 +134,15 @@ theorem stableInfluence_nonneg {ρ : ℝ} (hρ : 0 ≤ ρ) (i : ι) (f : (ι →
     0 ≤ stableInfluence ρ i f := by
   rw [stableInfluence_eq_sum]
   exact sum_nonneg fun _ _ => mul_nonneg (pow_nonneg hρ _) (sq_nonneg _)
+
+/-- **A single term of the stable influence**: for `i ∈ S` and `0 ≤ ρ`,
+`ρ ^ (|S| - 1) f̂(S) ^ 2 ≤ Infᵢ^{(ρ)}[f]`. -/
+theorem pow_mul_fourierCoeff_sq_le_stableInfluence {ρ : ℝ} (hρ : 0 ≤ ρ) {i : ι} {S : Finset ι}
+    (hi : i ∈ S) (f : (ι → Bool) → ℝ) :
+    ρ ^ (#S - 1) * fourierCoeff f S ^ 2 ≤ stableInfluence ρ i f := by
+  rw [stableInfluence_eq_sum]
+  exact single_le_sum (f := fun T => ρ ^ (#T - 1) * fourierCoeff f T ^ 2)
+    (fun T _ => mul_nonneg (pow_nonneg hρ _) (sq_nonneg _)) (mem_filter.2 ⟨mem_univ _, hi⟩)
 
 /-- Stable influences increase with the rate: `Infᵢ^{(ρ)}[f] ≤ Infᵢ^{(ρ')}[f]` for
 `0 ≤ ρ ≤ ρ'`. -/

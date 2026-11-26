@@ -91,21 +91,17 @@ def keyRank (k : Fin n → ℕ) (i : Fin n) : ℕ :=
 theorem keyRank_lt (k : Fin n → ℕ) (i : Fin n) : keyRank k i < n := by
   unfold keyRank
   calc (Finset.univ.filter fun j => k j < k i ∨ (k j = k i ∧ j < i)).card
-      < (Finset.univ : Finset (Fin n)).card := by
-        apply Finset.card_lt_card
-        refine Finset.ssubset_iff_of_subset (Finset.filter_subset _ _) |>.2 ⟨i, by simp, ?_⟩
-        simp
+      < (Finset.univ : Finset (Fin n)).card := Finset.card_lt_card
+        (Finset.ssubset_iff_of_subset (Finset.filter_subset _ _) |>.2 ⟨i, by simp, by simp⟩)
     _ = n := by simp
 
 private theorem keyRank_lt_keyRank (k : Fin n → ℕ) {i j : Fin n}
     (h : k i < k j ∨ (k i = k j ∧ i < j)) :
     keyRank k i < keyRank k j := by
   unfold keyRank
-  apply Finset.card_lt_card
-  refine Finset.ssubset_iff_of_subset ?_ |>.2 ⟨i, by simpa using h, by simp⟩
-  intro l hl
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hl ⊢
-  omega
+  refine Finset.card_lt_card (Finset.ssubset_iff_of_subset (fun l hl => ?_) |>.2
+    ⟨i, by simpa using h, by simp⟩)
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hl ⊢; omega
 
 theorem keyRank_injective (k : Fin n → ℕ) : Function.Injective (keyRank k) := by
   intro i j h
@@ -129,20 +125,13 @@ noncomputable def rankPerm (k : Fin n → ℕ) : Equiv.Perm (Fin n) :=
 private theorem keyRank_comp {k : Fin n → ℕ} (hk : Function.Injective k) (σ : Equiv.Perm (Fin n))
     (i : Fin n) : keyRank (k ∘ σ) i = keyRank k (σ i) := by
   have hsimp (k : Fin n → ℕ) (hk : Function.Injective k) (i : Fin n) :
-      keyRank k i = (Finset.univ.filter fun j => k j < k i).card := by
-    unfold keyRank
-    congr 1
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-    constructor
-    · rintro (h | ⟨h, h'⟩)
-      · exact h
-      · exact absurd (hk h ▸ h') (lt_irrefl _)
-    · exact Or.inl
+      keyRank k i = (Finset.univ.filter fun j => k j < k i).card :=
+    congrArg Finset.card <| Finset.ext fun j => by
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      exact ⟨fun h => h.elim id fun ⟨he, hl⟩ => absurd (hk he ▸ hl) (lt_irrefl _), Or.inl⟩
   rw [hsimp _ (hk.comp σ.injective), hsimp _ hk]
-  refine Finset.card_bij (fun j _ => σ j) (by simp) (fun _ _ _ _ h => σ.injective h) ?_
-  intro j hj
-  exact ⟨σ.symm j, by simpa using hj, by simp⟩
+  exact Finset.card_bij (fun j _ => σ j) (by simp) (fun _ _ _ _ h => σ.injective h)
+    fun j hj => ⟨σ.symm j, by simpa using hj, by simp⟩
 
 private theorem rankPerm_comp {k : Fin n → ℕ} (hk : Function.Injective k) (σ : Equiv.Perm (Fin n)) :
     rankPerm (k ∘ σ) = σ.trans (rankPerm k) := by
@@ -162,11 +151,9 @@ private theorem relabelFin_eq_flatten (A : Fin n → Fin n → Bool) (k : Fin n 
   rw [relabelFin, List.ofFn_mul]
   congr 2 with r : 1
   congr 1 with s : 1
-  have : (⟨r * n + s, by nlinarith [r.isLt, s.isLt]⟩ : Fin (n * n)) = finProdFinEquiv (r, s) := by
-    ext
-    simp only [finProdFinEquiv_apply_val]
-    ring
-  rw [this, Equiv.symm_apply_apply]
+  have h : (⟨r * n + s, by nlinarith [r.isLt, s.isLt]⟩ : Fin (n * n)) =
+      finProdFinEquiv (r, s) := Fin.ext (by simp only [finProdFinEquiv_apply_val]; ring)
+  rw [h, Equiv.symm_apply_apply]
 
 /-- With distinct keys, isomorphic adjacency matrices are relabeled alike by permuted keys. -/
 theorem relabelFin_comp {A A' : Fin n → Fin n → Bool} {k : Fin n → ℕ}
@@ -229,13 +216,9 @@ private theorem filter_rankOf_eq (n : ℕ) (keys : List ℕ) (r : Fin n) :
 
 private theorem orderOf_eq (n : ℕ) (keys : List ℕ) :
     orderOf n keys = List.ofFn fun r : Fin n => ((rankPerm (keyAt n keys)).symm r : ℕ) := by
-  apply List.ext_getElem (by simp [orderOf])
-  intro r h1 h2
-  simp only [orderOf, List.getElem_map, List.getElem_range, List.getElem_ofFn]
-  have := filter_rankOf_eq n keys ⟨r, by simpa using h2⟩
-  simp only at this
-  rw [this]
-  rfl
+  refine List.ext_getElem (by simp [orderOf]) fun r _ h2 => ?_
+  simp only [orderOf, List.getElem_map, List.getElem_range, List.getElem_ofFn,
+    filter_rankOf_eq n keys ⟨r, by simpa using h2⟩, List.headD_cons]
 
 /-- The adjacency matrix of `G` on the positions of its distinct vertices. -/
 private def adjFin (G : Graph) (i j : Fin G.distinctVertices.length) : Bool := G.adjIndex i j
@@ -330,18 +313,17 @@ private theorem pow_succ_le_descFactorial_add (D n : ℕ) :
         D.descFactorial (n + 2) + (n + 1) * D.descFactorial (n + 1) := by
       rw [Nat.descFactorial_succ D (n + 1), ← Nat.add_mul]
       exact Nat.mul_le_mul_right _ (by omega)
-    have hle := Nat.descFactorial_le_pow D (n + 1)
     calc D ^ (n + 2) = D * D ^ (n + 1) := by ring
       _ ≤ D * (D.descFactorial (n + 1) + (n + 1) ^ 2 * D ^ n) := Nat.mul_le_mul_left _ ih
       _ = D * D.descFactorial (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) := by ring
       _ ≤ D.descFactorial (n + 2) + (n + 1) * D ^ (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) := by
-        have := Nat.mul_le_mul_left (n + 1) hle
+        have := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
         omega
       _ ≤ D.descFactorial (n + 2) + (n + 2) ^ 2 * D ^ (n + 1) := by
-        have : (n + 1) * D ^ (n + 1) + (n + 1) ^ 2 * D ^ (n + 1) ≤ (n + 2) ^ 2 * D ^ (n + 1) := by
-          rw [← Nat.add_mul]
-          exact Nat.mul_le_mul_right _ (by nlinarith)
-        omega
+        rw [Nat.add_assoc]
+        refine Nat.add_le_add_left ?_ _
+        rw [← Nat.add_mul]
+        exact Nat.mul_le_mul_right _ (by nlinarith)
 
 open Classical in
 /-- **Birthday bound.** Among the functions from `Fin n` to a finite type with `D` elements, the
@@ -357,12 +339,7 @@ private theorem card_filter_not_injective_mul_le (n : ℕ) (β : Type*) [Fintype
     (fun R : Fin n → β => Function.Injective R)
   rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, hinj] at hsum
   cases n with
-  | zero =>
-    have : (Finset.univ.filter fun R : Fin 0 → β => ¬ Function.Injective R) = ∅ := by
-      ext R
-      simp [Function.injective_of_subsingleton R]
-    rw [this, Finset.card_empty, zero_mul]
-    exact Nat.zero_le _
+  | zero => simp [Function.injective_of_subsingleton]
   | succ m =>
     have := pow_succ_le_descFactorial_add (Fintype.card β) m
     calc (Finset.univ.filter fun R : Fin (m + 1) → β => ¬ Function.Injective R).card *
@@ -487,11 +464,9 @@ theorem acceptProb_round_le {x : GraphIsomorphismInstance} (hx : x ∈ GraphIsom
   refine (acceptProb_guessingRound_le (δ := 1 / 16) (fun f hf => ?_) P).trans_eq ?_
   · simp only [eval_message]
     exact tsum_relabelDist_le σ hσ hf
-  · have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num)]; norm_num
-    have h2 : ((1 : ENNReal) + 1 / 16) / 2 = (((1 + 1 / 16) / 2 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num), ENNReal.coe_add, ENNReal.coe_div (by norm_num)]; norm_num
-    rw [h1, h2, ENNReal.coe_inj]
+  · simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+      ← ENNReal.coe_div, ← ENNReal.coe_add, ENNReal.coe_inj, ← NNReal.coe_inj,
+      NNReal.coe_div, NNReal.coe_add, NNReal.coe_ofNat, NNReal.coe_one]
     norm_num
 
 /-- **Completeness of one round.** On non-isomorphic graphs the honest prover always names the
@@ -571,11 +546,9 @@ theorem isOraclePPTOn_verifier :
 theorem mem_IP : GraphNonIsomorphism ∈ IP encGraphIsomorphism := by
   refine mem_IP_of isOraclePPTOn_verifier isInteractiveProof_verifier
     (ENNReal.div_le_of_le_mul (by norm_num)) ?_
-  have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  have h2 : (1 : ENNReal) / 3 = ((1 / 3 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  rw [h1, h2, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe]
+  simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+    ← ENNReal.coe_div, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe,
+    NNReal.coe_pow, NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_one]
   norm_num
 
 end GraphNonIsomorphism

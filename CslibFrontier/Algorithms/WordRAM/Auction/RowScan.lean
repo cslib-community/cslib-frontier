@@ -51,7 +51,6 @@ open Cslib.WordRAM
 open Cslib.WordRAM.Realization
 open Cslib.DataStructure
 open Cslib.Algorithms.Lean.Assignment
-open StateTransitionSpec (clientResult_pure clientState_pure)
 
 public section
 
@@ -123,20 +122,38 @@ instance : WordEncoding SecondState := ⟨3, encSecondState⟩
 
 end
 
+/-- Both scans read a cost and a price and then update only their local accumulator. -/
+private def scanCell {α : Type} (cost price : ℕ) (next : ℕ → α) : Memory.Prog α := do
+  let c ← Memory.read cost
+  let p ← Memory.read price
+  pure (next (c + p))
+
+private theorem scanCell_spec {α : Type} {w cost price : ℕ} {s : Memory.State}
+    (next : ℕ → α) (hc : cost < s.frontier) (hp : price < s.frontier) :
+    let prog := scanCell cost price next
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s prog) ∧
+      memoryCost prog s = 2 ∧ (Memory.spec 0).clientState s prog = s ∧
+      (Memory.spec 0).clientResult s prog = next (s.mem cost + s.mem price) :=
+  ⟨validHistory_read_bind hc (validHistory_read_bind hp (validHistory_pure w _ _)),
+    rfl, rfl, rfl⟩
+
+private theorem rowReads_before_output {ws : AuctionWS} {s : Memory.State}
+    (hws : ValidWS ws s) (i j : Fin ws.n) :
+    ws.bC + i.val * ws.n + j.val < ws.outBase ∧ ws.bPrice + j.val < ws.outBase := by
+  have hcell : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
+  have hj := j.isLt
+  obtain ⟨hbO, hbP, hbS, hout, _⟩ := hws
+  exact ⟨by lia, by lia⟩
+
 /-! ### Row scan 1: best object (`findBestProg`) -/
 
-private def findBestStep (x : ScanRowArgs × BestState) : Memory.Prog BestState := do
-  let d := x.1
-  let st := x.2
-  let cij ← Memory.read (d.rowBase + st.idx)
-  let pj ← Memory.read (d.bPrice + st.idx)
-  let rc := cij + pj
-  if st.idx = 0 then
-    pure ⟨1, 0, rc⟩
-  else if rc < st.bestVal then
-    pure ⟨st.idx + 1, st.idx, rc⟩
-  else
-    pure ⟨st.idx + 1, st.bestJ, st.bestVal⟩
+private def bestNext (st : BestState) (rc : ℕ) : BestState :=
+  if st.idx = 0 then ⟨1, 0, rc⟩
+  else if rc < st.bestVal then ⟨st.idx + 1, st.idx, rc⟩
+  else ⟨st.idx + 1, st.bestJ, st.bestVal⟩
+
+private def findBestStep (x : ScanRowArgs × BestState) : Memory.Prog BestState :=
+  scanCell (x.1.rowBase + x.2.idx) (x.1.bPrice + x.2.idx) (bestNext x.2)
 
 private abbrev FindBestStepSafe (w : ℕ) (x : ScanRowArgs × BestState) (s : Memory.State) : Prop :=
   let d := x.1
@@ -147,7 +164,8 @@ private abbrev FindBestStepSafe (w : ℕ) (x : ScanRowArgs × BestState) (s : Me
 private theorem findBestStep_realizes :
     Realizes .exact findBestStep (appendWords encScanRowArgs encBestState) encBestState
       FindBestStepSafe (fun _ _ => 0) := by
-  unfold findBestStep
+  unfold findBestStep scanCell bestNext
+  simp only [apply_ite (pure : BestState → Memory.Prog BestState)]
   realize
   all_goals
     rcases h with ⟨_, _, _, _, _⟩
@@ -196,7 +214,10 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
             redCost (fun e => (C e : ℤ)) st.price i₀ k) ∧
         res.bestJ = j₀.val ∧
         (res.bestVal : ℤ) = redCost (fun e => (C e : ℤ)) st.price i₀ j₀ := by
-  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  have hend : ws.outBase ≤ ws.outBase + ws.n + 1 :=
+    (Nat.le_add_right _ _).trans (Nat.le_succ _)
+  have outputFits := hfit_ws.of_le hend
+  have outputAllocated := hend.trans hws.hfrontier
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   let rowBase := ws.bC + i₀.val * ws.n
   let d : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
@@ -211,72 +232,40 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
       subst s
       have hk' : b.idx < ws.n := hbidx ▸ hk
       let jk : Fin ws.n := ⟨b.idx, hk'⟩
-      have hmul_k : i₀.val * ws.n + b.idx < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, jk)
+      obtain ⟨hrow, hprice⟩ := rowReads_before_output hws i₀ jk
       obtain ⟨hrc_le, hrc_z⟩ := ham.redCost_read hC_le hp_nn hp_le i₀ jk
       have hsafe : FindBestStepSafe w (d, b) s₀ := by
         dsimp only [FindBestStepSafe, d]
-        exact ⟨hfit1, hfit_ws.of_le (by dsimp only [rowBase]; omega),
-          hfit_ws.of_le (by omega), hfit_rc.of_le hrc_le, hfit_ws.of_le (by omega)⟩
-      have hv : (Memory.spec w).ValidHistory s₀
-          ((Memory.spec w).clientHistory s₀ (findBestStep (d, b))) := by
-        unfold findBestStep
-        dsimp only [d]
-        exact validHistory_read_bind (by dsimp only [rowBase]; omega)
-          (validHistory_read_bind (by omega)
-            (validHistory_ite (fun _ => validHistory_pure w _ _)
-              (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
-                (fun _ => validHistory_pure w _ _))))
-      have hmc : memoryCost (findBestStep (d, b)) s₀ ≤ 2 := by
-        unfold findBestStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_read_bind_le fun _ _ =>
-            memoryCost_ite_le (Nat.le_refl 0)
-              (memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0))
-      have hst_eq : (Memory.spec 0).clientState s₀ (findBestStep (d, b)) = s₀ := by
-        unfold findBestStep
-        rw [clientState_bind_read, clientState_bind_read]
-        dsimp only
-        split_ifs <;> exact clientState_pure _ _
-      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+        exact ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
+          hfit_rc.of_le hrc_le, hfit_ws.of_le (by have := jk.isLt; lia)⟩
+      obtain ⟨hv, hmc, hst_eq, hres⟩ :=
+        scanCell_spec (w := w) (s := s₀) (cost := d.rowBase + b.idx) (price := d.bPrice + b.idx)
+          (bestNext b) (hrow.trans_le outputAllocated) (hprice.trans_le outputAllocated)
+      refine ⟨hsafe, hv, hmc.le, by rw [findBestStep, hst_eq],
+        fun _ _ => by rw [findBestStep, hst_eq], hst_eq, ?_⟩
       unfold findBestStep
-      rw [clientResult_bind_read, clientResult_bind_read]
-      dsimp only [d]
+      rw [hres]
+      dsimp only [d, bestNext]
       by_cases hk0 : b.idx = 0
-      · have hk_zero : k = 0 := by omega
-        subst hk_zero
-        have hjk0 : jk = ⟨0, hn_pos⟩ := Fin.ext hk0
-        rw [ite_eq_left hk0, clientResult_pure]
-        dsimp only
+      · subst hbidx
+        rw [hk0, ite_eq_left rfl]
         refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos, ?_, rfl, ?_⟩⟩
-        · rw [show (1 : ℕ) = 0 + 1 from rfl, List.take_succ_finRange hn_pos, List.take_zero,
-            List.nil_append]
-          rfl
-        · rw [← hjk0]
-          simpa only [jk, hk0] using hrc_z
+        · simp [List.take_succ_finRange hn_pos]
+        · simpa only [jk, hk0] using hrc_z
       · rw [ite_eq_right hk0]
         rcases harg with h0 | ⟨j₀, hj₀_lt, htake, hbj, hbv⟩
         · omega
         · subst hbidx
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.bestVal
-          · have hlt_z : redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀ := by
-              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
-                  (b.bestVal : ℤ) := Nat.cast_lt.mpr hlt
-              rwa [hrc_z, hbv] at hlt'
-            rw [ite_eq_left hlt, clientResult_pure]
-            dsimp only
+          · rw [ite_eq_left hlt]
             refine ⟨rfl, Or.inr ⟨jk, Nat.lt_succ_self _, ?_, rfl, hrc_z⟩⟩
             rw [List.take_succ_finRange hk', List.argmin_concat, htake]
-            dsimp only
-            exact ite_eq_left hlt_z
-          · have hnlt_z : ¬(redCost cZ st.price i₀ jk < redCost cZ st.price i₀ j₀) := by
-              intro hz
-              exact hlt (Nat.cast_lt.mp (by rwa [hrc_z, hbv]))
-            rw [ite_eq_right hlt, clientResult_pure]
-            dsimp only
+            exact ite_eq_left (hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hbv))
+          · rw [ite_eq_right hlt]
             refine ⟨rfl, Or.inr ⟨j₀, Nat.lt_succ_of_lt hj₀_lt, ?_, hbj, hbv⟩⟩
             rw [List.take_succ_finRange hk', List.argmin_concat, htake]
-            dsimp only
-            exact ite_eq_right hnlt_z)
+            exact ite_eq_right fun hz =>
+              hlt (Nat.cast_lt.mp (hrc_z.trans_lt (hz.trans_eq hbv.symm))))
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, Or.inl rfl⟩
   obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
   rcases hfinal with h0 | ⟨j₀, _, htake, hbj, hbv⟩
@@ -289,20 +278,14 @@ end
 
 /-! ### Row scan 2: second-best reduced cost (`findSecondProg`) -/
 
-private def findSecondStep (x : ScanSecondArgs × SecondState) : Memory.Prog SecondState := do
-  let d := x.1
-  let st := x.2
-  let cij ← Memory.read (d.rowBase + st.idx)
-  let pj ← Memory.read (d.bPrice + st.idx)
-  let rc := cij + pj
-  if st.idx = d.bestJ then
-    pure ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
-  else if st.hasSecond = 0 then
-    pure ⟨st.idx + 1, 1, rc⟩
-  else if rc < st.secondVal then
-    pure ⟨st.idx + 1, 1, rc⟩
-  else
-    pure ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
+private def secondNext (bestJ : ℕ) (st : SecondState) (rc : ℕ) : SecondState :=
+  if st.idx = bestJ then ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
+  else if st.hasSecond = 0 then ⟨st.idx + 1, 1, rc⟩
+  else if rc < st.secondVal then ⟨st.idx + 1, 1, rc⟩
+  else ⟨st.idx + 1, st.hasSecond, st.secondVal⟩
+
+private def findSecondStep (x : ScanSecondArgs × SecondState) : Memory.Prog SecondState :=
+  scanCell (x.1.rowBase + x.2.idx) (x.1.bPrice + x.2.idx) (secondNext x.1.bestJ x.2)
 
 private abbrev FindSecondStepSafe (w : ℕ) (x : ScanSecondArgs × SecondState)
     (s : Memory.State) : Prop :=
@@ -314,7 +297,8 @@ private abbrev FindSecondStepSafe (w : ℕ) (x : ScanSecondArgs × SecondState)
 private theorem findSecondStep_realizes :
     Realizes .exact findSecondStep (appendWords encScanSecondArgs encSecondState) encSecondState
       FindSecondStepSafe (fun _ _ => 0) := by
-  unfold findSecondStep
+  unfold findSecondStep scanCell secondNext
+  simp only [apply_ite (pure : SecondState → Memory.Prog SecondState)]
   realize
   all_goals
     rcases h with ⟨_, _, _, _, _⟩
@@ -361,7 +345,10 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
       | none => res.hasSecond = 0
       | some wVal =>
         res.hasSecond = 1 ∧ (res.secondVal : ℤ) = wVal ∧ res.secondVal ≤ 2 * W + ws.eps := by
-  obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
+  have hend : ws.outBase ≤ ws.outBase + ws.n + 1 :=
+    (Nat.le_add_right _ _).trans (Nat.le_succ _)
+  have outputFits := hfit_ws.of_le hend
+  have outputAllocated := hend.trans hws.hfrontier
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   let rowBase := ws.bC + i₀.val * ws.n
   let d : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩
@@ -376,48 +363,28 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
     (fun k hk b s ⟨hs, hbidx, hmin⟩ => by
       subst s; subst hbidx
       let jk : Fin ws.n := ⟨b.idx, hk⟩
-      have hmul_k : i₀.val * ws.n + b.idx < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i₀, jk)
+      obtain ⟨hrow, hprice⟩ := rowReads_before_output hws i₀ jk
       obtain ⟨hrc_le, hrc_z⟩ := ham.redCost_read hC_le hp_nn hp_le i₀ jk
       have hsafe : FindSecondStepSafe w (d, b) s₀ := by
         dsimp only [FindSecondStepSafe, d]
-        exact ⟨hfit1, hfit_ws.of_le (by dsimp only [rowBase]; omega),
-          hfit_ws.of_le (by omega), hfit_rc.of_le hrc_le, hfit_ws.of_le (by omega)⟩
-      have hv : (Memory.spec w).ValidHistory s₀
-          ((Memory.spec w).clientHistory s₀ (findSecondStep (d, b))) := by
-        unfold findSecondStep
-        dsimp only [d]
-        exact validHistory_read_bind (by dsimp only [rowBase]; omega)
-          (validHistory_read_bind (by omega)
-            (validHistory_ite (fun _ => validHistory_pure w _ _)
-              (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
-                (fun _ => validHistory_ite (fun _ => validHistory_pure w _ _)
-                  (fun _ => validHistory_pure w _ _)))))
-      have hmc : memoryCost (findSecondStep (d, b)) s₀ ≤ 2 := by
-        unfold findSecondStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_read_bind_le fun _ _ =>
-            memoryCost_ite_le (Nat.le_refl 0)
-              (memoryCost_ite_le (Nat.le_refl 0)
-                (memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0)))
-      have hst_eq : (Memory.spec 0).clientState s₀ (findSecondStep (d, b)) = s₀ := by
-        unfold findSecondStep
-        rw [clientState_bind_read, clientState_bind_read]
-        dsimp only
-        split_ifs <;> exact clientState_pure _ _
-      refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
+        exact ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
+          hfit_rc.of_le hrc_le, hfit_ws.of_le (by have := jk.isLt; lia)⟩
+      obtain ⟨hv, hmc, hst_eq, hres⟩ :=
+        scanCell_spec (w := w) (s := s₀) (cost := d.rowBase + b.idx) (price := d.bPrice + b.idx)
+          (secondNext d.bestJ b) (hrow.trans_le outputAllocated) (hprice.trans_le outputAllocated)
+      refine ⟨hsafe, hv, hmc.le, by rw [findSecondStep, hst_eq],
+        fun _ _ => by rw [findSecondStep, hst_eq], hst_eq, ?_⟩
       unfold findSecondStep
-      rw [clientResult_bind_read, clientResult_bind_read]
-      dsimp only [d]
+      rw [hres]
+      dsimp only [d, secondNext]
       by_cases heq_j : b.idx = j₀.val
       · have hjk_eq : jk = j₀ := Fin.ext heq_j
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx := by
           dsimp only [prefList]
           rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
           simp [jk, hjk_eq]
-        rw [ite_eq_left heq_j, clientResult_pure]
-        dsimp only
-        refine ⟨rfl, ?_⟩
-        simpa only [hpref_eq] using hmin
+        rw [ite_eq_left heq_j]
+        exact ⟨rfl, hpref_eq.symm ▸ hmin⟩
       · have hjk_ne : jk ≠ j₀ := fun e => heq_j (congrArg Fin.val e)
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx ++ [redCost cZ st.price i₀ jk] := by
           dsimp only [prefList]
@@ -427,42 +394,27 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         rcases hl_prev : prefList b.idx with _ | ⟨hd_prev, tl_prev⟩
         · rw [hl_prev] at hmin hpref_eq
           dsimp only [List.min?] at hmin
-          rw [ite_eq_left hmin, clientResult_pure]
-          dsimp only
-          refine ⟨rfl, ?_⟩
-          rw [hpref_eq, List.nil_append, List.min?_singleton]
-          exact ⟨rfl, hrc_z, hrc_le⟩
-        · have hm_some : (hd_prev :: tl_prev).min? = some (tl_prev.foldl min hd_prev) := rfl
-          let wPrev := tl_prev.foldl min hd_prev
-          rw [hl_prev, hm_some] at hmin
+          rw [ite_eq_left hmin, hpref_eq, List.nil_append, List.min?_singleton]
+          exact ⟨rfl, rfl, hrc_z, hrc_le⟩
+        · let wPrev := tl_prev.foldl min hd_prev
+          rw [hl_prev, List.min?_cons'] at hmin
           obtain ⟨hhs1, hsv_z, hsv_le⟩ := hmin
-          have hhs_ne : b.hasSecond ≠ 0 := by omega
-          rw [ite_eq_right hhs_ne]
-          have hmin_app : (prefList (b.idx + 1)).min? =
-              some (min wPrev (redCost cZ st.price i₀ jk)) := by
-            rw [hpref_eq, hl_prev, List.cons_append, List.min?_cons', List.foldl_append,
-              List.foldl_cons, List.foldl_nil]
-          rw [hmin_app]
+          rw [ite_eq_right (by omega : b.hasSecond ≠ 0), hpref_eq, hl_prev, List.cons_append,
+            List.min?_cons', List.foldl_append, List.foldl_cons, List.foldl_nil]
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.secondVal
-          · have hlt_z : redCost cZ st.price i₀ jk < wPrev := by
-              have hlt' : ((s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) : ℕ) : ℤ) <
-                  (b.secondVal : ℤ) := Nat.cast_lt.mpr hlt
-              rwa [hrc_z, hsv_z] at hlt'
-            rw [ite_eq_left hlt, clientResult_pure, min_eq_right (le_of_lt hlt_z)]
+          · have hlt_z : redCost cZ st.price i₀ jk < wPrev :=
+              hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hsv_z)
+            rw [ite_eq_left hlt, min_eq_right hlt_z.le]
             exact ⟨rfl, rfl, hrc_z, hrc_le⟩
-          · have hle_z : wPrev ≤ redCost cZ st.price i₀ jk := by
-              by_contra hgt
-              have hlt_z : redCost cZ st.price i₀ jk < wPrev := lt_of_not_ge hgt
-              exact hlt (Nat.cast_lt.mp (by rwa [hrc_z, hsv_z]))
-            rw [ite_eq_right hlt, clientResult_pure, min_eq_left hle_z]
+          · have hle_z : wPrev ≤ redCost cZ st.price i₀ jk :=
+              not_lt.mp fun hz => hlt (Nat.cast_lt.mp (hrc_z.trans_lt (hz.trans_eq hsv_z.symm)))
+            rw [ite_eq_right hlt, min_eq_left hle_z]
             exact ⟨rfl, hhs1, hsv_z, hsv_le⟩)
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, by simp [prefList]⟩
   obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
   have hpref_n : (prefList ws.n).min? = secondBest cZ st.price i₀ j₀ := by
-    dsimp only [prefList, secondBest]
-    rw [List.take_of_length_le (by simp)]
-  rw [hpref_n] at hfinal
-  exact ⟨hsafe, hv, hmc, hs_eq, hfinal⟩
+    simp [prefList, secondBest, List.take_of_length_le List.length_finRange.le]
+  exact ⟨hsafe, hv, hmc, hs_eq, hpref_n ▸ hfinal⟩
 
 end
 

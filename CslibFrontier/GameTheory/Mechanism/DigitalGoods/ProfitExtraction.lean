@@ -146,11 +146,8 @@ theorem singlePriceProfitOn_eq_zero_of_card_lt {m : ℕ} {s : Finset ι} (b : ι
     (hs : s.card < m) : singlePriceProfitOn m s b = 0 := by
   classical
   unfold singlePriceProfitOn
-  split_ifs with hne
-  · exfalso
-    obtain ⟨j, hj⟩ := hne
-    exact absurd ((mem_filter.1 hj).2.trans (card_filter_le s _)) (not_le_of_gt hs)
-  · rfl
+  refine dite_eq_right fun ⟨j, hj⟩ => ?_
+  exact not_le_of_gt hs ((mem_filter.1 hj).2.trans (card_filter_le s _))
 
 /-- `singlePriceProfitOn m s b` depends only on the values of `b` on `s`. -/
 theorem singlePriceProfitOn_congr {m : ℕ} {s : Finset ι} {b b' : ι → ℝ}
@@ -164,25 +161,10 @@ theorem singlePriceProfitOn_congr {m : ℕ} {s : Finset ι} {b b' : ι → ℝ}
       (s.filter fun j => m ≤ (s.filter fun i => b' j ≤ b' i).card) :=
     filter_congr fun j hj => by rw [hf j hj]
   unfold singlePriceProfitOn
-  convert_to
-    (if hne : (s.filter fun j => m ≤ (s.filter fun i => b j ≤ b i).card).Nonempty then
-      (s.filter fun j => m ≤ (s.filter fun i => b j ≤ b i).card).sup' hne fun j =>
-        b j * ((s.filter fun i => b j ≤ b i).card : ℝ)
-    else 0) =
-    (if hne : (s.filter fun j => m ≤ (s.filter fun i => b' j ≤ b' i).card).Nonempty then
-      (s.filter fun j => m ≤ (s.filter fun i => b' j ≤ b' i).card).sup' hne fun j =>
-        b' j * ((s.filter fun i => b' j ≤ b' i).card : ℝ)
-    else 0) using 0
-  by_cases hne : (s.filter fun j => m ≤ (s.filter fun i => b j ≤ b i).card).Nonempty
-  · have hne' : (s.filter fun j => m ≤ (s.filter fun i => b' j ≤ b' i).card).Nonempty :=
-      hc ▸ hne
-    simp only [hne, hne', ↓reduceDIte]
-    exact sup'_congr hne hc fun j hj => by
-      have hjs : j ∈ s := (mem_filter.1 hj).1
-      rw [hf j hjs, h j hjs]
-  · have hne' : ¬ (s.filter fun j => m ≤ (s.filter fun i => b' j ≤ b' i).card).Nonempty :=
-      hc ▸ hne
-    simp only [hne, hne', ↓reduceDIte]
+  by_cases h1 : (s.filter fun j => m ≤ (s.filter fun i => b j ≤ b i).card).Nonempty
+  · rw [dite_eq_left h1, dite_eq_left (hc ▸ h1)]
+    exact sup'_congr h1 hc fun j hj => by rw [hf j (mem_filter.1 hj).1, h j (mem_filter.1 hj).1]
+  · rw [dite_eq_right h1, dite_eq_right (hc ▸ h1)]
 
 /-- `singlePriceProfitOn m s b` is nonnegative whenever all bids in `s` are nonnegative. -/
 theorem singlePriceProfitOn_nonneg {m : ℕ} {s : Finset ι} {b : ι → ℝ}
@@ -272,49 +254,41 @@ theorem singlePriceProfitOn_eq_sup_orderStatistic [Fintype ι] [Nonempty ι] {m 
     · set c := (univ.filter fun i => b j ≤ b i).card
       have hc_le_n : c ≤ n := by
         simpa only [card_univ] using card_filter_le (univ : Finset ι) (fun i => b j ≤ b i)
-      have hcIcc : c ∈ Icc m n := mem_Icc.2 ⟨hj, hc_le_n⟩
-      have hcomp := card_filter_add_card_filter_not (s := univ) (p := fun i => b j ≤ b i)
-      have hlt_eq : (univ.filter fun i => ¬ b j ≤ b i) = (univ.filter fun i => b i < b j) :=
-        filter_congr fun i _ => not_le
-      rw [hlt_eq, card_univ] at hcomp
-      have hlt_card : (univ.filter fun i => b i < b j).card = n - c := by omega
+      have hlt_card : (univ.filter fun i => b i < b j).card = n - c := by
+        have hcomp := card_filter_add_card_filter_not (s := univ) (p := fun i => b j ≤ b i)
+        rw [filter_congr fun _ _ => not_le, card_univ] at hcomp
+        dsimp only [n, c] at hc_le_n ⊢
+        omega
       set y := Fintype.orderStatistic b (n - c)
-      have hcm : n - c < n := by omega
-      have hos := Fintype.orderStatistic_isOrderStatistic b hcm
+      have hos := Fintype.orderStatistic_isOrderStatistic b (k := n - c) (by omega)
       have hbj_le_y : b j ≤ y := by
         by_contra hlt
-        have hy_lt : y < b j := lt_of_not_ge hlt
-        have hsub : (univ.filter fun i => b i ≤ y) ⊆ (univ.filter fun i => b i < b j) :=
-          fun i hi => mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2.trans_lt hy_lt⟩
-        have hle1 : (univ.filter fun i => b i ≤ y).card ≤ n - c := by
-          rw [← hlt_card]; exact card_le_card hsub
-        have hlt1 : n - c < (univ.filter fun i => b i ≤ y).card := hos.2.2
+        have hle1 : (univ.filter fun i => b i ≤ y).card ≤ (univ.filter fun i => b i < b j).card :=
+          card_le_card fun i hi =>
+            mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2.trans_lt (lt_of_not_ge hlt)⟩
+        have hle2 := hos.2.2
+        dsimp only [y, c, n] at hle1 hlt_card hle2 hc_le_n
         omega
-      calc b j * (c : ℝ)
-          = (c : ℝ) * b j := mul_comm _ _
-        _ ≤ (c : ℝ) * y := mul_le_mul_of_nonneg_left hbj_le_y (Nat.cast_nonneg _)
-        _ ≤ (Icc m n).sup' hne fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k) :=
-            le_sup' (fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k)) hcIcc
+      rw [mul_comm]
+      exact (mul_le_mul_of_nonneg_left hbj_le_y (Nat.cast_nonneg _)).trans
+        (le_sup' (fun k : ℕ => (k : ℝ) * Fintype.orderStatistic b (n - k))
+          (mem_Icc.2 ⟨hj, hc_le_n⟩))
   · refine sup'_le hne _ fun k hk => ?_
     have hk_bounds := mem_Icc.1 hk
     set y : ℝ := Fintype.orderStatistic b (n - k)
-    have hkn : n - k < n := by omega
-    have hos := Fintype.orderStatistic_isOrderStatistic b (k := n - k) hkn
-    have hcomp := card_filter_add_card_filter_not (s := univ) (p := fun i => b i < y)
-    have hge_eq : (univ.filter fun i => ¬ b i < y) = (univ.filter fun i => y ≤ b i) :=
-      filter_congr fun i _ => not_lt
-    rw [hge_eq, card_univ] at hcomp
-    have hlt_le : (univ.filter fun i => b i < y).card ≤ n - k := hos.2.1
-    have hge_card : k ≤ (univ.filter fun i => y ≤ b i).card := by omega
+    have hos := Fintype.orderStatistic_isOrderStatistic b (k := n - k) (by omega)
+    have hge_card : k ≤ (univ.filter fun i => y ≤ b i).card := by
+      have hcomp := card_filter_add_card_filter_not (s := univ) (p := fun i => b i < y)
+      rw [filter_congr fun _ _ => not_lt, card_univ] at hcomp
+      have hle1 := hos.2.1
+      dsimp only [y, n] at hcomp hle1 hk_bounds ⊢
+      omega
     obtain ⟨j, hj⟩ := hos.1
-    have hy0 : 0 ≤ y := by dsimp only [y]; rw [← hj]; exact hb j
-    calc (k : ℝ) * y
-        ≤ ((univ.filter fun i => y ≤ b i).card : ℝ) * y :=
-          mul_le_mul_of_nonneg_right (Nat.cast_le.2 hge_card) hy0
-      _ = y * ((univ.filter fun i => y ≤ b i).card : ℝ) := mul_comm _ _
-      _ ≤ singlePriceProfitOn m univ b :=
-          mul_card_le_singlePriceProfitOn (fun i _ => hb i) (filter_subset _ _)
-            (hk_bounds.1.trans hge_card) fun i hi => (mem_filter.1 hi).2
+    have hy0 : 0 ≤ y := (hb j).trans_eq hj
+    refine (mul_le_mul_of_nonneg_right (Nat.cast_le.2 hge_card) hy0).trans ?_
+    rw [mul_comm]
+    exact mul_card_le_singlePriceProfitOn (fun i _ => hb i) (filter_subset _ _)
+      (hk_bounds.1.trans hge_card) fun i hi => (mem_filter.1 hi).2
 
 /-- An auction (represented by its profit or expected profit function `profit`) is `β`-competitive
 with respect to a benchmark `bench` if `0 ≤ β` and `bench b ≤ β * profit b` on every nonnegative
@@ -568,6 +542,13 @@ private theorem profitExtractOn_update_win_iff [DecidableEq ι] {s : Finset ι} 
     rw [Function.update_self, hkeq]
     exact ite_eq_left ⟨hi, hk₀_pos, hz⟩
 
+private theorem profitExtractOn_update_lose [DecidableEq ι] {s : Finset ι} {R : ℝ}
+    (hR : 0 ≤ R) (b : ι → ℝ) {i : ι} (hi : i ∈ s) {z : ℝ}
+    (hz : ¬ R / (otherThresholdSize s R b i hi : ℝ) ≤ z) :
+    ¬ (i ∈ s ∧ 0 < profitExtractSize s R (Function.update b i z) ∧
+      R / (profitExtractSize s R (Function.update b i z) : ℝ) ≤ Function.update b i z i) :=
+  fun h => hz ((profitExtractOn_update_win_iff hR b hi z).1 (ite_eq_left h))
+
 /-- `profitExtractOn s R` has a `0`-`1` allocation rule. -/
 theorem profitExtractOn_isBinary (s : Finset ι) (R : ℝ) :
     IsBinary (profitExtractOn s R).allocation := by
@@ -589,22 +570,13 @@ theorem profitExtractOn_isMonotone [DecidableEq ι] (s : Finset ι) (R : ℝ) :
     · by_cases hz : R / (otherThresholdSize s R b i hi : ℝ) ≤ z
       · rw [(profitExtractOn_update_win_iff hR b hi z).2 hz,
           (profitExtractOn_update_win_iff hR b hi z').2 (hz.trans hzz')]
-      · have h0 : (profitExtractOn s R).allocation (Function.update b i z) i = 0 := by
-          unfold profitExtractOn
-          dsimp only
-          split_ifs with h
-          · exfalso
-            exact hz ((profitExtractOn_update_win_iff hR b hi z).1
-              (by unfold profitExtractOn; dsimp only; exact ite_eq_left h))
-          · rfl
-        rw [h0]
-        unfold profitExtractOn; dsimp only; split_ifs <;> norm_num
-    · unfold profitExtractOn; dsimp only
-      simp only [hi, false_and, ↓reduceIte, le_refl]
-  · have hneg : R < 0 := lt_of_not_ge hR
-    unfold profitExtractOn; dsimp only
-    simp only [profitExtractSize_eq_zero_of_neg s hneg, lt_self_iff_false, false_and, and_false,
-      ↓reduceIte, le_refl]
+      · unfold profitExtractOn
+        dsimp only
+        rw [ite_eq_right (profitExtractOn_update_lose hR b hi hz)]
+        split_ifs <;> norm_num
+    · simp only [profitExtractOn, hi, false_and, ↓reduceIte, le_refl]
+  · simp only [profitExtractOn, profitExtractSize_eq_zero_of_neg s (lt_of_not_ge hR),
+      lt_self_iff_false, false_and, and_false, ↓reduceIte, le_refl]
 
 /-- On every bid profile, the payment of `profitExtractOn s R` equals its critical-bid payment
 `criticalBid x b i * x b i` (hence coincides with `criticalBidMechanism`). In particular, losers
@@ -632,24 +604,18 @@ theorem profitExtractOn_payment_eq_criticalBid [DecidableEq ι] (s : Finset ι) 
       by_cases hbi : t ≤ b i
       · have hkeq : profitExtractSize s R b = k₀ := by
           simpa only [hself] using profitExtractSize_update_eq_of_ge hR hi hbi
-        unfold profitExtractOn; dsimp only
         have hcond : i ∈ s ∧ 0 < profitExtractSize s R b ∧
-            R / (profitExtractSize s R b : ℝ) ≤ b i := by
-          rw [hkeq]; exact ⟨hi, hk₀_pos, hbi⟩
+            R / (profitExtractSize s R b : ℝ) ≤ b i := hkeq ▸ ⟨hi, hk₀_pos, hbi⟩
+        unfold profitExtractOn
+        dsimp only
         rw [ite_eq_left hcond, ite_eq_left hcond, hkeq, mul_one]
-      · have hcond : ¬ (i ∈ s ∧ 0 < profitExtractSize s R b ∧
-            R / (profitExtractSize s R b : ℝ) ≤ b i) := fun h => by
-          apply hbi
-          rw [← profitExtractOn_update_win_iff hR b hi (b i), hself]
-          unfold profitExtractOn; dsimp only; exact ite_eq_left h
-        unfold profitExtractOn; dsimp only
+      · have hcond := hself ▸ profitExtractOn_update_lose hR b hi hbi
+        unfold profitExtractOn
+        dsimp only
         rw [ite_eq_right hcond, ite_eq_right hcond, mul_zero]
-    · unfold profitExtractOn; dsimp only
-      simp only [hi, false_and, ↓reduceIte, mul_zero]
-  · have hneg : R < 0 := lt_of_not_ge hR
-    unfold profitExtractOn; dsimp only
-    simp only [profitExtractSize_eq_zero_of_neg s hneg, lt_self_iff_false, false_and, and_false,
-      ↓reduceIte, mul_zero]
+    · simp only [profitExtractOn, hi, false_and, ↓reduceIte, mul_zero]
+  · simp only [profitExtractOn, profitExtractSize_eq_zero_of_neg s (lt_of_not_ge hR),
+      lt_self_iff_false, false_and, and_false, ↓reduceIte, mul_zero]
 
 /-- `ProfitExtract_R` is dominant-strategy incentive compatible (truthful) on nonnegative bids
 ([HartlineKarlin2007], §13.4.4, p. 347 and Exercise 13.10, p. 361). -/
@@ -673,6 +639,11 @@ theorem profitExtractOn_isNormalized [DecidableEq ι] (s : Finset ι) (R : ℝ) 
   rw [profitExtractOn_payment_eq_criticalBid]
   exact criticalBidMechanism_isNormalized (profitExtractOn_isBinary s R) i b hb
 
+private theorem sum_payment_profitExtractOn_eq_univ [Fintype ι] (s : Finset ι) (R : ℝ)
+    (b : ι → ℝ) :
+    ∑ i ∈ s, (profitExtractOn s R).payment b i = ∑ i, (profitExtractOn s R).payment b i :=
+  sum_subset (subset_univ s) fun i _ his => by simp [profitExtractOn, his]
+
 /-- Total profit of `ProfitExtract_R` on bidder subset `s`: for `R ≥ 0` and nonnegative bids on `s`,
 it extracts `R` whenever `R ≤ ℱ(b_s)` and `0` when `ℱ(b_s) < R` ([HartlineKarlin2007], §13.4.4,
 p. 347 and Exercise 13.10, p. 361). -/
@@ -680,11 +651,7 @@ theorem sum_payment_profitExtractOn [Fintype ι] (s : Finset ι) {R : ℝ} (hR :
     {b : ι → ℝ} (hb : ∀ i ∈ s, 0 ≤ b i) :
     ∑ i, (profitExtractOn s R).payment b i = if R ≤ optimalProfitOn s b then R else 0 := by
   classical
-  have hsum_s : ∑ i ∈ s, (profitExtractOn s R).payment b i =
-      ∑ i, (profitExtractOn s R).payment b i :=
-    sum_subset (subset_univ s) fun i _ his => by
-      unfold profitExtractOn; dsimp only; simp only [his, false_and, ↓reduceIte]
-  rw [← hsum_s]
+  rw [← sum_payment_profitExtractOn_eq_univ]
   rcases s.eq_empty_or_nonempty with rfl | hsne
   · simp only [sum_empty, singlePriceProfitOn_empty]
     split_ifs with h
@@ -779,6 +746,11 @@ theorem rspe_isBinary (s : Finset ι) : IsBinary (rspe s).allocation := by
   · exact profitExtractOn_isBinary s _ b hb i
   · exact profitExtractOn_isBinary sᶜ _ b hb i
 
+omit [Fintype ι] in
+private theorem optimalProfitOn_update_of_notMem {s : Finset ι} {i : ι} (hi : i ∉ s)
+    (b : ι → ℝ) (v : ℝ) : optimalProfitOn s (Function.update b i v) = optimalProfitOn s b :=
+  singlePriceProfitOn_congr fun _ hj => Function.update_of_ne (ne_of_mem_of_not_mem hj hi) _ _
+
 /-- **Universal truthfulness of RSPE**: for every partition `s : Finset ι`, the deterministic
 auction `rspe s` is dominant-strategy incentive compatible ([HartlineKarlin2007], Definition 13.41,
 §13.4.5, p. 348). -/
@@ -786,19 +758,9 @@ theorem rspe_isDSIC (s : Finset ι) : (rspe s).IsDSIC := by
   intro i b v hb hv
   simp only [Mechanism.utility, rspe]
   by_cases hi : i ∈ s
-  · have hcongr : optimalProfitOn sᶜ (Function.update b i v) = optimalProfitOn sᶜ b :=
-      singlePriceProfitOn_congr fun j hj => by
-        refine Function.update_of_ne ?_ _ _
-        rintro rfl
-        exact (mem_compl.1 hj) hi
-    simp only [hi, ↓reduceIte, hcongr]
+  · simp only [hi, ↓reduceIte, optimalProfitOn_update_of_notMem (notMem_compl.2 hi)]
     exact profitExtractOn_isDSIC s (optimalProfitOn sᶜ b) i b v hb hv
-  · have hcongr : optimalProfitOn s (Function.update b i v) = optimalProfitOn s b :=
-      singlePriceProfitOn_congr fun j hj => by
-        refine Function.update_of_ne ?_ _ _
-        rintro rfl
-        exact hi hj
-    simp only [hi, ↓reduceIte, hcongr]
+  · simp only [hi, ↓reduceIte, optimalProfitOn_update_of_notMem hi]
     exact profitExtractOn_isDSIC sᶜ (optimalProfitOn s b) i b v hb hv
 
 /-- For every partition `s : Finset ι`, `rspe s` is individually rational on nonnegative bids. -/
@@ -814,19 +776,9 @@ theorem rspe_isNormalized (s : Finset ι) : (rspe s).IsNormalized := by
   intro i b hb
   unfold rspe; dsimp only
   by_cases hi : i ∈ s
-  · have hcongr : optimalProfitOn sᶜ (Function.update b i 0) = optimalProfitOn sᶜ b :=
-      singlePriceProfitOn_congr fun j hj => by
-        refine Function.update_of_ne ?_ _ _
-        rintro rfl
-        exact (mem_compl.1 hj) hi
-    simp only [hi, ↓reduceIte, hcongr]
+  · simp only [hi, ↓reduceIte, optimalProfitOn_update_of_notMem (notMem_compl.2 hi)]
     exact profitExtractOn_isNormalized s (optimalProfitOn sᶜ b) i b hb
-  · have hcongr : optimalProfitOn s (Function.update b i 0) = optimalProfitOn s b :=
-      singlePriceProfitOn_congr fun j hj => by
-        refine Function.update_of_ne ?_ _ _
-        rintro rfl
-        exact hi hj
-    simp only [hi, ↓reduceIte, hcongr]
+  · simp only [hi, ↓reduceIte, optimalProfitOn_update_of_notMem hi]
     exact profitExtractOn_isNormalized sᶜ (optimalProfitOn s b) i b hb
 
 /-- **Truthfulness in expectation** of `RSPE` ([HartlineKarlin2007], Definition 13.5, §13.1.2,
@@ -848,20 +800,10 @@ theorem sum_payment_rspe_eq (s : Finset ι) {b : ι → ℝ} (hb : 0 ≤ b) :
       (∑ i ∈ s, (profitExtractOn s (optimalProfitOn sᶜ b)).payment b i) +
         (∑ i ∈ sᶜ, (profitExtractOn sᶜ (optimalProfitOn s b)).payment b i) := by
     rw [← sum_add_sum_compl s]
-    congr 1
-    · refine sum_congr rfl fun i hi => ?_
-      unfold rspe; dsimp only; simp only [hi, ↓reduceIte]
-    · refine sum_congr rfl fun i hi => ?_
-      unfold rspe; dsimp only; simp only [mem_compl.1 hi, ↓reduceIte]
-  have hzero_s : ∑ i ∈ s, (profitExtractOn s (optimalProfitOn sᶜ b)).payment b i =
-      ∑ i, (profitExtractOn s (optimalProfitOn sᶜ b)).payment b i :=
-    sum_subset (subset_univ s) fun i _ his => by
-      unfold profitExtractOn; dsimp only; simp only [his, false_and, ↓reduceIte]
-  have hzero_sc : ∑ i ∈ sᶜ, (profitExtractOn sᶜ (optimalProfitOn s b)).payment b i =
-      ∑ i, (profitExtractOn sᶜ (optimalProfitOn s b)).payment b i :=
-    sum_subset (subset_univ sᶜ) fun i _ his => by
-      unfold profitExtractOn; dsimp only; simp only [his, false_and, ↓reduceIte]
-  rw [hsplit, hzero_s, hzero_sc,
+    congr 1 <;> refine sum_congr rfl fun i hi => ?_
+    · simp [rspe, hi]
+    · simp [rspe, mem_compl.1 hi]
+  rw [hsplit, sum_payment_profitExtractOn_eq_univ, sum_payment_profitExtractOn_eq_univ,
     sum_payment_profitExtractOn s (singlePriceProfitOn_nonneg fun i _ => hb i) fun i _ => hb i,
     sum_payment_profitExtractOn sᶜ (singlePriceProfitOn_nonneg fun i _ => hb i) fun i _ => hb i]
 
@@ -951,10 +893,7 @@ private theorem four_mul_sum_inter_mul_sdiff {W : Finset ι} (hW : 2 ≤ W.card)
     refine sum_congr rfl fun i _ => sum_comm
   have hcardι : 2 ≤ Fintype.card ι := hW.trans (card_le_univ W)
   have hpow : 4 * 2 ^ (Fintype.card ι - 2) = 2 ^ Fintype.card ι := by
-    calc 4 * 2 ^ (Fintype.card ι - 2)
-        = 2 ^ 2 * 2 ^ (Fintype.card ι - 2) := by norm_num
-      _ = 2 ^ (2 + (Fintype.card ι - 2)) := (pow_add _ _ _).symm
-      _ = 2 ^ Fintype.card ι := by congr 1; omega
+    rw [show 4 = 2 ^ 2 by rfl, ← pow_add]; congr 1; omega
   have hinner : ∀ i ∈ W, ∑ j ∈ W,
       ((univ : Finset (Finset ι)).filter fun s => i ∈ s ∧ j ∉ s).card =
       (W.card - 1) * 2 ^ (Fintype.card ι - 2) := by
@@ -978,23 +917,15 @@ if `W` has size `k ≥ 2`, then over a uniform subset `s : Finset ι`,
 `𝔼 [min(|W ∩ s|, |W \ s|)] ≥ k / 4` (stated in `ℕ` without division). -/
 private theorem card_mul_two_pow_le_four_mul_sum_min {W : Finset ι} (hW : 2 ≤ W.card) :
     W.card * 2 ^ Fintype.card ι ≤ 4 * ∑ s : Finset ι, min (W ∩ s).card (W \ s).card := by
-  have h1 : ∀ s : Finset ι, (W ∩ s).card * (W \ s).card ≤
-      (W.card - 1) * min (W ∩ s).card (W \ s).card := fun s =>
-    mul_le_pred_mul_min (card_inter_add_card_sdiff W s)
-  have hsum : (W.card * (W.card - 1)) * 2 ^ Fintype.card ι ≤
-      (W.card - 1) * (4 * ∑ s : Finset ι, min (W ∩ s).card (W \ s).card) := by
-    calc (W.card * (W.card - 1)) * 2 ^ Fintype.card ι
-        = 4 * ∑ s : Finset ι, (W ∩ s).card * (W \ s).card :=
-            (four_mul_sum_inter_mul_sdiff hW).symm
-      _ ≤ 4 * ∑ s : Finset ι, (W.card - 1) * min (W ∩ s).card (W \ s).card :=
-            Nat.mul_le_mul_left 4 (sum_le_sum fun s _ => h1 s)
-      _ = (W.card - 1) * (4 * ∑ s : Finset ι, min (W ∩ s).card (W \ s).card) := by
-            rw [← mul_sum]; ring
-  have hpos : 0 < W.card - 1 := by omega
-  refine Nat.le_of_mul_le_mul_left ?_ hpos
+  refine Nat.le_of_mul_le_mul_left ?_ (by omega : 0 < W.card - 1)
   calc (W.card - 1) * (W.card * 2 ^ Fintype.card ι)
-      = W.card * (W.card - 1) * 2 ^ Fintype.card ι := by ring
-    _ ≤ (W.card - 1) * (4 * ∑ s : Finset ι, min (W ∩ s).card (W \ s).card) := hsum
+      = 4 * ∑ s : Finset ι, (W ∩ s).card * (W \ s).card := by
+        rw [four_mul_sum_inter_mul_sdiff hW]; ring
+    _ ≤ 4 * ∑ s : Finset ι, (W.card - 1) * min (W ∩ s).card (W \ s).card :=
+        Nat.mul_le_mul_left 4 (sum_le_sum fun s _ =>
+          mul_le_pred_mul_min (card_inter_add_card_sdiff W s))
+    _ = (W.card - 1) * (4 * ∑ s : Finset ι, min (W ∩ s).card (W \ s).card) := by
+        rw [← mul_sum]; ring
 
 /-! #### Theorem 13.42: RSPE has competitive ratio 4 -/
 
@@ -1025,24 +956,16 @@ theorem rspe_isCompetitive :
     have hpart : ∀ s : Finset ι,
         p * ((min (W ∩ s).card (W \ s).card : ℕ) : ℝ) ≤ ∑ i, (rspe s).payment b i := by
       intro s
-      have h1 : p * ((W ∩ s).card : ℝ) ≤ optimalProfitOn s b := by
-        rcases (W ∩ s).eq_empty_or_nonempty with hemp | hne'
-        · rw [hemp, card_empty, Nat.cast_zero, mul_zero]
-          exact singlePriceProfitOn_nonneg fun i _ => hb i
-        · exact mul_card_le_singlePriceProfitOn (fun i _ => hb i) inter_subset_right
-            (one_le_card.2 hne') fun i hi => (mem_filter.1 (mem_inter.1 hi).1).2
-      have h2 : p * ((W \ s).card : ℝ) ≤ optimalProfitOn sᶜ b := by
-        rcases (W \ s).eq_empty_or_nonempty with hemp | hne'
-        · rw [hemp, card_empty, Nat.cast_zero, mul_zero]
-          exact singlePriceProfitOn_nonneg fun i _ => hb i
-        · exact mul_card_le_singlePriceProfitOn (fun i _ => hb i)
-            (fun i hi => mem_compl.2 (mem_sdiff.1 hi).2) (one_le_card.2 hne')
-            fun i hi => (mem_filter.1 (mem_sdiff.1 hi).1).2
-      have hmin : p * ((min (W ∩ s).card (W \ s).card : ℕ) : ℝ) ≤
-          min (optimalProfitOn s b) (optimalProfitOn sᶜ b) := by
-        rw [Nat.cast_min, mul_min_of_nonneg _ _ hp0]
-        exact min_le_min h1 h2
-      exact hmin.trans (min_le_sum_payment_rspe s hb)
+      have key : ∀ t V : Finset ι, V ⊆ t → V ⊆ W → p * (V.card : ℝ) ≤ optimalProfitOn t b := by
+        intro t V hVt hVW
+        rcases V.eq_empty_or_nonempty with rfl | hne'
+        · simpa using singlePriceProfitOn_nonneg fun i _ => hb i
+        · exact mul_card_le_singlePriceProfitOn (fun i _ => hb i) hVt (one_le_card.2 hne')
+            fun i hi => (mem_filter.1 (hVW hi)).2
+      rw [Nat.cast_min, mul_min_of_nonneg _ _ hp0]
+      exact (min_le_min (key s _ inter_subset_right inter_subset_left)
+        (key sᶜ _ (fun i hi => mem_compl.2 (mem_sdiff.1 hi).2) sdiff_subset)).trans
+        (min_le_sum_payment_rspe s hb)
     have hpow_pos : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
     have hcomb : (W.card : ℝ) * 2 ^ Fintype.card ι ≤
         4 * ∑ s : Finset ι, ((min (W ∩ s).card (W \ s).card : ℕ) : ℝ) := by
@@ -1076,15 +999,12 @@ private theorem optimalProfitOn_two_bid {i₀ i₁ : ι} (hne : i₀ ≠ i₁) (
     · rw [hj0, hbi0, one_mul]
       have hsub : (s.filter fun i => (1 : ℝ) ≤ b i) ⊆ if i₁ ∈ s then {i₀, i₁} else {i₀} := by
         intro i hi
-        have hbi := (mem_filter.1 hi).2
-        have his := (mem_filter.1 hi).1
-        by_cases h0 : i = i₀
-        · split_ifs <;> simp only [h0, mem_insert, mem_singleton, true_or]
-        · by_cases h1 : i = i₁
-          · rw [h1] at his ⊢
-            simp only [his, ↓reduceIte, mem_insert, mem_singleton, or_true]
-          · exfalso
-            have : b i = 0 := by dsimp only [b]; simp only [h0, h1, ↓reduceIte]
+        obtain ⟨his, hbi⟩ := mem_filter.1 hi
+        rcases eq_or_ne i i₀ with rfl | h0
+        · split_ifs <;> simp
+        · rcases eq_or_ne i i₁ with rfl | h1
+          · simp [his]
+          · simp only [b, h0, h1, ↓reduceIte] at hbi
             linarith
       have hcard : (s.filter fun i => (1 : ℝ) ≤ b i).card ≤ if i₁ ∈ s then 2 else 1 := by
         refine (card_le_card hsub).trans ?_
@@ -1099,37 +1019,28 @@ private theorem optimalProfitOn_two_bid {i₀ i₁ : ι} (hne : i₀ ≠ i₁) (
         have hsub : (s.filter fun i => (2 : ℝ) ≤ b i) ⊆ {i₁} := by
           intro i hi
           have hbi := (mem_filter.1 hi).2
-          by_cases h0 : i = i₀
-          · exfalso; rw [h0, hbi0] at hbi; norm_num at hbi
-          · by_cases h1 : i = i₁
-            · exact mem_singleton.2 h1
-            · exfalso
-              have : b i = 0 := by dsimp only [b]; simp only [h0, h1, ↓reduceIte]
+          rcases eq_or_ne i i₁ with rfl | h1
+          · exact mem_singleton_self _
+          · rcases eq_or_ne i i₀ with rfl | h0
+            · simp only [b, ↓reduceIte] at hbi
               linarith
-        have hcard : (s.filter fun i => (2 : ℝ) ≤ b i).card ≤ 1 :=
-          (card_le_card hsub).trans (by rw [card_singleton])
-        have h1s : i₁ ∈ s := hj1 ▸ hj
-        simp only [h1s, ↓reduceIte]
-        have : ((s.filter fun i => (2 : ℝ) ≤ b i).card : ℝ) ≤ 1 := by exact_mod_cast hcard
+            · simp only [b, h0, h1, ↓reduceIte] at hbi
+              linarith
+        have hcard : ((s.filter fun i => (2 : ℝ) ≤ b i).card : ℝ) ≤ 1 := by
+          exact_mod_cast (card_le_card hsub).trans (by rw [card_singleton])
+        simp only [hj1 ▸ hj, ↓reduceIte]
         linarith
-      · have hbj : b j = 0 := by dsimp only [b]; simp only [hj0, hj1, ↓reduceIte]
-        rw [hbj, zero_mul]
+      · simp only [b, hj0, hj1, ↓reduceIte, zero_mul]
         split_ifs <;> norm_num
-  · by_cases h1 : i₁ ∈ s
-    · simp only [h1, ↓reduceIte]
-      have hle := mul_card_le_singlePriceProfitOn (m := 1) (s := s) (W := {i₁}) (b := b) (p := 2)
-        (fun i _ => hb0 i) (singleton_subset_iff.2 h1) (by rw [card_singleton])
-        fun i hi => by rw [mem_singleton.1 hi, hbi1]
-      simpa only [card_singleton, Nat.cast_one, mul_one] using hle
-    · simp only [h1, ↓reduceIte]
-      by_cases h0 : i₀ ∈ s
-      · simp only [h0, ↓reduceIte]
-        have hle := mul_card_le_singlePriceProfitOn (m := 1) (s := s) (W := {i₀}) (b := b) (p := 1)
-          (fun i _ => hb0 i) (singleton_subset_iff.2 h0) (by rw [card_singleton])
-          fun i hi => by rw [mem_singleton.1 hi, hbi0]
-        simpa only [card_singleton, Nat.cast_one, mul_one] using hle
-      · simp only [h0, ↓reduceIte]
-        exact singlePriceProfitOn_nonneg fun i _ => hb0 i
+  · have hsingle {x : ι} (hx : x ∈ s) : b x ≤ optimalProfitOn s b := by
+      simpa only [card_singleton, Nat.cast_one, mul_one] using
+        mul_card_le_singlePriceProfitOn (m := 1) (s := s) (W := {x}) (b := b) (p := b x)
+          (fun i _ => hb0 i) (singleton_subset_iff.2 hx) (by rw [card_singleton])
+          fun i hi => by rw [mem_singleton.1 hi]
+    split_ifs with h1 h0
+    · exact hbi1 ▸ hsingle h1
+    · exact hbi0 ▸ hsingle h0
+    · exact singlePriceProfitOn_nonneg fun i _ => hb0 i
 
 /-- **Theorem 13.42 (tight instance)** ([HartlineKarlin2007], §13.4.5, p. 348, referring to the
 two-bid example `($1, $2)` of §13.4.2, pp. 345–346): for every finite bidder type with at least
@@ -1174,12 +1085,7 @@ theorem exists_rspe_tight (hcard : 2 ≤ Fintype.card ι) :
     push_cast
     ring
   have hpow : (2 ^ Fintype.card ι : ℝ) = 4 * (2 ^ (Fintype.card ι - 2) : ℝ) := by
-    have : 2 ^ Fintype.card ι = 4 * 2 ^ (Fintype.card ι - 2) := by
-      calc 2 ^ Fintype.card ι
-          = 2 ^ (2 + (Fintype.card ι - 2)) := by congr 1; omega
-        _ = 2 ^ 2 * 2 ^ (Fintype.card ι - 2) := pow_add _ _ _
-        _ = 4 * 2 ^ (Fintype.card ι - 2) := by norm_num
-    exact_mod_cast this
+    rw [show (4 : ℝ) = 2 ^ 2 by norm_num, ← pow_add]; congr 1; omega
   refine ⟨b, hb, hF2, ?_⟩
   rw [rspeExpectedProfit_eq_div, hsum, hpow]
   have hpos : (2 ^ (Fintype.card ι - 2) : ℝ) ≠ 0 := by positivity

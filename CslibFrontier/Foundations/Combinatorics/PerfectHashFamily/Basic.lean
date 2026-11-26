@@ -84,12 +84,10 @@ private lemma exists_card_filter_lt (T : Finset ℕ) {k : ℕ} (hk : k < #T) :
       (Iio (⟨k, hk⟩ : Fin #T)).map (T.orderEmbOfFin rfl).toEmbedding := by
     ext t
     simp only [mem_filter, mem_map, mem_Iio, RelEmbedding.coe_toEmbedding]
-    constructor
-    · rintro ⟨ht, hlt⟩
-      obtain ⟨j, rfl⟩ : t ∈ Set.range (T.orderEmbOfFin rfl) := by rwa [T.range_orderEmbOfFin]
-      exact ⟨j, (T.orderEmbOfFin rfl).lt_iff_lt.1 hlt, rfl⟩
-    · rintro ⟨j, hj, rfl⟩
-      exact ⟨T.orderEmbOfFin_mem rfl j, (T.orderEmbOfFin rfl).lt_iff_lt.2 hj⟩
+    refine ⟨fun ⟨ht, hlt⟩ => ?_, fun ⟨j, hj, hjt⟩ =>
+      hjt ▸ ⟨T.orderEmbOfFin_mem rfl j, (T.orderEmbOfFin rfl).lt_iff_lt.2 hj⟩⟩
+    obtain ⟨j, rfl⟩ : t ∈ Set.range (T.orderEmbOfFin rfl) := by rwa [T.range_orderEmbOfFin]
+    exact ⟨j, (T.orderEmbOfFin rfl).lt_iff_lt.1 hlt, rfl⟩
   rw [h, card_map, Fin.card_Iio]
 
 /-- `splitHash q s` is perfect for `s`-element sets of numbers below `q`, with values below
@@ -129,15 +127,12 @@ private theorem exists_injOn_splitHash (s : ℕ) : ∀ (q : ℕ) (S : Finset ℕ
   · dsimp only at hxy
     split_ifs at hxy with hx' hy' hy'
     · exact hinj hx hy (hinj₁ (hmem₁ hx hx') (hmem₁ hy hy') hxy)
-    · have := hlt₁ _ (hmem₁ hx hx')
-      omega
-    · have := hlt₁ _ (hmem₁ hy hy')
-      omega
+    · exact absurd (hlt₁ _ (hmem₁ hx hx')) (by omega)
+    · exact absurd (hlt₁ _ (hmem₁ hy hy')) (by omega)
     · exact hinj hx hy (hinj₂ (hmem₂ hx hx') (hmem₂ hy hy') (Nat.add_left_cancel hxy))
   · dsimp only
     split_ifs with hx'
-    · have := hlt₁ _ (hmem₁ hx hx')
-      omega
+    · exact (hlt₁ _ (hmem₁ hx hx')).trans_le (Nat.div_le_self s 2)
     · have := hlt₂ _ (hmem₂ hx hx')
       omega
 
@@ -162,15 +157,13 @@ private theorem card_splitHash_mul_le {K : ℕ} (hK : 9 ^ 10 ≤ 2 ^ 8 * K) (s :
   have h₂ := ih (s - s / 2) (by omega) p hp.ne_zero
   generalize #(splitHash p (s / 2)) = N₁ at h₁
   generalize #(splitHash p (s - s / 2)) = N₂ at h₂
-  have hab : 2 * s ^ 2 ≤ 9 * (s / 2 * (s - s / 2)) := by
-    obtain ⟨k, rfl | rfl⟩ := s.even_or_odd'
-    · rw [Nat.mul_div_cancel_left k two_pos, show 2 * k - k = k by omega]
-      nlinarith
-    · rw [show (2 * k + 1) / 2 = k by omega, show 2 * k + 1 - k = k + 1 by omega]
-      nlinarith [show 1 ≤ k by omega]
   have hs' : 1 + (s / 2 - 1) + (s - s / 2 - 1) = s - 1 := by omega
+  have hab_bd : 1 ≤ s / 2 ∧ s / 2 + (s - s / 2) = s ∧ s / 2 ≤ s - s / 2 ∧
+      s - s / 2 ≤ s / 2 + 1 := by omega
   generalize s / 2 = a at *
   generalize s - a = b at *
+  have hab : 2 * s ^ 2 ≤ 9 * (a * b) := by
+    nlinarith only [hab_bd.1, hab_bd.2.1, hab_bd.2.2.1, hab_bd.2.2.2]
   have hps : p ^ 4 * s ^ 8 ≤ K * (a * b) ^ 8 := by
     refine Nat.le_of_mul_le_mul_left (c := 2 ^ 8) ?_ (by positivity)
     calc 2 ^ 8 * (p ^ 4 * s ^ 8) ≤ 2 ^ 8 * ((3 * s ^ 2) ^ 4 * s ^ 8) := by

@@ -161,13 +161,9 @@ private def IsClearedAndExhausted (m : ℝ) (v B : ι → ℝ) (o : Outcome ι) 
 private theorem sum_update_eq [DecidableEq ι] (f : ι → ℝ) (i : ι) (a : ℝ) :
     ∑ k, Function.update f i a k = ∑ k, f k + (a - f i) := by
   rw [← Finset.add_sum_erase Finset.univ (Function.update f i a) (Finset.mem_univ i),
-    Function.update_self]
-  have hrest : ∑ k ∈ Finset.univ.erase i, Function.update f i a k =
-      ∑ k ∈ Finset.univ.erase i, f k :=
-    Finset.sum_congr rfl fun k hk => Function.update_of_ne (Finset.ne_of_mem_erase hk) a f
-  rw [hrest]
-  have h := Finset.add_sum_erase Finset.univ f (Finset.mem_univ i)
-  linarith
+    Function.update_self, Finset.sum_congr rfl fun k hk =>
+      Function.update_of_ne (Finset.ne_of_mem_erase hk) a f]
+  linarith [Finset.add_sum_erase Finset.univ f (Finset.mem_univ i)]
 
 private theorem sum_update_transfer [DecidableEq ι] (f : ι → ℝ) {i j : ι} (hij : i ≠ j) (δ : ℝ) :
     ∑ k, Function.update (Function.update f i (f i - δ)) j (f j + δ) k = ∑ k, f k := by
@@ -177,12 +173,9 @@ private theorem sum_update_transfer [DecidableEq ι] (f : ι → ℝ) {i j : ι}
 private theorem eq_of_le_of_sum_le {f g : ι → ℝ} (hle : ∀ i, f i ≤ g i)
     (hsum : ∑ i, g i ≤ ∑ i, f i) (i : ι) : f i = g i := by
   have hdiff : ∀ k, 0 ≤ g k - f k := fun k => sub_nonneg.mpr (hle k)
-  have hzero : ∑ k, (g k - f k) = 0 := by
-    have hge : 0 ≤ ∑ k, (g k - f k) := Finset.sum_nonneg fun k _ => hdiff k
-    rw [Finset.sum_sub_distrib] at hge ⊢
-    linarith
-  have hi := (Finset.sum_eq_zero_iff_of_nonneg (fun k _ => hdiff k)).mp hzero i (Finset.mem_univ i)
-  linarith
+  have hzero : ∑ k, (g k - f k) = 0 :=
+    le_antisymm (by rw [Finset.sum_sub_distrib]; linarith) (Finset.sum_nonneg fun k _ => hdiff k)
+  linarith [(Finset.sum_eq_zero_iff_of_nonneg fun k _ => hdiff k).mp hzero i (Finset.mem_univ i)]
 
 private theorem isClearedAndExhausted_of_isParetoOptimal
     {m : ℝ} {v B : ι → ℝ} (hv : ∀ i, 0 ≤ v i) {o : Outcome ι}
@@ -190,146 +183,80 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     IsClearedAndExhausted m v B o := by
   classical
   obtain ⟨⟨hnn, hsum⟩, hbf, hnd⟩ := hpo
-  refine ⟨?_, ?_⟩
-  · rintro ⟨j, hjv⟩
-    refine ⟨?_, ?_⟩
-    · by_contra hne
-      have hlt : ∑ i, o.alloc i < m := lt_of_le_of_ne hsum hne
-      let δ := m - ∑ i, o.alloc i
-      have hδ : 0 < δ := sub_pos.mpr hlt
-      let o' : Outcome ι :=
-        { alloc := Function.update o.alloc j (o.alloc j + δ)
-          payment := o.payment }
-      refine hnd o' ⟨⟨?_, ?_⟩, hbf, ?_, le_rfl, Or.inl ⟨j, ?_⟩⟩
-      · intro i
-        by_cases hi : i = j
-        · subst hi
-          simp only [o', Function.update_self]
-          linarith [hnn i]
-        · simp only [o', Function.update_of_ne hi]
-          exact hnn i
-      · simp only [o', sum_update_eq]
-        linarith
-      · intro i
-        by_cases hi : i = j
-        · subst hi
-          simp only [utility, o', Function.update_self]
-          nlinarith
-        · simp only [utility, o', Function.update_of_ne hi]
-          exact le_rfl
-      · simp only [utility, o', Function.update_self]
-        nlinarith
-    · intro i hvi
-      by_contra hxi
-      have hxpos : 0 < o.alloc i := lt_of_le_of_ne (hnn i) (Ne.symm hxi)
-      have hij : i ≠ j := by
-        rintro rfl
-        linarith
-      let δ := o.alloc i
-      let o' : Outcome ι :=
-        { alloc := Function.update (Function.update o.alloc i (o.alloc i - δ)) j (o.alloc j + δ)
-          payment := o.payment }
-      have hsum_eq : ∑ k, o'.alloc k = ∑ k, o.alloc k :=
-        sum_update_transfer o.alloc hij δ
-      refine hnd o' ⟨⟨?_, ?_⟩, hbf, ?_, le_rfl, Or.inl ⟨j, ?_⟩⟩
-      · intro k
-        by_cases hkj : k = j
-        · rw [hkj]
-          simp only [o', Function.update_self]
-          linarith [hnn j]
-        · by_cases hki : k = i
-          · rw [hki]
-            simp only [o', Function.update_of_ne (hki ▸ hkj), Function.update_self, sub_self, δ]
-            exact le_rfl
-          · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]
-            exact hnn k
-      · linarith
-      · intro k
-        by_cases hkj : k = j
-        · subst hkj
-          simp only [utility, o', Function.update_self]
-          nlinarith
-        · by_cases hki : k = i
-          · subst hki
-            simp only [utility, o', Function.update_of_ne hkj, Function.update_self, hvi, zero_mul]
-            exact le_rfl
-          · simp only [utility, o', Function.update_of_ne hkj, Function.update_of_ne hki]
-            exact le_rfl
-      · simp only [utility, o', Function.update_self]
-        nlinarith
-  · intro i j hxi hvij
-    by_contra hne
-    have hltB : o.payment j < B j := lt_of_le_of_ne (hbf j) hne
-    have hij : i ≠ j := by
-      rintro rfl
-      exact lt_irrefl _ hvij
+  refine ⟨fun ⟨j, hjv⟩ => ⟨by_contra fun hne => ?_, fun i hvi => by_contra fun hxi => ?_⟩,
+    fun i j hxi hvij => by_contra fun hne => ?_⟩
+  · have hδ : 0 < m - ∑ i, o.alloc i := sub_pos.mpr (lt_of_le_of_ne hsum hne)
+    let o' : Outcome ι := ⟨Function.update o.alloc j (o.alloc j + (m - ∑ i, o.alloc i)), o.payment⟩
+    refine hnd o' ⟨⟨fun i => ?_, by simp only [o', sum_update_eq]; linarith⟩, hbf, fun i => ?_,
+      le_rfl, Or.inl ⟨j, by simp only [utility, o', Function.update_self]; nlinarith⟩⟩
+    · rcases eq_or_ne i j with rfl | hi
+      · simp only [o', Function.update_self]; linarith [hnn i]
+      · simpa only [o', Function.update_of_ne hi] using hnn i
+    · rcases eq_or_ne i j with rfl | hi
+      · simp only [utility, o', Function.update_self]; nlinarith
+      · simp [utility, o', Function.update_of_ne hi]
+  · have hxpos : 0 < o.alloc i := lt_of_le_of_ne (hnn i) (Ne.symm hxi)
+    have hij : i ≠ j := fun h => by linarith [h ▸ hvi]
+    let o' : Outcome ι :=
+      ⟨Function.update (Function.update o.alloc i (o.alloc i - o.alloc i)) j
+        (o.alloc j + o.alloc i), o.payment⟩
+    have hsum_eq := sum_update_transfer o.alloc hij (o.alloc i)
+    refine hnd o' ⟨⟨fun k => ?_, by dsimp only [o']; linarith⟩, hbf, fun k => ?_, le_rfl,
+      Or.inl ⟨j, by simp only [utility, o', Function.update_self]; nlinarith⟩⟩
+    · rcases eq_or_ne k j with rfl | hkj
+      · simp only [o', Function.update_self]; linarith [hnn k]
+      · rcases eq_or_ne k i with rfl | hki
+        · simp [o', hkj]
+        · simp [o', hkj, hki, hnn k]
+    · rcases eq_or_ne k j with rfl | hkj
+      · simp only [utility, o', Function.update_self]; nlinarith
+      · rcases eq_or_ne k i with rfl | hki
+        · simp [utility, o', hkj, hvi]
+        · simp [utility, o', hkj, hki]
+  · have hltB : o.payment j < B j := lt_of_le_of_ne (hbf j) hne
+    have hij : i ≠ j := fun h => lt_irrefl _ (h ▸ hvij)
     let mid : ℝ := (v i + v j) / 2
-    have hmid_pos : 0 < mid := by
-      have := hv i
-      dsimp only [mid]
-      linarith
+    have hmid_pos : 0 < mid := by dsimp only [mid]; linarith [hv i]
     let δ : ℝ := min (o.alloc i) ((B j - o.payment j) / mid)
     have hδ_pos : 0 < δ := lt_min hxi (div_pos (sub_pos.mpr hltB) hmid_pos)
     have hδ_le_alloc : δ ≤ o.alloc i := min_le_left _ _
-    have hδ_mul_le : mid * δ ≤ B j - o.payment j := by
-      have h := min_le_right (o.alloc i) ((B j - o.payment j) / mid)
+    have hδ_mul_le : mid * δ ≤ B j - o.payment j :=
       calc
         mid * δ ≤ mid * ((B j - o.payment j) / mid) :=
-          mul_le_mul_of_nonneg_left h hmid_pos.le
+          mul_le_mul_of_nonneg_left (min_le_right _ _) hmid_pos.le
         _ = B j - o.payment j := mul_div_cancel₀ _ hmid_pos.ne'
     let t : ℝ := mid * δ
     let o' : Outcome ι :=
       { alloc := Function.update (Function.update o.alloc i (o.alloc i - δ)) j (o.alloc j + δ)
         payment := Function.update (Function.update o.payment i (o.payment i - t)) j
           (o.payment j + t) }
-    have hsum_alloc : ∑ k, o'.alloc k = ∑ k, o.alloc k :=
-      sum_update_transfer o.alloc hij δ
-    have hsum_pay : o'.revenue = o.revenue :=
-      sum_update_transfer o.payment hij t
+    have hsum_alloc : ∑ k, o'.alloc k = ∑ k, o.alloc k := sum_update_transfer o.alloc hij δ
+    have hsum_pay : o'.revenue = o.revenue := sum_update_transfer o.payment hij t
+    have hgap : 0 < (v j - v i) / 2 * δ := by nlinarith
     have hutil_i : o.utility v i < o'.utility v i := by
       simp only [utility, o', Function.update_of_ne hij, Function.update_self]
-      have : (v j - v i) / 2 * δ > 0 := by nlinarith
-      dsimp only [t, mid]
-      linarith
+      dsimp only [t, mid]; linarith
     have hutil_j : o.utility v j < o'.utility v j := by
       simp only [utility, o', Function.update_self]
-      have : (v j - v i) / 2 * δ > 0 := by nlinarith
-      dsimp only [t, mid]
-      linarith
-    refine hnd o' ⟨⟨?_, by linarith⟩, ?_, ?_, hsum_pay.ge, Or.inl ⟨i, hutil_i⟩⟩
-    · intro k
-      by_cases hkj : k = j
-      · rw [hkj]
-        simp only [o', Function.update_self]
-        linarith [hnn j]
-      · by_cases hki : k = i
-        · rw [hki]
-          simp only [o', Function.update_of_ne (hki ▸ hkj), Function.update_self]
-          linarith
-        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]
-          exact hnn k
-    · intro k
-      by_cases hkj : k = j
-      · rw [hkj]
-        simp only [o', Function.update_self]
-        dsimp only [t]
-        linarith
-      · by_cases hki : k = i
-        · rw [hki]
-          simp only [o', Function.update_of_ne (hki ▸ hkj), Function.update_self]
-          have ht_nn : 0 ≤ t := mul_nonneg hmid_pos.le hδ_pos.le
-          linarith [hbf i]
-        · simp only [o', Function.update_of_ne hkj, Function.update_of_ne hki]
-          exact hbf k
-    · intro k
-      by_cases hkj : k = j
-      · subst hkj
-        exact hutil_j.le
-      · by_cases hki : k = i
-        · subst hki
-          exact hutil_i.le
-        · simp only [utility, o', Function.update_of_ne hkj, Function.update_of_ne hki]
-          exact le_rfl
+      dsimp only [t, mid]; linarith
+    refine hnd o' ⟨⟨fun k => ?_, by linarith⟩, fun k => ?_, fun k => ?_, hsum_pay.ge,
+      Or.inl ⟨i, hutil_i⟩⟩
+    · rcases eq_or_ne k j with rfl | hkj
+      · simp only [o', Function.update_self]; linarith [hnn k]
+      · rcases eq_or_ne k i with rfl | hki
+        · simp only [o', Function.update_of_ne hkj, Function.update_self]; linarith
+        · simpa only [o', Function.update_of_ne hkj, Function.update_of_ne hki] using hnn k
+    · rcases eq_or_ne k j with rfl | hkj
+      · simp only [o', Function.update_self, t]; linarith
+      · rcases eq_or_ne k i with rfl | hki
+        · simp only [o', Function.update_of_ne hkj, Function.update_self]
+          linarith [hbf k, mul_nonneg hmid_pos.le hδ_pos.le]
+        · simpa only [o', Function.update_of_ne hkj, Function.update_of_ne hki] using hbf k
+    · rcases eq_or_ne k j with rfl | hkj
+      · exact hutil_j.le
+      · rcases eq_or_ne k i with rfl | hki
+        · exact hutil_i.le
+        · simp [utility, o', hkj, hki]
 
 private theorem isParetoOptimal_of_isClearedAndExhausted
     {m : ℝ} {v B : ι → ℝ} (hv : ∀ i, 0 ≤ v i) {o : Outcome ι}
@@ -337,148 +264,89 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
     (hce : IsClearedAndExhausted m v B o) :
     o.IsParetoOptimal m v B := by
   classical
-  refine ⟨hfeas, hbf, fun o' hdom => ?_⟩
-  obtain ⟨⟨hnn', hsum'⟩, hbf', hu_le, hrev_le, hstrict⟩ := hdom
+  refine ⟨hfeas, hbf, fun o' ⟨⟨hnn', hsum'⟩, hbf', hu_le, hrev_le, hstrict⟩ => ?_⟩
   obtain ⟨hclear, hexh⟩ := hce
-  by_cases hpos_exists : ∃ i, 0 < v i
-  · obtain ⟨hsum_eq, hzero_alloc⟩ := hclear hpos_exists
-    let slackSet : Finset ι := Finset.univ.filter fun j => 0 < v j ∧ o.payment j < B j
-    by_cases hslack : slackSet.Nonempty
-    · -- Case C: some bidder with `v j > 0` has unspent budget; form positive Pareto weights `λᵢ`.
-      let pStar : ℝ := (slackSet.image v).max' (hslack.image v)
-      have hpStar_mem : pStar ∈ slackSet.image v := Finset.max'_mem _ _
-      obtain ⟨j₀, hj₀_mem, hj₀_eq⟩ := Finset.mem_image.mp hpStar_mem
-      have hj₀_spec : 0 < v j₀ ∧ o.payment j₀ < B j₀ := (Finset.mem_filter.mp hj₀_mem).2
-      have hpStar_pos : 0 < pStar := hj₀_eq ▸ hj₀_spec.1
-      have hge_of_alloc_pos : ∀ i, 0 < o.alloc i → pStar ≤ v i := by
-        intro i hi
-        by_contra hlt
-        push Not at hlt
-        have hv_lt : v i < v j₀ := hj₀_eq.symm ▸ hlt
-        exact hj₀_spec.2.ne (hexh i j₀ hi hv_lt)
-      have hbudget_of_gt : ∀ i, pStar < v i → o.payment i = B i := by
-        intro i hi
-        by_contra hne
-        have hi_slack : i ∈ slackSet := Finset.mem_filter.mpr
+  let slackSet : Finset ι := Finset.univ.filter fun j => 0 < v j ∧ o.payment j < B j
+  by_cases hslack : slackSet.Nonempty
+  · -- Some bidder with `v j > 0` has unspent budget; form positive Pareto weights `w i`.
+    set pStar : ℝ := (slackSet.image v).max' (hslack.image v)
+    obtain ⟨j₀, hj₀_mem, hj₀_eq⟩ := Finset.mem_image.mp (Finset.max'_mem (slackSet.image v) _)
+    obtain ⟨hj₀_v, hj₀_pay⟩ := (Finset.mem_filter.mp hj₀_mem).2
+    obtain ⟨hsum_eq, -⟩ := hclear ⟨j₀, hj₀_v⟩
+    have hpStar_pos : 0 < pStar := hj₀_v.trans_eq hj₀_eq
+    have hge_of_alloc_pos (i : ι) (hi : 0 < o.alloc i) : pStar ≤ v i :=
+      le_of_not_gt fun hlt => hj₀_pay.ne (hexh i j₀ hi (hlt.trans_eq hj₀_eq.symm))
+    have hbudget_of_gt (i : ι) (hi : pStar < v i) : o.payment i = B i :=
+      by_contra fun hne => hi.not_ge <| Finset.le_max' (slackSet.image v) (v i) <|
+        Finset.mem_image_of_mem v <| Finset.mem_filter.mpr
           ⟨Finset.mem_univ i, hpStar_pos.trans hi, lt_of_le_of_ne (hbf i) hne⟩
-        have hle : v i ≤ pStar := Finset.le_max' (slackSet.image v) (v i)
-          (Finset.mem_image_of_mem v hi_slack)
-        linarith
-      let w : ι → ℝ := fun i => if v i ≤ pStar then 1 else pStar / v i
-      have hw_pos : ∀ i, 0 < w i := by
-        intro i
-        dsimp only [w]
-        split_ifs with hle
-        · exact zero_lt_one
-        · exact div_pos hpStar_pos (hpStar_pos.trans (lt_of_not_ge hle))
-      have hterm_le : ∀ i,
-          w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i) ≤
-            pStar * (o'.alloc i - o.alloc i) := by
-        intro i
-        dsimp only [w, utility]
-        split_ifs with hle
-        · rw [one_mul]
-          have hsimp : v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i) +
-              (o'.payment i - o.payment i) = v i * (o'.alloc i - o.alloc i) := by ring
-          rw [hsimp]
-          by_cases hxi : o.alloc i = 0
-          · rw [hxi, sub_zero]
-            exact mul_le_mul_of_nonneg_right hle (hnn' i)
-          · have hxi_pos : 0 < o.alloc i := lt_of_le_of_ne (hfeas.1 i) (Ne.symm hxi)
-            have hveq : v i = pStar := le_antisymm hle (hge_of_alloc_pos i hxi_pos)
-            rw [hveq]
-        · have hgt : pStar < v i := lt_of_not_ge hle
-          have hvi_pos : 0 < v i := hpStar_pos.trans hgt
-          have hpi_eq : o.payment i = B i := hbudget_of_gt i hgt
-          have hcoeff_nn : 0 ≤ 1 - pStar / v i := by
-            rw [sub_nonneg, div_le_one hvi_pos]
-            exact hgt.le
-          have hpay_le : o'.payment i - o.payment i ≤ 0 := by linarith [hbf' i]
-          have hcancel : (pStar / v i) * (v i * o'.alloc i - v i * o.alloc i) =
-              pStar * (o'.alloc i - o.alloc i) := by
-            have hne : v i ≠ 0 := hvi_pos.ne'
-            field_simp [hne]
-          have hrew :
-              (pStar / v i) * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
-                (o'.payment i - o.payment i) =
-              (pStar / v i) * (v i * o'.alloc i - v i * o.alloc i) +
-                (1 - pStar / v i) * (o'.payment i - o.payment i) := by ring
-          rw [hrew, hcancel]
-          have hprod : (1 - pStar / v i) * (o'.payment i - o.payment i) ≤ 0 :=
-            mul_nonpos_of_nonneg_of_nonpos hcoeff_nn hpay_le
-          linarith
-      have hsum_le :
-          ∑ i, (w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i)) ≤ 0 := by
-        calc
-          ∑ i, (w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i))
-              ≤ ∑ i, pStar * (o'.alloc i - o.alloc i) := Finset.sum_le_sum fun i _ => hterm_le i
-          _ = pStar * (∑ i, o'.alloc i - ∑ i, o.alloc i) := by
-                rw [← Finset.mul_sum, Finset.sum_sub_distrib]
-          _ ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hpStar_pos.le (by linarith)
-      have hsplit :
-          ∑ i, (w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i)) =
-            (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue) := by
-        simp only [revenue, Finset.sum_add_distrib, Finset.sum_sub_distrib]
-      rw [hsplit] at hsum_le
-      have hwu_nn : ∀ i, 0 ≤ w i * (o'.utility v i - o.utility v i) := fun i =>
-        mul_nonneg (hw_pos i).le (sub_nonneg.mpr (hu_le i))
-      rcases hstrict with ⟨i₀, hi₀⟩ | hrev_lt
-      · have hpos_i₀ : 0 < w i₀ * (o'.utility v i₀ - o.utility v i₀) :=
-          mul_pos (hw_pos i₀) (sub_pos.mpr hi₀)
-        have hsum_pos : 0 < ∑ i, w i * (o'.utility v i - o.utility v i) :=
-          lt_of_lt_of_le hpos_i₀
-            (Finset.single_le_sum (fun i _ => hwu_nn i) (Finset.mem_univ i₀))
-        linarith
-      · have hsum_nn : 0 ≤ ∑ i, w i * (o'.utility v i - o.utility v i) :=
-          Finset.sum_nonneg fun i _ => hwu_nn i
-        linarith
-    · -- Case B: every bidder with `v i > 0` already has `o.payment i = B i`.
-      have hpay_le : ∀ i, o'.payment i ≤ o.payment i := by
-        intro i
-        by_cases hvi : 0 < v i
-        · have hnot : i ∉ slackSet := fun h => hslack ⟨i, h⟩
-          simp only [slackSet, Finset.mem_filter, Finset.mem_univ, true_and, hvi, true_and,
-            not_lt] at hnot
-          exact (hbf' i).trans hnot
-        · have hvi0 : v i = 0 := le_antisymm (le_of_not_gt hvi) (hv i)
-          have hu := hu_le i
-          simp only [utility, hvi0, zero_mul, zero_sub, neg_le_neg_iff] at hu
-          exact hu
-      have hpay_eq : ∀ i, o'.payment i = o.payment i :=
-        eq_of_le_of_sum_le hpay_le hrev_le
-      have hrev_eq : o'.revenue = o.revenue :=
-        Finset.sum_congr rfl fun i _ => hpay_eq i
-      have halloc_ge : ∀ i, o.alloc i ≤ o'.alloc i := by
-        intro i
-        by_cases hvi : 0 < v i
-        · have hu := hu_le i
-          simp only [utility, hpay_eq i] at hu
-          have hmul : v i * o.alloc i ≤ v i * o'.alloc i := by linarith
-          exact le_of_mul_le_mul_left hmul hvi
-        · have hvi0 : v i = 0 := le_antisymm (le_of_not_gt hvi) (hv i)
-          rw [hzero_alloc i hvi0]
-          exact hnn' i
-      have halloc_eq : ∀ i, o'.alloc i = o.alloc i := fun i =>
-        (eq_of_le_of_sum_le halloc_ge (by linarith) i).symm
-      rcases hstrict with ⟨i₀, hi₀⟩ | hrev_lt
-      · simp only [utility, halloc_eq i₀, hpay_eq i₀] at hi₀
-        exact lt_irrefl _ hi₀
-      · linarith
-  · -- Case A: every bidder has `v i = 0`.
-    have hv0 : ∀ i, v i = 0 := fun i =>
-      le_antisymm (le_of_not_gt fun h => hpos_exists ⟨i, h⟩) (hv i)
-    have hpay_le : ∀ i, o'.payment i ≤ o.payment i := by
-      intro i
-      have hu := hu_le i
-      simp only [utility, hv0 i, zero_mul, zero_sub, neg_le_neg_iff] at hu
-      exact hu
-    have hpay_eq : ∀ i, o'.payment i = o.payment i :=
-      eq_of_le_of_sum_le hpay_le hrev_le
+    let w : ι → ℝ := fun i => if v i ≤ pStar then 1 else pStar / v i
+    have hw_pos (i : ι) : 0 < w i := by
+      dsimp only [w]
+      split_ifs with hle
+      · exact zero_lt_one
+      · exact div_pos hpStar_pos (hpStar_pos.trans (lt_of_not_ge hle))
+    have hterm_le (i : ι) :
+        w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i) ≤
+          pStar * (o'.alloc i - o.alloc i) := by
+      dsimp only [w, utility]
+      split_ifs with hle
+      · have hsimp : 1 * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
+            (o'.payment i - o.payment i) = v i * (o'.alloc i - o.alloc i) := by ring
+        rw [hsimp]
+        rcases (hfeas.1 i).eq_or_lt with hxi | hxi_pos
+        · rw [← hxi, sub_zero]
+          exact mul_le_mul_of_nonneg_right hle (hnn' i)
+        · rw [le_antisymm hle (hge_of_alloc_pos i hxi_pos)]
+      · have hgt : pStar < v i := lt_of_not_ge hle
+        have hvi_pos : 0 < v i := hpStar_pos.trans hgt
+        have hpi_eq : o.payment i = B i := hbudget_of_gt i hgt
+        have hrew :
+            (pStar / v i) * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
+              (o'.payment i - o.payment i) =
+            pStar * (o'.alloc i - o.alloc i) +
+              (1 - pStar / v i) * (o'.payment i - o.payment i) := by
+          field_simp [hvi_pos.ne']
+          ring
+        rw [hrew]
+        have hcoeff_nn : 0 ≤ 1 - pStar / v i := sub_nonneg.mpr ((div_le_one hvi_pos).mpr hgt.le)
+        have hpay_np : o'.payment i - o.payment i ≤ 0 := by linarith [hbf' i]
+        linarith [mul_nonpos_of_nonneg_of_nonpos hcoeff_nn hpay_np]
+    have hsum_le :
+        (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue) ≤ 0 := by
+      calc (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue)
+          = ∑ i, (w i * (o'.utility v i - o.utility v i) + (o'.payment i - o.payment i)) := by
+            simp only [revenue, Finset.sum_add_distrib, Finset.sum_sub_distrib]
+        _ ≤ ∑ i, pStar * (o'.alloc i - o.alloc i) := Finset.sum_le_sum fun i _ => hterm_le i
+        _ = pStar * (∑ i, o'.alloc i - ∑ i, o.alloc i) := by
+            rw [← Finset.mul_sum, Finset.sum_sub_distrib]
+        _ ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hpStar_pos.le (by linarith)
+    have hwu_nn (i : ι) : 0 ≤ w i * (o'.utility v i - o.utility v i) :=
+      mul_nonneg (hw_pos i).le (sub_nonneg.mpr (hu_le i))
     rcases hstrict with ⟨i₀, hi₀⟩ | hrev_lt
-    · simp only [utility, hv0 i₀, zero_mul, zero_sub, hpay_eq i₀] at hi₀
-      exact lt_irrefl _ hi₀
-    · have hrev_eq : o'.revenue = o.revenue := Finset.sum_congr rfl fun i _ => hpay_eq i
-      linarith
+    · linarith [(mul_pos (hw_pos i₀) (sub_pos.mpr hi₀)).trans_le
+        (Finset.single_le_sum (fun i _ => hwu_nn i) (Finset.mem_univ i₀))]
+    · linarith [Finset.sum_nonneg (s := Finset.univ) fun i _ => hwu_nn i]
+  · -- Every bidder with `v i > 0` already has `o.payment i = B i`, forcing equal payments.
+    have hpay_le (i : ι) : o'.payment i ≤ o.payment i := by
+      rcases (hv i).eq_or_lt with hvi0 | hvi
+      · simpa only [utility, ← hvi0, zero_mul, zero_sub, neg_le_neg_iff] using hu_le i
+      · have hnot : i ∉ slackSet := fun h => hslack ⟨i, h⟩
+        simp only [slackSet, Finset.mem_filter, Finset.mem_univ, true_and, hvi, not_lt] at hnot
+        exact (hbf' i).trans hnot
+    have hpay_eq (i : ι) : o'.payment i = o.payment i := eq_of_le_of_sum_le hpay_le hrev_le i
+    have hrev_eq : o'.revenue = o.revenue := Finset.sum_congr rfl fun i _ => hpay_eq i
+    obtain ⟨i₀, hi₀⟩ := hstrict.resolve_right (by linarith)
+    simp only [utility, hpay_eq i₀, sub_lt_sub_iff_right] at hi₀
+    have hv_i₀ : 0 < v i₀ := (hv i₀).lt_of_ne' fun h0 => by simp [h0] at hi₀
+    obtain ⟨hsum_eq, hzero_alloc⟩ := hclear ⟨i₀, hv_i₀⟩
+    have halloc_ge (i : ι) : o.alloc i ≤ o'.alloc i := by
+      rcases (hv i).eq_or_lt with hvi0 | hvi
+      · exact hzero_alloc i hvi0.symm ▸ hnn' i
+      · exact le_of_mul_le_mul_left
+          (by simpa only [utility, hpay_eq i, sub_le_sub_iff_right] using hu_le i) hvi
+    have halloc_eq := eq_of_le_of_sum_le halloc_ge (by linarith) i₀
+    exact lt_irrefl _ (halloc_eq ▸ hi₀)
 
 /-- **Exact Pareto-optimality characterization** ([DobzinskiLaviNisan2012], primary PDF not
 inspected): for a feasible, budget-feasible outcome `o` of supply `m` under nonnegative valuations

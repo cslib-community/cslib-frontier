@@ -132,9 +132,8 @@ theorem length_header_code_le (c x : List Bool) :
 /-- The code is injective. -/
 theorem code_injective {x x' : List Bool} (h : code num den x = code num den x') : x = x' := by
   obtain ⟨h1, h2⟩ := frame_append_inj h
-  have hlen : x.length = x'.length := by
-    simpa using congrArg BitString.binaryValue h1
-  exact Compression.compress_injective hcdf hden hlen h2
+  exact Compression.compress_injective hcdf hden
+    (by simpa using congrArg BitString.binaryValue h1) h2
 
 /-- **Domination by the header weight**:
 `2^{|header c (C x)|} D_n(x) ≤ 2^{2|c|+4} (6n+5)^2 (2n+1)^2`, the inequality
@@ -180,9 +179,8 @@ end Spec
 private theorem runFor_eq_of_computesInTimeAndSpace {k : ℕ} {State : Type}
     {tm : Turing.MultiTapeTM k Bool State} {w out : List Bool} {T s t : ℕ}
     (h : tm.ComputesInTimeAndSpace w out T s) (ht : T ≤ t) :
-    tm.runFor w t = some out := by
-  obtain ⟨hh, ho⟩ := h.runFrom_of_le ht
-  exact (tm.mem_runFor_iff).mpr ⟨hh, ho⟩
+    tm.runFor w t = some out :=
+  tm.mem_runFor_iff.mpr (h.runFrom_of_le ht)
 
 /-- A clocked run that returns `out'` agrees with the output of the machine. -/
 private theorem eq_of_runFor_eq {k : ℕ} {State : Type} {tm : Turing.MultiTapeTM k Bool State}
@@ -223,20 +221,16 @@ theorem distHard_problem : DistHard DistNP problem := by
       2 ^ (2 * c.length + 4) * (6 * n + 5) ^ 2 * (2 * n + 1) ^ 2 :=
     ⟨Polynomial.C (2 ^ (2 * c.length + 4)) * (Polynomial.C 6 * Polynomial.X + Polynomial.C 5) ^ 2 *
       (Polynomial.C 2 * Polynomial.X + Polynomial.C 1) ^ 2, fun n => by simp⟩
-  obtain ⟨f, hf⟩ : ∃ f : List Bool → List Bool, ∀ x, f x =
-      encode c (code num den x) (N.eval x.length - (header c (code num den x)).length) :=
-    ⟨_, fun _ => rfl⟩
+  let f (x : List Bool) : List Bool :=
+    encode c (code num den x) (N.eval x.length - (header c (code num den x)).length)
   have hhead (x : List Bool) : (header c (code num den x)).length ≤ N.eval x.length := by
     have := length_header_code_le hcdf hden0 c x
-    rw [hN]
-    omega
+    rw [hN]; omega
   have hflen (x : List Bool) : (f x).length = N.eval x.length := by
-    rw [hf, length_encode]
     have := hhead x
-    omega
-  have hfinj : Function.Injective f := fun x x' h => by
-    rw [hf, hf] at h
-    exact code_injective hcdf hden0 (encode_injective h).2.1
+    rw [length_encode]; omega
+  have hfinj : Function.Injective f := fun x x' h =>
+    code_injective hcdf hden0 (encode_injective h).2.1
   have hfpoly : ComputableInPolyTime f encBits encBits := by
     have hcode := code_polyTime hnum hden
     have hh : ComputableInPolyTime (fun x => (header c (code num den x)).length) encBits
@@ -245,18 +239,18 @@ theorem distHard_problem : DistHard DistNP problem := by
         (header_polyTime.comp ((ComputableInPolyTime.const c).prod hcode))
     have hNx : ComputableInPolyTime (fun x : List Bool => N.eval x.length) encBits encUnary :=
       (ComputableInPolyTime.unary_eval N).comp ComputableInPolyTime.length_bits
-    have := encode_polyTime (ComputableInPolyTime.const c) hcode
+    exact encode_polyTime (ComputableInPolyTime.const c) hcode
       (ComputableInPolyTime.unary_sub' hNx hh)
-    rw [show f = _ from funext hf]
-    exact this
   refine ⟨⟨f, fun n => N.eval n, P, hfpoly, fun n x _ => ?_, fun n y => ?_⟩⟩
   · -- correctness
-    rw [problem_lang, hf, encode_mem_BH_iff, accepts_iff]
+    rw [problem_lang, encode_mem_BH_iff, accepts_iff]
     have hhx := hhead x
     have hRle : R.eval x.length ≤ N.eval x.length - (header c (code num den x)).length := by
       have := length_header_code_le hcdf hden0 c x
-      rw [hN] at hhx ⊢
-      omega
+      rw [hN] at hhx ⊢; omega
+    have hpair (v : List Bool) :
+        frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) := by
+      simp [encPair_apply]
     constructor
     · intro hx
       obtain ⟨w, hw, hVw⟩ := (hVer x).mp hx
@@ -274,26 +268,18 @@ theorem distHard_problem : DistHard DistNP problem := by
           _ ≤ cT * (8 * x.length + 7 + q.eval x.length) ^ dT :=
             Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _)
           _ ≤ _ := Nat.le_add_right _ _
-      have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length := by
-        rw [hR]
-        exact Nat.le_add_left _ _
+      have hwR : 2 * x.length + 1 + q.eval x.length ≤ R.eval x.length :=
+        hR x.length ▸ Nat.le_add_left _ _
       refine ⟨frame x ++ w, by enc_len, ?_⟩
-      · rw [hc, show frame (code num den x) ++ (frame x ++ w) =
-            encPair encBits encBits (code num den x, frame x ++ w) by
-          rw [encPair_apply]; rfl]
-        rw [runFor_eq_of_computesInTimeAndSpace (htm (code num den x, frame x ++ w))
+      · rw [hc, hpair, runFor_eq_of_computesInTimeAndSpace (htm (code num den x, frame x ++ w))
           (hTb.trans hRle)]
-        have hv : codeVerifier num den q V (code num den x, frame x ++ w) = true := by
-          simp only [codeVerifier, unframe_frame_append, dropFrame_frame_append, hw, hVw,
-            decide_true, Bool.and_self]
-        rw [hv]
-        rfl
+        simp only [codeVerifier, unframe_frame_append, dropFrame_frame_append, hw, hVw,
+          decide_true, Bool.and_self, encBool_apply]
     · rintro ⟨v, -, hrun⟩
-      rw [hc, show frame (code num den x) ++ v = encPair encBits encBits (code num den x, v) by
-        rw [encPair_apply]; rfl] at hrun
-      have hout := eq_of_runFor_eq (htm (code num den x, v)) hrun
+      rw [hc, hpair] at hrun
       have hv : codeVerifier num den q V (code num den x, v) = true := by
-        simpa only [encBool_apply, List.cons.injEq, and_true] using hout.symm
+        simpa only [encBool_apply, List.cons.injEq, and_true] using
+          (eq_of_runFor_eq (htm (code num den x, v)) hrun).symm
       simp only [codeVerifier, Bool.and_eq_true, decide_eq_true_eq] at hv
       obtain ⟨⟨hcx, hq⟩, hV⟩ := hv
       rw [code_injective hcdf hden0 hcx]
@@ -302,23 +288,12 @@ theorem distHard_problem : DistHard DistNP problem := by
     by_cases hy : ∃ x ∈ (L.ens.dist n).support, f x = y
     · obtain ⟨x, hx, rfl⟩ := hy
       obtain rfl := L.ens.length_eq n x hx
-      rw [Probability.PMF.map_apply_of_injective _ hfinj, problem_ens, ← hflen x, hf,
+      rw [Probability.PMF.map_apply_of_injective _ hfinj, problem_ens, ← hflen x,
         uniformBH_dist_encode, hP]
-      have hkey := two_pow_length_header_code_mul_le hcdf hden0 c x
-      have h0 : (2 : ℝ≥0∞) ^ (header c (code num den x)).length ≠ 0 := pow_ne_zero _ two_ne_zero
-      calc L.ens.dist x.length x
-          = (2 ^ (header c (code num den x)).length)⁻¹ *
-              (2 ^ (header c (code num den x)).length * L.ens.dist x.length x) := by
-            rw [← mul_assoc, ENNReal.inv_mul_cancel h0 (by finiteness), one_mul]
-        _ ≤ (2 ^ (header c (code num den x)).length)⁻¹ *
-              ((2 ^ (2 * c.length + 4) * (6 * x.length + 5) ^ 2 * (2 * x.length + 1) ^ 2 : ℕ) :
-                ℝ≥0∞) := mul_le_mul_of_nonneg_left hkey zero_le
-        _ = _ := mul_comm _ _
-    · have hzero : (L.ens.dist n).map f y = 0 := by
-        rw [PMF.apply_eq_zero_iff, PMF.support_map]
-        rintro ⟨x, hx, rfl⟩
-        exact hy ⟨x, hx, rfl⟩
-      rw [hzero]
+      rw [← div_eq_mul_inv, ENNReal.le_div_iff_mul_le (Or.inl (pow_ne_zero _ two_ne_zero))
+        (Or.inl (by finiteness)), mul_comm]
+      exact two_pow_length_header_code_mul_le hcdf hden0 c x
+    · rw [(PMF.apply_eq_zero_iff _ _).2 fun h => hy ((PMF.mem_support_map_iff ..).1 h)]
       exact zero_le
 
 /-- **Levin's theorem** [Bogdanov and Trevisan, Theorem 19][BogdanovTrevisan2006]: the

@@ -148,22 +148,17 @@ theorem countP_tuples {α : Type*} (l : List α) :
     rw [filter_congr (q := fun _ => p Fin.elim0 = true) fun t _ => by rw [h t]]
     by_cases hp : p Fin.elim0 = true <;> simp [tuples, hp]
   | k + 1, p => by
-    have hstep (a : α) : ((tuples k l).map (Fin.cons a)).countP p =
-        #{t : Fin k → Fin l.length | p (Fin.cons a fun i => l.get (t i)) = true} := by
-      rw [List.countP_map, countP_tuples l k]
-      rfl
     rw [tuples, List.countP_flatMap, ← Fin.sum_univ_fun_getElem]
-    simp only [Function.comp_apply, hstep]
+    simp only [Function.comp_apply, List.countP_map, countP_tuples l k]
     rw [card_eq_sum_ones, sum_filter, ← (Fin.consEquiv fun _ => Fin l.length).sum_comp,
       Fintype.sum_prod_type]
     refine Finset.sum_congr rfl fun a _ => ?_
     rw [card_eq_sum_ones, sum_filter]
     refine Finset.sum_congr rfl fun t _ => ?_
-    have h : (fun i => l.get ((Fin.consEquiv fun _ => Fin l.length) (a, t) i)) =
-        Fin.cons l[a.1] fun i => l.get (t i) := by
-      funext i
-      refine Fin.cases ?_ (fun j => ?_) i <;> simp
-    rw [h]
+    have hcons : (fun i => l.get ((Fin.consEquiv fun _ => Fin l.length) (a, t) i)) =
+        Fin.cons l[a.1] fun i => l.get (t i) :=
+      funext fun i => Fin.cases (by simp) (fun _ => by simp) i
+    rw [hcons]
 
 /-- The tuples of a list are exactly the tuples of its entries. -/
 theorem mem_tuples {α : Type*} {l : List α} :
@@ -171,12 +166,8 @@ theorem mem_tuples {α : Type*} {l : List α} :
   | 0, t => by simpa [tuples] using Subsingleton.elim t Fin.elim0
   | k + 1, t => by
     simp only [tuples, List.mem_flatMap, List.mem_map]
-    constructor
-    · rintro ⟨a, ha, s, hs, rfl⟩ i
-      refine Fin.cases ha (fun j => ?_) i
-      simpa using mem_tuples.mp hs j
-    · intro h
-      exact ⟨t 0, h 0, Fin.tail t, mem_tuples.mpr fun j => h j.succ, Fin.cons_self_tail t⟩
+    exact ⟨fun ⟨a, ha, s, hs, h⟩ => h ▸ Fin.cases ha fun j => by simpa using mem_tuples.mp hs j,
+      fun h => ⟨t 0, h 0, Fin.tail t, mem_tuples.mpr fun j => h j.succ, Fin.cons_self_tail t⟩⟩
 
 /-! ### Repetition -/
 
@@ -228,10 +219,7 @@ theorem repEdge_cons {k : ℕ} (d : Edge (β → γ)) (e : Fin k → Edge (β �
 `k`-fold repetition. -/
 theorem edges_pow_succ (k : ℕ) (g : Graph (β → γ)) :
     (pow (k + 1) g).edges = g.edges.flatMap fun d => (pow k g).edges.map (consEdge d) := by
-  simp only [edges_pow, tuples, List.map_flatMap, List.map_map]
-  congr 1 with d : 1
-  congr 1 with e : 1
-  exact repEdge_cons d e
+  simp only [edges_pow, tuples, List.map_flatMap, List.map_map, Function.comp_def, repEdge_cons]
 
 /-- The repetition of a well-formed instance is well formed: the numbers of tuples of declared
 vertices are below its vertex count. -/
@@ -284,21 +272,15 @@ private theorem one_sub_unsatFrac_eq {C α : Type} (g : Graph C) (hg : g.edges �
     {eval : C → α → α → Bool} (σ : ℕ → α) [DecidablePred ((g.toGraph eval).Satisfies σ)] :
     1 - (g.toGraph eval).unsatFrac σ =
       #{i | (g.toGraph eval).Satisfies σ i} / g.edges.length := by
-  have hlen : (g.edges.length : ℝ) ≠ 0 := by
-    exact_mod_cast (List.length_pos_iff.mpr hg).ne'
-  have hcard := card_filter_add_card_filter_not (s := (univ : Finset (Fin g.edges.length)))
-    ((g.toGraph eval).Satisfies σ)
-  rw [card_univ, Fintype.card_fin] at hcard
-  have hunsat : #((g.toGraph eval).unsatEdges σ) = #{i | ¬(g.toGraph eval).Satisfies σ i} := by
-    congr 1
-    ext i
-    simp
-  rw [ConstraintGraph.unsatFrac, hunsat, Fintype.card_fin]
-  have hcard' : (#{i | (g.toGraph eval).Satisfies σ i} : ℝ) +
+  have hlen : (g.edges.length : ℝ) ≠ 0 := mod_cast (List.length_pos_iff.mpr hg).ne'
+  have hcard : (#{i | (g.toGraph eval).Satisfies σ i} : ℝ) +
       #{i | ¬(g.toGraph eval).Satisfies σ i} = g.edges.length := by
-    exact_mod_cast hcard
-  field_simp
-  linarith
+    exact_mod_cast (card_filter_add_card_filter_not ((g.toGraph eval).Satisfies σ)
+      (s := (univ : Finset (Fin g.edges.length)))).trans (by simp)
+  have hunsat : #((g.toGraph eval).unsatEdges σ) = #{i | ¬(g.toGraph eval).Satisfies σ i} :=
+    congrArg card (Finset.ext fun _ => by simp)
+  rw [ConstraintGraph.unsatFrac, hunsat, Fintype.card_fin]
+  field_simp; linarith
 
 omit [DecidableEq γ] in
 /-- The proportion of edges that a labelling satisfies, as a count along the edge list. -/
@@ -306,13 +288,11 @@ private theorem one_sub_unsatFrac_toGraph {C α : Type} (g : Graph C) (hg : g.ed
     (eval : C → α → α → Bool) (σ : ℕ → α) :
     1 - (g.toGraph eval).unsatFrac σ =
       (g.edges.countP fun d => eval d.constraint (σ d.src) (σ d.dst)) / g.edges.length := by
-  have hlen : (g.edges.length : ℝ) ≠ 0 := by
-    exact_mod_cast (List.length_pos_iff.mpr hg).ne'
+  have hlen : (g.edges.length : ℝ) ≠ 0 := mod_cast (List.length_pos_iff.mpr hg).ne'
   have h := List.length_eq_countP_add_countP
     (fun d : Edge C => eval d.constraint (σ d.src) (σ d.dst)) (l := g.edges)
-  have hneg : g.edges.countP (fun d => decide ¬(eval d.constraint (σ d.src) (σ d.dst) = true)) =
-      g.edges.countP (fun d => !eval d.constraint (σ d.src) (σ d.dst)) := by
-    simp
+  have hneg : (fun d : Edge C => decide ¬eval d.constraint (σ d.src) (σ d.dst) = true) =
+      (fun d => !eval d.constraint (σ d.src) (σ d.dst)) := funext fun _ => by simp
   rw [hneg] at h
   rw [Graph.unsatFrac_toGraph]
   field_simp
@@ -325,24 +305,18 @@ theorem value_game_le [Nonempty β] [Nonempty γ] (g : Graph (β → γ))
     (game g hg N hN).value ≤ 1 - (g.toGraph projectionEval).unsatVal := by
   classical
   refine ciSup_le fun ha => ciSup_le fun hb => ?_
-  obtain ⟨b₀⟩ := ‹Nonempty β›
-  obtain ⟨c₀⟩ := ‹Nonempty γ›
   let σ : ℕ → β × γ := fun v =>
-    if h : v < N then (ha ⟨v, h⟩, hb ⟨v, h⟩) else (b₀, c₀)
-  refine le_trans ?_ (sub_le_sub_left ((g.toGraph projectionEval).unsatVal_le σ) 1)
+    if h : v < N then (ha ⟨v, h⟩, hb ⟨v, h⟩) else (Classical.arbitrary β, Classical.arbitrary γ)
   have : Nonempty (Fin g.edges.length) := ⟨⟨0, List.length_pos_iff.mpr hg⟩⟩
+  refine le_trans ?_ (sub_le_sub_left ((g.toGraph projectionEval).unsatVal_le σ) 1)
   rw [one_sub_unsatFrac_eq _ hg, TwoProverGame.winProb, game, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, Fintype.card_fin]
   refine div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_le_card fun i hi => ?_))
     (Nat.cast_nonneg _)
   simp only [mem_filter, mem_univ, true_and, Set.mem_preimage, Set.mem_ofPred_eq] at hi ⊢
-  have h := hi _ (List.get_mem _ _) rfl rfl
-  have hs := (hN _ (List.get_mem g.edges i)).1
-  have hd := (hN _ (List.get_mem g.edges i)).2
-  change projectionEval (g.edges.get i).constraint (σ (g.edges.get i).src)
-    (σ (g.edges.get i).dst) = true
-  simp only [projectionEval, decide_eq_true_eq, σ, dite_eq_left hs, dite_eq_left hd]
-  exact h
+  obtain ⟨hs, hd⟩ := hN _ (List.get_mem g.edges i)
+  simpa only [ConstraintGraph.Satisfies, Graph.toGraph, projectionEval, decide_eq_true_eq, σ,
+    dite_eq_left hs, dite_eq_left hd] using hi _ (List.get_mem _ _) rfl rfl
 
 /-- **Without parallel edges, the repeated game is no harder than the repeated instance.** A
 labelling of the tuples of vertices gives strategies that answer each tuple of questions by the
@@ -353,33 +327,28 @@ theorem one_sub_unsatVal_pow_le_value_pow [Finite β] [Finite γ] [Nonempty β] 
     1 - ((pow k g).toGraph projectionEval).unsatVal ≤ ((game g hg N hN).pow k).value := by
   classical
   obtain ⟨τ, hτ⟩ := ((pow k g).toGraph projectionEval).exists_unsatFrac_eq_unsatVal
-  rw [← hτ]
-  let ha : (Fin k → Fin N) → Fin k → β := fun x => (τ (tupleCode k fun i => x i)).1
-  let hb : (Fin k → Fin N) → Fin k → γ := fun y => (τ (tupleCode k fun i => y i)).2
-  refine le_trans ?_ (((game g hg N hN).pow k).winProb_le_value ha hb)
   have : Nonempty (Fin g.edges.length) := ⟨⟨0, List.length_pos_iff.mpr hg⟩⟩
   have hpow : (pow k g).edges ≠ [] := by grind [length_edges_pow]
+  rw [← hτ]
+  refine le_trans ?_ (((game g hg N hN).pow k).winProb_le_value
+    (fun x => (τ (tupleCode k fun i => x i)).1) (fun y => (τ (tupleCode k fun i => y i)).2))
   have hq : ((game g hg N hN).pow k).questions =
       (Probability.PMF.uniformOfFintype (Fin k → Fin g.edges.length)).map fun t =>
         (fun i => (⟨(g.edges.get (t i)).src, (hN _ (List.get_mem _ _)).1⟩ : Fin N),
           fun i => (⟨(g.edges.get (t i)).dst, (hN _ (List.get_mem _ _)).2⟩ : Fin N)) := by
     simp only [TwoProverGame.pow, game]
-    rw [Probability.PMF.pi_map, Probability.PMF.pi_uniformOfFintype, PMF.map_comp]
-    rfl
+    rw [Probability.PMF.pi_map, Probability.PMF.pi_uniformOfFintype, PMF.map_comp]; rfl
   rw [one_sub_unsatFrac_toGraph _ hpow, length_edges_pow, edges_pow, List.countP_map,
     countP_tuples, TwoProverGame.winProb, hq, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, Fintype.card_fun, Fintype.card_fin,
     Fintype.card_fin]
   push_cast
-  refine div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_le_card fun t ht => ?_))
-    (by positivity)
-  have hsat := (mem_filter.mp ht).2
+  refine div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_le_card fun t ht => ?_)) (by positivity)
   simp only [mem_filter, mem_univ, true_and, Set.mem_preimage, Set.mem_ofPred_eq,
-    TwoProverGame.pow, game]
+    TwoProverGame.pow, game] at ht ⊢
   intro i d hd hsrc hdst
   obtain ⟨j, rfl⟩ := List.get_of_mem hd
-  obtain rfl : j = t i := hpar.eq_of_src_eq_of_dst_eq hsrc hdst
-  exact congrFun (of_decide_eq_true hsat) i
+  exact hpar.eq_of_src_eq_of_dst_eq hsrc hdst ▸ congrFun (of_decide_eq_true ht) i
 
 /-- **Parallel repetition for Label Cover without parallel edges** [Raz1998], with Holenstein's
 bound [Holenstein, Theorem 2.5][Holenstein2009]: if every labelling of an instance `g` without

@@ -109,15 +109,10 @@ private theorem sum_single (l : List ℕ) (hl : l.Nodup) (v : ℕ) (a : ℕ → 
     (l.map fun w => Decidable.decide (v = w) * a w).sum =
       if v ∈ l then a v else 0 := by
   have heq (w : ℕ) : Decidable.decide (v = w) * a w = if w = v then a w else 0 := by
-    by_cases h : w = v
-    · subst w
-      simp only [decide_true, ite_true]
-      rfl
-    · simp only [Ne.symm h, decide_false, h, ite_false]
-      rfl
-  simp_rw [heq]
-  rw [← List.sum_toFinset _ hl]
-  simp
+    split_ifs with h
+    · exact decide_eq_true h.symm ▸ rfl
+    · exact decide_eq_false (Ne.symm h) ▸ rfl
+  simp [heq, ← List.sum_toFinset _ hl]
 
 private theorem sum_coefficients (l vs : List ℕ) (hl : l.Nodup)
     (hvs : ∀ v ∈ vs, v ∈ l) (a : ℕ → Bool) :
@@ -142,47 +137,33 @@ theorem dot_compile_row (F : System) (e : AffineEquation ℕ) (he : e ∈ F) (a 
 /-- The compiler preserves the satisfaction relation on every assignment. -/
 theorem holds_compile (F : System) (a : ℕ → Bool) :
     Dense.Holds (compile F).rows ((labels F).map a) ↔ F.Holds a := by
-  constructor
-  · intro h e he
-    have hh := h _ (List.mem_map.mpr ⟨e, he, rfl⟩)
-    change Dense.dot ((labels F).map (coefficient e.vars)) ((labels F).map a) = e.rhs at hh
-    rwa [dot_compile_row F e he a] at hh
-  · intro h r hr
-    obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
-    rw [dot_compile_row F e he a]
-    exact h e he
+  refine ⟨fun h e he => ?_, fun h r hr => ?_⟩
+  · exact (dot_compile_row F e he a).symm.trans (h _ (List.mem_map.mpr ⟨e, he, rfl⟩))
+  · obtain ⟨e, he, rfl⟩ := List.mem_map.mp hr
+    exact (dot_compile_row F e he a).trans (h e he)
 
 private theorem exists_assignment {l : List ℕ} (hl : l.Nodup) {a : List Bool}
     (ha : a.length = l.length) : ∃ f : ℕ → Bool, l.map f = a := by
   induction l generalizing a with
-  | nil =>
-    have : a = [] := List.eq_nil_of_length_eq_zero ha
-    exact ⟨fun _ => false, this.symm⟩
+  | nil => exact ⟨fun _ => false, (List.eq_nil_of_length_eq_zero ha).symm⟩
   | cons v l ih =>
     cases a with
     | nil => simp at ha
     | cons b a =>
       obtain ⟨hv, hl⟩ := List.nodup_cons.mp hl
-      obtain ⟨f, hf⟩ := ih hl (Nat.add_right_cancel ha)
+      obtain ⟨f, rfl⟩ := ih hl (Nat.add_right_cancel ha)
       refine ⟨Function.update f v b, ?_⟩
-      rw [List.map_cons, Function.update_self]
-      congr 1
-      rw [← hf]
-      apply List.map_congr_left
-      intro w hw
-      have hwv : w ≠ v := by rintro rfl; exact hv hw
-      exact Function.update_of_ne hwv _ _
+      simp only [List.map_cons, Function.update_self, List.cons.injEq, true_and]
+      exact List.map_congr_left fun w hw =>
+        Function.update_of_ne (fun e : w = v => hv (e ▸ hw)) _ _
 
 /-- Sparse satisfiability is equivalent to satisfiability of the compressed dense system. -/
 theorem satisfiable_compile_iff (F : System) :
     Dense.Satisfiable (compile F).width (compile F).rows ↔ Satisfiable F := by
-  constructor
-  · rintro ⟨a, ha, h⟩
-    obtain ⟨f, hf⟩ := exists_assignment (nodup_labels F) ha
-    refine ⟨f, (holds_compile F f).mp ?_⟩
-    rwa [hf]
-  · rintro ⟨a, ha⟩
-    exact ⟨(labels F).map a, List.length_map _, (holds_compile F a).mpr ha⟩
+  refine ⟨fun ⟨a, ha, h⟩ => ?_, fun ⟨a, ha⟩ =>
+    ⟨(labels F).map a, List.length_map _, (holds_compile F a).mpr ha⟩⟩
+  obtain ⟨f, rfl⟩ := exists_assignment (nodup_labels F) ha
+  exact ⟨f, (holds_compile F f).mp h⟩
 
 /-- The executable solver decides ordinary sparse systems with binary variable labels. -/
 theorem solve_eq_true_iff (F : System) : solve F = true ↔ Satisfiable F := by
@@ -203,12 +184,8 @@ theorem computableInPolyTime_sum :
 
 @[fun_prop] private theorem coefficient_polyTime : ComputableInPolyTime
     (fun q : List ℕ × ℕ => coefficient q.1 q.2)
-      (encPair (encList encNat) encNat) encBool := by
-  have hbits : ComputableInPolyTime
-      (fun q : List ℕ × ℕ => q.1.map fun w => Decidable.decide (w = q.2))
-      (encPair (encList encNat) encNat) encBits := by
-    fun_prop
-  exact computableInPolyTime_sum.comp hbits
+      (encPair (encList encNat) encNat) encBool :=
+  computableInPolyTime_sum.comp (by fun_prop)
 
 section
 open scoped _root_.Cslib.Complexity.XORSAT.Dense

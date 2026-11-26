@@ -40,6 +40,8 @@ it to `a` evaluates the term with `a` in place of the last variable.
 * `Cslib.PartialCombinatoryAlgebra.Term`, `Cslib.PartialCombinatoryAlgebra.eval`: terms with
   variables in `Fin n` and constants in the carrier, and their partial values.
 * `Cslib.PartialCombinatoryAlgebra.abs`: bracket abstraction of the last variable.
+* `Cslib.PartialCombinatoryAlgebra.sub`: the sub-pca on a subset containing `k` and `s` and closed
+  under application.
 
 ## Main results
 
@@ -87,8 +89,7 @@ theorem ap_some_some (app : A → A → Part A) (a b : A) :
 /-- Applying the value of a defined partial value `x` is applying `x`. -/
 theorem app_get_eq_ap (app : A → A → Part A) {x : Part A} (h : x.Dom) (b : A) :
     app (x.get h) b = ap app x (Part.some b) := by
-  obtain ⟨a, rfl⟩ : ∃ a, x = Part.some a := ⟨_, (Part.some_get h).symm⟩
-  simp
+  conv_rhs => rw [← Part.some_get h, ap_some_some]
 
 end PartialCombinatoryAlgebra
 
@@ -163,10 +164,9 @@ private theorem eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
     induction j using Fin.lastCases with
     | last => exact ⟨P.i, by simp [abs, eval]⟩
     | cast j =>
-      refine ⟨(P.app P.k (ρ j)).get (P.dom_app_k _), ?_, fun a => ?_⟩
-      · simp [abs, eval]
-      · rw [app_get_eq_ap P.app, P.ap_ap_k]
-        simp [eval]
+      refine ⟨(P.app P.k (ρ j)).get (P.dom_app_k _), by simp [abs, eval], fun a => ?_⟩
+      rw [app_get_eq_ap P.app, P.ap_ap_k]
+      simp [eval]
   | const c =>
     refine ⟨(P.app P.k c).get (P.dom_app_k _), by simp [abs, eval], fun a => ?_⟩
     rw [app_get_eq_ap P.app, P.ap_ap_k]
@@ -174,24 +174,76 @@ private theorem eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
   | app t u iht ihu =>
     obtain ⟨f, hf, hfa⟩ := iht
     obtain ⟨g, hg, hga⟩ := ihu
-    refine ⟨(ap P.app (P.app P.s f) (Part.some g)).get (P.dom_ap_s f g), ?_, fun a => ?_⟩
-    · simp [abs, eval, hf, hg]
-    · rw [app_get_eq_ap P.app, P.ap_ap_ap_s, hfa, hga]
-      rfl
+    refine ⟨(ap P.app (P.app P.s f) (Part.some g)).get (P.dom_ap_s f g),
+      by simp [abs, eval, hf, hg], fun a => ?_⟩
+    rw [app_get_eq_ap P.app, P.ap_ap_ap_s, hfa, hga]
+    rfl
 
 /-- **Combinatory completeness**, definedness: the bracket abstraction of a term always has a
 value ([vanOosten2008], §1.1). -/
 theorem dom_eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) :
     (P.eval (P.abs t) ρ).Dom := by
-  obtain ⟨f, hf, -⟩ := P.eval_abs t ρ
+  obtain ⟨_, hf, _⟩ := P.eval_abs t ρ
   simp [hf]
 
 /-- **Combinatory completeness**: applying the bracket abstraction `⟨xₙ⟩t` of a term to `a` is
 Kleene equal to evaluating `t` with `a` for its last variable ([vanOosten2008], §1.1). -/
 theorem ap_eval_abs {n : ℕ} (t : Term A (n + 1)) (ρ : Fin n → A) (a : A) :
     ap P.app (P.eval (P.abs t) ρ) (Part.some a) = P.eval t (Fin.snoc ρ a) := by
-  obtain ⟨f, hf, hfa⟩ := P.eval_abs t ρ
+  obtain ⟨_, hf, hfa⟩ := P.eval_abs t ρ
   rw [hf, ap_some_some, hfa]
+
+
+/-! ### Sub-pcas -/
+
+section Sub
+
+variable (S : A → Prop) (hk : S P.k) (hs : S P.s)
+  (happ : ∀ a b c, S a → S b → c ∈ P.app a b → S c)
+
+/-- Application restricted to the elements satisfying `S`, for `S` closed under application. -/
+private def subApp (a b : Subtype S) : Part (Subtype S) :=
+  ⟨(P.app a b).Dom, fun h => ⟨(P.app a b).get h, happ _ _ _ a.2 b.2 (Part.get_mem h)⟩⟩
+
+private theorem map_val_subApp (a b : Subtype S) :
+    (subApp P S happ a b).map Subtype.val = P.app a b :=
+  rfl
+
+private theorem map_val_injective {x y : Part (Subtype S)}
+    (h : x.map Subtype.val = y.map Subtype.val) : x = y :=
+  Part.ext fun c => by
+    have := congrArg (c.1 ∈ ·) h
+    simpa [Part.mem_map_iff, Subtype.val_inj] using this
+
+private theorem map_val_ap (x y : Part (Subtype S)) :
+    (ap (subApp P S happ) x y).map Subtype.val =
+      ap P.app (x.map Subtype.val) (y.map Subtype.val) := by
+  simp only [ap, Part.map_bind, Part.bind_map, map_val_subApp]
+
+/-- The sub-pca of `P` on the elements satisfying `S`, when `S` contains `k` and `s` and is closed
+under application. Its application is that of `P` (`map_val_sub_app`). -/
+def sub : PartialCombinatoryAlgebra (Subtype S) where
+  app := subApp P S happ
+  k := ⟨P.k, hk⟩
+  s := ⟨P.s, hs⟩
+  ap_ap_k a b := map_val_injective S <| by
+    simp only [map_val_ap, map_val_subApp, Part.map_some, P.ap_ap_k]
+  dom_ap_s a b := by
+    have h : ((ap (subApp P S happ) (subApp P S happ ⟨P.s, hs⟩ a) (Part.some b)).map
+        Subtype.val).Dom := by
+      simp only [map_val_ap, map_val_subApp, Part.map_some]
+      exact P.dom_ap_s a b
+    exact h
+  ap_ap_ap_s a b c := map_val_injective S <| by
+    simp only [map_val_ap, map_val_subApp, Part.map_some, P.ap_ap_ap_s]
+
+/-- Application in a sub-pca is application in the ambient pca. -/
+@[simp]
+theorem map_val_sub_app (a b : Subtype S) :
+    ((P.sub S hk hs happ).app a b).map Subtype.val = P.app a b :=
+  map_val_subApp P S happ a b
+
+end Sub
 
 end PartialCombinatoryAlgebra
 

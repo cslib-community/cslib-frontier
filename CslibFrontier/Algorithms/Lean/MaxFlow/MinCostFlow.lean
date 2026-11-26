@@ -315,46 +315,14 @@ private theorem sum_ite_mem_src [DecidableEq V] {arcs : List (ResArc V)} (hnodup
     (∑ w : V, ((if ⟨x, w, true⟩ ∈ arcs then (1 : ℤ) else 0) +
       (if ⟨x, w, false⟩ ∈ arcs then (1 : ℤ) else 0))) =
       (arcs.map fun a : ResArc V => if a.src = x then (1 : ℤ) else 0).sum := by
-  induction arcs with
-  | nil => simp
-  | cons a rest ih =>
-    obtain ⟨ha, hrest⟩ := List.nodup_cons.mp hnodup
-    have hpt : ∀ w : V,
-        ((if ⟨x, w, true⟩ ∈ a :: rest then (1 : ℤ) else 0) +
-          (if ⟨x, w, false⟩ ∈ a :: rest then (1 : ℤ) else 0)) =
-          ((if a = ⟨x, w, true⟩ then (1 : ℤ) else 0) +
-            (if a = ⟨x, w, false⟩ then (1 : ℤ) else 0)) +
-          ((if ⟨x, w, true⟩ ∈ rest then (1 : ℤ) else 0) +
-            (if ⟨x, w, false⟩ ∈ rest then (1 : ℤ) else 0)) := by
-      intro w
-      rcases a with ⟨s, d, b⟩
-      by_cases h1 : (⟨s, d, b⟩ : ResArc V) = ⟨x, w, true⟩
-      · obtain ⟨rfl, rfl, rfl⟩ := ResArc.mk.inj h1
-        have h2 : (⟨s, d, true⟩ : ResArc V) ≠ ⟨s, d, false⟩ := fun h => by cases h
-        simp [Ne.symm h2, ha]
-      · by_cases h2 : (⟨s, d, b⟩ : ResArc V) = ⟨x, w, false⟩
-        · obtain ⟨rfl, rfl, rfl⟩ := ResArc.mk.inj h2
-          simp [Ne.symm h1, ha]
-          omega
-        · have hm1 : (⟨x, w, true⟩ ∈ (⟨s, d, b⟩ :: rest : List (ResArc V))) ↔
-              ⟨x, w, true⟩ ∈ rest := by
-            simp [List.mem_cons, Ne.symm h1]
-          have hm2 : (⟨x, w, false⟩ ∈ (⟨s, d, b⟩ :: rest : List (ResArc V))) ↔
-              ⟨x, w, false⟩ ∈ rest := by
-            simp [List.mem_cons, Ne.symm h2]
-          simp [h1, h2, hm1, hm2]
-    rw [Finset.sum_congr rfl fun w _ => hpt w, Finset.sum_add_distrib, ih hrest, List.map_cons,
-      List.sum_cons]
-    congr 1
-    rcases a with ⟨s, d, b⟩
-    rw [Finset.sum_eq_single d]
-    · cases b <;> by_cases hsx : s = x <;> simp [hsx]
-    · intro w _ hwd
-      have hne1 : (⟨s, d, b⟩ : ResArc V) ≠ ⟨x, w, true⟩ := fun h => hwd (ResArc.mk.inj h).2.1.symm
-      have hne2 : (⟨s, d, b⟩ : ResArc V) ≠ ⟨x, w, false⟩ := fun h => hwd (ResArc.mk.inj h).2.1.symm
-      simp [hne1, hne2]
-    · intro hd
-      exact absurd (Finset.mem_univ d) hd
+  have hpt : ∀ a : ResArc V, (if a.src = x then (1 : ℤ) else 0) =
+      ∑ w : V, ((if a = ⟨x, w, true⟩ then 1 else 0) + (if a = ⟨x, w, false⟩ then 1 else 0)) := by
+    rintro ⟨s, d, b⟩
+    rcases eq_or_ne s x with rfl | hs <;> cases b <;> simp [*]
+  simp only [← List.sum_toFinset _ hnodup, hpt]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun w _ => ?_
+  simp only [Finset.sum_add_distrib, Finset.sum_ite_eq', List.mem_toFinset]
 
 private theorem sum_ite_mem_dst [DecidableEq V] {arcs : List (ResArc V)} (hnodup : arcs.Nodup)
     (x : V) :
@@ -362,15 +330,8 @@ private theorem sum_ite_mem_dst [DecidableEq V] {arcs : List (ResArc V)} (hnodup
       (if ⟨w, x, false⟩ ∈ arcs then (1 : ℤ) else 0))) =
       (arcs.map fun a : ResArc V => if a.dst = x then (1 : ℤ) else 0).sum := by
   let flip : ResArc V → ResArc V := fun a => ⟨a.dst, a.src, a.isFwd⟩
-  have hflip : Function.Injective flip := by
-    rintro ⟨s₁, d₁, b₁⟩ ⟨s₂, d₂, b₂⟩ h
-    cases h
-    rfl
-  have hmem : ∀ w b, (⟨w, x, b⟩ : ResArc V) ∈ arcs ↔ ⟨x, w, b⟩ ∈ arcs.map flip := by
-    intro w b
-    exact ⟨fun hm => List.mem_map.mpr ⟨⟨w, x, b⟩, hm, rfl⟩,
-      fun hm => by obtain ⟨⟨s, d, b'⟩, hm', heq⟩ := List.mem_map.mp hm; cases heq; exact hm'⟩
-  simp only [hmem _ true, hmem _ false]
+  have hflip : Function.Injective flip := Function.Involutive.injective fun ⟨_, _, _⟩ => rfl
+  simp only [← List.mem_map_of_injective hflip (a := ⟨_, x, _⟩)]
   rw [sum_ite_mem_src (hnodup.map hflip) x, List.map_map]
   rfl
 
@@ -386,13 +347,10 @@ private theorem Flow.cancelCycleFun_coe [DecidableEq V] (f : M.Flow) {arcs : Lis
       (f u v : ℤ) + (if ⟨u, v, true⟩ ∈ arcs then (δ : ℤ) else 0) -
         (if ⟨v, u, false⟩ ∈ arcs then (δ : ℤ) else 0) := by
   unfold Flow.cancelCycleFun
-  split_ifs
-  · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ ‹_›
-    omega
-  · omega
-  · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ ‹_›
-    omega
-  · omega
+  by_cases h2 : (⟨v, u, false⟩ : ResArc V) ∈ arcs
+  · have : δ ≤ f u v := hδ ⟨v, u, false⟩ h2
+    split_ifs <;> omega
+  · by_cases h1 : (⟨u, v, true⟩ : ResArc V) ∈ arcs <;> simp [h1, h2]
 
 private theorem list_map_sum_sub {α : Type*} (f g : α → ℤ) :
     ∀ l : List α, (l.map f).sum - (l.map g).sum = (l.map fun a => f a - g a).sum
@@ -454,62 +412,18 @@ private theorem sum_resCost_ite [DecidableEq V] [AddCommGroup W] (M : CostNetwor
       ((if ⟨u, v, true⟩ ∈ arcs then (1 : ℕ) else 0) • M.cost u v -
         (if ⟨v, u, false⟩ ∈ arcs then (1 : ℕ) else 0) • M.cost u v)) =
       M.walkCost arcs := by
-  induction arcs with
-  | nil => simp
-  | cons a rest ih =>
-    obtain ⟨ha, hrest⟩ := List.nodup_cons.mp hnodup
-    have hsplit : ∀ u v : V,
-        ((if ⟨u, v, true⟩ ∈ a :: rest then (1 : ℕ) else 0) • M.cost u v -
-          (if ⟨v, u, false⟩ ∈ a :: rest then (1 : ℕ) else 0) • M.cost u v) =
-          ((if a = ⟨u, v, true⟩ then M.cost u v else 0) -
-            (if a = ⟨v, u, false⟩ then M.cost u v else 0)) +
-          ((if ⟨u, v, true⟩ ∈ rest then (1 : ℕ) else 0) • M.cost u v -
-            (if ⟨v, u, false⟩ ∈ rest then (1 : ℕ) else 0) • M.cost u v) := by
-      intro u v
-      have hadd : ∀ (z : ResArc V) (c : W),
-          (if z ∈ a :: rest then (1 : ℕ) else 0) • c =
-            (if a = z then c else 0) + (if z ∈ rest then (1 : ℕ) else 0) • c := by
-        intro z c
-        by_cases he : a = z
-        · subst he; simp [ha]
-        · have hmem : (z ∈ a :: rest) ↔ z ∈ rest := by simp [List.mem_cons, Ne.symm he]
-          simp [he, hmem]
-      rw [hadd ⟨u, v, true⟩ (M.cost u v), hadd ⟨v, u, false⟩ (M.cost u v)]
-      abel
-    simp only [hsplit, Finset.sum_add_distrib, ih hrest, walkCost_cons]
-    congr 1
-    have hmatch : ∀ (fn : V → V → W) (p q : V),
-        (∑ u : V, ∑ v : V, if p = u ∧ q = v then fn u v else 0) = fn p q := fun fn p q => by
-      rw [Finset.sum_eq_single p _ (fun hp => absurd (Finset.mem_univ p) hp),
-        Finset.sum_eq_single q _ (fun hq => absurd (Finset.mem_univ q) hq)]
-      · simp
-      · intro v _ hvq; simp [Ne.symm hvq]
-      · intro u _ hup; exact Finset.sum_eq_zero fun v _ => by simp [Ne.symm hup]
-    have hpair : ∀ (fn : V → V → W) (g : V → V → ResArc V) (x : ResArc V) (p q : V),
-        (∀ u v, (x = g u v) ↔ (p = u ∧ q = v)) →
-        (∑ u : V, ∑ v : V, if x = g u v then fn u v else 0) = fn p q := by
-      intro fn g x p q hiff
-      simp only [hiff]
-      exact hmatch fn p q
-    have hzero : ∀ (x : ResArc V) (g : V → V → ResArc V),
-        (∀ u v, x ≠ g u v) →
-        (∑ u : V, ∑ v : V, if x = g u v then M.cost u v else 0) = 0 := fun _ _ hne =>
-      Finset.sum_eq_zero fun u _ => Finset.sum_eq_zero fun v _ => by simp [hne u v]
-    rcases a with ⟨s, d, b⟩
-    simp only [Finset.sum_sub_distrib]
-    cases b
-    · have h1 := hzero ⟨s, d, false⟩ (fun u v => ⟨u, v, true⟩) fun _ _ h => by cases h
-      have h2 : (∑ u : V, ∑ v : V,
-          if (⟨s, d, false⟩ : ResArc V) = ⟨v, u, false⟩ then M.cost u v else 0) =
-          M.cost d s := by
-        rw [Finset.sum_comm]
-        exact hpair (fun v u => M.cost u v) (fun v u => ⟨v, u, false⟩) ⟨s, d, false⟩ s d
-          fun v u => ⟨fun h => by cases h; exact ⟨rfl, rfl⟩, by rintro ⟨rfl, rfl⟩; rfl⟩
-      simp only [h1, h2, zero_sub, resCost, Bool.false_eq_true, ↓reduceIte]
-    · have h1 := hpair M.cost (fun u v => ⟨u, v, true⟩) ⟨s, d, true⟩ s d
-        fun u v => ⟨fun h => by cases h; exact ⟨rfl, rfl⟩, by rintro ⟨rfl, rfl⟩; rfl⟩
-      have h2 := hzero ⟨s, d, true⟩ (fun u v => ⟨v, u, false⟩) fun _ _ h => by cases h
-      simp only [h1, h2, sub_zero, resCost, ↓reduceIte]
+  have hpt : ∀ a : ResArc V, M.resCost a = ∑ u : V, ∑ v : V,
+      ((if a = ⟨u, v, true⟩ then M.cost u v else 0) -
+        (if a = ⟨v, u, false⟩ then M.cost u v else 0)) := by
+    rintro ⟨s, d, b⟩
+    cases b <;> simp [resCost, ite_and, Finset.sum_ite_irrel]
+  simp only [walkCost, ← List.sum_toFinset _ hnodup, hpt]
+  rw [Finset.sum_comm (s := arcs.toFinset)]
+  refine Finset.sum_congr rfl fun u _ => ?_
+  rw [Finset.sum_comm (s := arcs.toFinset)]
+  refine Finset.sum_congr rfl fun v _ => ?_
+  simp only [Finset.sum_sub_distrib, Finset.sum_ite_eq', List.mem_toFinset, ite_smul, one_smul,
+    zero_smul]
 
 /-- Canceling `δ` units along a residual cycle `arcs` changes `totalCost` by `δ • M.walkCost arcs`.
 -/
@@ -523,23 +437,8 @@ theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
         δ • ((if ⟨u, v, true⟩ ∈ arcs then (1 : ℕ) else 0) • M.cost u v -
           (if ⟨v, u, false⟩ ∈ arcs then (1 : ℕ) else 0) • M.cost u v) := by
     intro u v
-    rw [Flow.cancelCycle_apply]
-    unfold Flow.cancelCycleFun
-    by_cases h1 : ⟨u, v, true⟩ ∈ arcs <;> by_cases h2 : ⟨v, u, false⟩ ∈ arcs
-    · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ h2
-      have heq : f u v + δ - δ = f u v := by omega
-      simp [h1, h2, heq]
-    · simp only [h1, h2, ↓reduceIte, Nat.sub_zero, add_nsmul, one_nsmul, zero_nsmul, sub_zero]
-      abel
-    · have hres : δ ≤ f u v := hδ ⟨v, u, false⟩ h2
-      have heq : f u v - δ + δ = f u v := by omega
-      simp only [h1, h2, ↓reduceIte, add_zero, zero_nsmul, one_nsmul, zero_sub, smul_neg]
-      conv_lhs =>
-        arg 2
-        rw [← heq]
-      rw [add_nsmul]
-      abel
-    · simp [h1, h2]
+    simp only [Flow.cancelCycle_apply, ← natCast_zsmul, Flow.cancelCycleFun_coe f hδ]
+    split_ifs <;> simp [add_smul, sub_smul]
   unfold Flow.totalCost
   simp only [← Finset.sum_sub_distrib, hpt, ← Finset.smul_sum]
   rw [sum_resCost_ite M arcs hnodup]
@@ -547,10 +446,8 @@ theorem Flow.totalCost_cancelCycle [DecidableEq V] [AddCommGroup W] (f : M.Flow)
 theorem Flow.totalCost_cancelCycle_lt [DecidableEq V] [AddCommGroup W] [LinearOrder W]
     [IsOrderedAddMonoid W] (f : M.Flow) {arcs : List (ResArc V)} (hc : f.IsResCycle arcs)
     {δ : ℕ} (hδ_pos : 0 < δ) (hδ : ∀ a ∈ arcs, δ ≤ f.resCap a) (hneg : M.walkCost arcs < 0) :
-    (f.cancelCycle arcs hc δ hδ).totalCost < f.totalCost := by
-  have heq := f.totalCost_cancelCycle hc hδ
-  have hsmul : δ • M.walkCost arcs < 0 := Right.nsmul_neg hδ_pos hneg
-  exact sub_lt_zero.mp (heq ▸ hsmul)
+    (f.cancelCycle arcs hc δ hδ).totalCost < f.totalCost :=
+  sub_lt_zero.mp (f.totalCost_cancelCycle hc hδ ▸ Right.nsmul_neg hδ_pos hneg)
 
 end CycleOps
 
@@ -563,12 +460,9 @@ variable {V : Type*} {W : Type*} [Fintype V] {M : CostNetwork V W}
 private theorem sum_balance_smul_potential [AddCommGroup W] (f : M.Flow) (π : V → W) :
     (∑ u : V, ∑ v : V, f u v • (π u - π v)) = ∑ u : V, M.balance u • π u := by
   simp only [← natCast_zsmul, smul_sub, Finset.sum_sub_distrib]
-  have hswap : (∑ u : V, ∑ v : V, (f u v : ℤ) • π v) = ∑ u : V, ∑ v : V, (f v u : ℤ) • π u :=
-    Finset.sum_comm
-  rw [hswap, ← Finset.sum_sub_distrib]
+  rw [Finset.sum_comm (f := fun u v => (f u v : ℤ) • π v), ← Finset.sum_sub_distrib]
   refine Finset.sum_congr rfl fun u _ => ?_
-  rw [← Finset.sum_smul, ← Finset.sum_smul, sub_eq_add_neg, ← neg_zsmul, ← add_zsmul,
-    ← sub_eq_add_neg, f.balance_eq u]
+  rw [← Finset.sum_smul, ← Finset.sum_smul, ← sub_smul, f.balance_eq u]
 
 /-- **Complementary slackness implies minimum cost** ([Klein1967], [Schrijver2003], Chapter 12,
 locator not re-verified against primary PDF): any feasible flow admitting potentials `π` with
@@ -579,30 +473,17 @@ theorem isMinCost_of_compSlackness [AddCommGroup W] [PartialOrder W] [IsOrderedA
   have hpt : ∀ u v : V, f u v • (M.cost u v + π u - π v) ≤ g u v • (M.cost u v + π u - π v) := by
     intro u v
     rcases Nat.lt_trichotomy (f u v) (g u v) with hlt | heq | hgt
-    · have hf_lt : f u v < M.cap u v := lt_of_lt_of_le hlt (g.le_cap u v)
-      have hnonneg : 0 ≤ M.cost u v + π u - π v := hcs.1 u v hf_lt
-      exact nsmul_le_nsmul_left hnonneg hlt.le
+    · exact nsmul_le_nsmul_left (hcs.1 u v (lt_of_lt_of_le hlt (g.le_cap u v))) hlt.le
     · rw [heq]
-    · have hf_pos : 0 < f u v := lt_of_le_of_lt (Nat.zero_le _) hgt
-      have hnonpos : M.cost u v + π u - π v ≤ 0 := hcs.2 u v hf_pos
-      have hneg : 0 ≤ -(M.cost u v + π u - π v) := neg_nonneg.mpr hnonpos
-      have hsub : 0 ≤ (f u v - g u v) • (-(M.cost u v + π u - π v)) := nsmul_nonneg hneg _
-      have heq : f u v = (f u v - g u v) + g u v := (Nat.sub_add_cancel hgt.le).symm
-      rw [heq, add_nsmul]
-      have hle0 : (f u v - g u v) • (M.cost u v + π u - π v) ≤ 0 := by
-        rwa [smul_neg, neg_nonneg] at hsub
-      exact add_le_of_nonpos_left hle0
+    · rw [← Nat.sub_add_cancel hgt.le, add_nsmul]
+      exact add_le_of_nonpos_left (nsmul_nonpos (hcs.2 u v (by omega)) _)
   have hsum : (∑ u : V, ∑ v : V, f u v • (M.cost u v + π u - π v)) ≤
       ∑ u : V, ∑ v : V, g u v • (M.cost u v + π u - π v) :=
     Finset.sum_le_sum fun u _ => Finset.sum_le_sum fun v _ => hpt u v
-  have hdecomp : ∀ h : M.Flow,
+  have hdecomp (h : M.Flow) :
       (∑ u : V, ∑ v : V, h u v • (M.cost u v + π u - π v)) =
         h.totalCost + ∑ u : V, M.balance u • π u := by
-    intro h
-    have ha : ∀ u v : V, h u v • (M.cost u v + π u - π v) =
-        h u v • M.cost u v + h u v • (π u - π v) := fun u v => by
-      rw [add_sub_assoc, nsmul_add]
-    simp only [ha, Finset.sum_add_distrib, sum_balance_smul_potential]
+    simp only [add_sub_assoc, nsmul_add, Finset.sum_add_distrib, sum_balance_smul_potential]
     rfl
   rw [hdecomp f, hdecomp g] at hsum
   exact le_of_add_le_add_right hsum
@@ -719,27 +600,20 @@ private theorem extractSimpleCycleTo_some {p : ResArc V → Prop} {u v : V} :
       · obtain ⟨rfl⟩ := Option.some.inj hres
         refine ⟨List.cons_ne_nil a [], rfl, ⟨a.src, ⟨rfl, hpa, had.symm⟩, by simp⟩,
           ?_, by simp⟩
-        rw [List.nil_append, ← hsrc, had]
-        exact hrest
+        rwa [List.nil_append, ← hsrc, had]
       · obtain ⟨rfl⟩ := Option.some.inj hres
-        have hsp := splitAtDst_spec hrest (Ne.symm had) hnd_rest hmem
-        dsimp only at hsp
-        obtain ⟨hq_ne, hq_eq, hw_q1, hw_q2, hnotin⟩ := hsp
-        have hnd_src : (rest.map ResArc.src).Nodup := (List.nodup_append.mp hnd_rest).1
+        obtain ⟨hq_ne, hq_eq, hw_q1, hw_q2, hnotin⟩ :=
+          splitAtDst_spec hrest (Ne.symm had) hnd_rest hmem
         have hnd_q1 : ((splitAtDst a.src rest).1.map ResArc.src).Nodup := by
-          have hcat : ((splitAtDst a.src rest).1.map ResArc.src ++
-              (splitAtDst a.src rest).2.map ResArc.src).Nodup := by
-            rw [← List.map_append, hq_eq]
-            exact hnd_src
-          exact (List.nodup_append.mp hcat).1
+          have hnd_src := (List.nodup_append.mp hnd_rest).1
+          rw [← hq_eq, List.map_append] at hnd_src
+          exact (List.nodup_append.mp hnd_src).1
         refine ⟨List.cons_ne_nil a _, by simp [hq_eq],
           ⟨a.src, ⟨rfl, hpa, hw_q1⟩, List.nodup_cons.mpr ⟨hnotin, hnd_q1⟩⟩,
           hsrc ▸ hw_q2, ?_⟩
-        simp only [List.nil_append, List.length_cons]
         have hlen := congrArg List.length hq_eq
-        rw [List.length_append] at hlen
-        have hpos : 0 < (splitAtDst a.src rest).1.length :=
-          List.length_pos_iff_ne_nil.mpr hq_ne
+        have hpos := List.length_pos_iff_ne_nil.mpr hq_ne
+        simp only [List.nil_append, List.length_cons, List.length_append] at hlen ⊢
         omega
 
 /-- Structural-fuel helper for `peelNegCycle`. -/
@@ -768,8 +642,7 @@ private theorem peelNegCycleAux_spec {W : Type*} [AddCommGroup W] [LinearOrder W
         let cyc := peelNegCycleAux M v fuel arcs
         cyc ≠ [] ∧ (∃ x, IsArcWalk p x x cyc ∧ (cyc.map ResArc.src).Nodup) ∧ M.walkCost cyc < 0
   | 0, arcs, hlen, hw, hlt => by
-    have hnil : arcs = [] := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hlen)
-    subst hnil
+    obtain rfl := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hlen)
     exact absurd hlt (not_lt.mpr (hbound u [] hw (by simp)))
   | fuel + 1, arcs, hlen, hw, hlt => by
     unfold peelNegCycleAux
@@ -823,21 +696,7 @@ private theorem mem_allResArcs {M : CostNetwork V W} {vs : List V} {f : M.Flow}
     {a : ResArc V} :
     a ∈ allResArcs M vs f ↔ a.src ∈ vs ∧ a.dst ∈ vs ∧ 0 < f.resCap a := by
   rcases a with ⟨u, v, b⟩
-  simp only [allResArcs, List.mem_flatMap, List.mem_append, List.mem_ite_nil_right,
-    List.mem_singleton, CostNetwork.Flow.resCap, ResArc.mk.injEq]
-  cases b
-  · constructor
-    · rintro ⟨x, hx, y, hy, ⟨_, _, _, hb⟩ | ⟨hpos, rfl, rfl, _⟩⟩
-      · cases hb
-      · exact ⟨hx, hy, hpos⟩
-    · rintro ⟨hu, hv, hpos⟩
-      exact ⟨u, hu, v, hv, Or.inr ⟨hpos, rfl, rfl, rfl⟩⟩
-  · constructor
-    · rintro ⟨x, hx, y, hy, ⟨hlt, rfl, rfl, _⟩ | ⟨_, _, _, hb⟩⟩
-      · exact ⟨hx, hy, Nat.sub_pos_of_lt hlt⟩
-      · cases hb
-    · rintro ⟨hu, hv, hpos⟩
-      exact ⟨u, hu, v, hv, Or.inl ⟨Nat.lt_of_sub_pos hpos, rfl, rfl, rfl⟩⟩
+  cases b <;> simp [allResArcs, Flow.resCap, tsub_pos_iff_lt]
 
 private theorem foldl_inv {α β : Type*} {P : β → Prop} {f : β → α → β} :
     ∀ (l : List α) {init : β}, P init → (∀ b, P b → ∀ a ∈ l, P (f b a)) →
@@ -895,23 +754,26 @@ private theorem dpRelax_inv [AddCommGroup W] [LinearOrder W]
     (harcs : ∀ a ∈ arcs, 0 < f.resCap a) (k : ℕ) :
     DpInv M f k (dpRelax M arcs k) := by
   induction k with
-  | zero =>
-    intro v
-    exact ⟨⟨v, by simp [dpRelax, Flow.IsResWalk]⟩, rfl, le_rfl⟩
+  | zero => exact fun v => ⟨⟨v, by simp [dpRelax, Flow.IsResWalk]⟩, rfl, le_rfl⟩
   | succ k ih =>
     rw [dpRelax, Function.iterate_succ_apply']
     exact dpStep_preserves harcs ih
 
 omit [Fintype V] in
-private theorem dpStep_le_prev [AddCommGroup W] [LinearOrder W]
-    (M : CostNetwork V W) (arcs : List (ResArc V)) (prev : V → W × List (ResArc V)) (v : V) :
-    (dpStep M arcs prev v).1 ≤ (prev v).1 := by
-  unfold dpStep
-  refine foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ (prev v).1) arcs le_rfl
-    fun best hb a _ => ?_
-  split_ifs with h
-  · exact le_trans h.2.le hb
-  · exact hb
+private theorem dpStep_foldl_le_init [AddCommGroup W] [LinearOrder W]
+    (M : CostNetwork V W) (prev : V → W × List (ResArc V)) (v : V)
+    (l : List (ResArc V)) (init : W × List (ResArc V)) :
+    (l.foldl
+      (fun best a =>
+        if a.dst = v ∧ (prev a.src).1 + M.resCost a < best.1 then
+          ((prev a.src).1 + M.resCost a, (prev a.src).2 ++ [a])
+        else best)
+      init).1 ≤ init.1 :=
+  foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ init.1) l le_rfl
+    fun _ hb _ _ => by
+      split_ifs with h
+      · exact h.2.le.trans hb
+      · exact hb
 
 omit [Fintype V] in
 private theorem dpStep_foldl_le_of_mem [AddCommGroup W] [LinearOrder W]
@@ -928,21 +790,10 @@ private theorem dpStep_foldl_le_of_mem [AddCommGroup W] [LinearOrder W]
   | b :: bs, init, ha => by
     rw [List.foldl_cons]
     rcases List.mem_cons.mp ha with rfl | ha'
-    · have hmono : ∀ (l : List (ResArc V)) (x : W × List (ResArc V)),
-          (l.foldl
-            (fun best c =>
-              if c.dst = v ∧ (prev c.src).1 + M.resCost c < best.1 then
-                ((prev c.src).1 + M.resCost c, (prev c.src).2 ++ [c])
-              else best)
-            x).1 ≤ x.1 := fun l x =>
-        foldl_inv (P := fun best : W × List (ResArc V) => best.1 ≤ x.1) l le_rfl
-          fun _ hb _ _ => by
-            split_ifs with h <;> [exact le_trans h.2.le hb; exact hb]
-      refine le_trans (hmono bs _) ?_
+    · refine (dpStep_foldl_le_init M prev v bs _).trans ?_
       split_ifs with h
       · exact le_rfl
-      · have hnot : ¬ (prev a.src).1 + M.resCost a < init.1 := fun hc => h ⟨ha_dst, hc⟩
-        exact not_lt.mp hnot
+      · exact not_lt.mp fun hc => h ⟨ha_dst, hc⟩
     · exact dpStep_foldl_le_of_mem M prev ha_dst bs _ ha'
 
 private theorem dpRelax_le_walkCost [AddCommGroup W] [LinearOrder W] [IsOrderedAddMonoid W]
@@ -951,8 +802,7 @@ private theorem dpRelax_le_walkCost [AddCommGroup W] [LinearOrder W] [IsOrderedA
     ∀ (k : ℕ) {u v : V} (l : List (ResArc V)),
       f.IsResWalk u v l → l.length ≤ k → (dpRelax M arcs k v).1 ≤ M.walkCost l
   | 0, u, v, l, hw, hlen => by
-    have hnil : l = [] := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hlen)
-    subst hnil
+    obtain rfl := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hlen)
     rfl
   | k + 1, u, v, l, hw, hlen => by
     rcases List.eq_nil_or_concat l with rfl | ⟨l₀, a, rfl⟩
@@ -961,7 +811,7 @@ private theorem dpRelax_le_walkCost [AddCommGroup W] [LinearOrder W] [IsOrderedA
         | zero => rfl
         | succ m ihm =>
           rw [dpRelax, Function.iterate_succ_apply']
-          exact (dpStep_le_prev M arcs _ v).trans ihm
+          exact (dpStep_foldl_le_init M (dpRelax M arcs m) v arcs (dpRelax M arcs m v)).trans ihm
       exact hk (k + 1)
     · rw [List.concat_eq_append] at hw hlen ⊢
       obtain ⟨hw₀, ha_pos, ha_dst⟩ :=
@@ -1004,10 +854,8 @@ theorem findNegCycleOrPotential_spec [AddCommGroup W] [LinearOrder W] [IsOrdered
   cases hfind : arcs.find? (fun a => decide ((d a.src).1 + M.resCost a < (d a.dst).1)) with
   | none =>
     dsimp only
-    have hnone : ∀ a ∈ arcs, (d a.dst).1 ≤ (d a.src).1 + M.resCost a := fun a ha => by
-      have hfalse := List.find?_eq_none.mp hfind a ha
-      simp only [decide_eq_true_eq] at hfalse
-      exact not_lt.mp hfalse
+    have hnone : ∀ a ∈ arcs, (d a.dst).1 ≤ (d a.src).1 + M.resCost a := fun a ha =>
+      not_lt.mp (by simpa only [decide_eq_true_eq] using List.find?_eq_none.mp hfind a ha)
     refine ⟨fun u v hlt => ?_, fun u v hpos => ?_⟩
     · have hmem : ⟨u, v, true⟩ ∈ arcs := hall ⟨u, v, true⟩ (by simpa [Flow.resCap] using hlt)
       have hle := hnone ⟨u, v, true⟩ hmem
@@ -1025,12 +873,10 @@ theorem findNegCycleOrPotential_spec [AddCommGroup W] [LinearOrder W] [IsOrdered
     have htrail : IsArcWalk (fun x => 0 < f.resCap x) u a.dst ((d a.src).2 ++ [a]) :=
       isArcWalk_split_append.mpr ⟨(isArcWalk_pos_resCap_iff f).mpr hw_src, harcs a ha_mem, rfl⟩
     have htrail_cost : M.walkCost ((d a.src).2 ++ [a]) < (d a.dst).1 := by
-      rw [walkCost_append, walkCost_cons, walkCost_nil, add_zero, hcost_src]
-      exact ha_lt
-    have hcard_le : Fintype.card V ≤ vs.length := by
-      have hsub : (Finset.univ : Finset V) ⊆ vs.toFinset :=
-        fun v _ => List.mem_toFinset.mpr (hvs v)
-      exact le_trans (Finset.card_le_card hsub) (List.toFinset_card_le vs)
+      rwa [walkCost_append, walkCost_cons, walkCost_nil, add_zero, hcost_src]
+    have hcard_le : Fintype.card V ≤ vs.length :=
+      (Finset.card_le_card fun v _ => List.mem_toFinset.mpr (hvs v)).trans
+        (List.toFinset_card_le vs)
     have hbound : ∀ w q, IsArcWalk (fun x => 0 < f.resCap x) w a.dst q →
         (q.map ResArc.src ++ [a.dst]).Nodup → (d a.dst).1 ≤ M.walkCost q := fun w q hwq hnd => by
       have hq_len := hnd.length_le_card
@@ -1061,13 +907,9 @@ private theorem exists_compSlackness_of_not_exists_negCycle [AddCommGroup W] [Li
   let vs : List V := (Finset.univ : Finset V).toList
   have hvs : ∀ v, v ∈ vs := fun v => Finset.mem_toList.mpr (Finset.mem_univ v)
   have hspec := findNegCycleOrPotential_spec hvs f
-  cases hfind : findNegCycleOrPotential M vs f with
-  | inl cyc =>
-    rw [hfind] at hspec
-    exact absurd ⟨cyc, hspec⟩ hno
-  | inr π =>
-    rw [hfind] at hspec
-    exact ⟨π, hspec⟩
+  rcases hfind : findNegCycleOrPotential M vs f with cyc | π <;> rw [hfind] at hspec
+  · exact absurd ⟨cyc, hspec⟩ hno
+  · exact ⟨π, hspec⟩
 
 /-- **Klein's negative-cycle optimality theorem** ([Klein1967], pp. 205–220, locator not
 re-verified against primary PDF; [Schrijver2003], Chapter 12, locator not re-verified against
@@ -1173,13 +1015,9 @@ private theorem cycleCancelLoop_spec [DecidableEq V] [AddCommGroup W] [LinearOrd
     have hmin : f.IsMinCost := h0 f (Nat.eq_zero_of_le_zero hfuel)
     have hspec := findNegCycleOrPotential_spec hvs f
     dsimp only [cycleCancelLoop]
-    cases hfind : findNegCycleOrPotential M vs f with
-    | inl cyc =>
-      rw [hfind] at hspec
-      exact absurd ⟨cyc, hspec⟩ ((isMinCost_iff_not_exists_negCycle f).mp hmin)
-    | inr π =>
-      rw [hfind] at hspec
-      exact ⟨hmin, hspec, hP_refl f count⟩
+    rcases hfind : findNegCycleOrPotential M vs f with cyc | π <;> rw [hfind] at hspec
+    · exact absurd ⟨cyc, hspec⟩ ((isMinCost_iff_not_exists_negCycle f).mp hmin)
+    · exact ⟨hmin, hspec, hP_refl f count⟩
   | fuel + 1, f, count, hfuel => by
     have hspec := findNegCycleOrPotential_spec hvs f
     dsimp only [cycleCancelLoop]
@@ -1281,21 +1119,18 @@ private theorem totalCost_bound_aux {M : CostNetwork V ℤ} {vs : List V} (hvs :
       -((M.cap u v * (M.cost u v).natAbs : ℕ) : ℤ) ≤ f u v • M.cost u v ∧
         f u v • M.cost u v ≤ ((M.cap u v * (M.cost u v).natAbs : ℕ) : ℤ) := by
     intro u v
-    have hle := f.le_cap u v
-    let k : ℕ := (M.cost u v).natAbs
-    have hmul : f u v * k ≤ M.cap u v * k := Nat.mul_le_mul_right k hle
-    have hmul_z : (f u v : ℤ) * (k : ℤ) ≤ (M.cap u v : ℤ) * (k : ℤ) := by exact_mod_cast hmul
-    have hk0 : (0 : ℤ) ≤ (f u v : ℤ) * (k : ℤ) :=
+    set k := (M.cost u v).natAbs
+    have hmul : (f u v : ℤ) * k ≤ (M.cap u v : ℤ) * k := by
+      exact_mod_cast Nat.mul_le_mul_right k (f.le_cap u v)
+    have h0 : (0 : ℤ) ≤ (f u v : ℤ) * k :=
       Int.mul_nonneg (Int.natCast_nonneg _) (Int.natCast_nonneg _)
-    have hcap0 : (0 : ℤ) ≤ (M.cap u v : ℤ) * (k : ℤ) :=
-      Int.mul_nonneg (Int.natCast_nonneg _) (Int.natCast_nonneg _)
-    change -((M.cap u v : ℤ) * (k : ℤ)) ≤ (f u v : ℤ) * M.cost u v ∧
-      (f u v : ℤ) * M.cost u v ≤ (M.cap u v : ℤ) * (k : ℤ)
+    change -((M.cap u v : ℤ) * k) ≤ (f u v : ℤ) * M.cost u v ∧
+      (f u v : ℤ) * M.cost u v ≤ (M.cap u v : ℤ) * k
     rcases Int.natAbs_eq (M.cost u v) with hc | hc
-    · change M.cost u v = (k : ℤ) at hc
+    · change M.cost u v = k at hc
       rw [hc]
-      exact ⟨by omega, hmul_z⟩
-    · change M.cost u v = -(k : ℤ) at hc
+      exact ⟨by omega, hmul⟩
+    · change M.cost u v = -k at hc
       rw [hc, mul_neg]
       exact ⟨by omega, by omega⟩
   have hL :
@@ -1333,16 +1168,12 @@ theorem cycleCancelInt_correct [DecidableEq V] {M : CostNetwork V ℤ} {vs : Lis
       out.cancellations ≤ 2 * absCostBound M vs := by
   have hbound : ∀ g : M.Flow, -(absCostBound M vs : ℤ) ≤ g.totalCost := fun g =>
     (totalCost_bound_aux hvs g).1
-  have hrank : ∀ f : M.Flow, (f.totalCost + (absCostBound M vs : ℤ)).toNat = 0 → f.IsMinCost := by
-    intro f hf0 g
-    have hg := hbound g
-    omega
+  have hrank : ∀ f : M.Flow, (f.totalCost + (absCostBound M vs : ℤ)).toNat = 0 → f.IsMinCost :=
+    fun f _ g => by have := hbound g; omega
   have hdrop : ∀ f f' : M.Flow, f'.totalCost < f.totalCost →
       (f'.totalCost + (absCostBound M vs : ℤ)).toNat <
-        (f.totalCost + (absCostBound M vs : ℤ)).toNat := by
-    intro f f' hlt
-    have hf' := hbound f'
-    omega
+        (f.totalCost + (absCostBound M vs : ℤ)).toNat :=
+    fun f f' _ => by have := hbound f'; omega
   have hf₀_lo := (totalCost_bound_aux hvs f₀).1
   have hf₀_hi := (totalCost_bound_aux hvs f₀).2
   obtain ⟨hmin, hcs, hdec⟩ := cycleCancelLoop_spec hvs
@@ -1352,15 +1183,9 @@ theorem cycleCancelInt_correct [DecidableEq V] {M : CostNetwork V ℤ} {vs : Lis
     (fun {_ c₁ f₂ c₂ _ _} hlt hc₂ hle => by subst hc₂; push_cast at hle ⊢; omega)
     (f₀.totalCost + (absCostBound M vs : ℤ)).toNat f₀ 0 le_rfl
   have hout_lo := (totalCost_bound_aux hvs (cycleCancelInt M vs f₀).flow).1
-  change (cycleCancelInt M vs f₀).flow.IsMinCost ∧
-      M.CompSlackness (cycleCancelInt M vs f₀).flow (cycleCancelInt M vs f₀).potential ∧
-      (cycleCancelInt M vs f₀).flow.totalCost + ((cycleCancelInt M vs f₀).cancellations : ℤ) ≤
-        f₀.totalCost ∧
-      (cycleCancelInt M vs f₀).cancellations ≤ 2 * absCostBound M vs
   dsimp only [cycleCancelInt] at hout_lo hmin hcs hdec ⊢
   simp only [Nat.cast_zero, add_zero] at hdec
-  refine ⟨hmin, hcs, hdec, ?_⟩
-  omega
+  exact ⟨hmin, hcs, hdec, by omega⟩
 
 end CycleCanceling
 
@@ -1405,27 +1230,17 @@ feasible flows on `N` with the same `value` as `f`. -/
     by_cases hst : N.s = N.t
     · have hg0 : val = 0 := hg.symm.trans (g.value_eq_zero_of_s_eq_t hst)
       subst hg0
-      by_cases hvs : v = N.s
-      · subst hvs; simpa [Network.Flow.value] using hg
+      obtain rfl | hvs := eq_or_ne v N.s
+      · simpa [Network.Flow.value] using hg
       · simp [hst, g.netOut_eq_zero hvs (hst ▸ hvs)]
-    · by_cases hvs : v = N.s
-      · subst hvs
-        have hg' : g.netOut N.s = val := hg
-        simp only [hst, ↓reduceIte, sub_zero]
-        exact hg'
-      · by_cases hvt : v = N.t
-        · subst hvt
-          have htot : ∑ x : V, g.netOut x = 0 := by
+    · obtain rfl | hvs := eq_or_ne v N.s
+      · simp only [hst, ↓reduceIte, sub_zero]
+        exact hg
+      · obtain rfl | hvt := eq_or_ne v N.t
+        · have htot : ∑ x : V, g.netOut x = 0 := by
             simp only [Network.Flow.netOut, Finset.sum_sub_distrib]
-            rw [Finset.sum_comm]
-            exact sub_self _
-          have hrest : ∑ x : V, g.netOut x = g.netOut N.s + g.netOut N.t := by
-            rw [← Finset.add_sum_erase _ _ (Finset.mem_univ N.s),
-              Finset.sum_eq_single N.t]
-            · intro x hx hxt
-              exact g.netOut_eq_zero (Finset.ne_of_mem_erase hx) hxt
-            · intro ht
-              exact absurd (Finset.mem_erase.mpr ⟨Ne.symm hst, Finset.mem_univ _⟩) ht
+            exact sub_eq_zero.mpr Finset.sum_comm
+          have hrest := Fintype.sum_eq_add N.s N.t hst fun x hx => g.netOut_eq_zero hx.1 hx.2
           have hs_val : g.netOut N.s = val := hg
           simp [Ne.symm hst]
           omega
@@ -1480,8 +1295,7 @@ theorem Network.Flow.isMinCostOfValue_iff_isMinCost [Fintype V] [DecidableEq V]
       · exact (f.value_eq_zero_of_s_eq_t hst).symm
       · rfl
     exact hmin g.toNetworkFlow hgval
-  · intro hmin g hg
-    exact hmin (g.toCostFlowOfVal cost hg)
+  · exact fun hmin g hg => hmin (g.toCostFlowOfVal cost hg)
 
 /-- **Klein's negative-cycle optimality theorem for `s`-`t` flows** ([Klein1967], pp. 205–220,
 locator not re-verified against primary PDF): an `s`-`t` flow `f` has minimum cost among all flows

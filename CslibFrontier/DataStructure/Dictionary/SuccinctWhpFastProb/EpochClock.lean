@@ -173,22 +173,12 @@ theorem epochTick_clean_or_clock {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     CleanWindowFast c U V n_max θ W_keys BadIns fs' dict ∨
     (fs'.epochClock = fs.epochClock + 1 ∧ fs.epochClock + 1 < qEpochWhp n_max) := by
   unfold epochTick at htick
-  set fs1 := epochTickStage c U n_max θ fs
-  have hclk1 : fs1.epochClock = fs.epochClock := tickStage_epochClock c U n_max θ fs
+  have hclk1 := tickStage_epochClock c U n_max θ fs
   dsimp only [epochTickRollover] at htick
-  by_cases hroll : qEpochWhp n_max ≤ fs1.epochClock + 1
-  · rw [ite_eq_left hroll] at htick
-    by_cases hs5 : fs1.rebStage = 5
-    · rw [ite_eq_left hs5] at htick
-      injection htick with hfs'
-      rw [← hfs'] at hv' ⊢
-      exact Or.inl (CleanWindowFast.of_clean_fast hv'
-        (tickStage_rollover_itemAlloc_zero hc hs5) rfl (fun h => by cases h))
-    · rw [ite_eq_right hs5] at htick; cases htick
-  · rw [ite_eq_right hroll] at htick
-    injection htick with hfs'
-    rw [← hfs']
-    exact Or.inr ⟨congrArg (· + 1) hclk1, by omega⟩
+  split_ifs at htick with hroll hs5 <;> cases htick
+  · exact Or.inl (CleanWindowFast.of_clean_fast hv'
+      (tickStage_rollover_itemAlloc_zero hc hs5) rfl (fun h => by cases h))
+  · exact Or.inr ⟨congrArg (· + 1) hclk1, by omega⟩
 
 theorem fastDelete_epochClock (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (fs : FastState) (u : Fin U) :
@@ -206,7 +196,7 @@ theorem fastInsert_epochClock {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs fs1 : FastState} {u : Fin U} {v : ℕ}
     (hins : fastInsert c U n_max θ fs u v = some fs1) :
     fs1.epochClock = fs.epochClock := by
-  unfold fastInsert fastInsertAlloc fastInsertFresh at hins
+  unfold fastInsert fastInsertAlloc at hins
   dsimp only at hins
   cases hfl : fastFindLoc c U n_max θ fs u with
   | some loc =>
@@ -214,32 +204,19 @@ theorem fastInsert_epochClock {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     injection hins with h1; rw [← h1]
     exact (overmarsStep_meta c U n_max _ θ _).1
   | none =>
-    rw [hfl] at hins; dsimp only at hins
-    set b := feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val
-    by_cases hg1 : totalLocalCoordsWhp n_max ≤ fs.bktCount b ∨
-        (capFrontWhp n_max ≤ fs.bktCount b ∧ fs.poolFreeTop = 0)
-    · rw [ite_eq_left hg1] at hins; cases hins
-    rw [ite_eq_right hg1] at hins
-    by_cases hg2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-          (fpReducedKey c U n_max θ.2 u)).isSome = true ∨
-        (fs.rebStage ≤ 3 ∧
-          (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp)
-            (fpReducedKey c U n_max θ.2 u)).isSome = true)
-    · rw [ite_eq_left hg2] at hins; cases hins
-    rw [ite_eq_right hg2] at hins
-    by_cases hg3 : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true ∧
-        (!bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-          (fpReducedKey c U n_max θ.2 u)) = true ∧
-        2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
-    · rw [ite_eq_left hg3] at hins; cases hins
-    rw [ite_eq_right hg3] at hins
-    injection hins with h1; rw [← h1]
+    rw [hfl] at hins
+    dsimp only at hins
+    split at hins
+    · cases hins
+    split at hins
+    · cases hins
+    split at hins
+    · cases hins
+    injection hins with h1
+    rw [← h1]
     refine (overmarsStep_meta c U n_max _ θ _).1.trans ?_
-    by_cases hfpc : (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-        (fs.slices (fs.liveSliceIdx b)) (fpOfSalt c U n_max θ.2 (fs.bktSalt b) u)).isSome = true
-    · rw [ite_eq_left hfpc]
-    · rw [ite_eq_right hfpc]
+    dsimp only [fastInsertFresh]
+    split <;> rfl
 
 theorem trySelfHeal_clean {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
     {θ : SeedWhp c U n_max} {W_keys BadIns : Finset (Fin U)}

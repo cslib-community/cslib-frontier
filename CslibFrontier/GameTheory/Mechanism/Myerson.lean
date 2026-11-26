@@ -117,12 +117,9 @@ theorem eq_of_abs_sub_le_mul_sub {φ f : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b
       _ = d * (f b - f a) := by
           rw [← Finset.mul_sum, Finset.sum_range_sub (fun k => f (t k)), ht0, htN]
       _ = (b - a) * (f b - f a) / N := by simp only [d]; ring
-  have hlim : Tendsto (fun N : ℕ => (b - a) * (f b - f a) / N) atTop (𝓝 0) :=
-    tendsto_const_div_atTop_nhds_zero_nat _
-  have hle : |φ b - φ a| ≤ 0 :=
-    ge_of_tendsto hlim (eventually_atTop.2 ⟨1, fun N hN => key N hN⟩)
-  have := abs_nonpos_iff.1 hle
-  linarith
+  exact sub_eq_zero.1 <| abs_nonpos_iff.1 <|
+    ge_of_tendsto (tendsto_const_div_atTop_nhds_zero_nat _)
+      (eventually_atTop.2 ⟨1, fun N hN => key N hN⟩)
 
 private theorem intervalIntegrable_of_monotoneOn {x : ℝ → ℝ} (hx : MonotoneOn x (Set.Ici 0))
     {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) : IntervalIntegrable x volume a b :=
@@ -134,13 +131,11 @@ private theorem integral_bounds_of_monotoneOn {x : ℝ → ℝ} (hx : MonotoneOn
     (y - z) * x z ≤ ∫ t in z..y, x t ∧ ∫ t in z..y, x t ≤ (y - z) * x y := by
   have hy : 0 ≤ y := hz.trans hzy
   have hint := intervalIntegrable_of_monotoneOn hx hz hy
-  constructor
-  · have := integral_mono_on hzy intervalIntegrable_const hint
-      (fun t ht => hx hz (hz.trans ht.1) ht.1)
-    rwa [intervalIntegral.integral_const, smul_eq_mul] at this
-  · have := integral_mono_on hzy hint intervalIntegrable_const
-      (fun t ht => hx (hz.trans ht.1) hy ht.2)
-    rwa [intervalIntegral.integral_const, smul_eq_mul] at this
+  refine ⟨?_, ?_⟩
+  · simpa only [intervalIntegral.integral_const, smul_eq_mul] using
+      integral_mono_on hzy intervalIntegrable_const hint fun t ht => hx hz (hz.trans ht.1) ht.1
+  · simpa only [intervalIntegral.integral_const, smul_eq_mul] using
+      integral_mono_on hzy hint intervalIntegrable_const fun t ht => hx (hz.trans ht.1) hy ht.2
 
 private theorem integral_split {x : ℝ → ℝ} (hx : MonotoneOn x (Set.Ici 0)) {z y : ℝ}
     (hz : 0 ≤ z) (hy : 0 ≤ y) :
@@ -253,9 +248,7 @@ theorem myersonPayment_le {x : (ι → ℝ) → ι → ℝ} (hx : IsMonotone x) 
     (hb : 0 ≤ b) (i : ι) (hx0 : 0 ≤ x (Function.update b i 0) i) :
     myersonPayment x b i ≤ b i * x b i := by
   have h1 := (integral_bounds_of_monotoneOn (hx i b hb) le_rfl (hb i)).1
-  have := mul_nonneg (hb i) hx0
-  simp only [sub_zero] at h1
-  simp only [myersonPayment]
-  linarith
+  simp only [myersonPayment, sub_zero] at h1 ⊢
+  linarith [mul_nonneg (hb i) hx0]
 
 end Cslib.GameTheory.SingleParameter

@@ -49,21 +49,14 @@ private lemma allocation_max_le (m : ℕ) {a b ε : ℝ} (ha : 0 ≤ a) (hb : 0 
   dsimp only
   let d := (ε / (2 * (m + 1))) ^ 4
   have hd : 0 ≤ d := by dsimp only [d]; positivity
-  have ha' : a * (d / (1 + a + b)) ≤ d := by
-    rw [← mul_div_assoc]
-    apply (div_le_iff₀ (by positivity)).mpr
-    nlinarith
-  have hb' : b * (d / (1 + a + b)) ≤ d := by
-    rw [← mul_div_assoc]
-    apply (div_le_iff₀ (by positivity)).mpr
-    nlinarith
-  have hb'' : b * (d / (1 + b)) ≤ d := by
-    rw [← mul_div_assoc]
-    apply (div_le_iff₀ (by positivity)).mpr
-    nlinarith
+  have hfrac {x y : ℝ} (hx : 0 ≤ x) (hxy : x ≤ y) : x * (d / y) ≤ d := by
+    rw [mul_div_left_comm]
+    exact mul_le_of_le_one_right hd (div_le_one_of_le₀ hxy (hx.trans hxy))
   have hp : max (a * (d / (1 + a + b)))
       (b * (8 * (d / (1 + b) + d / (1 + a + b)))) ≤ 16 * d :=
-    max_le (by linarith) (by nlinarith only [hb', hb''])
+    max_le (by linarith [hfrac ha (by linarith : a ≤ 1 + a + b)])
+      (by nlinarith only [hfrac hb (by linarith : b ≤ 1 + a + b),
+        hfrac hb (by linarith : b ≤ 1 + b)])
   apply (mul_le_mul_of_nonneg_left hp (Nat.cast_nonneg m)).trans
   change (m : ℝ) * (16 * (ε / (2 * (m + 1))) ^ 4) ≤ ε ^ 4
   have hm : (0 : ℝ) ≤ m := Nat.cast_nonneg m
@@ -105,9 +98,7 @@ theorem actualEstimatedResidual_output_from_cost_reserves
     hsmall hcapscale
   obtain ⟨Cbound, hCbound, hout⟩ := hfloorbound floor hfloor hfloors hfloor1 hfloorθ
   refine ⟨Cbound, hCbound, ?_⟩
-  intro P J inst ctx children ε hε
-  dsimp only
-  intro hreserve
+  intro P J inst ctx children ε hε _ _ hreserve
   have hHPK : 0 < HP.K := FourthRootHierarchyParams.NormalizedRow.rank_pos HP
   have htol : 0 < ctx.tolerance ε := by dsimp only [ReserveOutputContext.tolerance]; positivity
   have hamp : 0 ≤ ctx.amplification ζ := by
@@ -143,12 +134,7 @@ theorem actualEstimatedResidual_output_from_cost_reserves
     have hnum := allocation_max_le (m := ctx.prefixLength)
       (a := (rate ctx.terminalExponent)⁻¹ ^ 4) (b := ctx.amplification ζ)
       (by positivity) hamp hε.le
-    rcases ν with ⟨_ | ⟨_ | _⟩, hν⟩
-    · rw [show (⟨0, hν⟩ : Fin 2) = 0 from rfl] at hp ⊢
-      exact hp.trans hnum
-    · rw [show (⟨1, hν⟩ : Fin 2) = 1 from rfl] at hp ⊢
-      exact hp.trans hnum
-    · omega
+    fin_cases ν <;> exact hp.trans hnum
   apply hout P J ctx.roles.source ctx.roles.terminal ctx.roles.source_terminal.symm
     (side P ctx.sourceExponent) (side P ctx.usageExponent) ctx.direction ctx.direction_ne_zero
     ctx.sourceSuffix ctx.terminalSuffix ctx.horizon ctx.terminalExponent ctx.terminal_in_horizon
@@ -173,9 +159,8 @@ theorem actualEstimatedResidual_output_from_cost_reserves
       (ctx.prepSteps ζ ε) ctx.gateLipschitz_nonneg ctx.preparation_lipschitz
       ctx.gate_lipschitz ζ ctx.residual
   · intro ν i hi
-    rcases ν with ⟨_ | ⟨_ | _⟩, hν⟩
-    · rw [show (⟨0, hν⟩ : Fin 2) = 0 from rfl]
-      have hnoise_eq : actualNoiseEntry ctx.roles.source ctx.roles.terminal
+    fin_cases ν
+    · have hnoise_eq : actualNoiseEntry ctx.roles.source ctx.roles.terminal
           (side P ctx.sourceExponent) (side P ctx.terminalExponent) (side P ctx.usageExponent)
           ctx.direction ctx.sourceSuffix ctx.terminalSuffix ctx.terminalExponent ctx.residual
           (ctx.increment children ζ ε) (fun _ _ _ _ => 0) 0 i =
@@ -185,7 +170,8 @@ theorem actualEstimatedResidual_output_from_cost_reserves
             (ctx.increment children ζ ε) (fun _ _ _ _ => 0) 0 i := by
         funext σ x y
         simp [actualNoiseEntry, twoMaskMean]
-      rw [hnoise_eq]
+      dsimp only
+      rw [Fin.zero_eta, hnoise_eq]
       simpa only [↓reduceIte, one_div] using
         actualEstimatedFirstSignal_noise_le_dyadic HP hHPK ctx.direction
           ctx.roles ctx.horizon ctx.level ctx.sourceExponent ctx.midpointExponent
@@ -205,17 +191,13 @@ theorem actualEstimatedResidual_output_from_cost_reserves
                   ε (dyadicSlack ctx.prefixLength i))
                 (spectralWalkLength (reserveOutputContraction J)
                   ((1 + ctx.amplification ζ) * 32 * ctx.payment) (ctx.tolerance ε) 0))
-    · rw [show (⟨1, hν⟩ : Fin 2) = 1 from rfl]
-      simpa only [Fin.isValue, one_ne_zero, ↓reduceIte, one_div] using
+    · simpa only [Fin.mk_one, Fin.isValue, one_ne_zero, ↓reduceIte, one_div] using
         actualSelectedSecondSignal_noise_le_dyadic HP hHPK ctx.direction
           ctx.roles ctx.horizon ctx.sourceExponent ctx.terminalExponent ctx.usageExponent
           ctx.terminal_le_usage ctx.source_in_horizon ctx.sourceSuffix ctx.terminalSuffix
           (ctx.rawWalk children ζ ε) (ctx.rawWalk children ζ ε) (ctx.prepSteps ζ ε)
           ζ ctx.residual i ctx.prefixLength hε
-          (by
-            simp only [ReserveOutputContext.prepSteps, Nat.add_sub_cancel]
-            exact le_rfl)
-    · omega
+          (by simp only [ReserveOutputContext.prepSteps, Nat.add_sub_cancel, le_rfl])
   · intro i σ x y hy
     exact (actualTwoSignal_zero_off ctx.roles.source ctx.roles.terminal
       (side P ctx.sourceExponent) (side P ctx.usageExponent) ctx.direction ctx.sourceSuffix

@@ -133,18 +133,12 @@ theorem isAffineFun_iff {g : F → F} : IsAffineFun g ↔ ∀ t, g t = (g 1 - g 
 /-- Affine functions of one variable are the underlying functions of Mathlib's affine maps. -/
 theorem isAffineFun_iff_exists_affineMap {g : F → F} :
     IsAffineFun g ↔ ∃ φ : F →ᵃ[F] F, ⇑φ = g := by
-  constructor
-  · rintro ⟨a, b, h⟩
-    refine ⟨a • AffineMap.id F F + AffineMap.const F F b, funext fun t => ?_⟩
-    simp [h t]
-  · rintro ⟨φ, rfl⟩
-    refine ⟨φ.linear 1, φ 0, fun t => ?_⟩
-    have hl : φ.linear t = φ.linear 1 * t := by
-      calc φ.linear t = φ.linear (t • 1) := by rw [smul_eq_mul, mul_one]
-        _ = t • φ.linear 1 := map_smul _ _ _
-        _ = φ.linear 1 * t := by rw [smul_eq_mul, mul_comm]
-    rw [← hl]
-    exact congrFun φ.decomp t
+  refine ⟨fun ⟨a, b, h⟩ =>
+    ⟨a • AffineMap.id F F + AffineMap.const F F b, funext fun t => by simp [h t]⟩, ?_⟩
+  rintro ⟨φ, rfl⟩
+  refine ⟨φ.linear 1, φ 0, fun t => ?_⟩
+  have hl : φ.linear t = φ.linear 1 * t := by simpa [mul_comm] using φ.linear.map_smul t (1 : F)
+  exact hl ▸ congrFun φ.decomp t
 
 /-- A constant function is affine. -/
 theorem isAffineFun_const (c : F) : IsAffineFun fun _ : F => c :=
@@ -200,14 +194,11 @@ theorem IsAffineFun.eq_of_eq_of_eq {g h : F → F} (hg : IsAffineFun g) (hh : Is
   obtain ⟨a, b, hg⟩ := hg
   obtain ⟨c, d, hh⟩ := hh
   rw [hg, hh] at hs hu
-  have hac : a = c := by
-    have : (a - c) * (s - u) = 0 := by linear_combination hs - hu
-    exact sub_eq_zero.mp ((mul_eq_zero.mp this).resolve_right (sub_ne_zero.mpr hsu))
-  subst hac
-  have hbd : b = d := by linear_combination hs
-  subst hbd
-  funext t
-  rw [hg, hh]
+  obtain rfl : a = c := sub_eq_zero.mp
+    ((mul_eq_zero.mp (by linear_combination hs - hu : (a - c) * (s - u) = 0)).resolve_right
+      (sub_ne_zero.mpr hsu))
+  obtain rfl : b = d := by linear_combination hs
+  exact funext fun t => (hg t).trans (hh t).symm
 
 /-! ### Multilinear functions -/
 
@@ -246,11 +237,8 @@ private theorem IsMultilinear.eq_zero_aux [Fintype ι] {h : (ι → F) → F} (h
   induction k with
   | zero =>
     intro x hx
-    refine h0 x fun i => ?_
-    by_contra hi
-    push Not at hi
-    have : i ∈ ({i | x i ≠ 0 ∧ x i ≠ 1} : Finset ι) := by simp [hi]
-    simp_all
+    refine h0 x fun i => Classical.or_iff_not_imp_left.2 fun h0i => by_contra fun h1i => ?_
+    exact Nat.not_lt_zero _ ((card_pos.2 ⟨i, by simp [h0i, h1i]⟩).trans_le hx)
   | succ k ih =>
     intro x hx
     by_cases hb : ∃ i, x i ≠ 0 ∧ x i ≠ 1
@@ -261,24 +249,19 @@ private theorem IsMultilinear.eq_zero_aux [Fintype ι] {h : (ι → F) → F} (h
             ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι).erase i := by
           intro j hj
           simp only [mem_filter, mem_univ, true_and] at hj
-          by_cases hji : j = i
-          · subst hji
-            simp only [update_self] at hj
-            rcases hc with rfl | rfl <;> simp_all
+          rcases eq_or_ne j i with rfl | hji
+          · simp only [update_self] at hj
+            rcases hc with rfl | rfl <;> exact absurd rfl (by tauto)
           · simp only [update_of_ne hji] at hj
-            simp [hji, hj]
+            exact mem_erase.2 ⟨hji, mem_filter.2 ⟨mem_univ j, hj⟩⟩
         have hmem : i ∈ ({j | x j ≠ 0 ∧ x j ≠ 1} : Finset ι) := by simp [hi]
-        have := card_le_card hsub
-        rw [card_erase_of_mem hmem] at this
+        have := (card_le_card hsub).trans_eq (card_erase_of_mem hmem)
         omega
       have hline := (hh x i).eq_of_eq_of_eq (isAffineFun_const 0) zero_ne_one
         (hc 0 (Or.inl rfl)) (hc 1 (Or.inr rfl))
       simpa using congrFun hline (x i)
     · push Not at hb
-      exact h0 x fun i => by
-        by_cases h0i : x i = 0
-        · exact Or.inl h0i
-        · exact Or.inr (hb i h0i)
+      exact h0 x fun i => if h0i : x i = 0 then Or.inl h0i else Or.inr (hb i h0i)
 
 /-- **Uniqueness**: a multilinear function vanishing on the cube `{0, 1} ^ ι` vanishes. -/
 theorem IsMultilinear.eq_zero_of_forall_bitPoint [Finite ι] {h : (ι → F) → F}
@@ -287,11 +270,9 @@ theorem IsMultilinear.eq_zero_of_forall_bitPoint [Finite ι] {h : (ι → F) →
   have := Fintype.ofFinite ι
   funext x
   refine hh.eq_zero_aux (fun y hy => ?_) _ x le_rfl
-  have : y = bitPoint fun i => decide (y i = 1) := by
-    funext i
-    rcases hy i with h | h <;> simp [h, bitVal]
-  rw [this]
-  exact h0 _
+  exact (congrArg h (funext fun i => by
+    rcases hy i with hi | hi <;> simp [hi, bitPoint, bitVal])).trans
+    (h0 fun i => decide (y i = 1))
 
 /-- The multilinear extension of a function on the cube is multilinear. -/
 theorem isMultilinear_eval_multilinearExtension [Fintype ι] (g : (ι → Bool) → F) :
@@ -454,12 +435,7 @@ private theorem lineRestrict_succ (f : (Fin (n + 1) → F) → F) (x : Fin (n + 
 `j`. -/
 theorem card_wrongPoints_succ (f : (Fin (n + 1) → F) → F) (j : Fin n) :
     #(wrongPoints f j.succ) = ∑ t, #(wrongPoints (fun y => f (Fin.cons t y)) j) := by
-  have : wrongPoints f j.succ = ({x | ¬IsAffineFun (lineRestrict (fun y => f (Fin.cons (x 0) y))
-      (Fin.tail x) j)} : Finset (Fin (n + 1) → F)) := by
-    ext x
-    simp only [wrongPoints, mem_filter, mem_univ, true_and, lineRestrict_succ]
-  rw [this]
-  exact Fin.card_filter_zero_tail
+  simpa only [wrongPoints, lineRestrict_succ] using Fin.card_filter_zero_tail
     (fun t y => ¬IsAffineFun (lineRestrict (fun y => f (Fin.cons t y)) y j))
 
 omit [DecidableEq F] in
@@ -475,16 +451,18 @@ private theorem exists_two_mul_le_sum (D : F → ℕ) :
   refine ⟨t₁, t₂, (ne_of_mem_erase ht₂).symm, ?_⟩
   have hsum : D t₁ + (Fintype.card F - 1) * D t₂ ≤ ∑ t, D t := by
     rw [← add_sum_erase _ _ (mem_univ t₁)]
-    have := card_nsmul_le_sum _ D (D t₂) h₂
-    rw [card_erase_of_mem (mem_univ t₁), smul_eq_mul] at this
-    exact Nat.add_le_add_left (by simpa using this) _
+    exact Nat.add_le_add_left
+      (by simpa [card_erase_of_mem (mem_univ t₁)] using card_nsmul_le_sum _ D (D t₂) h₂) _
   have hq : 2 ≤ Fintype.card F := Fintype.one_lt_card
   obtain ⟨m, hm⟩ : ∃ m, Fintype.card F = m + 2 := ⟨_, (Nat.sub_add_cancel hq).symm⟩
   rw [hm] at hsum ⊢
-  have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
-  have := Nat.mul_le_mul_left m h12
   rw [show m + 2 - 1 = m + 1 by omega] at hsum
-  nlinarith
+  have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
+  calc (m + 2) * (D t₁ + D t₂)
+      = 2 * D t₁ + m * D t₁ + (m + 2) * D t₂ := by ring
+    _ ≤ 2 * D t₁ + m * D t₂ + (m + 2) * D t₂ := by gcongr
+    _ = 2 * (D t₁ + (m + 1) * D t₂) := by ring
+    _ ≤ 2 * ∑ t, D t := Nat.mul_le_mul_left 2 hsum
 
 /-- **Interpolating two slices**: if `g₁` and `g₂` are multilinear functions on `F ^ n` and
 `t₁ ≠ t₂`, then interpolating them in the first coordinate gives a multilinear function on
@@ -572,20 +550,17 @@ theorem exists_isMultilinear_hammingDist_div_le (f : (Fin n → F) → F) :
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · have : hammingDist f g = 0 := by simpa using hdist
     simp [this]
-  have hle : (hammingDist f g : ℝ) ≤ 2 ^ (n - 1) * ∑ i : Fin n, (#(wrongPoints f i) : ℝ) := by
-    calc (hammingDist f g : ℝ) ≤ ∑ i : Fin n, (2 : ℝ) ^ (i : ℕ) * #(wrongPoints f i) := by
-          exact_mod_cast hdist
-      _ ≤ ∑ i : Fin n, (2 : ℝ) ^ (n - 1) * #(wrongPoints f i) :=
-          sum_le_sum fun i _ => mul_le_mul_of_nonneg_right
-            (pow_le_pow_right₀ (by norm_num) (by omega)) (by positivity)
-      _ = 2 ^ (n - 1) * ∑ i : Fin n, (#(wrongPoints f i) : ℝ) := by rw [mul_sum]
   rw [multilinearityTestRejection_eq, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
     ← sum_div, div_le_iff₀ hcard]
   have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn.ne'
-  calc (hammingDist f g : ℝ) ≤ 2 ^ (n - 1) * ∑ i : Fin n, (#(wrongPoints f i) : ℝ) := hle
+  calc (hammingDist f g : ℝ)
+      ≤ ∑ i : Fin n, (2 : ℝ) ^ (i : ℕ) * #(wrongPoints f i) := by exact_mod_cast hdist
+    _ ≤ ∑ i : Fin n, (2 : ℝ) ^ (n - 1) * #(wrongPoints f i) :=
+        sum_le_sum fun i _ => mul_le_mul_of_nonneg_right
+          (pow_le_pow_right₀ (by norm_num) (by omega)) (by positivity)
+    _ = 2 ^ (n - 1) * ∑ i : Fin n, (#(wrongPoints f i) : ℝ) := by rw [mul_sum]
     _ = n * 2 ^ (n - 1) * ((∑ i : Fin n, (#(wrongPoints f i) : ℝ)) /
-          Fintype.card (Fin n → F) / n) * Fintype.card (Fin n → F) := by
-      field_simp
+          Fintype.card (Fin n → F) / n) * Fintype.card (Fin n → F) := by field_simp
 
 end Soundness
 

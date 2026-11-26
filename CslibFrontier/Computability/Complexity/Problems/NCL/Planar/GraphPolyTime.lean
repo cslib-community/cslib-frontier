@@ -64,10 +64,8 @@ theorem computableInPolyTime_incidenceGraph :
       encAndOrGraph encUnary := by fun_prop
   have hm' : ComputableInPolyTime (fun g : AndOrGraph =>
       if g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length then g.edgeCount else 0)
-      encAndOrGraph encUnary := by
-    convert hm using 1
-    funext g
-    split_ifs <;> omega
+      encAndOrGraph encUnary :=
+    hm.of_enc_eq fun g => congrArg encUnary (by split_ifs <;> omega)
   have hr : ComputableInPolyTime (fun g : AndOrGraph =>
       (List.range (g.vertices.flatMap Vertex.ports).length).take
         (if g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length then g.edgeCount else 0))
@@ -81,12 +79,10 @@ theorem computableInPolyTime_incidenceGraph :
   have hi : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.2)
       (encPair encAndOrGraph encUnary) encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hs := computableInPolyTime_portVertex (g := Prod.fst) (by fun_prop) hi
-    (ComputableInPolyTime.const false)
-  have ht := computableInPolyTime_portVertex (g := Prod.fst) (by fun_prop) hi
-    (ComputableInPolyTime.const true)
   have hedges := ComputableInPolyTime.mapWithInput
-    (f := fun g e => (g.portVertex e false, g.portVertex e true)) hr (hs.prod ht)
+    (f := fun g e => (g.portVertex e false, g.portVertex e true)) hr
+    ((computableInPolyTime_portVertex (g := Prod.fst) (by fun_prop) hi (.const false)).prod
+      (computableInPolyTime_portVertex (g := Prod.fst) (by fun_prop) hi (.const true)))
   exact encGraph_mk_polyTime hv hedges
 
 end Cslib.Complexity.NCL.AndOrGraph

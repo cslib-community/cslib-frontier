@@ -47,26 +47,18 @@ theorem Fin.exists_ne_apply_eq_iff_adjacent {α : Type*} [PartialOrder α] {coun
     (∃ j, j ≠ i ∧ f j = f i) ↔
       ((∃ positive : 0 < i.val, f ⟨i.val - 1, by lia⟩ = f i) ∨
         (∃ fits : i.val + 1 < count, f ⟨i.val + 1, fits⟩ = f i)) := by
-  constructor
-  · rintro ⟨j, different, same⟩
-    rcases lt_or_gt_of_ne different with before | after
+  refine ⟨fun ⟨j, different, same⟩ => ?_, ?_⟩
+  · rcases lt_or_gt_of_ne different with before | after
     · refine Or.inl ⟨by lia, ?_⟩
-      exact (ordered.eq_of_ge_of_le same (by change j.val ≤ i.val - 1; lia)
-        (by change i.val - 1 ≤ i.val; lia)).trans same
-    · have fits : i.val + 1 < count := (Nat.succ_le_of_lt after).trans_lt j.isLt
-      exact Or.inr ⟨fits, ordered.eq_of_ge_of_le same.symm
-        (by change i.val ≤ i.val + 1; lia) (by exact Nat.succ_le_of_lt after)⟩
+      exact (ordered.eq_of_ge_of_le same (Fin.le_def.mpr (Nat.le_sub_one_of_lt before))
+        (Fin.le_def.mpr (Nat.sub_le _ _))).trans same
+    · refine Or.inr ⟨(Nat.succ_le_of_lt after).trans_lt j.isLt, ?_⟩
+      exact ordered.eq_of_ge_of_le same.symm (Fin.le_def.mpr (Nat.le_succ _))
+        (Nat.succ_le_of_lt after)
   · rintro (⟨positive, same⟩ | ⟨fits, same⟩)
-    · refine ⟨⟨i.val - 1, by lia⟩, ?_, same⟩
-      intro equal
-      have := congrArg Fin.val equal
-      dsimp only at this
-      lia
-    · refine ⟨⟨i.val + 1, fits⟩, ?_, same⟩
-      intro equal
-      have := congrArg Fin.val equal
-      dsimp only at this
-      lia
+    · exact ⟨⟨i.val - 1, (Nat.sub_le _ _).trans_lt i.isLt⟩,
+        Fin.ne_of_val_ne (Nat.sub_lt positive Nat.one_pos).ne, same⟩
+    · exact ⟨⟨i.val + 1, fits⟩, Fin.ne_of_val_ne (Nat.lt_succ_self i.val).ne', same⟩
 
 /-- In a finite array with monotone keys, two different records with equal keys force an adjacent
 pair of different records with that key. -/
@@ -83,27 +75,22 @@ theorem Fin.exists_adjacent_ne_of_monotone_comp {α β : Type*} [PartialOrder β
     ⟨j.val, j.isLt, hij, le_rfl, hne.symm⟩
   obtain ⟨hq, hiq, hqj, hdiff⟩ := Nat.find_spec hex
   generalize hqdef : Nat.find hex = q at hq hiq hqj hdiff
-  have hmin : ∀ q' < q, ¬∃ hq : q' < R, i.val < q' ∧ q' ≤ j.val ∧ records ⟨q', hq⟩ ≠ records i :=
-    fun q' hq' => Nat.find_min hex (by omega)
   have hsame : records ⟨q - 1, by omega⟩ = records i := by
     by_contra h
-    have hlt : i.val < q - 1 := by
-      have hne : i.val ≠ q - 1 := fun he => h (congrArg records (Fin.ext he.symm))
-      omega
-    exact hmin (q - 1) (by omega) ⟨by omega, hlt, by omega, h⟩
+    have hne' : i.val ≠ q - 1 := fun he => h (congrArg records (Fin.ext he.symm))
+    exact Nat.find_min hex (m := q - 1) (by omega) ⟨by omega, by omega, by omega, h⟩
   have hqkey : key (records ⟨q, hq⟩) = key (records i) :=
     le_antisymm ((hs (show (⟨q, hq⟩ : Fin R) ≤ j from hqj)).trans_eq heq.symm)
       (hs (show i ≤ (⟨q, hq⟩ : Fin R) from hiq.le))
   have hqp : q - 1 + 1 = q := by omega
-  refine ⟨q - 1, by omega, ?_, ?_, congrArg key hsame⟩
-  · simpa only [hqp, hsame] using hdiff.symm
-  · simpa only [hqp, hsame] using hqkey.symm
+  exact ⟨q - 1, by omega, by simpa only [hqp, hsame] using hdiff.symm,
+    by simpa only [hqp, hsame] using hqkey.symm, congrArg key hsame⟩
 
 /-- The sum of all values in `Fin n` is at most `n * n`. -/
 theorem Fin.sum_val_le_mul_self (n : ℕ) : (∑ j : Fin n, j.val) ≤ n * n := by
   calc
-    _ ≤ ∑ _j : Fin n, n := Finset.sum_le_sum fun j _ => Nat.le_of_lt j.isLt
-    _ = n * n := by rw [Finset.sum_const_nat fun _ _ => rfl, Finset.card_univ, Fintype.card_fin]
+    _ ≤ ∑ _j : Fin n, n := Finset.sum_le_sum fun j _ => j.isLt.le
+    _ = n * n := by simp
 
 /-- A threshold at least the first value and strictly below the last is crossed by an
 actual adjacent pair. The finite sequence need not be monotone. -/
@@ -114,15 +101,7 @@ theorem Fin.exists_le_lt_adjacent {α : Type*} [LinearOrder α] {n : ℕ}
   by_contra hn
   let R : α → α → Prop := fun a b => a ≤ x → b ≤ x
   let : IsTrans α R := ⟨fun _ _ _ hab hbc => hbc ∘ hab⟩
-  have hadj : ∀ i : Fin n, R (f i.castSucc) (f i.succ) := by
-    intro i hi
-    exact le_of_not_gt (fun hh => hn ⟨i, hi, hh⟩)
-  have hall := (Fin.liftFun_iff_succ R).mpr hadj
-  by_cases hn0 : n = 0
-  · subst n
-    have he : (Fin.last 0 : Fin 1) = 0 := rfl
-    exact (not_le_of_gt hlast) (he.symm ▸ hfirst)
-  · have hz : (0 : Fin (n + 1)) < Fin.last n := by
-      change 0 < n
-      exact Nat.pos_of_ne_zero hn0
-    exact (not_le_of_gt hlast) (hall hz hfirst)
+  have hall := (Fin.liftFun_iff_succ R).mpr fun i hi => le_of_not_gt fun hh => hn ⟨i, hi, hh⟩
+  rcases Nat.eq_zero_or_pos n with rfl | hn0
+  · exact (not_le_of_gt hlast) (show f (Fin.last 0) ≤ x from hfirst)
+  · exact (not_le_of_gt hlast) (hall (show (0 : Fin (n + 1)) < Fin.last n from hn0) hfirst)

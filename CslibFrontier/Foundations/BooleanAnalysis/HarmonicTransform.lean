@@ -121,26 +121,20 @@ theorem harmonicTransform_nonneg {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ 
 /-- Constants are fixed by the harmonic transform. -/
 theorem harmonicTransform_const (c : ℝ) (selected : ι → Bool) :
     harmonicTransform (fun _ => c) selected = c := by
-  have he : projectionAverage (fun _ => c) selected = fun _ => c := by
-    funext x
-    simp [projectionAverage]
-  rw [harmonicTransform, he, harmonicMean_const]
+  rw [harmonicTransform, show projectionAverage (fun _ => c) selected = fun _ => c from
+    funext fun _ => by simp [projectionAverage], harmonicMean_const]
 
 /-- Selecting no coordinates gives the ordinary mean. -/
 theorem harmonicTransform_empty (f : (ι → Bool) → ℝ) :
     harmonicTransform f (fun _ => false) = 𝔼 x, f x := by
-  have he : projectionAverage f (fun _ => false) = fun _ => 𝔼 x, f x := by
-    funext x
-    simp only [projectionAverage, resample_false]
-  rw [harmonicTransform, he, harmonicMean_const]
+  rw [harmonicTransform, show projectionAverage f (fun _ => false) = fun _ => 𝔼 x, f x from
+    funext fun _ => by simp only [projectionAverage, resample_false], harmonicMean_const]
 
 /-- Selecting all coordinates gives the harmonic mean of the original function. -/
 theorem harmonicTransform_full (f : (ι → Bool) → ℝ) :
     harmonicTransform f (fun _ => true) = harmonicMean f := by
-  have he : projectionAverage f (fun _ => true) = f := by
-    funext x
-    simp only [projectionAverage, resample_true, Fintype.expect_const]
-  rw [harmonicTransform, he]
+  rw [harmonicTransform, show projectionAverage f (fun _ => true) = f from
+    funext fun _ => by simp only [projectionAverage, resample_true, Fintype.expect_const]]
 
 /-- **The transform is concave in the function** [Korten, Corollary 1][Korten2026]: for every
 selected set, it is concave on nonnegative functions. -/
@@ -160,14 +154,11 @@ private theorem harmonicTransform_midpoint {f g : (ι → Bool) → ℝ} (hf : �
     (hg : ∀ x, 0 ≤ g x) (selected : ι → Bool) :
     (harmonicTransform f selected + harmonicTransform g selected) / 2 ≤
       harmonicTransform (fun x => (f x + g x) / 2) selected := by
-  have he : (fun x => (f x + g x) / 2) = (1 / 2 : ℝ) • f + (1 / 2 : ℝ) • g := by
-    funext x
-    simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    ring
-  have h := (concaveOn_harmonicTransform selected).2 hf hg (by norm_num : (0 : ℝ) ≤ 1 / 2)
-    (by norm_num : (0 : ℝ) ≤ 1 / 2) (by norm_num)
-  rw [he]
-  simp only [smul_eq_mul] at h
+  have he : (1 / 2 : ℝ) • f + (1 / 2 : ℝ) • g = fun x => (f x + g x) / 2 :=
+    funext fun _ => by simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul]; ring
+  have h := (concaveOn_harmonicTransform selected).2 hf hg
+    one_half_pos.le one_half_pos.le (add_halves 1)
+  simp only [he, smul_eq_mul] at h
   linarith
 
 end
@@ -190,8 +181,7 @@ theorem projectionAverage_cons_false {n : ℕ}
         selected x := by
   unfold projectionAverage
   rw [Fin.expect_univ_cons_bool]
-  simp only [resample_cons, Bool.false_eq_true, ite_false]
-  rw [← expect_div, expect_add_distrib]
+  simp only [resample_cons, Bool.false_eq_true, ite_false, ← expect_div, expect_add_distrib]
 
 theorem projectionAverage_cons_true {n : ℕ}
     (f : (Fin (n + 1) → Bool) → ℝ) (selected x : Fin n → Bool) (b : Bool) :
@@ -199,8 +189,7 @@ theorem projectionAverage_cons_true {n : ℕ}
       projectionAverage (fun x => f (Fin.cons b x)) selected x := by
   unfold projectionAverage
   rw [Fin.expect_univ_cons_bool]
-  simp only [resample_cons, ite_true]
-  ring
+  simp only [resample_cons, ite_true]; ring
 
 theorem harmonicTransform_cons_false {n : ℕ}
     (f : (Fin (n + 1) → Bool) → ℝ) (selected : Fin n → Bool) :
@@ -286,9 +275,8 @@ theorem harmonicTransform_antitone {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 �
 
 /-- The harmonic transform is at most the ordinary mean [Korten, Corollary 1][Korten2026]. -/
 theorem harmonicTransform_le_expect {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x)
-    (selected : ι → Bool) : harmonicTransform f selected ≤ 𝔼 x, f x := by
-  rw [← harmonicTransform_empty f]
-  exact harmonicTransform_antitone hf fun _ => Bool.false_le _
+    (selected : ι → Bool) : harmonicTransform f selected ≤ 𝔼 x, f x :=
+  harmonicTransform_empty f ▸ harmonicTransform_antitone hf fun _ => Bool.false_le _
 
 end
 
@@ -301,9 +289,8 @@ private theorem add_sqrt_div_two_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
     (Real.sqrt a + Real.sqrt b) / 2 ≤
       3 / 4 * Real.sqrt ((a + b) / 2) + 1 / 4 * Real.sqrt (2 * a * b / (a + b)) := by
   by_cases hz : a + b = 0
-  · have ha0 : a = 0 := by linarith
-    have hb0 : b = 0 := by linarith
-    simp [ha0, hb0]
+  · obtain ⟨rfl, rfl⟩ := (add_eq_zero_iff_of_nonneg ha hb).mp hz
+    simp
   have hp : 0 < (a + b) / 2 := by positivity
   let c := Real.sqrt ((a + b) / 2)
   have hc : 0 < c := Real.sqrt_pos.mpr hp
@@ -315,9 +302,11 @@ private theorem add_sqrt_div_two_le {a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) :
   rw [hroot]
   change _ ≤ 3 / 4 * c + 1 / 4 * (Real.sqrt a * Real.sqrt b / c)
   apply (mul_le_mul_iff_of_pos_right hc).mp
-  field_simp
-  nlinarith [sq_nonneg (c - (Real.sqrt a + Real.sqrt b) / 2),
-    Real.sq_sqrt ha, Real.sq_sqrt hb]
+  have hid : 3 * c ^ 2 + Real.sqrt a * Real.sqrt b - 2 * (Real.sqrt a + Real.sqrt b) * c =
+      (2 * c - (Real.sqrt a + Real.sqrt b)) ^ 2 / 2 := by
+    linear_combination hc2 - (Real.sq_sqrt ha + Real.sq_sqrt hb) / 2
+  rw [add_mul, mul_assoc (3 / 4 : ℝ), mul_assoc (1 / 4 : ℝ), div_mul_cancel₀ _ hc.ne', ← sq]
+  linarith [sq_nonneg (2 * c - (Real.sqrt a + Real.sqrt b))]
 
 /-- One coordinate step of Korten's harmonic-transform inequality on `Fin (n + 1) → Bool`. -/
 private theorem add_sqrt_harmonicTransform_cons_le {n : ℕ} {f : (Fin (n + 1) → Bool) → ℝ}
@@ -409,30 +398,20 @@ theorem le_bernoulliAverage_le_harmonicTransform
   let a := 1 / (2 * Real.sqrt B)
   have ha : 0 ≤ a := by dsimp [a]; positivity
   have ha2 : a ^ 2 = 1 / (4 * B) := by
-    dsimp [a]
-    rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]
-    norm_num
+    rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]; norm_num
   have hlower : 1 / Real.sqrt B ≤ 𝔼 x, Real.sqrt (f x) := by
-    apply (div_le_iff₀ hBs).mpr
-    rw [← hmean, expect_mul]
-    apply expect_le_expect
-    intro x _
-    calc
-      f x = Real.sqrt (f x) * Real.sqrt (f x) := (Real.mul_self_sqrt (hf x)).symm
-      _ ≤ Real.sqrt (f x) * Real.sqrt B :=
-        mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hbound x)) (Real.sqrt_nonneg _)
+    rw [div_le_iff₀ hBs, ← hmean, expect_mul]
+    exact expect_le_expect fun x _ => (Real.mul_self_sqrt (hf x)).symm.trans_le
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (hbound x)) (Real.sqrt_nonneg _))
   have hpoint (s : ι → Bool) : Real.sqrt (harmonicTransform f s) ≤
       a + if 1 / (4 * B) ≤ harmonicTransform f s then 1 else 0 := by
     by_cases hs : 1 / (4 * B) ≤ harmonicTransform f s
     · rw [ite_eq_left hs]
       have hupper : Real.sqrt (harmonicTransform f s) ≤ 1 := by
-        have h := Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
-        simpa [hmean] using h
+        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
       linarith
-    · rw [ite_eq_right hs, add_zero]
-      calc
-        _ ≤ Real.sqrt (1 / (4 * B)) := Real.sqrt_le_sqrt (le_of_not_ge hs)
-        _ = a := by rw [← ha2, Real.sqrt_sq ha]
+    · rw [ite_eq_right hs, add_zero, ← Real.sqrt_sq ha, ha2]
+      exact Real.sqrt_le_sqrt (le_of_not_ge hs)
   have havg := bernoulliAverage_mono (by norm_num : (0 : ℝ) ≤ 1 / 4)
     (by norm_num : (1 : ℝ) / 4 ≤ 1) hpoint
   rw [bernoulliAverage_add, bernoulliAverage_const] at havg
@@ -445,10 +424,9 @@ patterns. The expectation ranges over the actual selected-coordinate cube. -/
 theorem coordinateMarginal_light_fraction_le {f : (ι → Bool) → ℝ}
     (hf : ∀ x, 0 ≤ f x) (selected : ι → Bool) {a b : ℝ} (ha : 0 < a)
     (ha' : a ≤ harmonicTransform f selected) (hb : 0 ≤ b) :
-    (𝔼 z, if coordinateMarginal f selected z ≤ b then (1 : ℝ) else 0) ≤ b / a := by
-  rw [harmonicTransform_eq_harmonicMean_coordinateMarginal] at ha'
-  exact harmonicMean_light_fraction_le
-    (fun _ => Finset.expect_nonneg fun _ _ => hf _) ha ha' hb
+    (𝔼 z, if coordinateMarginal f selected z ≤ b then (1 : ℝ) else 0) ≤ b / a :=
+  harmonicMean_light_fraction_le (fun _ => Finset.expect_nonneg fun _ _ => hf _) ha
+    (harmonicTransform_eq_harmonicMean_coordinateMarginal f selected ▸ ha') hb
 
 end
 

@@ -14,7 +14,8 @@ public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Regs
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Tabulate
 import CslibFrontier.Algorithms.WordRAM.TrimmedYates.Trie
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Multi-stage trimmed Yates transform on the word RAM
@@ -172,219 +173,78 @@ private theorem exec_passCode {w d domPtr free curRoot fbRoot cutoff signMode B 
     let X := dom[p]
     change s.regs rCellKey = setMask X at hsck
     change s.regs rCellCard = #X at hscc
+    suffices h : ∃ u, ExecWithin w passCellBody s u (18 * d + 47) ∧
+        u.regs rTrieVal = Signed.encode (yatesPass c coord G_k X) ∧ u.mem = s.mem by
+      obtain ⟨u, hu, hval, hmem⟩ := h
+      exact ⟨u, hu, hval, hmem, fun i hi => hu.regs_eq (passCellBody_preserves i hi)⟩
     have hX_mem : X ∈ dom := List.getElem_mem hp
     have ht_cur_s : HoldsTrie s.mem free d curRoot curFn := htrie_cur.congr_below hsmem
     have ht_fb_s : HoldsTrie s.mem free d fbRoot fbFn := htrie_fb.congr_below hsmem
-    let u₀ := (s.set rTrieRoot curRoot).set rTrieKey (setMask X)
-    have he₀ : ExecWithin (B := .standard) w
-        (ram[ rTrieRoot ← rStageCurRoot; rTrieKey ← rCellKey ]) s u₀ 2 := by
-      wram_exec [hscr, hsck]
-    obtain ⟨u₁, he₁, hu₁_val, hu₁_mem, hu₁_regs⟩ :=
-      exec_trieGet (root := curRoot) (key := setMask X) u₀
-        (by simp [u₀, hsz]) (by simp [u₀, hso]) (by simp [u₀, hsd])
-        (by simp [u₀]) (by simp [u₀]) ht_cur_s
-        (hfit_free.of_le (by omega)) hfit_d (hfit_mask.of_le (setMask_lt _).le)
-    rw [hcur_eq X hX_mem] at hu₁_val
+    have hfit_bound : Fits w free := hfit_free.of_le (by omega)
     have hand_eq : setMask X &&& (1 <<< coord.val) =
         (if coord ∈ X then 2 ^ coord.val else 0) := by
-      apply Nat.eq_of_testBit_eq
-      intro j
-      rw [Nat.testBit_and, Nat.shiftLeft_eq, one_mul, Nat.testBit_two_pow]
-      by_cases hj : j = coord.val
-      · subst hj
-        rw [testBit_setMask]
-        by_cases hcX : coord ∈ X <;> simp [hcX]
-      · have hne : coord.val ≠ j := Ne.symm hj
-        by_cases hcX : coord ∈ X <;> simp [hcX, hne]
-    have hf_and : Fits w (setMask X &&& (1 <<< coord.val)) :=
-      hfit_mask.of_le (Nat.and_le_left.trans (setMask_lt X).le)
-    have hu₁_ck : u₁.regs rCellKey = setMask X := by
-      rw [hu₁_regs rCellKey (Or.inr (by decide))]; simp [u₀, hsck]
-    have hu₁_bm : u₁.regs rGenBitMask = (1 <<< coord.val) := by
-      rw [hu₁_regs rGenBitMask (Or.inr (by decide))]; simp [u₀, hsbm]
-    let u₂ := u₁.set rGenTmp (setMask X &&& (1 <<< coord.val))
-    have he₂ : ExecWithin (B := .standard) w
-        (ram[ rGenTmp ← rCellKey &&& rGenBitMask ]) u₁ u₂ 1 := by
-      wram_exec [hu₁_ck, hu₁_bm]
-    have hu₂_z : u₂.regs rZero = 0 := by
-      simp only [u₂, Data.set_regs_of_ne (by decide : rZero ≠ rGenTmp)]
-      rw [hu₁_regs rZero (Or.inl (by decide))]; simp [u₀, hsz]
+      by_cases hcX : coord ∈ X <;> simp [Nat.shiftLeft_eq, Nat.and_two_pow, testBit_setMask, hcX]
+    unfold passCellBody
+    wram_exec [hscr, hsck]
+    wram_call (exec_trieGet (bound := free) (fn := curFn) _ (by wram_simp [hsz])
+      (by wram_simp [hso]) (by wram_simp [hsd]) (by wram_simp) (by wram_simp) ht_cur_s
+      hfit_bound hfit_d (hfit_mask.of_le (setMask_lt X).le)) with u₁ ⟨hu₁_val, hu₁_mem, hu₁_regs⟩
+    rw [hcur_eq X hX_mem] at hu₁_val
     by_cases hcX : coord ∈ X
-    · have hgt_ne : u₂.regs rGenTmp ≠ u₂.regs rZero := by
-        rw [hu₂_z]; simp only [u₂, Data.set_regs_self, hand_eq, hcX, ↓reduceIte]
-        exact (Nat.two_pow_pos coord.val).ne'
-      have hcard_er : #(X.erase coord) + 1 = #X := Finset.card_erase_add_one hcX
-      have hf_xor : Fits w (setMask X ^^^ (1 <<< coord.val)) := by
-        rw [← setMask_erase hcX]; exact hfit_mask.of_le (setMask_lt _).le
-      have hu₂_val : u₂.regs rTrieVal = Signed.encode (G_k X) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rTrieVal ≠ rGenTmp)]; exact hu₁_val
-      have hu₂_ck : u₂.regs rCellKey = setMask X := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rCellKey ≠ rGenTmp)]; exact hu₁_ck
-      have hu₂_bm : u₂.regs rGenBitMask = (1 <<< coord.val) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rGenBitMask ≠ rGenTmp)]; exact hu₁_bm
-      have hu₂_cut : u₂.regs rStageCutoff = cutoff := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageCutoff ≠ rGenTmp)]
-        rw [hu₁_regs rStageCutoff (Or.inr (by decide))]; simp [u₀, hscut]
-      have hu₂_cc : u₂.regs rCellCard = #X := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rCellCard ≠ rGenTmp)]
-        rw [hu₁_regs rCellCard (Or.inr (by decide))]; simp [u₀, hscc]
-      have hu₂_cr : u₂.regs rStageCurRoot = curRoot := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageCurRoot ≠ rGenTmp)]
-        rw [hu₁_regs rStageCurRoot (Or.inr (by decide))]; simp [u₀, hscr]
-      have hu₂_fbr : u₂.regs rStageFbRoot = fbRoot := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rStageFbRoot ≠ rGenTmp)]
-        rw [hu₁_regs rStageFbRoot (Or.inr (by decide))]; simp [u₀, hsfbr]
-      have hsel : ∃ u₃ selRoot selFn,
-          ExecWithin (B := .standard) w (ram[
-            Signed.left ← rTrieVal;
-            rTrieKey ← rCellKey ^^^ rGenBitMask;
-            if rStageCutoff < rCellCard then [
-              rTrieRoot ← rStageCurRoot
-            ] else [
-              rTrieRoot ← rStageFbRoot
-            ] ]) u₂ u₃ 5 ∧
-          u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-          u₃.regs rTrieKey = setMask (X.erase coord) ∧
-          u₃.regs rTrieRoot = selRoot ∧
-          u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-          u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem ∧
-          HoldsTrie u₃.mem free d selRoot selFn ∧
+    · have hf_pow : Fits w (2 ^ coord.val) :=
+        hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos coord.isLt.le)
+      have hfit_er : Fits w (setMask (X.erase coord)) := hfit_mask.of_le (setMask_lt _).le
+      obtain ⟨selRoot, selFn, hsel, htsel, hval_er⟩ : ∃ selRoot selFn,
+          (if cutoff < #X then curRoot else fbRoot) = selRoot ∧
+          HoldsTrie s.mem free d selRoot selFn ∧
           selFn (setMask (X.erase coord)) = Signed.encode (G_k (X.erase coord)) := by
-        have hu₂_o : u₂.regs rOne = 1 := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : rOne ≠ rGenTmp)]
-          rw [hu₁_regs rOne (Or.inl (by decide))]; simp [u₀, hso]
-        have hu₂_d : u₂.regs Reg.dim = d := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : Reg.dim ≠ rGenTmp)]
-          rw [hu₁_regs Reg.dim (Or.inl (by decide))]; simp [u₀, hsd]
-        have hu₂_sm : u₂.regs rSignMode = signMode := by
-          simp only [u₂, Data.set_regs_of_ne (by decide : rSignMode ≠ rGenTmp)]
-          rw [hu₁_regs rSignMode (Or.inr (by decide))]; simp [u₀, hssm]
+        have hcard_er : #(X.erase coord) + 1 = #X := Finset.card_erase_add_one hcX
         by_cases hlt_cut : cutoff < #X
-        · have hst : ∃ u₃, ExecWithin (B := .standard) w (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ]) u₂ u₃ 5 ∧
-              u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-              u₃.regs rTrieKey = setMask (X.erase coord) ∧
-              u₃.regs rTrieRoot = curRoot ∧
-              u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-              u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem := by
-            wram_exec [hu₂_val, hu₂_ck, hu₂_bm, hu₂_cut, hu₂_cc, hu₂_cr, hlt_cut]
-            wram_simp [setMask_erase hcX, hu₂_z, hu₂_o, hu₂_d, hu₂_sm]
-          obtain ⟨u₃, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃⟩ := hst
-          refine ⟨u₃, curRoot, curFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, ?_,
+        · exact ⟨curRoot, curFn, ite_eq_left hlt_cut, ht_cur_s,
             hcur_eq _ ((hdom_closed X hX_mem hcX).1 (by omega))⟩
-          rw [hm₃]; change HoldsTrie u₁.mem free d curRoot curFn; rwa [hu₁_mem]
-        · have hst : ∃ u₃, ExecWithin (B := .standard) w (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ]) u₂ u₃ 5 ∧
-              u₃.regs (Signed.left (r := 47)) = Signed.encode (G_k X) ∧
-              u₃.regs rTrieKey = setMask (X.erase coord) ∧
-              u₃.regs rTrieRoot = fbRoot ∧
-              u₃.regs rZero = 0 ∧ u₃.regs rOne = 1 ∧ u₃.regs Reg.dim = d ∧
-              u₃.regs rSignMode = signMode ∧ u₃.mem = u₂.mem := by
-            wram_exec [hu₂_val, hu₂_ck, hu₂_bm, hu₂_cut, hu₂_cc, hu₂_fbr, hlt_cut]
-            wram_simp [setMask_erase hcX, hu₂_z, hu₂_o, hu₂_d, hu₂_sm]
-          obtain ⟨u₃, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃⟩ := hst
-          refine ⟨u₃, fbRoot, fbFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, ?_,
+        · exact ⟨fbRoot, fbFn, ite_eq_right hlt_cut, ht_fb_s,
             hfb_eq _ (by omega) ((hdom_closed X hX_mem hcX).2 (by omega))⟩
-          rw [hm₃]; change HoldsTrie u₁.mem free d fbRoot fbFn; rwa [hu₁_mem]
-      obtain ⟨u₃, selRoot, selFn, he₃, hl₃, hk₃, hr₃, hz₃, ho₃, hd₃, hsm₃, hm₃, htsel, hval_er⟩ :=
-        hsel
-      obtain ⟨u₄, he₄, hu₄_val, hu₄_mem, hu₄_regs⟩ := exec_trieGet u₃ hz₃ ho₃ hd₃ hr₃ hk₃ htsel
-        (hfit_free.of_le (by omega)) hfit_d (hfit_mask.of_le (setMask_lt _).le)
-      rw [hval_er] at hu₄_val
-      have hu₄_left : u₄.regs (Signed.left (r := 47)) = Signed.encode (G_k X) :=
-        (hu₄_regs _ (Or.inl (by decide))).trans hl₃
-      have hu₄_sm : u₄.regs rSignMode = signMode :=
-        (hu₄_regs _ (Or.inr (by decide))).trans hsm₃
-      have hu₄_z : u₄.regs rZero = 0 :=
-        (hu₄_regs _ (Or.inl (by decide))).trans hz₃
-      let u₅ := u₄.set (Signed.right (r := 47)) (Signed.encode (G_k (X.erase coord)))
-      have he₅ : ExecWithin (B := .standard) w (ram[ Signed.right ← rTrieVal ]) u₄ u₅ 1 := by
-        wram_exec [hu₄_val]
-      have harith : ∃ u₆, ExecWithin w
-          (.branch (.eq rSignMode rZero) (Signed.add (r := 47)) (Signed.subtract (r := 47)))
-          u₅ u₆ 19 ∧
-          u₆.regs (Signed.result (r := 47)) = Signed.encode (yatesPass c coord G_k X) ∧
-          u₆.mem = u₅.mem := by
+      have hsign : ∀ u : Data numRegs, u.regs rZero = 0 → u.regs rSignMode = signMode →
+          u.regs (Signed.left (r := 47)) = Signed.encode (G_k X) →
+          u.regs (Signed.right (r := 47)) = Signed.encode (G_k (X.erase coord)) →
+          ∃ v, ExecWithin w (.branch (.eq rSignMode rZero) (Signed.add (r := 47))
+              (Signed.subtract (r := 47))) u v 19 ∧
+            v.regs (Signed.result (r := 47)) = Signed.encode (yatesPass c coord G_k X) ∧
+            v.mem = u.mem := by
+        intro u huz husm hul hur
         by_cases hsm0 : signMode = 0
-        · have hcond : (Cond.eq rSignMode rZero).Holds u₅ := by
-            simp [Cond.holds_eq, u₅, hu₄_sm, hu₄_z, hsm0]
-          obtain ⟨u₆, he₆, hres₆, hmem₆, _⟩ :=
-            exec_signedAdd hfit_val (hG_le X) (hG_le (X.erase coord)) u₅
-              (by simp only [u₅, Data.set_regs_of_ne (by decide :
-                    Signed.left (r := 47) ≠ Signed.right (r := 47))]; exact hu₄_left)
-              (by simp [u₅])
-          refine ⟨u₆, (he₆.branch_pos hcond).mono (by omega), ?_, hmem₆⟩
-          simpa [yatesPass, hcX, c, hsm0] using hres₆
-        · have hcond : ¬ (Cond.eq rSignMode rZero).Holds u₅ := by
-            simp [Cond.holds_eq, u₅, hu₄_sm, hu₄_z, hsm0]
-          obtain ⟨u₆, he₆, hres₆, hmem₆, _⟩ :=
-            exec_signedSub hfit_val (hG_le X) (hG_le (X.erase coord)) u₅
-              (by simp only [u₅, Data.set_regs_of_ne (by decide :
-                    Signed.left (r := 47) ≠ Signed.right (r := 47))]; exact hu₄_left)
-              (by simp [u₅])
-          refine ⟨u₆, (he₆.branch_neg hcond).mono (by omega), ?_, hmem₆⟩
-          simpa [yatesPass, hcX, c, hsm0, sub_eq_add_neg] using hres₆
-      obtain ⟨u₆, he₆, hres₆, hm₆⟩ := harith
-      let u := u₆.set rTrieVal (Signed.encode (yatesPass c coord G_k X))
-      have he₇ : ExecWithin (B := .standard) w (ram[ rTrieVal ← Signed.result ]) u₆ u 1 := by
-        wram_exec [hres₆]
-      have helse : ExecWithin w
-          (.seq (ram[
-              Signed.left ← rTrieVal;
-              rTrieKey ← rCellKey ^^^ rGenBitMask;
-              if rStageCutoff < rCellCard then [
-                rTrieRoot ← rStageCurRoot
-              ] else [
-                rTrieRoot ← rStageFbRoot
-              ] ])
-            (.seq trieGet
-              (.seq (ram[ Signed.right ← rTrieVal ])
-                (.seq (.branch (.eq rSignMode rZero)
-                    (Signed.add (r := 47))
-                    (Signed.subtract (r := 47)))
-                  (ram[ rTrieVal ← Signed.result ])))))
-          u₂ u (9 * d + 34) :=
-        (he₃.seq (he₄.seq (he₅.seq (he₆.seq he₇)))).mono (by omega)
-      have hbr : ExecWithin w
-          (.branch (.eq rGenTmp rZero) (ram[ rTrieVal ← rTrieVal ]) _) u₂ u (9 * d + 36) :=
-        (helse.branch_neg (by simpa [Cond.holds_eq] using hgt_ne)).mono (by omega)
-      have htot : ExecWithin w passCellBody s u (18 * d + 47) :=
-        (he₀.seq (he₁.seq (he₂.seq hbr))).mono (by omega)
-      refine ⟨u, htot, by simp [u, X], hm₆.trans (hu₄_mem.trans (hm₃.trans hu₁_mem)),
-        fun i hi => htot.regs_eq (passCellBody_preserves i hi)⟩
-    · have hgt_eq : u₂.regs rGenTmp = u₂.regs rZero := by
-        rw [hu₂_z]; simp [u₂, hand_eq, hcX]
-      have hu₂_val : u₂.regs rTrieVal = Signed.encode (G_k X) := by
-        simp only [u₂, Data.set_regs_of_ne (by decide : rTrieVal ≠ rGenTmp)]; exact hu₁_val
-      let u := u₂.set rTrieVal (Signed.encode (G_k X))
-      have hnop : ExecWithin (B := .standard) w (ram[ rTrieVal ← rTrieVal ]) u₂ u 1 := by
-        wram_exec [hu₂_val]
-      have htot : ExecWithin w passCellBody s u (18 * d + 47) :=
-        (he₀.seq (he₁.seq (he₂.seq
-          (hnop.branch_pos (by simpa [Cond.holds_eq] using hgt_eq))))).mono (by omega)
-      refine ⟨u, htot, by simp [u, X, yatesPass, hcX], hu₁_mem,
-        fun i hi => htot.regs_eq (passCellBody_preserves i hi)⟩
+        · obtain ⟨v, he, hres, hm, -⟩ :=
+            exec_signedAdd hfit_val (hG_le X) (hG_le (X.erase coord)) u hul hur
+          refine ⟨v, (he.branch_pos (by simp [Cond.holds_eq, huz, husm, hsm0])).mono (by omega),
+            ?_, hm⟩
+          simpa [yatesPass, hcX, c, hsm0] using hres
+        · obtain ⟨v, he, hres, hm, -⟩ :=
+            exec_signedSub hfit_val (hG_le X) (hG_le (X.erase coord)) u hul hur
+          refine ⟨v, (he.branch_neg (by simp [Cond.holds_eq, huz, husm, hsm0])).mono (by omega),
+            ?_, hm⟩
+          simpa [yatesPass, hcX, c, hsm0, sub_eq_add_neg] using hres
+      wram_exec * [hand_eq, ite_eq_left hcX, (Nat.two_pow_pos coord.val).ne', ← setMask_erase hcX]
+      all_goals
+        simp only [hc, ↓reduceIte] at hsel
+        wram_call (exec_trieGet (bound := free) (root := selRoot) (fn := selFn) _ (by regs_frame)
+          (by regs_frame) (by regs_frame) (by wram_simp [hsel]) (by wram_simp)
+          (by simpa only [Data.set_mem, hu₁_mem] using htsel) hfit_bound hfit_d hfit_er)
+          with u₄ ⟨hu₄_val, hu₄_mem, hu₄_regs⟩
+        rw [hval_er] at hu₄_val
+        wram_exec * -split [hu₄_val]
+        wram_call (hsign _ (by regs_frame) (by regs_frame) (by regs_frame) (by wram_simp))
+          with u₆ ⟨hres, hm₆⟩
+        wram_exec * [hres]
+        exact ⟨by wram_simp, by simp only [Data.set_mem, hm₆, hu₄_mem, hu₁_mem]⟩
+    · wram_exec * [hand_eq, ite_eq_right hcX]
+      exact ⟨by wram_simp [yatesPass, ite_eq_right hcX], by simp only [Data.set_mem, hu₁_mem]⟩
   obtain ⟨y, free', S', outFn, he, hysav, hyfree, hlo', hhi', hS', hyrep, hydom, hyframe⟩ :=
     exec_tabulateDom (cellBody := passCellBody)
       (cellFn := fun X => Signed.encode (yatesPass c coord G_k X))
       (T_cell := 18 * d + 47) x hz ho hd hdp hdl hfree hfree_pos
       hnd hdom hdom_below ⟨hbm, hcut, hsm, hcr, hfbr⟩ hInv_congr hcell hfit_free hfit_mask
   have he' : ExecWithin w passCode x y (dom.length * (32 * d + 63) + 9) :=
-    he.mono (by
-      have : 14 * d + (18 * d + 47) + 16 = 32 * d + 63 := by omega
-      rw [this])
+    he.mono (Nat.add_le_add_right (Nat.mul_le_mul_left _ (by omega)) 9)
   exact ⟨y, free', S', outFn, he', hysav, hyfree, hlo', hhi', hS', hyrep, hydom, hyframe,
     fun i hi => he'.regs_eq (passCode_preserves i hi)⟩
 
@@ -403,9 +263,8 @@ private theorem HoldsTrie.toOutside_of_le {mem : ℕ → ℕ} {b exclLo exclHi b
     HoldsTrieOutside mem exclLo exclHi bound d root fn := by
   rw [HoldsTrie.iff_exists_trieRep] at h
   obtain ⟨S, hS, hrep⟩ := h
-  refine ⟨S, fun a ha => ⟨(hS ha).1, (hS ha).2.trans_le hb_bound⟩, Set.disjoint_left.mpr ?_, hrep⟩
-  intro a ha hexcl
-  have := (hS ha).2; have := hexcl.1; omega
+  exact ⟨S, hS.trans (Set.Ico_subset_Ico_right hb_bound),
+    Set.disjoint_left.mpr (fun _ ha he => ((hS ha).2.trans_le hb_excl).not_ge he.1), hrep⟩
 
 /-- Registers potentially modified by `stagesCode`. -/
 abbrev IsStageMod (i : Fin numRegs) : Prop :=
@@ -503,22 +362,35 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
       ∃ z, ExecWithin w stagesStep s z (dom.length * (32 * d + 63) + 20) ∧
         P (s.regs rStageIdx + 1) z ∧ z.regs rStageIdx = s.regs rStageIdx + 1 := by
     generalize hk_eq : s.regs rStageIdx = k at hs hk ⊢
-    dsimp only [P] at hs
     obtain ⟨hsz, hso, hsd, hsdp, hsdl, hscut, hssm, hsfbb, hsro,
       curFree, hsfree, hcf_lo, hcf_hi, hstages, hsframe⟩ := hs
     let coord : Fin d := ⟨k, hk⟩
     let G_k := yatesTransform c ((List.finRange d).take k) G
     obtain ⟨curFn, hcur_out, hcur_eq⟩ := hstages k le_rfl
-    have hcur_trie : HoldsTrie s.mem curFree d (s.mem (free + k)) curFn := hcur_out.toHoldsTrie
     have hG_k_le : ∀ Y, (G_k Y).natAbs ≤ B := fun Y =>
       (natAbs_yatesTransform_le hc_abs ((List.nodup_finRange d).sublist (List.take_sublist _ _))
         hG_le Y).trans hB
-    have hf_ro_k : Fits w (free + k) := hfit_free.of_le (by dsimp [exclHi] at *; omega)
-    have hf_shl : Fits w (1 <<< k) := by
-      rw [Nat.shiftLeft_eq, one_mul]
-      exact hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos hk.le)
-    have hsetup : ∃ u₀ fbRoot fbFn,
-        ExecWithin (B := .standard) w (ram[
+    have hf_ro_k : Fits w (free + k) := hfit_free.of_le (by omega)
+    have hf_shl : Fits w (1 <<< k) :=
+      Nat.one_shiftLeft k ▸ hfit_mask.of_le (Nat.pow_le_pow_right Nat.two_pos hk.le)
+    have hf_k1 : Fits w (k + 1) := hfit_d.of_le (by omega)
+    have hf_ro_k1 : Fits w (free + (k + 1)) := hfit_free.of_le (by omega)
+    have hpass_le := Nat.add_one_mul k (2 * d * dom.length + 2)
+    have hpass_fit : Fits w (curFree + 2 + 2 * d * dom.length) := hfit_free.of_le (by
+      have := Nat.mul_le_mul_right (2 * d * dom.length + 2) (show k + 1 ≤ d from hk); omega)
+    -- The fallback trie of stage `k`: empty when `cutoff = 0`, else stored at `fbBase + k`.
+    obtain ⟨fbRoot, fbFn, hfbr, hfb_tr, hfb_eq⟩ : ∃ fbRoot fbFn,
+        (if cutoff = 0 then 0 else s.mem (fbBase + k)) = fbRoot ∧
+        HoldsTrie s.mem curFree d fbRoot fbFn ∧
+        ∀ Y, #Y < cutoff → P_low Y → fbFn (setMask Y) = Signed.encode (G_k Y) := by
+      by_cases hcut0 : cutoff = 0
+      · exact ⟨0, fun _ => 0, by simp [hcut0], HoldsTrie.zero_root _ _ _, fun _ hY _ => by omega⟩
+      · obtain ⟨hfbb_le, hfb_all⟩ := hfb_valid (by omega)
+        obtain ⟨fbFn, hfb_tr, hfb_eq⟩ := hfb_all k hk
+        refine ⟨s.mem (fbBase + k), fbFn, by simp [hcut0], ?_, hfb_eq⟩
+        rw [hsframe _ (Or.inl (by omega))]
+        exact (hfb_tr.congr_below fun a ha => hsframe a (Or.inl ha)).mono_bound (by omega)
+    obtain ⟨u₀, he₀, hu₀cr, hu₀fbr, hu₀bm, hu₀mem⟩ : ∃ u₀, ExecWithin (B := .standard) w (ram[
           rGenTmp ← rRootsOut + rStageIdx;
           rStageCurRoot ← *rGenTmp;
           if rStageCutoff = rZero then [
@@ -528,235 +400,97 @@ theorem exec_stagesCode {w d domPtr free initRoot fbBase cutoff signMode B₀ B 
             rStageFbRoot ← *rGenTmp
           ];
           rGenBitMask ← rOne <<< rStageIdx ]) s u₀ 8 ∧
-        u₀.regs rZero = 0 ∧ u₀.regs rOne = 1 ∧ u₀.regs Reg.dim = d ∧
-        u₀.regs Reg.entryPtr = domPtr ∧ u₀.regs Reg.entryCount = dom.length ∧
-        u₀.regs rStageCutoff = cutoff ∧ u₀.regs rSignMode = signMode ∧
-        u₀.regs rFbRoots = fbBase ∧ u₀.regs rRootsOut = free ∧
-        u₀.regs rStageIdx = k ∧ u₀.regs Reg.free = curFree ∧
-        u₀.regs rStageCurRoot = s.mem (free + k) ∧
-        u₀.regs rStageFbRoot = fbRoot ∧ u₀.regs rGenBitMask = (1 <<< coord.val) ∧
-        u₀.mem = s.mem ∧ HoldsTrie s.mem curFree d fbRoot fbFn ∧
-        (∀ Y, #Y < cutoff → P_low Y → fbFn (setMask Y) = Signed.encode (G_k Y)) := by
+        u₀.regs rStageCurRoot = s.mem (free + k) ∧ u₀.regs rStageFbRoot = fbRoot ∧
+        u₀.regs rGenBitMask = (1 <<< coord.val) ∧ u₀.mem = s.mem := by
       by_cases hcut0 : cutoff = 0
-      · have hst : ∃ u₀, ExecWithin (B := .standard) w (ram[
-            rGenTmp ← rRootsOut + rStageIdx;
-            rStageCurRoot ← *rGenTmp;
-            if rStageCutoff = rZero then [
-              rStageFbRoot ← #0
-            ] else [
-              rGenTmp ← rFbRoots + rStageIdx;
-              rStageFbRoot ← *rGenTmp
-            ];
-            rGenBitMask ← rOne <<< rStageIdx ]) s u₀ 8 ∧
-            u₀.regs rZero = 0 ∧ u₀.regs rOne = 1 ∧ u₀.regs Reg.dim = d ∧
-            u₀.regs Reg.entryPtr = domPtr ∧ u₀.regs Reg.entryCount = dom.length ∧
-            u₀.regs rStageCutoff = cutoff ∧ u₀.regs rSignMode = signMode ∧
-            u₀.regs rFbRoots = fbBase ∧ u₀.regs rRootsOut = free ∧
-            u₀.regs rStageIdx = k ∧ u₀.regs Reg.free = curFree ∧
-            u₀.regs rStageCurRoot = s.mem (free + k) ∧
-            u₀.regs rStageFbRoot = 0 ∧ u₀.regs rGenBitMask = (1 <<< coord.val) ∧
-            u₀.mem = s.mem := by
-          wram_exec [hsz, hso, hsro, hk_eq, hscut, hcut0]
-          wram_simp [hsz, hso, hsd, hsdp, hsdl, hscut, hssm, hsfbb, hsro, hk_eq, hsfree, coord]
-        obtain ⟨u₀, he₀, hzz, hzo, hzd, hzdp, hzdl, hzcut, hzsm, hzfbb, hzro, hzk, hzfr,
-          hzcr, hzfbr, hzbm, hzm⟩ := hst
-        refine ⟨u₀, 0, fun _ => 0, he₀, hzz, hzo, hzd, hzdp, hzdl, hzcut, hzsm, hzfbb, hzro,
-          hzk, hzfr, hzcr, hzfbr, hzbm, hzm, HoldsTrie.zero_root _ _ _, fun _ hY _ => by omega⟩
-      · obtain ⟨hfbb_le, hfb_all⟩ := hfb_valid (by omega)
-        obtain ⟨fbFn, hfb_tr, hfb_eq⟩ := hfb_all k hk
-        have hf_fbb_k : Fits w (fbBase + k) := hfit_free.of_le (by dsimp [exclHi] at *; omega)
-        have hs_fbb_read : s.mem (fbBase + k) = x.mem (fbBase + k) :=
-          hsframe _ (Or.inl (by omega))
-        have hfb_tr_s : HoldsTrie s.mem curFree d (s.mem (fbBase + k)) fbFn := by
-          rw [hs_fbb_read]
-          exact (hfb_tr.congr_below fun a ha => hsframe a (Or.inl ha)).mono_bound
-            (by dsimp [exclHi] at hcf_lo; omega)
-        have hst : ∃ u₀, ExecWithin (B := .standard) w (ram[
-            rGenTmp ← rRootsOut + rStageIdx;
-            rStageCurRoot ← *rGenTmp;
-            if rStageCutoff = rZero then [
-              rStageFbRoot ← #0
-            ] else [
-              rGenTmp ← rFbRoots + rStageIdx;
-              rStageFbRoot ← *rGenTmp
-            ];
-            rGenBitMask ← rOne <<< rStageIdx ]) s u₀ 8 ∧
-            u₀.regs rZero = 0 ∧ u₀.regs rOne = 1 ∧ u₀.regs Reg.dim = d ∧
-            u₀.regs Reg.entryPtr = domPtr ∧ u₀.regs Reg.entryCount = dom.length ∧
-            u₀.regs rStageCutoff = cutoff ∧ u₀.regs rSignMode = signMode ∧
-            u₀.regs rFbRoots = fbBase ∧ u₀.regs rRootsOut = free ∧
-            u₀.regs rStageIdx = k ∧ u₀.regs Reg.free = curFree ∧
-            u₀.regs rStageCurRoot = s.mem (free + k) ∧
-            u₀.regs rStageFbRoot = s.mem (fbBase + k) ∧
-            u₀.regs rGenBitMask = (1 <<< coord.val) ∧ u₀.mem = s.mem := by
-          wram_exec [hsz, hso, hsro, hk_eq, hscut, hcut0, hsfbb]
-          wram_simp [hsz, hso, hsd, hsdp, hsdl, hscut, hssm, hsfbb, hsro, hk_eq, hsfree, coord]
-        obtain ⟨u₀, he₀, hzz, hzo, hzd, hzdp, hzdl, hzcut, hzsm, hzfbb, hzro, hzk, hzfr,
-          hzcr, hzfbr, hzbm, hzm⟩ := hst
-        exact ⟨u₀, s.mem (fbBase + k), fbFn, he₀, hzz, hzo, hzd, hzdp, hzdl, hzcut, hzsm,
-          hzfbb, hzro, hzk, hzfr, hzcr, hzfbr, hzbm, hzm, hfb_tr_s, hfb_eq⟩
-    obtain ⟨u₀, fbRoot, fbFn, he₀, hu₀z, hu₀o, hu₀d, hu₀dp, hu₀dl, hu₀cut, hu₀sm, hu₀fbb,
-      hu₀ro, hu₀k, hu₀fr, hu₀cr, hu₀fbr, hu₀bm, hu₀mem, hfb_tr, hfb_eq⟩ := hsetup
-    have hpass_fit : Fits w (curFree + 2 + 2 * d * dom.length) := by
-      have : curFree + 2 + 2 * d * dom.length ≤
-          free + d + 1 + d * (2 * d * dom.length + 2) := by
-        calc curFree + 2 + 2 * d * dom.length
-            ≤ exclHi + k * (2 * d * dom.length + 2) + (2 * d * dom.length + 2) := by omega
-          _ = exclHi + (k + 1) * (2 * d * dom.length + 2) := by ring
-          _ ≤ exclHi + d * (2 * d * dom.length + 2) :=
-              Nat.add_le_add_left (Nat.mul_le_mul_right _ (by omega)) _
-      exact hfit_free.of_le this
-    have hdom_u₀ : HoldsDom u₀.mem domPtr dom := by
-      rw [hu₀mem]
+      · wram_exec [hsz, hso, hsro, hk_eq, hscut, hcut0]
+        wram_simp [coord, ← hfbr, hcut0]
+      · have : Fits w (fbBase + k) := hfit_free.of_le (by have := (hfb_valid (by omega)).1; omega)
+        wram_exec [hsz, hso, hsro, hk_eq, hscut, hcut0, hsfbb]
+        wram_simp [coord, ← hfbr, hcut0]
+    have hdom_s : HoldsDom s.mem domPtr dom := by
       intro p hp
       rw [hsframe _ (Or.inl (by omega)), hsframe _ (Or.inl (by omega))]
       exact hdom p hp
     obtain ⟨u₁, free', S_new, outFn, he_pass, hu₁_sav, hu₁_free, hcf_le', hfree'_le,
-      hS_new, hrep_new, hout_eq, hu₁_frame, hu₁_regs⟩ :=
-      exec_passCode (coord := coord) (P_low := P_low) (G_k := G_k) (B := B) u₀
-        hu₀z hu₀o hu₀d hu₀dp hu₀dl hu₀fr (by dsimp [exclHi] at hcf_lo; omega)
-        hu₀bm hu₀cut hu₀sm hu₀cr hu₀fbr hnd hdom_u₀ (by dsimp [exclHi] at hcf_lo; omega)
-        (fun X hX hc => hdom_closed X hX coord hc)
-        (by rwa [hu₀mem]) (by rwa [hu₀mem]) hcur_eq hfb_eq hG_k_le
+        hS_new, hrep_new, hout_eq, hu₁_frame, hu₁_regs⟩ :=
+      exec_passCode (domPtr := domPtr) (free := curFree) (cutoff := cutoff) (signMode := signMode)
+        (coord := coord) (P_low := P_low) (G_k := G_k) (B := B) u₀
+        (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+        (by regs_frame) (by omega) hu₀bm (by regs_frame) (by regs_frame) hu₀cr hu₀fbr hnd
+        (by rwa [hu₀mem]) (by omega) (fun X hX hc => hdom_closed X hX coord hc)
+        (by rw [hu₀mem]; exact hcur_out.toHoldsTrie) (by rwa [hu₀mem]) hcur_eq hfb_eq hG_k_le
         hfit_val hpass_fit hfit_mask
-    have hu₁_k : u₁.regs rStageIdx = k :=
-      (hu₁_regs rStageIdx (by decide)).trans hu₀k
-    have hu₁_o : u₁.regs rOne = 1 :=
-      (hu₁_regs rOne (by decide)).trans hu₀o
-    have hu₁_ro : u₁.regs rRootsOut = free :=
-      (hu₁_regs rRootsOut (by decide)).trans hu₀ro
-    have hf_k1 : Fits w (k + 1) := hfit_d.of_le (by omega)
-    have hf_ro_k1 : Fits w (free + (k + 1)) := hfit_free.of_le (by dsimp [exclHi] at *; omega)
-    have hstore : ∃ z, ExecWithin (B := .standard) w (ram[
+    obtain ⟨z, he_st, hz_k, hz_mem⟩ : ∃ z, ExecWithin (B := .standard) w (ram[
         rStageIdx ← rStageIdx + rOne;
         rGenTmp ← rRootsOut + rStageIdx;
-        *rGenTmp ← Reg.builtRoot ]) u₁ z 3 ∧
-        z.regs rStageIdx = k + 1 ∧
-        z.mem = Function.update u₁.mem (free + (k + 1)) curFree ∧
-        ∀ i : Fin numRegs, i ≠ rStageIdx ∧ i ≠ rGenTmp → z.regs i = u₁.regs i := by
-      have hst : ∃ z, ExecWithin (B := .standard) w (ram[
-          rStageIdx ← rStageIdx + rOne;
-          rGenTmp ← rRootsOut + rStageIdx;
-          *rGenTmp ← Reg.builtRoot ]) u₁ z 3 ∧
-          z.regs rStageIdx = k + 1 ∧
-          z.mem = Function.update u₁.mem (free + (k + 1)) curFree := by
-        wram_exec [hu₁_k, hu₁_o, hu₁_ro, hu₁_sav]
-        wram_simp
-      obtain ⟨z, hez, hzk, hzm⟩ := hst
-      refine ⟨z, hez, hzk, hzm, fun i hi => hez.regs_eq ?_⟩
-      revert i hi; decide +kernel
-    obtain ⟨z, he_st, hz_k, hz_mem, hz_regs⟩ := hstore
-    have hstep_tot : ExecWithin w stagesStep s z (dom.length * (32 * d + 63) + 20) :=
-      (he₀.seq (he_pass.seq he_st)).mono (by omega)
-    have reg_z (i : Fin numRegs) (ht : ¬ IsTabMod i) (hs : i ≠ rStageIdx ∧ i ≠ rGenTmp) :
-        z.regs i = u₀.regs i := (hz_regs i hs).trans (hu₁_regs i ht)
-    refine ⟨z, hstep_tot, ?_, hz_k⟩
-    dsimp only [P]
-    refine ⟨(reg_z rZero (by decide) (by decide)).trans hu₀z,
-      (reg_z rOne (by decide) (by decide)).trans hu₀o,
-      (reg_z Reg.dim (by decide) (by decide)).trans hu₀d,
-      (reg_z Reg.entryPtr (by decide) (by decide)).trans hu₀dp,
-      (reg_z Reg.entryCount (by decide) (by decide)).trans hu₀dl,
-      (reg_z rStageCutoff (by decide) (by decide)).trans hu₀cut,
-      (reg_z rSignMode (by decide) (by decide)).trans hu₀sm,
-      (reg_z rFbRoots (by decide) (by decide)).trans hu₀fbb,
-      (reg_z rRootsOut (by decide) (by decide)).trans hu₀ro,
-      free', (hz_regs Reg.free (by decide)).trans hu₁_free, by omega, ?_, ?_, ?_⟩
-    · calc free' ≤ curFree + (2 * d * dom.length + 2) := by omega
-        _ ≤ exclHi + k * (2 * d * dom.length + 2) + (2 * d * dom.length + 2) :=
-            Nat.add_le_add_right hcf_hi _
-        _ = exclHi + (k + 1) * (2 * d * dom.length + 2) := by ring
-    · intro j hj
-      by_cases hjk : j = k + 1
-      · subst hjk
-        have hroot_at : z.mem (free + (k + 1)) = curFree := by simp [hz_mem]
-        rw [hroot_at]
-        have hdisj_excl : Disjoint S_new (Set.Ico free exclHi) := by
-          rw [Set.disjoint_left]
-          intro a ha hexcl
-          have := (hS_new ha).1; have := hexcl.2; omega
-        have hrep_z : TrieRep z.mem d curFree S_new outFn :=
-          hrep_new.congr_mem fun a ha => by
+        *rGenTmp ← Reg.builtRoot ]) u₁ z 3 ∧ z.regs rStageIdx = k + 1 ∧
+        z.mem = Function.update u₁.mem (free + (k + 1)) curFree := by
+      wram_exec * [hu₁_sav]
+      wram_simp
+    -- Cells below `curFree` other than the new stage slot keep their values from `s`.
+    have hz_old (a : ℕ) (ha : a ≠ free + (k + 1)) (hlt : a < curFree) : z.mem a = s.mem a := by
+      rw [hz_mem, Function.update_of_ne ha, hu₁_frame a (Or.inl hlt), hu₀mem]
+    refine ⟨z, (he₀.seq (he_pass.seq he_st)).mono (by omega), ⟨by regs_frame, by regs_frame,
+      by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, free', by regs_frame, by omega, by omega, fun j hj => ?_, fun a ha => ?_⟩,
+      hz_k⟩
+    · rcases (show j ≤ k ∨ j = k + 1 by omega) with hj | rfl
+      · obtain ⟨stFn, ⟨S_j, hSj_sub, hSj_disj, hSj_rep⟩, hst_eq⟩ := hstages j hj
+        have hslot : free + (k + 1) ∈ Set.Ico free exclHi := ⟨by omega, by omega⟩
+        refine ⟨stFn, ⟨S_j, fun a ha => ⟨(hSj_sub ha).1, (hSj_sub ha).2.trans_le (by omega)⟩,
+          hSj_disj, ?_⟩, hst_eq⟩
+        rw [hz_old _ (by omega) (by omega)]
+        exact hSj_rep.congr_mem fun a ha =>
+          hz_old a (fun h => Set.disjoint_left.1 hSj_disj ha (h ▸ hslot)) (hSj_sub ha).2
+      · refine ⟨outFn, ⟨S_new, fun a ha => ⟨by have := (hS_new ha).1; omega, (hS_new ha).2⟩,
+          Set.disjoint_left.2 fun a ha hx => by have := (hS_new ha).1; have := hx.2; omega,
+          ?_⟩, fun X hX => ?_⟩
+        · rw [show z.mem (free + (k + 1)) = curFree by simp [hz_mem]]
+          exact hrep_new.congr_mem fun a ha => by
             have := (hS_new ha).1
-            rw [hz_mem, Function.update_of_ne (by dsimp [exclHi] at hcf_lo; omega)]
-        refine ⟨outFn, ⟨S_new, fun a ha => ⟨by
-          dsimp [exclHi] at hcf_lo; have := (hS_new ha).1; omega,
-          (hS_new ha).2⟩, hdisj_excl, hrep_z⟩, fun X hX => ?_⟩
-        have htake1 : (List.finRange d).take (k + 1) = (List.finRange d).take k ++ [coord] := by
-          rw [List.take_succ_eq_append_getElem (by simp [hk])]
-          simp [coord]
-        rw [htake1, yatesTransform_append, yatesTransform_cons, yatesTransform_nil]
-        exact hout_eq X hX
-      · obtain ⟨stFn, ⟨S_j, hSj_sub, hSj_disj, hSj_rep⟩, hst_eq⟩ := hstages j (by omega)
-        have hslot_eq : z.mem (free + j) = s.mem (free + j) := by
-          rw [hz_mem, Function.update_of_ne (by omega),
-            hu₁_frame _ (Or.inl (by dsimp [exclHi] at hcf_lo; omega)), hu₀mem]
-        rw [hslot_eq]
-        have hrep_z : TrieRep z.mem d (s.mem (free + j)) S_j stFn :=
-          hSj_rep.congr_mem fun a ha => by
-            have ha_not_slot : a ≠ free + (k + 1) := fun h =>
-              Set.disjoint_left.mp hSj_disj ha
-                (by subst h; exact ⟨by omega, by dsimp [exclHi]; omega⟩)
-            have ha_lt_cf : a < curFree := (hSj_sub ha).2
-            rw [hz_mem, Function.update_of_ne ha_not_slot, hu₁_frame a (Or.inl ha_lt_cf), hu₀mem]
-        exact ⟨stFn, ⟨S_j, fun a ha => ⟨(hSj_sub ha).1, (hSj_sub ha).2.trans_le (by omega)⟩,
-          hSj_disj, hrep_z⟩, hst_eq⟩
-    · intro a ha
-      have ha_ne : a ≠ free + (k + 1) := by
-        rcases ha with h1 | h2 <;> { dsimp [exclHi] at *; omega }
-      rw [hz_mem, Function.update_of_ne ha_ne]
-      rcases ha with ha_lo | ha_hi
-      · rw [hu₁_frame a (Or.inl (by dsimp [exclHi] at hcf_lo; omega)), hu₀mem]
-        exact hsframe a (Or.inl ha_lo)
-      · rw [hu₁_frame a (Or.inr ha_hi), hu₀mem]
-        exact hsframe a (Or.inr (by omega))
+            rw [hz_mem, Function.update_of_ne (by omega)]
+        · have htake : (List.finRange d).take (k + 1) = (List.finRange d).take k ++ [coord] := by
+            rw [List.take_succ_eq_append_getElem (by simp [hk])]
+            simp [coord]
+          rw [htake, yatesTransform_append, yatesTransform_cons, yatesTransform_nil]
+          exact hout_eq X hX
+    · rw [hz_mem, Function.update_of_ne (by omega)]
+      rcases ha with ha | ha
+      · rw [hu₁_frame a (Or.inl (by omega)), hu₀mem, hsframe a (Or.inl ha)]
+      · rw [hu₁_frame a (Or.inr ha), hu₀mem, hsframe a (Or.inr (by omega))]
   have hf_d1 : Fits w (d + 1) := hfit_free.of_le (by omega)
   have hf_excl : Fits w (free + (d + 1)) := hfit_free.of_le (by omega)
   have hf_free0 : Fits w free := hfit_free.of_le (by omega)
-  have hinit : ∃ s₀, ExecWithin (B := .standard) w (ram[
+  obtain ⟨s₀, hinit_ex, hs₀ro, hs₀fr, hs₀k, hs₀mem⟩ : ∃ s₀, ExecWithin (B := .standard) w (ram[
       rRootsOut ← Reg.free;
       rGenTmp ← Reg.dim + rOne;
       Reg.free ← Reg.free + rGenTmp;
       *rRootsOut ← rStageCurRoot;
       rStageIdx ← #0 ]) x s₀ 5 ∧
-      s₀.regs rZero = 0 ∧ s₀.regs rOne = 1 ∧ s₀.regs Reg.dim = d ∧
-      s₀.regs Reg.entryPtr = domPtr ∧ s₀.regs Reg.entryCount = dom.length ∧
-      s₀.regs rStageCutoff = cutoff ∧ s₀.regs rSignMode = signMode ∧
-      s₀.regs rFbRoots = fbBase ∧ s₀.regs rRootsOut = free ∧
-      s₀.regs Reg.free = exclHi ∧ s₀.regs rStageIdx = 0 ∧
+      s₀.regs rRootsOut = free ∧ s₀.regs Reg.free = exclHi ∧ s₀.regs rStageIdx = 0 ∧
       s₀.mem = Function.update x.mem free initRoot := by
     wram_exec [ho, hd, hir, hfree]
-    refine ⟨hz, ho, hd, hdp, hdl, hcut, hsm, hfbb, ?_, ?_, ?_, ?_⟩
-    · wram_simp
-    · wram_simp [exclHi]; omega
-    · wram_simp
-    · wram_simp
-  obtain ⟨s₀, hinit_ex, hs₀z, hs₀o, hs₀d, hs₀dp, hs₀dl, hs₀cut, hs₀sm, hs₀fbb,
-    hs₀ro, hs₀fr, hs₀k, hs₀mem⟩ := hinit
+    exact ⟨by wram_simp, by wram_simp [exclHi]; omega, by wram_simp, by wram_simp⟩
   have hs₀P : P (s₀.regs rStageIdx) s₀ := by
-    dsimp only [P]
     rw [hs₀k]
-    refine ⟨hs₀z, hs₀o, hs₀d, hs₀dp, hs₀dl, hs₀cut, hs₀sm, hs₀fbb, hs₀ro,
-      exclHi, hs₀fr, le_rfl, by omega, ?_, ?_⟩
+    refine ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, by regs_frame, by regs_frame, hs₀ro, exclHi, hs₀fr, le_rfl, by omega, ?_, ?_⟩
     · intro j hj
       obtain rfl : j = 0 := by omega
       simp only [Nat.add_zero, List.take_zero, yatesTransform_nil]
-      have hroot0 : s₀.mem free = initRoot := by simp [hs₀mem]
-      rw [hroot0]
-      have ht_s₀ : HoldsTrie s₀.mem free d initRoot initFn :=
-        htrie_init.congr_below fun a ha => by rw [hs₀mem, Function.update_of_ne (by omega)]
-      exact ⟨initFn, ht_s₀.toOutside_of_le le_rfl (by dsimp [exclHi]; omega), hinit_eq⟩
+      rw [show s₀.mem free = initRoot by simp [hs₀mem]]
+      exact ⟨initFn, (htrie_init.congr_below fun a ha => by
+        rw [hs₀mem, Function.update_of_ne (by omega)]).toOutside_of_le le_rfl (by omega), hinit_eq⟩
     · intro a ha
-      rw [hs₀mem, Function.update_of_ne
-        (by rcases ha with h1 | h2 <;> { dsimp [exclHi] at *; omega })]
+      rw [hs₀mem, Function.update_of_ne (by omega)]
   obtain ⟨y, hloop, hyP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [hs₀k]) hs₀P
   obtain ⟨_, _, _, _, _, _, _, _, hyro, endFree, hyfr, hlo_ef, hhi_ef, hystages, hyframe⟩ := hyP
-  have htot : ExecWithin w stagesCode x y (d * (dom.length * (32 * d + 63) + 22) + 7) := by
-    refine (hinit_ex.seq hloop).mono ?_
-    rw [hs₀k, Nat.sub_zero]
-    have h22 : dom.length * (32 * d + 63) + 20 + 2 = dom.length * (32 * d + 63) + 22 := by omega
-    rw [h22]; omega
+  have htot : ExecWithin w stagesCode x y (d * (dom.length * (32 * d + 63) + 22) + 7) :=
+    (hinit_ex.seq hloop).mono (by
+      rw [hs₀k, Nat.sub_zero, Nat.add_assoc _ 20 2]
+      omega)
   refine ⟨y, endFree, htot, hyro, hyfr, hlo_ef, hhi_ef,
     fun k hk => let ⟨stFn, hout, heq⟩ := hystages k hk; ⟨stFn, hout.toHoldsTrie, heq⟩,
     hyframe, fun i hi => htot.regs_eq (stagesCode_preserves i hi)⟩

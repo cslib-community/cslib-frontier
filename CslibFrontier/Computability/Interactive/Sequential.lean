@@ -269,8 +269,7 @@ theorem outputOn_append (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
       (V₁.decide x (Transcript.challenges s₁ (Transcript.split s₁ s₂ τ).1)) with
   | none => rfl
   | some x' =>
-    refine (interpret_liftDecisionRight τ _).trans ?_
-    exact (outputOn_eq V₂ x' _).symm
+    exact (interpret_liftDecisionRight τ _).trans (outputOn_eq V₂ x' _).symm
 
 
 /-- The state function of a composition: that of the first half, then, once the first half is

@@ -354,30 +354,21 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
     Function.Embedding.nonempty_of_card_le (by
       simp only [Fintype.card_prod, Fintype.card_fin]; rw [mul_comm]; exact hι)
   let D : (Fin L → Bool) → ι → X := fun w => codeDataset e pos (c w)
-  have hsep : ∀ w w', w ≠ w' → (t * L : ℝ) ≤ 2 * countExcess (D w) (D w') := by
-    intro w w' hww'
+  have hsep : ∀ w w', w ≠ w' → (t * L : ℝ) ≤ 2 * countExcess (D w) (D w') := fun w w' hww' => by
     have h1 := mul_hammingDist_le_countExcess e pos (c w : Fin L → Fin 16) (c w')
     have h2 := Nat.mul_le_mul_left t (hc w w' hww')
-    have : t * L ≤ 2 * countExcess (D w) (D w') := by nlinarith
-    exact_mod_cast this
+    exact_mod_cast (by nlinarith : t * L ≤ 2 * countExcess (D w) (D w'))
   -- the `j`-th coordinate is `± t L / 4` on the encodings, by the sign of the `j`-th bit
   let g : Fin L → (Fin L → Bool) → ℝ := fun j w => if w j then t * L / 4 else -(t * L / 4)
-  have hg : ∀ j w w', g j w ≤ g j w' + countExcess (D w') (D w) := by
-    intro j w w'
-    by_cases hww' : w' = w
-    · subst hww'; simp only [countExcess_self, CharP.cast_eq_zero, add_zero, le_refl]
-    · have := hsep w' w hww'
-      have hnn : (0 : ℝ) ≤ t * L := by positivity
-      simp only [g]
-      split_ifs <;> linarith
+  have hg : ∀ j w w', g j w ≤ g j w' + countExcess (D w') (D w) := fun j w w' => by
+    rcases eq_or_ne w' w with rfl | hww'
+    · simp only [countExcess_self, CharP.cast_eq_zero, add_zero, le_refl]
+    · simp only [g]; split_ifs <;> linarith [hsep w' w hww', (by positivity : (0 : ℝ) ≤ t * L)]
   choose G hGsymm hGlip hGval using fun j =>
     exists_symmetric_lipschitz_extension D (g j) (hg j)
   let F : (ι → X) → Fin k → ℝ := fun y j => if h : (j : ℕ) < L then G ⟨j, h⟩ y else 0
-  refine ⟨F, fun y σ => funext fun j => ?_, fun y z hyz j => ?_, fun M ε p hM hp => ?_⟩
-  · simp only [F]
-    split_ifs
-    · exact hGsymm _ y σ
-    · rfl
+  refine ⟨F, fun y σ => funext fun j => by simp only [F, hGsymm], fun y z hyz j => ?_,
+    fun M ε p hM hp => ?_⟩
   · simp only [F]
     split_ifs
     · exact (hGlip _ y z).trans (by exact_mod_cast hammingAdjacent_iff_hammingDist_le_one.1 hyz)
@@ -391,18 +382,15 @@ theorem exists_symmetric_query_two_pow_mul_le {k L t : ℕ} (hLk : L ≤ k)
     · intro w _ w' _ hww'
       obtain ⟨j, hj⟩ := Function.ne_iff.1 hww'
       refine Set.disjoint_left.2 fun a ha ha' => ?_
-      have h1 := ha (Fin.castLE hLk j)
-      have h2 := ha' (Fin.castLE hLk j)
       have hF : ∀ w'', F (D w'') (Fin.castLE hLk j) = g j w'' := fun w'' => by
         simp only [F, Fin.val_castLE, j.isLt, dite_true, Fin.eta]
         exact hGval j w''
-      rw [hF] at h1 h2
+      have h1 := ha (Fin.castLE hLk j)
+      have h2 := ha' (Fin.castLE hLk j)
       have hnn : (0 : ℝ) ≤ t * L := by positivity
-      simp only [g] at h1 h2
-      cases hw : w j <;> cases hw' : w' j <;> simp only [hw, hw'] at h1 h2 hj <;>
-        simp only [Bool.false_eq_true, ite_false, ite_true, ne_eq, not_true_eq_false]
-          at h1 h2 hj <;>
-        rw [abs_lt] at h1 h2 <;> linarith [h1.1, h1.2, h2.1, h2.2]
+      cases hw : w j <;> cases hw' : w' j <;>
+        simp only [hF, g, hw, hw', Bool.false_eq_true, ite_false, ite_true, ne_eq,
+          not_true_eq_false, abs_lt] at h1 h2 hj <;> linarith [h1.1, h1.2, h2.1, h2.2]
 
 /-- **De's lower bound over a small universe, [DworkRoth2014, Theorem 8.8].** Let the universe `X`
 have `d ≥ 33` items, let `k ≥ 2`, let `ε ∈ (0, 1 / 18]` and let there be `n ≥ min (k, d) / ε`
@@ -430,42 +418,25 @@ theorem exists_symmetric_query_forall_exists_half_lt {k : ℕ} (hk : 2 ≤ k)
     have : L ≤ (d - 1) / 16 := min_le_right _ _
     omega
   have hm : min (k : ℝ) d ≤ 32 * L := by
-    have : min k d ≤ 32 * L := by omega
-    rw [← Nat.cast_min]
-    exact_mod_cast this
-  have hLm : (L : ℝ) ≤ min (k : ℝ) d := by
-    have : L ≤ min k d := by omega
-    rw [← Nat.cast_min]
-    exact_mod_cast this
+    rw [← Nat.cast_min]; exact_mod_cast (by omega : min k d ≤ 32 * L)
   -- `1 / (8 ε) ≤ t ≤ 1 / (6 ε)`
   have ht_le : (t : ℝ) ≤ 1 / (6 * ε) := Nat.floor_le (by positivity)
   have ht_ge : 1 / (8 * ε) ≤ (t : ℝ) := by
-    -- `⌊u⌋ ≥ 3 u / 4` for `u = 1 / (6 ε) ≥ 3`
-    have h8 : 1 / (8 * ε) = 3 / 4 * (1 / (6 * ε)) := by
-      field_simp
-      ring
-    have hu : 3 ≤ 1 / (6 * ε) := by
-      rw [le_div_iff₀ (by positivity)]
-      linarith
-    rw [h8]
-    by_cases h4 : 4 ≤ 1 / (6 * ε)
-    · have h := Nat.sub_one_lt_floor (1 / (6 * ε))
-      linarith
-    · have h3 : (3 : ℝ) ≤ t := by exact_mod_cast Nat.le_floor (by exact_mod_cast hu)
-      linarith
+    -- `⌊u⌋ ≥ max (u - 1) 3 ≥ 3 u / 4` for `u = 1 / (6 ε) ≥ 3`
+    have hu : 3 ≤ 1 / (6 * ε) := by rw [le_div_iff₀ (by positivity)]; linarith
+    have h3 : (3 : ℝ) ≤ t := by exact_mod_cast Nat.le_floor (by exact_mod_cast hu)
+    have h8 : 1 / (8 * ε) = 3 / 4 * (1 / (6 * ε)) := by field_simp; ring
+    linarith [Nat.sub_one_lt_floor (1 / (6 * ε))]
   have htL : t * L ≤ Fintype.card ι := by
-    have : (t * L : ℝ) ≤ Fintype.card ι := by
-      calc (t * L : ℝ) ≤ 1 / (6 * ε) * min (k : ℝ) d := by gcongr
-        _ ≤ min (k : ℝ) d / ε := by
-            rw [div_mul_eq_mul_div, one_mul, div_le_div_iff₀ (by positivity) hε]
-            have : (0 : ℝ) ≤ min (k : ℝ) d := by positivity
-            nlinarith
-        _ ≤ _ := hι
-    exact_mod_cast this
+    have hLm : (L : ℝ) ≤ min (k : ℝ) d := by
+      rw [← Nat.cast_min]; exact_mod_cast (by omega : L ≤ min k d)
+    exact_mod_cast (calc (t * L : ℝ) ≤ 1 / (6 * ε) * min (k : ℝ) d := by gcongr
+      _ ≤ min (k : ℝ) d / ε := by
+          rw [one_div_mul_eq_div]; exact div_le_div_of_nonneg_left (by positivity) hε (by linarith)
+      _ ≤ _ := hι)
   obtain ⟨F, hFsymm, hFsens, hF⟩ := exists_symmetric_query_two_pow_mul_le hLk hLd htL
   refine ⟨F, hFsymm, hFsens, fun M hM => ?_⟩
-  by_contra hcon
-  simp only [not_exists, not_lt] at hcon
+  by_contra! hcon
   -- otherwise `M` is accurate to within `t L / 4` with probability at least `1 / 2` everywhere
   have hc : min (k : ℝ) d / (1024 * ε) ≤ t * L / 4 := by
     calc min (k : ℝ) d / (1024 * ε) ≤ 32 * L / (1024 * ε) := by gcongr
@@ -474,33 +445,24 @@ theorem exists_symmetric_query_forall_exists_half_lt {k : ℕ} (hk : 2 ≤ k)
   have hacc : ∀ x, 2⁻¹ ≤ (M x).toOuterMeasure {a | ∀ j, |a j - F x j| < t * L / 4} := by
     intro x
     set S := {a : Fin k → ℝ | ∃ j, min (k : ℝ) d / (1024 * ε) ≤ |a j - F x j|}
-    have hsum := Probability.PMF.toOuterMeasure_add_compl_ennreal (M x) S
-    have hS : 2⁻¹ ≤ (M x).toOuterMeasure Sᶜ := by
-      have hfin : (M x).toOuterMeasure S ≠ ⊤ := Probability.PMF.toOuterMeasure_ne_top _ _
-      calc (2⁻¹ : ℝ≥0∞) = 1 - 2⁻¹ := ENNReal.one_sub_inv_two.symm
-        _ ≤ 1 - (M x).toOuterMeasure S := tsub_le_tsub_left (hcon x) _
-        _ = (M x).toOuterMeasure Sᶜ := by
-            rw [← hsum, ENNReal.add_sub_cancel_left hfin]
-    refine hS.trans ((M x).toOuterMeasure.mono fun a ha j => ?_)
+    have hS : 2⁻¹ + 2⁻¹ ≤ 2⁻¹ + (M x).toOuterMeasure Sᶜ := by
+      rw [ENNReal.inv_two_add_inv_two, ← Probability.PMF.toOuterMeasure_add_compl_ennreal (M x) S]
+      exact add_le_add (hcon x) le_rfl
+    refine ((ENNReal.add_le_add_iff_left (by simp)).1 hS).trans
+      ((M x).toOuterMeasure.mono fun a ha j => ?_)
     simp only [S, Set.mem_compl_iff, Set.mem_ofPred_eq, not_exists, not_le] at ha
     exact (ha j).trans_le hc
   have hlog := sub_one_mul_log_two_le_of_two_pow_mul_inv_two_le_ofReal_exp (hF M ε 2⁻¹ hM hacc)
   -- `(L - 1) ln 2 ≤ t L ε ≤ L / 6` contradicts `ln 2 ≥ 1 / 2` and `L ≥ 2`
   have hln2 : (1 : ℝ) / 2 ≤ Real.log 2 := by
-    have := Real.one_sub_inv_le_log_of_pos (x := 2) two_pos
-    have h2 : (1 : ℝ) - 2⁻¹ = 1 / 2 := by norm_num
-    linarith
+    linarith [Real.one_sub_inv_le_log_of_pos (x := 2) two_pos,
+      (by norm_num : (1 : ℝ) - 2⁻¹ = 1 / 2)]
   have htε : (t : ℝ) * ε ≤ 1 / 6 := by
     calc (t : ℝ) * ε ≤ 1 / (6 * ε) * ε := by gcongr
       _ = 1 / 6 := by field_simp
   have hL2' : (2 : ℝ) ≤ L := by exact_mod_cast hL2
-  have : ((L : ℝ) - 1) * (1 / 2) ≤ L / 6 := by
-    calc ((L : ℝ) - 1) * (1 / 2) ≤ (L - 1) * Real.log 2 := by gcongr; linarith
-      _ ≤ t * L * ε := by linarith
-      _ = (t * ε) * L := by ring
-      _ ≤ 1 / 6 * L := by gcongr
-      _ = L / 6 := by ring
-  linarith
+  linarith [mul_le_mul_of_nonneg_left hln2 (by linarith : (0 : ℝ) ≤ L - 1),
+    mul_le_mul_of_nonneg_right htε (by positivity : (0 : ℝ) ≤ L)]
 
 end LowerBound
 

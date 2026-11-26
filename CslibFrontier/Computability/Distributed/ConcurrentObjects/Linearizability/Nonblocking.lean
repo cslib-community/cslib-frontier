@@ -84,18 +84,15 @@ theorem History.append_pending_inv_extension {P Obj : Type*} {Op Resp : Obj → 
         (by rw [History.length_flatMap_toEvents]; omega)).symm
     · simp only [hqp, ↓reduceIte, List.nil_append]
   refine ⟨hwf_H₁R, hcomp_eq.trans heqS, fun e₀ e₁ hc₀ hc₁ ⟨r₀, i₁, hr₀, hi₁, hri⟩ => ?_⟩
-  have hc₀_HR : History.IsCompletedOp (H ++ R) e₀ :=
-    (History.isCompletedOp_complete_iff hwf' e₀).mp
-      ((hcomp_eq.isCompletedOp_iff e₀).mp ((History.isCompletedOp_complete_iff hwf_H₁R e₀).mpr hc₀))
-  have hc₁_HR : History.IsCompletedOp (H ++ R) e₁ :=
-    (History.isCompletedOp_complete_iff hwf' e₁).mp
-      ((hcomp_eq.isCompletedOp_iff e₁).mp ((History.isCompletedOp_complete_iff hwf_H₁R e₁).mpr hc₁))
+  have hc_HR {e} (hc : History.IsCompletedOp (H₁ ++ R) e) : History.IsCompletedOp (H ++ R) e :=
+    (History.isCompletedOp_complete_iff hwf' e).mp
+      ((hcomp_eq.isCompletedOp_iff e).mp ((History.isCompletedOp_complete_iff hwf_H₁R e).mpr hc))
+  have hc₁_HR := hc_HR hc₁
   have hlt_i₁ : 2 * e₁.idx < (History.procSubhistory H e₁.proc).length := by
     by_cases hep : e₁.proc = p
     · have hlen := (History.isCompletedOp_iff_lt_length (H ++ R) e₁).mp hc₁_HR
-      rw [hep, History.procSubhistory_append, hRp_nil, List.append_nil, hHp,
-        History.length_flatMap_toEvents] at hlen
-      rw [hep, hHp, History.length_flatMap_toEvents]
+      simp only [hep, History.procSubhistory_append, hRp_nil, List.append_nil, hHp,
+        History.length_flatMap_toEvents] at hlen ⊢
       omega
     · have hlen₁ := (History.nthProcPos_isSome_iff e₁.proc H₁ (2 * e₁.idx)).mp
         (by dsimp only [History.invPos] at hi₁; rw [hi₁]; rfl)
@@ -104,7 +101,7 @@ theorem History.append_pending_inv_extension {P Obj : Type*} {Op Resp : Obj → 
   have hi₁_H : History.invPos H e₁ = some i₁ := by
     rwa [History.invPos, History.nthProcPos_append_left [Event.inv p x op] hlt_i₁] at hi₁
   obtain ⟨hi₁_lt_H, _⟩ := History.nthProcPos_lt_length hi₁_H
-  exact hprecS e₀ e₁ hc₀_HR hc₁_HR
+  exact hprecS e₀ e₁ (hc_HR hc₀) hc₁_HR
     ⟨r₀, i₁, History.nthProcPos_of_append_lt hr₀ (by omega), hi₁_H, hri⟩
 
 /-- Linearizing an uncompleted pending invocation `Event.inv p x op` of process `p` by appending
@@ -131,11 +128,8 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
       ∀ e₀ e₁, History.IsCompletedOp (H ++ R₁) e₀ →
         History.IsCompletedOp (H ++ R₁) e₁ → History.prec H e₀ e₁ → History.prec S' e₀ e₁ := by
   intro R₁ S'
-  have hR₁_resp : History.IsRespList R₁ := by
-    intro e hm
-    rcases List.mem_append.mp hm with hR | hsingle
-    · exact hR_resp e hR
-    · rw [List.mem_singleton.mp hsingle]; rfl
+  have hR₁_resp : History.IsRespList R₁ := fun e hm =>
+    (List.mem_append.mp hm).elim (hR_resp e) fun h => by rw [List.mem_singleton.mp h]; rfl
   have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
   have hpair_seq : History.IsSequential
       (cs_p.flatMap OpCall.toEvents ++ [Event.inv p x op, Event.resp p x res]) :=
@@ -161,23 +155,19 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
     by_cases hqp : p = q
     · subst hqp
       simp only [↓reduceIte, hRp_nil, List.nil_append, hHp]
-      have hpair_ev :
-          (cs_p.flatMap OpCall.toEvents ++
-            ([Event.inv p x op, Event.resp p x res] : History P Op Resp)).length % 2 = 0 := by
-        rw [List.length_append, History.length_flatMap_toEvents, List.length_cons,
-          List.length_singleton]
-        omega
       have hcomp_L :
           History.complete ((cs_p.flatMap OpCall.toEvents ++ [Event.inv p x op]) ++
               [Event.resp p x res]) =
             cs_p.flatMap OpCall.toEvents ++ [Event.inv p x op, Event.resp p x res] := by
         simpa only [List.append_assoc, List.cons_append, List.nil_append] using
-          History.complete_eq_self_of_isSequential_even hpair_seq hpair_ev
-      rw [hcomp_L]
+          History.complete_eq_self_of_isSequential_even hpair_seq (by
+            simp only [List.length_append, History.length_flatMap_toEvents, List.length_cons,
+              List.length_nil]
+            omega)
       have heq_p := heqS p
       rw [History.procSubhistory_complete, History.procSubhistory_append, hRp_nil,
         List.append_nil, hHp, History.complete_flatMap_append_inv] at heq_p
-      rw [heq_p]
+      rw [hcomp_L, heq_p]
     · simp only [hqp, ↓reduceIte, List.append_nil, ← History.procSubhistory_append,
         ← History.procSubhistory_complete]
       exact heqS q
@@ -190,23 +180,20 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
     omega
   have hc₀_S : History.IsCompletedOp S e₀ :=
     (heqS.isCompletedOp_iff e₀).mp ((History.isCompletedOp_complete_iff hwf' e₀).mpr hc₀_HR)
+  have hresp_S' {rS : ℕ} (hrS : History.respPos S e₀ = some rS) :
+      History.respPos S' e₀ = some rS := by
+    rwa [History.respPos,
+      History.nthProcPos_append_left _ ((History.isCompletedOp_iff_lt_length S e₀).mp hc₀_S)]
   by_cases hc₁_HR : History.IsCompletedOp (H ++ R) e₁
   · obtain ⟨rS, iS, hrS, hiS, hltS⟩ := hprecS e₀ e₁ hc₀_HR hc₁_HR ⟨r₀, i₁, hr₀_H, hi₁_H, hri⟩
     have hc₁_S : History.IsCompletedOp S e₁ :=
       (heqS.isCompletedOp_iff e₁).mp ((History.isCompletedOp_complete_iff hwf' e₁).mpr hc₁_HR)
     have hlt_iS : 2 * e₁.idx < (History.procSubhistory S e₁.proc).length := by
-      have := (History.isCompletedOp_iff_lt_length S e₁).mp hc₁_S; omega
-    refine ⟨rS, iS, ?_, ?_, hltS⟩
-    · rw [History.respPos,
-        History.nthProcPos_append_left _ ((History.isCompletedOp_iff_lt_length S e₀).mp hc₀_S)]
-      exact hrS
-    · rw [History.invPos, History.nthProcPos_append_left _ hlt_iS]
-      exact hiS
+      have := (History.isCompletedOp_iff_lt_length S e₁).mp hc₁_S
+      omega
+    exact ⟨rS, iS, hresp_S' hrS,
+      by rwa [History.invPos, History.nthProcPos_append_left _ hlt_iS], hltS⟩
   · obtain ⟨rS₀, hrS₀⟩ := Option.isSome_iff_exists.mp hc₀_S
-    have hrS₀_S' : History.respPos S' e₀ = some rS₀ := by
-      rw [History.respPos,
-        History.nthProcPos_append_left _ ((History.isCompletedOp_iff_lt_length S e₀).mp hc₀_S)]
-      exact hrS₀
     have he₁_p : e₁.proc = p := by
       by_contra hne
       apply hc₁_HR
@@ -234,8 +221,7 @@ theorem History.linearize_pending_in_extension {P Obj : Type*} {Op Resp : Obj �
       rw [History.nthProcPos_append_right S _ (by rw [hSp_len]), hSp_len, Nat.sub_self]
       simp only [History.nthProcPos, List.nthFilterPos, Event.proc_inv, decide_true, ↓reduceIte,
         Option.map_some, Nat.zero_add]
-    obtain ⟨hrS₀_lt, _⟩ := History.nthProcPos_lt_length hrS₀
-    exact ⟨rS₀, S.length, hrS₀_S', hiS', hrS₀_lt⟩
+    exact ⟨rS₀, S.length, hresp_S' hrS₀, hiS', (History.nthProcPos_lt_length hrS₀).1⟩
 
 /-- Moving an already-linearized pending response `Event.resp p x res` of process `p` from the
 extension `R` into `H₁ := H ++ [Event.resp p x res]` (leaving `R' := R.filter (·.proc ≠ p)`)
@@ -267,18 +253,12 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
     by_cases hqp : p = q
     · subst hqp
       have hR'_nil : History.procSubhistory (R.filter fun e => decide (e.proc ≠ p)) p = [] := by
-        rw [History.procSubhistory, List.filter_filter, List.filter_eq_nil_iff]
-        intro e _ hboth
-        obtain ⟨h1, h2⟩ := Bool.and_eq_true_iff.mp hboth
-        exact (of_decide_eq_true h2) (of_decide_eq_true h1)
+        simp +contextual [History.procSubhistory, List.filter_filter]
       simp only [↓reduceIte, hR'_nil, List.append_nil, hRp_eq]
     · have hR'_q : History.procSubhistory (R.filter fun e => decide (e.proc ≠ p)) q =
           History.procSubhistory R q := by
         simp only [History.procSubhistory, List.filter_filter]
-        refine congrArg (List.filter · R) (funext fun e => ?_)
-        by_cases heq_q : e.proc = q
-        · simp only [heq_q, decide_eq_true (Ne.symm hqp), Bool.and_true]
-        · simp only [heq_q, decide_false, Bool.false_and]
+        exact List.filter_congr fun e _ => by by_cases h : e.proc = q <;> simp [h, Ne.symm hqp]
       simp only [hqp, ↓reduceIte, List.nil_append, hR'_q]
   have hwf_H₁R' : History.WellFormed (H₁ ++ R') := fun q => by
     rw [hproc_eq_all q]; exact hwf' q
@@ -287,12 +267,9 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
     exact heqS q
   refine ⟨hR'_resp, hproc_eq_all, hwf_H₁R', heq_H₁R',
     fun e₀ e₁ hc₀ hc₁ ⟨r₀, i₁, hr₀, hi₁, hri⟩ => ?_⟩
-  have hc₀_HR : History.IsCompletedOp (H ++ R) e₀ := by
-    rw [History.isCompletedOp_iff_lt_length, ← hproc_eq_all e₀.proc]
-    exact (History.isCompletedOp_iff_lt_length _ e₀).mp hc₀
-  have hc₁_HR : History.IsCompletedOp (H ++ R) e₁ := by
-    rw [History.isCompletedOp_iff_lt_length, ← hproc_eq_all e₁.proc]
-    exact (History.isCompletedOp_iff_lt_length _ e₁).mp hc₁
+  have hc_HR {e} (hc : History.IsCompletedOp (H₁ ++ R') e) : History.IsCompletedOp (H ++ R) e := by
+    rw [History.isCompletedOp_iff_lt_length, ← hproc_eq_all e.proc]
+    exact (History.isCompletedOp_iff_lt_length _ e).mp hc
   have hi₁_lt : i₁ < H.length := by
     obtain ⟨hlt_H₁, _⟩ := History.nthProcPos_lt_length hi₁
     dsimp only [H₁] at hlt_H₁
@@ -310,7 +287,7 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
       rw [heq_len, hget] at hev_eq
       exact Bool.noConfusion (isSequential_getElem?_even_isResp_false hseq_q hev_eq.symm)
     · omega
-  exact hprecS e₀ e₁ hc₀_HR hc₁_HR
+  exact hprecS e₀ e₁ (hc_HR hc₀) (hc_HR hc₁)
     ⟨r₀, i₁, History.nthProcPos_of_append_lt hr₀ (by omega),
       History.nthProcPos_of_append_lt hi₁ hi₁_lt, hri⟩
 
@@ -358,10 +335,8 @@ theorem exists_linearizable_append_resp_of_total {P Obj : Type*} {Op Resp : Obj 
     by_cases hxy : x = y
     · subst hxy; simp only [↓reduceIte]; exact hSx_ext
     · simp only [hxy, ↓reduceIte, List.append_nil]; exact hlegS y
-  · have hp_eq : p' = p := by
-      have hm : Event.resp p' x' res ∈ History.procSubhistory R p := by
-        rw [hRp_eq]; exact List.mem_cons_self
-      exact of_decide_eq_true (List.mem_filter.mp hm).2
+  · have hm : Event.resp p' x' res ∈ History.procSubhistory R p := by simp [hRp_eq]
+    have hp_eq : p' = p := of_decide_eq_true (List.mem_filter.mp hm).2
     subst hp_eq
     have hlast : (Event.inv p' x' op' : Event P Op Resp) = Event.inv p' x op := by
       have hget := congrArg List.getLast? (hL_eq.symm.trans hHp)

@@ -57,13 +57,12 @@ private theorem typeRunData_data (sl : Slice) (cs : List Color) :
     dsimp only [typeRunData, Slice.data]
     simp only [ite_true]
     by_cases hk : k + 2 ≤ cs.length
-    · have h0 : k < cs.length := by omega
-      have h1 : k + 1 < cs.length := by omega
-      simp [Slice.typeRun, hk, List.getElem?_eq_getElem h0, List.getElem?_eq_getElem h1]
+    · simp [Slice.typeRun, hk, List.getElem?_eq_getElem (by omega : k < cs.length),
+        List.getElem?_eq_getElem (by omega : k + 1 < cs.length)]
     · rw [ite_eq_right hk]
       by_cases h0 : k < cs.length
-      · have h1 : cs.length ≤ k + 1 := by omega
-        simp [Slice.typeRun, List.getElem?_eq_getElem h0, List.getElem?_eq_none h1]
+      · simp [Slice.typeRun, List.getElem?_eq_getElem h0,
+          List.getElem?_eq_none (by omega : cs.length ≤ k + 1)]
       · simp [Slice.typeRun, List.getElem?_eq_none (by omega : cs.length ≤ k)]
 
 private theorem computableInPolyTime_typeRunData :
@@ -77,11 +76,9 @@ private theorem computableInPolyTime_typeRunData :
 theorem Slice.computableInPolyTime_typeRun :
     ComputableInPolyTime (fun p : Slice × List Color => p.1.typeRun p.2)
       (encPair encSlice (encList encColor)) (encOption (encList encColor)) := by
-  have hd := (Slice.computableInPolyTime_data.comp
-    (ComputableInPolyTime.fst encSlice (encList encColor))).prod
-      (ComputableInPolyTime.snd encSlice (encList encColor))
-  have h := computableInPolyTime_typeRunData.comp hd
-  simpa only [Function.comp_def, typeRunData_data] using h
+  simpa only [Function.comp_def, typeRunData_data] using computableInPolyTime_typeRunData.comp
+    ((Slice.computableInPolyTime_data.comp (ComputableInPolyTime.fst _ _)).prod
+      (ComputableInPolyTime.snd _ _))
 
 private def typeStep (state : Option (List Color)) (sl : Slice) : Option (List Color) :=
   state.bind sl.typeRun
@@ -93,23 +90,15 @@ private theorem typeRun_eq_fold (w : Word) (cs : List Color) :
 private theorem computableInPolyTime_typeStep :
     ComputableInPolyTime (fun p : Option (List Color) × Slice => typeStep p.1 p.2)
       (encPair (encOption (encList encColor)) encSlice) (encOption (encList encColor)) := by
-  have hbody : ComputableInPolyTime
-      (fun p : (Option (List Color) × Slice) × List Color => p.1.2.typeRun p.2)
+  have hbody := Slice.computableInPolyTime_typeRun.comp
+    (show ComputableInPolyTime (fun p : (Option (List Color) × Slice) × List Color => (p.1.2, p.2))
       (encPair (encPair (encOption (encList encColor)) encSlice) (encList encColor))
-      (encOption (encList encColor)) := by
-    have hm : ComputableInPolyTime
-        (fun p : (Option (List Color) × Slice) × List Color => (p.1.2, p.2))
-        (encPair (encPair (encOption (encList encColor)) encSlice) (encList encColor))
-        (encPair encSlice (encList encColor)) := by fun_prop
-    exact Slice.computableInPolyTime_typeRun.comp hm
-  have h := ComputableInPolyTime.optionElimWithInput
-    (body := fun (p : Option (List Color) × Slice) (cs : List Color) => p.2.typeRun cs)
-    (ComputableInPolyTime.fst (encOption (encList encColor)) encSlice)
-    (ComputableInPolyTime.const (none : Option (List Color))) hbody
+      (encPair encSlice (encList encColor)) by fun_prop)
   have he (p : Option (List Color) × Slice) :
-      p.1.elim none (fun cs => p.2.typeRun cs) = typeStep p.1 p.2 := by
-    cases p.1 <;> rfl
-  simpa only [he] using h
+      p.1.elim none (fun cs => p.2.typeRun cs) = typeStep p.1 p.2 := by cases p.1 <;> rfl
+  simpa only [he] using ComputableInPolyTime.optionElimWithInput
+    (body := fun (p : Option (List Color) × Slice) (cs : List Color) => p.2.typeRun cs)
+    (ComputableInPolyTime.fst _ _) (ComputableInPolyTime.const (none : Option (List Color))) hbody
 
 private theorem typeRun_length_le (sl : Slice) (cs out : List Color)
     (h : sl.typeRun cs = some out) : out.length ≤ cs.length + sl.cost := by
@@ -119,18 +108,18 @@ private theorem typeRun_length_le (sl : Slice) (cs out : List Color)
     dsimp only [typeRunData, Slice.data, Slice.Data.isSwap, Slice.Data.offset,
       Slice.Data.inputs, Slice.Data.outputs] at h
     simp only [Bool.false_eq_true, ite_false] at h
-    split_ifs at h with hc
-    · cases h
-      simp only [Slice.cost, List.length_append, List.length_take, List.length_drop]
-      omega
+    split_ifs at h
+    cases h
+    simp only [Slice.cost, List.length_append, List.length_take, List.length_drop]
+    omega
   | swap k =>
     dsimp only [typeRunData, Slice.data, Slice.Data.isSwap, Slice.Data.offset] at h
     simp only [ite_true] at h
-    split_ifs at h with hc
-    · cases h
-      simp only [Slice.cost, List.length_append, List.length_take, List.length_drop,
-        List.length_cons, List.length_nil]
-      omega
+    split_ifs at h
+    cases h
+    simp only [Slice.cost, List.length_append, List.length_take, List.length_drop,
+      List.length_cons, List.length_nil]
+    omega
 
 private theorem length_encColor (c : Color) : (encColor c).length = 1 := by
   cases c <;> rfl
@@ -152,20 +141,15 @@ private theorem typeStep_growth (state : Option (List Color)) (sl : Slice) :
     | none => simp [encTypes]
     | some out =>
       have hl := typeRun_length_le sl cs out h
-      simp only [encTypes, encOption_some, List.length_cons, length_encColors]
-      omega
+      simp only [encTypes, encOption_some, List.length_cons, length_encColors]; omega
 
 private theorem computableInPolyTime_typeFold :
     ComputableInPolyTime (fun w : Word => w.foldl typeStep (some [])) encWord encTypes := by
   let _ : ListEncoding encSlice encWord := by unfold encWord; infer_instance
   let _ : SizedListEncoding encSlice encWord := by unfold encWord; infer_instance
-  have hs : ComputableInPolyTime
-      (fun p : (Bool × Option (List Color)) × Slice => typeStep p.1.2 p.2)
-      (encPair (encPair encBool encTypes) encSlice) encTypes := by
-    have hm : ComputableInPolyTime
-        (fun p : (Bool × Option (List Color)) × Slice => (p.1.2, p.2))
-        (encPair (encPair encBool encTypes) encSlice) (encPair encTypes encSlice) := by fun_prop
-    exact computableInPolyTime_typeStep.comp hm
+  have hs := computableInPolyTime_typeStep.comp
+    (show ComputableInPolyTime (fun p : (Bool × Option (List Color)) × Slice => (p.1.2, p.2))
+      (encPair (encPair encBool encTypes) encSlice) (encPair encTypes encSlice) by fun_prop)
   exact ComputableInPolyTime.foldlWith_of_bounded_growth
     (step := fun (_ : Bool) state sl => typeStep state sl)
     (ComputableInPolyTime.const false) ComputableInPolyTime.id'
@@ -180,14 +164,13 @@ private theorem computableInPolyTime_typeFold :
 @[fun_prop]
 private theorem Word.computableInPolyTime_typeRun_empty :
     ComputableInPolyTime (fun w : Word => w.typeRun []) encWord (encOption (encList encColor)) := by
-  have h := computableInPolyTime_typeFold
-  simpa only [← typeRun_eq_fold] using h
+  simpa only [← typeRun_eq_fold] using computableInPolyTime_typeFold
 
 /-- Recognize well-typed closed diagram words in polynomial time. -/
 @[fun_prop]
 theorem Word.computableInPolyTime_wellTyped :
     ComputableInPolyTime (fun w : Word => decide (w.WellTyped [] [])) encWord encBool := by
-  have h := Word.computableInPolyTime_typeRun_empty
+  have := Word.computableInPolyTime_typeRun_empty
   unfold Word.WellTyped
   fun_prop
 

@@ -59,14 +59,12 @@ private def initial (p : ℕ) (qs : List Quantifier) (ms : List (List Bool)) :
 
 private theorem controls_le (p : ℕ) (ls : List Bool) (hl : ls.length = 2 * p) (attempt : Bool) :
     List.Forall₂ (· ≤ ·) (Initial.controls (colors p)) ([true, attempt] ++ ls) := by
-  have htail : ∀ xs : List Bool, List.Forall₂ (· ≤ ·) (List.replicate xs.length false) xs := by
-    intro xs
+  have htail (xs : List Bool) : List.Forall₂ (· ≤ ·) (List.replicate xs.length false) xs := by
     induction xs with
     | nil => exact .nil
-    | cons x xs ih => exact .cons (Bool.false_le x) ih
-  simp only [Initial.controls, colors, bundle, List.length_append, List.length_replicate,
-    List.length_nil, Nat.add_zero, List.cons_append, List.nil_append, ← hl]
-  exact .cons le_rfl (.cons (Bool.false_le attempt) (htail ls))
+    | cons x _ ih => exact .cons (Bool.false_le x) ih
+  simpa [Initial.controls, colors, bundle, ← hl] using
+    List.Forall₂.cons (le_rfl : true ≤ true) (.cons (Bool.false_le attempt) (htail ls))
 
 private def config (p : ℕ) (qs : List Quantifier) (ms : List (List Bool))
     (attempt : Bool) (ls : List Bool) (hl : ls.length = 2 * p) :
@@ -114,13 +112,10 @@ private theorem legal_dormant (p : ℕ) (qs : List Quantifier) (ms : List (List 
   refine legal_top_mono Gate.interp_forward _ (initial p qs ms).legal ?_ (fun e => (hinner e).symm)
   intro i
   rw [Realization.orient_top]
-  cases hi : i.val with
-  | zero =>
-    have he : i = ⟨0, by simp⟩ := Fin.ext hi
-    rw [he, hsat]
+  rcases i with ⟨_ | n, hi⟩
+  · rw [hsat]
     simp [Initial.controls]
-  | succ n =>
-    simp only [Initial.controls, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
+  · simp only [Initial.controls, List.getElem!_eq_getElem?_getD, List.getElem?_cons_succ,
       ← List.replicate_succ, List.getElem?_replicate]
     split <;> simp
 
@@ -189,30 +184,25 @@ private theorem attach_legal (p : ℕ) (q : Quantifier) (qs : List Quantifier)
   legal_glueComp (u.tensor (wires p ls hl)).legal hv
     (fun i => congrFun (List.ofFn_inj.1 (hb.trans (u.tensor (wires p ls hl)).bot_eq.symm)) i)
 
+private theorem head_bottom_zero (p : ℕ) (q : Quantifier) :
+    (head p q).bottom ⟨0, by simp⟩ = tensorLeft q.gadget (.id (colors p)) (q.gadget.bottom 0) :=
+  bottom_tensor_left q.gadget (.id (colors p)) (0 : Fin 4)
+
 private theorem attach_dormant_legal (p : ℕ) (q : Quantifier) (qs : List Quantifier)
     (ms : List (List Bool)) (ls : List Bool) (hl : ls.length = 2 * p)
     {u : q.gadget.Edge → Bool} (hu : (q.gadget.graph Gate.interp).Legal u)
     (hsat : u (q.gadget.bottom 0) = true) :
     (((head p q).comp (circuit (p + 1) qs ms)).graph Gate.interp).Legal
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient) := by
-  apply (legal_comp_iff _ _ _).2
-  constructor
-  · have he : attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
-        compLeft (head p q) (circuit (p + 1) qs ms) =
-        glueTensor q.gadget (.id (colors p)) u (wires p ls hl).orient :=
-      funext fun e => glueComp_compLeft _ _ _ _ e
-    rw [he]
+  refine (legal_comp_iff _ _ _).2 ⟨?_, ?_⟩
+  · rw [show attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
+        compLeft (head p q) (circuit (p + 1) qs ms) = _ from funext (glueComp_compLeft _ _ _ _)]
     exact legal_glueTensor hu (wires p ls hl).legal
   · apply legal_dormant (p + 1) qs ms
       (attach p q qs ms ls hl u (initial (p + 1) qs ms).orient ∘
         compRight (head p q) (circuit (p + 1) qs ms)) (fun _ => rfl)
     dsimp only [Function.comp_apply, attach, compRight]
-    rw [glueComp_compLeft]
-    have he := bottom_tensor_left q.gadget (.id (colors p)) (0 : Fin 4)
-    change (head p q).bottom ⟨0, by simp⟩ = tensorLeft q.gadget (.id (colors p))
-      (q.gadget.bottom 0) at he
-    rw [he, glueTensor_tensorLeft]
-    exact hsat
+    rwa [glueComp_compLeft, head_bottom_zero, glueTensor_tensorLeft]
 
 private theorem attach_allowed (p : ℕ) (q : Quantifier) (qs : List Quantifier)
     (ms : List (List Bool)) {e : q.gadget.Edge} (he : e ≠ .inl 1) :
@@ -282,26 +272,18 @@ private theorem padded_response (p : ℕ) (q : Quantifier) (ls : List Bool)
     glueTensor q.gadget (.id (colors p)) (f false) (wires p ls hl).orient =
       reverse (glueTensor q.gadget (.id (colors p)) (f true) (wires p ls hl).orient)
         ((head p q).bottom ⟨0, by simp⟩) := by
-  have hj := bottom_tensor_left q.gadget (.id (colors p)) (0 : Fin 4)
-  change (head p q).bottom ⟨0, by simp⟩ =
-    tensorLeft q.gadget (.id (colors p)) (q.gadget.bottom 0) at hj
-  rw [hj]
-  exact (congrArg (glueTensor q.gadget (.id (colors p)) · (wires p ls hl).orient) hf).trans
-    (glueTensor_reverse_left _ _ _ _ _)
+  rw [head_bottom_zero, hf]
+  exact glueTensor_reverse_left _ _ _ _ _
 
 private theorem call_allowed (p : ℕ) (q : Quantifier) (qs : List Quantifier)
     (ms : List (List Bool)) (e : (circuit (p + 1) qs ms).Edge)
     (he : AllowsTop 0 e) :
     AllowsTop 0 (compRight (head p q) (circuit (p + 1) qs ms) e) := by
   rcases e with i | e
-  · have hij : i = ⟨0, by simp⟩ := Fin.ext ((allowsTop_inl _ _).1 he)
-    subst i
-    have hj := bottom_tensor_left q.gadget (.id (colors p)) (0 : Fin 4)
-    change (head p q).bottom ⟨0, by simp⟩ =
-      tensorLeft q.gadget (.id (colors p)) (q.gadget.bottom 0) at hj
-    change AllowsTop 0 (compLeft (head p q) (circuit (p + 1) qs ms)
-      ((head p q).bottom ⟨0, by simp⟩))
-    rw [hj]
+  · obtain rfl : i = ⟨0, by simp⟩ := Fin.ext ((allowsTop_inl _ _).1 he)
+    change AllowsTop 0
+      (compLeft (head p q) (circuit (p + 1) qs ms) ((head p q).bottom ⟨0, by simp⟩))
+    rw [head_bottom_zero]
     exact attach_allowed p q qs ms (by cases q <;> decide +kernel)
   · exact allowsTop_inr 0 _
 
@@ -467,27 +449,20 @@ private theorem length_literalValues (values : List Bool) :
     (Chain.literalValues values).length = 2 * values.length := by
   induction values with
   | nil => rfl
-  | cons value values ih =>
-    have hc : Chain.literalValues (value :: values) =
-        Chain.literalValues values ++ [value, !value] := by simp [Chain.literalValues]
-    rw [hc]
-    simp only [List.length_append, List.length_cons, List.length_nil, ih]
-    omega
+  | cons _ _ _ => simp [Chain.literalValues]; omega
 
 private theorem execute : ∀ (qs : List Quantifier) (values : List Bool)
     (ms : List (List Bool)), Chain.Truth (Matrix.Satisfies ms) qs values →
       Succeeds values.length qs ms (Chain.literalValues values) (length_literalValues values)
   | [], values, ms, h => succeeds_nil _ _ _ _ h
-  | .ex :: qs, values, ms, h => by
-    obtain ⟨value, hv⟩ := h
-    apply succeeds_ex values.length qs ms _ _ value
-    have ih := execute qs (values ++ [value]) ms hv
-    simpa only [List.length_append, List.length_singleton, literalValues_snoc] using ih
-  | .all :: qs, values, ms, h => by
-    apply succeeds_all values.length qs ms _ _
-    intro value
-    have ih := execute qs (values ++ [value]) ms (h value)
-    simpa only [List.length_append, List.length_singleton, literalValues_snoc] using ih
+  | .ex :: qs, values, ms, ⟨value, hv⟩ =>
+    succeeds_ex values.length qs ms _ _ value <| by
+      simpa only [List.length_append, List.length_singleton, literalValues_snoc] using
+        execute qs (values ++ [value]) ms hv
+  | .all :: qs, values, ms, h =>
+    succeeds_all values.length qs ms _ _ fun value => by
+      simpa only [List.length_append, List.length_singleton, literalValues_snoc] using
+        execute qs (values ++ [value]) ms (h value)
 
 private theorem activate_body (qs : List Quantifier) (ms : List (List Bool)) :
     ((Matrix.body qs ms).graph Gate.interp).Step (Initial.body qs ms).orient
@@ -517,33 +492,22 @@ satisfied wire from the explicit inactive initial configuration. -/
 theorem canReverse_of_truth (qs : List Quantifier) (ms : List (List Bool))
     (h : Chain.Truth (Satisfies ms) qs []) :
     ((body qs ms).graph Gate.interp).CanReverse (Initial.body qs ms).orient (.inl 0) := by
-  let active : Realization Gate.interp (body qs ms) [true, true] [] :=
-    Completeness.config 0 qs ms true [] rfl
-  have hx : ∃ t : (body qs ms).Edge → Bool,
-      ((body qs ms).graph Gate.interp).Reachable active.orient t ∧ t (.inl 0) = false := by
-    obtain ⟨t, ht, hsat⟩ := Completeness.execute qs [] ms h
-    exact ⟨t, ht.reachable, hsat⟩
-  obtain ⟨t, ht, hsat⟩ := hx
-  refine ⟨t, (Relation.ReflTransGen.single (Completeness.activate_body qs ms)).trans ht, ?_⟩
-  rw [hsat, Realization.orient_top]
+  obtain ⟨t, ht, hsat⟩ := Completeness.execute qs [] ms h
+  let t' : (body qs ms).Edge → Bool := t
+  refine ⟨t',
+    (Relation.ReflTransGen.single (Completeness.activate_body qs ms)).trans ht.reachable, ?_⟩
+  rw [show t' (.inl 0) = false from hsat, Realization.orient_top]
   decide +kernel
 
 /-- Reversing the actual body's sat wire from its canonical initial configuration is
 equivalent to the quantified matrix, for every prefix and CNF. -/
 theorem canReverse_iff_truth (qs : List Quantifier) (ms : List (List Bool)) :
     ((body qs ms).graph Gate.interp).CanReverse (Initial.body qs ms).orient (.inl 0) ↔
-      Chain.Truth (Satisfies ms) qs [] := by
-  constructor
-  · rintro ⟨t, ht, he⟩
-    have hstart : (Initial.body qs ms).orient (.inl 1) = false := by
-      rw [Realization.orient_top]
-      rfl
-    have hinit : (Initial.body qs ms).orient (.inl 0) = true := by
-      rw [Realization.orient_top]
-      rfl
-    have hsat : t (.inl 0) = false := Bool.eq_false_of_not_eq_true (by simpa only [hinit] using he)
-    exact truth_of_reachable qs ms .refl (Initial.body qs ms).legal hstart ht hsat
-  · exact canReverse_of_truth qs ms
+      Chain.Truth (Satisfies ms) qs [] :=
+  ⟨fun ⟨t, ht, he⟩ => truth_of_reachable qs ms .refl (Initial.body qs ms).legal
+    (by rw [Realization.orient_top]; rfl : (Initial.body qs ms).orient (.inl 1) = false) ht
+    (Bool.eq_false_of_not_eq_true (by rwa [Realization.orient_top] at he)),
+   canReverse_of_truth qs ms⟩
 
 end Matrix
 

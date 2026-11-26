@@ -151,15 +151,12 @@ private theorem decidableInTimeO_mono_parameter {f f' g g' : ℕ → ℕ}
     (hf : ∀ a, f (κ a) ≤ f' (κ' a)) (hg : ∀ a, g (κ a) ≤ g' (κ' a))
     (h : DecidableInTimeO A enc fun a => f (κ a) * ((enc a).length + 1) ^ g (κ a)) :
     DecidableInTimeO A enc fun a => f' (κ' a) * ((enc a).length + 1) ^ g' (κ' a) := by
-  refine h.mono 1 (fun a => ?_) fun a => by positivity
-  have hL : (1 : ℝ) ≤ (enc a).length + 1 := by
-    linarith [(Nat.cast_nonneg (enc a).length : (0 : ℝ) ≤ _)]
-  have h₁ : (f (κ a) : ℝ) ≤ f' (κ' a) := by exact_mod_cast hf a
-  have h₂ : (((enc a).length : ℝ) + 1) ^ g (κ a) ≤ ((enc a).length + 1) ^ g' (κ' a) :=
-    pow_le_pow_right₀ hL (hg a)
-  have := mul_le_mul h₁ h₂ (by positivity) (by positivity)
-  push_cast
-  linarith
+  refine h.mono 1 (fun a => ?_) fun _ => by positivity
+  have := mul_le_mul (Nat.cast_le (α := ℝ).mpr (hf a))
+    (pow_le_pow_right₀ (a := ((enc a).length : ℝ) + 1)
+      (by linarith [(Nat.cast_nonneg (enc a).length : (0 : ℝ) ≤ _)]) (hg a))
+    (by positivity) (by positivity)
+  push_cast; linarith
 
 /-- **`FPT ⊆ XP`.** -/
 theorem FPT_subset_XP : FPT enc κ ⊆ XP enc κ :=
@@ -167,15 +164,13 @@ theorem FPT_subset_XP : FPT enc κ ⊆ XP enc κ :=
 
 /-- **`P ⊆ FPT`**, for every parameter: a polynomial-time decider is an fpt-time decider with
 `f = 1`. -/
-theorem P_subset_FPT : P enc ⊆ FPT enc κ := by
-  intro A hA
+theorem P_subset_FPT : P enc ⊆ FPT enc κ := fun _ hA => by
   obtain ⟨k, hk⟩ := mem_P_iff_exists_mem_DTIME.mp hA
   refine ⟨fun _ => 1, k,
-    (mem_DTIME_iff_decidableInTimeO.mp hk).mono 1 (fun a => ?_) fun a => by positivity⟩
-  have : ((enc a).length : ℝ) ^ k ≤ ((enc a).length + 1) ^ k :=
-    pow_le_pow_left₀ (by positivity) (by linarith) k
-  push_cast
-  linarith
+    (mem_DTIME_iff_decidableInTimeO.mp hk).mono 1 (fun a => ?_) fun _ => by positivity⟩
+  have := pow_le_pow_left₀ (b := ((enc a).length : ℝ) + 1)
+    (Nat.cast_nonneg _) (by linarith) k
+  push_cast; linarith
 
 /-- **`P ⊆ XP`**, for every parameter. -/
 theorem P_subset_XP : P enc ⊆ XP enc κ :=
@@ -215,15 +210,12 @@ a polynomial in the length of the encoded instance, for any real `δ`, is an fpt
 theorem DecidableInExpTime.mem_FPT {δ : ℝ} (h : DecidableInExpTime A enc κ δ) :
     A ∈ FPT enc κ := by
   obtain ⟨e, h⟩ := h
-  refine ⟨fun k => ⌈(2 : ℝ) ^ δ⌉₊ ^ k, e, h.mono 1 (fun a => ?_) fun a => by positivity⟩
-  have h₁ : (2 : ℝ) ^ (δ * κ a) = ((2 : ℝ) ^ δ) ^ (κ a) := by
-    rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
-  have h₂ : ((2 : ℝ) ^ δ) ^ (κ a) ≤ (⌈(2 : ℝ) ^ δ⌉₊ : ℝ) ^ (κ a) :=
-    pow_le_pow_left₀ (by positivity) (Nat.le_ceil _) _
-  have := mul_le_mul_of_nonneg_right (h₁ ▸ h₂)
+  refine ⟨fun k => ⌈(2 : ℝ) ^ δ⌉₊ ^ k, e, h.mono 1 (fun a => ?_) fun _ => by positivity⟩
+  rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
+  have := mul_le_mul_of_nonneg_right
+    (pow_le_pow_left₀ (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ δ) (Nat.le_ceil _) (κ a))
     (by positivity : (0 : ℝ) ≤ ((enc a).length + 1) ^ e)
-  push_cast
-  linarith
+  push_cast; linarith
 
 /-- **`SAT` is fixed-parameter tractable in the number of variables**, by exhaustive search. -/
 theorem SAT_mem_FPT : SAT ∈ FPT encCNF CNF.numVars :=
@@ -314,14 +306,13 @@ theorem ComputableInFPTTime.ite {p : α → Bool} {f g : α → β}
   obtain ⟨F₁, c₁, hp⟩ := ComputableInFPTTime.exists_computableInO hp
   obtain ⟨F₂, c₂, hf⟩ := ComputableInFPTTime.exists_computableInO hf
   obtain ⟨F₃, c₃, hg⟩ := ComputableInFPTTime.exists_computableInO hg
-  have key : ∀ a, (F₁ (κ a) * ((encA a).length + 1) ^ c₁ +
+  have key (a : α) : (F₁ (κ a) * ((encA a).length + 1) ^ c₁ +
       if p a then F₂ (κ a) * ((encA a).length + 1) ^ c₂
       else F₃ (κ a) * ((encA a).length + 1) ^ c₃) ≤
       (F₁ (κ a) + F₂ (κ a) + F₃ (κ a)) * ((encA a).length + 1) ^ (c₁ + c₂ + c₃) := by
-    intro a
-    have hle : ∀ c, c ≤ c₁ + c₂ + c₃ → ∀ F,
+    have hle (c) (hc : c ≤ c₁ + c₂ + c₃) (F) :
         F * ((encA a).length + 1) ^ c ≤ F * ((encA a).length + 1) ^ (c₁ + c₂ + c₃) :=
-      fun c hc F => Nat.mul_le_mul_left F (Nat.pow_le_pow_right (Nat.succ_pos _) hc)
+      Nat.mul_le_mul_left F (Nat.pow_le_pow_right (Nat.succ_pos _) hc)
     have h₁ := hle c₁ (by omega) (F₁ (κ a))
     have h₂ := hle c₂ (by omega) (F₂ (κ a))
     have h₃ := hle c₃ (by omega) (F₃ (κ a))
@@ -338,8 +329,7 @@ private theorem comp_time_le {L F₁ c₁ l n F₂ F₂' e E : ℕ}
       (F₁ + F₂' * ((l + 1) * (F₁ + 1)) ^ E) * (L + 1) ^ (c₁ + c₁ * E) := by
   have hP : 1 ≤ (L + 1) ^ c₁ := Nat.one_le_pow _ _ (Nat.succ_pos L)
   have hQ : 1 ≤ ((L + 1) ^ c₁) ^ E := Nat.one_le_pow _ _ hP
-  have hlP := Nat.mul_le_mul_left l hP
-  have hn' : n + 1 ≤ (l + 1) * (F₁ + 1) * (L + 1) ^ c₁ := by nlinarith
+  have hn' : n + 1 ≤ (l + 1) * (F₁ + 1) * (L + 1) ^ c₁ := by nlinarith [Nat.mul_le_mul_left l hP]
   have h₁ : (n + 1) ^ e ≤ ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E := by
     rw [← Nat.mul_pow]
     exact (Nat.pow_le_pow_left hn' e).trans (Nat.pow_le_pow_right (by positivity) he)
@@ -406,41 +396,28 @@ when a Boolean function deciding it is computable in fpt time. -/
 theorem mem_FPT_iff_computableInFPTTime {A : Set α} :
     A ∈ FPT encA κ ↔
       ∃ g : α → Bool, ComputableInFPTTime g encA encBool κ ∧ ∀ a, a ∈ A ↔ g a = true := by
-  have e : ∀ (f : ℕ → ℕ) (c : ℕ), (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ c) =
-      fun a => ((f (κ a) * ((encA a).length + 1) ^ c : ℕ) : ℝ) := fun f c => by
-    funext a
-    push_cast
-    rfl
-  constructor
-  · rintro ⟨f, c, h⟩
-    rw [e, decidableInTimeO_natCast_iff] at h
+  have e (f : ℕ → ℕ) (c : ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ c) =
+      fun a => ((f (κ a) * ((encA a).length + 1) ^ c : ℕ) : ℝ) := funext fun _ => by push_cast; rfl
+  refine ⟨fun ⟨f, c, h⟩ => ?_, fun ⟨g, hg, hA⟩ => ?_⟩
+  · rw [e, decidableInTimeO_natCast_iff] at h
     obtain ⟨g, hg, hA⟩ := h
     exact ⟨g, hg.computableInFPTTime, hA⟩
-  · rintro ⟨g, hg, hA⟩
-    obtain ⟨f, c, hg⟩ := ComputableInFPTTime.exists_computableInO hg
-    refine ⟨f, c, ?_⟩
-    rw [e, decidableInTimeO_natCast_iff]
-    exact ⟨g, hg, hA⟩
+  · obtain ⟨f, c, hg⟩ := ComputableInFPTTime.exists_computableInO hg
+    exact ⟨f, c, (e f c).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
 
 /-- **`XP` in terms of computability within explicit bounds.** -/
 theorem mem_XP_iff_exists_computableInO {A : Set α} :
     A ∈ XP encA κ ↔ ∃ (g : α → Bool) (f e : ℕ → ℕ), ComputableInO g encA encBool
       (fun a => f (κ a) * ((encA a).length + 1) ^ e (κ a))
       (fun a => f (κ a) * ((encA a).length + 1) ^ e (κ a)) ∧ ∀ a, a ∈ A ↔ g a = true := by
-  have h : ∀ f e : ℕ → ℕ, (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ e (κ a)) =
-      fun a => ((f (κ a) * ((encA a).length + 1) ^ e (κ a) : ℕ) : ℝ) := fun f e => by
-    funext a
-    push_cast
-    rfl
-  constructor
-  · rintro ⟨f, e, hA⟩
-    rw [h, decidableInTimeO_natCast_iff] at hA
+  have h (f e : ℕ → ℕ) : (fun a => (f (κ a) : ℝ) * ((encA a).length + 1) ^ e (κ a)) =
+      fun a => ((f (κ a) * ((encA a).length + 1) ^ e (κ a) : ℕ) : ℝ) :=
+    funext fun _ => by push_cast; rfl
+  refine ⟨fun ⟨f, e, hA⟩ => ?_, fun ⟨g, f, e, hg, hA⟩ => ?_⟩
+  · rw [h, decidableInTimeO_natCast_iff] at hA
     obtain ⟨g, hg, hA⟩ := hA
     exact ⟨g, f, e, hg, hA⟩
-  · rintro ⟨g, f, e, hg, hA⟩
-    refine ⟨f, e, ?_⟩
-    rw [h, decidableInTimeO_natCast_iff]
-    exact ⟨g, hg, hA⟩
+  · exact ⟨f, e, (h f e).symm ▸ decidableInTimeO_natCast_iff.mpr ⟨g, hg, hA⟩⟩
 
 /-- **Bounded parameters.** For a parameter bounded by a constant, `FPT` is `P`. -/
 theorem FPT_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : FPT encA κ = P encA := by
@@ -467,34 +444,28 @@ theorem XP_eq_P_of_le {K : ℕ} (hκ : ∀ a, κ a ≤ K) : XP encA κ = P encA 
 /-- **`FPT` is closed under complement.** -/
 theorem compl_mem_FPT {A : Set α} (hA : A ∈ FPT encA κ) : Aᶜ ∈ FPT encA κ := by
   obtain ⟨g, hg, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg.ite
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg.ite
     ((ComputableInPolyTime.const false).computableInFPTTime κ)
     ((ComputableInPolyTime.const true).computableInFPTTime κ),
-      fun a => ?_⟩
-  simp only [Set.mem_compl_iff, hA]
-  cases g a <;> simp
+    fun a => by cases h : g a <;> simp [*]⟩
 
 /-- **`FPT` is closed under intersection.** -/
 theorem inter_mem_FPT {A B : Set α} (hA : A ∈ FPT encA κ) (hB : B ∈ FPT encA κ) :
     A ∩ B ∈ FPT encA κ := by
   obtain ⟨g₁, hg₁, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
   obtain ⟨g₂, hg₂, hB⟩ := mem_FPT_iff_computableInFPTTime.mp hB
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite hg₂
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite hg₂
     ((ComputableInPolyTime.const false).computableInFPTTime κ),
-      fun a => ?_⟩
-  simp only [Set.mem_inter_iff, hA, hB]
-  cases g₁ a <;> simp
+    fun a => by cases h₁ : g₁ a <;> simp [*]⟩
 
 /-- **`FPT` is closed under union.** -/
 theorem union_mem_FPT {A B : Set α} (hA : A ∈ FPT encA κ) (hB : B ∈ FPT encA κ) :
     A ∪ B ∈ FPT encA κ := by
   obtain ⟨g₁, hg₁, hA⟩ := mem_FPT_iff_computableInFPTTime.mp hA
   obtain ⟨g₂, hg₂, hB⟩ := mem_FPT_iff_computableInFPTTime.mp hB
-  refine mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite
-    ((ComputableInPolyTime.const true).computableInFPTTime κ)
-      hg₂, fun a => ?_⟩
-  simp only [Set.mem_union, hA, hB]
-  cases g₁ a <;> simp
+  exact mem_FPT_iff_computableInFPTTime.mpr ⟨_, hg₁.ite
+    ((ComputableInPolyTime.const true).computableInFPTTime κ) hg₂,
+    fun a => by cases h₁ : g₁ a <;> simp [*]⟩
 
 /-- **`XP` is closed under complement.** -/
 theorem compl_mem_XP {A : Set α} (hA : A ∈ XP encA κ) : Aᶜ ∈ XP encA κ := by
@@ -502,10 +473,7 @@ theorem compl_mem_XP {A : Set α} (hA : A ∈ XP encA κ) : Aᶜ ∈ XP encA κ 
   have h := hg.ite (ComputableInO.const false : ComputableInO _ _ encBool _ _)
     (ComputableInO.const true : ComputableInO _ _ encBool _ _)
   refine mem_XP_iff_exists_computableInO.mpr ⟨_, fun k => f k + 1, fun k => e k + 1,
-    h.mono_le (fun a => ?_) (fun a => ?_), fun a => ?_⟩
-  rotate_left 2
-  · simp only [Set.mem_compl_iff, hA]
-    cases g a <;> simp
+    h.mono_le (fun a => ?_) (fun a => ?_), fun a => by cases hg' : g a <;> simp [*]⟩
   all_goals
     dsimp only
     have h₁ : ((encA a).length + 1) ^ e (κ a) ≤ ((encA a).length + 1) ^ (e (κ a) + 1) :=

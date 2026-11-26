@@ -111,11 +111,8 @@ theorem slotAlloc_of_not_mem_range [DecidableEq ι] (μ : Fin k → ℝ) (σ : F
     simp only [hne, ↓reduceIte]
 
 private theorem slotAlloc_nonneg [DecidableEq ι] {μ : Fin k → ℝ} (hμ : ∀ i, 0 ≤ μ i)
-    (σ : Fin k ↪ ι) (j : ι) : 0 ≤ slotAlloc μ σ j := by
-  refine Finset.sum_nonneg fun i _ => ?_
-  split_ifs
-  · exact hμ i
-  · exact le_rfl
+    (σ : Fin k ↪ ι) (j : ι) : 0 ≤ slotAlloc μ σ j :=
+  Finset.sum_nonneg fun i _ => by split_ifs <;> simp [hμ i]
 
 /-- Total social welfare `∑ i, μ i * v (σ i)` of assignment `σ : Fin k ↪ ι` under CTRs `μ` and
 per-click values `v` ([LahaiePennockSaberiVohra2007], §28.3.1, (28.1), p. 703). -/
@@ -152,10 +149,7 @@ private theorem antitone_fin_of_succ {f : Fin k → ℝ}
     induction d with
     | zero => intro ha; exact le_of_eq (by congr 1)
     | succ n ih => intro ha; exact (h (a.val + n) ha).trans (ih (by omega))
-  have hb := hdiff (b.val - a.val) (by omega)
-  have heq : (⟨a.val + (b.val - a.val), by omega⟩ : Fin k) = b := by
-    apply Fin.ext; dsimp; omega
-  rwa [heq] at hb
+  simpa [Fin.ext_iff, Nat.add_sub_of_le hab] using hdiff (b.val - a.val) (by omega)
 
 private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
     ∃ π : Equiv.Perm ι, ∀ i : Fin k, π (σ i) = τ i := by
@@ -163,10 +157,6 @@ private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
   classical
   let s : Finset ι := Finset.univ.map σ
   let t : Finset ι := Finset.univ.map τ
-  have hsc : Fintype.card {x : ι // x ∈ s} = k := by
-    rw [Fintype.card_coe, Finset.card_map, Finset.card_fin]
-  have htc : Fintype.card {y : ι // y ∈ t} = k := by
-    rw [Fintype.card_coe, Finset.card_map, Finset.card_fin]
   let eσ : Fin k ≃ {x : ι // x ∈ s} :=
     Equiv.ofBijective (fun i => ⟨σ i, Finset.mem_map.mpr ⟨i, Finset.mem_univ _, rfl⟩⟩)
       ⟨fun _ _ h => σ.injective (congrArg Subtype.val h), fun ⟨_, hx⟩ => by
@@ -177,17 +167,15 @@ private theorem exists_perm_comp_eq [Finite ι] (σ τ : Fin k ↪ ι) :
         obtain ⟨i, -, rfl⟩ := Finset.mem_map.mp hy; exact ⟨i, rfl⟩⟩
   let eIn : {x : ι // x ∈ s} ≃ {y : ι // y ∈ t} := eσ.symm.trans eτ
   have hcompl : Fintype.card {x : ι // ¬x ∈ s} = Fintype.card {y : ι // ¬y ∈ t} := by
-    rw [Fintype.card_subtype_compl, Fintype.card_subtype_compl, hsc, htc]
+    simp only [Fintype.card_subtype_compl, Fintype.card_coe, s, t, Finset.card_map, Finset.card_fin]
   let eOut : {x : ι // ¬x ∈ s} ≃ {y : ι // ¬y ∈ t} := Fintype.equivOfCardEq hcompl
   let π : Equiv.Perm ι :=
     (Equiv.sumCompl (· ∈ s)).symm.trans ((eIn.sumCongr eOut).trans (Equiv.sumCompl (· ∈ t)))
   refine ⟨π, fun i => ?_⟩
-  have hmem : σ i ∈ s := Finset.mem_map.mpr ⟨i, Finset.mem_univ _, rfl⟩
-  have hL : (Equiv.sumCompl (· ∈ s)).symm (σ i) = Sum.inl (eσ i) := by
-    rw [Equiv.symm_apply_eq]; rfl
+  have hL : (Equiv.sumCompl (· ∈ s)).symm (σ i) = Sum.inl (eσ i) :=
+    (Equiv.symm_apply_eq _).mpr rfl
   change Equiv.sumCompl (· ∈ t) ((eIn.sumCongr eOut) ((Equiv.sumCompl (· ∈ s)).symm (σ i))) = τ i
-  rw [hL]
-  simp only [Equiv.sumCongr_apply, Sum.map_inl, eIn, Equiv.trans_apply, Equiv.symm_apply_apply]
+  simp only [hL, Equiv.sumCongr_apply, Sum.map_inl, eIn, Equiv.trans_apply, Equiv.symm_apply_apply]
   rfl
 
 /-- **Northwest corner rule** ([LahaiePennockSaberiVohra2007], §28.3.1, p. 704): every assortative
@@ -230,35 +218,20 @@ theorem IsOptimal.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin 
   · rcases eq_or_lt_of_le hle with rfl | hlt
     · exact le_rfl
     · let τ : Fin k ↪ ι := (Equiv.swap i₁ i₂).toEmbedding.trans σ
-      have hopt : welfare μ v τ ≤ welfare μ v σ := hσ τ
       have hne : i₁ ≠ i₂ := ne_of_lt hlt
       have hdiff : welfare μ v τ - welfare μ v σ =
           (μ i₁ - μ i₂) * (v (σ i₂) - v (σ i₁)) := by
         simp only [welfare, ← Finset.sum_sub_distrib]
-        have hpair : ∀ r : Fin k, r ≠ i₁ → r ≠ i₂ →
-            μ r * v (τ r) - μ r * v (σ r) = 0 := fun r hr₁ hr₂ => by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_of_ne_of_ne hr₁ hr₂, sub_self]
-        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁)]
-        have hi₂ : i₂ ∈ Finset.univ.erase i₁ := Finset.mem_erase.2 ⟨hne.symm, Finset.mem_univ _⟩
-        rw [← Finset.add_sum_erase _ _ hi₂]
-        have hrest : ∑ r ∈ (Finset.univ.erase i₁).erase i₂,
-            (μ r * v (τ r) - μ r * v (σ r)) = 0 :=
-          Finset.sum_eq_zero fun r hr =>
-            hpair r (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hr))
-              (Finset.ne_of_mem_erase hr)
-        rw [hrest, add_zero]
-        have ht1 : τ i₁ = σ i₂ := by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_left]
-        have ht2 : τ i₂ = σ i₁ := by
-          simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
-            Equiv.swap_apply_right]
-        rw [ht1, ht2]
+        rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i₁),
+          ← Finset.add_sum_erase _ _ (Finset.mem_erase.2 ⟨hne.symm, Finset.mem_univ i₂⟩),
+          Finset.sum_eq_zero fun r hr => by
+            simp [τ, Equiv.swap_apply_of_ne_of_ne
+              (Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hr)) (Finset.ne_of_mem_erase hr)]]
+        simp only [τ, Function.Embedding.trans_apply, Equiv.coe_toEmbedding,
+          Equiv.swap_apply_left, Equiv.swap_apply_right, add_zero]
         ring
-      have hμlt : μ i₂ < μ i₁ := hμ hlt
       change v (σ i₂) ≤ v (σ i₁)
-      nlinarith
+      nlinarith [hσ τ, hμ hlt]
   · let τ : Fin k ↪ ι :=
       { toFun := fun r => if r = i then j else σ r
         inj' := fun a b hab => by
@@ -268,24 +241,13 @@ theorem IsOptimal.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin 
           · exact absurd ⟨b, hab.symm⟩ hj
           · exact absurd ⟨a, hab⟩ hj
           · exact σ.injective hab }
-    have hopt : welfare μ v τ ≤ welfare μ v σ := hσ τ
     have hdiff : welfare μ v τ - welfare μ v σ = μ i * (v j - v (σ i)) := by
-      simp only [welfare, ← Finset.sum_sub_distrib]
-      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]
-      have hrest : ∑ r ∈ Finset.univ.erase i, (μ r * v (τ r) - μ r * v (σ r)) = 0 :=
-        Finset.sum_eq_zero fun r hr => by
-          have hne : r ≠ i := Finset.ne_of_mem_erase hr
-          have hτr : τ r = σ r := by
-            change (if r = i then j else σ r) = σ r
-            simp only [hne, ↓reduceIte]
-          rw [hτr, sub_self]
-      have hτi : τ i = j := by
-        change (if i = i then j else σ i) = j
-        simp only [↓reduceIte]
-      rw [hrest, add_zero, hτi]
-      ring
-    have hpos : 0 < μ i := hμ_pos i
-    nlinarith
+      have hτ (r : Fin k) : τ r = if r = i then j else σ r := rfl
+      simp only [welfare, ← Finset.sum_sub_distrib, hτ]
+      rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i),
+        Finset.sum_eq_zero fun r hr => by simp [Finset.ne_of_mem_erase hr]]
+      simp only [↓reduceIte, add_zero]; ring
+    nlinarith [hσ τ, hμ_pos i]
 
 /-- Under strictly decreasing positive CTRs, an assignment is optimal iff it is assortative
 ([LahaiePennockSaberiVohra2007], §28.3.1, p. 704). -/
@@ -309,14 +271,9 @@ theorem exists_isOptimal [Fintype ι] (μ : Fin k → ℝ) (v : ι → ℝ) (hk 
 theorem exists_isAssortative [Fintype ι] (v : ι → ℝ) (hk : k ≤ Fintype.card ι) :
     ∃ σ : Fin k ↪ ι, IsAssortative v σ := by
   let μ₀ : Fin k → ℝ := fun i => (k : ℝ) - (i.val : ℝ)
-  have hμ₀ : StrictAnti μ₀ := fun a b hab => by
-    have : (a.val : ℝ) < (b.val : ℝ) := Nat.cast_lt.mpr hab
-    simp only [μ₀]; linarith
-  have hμ₀_pos : ∀ i : Fin k, 0 < μ₀ i := fun i => by
-    have : (i.val : ℝ) < (k : ℝ) := Nat.cast_lt.mpr i.isLt
-    simp only [μ₀]; linarith
-  obtain ⟨σ, hσ⟩ := exists_isOptimal μ₀ v hk
-  exact ⟨σ, hσ.isAssortative hμ₀ hμ₀_pos⟩
+  have hμ₀ : StrictAnti μ₀ := fun _ _ hab => sub_lt_sub_left (Nat.cast_lt.mpr hab) _
+  have hμ₀_pos : ∀ i : Fin k, 0 < μ₀ i := fun i => sub_pos.mpr (Nat.cast_lt.mpr i.isLt)
+  exact (exists_isOptimal μ₀ v hk).imp fun _ hσ => hσ.isAssortative hμ₀ hμ₀_pos
 
 /-- An assignment `σ : Fin k ↪ ι` with slot prices `p : Fin k → ℝ` (expected payments per
 impression) is **locally envy-free** with respect to CTRs `μ` and per-click values `v`
@@ -358,18 +315,14 @@ theorem IsLocallyEnvyFree.isAssortative {μ : Fin k → ℝ} {v : ι → ℝ} {�
     {p : Fin k → ℝ} (hlef : IsLocallyEnvyFree μ v σ p)
     (hμ : StrictAnti μ) (hμ_pos : ∀ i, 0 < μ i) : IsAssortative v σ := by
   have hanti : Antitone (v ∘ σ) := antitone_fin_of_succ fun i hi => by
-    have h1 := hlef.noEnvyAbove i hi
-    have h2 := hlef.noEnvyBelow i hi
     have hμlt : μ ⟨i + 1, hi⟩ < μ ⟨i, by omega⟩ := hμ (by simp [Fin.lt_def])
     change v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩)
-    nlinarith
+    nlinarith [hlef.noEnvyAbove i hi, hlef.noEnvyBelow i hi]
   refine ⟨hanti, fun i j hj => ?_⟩
   have hk : 0 < k := Fin.pos i
   have hlast : v j ≤ v (σ ⟨k - 1, by omega⟩) := by
-    have h1 := hlef.lastSlot_nonneg hk
-    have h2 := hlef.unassigned_noEnvy hk j hj
-    have hpos := hμ_pos ⟨k - 1, by omega⟩
-    nlinarith
+    nlinarith [hlef.lastSlot_nonneg hk, hlef.unassigned_noEnvy hk j hj,
+      hμ_pos ⟨k - 1, by omega⟩]
   exact hlast.trans (hanti (show i ≤ ⟨k - 1, by omega⟩ by change i.val ≤ k - 1; omega))
 
 /-- Under strictly decreasing positive CTRs, local envy-freeness implies **global envy-freeness**
@@ -394,14 +347,9 @@ theorem IsLocallyEnvyFree.noEnvy {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin
           (hμ (show (⟨i.val + n, by omega⟩ : Fin k) < ⟨i.val + n + 1, hd⟩ by
             simp [Fin.lt_def])).le
         have hih := ih (by omega)
-        have hcur : μ ⟨i.val + n + 1, hd⟩ * v (σ i) - p ⟨i.val + n + 1, hd⟩ ≤
-            μ ⟨i.val + n, by omega⟩ * v (σ i) - p ⟨i.val + n, by omega⟩ := by
-          nlinarith
-        exact hcur.trans hih
-    have heq : (⟨i.val + (r.val - i.val), by omega⟩ : Fin k) = r := by
-      apply Fin.ext; dsimp; omega
-    have hfin := hstep (r.val - i.val) (by omega)
-    simpa only [heq] using hfin
+        change μ ⟨i.val + n + 1, hd⟩ * v (σ i) - p ⟨i.val + n + 1, hd⟩ ≤ _
+        nlinarith
+    simpa [Fin.ext_iff, Nat.add_sub_of_le hir] using hstep (r.val - i.val) (by omega)
   · have hstep : ∀ d (hd : d ≤ i.val),
         μ ⟨i.val - d, by omega⟩ * v (σ i) - p ⟨i.val - d, by omega⟩ ≤ μ i * v (σ i) - p i := by
       intro d
@@ -420,10 +368,7 @@ theorem IsLocallyEnvyFree.noEnvy {μ : Fin k → ℝ} {v : ι → ℝ} {σ : Fin
             change i.val - (n + 1) < i.val - n; omega)).le
         have hih := ih (by omega)
         nlinarith
-    have heq : (⟨i.val - (i.val - r.val), by omega⟩ : Fin k) = r := by
-      apply Fin.ext; dsimp; omega
-    have hfin := hstep (i.val - r.val) (by omega)
-    simpa only [heq] using hfin
+    simpa [Fin.ext_iff, Nat.sub_sub_self hri] using hstep (i.val - r.val) (by omega)
 
 /-- Under strictly decreasing positive CTRs, every assigned bidder gets nonnegative utility under a
 locally envy-free price vector (individual rationality). -/
@@ -452,9 +397,8 @@ private theorem fin_rev_induction {P : Fin k → Prop} (hk : 0 < k)
       have hfinEq : (⟨k - 1 - (n + 1) + 1, by omega⟩ : Fin k) = ⟨k - 1 - n, by omega⟩ := by
         apply Fin.ext; dsimp; omega
       exact hstep (k - 1 - (n + 1)) (by omega) (hfinEq.symm ▸ ih (by omega))
-  have heq : (⟨k - 1 - (k - 1 - r.val), by omega⟩ : Fin k) = r := by
-    apply Fin.ext; dsimp; omega
-  exact heq ▸ hdown (k - 1 - r.val) (by omega)
+  simpa [Fin.ext_iff, Nat.sub_sub_self (Nat.le_sub_one_of_lt r.isLt)] using
+    hdown (k - 1 - r.val) (by omega)
 
 /-- Under strictly decreasing positive CTRs, no unassigned bidder envies *any* slot under a locally
 envy-free price vector. -/
@@ -480,16 +424,17 @@ assigned (`Fintype.card ι = k`). -/
     (Finset.univ \ Finset.univ.map σ).sup' h v
   else 0
 
+private theorem mem_unassigned_iff [Fintype ι] [DecidableEq ι] (σ : Fin k ↪ ι) (j : ι) :
+    j ∈ Finset.univ \ Finset.univ.map σ ↔ j ∉ Set.range σ := by
+  simp [Set.mem_range]
+
 /-- Every unassigned bidder's value is at most `maxUnassignedValue v σ`. -/
 theorem le_maxUnassignedValue [Fintype ι] [DecidableEq ι] (v : ι → ℝ) (σ : Fin k ↪ ι) {j : ι}
     (hj : j ∉ Set.range σ) : v j ≤ maxUnassignedValue v σ := by
-  have hmem : j ∈ Finset.univ \ Finset.univ.map σ := by
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists]
-    exact fun i h => hj ⟨i, h⟩
+  have hmem := (mem_unassigned_iff σ j).mpr hj
   unfold maxUnassignedValue
   split_ifs with hne
-  · exact Finset.le_sup' v hmem
-  · exact (hne ⟨j, hmem⟩).elim
+  exacts [Finset.le_sup' v hmem, (hne ⟨j, hmem⟩).elim]
 
 /-- If all bidder values are nonnegative, then `maxUnassignedValue v σ` is nonnegative. -/
 theorem maxUnassignedValue_nonneg [Fintype ι] [DecidableEq ι] {v : ι → ℝ} (hv : ∀ j, 0 ≤ v j)
@@ -508,10 +453,7 @@ theorem maxUnassignedValue_le [Fintype ι] [DecidableEq ι] {v : ι → ℝ} {σ
     maxUnassignedValue v σ ≤ c := by
   unfold maxUnassignedValue
   split_ifs with h
-  · refine Finset.sup'_le h v fun j hj => hc0 h j ?_
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hj
-    rintro ⟨i, rfl⟩
-    exact hj i rfl
+  · exact Finset.sup'_le h v fun j hj => hc0 h j ((mem_unassigned_iff σ j).mp hj)
   · exact hcEmpty h
 
 /-- `maxUnassignedValue` depends only on the values of unassigned bidders. -/
@@ -520,10 +462,7 @@ theorem maxUnassignedValue_congr [Fintype ι] [DecidableEq ι] {v₁ v₂ : ι �
     maxUnassignedValue v₁ σ = maxUnassignedValue v₂ σ := by
   unfold maxUnassignedValue
   split_ifs with hne
-  · refine Finset.sup'_congr hne rfl fun j hj => h j ?_
-    simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists] at hj
-    rintro ⟨i, rfl⟩
-    exact hj i rfl
+  · exact Finset.sup'_congr hne rfl fun j hj => h j ((mem_unassigned_iff σ j).mp hj)
   · rfl
 
 /-- The value directly below slot `i : Fin k` under assignment `σ`: `v (σ (i + 1))` when
@@ -546,8 +485,7 @@ private theorem priceFromBase_sub_succ (μ : Fin k → ℝ) (v : ι → ℝ) (σ
     simp only [Finset.mem_Ici, Finset.mem_insert, Fin.le_def, Fin.ext_iff]
     omega
   have hnotmem : (⟨i, by omega⟩ : Fin k) ∉ Finset.Ici ⟨i + 1, hi⟩ := by
-    simp only [Finset.mem_Ici, Fin.le_def]
-    omega
+    simp [Fin.le_def]
   unfold priceFromBase
   rw [hIci, Finset.sum_insert hnotmem, add_sub_cancel_right]
   simp only [nextSlotValue, hi, ↓reduceDIte]
@@ -568,25 +506,17 @@ private theorem isLocallyEnvyFree_priceFromBase {μ : Fin k → ℝ} {v : ι →
     (hbase_lo : ∀ j : ι, j ∉ Set.range σ → v j ≤ base) :
     IsLocallyEnvyFree μ v σ (priceFromBase μ v σ base) where
   noEnvyAbove i hi := by
-    have hdiff := priceFromBase_sub_succ μ v σ base i hi
-    linarith
+    linarith [priceFromBase_sub_succ μ v σ base i hi]
   noEnvyBelow i hi := by
-    have hdiff := priceFromBase_sub_succ μ v σ base i hi
-    have hμle : μ ⟨i + 1, hi⟩ ≤ μ ⟨i, by omega⟩ :=
-      hμ (show (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ by change i ≤ i + 1; omega)
-    have hv : v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩) :=
-      hσ.antitone (show (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ by change i ≤ i + 1; omega)
-    nlinarith
+    have hle : (⟨i, by omega⟩ : Fin k) ≤ ⟨i + 1, hi⟩ := Fin.le_def.mpr (Nat.le_succ i)
+    have hv : v (σ ⟨i + 1, hi⟩) ≤ v (σ ⟨i, by omega⟩) := hσ.antitone hle
+    nlinarith [priceFromBase_sub_succ μ v σ base i hi, hμ hle]
   lastSlot_nonneg hk := by
     rw [priceFromBase_last μ v σ base hk]
-    have hmul : 0 ≤ μ ⟨k - 1, by omega⟩ * (v (σ ⟨k - 1, by omega⟩) - base) :=
-      mul_nonneg (hμ_nonneg ⟨k - 1, by omega⟩) (sub_nonneg.mpr (hbase_hi hk))
-    linarith
+    nlinarith [hμ_nonneg ⟨k - 1, by omega⟩, hbase_hi hk]
   unassigned_noEnvy hk j hj := by
     rw [priceFromBase_last μ v σ base hk]
-    have hmul : 0 ≤ μ ⟨k - 1, by omega⟩ * (base - v j) :=
-      mul_nonneg (hμ_nonneg ⟨k - 1, by omega⟩) (sub_nonneg.mpr (hbase_lo j hj))
-    linarith
+    nlinarith [hμ_nonneg ⟨k - 1, by omega⟩, hbase_lo j hj]
 
 /-- The minimal nonnegative locally envy-free total slot price vector for assignment `σ`:
 `minEnvyFreePrice μ v σ i = ∑ r ≥ i, (μ r - μ (r + 1)) * v (σ (r + 1))`
@@ -658,18 +588,9 @@ theorem minEnvyFreePrice_le [Fintype ι] [DecidableEq ι] {μ : Fin k → ℝ} {
     unfold maxUnassignedValue
     split_ifs with hne
     · obtain ⟨j, hjmem, hj⟩ := Finset.exists_mem_eq_sup' hne v
-      rw [hj]
-      have hj' : j ∉ Set.range σ := by
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-          not_exists] at hjmem
-        rintro ⟨r, rfl⟩
-        exact hjmem r rfl
-      have := hp.unassigned_noEnvy hk j hj'
-      linarith
+      rw [hj]; linarith [hp.unassigned_noEnvy hk j ((mem_unassigned_iff σ j).mp hjmem)]
     · rw [mul_zero]; exact hp_nonneg ⟨k - 1, by omega⟩
-  · have hdiff := minEnvyFreePrice_sub_succ μ v σ r hr
-    have hne := hp.noEnvyAbove r hr
-    linarith
+  · linarith [minEnvyFreePrice_sub_succ μ v σ r hr, hp.noEnvyAbove r hr]
 
 /-- **Theorem 28.1** ([LahaiePennockSaberiVohra2007], §28.3.2, p. 706): under strictly decreasing
 positive click-through rates `μ`, a full assignment `σ : Fin k ↪ ι` is optimal if and only if
@@ -699,20 +620,13 @@ theorem isOptimal_iff_exists_isLocallyEnvyFree [Finite ι] {μ : Fin k → ℝ}
       else if hk : 0 < k then v (σ ⟨k - 1, by omega⟩) else 0
     refine ⟨priceFromBase μ v σ base, isLocallyEnvyFree_priceFromBase hσ hμ.antitone
       (fun i => (hμ_pos i).le) (fun hk => ?_) (fun j hj => ?_)⟩
-    · by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
-      · simp only [base, hne, ↓reduceDIte]
-        refine Finset.sup'_le hne v fun j hjmem => hσ.unassigned_le ⟨k - 1, by omega⟩ j ?_
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and,
-          not_exists] at hjmem
-        rintro ⟨r, rfl⟩
-        exact hjmem r rfl
-      · simp only [base, hne, hk, ↓reduceDIte, le_rfl]
-    · have hmem : j ∈ Finset.univ \ Finset.univ.map σ := by
-        simp only [Finset.mem_sdiff, Finset.mem_univ, Finset.mem_map, true_and, not_exists]
-        exact fun i h => hj ⟨i, h⟩
+    · dsimp only [base]
+      split_ifs with hne
+      · exact Finset.sup'_le hne v fun j hj => hσ.unassigned_le _ j ((mem_unassigned_iff σ j).mp hj)
+      · exact le_rfl
+    · have hmem := (mem_unassigned_iff σ j).mpr hj
       have hne : (Finset.univ \ Finset.univ.map σ).Nonempty := ⟨j, hmem⟩
-      simp only [base, hne, ↓reduceDIte]
-      exact Finset.le_sup' v hmem
+      simpa only [base, hne, ↓reduceDIte] using Finset.le_sup' v hmem
   · rintro ⟨p, hlef⟩
     exact (hlef.isAssortative hμ hμ_pos).isOptimal hμ.antitone fun i => (hμ_pos i).le
 

@@ -38,19 +38,13 @@ private theorem evalsTo_reaches {α : Type*} {f : α → Option α} {a b : α}
     (h : EvalsTo f a (some b)) : Reaches f a b := by
   obtain ⟨n, hn⟩ := h
   induction n generalizing b with
-  | zero =>
-    have he : a = b := Option.some.inj hn
-    subst b
-    exact .refl
+  | zero => exact Option.some.inj hn ▸ .refl
   | succ n ih =>
     rw [Function.iterate_succ_apply'] at hn
     change ((fun o : Option α => o.bind f)^[n] (some a)).bind f = some b at hn
-    cases he : (fun o : Option α => o.bind f)^[n] (some a) with
-    | none => simp only [he, Option.bind_none] at hn; cases hn
-    | some c =>
-      have hs : f c = some b := by
-        simpa only [he, Option.bind_some] using hn
-      exact (ih he).tail hs
+    rcases he : (fun o : Option α => o.bind f)^[n] (some a) with _ | c <;>
+      simp only [he, Option.bind_none, Option.bind_some, reduceCtorEq] at hn
+    exact (ih he).tail hn
 
 private theorem reachable_index {K : Type} [DecidableEq K] {Γ : K → Type} {Λ σ : Type}
     {M : Λ → TM2.Stmt Γ Λ σ} {c d : TM2.Cfg Γ Λ σ} (h : TM2.Reaches M c d) :
@@ -128,10 +122,7 @@ private theorem initList_eq :
   unfold initList TM2.init
   congr 1
   funext k
-  by_cases hk : k = tm.k₀
-  · subst k
-    simp
-  · simp only [hk, dite_false, Function.update_of_ne hk]
+  rcases eq_or_ne k tm.k₀ with rfl | hk <;> simp [*]
 
 private theorem haltList_eq (output : List (tm.Γ tm.k₁)) :
     haltList tm output =
@@ -140,10 +131,7 @@ private theorem haltList_eq (output : List (tm.Γ tm.k₁)) :
   unfold haltList
   congr 1
   funext k
-  by_cases hk : k = tm.k₁
-  · subst k
-    simp
-  · simp only [hk, dite_false, Function.update_of_ne hk]
+  rcases eq_or_ne k tm.k₁ with rfl | hk <;> simp [*]
 
 /-- Mathlib's compiler takes every bounded stack-machine computation to a native single-tape
 path of width `B + headOverhead tm.m + 2`, independently of its runtime. -/
@@ -163,8 +151,7 @@ private theorem outputs_reachesWithin (input : List (tm.Γ tm.k₀)) (output : L
     exact evalsTo_reaches h
   · intro e he k
     rw [← initList_eq tm input] at he
-    obtain ⟨n, hn⟩ := reachable_index he
-    rw [← hn]
+    obtain ⟨n, rfl⟩ := reachable_index he
     exact hB n k
 
 /-- A bounded source computation is simulated by a finite-control native single-tape machine
@@ -175,36 +162,22 @@ theorem outputs_toTM0 (input : List (tm.Γ tm.k₀)) (output : List (tm.Γ tm.k�
     HeadPosition.ReachesWithin (toTM0 tm) (-1) (B + TM2to1.headOverhead tm.m)
       ⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ ⟨toTM0Halt tm output, 0⟩ := by
   let : Inhabited tm.Λ := ⟨tm.main⟩
-  have hr := outputs_reachesWithin tm input output h B hB
-  have hi : HeadPosition.liftCfg
-      (⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ :
-        HeadPosition.Cfg (TM2to1.Γ' tm.K tm.Γ) (TM0Control tm)) =
-      (⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ :
-        HeadPosition.Cfg (TM2to1.Γ' tm.K tm.Γ) (TM1to0.Λ' (TM2to1.tr tm.m))) := by
-    simp only [TM0.init, HeadPosition.liftCfg_mk]
-    rfl
-  obtain ⟨d, hd, hp⟩ := hr.restrict (toTM0_supports tm) _ hi
-  have he : HeadPosition.liftCfg (⟨toTM0Halt tm output, 0⟩) =
-      (⟨⟨(none, tm.initialState), Tape.mk₁ (TM2to1.trInit tm.k₁ output)⟩, 0⟩ :
-        HeadPosition.Cfg (TM2to1.Γ' tm.K tm.Γ) (TM1to0.Λ' (TM2to1.tr tm.m))) := by
-    simp only [toTM0Halt, HeadPosition.liftCfg_mk]
-  have hde : d = ⟨toTM0Halt tm output, 0⟩ := HeadPosition.liftCfg_injective (hd.trans he.symm)
-  subst d
-  exact hp
+  obtain ⟨d, hd, hp⟩ := (outputs_reachesWithin tm input output h B hB).restrict (toTM0_supports tm)
+    ⟨TM0.init (TM2to1.trInit tm.k₀ input), 0⟩ (HeadPosition.liftCfg_mk _ _ 0)
+  exact HeadPosition.liftCfg_injective
+    (hd.trans (HeadPosition.liftCfg_mk (toTM0Halt tm output).q _ 0).symm) ▸ hp
 
 /-- Every canonical output configuration halts immediately. -/
 theorem toTM0Halt_terminal (output : List (tm.Γ tm.k₁)) :
     TM0.step (toTM0 tm) (toTM0Halt tm output) = none := by
   let : Inhabited tm.Λ := ⟨tm.main⟩
-  have hs := HeadPosition.step_liftCfg (TM1to0.tr (TM2to1.tr tm.m)) (toTM0_supports tm)
-    (⟨toTM0Halt tm output, 0⟩)
-  have hs' : (HeadPosition.step (toTM0 tm) ⟨toTM0Halt tm output, 0⟩).map
+  have hs : (HeadPosition.step (toTM0 tm) ⟨toTM0Halt tm output, 0⟩).map
       HeadPosition.liftCfg = none := by
     simpa only [toTM0, toTM0Halt, HeadPosition.liftCfg_mk, HeadPosition.step, TM1to0.tr,
-      Option.map_none] using hs
-  have hn := HeadPosition.step_native (toTM0 tm) ⟨toTM0Halt tm output, 0⟩
-  rw [Option.map_eq_none_iff.mp hs'] at hn
-  exact hn.symm
+      Option.map_none] using HeadPosition.step_liftCfg (TM1to0.tr (TM2to1.tr tm.m))
+        (toTM0_supports tm) ⟨toTM0Halt tm output, 0⟩
+  simpa only [Option.map_eq_none_iff.mp hs, Option.map_none] using
+    (HeadPosition.step_native (toTM0 tm) ⟨toTM0Halt tm output, 0⟩).symm
 
 /-- Constructing the compiler's initial multiplexed tape is polynomial-time under finite
 alphabet encodings. -/
@@ -212,24 +185,18 @@ private theorem computableInPolyTime_trInit [∀ k, Finite (tm.Γ k)] (k : tm.K)
     Turing.MultiTapeTM.ComputableInPolyTime (TM2to1.trInit k)
       (Turing.MultiTapeTM.encList (Turing.MultiTapeTM.encFinite (tm.Γ k)))
       (Turing.MultiTapeTM.encList (Turing.MultiTapeTM.encFinite (TM2to1.Γ' tm.K tm.Γ))) := by
-  have hm : ComputableInPolyTime
+  let encΓ := encFinite (TM2to1.Γ' tm.K tm.Γ)
+  have hlist := (map (of_finite
       (fun a : tm.Γ k => (false, Function.update (fun _ => none) k (some a)))
-      (encFinite (tm.Γ k)) (encFinite (TM2to1.Γ' tm.K tm.Γ)) := of_finite _
-  have hlist := (map hm).comp (listReverse (encFinite (tm.Γ k)))
+      (encIn := encFinite (tm.Γ k)) (encOut := encΓ))).comp (listReverse (encFinite (tm.Γ k)))
   have hh := (of_finite (fun a : TM2to1.Γ' tm.K tm.Γ => (true, a.2))
-      (encIn := encFinite (TM2to1.Γ' tm.K tm.Γ))
-      (encOut := encFinite (TM2to1.Γ' tm.K tm.Γ))).comp
-    (listHeadDWithInput hlist (const default))
-  have ht := (listTail (encFinite (TM2to1.Γ' tm.K tm.Γ))).comp hlist
-  have hc := (cons (encFinite (TM2to1.Γ' tm.K tm.Γ))).comp (hh.prod ht)
-  have heq (L : List (TM2to1.Γ' tm.K tm.Γ)) : L.headD default = L.headI := by
-    cases L <;> rfl
-  convert hc using 1
+      (encIn := encΓ) (encOut := encΓ)).comp (listHeadDWithInput hlist (const default))
+  convert (cons encΓ).comp (hh.prod ((listTail encΓ).comp hlist)) using 1
   funext input
   let L : List (TM2to1.Γ' tm.K tm.Γ) :=
     input.reverse.map fun a => (false, Function.update (fun _ => none) k (some a))
   change (true, L.headI.2) :: L.tail = (true, (L.headD default).2) :: L.tail
-  rw [heq]
+  cases L <;> rfl
 
 /-- Canonical one-symbol outputs retain the identity of their output symbol. -/
 theorem toTM0Halt_singleton_injective {a b : tm.Γ tm.k₁}

@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import Mathlib.InformationTheory.KullbackLeibler.KLFun
 import CslibFrontier.Foundations.Combinatorics.BinomialTail
+import CslibFrontier.Probability.Divergence
+import CslibFrontier.Probability.PMF.Coin
 import Mathlib.Analysis.Calculus.MeanValue
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
@@ -116,15 +118,12 @@ theorem choose_mul_pow_mul_exp_binaryKL_le_one {p : ℝ} (hp : p ∈ Icc (0 : �
     (hk : k ≤ m) :
     (m.choose k : ℝ) * p ^ k * (1 - p) ^ (m - k) * Real.exp (m * binaryKL (k / m) p) ≤ 1 := by
   rcases hp.1.eq_or_lt with rfl | hp0
-  · rcases Nat.eq_zero_or_pos k with rfl | hk0
-    · simp
-    · simp [zero_pow hk0.ne']
+  · cases k <;> simp
   rcases hp.2.eq_or_lt with rfl | hp1
   · rcases hk.eq_or_lt with rfl | hkm
     · rcases Nat.eq_zero_or_pos k with rfl | hk0
       · simp
-      · rw [div_self (Nat.cast_ne_zero.2 hk0.ne'), binaryKL_self]
-        simp
+      · simp [div_self ((Nat.cast_ne_zero (R := ℝ)).2 hk0.ne')]
     · simp [zero_pow (Nat.sub_pos_of_lt hkm).ne']
   set q : ℝ := k / m with hq
   have hmq : (m : ℝ) * q = k := by
@@ -141,18 +140,12 @@ theorem choose_mul_pow_mul_exp_binaryKL_le_one {p : ℝ} (hp : p ∈ Icc (0 : �
   have hexp : Real.exp (m * binaryKL q p) = (q / p) ^ k * ((1 - q) / (1 - p)) ^ (m - k) := by
     rw [binaryKL_eq_mul_log hp0 hp1, mul_add, ← mul_assoc, ← mul_assoc, hmq, hmq',
       Real.exp_add, exp_mul_log_eq_pow, exp_mul_log_eq_pow]
-    · rcases Nat.eq_zero_or_pos (m - k) with h | h
-      · exact Or.inr h
-      · refine Or.inl (div_pos ?_ (sub_pos.2 hp1))
-        have : (0 : ℝ) < ((m - k : ℕ) : ℝ) := Nat.cast_pos.2 h
-        rw [← hmq'] at this
-        exact pos_of_mul_pos_right this (Nat.cast_nonneg m)
-    · rcases Nat.eq_zero_or_pos k with h | h
-      · exact Or.inr h
-      · refine Or.inl (div_pos ?_ hp0)
-        have : (0 : ℝ) < k := Nat.cast_pos.2 h
-        rw [← hmq] at this
-        exact pos_of_mul_pos_right this (Nat.cast_nonneg m)
+    · exact (Nat.eq_zero_or_pos (m - k)).symm.imp (fun h => div_pos
+        (pos_of_mul_pos_right (hmq'.symm ▸ Nat.cast_pos.2 h) (Nat.cast_nonneg m)) (sub_pos.2 hp1))
+        id
+    · exact (Nat.eq_zero_or_pos k).symm.imp
+        (fun h => div_pos (pos_of_mul_pos_right (hmq.symm ▸ Nat.cast_pos.2 h) (Nat.cast_nonneg m))
+          hp0) id
   have hterm : (m.choose k : ℝ) * p ^ k * (1 - p) ^ (m - k) * Real.exp (m * binaryKL q p) =
       m.choose k * q ^ k * (1 - q) ^ (m - k) := by
     rw [hexp]
@@ -248,9 +241,7 @@ theorem mul_klFun_integral_div_integral_le {a b : α → ℝ}
   rcases (integral_nonneg (f := a) (μ := μ) ha).eq_or_lt with hA | hA
   · have h0 : a =ᵐ[μ] 0 := (integral_eq_zero_iff_of_nonneg (fun x => ha x) hai).1 hA.symm
     rw [← hA, zero_div, klFun_zero, mul_one]
-    refine (integral_congr_ae ?_).le
-    filter_upwards [h0] with x hx
-    rw [Pi.zero_apply] at hx
+    refine (integral_congr_ae (h0.mono fun x (hx : a x = 0) => ?_)).le
     simp [hx, klFun_zero]
   set A := ∫ x, a x ∂μ
   set B := ∫ x, b x ∂μ
@@ -267,17 +258,14 @@ theorem mul_klFun_integral_div_integral_le {a b : α → ℝ}
         _ ≤ b x * klFun (a x / b x) := mul_le_mul_of_nonneg_left
             (klFun_add_log_mul_sub_le ht (div_nonneg (ha x) h.le)) h.le
   have hi1 : Integrable (fun x => b x * klFun (A / B)) μ := hbi.mul_const _
-  have hi2 : Integrable (fun x => b x * (A / B)) μ := hbi.mul_const _
-  have hi3 : Integrable (fun x => a x - b x * (A / B)) μ := hai.sub hi2
   have hi4 : Integrable (fun x => Real.log (A / B) * (a x - b x * (A / B))) μ :=
-    hi3.const_mul _
-  have hlin : Integrable
-      (fun x => b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B))) μ := hi1.add hi4
+    (hai.sub (hbi.mul_const _)).const_mul _
   calc B * klFun (A / B)
       = ∫ x, (b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B))) ∂μ := by
-        rw [integral_add hi1 hi4, integral_mul_const, integral_const_mul, integral_sub hai hi2,
+        rw [integral_add hi1 hi4, integral_mul_const, integral_const_mul,
+          integral_sub hai (hbi.mul_const _),
           integral_mul_const, mul_div_cancel₀ _ hB.ne', sub_self, mul_zero, add_zero]
-    _ ≤ ∫ x, b x * klFun (a x / b x) ∂μ := integral_mono hlin hi hpt
+    _ ≤ ∫ x, b x * klFun (a x / b x) ∂μ := integral_mono (hi1.add hi4) hi hpt
 
 /-- **Jensen's inequality for the binary relative entropy**: for `q, p` with values in `[0, 1]`
 under a probability measure, with `q = 0` wherever `p = 0` and `q = 1` wherever `p = 1`,
@@ -328,160 +316,52 @@ open Real
 /-- The `p`-derivative of `binaryKL q p` on `(0, 1)` is `(p - q) / (p * (1 - p))`. -/
 private theorem hasDerivAt_binaryKL_right {q p : ℝ} (hp0 : 0 < p) (hp1 : p < 1) :
     HasDerivAt (fun t => binaryKL q t) ((p - q) / (p * (1 - p))) p := by
+  have hlog_div (x y : ℝ) (hy : y ≠ 0) : x * log (x / y) = x * (log x - log y) := by
+    rcases eq_or_ne x 0 with rfl | hx
+    · simp
+    · rw [log_div hx hy]
   have heq : (fun t => binaryKL q t) =ᶠ[nhds p]
-      fun t => q * log (q / t) + (1 - q) * log ((1 - q) / (1 - t)) := by
+      fun t => q * (log q - log t) + (1 - q) * (log (1 - q) - log (1 - t)) := by
     filter_upwards [Ioo_mem_nhds hp0 hp1] with t ht
-    exact binaryKL_eq_mul_log ht.1 ht.2
+    rw [binaryKL_eq_mul_log ht.1 ht.2, hlog_div q t ht.1.ne',
+      hlog_div (1 - q) (1 - t) (sub_pos.mpr ht.2).ne']
+  have h1p := (sub_pos.mpr hp1).ne'
+  have hd₁ := ((hasDerivAt_log hp0.ne').const_sub (log q)).const_mul q
+  have hd₂ := ((((hasDerivAt_id p).const_sub 1).log h1p).const_sub (log (1 - q))).const_mul (1 - q)
   refine HasDerivAt.congr_of_eventuallyEq ?_ heq
-  have h1p : 0 < 1 - p := sub_pos.mpr hp1
-  have hterm1 : HasDerivAt (fun t => q * log (q / t)) (-q / p) p := by
-    by_cases hq : q = 0
-    · subst hq; simp [hasDerivAt_const]
-    · have heq1 : (fun t : ℝ => q * log (q / t)) =ᶠ[nhds p] fun t => q * (log q - log t) := by
-        filter_upwards [Ioi_mem_nhds hp0] with t ht
-        rw [log_div hq ht.ne']
-      refine HasDerivAt.congr_of_eventuallyEq ?_ heq1
-      have hd : HasDerivAt (fun t : ℝ => q * (log q - log t)) (q * (-p⁻¹)) p := by
-        simpa [sub_eq_add_neg] using ((hasDerivAt_log hp0.ne').neg.const_add (log q)).const_mul q
-      convert hd using 1
-      field_simp
-  have hterm2 : HasDerivAt (fun t => (1 - q) * log ((1 - q) / (1 - t))) ((1 - q) / (1 - p)) p := by
-    by_cases hq : 1 - q = 0
-    · simp only [hq, zero_mul, zero_div]; exact hasDerivAt_const p 0
-    · have heq2 : (fun t : ℝ => (1 - q) * log ((1 - q) / (1 - t))) =ᶠ[nhds p]
-          fun t => (1 - q) * (log (1 - q) - log (1 - t)) := by
-        filter_upwards [Iio_mem_nhds hp1] with t ht
-        rw [log_div hq (sub_pos.mpr ht).ne']
-      refine HasDerivAt.congr_of_eventuallyEq ?_ heq2
-      have h1 : HasDerivAt (fun t : ℝ => 1 - t) (-1) p := (hasDerivAt_id p).const_sub 1
-      have hlog : HasDerivAt (fun t : ℝ => log (1 - t)) (-1 / (1 - p)) p := h1.log h1p.ne'
-      have hd : HasDerivAt (fun t : ℝ => (1 - q) * (log (1 - q) - log (1 - t)))
-          ((1 - q) * -(-1 / (1 - p))) p :=
-        (hlog.const_sub (log (1 - q))).const_mul (1 - q)
-      convert hd using 1
-      field_simp
-  convert hterm1.add hterm2 using 1
-  field_simp
-  ring
+  convert hd₁.add hd₂ using 1
+  · rfl
+  · simp only [id_eq]
+    field_simp [hp0.ne', h1p]
+    ring
 
+private theorem le_of_hasDerivAt_nonneg {f f' : ℝ → ℝ} {a b : ℝ} (hab : a ≤ b)
+    (hc : ContinuousOn f (Icc a b)) (hd : ∀ t ∈ Ioo a b, HasDerivAt f (f' t) t)
+    (hnn : ∀ t ∈ Ioo a b, 0 ≤ f' t) : f a ≤ f b :=
+  monotoneOn_of_hasDerivWithinAt_nonneg (convex_Icc a b) hc
+    (fun t ht => (hd t (by rwa [interior_Icc] at ht)).hasDerivWithinAt)
+    (fun t ht => hnn t (by rwa [interior_Icc] at ht)) ⟨le_rfl, hab⟩ ⟨hab, le_rfl⟩ hab
+
+open scoped Cslib.Probability.PMF in
 /-- **Bernoulli Pinsker's inequality**: for `q ∈ [0, 1]` and `p ∈ (0, 1)`,
 `2 * (q - p) ^ 2 ≤ binaryKL q p`. -/
 theorem two_mul_sq_le_binaryKL {q p : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp0 : 0 < p) (hp1 : p < 1) :
     2 * (q - p) ^ 2 ≤ binaryKL q p := by
-  let g : ℝ → ℝ := fun t => binaryKL q t - 2 * (q - t) ^ 2
-  have hg_deriv : ∀ t ∈ Ioo (0 : ℝ) 1,
-      HasDerivAt g ((t - q) * (1 - 4 * t * (1 - t)) / (t * (1 - t))) t := by
-    intro t ht
-    have hq_d : HasDerivAt (fun s : ℝ => 2 * (q - s) ^ 2) (4 * (t - q)) t := by
-      have hd : HasDerivAt (fun s : ℝ => q - s) (-1) t := (hasDerivAt_id t).const_sub q
-      have hsq : HasDerivAt (fun s : ℝ => (q - s) ^ 2) (2 * (q - t) ^ 1 * (-1)) t := hd.pow 2
-      convert hsq.const_mul 2 using 1
-      ring
-    convert (hasDerivAt_binaryKL_right ht.1 ht.2).sub hq_d using 1
-    have h1 : t ≠ 0 := ht.1.ne'
-    have h2 : 1 - t ≠ 0 := (sub_pos.mpr ht.2).ne'
-    field_simp
-  have h1m4 : ∀ t : ℝ, 0 ≤ 1 - 4 * t * (1 - t) := fun t => by
-    nlinarith [sq_nonneg (2 * t - 1)]
-  rcases eq_or_lt_of_le hq.1 with rfl | hq0
-  · rw [binaryKL_eq_mul_log hp0 hp1, zero_mul, zero_add, sub_zero, one_mul, one_div, log_inv,
-      zero_sub, neg_sq]
-    let h : ℝ → ℝ := fun t => -log (1 - t) - 2 * t ^ 2
-    have hh_c : ContinuousOn h (Icc 0 p) := by
-      refine ContinuousOn.sub ?_ (by fun_prop)
-      refine ContinuousOn.neg (ContinuousOn.log (by fun_prop) fun t ht => ?_)
-      exact (sub_pos.mpr (ht.2.trans_lt hp1)).ne'
-    have hh_hd : ∀ t ∈ Ioo 0 p, HasDerivAt h ((1 - 4 * t * (1 - t)) / (1 - t)) t := by
-      intro t ht
-      have ht1 : 0 < 1 - t := sub_pos.mpr (ht.2.trans hp1)
-      have hd1 : HasDerivAt (fun s : ℝ => -log (1 - s)) (-(-1 / (1 - t))) t :=
-        (((hasDerivAt_id t).const_sub 1).log ht1.ne').neg
-      have hd2 : HasDerivAt (fun s : ℝ => 2 * s ^ 2) (2 * (↑(2 : ℕ) * t ^ (2 - 1) * 1)) t :=
-        ((hasDerivAt_id t).pow 2).const_mul (2 : ℝ)
-      convert hd1.sub hd2 using 1
-      have : 1 - t ≠ 0 := ht1.ne'
-      field_simp
-      ring
-    have h0le := monotoneOn_of_deriv_nonneg (convex_Icc 0 p) hh_c
-      (fun t ht => by
-        rw [interior_Icc] at ht
-        exact (hh_hd t ht).differentiableAt.differentiableWithinAt)
-      (fun t ht => by
-        rw [interior_Icc] at ht
-        rw [(hh_hd t ht).deriv]
-        exact div_nonneg (h1m4 t) (sub_pos.mpr (ht.2.trans hp1)).le)
-      ⟨le_rfl, hp0.le⟩ ⟨hp0.le, le_rfl⟩ hp0.le
-    dsimp [h] at h0le
-    simp only [sub_zero, log_one, neg_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-      mul_zero] at h0le
-    linarith
-  · rcases eq_or_lt_of_le hq.2 with rfl | hq1
-    · rw [binaryKL_eq_mul_log hp0 hp1, sub_self, zero_mul, add_zero, one_mul, one_div, log_inv]
-      let h : ℝ → ℝ := fun t => -log t - 2 * (1 - t) ^ 2
-      have hh_c : ContinuousOn h (Icc p 1) := by
-        refine ContinuousOn.sub ?_ (by fun_prop)
-        refine ContinuousOn.neg (ContinuousOn.log continuousOn_id fun t ht => ?_)
-        exact (hp0.trans_le ht.1).ne'
-      have hh_hd : ∀ t ∈ Ioo p 1, HasDerivAt h (-(1 - 4 * t * (1 - t)) / t) t := fun t ht => by
-        have ht0 : 0 < t := hp0.trans ht.1
-        have hd1 : HasDerivAt (fun s : ℝ => -log s) (-(t⁻¹)) t := (hasDerivAt_log ht0.ne').neg
-        have hd2 : HasDerivAt (fun s : ℝ => 2 * (1 - s) ^ 2)
-            (2 * (2 * (1 - t) ^ 1 * (-1))) t :=
-          (((hasDerivAt_id t).const_sub 1).pow 2).const_mul 2
-        convert hd1.sub hd2 using 1
-        field_simp
-        ring
-      have hh_anti := antitoneOn_of_deriv_nonpos (convex_Icc p 1) hh_c
-        (fun t ht => by
-          rw [interior_Icc] at ht
-          exact (hh_hd t ht).differentiableAt.differentiableWithinAt)
-        (fun t ht => by
-          rw [interior_Icc] at ht
-          rw [(hh_hd t ht).deriv]
-          exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr (h1m4 t)) (hp0.trans ht.1).le)
-        ⟨le_rfl, hp1.le⟩ ⟨hp1.le, le_rfl⟩ hp1.le
-      dsimp [h] at hh_anti
-      simp only [log_one, neg_zero, sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true,
-        zero_pow, mul_zero] at hh_anti
-      linarith
-    · rcases le_total q p with hqp | hpq
-      · have hmono := monotoneOn_of_deriv_nonneg (convex_Icc q p)
-          (fun t ht => (hg_deriv t ⟨hq0.trans_le ht.1, ht.2.trans_lt hp1⟩).continuousAt
-            |>.continuousWithinAt)
-          (fun t ht => by
-            rw [interior_Icc] at ht
-            exact (hg_deriv t ⟨hq0.trans ht.1, ht.2.trans hp1⟩).differentiableAt
-              |>.differentiableWithinAt)
-          (fun t ht => by
-            rw [interior_Icc] at ht
-            have ht_mem : t ∈ Ioo (0 : ℝ) 1 := ⟨hq0.trans ht.1, ht.2.trans hp1⟩
-            rw [(hg_deriv t ht_mem).deriv]
-            exact div_nonneg (mul_nonneg (sub_nonneg.mpr ht.1.le) (h1m4 t))
-              (mul_nonneg ht_mem.1.le (sub_pos.mpr ht_mem.2).le))
-          ⟨le_rfl, hqp⟩ ⟨hqp, le_rfl⟩ hqp
-        dsimp [g] at hmono
-        simp only [binaryKL_self, sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-          mul_zero] at hmono
-        linarith
-      · have hanti := antitoneOn_of_deriv_nonpos (convex_Icc p q)
-          (fun t ht => (hg_deriv t ⟨hp0.trans_le ht.1, ht.2.trans_lt hq1⟩).continuousAt
-            |>.continuousWithinAt)
-          (fun t ht => by
-            rw [interior_Icc] at ht
-            exact (hg_deriv t ⟨hp0.trans ht.1, ht.2.trans hq1⟩).differentiableAt
-              |>.differentiableWithinAt)
-          (fun t ht => by
-            rw [interior_Icc] at ht
-            have ht_mem : t ∈ Ioo (0 : ℝ) 1 := ⟨hp0.trans ht.1, ht.2.trans hq1⟩
-            rw [(hg_deriv t ht_mem).deriv]
-            exact div_nonpos_of_nonpos_of_nonneg
-              (mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.mpr ht.2.le) (h1m4 t))
-              (mul_nonneg ht_mem.1.le (sub_pos.mpr ht_mem.2).le))
-          ⟨le_rfl, hpq⟩ ⟨hpq, le_rfl⟩ hpq
-        dsimp [g] at hanti
-        simp only [binaryKL_self, sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-          mul_zero] at hanti
-        linarith
+  let qCoin := PMF.coin ⟨q, hq⟩
+  let pCoin := PMF.coin ⟨p, hp0.le, hp1.le⟩
+  have hsupp : qCoin.support ⊆ pCoin.support := by
+    intro b _
+    rw [_root_.PMF.mem_support_iff]
+    cases b <;> simp [pCoin, PMF.coin_apply, hp0, hp1]
+  have hdist : dist qCoin pCoin = |q - p| := by
+    simp only [PMF.dist_eq, Fintype.sum_bool, qCoin, pCoin, PMF.coin_apply_toReal,
+      Bool.false_eq_true, ite_false, ite_true]
+    rw [show 1 - q - (1 - p) = -(q - p) by ring, abs_neg]
+    ring
+  have h := PMF.two_mul_dist_sq_le_sum_mul_log_div hsupp
+  rw [hdist, sq_abs, Fintype.sum_bool] at h
+  simpa only [qCoin, pCoin, PMF.coin_apply_toReal, Bool.false_eq_true, ite_false, ite_true,
+    binaryKL_eq_mul_log hp0 hp1] using h
 
 /-- **Quadratic empirical-Bernstein lower bound on `binaryKL`**: for `0 ≤ q ≤ p < 1` (`0 < p`),
 `(p - q) ^ 2 / (2 * p) ≤ binaryKL q p`. Sharp for small `q` (`O(p)` at `q = 0`), yielding the
@@ -495,55 +375,39 @@ theorem sub_sq_div_two_mul_le_binaryKL {q p : ℝ} (hq0 : 0 ≤ q) (hqp : q ≤ 
     have hlog : log (1 - p) ≤ (1 - p) - 1 := log_le_sub_one_of_pos (sub_pos.mpr hp1)
     have hdiv : p ^ 2 / (2 * p) = p / 2 := by field_simp
     linarith [hp0]
-  · let g : ℝ → ℝ := fun t => binaryKL q t - (t - q) ^ 2 / (2 * t)
-    have hderiv : ∀ t ∈ Ioo q 1,
-        HasDerivAt g ((t - q) * (t - q + t ^ 2 + t * q) / (2 * t ^ 2 * (1 - t))) t := by
-      intro t ht
-      have ht0 : 0 < t := hqpos.trans ht.1
-      have hd_kl := hasDerivAt_binaryKL_right (q := q) ht0 ht.2
-      have hnum : HasDerivAt (fun s : ℝ => (s - q) ^ 2) (2 * (t - q) ^ 1 * 1) t :=
-        ((hasDerivAt_id t).sub_const q).pow 2
-      have hden : HasDerivAt (fun s : ℝ => 2 * s) (2 * 1) t := (hasDerivAt_id t).const_mul 2
-      have hrat := hnum.div hden (by linarith : 2 * t ≠ 0)
-      convert hd_kl.sub hrat using 1
-      have htn0 : t ≠ 0 := ht0.ne'
-      have h1t : 1 - t ≠ 0 := (sub_pos.mpr ht.2).ne'
-      field_simp
-      ring
-    have hcont : ContinuousOn g (Icc q p) := by
-      intro t ht
+  let g : ℝ → ℝ := fun t => binaryKL q t - (t - q) ^ 2 / (2 * t)
+  have hderiv : ∀ t ∈ Ioo q 1,
+      HasDerivAt g ((t - q) * (t - q + t ^ 2 + t * q) / (2 * t ^ 2 * (1 - t))) t := by
+    intro t ht
+    have ht0 : 0 < t := hqpos.trans ht.1
+    have hd_kl := hasDerivAt_binaryKL_right (q := q) ht0 ht.2
+    have hnum : HasDerivAt (fun s : ℝ => (s - q) ^ 2) (2 * (t - q) ^ 1 * 1) t :=
+      ((hasDerivAt_id t).sub_const q).pow 2
+    have hden : HasDerivAt (fun s : ℝ => 2 * s) (2 * 1) t := (hasDerivAt_id t).const_mul 2
+    convert hd_kl.sub (hnum.div hden (by linarith : 2 * t ≠ 0)) using 1
+    have htn0 : t ≠ 0 := ht0.ne'
+    have h1t : 1 - t ≠ 0 := (sub_pos.mpr ht.2).ne'
+    field_simp
+    ring
+  have h := le_of_hasDerivAt_nonneg hqp
+    (fun t ht => by
       have ht0 : 0 < t := hqpos.trans_le ht.1
-      have ht1 : t < 1 := ht.2.trans_lt hp1
-      exact ((hasDerivAt_binaryKL_right ht0 ht1).continuousAt.sub
-        (by fun_prop (disch := positivity))).continuousWithinAt
-    have hmono := monotoneOn_of_deriv_nonneg (convex_Icc q p) hcont
-      (fun t ht => by
-        rw [interior_Icc] at ht
-        exact (hderiv t ⟨ht.1, ht.2.trans hp1⟩).differentiableAt.differentiableWithinAt)
-      (fun t ht => by
-        rw [interior_Icc] at ht
-        rw [(hderiv t ⟨ht.1, ht.2.trans hp1⟩).deriv]
-        have ht0 : 0 < t := hqpos.trans ht.1
-        have hnum_nn : 0 ≤ (t - q) * (t - q + t ^ 2 + t * q) := by
-          have : 0 ≤ t - q := sub_nonneg.mpr ht.1.le
-          have : 0 ≤ t - q + t ^ 2 + t * q := by nlinarith [hqpos.le, ht0.le]
-          exact mul_nonneg (by assumption) (by assumption)
-        exact div_nonneg hnum_nn (by positivity [sub_pos.mpr (ht.2.trans hp1)]))
-      ⟨le_rfl, hqp⟩ ⟨hqp, le_rfl⟩ hqp
-    dsimp [g] at hmono
-    simp only [binaryKL_self, sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-      zero_div] at hmono
-    linarith
+      exact ((hasDerivAt_binaryKL_right ht0 (ht.2.trans_lt hp1)).continuousAt.sub
+        (by fun_prop (disch := positivity))).continuousWithinAt)
+    (fun t ht => hderiv t ⟨ht.1, ht.2.trans hp1⟩)
+    fun t ht => div_nonneg (mul_nonneg (sub_nonneg.mpr ht.1.le)
+      (by nlinarith [hqpos.trans ht.1, ht.1])) (by positivity [sub_pos.mpr (ht.2.trans hp1)])
+  simp only [g, binaryKL_self, sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
+    zero_div] at h
+  linarith
 
 /-- Exact Pinsker inversion: for `q ∈ [0, 1]` and `p ∈ (0, 1)`, `binaryKL q p ≤ c` implies
 `|p - q| ≤ √(c / 2)`. -/
 theorem abs_sub_le_sqrt_of_binaryKL_le {q p c : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp0 : 0 < p)
     (hp1 : p < 1) (hle : binaryKL q p ≤ c) :
     |p - q| ≤ sqrt (c / 2) := by
-  have h := two_mul_sq_le_binaryKL hq hp0 hp1
-  refine abs_le_sqrt ?_
-  have : (p - q) ^ 2 = (q - p) ^ 2 := by ring
-  linarith
+  rw [abs_sub_comm]
+  exact abs_le_sqrt (by linarith [two_mul_sq_le_binaryKL hq hp0 hp1])
 
 /-- Sharp quadratic inversion of `binaryKL q p ≤ c`: for `0 ≤ q`, `p < 1`, and `0 ≤ c`,
 `p ≤ q + c + √(c ^ 2 + 2 * q * c)`. -/
@@ -551,14 +415,11 @@ theorem le_add_add_sqrt_of_binaryKL_le {q p c : ℝ} (hq0 : 0 ≤ q) (hp1 : p < 
     (hc : 0 ≤ c) (hle : binaryKL q p ≤ c) :
     p ≤ q + c + sqrt (c ^ 2 + 2 * q * c) := by
   rcases le_or_gt p q with hle_pq | hgt
-  · have : 0 ≤ c + sqrt (c ^ 2 + 2 * q * c) := add_nonneg hc (sqrt_nonneg _)
-    linarith
+  · linarith [sqrt_nonneg (c ^ 2 + 2 * q * c)]
   have hp_pos : 0 < p := lt_of_le_of_lt hq0 hgt
   have hbern := (sub_sq_div_two_mul_le_binaryKL hq0 hgt.le hp_pos hp1).trans hle
   rw [div_le_iff₀ (by linarith : 0 < 2 * p)] at hbern
-  have hsq : (p - (q + c)) ^ 2 ≤ c ^ 2 + 2 * q * c := by nlinarith
-  have habs := abs_le_sqrt hsq
-  linarith [(abs_le.mp habs).2]
+  linarith [(abs_le.mp (abs_le_sqrt (show (p - (q + c)) ^ 2 ≤ c ^ 2 + 2 * q * c by nlinarith))).2]
 
 /-- Standard relaxed fast-rate inversion [TolstikhinSeldin2013] (locator unverified):
 `binaryKL q p ≤ c ⟹ p ≤ q + √(2 * q * c) + 2 * c`. -/
@@ -568,9 +429,7 @@ theorem le_add_sqrt_two_mul_add_two_mul_of_binaryKL_le {q p c : ℝ} (hq0 : 0 �
   have h := le_add_add_sqrt_of_binaryKL_le hq0 hp1 hc hle
   have hsqrt : sqrt (c ^ 2 + 2 * q * c) ≤ c + sqrt (2 * q * c) := by
     refine sqrt_le_iff.mpr ⟨by positivity, ?_⟩
-    have h0 : 0 ≤ c * sqrt (2 * q * c) := mul_nonneg hc (sqrt_nonneg _)
-    have hsq : sqrt (2 * q * c) ^ 2 = 2 * q * c := sq_sqrt (by positivity)
-    nlinarith
+    nlinarith [mul_nonneg hc (sqrt_nonneg (2 * q * c)), sq_sqrt (show 0 ≤ 2 * q * c by positivity)]
   linarith
 
 /-- Zero-empirical-risk inversion: for `p ∈ [0, 1)`, `binaryKL 0 p ≤ c` gives
@@ -579,15 +438,10 @@ theorem le_one_sub_exp_neg_of_binaryKL_zero_le {p c : ℝ} (hp0 : 0 ≤ p) (hp1 
     (hle : binaryKL 0 p ≤ c) :
     p ≤ 1 - exp (-c) := by
   rcases eq_or_lt_of_le hp0 with rfl | hp_pos
-  · rw [binaryKL_self] at hle
-    have : exp (-c) ≤ 1 := exp_le_one_iff.mpr (neg_nonpos.mpr hle)
-    linarith
+  · rw [binaryKL_self] at hle; linarith [exp_le_one_iff.mpr (neg_nonpos.mpr hle)]
   · rw [binaryKL_eq_mul_log hp_pos hp1, zero_mul, zero_add, sub_zero, one_mul, one_div,
       log_inv] at hle
-    have hlog : -c ≤ log (1 - p) := by linarith
-    have hexp := exp_le_exp.mpr hlog
-    rw [exp_log (sub_pos.mpr hp1)] at hexp
-    linarith
+    linarith [exp_log (sub_pos.mpr hp1) ▸ exp_le_exp.mpr (show -c ≤ log (1 - p) by linarith)]
 
 end LowerBounds
 

@@ -55,18 +55,14 @@ open Polynomial Matrix Module
 
 private lemma root_degree (e : ℕ) : AdjoinRoot.root (modulus e) ^ degree e = -1 := by
   have h := AdjoinRoot.eval₂_root (modulus e)
-  change Polynomial.eval₂ (AdjoinRoot.of (modulus e)) (AdjoinRoot.root (modulus e))
-    ((X : ℚ[X]) ^ degree e + 1) = 0 at h
-  rw [Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X, Polynomial.eval₂_one] at h
+  rw [modulus, Polynomial.eval₂_add, Polynomial.eval₂_pow, Polynomial.eval₂_X,
+    Polynomial.eval₂_one] at h
   exact eq_neg_of_add_eq_zero_left h
 
 private lemma root_pow_reduce (e k : ℕ) :
     AdjoinRoot.root (modulus e) ^ k = (-1 : R e) ^ (k / degree e) *
       (basis e ⟨k % degree e, Nat.mod_lt _ (degree_pos e)⟩) := by
-  rw [basis_apply, ← root_degree, ← pow_mul, ← pow_add]
-  congr 1
-  change k = degree e * (k / degree e) + k % degree e
-  exact (Nat.div_add_mod k (degree e)).symm
+  rw [basis_apply, ← root_degree, ← pow_mul, ← pow_add, Nat.div_add_mod]
 
 /-- Every regular-representation entry of a cyclotomic monomial is 0 or ±1.
 This also gives an explicit integral computation with a division and remainder. -/
@@ -79,7 +75,7 @@ private lemma rho_root_pow (e k : ℕ) (i j : Fin (degree e)) :
   rw [← Algebra.smul_def, map_smul, Basis.repr_self, Finsupp.smul_apply, Finsupp.single_apply]
   simp only [smul_eq_mul, mul_ite, mul_one, mul_zero]
   congr 1
-  exact propext ⟨fun h => congrArg Fin.val h, fun h => Fin.ext h⟩
+  exact propext Fin.ext_iff
 
 private lemma rho_character (e : ℕ) (a : ZMod (dimension e)) (i j : Fin (degree e)) :
     rho e (character e a) i j =
@@ -103,6 +99,10 @@ private lemma signedEntry_abs (e : ℕ) (a : ZMod (dimension e)) (i j : Fin (deg
 
 end Rational.CyclotomicRing
 
+private lemma abs_pow_le_of_le {x : ℤ} {H k M : ℕ} (hH : (1 : ℤ) ≤ H) (hx : |x| ≤ H)
+    (hk : k ≤ M) : |x| ^ k ≤ (H : ℤ) ^ M :=
+  (pow_le_pow_left₀ (abs_nonneg x) hx k).trans (pow_le_pow_right₀ hH hk)
+
 namespace Rational.IntegralTest
 open Polynomial Matrix
 open scoped BigOperators
@@ -124,33 +124,28 @@ lemma coeff_bound (a : ℤ) (w M k j : ℕ) (hw : 1 ≤ w) (ha : |a| ≤ w) (hk 
   have hw' : (1 : ℤ) ≤ w := by exact_mod_cast hw
   have hc : (k.choose j : ℤ) ≤ (2 : ℤ) ^ M := by
     exact_mod_cast (Nat.choose_le_two_pow k j).trans (Nat.pow_le_pow_right (by omega) hk)
-  calc |a| ^ (k - j) * (k.choose j : ℤ) ≤ (w : ℤ) ^ M * (2 : ℤ) ^ M := by
-         apply mul_le_mul _ hc (by positivity) (by positivity)
-         exact (pow_le_pow_left₀ (abs_nonneg a) ha (k - j)).trans
-           (pow_le_pow_right₀ hw' (Nat.sub_le k j |>.trans hk))
-       _ = _ := by rw [← mul_pow]; congr 1; ring
+  calc |a| ^ (k - j) * (k.choose j : ℤ)
+      ≤ (w : ℤ) ^ M * (2 : ℤ) ^ M :=
+        mul_le_mul (abs_pow_le_of_le hw' ha ((Nat.sub_le k j).trans hk)) hc
+          (Int.natCast_nonneg _) (by positivity)
+    _ = (2 * w : ℤ) ^ M := by rw [← mul_pow, mul_comm]
 
 private lemma full_bound (M : ℕ) (a t : ℤ) (w H : ℕ) (hw : 1 ≤ w) (hH : 1 ≤ H)
     (ha : |a| ≤ w) (ht : |t| ≤ H) (i j : Fin M) :
     |full M a t i j| ≤ (M : ℤ) * (2 * w : ℤ) ^ (2 * M) * (H : ℤ) ^ M := by
   unfold full
   simp_rw [← coeff_X_add_C_pow]
+  have hh : (1 : ℤ) ≤ H := by exact_mod_cast hH
   calc |∑ r : Fin M, _| ≤ ∑ r : Fin M, |(((X + C (-a)) ^ r.rev.val : ℤ[X]).coeff i.val) *
           (((X + C a) ^ j.val : ℤ[X]).coeff r.val) * t ^ r.val| := Finset.abs_sum_le_sum_abs _ _
-       _ ≤ ∑ _r : Fin M, (2 * w : ℤ) ^ (2 * M) * (H : ℤ) ^ M := by
-         apply Finset.sum_le_sum
-         intro r _
+       _ ≤ ∑ _r : Fin M, (2 * w : ℤ) ^ (2 * M) * (H : ℤ) ^ M := Finset.sum_le_sum fun r _ => by
          rw [abs_mul, abs_mul, abs_pow]
-         have hh : (1 : ℤ) ≤ H := by exact_mod_cast hH
-         calc _ ≤ ((2 * w : ℤ) ^ M * (2 * w : ℤ) ^ M) * (H : ℤ) ^ M := by
-                apply mul_le_mul _ _ (by positivity) (by positivity)
-                · exact mul_le_mul
-                    (coeff_bound (-a) w M _ _ hw (by simpa using ha) (Nat.le_of_lt r.rev.isLt))
-                    (coeff_bound a w M _ _ hw ha (Nat.le_of_lt j.isLt)) (abs_nonneg _)
-                    (by positivity)
-                · exact (pow_le_pow_left₀ (abs_nonneg t) ht r.val).trans
-                    (pow_le_pow_right₀ hh (Nat.le_of_lt r.isLt))
-              _ = _ := by rw [← pow_add]; simp [two_mul]
+         calc _ ≤ ((2 * w : ℤ) ^ M * (2 * w : ℤ) ^ M) * (H : ℤ) ^ M :=
+               mul_le_mul
+                 (mul_le_mul (coeff_bound (-a) w M _ _ hw (by simpa using ha) r.rev.isLt.le)
+                   (coeff_bound a w M _ _ hw ha j.isLt.le) (abs_nonneg _) (by positivity))
+                 (abs_pow_le_of_le hh ht r.isLt.le) (pow_nonneg (abs_nonneg _) _) (by positivity)
+           _ = (2 * w : ℤ) ^ (2 * M) * (H : ℤ) ^ M := by rw [← pow_add, ← two_mul]
        _ = _ := by simp [mul_assoc]
 
 private lemma padded_bound (M N : ℕ) (a t : ℤ) (w H : ℕ) (hw : 1 ≤ w) (hH : 1 ≤ H)
@@ -164,8 +159,8 @@ private lemma full_cast {K : Type*} [Field K] (M : ℕ) (a t : ℤ) (i j : Fin M
     Polynomial.eval (t : K) (TestPolynomial.full M (a : K) i j) =
       (full M a t i j : K) := by
   simp only [TestPolynomial.full, full, coeff_X_add_C_pow, Polynomial.eval_finsetSum,
-    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X]
-  simp only [Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
+    Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_X,
+    Int.cast_sum, Int.cast_mul, Int.cast_pow, Int.cast_neg, Int.cast_natCast]
 
 private lemma padded_cast {K : Type*} [Field K] (M N : ℕ) (a t : ℤ) (i j : Fin M) :
     Polynomial.eval (t : K) (TestPolynomial.padded M N (a : K) i j) =
@@ -183,12 +178,10 @@ variable {K : Type*} [Field K] {d : ℕ} [NeZero d]
 
 /-- Evaluating `uni p` on a three-variable tuple `x` evaluates `p` at `x 0`. -/
 lemma eval_uni (x : Fin 3 → K) (p : K[X]) :
-    MvPolynomial.eval x (uni p) = Polynomial.eval (x 0) p := by
-  have he : (MvPolynomial.eval x).comp uni = Polynomial.evalRingHom (x 0) := by
-    apply Polynomial.ringHom_ext
-    · intro a; simp [uni]
-    · simp [uni]
-  exact DFunLike.congr_fun he p
+    MvPolynomial.eval x (uni p) = Polynomial.eval (x 0) p :=
+  DFunLike.congr_fun
+    (Polynomial.ringHom_ext (fun _ => by simp [uni]) (by simp [uni]) :
+      (MvPolynomial.eval x).comp uni = Polynomial.evalRingHom (x 0)) p
 
 /-- Evaluating `lift χ R i j` at `x` expands to the Weyl-matrix character sum at `x 0`, `x 1`,
 `x 2`. -/
@@ -199,15 +192,9 @@ lemma eval_lift (χ : AddChar (ZMod d) K) (R : Matrix (ZMod d) (ZMod d) K[X])
         χ (-a * k) * Polynomial.eval (x 0) (R k (k - b)) * QuantumMatrices.weyl χ a b i j *
           (x 1) ^ a.val * (x 2) ^ b.val := by
   simp only [lift, map_sum, map_mul, map_pow, eval_uni, MvPolynomial.eval_C, MvPolynomial.eval_X,
-    coeffP, Polynomial.eval_C]
-  simp only [Finset.mul_sum, Finset.sum_mul]
-  congr 1
-  ext a
-  congr 1
-  ext b
-  congr 1
-  ext k
-  ring
+    coeffP, Polynomial.eval_C, Finset.mul_sum, Finset.sum_mul]
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ =>
+    Finset.sum_congr rfl fun _ _ => by ring
 
 end Rational.ThreeLift
 
@@ -234,28 +221,24 @@ private lemma entry_bound (e : ℕ) (T : Matrix (ZMod (dimension e)) (ZMod (dime
         else 0)| ≤ (A : ℤ) * (H : ℤ) ^ (2 * dimension e) := by
     split_ifs
     · simp only [abs_mul, abs_pow]
-      calc _ ≤ ((A : ℤ) * 1 * (H : ℤ) ^ dimension e) * (H : ℤ) ^ dimension e := by
-               apply mul_le_mul _ _ (by positivity) (by positivity)
-               · apply mul_le_mul _ _ (by positivity) (by positivity)
-                 · exact mul_le_mul (hT _ _) (signedEntry_abs ..) (abs_nonneg _) (by positivity)
-                 · exact (pow_le_pow_left₀ (abs_nonneg p) hp a.val).trans
-                     (pow_le_pow_right₀ hH' (Nat.le_of_lt a.val_lt))
-               · exact (pow_le_pow_left₀ (abs_nonneg r) hr b.val).trans
-                   (pow_le_pow_right₀ hH' (Nat.le_of_lt b.val_lt))
-           _ = _ := by rw [mul_one, mul_assoc, ← pow_add]; simp [two_mul]
+      calc _ ≤ ((A : ℤ) * 1 * (H : ℤ) ^ dimension e) * (H : ℤ) ^ dimension e :=
+            mul_le_mul
+              (mul_le_mul
+                (mul_le_mul (hT _ _) (signedEntry_abs ..) (abs_nonneg _) (Int.natCast_nonneg _))
+                (abs_pow_le_of_le hH' hp a.val_lt.le) (pow_nonneg (abs_nonneg _) _) (by positivity))
+              (abs_pow_le_of_le hH' hr b.val_lt.le) (pow_nonneg (abs_nonneg _) _) (by positivity)
+        _ = (A : ℤ) * (H : ℤ) ^ (2 * dimension e) := by
+            rw [mul_one, mul_assoc, ← pow_add, two_mul]
     · simp only [abs_zero]; positivity
   unfold entry
   calc |∑ a : ZMod (dimension e), _|
         ≤ ∑ a : ZMod (dimension e), |∑ b : ZMod (dimension e), _| :=
           Finset.abs_sum_le_sum_abs _ _
-       _ ≤ ∑ a : ZMod (dimension e), ∑ b : ZMod (dimension e), ∑ k : ZMod (dimension e),
-          (A : ℤ) * (H : ℤ) ^ (2 * dimension e) := by
-         apply Finset.sum_le_sum
-         intro a _
-         apply (Finset.abs_sum_le_sum_abs _ _).trans
-         apply Finset.sum_le_sum
-         intro b _
-         exact (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum (fun k _ => hterm a b k))
+       _ ≤ ∑ _a : ZMod (dimension e), ∑ _b : ZMod (dimension e), ∑ _k : ZMod (dimension e),
+          (A : ℤ) * (H : ℤ) ^ (2 * dimension e) :=
+         Finset.sum_le_sum fun a _ => (Finset.abs_sum_le_sum_abs _ _).trans <|
+           Finset.sum_le_sum fun b _ => (Finset.abs_sum_le_sum_abs _ _).trans <|
+             Finset.sum_le_sum fun k _ => hterm a b k
        _ = _ := by simp only [Finset.sum_const, Finset.card_univ, ZMod.card, nsmul_eq_mul]; ring
 
 private lemma rho_rat_mul (e : ℕ) (q : ℚ) (z : R e) (i j : Fin (degree e)) :
@@ -280,14 +263,10 @@ lemma entry_spec (e : ℕ)
         (ThreeLift.lift (character e) P u v)) i j := by
   rw [ThreeLift.eval_lift, rho_div_nat]
   simp only [entry, Int.cast_sum, map_sum, Matrix.sum_apply]
-  apply Finset.sum_congr rfl
-  intro a _
-  apply Finset.sum_congr rfl
-  intro b _
-  apply Finset.sum_congr rfl
-  intro k _
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, hT,
-    QuantumMatrices.weyl]
+  refine Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun b _ =>
+    Finset.sum_congr rfl fun k _ => ?_
+  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.head_cons,
+    Matrix.tail_cons, hT, QuantumMatrices.weyl]
   by_cases h : u = v + b
   · simp only [ite_eq_left h]
     have he : character e (-a * k) * (T k (k - b) : R e) * character e (a * u) *
@@ -297,10 +276,6 @@ lemma entry_spec (e : ℕ)
       rw [AddChar.map_add_eq_mul]
       simp only [map_mul, map_pow, map_intCast, Int.cast_mul, Int.cast_pow]
       ring
-    change ((T k (k - b) * signedEntry e (-a * k + a * u) i j * p ^ a.val * r ^ b.val : ℤ) :
-        ℚ) =
-      rho e (character e (-a * k) * (T k (k - b) : R e) * character e (a * u) *
-        (p : R e) ^ a.val * (r : R e) ^ b.val) i j
     rw [he, rho_rat_mul, rho_character_integral]
     simp only [Int.cast_mul, Int.cast_pow]
     ring
@@ -411,14 +386,10 @@ lemma tupleAt_integer (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N 
 /-- If `(rationalLift n N e x 0).det ≠ 0`, then `(integralLift n N e x 0).det ≠ 0`. -/
 lemma U_det_ne_zero (n N e : ℕ) (x : Fin 3 → ℕ) (hz : (rationalLift n N e x 0).det ≠ 0) :
     (integralLift n N e x 0).det ≠ 0 := by
-  have hu : ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0 := by
-    rw [U_cast, Matrix.det_smul]
-    exact mul_ne_zero (pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')) hz
-  have he : ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det =
-      ((integralLift n N e x 0).det : ℚ) :=
-    (Int.cast_det _).symm
-  rw [he] at hu
-  exact_mod_cast hu
+  rw [← Int.cast_ne_zero (α := ℚ), Int.cast_det]
+  change ((integralLift n N e x 0).map (Int.castRingHom ℚ)).det ≠ 0
+  rw [U_cast, Matrix.det_smul]
+  exact mul_ne_zero (pow_ne_zero _ (by exact_mod_cast (CyclotomicRing.dimension_pos e).ne')) hz
 
 end Rational.Generator
 

@@ -107,12 +107,8 @@ theorem prob_true_le_pauliBraidingDiagonal {𝒜 : Type*} [Fintype A] [Ring 𝒜
         exact sum_comm
     rw [← hloss]
     refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
-    by_cases h : game.accepts (k, a, dummy) (cond roles q p) (cond roles p q)
-    · simp only [h, hcheck k p q h, ite_true, le_refl]
-    · simp only [h, ite_false]
-      split_ifs
-      · exact logical.prob_nonneg _ _ _ _
-      · exact le_rfl
+    have hn := logical.prob_nonneg x (point (linearityQuery k a a)) p q
+    split_ifs <;> first | linarith | exact absurd (hcheck k p q ‹_›) ‹_›
   have hzero : linearityQuery 2 a a = 0 := by simp [linearityQuery]
   have hzeroQuestion : point 0 = pauliBraidingZeroQuestion basis dummy := by
     simp [point, pauliBraidingZeroQuestion]
@@ -143,12 +139,9 @@ theorem expect_prob_true_pauliBraidingZero_le {𝒜 : Type*} [Fintype A] [Ring �
       pauliBraidingZeroBit).prob logical.state true) / Fintype.card (Fin n → Bool) ≤
       12 * (1 - (pauliBraidingBranchGame n G special decode 0).commutingWinProb S) := by
   intro logical
-  let bad (dummy : Fin n → Bool) :=
-    ((logical.bob (pauliBraidingZeroQuestion basis dummy)).map
-      pauliBraidingZeroBit).prob logical.state true
-  have h := expect_le_of_pauliBraidingDiagonal_checks G special decode roles basis S (fun _ => bad)
-    (prob_true_le_pauliBraidingDiagonal G special decode roles basis S)
-  simpa only [Fintype.expect_const] using h
+  simpa only [Fintype.expect_const] using
+    expect_le_of_pauliBraidingDiagonal_checks G special decode roles basis S _
+      (prob_true_le_pauliBraidingDiagonal G special decode roles basis S)
 
 open Quantum in
 /-- When the pair player receives the duplicated zero string, their second bit can be
@@ -250,12 +243,9 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
       dsimp only at hq hread ⊢
       rw [hq, hread, lexSwap_zero_left]
       exact le_add_of_nonneg_right (by split_ifs <;> positivity)
-    · push Not at h
-      obtain ⟨rfl, hb⟩ := h
-      have hb' : basis = true := by cases basis <;> simp_all
+    · obtain ⟨rfl, rfl⟩ : dummy = 0 ∧ basis = true := by simpa using h
       have htie : lexSwap (0 : Fin n → Bool) 0 = false := by simp [lexSwap]
       have heq : consistency 0 = secondBit := by
-        subst basis
         dsimp [consistency, secondBit, PauliConsistencyQuestion.ofChecked,
           PauliConsistencyQuestion.toBraidingQuestion]
         rw [PauliConsistencyQuestion.braidingStrings, htie]
@@ -263,17 +253,13 @@ theorem expect_prob_true_pauliBraidingConsistencyZero_le {𝒜 : Type*} [Fintype
         funext answer
         cases answer <;> simp [PauliConsistencyQuestion.braidingCheckedBit,
           PauliConsistencyQuestion.checkedBit, htie]
-      rw [heq]
-      simpa only [ite_true, eq_self] using
-        (le_add_of_nonneg_left (Measurement.prob_nonneg logical.state
-          ((logical.bob (pauliBraidingZeroQuestion basis 0)).map pauliBraidingZeroBit)
-          true) : secondBit ≤ linearity 0 + secondBit)
+      rw [heq, ite_eq_left rfl]
+      exact le_add_of_nonneg_left (Measurement.prob_nonneg _ _ _)
   have haverage := expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun d _ => hcompare d
   rw [expect_add_distrib] at haverage
   have hsingle : (𝔼 d : Fin n → Bool, if d = 0 then secondBit else 0) =
       secondBit / Fintype.card (Fin n → Bool) := by
-    rw [Fintype.expect_ite_eq']
-    simp only [NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast]
+    simp only [Fintype.expect_ite_eq', NNRat.smul_def, NNRat.cast_inv, NNRat.cast_natCast]
     ring
   rw [hsingle] at haverage
   have hlinear := expect_prob_true_pauliBraidingZero_le G special decode roles basis S

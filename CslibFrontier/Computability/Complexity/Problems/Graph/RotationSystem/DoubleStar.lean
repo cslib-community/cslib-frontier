@@ -90,37 +90,27 @@ private def coordinateVertex {n : ℕ} (d : (Fin n × Bool) × Bool) : ℕ :=
 
 private theorem sameCycle_doubleStarRotor {n : ℕ} (x y : (Fin n × Bool) × Bool) :
     (doubleStarRotor n).SameCycle x y ↔ coordinateVertex x = coordinateVertex y := by
-  constructor
-  · intro h
-    have hm : Function.Semiconj coordinateVertex (doubleStarRotor n) (1 : Perm ℕ) := by
-      rintro ⟨⟨i, b⟩, s⟩
-      cases b <;> cases s <;> rfl
-    exact Perm.sameCycle_one.mp (h.map_of_semiconj hm)
-  · rcases x with ⟨⟨i, b⟩, s⟩
-    rcases y with ⟨⟨j, c⟩, t⟩
-    cases s <;> cases t
-    · intro h
-      have hij : i = j := Fin.ext h
-      subst j
-      cases b <;> cases c
-      · exact .rfl
-      · exact Perm.sameCycle_apply_right.mpr (.rfl : (doubleStarRotor n).SameCycle
-          ((i, false), false) ((i, false), false))
-      · exact Perm.sameCycle_apply_left.mpr (.rfl : (doubleStarRotor n).SameCycle
-          ((i, false), false) ((i, false), false))
-      · exact .rfl
-    · intro h
-      cases c <;> simp only [coordinateVertex, Bool.false_eq_true, ↓reduceIte] at h <;> omega
-    · intro h
-      cases b <;> simp only [coordinateVertex, Bool.false_eq_true, ↓reduceIte] at h <;> omega
-    · intro h
-      cases b <;> cases c
-      · exact (Perm.sameCycle_finRotate i j).map_of_semiconj
-          (u := fun i => ((i, false), true)) (g := doubleStarRotor n) (by intro i; rfl)
-      · exact False.elim (by simp [coordinateVertex] at h)
-      · exact False.elim (by simp [coordinateVertex] at h)
-      · exact (Perm.sameCycle_finRotate i j).inv.map_of_semiconj
-          (u := fun i => ((i, true), true)) (g := doubleStarRotor n) (by intro i; rfl)
+  refine ⟨fun h => Perm.sameCycle_one.mp (h.map_of_semiconj
+    (g := (1 : Perm ℕ)) fun ⟨⟨_, b⟩, s⟩ => by cases b <;> cases s <;> rfl), ?_⟩
+  rcases x, y with ⟨⟨⟨i, b⟩, s⟩, ⟨⟨j, c⟩, t⟩⟩
+  cases s <;> cases t <;> intro h
+  · obtain rfl : i = j := Fin.ext h
+    cases b <;> cases c
+    · exact .rfl
+    · exact Perm.sameCycle_apply_right.mpr
+        (.rfl : (doubleStarRotor n).SameCycle ((i, false), false) _)
+    · exact Perm.sameCycle_apply_left.mpr
+        (.rfl : (doubleStarRotor n).SameCycle ((i, false), false) _)
+    · exact .rfl
+  · cases c <;> simp only [coordinateVertex, Bool.false_eq_true, ↓reduceIte] at h <;> omega
+  · cases b <;> simp only [coordinateVertex, Bool.false_eq_true, ↓reduceIte] at h <;> omega
+  · cases b <;> cases c
+    · exact (Perm.sameCycle_finRotate i j).map_of_semiconj (u := fun i => ((i, false), true))
+        (g := doubleStarRotor n) (fun _ => rfl)
+    · simp [coordinateVertex] at h
+    · simp [coordinateVertex] at h
+    · exact (Perm.sameCycle_finRotate i j).inv.map_of_semiconj (u := fun i => ((i, true), true))
+        (g := doubleStarRotor n) (fun _ => rfl)
 
 /-- Actual two-center rotation, preserving the direction of both ordered scopes. -/
 @[expose] def doubleStarRotation (n : ℕ) : RotationSystem (doubleStarGraph n) where
@@ -171,78 +161,60 @@ private theorem face_semiconj (n : ℕ) : Function.Semiconj (faceDartEquiv n)
 /-- Each leaf contributes one four-dart face, with no exceptional degree bound. The nullary
 graph has no dart face, although its two point components have conventional faces. -/
 theorem card_faces_doubleStarRotation (n : ℕ) : Nat.card (doubleStarRotation n).Face = n := by
-  have eqv : Quotient (Perm.SameCycle.setoid
-      (Perm.doubled (Perm.doubled (1 : Perm (Fin n))))) ≃ (doubleStarRotation n).Face :=
-    Quotient.congr (faceDartEquiv n)
-      (fun x y => (Perm.sameCycle_equiv_iff (faceDartEquiv n) _ _ (face_semiconj n) x y).symm)
-  have he := Nat.card_congr eqv
-  rw [← he, Nat.card_congr (Perm.doubledOrbitEquiv _),
-    Nat.card_congr (Perm.doubledOrbitEquiv _)]
-  have e : Fin n ≃ Quotient (Perm.SameCycle.setoid (1 : Perm (Fin n))) :=
-    Equiv.ofBijective (Quotient.mk _) ⟨fun _ _ h => Perm.sameCycle_one.mp (Quotient.exact h),
-      Quotient.mk_surjective⟩
-  rw [← Nat.card_congr e, Nat.card_fin]
+  rw [← Nat.card_congr (Quotient.congr (ra := Perm.SameCycle.setoid
+      (Perm.doubled (Perm.doubled (1 : Perm (Fin n))))) (faceDartEquiv n) fun x y =>
+      (Perm.sameCycle_equiv_iff (faceDartEquiv n) _ _ (face_semiconj n) x y).symm),
+    Nat.card_congr (Perm.doubledOrbitEquiv _), Nat.card_congr (Perm.doubledOrbitEquiv _),
+    ← Nat.card_congr (Equiv.ofBijective (Quotient.mk (Perm.SameCycle.setoid (1 : Perm (Fin n))))
+      ⟨fun _ _ h => Perm.sameCycle_one.mp (Quotient.exact h), Quotient.mk_surjective⟩),
+    Nat.card_fin]
 
 /-- Both centers and every leaf are declared, also at zero arity. -/
 theorem doubleStarGraph_endpoints_declared (n : ℕ) :
     ∀ v ∈ (doubleStarGraph n).incidenceVertices, v ∈ (doubleStarGraph n).vertices := by
   intro v hv
   obtain ⟨edge, he, hv⟩ := List.mem_flatMap.mp hv
-  rcases List.mem_append.mp he with he | he
-  · obtain ⟨i, _, rfl⟩ := List.mem_map.mp he
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with rfl | rfl <;> simp [doubleStarGraph, i.isLt, Nat.lt_add_right]
-  · obtain ⟨i, _, rfl⟩ := List.mem_map.mp he
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with rfl | rfl
-    · simpa only [doubleStarGraph, List.mem_range] using
-        lt_trans i.rev.isLt (by omega : n < n + 2)
-    · simp [doubleStarGraph]
+  rcases List.mem_append.mp he with he | he <;> obtain ⟨i, _, rfl⟩ := List.mem_map.mp he <;>
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv <;> rcases hv with rfl | rfl
+  · simp [doubleStarGraph, i.isLt, Nat.lt_add_right]
+  · simp [doubleStarGraph]
+  · simpa only [doubleStarGraph, List.mem_range] using i.rev.isLt.trans (by omega)
+  · simp [doubleStarGraph]
 
 /-- At positive arity the two centers are joined through a real leaf. The nullary centers
 remain separate points and are deliberately excluded from this connectedness statement. -/
 theorem doubleStarGraph_connected {n : ℕ} (hn : 0 < n) :
     ∀ u ∈ (doubleStarGraph n).vertices, ∀ v ∈ (doubleStarGraph n).vertices,
       Graph.RotationCertificate.SameComponent (doubleStarGraph n) u v := by
-  let i : Fin n := ⟨0, hn⟩
-  have hG := doubleStarGraph_endpoints_declared n
-  have ha := sameComponent_reverse hG (doubleStarDartEquiv n ((i, false), false))
-  have hb := sameComponent_reverse hG (doubleStarDartEquiv n ((i, true), false))
-  simp only [reverse_doubleStarDartEquiv, vertex_doubleStarDartEquiv, Bool.not_false,
-    Bool.false_eq_true, ↓reduceIte] at ha hb
-  have hc := ha.symm.trans hb
+  have hleaf (i : Fin n) (b : Bool) : Graph.RotationCertificate.SameComponent (doubleStarGraph n)
+      i.val (if b then n + 1 else n) := by
+    simpa only [reverse_doubleStarDartEquiv, vertex_doubleStarDartEquiv, Bool.not_false,
+      Bool.false_eq_true, ↓reduceIte] using
+      sameComponent_reverse (doubleStarGraph_endpoints_declared n)
+        (doubleStarDartEquiv n ((i, b), false))
   have connect (u : ℕ) (hu : u ∈ (doubleStarGraph n).vertices) :
       Graph.RotationCertificate.SameComponent (doubleStarGraph n) u n := by
-    by_cases h : u < n
-    · have hh := sameComponent_reverse hG
-        (doubleStarDartEquiv n ((⟨u, h⟩, false), false))
-      simpa only [reverse_doubleStarDartEquiv, vertex_doubleStarDartEquiv, Bool.not_false,
-        Bool.false_eq_true, ↓reduceIte] using hh
-    · have hu' : u < n + 2 := by simpa only [doubleStarGraph, List.mem_range] using hu
-      have he : u = n ∨ u = n + 1 := by omega
-      rcases he with rfl | rfl
+    if h : u < n then exact hleaf ⟨u, h⟩ false
+    else
+      have : u < n + 2 := by simpa only [doubleStarGraph, List.mem_range] using hu
+      rcases (by omega : u = n ∨ u = n + 1) with rfl | rfl
       · exact .refl (by simp [doubleStarGraph])
-      · exact hc.symm
-  intro u hu v hv
-  exact (connect u hu).trans (connect v hv).symm
+      · exact (hleaf ⟨0, hn⟩ true).symm.trans (hleaf ⟨0, hn⟩ false)
+  exact fun u hu v hv => (connect u hu).trans (connect v hv).symm
 
 /-- The literal two-star rotation has componentwise numerical genus zero at every arity.
 At zero arity the conventional faces belong to the two point components, not the dart quotient. -/
 theorem numericalGenusZero_doubleStarRotation (n : ℕ) :
     (doubleStarRotation n).NumericalGenusZero := by
-  by_cases hn : 0 < n
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · intro root _
+    simp only [show ¬∃ d : Dart (doubleStarGraph 0), d.vertex = root from fun ⟨d, _⟩ => d.1.elim0,
+      ite_false]
   · rw [numericalGenusZero_iff_connected_euler (doubleStarRotation n)
       (doubleStarGraph_endpoints_declared n) (doubleStarGraph_connected hn)
       (doubleStarDartEquiv n ((⟨0, hn⟩, false), false)), card_faces_doubleStarRotation]
     simp only [doubleStarGraph, List.length_append, List.length_map, List.length_finRange]
     rw [List.toFinset_card_of_nodup List.nodup_range, List.length_range]
     omega
-  · have he : n = 0 := by omega
-    subst n
-    intro root _
-    have hd : ¬ ∃ d : Dart (doubleStarGraph 0), d.vertex = root := by
-      rintro ⟨d, -⟩
-      exact d.1.elim0
-    simp only [hd, ite_false]
 
 end Cslib.Complexity.Graph.RotationSystem

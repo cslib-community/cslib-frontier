@@ -130,31 +130,22 @@ theorem segments_restoredRoute {G : Graph} {u v : ℕ}
 theorem endpoint_restoreFirst (u v w : ℕ) (a b : ℂ) (p : Route) (side : Bool) :
     (restoreFirst u v w a b p).endpoint side =
       if side then p.finish else if w = u then a else if w = v then b else p.start := by
-  unfold restoreFirst
-  by_cases hu : w = u
-  · rw [ite_eq_left hu]
-    simpa only [hu, ↓reduceIte] using Route.endpoint_prepend a p side
-  · rw [ite_eq_right hu]
-    by_cases hv : w = v
-    · rw [ite_eq_left hv]
-      simpa only [ite_eq_right hu, ite_eq_left hv] using Route.endpoint_prepend b p side
-    · rw [ite_eq_right hv]
-      simp only [hu, hv, ↓reduceIte, Route.endpoint]
+  rcases eq_or_ne w u with rfl | hu
+  · simp only [restoreFirst, ↓reduceIte, Route.endpoint_prepend]
+  · rcases eq_or_ne w v with rfl | hv
+    · simp only [restoreFirst, hu, ↓reduceIte, Route.endpoint_prepend]
+    · cases side <;>
+        simp only [restoreFirst, hu, hv, Bool.false_eq_true, ↓reduceIte, Route.endpoint]
 
 /-- A last attachment retains its start and sets its finish. -/
 theorem endpoint_restoreLast (u v w : ℕ) (a b : ℂ) (p : Route) (side : Bool) :
     (restoreLast u v w a b p).endpoint side =
       if side then (if w = u then a else if w = v then b else p.finish) else p.start := by
-  unfold restoreLast
-  by_cases hu : w = u
-  · rw [ite_eq_left hu]
-    simpa only [hu, ↓reduceIte] using Route.endpoint_append p a side
-  · rw [ite_eq_right hu]
-    by_cases hv : w = v
-    · rw [ite_eq_left hv]
-      simpa only [ite_eq_right hu, ite_eq_left hv] using Route.endpoint_append p b side
-    · rw [ite_eq_right hv]
-      simp only [hu, hv, ↓reduceIte, Route.endpoint]
+  rcases eq_or_ne w u with rfl | hu
+  · simp only [restoreLast, ↓reduceIte, Route.endpoint_append]
+  · rcases eq_or_ne w v with rfl | hv
+    · simp only [restoreLast, hu, ↓reduceIte, Route.endpoint_append]
+    · cases side <;> simp only [restoreLast, hu, hv, Bool.false_eq_true, ↓reduceIte, Route.endpoint]
 
 /-- The restored exterior piece has exactly the two named source endpoints. -/
 theorem endpoint_restoredRoute {G : Graph} {u v : ℕ}
@@ -167,31 +158,26 @@ theorem endpoint_restoredRoute {G : Graph} {u v : ℕ}
     endpoint_restoreFirst u v (Dart.vertex (e, false)) a b p false
   have hlast (p : Route) : (restoreFirst u v (Dart.vertex (e, false)) a b p).finish =
       p.finish := endpoint_restoreFirst u v (Dart.vertex (e, false)) a b p true
-  have houtside (side : Bool) := D.endpoint_outsideRoute v ρ (contractedIndex G u v e) side
-  simp only [vertex_contractedIndex] at houtside
+  have houtside := D.endpoint_outsideRoute v ρ (contractedIndex G u v e) side
+  rw [vertex_contractedIndex] at houtside
+  rw [restoredRoute, endpoint_restoreLast]
   cases side
-  · rw [restoredRoute, endpoint_restoreLast]
-    change (restoreFirst u v (Dart.vertex (e, false)) a b
-      (D.outsideRoute v ρ (contractedIndex G u v e))).start = _
+  · simp only [Bool.false_eq_true, ↓reduceIte, Route.endpoint] at houtside ⊢
+    change (restoreFirst u v (Dart.vertex (e, false)) a b _).start = _
     rw [hfirst]
     by_cases hu : Dart.vertex (e, false) = u
-    · simp [hu, restoredVertex]
+    · simp only [hu, ↓reduceIte, restoredVertex]
     · by_cases hv : Dart.vertex (e, false) = v
-      · simp [hv, restoredVertex]
-      · have h := houtside false
-        simp only [Function.update_of_ne hu, id_eq, ite_eq_right hv, Route.endpoint,
-          Bool.false_eq_true, ↓reduceIte] at h
-        simpa only [restoredVertex, ite_eq_right hu, ite_eq_right hv] using h
-  · rw [restoredRoute, endpoint_restoreLast]
-    simp only [↓reduceIte, hlast]
+      · simp only [hv, ↓reduceIte, restoredVertex]
+      · simpa only [Function.update_of_ne hu, id_eq, hu, hv, ↓reduceIte, restoredVertex]
+          using houtside
+  · simp only [↓reduceIte, hlast, Route.endpoint] at houtside ⊢
     by_cases hu : Dart.vertex (e, true) = u
-    · simp [hu, restoredVertex]
+    · simp only [hu, ↓reduceIte, restoredVertex]
     · by_cases hv : Dart.vertex (e, true) = v
-      · simp [hv, restoredVertex]
-      · have h := houtside true
-        simp only [Function.update_of_ne hu, id_eq, ite_eq_right hv, Route.endpoint,
-          ↓reduceIte] at h
-        simpa only [restoredVertex, ite_eq_right hu, ite_eq_right hv] using h
+      · simp only [hv, ↓reduceIte, restoredVertex]
+      · simpa only [Function.update_of_ne hu, id_eq, hu, hv, ↓reduceIte, restoredVertex]
+          using houtside
 
 /-- Restore the actual source graph's route data. Retained edge indices use their old
 exterior pieces; the last selected edge is the straight connector from `a` to `b`.

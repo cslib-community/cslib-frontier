@@ -92,25 +92,20 @@ def countLe {n : Nat} (t : Fin n → Int) (r : Int) : Nat :=
 `countLe t r`. -/
 theorem lt_countLe_iff {n : Nat} {t : Fin n → Int} (ht : Monotone t) (r : Int) (i : Fin n) :
     i.val < countLe t r ↔ t i ≤ r := by
+  unfold countLe
   constructor
   · intro hi
     by_contra hti
-    have hsub : (Finset.univ.filter fun j => t j ≤ r) ⊆ Finset.Iio i := by
-      intro j hj
-      rw [Finset.mem_filter] at hj
-      rw [Finset.mem_Iio]
-      by_contra hji
-      exact hti ((ht (not_lt.1 hji)).trans hj.2)
+    have hsub : (Finset.univ.filter fun j => t j ≤ r) ⊆ Finset.Iio i := fun j hj =>
+      Finset.mem_Iio.2 (lt_of_not_ge fun hji => hti ((ht hji).trans (Finset.mem_filter.1 hj).2))
     have := Finset.card_le_card hsub
     rw [Fin.card_Iio] at this
-    unfold countLe at hi
     omega
   · intro hti
     have hsub : Finset.Iic i ⊆ (Finset.univ.filter fun j => t j ≤ r) := fun j hj =>
       Finset.mem_filter.2 ⟨Finset.mem_univ j, (ht (Finset.mem_Iic.1 hj)).trans hti⟩
     have := Finset.card_le_card hsub
     rw [Fin.card_Iic] at this
-    unfold countLe
     omega
 
 theorem countLe_le {n : Nat} (t : Fin n → Int) (r : Int) : countLe t r ≤ n := by
@@ -149,14 +144,11 @@ private theorem spread_update {k : Nat} (t : Fin k → Int) (a : Fin k) (y : Int
   have hdiff : spread t' - spread t = ∑ i, ∑ j, g i j := by
     simp only [spread, g, Finset.sum_sub_distrib]
   have haa : g a a = 0 := by simp only [g, sub_self, abs_zero]
-  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, g a j := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a)]
-    rw [Finset.sum_congr rfl fun i hi => hrow i (Finset.ne_of_mem_erase hi)]
-    rw [Finset.sum_erase _ haa]
-    ring
-  have hga : ∀ j, g a j = |y - t' j| - |t a - t j| := fun j => by
+  have hsplit : ∑ i, ∑ j, g i j = 2 * ∑ j, (|y - t' j| - |t a - t j|) := by
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ a),
+      Finset.sum_congr rfl fun i hi => hrow i (Finset.ne_of_mem_erase hi), Finset.sum_erase _ haa]
     simp only [g, t', Function.update_self]
-  rw [Finset.sum_congr rfl fun j _ => hga j] at hsplit
+    ring
   linarith
 
 /-- Moving server `a` to `r` changes the spread by `2 * n * δ` when the distance from every other
@@ -206,15 +198,13 @@ private theorem spread_update_mid {n : Nat} {t : Fin (n + 1) → Int} (ht : Mono
     intro j
     by_cases hja : j = a
     · subst hja
-      rw [ite_eq_left rfl, hua, Function.update_of_ne hne, hua, hub]
-      rw [sub_self, abs_zero, sub_self, abs_zero]
-      rw [abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)]
+      rw [ite_eq_left rfl, hua, Function.update_of_ne hne, hua, hub, sub_self, abs_zero, sub_self,
+        abs_zero, abs_of_nonneg (by linarith), abs_of_nonneg (by linarith)]
       ring
     by_cases hjb : j = b
     · subst hjb
-      rw [ite_eq_right hja, ite_eq_left rfl, hub, Function.update_self]
-      rw [sub_self, abs_zero, sub_self, abs_zero, abs_of_nonpos (by linarith),
-        abs_of_nonpos (by linarith)]
+      rw [ite_eq_right hja, ite_eq_left rfl, hub, Function.update_self, sub_self, abs_zero,
+        sub_self, abs_zero, abs_of_nonpos (by linarith), abs_of_nonpos (by linarith)]
       ring
     rw [ite_eq_right hja, ite_eq_right hjb]
     have huj : u j = t j := Function.update_of_ne hja _ _
@@ -233,10 +223,7 @@ private theorem spread_update_mid {n : Nat} {t : Fin (n + 1) → Int} (ht : Mono
   rw [Finset.sum_add_distrib] at hsum
   have hite : ∀ j, (if j = a then -d else if j = b then -d else (0 : Int)) =
       (if j = a then -d else 0) + (if j = b then -d else 0) := fun j => by
-    by_cases hja : j = a
-    · subst hja
-      simp only [↓reduceIte, hne, add_zero]
-    · simp only [hja, ↓reduceIte, zero_add]
+    by_cases hja : j = a <;> simp only [hja, hne, ↓reduceIte, add_zero, zero_add]
   rw [Finset.sum_congr rfl fun j _ => hite j, Finset.sum_add_distrib,
     Finset.sum_ite_eq' Finset.univ a, Finset.sum_ite_eq' Finset.univ b] at hsum
   simp only [Finset.mem_univ, ↓reduceIte] at hsum
@@ -254,9 +241,7 @@ private theorem exists_match_to_request (s o : Fin k → Int) {r : Int} (hr : �
   refine ⟨σ * Equiv.swap a i, ?_, ?_⟩
   · simp only [Equiv.Perm.mul_apply, Equiv.swap_apply_right, ha]
   · rw [hσ]
-    refine matchCostAlong_swap_le NatMetric.line s o σ ?_
-    rw [ha]
-    exact hbtw a
+    exact matchCostAlong_swap_le NatMetric.line s o σ (by rw [ha]; exact hbtw a)
 
 /-- Moving server `i` to `r` after uncrossing lowers the matching distance by the move. -/
 private theorem matchCost_update_add_le (s o : Fin k → Int) {r : Int} (hr : ∃ j, o j = r)
@@ -285,9 +270,7 @@ private theorem matchCost_two_moves' (s o : Fin k → Int) {r : Int} (σ : Equiv
   have hτi : o (τ i) = r := by simp only [τ, Equiv.Perm.mul_apply, Equiv.swap_apply_right, ha₀]
   have hτ : matchCostAlong NatMetric.line s o τ ≤ matchCost NatMetric.line s o := by
     rw [hσ]
-    refine matchCostAlong_swap_le NatMetric.line s o σ ?_
-    rw [ha₀]
-    exact hbtw
+    exact matchCostAlong_swap_le NatMetric.line s o σ (by rw [ha₀]; exact hbtw)
   have h1 := matchCostAlong_update_toward NatMetric.line s o τ i y (by
     change (s i - o (τ i)).natAbs = (s i - y).natAbs + (y - o (τ i)).natAbs
     rw [hτi]; exact hy)
@@ -371,10 +354,7 @@ private theorem dcSorted_step {n : Nat} {t : Fin (n + 1) → Int} (ht : Monotone
   have h2' : |t b - (t b - d)| = d := by rw [abs_of_nonneg (by omega)]; ring
   simp only [Nat.cast_add, Int.natCast_natAbs]
   rw [h1', h2']
-  have hm' : (matchCost NatMetric.line
-      (Function.update (Function.update t a (t a + d)) b (t b - d)) o : Int) ≤
-        matchCost NatMetric.line t o := by
-    exact_mod_cast hm
+  have hm' := (Nat.cast_le (α := Int)).2 hm
   nlinarith
 
 /-- Double Coverage on a sorted configuration serves the request. -/
@@ -403,9 +383,7 @@ private theorem spread_eq_pairSum {k : Nat} (s : Fin k → Int) :
     spread s = (pairSum NatMetric.line s : Int) := by
   unfold spread pairSum
   simp only [Nat.cast_sum]
-  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
-  change |s i - s j| = ((s i - s j).natAbs : Int)
-  rw [Int.natCast_natAbs]
+  exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => (Int.natCast_natAbs _).symm
 
 /-- Double Coverage on an arbitrary configuration: sort, apply `dcSorted`, unsort. -/
 @[expose]
@@ -507,13 +485,9 @@ theorem doubleCoverage_cost_le {n : Nat} (s₀ s_off : Fin (n + 1) → Int) (req
       (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates +
         ((n + 1) * matchCost NatMetric.line s₀ s_off + pairSum NatMetric.line s₀ / 2) := by
   have h := doubleCoverage_costFrom_le s₀ s_off reqs offStates hv
-  have hc : (doubleCoverage n).cost s₀ reqs = (doubleCoverage n).costFrom s₀ reqs :=
-    (doubleCoverage n).cost_eq_costFrom trivial reqs
-  rw [hc]
+  rw [(doubleCoverage n).cost_eq_costFrom trivial reqs]
+  change (doubleCoverage n).costFrom s₀ reqs ≤ _
   rw [Nat.mul_assoc 2 (n + 1), Nat.mul_assoc 2 (n + 1)] at h
-  generalize (n + 1) * (problem NatMetric.line (n + 1)).scheduleCost s_off reqs offStates = X
-    at h ⊢
-  generalize (n + 1) * matchCost NatMetric.line s₀ s_off = Y at h ⊢
   omega
 
 /-- **Chrobak–Karloff–Payne–Vishwanathan.** Double Coverage with `k = n + 1` servers on the line
@@ -523,8 +497,7 @@ theorem doubleCoverage_isCompetitiveFrom {n : Nat} (s₀ : Fin (n + 1) → Int) 
     (doubleCoverage n).IsCompetitiveFrom s₀ (n + 1) (pairSum NatMetric.line s₀ / 2) := by
   intro reqs offStates hv
   have h := doubleCoverage_cost_le s₀ s₀ reqs offStates hv
-  rw [matchCost_self, Nat.mul_zero, Nat.zero_add] at h
-  exact h
+  rwa [matchCost_self, Nat.mul_zero, Nat.zero_add] at h
 
 /-- Double Coverage's cost on a nonempty request sequence: the first step plus the rest. -/
 theorem doubleCoverage_cost_cons {n : Nat} (s₀ : Fin (n + 1) → Int) (r : Int)

@@ -332,16 +332,11 @@ theorem mem_PromiseP_iff_exists_solvesPromiseInTimeO {Q : PromiseProblem α} :
     push_cast
     exact le_rfl
   · rintro ⟨d, g, hQ, c, t, sp, ht, hg⟩
-    have ht_nat : ∀ a, t a ≤ c * ((enc a).length + 1) ^ d + c := fun a => by
-      have hta := ht a
-      dsimp only at hta
-      exact_mod_cast hta
-    have hg_ts : ComputableInTimeAndSpace g enc encBool
-        (fun a => c * ((enc a).length + 1) ^ d + c) sp :=
-      hg.mono ht_nat fun _ => le_rfl
-    have hpoly : ComputableInPolyTime g enc encBool :=
-      hg_ts.computableInPolyTime (t := fun n => c * (n + 1) ^ d + c) (by fun_prop)
-    exact ⟨g, hpoly, hQ⟩
+    refine ⟨g, (hg.mono (fun a => ?_) fun _ => le_rfl).computableInPolyTime
+      (t := fun n => c * (n + 1) ^ d + c) (by fun_prop), hQ⟩
+    have hta := ht a
+    dsimp only at hta
+    exact_mod_cast hta
 
 /-- Any `PromiseP` solver has deterministic exponential rate `0` in any parameter `μ`. -/
 theorem SolvesPromiseInExpTime.of_mem_PromiseP {Q : PromiseProblem α} {μ : α → ℕ}
@@ -691,9 +686,7 @@ theorem exists_ptm_of_solvesWithErrorInTimeO {Q : PromiseProblem α} {E : ErrorM
     · rw [hprob a true, le_div_iff₀ (by positivity)]
       have hsum : (acceptCount V a (ℓ a) : ℝ) + acceptCount (fun p => !V p) a (ℓ a) =
           (2 : ℝ) ^ ℓ a := by exact_mod_cast acceptCount_add_acceptCount_not V a (ℓ a)
-      have heq_true : acceptCount (fun p => V p == true) a (ℓ a) = acceptCount V a (ℓ a) := by
-        simp only [beq_true]
-      rw [heq_true]
+      simp only [beq_true]
       linarith [hyes a ha]
     · rw [hprob a false, div_le_iff₀ (by positivity)]
       simpa only [beq_false] using hyes a ha
@@ -900,11 +893,8 @@ theorem mem_PromiseBPP_iff_exists_solvesWithErrorInTimeO {Q : PromiseProblem α}
     rw [boundedErrorAt_false_iff, ErrorModel.bounded, ErrorModel.twoSided,
       div_mul_eq_mul_div, one_mul, le_div_iff₀ (by norm_num), mul_comm _ (3 : ℝ)]
     norm_cast
-  constructor
-  · intro hQ
-    exact ⟨fun a ha => (hyes_iff a).mpr ((hQ a).1 ha), fun a ha => (hno_iff a).mpr ((hQ a).2 ha)⟩
-  · rintro ⟨hyes, hno⟩ a
-    exact ⟨fun ha => (hyes_iff a).mp (hyes a ha), fun ha => (hno_iff a).mp (hno a ha)⟩
+  simp only [hyes_iff, hno_iff]
+  exact forall_and
 
 /-- **`PromiseRP` in terms of `SolvesWithErrorInTimeO`.** A promise problem lies in `PromiseRP`
 if and only if it is solved at `ErrorModel.rp` (`yesErr = 1 / 2`, `noErr = 0`) within polynomial
@@ -926,11 +916,8 @@ theorem mem_PromiseRP_iff_exists_solvesWithErrorInTimeO {Q : PromiseProblem α} 
           (ErrorModel.rp).noErr * (2 : ℝ) ^ p.eval (enc a).length ↔
         ∀ r : Fin (p.eval (enc a).length) → Bool, V (a, List.ofFn r) = false := by
     simp [ErrorModel.rp, ErrorModel.oneSidedRP, acceptCount_eq_zero_iff]
-  constructor
-  · intro hQ
-    exact ⟨fun a ha => (hyes_iff a).mpr ((hQ a).1 ha), fun a ha => (hno_iff a).mpr ((hQ a).2 ha)⟩
-  · rintro ⟨hyes, hno⟩ a
-    exact ⟨fun ha => (hyes_iff a).mp (hyes a ha), fun ha => (hno_iff a).mp (hno a ha)⟩
+  simp only [hyes_iff, hno_iff]
+  exact forall_and
 
 /-- **`PromiseCoRP` in terms of `SolvesWithErrorInTimeO`.** -/
 theorem mem_PromiseCoRP_iff_exists_solvesWithErrorInTimeO {Q : PromiseProblem α} :
@@ -1273,15 +1260,13 @@ theorem solvesWithErrorInTimeO_oneSidedCoRP_iff {Q : PromiseProblem α} {T : α 
     (h0₂ : 0 < ε₂) (h1₂ : ε₂ < 1) :
     SolvesWithErrorInTimeO Q enc (ErrorModel.oneSidedCoRP ε₁ h0₁.le h1₁) T ↔
       SolvesWithErrorInTimeO Q enc (ErrorModel.oneSidedCoRP ε₂ h0₂.le h1₂) T := by
-  constructor <;> intro h
-  · have hc1 : SolvesWithErrorInTimeO Qᶜ enc (ErrorModel.oneSidedRP ε₁ h0₁.le h1₁) T := by
-      simpa only [ErrorModel.symm_oneSidedCoRP] using h.compl
-    simpa only [compl_compl, ErrorModel.symm_oneSidedRP] using
-      (hc1.amplify_oneSidedRP hT h0₂ h1₂).compl
-  · have hc2 : SolvesWithErrorInTimeO Qᶜ enc (ErrorModel.oneSidedRP ε₂ h0₂.le h1₂) T := by
-      simpa only [ErrorModel.symm_oneSidedCoRP] using h.compl
-    simpa only [compl_compl, ErrorModel.symm_oneSidedRP] using
-      (hc2.amplify_oneSidedRP hT h0₁ h1₁).compl
+  have hcompl {ε : ℝ} (h0 : 0 ≤ ε) (h1 : ε < 1) :
+      SolvesWithErrorInTimeO Q enc (ErrorModel.oneSidedCoRP ε h0 h1) T ↔
+        SolvesWithErrorInTimeO Qᶜ enc (ErrorModel.oneSidedRP ε h0 h1) T :=
+    ⟨fun h => by simpa only [ErrorModel.symm_oneSidedCoRP] using h.compl,
+     fun h => by simpa only [compl_compl, ErrorModel.symm_oneSidedRP] using h.compl⟩
+  rw [hcompl, hcompl]
+  exact solvesWithErrorInTimeO_oneSidedRP_iff hT h0₁ h1₁ h0₂ h1₂
 
 /-- Any one-sided `RP` solver (`ε₁ ∈ [0, 1)`) amplifies to any two-sided threshold
 `ε₂ ∈ (0, 1 / 2)` at the exact same `O(T a)` runtime. -/

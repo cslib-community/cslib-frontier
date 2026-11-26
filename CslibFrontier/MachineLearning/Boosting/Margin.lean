@@ -171,13 +171,11 @@ theorem convexHull_uniform_empirical_margin_bound {α : Type*} [Finite α] (D : 
           3 * √(Real.log (Real.logb 2 (2 * r / ρ)) / m) +
           3 * √(Real.log (4 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
-  have hconv : ∀ f ∈ convexHull ℝ H, ∀ x, |f x| ≤ B := fun f hf x =>
-    abs_le_of_mem_convexHull hH hf x
-  have h := uniform_empiricalRademacherComplexity_margin_bound D hm hconv hr hδ
-  refine le_trans (Probability.PMF.toOuterMeasure_toReal_mono _ ?_) h
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
+    (uniform_empiricalRademacherComplexity_margin_bound D hm
+      (fun _ => abs_le_of_mem_convexHull hH) hr hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]
+  exact ⟨f, hf, ρ, hρ, by rwa [empiricalRademacherComplexity_convexHull hH (fun i => (S i).1)]⟩
 
 /-- **Uniform VC-dimension margin bound for convex combinations of binary classifiers**
 [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Section 7.3.3,
@@ -201,18 +199,14 @@ theorem convexHull_signClass_vc_uniform_margin_bound {α : Type*} [Finite α] (D
           √(Real.log (2 / δ) / (2 * m)) <
         (D.toOuterMeasure {p | signVal p.2 * f p.1 ≤ 0}).toReal}).toReal ≤ δ := by
   have := Fintype.ofFinite α
-  have hB : ∀ h ∈ signClass C, ∀ x, |h x| ≤ 1 := fun _ hf => abs_le_one_of_mem_signClass hf
-  have hR : rademacherComplexity (D.map Prod.fst) (signClass C) m ≤
-      √(2 * (d * Real.log (Real.exp 1 * m / d)) / m) :=
-    rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm
   refine (Probability.PMF.toOuterMeasure_toReal_mono _ ?_).trans
-    (convexHull_uniform_margin_bound D hm hB zero_lt_one hδ)
+    (convexHull_uniform_margin_bound (H := signClass C) D hm
+      (fun _ hf => abs_le_one_of_mem_signClass hf) zero_lt_one hδ)
   rintro S ⟨f, hf, ρ, hρ, hlt⟩
-  refine ⟨f, hf, ρ, hρ, ?_⟩
-  have hcoef : 0 ≤ 4 / ρ := div_nonneg (by norm_num) hρ.1.le
-  have hmul := mul_le_mul_of_nonneg_left hR hcoef
-  rw [mul_one]
-  linarith
+  have hmul := mul_le_mul_of_nonneg_left
+    (rademacherComplexity_signClass_le_vc (D.map Prod.fst) hC hdm)
+    (div_nonneg (by norm_num : (0 : ℝ) ≤ 4) hρ.1.le)
+  exact ⟨f, hf, ρ, hρ, by rw [mul_one]; linarith⟩
 
 /-! ### Normalized AdaBoost score and convex-hull membership -/
 
@@ -329,20 +323,13 @@ theorem signVal_mul_normalizedScore_nonpos_of_adaBoost_ne {S : Fin m → α × B
       rw [mul_comm, signVal_mul_signVal, ite_eq_right hne]
     linarith
   · rw [adaBoost_of_not_exists_error_zero S A hz] at hne
-    rw [normalizedScore_of_not_exists_error_zero S A hz]
-    have hpos : 0 < totalVote S A T := hZ hz
+    rw [normalizedScore_of_not_exists_error_zero S A hz,
+      show signVal y * (-score S A T x / totalVote S A T) =
+        -(score S A T x * signVal y) / totalVote S A T by ring]
     have hscore : 0 ≤ score S A T x * signVal y := by
-      cases y
-      · rw [ne_eq, Bool.not_eq_false, decide_eq_true_eq] at hne
-        rw [signVal_false, mul_one]
-        exact hne.le
-      · rw [ne_eq, Bool.not_eq_true, decide_eq_false_iff_not, not_lt] at hne
-        rw [signVal_true, mul_neg_one]
-        exact neg_nonneg.mpr hne
-    have heq : signVal y * (-score S A T x / totalVote S A T) =
-        -(score S A T x * signVal y) / totalVote S A T := by ring
-    rw [heq]
-    exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hscore) hpos.le
+      cases y <;> simp only [ne_eq, decide_eq_true_eq, decide_eq_false_iff_not, Classical.not_not,
+        signVal_false, signVal_true] at hne ⊢ <;> linarith
+    exact div_nonpos_of_nonpos_of_nonneg (neg_nonpos.mpr hscore) (hZ hz).le
 
 /-- **Uniform `T`-independent margin bound for AdaBoost**
 [SchapireFreundBartlettLee1998, Theorem 2] [MohriRostamizadehTalwalkar2018, Section 7.3.3,
@@ -378,11 +365,8 @@ theorem adaBoost_uniform_margin_bound_vc {α : Type*} [Finite α] (D : PMF (α �
   have hZ : (¬ ∃ t < T, (rounds S A t).error S = 0) → 0 < totalVote S A T := fun hz =>
     totalVote_pos S A hT
       (fun t ht => (rounds_error_nonneg S A t).lt_of_ne fun h => hz ⟨t, ht, h.symm⟩) hε
-  have hmono : (D.toOuterMeasure {p | adaBoost S A T p.1 ≠ p.2}).toReal ≤
-      (D.toOuterMeasure {p | signVal p.2 * normalizedScore S A T p.1 ≤ 0}).toReal :=
-    Probability.PMF.toOuterMeasure_toReal_mono D fun _ hp =>
-      signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ hp
-  exact lt_of_lt_of_le hlt hmono
+  exact lt_of_lt_of_le hlt (Probability.PMF.toOuterMeasure_toReal_mono D fun _ =>
+    signVal_mul_normalizedScore_nonpos_of_adaBoost_ne hZ)
 
 end AdaBoostScore
 
@@ -399,11 +383,10 @@ private theorem exp_mul_voteWeight_mul_two_sqrt {ε ρ : ℝ} (hε₀ : 0 < ε) 
     exp (ρ * voteWeight ε) * (2 * √(ε * (1 - ε))) =
       2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2) := by
   have h1m : 0 < 1 - ε := by linarith
+  have harg : ρ * (Real.log ((1 - ε) / ε) / 2) = Real.log ((1 - ε) / ε) * (ρ / 2) := by ring
   have hexp : exp (ρ * voteWeight ε) = (1 - ε) ^ (ρ / 2) * ε ^ (-(ρ / 2)) := by
-    rw [voteWeight, show ρ * (Real.log ((1 - ε) / ε) / 2) =
-        Real.log ((1 - ε) / ε) * (ρ / 2) by ring,
-      ← Real.rpow_def_of_pos (div_pos h1m hε₀), Real.div_rpow h1m.le hε₀.le,
-      div_eq_mul_inv, Real.rpow_neg hε₀.le]
+    rw [voteWeight, harg, ← Real.rpow_def_of_pos (div_pos h1m hε₀),
+      Real.div_rpow h1m.le hε₀.le, div_eq_mul_inv, Real.rpow_neg hε₀.le]
   have hsqrt : √(ε * (1 - ε)) = ε ^ ((1 : ℝ) / 2) * (1 - ε) ^ ((1 : ℝ) / 2) := by
     rw [Real.sqrt_eq_rpow, Real.mul_rpow hε₀.le h1m.le]
   rw [hexp, hsqrt]
@@ -412,9 +395,8 @@ private theorem exp_mul_voteWeight_mul_two_sqrt {ε ρ : ℝ} (hε₀ : 0 < ε) 
       = 2 * (ε ^ ((1 : ℝ) / 2) * ε ^ (-(ρ / 2))) *
           ((1 - ε) ^ ((1 : ℝ) / 2) * (1 - ε) ^ (ρ / 2)) := by ring
     _ = 2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2) := by
-        rw [← Real.rpow_add hε₀, ← Real.rpow_add h1m,
-          show (1 : ℝ) / 2 + -(ρ / 2) = (1 - ρ) / 2 by ring,
-          show (1 : ℝ) / 2 + ρ / 2 = (1 + ρ) / 2 by ring]
+        rw [← Real.rpow_add hε₀, ← Real.rpow_add h1m]
+        ring_nf
 
 /-- Monotonicity of `ε ↦ ε ^ p * (1 - ε) ^ (1 - p)` on `(0, p]`, by `log t ≤ t - 1`. -/
 private theorem rpow_mul_one_sub_rpow_le {ε b p : ℝ} (hε₀ : 0 < ε) (hεb : ε ≤ b)
@@ -423,128 +405,70 @@ private theorem rpow_mul_one_sub_rpow_le {ε b p : ℝ} (hε₀ : 0 < ε) (hεb 
   have hb₀ : 0 < b := lt_of_lt_of_le hε₀ hεb
   have hb₁ : 0 < 1 - b := by linarith
   have hε₁ : 0 < 1 - ε := by linarith
-  have hp₀ : 0 ≤ p := hb₀.le.trans hbp
-  have h1p : 0 ≤ 1 - p := by linarith
-  have h1 : Real.log (ε / b) ≤ ε / b - 1 := Real.log_le_sub_one_of_pos (div_pos hε₀ hb₀)
-  have h2 : Real.log ((1 - ε) / (1 - b)) ≤ (1 - ε) / (1 - b) - 1 :=
-    Real.log_le_sub_one_of_pos (div_pos hε₁ hb₁)
   have hlog : p * Real.log (ε / b) + (1 - p) * Real.log ((1 - ε) / (1 - b)) ≤ 0 := by
-    have hsum := add_le_add (mul_le_mul_of_nonneg_left h1 hp₀)
-      (mul_le_mul_of_nonneg_left h2 h1p)
-    have hid : p * (ε / b - 1) + (1 - p) * ((1 - ε) / (1 - b) - 1) =
-        (b - ε) * (b - p) / (b * (1 - b)) := by
-      field_simp
-      ring
-    rw [hid] at hsum
-    exact hsum.trans (div_nonpos_of_nonpos_of_nonneg
-      (mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith)) (by positivity))
-  have hr : p * Real.log ε + (1 - p) * Real.log (1 - ε) ≤
-      p * Real.log b + (1 - p) * Real.log (1 - b) := by
-    rw [Real.log_div hε₀.ne' hb₀.ne', Real.log_div hε₁.ne' hb₁.ne'] at hlog
-    linarith
-  have := Real.exp_le_exp.mpr hr
-  rw [Real.exp_add, Real.exp_add] at this
-  rwa [show Real.exp (p * Real.log ε) = ε ^ p by rw [mul_comm, Real.rpow_def_of_pos hε₀],
-    show Real.exp ((1 - p) * Real.log (1 - ε)) = (1 - ε) ^ (1 - p) by
-      rw [mul_comm, Real.rpow_def_of_pos hε₁],
-    show Real.exp (p * Real.log b) = b ^ p by rw [mul_comm, Real.rpow_def_of_pos hb₀],
-    show Real.exp ((1 - p) * Real.log (1 - b)) = (1 - b) ^ (1 - p) by
-      rw [mul_comm, Real.rpow_def_of_pos hb₁]] at this
+    have h2 := mul_le_mul_of_nonneg_left
+      (Real.log_le_sub_one_of_pos (div_pos hε₁ hb₁)) (by linarith : 0 ≤ 1 - p)
+    refine (add_le_add
+      (mul_le_mul_of_nonneg_left (Real.log_le_sub_one_of_pos (div_pos hε₀ hb₀)) (hb₀.le.trans hbp))
+      h2).trans ?_
+    rw [show p * (ε / b - 1) + (1 - p) * ((1 - ε) / (1 - b) - 1) =
+      (b - ε) * (b - p) / (b * (1 - b)) by field_simp; ring]
+    exact div_nonpos_of_nonpos_of_nonneg
+      (mul_nonpos_of_nonneg_of_nonpos (by linarith) (by linarith)) (by positivity)
+  rw [Real.log_div hε₀.ne' hb₀.ne', Real.log_div hε₁.ne' hb₁.ne'] at hlog
+  rw [Real.rpow_def_of_pos hε₀, Real.rpow_def_of_pos hε₁, Real.rpow_def_of_pos hb₀,
+    Real.rpow_def_of_pos hb₁, ← Real.exp_add, ← Real.exp_add]
+  exact Real.exp_le_exp.mpr (by linarith)
 
 /-- For `y > 1`, `2 * log y < y - y⁻¹`, since `(y - y⁻¹ - 2 log y)' = (1 - y⁻¹)² > 0`. -/
 private theorem two_mul_log_lt_sub_inv {y : ℝ} (hy : 1 < y) : 2 * Real.log y < y - y⁻¹ := by
   let g : ℝ → ℝ := fun t => t - t⁻¹ - 2 * Real.log t
-  have hdiff : ∀ t ∈ Set.Ioi (0 : ℝ), HasDerivAt g (1 + t⁻¹ ^ 2 - 2 / t) t := fun t ht => by
-    have ht0 : t ≠ 0 := ne_of_gt ht
-    have h1 : HasDerivAt (fun u : ℝ => u) 1 t := hasDerivAt_id t
-    have h2 : HasDerivAt (fun u : ℝ => u⁻¹) (-(t ^ 2)⁻¹) t := hasDerivAt_inv ht0
-    have h3 : HasDerivAt (fun u : ℝ => 2 * Real.log u) (2 * t⁻¹) t :=
-      (Real.hasDerivAt_log ht0).const_mul 2
-    have h123 : HasDerivAt (fun u : ℝ => u - u⁻¹ - 2 * Real.log u)
-        (1 - -(t ^ 2)⁻¹ - 2 * t⁻¹) t := (h1.sub h2).sub h3
-    rwa [show 1 - -(t ^ 2)⁻¹ - 2 * t⁻¹ = 1 + t⁻¹ ^ 2 - 2 / t by field_simp; ring] at h123
   have hmono : StrictMonoOn g (Set.Ici 1) := by
-    refine strictMonoOn_of_deriv_pos (convex_Ici 1) ?_ ?_
-    · refine ((continuousOn_id.sub (continuousOn_inv₀.mono fun t ht => ne_of_gt
-        (lt_of_lt_of_le zero_lt_one ht))).sub
-        ((Real.continuousOn_log.mono fun t ht => ne_of_gt
-          (lt_of_lt_of_le zero_lt_one ht)).const_mul 2))
-    · intro t ht
-      rw [interior_Ici] at ht
-      have ht0 : (0 : ℝ) < t := lt_trans zero_lt_one ht
-      rw [(hdiff t ht0).deriv]
-      have hsq : 1 + t⁻¹ ^ 2 - 2 / t = (1 - t⁻¹) ^ 2 := by field_simp; ring
-      rw [hsq]
-      exact sq_pos_of_ne_zero (sub_ne_zero.mpr (ne_of_gt (inv_lt_one_of_one_lt₀ ht)))
-  have hg1 : g 1 = 0 := by simp [g]
-  have hlt : g 1 < g y := hmono (le_refl 1) hy.le hy
-  rw [hg1] at hlt
-  dsimp only [g] at hlt
+    refine strictMonoOn_of_deriv_pos (convex_Ici 1)
+      ((continuousOn_id.sub (continuousOn_inv₀.mono fun _ ht => ( zero_lt_one.trans_le ht).ne')).sub
+        ((Real.continuousOn_log.mono fun _ ht => (zero_lt_one.trans_le ht).ne').const_mul 2))
+      fun t ht => ?_
+    rw [interior_Ici] at ht
+    have ht0 : t ≠ 0 := (zero_lt_one.trans ht).ne'
+    have hd : HasDerivAt g (1 - -(t ^ 2)⁻¹ - 2 * t⁻¹) t :=
+      ((hasDerivAt_id t).sub (hasDerivAt_inv ht0)).sub ((Real.hasDerivAt_log ht0).const_mul 2)
+    rw [hd.deriv, show 1 - -(t ^ 2)⁻¹ - 2 * t⁻¹ = (1 - t⁻¹) ^ 2 by field_simp; ring]
+    exact sq_pos_of_ne_zero (sub_ne_zero.mpr (inv_lt_one_of_one_lt₀ ht).ne')
+  have hlt : g 1 < g y := hmono le_rfl hy.le hy
+  simp only [g, inv_one, sub_self, Real.log_one, mul_zero] at hlt
   linarith
 
 /-- For `x ∈ (0, 1)`, `(1 - x / 2) * log (1 - x) + (1 + x / 2) * log (1 + x) < 0`. -/
 private theorem log_margin_factor_neg {x : ℝ} (hx₀ : 0 < x) (hx₁ : x < 1) :
     (1 - x / 2) * Real.log (1 - x) + (1 + x / 2) * Real.log (1 + x) < 0 := by
   let f : ℝ → ℝ := fun t => (1 - t / 2) * Real.log (1 - t) + (1 + t / 2) * Real.log (1 + t)
-  have hf_cont : ContinuousOn f (Set.Icc 0 x) := by
-    have h1 : ∀ t ∈ Set.Icc 0 x, 1 - t ≠ 0 := fun t ht => by linarith [ht.2]
-    have h2 : ∀ t ∈ Set.Icc 0 x, 1 + t ≠ 0 := fun t ht => by linarith [ht.1]
-    exact ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
-          fun t ht => h1 t ht))).add
-      ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
-          fun t ht => h2 t ht)))
+  have hf_cont : ContinuousOn f (Set.Icc 0 x) :=
+    ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
+        fun t ht => show 1 - t ≠ 0 by linarith [ht.2]))).add
+    ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
+        fun t ht => show 1 + t ≠ 0 by linarith [ht.1])))
   have hanti : StrictAntiOn f (Set.Icc 0 x) := by
-    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont ?_
-    intro t ht
+    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont fun t ht => ?_
     rw [interior_Icc] at ht
-    have ht₀ : 0 < t := ht.1
-    have ht₁ : t < 1 := lt_trans ht.2 hx₁
-    have h1m : 0 < 1 - t := by linarith
-    have h1p : 0 < 1 + t := by linarith
-    have hd1 : HasDerivAt (fun u : ℝ => (1 - u / 2) * Real.log (1 - u))
-        (-(1 / 2) * Real.log (1 - t) + (1 - t / 2) * (-1 / (1 - t))) t := by
-      have ha : HasDerivAt (fun u : ℝ => 1 - u / 2) (-(1 / 2)) t := by
-        have h : HasDerivAt (fun u : ℝ => 1 - u / 2) (0 - 1 / 2) t :=
-          (hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)
-        rwa [zero_sub] at h
-      have hb : HasDerivAt (fun u : ℝ => Real.log (1 - u)) (-1 / (1 - t)) t := by
-        have h := (Real.hasDerivAt_log h1m.ne').comp t
-          ((hasDerivAt_const t (1 : ℝ)).sub (hasDerivAt_id t))
-        change HasDerivAt (fun u : ℝ => Real.log (1 - u)) ((1 - t)⁻¹ * (0 - 1)) t at h
-        rwa [show (1 - t)⁻¹ * (0 - 1) = -1 / (1 - t) by ring] at h
-      exact ha.mul hb
-    have hd2 : HasDerivAt (fun u : ℝ => (1 + u / 2) * Real.log (1 + u))
-        (1 / 2 * Real.log (1 + t) + (1 + t / 2) * (1 / (1 + t))) t := by
-      have ha : HasDerivAt (fun u : ℝ => 1 + u / 2) (1 / 2) t := by
-        have h : HasDerivAt (fun u : ℝ => 1 + u / 2) (0 + 1 / 2) t :=
-          (hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)
-        rwa [zero_add] at h
-      have hb : HasDerivAt (fun u : ℝ => Real.log (1 + u)) (1 / (1 + t)) t := by
-        have h := (Real.hasDerivAt_log h1p.ne').comp t
-          ((hasDerivAt_const t (1 : ℝ)).add (hasDerivAt_id t))
-        change HasDerivAt (fun u : ℝ => Real.log (1 + u)) ((1 + t)⁻¹ * (0 + 1)) t at h
-        rwa [show (1 + t)⁻¹ * (0 + 1) = 1 / (1 + t) by ring] at h
-      exact ha.mul hb
-    have hsum : HasDerivAt f
-        ((-(1 / 2) * Real.log (1 - t) + (1 - t / 2) * (-1 / (1 - t))) +
-          (1 / 2 * Real.log (1 + t) + (1 + t / 2) * (1 / (1 + t)))) t :=
-      hd1.add hd2
-    rw [hsum.deriv]
-    have hlin : -(1 / 2) * Real.log (1 - t) + (1 - t / 2) * (-1 / (1 - t)) +
-        (1 / 2 * Real.log (1 + t) + (1 + t / 2) * (1 / (1 + t))) =
+    have h1m : 0 < 1 - t := by linarith [ht.2]
+    have h1p : 0 < 1 + t := by linarith [ht.1]
+    have hd1 := ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
+    have hd2 := ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
+    have hderiv : deriv f t =
         (2 * Real.log ((1 + t) / (1 - t)) -
           ((1 + t) / (1 - t) - ((1 + t) / (1 - t))⁻¹)) / 4 := by
-      rw [Real.log_div h1p.ne' h1m.ne']
+      rw [(show HasDerivAt f _ t from hd1.add hd2).deriv, Real.log_div h1p.ne' h1m.ne']
+      simp only [Function.comp_apply, Pi.sub_apply, Pi.add_apply, id_eq]
       field_simp
       ring
-    rw [hlin]
-    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith)
+    rw [hderiv]
+    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith [ht.1])
     exact div_neg_of_neg_of_pos (sub_neg.mpr (two_mul_log_lt_sub_inv hy)) (by norm_num)
-  have hf0 : f 0 = 0 := by simp [f]
-  have hlt : f x < f 0 := hanti ⟨le_refl 0, hx₀.le⟩ ⟨hx₀.le, le_refl x⟩ hx₀
-  rwa [hf0] at hlt
+  simpa [f] using hanti ⟨le_rfl, hx₀.le⟩ ⟨hx₀.le, le_rfl⟩ hx₀
 
 /-- Rewrite `((1 - 2 γ) ^ (1 - ρ)) * ((1 + 2 γ) ^ (1 + ρ))` as `exp` of a log combination. -/
 private theorem exp_log_marginFactor {γ ρ : ℝ} (h1m : 0 < 1 - 2 * γ) (h1p : 0 < 1 + 2 * γ) :
@@ -626,23 +550,15 @@ theorem marginCount_normalizedScore_le_prod (S : Fin m → α × Bool)
   have hprod_nonneg : 0 ≤ ∏ t ∈ range T,
       2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2) :=
-    prod_nonneg fun t ht => by
-      have he0 : 0 ≤ (rounds S A t).error S := rounds_error_nonneg S A t
-      have he1 : 0 ≤ 1 - (rounds S A t).error S := by linarith [hε t (mem_range.mp ht)]
-      exact mul_nonneg (mul_nonneg zero_le_two (Real.rpow_nonneg he0 _))
-        (Real.rpow_nonneg he1 _)
+    prod_nonneg fun t ht => mul_nonneg
+      (mul_nonneg zero_le_two (Real.rpow_nonneg (rounds_error_nonneg S A t) _))
+      (Real.rpow_nonneg (by linarith [hε t (mem_range.mp ht)]) _)
   by_cases hz : ∃ t < T, (rounds S A t).error S = 0
-  · have hempty : (univ.filter fun i : Fin m =>
-        signVal (S i).2 * normalizedScore S A T (S i).1 ≤ ρ).card = 0 := by
-      rw [card_eq_zero, filter_eq_empty_iff]
-      intro i _ hle
-      rw [normalizedScore_of_exists_error_zero S A hz] at hle
-      have heq := hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2 i
-      have hm1 : signVal (S i).2 * signVal ((rounds S A (Nat.find hz)).hyp (S i).1) = 1 := by
-        rw [heq, signVal_mul_self]
+  · rw [card_eq_zero.mpr (filter_eq_empty_iff.mpr fun i _ hle => ?_), Nat.cast_zero, zero_div]
+    · exact hprod_nonneg
+    · simp only [normalizedScore_of_exists_error_zero S A hz,
+        hyp_eq_of_error_eq_zero S A (Nat.find_spec hz).2 i, signVal_mul_self] at hle
       linarith
-    rw [hempty, Nat.cast_zero, zero_div]
-    exact hprod_nonneg
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · rw [Nat.cast_zero, div_zero]
     exact hprod_nonneg
@@ -736,20 +652,14 @@ theorem marginCount_normalizedScore_le_pow (S : Fin m → α × Bool)
         have h2pow : (2 : ℝ) ^ ((1 - ρ) / 2) * (2 : ℝ) ^ ((1 + ρ) / 2) = 2 := by
           rw [← Real.rpow_add zero_lt_two,
             show (1 - ρ) / 2 + (1 + ρ) / 2 = 1 by ring, Real.rpow_one]
-        calc 2 * ((1 - 2 * γ) ^ ((1 - ρ) / 2) / 2 ^ ((1 - ρ) / 2)) *
-              ((1 + 2 * γ) ^ ((1 + ρ) / 2) / 2 ^ ((1 + ρ) / 2))
-            = (2 / (2 ^ ((1 - ρ) / 2) * 2 ^ ((1 + ρ) / 2))) *
-                ((1 - 2 * γ) ^ ((1 - ρ) / 2) * (1 + 2 * γ) ^ ((1 + ρ) / 2)) := by ring
-          _ = (1 - 2 * γ) ^ ((1 - ρ) * (1 / 2)) * (1 + 2 * γ) ^ ((1 + ρ) * (1 / 2)) := by
-              rw [h2pow, div_self two_ne_zero, one_mul,
-                show (1 - ρ) / 2 = (1 - ρ) * (1 / 2) by ring,
-                show (1 + ρ) / 2 = (1 + ρ) * (1 / 2) by ring]
+        rw [mul_assoc, ← mul_div_mul_comm, h2pow, mul_div_cancel₀ _ two_ne_zero]
+        ring_nf
       calc 2 * ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2)
           = 2 * (ε ^ ((1 - ρ) / 2) * (1 - ε) ^ ((1 + ρ) / 2)) := by ring
         _ ≤ 2 * ((1 / 2 - γ) ^ ((1 - ρ) / 2) * (1 - (1 / 2 - γ)) ^ ((1 + ρ) / 2)) :=
             mul_le_mul_of_nonneg_left hmono zero_le_two
         _ = √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) := by
-            rw [← mul_assoc]; exact hhalf_eq
+            rw [← mul_assoc, hhalf_eq]
   calc ∏ t ∈ range T, 2 * (rounds S A t).error S ^ ((1 - ρ) / 2) *
         (1 - (rounds S A t).error S) ^ ((1 + ρ) / 2)
       ≤ ∏ _t ∈ range T, √((1 - 2 * γ) ^ (1 - ρ) * (1 + 2 * γ) ^ (1 + ρ)) :=

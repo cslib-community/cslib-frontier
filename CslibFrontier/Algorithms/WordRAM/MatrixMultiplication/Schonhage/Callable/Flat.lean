@@ -42,11 +42,10 @@ theorem entry_runs {W b out T : ℕ} {body : Code .standard 163} {inp : List ℕ
       y.Bounded W := by
   intro c
   let x : Data 163 := .init inp
-  have hb : (x.set Reg.address 1).mem ((x.set Reg.address 1).regs Reg.address) = b :=
-    (congrArg x.mem (Function.update_self Reg.address 1 x.regs)).trans hread
   have hload : ExecWithin (B := .standard) W (.op (.load Reg.base Reg.address))
       (x.set Reg.address 1) ((x.set Reg.address 1).set Reg.base b) 1 := by
-    rw [← hb]; exact ExecWithin.load
+    rw [← (congrArg x.mem (Function.update_self Reg.address 1 x.regs)).trans hread]
+    exact ExecWithin.load
   obtain ⟨n, hn, hruns, hexec, ybound⟩ :=
     (((ExecWithin.const (x := x) h1).seq hload).seq hy).to_program_init hi Reg.result
   exact ⟨n, by omega, hruns, hyr ▸ hexec, ybound⟩
@@ -86,10 +85,9 @@ theorem runs {W m N : ℕ} (caller : List ℕ)
 
 /-- The setup normalization sequence fits within `1024` flat instructions. -/
 theorem setup_size : setup.size ≤ 1024 := by
-  have heq : setup = .seq readSize (MemoryWindow.dynamicSetup (r := 160) powerBank 128) := rfl
-  have hr : readSize.size = 9 := rfl
-  rw [heq, Code.size, hr, MemoryWindow.size_dynamicSetup]
-  omega
+  change (.seq readSize (MemoryWindow.dynamicSetup (r := 160) powerBank 128) :
+    Code .standard 163).size ≤ 1024
+  rw [Code.size, show readSize.size = 9 from rfl, MemoryWindow.size_dynamicSetup]; omega
 
 /-- The setup normalization sequence never inspects the physical word width. -/
 theorem setup_not_readsWidth : ¬setup.ReadsWidth :=
@@ -98,20 +96,18 @@ theorem setup_not_readsWidth : ¬setup.ReadsWidth :=
 /-- The complete standalone caller has a fixed finite flat program, including halt. -/
 theorem program_length_le : (entryProgram.program Reg.result).length ≤ 131072 := by
   have hp := QueriedProduct.program_length_le true
-  simp only [Code.length_program] at hp ⊢
   have hc := MemoryWindow.size_compile (QueriedProduct.program true)
   have hs := setup_size
-  have hi : restoreInput.size = 13 := by decide +kernel
-  have ho : returnOutput.size = 13 := by decide +kernel
-  simp only [entryProgram, program, Code.size] at *
+  simp only [Code.length_program, entryProgram, program, Code.size,
+    show restoreInput.size = 13 by decide +kernel,
+    show returnOutput.size = 13 by decide +kernel] at hp ⊢
   omega
 
 /-- The width-independent code computes its own virtual modulus without reading physical width. -/
 theorem not_readsWidth : ¬entryProgram.ReadsWidth := by
-  have hr : ¬restoreInput.ReadsWidth := Code.not_readsWidth_of_readsWidthBool rfl
-  have ho : ¬returnOutput.ReadsWidth := Code.not_readsWidth_of_readsWidthBool rfl
   simp only [entryProgram, program, Code.ReadsWidth, Op.ReadsWidth,
     MemoryWindow.readsWidth_compile, QueriedProduct.not_readsWidth, setup_not_readsWidth,
-    hr, ho, not_false_eq_true, or_self]
+    Code.not_readsWidth_of_readsWidthBool (c := restoreInput) rfl,
+    Code.not_readsWidth_of_readsWidthBool (c := returnOutput) rfl, not_false_eq_true, or_self]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableProduct

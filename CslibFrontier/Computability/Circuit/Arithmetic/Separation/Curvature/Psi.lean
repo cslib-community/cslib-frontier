@@ -48,6 +48,7 @@ open Matrix Finset PowerSeries
   row : Fin μ → ℕ
   /-- The column indices. -/
   col : Fin μ → ℕ
+  deriving DecidableEq
 
 /-- The word with rows and columns exchanged. -/
 def Word.swap {μ : ℕ} (w : Word μ) : Word μ := ⟨w.col, w.row⟩

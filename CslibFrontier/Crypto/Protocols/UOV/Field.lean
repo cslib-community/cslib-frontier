@@ -68,43 +68,29 @@ abbrev F16 := BinaryField 4
 /-- UOV's `F256`, using the library's explicit degree-eight binary field. -/
 abbrev F256 := BinaryField 8
 
+private theorem polyOfCode_step {n k : ℕ} (h : n = 2 * k) : polyOfCode n = X * polyOfCode k :=
+  h ▸ polyOfCode_two_mul k
+
+private theorem polyOfCode_step_odd {n k : ℕ} (h : n = 2 * k + 1) :
+    polyOfCode n = 1 + X * polyOfCode k :=
+  h ▸ polyOfCode_two_mul_add_one k
+
 private theorem polyOfCode_nineteen : polyOfCode 19 = X ^ 4 + X + 1 := by
-  have h19 : polyOfCode 19 = 1 + X * polyOfCode 9 := by
-    exact polyOfCode_two_mul_add_one 9
-  have h9 : polyOfCode 9 = 1 + X * polyOfCode 4 := by
-    exact polyOfCode_two_mul_add_one 4
-  have h4 : polyOfCode 4 = X * polyOfCode 2 := by
-    exact polyOfCode_two_mul 2
-  rw [h19, h9, h4, polyOfCode_two]
+  rw [polyOfCode_step_odd (k := 9) rfl, polyOfCode_step_odd (k := 4) rfl,
+    polyOfCode_step (k := 2) rfl, polyOfCode_two]
   ring
 
 private theorem polyOfCode_two_hundred_eighty_three :
     polyOfCode 283 = X ^ 8 + X ^ 4 + X ^ 3 + X + 1 := by
-  have h283 : polyOfCode 283 = 1 + X * polyOfCode 141 := by
-    exact polyOfCode_two_mul_add_one 141
-  have h141 : polyOfCode 141 = 1 + X * polyOfCode 70 := by
-    exact polyOfCode_two_mul_add_one 70
-  have h70 : polyOfCode 70 = X * polyOfCode 35 := by
-    exact polyOfCode_two_mul 35
-  have h35 : polyOfCode 35 = 1 + X * polyOfCode 17 := by
-    exact polyOfCode_two_mul_add_one 17
-  have h17 : polyOfCode 17 = 1 + X * polyOfCode 8 := by
-    exact polyOfCode_two_mul_add_one 8
-  have h8 : polyOfCode 8 = X * polyOfCode 4 := by
-    exact polyOfCode_two_mul 4
-  have h4 : polyOfCode 4 = X * polyOfCode 2 := by
-    exact polyOfCode_two_mul 2
-  rw [h283, h141, h70, h35, h17, h8, h4, polyOfCode_two]
+  rw [polyOfCode_step_odd (k := 141) rfl, polyOfCode_step_odd (k := 70) rfl,
+    polyOfCode_step (k := 35) rfl, polyOfCode_step_odd (k := 17) rfl,
+    polyOfCode_step_odd (k := 8) rfl, polyOfCode_step (k := 4) rfl,
+    polyOfCode_step (k := 2) rfl, polyOfCode_two]
   ring
 
 private theorem polyOfCode_twenty_seven : polyOfCode 0x1b = X ^ 4 + X ^ 3 + X + 1 := by
-  have h27 : polyOfCode 0x1b = 1 + X * polyOfCode 13 := by
-    exact polyOfCode_two_mul_add_one 13
-  have h13 : polyOfCode 13 = 1 + X * polyOfCode 6 := by
-    exact polyOfCode_two_mul_add_one 6
-  have h6 : polyOfCode 6 = X * polyOfCode 3 := by
-    exact polyOfCode_two_mul 3
-  rw [h27, h13, h6, polyOfCode_three]
+  rw [polyOfCode_step_odd (k := 13) rfl, polyOfCode_step_odd (k := 6) rfl,
+    polyOfCode_step (k := 3) rfl, polyOfCode_three]
   ring
 
 /-- The least-code degree-four irreducible binary polynomial has code `19 = 0b10011`. -/
@@ -138,13 +124,10 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
     rw [List.find?_eq_none]
     intro m hm hpred
     have hm_lt : m < 256 := List.mem_range.mp hm
-    have hlog : Nat.log 2 m ≠ 8 := by
-      rcases eq_or_ne m 0 with rfl | hm0
-      · norm_num
-      · exact ne_of_lt (Nat.log_lt_of_lt_pow hm0 (by simpa using hm_lt))
-    have hpred' : Nat.log 2 m = 8 ∧ isIrreducibleCode m = true := by
-      simpa only [pred, Bool.and_eq_true, beq_iff_eq] using hpred
-    exact hlog hpred'.1
+    have hlog : Nat.log 2 m = 8 := beq_iff_eq.mp (Bool.and_eq_true_iff.mp hpred).1
+    rcases eq_or_ne m 0 with rfl | hm0
+    · norm_num at hlog
+    · exact (Nat.log_lt_of_lt_pow hm0 (by simpa using hm_lt)).ne hlog
   have h283_log : Nat.log 2 283 = 8 := by
     decide
   have h283_irreducible : isIrreducibleCode 283 = true := by
@@ -155,13 +138,8 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
     intro d _
     by_cases hd32 : d < 32
     · interval_cases d <;> decide
-    · simp only [divisorPasses, Bool.or_eq_true, decide_eq_true_eq]
-      left
-      right
-      rw [h283_log]
-      have hlog : 5 ≤ Nat.log 2 d :=
-        Nat.le_log_of_pow_le one_lt_two (by norm_num; omega)
-      norm_num
+    · have hlog : 5 ≤ Nat.log 2 d := Nat.le_log_of_pow_le one_lt_two (by omega)
+      simp only [divisorPasses, Bool.or_eq_true, decide_eq_true_eq, h283_log]
       omega
   have h283 : (codeRange 283 1).find? pred = some 283 := by
     simp [pred, codeRange, h283_irreducible, h283_log]
@@ -207,9 +185,8 @@ noncomputable def f256EquivByte : F256 ≃ Fin 256 :=
 /-- A bounded polynomial code is unchanged by UOV's `F16` nibble encoding. -/
 theorem val_f16EquivNibble_mk_polyOfCode {c : ℕ} (hc : c < 16) :
     (f16EquivNibble (AdjoinRoot.mk (leastIrreducible 4) (polyOfCode c))).val = c := by
-  have hc' : c < 2 ^ 4 := by simpa using hc
   simpa only [f16EquivNibble] using
-    BinaryField.val_equivFin_mk_polyOfCode (w := 4) (c := c) (by norm_num) hc'
+    BinaryField.val_equivFin_mk_polyOfCode (w := 4) (c := c) (by norm_num) (by omega)
 
 /-- Decoding a nibble gives the class of the binary polynomial with that code. -/
 theorem f16EquivNibble_symm_apply (c : Fin 16) :
@@ -220,9 +197,8 @@ theorem f16EquivNibble_symm_apply (c : Fin 16) :
 /-- A bounded polynomial code is unchanged by UOV's `F256` byte encoding. -/
 theorem val_f256EquivByte_mk_polyOfCode {c : ℕ} (hc : c < 256) :
     (f256EquivByte (AdjoinRoot.mk (leastIrreducible 8) (polyOfCode c))).val = c := by
-  have hc' : c < 2 ^ 8 := by simpa using hc
   simpa only [f256EquivByte] using
-    BinaryField.val_equivFin_mk_polyOfCode (w := 8) (c := c) (by norm_num) hc'
+    BinaryField.val_equivFin_mk_polyOfCode (w := 8) (c := c) (by norm_num) (by omega)
 
 /-- Decoding a byte gives the class of the binary polynomial with that code. -/
 theorem f256EquivByte_symm_apply (c : Fin 256) :
@@ -250,24 +226,20 @@ theorem val_f16EquivNibble_root :
 
 /-- The multiplicative identity has nibble value `1`. -/
 theorem val_f16EquivNibble_one : (f16EquivNibble (1 : F16)).val = 1 := by
-  have hmk : AdjoinRoot.mk (leastIrreducible 4) (polyOfCode 1) = (1 : F16) := by
-    rw [polyOfCode_one]
-    exact map_one _
-  rw [← hmk]
-  exact val_f16EquivNibble_mk_polyOfCode (c := 1) (by norm_num)
+  simpa only [polyOfCode_one, map_one] using
+    val_f16EquivNibble_mk_polyOfCode (c := 1) (by norm_num)
+
+private theorem adjoinRoot_pow_eq_mk {w k : ℕ} {p : Polynomial (ZMod 2)}
+    (h : X ^ k + p = leastIrreducible w) :
+    AdjoinRoot.root (leastIrreducible w) ^ k = AdjoinRoot.mk (leastIrreducible w) p := by
+  change (AdjoinRoot.mk (leastIrreducible w) X) ^ k = _
+  rw [← map_pow, ← sub_eq_zero, CharTwo.sub_eq_add, ← map_add, h, AdjoinRoot.mk_self]
 
 /-- In UOV's `F16`, the quotient relation is `X ^ 4 = X + 1`, encoded as `0x3`. -/
 theorem val_f16EquivNibble_root_pow_four :
     (f16EquivNibble (AdjoinRoot.root (leastIrreducible 4) ^ 4)).val = 3 := by
-  have hroot : AdjoinRoot.root (leastIrreducible 4) ^ 4 =
-      AdjoinRoot.mk (leastIrreducible 4) (polyOfCode 3) := by
-    change (AdjoinRoot.mk (leastIrreducible 4) X) ^ 4 = _
-    rw [← map_pow, ← sub_eq_zero, CharTwo.sub_eq_add, ← map_add]
-    have hpoly : X ^ 4 + polyOfCode 3 = leastIrreducible 4 := by
-      rw [f16_modulus, polyOfCode_three]
-      ring
-    rw [hpoly, AdjoinRoot.mk_self]
-  rw [hroot, val_f16EquivNibble_mk_polyOfCode (by norm_num)]
+  rw [adjoinRoot_pow_eq_mk (p := polyOfCode 3) (by rw [f16_modulus, polyOfCode_three]; ring),
+    val_f16EquivNibble_mk_polyOfCode (by norm_num)]
 
 /-- The polynomial-basis generator `X` has byte value `2`, not the bit-reversed value `64`. -/
 theorem val_f256EquivByte_root :
@@ -279,14 +251,8 @@ theorem val_f256EquivByte_root :
 `X ^ 8 = X ^ 4 + X ^ 3 + X + 1`, encoded as `0x1b`. -/
 theorem val_f256EquivByte_root_pow_eight :
     (f256EquivByte (AdjoinRoot.root (leastIrreducible 8) ^ 8)).val = 0x1b := by
-  have hroot : AdjoinRoot.root (leastIrreducible 8) ^ 8 =
-      AdjoinRoot.mk (leastIrreducible 8) (polyOfCode 0x1b) := by
-    change (AdjoinRoot.mk (leastIrreducible 8) X) ^ 8 = _
-    rw [← map_pow, ← sub_eq_zero, CharTwo.sub_eq_add, ← map_add]
-    have hpoly : X ^ 8 + polyOfCode 0x1b = leastIrreducible 8 := by
-      rw [f256_modulus, polyOfCode_twenty_seven]
-      ring
-    rw [hpoly, AdjoinRoot.mk_self]
-  rw [hroot, val_f256EquivByte_mk_polyOfCode (by norm_num)]
+  rw [adjoinRoot_pow_eq_mk (p := polyOfCode 0x1b)
+      (by rw [f256_modulus, polyOfCode_twenty_seven]; ring),
+    val_f256EquivByte_mk_polyOfCode (by norm_num)]
 
 end Cslib.Crypto.UOV

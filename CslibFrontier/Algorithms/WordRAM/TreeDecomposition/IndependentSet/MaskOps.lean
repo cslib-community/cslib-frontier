@@ -138,28 +138,20 @@ private theorem selMemBagProg_spec {w : ℕ} (args : SelMemArgs) {xs : List ℕ}
         if found = 1 ∨ selMemMask args.target ys curM = true then 1 else 0 by
     have hrun := this xs args.ptr args.mask 0 hxs (.inl rfl)
     rw [hlen] at hrun
-    refine ⟨?_, selMemBagProg_state args s, ?_, hcost⟩
-    · unfold selMemBagProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold selMemBagProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate selMemStep args.target args.len ⟨args.ptr, args.mask, 0⟩)).found = _
-      rw [hrun.2]
-      cases selMemMask args.target xs args.mask <;> rfl
+    unfold selMemBagProg
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _),
+      selMemBagProg_state args s, ?_, hcost⟩
+    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+    simpa only [zero_ne_one, false_or] using hrun.2
   intro ys
   induction ys with
   | nil =>
     intro cur curM found _ hfd
-    have h0 : iterate selMemStep args.target 0 ⟨cur, curM, found⟩ = pure ⟨cur, curM, found⟩ := rfl
-    simp only [List.length_nil, h0, selMemMask]
-    refine ⟨validHistory_pure w s _, ?_⟩
-    rcases hfd with rfl | rfl <;> rfl
+    dsimp only [List.length_nil, iterate, selMemMask]
+    exact ⟨validHistory_pure w s _, by rcases hfd with rfl | rfl <;> rfl⟩
   | cons u rest ih =>
     intro cur curM found hcur hfd
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
-    have hcur_lt : cur < s.frontier := by omega
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     let found' := if curM % 2 = 1 then (if args.target = u then 1 else found) else found
     have hfd' : found' = 0 ∨ found' = 1 := by
       dsimp only [found']
@@ -171,33 +163,16 @@ private theorem selMemBagProg_spec {w : ℕ} (args : SelMemArgs) {xs : List ℕ}
       dsimp only [selMemStep, found']
       change (⟨cur + 1, curM / 2, _⟩ : SelMemState) = _
       rw [hmem_u]
-    simp only [List.length_cons]
-    change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (selMemStep (args.target, ⟨cur, curM, found⟩) >>=
-            iterate selMemStep args.target rest.length)) ∧
-      ((Memory.spec 0).clientResult s
-        (selMemStep (args.target, ⟨cur, curM, found⟩) >>=
-          iterate selMemStep args.target rest.length)).found = _
-    refine ⟨validHistory_bind_step (validHistory_read_bind hcur_lt (validHistory_pure w s _)) ?_,
-      ?_⟩
-    · change (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s
-          (iterate selMemStep args.target rest.length
-            ((Memory.spec 0).clientResult s (selMemStep (args.target, ⟨cur, curM, found⟩)))))
-      rwa [hres_step]
-    · rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate selMemStep args.target rest.length
-          ((Memory.spec 0).clientResult s
-            (selMemStep (args.target, ⟨cur, curM, found⟩))))).found = _
-      rw [hres_step, hr_rest]
+    dsimp only [List.length_cons, iterate]
+    refine ⟨validHistory_bind_step
+        (validHistory_read_bind (by dsimp only; omega) (validHistory_pure w s _))
+        (by rwa [hres_step]), ?_⟩
+    rw [StateTransitionSpec.clientResult_bind, hres_step]
+    exact hr_rest.trans (by
       dsimp only [found', selMemMask]
       rcases hfd with rfl | rfl
-      · by_cases hbit : curM % 2 = 1
-        · by_cases heq : args.target = u <;> simp [hbit, heq]
-        · simp [hbit]
-      · simp only [ite_self, true_or, ↓reduceIte]
+      · by_cases hbit : curM % 2 = 1 <;> by_cases heq : args.target = u <;> simp [hbit, heq]
+      · simp only [ite_self, true_or, ↓reduceIte])
 
 private theorem selMemBagProg_realizes :
     Realizes .exact selMemBagProg WordEncoding.encode WordEncoding.encode
@@ -290,20 +265,21 @@ def keyMaskProg (args : MaskTransArgs) : Memory.Prog ℕ := do
     ⟨args.bagPPtr, 1, 0⟩
   pure res.acc
 
+private theorem keyMaskStep_state (env : KeyMaskEnv) (st : KeyMaskState) (m : Memory.State) :
+    (Memory.spec 0).clientState m (keyMaskStep (env, st)) = m := by
+  unfold keyMaskStep
+  dsimp only
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+    selMemBagProg_state]
+  rfl
+
 /-- `keyMaskProg` is read-only and leaves memory unchanged. -/
 theorem keyMaskProg_state (args : MaskTransArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (keyMaskProg args) = s := by
   unfold keyMaskProg
   rw [StateTransitionSpec.clientState_bind]
-  refine clientState_iterate_eq_of keyMaskStep ⟨args.bagBPtr, args.bagBLen, args.mask⟩
-    (fun st m => ?_) args.bagPLen ⟨args.bagPPtr, 1, 0⟩ s
-  unfold keyMaskStep
-  dsimp only
-  rw [StateTransitionSpec.clientState_bind]
-  change (Memory.spec 0).clientState m
-    (selMemBagProg ⟨m.mem st.curP, args.bagBPtr, args.bagBLen, args.mask⟩ >>= _) = m
-  rw [StateTransitionSpec.clientState_bind, selMemBagProg_state]
-  rfl
+  exact clientState_iterate_eq_of keyMaskStep ⟨args.bagBPtr, args.bagBLen, args.mask⟩
+    (keyMaskStep_state _) args.bagPLen ⟨args.bagPPtr, 1, 0⟩ s
 
 /-- Correctness and `bagPLen * (bagBLen + 1)` memory-cost bound for `keyMaskProg`. -/
 theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
@@ -325,29 +301,20 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         ys.length * (args.bagBLen + 1) by
     have hrun := this LP args.bagPPtr 1 0 hLP
     rw [hlenP] at hrun
-    refine ⟨?_, keyMaskProg_state args s, ?_, ?_⟩
-    · unfold keyMaskProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold keyMaskProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate keyMaskStep env args.bagPLen ⟨args.bagPPtr, 1, 0⟩)).acc = _
-      rw [hrun.2.1, Nat.zero_add, Nat.one_mul]
-    · unfold keyMaskProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
+    unfold keyMaskProg
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _), keyMaskProg_state args s,
+      ?_, by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
+    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+    simpa only [Nat.zero_add, Nat.one_mul] using hrun.2.1
   intro ys
   induction ys with
   | nil =>
     intro curP pow2 acc _
-    have h0 : iterate keyMaskStep env 0 ⟨curP, pow2, acc⟩ = pure ⟨curP, pow2, acc⟩ := rfl
-    simp only [List.length_nil, h0, keyMask, Nat.mul_zero, Nat.add_zero]
+    dsimp only [List.length_nil, iterate, keyMask, Nat.mul_zero, Nat.add_zero]
     exact ⟨validHistory_pure w s _, rfl, by simp [memoryCost_pure]⟩
   | cons u rest ih =>
     intro curP pow2 acc hcur
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
-    have hcur_lt : curP < s.frontier := by omega
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     obtain ⟨hv_sel, hst_sel, hr_sel, hc_sel⟩ :=
       selMemBagProg_spec (w := w) ⟨u, args.bagBPtr, args.bagBLen, args.mask⟩ hLB hlenB
     let addTerm := if selMemMask u LB args.mask then pow2 else 0
@@ -361,17 +328,10 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         ((Memory.spec w).clientHistory s (keyMaskStep (env, ⟨curP, pow2, acc⟩))) := by
       unfold keyMaskStep
       dsimp only [env]
-      refine validHistory_read_bind hcur_lt ?_
+      refine validHistory_read_bind (by omega) ?_
       rw [hmem_u]
       exact validHistory_bind_step hv_sel (validHistory_pure w _ _)
-    have hst_step : (Memory.spec 0).clientState s (keyMaskStep (env, ⟨curP, pow2, acc⟩)) = s := by
-      unfold keyMaskStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientState_bind]
-      change (Memory.spec 0).clientState s
-        (selMemBagProg ⟨s.mem curP, args.bagBPtr, args.bagBLen, args.mask⟩ >>= _) = s
-      rw [StateTransitionSpec.clientState_bind, selMemBagProg_state]
-      rfl
+    have hst_step := keyMaskStep_state env ⟨curP, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s (keyMaskStep (env, ⟨curP, pow2, acc⟩)) =
         ⟨curP + 1, 2 * pow2, acc + addTerm⟩ := by
       unfold keyMaskStep
@@ -389,10 +349,7 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
         (selMemBagProg ⟨s.mem curP, args.bagBPtr, args.bagBLen, args.mask⟩ >>= _) s ≤ _
       rw [hmem_u, memoryCost_bind', hst_sel, memoryCost_pure, Nat.add_zero]
       omega
-    simp only [List.length_cons]
-    have hiter_eq : iterate keyMaskStep env (rest.length + 1) ⟨curP, pow2, acc⟩ =
-        (keyMaskStep (env, ⟨curP, pow2, acc⟩) >>= iterate keyMaskStep env rest.length) := rfl
-    rw [hiter_eq]
+    dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [addTerm, keyMask]
@@ -405,7 +362,7 @@ theorem keyMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
               ⟨curP + 1, 2 * pow2, acc + addTerm⟩) s
           ≤ (args.bagBLen + 1) + rest.length * (args.bagBLen + 1) :=
             Nat.add_le_add hc_step hc_rest
-        _ = (rest.length + 1) * (args.bagBLen + 1) := by rw [Nat.succ_mul, Nat.add_comm]
+        _ = (rest.length + 1) * (args.bagBLen + 1) := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `keyMaskProg`. -/
 theorem keyMaskProg_realizes :
@@ -425,35 +382,26 @@ theorem keyMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hsub : d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 := by omega
     have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) := by
-      rw [hp2, hsub, Nat.pow_succ, Nat.mul_comm]
-    have hp2_le : 2 * st.pow2 ≤ 2 ^ d.bagPLen := by
-      rw [hp2_next]
-      exact Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _)
-    have hp2_fit : Fits w (2 * st.pow2) := hpow.of_le hp2_le
+      rw [hp2, show d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 by omega, Nat.pow_succ, Nat.mul_comm]
+    have hp2_fit : Fits w (2 * st.pow2) :=
+      hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
     have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
     have hacc1_fit : Fits w (st.acc + st.pow2) := hp2_fit.of_le (by omega)
     have hacc0_fit : Fits w (st.acc + 0) := hp2_fit.of_le (by omega)
-    refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩
-    · repeat (first | split | assumption | refine And.intro ?_ ?_)
-    · unfold keyMaskStep
+    obtain ⟨add, hadd_le, hres⟩ : ∃ add ≤ st.pow2, (Memory.spec 0).clientResult m
+        (keyMaskStep (⟨d.bagBPtr, d.bagBLen, d.mask⟩, st)) =
+        ⟨st.curP + 1, 2 * st.pow2, st.acc + add⟩ := by
+      unfold keyMaskStep
       dsimp only
       rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
         selMemBagProg_state]
-      change (st.curP + 1) + j = d.bagPPtr + d.bagPLen
-      omega
-    · unfold keyMaskStep
-      dsimp only
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        selMemBagProg_state]
-      exact hp2_next
-    · unfold keyMaskStep
-      dsimp only
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        selMemBagProg_state]
-      change st.acc + (if _ then st.pow2 else 0) < 2 * st.pow2
-      split_ifs <;> omega
+      exact ⟨_, by split_ifs <;> omega, rfl⟩
+    refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
+      Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩ <;> rw [hres]
+    · dsimp only; omega
+    · exact hp2_next
+    · dsimp only; omega
 
 /-! ### Parent-mask restriction (`restrictMaskProg`) -/
 
@@ -498,17 +446,20 @@ def restrictMaskProg (args : MaskTransArgs) : Memory.Prog ℕ := do
     ⟨args.bagPPtr, args.mask, 1, 0⟩
   pure res.acc
 
+private theorem restrictStep_state (env : RestrictEnv) (st : RestrictState) (m : Memory.State) :
+    (Memory.spec 0).clientState m (restrictStep (env, st)) = m := by
+  unfold restrictStep
+  dsimp only
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind, bagMemProg_state]
+  rfl
+
 /-- `restrictMaskProg` is read-only and leaves memory unchanged. -/
 theorem restrictMaskProg_state (args : MaskTransArgs) (s : Memory.State) :
     (Memory.spec 0).clientState s (restrictMaskProg args) = s := by
   unfold restrictMaskProg
   rw [StateTransitionSpec.clientState_bind]
-  refine clientState_iterate_eq_of restrictStep ⟨args.bagBPtr, args.bagBLen⟩
-    (fun st m => ?_) args.bagPLen ⟨args.bagPPtr, args.mask, 1, 0⟩ s
-  unfold restrictStep
-  dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind, bagMemProg_state]
-  rfl
+  exact clientState_iterate_eq_of restrictStep ⟨args.bagBPtr, args.bagBLen⟩
+    (restrictStep_state _) args.bagPLen ⟨args.bagPPtr, args.mask, 1, 0⟩ s
 
 /-- Correctness and `bagPLen * (bagBLen + 1)` memory-cost bound for `restrictMaskProg`. -/
 theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ}
@@ -531,30 +482,21 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
         ys.length * (args.bagBLen + 1) by
     have hrun := this LP args.bagPPtr args.mask 1 0 hLP
     rw [hlenP] at hrun
-    refine ⟨?_, restrictMaskProg_state args s, ?_, ?_⟩
-    · unfold restrictMaskProg
-      exact validHistory_bind_step hrun.1 (validHistory_pure w _ _)
-    · unfold restrictMaskProg
-      rw [StateTransitionSpec.clientResult_bind]
-      change ((Memory.spec 0).clientResult s
-        (iterate restrictStep env args.bagPLen ⟨args.bagPPtr, args.mask, 1, 0⟩)).acc = _
-      rw [hrun.2.1, Nat.zero_add, Nat.one_mul]
-    · unfold restrictMaskProg
-      rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      exact hrun.2.2
+    unfold restrictMaskProg
+    refine ⟨validHistory_bind_step hrun.1 (validHistory_pure w _ _),
+      restrictMaskProg_state args s, ?_,
+      by simpa only [memoryCost_bind', memoryCost_pure, Nat.add_zero] using hrun.2.2⟩
+    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
+    simpa only [Nat.zero_add, Nat.one_mul] using hrun.2.1
   intro ys
   induction ys with
   | nil =>
     intro curP curS pow2 acc _
-    have h0 : iterate restrictStep env 0 ⟨curP, curS, pow2, acc⟩ =
-        pure ⟨curP, curS, pow2, acc⟩ := rfl
-    simp only [List.length_nil, h0, restrictMask, Nat.mul_zero, Nat.add_zero]
+    dsimp only [List.length_nil, iterate, restrictMask, Nat.mul_zero, Nat.add_zero]
     exact ⟨validHistory_pure w s _, rfl, by simp [memoryCost_pure]⟩
   | cons u rest ih =>
     intro curP curS pow2 acc hcur
-    rw [HoldsIn.cons_iff] at hcur
-    obtain ⟨hb, hmem_u, hrest⟩ := hcur
-    have hcur_lt : curP < s.frontier := by omega
+    obtain ⟨hb, hmem_u, hrest⟩ := HoldsIn.cons_iff.mp hcur
     obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
       bagMemProg_spec (w := w) ⟨u, args.bagBPtr, args.bagBLen⟩ hLB hlenB
     let addTerm := if curS % 2 = 1 ∧ memBag u LB = true then pow2 else 0
@@ -570,16 +512,10 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
         ((Memory.spec w).clientHistory s (restrictStep (env, ⟨curP, curS, pow2, acc⟩))) := by
       unfold restrictStep
       dsimp only [env]
-      refine validHistory_read_bind hcur_lt ?_
+      refine validHistory_read_bind (by omega) ?_
       rw [hmem_u]
       exact validHistory_bind_step hv_bm (validHistory_pure w _ _)
-    have hst_step : (Memory.spec 0).clientState s
-        (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) = s := by
-      unfold restrictStep
-      dsimp only [env]
-      rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
-        bagMemProg_state]
-      rfl
+    have hst_step := restrictStep_state env ⟨curP, curS, pow2, acc⟩ s
     have hres_step : (Memory.spec 0).clientResult s
         (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) =
         ⟨curP + 1, curS / 2, 2 * pow2, acc + addTerm⟩ := by
@@ -599,30 +535,22 @@ theorem restrictMaskProg_spec {w : ℕ} (args : MaskTransArgs) {LB LP : List ℕ
       change 1 + memoryCost (bagMemProg ⟨s.mem curP, args.bagBPtr, args.bagBLen⟩ >>= _) s ≤ _
       rw [hmem_u, memoryCost_bind', hst_bm, memoryCost_pure, Nat.add_zero]
       omega
-    simp only [List.length_cons]
-    have hiter_eq : iterate restrictStep env (rest.length + 1) ⟨curP, curS, pow2, acc⟩ =
-        (restrictStep (env, ⟨curP, curS, pow2, acc⟩) >>= iterate restrictStep env rest.length) :=
-      rfl
-    rw [hiter_eq]
+    dsimp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, hr_rest]
       dsimp only [addTerm, restrictMask]
-      by_cases hbit : curS % 2 = 1
-      · by_cases hin : u ∈ LB
-        · simp only [hbit, memBag_eq_decide, hin, decide_true, and_self, ↓reduceIte,
-            Nat.left_distrib, Nat.mul_one, ← Nat.mul_assoc, Nat.mul_comm pow2 2]
-          omega
-        · simp only [hbit, memBag_eq_decide, hin, decide_false, and_false, Bool.false_eq_true,
-            ↓reduceIte, Nat.add_zero, Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2]
-      · simp only [hbit, false_and, ↓reduceIte, Nat.add_zero, Nat.zero_add,
-          ← Nat.mul_assoc, Nat.mul_comm pow2 2]
+      (by_cases hbit : curS % 2 = 1 <;> by_cases hin : u ∈ LB <;>
+        simp only [hbit, memBag_eq_decide, hin, decide_true, decide_false, and_self, and_false,
+          false_and, Bool.false_eq_true, ↓reduceIte, Nat.left_distrib, Nat.mul_one, Nat.add_zero,
+          Nat.zero_add, ← Nat.mul_assoc, Nat.mul_comm pow2 2])
+      omega
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (restrictStep (env, ⟨curP, curS, pow2, acc⟩)) s +
             memoryCost (iterate restrictStep env rest.length
               ⟨curP + 1, curS / 2, 2 * pow2, acc + addTerm⟩) s
           ≤ (args.bagBLen + 1) + rest.length * (args.bagBLen + 1) :=
             Nat.add_le_add hc_step hc_rest
-        _ = (rest.length + 1) * (args.bagBLen + 1) := by rw [Nat.succ_mul, Nat.add_comm]
+        _ = (rest.length + 1) * (args.bagBLen + 1) := by ring
 
 /-- Exact-basis Word-RAM realization certificate for `restrictMaskProg`. -/
 theorem restrictMaskProg_realizes :
@@ -643,32 +571,25 @@ theorem restrictMaskProg_realizes :
         st.pow2 = 2 ^ (d.bagPLen - j) ∧ st.acc < st.pow2)
       (fun j st m ⟨hj_le, hcur, hp2, hacc_lt⟩ => ?_)
       ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero], Nat.zero_lt_one⟩
-    have hsub : d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 := by omega
     have hp2_next : 2 * st.pow2 = 2 ^ (d.bagPLen - j) := by
-      rw [hp2, hsub, Nat.pow_succ, Nat.mul_comm]
+      rw [hp2, show d.bagPLen - j = (d.bagPLen - (j + 1)) + 1 by omega, Nat.pow_succ, Nat.mul_comm]
     have hp2_fit : Fits w (2 * st.pow2) :=
-      hpow.of_le (by rw [hp2_next]; exact Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
+      hpow.of_le (hp2_next ▸ Nat.pow_le_pow_right (by decide) (Nat.sub_le _ _))
     have hcur_fit : Fits w (st.curP + 1) := hfitP.of_le (by omega)
     have hacc1_fit : Fits w (st.acc + st.pow2) := hp2_fit.of_le (by omega)
     have hacc0_fit : Fits w (st.acc + 0) := hp2_fit.of_le (by omega)
-    refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩
-    · repeat (first | split | assumption | refine And.intro ?_ ?_)
-    · unfold restrictStep
+    obtain ⟨add, hadd_le, hres⟩ : ∃ add ≤ st.pow2, (Memory.spec 0).clientResult m
+        (restrictStep (⟨d.bagBPtr, d.bagBLen⟩, st)) =
+        ⟨st.curP + 1, st.curS / 2, 2 * st.pow2, st.acc + add⟩ := by
+      unfold restrictStep
       dsimp only
       rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
         bagMemProg_state]
-      change (st.curP + 1) + j = d.bagPPtr + d.bagPLen
-      omega
-    · unfold restrictStep
-      dsimp only
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        bagMemProg_state]
-      exact hp2_next
-    · unfold restrictStep
-      dsimp only
-      rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
-        bagMemProg_state]
-      change st.acc + (if _ then _ else 0) < 2 * st.pow2
-      split_ifs <;> omega
+      exact ⟨_, by split_ifs <;> omega, rfl⟩
+    refine ⟨by repeat (first | split | assumption | refine And.intro ?_ ?_),
+      Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩ <;> rw [hres]
+    · dsimp only; omega
+    · exact hp2_next
+    · dsimp only; omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

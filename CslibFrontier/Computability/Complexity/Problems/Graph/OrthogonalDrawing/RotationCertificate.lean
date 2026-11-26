@@ -80,13 +80,9 @@ theorem exitNeighbor_index (G : Graph) (d : OrthogonalDrawing)
       let r := (sourceRoute G d e).reverse
       if side then r.getD (r.length - 2) (0, 0) else r.getD 1 (0, 0) := by
   cases side <;> simp only [exitNeighbor, Dart.index, Bool.toNat_false, Bool.toNat_true,
-    Nat.add_zero, Bool.false_eq_true, ↓reduceIte]
-  · have hdiv : (2 * e.val) / 2 = e.val := by omega
-    have hmod : (2 * e.val) % 2 = 0 := by omega
-    simp only [hdiv, hmod, ↓reduceIte]
-  · have hdiv : (2 * e.val + 1) / 2 = e.val := by omega
-    have hmod : (2 * e.val + 1) % 2 = 1 := by omega
-    simp only [hdiv, hmod, Nat.one_ne_zero, ↓reduceIte]
+    Nat.add_zero, Bool.false_eq_true, ↓reduceIte, Nat.mul_div_right _ two_pos, Nat.mul_mod_right,
+    show (2 * e.val + 1) / 2 = e.val by omega, show (2 * e.val + 1) % 2 = 1 by omega,
+    Nat.one_ne_zero]
 
 /-- Every direction has one of the four fixed ranks, even on malformed route data. -/
 theorem clockwiseRank_lt (a b : Point) : clockwiseRank a b < 4 := by
@@ -149,39 +145,28 @@ theorem clockwiseSuccessor_eq_of_firstRay (G : Graph) (d : OrthogonalDrawing)
   let slice (k : ℕ) := (List.range (2 * G.edges.length)).filter fun b =>
     decide (endpoint G b = endpoint G i ∧
       dartRank G d b = (dartRank G d i + k + 1) % 4)
-  have hempty (k : ℕ) (hk : k < step) : slice k = [] := by
-    apply List.filter_eq_nil_iff.mpr
-    intro b hb
-    have hbound := List.mem_range.mp hb
-    simp only [decide_eq_true_eq, not_and]
-    exact fun hvertex => hbefore k hk b hbound hvertex
-  have hmem : j ∈ slice step := by
-    simp only [slice, List.mem_filter, List.mem_range, decide_eq_true_eq]
-    exact ⟨hj, hv, hr⟩
-  have hcons : ∃ tail, slice step = j :: tail := by
+  have hempty (k : ℕ) (hk : k < step) : slice k = [] :=
+    List.filter_eq_nil_iff.mpr fun b hb => by
+      simp only [decide_eq_true_eq, not_and]
+      exact hbefore k hk b (List.mem_range.mp hb)
+  have hmem : j ∈ slice step :=
+    List.mem_filter.mpr ⟨List.mem_range.mpr hj, decide_eq_true ⟨hv, hr⟩⟩
+  obtain ⟨tail, htail⟩ : ∃ tail, slice step = j :: tail := by
     cases hs : slice step with
-    | nil => simp only [hs, List.not_mem_nil] at hmem
+    | nil => simp [hs] at hmem
     | cons b tail =>
-      have hb : b ∈ slice step := by rw [hs]; exact List.mem_cons_self
-      simp only [slice, List.mem_filter, List.mem_range, decide_eq_true_eq] at hb
-      obtain ⟨hb, hvertex, hrank⟩ := hb
-      have heq := hunique b hb hvertex (hrank.trans hr.symm)
-      exact ⟨tail, by simp only [heq]⟩
-  obtain ⟨tail, htail⟩ := hcons
+      have hb := List.mem_filter.mp (hs ▸ List.mem_cons_self)
+      obtain ⟨hvertex, hrank⟩ := of_decide_eq_true hb.2
+      exact ⟨tail, by rw [hunique b (List.mem_range.mp hb.1) hvertex (hrank.trans hr.symm)]⟩
   change ((List.range 4).flatMap slice).headD i = j
   rw [show List.range 4 = [0, 1, 2, 3] from rfl]
   simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil]
   interval_cases step
-  · rw [htail]
-    rfl
-  · rw [hempty 0 (by omega), List.nil_append, htail]
-    rfl
-  · rw [hempty 0 (by omega), List.nil_append,
-      hempty 1 (by omega), List.nil_append, htail]
-    rfl
-  · rw [hempty 0 (by omega), List.nil_append,
-      hempty 1 (by omega), List.nil_append,
-      hempty 2 (by omega), List.nil_append, htail]
-    rfl
+  · rw [htail]; rfl
+  · rw [hempty 0 (by omega), List.nil_append, htail]; rfl
+  · rw [hempty 0 (by omega), hempty 1 (by omega)]
+    simp [htail]
+  · rw [hempty 0 (by omega), hempty 1 (by omega), hempty 2 (by omega)]
+    simp [htail]
 
 end Cslib.Complexity.Graph.OrthogonalDrawing

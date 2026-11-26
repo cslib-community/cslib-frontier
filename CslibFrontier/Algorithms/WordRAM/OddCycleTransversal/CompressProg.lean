@@ -48,7 +48,19 @@ namespace Cslib.Algorithms.WordRAM.OddCycleTransversal
 open Cslib.DataStructure Cslib.WordRAM Cslib.WordRAM.Realization
 open StateTransitionSpec (clientResult_bind clientState_bind clientResult_pure clientState_pure)
 
-attribute [local client_simps] runClient_read runClient_write clientState_map
+attribute [local client_simps] runClient_read runClient_write StateTransitionSpec.clientState_map
+
+private theorem iterationSafe_idx {δ σ : Type} (idx : σ → ℕ)
+    (body : δ × σ → Memory.Prog σ) (safe : ℕ → δ × σ → Memory.State → Prop)
+    (w : ℕ) (d : δ) {n : ℕ} {a₀ : σ} {s : Memory.State} (ha₀ : idx a₀ = 0)
+    (hsafe : ∀ a t, idx a < n → safe w (d, a) t)
+    (hstep : ∀ a t, idx ((Memory.spec 0).clientResult t (body (d, a))) = idx a + 1) :
+    iterationSafe body safe w d n a₀ s :=
+  iterationSafe_of_stepInv body safe w d (fun rem a _ => idx a + rem = n)
+    (fun _ a t hsum =>
+      ⟨hsafe a t (by omega),
+        by rw [hstep]; omega⟩)
+    (by omega)
 
 /-! ### Compression leaf, base-3 odometer, and outer iterative compression -/
 
@@ -161,13 +173,8 @@ private theorem unpackGuessProg_realizes :
     dsimp -failIfUnchanged only [octWorkspace, guessBase] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (j : ℕ) _ => j + rem = d.2) ?_ (Nat.zero_add _)
-  intro rem j t hsum
-  dsimp only
-  refine ⟨⟨hw, by omega⟩, ?_⟩
-  rw [clientResult_unpackStep]
-  omega
+  exact iterationSafe_idx (fun j => j) _ _ w _ rfl (fun _ _ hj => ⟨hw, hj.trans_le hL⟩)
+    fun j => clientResult_unpackStep (d.1, j)
 
 theorem preservesAt_unpackGuessProg {a : ℕ} {d : ℕ × ℕ} (ha : a < guessBase d.1) :
     PreservesAt a (unpackGuessProg d) := by
@@ -284,14 +291,8 @@ private theorem properOuterStep_realizes :
       ProperOuterArgs.n, ProperOuterArgs.m, ProperOuterArgs.L, ProperOuterArgs.i] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (jok : ℕ × ℕ) _ => jok.1 + rem = d.1.2) ?_ (Nat.zero_add _)
-  intro rem jok t hsum
-  dsimp only
-  refine ⟨⟨hw, by omega⟩, ?_⟩
-  rw [clientResult_properInnerStep_fst]
-  dsimp only [ProperInnerArgs.j]
-  omega
+  exact iterationSafe_idx (fun x => x.1) _ _ w _ rfl (fun _ _ hj => ⟨hw, hj.trans_le hL⟩)
+    fun jok => clientResult_properInnerStep_fst (_, jok)
 
 theorem clientResult_properOuterStep_fst (d : ((ℕ × ℕ) × ℕ) × (ℕ × ℕ))
     (s : Memory.State) :
@@ -317,14 +318,8 @@ private theorem checkProperProg_realizes :
     dsimp -failIfUnchanged only [octWorkspace] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (iok : ℕ × ℕ) _ => iok.1 + rem = d.2) ?_ (Nat.zero_add _)
-  intro rem iok t hsum
-  dsimp only
-  refine ⟨⟨hw, hL, by omega⟩, ?_⟩
-  rw [clientResult_properOuterStep_fst]
-  dsimp only [ProperOuterArgs.i]
-  omega
+  exact iterationSafe_idx (fun x => x.1) _ _ w _ rfl (fun _ _ hi => ⟨hw, hL, hi⟩)
+    fun iok => clientResult_properOuterStep_fst (d, iok)
 
 theorem preservesAt_checkProperProg (a : ℕ) (d : (ℕ × ℕ) × ℕ) :
     PreservesAt a (checkProperProg d) := by
@@ -436,13 +431,8 @@ private theorem termOuterStep_realizes :
       TermOuterArgs.n, TermOuterArgs.m, TermOuterArgs.L] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (j : ℕ) _ => j + rem = d.1.2) ?_ (Nat.zero_add _)
-  intro rem j t hsum
-  dsimp only
-  refine ⟨⟨hw, by omega⟩, ?_⟩
-  rw [clientResult_termInnerStep]
-  omega
+  exact iterationSafe_idx (fun j => j) _ _ w _ rfl (fun _ _ hj => ⟨hw, hj.trans_le hL⟩)
+    fun j => clientResult_termInnerStep (_, j)
 
 theorem clientResult_termOuterStep (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (termOuterStep d) = d.2 + 1 := by
@@ -469,13 +459,8 @@ private theorem buildTerminalsProg_realizes :
     dsimp -failIfUnchanged only [octWorkspace, keepBase, flipBase, GraphStepArgs.n] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (v : ℕ) _ => v + rem = d.1.1) ?_ (Nat.zero_add _)
-  intro rem v t hsum
-  dsimp only
-  refine ⟨⟨hw, hL, by omega⟩, ?_⟩
-  rw [clientResult_termOuterStep]
-  omega
+  exact iterationSafe_idx (fun v => v) _ _ w _ rfl (fun _ _ hv => ⟨hw, hL, hv⟩)
+    fun v => clientResult_termOuterStep (d, v)
 
 theorem preservesAt_buildTerminalsProg {a : ℕ} {d : (ℕ × ℕ) × ℕ}
     (ha : a < keepBase (GraphStepArgs.n d)) :
@@ -618,13 +603,8 @@ private theorem commitLeafProg_realizes :
       (fun w n _ => Fits w (octWorkspace n)) (fun _ _ => 0) := by
   unfold commitLeafProg
   realize [commitStep_realizes]
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (v : ℕ) _ => v + rem = d) ?_ (Nat.zero_add _)
-  intro rem v t hsum
-  dsimp only
-  refine ⟨⟨h, by omega⟩, ?_⟩
-  rw [clientResult_commitStep]
-  omega
+  exact iterationSafe_idx (fun v => v) _ _ w _ rfl (fun _ _ hv => ⟨h, hv⟩)
+    fun v => clientResult_commitStep (d, v)
 
 theorem preservesAt_commitLeafProg {a n : ℕ}
     (ha : a < sepBase n ∨ wBase n ≤ a) :
@@ -760,14 +740,8 @@ private theorem incOdomProg_realizes :
     dsimp -failIfUnchanged only [octWorkspace] at *
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (jc : ℕ × ℕ) _ => jc.1 + rem = d.2) ?_ (Nat.zero_add _)
-  intro rem jc t hsum
-  dsimp only
-  refine ⟨⟨hw, by omega⟩, ?_⟩
-  rw [clientResult_incOdomStep_fst]
-  dsimp only [LoopAccArgs.idx]
-  omega
+  exact iterationSafe_idx (fun x => x.1) _ _ w _ rfl (fun _ _ hj => ⟨hw, hj.trans_le hL⟩)
+    fun jc => clientResult_incOdomStep_fst (d.1, jc)
 
 /-- Number of vertices in `guessStep` arguments `((((n, k), m), L), (done, found))`. -/
 abbrev GuessStepArgs.n (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) : ℕ := d.1.1.1.1
@@ -837,14 +811,13 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
       dsimp only [incOdomStep, LoopAccArgs.idx, LoopAccArgs.acc]
       have hdj : t.mem (digitBase n + jc.1) = s.mem (digitBase n + jc.1) := habove jc.1 le_rfl
       by_cases hc : jc.2 = 1
-      · by_cases hlt : t.mem (digitBase n + jc.1) < 2
+      · have hpre (v : ℕ) : base3At (Function.update t.mem (digitBase n + jc.1) v)
+            (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
+          base3At_congr fun _ _ => Function.update_of_ne (by omega) _ _
+        by_cases hlt : t.mem (digitBase n + jc.1) < 2
         · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_left hlt,
             clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
           dsimp only
-          have hpre : base3At (Function.update t.mem (digitBase n + jc.1)
-              (t.mem (digitBase n + jc.1) + 1)) (digitBase n) jc.1 =
-              base3At t.mem (digitBase n) jc.1 :=
-            base3At_congr fun i hi => Function.update_of_ne (by omega) _ _
           refine ⟨by omega, by omega,
             fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
           simp only [base3At, hpre, Function.update_self, zero_mul, add_zero]
@@ -858,9 +831,6 @@ theorem incOdomProg_base3At (n L : ℕ) (s : Memory.State) :
         · rw [clientResult_bind_read, clientState_bind_read, ite_eq_left hc, ite_eq_right hlt,
             clientResult_bind_write, clientState_bind_write, clientResult_pure, clientState_pure]
           dsimp only
-          have hpre : base3At (Function.update t.mem (digitBase n + jc.1) 0)
-              (digitBase n) jc.1 = base3At t.mem (digitBase n) jc.1 :=
-            base3At_congr fun i hi => Function.update_of_ne (by omega) _ _
           refine ⟨by omega, by omega,
             fun i hi => (Function.update_of_ne (by omega) _ _).trans (habove i (by omega)), ?_⟩
           simp only [base3At, hpre, Function.update_self, Nat.zero_min, zero_mul, add_zero,
@@ -915,53 +885,35 @@ private theorem compressProg_realizes :
   · intro st t _ hg _
     refine ⟨⟨hw, hL⟩, trivial, ?_⟩
     have hlt := base3At_lt t.mem (digitBase d.1.1.1) d.2
-    by_cases h0 : st.2 = 0
-    · have hres : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
-          (Memory.spec 0).clientResult ((Memory.spec 0).clientState t (leafProg d))
-            (incOdomProg (d.1.1.1, d.2)) := by
-        unfold guessStep
-        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
-        rw [clientResult_bind_read, ite_eq_left h0, clientResult_bind, clientResult_bind,
-          clientResult_pure]
-      have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
-          (Memory.spec 0).clientState ((Memory.spec 0).clientState t (leafProg d))
-            (incOdomProg (d.1.1.1, d.2)) := by
-        unfold guessStep
-        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
-        rw [clientState_bind_read, ite_eq_left h0, clientState_bind, clientState_bind,
-          clientState_pure]
-      simp only [hres, hst, hg, ↓reduceIte]
-      have hpres : base3At ((Memory.spec 0).clientState t (leafProg d)).mem
-          (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
-        refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ⟨?_, ?_⟩) t
+    let t₁ := if st.2 = 0 then (Memory.spec 0).clientState t (leafProg d) else t
+    have hstep : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
+          (Memory.spec 0).clientResult t₁ (incOdomProg (d.1.1.1, d.2)) ∧
+        (Memory.spec 0).clientState t (guessStep (d, st)) =
+          (Memory.spec 0).clientState t₁ (incOdomProg (d.1.1.1, d.2)) := by
+      unfold guessStep
+      dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found, t₁]
+      rw [clientResult_bind_read, clientState_bind_read]
+      split_ifs
+      · rw [clientResult_bind, clientState_bind, clientResult_bind, clientResult_pure,
+          clientState_bind, clientState_pure]
+        exact ⟨rfl, rfl⟩
+      · rw [clientResult_bind, clientState_bind, clientState_pure, clientResult_bind,
+          clientResult_pure, clientState_bind, clientState_pure]
+        exact ⟨rfl, rfl⟩
+    have hpres :
+        base3At t₁.mem (digitBase d.1.1.1) d.2 = base3At t.mem (digitBase d.1.1.1) d.2 := by
+      dsimp only [t₁]
+      split_ifs
+      · refine base3At_congr fun i hi => preservesAt_leafProg (Or.inr ⟨?_, ?_⟩) t
         · dsimp only [wBase, digitBase, CompressCfg.n]; omega
         · dsimp only [digitBase, guessBase, CompressCfg.n]; omega
-      have hodom := incOdomProg_base3At d.1.1.1 d.2 ((Memory.spec 0).clientState t (leafProg d))
-      dsimp only at hodom
-      obtain ⟨hdone_le, hodom_eq⟩ := hodom
-      rw [hpres] at hodom_eq
-      split_ifs with hdone0
-      · rw [hdone0, zero_mul, add_zero] at hodom_eq; omega
-      · omega
-    · have hres : ((Memory.spec 0).clientResult t (guessStep (d, st))).1 =
-          (Memory.spec 0).clientResult t (incOdomProg (d.1.1.1, d.2)) := by
-        unfold guessStep
-        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
-        rw [clientResult_bind_read, ite_eq_right h0, clientResult_bind, clientState_pure,
-          clientResult_bind, clientResult_pure]
-      have hst : (Memory.spec 0).clientState t (guessStep (d, st)) =
-          (Memory.spec 0).clientState t (incOdomProg (d.1.1.1, d.2)) := by
-        unfold guessStep
-        dsimp only [GuessStepArgs.n, GuessStepArgs.L, GuessStepArgs.found]
-        rw [clientState_bind_read, ite_eq_right h0, clientState_bind, clientState_pure,
-          clientState_bind, clientState_pure]
-      simp only [hres, hst, hg, ↓reduceIte]
-      have hodom := incOdomProg_base3At d.1.1.1 d.2 t
-      dsimp only at hodom
-      obtain ⟨hdone_le, hodom_eq⟩ := hodom
-      split_ifs with hdone0
-      · rw [hdone0, zero_mul, add_zero] at hodom_eq; omega
-      · omega
+      · rfl
+    simp only [hstep.1, hstep.2, hg, ↓reduceIte]
+    obtain ⟨hdone_le, hodom_eq⟩ := incOdomProg_base3At d.1.1.1 d.2 t₁
+    rw [hpres] at hodom_eq
+    split_ifs with hdone0
+    · rw [hdone0, zero_mul, add_zero] at hodom_eq; omega
+    · omega
   · simp only [↓reduceIte]
     exact Nat.sub_le _ _
 
@@ -1042,13 +994,7 @@ theorem octProg_realizes :
     have hsq := splitCount_sq (s.mem 1)
     try omega
     try (apply hw.of_le; omega)
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun rem (ma : ℕ × ℕ) _ => ma.1 + rem = s.mem 1) ?_ (Nat.zero_add _)
-  intro rem ma t hsum
-  dsimp only
-  refine ⟨⟨hw, by omega⟩, ?_⟩
-  rw [clientResult_octStep_fst]
-  dsimp only [OctStepArgs.m]
-  omega
+  exact iterationSafe_idx (fun x => x.1) _ _ w _ rfl (fun _ _ hm => ⟨hw, hm⟩)
+    fun ma => clientResult_octStep_fst (_, ma)
 
 end Cslib.Algorithms.WordRAM.OddCycleTransversal

@@ -137,11 +137,7 @@ theorem eq_longestNodeSuffix {P : List (List α)} {v w : List α} (hvw : v <:+ w
 
 theorem longestNodeSuffix_of_isNode {P : List (List α)} {u : List α} (hu : IsNode P u) :
     longestNodeSuffix P u = u := by
-  cases u with
-  | nil => rfl
-  | cons b u =>
-    rw [longestNodeSuffix]
-    simp only [hu, ↓reduceIte]
+  cases u <;> simp [longestNodeSuffix, hu]
 
 theorem longestNodeSuffix_append_singleton (P : List (List α)) (w : List α) (a : α) :
     longestNodeSuffix P (longestNodeSuffix P w ++ [a]) = longestNodeSuffix P (w ++ [a]) := by
@@ -198,21 +194,16 @@ theorem eq_failure_iff {P : List (List α)} {u v : List α} (hu : u ≠ []) :
     v = failure P u ↔ v <:+ u ∧ v.length < u.length ∧ IsNode P v ∧
       ∀ x, x <:+ u → x.length < u.length → IsNode P x → x.length ≤ v.length := by
   obtain ⟨b, u, rfl⟩ := List.exists_cons_of_ne_nil hu
-  have proper : ∀ x, x <:+ b :: u → x.length < (b :: u).length → x <:+ u := fun x hx hlt =>
+  have proper (x) (hx : x <:+ b :: u) (hlt : x.length < (b :: u).length) : x <:+ u :=
     (List.suffix_cons_iff.mp hx).resolve_left fun h => by rw [h] at hlt; omega
   rw [failure_cons]
-  constructor
-  · rintro rfl
-    have hsuf := longestNodeSuffix_suffix P u
-    refine ⟨hsuf.trans (List.suffix_cons b u), ?_, isNode_longestNodeSuffix P u,
-      fun x hx hlt hxn => length_le_longestNodeSuffix hxn (proper x hx hlt)⟩
-    have := hsuf.length_le
-    rw [List.length_cons]
-    omega
-  · rintro ⟨hvu, hlt, hvn, hmax⟩
-    exact eq_longestNodeSuffix (proper v hvu hlt) hvn fun x hx hxn =>
-      hmax x (hx.trans (List.suffix_cons b u))
-        (by have := hx.length_le; rw [List.length_cons]; omega) hxn
+  refine ⟨?_, fun ⟨hvu, hlt, hvn, hmax⟩ => eq_longestNodeSuffix (proper v hvu hlt) hvn
+    fun x hx hxn => hmax x (hx.trans (List.suffix_cons b u)) (Nat.lt_succ_of_le hx.length_le) hxn⟩
+  rintro rfl
+  have hsuf := longestNodeSuffix_suffix P u
+  exact ⟨hsuf.trans (List.suffix_cons b u), Nat.lt_succ_of_le hsuf.length_le,
+    isNode_longestNodeSuffix P u, fun x hx hlt hxn =>
+      length_le_longestNodeSuffix hxn (proper x hx hlt)⟩
 
 /-! ## The next-move function -/
 
@@ -287,37 +278,26 @@ theorem mem_output_iff {P : List (List α)} {w v : List α} :
     v ∈ output P w ↔ v ≠ [] ∧ v ∈ P ∧ v <:+ w := by
   fun_induction output P w with
   | case1 => -- []
-    rw [List.suffix_nil]
-    simp only [List.not_mem_nil, false_iff, not_and]
-    intro hv _ hv'
-    exact hv hv'
+    simp +contextual [List.suffix_nil]
   | case2 b w hmem ih => -- b :: w ∈ P
     rw [List.suffix_cons_iff, List.mem_cons, ih]
-    constructor
-    · rintro (rfl | ⟨hv, hvP, hvw⟩)
-      · exact ⟨List.cons_ne_nil b w, hmem, Or.inl rfl⟩
-      · exact ⟨hv, hvP, Or.inr hvw⟩
-    · rintro ⟨hv, hvP, rfl | hvw⟩
-      · exact Or.inl rfl
-      · exact Or.inr ⟨hv, hvP, hvw⟩
+    refine ⟨?_, fun ⟨hv, hvP, h⟩ => h.elim .inl fun hvw => .inr ⟨hv, hvP, hvw⟩⟩
+    rintro (rfl | ⟨hv, hvP, hvw⟩)
+    · exact ⟨List.cons_ne_nil b w, hmem, .inl rfl⟩
+    · exact ⟨hv, hvP, .inr hvw⟩
   | case3 b w hmem ih => -- b :: w ∉ P
     rw [List.suffix_cons_iff, ih]
-    constructor
-    · rintro ⟨hv, hvP, hvw⟩
-      exact ⟨hv, hvP, Or.inr hvw⟩
-    · rintro ⟨hv, hvP, rfl | hvw⟩
-      · exact absurd hvP hmem
-      · exact ⟨hv, hvP, hvw⟩
+    refine ⟨fun ⟨hv, hvP, hvw⟩ => ⟨hv, hvP, .inr hvw⟩, ?_⟩
+    rintro ⟨hv, hvP, rfl | hvw⟩
+    · exact (hmem hvP).elim
+    · exact ⟨hv, hvP, hvw⟩
 
 theorem pairwise_length_gt_output (P : List (List α)) (w : List α) :
     (output P w).Pairwise (fun x y => y.length < x.length) := by
   fun_induction output P w with
-  | case1 => exact List.Pairwise.nil -- []
+  | case1 => exact .nil -- []
   | case2 b w _ ih => -- b :: w ∈ P
-    refine List.Pairwise.cons (fun y hy => ?_) ih
-    have := (mem_output_iff.mp hy).2.2.length_le
-    rw [List.length_cons]
-    omega
+    exact .cons (fun y hy => Nat.lt_succ_of_le (mem_output_iff.mp hy).2.2.length_le) ih
   | case3 _ _ _ ih => exact ih -- b :: w ∉ P
 
 theorem nodup_output (P : List (List α)) (w : List α) : (output P w).Nodup :=
@@ -356,11 +336,9 @@ theorem mem_occurrences_iff {P : List (List α)} {t : List α} {i : ℕ} {y : Li
     (i, y) ∈ occurrences P t ↔ IsOccurrence P t i y := by
   simp only [occurrences, List.mem_flatMap, List.mem_range, List.mem_map, Prod.mk.injEq,
     mem_output_iff, IsOccurrence]
-  constructor
-  · rintro ⟨j, hj, z, ⟨hz, hzP, hzt⟩, rfl, rfl⟩
-    exact ⟨by omega, hz, hzP, hzt⟩
-  · rintro ⟨hi, hy, hyP, hyt⟩
-    exact ⟨i, by omega, y, ⟨hy, hyP, hyt⟩, rfl, rfl⟩
+  refine ⟨?_, fun ⟨hi, hy, hyP, hyt⟩ => ⟨i, by omega, y, ⟨hy, hyP, hyt⟩, rfl, rfl⟩⟩
+  rintro ⟨_, hj, _, ⟨hz, hzP, hzt⟩, rfl, rfl⟩
+  exact ⟨by omega, hz, hzP, hzt⟩
 
 theorem nodup_occurrences (P : List (List α)) (t : List α) : (occurrences P t).Nodup := by
   refine List.nodup_flatMap.mpr ⟨fun i _ => (nodup_output P _).map fun _ _ h => (Prod.mk.inj h).2,
@@ -420,39 +398,21 @@ theorem length_occurrences_le (P : List (List α)) (t : List α) :
     (occurrences P t).length ≤ t.length * P.length := by
   let grid := (List.range' 1 t.length).flatMap fun i => P.map fun y => (i, y)
   have hgrid_len : grid.length = t.length * P.length := by
-    have : ∀ m s : ℕ, ((List.range' s m).flatMap fun i => P.map fun y => (i, y)).length =
-        m * P.length := by
-      intro m
-      induction m with
-      | zero => simp
-      | succ m ih =>
-        intro s
-        simp only [List.range'_succ, List.flatMap_cons, List.length_append, List.length_map,
-          ih (s + 1), Nat.add_mul, Nat.one_mul]
-        omega
-    exact this t.length 1
-  have hsub : (occurrences P t).Subperm grid := by
-    refine List.subperm_of_subset (nodup_occurrences P t) fun ⟨i, y⟩ hmem => ?_
-    obtain ⟨hi_le, hy_ne, hy_P, hsuf⟩ := mem_occurrences_iff.mp hmem
-    have hy_pos : 0 < y.length := List.length_pos_iff.mpr hy_ne
-    have htake_le : y.length ≤ (t.take i).length := hsuf.length_le
-    have hi_pos : 1 ≤ i := by
-      have := List.length_take_le i t
-      omega
-    exact List.mem_flatMap.mpr ⟨i, List.mem_range'.mpr ⟨i - 1, by omega, by omega⟩,
-      List.mem_map.mpr ⟨y, hy_P, rfl⟩⟩
-  exact hgrid_len ▸ hsub.length_le
+    simp [grid, List.length_flatMap]
+  refine hgrid_len ▸
+    (List.subperm_of_subset (nodup_occurrences P t) fun ⟨i, y⟩ hmem => ?_).length_le
+  obtain ⟨hi_le, hy_ne, hy_P, hsuf⟩ := mem_occurrences_iff.mp hmem
+  have := List.length_pos_iff.mpr hy_ne
+  have := hsuf.length_le
+  have := List.length_take_le i t
+  exact List.mem_flatMap.mpr ⟨i, List.mem_range'.mpr ⟨i - 1, by omega, by omega⟩,
+    List.mem_map.mpr ⟨y, hy_P, rfl⟩⟩
 
 /-- Occurrences in a prefix `p` form a prefix of the occurrences in `p ++ ts`. -/
 theorem occurrences_prefix_append (P : List (List α)) (p : List α) :
     ∀ ts : List α, occurrences P p <+: occurrences P (p ++ ts)
-  | [] => by simp only [List.append_nil]; exact List.prefix_rfl
-  | a :: ts => by
-    have ih := occurrences_prefix_append P (p ++ [a]) ts
-    rw [List.append_assoc, List.singleton_append] at ih
-    have h1 : occurrences P p <+: occurrences P (p ++ [a]) := by
-      rw [occurrences_append_singleton]
-      exact List.prefix_append _ _
-    exact h1.trans ih
+  | [] => by simp
+  | a :: ts => (occurrences_append_singleton P p a ▸ List.prefix_append _ _).trans <| by
+      simpa using occurrences_prefix_append P (p ++ [a]) ts
 
 end Cslib.Algorithms.Lean.AhoCorasick

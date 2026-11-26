@@ -52,11 +52,9 @@ theorem dense_normalizer (h ρ : ℝ → ℝ) (K : ℕ) (C : Matrix V V ℝ) (x 
     DenseRowRecipe.preparation h ρ K r.terminal.rate (splitTerminal D ident r) C
       (((Equiv.piSplitAt r.terminal.role (fun _ : Fin J => FrameChannel P 4 1)).symm
         (p.2, p.1)) r.terminal.role) x y) = _
-  simp only [Equiv.piSplitAt, Equiv.coe_fn_symm_mk, ↓reduceDIte]
-  rw [expect_product]
-  simpa only [DenseRowRecipe.preparation, atomNormalizer] using
-    (expect_const hx (atomNormalizer (splitTerminal D ident r) (splitUsage D ident r)
-      h ρ K r.terminal.rate C x y))
+  simp only [Equiv.piSplitAt, Equiv.coe_fn_symm_mk, ↓reduceDIte, expect_product,
+    DenseRowRecipe.preparation, atomNormalizer]
+  exact expect_const hx _
 
 /-- Actual normalized dense request with deterministic raw base and genuine preparation.
 This is the existing request evaluator, rather than a child with a prescribed mean. -/
@@ -109,12 +107,12 @@ theorem dense_terminal_mean (hD : D ≠ 0) (hid : Function.Injective ident)
       denseAtom (splitTerminal D ident r) (splitUsage D ident r)
         cutoff h ρ K r.terminal.rate C A x y) =
     r.terminal.rate * cutoff (C x y / r.terminal.rate) := by
-  have hpos : 0 < (dens {A | splitUsage D ident r A y} : ℝ) := by
-    rw [split_usage_density D ident r hu]
+  have hpos : (0 : ℝ) < dens {A | splitUsage D ident r A y} := by
     have := (Fact.out : P.Prime).pos
+    rw [split_usage_density D ident r hu]
     positivity
   have hne : ({A | splitUsage D ident r A y} : Finset _).Nonempty :=
-    dens_ne_zero.mp (by exact_mod_cast (ne_of_gt hpos))
+    dens_ne_zero.mp (by exact_mod_cast hpos.ne')
   exact expect_denseAtom_change_usage
     (Y := splitTerminal D ident r) (Ya := fun A _ => q A)
     (Yt := splitUsage D ident r) hsub hne hkh hρ0 hρ1 hη hρη
@@ -144,10 +142,10 @@ theorem denseChild_mean_on_terminal_event
       denseChild D ident r cutoff h ρ K C σ x y) =
       r.terminal.rate * cutoff (C x y / r.terminal.rate) := by
   have hx := source_nonempty D ident r hr hD hid H hsH hs x
-  have hpos : 0 < (dens {σ : Environment P J |
-      r.source.retains (channels D) σ (ident x)} : ℝ) := by
-    rw [channel_density D r.source s hs]
+  have hpos : (0 : ℝ) < dens {σ : Environment P J |
+      r.source.retains (channels D) σ (ident x)} := by
     have := (Fact.out : P.Prime).pos
+    rw [channel_density D r.source s hs]
     positivity
   have hfull : ({σ : Environment P J |
       r.source.retains (channels D) σ (ident x)} : Finset _).Nonempty :=
@@ -164,12 +162,8 @@ theorem denseChild_mean_on_terminal_event
     (𝔼 σ ∈ ({σ : Environment P J |
       r.source.retains (channels D) σ (ident x)} : Finset _), (1 : ℝ)) * _ at hf
   simp only [one_mul, expect_const hfull] at hf
-  rw [← mul_expect, hf, mul_expect]
-  have hd : (dens {σ : Environment P J |
-      r.usage.retains (channels D) σ (ident y)} : ℝ) =
-      dens {A | splitUsage D ident r A y} := by
-    rw [channel_density D r.usage u hu, split_usage_density D ident r hu]
-  rw [dens_filter_pi_eval r.terminal.role q, hd]
+  rw [← mul_expect, hf, mul_expect, dens_filter_pi_eval r.terminal.role q,
+    channel_density D r.usage u hu, ← split_usage_density D ident r hu]
   exact dense_terminal_mean D ident r hr hD hid H hk ht hu cutoff h ρ K C q x y
     hsub hkh hρ0 hρ1 hη hρη hC0 hCM (by simpa only [mul_one] using hK)
 

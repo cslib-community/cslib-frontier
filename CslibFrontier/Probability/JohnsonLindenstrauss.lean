@@ -117,18 +117,17 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 /-- The per-row factor of the upper tail: `√(1 + ε) exp (-ε / 2) ≤ exp (-(ε² / 4 - ε³ / 6))`. -/
 private theorem sqrt_one_add_mul_exp_neg_le {ε : ℝ} (hε : 0 ≤ ε) :
     √(1 + ε) * exp (-(ε / 2)) ≤ exp (-(ε ^ 2 / 4 - ε ^ 3 / 6)) := by
-  set z := ε - ε ^ 2 / 2 + ε ^ 3 / 3
-  have hsq : √(1 + ε) ≤ exp (z / 2) := by
+  have hsq : √(1 + ε) ≤ exp ((ε - ε ^ 2 / 2 + ε ^ 3 / 3) / 2) := by
     rw [Real.sqrt_le_left (exp_pos _).le, ← exp_nat_mul]
     convert one_add_le_exp_sub_sq_div_two_add_cube_div_three hε using 2
     push_cast
     ring
-  calc √(1 + ε) * exp (-(ε / 2)) ≤ exp (z / 2) * exp (-(ε / 2)) :=
+  calc √(1 + ε) * exp (-(ε / 2))
+      ≤ exp ((ε - ε ^ 2 / 2 + ε ^ 3 / 3) / 2) * exp (-(ε / 2)) :=
         mul_le_mul_of_nonneg_right hsq (exp_pos _).le
     _ = exp (-(ε ^ 2 / 4 - ε ^ 3 / 6)) := by
         rw [← exp_add]
         congr 1
-        simp only [z]
         ring
 
 /-- The per-row factor of the lower tail: with `τ = ε / (2 (1 + ε))` and `0 ≤ ε ≤ 1`,
@@ -145,13 +144,11 @@ private theorem lower_tail_factor_le {ε : ℝ} (hε : 0 ≤ ε) (hε1 : ε ≤ 
     rw [hτdef, div_le_iff₀ (by positivity)]
     linarith
   have hx0 : 0 ≤ x := by
-    have : 0 ≤ ε ^ 2 / 4 - ε ^ 3 / 6 := by nlinarith [sq_nonneg ε]
     have : 0 ≤ τ * (1 - ε) := mul_nonneg hτ0 (by linarith)
-    linarith
+    nlinarith [sq_nonneg ε]
   have hx1 : x ≤ 1 := by
-    have : τ * (1 - ε) ≤ 1 / 4 := by nlinarith
-    have : ε ^ 2 / 4 - ε ^ 3 / 6 ≤ 1 / 4 := by nlinarith [sq_nonneg ε]
-    linarith
+    linarith [mul_le_of_le_one_right hτ0 (show 1 - ε ≤ 1 by linarith),
+      pow_le_one₀ hε hε1 (n := 2), pow_nonneg hε 3]
   have hb := Real.exp_bound' hx0 hx1 (n := 3) (by norm_num)
   simp only [Finset.sum_range_succ, Finset.sum_range_zero, Nat.factorial] at hb
   norm_num at hb
@@ -170,22 +167,13 @@ private theorem lower_tail_factor_le {ε : ℝ} (hε : 0 ≤ ε) (hε1 : ε ≤ 
     field_simp
     ring
   have hPnn : 0 ≤ P := by
-    have e9 : ε ^ 9 ≤ ε ^ 8 := pow_le_pow_of_le_one hε hε1 (by norm_num)
-    have e10 : ε ^ 10 ≤ ε ^ 8 := pow_le_pow_of_le_one hε hε1 (by norm_num)
-    have e11 : ε ^ 11 ≤ ε ^ 8 := pow_le_pow_of_le_one hε hε1 (by norm_num)
-    have := pow_nonneg hε 3
-    have := pow_nonneg hε 4
-    have := pow_nonneg hε 5
-    have := pow_nonneg hε 6
-    have := pow_nonneg hε 7
-    have := pow_nonneg hε 8
-    have := pow_nonneg hε 12
-    have := pow_nonneg hε 13
-    have := pow_nonneg hε 14
     rw [hP]
-    linarith
-  have := div_nonneg hPnn (pow_nonneg hD.le 5)
-  linarith
+    linarith [pow_le_pow_of_le_one hε hε1 (show 8 ≤ 9 by norm_num),
+      pow_le_pow_of_le_one hε hε1 (show 8 ≤ 10 by norm_num),
+      pow_le_pow_of_le_one hε hε1 (show 8 ≤ 11 by norm_num),
+      pow_nonneg hε 3, pow_nonneg hε 4, pow_nonneg hε 5, pow_nonneg hε 6, pow_nonneg hε 7,
+      pow_nonneg hε 8, pow_nonneg hε 12, pow_nonneg hε 13, pow_nonneg hε 14]
+  linarith [div_nonneg hPnn (pow_nonneg hD.le 5)]
 
 /-! ### Tails of sums of squared Rademacher sums -/
 
@@ -213,10 +201,8 @@ private theorem dens_le_pow_div_exp {k : ℕ} {s : Finset (Fin k → ι → Bool
     (hM : 𝔼 x : ι → Bool, exp (r x) ≤ M) :
     (dens s : ℝ) ≤ M ^ k / exp c := by
   set f : (Fin k → ι → Bool) → ℝ := fun b => exp (∑ j, r (b j))
-  have hsub : s ⊆ ({b | exp c ≤ f b} : Finset _) := fun b hb =>
-    mem_filter.2 ⟨mem_univ _, exp_le_exp.2 (hs b hb)⟩
-  have hmarkov := Fintype.mul_dens_filter_le_expect (fun b => (exp_pos _).le : ∀ b, 0 ≤ f b)
-    (exp c)
+  have hsub : s ⊆ ({b | exp c ≤ f b} : Finset _) :=
+    fun b hb => mem_filter.2 ⟨mem_univ _, exp_le_exp.2 (hs b hb)⟩
   have hfac : 𝔼 b, f b = (𝔼 x : ι → Bool, exp (r x)) ^ k := by
     simp only [f, exp_sum]
     exact expect_prod_row fun x => exp (r x)
@@ -224,10 +210,10 @@ private theorem dens_le_pow_div_exp {k : ℕ} {s : Finset (Fin k → ι → Bool
       ≤ dens ({b | exp c ≤ f b} : Finset _) := by exact_mod_cast dens_le_dens hsub
     _ ≤ (𝔼 b, f b) / exp c := by
         rw [le_div_iff₀ (exp_pos _), mul_comm]
-        exact hmarkov
+        exact Fintype.mul_dens_filter_le_expect (fun _ => (exp_pos _).le) (exp c)
     _ ≤ M ^ k / exp c := by
-        rw [hfac]
-        gcongr
+      rw [hfac]
+      gcongr
 
 /-- **Upper tail**: for `k` independent Rademacher sums `Y_j = ∑ i, a i signVal (b j i)` and
 `0 ≤ ε`, `Pr[k (1 + ε) ∑ a² < ∑ j, Y_j²] ≤ exp (-(k / 2) (ε² / 2 - ε³ / 3))`. -/
@@ -238,8 +224,7 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
   rcases (sum_nonneg fun i (_ : i ∈ univ) => sq_nonneg (a i)).eq_or_lt with hS | hS
   · rw [filter_false_of_mem fun b _ => ?_, dens_empty, NNRat.cast_zero]
     · positivity
-    simp only [← hS, sum_mul_signVal_eq_zero hS.symm, mul_zero, ne_eq, OfNat.ofNat_ne_zero,
-      not_false_eq_true, zero_pow, sum_const_zero, lt_irrefl]
+    simp [← hS, sum_mul_signVal_eq_zero hS.symm]
   set S := ∑ i, a i ^ 2 with hSdef
   set τ := ε / (2 * (1 + ε)) with hτdef
   set t := τ / S with htdef
@@ -250,7 +235,7 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
   have hτ : τ < 1 / 2 := by
     rw [hτdef, div_lt_iff₀ (by positivity)]
     linarith
-  have hrow := expect_exp_mul_sq_sum_mul_signVal_le a ht0 (by rw [← hSdef, htS]; exact hτ)
+  have hrow := expect_exp_mul_sq_sum_mul_signVal_le a ht0 (by rwa [← hSdef, htS])
   rw [← hSdef, htS] at hrow
   have h1 : 1 - 2 * τ = (1 + ε)⁻¹ := by
     rw [hτdef]
@@ -269,12 +254,12 @@ theorem dens_mul_lt_sum_sq_sum_mul_signVal_le (a : ι → ℝ) (k : ℕ) {ε : �
         rw [h2, h1, Real.sqrt_inv, inv_inv, exp_nat_mul, mul_pow, div_eq_mul_inv, ← inv_pow,
           ← exp_neg]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k := by
-        gcongr
-        exact sqrt_one_add_mul_exp_neg_le hε
+      gcongr
+      exact sqrt_one_add_mul_exp_neg_le hε
     _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
-        rw [← exp_nat_mul]
-        congr 1
-        ring
+      rw [← exp_nat_mul]
+      congr 1
+      ring
 
 /-- For the lower tail: `𝔼 exp (-t Y²) ≤ 1 - t ∑ a² + 3 (t ∑ a²)² / 2` for a Rademacher sum `Y`
 and `0 ≤ t`, from `exp (-u) ≤ 1 - u + u² / 2`, `𝔼 Y² = ∑ a²` and `𝔼 Y⁴ ≤ 3 (∑ a²)²`. -/
@@ -286,19 +271,18 @@ private theorem expect_exp_neg_mul_sq_sum_mul_signVal_le (a : ι → ℝ) {t : �
       ≤ 𝔼 x : ι → Bool, (1 - t * (∑ i, a i * signVal (x i)) ^ 2 +
           t ^ 2 / 2 * (∑ i, a i * signVal (x i)) ^ 4) :=
         expect_le_expect fun x _ => by
-          have := exp_neg_le_one_sub_add_sq_div_two
-            (by positivity : 0 ≤ t * (∑ i, a i * signVal (x i)) ^ 2)
-          linarith [show (t * (∑ i, a i * signVal (x i)) ^ 2) ^ 2 =
-            t ^ 2 * (∑ i, a i * signVal (x i)) ^ 4 by ring]
+          linarith [exp_neg_le_one_sub_add_sq_div_two
+              (by positivity : 0 ≤ t * (∑ i, a i * signVal (x i)) ^ 2),
+            show (t * (∑ i, a i * signVal (x i)) ^ 2) ^ 2 =
+              t ^ 2 * (∑ i, a i * signVal (x i)) ^ 4 by ring]
     _ = 1 - t * 𝔼 x : ι → Bool, (∑ i, a i * signVal (x i)) ^ 2 +
           t ^ 2 / 2 * 𝔼 x : ι → Bool, (∑ i, a i * signVal (x i)) ^ 4 := by
         rw [expect_add_distrib, expect_sub_distrib, Fintype.expect_const, ← mul_expect,
           ← mul_expect]
     _ ≤ 1 - t * ∑ i, a i ^ 2 + 3 / 2 * (t * ∑ i, a i ^ 2) ^ 2 := by
         rw [expect_sq_sum_mul_signVal]
-        have := mul_le_mul_of_nonneg_left (expect_sum_mul_signVal_pow_four_le a)
-          (by positivity : (0 : ℝ) ≤ t ^ 2 / 2)
-        nlinarith
+        nlinarith [mul_le_mul_of_nonneg_left (expect_sum_mul_signVal_pow_four_le a)
+          (by positivity : (0 : ℝ) ≤ t ^ 2 / 2)]
 
 /-- **Lower tail**: for `k` independent Rademacher sums `Y_j = ∑ i, a i signVal (b j i)` and
 `0 ≤ ε`, `Pr[∑ j, Y_j² < k (1 - ε) ∑ a²] ≤ exp (-(k / 2) (ε² / 2 - ε³ / 3))`. -/
@@ -308,21 +292,18 @@ theorem dens_sum_sq_sum_mul_signVal_lt_mul_le (a : ι → ℝ) (k : ℕ) {ε : �
       exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
   have hS0 : 0 ≤ ∑ i, a i ^ 2 := sum_nonneg fun i _ => sq_nonneg (a i)
   rcases le_or_gt 1 ε with hε1 | hε1
-  · rw [filter_false_of_mem fun b _ => not_lt.2 ?_, dens_empty, NNRat.cast_zero]
-    · positivity
-    have : (k : ℝ) * (1 - ε) * ∑ i, a i ^ 2 ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _)
-        (by linarith)) hS0
-    exact this.trans (sum_nonneg fun j _ => sq_nonneg _)
+  · rw [filter_false_of_mem fun _ _ => not_lt.2 <|
+        (mul_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _)
+          (by linarith)) hS0).trans (sum_nonneg fun _ _ => sq_nonneg _),
+      dens_empty, NNRat.cast_zero]
+    positivity
   rcases hS0.eq_or_lt with hS | hS
-  · rw [filter_false_of_mem fun b _ => ?_, dens_empty, NNRat.cast_zero]
-    · positivity
-    simp only [← hS, sum_mul_signVal_eq_zero hS.symm, mul_zero, ne_eq, OfNat.ofNat_ne_zero,
-      not_false_eq_true, zero_pow, sum_const_zero, lt_irrefl]
+  · rw [filter_false_of_mem fun _ _ => by simp [← hS, sum_mul_signVal_eq_zero hS.symm],
+      dens_empty, NNRat.cast_zero]
+    positivity
   set S := ∑ i, a i ^ 2 with hSdef
   set τ := ε / (2 * (1 + ε)) with hτdef
   set t := τ / S with htdef
-  have hτ0 : 0 ≤ τ := by positivity
   have ht0 : 0 ≤ t := by positivity
   have htS : t * S = τ := by
     rw [htdef]
@@ -335,18 +316,18 @@ theorem dens_sum_sq_sum_mul_signVal_lt_mul_le (a : ι → ℝ) (k : ℕ) {ε : �
     ring
   calc (dens ({b | ∑ j, (∑ i, a i * signVal (b j i)) ^ 2 < k * (1 - ε) * S} :
           Finset (Fin k → ι → Bool)) : ℝ)
-      ≤ (1 - τ + 3 / 2 * τ ^ 2) ^ k / exp (-(t * (k * (1 - ε) * S))) := by
-        refine dens_le_pow_div_exp (fun b hb => ?_) hrow
-        rw [sum_neg_distrib, ← mul_sum]
-        exact neg_le_neg (mul_le_mul_of_nonneg_left (mem_filter.1 hb).2.le ht0)
+      ≤ (1 - τ + 3 / 2 * τ ^ 2) ^ k / exp (-(t * (k * (1 - ε) * S))) :=
+        dens_le_pow_div_exp (fun b hb => by
+          rw [sum_neg_distrib, ← mul_sum]
+          exact neg_le_neg (mul_le_mul_of_nonneg_left (mem_filter.1 hb).2.le ht0)) hrow
     _ = ((1 - τ + 3 / 2 * τ ^ 2) * exp (τ * (1 - ε))) ^ k := by
         rw [h2, exp_neg, div_inv_eq_mul, exp_nat_mul, mul_pow]
     _ ≤ (exp (-(ε ^ 2 / 4 - ε ^ 3 / 6))) ^ k :=
         pow_le_pow_left₀ (mul_nonneg hA (exp_pos _).le) (lower_tail_factor_le hε hε1.le) k
     _ = exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) := by
-        rw [← exp_nat_mul]
-        congr 1
-        ring
+      rw [← exp_nat_mul]
+      congr 1
+      ring
 
 /-! ### Random sign projections -/
 
@@ -417,10 +398,8 @@ theorem dens_lt_abs_norm_signProjection_sq_sub_le (k : ℕ) (x : EuclideanSpace 
     intro b hb
     simp only [mem_filter, mem_univ, true_and, mem_union, lt_abs] at hb ⊢
     rcases hb with hb | hb
-    · left
-      linarith
-    · right
-      linarith
+    · exact .inl (by linarith)
+    · exact .inr (by linarith)
   calc (dens ({b | ε * ‖x‖ ^ 2 < |‖signProjection b x‖ ^ 2 - ‖x‖ ^ 2|} :
           Finset (Fin k → ι → Bool)) : ℝ)
       ≤ dens ({b | (1 + ε) * ‖x‖ ^ 2 < ‖signProjection b x‖ ^ 2} : Finset (Fin k → ι → Bool)) +
@@ -441,11 +420,9 @@ private theorem sum_card_Ioi_mul_two (n : ℕ) :
   rw [Fin.sum_univ_eq_sum_range (fun i => n - 1 - i) n, sum_range_reflect (fun i => i) n]
   rcases n with _ | n
   · simp
-  · have h := sum_range_id_mul_two (n + 1)
-    rw [Nat.add_sub_cancel] at h
-    have h' : ((∑ j ∈ range (n + 1), j : ℕ) : ℝ) * 2 = ((n + 1) * n : ℕ) := by
-      exact_mod_cast h
-    rw [h']
+  · have h : ((∑ j ∈ range (n + 1), j : ℕ) : ℝ) * 2 = ((n + 1) * n : ℕ) := by
+      exact_mod_cast (Nat.add_sub_cancel n 1 ▸ sum_range_id_mul_two (n + 1))
+    rw [h]
     push_cast
     ring
 
@@ -469,36 +446,33 @@ theorem one_sub_le_dens_forall_norm_signProjection_sq_mem_Icc {n : ℕ}
       ‖signProjection b (p i - p j)‖ ^ 2 ∈
         Set.Icc ((1 - ε) * ‖p i - p j‖ ^ 2) ((1 + ε) * ‖p i - p j‖ ^ 2) := by
     rw [abs_le] at h
-    constructor <;> linarith [h.1, h.2]
+    exact ⟨by linarith, by linarith⟩
   -- Seeds outside the union of the failure events over pairs `i < j` are good.
   have hsub : univ \ B ⊆ G := by
     intro b hb
     simp only [B, D, mem_sdiff, mem_univ, true_and, mem_biUnion, mem_Ioi, mem_filter, not_exists,
       not_and, not_lt] at hb
-    simp only [G, mem_filter, mem_univ, true_and]
-    intro i j
+    refine mem_filter.2 ⟨mem_univ _, fun i j => ?_⟩
     rcases lt_trichotomy i j with hij | rfl | hij
     · exact hgood b i j (hb i j hij)
-    · simp only [sub_self, map_zero, norm_zero]
-      norm_num
-    · have := hgood b j i (hb j i hij)
-      rwa [norm_sub_rev (p j), ← neg_sub (p i) (p j), map_neg, norm_neg] at this
+    · simp
+    · simpa only [norm_sub_rev (p j), ← neg_sub (p i) (p j), map_neg, norm_neg] using
+        hgood b j i (hb j i hij)
   have hB : (dens B : ℝ) ≤ n * (n - 1) * e := by
-    have h1 : dens B ≤ ∑ i : Fin n, ∑ j ∈ Ioi i, dens (D i j) :=
-      dens_biUnion_le.trans (sum_le_sum fun i _ => dens_biUnion_le)
     have h1' : (dens B : ℝ) ≤ ∑ i : Fin n, ∑ j ∈ Ioi i, (dens (D i j) : ℝ) := by
-      simpa only [NNRat.cast_sum] using (NNRat.cast_le (K := ℝ)).2 h1
-    calc (dens B : ℝ) ≤ ∑ i : Fin n, ∑ j ∈ Ioi i, (2 * e) :=
+      simpa only [NNRat.cast_sum] using (NNRat.cast_le (K := ℝ)).2
+        (dens_biUnion_le.trans (sum_le_sum fun _ _ => dens_biUnion_le))
+    calc (dens B : ℝ)
+        ≤ ∑ i : Fin n, ∑ j ∈ Ioi i, (2 * e) :=
           h1'.trans (sum_le_sum fun i _ => sum_le_sum fun j _ =>
             dens_lt_abs_norm_signProjection_sq_sub_le k (p i - p j) hε)
       _ = n * (n - 1) * e := by
           simp only [sum_const, nsmul_eq_mul]
-          rw [← sum_mul, ← Nat.cast_sum, show ((∑ i : Fin n, #(Ioi i) : ℕ) : ℝ) * (2 * e) =
-            ((∑ i : Fin n, #(Ioi i) : ℕ) : ℝ) * 2 * e by ring, sum_card_Ioi_mul_two]
-  have h1 : dens (univ : Finset (Fin k → ι → Bool)) ≤ dens (univ \ B) + dens B :=
-    dens_le_dens_sdiff_add_dens
-  rw [dens_univ] at h1
-  have h1' : (1 : ℝ) ≤ dens (univ \ B) + dens B := by exact_mod_cast h1
+          have hassoc : ((∑ i : Fin n, #(Ioi i) : ℕ) : ℝ) * (2 * e) =
+              ((∑ i : Fin n, #(Ioi i) : ℕ) : ℝ) * 2 * e := by ring
+          rw [← sum_mul, ← Nat.cast_sum, hassoc, sum_card_Ioi_mul_two]
+  have h1' : (1 : ℝ) ≤ dens (univ \ B) + dens B := by
+    exact_mod_cast (dens_univ (α := Fin k → ι → Bool)).symm.trans_le dens_le_dens_sdiff_add_dens
   have h2 : (dens (univ \ B) : ℝ) ≤ dens G := by exact_mod_cast dens_le_dens hsub
   linarith
 
@@ -508,8 +482,7 @@ private theorem exp_le_exp_neg_mul_log {n k : ℕ} {ε β : ℝ} (hε : 0 < ε) 
     (hk : (4 + 2 * β) / (ε ^ 2 / 2 - ε ^ 3 / 3) * log n ≤ k) :
     exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) ≤ exp (-((2 + β) * log n)) := by
   have hD : 0 < ε ^ 2 / 2 - ε ^ 3 / 3 := by
-    have := mul_pos (pow_pos hε 2) (by linarith : (0 : ℝ) < 1 / 2 - ε / 3)
-    linarith
+    linarith [mul_pos (pow_pos hε 2) (by linarith : (0 : ℝ) < 1 / 2 - ε / 3)]
   rw [div_mul_eq_mul_div, div_le_iff₀ hD] at hk
   exact exp_le_exp.2 (by linarith)
 
@@ -557,16 +530,14 @@ theorem exists_signProjection_forall_norm_sq_mem_Icc {n : ℕ} (p : Fin n → Eu
     have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast Nat.one_le_iff_ne_zero.2 hn
     have he := exp_le_exp_neg_mul_log (β := 0) hε hε' (by rwa [mul_zero, add_zero])
     rw [add_zero] at he
-    have h1 : exp (log n) * exp (log n) * exp (-(2 * log n)) = 1 := by
-      rw [← exp_add, ← exp_add, ← exp_zero]
+    have h1 : (n : ℝ) * n * exp (-(2 * log n)) = 1 := by
+      have hnn : (n : ℝ) * n = exp (log n + log n) := by rw [exp_add, exp_log hn']
+      rw [hnn, ← exp_add, ← exp_zero]
       congr 1
       ring
-    rw [exp_log hn'] at h1
-    have : (n : ℝ) * (n - 1) * exp (-(k / 2) * (ε ^ 2 / 2 - ε ^ 3 / 3)) <
-        n * n * exp (-(2 * log n)) :=
-      (mul_le_mul_of_nonneg_left he (mul_nonneg hn'.le (by linarith))).trans_lt
-        (mul_lt_mul_of_pos_right (mul_lt_mul_of_pos_left (by linarith) hn') (exp_pos _))
-    rw [h1] at this
+    have := (mul_le_mul_of_nonneg_left he (mul_nonneg hn'.le (by linarith))).trans_lt
+      (mul_lt_mul_of_pos_right (mul_lt_mul_of_pos_left (by linarith : (n : ℝ) - 1 < n) hn')
+        (exp_pos _))
     linarith
   obtain ⟨b, hb⟩ := Finset.dens_pos.1 (by exact_mod_cast hpos.trans_le h)
   exact ⟨b, (mem_filter.1 hb).2⟩

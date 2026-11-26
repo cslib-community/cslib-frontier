@@ -42,16 +42,13 @@ theorem incomingCutoff_zero {r : ℝ} (hr : P.τ₁ ≤ r) : P.incomingCutoff r 
     sub_self]
 
 /-- Nonzero exact cutoff forces an entry strictly above the true threshold. -/
-theorem theta_lt_of_Q_ne_zero {v : ℝ} (hv : P.Q v ≠ 0) : P.θ < v := by
-  by_contra h
-  have hb := P.Q_le v
-  rw [max_eq_right (sub_nonpos.mpr (not_lt.mp h))] at hb
-  exact hv (le_antisymm hb (P.Q_nonneg v))
+theorem theta_lt_of_Q_ne_zero {v : ℝ} (hv : P.Q v ≠ 0) : P.θ < v :=
+  lt_of_not_ge fun h => hv <| le_antisymm
+    ((P.Q_le v).trans_eq (max_eq_right (sub_nonpos.mpr h))) (P.Q_nonneg v)
 
 /-- The actual row gate support lies strictly inside the auxiliary full-rank region. -/
 theorem rank_lt_of_rho_ne_zero {r : ℝ} (hr : P.ρ r ≠ 0) : r < P.θ / 300 := by
-  have h := lt_of_not_ge (fun h => hr (P.ρ_zero r h))
-  linarith [P.η₂_lt, P.δ₀_lt_δ₁, P.δ₁_lt]
+  linarith [lt_of_not_ge fun h => hr (P.ρ_zero r h), P.η₂_lt, P.δ₀_lt_δ₁, P.δ₁_lt]
 
 /-- Discharges the incoming support premise using the actual core row gate, not a surrogate. -/
 theorem aux_full_on_Q_rho {v r : ℝ} (hv : P.Q v ≠ 0) (hr : P.ρ r ≠ 0) :
@@ -67,10 +64,9 @@ theorem prep_full_on_Q {v : ℝ} (hv : P.Q v ≠ 0) :
 /-- Positive preparation and nonzero actual row gate also give full auxiliary score. -/
 theorem aux_full_on_prep_rho {v r : ℝ}
     (hv : polynomialPrepCutoff4 P.θ v ≠ 0) (hr : P.ρ r ≠ 0) :
-    polynomialAuxCutoff4 P.θ v r = 1 := by
-  have hv' : P.θ / 2 < v :=
-    lt_of_not_ge (fun h => hv (polynomialPrepCutoff4_eq_zero P.θ_pos h))
-  exact polynomialAuxCutoff4_eq_one P.θ_pos (by linarith [P.θ_pos])
+    polynomialAuxCutoff4 P.θ v r = 1 :=
+  polynomialAuxCutoff4_eq_one P.θ_pos
+    (by linarith [lt_of_not_ge fun h => hv (polynomialPrepCutoff4_eq_zero P.θ_pos h), P.θ_pos])
     (by linarith [P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
 
 /-- A genuine perturbation margin around the actual normalized Q/rho support.
@@ -78,34 +74,29 @@ Neither perturbed coordinate is assumed to remain in the original support. -/
 theorem aux_full_near_Q_rho {v r v' r' : ℝ}
     (hv : P.Q v ≠ 0) (hr : P.ρ r ≠ 0)
     (hd : |v - v'| ≤ P.θ / 4) (hs : |r - r'| ≤ P.θ / 300) :
-    polynomialAuxCutoff4 P.θ v' r' = 1 := by
-  have hd' := (abs_sub_le_iff.mp hd).1
-  have hs' := (abs_sub_le_iff.mp hs).2
-  exact polynomialAuxCutoff4_eq_one P.θ_pos
-    (by linarith [P.theta_lt_of_Q_ne_zero hv, P.θ_pos])
-    (by linarith [P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
+    polynomialAuxCutoff4 P.θ v' r' = 1 :=
+  polynomialAuxCutoff4_eq_one P.θ_pos
+    (by linarith [(abs_sub_le_iff.mp hd).1, P.theta_lt_of_Q_ne_zero hv, P.θ_pos])
+    (by linarith [(abs_sub_le_iff.mp hs).2, P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
 
 /-- Preparation has its own explicit entry margin within the auxiliary full region. -/
 theorem aux_full_near_prep_rho {v r v' r' : ℝ}
     (hv : polynomialPrepCutoff4 P.θ v ≠ 0) (hr : P.ρ r ≠ 0)
     (hd : |v - v'| ≤ P.θ / 8) (hs : |r - r'| ≤ P.θ / 300) :
-    polynomialAuxCutoff4 P.θ v' r' = 1 := by
-  have hv' : P.θ / 2 < v :=
-    lt_of_not_ge (fun h => hv (polynomialPrepCutoff4_eq_zero P.θ_pos h))
-  have hd' := (abs_sub_le_iff.mp hd).1
-  have hs' := (abs_sub_le_iff.mp hs).2
-  exact polynomialAuxCutoff4_eq_one P.θ_pos (by linarith [P.θ_pos])
-    (by linarith [P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
+    polynomialAuxCutoff4 P.θ v' r' = 1 :=
+  polynomialAuxCutoff4_eq_one P.θ_pos
+    (by linarith [lt_of_not_ge fun h => hv (polynomialPrepCutoff4_eq_zero P.θ_pos h),
+      (abs_sub_le_iff.mp hd).1, P.θ_pos])
+    (by linarith [(abs_sub_le_iff.mp hs).2, P.rank_lt_of_rho_ne_zero hr, P.θ_pos])
 
 /-- The broader witness is full on positive auxiliary support. -/
 theorem witness_full_on_aux {v r : ℝ} (h : polynomialAuxCutoff4 P.θ v r ≠ 0) :
-    polynomialWitnessCutoff4 P.θ v r = 1 := by
-  have hv : P.θ / 8 < v := lt_of_not_ge
-    (fun hv => h (polynomialAuxCutoff4_eq_zero_of_entry_le P.θ_pos hv))
-  have hr : r < P.θ / 50 := lt_of_not_ge
-    (fun hr => h (polynomialAuxCutoff4_eq_zero_of_rank_ge P.θ_pos hr))
-  exact polynomialWitnessCutoff4_eq_one P.θ_pos (by linarith [P.θ_pos])
-    (by linarith [P.θ_pos])
+    polynomialWitnessCutoff4 P.θ v r = 1 :=
+  polynomialWitnessCutoff4_eq_one P.θ_pos
+    (by linarith [lt_of_not_ge fun hv => h (polynomialAuxCutoff4_eq_zero_of_entry_le P.θ_pos hv),
+      P.θ_pos])
+    (by linarith [lt_of_not_ge fun hr => h (polynomialAuxCutoff4_eq_zero_of_rank_ge P.θ_pos hr),
+      P.θ_pos])
 
 theorem aux_zero_on_detector {v r : ℝ} (hv : v ≤ P.δ₁) :
     polynomialAuxCutoff4 P.θ v r = 0 :=
@@ -117,10 +108,8 @@ private theorem τ₁_le_one : P.τ₁ ≤ 1 := by
 
 /-- The incoming column cap `⌈4 (1 + 32 R)⌉₊` of the correction and pilot samplers is positive,
 since `4 J ≤ R` (`R_rank`). -/
-theorem incomingCap_pos : 0 < ⌈4 * (1 + 32 * P.R)⌉₊ := by
-  have h := P.R_rank
-  norm_num only [one_mul] at h
-  exact Nat.ceil_pos.mpr (by linarith [(Nat.cast_nonneg P.J : (0 : ℝ) ≤ P.J)])
+theorem incomingCap_pos : 0 < ⌈4 * (1 + 32 * P.R)⌉₊ :=
+  Nat.ceil_pos.mpr (by linarith [P.R_rank, (Nat.cast_nonneg P.J : (0 : ℝ) ≤ P.J)])
 
 section Clients
 universe u
@@ -163,16 +152,11 @@ theorem normalized_col_support (Yt : κ → V → Prop) [∀ t v, Decidable (Yt 
     (σ : ι × κ) (y : V) :
     #{x ∈ ({w | X σ.1 w} : Finset V) |
       CorrectionRowRecipe.normalized (polynomialAuxCutoff4 P.θ) P.incomingCutoff P.ρ
-        P.toHierarchyParams.atomCutoff P.γ K Kc f X Y Yt input prep maximum σ x y ≠ 0} < Kc := by
-  apply CorrectionRowRecipe.card_filter_normalized_col_ne_zero_lt
-    (polynomialAuxCutoff4 P.θ) P.incomingCutoff P.ρ P.toHierarchyParams.atomCutoff
-    P.γ K Kc f X Y Yt input prep maximum σ y hKc
-  · intro v r hv hr
-    exact P.aux_full_on_Q_rho (fun h => hv
-      (P.toHierarchyParams.atomCutoff_eq_zero_of_Q_eq_zero h)) hr
-  · exact P.τ₁_le_one
-  · intro r hr
-    exact P.incomingCutoff_zero hr
+        P.toHierarchyParams.atomCutoff P.γ K Kc f X Y Yt input prep maximum σ x y ≠ 0} < Kc :=
+  CorrectionRowRecipe.card_filter_normalized_col_ne_zero_lt _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hKc
+    (fun _ _ hv => P.aux_full_on_Q_rho fun h =>
+      hv (P.toHierarchyParams.atomCutoff_eq_zero_of_Q_eq_zero h))
+    P.τ₁_le_one fun _ => P.incomingCutoff_zero
 
 variable
     (hXY : Probability.RetentionChannels X Y f π 1 16 32 8)
@@ -282,18 +266,19 @@ theorem correction_col_support
     (σ : ι × κ) (y : V) :
     let A := P.correctionSampling X Y hXY hYX hf hπ hC hC1 hi
     #{x ∈ ({w | X σ.1 w} : Finset V) |
-      A.normalizedRecipe input prep maximum σ x y ≠ 0} < A.Kc := by
-  dsimp only
-  apply HierarchyParams.CorrectionSampling.card_filter_normalizedRecipe_col_ne_zero_lt
-    _ input prep maximum σ y
-  · simpa only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_Kc] using
-      P.incomingCap_pos
-  · simp only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_I,
-      HierarchyParams.CorrectionSampling.ofChannels_ρ]
-    exact fun _ _ hv hr => P.aux_full_on_Q_rho hv hr
-  · exact P.τ₁_le_one
-  · simp only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_τ]
-    exact fun _ hr => P.incomingCutoff_zero hr
+      A.normalizedRecipe input prep maximum σ x y ≠ 0} < A.Kc :=
+  HierarchyParams.CorrectionSampling.card_filter_normalizedRecipe_col_ne_zero_lt _ input prep
+    maximum σ y
+    (by simpa only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_Kc] using
+      P.incomingCap_pos)
+    (fun _ _ hv hr => by
+      simpa only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_I] using
+        P.aux_full_on_Q_rho hv (by
+          simpa only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_ρ] using
+            hr))
+    P.τ₁_le_one fun _ hr => by
+      simpa only [correctionSampling, HierarchyParams.CorrectionSampling.ofChannels_τ] using
+        P.incomingCutoff_zero hr
 
 /-- The same selected functions discharge the actual pilot recipe's column cap. -/
 theorem pilot_col_support
@@ -301,18 +286,18 @@ theorem pilot_col_support
     (σ : ι × κ) (y : V) :
     let A := P.pilotSampling X Y hXY hYX hf hπ hC hC1 hi
     #{x ∈ ({w | X σ.1 w} : Finset V) |
-      A.normalizedRecipe input prep maximum σ x y ≠ 0} < A.Kc := by
-  dsimp only
-  apply HierarchyParams.PilotSampling.card_filter_normalizedRecipe_col_ne_zero_lt
-    _ input prep maximum σ y
-  · simpa only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_Kc] using
-      P.incomingCap_pos
-  · simp only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_I,
-      HierarchyParams.PilotSampling.ofChannels_ρ]
-    exact fun _ _ hv hr => P.aux_full_on_Q_rho hv hr
-  · exact P.τ₁_le_one
-  · simp only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_τ]
-    exact fun _ hr => P.incomingCutoff_zero hr
+      A.normalizedRecipe input prep maximum σ x y ≠ 0} < A.Kc :=
+  HierarchyParams.PilotSampling.card_filter_normalizedRecipe_col_ne_zero_lt _ input prep
+    maximum σ y
+    (by simpa only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_Kc] using
+      P.incomingCap_pos)
+    (fun _ _ hv hr => by
+      simpa only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_I] using
+        P.aux_full_on_Q_rho hv (by
+          simpa only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_ρ] using hr))
+    P.τ₁_le_one fun _ hr => by
+      simpa only [pilotSampling, HierarchyParams.PilotSampling.ofChannels_τ] using
+        P.incomingCutoff_zero hr
 
 /-- True normalized rows from the selected correction constructor have the genuine iterate mean. -/
 theorem correction_mean (hCf : ∀ x y, C x y ≤ f)

@@ -93,26 +93,22 @@ theorem cascadeStep_progress {n K w : ℕ} {s : IndexedMinPQ.State n} {g : Cell 
   simp only [cascadeStep, Record.wp_read_bind, Cell.ok]
   refine ⟨hzn, ?_⟩
   by_cases hpz : (view n g).par z = 0
-  · have hpz' : g (.par z) = 0 := hpz
-    simp only [hpz', ite_true, Record.wp_pure]
+  · simp only [show g (.par z) = 0 from hpz, ite_true, Record.wp_pure]
     exact Or.inl trivial
   obtain ⟨T, hT, hdesc⟩ := h.desc_of_par hz hpz
   obtain ⟨p, _, hpar⟩ := (h.valid T hT).1.par_of_mem_children z hdesc
-  have hpar' : g (.par z) = p.val + 1 := hpar
-  simp only [hpar', Nat.add_one_ne_zero, ite_false, Record.wp_read_bind,
-    Nat.add_sub_cancel, Cell.ok]
+  simp only [show g (.par z) = p.val + 1 from hpar, Nat.add_one_ne_zero, ite_false,
+    Record.wp_read_bind, Nat.add_sub_cancel, Cell.ok]
   refine ⟨hzn, ?_⟩
   by_cases hmz : (view n g).mark z = 0
-  · have hmz' : g (.mark z) = 0 := hmz
-    have hmarked := h.mark hz hpz hmz
+  · have hmarked := h.mark hz hpz hmz
     have hcount : (view n g).numMarked + 1 ≤ n :=
       calc (view n g).numMarked + 1 = markedCount _ := hmarked.numMarked
         _ ≤ n := markedCount_le_n _
-    simp only [hmz', ite_true, Record.wp_write_bind, Record.wp_read_bind, Record.wp_pure,
-      Function.update_apply, reduceCtorEq, ite_false, Cell.ok, true_and]
+    simp only [show g (.mark z) = 0 from hmz, ite_true, Record.wp_write_bind, Record.wp_read_bind,
+      Record.wp_pure, Function.update_apply, reduceCtorEq, ite_false, Cell.ok, true_and]
     exact ⟨⟨hzn, hfit.of_le (by omega)⟩, hfit.of_le hcount, Or.inl trivial⟩
-  · have hmz' : g (.mark z) ≠ 0 := hmz
-    simp only [hmz', ite_false]
+  · simp only [show g (.mark z) ≠ 0 from hmz, ite_false]
     rw [Record.wp_bind]
     obtain ⟨rtail, hcirc, hperm⟩ := h.roots
     obtain ⟨hdp, hdp2, hdp_le, hroots, hnr, hnm⟩ := h.cut_pre hperm hz hpar
@@ -145,8 +141,7 @@ theorem cutSafe_of_cascading {n K w base : ℕ} {s : IndexedMinPQ.State n}
   change (layout n base).abs ((Memory.spec w).clientState mem
       (DataStructure.link (E := Memory.spec w) ((layout n base).methods w) (unlink cur p))) =
     (Record.spec (Cell.ok n) w).clientState ((layout n base).abs mem) (unlink cur p) at habs
-  rw [Realization.clientState_width w] at habs
-  rw [link_width] at habs
+  rw [Realization.clientState_width w, link_width] at habs
   rw [← habs] at hfields
   let next := (Memory.spec 0).clientState mem
     (DataStructure.link (E := Memory.spec 0) ((layout n base).methods 0) (unlink cur p))
@@ -162,13 +157,10 @@ theorem cutSafe_of_cascading {n K w base : ℕ} {s : IndexedMinPQ.State n}
   have hpos := (h.cut_pre hperm hcur hpar).1
   have hdeg : 1 ≤ mem.mem (base + 5 * n + p.val) := by
     simpa only [view, Record.Layout.abs, Cell.ok, p.isLt, ite_true, layout] using hpos
-  change Fits w (base + (9 * n + 5)) ∧ cur.val < n ∧ p.val < n ∧
-    1 ≤ mem.mem (base + 5 * n + p.val) ∧ _
   refine ⟨hfit, cur.isLt, p.isLt, hdeg, ?_⟩
-  change 1 ≤ next.mem (base + 9 * n + 1) ∧ next.mem (base + 9 * n + 1) ≤ n ∧
-    next.mem (base + 4 * n + (next.mem (base + 9 * n + 1) - 1)) < n ∧
-    next.mem (base + 6 * n + cur.val) ≤ next.mem (base + 9 * n + 3)
-  rw [hmin, Nat.add_sub_cancel, hright]
+  simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_two, Matrix.cons_val_three,
+    Matrix.head_cons, Matrix.tail_cons]
+  rw [show (Memory.spec 0).clientState mem _ = next from rfl, hmin, Nat.add_sub_cancel, hright]
   exact ⟨by omega, by have := m.isLt; omega, r.isLt, hmark⟩
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

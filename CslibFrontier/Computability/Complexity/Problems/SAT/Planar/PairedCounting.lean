@@ -43,17 +43,11 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF Orthogonal
 theorem source_cell_mem_ordinary {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
     Layout.center (φ.distinctVars.idxOf v) ∈ ordinaryCells φ := by
   obtain ⟨o, ho, rfl⟩ := exists_occurrence_of_mem_vars hv
-  have hlen := PlanarCompile.occurrencePath_length_ge_two ho
-  change 2 ≤ (occurrencePath φ o).length at hlen
-  have hhead := (PlanarCompile.occurrencePath_endpoints ho).1
-  change (occurrencePath φ o).head? = _ at hhead
+  have hlen : 2 ≤ (occurrencePath φ o).length := PlanarCompile.occurrencePath_length_ge_two ho
+  have hhead : (occurrencePath φ o).head? = _ := (PlanarCompile.occurrencePath_endpoints ho).1
   rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hhead
-  have he := Option.some.inj hhead
-  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈
-      (occurrencePath φ o).dropLast := by
-    rw [← he]
-    have hi : 0 < (occurrencePath φ o).dropLast.length := by grind
-    rw [← List.getElem_dropLast hi]
+  have hret : Layout.center (φ.distinctVars.idxOf o.lit.1) ∈ (occurrencePath φ o).dropLast := by
+    rw [← Option.some.inj hhead, ← List.getElem_dropLast (by grind)]
     exact List.getElem_mem _
   exact (mem_ordinaryCells φ _).2
     ⟨⟨_, PlanarCompile.occurrencePath_mem_paths ho, hret⟩,
@@ -62,34 +56,28 @@ theorem source_cell_mem_ordinary {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
 /-- Every used source representative is an occurring variable of the actual raw output. -/
 theorem sourceVariable_mem_rawFormula {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) :
     (Layout.center (φ.distinctVars.idxOf v), Sum.inl (0, 0)) ∈ (rawFormula φ).vars := by
-  have hp := source_cell_mem_ordinary hv
   have hm : (Layout.center (φ.distinctVars.idxOf v), Sum.inl (0, 0)) ∈
       CNF.vars ((ordinaryClauses (Layout.center (φ.distinctVars.idxOf v))).map Prod.fst) := by
     rw [map_fst_ordinaryClauses, CNF.vars_relabel]
     exact List.mem_map_of_mem (OrdinaryRing.variables_used (0, 0))
   obtain ⟨c, hc, b, hvar⟩ := CNF.mem_vars.mp hm
   obtain ⟨pc, hpc, rfl⟩ := List.mem_map.mp hc
-  apply CNF.mem_vars.mpr
-  refine ⟨pc.1, List.mem_map.mpr ⟨pc, ?_, rfl⟩, b, hvar⟩
-  exact mem_placedClauses.mpr (Or.inr (Or.inl ⟨_, hp, hpc⟩))
+  exact CNF.mem_vars.mpr ⟨pc.1, List.mem_map.mpr
+    ⟨pc, mem_placedClauses.mpr (.inr (.inl ⟨_, source_cell_mem_ordinary hv, hpc⟩)), rfl⟩, b, hvar⟩
 
 private theorem pairedLinks_variable_value {V : Type*} (σ : V → Bool)
     (cells : List (PairedWire.Cell V)) (value : Bool)
     (h : ∀ c ∈ cells, ∀ lane, σ (c lane).1 = value ∧ σ (c lane).2 = value)
     {v : V} (hv : v ∈ (PairedWire.links cells).vars) : σ v = value := by
-  obtain ⟨c, hc, b, hl⟩ := CNF.mem_vars.mp hv
+  obtain ⟨c, hc, _, hl⟩ := CNF.mem_vars.mp hv
   obtain ⟨p, hp, hc⟩ := List.mem_flatMap.mp hc
   have hm := List.of_mem_zip hp
-  have hfirst := h p.1 hm.1
-  have hnext := h p.2 (List.mem_of_mem_tail hm.2)
   simp only [PairedWire.gapClauses, List.mem_cons, List.not_mem_nil, or_false] at hc
-  rcases hc with rfl | rfl
-  · rcases Clause.fst_mem_of_mem_imp hl with hv | hv
-    · exact (congrArg σ (List.mem_singleton.mp hv)).trans (hfirst 0).2
-    · exact (congrArg σ hv).trans (hnext 0).1
-  · rcases Clause.fst_mem_of_mem_imp hl with hv | hv
-    · exact (congrArg σ (List.mem_singleton.mp hv)).trans (hnext 1).1
-    · exact (congrArg σ hv).trans (hfirst 1).2
+  rcases hc with rfl | rfl <;> rcases Clause.fst_mem_of_mem_imp hl with hv | hv
+  · exact (congrArg σ (List.mem_singleton.mp hv)).trans (h p.1 hm.1 0).2
+  · exact (congrArg σ hv).trans (h p.2 (List.mem_of_mem_tail hm.2) 0).1
+  · exact (congrArg σ (List.mem_singleton.mp hv)).trans (h p.2 (List.mem_of_mem_tail hm.2) 1).1
+  · exact (congrArg σ hv).trans (h p.1 hm.1 1).2
 
 /-- Source agreement determines every occurring raw output variable. Assignments outside the
 formula's variable support are unrestricted. -/
@@ -109,15 +97,13 @@ theorem raw_assignments_agree {φ : CNF ℕ}
     rw [← heq']
     exact (lastLiteral_value hw hv hσ ho).trans
       ((he _ (variable_mem_of_mem_occurrences ho)).trans (lastLiteral_value hw hv hτ ho).symm)
-  · obtain ⟨ci, _, rfl⟩ := List.mem_map.mp hpc
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hpc
     obtain ⟨lit, _, heq⟩ := List.mem_map.mp hl
-    have heq' : (p, Sum.inl lit.1) = v := congrArg Prod.fst heq
-    rw [← heq']
+    rw [← show (p, Sum.inl lit.1) = v from congrArg Prod.fst heq]
     exact ordinary_assignments_agree hw hv hσ hτ he hp lit.1
-  · obtain ⟨ci, _, rfl⟩ := List.mem_map.mp hpc
+  · obtain ⟨_, _, rfl⟩ := List.mem_map.mp hpc
     obtain ⟨lit, _, heq⟩ := List.mem_map.mp hl
-    have heq' : (p, Sum.inr lit.1) = v := congrArg Prod.fst heq
-    rw [← heq']
+    rw [← show (p, Sum.inr lit.1) = v from congrArg Prod.fst heq]
     exact crossing_assignments_agree hw hv hσ hτ he hp lit.1
   · have hm : v ∈ CNF.vars ((links (crossingSites φ) (occurrencePath φ o)).map Prod.fst) :=
       CNF.mem_vars.mpr ⟨pc.1, List.mem_map.mpr ⟨pc, mem_links.mpr hpc, rfl⟩, b, hl⟩
@@ -158,18 +144,15 @@ theorem modelCount_rawFormula (φ : CNF ℕ)
     (rawFormula φ).modelCount = φ.modelCount := by
   refine CNF.modelCount_eq_card_filter
     (fun σ (v : φ.vars.toFinset) => sourceValue φ σ v)
-    (fun τ => φ.eval (φ.extendAssignment τ) = true) (fun σ τ hσ hτ => ?_) fun τ => ?_
-  · rw [funext_iff, Subtype.forall]
-    simp only [List.mem_toFinset]
-    exact (raw_assignments_agree_iff hw hv hσ hτ).symm
-  · constructor
-    · intro hτ
-      obtain ⟨σ, hσ, he⟩ := exists_satisfying_extension hw hv (φ.extendAssignment τ) hτ
-      exact ⟨σ, hσ, funext fun v => (he v (List.mem_toFinset.mp v.2)).trans
-        (CNF.extendAssignment_of_mem _ (List.mem_toFinset.mp v.2))⟩
-    · rintro ⟨σ, hσ, rfl⟩
-      rw [CNF.eval_extendAssignment_restrict]
-      exact eval_source_of_rawFormula hw hv hσ
+    (fun τ => φ.eval (φ.extendAssignment τ) = true) (fun σ τ hσ hτ => ?_) fun τ => ⟨?_, ?_⟩
+  · simpa only [funext_iff, Subtype.forall, List.mem_toFinset] using
+      (raw_assignments_agree_iff hw hv hσ hτ).symm
+  · intro hτ
+    obtain ⟨σ, hσ, he⟩ := exists_satisfying_extension hw hv (φ.extendAssignment τ) hτ
+    exact ⟨σ, hσ, funext fun v => (he v (List.mem_toFinset.mp v.2)).trans
+      (CNF.extendAssignment_of_mem _ (List.mem_toFinset.mp v.2))⟩
+  · rintro ⟨σ, hσ, rfl⟩
+    simpa only [CNF.eval_extendAssignment_restrict] using eval_source_of_rawFormula hw hv hσ
 
 /-- Compact natural-number labels preserve the raw compiler's exact model count. -/
 theorem modelCount_formula (φ : CNF ℕ)

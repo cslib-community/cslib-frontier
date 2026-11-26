@@ -14,6 +14,7 @@ import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Disp
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.BucketOps.QueryInsert
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Dictionary-Level Lookup and Split Insertion Specifications (`DictStateInv`)
@@ -47,8 +48,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -113,9 +115,8 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
     exact hfix_spec.2.2.1
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
-    have hgm_eq : compGmAt metaBase U w N s.mem =
-        gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
-    rw [hgm_eq] at hcost_qb
+    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
+      at hcost_qb
     dsimp only [b, q, m] at hcost_qb hlen_pr hovf_pr ⊢
     unfold probeExcess
     omega
@@ -173,48 +174,32 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
       (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
         compSearchBucketGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2) >>=
           fun res => compPackInsertSearchResProg (res, c)) := rfl
-  refine ⟨hpre, ?_, ?_, ?_, ?_, ?_⟩
+  have hhit : (sbFound res_sb = 1 ↔ (s_abs u).isSome) ∧
+      (sbFound res_sb = 1 →
+        ∃ j < bCount N (compGmAt metaBase U w N s.mem) b,
+          res_sb.2 = slotOf N (compGmAt metaBase U w N s.mem) b j) := by
+    by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
+        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
+          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
+    · rw [ite_eq_left hex] at hres_branch
+      rw [← hbm, hcpl.gm_eq]
+      exact ⟨⟨fun _ => (hb_inv.hmap_dom b hb_lt q).mpr hex, fun _ => hres_branch.1⟩,
+        fun _ => ⟨res_sb.1.2, hres_branch.2.1, hres_branch.2.2.2⟩⟩
+    · rw [ite_eq_right hex] at hres_branch
+      change sbFound res_sb = 0 at hres_branch
+      exact ⟨⟨by omega, fun hs => (hex ((hb_inv.hmap_dom b hb_lt q).mp (hbm ▸ hs))).elim⟩,
+        by omega⟩
+  refine ⟨hpre, ?_, ?_, hhit.1, hhit.2, ?_⟩
   · rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientState_bind, hst_sb, clientState_compPackInsertSearchResProg]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientResult_bind, hst_sb, hres_sb,
       clientResult_compPackInsertSearchResProg]
-  · by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
-        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
-          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
-    · rw [ite_eq_left hex] at hres_branch
-      have hsome : (s_abs u).isSome := by
-        rw [← hbm]; exact (hb_inv.hmap_dom b hb_lt q).mpr hex
-      change res_sb.1.1 = 1 ↔ _
-      exact ⟨fun _ => hsome, fun _ => hres_branch.1⟩
-    · rw [ite_eq_right hex] at hres_branch
-      have hnot : ¬(s_abs u).isSome := by
-        rw [← hbm]; exact mt (hb_inv.hmap_dom b hb_lt q).mp hex
-      change res_sb.1.1 = 1 ↔ _
-      exact ⟨fun h1 => False.elim (by change res_sb.1.1 = 0 at hres_branch; omega),
-        fun hs => False.elim (hnot hs)⟩
-  · intro hf1
-    by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
-        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
-          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
-    · rw [ite_eq_left hex] at hres_branch
-      obtain ⟨_, hj_lt, _, hphys_eq⟩ := hres_branch
-      have hj_lt' : res_sb.1.2 <
-          bCount N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b := hj_lt
-      have hphys_eq' : res_sb.2 =
-          slotOf N (gmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem) b
-            res_sb.1.2 := hphys_eq
-      rw [hcpl.gm_eq]
-      exact ⟨res_sb.1.2, hj_lt', hphys_eq'⟩
-    · rw [ite_eq_right hex] at hres_branch
-      change sbFound res_sb = 0 at hres_branch
-      omega
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add,
       memoryCost_bind_of_clientState_eq hst_sb _, memoryCost_compPackInsertSearchResProg, add_zero]
-    have hgm_eq : compGmAt metaBase U w N s.mem =
-        gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
-    rw [hgm_eq] at hcost_sb
+    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
+      at hcost_sb
     dsimp only [b, q, m] at hcost_sb hlen_pr hovf_pr ⊢
     unfold probeExcess
     omega
@@ -388,13 +373,10 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
   have hslot : SlotStoreInv N (compGmAt metaBase U w N s_grown.mem) := by
     rw [hmem_grown, hcpl.gm_eq]; exact hb_inv.hslot
   have hcpl_grown : FixedCoupled metaBase itemBase U V w N s_fix s_grown :=
-    ⟨by simp only [hmem_grown]; exact hcpl.gm_eq,
-     by simp only [hmem_grown]; exact hcpl.lm_eq,
-     by simp only [hmem_grown]; exact hcpl.win_inv,
-     fun i => by simp only [hmem_grown]; exact hcpl.td_lt i,
-     fun i => by simp only [hmem_grown]; exact hcpl.dt_lt i,
-     fun d hd => by simp only [hmem_grown] at hd ⊢; exact hcpl.quot_eq d hd,
-     fun d hd => by simp only [hmem_grown] at hd ⊢; exact hcpl.val_eq d hd⟩
+    ⟨hmem_grown ▸ hcpl.gm_eq, hmem_grown ▸ hcpl.lm_eq, hmem_grown ▸ hcpl.win_inv,
+     fun i => hmem_grown ▸ hcpl.td_lt i, fun i => hmem_grown ▸ hcpl.dt_lt i,
+     fun d hd => hmem_grown ▸ hcpl.quot_eq d (hmem_grown ▸ hd),
+     fun d hd => hmem_grown ▸ hcpl.val_eq d (hmem_grown ▸ hd)⟩
   have htot_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) < N := by
     rwa [hmem_grown]
   have hm_cap_grown : totalSlots N (compGmAt metaBase U w N s_grown.mem) + 1 ≤ m_cap := by

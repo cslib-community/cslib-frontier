@@ -132,9 +132,7 @@ theorem getElem!_rankArray {n : ℕ} {sa : List ℕ} (hnd : sa.Nodup) (hlt : ∀
   have hlt' : sa[r] < (rankArray n sa).size := by
     rw [size_rankArray]; exact hlt _ (List.getElem_mem hr)
   rw [getElem!_pos (rankArray n sa) sa[r] hlt']
-  have h' : (rankArray n sa)[sa[r]]? = some r := by rw [rankArray]; exact h
-  rw [getElem?_pos (rankArray n sa) sa[r] hlt'] at h'
-  exact Option.some.inj h'
+  exact Option.some.inj (by rwa [← getElem?_pos (rankArray n sa) sa[r] hlt', rankArray])
 
 section Algorithm
 
@@ -252,63 +250,58 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
       lcp[r]'(by have := hsa.length_eq; simp only [Array.length_toList] at this; omega) =
         (lcpArray w.toList sa.toList)[r]'(by simpa using hr)) :
     (kasaiLoop w sa rk i h lcp).toList = lcpArray w.toList sa.toList := by
-  have hlen : sa.size = w.size := by
-    have := hsa.length_eq; simp only [Array.length_toList] at this; exact this
-  have hinj : ∀ (r r' : ℕ) (hr : r < sa.size) (hr' : r' < sa.size), sa[r] = sa[r'] → r = r' := by
-    grind
-  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := by
-    intro r hr
+  have hlen : sa.size = w.size := by simpa only [Array.length_toList] using hsa.length_eq
+  have hinj : ∀ (r r' : ℕ) (hr : r < sa.size) (hr' : r' < sa.size), sa[r] = sa[r'] → r = r' :=
+    fun r r' hr hr' h => (hsa.nodup.getElem_inj_iff (i := r) (j := r')
+      (hi := by simpa using hr) (hj := by simpa using hr')).1
+      (by simpa only [Array.getElem_toList] using h)
+  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := fun r hr => by
     have := hsa.getElem_lt (r := r) (by simpa using hr)
     simpa only [Array.getElem_toList, Array.length_toList] using this
-  fun_induction kasaiLoop w sa rk i h lcp with
-  | case1 i h lcp hiw hr0 ih =>
+  have hrank : ∀ {i : ℕ}, i < w.size →
+      ∃ r, ∃ hr : r < sa.size, sa[r] = i ∧ rk[i]! = r := fun {i} hiw => by
     obtain ⟨r, hr, hri⟩ := hsa.exists_getElem_eq (by simpa only [Array.length_toList] using hiw)
     simp only [Array.length_toList, Array.getElem_toList] at hr hri
-    have hrki : rk[i]! = r := hri ▸ hrk r hr
+    exact ⟨r, hr, hri, hri ▸ hrk r hr⟩
+  have hprev : ∀ {i r r' : ℕ} (hr : r < sa.size) (hr' : r' < sa.size),
+      sa[r] = i → r ≠ r' → (r' = 0 ∨ sa[r'] < i + 1) → r' = 0 ∨ sa[r'] < i := by
+    rintro i r r' hr hr' rfl hne (rfl | hlt)
+    · exact Or.inl rfl
+    · exact Or.inr (Nat.lt_of_le_of_ne (Nat.le_of_lt_succ hlt) fun h =>
+        hne (hinj r r' hr hr' h.symm))
+  fun_induction kasaiLoop w sa rk i h lcp with
+  | case1 i h lcp hiw hr0 ih =>
+    obtain ⟨r, hr, hri, hrki⟩ := hrank hiw
     rw [hrki] at hr0; subst hr0
     refine ih (by omega) hsize (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
     · have h0 := hh 0 hr hri
-      rw [getElem_lcpArray_zero] at h0
-      omega
-    · rcases hr'd with h0 | hlt
-      · exact hdone r' hr' (Or.inl h0)
-      · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
-        · exact hdone r' hr' (Or.inr hlt)
-        · exact hdone r' hr' (Or.inl (hinj r' 0 hr' hr (heq.trans hri.symm)))
+      rw [getElem_lcpArray_zero] at h0; omega
+    · exact hdone r' hr' ((eq_or_ne 0 r').elim (Or.inl ∘ Eq.symm) fun hne =>
+        hprev hr hr' hri hne hr'd)
   | case2 i h lcp hiw hr0 h' ih =>
-    obtain ⟨r, hr, hri⟩ := hsa.exists_getElem_eq (by simpa only [Array.length_toList] using hiw)
-    simp only [Array.length_toList, Array.getElem_toList] at hr hri
-    have hrki : rk[i]! = r := hri ▸ hrk r hr
+    obtain ⟨r, hr, hri, hrki⟩ := hrank hiw
     rw [hrki] at hr0
     have hr1 : r - 1 < sa.size := by omega
-    obtain ⟨j, hj⟩ : ∃ j, sa[r - 1] = j := ⟨_, rfl⟩
     have hlcpr : (lcpArray w.toList sa.toList)[r]'(by simpa using hr) =
-        List.lcpLen (w.toList.drop j) (w.toList.drop i) := by
+        List.lcpLen (w.toList.drop sa[r - 1]) (w.toList.drop i) := by
       rw [getElem_lcpArray_of_pos _ _ _ (Nat.pos_of_ne_zero hr0)]
-      simp only [Array.getElem_toList, hj, hri]
-    have hhr := hh r hr hri
-    rw [hlcpr] at hhr
+      simp only [Array.getElem_toList, hri]
     have hext : h' = (lcpArray w.toList sa.toList)[r]'(by simpa using hr) := by
       change extend w sa[rk[i]! - 1]! i h = _
-      rw [hrki, getElem!_pos sa (r - 1) hr1, hj, extend_eq_add_lcpLen, hlcpr,
-        List.lcpLen_eq_add_lcpLen_drop hhr, List.drop_drop, List.drop_drop]
+      rw [hrki, getElem!_pos sa (r - 1) hr1, extend_eq_add_lcpLen, hlcpr]
+      symm
+      rw [List.lcpLen_eq_add_lcpLen_drop (hlcpr ▸ hh r hr hri), List.drop_drop, List.drop_drop]
     have hsize' : (lcp.set! rk[i]! h').size = w.size := by
-      rw [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
-      exact hsize
+      rwa [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
     refine ih (by omega) hsize' (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
     · rw [hext]
       exact hsa.getElem_lcpArray_sub_one_le (r := r) (r' := r') (by simpa using hr)
         (by simpa using hr') (by simp only [Array.getElem_toList, hri, hr'i])
     · simp only [hrki, hext, Array.set!_eq_setIfInBounds]
-      by_cases hrr : r = r'
-      · subst hrr
-        rw [Array.getElem_setIfInBounds_self]
+      rcases eq_or_ne r r' with rfl | hrr
+      · rw [Array.getElem_setIfInBounds_self]
       · rw [Array.getElem_setIfInBounds_ne (by omega) hrr]
-        rcases hr'd with h0 | hlt
-        · exact hdone r' hr' (Or.inl h0)
-        · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
-          · exact hdone r' hr' (Or.inr hlt)
-          · exact absurd (hinj r r' hr hr' (hri.trans heq.symm)) hrr
+        exact hdone r' hr' (hprev hr hr' hri hrr hr'd)
   | case3 i h lcp hiw =>
     apply List.ext_getElem (by simp only [Array.length_toList, length_lcpArray]; omega)
     intro r h1 h2
@@ -320,8 +313,6 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
 array. -/
 theorem kasaiArray_toList {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w.toList sa.toList) :
     (kasaiArray w sa).toList = lcpArray w.toList sa.toList := by
-  have hlen : sa.size = w.size := by
-    have := hsa.length_eq; simp only [Array.length_toList] at this; exact this
   refine kasaiLoop_spec hsa (fun r hr => ?_) (Nat.zero_le _) Array.size_replicate
     (fun _ _ _ => Nat.zero_le _) (fun r hr hr0 => ?_)
   · have := getElem!_rankArray (n := w.size) hsa.nodup (fun i hi => by

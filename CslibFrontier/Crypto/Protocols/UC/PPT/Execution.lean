@@ -9,19 +9,19 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.Parameter
 public import CslibFrontier.Crypto.Protocols.UC.PPT.Link
+public import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Probabilistic.Oracle.SubstitutionGrowth
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
-import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 import CslibFrontier.Languages.Probabilistic.Oracle.Run
 
 /-!
 # Strict-PPT closure of adversary absorption and UC execution
 
 Library infrastructure toward #6043 (no cited result): proves that absorbing a reply-bounded
-strict-PPT adversary into a strict-PPT environment preserves `Environment.IsPPT`, and that closed
-machine runs (`Machine.run`) and full UC executions (`exec`) are uniform closed `IsPPT` programs
-in `(1^κ, z)`.
+strict-PPT adversary or hybrid protocol into a strict-PPT environment preserves
+`Environment.IsPPT`, and that closed machine runs (`Machine.run`) and full UC executions (`exec`)
+are uniform closed `IsPPT` programs in `(1^κ, z)`.
 
 Because `exec_eq_exec_dummy` and `exec_dummyAdversary` reduce `exec π A C Z` to a closed run of
 `corruptRouter C (π κ C)` against `absorbAdversary C A Z`, `isPPT_exec` requires no `Machine.comp`
@@ -31,6 +31,9 @@ certificate, call budget, or request-length bound.
 
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbAdversary`: absorbing a reply-bounded
   strict-PPT adversary into a strict-PPT environment preserves `Environment.IsPPT`.
+* `Cslib.Crypto.Protocols.UC.Environment.IsPPT.absorbHybrid`: absorbing a reply-bounded
+  strict-PPT hybrid protocol into a strict-PPT environment (`absorbHybrid`) preserves
+  `Environment.IsPPT`.
 * `Cslib.Crypto.Protocols.UC.Environment.IsPPT.isPPT_run`: running a strict-PPT environment
   against a closed, reply-bounded strict-PPT machine family is `IsPPT encBool`.
 * `Cslib.Crypto.Protocols.UC.isPPT_exec`: UC execution of a strict-PPT protocol, adversary, and
@@ -102,5 +105,25 @@ theorem isPPT_exec
     IsPPT encBool (fun κ z => exec π A C Z κ z) :=
   ((hZ.absorbAdversary hA hAR C).isPPT_run (hπ.corruptRouter hparty) hπR.routeCorrupt C).congr
     fun κ z => by rw [exec_eq_exec_dummy, exec_dummyAdversary]
+
+/-- Library infrastructure (no cited result), toward #6043: the subroutine's environment
+`absorbHybrid C ρ Z` is strict PPT for a reply-bounded strict-PPT hybrid protocol and a strict-PPT
+environment of `ρ^σ`. -/
+theorem Environment.IsPPT.absorbHybrid
+    {n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut}
+    {Z : Environment n In Out (RoutedNetQ n In (NetQ ⊕ RoutedNetQ n SubIn NQ))
+      (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))}
+    {party : WordPort (Fin n × In) (Option Out)} {net : WordPort NetQ NetR}
+    {subParty : WordPort (Fin n × SubIn) (Option SubOut)} {nq : WordPort NQ NR}
+    (hparty : ComputableInPolyTime (fun w => (party.queryDecoder.decode w).1)
+      encBits (encFinite (Fin n)))
+    (hZ : Z.IsPPT party (WordPort.sum party (WordPort.sum net (WordPort.sum subParty nq))))
+    (hρ : ρ.IsPPT party net subParty)
+    (hρR : Machine.IsReplyBounded ρ (WordInterface.net subParty) (WordInterface.protocol party net))
+    (C : Finset (Fin n)) :
+    (absorbHybrid C ρ Z).IsPPT subParty (WordPort.sum subParty nq) :=
+  hZ.link ((hρ.hybridWrap (nq := WordPort.sum subParty nq)).routeCorrupt hparty)
+    (hρR.hybridWrap (nq := WordPort.sum subParty nq)).routeCorrupt C
 
 end Cslib.Crypto.Protocols.UC

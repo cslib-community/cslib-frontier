@@ -67,32 +67,27 @@ theorem carmichael_pos (M : ℕ) : 0 < carmichael M :=
 theorem pow_carmichael_succ_prime {M p : ℕ} [NeZero M] (hp : p.Prime) (hpM : p ∣ M)
     (y : ZMod p) : y ^ (carmichael M + 1) = y := by
   have := Fact.mk hp
-  by_cases hy : y = 0
-  · simp [hy]
+  rcases eq_or_ne y 0 with rfl | hy
+  · simp
   · obtain ⟨v, hv⟩ := ZMod.unitsMap_surjective hpM (Units.mk0 y hy)
     have hu : (Units.mk0 y hy) ^ carmichael M = 1 := by
       rw [← hv, ← map_pow, Monoid.pow_exponent_eq_one, map_one]
-    have hy1 : y ^ carmichael M = 1 := by
-      simpa using congrArg Units.val hu
-    rw [pow_succ, hy1, one_mul]
+    rw [pow_succ, show y ^ carmichael M = 1 by simpa using congrArg Units.val hu, one_mul]
 
 /-- For squarefree `M`, every residue modulo `M`, unit or not, satisfies `x ^ (λ(M) + 1) = x`. -/
 theorem pow_carmichael_succ {M : ℕ} (hM : Squarefree M) (x : ZMod M) :
     x ^ (carmichael M + 1) = x := by
-  have hM0 : M ≠ 0 := by
-    rintro rfl
-    exact not_squarefree_zero hM
-  have : NeZero M := ⟨hM0⟩
+  have : NeZero M := ⟨fun h => not_squarefree_zero (h ▸ hM)⟩
   rw [← sub_eq_zero]
   set z := x ^ (carmichael M + 1) - x with hz
   rw [← ZMod.natCast_zmod_val z, ZMod.natCast_eq_zero_iff]
   have key := Finset.prod_primes_dvd z.val
-    (fun p hp => Nat.prime_iff.mp (Nat.prime_of_mem_primeFactors hp)) (fun p hp => by
-      have hpM : p ∣ M := Nat.dvd_of_mem_primeFactors hp
-      have hpp : p.Prime := Nat.prime_of_mem_primeFactors hp
+    (fun p hp => Nat.prime_iff.mp (Nat.prime_of_mem_primeFactors hp)) fun p hp => by
+      have hpM := Nat.dvd_of_mem_primeFactors hp
+      have hpp := Nat.prime_of_mem_primeFactors hp
       have := Fact.mk hpp
-      rw [← ZMod.natCast_eq_zero_iff, ← ZMod.cast_eq_val, ← ZMod.castHom_apply (h := hpM)]
-      rw [hz, map_sub, map_pow, pow_carmichael_succ_prime hpp hpM, sub_self])
+      rw [← ZMod.natCast_eq_zero_iff, ← ZMod.cast_eq_val, ← ZMod.castHom_apply (h := hpM),
+        hz, map_sub, map_pow, pow_carmichael_succ_prime hpp hpM, sub_self]
   rwa [Nat.prod_primeFactors_of_squarefree hM] at key
 
 /-- Adding a multiple of `λ(M)` to a positive exponent does not change the power map. -/
@@ -103,28 +98,26 @@ theorem pow_add_mul_carmichael {M : ℕ} (hM : Squarefree M) (x : ZMod M) {a : �
   | succ k ih =>
     have : a + carmichael M * (k + 1) = (a - 1) + (carmichael M + 1) + carmichael M * k := by
       rw [Nat.mul_succ]; omega
-    rw [this, pow_add, pow_add, pow_carmichael_succ hM, ← pow_succ, Nat.sub_add_cancel ha,
-      ← pow_add, ih]
+    rw [this, pow_add, pow_add, pow_carmichael_succ hM, ← pow_succ,
+      Nat.sub_add_cancel ha, ← pow_add, ih]
 
 /-- For squarefree `M`, positive exponents congruent modulo `λ(M)` give the same power of every
 residue, including non-units. -/
 theorem pow_eq_pow_of_modEq {M : ℕ} (hM : Squarefree M) (x : ZMod M) {a b : ℕ}
     (ha : 1 ≤ a) (hb : 1 ≤ b) (h : a ≡ b [MOD carmichael M]) : x ^ a = x ^ b := by
-  rcases le_total a b with hab | hab
-  · obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h
-    rw [show b = a + carmichael M * k by omega, pow_add_mul_carmichael hM x ha]
-  · obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h.symm
-    rw [show a = b + carmichael M * k by omega, pow_add_mul_carmichael hM x hb]
+  wlog hab : a ≤ b generalizing a b
+  · exact (this hb ha h.symm (le_of_not_ge hab)).symm
+  obtain ⟨k, hk⟩ := (Nat.modEq_iff_dvd' hab).mp h
+  rw [show b = a + carmichael M * k by omega, pow_add_mul_carmichael hM x ha]
 
 /-- The reduced exponent `1 + (2 ^ T - 1) % λ(M)` of `T` squarings. -/
 noncomputable def reducedExponent (M T : ℕ) : ℕ := 1 + (2 ^ T - 1) % carmichael M
 
 /-- The reduced exponent is positive and at most `λ(M)`. -/
 theorem reducedExponent_le (M T : ℕ) :
-    1 ≤ reducedExponent M T ∧ reducedExponent M T ≤ carmichael M := by
-  have := Nat.mod_lt (2 ^ T - 1) (carmichael_pos M)
-  unfold reducedExponent
-  omega
+    1 ≤ reducedExponent M T ∧ reducedExponent M T ≤ carmichael M :=
+  ⟨Nat.le_add_right 1 _,
+    (Nat.add_comm 1 _).trans_le (Nat.succ_le_of_lt (Nat.mod_lt _ (carmichael_pos M)))⟩
 
 /-- Sequential squaring modulo a fixed squarefree `M`: for every `T` and every residue `x`,
 including non-units, `T` squarings equal the single power `x ^ (1 + (2 ^ T - 1) % λ(M))`. -/
@@ -133,9 +126,8 @@ theorem iterate_square_reduced {M : ℕ} (hM : Squarefree M) (T : ℕ)
   rw [pow_iterate]
   have h1 : 1 ≤ 2 ^ T := Nat.one_le_two_pow
   refine pow_eq_pow_of_modEq hM x h1 (by unfold reducedExponent; omega) ?_
-  have h := (Nat.mod_modEq (2 ^ T - 1) (carmichael M)).symm.add_left 1
-  unfold reducedExponent
-  rwa [Nat.add_sub_cancel' h1] at h
+  simpa only [reducedExponent, Nat.add_sub_cancel' h1] using
+    (Nat.mod_modEq (2 ^ T - 1) (carmichael M)).symm.add_left 1
 
 -- `2 ^ 512` exceeds the default `exponentiation.threshold` of 256.
 set_option exponentiation.threshold 600 in
@@ -148,16 +140,11 @@ theorem crypto_table_entries :
       128 ^ 3 * 2 ^ 128 / 2 ^ 40 = 2 ^ 109 ∧
       Nat.sqrt (2 ^ 512) = 2 ^ 256 ∧ Nat.sqrt (2 ^ 256) = 2 ^ 128 ∧
       Nat.sqrt (2 ^ 128) = 2 ^ 64 := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [show (512 : ℕ) ^ 3 = 2 ^ 27 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos,
-      show 27 + 512 - 40 = 499 by norm_num]
-  · rw [show (256 : ℕ) ^ 3 = 2 ^ 24 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos,
-      show 24 + 256 - 40 = 240 by norm_num]
-  · rw [show (128 : ℕ) ^ 3 = 2 ^ 21 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos,
-      show 21 + 128 - 40 = 109 by norm_num]
-  · rw [show (2 : ℕ) ^ 512 = 2 ^ 256 * 2 ^ 256 by rw [← pow_add], Nat.sqrt_eq]
-  · rw [show (2 : ℕ) ^ 256 = 2 ^ 128 * 2 ^ 128 by rw [← pow_add], Nat.sqrt_eq]
-  · rw [show (2 : ℕ) ^ 128 = 2 ^ 64 * 2 ^ 64 by rw [← pow_add], Nat.sqrt_eq]
+  refine ⟨?_, ?_, ?_, pow_add 2 256 256 ▸ Nat.sqrt_eq _, pow_add 2 128 128 ▸ Nat.sqrt_eq _,
+    pow_add 2 64 64 ▸ Nat.sqrt_eq _⟩
+  · rw [show (512 : ℕ) ^ 3 = 2 ^ 27 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
+  · rw [show (256 : ℕ) ^ 3 = 2 ^ 24 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
+  · rw [show (128 : ℕ) ^ 3 = 2 ^ 21 by norm_num, ← pow_add, Nat.pow_div (by norm_num) two_pos]
 
 end SequentialSquaring
 

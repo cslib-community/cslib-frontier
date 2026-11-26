@@ -439,14 +439,10 @@ private theorem table_write_framed {w n K v z : ℕ} {e : M.Handle} (hV : M.Vali
         (M.framed hV).abs s := by
   have ha : T.base + v ∈ T.footprint := Block.mem_footprint.mpr (Block.owns_add hv)
   have he : ∀ a ∈ (M.framed hV).footprint s,
-      Function.update s.mem (T.base + v) z a = s.mem a := by
-    intro a h
-    apply Function.update_of_ne
-    intro hEq
-    exact (Finset.disjoint_left.mp hd) (hEq ▸ h) ha
-  obtain ⟨hinv', habs', -⟩ := (M.framed hV).congr
-    (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he le_rfl hroom
-  exact ⟨hinv', habs'⟩
+      Function.update s.mem (T.base + v) z a = s.mem a := fun a h =>
+    Function.update_of_ne (fun hEq => Finset.disjoint_left.mp hd (hEq ▸ h) ha) _ _
+  exact ((M.framed hV).congr (s' := ⟨Function.update s.mem (T.base + v) z, s.frontier⟩) hi he
+    le_rfl hroom).imp_right And.left
 
 private theorem table_write_op {w n K v z : ℕ} {e : M.Handle} (hV : M.Valid w n K e)
     {T : Block} {s : Memory.State} (hi : (M.framed hV).inv s)
@@ -548,20 +544,14 @@ theorem target_realizes : Realizes .exact
       hmem.fits_of_lt_frontier (hT.lt_frontier (hlen ▸ hv))
     refine ⟨⟨hAddrFit, hsum.of_le (by omega)⟩, ?_⟩
     change if s.mem (d.2.table.base + d.2.vertex) = 0 then _ else _
-    by_cases hx0 : s.mem (d.2.table.base + d.2.vertex) = 0
-    · rw [ite_eq_left hx0]
-      refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
+    split_ifs with hx0 hlt
+    · refine ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
         (fun u => .insert u (d.2.dist + d.2.weight)) ?_⟩
       simpa only [hx0, Dictionary.Memory.decode_zero] using hop
-    · rw [ite_eq_right hx0]
-      refine ⟨Nat.one_le_iff_ne_zero.mpr hx0, ?_⟩
-      change if d.2.dist + d.2.weight < s.mem (d.2.table.base + d.2.vertex) - 1 then _ else _
-      by_cases hlt : d.2.dist + d.2.weight < s.mem (d.2.table.base + d.2.vertex) - 1
-      · rw [ite_eq_left hlt]
-        rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
-        exact ⟨⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv hlen hd
-          (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
-      · rw [ite_eq_right hlt]; trivial
+    · rw [Dictionary.Memory.decode_of_ne_zero hx0] at hop
+      exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, ⟨hAddrFit, hsum⟩, M.table_write_op hV hi hroom hv
+        hlen hd (fun u => .decreaseKey u (d.2.dist + d.2.weight)) (hop hlt)⟩
+    · exact ⟨Nat.one_le_iff_ne_zero.mpr hx0, trivial⟩
 
 /-- Entry domain for `relaxWord` over `M`. -/
 @[expose] def relaxSafe (w : ℕ) (d : M.Handle × RelaxData) (s : Memory.State) : Prop :=
@@ -624,26 +614,22 @@ theorem relax_realizes : Realizes .exact
   · intro w d s _ hmem ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du, idx⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv ⊢
-    subst hn; subst hm; subst hu
-    have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
+    subst hn hm hu
     have hi : idx < (G.adj u).length := hv.1
-    obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hA u hi
+    obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hf.2.1.2.1 u hi
     refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hlast⟩, ?_⟩
     have hRes : (Memory.spec 0).clientResult s (relaxReadEdge ⟨T, G.n, G.m, u.val, du, idx⟩) =
         ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0) := by
-      change ((s.mem _, s.mem _), 0) = _; rw [htgt, hwt]
-    have hSt : (Memory.spec 0).clientState s (relaxReadEdge ⟨T, G.n, G.m, u.val, du, idx⟩) =
-        s := rfl
-    rw [hRes, hSt]
+      change ((s.mem _, s.mem _), 0) = _
+      rw [htgt, hwt]
+    rw [hRes]
     change if ((G.adj u)[idx]).1.val < G.n then _ else _
     rw [ite_eq_left ((G.adj u)[idx]).1.isLt]
-    have hdApart : Disjoint ((M.framed hV).footprint s)
-        (T.footprint ∪ (Memory.inputGraph G.n G.m).footprint) := hf.2.2.1
     have hroomApart : Fits w (s.frontier + (M.framed hV).room s) :=
       hf.2.2.2.of_le (by omega)
     have hcBound : ((G.adj u)[idx]).2 ≤ G.maxWeight := G.le_maxWeight (List.getElem_mem hi)
     refine ⟨G.n, ((G.adj u)[idx]).1.isLt, G.n * G.maxWeight, hV, hf.1, hroomApart,
-      hf.2.1.1, hT.length_eq, hdApart.mono_right Finset.subset_union_left,
+      hf.2.1.1, hT.length_eq, hf.2.2.1.mono_right Finset.subset_union_left,
       hfit.of_le (by
         dsimp only
         have := Nat.mul_le_mul_right (G.maxWeight + 2) (by omega : G.n + 1 ≤ 8 * (G.n + G.m + 2))
@@ -738,28 +724,18 @@ theorem scan_realizes : Realizes .exact
   · intro w d s _ hmem hvHist ⟨G, hV, hT, u, hn, hm, hu, hf, hdu, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, vcur, du⟩⟩
     dsimp only at hV hT hn hm hu hf hdu hv hvHist ⊢
-    subst hn; subst hm; subst hu
-    have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
-    obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hA u
+    subst hn hm hu
+    obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hf.2.1.2.1 u
     have hdegEq : s.mem (3 + (u.val + 1)) - s.mem (3 + u.val) = (G.adj u).length := by omega
     refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hnext, by omega⟩, ?_,
       trivial⟩
     have hDegRes : (Memory.spec 0).clientResult s (scanReadDegree ⟨T, G.n, G.m, u.val, du⟩) =
         ((G.adj u).length, 0) := by
       change (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val), 0) = _; rw [hdegEq]
-    have hDegSt : (Memory.spec 0).clientState s (scanReadDegree ⟨T, G.n, G.m, u.val, du⟩) =
-        s := rfl
-    rw [hDegRes, hDegSt]
+    rw [hDegRes]
     have hbfit : Fits w (G.adj u).length :=
       (hmem.mem_fits (3 + (u.val + 1))).of_le (by omega)
     let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-    have hv2 : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-        (boundedWhile (fun b i : ℕ => i < b) (fun x => do
-          relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
-            G.n u.val du x.2
-          pure (x.2 + 1)) (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val))
-            (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val)) 0 >>= fun _ => pure ())) := hvHist.2.2
-    rw [hdegEq] at hv2
     have hws := Native.scan_while_safe D.toRefinement u du (G.adj u).length
       (fun idx => relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
         G.n u.val du idx)
@@ -767,7 +743,13 @@ theorem scan_realizes : Realizes .exact
       (fun idx => relaxWord_eq (M.framed hV).methods (M.insert e) (M.decreaseKey e)
         (M.insert_eq hV) (M.decreaseKey_eq hV) T (Memory.inputGraph G.n G.m) u du idx)
       (fun idx s _ hinv hvalid => ⟨G, hV, hT, u, rfl, rfl, rfl, hinv, hdu, hfit, hvalid⟩)
-      s hf hbfit (scan_valid_remainingEdges u du hv) (((validHistory_bind' ..).mp hv2).1)
+      s hf hbfit (scan_valid_remainingEdges u du hv) (by
+        have hv2 := hvHist.2.2
+        change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+          (boundedWhile _ _ (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val))
+            (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val)) 0 >>= _)) at hv2
+        rw [hdegEq] at hv2
+        exact ((validHistory_bind' ..).mp hv2).1)
     exact whileSafe_imp
       (fun (b : ℕ) (i : ℕ) => i < b)
       (fun (p : M.Handle × (ScanData × ℕ)) (a : ℕ) => enc8 (p.2, a) 7 < enc8 (p.2, a) 6)
@@ -884,7 +866,7 @@ theorem loop_realizes : Realizes .exact
   · intro w d s _ _ hvHist ⟨G, hV, hT, hn, hm, hf, hb, hfit, hv⟩
     rcases d with ⟨e, ⟨T, n, m, a0⟩⟩
     dsimp only at hV hT hn hm hf hb hv hvHist ⊢
-    subst hn; subst hm
+    subst hn hm
     refine ⟨trivial, ?_, trivial⟩
     let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
     have heqStep (a : ℕ) : loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e) T
@@ -901,11 +883,10 @@ theorem loop_realizes : Realizes .exact
         (∃ (n' K : ℕ) (hV' : M.Valid w n' K e), (M.framed hV').inv s) ∧
         let opt := (Memory.spec 0).clientResult s (M.extractMin e)
         let s' := (Memory.spec 0).clientState s (M.extractMin e)
-        if enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 7 = 0 then True
-        else if enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 8 < G.n then
-          M.scanSafe w (e, ⟨T, G.n, G.m,
-            enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 8,
-            enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt) 9⟩) s' ∧ 1 ≤ x.2
+        let w10 := enc10 (((⟨T, G.n, G.m, a0⟩, 0), x.2), opt)
+        if w10 7 = 0 then True
+        else if w10 8 < G.n then
+          M.scanSafe w (e, ⟨T, G.n, G.m, w10 8, w10 9⟩) s' ∧ 1 ≤ x.2
         else True)
       (fun _ => Nat.pos_iff_ne_zero.symm) heqStep
       (fun a s => loopStepWord_result_le _ _ _ T (Memory.inputGraph G.n G.m) G.n ((), a) s)
@@ -913,11 +894,13 @@ theorem loop_realizes : Realizes .exact
         refine ⟨⟨G.n, G.n * G.maxWeight, hV, hinv.1⟩, ?_⟩
         rcases abstractLoopStep_extract D.toRefinement (M.extractMin e) (M.extractMin_eq hV)
           s hinv hkeys hvalid with hnone | ⟨u, du, hsome, hdu, hinv', hscan⟩
-        · dsimp only; rw [hnone]; exact ite_eq_left rfl ▸ trivial
-        · dsimp only; rw [hsome]
-          have h7 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), some (u.val, du)) 7 = 1 := rfl
-          have h8 : enc10 (((⟨T, G.n, G.m, a0⟩, 0), a), some (u.val, du)) 8 = u.val := rfl
-          rw [h7, ite_eq_right (by decide), h8, ite_eq_left u.isLt]
+        · dsimp only
+          rw [hnone]
+          exact ite_eq_left rfl ▸ trivial
+        · dsimp only
+          rw [hsome]
+          change if u.val < G.n then _ else _
+          rw [ite_eq_left u.isLt]
           exact ⟨⟨G, hV, hT, u, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩)
       a0 s hf hb hv (((validHistory_bind' ..).mp hvHist).1)
     exact whileSafe_imp
@@ -1038,73 +1021,57 @@ theorem realizes_runWord : Realizes .exact
     unfold runWord clientWord Memory.allocBlockDirty
     simp only [PFunctor.FreeM.bind_eq_bind, bind_assoc, pure_bind]
     congr 1 with n : 1
-  · rintro w _ _ _ _ ⟨G, rfl, hfit⟩
+  · rintro w ⟨⟩ _ _ _ ⟨G, rfl, hfit⟩
+    let s₀ := Memory.State.init G.encode
+    let f := s₀.frontier
     have hbase : 8 * (G.n + G.m + 2) ≤ 8 * (G.n + G.m + 2) * (G.maxWeight + 2) :=
       Nat.le_mul_of_pos_right _ (by omega)
-    have hm3 : (Memory.State.init G.encode).mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
     refine ⟨⟨hfit.of_le (by omega), hfit.of_le (by omega),
-      hfit.of_le (show (Memory.State.init G.encode).mem 1 + 3 ≤ _ by change G.n + 3 ≤ _; omega)⟩,
-      ?_⟩
-    have hHdrRes : (Memory.spec 0).clientResult (Memory.State.init G.encode)
-        (readGraphHeader ()) =
-        ⟨G.n, G.source.val, G.m, ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ := by
-      rw [← hm3]; rfl
-    have hHdrSt : (Memory.spec 0).clientState (Memory.State.init G.encode)
-        (readGraphHeader ()) =
-        ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩ := rfl
+      hfit.of_le (show G.n + 3 ≤ _ by omega)⟩, ?_⟩
+    have hHdrRes : (Memory.spec 0).clientResult s₀ (readGraphHeader ()) =
+        ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩ := by
+      rw [← Memory.init_mem_edgeCount G]
+      rfl
+    have hHdrSt : (Memory.spec 0).clientState s₀ (readGraphHeader ()) = ⟨s₀.mem, f + G.n⟩ := rfl
     rw [hHdrRes, hHdrSt]
     refine ⟨A.fits_alloc G hfit, ?_⟩
-    obtain ⟨hAllocRes, hAllocSt⟩ := A.run_alloc G.n
-      ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩
+    obtain ⟨hAllocRes, hAllocSt⟩ := A.run_alloc G.n ⟨s₀.mem, f + G.n⟩
     rw [hAllocRes, hAllocSt]
     dsimp only
     change if G.source.val < G.n then _ else _
     rw [ite_eq_left G.source.isLt]
-    refine ⟨⟨by
-        rw [Memory.frontier_init G]
-        exact hfit.of_le (by have := G.source.isLt; omega),
+    refine ⟨⟨show Fits w ((Memory.State.init G.encode).frontier + G.source.val) from
+      Memory.frontier_init G ▸ hfit.of_le (by have := G.source.isLt; omega),
       hfit.of_le (by omega)⟩, ?_⟩
     obtain ⟨hV, hInvEmpty, hAbsEmpty, hRoomZero, hFpAbove⟩ := A.init_empty G hfit
-    let f := (Memory.State.init G.encode).frontier
     let e0 := A.allocated G.n (f + G.n)
-    let sAlloc : Memory.State := ⟨(Memory.State.init G.encode).mem, f + G.n + A.span G.n⟩
-    let sWrite : Memory.State :=
-      ⟨Function.update (Memory.State.init G.encode).mem (f + G.source.val) 1,
-        f + G.n + A.span G.n⟩
-    have hInitRes : (Memory.spec 0).clientResult sAlloc
-        (initSourceDist ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩) = 0 := rfl
-    have hInitSt : (Memory.spec 0).clientState sAlloc
-        (initSourceDist ⟨G.n, G.source.val, G.m, ⟨f, G.n⟩⟩) = sWrite := rfl
-    rw [hInitRes, hInitSt]
+    let sAlloc : Memory.State := ⟨s₀.mem, f + G.n + A.span G.n⟩
+    let sWrite : Memory.State := ⟨Function.update s₀.mem (f + G.source.val) 1, f + G.n + A.span G.n⟩
     have hFrameWrite : ∀ a ∈ (M.framed hV).footprint sAlloc, sWrite.mem a = sAlloc.mem a :=
       fun a ha => Function.update_of_ne
         (by have hlo : f + G.n ≤ a := hFpAbove a ha; have := G.source.isLt; omega) _ _
-    have hRoomFit : Fits w (sWrite.frontier + (M.framed hV).room sAlloc) := by
-      dsimp only [sWrite, f]; rw [hRoomZero, Nat.add_zero]; exact A.fits_alloc G hfit
     obtain ⟨hInvWrite, hAbsWrite, -⟩ := (M.framed hV).congr (s' := sWrite) hInvEmpty
-      hFrameWrite le_rfl hRoomFit
-    refine ⟨⟨G.n, G.source.isLt, G.n * G.maxWeight, hV, hInvWrite, ?_⟩, ?_⟩
-    · change (M.framed hV).abs sWrite G.source = none ∧ 0 ≤ G.n * G.maxWeight
-      exact ⟨hAbsWrite ▸ hAbsEmpty _, Nat.zero_le _⟩
-    · have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (G.n * G.maxWeight + 1) :=
-        ⟨rfl, hfit.of_le (by
-          have := Nat.mul_le_mul_right (G.maxWeight + 2) (by omega : G.n + 1 ≤ 8 * (G.n + G.m + 2))
-          rw [Nat.add_mul, Nat.one_mul, Nat.mul_add] at this; omega)⟩
-      let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-      obtain ⟨hTAinv, hTAabs, hTAlt⟩ := Memory.inv_tableGraph G hT ⟨rfl⟩ (by omega)
-        (A.fits_alloc G hfit)
-      have hDisj : Disjoint ((M.framed hV).footprint sAlloc)
-          (((Dictionary.Memory.framed (n_max := G.n) hT).prod
-            (AdjacencyList.Memory.framed (L := Memory.inputGraph G.n G.m)
-              G.adj ⟨rfl⟩)).footprint sAlloc) :=
-        Finset.disjoint_left.mpr fun a ha hb =>
-          by have := hFpAbove a ha; have := hTAlt _ a hb; omega
-      have hApartFit : Fits w (sAlloc.frontier + ((M.framed hV).room sAlloc + (0 + 0))) := by
-        dsimp only [sAlloc, f]; rw [hRoomZero]; simpa using A.fits_alloc G hfit
-      have hLoopSafe := initial_loop_safe_insert G le_rfl (by omega) D.toRefinement
-        (M.insert e0 G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
-        sAlloc ⟨hInvEmpty, hTAinv, hDisj, hApartFit⟩ (Prod.ext (funext hAbsEmpty) hTAabs)
-      exact ⟨G, hV, hT, rfl, rfl, hLoopSafe.1, hLoopSafe.2.1, hfit, hLoopSafe.2.2⟩
+      hFrameWrite le_rfl (hRoomZero ▸ A.fits_alloc G hfit)
+    refine ⟨⟨G.n, G.source.isLt, G.n * G.maxWeight, hV, hInvWrite,
+      hAbsWrite ▸ hAbsEmpty _, Nat.zero_le _⟩, ?_⟩
+    have hT : Dictionary.Memory.Valid ⟨f, G.n⟩ w G.n (G.n * G.maxWeight + 1) :=
+      ⟨rfl, hfit.of_le (by
+        have := Nat.mul_le_mul_right (G.maxWeight + 2) (by omega : G.n + 1 ≤ 8 * (G.n + G.m + 2))
+        rw [Nat.add_mul, Nat.one_mul, Nat.mul_add] at this; omega)⟩
+    let D := M.dijkstraFramed hV hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
+    obtain ⟨hTAinv, hTAabs, hTAlt⟩ := Memory.inv_tableGraph G hT ⟨rfl⟩ (by omega)
+      (A.fits_alloc G hfit)
+    have hDisj : Disjoint ((M.framed hV).footprint sAlloc)
+        (((Dictionary.Memory.framed (n_max := G.n) hT).prod
+          (AdjacencyList.Memory.framed (L := Memory.inputGraph G.n G.m)
+            G.adj ⟨rfl⟩)).footprint sAlloc) :=
+      Finset.disjoint_left.mpr fun a ha hb =>
+        by have := hFpAbove a ha; have := hTAlt _ a hb; omega
+    have hLoopSafe := initial_loop_safe_insert G le_rfl (by omega) D.toRefinement
+      (M.insert e0 G.source.val 0) rfl (M.insert_eq hV G.source 0).symm
+      sAlloc ⟨hInvEmpty, hTAinv, hDisj, hRoomZero ▸ A.fits_alloc G hfit⟩
+      (Prod.ext (funext hAbsEmpty) hTAabs)
+    exact ⟨G, hV, hT, rfl, rfl, hLoopSafe.1, hLoopSafe.2.1, hfit, hLoopSafe.2.2⟩
 
 end NativeAllocator
 

@@ -130,6 +130,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
       Msg.phase1a ⟨k, p⟩ ∈ u'.msgs ∧
       Msg.phase1b 0 ⟨k, p⟩ none ∈ u'.msgs ∧
       Msg.phase1b 1 ⟨k, p⟩ none ∈ u'.msgs := by
+  intro acts u'
   let b : Ballot (Fin 2) := ⟨k, p⟩
   set u1 := synodStep majorityQuorumsFin3 u (.prepare p k)
   have hu1_def : u1 =
@@ -148,8 +149,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
         acceptors := fun q => if q = 0 then
           { maxBal := some b, maxVoted := none, crashed := false } else u.acceptors q } := by
     dsimp only [u2, synodStep, synodStepCore]
-    have hu1_acc : u1.acceptors = u.acceptors := by rw [hu1_def]
-    rw [hu1_acc, ite_eq_left ha0_bal, ha0_vote]
+    rw [congrArg SynodState.acceptors hu1_def, ite_eq_left ha0_bal, ha0_vote]
     congr 1; funext q
     by_cases hq0 : q = 0 <;> simp only [hq0, ↓reduceIte, ha0_live]
   set u3 := synodStep majorityQuorumsFin3 u2 (.recvPhase1a 1 b)
@@ -169,10 +169,7 @@ private lemma duelling_prep_and_1a {Learner V : Type*} [DecidableEq Learner] [De
   have tr3 : (synodLts majorityQuorumsFin3).Tr u2 (.recvPhase1a 1 b) u3 :=
     ⟨⟨by rw [hu2_def]; exact ha1_live,
       by rw [hu2_def, hu1_def]; exact Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)⟩, rfl⟩
-  have hu3_eq : ([SynodAction.prepare p k, .recvPhase1a 0 b, .recvPhase1a 1 b] :
-      List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) u = u3 :=
-    rfl
-  dsimp only []
+  have hu3_eq : u' = u3 := rfl
   rw [hu3_eq]
   refine ⟨LTS.MTr.stepL tr1 (LTS.MTr.stepL tr2 (LTS.MTr.stepL tr3 LTS.MTr.refl)), ?_⟩
   rw [hu3_def, hu2_def, hu1_def]
@@ -202,8 +199,8 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
       u'.learners = u.learners ∧
       u.msgs ⊆ u'.msgs ∧
       Msg.phase2a ⟨k, p⟩ val ∈ u'.msgs := by
+  intro acts u'
   let b : Ballot (Fin 2) := ⟨k, p⟩
-  have hins0 : insert (0 : Fin 3) (∅ : Finset (Fin 3)) = {0} := by decide
   have hins01 : insert (1 : Fin 3) ({0} : Finset (Fin 3)) = {0, 1} := by decide
   have hcond0 : b = ⟨k, p⟩ ∧ (0 : Fin 3) ∉ (∅ : Finset (Fin 3)) := ⟨rfl, Finset.notMem_empty 0⟩
   have hcond1 : b = ⟨k, p⟩ ∧ (1 : Fin 3) ∉ ({0} : Finset (Fin 3)) := ⟨rfl, by decide⟩
@@ -216,7 +213,7 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
     dsimp only [u1, synodStep, synodStepCore]
     rw [hp]
     dsimp only [mergeVote]
-    rw [ite_eq_left hcond0, hins0, fin3_singleton_zero_not_quorum]
+    rw [ite_eq_left hcond0, Finset.insert_empty, fin3_singleton_zero_not_quorum]
     rfl
   set u2 := synodStep majorityQuorumsFin3 u1 (.recvPhase1b p 1 b none)
   have hu2_def : u2 =
@@ -239,10 +236,7 @@ private lemma duelling_recv_two_1b {Learner V : Type*} [DecidableEq Learner] [De
     ⟨⟨by rw [hp], h1b0⟩, rfl⟩
   have tr2 : (synodLts majorityQuorumsFin3).Tr u1 (.recvPhase1b p 1 b none) u2 :=
     ⟨⟨by rw [hu1_def]; simp only [↓reduceIte], by rw [hu1_def]; exact h1b1⟩, rfl⟩
-  have hu2_eq : ([SynodAction.recvPhase1b p 0 b none, .recvPhase1b p 1 b none] :
-      List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) u = u2 :=
-    rfl
-  dsimp only []
+  have hu2_eq : u' = u2 := rfl
   rw [hu2_eq]
   refine ⟨LTS.MTr.stepL tr1 (LTS.MTr.stepL tr2 LTS.MTr.refl), ?_⟩
   rw [hu2_def]
@@ -265,17 +259,11 @@ private lemma duellingCycle_step {Learner V : Type*} [DecidableEq Learner] [Deci
   let b₁ : Ballot (Fin 2) := ⟨k, 1⟩
   have h01 : (0 : Fin 2) ≠ 1 := by decide
   have h10 : (1 : Fin 2) ≠ 0 := by decide
-  have hb₀₁ : aboveMaxBal (some b₀) b₁ = true := by
-    simp only [aboveMaxBal, decide_eq_true_eq, Ballot.lt_iff, b₀, b₁]
-    exact Or.inr ⟨trivial, by decide⟩
+  have hb₀₁ : aboveMaxBal (some b₀) b₁ = true := by simp [aboveMaxBal, Ballot.lt_iff, b₀, b₁]
   have hallows_false : allowsVote (some b₁) b₀ = false := by
-    simp only [allowsVote, decide_eq_false_iff_not, Ballot.le_iff, b₀, b₁]
-    rintro (hlt | ⟨_, hle⟩)
-    · exact Nat.lt_irrefl k hlt
-    · exact absurd hle (by decide)
+    simp [allowsVote, Ballot.le_iff, b₀, b₁]
   have hb₁_next : aboveMaxBal (some b₁) ⟨k + 1, 0⟩ = true := by
-    simp only [aboveMaxBal, decide_eq_true_eq, Ballot.lt_iff, b₁]
-    exact Or.inl (Nat.lt_succ_self k)
+    simp [aboveMaxBal, Ballot.lt_iff, b₁]
   obtain ⟨mtr1, hs3_p0, hs3_po, hs3_a0, hs3_a1, hs3_a2, hs3_l, _, hs3_1a0, hs3_1b0, hs3_1b1⟩ :=
     duelling_prep_and_1a 0 v₀ k s hb.p0_in hb.p0_live hb.p0_round
       hb.a0_live hb.a0_vote hb.a0_bal hb.a1_live hb.a1_vote hb.a1_bal
@@ -388,40 +376,25 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
     ωSequence.mk (duellingStateSeq v₀ v₁)
   let xls : ωSequence (List (SynodAction (Fin 2) (Fin 3) Learner V)) :=
     ωSequence.mk (duellingCycle v₀)
-  have hstep : ∀ k,
-      (synodLts majorityQuorumsFin3).MTr (ts k) (xls k) (ts (k + 1)) ∧
-      Msg.phase1a ⟨k, 0⟩ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase1a ⟨k, 1⟩ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase2a ⟨k, 0⟩ v₀ ∈ (ts (k + 1)).msgs ∧
-      Msg.phase2a ⟨k, 1⟩ v₁ ∈ (ts (k + 1)).msgs := by
-    intro k
-    have hc := duellingCycle_step (Learner := Learner) v₀ v₁ k (ts k)
-      (duellingStateSeq_inv v₀ v₁ k)
-    exact ⟨hc.1, hc.2.2.1, hc.2.2.2.1, hc.2.2.2.2.1, hc.2.2.2.2.2⟩
+  have hstep (k : ℕ) :=
+    duellingCycle_step (Learner := Learner) v₀ v₁ k (ts k) (duellingStateSeq_inv v₀ v₁ k)
   have hpos : ∀ k, 0 < (xls k).length := fun k => by
     simp only [xls, get_fun, duellingCycle, List.length_cons, List.length_nil]
     omega
   have : Inhabited (SynodAction (Fin 2) (Fin 3) Learner V) := ⟨.stutter⟩
   obtain ⟨ss, hexec, hts⟩ := LTS.OmegaExecution.flatten_mTr (fun k => (hstep k).1) hpos
-  refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_, ?_, ?_, ?_⟩
-  · have h0 := hts 0
-    simpa only [cumLen_zero, ts, get_fun, duellingStateSeq, inputs] using h0
+  have hmtr n := hexec.extract_mTr ((cumLen_strictMono hpos).id_le n)
+  refine ⟨inputs, ss, xls.flatten, hne, ?_, hexec, ?_,
+    fun k => ⟨xls.cumLen (k + 1), (hts (k + 1)).symm ▸ (hstep k).2.2⟩, ?_, ?_⟩
+  · simpa only [cumLen_zero, ts, get_fun, duellingStateSeq, inputs] using hts 0
   · refine (forall_flatten_iff hpos
-      (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>
-        act ≠ .stutter ∧ ∀ m, act ≠ .drop m)).mpr ?_
-    intro k
-    apply List.forall_iff_forall_mem.mpr
-    intro act hact
+        (fun act : SynodAction (Fin 2) (Fin 3) Learner V =>
+          act ≠ .stutter ∧ ∀ m, act ≠ .drop m)).mpr
+      fun k => List.forall_iff_forall_mem.mpr fun act hact => ?_
     simp only [xls, get_fun, duellingCycle, List.mem_cons, List.not_mem_nil, or_false] at hact
     rcases hact with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
       exact ⟨nofun, nofun⟩
-  · intro k
-    refine ⟨xls.cumLen (k + 1), ?_⟩
-    rw [hts (k + 1)]
-    exact (hstep k).2
   · intro n a
-    have hle : n ≤ xls.cumLen n := (cumLen_strictMono hpos).id_le n
-    have hmtr := hexec.extract_mTr hle
     have hinv_cum := duellingStateSeq_inv (Learner := Learner) v₀ v₁ n
     have hnone_cum : ((ss (xls.cumLen n)).acceptors a).maxVoted = none := by
       rw [hts n]
@@ -429,13 +402,9 @@ theorem exists_duelling_proposers_livelock {Learner V : Type*}
       | ⟨0, _⟩ => exact hinv_cum.a0_vote
       | ⟨1, _⟩ => exact hinv_cum.a1_vote
       | ⟨2, _⟩ => exact hinv_cum.a2_vote
-    exact maxVoted_none_of_mTr hmtr hnone_cum
+    exact maxVoted_none_of_mTr (hmtr n) hnone_cum
   · intro n l
-    have hle : n ≤ xls.cumLen n := (cumLen_strictMono hpos).id_le n
-    have hmtr := hexec.extract_mTr hle
-    have hnone_cum : ((ss (xls.cumLen n)).learners l).learned = none := by
-      rw [hts n]
-      exact (duellingStateSeq_inv (Learner := Learner) v₀ v₁ n).learners_empty l
-    exact learned_none_of_mTr hmtr hnone_cum
+    exact learned_none_of_mTr (hmtr n)
+      (hts n ▸ (duellingStateSeq_inv (Learner := Learner) v₀ v₁ n).learners_empty l)
 
 end Cslib.Distributed.Paxos

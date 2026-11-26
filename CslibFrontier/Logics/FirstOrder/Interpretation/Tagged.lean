@@ -151,8 +151,8 @@ def Model.toSigma (e : I.Model M) : Σ t, ι t → M :=
 
 /-- Two elements of `I.Model M` with equal `toSigma` projections are equal. -/
 theorem Model.ext_toSigma {e e' : I.Model M} (h : e.toSigma = e'.toSigma) : e = e' := by
-  obtain ⟨t, x, hx⟩ := e
-  obtain ⟨t', x', hx'⟩ := e'
+  obtain ⟨t, x, _⟩ := e
+  obtain ⟨t', x', _⟩ := e'
   obtain ⟨rfl, h⟩ := Sigma.mk.inj_iff.1 h
   cases eq_of_heq h
   rfl
@@ -237,9 +237,9 @@ related in `N`. -/
 theorem relMap_copies_two [L'.IsRelational] [L'.Structure N] (R : L'.Relations 2)
     (a b : Copies J N) : RelMap R ![a, b] ↔ a.idx = b.idx ∧ RelMap R ![a.val, b.val] := by
   rw [relMap_copies]
-  refine and_congr ⟨fun h => h 0 1, fun h i j => ?_⟩ (iff_of_eq (congrArg _ (funext fun i => ?_)))
-  · fin_cases i <;> fin_cases j <;> simp [h]
-  · fin_cases i <;> rfl
+  refine and_congr ⟨fun h => h 0 1, fun h i j => ?_⟩
+    (iff_of_eq (congrArg _ (funext fun i => by fin_cases i <;> rfl)))
+  fin_cases i <;> fin_cases j <;> simp [h]
 
 /-- A unary relation in a copy holds exactly when it holds of the underlying element. -/
 theorem relMap_copies_one [L'.IsRelational] [L'.Structure N]
@@ -254,11 +254,8 @@ theorem relMap_copies_one [L'.IsRelational] [L'.Structure N]
 theorem ncard_set_val (s : Set N) :
     {x : Copies J N | x.val ∈ s}.ncard = Nat.card J * s.ncard := by
   rw [← Nat.card_coe_set_eq, ← Nat.card_coe_set_eq, ← Nat.card_prod]
-  exact Nat.card_congr
-    { toFun := fun x => (x.1.idx, ⟨x.1.val, x.2⟩)
-      invFun := fun p => ⟨⟨p.1, p.2.1⟩, p.2.2⟩
-      left_inv := fun _ => rfl
-      right_inv := fun _ => rfl }
+  exact Nat.card_congr ⟨fun x => (x.1.idx, ⟨x.1.val, x.2⟩),
+    fun p => ⟨⟨p.1, p.2.1⟩, p.2.2⟩, fun _ => rfl, fun _ => rfl⟩
 
 end Copies
 
@@ -343,11 +340,8 @@ theorem realize_domainAt (t : T) (c : Coord T ι → M) :
       (∀ σ : Σ t', ι t', σ.1 ≠ t → c (data σ) = c p) ∧
         (I.domain t).Realize fun i => c (data ⟨t, i⟩) := by
   fo_simp [domainAt, and_assoc]
-  refine and_congr Iff.rfl (and_congr ?_ (and_congr ?_ Iff.rfl))
-  · refine forall_congr' fun t' => ?_
-    split_ifs <;> simp
-  · refine forall_congr' fun σ => ?_
-    split_ifs with h <;> simp [h]
+  exact and_congr Iff.rfl (and_congr (forall_congr' fun _ => by split_ifs <;> simp)
+    (and_congr (forall_congr' fun _ => by split_ifs with h <;> simp [h]) Iff.rfl))
 
 omit [∀ t, Finite (ι t)] in
 /-- `I.relAt R` holds of `c` iff all arguments share the same copy pair `(p, q)` and there is a tag
@@ -449,28 +443,23 @@ private theorem coords_tag_eq_iff {a b : M} (h : a ≠ b) (e : I.Model M) (t : T
 omit [Finite T] [∀ t, Finite (ι t)] in
 private theorem coords_injective {a b a' b' : M} (h : a ≠ b) {e e' : I.Model M}
     (heq : coords a b e = coords a' b' e') : a = a' ∧ b = b' ∧ e = e' := by
-  have ha : a = a' := congrFun heq Coord.p
-  have hb : b = b' := congrFun heq Coord.q
-  subst ha hb
-  refine ⟨rfl, rfl, ?_⟩
-  have ht : e.1 = e'.1 := by
-    have := congrFun heq (tag e.1)
-    rwa [(coords_tag_eq_iff h e e.1).2 rfl, eq_comm, coords_tag_eq_iff h] at this
+  obtain rfl : a = a' := congrFun heq Coord.p
+  obtain rfl : b = b' := congrFun heq Coord.q
+  have ht := congrFun heq (tag e.1)
+  rw [(coords_tag_eq_iff h e e.1).2 rfl, eq_comm, coords_tag_eq_iff h] at ht
   obtain ⟨t, x, hx⟩ := e
   obtain ⟨t', x', hx'⟩ := e'
   obtain rfl : t = t' := ht
-  refine Model.ext_toSigma (Sigma.ext rfl (heq_of_eq (funext fun (i : ι t) => ?_)))
+  refine ⟨rfl, rfl, Model.ext_toSigma (Sigma.ext rfl (heq_of_eq (funext fun (i : ι t) => ?_)))⟩
   have := congrFun heq (data ⟨t, i⟩)
   rwa [coords_data_mk, coords_data_mk] at this
 
 /-- For distinct elements `a ≠ b` and `e : I.Model M`, `coords a b e` satisfies
 `I.domainAt e.1`. -/
 theorem realize_domainAt_coords (a b : M) (h : a ≠ b) (e : I.Model M) :
-    (I.domainAt e.1).Realize (coords a b e) := by
-  refine (realize_domainAt _ _).2 ⟨h, fun t' => ?_, fun ⟨t', i⟩ ht => ?_, ?_⟩
-  · simp only [coords]
-  · simp only [coords, ht, dite_false]
-  · simpa only [coords_data_self] using e.2.2
+    (I.domainAt e.1).Realize (coords a b e) :=
+  (realize_domainAt _ _).2 ⟨h, fun _ => rfl, fun ⟨_, _⟩ ht => dite_eq_right ht,
+    by simpa only [coords_data_self] using e.2.2⟩
 
 /-- First element `p.1.1` of an ordered distinct pair `p : Pairs M`. -/
 abbrev Pairs.fst {M : Type*} (p : Pairs M) : M := p.1.1
@@ -488,20 +477,18 @@ noncomputable def ofCopies [Nontrivial M] (x : Copies (Pairs M) (I.Model M)) :
 to `(I.toInterpretation S).Model M`. -/
 theorem ofCopies_bijective [Nontrivial M] :
     Function.Bijective (ofCopies (I := I) (M := M) S) := by
-  constructor
+  refine ⟨?_, fun ⟨c, hc⟩ => ?_⟩
   · rintro ⟨⟨⟨a, b⟩, h⟩, e⟩ ⟨⟨⟨a', b'⟩, h'⟩, e'⟩ heq
     obtain ⟨rfl, rfl, rfl⟩ := coords_injective h (congrArg Subtype.val heq)
     rfl
-  · rintro ⟨c, hc⟩
-    obtain ⟨t, hct⟩ := (realize_toInterpretation_domain_of_nontrivial S c).1 hc
+  · obtain ⟨t, hct⟩ := (realize_toInterpretation_domain_of_nontrivial S c).1 hc
     obtain ⟨hpq, htag, hdata, hdom⟩ := (realize_domainAt t c).1 hct
     refine ⟨⟨⟨(c p, c q), hpq⟩, ⟨t, fun i => c (data ⟨t, i⟩), hdom⟩⟩,
       Interpretation.Model.ext (funext fun k => ?_)⟩
     rcases k with (_ | _) | t' | ⟨t', i⟩
     · rfl
     · rfl
-    · simp only [ofCopies, coords]
-      rw [htag t']
+    · exact (htag t').symm
     · simp only [ofCopies, coords]
       split_ifs with ht
       · subst ht

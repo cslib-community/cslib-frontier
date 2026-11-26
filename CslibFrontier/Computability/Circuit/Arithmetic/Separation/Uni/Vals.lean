@@ -52,18 +52,12 @@ theorem bws_cons {M K : Type} (w : List Bool) (ws : List (List Bool)) :
 theorem bw_inj {M K : Type} {w w' : List Bool} {u v : List (Sy M K)}
     (h : bw w ++ u = bw w' ++ v) : w = w' ∧ u = v := by
   simp only [bw, List.append_assoc, List.singleton_append] at h
-  have hs : ∀ w : List Bool, (Sy.semi : Sy M K) ∉ w.map .bit := by
-    intro w hw
-    rw [List.mem_map] at hw
-    obtain ⟨b, -, hb⟩ := hw
-    exact absurd hb (by simp)
+  have hs (w : List Bool) : (Sy.semi : Sy M K) ∉ w.map .bit := by simp
   obtain ⟨h1, h2⟩ := cut_inj (hs w) (hs w') h
   exact ⟨List.map_injective_iff.2 (fun _ _ e => by simpa using e) h1, h2⟩
 
-theorem bws_inj {M K : Type} : Function.Injective (bws : List (List Bool) → List (Sy M K)) := by
-  refine flatMap_inj (fun w => by simp [bw]) ?_
-  intro w w' u v h
-  exact (bw_inj h).1
+theorem bws_inj {M K : Type} : Function.Injective (bws : List (List Bool) → List (Sy M K)) :=
+  flatMap_inj (fun _ => by simp [bw]) fun _ _ _ _ h => (bw_inj h).1
 
 /-- Wrap the key letters of a record with `some` and append the rotation mark `none`. -/
 @[expose] def oc {K : Type} (c : List (Bl K)) : List (Option (Bl K)) := c.map some ++ [none]
@@ -206,48 +200,22 @@ theorem mt_X (x : XP P) (bits : List Bool) :
   constructor
   · rintro ⟨h1, h2⟩
     have hlk : x.lookups = encW ((lks x).map fun c => (true, oc c)) := by
-      have h := h1 .lk
-      rw [emX_lk_false, emX_lk_true] at h
-      exact h.symm
-    refine ⟨fun i => ?_, ?_, ?_, ?_, hlk, ⟨?_, fun b => ?_, fun k => ?_⟩, ?_⟩
-    · have h := h1 (.rg i)
-      rw [emX_rg_false, emX_rg_true] at h
-      exact bws_inj h
-    · have h := h1 .md
-      rw [emX_md_false, emX_md_true] at h
-      exact List.map_injective_iff.2 hmd h
-    · have h := h1 .cp
-      rw [emX_cp_false, emX_cp_true] at h
-      exact bws_inj h
-    · have h := h1 .fr
-      rw [emX_fr_false, emX_fr_true] at h
-      exact bws_inj h
-    · have h := h1 .ls
-      rw [emX_ls_false, emX_ls_true, hlk, ← List.append_assoc, ← encW_append] at h
-      exact h
-    · have h := h1 (.bk b)
-      rw [emX_bk, emX_bk] at h
-      exact h
-    · have h := h1 (.cm k)
-      rw [emX_cm, emX_cm] at h
-      exact h
-    · have h := h2 ()
-      rw [emX_inp] at h
-      exact List.map_injective_iff.2 hbit h
+      simpa only [emX_lk_false, emX_lk_true] using (h1 .lk).symm
+    exact ⟨fun i => bws_inj (by simpa only [emX_rg_false, emX_rg_true] using h1 (.rg i)),
+      List.map_injective_iff.2 hmd (by simpa only [emX_md_false, emX_md_true] using h1 .md),
+      bws_inj (by simpa only [emX_cp_false, emX_cp_true] using h1 .cp),
+      bws_inj (by simpa only [emX_fr_false, emX_fr_true] using h1 .fr),
+      hlk,
+      ⟨by simpa only [emX_ls_false, emX_ls_true, hlk, ← List.append_assoc, ← encW_append]
+          using h1 .ls,
+        fun b => by simpa only [emX_bk] using h1 (.bk b),
+        fun k => by simpa only [emX_cm] using h1 (.cm k)⟩,
+      List.map_injective_iff.2 hbit (by simpa only [emX_inp] using h2 ())⟩
   · rintro ⟨h1, h2, h3, h4, h5, ⟨h6, h7, h8⟩, h9⟩
-    refine ⟨?_, ?_⟩
-    · intro s
-      cases s with
-      | rg i => rw [emX_rg_false, emX_rg_true, h1]
-      | md => rw [emX_md_false, emX_md_true, h2]
-      | cp => rw [emX_cp_false, emX_cp_true, h3]
-      | fr => rw [emX_fr_false, emX_fr_true, h4]
-      | lk => rw [emX_lk_false, emX_lk_true, h5]
-      | ls => rw [emX_ls_false, emX_ls_true, h5, ← List.append_assoc, ← encW_append, h6]
-      | bk b => rw [emX_bk, emX_bk, h7]
-      | cm k => rw [emX_cm, emX_cm, h8]
-    · rintro ⟨⟩
-      rw [emX_inp, h9]
+    refine ⟨fun s => ?_, fun ⟨⟩ => by rw [emX_inp, h9]⟩
+    cases s <;> simp [emX_rg_false, emX_rg_true, emX_md_false, emX_md_true, emX_cp_false,
+      emX_cp_true, emX_fr_false, emX_fr_true, emX_lk_false, emX_lk_true, emX_ls_false,
+      emX_ls_true, emX_bk, emX_cm, ← List.append_assoc, ← encW_append, *]
 
 end EmX
 

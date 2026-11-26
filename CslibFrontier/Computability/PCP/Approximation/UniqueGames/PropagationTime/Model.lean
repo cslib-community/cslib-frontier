@@ -77,51 +77,33 @@ theorem buckets_spec (n : ℕ) (l : List (Edge (α → α))) (hl : ∀ e ∈ l, 
   induction l with
   | nil =>
     refine ⟨List.length_replicate, fun u => ?_⟩
-    change (List.replicate n []).getD u [] = []
-    by_cases hu : u < n
-    · exact List.getD_replicate _ hu
-    · exact List.getD_eq_default _ _ (by simpa only [List.length_replicate, not_lt] using hu)
+    by_cases hu : u < n <;> simp [buckets, List.getD_eq_getElem?_getD, hu]
   | cons e l ih =>
     obtain ⟨hlen, hget⟩ := ih fun d hd => hl d (List.mem_cons_of_mem _ hd)
-    have he := hl e List.mem_cons_self
+    have ⟨hs, hd⟩ := hl e List.mem_cons_self
+    have hset {bs : List (List (Edge (α → α)))} {i u : ℕ} {x} (hi : i < bs.length) :
+        (bs.set i x).getD u [] = if u = i then x else bs.getD u [] := by
+      rw [List.getD_eq_getElem?_getD]
+      split_ifs with h
+      · rw [h, List.getElem?_set_self hi, Option.getD_some]
+      · rw [List.getElem?_set_ne (Ne.symm h), ← List.getD_eq_getElem?_getD]
     change (insertEdge (buckets n l) e).length = n ∧
       ∀ u, (insertEdge (buckets n l) e).getD u [] = (e :: l).filter (incident u)
     unfold insertEdge
     split_ifs with hsd
     · refine ⟨by rw [List.length_set, hlen], fun u => ?_⟩
-      have hs : e.src < (buckets n l).length := by rw [hlen]; exact he.1
+      rw [hset (by rwa [hlen]), hget, hget, List.filter_cons]
       by_cases hu : u = e.src
-      · subst hu
-        rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hs, Option.getD_some,
-          hget, List.filter_cons]
-        simp only [incident, beq_self_eq_true, Bool.true_or, ↓reduceIte]
-      · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
-          ← List.getD_eq_getElem?_getD, hget, List.filter_cons]
-        rw [ite_eq_right fun h => by
-          simp only [incident, hsd, Bool.or_self, beq_iff_eq] at h
-          exact hu (h.symm.trans hsd.symm)]
-    · have hlen1 : ((buckets n l).set e.src (e :: (buckets n l).getD e.src [])).length = n := by
-        rw [List.length_set, hlen]
-      refine ⟨by rw [List.length_set, hlen1], fun u => ?_⟩
-      have hs : e.src < (buckets n l).length := by rw [hlen]; exact he.1
-      have hd : e.dst < ((buckets n l).set e.src (e :: (buckets n l).getD e.src [])).length := by
-        rw [hlen1]; exact he.2
+      · simp [hu, incident]
+      · simp [hu, Ne.symm hu, ← hsd, incident]
+    · refine ⟨by rw [List.length_set, List.length_set, hlen], fun u => ?_⟩
+      rw [hset (by rwa [List.length_set, hlen]), hset (by rwa [hlen]),
+        hget, hget, hget, List.filter_cons]
       by_cases hu : u = e.dst
-      · subst hu
-        rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hd, Option.getD_some,
-          hget, List.filter_cons]
-        simp only [incident, beq_self_eq_true, Bool.or_true, ↓reduceIte]
+      · simp [hu, incident]
       · by_cases hu' : u = e.src
-        · subst hu'
-          rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
-            List.getElem?_set_self hs, Option.getD_some, hget, List.filter_cons]
-          simp only [incident, beq_self_eq_true, Bool.true_or, ↓reduceIte]
-        · rw [List.getD_eq_getElem?_getD, List.getElem?_set_ne (Ne.symm hu),
-            List.getElem?_set_ne (Ne.symm hu'), ← List.getD_eq_getElem?_getD,
-            hget, List.filter_cons]
-          rw [ite_eq_right fun h => by
-            simp only [incident, Bool.or_eq_true, beq_iff_eq] at h
-            exact h.elim (fun h => hu' h.symm) (fun h => hu h.symm)]
+        · simp [hu', hsd, incident]
+        · simp [hu, Ne.symm hu, hu', Ne.symm hu', incident]
 
 /-- The incidence lists of a graph's slots are its `adj` lists. -/
 theorem buckets_getD (g : Graph (α → α)) (u : ℕ) :
@@ -169,14 +151,13 @@ recorded array length to `0` (`default : Fin L`). -/
 
 private theorem length_run_table {α : Type} [DecidableEq α] [Inhabited α] (labels : List α)
     (g : Graph (α → α)) : (run labels g).table.length = slots g := by
-  unfold run
-  suffices ∀ (es : List (Edge (α → α))) (S : State α),
-      S.table.length = slots g → (es.foldl (step labels g) S).table.length = slots g by
-    exact this g.edges (init g) List.length_replicate
-  intro es S hS
-  induction es generalizing S with
-  | nil => exact hS
-  | cons e es ih => exact ih _ ((length_step labels g S e).trans hS)
+  suffices ∀ (es : List (Edge (α → α))) (S : State α), S.table.length = slots g →
+      (es.foldl (step labels g) S).table.length = slots g from
+    this g.edges (init g) List.length_replicate
+  intro es
+  induction es with
+  | nil => exact fun _ h => h
+  | cons e _ ih => exact fun S hS => ih _ ((length_step labels g S e).trans hS)
 
 /-- `decodeSolution L` recovers `solve (List.finRange L) g` identically on every `v : ℕ`. -/
 theorem decodeSolution_encodeSolution {L : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) :
@@ -187,16 +168,13 @@ theorem decodeSolution_encodeSolution {L : ℕ} [NeZero L] (g : Graph (Fin L →
   · simp only [encodeSolution, decodeSolution, Option.some.injEq]
     funext v
     by_cases hv : v < slots g
-    · have hget :=
-        List.getD_map_range (fun u => (labelling (List.finRange L) g u).val) 0 hv
-      simp only [hget, Fin.is_lt, ↓reduceDIte, Fin.eta]
+    · simp only [List.getD_map_range _ 0 hv, Fin.is_lt, ↓reduceDIte, Fin.eta]
     · have hget : ((List.range (slots g)).map fun u => (labelling (List.finRange L) g u).val).getD
           v 0 = 0 :=
         List.getD_eq_default _ _
           (by simpa only [List.length_map, List.length_range, not_lt] using hv)
-      have hnone : (run (List.finRange L) g).get v = none := by
-        simp only [State.get]
-        exact List.getD_eq_default _ _ (by rw [length_run_table]; omega)
+      have hnone : (run (List.finRange L) g).get v = none :=
+        List.getD_eq_default _ _ (by rw [length_run_table]; omega)
       simp only [hget, NeZero.pos L, ↓reduceDIte]
       simp only [labelling, hnone, Option.elim_none]
       rfl
@@ -215,24 +193,14 @@ propagation on `g`. -/
 /-- Fitting `wordBound g` suffices for `InputFits w (encode g)`. -/
 theorem Fits.inputFits_encode {L w : ℕ} {g : Graph (Fin L → Fin L)} (hw : Fits w (wordBound g)) :
     InputFits w (encode g) := by
-  have hbound : 3 + g.edges.length * (L + 2) ≤ wordBound g := by
-    simp only [wordBound]
-    nlinarith
-  refine ⟨hw.of_le (by rw [length_encode]; exact hbound), fun x hx => hw.of_le ?_⟩
-  simp only [encode, List.mem_cons, List.mem_flatMap] at hx
+  refine ⟨hw.of_le (by rw [length_encode, wordBound]; nlinarith), fun x hx => hw.of_le ?_⟩
+  have hbound : L + slots g + g.edges.length ≤ wordBound g := by rw [wordBound]; nlinarith
   have hv_le : g.vertices ≤ slots g := vertices_le_slots g
-  rcases hx with rfl | rfl | rfl | ⟨e, he, hex⟩
-  · simp only [wordBound]; nlinarith
-  · simp only [wordBound]; nlinarith
-  · simp only [wordBound]; nlinarith
-  · have hs : e.src < slots g := src_lt_slots he
-    have hd : e.dst < slots g := dst_lt_slots he
-    simp only [encodeEdge, List.mem_cons, List.mem_map] at hex
-    rcases hex with rfl | rfl | ⟨a, _, rfl⟩
-    · simp only [wordBound]; nlinarith
-    · simp only [wordBound]; nlinarith
-    · have ha : (e.constraint a).val < L := (e.constraint a).isLt
-      simp only [wordBound]; nlinarith
+  simp only [encode, List.mem_cons, List.mem_flatMap, encodeEdge, List.mem_map] at hx
+  rcases hx with rfl | rfl | rfl | ⟨e, he, rfl | rfl | ⟨a, _, rfl⟩⟩
+  all_goals try omega
+  · exact (src_lt_slots he).le.trans (by omega)
+  · exact (dst_lt_slots he).le.trans (by omega)
 
 namespace Reg
 

@@ -49,69 +49,54 @@ namespace Cslib.Circuits.Boolean.Zhegalkin
 theorem simulates_deMorgan : interpretation.Simulates Boolean.interpretation := by
   rw [Interpretation.simulates_iff]
   intro op
+  suffices ∃ a wa,
+      CostSynthesis interpretation andCost (inputs _) {Boolean.interpretation op} a wa by
+    obtain ⟨a, wa, h⟩ := this
+    exact h.exists_circuit.imp fun _ h => h.1
   cases op with
   | const b =>
-    cases b
-    · obtain ⟨c, hc, -, -⟩ := ((synth_consts 0).mono Set.Subset.rfl
-        (Set.singleton_subset_iff.mpr (Or.inl rfl)) le_rfl le_rfl).exists_circuit
-      exact ⟨c, hc⟩
-    · obtain ⟨c, hc, -, -⟩ := ((synth_consts 0).mono Set.Subset.rfl
-        (Set.singleton_subset_iff.mpr (Or.inr rfl)) le_rfl le_rfl).exists_circuit
-      exact ⟨c, hc⟩
+    exact ⟨_, _, (synth_consts 0).mono Set.Subset.rfl
+      (Set.singleton_subset_iff.mpr (match b with | false => Or.inl rfl | true => Or.inr rfl))
+      le_rfl le_rfl⟩
   | not =>
-    have h1 := synth_consts 1
     have hnot : CostSynthesis interpretation andCost
         (inputs 1 ∪ {constZero 1, constOne 1}) {Boolean.interpretation .not} 1 0 := by
-      have hx0 : (fun x : Fin 1 → Bool => x 0) ∈ inputs 1 ∪ {constZero 1, constOne 1} :=
-        Or.inl ⟨0, rfl⟩
-      have hc1 : constOne 1 ∈ inputs 1 ∪ {constZero 1, constOne 1} := Or.inr (Or.inr rfl)
       have h := add_two_of_mem (G := Bool) (I := interpretation) (w := andCost) (addOp := Op.xor)
-        rfl (fun _ => rfl) rfl hx0 hc1
+        (s := inputs 1 ∪ {constZero 1, constOne 1}) (f := fun x : Fin 1 → Bool => x 0)
+        (g := constOne 1) rfl (fun _ => rfl) rfl (Or.inl ⟨0, rfl⟩) (Or.inr (Or.inr rfl))
       refine h.mono Set.Subset.rfl ?_ le_rfl le_rfl
       rintro _ rfl
       funext x
       change (!x 0) = (x 0 ^^ true)
       cases x 0 <;> rfl
-    obtain ⟨c, hc, -, -⟩ := (h1.trans hnot).exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, (synth_consts 1).trans hnot⟩
   | and =>
-    let args : Fin 2 → BooleanFunction 2 := fun i x => x i
-    have hand_raw := CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
-      Op.and args fun i => ⟨i, rfl⟩
-    have hand : CostSynthesis interpretation andCost (inputs 2)
-        {Boolean.interpretation .and} 1 1 :=
-      hand_raw.mono Set.Subset.rfl (by rintro _ rfl; rfl) le_rfl le_rfl
-    obtain ⟨c, hc, -, -⟩ := hand.exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2) Op.and
+      (fun i x => x i) fun i => ⟨i, rfl⟩⟩
   | or =>
     let args : Fin 2 → BooleanFunction 2 := fun i x => x i
     have hand : CostSynthesis interpretation andCost (inputs 2)
         {fun x : Fin 2 → Bool => x 0 && x 1} 1 1 :=
-      (CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
-        Op.and args fun i => ⟨i, rfl⟩).mono Set.Subset.rfl (by rintro _ rfl; rfl) le_rfl le_rfl
+      CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
+        Op.and args fun i => ⟨i, rfl⟩
     have hxor : CostSynthesis interpretation andCost (inputs 2)
         {fun x : Fin 2 → Bool => x 0 ^^ x 1} 1 0 :=
-      (CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
-        Op.xor args fun i => ⟨i, rfl⟩).mono Set.Subset.rfl (by rintro _ rfl; rfl) le_rfl le_rfl
+      CostSynthesis.gate (I := interpretation) (w := andCost) (s := inputs 2)
+        Op.xor args fun i => ⟨i, rfl⟩
     have hor : CostSynthesis interpretation andCost
         (inputs 2 ∪ ({fun x : Fin 2 → Bool => x 0 && x 1} ∪
           {fun x : Fin 2 → Bool => x 0 ^^ x 1}))
         {Boolean.interpretation .or} 1 0 := by
-      have ha : (fun x : Fin 2 → Bool => x 0 && x 1) ∈
-          inputs 2 ∪ ({fun x => x 0 && x 1} ∪ {fun x => x 0 ^^ x 1}) :=
-        Or.inr (Or.inl rfl)
-      have hx : (fun x : Fin 2 → Bool => x 0 ^^ x 1) ∈
-          inputs 2 ∪ ({fun x => x 0 && x 1} ∪ {fun x => x 0 ^^ x 1}) :=
-        Or.inr (Or.inr rfl)
-      have h := add_two_of_mem (G := Bool) (I := interpretation) (w := andCost) (addOp := Op.xor)
-        rfl (fun _ => rfl) rfl hx ha
+      have h := add_two_of_mem (G := Bool) (n := 2) (I := interpretation) (w := andCost)
+        (addOp := Op.xor) (s := inputs 2 ∪ ({fun x => x 0 && x 1} ∪ {fun x => x 0 ^^ x 1}))
+        (f := fun x => x 0 ^^ x 1) (g := fun x => x 0 && x 1) rfl (fun _ => rfl) rfl
+        (Or.inr (Or.inr (Set.mem_singleton _))) (Or.inr (Or.inl (Set.mem_singleton _)))
       refine h.mono Set.Subset.rfl ?_ le_rfl le_rfl
       rintro _ rfl
       funext x
       change (x 0 || x 1) = ((x 0 ^^ x 1) ^^ (x 0 && x 1))
       cases x 0 <;> cases x 1 <;> rfl
-    obtain ⟨c, hc, -, -⟩ := ((hand.union hxor).trans hor).exists_circuit
-    exact ⟨c, hc⟩
+    exact ⟨_, _, (hand.union hxor).trans hor⟩
 
 /-- The Zhegalkin basis `{⊕, ∧, 1}` is functionally complete. -/
 instance : interpretation.IsComplete :=

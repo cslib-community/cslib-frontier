@@ -135,8 +135,7 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Triple α β)) :
   · split
     · rfl
     · next k v c right heq =>
-      have : rest = rest.take t ++ (k, v, c) :: right := by
-        rw [← heq, List.take_append_drop]
+      have : rest = rest.take t ++ (k, v, c) :: right := by rw [← heq, List.take_append_drop]
       conv_rhs => rw [this]
       simp only [toList_split, toList_node, toListRest_append, toListRest_cons, List.append_assoc,
         List.cons_append]
@@ -167,10 +166,8 @@ theorem node_of_good {first : BTree α β} {rest : List (Triple α β)} {h : ℕ
       ∀ x ∈ (BTree.node first rest).children, Occupied t x := by
   obtain ⟨hb, hh⟩ := balanced_node_of_forall hf.balanced fun e he =>
     ⟨(hr e he).balanced, (hr e he).height_eq.trans hf.height_eq.symm⟩
-  refine ⟨hb, by rw [hh, hf.height_eq], fun x hx => ?_⟩
-  simp only [children_node, List.mem_cons, List.mem_map] at hx
-  rcases hx with rfl | ⟨e, he, rfl⟩
-  exacts [hf.occupied, (hr e he).occupied]
+  exact ⟨hb, by rw [hh, hf.height_eq],
+    List.forall_mem_cons.2 ⟨hf.occupied, List.forall_mem_map.2 fun e he => (hr e he).occupied⟩⟩
 
 /-- A node with `t - 1` to `2 * t - 1` keys over good children of height `h` is good, of height
 `h + 1`. -/
@@ -205,25 +202,21 @@ theorem exists_good_split_ofNode {first : BTree α β} {rest : List (Triple α �
     {h : ℕ} (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child)
     (hlo : 2 * t - 1 < rest.length) (hhi : rest.length ≤ 2 * t - 1 + t + 1) :
     ∃ l k v r, ofNode t first rest = split l k v r ∧ Good t (h + 1) l ∧ Good t (h + 1) r := by
-  have hgt : ¬ rest.length ≤ 2 * t - 1 := by omega
   unfold ofNode
-  simp only [hgt, ↓reduceIte]
+  rw [ite_eq_right (by omega)]
   split
   · next heq =>
-    rw [List.drop_eq_nil_iff] at heq
+    have := List.drop_eq_nil_iff.mp heq
     omega
   · next k v c right heq =>
-    have hmem : (k, v, c) ∈ rest := List.mem_of_mem_drop (heq ▸ List.mem_cons_self ..)
-    have hright : ∀ e ∈ right, e ∈ rest := fun e he =>
-      List.mem_of_mem_drop (heq ▸ List.mem_cons_of_mem _ he)
-    have hrl : right.length = rest.length - t - 1 := by
-      have := congrArg List.length heq
-      simp only [List.length_drop, List.length_cons] at this
-      omega
+    have hsub : (k, v, c) :: right ⊆ rest := heq ▸ List.drop_subset t rest
+    have := congrArg List.length heq
+    simp only [List.length_drop, List.length_cons] at this
     have htl : (rest.take t).length = t := by simp; omega
     exact ⟨_, k, v, _, rfl,
       good_node hf (fun e he => hr e (List.mem_of_mem_take he)) (by omega) (by omega),
-      good_node (hr _ hmem) (fun e he => hr e (hright e he)) (by omega) (by omega)⟩
+      good_node (hr _ (hsub List.mem_cons_self))
+        (fun e he => hr e (hsub (List.mem_cons_of_mem _ he))) (by omega) (by omega)⟩
 
 /-- The shape invariant of the result of inserting into `tr`: either a tree of the same
 height with at least as many root keys, still within `2 * t - 1`, or two good trees of the
@@ -245,8 +238,7 @@ theorem fits_ofNode {tr first : BTree α β} {rest : List (Triple α β)}
     simp only [ofNode, hle, ↓reduceIte]
     exact ⟨htr, hb, hhn.trans hh.symm, hco, hk, hle⟩
   · -- the node overflowed by exactly one key
-    obtain ⟨l, k, v, r, heq, hl, hr'⟩ :=
-      exists_good_split_ofNode hf hr (by omega) (by omega)
+    obtain ⟨l, k, v, r, heq, hl, hr'⟩ := exists_good_split_ofNode hf hr (by omega) (by omega)
     rw [heq]
     exact ⟨hh ▸ hl, hh ▸ hr'⟩
 
@@ -274,10 +266,7 @@ theorem fits_withRest {c : BTree α β} {x : InsertResult α β} (hx : x.Fits t 
           fun e he => hco _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
   | split l k v r =>
     obtain ⟨hl, hr'⟩ := hx
-    refine ⟨hch ▸ hl, fun e he => ?_, Nat.le_succ _, le_rfl⟩
-    simp only [withRest, List.mem_cons] at he
-    rcases he with rfl | he
-    exacts [hch ▸ hr', hr e he]
+    exact ⟨hch ▸ hl, List.forall_mem_cons.2 ⟨hch ▸ hr', hr⟩, Nat.le_succ _, le_rfl⟩
 
 end InsertResult
 
@@ -443,8 +432,7 @@ theorem insert_def (tr : BTree α β) : insert t k v tr = Id.run (insertM t leI 
   (rfl)
 
 /-- Insertion is the bottom-up insertion with an overflow grown into a new root. -/
-theorem insert_eq_toTree (tr : BTree α β) : insert t k v tr = (insertOrSplit t k v tr).toTree :=
-  rfl
+theorem insert_eq_toTree (tr : BTree α β) : insert t k v tr = (insertOrSplit t k v tr).toTree := rfl
 
 /-- Inserting into the empty tree overflows at once. -/
 @[simp] theorem insertOrSplit_leaf :
@@ -516,10 +504,8 @@ theorem insertRest_spec {rest : List (Triple α β)}
         simp
       · -- the key is below this triple: defer to the child before it
         have hk : k < k' := lt_of_le_of_ne h₁ fun h => h₂ (h ▸ le_rfl)
-        refine ⟨fun _ p hp => ?_, fun r hr => by simp [h₁, h₂] at hr⟩
-        rcases List.mem_cons.1 hp with rfl | hp
-        · exact hk
-        · exact hk.trans (hgt p hp)
+        exact ⟨fun _ => List.forall_mem_cons.2 ⟨hk, fun p hp => hk.trans (hgt p hp)⟩,
+          fun r hr => by simp [h₁, h₂] at hr⟩
     · -- the key is above this triple: the search moves on, and the result is `some`
       have hk : k' < k := lt_of_not_ge h₁
       have ih := ih (pre ++ (k', v') :: c.toList) (by simpa using hs)
@@ -527,21 +513,13 @@ theorem insertRest_spec {rest : List (Triple α β)}
       refine ⟨fun h => by split at h <;> simp at h, fun r hr => ?_⟩
       have hins := SortedAssoc.insert_append_cons_of_lt (v := v) (v' := v')
         (l₂ := c.toList ++ toListRest rest) (fun p hp => (hlt p hp).trans hk) hk
-      cases hr' : insertRest t k v rest with
-      | some r' =>
-        -- the later triples took the key
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
-        have := ih.2 r' hr'
-        simp only [List.append_assoc, List.cons_append] at this
-        simpa only [toListRest_cons, List.cons_append, List.append_assoc] using this
-      | none =>
-        -- the key is below every later triple: descend into this triple's child
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
+      cases hr' : insertRest t k v rest <;> simp only [hr', Option.some.injEq] at hr <;> subst hr
+      · -- the key is below every later triple: descend into this triple's child
         rw [hins, SortedAssoc.insert_append_of_forall_gt (ih.1 hr'), ← hcc,
           InsertResult.toList_withRest]
         simp
+      · -- the later triples took the key
+        simpa only [toListRest_cons, List.cons_append, List.append_assoc] using ih.2 _ hr'
 
 /-- Model equation of the bottom-up insertion on a subtree with sorted entries. -/
 theorem toList_insertOrSplit_of_isSortedAssoc {tr : BTree α β} (h : tr.toList.IsSortedAssoc) :
@@ -585,30 +563,15 @@ theorem fits_insertRest {rest : List (Triple α β)} {h : ℕ}
     · by_cases h₂ : k' ≤ k
       · simp only [h₁, h₂, ↓reduceIte, Option.some.injEq] at hr
         subst hr
-        refine ⟨fun e he => ?_, by simp, by simp⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hcc.1, hrest e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, hrest⟩, by simp, by simp⟩
       · simp [h₁, h₂] at hr
     · simp only [h₁, ↓reduceIte] at hr
-      cases hr' : insertRest t k v rest with
-      | some r' =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
-        obtain ⟨h₁, h₂, h₃⟩ := ih r' hr'
-        refine ⟨fun e he => ?_, by simpa using h₂, by simpa using h₃⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hcc.1, h₁ e he]
-      | none =>
-        simp only [hr', Option.some.injEq] at hr
-        subst hr
-        obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
+      cases hr' : insertRest t k v rest <;> simp only [hr', Option.some.injEq] at hr <;> subst hr
+      · obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
           InsertResult.fits_withRest hcc.2 hcc.1.occupied hcc.1.height_eq hrest
-        refine ⟨fun e he => ?_, by simpa using hl₁, by simpa using hl₂⟩
-        simp only [List.mem_cons] at he
-        rcases he with rfl | he
-        exacts [hp₁, hp₂ e he]
+        exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
+      · obtain ⟨h₁, h₂, h₃⟩ := ih _ hr'
+        exact ⟨List.forall_mem_cons.2 ⟨hcc.1, h₁⟩, by simpa using h₂, by simpa using h₃⟩
 
 /-- Shape invariant of the bottom-up insertion. -/
 theorem fits_insertOrSplit {tr : BTree α β} (hb : Balanced tr)
@@ -663,13 +626,10 @@ theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr)
     rw [hx] at hf hs
     obtain ⟨hl, hr⟩ := hf
     have := h.two_le
-    refine ⟨h.two_le, by simp [InsertResult.toTree]; omega, fun _ => by simp [InsertResult.toTree],
-      fun c hc => ?_, (InsertResult.balanced_toTree_split k' v' hl.balanced hr.balanced
+    exact ⟨h.two_le, by simp [InsertResult.toTree]; omega, fun _ => by simp [InsertResult.toTree],
+      by simpa [InsertResult.toTree] using ⟨hl.occupied, hr.occupied⟩,
+      (InsertResult.balanced_toTree_split k' v' hl.balanced hr.balanced
         (hr.height_eq.trans hl.height_eq.symm)).1, hs⟩
-    simp only [InsertResult.toTree, children_node, List.map_cons, List.map_nil, List.mem_cons,
-      List.not_mem_nil, or_false] at hc
-    rcases hc with rfl | rfl
-    exacts [hl.occupied, hr.occupied]
 
 /-- On a well-formed tree, insertion either keeps the height or raises it by one. -/
 theorem height_insert (h : IsWF t tr) (k : α) (v : β) :
@@ -677,15 +637,10 @@ theorem height_insert (h : IsWF t tr) (k : α) (v : β) :
   have hf := fits_insertOrSplit (k := k) (v := v) h.balanced h.occupied_of_mem_children
     h.rootKeys_le
   rw [insert_eq_toTree]
-  cases hx : insertOrSplit t k v tr with
-  | tree c =>
-    rw [hx] at hf
-    exact Or.inl hf.2.2.1
-  | split l k' v' r =>
-    rw [hx] at hf
-    obtain ⟨hl, hr⟩ := hf
-    rw [(InsertResult.balanced_toTree_split k' v' hl.balanced hr.balanced
-      (hr.height_eq.trans hl.height_eq.symm)).2, hl.height_eq]
+  rcases hx : insertOrSplit t k v tr with c | ⟨l, k', v', r⟩ <;> rw [hx] at hf
+  · exact Or.inl hf.2.2.1
+  · rw [(InsertResult.balanced_toTree_split k' v' hf.1.balanced hf.2.balanced
+      (hf.2.height_eq.trans hf.1.height_eq.symm)).2, hf.1.height_eq]
     exact Or.inr rfl
 
 /-- Insertion raises the height by at most one. -/
@@ -714,14 +669,11 @@ theorem size_insert (h : IsWF t tr) (k : α) (v : β) :
 unchanged elsewhere. -/
 @[simp] theorem lookup_insert_of_isSortedAssoc (h : tr.toList.IsSortedAssoc) (k k' : α) (v : β) :
     lookup k' (insert t k v tr) = if k' = k then some v else lookup k' tr := by
-  have hs : (insert t k v tr).toList.IsSortedAssoc := by
-    rw [toList_insert_of_isSortedAssoc h]
-    exact SortedAssoc.isSortedAssoc_insert h
-  rw [lookup_eq_of_isSortedAssoc hs, toList_insert_of_isSortedAssoc h,
-    lookup_eq_of_isSortedAssoc h]
+  rw [lookup_eq_of_isSortedAssoc ((toList_insert_of_isSortedAssoc h).symm ▸
+      SortedAssoc.isSortedAssoc_insert h),
+    toList_insert_of_isSortedAssoc h, lookup_eq_of_isSortedAssoc h]
   split_ifs with hk
-  · subst hk
-    exact SortedAssoc.lookup_insert_self
+  · exact hk ▸ SortedAssoc.lookup_insert_self
   · exact SortedAssoc.lookup_insert_of_ne hk
 
 /-- Lookup after insertion finds the new value at its key and is unchanged elsewhere. -/

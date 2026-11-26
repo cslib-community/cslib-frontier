@@ -330,28 +330,21 @@ theorem refSrc_eval {t : ℕ} (j tag p : ℕ) (r : Ref k State) :
   · rfl
   · rfl
   · simp only [Key.refSrc, Ref.label, Key.ofFields]
+    have hcond : ((!decide (colOf (slotBits k State) (colBits T) p = 0) &&
+          !decide (n < colOf (slotBits k State) (colBits T) p)) = true) ↔
+        (1 ≤ colOf (slotBits k State) (colBits T) p ∧
+          colOf (slotBits k State) (colBits T) p ≤ n) := by
+      simp
+      omega
     by_cases h : 1 ≤ colOf (slotBits k State) (colBits T) p ∧
         colOf (slotBits k State) (colBits T) p ≤ n
-    · have h₁ : (!decide (colOf (slotBits k State) (colBits T) p = 0) &&
-          !decide (n < colOf (slotBits k State) (colBits T) p)) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not,
-          not_lt]
-        omega
-      simp only [h₁, h, ↓reduceIte]
-      rfl
-    · have h₁ : ¬ (!decide (colOf (slotBits k State) (colBits T) p = 0) &&
-          !decide (n < colOf (slotBits k State) (colBits T) p)) = true := by
-        simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not,
-          not_lt, not_and, not_le]
-        omega
-      simp only [h₁, h, ↓reduceIte, Bool.false_eq_true]
-      rfl
+    · simp [hcond.2 h, h, LabelSrc.eval]
+    · simp [mt hcond.1 h, h, LabelSrc.eval]
   · simp only [Key.refSrc, Ref.label, Key.guard_ofFields]
     by_cases hg : g.test n T (colOf (slotBits k State) (colBits T) p) = true
     · simp only [hg, ↓reduceIte, LabelSrc.eval, posLabel, colSrcOf_eval]
       cases q <;> rfl
-    · simp only [hg, ↓reduceIte, Bool.false_eq_true]
-      rfl
+    · simp [hg, LabelSrc.eval]
 
 theorem map_eval_lift (s cb p c t T : ℕ) (x : List Bool) (cl : Clause LabelSrc) :
     (lift cl).map (Shape.eval s cb p c t T x) = cl.relabel (LabelSrc.eval s cb p c t T) := by
@@ -372,26 +365,15 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
   · simp only [hj, ↓reduceDIte]
     by_cases h0 : tag = 0
     · simp only [h0, ↓reduceIte]
+      have h₁ : ((!κ.pGt1) = true) ↔ p < 2 := by simp [hκ, Key.ofFields]
       by_cases hp : p < 2
-      · have h₁ : (!κ.pGt1) = true := by
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, not_lt]
-          omega
-        have h₂ : (!κ.p0) = decide (p = 1) := by
+      · have h₂ : (!κ.p0) = decide (p = 1) := by
           rw [Bool.eq_iff_iff]
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, decide_eq_true_eq]
+          simp [hκ, Key.ofFields]
           omega
-        simp only [hp, h₁, ↓reduceIte, h₂, map_eval_lift, relabel_tseitinClause]
+        simp only [hp, h₁.2 hp, ↓reduceIte, h₂, map_eval_lift, relabel_tseitinClause]
         rfl
-      · have h₁ : ¬ (!κ.pGt1) = true := by
-          simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-            ne_eq, false_and, false_or, Bool.not_eq_eq_eq_not, Bool.not_true,
-            decide_eq_false_iff_not, not_lt, not_le]
-          omega
-        simp only [hp, h₁, ↓reduceIte]
+      · simp only [hp, mt h₁.1 hp, ↓reduceIte]
         rfl
     · by_cases h1 : tag = 1
       · simp only [h1, ↓reduceIte, one_ne_zero]
@@ -399,22 +381,17 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
         · have h₁ : (j = 0 ∧ κ.pLtX = true) := ⟨hp.1, by simp [hκ, Key.ofFields, hp.2]⟩
           rw [dite_eq_left hp, ite_eq_left h₁]
           simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, List.getElem?_eq_getElem hp.2]
-        · have h₁ : ¬ (j = 0 ∧ κ.pLtX = true) := by
-            simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero, OfNat.ofNat_ne_zero,
-              ne_eq, false_and, false_or, decide_eq_true_eq, not_and, not_lt]
-            omega
-          rw [dite_eq_right hp, ite_eq_right h₁]
+        · rw [dite_eq_right hp, ite_eq_right (by simpa [hκ, Key.ofFields] using hp)]
           rfl
       · by_cases h2 : tag = 2
         · simp only [h2, ↓reduceIte, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, hκslot]
           rcases hl : Loc.ofSlot (k := k) (State := State) (p % 2 ^ slotBits k State) with _ | l
           · rfl
-          · have hc : κ.colOK l = decide (l.ColOK T (colOf (slotBits k State) (colBits T) p)) :=
-              Key.colOK_ofFields _ _ _ l
-            have hiff : (!κ.tGtT && κ.colOK l) = true ↔
+          · have hiff : (!κ.tGtT && κ.colOK l) = true ↔
                 (p / 2 ^ slotBits k State / 2 ^ colBits T ≤ T ∧
                   l.ColOK T (p / 2 ^ slotBits k State % 2 ^ colBits T)) := by
-              rw [hc]; simp [hκ, Key.ofFields]
+              rw [Key.colOK_ofFields _ _ _ l]
+              simp [hκ, Key.ofFields]
             simp only
             by_cases hok : p / 2 ^ slotBits k State / 2 ^ colBits T ≤ T ∧
                 l.ColOK T (p / 2 ^ slotBits k State % 2 ^ colBits T)
@@ -426,14 +403,11 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
                 rw [hκ, Key.initBit_ofFields]
                 rfl
               · have hκt : κ.t0 = false := by simp [hκ, Key.ofFields, ht]
-                simp only [ht, hκt, ↓reduceIte, Bool.false_eq_true]
-                generalize table tm l = e
-                obtain ⟨op, a, b⟩ := e
-                simp only [relabel_tseitinClause]
+                rcases table tm l with ⟨op, a, b⟩
+                simp only [ht, hκt, ↓reduceIte, Bool.false_eq_true, relabel_tseitinClause]
                 rw [hκ, refSrc_eval, refSrc_eval]
                 rfl
-            · have hnot : ¬ (!κ.tGtT && κ.colOK l) = true := fun h => hok (hiff.1 h)
-              simp only [hok, hnot, ↓reduceIte]
+            · simp only [hok, mt hiff.1 hok, ↓reduceIte]
               rfl
         · simp only [h0, h1, h2, ↓reduceIte]
           by_cases hp : j = 0 ∧ p = 0
@@ -441,11 +415,7 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
             rw [ite_eq_left hp, ite_eq_left h₁]
             simp [unitClause, Shape.eval, LabelSrc.eval, SignSrc.eval, outLabel, outSrc, posLabel,
               ColSrc.eval, TimeSrc.eval]
-          · have h₁ : ¬ (j = 0 ∧ κ.p0 = true) := by
-              simp only [hκ, Key.ofFields, Nat.div_eq_zero_iff, Nat.pow_eq_zero,
-                OfNat.ofNat_ne_zero, ne_eq, false_and, false_or, decide_eq_true_eq, not_and]
-              omega
-            rw [ite_eq_right hp, ite_eq_right h₁]
+          · rw [ite_eq_right hp, ite_eq_right (by simpa [hκ, Key.ofFields] using hp)]
             rfl
   · simp only [hj, ↓reduceDIte]
     rfl
@@ -611,11 +581,10 @@ theorem outBit_shape {s cb tb p c t T : ℕ} {x : List Bool} {lk : Bool} (hs : 1
         have htime := timeTerm_eq (t := t) (T := T) (q := q - s - cb) (sl := sl) cs ts
           (decide (c = 0)) sg
         simp only [payTerm, hcol, htime]
-        have h0 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        have h1 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
-          cases sg <;> simp [selOf, LabelSrc.sel, SignSrc.sel]
-        simp only [h0, h1, Bool.false_and, Bool.or_false, tagSlot,
+        have h01 : selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 0 = false ∧
+            selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
+          cases sg <;> exact ⟨rfl, rfl⟩
+        simp only [h01.1, h01.2, Bool.false_and, Bool.or_false, tagSlot,
           show ¬ 2 + q < 2 by omega, ↓reduceIte, LabelSrc.slotVal, Nat.add_sub_cancel_left]
         by_cases hqs : q < s
         · simp [hqs, show ¬ s ≤ q by omega, show ¬ s + cb ≤ q by omega]
@@ -671,38 +640,13 @@ theorem forall_mem_shapeOf {P : Shape → Prop} (κ : Key) (htaut : ∀ sh ∈ t
     ∀ sh ∈ shapeOf tm κ, P sh := by
   intro sh hsh
   unfold shapeOf at hsh
-  by_cases hj : κ.j < 3
-  · rw [dite_eq_left hj] at hsh
-    by_cases ht0 : κ.tag = 0
-    · rw [ite_eq_left ht0] at hsh
-      split at hsh
-      · exact h0 hj sh hsh
-      · exact htaut sh hsh
-    · rw [ite_eq_right ht0] at hsh
-      by_cases ht1 : κ.tag = 1
-      · rw [ite_eq_left ht1] at hsh
-        split at hsh
-        · rename_i hc
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
-          rcases hsh with rfl | rfl | rfl <;> exact h1 hc.2
-        · exact htaut sh hsh
-      · rw [ite_eq_right ht1] at hsh
-        by_cases ht2 : κ.tag = 2
-        · rw [ite_eq_left ht2] at hsh
-          split at hsh
-          · rename_i l hl
-            split at hsh
-            · rename_i hok
-              exact h2 hj l hl hok sh hsh
-            · exact htaut sh hsh
-          · exact htaut sh hsh
-        · rw [ite_eq_right ht2] at hsh
-          split at hsh
-          · simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
-            rcases hsh with rfl | rfl | rfl <;> exact h3
-          · exact htaut sh hsh
-  · rw [dite_eq_right hj] at hsh
-    exact htaut sh hsh
+  repeat' split at hsh
+  all_goals first
+    | exact htaut sh hsh
+    | exact h0 ‹_› sh hsh
+    | exact h2 ‹_› _ ‹_› ‹_› sh hsh
+    | simp only [List.mem_cons, List.not_mem_nil, or_false] at hsh
+      rcases hsh with rfl | rfl | rfl <;> first | exact h1 ‹_ ∧ κ.pLtX = true›.2 | exact h3
 
 /-- **The labels of the shapes fit their fields.** -/
 theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
@@ -712,23 +656,15 @@ theorem inRange_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
     Nat.mod_lt _ (Nat.two_pow_pos _)
   refine forall_mem_shapeOf (P := fun sh => sh.1.InRange (slotBits k State) (colBits T)
     (colOf (slotBits k State) (colBits T) p) T) tm _ ?_ ?_ ?_ ?_ ?_ sh hsh
-  · intro sh hsh
-    simp only [tautShape, List.mem_cons, List.not_mem_nil, or_false] at hsh
-    rcases hsh with rfl | rfl | rfl <;> trivial
-  · intro hj sh hsh
-    simp only [lift, List.mem_map] at hsh
-    obtain ⟨l, hl, rfl⟩ := hsh
+  · simp [tautShape, LabelSrc.InRange]
+  · rintro hj _ hsh
+    obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hsh
     rcases fst_mem_tseitinClause hl with h | h | h <;> simp only [h] <;> trivial
   · intro _; trivial
   · intro hj l _ hok sh hsh
-    simp only [lift, List.mem_map] at hsh
-    obtain ⟨lit, hlit, rfl⟩ := hsh
-    have hok' : l.ColOK T (colOf (slotBits k State) (colBits T) p) := by
-      have := Key.colOK_ofFields (s := slotBits k State) (cb := colBits T) (X := X) (n := n)
-        (T := T) j tag p l
-      simp only [Bool.and_eq_true] at hok
-      simpa [this] using hok.2
-    have hw := table_inWindow (n := n) hok'.lt tm l
+    obtain ⟨lit, hlit, rfl⟩ := List.mem_map.1 hsh
+    simp only [Bool.and_eq_true, Key.colOK_ofFields, decide_eq_true_eq] at hok
+    have hw := table_inWindow (n := n) hok.2.lt tm l
     unfold posShape at hlit
     generalize table tm l = e at hw hlit
     obtain ⟨op, a, b⟩ := e
@@ -747,40 +683,19 @@ theorem lt_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
     (hlk : sh.2 = .lookup) : p < X := by
   revert hlk
   refine forall_mem_shapeOf (P := fun sh => sh.2 = .lookup → p < X) tm _ ?_ ?_ ?_ ?_ ?_ sh hsh
-  · intro sh hsh
-    simp only [tautShape, List.mem_cons, List.not_mem_nil, or_false] at hsh
-    rcases hsh with rfl | rfl | rfl <;> simp
-  · intro hj sh hsh
-    simp only [lift, List.mem_map] at hsh
-    obtain ⟨l, -, rfl⟩ := hsh
-    simp
-  · intro h _
-    simpa [Key.ofFields] using h
-  · intro hj l _ _ sh hsh
-    simp only [lift, List.mem_map] at hsh
-    obtain ⟨l, -, rfl⟩ := hsh
-    simp
+  · simp [tautShape]
+  · rintro _ ⟨_, _⟩ h rfl
+    simp [lift] at h
+  · simp [Key.ofFields]
+  · rintro _ _ _ _ ⟨_, _⟩ h rfl
+    simp [lift] at h
   · simp
 
 /-- A shape has three literals. -/
 theorem length_shapeOf (κ : Key) : (shapeOf tm κ).length = 3 := by
   unfold shapeOf
-  split
-  · split
-    · split
-      · simp [lift]
-      · rfl
-    · split
-      · split <;> rfl
-      · split
-        · split
-          · split
-            · simp only [lift, List.length_map, posShape]
-              split <;> simp
-            · rfl
-          · rfl
-        · split <;> rfl
-  · rfl
+  repeat' split
+  all_goals first | rfl | (simp only [lift, List.length_map, posShape]; split <;> simp)
 
 end Range
 

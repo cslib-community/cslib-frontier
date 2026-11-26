@@ -236,21 +236,16 @@ private theorem find?_table (stateEncoding : State ↪ ℕ)
     (table stateEncoding machine).find?
         (fun entry => entry.1 = (row stateEncoding machine observation).1) =
       some (row stateEncoding machine observation) := by
-  have hmem : row stateEncoding machine observation ∈ table stateEncoding machine := by
-    rw [table]
-    refine List.mem_map.mpr ⟨observation, ?_, rfl⟩
-    simp only [Finset.mem_sort, Finset.mem_univ]
+  have hmem : row stateEncoding machine observation ∈ table stateEncoding machine :=
+    List.mem_map.mpr ⟨observation, by simp, rfl⟩
   obtain ⟨entry, hfind⟩ := Option.isSome_iff_exists.mp
     ((List.find?_isSome
       (p := fun entry => decide (entry.1 = (row stateEncoding machine observation).1))).mpr
       ⟨_, hmem, by simp⟩)
-  have hentry := List.mem_of_find?_eq_some hfind
-  rw [table] at hentry
-  obtain ⟨other, -, rfl⟩ := List.mem_map.mp hentry
-  have hkey := List.find?_some hfind
-  simp only [decide_eq_true_eq] at hkey
-  cases row_key_injective stateEncoding machine (a₁ := other) (a₂ := observation) hkey
-  exact hfind
+  obtain ⟨other, -, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hfind)
+  have hkey : (row stateEncoding machine other).1 = (row stateEncoding machine observation).1 := by
+    simpa using List.find?_some hfind
+  exact row_key_injective stateEncoding machine hkey ▸ hfind
 
 /-- Description lookup and denotation reproduce the renamed native transition. -/
 private theorem ofMachine_action (stateEncoding : State ↪ ℕ)
@@ -374,10 +369,7 @@ private theorem mapConfig_receive (stateEncoding : State ↪ ℕ) {input : List 
   apply Config.ext
   · rfl
   · funext other
-    by_cases h : other = operation
-    · subst other
-      simp [Config.receive, mapConfig, mapChannel]
-    · simp [Config.receive, mapConfig, mapChannel, h]
+    by_cases h : other = operation <;> simp [Config.receive, mapConfig, mapChannel, h]
 
 /-- Query adapter used when executing a natural-symbol description against the original Boolean
 word handler: it decodes the request and re-encodes the reply. The adapter is part of the
@@ -418,32 +410,26 @@ private theorem runConfigFrom_ofMachine (stateEncoding : State ↪ ℕ)
       simp only [MultiTapeMachine.runConfigFrom, hs, htarget, mapConfig_inputSymbol,
         bind_map_left, map_bind]
       congr 1 with coin : 1
-      rw [show (mapConfig stateEncoding current).tapes.workTapeSymbols =
-          Option.map Turing.MultiTapeTM.Universal.eBit ∘ current.tapes.workTapeSymbols by
-        funext tape
-        exact mapConfig_workTapeSymbols stateEncoding current tape]
-      rw [show (mapConfig stateEncoding current).answerSymbols =
-          Option.map Turing.MultiTapeTM.Universal.eBit ∘ current.answerSymbols by
-        funext operation
-        exact mapConfig_answerSymbols stateEncoding current operation]
-      rw [show controlEmbedding stateEncoding state =
-          some (stateEmbedding stateEncoding state) by rfl]
-      rw [Turing.MultiTapePTM.Universal.Desc.toMachine_tr,
+      have hwork : (mapConfig stateEncoding current).tapes.workTapeSymbols =
+          Option.map Turing.MultiTapeTM.Universal.eBit ∘ current.tapes.workTapeSymbols :=
+        funext (mapConfig_workTapeSymbols stateEncoding current)
+      have hans : (mapConfig stateEncoding current).answerSymbols =
+          Option.map Turing.MultiTapeTM.Universal.eBit ∘ current.answerSymbols :=
+        funext (mapConfig_answerSymbols stateEncoding current)
+      rw [hwork, hans, Turing.MultiTapePTM.Universal.Desc.toMachine_tr,
+        show controlEmbedding stateEncoding state =
+          some (stateEmbedding stateEncoding state) from rfl,
         ofMachine_action stateEncoding machine state current.tapes.inputSymbol
           current.tapes.workTapeSymbols current.answerSymbols coin]
       cases haction : machine.tr state current.tapes.inputSymbol current.tapes.workTapeSymbols
           current.answerSymbols coin with
       | step ordinary querySymbols answerMoves =>
-          simp only [mapAction, map_pure]
-          rw [mapConfig_step]
+          simp only [mapAction, map_pure, mapConfig_step]
       | query operation next =>
           have hquery :
               ((mapConfig stateEncoding current).channels operation).queryBuffer.map decodeBit =
                 (current.channels operation).queryBuffer := by
-            change ((current.channels operation).queryBuffer.map
-              Turing.MultiTapeTM.Universal.eBit).map decodeBit =
-                (current.channels operation).queryBuffer
-            simpa only [List.map_map] using decodeBit_map_eBit _
+            simpa only [mapConfig, mapChannel, List.map_map] using decodeBit_map_eBit _
           simp only [mapAction, encodedQuery, ProbOracleComp.query]
           rw [hquery]
           simp only [bind_map_left, map_bind, map_pure]
@@ -1519,20 +1505,11 @@ theorem runWith_descriptionRun (witness : NativeOracleProgram r program encIn en
       (ProbOracleComp.runWith handler (encOut <$> program input) state).map
         (Prod.map (List.map Turing.MultiTapeTM.Universal.eBit) id) := by
   let _ := witness.stateFintype
-  rw [descriptionRun, show witness.description.toMachine.initialConfig
-      ((encIn input).map Turing.MultiTapeTM.Universal.eBit) =
-        Description.mapConfig witness.stateEncoding
-          (witness.machine.initialConfig (encIn input)) by
-      exact (Description.mapConfig_initial witness.stateEncoding witness.machine
-        (encIn input)).symm]
-  simp only [MultiTapePTM.runFrom, ProbOracleComp.runWith_map]
-  rw [Description.runWith_ofMachine]
-  rw [PMF.map_comp]
   have hnative := (witness.computes input).runOracle handler state
   rw [MultiTapePTM.runOracle_eq_map] at hnative
-  simp only [ProbOracleComp.runWith_map] at hnative
-  rw [← hnative]
-  rw [PMF.map_comp]
+  rw [descriptionRun, ← Description.mapConfig_initial, ← hnative]
+  simp only [MultiTapePTM.runFrom, ProbOracleComp.runWith_map]
+  rw [Description.runWith_ofMachine, PMF.map_comp, PMF.map_comp]
   congr 1
 
 /-- Exact unary-model static length of the named open machine. -/

@@ -52,39 +52,32 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
           X ^ p.1.2).coeff b).coeff a).coeff t =
         if p.1 = (a, b) then if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0 else 0 := by
     by_cases hpe : p.1 = (a, b)
-    · have hpa : p.1.1 = a := congrArg Prod.fst hpe
-      have hpb : p.1.2 = b := congrArg Prod.snd hpe
-      simp only [hpe, ↓reduceIte, coeff_C_mul_X_pow, finsetSum_coeff]
+    · simp only [hpe, ↓reduceIte, coeff_C_mul_X_pow, finsetSum_coeff]
       by_cases ht : t < B + 1
-      · simp only [ht, ↓reduceDIte]
-        rw [Finset.sum_eq_single ⟨t, ht⟩
+      · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩
           (fun u _ hne => ite_eq_right fun h => hne (Fin.ext h.symm))
-          (fun h => absurd (mem_univ _) h)]
-        simp only [↓reduceIte]
-      · simp only [ht, ↓reduceDIte]
+          (absurd (mem_univ _)), ite_eq_left rfl]
+      · rw [dite_eq_right ht]
         exact Finset.sum_eq_zero fun u _ => ite_eq_right (by omega)
     · rw [ite_eq_right hpe, coeff_C_mul_X_pow]
       split_ifs with hpb
       · rw [coeff_C_mul_X_pow, ite_eq_right fun hpa => hpe (Prod.ext hpa.symm hpb.symm),
           coeff_zero]
-      · simp only [coeff_zero]
+      · exact coeff_zero _
   simp_rw [hterm]
   by_cases hab : (a, b) ∈ M
   · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩
-      (fun _ _ hne => ite_eq_right fun h => hne (Subtype.ext h))
-      (fun h => absurd (mem_attach M _) h)]; simp
+      (fun _ _ hne => ite_eq_right fun h => hne (Subtype.ext h)) (absurd (mem_attach M _))]
+    simp
   · rw [dite_eq_right hab]
     exact Finset.sum_eq_zero fun p _ => ite_eq_right fun h : p.1 = (a, b) => hab (h ▸ p.2)
 
 private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) :
     polyOfTable M B c = 0 ↔ c = 0 := by
-  constructor
-  · intro h0
-    funext ⟨⟨⟨a, b⟩, hab⟩, ⟨t, ht⟩⟩
-    have hc := congrArg (fun Q : F[X][X][X] => ((Q.coeff b).coeff a).coeff t) h0
-    rw [coeff_coeff_coeff_polyOfTable, dite_eq_left hab, dite_eq_left ht] at hc
-    simpa using hc
+  refine ⟨fun h0 => funext fun ⟨⟨⟨a, b⟩, hab⟩, ⟨t, ht⟩⟩ => ?_, ?_⟩
+  · simpa [coeff_coeff_coeff_polyOfTable, hab, ht] using
+      congrArg (fun Q : F[X][X][X] => ((Q.coeff b).coeff a).coeff t) h0
   · rintro rfl
     ext b a t
     rw [coeff_coeff_coeff_polyOfTable]
@@ -93,41 +86,26 @@ private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
 private theorem weightedDegree_polyOfTable_le (d D B : ℕ)
     (c : (Sudan.monomials d D × Fin (B + 1)) → F) :
     weightedDegree d (polyOfTable (Sudan.monomials d D) B c) ≤ D := by
-  rw [weightedDegree_le_iff]
-  intro a b hab
-  by_contra hlt
-  apply hab
+  refine weightedDegree_le_iff.2 fun a b hab => by_contra fun hlt => hab ?_
   ext t
-  rw [coeff_coeff_coeff_polyOfTable, dite_eq_right, coeff_zero]
-  intro hmem
+  rw [coeff_coeff_coeff_polyOfTable, coeff_zero, dite_eq_right fun hmem => ?_]
   have hle := (Sudan.mem_monomials.1 hmem).2.2
-  dsimp only at hle
-  omega
+  dsimp only at hle; omega
 
 private theorem natDegree_polyOfTable_le (d D B : ℕ)
     (c : (Sudan.monomials d D × Fin (B + 1)) → F) :
     (polyOfTable (Sudan.monomials d D) B c).natDegree ≤ maxYDeg d D := by
-  rw [natDegree_le_iff_coeff_eq_zero]
-  intro b hb
+  refine natDegree_le_iff_coeff_eq_zero.2 fun b hb => ?_
   ext a t
-  rw [coeff_coeff_coeff_polyOfTable, coeff_zero, coeff_zero]
-  by_cases hmem : (a, b) ∈ Sudan.monomials d D
-  · have hle : b ≤ maxYDeg d D := Finset.le_sup (f := Prod.snd) hmem
-    omega
-  · simp [hmem]
+  rw [coeff_coeff_coeff_polyOfTable, coeff_zero, coeff_zero, dite_eq_right fun hmem => ?_]
+  exact hb.not_ge (Finset.le_sup (f := Prod.snd) hmem)
 
 private theorem degZ_polyOfTable_le (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) :
     degZ (polyOfTable M B c) ≤ B := by
-  rw [degZ_le_iff]
-  intro a b
-  rw [natDegree_le_iff_coeff_eq_zero]
-  intro t ht
+  refine degZ_le_iff.2 fun a b => natDegree_le_iff_coeff_eq_zero.2 fun t ht => ?_
   rw [coeff_coeff_coeff_polyOfTable]
-  split_ifs with h1 h2
-  · omega
-  · rfl
-  · rfl
+  split_ifs <;> first | rfl | omega
 
 private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
     (c : (Sudan.monomials d D × Fin (B + 1)) → F) (x : F) (w : F[X]) (hw : w.natDegree ≤ r)
@@ -139,18 +117,13 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
   set cz : F[X] := ∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)
   have hcz_deg : cz.natDegree ≤ B := (natDegree_sum_le _ _).trans (Finset.sup_le fun t _ =>
     (natDegree_C_mul_X_pow_le _ _).trans (by omega))
-  have hmono : C (C cz * X ^ p.1.1) * X ^ p.1.2 = monomial p.1.2 (monomial p.1.1 cz) := by
-    rw [C_mul_X_pow_eq_monomial, C_mul_X_pow_eq_monomial]
-  have hshift_c : (((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u) =
-      (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) *
-        w ^ (p.1.2 - v) := by
-    rw [hmono, coeff_coeff_shift_monomial]
   change ((((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u).natDegree) ≤ _
-  rw [hshift_c]
+  rw [C_mul_X_pow_eq_monomial, C_mul_X_pow_eq_monomial, coeff_coeff_shift_monomial]
   refine natDegree_mul_le.trans (Nat.add_le_add ?_ (natDegree_pow_le.trans ?_))
   · have hre : (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
         C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) * cz := by
-      simp only [map_mul, map_pow, map_natCast]; ring
+      simp only [map_mul, map_pow, map_natCast]
+      ring
     exact hre ▸ (natDegree_C_mul_le _ _).trans hcz_deg
   · calc (p.1.2 - v) * w.natDegree ≤ p.1.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
       _ ≤ r * maxYDeg d D :=
@@ -196,7 +169,9 @@ theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype ι] (α 
     refine Finset.sum_congr rfl fun t _ => ?_
     have hshiftC : shift (C (α eq.1)) (curveWord u eq.1) (C (C (C (c (p, t))))) =
         C (C (C (c (p, t)))) := by
-      rw [shift_apply, map_C, taylor_C]; change C (taylor (C (α eq.1)) (C (C _))) = _; rw [taylor_C]
+      rw [shift_apply, map_C, taylor_C]
+      change C (taylor (C (α eq.1)) (C (C _))) = _
+      rw [taylor_C]
     rw [map_mul, hshiftC, coeff_C_mul, coeff_C_mul, coeff_C_mul]
   have hsiegel : R_eq * r * D_Y < (#M - R_eq) * (B + 1) := by
     simpa [B, siegelZDeg, R_eq, D_Y] using
@@ -217,11 +192,8 @@ theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype ι] (α 
     degZ_polyOfTable_le M B c, fun i u₀ v₀ huv => ?_⟩
   ext t; rw [coeff_zero]
   by_cases ht : t < B + r * D_Y + 1
-  · have hz := congrFun (LinearMap.mem_ker.1 hc_mem)
-      (i, (⟨(u₀, v₀), mem_multPairs.2 huv⟩ : multPairs m), (⟨t, ht⟩ : Fin (B + r * D_Y + 1)))
-    have hΦ := hΦ_eq c (i, (⟨(u₀, v₀), mem_multPairs.2 huv⟩ : multPairs m),
-      (⟨t, ht⟩ : Fin (B + r * D_Y + 1)))
-    exact hΦ.symm.trans hz
+  · exact (hΦ_eq c (i, ⟨(u₀, v₀), mem_multPairs.2 huv⟩, ⟨t, ht⟩)).symm.trans
+      (congrFun (LinearMap.mem_ker.1 hc_mem) _)
   · have hdeg := natDegree_coeff_shift_polyOfTable_le c (α i) (curveWord u i)
       (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)) u₀ v₀
     exact coeff_eq_zero_of_natDegree_lt (by dsimp only [M, B, D_Y] at *; omega)

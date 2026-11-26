@@ -131,11 +131,10 @@ theorem not_pendant_adj_last (b : Fin (I.n + 1)) : ¬I.pendant.Adj (Fin.last I.n
 private theorem relatesInSteps_of_pendant {a : Fin I.n} {k : ℕ} :
     ∀ {x : Fin (I.n + 1)}, Relation.RelatesInSteps I.pendant.Adj a.castSucc x k →
       ∀ b : Fin I.n, x = b.castSucc → Relation.RelatesInSteps I.Adj a b k := by
-  intro x h
-  induction h with
-  | refl => intro b hb; rw [Fin.castSucc_inj.mp hb]; exact .refl _
-  | tail y z k _ hyz ih =>
-    intro b hb
+  intro x h b hb
+  induction h generalizing b with
+  | refl => exact Fin.castSucc_inj.mp hb ▸ .refl _
+  | tail y _ _ _ hyz ih =>
     subst hb
     cases y using Fin.lastCases with
     | last => exact absurd hyz (I.not_pendant_adj_last _)
@@ -152,17 +151,13 @@ arcs, for `k ≥ 1`; it is never reached within `0` arcs. -/
 theorem relatesWithinSteps_pendant_iff (k : ℕ) :
     Relation.RelatesWithinSteps I.pendant.Adj I.pendant.s I.pendant.t k ↔
       ∃ j, j + 1 = k ∧ Relation.RelatesWithinSteps I.Adj I.s I.t j := by
-  constructor
-  · rintro ⟨m, hm, h⟩
-    cases m with
-    | zero => exact absurd (congrArg Fin.val h.zero) (by simp [pendant]; omega)
-    | succ m =>
-      obtain ⟨y, hy, hyl⟩ := h.succ
-      have hyt := (I.pendant_adj_last y).mp hyl
-      exact ⟨k - 1, by omega, m, by omega, I.relatesInSteps_of_pendant hy _ hyt⟩
-  · rintro ⟨j, rfl, m, hm, h⟩
-    exact ⟨m + 1, by omega,
-      .tail _ _ _ _ (I.relatesInSteps_pendant h) ((I.pendant_adj_last _).mpr rfl)⟩
+  refine ⟨?_, fun ⟨_, hj, m, hm, h⟩ => ⟨m + 1, by omega,
+    .tail _ _ _ _ (I.relatesInSteps_pendant h) ((I.pendant_adj_last _).mpr rfl)⟩⟩
+  rintro ⟨_ | m, hm, h⟩
+  · exact absurd (congrArg Fin.val h.zero) (by simp [pendant]; omega)
+  · obtain ⟨y, hy, hyl⟩ := h.succ
+    exact ⟨k - 1, by omega, m, by omega,
+      I.relatesInSteps_of_pendant hy _ ((I.pendant_adj_last y).mp hyl)⟩
 
 /-- **The undirected graph of a directed instance**: distinct vertices are adjacent when there is
 an arc between them in either direction. The terminals are kept. -/
@@ -229,14 +224,11 @@ theorem strict_mem_iff :
   change Relation.RelatesWithinSteps I.graph.toSTCONInstance.pendant.Adj
     I.graph.toSTCONInstance.pendant.s I.graph.toSTCONInstance.pendant.t I.bound ↔ _
   rw [STCONInstance.relatesWithinSteps_pendant_iff]
-  constructor
-  · rintro ⟨j, hj, h⟩
-    exact ((I.edist_le_iff j).mpr h).trans_lt (by exact_mod_cast (by omega : j < I.bound))
-  · intro h
-    obtain ⟨d, hd⟩ := ENat.ne_top_iff_exists.mp h.ne_top
-    rw [← hd] at h
-    have hlt : d < I.bound := by exact_mod_cast h
-    exact ⟨I.bound - 1, by omega, (I.edist_le_iff _).mp (by rw [← hd]; exact_mod_cast (by omega))⟩
+  refine ⟨fun ⟨j, hj, h⟩ =>
+    ((I.edist_le_iff j).mpr h).trans_lt (by exact_mod_cast (by omega : j < I.bound)), fun h => ?_⟩
+  obtain ⟨d, hd⟩ := ENat.ne_top_iff_exists.mp h.ne_top
+  have : d < I.bound := by exact_mod_cast hd ▸ h
+  exact ⟨I.bound - 1, by omega, (I.edist_le_iff _).mp (by rw [← hd]; exact_mod_cast (by omega))⟩
 
 /-- **The distance is `K`** exactly when it is at most `K` and the pendant target is not reached
 within `K` arcs. -/
@@ -278,8 +270,7 @@ private theorem vertex_node (i : Fin ((B J).cap + 1)) (v : Fin J.n) :
 /-- An arc of the layered graph climbs one layer and follows an arc of `J` or stays. -/
 private theorem layered_adj {x y : Fin (B J).layered.n} (h : (B J).layered.Adj x y) :
     layer J y = layer J x + 1 ∧ Relation.ReflGen J.Adj (vertex J x) (vertex J y) := by
-  rw [← node_layer_vertex J x, ← node_layer_vertex J y, BoundedSTCONInstance.layered_adj_iff] at h
-  exact h
+  rwa [← node_layer_vertex J x, ← node_layer_vertex J y, BoundedSTCONInstance.layered_adj_iff] at h
 
 /-- **Walks of the layered undirected graph climb at most one layer per edge**, and a walk that
 climbs one layer per edge is a chain of arcs of `J` or stays. -/
@@ -291,14 +282,11 @@ private theorem walk_layer {x y : Fin (B J).layered.undirected.n}
   induction p with
   | nil => exact ⟨by simp, fun _ => .refl _⟩
   | @cons x z y h q ih =>
-    replace h := ((B J).layered.undirected_adj_iff x z).mp h
     rw [SimpleGraph.Walk.length_cons]
-    rcases h.2 with h | h
-    · obtain ⟨hl, hr⟩ := layered_adj J h
-      refine ⟨by omega, fun he => ?_⟩
-      exact Relation.RelatesInSteps.head _ _ _ _ hr (ih.2 (by omega))
-    · obtain ⟨hl, -⟩ := layered_adj J h
-      exact ⟨by omega, fun he => by omega⟩
+    rcases (((B J).layered.undirected_adj_iff x z).mp h).2 with h | h <;>
+      obtain ⟨hl, hr⟩ := layered_adj J h
+    · exact ⟨by omega, fun _ => .head _ _ _ _ hr (ih.2 (by omega))⟩
+    · exact ⟨by omega, fun _ => by omega⟩
 
 /-- A chain of arcs of `J` or stays climbs the layers of the layered undirected graph. -/
 private theorem walk_of_relatesInSteps {v : Fin J.n} {k : ℕ}
@@ -310,12 +298,10 @@ private theorem walk_of_relatesInSteps {v : Fin J.n} {k : ℕ}
   | tail u w k _ huw ih =>
     obtain ⟨p, hp⟩ := ih (by omega)
     have hadj : (B J).layered.undirected.graph.Adj ((B J).node ⟨k, by omega⟩ u)
-        ((B J).node ⟨k + 1, by omega⟩ w) := by
-      refine ((B J).layered.undirected_adj_iff _ _).mpr ⟨fun he => ?_,
+        ((B J).node ⟨k + 1, by omega⟩ w) :=
+      ((B J).layered.undirected_adj_iff _ _).mpr ⟨fun he => by
+        simpa [layer_node] using congrArg (layer J) he,
         .inl (((B J).layered_adj_iff _ _ _ _).mpr ⟨rfl, huw⟩)⟩
-      have := congrArg (layer J) he
-      rw [layer_node, layer_node] at this
-      simp at this
     exact ⟨p.concat hadj, (p.length_concat hadj).trans (by rw [hp])⟩
 
 /-- Every walk of the hardness instance has at least `n` edges. -/
@@ -324,24 +310,19 @@ private theorem le_edist_distanceInstance :
       J.distanceInstance.graph.t := by
   rcases eq_or_ne (J.distanceInstance.graph.graph.edist J.distanceInstance.graph.s
     J.distanceInstance.graph.t) ⊤ with htop | htop
-  · rw [htop]
-    exact le_top
+  · exact htop ▸ le_top
   obtain ⟨p, hp⟩ := SimpleGraph.exists_walk_of_edist_ne_top htop
-  rw [← hp]
-  have h := (walk_layer J p).1
-  change layer J ((B J).node _ _) ≤ layer J ((B J).node _ _) + p.length at h
-  rw [layer_node, layer_node] at h
-  simp only [cap_B] at h
-  exact_mod_cast (by omega : J.n ≤ p.length)
+  have h : layer J ((B J).node _ _) ≤ layer J ((B J).node _ _) + p.length := (walk_layer J p).1
+  simp only [layer_node, cap_B] at h
+  exact hp ▸ mod_cast (by omega : J.n ≤ p.length)
 
 /-- **Reachability gives a walk of `n` edges** in the hardness instance. -/
 private theorem edist_distanceInstance_le (h : J ∈ STCON) :
     J.distanceInstance.graph.graph.edist J.distanceInstance.graph.s
       J.distanceInstance.graph.t ≤ J.n := by
-  have hw : Relation.RelatesWithinSteps J.Adj J.s J.t (B J).cap :=
-    (B J).capped_iff.mpr ((Relation.reflTransGen_iff_relatesWithinSteps (by simp)).mp h)
   obtain ⟨p, hp⟩ := walk_of_relatesInSteps J
-    (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp hw) le_rfl
+    (Relation.relatesWithinSteps_iff_relatesInSteps_reflGen.mp
+      ((B J).capped_iff.mpr ((Relation.reflTransGen_iff_relatesWithinSteps (by simp)).mp h))) le_rfl
   exact (SimpleGraph.edist_le p).trans (by rw [hp, cap_B])
 
 /-- A walk of at most `n` edges in the hardness instance gives reachability. -/
@@ -353,14 +334,11 @@ private theorem mem_of_edist_distanceInstance_le
   have hlen : p.length ≤ J.n := by exact_mod_cast hp ▸ h
   obtain ⟨hle, heq⟩ := walk_layer J p
   change layer J ((B J).node _ _) ≤ layer J ((B J).node _ _) + p.length at hle
-  change layer J ((B J).node _ _) = layer J ((B J).node _ _) + p.length → _ at heq
-  rw [layer_node, layer_node] at hle heq
-  simp only [cap_B] at hle heq
-  have hc := heq (by omega)
-  change Relation.RelatesInSteps _ (vertex J ((B J).node _ _)) (vertex J ((B J).node _ _)) _ at hc
-  rw [vertex_node, vertex_node] at hc
+  change layer J ((B J).node _ _) = layer J ((B J).node _ _) + p.length →
+    Relation.RelatesInSteps _ (vertex J ((B J).node _ _)) (vertex J ((B J).node _ _)) _ at heq
+  simp only [layer_node, vertex_node, cap_B] at hle heq
   rw [mem_STCON, ← Relation.reflTransGen_reflGen]
-  exact hc.reflTransGen
+  exact (heq (by omega)).reflTransGen
 
 /-- **Hardness, "at most"**: `t` is reachable from `s` exactly when the hardness instance has
 distance at most `n`. -/
@@ -371,9 +349,9 @@ theorem distanceInstance_mem_UDistanceAtMost_iff :
 /-- **Hardness, "exactly"**: `t` is reachable from `s` exactly when the hardness instance has
 distance exactly `n`. -/
 theorem distanceInstance_mem_UDistanceEq_iff :
-    J.distanceInstance ∈ UDistanceEq ↔ J ∈ STCON := by
-  refine ⟨fun h => J.mem_of_edist_distanceInstance_le h.le, fun h => ?_⟩
-  exact le_antisymm (J.edist_distanceInstance_le h) J.le_edist_distanceInstance
+    J.distanceInstance ∈ UDistanceEq ↔ J ∈ STCON :=
+  ⟨fun h => J.mem_of_edist_distanceInstance_le h.le,
+    fun h => le_antisymm (J.edist_distanceInstance_le h) J.le_edist_distanceInstance⟩
 
 end STCONInstance
 

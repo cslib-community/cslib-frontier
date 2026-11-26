@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
 /-!
@@ -73,15 +72,12 @@ theorem swarRank_sorted_spec {fpBits capLanes cnt q keysWord : ℕ}
   · by_contra hnq
     refine hj.not_ge ((card_le_card fun k hk => ?_).trans_eq (card_range j))
     simp only [mem_filter, mem_range] at hk ⊢
-    by_contra hjk
-    have := lanes_le hmono _ _ (Nat.le_of_not_lt hjk) hk.1
-    omega
+    exact not_le.mp fun hjk => hnq ((lanes_le hmono _ _ hjk hk.1).trans_lt hk.2)
   · by_contra hlt_q
     refine (Nat.lt_succ_of_le hrj).not_ge
       ((card_range (j + 1)).symm.trans_le (card_le_card fun k hk => ?_))
     simp only [mem_filter, mem_range] at hk ⊢
-    have := lanes_le hmono _ _ (Nat.le_of_lt_succ hk) hjc
-    omega
+    exact ⟨by omega, (lanes_le hmono _ _ (Nat.le_of_lt_succ hk) hjc).trans_lt (not_le.mp hlt_q)⟩
 
 /-- Internal branch routing: `swarRank` selects the unique child interval `[childLo r, childHi r]`
 containing `q`, and every other child interval is disjoint from `{q}`. -/
@@ -219,11 +215,10 @@ private theorem ValidSubtree.leaf_rank {isRoot : Bool} {fpBits W_val tMin alloc 
     (hqhi.trans_lt hhi) hkw (fun j hj => (hbounds j hj).2.trans_lt hhi) hmono
   refine ⟨hr_le, hlt_r, hge_r, (href q hqlo hqhi).imp_left ?_⟩
   rintro ⟨r₀, hr₀, hkey, hmap⟩
-  obtain rfl : r₀ = swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord := by
-    have h1 := hge_r _ le_rfl
-    have h2 := hmono (swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord) r₀
-    have h3 := hlt_r r₀
-    omega
+  obtain rfl : r₀ = swarRank fpBits (2 * tMin) cnt q (nodes idx).keysWord :=
+    le_antisymm
+      (not_lt.mp fun h => (hge_r _ le_rfl (h.trans hr₀)).not_gt ((hmono _ r₀ h hr₀).trans_eq hkey))
+      (not_lt.mp fun h => (hlt_r r₀ h).ne hkey)
   exact ⟨hr₀, hkey, hmap⟩
 
 /-- Exact lookup specification on any valid subtree `T` with `T.height ≤ hMaxBTree`. -/
@@ -234,7 +229,7 @@ theorem btreeLookup_eq_of_subtree {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
     (hv : ValidSubtree true fpBits W_val tMin sl.alloc sl.nodes 0 (2 ^ fpBits - 1) mapFn T)
     (hfuel : T.height ≤ hMaxBTree) (hq : q < 2 ^ fpBits) :
     btreeLookup fpBits W_val tMin sl q = mapFn q := by
-  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (by positivity)
+  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (Nat.two_pow_pos fpBits).ne'
   obtain ⟨cntL, loL, hiL, _, _, hloL_q, hq_hiL, hhiL_le, hv_leaf, _⟩ :=
     descendToLeaf_reaches_leaf ht2 hcap hv hhi (Nat.zero_le q) (by omega) hfuel
   rw [hroot] at hv_leaf
@@ -274,7 +269,7 @@ private theorem btreeModifyLeaf_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTr
         T'.height = T.height ∧
         T'.potential tMin ≤ T.potential tMin ∧
         ValidSubtree true fpBits W_val tMin sl'.alloc sl'.nodes 0 (2 ^ fpBits - 1) mapFn' T' := by
-  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (by positivity)
+  have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (Nat.two_pow_pos fpBits).ne'
   obtain ⟨cntL, loL, hiL, _, _, hloL_q, hq_hiL, hhiL_le, hv_leaf, hlift⟩ :=
     descendToLeaf_reaches_leaf ht2 hcap hv hhi (Nat.zero_le q) (by omega) hfuel
   rw [hroot] at hv_leaf hlift
@@ -400,13 +395,17 @@ private theorem mem_nodeSet_erase_of_child {idx cnt v : ℕ} {cs : Fin (cnt + 1)
 private theorem childLo_window {W lo K K' a i m : ℕ}
     (hkeys : ∀ j < m, laneGet W K' j = laneGet W K (a + j)) (him : i ≤ m) :
     childLo W (childLo W lo K a) K' i = childLo W lo K (a + i) := by
-  grind [childLo]
+  rcases Nat.eq_zero_or_pos i with rfl | hi
+  · simp [childLo]
+  · simp [childLo, hi.ne', hkeys (i - 1) (by omega), show a + (i - 1) = a + i - 1 by omega]
 
 /-- Right endpoint of child `i` of a window of `m + 1` children starting at child `a`. -/
 private theorem childHi_window {W hi cnt K K' a i m : ℕ}
     (hkeys : ∀ j < m, laneGet W K' j = laneGet W K (a + j)) (him : i ≤ m) (ham : a + m ≤ cnt) :
     childHi W (childHi W hi cnt K (a + m)) m K' i = childHi W hi cnt K (a + i) := by
-  grind [childHi]
+  rcases eq_or_lt_of_le him with rfl | hi
+  · simp [childHi]
+  · simp [childHi, hi, show a + i < cnt by omega, hkeys i hi]
 
 /-- A window of `m + 1` consecutive children `a, …, a + m` of a valid branch, together with a node
 `nodes' idx'` holding the `m` separators between them and their `m + 1` child indices, is a valid
@@ -570,9 +569,8 @@ theorem splitFullNode_spec {isRoot : Bool} {fpBits W_val tMin alloc alloc' lo hi
           ∑ k : Fin (cnt + 1), (cs k).potential tMin := by
         rw [← Equiv.sum_comp (finCongr (show tMin - 1 + 1 + (tMin - 1 + 1) = cnt + 1 by omega))
           fun k => (cs k).potential tMin, Fin.sum_univ_add (a := tMin - 1 + 1)]
-        congr 1 <;> refine sum_congr rfl fun i _ => congrArg (fun k => (cs k).potential tMin) ?_
-        · ext; dsimp; omega
-        · ext; dsimp; omega
+        congr 1 <;> refine sum_congr rfl fun i _ =>
+          congrArg (fun k => (cs k).potential tMin) (Fin.ext (by dsimp; omega))
       omega
 
 /-- Specification of `splitRootIfFull`: ensures the root is strictly non-full (`< 2 * tMin - 1`
@@ -625,19 +623,20 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       omega
     · have hsep_lt : (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep < 2 ^ (fpBits + 2) :=
         hsep_hi.trans ((Nat.sub_le _ _).trans_lt (Nat.pow_lt_pow_right (by decide) (by omega)))
-      have hlane0 := laneGet_eq_div_mod (fpBits + 2)
-        (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep 0
-      simp only [Nat.zero_mul, pow_zero, Nat.div_one, Nat.mod_eq_of_lt hsep_lt] at hlane0
-      have hl : sl.alloc < 2 ^ W_val := by omega
+      have hlane0 : laneGet (fpBits + 2) (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep 0
+          = (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep := by
+        simp [laneGet_eq_div_mod, Nat.mod_eq_of_lt hsep_lt]
+      have hl := Nat.lt_of_succ_lt halloc_val
       have hval0 : laneGet W_val (sl.alloc + (sl.alloc + 1) <<< W_val) 0 = sl.alloc := by
         simp [laneGet_eq_div_mod, Nat.shiftLeft_eq, Nat.mod_eq_of_lt hl]
       have hval1 : laneGet W_val (sl.alloc + (sl.alloc + 1) <<< W_val) 1 = sl.alloc + 1 := by
         simp [laneGet_eq_div_mod, Nat.shiftLeft_eq, Nat.add_mul_div_right, Nat.div_eq_of_lt hl,
           Nat.mod_eq_of_lt halloc_val]
       have hvals_lt : sl.alloc + (sl.alloc + 1) <<< W_val < 2 ^ ((1 + 1) * W_val) := by
-        have := Nat.mul_le_mul_right (2 ^ W_val) (show sl.alloc + 2 ≤ 2 ^ W_val by omega)
-        rw [Nat.shiftLeft_eq, show (1 + 1) * W_val = W_val + W_val by omega, Nat.pow_add]
-        linarith
+        have := Nat.mul_le_mul_right (2 ^ W_val) (Nat.succ_le_of_lt halloc_val)
+        rw [Nat.succ_mul] at this
+        rw [Nat.shiftLeft_eq, Nat.two_mul, Nat.pow_add]
+        omega
       simp only [ValidSubtree, Function.update_self, ↓reduceIte, le_refl, Nat.one_mul,
         Nat.sub_self, hlane0]
       refine ⟨by omega, trivial, trivial, by omega, hsep_lt, hvals_lt, Nat.zero_le _, hsep_hi,

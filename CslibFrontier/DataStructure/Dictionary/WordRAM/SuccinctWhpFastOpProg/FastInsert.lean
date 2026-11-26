@@ -48,6 +48,41 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 attribute [local simp] clientResult_pure_whp clientState_pure_whp
 
+private theorem bind_read_post {α : Type} {c U V w n_max base C₀ C B r : ℕ}
+    {S : Memory.State → Prop} {s : Memory.State}
+    {p : Memory.Prog α} {k : α → Memory.Prog ℕ} {a : α}
+    (hp_st : (Memory.spec 0).clientState s p = s)
+    (hp_res : (Memory.spec 0).clientResult s p = a)
+    (hp_mc : memoryCost p s ≤ C)
+    (hp_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s p)
+    (hk : C₀ + C + memoryCost (k a) s ≤ B ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s (k a) ∧
+      ((Memory.spec 0).clientResult s (k a) = r ∧
+        S ((Memory.spec 0).clientState s (k a)))) :
+    C₀ + memoryCost (p >>= k) s ≤ B ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s (p >>= k) ∧
+      ((Memory.spec 0).clientResult s (p >>= k) = r ∧
+        S ((Memory.spec 0).clientState s (p >>= k))) := by
+  refine ⟨?_, ?_, ?_⟩
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+    rw [hp_st, hp_res]
+    have := hk.1
+    omega
+  · refine validProg_bind hp_vp ?_
+    rw [hp_st, hp_res]
+    exact hk.2.1
+  · rw [clientResult_bind, clientState_bind, hp_st, hp_res]
+    exact hk.2.2
+
+private theorem pure_zero_opt {c U V w n_max base C₀ B : ℕ}
+    {s : Memory.State} (hB : C₀ ≤ B) :
+    C₀ + memoryCost (pure 0 : Memory.Prog ℕ) s ≤ B ∧
+      ValidProg w (base + largeSpaceWhp c U V w n_max) s (pure 0) ∧
+      ((Memory.spec 0).clientResult s (pure 0) = 0 ∧
+        (Memory.spec 0).clientState s (pure 0) = s) := by
+  simp only [memoryCost_pure, Nat.add_zero]
+  exact ⟨hB, validProg_pure 0, rfl, rfl⟩
+
 /-- Post-`rKey`-guard step: compute `(hasFpCollision, (fp, lIdx))`, check Guard 3, and commit. -/
 @[irreducible] private def insAfterRKeyGenProg :
     (((WhpParams × ℕ) × (ℕ × ℕ)) × (ℕ × ℕ)) × (ℕ × ℕ) → Memory.Prog ℕ
@@ -366,20 +401,15 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
   obtain ⟨hcp_st, hcp_res, hcp_mc, hcp_vp⟩ :=
     insCheckCapPoolGenProg_spec henv hb hrep (s := s)
   dsimp only
-  unfold fastInsertMissGenProg; dsimp only
+  rw [← Nat.zero_add (memoryCost _ s)]
+  unfold fastInsertMissGenProg
+  dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
   simp only [pure_bind]
   by_cases hbad1 : totalLocalCoordsWhp n_max ≤ X ∨ (cf ≤ X ∧ fs.poolFreeTop = 0)
   · rw [ite_eq_left hbad1] at hcp_res ⊢
-    dsimp only
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hcp_st, hcp_res]; dsimp only
-      simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
-      dsimp only [cp] at hcp_mc ⊢; omega
-    · refine validProg_bind hcp_vp ?_; rw [hcp_st, hcp_res]; exact validProg_pure _
-    · rw [clientResult_bind, hcp_st, hcp_res]; rfl
-    · rw [clientState_bind, hcp_st, hcp_res]; rfl
+    refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
+    simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
   · rw [ite_eq_right hbad1] at hcp_res ⊢
     have hX_tl : X < totalLocalCoordsWhp n_max := by omega
     have hpos_fn : cf ≤ X → 0 < fs.poolFreeTop := fun _ => by omega
@@ -387,211 +417,82 @@ private theorem fastInsertMissGenProg_spec {c U V w n_max base b q_val v_val : �
     have hbo_fn : fs.rebStage ≤ 3 →
         ∃ oldMap, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap := by
       intro hle3
-      have hbo := hv.bufOld_valid; rw [ite_eq_left hle3] at hbo
-      obtain ⟨_, _, oldMap, hv_old, _⟩ := hbo; exact ⟨oldMap, hv_old⟩
+      obtain ⟨_, _, oldMap, hv_old, _⟩ := ite_eq_left hle3 ▸ hv.bufOld_valid
+      exact ⟨oldMap, hv_old⟩
     obtain ⟨her_st, her_res, her_mc, her_vp⟩ := insEvalRKeyGenProg_spec u henv hseed (s := s)
     obtain ⟨hcg_st, hcg_res, hcg_mc, hcg_vp⟩ :=
       insCheckRKeyGuardsGenProg_spec henv hv.curEp_or hv_cur hbo_fn hrep (rKey := rKey) (s := s)
-    set progCap := insAfterCapGenProg
-      ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), u.val)
-    have hstep1_st : (Memory.spec 0).clientState s
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) =
-        (Memory.spec 0).clientState s progCap := by
-      rw [clientState_bind, hcp_st, hcp_res]; rfl
-    have hstep1_res : (Memory.spec 0).clientResult s
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) =
-        (Memory.spec 0).clientResult s progCap := by
-      rw [clientResult_bind, hcp_st, hcp_res]; rfl
-    have hstep1_mc : memoryCost
-        (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-          if cpRes.1 = 1 then
-            insAfterCapGenProg
-              ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-          else pure 0) s =
-        memoryCost (insCheckCapPoolGenProg ((cp, base), b)) s + memoryCost progCap s := by
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hcp_st, hcp_res]; rfl
-    have hstep1_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s progCap →
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (insCheckCapPoolGenProg ((cp, base), b) >>= fun cpRes =>
-            if cpRes.1 = 1 then
-              insAfterCapGenProg
-                ((((mkWhpParams c U V w n_max, base), (b, cpRes.2)), (q_val, v_val)), u.val)
-            else pure 0) := by
-      intro hvp_c; refine validProg_bind hcp_vp ?_; rw [hcp_st, hcp_res]; exact hvp_c
-    rw [hstep1_st, hstep1_res, hstep1_mc]
-    have hcap_all :
-        memoryCost (insCheckCapPoolGenProg ((cp, base), b)) s + memoryCost progCap s ≤
-          26 * cTabWhp c + 33 * hashEvalCostWhp c + 42082 ∧
-        ValidProg w (base + largeSpaceWhp c U V w n_max) s progCap ∧
-        match
-          if (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
-              (fs.rebStage ≤ 3 ∧
-                (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome) then
-            none
-          else if hasFpCollision ∧
-              !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
-              2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc then
-            none
-          else
-            some (overmarsStep c U n_max θ b
-              (fastInsertFresh c n_max b X q_val v_val rKey fp lIdx hasFpCollision
-        (fastInsertAlloc n_max b X fs)))
-        with
-        | some fs' =>
-          (Memory.spec 0).clientResult s progCap = 1 ∧
-          FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s progCap)
-        | none =>
-          (Memory.spec 0).clientResult s progCap = 0 ∧
-          (Memory.spec 0).clientState s progCap = s := by
-      dsimp only [progCap]
-      unfold insAfterCapGenProg; dsimp only
+    by_cases hbad2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
+        (fs.rebStage ≤ 3 ∧
+          (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
+    · rw [ite_eq_left hbad2] at hcg_res ⊢
+      refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
+      simp only [↓reduceIte]
+      unfold insAfterCapGenProg
+      dsimp only
       rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
       simp only [pure_bind]
-      by_cases hbad2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
-          (fs.rebStage ≤ 3 ∧
-            (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
-      · rw [ite_eq_left hbad2] at hcg_res ⊢
+      refine bind_read_post (S := (· = s)) her_st her_res her_mc her_vp ?_
+      refine bind_read_post (S := (· = s)) hcg_st hcg_res hcg_mc hcg_vp ?_
+      simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
+    · rw [ite_eq_right hbad2] at hcg_res ⊢
+      obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
+      have hlic := liveInsCount_le_eight hv.toCore hb (hv.overmars_valid b hb)
+      have hlr_lt := (hv.roles_valid b hb).1
+      obtain ⟨hrf_st, hrf_res, hrf_mc, hrf_vp⟩ :=
+        insReadFpLiveGenProg_spec u henv hseed hrep hb hlr_lt hlic hv_live (s := s)
+      obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ :=
+        insCheckFpCapOptGenProg_spec hasFpCollision henv hv.curEp_or hv_cur hrep
+          (rKey := rKey) (s := s)
+      by_cases hbad3 : hasFpCollision ∧
+          !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
+          2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
+      · rw [ite_eq_left hbad3] at hck_res ⊢
+        refine bind_read_post (S := (· = s)) hcp_st hcp_res hcp_mc hcp_vp ?_
+        simp only [↓reduceIte]
+        unfold insAfterCapGenProg
         dsimp only
-        refine ⟨?_, ?_, ?_, ?_⟩
-        · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-          rw [her_st, her_res, hcg_st, hcg_res]
-          simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
-          dsimp only [cp, rKey] at hcp_mc her_mc hcg_mc ⊢; omega
-        · refine validProg_bind her_vp ?_; rw [her_st, her_res]
-          refine validProg_bind hcg_vp ?_; rw [hcg_st, hcg_res]; exact validProg_pure _
-        · rw [clientResult_bind, her_st, her_res, clientResult_bind, hcg_st, hcg_res]; rfl
-        · rw [clientState_bind, her_st, her_res, clientState_bind, hcg_st, hcg_res]; rfl
-      · rw [ite_eq_right hbad2] at hcg_res ⊢
-        obtain ⟨liveMap, hv_live, _⟩ := hv.live_valid b hb
-        have hlic := liveInsCount_le_eight hv.toCore hb (hv.overmars_valid b hb)
-        have hlr_lt := (hv.roles_valid b hb).1
-        obtain ⟨hrf_st, hrf_res, hrf_mc, hrf_vp⟩ :=
-          insReadFpLiveGenProg_spec u henv hseed hrep hb hlr_lt hlic hv_live (s := s)
-        obtain ⟨hck_st, hck_res, hck_mc, hck_vp⟩ :=
-          insCheckFpCapOptGenProg_spec hasFpCollision henv hv.curEp_or hv_cur hrep
-            (rKey := rKey) (s := s)
-        set progRK := insAfterRKeyGenProg
-          ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rKey))
-        have hstep2_st : (Memory.spec 0).clientState s
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) =
-            (Memory.spec 0).clientState s progRK := by
-          rw [clientState_bind, her_st, her_res, clientState_bind, hcg_st, hcg_res]; rfl
-        have hstep2_res : (Memory.spec 0).clientResult s
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) =
-            (Memory.spec 0).clientResult s progRK := by
-          rw [clientResult_bind, her_st, her_res, clientResult_bind, hcg_st, hcg_res]; rfl
-        have hstep2_mc : memoryCost
-            (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-              insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-              if ok2 = 1 then
-                insAfterRKeyGenProg
-                  ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-              else pure 0) s =
-            memoryCost (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val)) s +
-            memoryCost (insCheckRKeyGuardsGenProg ((cp, base), rKey)) s +
-            memoryCost progRK s := by
-          simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-          rw [her_st, her_res, hcg_st, hcg_res]; simp only [↓reduceIte, Nat.add_assoc]; rfl
-        have hstep2_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s progRK →
-            ValidProg w (base + largeSpaceWhp c U V w n_max) s
-              (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val) >>= fun rk =>
-                insCheckRKeyGuardsGenProg ((cp, base), rk) >>= fun ok2 =>
-                if ok2 = 1 then
-                  insAfterRKeyGenProg
-                    ((((mkWhpParams c U V w n_max, base), (b, X)), (q_val, v_val)), (u.val, rk))
-                else pure 0) := by
-          intro hvp_r
-          refine validProg_bind her_vp ?_; rw [her_st, her_res]
-          refine validProg_bind hcg_vp ?_; rw [hcg_st, hcg_res]; exact hvp_r
-        rw [hstep2_st, hstep2_res, hstep2_mc]
-        have hrk_all :
-            memoryCost (insCheckCapPoolGenProg ((cp, base), b)) s +
-              (memoryCost (insEvalRKeyGenProg ((mkWhpParams c U V w n_max, base), u.val)) s +
-               memoryCost (insCheckRKeyGuardsGenProg ((cp, base), rKey)) s +
-               memoryCost progRK s) ≤
-              26 * cTabWhp c + 33 * hashEvalCostWhp c + 42082 ∧
-            ValidProg w (base + largeSpaceWhp c U V w n_max) s progRK ∧
-            match
-              if hasFpCollision ∧
-                  !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
-                  2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc then
-                none
-              else
-                some (overmarsStep c U n_max θ b
-                  (fastInsertFresh c n_max b X q_val v_val rKey fp lIdx hasFpCollision
-        (fastInsertAlloc n_max b X fs)))
-            with
-            | some fs' =>
-              (Memory.spec 0).clientResult s progRK = 1 ∧
-              FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s progRK)
-            | none =>
-              (Memory.spec 0).clientResult s progRK = 0 ∧
-              (Memory.spec 0).clientState s progRK = s := by
-          dsimp only [progRK]
-          unfold insAfterRKeyGenProg; dsimp only
-          rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-          simp only [pure_bind]
-          by_cases hbad3 : hasFpCollision ∧
-              !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
-              2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
-          · rw [ite_eq_left hbad3] at hck_res ⊢
-            dsimp only
-            refine ⟨?_, ?_, ?_, ?_⟩
-            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-              rw [hrf_st, hrf_res]; dsimp only; rw [hck_st, hck_res]
-              simp only [zero_ne_one, ↓reduceIte, memoryCost_pure]
-              dsimp only [cp, rKey, fp, lIdx, hasFpCollision] at hcp_mc her_mc hcg_mc
-              dsimp only [cp, rKey, fp, lIdx, hasFpCollision] at hrf_mc hck_mc ⊢
-              omega
-            · refine validProg_bind hrf_vp ?_; rw [hrf_st, hrf_res]; dsimp only
-              refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; exact validProg_pure _
-            · rw [clientResult_bind, hrf_st, hrf_res]; dsimp only
-              rw [clientResult_bind, hck_st, hck_res]; rfl
-            · rw [clientState_bind, hrf_st, hrf_res]; dsimp only
-              rw [clientState_bind, hck_st, hck_res]; rfl
-          · rw [ite_eq_right hbad3] at hck_res ⊢
-            dsimp only
-            have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
-              dsimp only [fp, fpOfSalt]
-              split_ifs with hs
-              · exact fpHash_lt c U n_max θ.2 ⟨fs.bktSalt b, hs⟩ u
-              · exact Nat.two_pow_pos _
-            obtain ⟨hcm_res, hcm_mc, hcm_vp, hcm_step⟩ :=
-              insCommitFreshGenProg_spec hasFpCollision henv hseed hrep hv hb hX_tl hpos_fn
-                hq_lt hv_v hfp_lt (rKey := rKey) (s := s)
-            refine ⟨?_, ?_, ?_, ?_⟩
-            · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-              rw [hrf_st, hrf_res]; dsimp only; rw [hck_st, hck_res]; simp only [↓reduceIte]
-              dsimp only [cp, X, rKey, fp, lIdx, hasFpCollision] at hcp_mc her_mc hcg_mc
-              dsimp only [cp, X, rKey, fp, lIdx, hasFpCollision] at hrf_mc hck_mc hcm_mc ⊢
-              omega
-            · refine validProg_bind hrf_vp ?_; rw [hrf_st, hrf_res]; dsimp only
-              refine validProg_bind hck_vp ?_; rw [hck_st, hck_res]; exact hcm_vp
-            · rw [clientResult_bind, hrf_st, hrf_res]; dsimp only
-              rw [clientResult_bind, hck_st, hck_res]; exact hcm_res
-            · rw [clientState_bind, hrf_st, hrf_res]; dsimp only
-              rw [clientState_bind, hck_st, hck_res]; exact hcm_step
-        exact ⟨hrk_all.1, hstep2_vp hrk_all.2.1, hrk_all.2.2⟩
-    exact ⟨hcap_all.1, hstep1_vp hcap_all.2.1, hcap_all.2.2⟩
+        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+        simp only [pure_bind]
+        refine bind_read_post (S := (· = s)) her_st her_res her_mc her_vp ?_
+        refine bind_read_post (S := (· = s)) hcg_st hcg_res hcg_mc hcg_vp ?_
+        simp only [↓reduceIte]
+        unfold insAfterRKeyGenProg
+        dsimp only
+        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+        simp only [pure_bind]
+        refine bind_read_post (S := (· = s)) hrf_st hrf_res hrf_mc hrf_vp ?_
+        dsimp only
+        refine bind_read_post (S := (· = s)) hck_st hck_res hck_mc hck_vp ?_
+        simpa only [zero_ne_one, ↓reduceIte] using pure_zero_opt (by omega)
+      · rw [ite_eq_right hbad3] at hck_res ⊢
+        refine bind_read_post hcp_st hcp_res hcp_mc hcp_vp ?_
+        simp only [↓reduceIte]
+        unfold insAfterCapGenProg
+        dsimp only
+        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+        simp only [pure_bind]
+        refine bind_read_post her_st her_res her_mc her_vp ?_
+        refine bind_read_post hcg_st hcg_res hcg_mc hcg_vp ?_
+        simp only [↓reduceIte]
+        unfold insAfterRKeyGenProg
+        dsimp only
+        rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+        simp only [pure_bind]
+        refine bind_read_post hrf_st hrf_res hrf_mc hrf_vp ?_
+        dsimp only
+        refine bind_read_post hck_st hck_res hck_mc hck_vp ?_
+        simp only [↓reduceIte]
+        have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
+          dsimp only [fp, fpOfSalt]
+          split_ifs with hs
+          · exact fpHash_lt c U n_max θ.2 ⟨fs.bktSalt b, hs⟩ u
+          · exact Nat.two_pow_pos _
+        obtain ⟨hcm_res, hcm_mc, hcm_vp, hcm_step⟩ :=
+          insCommitFreshGenProg_spec hasFpCollision henv hseed hrep hv hb hX_tl hpos_fn
+            hq_lt hv_v hfp_lt (rKey := rKey) (s := s)
+        exact ⟨by dsimp only [cp, X, rKey, fp, lIdx, hasFpCollision] at hcm_mc ⊢; omega,
+          hcm_vp, hcm_res, hcm_step⟩
 
 /-- Body of `fastInsertGenProg` after Feistel split (`d = ((((wp, base), bq), u_val), v_val)`). -/
 @[irreducible] private def fastInsertBodyGenProg :
@@ -734,80 +635,76 @@ theorem fastInsertGenProg_spec {c U V w n_max base : ℕ}
     fastFindLocBqGenProg_spec henv hseed hrep hv u (s := s)
   have hspec := hv.fastFindLoc_spec u
   dsimp only
-  unfold fastInsertGenProg
-  set progBody := fastInsertBodyGenProg
-    ((((mkWhpParams c U V w n_max, base), (b, q_val)), u.val), v_val)
-  have houter_st : (Memory.spec 0).clientState s
-      (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
-        feistelSplitRtProg (hrt, u.val) >>= fun bq =>
-        fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) =
-      (Memory.spec 0).clientState s progBody := by
-    rw [clientState_bind, hmh_st, hmh_res, clientState_bind, hfs_st, hfs_res]
-  have houter_res : (Memory.spec 0).clientResult s
-      (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
-        feistelSplitRtProg (hrt, u.val) >>= fun bq =>
-        fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) =
-      (Memory.spec 0).clientResult s progBody := by
-    rw [clientResult_bind, hmh_st, hmh_res, clientResult_bind, hfs_st, hfs_res]
-  have houter_mc : memoryCost
-      (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
-        feistelSplitRtProg (hrt, u.val) >>= fun bq =>
-        fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) s =
-      memoryCost (feistelSplitRtProg (mkHashRt c U w n_max base, u.val)) s +
-      memoryCost progBody s := by
-    simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hmh_st, hmh_res, hmh_mc, hfs_st, hfs_res, Nat.zero_add]
-  have houter_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s progBody →
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s
-        (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
-          feistelSplitRtProg (hrt, u.val) >>= fun bq =>
-          fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) := by
-    intro hvp_b
-    refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-    refine validProg_bind hfs_vp ?_; rw [hfs_st, hfs_res]; exact hvp_b
-  rw [houter_st, houter_res, houter_mc]
-  have hfs_mc' : memoryCost (feistelSplitRtProg (mkHashRt c U w n_max base, u.val)) s ≤
-      hashEvalCostWhp c := hfs_mc
-  have hbody_all :
-      memoryCost (feistelSplitRtProg (mkHashRt c U w n_max base, u.val)) s +
-        memoryCost progBody s ≤
-        30 * cTabWhp c + 35 * hashEvalCostWhp c + 42386 ∧
-      ValidProg w (base + largeSpaceWhp c U V w n_max) s progBody ∧
-      match fastInsert c U n_max θ fs u v_val with
-      | some fs' =>
-        (Memory.spec 0).clientResult s progBody = 1 ∧
-        FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s progBody)
-      | none =>
-        (Memory.spec 0).clientResult s progBody = 0 ∧
-        (Memory.spec 0).clientState s progBody = s := by
-    dsimp only [progBody]
-    unfold fastInsertBodyGenProg fastInsert; dsimp only; simp only [pure_bind]
-    cases hfind : fastFindLoc c U n_max θ fs u with
-    | some loc =>
-      rw [hfind] at hfl_res hspec
-      dsimp only at hfl_res ⊢
-      obtain ⟨hov_res, hov_mc, hov_vp, hov_step⟩ :=
-        fastInsertOverwriteGenProg_spec henv hseed hrep hv hb hspec.1 hv_v (v_val := v_val) (s := s)
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hfl_st, hfl_res]; dsimp only; simp only [↓reduceIte]
-        dsimp only [b, q_val] at hfl_mc hov_mc ⊢; omega
-      · refine validProg_bind hfl_vp ?_; rw [hfl_st, hfl_res]; exact hov_vp
-      · rw [clientResult_bind, hfl_st, hfl_res]; exact hov_res
-      · rw [clientState_bind, hfl_st, hfl_res]; exact hov_step
-    | none =>
-      rw [hfind] at hfl_res
-      dsimp only at hfl_res ⊢
-      obtain ⟨hms_mc, hms_vp, hms_match⟩ :=
-        fastInsertMissGenProg_spec u henv hseed hrep hv hb hq_lt hv_v (v_val := v_val) (s := s)
-      refine ⟨?_, ?_, ?_⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hfl_st, hfl_res]; dsimp only; simp only [zero_ne_one, ↓reduceIte]
-        dsimp only [b, q_val] at hfl_mc hms_mc ⊢; omega
-      · refine validProg_bind hfl_vp ?_; rw [hfl_st, hfl_res]; exact hms_vp
-      · rw [clientResult_bind, hfl_st, hfl_res, clientState_bind, hfl_st, hfl_res]
-        exact hms_match
-  exact ⟨hbody_all.1, houter_vp hbody_all.2.1, hbody_all.2.2⟩
+  rw [← Nat.zero_add (memoryCost _ s)]
+  unfold fastInsertGenProg fastInsert
+  dsimp only
+  cases hfind : fastFindLoc c U n_max θ fs u with
+  | some loc =>
+    rw [hfind] at hfl_res hspec
+    refine bind_read_post hmh_st hmh_res hmh_mc.le hmh_vp ?_
+    refine bind_read_post hfs_st hfs_res hfs_mc hfs_vp ?_
+    unfold fastInsertBodyGenProg
+    dsimp only
+    simp only [pure_bind]
+    refine bind_read_post hfl_st hfl_res hfl_mc hfl_vp ?_
+    simp only [↓reduceIte]
+    obtain ⟨hov_res, hov_mc, hov_vp, hov_step⟩ :=
+      fastInsertOverwriteGenProg_spec henv hseed hrep hv hb hspec.1 hv_v (v_val := v_val) (s := s)
+    exact ⟨by dsimp only [b, q_val] at hov_mc ⊢; omega, hov_vp, hov_res, hov_step⟩
+  | none =>
+    rw [hfind] at hfl_res
+    obtain ⟨hms_mc, hms_vp, hms_match⟩ :=
+      fastInsertMissGenProg_spec u henv hseed hrep hv hb hq_lt hv_v (v_val := v_val) (s := s)
+    dsimp only [b, q_val] at hms_mc hms_vp hms_match
+    refine ⟨?_, ?_, ?_⟩
+    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+      rw [hmh_st, hmh_res, hfs_st, hfs_res]
+      unfold fastInsertBodyGenProg
+      dsimp only
+      simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
+      rw [hfl_st, hfl_res]
+      simp only [zero_ne_one, ↓reduceIte]
+      omega
+    · refine validProg_bind hmh_vp ?_
+      rw [hmh_st, hmh_res]
+      refine validProg_bind hfs_vp ?_
+      rw [hfs_st, hfs_res]
+      unfold fastInsertBodyGenProg
+      dsimp only
+      simp only [pure_bind]
+      refine validProg_bind hfl_vp ?_
+      rw [hfl_st, hfl_res]
+      simpa only [zero_ne_one, ↓reduceIte] using hms_vp
+    · have hres_eq :
+          (Memory.spec 0).clientResult s
+            (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
+              feistelSplitRtProg (hrt, u.val) >>= fun bq =>
+                fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) =
+          (Memory.spec 0).clientResult s
+            (fastInsertMissGenProg
+              ((((mkWhpParams c U V w n_max, base), (b, q_val)), u.val), v_val)) := by
+        rw [clientResult_bind, hmh_st, hmh_res, clientResult_bind, hfs_st, hfs_res]
+        unfold fastInsertBodyGenProg
+        dsimp only
+        simp only [pure_bind]
+        rw [clientResult_bind, hfl_st, hfl_res]
+        rfl
+      have hst_eq :
+          (Memory.spec 0).clientState s
+            (mkHashRtGenProg (mkWhpParams c U V w n_max, base) >>= fun hrt =>
+              feistelSplitRtProg (hrt, u.val) >>= fun bq =>
+                fastInsertBodyGenProg ((((mkWhpParams c U V w n_max, base), bq), u.val), v_val)) =
+          (Memory.spec 0).clientState s
+            (fastInsertMissGenProg
+              ((((mkWhpParams c U V w n_max, base), (b, q_val)), u.val), v_val)) := by
+        rw [clientState_bind, hmh_st, hmh_res, clientState_bind, hfs_st, hfs_res]
+        unfold fastInsertBodyGenProg
+        dsimp only
+        simp only [pure_bind]
+        rw [clientState_bind, hfl_st, hfl_res]
+        rfl
+      rw [hres_eq, hst_eq]
+      exact hms_match
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
