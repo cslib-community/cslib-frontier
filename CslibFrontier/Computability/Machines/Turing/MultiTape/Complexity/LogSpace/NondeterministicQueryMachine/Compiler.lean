@@ -95,13 +95,11 @@ theorem exists_runsInTime (a : α) {time : ℕ}
     (fun ws => (M.withInit (start a)).remainingSteps (enc a) (R.boundaryState ws))
     (hI.imp (fun _ _ h => h)
       (fun _ _ _ _ _ ⟨hw, _⟩ => ⟨_, _, (M.withInit (start a)).reachable_init _, hw⟩) le_rfl le_rfl)
-  · intro b ws hws
-    obtain ⟨s, flag, hs, rfl⟩ := hws
+  · rintro b _ ⟨s, flag, hs, rfl⟩
     obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
     refine ⟨t, R.c * S a, ht.imp (fun _ _ h => h) ?_ le_rfl le_rfl⟩
     rintro _ _ _ _ _ ⟨rfl, _⟩
-    refine ⟨⟨_, _, Reachable.step _ (enc a) hs b, rfl⟩, ?_⟩
-    intro hflag
+    refine ⟨⟨_, _, Reachable.step _ (enc a) hs b, rfl⟩, fun hflag => ?_⟩
     rw [R.boundary_flag] at hflag
     have hnext : M.halted (M.step (enc a) s b) = false := by
       cases h : M.halted (M.step (enc a) s b) <;> simp_all [flagWord]
@@ -234,8 +232,7 @@ private theorem halted_realizes (a : α) (s : σ)
       p.head = wordsCfg (enc a) (some .choose) (R.boundary s flag) out ∧
       p.last.Halted ∧ p.last.output = out ++ [M.accept s] := by
   obtain ⟨p, hphead, hplast⟩ := R.exists_pass_path a s hs false flag out
-  rw [M.step_of_halted _ hh] at hplast
-  simp only [hh, Bool.not_true, ↓reduceIte] at hplast
+  simp only [M.step_of_halted _ hh, hh, Bool.not_true, ↓reduceIte] at hplast
   obtain ⟨q, hqhead, hqhalt, hqout⟩ := R.exists_finish_path a s hs false out
   exact ⟨p.smash q (hplast.trans hqhead.symm), by simpa using hphead,
     by simpa using hqhalt, by simpa using hqout⟩
@@ -321,8 +318,7 @@ theorem accepts_iff (a : α) :
   · rintro ⟨p, hhalt, hout⟩
     have hmap : p.head = q.head.mapState Native.initState := by
       rw [p.head_eq, hhead', hqhead, mapState_wordsCfg]
-      change Cfg.init (.init R.I.q₀ : Native.State R.SI R.SP R.SF) (enc a) = _
-      simp [Native.initState, wordsCfg]
+      simp [Native.initState, wordsCfg]; rfl
     have hlong : q.length < p.length + 1 := by
       by_contra hshort
       have h := Native.follows_init R.I R.P R.F R.C p.toRunPath q hmap p.length
@@ -343,18 +339,16 @@ theorem accepts_iff (a : α) :
     exact ⟨choices, hchoices ▸ hhalt', hchoices ▸ List.head_eq_of_cons_eq hbit⟩
   · rintro ⟨choices, hhalt, haccept⟩
     let p := q.map (Native.initHom R.I R.P R.F R.C)
-    have hphead : p.head = R.machine.initCfg (enc a) :=
-      show p.head = Cfg.init (.init R.I.q₀) (enc a) by
-        simp [p, hhead', hqhead, Native.initState, wordsCfg, Cfg.mapState]
+    have hphead : p.head = Cfg.init (.init R.I.q₀) (enc a) := by
+      simp [p, hhead', hqhead, Native.initState, wordsCfg, Cfg.mapState]
     have hplast : p.last =
         wordsCfg (enc a) (some .check) (R.boundary (start a) (!M.halted (start a))) [] := by
       simp [p, hlast', hqlast, Native.initState, hws, he]
     obtain ⟨p', hp'head, hp'halt, hp'out⟩ :=
       R.check_realizes a choices (start a) ((M.withInit (start a)).reachable_init _) hhalt []
     change M.accept (M.replay (enc a) choices (start a)) = true at haccept
-    let p'' := p.smash p' (hplast.trans hp'head.symm)
-    exact ⟨⟨p'', by simpa [p''] using hphead⟩,
-      by simpa [p''] using hp'halt, by simpa [p'', haccept] using hp'out⟩
+    exact ⟨⟨p.smash p' (hplast.trans hp'head.symm), (RelSeries.head_smash ..).trans hphead⟩,
+      by simpa using hp'halt, by simpa [haccept] using hp'out⟩
 
 private theorem runsInSpace_mul (a : α) (hS : 1 ≤ S a) :
     R.machine.RunsInSpace (enc a) (R.k * (2 * R.c + 1) * S a) :=

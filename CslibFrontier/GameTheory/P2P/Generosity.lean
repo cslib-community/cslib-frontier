@@ -79,18 +79,14 @@ theorem uniformTail_of_le_zero {θ_m t : ℝ} (ht : t ≤ 0) : uniformTail θ_m 
   simp [uniformTail, ht]
 
 theorem uniformTail_nonneg {θ_m : ℝ} (hθ : 0 < θ_m) (t : ℝ) : 0 ≤ uniformTail θ_m t := by
-  dsimp [uniformTail]
+  unfold uniformTail
   split_ifs with h0 ht
-  · norm_num
-  · linarith [(div_le_one hθ).mpr ht]
-  · exact le_rfl
+  exacts [zero_le_one, sub_nonneg.mpr ((div_le_one hθ).mpr ht), le_rfl]
 
 theorem uniformTail_le_one {θ_m : ℝ} (hθ : 0 < θ_m) (t : ℝ) : uniformTail θ_m t ≤ 1 := by
-  dsimp [uniformTail]
+  unfold uniformTail
   split_ifs with h0 ht
-  · exact le_rfl
-  · linarith [div_nonneg (lt_of_not_ge h0).le hθ.le]
-  · norm_num
+  exacts [le_rfl, sub_le_self _ (div_nonneg (not_le.mp h0).le hθ.le), zero_le_one]
 
 theorem uniformTail_antitone {θ_m : ℝ} (hθ : 0 < θ_m) : Antitone (uniformTail θ_m) := by
   intro t₁ t₂ hle
@@ -140,7 +136,8 @@ private theorem quad_sol_iff {a b c x : ℝ} (ha : 0 < a) (hdisc : 0 ≤ b ^ 2 -
   have hfac : 4 * a * (a * x ^ 2 - b * x + c) =
       (2 * a * x - (b - d)) * (2 * a * x - (b + d)) := by linarith
   have h2a : 2 * a ≠ 0 := by positivity
-  rw [← mul_right_inj' (show 4 * a ≠ 0 by positivity), mul_zero, hfac, mul_eq_zero, sub_eq_zero,
+  have h4a : 4 * a ≠ 0 := by positivity
+  rw [← mul_right_inj' h4a, mul_zero, hfac, mul_eq_zero, sub_eq_zero,
     sub_eq_zero, eq_div_iff h2a, eq_div_iff h2a, mul_comm x]
 
 /-- Root identities and bounds for `unifLowRoot` and `unifHighRoot` when `4 ≤ θ_m`. -/
@@ -253,13 +250,8 @@ private theorem unifHighRoot_eq_half_add {θ_m : ℝ} (hθ : 0 < θ_m) :
   have hid : (θ_m * (θ_m - 4)) / (2 * θ_m) ^ 2 = 1 / 4 - 1 / θ_m := by
     field_simp [hθ.ne']
     ring
-  rw [unifHighRoot, add_div]
-  have hdiv : Real.sqrt (θ_m * (θ_m - 4)) / (2 * θ_m) =
-      Real.sqrt ((θ_m * (θ_m - 4)) / (2 * θ_m) ^ 2) := by
-    rw [Real.sqrt_div', Real.sqrt_sq (by linarith)]
-    · positivity
-  have h1 : θ_m / (2 * θ_m) = 1 / 2 := by field_simp [hθ.ne']
-  rw [h1, hdiv, hid]
+  rw [unifHighRoot, add_div, ← hid, Real.sqrt_div' _ (sq_nonneg _),
+    Real.sqrt_sq (mul_pos two_pos hθ).le, mul_comm 2 θ_m, div_mul_eq_div_div, div_self hθ.ne']
 
 /-- The stable equilibrium contribution fraction `unifHighRoot θ_m` is strictly increasing in
 `θ_m` on `[4, ∞)` (NRTV Claim 23.1). -/
@@ -358,16 +350,11 @@ theorem mixRoot_props {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < φ) (hφ₁
     have : 0 < 4 * θ_m * φ := by positivity
     linarith
   have hsq_nn : 0 ≤ Real.sqrt (((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ) := Real.sqrt_nonneg _
-  have hlt_cap : mixHighRoot θ_m φ < (1 + φ) / 2 := by
-    dsimp [mixHighRoot]
-    rw [div_lt_iff₀ (by linarith)]
-    linarith
+  have h2θ : 0 < 2 * θ_m := mul_pos two_pos hθ
+  have hlt_cap : mixHighRoot θ_m φ < (1 + φ) / 2 := (div_lt_iff₀ h2θ).mpr (by linarith)
   have _ := hthr
-  refine ⟨?_, ?_, hlt_cap, by linarith⟩
-  · dsimp [mixLowRoot]
-    exact div_pos (by linarith) (by linarith)
-  · dsimp [mixLowRoot, mixHighRoot]
-    exact div_le_div_of_nonneg_right (by linarith) (by linarith)
+  exact ⟨div_pos (by linarith) h2θ, div_le_div_of_nonneg_right (by linarith) h2θ.le,
+    hlt_cap, by linarith⟩
 
 /-- Upper bound `x ≤ (1 + φ) / 2` for any positive equilibrium under `mixtureTail θ_m φ`
 (`0 ≤ φ ≤ 1`, `θ_m > 0`), strictly capping equilibrium participation below `1` whenever `φ < 1`

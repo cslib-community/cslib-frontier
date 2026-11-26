@@ -153,17 +153,14 @@ private theorem volume_Ico_floor_ne_of_le {x y : ℝ} (hxy : x ≤ y) (hgap : y 
     have hle : ⌊x + b⌋ ≤ ⌊y + b⌋ := Int.floor_mono (by linarith)
     have hlt : ⌊y + b⌋ ≤ ⌊x + b⌋ + 1 :=
       Int.floor_add_one (x + b) ▸ Int.floor_mono (by linarith)
-    rcases eq_or_ne ⌊x + b⌋ ⌊y + b⌋ with h | h
-    · simp [h]
-    · have hy : ⌊y + b⌋ = ⌊x + b⌋ + 1 := by omega
-      simp [hy]
+    have h : ⌊x + b⌋ = ⌊y + b⌋ ∨ ⌊y + b⌋ = ⌊x + b⌋ + 1 := by omega
+    rcases h with h | h <;> simp [h]
   have hmeas : MeasurableSet {b : ℝ | ⌊x + b⌋ ≠ ⌊y + b⌋} :=
     (measurableSet_eq_fun (Int.measurable_floor.comp (by fun_prop))
       (Int.measurable_floor.comp (by fun_prop))).compl
   have hdiff (b : ℝ) : (⌊y + b⌋ : ℝ) - ⌊x + b⌋ =
       (y - x) + Int.fract (x + b) - Int.fract (y + b) := by
-    unfold Int.fract
-    ring
+    simp only [Int.fract]; ring
   have hper : Function.Periodic (Int.fract : ℝ → ℝ) 1 := fun z => by
     simpa only [add_comm] using Int.fract_add_one z
   have hf_eq (u : ℝ) : ∫ b in (0 : ℝ)..1, Int.fract (u + b) = ∫ b in (0 : ℝ)..1, Int.fract b := by
@@ -361,9 +358,7 @@ private theorem stableCollisionProb_withDensity_strictAnti {f : ℝ → ℝ}
   let z : ℝ := r / (c₂ + 1)
   have hz : 0 < z := by positivity
   have hratio : c₂ * |z| / r < 1 := by
-    rw [abs_of_pos hz, div_lt_one hr]
-    dsimp only [z]
-    rw [← mul_div_assoc, div_lt_iff₀ (by positivity)]
+    rw [abs_of_pos hz, div_lt_one hr, ← mul_div_assoc, div_lt_iff₀ (by positivity)]
     linarith
   have hcompare : c₁ * |z| / r < c₂ * |z| / r :=
     div_lt_div_of_pos_right (mul_lt_mul_of_pos_right hlt (abs_pos.mpr hz.ne')) hr
@@ -646,10 +641,8 @@ theorem measureCollisionProb_p1StableHash {ι : Type*} [Fintype ι] {r : ℝ} (h
   have hsub : (fun a : ι → ℝ => a ⬝ᵥ u - a ⬝ᵥ v) = fun a : ι → ℝ => (u - v) ⬝ᵥ a :=
     funext fun a => by rw [← dotProduct_sub, dotProduct_comm]
   rw [hsub, pi_cauchyMeasure_map_dotProduct, cauchyMeasure_map_const_mul, mul_zero, mul_one]
-  congr 1
-  apply NNReal.coe_injective
-  simp only [NNReal.coe_sum, coe_nnNorm, Real.norm_eq_abs, Pi.sub_apply]
-  exact (abs_of_nonneg (Finset.sum_nonneg fun _ _ => abs_nonneg _)).symm
+  refine congrArg _ (NNReal.coe_injective ?_)
+  simpa [Real.norm_eq_abs] using (abs_of_nonneg (Finset.sum_nonneg fun _ _ => abs_nonneg _)).symm
 
 /-- Cauchy `p = 1` LSH is `(d₁, d₂, p1StableProb r d₁, p1StableProb r d₂)`-sensitive for the
 `\ell_1` distance `∑ i, |u i - v i|` when `0 < r` and `0 ≤ d₂`. -/

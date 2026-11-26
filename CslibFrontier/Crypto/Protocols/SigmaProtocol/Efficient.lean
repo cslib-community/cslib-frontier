@@ -772,16 +772,11 @@ theorem computableInPolyTime_parallelExtractWord
         (List.range (frames input.2.2.2.1).length).find?
           fun idx => (frames input.2.2.2.1).getD idx [] != (frames input.2.2.2.2.2.1).getD idx [])
       encIn (encOption encUnary) := by
-    have : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
-    have : ComputableInPolyTime
-        (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
-          (frames p.1.2.2.2.2.1).getD p.2 [])
-        (encPair encIn encUnary) encBits := by fun_prop
     simp only [bne]
-    exact ComputableInPolyTime.findWithInput (by fun_prop) (by fun_prop)
+    exact ComputableInPolyTime.findWithInput (by fun_prop)
+      (ComputableInPolyTime.bool_not.comp
+        ((by fun_prop : ComputableInPolyTime _ (encPair encIn encUnary) encBits).beq
+          (by fun_prop)))
   have hbody : ComputableInPolyTime
       (fun p : (I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool) × ℕ =>
         f (p.1.1, p.1.2.1, (frames p.1.2.2.1).getD p.2 [], (frames p.1.2.2.2.1).getD p.2 [],

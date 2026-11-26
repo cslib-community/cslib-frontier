@@ -91,8 +91,7 @@ private theorem sum_homogeneousComponent_eq_truncateTotalDegree {σ : Type*} (D 
 /-- Substituting `x_i + a i` for every input `x_i` computes the shift by `a`. -/
 private theorem polynomial_substFormula_shift (a : Fin n → K) (F : SPFormula K n) :
     (substFormula (affineInput id (fun _ => 1) a) F).polynomial = shift a F.polynomial := by
-  simp only [polynomial_substFormula, polynomial_affineInput, id, C_1, one_mul]
-  rfl
+  simp only [polynomial_substFormula, polynomial_affineInput, id, C_1, one_mul]; rfl
 
 /-- Shifting `x` by `x₀` and `y` by `α` shifts the coefficients by `x₀` and the variable by
 `α`. -/
@@ -134,10 +133,9 @@ private theorem lastVariableEquiv_derivLast [CharZero K] (j : ℕ) (F : SPFormul
       (Polynomial.taylorAlgHom (Polynomial.X : Polynomial (MvPolynomial (Fin n) K))).toRingHom.comp
         ((Polynomial.mapRingHom Polynomial.C).comp (lastVariableEquiv K n).toRingHom) :=
     ringHom_ext (fun a => by simp) fun i => by
-      refine Fin.lastCases ?_ (fun k => ?_) i
-      · simp [addLastInput, lastVariableEquiv_X_last, lastVariableEquiv_X_castSucc,
+      refine Fin.lastCases ?_ (fun k => ?_) i <;>
+        simp [addLastInput, lastVariableEquiv_X_last, lastVariableEquiv_X_castSucc,
           Fin.sum_univ_two, add_comm]
-      · simp [addLastInput, lastVariableEquiv_X_castSucc]
   have hj := congrArg (fun q => q.coeff j) (RingHom.congr_fun h F.polynomial)
   simp only [AlgHom.toRingHom_eq_coe, RingHom.coe_comp, Function.comp_apply, RingHom.coe_coe,
     Polynomial.coe_mapRingHom, Polynomial.coeff_map, Polynomial.taylorAlgHom_apply,
@@ -160,8 +158,7 @@ private theorem productDepth_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
   refine (productDepth_coeffLast_le _ _ _).trans <|
     (productDepth_substFormula_le (B := 0) (fun k => ?_) F).trans_eq (add_zero _)
   refine Fin.lastCases ?_ (fun k => by simp [addLastInput]) k
-  rw [addLastInput, Fin.lastCases_last, productDepth_add]
-  exact Finset.sup_le fun i _ => by fin_cases i <;> simp
+  simp [addLastInput, productDepth_add, Fin.forall_fin_two]
 
 private theorem nodeCount_derivLast_le (j : ℕ) (F : SPFormula K (n + 1)) :
     (derivLast j F).nodeCount ≤ (3 * F.nodeCount + 1) * (3 * F.nodeCount) + 2 := by
@@ -211,8 +208,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
   -- `y - Q / c`.
   set G₀ : SPFormula K (N + 1) := add ![1, -c⁻¹] ![.input (Fin.last N), QF] with hG₀
   have hG₀p : lastVariableEquiv K N G₀.polynomial = Polynomial.X - Polynomial.C (C c⁻¹) * Q := by
-    simp [hG₀, Fin.sum_univ_two, lastVariableEquiv_X_last, hQFp]
-    ring
+    simp [hG₀, Fin.sum_univ_two, lastVariableEquiv_X_last, hQFp]; ring
   -- Its powers, the only product gates added.
   set Pm : ℕ → SPFormula K (N + 1) := fun m => prodOn (range (m + 1)) fun _ => G₀ with hPm
   set S : SPFormula K N := sumOn (range (2 * (D + 1))) (fun m => ((m : K) + 1)⁻¹) fun m =>
@@ -227,9 +223,9 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       rw [polynomial_coeffLast_nodeCount, hPm, polynomial_prodOn, map_prod, prod_const,
         card_range, hG₀p, smul_eq_C_mul]
     have hTp : T.polynomial = shift x₀ f := by
-      rw [hshift D le_rfl, hT, polynomial_add, Fin.sum_univ_two]
-      simp only [Matrix.cons_val_zero, Matrix.cons_val_one, C_1, one_mul, polynomial_const]
-      rw [hL, polynomial_lowPartFormula (totalDegree_polynomial_le_nodeCount S),
+      simp only [hshift D le_rfl, hT, polynomial_add, Fin.sum_univ_two, Matrix.cons_val_zero,
+        Matrix.cons_val_one, C_1, one_mul, polynomial_const, hL,
+        polynomial_lowPartFormula (totalDegree_polynomial_le_nodeCount S),
         sum_homogeneousComponent_eq_truncateTotalDegree, hSp]
       exact add_comm _ _
     rw [polynomial_substFormula_shift, hTp, shift_neg_shift]
@@ -272,9 +268,7 @@ theorem exists_formula_of_root [CharZero K] {N Δ : ℕ} {F : SPFormula K (N + 1
       rw [hS, nodeCount_sumOn]
       calc _ ≤ #(range (2 * (D + 1))) • (3 * (89 * ((D + 1) * (s + 1) ^ 2)) ^ 2) + 1 :=
             Nat.add_le_add_right (sum_le_card_nsmul _ _ _ hcL) 1
-        _ = 47526 * ((D + 1) ^ 3 * (s + 1) ^ 4) + 1 := by
-          rw [card_range, smul_eq_mul]
-          ring
+        _ = 47526 * ((D + 1) ^ 3 * (s + 1) ^ 4) + 1 := by rw [card_range, smul_eq_mul]; ring
         _ ≤ _ := by omega
     have hS1 : 1 ≤ S.nodeCount := by simp [hS, nodeCount_sumOn]
     have hTn : T.nodeCount = L.nodeCount + 2 := by

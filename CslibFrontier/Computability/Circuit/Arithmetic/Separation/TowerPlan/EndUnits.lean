@@ -155,12 +155,9 @@ private theorem sum_done_le_load (j : Fin J) (e : T.Ed j) (β : Bool) :
   have h3 : T.π (T.e1 e) = T.hostOf (T.ty e) (T.e1 e) →
       relayAlive lhat n o (.middle j e 3) β = 0 := fun hq =>
     relayAlive_of_not_occurs (fun hx : (Relay.middle j e 3).Occurs R ch => hx.2 rfl hq) β
-  have := hM 0
-  have := hM 2
-  have := hM 3
   rw [Fin.sum_univ_four]
   cases β <;> simp only [Relay.target, Fin.isValue, Matrix.cons_val] <;> split_ifs at * <;>
-    simp_all
+    simp_all [hM 0, hM 2, hM 3]
 
 /-- The done channels of the relays of an edge at the node `P`: at most the units on the edge if an
 end of the edge is `P`, and none otherwise. -/
@@ -315,18 +312,17 @@ private theorem exists_mem_givenUnits {u : PlanUnit R FL Pl U0 U1}
         moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.vertex ⟨j, i, ω, d⟩) = t :=
       (moveCount_eq _).trans (ite_eq_left hd)
     have hrk : unitRank R FL Pl lhat n o u < FL.slotCount d q * t := by
-      refine lt_of_lt_of_le ?_ (hd.1 q hq)
-      have := rk_lt (idx := unitIndex R FL Pl) (key := unitTarget R FL Pl)
-        (mem_aliveUnits.2 hu)
-      rwa [hτ, ← load_eq_card] at this
+      have h := rk_lt (idx := unitIndex R FL Pl) (key := unitTarget R FL Pl) (mem_aliveUnits.2 hu)
+      rw [hτ, ← load_eq_card] at h
+      exact h.trans_le (hd.1 q hq)
     have htpos : 0 < t := Nat.pos_of_ne_zero fun h0 => by simp [h0] at hrk
     obtain ⟨e, -, he1, he2⟩ := exists_rk (idx := fun e => (Fintype.equivFin (FL.law d).Slot e : ℕ))
       (key := FL.slotPair d) (fun _ _ h => (Fintype.equivFin _).injective (Fin.ext h)) univ q
       (w := unitRank R FL Pl lhat n o u / t) ((Nat.div_lt_iff_lt_mul htpos).2 hrk)
+    have he2' : FL.slotRank d e = unitRank R FL Pl lhat n o u / t := he2
     refine ⟨⟨.vertex ⟨j, i, ω, d⟩, e⟩, mem_givenUnits_vertex.2 ⟨hd, hu, by rw [hτ, he1], ?_, ?_⟩⟩
-    · rw [ht]
-      exact (Nat.mul_le_mul_right t (le_of_eq he2)).trans (Nat.div_mul_le_self _ _)
-    · rw [ht, show FL.slotRank d e = _ from he2, add_mul, one_mul]
+    · exact ht ▸ (Nat.mul_le_mul_right t he2.le).trans (Nat.div_mul_le_self _ _)
+    · rw [ht, he2', add_mul, one_mul]
       exact Nat.lt_div_mul_add htpos
 
 /-- **The current units in the end** ([AnthropicVPVNP2026], Theorem H.2(b), p. 46): an alive unit
@@ -376,10 +372,8 @@ theorem card_assignedUnits_le (P : T.Node) :
   calc (assignedUnits R FL Pl lhat n o P).card ≤ ((univ.filter fun ν => IsChild P (e ν)).biUnion
         fun ν => (univ.filter fun k : Fin U1 => (k : ℕ) < al (e ν)).image (.new ν)).card :=
         card_le_card fun u hu => by
-          obtain ⟨-, ν, k, rfl, -⟩ := mem_filter.1 hu
-          have := new_mem_assignedUnits.1 hu
-          simp only [mem_biUnion, mem_filter, mem_univ, true_and, mem_image]
-          exact ⟨ν, this.2, k, this.1, rfl⟩
+          obtain ⟨-, ν, k, rfl, -⟩ := mem_filter.mp hu
+          simpa using (new_mem_assignedUnits.mp hu).symm
     _ ≤ ∑ ν ∈ univ.filter fun ν => IsChild P (e ν), al (e ν) :=
         card_biUnion_le.trans (sum_le_sum fun ν _ => card_image_le.trans
           (by rw [Fin.card_filter_val_lt]; exact min_le_right _ _))

@@ -195,12 +195,9 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
       Real.log_le_log (by norm_num) (mod_cast (show (2 : ℕ) ≤ n from mod_cast hn1))
     have hneg : -Real.log L ≤ 1 / L - 1 := by
       simpa [Real.log_inv, one_div] using Real.log_le_sub_one_of_pos (inv_pos.2 hLpos)
+    have h1L : 1 / L < 3 * Real.log k := (div_lt_iff₀ hLpos).2 (by linarith)
     have hlb : -Real.logb k L < 3 := by
       rw [Real.logb, ← neg_div, div_lt_iff₀ hlogk]
-      have h3 : 1 / L < 3 * Real.log k := by
-        rw [show 1 / L = Real.log k / Real.log n by rw [hlogn]; field_simp,
-          div_lt_iff₀ (by linarith)]
-        nlinarith
       linarith
     linarith
   have hlogbL : 0 ≤ Real.logb k L := Real.logb_nonneg hk1 hL1
@@ -267,11 +264,7 @@ theorem tendsto_epsilon {k : ℕ} (hk : 2 ≤ k) :
     have h3 := ((Real.tendsto_pow_log_div_mul_add_atTop 1 0 1 one_ne_zero).div_const
       (Real.log k)).add ((tendsto_const_nhds (x := (4 : ℝ))).div_atTop Filter.tendsto_id)
     simp only [zero_div, add_zero] at h3
-    refine h3.congr' ?_
-    filter_upwards [Filter.eventually_gt_atTop 0] with y hy
-    rw [Real.logb]
-    dsimp only [id]
-    field_simp
+    exact h3.congr (fun y => by simp only [Real.logb, id]; ring)
   unfold epsilon
   simpa [Function.comp_def] using (tendsto_const_nhds (x := (1 : ℝ))).min
     (hg.comp ((Real.tendsto_logb_atTop (mod_cast hk)).comp tendsto_natCast_atTop_atTop))

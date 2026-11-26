@@ -258,13 +258,12 @@ theorem survival_randomWalk_mul_pow (t : V) :
         (fun p _ => by simp)
       · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hk ⊢
         intro i hi
-        have := hk (i + 1) (by omega)
+        have := hk (i + 1) (Nat.succ_le_succ hi)
         rwa [← Fin.cons_self_tail k, walkAt_cons_succ] at this
       · simp only [mem_filter, mem_univ, true_and, mem_sigma] at hp ⊢
-        intro i hi
-        cases i with
-        | zero => exact hs
-        | succ i => rw [walkAt_cons_succ]; exact hp i (by omega)
+        rintro (_ | i) hi
+        · exact hs
+        · simpa only [walkAt_cons_succ] using hp i (Nat.le_of_succ_le_succ hi)
     rw [hcount, Nat.cast_sum, G.sum_comp_neighbor s (fun y => (#{k : Fin T → D |
       ∀ i ≤ T, G.walkAt (y, k) i ≠ t} : ℝ≥0∞))]
     refine sum_congr rfl fun y _ => ?_
@@ -381,8 +380,7 @@ theorem stepOp_randomWalk : G.randomWalk.stepOp = G.walk := by
   change ∑ y, (((PMF.uniformOfFintype D).map (G.neighbor x)) y).toReal * f y =
     𝔼 i, f (G.neighbor x i)
   rw [Cslib.Probability.PMF.sum_map_mul, Fintype.expect_eq_sum_div_card, sum_div]
-  refine sum_congr rfl fun i _ => ?_
-  rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+  simp [PMF.uniformOfFintype_apply, div_eq_inv_mul]
 
 omit [Fintype V] [DecidableEq V] in
 /-- The random walk on the lazy multigraph `G.lazy` is the lazy chain `G.randomWalk.lazy`. -/
@@ -413,9 +411,7 @@ theorem spectralContraction_randomWalk [Nonempty V] :
     G.randomWalk.spectralContraction (PMF.uniformOfFintype V) = G.spectralExpansion := by
   have hunif (g : V → ℝ) :
       ∑ v, (PMF.uniformOfFintype V v).toReal * g v = 𝔼 v, g v := by
-    rw [Fintype.expect_eq_sum_div_card, sum_div]
-    refine sum_congr rfl fun v _ => ?_
-    rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast, inv_mul_eq_div]
+    simp [Fintype.expect_eq_sum_div_card, PMF.uniformOfFintype_apply, div_eq_inv_mul, mul_sum]
   refine le_antisymm ?_ ?_
   · refine ((isStationary_uniform_randomWalk (G := G)).spectralContraction_le_iff
       G.spectralExpansion_nonneg).mpr fun f hf => ?_
@@ -436,8 +432,7 @@ theorem distToStationary_randomWalk_le [Nonempty V] (t : ℕ) :
       (1 / 2) * Real.sqrt (Fintype.card V - 1) * G.spectralExpansion ^ t := by
   have hcard : (0 : ℝ) < Fintype.card V := Nat.cast_pos.mpr Fintype.card_pos
   have hd := (isReversible_uniform_randomWalk (G := G)).distToStationary_le_of_le_toReal
-    (inv_pos.mpr hcard) (fun v => by
-      rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]) t
+    (inv_pos.mpr hcard) (fun v => by simp [PMF.uniformOfFintype_apply]) t
   have hratio : (1 - (Fintype.card V : ℝ)⁻¹) / (Fintype.card V : ℝ)⁻¹ = Fintype.card V - 1 := by
     field_simp [hcard.ne']
   rwa [spectralContraction_randomWalk, hratio] at hd
@@ -456,8 +451,7 @@ theorem mixingTime_randomWalk_le [Nonempty V] (hlam : G.spectralExpansion < 1)
     linarith [G.randomWalk.one_sub_absSpectralGap (PMF.uniformOfFintype V),
       G.spectralContraction_randomWalk]
   refine ((isReversible_uniform_randomWalk (G := G)).mixingTime_le_of_absSpectralGap_pos
-    (inv_pos.mpr hcard) (fun v => by
-      rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast])
+    (inv_pos.mpr hcard) (fun v => by simp [PMF.uniformOfFintype_apply])
     (by linarith) hε).trans_eq ?_
   congr 2
   rw [hgap_eq, one_div (Fintype.card V : ℝ)⁻¹, inv_inv]

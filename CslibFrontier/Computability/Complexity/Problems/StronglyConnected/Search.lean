@@ -249,12 +249,10 @@ private theorem inv_step_header {l c n p cur steps v : ℕ} (hl : l < 5)
     search_step
     rw [G.getElem?_encode_n hnG]
     by_cases h : n < G.n
-    · simp only [h, decide_true]
-      search_finish []
+    · search_finish [h, decide_true]
     · obtain rfl : n = G.n := by omega
-      simp only [h, decide_false]
       have hdone : Done G 0 := fun _ h => absurd h (Nat.not_lt_zero _)
-      search_finish [hdone]
+      search_finish [h, decide_false, hdone]
   case «1» =>
     obtain ⟨hnG, rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -263,16 +261,14 @@ private theorem inv_step_header {l c n p cur steps v : ℕ} (hl : l < 5)
     obtain ⟨rfl, hpN, hdone⟩ := hP
     search_step
     by_cases h : p < G.n * G.n
-    · simp only [h, ↓reduceIte]
-      search_finish [hdone]
+    · search_finish [h, ite_true, hdone]
     · have hmem : G ∈ StronglyConnected := fun a b => by
         obtain ⟨_, _, hr⟩ := hdone (a * G.n + b) (Nat.mul_comm G.n a ▸
           (Nat.mul_add_lt_mul_of_lt_of_lt a.isLt b.isLt).trans_le (Nat.le_of_not_lt h))
         have hmod : (a * G.n + b) % G.n = b := by
           rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt b.isLt]
         convert hr <;> simp [Nat.mul_add_div_fin, hmod]
-      simp only [h, ↓reduceIte]
-      search_finish [hmem]
+      search_finish [h, ite_false, hmem]
   case «3» =>
     obtain ⟨rfl, hpN, hdone⟩ := hP
     search_step
@@ -305,15 +301,11 @@ private theorem inv_step_check {l c n p cur steps v : ℕ} (hl5 : 5 ≤ l) (hl9 
     have := hP4 hpN
     search_step
     by_cases h : p % G.n < cur
-    · simp only [h, ↓reduceIte]
-      search_finish [hdone, hR]
-    · have hdone' : Done G (p + 1) := by
-        intro q hq
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hq | rfl
-        · exact hdone q hq
-        · rwa [show cur = q % G.n by omega] at hR
-      simp only [h, ↓reduceIte]
-      search_finish [hdone']
+    · search_finish [h, ite_true, hdone, hR]
+    · obtain rfl : cur = p % G.n := by omega
+      have hdone' : Done G (p + 1) := fun q hq =>
+        (Nat.lt_succ_iff_lt_or_eq.mp hq).elim (hdone q) fun hq' => hq' ▸ hR
+      search_finish [lt_irrefl, ite_false, hdone']
   case «7» =>
     obtain ⟨rfl, ⟨hpN, hdone⟩, hR, hst⟩ := hP
     have := hP4 hpN
@@ -468,7 +460,8 @@ private theorem branches_guess (p cur steps target : ℕ) (ht : target < G.n) :
       simp only [hj, decide_true, Bool.toNat_true, lt_irrefl, ↓reduceIte]
       search_head false
       search_head (decide (j + 1 < target))
-      simp only [show j + 1 < G.n by omega, ↓reduceIte]
+      have hj' : j + 1 < G.n := by omega
+      simp only [hj', ↓reduceIte]
       exact Branches.refl _) ih)
     (by
       search_head false
@@ -495,14 +488,14 @@ private theorem branches_step {p cur steps c v next : ℕ} (hc : cur < G.n) (hne
       (5, [0, G.n, p, next, steps + 1, next]) := by
   have hto7 : Branches (P := searchProgram) (w := G.encode)
       (5, [c, G.n, p, cur, steps, v]) (7, [0, G.n, p, cur, steps, v]) := by
+    search_head false
     by_cases h : cur < p % G.n
-    · search_head false
-      simp only [h, ↓reduceIte]
+    · simp only [h, ↓reduceIte]
       exact Branches.refl _
-    · search_head false
-      simp only [h, ↓reduceIte]
+    · simp only [h, ↓reduceIte]
       search_head false
-      simp only [show p % G.n < cur by omega, ↓reduceIte]
+      have hgt : p % G.n < cur := by omega
+      simp only [hgt, ↓reduceIte]
       exact Branches.refl _
   refine hto7.trans ?_
   search_head false
@@ -510,8 +503,7 @@ private theorem branches_step {p cur steps c v next : ℕ} (hc : cur < G.n) (hne
   search_head (decide (0 < next))
   refine (branches_guess G p cur steps next hnext 0 (Nat.zero_le _)).trans ?_
   search_head false
-  rw [G.getElem?_encode_matrix hc hnext]
-  simp only [show G.adj ⟨cur, hc⟩ ⟨next, hnext⟩ = true from hadj]
+  rw [G.getElem?_encode_matrix hc hnext, hadj]
   search_head false
   search_head false
   exact Branches.refl _

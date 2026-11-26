@@ -195,25 +195,18 @@ formula consists solely of empty clauses `[]`, so it has value `1` (`unsatVal = 
 value `0` (`unsatVal = 1`) when nonempty. -/
 theorem GapKSAT_zero_mem_PromiseP {P : GapKSATSpec} (h0 : P.width = 0) :
     GapKSAT P ∈ PromiseP encCNF := by
-  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encUnary :=
-    CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
-  have hdec : ComputableInPolyTime (fun φ : CNF ℕ => decide (φ.length = 0)) encCNF encBool := by
-    change ComputableInPolyTime (fun φ : CNF ℕ => φ.length == 0) encCNF encBool
-    fun_prop
-  refine mem_PromiseP_iff.mpr ⟨fun φ => decide (φ.length = 0), hdec,
-    fun φ hφ => ?_, fun φ hφ => ?_⟩
+  have hlen := CNF.computableInPolyTime_length (encV := encNat) ComputableInPolyTime.id'
+  refine mem_PromiseP_iff.mpr ⟨fun φ => φ.length == 0, by fun_prop, fun φ hφ => ?_, fun φ hφ => ?_⟩
   · rw [mem_yes_GapKSAT, h0] at hφ
-    rw [decide_eq_true_eq]
+    rw [beq_iff_eq]
     by_contra hne
-    have hall_one : 1 ≤ φ.unsatVal := by
-      refine (CNF.le_unsatVal_iff φ).mpr fun σ => ?_
-      have hcount : φ.countUnsat σ = φ.length :=
-        List.countP_eq_length.mpr fun c hc =>
-          congrArg (!Clause.eval σ ·) (List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc)))
-      rw [hcount, div_self (Nat.cast_ne_zero.mpr hne)]
+    have hall_one : 1 ≤ φ.unsatVal := (CNF.le_unsatVal_iff φ).mpr fun σ => by
+      rw [CNF.countUnsat, List.countP_eq_length.mpr fun c hc =>
+          congrArg (!Clause.eval σ ·) (List.length_eq_zero_iff.mp (Nat.le_zero.mp (hφ.1 c hc))),
+        div_self (Nat.cast_ne_zero.mpr hne)]
     linarith [hφ.2, P.completeness_pos]
   · rw [mem_no_GapKSAT] at hφ
-    exact decide_eq_false
+    exact beq_eq_false_iff_ne.mpr
       (CNF.length_pos_of_unsatVal_pos (by linarith [hφ.2, P.soundness_lt_one])).ne'
 
 /-! ### 2. Threshold MAX-`k`-SAT and rational-midpoint reduction -/

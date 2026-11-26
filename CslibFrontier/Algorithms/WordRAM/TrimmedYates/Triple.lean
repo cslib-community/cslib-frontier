@@ -55,9 +55,7 @@ open Finset Cslib.BitString Cslib.WordRAM Cslib.Algorithms.Lean.TrimmedYates
 
 theorem tripleSpace_le (d L : ℕ) :
     d + 2 * L + tripleSpace d L ≤ 6 * (d + 1) ^ 2 * (L + 1) + 4 * (d + 1) ^ 2 := by
-  dsimp only [tripleSpace]
-  rw [sq]
-  nlinarith
+  rw [tripleSpace, sq]; nlinarith
 
 theorem phaseTime_le {d L : ℕ} (hL : 1 ≤ L) :
     d * (20 * L + 12) + 8 + (12 * L + 3) + (11 * d + 5) + (9 * d + 8) + tripleTime d L + 35 ≤
@@ -246,8 +244,8 @@ theorem exec_runTransformTriple {w d domPtr free rootF rootG preFs preGs preHs c
     wram_exec [hu₃_ro, show u₃.regs rQFsBase = free by regs_frame,
       show u₃.regs Reg.dim = d by regs_frame]
     wram_simp
-  have below₄ : ∀ a < free₁, u₄.mem a = u₁.mem a := fun a ha => by
-    rw [hu₄_mem, hfr₂ a (Or.inl ha)]; rfl
+  have below₄ (a : ℕ) (ha : a < free₁) : u₄.mem a = u₁.mem a :=
+    (congrFun hu₄_mem a).trans (hfr₂ a (Or.inl ha))
   obtain ⟨stFnF_d, htrF_d, heqF_d⟩ :=
     tables_transport (hi := free₂) below₄ (by omega) (fun k hk => by omega) hstF d le_rfl
   obtain ⟨stFnG_d, htrG_d, heqG_d⟩ := hstG d le_rfl
@@ -288,17 +286,15 @@ theorem exec_runTransformTriple {w d domPtr free rootF rootG preFs preGs preHs c
     tables_transport y_eq_u₁ (by omega) (fun k hk => by omega) hstF,
     tables_transport y_eq_u₃ (by omega) (fun k hk => by omega) hstG, hstH, ?_, fun a ha => ?_,
     fun i hi => htot.regs_eq (runTransformTriple_preserves i hi)⟩
-  · obtain ⟨outFn, htr, heq⟩ := hstH d le_rfl
-    refine ⟨outFn, htr, fun X hX => ?_⟩
-    rw [heq X hX, coveringProduct_eq_subsetMobius]
-    simp only [one_ne_zero, ↓reduceIte, htake]
-    rw [yatesTransform_neg_one_apply (List.nodup_finRange d) H (by intro i _; simp)]
-  · rcases ha with ha | ha
-    · exact (y_eq_u₁ a (by omega)).trans (hfr₁ a (Or.inl ha))
-    · rw [hfr₄ a (Or.inr ha)]
-      refine (hfr₃ a (Or.inr (by omega))).trans ?_
-      rw [hu₄_mem]
-      exact (hfr₂ a (Or.inr (by omega))).trans (hfr₁ a (Or.inr (by omega)))
+  · exact (hstH d le_rfl).imp fun outFn ⟨htr, heq⟩ => ⟨htr, fun X hX => by
+      rw [heq X hX, coveringProduct_eq_subsetMobius]
+      simpa only [one_ne_zero, ↓reduceIte, htake] using congrArg Signed.encode
+        (yatesTransform_neg_one_apply (List.nodup_finRange d) H fun i _ =>
+          List.mem_toFinset.mpr (List.mem_finRange i))⟩
+  · exact ha.elim
+      (fun ha => (y_eq_u₁ a (by omega)).trans (hfr₁ a (Or.inl ha)))
+      fun ha => (hfr₄ a (Or.inr ha)).trans <| (hfr₃ a (Or.inr (by omega))).trans <|
+        hu₄_mem ▸ (hfr₂ a (Or.inr (by omega))).trans (hfr₁ a (Or.inr (by omega)))
 
 /-- Loop invariant across queries `q ∈ [0, Cs.length]` in `solveFromTries`. -/
 @[expose] def QueryInv {d : ℕ} (s outBase rootF rootG qPtr preFs preGs preHs : ℕ)

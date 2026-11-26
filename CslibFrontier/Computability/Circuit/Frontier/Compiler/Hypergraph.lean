@@ -155,8 +155,8 @@ private theorem input_supply_le_of_unread_lt {U : Type u} [Finite U] [Nontrivial
     ncard_add_ncard_compl _
   rw [read_hyperNetwork, ncard_coe_finset, ← Fintype.card_coe, Nat.card_eq_fintype_card,
     Fintype.card_fin] at hsum
-  have hR : c_n * (Fintype.card (LiveInput c) : ℝ) = c_n * n - c_n * u := by
-    rw [← show (Fintype.card (LiveInput c) : ℝ) + u = n by exact_mod_cast hsum]; ring
+  have hsumR : (Fintype.card (LiveInput c) : ℝ) + u = n := by exact_mod_cast hsum
+  have hR : c_n * (Fintype.card (LiveInput c) : ℝ) = c_n * n - c_n * u := by rw [← hsumR]; ring
   linarith [mul_nonneg (neg_le_iff_add_nonneg.mp (neg_abs_le c_n)) (Nat.cast_nonneg (α := ℝ) u),
     mul_le_mul_of_nonneg_left (natCast_le_logb_of_pow_lt Finite.one_lt_card hu) (abs_nonneg c_n)]
 
@@ -324,12 +324,11 @@ theorem eventually_lt_mul_innerSize_of_cert {U : Type u} [Finite U] [Nontrivial 
     (hcert : HyperDualCert r K₀ a b) (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
-        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize := by
-  have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
-  filter_upwards [eventually_lt_mul_multiarySize_of_cert.{u, v} hcert hSK hε] with
-    n hn σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by linarith))
+        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize_of_cert.{u, v} hcert hSK hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le (mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+      (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hcert.hr))))
 
 /-- **Nondeterministic hypergraph frontier lower bound (charging only multiary gates).** Whenever
 `b ≤ 0` (so `max b (-a) ≤ 0`), every nondeterministic circuit `c : Circuit σ (n + k) 1` of fan-in
@@ -375,12 +374,11 @@ theorem eventually_lt_mul_innerSize_of_nondeterministicDecides_of_cert
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ (n + k) 1), c.FanInAtMost r → c.NondeterministicDecides I Acc (S n) →
-        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize := by
-  have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
-  filter_upwards [eventually_lt_mul_multiarySize_of_nondeterministicDecides_of_cert.{u, v}
-    hcert hb hSK hε] with n hn k σ I Acc c hfan hS
-  exact (hn k σ I Acc c hfan hS).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by linarith))
+        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize_of_nondeterministicDecides_of_cert.{u, v} hcert hb hSK hε).mono
+    fun _ hn k σ I Acc c hfan hS => (hn k σ I Acc c hfan hS).trans_le
+      (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+        (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hcert.hr))))
 
 /-- Agreement bound from a residual `R` bounding the bias of every accepting set. -/
 private theorem agreement_le_of_forall_bias {U : Type u} [Finite U] [Nonempty U] {n : ℕ}
@@ -414,8 +412,8 @@ private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial 
       (fun _ _ _ => satisfies_unique c I A lay) hb hS (w := w) (d := 2 * (r + 1)) (m := r)
       (width_hyperNetwork c I A lay).le (maxDegreeLE_hyperNetwork hfan I A lay)
       (fun u => hmr ▸ ncard_readAt_hyperNetwork_le hfan I A lay u)
-    rwa [accepted_hyperNetwork, read_hyperNetwork, ← read_hyperNetwork (Acc := Acc),
-      show w + 2 * (r + 1) + r = w + (3 * r + 2) by omega] at h
+    have hw_eq : w + 2 * (r + 1) + r = w + (3 * r + 2) := by omega
+    rwa [accepted_hyperNetwork, read_hyperNetwork, ← read_hyperNetwork (Acc := Acc), hw_eq] at h
   have hres : (K - 1) ^ 2 * (V * q ^ (w + (3 * r + 2)) +
       q ^ (hyperNetwork c I Acc lay).readᶜ.ncard) ≤ K ^ 3 * (V + 1) * q ^ (w + (3 * r + 2)) := by
     have hq1 : 1 ≤ q ^ (w + (3 * r + 2)) := Nat.one_le_pow _ _ Nat.card_pos
@@ -458,10 +456,9 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
   have hq1 : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast (Finite.one_lt_card (α := U))
   have hq0 : 0 < q := Nat.card_pos
-  have hK_pos : (0 : ℝ) < K' := by exact_mod_cast (by omega : 0 < K')
-  obtain ⟨he_nn, he_in, he_ge⟩ :=
-    errTerm_bounds hcert (Real.logb_nonneg hq1 (by exact_mod_cast (show 1 ≤ K' by omega)) :
-      0 ≤ Real.logb q K')
+  have hK_pos : (0 : ℝ) < K' := Nat.cast_pos.mpr (Nat.zero_lt_of_lt hK'2)
+  obtain ⟨he_nn, he_in, he_ge⟩ := errTerm_bounds hcert
+    (Real.logb_nonneg (b := q) (x := K') hq1 (Nat.one_le_cast.mpr (Nat.one_le_of_lt hK'2)))
   set V := Nat.card (HyperNode c)
   set w := hyperWidth c lay
   have hsupply := rescaled_hyperSupply_le hcert hη C n V w (card_liveGate_le_multiarySize c)
@@ -696,11 +693,10 @@ theorem eventually_agreement_le_44199_two_mul_innerSize {ε : ℝ} (hε : 0 < ε
       ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
         (c : Circuit σ n 1), c.FanInAtMost 3 → 2 * (c.innerSize : ℝ) ≤ (44199 / 10000 - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} cert_r3_slepian hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono ?_⟩
-  intro n hn σ I Acc c hfan hs
-  norm_num [hyperCoeff] at hn
-  exact hn σ I Acc c hfan (by linarith [Nat.cast_nonneg (α := ℝ) n])
+  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_44199_two_mul_multiarySize.{u, v} hε
+  exact ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono
+    fun _ hn σ I Acc c hfan hs => hn σ I Acc c hfan ((mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize) zero_le_two).trans hs)⟩
 
 /-! #### Fan-in `r = 4` (Sheppard + star-cone: `4.4792n`) -/
 

@@ -305,8 +305,7 @@ theorem exists_hard_function_formulaSize :
     exact_mod_cast (div_lt_iff₀ (by positivity : (0 : ℝ) < b)).1 hcirc
   have hpow : b < 2 ^ b := b.lt_two_pow_self
   rcases hsize with ⟨c, rfl⟩ | hle
-  · rw [size_const] at hmul_nat
-    omega
+  · simp only [size_const] at hmul_nat; omega
   · exact ⟨h, by nlinarith⟩
 
 /-- For `16 ≤ b`, `12 * b ^ 2 * (b + 2) ≤ 2 ^ b`. -/
@@ -317,13 +316,9 @@ private theorem twelve_mul_sq_mul_add_two_le_two_pow {b : ℕ} (hb : 16 ≤ b) :
   induction d with
   | zero => decide
   | succ d ih =>
-    have hstep :
-        12 * (d + 16 + 1) ^ 2 * (d + 16 + 1 + 2) ≤
-          2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := by
-      nlinarith
     calc 12 * (d + 1 + 16) ^ 2 * (d + 1 + 16 + 2)
         = 12 * (d + 16 + 1) ^ 2 * (d + 16 + 1 + 2) := by ring
-      _ ≤ 2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := hstep
+      _ ≤ 2 * (12 * (d + 16) ^ 2 * (d + 16 + 2)) := by nlinarith
       _ ≤ 2 * 2 ^ (d + 16) := Nat.mul_le_mul_left 2 ih
       _ = 2 ^ (d + 1 + 16) := by ring
 

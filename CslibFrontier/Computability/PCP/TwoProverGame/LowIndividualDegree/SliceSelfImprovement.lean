@@ -95,19 +95,14 @@ private theorem average_slice_budget
     (𝔼 x, 3000 * (n + 1 : ℝ) *
       (εs x ^ (1 / 32 : ℝ) + δs x ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ))) ≤
     3000 * (n + 2 : ℝ) * (ε ^ (1 / 32 : ℝ) + δ ^ (1 / 32 : ℝ) + r ^ (1 / 32 : ℝ)) := by
-  let m := (n + 1 : ℝ)
-  let M := (n + 2 : ℝ)
-  have hm : 0 < m := by dsimp [m]; positivity
-  have hmM : m ≤ M := by dsimp [m, M]; linarith
+  have hm : (0 : ℝ) < n + 1 := by positivity
+  have hmM : (n + 1 : ℝ) ≤ n + 2 := by linarith
   have hscale := Fintype.mul_expect_rpow_le_of_mul_expect_le he hm hmM hε
     (p := 1 / 32) (by norm_num) (by norm_num) haxis
-  have hδ' := (mul_le_mul_of_nonneg_left hcons hm.le).trans
-    (mul_le_mul_of_nonneg_right hmM hδ)
   have hscaleδ := Fintype.mul_expect_rpow_le_of_mul_expect_le hd hm hmM hδ
-    (p := 1 / 32) (by norm_num) (by norm_num) hδ'
+    (p := 1 / 32) (by norm_num) (by norm_num)
+    ((mul_le_mul_of_nonneg_left hcons hm.le).trans (mul_le_mul_of_nonneg_right hmM hδ))
   have hscaler := mul_le_mul_of_nonneg_right hmM (Real.rpow_nonneg hr (1 / 32 : ℝ))
-  change (𝔼 x, 3000 * m * (εs x ^ (1 / 32 : ℝ) + δs x ^ (1 / 32 : ℝ) +
-    r ^ (1 / 32 : ℝ))) ≤ 3000 * M * _
   simp only [← mul_expect, expect_add_distrib, Fintype.expect_const]
   linarith only [hscale, hscaleδ, hscaler]
 
@@ -253,9 +248,7 @@ theorem exists_paste_of_slice_agreement
   have hcons := TwoProverGame.commutingWinProb_swap_of_symmetric
     (branchGame (F := F) (n + 1) d .consistency) S hM hψ
   change _ ≤ _ at hpaste
-  have hswap : C.swap.swap = C := by
-    cases C
-    rfl
+  have hswap : C.swap.swap = C := rfl
   rw [haxis, hcons, hswap] at hpaste
   refine ⟨H, ?_⟩
   rw [← Fintype.expect_fin_snoc]
@@ -264,8 +257,9 @@ theorem exists_paste_of_slice_agreement
     (decodedPoint C.alice (Fin.snoc u x)))) ≤ _
   rw [rightMeasurement_completedPaste k P hP₀ fallback]
   dsimp only [slicePastingError, ε, δ, γ, r]
-  simp only [show (n + 2 : ℝ) - 1 = n + 1 by ring, ← mul_div_assoc (n + 1 : ℝ)]
-  simpa only [Nat.cast_succ, show (n + 1 : ℝ) + 1 = n + 2 by ring, C, CommutingStrategy.swap]
-    using hpaste
+  have hn1 : (n + 2 : ℝ) - 1 = n + 1 := by ring
+  have hn2 : (n + 1 : ℝ) + 1 = n + 2 := by ring
+  simp only [hn1, ← mul_div_assoc (n + 1 : ℝ)]
+  simpa only [Nat.cast_succ, hn2, C, CommutingStrategy.swap] using hpaste
 
 end Cslib.PCP.LowIndividualDegree

@@ -250,14 +250,13 @@ theorem exists_isPrefixFree_of_kraft_nat {α : Type*} (s : Finset α) (ℓ : α 
     | none => []
   have hcode_mem : ∀ a ∈ s, (a, code a) ∈ pairs := by
     intro a ha
-    have ha_fst : a ∈ pairs.map Prod.fst := hfst ▸ hperm.symm.subset (Finset.mem_toList.mpr ha)
-    rcases List.mem_map.mp ha_fst with ⟨p, hp, rfl⟩
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.mp (hfst ▸ hperm.symm.subset (Finset.mem_toList.mpr ha))
     cases hfind : pairs.find? (fun q => q.1 == p.1) with
     | none => exact absurd (List.find?_eq_none.mp hfind p hp) (by simp)
     | some q =>
-      have hq1 : q.1 = p.1 := by simpa using List.find?_some hfind
-      dsimp only [code]; rw [hfind, ← hq1]
-      exact List.mem_of_find?_eq_some hfind
+      obtain ⟨q1, q2⟩ := q
+      obtain rfl : q1 = p.1 := by simpa using List.find?_some hfind
+      simpa only [code, hfind] using List.mem_of_find?_eq_some hfind
   have hnc : ∀ {a b : α}, a ∈ s → b ∈ s → code a <+: code b → a = b := fun ha hb hpref =>
     by_contra fun hne => (CodeTree.pairwise_rel_of_ne (fun h => ⟨h.2, h.1⟩)
       (List.pairwise_map.mp hspec) (hcode_mem _ ha) (hcode_mem _ hb)
@@ -289,16 +288,13 @@ theorem exists_isPrefixFree_iff_kraft_le_one {α : Type*} (s : Finset α) (ℓ :
   · intro hkraft
     let L : ℕ := s.sup ℓ
     have hL : ∀ a ∈ s, ℓ a ≤ L := fun _ ha => Finset.le_sup ha
-    have hnat : (∑ a ∈ s, 2 ^ (L - ℓ a)) ≤ 2 ^ L := by
-      have hcast_mul : ((∑ a ∈ s, 2 ^ (L - ℓ a) : ℕ) : ℝ) =
-          (2 : ℝ) ^ L * ∑ a ∈ s, (1 / 2 : ℝ) ^ ℓ a := by
-        change (Nat.castAddMonoidHom ℝ) _ = (AddMonoidHom.mulLeft ((2 : ℝ) ^ L)) _
-        rw [map_sum, map_sum]
-        refine Finset.sum_congr rfl fun a ha => ?_
-        change ((2 ^ (L - ℓ a) : ℕ) : ℝ) = (2 : ℝ) ^ L * (1 / 2 : ℝ) ^ ℓ a
-        rw [Nat.cast_pow, Nat.cast_ofNat, pow_sub₀ _ two_ne_zero (hL a ha), one_div_pow, one_div]
-      exact_mod_cast hcast_mul.trans_le (mul_le_of_le_one_right (by positivity) hkraft)
-    exact exists_isPrefixFree_of_kraft_nat s ℓ L hL hnat
+    refine exists_isPrefixFree_of_kraft_nat s ℓ L hL ?_
+    have hcast_mul : ((∑ a ∈ s, 2 ^ (L - ℓ a) : ℕ) : ℝ) =
+        (2 : ℝ) ^ L * ∑ a ∈ s, (1 / 2 : ℝ) ^ ℓ a := by
+      change (Nat.castAddMonoidHom ℝ) _ = (AddMonoidHom.mulLeft ((2 : ℝ) ^ L)) _
+      rw [map_sum, map_sum]
+      exact Finset.sum_congr rfl fun a ha => by simp [pow_sub₀ (2 : ℝ) two_ne_zero (hL a ha)]
+    exact_mod_cast hcast_mul.trans_le (mul_le_of_le_one_right (by positivity) hkraft)
 
 /-! ## Prefix-free codebook compaction to `CodeTree` and McMillan reduction -/
 
@@ -561,16 +557,15 @@ theorem exists_codeTree_of_isUniquelyDecodable {α β : Type*}
       T.leaves.Perm syms ∧
       T.weightedPathLength w ≤ (syms.map fun a => (code a).length • w a).sum := by
   classical
-  let s : Finset α := syms.toFinset
-  have hs_coe : (s : Set α) = {a | a ∈ syms} := by ext x; simp [s]
   have hS_ud : InformationTheory.IsUniquelyDecodable
-      ((s.image code : Finset (List Bool)) : Set (List Bool)) := by
-    simpa [Finset.coe_image, hs_coe] using hud
+      ((syms.toFinset.image code : Finset (List Bool)) : Set (List Bool)) := by
+    simpa [Finset.coe_image, List.coe_toFinset] using hud
   have hmc := hS_ud.finsetSum_one_div_card_pow_length_le_one
-  rw [Fintype.card_bool, Nat.cast_ofNat, Finset.sum_image (hs_coe.symm ▸ hinj)] at hmc
-  rcases (exists_isPrefixFree_iff_kraft_le_one s (fun a => (code a).length)).mpr hmc with
-    ⟨code', hinj', hpf', hlen'⟩
-  rw [hs_coe] at hinj' hpf'
+  rw [Fintype.card_bool, Nat.cast_ofNat,
+    Finset.sum_image ((List.coe_toFinset syms).symm ▸ hinj)] at hmc
+  rcases (exists_isPrefixFree_iff_kraft_le_one syms.toFinset (fun a => (code a).length)).mpr hmc
+    with ⟨code', hinj', hpf', hlen'⟩
+  rw [List.coe_toFinset] at hinj' hpf'
   rcases exists_codeTree_of_isPrefixFree hne hnodup hinj' hpf' hw with ⟨T, hperm, hwpl⟩
   exact ⟨T, hperm, by
     rwa [← List.map_congr_left fun a ha =>

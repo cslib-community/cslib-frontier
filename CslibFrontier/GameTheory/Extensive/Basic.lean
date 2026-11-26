@@ -253,8 +253,7 @@ theorem realizationProbMixed_single_eq {i : ι} [Fintype (H i)] [DecidableEq (H 
     [∀ h, Fintype (Act i h)] [∀ h, DecidableEq (Act i h)]
     (s : PureStrategy H Act i) (σ : Seq H Act i) :
     realizationProbMixed (Pi.single s (1 : ℝ)) σ = if MatchesSeq s σ then 1 else 0 := by
-  simp only [realizationProbMixed]
-  rw [sum_eq_single s (fun t _ ht => by simp [Pi.single_eq_of_ne ht])
+  rw [realizationProbMixed, sum_eq_single s (fun t _ ht => by simp [Pi.single_eq_of_ne ht])
     (by simp)]
   simp
 
@@ -909,25 +908,19 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
         ∑ s : (∀ j, PureStrategy H Act j),
           (∏ j, g j (s j)) * terminalProbWithFactor i r s z := by
     intro r
-    have hfactor : ∀ s : (∀ j, PureStrategy H Act j),
+    have hfactor (s : ∀ j, PureStrategy H Act j) :
         (∏ j, g j (s j)) * terminalProbWithFactor i r s z =
           z.chanceWeight * r (z.seq i) *
             ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
               else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-      intro s
-      simp only [terminalProbWithFactor]
-      have hlhs : (∏ j, g j (s j)) *
-          (∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then (1 : ℝ) else 0) =
-          ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
-            else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-        rw [← mul_prod_erase univ _ (mem_univ i), mul_assoc, ← prod_mul_distrib]
-        conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
-        simp only [g, ↓reduceDIte]
-        refine congrArg (_ * ·) (prod_congr rfl fun j hj => ?_)
-        simp only [ne_of_mem_erase hj, ↓reduceDIte]
-        split_ifs <;> simp
-      rw [← hlhs]
-      ring
+      rw [terminalProbWithFactor, mul_left_comm (∏ j, g j (s j)),
+        ← mul_prod_erase univ (fun j => g j (s j)) (mem_univ i), mul_assoc (g i (s i)),
+        ← prod_mul_distrib]
+      conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
+      refine congrArg (z.chanceWeight * r (z.seq i) * ·)
+        (congrArg₂ (· * ·) (by simp [g]) (prod_congr rfl fun j hj => ?_))
+      simp only [g, ne_of_mem_erase hj, ↓reduceDIte]
+      split_ifs <;> simp
     simp_rw [hfactor, ← mul_sum]
     congr 1
     rw [(Fintype.prod_sum fun j (s_j : PureStrategy H Act j) =>
@@ -1153,10 +1146,8 @@ theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :
         simpa using hpr (v₁ := .chance c v₁) (v₂ := .chance c v₂) hv₁ hv₂) sub
   | .decision j h' next, i, hpr, .decision a sub => by
       have hsub : (next a).PerfectRecall i := fun h v₁ v₂ hv₁ hv₂ => by
-        have := hpr (v₁ := .decision a v₁) (v₂ := .decision a v₂) hv₁ hv₂
-        rcases eq_or_ne j i with rfl | hij
-        · simpa using this
-        · simpa [hij] using this
+        by_cases hij : j = i <;> simpa [Node.playerSeq, hij] using
+          hpr (v₁ := .decision a v₁) (v₂ := .decision a v₂) hv₁ hv₂
       have hnodup := PerfectRecall.noRepeatedInfoSet hsub sub
       by_cases hij : j = i
       · subst hij

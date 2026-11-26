@@ -419,11 +419,8 @@ theorem Valid.step_partnersShareChild_of {S : State n} {f : BooleanFunction n} (
           Function.update_self, Function.update_of_ne hpr_ne.symm]
         exact h3 (val pr.snd)
       have hred := hred₁.trans_delete hred₂
-      refine step_of_partnersShareChild_finish hS hpr (Or.inl rfl) (Or.inr rfl) hpr_ne
-        rfl hred ?_
-      exact hred.wt_eq_zero_of_subset
-        (fun x hx => by change x ∈ S.children pr.snd at hx; rw [hcrH] at hx; simpa using hx)
-        (fun _ h => by cases h)
+      exact step_of_partnersShareChild_finish hS hpr (Or.inl rfl) (Or.inr rfl) hpr_ne rfl hred
+        (hred.wt_eq_zero_of_subset (by simp [hcrH]) nofun)
   · obtain ⟨he, hep⟩ := (SemiCircuit.inr_mem_children _).1 hHp
     obtain ⟨_, her⟩ := (SemiCircuit.inr_mem_children _).1 hHr
     exact step_partnersShareChild_inr hS hD3 hpr hpr_ne he hep her hcpH hcrH hred₁
@@ -517,9 +514,8 @@ theorem Valid.step_pairInSystem_of {S : State n} {f : BooleanFunction n} (hS : S
     deletable_fixConst_child hS (S.pairsAvoid r) (pr.partnerBias p) hHr
   have hred : Reduction f S S₂ {r} ([] ++ [Hr]) ([] ++ [Hr]) :=
     hred₁.trans_delete (hred₁.valid.reduction_deleteConstraint hdel)
-  have hp_mem₂ : p ∈ S₂.params := by
-    rw [hred.params]
-    exact Finset.mem_sdiff.2 ⟨hppar, Finset.notMem_singleton.2 hrp.symm⟩
+  have hp_mem₂ : p ∈ S₂.params :=
+    hred.params ▸ Finset.mem_sdiff.2 ⟨hppar, Finset.notMem_singleton.2 hrp.symm⟩
   have hp_unp₂ : p ∈ S₂.unpaired := mem_unpaired.2 ⟨hp_mem₂, fun ⟨pr', hpr', hc⟩ => by
     rw [hred.pairs, Finset.mem_filter] at hpr'
     rw [hS.pair_unique hpr'.1 hpr hc hprp] at hpr'
@@ -993,17 +989,14 @@ normal form. -/
 theorem Valid.step_or_normal {S : State n} {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     (hf : IsAffineDisperser f d) (ha : d < S.a) (hnmov : ¬ S.Movable) :
     (∃ S', Step f S S') ∨ S.Normal := by
-  by_cases hdel : S.DeletionAvailable
-  · exact Or.inl (Valid.step_of_deletion hS hf ha hdel)
-  by_cases hdeg : S.DegeneratePair
-  · exact Or.inl (Valid.step_of_degeneratePair hS hdeg)
-  by_cases hsh : S.PartnersShareChild
-  · exact Or.inl (Valid.step_of_partnersShareChild hS hdel hdeg hsh)
-  by_cases hsys : S.PairInSystem
-  · exact Or.inl (Valid.step_of_pairInSystem hS hf ha hdeg hsh hsys)
-  by_cases hand : S.AndOnPair
-  · exact Or.inl (Valid.step_of_andOnPair hS hf ha hdel hdeg hsh hand)
-  exact Or.inr ⟨hnmov, hdel, hdeg, hsh, hsys, hand⟩
+  classical
+  exact if hdel : S.DeletionAvailable then .inl (Valid.step_of_deletion hS hf ha hdel)
+    else if hdeg : S.DegeneratePair then .inl (Valid.step_of_degeneratePair hS hdeg)
+    else if hsh : S.PartnersShareChild then
+      .inl (Valid.step_of_partnersShareChild hS hdel hdeg hsh)
+    else if hsys : S.PairInSystem then .inl (Valid.step_of_pairInSystem hS hf ha hdeg hsh hsys)
+    else if hand : S.AndOnPair then .inl (Valid.step_of_andOnPair hS hf ha hdel hdeg hsh hand)
+    else .inr ⟨hnmov, hdel, hdeg, hsh, hsys, hand⟩
 
 end State
 

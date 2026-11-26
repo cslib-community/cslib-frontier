@@ -207,8 +207,8 @@ theorem IsValidLabeling.not_resReachable {f : N.Preflow} {h : V → ℕ} (hh : f
   omega
 
 theorem IsValidLabeling.source_ne_sink {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h) :
-    N.s ≠ N.t := by
-  exact fun hst => hh.not_resReachable (hst ▸ .refl)
+    N.s ≠ N.t :=
+  fun hst => hh.not_resReachable (hst ▸ .refl)
 
 /-! ### Excess and residual reachability -/
 
@@ -318,8 +318,8 @@ theorem CanPush.ne {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u
   omega
 
 theorem CanPush.pushAmount_pos {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) :
-    0 < f.pushAmount u v := by
-  exact lt_min (Int.pos_iff_toNat_pos.mp hp.active.2.2) hp.resCap_pos
+    0 < f.pushAmount u v :=
+  lt_min (Int.pos_iff_toNat_pos.mp hp.active.2.2) hp.resCap_pos
 
 /-- Every active vertex admits a push or a relabel ([CLRS2009], Lemma 26.14). -/
 theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → ℕ} {u : V}
@@ -435,11 +435,10 @@ theorem pushFun_sub_pushFun (f : V → V → ℕ) (u v : V) (δ : ℕ) (x y : V)
       (f x y : ℤ) - (f y x : ℤ) + (if x = u ∧ y = v then (δ : ℤ) else 0) -
         (if x = v ∧ y = u then (δ : ℤ) else 0) := by
   unfold pushFun
-  simp only [show (y = v ∧ x = u) ↔ (x = u ∧ y = v) from and_comm,
-    show (y = u ∧ x = v) ↔ (x = v ∧ y = u) from and_comm]
+  simp only [and_comm (a := y = v), and_comm (a := y = u)]
   split_ifs with hA hB
-  · have : x = y := hA.1.trans hB.2.symm
-    subst this; omega
+  · cases hA.1.trans hB.2.symm
+    omega
   all_goals omega
 
 theorem sum_pushFun_sub (f : V → V → ℕ) (u v : V) (δ : ℕ) (x : V) :
@@ -520,23 +519,19 @@ theorem resCap_push_of_ne (f : N.Preflow) {u v x y : V} (h1 : ¬ (x = u ∧ y = 
 
 theorem excess_push_self (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).excess u = f.excess u - f.pushAmount u v := by
-  rw [excess_push, ite_eq_left rfl, ite_eq_right huv]
-  omega
+  rw [excess_push, ite_eq_left rfl, ite_eq_right huv, add_zero]
 
 theorem excess_push_target (f : N.Preflow) {u v : V} (huv : u ≠ v) :
     (f.push u v).excess v = f.excess v + f.pushAmount u v := by
-  rw [excess_push, ite_eq_right (Ne.symm huv), ite_eq_left rfl]
-  omega
+  rw [excess_push, ite_eq_right (Ne.symm huv), ite_eq_left rfl, sub_zero]
 
 theorem excess_push_of_ne (f : N.Preflow) {u v x : V} (hu : x ≠ u) (hv : x ≠ v) :
     (f.push u v).excess x = f.excess x := by
-  rw [excess_push, ite_eq_right hu, ite_eq_right hv]
-  omega
+  rw [excess_push, ite_eq_right hu, ite_eq_right hv, sub_zero, add_zero]
 
 theorem isActive_push_of_ne (f : N.Preflow) {u v x : V} (hu : x ≠ u) (hv : x ≠ v) :
     (f.push u v).IsActive x ↔ f.IsActive x := by
-  unfold IsActive
-  rw [excess_push_of_ne f hu hv]
+  simp only [IsActive, excess_push_of_ne f hu hv]
 
 /-- Pushes preserve valid labelings ([CLRS2009], Lemma 26.16). -/
 theorem IsValidLabeling.push {f : N.Preflow} {h : V → ℕ} {u v : V} (hh : f.IsValidLabeling h)

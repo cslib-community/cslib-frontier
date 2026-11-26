@@ -217,10 +217,9 @@ private theorem comp_lift_right {s : (comp D₁ D₂).Edge → Bool} {e : D₂.I
   rw [he'] at hf hq
   have hag (j) : reverse u₂ (.inr e') (.inl j) = S₁.enc (s ∘ compLeft D₁ D₂) (D₁'.bottom j) := by
     rw [reverse_of_ne _ (by simp), InnerReach.boundary hp (Or.inl ⟨j, rfl⟩), compEnc_agree]
-  have hc : compι S₁ S₂ (.inr (.inr e)) = .inr (.inr e') := congrArg (compRight D₁' D₂') he'
   refine ⟨glueComp D₁' D₂' (S₁.enc (s ∘ compLeft D₁ D₂)) u₂,
     innerReach_glueComp_right hp (S₁.legal_enc h₁) (compEnc_agree S₁ S₂ s), ?_, ?_⟩ <;>
-    rw [hc, ← glueComp_reverse_right]
+    rw [compι, he', compRight, ← glueComp_reverse_right]
   · exact legal_glueComp (S₁.legal_enc h₁) hf hag
   · simpa only [compEnc, reverse_inr_comp_compLeft, hrev] using
       innerReach_glueComp_right hq (S₁.legal_enc h₁) hag
@@ -233,15 +232,11 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
       ((comp D₁' D₂').graph I').Legal (reverse u (compι S₁ S₂ (compLeft D₁ D₂ (D₁.bottom j)))) ∧
       InnerReach I' (comp D₁' D₂') (reverse u (compι S₁ S₂ (compLeft D₁ D₂ (D₁.bottom j))))
         (compEnc S₁ S₂ (reverse s (compLeft D₁ D₂ (D₁.bottom j)))) := by
-  set s₁ := s ∘ compLeft D₁ D₂
-  set s₂ := s ∘ compRight D₁ D₂
-  have e₁ : reverse s (compLeft D₁ D₂ (D₁.bottom j)) ∘ compLeft D₁ D₂ =
-      reverse s₁ (D₁.bottom j) := reverse_compLeft_comp ..
   have e₂ : reverse s (compLeft D₁ D₂ (D₁.bottom j)) ∘ compRight D₁ D₂ =
-      reverse s₂ (.inl j) := reverse_compRight_comp _ _ s (.inl j)
+      reverse (s ∘ compRight D₁ D₂) (.inl j) := reverse_compRight_comp _ _ s (.inl j)
   obtain ⟨h₁, h₂⟩ := (legal_comp_iff _ _ _).1 hs
   obtain ⟨h₁', h₂'⟩ := (legal_comp_iff _ _ _).1 hs'
-  rw [e₁] at h₁'
+  rw [reverse_compLeft_comp] at h₁'
   rw [e₂] at h₂'
   obtain ⟨u₁, hp₁, hf₁, hq₁⟩ := S₁.lift (D₁.bottom j) h₁ h₁'
   obtain ⟨u₂, hp₂, hf₂, hq₂⟩ := S₂.lift (.inl j) h₂ h₂'
@@ -267,9 +262,10 @@ private theorem comp_lift_shared {s : (comp D₁ D₂).Edge → Bool} (j : Fin b
     ?_, ?_⟩ <;>
     rw [compι_compLeft, S₁.ι_bottom, hflip]
   · exact legal_glueComp hf₁ hf₂ hu'
-  · simpa only [compEnc, e₁, e₂] using (innerReach_glueComp_left hq₁ hf₂ hu').trans
-      (innerReach_glueComp_right hq₂ (S₁.legal_enc h₁') fun k =>
-        (hu' k).trans (InnerReach.boundary hq₁ (Or.inr ⟨k, rfl⟩)).symm)
+  · simpa only [compEnc, reverse_compLeft_comp, e₂] using
+      (innerReach_glueComp_left hq₁ hf₂ hu').trans
+        (innerReach_glueComp_right hq₂ (S₁.legal_enc h₁') fun k =>
+          (hu' k).trans (InnerReach.boundary hq₁ (Or.inr ⟨k, rfl⟩)).symm)
 
 end OpenSim
 

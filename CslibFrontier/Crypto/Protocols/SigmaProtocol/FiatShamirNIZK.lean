@@ -502,16 +502,16 @@ private theorem closeTo_nizkExtHandlers [DecidableEq Y] [DecidableEq T] [Fintype
       ((Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞)) := by
   rw [nizkRealExtHandler_eq_lazyProgramHandler,
     nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
-  have h := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
-    (Reply := fun _ : X × Y => Option (T × Z))
-    (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
-    (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
-    (fun xy ts => (xy.2, ts.1))
-    (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
-    (fun xy hv k => RandomOracle.map_comp_apply_le_of_injective
-      (fun _ _ h => (Prod.mk.inj h).2) (hUnpred xy.1 xy.2 (hvalid xy.1 xy.2 hv)) k)
-    hcall.1 hcall.isQueryBounded [] []
-  rwa [List.length_nil, zero_add] at h
+  simpa only [List.length_nil, zero_add] using
+    RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
+      (Reply := fun _ : X × Y => Option (T × Z))
+      (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
+      (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
+      (fun xy ts => (xy.2, ts.1))
+      (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
+      (fun xy hv => RandomOracle.map_comp_apply_le_of_injective
+        (fun _ _ h => (Prod.mk.inj h).2) (hUnpred xy.1 xy.2 (hvalid xy.1 xy.2 hv)))
+      hcall.1 hcall.isQueryBounded [] []
 
 /-- Two-sided difference bound between continuing from `nizkRealExtHandler` and continuing from
 `nizkSimExtHandler`. -/
@@ -821,11 +821,9 @@ theorem succProbability_fiatShamirNIZKPokKeyGen_le [DecidableEq Y] [DecidableEq 
           (fun w => w.getD (Classical.arbitrary X))) true := by
     have hfork : Forking.fork first (forkingAlgorithm (Classical.arbitrary C) (Qro + 1)
         fun ks => plainForkingProg P A ks.1.2 ks.2) =
-        keyGen.bind fun key =>
-          Forking.fork A.coins
-            (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (plainForkingProg P A key.2)) := by
-      simp only [pmf_norm, first, Forking.fork]
-      rfl
+        keyGen.bind fun key => Forking.fork A.coins
+          (forkingAlgorithm (Classical.arbitrary C) (Qro + 1) (plainForkingProg P A key.2)) := by
+      simp only [pmf_norm, first, Forking.fork]; rfl
     rw [hfork, PMF.map_bind]
     simp only [pmf_norm, oneWayGame]
     refine Probability.PMF.bind_apply_mono_on_support _ _ fun key hkey => ?_
@@ -1071,14 +1069,11 @@ private theorem simExtGameOn_eq_simForkingProg [DecidableEq Y] [DecidableEq T] [
   have hpre := (hA s).isQueryBounded.run_interpret_presample src.coins
     (simSigner src valid).fallback (ForkingReduction.gameHandler (simSigner src valid)) ([], [])
   simp only [gameHandler_bind_eq_nizkSimExtHandler src valid] at hpre
-  have hfin :
-      ((interpret (nizkSimExtHandler simulate valid) (A.prove s)).run ([], [])).bind
-        (fun ((y, prf), (cache, proved)) =>
-          ((interpret (oracle C) (fiatShamirNIZKVerify P y prf)).run cache).bind
-            fun (acc, _) => PMF.pure (admissible y && acc && !proved.contains (y, prf.1))) =
-      ((interpret (nizkSimExtHandler simulate valid) (A.prove s)).run ([], [])).bind
-        (ForkingReduction.finishGame (FiatShamirNIZK.check P admissible)) := by
-    refine congrArg (PMF.bind _) (funext fun ((y, prf), (cache, proved)) => ?_)
+  have hfin : (fun ((y, prf), (cache, proved)) =>
+        ((interpret (oracle C) (fiatShamirNIZKVerify P y prf)).run cache).bind
+          fun (acc, _) => PMF.pure (admissible y && acc && !proved.contains (y, prf.1))) =
+      ForkingReduction.finishGame (FiatShamirNIZK.check P admissible) := by
+    funext ((y, prf), (cache, proved))
     simp only [ForkingReduction.finishGame, FiatShamirNIZK.check, fiatShamirNIZKVerify,
       interpret_map, interpret_query, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map,
       Function.comp_def]
@@ -1248,9 +1243,9 @@ theorem succProbability_fiatShamirNIZKFreshStmtGameOn_le [DecidableEq Y] [Decida
       fiatShamirNIZKRealExtGameOn admissible P valid A true := by
     simp only [fiatShamirNIZKFreshStmtGameOn, fiatShamirNIZKRealExtGameOn, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure]
-    refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
-    refine Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ => ?_
-    refine Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
+    refine Probability.PMF.bind_apply_mono_on_support _ _ fun s _ =>
+      Probability.PMF.bind_apply_mono_on_support _ _ fun ((y, prf), (cache, proved)) _ =>
+        Probability.PMF.bind_apply_mono_on_support _ _ fun (acc, _) _ => ?_
     cases admissible y && acc
     · simp
     · by_cases hmem : (y, prf.1) ∈ proved

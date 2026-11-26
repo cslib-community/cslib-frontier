@@ -205,8 +205,6 @@ private theorem eval_mono {N M : ℕ} (c : Circuit signature N M) :
     Monotone (c.eval interpretation) :=
   fun _ _ hxy o => trace_mono c.program hxy (c.outputs o)
 
-private theorem not_true_le_false : ¬ (true ≤ false) := by decide
-
 private theorem not_le_of_eval_permuteVec {ι : Type*} {n q m : ℕ}
     {c : Circuit signature (n * q + m) (n * q)} {γ : ι → Fin m → Bool}
     {φ : ι → Equiv.Perm (Fin n)}
@@ -303,15 +301,11 @@ private theorem eq_of_dualRailShiftCode_le {n b : ℕ} (hb : n ≤ 2 ^ b) {k₁ 
     (h : dualRailShiftCode n b k₁ ≤ dualRailShiftCode n b k₂) : k₁ = k₂ := by
   refine Fin.ext (Nat.eq_of_testBit_eq fun i => ?_)
   by_cases hi : i < b
-  · have hpos := h ⟨i, by omega⟩
+  · have hnb : ¬ b + i < b := by omega
+    have hpos := h ⟨i, by omega⟩
     have hneg := h ⟨b + i, by omega⟩
-    simp only [dualRailShiftCode, hi, ↓reduceIte, show ¬ (b + i < b) by omega,
-      Nat.add_sub_cancel_left] at hpos hneg
-    cases hb₁ : k₁.val.testBit i <;> cases hb₂ : k₂.val.testBit i
-    · rfl
-    · rw [hb₁, hb₂] at hneg; exact False.elim (not_true_le_false hneg)
-    · rw [hb₁, hb₂] at hpos; exact False.elim (not_true_le_false hpos)
-    · rfl
+    simp only [dualRailShiftCode, hi, hnb, ↓reduceIte, Nat.add_sub_cancel_left] at hpos hneg
+    cases hb₁ : k₁.val.testBit i <;> cases hb₂ : k₂.val.testBit i <;> simp_all [Bool.le_iff_imp]
   · have hlt (k : Fin n) : k.val < 2 ^ i :=
       k.isLt.trans_le (hb.trans (Nat.pow_le_pow_right (by decide) (by omega)))
     rw [Nat.testBit_lt_two_pow (hlt k₁), Nat.testBit_lt_two_pow (hlt k₂)]
@@ -511,9 +505,7 @@ private theorem cost_orInputList_le (n : ℕ) :
   | r :: r' :: rs => by
     rw [orInputList, Circuit.cost_program_comp, Circuit.cost_program_append,
       Circuit.cost_program_wiring, Circuit.cost_program_oneGate, binaryCost_or, Nat.zero_add]
-    have ih := cost_orInputList_le n (r' :: rs)
-    simp only [List.length_cons] at ih ⊢
-    omega
+    exact Nat.succ_le_succ (cost_orInputList_le n (r' :: rs))
 
 private def railBitsOfOneHot (n L : ℕ) : Circuit signature n (2 * L) :=
   Circuit.pi fun t : Fin (2 * L) =>
@@ -525,12 +517,9 @@ private def railBitsOfOneHot (n L : ℕ) : Circuit signature n (2 * L) :=
 private theorem eval_railBitsOfOneHot_oneHot (n L : ℕ) (k : Fin n) (t : Fin (2 * L)) :
     (railBitsOfOneHot n L).eval interpretation (fun r => decide (r = k)) t =
       if t.val < L then k.val.testBit t.val else !k.val.testBit (t.val - L) := by
-  have hany : ∀ P : Fin n → Bool,
-      ((List.finRange n).filter P).any (fun r => decide (r = k)) = P k := by
-    intro P
-    apply Bool.eq_iff_iff.mpr
-    simp only [List.any_eq_true, List.mem_filter, List.mem_finRange, true_and, decide_eq_true_eq]
-    exact ⟨fun ⟨_, hP, heq⟩ => heq ▸ hP, fun hPk => ⟨k, hPk, rfl⟩⟩
+  have hany (P : Fin n → Bool) :
+      ((List.finRange n).filter P).any (fun r => decide (r = k)) = P k :=
+    Bool.eq_iff_iff.mpr (by simp [List.any_eq_true])
   simp only [railBitsOfOneHot, Circuit.eval_pi]
   split_ifs with ht <;> rw [eval_orInputList, hany]
 
@@ -762,9 +751,7 @@ private theorem card_inputsWithin_le_two_pow {N G : ℕ} (p : Program signature 
     ∀ (d : ℕ) (w : Wire N G), (inputsWithin p d w).card ≤ 2 ^ d
   | 0, .input _ => by simp [inputsWithin]
   | 0, .gate _ => by simp [inputsWithin]
-  | d + 1, .input _ => by
-    simp only [inputsWithin, card_singleton]
-    exact Nat.one_le_two_pow
+  | d + 1, .input _ => by simpa [inputsWithin] using Nat.one_le_two_pow
   | d + 1, .gate g => by
     rw [inputsWithin, pow_succ']
     calc (Finset.univ.biUnion fun a : Fin (signature.Arity (p.lines g).op) =>

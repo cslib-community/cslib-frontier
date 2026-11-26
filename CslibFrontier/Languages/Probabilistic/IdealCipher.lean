@@ -146,10 +146,8 @@ theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
             (RandomPermutation.complete c).map (b, ·)).bind fun (b, v) =>
               (PMF.pi (Function.update p q.1 (PMF.pure v))).map (b, ·) := by
           rw [PMF.bind_bind]
-          congr 1 with ⟨b, c⟩ : 1
-          dsimp only
-          rw [PMF.map_bind, PMF.bind_map]
-          rfl
+          exact congrArg _ (funext fun ⟨b, c⟩ => by
+            simp [PMF.map_bind, PMF.bind_map, Function.comp_def])
       _ = (RandomPermutation.complete (st q.1)).bind fun v =>
             (PMF.pi (Function.update p q.1 (PMF.pure v))).map (evalPerm v q.2, ·) := by
           rw [RandomPermutation.answer_complete q.2 (st q.1) (hst q.1)]
@@ -200,17 +198,15 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_second
       a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   agree a st hst b st' hst' := by
-    obtain ⟨st_map, _ | _⟩ := st
-    · obtain ⟨st'_map, _ | _⟩ := st'
-      · simp only [exactWithBad, forgetfulWithBad, PMF.map_apply]
-        refine tsum_congr fun ⟨b_out, c_out, bad_out⟩ => ?_
-        split_ifs with h
-        · obtain ⟨-, -, rfl⟩ := h
-          exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.agree a.2
-            (st_map a.1, false) Bool.noConfusion b_out (c_out, false) Bool.noConfusion
-        · rfl
-      · exact (hst' rfl).elim
-    · exact (hst rfl).elim
+    rcases st, st' with ⟨⟨st_map, _ | _⟩, ⟨st'_map, _ | _⟩⟩
+    · simp only [exactWithBad, forgetfulWithBad, PMF.map_apply]
+      refine tsum_congr fun ⟨b_out, c_out, bad_out⟩ => ?_
+      split_ifs with h
+      · obtain ⟨-, -, rfl⟩ := h
+        exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.agree a.2
+          (st_map a.1, false) Bool.noConfusion b_out (c_out, false) Bool.noConfusion
+      · rfl
+    all_goals first | exact (hst rfl).elim | exact (hst' rfl).elim
 
 /-- Quadratic birthday bound on the bad-flag probability of `forgetfulWithBad`: starting from
 initial key caches `cache` with `bad = false`, an `n`-query-bounded program sets `bad = true`

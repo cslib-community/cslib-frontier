@@ -693,10 +693,7 @@ private theorem mod_eq_sub_frameBase_of_mem_block
     (upper : coordinate < frameBase depth reference + period depth) :
     coordinate % period depth = coordinate - frameBase depth reference := by
   let base := frameBase depth reference
-  have offsetLt : coordinate - base < period depth := by
-    omega
-  have baseMod : base % period depth = 0 := by
-    simp [base, frameBase]
+  have offsetLt : coordinate - base < period depth := by omega
   calc
     coordinate % period depth =
         (base + (coordinate - base)) % period depth := by
@@ -705,8 +702,8 @@ private theorem mod_eq_sub_frameBase_of_mem_block
         (coordinate - base) % period depth) % period depth := by
       rw [Nat.add_mod]
     _ = coordinate - base := by
-      rw [baseMod, Nat.mod_eq_of_lt offsetLt]
-      simp [Nat.mod_eq_of_lt offsetLt]
+      have baseMod : base % period depth = 0 := by simp [base, frameBase]
+      simp [baseMod, Nat.mod_eq_of_lt offsetLt]
 
 private theorem frameOpening_mod (depth coordinate : Nat) :
     frameOpening depth coordinate % period depth = frameStartResidue depth := by
@@ -860,10 +857,8 @@ private theorem selectedBorder_eq_none_after_frameClosing
           simp only [frameEndResidue]; omega
         have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
         rcases depthLeFrame.eq_or_lt with rfl | larger
-        · cases orientation
-          · have := ((frameBorder_eq_some_false_iff _ _ _).1 border).2
-            omega
-          · have := ((frameBorder_eq_some_true_iff _ _ _).1 border).2
+        · cases orientation <;>
+            simp only [frameBorder_eq_some_false_iff, frameBorder_eq_some_true_iff] at border <;>
             omega
         · cases orientation
           · have := largeClosing_mod_small larger ((frameBorder_eq_some_false_iff _ _ _).1 border).2
@@ -901,22 +896,16 @@ private theorem frameClosing_lt_two_mul_scale
     frameClosing depth coordinate < 2 * scale level := by
   have periodPositive := lt_trans Nat.zero_lt_one (one_lt_period depth)
   have lengthDvd := period_dvd_two_mul_scale hdepth
-  have quotientLt : coordinate / period depth <
-      (2 * scale level) / period depth := by
-    apply (Nat.div_lt_iff_lt_mul periodPositive).2
-    rw [Nat.mul_comm, Nat.mul_div_cancel' lengthDvd]
-    exact coordinate_lt
-  have nextBlockLe : period depth * (coordinate / period depth + 1) ≤
-      2 * scale level := by
-    have multiplied := Nat.mul_le_mul_left (period depth)
-      (Nat.succ_le_iff.2 quotientLt)
-    rw [Nat.mul_div_cancel' lengthDvd] at multiplied
-    exact multiplied
-  have closingBeforeNext : frameClosing depth coordinate <
-      period depth * (coordinate / period depth + 1) := by
-    have endLt := frameEndResidue_lt_period depth
+  have quotientLt : coordinate / period depth < (2 * scale level) / period depth :=
+    (Nat.div_lt_iff_lt_mul periodPositive).2
+      (by rwa [Nat.mul_comm, Nat.mul_div_cancel' lengthDvd])
+  have nextBlockLe : period depth * (coordinate / period depth + 1) ≤ 2 * scale level := by
+    simpa only [Nat.mul_div_cancel' lengthDvd] using
+      Nat.mul_le_mul_left (period depth) (Nat.succ_le_iff.2 quotientLt)
+  have closingBeforeNext :
+      frameClosing depth coordinate < period depth * (coordinate / period depth + 1) := by
     simpa [frameClosing, frameBase, Nat.mul_add] using
-      Nat.add_lt_add_left endLt (period depth * (coordinate / period depth))
+      Nat.add_lt_add_left (frameEndResidue_lt_period depth) (frameBase depth coordinate)
   exact closingBeforeNext.trans_le nextBlockLe
 
 /-- Every arithmetic horizontal carrier cell has clear canonical signal on

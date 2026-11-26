@@ -107,9 +107,7 @@ theorem length_of_mem_support_iopRunRounds {d : ℕ} {Sym Chal : Type}
     [Fintype Chal] [Nonempty Chal] (P : InteractiveIOPProver d Sym Chal) :
     ∀ (k : ℕ) (pref tr : List (OracleTable d Sym × Chal)),
       tr ∈ (iopRunRounds P k pref).support → tr.length = pref.length + k
-  | 0, pref, tr, hmem => by
-    simp only [iopRunRounds, PMF.support_pure, Set.mem_singleton_iff] at hmem
-    simp [hmem]
+  | 0, _, _, hmem => by rw [(PMF.mem_support_pure_iff _ _).mp hmem, Nat.add_zero]
   | k + 1, pref, tr, hmem => by
     obtain ⟨π, _, c, _, hmem⟩ := by simpa only [iopRunRounds, PMF.mem_support_bind_iff] using hmem
     have ih := length_of_mem_support_iopRunRounds P k (pref ++ [(π, c)]) tr hmem
@@ -310,11 +308,9 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
   | 0, j, hjm, hist => by
     obtain rfl : j = r := by omega
     rw [iopRunRounds, ← PMF.map_const (PMF.uniformOfFintype (Fin 0 → Chal))]
-    congr 1
-    funext _
+    congr 1 with _ : 1
     dsimp only [Function.const]
-    congr 1
-    funext k
+    congr 1 with k : 1
     simp [k.isLt]
   | m + 1, j, hjm, hist => by
     have hj_lt : j < r := by omega
@@ -333,11 +329,9 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
       ← Cslib.Probability.PMF.uniformOfFintype_map_equiv
         (Fin.consEquiv (fun _ : Fin (m + 1) => Chal)).symm,
       PMF.map_comp]
-    congr 1
-    funext rest
+    congr 1 with rest : 1
     simp only [Function.comp_apply, Fin.consEquiv_symm_apply]
-    congr 1
-    funext k
+    congr 1 with k : 1
     rcases lt_trichotomy k.val j with hk | hkeq | hk
     · have hk1 : k.val < j + 1 := by omega
       simp only [hk, hk1, ↓reduceDIte]
@@ -346,9 +340,7 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
       rw [show (⟨j, Nat.lt_succ_self j⟩ : Fin (j + 1)) = Fin.last j from rfl, Fin.snoc_last]
       exact congrArg rest (Fin.ext (Nat.sub_self j).symm)
     · simp only [not_lt.mpr hk.le, not_lt.mpr (Nat.succ_le_of_lt hk), ↓reduceDIte, Fin.tail]
-      refine congrArg rest (Fin.ext ?_)
-      simp only [Fin.val_succ]
-      omega
+      exact congrArg rest (Fin.ext (by simp only [Fin.val_succ]; omega))
 
 /-- For a deterministic causal prover `P`, the sequential `iopInteractiveGame` coincides with
 evaluating `iopVerify` under a single uniform draw of `chals : Fin r → Chal`. -/

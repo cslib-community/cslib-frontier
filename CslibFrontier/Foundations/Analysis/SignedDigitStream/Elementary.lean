@@ -132,10 +132,9 @@ section RationalStreams
 theorem ratApprox_eq_ediv (r : ℚ) (t : ℕ) :
     ratApprox r t = ((2 : ℤ) ^ t * r.num) / (r.den : ℤ) := by
   rw [ratApprox, ← Rat.floor_intCast_div_natCast]
-  congr 1
+  refine congrArg Int.floor ?_
   conv_lhs => rw [← Rat.num_div_den r]
-  push_cast
-  ring
+  push_cast; ring
 
 theorem ratApprox_isScaledApprox (r : ℚ) : IsScaledApprox (r : ℝ) (ratApprox r) := fun t => by
   set q : ℚ := (2 : ℚ) ^ t * r
@@ -224,14 +223,12 @@ theorem cmpPrefix_neg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSi
 theorem cmpPrefix_nonneg_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (K : ℕ) :
     0 ≤ cmpPrefix x y K ↔ intPrefix y K ≤ intPrefix x K := by
-  rw [cmpPrefix_eq_clamp_sub hx hy K]
-  omega
+  rw [cmpPrefix_eq_clamp_sub hx hy K]; omega
 
 theorem cmpPrefix_nonpos_iff {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy : IsSignedStream y)
     (K : ℕ) :
     cmpPrefix x y K ≤ 0 ↔ intPrefix x K ≤ intPrefix y K := by
-  rw [cmpPrefix_eq_clamp_sub hx hy K]
-  omega
+  rw [cmpPrefix_eq_clamp_sub hx hy K]; omega
 
 end PrefixComparison
 
@@ -277,8 +274,7 @@ theorem pairAvgApprox_isScaledApprox {x y : ℕ → ℤ}
     dsimp [A]
     rw [streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div, ← add_div, div_right_comm,
       ← div_sixteen_eq]
-    push_cast
-    ring
+    push_cast; ring
   have hx_err := abs_streamVal_sub_streamPrefix_le hx (t + 4)
   have hy_err := abs_streamVal_sub_streamPrefix_le hy (t + 4)
   refine abs_ediv_sub_lt_two_of_scaled A (by decide : 0 < 32) hA
@@ -533,8 +529,7 @@ theorem cmpBuffered_pos_iff {s u : ℕ → ℤ} (hs : IsSignedStream s) (hu : Is
   rw [cmpBuffered_eq_clamp hs hu K, streamPrefix_eq_intPrefix_div, streamPrefix_eq_intPrefix_div,
     ← mul_div_assoc, ← mul_div_assoc,
     div_lt_div_iff_of_pos_right (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  norm_cast
-  omega
+  norm_cast; omega
 
 /-- Truncation error of the buffered test at place `K = M + R + 7`, at scale `2 ^ M`: the
 scaled prefix is within the slack `(3 / 64) / 2 ^ R` of the scaled value. -/
@@ -590,12 +585,11 @@ theorem bufferedTest_eq_false_of_le {M R : ℕ} {s u : ℕ → ℤ}
     bufferedTest M R s u = false := by
   unfold bufferedTest
   subst hsVal huVal
-  rw [decide_eq_false_iff_not]
-  intro hlt_raw
-  have hlt := (cmpBuffered_pos_iff hs hu (M + R + 7)).mp hlt_raw
+  rw [decide_eq_false_iff_not, cmpBuffered_pos_iff hs hu]
+  intro hlt
   have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
   have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
-  have hmul_lt := mul_lt_mul_of_pos_left hlt (by positivity : (0 : ℝ) < (2 : ℝ) ^ M)
+  have hmul_lt := mul_lt_mul_of_pos_left hlt (pow_pos zero_lt_two M)
   linarith [five_mul_slack_lt hρ, le_of_abs_le hs_err, neg_le_of_abs_le hu_err]
 
 end OrderStatisticsAndBufferedTests

@@ -89,14 +89,11 @@ theorem positiveStem_in_box {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     (he : e ∈ (clauseGeometry φ d i c).incidenceRoutes)
     {p : ℝ × ℝ} (hp : p ∈ support (positiveStem φ d i e)) :
     inPointBox (positiveBoxOrigin φ d i + positiveTranslation) positiveRadius p := by
-  rw [positiveStem, support_translate] at hp
-  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨q, hq, rfl⟩ := by simpa only [positiveStem, support_translate] using hp
   rw [add_comm (positiveBoxOrigin φ d i) positiveTranslation, inPointBox_translate_iff]
-  apply support_inPointBox_of_points (r := e.route) ?_ hq
-  intro a ha
-  have hb := clauseGeometry_incidence_points_bounds hd hi c he a ha
+  refine support_inPointBox_of_points (fun a ha => ?_) hq
   norm_num [inPointBox, positiveTranslation, positiveRadius, realPoint]
-  exact_mod_cast hb
+  exact_mod_cast clauseGeometry_incidence_points_bounds hd hi c he a ha
 
 /-- The normalized inherited route remains properly orthogonal and continuously simple. -/
 theorem positiveExterior_regular {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -290,8 +287,7 @@ theorem collaredProfile_routes_contact (p : ClauseProfile)
   obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hf
   have hab : a ≠ b := fun heq => hne (heq ▸ rfl)
   obtain ⟨q, hq, hzq⟩ := profileCollarRoute_contact p h hs ha hb hab hz hw
-  rw [LocalGeometry.commonEndpoints, List.mem_append] at hq
-  rcases hq with hq | hq
+  rcases List.mem_append.mp hq with hq | hq
   · split_ifs at hq with hc
     · obtain rfl := List.mem_singleton.mp hq
       exact ⟨collarPoint (collarReflected s) ((profilePrefixGeometry p).clausePosition a.1),
@@ -354,8 +350,7 @@ theorem collaredProfile_clause_not_mem_support (p : ClauseProfile)
     realPoint ((collaredPrefixGeometry (profilePrefixGeometry p) s).clausePosition j) ∉
       support e.route := by
   obtain ⟨a, ha, rfl⟩ := List.mem_map.mp he
-  rw [collared_clausePoint _ _ j.isLt]
-  exact profileCollarRoute_clause_not_mem_support p h hs ha j hj
+  exact collared_clausePoint _ _ j.isLt ▸ profileCollarRoute_clause_not_mem_support p h hs ha j hj
 
 /-- Distinct local incidences cannot contact the source port of one another. -/
 theorem collaredProfile_other_terminal_not_mem_support (p : ClauseProfile)

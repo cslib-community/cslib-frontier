@@ -79,8 +79,7 @@ private theorem tribes_update (x : BitString (s * w)) (j₀ : Fin s) (i₀ : Fin
     tribes w s (update x (finProdFinEquiv (j₀, i₀)) b) =
       decide ((∃ j ≠ j₀, ∀ i, x (finProdFinEquiv (j, i)) = true) ∨
         ((∀ i ≠ i₀, x (finProdFinEquiv (j₀, i)) = true) ∧ b = true)) := by
-  rw [tribes]
-  refine decide_eq_decide.2 ?_
+  rw [tribes, decide_eq_decide]
   simp only [update_apply, finProdFinEquiv.injective.eq_iff, Prod.mk.injEq]
   refine ⟨?_, ?_⟩
   · rintro ⟨j, hj⟩
@@ -161,9 +160,7 @@ private theorem one_sub_inv_two_pow_le_one (w : ℕ) : 1 - (2⁻¹ : ℝ) ^ w �
   sub_le_self _ (by positivity)
 
 private theorem two_pow_eq_two_mul (hw : 1 ≤ w) : (2 : ℝ) ^ w = 2 * 2 ^ (w - 1) := by
-  rw [← pow_succ']
-  congr 1
-  omega
+  rw [← pow_succ', Nat.sub_add_cancel hw]
 
 /-- The nearly balanced Tribes on `s w` bits has total influence at most `2 w`. The bound is
 ours. -/
@@ -194,14 +191,11 @@ private theorem influence_tribes_le_of (hw : 2 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ s
   have hN₁ : ((2 : ℝ) ^ (w - 1)) ≤ ((s * w : ℕ) : ℝ) := by
     exact_mod_cast hs₁.trans (Nat.le_mul_of_pos_right _ (by omega))
   have hyN : (2⁻¹ : ℝ) ^ (w - 1) * ((s * w : ℕ) : ℝ) ≤ 2 * w := by
-    have hpow := two_pow_eq_two_mul (show 1 ≤ w by omega)
+    have hpow := two_pow_eq_two_mul (w := w) (by omega)
     rw [Nat.cast_mul, inv_pow, ← div_eq_inv_mul, div_le_iff₀ (by positivity)]
     cast_nlinarith [hs₂, hw]
   have hlog : (w - 1 : ℝ) * Real.log 2 ≤ Real.log ((s * w : ℕ) : ℝ) := by
-    have hcast : (w - 1 : ℝ) = ((w - 1 : ℕ) : ℝ) := by
-      rw [Nat.cast_sub (by omega)]
-      norm_num
-    rw [hcast, ← Real.log_pow]
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega), ← Real.log_pow]
     exact Real.log_le_log (by positivity) hN₁
   have hl2 := Real.log_two_gt_d9
   refine hinf.trans ((le_div_iff₀ (lt_of_lt_of_le (by positivity) hN₁)).2 ?_)

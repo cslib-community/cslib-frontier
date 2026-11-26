@@ -136,11 +136,9 @@ the concatenation, including at observations on the cut height. -/
 theorem rayParity_line_split (a b u z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
     let m := AffineMap.lineMap a b t
     ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z := by
-  let m := AffineMap.lineMap a b t
-  change ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z
-  have hm : u * m = AffineMap.lineMap (u * a) (u * b) t := by
-    let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-    exact f.toAffineMap.apply_lineMap a b t
+  intro m
+  have hm : u * m = AffineMap.lineMap (u * a) (u * b) t :=
+    ((LinearMap.mulLeft ℂ u).restrictScalars ℝ).toAffineMap.apply_lineMap a b t
   rw [rayParity_concat _ _ rfl, rayParity_line, rayParity_line, rayParity_line, hm]
   exact decide_rayCrosses_split _ _ _ ht
 
@@ -282,8 +280,7 @@ private theorem rayParity_sum_lines (p : Route) (u z : ℂ) :
     p.rayParity u z =
       ∑ i : Fin p.segments, (line (p.point i.castSucc) (p.point i.succ)).rayParity u z := by
   simp only [rayParity_line]
-  rw [Route.rayParity]
-  simp [Cslib.Polygonal.rayParity, Bool.zero_eq_false]
+  simp [Route.rayParity, Cslib.Polygonal.rayParity, Bool.zero_eq_false]
 
 open Pointwise in
 private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (z : ℂ) :
@@ -346,20 +343,15 @@ private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (
     have hs : (line a b).start = (s.concat (line d b)).start :=
       ((start_concat hjoin).trans (start_concat rfl)).symm
     have hsupport : (s.concat (line d b)).support ⊆ K := by
-      rw [support_concat _ _ hjoin]
-      change ((line a c).concat (line c d)).support ∪ (line d b).support ⊆ K
-      rw [support_concat _ _ rfl]
+      rw [support_concat _ _ hjoin, support_concat (line a c) (line c d) rfl]
       exact Set.union_subset (Set.union_subset (hline ha hc) (hline hc hd)) (hline hd hb)
     refine ⟨iff_of_false (fun hz => hzK (hK.segment_subset hc hd hz)) hi, fun u => ?_⟩
     have h := rayParity_eq_of_support_subset_convex (line a b) (s.concat (line d b))
       (u := u) hs (finish_concat hjoin).symm hK (hline ha hb) hsupport hzK
-    rw [rayParity_concat _ _ hjoin] at h
-    change (line a b).rayParity u z =
-      ((line a c).concat (line c d)).rayParity u z + (line d b).rayParity u z at h
-    rw [rayParity_concat _ _ rfl, ← reverse_line b d, rayParity_reverse] at h
-    refine h.trans ?_
-    change _ = (line c d).rayParity u z + ((line a c).rayParity u z + (line b d).rayParity u z)
-    ac_rfl
+    rw [rayParity_concat _ _ hjoin, rayParity_concat (line a c) (line c d) rfl,
+      ← reverse_line b d, rayParity_reverse] at h
+    dsimp only [link, a, b, c, d] at h ⊢
+    exact h.trans (by ac_rfl)
   refine ⟨fun i => (hpieces i).1, fun u => ?_⟩
   have hlinks : (∑ i : Fin p.segments, (link u i.castSucc + link u i.succ)) = 0 := by
     rw [sum_adjacent_bool]

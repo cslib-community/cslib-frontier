@@ -54,17 +54,16 @@ private theorem sum_norm_left_mul_sq {ι : Type*} [Fintype ι] (φ : AlgState A)
 /-- Summing over projective outcomes preserves the squared state norm of a right factor. -/
 theorem sum_norm_effect_mul_sq (φ : AlgState A) (M : Measurement α A) (hM : M.IsProjective)
     (x : A) : ∑ a, φ.norm (M.effect a * x) ^ 2 = φ.norm x ^ 2 := by
-  apply sum_norm_left_mul_sq
-  simp only [fun a => (M.nonneg a).isSelfAdjoint.star_eq,
-    show ∀ a, M.effect a * M.effect a = M.effect a from hM, M.sum_effect]
+  have hidem : ∀ a, M.effect a * M.effect a = M.effect a := hM
+  exact sum_norm_left_mul_sq φ M.effect
+    (by simp only [fun a => (M.nonneg a).isSelfAdjoint.star_eq, hidem, M.sum_effect]) x
 
 /-- Summing over adjoints of the normalized transcript products preserves the squared state norm
 of a right factor. -/
 theorem sum_norm_star_transcriptProduct_mul_sq (φ : AlgState A) {k : ℕ}
     (M : Fin k → Measurement α A) (hM : ∀ j, (M j).IsProjective) (x : A) :
-    ∑ p, φ.norm (star (transcriptProduct M p) * x) ^ 2 = φ.norm x ^ 2 := by
-  apply sum_norm_left_mul_sq
-  simpa only [star_star] using sum_transcriptProduct_mul_star M hM
+    ∑ p, φ.norm (star (transcriptProduct M p) * x) ^ 2 = φ.norm x ^ 2 :=
+  sum_norm_left_mul_sq φ _ (by simpa only [star_star] using sum_transcriptProduct_mul_star M hM) x
 
 private noncomputable def rootEnergy {ι : Type*} [Fintype ι] (φ : AlgState A) (U : ι → A) : ℝ :=
   √(∑ j, φ.norm (U j) ^ 2)
@@ -154,26 +153,20 @@ private theorem transcriptCommutatorDefect_succ_le {k : ℕ} (φ : AlgState A)
     rw [← (Fin.consEquiv fun _ : Fin (k + 1) => α).sum_comp, Fintype.sum_prod_type]
     simp only [Fin.consEquiv_apply, hsplit]
   have hU : rootEnergy φ U = √(transcriptCommutatorDefect φ E T) := by
-    unfold rootEnergy transcriptCommutatorDefect
-    congr 1
-    simp only [U, Fintype.sum_prod_type]
-    refine sum_congr rfl fun a _ => ?_
-    rw [sum_comm]
-    simp only [sum_norm_effect_mul_sq φ R hR, C, K]
+    simp only [rootEnergy, transcriptCommutatorDefect, U, C, K, Fintype.sum_prod_type]
+    exact congrArg Real.sqrt (sum_congr rfl fun a _ => by
+      rw [sum_comm, sum_congr rfl fun _ _ => sum_norm_effect_mul_sq φ R hR _])
   have hV : rootEnergy φ V = √(pairCommutatorDefect φ E (M 0)) := by
-    unfold rootEnergy pairCommutatorDefect
-    congr 1
-    simp only [V, K, Fintype.sum_prod_type, sum_norm_star_transcriptProduct_mul_sq φ T hT]
+    simp only [rootEnergy, pairCommutatorDefect, V, K, Fintype.sum_prod_type,
+      sum_norm_star_transcriptProduct_mul_sq φ T hT]
   have hW : rootEnergy φ W = √(copyDefect φ (M 0) R) := by
-    unfold rootEnergy copyDefect
-    congr 1
+    simp only [rootEnergy, copyDefect]
     rw [Fintype.sum_prod_type, sum_comm]
     simp only [W, K, D, sum_norm_effect_mul_sq φ E hE, Fintype.sum_prod_type,
       sum_norm_star_transcriptProduct_mul_sq φ T hT]
   have hZ : rootEnergy φ Z = √(copyDefect φ (M 0) R) := by
-    unfold rootEnergy copyDefect
-    congr 1
-    simp only [Z, K, D, Fintype.sum_prod_type, sum_norm_star_transcriptProduct_mul_sq φ T hT]
+    simp only [rootEnergy, copyDefect, Z, K, D, Fintype.sum_prod_type,
+      sum_norm_star_transcriptProduct_mul_sq φ T hT]
     rw [sum_comm]
     simp only [sum_norm_effect_mul_sq φ E hE]
   calc √(transcriptCommutatorDefect φ E M)

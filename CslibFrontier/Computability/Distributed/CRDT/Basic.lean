@@ -675,11 +675,10 @@ theorem isCausallyClosed_empty {Ev : Type*} (prec : Ev → Ev → Prop) :
 
 theorem IsCausallyClosed.union {Ev : Type*} [DecidableEq Ev] {prec : Ev → Ev → Prop}
     {H₁ H₂ : Finset Ev} (h₁ : IsCausallyClosed prec H₁) (h₂ : IsCausallyClosed prec H₂) :
-    IsCausallyClosed prec (H₁ ∪ H₂) := by
-  intro e he e' hprec
-  rcases Finset.mem_union.mp he with he₁ | he₂
-  · exact Finset.mem_union_left H₂ (h₁ e he₁ e' hprec)
-  · exact Finset.mem_union_right H₁ (h₂ e he₂ e' hprec)
+    IsCausallyClosed prec (H₁ ∪ H₂) :=
+  fun e he e' hprec => (Finset.mem_union.mp he).elim
+    (fun he₁ => Finset.mem_union_left H₂ (h₁ e he₁ e' hprec))
+    (fun he₂ => Finset.mem_union_right H₁ (h₂ e he₂ e' hprec))
 
 /-- List `l` is a duplicate-free causal linearization of finite event set `H` with respect to
 `prec`: `l.Nodup`, `l` has the same elements as `H`, and `prec e₁ e₂` implies `e₁` appears strictly
@@ -815,10 +814,7 @@ theorem bss_delivered_isCausalLinearization {F : Set P}
     have hb₁_bcast : b₁ ∈ BroadcastIn xl := by
       clear hb₂ hb₂_del hb₂_bcast
       induction hprec with
-      | single hstep =>
-        rcases hstep with ⟨i, _, hi, _, _, hbi, _, _⟩ | ⟨hb₁_in, _⟩
-        · exact ⟨i, hi, hbi⟩
-        · exact hb₁_in
+      | single hstep => exact hstep.elim (fun ⟨i, _, hi, _, _, hbi, _, _⟩ => ⟨i, hi, hbi⟩) And.left
       | tail _ _ ih => exact ih
     exact List.mem_toFinset.mpr (bss_causal_delivery hmtr hb₁_bcast hb₂_bcast hprec q hb₂_del).1
   · exact fun b₁ hb₁ b₂ hb₂ hprec =>
@@ -881,9 +877,8 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
   choose mFn hmFn using hlive_pair
   let M := max K ((Finset.univ : Finset (Fin K × P)).sup mFn)
   refine ⟨M, Nat.le_max_left _ _, fun k hkM p hp q hq => ?_⟩
-  have hmtr (n : ℕ) : (bssLTS F).MTr (bssInit P Eff) (xs.extract 0 n) (ss n) := by
-    rw [← hinit]
-    exact he.extract_mTr (Nat.zero_le n)
+  have hmtr (n : ℕ) : (bssLTS F).MTr (bssInit P Eff) (xs.extract 0 n) (ss n) :=
+    hinit ▸ he.extract_mTr (Nat.zero_le n)
   -- Every broadcast in `xs.extract 0 k` occurred at some step `i < K` (by quiescence from `K`),
   -- hence has already been delivered by step `M ≤ k` at every non-faulty process.
   have hall_deliv : ∀ r : P, r ∉ F → ∀ pkt,
@@ -895,7 +890,7 @@ theorem CmRDT.bss_quiescent_convergence (C : CmRDT S Op Eff Q) {F : Set P}
       have hi_lt_k : i < k := by
         simpa [ωSequence.length_extract] using hi_len
       have htake : (xs.extract 0 k).take i = xs.extract 0 i := by
-        rw [← ωSequence.append_extract_extract (Nat.zero_le i) (Nat.le_of_lt hi_lt_k),
+        rw [← ωSequence.append_extract_extract (Nat.zero_le i) hi_lt_k.le,
           List.take_left' (by simp [ωSequence.length_extract])]
       have hget : (xs.extract 0 k)[i] = xs i := by
         rw [ωSequence.get_extract (by omega), Nat.zero_add]
@@ -934,10 +929,8 @@ def CvRDT.toCmRDT {S Op Q : Type*} [SemilatticeSup S] (C : CvRDT S Op Q) : CmRDT
 [ShapiroPreguicaBaqueroZawirski2011], §3.2.1 Theorem 3.1, p. 9): the downstream merge effects of
 `C.toCmRDT` commute unconditionally on every state, requiring not even causal delivery order. -/
 theorem CvRDT.toCmRDT_effectsCommute {S Op Q : Type*} [SemilatticeSup S] (C : CvRDT S Op Q) :
-    EffectsCommute C.toCmRDT.effect := by
-  intro s₁ s₂ s
-  simp only [CvRDT.toCmRDT]
-  rw [sup_assoc, sup_comm s₂ s₁, ← sup_assoc]
+    EffectsCommute C.toCmRDT.effect :=
+  fun s₁ s₂ s => by simp only [CvRDT.toCmRDT, sup_assoc, sup_comm s₂ s₁]
 
 /-- Executing `prepare` followed immediately by `effect` at the source replica in `C.toCmRDT`
 produces the exact same local state `C.update op s` as `C` itself. -/

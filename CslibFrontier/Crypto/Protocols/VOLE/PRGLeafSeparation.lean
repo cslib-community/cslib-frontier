@@ -217,13 +217,9 @@ private theorem prgLeafProver_runWith_eq_map {d sdLen comLen rowLen : ℕ}
   rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
     OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
     OracleComp.liftRight_query, OracleComp.run_interpret_query, voleithMemoize,
-    RandomOracle.memoizeSum_inr]
-  have hnil (q : FSQuery d comLen rowLen Stmt IV PreMsg) :
-      Cslib.memoize (fun _ => PMF.uniformOfFintype Chal) q [] =
-        (PMF.uniformOfFintype Chal).map fun delta => (delta, [(q, delta)]) := by
-    simp [Cslib.memoize, PMF.map, Function.comp_def]
-  rw [hnil, PMF.map_comp, PMF.bind_map]
-  simp only [Function.comp_def, ProbOracleComp.runWith_pure, PMF.map]
+    RandomOracle.memoizeSum_inr, Cslib.memoize_of_none _ _ _ rfl]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ProbOracleComp.runWith_pure,
+    PMF.bind_bind, PMF.pure_bind, PMF.map, Function.comp_def]
   rfl
 
 private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
@@ -257,14 +253,8 @@ private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
   rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith,
     OracleComp.runWith_sumHandler_liftRight, OracleComp.runWith_eq_run_interpret,
     OracleComp.liftRight_query, OracleComp.run_interpret_query, voleithMemoize,
-    RandomOracle.memoizeSum_inr]
-  have hfs : Cslib.memoize
-      (fun _ : FSQuery d comLen rowLen Stmt IV PreMsg => PMF.uniformOfFintype Chal)
-      (prf.fsQuery stmt) [(prf.fsQuery stmt, delta)] =
-      PMF.pure (delta, [(prf.fsQuery stmt, delta)]) := by
-    simp [Cslib.memoize]
-  rw [hfs]
-  simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+    RandomOracle.memoizeSum_inr, Cslib.memoize_of_some _ _ _ delta (by simp)]
+  simp only [PMF.monad_pure_eq_pure, PMF.map, PMF.pure_bind, Function.comp_def]
   have hne_chal {vIdx : Fin (2 ^ d)} (hv : vIdx ≠ 0) :
       FAEST.xorIndex vIdx (chalToIdx delta) ≠ chalToIdx delta := fun h =>
     hv (Fin.ext (by
@@ -381,28 +371,11 @@ theorem prgLeafGame_eq_pure_true {d sdLen comLen rowLen : ℕ}
         (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
       (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
       ([], [])).map Prod.fst) = PMF.pure true := by
-  have h := prgLeafProver_then_verify_map expand prgLeaf encWit chalToIdx mkPreMsg checkRel
-    defaultSeed iv keys stmt w hRel (fun ok _ _ => ok)
-  have hgame :
-      (ProbOracleComp.runWith
-        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
-          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
-        (prgLeafGame expand prgLeaf encWit chalToIdx mkPreMsg checkRel defaultSeed iv keys stmt w)
-        ([], [])).map Prod.fst =
-      (ProbOracleComp.runWith
-        (voleithMemoize (d := d) (sdLen := sdLen) (comLen := comLen) (rowLen := rowLen)
-          (Stmt := Stmt) (Seed := Seed) (IV := IV) (PreMsg := PreMsg) (Chal := Chal))
-        (do
-          let prf ← prgLeafProver expand prgLeaf encWit chalToIdx mkPreMsg defaultSeed iv keys
-            stmt w
-          let ok ← prgLeafVerify expand prgLeaf chalToIdx checkRel stmt prf
-          return (ok, prf)) ([], [])).map fun ((ok, _), _) => ok := by
-    rw [prgLeafGame]
-    simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure, PMF.map_bind]
-    congr 1
-    funext ⟨prf, st⟩
-    simp [PMF.map, PMF.pure_bind, Function.comp_def]
-  simpa only [hgame, Function.const_def, PMF.map_const] using h
+  rw [prgLeafGame, ProbOracleComp.runWith_bind, prgLeafProver_runWith_eq_map,
+    PMF.bind_map, PMF.map_bind]
+  simp_rw [Function.comp_apply, prgLeafVerify_runWith_of_delta expand prgLeaf encWit chalToIdx
+    mkPreMsg checkRel defaultSeed iv keys stmt w hRel, PMF.pure_map]
+  exact PMF.bind_const _ _
 
 private theorem convertExpandedRows_zero_u {rowLen : ℕ} :
     ∀ d : ℕ, (FAEST.convertExpandedRows d (fun _ : Fin (2 ^ d) => (0 : BitString rowLen))).u = 0

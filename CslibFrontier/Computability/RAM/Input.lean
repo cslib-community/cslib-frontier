@@ -85,8 +85,8 @@ private theorem copyRegs_read_ge {R m v i : ℕ} (values : List ℕ) (hi : 5 ≤
 
 private theorem copyRegs_read_source {R m v : ℕ} (values : List ℕ) (hR : 5 ≤ R) :
     (copyRegs R values (m + 1) v).read (5 + m) = values.getD m 0 := by
-  rw [copyRegs_read_ge values (by lia)]
-  simp [show ¬R + (m + 1) ≤ 5 + m by lia, show 5 + m - 5 = m by lia]
+  rw [copyRegs_read_ge values (Nat.le_add_right 5 m), ite_eq_right (by lia),
+    Nat.add_sub_cancel_left]
 
 private theorem copyRegs_read_scratch {R m v : ℕ} (values : List ℕ) (hR : 5 ≤ R) :
     (copyRegs R values (m + 1) v).read 0 = 1 ∧
@@ -128,18 +128,17 @@ private theorem run_copy_loop {R : ℕ} (hR : 5 ≤ R) (tail : Program)
   | zero => exact ⟨v, rfl⟩
   | succ m ih =>
     obtain ⟨v', hv'⟩ := ih (values.getD m 0)
-    refine ⟨v', ?_⟩
-    rw [show 6 * (m + 1) = 6 + 6 * m by lia, run_add, run_copy_round hR, hv']
+    exact ⟨v', by rw [Nat.mul_succ, Nat.add_comm _ 6, run_add, run_copy_round hR, hv']⟩
 
 private theorem read_padded (R : ℕ) (values : List ℕ) (i : ℕ) :
     (URM.Regs.ofInputs (List.replicate R 0 ++ values)).read i =
       if i < R then 0 else values.getD (i - R) 0 := by
   change (List.replicate R 0 ++ values).getD i 0 = _
   by_cases hi : i < R
-  · rw [List.getD_append _ _ _ _ (by simpa using hi), List.getD_replicate 0 hi]
-    simp [hi]
-  · rw [List.getD_append_right _ _ _ _ (by simp only [List.length_replicate]; lia)]
-    simp [hi]
+  · rw [ite_eq_left hi, List.getD_append _ _ _ _ (by simpa using hi), List.getD_replicate 0 hi]
+  · rw [ite_eq_right hi,
+      List.getD_append_right _ _ _ _ (by simp only [List.length_replicate]; omega),
+      List.length_replicate]
 
 private theorem run_setup {R : ℕ} (hR : 5 ≤ R) (tail : Program) (input : List ℕ) :
     run (prepare R ++ tail) 6 (State.init (encode 5 input)) =
@@ -192,16 +191,15 @@ theorem run_prepare_append {R : ℕ} (hR : 5 ≤ R) (tail : Program) (input : Li
   rw [prepareSteps, run_add, run_add, run_setup hR, hv]
   change run (prepare R ++ tail) R ⟨12, copyRegs R (input.length :: input) 0 v⟩ = _
   rw [run_clear tail le_rfl, length_prepare]
-  ext1
+  congr 1
+  funext i
+  change (if i < R then 0 else (copyRegs R (input.length :: input) 0 v).read i) =
+    (URM.Regs.ofInputs (List.replicate R 0 ++ input.length :: input)).read i
+  rw [read_padded]
+  split_ifs with hi
   · rfl
-  · funext i
-    change (if i < R then 0 else (copyRegs R (input.length :: input) 0 v).read i) =
-      (URM.Regs.ofInputs (List.replicate R 0 ++ input.length :: input)).read i
-    rw [read_padded]
-    by_cases hi : i < R
-    · simp [hi]
-    · rw [ite_eq_right hi, ite_eq_right hi, copyRegs_read_ge _ (by lia)]
-      simp [show R ≤ i by lia]
+  · rw [copyRegs_read_ge _ (hR.trans (Nat.le_of_not_lt hi)), Nat.add_zero,
+      ite_eq_left (Nat.le_of_not_lt hi)]
 
 private theorem time_copy_round_le {R B : ℕ} (hR : 5 ≤ R) (tail : Program)
     (values : List ℕ) (m v : ℕ) (hB : 1 ≤ B)
@@ -265,10 +263,7 @@ theorem time_prepare_append_le {R b : ℕ} (hR : 5 ≤ R) (tail : Program) (inpu
   have hvalues (i : ℕ) : bitLength ((input.length :: input).getD i 0) ≤ b := by
     by_cases hi : i < (input.length :: input).length
     · rw [List.getD_eq_getElem _ 0 hi]
-      rcases List.mem_cons.mp (List.getElem_mem hi) with h | h
-      · rw [h]
-        exact hlen
-      · exact hinput _ h
+      exact (List.mem_cons.mp (List.getElem_mem hi)).elim (fun h => h.symm ▸ hlen) (hinput _)
     · rw [List.getD_eq_default _ 0 (by lia)]
       exact hb
   obtain ⟨v, hv⟩ := run_copy_loop hR tail (input.length :: input) (input.length + 1) 0

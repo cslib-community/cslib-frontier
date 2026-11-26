@@ -81,14 +81,10 @@ def checkClauses (φ : CNF V) : Bool :=
 
 theorem checkClauses_eq_true_iff (φ : CNF V) :
     checkClauses φ = true ↔ (∀ c ∈ φ, c.length ≤ 2) ∧ [] ∉ φ := by
-  rw [checkClauses, foldl_and_eq_and_all, Bool.true_and, List.all_eq_true]
-  simp only [isValidTwoClause]
-  constructor
-  · intro h
-    exact ⟨fun c hc => (of_decide_eq_true (h c hc)).2,
-      fun hnil => Nat.not_succ_le_zero 0 (of_decide_eq_true (h [] hnil)).1⟩
-  · rintro ⟨hw, hnil⟩ c hc
-    exact decide_eq_true ⟨List.length_pos_iff.2 fun h => hnil (h ▸ hc), hw c hc⟩
+  simp only [checkClauses, foldl_and_eq_and_all, Bool.true_and, List.all_eq_true,
+    isValidTwoClause, decide_eq_true_eq]
+  exact ⟨fun h => ⟨fun c hc => (h c hc).2, fun hnil => by simpa using (h [] hnil).1⟩,
+    fun ⟨hw, hnil⟩ c hc => ⟨List.length_pos_iff.2 fun h => hnil (h ▸ hc), hw c hc⟩⟩
 
 /-- Enumerate both polarities `(v, false)` and `(v, true)` for each `v ∈ vs`. -/
 def literalList : List V → List (Literal V)
@@ -294,9 +290,7 @@ private theorem reach_iff_implies (hw : ∀ c ∈ φ, c.length ≤ 2) (hnil : []
     {ℓ ℓ' : Literal V} :
     Relation.ReflTransGen (Edge (implicationAdj φ)) ℓ ℓ' ↔
       Relation.ReflTransGen φ.Implies ℓ ℓ' := by
-  have hrel : Edge (implicationAdj φ) = φ.Implies :=
-    funext fun a => funext fun b => propext (edge_implicationAdj_iff hw hnil a b)
-  rw [hrel]
+  simp only [funext₂ fun a b => propext (edge_implicationAdj_iff hw hnil a b)]
 
 /-- **Completeness and characterization of `solve`**: when `vs` covers `V`, `(solve vs φ).isSome`
 holds if and only if every clause of `φ` has width at most `2` and `φ` is satisfiable. -/
@@ -368,11 +362,9 @@ private theorem satisfiable_toFinCNF_iff (φ : CNF ℕ) :
 /-- **Soundness of `solveNat`**: any returned assignment witnesses `φ ∈ Cslib.Complexity.TwoSAT`. -/
 theorem solveNat_eq_some {φ : CNF ℕ} {σ : ℕ → Bool} (h : solveNat φ = some σ) :
     (∀ c ∈ φ, c.length ≤ 2) ∧ φ.eval σ = true := by
-  simp only [solveNat, Option.map_eq_some_iff] at h
-  obtain ⟨σ₀, hσ₀, rfl⟩ := h
-  obtain ⟨hw, heval⟩ := solveFin_eq_some hσ₀
-  refine ⟨(width_toFinCNF_iff φ).1 hw, ?_⟩
-  simpa only [toFinCNF, CNF.eval_relabel, Function.comp_def] using heval
+  obtain ⟨σ₀, hσ₀, rfl⟩ := Option.map_eq_some_iff.1 h
+  exact (solveFin_eq_some hσ₀).imp (width_toFinCNF_iff φ).1
+    (by simpa only [toFinCNF, CNF.eval_relabel, Function.comp_def] using ·)
 
 /-- **Exact equivalence with `Cslib.Complexity.TwoSAT`**. -/
 theorem isSome_solveNat_iff (φ : CNF ℕ) :

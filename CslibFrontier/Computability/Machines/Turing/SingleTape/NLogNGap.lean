@@ -93,9 +93,7 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
         (tm.absInit (w.map ι)).crossings ((b + (j - i) : ℕ) : ℤ) (T w.length)) := by
   obtain ⟨hw, -⟩ := hdec.absRun w
   obtain ⟨hw', -⟩ := hdec.absRun (w.take i ++ w.drop j)
-  have e₁ : w.map ι = (w.take i).map ι ++ (w.drop i).map ι := by
-    rw [← List.map_append, List.take_append_drop]
-  have e₂ : w.map ι = (w.take j).map ι ++ (w.drop j).map ι := by
+  have e (k : ℕ) : w.map ι = (w.take k).map ι ++ (w.drop k).map ι := by
     rw [← List.map_append, List.take_append_drop]
   have l₁ : ((w.take i).map ι).length = i :=
     (List.length_map _).trans (List.length_take_of_le (hij.le.trans hj))
@@ -103,18 +101,18 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
   have hne : (w.take i).map ι = [] ↔ (w.take j).map ι = [] := by
     simp only [← List.length_eq_zero_iff, l₁, l₂]; omega
   have hL : ((tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).run (T w.length)).state =
-      none := e₁ ▸ hw
+      none := e i ▸ hw
   have hR : ((tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).run (T w.length)).state =
-      none := e₂ ▸ hw
+      none := e j ▸ hw
   have hx : (tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).crossings
       ((w.take i).map ι).length (T w.length) =
       (tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).crossings
       ((w.take j).map ι).length (T w.length) := by
-    rwa [← e₁, ← e₂, l₁, l₂]
+    rwa [← e i, ← e j, l₁, l₂]
   obtain ⟨hC, hcL, hcR, -⟩ := cut_and_paste_run hne hL hR hx
   rw [← List.map_append] at hC hcL hcR
-  rw [← e₁] at hcL
-  rw [← e₂] at hcR
+  rw [← e i] at hcL
+  rw [← e j] at hcR
   have heq (b : ℤ) : (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b
       (T (w.take i ++ w.drop j).length) =
       (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b (T w.length + T w.length) :=
@@ -142,11 +140,9 @@ private lemma crossings_ne_of_minimal (hdec : tm.DecidesByHeadInTime ι L yes T)
   have hshort : (w.take i ++ w.drop j).length < w.length := by omega
   rcases hb with hb | hb
   · have h' := hmin _ hshort b hb1 (by omega)
-    rw [hcL b hb] at h'
-    omega
+    rw [hcL b hb] at h'; omega
   · have h' := hmin _ hshort (b - (j - i)) (by omega) (by omega)
-    rw [hcR (b - (j - i)) (by omega), show b - (j - i) + (j - i) = b by omega] at h'
-    omega
+    rw [hcR (b - (j - i)) (by omega), Nat.sub_add_cancel (by omega)] at h'; omega
 
 /-- If the crossing sequences of a run during `t` steps at the boundaries in `S` are pairwise
 distinct, then `|S| ⌊(⌊log₂ |S|⌋ - 1) / d⌋ ≤ 2 t`, where `d = ⌈log₂ (|Q| + 2)⌉`. -/
@@ -273,17 +269,12 @@ theorem isRegular_of_isLittleO (hdec : tm.DecidesByHeadInTime ι L yes T)
     have hpos : (1 : ℝ) ≤ (Nat.log 2 n : ℝ) := by exact_mod_cast Nat.log_pos one_lt_two hn2
     calc Real.log n ≤ Real.log ((2 : ℝ) ^ (Nat.log 2 n + 1)) :=
           Real.log_le_log (by positivity) (by exact_mod_cast hlt.le)
-      _ = ((Nat.log 2 n : ℝ) + 1) * Real.log 2 := by
-          rw [Real.log_pow]
-          push_cast
-          ring
+      _ = ((Nat.log 2 n : ℝ) + 1) * Real.log 2 := by simp [Real.log_pow]
       _ ≤ 2 * Real.log 2 * (Nat.log 2 n : ℝ) := by nlinarith
   have key : (8 * d * T n : ℝ) ≤ n * (Nat.log 2 n : ℝ) :=
     calc (8 * d * T n : ℝ) ≤ 8 * d * (1 / (16 * d * Real.log 2) * (n * Real.log n)) := by
           gcongr
-      _ = n * Real.log n / (2 * Real.log 2) := by
-          field_simp
-          ring
+      _ = n * Real.log n / (2 * Real.log 2) := by field_simp; ring
       _ ≤ n * (2 * Real.log 2 * (Nat.log 2 n : ℝ)) / (2 * Real.log 2) := by gcongr
       _ = n * (Nat.log 2 n : ℝ) := by
           field_simp

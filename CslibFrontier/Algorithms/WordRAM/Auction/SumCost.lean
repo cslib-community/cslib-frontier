@@ -170,8 +170,8 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
           s₀.mem (ws.bC + (st.idx * ws.n + s₀.mem (ws.outBase + 1 + st.idx))) =
             (inst.n + 1) * C_unsc (i₀, j₀) := by
         rw [hj_mem, hn]; exact hC_mem i₀ j₀
-      have hdiv : ((inst.n + 1) * C_unsc (i₀, j₀)) / ws.scale = C_unsc (i₀, j₀) := by
-        rw [hscale]; exact Nat.mul_div_right _ (Nat.succ_pos inst.n)
+      have hdiv : ((inst.n + 1) * C_unsc (i₀, j₀)) / ws.scale = C_unsc (i₀, j₀) :=
+        hscale.symm ▸ Nat.mul_div_right _ (Nat.succ_pos inst.n)
       have hacc_next_le : st.acc + C_unsc (i₀, j₀) ≤ (st.idx + 1) * (2 * ws.M) := by
         rw [Nat.add_mul, one_mul]
         exact Nat.add_le_add hacc_le (hC_unsc_le (i₀, j₀))
@@ -193,13 +193,10 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         dsimp only
         exact validHistory_read_bind (by omega)
           (validHistory_read_bind (by rw [hj_mem]; omega) (validHistory_pure w _ _))
-      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 := by
-        unfold sumScaledStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_read_bind_le fun _ _ => Nat.le_refl 0
+      have hmc : memoryCost (sumScaledStep (ws, st)) s₀ ≤ 2 :=
+        memoryCost_read_bind_le fun _ _ => memoryCost_read_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s₀ (sumScaledStep (ws, st)) = s₀ := by
-        unfold sumScaledStep
-        rw [clientState_bind_read, clientState_bind_read, clientState_pure]
+        rw [sumScaledStep, clientState_bind_read, clientState_bind_read, clientState_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
       unfold sumScaledStep
       rw [clientResult_bind_read, clientResult_bind_read, clientResult_pure]
@@ -243,12 +240,9 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
       exact hmc_it.trans_eq (by rw [hn]) }
   · rw [clientResult_bind, hs_it, ← hres]
     dsimp only
+    rw [apply_ite ((Memory.spec 0).clientResult s₀), clientResult_pure, clientResult_pure, hn]
     unfold Instance.encodedMinCost Signed.encode
-    rw [hn]
-    split_ifs
-    all_goals
-      simp only [clientResult_pure]
-      omega
+    split_ifs <;> omega
 
 end
 

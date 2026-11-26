@@ -77,20 +77,17 @@ theorem SlpN.snoc {p : ℕ} {H : Set (Inp → ℕ)} (h : SlpN inp p H) (f : Inp 
       ∀ (x : Inp) (a b : Fin D), (a : ℕ) = h1 x → (b : ℕ) = h2 x → f x = φ a b) :
     SlpN inp (p + 1) (insert (fun x => (f x : ℕ)) H) := by
   obtain ⟨P, hP⟩ := h
-  have step : ∃ line : Line (fullSignature 2 (Fin D)) n p, ∀ x,
+  have ⟨line, hline⟩ : ∃ line : Line (fullSignature 2 (Fin D)) n p, ∀ x,
       line.eval fullInterpretation (fun i => inp i x)
         (P.eval fullInterpretation (fun i => inp i x)) = f x := by
     rcases hf with ⟨i, rfl⟩ | ⟨c, rfl⟩ | ⟨h1, hh1, h2, hh2, φ, hφ⟩
     · exact ⟨⟨.fn fun a => a 0, (![Wire.input i, Wire.input i] : Fin 2 → Wire n p)⟩,
-        fun x => rfl⟩
-    · exact ⟨⟨.con c, Fin.elim0⟩, fun x => by simp [Line.eval, fullInterpretation]⟩
+        fun _ => rfl⟩
+    · exact ⟨⟨.con c, Fin.elim0⟩, fun _ => rfl⟩
     · obtain ⟨k1, hk1⟩ := hP h1 hh1
       obtain ⟨k2, hk2⟩ := hP h2 hh2
-      refine ⟨⟨.fn fun a => φ (a 0) (a 1), (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩,
-        fun x => ?_⟩
-      simp only [Line.eval, fullInterpretation]
-      exact (hφ x _ _ (hk1 x) (hk2 x)).symm
-  obtain ⟨line, hline⟩ := step
+      exact ⟨⟨.fn fun a => φ (a 0) (a 1), (![Wire.gate k1, Wire.gate k2] : Fin 2 → Wire n p)⟩,
+        fun x => (hφ x _ _ (hk1 x) (hk2 x)).symm⟩
   refine ⟨.gate P line, fun g hg => ?_⟩
   rcases Set.mem_insert_iff.1 hg with rfl | hg
   · exact ⟨Fin.last p, fun x => by rw [Program.eval_gate_last, hline]⟩
@@ -166,9 +163,7 @@ theorem SlpN.inputs (inp : Fin n → Inp → Fin D) :
   · obtain ⟨P, hP⟩ := exists_program_of_isSlpStep (p := n) inp
       (fun k => if h : k < n then inp ⟨k, h⟩ else inp ⟨0, hn⟩) fun k hk =>
         Or.inl ⟨⟨k, hk⟩, by simp [hk]⟩
-    refine ⟨P, ?_⟩
-    rintro _ ⟨i, rfl⟩
-    exact ⟨i, fun x => by rw [hP i x]; simp⟩
+    exact ⟨P, fun _ ⟨i, hf⟩ => ⟨i, fun x => by simp [← hf, hP i x]⟩⟩
 
 /-- A program with `p` gates on `n` inputs gives a list of `n + p` steps, inputs first, in which
 every function that the program computes is a step. -/
@@ -221,8 +216,7 @@ theorem SlpN.stage (hD : 0 < D)
     (f : κ → Inp → ℕ) (c : ℕ) (hf : ∀ i, Cost D H c (f i)) :
     SlpN inp (p + Fintype.card κ * c) (H ∪ Set.range f) := by
   classical
-  have : ∀ s : Finset κ, SlpN inp (p + s.card * c) (H ∪ f '' (s : Set κ)) := by
-    intro s
+  have (s : Finset κ) : SlpN inp (p + s.card * c) (H ∪ f '' (s : Set κ)) := by
     induction s using Finset.induction_on with
     | empty => simpa using h
     | insert i s hi ih =>
@@ -230,9 +224,8 @@ theorem SlpN.stage (hD : 0 < D)
       refine ((hf i).run hD Set.subset_union_left ih).mono ?_
       rintro g (hg | ⟨j, hj, rfl⟩)
       · exact Set.mem_insert_of_mem _ (Or.inl hg)
-      · rcases mem_insert.mp (mem_coe.mp hj) with rfl | h
-        · exact Set.mem_insert _ _
-        · exact Set.mem_insert_of_mem _ (Or.inr ⟨j, mem_coe.mpr h, rfl⟩)
+      · exact (mem_insert.mp (mem_coe.mp hj)).elim (fun h => h ▸ Set.mem_insert _ _) fun h =>
+          Set.mem_insert_of_mem _ (Or.inr ⟨j, mem_coe.mpr h, rfl⟩)
   simpa only [coe_univ, Set.image_univ, card_univ] using this univ
 
 namespace Cost

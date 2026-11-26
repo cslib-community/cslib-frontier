@@ -121,10 +121,7 @@ theorem nodup_getChildren (S : State n) (p : ℕ) : (getChildren S p).Nodup := b
 /-- The number of listed children is the degree. -/
 theorem length_getChildren (S : State n) (p : ℕ) : (getChildren S p).length = S.deg p := by
   rw [← List.toFinset_card_of_nodup (nodup_getChildren S p)]
-  unfold SemiCircuit.deg
-  congr 1
-  ext N
-  rw [List.mem_toFinset, mem_getChildren]
+  exact congrArg Finset.card (Finset.ext fun _ => List.mem_toFinset.trans mem_getChildren)
 
 /-- A parameter of degree at least `1` has a listed child. -/
 theorem exists_getChildren_cons {S : State n} {p : ℕ} (h : 1 ≤ S.deg p) :
@@ -326,11 +323,10 @@ private theorem auxArg_le_one (S : State n) (a : Arg) : S.auxArg a ≤ 1 := by
 private theorem minAuxIn_le (S : State n) :
     (if h : S.gates.Nonempty then S.auxIn (S.gates.min' h) else 0) ≤ 2 := by
   split_ifs with h
-  · unfold auxIn
-    have := auxArg_le_one S (S.gate (S.gates.min' h)).left
+  · have := auxArg_le_one S (S.gate (S.gates.min' h)).left
     have := auxArg_le_one S (S.gate (S.gates.min' h)).right
-    omega
-  · omega
+    dsimp only [auxIn]; omega
+  · exact Nat.zero_le 2
 
 /-- A step of the refuter: a gate-elimination step adding no gate, or a preparatory operation
 that removes a gate or keeps the gates and lowers the auxiliary inputs of the minimal gate. -/
@@ -376,8 +372,7 @@ theorem RefuterStep.spec {S S' : State n} (h : RefuterStep f S S') :
 
 private theorem deleteGate_gates_subset (S : State n) (J : ℕ) (ℓ : Lit) :
     (S.deleteGate J ℓ).gates ⊆ S.gates := by
-  rw [deleteGate_gates]
-  exact Finset.erase_subset _ _
+  simpa only [deleteGate_gates] using Finset.erase_subset J S.gates
 
 private theorem refuterStep_deleteConstantGate {S : State n} (hS : S.Valid f) {J : ℕ}
     (h : findD1 S = some J) : RefuterStep f S (applyStep S (.deleteConstantGate J)) := by
@@ -584,15 +579,12 @@ private theorem refuterStep_andOnPair {S : State n} (hS : S.Valid f) {u G p : �
 /-- A non-degenerate gate reads two distinct internal values. -/
 private theorem exists_args_of_not_degenerate {g : Gate} (hg : ¬ g.Degenerate) :
     ∃ u v, g.left = .node u ∧ g.right = .node v ∧ u ≠ v := by
-  unfold Gate.Degenerate at hg
-  push Not at hg
-  obtain ⟨hl, hr, hne⟩ := hg
+  obtain ⟨hl, hr, hne⟩ := by simpa only [Gate.Degenerate, not_or, not_exists] using hg
   rcases hgl : g.left with c | u
   · exact absurd hgl (hl c)
   rcases hgr : g.right with c | v
   · exact absurd hgr (hr c)
-  refine ⟨u, v, rfl, rfl, fun he => hne ?_⟩
-  rw [hgl, hgr, he]
+  exact ⟨u, v, rfl, rfl, fun he => hne (hgl.trans (he ▸ hgr.symm))⟩
 
 private theorem refuterStep_swapAuxIn {S : State n} (hS : S.Valid f) (hD1 : findD1 S = none)
     (hPIS : findPairInSystem S = none) (hne : S.gates.Nonempty)
@@ -710,12 +702,10 @@ theorem refuterLoop_valid {n} {f : BooleanFunction n} {S : State n}
     (refuterLoop S fuel).a ≤ S.a := by
   fun_induction refuterLoop S fuel with
   | case1 S => -- fuel exhausted
-    have hnone : chooseStep? S = none := by
-      rcases hc : chooseStep? S with _ | c
-      · rfl
-      · have := (refuterStep_applyStep hS hc).spec.1
-        omega
-    exact ⟨hnone, hS, le_rfl, le_rfl⟩
+    refine ⟨?_, hS, le_rfl, le_rfl⟩
+    rcases hc : chooseStep? S with _ | c
+    · rfl
+    · exact absurd (refuterStep_applyStep hS hc).spec.1 (by omega)
   | case2 S k c hc ih => -- chooseStep? S = some c: step and recurse
     obtain ⟨hlt, hS', hpot, ha⟩ := (refuterStep_applyStep hS hc).spec
     obtain ⟨h1, h2, h3, h4⟩ := ih hS' (by omega)

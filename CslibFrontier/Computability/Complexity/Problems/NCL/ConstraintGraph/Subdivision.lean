@@ -127,11 +127,8 @@ private theorem legal_abs (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ 
   (sat_vertex_enc n (G v) (abs n s)).1 <| Vertex.Sat.mono (s := s) (fun p hp hin => by
     rcases List.mem_map.mp hp with ⟨⟨⟨e, false | true⟩, _⟩, _, rfl⟩
     · exact hin
-    · have hle : s (last n e) ≤ s (first n e) := segment_le_first G n w hw hs e (Fin.last (n e))
-      change s (last n e) = true at hin
-      change s (first n e) = true
-      rw [hin] at hle
-      exact Bool.eq_true_of_true_le hle)
+    · exact Bool.eq_true_of_true_le
+        ((le_of_eq hin.symm).trans (segment_le_first G n w hw hs e (Fin.last (n e)))))
     (hs (.inl v))
 
 private theorem abs_enc (n : E → ℕ) (s : E → Bool) : abs n (enc n s) = s := rfl
@@ -218,9 +215,8 @@ private theorem step_abs (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀ e
   · obtain rfl : j = 0 := Fin.ext hj
     exact .single ⟨legal_abs G n w hw hs, legal_abs G n w hw ht, e,
       reverse_comp_of_injective (first_injective n) s e⟩
-  · have heq : abs n (reverse s ⟨e, j⟩) = abs n s :=
-      reverse_comp_of_not_mem_range s fun _ h => hj (congrArg (·.2.val) h).symm
-    rw [heq]
+  · change Relation.ReflGen G.Step (s ∘ first n) (reverse s ⟨e, j⟩ ∘ first n)
+    rw [reverse_comp_of_not_mem_range s fun _ h => hj (congrArg (·.2.val) h).symm]
 
 private def ramp (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ) : Segment n → Bool :=
   fun i => if i.1 = e then decide (i.2.val < k) else s i.1
@@ -271,10 +267,7 @@ private theorem legal_ramp (G : ConstraintGraph V E) (n w : E → ℕ) (hw : ∀
 private theorem ramp_zero (n : E → ℕ) (s : E → Bool) (e : E) (he : s e = false) :
     ramp n s e 0 = enc n s := by
   funext ⟨f, _⟩
-  by_cases hf : f = e
-  · subst hf
-    simp [ramp, enc, he]
-  · simp [ramp, enc, hf]
+  by_cases hf : f = e <;> simp [ramp, enc, hf, he]
 
 private theorem ramp_end (n : E → ℕ) (s : E → Bool) (e : E) (he : s e = false) :
     ramp n s e (n e + 1) = enc n (reverse s e) := by
@@ -294,7 +287,7 @@ private theorem ramp_succ (n : E → ℕ) (s : E → Bool) (e : E) (k : ℕ)
     · obtain rfl : j = ⟨k, hk⟩ := Fin.ext hj
       simp [ramp, reverse_self]
     · rw [reverse_of_ne _ fun h => hj (congrArg (·.2.val) h)]
-      simp only [ramp, ite_true, show (j.val < k + 1) = (j.val < k) from propext (by omega)]
+      simp only [ramp, ↓reduceIte, Nat.lt_succ_iff, le_iff_lt_or_eq, hj, or_false]
   · rw [reverse_of_ne _ fun h => hf (congrArg Sigma.fst h)]
     simp [ramp, hf]
 

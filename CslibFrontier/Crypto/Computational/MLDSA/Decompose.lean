@@ -127,17 +127,12 @@ theorem intCast_power2Round_high_mul_add_low [NeZero q] (r : ZMod q) :
 theorem power2Round_low_mem_Ioc (hd : 0 < d) (r : ZMod q) :
     (power2Round q d r).2 ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ) := by
   have : NeZero (2 ^ d) := ⟨by positivity⟩
-  have h := ZMod.valMinAbs_mem_Ioc (((r.val : ℤ) : ZMod (2 ^ d)))
+  have h := Set.mem_Ioc.mp (ZMod.valMinAbs_mem_Ioc ((r.val : ℤ) : ZMod (2 ^ d)))
   have hpow : (2 : ℕ) ^ d = 2 * 2 ^ (d - 1) := by
-    cases d with
-    | zero => omega
-    | succ d => simp [pow_succ']
-  change power2Rem q d r * 2 ∈ Set.Ioc (-((2 ^ d : ℕ) : ℤ)) ((2 ^ d : ℕ) : ℤ) at h
-  change power2Rem q d r ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ)
-  simp only [Set.mem_Ioc] at h ⊢
-  rw [hpow] at h
-  push_cast at h
-  omega
+    conv_lhs => rw [← Nat.sub_add_cancel hd, pow_succ']
+  simp only [hpow, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow] at h
+  dsimp only [power2Round]
+  exact ⟨by omega, by omega⟩
 
 /-- The low output of `Power2Round` has magnitude at most `2^(d-1)`. -/
 theorem abs_power2Round_low_le (hd : 0 < d) (r : ZMod q) :
@@ -213,11 +208,9 @@ private theorem decompose_of_not_wrap {r : ZMod q}
 /-- The low bits are short: `|LowBits r| ≤ γ₂`. -/
 theorem abs_lowBits_le (hγ : 0 < γ₂) (r : ZMod q) : |lowBits q γ₂ r| ≤ γ₂ := by
   obtain ⟨h₁, h₂⟩ := centeredRem_bounds (q := q) hγ r
-  by_cases h : (r.val : ℤ) - centeredRem q γ₂ r = (q : ℤ) - 1
-  · rw [lowBits, decompose_of_wrap h, abs_le]
-    constructor <;> linarith
-  · rw [lowBits, decompose_of_not_wrap h, abs_le]
-    constructor <;> linarith
+  dsimp only [centeredRem] at h₁ h₂
+  simp only [lowBits, decompose]
+  split_ifs <;> exact abs_le.mpr ⟨by omega, by omega⟩
 
 /-- **Reconstruction.** `r = HighBits r · 2 γ₂ + LowBits r` in `ℤ_q`. -/
 theorem intCast_highBits_mul_add_lowBits [NeZero q] (r : ZMod q) :
@@ -328,22 +321,16 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
       Int.mul_ediv_cancel _ (by positivity)]
   · -- Then `a = 0` and `-γ₂ < b < 0`: the representative is `q + b`, the wrap-around case.
     have hx : a * (2 * γ₂) + b < 0 := lt_of_not_ge hx
-    have ha0 : a = 0 := by
+    obtain rfl : a = 0 := by
       by_contra hne
-      have h1 : 1 ≤ a := by omega
-      have : (2 * γ₂ : ℤ) ≤ a * (2 * γ₂) := by nlinarith
-      linarith
-    subst ha0
-    have hb0 : b < 0 := by linarith
+      have : 1 ≤ a := by omega
+      nlinarith
     have hv : (r.val : ℤ) = b + q := by
       have hmod : (b + q) % q = b % q := by simp
-      rw [hval, zero_mul, zero_add, ← hmod]
-      exact Int.emod_eq_of_lt (by linarith) (by linarith)
+      rw [hval, zero_mul, zero_add, ← hmod, Int.emod_eq_of_lt (by linarith) (by linarith)]
     have hr₀ : centeredRem q γ₂ r = b + 1 :=
       centeredRem_eq hγ (by linarith) (by linarith) ⟨m, by rw [hv, hqm, hcast]; ring⟩
-    have hw : (r.val : ℤ) - centeredRem q γ₂ r = (q : ℤ) - 1 := by
-      rw [hv, hr₀]
-      ring
+    have hw : (r.val : ℤ) - centeredRem q γ₂ r = (q : ℤ) - 1 := by linarith
     rw [decompose_of_wrap hw, hr₀, add_sub_cancel_right]
 
 /-- Uniqueness, high-bits component. -/

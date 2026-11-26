@@ -88,10 +88,8 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
   have hR : R.Nonempty := by
     obtain ⟨y, hy⟩ := weightLayer_nonempty hbN
     have hy' : weight y = b := mem_weightLayer.1 hy
-    have : 0 < #{x : BitString N | x ≤ y ∧ weight x = a} := by
-      rw [card_filter_le_and_weight_eq, hy']
-      exact Nat.choose_pos hab.le
-    obtain ⟨x, hx⟩ := card_pos.1 this
+    obtain ⟨x, hx⟩ := card_pos.1 (((card_filter_le_and_weight_eq y a).trans
+      (congrArg (Nat.choose · a) hy')).symm ▸ Nat.choose_pos hab.le)
     obtain ⟨hxy, hxa⟩ := (mem_filter.1 hx).2
     exact ⟨(x, y), hmemR.2 ⟨hxa, hy', hxy⟩⟩
   have hδR : ∀ p ∈ R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ := fun p hp => by
@@ -120,8 +118,7 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
     obtain ⟨h1, h2, h12⟩ := hmemR.1 hp
     obtain ⟨hp1, hp2⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (h12 i) hi)
     refine Nat.mul_le_mul ?_ ?_
-    · have hw : weight (update p.1 i true) = a + 1 := by rw [weight_update_true hp1, h1]
-      rw [show N - a - 1 = N - weight (update p.1 i true) by omega, ← card_ge _]
+    · rw [Nat.sub_sub, ← h1, ← weight_update_true hp1, ← card_ge _]
       refine card_le_card_of_injOn Prod.snd (fun q hq => ?_) fun q hq r hr h =>
         Prod.ext ((mem_filter.1 hq).2.2.trans (mem_filter.1 hr).2.2.symm) h
       obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
@@ -129,10 +126,7 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
       obtain ⟨-, hqi2⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (hq12 i) hqi)
       exact mem_filter.2 ⟨mem_univ _,
         update_le_iff.2 ⟨hqi2.ge, fun j _ => (congrFun hq1 j).ge.trans (hq12 j)⟩, hq2⟩
-    · have hw : weight (update p.2 i false) = b - 1 := by
-        have := weight_update_false hp2
-        omega
-      rw [show b - 1 = weight (update p.2 i false) from hw.symm,
+    · rw [← Nat.eq_sub_of_add_eq ((weight_update_false hp2).trans h2),
         ← card_filter_le_and_weight_eq]
       refine card_le_card_of_injOn Prod.fst (fun q hq => ?_) fun q hq r hr h =>
         Prod.ext h ((mem_filter.1 hq).2.2.trans (mem_filter.1 hr).2.2.symm)
@@ -223,13 +217,11 @@ theorem one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight {ψ₀ : State N W}
   have hc := one_sub_two_mul_sqrt_nonneg ε
   set a := min k k' with ha
   set b := max k k' with hb
-  have hab : a ≤ b := min_le_max
-  have hbN : b ≤ N := max_le hk hk'
   have habs : |(k : ℝ) - k'| = b - a := by
     rw [ha, hb, Nat.cast_max, Nat.cast_min, max_sub_min_eq_abs']
   rw [habs] at hmain ⊢
-  have haR : (a : ℝ) ≤ b := by exact_mod_cast hab
-  have hbR : (b : ℝ) ≤ N := by exact_mod_cast hbN
+  have haR : (a : ℝ) ≤ b := by exact_mod_cast (min_le_max : a ≤ b)
+  have hbR : (b : ℝ) ≤ N := by exact_mod_cast max_le hk hk'
   have hmR : (a : ℝ) ≤ m := by exact_mod_cast hm
   have hmR' : (m : ℝ) ≤ b := by exact_mod_cast hm'
   have h₁' : √(N * ((b : ℝ) - a)) ≤ √((N - a) * b) :=

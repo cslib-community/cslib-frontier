@@ -344,7 +344,6 @@ private theorem eval_signingOracle_take_eq_targetForger_runLog_of
   symm
   refine ProbOracleComp.runWith_map_state _ _ (fun acc => (acc.map (fun e => tag e.1)).reverse)
     (fun req acc => ?_) prog log
-  dsimp only
   simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
     SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, ↓reduceIte,
     ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure, pmf_norm, PMF.map,
@@ -399,10 +398,9 @@ theorem eval_eufCmaGame_targetForgerWord_eq (S : WordSignatureScheme)
   change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (SignatureScheme.signingOracleOf S.sign sk)) _).run []))).bind _ = _
-  have hrun := eval_signingOracle_take_eq_targetForger_runLog_of Decoder.bits S.sign sk
-    (target n ck) id (sigBound n) (hbound n pk sk hkeys) (A n (encWordPair (pk, ck))) [] [] rfl
-  dsimp only [id_eq] at hrun
-  rw [hrun]
+  rw [eval_signingOracle_take_eq_targetForger_runLog_of Decoder.bits S.sign sk
+    (target n ck) (fun x => x) (sigBound n) (hbound n pk sk hkeys)
+    (A n (encWordPair (pk, ck))) [] [] rfl]
   simp only [PMF.bind_map, Function.comp_def, freshMessage, List.contains_reverse]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨tok, log⟩ _ => ?_
   simp [Bool.and_comm]
@@ -565,14 +563,11 @@ theorem eval_runExtractedWord_eq {Message : Type} {encM : Message ↪ List Bool}
   simp only [runExtractedWord, runExtracted, WordSignatureScheme.toScheme_keyGen,
     WordSignatureScheme.toScheme_sign, ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ _ => ?_
-  dsimp only
-  congr 1
   simp only [WordExtractedForgerOf.toTyped, WordExtractedForgerOf.atKey, ProbOracleComp.runLog,
-    ProbOracleComp.runState]
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith,
+    ProbOracleComp.runState, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.simulate, OracleComp.substitute_eq_interpret,
     ProbOracleComp.runWith_interpret_sumHandler]
-  congr 1
+  congr 2
   funext q state
   rw [ProbOracleComp.runWith_query]
 
@@ -1072,11 +1067,7 @@ private theorem computableInPolyTime_requestOutputPayload :
       (fun r : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) =>
         (⟨⟨r.nullifier, r.ctx, r.amount, 0⟩, r.opening⟩ :
           Payload (Credit.Note (List Bool) (List Bool)) (List Bool)))
-      encIssueRequest encNotePayload := by
-    have h0 : ComputableInPolyTime
-        (fun _ : IssueRequest (List Bool) (List Bool) (List Bool) (List Bool) => (0 : ℕ))
-        encIssueRequest encNat := ComputableInPolyTime.const 0
-    fun_prop
+      encIssueRequest encNotePayload := by fun_prop
   have hsp : ComputableInPolyTime
       (fun s : SpendRequest (List Bool) (List Bool) (List Bool) (List Bool) (List Bool) =>
         (⟨⟨s.newNullifier, s.ctx, s.newCredit, s.refund⟩, s.newOpening⟩ :
@@ -1215,12 +1206,8 @@ private theorem computableInPolyTime_hasSpentNullifier :
       (ComputableInPolyTime.snd (encPair encRequestLog encWordPair) encWordRequest)
       (ComputableInPolyTime.const false) hr
       fun q => by cases q.2 <;> rfl
-  refine (ComputableInPolyTime.anyWithInput (encA := encWordRequest) hlist htest).of_enc_eq
-    fun p => congrArg encBool ?_
-  simp only [hasSpentNullifier]
-  congr 1
-  funext r
-  cases r <;> rfl
+  exact (ComputableInPolyTime.anyWithInput (encA := encWordRequest) hlist htest).of_enc_eq
+    fun ⟨reqs, _⟩ => congrArg (fun f => encBool (reqs.any f)) (funext fun r => by cases r <;> rfl)
 
 private theorem computableInPolyTime_acceptRequest
     (com : ℕ → List Bool → List Bool → List Bool → ℕ → List Bool → List Bool)
@@ -1840,15 +1827,11 @@ theorem eval_commitmentBindingReductionWord_eq {K : Type} (S : WordSignatureSche
     ProbComp.eval (commitmentBindingReductionWord sigBound com tag S A n ck) =
       ProbComp.eval (Conservation.commitmentBindingReduction (com n ck)
         (pairScheme S tag n) (A.toTyped n ck) k) := by
-  rw [Conservation.commitmentBindingReduction_eq]
-  simp only [commitmentBindingReductionWord, bindingReductionWord,
-    bindingReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
-  rw [show noteTarget com tag = fun m c note opening =>
-      tag (com m c note.nullifier note.context note.credit opening) note.refund from rfl,
-    eval_runExtracted_noteForgerWord_eq S sigBound hbound com tag A n ck]
-  congr 1
-  funext run
-  exact congrArg _ (findBindingWitness_noteTarget_eq com tag htag n ck run.output.payload run.log)
+  simp only [Conservation.commitmentBindingReduction_eq, commitmentBindingReductionWord,
+    bindingReductionWord, bindingReduction, ProbComp.eval_map, PMF.map_comp, Function.comp_def,
+    findBindingWitness_noteTarget_eq com tag htag n ck]
+  exact congrArg (PMF.map _)
+    (eval_runExtracted_noteForgerWord_eq S sigBound hbound com tag A n ck)
 
 private theorem eval_targetForger_noteForgerWord_runState_eq (S : WordSignatureScheme)
     (sigBound : ℕ → ℕ → ℕ)
@@ -1875,8 +1858,7 @@ private theorem eval_targetForger_noteForgerWord_runState_eq (S : WordSignatureS
   rw [ProbOracleComp.eval_runState, ProbOracleComp.eval_runState, ProbOracleComp.simulate,
     OracleComp.substitute_eq_interpret, ProbOracleComp.interpret_simulate,
     ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  simp only [ProbOracleComp.interpret_query]
-  rw [ProbOracleComp.runWith_interpret_sumHandler, ProbOracleComp.runWith_interpret_sumHandler]
+  simp only [ProbOracleComp.interpret_query, ProbOracleComp.runWith_interpret_sumHandler]
   have h := eval_noteForgerWord_runState_eq S sigBound com tag A n ck pk sk hbound
     (fun msg sig acc => acc ++ [(Credit.target (com n ck) Prod.mk msg.message msg.opening, sig)]) []
   simp only [ProbOracleComp.eval_run_interpret_eq_runWith] at h

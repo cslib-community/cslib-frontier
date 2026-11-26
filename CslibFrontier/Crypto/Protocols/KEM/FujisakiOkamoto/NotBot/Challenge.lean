@@ -96,28 +96,26 @@ private theorem lookup_filter_ne (x y : α) (L : List (α × β)) (hy : y ≠ x)
   induction L with
   | nil => rfl
   | cons e L ih =>
-    obtain ⟨a, b⟩ := e
-    simp only [List.filter_cons]
-    split_ifs with ha
-    · by_cases hya : y = a <;> simp [List.lookup_cons, hya, ih]
-    · simp [List.lookup_cons, beq_eq_false_iff_ne.mpr ((by simpa using ha : a = x).symm ▸ hy), ih]
+    rcases e with ⟨a, b⟩
+    by_cases hax : a = x
+    · subst hax
+      simp [List.lookup_cons, beq_eq_false_iff_ne.mpr hy, ih]
+    · simp only [List.filter_cons, bne_iff_ne.mpr hax, ↓reduceIte, List.lookup_cons, ih]
 
 private theorem lookup_filter_self (x : α) (L : List (α × β)) :
     (L.filter (fun e => e.1 != x)).lookup x = none := by
   induction L with
   | nil => rfl
   | cons e L ih =>
-    obtain ⟨a, b⟩ := e
-    simp only [List.filter_cons]
-    split_ifs with ha
-    · simp [List.lookup_cons, beq_eq_false_iff_ne.mpr (by simpa [ne_comm] using ha), ih]
-    · exact ih
+    rcases e with ⟨a, b⟩
+    by_cases hax : a = x
+    · simp [hax, ih]
+    · simp [bne_iff_ne.mpr hax, List.lookup_cons, beq_eq_false_iff_ne.mpr (Ne.symm hax), ih]
 
 theorem lookup_ens (x : α) (v : β) (L : List (α × β)) (y : α) :
     (ens x v L).lookup y = if y = x then some v else L.lookup y := by
   by_cases hy : y = x
-  · subst hy
-    simp [ens, List.lookup_append, lookup_filter_self]
+  · simp [ens, hy, List.lookup_append, lookup_filter_self]
   · simp only [ens, List.lookup_append, lookup_filter_ne x y L hy, hy, ↓reduceIte]
     cases L.lookup y <;> simp [hy]
 
@@ -749,8 +747,7 @@ private theorem genHandler_presetState (S : Scheme PK SK M R CT K)
         hg, hd s.gCache c hc hs.1]
       cases d s.gCache c
       · simp only [Bool.false_eq_true, ↓reduceIte, PMF.pure_map]
-      · dsimp only [genHashHq]
-        simp only [↓reduceIte, PMF.map_comp]
+      · simp only [genHashHq, ↓reduceIte, PMF.map_comp]
         rw [← zoomMemoize_presetState SimState.hqCache (fun s c => { s with hqCache := c })
           (presetState mStar rStar cStar kq) cStar kq c _ _ s (S.eval_progHq cStar kq c)
           hs.2 rfl fun _ => rfl, PMF.map_comp]
@@ -1196,13 +1193,11 @@ theorem advantage_coupledGame_le [Fintype M] [Nonempty M] (S : Scheme PK SK M R 
       · simp only [hr, ↓reduceIte]
         exact fun e => (Probability.PMF.toOuterMeasure_le_one _ e).trans
           (le_add_left (le_add_right (le_add_right le_rfl)))
-    · have hH_eq : (∑' t, S.chalOuter t * OW (chalPick b t) true) = H := by
-        rw [hH, S.chalOuter4_bind_eq b, PMF.bind_apply]
-      have hE_eq : (∑' t, S.chalOuter t * fE t.1) = E := by
+    · have hE_eq : (∑' t, S.chalOuter t * fE t.1) = E := by
         rw [hE, ProbComp.expect, ← Cslib.Probability.PMF.tsum_map_mul S.chalOuter Prod.fst fE]
         simp only [chalOuter, PMF.map_bind, PMF.pure_map, PMF.bind_const, PMF.bind_pure]
       simp only [mul_add, tsum_add, mul_left_comm _ ((qG + qH : ℕ) : ℝ≥0∞), ENNReal.tsum_mul_left,
-        hH_eq, hE_eq]
+        ← PMF.bind_apply, ← S.chalOuter4_bind_eq b, ← hH, hE_eq]
       calc (∑' t, S.chalOuter t * fF t) + H + ((qG + qH : ℕ) : ℝ≥0∞) * E
         _ ≤ E + H + ((qG + qH : ℕ) : ℝ≥0∞) * E := by gcongr; exact S.tsum_chalOuter_fail_le
         _ = H + ((qG + qH + 1 : ℕ) : ℝ≥0∞) * E := by push_cast; ring

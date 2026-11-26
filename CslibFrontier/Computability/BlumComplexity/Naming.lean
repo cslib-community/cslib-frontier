@@ -580,13 +580,11 @@ private theorem key_ge_of_act {i : Code} {e a s : ℕ} (ha : a < s) (hae : act �
   omega
 
 private theorem le_key_hist (i : Code) (e s : ℕ) : e ≤ key (hist Φ i s) e s := by
-  unfold key
   cases h : lastAct (hist Φ i s) e s with
-  | none => change e ≤ 2 * e; omega
+  | none => simp only [key, h, Option.elim_none]; omega
   | some a =>
     have := act_le (lastAct_hist_eq_some.1 h).2.1
-    change e ≤ 2 * a + 1
-    omega
+    simp only [key, h, Option.elim_some]; omega
 
 private theorem Defd.unique {i : Code} {x z₁ z₂ : ℕ} (h₁ : Defd Φ i x z₁) (h₂ : Defd Φ i x z₂) :
     z₁ = z₂ := by
@@ -737,8 +735,7 @@ private theorem eventually_act_ne {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t n 
       by_contra hyN
       exact not_halts_of_triggers ht hy (hN y (by omega))
     exact hy' a' ha' (triggers_mono (hS₁ a ha y hyN (not_halts_of_triggers ht hy)) haa')
-  · push Not at hex
-    exact ⟨S₁, fun s hs => hex s hs⟩
+  · exact ⟨S₁, fun s hs hse => hex ⟨s, hs, hse⟩⟩
 
 private theorem name_eq_val {i : Code} {t' : ℕ → ℕ} (ht' : ∀ n, t' n ∈ Φ.name i n) {x z : ℕ}
     (hd : Defd Φ i x z) : t' x = val Φ i x z := by
@@ -779,9 +776,8 @@ private theorem eventually_lt_key_of_act (i : Code) (K : ℕ) :
         filter_upwards [eventually_gt_atTop a] with s hs _
         have := key_ge_of_act hs hae
         omega
-      · push Not at hex
-        filter_upwards [eventually_ge_atTop K] with s hs h
-        exact absurd h (hex s hs)
+      · filter_upwards [eventually_ge_atTop K] with s hs h
+        exact (hex ⟨s, hs, h⟩).elim
   filter_upwards [hfin] with s hs e'' he''
   by_cases hlt : e'' < K + 1
   · exact hs e'' hlt he''
@@ -805,8 +801,7 @@ private theorem quiet_eventually_const (i : Code) (K e' : ℕ) :
   by_cases hex : ∃ a, K ≤ a ∧ act Φ i a = some e'
   · obtain ⟨a, ha, hae⟩ := hex
     refine Or.inr ((eventually_gt_atTop a).mono fun s hs hq => ?_)
-    have := hq.1
-    have := key_ge_of_act hs hae
+    have := (key_ge_of_act hs hae).trans hq.1
     omega
   · push Not at hex
     have hst : ∀ s, K ≤ s → lastAct (hist Φ i s) e' s = lastAct (hist Φ i K) e' K :=
@@ -837,9 +832,7 @@ private theorem halts_of_eventually_quiet {i : Code} {t : ℕ → ℕ} (ht : ∀
   obtain ⟨s, hs, htr⟩ := ((eventually_ge_atTop y).and (eventually_triggers ht hny)).exists
   refine (hS₂ s (hy.trans hs)).2 ⟨y, by omega, htr, fun a ha hta => ?_⟩
   rw [lastAct_hist_stable (hy.trans hs) fun b hb _ => hna b hb] at ha
-  have := (lastAct_hist_eq_some.1 ha).1
-  have := hta.1
-  omega
+  exact (lastAct_hist_eq_some.1 ha).1.not_ge (hy.trans hta.1)
 
 /-- (C) If program `e` acts at only finitely many stages, then almost everywhere `e` halts within
 `t` exactly when it halts within the name. -/

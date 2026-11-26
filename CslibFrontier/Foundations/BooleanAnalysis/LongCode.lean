@@ -157,8 +157,9 @@ theorem IsOdd.fourierCoeff_of_even [Fintype α] [DecidableEq α] {B : (α → Bo
     fourierCoeff (fun f => signVal (B f)) S = 0 := by
   have h := fourierCoeff_comp_add (fun f => signVal (B f)) (fun _ => true) S
   simp only [hB _, signVal_not, chi_const_true, hS.neg_one_pow, one_mul] at h
-  rw [show (fun f => -signVal (B f)) = fun f => -1 * signVal (B f) from
-    funext fun _ => neg_one_mul _ |>.symm, fourierCoeff_const_mul] at h
+  have hneg : (fun f => -signVal (B f)) = fun f => -1 * signVal (B f) :=
+    funext fun _ => (neg_one_mul _).symm
+  rw [hneg, fourierCoeff_const_mul] at h
   linarith
 
 /-- **An odd function has zero empty Fourier coefficient**: its `±1` values at `f` and
@@ -253,14 +254,10 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
     rw [← sum_const_nat hfiber, sum_card_fiberwise_eq_card_filter]
     exact congrArg Finset.card (filter_true_of_mem hmaps)
   have hsum : (∑ h : α → Bool, φ (fun i => f i && h i)) = (#T : ℝ) * ∑ g ∈ S, φ g := by
-    rw [← sum_fiberwise_of_maps_to hmaps]
-    have hinner : ∀ g ∈ S,
-        (∑ h ∈ {h : α → Bool | (fun i => f i && h i) = g}, φ (fun i => f i && h i)) =
-          (#T : ℝ) * φ g := by
-      intro g hg
-      rw [sum_congr rfl (fun h hh => congrArg φ (mem_filter.1 hh).2), sum_const, hfiber g hg,
-        nsmul_eq_mul]
-    rw [sum_congr rfl hinner, ← mul_sum]
+    rw [← sum_fiberwise_of_maps_to hmaps, mul_sum]
+    refine sum_congr rfl fun g hg => ?_
+    rw [sum_congr rfl fun h hh => congrArg φ (mem_filter.1 hh).2, sum_const, hfiber g hg,
+      nsmul_eq_mul]
   have hT0 : (#T : ℝ) ≠ 0 := by
     have h0 : (0 : α → Bool) ∈ T := mem_filter.2 ⟨mem_univ _, fun _ => Bool.false_le _⟩
     exact Nat.cast_ne_zero.2 (card_pos.2 ⟨0, h0⟩).ne'
@@ -273,9 +270,8 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
 theorem longCodeSubcubeProb_eq_expect_filter_le (B : (α → Bool) → Bool) :
     longCodeSubcubeProb B =
       𝔼 f : α → Bool, 𝔼 g ∈ ({g : α → Bool | ∀ i, g i ≤ f i} : Finset (α → Bool)),
-        bitVal ℝ (B f || !B g) := by
-  exact expect_congr rfl fun f _ =>
-    expect_and_eq_expect_filter_le f fun g => bitVal ℝ (B f || !B g)
+        bitVal ℝ (B f || !B g) :=
+  expect_congr rfl fun f _ => expect_and_eq_expect_filter_le f fun g => bitVal ℝ (B f || !B g)
 
 /-- Averaging `chi ℝ S (fun i => f i && h i)` over independent uniform `f, h : α → Bool` yields
 `(1 / 2) ^ #S`, the probability that `f` vanishes on `S`. -/
@@ -350,23 +346,18 @@ theorem longCodeSubcubeProb_le_of_linear {B : (α → Bool) → Bool}
   refine longCodeSubcubeProb_hadamardCode_le ?_
   obtain ⟨x, hx⟩ : ∃ x, s x = true := by
     by_contra! h
-    have hs : s = 0 := funext fun x => Bool.eq_false_iff.2 (h x)
-    exact hB0 (hs ▸ funext zero_dotProduct)
+    exact hB0 (funext (fun x => Bool.eq_false_iff.2 (h x)) ▸ funext zero_dotProduct)
   obtain ⟨y, hyx, hy⟩ : ∃ y, y ≠ x ∧ s y = true := by
     by_contra! h
-    apply hnotLC x
+    refine hnotLC x ?_
     rw [longCode_eq_hadamardCode]
-    congr 1
-    funext y
-    by_cases hyx : y = x
-    · subst hyx
-      simp [hx]
-    · simp [Pi.single_eq_of_ne hyx, Bool.zero_eq_false, Bool.eq_false_iff.2 (h y hyx)]
+    refine congrArg hadamardCode (funext fun y => ?_)
+    rcases eq_or_ne y x with rfl | hyx
+    · simp [hx]
+    · simp [Pi.single_eq_of_ne hyx, Bool.zero_eq_false, h y hyx]
   rw [← card_pair hyx.symm]
-  refine card_le_card fun z hz => mem_filter.2 ⟨mem_univ _, ?_⟩
-  rcases mem_insert.1 hz with rfl | hz
-  · exact hx
-  · exact mem_singleton.1 hz ▸ hy
+  exact card_le_card fun z hz => by
+    rcases mem_insert.1 hz with rfl | hz <;> simp_all
 
 end SubcubeTest
 

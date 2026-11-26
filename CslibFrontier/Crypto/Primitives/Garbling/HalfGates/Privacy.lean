@@ -356,8 +356,7 @@ private theorem card_filter_gate_lt_succ (k : ℕ) :
       (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < k).card +
         (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).card := by
   rw [← Finset.card_union_of_disjoint (Finset.disjoint_filter.mpr fun _ _ hlt heq => by omega)]
-  congr 1
-  ext s
+  refine congrArg Finset.card (Finset.ext fun s => ?_)
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union]
   omega
 
@@ -367,10 +366,8 @@ theorem isQueryBounded_gateStep (X : Fin n → K × Bool) (k : ℕ) (ct : Slot C
       (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).card := by
   refine ((ProbOracleComp.isQueryBounded_tabulate (R := K × Bool)
     (slotQuery C tw x (evalLabels C H tw ct X))
-    (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).toList).bind fun O =>
-    OracleComp.IsCostBounded.pure
-      (fun s => if (s.gate : ℕ) = k then slotKnown C H tw (evalLabels C H tw ct X) s + O s
-        else ct s) 0).mono ?_
+    (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).toList).bind fun _ =>
+    OracleComp.IsCostBounded.pure _ 0).mono ?_
   simp [Finset.length_toList]
 
 /-- Building the table up to gate `k` makes at most one query per slot below `k`. -/
@@ -393,10 +390,8 @@ private theorem isCostBounded_gateStep_tweak [DecidableEq T] (htw : Function.Inj
   refine ((ProbOracleComp.isCostBounded_tabulate_eq (R := K × Bool) CCR.Query.tweak
     (slotQuery C tw x (evalLabels C H tw ct X))
     (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) = k).nodup_toList
-    (by simpa [Function.comp_def, slotQuery_tweak] using htw) t).bind fun O =>
-    OracleComp.IsCostBounded.pure
-      (fun s => if (s.gate : ℕ) = k then slotKnown C H tw (evalLabels C H tw ct X) s + O s
-        else ct s) 0).mono ?_
+    (by simpa [Function.comp_def, slotQuery_tweak] using htw) t).bind fun _ =>
+    OracleComp.IsCostBounded.pure _ 0).mono ?_
   simp only [Finset.mem_toList, Finset.mem_filter, Finset.mem_univ, true_and, slotQuery_tweak,
     Nat.add_zero, le_refl]
 

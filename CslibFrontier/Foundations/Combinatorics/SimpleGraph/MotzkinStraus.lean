@@ -135,9 +135,8 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
   set S : Finset V := {v | x v ≠ 0}
   have hxout : ∀ v, v ∉ S → x v = 0 := fun v hv => by
     simpa only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_not] using hv
-  have hsum : ∑ v ∈ S, x v = 1 := by
-    rw [← hx1]
-    exact Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv
+  have hsum : ∑ v ∈ S, x v = 1 :=
+    (Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv).trans hx1
   have hSne : S.Nonempty := Finset.nonempty_of_sum_ne_zero (by rw [hsum]; exact one_ne_zero)
   by_cases hclique : G.IsClique (S : Set V)
   · -- On a clique support the form is `1 - ∑ x_v ^ 2`, and Cauchy–Schwarz bounds `∑ x_v ^ 2`.
@@ -152,8 +151,6 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
     have hxu_pos : 0 < x u := lt_of_le_of_ne (hx0 u) (Ne.symm (by simpa [S] using huS))
     have hxv_pos : 0 < x v := lt_of_le_of_ne (hx0 v) (Ne.symm (by simpa [S] using hvS))
     let d : V → K := Pi.single u 1 - Pi.single v 1
-    have hdsum : ∑ w : V, d w = 0 := by
-      simp [d, Finset.sum_sub_distrib]
     have hstep (t : K) (ht1 : 0 ≤ x u + t) (ht2 : 0 ≤ x v - t) :
         (∀ w, 0 ≤ (x + t • d) w) ∧ ∑ w, (x + t • d) w = 1 := by
       refine ⟨fun w => ?_, ?_⟩
@@ -163,12 +160,11 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
         · subst hwu; linarith
         · subst hwv; linarith
         · linarith [hx0 w]
-      · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
-          ← Finset.mul_sum, hdsum, mul_zero, add_zero, hx1]
+      · simp [Pi.add_apply, Pi.smul_apply, smul_eq_mul, d, Finset.sum_add_distrib,
+          Finset.sum_sub_distrib, ← Finset.mul_sum, hx1]
     have hlt_supp (t : K) (hzero : (x + t • d) u = 0 ∨ (x + t • d) v = 0) :
         #{w | (x + t • d) w ≠ 0} < #S := by
-      apply Finset.card_lt_card
-      refine ⟨fun w hw => ?_, fun hsub => ?_⟩
+      refine Finset.card_lt_card ⟨fun w hw => ?_, fun hsub => ?_⟩
       · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw
         by_contra hxw
         have hxw := hxout w hxw
@@ -303,20 +299,17 @@ theorem exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff [Fintype V]
     by_contra hlt
     have hωk : (G.cliqueNum : K) + 1 ≤ k := mod_cast Nat.not_le.mp hlt
     have hk1 : (1 : K) ≤ k := mod_cast le_trans (by decide : 1 ≤ 2) hk
-    have h1 : 1 ≤ ((k : K) - 1) * (1 / G.cliqueNum) := by
-      rw [mul_one_div, le_div_iff₀ hωK]
-      linarith
-    linarith [mul_le_mul_of_nonneg_left hms (sub_nonneg.2 hk1)]
+    have h1 : 1 ≤ ((k : K) - 1) / G.cliqueNum := (le_div_iff₀ hωK).2 (by linarith)
+    linarith [mul_one_div ((k : K) - 1) (G.cliqueNum : K),
+      mul_le_mul_of_nonneg_left hms (sub_nonneg.2 hk1)]
   · intro hle
     obtain ⟨y, hy⟩ := (isGreatest_quadraticForm_adjMatrix (K := K) G).1
     dsimp only at hy
     refine (Matrix.exists_nonneg_dotProduct_lt_zero_iff_stdSimplex _).2 ⟨y, ?_⟩
     rw [dotProduct_copositiveCliqueMatrix, y.total_of_fintype, one_pow, mul_one, hy]
     have hleK : (k : K) ≤ G.cliqueNum := mod_cast hle
-    have hlt1 : ((k : K) - 1) * (1 / G.cliqueNum) < 1 := by
-      rw [mul_one_div, div_lt_one hωK]
-      linarith
-    linarith
+    have hlt1 : ((k : K) - 1) / G.cliqueNum < 1 := (div_lt_one hωK).2 (by linarith)
+    linarith [mul_one_div ((k : K) - 1) (G.cliqueNum : K)]
 
 end MotzkinStraus
 

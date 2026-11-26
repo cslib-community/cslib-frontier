@@ -156,10 +156,8 @@ private theorem block_eq
   refine ⟨Subtype.ext (shape_eq H hq v), ⟨boundaryNames_eq H hq v, name_eq H v 2, ?_, ?_⟩,
     ownedNames_eq H hq v, rfl⟩
   · rcases v with i | (c | r) <;> rfl
-  · rcases v with i | (c | r)
-    · exact selector_eq H hq (i, ⟨0, hq⟩)
-    · rfl
-    · rfl
+  · rcases v with i | (_ | _) <;>
+      first | exact selector_eq H hq (i, ⟨0, hq⟩) | rfl
 
 private theorem scan_eq_source {α : Type*} (f : ℕ → Tag q → α)
     (g : SelectorNetwork.Vert (Fin n) (Fin n × Fin q) (RelationSite q n) → α)
@@ -249,18 +247,15 @@ private theorem boundaryBits_eq (word : List (Fin q)) (w : Fin n → Fin q)
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryBits,
       boundaryList, rowInputs_eq H hq, List.map_append, List.map_map, List.map_cons, List.map_nil,
       Function.comp_def]
-    apply congrArg₂ (fun a b : List Bool => a ++ b)
-    · apply List.map_congr_left
-      intro a ha
-      have hne : a ≠ ⟨0, hq⟩ := fun he =>
+    refine congrArg₂ (· ++ ·) (List.map_congr_left fun a ha => ?_) ?_
+    · have hne : a ≠ ⟨0, hq⟩ := fun he =>
         (of_decide_eq_true (List.mem_filter.mp ha).2) (congrArg Fin.val he)
       simp only [f, s, rowSelector_bit H hq word w hw, ite_eq_right hne]
     · change [!selected hq word i.val ⟨0, hq⟩] = [f (.inl (i, ⟨0, hq⟩))]
       simp only [f, s, rowSelector_bit H hq word w hw, ite_true]
   · simp only [PortGraph.vertexRow, PortGraph.rowTag, Equiv.coe_fn_mk, boundaryBits,
       boundaryList, incident_eq H, List.map_append, List.map_map, List.map_cons, List.map_nil,
-      Function.comp_def]
-    simp only [branchBit_eq H hq word w hw, selected_eq H hq word w hw,
+      Function.comp_def, branchBit_eq H hq word w hw, selected_eq H hq word w hw,
       f, polarity, Pi.add_apply, Bool.add_eq_xor, Bool.false_xor, s]
   · change [branchBit hq n word (lowerBranch (r, false)),
       branchBit hq n word (lowerBranch (r, true))] = _

@@ -343,19 +343,15 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     simpa [← h1', h1] using hx
   have hmem2 {x} (hx : x ∈ ({c', d'} : Set E)) : x = c ∨ x = d := by
     simpa [← h2', h2] using hx
-  have hcd_case : ∀ x y, (x = c ∨ x = d) → (y = c ∨ y = d) → x ≠ y →
-      ∀ u v : α, pairKey u v (score c) (score d) = pairKey u v (score x) (score y) := by
-    intro x y hx hy hxy u v
+  have hcd_case {x y} (hx : x = c ∨ x = d) (hy : y = c ∨ y = d) (hxy : x ≠ y) (u v : α) :
+      pairKey u v (score c) (score d) = pairKey u v (score x) (score y) := by
     rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
-    · exact (hxy rfl).elim
-    · rfl
-    · exact pairKey_comm_right u v (score y) (score x)
-    · exact (hxy rfl).elim
+    exacts [(hxy rfl).elim, rfl, pairKey_comm_right u v (score y) (score x), (hxy rfl).elim]
   rcases hmem1 (Or.inl rfl) with rfl | rfl <;> rcases hmem1 (Or.inr rfl) with rfl | rfl
   · exact (hab' rfl).elim
-  · exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
+  · exact hcd_case (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · rw [pairKey_comm_left (score b') (score a')]
-    exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
+    exact hcd_case (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · exact (hab' rfl).elim
 
 private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
@@ -370,10 +366,8 @@ private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [I
   have hex : ∃ f ∈ M, f ∈ G.incidenceSet v := ⟨e, he, hev⟩
   have huniq : hex.choose = e :=
     eq_of_mem_isMatching hM hex.choose_spec.1 he hex.choose_spec.2 hev
-  have hnv : (G.incidenceSet v \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 v) hev
-  have hnu : (G.incidenceSet u \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 u) heu
+  have hnv := ncard_sdiff_singleton_eq_two (h3 v) hev
+  have hnu := ncard_sdiff_singleton_eq_two (h3 u) heu
   classical
   have hmate : (if G.src e = v then G.tgt e else G.src e) = u := by
     rcases hopp with ⟨hs, rfl⟩ | ⟨hs, rfl⟩ <;> simp [hs]
@@ -617,20 +611,13 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
     obtain ⟨e₀, e₁, e₂, h01, h02, h12, hinc, hkey⟩ := matchingKey_unmatched h3 score hv'
     have hfilt : Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v) = {e₀, e₁, e₂} := by
       ext e
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-        Finset.mem_singleton]
-      constructor
-      · intro ⟨_, hmem⟩; rwa [hinc] at hmem
-      · intro hmem
-        have hmem' : e ∈ G.incidenceSet v := by rwa [hinc]
-        refine ⟨fun heM => hv' ⟨e, heM, hmem'⟩, hmem'⟩
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, hinc, Set.mem_insert_iff,
+        Set.mem_singleton_iff, Finset.mem_insert, Finset.mem_singleton]
+      exact and_iff_right_of_imp fun h heM => hv' ⟨e, heM, by simp [hinc, h]⟩
     dsimp [vsum]
     rw [hfilt, Finset.sum_insert (by simp [h01, h02]), Finset.sum_insert (by simp [h12]),
-      Finset.sum_singleton]
-    have hcol : col v = decide (median3 (score e₀) (score e₁) (score e₂) < t) := by
-      simp [col, hkey]
-    rw [← starCost_eq_ite_edgeStraddles score t hinc, ← starEnergy_median3]
-    simp only [starEnergy, boolDiff, ecol, hcol, add_assoc]
+      Finset.sum_singleton, ← starCost_eq_ite_edgeStraddles score t hinc, ← starEnergy_median3]
+    simp only [starEnergy, boolDiff, ecol, col, hkey, add_assoc]
   -- Evaluate each matched edge pair (`twoVertexCost`).
   have hpair : ∑ e ∈ Mfin, (boolDiff (col (G.src e)) (col (G.tgt e)) +
         (vsum (G.src e) + vsum (G.tgt e))) =

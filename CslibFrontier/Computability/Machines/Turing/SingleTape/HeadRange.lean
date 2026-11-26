@@ -96,9 +96,7 @@ private theorem transGen_of_step_eq {M : TM0.Machine Γ Q} {lo hi : ℤ}
     (h : Relation.TransGen (StepWithin M lo hi) b c) :
     Relation.TransGen (StepWithin M lo hi) a c := by
   obtain ⟨d, hd, hdc⟩ := Relation.TransGen.head'_iff.mp h
-  apply Relation.TransGen.head'_iff.mpr
-  refine ⟨d, ?_, hdc⟩
-  exact ⟨he.trans hd.1, hp.symm ▸ hd.2⟩
+  exact Relation.TransGen.head'_iff.mpr ⟨d, ⟨he.trans hd.1, hp.symm ▸ hd.2⟩, hdc⟩
 
 end
 
@@ -428,15 +426,13 @@ private theorem stackAction_within :
   have hg := go_within M o q v (hL k) (S k).length le_rfl hR
   have hr := ret_within M q (stVar v (S k) o) L' (stWrite v (S k) o).length (R := R)
     (by have := stWrite_length o v (S k); omega)
+  have h0 : (-1 : ℤ) ≤ 0 := by decide
+  have h0R : (0 : ℤ) ≤ R := by omega
   have hg0 : StepWithin (compiler M) (-1) R
       ⟨⟨(some (trNormal (stRun o q)), v), Tape.mk' ∅ (addBottom L)⟩, 0⟩
-      (atLabel M (.go k o q) v (Tape.mk' ∅ (addBottom L)) 0) := by
-    refine ⟨?_, by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega,
-      by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega⟩
-    rw [trNormal_run]
-    simp only [HeadPosition.step, compiler, TM1to0.tr, TM1to0.trAux, Option.map_some,
-      Tape.write_self]
-    rfl
+      (atLabel M (.go k o q) v (Tape.mk' ∅ (addBottom L)) 0) :=
+    ⟨by simp only [trNormal_run, HeadPosition.step, atLabel, TM1to0.trCfg, compiler, TM1to0.tr,
+      TM1to0.trAux, Option.map_some, Tape.write_self], h0, h0R, h0, h0R⟩
   exact ⟨L', hL', (Relation.TransGen.single hg0).trans_left (hg.trans (ha.trans hr))⟩
 
 end
@@ -456,8 +452,7 @@ private theorem stmt_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
   induction q using stmtStRec generalizing v S L B with
   | run k o q ih =>
     let S' := Function.update S k (stWrite v (S k) o)
-    have hB' : ∀ k', (S' k').length ≤ B + 1 := by
-      intro k'
+    have hB' : ∀ k', (S' k').length ≤ B + 1 := fun k' => by
       by_cases hk : k' = k
       · subst k'
         simpa only [S', Function.update_self] using
@@ -466,20 +461,16 @@ private theorem stmt_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
     rw [stackDepth_run] at hR
     obtain ⟨L', hL', ha⟩ := stackAction_within M o q v S L hL (R := R) (by have := hB k; omega)
     obtain ⟨L'', hL'', hc⟩ := ih (stVar v (S k) o) S' L' (B + 1) hL' hB' (by omega)
-    refine ⟨L'', ?_, ?_⟩
-    · simpa only [step_run] using hL''
-    · have hc' := HeadPosition.transGen_of_step_eq
-        (a := atLabel M (.ret q) (stVar v (S k) o) (Tape.mk' ∅ (addBottom L')) 0)
-        (b := ⟨⟨(some (trNormal q), stVar v (S k) o), Tape.mk' ∅ (addBottom L')⟩, 0⟩)
-        (by simp only [HeadPosition.step, atLabel, TM1to0.trCfg, Option.map_some, tr,
-          TM1to0.tr, TM1to0.trAux, Tape.mk'_head, addBottom_head_fst, Bool.cond_true]) rfl hc
-      rw [step_run]
-      exact ha.trans hc'
+    refine ⟨L'', by simpa only [step_run] using hL'', ?_⟩
+    rw [step_run]
+    exact ha.trans (HeadPosition.transGen_of_step_eq
+      (b := ⟨⟨(some (trNormal q), stVar v (S k) o), Tape.mk' ∅ (addBottom L')⟩, 0⟩)
+      (by simp only [HeadPosition.step, atLabel, TM1to0.trCfg, Option.map_some, tr,
+        TM1to0.tr, TM1to0.trAux, Tape.mk'_head, addBottom_head_fst, Bool.cond_true]) rfl hc)
   | load f q ih =>
     obtain ⟨L', hL', hr⟩ := ih (f v) S L B hL hB hR
-    refine ⟨L', hL', ?_⟩
-    exact HeadPosition.transGen_of_step_eq
-      (b := ⟨⟨(some (trNormal q), f v), Tape.mk' ∅ (addBottom L)⟩, 0⟩) rfl rfl hr
+    exact ⟨L', hL', HeadPosition.transGen_of_step_eq
+      (b := ⟨⟨(some (trNormal q), f v), Tape.mk' ∅ (addBottom L)⟩, 0⟩) rfl rfl hr⟩
   | branch f q r ihq ihr =>
     simp only [stackDepth] at hR
     have := Nat.le_max_left (stackDepth q) (stackDepth r)
@@ -496,12 +487,11 @@ private theorem stmt_within {R : ℤ} (q : TM2.Stmt Γ Λ σ) (v : σ)
         (by simp only [HeadPosition.step, trNormal, TM1to0.tr, TM1to0.trAux, hf,
           Bool.cond_true]) rfl hc⟩
   | goto _ | halt =>
-    refine ⟨L, hL, Relation.TransGen.single ?_⟩
-    refine ⟨?_, by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega,
-      by change -1 ≤ (0 : ℤ); omega, by change (0 : ℤ) ≤ R; omega⟩
-    simp only [HeadPosition.step, compiler, trNormal, TM1to0.tr, TM1to0.trAux,
-      Option.map_some, Tape.write_self]
-    rfl
+    have h0 : (-1 : ℤ) ≤ 0 := by decide
+    have h0R : (0 : ℤ) ≤ R := by omega
+    exact ⟨L, hL, .single ⟨by simp only [HeadPosition.step, TM2.stepAux, TM1to0.trCfg, compiler,
+      trNormal, TM1to0.tr, TM1to0.trAux, Option.map_some, Option.map_none, Tape.write_self],
+      h0, h0R, h0, h0R⟩⟩
 
 /-- The constant head-range overhead of the standard stack-machine compilation. -/
 def headOverhead [Fintype Λ] : ℕ :=

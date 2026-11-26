@@ -487,8 +487,8 @@ theorem FilterInv.card_full_slots_le {U b f n : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)} {st : FilterState b f}
     (hinv : FilterInv n S quot rem st) (A : Finset (Fin (2 ^ b)))
     (hfull : ∀ q ∈ A, st.isFull q = true) :
-    #A ≤ #S := by
-  exact hinv.card_full_eq ▸ Finset.card_le_card fun q hq => by simp [hfull q hq]
+    #A ≤ #S :=
+  hinv.card_full_eq ▸ Finset.card_le_card fun q hq => by simp [hfull q hq]
 
 /-- Under `FilterInv` with `#S < 2 ^ b`, walking backwards from any `q` reaches an empty slot
 within `#S + 1` steps. -/
@@ -590,11 +590,9 @@ theorem FilterInv.fwdLen_le_sub {U b f n : ℕ} {S : Finset (Fin U)}
 theorem FilterInv.clusterLen_le_card {U b f n : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)} {st : FilterState b f}
     (hinv : FilterInv n S quot rem st) (hS_lt : #S < 2 ^ b) (q : Fin (2 ^ b)) :
-    hinv.clusterLen hS_lt q ≤ #S := by
-  have h1 := hinv.backLen_le_card hS_lt q
-  have h2 := hinv.fwdLen_le_sub hS_lt q
-  dsimp only [clusterLen]
-  omega
+    hinv.clusterLen hS_lt q ≤ #S :=
+  (Nat.add_le_add_left (hinv.fwdLen_le_sub hS_lt q) _).trans
+    (Nat.add_sub_of_le (hinv.backLen_le_card hS_lt q)).le
 
 theorem FilterInv.isFull_probeSlot_fwdLen {U b f n : ℕ} {S : Finset (Fin U)}
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)} {st : FilterState b f}
@@ -607,10 +605,9 @@ theorem FilterInv.isFull_probeSlot_of_lt_fwdLen {U b f n : ℕ} {S : Finset (Fin
     (hinv : FilterInv n S quot rem st) (hS_lt : #S < 2 ^ b) (q : Fin (2 ^ b))
     {d : ℕ} (hd : d < hinv.fwdLen hS_lt q) :
     st.isFull (probeSlot b q d) = true := by
-  have hmin := Nat.find_min (hinv.exists_probeSlot_empty hS_lt q) hd
-  push Not at hmin
-  have h2 := hinv.fwdLen_le_sub hS_lt q
-  exact Bool.eq_true_of_not_eq_false (hmin (by omega))
+  have hmin := not_and.mp (Nat.find_min (hinv.exists_probeSlot_empty hS_lt q) hd)
+    (hd.le.trans (hinv.fwdLen_le_sub hS_lt q))
+  exact Bool.eq_true_of_not_eq_false hmin
 
 /-- The maximal full cluster `[clusterStart q .. clusterStart q + clusterLen q)` around any bucket
 `q` satisfies `IntervalValid`. -/
@@ -674,8 +671,7 @@ theorem FilterInv.bucketRun_eq_nil_of_isFull_eq_false {U b f n : ℕ} {S : Finse
     {quot : Fin U → Fin (2 ^ b)} {rem : Fin U → Fin (2 ^ f)} {st : FilterState b f}
     (hinv : FilterInv n S quot rem st) {p : Fin (2 ^ b)} (hp : st.isFull p = false) :
     bucketRun S quot rem p = [] := by
-  have h1 := (hinv.empty_slot p hp).1.symm.trans (hinv.isOcc_eq p)
-  simpa [List.isEmpty_iff] using h1.symm
+  simpa [List.isEmpty_iff] using (hinv.isOcc_eq p).symm.trans (hinv.empty_slot p hp).1
 
 /-- A home slot whose forward cluster length is zero is unoccupied, so its bucket run is empty. -/
 theorem FilterInv.isOcc_eq_false_of_fwdLen_eq_zero {U b f n : ℕ} {S : Finset (Fin U)}
@@ -778,9 +774,7 @@ theorem IntervalValid.queryCluster_eq_true_iff {U b f : ℕ} {S : Finset (Fin U)
   set S_a1 := runOffset S quot rem o (a + 1)
   have hS_a1_eq : S_a1 = S_a + (bucketRun S quot rem (probeSlot b o a)).length :=
     runOffset_succ S quot rem o a
-  have hS_a1_le : S_a1 ≤ ℓ := by
-    rw [← hinv.runOffset_eq]
-    exact runOffset_mono S quot rem o ha1
+  have hS_a1_le : S_a1 ≤ ℓ := hinv.runOffset_eq ▸ runOffset_mono S quot rem o ha1
   have hslice :
       (((List.range ℓ).map (fun i => st.remAt (probeSlot b o i))).drop S_a).take
           (bucketRun S quot rem (probeSlot b o a)).length =
@@ -806,11 +800,11 @@ theorem IntervalValid.queryCluster_eq_true_iff {U b f : ℕ} {S : Finset (Fin U)
     decide_eq_true_eq, List.mem_range'_1]
   constructor
   · rintro ⟨-, i, hi, ⟨hi_gt, hi_le⟩, rfl⟩
-    have h1 := hinv.lt_runOffset_iff hocc (by omega : a ≤ ℓ) hi
+    have h1 := hinv.lt_runOffset_iff hocc ha.le hi
     have h2 := (hinv.lt_runOffset_iff hocc ha1 hi).mpr hi_le
     exact ⟨i, by omega, rfl⟩
   · rintro ⟨i, hi, rfl⟩
-    have h1 := hinv.lt_runOffset_iff hocc (by omega : a ≤ ℓ) (by omega : i < ℓ)
+    have h1 := hinv.lt_runOffset_iff hocc ha.le (by omega : i < ℓ)
     refine ⟨?_, i, by omega, ⟨by omega, (hinv.lt_runOffset_iff hocc ha1 (by omega)).mp (by omega)⟩,
       rfl⟩
     simpa [hocc, List.isEmpty_iff] using

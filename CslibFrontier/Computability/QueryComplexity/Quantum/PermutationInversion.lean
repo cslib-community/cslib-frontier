@@ -122,12 +122,9 @@ theorem mem_permInvPermRel {I₀ I₁ : Finset ι} {target : ι} {p : Equiv.Perm
   obtain ⟨π, σ⟩ := p
   simp only [permInvPermRel, permInvLeft, mem_biUnion, mem_filter, mem_univ, true_and, mem_image,
     Prod.mk.injEq]
-  constructor
-  · rintro ⟨π', hπ', j, hj, rfl, rfl⟩
-    have hsym := symm_mul_swap_self π' j target
-    exact ⟨hπ', by rwa [hsym], by rw [hsym]⟩
-  · rintro ⟨h₀, h₁, hσ⟩
-    exact ⟨π, h₀, σ.symm target, h₁, rfl, hσ.symm⟩
+  refine ⟨?_, fun ⟨h₀, h₁, hσ⟩ => ⟨π, h₀, σ.symm target, h₁, rfl, hσ.symm⟩⟩
+  rintro ⟨π', hπ', j, hj, rfl, rfl⟩
+  simpa only [symm_mul_swap_self, and_true] using ⟨hπ', hj⟩
 
 /-- Swapping coordinates maps `permInvPermRel I₀ I₁ target` onto `permInvPermRel I₁ I₀ target`. -/
 theorem permInvPermRel_swap (I₀ I₁ : Finset ι) (target : ι) :
@@ -165,8 +162,7 @@ theorem card_permInvPermRel_fst {I₀ I₁ : Finset ι} {target : ι}
     simp only [mem_filter, mem_permInvPermRel, mem_image, Prod.mk.injEq]
     refine ⟨fun ⟨⟨_, h₁, hσ⟩, hπ⟩ => ⟨σ.symm target, h₁, hπ.symm, hπ ▸ hσ.symm⟩, ?_⟩
     rintro ⟨j, hj, rfl, rfl⟩
-    have hsym := symm_mul_swap_self p.1 j target
-    exact ⟨⟨h₀, by rwa [hsym], by rw [hsym]⟩, rfl⟩
+    simpa only [symm_mul_swap_self, and_true] using ⟨h₀, hj⟩
   rw [hf, card_image_of_injective]
   intro j₁ j₂ hj
   simpa only [symm_mul_swap_self] using
@@ -336,8 +332,7 @@ theorem one_sub_mul_sqrt_div_two_le_of_permInversion {ι V W : Type*}
   set n := Fintype.card ι
   let I₀ : Finset ι := (univ : Finset (Fin (n / 2))).map
     ((Fin.castLEEmb (Nat.div_le_self n 2)).trans (Fintype.equivFin ι).symm.toEmbedding)
-  have hI₀ : #I₀ = n / 2 := by simp [I₀]
-  have hmin : min #I₀ #I₀ᶜ = n / 2 := by rw [card_compl, hI₀]; omega
+  have hmin : min #I₀ #I₀ᶜ = n / 2 := by simp [I₀, card_compl]; omega
   rw [← hmin]
   exact one_sub_mul_sqrt_min_le_of_permInversion_partition step U hψ₀ T
     disjoint_compl_right target fun p hp =>

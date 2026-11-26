@@ -84,8 +84,7 @@ theorem mulCount_of_two_le {n : ℕ} (hn : 2 ≤ n) :
 theorem addCount_of_two_le {n : ℕ} (hn : 2 ≤ n) :
     addCount n = addCount (n / 2) + 2 * addCount (n - n / 2) + (4 * n - 3) := by
   obtain ⟨n, rfl⟩ : ∃ n', n = n' + 2 := ⟨n - 2, by omega⟩
-  rw [addCount]
-  omega
+  rw [addCount]; omega
 
 /-! ### Exact costs -/
 
@@ -140,8 +139,7 @@ theorem cost_mulFit [Zero α] (n : ℕ) (p q : List α) :
 private theorem two_pow_succ_facts (k : ℕ) :
     2 ≤ 2 ^ (k + 1) ∧ 2 ^ (k + 1) / 2 = 2 ^ k ∧ 2 ^ (k + 1) - 2 ^ (k + 1) / 2 = 2 ^ k := by
   have := Nat.one_le_two_pow (n := k)
-  rw [pow_succ]
-  omega
+  rw [pow_succ]; omega
 
 /-- Karatsuba multiplies `2 ^ k` coefficients with `3 ^ k` multiplications. -/
 theorem mulCount_two_pow (k : ℕ) : mulCount (2 ^ k) = 3 ^ k := by
@@ -149,8 +147,7 @@ theorem mulCount_two_pow (k : ℕ) : mulCount (2 ^ k) = 3 ^ k := by
   | zero => simp
   | succ k ih =>
     obtain ⟨h2, h1, h3⟩ := two_pow_succ_facts k
-    rw [mulCount_of_two_le h2, h3, h1, ih, pow_succ]
-    ring
+    rw [mulCount_of_two_le h2, h3, h1, ih, pow_succ]; ring
 
 /-- Karatsuba multiplies `2 ^ k` coefficients with `(13 · 3 ^ k - 16 · 2 ^ k + 3) / 2` additions
 and subtractions. -/
@@ -195,9 +192,7 @@ theorem addCount_le_pow_clog (n : ℕ) : addCount n ≤ 8 * 3 ^ Nat.clog 2 n :=
 /-- At most `9 · 3 ^ ⌈log₂ n⌉` arithmetic operations in total. -/
 theorem mulCount_add_addCount_le (n : ℕ) :
     mulCount n + addCount n ≤ 9 * 3 ^ Nat.clog 2 n := by
-  have := mulCount_le_pow_clog n
-  have := addCount_add_le_pow_clog n
-  omega
+  linarith [mulCount_le_pow_clog n, addCount_le_pow_clog n]
 
 /-! ### Lower bound and comparison with the schoolbook method -/
 
@@ -229,20 +224,18 @@ theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
 
 /-- Fewer than the `n ^ 2` coefficient products of the schoolbook method, for `n ≥ 2`. -/
 theorem mulCount_lt_sq {n : ℕ} (hn : 2 ≤ n) : mulCount n < n ^ 2 := by
-  rw [mulCount_of_two_le hn]
-  set m := n / 2
-  set k := n - m
-  have h1 := mulCount_le_sq m
-  have h2 := mulCount_le_sq k
-  have hkm : k ≤ m + 1 := by omega
-  have hm1 : 1 ≤ m := by omega
-  have hkm' : m ≤ k := by omega
-  rw [show n = m + k by omega]
-  rcases Nat.lt_or_ge m 2 with hm2 | hm2
-  · have hm' : m = 1 := by omega
-    rcases (by omega : k = 1 ∨ k = 2) with hk' | hk' <;>
-      simp [hm', hk', show mulCount 2 = 3 by simpa using mulCount_two_pow 1]
-  · nlinarith
+  rcases lt_or_ge n 4 with hn4 | hn4
+  · rcases (by omega : n = 2 ∨ n = 3) with rfl | rfl <;> simp [mulCount]
+  · rw [mulCount_of_two_le hn]
+    set m := n / 2
+    set k := n - m
+    have h1 := mulCount_le_sq m
+    have h2 := mulCount_le_sq k
+    have hm2 : 2 ≤ m := by omega
+    have hmk : m ≤ k := by omega
+    have hkm : k ≤ m + 1 := by omega
+    rw [show n = m + k by omega]
+    nlinarith
 
 /-! ### Real-exponent bounds -/
 
@@ -291,8 +284,7 @@ theorem cost_karatsuba [Zero α] (o : {ι : Type} → ArithQuery α ι → ι) (
 theorem countQueries_karatsuba [Zero α] (o : {ι : Type} → ArithQuery α ι → ι) (p q : List α) :
     (karatsuba p q).countQueries o =
       Karatsuba.mulCount (max p.length q.length) + Karatsuba.addCount (max p.length q.length) := by
-  rw [ArithQuery.countQueries_eq_cost_weight_one, cost_karatsuba]
-  ring
+  rw [ArithQuery.countQueries_eq_cost_weight_one, cost_karatsuba]; ring
 
 /-- **Karatsuba multiplication in `O(N ^ log₂ 3)` weighted operations**: at most
 `(c_mul + 8 c_add) 3 ^ ⌈log₂ N⌉`, `N = max(|p|, |q|)`, under every oracle. -/
@@ -309,8 +301,8 @@ theorem cost_karatsuba_le [Zero α] (o : {ι : Type} → ArithQuery α ι → ι
 most `n`, under every oracle. -/
 theorem karatsuba_upperBound [Zero α] :
     UpperBound (fun pq : List α × List α => karatsuba pq.1 pq.2)
-      (fun pq => max pq.1.length pq.2.length) (fun n => 9 * 3 ^ Nat.clog 2 n) := by
-  exact UpperBound.of_pointwise
+      (fun pq => max pq.1.length pq.2.length) (fun n => 9 * 3 ^ Nat.clog 2 n) :=
+  UpperBound.of_pointwise
     (fun _ _ hab => Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by norm_num)
       (Nat.clog_mono_right 2 hab)))
     fun o _ => countQueries_karatsuba o _ _ ▸ Karatsuba.mulCount_add_addCount_le _

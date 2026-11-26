@@ -438,9 +438,8 @@ private theorem ValidSpine.congr_heap {V : Type u} {heap₁ heap₂ : List (Stac
     ValidSpine heap₂ ptr spine ∧ spineVals heap₂ spine = spineVals heap₁ spine := by
   induction spine generalizing ptr with
   | nil =>
-    cases ptr with
-    | none => exact ⟨trivial, rfl⟩
-    | some _ => exact False.elim h
+    cases ptr
+    exacts [⟨trivial, rfl⟩, False.elim h]
   | cons hd rest ih =>
     cases ptr with
     | none => exact False.elim h
@@ -468,8 +467,7 @@ private theorem evalStack_snoc {P V : Type u} {stk stk₁ stk₂ : List V}
     EvalStack stk (cs ++ [⟨p, (), op, resp⟩]) stk₂ := by
   induction cs generalizing stk with
   | nil =>
-    subst heval
-    exact ⟨by rw [hstep], by rw [hstep]; rfl⟩
+    exact heval ▸ ⟨by rw [hstep], congrArg Prod.fst hstep⟩
   | cons c rest ih =>
     exact ⟨heval.1, ih heval.2⟩
 
@@ -480,10 +478,8 @@ private theorem evalStack_mem_allowed {P V : Type u} {stk stk₁ : List V}
   induction cs generalizing stk with
   | nil => trivial
   | cons c rest ih =>
-    cases c with
-    | mk p u op res =>
-      cases u
-      exact ⟨rfl, rfl, rfl, heval.1.symm, ih heval.2⟩
+    rcases c with ⟨p, ⟨⟩, op, res⟩
+    exact ⟨rfl, rfl, rfl, heval.1.symm, ih heval.2⟩
 
 private def ProcHistoryMatch {P V : Type u} [DecidableEq P]
     (H R : History P (fun _ : Unit => StackOp V) (fun _ : Unit => StackResp V))
@@ -668,10 +664,9 @@ private def TreiberInv {P V : Type u} [DecidableEq P] (s : TreiberFreshNodeState
 
 private theorem treiberInv_init (P V : Type u) [DecidableEq P] :
     TreiberInv (treiberFreshNodeInit P V) := by
-  refine ⟨[], [], [], trivial, ⟨nofun, nofun, nofun, nofun, nofun, nofun⟩, rfl, nofun,
-    fun _ => ⟨rfl, [], rfl⟩, fun _ => rfl, ?_⟩
-  intro _ _ hc₀ _ _
-  simp [treiberFreshNodeInit, History.isCompletedOp_iff_lt_length] at hc₀
+  exact ⟨[], [], [], trivial, ⟨nofun, nofun, nofun, nofun, nofun, nofun⟩, rfl, nofun,
+    fun _ => ⟨rfl, [], rfl⟩, fun _ => rfl, fun _ _ hc₀ _ _ => by
+      simp [treiberFreshNodeInit, History.isCompletedOp_iff_lt_length] at hc₀⟩
 
 private theorem treiberInv_invoke_op {P V : Type u} [DecidableEq P]
     {s : TreiberFreshNodeState P V} {p : P} (op : StackOp V) (ph : TreiberPhase V)
@@ -703,11 +698,9 @@ private theorem treiberInv_invoke_op {P V : Type u} [DecidableEq P]
     exact ⟨hRp_nil, cs_p, by simp only [History.procSubhistory_append, hHp,
       History.procSubhistory_cons, Event.proc_inv, ↓reduceIte, History.procSubhistory_nil]⟩
   · rw [Function.update_of_ne hqp]
-    have hHq : History.procSubhistory (s.history ++ [.inv p () op]) q =
-        History.procSubhistory s.history q := by
-      simp only [History.procSubhistory_append, History.procSubhistory_cons, Event.proc_inv,
-        Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]
-    exact procHistoryMatch_congr hHq rfl (hpm q)
+    refine procHistoryMatch_congr ?_ rfl (hpm q)
+    simp only [History.procSubhistory_append, History.procSubhistory_cons, Event.proc_inv,
+      Ne.symm hqp, ↓reduceIte, History.procSubhistory_nil, List.append_nil]
 
 private theorem treiberInv_invoke {P V : Type u} [DecidableEq P]
     {s s' : TreiberFreshNodeState P V} {p : P}

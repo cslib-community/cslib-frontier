@@ -171,24 +171,17 @@ variable {G : List Bool → List Bool} {ℓ : ℕ → ℕ}
 `Cslib.Crypto.PRG.Generator.exists_complexity_le_advantage_ge` has at most `ℓ(k) ^ 2` gates and
 advantage at least `1 / 2`, contradicting Eq. 8.11. -/
 theorem le_two_pow (hG : CanonicalDerandomizer G ℓ) (k : ℕ) : ℓ k ≤ 2 ^ (k + 1) + 1 := by
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   obtain ⟨test, hsize, hadv⟩ := (wordFamily G ℓ k).exists_complexity_le_advantage_ge
-  have hP : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
   have hcirc : IsCircuitTest (ℓ k ^ 2) fun y => PMF.pure (test y) := by
     refine ⟨test, hsize.trans ?_, rfl⟩
-    have hL : 2 * 2 ^ k + 2 ≤ ℓ k := by omega
-    have := Nat.mul_le_mul_left (ℓ k) hL
-    rw [sq]
-    nlinarith
-  have hfool := hG.fools k _ hcirc
-  have hkℓ : k + 1 ≤ ℓ k := by have := Nat.lt_two_pow_self (n := k + 1); omega
+    rw [pow_succ'] at hlt
+    nlinarith [sq (ℓ k)]
+  have hkℓ : k + 1 ≤ ℓ k := Nat.lt_two_pow_self.le.trans (by omega)
   have h2 : (2 : ℝ) ^ k / 2 ^ ℓ k ≤ 1 / 2 := by
     rw [div_le_iff₀ (by positivity)]
-    have : (2 : ℝ) ^ (k + 1) ≤ 2 ^ ℓ k := pow_le_pow_right₀ (by norm_num) hkℓ
-    rw [pow_succ] at this
-    linarith
-  linarith
+    linarith [pow_succ (2 : ℝ) k ▸ pow_le_pow_right₀ (one_le_two : (1 : ℝ) ≤ 2) hkℓ]
+  linarith [hG.fools k _ hcirc]
 
 end CanonicalDerandomizer
 

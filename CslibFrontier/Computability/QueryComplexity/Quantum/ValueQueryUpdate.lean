@@ -50,10 +50,9 @@ theorem norm_valueOracle_update_sub_le (ψ : ValueState ι V W) (i : ι) (v : α
   have he : ‖u - w‖ ^ 2 = ‖querySlice i u - querySlice i w‖ ^ 2 := by
     rw [← sum_sq_norm_querySlice, sum_eq_single i, hslice]
     · intro j _ hji
-      have hz : querySlice j u = querySlice j w := by
-        ext ⟨a, b⟩
-        simp only [u, w, querySlice_apply, valueOracle_apply, Function.update_of_ne hji]
-      simp [hslice, hz]
+      rw [sq_eq_zero_iff, norm_eq_zero]
+      ext ⟨a, b⟩
+      simp [u, w, querySlice_apply, valueOracle_apply, Function.update_of_ne hji]
     · simp
   calc
     ‖u - w‖ = ‖querySlice i u - querySlice i w‖ :=
@@ -106,9 +105,7 @@ private theorem sum_sq_runValue_update_sub_le (hψ : ‖ψ‖ = 1) (T : ℕ) (v 
 theorem sum_sq_norm_projOutcomes_fibers {B M : Type*} [Fintype B] [Fintype M] [DecidableEq M]
     (readout : B → M) (ϕ : EuclideanSpace ℂ B) :
     ∑ m, ‖projOutcomes (fun x => readout x = m) ϕ‖ ^ 2 = ‖ϕ‖ ^ 2 := by
-  simp_rw [norm_projOutcomes_sq]
-  rw [EuclideanSpace.norm_sq_eq]
-  simp only [measureProb, sum_filter]
+  simp_rw [norm_projOutcomes_sq, EuclideanSpace.norm_sq_eq, measureProb, sum_filter]
   rw [sum_comm]
   simp
 
@@ -169,9 +166,8 @@ theorem abs_branch_refresh_le {M Y B κ : Type*} [Fintype M] [Fintype Y] [Fintyp
         𝔼 hv : D, (p m i).toReal * f (change hv (address m i)) hv.1 m i := by
       let g (hv : D) : D := (change hv (address m i), hv.1 (address m i))
       have hg : Function.Involutive g := by rintro ⟨a, v⟩; simp [g, change]
-      apply Fintype.expect_equiv hg.toPerm
-      intro hv
-      simp [g, change, Function.Involutive.toPerm]
+      exact Fintype.expect_equiv hg.toPerm _ _ fun hv => by
+        simp [g, change, Function.Involutive.toPerm]
     unfold avg
     simp_rw [expect_sum_comm, hswap]
   let J := D × M × Y
@@ -205,8 +201,7 @@ theorem abs_branch_refresh_le {M Y B κ : Type*} [Fintype M] [Fintype Y] [Fintyp
   rw [weights, weights] at probabil
   refine probabil.trans ?_
   simp only [a, b, ← map_sub, LinearIsometry.norm_map, weights]
-  apply Real.sqrt_le_iff.mpr
-  refine ⟨by positivity, ?_⟩
+  refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
   rw [mul_pow, Real.sq_sqrt δ.coe_nonneg]
   refine expect_le univ_nonempty fun x _ => ?_
   change (∑ m, ∑ y, (p m y).toReal * ‖branch (change x (address m y)) m - branch x.1 m‖ ^ 2) ≤ _

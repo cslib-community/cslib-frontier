@@ -48,14 +48,9 @@ theorem booleanRelation_exactlyOne {V : Type*} (scope : List V) :
   change (exactlyOne scope).sem (List.ofFn x) = true ↔ _
   rw [sem_eq_true, wellFormed_exactlyOne]
   simp only [true_and, exactlyOne, List.mem_map, List.mem_range]
-  constructor
-  · rintro ⟨i, hi, he⟩
-    refine ⟨⟨i, hi⟩, ?_⟩
-    rw [listSingle_eq_ofFn (⟨i, hi⟩ : Fin scope.length)] at he
-    exact List.ofFn_injective he
-  · rintro ⟨i, hi⟩
-    change (fun j => decide (j = i)) = x at hi
-    exact ⟨i, i.isLt, by rw [listSingle_eq_ofFn i, hi]⟩
+  refine ⟨?_, fun ⟨i, hi⟩ => ⟨i, i.isLt, (listSingle_eq_ofFn i).trans (congrArg List.ofFn hi)⟩⟩
+  rintro ⟨i, hi, he⟩
+  exact ⟨⟨i, hi⟩, List.ofFn_injective ((listSingle_eq_ofFn ⟨i, hi⟩).symm.trans he)⟩
 
 /-- The new connector table is an even delta-matroid for every nonempty scope.
 Repeated names in the supplied scope do not change this local relation claim. -/
@@ -131,14 +126,13 @@ private theorem deviations_eq_count {width : ℕ} {positions : List ℕ}
     deviations reference (List.ofFn x) positions =
       (List.ofFn (fun j => x (insideCoord h j) !=
         reference.getD (positions[j]) false)).count true := by
-  rw [show List.ofFn (fun j => x (insideCoord h j) != reference.getD (positions[j]) false) =
-      positions.map (fun i => (List.ofFn x).getD i false != reference.getD i false) from ?_]
-  · simp [deviations, List.count_eq_countP, Function.comp_def]
-  · rw [← List.ofFn_getElem_eq_map]
-    congr 1
-    ext j
-    have hb := (validPositions_eq_true.mp h).2 _ (List.getElem_mem j.isLt)
-    simp [insideCoord, hb]
+  have heq : List.ofFn (fun j => x (insideCoord h j) != reference.getD (positions[j]) false) =
+      positions.map (fun i => (List.ofFn x).getD i false != reference.getD i false) := by
+    rw [← List.ofFn_getElem_eq_map]
+    exact congrArg List.ofFn (funext fun j => by
+      simp [insideCoord, (validPositions_eq_true.mp h).2 _ (List.getElem_mem j.isLt)])
+  rw [heq]
+  simp [deviations, List.count_eq_countP, Function.comp_def]
 
 private theorem count_eq_zero_iff {n : ℕ} (x : Fin n → Bool) :
     (List.ofFn x).count true = 0 ↔ ∀ i, x i = false := by

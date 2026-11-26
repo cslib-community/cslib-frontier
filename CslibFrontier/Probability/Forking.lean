@@ -300,8 +300,7 @@ theorem sq_div_sub_le_fork (first : PMF S) (A : S → (Fin q → H) → Option (
       simpa using sq_sum_le_card_mul_sum_sq (s := Finset.univ) (f := a)
   calc (∑ j, a j) ^ 2 / q - (∑ j, a j) / Fintype.card H
       ≤ ∑ j, a j ^ 2 - ∑ j, a j / Fintype.card H := by
-        rw [Finset.sum_div]
-        linarith
+        linarith [Finset.sum_div Finset.univ a (Fintype.card H : ℝ)]
     _ = ∑ j, (a j ^ 2 - a j / Fintype.card H) := by rw [Finset.sum_sub_distrib]
     _ ≤ _ := Finset.sum_le_sum fun j _ => by
         simpa only [a, acceptAt_eq_once, forkAt_eq_twice] using Rewinding.sq_sub_le_twice _ _ _
@@ -314,16 +313,13 @@ theorem le_add_sqrt_fork (first : PMF S) (A : S → (Fin q → H) → Option (Fi
   set N : ℝ := (Fintype.card H : ℝ)
   by_cases hε : ε ≤ q / N
   · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
-  · have hq : (0 : ℝ) < q := by
-      rcases Nat.eq_zero_or_pos q with rfl | hq0
-      · exact absurd (by simp [hεdef, toReal_accept]) hε
-      · exact Nat.cast_pos.2 hq0
+  · have hq : (0 : ℝ) < q := Nat.cast_pos.2 <| Nat.pos_of_ne_zero fun hq0 =>
+      hε (by simp [hq0, hεdef, toReal_accept])
     have hsq : (ε - q / N) ^ 2 ≤ q * ((fork first A).map Option.isSome true).toReal :=
       calc (ε - q / N) ^ 2
           ≤ (ε - q / N) ^ 2 + (ε - q / N) * (q / N) :=
             le_add_of_nonneg_right (mul_nonneg (by linarith) (by positivity))
         _ = q * (ε ^ 2 / q - ε / N) := by
-            have := hq.ne'
             field_simp
             ring
         _ ≤ _ := mul_le_mul_of_nonneg_left (sq_div_sub_le_fork first A) hq.le

@@ -383,8 +383,7 @@ theorem norm_maxSqNormIndex_eq_pi_norm {m : ℕ} (S : Fin (m + 1) → Fin (m + 1
 theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
     (1 / 4 : ℚ) * (sqS / sqV) < (ratOrthoScale sqS sqV) ^ 2 ∧
       (ratOrthoScale sqS sqV) ^ 2 ≤ (9 / 16 : ℚ) ^ 2 * (sqS / sqV) := by
-  unfold ratOrthoScale
-  dsimp only
+  dsimp only [ratOrthoScale]
   set q : ℚ := sqS / sqV
   have hq_pos : 0 < q := div_pos hS hV
   have hnum_pos : 0 < q.num := Rat.num_pos.mpr hq_pos
@@ -496,8 +495,7 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
     simpa only [omitRowTable_toMatrix_apply, mul_comm] using ha
   set ρ := ratOrthoScale (sqNormRat (S iStar)) (sqNormRat v)
   have ht_eq : ratOrthoTarget S = fun k => ρ * v k := by
-    unfold ratOrthoTarget
-    dsimp only
+    dsimp only [ratOrthoTarget]
     rw [hhead]
   have hS_pos : 0 < sqNormRat (S iStar) :=
     sqNormRat_pos_of_ne_zero fun h0 => hS.ne_zero iStar (by ext k; simp [toEuclidean, h0])
@@ -520,20 +518,14 @@ theorem ratOrthoTarget_spec {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
     have hq' : ρ ^ 2 * sqNormRat v ≤ (9 / 16 : ℚ) ^ 2 * sqNormRat (S iStar) := by
       rwa [← mul_div_assoc, le_div_iff₀ hv_pos] at hhi_q
     simpa [hpi_eq, hnorm_t_sq, ← sqNormRat_cast_eq_norm_sq] using (Rat.cast_le (K := ℝ)).mpr hq'
-  refine ⟨?_, ?_, ?_⟩
-  · intro j hj
-    rw [toEuclidean, toEuclidean, EuclideanSpace.inner_eq_star_dotProduct]
-    simp only [star_trivial, dotProduct, ht_eq]
-    have hsum : ∑ k : Fin (m + 1), ((S j k : ℚ) : ℝ) * ((ρ * v k : ℚ) : ℝ) =
-        (ρ : ℝ) * ((∑ k : Fin (m + 1), v k * S j k : ℚ) : ℝ) := by
-      push_cast
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => by ring
-    rw [hsum, hv_orth j hj, Rat.cast_zero, mul_zero]
-  · nlinarith [norm_nonneg (toEuclidean (ratOrthoTarget S)),
-      norm_nonneg (fun j => toEuclidean (S j))]
-  · nlinarith [norm_nonneg (toEuclidean (ratOrthoTarget S)),
-      norm_nonneg (fun j => toEuclidean (S j))]
+  have hnn_t := norm_nonneg (toEuclidean (ratOrthoTarget S))
+  have hnn_S := norm_nonneg (fun j => toEuclidean (S j))
+  refine ⟨fun j hj => ?_, by nlinarith, by nlinarith⟩
+  rw [toEuclidean, toEuclidean, EuclideanSpace.inner_eq_star_dotProduct]
+  simp only [star_trivial, dotProduct, ht_eq, ← Rat.cast_mul, ← Rat.cast_sum]
+  suffices ∑ k, S j k * (ρ * v k) = 0 from mod_cast this
+  rw [← mul_zero ρ, ← hv_orth j hj, Finset.mul_sum]
+  exact Finset.sum_congr rfl fun _ _ => by ring
 
 end RationalTarget
 
@@ -717,7 +709,7 @@ theorem shortenLoop_isSolution_givp (φ : Submodule ℤ E → ℝ) (γ : ℝ)
         one_le_sqNormProd hli_o fun i j => hL_gram _ (hmem_o i) _ (hmem_o j)
       have hlt1 := pow_shortenRoundBound_mul_lt_one (B := B) hnpos
       have hleB := mul_le_mul_of_nonneg_left (sqNormProd_le_pow hB)
-        (by positivity : (0 : ℝ) ≤ ((13 / 16 : ℝ) ^ 2) ^ K)
+        (pow_nonneg (sq_nonneg (13 / 16 : ℝ)) K)
       linarith
 
 /-- Unconditional guarded shortening step for fixed-iteration loops (`IsPPTOn.iterateWith_spec`):

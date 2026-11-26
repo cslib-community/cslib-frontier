@@ -161,8 +161,7 @@ theorem mem_language_census_true_iff {a : α} {g : α × List Bool → Bool}
   · rintro ⟨w, hwlen, hgw⟩
     refine ⟨shortMembers S (m.eval (enc a).length), nodup_shortMembers _ _, rfl,
       fun s hs => mem_shortMembers.mp hs, fun _ => ⟨w, hwlen, ?_⟩⟩
-    rw [hG w _ hwlen fun s hs => by simp only [mem_shortMembers, hs, and_true]]
-    exact hgw
+    rwa [hG w _ hwlen fun s hs => by simp only [mem_shortMembers, hs, and_true]]
 
 /-! ### The requests are in `NP` -/
 
@@ -282,13 +281,10 @@ theorem language_mem_NP (hS : S ∈ NP encBits) (hsparse : S ∈ SPARSE encBits)
   have hlist : (encList (encPair encBits encBits) pairs).length ≤
       c * (m.eval n + 1) ^ d * (4 * m.eval n + 2 * pS.eval (m.eval n) + 3) := by
     rw [length_encList]
-    have h := List.sum_le_length_nsmul
-      (pairs.map fun sc => 2 * (encPair encBits encBits sc).length + 1)
-      (4 * m.eval n + 2 * pS.eval (m.eval n) + 3) fun z hz => by
-        obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hz
-        exact hpair sc hsc
-    rw [List.length_map, smul_eq_mul] at h
-    exact h.trans (Nat.mul_le_mul_right _ hcount)
+    refine (List.sum_le_length_nsmul _ _ fun z hz => ?_).trans
+      (by simpa only [List.length_map, smul_eq_mul] using Nat.mul_le_mul_right _ hcount)
+    obtain ⟨sc, hsc, rfl⟩ := List.mem_map.mp hz
+    exact hpair sc hsc
   have hword : (if finalQuery = true then w else []).length ≤ p.eval n := by
     split_ifs with h
     exacts [(hw h).1.le, Nat.zero_le _]
@@ -456,11 +452,9 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
   let m : Polynomial ℕ := q.comp (2 * Polynomial.X + 1 + p)
   have hD := KadinCensus.language_mem_NP (m := m) (p := p) hS hsparse hG
   obtain ⟨red, hred, hDred⟩ := CookLevin.SAT_npHard _ _ hD
-  have henc : ComputableInPolyTime (fun φ : Cslib.Logic.PL.CNF ℕ => encCNF φ) encCNF encBits :=
-    .of_eq fun _ => rfl
   have hreqb (b : Bool) : ComputableInPolyTime (fun x : α × ℕ => encCNF (red (x.1, x.2, b)))
       (encPair enc encUnary) encBits :=
-    henc.comp (hred.comp (by fun_prop))
+    (ComputableInPolyTime.of_eq fun _ => rfl).comp (hred.comp (by fun_prop))
   have hmemA (x : α × ℕ × Bool) :
       encCNF (red x) ∈ encCNF '' SAT ↔ x ∈ KadinCensus.language S enc m p G := by
     rw [hDred x]
@@ -498,9 +492,7 @@ theorem SigmaP_two_subset_PNPLog_of_sparse (hsparse : S ∈ SPARSE encBits) (hS 
   have hlast := KadinCensus.mem_language_census_true_iff (S := S) (enc := enc) (m := m) (p := p)
     (G := G) (a := a) (g := g) fun w ℓ hw hℓ => hGg (a, w) ℓ fun s hs =>
       hℓ s (by simpa [m, length_encPair, hw] using hs)
-  change a ∈ L ↔ OracleComp.interpret (m := Id) (languageOracle (encCNF '' SAT))
-    (KadinCensus.program (fun x => encCNF (red (x.1, x.2, false)))
-      (fun x => encCNF (red (x.1, x.2, true))) N count a) = true
+  dsimp only [prog]
   rw [KadinCensus.interpret_program, decide_eq_true_iff]
   dsimp only
   rw [hmemA, hP, KadinCensus.fst_iterate_searchStep hcen hlt, hlast, hLB a]

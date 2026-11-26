@@ -112,12 +112,10 @@ theorem IsDipath.zip_tail_vertices {s t : V} {q : List E} (hq : IsDipath src tgt
 `toDigraph src tgt`. -/
 theorem IsDipath.isChain_toDigraph {s t : V} {q : List E} (hq : IsDipath src tgt s t q) :
     (s :: q.map tgt).IsChain (toDigraph src tgt).Adj := by
-  have hall :
-      ∀ p ∈ (s :: q.map tgt).zip (s :: q.map tgt).tail, (toDigraph src tgt).Adj p.1 p.2 := by
-    rintro _ hp
-    obtain ⟨e, _, rfl⟩ := List.mem_map.mp (hq.zip_tail_vertices ▸ hp)
-    exact ⟨e, rfl, rfl⟩
-  clear hq
+  have hall (p) (hp : p ∈ (s :: q.map tgt).zip (s :: q.map tgt).tail) :
+      (toDigraph src tgt).Adj p.1 p.2 :=
+    let ⟨e, _, he⟩ := List.mem_map.mp (hq.zip_tail_vertices ▸ hp)
+    he ▸ ⟨e, rfl, rfl⟩
   generalize s :: q.map tgt = vs at hall
   induction vs with
   | nil => exact List.isChain_nil
@@ -321,14 +319,11 @@ theorem isSeparator_of_forall_src_tgt {A B Y : Set V} (S : V → Prop)
 /-- Closed-set certificate for a multidigraph vertex cut. -/
 theorem isVertexCut_of_forall_src_tgt {s t : V} {S T : Finset V} (hs : s ∈ S) (ht : t ∉ S)
     (hsT : s ∉ T) (htT : t ∉ T) (hST : ∀ e, src e ∈ S → tgt e ∉ S → tgt e ∈ T) :
-    IsVertexCut src tgt s t T := by
-  refine (isVertexCut_iff_isSeparator src tgt).mpr
-    ⟨hsT, htT, isSeparator_of_forall_src_tgt src tgt (· ∈ S) ?_ ?_ ?_⟩
-  · intro e hu hv
-    by_contra hvS
-    exact hv (Finset.mem_coe.mpr (hST e hu hvS))
-  · rintro _ rfl _; exact hs
-  · rintro _ rfl _; exact ht
+    IsVertexCut src tgt s t T :=
+  (isVertexCut_iff_isSeparator src tgt).mpr ⟨hsT, htT,
+    isSeparator_of_forall_src_tgt src tgt (· ∈ S)
+      (fun e hu hv => Classical.byContradiction fun hvS => hv (hST e hu hvS))
+      (fun _ ha _ => ha.symm ▸ hs) (fun _ hb _ => hb.symm ▸ ht)⟩
 
 /-- **Weak duality for internally disjoint paths in a multidigraph**: `k` pairwise internally
 disjoint simple `s`–`t` paths require at least `k` vertices in every `s`–`t` vertex cut. -/

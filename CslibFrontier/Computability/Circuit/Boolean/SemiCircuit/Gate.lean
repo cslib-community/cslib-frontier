@@ -298,11 +298,7 @@ assignment `Function.update val v b`. -/
 theorem args_of_reads {g : Gate} {z z' : ℕ} (hzz : z ≠ z') (hz : g.Reads z)
     (hz' : g.Reads z') : (g.left = .node z ∧ g.right = .node z') ∨
       (g.left = .node z' ∧ g.right = .node z) := by
-  rcases hz with hz | hz <;> rcases hz' with hz' | hz'
-  · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
-  · exact Or.inl ⟨hz, hz'⟩
-  · exact Or.inr ⟨hz', hz⟩
-  · exact absurd (Arg.node.inj (hz.symm.trans hz')) hzz
+  rcases hz with hz | hz <;> rcases hz' with hz' | hz' <;> simp_all
 
 /-- A gate whose arguments are `x` and `y`, in either order, reads both. -/
 theorem reads_of_args {g : Gate} {x y : ℕ} (h : (g.left = .node x ∧ g.right = .node y) ∨
@@ -313,11 +309,8 @@ theorem reads_of_args {g : Gate} {x y : ℕ} (h : (g.left = .node x ∧ g.right 
 /-- A gate reading two distinct internal values reads nothing else. -/
 theorem eq_or_eq_of_reads {g : Gate} {a b i : ℕ} (hab : a ≠ b) (ha : g.Reads a)
     (hb : g.Reads b) (hi : g.Reads i) : i = a ∨ i = b := by
-  rcases args_of_reads hab ha hb with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rcases hi with hi | hi
-  · exact Or.inl (Arg.node.inj (hi.symm.trans hl))
-  · exact Or.inr (Arg.node.inj (hi.symm.trans hr))
-  · exact Or.inr (Arg.node.inj (hi.symm.trans hl))
-  · exact Or.inl (Arg.node.inj (hi.symm.trans hr))
+  rcases args_of_reads hab ha hb with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;>
+    rcases hi with hi | hi <;> simp_all
 
 /-- A gate reads at most two internal values. -/
 theorem card_filter_reads_le (g : Gate) (s : Finset ℕ) : (s.filter g.Reads).card ≤ 2 := by

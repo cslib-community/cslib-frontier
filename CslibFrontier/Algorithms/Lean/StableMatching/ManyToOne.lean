@@ -154,9 +154,7 @@ theorem resRank_some_lt_none_iff (r : Fin m) (h : Fin n) :
 theorem eq_of_resRank_eq {r : Fin m} {h : Fin n} (hh : h ∈ I.resPref r) {o : Option (Fin n)}
     (heq : I.resRank r (some h) = I.resRank r o) : o = some h := by
   cases o with
-  | none =>
-    have := (I.resRank_some_lt_none_iff r h).2 hh
-    omega
+  | none => exact absurd ((I.resRank_some_lt_none_iff r h).2 hh) (heq ▸ lt_irrefl _)
   | some h' => exact congrArg some ((List.idxOf_inj hh).1 heq).symm
 
 /-- `M` is feasible when every hospital admits at most its quota of residents. -/
@@ -657,23 +655,20 @@ theorem resRank_deferredAcceptance_le_of_isStable {M : ManyToOneMatching m n} (h
   | some h₂ =>
     let j₂ : Fin (I.quota h₂) := ⟨I.hospPos M h₂ r,
       (I.hospPos_lt_card (ManyToOneMatching.mem_residents.2 hMr)).trans_le (hM.1 h₂)⟩
-    have hμr : I.liftClone hM r = some (I.seat h₂ j₂) := I.liftCloneFun_some hM.1 hMr
-    rw [hμr] at hda_le
+    rw [liftClone_apply, I.liftCloneFun_some hM.1 hMr] at hda_le
     cases hdar : I.cloneInstance.deferredAcceptance r with
     | none =>
-      rw [hdar] at hda_le
-      exact absurd ((I.cloneInstance.propRank_some_lt_none_iff r _).2 (by
-        rw [mem_clone_propPref_iff, seat_symm_fst, seat_symm_snd_val]
-        exact ⟨(hM.2.1 r h₂ hMr).1, j₂.isLt⟩)) (not_lt_of_ge hda_le)
+      refine absurd ((I.cloneInstance.propRank_some_lt_none_iff r _).2 ?_) (hdar ▸ hda_le).not_gt
+      rw [mem_clone_propPref_iff, seat_symm_fst, seat_symm_snd_val]
+      exact ⟨(hM.2.1 r h₂ hMr).1, j₂.isLt⟩
     | some s₁ =>
       rw [hdar] at hda_le
       have hk₁ := (I.mem_clone_recvPref_iff.1
         (I.cloneInstance.isIndividuallyRational_deferredAcceptance r s₁ hdar).2).1
       simp only [deferredAcceptance, projectClone, hdar, Option.map_some]
       by_contra! hgt
-      have hlt_clone := I.clone_propRank_seat_lt_of_resRank_lt hgt j₂ ⟨_, hk₁⟩
-      rw [← I.eq_seat_of_lt_quota s₁ rfl hk₁] at hlt_clone
-      exact not_lt_of_ge hda_le hlt_clone
+      exact hda_le.not_gt (I.eq_seat_of_lt_quota s₁ rfl hk₁ ▸
+        I.clone_propRank_seat_lt_of_resRank_lt hgt j₂ ⟨_, hk₁⟩)
 
 theorem isResidentOptimal_deferredAcceptance : I.IsResidentOptimal I.deferredAcceptance :=
   ⟨I.isStable_deferredAcceptance, fun _ hM r => I.resRank_deferredAcceptance_le_of_isStable hM r⟩
@@ -723,11 +718,10 @@ does not fill its quota in some stable matching is assigned the **exact same set
 every stable matching. -/
 theorem residents_eq_of_card_lt_quota {M₁ M₂ : ManyToOneMatching m n} (hM₁ : I.IsStable M₁)
     (hM₂ : I.IsStable M₂) {h : Fin n} (hlt : (M₁.residents h).card < I.quota h) :
-    M₁.residents h = M₂.residents h := by
-  have hlt₂ : (M₂.residents h).card < I.quota h :=
-    I.card_residents_eq_of_isStable hM₁ hM₂ h ▸ hlt
-  exact (I.deferredAcceptance_residents_eq_of_card_lt_quota hM₁ hlt).symm.trans
-    (I.deferredAcceptance_residents_eq_of_card_lt_quota hM₂ hlt₂)
+    M₁.residents h = M₂.residents h :=
+  (I.deferredAcceptance_residents_eq_of_card_lt_quota hM₁ hlt).symm.trans
+    (I.deferredAcceptance_residents_eq_of_card_lt_quota hM₂
+      (I.card_residents_eq_of_isStable hM₁ hM₂ h ▸ hlt))
 
 end ManyToOneInstance
 

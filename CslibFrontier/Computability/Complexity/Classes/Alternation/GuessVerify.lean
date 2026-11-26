@@ -90,9 +90,9 @@ theorem acceptsWithin_lift_tag (r : ℕ) : ∀ (zd : List Bool) (u : Bool) (n : 
   induction r with
   | zero =>
     intro zd u n
-    rw [show 2 * 0 + 1 + n = n + 1 by omega, List.replicate_zero, List.replicate_zero,
-      List.append_nil, acceptsWithin_succ_of_next_eq (next_lift_halt zd u),
-      Cslib.Complexity.alternation_nil, List.append_nil, add_zero]
+    simpa only [zero_mul, zero_add, add_comm 1 n, List.replicate_zero, List.append_nil,
+      Cslib.Complexity.alternation_nil, add_zero] using
+      acceptsWithin_succ_of_next_eq (next_lift_halt zd u)
   | succ r ih =>
     intro zd u n
     simp only [List.replicate_succ]
@@ -101,20 +101,16 @@ theorem acceptsWithin_lift_tag (r : ℕ) : ∀ (zd : List Bool) (u : Bool) (n : 
         (2 * zd.length + 1))).state = some (.inr (.inl (.move u))) := rfl
     have hgame (b : Bool) := ih (zd ++ [b]) (!u) n
     simp only [Bool.not_not, List.append_assoc, List.singleton_append, List.length_append,
-      List.length_singleton, show zd.length + 1 + r = zd.length + (r + 1) by ring] at hgame
-    rw [show 2 * (r + 1) + 1 + n = 2 * r + 1 + n + 1 + 1 by omega,
-      acceptsWithin_succ_of_next_eq (next_lift_tag zd _ true u)]
+      List.length_singleton, Nat.add_assoc zd.length 1 r, Nat.add_comm 1 r] at hgame
+    have hstep : 2 * (r + 1) + 1 + n = 2 * r + 1 + n + 1 + 1 := by omega
+    rw [hstep, acceptsWithin_succ_of_next_eq (next_lift_tag zd _ true u)]
     cases u
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_existential hstate rfl,
         Bool.not_false, Cslib.Complexity.alternation_true_one_cons]
-      exact exists_congr fun b => by
-        rw [next_lift_move]
-        exact hgame b
+      exact exists_congr fun b => by simpa only [next_lift_move] using hgame b
     · rw [(guessVerify B prep verify).acceptsWithin_succ_of_universal hstate rfl,
         Bool.not_true, Cslib.Complexity.alternation_false_one_cons]
-      exact forall_congr' fun b => by
-        rw [next_lift_move]
-        exact hgame b
+      exact forall_congr' fun b => by simpa only [next_lift_move] using hgame b
 
 end GuessVerify
 
@@ -225,10 +221,7 @@ private theorem decidableInTime_guessVerify {L : α → ℕ} {W : List Bool × �
     obtain ⟨_, _, hrun, ⟨rfl, rfl⟩, -⟩ := transformsTapes_iff_runFrom.mp
       (hs.inputFromWord_extendTapes true (Fin.embeddingAt_source hk₂ (Fin.natAdd k₂ 0) B))
       (enc a) _ [] rfl
-    have hrun' : verify.runFrom (wordsCfg (enc a) (some verify.q₀)
-        (Function.update (fun _ => []) B (frame z ++ enc a)) []) (tv a + 4) = _ := hrun
-    rw [hrun']
-    exact ⟨rfl, rfl⟩
+    exact ⟨congrArg Cfg.state hrun, congrArg Cfg.output hrun⟩
   refine ⟨k₁ + 1 + (k₂ + 2), _, inferInstance, MultiTapeATM.guessVerify B prep verify,
     fun a => ?_⟩
   obtain ⟨T, hT, hhalt, hacc⟩ := MultiTapeATM.guessVerify_spec (hprep a) (hverify a)
@@ -319,8 +312,7 @@ theorem mem_ATIME_of_alternation {L : α → ℕ} {V : α × List Bool → Bool}
   have e₂ : cv * (2 * (2 * L a + 1 + (enc a).length) + (C * t (enc a).length + C) + 1) ≤
       cv * (5 * (C * t (enc a).length + C + 1)) :=
     Nat.mul_le_mul_left cv (by omega)
-  rw [show (frame (List.replicate (L a) true) ++ enc a).length =
-    2 * L a + 1 + (enc a).length by simp]
+  simp only [List.length_append, length_frame, List.length_replicate]
   nlinarith [e₁, e₂, Nat.zero_le (C * t (enc a).length)]
 
 end Cslib.Complexity

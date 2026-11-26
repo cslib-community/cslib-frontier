@@ -93,9 +93,8 @@ theorem Valid.of_liftsTo {S S' : State cfg n} (hS : S.Valid f) (hparams : S'.par
     S'.Valid f :=
   hS.of_phi hparams hpairs hphi hwf fun val hval hlocus => by
     obtain ⟨w, hw, hwval, hout⟩ := hlift val hval hlocus
-    have hwlocus : S.Locus w := hS.locus_congr (fun j hj => (hwval j hj).symm)
-      (by change cfg.locus S.pairs val; rw [← hpairs]; exact hlocus)
-    rw [hout, hS.computes w hw hwlocus, hphi]
+    rw [hout, hS.computes w hw (hS.locus_congr (fun j hj => (hwval j hj).symm)
+      (Eq.mp (congrArg (cfg.locus · val) hpairs) hlocus)), hphi]
     exact congrArg f (hS.phi_congr _ _ hwval)
 
 /-- Validity from an unconditional `SemiCircuit.LiftsTo`. -/
@@ -136,15 +135,14 @@ theorem Valid.of_transport {S S' : State cfg n} (hS : S.Valid f) {σ : (ℕ → 
   wf := hwf
   pair_mem := h.pair_mem
   pairs_disjoint := h.pairs_disjoint
-  phi_congr val val' hv := by
-    rw [h.phi, h.phi]
-    exact hS.phi_congr _ _ (h.congr val val' hv)
+  phi_congr val val' hv :=
+    (h.phi val).trans ((hS.phi_congr _ _ (h.congr val val' hv)).trans (h.phi val').symm)
   phi_affine := h.phi_affine
   phi_injective val val' hv :=
     h.inj val val' (hS.phi_injective _ _ (by rwa [h.phi, h.phi] at hv))
-  computes val hval hlocus := by
-    rw [h.out val hval hlocus, h.phi]
-    exact hS.computes _ (h.consistent val hval) (h.locus val hlocus)
+  computes val hval hlocus :=
+    (h.out val hval hlocus).trans ((hS.computes _ (h.consistent val hval)
+      (h.locus val hlocus)).trans (congrArg f (h.phi val)).symm)
 
 /-- A gate does not read itself. -/
 theorem Valid.not_reads_self {S : State cfg n} (hS : S.Valid f) {J : ℕ} (hJ : J ∈ S.gates) :
@@ -386,10 +384,9 @@ theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit
   have hw : ∀ i, i ≠ J → w i = val i := fun i hi => Function.update_of_ne hi _ _
   have hwJval : w J = (S.gate J).eval val := Function.update_self _ _ _
   have hℓw : ℓ.eval w = ℓ.eval val := Lit.eval_congr fun i hi => hw i fun he => hℓJ (he ▸ hi)
-  have heqns : S.EqnsHold val := fun e he => by
-    have hev := hval.1 e he
-    change ((S.eqn e).subst J ℓ).Holds val at hev
-    rwa [Equation.subst_of_notMem (hS.wf.notMem_terms_of_mem_gates h.mem he)] at hev
+  have heqns : S.EqnsHold val := fun e he =>
+    (congrArg (Equation.Holds · val)
+      (Equation.subst_of_notMem (hS.wf.notMem_terms_of_mem_gates h.mem he))).mp (hval.1 e he)
   have hJw : (∀ val', S.EqnsHold val' → S.Locus val' →
       (S.gate J).eval val' = ℓ.eval val') → w J = ℓ.eval w := fun hv => by
     rw [hwJval, hv val heqns hlocus, hℓw]
@@ -399,9 +396,8 @@ theorem Valid.deleteGate {S : State cfg n} (hS : S.Valid f) {J : ℕ} {ℓ : Lit
       hS.wf.notMem_terms_of_mem_gates h.mem he (he' ▸ hi)).2 (heqns e he)
   · by_cases hKJ : K = J
     · subst hKJ
-      rw [hwJval]
-      exact Gate.eval_congr fun i hi =>
-        (hw i fun he => hS.wf.not_reads_self h.mem (he ▸ hi)).symm
+      exact hwJval.trans (Gate.eval_congr fun i hi =>
+        (hw i fun he => hS.wf.not_reads_self h.mem (he ▸ hi)).symm)
     · rw [hw K hKJ, hval.2 K (Finset.mem_erase.2 ⟨hKJ, hK⟩)]
       change ((S.gate K).subst J ℓ).eval val = _
       rcases h.value with hv | ⟨hun, -⟩
@@ -555,8 +551,7 @@ theorem moveAffine_size {S : State cfg n} {J e : ℕ} (h : S.MoveOK J e) :
     (S.moveAffine J e).size = S.size := by
   have h1 := Finset.card_erase_add_one h.mem
   have h2 := Finset.card_insert_of_notMem h.fresh
-  simp only [SemiCircuit.size] at *
-  change (S.gates.erase J).card + (insert e S.eqns).card = _
+  change (S.gates.erase J).card + (insert e S.eqns).card = S.gates.card + S.eqns.card
   omega
 
 /-- Moving an affine gate into the affine system decreases the number of gates by `1`. -/
@@ -692,8 +687,7 @@ theorem Valid.swap_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} 
         ((hv i (Finset.mem_of_mem_erase (hTx i hi))).trans
           (hσ val' i (Finset.ne_of_mem_erase hi)))] at h1
       simpa using h1
-    · have := hv j (Finset.mem_of_mem_erase hj)
-      rwa [hσ val j (Finset.ne_of_mem_erase hj), hσ val' j (Finset.ne_of_mem_erase hj)] at this
+    · simpa only [hσ _ j (Finset.ne_of_mem_erase hj)] using hv j (Finset.mem_of_mem_erase hj)
 
 /-- An affine reparameterisation `(AR)` preserves `m`. -/
 theorem Valid.swap_m {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} {T : Finset ℕ}

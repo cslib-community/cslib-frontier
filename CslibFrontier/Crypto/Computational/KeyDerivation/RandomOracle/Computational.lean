@@ -359,14 +359,12 @@ private theorem closeTo_idealLazyListLaw_eval_lazyROToListGuess {X S T : ℕ →
   rw [heval, idealLazyListLaw]
   have hring : (εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞) = ((Q + 1 : ℕ) : ℝ≥0∞) * εT := by push_cast; ring
   refine (CloseTo.bind hcloseT fun t ht => ?_).mono hring.le
-  apply CloseTo.map
   unfold ProbOracleComp.runWith
-  apply (hQ t ht).closeTo_runWith
+  refine CloseTo.map ((hQ t ht).closeTo_runWith ?_ []) _
   rintro (k | req) cache
-  · simp only [OracleComp.sumHandler, Sum.elim_inl, Nat.cast_zero, zero_mul]
-    exact CloseTo.refl _
-  · simp only [OracleComp.sumHandler, Sum.elim_inr, Nat.cast_one, one_mul]
-    exact closeTo_cachedDistOracle _ (hcloseT.map (encT n)) req.2 cache
+  · simp [OracleComp.sumHandler]
+  · simpa [OracleComp.sumHandler] using
+      closeTo_cachedDistOracle _ (hcloseT.map (encT n)) req.2 cache
 
 end LazyEquivalence
 
@@ -538,11 +536,9 @@ theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
     (lazyROToGuess width Q defaultS decS encT sampleT D).IsPPT encX encS := by
   let E₀ := encSigma encUnary encX
   let E₁ := encPair E₀ (encList encBits)
-  have hn : ComputableInPolyTime (fun p : (Σ n, X n) × List (List Bool) => p.1.1) E₁ encUnary := by
-    fun_prop
   have hsample : IsPPTOn E₁ encUnary (fun p : (Σ n, X n) × List (List Bool) =>
       ProbComp.sampleModIndex (width p.1.1) (Q p.1.1)) :=
-    isPPTOn_sampleModIndex (hwidth.comp hn) (hQ.comp hn)
+    isPPTOn_sampleModIndex (hwidth.comp (by fun_prop)) (hQ.comp (by fun_prop))
   let E₂ := encPair E₁ encUnary
   have hpick : ComputableInPolyTime
       (fun p : ((Σ n, X n) × List (List Bool)) × ℕ =>
@@ -603,8 +599,8 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X S T : ℕ →
       rw [List.length_take] at hi
       have hiQ : i < Q n := hi.trans_le (min_le_left _ _)
       have hil : i < l.length := hi.trans_le (min_le_right _ _)
-      rw [ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ),
-        show (PMF.pure (decide ((l.take (Q n))[i] ∈ l))) true = 1 by simp]
+      rw [decide_eq_true hmem, PMF.pure_apply_self,
+        ProbComp.sampleModIndex_eq_sampleModNat (width n) ((Nat.zero_le i).trans_lt hiQ)]
       calc (1 : ℝ≥0∞) ≤
             (Q n : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat (width n) (Q n)) i +
               (Q n : ℝ≥0∞) / 2 ^ width n :=
@@ -653,8 +649,7 @@ theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
   let M : ℕ → ℕ := fun n => 2 * n + 2 * (ci * (n + 1) ^ di) + maxT n + 2
   let Q : ℕ → ℕ := fun n => cD * (M n + 1) ^ dD
   have hQ : ComputableInPolyTime Q encUnary encUnary := by
-    dsimp only [Q, M, maxT]
-    fun_prop
+    dsimp only [Q, M, maxT]; fun_prop
   have hDt : ∀ n, ∀ s ∈ (sample n).support, ∀ t ∈ (ProbComp.eval (sampleT n)).support,
       (D n (info n s) (encT n t)).IsQueryBounded (Q n) := by
     intro n s hs t ht
@@ -665,8 +660,7 @@ theorem SecretGuessHard.negligible_roAdvantage {X S T : ℕ → Type}
         hlenT n (encT n t) ((ProbComp.eval_map (encT n) (sampleT n)).symm ▸
           (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
     have hlen : (encWordROInput encX ⟨n, info n s, encT n t⟩).length ≤ M n := by
-      rw [encWordROInput_apply]
-      dsimp only [M]
+      simp only [encWordROInput_apply, M]
       enc_len
     exact Nat.mul_le_mul_left cD (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) dD)
   have hguess_red := hguess _

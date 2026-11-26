@@ -91,16 +91,14 @@ private theorem ite_update_apply_of_ne {α β : Type*} {P : Prop} {dP : Decidabl
     {dα : DecidableEq α} {f : α → β} {i j : α} {v : β} (h : j ≠ i) :
     (if P then Function.update f i v else f) j = f j := by
   split_ifs
-  · exact Function.update_of_ne h v f
-  · rfl
+  exacts [Function.update_of_ne h v f, rfl]
 
 /-- Reading the updated index of a conditionally updated array. -/
 private theorem ite_update_apply_self {α β : Type*} {P : Prop} {dP : Decidable P}
     {dα : DecidableEq α} {f : α → β} {i : α} {v : β} :
     (if P then Function.update f i v else f) i = if P then v else f i := by
   split_ifs
-  · exact Function.update_self i v f
-  · rfl
+  exacts [Function.update_self i v f, rfl]
 
 private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     {θ : SeedWhp c U n_max} {fs : FastState} {dict : State U} (u : Fin U)
@@ -162,14 +160,12 @@ private theorem fs1_moveLast_invs {c U V n_max b loc_del loc_last : ℕ}
     · rw [Function.update_self]
       obtain ⟨hv0', hna_e, hia_e, _, _⟩ := hv0.delete_spec hrk_u_lt
       exact ⟨hna_e ▸ hna0, hia_e ▸ hia0, _, hv0'⟩
-    · rw [Function.update_of_ne (by decide : (0 : ℕ) ≠ 1)]
-      exact ⟨hna0, hia0, m0, hv0⟩
+    · exact Function.update_of_ne Nat.zero_ne_one _ _ ▸ ⟨hna0, hia0, m0, hv0⟩
     · exact ⟨hna0, hia0, m0, hv0⟩
   · obtain ⟨hna1, hia1, m1, hv1⟩ := hb1 loc_last hll_b h3
     dsimp only [fs1, fastDeleteRemove]
     split_ifs
-    · rw [Function.update_of_ne (by decide : (1 : ℕ) ≠ 0)]
-      exact ⟨hna1, hia1, m1, hv1⟩
+    · exact Function.update_of_ne Nat.one_ne_zero _ _ ▸ ⟨hna1, hia1, m1, hv1⟩
     · rw [Function.update_self]
       obtain ⟨hv1', hna_e, hia_e, _, _⟩ := hv1.delete_spec hrk_u_lt
       exact ⟨hna_e ▸ hna1, hia_e ▸ hia1, _, hv1'⟩
@@ -469,7 +465,6 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
   · refine validProg_bind hri_vp ?_
     rw [hri_st, hri_res]
     unfold delMoveApplyCoreGenProg
-    dsimp only
     exact validProg_bind hvp_b (validProg_bind hvp_lo (validProg_bind hvp_r hvp_c))
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp

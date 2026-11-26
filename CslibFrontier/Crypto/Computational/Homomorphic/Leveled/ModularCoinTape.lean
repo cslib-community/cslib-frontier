@@ -71,14 +71,12 @@ theorem modLeveledAdversary_choose_support (E : Scheme) (adversary : Encryption.
       · supp_cases hchoice with ⟨chosen, hchosen, rfl⟩
         exact Or.inr (Or.inr (Or.inl ⟨chosen, hchosen, rfl⟩))
       · supp_cases hchoice with ⟨reverseIndex, _, bitIndex, _, hchoice⟩
-        split at hchoice
-        · split at hchoice
-          · supp_cases hchoice with ⟨chosen, hchosen, rfl⟩
-            exact Or.inr (Or.inr (Or.inr ⟨chosen, hchosen, rfl⟩))
-          · supp_cases hchoice
-            exact Or.inl rfl
+        rw [← ite_and] at hchoice
+        split_ifs at hchoice
+        · supp_cases hchoice with ⟨chosen, hchosen, rfl⟩
+          exact .inr (.inr (.inr ⟨chosen, hchosen, rfl⟩))
         · supp_cases hchoice
-          exact Or.inl rfl
+          exact .inl rfl
   · supp_cases hchoice [modLeveledAdversary, hpos] with ⟨chosen, hchosen, rfl⟩
     exact Or.inr (Or.inr (Or.inr ⟨chosen, hchosen, rfl⟩))
 
@@ -159,8 +157,7 @@ theorem eval_modLeveledAdversary_guess_eq_map_coins (E : Scheme)
       (capacity n) pkBound encCoins chooseCoins target.1 (hkeys target htarget).1 hkeys
       (fun pk hpk message => (hencrypt pk hpk message).2)
       (fun artifact hbound => (hchoose artifact hbound).2) hchosen
-    have hct : (false :: challenge).length ≤ encCoins + 1 := by simp only [List.length_cons]; omega
-    have hlaw := hguess chosen.2 (false :: challenge) hstate hct
+    have hlaw := hguess chosen.2 (false :: challenge) hstate (Nat.succ_le_succ hchallenge)
     have hbudget : guessCoins ≤ leveledGuessCoinBudget (depth n) (capacity n)
         encCoins chooseCoins guessCoins := by unfold leveledGuessCoinBudget; omega
     rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
@@ -276,12 +273,10 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
         else rejectLeveledChoice
       else rejectLeveledChoice
     have hsize : 3 * coins n + zeroCoins = coins n + (2 * coins n + zeroCoins) := by omega
-    conv_rhs =>
-      unfold modLeveledChooseCoins
-      simp only [hpos, and_self, ↓reduceIte]
-    change _ = (BitString.uniformList (3 * coins n + zeroCoins)).map
-      (fun tape => afterHop (tape.take (coins n)) (tape.drop (coins n)))
-    rw [hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
+    have hrhs : modLeveledChooseCoins evaluateKey evaluateZero n (coins n) (depth n) (capacity n)
+        keyCoins challengePk = fun tape => afterHop (tape.take (coins n)) (tape.drop (coins n)) :=
+      funext fun _ => ite_eq_left hpos
+    rw [hrhs, hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
     simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
     -- both link branches use a prefix of the common payload

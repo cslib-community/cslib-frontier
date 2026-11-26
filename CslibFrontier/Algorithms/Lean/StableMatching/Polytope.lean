@@ -255,21 +255,11 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
   have hzero_slack :
       ∑ p₀ : Fin n, ∑ r₀ : Fin n,
         x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) = 0 := by
-    have hexpand :
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n,
-          x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.propBetterMass x p₀ r₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) +
-        (2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ * I.recvBetterMass x r₀ p₀) +
-          ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ ^ 2) -
-        2 * (∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀) := by
-      have hpt (p₀ r₀ : Fin n) :
-          2 * (x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1)) =
-            2 * (x p₀ r₀ * I.propBetterMass x p₀ r₀) + x p₀ r₀ ^ 2 +
-              (2 * (x p₀ r₀ * I.recvBetterMass x r₀ p₀) + x p₀ r₀ ^ 2) - 2 * x p₀ r₀ := by
-        ring
-      simp only [Finset.mul_sum]
-      simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
+    have hpt (p₀ r₀ : Fin n) :
+        x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) =
+          x p₀ r₀ * I.propBetterMass x p₀ r₀ + x p₀ r₀ * I.recvBetterMass x r₀ p₀ +
+            x p₀ r₀ ^ 2 - x p₀ r₀ := by ring
+    simp_rw [hpt, Finset.sum_sub_distrib, Finset.sum_add_distrib]
     linarith
   have hterm_nn (p₀ r₀ : Fin n) :
       0 ≤ x p₀ r₀ * (x p₀ r₀ + I.propBetterMass x p₀ r₀ + I.recvBetterMass x r₀ p₀ - 1) :=

@@ -95,18 +95,15 @@ theorem WellFormed.swap (hC : C.WellFormed) {x Q : ℕ} {c : Bool} {T : Finset �
     rcases Finset.mem_insert.1 hi with rfl | hi <;> rcases Finset.mem_insert.1 hi' with rfl | hi'
     exacts [hQx rfl, (Finset.ne_of_mem_erase hi') rfl, (Finset.ne_of_mem_erase hi) rfl,
       hC.notMem_aux_of_mem_params (Finset.mem_of_mem_erase hi) (Finset.mem_of_mem_erase hi')]
-  · change i ∈ insert Q (C.params.erase x) at hi
-    rcases Finset.mem_insert.1 hi with rfl | hi
+  · rcases Finset.mem_insert.1 hi with rfl | hi
     · exact hC.notMem_gates_of_mem_aux hQ hg
     · exact hC.notMem_gates_of_mem_params (Finset.mem_of_mem_erase hi) hg
-  · change i ∈ insert x (C.aux.erase Q) at hi
-    rcases Finset.mem_insert.1 hi with rfl | hi
+  · rcases Finset.mem_insert.1 hi with rfl | hi
     · exact hC.notMem_gates_of_mem_params hx hg
     · exact hC.notMem_gates_of_mem_aux (Finset.mem_of_mem_erase hi) hg
   · obtain ⟨val, hu, heq⟩ := hC.solvable
       (Function.update u x (u Q + c + ∑ j ∈ T.erase x, u j))
     refine ⟨val, fun j hj => ?_, heq⟩
-    change j ∈ insert Q (C.params.erase x) at hj
     have hT : ∀ i ∈ T.erase x, val i = u i := fun i hi => by
       rw [hu i (haff.1 (Finset.mem_of_mem_erase hi)),
         Function.update_of_ne (Finset.ne_of_mem_erase hi)]
@@ -125,7 +122,6 @@ theorem WellFormed.swap (hC : C.WellFormed) {x Q : ℕ} {c : Bool} {T : Finset �
             (Finset.mem_erase.2 ⟨Finset.ne_of_mem_erase hi,
               haff.1 (Finset.mem_of_mem_erase hi)⟩))]
       · exact hagree j (Finset.mem_insert_of_mem (Finset.mem_erase.2 ⟨hjx, hj⟩))
-    change a ∈ insert x (C.aux.erase Q) at ha
     rcases Finset.mem_insert.1 ha with rfl | ha
     · exact hparams a hx
     · exact hC.unique val val' hparams heq heq' a (Finset.mem_of_mem_erase ha)
@@ -197,18 +193,14 @@ theorem WellFormed.quad (hC : C.WellFormed) {x y z G D : ℕ} {α β γ c : Bool
         (fun he => h.out_G (he ▸ hi))
       solvable := fun u => ?_
       unique := fun val val' hagree heq heq' a ha => ?_ }
-  · change i ∈ insert D (C.params.erase z) at hi
-    rcases Finset.mem_insert.1 hi with rfl | hi
+  · rcases Finset.mem_insert.1 hi with rfl | hi
     · exact hC.notMem_aux_of_mem_gates h.mem_D ha
     · exact hC.notMem_aux_of_mem_params (Finset.mem_of_mem_erase hi) ha
-  · change i ∈ insert D (C.params.erase z) at hi
-    change i ∈ (C.gates.erase D).erase G at hg
-    rcases Finset.mem_insert.1 hi with rfl | hi
+  · rcases Finset.mem_insert.1 hi with rfl | hi
     · exact Finset.notMem_erase i _ (Finset.mem_of_mem_erase hg)
     · exact hC.notMem_gates_of_mem_params (Finset.mem_of_mem_erase hi)
         (Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hg))
-  · change K ∈ (C.gates.erase D).erase G at hK
-    have hKD := Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hK)
+  · have hKD := Finset.ne_of_mem_erase (Finset.mem_of_mem_erase hK)
     have hK' := Finset.mem_of_mem_erase (Finset.mem_of_mem_erase hK)
     exact mem_live_quad (hC.reads_live K hK' i hr) (fun he => h.not_reads_z hK' hKD (he ▸ hr))
       (fun he => h.not_reads_G hK' hKD (he ▸ hr))
@@ -219,8 +211,7 @@ theorem WellFormed.quad (hC : C.WellFormed) {x y z G D : ℕ} {α β γ c : Bool
     tauto
   · obtain ⟨val, hu, heq⟩ := hC.solvable u
     refine ⟨Function.update val D (u D), fun j hj => ?_, fun e he => ?_⟩
-    · change j ∈ insert D (C.params.erase z) at hj
-      rcases Finset.mem_insert.1 hj with rfl | hj
+    · rcases Finset.mem_insert.1 hj with rfl | hj
       · exact Function.update_self _ _ _
       · rw [Function.update_of_ne (show j ≠ D from fun he =>
           hC.notMem_params_of_mem_gates h.mem_D (he ▸ Finset.mem_of_mem_erase hj)),

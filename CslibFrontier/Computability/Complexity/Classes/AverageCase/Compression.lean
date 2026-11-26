@@ -192,10 +192,7 @@ noncomputable def bR (x : List Bool) : ℝ := (num x : ℝ) / den x
 
 /-- The lower denominator is nonzero. -/
 theorem loDen_ne_zero (hden : ∀ x, den x ≠ 0) (x : List Bool) : loDen den x ≠ 0 := by
-  unfold loDen
-  split
-  · exact one_ne_zero
-  · exact hden _
+  by_cases h : BitString.binaryValue x = 0 <;> simp [loDen, h, hden]
 
 section Spec
 
@@ -204,10 +201,9 @@ include hcdf hden
 
 /-- `D_n({y < x}) = a`. -/
 theorem cdfLo_eq (x : List Bool) : D.cdfLo x = ENNReal.ofReal (aR num den x) := by
-  unfold aR loNum loDen
-  by_cases h : BitString.binaryValue x = 0
-  · simp [h, D.cdfLo_of_binaryValue_eq_zero h]
-  · simp [h, D.cdfLo_eq_cdf_predWord h, hcdf, natCast_div_eq_ofReal (hden _)]
+  by_cases h : BitString.binaryValue x = 0 <;>
+    simp [aR, loNum, loDen, h, D.cdfLo_of_binaryValue_eq_zero, D.cdfLo_eq_cdf_predWord, hcdf,
+      natCast_div_eq_ofReal (hden _)]
 
 /-- `D_n({y ≤ x}) = b`. -/
 theorem cdf_eq (x : List Bool) : D.cdf x = ENNReal.ofReal (bR num den x) :=
@@ -306,13 +302,11 @@ theorem heavy_spec (x : List Bool) (hh : heavy num den x = true) :
   have hsplit : (2 : ℕ) ^ x.length = 2 ^ (x.length - cS num den x) * 2 ^ cS num den x := by
     rw [← pow_add, Nat.sub_add_cancel hsn]
   refine ⟨hsn, ?_, hM1, hM2, ?_⟩
-  · rw [Nat.div_lt_iff_lt_mul (by positivity), ← hsplit]
-    exact hAn
+  · rwa [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← hsplit]
   · have hsplit' : (2 : ℝ) ^ x.length = 2 ^ (x.length - cS num den x) * 2 ^ cS num den x := by
       exact_mod_cast hsplit
     rw [hsplit', ← mul_assoc] at hlen
-    have h2s : (0 : ℝ) < 2 ^ cS num den x := by positivity
-    exact le_of_mul_le_mul_right (by linarith) h2s
+    exact le_of_mul_le_mul_right (by linarith) (pow_pos zero_lt_two _)
 
 end Spec
 
@@ -334,8 +328,8 @@ theorem length_compress_le (x : List Bool) : (compress num den x).length ≤ x.l
 /-- **Claim 20, compression.** `2^{|C(x)|} D_{|x|}(x) ≤ 2`, that is `|C(x)| ≤ 1 + log (1/D(x))`. -/
 theorem two_pow_length_compress_mul_le (x : List Bool) :
     (2 : ℝ≥0∞) ^ (compress num den x).length * D.dist x.length x ≤ 2 := by
-  rw [dist_eq hcdf hden, show (2 : ℝ≥0∞) = ENNReal.ofReal 2 by simp,
-    ← ENNReal.ofReal_pow (by norm_num), ← ENNReal.ofReal_mul (by positivity)]
+  rw [dist_eq hcdf hden, ← ENNReal.ofReal_ofNat, ← ENNReal.ofReal_pow (by norm_num),
+    ← ENNReal.ofReal_mul (by positivity)]
   refine ENNReal.ofReal_le_ofReal ?_
   unfold compress
   split
@@ -361,7 +355,8 @@ theorem not_compress_eq_of_lt {x x' : List Bool} (hlen : x.length = x'.length)
   rw [BitString.length_binaryWord hZ, BitString.length_binaryWord hZ'] at hl
   have hv := congrArg BitString.binaryValue h
   rw [BitString.binaryValue_binaryWord, BitString.binaryValue_binaryWord] at hv
-  rw [hv, show cS num den x = cS num den x' by omega, hlen] at hM2
+  have hcS : cS num den x = cS num den x' := by omega
+  rw [hv, hcS, hlen] at hM2
   have hba : bR num den x ≤ aR num den x' := (ENNReal.ofReal_le_ofReal_iff (aR_nonneg x')).mp
     (by simpa only [cdf_eq hcdf hden, cdfLo_eq hcdf hden] using D.cdf_le_cdfLo hlen hlt)
   linarith [mul_le_mul_of_nonneg_right hba (by positivity : (0 : ℝ) ≤ 2 ^ x'.length)]

@@ -192,13 +192,8 @@ theorem isQueryBounded_ctrMaskQueriesFrom (counter : BitString n → ℕ → Bit
   induction k generalizing i with
   | zero => exact OracleComp.IsCostBounded.pure _ _
   | succ k ih =>
-    simp only [ctrMaskQueriesFrom]
-    exact OracleComp.IsCostBounded.mono
-      (OracleComp.IsCostBounded.bind
-        (OracleComp.IsCostBounded.query (Sum.inr (counter iv i))) fun y =>
-          OracleComp.IsCostBounded.bind (ih (i + 1)) fun ys =>
-            OracleComp.IsCostBounded.pure (y :: ys) 0)
-      (by simp only [Sum.elim_inr]; omega)
+    exact ((OracleComp.IsCostBounded.query (Sum.inr (counter iv i))).bind fun y =>
+      (ih (i + 1)).bind fun ys => .pure (y :: ys) 0).mono (by simp only [Sum.elim_inr]; omega)
 
 /-- If `adversary` asks at most `K` blocks in total, `ctrReduction counter ℓ b adversary` makes at
 most `K` oracle calls. -/
@@ -272,9 +267,6 @@ private theorem runWith_freshStep_ctrMaskQueriesFrom
   induction k generalizing i s with
   | zero => simp [ctrMaskQueriesFrom, ctrCache, ctrAnyHit]
   | succ k ih =>
-    have hsub : ∀ a b, i + 1 ≤ a → a < i + 1 + k → i + 1 ≤ b → b < i + 1 + k → a ≠ b →
-        counter iv a ≠ counter iv b := fun a b ha₀ ha₁ hb₀ hb₁ hab =>
-      hinj a b (by omega) (by omega) (by omega) (by omega) hab
     have hdistinct : ∀ j < k, counter iv (i + 1 + j) ≠ counter iv i := fun j hj =>
       hinj (i + 1 + j) i (by omega) (by omega) le_rfl (by omega) (by omega)
     simp only [ctrMaskQueriesFrom, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
@@ -283,8 +275,9 @@ private theorem runWith_freshStep_ctrMaskQueriesFrom
       (ProbOracleComp.runWith freshStep (ctrMaskQueriesFrom counter iv (i + 1) k) p.2).map
         fun q => (p.1 :: q.1, q.2)) = _
     simp only [freshStep, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
-    simp_rw [ih (i + 1) _ hsub, ctrAnyHit_cons_eq s.1 counter iv _ i (i + 1) k hdistinct,
-      Bool.or_assoc]
+    simp_rw [ih (i + 1) _ fun a b ha₀ ha₁ hb₀ hb₁ =>
+        hinj a b (by omega) (by omega) (by omega) (by omega),
+      ctrAnyHit_cons_eq s.1 counter iv _ i (i + 1) k hdistinct, Bool.or_assoc]
     simp only [uniformBlocks_succ, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind,
       PMF.pure_bind, ctrCache, ctrAnyHit]
 
@@ -328,8 +321,7 @@ private theorem length_of_mem_support_freshQuery
     x.2.1.length = s.1.length + blockModeBlocks ℓ q := by
   rw [runWith_freshStep_ctrQueryProgram counter ℓ b q s hintra, PMF.support_map] at hx
   obtain ⟨⟨iv, us⟩, hp, rfl⟩ := hx
-  have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
-  simp only [length_ctrCache, hlen]
+  rw [length_ctrCache, length_snd_of_mem_support_uniformDraws hp]
 
 private theorem toOuterMeasure_exists_ctr_mem_le
     (counter : BitString n → ℕ → BitString n) (ks : List (BitString n)) (k : ℕ)

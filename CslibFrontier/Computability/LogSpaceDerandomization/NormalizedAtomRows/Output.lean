@@ -99,12 +99,11 @@ lemma output_nonneg (ζ d v r : ℝ) : 0 ≤ output HP ζ d v r :=
 /-- Scalar range is uniform in both signals and the raw padded rank. -/
 lemma output_le (ζ d v r : ℝ) :
     output HP ζ d v r ≤ 2 * HP.Q HP.toHierarchyParams.atomCap := by
-  have hc := clip_bounds (v / ζ)
-  have hQ := HP.Q_nonneg HP.toHierarchyParams.atomCap
-  have hnum := mul_le_mul (HP.toHierarchyParams.atomCutoff_le d) (HP.ρ_le_one r)
-    (HP.ρ_nonneg r) hQ
-  rw [output, div_le_iff₀ (by linarith : 0 < clip (v / ζ))]
-  nlinarith
+  have hc := (clip_bounds (v / ζ)).1
+  rw [output, div_le_iff₀ (by linarith)]
+  nlinarith [HP.Q_nonneg HP.toHierarchyParams.atomCap,
+    mul_le_mul (HP.toHierarchyParams.atomCutoff_le d) (HP.ρ_le_one r)
+      (HP.ρ_nonneg r) (HP.Q_nonneg HP.toHierarchyParams.atomCap)]
 
 /-- The atom output vanishes below the entry threshold. -/
 lemma entry_zero {scale x v q : ℝ} (hx : x ≤ HP.θ) : output HP scale x v q = 0 := by
@@ -207,20 +206,15 @@ lemma root_range (scale x v q : ℝ) :
     0 ≤ output HP scale x v q ^ (4⁻¹ : ℝ) ∧
     output HP scale x v q ^ (4⁻¹ : ℝ) ≤
       2 * HP.Q HP.toHierarchyParams.atomCap ^ (4⁻¹ : ℝ) := by
-  rw [output_root]
-  have ha := Real.rpow_nonneg (HP.toHierarchyParams.atomCutoff_nonneg x) (4⁻¹ : ℝ)
-  have hb := Real.rpow_nonneg (HP.ρ_nonneg q) (4⁻¹ : ℝ)
-  have hc := denominatorRoot_bounds (v/scale)
-  have ha' := Real.rpow_le_rpow (HP.toHierarchyParams.atomCutoff_nonneg x)
-    (HP.toHierarchyParams.atomCutoff_le x) (by norm_num : (0:ℝ) ≤ 4⁻¹)
-  have hb' := Real.rpow_le_one (HP.ρ_nonneg q) (HP.ρ_le_one q) (by norm_num : (0:ℝ) ≤ 4⁻¹)
-  constructor
-  · exact mul_nonneg (mul_nonneg ha hb) (by linarith)
-  · calc
-      _ ≤ HP.Q HP.toHierarchyParams.atomCap ^ (4⁻¹ : ℝ) * 1 * 2 :=
-        mul_le_mul (mul_le_mul ha' hb' hb (Real.rpow_nonneg (HP.Q_nonneg _) _))
-          hc.2 (by linarith) (by positivity)
-      _ = _ := by ring
+  refine ⟨Real.rpow_nonneg (output_nonneg HP scale x v q) _, ?_⟩
+  calc
+    output HP scale x v q ^ (4⁻¹ : ℝ)
+        ≤ (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ) :=
+      Real.rpow_le_rpow (output_nonneg HP scale x v q) (output_le HP scale x v q) (by norm_num)
+    _ ≤ 2 * HP.Q HP.toHierarchyParams.atomCap ^ (4⁻¹ : ℝ) := by
+      rw [Real.mul_rpow zero_le_two (HP.Q_nonneg _)]
+      gcongr
+      exact Real.rpow_le_self_of_one_le one_le_two (by norm_num)
 
 /-- The actual entry threshold is separated from the closed rank gate. -/
 lemma threshold_margin : 3*HP.η₂ < HP.θ := by

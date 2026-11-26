@@ -238,14 +238,10 @@ def isCode (w : List Bool) : Bool :=
 
 /-- A word passes `isCode` exactly when it encodes a formula. -/
 theorem isCode_iff (w : List Bool) : isCode w = true ↔ ∃ φ, encQBF φ = w := by
-  unfold isCode
-  rw [Bool.and_eq_true, wellFormed_iff, decide_eq_true_iff]
-  constructor
-  · rintro ⟨⟨φ, hφ⟩, he⟩
-    exact ⟨φ, by rw [encQBF_apply, hφ, he]⟩
-  · rintro ⟨φ, rfl⟩
-    rw [encQBF_apply, tokensDecoder.decode_enc]
-    exact ⟨⟨φ, rfl⟩, rfl⟩
+  rw [isCode, Bool.and_eq_true, wellFormed_iff, decide_eq_true_iff]
+  exact ⟨fun ⟨⟨φ, hφ⟩, he⟩ => ⟨φ, by rw [encQBF_apply, hφ, he]⟩,
+    fun ⟨φ, h⟩ => h ▸ ⟨⟨φ, by rw [encQBF_apply, tokensDecoder.decode_enc]⟩,
+      by rw [encQBF_apply, tokensDecoder.decode_enc]⟩⟩
 
 /-- Whether a word encodes a formula is decidable in polynomial time. -/
 theorem isCode_pt : Turing.MultiTapeTM.ComputableInPolyTime isCode encBits encBool := by

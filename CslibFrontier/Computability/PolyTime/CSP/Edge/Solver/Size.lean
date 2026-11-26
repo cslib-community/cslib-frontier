@@ -39,10 +39,9 @@ theorem connector_bits_le (F : CSP Table ℕ) (B : ℕ)
     (hB : ∀ v ∈ F.vars, (encNat v).length ≤ B) (i : Fin F.length) :
     (encNat (Blossom.connector F i)).length ≤ B + F.length + 3 := by
   have hs : (F.vars.foldr max 0).size ≤ B := Nat.size_le.mpr <|
-    (List.max_le_of_forall_le F.vars (2 ^ B - 1) fun v hv => by
-      have hb := hB v hv
-      simp only [encNat_apply, Nat.size_eq_bits_len, Nat.size_le] at hb
-      omega).trans_lt (Nat.sub_lt (Nat.two_pow_pos B) zero_lt_one)
+    (List.max_le_of_forall_le F.vars (2 ^ B - 1) fun v hv => Nat.le_sub_one_of_lt <| by
+      simpa only [encNat_apply, Nat.size_eq_bits_len, Nat.size_le] using hB v hv).trans_lt
+      (Nat.sub_lt (Nat.two_pow_pos B) zero_lt_one)
   have ha := Nat.size_add_le (F.vars.foldr max 0) 1
   have hc := Nat.size_add_le (F.vars.foldr max 0 + 1) i.val
   have hi := Nat.size_le_self i.val
@@ -56,11 +55,8 @@ theorem contract_name_bits_le (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool
     (vs : List ℕ) (B : ℕ) (hB : ∀ v ∈ F.vars, (encNat v).length ≤ B) :
     ∀ v ∈ (Blossom.contract f vs).vars, (encNat v).length ≤ B + F.length + 3 := by
   intro v hv
-  have hm : v ∈ (F.vars.toFinset \ vs.toFinset) ∪ (Blossom.connectors F vs).toFinset :=
-    Blossom.vars_contract f vs ▸ List.mem_toFinset.mpr hv
-  rcases Finset.mem_union.mp hm with ho | hn
-  · have hb := hB v (List.mem_toFinset.mp (Finset.mem_sdiff.mp ho).1)
-    omega
+  rcases Finset.mem_union.mp (Blossom.vars_contract f vs ▸ List.mem_toFinset.mpr hv) with ho | hn
+  · exact (hB v (List.mem_toFinset.mp (Finset.mem_sdiff.mp ho).1)).trans (by omega)
   · obtain ⟨i, _, rfl⟩ := List.mem_map.mp (List.mem_toFinset.mp hn)
     exact connector_bits_le F B hB i
 
@@ -84,9 +80,8 @@ theorem encoded_body_le (F : CSP Table ℕ) (f : OccurrenceLabeling F Bool)
       (encList encNat c.scope).length ≤ c.scope.length * (2 * B + 1) := by
     rw [length_encList]
     calc
-      _ ≤ (c.scope.map fun _ => 2 * B + 1).sum := List.sum_le_sum fun v hv => by
-        have hb := hB v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)
-        omega
+      _ ≤ (c.scope.map fun _ => 2 * B + 1).sum := List.sum_le_sum fun v hv =>
+        Nat.succ_le_succ (Nat.mul_le_mul_left 2 (hB v (List.mem_flatMap.mpr ⟨c, hc, hv⟩)))
       _ = _ := by simp [Nat.mul_comm]
   have hclause (c : Constraint Table ℕ) (hc : c ∈ F) :
       2 * (encConstraint encTable encNat c).length + 1 ≤
@@ -219,12 +214,11 @@ theorem original_name_bits_le (F : CSP Table ℕ) :
 /-- Every actual descended body obeys the original polynomial binary-name budget. -/
 theorem Chain.name_budget (h : Chain F k G) (hF : EdgeInstance F) :
     ∀ v ∈ G.vars, (encNat v).length ≤ nameBudget F := by
+  intro v hv
   have hn : F.numVars ≤ F.vars.length := List.toFinset_card_le _
   have hk := (h.depth_le hF).trans (Nat.mul_le_mul_left 2 hn)
-  intro v hv
-  exact (h.name_bits_le hF _ (original_name_bits_le F) v hv).trans (by
-    unfold nameBudget
-    gcongr)
+  rw [nameBudget]
+  exact (h.name_bits_le hF _ (original_name_bits_le F) v hv).trans (by gcongr)
 
 /-- Complete framed bit storage of every actual valid descended body has one fixed original
 polynomial bound. This includes duplicate/nullary constraints and full binary name lengths. -/
@@ -237,9 +231,8 @@ theorem Chain.body_budget (h : Chain F k G) (hF : EdgeInstance F)
   have hv : G.vars.length ≤ 2 * F.vars.length := by
     rw [(h.edge hF).length_vars_eq_two_mul_numVars]
     exact Nat.mul_le_mul_left 2 ((h.numVars_le hF).trans hn)
-  have hr : rowCount G ≤ rowBudget F := (h.rowCount_le hF).trans (by
-    unfold rowBudget
-    gcongr)
+  have hr : rowCount G ≤ rowBudget F :=
+    (h.rowCount_le hF).trans (Nat.add_le_add_left (Nat.mul_le_mul hk hn) _)
   refine (encoded_body_le G f hf (nameBudget F) (h.name_budget hF)).trans ?_
   calc
     _ ≤ 7 * (F.length + 2 * F.vars.length) +

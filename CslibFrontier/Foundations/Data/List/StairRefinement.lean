@@ -92,9 +92,7 @@ theorem cat_of_cons {A : Fin K → List Γ} {a : Γ} {i : Fin K} {l : List Γ}
       rw [Function.update_of_ne (Ne.symm e), h1 0 (Fin.succ_pos i'),
         List.nil_append, List.nil_append,
         ih (A := fun j => A j.succ) (i := i') (fun j hj => h1 _ (by simpa using hj)) h2]
-      congr 2
-      funext j
-      simp only [Function.update_apply, (Fin.succ_injective _).eq_iff]
+      exact congrArg (a :: cat ·) (funext fun j => by simp [Function.update_apply])
 
 /-- Staircase support condition on a matrix of words. -/
 @[expose] def Stair (X : Fin K → Fin K → List Γ) : Prop :=
@@ -235,21 +233,16 @@ theorem IsRef.exists {A B : Fin K → List Γ} (h : cat A = cat B) : ∃ X, IsRe
         · exact absurd (key _ _ n1).2.1 (not_le.2 hlt)
         · exact hX.stair _ _ _ _ m1 m2 hlt
     · rcases eq_or_ne a' a with rfl | e
-      · rw [upd_row, cat_of_cons (a := c) (i := b) (l := X a' b), Function.update_idem,
+      · rw [upd_row, cat_of_cons
+          (fun j hj => (Function.update_of_ne hj.ne _ _).trans (hcol j hj a'))
+          (Function.update_self b (c :: X a' b) (X a')), Function.update_idem,
           Function.update_eq_self, hX.row, Function.update_self, h2]
-        · intro j hj
-          rw [Function.update_of_ne hj.ne]
-          exact hcol j hj a'
-        · simp
       · rw [upd_row_ne _ _ _ _ e, hX.row, Function.update_of_ne e]
     · rcases eq_or_ne b' b with rfl | e
-      · rw [upd_col, cat_of_cons (i := a) (l := X a b') (a := c), Function.update_idem]
-        · rw [Function.update_eq_self (f := fun a' => X a' b') a,
-            hX.col, Function.update_self, g2]
-        · intro j hj
-          rw [Function.update_of_ne hj.ne]
-          exact hrow j hj b'
-        · simp
+      · rw [upd_col, cat_of_cons
+          (fun j hj => (Function.update_of_ne hj.ne _ _).trans (hrow j hj b'))
+          (Function.update_self a (c :: X a b') fun a' => X a' b'), Function.update_idem,
+          Function.update_eq_self (f := fun a' => X a' b') a, hX.col, Function.update_self, g2]
       · rw [upd_col_ne _ _ _ _ e, hX.col, Function.update_of_ne e]
 
 section Lengths

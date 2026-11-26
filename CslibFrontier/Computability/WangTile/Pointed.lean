@@ -134,15 +134,8 @@ private theorem primrec_payload (x y : Axis) : Primrec (payload x y) := by
     primrec_mk (.const 0) (.const 0) primrec_left primrec_left
   have hv : Primrec verticalWire :=
     primrec_mk primrec_bottom primrec_bottom (.const 0) (.const 0)
-  cases x with
-  | negative =>
-      cases y with
-      | negative => exact .const _
-      | origin | positive => exact hw
-  | origin | positive =>
-      cases y with
-      | negative => exact hv
-      | origin | positive => exact Primrec.id
+  cases x <;> cases y
+  exacts [.const _, hw, hw, hv, .id, .id, hv, .id, .id]
 
 private theorem primrec_variants : Primrec variants := by
   have h (x y : Axis) : Primrec fun t => decorate x y (payload x y t) :=
@@ -294,8 +287,8 @@ private theorem planePayload_eq (f : ℕ → ℕ → WangTile) (x y : ℤ) :
   rw [payload_class]
   by_cases hx : 0 ≤ x <;> by_cases hy : 0 ≤ y
   · simp [planePayload, westPayload, hx, hy]
-  · simp [planePayload, westPayload, hx, hy, Int.toNat_eq_zero.mpr (by omega : y ≤ 0)]
-  · simp [planePayload, westPayload, hx, hy, Int.toNat_eq_zero.mpr (by omega : x ≤ 0)]
+  · simp [planePayload, westPayload, hx, hy, Int.toNat_of_nonpos (le_of_not_ge hy)]
+  · simp [planePayload, westPayload, hx, hy, Int.toNat_of_nonpos (le_of_not_ge hx)]
   · simp [planePayload, westPayload, hx, hy, horizontalWire, verticalWire]
 
 private theorem westPayload_horizontal (f : ℕ → ℕ → WangTile)
@@ -303,7 +296,7 @@ private theorem westPayload_horizontal (f : ℕ → ℕ → WangTile)
     (westPayload f row x).right = (westPayload f row (x + 1)).left := by
   by_cases hx : 0 ≤ x
   · have hx' : 0 ≤ x + 1 := by omega
-    simpa [westPayload, hx, hx', Int.toNat_add hx (by decide : (0 : ℤ) ≤ 1)] using h x.toNat row
+    simpa [westPayload, hx, hx', Int.toNat_add hx zero_le_one] using h x.toNat row
   · by_cases hx' : 0 ≤ x + 1
     · have hb : x + 1 = 0 := by omega
       simp [westPayload, hx, hb, horizontalWire]
@@ -322,8 +315,8 @@ private theorem planePayload_vertical (f : ℕ → ℕ → WangTile)
   by_cases hy : 0 ≤ y
   · have hy' : 0 ≤ y + 1 := by omega
     by_cases hx : 0 ≤ x
-    · simpa [planePayload, westPayload, hx, hy, hy',
-        Int.toNat_add hy (by decide : (0 : ℤ) ≤ 1)] using h x.toNat y.toNat
+    · simpa [planePayload, westPayload, hx, hy, hy', Int.toNat_add hy zero_le_one] using
+        h x.toNat y.toNat
     · simp [planePayload, westPayload, hx, hy, hy', horizontalWire]
   · by_cases hy' : 0 ≤ y + 1
     · have hb : y + 1 = 0 := by omega
@@ -351,10 +344,9 @@ theorem tilesAtOrigin_pointedExtension_iff (I : SeededInstance) :
       exact congrArg (Pointed.decorate .origin .origin) hseed
     · intro x y
       refine ⟨?_, ?_, ?_⟩
-      · apply List.mem_flatMap.mpr
-        refine ⟨f x.toNat y.toNat, (hf _ _).1, Pointed.mem_variants.mpr ?_⟩
-        exact ⟨Pointed.classOfInt x, Pointed.classOfInt y,
-          congrArg (Pointed.decorate _ _) (Pointed.planePayload_eq f x y).symm⟩
+      · exact List.mem_flatMap.mpr ⟨f x.toNat y.toNat, (hf _ _).1,
+          Pointed.mem_variants.mpr ⟨_, _,
+            congrArg (Pointed.decorate _ _) (Pointed.planePayload_eq f x y).symm⟩⟩
       · exact Pointed.decorate_horizontal.mpr
           ⟨Pointed.classOfInt_step x, rfl,
             Pointed.planePayload_horizontal f (fun x y => (hf x y).2.1) x y⟩

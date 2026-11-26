@@ -223,9 +223,7 @@ private theorem notMem_newUnits {cap : ℕ} (hP : P.Ok cap) {z : M.Slot}
   have h := (Plan.mem_cur.1 (hP.given_subset n o z hu)).1
   rcases u with ⟨⟩ | ⟨ν, k⟩
   · exact init_notMem_newUnits
-  · rw [new_mem_newUnits]
-    rintro ⟨rfl, -⟩
-    exact absurd (Fin.le_def.1 hx) (not_le.2 (Plan.new_mem_seenAt.1 h).1)
+  · exact fun hnew => ((new_mem_newUnits.1 hnew).1 ▸ (Plan.new_mem_seenAt.1 h).1).not_ge hx
 
 /-- Every cell of the group is written by exactly the steps of the group. -/
 private theorem writtenCells_groupSteps :
@@ -255,24 +253,21 @@ private theorem sequential_groupSteps {cap : ℕ} (hP : P.Ok cap) :
     exact notMem_newUnits hP he h (mem_filter.1 hc').2.2
   refine WriteStep.Sequential.of_pairwise (List.pairwise_append.2 ⟨?_, ?_, ?_⟩) ?_
   · refine List.pairwise_map.2 ((nodup_baseParties grp g).imp fun hpp' =>
-      ⟨?_, disjoint_empty_left _⟩)
-    refine disjoint_left.2 fun c hc hc' => hpp' ?_
+      ⟨disjoint_left.2 fun c hc hc' => hpp' ?_, disjoint_empty_left _⟩)
     exact Fin.castAdd_injective _ _ ((mem_filter.1 hc).2.1.symm.trans (mem_filter.1 hc').2.1)
   · refine List.pairwise_map.2 ((pairwise_groupRoles grp g M).imp fun {r r'} h =>
-      ⟨disjoint_left.2 fun c hc hc' => h.1 ?_, hread _ _ h.2⟩)
+      ⟨disjoint_left.2 fun ⟨a, u⟩ hc hc' => h.1 ?_, hread _ _ h.2⟩)
     obtain ⟨-, h1, h2⟩ := mem_filter.1 hc
     obtain ⟨-, h1', h2'⟩ := mem_filter.1 hc'
-    obtain ⟨ν, k, e, -⟩ := mem_newUnits.1 h2
-    obtain ⟨x, p⟩ := r
-    obtain ⟨x', p'⟩ := r'
-    obtain rfl : x = x' := (new_mem_newUnits.1 (e ▸ h2')).1
-    obtain rfl : p = p' := M.party_injective x (h1.symm.trans h1')
-    rfl
+    obtain ⟨ν, k, rfl, -⟩ := mem_newUnits.1 h2
+    rcases r, r' with ⟨⟨x, p⟩, ⟨x', p'⟩⟩
+    obtain rfl : x = x' := (new_mem_newUnits.1 h2').1
+    exact congrArg (Sigma.mk x) (M.party_injective x (h1.symm.trans h1'))
   · refine List.forall_mem_map.2 fun p _ => List.forall_mem_map.2 fun r _ =>
       ⟨disjoint_left.2 fun ⟨a, u⟩ hc hc' => ?_, disjoint_empty_left _⟩
-    have h := (mem_filter.1 hc).2.2
-    have h' := (mem_filter.1 hc').2.2
-    cases u <;> simp_all
+    cases u
+    · exact absurd (mem_filter.1 hc').2.2 init_notMem_newUnits
+    · exact absurd (mem_filter.1 hc).2.2 new_notMem_initialUnits
   · intro s hs
     rcases List.mem_append.1 hs with hs | hs <;> obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs
     · exact ⟨disjoint_empty_left _, fun _ _ _ _ _ => ⟨rfl, fun _ _ => rfl⟩⟩

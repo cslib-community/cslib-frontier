@@ -487,8 +487,7 @@ private theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited 
           (multiCCA2StateDecoder.decode state).ctsFront ++
             ct :: (multiCCA2StateDecoder.decode state).ctsBack))
       (by fun_prop))
-  dsimp only [cca2MultiToSingleAt]
-  fun_prop
+  dsimp only [cca2MultiToSingleAt]; fun_prop
 
 /-- `cca2MultiToSingleAt` preserves strict oracle PPT admissibility (`CCA2AdversaryOf.IsPPT`). -/
 theorem isPPT_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
@@ -558,9 +557,8 @@ theorem isQueryBounded_cca2MultiToSingleAt {Msg : Type} [Inhabited Msg]
         OracleComp.IsCostBounded.run_interpret (fun q s => ?_)
           (hQ.2 n (multiCCA2StateDecoder.decode state).stateA _) ()
       rcases q with m | req
-      · simpa [OracleComp.sumHandler, StateT.lift] using
-          (OracleComp.isCostBounded_map_iff (·, s) (ProbOracleComp.sample (ProbComp.unifFin m))
-            0).mpr (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m))
+      · simpa [OracleComp.sumHandler, StateT.lift, OracleComp.isCostBounded_map_iff] using
+          ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m)
       · exact isQueryBounded_multiPhase2FilterHandler (decBound n) _ req s
     · exact OracleComp.IsCostBounded.pure false (Q₂ n)
 
@@ -632,8 +630,7 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
   by_cases hcond :
       (decide (split < challenges.length) &&
         challenges.all (fun p => valid n keys.1 p.1 p.2)) = true
-  · obtain ⟨hlt, hall⟩ : split < challenges.length ∧
-        challenges.all (fun p => valid n keys.1 p.1 p.2) = true := by simpa using hcond
+  · obtain ⟨hlt, hall⟩ := by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond
     have hvalid_target : valid n keys.1 challenges[split].1 challenges[split].2 = true :=
       List.all_eq_true.mp hall _ (List.getElem_mem hlt)
     simp only [hcond, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁, ChoiceOut.state,
@@ -720,9 +717,8 @@ theorem cca2MultiHybridGameOn_step_gap {Msg Out : Type} [Inhabited Msg]
           List.drop_eq_nil_of_le (Nat.le_add_right_of_le hle)]
     · simp [hall, ProbComp.eval_pure]
   have hreal := congrArg ENNReal.toReal hadd
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
-    ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] at hreal
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
+  simp only [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
+    Game.succProbability, ENNReal.coe_toNNReal_eq_toReal] at hreal ⊢
   linarith
 
 /-- Signed hybrid gap for batch-challenge multi-challenge CCA, a step toward [BonehShoup2023],
@@ -803,10 +799,10 @@ theorem advantage_cca2MultiGameOn {Msg Out : Type} [Inhabited Msg]
           (ProbComp.eval
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingle valid encrypt decBound Q adversary) true n)) := by
-  apply NNReal.eq
-  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast,
-    cca2MultiGameOn_gap valid encOut keyGen encrypt decrypt decBound Q adversary n hdecBound hQ,
-    abs_mul, Nat.abs_cast]
+  exact NNReal.eq (by
+    rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast,
+      cca2MultiGameOn_gap valid encOut keyGen encrypt decrypt decBound Q adversary n hdecBound hQ,
+      abs_mul, Nat.abs_cast])
 
 /-- Batch-challenge step toward [BonehShoup2023], Theorem 12.1 (printed p. 468), not the cited
 result: single-challenge 1CCA security implies batch-challenge multi-challenge CCA security, in

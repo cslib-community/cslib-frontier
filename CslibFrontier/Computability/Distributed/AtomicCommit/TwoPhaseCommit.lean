@@ -589,12 +589,11 @@ omit [DecidableEq P] [Fintype P] in
 private theorem TwoPCInvariant.not_commit_and_abort {s : TwoPCState P}
     (hinv : TwoPCInvariant coord votes s) {p q : P}
     (hp : s.decision p = some .commit) (hq : s.decision q = some .abort) : False := by
-  have hc : s.localState coord = .committed :=
-    hinv.committed_imp_coord p (TwoPCLocalState.decision_eq_some_commit_iff.mp hp)
-  have hqa : s.localState q = .aborted := TwoPCLocalState.decision_eq_some_abort_iff.mp hq
-  rcases hinv.aborted_imp_no_or_coord q hqa with hno | hca
+  have hc := hinv.committed_imp_coord p (TwoPCLocalState.decision_eq_some_commit_iff.mp hp)
+  rcases hinv.aborted_imp_no_or_coord q (TwoPCLocalState.decision_eq_some_abort_iff.mp hq) with
+    hno | hca
   · exact absurd (hinv.coord_committed_all_yes hc q) (by rw [hno]; decide)
-  · rw [hc] at hca; cases hca
+  · exact absurd (hc.symm.trans hca) (by decide)
 
 /-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469) and [Skeen1981], §2
 (p. 136), not the cited crash-recovery log-replay result (#7289): in every reachable configuration
@@ -615,9 +614,8 @@ theorem twoPC_abort_of_vote_no_failStop {s : TwoPCState P}
     AbortValidity votes s.decision := by
   have hinv := twoPCInvariant_of_reachable hreach
   intro ⟨p, hp⟩ q hq
-  have hc : s.localState coord = .committed :=
-    hinv.committed_imp_coord q (TwoPCLocalState.decision_eq_some_commit_iff.mp hq)
-  simpa [hp] using hinv.coord_committed_all_yes hc p
+  simpa [hp] using hinv.coord_committed_all_yes
+    (hinv.committed_imp_coord q (TwoPCLocalState.decision_eq_some_commit_iff.mp hq)) p
 
 /-! ### Failure-free execution (`AC3` and abort completion) -/
 
@@ -889,9 +887,8 @@ private theorem canReach_drop_all_msgs (s : TwoPCState P) :
   | empty => exact LTS.CanReach.refl _ _
   | @cons m ms ih =>
     have hstep : twoPCStep? coord votes ⟨st, yv, sn, al, m ::ₘ ms⟩ (.dropMsg m) =
-        some ⟨st, yv, sn, al, ms⟩ := by
-      simp [twoPCStep?]
-    exact twoPC_canReach_trans ⟨[TwoPCAction.dropMsg m], LTS.MTr.single _ hstep⟩ ih
+        some ⟨st, yv, sn, al, ms⟩ := by simp [twoPCStep?]
+    exact twoPC_canReach_trans ⟨[.dropMsg m], LTS.MTr.single _ hstep⟩ ih
 
 private theorem canReach_crash_set :
     ∀ (dead : Finset P) (s : TwoPCState P), dead ⊆ s.alive →
@@ -900,14 +897,12 @@ private theorem canReach_crash_set :
   induction dead using Finset.induction_on generalizing s with
   | empty => simpa using LTS.CanReach.refl (twoPCLts coord votes) s
   | @insert p dead hp ih =>
-    have hstep : twoPCStep? coord votes s (.crash p) =
-        some { s with alive := s.alive.erase p } := by
-      simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
-    convert twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩
+    have hstep : twoPCStep? coord votes s (.crash p) = some { s with alive := s.alive.erase p } :=
+      by simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
+    convert twoPC_canReach_trans ⟨[.crash p], LTS.MTr.single _ hstep⟩
       (ih { s with alive := s.alive.erase p } fun r hr => Finset.mem_erase.mpr
         ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩) using 2
-    ext r
-    simp [and_assoc, and_comm, and_left_comm]
+    exact Finset.ext fun _ => by simp [and_assoc, and_comm, and_left_comm]
 
 /-- Fail-stop register-state step toward [Skeen1981], §1 (p. 134) and [SkeenStonebraker1983],
 §IV-C, Lemma 1 (p. 223), not the cited crash-recovery result (#7289): for `2 ≤ Fintype.card P` and

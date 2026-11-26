@@ -222,16 +222,7 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
     have hpd : g % d < d := Nat.mod_lt _ hd
     have hrep := ProbComp.eval_replicate_splice sample (g / d) (n - g / d - 1)
     rw [show g / d + (n - g / d - 1 + 1) = n by omega] at hrep
-    have hL : (D.map fun w => slotHit idx f d g w.1 w.2) =
-        (ProbComp.eval sample).bind fun x₀ =>
-        (ProbComp.eval (OracleComp.replicate (g / d) sample)).bind fun front =>
-        (ProbComp.eval (OracleComp.replicate (n - g / d - 1) sample)).bind fun back =>
-        (ProbComp.eval ((A ((front ++ x₀ :: back).map f^[d])).runLog fun q =>
-          pure (chainSlot f d (front ++ x₀ :: back) (idx q)))).map
-            (slotHit idx f d g (front ++ x₀ :: back)) := by
-      rw [hD, ← hrep]
-      simp only [pmf_norm]
-    rw [hL]
+    rw [hD, ← hrep]
     simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm,
       Function.comp_def]
     refine PMF.bind_apply_mono_on_support _ _ fun x₀ _ => ?_

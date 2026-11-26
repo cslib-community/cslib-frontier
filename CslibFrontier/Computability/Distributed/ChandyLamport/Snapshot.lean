@@ -644,30 +644,26 @@ private theorem wellFormedSnapChan_tr [DecidableEq P] [DecidableRel sys.graph.Ad
   cases a with
   | stutter => exact hwf u v huv
   | initiateSnapshot p =>
-    have hnd : ¬ (u = p ∧ sys.graph.Adj p v) := by rintro ⟨rfl, ha⟩; exact huv ha
+    have hnd : ¬ (u = p ∧ sys.graph.Adj p v) := fun ⟨h, ha⟩ => huv (h ▸ ha)
     simp [stepSnap, applyInitiate, hnd, hwf u v huv]
   | recvMarker src dest =>
-    have hnp : ¬ (u = src ∧ v = dest) := by rintro ⟨rfl, rfl⟩; exact huv hen.1
-    have hnd : ¬ (u = dest ∧ sys.graph.Adj dest v) := by rintro ⟨rfl, ha⟩; exact huv ha
+    have hnp : ¬ (u = src ∧ v = dest) := fun ⟨h₁, h₂⟩ => huv (h₁ ▸ h₂ ▸ hen.1)
+    have hnd : ¬ (u = dest ∧ sys.graph.Adj dest v) := fun ⟨h, ha⟩ => huv (h ▸ ha)
     simp only [stepSnap, applyRecvMarker]
     cases (S₁.proc dest).snapState <;> simp [hnp, hnd, hwf u v huv]
   | app e =>
     cases e with
     | internal p st' sent =>
-      simp only [stepSnap, SnapGlobalState.applyApp]
       rcases eq_or_ne u p with rfl | hu
-      · have hout : outgoingTo sent v = [] :=
-          outgoingTo_eq_nil_of_forall_ne fun m hm => huv (hen.2 (v, m) hm)
-        simp [hwf u v huv, hout]
-      · simp [hu, hwf u v huv]
+      · simp [stepSnap, SnapGlobalState.applyApp, hwf u v huv,
+          outgoingTo_eq_nil_of_forall_ne fun m hm => huv (hen.2 (v, m) hm)]
+      · simp [stepSnap, SnapGlobalState.applyApp, hu, hwf u v huv]
     | recv src dest msg st' sent =>
-      have hnp : ¬ (u = src ∧ v = dest) := by rintro ⟨rfl, rfl⟩; exact huv hen.1
-      simp only [stepSnap, SnapGlobalState.applyApp, hnp, ↓reduceIte]
+      have hnp : ¬ (u = src ∧ v = dest) := fun ⟨h₁, h₂⟩ => huv (h₁ ▸ h₂ ▸ hen.1)
       rcases eq_or_ne u dest with rfl | hu
-      · have hout : outgoingTo sent v = [] :=
-          outgoingTo_eq_nil_of_forall_ne fun m hm => huv (hen.2.2.2 (v, m) hm)
-        simp [hwf u v huv, hout]
-      · simp [hu, hwf u v huv]
+      · simp [stepSnap, SnapGlobalState.applyApp, hnp, hwf u v huv,
+          outgoingTo_eq_nil_of_forall_ne fun m hm => huv (hen.2.2.2 (v, m) hm)]
+      · simp [stepSnap, SnapGlobalState.applyApp, hnp, hu, hwf u v huv]
 
 /-- Non-edge wire channels remain empty across any finite execution of `sys.snapLts`. -/
 theorem wellFormedSnapChan_mTr [DecidableEq P] [DecidableRel sys.graph.Adj]
@@ -1018,8 +1014,7 @@ theorem snapMTr_appRecv_of_tr [DecidableEq P] [DecidableRel sys.graph.Adj]
   | cons w ws =>
     cases w with
     | app m' =>
-      rw [hch, unmarker_cons_app, List.head?_cons, Option.some.injEq] at hhead
-      subst hhead
+      obtain rfl : m' = msg := by simpa [hch] using hhead
       let e := Event.recv src dest m' st' sent
       have htr_app : sys.snapLts.Tr S_aug (.app e) (S_aug.applyApp e) :=
         ⟨⟨hadj, by simp [hch], hrecv, hsent⟩, rfl⟩
@@ -1032,17 +1027,14 @@ theorem snapMTr_appRecv_of_tr [DecidableEq P] [DecidableRel sys.graph.Adj]
       rw [hch, unmarker_cons_marker] at hhead
       rcases ws with _ | ⟨m' | _, ws₂⟩
       · simp at hhead
-      · simp only [unmarker_cons_app, List.head?_cons, Option.some.injEq] at hhead
-        subst hhead
+      · obtain rfl : m' = msg := Option.some.inj hhead
         let S₁ := sys.applyRecvMarker S_aug src dest
         have htr_mk : sys.snapLts.Tr S_aug (.recvMarker src dest) S₁ :=
           ⟨⟨hadj, by simp [hch]⟩, rfl⟩
         have hS₁_head : (S₁.chan src dest).head? = some (.app m') := by
-          dsimp only [S₁, applyRecvMarker]
-          cases (S_aug.proc dest).snapState
-          · simp only [and_self, ↓reduceIte, hch, List.tail_cons]
-            by_cases hd : src = dest ∧ sys.graph.Adj dest dest <;> simp [hd]
-          · simp [hch]
+          cases h : (S_aug.proc dest).snapState <;>
+            simp only [S₁, applyRecvMarker, h, and_self, ↓reduceIte, hch, List.tail_cons] <;>
+            (try split_ifs) <;> rfl
         have hS₁_app : (S₁.proc dest).appState = (S_aug.proc dest).appState := by
           cases h : (S_aug.proc dest).snapState <;> simp [S₁, applyRecvMarker, h]
         let e := Event.recv src dest m' st' sent

@@ -160,11 +160,9 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
   have hpW_pos : 0 < ((μ_g.map W) true).toReal := lt_trans (by positivity) hpW_gt
   have hW0 : (μ_g.map W) true ≠ 0 := fun h0 => by simp [h0] at hpW_pos
   have hlog_pW : -γ * (m : ℝ) * Real.logb 2 U - 1 < Real.logb 2 (((μ_g.map W) true).toReal) := by
-    have h12 : (1 : ℝ) < 2 := by norm_num
-    have hhalf : (1 / 2 : ℝ) = (2 : ℝ)⁻¹ := by norm_num
-    have hlog := Real.logb_lt_logb h12 (by positivity) hpW_gt
-    rw [Real.logb_mul (by norm_num) (Real.rpow_pos_of_pos hU_pos _).ne', hhalf, Real.logb_inv,
-      Real.logb_self_eq_one h12, Real.logb_rpow_eq_mul_logb_of_pos hU_pos] at hlog
+    have hlog := Real.logb_lt_logb one_lt_two (by positivity) hpW_gt
+    rw [Real.logb_mul (by norm_num) (Real.rpow_pos_of_pos hU_pos _).ne', one_div, Real.logb_inv,
+      Real.logb_self_eq_one one_lt_two, Real.logb_rpow_eq_mul_logb_of_pos hU_pos] at hlog
     linarith
   let p : PMF Ω := PMF.conditionalSnd (μ_g.map fun sb => (W sb, sb)) true
   have hp_supp (sb : Ω) (hsb : sb ∈ p.support) :
@@ -177,15 +175,12 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     obtain ⟨x, hx_supp, hx_eq⟩ := (_root_.PMF.mem_support_map_iff _ _ (true, sb)).mp
       ((_root_.PMF.mem_support_iff (μ_g.map fun x => (W x, x)) (true, sb)).mpr
         fun h0 => hp_ne (by simp only [h0, ENNReal.zero_div]))
-    obtain ⟨hWx, hxsb⟩ := Prod.mk.inj hx_eq
-    subst hxsb
+    obtain ⟨hWx, rfl⟩ := Prod.mk.inj hx_eq
     have hW_true := of_decide_eq_true hWx
     have hx_Fg : x.2 ∈ ctx.Fg x.1 := by
       by_contra hnFg
-      have h0 : (μ_g x).toReal = 0 := by
-        dsimp only [μ_g]; rw [toReal_innerPoolDist_apply, ite_eq_right hnFg]
       exact (ENNReal.toReal_pos ((_root_.PMF.mem_support_iff μ_g x).mp hx_supp)
-        (PMF.apply_ne_top μ_g x)).ne' h0
+        (PMF.apply_ne_top μ_g x)).ne' (by rw [toReal_innerPoolDist_apply, ite_eq_right hnFg])
     exact ⟨hx_Fg, hW_true.1, hW_true.2⟩
   -- Define execution objects and 6-piece codeword on Ω
   let ht₀_n : t₀ ≤ n := Nat.le_of_add_right_le ht₀
@@ -222,10 +217,10 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
           (fun u => if u ∈ (K \ D) ∪ A then some (sb.1.kv u).val else none) ∧
         C_B sb ∈ stateFiber D_det step_end (dict_B sb) := by
     dsimp only
-    have hB_mp := Finset.mem_powersetCard.mp (Finset.mem_filter.mp (ctx.hFg sb.1 ▸ hFg_sb)).1
-    have hB_card : sb.2.card = m := hB_mp.2
+    obtain ⟨hB_sub, hB_card⟩ :=
+      Finset.mem_powersetCard.mp (Finset.mem_filter.mp (ctx.hFg sb.1 ▸ hFg_sb)).1
     have hdisj_B : Disjoint sb.2 (sb.1.activeKeys t₀ ht₀_n) :=
-      (ctx.hdisj sb.1).mono_left hB_mp.1
+      (ctx.hdisj sb.1).mono_left hB_sub
     have hdisj_A : Disjoint (sb.1.insertedSet t₀ m ht₀) (sb.1.activeKeys t₀ ht₀_n) :=
       (ctx.hdisj sb.1).mono_left (ctx.hA sb.1)
     have hdec_bef : decodeDict D_det step₀ (C_bef sb) =
@@ -396,17 +391,15 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     obtain ⟨_, _, hSB_eq, hCB_on⟩ := runInterval_mixMem_eq_of_probedCellsInterval_subset D_det
       step₀ (C_bef sb) (C_A sb) (S_B sb) (ops_B sb) subset_rfl
     have hSB_cap : ((S_B sb).card : ℝ) ≤ (m : ℝ) * t := by
-      dsimp only [S_B]; rw [hopsB_eq]; exact hSB_le_raw
+      simpa only [S_B, hopsB_eq] using hSB_le_raw
     have hΔ_cap : ((Δ_set sb).card : ℝ) ≤ γ * (m : ℝ) := by
       have heq_set : Δ_set sb = (S_A sb ∩ S_B sb).filter fun j => C_A sb j ≠ C_B sb j := by
-        dsimp only [Δ_set, I_AB, SB_sim, CB_sim, C_mix]
-        rw [hSB_eq]
-        exact Finset.filter_congr fun j hj => by rw [hCB_on j (Finset.inter_subset_right hj)]
-      rw [heq_set]; dsimp only [S_A, S_B, C_A, C_B]; simp only [hopsB_eq]; exact hΔ_le_raw
+        simpa only [Δ_set, I_AB, SB_sim, CB_sim, C_mix, hSB_eq] using
+          Finset.filter_congr fun j hj => by rw [hCB_on j (Finset.inter_subset_right hj)]
+      simpa only [heq_set, S_A, S_B, C_A, C_B, hopsB_eq] using hΔ_le_raw
     have hm1 : ((m₁ sb).length : ℝ) ≤ (m : ℝ) * Real.logb 2 V + 1 := by
-      dsimp only [m₁]; rw [length_encodeRestr, Fintype.card_fin, hBc]
-      refine (clog_two_lt_logb_add_one (pow_pos (by omega : 0 < V) m)).le.trans ?_
-      rw [Nat.cast_pow, Real.logb_pow]
+      simpa only [m₁, length_encodeRestr, Fintype.card_fin, hBc, Nat.cast_pow, Real.logb_pow]
+        using (clog_two_lt_logb_add_one (pow_pos (by omega : 0 < V) m)).le
     have hm2 : ((m₂ sb).length : ℝ) ≤ benchmarkBits U V n + R := by
       simpa only [m₂, length_encodeFintype, Fintype.card_fun, Fintype.card_fin, ← pow_mul,
         Nat.clog_pow _ _ Nat.one_lt_two, mul_comm] using hspace
@@ -422,7 +415,6 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       dsimp only [m₆]; rw [length_encodeMemFinset]
       have hK_pos : 1 ≤ K_cap :=
         (Finset.card_pos.mpr ⟨C_B sb, hCB_mem⟩).trans_le (Nat.le_floor hcap)
-      have hclog := (clog_two_lt_logb_add_one hK_pos).le
       have hlogK : Real.logb 2 (K_cap : ℝ) ≤ R + 1 + γ * (m : ℝ) * Real.logb 2 U := by
         refine (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hK_pos)
           (Nat.floor_le (by dsimp only [M_cap]; positivity))).trans_eq ?_
@@ -430,7 +422,7 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
         rw [Real.logb_mul (by positivity) (by positivity),
           Real.logb_rpow (by norm_num) (by norm_num),
           Real.logb_rpow_eq_mul_logb_of_pos hU_pos]
-      linarith
+      linarith [(clog_two_lt_logb_add_one hK_pos).le]
     simp only [msg, List.length_append, Nat.cast_add]; linarith
   set C_upper := benchmarkBits U V n + (m : ℝ) * Real.logb 2 V + 2 * R +
     2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + γ * (m : ℝ) * Real.logb 2 U + 3

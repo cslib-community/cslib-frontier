@@ -65,12 +65,12 @@ theorem findPair_isSome {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
   have hmem := hS.pair_mem pr hpr
   obtain ⟨fst, b₁, snd, b₂⟩ := pr
   rcases hx with hx | hx <;> simp only at hx <;> subst hx
-  · refine List.findSome?_isSome_iff.2 ⟨snd, (Finset.mem_sort _).2 hmem.2.1, ?_⟩
-    exact List.find?_isSome.2 ⟨⟨fst, b₁, snd, b₂⟩, by cases b₁ <;> cases b₂ <;> simp,
-      by simpa using hpr⟩
-  · refine List.findSome?_isSome_iff.2 ⟨fst, (Finset.mem_sort _).2 hmem.1, ?_⟩
-    exact List.find?_isSome.2 ⟨⟨fst, b₁, snd, b₂⟩, by cases b₁ <;> cases b₂ <;> simp,
-      by simpa using hpr⟩
+  · exact List.findSome?_isSome_iff.2 ⟨snd, (Finset.mem_sort _).2 hmem.2.1,
+      List.find?_isSome.2 ⟨⟨fst, b₁, snd, b₂⟩, by cases b₁ <;> cases b₂ <;> simp,
+        by simpa using hpr⟩⟩
+  · exact List.findSome?_isSome_iff.2 ⟨fst, (Finset.mem_sort _).2 hmem.1,
+      List.find?_isSome.2 ⟨⟨fst, b₁, snd, b₂⟩, by cases b₁ <;> cases b₂ <;> simp,
+        by simpa using hpr⟩⟩
 
 private theorem eq_of_findPair_eq_some {f : BooleanFunction n} {S : State n} (hS : S.Valid f)
     {x : ℕ}
@@ -333,24 +333,19 @@ theorem findAndOnPair_eq_some {S : State n} {G p : ℕ} (h : findAndOnPair S = s
   rcases hr : (S.gate G').right with _ | w'
   · simp [hl, hr] at hg
   simp only [hl, hr] at hg
-  split_ifs at hg with hc hp hw
-  · cases hg
-    refine ⟨hG', hna, hp, w', hc.1, hc.2.1, hc.2.2, Or.inl hl, Or.inr hr, ?_⟩
-    simp [otherArg, hl, hr]
-  · cases hg
-    refine ⟨hG', hna, hw, p', fun h => hc.1 h.symm, hc.2.2, hc.2.1, Or.inr hr, Or.inl hl, ?_⟩
-    simp only [otherArg, hl, hr]
-    exact ite_eq_right hc.1
+  split_ifs at hg with hc hp hw <;> cases hg
+  · exact ⟨hG', hna, hp, w', hc.1, hc.2.1, hc.2.2, Or.inl hl, Or.inr hr,
+      by simp [otherArg, hl, hr]⟩
+  · exact ⟨hG', hna, hw, p', fun h => hc.1 h.symm, hc.2.2, hc.2.1, Or.inr hr, Or.inl hl,
+      by simp [otherArg, hl, hr, hc.1]⟩
 
 private theorem terminal_andOnPair {S : State n} {u G p : ℕ} (hterm : chooseStep? S = none)
     (hu : S.out.arg = .node u) (hup : u ∉ S.params) (hAOP : findAndOnPair S = some (G, p)) :
     u = G := by
   unfold chooseStep? at hterm
-  rw [hu] at hterm
-  simp only [hup, ite_false, hAOP] at hterm
+  simp only [hu, hup, ite_false, hAOP] at hterm
   repeat' split at hterm
-  all_goals try (simp at hterm; done)
-  exact ‹u = G›
+  all_goals first | exact ‹u = G› | simp at hterm
 
 private theorem terminal_gate {S : State n} {u : ℕ} (hterm : chooseStep? S = none)
     (hu : S.out.arg = .node u) (hup : u ∉ S.params) (hAOP : findAndOnPair S = none)
@@ -358,16 +353,13 @@ private theorem terminal_gate {S : State n} {u : ℕ} (hterm : chooseStep? S = n
     findD1 S = none ∧ findMovable S = none ∧
       S.auxIn (S.gates.min' hne) = 0 ∧ u = S.gates.min' hne := by
   unfold chooseStep? at hterm
-  rw [hu] at hterm
-  simp only [hup, ite_false, hAOP] at hterm
+  simp only [hu, hup, ite_false, hAOP] at hterm
   repeat' split at hterm
   all_goals try (simp at hterm; done)
   all_goals first
     | exact absurd hne ‹¬S.gates.Nonempty›
-    | exact ⟨Option.eq_none_iff_forall_ne_some.2 fun p hp =>
-          ‹∀ p, findD1 S = some p → False› p hp,
-        Option.eq_none_iff_forall_ne_some.2 fun p hp =>
-          ‹∀ p, findMovable S = some p → False› p hp,
+    | exact ⟨Option.eq_none_iff_forall_ne_some.2 ‹_›,
+        Option.eq_none_iff_forall_ne_some.2 ‹_›,
         Nat.eq_zero_of_not_pos ‹_›, ‹u = S.gates.min' _›⟩
 
 private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : S.Valid f) {u : ℕ}
@@ -453,8 +445,8 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             foldl_xor_eq_sum, Finset.filter_ne',
             Finset.sum_congr rfl fun y hy => (hval y (hAff.1 (Finset.mem_of_mem_erase hy))).trans
               (ite_eq_right (Finset.ne_of_mem_erase hy))]
-          generalize ∑ y ∈ T_out.erase pivot, terminalVal S L A y = X
-          cases c_out <;> cases S.out.neg <;> cases X <;> rfl
+          cases c_out <;> cases S.out.neg <;>
+            cases ∑ y ∈ T_out.erase pivot, terminalVal S L A y <;> rfl
       · rename_i hpiv
         have hnot : ∀ v ∈ freeParams S, v ∉ T_out := fun v hv => by
           simpa using List.find?_eq_none.1 hpiv v hv
@@ -484,9 +476,8 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
         have hsndF : pr.snd ∈ freeParams S := mem_freeParams.2 ⟨hpr_snd_par, by
           rw [← Bool.not_eq_true, isFstOfAnyPair_eq_true_iff hS]
           rintro ⟨pr', hpr', heq⟩
-          by_cases hsame : pr' = pr
-          · exact hpr_ne (hsame ▸ heq)
-          · exact (hS.pairs_disjoint pr' hpr' pr hprm hsame).2.1 heq⟩
+          exact (eq_or_ne pr' pr).elim (fun h => hpr_ne (h ▸ heq))
+            fun h => (hS.pairs_disjoint pr' hpr' pr hprm h).2.1 heq⟩
         set L := ((freeParams S).filter (fun x => decide (x ≠ pr.snd))).take d
         obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS hsndF ha
         have hL_not_pr : ∀ x ∈ L, x ≠ p ∧ x ≠ pr.partner p := fun x hx => by
@@ -515,12 +506,11 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           by_cases hsame : pr' = pr
           · subst hsame
             exact ZeroPair.holds_of_eq_partnerBias hprp (by simp [hr_ne_p])
-          · have hdisj := hS.pairs_disjoint pr' hpr' pr hprm hsame
-            have h1 : pr'.fst ≠ p := hprp.elim (· ▸ hdisj.1) (· ▸ hdisj.2.1)
-            have h2 : pr'.fst ≠ pr.partner p :=
-              (pr.contains_partner hprp).elim (· ▸ hdisj.1) (· ▸ hdisj.2.1)
+          · obtain ⟨hd₁, hd₂, -⟩ := hS.pairs_disjoint pr' hpr' pr hprm hsame
             refine ZeroPair.holds_of_eq_bias (x := pr'.fst) (Or.inl rfl) ?_
-            rw [ite_eq_right h1, ite_eq_right h2, terminalVal_fst hS L A hpr']
+            rw [ite_eq_right (hprp.elim (· ▸ hd₁) (· ▸ hd₂)),
+              ite_eq_right ((pr.contains_partner hprp).elim (· ▸ hd₁) (· ▸ hd₂)),
+              terminalVal_fst hS L A hpr']
             simp [ZeroPair.bias]
         · intro A val hcons hval
           have hvalG := hcons.2 G hG
@@ -535,10 +525,9 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
         · rename_i hne
           obtain ⟨t₁, t₂, hl, hr, ht₁p, ht₁u, hnaff, huG⟩ :=
             terminal_gate_shape hS hterm hu hup hAOP hne
-          have ht₁F : t₁ ∈ freeParams S := mem_freeParams.2 ⟨ht₁p, by
-            rw [← Bool.not_eq_true, isFstOfAnyPair_eq_true_iff hS]
-            rintro ⟨pr, hpr, rfl⟩
-            exact ht₁u ⟨pr, hpr, Or.inl rfl⟩⟩
+          have ht₁F : t₁ ∈ freeParams S := mem_freeParams.2 ⟨ht₁p, Bool.eq_false_iff.2 fun h =>
+            let ⟨pr, hpr, heq⟩ := (isFstOfAnyPair_eq_true_iff hS).1 h
+            ht₁u ⟨pr, hpr, Or.inl heq⟩⟩
           simp only [hl]
           set op := (S.gate (S.gates.min' hne)).op with hop
           refine findSome_isSome_pin C f hf hS ht₁F ha

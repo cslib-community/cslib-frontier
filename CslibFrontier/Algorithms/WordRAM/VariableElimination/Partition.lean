@@ -233,15 +233,15 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
         HoldsFactorList (rBuf + 4) rOut t' ∧
         AllDataBelow s.frontier (rBuf + 4) rOut t' ∧
         memoryCost p t ≤ rem.length * (8 + maxScope) := by
-    intro rem
-    induction rem with
+    intro rem cur bAcc rAcc t
+    induction rem generalizing cur bAcc rAcc t with
     | nil =>
-      intro cur bAcc rAcc t _ hfr hpres _ _ _ _ _ _ hb hr
+      intro _ hfr hpres _ _ _ _ _ _ hb hr
       simp only [List.length_nil, List.filter_nil, List.append_nil, Nat.zero_mul]
       exact ⟨validHistory_pure w t _, hfr, hpres, rfl, rfl, hb.1, hb.2, hr.1, hr.2,
         by simp [iterate]⟩
     | cons f rest ih =>
-      intro cur bAcc rAcc t hwf_t hfr hpres hcur_b ⟨hf, hrest⟩ ⟨hf_scF, hf_enF, hrest_data⟩
+      intro hwf_t hfr hpres hcur_b ⟨hf, hrest⟩ ⟨hf_scF, hf_enF, hrest_data⟩
         hmax_rem hb_room hr_room hb hr
       simp only [List.length_cons] at hcur_b hb_room hr_room
       obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
@@ -321,16 +321,12 @@ theorem partitionLive_spec {w : ℕ} {args : PartitionArgs}
       ⟨by dsimp only [HoldsFactorList, s₂, rBuf]; omega, trivial⟩
   simp only [List.length_nil, Nat.mul_zero, Nat.add_zero, List.nil_append, hlen] at h
   obtain ⟨hv_l, hfr_l, hpres_l, hbCnt_l, hrCnt_l, hbH_l, hbD_l, hrH_l, hrD_l, hcost_l⟩ := h
-  rw [memoryCost_bind', memoryCost_bind', memoryCost_bind', StateTransitionSpec.clientResult_bind,
-    StateTransitionSpec.clientState_bind, clientState_allocDirty, clientResult_allocDirty,
-    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
-    clientState_allocDirty, clientResult_allocDirty, StateTransitionSpec.clientResult_bind,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_pure,
-    StateTransitionSpec.clientState_pure, memoryCost_allocDirty, memoryCost_allocDirty,
-    memoryCost_pure]
-  exact ⟨validHistory_allocDirty_bind hfit1 (validHistory_allocDirty_bind hfit2
-      (validHistory_bind_step hv_l (validHistory_pure w _ _))),
-    hfr_l, hpres_l, rfl, rfl, hbCnt_l, hrCnt_l, hbH_l, hbD_l, hrH_l, hrD_l,
+  refine ⟨validHistory_allocDirty_bind hfit1 (validHistory_allocDirty_bind hfit2
+      (validHistory_bind_step hv_l (validHistory_pure w _ _))), ?_⟩
+  simp only [client_simps, memoryCost_bind', clientResult_allocDirty,
+    memoryCost_allocDirty, memoryCost_pure]
+  rw [clientState_allocDirty, clientState_allocDirty]
+  exact ⟨hfr_l, hpres_l, trivial, rfl, hbCnt_l, hrCnt_l, hbH_l, hbD_l, hrH_l, hrD_l,
     by have := hcost_l; dsimp only [bBase, rBuf, s₂] at this ⊢; omega⟩
 
 theorem partitionLive_realizes :
@@ -365,8 +361,7 @@ theorem partitionLive_realizes :
         (by omega : (s.frontier + 4 * d.liveLen + 4) + 4 * d.liveLen ≤ _), (Nat.zero_add _).le,
         live, hlen, hlive⟩
     dsimp only
-    rcases rem with _ | ⟨f, rest⟩
-    · cases hrem_l
+    obtain ⟨f, rest, rfl⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_length_eq_add_one hrem_l)
     simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
     obtain ⟨⟨hd, hsl, hel, hsc, hent⟩, hrest⟩ := hrem_h
     have hm0 : t.mem st.curDesc = s.mem st.curDesc := hpres.2.2 _ (by omega)

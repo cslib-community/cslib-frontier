@@ -259,23 +259,17 @@ theorem exec_dynamicSetup {r W b widthCoeff S : ℕ}
       Matches (dynamicWidth widthCoeff S) b (view (dynamicWidth widthCoeff S) b y) y ∧
       (view (dynamicWidth widthCoeff S) b y).Bounded (dynamicWidth widthCoeff S) := by
   obtain ⟨-, hw, -, -, -, -⟩ := dynamicWidth_fits hc hS hfit
-  obtain ⟨y, hy, hpost⟩ := exec_withDynamicModulus hscratch hc hS hxS
-    (hfit.of_le (by omega))
-    (cont := .seq (.op (.copy Reg.modulus (scratch 0))) (normalizeRegisters r))
-    (tCont := 1 + (r + 1))
-    (Q := fun y => y.mem = x.mem ∧
-      Matches (dynamicWidth widthCoeff S) b (view (dynamicWidth widthCoeff S) b y) y ∧
-      (view (dynamicWidth widthCoeff S) b y).Bounded (dynamicWidth widthCoeff S))
-    fun z hz_mem hz_val hz_frame => by
-      have hzb : z.regs Reg.base = b := (hz_frame Reg.base hbase).trans hb
-      have hbm := base_ne_modulus (r := r)
-      refine WP.exists_execWithin ?_
-      wram_exec [hz_val]
-      refine WP.name fun z' hz' => ?_
-      obtain ⟨y, hnorm, hymem, hymatch, hybound, -⟩ := exec_normalizeRegisters (b := b) z'
-        (by wram_simp [hz', hzb]) (by wram_simp [hz', dynamicWindowSize]) hw
-      exact WP.of_execWithin hnorm ⟨by omega, by rw [hymem, hz']; exact hz_mem, hymatch, hybound⟩
-  exact ⟨y, hy.mono (by omega), hpost⟩
+  refine (exec_withDynamicModulus (tCont := 1 + (r + 1)) hscratch hc hS hxS
+    (hfit.of_le (by omega)) fun z hz_mem hz_val hz_frame => ?_).imp fun y ⟨hy, hpost⟩ =>
+    ⟨hy.mono (by omega), hpost⟩
+  have hzb : z.regs Reg.base = b := (hz_frame Reg.base hbase).trans hb
+  have hbm := base_ne_modulus (r := r)
+  refine WP.exists_execWithin ?_
+  wram_exec [hz_val]
+  refine WP.name fun z' hz' => ?_
+  obtain ⟨y, hnorm, hymem, hymatch, hybound, -⟩ := exec_normalizeRegisters (b := b) z'
+    (by wram_simp [hz', hzb]) (by wram_simp [hz', dynamicWindowSize]) hw
+  exact WP.of_execWithin hnorm ⟨by omega, by rw [hymem, hz']; exact hz_mem, hymatch, hybound⟩
 
 /-- Compute `2 ^ (widthCoeff * Nat.clog 2 S)` in `scratch`, copy `baseReg` and the computed
 modulus into `winBank`, and normalize the `r` embedded source registers. -/
@@ -337,39 +331,26 @@ theorem exec_dynamicSetupBank {r R W b widthCoeff S : ℕ}
       ∀ i : Fin R, (∀ k : Fin 5, scratch k ≠ i) → (∀ j : Fin (r + 3), winBank j ≠ i) →
         y.regs i = x.regs i := by
   obtain ⟨-, hw, -, -, -, -⟩ := dynamicWidth_fits hc hS hfit
-  let wb := winBank Reg.base
-  let wm := winBank Reg.modulus
-  let s0 := scratch 0
-  obtain ⟨y, hy, hpost⟩ := exec_withDynamicModulus hscratch hc hS hxS
-    (hfit.of_le (by omega))
-    (cont := .seq (ram[ wb ← baseReg; wm ← s0 ])
-      ((normalizeRegisters r).rename winBank))
-    (tCont := 2 + (r + 1))
-    (Q := fun y => y.mem = x.mem ∧
-      Matches (dynamicWidth widthCoeff S) b
-        (view (dynamicWidth widthCoeff S) b (y.comap winBank)) (y.comap winBank) ∧
-      (view (dynamicWidth widthCoeff S) b (y.comap winBank)).Bounded
-        (dynamicWidth widthCoeff S) ∧
-      ∀ i : Fin R, (∀ k : Fin 5, scratch k ≠ i) → (∀ j : Fin (r + 3), winBank j ≠ i) →
-        y.regs i = x.regs i)
-    fun z hz_mem hz_val hz_frame => by
-      have hzb : z.regs baseReg = b := (hz_frame baseReg hbase).trans hb
-      have hbm := hwin.ne (base_ne_modulus (r := r))
-      have hmod' := hmod.symm
-      refine WP.exists_execWithin ?_
-      wram_exec [hzb, hz_val]
-      refine WP.name fun z₂ hz₂ => ?_
-      obtain ⟨y, hnorm, ⟨hymem, hymatch, hybound, -⟩, hyframe⟩ :=
-        ExecWithin.rename_post hwin (exec_normalizeRegisters (z₂.comap winBank)
-          (show z₂.regs wb = b by wram_simp [hz₂])
-          (show z₂.regs wm = _ by wram_simp [hz₂]; exact hz_val) hw)
-      refine WP.of_execWithin hnorm ⟨by omega, hymem.trans (by rw [hz₂]; exact hz_mem),
-        hymatch, hybound, fun i hi_s hi_w => ?_⟩
-      have := (hi_w Reg.base).symm
-      have := (hi_w Reg.modulus).symm
-      rw [hyframe i hi_w, hz₂]
-      wram_simp [hz_frame i hi_s]
-  exact ⟨y, hy.mono (by omega), hpost⟩
+  dsimp only [dynamicSetupBank]
+  refine (exec_withDynamicModulus (tCont := 2 + (r + 1)) hscratch hc hS hxS
+    (hfit.of_le (by omega)) fun z hz_mem hz_val hz_frame => ?_).imp fun y ⟨hy, hpost⟩ =>
+    ⟨hy.mono (by omega), hpost⟩
+  have hzb : z.regs baseReg = b := (hz_frame baseReg hbase).trans hb
+  have hbm := hwin.ne (base_ne_modulus (r := r))
+  have hmod' := hmod.symm
+  refine WP.exists_execWithin ?_
+  wram_exec [hzb, hz_val]
+  refine WP.name fun z₂ hz₂ => ?_
+  obtain ⟨y, hnorm, ⟨hymem, hymatch, hybound, -⟩, hyframe⟩ :=
+    ExecWithin.rename_post hwin (exec_normalizeRegisters (z₂.comap winBank)
+      (show z₂.regs (winBank Reg.base) = b by wram_simp [hz₂])
+      (show z₂.regs (winBank Reg.modulus) = _ by wram_simp [hz₂, dynamicWindowSize]) hw)
+  refine WP.of_execWithin hnorm ⟨by omega, hymem.trans (by rw [hz₂]; exact hz_mem),
+    hymatch, hybound, fun i hi_s hi_w => ?_⟩
+  have := (hi_w Reg.base).symm
+  have := (hi_w Reg.modulus).symm
+  rw [hyframe i hi_w, hz₂]
+  wram_simp [hz_frame i hi_s]
 
 /-- Complete dynamic-window call in an embedded bank: compute `2 ^ (widthCoeff * Nat.clog 2 S)` in
 `scratch`, initialize `winBank` from `baseReg` and `scratch 0`, normalize the `r` source registers,

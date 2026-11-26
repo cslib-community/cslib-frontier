@@ -436,17 +436,11 @@ private theorem backLen_nextActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} 
     (hp : p ∈ A) :
     backLen A (nextActive A p) = arcLen A p := by
   obtain ⟨hd1, _, hqA, hmin⟩ := arcLen_bounds_and_mem hp
-  let q := nextActive A p
-  have hnq : -q ∈ A.image (fun y : Fin n => -y) := (mem_neg_image_iff A q).mpr hqA
+  have hnq : -nextActive A p ∈ A.image (fun y : Fin n => -y) := (mem_neg_image_iff A _).mpr hqA
   refine arcLen_eq_of_isFirst hnq hd1 ?_ fun k hk1 hk2 => ?_
-  · have heq : -q + Fin.ofNat n (arcLen A p) = -p := by
-      dsimp only [q, nextActive]
-      abel
-    rw [heq, mem_neg_image_iff]
-    exact hp
-  · have heq : -q + Fin.ofNat n k = -(p + Fin.ofNat n (arcLen A p - k)) := by
-      dsimp only [q, nextActive]
-      rw [ofNat_sub_add_of_le (le_of_lt hk2)]
+  · rwa [nextActive, neg_add_rev, add_right_comm, neg_add_cancel, zero_add, mem_neg_image_iff]
+  · have heq : -nextActive A p + Fin.ofNat n k = -(p + Fin.ofNat n (arcLen A p - k)) := by
+      rw [nextActive, ofNat_sub_add_of_le hk2.le]
       abel
     rw [heq, mem_neg_image_iff]
     exact hmin (arcLen A p - k) (by omega) (by omega)
@@ -566,9 +560,8 @@ private theorem twoHopSurvivors_nonempty_and_max {n : ℕ} [NeZero n] {U : Type*
   · intro r₁ hr₁ r₂ hr₂ heq
     have h1A : r₁ ∈ A := (Finset.mem_filter.mp hr₁).1
     have h2A : r₂ ∈ A := (Finset.mem_filter.mp hr₂).1
-    have hp_eq := hinj (prevActive_mem h1A) (prevActive_mem h2A) heq
-    have hn_eq := congrArg (nextActive A) hp_eq
-    rwa [nextActive_prevActive h1A, nextActive_prevActive h2A] at hn_eq
+    simpa only [nextActive_prevActive h1A, nextActive_prevActive h2A] using
+      congrArg (nextActive A) (hinj (prevActive_mem h1A) (prevActive_mem h2A) heq)
   · rintro M ⟨q, hq_in, rfl, hq_le⟩
     have hq_eq : q = qStar :=
       hinj hq_in hqA (le_antisymm (hmax_all q hq_in) (hq_le qStar hqA))
@@ -681,9 +674,8 @@ private theorem twoHopAllActivePhases_prefix_spec {n : ℕ} [NeZero n] {U : Type
       (cnt < m → ¬ 2 ≤ (twoHopAllActivePhase uid cnt).active.card) := by
   induction m with
   | zero =>
-    dsimp only
-    simp only [List.range_zero, List.countP_nil]
-    exact ⟨le_rfl, fun _ hj => by omega, fun h => by omega⟩
+    exact ⟨Nat.zero_le _, fun _ hj => absurd hj (Nat.not_lt_zero _),
+      fun h => absurd h (Nat.not_lt_zero _)⟩
   | succ m ih =>
     dsimp only at ih ⊢
     obtain ⟨hKm, hall, hstop⟩ := ih
@@ -824,10 +816,9 @@ private theorem mtr_wave {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       -- Every message sits on the last edge of its arc.
       have hlast : ∀ p ∈ A, p + Fin.ofNat n (prog p) + 1 = p + Fin.ofNat n (arcLen A p) :=
         fun p hp => by
-          have := Finset.sum_eq_zero_iff.mp hrem p hp
-          have := hprog_le p hp
-          have := (arcLen_bounds_and_mem hp).1
-          rw [add_assoc, ← ofNat_succ_eq, show prog p + 1 = arcLen A p by omega]
+          have hp_eq := le_antisymm (hprog_le p hp)
+            (Nat.sub_eq_zero_iff_le.mp (Finset.sum_eq_zero_iff.mp hrem p hp))
+          rw [add_assoc, hp_eq, ← ofNat_succ_eq, Nat.sub_add_cancel (arcLen_bounds_and_mem hp).1]
       refine ⟨[], cfg, LTS.MTr.refl, rfl, hnode, fun e => ?_⟩
       split_ifs with heA
       · have hpA := prevActive_mem heA

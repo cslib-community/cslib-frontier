@@ -172,9 +172,8 @@ private theorem mem_foldl_priceSamplingStep_imp (G : L × R → Bool) (w : L →
   | nil => exact Or.inl he
   | cons a t ih =>
     rcases ih _ he with hstep | ht
-    · by_cases hm0 : e ∈ M0
-      · exact Or.inl hm0
-      · exact Or.inr ((mem_priceSamplingStep_of_notMem hstep hm0).1 ▸ List.mem_cons_self ..)
+    · exact if hm0 : e ∈ M0 then Or.inl hm0
+      else Or.inr ((mem_priceSamplingStep_of_notMem hstep hm0).1 ▸ List.mem_cons_self ..)
     · exact Or.inr (List.mem_cons_of_mem _ ht)
 
 omit [Fintype L] in
@@ -202,18 +201,14 @@ private theorem foldl_priceSamplingStep_isMatching (G : L × R → Bool) (w : L 
           Finset.mem_filter.mp (Classical.choose_spec (Finset.exists_min_image _ p hne)).1
         refine ⟨fun e he => ?_, fun u v₁ v₂ h₁ h₂ => ?_, fun u₁ u₂ v h₁ h₂ => ?_⟩
         · exact (Finset.mem_insert.mp he).elim (fun h => h ▸ hG) (hM0.1 e)
-        · rcases Finset.mem_insert.mp h₁ with h₁ | h₁ <;>
-            rcases Finset.mem_insert.mp h₂ with h₂ | h₂
-          · exact (Prod.ext_iff.mp h₁).2.trans (Prod.ext_iff.mp h₂).2.symm
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₂, (Prod.ext_iff.mp h₁).1⟩) ha_fresh
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₁, (Prod.ext_iff.mp h₂).1⟩) ha_fresh
-          · exact hM0.2.1 u v₁ v₂ h₁ h₂
-        · rcases Finset.mem_insert.mp h₁ with h₁ | h₁ <;>
-            rcases Finset.mem_insert.mp h₂ with h₂ | h₂
-          · exact (Prod.ext_iff.mp h₁).1.trans (Prod.ext_iff.mp h₂).1.symm
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₂, (Prod.ext_iff.mp h₁).2⟩) hfree
-          · exact absurd (Finset.mem_image.mpr ⟨_, h₁, (Prod.ext_iff.mp h₂).2⟩) hfree
-          · exact hM0.2.2 u₁ u₂ v h₁ h₂
+        · rcases Finset.mem_insert.mp h₁ with ⟨rfl, rfl⟩ | h₁ <;>
+            rcases Finset.mem_insert.mp h₂ with ⟨rfl, rfl⟩ | h₂
+          exacts [rfl, absurd (Finset.mem_image_of_mem _ h₂) ha_fresh,
+            absurd (Finset.mem_image_of_mem _ h₁) ha_fresh, hM0.2.1 _ _ _ h₁ h₂]
+        · rcases Finset.mem_insert.mp h₁ with ⟨rfl, rfl⟩ | h₁ <;>
+            rcases Finset.mem_insert.mp h₂ with ⟨rfl, rfl⟩ | h₂
+          exacts [rfl, absurd (Finset.mem_image_of_mem _ h₂) hfree,
+            absurd (Finset.mem_image_of_mem _ h₁) hfree, hM0.2.2 _ _ _ h₁ h₂]
       · exact hM0
     exact ih hnodup_t hM1 fun l hl =>
       notMem_fst_priceSamplingStep G w p M0 (fun h => ha_not_t (h ▸ hl))

@@ -218,7 +218,7 @@ theorem isLittleO_logb_max_two {K : ℕ → ℕ}
       linarith [norm_nonneg (Real.log (K n))]
     · rw [max_eq_left h]
       linarith [Real.le_norm_self (Real.log (K n))]
-  exact (hK'.const_mul_left (1 / Real.log q)).congr_left fun n => by
+  exact (hK'.const_mul_left (1 / Real.log q)).congr_left fun _ => by
     simp only [Real.logb]
     ring
 
@@ -226,13 +226,10 @@ theorem isLittleO_logb_max_two {K : ℕ → ℕ}
 `K ≤ q ^ ⌊n / 2⌋`. -/
 theorem le_pow_half_of_logb {q K n : ℕ} (hq : 1 < q) (hK : 0 < K)
     (h : 1 + 2 * Real.logb q K ≤ (1 - 1 / 2) * n) : K ≤ q ^ (n / 2) := by
-  have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := by
-    exact_mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
-  have hlogb : Real.logb q K ≤ (n / 2 : ℕ) := by
-    linarith [Nat.cast_nonneg (α := ℝ) (n / 2)]
-  have := (Real.logb_le_iff_le_rpow (by exact_mod_cast hq) (by exact_mod_cast hK)).mp hlogb
-  rw [Real.rpow_natCast] at this
-  exact_mod_cast this
+  have hn2 : (n : ℝ) ≤ 2 * (n / 2 : ℕ) + 1 := mod_cast (show n ≤ 2 * (n / 2) + 1 by omega)
+  have hlogb : Real.logb q K ≤ (n / 2 : ℕ) := by linarith [Nat.cast_nonneg (α := ℝ) (n / 2)]
+  have hpow := (Real.logb_le_iff_le_rpow (by exact_mod_cast hq) (by exact_mod_cast hK)).mp hlogb
+  rwa [Real.rpow_natCast, ← Nat.cast_pow, Nat.cast_le] at hpow
 
 /-- There are `|U| ^ n` inputs. -/
 private theorem card_input_eq {U : Type*} (n : ℕ) :
@@ -385,12 +382,10 @@ def AverageCaseBound (L : ℝ) : Prop :=
 
 /-- Every multiary average-case bound implies the corresponding `innerSize` average-case bound. -/
 theorem MultiaryAverageCaseBound.averageCaseBound {L : ℝ} (h : MultiaryAverageCaseBound.{u, v} L) :
-    AverageCaseBound.{u, v} L := by
-  intro ε hε
-  obtain ⟨γ, hγ, H⟩ := h ε hε
-  refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
-  exact hn σ I Acc c hfan ((Nat.cast_le.mpr c.multiarySize_le_innerSize).trans hs)
+    AverageCaseBound.{u, v} L := fun ε hε =>
+  (h ε hε).imp fun _ ⟨hγ, H⟩ => ⟨hγ, fun U _ _ S K b hbias hK =>
+    (H U S K b hbias hK).mono fun _ hn σ I Acc c hfan hs =>
+      hn σ I Acc c hfan ((Nat.cast_le.mpr c.multiarySize_le_innerSize).trans hs)⟩
 
 /-- An average-case bound holds for every smaller coefficient. -/
 theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL : L' ≤ L) :
@@ -461,9 +456,8 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       Real.logb_nonneg (by linarith) (by exact_mod_cast (show 1 ≤ K' n by omega))
     have hmultR : (c'.multiarySize : ℝ) ≤ c.multiarySize := by exact_mod_cast hmult
     have hsupply : (w : ℝ) ≤ (A + η) * (c.multiarySize - n + e n) + η * V + C := by
-      have := mul_le_mul_of_nonneg_left (show (c'.multiarySize : ℝ) - n + Real.logb q (K' n) + 1 ≤
-        c.multiarySize - n + e n by simp only [e]; linarith) (by linarith : 0 ≤ A + η)
-      linarith
+      refine hπ.trans (add_le_add_three (mul_le_mul_of_nonneg_left ?_ (by linarith)) le_rfl le_rfl)
+      dsimp only [e]; linarith
     have hVκ : (V : ℝ) ≤ κ * (n + c.multiarySize + 1) := by
       have hVR : (V : ℝ) ≤ 4 * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 :=
         mod_cast (Compiler.card_vertex_le hfan').trans

@@ -237,8 +237,7 @@ def hPoly : ℤ[X] :=
 /-- `hPoly = X ^ 2 - X` is monic. -/
 theorem monic_hPoly : hPoly.Monic := by
   apply Monic.sub_of_left (monic_X_pow 2)
-  rw [degree_X, degree_X_pow]
-  decide
+  simp [degree_X]
 
 /-- `hPoly` has degree `2`. -/
 @[simp]
@@ -345,11 +344,9 @@ theorem iterDivByH_eq_zero_of_natDegree_lt {P : ℤ[X]} {j : ℕ}
 
 private theorem natDegree_paritySeriesAux_le (m K : ℕ) :
     (paritySeriesAux m K).natDegree ≤ K - 1 := by
-  refine natDegree_sum_le_of_forall_le (range K) _ fun j hj => ?_
-  rw [mem_range] at hj
-  refine natDegree_mul_le.trans ?_
+  refine natDegree_sum_le_of_forall_le (range K) _ fun j hj => natDegree_mul_le.trans ?_
   rw [natDegree_natCast, zero_add, natDegree_X_pow]
-  omega
+  exact Nat.le_sub_one_of_lt (mem_range.1 hj)
 
 /-- `parityKernel ℓ` has degree at most `ℓ - 1`. -/
 theorem natDegree_parityKernel_le (ℓ : ℕ) :
@@ -420,10 +417,7 @@ theorem coeffNorm1_parityAmplifier_le (ℓ : ℕ) :
     coeffNorm1 ((1 - X) ^ ℓ * parityKernel ℓ)
       ≤ 2 ^ ℓ * coeffNorm1 (parityKernel ℓ) := coeffNorm1_one_sub_X_pow_mul_le ℓ _
     _ ≤ 2 ^ ℓ * 2 ^ (2 * ℓ) := Nat.mul_le_mul_left (2 ^ ℓ) (coeffNorm1_parityKernel_le ℓ)
-    _ = 2 ^ (3 * ℓ) := by
-      rw [← pow_add]
-      congr 1
-      omega
+    _ = 2 ^ (3 * ℓ) := by rw [← pow_add, ← one_add_mul]
 
 private theorem coeff_modByMonic_hPoly_add (p : ℤ[X]) (n : ℕ) :
     (p %ₘ hPoly).coeff n + ((p /ₘ hPoly * X ^ 2).coeff n - (p /ₘ hPoly * X).coeff n) =
@@ -483,17 +477,15 @@ theorem natAbs_coeff_divByMonic_hPoly_le (p : ℤ[X]) (n : ℕ) :
 theorem natAbs_coeff_modByMonic_hPoly_le (p : ℤ[X]) (k : ℕ) :
     ((p %ₘ hPoly).coeff k).natAbs ≤ coeffNorm1 p := by
   rcases k with _ | _ | k
-  · rw [coeff_modByMonic_hPoly_zero]
-    exact natAbs_coeff_le_coeffNorm1 p 0
+  · simpa only [coeff_modByMonic_hPoly_zero] using natAbs_coeff_le_coeffNorm1 p 0
   · rw [coeff_modByMonic_hPoly_one, coeff_divByMonic_hPoly_eq_sum]
     have hsum : p.coeff 1 + ∑ t ∈ range (p.natDegree + 1), p.coeff (0 + 2 + t) =
         ∑ t ∈ range (p.natDegree + 2), p.coeff (1 + t) := by
       rw [sum_range_succ' (fun t => p.coeff (1 + t)) (p.natDegree + 1), add_zero, add_comm]
       exact congrArg₂ _ (sum_congr rfl fun t _ => congrArg _ (by omega)) rfl
     exact hsum ▸ natAbs_sum_coeff_add_le p 1 _
-  · rw [coeff_eq_zero_of_natDegree_lt (by have := natDegree_modByMonic_hPoly_le p; omega),
-      Int.natAbs_zero]
-    exact Nat.zero_le _
+  · rw [coeff_eq_zero_of_natDegree_lt ((natDegree_modByMonic_hPoly_le p).trans_lt (by omega))]
+    simp
 
 private theorem coeffNorm1_le_mul_of_natDegree_lt {q : ℤ[X]} {N c : ℕ} (hq : q.natDegree < N)
     (hc : ∀ i, (q.coeff i).natAbs ≤ c) : coeffNorm1 q ≤ N * c := by

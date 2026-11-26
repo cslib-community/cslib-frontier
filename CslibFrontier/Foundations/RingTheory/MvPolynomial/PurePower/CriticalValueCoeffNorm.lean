@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -20,9 +21,12 @@ import Mathlib.Data.Nat.Size
 For an integer input with coefficient norm at most `2 ^ b`, the arity, pure-power degree
 and `b` give an explicit binary exponent bounding the coefficient norm of the symbolic
 critical-value polynomial. This bound supplies the norm hypothesis for choosing a
-parameter that avoids repeated critical values and a prescribed cutoff.
+parameter that avoids repeated critical values and a prescribed cutoff. For zero-centered
+relative systems, the source norm bounds the lower relations and deformed objective after
+joining the witness and parameter blocks.
 
-Adapted from `SeparatedPotentialMass` and `ParametricCriticalBounds` in lean-canny at
+Adapted from `SeparatedPotentialMass`, `ParametricCriticalBounds`, and `RelativeCriticalMass`
+in lean-canny at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`. The lower relations and the deformed potential
 share a common norm allowance, and the characteristic-polynomial estimate uses the
 sharper residue bound for the actual quotient.
@@ -163,5 +167,58 @@ theorem parametricValuePolynomial_bivariateCoeffNorm1_le {n ell b : ℕ} (hell :
     hrnorm (deformedPolynomial ell a Polynomial.X G)
     (totalDegree_deformedPolynomial_le ell a Polynomial.X G (hG.trans (Nat.le_succ _)))
     hvnorm
+
+/-- The coefficient norm of a zero-centered relative lower relation is at most the
+source norm times the source total degree. Differentiation supplies the degree factor, and
+the penalty variable has norm one. -/
+theorem coeffNorm1_relativeCriticalLower_le {n ell : ℕ} {κ : Type*} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (i : Fin n) :
+    ((sumRingEquiv ℤ (Fin n) (Option κ)).symm
+      (criticalLower ell (fun _ => 0) (X none) (relativeSource F) i)).coeffNorm1 ≤
+      F.totalDegree * F.coeffNorm1 := by
+  rw [criticalLower, zero_pow (by omega : ell ≠ 0), map_zero, zero_sub, map_neg,
+    coeffNorm1_neg, map_mul, sumRingEquiv_symm_C_X]
+  refine (coeffNorm1_mul_le _ _).trans ?_
+  rw [coeffNorm1_X, one_mul, coeffNorm1_sumRingEquiv_symm]
+  refine (sum_pderiv_le_of_subadditive coeffNorm1_zero coeffNorm1_add_le _ i).trans ?_
+  change (relativeSource F).totalDegree *
+    (∑ m ∈ (relativeSource F).support, ((relativeSource F).coeff m).coeffNorm1) ≤ _
+  rw [← coeffNorm1_sumRingEquiv_symm]
+  exact Nat.mul_le_mul (totalDegree_relativeSource_le F) (coeffNorm1_relativeSource_le F)
+
+/-- The zero-centered relative objective has coefficient norm at most the arity plus
+`ell + 1` times the source norm. The arity accounts for the separated pure powers. -/
+theorem coeffNorm1_relativeDeformedPolynomial_le {n ell : ℕ} {κ : Type*} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
+    ((sumRingEquiv ℤ (Fin n) (Option κ)).symm
+      (deformedPolynomial ell (fun _ => 0) (X none) (relativeSource F))).coeffNorm1 ≤
+      n + (ell + 1) * F.coeffNorm1 := by
+  classical
+  let e := sumRingEquiv ℤ (Fin n) (Option κ)
+  change (e.symm (deformedPolynomial ell (fun _ => 0) (X none) (relativeSource F))).coeffNorm1 ≤ _
+  have hpotential :
+      (e.symm (potentialPolynomial ell (fun _ : Fin n => 0))).coeffNorm1 ≤ n := by
+    simp only [e, potentialPolynomial, zero_pow (by omega : ell ≠ 0),
+      zero_pow (Nat.succ_ne_zero ell), mul_zero, map_zero, zero_mul, sub_zero, add_zero,
+      map_sum, map_pow, sumRingEquiv_symm_X]
+    refine (coeffNorm1_sum_le _ _).trans ?_
+    calc
+      _ ≤ ∑ _i : Fin n, 1 := Finset.sum_le_sum fun i _ => by
+        simpa only [coeffNorm1_X, one_pow] using
+          coeffNorm1_pow_le (X (.inl i) : MvPolynomial (Fin n ⊕ Option κ) ℤ) (ell + 1)
+      _ = n := by simp
+  have hscale :
+      (e.symm (C (((ell + 1 : ℕ) : MvPolynomial (Option κ) ℤ) * X none))).coeffNorm1 ≤
+        ell + 1 := by
+    rw [map_mul C, map_mul e.symm, map_natCast C, map_natCast e.symm]
+    have hx : e.symm (C (X none)) = X (.inr none) := by
+      simp only [e, sumRingEquiv_symm_C_X]
+    rw [hx]
+    refine (coeffNorm1_mul_le _ _).trans ?_
+    rw [coeffNorm1_X, mul_one, ← C_eq_natCast, coeffNorm1_C, Int.natAbs_natCast]
+  rw [deformedPolynomial, map_add, map_mul]
+  refine (coeffNorm1_add_le _ _).trans (Nat.add_le_add hpotential ?_)
+  exact (coeffNorm1_mul_le _ _).trans
+    (Nat.mul_le_mul hscale (coeffNorm1_relativeSource_le F))
 
 end MvPolynomial.CriticalSystem

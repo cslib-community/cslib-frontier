@@ -65,12 +65,10 @@ theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
       (τ.stateAt t).history ++ [⟨i, kind, t, .pending⟩] := by
     rw [← hs₁, inv.stepCount_eq]; cases mode <;> rfl
   have hlen1 : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length + 1 := by
-    rw [hhist_eq, List.length_append, List.length_singleton]
-  have hget_new : ∀ hId : (τ.stateAt t).history.length < (τ.stateAt (t + 1)).history.length,
+    simp [hhist_eq]
+  have hget_new (hId : (τ.stateAt t).history.length < (τ.stateAt (t + 1)).history.length) :
       (τ.stateAt (t + 1)).history[(τ.stateAt t).history.length]'hId = ⟨i, kind, t, .pending⟩ := by
-    intro hId
-    rw [List.getElem_of_eq hhist_eq hId]
-    simp only [List.getElem_append_right (le_refl _), Nat.sub_self, List.getElem_singleton]
+    simp [List.getElem_of_eq hhist_eq hId]
   refine inv.of_actor_step i (τ.stateAt t).history.length
     (by rw [← hs₁, inv.stepCount_eq])
     (fun p hp => by rw [← hs₁]; exact Function.update_of_ne hp _ _)
@@ -89,10 +87,10 @@ theorem TraceInv.of_invoke {τ : SnapshotTrace ord dInit} {t : ℕ}
     simp only [Function.update_self, ProcSnapshotState.scanning.injEq] at hp
     subst hp
     dsimp only [st_new]
-    refine ⟨by omega, ?_, by omega, t + 1, by omega, le_rfl,
-      fun k hk => absurd hk (notMem_empty k),
-      fun _ k hk => absurd (ord.complete k) hk, fun hph => by cases hph⟩
-    rw [hget_new (by omega), hlast_i]; cases mode <;> rfl
+    refine ⟨by omega, ?_, by omega, t + 1, by omega, le_rfl, fun k hk => absurd hk (notMem_empty k),
+      fun _ k hk => absurd (ord.complete k) hk, nofun⟩
+    have hnew := hget_new (by omega)
+    cases mode <;> simp [hnew, hlast_i, kind]
   · intro id hId hcase hpend
     by_cases hid : id = (τ.stateAt t).history.length
     · subst hid
@@ -189,14 +187,11 @@ theorem TraceInv.of_complete {τ : SnapshotTrace ord dInit} {t : ℕ}
           ⟨val, ((τ.stateAt resp).reg i).seq + 1, ((τ.stateAt (resp + 1)).reg i).view⟩)
     (hwrite_t : ∀ j, τ.isWriteStep j t → j = i ∧ newSt = .doneUpdate t) :
     TraceInv τ (t + 1) := by
-  have hget_op : (τ.stateAt t).history[activeId]? =
-      some ⟨i, oldKind, τ.lastIdleStep i t, .pending⟩ := by
-    rw [List.getElem?_eq_getElem hId, hrec_i]
   have hset : (τ.stateAt (t + 1)).history =
       (τ.stateAt t).history.set activeId ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ := by
-    rw [hhist_upd]; simp only [completeHistoryAt, hget_op]
+    simp [hhist_upd, completeHistoryAt, List.getElem?_eq_getElem hId, hrec_i]
   have hlen_eq : (τ.stateAt (t + 1)).history.length = (τ.stateAt t).history.length := by
-    rw [hset, List.length_set]
+    simp [hset]
   have hnew_at : ∀ h₁ : activeId < (τ.stateAt (t + 1)).history.length,
       (τ.stateAt (t + 1)).history[activeId]'h₁ = ⟨i, oldKind, τ.lastIdleStep i t, newSt⟩ :=
     fun h₁ => (List.getElem_of_eq hset h₁).trans (List.getElem_set_self _)

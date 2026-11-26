@@ -230,9 +230,7 @@ private lemma getD_append_drop {A B : List (Option ℕ)} {k : ℕ} {s : ℤ}
       congr 1
       omega
     · rw [List.getD_eq_default B none (by omega)]
-      split_ifs
-      · rfl
-      · exact (List.getD_eq_default B none (by omega)).symm
+      split_ifs <;> first | rfl | exact (List.getD_eq_default B none (by omega)).symm
 
 private lemma cellAt_paste {r : ℕ} {O I : Tape} {h h' : ℤ} (h₁ : h - r ≤ h') (h₂ : h' ≤ h + r)
     (hL : r ≤ O.left.length → (I.left.length : ℤ) + h = r + h')
@@ -321,22 +319,19 @@ private lemma moveIn_eq (i : Tape) {P p : ℕ} (hP : P = 0 ∨ P = 1) (hPp : P =
       ((moveInput p a mv : ℕ) : ℤ) = p + m := by
   rcases hP with rfl | rfl
   · obtain rfl : p = 0 := hPp.1 rfl
-    rcases mv with _ | _ | _
-    · exact ⟨.zero, by simp [moveIn, moveInput, Tape.move], by simp [moveInput,
-        SignType.zero_eq_zero]⟩
-    · exact ⟨.zero, by simp [moveIn, moveInput, Tape.move], by simp [moveInput,
-        SignType.zero_eq_zero]⟩
-    · exact ⟨.pos, by simp [moveIn, moveInput], by simp [moveInput, SignType.pos_eq_one]⟩
+    cases mv with
+    | zero | neg =>
+      exact ⟨.zero, by simp [moveIn, moveInput, Tape.move],
+        by simp [moveInput, SignType.zero_eq_zero]⟩
+    | pos => exact ⟨.pos, by simp [moveIn, moveInput], by simp [moveInput, SignType.pos_eq_one]⟩
   · have hp : p ≠ 0 := fun h => absurd (hPp.2 h) (by omega)
     rcases mv with _ | _ | _
     · exact ⟨.zero, by simp [moveIn, moveInput, Tape.move], by simp [moveInput,
         SignType.zero_eq_zero]⟩
     · exact ⟨.neg, by simp [moveIn, moveInput], by simp [moveInput, SignType.neg_eq_neg_one]; omega⟩
-    · by_cases ha : a.isSome
-      · exact ⟨.pos, by simp [moveIn, moveInput, ha], by
-          simp [moveInput, SignType.pos_eq_one, ha, hp]⟩
-      · exact ⟨.zero, by simp [moveIn, moveInput, ha, Tape.move], by
-          simp [moveInput, SignType.zero_eq_zero, ha, hp]⟩
+    · exact ⟨if a.isSome then .pos else .zero,
+        by cases a <;> simp [moveIn, moveInput, Tape.move],
+        by cases a <;> simp [moveInput, SignType.pos_eq_one, SignType.zero_eq_zero, hp]⟩
 
 /-! ### Windows agreeing with tapes -/
 
@@ -564,9 +559,8 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     rcases k with _ | k
     · simp only [List.getElem?_cons_zero, view, Option.some.injEq] at hW hF hW' hF'
       subst hW hF hW' hF'
-      have habs : ((inCell x, (p : ℤ) + m) : ATape) = absApply (inCell x, p) (none, m) := by
-        simp [absApply]
-      rw [hm₂, habs]
+      have habs : absApply (inCell x, p) (none, m) = (inCell x, (p : ℤ) + m) := by simp [absApply]
+      rw [hm₂, ← habs]
       exact tr_apply hi (none, m)
     · simp only [List.getElem?_cons_succ] at hW
       simp only [view, List.getElem?_cons_succ, List.getElem?_map, Option.map_eq_some_iff] at hF

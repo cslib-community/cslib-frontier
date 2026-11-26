@@ -122,12 +122,10 @@ private theorem computableInPolyTime_two_pow_paddedTime :
 
 private theorem computableInPolyTime_scheduleCount (heads : ℕ) :
     ComputableInPolyTime (scheduleCount heads) encUnary encNat := by
-  have h : ComputableInPolyTime
-      (fun t => 3 ^ (heads * ((t + Nat.clog 2 (t + 2) - 1) / Nat.clog 2 (t + 2)))) encUnary
-      encNat :=
-    ComputableInPolyTime.binary_pow' (ComputableInPolyTime.const (encOut := encNat) 3) (by fun_prop)
-  convert h using 2 with t
-  rw [scheduleCount, numBlocks, blockLength, Nat.ceilDiv_eq_add_pred_div]
+  have h : scheduleCount heads =
+      fun t => 3 ^ (heads * ((t + Nat.clog 2 (t + 2) - 1) / Nat.clog 2 (t + 2))) :=
+    funext fun _ => by rw [scheduleCount, numBlocks, blockLength, Nat.ceilDiv_eq_add_pred_div]
+  exact h ▸ .binary_pow' (.const (encOut := encNat) 3) (by fun_prop)
 
 /-! ### Resource bounds -/
 
@@ -225,8 +223,7 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
         Nat.le_mul_of_pos_right _ (hE c)
       simp only [U, E] at hA hmul hpe ⊢
       nlinarith [hA.1, hP'.1, hN'.1]
-    · simp only [U] at hA ⊢
-      omega
+    · simp only [U] at hA ⊢; omega
   -- Collect the polynomial overhead.
   let V : List Bool × ℕ → ℕ := fun c => pG (sz c) + sz c + 2 * (a * (sz c + 1) ^ d + U c)
   have hVp : PolyBounded sz V := by growth_poly
@@ -244,8 +241,7 @@ theorem exists_computableInO_simulate (F : NetworkFamily encN value Admissible c
       have h1 := succ_mul_add_le (A := a * (sz c + 1) ^ d) (hcnt1 c) (hE c) hR
       simp only [V, sz, Nat.add_mul] at hG h1 h2 ⊢
       omega
-    · simp only [V, sz, Nat.add_mul] at hG h2 ⊢
-      omega
+    · simp only [V, sz, Nat.add_mul] at hG h2 ⊢; omega
   have hspace (c : List Bool × ℕ) : csim.space c ≤ V c := by
     have hG := (bG c).2
     simp only [csim, cms, NativeCertificate.congr, NativeCertificate.branch_space,
@@ -336,8 +332,7 @@ theorem exists_computableInO_countPair (F : NetworkFamily encN value Admissible 
         (Nat.mul_pos hcnt1 hE)
       simp only [W]
       linarith [hm'.1, ht'.1]
-    · simp only [W]
-      omega
+    · simp only [W]; omega
   -- Absorb the cost into `2 ^ O(T / √(log T))` and `T ^ O(1)`.
   obtain ⟨C, hC⟩ := Nat.exists_three_pow_mul_le_two_pow_div_sqrt_log_two F.heads c e k
   refine ⟨(a + 1) * (C + 1), a * c ^ e + 2 * e,
@@ -401,8 +396,8 @@ theorem exists_computableInO_countWith (F : NetworkFamily encN value Admissible 
   · have h2 : 2 ≤ T x.length := (le_max_right _ _).trans (hTn _)
     have hpost : cr.time (g x) ≤ a * (T x.length + 1) ^ e :=
       ((bp (g x)).1.trans (mp (hlen x))).trans ((Nat.le_add_left _ _).trans (hPe _))
-    have hmain := hC' (T x.length) h2
-    simp only [Nat.zero_mul, pow_zero, Nat.one_mul] at hmain
+    have hmain := by
+      simpa only [Nat.zero_mul, pow_zero, Nat.one_mul] using hC' (T x.length) h2
     have h1 := (Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ (by omega))).trans hmain
     have hcr := hpost.trans
       (Nat.mul_le_mul_left a ((Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hmain))

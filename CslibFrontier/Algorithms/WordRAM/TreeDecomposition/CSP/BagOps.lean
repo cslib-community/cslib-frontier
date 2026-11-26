@@ -173,11 +173,9 @@ theorem subsetBagProg_spec {w : ℕ} (args : SubsetBagArgs)
         (validHistory_pure w _ _))
     have hc_step :
         memoryCost (subsetBagStep ((args.bagPtr, args.bagLen), ⟨cur, ok⟩)) s ≤ stepCost := by
-      unfold subsetBagStep
-      dsimp only
+      dsimp only [subsetBagStep, stepCost]
       rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
         memoryCost_bind', hst_bm, memoryCost_pure]
-      dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (cur + 1) ok' hrest hok'
     simp only [List.length_cons, iterate]
@@ -399,12 +397,11 @@ theorem eraseBagProg_spec {w : ℕ} (args : BagScanArgs)
         rcases hsk with rfl | rfl
         · simp [beq_eq_false_iff_ne.2 fun hx => hskip_cond ⟨rfl, hx⟩]
         · simp
-      have hlen_sum : written.length + 1 +
-          (if skipped = 1 then rest else rest.erase args.target).length = bagLen := by
-        have hc_len := congrArg List.length hconcat
-        rw [htail_eq, List.length_append, List.length_cons] at hc_len
-        dsimp only [bagLen]
-        omega
+      have hc_len : written.length +
+          ((if skipped = 1 then rest else rest.erase args.target).length + 1) =
+          (xs.erase args.target).length := by
+        simpa only [htail_eq, List.length_append, List.length_cons] using
+          congrArg List.length hconcat
       have hdst_lt : bagPtr + written.length < t.frontier := by omega
       let t₁ : Memory.State := ⟨Function.update t.mem (bagPtr + written.length) x, t.frontier⟩
       have hres_ev' : (Memory.spec 0).clientResult t
@@ -458,8 +455,7 @@ theorem eraseBagProg_realizes :
     obtain ⟨_, hst_bm, hr_bm, _⟩ := bagMemProg_spec (w := w) d hxs hlen
     rw [hst_bm, hr_bm, sub_memBag_eq_length_erase hlen]
     let bagLen := (xs.erase d.target).length
-    have hbagLen_le : bagLen ≤ d.len := by
-      dsimp only [bagLen]; rw [← hlen]; exact List.length_erase_le
+    have hbagLen_le : bagLen ≤ d.len := hlen ▸ List.length_erase_le
     let s_a : Memory.State := { mem := s.mem, frontier := s.frontier + bagLen }
     have hp_a : PreservesBelow s.frontier s s_a := ⟨le_rfl, Nat.le_add_right _ _, fun _ _ => rfl⟩
     refine iterationSafe_of_stepInv _ _ w _
@@ -475,10 +471,8 @@ theorem eraseBagProg_realizes :
         by dsimp only; rw [Nat.sub_self, List.drop_zero]; exact hxs.mono_frontier hp_a⟩
     have hidx_lt : d.len - (j + 1) < xs.length := by omega
     have hdrop_cons : xs.drop (d.len - (j + 1)) =
-        xs[d.len - (j + 1)] :: xs.drop (d.len - j) := by
-      rw [List.drop_eq_getElem_cons hidx_lt]
-      congr 2
-      omega
+        xs[d.len - (j + 1)] :: xs.drop (d.len - j) :=
+      (List.drop_eq_getElem_cons hidx_lt).trans (congrArg (_ :: xs.drop ·) (by omega))
     obtain ⟨_, hmem_cur, hrest_t⟩ := HoldsIn.cons_iff.mp (hdrop_cons ▸ hdrop_t)
     have hx_fit : Fits w (t.mem st.srcCur) := hmem_cur ▸ hfit_elems _ (List.getElem_mem hidx_lt)
     have hfit_src1 : Fits w (st.srcCur + 1) := hfit_fr.of_le (by omega)

@@ -164,8 +164,7 @@ private theorem quantumValue_le_of_relabel
     (ha : ∀ x y a b, H.accepts (eX x) (eY y) (eA a) (eB b) ↔ G.accepts x y a b) :
     G.quantumValue ≤ H.quantumValue := by
   classical
-  refine G.quantumValue_le H.quantumValue_nonneg ?_
-  intro ι κ _ _ _ _ S
+  refine G.quantumValue_le H.quantumValue_nonneg fun {ι κ} _ _ _ _ S => ?_
   let T : QuantumStrategy X' Y' A' B' ι κ :=
     { state := S.state
       norm_state := S.norm_state
@@ -207,10 +206,9 @@ theorem quantumValue_pow_one : (G.pow 1).quantumValue = G.quantumValue := by
     rw [pow, h, PMF.map_comp]; rfl
   refine le_antisymm ?_ (G.quantumValue_le_of_relabel (G.pow 1) eX eY eA eB
     hq (fun x y a b => ⟨fun h => h 0, fun h _ => h⟩))
-  refine (G.pow 1).quantumValue_le_of_relabel G eX.symm eY.symm eA.symm eB.symm ?_
+  exact (G.pow 1).quantumValue_le_of_relabel G eX.symm eY.symm eA.symm eB.symm
+    (by rw [hq, PMF.map_comp, ← Equiv.prodCongr_symm, eQ.symm_comp_self, PMF.map_id])
     fun x y a b => ⟨fun h i => Subsingleton.elim 0 i ▸ h, fun h => h 0⟩
-  change G.questions = (G.pow 1).questions.map eQ.symm
-  rw [hq, PMF.map_comp, eQ.symm_comp_self, PMF.map_id]
 
 /-- Every nonempty parallel repetition has entangled value at most the original game's value. -/
 theorem quantumValue_pow_le_of_pos {n : ℕ} (hn : 0 < n) :
@@ -260,22 +258,19 @@ private theorem quantumValue_mul_le {v c : ℝ} (hv : 0 ≤ v) (hc : 0 ≤ c)
     G.quantumValue * v ≤ c := by
   rcases hv.eq_or_lt with rfl | hp
   · simpa using hc
-  · refine (le_div_iff₀ hp).mp (G.quantumValue_le (div_nonneg hc hv) ?_)
-    intro ι κ _ _ _ _ S
-    exact (le_div_iff₀ hp).mpr (h S)
+  · exact (le_div_iff₀ hp).mp <|
+      G.quantumValue_le (div_nonneg hc hv) fun S => (le_div_iff₀ hp).mpr (h S)
 
 /-- Appending an independent coordinate gives a product lower bound for entangled value. -/
 theorem mul_quantumValue_pow_le_quantumValue_pow_succ (n : ℕ) :
     G.quantumValue * (G.pow n).quantumValue ≤ (G.pow (n + 1)).quantumValue := by
   classical
   have h₀ := (G.pow (n + 1)).quantumValue_nonneg
-  refine G.quantumValue_mul_le (G.pow n).quantumValue_nonneg h₀ ?_
-  intro ι κ _ _ _ _ S
+  refine G.quantumValue_mul_le (G.pow n).quantumValue_nonneg h₀ fun S => ?_
   rw [mul_comm]
-  refine (G.pow n).quantumValue_mul_le (G.quantumWinProb_nonneg S) h₀ ?_
-  intro ι' κ' _ _ _ _ T
-  rw [mul_comm, ← G.quantumWinProb_pow_cons S T]
-  exact (G.pow (n + 1)).quantumWinProb_le_quantumValue (S.cons T)
+  refine (G.pow n).quantumValue_mul_le (G.quantumWinProb_nonneg S) h₀ fun T => ?_
+  simpa only [mul_comm, ← G.quantumWinProb_pow_cons S T] using
+    (G.pow (n + 1)).quantumWinProb_le_quantumValue (S.cons T)
 
 /-- The zero-coordinate game accepts vacuously and has entangled value one. -/
 @[simp] theorem quantumValue_pow_zero : (G.pow 0).quantumValue = 1 := by

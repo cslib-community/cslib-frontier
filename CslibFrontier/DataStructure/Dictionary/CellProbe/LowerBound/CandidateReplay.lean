@@ -164,9 +164,8 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
       ((Dynamic.spec U V n).run (Dictionary.empty U) (pref_bef ++ ops_B)).1 =
         fun u => if u ∈ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \ D_set) ∪ B
           then some (s.kv u).val else none := by
-  let stride := modeStride withQueries
+  intro stride pref_bef ops_B _
   let ht₀_n : t₀ ≤ n := Nat.le_of_add_right_le ht₀
-  let pref_bef := (s.modeOps withQueries).take (n + stride * t₀)
   let d := segDeletedKeys s.keys s.delPerm t₀ m ht₀
   let π := (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht₀)).2
   let b := orderSubset B hB π
@@ -175,8 +174,8 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
   have hpref_len := s.length_take_modeOps withQueries ht₀_n
   have hpref_st := run_take_modeOps_eq_ite withQueries s ht₀_n
   have hd_mem_K (r : Fin m) : d r ∈ K := segDeletedKeys_mem_activeKeys s ht₀ r
-  have hb_mem_B (r : Fin m) : b r ∈ B := by
-    dsimp only [b]; rw [orderSubset_apply]; exact Finset.orderEmbOfFin_mem B hB (π r)
+  have hb_mem_B (r : Fin m) : b r ∈ B :=
+    orderSubset_apply B hB π r ▸ Finset.orderEmbOfFin_mem B hB (π r)
   have hloop : ∀ k : ℕ, (hk : k ≤ m) →
       let D_k := (Finset.univ.filter fun r : Fin m => r.val < k).image d
       let B_k := (Finset.univ.filter fun r : Fin m => r.val < k).image b
@@ -199,20 +198,16 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         (pref_bef ++ modeCandPrefix withQueries d b s.kv k)).1
       obtain ⟨hvh_k, hst_k⟩ := ih (Nat.le_of_succ_le hk)
       let r₀ : Fin m := ⟨k, hk_lt⟩
+      have hflt_lt : (Finset.univ.filter fun r : Fin m => r.val < k) = Finset.Iio r₀ := by
+        simpa only [Fin.lt_def] using (Finset.filter_gt_eq_Iio (a := r₀))
+      have hflt_le : (Finset.univ.filter fun r : Fin m => r.val < k + 1) = Finset.Iic r₀ := by
+        simpa only [Nat.lt_succ_iff, Fin.le_def] using (Finset.filter_ge_eq_Iic (a := r₀))
       have hdr_not_Dk : d r₀ ∉ D_k := by
-        simp only [D_k, Finset.mem_image, Finset.mem_filter, Finset.mem_univ, true_and]
-        rintro ⟨r', hr', heq⟩
-        have := congrArg Fin.val (d.injective heq); dsimp only [r₀] at this; omega
+        simpa only [D_k, hflt_lt, d.injective.mem_finset_image] using Finset.notMem_Iio_self
       have hdr_in : d r₀ ∈ (K \ D_k) ∪ B_k :=
         Finset.mem_union_left _ (Finset.mem_sdiff.mpr ⟨hd_mem_K r₀, hdr_not_Dk⟩)
       have hdr_some : (s_k (d r₀)).isSome := by
         rw [hst_k]; simp only [hdr_in, ↓reduceIte, Option.isSome_some]
-      have hflt_lt : (Finset.univ.filter fun r : Fin m => r.val < k) = Finset.Iio r₀ := by
-        simpa only [Fin.lt_def] using
-          (Finset.filter_gt_eq_Iio : Finset.univ.filter (· < r₀) = Finset.Iio r₀)
-      have hflt_le : (Finset.univ.filter fun r : Fin m => r.val < k + 1) = Finset.Iic r₀ := by
-        simpa only [Nat.lt_succ_iff, Fin.le_def] using
-          (Finset.filter_ge_eq_Iic : Finset.univ.filter (· ≤ r₀) = Finset.Iic r₀)
       have hcard (f : Fin m ↪ Fin U) :
           ((Finset.univ.filter fun r : Fin m => r.val < k).image f).card = k := by
         rw [Finset.card_image_of_injective _ f.injective, hflt_lt, Fin.card_Iio]
@@ -238,14 +233,12 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
               insert (f r₀) ((Finset.univ.filter fun r : Fin m => r.val < k).image f) := by
           rw [hflt_le, hflt_lt, ← Finset.insert_Iio, Finset.image_insert]
         rw [himg_succ d, himg_succ b]
-        by_cases hub : u = b r₀
-        · subst hub
-          rw [Function.update_self,
+        rcases eq_or_ne u (b r₀) with rfl | hub
+        · rw [Function.update_self,
             ite_eq_left (Finset.mem_union_right _ (Finset.mem_insert_self _ _))]
         · rw [Function.update_of_ne hub]
-          by_cases hud : u = d r₀
-          · subst hud
-            have hnotB : d r₀ ∉ B_k := fun hxB => by
+          rcases eq_or_ne u (d r₀) with rfl | hud
+          · have hnotB : d r₀ ∉ B_k := fun hxB => by
               obtain ⟨r', _, heq⟩ := Finset.mem_image.mp hxB
               exact Finset.disjoint_left.mp hdisj (heq ▸ hb_mem_B r') (hd_mem_K r₀)
             rw [Function.update_self, ite_eq_right]
@@ -264,8 +257,8 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
         true_and, and_true]
       all_goals exact ⟨⟨hvh_k, Or.inl hcard_del, (s.kv (b r₀)).isLt⟩, hupd_st⟩
   obtain ⟨hvh_m, hst_m⟩ := hloop m le_rfl
-  have hfull : modeCandPrefix withQueries d b s.kv m =
-      s.modeCandidateOps withQueries t₀ m ht₀ B hB := by
+  have hfull : modeCandPrefix withQueries d b s.kv m = ops_B := by
+    dsimp only [ops_B]
     rw [modeCandPrefix_full, HardKeyValSeed.modeCandidateOps_eq]
     cases withQueries <;>
       simp [d, b, π, HardKeyValSeed.candidateUpdateOps_eq, HardKeyValSeed.candidateOps_eq]
@@ -273,7 +266,7 @@ theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V n t₀ m
     ext r; simp only [Finset.mem_filter, Finset.mem_univ, Fin.isLt, and_self]
   rw [hfull] at hvh_m hst_m
   rw [huniv_flt, image_orderSubset B hB π] at hst_m
-  have hlen_B : (s.modeCandidateOps withQueries t₀ m ht₀ B hB).length = stride * m := by
+  have hlen_B : ops_B.length = stride * m := by
     rw [← hfull, modeCandPrefix_full]
     cases withQueries <;> simp only [Bool.false_eq_true, ↓reduceIte, stride, modeStride,
       length_candidateQueryDeleteInsertOps, length_candidateDeleteInsertOps]

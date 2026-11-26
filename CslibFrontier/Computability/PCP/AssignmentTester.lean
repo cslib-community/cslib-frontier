@@ -177,14 +177,10 @@ private theorem forall_hadamardCode_tensor_equationCoeff_iff_and {C : α → α 
     (∀ e, hadamardCode (tensor x x) (equationCoeff C e) = equationRhs e) ↔
       (∀ p p', ¬ Compatible C p p' → (x p && x p') = false) ∧
         ∀ b, ∑ a, x (b, a) = true := by
-  rw [Sum.forall]
-  refine and_congr ⟨fun h p p' hpp' ↦ ?_, fun h ⟨p, p'⟩ ↦ ?_⟩ (forall_congr' fun b ↦ ?_)
-  · have h := h (p, p')
-    rwa [hadamardCode_tensor_equationCoeff_inl, ite_eq_right hpp', equationRhs, Sum.elim_inl] at h
+  rw [Sum.forall, Prod.forall]
+  refine and_congr (forall₂_congr fun p p' ↦ ?_) (forall_congr' fun b ↦ ?_)
   · rw [hadamardCode_tensor_equationCoeff_inl, equationRhs, Sum.elim_inl]
-    split_ifs with hpp'
-    · rfl
-    · exact h p p' hpp'
+    exact ite_eq_left_iff
   · rw [hadamardCode_tensor_equationCoeff_inr, equationRhs, Sum.elim_inr]; rfl
 
 /-- **The quadratic equations of a constraint**: their solutions are exactly the one-hot encodings
@@ -519,8 +515,7 @@ private theorem acceptProb_le (π : Pos α → Bool) :
     (h3.trans (acceptProb_and_le_right _ π)).trans_eq ?_⟩
   · rw [acceptProb_map, Sum.comp_elim]
     exact acceptProb_tensorTest _ _
-  · rw [acceptProb_map, Sum.comp_elim]
-    rfl
+  · rw [acceptProb_map, Sum.comp_elim]; rfl
 
 /-! ### Soundness -/
 
@@ -581,8 +576,7 @@ theorem exists_inputDist_le_of_le_acceptProb {π : Pos α → Bool} {ρ : ℝ} (
   refine ⟨σ, hσ, ?_⟩
   have hin := expect_hammingDist_div_le_one_sub_acceptProb_inputTest (T := inputTable π) hx
   simp only [hadamardCode_oneHot_endEmbed] at hin
-  rw [inputDist]
-  linarith
+  rw [inputDist]; linarith
 
 /-- **Soundness of the Hadamard assignment tester** [Dinur, Definition 3.1][Dinur2005]: if the
 constraint `C` is satisfiable, the tester of `C` rejects every proof with probability at least

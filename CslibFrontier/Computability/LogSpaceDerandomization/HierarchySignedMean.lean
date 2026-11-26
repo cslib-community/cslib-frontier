@@ -111,13 +111,11 @@ theorem coordinate_min_grid (role : Fin J) (suffix : List (ZMod P))
       coordinate D (gridChannel role a suffix) A v := by
   simp only [coordinate, gridChannel, rate_min, semanticSide_grid, frameRetains,
     mem_retentionBox]
-  intro h j
-  apply (h j).trans_le
+  refine fun h j => (h j).trans_le ?_
   rw [side_eq_ceil, side_eq_ceil]
-  apply Nat.ceil_mono
-  apply mul_le_mul_of_nonneg_left _ (Nat.cast_nonneg P)
-  exact inv_anti₀ (by positivity)
-    (pow_le_pow_right₀ (by norm_num : (1 : ℝ) ≤ 2) (Nat.le_max_left a b))
+  exact Nat.ceil_mono (mul_le_mul_of_nonneg_left
+    (inv_anti₀ (by positivity) (pow_le_pow_right₀ one_le_two (Nat.le_max_left a b)))
+    (Nat.cast_nonneg P))
 
 /-- Genuine actual request children for a selected raw bin. A normalized correction at
 index j uses sourceChild at j.val, never a statistical precision or a fixed zero iterate.
@@ -164,11 +162,10 @@ theorem canonicalRequestChild_final_mean
     HP.toHierarchyParams.correctionIter (canonicalChannel ident r.terminal.rate)
       (canonicalChannel ident r.terminal.rate) r.terminal.rate C HP.k x y := by
   have hnpos : 0 < n := hn ▸ HP.k_pos
-  simp_rw [canonicalRequestChild_final HP D ident r hr hnpos C cutoff h ρ K l htask]
-  have hi : n - 1 < HP.k := by omega
-  have hm := sourceChild_mean_on_terminal_event HP D ident r hr hD hid H hsH hks
-    hs ht hu C hC hC1 hCf hi q x y hsub
-  rwa [show n - 1 + 1 = HP.k by omega] at hm
+  have hnk : n - 1 + 1 = HP.k := by omega
+  simp_rw [canonicalRequestChild_final HP D ident r hr hnpos C cutoff h ρ K l htask, ← hnk]
+  exact sourceChild_mean_on_terminal_event HP D ident r hr hD hid H hsH hks
+    hs ht hu C hC hC1 hCf (by omega) q x y hsub
 
 /-- Literal one-bin rawSample with the real canonical request family. The negative
 correction occurs once in this call; summing unchanged calls would subtract it repeatedly.
@@ -242,8 +239,7 @@ theorem canonical_rawSample_mean
       B x y + (∑ z, E x z * B z y) - E x y
   rw [expect_sub_distrib, expect_add_distrib]
   refine congrArg₂ (· - ·) (congrArg₂ (· + ·) hdirect ?_) hnegative
-  simp_rw [leftChild, mul_sum]
-  rw [expect_sum_comm]
+  simp only [leftChild, mul_sum, expect_sum_comm]
   refine sum_congr rfl fun z _ => (expect_congr rfl fun σ _ => ?_).trans (hproduct z)
   dsimp only [ratio, HierarchyTask.usageRatio, req, HierarchyTask.rawRequests,
     source, mid, terminal, q, gridChannel, CorrectionRowTask.Channel.retains,
@@ -361,8 +357,8 @@ theorem canonical_residual_bins_mean
       (fun i => rate_pos (kb i)) hχ (hcover z)
   rw [sum_add_distrib, hsum, sum_comm]
   simp_rw [← mul_sum, hsum]
-  rw [HierarchyParams.residual_eq, ← HierarchyParams.correctionIter_last]
-  simp only [Matrix.add_apply, Matrix.sub_apply, Matrix.mul_apply]
+  simp only [HierarchyParams.residual_eq, ← HierarchyParams.correctionIter_last,
+    Matrix.add_apply, Matrix.sub_apply, Matrix.mul_apply]
   ring
 
 end Matrix.HierarchyParams.H4RankEnvironment

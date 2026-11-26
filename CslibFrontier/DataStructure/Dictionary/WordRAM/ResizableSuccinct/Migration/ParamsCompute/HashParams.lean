@@ -163,11 +163,12 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     rw [hprog_eq, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
   refine ⟨⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩,
-    ?_, ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, (congrArg (·.frontier) hs'_eq).trans (hfr2.trans hfr01), ?_,
+    fun a ha => (congrArg (·.mem a) hs'_eq).trans
+      ((hframe2 a (by omega)).trans (hframe01 a (by omega))), ?_⟩
   · rw [hprog_eq, validHistory_bind']
     exact ⟨hv01, (validHistory_bind' ..).mpr ⟨hv2, trivial⟩⟩
   · rw [hprog_eq, prog_clientResult_bind, prog_clientResult_bind, prog_clientResult_pure]
-  · rw [hs'_eq, hfr2, hfr01]
   · intro j hj
     rw [hs'_eq]
     by_cases hj8 : j < 8
@@ -176,11 +177,8 @@ private theorem writeHashParamsLoProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     · obtain ⟨m20, m21, m22, m23⟩ := hm2
       rcases (show j = 8 ∨ j = 9 ∨ j = 10 ∨ j = 11 by omega) with rfl | rfl | rfl | rfl <;>
         first | exact m20 | exact m21 | exact m22 | exact m23
-  · intro a ha
-    rw [hs'_eq, hframe2 a (by omega), hframe01 a (by omega)]
   · rw [hprog_eq, Realization.memoryCost_bind', hc01, Realization.memoryCost_bind',
-      memoryCost_pure]
-    exact congrArg (8 + ·) hc2
+      memoryCost_pure, hc2]
 
 private theorem realizesBounded_writeHashParamsLo :
     RealizesBounded .exact writeHashParamsLoProg
@@ -308,22 +306,20 @@ private theorem writeHashParamsHiProg_spec {w U N dstMetaBase : ℕ} {s : Memory
     dsimp only [s']
     rw [hprog_eq, StateTransitionSpec.clientState_bind]
   refine ⟨⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩,
-    ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hprog_eq, validHistory_bind']
-    exact ⟨hv0, hv1⟩
-  · rw [hs'_eq, hfr1, hfr0]
-  · intro j hj
-    rw [hs'_eq]
-    obtain ⟨m00, m01, m02, m03⟩ := hm0
-    obtain ⟨m10, m11, m12⟩ := hm1
-    rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 by omega) with
-      rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    all_goals first
-      | exact m10 | exact m11 | exact m12
-      | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
-  · intro a ha
-    rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
-  · rw [hprog_eq, Realization.memoryCost_bind', hc0, hc1]
+    hprog_eq ▸ (validHistory_bind' ..).mpr ⟨hv0, hv1⟩,
+    (congrArg (·.frontier) hs'_eq).trans (hfr1.trans hfr0), ?_,
+    fun a ha => (congrArg (·.mem a) hs'_eq).trans
+      ((hframe1 a (by omega)).trans (hframe0 a (by omega))),
+    by rw [hprog_eq, Realization.memoryCost_bind', hc0, hc1]⟩
+  intro j hj
+  rw [hs'_eq]
+  obtain ⟨m00, m01, m02, m03⟩ := hm0
+  obtain ⟨m10, m11, m12⟩ := hm1
+  rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 by omega) with
+    rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  all_goals first
+    | exact m10 | exact m11 | exact m12
+    | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
 
 private theorem realizesBounded_writeHashParamsHi :
     RealizesBounded .exact writeHashParamsHiProg
@@ -422,9 +418,9 @@ theorem writeHashParamsSubProg_props {w U N hdrBase dstMetaBase : ℕ} {s : Memo
   · dsimp only
     by_cases hj12 : j < 12
     · exact (hframe_hi _ (by omega)).trans (hmem_lo j hj12)
-    · have hhi := hmem_hi (j - 12) (by omega)
-      rw [show dstMetaBase + 20 + (j - 12) = dstMetaBase + 8 + j by omega] at hhi
-      exact hhi.trans (congrArg _ (Fin.ext (by dsimp only; omega)))
+    · have hj_eq : dstMetaBase + 8 + j = dstMetaBase + 20 + (j - 12) := by omega
+      exact (congrArg _ hj_eq).trans ((hmem_hi (j - 12) (by omega)).trans
+        (congrArg _ (Fin.ext (Nat.add_sub_of_le (Nat.not_lt.mp hj12)))))
   · rw [hc_lo, hc_hi]; omega
 
 /-- `writeHashParamsSubProg` compiles via `RealizesBounded .exact`. -/

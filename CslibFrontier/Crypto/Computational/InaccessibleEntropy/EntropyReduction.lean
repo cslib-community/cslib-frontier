@@ -342,7 +342,8 @@ theorem inputHashFin_accessible_collision_le {n₁ m₁ : ℕ} (f₁ : BitString
           ((PMF.uniformOfFintype (Fin n₁ → BitString n₁)) rows).toReal
         else 0) ≤
       (#L : ℝ) / (2 : ℝ) ^ (min j n₁) := by
-  rw [show (2 : ℝ) ^ min j n₁ = Fintype.card (BitString (min j n₁)) by simp [BitString]]
+  have hcard : (2 : ℝ) ^ min j n₁ = Fintype.card (BitString (min j n₁)) := by simp [BitString]
+  rw [hcard]
   exact (Cslib.BitString.LinearHash.isTwoUniversal_prefix (Nat.min_le_right j n₁))
     |>.sum_ite_toReal_le_card_div_of_imp L z fun _ ⟨z', hz', hne, heq⟩ =>
       ⟨z', hz', hne, (zeroPadPrefix_eq_iff_prefixProj_eq _ _).mp
@@ -452,8 +453,9 @@ theorem shrunkHashFin_false_positive_le {n₁ m₁ : ℕ} (f₁ : BitString n₁
             (Fin (outHashLen n₁ s) → BitString (inputHashOutLen n₁ m₁))) outRows).toReal
         else 0) ≤
       (#(univ.image (inputHashFin f₁ j)) : ℝ) / (2 : ℝ) ^ (outHashLen n₁ s) := by
-  rw [show (2 : ℝ) ^ outHashLen n₁ s = Fintype.card (BitString (outHashLen n₁ s)) by
-    simp [BitString]]
+  have hcard : (2 : ℝ) ^ outHashLen n₁ s = Fintype.card (BitString (outHashLen n₁ s)) := by
+    simp [BitString]
+  rw [hcard]
   exact IsTwoUniversal.sum_ite_toReal_le_card_div_of_imp
     ((Cslib.BitString.LinearHash.isTwoUniversal
       (inputHashOutLen n₁ m₁) (outHashLen n₁ s)).precompose
@@ -706,8 +708,7 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
   let f₁ := wordToFinMap w₁ out₁ evalWord₁
   rcases hcoll with ⟨hlen_raw, hne_raw, heval_raw⟩
   let v : ShrunkHashInput w₁ out₁ s := ⟨⟨z, iRows⟩, oRows⟩
-  have hpack' : (ShrunkHashInput.unpackWord w₁ out₁ s raw).packWord = raw :=
-    ShrunkHashInput.packWord_unpackWord hlen_raw
+  have hpack' := ShrunkHashInput.packWord_unpackWord hlen_raw
   rcases hup : ShrunkHashInput.unpackWord w₁ out₁ s raw with ⟨⟨z', iRows'⟩, oRows'⟩
   rw [hup] at hpack'
   have hf₃_eq : shrunkHashFin f₁ j₀ s ⟨⟨z', iRows'⟩, oRows'⟩ = shrunkHashFin f₁ j₀ s v := by
@@ -727,9 +728,8 @@ private theorem shrunkCollPred_imp_shrunkEscPred {w₁ out₁ j₀ s : ℕ}
     rw [← Cslib.BitString.ofFn_ofList (hlen₁ _ List.length_ofFn),
       ← Cslib.BitString.ofFn_ofList (hlen₁ (List.ofFn z) List.length_ofFn)]
     exact congrArg List.ofFn (congrArg InputHashedOutput.baseOut hf₂_eq)
-  have hnot_L₁ : z' ∉ L z := fun hmem => hnot_in ⟨z', hmem, hz_ne, hf₂_eq⟩
   simpa only [shrunkEscPred, htake_eq, List.length_ofFn, heval₁_eq, Cslib.BitString.ofList_ofFn,
-    true_and] using hnot_L₁
+    true_and] using fun hmem => hnot_in ⟨z', hmem, hz_ne, hf₂_eq⟩
 
 open Classical in
 private theorem shrunkHash_pointwise_toReal_le {w₁ out₁ j₀ s : ℕ}
@@ -748,16 +748,13 @@ private theorem shrunkHash_pointwise_toReal_le {w₁ out₁ j₀ s : ℕ}
     PMF.pure (decide (shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw))) true
   have h0 := ENNReal.toReal_nonneg (a := (pA >>= fun raw =>
     PMF.pure (decide (shrunkEscPred w₁ evalWord₁ L z raw))) true)
-  by_cases hin : shrunkBadIn (wordToFinMap w₁ out₁ evalWord₁) j₀ L z iRows
-  · simp only [hin, ↓reduceIte]; split_ifs <;> linarith
-  · by_cases hout : shrunkBadOut (wordToFinMap w₁ out₁ evalWord₁) j₀ ⟨z, iRows⟩ oRows
-    · simp only [hin, hout, ↓reduceIte]; linarith
-    · simp only [hin, hout, ↓reduceIte, add_zero, PMF.monad_bind_eq_bind]
-      refine ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-        (PMF.bind_apply_mono_on_support pA true fun raw _ => ?_)
-      by_cases hc : shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw
-      · simp [hc, shrunkCollPred_imp_shrunkEscPred evalWord₁ L hlen₁ z iRows oRows hin hout raw hc]
-      · simp [hc]
+  split_ifs with hin _ hout <;> try linarith
+  rw [add_zero, add_zero, PMF.monad_bind_eq_bind]
+  refine ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+    (PMF.bind_apply_mono_on_support pA true fun raw _ => ?_)
+  by_cases hc : shrunkCollPred w₁ out₁ j₀ s evalWord₁ ⟨⟨z, iRows⟩, oRows⟩ raw
+  · simp [hc, shrunkCollPred_imp_shrunkEscPred evalWord₁ L hlen₁ z iRows oRows hin hout raw hc]
+  · simp [hc]
 
 private noncomputable abbrev shrunkExpect (w₁ out₁ s : ℕ)
     (g : BitString w₁ → (Fin w₁ → BitString w₁) →
@@ -820,12 +817,10 @@ private theorem shrunkBadIn_sum_le {w₁ out₁ j₀ s : ℕ} (f₁ : BitString 
         (2 : ℝ) ^ (A_max - (min j₀ w₁ : ℝ)) := by
     by_cases hA_ge : A_max ≤ Real.logb 2 #(L z)
     · simp only [hA_ge, ↓reduceIte]
-      have hle1 : (∑ iRows : Fin w₁ → BitString w₁,
-          if shrunkBadIn f₁ j₀ L z iRows then
-            ((PMF.uniformOfFintype (Fin w₁ → BitString w₁)) iRows).toReal else 0) ≤ 1 :=
-        (sum_le_sum fun _ _ => by split_ifs <;> simp).trans_eq
-          (PMF.sum_toReal (PMF.uniformOfFintype (Fin w₁ → BitString w₁)))
-      linarith [Real.rpow_nonneg two_pos.le (A_max - (min j₀ w₁ : ℝ))]
+      exact le_add_of_le_of_nonneg
+        ((sum_le_sum fun _ _ => by split_ifs <;> simp [-PMF.uniformOfFintype_apply]).trans_eq
+          (PMF.sum_toReal (PMF.uniformOfFintype (Fin w₁ → BitString w₁))))
+        (Real.rpow_nonneg two_pos.le _)
     · simp only [hA_ge, ↓reduceIte, zero_add]
       have hcard_le : (#(L z) : ℝ) ≤ (2 : ℝ) ^ A_max := by
         rcases Nat.eq_zero_or_pos #(L z) with h0 | hpos

@@ -128,20 +128,16 @@ theorem hammingDist_le_of_subsetCountsWithin {r : Finset ι → ℝ} {c d : ι �
       ext i
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_union, P, N]
       cases c i <;> cases d i <;> decide
-    · refine Finset.disjoint_filter.mpr fun i _ h1 h2 => ?_
-      rw [h1.1] at h2
-      exact Bool.false_ne_true h2.1.symm
+    · exact Finset.disjoint_filter.mpr fun _ _ h1 h2 => absurd (h1.1.symm.trans h2.1) nofun
   -- On `P`, `c` counts every row and `d` none; on `N`, the reverse.
-  have hP : subsetCount c P = P.card ∧ subsetCount d P = 0 := by
-    refine ⟨congrArg Finset.card (Finset.filter_true_of_mem fun i hi => ?_), ?_⟩
-    · exact (Finset.mem_filter.mp hi).2.1
-    · refine Finset.card_eq_zero.mpr (Finset.filter_false_of_mem fun i hi => ?_)
-      simp only [(Finset.mem_filter.mp hi).2.2, Bool.false_eq_true, not_false_eq_true]
-  have hN : subsetCount c N = 0 ∧ subsetCount d N = N.card := by
-    refine ⟨Finset.card_eq_zero.mpr (Finset.filter_false_of_mem fun i hi => ?_),
-      congrArg Finset.card (Finset.filter_true_of_mem fun i hi => ?_)⟩
-    · simp only [(Finset.mem_filter.mp hi).2.1, Bool.false_eq_true, not_false_eq_true]
-    · exact (Finset.mem_filter.mp hi).2.2
+  have hP : subsetCount c P = P.card ∧ subsetCount d P = 0 :=
+    ⟨congrArg Finset.card (Finset.filter_true_of_mem fun _ hi => (Finset.mem_filter.mp hi).2.1),
+      Finset.card_eq_zero.mpr (Finset.filter_false_of_mem fun _ hi => by
+        simp [(Finset.mem_filter.mp hi).2.2])⟩
+  have hN : subsetCount c N = 0 ∧ subsetCount d N = N.card :=
+    ⟨Finset.card_eq_zero.mpr (Finset.filter_false_of_mem fun _ hi => by
+        simp [(Finset.mem_filter.mp hi).2.1]),
+      congrArg Finset.card (Finset.filter_true_of_mem fun _ hi => (Finset.mem_filter.mp hi).2.2)⟩
   have h1 := hP.1 ▸ abs_le.1 (hc P)
   have h2 := Nat.cast_zero (R := ℝ) ▸ hP.2 ▸ abs_le.1 (hd P)
   have h3 := Nat.cast_zero (R := ℝ) ▸ hN.1 ▸ abs_le.1 (hc N)
@@ -243,9 +239,9 @@ private theorem card_sub_mul_le_sum (P : PMF (ι → Bool)) (d : ι → Bool) (t
         (Finset.univ.filter fun i => c i = d i).card * P c := by
       simp only [Set.indicator_apply, Set.mem_ofPred_eq]
       rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
-    rw [Set.indicator_of_mem (show c ∈ {c | hammingDist c d ≤ t} from hc), hsum]
+    rw [Set.indicator_of_mem (s := {c' | hammingDist c' d ≤ t}) hc, hsum]
     gcongr
-  · rw [Set.indicator_of_notMem (show c ∉ {c | hammingDist c d ≤ t} from hc), mul_zero]
+  · rw [Set.indicator_of_notMem (s := {c' | hammingDist c' d ≤ t}) hc, mul_zero]
     exact bot_le
 
 /-- **A private mechanism cannot reconstruct.** If `G` is `(ε, δ)`-private for Hamming adjacency
@@ -301,7 +297,7 @@ theorem mul_card_sub_mul_le_real (h : DifferentiallyPrivate HammingAdjacent G ε
     · rw [Nat.cast_sub htn]
       linarith
     · rw [Nat.sub_eq_zero_of_le htn, Nat.cast_zero]
-      linarith [show (Fintype.card ι : ℝ) ≤ t from mod_cast htn]
+      linarith [Nat.cast_le (α := ℝ).mpr htn]
   have h1 : (0 : ℝ) ≤ 1 + Real.exp ε := by positivity
   gcongr
 
@@ -334,9 +330,8 @@ theorem card_mul_one_sub_le_of_subsetCountsWithin (h : DifferentiallyPrivate Ham
     (hδ : δ ≠ ⊤) (ans : R → Finset ι → ℝ) {E : ℝ}
     (hE : ∀ d, (M d).toOuterMeasure {o | SubsetCountsWithin (ans o) d E} = 1) :
     Fintype.card ι * (1 - δ.toReal) ≤ 4 * E * (1 + Real.exp ε) := by
-  have := h.mul_card_sub_mul_le_of_subsetCountsWithin hδ ans zero_le_one fun d => by
-    rw [hE d, ENNReal.ofReal_one]
-  nlinarith
+  nlinarith [h.mul_card_sub_mul_le_of_subsetCountsWithin hδ ans zero_le_one fun d => by
+    rw [hE d, ENNReal.ofReal_one]]
 
 end DifferentiallyPrivate
 

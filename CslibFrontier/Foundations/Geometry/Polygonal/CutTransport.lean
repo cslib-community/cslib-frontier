@@ -98,8 +98,7 @@ private theorem sourceBlock_ne_nil (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[
 
 private theorem sourceBlock_head (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (i : Fin p.segments) :
     (sourceBlock p S c i).head (sourceBlock_ne_nil p S c i) = (i, 0) := by
-  rw [List.head_eq_getElem]
-  simp only [sourceBlock, List.getElem_map, List.getElem_dropLast,
+  simp only [List.head_eq_getElem, sourceBlock, List.getElem_map, List.getElem_dropLast,
     (segmentCuts_first_last S (c (p.point i.castSucc)) (c (p.point i.succ))).1]
 
 private theorem sourceBlock_last (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (i : Fin p.segments) :
@@ -107,9 +106,8 @@ private theorem sourceBlock_last (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[�
       (i, (cuts S c (p.point i.castSucc) (p.point i.succ))[
         (cuts S c (p.point i.castSucc) (p.point i.succ)).length - 2]'(by
           have := cuts_length_bounds S c (p.point i.castSucc) (p.point i.succ); omega)) := by
-  rw [List.getLast_eq_getElem]
-  simp only [sourceBlock, List.length_map, List.length_dropLast, List.getElem_map,
-    List.getElem_dropLast, Nat.sub_sub]
+  simp only [List.getLast_eq_getElem, sourceBlock, List.length_map, List.length_dropLast,
+    List.getElem_map, List.getElem_dropLast, Nat.sub_sub]
 
 private theorem sourceSamples_length_eq_sum (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) :
     (sourceSamples p S c).length =
@@ -381,9 +379,8 @@ private theorem parameterRoute_real (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ
     (i : Fin (mapAtCuts p S c F).segments) (t : ℝ) :
     (parameterRoute p S c F).eval i t =
       (((parameterRoute p S c F).eval i t).re : ℝ) := by
-  apply Complex.ext
-  · simp
-  · simp [Route.eval, parameterRoute, AffineMap.lineMap_apply_module']
+  exact Complex.ext (by simp)
+    (by simp [Route.eval, parameterRoute, AffineMap.lineMap_apply_module'])
 
 private theorem parameterRoute_open (p : Route) (S : Finset ℝ) (c : ℂ →ᵃ[ℝ] ℝ) (F : ℂ → ℂ) :
     (parameterRoute p S c F).start ≠ (parameterRoute p S c F).finish := by
@@ -435,8 +432,7 @@ theorem eval_mapAtCuts (p : Route) (i : Fin (p.mapAtCuts S c F).segments) :
           p.AtEnd j (AffineMap.lineMap α β t) b := by
   obtain ⟨j, α, β, ha, hab, hb, hn, he, hp⟩ := mapAtCuts_parameter hF p i
   refine ⟨j, α, β, ha, hab, hb, hn, fun t ht => ⟨he t ht, fun b => ?_⟩⟩
-  rw [mapAtCuts_atEnd p S c F i ht b, hp]
-  rfl
+  rw [mapAtCuts_atEnd p S c F i ht b, hp]; rfl
 
 include hF in
 /-- Injectivity and cutwise interpolation preserve the simplicity of the original route. -/
@@ -525,9 +521,7 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
       · let j' : Fin p.segments := ⟨j.val + 1, hjnext⟩
         have hj' : j'.val < L.length := by dsimp [j']; omega
         have hhead : L[j'.val] = j' := by simp [L, j']
-        have hz : 0 < (f L[j'.val]).length := by
-          rw [hhead]
-          exact (sourceBlock_length p S c j').1
+        have hz : 0 < (f L[j'.val]).length := hhead.symm ▸ (sourceBlock_length p S c j').1
         have hflat := List.flatMap_prefix_add_lt L f hj' hz
         have hq1 : prefLen + k + 1 = ((L.take j'.val).flatMap f).length + 0 := by
           simp only [j', hpref, add_zero]; omega
@@ -546,8 +540,8 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
       · have hjlast : j = Fin.last p.bends := Fin.ext <| by
           have := j.isLt
           simp only [Route.segments, Fin.val_last] at this hjnext ⊢; omega
-        rw [show j.val + 1 = L.length by rw [hjlast, Fin.val_last, hLlen],
-          List.take_length] at hpref
+        have hjlen : j.val + 1 = L.length := by rw [hjlast, Fin.val_last, hLlen]
+        rw [hjlen, List.take_length] at hpref
         have hqlem : (sourceSamples p S c)[prefLen + k + 1] = (Fin.last p.bends, 1) :=
           List.getElem_concat_length (l := L.flatMap f) (by omega) _
         rw [hqlem]
@@ -587,15 +581,12 @@ include hF in
 /-- The complete support is the image of the original support, including all cut points. -/
 theorem support_mapAtCuts (p : Route) :
     (mapAtCuts p S c F).support = F '' p.support := by
-  ext z
-  constructor
-  · intro hz
-    obtain ⟨i, t, ht, heq⟩ := ((mapAtCuts p S c F).mem_support_iff z).mp hz
-    obtain ⟨j, α, β, hα, hαβ, hβ, _hlevels, hj, _⟩ := mapAtCuts_parameter hF p i
-    have hu := lineMap_mem_unit hα hαβ.le hβ ht
-    exact ⟨_, p.at_mem_support j hu, (hj t ht).symm.trans heq⟩
-  · rintro ⟨w, hw, rfl⟩
-    obtain ⟨j, t, ht, rfl⟩ := (p.mem_support_iff w).mp hw
+  refine Set.ext fun z => ⟨fun hz => ?_, ?_⟩
+  · obtain ⟨i, t, ht, heq⟩ := ((mapAtCuts p S c F).mem_support_iff z).mp hz
+    obtain ⟨j, α, β, hα, hαβ, hβ, _, hj, _⟩ := mapAtCuts_parameter hF p i
+    exact ⟨_, p.at_mem_support j (lineMap_mem_unit hα hαβ.le hβ ht), (hj t ht).symm.trans heq⟩
+  · rintro ⟨_, hw, rfl⟩
+    obtain ⟨j, t, ht, rfl⟩ := (p.mem_support_iff _).mp hw
     exact mapAtCuts_contains hF p j ht
 
 end Interpolation

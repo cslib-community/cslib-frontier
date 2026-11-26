@@ -360,11 +360,10 @@ theorem op {o : Op B r} {y : Data r} (ho : o.eval w x = some y) (hy : P y) :
 theorem rand {dst src : Fin r} (hfit : Fits w (x.regs src))
     (hk : ∀ k : Fin (x.regs src + 1), P (x.set dst k.val)) :
     ExecRandWithin (B := B) w (.rand dst src) x P 1 1 := by
-  refine ⟨_, ExecRand.rand hfit, ?_, ?_⟩
+  refine ⟨_, .rand hfit, ?_, fun z hz => ?_⟩
   · simpa only [Nat.add_zero] using
       (ProbComp.isQueryBounded_unifFin (x.regs src)).bind fun _ => .pure _ 0
-  · intro z hz
-    supp_cases hz with ⟨k, rfl⟩
+  · supp_cases hz with ⟨k, rfl⟩
     exact ⟨hk k, le_rfl⟩
 
 /-- Sequencing rule: composes `ExecRandWithin` specs and sums both step and call budgets. -/
@@ -378,12 +377,10 @@ theorem seq (h₁ : ExecRandWithin w c₁ x P T₁ R₁)
       ∀ z₂ ∈ (codeComp w c₂ z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂ := by
     obtain ⟨m₂, hm₂, hq₂, hsup₂⟩ := h₂ z₁.1 (hsup₁ z₁ hz₁).1
     exact hm₂.codeComp_eq.symm ▸ ⟨hm₂, hq₂, hsup₂⟩
-  refine ⟨_, ExecRand.seq hm₁ fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, ?_⟩
+  refine ⟨_, .seq hm₁ fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, fun z hz => ?_⟩
   · refine OracleComp.IsCostBounded.bind_on_support hq₁ fun z₁ hz₁ => ?_
-    simpa only [Nat.add_zero] using
-      (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
-  · intro z hz
-    supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
+    simpa only [Nat.add_zero] using (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
+  · supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
     exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
       Nat.add_le_add (hsup₁ z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2⟩
 
@@ -391,8 +388,7 @@ theorem seq (h₁ : ExecRandWithin w c₁ x P T₁ R₁)
 theorem branch_pos (hc : cond.Holds x) (h : ExecRandWithin w pos x P T R) :
     ExecRandWithin w (.branch cond pos neg) x P (T + 1) R := by
   obtain ⟨m, hm, hq, hsup⟩ := h
-  refine ⟨_, ExecRand.branch_pos hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, ?_⟩
-  intro z hz
+  refine ⟨_, .branch_pos hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, fun z hz => ?_⟩
   obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
   exact ⟨(hsup z₀ hz₀).1, Nat.add_le_add_right (hsup z₀ hz₀).2 1⟩
 
@@ -400,8 +396,7 @@ theorem branch_pos (hc : cond.Holds x) (h : ExecRandWithin w pos x P T R) :
 theorem branch_neg (hc : ¬cond.Holds x) (h : ExecRandWithin w neg x P T R) :
     ExecRandWithin w (.branch cond pos neg) x P (T + 2) R := by
   obtain ⟨m, hm, hq, hsup⟩ := h
-  refine ⟨_, ExecRand.branch_neg hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, ?_⟩
-  intro z hz
+  refine ⟨_, .branch_neg hc hm, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, fun z hz => ?_⟩
   obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
   exact ⟨(hsup z₀ hz₀).1, Nat.add_le_add_right (hsup z₀ hz₀).2 2⟩
 
@@ -430,12 +425,10 @@ theorem loop_iter (hc : cond.Holds x)
       ∀ z₂ ∈ (codeComp w (.loop cond body) z₁.1).support, Q z₂.1 ∧ z₂.2 ≤ T₂ := by
     obtain ⟨ml, hml, hql, hsupl⟩ := hl z₁.1 (hsupb z₁ hz₁).1
     exact hml.codeComp_eq.symm ▸ ⟨hml, hql, hsupl⟩
-  refine ⟨_, ExecRand.loop_iter hc hmb fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, ?_⟩
+  refine ⟨_, .loop_iter hc hmb fun z₁ hz₁ => (hstep z₁ hz₁).1, ?_, fun z hz => ?_⟩
   · refine OracleComp.IsCostBounded.bind_on_support hqb fun z₁ hz₁ => ?_
-    simpa only [Nat.add_zero] using
-      (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
-  · intro z hz
-    supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
+    simpa only [Nat.add_zero] using (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
+  · supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
     exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
       Nat.add_le_add_right (Nat.add_le_add (hsupb z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2) 2⟩
 
@@ -471,8 +464,7 @@ theorem rename {f : Fin r → Fin r'} (hf : f.Injective) {x : Data r'}
     (h : ExecRandWithin w c (x.comap f) P T R) :
     ExecRandWithin w (c.rename f) x (fun y' => ∃ y, P y ∧ y' = y.extend f x) T R := by
   obtain ⟨m, hm, hq, hsup⟩ := h
-  refine ⟨_, hm.rename hf, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, ?_⟩
-  intro z hz
+  refine ⟨_, hm.rename hf, (OracleComp.isCostBounded_map_iff _ _ _).mpr hq, fun z hz => ?_⟩
   obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
   exact ⟨⟨z₀.1, (hsup z₀ hz₀).1, rfl⟩, (hsup z₀ hz₀).2⟩
 
@@ -600,11 +592,11 @@ theorem ExecRandWithin.program {c : Code B r} {x : Data r} {P : Data r → Prop}
   obtain ⟨m, hm, hq, hsup⟩ := h
   have hrun := hm.runRand_program out (T := T') fun z hz =>
     (Nat.add_le_add_right (hsup z hz).2 1).trans hT
-  refine ⟨fun cfg hcfg => ?_, ?_, fun cfg hcfg => ?_⟩
+  refine ⟨fun cfg hcfg => ?_, by
+    simpa only [RandCallsBounded, hrun, OracleComp.isCostBounded_map_iff] using hq,
+    fun cfg hcfg => ?_⟩
   · obtain ⟨z, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
     exact ⟨z.1.regs out, z.1, rfl⟩
-  · rw [RandCallsBounded, hrun]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr hq
   · obtain ⟨z, hz, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
     exact ⟨z.1, rfl, (hsup z hz).1⟩
 

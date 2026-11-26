@@ -143,8 +143,7 @@ private theorem exists_node_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
     refine absurd ?_ hne
     simp only [unitTarget, initialTarget] at hdone
     split_ifs at hdone with hac hs
-    · subst hac
-      rfl
+    · exact hac ▸ rfl
     · exact absurd hdone (stepTarget_ne_done (R.pl_pos (fun e => hac (ch.injective e)) _))
   obtain ⟨-, hk⟩ := Plan.new_mem_seenAt.1 hseen
   have hlt : (k : ℕ) < o ν := lt_of_le_of_ne hk fun e =>
@@ -167,8 +166,7 @@ private theorem exists_node_of_mem_cur {u : PlanUnit R FL Pl U0 U1}
   rcases moveChannelEquiv R FL Pl ν with ⟨⟨x, hx⟩ | l, β⟩
   · intro hgo hdone hmem ho hne
     have hcount : moveCount lhat (initialCounts n) (outcomeOf R FL Pl o) (.relay x hx) ≠ 0 := by
-      rw [← hgo β, ho]
-      omega
+      rw [← hgo β, ho]; omega
     have hch := channelHolders_of_target_eq_done hh hx hdone hcount
     simp only [channelHolders] at hch
     refine ⟨_, fun h0 => hne ?_, hmem _ ⟨hdone, rfl⟩, by rw [← Sym2.map_mk, hch, Sym2.map_mk]⟩
@@ -243,9 +241,8 @@ theorem treeUnits_add_sum_le (hh : 0 < h) {c : ℕ} (hb : b ≤ c) (hX : Fintype
       treeUnits R FL Pl lhat n o q ≤ (c + 1) * edgeUnitBound FL Uu A lhat ρ := by
   have hcard : (univ.filter fun q => q ≠ Pl.party .root ∧
       treeParent R FL Pl hh lhat n o q = p).card ≤ c := by
-    by_cases hp : p = Pl.party .root
-    · subst hp
-      exact (card_children_root_le hh).trans hX
+    rcases eq_or_ne p (Pl.party .root) with rfl | hp
+    · exact (card_children_root_le hh).trans hX
     · exact (card_children_le hh hp).trans hb
   rw [add_mul, one_mul, add_comm]
   exact add_le_add ((sum_le_card_nsmul _ _ _ fun q _ => treeUnits_le hρ q).trans
@@ -257,12 +254,10 @@ theorem sum_treeUnits_le (hρ1 : ρ < 1) :
     ∑ p, treeUnits R FL Pl lhat n o p ≤ treeUnitBound FL Uu A lhat ρ := by
   rw [← Pl.party.sum_comp]
   simp only [treeUnits, Equiv.symm_apply_apply]
-  rw [← (proxy_equiv% T.Node).sum_comp, Fintype.sum_sum_type]
-  simp only [Fintype.sum_sigma]
+  rw [← (proxy_equiv% T.Node).sum_comp, Fintype.sum_sum_type, Fintype.sum_unique, Fintype.sum_sigma]
   refine le_of_eq_of_le ?_
     (sum_parentUnits_le (n := initialCounts n) (o := outcomeOf R FL Pl o) hρ hρ1)
-  rw [← Fin.sum_univ_eq_sum_range (fun j => ∑ c : T.X j, T.parentUnits _ j c),
-    Fintype.sum_unique]
+  rw [← Fin.sum_univ_eq_sum_range (fun j => ∑ c : T.X j, T.parentUnits _ j c)]
   exact zero_add _
 
 omit hρ

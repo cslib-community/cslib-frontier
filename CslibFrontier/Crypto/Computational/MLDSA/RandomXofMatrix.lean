@@ -175,14 +175,11 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
   let f (x : Xofs × Option (PublicMatrix s × KeyPair)) := x.2.map Prod.fst
   let setup := R.bind fun H => matrixSetup H s
   have eq : setup.map f = matrices := by
-    rw [show setup = _ from uniformPrefixes_matrixSetup base s ha hb]
+    dsimp only [setup]
+    rw [uniformPrefixes_matrixSetup base s ha hb]
     simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, matrices]
-    apply congrArg (PMF.bind R ·)
-    funext H
-    apply congrArg (PMF.map · _)
-    funext seed
-    simp only [f]
-    cases H.keyGen s seed <;> simp
+    refine congrArg (PMF.bind R ·) (funext fun H => congrArg (PMF.map · _) (funext fun seed => ?_))
+    cases H.keyGen s seed <;> simp [f]
   rw [← eq]
   have on (H : Xofs) : (matrixSetup H s).map f (some A) ≤ (U.map some) (some A) := by
     rw [← uniform_programmedMatrixSetup, PMF.map_bind]
@@ -192,15 +189,15 @@ theorem generatedMatrix_apply_some_le_uniform (s : Level) (base : Xofs) {a b : �
     · subst B
       simpa only [PMF.pure_apply_self] using
         PMF.coe_le_one (((programmedMatrixSetup H s A).eval).map f) (some A)
-    · rw [PMF.pure_apply, ite_eq_right (show some A ≠ some B from fun e => h (Option.some.inj e))]
+    · rw [PMF.pure_apply, ite_eq_right (mt Option.some.inj h)]
       refine le_of_eq ((PMF.apply_eq_zero_iff _ _).mpr fun hit => ?_)
       obtain ⟨⟨G, o⟩, mem, val⟩ := (PMF.mem_support_map_iff ..).mp hit
       rcases o with _ | ⟨B', keys⟩
       · cases val
       · have same := (keyGen_of_mem_programmedMatrixSetup mem).2.1
         exact h ((Option.some.inj val).symm.trans same)
-  have h := PMF.bind_apply_mono_on_support R (some A) (fun H _ => on H)
-  simpa [setup, PMF.map_bind, U, PMF.map_apply] using h
+  simpa [setup, PMF.map_bind, U, PMF.map_apply] using
+    PMF.bind_apply_mono_on_support R (some A) fun H _ => on H
 
 
 namespace QuantumSigningForger
@@ -226,15 +223,14 @@ theorem randomPrefixGame_eq_matrixTrial (C : QuantumSigningForger) (s : Level)
     (base : Xofs) {a b : ℕ} (ha : 272 ≤ a) (hb : 894 ≤ b) :
     C.randomPrefixGame s base a b = (base.uniformPrefixes a b).bind fun H =>
       (C.matrixTrial s H).map (·.any SignedMatrixTrial.wins) := by
-  have eq := congrArg (fun p => PMF.bind p fun z =>
-    (C.runAtSetup s z).map (·.any SignedMatrixTrial.wins))
-    (uniformPrefixes_matrixSetup base s ha hb)
-  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at eq
   unfold randomPrefixGame forgeryGame Xofs.keyExperiment
-  simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind, eq]
+  simp only [matrixTrial, PMF.monad_bind_eq_bind, PMF.map_bind, ← PMF.bind_bind,
+    uniformPrefixes_matrixSetup base s ha hb]
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
   refine PMF.bind_congr_on_support _ _ _ fun H _ =>
     PMF.bind_congr_on_support _ _ _ fun seed _ => ?_
-  rw [show (_, _) = readSetup s H seed from rfl, forgery_from_setup]
+  change _ = (C.runAtSetup s (readSetup s H seed)).map (·.any SignedMatrixTrial.wins)
+  rw [forgery_from_setup C s H seed]
   cases H.keyGen s seed <;> rfl
 
 /-- The strong-forgery probability in the finite random-XOF experiment is bounded by the
@@ -257,14 +253,11 @@ theorem randomPrefixGame_forgery_le (C : QuantumSigningForger) (s : Level) (base
   have eq : (PMF.uniformOfFintype (PublicMatrix s)).bind run = trial := by
     simpa only [run, trial, C.uniform_programmedTrial] using
       PMF.bind_comm (PMF.uniformOfFintype (PublicMatrix s)) R fun A H => C.programmedTrial s H A
-  have bound := SignedMatrixTrial.bound_of_verifiedLog run (by
-    intro A u hu
+  have bound := SignedMatrixTrial.bound_of_verifiedLog run (fun A u hu => by
     obtain ⟨H, _, h⟩ := (PMF.mem_support_bind_iff ..).mp hu
     exact (C.verified_programmedTrial h).2)
-  dsimp only at bound
-  rw [eq] at bound
   rw [randomPrefixGame_eq_matrixTrial C s base ha hb, ← PMF.map_bind]
-  simpa only [run, trial, R, matrixSolver, PMF.map_bind, PMF.map_comp,
+  simpa only [eq, run, trial, R, matrixSolver, PMF.map_bind, PMF.map_comp,
     Function.comp_def] using bound
 
 end QuantumSigningForger

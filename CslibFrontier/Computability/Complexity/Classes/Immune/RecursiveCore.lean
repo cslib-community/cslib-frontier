@@ -130,15 +130,13 @@ theorem memReq_iff {e n : ℕ} {w : List Bool} :
   refine (and_congr_left' hcap).trans (and_congr_right fun hc => ?_)
   have heq : capPow (2 * w.length + 2) e (n + 1) = clock e w.length := by
     simp only [capPow, clock] at hc ⊢; omega
-  rw [heq]
-  rfl
+  rw [heq]; rfl
 
 /-- **Every requirement is in `P`**: its clock is a polynomial. -/
 theorem requirement_mem_P (e : ℕ) : requirement e ∈ P encBits := by
   refine ⟨fun w => decide (runIndexed e w (clock e w.length) = ([eBit true], true)), ?_,
     fun w => by simp [requirement]⟩
-  unfold clock
-  fun_prop
+  fun_prop [clock]
 
 /-- **Every problem in `P` is a requirement**, with arbitrarily large indices: machines of
 arbitrarily large index decide it within their clock (`Ladner.exists_index_of_mem_P`). -/
@@ -193,40 +191,34 @@ def core (A : Set (List Bool)) : Set (List Bool) := A ∩ selected d
 private theorem computableInPolyTime_decAt :
     ComputableInPolyTime (fun p : ℕ × ℕ × Bool => decAt d p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBool)) encBool := by
-  unfold decAt
-  fun_prop
+  fun_prop [decAt]
 
 private theorem computableInPolyTime_memReq :
     ComputableInPolyTime (fun p : ℕ × ℕ × List Bool => memReq p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair encUnary encBits)) encBool := by
-  unfold memReq
-  fun_prop
+  fun_prop [memReq]
 
 private theorem computableInPolyTime_coreCount :
     ComputableInPolyTime (coreCount d) encBits encUnary := by
   have h := computableInPolyTime_decAt d
-  unfold coreCount
-  fun_prop
+  fun_prop [coreCount]
 
 private theorem computableInPolyTime_refuted :
     ComputableInPolyTime (fun p : ℕ × ℕ => refuted d p.1 p.2)
       (encPair encUnary encUnary) encBool := by
   have h₁ := computableInPolyTime_decAt d
   have h₂ := computableInPolyTime_memReq
-  unfold refuted
-  fun_prop
+  fun_prop [refuted]
 
 private theorem computableInPolyTime_stageBit :
     ComputableInPolyTime (stageBit d) encBits encBool := by
   have h₁ := computableInPolyTime_coreCount d
   have h₂ := computableInPolyTime_refuted d
   have h₃ := computableInPolyTime_memReq
-  unfold stageBit
-  fun_prop
+  fun_prop [stageBit]
 
 theorem table_succ (n : ℕ) : table d (n + 1) = table d n ++ [selects d n] := by
-  rw [table, List.courseOfValues_succ]
-  rfl
+  rw [table, List.courseOfValues_succ]; rfl
 
 theorem table_eq (n : ℕ) : table d n = (List.range n).map (selects d) :=
   List.courseOfValues_eq (stageBit d) n
@@ -243,8 +235,7 @@ theorem computableInPolyTime_table : ComputableInPolyTime (table d) encUnary enc
 theorem computableInPolyTime_selects : ComputableInPolyTime (selects d) encUnary encBool := by
   have h₁ := computableInPolyTime_stageBit d
   have h₂ := computableInPolyTime_table d
-  unfold selects
-  fun_prop
+  fun_prop [selects]
 
 /-- **The selected words form a problem in `E`**: the decision at each stage is polynomial-time in
 the stage (`Cslib.Complexity.Ladner.setOf_index_mem_E_of_computableInPolyTime`). -/

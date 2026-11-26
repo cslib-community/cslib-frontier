@@ -41,15 +41,11 @@ theorem hasPort_finiteGraph (D : Diagram Γ a b) (i : Fin (vertexList I D).lengt
     HasPort (finiteGraph I D) i e d ↔
       HasPort (D.graph I) ((vertexEquiv I D).symm i) (D.numEquiv.symm e) d := by
   rw [finiteGraph, hasPort_map_iff]
-  constructor
-  · rintro ⟨f, hf, he⟩
-    have hfe := congrArg D.numEquiv.symm he
-    simp only [Equiv.symm_apply_apply] at hfe
-    subst f
-    simpa only [HasPort, get_vertexList] using hf
-  · intro he
-    refine ⟨D.numEquiv.symm e, ?_, D.numEquiv.apply_symm_apply e⟩
-    simpa only [HasPort, get_vertexList] using he
+  refine ⟨fun ⟨f, hf, he⟩ => ?_, fun he => ⟨D.numEquiv.symm e,
+    by simpa only [HasPort, get_vertexList] using he, D.numEquiv.apply_symm_apply e⟩⟩
+  obtain rfl : f = D.numEquiv.symm e :=
+    (D.numEquiv.symm_apply_apply f).symm.trans (congrArg D.numEquiv.symm he)
+  simpa only [HasPort, get_vertexList] using hf
 
 /-- Number a closed diagram drawing on the exact finite vertex and edge intervals. -/
 @[expose] noncomputable def Closed.finite (D : Diagram Γ a b) (P : Closed (D.graph I)) :

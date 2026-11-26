@@ -64,9 +64,8 @@ theorem countingMachine_nonblocking : (countingMachine I P F C).Nonblocking := b
 
 /-- Forgetting the occurrence labels recovers the native compiler's reachability relation. -/
 theorem toNTM_countingMachine : (countingMachine I P F C).toNTM = machine I P F C := by
-  suffices (countingMachine I P F C).toNTM.Tr = (machine I P F C).Tr by
-    change MultiTapeNTM.mk _ _ = MultiTapeNTM.mk _ _
-    exact congrArg _ this
+  suffices (countingMachine I P F C).toNTM.Tr = (machine I P F C).Tr from
+    congrArg (MultiTapeNTM.mk _) this
   ext q input work act
   rw [machine, MultiTapePTM.tr_toNTM_iff]
   simp only [MultiTapeCTM.toNTM, countingMachine, List.mem_map,
@@ -228,11 +227,10 @@ theorem prefix_occurrences_of_replayChoices {input : List Bool}
     cases indices₂ with
     | nil => simp at hlen
     | cons j tail =>
-      simp only [replayChoices, Option.bind_eq_some_iff, Option.map_eq_some_iff] at h₁ h₂
-      obtain ⟨x, hx, ⟨bs, f₁⟩, hxs, hbits₁⟩ := h₁
-      obtain ⟨y, hy, ⟨cs, f₂⟩, hys, hbits₂⟩ := h₂
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hbits₁
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj hbits₂
+      simp only [replayChoices, Option.bind_eq_some_iff, Option.map_eq_some_iff,
+        Prod.mk.injEq] at h₁ h₂
+      obtain ⟨x, hx, ⟨bs, _⟩, hxs, rfl, rfl⟩ := h₁
+      obtain ⟨y, hy, ⟨cs, _⟩, hys, rfl, rfl⟩ := h₂
       have hi := step_index_lt I P F C hx
       have hj := step_index_lt I P F C hy
       obtain ⟨rfl, htail⟩ : i = j ∧ bs <+: cs := by
@@ -285,9 +283,7 @@ theorem eq_occurrences_of_replayChoices {input : List Bool}
   have hrb : (countingMachine I P F C).runBranch cfg (a ++ suffix) = some y := by
     simpa only [map_snd_replayChoices, Option.map_some] using congrArg (Option.map Prod.snd) hb
   rw [MultiTapeCTM.runBranch_append, hra] at hrb
-  cases suffix with
-  | nil => simp
-  | cons j suffix => simp [Option.bind, MultiTapeCTM.runBranch_of_halted _ hx] at hrb
+  cases suffix <;> simp_all [Option.bind, MultiTapeCTM.runBranch_of_halted _ hx]
 
 /-- If a verdict determines the genuine choice sequence on every terminal replay, it has
 at most one counted branch. -/
@@ -306,9 +302,7 @@ theorem branchCount_le_one_of_choiceTrace {input : List Bool}
     obtain ⟨_, final, hr, hh⟩ := ((countingMachine I P F C).mem_branches_iff _ _ _).mp hmem
     rw [← map_snd_replayChoices] at hr
     obtain ⟨⟨trace, last⟩, ht, rfl⟩ := Option.map_eq_some_iff.mp hr
-    have hv' : verdict last.output := by
-      simpa [← map_snd_replayChoices, ht] using hv
-    obtain rfl := hbits _ _ _ ht hh hv'
+    obtain rfl := hbits _ _ _ ht hh (by simpa [← map_snd_replayChoices, ht] using hv)
     exact ⟨last, ht, hh⟩
   intro first second hfirst hsecond
   obtain ⟨_, hf, hhf⟩ := htrace hfirst

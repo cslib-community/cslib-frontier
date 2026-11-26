@@ -136,8 +136,7 @@ theorem rowDeg_mergePair_u {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMulti
 
 theorem rowDeg_mergePair_v {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     rowDeg (mergePair W u v) v = 0 := by
-  unfold rowDeg
-  simp [mergePair_isolated_left]
+  simp [rowDeg, mergePair_isolated_left]
 
 /-- Embedding `Fin m → Fin (m + 1)` corresponding to replacing removed slot `v` with `Fin.last m`
 and keeping all other slots `< m` in place. -/
@@ -264,18 +263,15 @@ theorem isContractionOf_contract {n m : ℕ} {W₀ : Fin n → Fin n → ℕ}
     IsContractionOf W₀ (contractPart part u v huv) (contractMatrix W u v) where
   surj i := by
     rcases hC.surj (embedCompact v i) with ⟨x, hx⟩
-    refine ⟨x, embedCompact_injective v ?_⟩
-    rw [embedCompact_contractPart, hx]
-    simp [embedCompact_ne v i]
+    exact ⟨x, embedCompact_injective v (by simp [hx, embedCompact_ne v i])⟩
   multigraph := isMultigraph_contractMatrix hC.multigraph u v
   offDiag i j hij := by
     have he_ij : embedCompact v i ≠ embedCompact v j := fun h => hij (embedCompact_injective v h)
     have he_iv : embedCompact v i ≠ v := embedCompact_ne v i
     have he_jv : embedCompact v j ≠ v := embedCompact_ne v j
-    have hdisj : Disjoint (Finset.univ.filter (part · = u)) (Finset.univ.filter (part · = v)) := by
-      simp only [Finset.disjoint_left, Finset.mem_filter, Finset.mem_univ, true_and]
-      rintro x rfl hxv
-      exact huv hxv
+    have hdisj : Disjoint (Finset.univ.filter (part · = u)) (Finset.univ.filter (part · = v)) :=
+      Finset.disjoint_left.mpr fun x hxu hxv =>
+        huv ((Finset.mem_filter.mp hxu).2.symm.trans (Finset.mem_filter.mp hxv).2)
     rw [filter_contractPart_eq, filter_contractPart_eq]
     unfold contractMatrix mergePair
     simp only [he_ij, he_iv, he_jv, false_or, ↓reduceIte]
@@ -301,16 +297,12 @@ theorem pullbackCut_contractCut {n m : ℕ} (part : Fin n → Fin (m + 1))
   ext x
   simp only [mem_pullbackCut, contractCut, Finset.mem_filter, Finset.mem_univ, true_and,
     embedCompact_contractPart]
-  split_ifs with hxv
-  · rw [hxv]
-    exact hsame
-  · rfl
+  split_ifs with hxv <;> simp [hxv, hsame]
 
 /-- Pulling a cut back along the identity gives the same cut. -/
 theorem pullbackCut_id {V : Type*} [Fintype V] [DecidableEq V] (C : Finset V) :
-    pullbackCut id C = C := by
-  ext x
-  simp [pullbackCut]
+    pullbackCut id C = C :=
+  Finset.ext fun _ => by simp [pullbackCut]
 
 /-- Merging `t` into `s` preserves the weight of the cuts that do not separate `s` and `t`. -/
 theorem cutWeight_contractCut {k : ℕ} {W : Fin (k + 1) → Fin (k + 1) → ℕ} (hW : IsMultigraph W)

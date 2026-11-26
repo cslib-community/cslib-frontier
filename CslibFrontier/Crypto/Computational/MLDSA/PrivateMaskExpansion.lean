@@ -75,8 +75,7 @@ private theorem maskStreams_off {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (t : Fin n ↪ FixedBytes 64) (T₁ T₂ : Table a b) (rows : MaskInput n × Fin b → Byte)
     (x : List Bool) (miss : ∀ p, maskWord t p ≠ x) (k : ℕ) :
     (maskStreams base ha t T₁ T₂ rows).h256.read x k = (streams base T₁ T₂).h256.read x k := by
-  apply read_eq_of_byteAt_eq
-  intro i _
+  refine read_eq_of_byteAt_eq fun i _ => ?_
   simp only [maskStreams, streams, byteAt_install]
   split
   · rename_i length
@@ -172,8 +171,8 @@ private theorem expandMask_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤
       have small : j < maskPolyBytes s := hj.trans_le (G.h256.length_read ..).le
       rw [getElem_read _ _ small, List.getElem_ofFn]
       exact maskStreams_byteAt base ha t T₁ T₂ rows (i, nonceSuffix v) ⟨j, small.trans_le hb⟩
-  simp only [Xofs.expandMask, ← show G = maskStreams base ha t T₁ T₂ rows from rfl,
-    maskFromRow, read]
+  dsimp only [G] at read
+  simp only [Xofs.expandMask, maskFromRow, read]
   rfl
 
 private def Xofs.signWithExpansionRow (H : Xofs) (s : Level) (key : List Byte)
@@ -227,8 +226,7 @@ private theorem rep_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (maskStreams base ha t T₁ T₂ rows).representativeFromTr tr m =
       (streams base T₁ T₂).representativeFromTr tr m := by
   obtain ⟨r, rfl⟩ := FixedBytes.exists_toList len
-  apply congrArg Keccak.bytesToBitsLE
-  apply maskStreams_off_prefix
+  refine congrArg Keccak.bytesToBitsLE (maskStreams_off_prefix _ _ _ _ _ _ _ ?_ _)
   rw [representativeInput, prefixSeed_append]
   rwa [← List.append_nil (Keccak.bytesToBitsLE r.toList), prefixSeed_append] at miss
 
@@ -300,9 +298,7 @@ private theorem uniform_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
 namespace QuantumSigningForger
 
 private theorem card_maskSeed : Fintype.card (FixedBytes 64) = 2 ^ 512 := by
-  change Fintype.card (Fin 64 → Fin 256) = _
-  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-  rw [show (256 : ℕ) = 2 ^ 8 by decide, ← pow_mul]
+  simp only [FixedBytes, Fintype.card_fun, Fintype.card_fin, ← pow_mul]
 
 private theorem maskSeedEmbedding {n : ℕ} (h : n ≤ 2 ^ 512) :
     Nonempty (Fin n ↪ FixedBytes 64) :=
@@ -379,9 +375,7 @@ private theorem maskScore_eq {a b n : ℕ} (C : QuantumSigningForger) (s : Level
             iterate 2 contradiction
             simp only [tape, List.get_ofFn, Fin.cast_mk, fs, gs, rowCommand, signingCommand,
               OracleComp.sumHandler]
-            rw [show ∀ i, G.signWithRow s keys.secretKey ask (fun _ => t i) =
-              H.signWithExpansionRow s keys.secretKey ask (slotRow hb rows i)
-              from fun i => sign_maskStreams base ha s hb t T₁ T₂ rows hk miss i ask])
+            rw [sign_maskStreams base ha s hb t T₁ T₂ rows hk miss])
         C.initial
       have transcripts : C.seedTapeTranscript G s keys (List.ofFn t) =
           C.expansionTranscript G H s keys tape := by

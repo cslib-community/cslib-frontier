@@ -163,34 +163,30 @@ private theorem power_period (x : BitString (k + k)) : power (period k) x = x :=
 /-- The single-step modular counter map `power 1` is a bijection on `BitString (k + k)`. -/
 theorem power_bijective : Function.Bijective (power (k := k) 1) := by
   have hpos : 0 < period k := Nat.lcmUpto_pos _
-  exact ⟨fun x y he => by
-      simpa only [power_add, show 1 + (period k - 1) = period k by omega, power_period] using
-        congrArg (power (period k - 1)) he,
-    fun y => ⟨power (period k - 1) y, by rw [power_add, Nat.sub_add_cancel hpos, power_period]⟩⟩
+  exact Function.bijective_iff_has_inverse.mpr ⟨power (period k - 1),
+    fun x => by rw [power_add, Nat.add_comm 1, Nat.sub_add_cancel hpos, power_period],
+    fun x => by rw [power_add, Nat.sub_add_cancel hpos, power_period]⟩
 
 /-- Different residues modulo `period k` give different Boolean functions. -/
 theorem powers_injective :
     Function.Injective (fun T : Fin (period k) => power (k := k) T.val) := by
   intro S T he
-  have hmod (a : ℕ) (ha : 0 < a) (haU : a < 2 ^ k) : S.val % a = T.val % a := by
-    simpa [power, advance, Nat.mod_eq_of_lt haU, ha,
-      Nat.mod_eq_of_lt ((Nat.mod_lt S.val ha).trans haU),
-      Nat.mod_eq_of_lt ((Nat.mod_lt T.val ha).trans haU)] using
-      congrArg (fun f => (rightWord (f (pack (BitVec.ofNat k a) (BitVec.ofNat k 0)))).toNat) he
-  have helper (S T : ℕ) (hST : S ≤ T)
-      (hmod : ∀ a, 0 < a → a < 2 ^ k → S % a = T % a) : period k ∣ T - S := by
-    change (Finset.Icc 1 (2 ^ k - 1)).lcm id ∣ T - S
-    exact Finset.lcm_dvd fun a ha => by
-      obtain ⟨ha1, ha2⟩ := Finset.mem_Icc.mp ha
-      exact (Nat.modEq_iff_dvd' hST).mp
-        (hmod a ha1 (by have := Nat.one_le_two_pow (n := k); omega))
-  refine Fin.ext ?_
-  rcases le_total S.val T.val with h | h
-  · have := Nat.eq_zero_of_dvd_of_lt (helper S.val T.val h hmod) (by have := T.isLt; omega)
+  have hle {a b : ℕ} (hab : a ≤ b) (hb : b < period k) (h : power (k := k) a = power b) :
+      a = b := by
+    have hdvd : period k ∣ b - a := Finset.lcm_dvd (s := Finset.Icc 1 (2 ^ k - 1)) fun m hm => by
+      obtain ⟨hm1, hm2⟩ := Finset.mem_Icc.mp hm
+      have hm0 : 0 < m := hm1
+      have hmU : m < 2 ^ k := by have := Nat.one_le_two_pow (n := k); omega
+      refine (Nat.modEq_iff_dvd' hab).mp ?_
+      change a % m = b % m
+      simpa [power, advance, Nat.mod_eq_of_lt hmU, hm0,
+        Nat.mod_eq_of_lt ((Nat.mod_lt a hm0).trans hmU),
+        Nat.mod_eq_of_lt ((Nat.mod_lt b hm0).trans hmU)] using
+        congrArg (fun f => (rightWord (f (pack (BitVec.ofNat k m) (BitVec.ofNat k 0)))).toNat) h
+    have := Nat.eq_zero_of_dvd_of_lt hdvd (by omega)
     omega
-  · have := Nat.eq_zero_of_dvd_of_lt (helper T.val S.val h fun a ha hU => (hmod a ha hU).symm)
-      (by have := S.isLt; omega)
-    omega
+  exact Fin.ext <| (le_total S.val T.val).elim (fun h => hle h T.isLt he)
+    fun h => (hle h S.isLt he.symm).symm
 
 /-! ### Linear-size step circuit -/
 
@@ -213,8 +209,8 @@ theorem stepValue_spec (a b : BitVec k) :
       ha, and_self]
     split_ifs with heq
     · exact BitVec.eq_of_toNat_eq (by simp [heq])
-    · exact BitVec.eq_of_toNat_eq (by
-        simp [Nat.mod_eq_of_lt (show b.toNat + 1 < a.toNat by omega), Nat.mod_eq_of_lt hs])
+    · have hlt : b.toNat + 1 < a.toNat := by omega
+      exact BitVec.eq_of_toNat_eq (by simp [Nat.mod_eq_of_lt hlt, Nat.mod_eq_of_lt hs])
   · simp [stepValue, BitVec.ult, h, advance]
 
 /-- Equality of two available `k`-bit words costs at most `6 * k + 1` gates. -/

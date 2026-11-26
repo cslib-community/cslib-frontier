@@ -115,10 +115,8 @@ public theorem exists_nStep_of_step {input : List Symbol} {c c' : Cfg k Symbol S
     simp [hout, Action.apply, Option.toList_map]
   refine ⟨_, ⟨eS q, hstate, _, (mem_descN eS eY ntm).mpr ⟨q, _, _, a, ha, rfl⟩, ?_,
     congrArg (Prod.mk _) hout'⟩, hshape, ?_⟩
-  · rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]
-    rfl
-  · rw [hout']
-    exact happ.trans (by rw [hsc, Action.apply_map])
+  · rw [key_toCfg hs out, hsc, Cfg.inputSymbol_map]; rfl
+  · rw [hout', happ, hsc, Action.apply_map]
 
 /-- **A step of the description is a step of the machine**: from a well-shaped configuration of the
 simulation representing a configuration of the machine, a step of the description represents a
@@ -138,8 +136,7 @@ public theorem exists_step_of_nStep {input : List Symbol} {c : Cfg k Symbol Stat
   cases key_injective eS eY (a₁ := (p, i, w)) (a₂ := (q, c.inputSymbol, c.workTapeSymbols)) hkey
   obtain ⟨happ, hshape⟩ := toCfg_apply hs hq' out (a.map eS eY)
   refine ⟨a.apply c, ?_, hshape, happ.trans (by rw [hsc, Action.apply_map])⟩
-  simp only [MultiTapeNTM.Step, hq]
-  exact ⟨a, ha, rfl⟩
+  simpa only [MultiTapeNTM.Step, hq] using ⟨a, ha, rfl⟩
 
 /-! ### Computations -/
 
@@ -153,9 +150,8 @@ public theorem exists_computationPath_of_reflTransGen {input : List Symbol} {p :
   induction h with
   | refl =>
     obtain ⟨hinit, hshape⟩ := toCfg_init (x := input.map eY) (descN_tapes eS eY ntm)
-    refine ⟨⟨RelSeries.singleton _ (ntm.initCfg input), rfl⟩, hshape, ?_⟩
-    rw [hinit, descN_q₀]
-    exact (Cfg.map_init eS eY ntm.q₀).symm
+    exact ⟨⟨RelSeries.singleton _ (ntm.initCfg input), rfl⟩, hshape,
+      hinit.trans (descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm)⟩
   | tail _ hstep ih =>
     obtain ⟨π, hshape, hπ⟩ := ih
     obtain ⟨c', hc', hshape', hc''⟩ := exists_step_of_nStep eS eY ntm hshape hπ hstep
@@ -213,8 +209,7 @@ lemma exists_reflTransGen_fits_aux {input : List Symbol} (π : ntm.RunPath input
     simp only [RelSeries.head_singleton] at hπ
     subst hπ
     refine ⟨_, .refl, hshape, hinit.trans ?_, ⟨0, inv_init _ _⟩, fun i => ?_⟩
-    · rw [descN_q₀]
-      exact (Cfg.map_init eS eY ntm.q₀).symm
+    · exact descN_q₀ eS eY ntm ▸ (Cfg.map_init eS eY ntm.q₀).symm
     · rw [getD_workTapes_init]
       exact ⟨fun _ h => by simp [Tape.blank] at h, fun _ h => by simp [Tape.blank] at h⟩
   | snoc π c hc ih =>
@@ -266,10 +261,9 @@ public theorem exists_reflTransGen_fits_of_computationPath {input : List Symbol}
         (eCfg p'.1).length ≤ cfgSpaceBound (descLen (descN eS eY ntm)) input.length k S)
         (init (descN eS eY ntm), []) (s, π.last.output.map eY) ∧
       s.WellShaped k (input.map eY) ∧
-      s.toCfg k (input.map eY) (π.last.output.map eY) = π.last.map eS eY := by
-  obtain ⟨s, hreach, hshape, hs, -⟩ :=
-    exists_reflTransGen_fits_aux eS eY ntm π.toRunPath π.head_eq hS
-  exact ⟨s, hreach, hshape, hs⟩
+      s.toCfg k (input.map eY) (π.last.output.map eY) = π.last.map eS eY :=
+  (exists_reflTransGen_fits_aux eS eY ntm π.toRunPath π.head_eq hS).imp
+    fun _ ⟨hreach, hshape, hs, _⟩ => ⟨hreach, hshape, hs⟩
 
 /-- **The last configuration of every computation path of the machine** is represented by a
 configuration the description reaches. -/
@@ -292,8 +286,8 @@ public theorem accepts_iff_reflTransGen_nStep (ntm : MultiTapeNTM k Bool State)
   constructor
   · rintro ⟨π, hhalt, hout⟩
     obtain ⟨s, hreach, -, hs⟩ := exists_reflTransGen_of_computationPath eS eBit ntm π
-    refine ⟨s, ?_, by simpa [hout] using hreach⟩
-    simpa [SCfg.toCfg, hhalt] using congrArg Cfg.state hs
+    exact ⟨s, by simpa [SCfg.toCfg, hhalt] using congrArg Cfg.state hs,
+      by simpa [hout] using hreach⟩
   · rintro ⟨s, hs, hreach⟩
     obtain ⟨π, -, hπ⟩ := exists_computationPath_of_reflTransGen eS eBit ntm hreach
     refine ⟨π, ?_, ?_⟩

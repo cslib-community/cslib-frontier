@@ -78,10 +78,8 @@ open Classical in
 
 open Classical in
 /-- Plurality corrections exist without a tie-breaking convention. -/
-theorem exists_plurality (f : G → H) : ∃ φ, IsPlurality f φ := by
-  classical
-  choose φ hφ using fun x => Fintype.exists_forall_card_filter_le_card_filter (vote f x)
-  exact ⟨φ, hφ⟩
+theorem exists_plurality (f : G → H) : ∃ φ, IsPlurality f φ :=
+  Classical.axiomOfChoice fun x => Fintype.exists_forall_card_filter_le_card_filter (vote f x)
 
 open Classical in
 /-- An actual homomorphism passes every test. -/
@@ -114,11 +112,10 @@ theorem collision_lower (f : G → H) (x : G) :
     expect_le_expect (s := univ) (fun b _ => point a b))
   have h₁ : (𝔼 a, 𝔼 b, bad (x + a) b) = rejection f :=
     (Fintype.expect_add_left (fun a => 𝔼 b, bad a b) x).trans (rejection_eq_expect f).symm
-  have h₂ : (𝔼 a, 𝔼 b, bad a (x + b)) = rejection f := by
-    simp_rw [Fintype.expect_add_left]
-    exact (rejection_eq_expect f).symm
-  simp only [expect_sub_distrib, Fintype.expect_const] at h
-  rw [h₁, h₂] at h
+  have h₂ : (𝔼 a, 𝔼 b, bad a (x + b)) = rejection f :=
+    (expect_congr rfl fun a _ => Fintype.expect_add_left (bad a) x).trans
+      (rejection_eq_expect f).symm
+  simp only [expect_sub_distrib, Fintype.expect_const, h₁, h₂] at h
   linarith
 
 open Classical in
@@ -321,8 +318,8 @@ theorem distance_attained (f : G → H) : ∃ h : G →+ H,
 open Classical in
 /-- The minimum distance is bounded by disagreement with any homomorphism. -/
 theorem distance_le (f : G → H) (h : G →+ H) :
-    distance f ≤ (hammingDist f h : ℝ) / Fintype.card G := by
-  exact div_le_div_of_nonneg_right
+    distance f ≤ (hammingDist f h : ℝ) / Fintype.card G :=
+  div_le_div_of_nonneg_right
     (by exact_mod_cast (exists_closest f).choose_spec h) (Nat.cast_nonneg _)
 
 open Classical in
@@ -337,9 +334,8 @@ theorem min_le_rejection (f : G → H) : min (1 / 6) (distance f / 2) ≤ reject
 open Classical in
 /-- Goldreich r5 Exercise 9.20: the unconditional quadratic bound at minimum distance. -/
 theorem three_mul_distance_sub_six_sq_le_rejection (f : G → H) :
-    3 * distance f - 6 * distance f ^ 2 ≤ rejection f := by
-  obtain ⟨h, hh⟩ := distance_attained f
-  rw [hh]
-  exact three_mul_disagreement_sub_six_sq_le_rejection f h
+    3 * distance f - 6 * distance f ^ 2 ≤ rejection f :=
+  let ⟨h, hh⟩ := distance_attained f
+  hh ▸ three_mul_disagreement_sub_six_sq_le_rejection f h
 
 end Cslib.HomomorphismTesting

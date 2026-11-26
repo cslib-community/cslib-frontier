@@ -156,9 +156,7 @@ private theorem flTightInstance_planCost {m k : ℕ} (F' : Finset (Fin m)) (hF' 
       split_ifs <;> first | (subst_vars; contradiction) | norm_num
   have hconn_r (r : Fin k) :
       F'.inf' hF' (fun i => (flTightInstance m k).connCost i (.inr r)) = 1 := by
-    refine le_antisymm ?_ (Finset.le_inf' _ _ fun i _ => by simp [flTightInstance])
-    obtain ⟨i₀, hi₀⟩ := hF'
-    exact (Finset.inf'_le _ hi₀).trans (by simp [flTightInstance])
+    simp [flTightInstance]
   rw [planCost_eq, Fintype.sum_sum_type]
   simp_rw [hconn_l, hconn_r, sum_ite_one_three]
   simp only [flTightInstance, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul,
@@ -173,10 +171,9 @@ theorem flTightInstance_cost_univ (m k : ℕ) [NeZero m] :
       3 * (m : ℝ) + (k : ℝ) + 1 := by
   have hU : (Finset.univ : Finset (Fin m ⊕ Fin k)).Nonempty := ⟨.inl 0, Finset.mem_univ _⟩
   refine le_antisymm ?_ ?_
-  · refine ((flTightInstance m k).toCostSharingGame_cost_le_planCost
-      Finset.univ {0} (Finset.singleton_nonempty 0)).trans ?_
-    rw [flTightInstance_planCost {0} (Finset.singleton_nonempty 0), Finset.card_singleton]
-    norm_num
+  · simpa [flTightInstance_planCost] using
+      (flTightInstance m k).toCostSharingGame_cost_le_planCost Finset.univ {0}
+        (Finset.singleton_nonempty 0)
   · refine (flTightInstance m k).le_toCostSharingGame_cost_of_nonempty hU fun F' hF' => ?_
     rw [flTightInstance_planCost F' hF']
     exact_mod_cast Nat.add_le_add_left hF'.card_pos (3 * m + k)
@@ -334,13 +331,8 @@ private theorem sliceCoalition_cost {k m : ℕ} [NeZero k] [NeZero m]
     have hpunc : ∑ a ∈ punctureCoalition i b, ({b} : Finset (Fin k → Fin m)).inf'
         (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) =
         (k : ℝ) - 1 := by
-      have hc : ∀ a ∈ punctureCoalition i b, ({b} : Finset (Fin k → Fin m)).inf'
-          (Finset.singleton_nonempty b) (fun c => (flHardInstance k m).connCost c a) = 1 := by
-        intro a ha
-        obtain ⟨j, _, rfl⟩ := Finset.mem_image.1 ha
-        simp [flHardInstance]
-      rw [Finset.sum_congr rfl hc, Finset.sum_const, nsmul_eq_mul, mul_one,
-        card_punctureCoalition]
+      rw [punctureCoalition, Finset.sum_image (fun _ _ _ _ h => congrArg Prod.fst h)]
+      simp [flHardInstance, Nat.cast_sub NeZero.one_le]
     rw [hrow, hpunc]
     dsimp only [flHardInstance]
     linarith

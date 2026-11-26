@@ -307,8 +307,7 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N)) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → y.regs r = x.regs r) := by
   set revAdj := transposeAdj adj (List.finRange N)
-  have hmc_rev : csrOffset revAdj N ≤ Mc := by
-    dsimp only [revAdj]; rwa [csrOffset_transposeAdj_eq]
+  have hmc_rev : csrOffset revAdj N ≤ Mc := csrOffset_transposeAdj_eq adj ▸ hmc
   have hfit_ps : Fits w (kCurAddr wb N Mc + N + Mc + 2) :=
     hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
   obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
@@ -321,10 +320,9 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
   let x₂ := x₁.set iReg 0
   have hp1 : ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x₁ x₂ 1 := by
     wram_exec [hx₁_fr cZero (by decide), hc0]
-  have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := by
-    intro z
-    have h1 := csrOffset_succ revAdj z.isLt; simp only [Fin.eta] at h1
-    have h2 := csrOffset_mono revAdj (by omega : z.val + 1 ≤ N); omega
+  have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := fun z =>
+    (Nat.le_add_left _ _).trans
+      ((csrOffset_succ revAdj z.isLt ▸ csrOffset_mono revAdj z.isLt).trans hmc_rev)
   have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) := hfit_ps.of_le (by omega)
   obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
     forEachArc_spec adj wb Mc hmc hfit edgeB iReg incCurCode 4 (fun _ => Mc)
@@ -339,8 +337,7 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           incCurCode_spec (kCurAddr wb N Mc) Mc hf_cur (fun z => (rev z).length) v hroom
             hc1' hcur' hv hinv
         refine ⟨y, hy_ex, fun z => ?_, hy_out, hy_fr⟩
-        rw [hy_deg z]
-        by_cases hz : z = v <;> simp [hz])
+        by_cases hz : z = v <;> simp [hy_deg, hz])
       (List.finRange N) 0 (fun _ => []) x₂ (by simp) (fun q _ => by simp)
       (fun z => hroom_rev z) (fun z => hx₁_zero z.val z.isLt)
       hx₁_csr (by wram_simp [x₂, hx₁_fr, hc1]) (by wram_simp [x₂, hx₁_fr, hNv])
@@ -406,10 +403,9 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       (by omega),
     hx₇_rcsr, by wram_simp [y], by wram_simp [y, hx₇_fr edgeB (by decide), x₆],
     fun a ha => ?_, fun r hr hno hne => ?_⟩
-  · rw [show y.mem a = x₇.mem a from rfl, hx₇_out _ (by dsimp only [revAdj, revGraph] at *; omega),
-      show x₆.mem a = x₅.mem a from rfl, hx₅_out _ (by omega)]
-    exact (hx₃_out _ (by omega)).trans (hx₁_out _ (by omega))
-  · rw [show y.regs r = x₇.regs r by wram_simp [y], hx₇_fr r hr]
-    wram_simp [x₆, hx₅_fr0 r hr hno]
+  · refine (hx₇_out a (by omega)).trans ((hx₅_out a ?_).trans
+      ((hx₃_out a fun h => ha (.inr (.inr h))).trans (hx₁_out a fun h => ha (.inr (.inr h)))))
+    omega
+  · wram_simp [y, hx₇_fr r hr, x₆, hx₅_fr0 r hr hno]
 
 end Cslib.Algorithms.WordRAM.DFS

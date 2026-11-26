@@ -177,13 +177,13 @@ theorem probOracleComp_uniform_bind_run_interpret_randomNonceFnHandler {α β : 
     return (x, t)
   have hfn (padFn : N → Y) :
       (fun m => ProbOracleComp.runWith (nonceFnHandler hash k padFn) (step m)) =
-        randomNonceFnHandler hash k padFn := by
-    funext m state
-    simp [step, ProbComp.eval_uniform, nonceFnHandler, randomNonceFnHandler, pmf_norm]
-  have hsim :
-      (fun m => ProbOracleComp.runWith nonceSimHandler (step m)) = randomNonceSimHandler := by
-    funext m state
-    simp [step, ProbComp.eval_uniform, nonceSimHandler, randomNonceSimHandler, pmf_norm]
+        randomNonceFnHandler hash k padFn :=
+    funext₂ fun m state => by
+      simp [step, ProbComp.eval_uniform, nonceFnHandler, randomNonceFnHandler, pmf_norm]
+  have hsim : (fun m => ProbOracleComp.runWith nonceSimHandler (step m)) =
+      randomNonceSimHandler :=
+    funext₂ fun m state => by
+      simp [step, ProbComp.eval_uniform, nonceSimHandler, randomNonceSimHandler, pmf_norm]
   simpa only [ProbOracleComp.runWith_interpret_sumHandler, hfn, hsim] using
     probOracleComp_uniform_bind_run_interpret_nonceFnHandler hash k
       (OracleComp.interpret
@@ -247,10 +247,10 @@ theorem probOracleComp_randomNonceSimHandler_not_nodup_le {α : Type}
             ¬ ((s ++ [((m, x), t)]).map (fun e => e.1.2)).Nodup ↔
               x ∈ s.map (fun e => e.1.2) := by
           simp [List.nodup_append, hs']
+        have hc12 : Nat.choose 1 2 = 0 := rfl
         simp only [pmf_norm, OracleComp.sumHandler, randomNonceSimHandler, hbad,
-          PMF.bind_const, Sum.elim_inr, one_mul, show Nat.choose 1 2 = 0 from rfl, add_zero]
-        rw [bind_pure_decide_apply_true]
-        simpa only [List.length_map, one_div] using
+          PMF.bind_const, Sum.elim_inr, one_mul, hc12, add_zero]
+        simpa only [bind_pure_decide_apply_true, List.length_map, one_div] using
           Probability.PMF.toOuterMeasure_uniformOfFintype_mem_list_le (s.map (fun e => e.1.2))
     · rintro (num | m) s _ x hmem _
       · supp_cases hmem [OracleComp.sumHandler, StateT.lift] with ⟨_, -, rfl⟩
@@ -262,8 +262,7 @@ theorem probOracleComp_randomNonceSimHandler_not_nodup_le {α : Type}
       norm_cast
       rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, smul_eq_mul,
         Finset.sum_range_id, Nat.choose_two_right]
-  · simp only [hnodup, ↓reduceIte]
-    exact PMF.coe_le_one _ _
+  · simpa only [hnodup, ↓reduceIte] using PMF.coe_le_one _ _
 
 omit [AddGroup Y] in
 /-- Birthday-collision bound for `randomNonceSimHandler`: specialization of
@@ -426,16 +425,11 @@ private theorem seed_uniform_probOracleComp_checkRandomNonceSUF_le_sum_add_max {
       (PMF.pure (!decide (res.2.map (fun e => e.1.2)).Nodup)) true +
         max ε (Fintype.card Y : ℝ≥0∞)⁻¹ := by
     by_cases hnodup : (res.2.map (fun e => e.1.2)).Nodup
-    · have heq (k : K) (table : N → Y) :
-          checkRandomNonceOrCollision hash k
-            (reconstructPadFn hash k res.2 table) res.2 (out res.1) =
-          checkNonceSUF hash k (reconstructPadFn hash k res.2 table) res.2 (out res.1) := by
-        simp [checkRandomNonceOrCollision, hnodup]
-      simp only [heq, decide_eq_true hnodup, Bool.not_true, PMF.pure_apply, Bool.true_eq_false,
-        ↓reduceIte, zero_add]
+    · simp only [checkRandomNonceOrCollision, decide_eq_true hnodup, Bool.not_true, Bool.false_or,
+        PMF.pure_apply, Bool.true_eq_false, ↓reduceIte, zero_add]
       exact seed_uniform_checkNonceSUF_le hh res.2 (out res.1)
-    · simp only [decide_eq_false hnodup, Bool.not_false, PMF.pure_apply, ↓reduceIte]
-      exact (PMF.coe_le_one _ _).trans le_self_add
+    · simpa only [decide_eq_false hnodup, Bool.not_false, PMF.pure_apply, ↓reduceIte] using
+        (PMF.coe_le_one _ _).trans le_self_add
   refine (bind_apply_le_add_const_on_support simPMF true fun res _ => hpoint res).trans
     (add_le_add ?_ le_rfl)
   simpa only [List.map_nil, List.nodup_nil, ↓reduceIte, List.length_nil, zero_add] using
@@ -669,9 +663,7 @@ theorem isOraclePPT_prfRandomNonceToPrfDistinguisher
         (by simpa [ProbOracleComp.support_sample, BitString.eval_sampleList] using hnonce)
     exact ⟨by dsimp only; enc_len [hnonceLen, BitString.length_listXor],
       by dsimp only; enc_len [hnonceLen, BitString.length_listXor]⟩
-  · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
-      OracleComp.supportWith_pure, Set.mem_singleton_iff] at hresult
-    subst hresult
+  · obtain rfl : result = ([], queriedPairs) := by simpa [Bool.eq_false_iff.mpr hcond] using hresult
     exact ⟨by simp, by enc_len⟩
 
 /-- **Real-game simulation for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of

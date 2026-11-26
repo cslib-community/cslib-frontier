@@ -166,18 +166,15 @@ theorem sturmSeqList_entry_length_le (cs : List ℚ) {f : List ℚ} (hf : f ∈ 
 theorem sturmVariationsList_eq_sturmVariations (cs : List ℚ) (x : ℚ) :
     sturmVariationsList (sturmSeqList cs) x =
       Polynomial.sturmVariations ((ofCoeffList cs).map (algebraMap ℚ ℝ)) (x : ℝ) := by
-  rw [Polynomial.sturmVariations, Polynomial.derivative_map,
-    Polynomial.sturmSeq_map (algebraMap ℚ ℝ), ← sturmSeqList_map_ofCoeffList cs, List.map_map,
-    List.map_map]
-  have hlist : ((sturmSeqList cs).map (evalCoeffList x)).map (algebraMap ℚ ℝ) =
-      (sturmSeqList cs).map ((eval (x : ℝ) ∘ Polynomial.map (algebraMap ℚ ℝ)) ∘ ofCoeffList) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun g _ => ?_
-    simpa only [Function.comp_apply, Polynomial.eval_map, eval_ofCoeffList, eq_ratCast] using
-      (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
-  rw [← hlist, sturmVariationsList]
-  refine (List.signVariations_map (fun q => ?_) _).symm
-  rcases lt_trichotomy q 0 with h | rfl | h <;> simp [eq_ratCast, sign_neg, sign_pos, *]
+  rw [sturmVariationsList, Polynomial.sturmVariations, Polynomial.derivative_map,
+    Polynomial.sturmSeq_map (algebraMap ℚ ℝ), ← sturmSeqList_map_ofCoeffList cs,
+    ← List.signVariations_map (f := algebraMap ℚ ℝ) fun q => by
+      rcases lt_trichotomy q 0 with h | rfl | h <;> simp [eq_ratCast, sign_neg, sign_pos, *]]
+  simp only [List.map_map]
+  congr 1
+  refine List.map_congr_left fun g _ => ?_
+  simpa only [Function.comp_apply, Polynomial.eval_map, eval_ofCoeffList, eq_ratCast] using
+    (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
 
 /-- Maximum absolute value among a list of rational numbers (`0` on `[]`). -/
 @[expose] def maxAbsList : List ℚ → ℚ
@@ -367,12 +364,12 @@ smaller than any root gap when `2 ≤ deg p` (`0` when `deg p ≤ 1`). -/
 /-- `mignotteBisectionDepth cs` vanishes whenever `(ofCoeffList cs).natDegree ≤ 1`. -/
 theorem mignotteBisectionDepth_eq_zero_of_natDegree_le_one {cs : List ℚ}
     (hd : (ofCoeffList cs).natDegree ≤ 1) : mignotteBisectionDepth cs = 0 := by
-  simp only [mignotteBisectionDepth]
-  by_cases h0 : CoeffList.trim cs = []
-  · simp only [h0, List.length_nil, Nat.reduceLeDiff, ↓reduceIte]
-  · have hcs : ofCoeffList cs ≠ 0 := mt (CoeffList.trim_eq_nil_iff cs).mpr h0
-    have := CoeffList.length_trim_eq_natDegree_add_one hcs
-    simp only [show (CoeffList.trim cs).length ≤ 2 by omega, ↓reduceIte]
+  have hlen : (CoeffList.trim cs).length ≤ 2 := by
+    by_cases h0 : CoeffList.trim cs = []
+    · simp [h0]
+    · have := CoeffList.length_trim_eq_natDegree_add_one (mt (CoeffList.trim_eq_nil_iff cs).mpr h0)
+      omega
+  exact ite_eq_left hlen
 
 /-- For nonzero `ofCoeffList cs`, the cleared-denominator integer coefficient squared norm is
 at least `1`. -/
@@ -400,14 +397,11 @@ private theorem mignotteBisectionDepth_of_two_le {cs : List ℚ}
         sqNormList (clearDenomsList (CoeffList.trim cs)).2 ^ ((ofCoeffList cs).natDegree - 1) ∧
       mignotteBisectionDepth cs =
         Nat.clog 4 (4 * cauchyBoundNat cs ^ 2 * mignotteSepSqInv cs / 3 + 1) := by
-  have hcs0 : ofCoeffList cs ≠ 0 := fun h0 => by simp only [h0, natDegree_zero] at hd; omega
+  have hcs0 : ofCoeffList cs ≠ 0 := fun h0 => by simp [h0] at hd
   have hdeg := CoeffList.length_trim_eq_natDegree_add_one hcs0
+  have hd1 : (CoeffList.trim cs).length - 1 = (ofCoeffList cs).natDegree := by omega
   have hlen : ¬(CoeffList.trim cs).length ≤ 2 := by omega
-  refine ⟨by omega, ?_, ?_⟩
-  · simp only [mignotteSepSqInv,
-      show (CoeffList.trim cs).length - 1 = (ofCoeffList cs).natDegree by omega]
-  · change (if (CoeffList.trim cs).length ≤ 2 then 0 else _) = _
-    exact ite_eq_right (fun h => absurd h hlen)
+  exact ⟨hd1, by simp only [mignotteSepSqInv, hd1], ite_eq_right hlen⟩
 
 /-- Dyadic bisection at depth `mignotteBisectionDepth cs` shrinks the interval width
 `2 * cauchyBoundNat cs / 2 ^ K` strictly below the Mignotte separation between any two distinct
@@ -417,29 +411,29 @@ theorem dyadic_width_lt_root_sep {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
     (hα : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot α)
     (hβ : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot β) (hne : α ≠ β) :
     2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ mignotteBisectionDepth cs < |α - β| := by
-  let t := CoeffList.trim cs; let b := cauchyBoundNat cs; let s := mignotteSepSqInv cs
-  let k := mignotteBisectionDepth cs; let res := clearDenomsList t
   obtain ⟨_, hs_eq, hk_eq⟩ := mignotteBisectionDepth_of_two_le hd
+  set t := CoeffList.trim cs
+  set b := cauchyBoundNat cs
+  set s := mignotteSepSqInv cs
+  set k := mignotteBisectionDepth cs
+  let res := clearDenomsList t
   have hD0 : (res.1 : ℚ) ≠ 0 := by exact_mod_cast Nat.ne_of_gt (one_le_clearDenomsList_fst t)
   have hmignotte := mignotte_sep_sqNorm_rat hd hsep hD0
     (by rw [← CoeffList.ofCoeffList_trim cs]; exact ofCoeffList_clearDenomsList t) hα hβ hne
   have hs_ge : (ofCoeffList cs).natDegree ^ ((ofCoeffList cs).natDegree + 2) *
-      coeffSqNorm (ofCoeffList res.2) ^ ((ofCoeffList cs).natDegree - 1) ≤ s := by
-    rw [show s = _ from hs_eq]
-    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (coeffSqNorm_ofCoeffList_le res.2) _)
+      coeffSqNorm (ofCoeffList res.2) ^ ((ofCoeffList cs).natDegree - 1) ≤ s :=
+    hs_eq.symm ▸ Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (coeffSqNorm_ofCoeffList_le res.2) _)
   have hmignotte_s : (3 : ℝ) ≤ |α - β| ^ 2 * (s : ℝ) :=
     hmignotte.trans (mul_le_mul_of_nonneg_left (by exact_mod_cast hs_ge) (sq_nonneg _))
   have hs_pos : (0 : ℝ) < (s : ℝ) := pos_of_mul_pos_right (by linarith) (sq_nonneg |α - β|)
-  have hlt_nat : 4 * b ^ 2 * s < 3 * 4 ^ k := by
-    change k = Nat.clog 4 (4 * b ^ 2 * s / 3 + 1) at hk_eq
-    have := hk_eq ▸ Nat.le_pow_clog (by decide : 1 < 4) (4 * b ^ 2 * s / 3 + 1); omega
-  have h4_eq : (4 : ℝ) ^ k = ((2 : ℝ) ^ k) ^ 2 := by
-    rw [← pow_mul, mul_comm k 2, pow_mul]; norm_num
+  have hlt : 4 * b ^ 2 * s < 3 * 4 ^ k := by
+    have := hk_eq ▸ Nat.le_pow_clog (by decide : 1 < 4) (4 * b ^ 2 * s / 3 + 1)
+    omega
   have hwidth_sq : (2 * (b : ℝ) / (2 : ℝ) ^ k) ^ 2 * (s : ℝ) < 3 := by
-    rw [show (2 * (b : ℝ) / (2 : ℝ) ^ k) ^ 2 * (s : ℝ) =
-      ((4 : ℝ) * (b : ℝ) ^ 2 * (s : ℝ)) / ((2 : ℝ) ^ k) ^ 2 by ring,
-      div_lt_iff₀ (by positivity), ← h4_eq]
-    exact_mod_cast hlt_nat
+    rw [div_pow, mul_pow, div_mul_eq_mul_div, div_lt_iff₀ (by positivity), ← pow_mul,
+      mul_comm k 2, pow_mul]
+    norm_num only
+    exact_mod_cast hlt
   exact lt_of_pow_lt_pow_left₀ 2 (abs_nonneg _)
     ((mul_lt_mul_iff_left₀ hs_pos).mp (hwidth_sq.trans_le hmignotte_s))
 

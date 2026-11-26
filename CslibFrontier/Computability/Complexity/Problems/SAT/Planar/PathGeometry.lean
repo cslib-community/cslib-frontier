@@ -61,15 +61,12 @@ private theorem neighbor_of_straight {r : Route} {p q d : Point}
     q = p - d ∨ q = p + d := by
   rcases h with h | h
   · obtain ⟨k, hk, hp, hq⟩ := consecutivePair_index h
-    have hd : r.getD (k + 1) p = q := (List.getD_eq_getElem _ _ hk).trans hq
-    exact (ht.getD_neighbors hn (by omega) hp).2.2.symm.imp
-      (fun h => hd.symm.trans h.2) (fun h => hd.symm.trans h.2)
+    simpa only [List.getD_eq_getElem _ _ hk, hq] using
+      (ht.getD_neighbors hn (by omega) hp).2.2.symm.imp And.right And.right
   · obtain ⟨k, hk, hq, hp⟩ := consecutivePair_index h
-    have hd : r.getD (k + 1 - 1) p = q := by
-      rw [Nat.add_sub_cancel, List.getD_eq_getElem _ _ (by omega)]
-      exact hq
-    exact (ht.getD_neighbors hn hk hp).2.2.imp
-      (fun h => hd.symm.trans h.1) (fun h => hd.symm.trans h.1)
+    have hd := (List.getD_eq_getElem r p (by omega)).trans hq
+    simpa only [Nat.add_sub_cancel, hd] using
+      (ht.getD_neighbors hn hk hp).2.2.imp And.left And.left
 
 private theorem horizontal_vertical_neighbors {p q : Point}
     (hx : q = p - (1, 0) ∨ q = p + (1, 0))
@@ -174,15 +171,12 @@ private theorem routePorts_nodup {r : Route} (hn : r.Nodup)
   · have hlen {k} (hk : k < r.consecutivePairs.length) : k + 1 < r.length := by
       simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hk
       omega
-    have hi' := hlen hi
-    have hj' := hlen hj
     rcases stepPorts_inter (hu _ (List.getElem_mem hi)) (hu _ (List.getElem_mem hj)) hx hy
         with heq | heq
-    · exact hij.ne (hn.eq_of_getElem_eq (by omega) (by omega)
-        (show r[i] = r[j] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
-    · exact absurd (hn.eq_of_getElem_eq (by omega) hj'
-        (show r[i] = r[j + 1] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
-        (by omega)
+    · exact hij.ne (hn.eq_of_getElem_eq (Nat.lt_of_succ_lt (hlen hi)) (Nat.lt_of_succ_lt (hlen hj))
+        (by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
+    · exact absurd (hn.eq_of_getElem_eq (Nat.lt_of_succ_lt (hlen hi)) (hlen hj)
+        (by simpa [List.consecutivePairs] using congrArg Prod.fst heq)) (by omega)
 
 private theorem paths_step_unit {φ : CNF ℕ} {i : ℕ} (hi : i < (paths φ).length)
     {e : Point × Point} (he : e ∈ ((paths φ)[i]).consecutivePairs) :

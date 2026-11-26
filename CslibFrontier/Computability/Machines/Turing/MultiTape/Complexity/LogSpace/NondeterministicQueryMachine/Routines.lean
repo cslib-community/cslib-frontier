@@ -132,8 +132,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
       (encS s).length ≤ cS * S a := by obtain ⟨coins, rfl⟩ := hs; exact hS a coins
   have hstart' : ComputableInSpace (fun a => ((start a, 0, none) : PassState σ)) enc
       (encPass encS) S :=
-    (hstart.prod ((ComputableInSpace.constZero 0).prod (ComputableInSpace.constZero none))).mono_le
-      fun _ => le_rfl
+    (hstart.prod ((ComputableInSpace.constZero 0).prod (.constZero none))).mono_le fun _ => le_rfl
   obtain ⟨TI, cI, hI, -⟩ := Internal.NormalForm.space hstart'
   obtain ⟨cE, hE⟩ := computableInTimeAndSpace_of_const
     (encIn := encPair (encPass encS) encBool) (encOut := encBits) ([] : List Bool)
@@ -338,9 +337,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
         have h₀ := hq j hj.le
         have h₁ := hq (j + 1) hj
         have hu := hU_bounds h₁ false
-        have hn := hm₄ (show (encPair (encPass encS) encBool (q j, (enc a)[j])).length + 1 ≤
-          4 * (L a + 1) by
-            simp only [length_encPair, encBool_apply, List.length_singleton] at h₀ ⊢; omega)
+        have hn := hm₄ (a := a) (n := 2 * (encPass encS (q j)).length + 1 + 1) (by omega)
         dsimp only [q] at h₀ h₁ hu hn
         simp only [Function.comp_apply, id_eq, encFramed_apply, length_frame,
           ← streamState_succ ((s, 0, none) : PassState σ) _ _ hj,
@@ -381,8 +378,7 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     omega
   · intro a s hs flag
     let v := frame (encPass encS ((s, 0, none) : PassState σ))
-    have hlen := hscan a s hs false 0 (Nat.zero_le _)
-    simp only [streamState_zero] at hlen
+    have hlen : (encPass encS (s, 0, none)).length ≤ L a := hscan a s hs false 0 (Nat.zero_le _)
     have hclear := (transformsTapes_clearWork_tapeEmb C (flagWord flag)).imp
       (P' := fun inp ws => inp = enc a ∧ ws = B s flag)
       (Q' := fun _ _ ws' e => ws' = Function.update (fun _ => []) V v ∧ e = [])

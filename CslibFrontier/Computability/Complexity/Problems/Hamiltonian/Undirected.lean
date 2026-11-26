@@ -142,8 +142,7 @@ private theorem mem_split_snd_iff {G : Graph} {a b : ℕ} :
       ∃ e ∈ G.edges, a = G.splitVertex e.1 2 ∧ b = G.splitVertex e.2 0 := by
   simp only [split, List.mem_append, List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false,
     List.mem_map, Prod.mk.injEq]
-  refine or_congr Iff.rfl (exists_congr fun e => and_congr_right fun _ => ?_)
-  exact ⟨fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩, fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩⟩
+  exact or_congr Iff.rfl (exists_congr fun _ => and_congr_right fun _ => and_congr eq_comm eq_comm)
 
 private theorem adj_split_iff {G : Graph} {a b : ℕ} :
     G.split.toSimpleGraph.Adj a b ↔ a ≠ b ∧ ((a, b) ∈ G.split.edges ∨ (b, a) ∈ G.split.edges) :=
@@ -168,9 +167,8 @@ private theorem adj_out_in_iff {G : Graph} {u v : ℕ} (hu : u ∈ G.vertices) (
   · rintro ⟨-, (⟨w, -, h | h⟩ | ⟨⟨a, b⟩, he, h₁, h₂⟩) | (⟨w, -, h | h⟩ | ⟨e, -, h₁, h₂⟩)⟩ <;>
       try omega
     exact eq_of_idxOf_eq hu h₁.1.symm ▸ eq_of_idxOf_eq hv h₂.1.symm ▸ he
-  · intro h
-    refine ⟨by simp [splitVertex_eq_splitVertex_iff], Or.inl (Or.inr ⟨(u, v), h, ?_, ?_⟩)⟩ <;>
-      exact ⟨rfl, trivial⟩
+  · exact fun h => ⟨by simp [splitVertex_eq_splitVertex_iff],
+      Or.inl (Or.inr ⟨(u, v), h, ⟨rfl, trivial⟩, ⟨rfl, trivial⟩⟩)⟩
 
 /-- A middle vertex is adjacent only to the two other vertices of its gadget. -/
 private theorem eq_of_adj_mid {G : Graph} {v x : ℕ}
@@ -276,10 +274,8 @@ private theorem isChain_gadgets_iff {G : Graph} {p : List ℕ} (hp : ∀ v ∈ p
       cases p with
       | nil => simp
       | cons b p => simp [adj_out_in_iff ha (hp' b (List.mem_cons_self ..))]
-    rw [gadgets_cons, show ∀ l : List ℕ, G.splitVertex a 0 :: G.splitVertex a 1 ::
-      G.splitVertex a 2 :: l = [G.splitVertex a 0, G.splitVertex a 1, G.splitVertex a 2] ++ l
-      from fun _ => rfl, List.isChain_append, ih hp', head?_gadgets, hhead,
-      List.isChain_cons (x := a)]
+    change ([G.splitVertex a 0, G.splitVertex a 1, G.splitVertex a 2] ++ gadgets G p).IsChain _ ↔ _
+    rw [List.isChain_append, ih hp', head?_gadgets, hhead, List.isChain_cons (x := a)]
     exact ⟨fun ⟨_, h₁, h₂⟩ => ⟨h₂, h₁⟩, fun ⟨h₁, h₂⟩ => ⟨h₃, h₂, h₁⟩⟩
 
 /-- Along declared vertices, a closed chain of gadgets is a closed directed walk. -/
@@ -376,11 +372,10 @@ private theorem chain_reverse_coe {α : Type*} {R : α → α → Prop} (hR : �
   cases l with
   | nil => rfl
   | cons a l =>
-    have hrot : (((a :: l).reverse : List α) : Cycle α) = (a :: l.reverse : List α) := by
-      rw [Cycle.coe_eq_coe, List.reverse_cons]
-      exact List.isRotated_append
-    rw [hrot, Cycle.chain_coe_cons, Cycle.chain_coe_cons,
-      show a :: (l.reverse ++ [a]) = (a :: (l ++ [a])).reverse by simp, List.isChain_reverse]
+    have hrot : (((a :: l).reverse : List α) : Cycle α) = (a :: l.reverse : List α) :=
+      Cycle.coe_eq_coe.2 ((List.reverse_cons (a := a) (as := l)).symm ▸ List.isRotated_append)
+    have hrev : a :: (l.reverse ++ [a]) = (a :: (l ++ [a])).reverse := by simp
+    rw [hrot, Cycle.chain_coe_cons, Cycle.chain_coe_cons, hrev, List.isChain_reverse]
     exact List.IsChain.iff fun x y => ⟨hR y x, hR x y⟩
 
 /-! ### Correctness of the reductions -/
@@ -400,14 +395,13 @@ theorem split_mem_HamPath_iff (G : Graph) (s t : ℕ) :
         rw [ht, Option.some.injEq, splitVertex_eq_splitVertex_iff] at h
         omega)
       (fun u hu _ => (hcov _).2 (splitVertex_mem_split_fst_iff.2 ⟨hu, by omega⟩))
-    refine ⟨p, (nodup_gadgets_iff hp).1 hnd, forall_mem_iff_of_mem_gadgets_iff hp hcov, ?_, ?_,
+    have hend {x u r} (hx : x ∈ p) (h : G.splitVertex x r = G.splitVertex u r) : x = u :=
+      ((splitVertex_eq_splitVertex_iff_of_mem (hp x hx)).mp h.symm).1.symm
+    obtain ⟨a, ha, h⟩ := Option.map_eq_some_iff.1 (head?_gadgets G p ▸ hs)
+    obtain ⟨b, hb, h'⟩ := Option.map_eq_some_iff.1 (getLast?_gadgets G p ▸ ht)
+    exact ⟨p, (nodup_gadgets_iff hp).1 hnd, forall_mem_iff_of_mem_gadgets_iff hp hcov,
+      hend (List.mem_of_head? ha) h ▸ ha, hend (List.mem_of_getLast? hb) h' ▸ hb,
       (isChain_gadgets_iff hp).1 hch⟩
-    · obtain ⟨a, ha, h⟩ := Option.map_eq_some_iff.1 (head?_gadgets G p ▸ hs)
-      rwa [← ((splitVertex_eq_splitVertex_iff_of_mem (hp a (List.mem_of_head? ha))).1 h.symm).1]
-        at ha
-    · obtain ⟨b, hb, h⟩ := Option.map_eq_some_iff.1 (getLast?_gadgets G p ▸ ht)
-      rwa [← ((splitVertex_eq_splitVertex_iff_of_mem (hp b (List.mem_of_getLast? hb))).1 h.symm).1]
-        at hb
   · rintro ⟨p, hnd, hcov, hs, ht, hch⟩
     have hp : ∀ v ∈ p, v ∈ G.vertices := fun v hv => (hcov v).1 hv
     exact ⟨gadgets G p, (nodup_gadgets_iff hp).2 hnd, mem_gadgets_iff_of_forall_mem_iff hcov,

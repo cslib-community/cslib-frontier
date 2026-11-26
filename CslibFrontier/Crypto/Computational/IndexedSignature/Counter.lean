@@ -271,8 +271,7 @@ theorem CounterEUFCMA.of_negligible
       Negligible (fun n =>
         Game.succProbability (ProbComp.eval (S.counterEufCmaGame adversary n)))) :
     S.CounterEUFCMA :=
-  fun adversary hadversary => by
-    simpa only [Game.advantage_pure_false] using h adversary hadversary
+  fun a ha => by simpa only [Game.advantage_pure_false] using h a ha
 
 /-! ### The reduction to indexed forgery -/
 
@@ -324,9 +323,8 @@ private theorem jointOracle_of_lt {n : ℕ} {sk : List Bool} {bound : ℕ → �
           (j, w) :: signed) := by
   have hmapApply : ∀ {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (state : σ),
       (f <$> p) state = (p state).map (fun r => (f r.1, r.2)) := fun _ _ _ => rfl
-  have hnot : j ∉ signed.map Prod.fst := by
-    simp only [List.mem_map, not_exists, not_and]
-    exact fun e he heq => (hinv e he).ne heq
+  have hnot : j ∉ signed.map Prod.fst :=
+    mt List.mem_map.mp fun ⟨e, he, heq⟩ => (hinv e he).ne heq
   simp only [jointOracle, counterHandler, StateT.run, hj, ↓reduceIte, OracleComp.interpret_map,
     ProbOracleComp.interpret_query, hmapApply, indexedSigningOracle, requestDecoder.decode_enc,
     hnot, not_false_eq_true, and_self, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
@@ -360,14 +358,12 @@ private theorem map_run_jointOracle {n : ℕ} {sk : List Bool} {bound : ℕ → 
     (by simp)
   · rintro ⟨⟨⟩, w⟩ ⟨j, signed⟩ hinv a ⟨j', signed'⟩ hmem
     by_cases hj : j < S.capacity n
-    · obtain ⟨σ, -, -, rfl, rfl⟩ := (by
-        rw [jointOracle_of_lt hj hinv] at hmem
-        simpa only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, Prod.mk.injEq] using hmem)
+    · rw [jointOracle_of_lt hj hinv, PMF.mem_support_bind_iff] at hmem
+      obtain ⟨_, -, hmem⟩ := hmem
+      cases (PMF.mem_support_pure_iff _ _).mp hmem
       exact List.forall_mem_cons.2 ⟨Nat.lt_succ_self _,
         fun e he => (hinv e he).trans (Nat.lt_succ_self _)⟩
-    · obtain ⟨-, rfl, rfl⟩ := (by
-        rw [jointOracle_of_le hj] at hmem
-        simpa only [PMF.mem_support_pure_iff, Prod.mk.injEq] using hmem)
+    · cases (PMF.mem_support_pure_iff _ _).mp (jointOracle_of_le hj ▸ hmem)
       exact hinv
   · rintro ⟨⟨⟩, w⟩ ⟨j, signed⟩ hinv
     by_cases hj : j < S.capacity n

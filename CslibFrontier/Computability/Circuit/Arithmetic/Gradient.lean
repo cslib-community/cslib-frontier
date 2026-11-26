@@ -208,11 +208,9 @@ private theorem State.represents_push {s : State C n g m} {v : Wire n g → R}
 
 private theorem State.adjointSum_push (s : State C n g m) (op : ArithOp C)
     (args : Fin op.arity → Wire n s.size) (v : Wire n g → R) :
-    (s.push op args).adjointSum constant x D v = s.adjointSum constant x D v := by
-  unfold State.adjointSum
-  refine Finset.sum_congr rfl fun w _ => ?_
-  rw [show (s.push op args).adjoint w = (s.adjoint w).castSucc from rfl,
-    s.trace_push_castSucc]
+    (s.push op args).adjointSum constant x D v = s.adjointSum constant x D v :=
+  Finset.sum_congr rfl fun w _ =>
+    congrArg (· • D (v w)) (s.trace_push_castSucc op args (s.adjoint w))
 
 private theorem State.trace_accumulate_castSucc (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (u : Wire n s.size) :
@@ -261,10 +259,8 @@ private theorem sum_wire_zero {N : Type*} [AddCommMonoid N] (f : Wire n 0 → N)
 private theorem State.adjointSum_restrict (s : State C n (g + 1) m) (v : Wire n (g + 1) → R) :
     s.adjointSum constant x D v =
       s.restrict.adjointSum constant x D (v ∘ Wire.castSucc) +
-        s.program.trace I x (s.adjoint (.gate (Fin.last g))) • D (v (.gate (Fin.last g))) := by
-  unfold State.adjointSum
-  rw [sum_wire_succ]
-  rfl
+        s.program.trace I x (s.adjoint (.gate (Fin.last g))) • D (v (.gate (Fin.last g))) :=
+  sum_wire_succ _
 
 private theorem State.represents_restrict {s : State C n (g + 1) m} {v : Wire n (g + 1) → R}
     {out : Fin m → R} (h : s.Represents constant x v out) :
@@ -313,11 +309,9 @@ private theorem backward_represents : ∀ {g : ℕ} (p : Program (arithSignature
     (backward p s).Represents constant x (Program.empty.trace I x) out
   | _, .empty, _, _, h => h
   | _, .gate p line, s, out, h => by
-    refine backward_represents p ?_
-    have h' := State.represents_step h line.op line.wires
-    convert h' using 2
-    funext w
-    exact (Program.trace_gate_castSucc p line I x w).symm
+    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x :=
+      funext (Program.trace_gate_castSucc p line I x)
+    exact backward_represents p (hv ▸ State.represents_step h line.op line.wires)
 
 private theorem backward_adjointSum (hadd : ∀ a b, D (a + b) = D a + D b)
     (hmul : ∀ a b, D (a * b) = a • D b + b • D a) (hconst : ∀ c, D (constant c) = 0) :
@@ -327,17 +321,13 @@ private theorem backward_adjointSum (hadd : ∀ a b, D (a + b) = D a + D b)
       s.adjointSum constant x D (p.trace I x)
   | _, .empty, _, _, _ => rfl
   | _, .gate p line, s, out, h => by
-    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x := by
-      funext w
-      exact Program.trace_gate_castSucc p line I x w
-    have hs := State.represents_step h line.op line.wires
-    rw [hv] at hs
-    refine (backward_adjointSum hadd hmul hconst p hs).trans ?_
+    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x :=
+      funext (Program.trace_gate_castSucc p line I x)
+    refine (backward_adjointSum hadd hmul hconst p
+      (hv ▸ State.represents_step h line.op line.wires)).trans ?_
     rw [← State.adjointSum_step hadd hmul hconst h line.op line.wires
-      (by
-        rw [Program.trace_gate_last]
-        congr 1 with a : 1
-        exact (Program.trace_gate_castSucc p line I x _).symm), hv]
+      ((Program.trace_gate_last p line I x).trans (congrArg (I line.op)
+        (funext fun _ => (Program.trace_gate_castSucc p line I x _).symm))), hv]
 
 private theorem init_represents (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) :

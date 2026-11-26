@@ -110,9 +110,7 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
   by_cases hb0 : bucketBits N = 0
   · have hb_eq : b = 0 := by simp only [numBuckets, hb0, pow_zero] at hb; omega
     have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
-    rw [ite_eq_left hb0, prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt,
-      clientState_readCompGMGenProg, prog_clientResult_pure]
-    unfold slotOf bCount; simp [hb0, hb_eq, gm]
+    simp [hb0, hb_eq, gm, slotOf, bCount, clientResult_readCompGMGenProg h0_lt]
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     have hr_pos : 1 ≤ gm (gmRIdx b) := pos_gmRIdx_of_pos_bCount hb_pos hslot hb hbc
     obtain ⟨hr_eq, hr_idx_lt, hptr_lt⟩ := lastTailPtr_read_bounds hslot hb_pos hb
@@ -120,9 +118,8 @@ theorem clientResult_compLastSlotOfGenProg {U V w N metaBase b : ℕ} {s : Memor
       clientState_readCompGMGenProg, prog_clientResult_bind,
       clientResult_readCompGMGenProg hptr_lt, clientState_readCompGMGenProg,
       prog_clientResult_pure]
-    unfold slotOf bCount
-    simp only [hb0, ↓reduceIte, hb, Nat.add_sub_assoc hr_pos, Nat.add_sub_cancel_left]
-    rw [ite_eq_right (not_lt.mpr (Nat.le_add_right _ _))]
+    simp only [slotOf, bCount, hb0, ↓reduceIte, hb, Nat.add_sub_assoc hr_pos,
+      Nat.add_sub_cancel_left, Nat.not_lt.mpr (Nat.le_add_right _ _)]
     rfl
 
 /-- Precondition for retrieving the last physical slot of bucket `b`. -/
@@ -178,10 +175,10 @@ theorem validProg_compLastSlotOfGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hslot, hb, _hbc⟩ := h
   have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
     ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
-  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
   simp only [compLastSlotOfGenProg, pure_bind, cpBucketBits_mk, cpGmTailPtrBase_mk, cpTailCap_mk]
   refine validProg_ite
-    (fun _ => validProg_bind (validProg_readCompGMGen ⟨henv, h0_lt⟩) (validProg_pure _))
+    (fun _ => validProg_bind
+      (validProg_readCompGMGen ⟨henv, by simp only [globalMetaLen]; omega⟩) (validProg_pure _))
     (fun hb0 => ?_)
   obtain ⟨hr_eq, hr_idx_lt, hptr_lt⟩ :=
     lastTailPtr_read_bounds hslot (Nat.pos_of_ne_zero hb0) hb
@@ -217,11 +214,11 @@ theorem clientState_compResolveIndexedSlotGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compResolveIndexedSlotGenProg d) = s := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
-  unfold StateTransitionSpec.clientState compResolveIndexedSlotGenProg compResolveMultiSlotGenProg
-  by_cases hb0 : cpBucketBits cp = 0
-  · simp [hb0]
-  · simp only [hb0, ↓reduceIte, prog_runClient_state_bind, runClient_state_readCompGMGenProg]
-    split_ifs <;> simp
+  dsimp only [StateTransitionSpec.clientState, compResolveIndexedSlotGenProg,
+    compResolveMultiSlotGenProg]
+  split_ifs <;> simp only [prog_runClient_state_pure, prog_runClient_state_bind,
+    runClient_state_readCompGMGenProg]
+  split_ifs <;> simp
 
 @[simp] theorem runClient_state_compResolveIndexedSlotGenProg
     (d : ((CompParams × ℕ) × ℕ) × ℕ) (s : Memory.State) :
@@ -233,10 +230,9 @@ theorem memoryCost_compResolveIndexedSlotGenProg_le
     memoryCost (compResolveIndexedSlotGenProg d) s ≤ 4 := by
   rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, j⟩
   dsimp only [compResolveIndexedSlotGenProg, compResolveMultiSlotGenProg]
-  by_cases hb0 : cpBucketBits cp = 0
-  · rw [ite_eq_left hb0]; simp
-  · rw [ite_eq_right hb0, Realization.memoryCost_bind', memoryCost_readCompGMGenProg,
-      clientState_readCompGMGenProg]
+  split_ifs
+  · simp
+  · rw [Realization.memoryCost_bind', memoryCost_readCompGMGenProg, clientState_readCompGMGenProg]
     split_ifs <;> simp
 
 /-- The slab of local slot `j < effBucketCap N` has a `slabDir` entry inside `GlobalMeta`. -/

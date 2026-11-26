@@ -305,11 +305,6 @@ theorem probOracleComp_uniform_bind_run_interpret_nonceFnHandler {α β : Type}
       ∃ s, res.2 = tr₁ ++ s := by
     supp_cases hres [nonceSimHandler] with ⟨t, rfl⟩
     exact ⟨[(q, t)], rfl⟩
-  have hpost_sim (a : α) (tr' : List ((M × N) × Y))
-      (hnot : ¬ (tr'.map (fun e => e.1.2)).Nodup) :
-      ((PMF.uniformOfFintype (N → Y)).bind fun table =>
-        post a tr' (reconstructPadFn hash k tr' table)) = c := by
-    simp only [hpost a tr' _ hnot, PMF.bind_const]
   have hlhs (p : ProbOracleComp (fun _ : M × N => Y) α) {tr₁ : List ((M × N) × Y)}
       (hnot : ¬ (tr₁.map (fun e => e.1.2)).Nodup) (padFn : N → Y) :=
     runWith_bind_of_not_nodup (happ_fn padFn) p hnot (fun a tr' => post a tr' padFn) c
@@ -319,7 +314,7 @@ theorem probOracleComp_uniform_bind_run_interpret_nonceFnHandler {α β : Type}
     runWith_bind_of_not_nodup happ_sim p hnot
       (fun a tr' => (PMF.uniformOfFintype (N → Y)).bind fun table =>
         post a tr' (reconstructPadFn hash k tr' table))
-      c hpost_sim
+      c fun a tr' hnot' => by simp only [hpost a tr' _ hnot', PMF.bind_const]
   induction prog using ProbOracleComp.induction generalizing tr with
   | pure a => simp
   | sample_bind m cont ih =>
@@ -450,16 +445,11 @@ theorem seed_uniform_checkNonceSUF_le {seed : PMF K} {hash : K → M → Y} {ε 
   by_cases hnodup : (tr.map (fun e => e.1.2)).Nodup
   · by_cases hx : out.1.2 ∈ tr.map (fun e => e.1.2)
     · rcases List.mem_map.mp hx with ⟨⟨⟨m, x⟩, t⟩, he, rfl⟩
-      have hbind (k : K) :
-          ((PMF.uniformOfFintype (N → Y)).bind fun table =>
-            PMF.pure (checkNonceSUF hash k (reconstructPadFn hash k tr table) tr out)) =
-          PMF.pure (checkNonceSUF hash k (fun _ => -hash k m + t) tr out) := by
-        simp only [checkNonceSUF, reconstructPadFn_apply_of_mem_of_nodup hash k he hnodup,
-          PMF.bind_const]
-      simp only [hbind]
+      simp only [checkNonceSUF, fun k => reconstructPadFn_apply_of_mem_of_nodup hash k he hnodup,
+        PMF.bind_const]
       refine ((map_true_mono seed fun k _ hcheck => ?_).trans
         (hh.bind_recovered_offset_le m out.1.1 t out.2)).trans (le_max_left _ _)
-      simp only [checkNonceSUF, Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
+      simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem,
         decide_eq_false_iff_not, decide_eq_true_iff] at hcheck
       rcases hcheck with ⟨⟨-, hnotmem⟩, hv⟩
       have valid := (verify_eq_true_iff _ _ _ _ _).mp hv
@@ -777,12 +767,10 @@ private theorem cwNonceAccept_imp_checkNonceSUF (msgLen : ℕ → ℕ)
   rcases hcheck with ⟨⟨⟨⟨hmsg, hnonce⟩, hnodup⟩, hnotmem⟩, htag_eq⟩
   have hround : ofBitTriple (toBitTriple (msgLen n) n cand) = cand :=
     ofBitTriple_toBitTriple hmsg hnonce (by rw [← htag_eq, BitString.length_listXor])
-  have htr_nodup : (tr.map (fun e => e.1.2)).Nodup := by
-    have hsub_map : (tr.map (fun e => e.1.2)).map List.ofFn <+
-        (init.map (fun e => e.1.2)).reverse := by
-      simpa only [List.map_map, Function.comp_def, ofBitTriple, List.map_reverse] using
-        hsub.map (fun e => e.1.2)
-    exact .of_map List.ofFn ((List.nodup_reverse.mpr hnodup).sublist hsub_map)
+  have htr_nodup : (tr.map (fun e => e.1.2)).Nodup :=
+    .of_map List.ofFn ((List.nodup_reverse.mpr hnodup).sublist
+      (by simpa only [List.map_map, Function.comp_def, ofBitTriple, List.map_reverse] using
+        hsub.map (fun e => e.1.2)))
   have htr_notmem : toBitTriple (msgLen n) n cand ∉ tr := fun hmem =>
     hnotmem (List.mem_reverse.mp (hsub.subset (hround ▸ List.mem_map_of_mem hmem)))
   have hverify :
@@ -823,15 +811,14 @@ private theorem step_cwNonceLogHandler_randomFunctionOracle
       nonceFnHandler, PMF.pure_map, PMF.support_pure, Set.mem_singleton_iff]
     simp only [Bool.and_eq_true, beq_iff_eq] at hcond
     rcases hcond with ⟨hmsg, hnonce⟩
-    let t := sign
-      (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m)))
-      k (table (BitString.ofList n nonce)) (BitString.ofList (msgLen n) msg)
-    have htag : List.ofFn t =
+    have htag : List.ofFn (sign
+        (fun k (m : BitString (msgLen n)) => BitString.ofList n (hash n k (List.ofFn m)))
+        k (table (BitString.ofList n nonce)) (BitString.ofList (msgLen n) msg)) =
         BitString.listXor n [hash n k msg, (randomFunctionOracle n table nonce).take n] := by
-      simp only [t, sign, BitString.ofFn_ofList hmsg, randomFunctionOracle, hnonce,
-        ↓reduceIte, BitString.listXor_pair, BitString.ofList_take, BitString.ofList_ofFn]
+      simp [sign, BitString.ofFn_ofList hmsg, randomFunctionOracle, hnonce,
+        BitString.listXor_pair, BitString.ofList_take]
     refine ⟨by simp [pmf_norm, Functor.map_map, OracleComp.interpret_map,
-        ProbOracleComp.interpret_query, ← htag, t], ?_⟩
+        ProbOracleComp.interpret_query, htag], ?_⟩
     rintro _ _ _ ⟨⟩
     rw [id_eq, List.map_append, List.map_singleton, List.reverse_cons]
     exact hsub.append

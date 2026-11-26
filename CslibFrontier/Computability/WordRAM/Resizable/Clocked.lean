@@ -314,15 +314,11 @@ theorem RCfg.SafeBounded.ne_faulted {L_peak : ℕ} {cfg : RCfg r} (h : cfg.SafeB
 
 theorem RCfg.SafeBounded.frontierLe {L_peak : ℕ} {cfg : RCfg r} (h : cfg.SafeBounded L_peak) :
     cfg.FrontierLe L_peak := by
-  cases cfg with
-  | running _ | halted _ _ => exact h
-  | faulted => exact h.elim
+  cases cfg <;> first | exact h | exact h.elim
 
 theorem RCfg.SafeBounded.mono {L₁ L₂ : ℕ} {cfg : RCfg r} (hL : L₁ ≤ L₂)
     (h : cfg.SafeBounded L₁) : cfg.SafeBounded L₂ := by
-  cases cfg with
-  | running _ | halted _ _ => exact h.trans hL
-  | faulted => exact h
+  cases cfg <;> first | exact h.trans hL | exact h
 
 /-- Zero-fault invariant across all adaptive adversaries `adv : RAdv r` and all horizons `t : ℕ`. -/
 def RDemonicFaultFree (w : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
@@ -336,11 +332,8 @@ def PeakFrontierLe (w L_peak : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
     cfg ∈ (evalRandDemonic w adv p t s).support → cfg.FrontierLe L_peak
 
 theorem PeakFrontierLe.mono {w L₁ L₂ : ℕ} {p : RProgram B r} {s : RState r}
-    (hL : L₁ ≤ L₂) (h : PeakFrontierLe w L₁ p s) : PeakFrontierLe w L₂ p s := by
-  intro adv t cfg hcfg
-  cases cfg with
-  | running _ | halted _ _ => exact (h adv t _ hcfg).trans hL
-  | faulted => trivial
+    (hL : L₁ ≤ L₂) (h : PeakFrontierLe w L₁ p s) : PeakFrontierLe w L₂ p s :=
+  fun adv t cfg hcfg => by cases cfg <;> first | exact (h adv t _ hcfg).trans hL | trivial
 
 /-- Almost-sure halting across all adaptive adversaries `adv : RAdv r`. -/
 def AlmostSurelyHaltsDemonic (w : ℕ) (p : RProgram B r) (s : RState r) : Prop :=

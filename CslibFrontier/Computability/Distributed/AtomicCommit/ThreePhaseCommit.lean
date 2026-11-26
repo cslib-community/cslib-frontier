@@ -508,9 +508,9 @@ private theorem threePCInvariant_of_all_noncommittable {s : ThreePCState P}
   have hnew_nc := functionUpdate_forall r v (·.isCommittable = false) hv_nc hno_comm
   { noninit_votes := fun p hp => by
       dsimp only at hp ⊢
-      by_cases hpr : p = r
-      · subst hpr; rw [Function.update_self] at hp ⊢; exact hv_vote hp
-      · rw [Function.update_of_ne hpr] at hp ⊢; exact hinv.noninit_votes p hp
+      rw [Function.update_apply] at hp ⊢
+      split_ifs at hp ⊢ with hpr
+      exacts [hpr ▸ hv_vote hp, hinv.noninit_votes p hp]
     committable_all_yes := fun ⟨p, hp⟩ => by rw [hnew_nc p] at hp; cases hp
     aborted_disjoint_alive_committable := fun _ p _ => hnew_nc p
     committed_disjoint_aborted := fun p _ hp =>
@@ -1198,16 +1198,13 @@ private theorem intraMsgs_erase_of_pos {G : Finset P} {ms : Multiset (CommitEnve
     {e : CommitEnvelope P M} (he : e ∈ ms) (hG : e.src ∈ G ∧ e.dest ∈ G) :
     intraMsgs G (ms.erase e) = (intraMsgs G ms).erase e := by
   obtain ⟨t, rfl⟩ := Multiset.exists_cons_of_mem he
-  simp only [intraMsgs, Multiset.erase_cons_head]
-  rw [Multiset.filter_cons_of_pos (p := fun d => d.src ∈ G ∧ d.dest ∈ G) t hG,
-    Multiset.erase_cons_head]
+  simp [intraMsgs, hG]
 
 private theorem intraMsgs_erase_of_neg {G : Finset P} {ms : Multiset (CommitEnvelope P M)}
     {e : CommitEnvelope P M} (he : e ∈ ms) (hG : ¬(e.src ∈ G ∧ e.dest ∈ G)) :
     intraMsgs G (ms.erase e) = intraMsgs G ms := by
-  obtain ⟨t, rfl⟩ := Multiset.exists_cons_of_mem he
-  simp only [intraMsgs, Multiset.erase_cons_head]
-  rw [Multiset.filter_cons_of_neg (p := fun d => d.src ∈ G ∧ d.dest ∈ G) t hG]
+  rcases Multiset.exists_cons_of_mem he with ⟨t, rfl⟩
+  simp [intraMsgs, hG]
 
 omit [DecidableEq M] in
 private theorem intraMsgs_eq_zero_of_src_notMem {G : Finset P} {p : P} (hp : p ∉ G)
@@ -1408,11 +1405,9 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
       CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next)) : False := by
   let allYes : P → Vote := fun _ => .yes
   have hview_step := groupViewEq_of_normalStep_outside hp_not₂ hstep_star
-  have hview_cut₂ : GroupViewEq G₂ (cutCfg G₁ G₂ c_prev) (cutCfg G₁ G₂ c_next) := by
-    have hc₁ := groupViewEq_cutCfg_right G₁ G₂ hdisj c_prev
-    have hc₂ := (groupViewEq_cutCfg_right G₁ G₂ hdisj c_next).symm
-    exact ⟨fun q hq => (hc₁.1 q hq).trans ((hview_step.1 q hq).trans (hc₂.1 q hq)),
-      hc₁.2.trans (hview_step.2.trans hc₂.2)⟩
+  have hview_cut₂ : GroupViewEq G₂ (cutCfg G₁ G₂ c_prev) (cutCfg G₁ G₂ c_next) :=
+    ⟨hview_step.1, ((groupViewEq_cutCfg_right G₁ G₂ hdisj c_prev).2.trans hview_step.2).trans
+      (groupViewEq_cutCfg_right G₁ G₂ hdisj c_next).2.symm⟩
   have hn₂_next : ¬ CanGroupCommit π G₂ (cutCfg G₁ G₂ c_next) :=
     fun hc => hn₂ (canGroupCommit_of_viewEq hview_cut₂.symm hc)
   have hcan₁_next : CanGroupCommit π G₁ (cutCfg G₁ G₂ c_next) :=
