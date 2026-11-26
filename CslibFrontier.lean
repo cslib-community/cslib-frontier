@@ -2599,6 +2599,7 @@ public import CslibFrontier.Crypto.Computational.HashAndSign
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Bounds
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.MatrixSpec
 public import CslibFrontier.Computability.Circuit.Boolean.Formula.Andreev
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrick
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Bounds
 public import CslibFrontier.Probability.PairwiseIndependentHash.SliceFourthMoment
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Conjunctive
@@ -10740,6 +10741,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.Equivalent
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Embedding.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Locality
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.NavigationCircuits
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackTrickProof
 public import CslibFrontier.MachineLearning.OnlineLearning.Calibration
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Opening.PolyTime
