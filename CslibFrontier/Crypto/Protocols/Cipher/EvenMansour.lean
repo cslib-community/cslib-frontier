@@ -538,18 +538,14 @@ private theorem mem_support_idealLazyHandler_inl {qe : PermQuery G}
     {c_e c_π c_e' c_π' : RandomPermutation.Cache G} {a : G} :
     (a, c_e', c_π') ∈ (idealLazyHandler (.inl qe) (c_e, c_π)).support ↔
       (a, c_e') ∈ (RandomPermutation.answer qe c_e).support ∧ c_π' = c_π := by
-  simp only [idealLazyHandler, PMF.mem_support_map_iff, Prod.mk.injEq, Prod.exists]
-  exact ⟨fun ⟨a', c', hmem, h1, h2, h3⟩ => h1 ▸ h2 ▸ h3 ▸ ⟨hmem, rfl⟩,
-    fun ⟨hmem, hπ⟩ => ⟨a, c_e', hmem, rfl, rfl, hπ.symm⟩⟩
+  simp [idealLazyHandler, eq_comm]
 
 omit [AddGroup G] in
 private theorem mem_support_idealLazyHandler_inr {qπ : PermQuery G}
     {c_e c_π c_e' c_π' : RandomPermutation.Cache G} {a : G} :
     (a, c_e', c_π') ∈ (idealLazyHandler (.inr qπ) (c_e, c_π)).support ↔
       (a, c_π') ∈ (RandomPermutation.answer qπ c_π).support ∧ c_e' = c_e := by
-  simp only [idealLazyHandler, PMF.mem_support_map_iff, Prod.mk.injEq, Prod.exists]
-  exact ⟨fun ⟨a', c', hmem, h1, h2, h3⟩ => h1 ▸ h2 ▸ h3 ▸ ⟨hmem, rfl⟩,
-    fun ⟨hmem, he⟩ => ⟨a, c_π', hmem, rfl, he.symm, rfl⟩⟩
+  simp [idealLazyHandler, eq_comm]
 
 omit [AddGroup G] [Fintype G] [DecidableEq G] [Nonempty G] in
 /-- Lifting deterministic `evalTwoPerms E π program` into `PMF.pure` equals interpreting `program`
@@ -978,9 +974,7 @@ theorem toOuterMeasure_isBadInputKey_toReal_le (T_e T_π : List (G × G)) :
       (T_e.length : ℝ) * (T_π.length : ℝ) / (Fintype.card G : ℝ) := by
   simpa only [isBadInputKey, Nat.cast_one, one_mul] using
     toOuterMeasure_any_any_toReal_le _ (fun e p k₀ => decide (e.1 + k₀ = p.1)) 1
-      (fun e p => by simpa only [Nat.cast_one, one_mul] using
-        (toOuterMeasure_input_collision e.1 p.1).le)
-      T_e T_π
+      (fun e p => by simpa using (toOuterMeasure_input_collision e.1 p.1).le) T_e T_π
 
 end BadKeys
 
@@ -1382,13 +1376,11 @@ private theorem eq_or_exists_cons_of_mem_answer_support {q : PermQuery G} {cache
     cache' = cache ∨ ∃ e, cache' = e :: cache := by
   cases hq : cachedAnswer cache q with
   | some b =>
-    rw [RandomPermutation.answer_of_cachedAnswer_eq_some hq] at hmem
-    supp_cases hmem
+    supp_cases hmem [RandomPermutation.answer_of_cachedAnswer_eq_some hq]
     exact .inl rfl
   | none =>
     by_cases hne : (freshAnswers cache q).Nonempty
-    · rw [RandomPermutation.answer_of_cachedAnswer_eq_none hq hne] at hmem
-      supp_cases hmem
+    · supp_cases hmem [RandomPermutation.answer_of_cachedAnswer_eq_none hq hne]
       exact .inr ⟨_, rfl⟩
     · cases q <;>
         (simp only [RandomPermutation.cachedAnswer, RandomPermutation.freshAnswers] at hq hne
@@ -1705,14 +1697,12 @@ private theorem advantage_keyDist_evenMansourIdealGame_le (keyDist : PMF (G × G
         keyDist.bind fun k => PMF.pure (evalEvenMansour π k.1 k.2 program))
       (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  let ε : ℝ≥0∞ := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹
-  have hε : ε ≠ ⊤ := by simp [ε, ENNReal.mul_eq_top, ENNReal.inv_eq_top, Fintype.card_ne_zero]
-  have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall (ε := ε)
-    (fun c_e c_π he hπ => (hbad c_e c_π).trans <| by
-      dsimp only [ε]
-      gcongr) b
-  simpa [ε, ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
-    advantage_le_of_forall_bool_le hε hle
+  have hle (b : Bool) := idealGame_apply_le_realGame_add_of_keyDist keyDist hcall
+    (ε := 2 * Q_e * Q_π * (Fintype.card G : ℝ≥0∞)⁻¹)
+    (fun c_e c_π he hπ => (hbad c_e c_π).trans (by gcongr)) b
+  simpa [ENNReal.toReal_mul, ENNReal.toReal_inv, div_eq_mul_inv] using
+    advantage_le_of_forall_bool_le
+      (by simp [ENNReal.mul_eq_top, ENNReal.inv_eq_top, Fintype.card_ne_zero]) hle
 
 /-- **Deterministic Even–Mansour PRP security in the ideal-permutation model** ([BonehShoup2023],
 Section 4.7, Theorem 4.14; [EvenMansour1997]): for any deterministic (coin-free) adaptive

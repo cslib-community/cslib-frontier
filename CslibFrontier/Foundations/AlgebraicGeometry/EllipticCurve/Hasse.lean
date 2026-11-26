@@ -85,10 +85,8 @@ For `S = 2 k` evaluate at `-k`; for `S = 2 k + 1` evaluate at `-(k + 1)`, which 
 private lemma sq_le_of_forall_nonneg {q S : ℤ} (hq : Odd q)
     (h : ∀ n : ℤ, 0 ≤ n ^ 2 + S * n + q) : S ^ 2 ≤ 4 * q := by
   obtain ⟨k, rfl | rfl⟩ := Int.even_or_odd' S
-  · have := h (-k)
-    nlinarith
-  · have := h (-(k + 1))
-    have hlt : k * (k + 1) < q := lt_of_le_of_ne (by nlinarith) fun he ↦
+  · nlinarith [h (-k)]
+  · have hlt : k * (k + 1) < q := lt_of_le_of_ne (by nlinarith [h (-(k + 1))]) fun he ↦
       Int.not_even_iff_odd.2 hq (he ▸ Int.even_mul_succ_self k)
     nlinarith
 
@@ -132,10 +130,8 @@ private lemma natDegree_num_denom_of_eq_div {x : RatFunc k} {M H : k[X]} (hM : M
   have hdeg : x.denom.natDegree = H.natDegree :=
     natDegree_eq_of_degree_eq (degree_eq_degree_of_associated (associated_of_dvd_dvd h1 h2))
   refine ⟨?_, hdeg⟩
-  have hx0 : x ≠ 0 := by
-    rw [hx]
-    exact div_ne_zero ((map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 hM)
-      ((map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 hH)
+  have hx0 : x ≠ 0 := hx ▸ div_ne_zero ((map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 hM)
+    ((map_ne_zero_iff _ (RatFunc.algebraMap_injective k)).2 hH)
   have := congrArg natDegree e
   rw [natDegree_mul (RatFunc.num_ne_zero hx0) hH, natDegree_mul hM (RatFunc.denom_ne_zero x),
     hdeg] at this
@@ -196,12 +192,12 @@ private lemma X_pow_card_sub_X_eq_prod :
     (X ^ Fintype.card F - X : F[X]) = ∏ c : F, (X - C c) := by
   have h1 : 1 < Fintype.card F := Fintype.one_lt_card
   have hroots := FiniteField.roots_X_pow_card_sub_X F
-  have hmon : (X ^ Fintype.card F - X : F[X]).Monic :=
-    monic_X_pow_sub (by rw [degree_X]; exact_mod_cast h1)
-  have hcard : (X ^ Fintype.card F - X : F[X]).roots.card =
-      (X ^ Fintype.card F - X : F[X]).natDegree := by
-    rw [hroots, natDegree_X_pow_sub_X h1, Finset.card_val, Finset.card_univ]
-  conv_lhs => rw [← prod_multiset_X_sub_C_of_monic_of_roots_card_eq hmon hcard, hroots]
+  have hprod := prod_multiset_X_sub_C_of_monic_of_roots_card_eq
+    (monic_X_pow_sub (R := F) <| by
+      rw [degree_X]
+      exact_mod_cast h1)
+    (by rw [hroots, natDegree_X_pow_sub_X h1, Finset.card_val, Finset.card_univ])
+  rw [← hprod, hroots]
   rfl
 
 /-- Every `X - C c` divides `X ^ q - X`. -/
@@ -245,17 +241,11 @@ private lemma natDegree_d1Num (hF : ringChar F ≠ 2) :
   repeat' first
     | with_reducible apply hsub
     | with_reducible apply natDegree_add_le_of_degree_le
-  · compute_degree
-    omega
-  · simp
-  · exact natDegree_mul_le.trans (by rw [natDegree_ofNat]; omega)
-  · omega
-  · rw [natDegree_X_pow]; omega
-  · compute_degree
-    omega
-  · compute_degree
-    omega
-  · rw [natDegree_X_pow]; omega
+  all_goals first
+    | omega
+    | compute_degree
+      omega
+    | exact natDegree_mul_le.trans (by rw [natDegree_ofNat]; omega)
 
 /-- If `g(c) = 0`, then `(T - c)²` does not divide `D (D^m + 1)²`: `c` is a simple root of `D`
 and `(D^m + 1)(c) = 1`. -/
@@ -269,9 +259,8 @@ private lemma not_sq_dvd_of_eval_eq_zero (hF : ringChar F ≠ 2) (hΔ : (ofCubic
     omega
   have hcop : IsCoprime (X - C c) (cubicPoly α β γ ^ (Fintype.card F / 2) + 1) :=
     (irreducible_X_sub_C c).coprime_iff_not_dvd.2 fun h ↦ by
-      rw [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, h0, zero_pow hm.ne', eval_one,
-        zero_add] at h
-      exact one_ne_zero h
+      simp only [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, h0, zero_pow hm.ne', eval_one,
+        zero_add, one_ne_zero] at h
   have := rootMultiplicity_cubicPoly_le_one hΔ c
   rw [← not_lt, ← Nat.succ_le_iff, le_rootMultiplicity_iff (cubicPoly_ne_zero α β γ)] at this
   exact this ((hcop.pow (m := 2) (n := 2)).dvd_of_dvd_mul_right hDm)
@@ -371,14 +360,13 @@ private lemma d1Gcd_dvd_d1Num (hF : ringChar F ≠ 2) : d1Gcd α β γ ∣ d1Num
     fun c _ ↦ ?_
   have hQ := X_sub_C_dvd_X_pow_card_sub_X c
   rcases d1Exp_cases (α := α) (β := β) (γ := γ) hF c with ⟨h0, he⟩ | ⟨_, _, he⟩ | ⟨hm, he⟩
-  · rw [he, show 2 - 1 = 1 from rfl, pow_one]
+  · simp only [he, Nat.reduceSub, pow_one]
     exact dvd_sub (dvd_mul_of_dvd_left (dvd_iff_isRoot.2 h0) _)
       (dvd_mul_of_dvd_right (dvd_pow hQ two_ne_zero) _)
-  · rw [he, pow_zero]
-    exact one_dvd _
+  · simp only [he, Nat.sub_self, pow_zero, one_dvd]
   · rw [he]
     have hD : X - C c ∣ cubicPoly α β γ ^ (Fintype.card F / 2) + 1 := by
-      rw [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, hm, eval_one, neg_add_cancel]
+      simp only [dvd_iff_isRoot, IsRoot.def, eval_add, eval_pow, hm, eval_one, neg_add_cancel]
     exact dvd_sub (dvd_mul_of_dvd_right (pow_dvd_pow_of_dvd hD 2) _)
       (dvd_mul_of_dvd_right (pow_dvd_pow_of_dvd hQ 2) _)
 
@@ -390,15 +378,15 @@ private lemma isCoprime_d1Den (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).
   refine IsCoprime.prod_right fun c _ ↦ ?_
   have hQ := X_sub_C_dvd_X_pow_card_sub_X c
   rcases Nat.eq_zero_or_pos (d1Exp α β γ c) with h0e | hpos
-  · rw [h0e, pow_zero]
-    exact isCoprime_one_right
+  · simp only [h0e, pow_zero, isCoprime_one_right]
   refine IsCoprime.pow_right ((irreducible_X_sub_C c).coprime_iff_not_dvd.2 fun hdvd ↦ ?_).symm
   have hN : X - C c ∣ d1Num α β γ := hM ▸ dvd_mul_of_dvd_right hdvd _
   rcases d1Exp_cases (α := α) (β := β) (γ := γ) hF c with ⟨h0, he⟩ | ⟨h0, h1, _⟩ | ⟨_, he⟩
   · have hG : X - C c ∣ d1Gcd α β γ := by
-      have hG0 := Finset.dvd_prod_of_mem (fun c ↦ (X - C c) ^ (2 - d1Exp α β γ c))
-        (Finset.mem_univ c)
-      rwa [he, show 2 - 1 = 1 from rfl, pow_one, ← d1Gcd] at hG0
+      have h1 : (X - C c) ^ (2 - d1Exp α β γ c) = X - C c := by
+        simp only [he, Nat.reduceSub, pow_one]
+      exact h1 ▸ Finset.dvd_prod_of_mem
+        (fun c ↦ (X - C c) ^ (2 - d1Exp α β γ c)) (Finset.mem_univ c)
     have hN2 : (X - C c) ^ 2 ∣ d1Num α β γ := hM ▸ pow_two (X - C c) ▸ mul_dvd_mul hG hdvd
     refine not_sq_dvd_of_eval_eq_zero hF hΔ h0 ?_
     have hd := dvd_add hN2
@@ -432,8 +420,9 @@ theorem d_P₁_sub_P₀ (hF : ringChar F ≠ 2) (hΔ : (ofCubic α β γ).Δ ≠
   have hdegQ := congrArg natDegree (d1Gcd_mul_d1Den (α := α) (β := β) (γ := γ))
   rw [natDegree_mul d1Gcd_ne_zero d1Den_ne_zero, natDegree_pow,
     natDegree_X_pow_sub_X Fintype.one_lt_card] at hdegQ
-  rw [max_eq_left (by omega), show M.natDegree = (d1Den α β γ).natDegree + 1 by omega,
-    natDegree_d1Den, Nat.cast_add, Nat.cast_sum, sum_d1Exp, Nat.cast_one]
+  have hMdeg : M.natDegree = (d1Den α β γ).natDegree + 1 := by omega
+  rw [max_eq_left (by omega), hMdeg, natDegree_d1Den, Nat.cast_add, Nat.cast_sum, sum_d1Exp,
+    Nat.cast_one]
   ring
 
 open scoped Classical in
@@ -490,8 +479,8 @@ theorem abs_natCard_point_sub_le {F : Type*} [Field F] [Fintype F] (hF : ringCha
   calc |(Nat.card W.toAffine.Point : ℝ) - (Fintype.card F + 1)|
       ≤ Real.sqrt (4 * Fintype.card F) := Real.abs_le_sqrt h
     _ = 2 * Real.sqrt (Fintype.card F) := by
-      rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
-        Real.sqrt_sq (by norm_num)]
+      have h4 : (4 : ℝ) = 2 ^ 2 := by norm_num
+      rw [Real.sqrt_mul (by norm_num), h4, Real.sqrt_sq (by norm_num)]
 
 /-- **Hasse's bound** over `ZMod p` for every prime `p` (Theorem 9.72 of [KatzLindell2020]):
 `p + 1 - 2 √p ≤ #E(ZMod p) ≤ p + 1 + 2 √p`. -/

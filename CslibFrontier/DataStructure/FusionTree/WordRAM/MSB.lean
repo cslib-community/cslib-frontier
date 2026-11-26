@@ -493,10 +493,8 @@ private theorem powerReplicate_lt {s z : ℕ} (hz : z < 2 ^ s) :
 private theorem powerFlags_lt {s z : ℕ} (hz : z < 2 ^ s) :
     powerFlags s z < 2 ^ ((s + 1) * s) := by
   rw [powerFlags_eq hz, pow_mul]
-  apply packRadix_lt
-  intro i _
-  have hb : 1 < 2 ^ (s + 1) := Nat.one_lt_two_pow (by omega)
-  cases decide (2 ^ i ≤ z) <;> simp_all
+  exact packRadix_lt _ fun i _ =>
+    (Bool.toNat_lt _).trans_le (Nat.pow_le_pow_right two_pos (Nat.le_add_left 1 s))
 
 /-- Every arithmetic value in one powers-of-two comparison/count stage. This records
 intermediates before masking or shifting, so oversized products cannot be hidden. -/
@@ -635,21 +633,18 @@ theorem widthMSB_virtual_bounds {w x : ℕ} (hw : 0 < w) (hx : x < 2 ^ w) :
   have hx' := hx.trans_le (Nat.pow_le_pow_right (by decide) hcap)
   have hp : 2 * (clusterSize w + 1) * clusterSize w ≤ 6 * w := by nlinarith
   have hc : 2 * (clusterSize w * clusterSize w) + clusterSize w ≤ 6 * w := by omega
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro a ha
-    exact (clusterStageValues_lt hs hx' a ha).trans_le (Nat.pow_le_pow_right (by decide) hc)
-  · intro a ha
-    exact (powerStageValues_lt hs (clusterSummary_lt _ _) a ha).trans_le
-      (Nat.pow_le_pow_right (by decide) hp)
-  · intro a ha
-    have hv : (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
+  refine ⟨fun a ha => (clusterStageValues_lt hs hx' a ha).trans_le
+      (Nat.pow_le_pow_right (by decide) hc),
+    fun a ha => (powerStageValues_lt hs (clusterSummary_lt _ _) a ha).trans_le
+      (Nat.pow_le_pow_right (by decide) hp),
+    fun a ha => ?_, ?_, ?_⟩
+  · have hv : (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
         clusterSize w)) &&& (2 ^ clusterSize w - 1) < 2 ^ clusterSize w :=
       Nat.and_two_pow_sub_one_eq_mod _ _ ▸ Nat.mod_lt _ (Nat.two_pow_pos _)
     exact (powerStageValues_lt hs hv a ha).trans_le (Nat.pow_le_pow_right (by decide) hp)
   · have hi := smallMSB_lt hs (clusterSummary_lt (clusterSize w) x)
-    have hh : smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
-        clusterSize w ≤ 6 * w := by nlinarith
-    exact hh.trans_lt Nat.lt_two_pow_self
+    exact (show smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
+      clusterSize w ≤ 6 * w by nlinarith).trans_lt Nat.lt_two_pow_self
   · rw [widthMSB_eq_log2 hx]
     by_cases hx0 : x = 0
     · simp [hx0]

@@ -71,10 +71,8 @@ private theorem extend_clause {F ls : List (MvPolynomial (Literal V) R)} {c : Cl
     h.exists_prod_mul hc (S \ c.toFinset) Std.Sat.Literal.negate
   have hcard : (S \ c.toFinset).card + c.width = S.card :=
     Finset.card_sdiff_add_card_eq_card hS
-  have hprod : (∏ l ∈ S \ c.toFinset, X l.negate) * c.toPCRPoly R =
-      ∏ l ∈ S, X l.negate := by
-    rw [Clause.toPCRPoly_eq_prod, Finset.prod_sdiff hS]
-  refine ⟨ms, hms, hsub, hprod ▸ hp, ?_, ?_⟩
+  rw [Clause.toPCRPoly_eq_prod, Finset.prod_sdiff hS] at hp
+  refine ⟨ms, hms, hsub, hp, ?_, ?_⟩
   · have := Nat.mul_le_mul_left ((S \ c.toFinset).card + 1) (c.card_support_toPCRPoly_le (R := R))
     omega
   · have := c.totalDegree_toPCRPoly_le (R := R)
@@ -132,8 +130,7 @@ theorem PC.IsProof.exists_toPCRPoly_resolvent
   have hsum : PC.IsProof F ((a + b) :: ms₃) := by
     simpa using hm₃.linear 1 1 ha₃ hb₃
   have heq : C (1 : R) * (a + b) + C (-1 : R) * q = M := by
-    simp only [map_one, map_neg, one_mul, neg_one_mul, a, b, q, PCR.complementAxiom]
-    ring
+    simp only [map_one, map_neg, one_mul, neg_one_mul, a, b, q, PCR.complementAxiom]; ring
   have hfinal : PC.IsProof F (M :: (a + b) :: ms₃) :=
     heq ▸ hsum.linear 1 (-1) List.mem_cons_self (List.mem_cons_of_mem _ hq)
   have hMsize : M.support.card ≤ 1 := d.card_support_toPCRPoly_le
@@ -159,10 +156,8 @@ theorem PC.IsProof.exists_toPCRPoly_resolvent
   · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _
       (hls₃ (List.mem_cons_of_mem _ (hls₂ (hls₁ hp)))))
   · have hmul := Nat.mul_le_mul_left (S.card + 1) hcsize
-    simp only [base, PC.size_cons, hS] at hs₃ hmul ⊢
-    omega
-  · simp only [base, PC.degree_cons, hS] at hd₃ ⊢
-    omega
+    simp only [base, PC.size_cons, hS] at hs₃ hmul ⊢; omega
+  · simp only [base, PC.degree_cons, hS] at hd₃ ⊢; omega
 
 variable [Fintype V]
 
@@ -194,8 +189,7 @@ theorem CNF.IsProof.exists_pcr {φ : CNF V} {ls : List (Clause V)} (h : φ.IsPro
       (φ.axioms_subset_toPCRPolys (PCR.complementAxiom_mem_axioms v))
     have hwres := hw (c₁.resolvent c₂ v) List.mem_cons_self
     refine ⟨ns, hn, List.forall_mem_cons.2 ⟨hp, fun c hc => hsub (hlines c hc)⟩, ?_, by omega⟩
-    rw [List.length_cons, Nat.mul_add]
-    omega
+    rw [List.length_cons, Nat.mul_add]; omega
 
 /-- A width-`w` resolution refutation with `s` lines has one PCR refutation simultaneously
 bounded by `(5 * w + 13) * s` monomials and degree `w + 1`. -/
@@ -210,8 +204,7 @@ theorem CNF.IsProof.exists_pcr_refutation {φ : CNF V} {ls : List (Clause V)}
 theorem CNF.RefutableInWidth.pcr_refutableInDegree {φ : CNF V} {w : ℕ}
     (h : φ.RefutableInWidth w) : PC.RefutableInDegree (φ.toPCRPolys R) (w + 1) := by
   obtain ⟨ls, hls, hnil, hw⟩ := h
-  obtain ⟨ms, hm, h1, _, hd⟩ := hls.exists_pcr_refutation (R := R) hnil hw
-  exact ⟨ms, hm, h1, hd⟩
+  exact (hls.exists_pcr_refutation (R := R) hnil hw).imp fun _ ⟨hm, h1, _, hd⟩ => ⟨hm, h1, hd⟩
 
 /-- An `s`-line resolution refutation has a PCR refutation of size at most
 `(10 * n + 13) * s`, where `n` is the number of distinct variables occurring in the CNF.

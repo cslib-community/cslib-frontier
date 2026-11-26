@@ -138,9 +138,8 @@ theorem rel_edgePartition_iff_reachable {n : ℕ} {W : Type}
     (es : List (WeightedEdge n W)) (x y : Fin n) :
     (edgePartition es).rel x y = true ↔ (toSimpleGraph es).Reachable x y := by
   rw [rel_edgePartition_iff_eqvGen]
-  constructor
-  · intro h
-    induction h with
+  refine ⟨fun h => ?_, ?_⟩
+  · induction h with
     | rel u v huv =>
       obtain ⟨e, he, rfl, rfl⟩ := huv
       rcases eq_or_ne e.u e.v with heq | hne
@@ -247,8 +246,7 @@ theorem IsAcyclic.nodup_map_sym2 {n : ℕ} {W : Type} {F : List (WeightedEdge n 
 theorem edgeFinset_toSimpleGraph_of_no_loops {n : ℕ} {W : Type}
     {es : List (WeightedEdge n W)} (hloop : ∀ e ∈ es, e.u ≠ e.v) :
     (toSimpleGraph es).edgeFinset = (es.map WeightedEdge.sym2).toFinset := by
-  ext z
-  refine Sym2.ind (fun x y => ?_) z
+  refine Finset.ext (Sym2.ind fun x y => ?_)
   simp only [SimpleGraph.mem_edgeFinset, SimpleGraph.mem_edgeSet, toSimpleGraph_adj,
     List.mem_toFinset, and_iff_left_iff_imp, List.mem_map, WeightedEdge.sym2_eq, Sym2.eq_iff]
   rintro ⟨e, he, ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩⟩
@@ -296,9 +294,8 @@ theorem toSimpleGraph_kruskalEdges_isTree {n : ℕ} {W : Type} [LE W] [Decidable
     (toSimpleGraph (kruskalEdges es)).IsTree ∧ (kruskalEdges es).length + 1 = n := by
   have hmax := toSimpleGraph_kruskalEdges_maximal_isAcyclic es
   have htree := (hconn.maximal_le_isAcyclic_iff_isTree hmax.prop.1).mp hmax
-  refine ⟨htree, ?_⟩
-  simpa only [(kruskalEdges_isAcyclic es).card_edgeFinset_toSimpleGraph, Fintype.card_fin] using
-    htree.card_edgeFinset
+  exact ⟨htree, by simpa only [(kruskalEdges_isAcyclic es).card_edgeFinset_toSimpleGraph,
+    Fintype.card_fin] using htree.card_edgeFinset⟩
 
 /-! ### Canonical Kruskal runner on weighted `SimpleGraph (Fin n)` -/
 
@@ -482,10 +479,10 @@ theorem kruskalGraph_isMST {n : ℕ} {W : Type}
     (w : Sym2 (Fin n) → W) :
     G.IsMST w (toSimpleGraph (kruskalGraph G w)) := by
   classical
-  refine ⟨⟨(kruskalGraph_maximal_isAcyclic G w).prop.1, (kruskalGraph_isTree hconn w).1⟩, ?_⟩
-  rintro T' ⟨hle', hT'⟩
-  rw [SimpleGraph.edgeWeightSum_eq_sum_edgeFinset, SimpleGraph.edgeWeightSum_eq_sum_edgeFinset]
-  exact sum_edgeFinset_kruskalGraph_le_of_isTree hconn w T' hle' hT'
+  refine ⟨⟨(kruskalGraph_maximal_isAcyclic G w).prop.1, (kruskalGraph_isTree hconn w).1⟩,
+    fun T' ⟨hle', hT'⟩ => ?_⟩
+  simpa only [SimpleGraph.edgeWeightSum_eq_sum_edgeFinset] using
+    sum_edgeFinset_kruskalGraph_le_of_isTree hconn w T' hle' hT'
 
 /-- **Distinct-weight uniqueness on simple graphs** (generalizing [Kruskal, Opening paragraph,
 Construction A, and uniqueness proof, pp. 48–50][Kruskal1956]): when `w` is injective on
@@ -502,11 +499,8 @@ theorem eq_toSimpleGraph_kruskalGraph_of_injOn {n : ℕ} {W : Type}
     F = toSimpleGraph (kruskalGraph G w) := by
   classical
   have hnodup_w : ((graphEdges G w).map WeightedEdge.weight).Nodup := by
-    have hmap : (graphEdges G w).map WeightedEdge.weight =
-        ((graphEdges G w).map WeightedEdge.sym2).map w := by
-      rw [List.map_map]
-      exact List.map_congr_left fun e he => ((mem_graphEdges G w e).mp he).2.2
-    rw [hmap]
+    rw [List.map_congr_left (g := w ∘ WeightedEdge.sym2)
+      (fun e he => ((mem_graphEdges G w e).mp he).2.2), ← List.map_map]
     refine (nodup_map_sym2_graphEdges G w).map_on fun z₁ hz₁ z₂ hz₂ hwz => ?_
     have hm : ∀ z ∈ (graphEdges G w).map WeightedEdge.sym2, z ∈ G.edgeSet :=
       Sym2.ind fun x y h => (mem_map_sym2_graphEdges G w x y).mp h

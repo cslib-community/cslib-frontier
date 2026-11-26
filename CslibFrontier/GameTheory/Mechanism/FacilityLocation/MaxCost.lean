@@ -151,9 +151,9 @@ theorem maxCost_nonneg (x : ι → G) (y : G) : 0 ≤ maxCost x y :=
   NNReal.coe_nonneg _
 
 /-- Every agent's distance `dist (x i) y` is at most `maxCost x y`. -/
-theorem dist_le_maxCost (x : ι → G) (y : G) (i : ι) : dist (x i) y ≤ maxCost x y := by
-  rw [dist_nndist]
-  exact NNReal.coe_le_coe.mpr (Finset.le_sup (f := fun j => nndist (x j) y) (Finset.mem_univ i))
+theorem dist_le_maxCost (x : ι → G) (y : G) (i : ι) : dist (x i) y ≤ maxCost x y :=
+  dist_nndist (x i) y ▸
+    NNReal.coe_le_coe.mpr (Finset.le_sup (f := fun j => nndist (x j) y) (Finset.mem_univ i))
 
 /-- Every agent's extended distance `edist (x i) y` is at most `maxECost x y`. -/
 theorem edist_le_maxECost (x : ι → G) (y : G) (i : ι) : edist (x i) y ≤ maxECost x y :=
@@ -197,9 +197,8 @@ theorem abs_maxCost_sub_maxCost_le (x : ι → G) (y z : G) :
 
 /-- `y ↦ maxCost x y` is continuous on `G`. -/
 theorem continuous_maxCost (x : ι → G) : Continuous (maxCost x) :=
-  Metric.continuous_iff.mpr fun y ε hε => ⟨ε, hε, fun z hzy => by
-    rw [Real.dist_eq]
-    exact (abs_maxCost_sub_maxCost_le x z y).trans_lt hzy⟩
+  Metric.continuous_iff.mpr fun y ε hε =>
+    ⟨ε, hε, fun z hzy => Real.dist_eq _ _ ▸ (abs_maxCost_sub_maxCost_le x z y).trans_lt hzy⟩
 
 /-- The extended maximum cost equals `ENNReal.ofReal (maxCost x y)`. -/
 theorem maxECost_eq_ofReal_maxCost (x : ι → G) (y : G) :
@@ -248,10 +247,9 @@ theorem optMaxECost_le_maxECost (x : ι → G) (y : G) : optMaxECost x ≤ maxEC
   iInf_le (maxECost x) y
 
 /-- On a nonempty space, `optMaxECost x < ⊤`. -/
-theorem optMaxECost_lt_top [Nonempty G] (x : ι → G) : optMaxECost x < ⊤ := by
-  obtain ⟨y⟩ := ‹Nonempty G›
-  exact (optMaxECost_le_maxECost x y).trans_lt
-    (maxECost_eq_ofReal_maxCost x y ▸ ENNReal.ofReal_lt_top)
+theorem optMaxECost_lt_top [Nonempty G] (x : ι → G) : optMaxECost x < ⊤ :=
+  ‹Nonempty G›.elim fun y =>
+    (optMaxECost_le_maxECost x y).trans_lt (maxECost_eq_ofReal_maxCost x y ▸ ENNReal.ofReal_lt_top)
 
 /-- On a nonempty space, `optMaxECost x = ENNReal.ofReal (optMaxCost x)`. -/
 theorem optMaxECost_eq_ofReal_optMaxCost [Nonempty G] (x : ι → G) :
@@ -331,12 +329,10 @@ private theorem stronglyMeasurable_maxCost (x : ι → G) : StronglyMeasurable (
 theorem HasFiniteCost.integrable_maxCost {μ : ProbabilityMeasure G} (h : HasFiniteCost μ)
     (x : ι → G) : Integrable (maxCost x) (μ : Measure G) := by
   let a := μ.nonempty.some
-  have hbound : Integrable (fun y => maxCost x a + dist a y) (μ : Measure G) :=
-    (integrable_const _).add (h a)
-  refine hbound.mono' (stronglyMeasurable_maxCost x).aestronglyMeasurable
-    (Filter.Eventually.of_forall fun y => ?_)
-  rw [Real.norm_eq_abs, abs_of_nonneg (maxCost_nonneg x y)]
-  simpa only [dist_comm y a] using maxCost_le_maxCost_add_dist x y a
+  refine ((integrable_const (maxCost x a)).add (h a)).mono'
+    (stronglyMeasurable_maxCost x).aestronglyMeasurable (Filter.Eventually.of_forall fun y => ?_)
+  rw [Real.norm_eq_abs, abs_of_nonneg (maxCost_nonneg x y), Pi.add_apply, dist_comm]
+  exact maxCost_le_maxCost_add_dist x y a
 
 /-- On a nonempty space under `HasFiniteCost μ`, `optMaxCost x ≤ expectedMaxCost μ x`. -/
 theorem optMaxCost_le_expectedMaxCost [Nonempty G] {μ : ProbabilityMeasure G}
@@ -489,7 +485,7 @@ theorem HasMaxCostApproxRatio.one_le {G : Type*} [MetricSpace G] [MeasurableSpac
   obtain ⟨i, j, hij⟩ := Fintype.one_lt_card_iff.mp hcard
   let x : ι → G := fun k => if k = i then a else b
   refine h.one_le_of_pos (x := x) (lt_of_lt_of_le
-    (ENNReal.div_pos (edist_pos.mpr hab).ne' (by norm_num : (2 : ℝ≥0∞) ≠ ⊤)) (le_iInf fun y => ?_))
+    (ENNReal.div_pos (edist_pos.mpr hab).ne' (ENNReal.ofNat_ne_top (n := 2))) (le_iInf fun y => ?_))
   rw [ENNReal.div_le_iff_le_mul (Or.inl (by norm_num)) (Or.inl (by norm_num)), mul_comm, two_mul]
   calc edist a b ≤ edist a y + edist y b := edist_triangle a y b
     _ = edist (x i) y + edist (x j) y := by simp [x, hij.symm, edist_comm y b]
@@ -537,17 +533,16 @@ theorem leftmost_le (x : ι → ℝ) (i : ι) : leftmost x ≤ x i :=
 theorem le_rightmost (x : ι → ℝ) (i : ι) : x i ≤ rightmost x :=
   Finset.le_sup' x (Finset.mem_univ i)
 
-theorem leftmost_le_rightmost (x : ι → ℝ) : leftmost x ≤ rightmost x := by
-  obtain ⟨i₀⟩ := ‹Nonempty ι›
-  exact (leftmost_le x i₀).trans (le_rightmost x i₀)
+theorem leftmost_le_rightmost (x : ι → ℝ) : leftmost x ≤ rightmost x :=
+  ‹Nonempty ι›.elim fun i₀ => (leftmost_le x i₀).trans (le_rightmost x i₀)
 
-theorem exists_eq_leftmost (x : ι → ℝ) : ∃ i : ι, x i = leftmost x := by
-  obtain ⟨i, _, hi⟩ := Finset.exists_mem_eq_inf' Finset.univ_nonempty x
-  exact ⟨i, hi.symm⟩
+theorem exists_eq_leftmost (x : ι → ℝ) : ∃ i : ι, x i = leftmost x :=
+  let ⟨i, _, hi⟩ := Finset.exists_mem_eq_inf' Finset.univ_nonempty x
+  ⟨i, hi.symm⟩
 
-theorem exists_eq_rightmost (x : ι → ℝ) : ∃ i : ι, x i = rightmost x := by
-  obtain ⟨i, _, hi⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty x
-  exact ⟨i, hi.symm⟩
+theorem exists_eq_rightmost (x : ι → ℝ) : ∃ i : ι, x i = rightmost x :=
+  let ⟨i, _, hi⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty x
+  ⟨i, hi.symm⟩
 
 theorem le_leftmost_iff {x : ι → ℝ} {c : ℝ} : c ≤ leftmost x ↔ ∀ i : ι, c ≤ x i := by
   simpa only [leftmost, Finset.mem_univ, forall_true_left] using
@@ -594,17 +589,15 @@ theorem maxCost_real_eq (x : ι → ℝ) (y : ℝ) :
     maxCost x y = |y - center x| + (rightmost x - leftmost x) / 2 := by
   obtain ⟨il, hil⟩ := exists_eq_leftmost x
   obtain ⟨ir, hir⟩ := exists_eq_rightmost x
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  refine le_antisymm (maxCost_le_iff.mpr fun i => ?_) ?_
+  rw [center]
+  refine le_antisymm (maxCost_le_iff.mpr fun i => ?_) (le_sub_iff_add_le.mp (abs_le.mpr ?_))
   · rw [Real.dist_eq, abs_le]
-    exact ⟨by linarith [leftmost_le x i, le_abs_self (y - center x)],
-      by linarith [le_rightmost x i, neg_le_abs (y - center x)]⟩
+    exact ⟨by linarith [leftmost_le x i, le_abs_self (y - (leftmost x + rightmost x) / 2)],
+      by linarith [le_rightmost x i, neg_le_abs (y - (leftmost x + rightmost x) / 2)]⟩
   · have hdl := Real.dist_eq (x il) y ▸ dist_le_maxCost x y il
     have hdr := Real.dist_eq (x ir) y ▸ dist_le_maxCost x y ir
-    have habs : |y - center x| ≤ maxCost x y - (rightmost x - leftmost x) / 2 :=
-      abs_le.mpr ⟨by linarith [hir, le_abs_self (x ir - y)],
-        by linarith [hil, neg_le_abs (x il - y)]⟩
-    linarith
+    exact ⟨by linarith [le_abs_self (x ir - y)],
+      by linarith [neg_le_abs (x il - y)]⟩
 
 /-- The midpoint `center x` minimizes `maxCost x` on `ℝ`
 ([ProcacciaTennenholtz2013] §3.2, p. 18:8). -/
@@ -646,9 +639,8 @@ private lemma leftmost_rightmost_update_first [DecidableEq ι] {i₁ i₂ : ι} 
       rightmost (Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a) =
         b := by
   have heq : Function.update (fun j => if j = i₁ then a₀ else if j = i₂ then b else m) i₁ a =
-      fun j => if j = i₁ then a else if j = i₂ then b else m := by
-    funext j
-    by_cases h : j = i₁ <;> simp [h]
+      fun j => if j = i₁ then a else if j = i₂ then b else m :=
+    funext fun j => by by_cases h : j = i₁ <;> simp [h]
   exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
 
 private lemma leftmost_rightmost_update_second [DecidableEq ι] {i₁ i₂ : ι} (h12 : i₁ ≠ i₂)
@@ -657,9 +649,8 @@ private lemma leftmost_rightmost_update_second [DecidableEq ι] {i₁ i₂ : ι}
       rightmost (Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b) =
         b := by
   have heq : Function.update (fun j => if j = i₁ then a else if j = i₂ then b₀ else m) i₂ b =
-      fun j => if j = i₁ then a else if j = i₂ then b else m := by
-    funext j
-    by_cases h : j = i₂ <;> simp [h, h12.symm]
+      fun j => if j = i₁ then a else if j = i₂ then b else m :=
+    funext fun j => by by_cases h : j = i₂ <;> simp [h, h12.symm]
   exact heq ▸ leftmost_rightmost_two_plus_mid h12 ham hmb
 
 /-- For `2 ≤ Fintype.card ι`, the midpoint mechanism `centerMechanism` is not strategyproof
@@ -689,31 +680,29 @@ theorem maxCost_le_two_mul_optMaxCost_of_mem_Icc {x : ι → ℝ} {y : ℝ}
     (hy : y ∈ Set.Icc (leftmost x) (rightmost x)) :
     maxCost x y ≤ 2 * optMaxCost x := by
   rw [maxCost_real_eq, optMaxCost_real_eq, center]
-  have habs : |y - (leftmost x + rightmost x) / 2| ≤ (rightmost x - leftmost x) / 2 := by
-    rw [abs_le]
-    constructor <;> linarith [hy.1, hy.2]
-  linarith
+  exact le_sub_iff_add_le.mp (abs_le.mpr
+    ⟨by linarith [hy.1],
+     by linarith [hy.2]⟩)
 
 /-- Every fixed `k`-th order-statistic mechanism on `ℝ` is `2`-approximate for maximum cost. -/
 theorem orderStatisticMechanism_hasMaxCostApproxRatio_two (k : ℕ) :
-    (orderStatisticMechanism (ι := ι) k).HasMaxCostApproxRatio 2 := by
-  rw [orderStatisticMechanism, Mechanism.hasMaxCostApproxRatio_deterministic_iff _ (by norm_num)]
-  intro x
-  exact maxCost_le_two_mul_optMaxCost_of_mem_Icc (orderStatistic_mem_Icc_leftmost_rightmost x k)
+    (orderStatisticMechanism (ι := ι) k).HasMaxCostApproxRatio 2 :=
+  (Mechanism.hasMaxCostApproxRatio_deterministic_iff _ (by norm_num)).mpr fun x =>
+    maxCost_le_two_mul_optMaxCost_of_mem_Icc (orderStatistic_mem_Icc_leftmost_rightmost x k)
 
 /-- **Theorem 3.1** of [ProcacciaTennenholtz2013] (§3.2, p. 18:8), part 1: `leftmostMechanism` is
 strongly group strategyproof (and hence weakly group strategyproof and strategyproof). -/
 theorem leftmostMechanism_isGroupStrategyProof [DecidableEq ι] :
-    (leftmostMechanism (ι := ι)).IsGroupStrategyProof := by
-  rw [leftmostMechanism_eq_orderStatisticMechanism]
-  exact orderStatisticMechanism_isGroupStrategyProof 0
+    (leftmostMechanism (ι := ι)).IsGroupStrategyProof :=
+  leftmostMechanism_eq_orderStatisticMechanism (ι := ι) ▸
+    orderStatisticMechanism_isGroupStrategyProof 0
 
 /-- **Theorem 3.1** of [ProcacciaTennenholtz2013] (§3.2, p. 18:8), part 2: `leftmostMechanism` is a
 `2`-approximation mechanism for the maximum cost. -/
 theorem leftmostMechanism_hasMaxCostApproxRatio_two :
-    (leftmostMechanism (ι := ι)).HasMaxCostApproxRatio 2 := by
-  rw [leftmostMechanism_eq_orderStatisticMechanism]
-  exact orderStatisticMechanism_hasMaxCostApproxRatio_two 0
+    (leftmostMechanism (ι := ι)).HasMaxCostApproxRatio 2 :=
+  leftmostMechanism_eq_orderStatisticMechanism (ι := ι) ▸
+    orderStatisticMechanism_hasMaxCostApproxRatio_two 0
 
 /-- The **median mechanism** on `ℝ`—already optimal (`1`-approximate) for social cost and strongly
 group strategyproof (`Median.lean`)—is simultaneously `2`-approximate for maximum cost. -/
@@ -724,10 +713,9 @@ theorem medianMechanism_hasMaxCostApproxRatio_two :
 
 /-- Deterministic dictatorship of any agent `i₀` on `ℝ` is also `2`-approximate for maximum cost. -/
 theorem dictatorship_hasMaxCostApproxRatio_two (i₀ : ι) :
-    (dictatorship (G := ℝ) i₀).HasMaxCostApproxRatio 2 := by
-  rw [dictatorship, Mechanism.hasMaxCostApproxRatio_deterministic_iff _ (by norm_num)]
-  intro x
-  exact maxCost_le_two_mul_optMaxCost_of_mem_Icc ⟨leftmost_le x i₀, le_rightmost x i₀⟩
+    (dictatorship (G := ℝ) i₀).HasMaxCostApproxRatio 2 :=
+  (Mechanism.hasMaxCostApproxRatio_deterministic_iff _ (by norm_num)).mpr fun x =>
+    maxCost_le_two_mul_optMaxCost_of_mem_Icc ⟨leftmost_le x i₀, le_rightmost x i₀⟩
 
 omit [Nonempty ι] in
 /-- **Theorem 3.2** of [ProcacciaTennenholtz2013] (§3.2, p. 18:8): for `2 ≤ Fintype.card ι`, every
@@ -837,8 +825,8 @@ theorem expectedMaxCost_lrmMechanism (x : ι → ℝ) :
 /-- **Theorem 3.3** of [ProcacciaTennenholtz2013] (§3.2, p. 18:9), approximation part:
 `lrmMechanism` achieves maximum-cost approximation ratio `3 / 2`. -/
 theorem lrmMechanism_hasMaxCostApproxRatio :
-    (lrmMechanism (ι := ι)).HasMaxCostApproxRatio (3 / 2) := by
-  exact (Mechanism.hasMaxCostApproxRatio_iff_expectedMaxCost_le (by norm_num)
+    (lrmMechanism (ι := ι)).HasMaxCostApproxRatio (3 / 2) :=
+  (Mechanism.hasMaxCostApproxRatio_iff_expectedMaxCost_le (by norm_num)
     lrmMechanism_hasFiniteCost).mpr fun x => (expectedMaxCost_lrmMechanism x).le
 
 private theorem expectedCost_lrm_leftmost (x : ι → ℝ) :

@@ -45,6 +45,21 @@ register_result "sharp-sh-fixed-width-size" where
     allow polynomial overhead in encoded input length, and the width-guarded counter returns \
     zero on inputs outside the width bound."
 
+register_result "sharp-sh-iff-weak-sharp-eth" where
+  title := "The counting Satisfiability Hypothesis is equivalent to Weak #ETH"
+  topic := "fine-grained complexity"
+  sources := [
+    { paper := MITHardnessGroup2026SH,
+      theorem := "Theorem 2.4 (counting case)",
+      locator := "arXiv:2611.02650v2, §2.3, p. 7" }
+  ]
+  theorems := [Cslib.Complexity.SharpSH_iff_WeakSharpETH]
+  scope := "With native binary CNF input (encCNF) and binary counts (encNat), #SH measures \
+    occurring variables, clauses, and literal occurrences of unrestricted formulas. Weak #ETH \
+    measures occurring variables of width-at-most-three formulas. Both rule out fixed power \
+    savings for deterministic multitape counters with polynomial overhead in the encoded \
+    input length. The width-three counter returns zero on wider formulas."
+
 register_result "sh-implies-sharp-sh" where
   title := "The Satisfiability Hypothesis implies its counting counterpart"
   topic := "fine-grained complexity"

@@ -35,9 +35,8 @@ open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 /-- Reassociate `off + len ≤ sp` into `base + off + len ≤ base + sp`. -/
 theorem seg_add_le {base off len sp : ℕ} (h : off + len ≤ sp) :
-    base + off + len ≤ base + sp := by
-  rw [Nat.add_assoc]
-  exact Nat.add_le_add_left h _
+    base + off + len ≤ base + sp :=
+  Nat.add_assoc _ _ _ ▸ Nat.add_le_add_left h _
 
 /-- Packed-array safety discharge in the form expected by `realizes_readPackedGen` /
 `realizes_writePackedGen`. -/
@@ -45,21 +44,16 @@ theorem WhpLargeEnv.packed_safe_true {c U V w n_max base off N k idx : ℕ}
     (henv : WhpLargeEnv c U V w n_max w base)
     (hk : k ≤ w) (hidx : idx < N)
     (hseg : off + packedWords N k w ≤ largeSpaceWhp c U V w n_max) :
-    ∃ N', True ∧ 0 < w ∧ k ≤ w ∧ idx < N' ∧ Fits w (base + off + packedWords N' k w) := by
-  obtain ⟨N', _, h2, h3, h4, h5⟩ := henv.packed_safe_of_le hk hidx hseg
-  exact ⟨N', trivial, h2, h3, h4, h5⟩
+    ∃ N', True ∧ 0 < w ∧ k ≤ w ∧ idx < N' ∧ Fits w (base + off + packedWords N' k w) :=
+  (henv.packed_safe_of_le hk hidx hseg).imp fun _ h => ⟨trivial, h.2⟩
 
 /-- Injectivity of row-major index encoding `a * B + b` for `b < B`. -/
 theorem mul_add_inj_right {B a₁ b₁ a₂ b₂ : ℕ} (hb₁ : b₁ < B) (hb₂ : b₂ < B)
     (heq : a₁ * B + b₁ = a₂ * B + b₂) : a₁ = a₂ ∧ b₁ = b₂ := by
-  have hB : 0 < B := by omega
-  have ha : a₁ = a₂ := by
-    have hd1 : (a₁ * B + b₁) / B = a₁ := by
-      rw [Nat.mul_comm a₁ B, Nat.mul_add_div hB, Nat.div_eq_of_lt hb₁, Nat.add_zero]
-    have hd2 : (a₂ * B + b₂) / B = a₂ := by
-      rw [Nat.mul_comm a₂ B, Nat.mul_add_div hB, Nat.div_eq_of_lt hb₂, Nat.add_zero]
-    rw [← hd1, heq, hd2]
-  exact ⟨ha, by subst ha; omega⟩
+  rcases lt_trichotomy a₁ a₂ with h | rfl | h
+  · linarith [Nat.add_mul a₁ 1 B, Nat.mul_le_mul_right B h]
+  · exact ⟨rfl, by omega⟩
+  · linarith [Nat.add_mul a₂ 1 B, Nat.mul_le_mul_right B h]
 
 /-- Congruence for the 10 scalar bucket-metadata fields in `offBktMeta`. -/
 theorem bktMeta_congr_of_readPacked {base c U V w n_max b : ℕ} {fs : FastState}
@@ -232,11 +226,8 @@ theorem fastStep_nonSliceNonBuf {base c U V w n_max : ℕ} {θ : SeedWhp c U n_m
         (3 * qEpochWhp n_max + j) = fs'.dirtyBuckets j) :
     FastStateStep base c U V w n_max θ fs' s s' := by
   have hch := largeOffsetChain c U V w n_max
-  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a := by
-    intro a ha
-    rcases ha with hlt | hge
-    · exact hfence a (Or.inl hlt)
-    · exact hfence a (Or.inr (Or.inr (Or.inr (by omega))))
+  have hout : ∀ a, (a < base ∨ base + largeSpaceWhp c U V w n_max ≤ a) → s'.mem a = s.mem a :=
+    fun a ha => hfence a (ha.elim Or.inl fun _ => Or.inr (Or.inr (Or.inr (by omega))))
   have hseed' : SeedWhpMemRep base c U w n_max θ s'.mem :=
     hseed.congr_hash hw fun a ha1 ha2 =>
       (hfence a (Or.inr (Or.inl ⟨by dsimp [offHashBkt] at ha1; omega, ha2⟩))).symm

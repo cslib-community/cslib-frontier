@@ -197,8 +197,7 @@ private theorem check_iff (C l : List (List ℕ)) (hl : l.Nodup) :
       ∀ u ∈ C.flatten, (l.toFinset.filter (u ∈ ·)).card = 1 := by
   simp only [check, Bool.and_eq_true, List.all_eq_true, isTriple_iff, beq_iff_eq]
   refine and_congr Iff.rfl (forall₂_congr fun u _ => ?_)
-  rw [← List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S)), List.toFinset_filter]
-  simp
+  simp [← List.toFinset_card_of_nodup (hl.filter fun S => decide (u ∈ S)), List.toFinset_filter]
 
 /-! ### The shape of the reduced instance -/
 
@@ -211,10 +210,8 @@ private theorem mem_windows {m k : ℕ} {W : List ℕ} :
 private theorem window_props {m k i : ℕ} (h : i + k ≤ 2 * m) :
     ((List.range k).map (m + i + ·)).length = k ∧ ((List.range k).map (m + i + ·)).Nodup ∧
       ∀ d ∈ (List.range k).map (m + i + ·), m ≤ d ∧ d < 3 * m := by
-  refine ⟨by simp, List.nodup_range.map fun a b hab => by simpa using hab, fun d hd => ?_⟩
-  obtain ⟨a, ha, rfl⟩ := List.mem_map.mp hd
-  have := List.mem_range.mp ha
-  omega
+  refine ⟨by simp, List.nodup_range.map fun a b hab => by simpa using hab,
+    List.forall_mem_map.mpr fun a ha => by have := List.mem_range.mp ha; omega⟩
 
 private theorem mem_occ {φ : CNF ℕ} {v j : ℕ} :
     j ∈ occ φ v ↔ j < φ.length ∧ v ∈ (φ.getD j []).map Prod.fst := by
@@ -244,9 +241,7 @@ private theorem append_range_mem_gadget {m off : ℕ} {O : List ℕ} (h₁ : 1 �
   unfold gadget
   by_cases h : O.length = 3
   · simp [h]
-  · have h₁₂ : (O.length == 1 || O.length == 2) = true := by
-      simp only [Bool.or_eq_true, beq_iff_eq]
-      omega
+  · have h₁₂ : (O.length == 1 || O.length == 2) = true := by simp [beq_iff_eq]; omega
     have := hoff (3 - O.length - 1) (by omega)
     simp only [beq_eq_false_iff_ne.mpr h, h₁₂, Bool.false_eq_true, ↓reduceIte]
     exact List.mem_map.mpr ⟨_, mem_windows.mpr ⟨off, by omega, rfl⟩, rfl⟩
@@ -260,8 +255,7 @@ private theorem length_filter_range_getD {α : Type*} (l : List α) (d : α) (p 
   | cons a l ih =>
     rw [List.length_cons, List.range_succ_eq_map, List.filter_cons, List.filter_map,
       List.countP_cons, ← ih]
-    simp only [List.getD_cons_zero, Function.comp_def, List.getD_cons_succ]
-    split <;> simp
+    by_cases hp : p a <;> simp [hp, Function.comp_def]
 
 private theorem vars_cons (c : Clause ℕ) (φ : CNF ℕ) :
     CNF.vars (c :: φ) = c.map Prod.fst ++ φ.vars := by
@@ -509,14 +503,11 @@ theorem mem_of_oneSatisfiable {φ : CNF ℕ}
     exact (List.existsUnique_mem_of_countP_eq_one (hone j hj)).unique ⟨hu', ((hT u).mp hu).2⟩
       ⟨hv', ((hT v).mp hv).2⟩
   have hOs_mem : ∀ j, j ∈ Os.flatten ↔ j < m := fun j => by
-    refine ⟨fun h => ?_, fun hj => ?_⟩
-    · obtain ⟨O, hO, hjO⟩ := List.mem_flatten.mp h
-      obtain ⟨v, -, rfl⟩ := List.mem_map.mp hO
-      exact (hmemj hjO).1
-    · obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
-      exact List.mem_flatten.mpr ⟨occ φ v, List.mem_map.mpr
-        ⟨v, (hT v).mpr ⟨mem_vars.mpr ⟨_, List.getElem_mem hj, hv⟩, hσv⟩, rfl⟩,
-        mem_occ_of_mem hj hv⟩
+    simp only [Os, List.mem_flatten, List.mem_map]
+    refine ⟨fun ⟨_, ⟨v, _, rfl⟩, hjv⟩ => (hmemj hjv).1, fun hj => ?_⟩
+    obtain ⟨v, hv, hσv⟩ := List.countP_pos_iff.mp (by rw [hone j hj]; omega)
+    exact ⟨_, ⟨v, (hT v).mpr ⟨mem_vars.mpr ⟨_, List.getElem_mem hj, hv⟩, hσv⟩, rfl⟩,
+      mem_occ_of_mem hj hv⟩
   have hperm_O : Os.flatten.Perm (List.range m) :=
     (List.perm_ext_iff_of_nodup hOs_nodup List.nodup_range).mpr fun j => by
       rw [hOs_mem, List.mem_range]

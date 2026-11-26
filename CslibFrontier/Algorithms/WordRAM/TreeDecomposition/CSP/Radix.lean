@@ -389,11 +389,10 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
     rw [iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step']
-      exact hr_rem
-    · rw [memoryCost_bind', hst_step, hres_step', Nat.succ_mul, Nat.add_comm _ stepCost]
-      exact Nat.add_le_add hc_step hc_rem
+    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step']),
+      by rwa [StateTransitionSpec.clientResult_bind, hst_step, hres_step'], ?_⟩
+    rw [memoryCost_bind', hst_step, hres_step', Nat.succ_mul, Nat.add_comm _ stepCost]
+    exact Nat.add_le_add hc_step hc_rem
 
 /-- Exact-basis Word-RAM realization certificate for `radixProjProg`. -/
 theorem radixProjProg_realizes :
@@ -412,33 +411,27 @@ theorem radixProjProg_realizes :
       j ≤ d.dstLen ∧ st.remIdx = j ∧ st.acc < d.q ^ (d.dstLen - j))
     (fun j st m ⟨hj_le, hrem_eq, hacc_lt⟩ => ?_)
     ⟨le_rfl, rfl, by simp only [Nat.sub_self, Nat.pow_zero]; exact Nat.zero_lt_one⟩
-  have hst_eta : st = ⟨j + 1, st.acc⟩ := by rw [← hrem_eq]
-  rw [hst_eta]
-  have hnext_lt : ∀ v, v % d.q + d.q * st.acc < d.q ^ (d.dstLen - j) :=
+  rcases st with ⟨_, acc⟩
+  subst hrem_eq
+  have hnext_lt : ∀ v, v % d.q + d.q * acc < d.q ^ (d.dstLen - j) :=
     horner_step_lt hq_pos hj_le hacc_lt
   have hpow_le : d.q ^ (d.dstLen - j) ≤ d.q ^ d.dstLen :=
     Nat.pow_le_pow_right hq_pos (Nat.sub_le _ _)
-  have hlk_safe :
-      0 < d.q ∧ Fits w 1 ∧ Fits w d.q ∧ Fits w d.srcM ∧ Fits w (d.srcPtr + d.srcLen) :=
-    ⟨hq_pos, h1, hfit_q, hfit_srcM, hfit_src⟩
   have h1_le : 1 ≤ j + 1 := by omega
   have hfit_sub : Fits w (j + 1 - 1) := hfit_dst.of_le (by omega)
   have hfit_addr : Fits w (d.dstPtr + (j + 1 - 1)) := hfit_dst.of_le (by omega)
   have hq_ne : d.q ≠ 0 := by omega
-  have hfit_next (v : ℕ) : Fits w (v % d.q + d.q * st.acc) :=
+  have hfit_next (v : ℕ) : Fits w (v % d.q + d.q * acc) :=
     hfit_pow.of_le (le_of_lt ((hnext_lt v).trans_le hpow_le))
-  have hfit_mul : Fits w (d.q * st.acc) := by simpa using hfit_next 0
-  have hfit_upd : Fits w (d.updVal % d.q + d.q * st.acc) := hfit_next d.updVal
-  let lkVal := (Memory.spec 0).clientResult m
-    (lookupRadixProg ⟨d.q, d.srcPtr, d.srcLen, d.srcM, m.mem (d.dstPtr + (j + 1 - 1))⟩)
-  have hfit_lk : Fits w (lkVal % d.q + d.q * st.acc) := hfit_next lkVal
-  obtain ⟨_, hres_ev⟩ := radixProjStep_eval d ⟨j + 1, st.acc⟩ m
+  have hfit_mul : Fits w (d.q * acc) := by simpa using hfit_next 0
+  obtain ⟨_, hres_ev⟩ := radixProjStep_eval d ⟨j + 1, acc⟩ m
   refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_⟩
   · dsimp only [radixProjStep]
     repeat (
       first
       | split
-      | exact hlk_safe
+      | exact ⟨hq_pos, h1, hfit_q, hfit_srcM, hfit_src⟩
+      | exact hfit_next _
       | assumption
       | refine And.intro ?_ ?_)
   · rw [hres_ev]; exact Nat.add_sub_cancel j 1

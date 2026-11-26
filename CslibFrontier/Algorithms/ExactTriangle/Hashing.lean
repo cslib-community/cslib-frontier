@@ -80,8 +80,7 @@ def equivProd : Triangle n ≃ Fin n × Fin n × Fin n where
 /-- There are `n ^ 3` vertex triples. -/
 @[simp]
 theorem card : Fintype.card (Triangle n) = n ^ 3 := by
-  rw [Fintype.card_congr equivProd]
-  simp [pow_succ, Nat.mul_assoc]
+  simp [Fintype.card_congr equivProd, pow_succ, Nat.mul_assoc]
 
 /-- A sum over all vertex triples is an iterated sum over the three parts. -/
 theorem sum_eq {M : Type*} [AddCommMonoid M] (f : Triangle n → M) :
@@ -364,9 +363,7 @@ theorem falsePositiveCount_le_of_le_card_sqrtPrimeWindow {n D p : ℕ} {κ c : �
   have changeBase : Real.logb (r / 2) Y ≤ 4 * Real.log Y / Real.log D := by
     rw [Real.logb, div_le_div_iff₀ (Real.log_pos (by linarith)) hlogD_pos]
     linarith [mul_le_mul_of_nonneg_left (log_le_four_mul_log_sqrt_div_two D hD) hlogY_nonneg]
-  have hrhs : 4 / c * ((n : ℝ) ^ 3 * Real.log Y / r) =
-      4 * (n : ℝ) ^ 3 * Real.log Y / (c * r) := by ring
-  rw [hrhs, le_div_iff₀ (by positivity)]
+  rw [div_mul_div_comm, ← mul_assoc 4, le_div_iff₀ (mul_pos hc (zero_lt_four.trans_le hr))]
   calc ((falsePositiveCount wAB wBC wAC) p : ℝ) * (c * r) = (falsePositiveCount wAB wBC wAC) p *
       (c * (r / Real.log D)) * Real.log D := by field_simp
     _ ≤ (falsePositiveCount wAB wBC wAC) p * numPrimes * Real.log D := by gcongr
@@ -399,9 +396,8 @@ theorem exists_falsePositiveCount_le :
           hc (hcard D hD) hD hDn hκ hT hp
     _ ≤ 4 / c * ((n : ℝ) ^ 3 * (2 * κ * Real.log n) / Real.sqrt D) := by gcongr
     _ = 8 / c * (κ * (n : ℝ) ^ 3 * Real.log n / Real.sqrt D) := by ring
-    _ ≤ max 1 (8 / c) * (κ * (n : ℝ) ^ 3 * Real.log n / Real.sqrt D) := by
-        gcongr
-        exact le_max_right _ _
+    _ ≤ max 1 (8 / c) * (κ * (n : ℝ) ^ 3 * Real.log n / Real.sqrt D) :=
+        mul_le_mul_of_nonneg_right (le_max_right _ _) (by positivity)
 
 /-- A universal real constant witnessing `exists_falsePositiveCount_le`. It depends on none of the
 input dimensions, weight matrices, exponent or selected prime, and is at least one.

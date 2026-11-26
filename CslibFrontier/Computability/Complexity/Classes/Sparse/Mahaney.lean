@@ -150,8 +150,7 @@ theorem stage_sublist : ∀ l : List α, (stage label t l).Sublist l
     have h := List.eraseDupsBy_sublist (r := fun b b' => decide (label a b = label a b')) rest
     rw [stage]
     split
-    · exact h.cons a
-    · exact h.cons_cons a
+    exacts [h.cons a, h.cons_cons a]
 
 theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (t + 1) (l.length - 1)
   | [] => Nat.zero_le _
@@ -164,9 +163,7 @@ theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (t +
 theorem iterate_stage_sublist (i : ℕ) (l : List α) : ((stage label t)^[i] l).Sublist l := by
   induction i with
   | zero => exact .refl l
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    exact (stage_sublist _).trans ih
+  | succ i ih => exact Function.iterate_succ_apply' _ i l ▸ (stage_sublist _).trans ih
 
 theorem length_iterate_stage_le (i : ℕ) (l : List α) :
     ((stage label t)^[i] l).length ≤ max (t + 1) (l.length - i) := by
@@ -262,10 +259,9 @@ private theorem exists_mem_prune (hkey : ∀ ψ, ψ ∈ SAT ↔ key ψ ∈ K)
     {l : List (List (Literal ℕ))} (hM : ∀ a ∈ l, ∀ b ∈ l, (key (disj φ a b)).length ≤ M)
     (h : ∃ a ∈ l, units a ++ φ ∈ SAT) :
     ∃ a ∈ prune (fun a b => key (disj φ a b)) t l, units a ++ φ ∈ SAT := by
-  suffices ∀ i, ∃ a ∈ (stage (fun a b => key (disj φ a b)) t)^[i] l, units a ++ φ ∈ SAT from
-    this _
-  intro i
-  induction i with
+  rw [prune]
+  generalize l.length = n
+  induction n with
   | zero => exact h
   | succ i ih =>
     have hsub := (iterate_stage_sublist (label := fun a b => key (disj φ a b)) (t := t) i l).subset
@@ -311,8 +307,7 @@ private theorem computableInPolyTime_stage {key : CNF ℕ → List Bool}
       (fun r : (CNF ℕ × ℕ) × List (List (Literal ℕ)) =>
         stage (fun a b => key (disj r.1.1 a b)) r.1.2 r.2)
       (encPair (encPair encCNF encUnary) encNodes) encNodes := by
-  simp only [stage_eq]
-  unfold disj
+  simp only [stage_eq, disj]
   fun_prop
 
 /-- **A level pruned in stages is polynomial-time.** Expanding the nodes by an occurrence, then
@@ -379,10 +374,9 @@ theorem length_encCNF_disj_le {φ : CNF ℕ} {a b : List (Literal ℕ)} (ha : �
   have hcross := length_encList_le _ _ hclause
   simp only [List.length_flatMap, List.length_map, List.map_const', List.sum_replicate,
     smul_eq_mul] at hcross
-  have h16 : 2 * (8 * (encCNF φ).length + 10) + 1 = 16 * (encCNF φ).length + 21 := by omega
-  rw [h16] at hcross
   rw [disj, length_encCNF_append]
-  dsimp only [encCNF] at hcross ⊢; omega
+  dsimp only [encCNF] at hcross ⊢
+  ring_nf at hcross ⊢; omega
 
 /-- **If `SAT` reduces to a sparse problem, then `SAT` is in `P`**, decided by Agrawal's
 procedure [Grochow, Theorem 2.1][Grochow2016]. The labels are the encoded images of the

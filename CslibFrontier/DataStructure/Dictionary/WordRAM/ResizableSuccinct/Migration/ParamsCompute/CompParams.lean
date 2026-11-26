@@ -53,10 +53,12 @@ private theorem packedWords_eq_wordOffset_add {len k w : ℕ} (hw : 0 < w) :
   set B := bitOffset k w len
   split_ifs with hB0
   · have heq : W * w + B + w - 1 = (w - 1) + W * w := by omega
-    rw [heq, Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : w - 1 < w), Nat.zero_add]
+    rw [heq, Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (Nat.sub_lt hw zero_lt_one),
+      Nat.zero_add]
   · have heq : W * w + B + w - 1 = (B - 1) + (W + 1) * w := by
       rw [Nat.add_one_mul]; omega
-    rw [heq, Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt (by omega : B - 1 < w), Nat.zero_add]
+    have hB_lt : B - 1 < w := (Nat.sub_lt (Nat.pos_of_ne_zero hB0) zero_lt_one).trans hb_lt
+    rw [heq, Nat.add_mul_div_right _ _ hw, Nat.div_eq_of_lt hB_lt, Nat.zero_add]
 
 private def compPackedWordsProg : (ℕ × ℕ) × ℕ → Memory.Prog ℕ
   | ((len, k), wVal) => do
@@ -216,10 +218,7 @@ private theorem realizesBounded_computeMetaWords :
       (WordEncoding.encode (α := Tup4 × Tup4))
       (WordEncoding.encode (α := Tup3))
       ComputeMetaWordsPre (fun _ _ => 0) := by
-  have hms := realizesBounded_maxSlabs
-  have hifz := realizesBounded_ifEqZero
-  have hpw := realizesBounded_compPackedWords
-  realize
+  realize [realizesBounded_maxSlabs, realizesBounded_ifEqZero, realizesBounded_compPackedWords]
   all_goals (
     rcases d with ⟨⟨⟨wVal, N⟩, ⟨bBits, lmBits⟩⟩, ⟨⟨logN, sSize⟩, ⟨maxTail, gmSlabMeta⟩⟩⟩
     obtain ⟨U, dstMetaBase, hw, hN, hNU, hU, hwVal, rfl, rfl, rfl, rfl, rfl, rfl, hfit_dst⟩ := h
@@ -320,8 +319,7 @@ private theorem realizesBounded_writeCompSubA :
     RealizesBounded .exact writeCompSubAProg
       (WordEncoding.encode (α := Tup4 × Tup3)) (WordEncoding.encode (α := ℕ))
       WriteCompSubAPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨⟨⟨cpBase, wVal⟩, ⟨N, qBitsVal⟩⟩, ⟨vBits, ⟨hSpace, lmSubW⟩⟩⟩
     obtain ⟨U, V, dstMetaBase, hw, hN, hNU, hU, _hV, rfl, hwVal, rfl, rfl, rfl, rfl,
@@ -400,8 +398,7 @@ private theorem realizesBounded_writeCompSubB :
     RealizesBounded .exact writeCompSubBProg
       (WordEncoding.encode (α := Tup4)) (WordEncoding.encode (α := ℕ))
       WriteCompSubBPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨⟨cpBase, off3⟩, ⟨lmSubW, lmBits⟩⟩
     obtain ⟨U, V, dstMetaBase, N, hw, hN, hNU, hU, _hV, rfl, rfl, rfl, rfl, h63, hfit_dst⟩ := h
@@ -476,8 +473,7 @@ private theorem realizesBounded_writeCompSubC :
     RealizesBounded .exact writeCompSubCProg
       (WordEncoding.encode (α := Tup4 × Tup4)) (WordEncoding.encode (α := ℕ))
       WriteCompSubCPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨⟨⟨cpBase, offGM⟩, ⟨gmWords, tailWords⟩⟩, ⟨⟨logN, maxTail⟩, ⟨bBits, sSize⟩⟩⟩
     obtain ⟨U, V, dstMetaBase, N, hw, hN, hNU, hU, _hV, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
@@ -561,9 +557,7 @@ private theorem realizesBounded_writeCompSubD :
     RealizesBounded .exact writeCompSubDProg
       (WordEncoding.encode (α := Tup4 × Tup4)) (WordEncoding.encode (α := Unit))
       WriteCompSubDPre (fun _ _ => 0) := by
-  have hsub := realizesBounded_subSat
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_subSat, realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨⟨⟨cpBase, sSize⟩, ⟨dirSlabs, tailCap⟩⟩,
       ⟨⟨gmDirBase, gmTailPtr⟩, ⟨gmTailOwn, gmSlabMeta⟩⟩⟩
@@ -622,15 +616,14 @@ private theorem writeCompSubEProg_spec {w U V dstMetaBase N : ℕ} {s : Memory.S
   refine ⟨⟨U, dstMetaBase, N, rfl, h63, hfit_dst⟩, hv, hfr, fun j hj => ?_,
     fun a ha => hframe a (by omega), hc⟩
   obtain ⟨m0, m1, m2, m3⟩ := hm
-  rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 by omega) with rfl | rfl | rfl | rfl <;>
-    [exact m0; exact m1; exact m2; exact m3]
+  rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 by omega) with rfl | rfl | rfl | rfl
+  exacts [m0, m1, m2, m3]
 
 private theorem realizesBounded_writeCompSubE :
     RealizesBounded .exact writeCompSubEProg
       (WordEncoding.encode (α := ℕ × Tup4)) (WordEncoding.encode (α := Unit))
       WriteCompSubEPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨cpBase, ⟨⟨numMicro, minCap⟩, ⟨offItemsVal, hSpace⟩⟩⟩
     obtain ⟨U, dstMetaBase, N, rfl, h63, hfit_dst⟩ := h
@@ -701,10 +694,8 @@ private theorem realizesBounded_writeCompScalesGmD :
       (WordEncoding.encode (α := Tup4))
       (WordEncoding.encode (α := (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × (ℕ × ℕ)))))
       WriteCompScalesGmDPre (fun _ _ => 0) := by
-  have hsc := realizesBounded_computeCompScales
-  have hgm := realizesBounded_computeGmBases
-  have hD := realizesBounded_writeCompSubD
-  realize
+  realize [realizesBounded_computeCompScales, realizesBounded_computeGmBases,
+    realizesBounded_writeCompSubD]
   all_goals (
     rcases d with ⟨⟨dstMetaBase, N⟩, ⟨logN, llf⟩⟩
     obtain ⟨U, hw, hN, hNU, hU, rfl, rfl, h63, hfit_dst⟩ := h
@@ -778,9 +769,7 @@ private theorem realizesBounded_writeCompAB :
     RealizesBounded .exact writeCompABProg
       (WordEncoding.encode (α := Tup4 × Tup4)) (WordEncoding.encode (α := ℕ))
       WriteCompABPre (fun _ _ => 0) := by
-  have hA := realizesBounded_writeCompSubA
-  have hB := realizesBounded_writeCompSubB
-  realize
+  realize [realizesBounded_writeCompSubA, realizesBounded_writeCompSubB]
   all_goals
     rcases d with ⟨⟨⟨cpBase, wVal⟩, ⟨N, qBitsVal⟩⟩, ⟨⟨vBits, hSpace⟩, ⟨lmSubW, lmBits⟩⟩⟩
     obtain ⟨U, V, dstMetaBase, hw, hN, hNU, hU, hV, rfl, hwVal, rfl, rfl, rfl, rfl, rfl,
@@ -893,12 +882,8 @@ theorem realizesBounded_writeCompParamsSub :
       (WordEncoding.encode (α := (ℕ × (ℕ × ℕ)) × ((ℕ × ℕ) × (ℕ × (ℕ × ℕ)))))
       (WordEncoding.encode (α := ℕ))
       WriteCompParamsSubPre (fun _ _ => 0) := by
-  have hD := realizesBounded_writeCompScalesGmD
-  have hmw := realizesBounded_computeMetaWords
-  have hAB := realizesBounded_writeCompAB
-  have hC := realizesBounded_writeCompSubC
-  have hE := realizesBounded_writeCompSubE
-  realize
+  realize [realizesBounded_writeCompScalesGmD, realizesBounded_computeMetaWords,
+    realizesBounded_writeCompAB, realizesBounded_writeCompSubC, realizesBounded_writeCompSubE]
   all_goals (
     rcases d with ⟨⟨dstMetaBase, ⟨wVal, N⟩⟩, ⟨⟨qBitsVal, vBits⟩, ⟨logN, ⟨llf, hSpace⟩⟩⟩⟩
     obtain ⟨U, V, hw, hN, hNU, hU, hV, hwVal, rfl, rfl, rfl, rfl, rfl, h63, hfit_dst⟩ := h

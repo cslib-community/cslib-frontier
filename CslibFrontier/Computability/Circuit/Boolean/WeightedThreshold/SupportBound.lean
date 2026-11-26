@@ -113,18 +113,15 @@ private theorem mem_residualSupport (p : Program signature n g) (F : Finset (Fin
 
 private theorem card_residualSupport_le (p : Program signature n g) (F : Finset (Fin n))
     (gate : Fin g) :
-    (residualSupport p F gate).card ≤ (inputSupport p gate).card := by
-  classical
-  rw [residualSupport, card_subtype]
-  exact card_filter_le _ _
+    (residualSupport p F gate).card ≤ (inputSupport p gate).card :=
+  open scoped Classical in (card_subtype _ _).trans_le (card_filter_le _ _)
 
 private theorem card_filter_inputGates (p : Program signature n g) (P : Fin g → Prop)
     [DecidablePred P] (hP : ∀ gate, P gate → gate ∈ inputGates p) :
     (univ.filter fun gate : inputGates p => P gate.val).card = (univ.filter P).card := by
   classical
   rw [← card_image_of_injective _ Subtype.val_injective]
-  congr 1
-  ext gate
+  refine congrArg card (ext fun gate => ?_)
   simp only [mem_image, mem_filter, mem_univ, true_and]
   exact ⟨fun ⟨_, hj, h⟩ => h ▸ hj, fun hg => ⟨⟨gate, hP gate hg⟩, hg, rfl⟩⟩
 
@@ -317,10 +314,10 @@ theorem two_mul_lt_inputGates_of_inputSupport_card_le_three (p : Program signatu
   have hFR : (F.card : ℝ) ≤ (3 : ℝ) / (T + 1) * (inputGates p).card := by
     rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity : (0 : ℝ) < T + 1)]
     have h' : ((T + 1 : ℕ) : ℝ) * F.card ≤ (3 : ℝ) * (inputGates p).card := mod_cast hF
-    push_cast at h'; nlinarith
-  have hcoeff : (6 : ℝ) / (T + 1) = 2 * (3 / (T + 1)) := by ring
-  rw [hcoeff]
-  nlinarith
+    push_cast at h'
+    nlinarith
+  rw [div_eq_mul_inv] at hFR ⊢
+  linarith
 
 /-- The incidence lower bound for a native single-output threshold circuit whose output
 selects a gate, assuming each gate reads at most three original inputs. -/
@@ -331,10 +328,9 @@ theorem circuit_two_mul_lt_of_inputSupport_card_le_three (c : Circuit signature 
     (hsupport : ∀ gate, (inputSupport c.program gate).card ≤ 3)
     (T : ℕ) (hK : K ≤ 2 ^ k) :
     (2 * n : ℝ) < (3 + 6 / (T + 1 : ℝ)) * (inputGates c.program).card +
-      (max 3 T : ℕ) * (Nat.log 2 (n + (inputGates c.program).card) : ℝ) + 6 * k + 1 := by
-  obtain ⟨gate, hgate⟩ := houtput
-  apply two_mul_lt_inputGates_of_inputSupport_card_le_three
-    c.program (fun z => z gate) ?_ hf hsupport T hK
-  simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes
+      (max 3 T : ℕ) * (Nat.log 2 (n + (inputGates c.program).card) : ℝ) + 6 * k + 1 :=
+  let ⟨gate, hgate⟩ := houtput
+  two_mul_lt_inputGates_of_inputSupport_card_le_three c.program (· gate)
+    (by simpa only [Circuit.eval_of_output_eq_gate hgate] using hcomputes) hf hsupport T hK
 
 end Cslib.Circuits.Boolean.WeightedThreshold

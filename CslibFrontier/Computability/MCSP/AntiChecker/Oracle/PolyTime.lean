@@ -187,9 +187,6 @@ private theorem computableInPolyTime_coverTest :
   have hhash : ComputableInPolyTime (fun r : ((Query × List Bool) × List Bool) × List Bool =>
       hashesTo r.1.1.1.threshold (r.1.1.1.power * certLength r.1.1.1.arity r.1.1.1.size)
         r.1.1.2 r.1.2 r.2) e3 encBool := by
-    have hrange : ComputableInPolyTime (fun r : ((Query × List Bool) × List Bool) × List Bool =>
-        List.range (r.1.1.1.threshold + 1)) e3 (encList encUnary) := by
-      fun_prop
     have h1 := fst e3 encUnary
     have hrow : ComputableInPolyTime
         (fun p : (((Query × List Bool) × List Bool) × List Bool) × ℕ =>
@@ -207,7 +204,7 @@ private theorem computableInPolyTime_coverTest :
       decide_eq' (BitString.LinearHash.computableInPolyTime_wordAffineHash (hu.comp h1) hrow
         (hx.comp h1)) (hz.comp h1)
     unfold hashesTo
-    exact anyWithInput hrange htest
+    exact anyWithInput (by fun_prop) htest
   unfold coverTest
   exact bool_and' hrows hhash
 
@@ -227,8 +224,6 @@ theorem smallSet_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) :
       r.1.1.power * certLength r.1.1.arity r.1.1.size) e2 encUnary := by
     unfold certLength
     fun_prop
-  have hu : ComputableInPolyTime (fun r : Query × List Bool => r.1.threshold) e1 encUnary := by
-    fun_prop
   have hW : ComputableInPolyTime (fun q : Query => (q.threshold + 1) *
       (q.threshold * (q.power * certLength q.arity q.size) + q.threshold)) encQuery encUnary := by
     unfold certLength
@@ -236,7 +231,7 @@ theorem smallSet_mem_PPolyOn (hNP : NP encBits ⊆ PPolyOn encBits) :
   have h2 := PPolyOn.exists_of_computableInPolyTime_length hNP hN
     (P := fun r x => coverTest (r, x) = true)
     (PPolyOn.of_computableInPolyTime computableInPolyTime_coverTest)
-  have h1 := PPolyOn.forall_of_computableInPolyTime_length hNP hu
+  have h1 := PPolyOn.forall_of_computableInPolyTime_length hNP (hthr.comp (fst encQuery encBits))
     (P := fun r z => ∃ x : List Bool, x.length = r.1.power * certLength r.1.arity r.1.size ∧
       coverTest ((r, z), x) = true) h2
   have h0 := PPolyOn.exists_of_computableInPolyTime_length hNP hW

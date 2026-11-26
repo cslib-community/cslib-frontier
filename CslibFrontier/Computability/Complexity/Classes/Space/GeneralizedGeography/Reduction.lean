@@ -166,23 +166,21 @@ theorem mem_formulaArcs :
 theorem mk_topNode_mem_formulaArcs_iff {j : ℕ} :
     (topNode j, w) ∈ formulaArcs xs ψ ↔
       (j < xs.length ∧ ∃ b, w = valueNode j b) ∨ (j = xs.length ∧ w = chooserNode) := by
-  rw [mem_formulaArcs]
-  simp [topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair]
+  simp [mem_formulaArcs, topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair]
 
 theorem mk_valueNode_mem_formulaArcs_iff {j : ℕ} {b : Bool} (hj : j < xs.length) :
     (valueNode j b, w) ∈ formulaArcs xs ψ ↔ w = bottomNode j := by
-  rw [mem_formulaArcs]
-  simp [topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair, hj]
+  simp [mem_formulaArcs, topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair,
+    hj]
 
 theorem mk_bottomNode_mem_formulaArcs_iff {j : ℕ} (hj : j < xs.length) :
     (bottomNode j, w) ∈ formulaArcs xs ψ ↔ w = topNode (j + 1) := by
-  rw [mem_formulaArcs]
-  simp [topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair, hj]
+  simp [mem_formulaArcs, topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair,
+    hj]
 
 theorem mk_chooserNode_mem_formulaArcs_iff :
     (chooserNode, w) ∈ formulaArcs xs ψ ↔ ∃ i < ψ.length, w = clauseNode i := by
-  rw [mem_formulaArcs]
-  simp [topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair]
+  simp [mem_formulaArcs, topNode, valueNode, bottomNode, chooserNode, clauseNode, Nat.pair_eq_pair]
 
 theorem mk_clauseNode_mem_formulaArcs_iff {i : ℕ} :
     (clauseNode i, w) ∈ formulaArcs xs ψ ↔
@@ -277,8 +275,7 @@ private theorem not_geographyWins_valueNode {vis : List ℕ} {j : ℕ} {c : Bool
     (hvis : bottomNode j ∈ vis) : ¬(formulaGraph xs ψ).GeographyWins vis (valueNode j c) := by
   rw [geographyWins_formulaGraph_iff]
   rintro ⟨w, hw, hwvis, -⟩
-  rw [mk_valueNode_mem_formulaArcs_iff hj] at hw
-  exact hwvis (hw ▸ hvis)
+  exact hwvis ((mk_valueNode_mem_formulaArcs_iff hj).1 hw ▸ hvis)
 
 /-- From the node of a clause, with every bottom visited, the first player wins exactly when the
 value node of the negation of some literal of the clause is unvisited. -/
@@ -316,15 +313,14 @@ theorem geographyWins_topNode_length {z : List Bool} (hz : z.length = xs.length)
   rw [geographyWins_formulaGraph_iff]
   constructor
   · rintro ⟨w, hw, -, hlose⟩
-    rcases mk_topNode_mem_formulaArcs_iff.1 hw with ⟨h, -⟩ | ⟨-, rfl⟩
-    · exact absurd h (lt_irrefl _)
+    obtain ⟨-, rfl⟩ := (mk_topNode_mem_formulaArcs_iff.1 hw).resolve_left fun h => lt_irrefl _ h.1
     rw [geographyWins_formulaGraph_iff] at hlose
     simp only [mk_chooserNode_mem_formulaArcs_iff, not_exists, not_and, not_not] at hlose
     refine (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hc
     refine (hclause i hi).1 (hlose _ ⟨i, hi, rfl⟩ ?_)
-    simp only [List.mem_cons, not_or]
-    exact ⟨by simp [clauseNode, chooserNode, Nat.pair_eq_pair], clauseNode_notMem_visOf⟩
+    exact mt List.mem_cons.1
+      (not_or.2 ⟨by simp [clauseNode, chooserNode, Nat.pair_eq_pair], clauseNode_notMem_visOf⟩)
   · intro h
     refine ⟨chooserNode, mk_topNode_mem_formulaArcs_iff.2 (Or.inr ⟨rfl, rfl⟩),
       chooserNode_notMem_visOf, ?_⟩
@@ -359,9 +355,8 @@ theorem geographyWins_topNode_lt {z : List Bool} (hj : z.length < xs.length) :
     tauto
   constructor
   · rintro ⟨w, hw, -, hlose⟩
-    rcases mk_topNode_mem_formulaArcs_iff.1 hw with ⟨-, b, rfl⟩ | ⟨h, -⟩
-    · exact ⟨b, (hstep b).1 hlose⟩
-    · exact absurd h (Nat.ne_of_lt hj)
+    obtain ⟨-, b, rfl⟩ := (mk_topNode_mem_formulaArcs_iff.1 hw).resolve_right fun ⟨h, _⟩ => hj.ne h
+    exact ⟨b, (hstep b).1 hlose⟩
   · rintro ⟨b, h⟩
     exact ⟨valueNode z.length b, mk_topNode_mem_formulaArcs_iff.2 (Or.inl ⟨hj, b, rfl⟩),
       fun h' => by simpa using (valueNode_mem_visOf.1 h').1, (hstep b).2 h⟩
@@ -377,9 +372,7 @@ private theorem geographyWins_topNode (heven : Even xs.length)
           fun z' => ψ.eval (fun x => (z ++ z').getD (lastIdx xs x) false) = true))
   | 0, z, hz => by
     have hz' : z.length = xs.length := by omega
-    obtain ⟨m, hm⟩ := heven
-    have hpar : xs.length % 2 = 0 := by omega
-    simpa [hz', hpar] using geographyWins_topNode_length hz' hvars
+    simpa [hz', Nat.even_iff.1 heven] using geographyWins_topNode_length hz' hvars
   | k + 1, z, hz => by
     have ih (b : Bool) := geographyWins_topNode heven hvars k (z ++ [b])
       (by simp only [List.length_append, List.length_singleton]; omega)
@@ -414,19 +407,17 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
   | _ :: _, [], hz, _, _ => absurd hz (by simp)
   | v :: vs, b :: bs, hz, x, hx => by
     rw [QBF.updates]
-    have hz' : bs.length = vs.length := by simpa using hz
     by_cases hxs : x ∈ vs
-    · rw [updates_eq_getD_lastIdx _ vs bs hz' x hxs, lastIdx, lastIdx, List.reverse_cons,
-        List.idxOf_append_of_mem (List.mem_reverse.2 hxs), List.length_cons]
+    · rw [updates_eq_getD_lastIdx _ vs bs (Nat.succ.inj hz) x hxs, lastIdx, lastIdx,
+        List.reverse_cons, List.idxOf_append_of_mem (List.mem_reverse.2 hxs), List.length_cons]
       have hlt : vs.reverse.idxOf x < vs.length := by
         simpa using List.idxOf_lt_length_of_mem (List.mem_reverse.2 hxs)
       have hsub : vs.length + 1 - 1 - vs.reverse.idxOf x =
           (vs.length - 1 - vs.reverse.idxOf x) + 1 := by omega
       rw [hsub, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
-      rw [QBF.updates_of_notMem hxs, Function.update_self, lastIdx, List.reverse_cons,
-        List.idxOf_append_of_notMem (by simpa using hxs)]
-      simp
+      simp [QBF.updates_of_notMem hxs, lastIdx,
+        List.idxOf_append_of_notMem (mt List.mem_reverse.1 hxs)]
 
 /-- **The reduction is correct**: the first player wins on the graph of an instance exactly when
 its formula is a true closed formula. -/
@@ -437,22 +428,20 @@ theorem reduce_mem_iff (x : PrenexCNF) :
   split_ifs with hall
   · have hvars : ∀ c ∈ ψ, ∀ l ∈ c, l.1 ∈ QBF.roundVars ps := by
       simpa only [List.all_eq_true, decide_eq_true_eq] using hall
-    have hclosed := (QBF.closed_rounds_ofCNF_iff ps ψ).2 hvars
     have heven : Even (QBF.roundVars ps).length := ⟨ps.length, by rw [QBF.length_roundVars]; ring⟩
     rw [mem_GeneralizedGeography, geographyWins_formulaGraph heven hvars, mk_mem_TQBFCNF,
-      mem_TQBF_iff_of_closed hclosed (fun _ => false),
+      mem_TQBF_iff_of_closed ((QBF.closed_rounds_ofCNF_iff ps ψ).2 hvars) (fun _ => false),
       QBF.eval_rounds_eq_true_iff, ← QBF.length_roundVars]
     refine alternation_congr_of_length fun z hz => ?_
-    rw [sum_replicate_one] at hz
     rw [QBF.eval_ofCNF]
     refine Eq.congr_left (CNF.eval_congr fun v hv => ?_)
     obtain ⟨l, hl, rfl⟩ := List.mem_map.1 hv
     obtain ⟨c, hc, hlc⟩ := List.mem_flatten.1 hl
-    exact (updates_eq_getD_lastIdx _ _ z hz l.1 (hvars c hc l hlc)).symm
+    exact (updates_eq_getD_lastIdx _ _ z
+      (sum_replicate_one (QBF.roundVars ps).length ▸ hz) l.1 (hvars c hc l hlc)).symm
   · refine iff_of_false notMem_GeneralizedGeography_of_nil fun h => hall ?_
-    rw [mk_mem_TQBFCNF] at h
     simpa only [List.all_eq_true, decide_eq_true_eq] using
-      (QBF.closed_rounds_ofCNF_iff ps ψ).1 h.1
+      (QBF.closed_rounds_ofCNF_iff ps ψ).1 (mk_mem_TQBFCNF.mp h).1
 
 /-! ### Polynomial time -/
 
@@ -492,8 +481,7 @@ private theorem computableInPolyTime_diamondArcs {j : γ → ℕ}
     (hj : ComputableInPolyTime j encIn encUnary) :
     ComputableInPolyTime (fun x => diamondArcs (j x)) encIn
       (encList (encPair encNat encNat)) := by
-  unfold diamondArcs
-  fun_prop
+  fun_prop [diamondArcs]
 
 attribute [local fun_prop] computableInPolyTime_diamondArcs
 
@@ -502,8 +490,7 @@ theorem computableInPolyTime_lastIdx {xs : γ → List ℕ} {v : γ → ℕ}
     (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hv : ComputableInPolyTime v encIn encNat) :
     ComputableInPolyTime (fun x => lastIdx (xs x) (v x)) encIn encUnary := by
-  dsimp only [lastIdx]
-  fun_prop
+  fun_prop [lastIdx]
 
 private theorem computableInPolyTime_literalArcs {xs : γ → List ℕ} {i : γ → ℕ}
     {c : γ → Clause ℕ} (hxs : ComputableInPolyTime xs encIn (encList encNat))
@@ -523,19 +510,14 @@ theorem computableInPolyTime_formulaGraph {xs : γ → List ℕ} {ψ : γ → CN
     (hxs : ComputableInPolyTime xs encIn (encList encNat))
     (hψ : ComputableInPolyTime ψ encIn encCNF) :
     ComputableInPolyTime (fun x => formulaGraph (xs x) (ψ x)) encIn encGraph := by
-  dsimp only [formulaGraph, formulaArcs]
-  fun_prop
+  fun_prop [formulaGraph, formulaArcs]
 
 /-- **The reduction is polynomial-time.** -/
 theorem computableInPolyTime_reduce :
     ComputableInPolyTime reduce encPrenexCNF encGeneralizedGeography := by
-  have hmat : ComputableInPolyTime (fun x : PrenexCNF => x.matrix) encPrenexCNF
-      (encList (encList (encPair encNat encBool))) :=
-    encPrenexCNF_matrix_polyTime id'
-  change ComputableInPolyTime (fun x => reduce x) encPrenexCNF encGeneralizedGeography
-  dsimp only [reduce]
+  have hmat := encPrenexCNF_matrix_polyTime id'
+  unfold reduce QBF.roundVars
   simp only [List.decide_mem_eq_any]
-  dsimp only [QBF.roundVars]
   fun_prop
 
 end PolyTime

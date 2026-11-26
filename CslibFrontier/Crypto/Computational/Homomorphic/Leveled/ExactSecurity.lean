@@ -534,8 +534,7 @@ theorem advantage_scheme_le_exactLinkAdversary_add_zeroLinkAdversary {E : Scheme
     (publicKeyGame E adversary true) n width hwidth hcapacity
   have hzFalse := eval_zeroLinkAdversary E (fun n => 2 * budget n) adversary false n width hwidth
   have hzTrue := eval_zeroLinkAdversary E (fun n => 2 * budget n) adversary true n width hwidth
-  have hcast : ((2 * budget n : ℕ) : ℝ≥0) = 2 * budget n := by push_cast; rfl
-  rw [hcast] at h1 h2
+  push_cast at h1 h2
   game_trans
     [ProbComp.eval
        (E.publicKeyChainHybrid n (2 * budget n) 0 >>= publicKeyGame E adversary false n),
@@ -773,20 +772,13 @@ theorem gap_exactLeveledAdversary (E : Scheme) (budget capacity : ℕ → ℕ)
         (exactLeveledAdversary E (fun n => 2 * budget n) capacity adversary) false n)) -
         Game.succProbability (ProbComp.eval (Encryption.game E.keyGen E.encrypt
           (exactLeveledAdversary E (fun n => 2 * budget n) capacity adversary) true n))) := by
-  have hdepth_pos : 0 < 2 * budget n := by omega
   rw [eval_game_keyGen E budget adversary false n, eval_game_keyGen E budget adversary true n]
-  have hlinkFalse := E.publicKeyChainHybrid_gap_exactLinkAdversary (fun n => 2 * budget n) capacity
-    (publicKeyGame E adversary false) n width hwidth hcapacity
-  have hlinkTrue := E.publicKeyChainHybrid_gap_exactLinkAdversary (fun n => 2 * budget n) capacity
-    (publicKeyGame E adversary true) n width hwidth hcapacity
-  have hzeroFalse := eval_zeroLinkAdversary E (fun n => 2 * budget n) adversary false n width hwidth
-  have hzeroTrue := eval_zeroLinkAdversary E (fun n => 2 * budget n) adversary true n width hwidth
-  have hlevFalse := succProbability_exactLeveledAdversary E (fun n => 2 * budget n) capacity
-    adversary false n hdepth_pos hcapacity_pos
-  have hlevTrue := succProbability_exactLeveledAdversary E (fun n => 2 * budget n) capacity
-    adversary true n hdepth_pos hcapacity_pos
-  simp only [Bool.not_false, Bool.not_true, hzeroFalse, hzeroTrue, Nat.cast_mul,
-    Nat.cast_ofNat] at hlevFalse hlevTrue hlinkFalse hlinkTrue
+  have hlink (b : Bool) := E.publicKeyChainHybrid_gap_exactLinkAdversary (fun n => 2 * budget n)
+    capacity (publicKeyGame E adversary b) n width hwidth hcapacity
+  have hlev (b : Bool) := succProbability_exactLeveledAdversary E (fun n => 2 * budget n) capacity
+    adversary b n (Nat.mul_pos zero_lt_two hbudget_pos) hcapacity_pos
+  simp only [Bool.forall_bool, Bool.not_false, Bool.not_true, Nat.cast_mul, Nat.cast_ofNat,
+    eval_zeroLinkAdversary E (fun n => 2 * budget n) adversary _ n width hwidth] at hlink hlev
   linarith
 
 /-- Exact unsigned concrete-security identity for the depth-budgeted scheme `scheme D budget` via

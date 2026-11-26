@@ -72,10 +72,9 @@ def StraddlesOn {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α) (S
 /-- Whether `score` straddles `t` on `S` depends only on the values of `score` on `S`. -/
 theorem straddlesOn_congr {ι α : Type*} [LinearOrder α] {score score' : ι → α} {t : α}
     {S : Set ι} (h : ∀ f ∈ S, score f = score' f) :
-    StraddlesOn score t S ↔ StraddlesOn score' t S := by
-  constructor <;> rintro ⟨⟨f, hf, hlt⟩, ⟨g, hg, hle⟩⟩
-  · exact ⟨⟨f, hf, by rwa [← h f hf]⟩, ⟨g, hg, by rwa [← h g hg]⟩⟩
-  · exact ⟨⟨f, hf, by rwa [h f hf]⟩, ⟨g, hg, by rwa [h g hg]⟩⟩
+    StraddlesOn score t S ↔ StraddlesOn score' t S :=
+  and_congr (exists_congr fun f => and_congr_right fun hf => by rw [h f hf])
+    (exists_congr fun g => and_congr_right fun hg => by rw [h g hg])
 
 namespace Multigraph
 
@@ -113,9 +112,8 @@ theorem exists_isMedian {v : V} (hv : (G.incidenceSet v).ncard = 3) (score : E �
       Set.ext fun e => by simp [hs]
     rw [this, ncard_coe_finset, Finset.card_filter, Finset.sum_insert (by simp [h01, h02]),
       Finset.sum_insert (by simp [h12]), Finset.sum_singleton, add_assoc]
-  obtain ⟨h₁, h₂⟩ := two_le_median3 (score e₀) (score e₁) (score e₂)
-  refine ⟨median3 (score e₀) (score e₁) (score e₂), ?_, ?_⟩ <;> rw [hcount]
-  exacts [h₁, h₂]
+  refine ⟨median3 (score e₀) (score e₁) (score e₂), ?_⟩
+  simpa only [IsMedian, hcount] using two_le_median3 (score e₀) (score e₁) (score e₂)
 
 namespace IsMedian
 
@@ -207,11 +205,9 @@ private theorem ncard_edgeCut_score_lt_le [Finite V] (h3 : ∀ v, (G.incidenceSe
     exact ⟨hv, ⟨e, hev, hlt⟩, ⟨e', he', ht.trans ((hPc _ hv).trans hle)⟩⟩
   · rintro e ⟨he, hlt⟩ e' ⟨he', hlt'⟩ heq
     obtain ⟨hv, hev⟩ := exists_notMem_of_mem_edgeCut he
-    obtain ⟨-, hev'⟩ := exists_notMem_of_mem_edgeCut he'
-    simp only at heq
-    rw [← heq] at hev'
-    exact (hmed _).eq_of_score_lt (h3 _) hev hev' (hlt.trans_le (ht.trans (hPc _ hv)))
-      (hlt'.trans_le (ht.trans (hPc _ hv)))
+    dsimp only at heq
+    exact (hmed _).eq_of_score_lt (h3 _) hev (heq ▸ (exists_notMem_of_mem_edgeCut he').2)
+      (hlt.trans_le (ht.trans (hPc _ hv))) (hlt'.trans_le (ht.trans (hPc _ hv)))
 
 /-- **Charging high edges.** If the medians inside `P` are at most `m`, the edges leaving `P`
 that score at least a threshold `t > m` are no more than the vertices inside `P` with an edge
@@ -228,11 +224,9 @@ private theorem ncard_edgeCut_le_score_le [Finite V] (h3 : ∀ v, (G.incidenceSe
     exact ⟨hu, e, heu, hle⟩
   · rintro e ⟨he, hle⟩ e' ⟨he', hle'⟩ heq
     obtain ⟨hu, heu⟩ := exists_mem_of_mem_edgeCut he
-    obtain ⟨-, heu'⟩ := exists_mem_of_mem_edgeCut he'
-    simp only at heq
-    rw [← heq] at heu'
-    exact (hmed _).eq_of_lt_score (h3 _) heu heu' (((hP _ hu).trans_lt ht).trans_le hle)
-      (((hP _ hu).trans_lt ht).trans_le hle')
+    dsimp only at heq
+    exact (hmed _).eq_of_lt_score (h3 _) heu (heq ▸ (exists_mem_of_mem_edgeCut he').2)
+      (((hP _ hu).trans_lt ht).trans_le hle) (((hP _ hu).trans_lt ht).trans_le hle')
 
 /-- The endpoints of a set of edges number at most twice the edges. -/
 theorem ncard_endpoints_le (F : Set E) :
@@ -272,8 +266,7 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
       exact ⟨e, (hle.trans (hP u hu)).trans_lt hlow, he⟩
     have := ncard_le_add_add (G.edgeCut P) score a a
     have := G.ncard_edgeCut_le_score_le h3 hmed hP hlow
-    have := ncard_le_ncard hU
-    have := G.ncard_endpoints_le {e | score e < a}
+    have := (ncard_le_ncard hU).trans (G.ncard_endpoints_le {e | score e < a})
     have := hsub (· < a)
     have := hempty a
     have hnat : (G.edgeCut P).ncard ≤ 3 * {e | score e < a}.ncard := by omega
@@ -288,8 +281,7 @@ theorem ncard_edgeCut_le_of_isMedian [Finite V] (h3 : ∀ v, (G.incidenceSet v).
       exact ⟨e, htop.trans ((hPc v hv).trans hle), he⟩
     have := ncard_le_add_add (G.edgeCut P) score top top
     have := G.ncard_edgeCut_score_lt_le h3 hmed hPc htop
-    have := ncard_le_ncard hV
-    have := G.ncard_endpoints_le {e | top ≤ score e}
+    have := (ncard_le_ncard hV).trans (G.ncard_endpoints_le {e | top ≤ score e})
     have := hsub (top ≤ ·)
     have := hempty top
     have hnat : (G.edgeCut P).ncard ≤ 3 * {e | top ≤ score e}.ncard := by omega

@@ -160,7 +160,6 @@ private theorem stage2CollisionResetProg_fastStep {c U V w n_max base b : ℕ}
   dsimp only at hcd_res
   have hzh := resetRebScanHdrsProg_fastStep henv (henv.fits_of_le_n_max (by omega))
     hrb.2.2.2.1 hrb.2.2.2.2.1 (cand := fs.rebCandSalt + 1)
-  dsimp only
   unfold stage2CollisionResetProg
   simp only [pure_bind]
   exact weakenCost (bindRead_fastStep hrs_st hrs_res hrs_mc.le hrs_vp
@@ -219,7 +218,6 @@ private theorem stage2SwapRolesProg_fastStep {c U V w n_max base b : ℕ}
     writeBktFieldGenProg_fastStep henv hb (by decide : 2 < 10)
       (by dsimp [FastState.rebRole]; omega) hseed hrep (val := fs.rebRole b) (s := s)
   simp only [setBktField] at hw1_step
-  dsimp only
   unfold stage2SwapRolesProg
   simp only [pure_bind]
   refine ⟨by simp only [clientResult_bind, hro_st, hro_res, clientResult_pure_whp], ?_,
@@ -289,7 +287,6 @@ private theorem stage2SwapCountsProg_fastStep {c U V w n_max base b : ℕ}
   have hw2 := writeBktFieldGenProg_fastStep henv hb (by decide : 3 < 10) hins_le
     hw1.2.2.2.1 hw1.2.2.2.2.1 (val := fs.rebInsCount)
   simp only [setBktField] at hw2
-  dsimp only
   unfold stage2SwapCountsProg
   simp only [pure_bind]
   exact weakenCost (bindRead_fastStep hcd_st hcd_res hcd_mc.le hcd_vp
@@ -357,7 +354,6 @@ private theorem stage2SwapClearOmProg_fastStep {c U V w n_max base b : ℕ}
   have hw8 := writeBktFieldGenProg_fastStep henv hb (by decide : 8 < 10) h1_le
     hsa.2.2.2.1 hsa.2.2.2.2.1 (val := 1)
   simp only [setBktField] at hw8
-  dsimp only
   unfold stage2SwapClearOmProg
   simp only [pure_bind]
   exact weakenCost (bindRead_fastStep hmb_st hmb_res (le_of_eq hmb_mc) hmb_vp
@@ -517,7 +513,6 @@ private theorem stage2SwapPreAdvanceProg_fastStep {c U V w n_max base b omRole :
     hrs1_step.2.1 hrs1_step.2.2.1 (hdrOff := hdrDirtyIdx) (val := fs.dirtyIdx + 1)
   obtain ⟨hzh_mc, hzh_vp, hzh_step⟩ := resetRebScanHdrsProg_fastStep henv
     (Nat.two_pow_pos w) hw_step.2.1 hw_step.2.2.1 (cand := 0)
-  dsimp only
   unfold stage2SwapPreAdvanceProg
   simp only [pure_bind]
   refine ⟨by simp only [clientResult_bind, hdi_st, hdi_res, clientResult_pure_whp], ?_,
@@ -821,7 +816,6 @@ theorem stage2PostScanGenProg_fastStep {c U V w n_max base b : ℕ}
   have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
   obtain ⟨hcl_st, hcl_res, hcl_mc, hcl_vp⟩ :=
     readHdr_large_spec henv (by decide) hh.rebCollision
-  dsimp only
   unfold stage2PostScanGenProg
   simp only [pure_bind]
   unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap; dsimp only

@@ -159,9 +159,9 @@ with probability `P_m = 1/2 - sin(4mθ) / (4m sin 2θ)`, where `sin² θ = t / N
 theorem sum_sin_sq_div (θ : ℝ) {m : ℕ} (hm : 0 < m) (hθ : Real.sin (2 * θ) ≠ 0) :
     (∑ j ∈ range m, Real.sin ((2 * j + 1) * θ) ^ 2) / m =
       1 / 2 - Real.sin (4 * m * θ) / (4 * m * Real.sin (2 * θ)) := by
-  have hcos := two_mul_sin_mul_sum_cos (2 * θ) m
-  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
-  rw [sum_sin_sq_eq, show 4 * (m : ℝ) * θ = 2 * m * (2 * θ) by ring, ← hcos]
+  have hm' : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hm.ne'
+  have h4 : 4 * (m : ℝ) * θ = 2 * m * (2 * θ) := by ring
+  rw [sum_sin_sq_eq, h4, ← two_mul_sin_mul_sum_cos]
   generalize ∑ j ∈ range m, Real.cos ((2 * j + 1) * (2 * θ)) = σ
   field_simp
   ring
@@ -180,27 +180,23 @@ theorem le_sum_sin_sq (θ : ℝ) (m : ℕ) (hθ : 0 < Real.sin (2 * θ)) :
 /-- For `1 ≤ t < N` marked items and `c² N ≤ m²`, the range `m` is at least `c / sin 2θ`. -/
 theorem le_mul_sin_two_mul_searchAngle {t m : ℕ} {c : ℝ} (ht : 1 ≤ t) (htN : t < N) (hc : 0 ≤ c)
     (hm : c ^ 2 * N ≤ m ^ 2) : c ≤ m * Real.sin (2 * searchAngle N t) := by
-  have hN0 : (0 : ℝ) < N := by exact_mod_cast (show 0 < N by omega)
-  have ht1 : (1 : ℝ) ≤ t := by exact_mod_cast ht
+  have hN0 : (0 : ℝ) < N := Nat.cast_pos.mpr (Nat.zero_lt_of_lt (ht.trans_lt htN))
+  have ht1 : (1 : ℝ) ≤ t := Nat.one_le_cast.mpr ht
   have htN1 : (t : ℝ) + 1 ≤ N := by exact_mod_cast htN
   rw [Real.sin_two_mul, sin_searchAngle htN.le, cos_searchAngle]
-  have h1 : (0 : ℝ) ≤ 1 - t / N := by rw [sub_nonneg, div_le_one hN0]; linarith
-  have hab : Real.sqrt (t / N) ^ 2 * Real.sqrt (1 - t / N) ^ 2 = t * (N - t) / N ^ 2 := by
-    rw [Real.sq_sqrt (div_nonneg (Nat.cast_nonneg t) hN0.le), Real.sq_sqrt h1]
-    field_simp
-  set a := Real.sqrt (t / N)
-  set b := Real.sqrt (1 - t / N)
-  have ha : 0 ≤ a := Real.sqrt_nonneg _
-  have hb : 0 ≤ b := Real.sqrt_nonneg _
+  have h1 : (0 : ℝ) ≤ 1 - t / N := sub_nonneg.mpr (div_le_one_of_le₀ (by linarith) hN0.le)
   -- `(m sin 2θ)² = 4 m² t (N - t) / N² ≥ c²`, since `4 t (N - t) ≥ N`.
   have hkey : (N : ℝ) ≤ 4 * t * (N - t) := by nlinarith only [ht1, htN1]
-  have hsq : c ^ 2 ≤ (m * (2 * a * b)) ^ 2 := by
-    rw [show (m * (2 * a * b)) ^ 2 = m ^ 2 * (4 * (a ^ 2 * b ^ 2)) by ring, hab,
-      show (m : ℝ) ^ 2 * (4 * (t * (N - t) / N ^ 2)) = m ^ 2 * (4 * t * (N - t)) / N ^ 2 by ring,
-      le_div_iff₀ (by positivity)]
+  have hsq : c ^ 2 * N ^ 2 ≤
+      (m * (2 * Real.sqrt (t / N) * Real.sqrt (1 - t / N))) ^ 2 * N ^ 2 := by
     calc c ^ 2 * (N : ℝ) ^ 2 = c ^ 2 * N * N := by ring
       _ ≤ (m : ℝ) ^ 2 * (4 * t * (N - t)) := by gcongr
-  exact (pow_le_pow_iff_left₀ hc (by positivity) two_ne_zero).mp hsq
+      _ = (m * (2 * Real.sqrt (t / N) * Real.sqrt (1 - t / N))) ^ 2 * N ^ 2 := by
+        rw [mul_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), Real.sq_sqrt h1]
+        field_simp
+        ring
+  exact (pow_le_pow_iff_left₀ hc (by positivity) two_ne_zero).mp
+    (le_of_mul_le_mul_right hsq (by positivity))
 
 /-! ### Searching with an unknown number of marked items -/
 
@@ -256,10 +252,9 @@ Grover iterations. -/
 theorem sum_regProb_run_randomGrover (hN : 0 < N) {m T : ℕ} (hT : m ≤ T + 1) (x : Fin N → Bool) :
     ∑ i with x i = true, regProb (run (randomGrover N m) (randomGroverInit N m) x T) i =
       (∑ j ∈ range m, Real.sin ((2 * j + 1) * searchAngle N (weight x)) ^ 2) / m := by
-  have hslice : ∀ (j : Fin m) i, regProb (slice j
+  have hslice (j : Fin m) (i : Fin N) : regProb (slice j
       (run (randomGrover N m) (randomGroverInit N m) x T)) i =
         (m : ℝ)⁻¹ * regProb (run (grover N) (uniform N) x j) i := by
-    intro j i
     rw [slice_run_randomGrover hN hT, regProb_smul, regProb_flipCtrl, Complex.norm_real,
       Real.norm_eq_abs, sq_abs, inv_pow, Real.sq_sqrt (Nat.cast_nonneg m)]
   simp only [regProb_eq_sum_slice, hslice]
@@ -294,12 +289,12 @@ theorem le_sum_regProb_run_randomGrover (hN : 0 < N) {m : ℕ} {c : ℝ} (hc : 0
     linarith
   · -- `t = N`: every number of iterations succeeds.
     have hone (j : ℕ) : Real.sin ((2 * j + 1) * searchAngle N (weight x)) ^ 2 = 1 := by
-      rw [htN, searchAngle_self hN, Real.sin_sq,
-        show (2 * (j : ℝ) + 1) * (π / 2) = j * π + π / 2 by ring, Real.cos_add_pi_div_two,
+      have hπ : (2 * (j : ℝ) + 1) * (π / 2) = j * π + π / 2 := by ring
+      rw [htN, searchAngle_self hN, Real.sin_sq, hπ, Real.cos_add_pi_div_two,
         Real.sin_nat_mul_pi]
       ring
     simp only [hone, sum_const, card_range, nsmul_eq_mul, mul_one]
-    have h1 : 1 / 2 - 1 / (4 * c) ≤ 1 := by linarith [show 0 < 1 / (4 * c) by positivity]
+    have h1 : 1 / 2 - 1 / (4 * c) ≤ 1 := (sub_le_self _ (by positivity)).trans (by norm_num)
     calc (1 / 2 - 1 / (4 * c)) * m ≤ 1 * m := by gcongr
       _ = m := one_mul _
 

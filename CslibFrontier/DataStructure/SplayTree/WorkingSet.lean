@@ -83,9 +83,8 @@ private theorem sum_inv_sq_le_of_injOn {β : Type*} {s : Finset β} {g : β → 
 private theorem logb_div_inv_sq {C : ℝ} (hC : 0 < C) (k : ℕ) :
     Real.logb 2 (C / (1 / ((k : ℝ) + 1) ^ 2)) =
       Real.logb 2 C + 2 * Real.logb 2 ((k : ℝ) + 1) := by
-  rw [div_div_eq_mul_div, div_one, Real.logb_mul hC.ne' (by positivity), Real.logb_pow]
-  push_cast
-  ring
+  rw [div_div_eq_mul_div, div_one, Real.logb_mul hC.ne' (by positivity), Real.logb_pow,
+    Nat.cast_ofNat]
 
 /-! ### Static Finger Theorem -/
 
@@ -339,8 +338,7 @@ of keys. -/
 private theorem sum_mtfWeight (l : List α) :
     ∑ y ∈ l.toFinset, mtfWeight l y =
       ∑ k ∈ Finset.range l.toFinset.card, 1 / ((k : ℝ) + 1) ^ 2 := by
-  rw [← image_recencyRank, Finset.sum_image (recencyRank_injOn l)]
-  rfl
+  rw [← image_recencyRank, Finset.sum_image (recencyRank_injOn l)]; rfl
 
 private theorem sum_range_inv_sq_le_two (n : ℕ) :
     ∑ k ∈ Finset.range n, 1 / ((k : ℝ) + 1) ^ 2 ≤ 2 := by
@@ -439,9 +437,8 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
       6 * ((workingSetNumbers xs).map fun k : ℕ => Real.logb 2 ((k : ℝ) + 1)).sum +
       (elements t).card * (1 + 2 * Real.logb 2 (elements t).card) := by
   let R := (elements t).toList
-  have hset : ([] ++ xs ++ R).toFinset = elements t := by
-    ext z
-    simp [R, or_iff_right_iff_imp.mpr (hxs z)]
+  have hset : ([] ++ xs ++ R).toFinset = elements t :=
+    Finset.ext fun z => by simp [R, or_iff_right_iff_imp.mpr (hxs z)]
   have htel := splaySeqTime_mtf_telescoping xs ht hset
   rw [wsAux_nil, sum_map_wsCharge, length_workingSetNumbers] at htel
   obtain ⟨ho_end, he_end⟩ := splaySeq_ordered_and_elements xs ht
@@ -460,12 +457,10 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
       (mtfWeight_pos (xs.reverse ++ [] ++ R)) ho_end)
     rw [← nsmul_eq_mul, ← neg_nsmul, ← Finset.sum_const]
     refine Finset.sum_le_sum fun y hy => ?_
-    have hy' : y ∈ xs.reverse ++ [] ++ R := List.mem_toFinset.mp (hsetₘ.symm ▸ hy)
     have hle_card : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card := by
-      exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy'
+      exact_mod_cast hsetₘ ▸ recencyRank_lt_card (List.mem_toFinset.mp (hsetₘ.symm ▸ hy))
     have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hle_card
-    rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow]
-    push_cast; linarith
+    rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow, Nat.cast_ofNat]; linarith
   linarith
 
 end WorkingSet

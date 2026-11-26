@@ -57,7 +57,6 @@ private theorem parameter_scale_bounds (κ n : ℕ) :
   let B := n + 2
   let L := Nat.log 2 B + 1
   let S := Nat.sqrt B + 1
-  have hB : 2 ≤ B := by dsimp only [B]; omega
   constructor
   · have hm := Cslib.Algorithms.ThreeSum.ChanHe.mPar_shifted_pow_le n κ
     have hu : 1 ≤ S * L ^ 2 := Nat.pos_of_ne_zero (by dsimp only [S, L]; positivity)
@@ -65,6 +64,7 @@ private theorem parameter_scale_bounds (κ n : ℕ) :
         Nat.add_le_add hm hu
       _ = paramFactor κ * S * L ^ 2 := by dsimp only [paramFactor]; ring
   · change (Nat.sqrt B + 1) ^ 2 ≤ 4 * B
+    have hB : 2 ≤ B := Nat.le_add_left 2 n
     nlinarith [Nat.sqrt_le B, Nat.sqrt_le_self B]
 
 /-- The complete root cost at the actual magnitude-derived candidate window. -/
@@ -80,14 +80,12 @@ theorem root_cost_bound (κ n : ℕ) :
   obtain ⟨hmb, hsquare⟩ := parameter_scale_bounds κ n
   change m + 1 ≤ paramFactor κ * S * L ^ 2 at hmb
   change S ^ 2 ≤ 4 * B at hsquare
-  have hcube : S ^ 3 ≤ 4 * B * S := by
-    rw [show S ^ 3 = S ^ 2 * S by ring]
-    exact Nat.mul_le_mul_right S hsquare
+  have hcube : S ^ 3 ≤ 4 * B * S := Nat.pow_succ S 2 ▸ Nat.mul_le_mul_right S hsquare
   have lp {i j : ℕ} (hij : i ≤ j) : L ^ i ≤ L ^ j :=
-    Nat.pow_le_pow_right (by dsimp only [L]; omega) hij
+    Nat.pow_le_pow_right (Nat.succ_pos _) hij
   have hr := Traversal.rootTime_fuel_square_le n (n + 1) m
-  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (by dsimp only [B]; omega)
-  have hlogs : 2 * Nat.log 2 n + 2 ≤ 2 * L := by dsimp only [L]; omega
+  have hlogs : 2 * Nat.log 2 n + 2 ≤ 2 * L :=
+    Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.log_mono_right (Nat.le_add_right n 2))) 2
   calc Traversal.rootTime (Cslib.Algorithms.ThreeSum.ChanHe.fuel n) (n + 1) m (2 * m ^ 2)
       ≤ 70 + 6144 * (2 * L) ^ 5 *
         (B * (paramFactor κ * S * L ^ 2) + (paramFactor κ * S * L ^ 2) ^ 3) := by
@@ -168,10 +166,7 @@ theorem cost_bound (κ n : ℕ) :
   let m := Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * B ^ κ)
   let F := Cslib.Algorithms.ThreeSum.ChanHe.fuel n
   let V := B * S * L ^ 13
-  have hB : 2 ≤ B := by dsimp only [B]; omega
-  have hL : 1 ≤ L := by dsimp only [L]; omega
-  have hS : 1 ≤ S := by dsimp only [S]; omega
-  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (by dsimp only [B]; omega)
+  have hlog : Nat.log 2 n ≤ Nat.log 2 B := Nat.log_mono_right (Nat.le_add_right n 2)
   obtain ⟨hmb, hsquare⟩ := parameter_scale_bounds κ n
   change m + 1 ≤ paramFactor κ * S * L ^ 2 at hmb
   change S ^ 2 ≤ 4 * B at hsquare
@@ -181,7 +176,8 @@ theorem cost_bound (κ n : ℕ) :
     (Traversal.rootTime F (n + 1) m (2 * m ^ 2) + 17) ≤
       (4 * (κ + 3) ^ 2 * (rootCoefficient κ + 17)) * V at hforest
   have hprime : (m + 1) * (7 * m + 15) + 8 ≤ (60 * paramFactor κ ^ 2 + 8) * V :=
-    prime_time_bound B S (paramFactor κ) L m (by omega) hS hL hmb hsquare
+    prime_time_bound B S (paramFactor κ) L m (Nat.succ_pos _) (Nat.succ_pos _) (Nat.succ_pos _)
+      hmb hsquare
   have hfront : Frontend.cost κ n ≤ Frontend.costCoefficient κ * V := frontend_time_bound κ n
   have hheight : Cslib.Algorithms.ThreeSum.ChanHe.height n ≤ Nat.log 2 n + 2 :=
     Nat.clog_le_of_le_pow Nat.lt_two_pow_self.le

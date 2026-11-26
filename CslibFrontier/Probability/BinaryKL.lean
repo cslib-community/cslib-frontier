@@ -115,27 +115,20 @@ theorem choose_mul_pow_mul_exp_binaryKL_le_one {p : ℝ} (hp : p ∈ Icc (0 : �
   · rcases hk.eq_or_lt with rfl | hkm
     · by_cases hk0 : k = 0 <;> simp [hk0]
     · simp [zero_pow (Nat.sub_pos_of_lt hkm).ne']
-  set q : ℝ := k / m with hq
-  have hmq : (m : ℝ) * q = k := by
-    rcases Nat.eq_zero_or_pos m with rfl | hm
-    · simp [Nat.le_zero.1 hk]
-    · rw [hq, mul_div_cancel₀ _ (Nat.cast_ne_zero.2 hm.ne')]
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp [Nat.le_zero.1 hk]
+  set q : ℝ := k / m
+  have hm0 : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hm.ne'
+  have hmq : (m : ℝ) * q = k := mul_div_cancel₀ _ hm0
   have hmq' : (m : ℝ) * (1 - q) = ((m - k : ℕ) : ℝ) := by
     rw [Nat.cast_sub hk, mul_one_sub, hmq]
-  have hq0 : 0 ≤ q := by positivity
-  have hq1 : q ≤ 1 := by
-    rcases Nat.eq_zero_or_pos m with rfl | hm
-    · simp [hq]
-    · rw [hq, div_le_one (Nat.cast_pos.2 hm)]; exact_mod_cast hk
+  have hq1 : q ≤ 1 := (div_le_one (Nat.cast_pos.2 hm)).2 (mod_cast hk)
+  have h1q : 1 - q = ((m - k : ℕ) : ℝ) / m := (eq_div_iff hm0).2 (by linarith)
   have hexp : Real.exp (m * binaryKL q p) = (q / p) ^ k * ((1 - q) / (1 - p)) ^ (m - k) := by
     rw [binaryKL_eq_mul_log hp0 hp1, mul_add, ← mul_assoc, ← mul_assoc, hmq, hmq',
       Real.exp_add, exp_mul_log_eq_pow, exp_mul_log_eq_pow]
-    · exact (Nat.eq_zero_or_pos (m - k)).symm.imp (fun h => div_pos
-        (pos_of_mul_pos_right (hmq'.symm ▸ Nat.cast_pos.2 h) (Nat.cast_nonneg m)) (sub_pos.2 hp1))
-        id
-    · exact (Nat.eq_zero_or_pos k).symm.imp
-        (fun h => div_pos (pos_of_mul_pos_right (hmq.symm ▸ Nat.cast_pos.2 h) (Nat.cast_nonneg m))
-          hp0) id
+    · exact (Nat.eq_zero_or_pos (m - k)).symm.imp (fun h => by rw [h1q]; positivity) id
+    · exact (Nat.eq_zero_or_pos k).symm.imp (fun h => by positivity) id
   have hterm : (m.choose k : ℝ) * p ^ k * (1 - p) ^ (m - k) * Real.exp (m * binaryKL q p) =
       m.choose k * q ^ k * (1 - q) ^ (m - k) := by
     rw [hexp]

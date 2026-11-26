@@ -506,7 +506,9 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
       (hfit_peak.of_le (by dsimp only [LB]; omega))
   dsimp only at hr_er hfr_er hc_er
   let s₁ := (Memory.spec 0).clientState s (eraseBagProg ⟨a.v, cBagPtr, cBagLen⟩)
-  have hs₁_fr_pos : 0 < s₁.frontier := by rw [hfr_er]; have := hchild.desc_hi; omega
+  have hs₁_fr_pos : 0 < s₁.frontier := by
+    rw [hfr_er]
+    omega
   obtain ⟨hv_pw, hst_pw, hr_pw, hc_pw⟩ := powProg_spec (w := w) ⟨a.q, bagLen⟩ hs₁_fr_pos
   dsimp only at hr_pw hc_pw
   let tblLen := a.q ^ bagLen
@@ -515,12 +517,9 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
   let s₂ := (Memory.spec 0).clientState s₁ (Memory.allocDirty tblLen)
   have hp₂ : PreservesBelow tblPtr s₁ s₂ := preservesBelow_allocDirty s₁ tblLen
   have hfit_fr₂ : Fits w (s₁.frontier + tblLen) := by
-    rw [hfr_er]; exact hfit_peak.of_le (by dsimp only [LB, tblLen, bagLen]; omega)
-  have hv₂ : (Memory.spec w).ValidHistory s₁
-      ((Memory.spec w).clientHistory s₁ (Memory.allocDirty tblLen)) :=
-    validHistory_allocDirty hfit_fr₂
-  have hp_s_s₂ : PreservesBelow bagPtr s s₂ :=
-    hp_er.trans (hp₂.mono_bound hs_tbl)
+    rw [hfr_er]
+    exact hfit_peak.of_le (by dsimp only [LB, tblLen, bagLen]; omega)
+  have hp_s_s₂ : PreservesBelow bagPtr s s₂ := hp_er.trans (hp₂.mono_bound hs_tbl)
   obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
     bagMemProg_spec (w := w) ⟨a.v, a.varsPtr, a.varsLen⟩ (hvars.mono_frontier hp_s_s₂) hvars_len
   dsimp only at hr_bm hc_bm
@@ -541,15 +540,13 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
       ((length_dpInstTree counting a.q cs vars child ▸ hchild.tbl_holds.1).trans hs_tbl)
       rfl le_rfl hfit_cap
   let s₃ := (Memory.spec 0).clientState s₂ (forgetFillProg fillArgs)
-  have hs₃_fr : s₃.frontier = tblPtr + tblLen := hfr_fill
-  have hp_s_s₃ : PreservesBelow bagPtr s s₃ :=
-    hp_s_s₂.trans (hp_fill.mono_bound hs_tbl)
+  have hp_s_s₃ : PreservesBelow bagPtr s s₃ := hp_s_s₂.trans (hp_fill.mono_bound hs_tbl)
   have hLB_s₃ : HoldsIn bagPtr LB s₃ :=
     (hLB_s₁.mono_frontier hp₂).mono (F := tblPtr)
       (by dsimp only [tblPtr, bagPtr, LB]; rw [hfr_er]) hp_fill
   have hFlo_tbl : F_lo ≤ tblPtr := hFlo.trans hs_tbl
   have hd_s₃ : a.dCur + 4 ≤ s₃.frontier :=
-    (hdCur.trans hFlo_tbl).trans (hs₃_fr ▸ Nat.le_add_right _ _)
+    (hdCur.trans hFlo_tbl).trans (hfr_fill ▸ Nat.le_add_right _ _)
   have hfit_bt : Fits w (s.frontier + bagLen + tblLen) := hfr_er ▸ hfit_fr₂
   obtain ⟨hv_wd, hfr_wd, hframe_wd, hm0, hm1, hm2, hm3, hc_wd⟩ :=
     writeDescProg_spec (w := w) ⟨a.dCur, bagPtr, bagLen, tblPtr, tblLen⟩ hd_s₃
@@ -576,11 +573,14 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
     rw [hr_er]
     refine validHistory_bind_step hv_pw ?_
     rw [hst_pw, hr_pw]
-    refine validHistory_bind_step hv₂ (validHistory_bind_step hv_bm ?_)
+    refine validHistory_bind_step (validHistory_allocDirty hfit_fr₂)
+      (validHistory_bind_step hv_bm ?_)
     rw [hst_bm, hr_bm, ite_pure_do]
     exact validHistory_bind_step hv_fill hv_wd
-  · rw [hsEnd_eq, hfr_wd, hs₃_fr]
-    dsimp only [tblPtr, s₁, tblLen, bagLen, LB]; omega
+  · rw [hsEnd_eq, hfr_wd, hfr_fill]
+    dsimp only [s₂]
+    rw [clientState_allocDirty, hfr_er]
+    exact (Nat.add_assoc _ _ _).le
   · rw [hsEnd_eq]
     exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₃).trans hframe_wd
   · rw [hsEnd_eq]
@@ -646,8 +646,8 @@ theorem forgetNodeProg_realizes :
     have hp_all : PreservesBelow s.frontier s s₂ :=
       hp_er.trans (hp₂.mono_bound (by rw [hfr_er]; omega))
     have hc_bag := hch.bag_holds.1
-    have hc_tbl := hch.tbl_holds.1
-    rw [length_dpInstTree] at hc_tbl
+    have hc_tbl : s.mem (d.dChild + 2) + d.q ^ (bagList child).length ≤ s.frontier :=
+      length_dpInstTree counting d.q cs vars child ▸ hch.tbl_holds.1
     let cCap := if counting then d.q ^ child.size else 1
     have hex_er : ∃ xs : List ℕ,
         HoldsIn (s.mem d.dChild) xs s ∧
@@ -665,15 +665,11 @@ theorem forgetNodeProg_realizes :
           cTbl.length = d.q ^ (bagList child).length ∧
           (∀ x ∈ cTbl, x ≤ cCap') ∧
           (d.mode = 1 → Fits w (dLim * cCap')) := by
-      refine ⟨dpInstTree counting d.q cs vars child, cCap,
-        by rw [hfr_er]; omega,
-        hch.tbl_holds.mono_frontier hp_all,
-        length_dpInstTree _ _ _ _ _,
-        mem_dpInstTree_le counting hq cs vars child,
-        fun hm1 => ?_⟩
-      rw [hmode] at hm1
+      refine ⟨dpInstTree counting d.q cs vars child, cCap, by rw [hfr_er]; omega,
+        hch.tbl_holds.mono_frontier hp_all, length_dpInstTree _ _ _ _ _,
+        mem_dpInstTree_le counting hq cs vars child, fun hm1 => ?_⟩
       cases counting
-      · simp at hm1
+      · exact absurd hm1 (by simp [hmode])
       · simp only [↓reduceIte, NiceTree.size_forget, Nat.pow_succ, Nat.mul_comm] at hfit_cap
         exact hfit_cap.of_le (Nat.mul_le_mul_right _ hdLim_le)
     repeat (

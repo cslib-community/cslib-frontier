@@ -128,12 +128,9 @@ theorem successor_spec {d : ℕ} {t : Tree d} (ht : t.Valid) (x : ℕ) :
                 · exact ⟨le_rfl, fun _ => hs.2.2 a ha hlow⟩
             · rw [ite_eq_right hc]
               have hlater : ∀ j a, (c j).Contains a →
-                  x < j.val * universeSize d + a → i.val < j.val := by
-                intro j a ha hxa
-                rcases cluster_lt_split ((ht.2.2.1 j).contains_lt ha)
-                    (hx ▸ hxa) with hlt | ⟨rfl, hlow⟩
-                · exact hlt
-                · exact (hc ((maximum_any_iff hv).mpr ⟨a, ha, hlow⟩)).elim
+                  x < j.val * universeSize d + a → i.val < j.val := fun j a ha hxa =>
+                (cluster_lt_split ((ht.2.2.1 j).contains_lt ha) (hx ▸ hxa)).elim id
+                  fun ⟨rfl, hlow⟩ => (hc ((maximum_any_iff hv).mpr ⟨a, ha, hlow⟩)).elim
               have hs := ih ht.2.1 i.val
               cases hsuc : s.successor i.val with
               | none =>
@@ -187,10 +184,9 @@ theorem successor_isSome_of_lt_max {d m M query : ℕ} {tree : Tree d}
     ∃ ans < universeSize d, tree.successor query = some ans := by
   cases hs : tree.successor query with
   | none =>
-    have hle := (successor_eq_none_iff ht query).mp hs M (ht.contains_maximum hb)
-    omega
+    exact absurd ((successor_eq_none_iff ht query).mp hs M (ht.contains_maximum hb))
+      (Nat.not_le_of_gt hq)
   | some ans =>
-    have hspec := (successor_eq_some_iff ht query ans).mp hs
-    exact ⟨ans, ht.contains_lt hspec.1, rfl⟩
+    exact ⟨ans, ht.contains_lt ((successor_eq_some_iff ht query ans).mp hs).1, rfl⟩
 
 end Cslib.DataStructure.VanEmdeBoas.Tree

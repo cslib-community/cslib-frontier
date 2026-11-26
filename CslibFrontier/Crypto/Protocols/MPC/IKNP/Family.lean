@@ -185,13 +185,11 @@ theorem iknpSenderViewWords_injective :
   obtain ⟨h₀, h₁, hs, hQ⟩ := IKNPSenderViewWords.mk.inj h
   refine PartyView.ext (funext fun j => funext fun b =>
     Bool.rec (congrFun (List.ofFn_injective h₀) j) (congrFun (List.ofFn_injective h₁) j) b)
-    (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-    · funext i
-      exact List.ofFn_injective (congrFun (List.ofFn_injective hQ) i)
-  · exact Round.received_message_eq_of_ne (by simp) _ _
+    (List.ofFn_injective hs) (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+      (Prod.ext (Round.received_message_eq_of_ne (by simp) _ _) rfl))
+  fin_cases sl
+  · exact absurd hsl (by simp [iknpRoleReversal])
+  · exact funext fun i => List.ofFn_injective (congrFun (List.ofFn_injective hQ) i)
 
 /-- The words determine a receiver's view. -/
 theorem iknpReceiverViewWords_injective :
@@ -333,8 +331,7 @@ theorem isPPT_iknpSenderSim :
     BitString.uniformList, PMF.bind_map, PMF.map_bind, PMF.pure_map, Function.comp_def]
   refine congrArg _ (funext fun s => congrArg _ (funext fun Q => congrArg PMF.pure ?_))
   refine Eq.trans ?_ ((iknpEncoding hash m).view.encCoalition_singleton n d 0 _).symm
-  simp only [senderSimWord, List.map_ofFn, Function.comp_def]
-  rfl
+  simp only [senderSimWord, List.map_ofFn, Function.comp_def]; rfl
 
 /-- Combine four bit words entrywise with `g`, up to the shortest of them. -/
 private def bitsZipWith4 (g : Bool → Bool → Bool → Bool → Bool) (a b c e : List Bool) :
@@ -445,8 +442,7 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
   let r : Fin (m n) → Bool := xs receiver
   let z : Fin (m n) → Bool := ys receiver
   change receiverSimWord hash (List.ofFn r) (List.ofFn z) _ _ = _
-  simp only [receiverSimWord, List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]
-  rfl
+  simp only [receiverSimWord, List.map_ofFn, Function.comp_def, bitsZipWith4_ofFn]; rfl
 
 /-! ### Corrupted receiver: the reduction to correlation robustness -/
 
@@ -522,12 +518,9 @@ private theorem reductionGuessWords_polyTime (hh : ComputableInPolyTime hash enc
       (bitsZipWith4_polyTime (redMask false) hr hp.fst' hw (map_hash_polyTime hh ht))
       (bitsZipWith4_polyTime (redMask true) hr hp.snd' hw
         (map_hash_polyTime hh ht))).encoding_comp).encoding_comp
-  have houtputs : ComputableInPolyTime (fun c => encPi encBits fun i : Fin 2 =>
-      Fin.cases (motive := fun _ => List Bool) []
-        (fun _ => bitsZipWith4 chosenBit (r c) (p c).1 (p c).2 (r c)) i) enc encBits := by
-    exact (ComputableInPolyTime.pi fun i => Fin.cases (ComputableInPolyTime.const [])
-      (fun _ => bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr) i).encoding_comp
-  exact hk.prod ((ComputableInPolyTime.const ()).prod (hs.prod (hviews.prod houtputs)))
+  exact hk.prod ((ComputableInPolyTime.const ()).prod (hs.prod (hviews.prod
+    (ComputableInPolyTime.pi fun i => Fin.cases (ComputableInPolyTime.const [])
+      (fun _ => bitsZipWith4_polyTime _ hr hp.fst' hp.snd' hr) i).encoding_comp)))
 
 /-- `iknpReceiverToCR Z` is uniform strict PPT whenever `Z` is and the hash is computed in
 polynomial time. -/

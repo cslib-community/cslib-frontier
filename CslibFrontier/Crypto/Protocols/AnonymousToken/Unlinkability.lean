@@ -728,14 +728,14 @@ private lemma eval_challengeLoop_debit2_true
           noteAct.bal + noteAct.ref - 2, rC⟩))).bind fun _ =>
         PMF.pure true := by
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
+  have h2 : 2 < bound := by omega
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
   have hadm1 : decide (2 < bound ∧ 2 ≤ noteAct.bal + noteAct.ref ∧
       noteAct.bal + noteAct.ref - 2 < bound) = true :=
-    decide_eq_true ⟨by omega, hsum⟩
+    decide_eq_true ⟨h2, hsum⟩
   have hadm2 : (!guardBoth || decide (2 < bound ∧ 2 ≤ balOther + refOther ∧
       balOther + refOther - 2 < bound)) = true := by
-    have h2 : 2 < bound := by omega
     cases guardBoth <;> simp [h2, hoth]
   simp only [hadm1, hadm2, Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
@@ -747,12 +747,11 @@ private lemma eval_challengeLoop_debit2_true
       (.spend ⟨noteAct.bal, noteAct.r, noteAct.ref, noteAct.sig, nfC,
         noteAct.bal + noteAct.ref - 2, rC⟩) = true := by
     simp only [validStatement, ← hnote_com, hnote_sig, Bool.true_and, decide_eq_true_eq]
-    exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, by omega⟩
+    exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, h2⟩
   rw [bind_realProofOracle_valid Com tag S bound sys ck hv]
   refine pmfBind_congr _ fun piC => ?_
-  have h0 : 0 < bound := by omega
   simp only [hfin, ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, h0, decide_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, Nat.zero_lt_of_lt h2, decide_true,
     Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte, hguess]
 
 /-- Helper showing a `challengeLoopOracle` debit-`2` call aborts immediately (`PMF.pure false`)
@@ -797,14 +796,12 @@ private lemma eval_balancePartitionInit_eq
         (balancePartitionInitAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure res := by
   simp only [ProbComp.eval_bind]
-  trans (ProbComp.eval Com.keyGen).bind fun _ => PMF.pure res
-  · refine pmfBind_congr _ fun ck => ?_
-    rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 1 mkSig
-      (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
-    cases b <;>
-    · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte] at htail ⊢
-      simp only [htail ck, PMF.bind_const]
-  · simp only [PMF.bind_const]
+  refine (pmfBind_congr _ fun ck => ?_).trans (PMF.bind_const _ _)
+  rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 1 mkSig
+    (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
+  cases b <;>
+  · simp only [preLoopOracle, Bool.false_eq_true, ↓reduceIte] at htail ⊢
+    simp only [htail ck, PMF.bind_const]
 
 private lemma eval_balancePartitionInit_abort
     (Com : OpeningCommitment CommitKey (CommitMsg Nullifier Context) C O)
@@ -985,23 +982,11 @@ private lemma eval_balancePartitionRefund_eq
         (balancePartitionRefundAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure res := by
   simp only [ProbComp.eval_bind]
-  trans (ProbComp.eval Com.keyGen).bind fun _ => PMF.pure res
-  · refine pmfBind_congr _ fun ck => ?_
-    rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 2 mkSig
-      (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
-    have hstep (nf0 : Nullifier) (r0 : O) (nf1 : Nullifier) (r1 : O) :
-        ProbComp.eval ((preLoopOracle Com nfGen tag S bound
-          (balancePartitionRefundAdversary tag pk ctx mkSig) ck pk ctx guardBoth b 2 (by omega)
-          ⟨nf0, 2, r0, Com.eval ck ⟨nf0, ctx, 2⟩ r0, 0,
-            mkSig (tag (Com.eval ck ⟨nf0, ctx, 2⟩ r0) 0)⟩
-          ⟨nf1, 2, r1, Com.eval ck ⟨nf1, ctx, 2⟩ r1, 0,
-            mkSig (tag (Com.eval ck ⟨nf1, ctx, 2⟩ r1) 0)⟩ ()).run
-          (realProofOracle Com tag S bound sys ck)) = PMF.pure res := by
-      rw [eval_refund_preLoopOracle Com nfGen tag S bound sys hbound pk ctx mkSig hmksig ck
-        guardBoth b nf0 nf1 r0 r1]
-      simp only [hchal ck, PMF.bind_const]
-    simp only [hstep, PMF.bind_const]
-  · simp only [PMF.bind_const]
+  refine (pmfBind_congr _ fun ck => ?_).trans (PMF.bind_const _ _)
+  rw [eval_unlinkOracleProgram_mkSig_issue Com nfGen tag S bound sys _ pk ctx 2 2 mkSig
+    (by omega) (by omega) hmksig (fun _ => rfl) (fun _ _ _ _ _ => rfl) guardBoth b ck]
+  simp only [eval_refund_preLoopOracle Com nfGen tag S bound sys hbound pk ctx mkSig hmksig ck
+    guardBoth b, hchal ck, PMF.bind_const]
 
 /-- Even when `T₀ = T₁`, omitting the cross-branch non-abort guard lets
 `balancePartitionRefundAdversary` achieve advantage `1` whenever `bound ≥ 5`. -/

@@ -55,22 +55,16 @@ private theorem extrema_insert_of_contains {t t' : Tree d} (ht : t.Valid)
     {m M x : ℕ} (hb : t.bounds = some (m, M))
     (hb' : t'.bounds = some (min m x, max M x)) (hx : x < universeSize d)
     (hs : ∀ y, t'.Contains y ↔ y = x ∨ t.Contains y) : t'.Extrema := by
-  have he := ht.extrema_of_bounds hb
+  obtain ⟨_, hM_lt, hm_mem, hM_mem, hbound⟩ := ht.extrema_of_bounds hb
   simp only [Extrema, hb']
-  refine ⟨Nat.le_trans (min_le_right m x) (le_max_right M x), max_lt he.2.1 hx, ?_, ?_, ?_⟩
-  · apply (hs _).mpr
-    rcases le_total m x with h | h
-    · exact Or.inr (by simpa only [min_eq_left h] using he.2.2.1)
-    · exact Or.inl (min_eq_right h)
-  · apply (hs _).mpr
-    rcases le_total M x with h | h
-    · exact Or.inl (max_eq_right h)
-    · exact Or.inr (by simpa only [max_eq_left h] using he.2.2.2.1)
-  · intro y hy
-    rcases (hs y).mp hy with rfl | hy
-    · exact ⟨min_le_right _ _, le_max_right _ _⟩
-    · exact ⟨Nat.le_trans (min_le_left _ _) (he.2.2.2.2 y hy).1,
-        Nat.le_trans (he.2.2.2.2 y hy).2 (le_max_left _ _)⟩
+  refine ⟨Nat.le_trans (min_le_right m x) (le_max_right M x), max_lt hM_lt hx,
+    (hs _).mpr ((le_total m x).elim (fun h => Or.inr (by rwa [min_eq_left h]))
+      fun h => Or.inl (min_eq_right h)),
+    (hs _).mpr ((le_total M x).elim (fun h => Or.inl (max_eq_right h))
+      fun h => Or.inr (by rwa [max_eq_left h])),
+    fun y hy => ((hs y).mp hy).elim (fun h => h ▸ ⟨min_le_right _ _, le_max_right _ _⟩)
+      fun hy => ⟨Nat.le_trans (min_le_left _ _) (hbound y hy).1,
+        Nat.le_trans (hbound y hy).2 (le_max_left _ _)⟩⟩
 
 /-- Installing the first key changes only an empty node's local header. -/
 private theorem singleton_of_bounds_none {t : Tree d} (ht : t.Valid) (hb : t.bounds = none)
@@ -80,14 +74,11 @@ private theorem singleton_of_bounds_none {t : Tree d} (ht : t.Valid) (hb : t.bou
   have hnot : ∀ y, ¬t.Contains y := not_contains_of_bounds_none hb
   cases t with
   | leaf b =>
-    simp only [bounds] at hb
-    subst b
+    obtain rfl : b = none := hb
     simp only [withBounds, Valid, Extrema, bounds, contains_leaf_some, hnot, or_false]
-    simp only [universeSize_zero] at hx
-    simpa using hx
+    simpa [universeSize_zero] using hx
   | @node d b s c =>
-    simp only [bounds] at hb
-    subst b
+    obtain rfl : b = none := hb
     obtain ⟨he, hs, hc, ho, hsb, hcb⟩ := ht
     have hnone : ∀ i y, ¬(c i).Contains y := fun i y =>
       not_contains_of_bounds_none (hcb i) y
@@ -114,12 +105,9 @@ theorem Valid.bounds_isSome_iff {t : Tree d} (ht : t.Valid) :
     t.bounds.isSome = true ↔ ∃ y, t.Contains y := by
   cases hb : t.bounds with
   | none =>
-    simp only [Option.isSome_none, Bool.false_eq_true, false_iff, not_exists]
-    exact not_contains_of_bounds_none hb
-  | some b =>
-    obtain ⟨m, M⟩ := b
-    simp only [Option.isSome_some, true_iff]
-    exact ⟨m, ht.contains_minimum hb⟩
+    simpa only [Option.isSome_none, Bool.false_eq_true, false_iff, not_exists] using
+      not_contains_of_bounds_none hb
+  | some b => exact iff_of_true rfl ⟨b.1, ht.contains_minimum hb⟩
 
 private theorem valid_node_update {s s' : Tree d}
     {c c' : Fin (universeSize d) → Tree d} {m M x : ℕ}

@@ -215,10 +215,8 @@ theorem Valid.exists_minGate {S : State n} {d : ℕ} (hS : S.Valid f) (hf : IsAf
     rcases hout : S.out.arg with b | t
     · refine Valid.out_not_affine hS hf ha (b ^^ S.out.neg) (Finset.empty_subset _) fun val _ => ?_
       simp [Lit.eval, hout]
-    · have hlive := hS.wf.out_live t hout
-      simp only [SemiCircuit.live, Finset.mem_union, hempty, Finset.notMem_empty, or_false]
-        at hlive
-      rcases hlive with hp | hv
+    · obtain hp | hv : t ∈ S.params ∨ t ∈ S.aux := by
+        simpa [SemiCircuit.live, hempty] using hS.wf.out_live t hout
       exacts [Valid.not_out_reads_param hS hf ha hp hout, Valid.not_out_reads_aux hS hf ha hv hout]
   set G := S.gates.min' hne
   have hG : G ∈ S.gates := Finset.min'_mem _ _
@@ -322,12 +320,9 @@ theorem Valid.exists_preparation_auxIn_lt {S : State n} (hS : S.Valid f) (hN : S
   set S₁ := S.swap x Q c T
   have hxp := (mem_unpaired.1 hxu).1
   have hQx : Q ≠ x := fun h => hS.wf.notMem_aux_of_mem_params (h ▸ hxp) hQ
-  have hQ₁ : Q ∉ S₁.aux := by
-    change Q ∉ insert x (S.aux.erase Q)
-    simp [hQx]
-  have ho₁ : o ∈ S₁.aux ↔ o ∈ S.aux := by
-    change o ∈ insert x (S.aux.erase Q) ↔ _
-    simp [hxo.symm, hQo.symm]
+  have hQ₁ : Q ∉ S₁.aux := (by simp [hQx] : Q ∉ insert x (S.aux.erase Q))
+  have ho₁ : o ∈ S₁.aux ↔ o ∈ S.aux :=
+    (by simp [hxo.symm, hQo.symm] : o ∈ insert x (S.aux.erase Q) ↔ _)
   rw [auxIn_eq (S := S₁) hne, auxIn_eq hne]
   change auxArgs S₁ (S.gate G) < S.auxArgs (S.gate G)
   rcases hargs with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;>
@@ -386,8 +381,7 @@ theorem Valid.exists_preparation_childIn_lt {S : State n} (hS : S.Valid f)
     refine Finset.card_lt_card ⟨fun K' hK' => ?_, fun hsub => ?_⟩
     · obtain ⟨hK'g, hK'G, t, htp, hGt, hK't⟩ := Finset.mem_filter.1 hK'
       have hK'K : K' ≠ K := fun h => hnot (hgateK ▸ h ▸ hK'G)
-      rw [hgate K' hK'K] at hK'G hK't
-      rw [hgate G hKne.symm] at hGt
+      simp only [hgate K' hK'K, hgate G hKne.symm] at hK'G hK't hGt
       exact Finset.mem_filter.2 ⟨hK'g, hK'G, t, htp, hGt, hK't⟩
     · exact hnot (hgateK ▸ (Finset.mem_filter.1 (hsub (Finset.mem_filter.2
         ⟨hK, hKG, hKt.elim (⟨t₁, hx, Or.inl hl, ·⟩) (⟨t₂, hy, Or.inr hr, ·⟩)⟩))).2.1)

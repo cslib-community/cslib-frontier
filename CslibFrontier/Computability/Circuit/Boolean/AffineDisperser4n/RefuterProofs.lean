@@ -83,15 +83,14 @@ private theorem findPair_eq_some {S : State n} {p : ℕ} {pr : ZeroPair}
   findPair_spec h
 
 private theorem exists_findPair {S : State n} (hS : S.Valid f) {p : ℕ} (hp : S.Paired p) :
-    ∃ pr, findPair S p = some pr := by
-  obtain ⟨pr, hpr, hc⟩ := hp
-  exact Option.isSome_iff_exists.1 (findPair_isSome hS hpr hc)
+    ∃ pr, findPair S p = some pr :=
+  let ⟨_, hpr, hc⟩ := hp
+  Option.isSome_iff_exists.1 (findPair_isSome hS hpr hc)
 
 /-- In a valid state, a parameter for which `findPair` finds nothing is unpaired. -/
 theorem findPair_eq_none {S : State n} (hS : S.Valid f) {p : ℕ} (h : findPair S p = none) :
-    ¬ S.Paired p := fun hp => by
-  obtain ⟨pr, hpr⟩ := exists_findPair hS hp
-  simp [h] at hpr
+    ¬ S.Paired p := fun hp =>
+  (exists_findPair hS hp).elim fun _ hpr => Option.some_ne_none _ (hpr.symm.trans h)
 
 /-- The children listed by `getChildren`. -/
 theorem mem_getChildren {S : State n} {p : ℕ} {N : ℕ ⊕ ℕ} :
@@ -218,9 +217,8 @@ theorem chooseStep?_spec {S : State n} {c : StepChoice} (h : chooseStep? S = som
 /-! ### Consequences of failed searches -/
 
 private theorem findD1_eq_some {S : State n} {J : ℕ} (h : findD1 S = some J) :
-    J ∈ S.gates ∧ (S.gate J).Degenerate := by
-  obtain ⟨hJ, hd⟩ := find?_sort_eq_some h
-  exact ⟨hJ, (isDegenerate_iff _).1 hd⟩
+    J ∈ S.gates ∧ (S.gate J).Degenerate :=
+  (find?_sort_eq_some h).imp_right (isDegenerate_iff _).1
 
 private theorem findD1_eq_none {S : State n} (h : findD1 S = none) :
     ∀ J ∈ S.gates, ¬ (S.gate J).Degenerate := fun J hJ hd => by
@@ -239,9 +237,8 @@ private theorem findD2_eq_none {S : State n} (h : findD2 S = none) :
   exact or_iff_not_imp_left.2 fun hK => this (by push Not at hK; exact hK)
 
 private theorem findD3_eq_some {S : State n} {e : ℕ} (h : findD3 S = some e) :
-    e ∈ S.eqns ∧ (S.eqn e).terms.card ≤ 2 := by
-  obtain ⟨he, hd⟩ := find?_sort_eq_some h
-  exact ⟨he, by simpa using hd⟩
+    e ∈ S.eqns ∧ (S.eqn e).terms.card ≤ 2 :=
+  (find?_sort_eq_some h).imp_right of_decide_eq_true
 
 private theorem findD3_eq_none {S : State n} (h : findD3 S = none) :
     ∀ e ∈ S.eqns, 2 < (S.eqn e).terms.card := fun e he => by
@@ -274,8 +271,7 @@ private theorem findMovable_eq_none {S : State n} (h : findMovable S = none) :
 private theorem findDegeneratePair_eq_some {S : State n} {p : ℕ}
     (h : findDegeneratePair S = some p) :
     S.Paired p ∧ (S.deg p = 0 ∨ 2 ≤ S.deg p) := by
-  obtain ⟨-, hd⟩ := find?_sort_eq_some h
-  simpa using hd
+  simpa using (find?_sort_eq_some h).2
 
 private theorem findDegeneratePair_eq_none {S : State n} (hS : S.Valid f)
     (h : findDegeneratePair S = none) : ¬ S.DegeneratePair := fun ⟨p, hp, hd⟩ =>
@@ -284,8 +280,7 @@ private theorem findDegeneratePair_eq_none {S : State n} (hS : S.Valid f)
 private theorem findPartnersShareChild_eq_some {S : State n} {p : ℕ}
     (h : findPartnersShareChild S = some p) :
     ∃ pr ∈ S.pairs, pr.fst = p ∧ (S.children pr.fst ∩ S.children pr.snd).Nonempty := by
-  obtain ⟨-, hd⟩ := find?_sort_eq_some h
-  simpa using hd
+  simpa using (find?_sort_eq_some h).2
 
 private theorem findPartnersShareChild_eq_none {S : State n} (hS : S.Valid f)
     (h : findPartnersShareChild S = none) : ¬ S.PartnersShareChild := fun ⟨pr, hpr, hsh⟩ =>
@@ -314,11 +309,8 @@ private theorem findAndOnPair_eq_none {S : State n} (h : findAndOnPair S = none)
 /-! ### Steps of the refuter -/
 
 private theorem auxArg_le_one (S : State n) (a : Arg) : S.auxArg a ≤ 1 := by
-  cases a with
-  | const b => simp [auxArg]
-  | node x =>
-    simp only [auxArg]
-    split_ifs <;> omega
+  rcases a with _ | x <;> dsimp only [auxArg]
+  exacts [Nat.zero_le 1, by split_ifs <;> omega]
 
 private theorem minAuxIn_le (S : State n) :
     (if h : S.gates.Nonempty then S.auxIn (S.gates.min' h) else 0) ≤ 2 := by

@@ -350,8 +350,7 @@ theorem treiberFreshNode_isLockFree (P V : Type u) [DecidableEq P] [Finite P] :
     obtain ⟨_, resp, hret⟩ := treiberFreshNodeStep_head_ne hsh_ne
     simp [treiberFreshNodeSystem, hret, TreiberPhase.IsReturning]
   · intro s p q _ _ hqp hcomm
-    dsimp only [treiberFreshNodeSystem]
-    rwa [treiberFreshNodeStep_threads_of_ne s hqp]
+    simpa only [treiberFreshNodeSystem, treiberFreshNodeStep_threads_of_ne s hqp] using hcomm
   · intro s p _ hcomm
     cases htp : s.threads p <;>
       simp_all [treiberFreshNodeSystem, treiberFreshNodeStep, TreiberPhase.IsReturning]
@@ -437,9 +436,7 @@ private theorem ValidSpine.congr_heap {V : Type u} {heap₁ heap₂ : List (Stac
     (heq : ∀ i ∈ spine, heap₂[i]? = heap₁[i]? ∧ i < heap₂.length) :
     ValidSpine heap₂ ptr spine ∧ spineVals heap₂ spine = spineVals heap₁ spine := by
   induction spine generalizing ptr with
-  | nil =>
-    cases ptr
-    exacts [⟨trivial, rfl⟩, False.elim h]
+  | nil => cases ptr <;> simp_all [ValidSpine, spineVals]
   | cons hd rest ih =>
     cases ptr with
     | none => exact False.elim h
@@ -560,18 +557,14 @@ private theorem ownsNode_update {P V : Type u} [DecidableEq P]
     {threads : P → TreiberPhase V} {p q : P} {ph : TreiberPhase V} {n : ℕ}
     (hq : (Function.update threads p ph q).OwnsNode n) :
     (q = p ∧ ph.OwnsNode n) ∨ (q ≠ p ∧ (threads q).OwnsNode n) := by
-  by_cases hqp : q = p
-  · subst hqp; rw [Function.update_self] at hq; exact .inl ⟨rfl, hq⟩
-  · rw [Function.update_of_ne hqp] at hq; exact .inr ⟨hqp, hq⟩
+  by_cases hqp : q = p <;> simp_all
 
 /-- After updating `threads p` to `ph ≠ x`, a thread in phase `x` is not `p` and was already in
 phase `x`. -/
 private theorem update_eq_of_ne {P V : Type u} [DecidableEq P]
     {threads : P → TreiberPhase V} {p q : P} {ph x : TreiberPhase V}
     (hq : Function.update threads p ph q = x) (hne : ph ≠ x) : q ≠ p ∧ threads q = x := by
-  by_cases hqp : q = p
-  · subst hqp; rw [Function.update_self] at hq; exact (hne hq).elim
-  · rw [Function.update_of_ne hqp] at hq; exact ⟨hqp, hq⟩
+  by_cases hqp : q = p <;> simp_all
 
 /-- Updating `threads p` to a phase `ph` that owns no node and is not a `pushCAS`, `popNext`, or
 `popCAS` phase preserves `NodeOwnershipInv`, for any `spine'` avoiding the nodes owned by the other
@@ -604,9 +597,7 @@ private theorem ownsNode_update_iff {P V : Type u} [DecidableEq P]
     {threads : P → TreiberPhase V} {p : P} {ph : TreiberPhase V}
     (hph : ∀ n, ph.OwnsNode n ↔ (threads p).OwnsNode n) (q : P) (n : ℕ) :
     (Function.update threads p ph q).OwnsNode n ↔ (threads q).OwnsNode n := by
-  by_cases hqp : q = p
-  · subst hqp; rw [Function.update_self]; exact hph n
-  · rw [Function.update_of_ne hqp]
+  by_cases hqp : q = p <;> simp_all
 
 /-- Updating `threads p` to a phase `ph` owning the same nodes, over a heap of the same length that
 changes only at nodes owned by `p`, preserves `NodeOwnershipInv` given the facts it requires of a
@@ -770,9 +761,7 @@ private theorem procHistoryMatch_update_same {P V : Type u} [DecidableEq P]
     (hp : ProcHistoryMatch H R p ph) :
     ∀ q, ProcHistoryMatch H R q (Function.update threads p ph q) := by
   intro q
-  by_cases hqp : q = p
-  · subst hqp; rw [Function.update_self]; exact hp
-  · rw [Function.update_of_ne hqp]; exact hpm q
+  by_cases hqp : q = p <;> simp_all
 
 private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
     {s : TreiberFreshNodeState P V} {p : P}
@@ -820,8 +809,7 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
         fun h => hno r h.2.1, by rw [List.getElem?_append_left hlt]; exact hnd⟩
   | pushRead v node =>
     -- `p` exclusively owns `node < s.heap.length`, `node ∉ spine`, and links `heap[node]`.
-    rw [treiberFreshNodeStep, htp]
-    dsimp only
+    simp only [treiberFreshNodeStep, htp]
     have hp_own : (s.threads p).OwnsNode node := by rw [htp]; rfl
     have hnode_lt : node < s.heap.length := hnode.own_lt p node hp_own
     have hnode_nsp : node ∉ spine := hnode.own_not_spine p node hp_own
@@ -867,7 +855,6 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
     cases hh : s.head with
     | none =>
       -- LINEARIZATION POINT 2: `popRead` observes `s.head = none`, linearizing empty `pop → none`!
-      dsimp only
       rw [hh] at hsp
       cases spine with
       | cons _ _ => exact False.elim hsp
@@ -879,7 +866,6 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
           heval', hR₁_resp, hpm', heqS', hprecS'⟩
     | some top =>
       -- Nonempty `popRead`: `top ∈ spine`, so `top < s.heap.length` and unowned!
-      dsimp only
       rw [hh] at hsp
       cases spine with
       | nil => exact False.elim hsp
@@ -924,8 +910,7 @@ private theorem treiberInv_exec {P V : Type u} [DecidableEq P]
         heval, hR_resp, procHistoryMatch_update_same hpm (htp ▸ hpm p :), heqS, hprecS⟩
   | returning resp =>
     -- Return step: move `.resp p () resp` from `R` into `s.history ++ [.resp p () resp]`.
-    rw [treiberFreshNodeStep, htp]
-    dsimp only
+    simp only [treiberFreshNodeStep, htp]
     have hwf' := wellFormed_of_procHistoryMatch hpm
     obtain ⟨hRp_eq, cs_p, op_p, hHp⟩ := (htp ▸ hpm p :)
     obtain ⟨hR'_resp, _, _, heq_fl, hprec_fl⟩ :=

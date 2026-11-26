@@ -364,20 +364,14 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
         set k := y.regs rOuterIdx with hk_reg
         set j := g.edges.length - 1 - k with hj_def
         have hj : j < g.edges.length := by omega
-        have hdrop : g.edges.drop (g.edges.length - (k + 1)) =
-            g.edges[j] :: g.edges.drop (g.edges.length - k) := by
-          rw [show g.edges.length - (k + 1) = j by omega,
-            show g.edges.length - k = j + 1 by omega]
-          exact List.drop_eq_getElem_cons hj
+        have hj0 : g.edges.length - (k + 1) = j := by omega
+        have hj1 : g.edges.length - k = j + 1 := by omega
         have hbs_next : bsAt (k + 1) = insertEdge (bsAt k) g.edges[j] := by
-          simp only [bsAt, hdrop, buckets, List.foldr_cons]
+          simp only [bsAt, hj0, hj1, List.drop_eq_getElem_cons hj, buckets, List.foldr_cons]
         have hs_lt : g.edges[j].src < slots g := src_lt_slots (List.getElem_mem hj)
         have hd_lt : g.edges[j].dst < slots g := dst_lt_slots (List.getElem_mem hj)
-        have hsrc_mem := hyInp.edge_src j hj
-        have hdst_mem := hyInp.edge_dst j hj
         have hlen_k : (bsAt k).length = slots g := hbs_len k (by omega)
         have hed := edge_end_le_wordBound hj
-        have hed_k := edge_end_le_wordBound hlt
         have : Fits w (j * (L + 2)) := hw.of_le (by omega)
         have : Fits w (4 + j * (L + 2)) := hw.of_le (by omega)
         have : Fits w (4 + j * (L + 2) + 1) := hw.of_le (by omega)
@@ -389,7 +383,7 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
               y1.regs rOuterIdx = k ∧ y1.mem = y.mem := by
           unfold bucketsHead
           wram_exec [hyC.one, hyC.stride, hyC.regE, hyC.edgeB, hk_reg.symm, hj_def.symm,
-            hsrc_mem, hdst_mem]
+            hyInp.edge_src j hj, hyInp.edge_dst j hj]
           exact ⟨by wram_simp [hyC], by wram_simp, by wram_simp, by wram_simp, by wram_simp,
             by wram_simp [hk_reg.symm],
             by wram_simp⟩

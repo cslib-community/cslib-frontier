@@ -75,14 +75,12 @@ theorem PendingAt.extend (h : PendingAt w p x) (hxy : x ≤ y) (hy : y < w.lengt
       ∀ k, 0 ≤ net i ((w.extract (x + 1) (y + 1)).take k)) : PendingAt w p y := by
   obtain ⟨hpx, -, i, hp, hk'⟩ := h
   refine ⟨by omega, hy, i, hp, fun k => ?_⟩
-  rw [← w.extract_append_extract (show p + 1 ≤ x + 1 by omega) (show x + 1 ≤ y + 1 by omega),
+  rw [← w.extract_append_extract (Nat.add_le_add_right hpx 1) (Nat.add_le_add_right hxy 1),
     List.take_append, net_append]
   have h₁ := hk' k
   have h₂ := hk i hp (k - (w.extract (p + 1) (x + 1)).length)
   by_cases hkl : k ≤ (w.extract (p + 1) (x + 1)).length
-  · rw [show k - (w.extract (p + 1) (x + 1)).length = 0 by omega]
-    simp only [List.take_zero, net_nil, add_zero]
-    exact h₁
+  · simpa only [Nat.sub_eq_zero_of_le hkl, List.take_zero, net_nil, add_zero] using h₁
   · rw [List.take_of_length_le (by omega)] at h₁ ⊢
     have := hk' (w.extract (p + 1) (x + 1)).length
     rw [List.take_length] at this
@@ -104,7 +102,7 @@ theorem exists_matches_of_wellNested {a b : ℕ} {i : Fin n} (hwn : WellNested (
     (hb : b ≤ w.length) (haq : a ≤ q) (hqb : q < b) (hq : IsPushOn w i q) :
     ∃ m, Matches w q m ∧ m < b ∧ WellMatched w q := by
   have hsplit : w.take a ++ w.extract a b ++ w.drop b = w := by
-    rw [List.extract_eq_take_drop, ← List.take_add, show a + (b - a) = b by omega,
+    rw [List.extract_eq_take_drop, ← List.take_add, Nat.add_sub_of_le (haq.trans hqb.le),
       List.take_append_drop]
   have hpush : IsPushOn (w.extract a b) i (q - a) := hq.imp fun c h => h.imp fun γ hq => by
     rw [List.extract_eq_take_drop, List.getElem?_take_of_lt (by omega), List.getElem?_drop,
@@ -318,11 +316,10 @@ theorem HoleBoundary.lt_length (h : HoleBoundary K w C) {c : HoleChain n Γ} (hc
 private theorem pendingAt_append_wellNested {q x : ℕ} (hv : WellNested v) (hw : w ≠ [])
     (hq : PendingAt w q (w.length - 1)) (hx₁ : w.length ≤ x) (hx₂ : x < (w ++ v).length) :
     PendingAt (w ++ v) q x := by
-  have hlen : 0 < w.length := List.length_pos_iff.mpr hw
+  have hw1 : w.length - 1 + 1 = w.length + 0 := Nat.sub_add_cancel (List.length_pos_iff.mpr hw)
+  have hx' : x + 1 = w.length + (x + 1 - w.length) := by omega
   refine ((pendingAt_append_iff (by omega)).mpr hq).extend (by omega) hx₂ fun i _ k => ?_
-  rw [show w.length - 1 + 1 = w.length + 0 by omega, show x + 1 = w.length + (x + 1 - w.length)
-    by omega, List.extract_append_left, List.extract_eq_take_drop, List.drop_zero,
-    List.take_take]
+  rw [hw1, hx', List.extract_append_left, List.extract_eq_take_drop, List.drop_zero, List.take_take]
   exact hv.net_take_nonneg i _
 
 theorem HoleBoundary.append_wellNested (h : HoleBoundary K w C) (hv : WellNested v) :
@@ -376,11 +373,10 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
   -- Old pending pushes stay pending.
   have hold : ∀ q, PendingAt w q (w.length - 1) → PendingAt w' q (w'.length - 1) := by
     intro q hq
-    have hw : 0 < w.length := by have := hq.2.1; omega
+    have hw1 : w.length - 1 + 1 = w.length := by have := hq.2.1; omega
     refine ((pendingAt_append_iff (by omega)).mpr hq).extend (by rw [hlen]; omega)
       (by rw [hlen]; omega) fun j _ k => ?_
-    rw [hlen, show w.length - 1 + 1 = w.length by omega, show w.length + 1 - 1 + 1 =
-      w.length + 1 by omega]
+    rw [hw1, hlen, Nat.add_sub_cancel]
     rcases k with _ | k
     · simp
     · simp only [net, Op.net, OpKind.net, Op.kind, Int.reduceNeg, List.extract_eq_take_drop,
@@ -389,9 +385,7 @@ theorem HoleBoundary.append_push {i : Fin n} {ps : List (ℕ × Γ)} {a : α} {�
       split_ifs <;> simp
   have hnew : PendingAt w' w.length (w'.length - 1) :=
     ⟨by omega, by omega, i, ⟨a, γ, by simp [w']⟩, fun k => by
-      rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega, List.extract_eq_take_drop,
-        Nat.sub_self, List.take_zero, List.take_nil]
-      simp⟩
+      simp [hlen, List.extract_eq_take_drop]⟩
   have hmem : ∀ c ∈ C ++ [⟨i, (w.length, γ) :: ps⟩], c ∈ C ∨ c = ⟨i, (w.length, γ) :: ps⟩ :=
     fun c hc => by simpa using hc
   refine ⟨by simpa using h₁, fun c hc e he => ?_, fun c hc => ?_, fun q hq => ?_, ?_⟩
@@ -452,9 +446,10 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
         · exact (List.pairwise_cons.mp ((h₃ c₀ hc₀).pairwise)).1 e he
       · exact absurd hci (hpost c hc)
   -- No push of stack `i` after `p` is pending: stack `i` is back at its height after `p`.
+  have hw1 : w.length - 1 + 1 = w.length := by omega
   have hnet : net i (w.extract (p + 1) w.length) = 0 := by
     obtain ⟨-, -, hk⟩ := hpend₀.of_isPushOn ⟨a₀, γ, hp₀⟩
-    rw [show w.length - 1 + 1 = w.length by omega] at hk
+    rw [hw1] at hk
     have hge := hk (w.extract (p + 1) w.length).length
     rw [List.take_length] at hge
     by_contra hne
@@ -467,24 +462,22 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
         List.getElem?_drop] at hqa
     have hqpend : PendingAt w (p + 1 + q) (w.length - 1) := by
       refine ⟨by omega, by omega, i, ⟨a, δ, hqa'⟩, fun k => ?_⟩
+      have hsub : w.length - (p + 1) - (q + 1) = w.length - (p + 1 + q + 1) := by omega
       have hd : (w.extract (p + 1) w.length).drop (q + 1) =
           w.extract (p + 1 + q + 1) (w.length - 1 + 1) := by
-        rw [List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take, List.drop_drop,
-          show w.length - (p + 1) - (q + 1) = w.length - 1 + 1 - (p + 1 + q + 1) by omega,
-          show p + 1 + (q + 1) = p + 1 + q + 1 by omega]
+        rw [hw1, List.extract_eq_take_drop, List.extract_eq_take_drop, List.drop_take,
+          List.drop_drop, hsub, ← Nat.add_assoc]
       exact hd ▸ hqk k
     obtain ⟨c, hc, e, he, he'⟩ := h₄ _ hqpend
     obtain ⟨⟨a', hea⟩, -⟩ := h₂ c hc e he
     have hci : c.stack = i := IsPushOn.unique ⟨a', e.2, hea⟩ ⟨a, δ, he' ▸ hqa'⟩
-    have := holder c hc e he hci (by omega)
-    omega
+    exact absurd (holder c hc e he hci (by omega)) (by omega)
   -- The factor up to the pop is the factor up to the end of `w`, then the pop.
   have hsplit : ∀ e, e ≤ w.length →
       w'.extract e (w'.length - 1 + 1) = w.extract e w.length ++ [(b, .pop i γ)] := by
     intro e he
-    rw [hlen, show w.length + 1 - 1 + 1 = w.length + 1 by omega,
-      ← w'.extract_append_extract he (Nat.le_succ _), List.extract_append_right _ _ le_rfl]
-    congr 1
+    rw [hlen, Nat.add_sub_cancel, ← w'.extract_append_extract he (Nat.le_succ _),
+      List.extract_append_right _ _ le_rfl]
     simp [w', List.extract_eq_take_drop]
   -- `p` is no longer pending after the pop.
   have hpnot : ¬PendingAt w' p (w'.length - 1) := by
@@ -503,12 +496,11 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     refine ⟨by omega, by omega, c.stack, ⟨a, e.2, by rw [List.getElem?_append_left hew, hea]⟩,
       fun k => ?_⟩
     obtain ⟨-, -, hk⟩ := hep.of_isPushOn ⟨a, e.2, hea⟩
-    rw [show w.length - 1 + 1 = w.length by omega] at hk
+    rw [hw1] at hk
     rw [hsplit _ (by omega), List.take_append, net_append]
     have hk₁ := hk k
     by_cases hkl : k ≤ (w.extract (e.1 + 1) w.length).length
-    · rw [show k - (w.extract (e.1 + 1) w.length).length = 0 by omega]
-      simpa using hk₁
+    · simpa only [Nat.sub_eq_zero_of_le hkl, List.take_zero, net_nil, add_zero] using hk₁
     rw [List.take_of_length_le (by omega)] at hk₁ ⊢
     have hpopnet : net c.stack (List.take (k - (w.extract (e.1 + 1) w.length).length)
         [(b, Op.pop i γ)]) = if c.stack = i then -1 else 0 := by
@@ -517,15 +509,16 @@ theorem HoleBoundary.append_pop {pre post : List (HoleChain n Γ)} {i : Fin n} {
     rw [hpopnet]
     split_ifs with hci
     · -- Stack `i` is at least one above its height after `e`: the push at `p` is pending.
-      have hlt := holder c hc e he hci hne
+      have he1 : e.1 + 1 ≤ p := holder c hc e he hci hne
+      have hp1 : p + 1 ≤ w.length := hpw
       have hsum : net i (w.extract (e.1 + 1) w.length) =
           net i (w.extract (e.1 + 1) p) + 1 + net i (w.extract (p + 1) w.length) := by
-        rw [← w.extract_append_extract (show e.1 + 1 ≤ p by omega) (show p ≤ w.length by omega),
-          ← w.extract_append_extract (show p ≤ p + 1 by omega) (show p + 1 ≤ w.length by omega),
+        rw [← w.extract_append_extract he1 hpw.le,
+          ← w.extract_append_extract (Nat.le_succ p) hp1,
           List.extract_eq_singleton hp₀]
         simp [net, Op.net, add_assoc, c₀]
       have hpre := hk (p - (e.1 + 1))
-      rw [w.take_extract (show e.1 + 1 ≤ p by omega) (show p ≤ w.length by omega)] at hpre
+      rw [w.take_extract he1 hpw.le] at hpre
       rw [hci] at hk₁ hpre ⊢
       omega
     · simpa using hk₁
@@ -615,13 +608,12 @@ theorem HoleBlock.boundary {i : Fin n} {L : ℕ} {v : List (α × Op n Γ)} {ps 
     have heq : w ++ (v ++ (a, Op.push i γ) :: ws) = w ++ v ++ [(a, .push i γ)] ++ ws := by simp
     rw [heq]
     refine ⟨hB'', fun x hx => ?_, fun e he => ?_⟩
-    · by_cases hx₁ : x < (w ++ v).length
-      · obtain ⟨Cx, hCx⟩ := hS x hx₁
-        exact ⟨Cx, (hCx.append (v := [(a, .push i γ)]) hx₁).append (by simp; omega)⟩
-      by_cases hx₂ : x = (w ++ v).length
-      · have hidx : (w ++ v ++ [(a, Op.push i γ)]).length - 1 = x := by simp [hx₂]
+    · rcases lt_trichotomy x (w ++ v).length with hx₁ | rfl | hx₂
+      · exact (hS x hx₁).imp fun _ hCx =>
+          (hCx.append (v := [(a, .push i γ)]) hx₁).append (by simp; omega)
+      · have hidx : (w ++ v ++ [(a, Op.push i γ)]).length - 1 = (w ++ v).length := by simp
         exact ⟨_, hidx ▸ hB'.snapshot.append (v := ws) (by simp)⟩
-      · exact ⟨_, hS'' x (by simp at hx₁ ⊢; omega) hx⟩
+      · exact ⟨_, hS'' x (by simp; omega) hx⟩
     · obtain rfl := Option.mem_some_iff.mp he
       have hlen' : L + v.length + 1 = (w ++ v ++ [(a, Op.push i γ)]).length := by
         simp [hL, add_assoc]

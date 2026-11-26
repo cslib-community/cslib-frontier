@@ -110,12 +110,10 @@ theorem eval_dedupLine (line : Line signature n g) (x : Fin n → Bool) (gates :
 /-- Reading every wire once makes no line deeper. -/
 theorem depth_dedupLine_le (line : Line signature n g) (depths : Wire n g → ℕ) :
     (dedupLine line).depth depths ≤ line.depth depths := by
-  have hpos := line.depth_pos depths
-  have hle : ∀ a, depths (line.wires a) ≤ line.depth depths - 1 := fun a => by
-    have := line.wireDepth_lt_depth depths a
-    omega
+  have hle (a : Fin (signature.Arity line.op)) : depths (line.wires a) ≤ line.depth depths - 1 :=
+    Nat.le_sub_one_of_lt (line.wireDepth_lt_depth depths a)
   refine ((Line.depth_le_add_one_iff _ depths (d := line.depth depths - 1)).2 ?_).trans
-    (by omega)
+    (Nat.sub_add_cancel (line.depth_pos depths)).le
   obtain ⟨op, w⟩ := line
   cases op with
   | not => exact hle
@@ -235,16 +233,10 @@ theorem Op.size_deMorganFormula_le (op : Op) : op.deMorganFormula.size ≤ max 1
     simp only [List.map_ofFn, List.sum_ofFn, Function.comp_apply, Formula.size_input,
       Finset.sum_const_zero, List.length_ofFn, zero_add] at h
     omega
-  cases op with
-  | not => simp [deMorganFormula]
-  | and k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · exact step (Formula.size_andList_add_one (by simpa using hk.ne'))
-  | or k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · exact step (Formula.size_orList_add_one (by simpa using hk.ne'))
+  match op with
+  | .not | .and 0 | .or 0 => simp [deMorganFormula]
+  | .and (_ + 1) => exact step (Formula.size_andList_add_one (by simp))
+  | .or (_ + 1) => exact step (Formula.size_orList_add_one (by simp))
 
 /-- The De Morgan formula of an operation of `k` arguments has depth at most `max 1 ⌈log₂ k⌉`:
 one for a negation or a constant, and `⌈log₂ k⌉` for a balanced tree of `k ≥ 1` arguments. -/
@@ -256,18 +248,14 @@ theorem Op.depth_deMorganFormula_le (op : Op) :
       f.depth ≤ max 1 (Nat.clog 2 k) := by
     simp only [Formula.depthWith_one, List.length_ofFn, Pi.one_apply, one_mul, zero_add] at h
     exact h.trans (le_max_right _ _)
-  cases op with
-  | not => simp [deMorganFormula]
-  | and k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · exact step (Formula.depthWith_andList_le (cost := 1) (d := 0) (by simp)
-        (by simpa using hk.ne'))
-  | or k =>
-    rcases k.eq_zero_or_pos with rfl | hk
-    · simp [deMorganFormula]
-    · exact step (Formula.depthWith_orList_le (cost := 1) (d := 0) (by simp)
-        (by simpa using hk.ne'))
+  match op with
+  | .not | .and 0 | .or 0 => simp [deMorganFormula]
+  | .and (_ + 1) =>
+    exact step (Formula.depthWith_andList_le (cost := 1) (d := 0) (by simp)
+      (by simp))
+  | .or (_ + 1) =>
+    exact step (Formula.depthWith_orList_le (cost := 1) (d := 0) (by simp)
+      (by simp))
 
 /-! ### Simulation -/
 

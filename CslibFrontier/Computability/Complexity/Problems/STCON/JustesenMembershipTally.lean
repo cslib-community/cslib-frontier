@@ -224,16 +224,14 @@ theorem configurationJustesenMembershipTally_acceptCount_eq_one
       (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
         (R.machine.initCfg (enc a)) = 1 := by
   intro I size seed source target radius adjacent edge hrank hparams hpass
-  apply (R.acceptCount_eq_one_iff a hclock).mpr
-  simp only [hrank, hparams]
   let entered := (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).withInit
     (MembershipTally.retainedInitial
-      (configurationJustesenSubdivisionContext ntm c (enc a) seed.val)
-      ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩)
+      (configurationJustesenSubdivisionContext ntm c (enc a) (rank a)) (params a))
+  refine (R.acceptCount_eq_one_iff a hclock).mpr ?_
   change ∃! bits, entered.FirstHalting (enc a) bits entered.init ∧
     entered.accept (entered.run (enc a) bits) = true
-  simp only [entered, configurationJustesenMembershipTally_withInit]
-  simpa only [configurationJustesenMembershipTally, MembershipTally.retainedMachine_accept] using
+  simpa only [entered, configurationJustesenMembershipTally_withInit, hrank, hparams,
+    configurationJustesenMembershipTally, MembershipTally.retainedMachine_accept] using
     configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
       target radius hpass
 
@@ -320,9 +318,9 @@ theorem configurationJustesenMembershipTally_stateBound_le_log
           (encJustesenSubdivisionContext ctx).length calleeBound ≤
           C * (Nat.log2 w.length + 1) + calleeBound := by
   obtain ⟨C, h⟩ := configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w seed source target radius expected calleeBound hr hc hs => ?_⟩
-  obtain ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
-  exact h w seed source target radius expected calleeBound hr hc' hs'
+  exact ⟨C, fun w seed source target radius expected calleeBound hr hc hs =>
+    let ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
+    h w seed source target radius expected calleeBound hr hc' hs'⟩
 
 /-- Every prefix of an initialized tally fits a logarithmic encoded-state bound under
 the source loop's coarse tally caps. -/
@@ -374,9 +372,9 @@ theorem configurationJustesenMembershipTally_length_run_le_log
         ∀ bits, (MembershipTally.encRetainedState encJustesenSubdivisionContext
           encJustesenSubdivisionState (M.run w bits)).length ≤ C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, h⟩ := configurationJustesenMembershipTally_length_run_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w seed source target radius expected hr hc hs => ?_⟩
-  obtain ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
-  exact h w seed source target radius expected hr hc' hs'
+  exact ⟨C, fun w seed source target radius expected hr hc hs =>
+    let ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
+    h w seed source target radius expected hr hc' hs'⟩
 
 /-- Charge one bounded walk and its entry and return at each candidate, then the final check. -/
 noncomputable def configurationJustesenMembershipTallyClock
@@ -404,12 +402,11 @@ theorem configurationJustesenMembershipTally_haltsWithin_clock
       (configurationJustesenMembershipTally ntm c w seed.val params).HaltsWithin w
         (configurationJustesenMembershipTallyClock ntm c w) := by
   intro I size seed source target radius expected hr params
-  let edge := justesenWeightedSubdivisionCallback ntm
-  let start := fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)
-  let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
-  have h := MembershipTally.retainedMachine_haltsWithin edge start callbackVerdict 3
-    (tallyWalkInitial ntm c) ctx params source.isLt w
-  refine NondeterministicQueryMachine.HaltsWithin.mono _ _ h ?_
+  refine NondeterministicQueryMachine.HaltsWithin.mono _ _
+    (MembershipTally.retainedMachine_haltsWithin (justesenWeightedSubdivisionCallback ntm)
+      (fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)) callbackVerdict 3
+      (tallyWalkInitial ntm c) (configurationJustesenSubdivisionContext ntm c w seed.val)
+      params source.isLt w) ?_
   simp only [MembershipTally.runtimeWalkClock, params, configurationJustesenMembershipTallyClock,
     configurationJustesenBoundedWalkClock, Nat.add_assoc, Nat.reduceAdd]
   gcongr
@@ -459,12 +456,10 @@ theorem configurationJustesenMembershipTally_exists_routines
   have hstate (a : α) :
       MembershipTally.retainedStateBound 3 (params a) (encJustesenSubdivisionContext (ctx a)).length
         (A * b a) ≤ S a := by
-    have hv := hvalid a
     rcases hp : params a with ⟨sz, src, dst, rad, exp⟩
-    obtain ⟨rfl, hsrc, hdst, hr, hc, hs⟩ : sz = n a ∧ _ := by simpa only [hp] using hv
+    obtain ⟨rfl, hsrc, hdst, hr, hc, hs⟩ : sz = n a ∧ _ := by simpa only [hp] using hvalid a
     refine (hbound (enc a) (seed a) ⟨src, hsrc⟩ ⟨dst, hdst⟩ rad exp (A * b a) hr hc hs).trans ?_
-    simp only [S, b, Nat.add_mul, Nat.one_mul]
-    exact Nat.le_add_right _ _
+    simp only [S, b, Nat.add_mul, Nat.one_mul, le_add_iff_nonneg_right, zero_le]
   obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
   exact ⟨C + A + 1, MembershipTally.retainedMachine_exists_routines edge start callbackVerdict 3
     (tallyWalkInitial ntm c) (configurationJustesenSubdivisionContext ntm c [] 0)

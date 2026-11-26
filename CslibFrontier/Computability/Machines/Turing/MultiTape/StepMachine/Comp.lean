@@ -143,8 +143,7 @@ lemma foldl_push (w : List Bool) {k : ℕ} (fd : Bool) (len : ℕ) (hk : 1 ≤ k
   | nil => simp; omega
   | cons b w ih =>
     rcases Nat.eq_or_lt_of_le hk with rfl | hk'
-    · simp [push, foldl_push_zero]
-      omega
+    · simp [push, foldl_push_zero]; omega
     · rw [List.foldl_cons, push, ih (k := k - 1) _ _ (by omega)]
       obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
       simp only [show j + 2 ≠ 1 by omega, ↓reduceIte, List.length_cons, mk.injEq]
@@ -232,8 +231,7 @@ lemma rewindStart_iterate (s : CompState σf σg) (out : List Out) (p : Fin (x.l
     (g.comp f).stepCfg^[rewindTime p]
         (⟨{ s with phase := .rewindStart }, p, out⟩ : Cfg (CompState σf σg) Out x) =
       ⟨{ s with phase := .run }, 1, out⟩ := by
-  rw [rewindTime, show p.val - 1 + 2 = (p.val - 1 + 1) + 1 by omega, Function.iterate_succ_apply,
-    stepCfg_rewindStart]
+  rw [rewindTime, Function.iterate_succ_apply, stepCfg_rewindStart]
   exact rewind_iterate f g x s out _ (by omega)
 
 /-- During the rewind, only the phase changes. -/
@@ -318,7 +316,8 @@ theorem along_run_comp {uf ug : ℕ} (hf : f.HaltsAt x uf) (hg : g.HaltsAt (f.ru
     (run_zero_comp f g x) (u := ug) (fun i hi => Bool.eq_false_iff.mpr (hg.2 i hi))
     (by simp [compPeriod]) hi
   simp only [Nat.zero_add] at hround hrun
-  rw [hrun, show (g.comp f).run x (q * compPeriod f x uf) = roundCfg f x (g.run y q) from hround]
+  change _ = f.roundCfg x (g.run y q) at hround
+  rw [hrun, hround]
   have hpos (q : ℕ) : (g.run y q).pos.val ≤ y.length + 1 := Nat.lt_succ_iff.mp (g.run y q).pos.isLt
   rcases Nat.eq_zero_or_pos j with rfl | hj₀
   · exact ⟨⟨q, by omega, rfl⟩, ⟨0, Nat.zero_le _, rfl⟩, hpos q, Nat.zero_le _⟩
@@ -336,11 +335,8 @@ theorem along_run_comp {uf ug : ℕ} (hf : f.HaltsAt x uf) (hg : g.HaltsAt (f.ru
   · rw [roundCfg, run_f_iterate f g x hf _ hgq _ _ hjf]
     have hlen := (f.out_run_prefix (input := x) hjf).length_le
     refine ⟨⟨q, hq.le, rfl⟩, ⟨j, hjf, rfl⟩, ?_, ?_⟩
-    · simp only [Countdown.k_foldl, Countdown.start, ← hy]
-      have := hpos q
-      omega
-    · simp only [Countdown.len_foldl, Countdown.start, ← hy] at hlen ⊢
-      omega
+    · exact (Countdown.k_foldl _ _ ▸ Nat.sub_le _ _).trans (hpos q)
+    · simpa only [Countdown.len_foldl, Countdown.start, Nat.zero_add, ← hy] using hlen
 
 /-- **Composition**: when `f` halts after `uf` steps and `g` on its output after `ug` steps,
 `g.comp f` halts within `ug` rounds, with the output of `g`. -/
@@ -357,8 +353,7 @@ theorem Computes.comp {y : List Bool} {z : List Out} (hf : f.Computes x y) (hg :
     (g.comp f).Computes x z := by
   obtain ⟨uf, hf, rfl⟩ := hf
   obtain ⟨ug, hg, rfl⟩ := hg
-  obtain ⟨t, -, ht⟩ := exists_haltsAt_comp f g x hf hg
-  exact ⟨t, ht⟩
+  exact (exists_haltsAt_comp f g x hf hg).imp fun _ h => h.2
 
 end Run
 

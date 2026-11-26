@@ -208,15 +208,12 @@ theorem mem_prefixSet {π : Equiv.Perm (Fin n)} {i : ℕ} {x : Fin n} :
 /-- A restriction of `σ` agrees with `σ` where it is defined. -/
 theorem eq_of_restrict_eq_some {σ : Fin n → Bool} {D : Finset (Fin n)} {y : Fin n} {b : Bool}
     (h : restrict σ D y = some b) : σ y = b := by
-  simp only [restrict] at h
-  split_ifs at h
-  exact Option.some_injective _ h
+  by_cases hy : y ∈ D <;> simp_all [restrict]
 
 /-- Once all `n` variables are processed, the restriction of `σ` is all of `σ`. -/
 theorem restrict_prefixSet_self (σ : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
-    restrict σ (prefixSet π n) = fun x => some (σ x) := by
-  funext y
-  simp [restrict, mem_prefixSet]
+    restrict σ (prefixSet π n) = fun x => some (σ x) :=
+  funext fun y => by simp [restrict, mem_prefixSet]
 
 /-- Restricting `σ` to one more variable `x` sets `x` to `σ x`. -/
 theorem restrict_insert (σ : Fin n → Bool) (D : Finset (Fin n)) (x : Fin n) :
@@ -243,8 +240,7 @@ theorem prefixSet_self (π : Equiv.Perm (Fin n)) : prefixSet π n = univ :=
 /-- The variable at position `i` is not processed in the first `i` steps. -/
 theorem apply_notMem_prefixSet_self (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
     π ⟨i, hi⟩ ∉ prefixSet π i := by
-  rw [mem_prefixSet, Equiv.symm_apply_apply]
-  exact lt_irrefl i
+  simp [mem_prefixSet]
 
 /-- Step `i` adds the variable at position `i`. -/
 theorem prefixSet_succ (π : Equiv.Perm (Fin n)) {i : ℕ} (hi : i < n) :
@@ -279,9 +275,8 @@ theorem EqOnPrefix.prefixSet_eq {π π₀ : Equiv.Perm (Fin n)} {i : ℕ} (h : E
 /-- An order that agrees with `π₀` on the first `i` positions has at position `i` a variable that
 `π₀` does not process in its first `i` steps. -/
 theorem EqOnPrefix.apply_notMem_prefixSet {π π₀ : Equiv.Perm (Fin n)} {i : ℕ}
-    (h : EqOnPrefix π π₀ i) (hi : i < n) : π ⟨i, hi⟩ ∉ prefixSet π₀ i := by
-  rw [← h.prefixSet_eq]
-  exact apply_notMem_prefixSet_self π hi
+    (h : EqOnPrefix π π₀ i) (hi : i < n) : π ⟨i, hi⟩ ∉ prefixSet π₀ i :=
+  h.prefixSet_eq ▸ apply_notMem_prefixSet_self π hi
 
 /-- The orders that agree with `π₀` on the first `i` positions and have `y` at position `i` are
 those that agree on the first `i + 1` positions with `π₀` followed by the swap of `y` with the
@@ -535,8 +530,7 @@ theorem exists_critical_of_flip {φ : CNF (Fin n)} {σ : Fin n → Bool} (hσ : 
     intro l hl
     have hfalse : τ l.1 ≠ l.2 := fun e => hcτ ((Clause.eval_eq_true_iff τ c).mpr ⟨l, hl, e⟩)
     split_ifs with hx
-    · subst hx
-      simpa [τ, eq_comm] using hfalse
+    · simpa [τ, hx, eq_comm] using hfalse
     · simpa [τ, Function.update_of_ne hx] using hfalse
   obtain ⟨l, hl, hls⟩ := (Clause.eval_eq_true_iff σ c).mp ((CNF.eval_eq_true_iff σ φ).mp hσ c hc)
   exact ⟨c, hc, ⟨l, hl, by_contra fun hx => by simpa [hx, hls] using hall l hl⟩, hall⟩

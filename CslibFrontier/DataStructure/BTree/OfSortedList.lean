@@ -203,11 +203,7 @@ theorem _root_.Cslib.IsMonadHom.map_buildM (hf : IsMonadHom m n f) (t : ℕ) (vi
     (fuel : ℕ) (first : BTree α β) (rest : List (Triple α β)) :
     f (buildM t visit fuel first rest) = buildM t (f visit) fuel first rest := by
   induction fuel generalizing first rest with
-  | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp [hf.map_pure]
-    · rw [buildM_cons, buildM_cons]
-      split <;> simp [hf.map_bind, hf.map_pure]
+  | zero => rcases rest with _ | ⟨e, es⟩ <;> simp [buildM_cons, hf.map_bind, hf.map_pure]
   | succ fuel ih =>
     rcases rest with _ | ⟨e, es⟩
     · simp [hf.map_pure]
@@ -343,12 +339,7 @@ theorem toList_pack (first : BTree α β) (rest : List (Triple α β)) (ss : Lis
 theorem toList_build (fuel : ℕ) (first : BTree α β) (rest : List (Triple α β)) :
     (build t fuel first rest).toList = first.toList ++ toListRest rest := by
   induction fuel generalizing first rest with
-  | zero =>
-    rcases rest with _ | ⟨e, es⟩
-    · simp
-    · rcases Nat.lt_or_ge (2 * t - 1) (e :: es).length with h | h
-      · rw [build_zero_of_lt h, toList_node]
-      · rw [build_of_length_le (List.cons_ne_nil e es) h, toList_node]
+  | zero => rcases rest with _ | ⟨e, es⟩ <;> simp [build, buildM_cons]
   | succ fuel ih =>
     rcases rest with _ | ⟨e, es⟩
     · simp

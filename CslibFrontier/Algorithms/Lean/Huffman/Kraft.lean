@@ -99,9 +99,7 @@ private theorem foldl_bitStep_eq (bs : List Bool) (acc : ℕ) :
 
 theorem natOfBits_append (u v : List Bool) :
     natOfBits (u ++ v) = natOfBits u * 2 ^ v.length + natOfBits v := by
-  unfold natOfBits
-  rw [List.foldl_append]
-  exact foldl_bitStep_eq v (natOfBits u)
+  rw [natOfBits, List.foldl_append, foldl_bitStep_eq, ← natOfBits]
 
 theorem natOfBits_lt_two_pow (bs : List Bool) : natOfBits bs < 2 ^ bs.length := by
   induction bs with
@@ -115,9 +113,7 @@ theorem natOfBits_lt_two_pow (bs : List Bool) : natOfBits bs < 2 ^ bs.length := 
 theorem natOfBits_bitsOfNat {k q : ℕ} (hq : q < 2 ^ k) :
     natOfBits (bitsOfNat k q) = q := by
   induction k generalizing q with
-  | zero =>
-    simp only [Nat.pow_zero, Nat.lt_one_iff] at hq
-    subst hq; rfl
+  | zero => exact (Nat.lt_one_iff.mp hq).symm
   | succ k ih =>
     rw [Nat.pow_succ] at hq
     have hbit : natOfBits [decide (q % 2 = 1)] = q % 2 := by grind [natOfBits]
@@ -166,10 +162,7 @@ theorem length_snd_of_mem_kraftAssign {α : Type*} {L : ℕ} {ℓ : α → ℕ} 
     p.2.length = ℓ p.1 := by
   induction xs generalizing offset with
   | nil => cases hp
-  | cons a xs ih =>
-    rcases List.mem_cons.mp hp with rfl | htail
-    · simp [length_bitsOfNat]
-    · exact ih htail
+  | cons a xs ih => exact (List.mem_cons.mp hp).elim (fun h => by simp [h]) ih
 
 private theorem kraftAssign_spec {α : Type*} {L : ℕ} {ℓ : α → ℕ} (xs : List α) (offset : ℕ)
     (hL : ∀ x ∈ xs, ℓ x ≤ L)
@@ -535,8 +528,7 @@ theorem exists_codeTree_of_isPrefixFree {α β : Type*}
     have hcne : code a ≠ code b := fun hEq => hab (hinj ha hb hEq)
     exact ⟨fun hp => hcne (hpf _ ⟨a, ha, rfl⟩ _ ⟨b, hb, rfl⟩ hp),
       fun hp => hcne.symm (hpf _ ⟨b, hb, rfl⟩ _ ⟨a, ha, rfl⟩ hp)⟩
-  have hw_pairs : ∀ p ∈ pairs, 0 ≤ w p.1 := List.forall_mem_map.mpr hw
-  rcases treeOfCodebook_spec hpairs_ne hinc hw_pairs with ⟨T, _, hperm, hwpl⟩
+  rcases treeOfCodebook_spec hpairs_ne hinc (List.forall_mem_map.mpr hw) with ⟨T, _, hperm, hwpl⟩
   exact ⟨T, by simpa [pairs, List.map_map, Function.comp_def] using hperm,
     by simpa [pairs, List.map_map, Function.comp_def] using hwpl⟩
 

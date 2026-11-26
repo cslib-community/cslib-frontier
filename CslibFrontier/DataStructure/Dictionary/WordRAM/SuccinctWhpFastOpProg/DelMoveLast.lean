@@ -445,18 +445,7 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
   unfold fastDeleteMoveLastGenProg
   dsimp only
   rw [hwp1]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (delMoveReadInfoGenProg (((mkWhpParams c U V w n_max, base), b), loc_last) >>= fun info =>
-        delMoveApplyCoreGenProg ((((cp, base), b), (loc_del, loc_last)), (rebAct, info))) =
-      (Memory.spec 0).clientState sr
-        (delCopySlotGenProg ((((cp, base), b), (loc_del, loc_last)), st_last)) := by
-    rw [clientState_bind, hri_st, hri_res]
-    unfold delMoveApplyCoreGenProg
-    dsimp only
-    rw [clientState_bind, clientState_bind, clientState_bind]
-  rw [hs'_eq]
-  unfold fastDeleteMoveLast
-  refine ⟨?_, ?_, ((hstep_b.trans hstep_lo).trans hstep_r).trans hstep_c⟩
+  refine ⟨?_, ?_, ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hri_st, hri_res,
       delMoveApplyCoreGenProg]
     dsimp only [sb, slo, sr, cp, fs1, fs1b, st_last, rKey_last, fp_live_last, fp_cand_last,
@@ -466,6 +455,11 @@ theorem fastDeleteMoveLastGenProg_fastStep {c U V w n_max base b loc_del loc_las
     rw [hri_st, hri_res]
     unfold delMoveApplyCoreGenProg
     exact validProg_bind hvp_b (validProg_bind hvp_lo (validProg_bind hvp_r hvp_c))
+  · rw [clientState_bind, hri_st, hri_res]
+    unfold delMoveApplyCoreGenProg fastDeleteMoveLast
+    dsimp only
+    rw [clientState_bind, clientState_bind, clientState_bind]
+    exact ((hstep_b.trans hstep_lo).trans hstep_r).trans hstep_c
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

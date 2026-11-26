@@ -65,17 +65,12 @@ theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
       TrieRep y.mem d free {free, free + 1} (fun _ => 0) ∧
       (∀ a, a ≠ free ∧ a ≠ free + 1 → y.mem a = x.mem a) ∧
       ∀ i : Fin numRegs, i ≠ rTrieRoot ∧ i ≠ Reg.free → y.regs i = x.regs i := by
-  obtain ⟨y, he, hroot, hfree, hmem⟩ : ∃ y, ExecWithin w trieInit x y 5 ∧
-      y.regs rTrieRoot = free ∧ y.regs Reg.free = free + 2 ∧
-      y.mem = Function.update (Function.update x.mem free 0) (free + 1) 0 := by
-    unfold trieInit
-    wram_exec [hz, ho, hf]
-    wram_simp
-  refine ⟨y, he, hroot, hfree, ?_, ?_, fun i hi => he.regs_eq (trieInit_preserves i hi)⟩
-  · exact TrieRep.fresh_node d hpos
-      (by rw [hmem, Function.update_of_ne (by omega), Function.update_self])
-      (by rw [hmem, Function.update_self])
-  · exact fun a ⟨ha0, ha1⟩ => by rw [hmem, Function.update_of_ne ha1, Function.update_of_ne ha0]
+  unfold trieInit
+  wram_exec [hz, ho, hf]
+  refine ⟨?_, ?_, TrieRep.fresh_node d hpos ?_ ?_,
+    fun a ⟨ha0, ha1⟩ => by wram_simp [ha0, ha1],
+    fun i ⟨hi1, hi2⟩ => by wram_simp [hi1, hi2]⟩
+  all_goals wram_simp
 
 /-- The empty trie at address `0` represents only the zero function. -/
 private theorem TrieRep.fn_eq_zero {mem : ℕ → ℕ} {k : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}

@@ -90,11 +90,11 @@ private theorem sum_sq_runValue_update_sub_le (hψ : ‖ψ‖ = 1) (T : ℕ) (v 
   calc
     _ ≤ ∑ i, (2 * ∑ t ∈ range T, s i t) ^ 2 :=
       sum_le_sum fun i _ => pow_le_pow_left₀ (norm_nonneg _) (norm_runValue_update_sub_le ..) 2
-    _ ≤ ∑ i, 4 * (T * ∑ t ∈ range T, s i t ^ 2) := by
-      refine sum_le_sum fun i _ => ?_
-      rw [mul_pow]
-      norm_num
-      simpa using sq_sum_le_card_mul_sum_sq (s := range T) (f := s i)
+    _ ≤ ∑ i, 4 * (T * ∑ t ∈ range T, s i t ^ 2) :=
+      sum_le_sum fun i _ => by
+        have h := sq_sum_le_card_mul_sum_sq (s := range T) (f := s i)
+        rw [card_range] at h
+        rw [mul_pow]; linarith
     _ = _ := by
       rw [← mul_sum, ← mul_sum, sum_comm]
       simp only [s, sum_sq_norm_querySlice, norm_runValue, hψ, one_pow, sum_const, card_range,
@@ -124,16 +124,13 @@ private theorem abs_weighted_measureProb_sub_le {J κ : Type*} [Fintype J] [Fint
     simp only [pack, event, measureProb, sum_filter, Fintype.sum_prod_type,
       norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_nonneg (Real.sqrt_nonneg _), mul_pow,
       Real.sq_sqrt (w _).coe_nonneg, mul_sum]
-    refine sum_congr rfl fun j _ => ?_
-    rw [← sum_filter]
-    simp
+    exact sum_congr rfl fun j _ => by simp
   have normsq (u : J → EuclideanSpace ℂ κ) : ‖pack u‖ ^ 2 = ∑ j, (w j : ℝ) * ‖u j‖ ^ 2 := by
     simpa [event, measureProb_univ] using mass u (fun _ => univ)
   have normalized (u : J → EuclideanSpace ℂ κ) (hu : ∑ j, (w j : ℝ) * ‖u j‖ ^ 2 = 1) :
       ‖pack u‖ = 1 := by nlinarith [normsq u, norm_nonneg (pack u)]
-  have sub : pack a - pack b = pack (fun j => a j - b j) := by
-    ext ⟨j, k⟩
-    simp [pack, PiLp.sub_apply, mul_sub]
+  have sub : pack a - pack b = pack (fun j => a j - b j) :=
+    PiLp.ext fun ⟨_, _⟩ => by simp [pack, mul_sub]
   have h := abs_measureProb_sub_le_norm_sub (normalized a ha) (normalized b hb) (event accept)
   rw [mass, mass, sub] at h
   simpa only [← normsq, Real.sqrt_sq (norm_nonneg _)] using h
@@ -261,13 +258,11 @@ theorem abs_reprogrammed_measureProb_sub_le {κ : Type*} [Fintype κ] [Fintype �
       (𝔼 hv : (ι → α) × α, ∑ i, (p i).toReal *
         measureProb (post hv.1 i (runValue step U ψ hv.1 T)) (accept hv.1 i))| ≤
       2 * T * Real.sqrt δ := by
-  have proj (u : ValueState ι V W) : projOutcomes (fun _ => True) u = u := by
-    ext x
-    simp
-  have hδ := ENNReal.toReal_nonneg.trans (hp p.support_nonempty.choose)
-  have bound :=
-    abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
-      (fun _ => p) (δ := ⟨δ, hδ⟩) (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
+  have proj (u : ValueState ι V W) : projOutcomes (fun _ => True) u = u :=
+    PiLp.ext fun _ => by simp
+  have bound := abs_readout_reprogrammed_measureProb_sub_le step U ψ hψ T (fun _ => ())
+    (fun _ => p) (δ := ⟨δ, ENNReal.toReal_nonneg.trans (hp p.support_nonempty.choose)⟩)
+    (fun _ => hp) (fun H _ => post H) (fun H _ => accept H)
   simp only [Fintype.sum_unique, proj] at bound
   exact bound
 

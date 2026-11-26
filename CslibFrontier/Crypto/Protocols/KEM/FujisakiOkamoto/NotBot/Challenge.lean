@@ -262,23 +262,18 @@ private theorem simHandler_reEnc_le (S : Scheme PK SK M R CT K) (d : List (M × 
       add_zero] using S.simHashG_reEnc_le hγ hpk m cStar st hst
   · simp only [ROQuery.gCost, ROQuery.hCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul,
       zero_add]
-    change (ProbComp.eval (simHashG S.pke.sampleCoins m st >>= fun z =>
-      (if S.pke.encDet pk m z.fst = c then simHashHq S.sampleKey c
-        else simHashHRaw S.sampleKey (false, m, c)) z.snd)).toOuterMeasure _ ≤ _
-    rw [ProbComp.eval_bind]
+    change (ProbComp.eval ((S.simHashH pk (false, m, c)).run st)).toOuterMeasure _ ≤ _
+    rw [simHashH, StateT.run_bind, ProbComp.eval_bind]
     refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
       {z | P z.2.gCache} _ 0 fun z _ hz => ?_).trans
-      (by simpa only [add_zero] using S.simHashG_reEnc_le hγ hpk m cStar st hst)
+      (by simpa only [StateT.run, add_zero] using S.simHashG_reEnc_le hγ hpk m cStar st hst)
     refine (toOuterMeasure_gCache_eq_zero _ z.2 P hz fun y hy => ?_).le
     split_ifs at hy
     exacts [(simHashHq_support (cStar := cStar) hy).1, (simHashHRaw_support hy).1]
-  · simp only [ROQuery.gCost, ROQuery.hCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul,
-      zero_add]
-    exact (toOuterMeasure_gCache_eq_zero _ st P hst fun _ hy =>
+  · exact (toOuterMeasure_gCache_eq_zero _ st P hst fun _ hy =>
       (simHashHRaw_support hy).1).trans_le zero_le
-  · simp only [ROQuery.gCost, ROQuery.hCost, Nat.cast_zero, zero_mul, add_zero]
-    exact (toOuterMeasure_gCache_eq_zero _ st P hst fun _ hy =>
-      gCache_eq_of_mem_support_filterDecaps _ _ _ _ _ _ hy).le
+  · exact (toOuterMeasure_gCache_eq_zero _ st P hst fun _ hy =>
+      gCache_eq_of_mem_support_filterDecaps _ _ _ _ _ _ hy).trans_le zero_le
 
 /-- The outer four-tuple randomness: key pair, challenge message, coins, and one key. -/
 private noncomputable def chalOuter4 (S : Scheme PK SK M R CT K) :
@@ -720,24 +715,26 @@ private theorem genHandler_presetState (S : Scheme PK SK M R CT K)
       (ProbComp.eval (simHashHRaw S.sampleKey y s₁)).map
           (fun x => (x.1, presetState mStar rStar cStar kq x.2)) =
         ProbComp.eval (simHashHRaw S.sampleKey y (presetState mStar rStar cStar kq s₁)) := by
-    rw [eval_simHashHRaw, eval_simHashHRaw, PMF.map_comp]; rfl
+    rw [eval_simHashHRaw, eval_simHashHRaw, PMF.map_comp]
+    rfl
+  have presetG (m) :=
+    zoomMemoize_presetState (fun s : SimState M R CT K => s.gCache)
+      (fun s c => { s with gCache := c }) (presetState mStar rStar cStar kq) mStar rStar m
+      (S.progG mStar rStar m) S.pke.sampleCoins s (S.eval_progG mStar rStar m) hs.1 rfl
+      fun _ => rfl
+  have presetHq (c s₁) (hs₁ : LookupNoneOr cStar kq s₁.hqCache) :=
+    zoomMemoize_presetState SimState.hqCache (fun s c => { s with hqCache := c })
+      (presetState mStar rStar cStar kq) cStar kq c (S.progHq cStar kq c) S.sampleKey s₁
+      (S.eval_progHq cStar kq c) hs₁ rfl fun _ => rfl
   rcases q with m | ⟨_ | _, m, c⟩ | c
-  · exact zoomMemoize_presetState (fun s : SimState M R CT K => s.gCache)
-      (fun s c => { s with gCache := c }) (presetState mStar rStar cStar kq) mStar rStar m _ _ s
-      (S.eval_progG mStar rStar m) hs.1 rfl fun _ => rfl
+  · exact presetG m
   · rw [eval_genHandler_H_false, eval_genHandler_H_false, PMF.map_bind]
     dsimp only [genHashG]
-    rw [← zoomMemoize_presetState (fun s : SimState M R CT K => s.gCache)
-        (fun s c => { s with gCache := c }) (presetState mStar rStar cStar kq) mStar rStar m _ _ s
-        (S.eval_progG mStar rStar m) hs.1 rfl fun _ => rfl,
-      PMF.bind_map]
+    rw [← presetG m, PMF.bind_map]
     refine Probability.PMF.bind_congr_on_support _ _ _ fun z hz => ?_
-    have hz' := S.presetInv_genHashG mStar rStar cStar kq m s hs z hz
     dsimp only [Function.comp_apply]
     split_ifs
-    · exact zoomMemoize_presetState SimState.hqCache (fun s c => { s with hqCache := c })
-        (presetState mStar rStar cStar kq) cStar kq c _ _ z.2 (S.eval_progHq cStar kq c)
-        hz'.2 rfl fun _ => rfl
+    · exact presetHq c z.2 (S.presetInv_genHashG mStar rStar cStar kq m s hs z hz).2
     · exact presetRaw _ z.2
   · exact presetRaw _ s
   · by_cases hc : c = cStar
@@ -747,10 +744,7 @@ private theorem genHandler_presetState (S : Scheme PK SK M R CT K)
         hg, hd s.gCache c hc hs.1]
       cases d s.gCache c
       · simp only [Bool.false_eq_true, ↓reduceIte, PMF.pure_map]
-      · simp only [genHashHq, ↓reduceIte, PMF.map_comp]
-        rw [← zoomMemoize_presetState SimState.hqCache (fun s c => { s with hqCache := c })
-          (presetState mStar rStar cStar kq) cStar kq c _ _ s (S.eval_progHq cStar kq c)
-          hs.2 rfl fun _ => rfl, PMF.map_comp]
+      · simp only [genHashHq, ↓reduceIte, PMF.map_comp, ← presetHq c s hs.2]
         rfl
 
 /-- Running the unprogrammed handler `genHandler d t` from caches preset with `G(mStar) = rStar`

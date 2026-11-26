@@ -153,12 +153,10 @@ open Classical in
 theorem realizedValue_none (θ : AgentType τ) : θ.realizedValue none = 0 := rfl
 
 theorem realizedValue_some_of_inWindow {θ : AgentType τ} {t : τ} (ht : θ.InWindow t) :
-    θ.realizedValue (some t) = θ.value := by
-  simp only [realizedValue, ht, ↓reduceIte]
+    θ.realizedValue (some t) = θ.value := ite_eq_left ht
 
 theorem realizedValue_some_of_not_inWindow {θ : AgentType τ} {t : τ} (ht : ¬ θ.InWindow t) :
-    θ.realizedValue (some t) = 0 := by
-  simp only [realizedValue, ht, ↓reduceIte]
+    θ.realizedValue (some t) = 0 := ite_eq_right ht
 
 theorem realizedValue_nonneg (θ : AgentType τ) (o : Option τ) : 0 ≤ θ.realizedValue o := by
   cases o <;> simp only [realizedValue, le_refl]
@@ -271,10 +269,9 @@ theorem isSome_of_criticalValue_lt {π : Policy ι τ} (hmono : π.IsMonotone)
     {θ : ι → AgentType τ} {i : ι} {a d : τ} {had : a ≤ d} {r : ℝ} (hr : 0 ≤ r)
     (hlt : π.criticalValue θ i a d had < ENNReal.ofReal r) :
     (π.alloc (Function.update θ i ⟨a, d, r, had, hr⟩) i).isSome := by
-  rw [criticalValue, sInf_lt_iff] at hlt
-  obtain ⟨w, ⟨z, hz, rfl, hwin⟩, hw⟩ := hlt
-  have hzr : z < r := (ENNReal.ofReal_lt_ofReal_iff_of_nonneg hz).mp hw
-  exact hmono i θ ⟨a, d, z, had, hz⟩ ⟨a, d, r, had, hr⟩ le_rfl le_rfl hzr hwin
+  obtain ⟨w, ⟨z, hz, rfl, hwin⟩, hw⟩ := sInf_lt_iff.mp hlt
+  exact hmono i θ ⟨a, d, z, had, hz⟩ ⟨a, d, r, had, hr⟩ le_rfl le_rfl
+    ((ENNReal.ofReal_lt_ofReal_iff_of_nonneg hz).mp hw) hwin
 
 /-- For a monotone policy, widening the reported window `[a₁, d₁] ⊆ [a₂, d₂]` cannot increase the
 critical value ([Parkes2007], Lemma 16.12, part 2, locator not verified against primary PDF). -/
@@ -399,10 +396,9 @@ theorem criticalMechanism_isIR (π : Policy ι τ) : π.criticalMechanism.IsIR :
   | some t =>
     have hle := ENNReal.toReal_mono ENNReal.ofReal_ne_top
       (criticalValue_le_self (h.symm ▸ Option.isSome_some))
-    rw [ENNReal.toReal_ofReal (θ i).value_nonneg] at hle
-    rw [Mechanism.utility_of_alloc_some π.criticalMechanism h]
-    simp only [criticalMechanism, criticalPayment, h, Option.isSome_some, ↓reduceIte]
-    linarith
+    simp only [Mechanism.utility, criticalMechanism, criticalPayment, h, Option.isSome_some,
+      ↓reduceIte, AgentType.realizedValue_some_of_inWindow (π.alloc_in_window θ i t h)]
+    linarith [ENNReal.toReal_ofReal (θ i).value_nonneg]
 
 /-- Any monotone deterministic online policy paired with critical-value payments is DSIC under
 no-early-arrival and no-late-departure misreports ([Parkes2007], Theorem 16.13, locator not
@@ -426,10 +422,8 @@ theorem criticalMechanism_isDSIC {π : Policy ι τ} (hmono : π.IsMonotone) :
     have hcv_anti : cv_true ≤ cv_rep :=
       criticalValue_antitone hmono (θ i).arrival_le_departure θ_true.arrival_le_departure
         hmis.1 hmis.2
-    have hutil_rep : π.criticalMechanism.utility i θ_true θ = θ_true.value - cv_rep.toReal := by
-      simp only [Mechanism.utility, criticalMechanism, criticalPayment, hrep,
-        AgentType.realizedValue_some_of_inWindow hin_rep, Option.isSome_some, ↓reduceIte, cv_rep]
-    rw [hutil_rep]
+    conv_lhs => simp only [Mechanism.utility, criticalMechanism, criticalPayment, hrep,
+      AgentType.realizedValue_some_of_inWindow hin_rep, Option.isSome_some, ↓reduceIte]
     cases ht : π.alloc θ_t i with
     | some t_true =>
       have hin_true : θ_true.InWindow t_true := by
@@ -443,9 +437,8 @@ theorem criticalMechanism_isDSIC {π : Policy ι τ} (hmono : π.IsMonotone) :
       have hle_cv : ENNReal.ofReal θ_true.value ≤ cv_true := le_of_not_gt fun hlt =>
         Option.isSome_iff_ne_none.mp
           (isSome_of_criticalValue_lt hmono θ_true.value_nonneg hlt : (π.alloc θ_t i).isSome) ht
-      have hle' := ENNReal.toReal_mono hcv_rep_ne_top (hle_cv.trans hcv_anti)
-      rw [ENNReal.toReal_ofReal θ_true.value_nonneg] at hle'
-      linarith
+      linarith [ENNReal.toReal_mono hcv_rep_ne_top (hle_cv.trans hcv_anti),
+        ENNReal.toReal_ofReal θ_true.value_nonneg]
 
 /-- A *monotonic-late* deterministic online policy (`IsMonotone` and `IsLateAllocating`,
 allocating winners at their reported departure) paired with critical-value payments is DSIC even
@@ -461,15 +454,14 @@ theorem criticalMechanism_isDSICNoEarlyArrival {τ : Type*} [LinearOrder τ]
     have hir : 0 ≤ π.criticalMechanism.utility i θ_true (Function.update θ i θ_true) := by
       simpa only [Function.update_self] using
         π.criticalMechanism_isIR i (Function.update θ i θ_true)
-    cases hrep : π.alloc θ i with
+    cases hrep : π.criticalMechanism.policy.alloc θ i with
     | none =>
       rwa [Mechanism.utility_of_alloc_none _ hrep,
         π.criticalMechanism_isLoserZero i θ hrep, neg_zero]
     | some t_rep =>
       have hnotwin : ¬ θ_true.InWindow t_rep :=
         fun hin => not_le_of_gt hd (hlate θ i t_rep hrep ▸ hin.2)
-      rw [Mechanism.utility, show π.criticalMechanism.policy.alloc θ i = some t_rep from hrep,
-        AgentType.realizedValue_some_of_not_inWindow hnotwin, zero_sub]
+      rw [Mechanism.utility, hrep, AgentType.realizedValue_some_of_not_inWindow hnotwin, zero_sub]
       linarith [π.criticalMechanism_isNPT i θ]
 
 end Policy
@@ -543,17 +535,14 @@ theorem IsDSIC.payment_eq_criticalPayment {M : Mechanism ι τ} (hdsic : M.IsDSI
     simp only [Policy.criticalPayment, h, Option.isSome_some, ↓reduceIte]
     apply le_antisymm
     · have hp_le_cv : ENNReal.ofReal (M.payment θ i) ≤ cv := by
-        refine le_sInf fun w hw => ?_
-        obtain ⟨r, hr, rfl, hwin_r⟩ := hw
-        set θ_r : AgentType τ := ⟨a, d, r, had, hr⟩
-        have hpeq : M.payment θ i = M.payment (Function.update θ i θ_r) i := by
-          have := hdsic.payment_eq_of_same_window (θ := θ) (θ₁ := θ i) (θ₂ := θ_r) rfl rfl
-            (by simp [Function.update_eq_self, h]) hwin_r
-          rwa [Function.update_eq_self] at this
+        refine le_sInf fun w ⟨r, hr, hw, hwin_r⟩ => ?_
+        have hpeq := hdsic.payment_eq_of_same_window (θ := θ) (θ₁ := θ i)
+          (θ₂ := ⟨a, d, r, had, hr⟩) rfl rfl (by simp [Function.update_eq_self, h]) hwin_r
+        rw [Function.update_eq_self] at hpeq
         obtain ⟨t_r, ht_r⟩ := Option.isSome_iff_exists.mp hwin_r
-        have hir_r := hir i (Function.update θ i θ_r)
+        have hir_r := hir i (Function.update θ i ⟨a, d, r, had, hr⟩)
         rw [M.utility_of_alloc_some ht_r, Function.update_self] at hir_r
-        exact ENNReal.ofReal_le_ofReal (by rw [hpeq]; linarith)
+        exact hw ▸ ENNReal.ofReal_le_ofReal (by linarith)
       exact ENNReal.toReal_ofReal (hnpt i θ) ▸ ENNReal.toReal_mono hcv_ne_top hp_le_cv
     · refine le_of_not_gt fun hlt => ?_
       set z : ℝ := (M.payment θ i + cv.toReal) / 2 with hz_def
@@ -564,12 +553,12 @@ theorem IsDSIC.payment_eq_criticalPayment {M : Mechanism ι τ} (hdsic : M.IsDSI
       have hlose_z : M.policy.alloc (Function.update θ i θ_z) i = none :=
         Option.not_isSome_iff_eq_none.1 fun hsome =>
           not_le_of_gt hz_lt_cv (M.policy.criticalValue_le_of_isSome hz_nonneg hsome)
-      have hmis : θ_z.IsValidMisreport (θ i) := ⟨le_rfl, le_rfl⟩
-      have hdsic_z := hdsic i θ θ_z hmis
-      have hin_z : θ_z.InWindow t := .of_isValidMisreport hmis (M.policy.alloc_in_window θ i t h)
+      have hdsic_z := hdsic i θ θ_z ⟨le_rfl, le_rfl⟩
       rw [M.utility_of_alloc_none hlose_z, hlz i (Function.update θ i θ_z) hlose_z, neg_zero]
         at hdsic_z
-      simp only [utility, h, AgentType.realizedValue_some_of_inWindow hin_z, θ_z] at hdsic_z
+      simp only [utility, h,
+        AgentType.realizedValue_some_of_inWindow (θ := θ_z) (M.policy.alloc_in_window θ i t h),
+        θ_z] at hdsic_z
       linarith
 
 end Mechanism
@@ -583,8 +572,8 @@ no-late-departure misreports: a deterministic online policy admits a DSIC, IR, N
 payment rule if and only if it is online-monotone
 ([Parkes2007], Theorems 16.13 and 16.15, locators not verified against primary PDF). -/
 theorem isImplementable_iff_isMonotone {π : Policy ι τ} :
-    π.IsImplementable ↔ π.IsMonotone := by
-  exact ⟨fun ⟨_, hdsic, hir, _, hlz⟩ => hdsic.isMonotone hir hlz, fun hmono =>
+    π.IsImplementable ↔ π.IsMonotone :=
+  ⟨fun ⟨_, hdsic, hir, _, hlz⟩ => hdsic.isMonotone hir hlz, fun hmono =>
     ⟨π.criticalPayment, criticalMechanism_isDSIC hmono, criticalMechanism_isIR π,
       criticalMechanism_isNPT π, criticalMechanism_isLoserZero π⟩⟩
 

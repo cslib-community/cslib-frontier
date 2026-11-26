@@ -77,37 +77,44 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
               a < kEdgeAddr G.workBase (2 * G.n) + csrOffset G.adjFin (2 * G.n))) →
           y.mem a = x.mem a) ∧
         (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
-  | [], g, idx, _, x, _, _, hidx, _, _, hpcsr, _, hm, _, _, hi, _ => by
-    simp only [List.length_nil] at hidx
-    exact ⟨x, ExecWithin.loop_exit (show ¬ x.regs iReg < x.regs mClauses by omega), hpcsr,
-      fun _ _ => rfl, fun _ _ => rfl⟩
+  | [], g, idx, _, x, _, _, hidx, _, _, hpcsr, _, hm, _, _, hi, _ =>
+    ⟨x, ExecWithin.loop_exit (by simp only [Cond.holds_lt, List.length_nil] at hidx ⊢; omega),
+      hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
   | c :: cs, g, idx, p, x, hcs, htarget, hidx, hp, hcm, hpcsr, hc1, hm, hcur, hedge, hi, hpR => by
-    have hc := hcs c List.mem_cons_self
-    have hrest : ∀ c' ∈ cs, 1 ≤ c'.length ∧ c'.length ≤ 2 :=
-      fun c' hc' => hcs c' (List.mem_cons_of_mem c hc')
+    obtain ⟨hc, hrest⟩ := List.forall_mem_cons.mp hcs
     set curBase := kCurAddr G.workBase (2 * G.n) (2 * G.φ.length)
     set edgeBase := kEdgeAddr G.workBase (2 * G.n)
     have hdisj : edgeBase + 2 * G.φ.length ≤ curBase := by
       simp only [edgeBase, curBase, kEdgeAddr, kCurAddr]; omega
-    have hmc := csrOffset_adjFin_le G
-    have hfit_bf : Fits w (curBase + 2 * G.n + 2 * G.φ.length + 1) :=
-      G.fits_of_le hfit (by
-        simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase,
-          G.encode_length, Instance.wordBound]
-        omega)
     obtain ⟨hlen_p, hlit_p, hcm_rest⟩ := clauseMemAt_cons hcm
     simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy] at hp
     have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; lia)
-    have htarget' : cs.foldl addClauseEdges (addClauseEdges g c) = implicationAdj G.φ := by
-      rcases htarget with hnil | hfold
-      · simp [hnil] at hidx
-      · simpa using hfold
+    have htarget' : cs.foldl addClauseEdges (addClauseEdges g c) = implicationAdj G.φ :=
+      htarget.resolve_left fun hnil => by simp [hnil] at hidx
     have hroom (g' : Literal (Fin G.n) → List (Literal (Fin G.n))) (l : Literal (Fin G.n))
         (hle : (g' l).length + 1 ≤ (addClauseEdges g c l).length) :
         (mapAdj (litEquiv G.n) g' (litEquiv G.n l)).length + 1 ≤
           (G.adjFin (litEquiv G.n l)).length := by
       have hfold := htarget' ▸ length_le_foldl_addClauseEdges cs (addClauseEdges g c) l
       simpa [Instance.adjFin, mapAdj] using hle.trans hfold
+    have step (g' : Literal (Fin G.n) → List (Literal (Fin G.n))) (u v : Literal (Fin G.n))
+        (st : Data 28) (hle : (g' u.negate).length + 1 ≤ (addClauseEdges g c u.negate).length)
+        (hc1' : st.regs cOne = 1) (hcur' : st.regs curB = curBase)
+        (hedge' : st.regs edgeB = edgeBase)
+        (hpcsr' : PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) g') curBase edgeBase st.mem) :=
+      backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g') curBase edgeBase
+        (2 * G.φ.length) hdisj (csrOffset_adjFin_le G)
+        (G.fits_of_le hfit (by
+          simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase,
+            G.encode_length, Instance.wordBound]
+          omega))
+        (litEquiv G.n u.negate) (litEquiv G.n v) (hroom g' u.negate hle)
+        (x := (st.set vReg (litCodeBy Fin.val u ^^^ 1)).set uReg (litCodeBy Fin.val v))
+        (by wram_simp [hc1'])
+        (by wram_simp [hcur'])
+        (by wram_simp [hedge'])
+        (by simp [litEquiv, Data.set_regs, litCodeBy_xor_one])
+        (by simp [litEquiv, Data.set_regs]) hpcsr'
     obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ :
         ∃ x₁, ExecWithin w implFillBody x x₁ 26 ∧
           PartialCSRAt G.adjFin (mapAdj (litEquiv G.n) (addClauseEdges g c))
@@ -120,82 +127,63 @@ theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       · simp at hc
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by
           simpa using hlit_p 0 (Nat.zero_lt_succ _)
-        have hxor_a : litCodeBy Fin.val a ^^^ 1 = (litEquiv G.n a.negate).val :=
-          litCodeBy_xor_one Fin.val a
         have hf_na := fits_litCode_xor_one G hfit a
         rcases rest with _ | ⟨b, _ | _⟩
-        · have hroom_a := hroom g a.negate (by simp [addClauseEdges])
-          have hf_p2 : Fits w (p + 1 + 1) :=
+        · have hf_p2 : Fits w (p + 1 + 1) :=
             G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
-          let st_v := ((((x.set jReg 1).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)).set
-            vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val a)
+          let st_v := ((x.set jReg 1).set pReg (p + 1)).set oldFinReg (litCodeBy Fin.val a)
           obtain ⟨y₁, hy₁_ex, hy₁_p, hy₁_out, hy₁_fr⟩ :=
-            backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g) curBase edgeBase
-              (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n a.negate) (litEquiv G.n a) hroom_a
-              (x := st_v) (by wram_simp [st_v, hc1]) (by wram_simp [st_v, hcur])
-              (by wram_simp [st_v, hedge]) (by wram_simp [st_v, hxor_a])
-              (by simp [st_v, litEquiv, Data.set_regs]) hpcsr
-          have hlen_1 : x.mem p = 1 := by simpa using hlen_p
+            step g a a st_v (by simp [addClauseEdges])
+              (by wram_simp [st_v, hc1])
+              (by wram_simp [st_v, hcur])
+              (by wram_simp [st_v, hedge]) hpcsr
+          simp only [List.length_cons, List.length_nil] at hlen_p
           unfold implFillBody
-          wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_na]
+          wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hf_na]
           refine WP.of_execWithin hy₁_ex ?_
           wram_exec [hy₁_fr, st_v, hc1, hi, hf_p2, hf_i1]
           refine ⟨?_, fun addr_a ha => ?_, by wram_simp, ?_, fun r hr => ?_⟩
           · wram_simp
             rwa [mapAdj_addClauseEdges_one]
           · wram_simp [hy₁_out addr_a ha, st_v]
-          · wram_simp
-            rfl
+          · wram_simp [List.length_cons, List.length_nil]
           · wram_simp [hy₁_fr r (by reg_ne) (by reg_ne), st_v]
         · have hmem_b : x.mem (p + 1 + 1) = litCodeBy Fin.val b := by
             simpa [Nat.add_assoc] using hlit_p 1 (by simp)
-          have hlen_2 : x.mem p = 2 := by simpa using hlen_p
-          have hxor_b : litCodeBy Fin.val b ^^^ 1 = (litEquiv G.n b.negate).val :=
-            litCodeBy_xor_one Fin.val b
+          simp only [List.length_cons, List.length_nil] at hlen_p
           let g₁ := Function.update g a.negate (b :: g a.negate)
-          have hg₁_map : mapAdj (litEquiv G.n) g₁ =
-              Function.update (mapAdj (litEquiv G.n) g) (litEquiv G.n a.negate)
-                (litEquiv G.n b :: mapAdj (litEquiv G.n) g (litEquiv G.n a.negate)) :=
-            (mapAdj_update_cons (litEquiv G.n) g a.negate b).symm
-          have hroom_a := hroom g a.negate (by
-            by_cases hab : a.negate = b.negate <;> simp [addClauseEdges, hab])
-          have hroom_b := hroom g₁ b.negate (by simp [addClauseEdges, g₁])
+          have hg₁_map := (mapAdj_update_cons (litEquiv G.n) g a.negate b).symm
           have hf_p3 : Fits w (p + 1 + 1 + 1) :=
             G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
           have hf_nb := fits_litCode_xor_one G hfit b
-          let st_v1 := ((((((x.set jReg 2).set pReg (p + 1)).set
+          let st_v1 := ((((x.set jReg 2).set pReg (p + 1)).set
             oldFinReg (litCodeBy Fin.val a)).set pReg (p + 1 + 1)).set
-            jReg (litCodeBy Fin.val b)).set
-            vReg (litCodeBy Fin.val a ^^^ 1)).set uReg (litCodeBy Fin.val b)
+            jReg (litCodeBy Fin.val b)
           obtain ⟨y₁, hy₁_ex, hy₁_p, hy₁_out, hy₁_fr⟩ :=
-            backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g) curBase edgeBase
-              (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n a.negate) (litEquiv G.n b) hroom_a
-              (x := st_v1) (by wram_simp [st_v1, hc1]) (by wram_simp [st_v1, hcur])
-              (by wram_simp [st_v1, hedge]) (by wram_simp [st_v1, hxor_a])
-              (by simp [st_v1, litEquiv, Data.set_regs]) hpcsr
-          let st_v2 := (y₁.set vReg (litCodeBy Fin.val b ^^^ 1)).set uReg (litCodeBy Fin.val a)
+            step g a b st_v1
+              (by by_cases hab : a.negate = b.negate <;> simp [addClauseEdges, hab])
+              (by wram_simp [st_v1, hc1])
+              (by wram_simp [st_v1, hcur])
+              (by wram_simp [st_v1, hedge]) hpcsr
           obtain ⟨y₂, hy₂_ex, hy₂_p, hy₂_out, hy₂_fr⟩ :=
-            backfillStepCode_spec G.adjFin (mapAdj (litEquiv G.n) g₁) curBase edgeBase
-              (2 * G.φ.length) hdisj hmc hfit_bf (litEquiv G.n b.negate) (litEquiv G.n a) hroom_b
-              (x := st_v2) (by wram_simp [st_v2, hy₁_fr, st_v1, hc1])
-              (by wram_simp [st_v2, hy₁_fr, st_v1, hcur])
-              (by wram_simp [st_v2, hy₁_fr, st_v1, hedge])
-              (by wram_simp [st_v2, hxor_b])
-              (by simp [st_v2, litEquiv, Data.set_regs]) (hg₁_map.symm ▸ hy₁_p)
+            step g₁ b a y₁ (by simp [addClauseEdges, g₁])
+              (by wram_simp [hy₁_fr, st_v1, hc1])
+              (by wram_simp [hy₁_fr, st_v1, hcur])
+              (by wram_simp [hy₁_fr, st_v1, hedge]) (hg₁_map.symm ▸ hy₁_p)
           unfold implFillBody
-          wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_na]
+          wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hmem_b, hf_na]
           refine WP.of_execWithin hy₁_ex ?_
           wram_exec [hy₁_fr, st_v1, hc1, hf_nb]
           refine WP.of_execWithin hy₂_ex ?_
-          wram_exec [hy₂_fr, st_v2, hy₁_fr, st_v1, hc1, hi, hf_p3, hf_i1]
+          wram_exec [hy₂_fr, hy₁_fr, st_v1, hc1, hi, hf_p3, hf_i1]
           refine ⟨?_, fun addr_a ha => ?_, by wram_simp, ?_, fun r hr => ?_⟩
           · wram_simp
             rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
-          · wram_simp [(hy₂_out addr_a ha).trans (hy₁_out addr_a ha), st_v2, st_v1]
-          · wram_simp
-            rfl
-          · wram_simp [hy₂_fr r (by reg_ne) (by reg_ne), st_v2, hy₁_fr r (by reg_ne) (by reg_ne),
-              st_v1]
+          · wram_simp [(hy₂_out addr_a ha).trans (hy₁_out addr_a ha), st_v1]
+          · wram_simp [List.length_cons, List.length_nil]
+          · have hra : r ≠ addr := by reg_ne
+            have hrj : r ≠ jEndReg := by reg_ne
+            wram_simp [hy₂_fr r hra hrj, hy₁_fr r hra hrj, st_v1]
         · simp at hc
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := fun k hk => by
       refine (hx₁_out _ ?_).trans (hcm_rest k hk)

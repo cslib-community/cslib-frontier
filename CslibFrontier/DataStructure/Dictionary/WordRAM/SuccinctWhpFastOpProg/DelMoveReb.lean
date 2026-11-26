@@ -140,9 +140,7 @@ private theorem delMoveRebCollisionProg_fastStep {c U V w n_max base rIdx : ℕ}
   obtain ⟨hw3_mc, hw3_vp, hw3_step⟩ := writeHdrProg_fastStep (hdrOff := hdrRebInsCount) henv
     (by decide) (henv.fits_const (by decide))
     nofun hw2_step.2.1 hw2_step.2.2.1 (val := 0)
-  dsimp only
-  unfold delMoveRebCollisionProg
-  simp only [pure_bind]
+  simp only [delMoveRebCollisionProg, pure_bind]
   refine ⟨?_, validProg_bind hrs_vp (validProg_bind hvp_c ?_), ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1] at hrs_mc hst_c hres_c hmc_c hw1_mc hw2_mc hw3_mc ⊢
@@ -256,8 +254,7 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
   obtain ⟨hwh_mc, hwh_vp, hwh_step⟩ := writeHdrProg_fastStep (hdrOff := hdrRebInsCount) henv
     (by decide) (henv.fits_of_le_n_max (by omega))
     nofun hbi_step.2.1 hbi_step.2.2.1 (val := fs.rebInsCount + 1)
-  unfold delMoveRebInsertIncProg
-  simp only [pure_bind]
+  simp only [delMoveRebInsertIncProg, pure_bind]
   exact CostBoundedStep.elim
     (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
       .bind ⟨hst_i, hres_i, hmc_i.le, hvp_i⟩ ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩)
@@ -474,8 +471,7 @@ theorem delMoveRebGenProg_fastStep
       ((if rebActiveB then 1 else 0) = 1 ∧ (st_last = 1 ∨ st_last = 2 + fs.oldEp)) ↔
       (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true := by
     cases rebActiveB <;> simp
-  unfold delMoveRebGenProg
-  simp only [pure_bind]
+  simp only [delMoveRebGenProg, pure_bind]
   rw [(hO _ _).1, (hO _ _).2.2.1, (hO _ _).2.2.2, hmc_o]
   by_cases hcond : (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true
   · rw [ite_eq_left hcond, ite_eq_left (hcond_iff.mpr hcond)]
@@ -487,8 +483,7 @@ theorem delMoveRebGenProg_fastStep
     obtain ⟨hrs_st, hrs_res, hrs_mc, hrs_vp⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     have hR := bind_of_readOnly hst_rc hres_rc hvp_rc
     have hI := bind_of_readOnly hrs_st hrs_res hrs_vp
-    unfold delMoveRebActiveProg
-    simp only [pure_bind]
+    simp only [delMoveRebActiveProg, pure_bind]
     rw [(hR _ _).1, (hR _ _).2.2.1, (hR _ _).2.2.2, hmc_rc,
       (hI _ _).1, (hI _ _).2.2.1, (hI _ _).2.2.2, hrs_mc]
     by_cases hll_r : loc_last < fs.rebScanCursor

@@ -107,17 +107,14 @@ private theorem inOpenSector_unique {c₁ c₂ : Fin 3} {z : ℝ × ℝ}
 private theorem exists_inOpenSector_of_ne_zero {z : ℝ × ℝ}
     (hz : ∀ c : Fin 3, dot2 (normVec c) z ≠ 0) : ∃ c : Fin 3, inOpenSector c z := by
   have hsum := sum_dot2_normVec z
-  rcases lt_or_gt_of_ne (hz 0) with h0 | h0 <;>
-    rcases lt_or_gt_of_ne (hz 1) with h1 | h1 <;>
-    rcases lt_or_gt_of_ne (hz 2) with h2 | h2
-  · exfalso; linarith only [hsum, h0, h1, h2]
-  · exact ⟨0, h0, h2⟩
-  · exact ⟨2, h2, h1⟩
-  · exact ⟨0, h0, h2⟩
-  · exact ⟨1, h1, h0⟩
-  · exact ⟨1, h1, h0⟩
-  · exact ⟨2, h2, h1⟩
-  · exfalso; linarith only [hsum, h0, h1, h2]
+  rcases lt_or_gt_of_ne (hz 0) with h0 | h0
+  · rcases lt_or_gt_of_ne (hz 2) with h2 | h2
+    · have h1 : 0 < dot2 (normVec 1) z := by linarith only [hsum, h0, h2]
+      exact ⟨2, h2, h1⟩
+    · exact ⟨0, h0, h2⟩
+  · rcases lt_or_gt_of_ne (hz 1) with h1 | h1
+    · exact ⟨1, h1, h0⟩
+    · exact ⟨2, by linarith only [hsum, h0, h1], h1⟩
 
 /-- Oriented crossing of the positive boundary ray `{w | dot2 (normVec c) w = 0}` between `z₁` and
 `z₂`: opposite signs on `normVec c` paired with the matching orientation sign on `det2 z₁ z₂`. -/
@@ -169,22 +166,14 @@ private theorem rayCross_of_adj_sectors_zero {z₁ z₂ : ℝ × ℝ}
       dot2 (normVec 2) z₁ * dot2 (normVec 1) z₂ = √3 / 2 * det2 z₁ z₂ := by
     dsimp [normVec, dot2, det2]
     ring
-  have hsqrt3 : (0 : ℝ) < √3 := sqrt_pos.mpr (by norm_num)
   have hrhs_neg : √3 / 2 * det2 z₁ z₂ < 0 := mul_neg_of_pos_of_neg (by positivity) hd
-  have hprod_pos : 0 < dot2 (normVec 2) z₁ * dot2 (normVec 0) z₂ := mul_pos h₁.2 h₂.2
-  have hn0z1_neg := h₁.1
   have hn2z2_neg : dot2 (normVec 2) z₂ < 0 := by
     by_contra! hge
-    have hle : dot2 (normVec 0) z₁ * dot2 (normVec 2) z₂ ≤ 0 :=
-      mul_nonpos_of_nonpos_of_nonneg hn0z1_neg.le hge
-    linarith only [hid1, hrhs_neg, hprod_pos, hle]
-  have hprod2_neg : dot2 (normVec 2) z₁ * dot2 (normVec 1) z₂ < 0 :=
-    mul_neg_of_pos_of_neg h₁.2 h₂.1
+    linarith only [hid1, hrhs_neg, mul_pos h₁.2 h₂.2, mul_nonpos_of_nonpos_of_nonneg h₁.1.le hge]
   have hn1z1_pos : 0 < dot2 (normVec 1) z₁ := by
     by_contra! hle
-    have hge : 0 ≤ dot2 (normVec 1) z₁ * dot2 (normVec 2) z₂ :=
-      mul_nonneg_of_nonpos_of_nonpos hle hn2z2_neg.le
-    linarith only [hid2, hrhs_neg, hprod2_neg, hge]
+    linarith only [hid2, hrhs_neg, mul_neg_of_pos_of_neg h₁.2 h₂.1,
+      mul_nonneg_of_nonpos_of_nonpos hle hn2z2_neg.le]
   exact ⟨Or.inr ⟨h₂.1, hn1z1_pos, hd⟩, Or.inr ⟨hn2z2_neg, h₁.2, hd⟩⟩
 
 private theorem rayCross_of_adj_sectors (c : Fin 3) {z₁ z₂ : ℝ × ℝ}

@@ -170,7 +170,6 @@ def smoothCode (P : Scheme ι S R Q A) [Fintype S] [Fintype Q] [DecidableEq Q]
 @[simp] theorem smoothCode_apply (P : Scheme ι S R Q A) [Fintype S] [Fintype Q] [DecidableEq Q]
     (i₀ : ι) (x : ι → Bool) (sq : S × Q) (idx : Fin (smoothCopies P i₀ sq)) :
     smoothCode P i₀ x ⟨sq, idx⟩ = P.answer sq.1 x sq.2 := by
-  rcases sq with ⟨s, q⟩
   rfl
 
 /-- **Codeword length bound** ([GKST, Lemma 7.1][GoldreichKarloffSchulmanTrevisan2006]): the
@@ -381,11 +380,8 @@ private theorem mul_keepProb_eq_min (P : Scheme ι S R Q A) [DecidableEq Q]
 private theorem tsum_mul_const_finset_sum {α β : Type*} [Fintype β]
     (f : α → ℝ≥0∞) (c : ℝ≥0∞) (g : α → β → ℝ≥0∞) :
     (∑' a, f a * (c * ∑ k : β, g a k)) = c * ∑ k : β, ∑' a, f a * g a k := by
-  have hrw : (∑' a, f a * (c * ∑ k : β, g a k)) =
-      c * ∑' a, ∑ k : β, f a * g a k := by
-    rw [← ENNReal.tsum_mul_left]
-    exact tsum_congr fun a => by rw [← mul_assoc, mul_comm (f a) c, mul_assoc, Finset.mul_sum]
-  rw [hrw, Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
+  rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable, ← ENNReal.tsum_mul_left]
+  exact tsum_congr fun a => by rw [← mul_assoc, mul_comm (f a) c, mul_assoc, Finset.mul_sum]
 
 /-- **Smoothness of the GKST decoder**: against every received word `y` (obliviously), each
 position `j : SmoothPos P i₀` is read at most `(|S| + 1) / |SmoothPos P i₀|` times in
@@ -640,11 +636,10 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
       refine add_le_add le_rfl (le_of_eq ?_)
       rw [tsum_mul_const_finset_sum]
       refine congrArg ((2 : ℝ≥0∞)⁻¹ * ·) (Finset.sum_congr rfl fun k _ => ?_)
-      have hproj : ((slotDist rq).map (· k)) none =
-          ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k))) none := by
-        simp only [slotDist, ProbComp.eval_pi, Probability.PMF.pi_map_eval]
-      rw [← hproj, PMF.map_apply]
-      exact tsum_congr fun slots => by by_cases hn : slots k = none <;> simp [hn, eq_comm]
+      rw [← Probability.PMF.pi_map_eval
+        (fun k => ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm k) (rq.2 (eS.symm k)))) k,
+        ← ProbComp.eval_pi, PMF.map_apply]
+      exact tsum_congr fun slots => by by_cases hn : slots k = none <;> simp [slotDist, hn, eq_comm]
     calc ∑' rq, ProbComp.eval (P.query i) rq *
             (if P.reconstruct i rq.1 (fun s => P.answer s x (rq.2 s)) = x i then 1 else 0)
         ≤ ∑' rq, ProbComp.eval (P.query i) rq *
@@ -661,8 +656,7 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
           congr 1
           rw [tsum_mul_const_finset_sum]
           refine congrArg _ (Finset.sum_congr rfl fun k _ => ?_)
-          rw [P.eval_serverQuery, PMF.bind_map, PMF.bind_apply]
-          rfl
+          rw [P.eval_serverQuery, PMF.bind_map, PMF.bind_apply]; rfl
   -- Bound each server's failure probability by `δ` via `CloseTo`:
   have hfail_le (k : Fin (Fintype.card S)) :
       (((ProbComp.eval (P.serverQuery (eS.symm k) i)).bind

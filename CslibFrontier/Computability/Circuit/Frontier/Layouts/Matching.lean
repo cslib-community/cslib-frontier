@@ -466,12 +466,9 @@ private theorem filter_notMem_incidenceSet_eq_pair [Fintype E] [DecidableEq E] {
 private theorem ncard_and_eq_sum_filter {ι : Type*} [Fintype ι] (S P : ι → Prop)
     [DecidablePred S] [DecidablePred P] :
     {x | S x ∧ P x}.ncard = ∑ x ∈ Finset.univ.filter S, if P x then 1 else 0 := by
-  have hset : {x | S x ∧ P x} =
-      ((Finset.univ.filter fun x => S x ∧ P x) : Set ι) := by
-    ext x; simp
-  rw [hset, ncard_coe_finset, Finset.card_filter, Finset.sum_filter]
-  refine Finset.sum_congr rfl fun x _ => ?_
-  by_cases hx : S x <;> by_cases hp : P x <;> simp [hx, hp]
+  have hset : {x | S x ∧ P x} = (((Finset.univ.filter S).filter P) : Set ι) :=
+    Set.ext fun _ => by simp
+  rw [hset, ncard_coe_finset, Finset.card_filter]
 
 /-- Decompose a sum over all vertices into the unmatched vertices and pairs of matched edge
 endpoints. -/
@@ -488,13 +485,10 @@ private theorem sum_vertices_eq_unmatched_add_matching [Fintype V] [Fintype E]
     ext v
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, matchedVertices, mem_ofPred_eq,
       Finset.mem_biUnion, Finset.mem_insert, Finset.mem_singleton, mem_incidenceSet, Mfin, eq_comm]
-  have hdisj : (Mfin : Set E).PairwiseDisjoint
-      (fun e => ({G.src e, G.tgt e} : Finset V)) := by
-    intro e he f hf hne
-    exact Finset.disjoint_left.mpr fun u hu hv => by
-      have heM : e ∈ M := by simpa [Mfin] using he
-      have hfM : f ∈ M := by simpa [Mfin] using hf
-      exact disjoint_left.mp (hM heM hfM hne) (by simpa using hu) (by simpa using hv)
+  have hdisj : (Mfin : Set E).PairwiseDisjoint (fun e => ({G.src e, G.tgt e} : Finset V)) :=
+    fun e he f hf hne => Finset.disjoint_left.mpr fun u hu hv =>
+      disjoint_left.mp (hM (by simpa [Mfin] using he) (by simpa [Mfin] using hf) hne)
+        (by simpa using hu) (by simpa using hv)
   have hcompl := (Finset.sum_add_sum_compl (Finset.univ.filter (· ∈ G.matchedVertices M))
     w).symm
   have hcf : (Finset.univ.filter (· ∈ G.matchedVertices M))ᶜ =
@@ -566,16 +560,10 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
   have hslack : {f | f ∉ M ∧ G.src f ∈ P₀ ∧ G.tgt f ∈ P₀ ∧ t ≤ score f}.ncard =
       ∑ e ∈ Mfinᶜ, slack e := by
     have hset : {f | f ∉ M ∧ G.src f ∈ P₀ ∧ G.tgt f ∈ P₀ ∧ t ≤ score f} =
-        ((Mfinᶜ.filter fun e => slack e = 1) : Set E) := by
-      ext e
-      simp only [mem_ofPred_eq, Finset.coe_filter, Finset.mem_compl, Mfin, Finset.mem_filter,
-        Finset.mem_univ, true_and, slack, col, ecol, P₀, decide_eq_true_eq,
-        decide_eq_false_iff_not, not_lt]
-      split_ifs with h <;> simp [h]
+        ((Mfinᶜ.filter fun e =>
+          col (G.src e) = true ∧ col (G.tgt e) = true ∧ ecol e = false) : Set E) :=
+      Set.ext fun e => by simp [Mfin, col, ecol, P₀]
     rw [hset, ncard_coe_finset, Finset.card_filter]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    dsimp only [slack]
-    split_ifs <;> omega
   -- Split edges into matched edges `M` (kept directly) and unmatched edges (split across their
   -- endpoint incidences with the slack term).
   have hstep1 : (∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e))) + 2 * ∑ e ∈ Mfinᶜ, slack e ≤
@@ -835,9 +823,8 @@ theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
   le_of_matchingKey_separated_grid hloop h3 hM score hP hPc le_rfl hδ
     (fun t => (G.matchingCost M score t : ℝ))
     (fun t hP₀ => by
-      have h1 := (ncard_edgeCut_le_of_subset h3 hP₀).trans
-        (Nat.add_le_add_right (ncard_edgeCut_threshold_le_matchingCost hloop h3 hM score t) _)
-      exact_mod_cast h1)
+      exact_mod_cast (ncard_edgeCut_le_of_subset h3 hP₀).trans
+        (Nat.add_le_add_right (ncard_edgeCut_threshold_le_matchingCost hloop h3 hM score t) _))
     low high mid
 
 /-- **The matched-edge pair-insertion layout.** Given a loopless cubic multigraph (parallel edges

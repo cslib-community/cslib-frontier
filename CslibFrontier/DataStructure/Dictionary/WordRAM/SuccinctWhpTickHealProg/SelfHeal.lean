@@ -421,16 +421,11 @@ private theorem realizes_csrToFastPart1a :
       CsrToFastPart1Pre
       (fun _ _ => 0) := by
   unfold csrToFastPart1aProg
-  have hmr := realizes_mkHealRtGen
-  have hmp := realizes_mkPermRtGen
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  have hbp := realizes_bpPrefixLoop
-  have hfbp := realizes_fillBackPtrOuterLoop
-  have hpt := realizes_permuteByTarget
   have hcs_rp : ∀ y s', (Memory.spec 0).clientState s' (readPackedGenProg y) = s' :=
     fun _ _ => rfl
-  realize
+  realize [realizes_mkHealRtGen, realizes_mkPermRtGen, realizes_readPackedGen,
+    realizes_writePackedGen, realizes_bpPrefixLoop, realizes_fillBackPtrOuterLoop,
+    realizes_permuteByTarget]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only [CsrToFastPart1Pre, WhpLargeEnvGen] at h
@@ -462,15 +457,10 @@ private theorem realizes_csrToFastPart1b :
       (fun w d _ => WhpLargeEnvGen w d.1.1 d.1.2)
       (fun _ _ => 0) := by
   unfold csrToFastPart1bProg
-  have hmr := realizes_mkHealRtGen
-  have hcs := realizes_clampSub
-  have hfpo := realizes_fillPoolOwnerLoop
-  have hffs := realizes_fillFreeStackLoop
-  have hfls := realizes_fillLocStateOuterLoop
-  have hras := realizes_resetAllSlicesLoop
   have hcs_cl : ∀ y s', (Memory.spec 0).clientState s' (clampSubProg y) = s' :=
     clientState_clampSubProg
-  realize
+  realize [realizes_mkHealRtGen, realizes_clampSub, realizes_fillPoolOwnerLoop,
+    realizes_fillFreeStackLoop, realizes_fillLocStateOuterLoop, realizes_resetAllSlicesLoop]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, tb⟩
     dsimp only [WhpLargeEnvGen] at h
@@ -498,13 +488,10 @@ private theorem realizes_csrToFastPart1 :
       CsrToFastPart1Pre
       (fun _ _ => 0) := by
   unfold csrToFastPart1Prog
-  have h1a := realizes_csrToFastPart1a
-  have h1b := realizes_csrToFastPart1b
-  realize
-  all_goals (
+  realize [realizes_csrToFastPart1a, realizes_csrToFastPart1b]
+  all_goals
     rcases d with ⟨cp, base⟩
     exact h
-  )
 
 private theorem csrToFastPart1Prog_eq {c U V w n_max base : ℕ}
     {θ : SeedWhp c U n_max} {csr : CsrState} {dict : Dictionary.State U} {salts : ℕ → ℕ}
@@ -604,14 +591,9 @@ theorem realizes_csrToFastGen :
       CsrToFastPre
       (fun _ _ => 0) := by
   unfold csrToFastGenProg
-  have hp1 := realizes_csrToFastPart1
-  have hmr := realizes_mkHealRtGen
-  have hmh := realizes_mkHashRtGen
-  have hbab := realizes_buildAllBucketsOuterLoop
-  have hffm := realizes_fillFinalBktMetaLoop
-  have hztc := realizes_zeroTrieChildrenLoop
-  have hwhd := realizes_writeHealHdrsAndTrieMeta
-  realize
+  realize [realizes_csrToFastPart1, realizes_mkHealRtGen, realizes_mkHashRtGen,
+    realizes_buildAllBucketsOuterLoop, realizes_fillFinalBktMetaLoop,
+    realizes_zeroTrieChildrenLoop, realizes_writeHealHdrsAndTrieMeta]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only [CsrToFastPre] at h
@@ -803,20 +785,18 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         ((hout_ffm a (Or.inr ha_fb)).trans (hout_bab a (Or.inr (Or.inl ⟨ha_fb, ha_bt⟩))))
   have htot_step : StepSpec w (base + largeSpaceWhp c U V w n_max) s
       (csrToFastGenProg (mkWhpParams c U V w n_max, base)) s_fin () := by
-    unfold csrToFastGenProg; dsimp only
-    simp only [pure_bind]
-    rw [hwp1]
-    refine hp1_step.bind ?_
-    dsimp only [cp] at hmr_st hmr_res hmr_vp ⊢
-    refine StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ ?_
-    refine StepSpec.bind ⟨hmh_st, hmh_res, hmh_vp⟩ ?_
-    dsimp only [mkHealRt, hlM, hlTcEntries]
+    unfold csrToFastGenProg
+    dsimp only
+    simp only [pure_bind, hwp1]
+    dsimp only [cp] at hmr_st hmr_res hmr_vp
+    refine hp1_step.bind <| StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ <|
+      StepSpec.bind ⟨hmh_st, hmh_res, hmh_vp⟩ ?_
+    dsimp only [mkHealRt, hlM, hlTcEntries, cp, rt, hrt, M]
+      at hvp_bab hvp_ffm hvp_ztc hvp_whd s_bab s_ffm s_ztc s_fin ⊢
     simp only [wp_large_offTrieChild0 hth, wp_large_offTrieChild1 hth,
       wp_large_offTrieMeta0 hth, wp_large_offTrieMeta1 hth]
-    dsimp only [cp, rt, hrt, M] at hvp_bab hvp_ffm hvp_ztc hvp_whd s_bab s_ffm s_ztc s_fin ⊢
-    refine StepSpec.bind ⟨rfl, rfl, hvp_bab⟩ ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_ffm⟩ ?_
-    exact StepSpec.bind ⟨rfl, rfl, hvp_ztc⟩ ⟨rfl, rfl, hvp_whd⟩
+    exact StepSpec.bind ⟨rfl, rfl, hvp_bab⟩ <| StepSpec.bind ⟨rfl, rfl, hvp_ffm⟩ <|
+      StepSpec.bind ⟨rfl, rfl, hvp_ztc⟩ ⟨rfl, rfl, hvp_whd⟩
   refine ⟨?_, ?_, ?_, htot_step.2.2, fun a ha => ?_⟩
   · rw [htot_step.1]
     refine SeedWhpMemRep.congr_hash hw (fun a ha1 ha2 => ?_) hseed_ras
@@ -960,9 +940,7 @@ theorem realizes_trySelfHealGen :
       TrySelfHealPre
       (fun _ _ => 0) := by
   unfold trySelfHealGenProg
-  have hck := realizes_checkGoodSeedOnStateGen
-  have hcf := realizes_csrToFastGen
-  realize
+  realize [realizes_checkGoodSeedOnStateGen, realizes_csrToFastGen]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only [TrySelfHealPre] at h
@@ -1024,10 +1002,8 @@ theorem trySelfHealGenProg_spec {c U V w n_max base : ℕ}
         () := by
       dsimp only [prog]
       unfold trySelfHealGenProg
-      simp only [pure_bind]
-      refine StepSpec.bind ⟨rfl, hck_res, hck_vp⟩ ?_
-      simp only [↓reduceIte]
-      exact ⟨rfl, rfl, hcf_vp⟩
+      simpa only [pure_bind] using StepSpec.bind ⟨rfl, hck_res, hck_vp⟩
+        (ite_eq_left rfl ▸ ⟨rfl, rfl, hcf_vp⟩)
     rw [hstep.1]
     exact ⟨⟨hth, hcf_seed, hcf_rep⟩, hcf_fr.trans hck_fr, hstep.2.2,
       fun a ha => (hcf_out a ha).trans (hck_out a ha)⟩

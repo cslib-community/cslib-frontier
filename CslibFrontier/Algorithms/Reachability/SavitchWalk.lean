@@ -147,9 +147,8 @@ theorem test_search {test : List Bool → Bool} {w : ℕ} {m : List Bool} (hm : 
 search, since every round keeps the width. -/
 theorem search_congr {test test' : List Bool → Bool} {w : ℕ}
     (h : ∀ m : List Bool, m.length = w → test m = test' m) : search test w = search test' w := by
-  suffices ∀ k, (searchStep test)^[k] (List.replicate w false) =
-      (searchStep test')^[k] (List.replicate w false) from this (2 ^ w)
-  intro k
+  rw [search, search]
+  generalize 2 ^ w = k
   induction k with
   | zero => rfl
   | succ k ih =>
@@ -291,18 +290,15 @@ theorem width_step (edge : List Bool → List Bool → Bool) {w : ℕ} {s : Stat
   obtain ⟨cur, _ | ⟨⟨t, _ | i⟩, rest⟩⟩ := s
   · exact h
   · exact ⟨h.2 _ List.mem_cons_self, fun e he => h.2 e (List.mem_cons_of_mem _ he)⟩
-  · refine ⟨h.1, ?_⟩
-    simp only [step, List.forall_mem_cons, length_midpoint, true_and]
-    exact ⟨h.2 _ List.mem_cons_self, fun e he => h.2 e (List.mem_cons_of_mem _ he)⟩
+  · simpa only [Width, step, List.forall_mem_cons, length_midpoint, true_and] using
+      ⟨h.1, h.2 _ List.mem_cons_self, fun e he => h.2 e (List.mem_cons_of_mem _ he)⟩
 
 /-- Every state of a run keeps the width. -/
 theorem width_iterate (edge : List Bool → List Bool → Bool) {w : ℕ} {s : State} (h : Width w s)
     (n : ℕ) : Width w ((step edge w)^[n] s) := by
   induction n with
   | zero => exact h
-  | succ _ ih =>
-    rw [Function.iterate_succ_apply']
-    exact width_step edge ih
+  | succ n ih => exact Function.iterate_succ_apply' (step edge w) n s ▸ width_step edge ih
 
 /-- **The levels of a stack within depth `d`**: a target with `n` targets below it is at level at
 most `d - n`. -/
@@ -343,9 +339,7 @@ theorem levelsLE_iterate (edge : List Bool → List Bool → Bool) (w : ℕ) {d 
     (h : LevelsLE d s.2) (n : ℕ) : LevelsLE d ((step edge w)^[n] s).2 := by
   induction n with
   | zero => exact h
-  | succ _ ih =>
-    rw [Function.iterate_succ_apply']
-    exact levelsLE_step edge w ih
+  | succ n ih => exact Function.iterate_succ_apply' (step edge w) n s ▸ levelsLE_step edge w ih
 
 /-! ### A run between reachable vertices -/
 
@@ -376,9 +370,7 @@ theorem chain_iterate {s : State} (h : Chain edge w s.1 s.2) (n : ℕ) :
     Chain edge w ((step edge w)^[n] s).1 ((step edge w)^[n] s).2 := by
   induction n with
   | zero => exact h
-  | succ _ ih =>
-    rw [Function.iterate_succ_apply']
-    exact chain_step ih
+  | succ n ih => exact Function.iterate_succ_apply' (step edge w) n s ▸ chain_step ih
 
 /-- **A step from a chain stays put or follows an edge.** -/
 theorem eq_or_edge_step {s : State} (h : Chain edge w s.1 s.2) :

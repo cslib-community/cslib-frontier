@@ -548,12 +548,10 @@ theorem logScore_expectedScore_lt {Ω : Type*} [Fintype Ω] {q p : Ω → ℝ} (
     rcases (hq.nonneg ω₀).eq_or_lt with hq0 | hqpos
     · simpa only [← hq0, zero_mul, sub_zero] using (hp.nonneg ω₀).lt_of_ne' (hq0 ▸ hω₀)
     · have hppos : 0 < p ω₀ := hsupp ω₀ hqpos
-      have hne1 : p ω₀ / q ω₀ ≠ 1 := fun h => hω₀ ((div_eq_one_iff_eq hqpos.ne').mp h)
-      have hlt := Real.add_one_lt_exp
-        (Real.log_ne_zero_of_pos_of_ne_one (div_pos hppos hqpos) hne1)
-      rw [Real.exp_log (div_pos hppos hqpos), Real.log_div hppos.ne' hqpos.ne'] at hlt
-      have hsub_lt : Real.log (p ω₀) - Real.log (q ω₀) < p ω₀ / q ω₀ - 1 := by linarith
-      linarith [mul_lt_mul_of_pos_left hsub_lt hqpos, hmul_sub (x := p ω₀) hqpos.ne']
+      have hlog := Real.log_lt_sub_one_of_pos (div_pos hppos hqpos)
+        (fun h => hω₀ ((div_eq_one_iff_eq hqpos.ne').mp h))
+      rw [Real.log_div hppos.ne' hqpos.ne'] at hlog
+      linarith [mul_lt_mul_of_pos_left hlog hqpos, hmul_sub (x := p ω₀) hqpos.ne']
   have hsum_lt := sum_lt_sum (fun ω _ => hterm ω) ⟨ω₀, mem_univ _, hstrict⟩
   simp only [sum_sub_distrib, hp.sum_eq_one, hq.sum_eq_one, sub_self] at hsum_lt
   simp only [ScoringRule.expectedScore_apply, logScore_score]; linarith
@@ -621,8 +619,6 @@ theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
   intro q hq p hp hpq
   have hqpos := sum_sq_pos_of_isMixedStrategy hq
   have hppos := sum_sq_pos_of_isMixedStrategy hp
-  have hqsqrt : 0 < Real.sqrt (∑ ω, q ω ^ 2) := Real.sqrt_pos.mpr hqpos
-  have hpsqrt : 0 < Real.sqrt (∑ ω, p ω ^ 2) := Real.sqrt_pos.mpr hppos
   obtain ⟨i₀, j₀, hij⟩ : ∃ i j, q i * p j - q j * p i ≠ 0 := by
     by_contra! hall
     refine hpq (funext fun i => ?_)
@@ -633,14 +629,12 @@ theorem isStrictlyProper_sphericalScore {Ω : Type*} [Fintype Ω] :
   have hlag_pos : 0 < ∑ i, ∑ j, (q i * p j - q j * p i) ^ 2 :=
     sum_pos' (fun _ _ => sum_nonneg fun _ _ => sq_nonneg _)
       ⟨i₀, mem_univ _, sum_pos' (fun _ _ => sq_nonneg _) ⟨j₀, mem_univ _, sq_pos_of_ne_zero hij⟩⟩
-  have hsq_eq : (Real.sqrt (∑ ω, q ω ^ 2) * Real.sqrt (∑ ω, p ω ^ 2)) ^ 2 =
-      (∑ ω, q ω ^ 2) * (∑ ω, p ω ^ 2) := by
-    rw [mul_pow, Real.sq_sqrt hqpos.le, Real.sq_sqrt hppos.le]
   have heval_p : (sphericalScore Ω).expectedScore q p =
       (∑ ω, q ω * p ω) / Real.sqrt (∑ ω, p ω ^ 2) := by
     simp only [ScoringRule.expectedScore_apply, sphericalScore_score, mul_div_assoc', sum_div]
-  rw [heval_p, sphericalScore_expectedScore_self hq, div_lt_iff₀ hpsqrt]
-  nlinarith [lagrange_identity q p, mul_pos hqsqrt hpsqrt]
+  rw [heval_p, sphericalScore_expectedScore_self hq, div_lt_iff₀ (Real.sqrt_pos.mpr hppos),
+    ← Real.sqrt_mul hqpos.le]
+  exact Real.lt_sqrt_of_sq_lt (by linarith [lagrange_identity q p])
 
 end CanonicalRules
 

@@ -152,7 +152,7 @@ theorem synthesis_transient_forest_reachability
       else inputLeft z
     have hjeq (hf : foundH z = true) :
         hChosen = f^[(Classical.choose ((hmarkSpec z).1 hf)).val] (inputLeft z) :=
-      dite_eq_left_of_eq_true (eq_true hf)
+      dite_eq_left hf
     have hHsound : foundH z = true →
         hChosen ∈ forestMarks f tables.H ∧
           ∃ d ≤ 2 * L, f^[d] (inputLeft z) = hChosen := fun hf =>
@@ -166,12 +166,6 @@ theorem synthesis_transient_forest_reachability
       (foundH z) (foundA z) hHsound hHcomplete (fun hf => ((hanchorSpec z).1 hf).1)
       (hanchorSpec z).2
     rw [hnav]
-    have hshortIff : shortBit z = true ↔ ∃ i ≤ 2 * L, f^[i] (inputLeft z) = inputRight z := by
-      simp only [shortBit, decide_eq_true_eq, Fin.exists_iff, Q, K, Nat.lt_add_one_iff, exists_prop]
-    have hverifyIff : verifyBit z = true ↔
-        ∃ i ≤ 2 * L, f^[i] (anchorState z) = inputRight z := by
-      simp only [verifyBit, decide_eq_true_eq, Fin.exists_iff, Q, K, Nat.lt_add_one_iff,
-        exists_prop]
     have hintIff (hfH : foundH z = true) (hfA : foundA z = true) :
         intervalBit z = true ↔
           (tables.low (anchorState z) ≤ tables.low hChosen ∧
@@ -180,8 +174,8 @@ theorem synthesis_transient_forest_reachability
       rw [(Classical.choose_spec ((hmarkSpec z).1 hfH)).2, ← hjeq hfH,
         ((hanchorSpec z).1 hfA).2]
       exact forest_label_interval tables.low tables.high (anchorState z) hChosen
-    rw [Bool.or_eq_true, Bool.and_eq_true, Bool.and_eq_true, Bool.and_eq_true,
-      hshortIff, hverifyIff]
+    simp only [shortBit, verifyBit, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq,
+      Fin.exists_iff, Q, K, Nat.lt_add_one_iff, exists_prop]
     exact or_congr_right ⟨fun ⟨⟨⟨hfH, hfA⟩, hv⟩, hi⟩ => ⟨hfH, hfA, hv, (hintIff hfH hfA).mp hi⟩,
       fun ⟨hfH, hfA, hv, hi⟩ => ⟨⟨⟨hfH, hfA⟩, hv⟩, (hintIff hfH hfA).mpr hi⟩⟩
   · dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start] at hsize ⊢

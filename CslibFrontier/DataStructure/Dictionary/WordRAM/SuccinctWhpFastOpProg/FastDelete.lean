@@ -79,8 +79,7 @@ private theorem realizes_fastDeleteOptMoveGen :
           FastDelMoveLastPre w ((((wp, base), b), (loc_del, loc_last)), rebAct) s)
       (fun _ _ => 0) := by
   unfold fastDeleteOptMoveGenProg
-  have hdm := realizes_fastDeleteMoveLastGen
-  realize
+  realize [realizes_fastDeleteMoveLastGen]
   rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, rebAct⟩
   exact h (by assumption)
 
@@ -108,9 +107,7 @@ private theorem realizes_delHitPrepGen :
           1 ≤ fs.bktCount b)
       (fun _ _ => 0) := by
   unfold delHitPrepGenProg
-  have hrb := realizes_readBktFieldGen
-  have hra := realizes_readRebActiveBGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_readRebActiveBGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -189,11 +186,8 @@ private theorem realizes_fastDeleteHitGen :
           u_val < U)
       (fun _ _ => 0) := by
   unfold fastDeleteHitGenProg
-  have hdp := realizes_delHitPrepGen
-  have hdr := realizes_fastDeleteRemoveGen
-  have hdm := realizes_fastDeleteOptMoveGen
-  have hds := realizes_fastDeleteShrinkGen
-  realize
+  realize [realizes_delHitPrepGen, realizes_fastDeleteRemoveGen,
+    realizes_fastDeleteOptMoveGen, realizes_fastDeleteShrinkGen]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, b⟩, loc_del⟩, u_val⟩
     dsimp only at *
@@ -345,9 +339,7 @@ private theorem realizes_fastDeleteBodyGen :
                 keyQuotient (bWhp n_max) u_val))
       (fun _ _ => 0) := by
   unfold fastDeleteBodyGenProg
-  have hfl := realizes_fastFindLocBqGen
-  have hhit := realizes_fastDeleteHitGen
-  realize
+  realize [realizes_fastFindLocBqGen, realizes_fastDeleteHitGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, ⟨b, q_val⟩⟩, u_val⟩
     dsimp only at *
@@ -447,11 +439,8 @@ theorem realizes_fastDeleteGen :
       (fun w ((wp, base), u_val) s => ValidFastMemPre w wp base s ∧ u_val < wpU wp.1)
       (fun _ _ => 0) := by
   unfold fastDeleteGenProg
-  have hmh := realizes_mkHashRtGen
-  have hfs := realizes_feistelSplitRt
-  have hdb := realizes_fastDeleteBodyGen
-  have hom := realizes_overmarsStepGen
-  realize
+  realize [realizes_mkHashRtGen, realizes_feistelSplitRt,
+    realizes_fastDeleteBodyGen, realizes_overmarsStepGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *

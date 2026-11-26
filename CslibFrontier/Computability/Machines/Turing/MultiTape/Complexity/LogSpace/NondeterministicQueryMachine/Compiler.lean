@@ -127,8 +127,7 @@ private theorem finish_output (a : α) (s : σ) (hs : (M.withInit (start a)).Rea
   obtain ⟨ws', e, he, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
   obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
   have hmap : p.head = q.head.mapState Native.finishState := by
-    rw [hhead', hqhead, mapState_wordsCfg]
-    exact hhead
+    rw [hhead, hhead', hqhead, mapState_wordsCfg]; rfl
   by_cases hshort : p.length < q.length
   · have h := Native.follows_finish R.I R.P R.F R.C p q hmap p.length
       (Nat.lt_succ_self _) (by omega)
@@ -155,18 +154,15 @@ theorem choose_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
   | ind n ih =>
     have hpos : 0 < p.length := R.runPath_length_pos hhead hhalt
     have hone : 1 < p.length + 1 := by omega
-    have hfirst := p.step ⟨0, by omega⟩
-    change R.machine.Step p.head (p ⟨1, hone⟩) at hfirst
-    rw [hhead] at hfirst
-    obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp hfirst
+    have hfirst : R.machine.Step p.head (p ⟨1, hone⟩) := p.step ⟨0, hpos⟩
+    obtain ⟨b, hb⟩ := (Native.step_iff R.I R.P R.F R.C).mp (hhead ▸ hfirst)
     rw [Native.step_choose R.I R.P R.F R.C b _ rfl, withState_wordsCfg] at hb
     let p₁ := p.drop ⟨1, hone⟩
     obtain ⟨t, ht⟩ := R.pass_spec a s hs b flag
     obtain ⟨ws', e, ⟨hws, he⟩, q₀, hqhead, hqlast, _, _⟩ := ht _ _ out ⟨rfl, rfl⟩
     obtain ⟨q, hhead', hlast', _, _⟩ := q₀.exists_running (by rw [hqlast]; rfl)
-    have hmap : p₁.head = q.head.mapState (Native.passState b) := by
-      rw [hhead', hqhead, mapState_wordsCfg]
-      exact hb.symm
+    have hmap : p₁.head = q.head.mapState (Native.passState b) :=
+      hb.symm.trans (by rw [hhead', hqhead, mapState_wordsCfg]; rfl)
     have hlong : q.length + 1 < p.length := by
       by_contra hshort
       have hq : p₁.length < q.length + 1 := by simp only [p₁, RelSeries.drop_length]; omega

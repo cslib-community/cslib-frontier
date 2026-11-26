@@ -592,11 +592,9 @@ theorem evalBinOp_mul_comm (a b : Datum) :
 
 private theorem evalBinOp_arith_right_id {op : ArithOp} {c : ℤ} (hop : ∀ x, op.eval x c = .ok x)
     {a : Datum} (ha : a.HasType .int) : evalBinOp (.arith op) a (some (.int c)) = .ok a := by
-  obtain ⟨x, hx⟩ := Datum.exists_asInt_eq_ok_iff.mpr ha
-  rw [evalBinOp_arith_of_asInt hx rfl]
-  match a, x, hx with
-  | none, _, hx => cases hx; rfl
-  | some (.int z), _, hx => cases hx; simp only [hop, Except.map_ok]
+  match a, ha with
+  | none, _ => rfl
+  | some (.int z), _ => simp [evalBinOp, Datum.asInt, hop]
 
 /-- `a + 0` is `a` on integer-typed datums; on a text or boolean `a` it is a type error. -/
 theorem evalBinOp_add_zero {a : Datum} (ha : a.HasType .int) :
@@ -739,7 +737,8 @@ theorem inList_eq_ok {e : Datum} {vs : List Datum} {τ : SqlType} (he : e.HasTyp
     · exact (hfalse.mp rfl).elim (absurd · h₁) fun ⟨he', hn', _⟩ => (h₃.elim he' hn').elim
     · rfl
     · exact absurd (htrue.mp rfl) h₂
-  · exact hfalse.mpr (.inr ⟨by tauto, by tauto, fun h => h₂ ⟨by tauto, h⟩⟩)
+  · obtain ⟨he', hn'⟩ := not_or.mp h₃
+    exact hfalse.mpr (.inr ⟨he', hn', fun h => h₂ ⟨he', h⟩⟩)
 
 /-- `NOT IN` and `NOT EXISTS`. Read as filters, `e NOT IN vs` keeps a row when the negated
 membership is `TRUE`, and `NOT EXISTS (SELECT … FROM vs WHERE v = e)` keeps it when no comparison
@@ -753,17 +752,13 @@ theorem isTrue_not_inList_iff_iff {e : Datum} {vs : List Datum} {τ : SqlType} {
   have hmatch : (∃ v ∈ vs, CmpOp.eq.eval v e = .ok .true) ↔ e ≠ none ∧ e ∈ vs := by
     simp only [CmpOp.eval_eq_comm _ e, CmpOp.eval_eq_ok_true_iff]
     exact ⟨fun ⟨_, hv, hne, heq⟩ => ⟨hne, heq ▸ hv⟩, fun ⟨hne, hv⟩ => ⟨e, hv, hne, rfl⟩⟩
-  have htrue := inList_eq_ok_true_iff he hvs
-  have hfalse := inList_eq_ok_false_iff he hvs
-  rw [ht, Except.ok.injEq] at htrue hfalse
-  rw [hmatch, Truth.isTrue_iff, Truth.not_eq_true_iff]
-  refine ⟨fun h => if hm : e ≠ none ∧ e ∈ vs then .inr (.inl hm)
-    else (hfalse.mp (h.mpr hm)).elim .inl fun ⟨hne, hnull, _⟩ => .inr (.inr ⟨hne, hnull⟩), ?_⟩
-  rintro (h | h | ⟨hne, hnull⟩)
-  · exact ⟨fun _ ⟨_, hv⟩ => by simp [h] at hv, fun _ => hfalse.mpr (.inl h)⟩
-  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf, fun hm => absurd h hm⟩
-  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf,
-      fun hm => hfalse.mpr (.inr ⟨hne, hnull, fun hv => hm ⟨hne, hv⟩⟩)⟩
+  have hfalse := ht ▸ inList_eq_ok_false_iff he hvs
+  rw [Except.ok.injEq] at hfalse
+  rw [hmatch, Truth.isTrue_iff, Truth.not_eq_true_iff, hfalse]
+  rcases vs with _ | ⟨v, vs⟩
+  · simp
+  · by_cases hp : e = none <;> by_cases hq : none ∈ v :: vs <;> by_cases hr : e ∈ v :: vs <;>
+      simp [hp, hq, hr]
 
 end Datum
 

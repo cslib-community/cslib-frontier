@@ -296,9 +296,8 @@ private theorem card_filter_verifier (msg : C → ℕ → List Bool → List Boo
         fun c => F c (List.ofFn m) = true) := by
   rw [card_eq_sum_card_fiberwise (f := fun c => BitString.ofList n (msg c j p))
     (t := univ) fun _ _ => mem_univ _]
-  refine sum_congr rfl fun m _ => ?_
-  rw [filter_filter, filter_filter]
-  congr 1
+  refine sum_congr rfl fun m _ => congrArg Finset.card ?_
+  simp only [filter_filter]
   exact filter_congr fun c _ => ⟨fun ⟨h1, h2⟩ => ⟨h2, h2 ▸ h1⟩, fun ⟨h1, h2⟩ => ⟨h1 ▸ h2, h1⟩⟩
 
 /-- The count of the coins agreeing with a transcript that starts with a verifier message `m`. -/
@@ -310,11 +309,8 @@ private theorem card_filter_agrees_verifier (msg : C → ℕ → List Bool → L
       #((S.filter fun c => BitString.ofList n (msg c j p) = m).filter fun c =>
         (agrees (msg c) g (j + 1) (p ++ List.ofFn m) t && D c (List.ofFn m ++ t)) = true) := by
   rw [filter_filter]
-  congr 1
-  refine filter_congr fun c _ => ?_
-  rw [agrees_verifier_ofFn]
-  simp only [Bool.and_eq_true, decide_eq_true_eq]
-  exact ⟨fun ⟨⟨h1, h2⟩, h3⟩ => ⟨h1.symm, h2, h3⟩, fun ⟨h1, h2, h3⟩ => ⟨⟨h1.symm, h2⟩, h3⟩⟩
+  refine congrArg Finset.card (filter_congr fun c _ => ?_)
+  rw [agrees_verifier_ofFn, Bool.and_assoc, Bool.and_eq_true, decide_eq_true_eq, eq_comm]
 
 /-- The count of the coins agreeing with a transcript that starts with a prover message `y`. -/
 private theorem card_filter_agrees_prover (msg : C → ℕ → List Bool → List Bool) (n : ℕ)
@@ -591,9 +587,9 @@ theorem card_filter_matchArthur (g : List (AMMove × ℕ)) (t : List Bool)
   induction g generalizing t with
   | nil => rfl
   | cons x g ih =>
+    change t.length = x.2 + AMGame.transcriptLength g at ht
     obtain ⟨_ | _, n⟩ := x
-    · have ht' : t.length = n + AMGame.transcriptLength g := ht
-      have hlen : (t.take n).length = n := List.length_take_of_le (by omega)
+    · have hlen : (t.take n).length = n := List.length_take_of_le (by omega)
       change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
         matchArthur ((.arthur, n) :: g) (List.ofFn w) t = true) = 2 ^ merlinBits g
       have hw (w : Fin (n + AMGame.transcriptLength g) → Bool) :
@@ -614,8 +610,7 @@ theorem card_filter_matchArthur (g : List (AMMove × ℕ)) (t : List Bool)
         simp only [Bool.and_eq_true, decide_eq_true_eq, not_and]
         exact fun _ _ h => absurd (by rw [h, BitString.ofList_ofFn]) hu
       · exact fun h => absurd (mem_univ _) h
-    · have ht' : t.length = n + AMGame.transcriptLength g := ht
-      change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
+    · change #(univ.filter fun w : Fin (n + AMGame.transcriptLength g) → Bool =>
         matchArthur g ((List.ofFn w).drop n) (t.drop n) = true) = 2 ^ (n + merlinBits g)
       rw [BitString.card_filter_ofFn_add n (AMGame.transcriptLength g) fun _ v =>
         matchArthur g v (t.drop n) = true]
@@ -639,16 +634,10 @@ private theorem count_ofAM_mul (g : List (AMMove × ℕ)) (k : ℕ) (V : List Bo
   | nil => rfl
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
-    · change (∑ m : Fin n → Bool, count (ofAM g) fun t => k * (V (List.ofFn m ++ t)).toNat) =
-        k * ∑ r : Fin n → Bool, AMGame.count g fun t => V (List.ofFn r ++ t)
-      simp only [ih, mul_sum]
-    · change (univ.sup fun y : Fin n → Bool =>
-          count (ofAM g) fun t => k * (V (List.ofFn y ++ t)).toNat) =
-        k * univ.sup fun y : Fin n → Bool => AMGame.count g fun t => V (List.ofFn y ++ t)
-      simp only [ih]
-      rw [Finset.apply_sup_eq_sup_comp (fun x => k * x)
-        (fun x y => (Nat.mul_max_mul_left k x y).symm) (by simp)]
-      rfl
+    · simp only [ofAM_cons, AMMove.toIP, count_verifier, AMGame.count_arthur, ih, mul_sum]
+    · simp only [ofAM_cons, AMMove.toIP, count_prover, AMGame.count_merlin, ih]
+      exact (Finset.apply_sup_eq_sup_comp (k * ·)
+        (fun x y => (Nat.mul_max_mul_left k x y).symm) (by simp)).symm
 
 /-- The count of the verifier that sends its coins as Arthur's messages is `2 ^ merlinBits g`
 times the count of the public-coin game. -/

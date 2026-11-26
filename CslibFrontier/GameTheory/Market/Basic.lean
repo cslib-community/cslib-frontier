@@ -188,9 +188,7 @@ theorem IsLocallyNonsatiated.le_expenditure_of_mem_demandSet {u : (G → ℝ) �
             rw [Pi.sub_apply, abs_mul]
             exact mul_le_mul_of_nonneg_left (hz_dist g).le (abs_nonneg (p g))
         _ = S * (δ / (1 + S)) := by rw [← Finset.sum_mul]
-    have hS_le : S * (δ / (1 + S)) ≤ δ := by
-      rw [mul_div_assoc', div_le_iff₀ hden]
-      nlinarith
+    have hS_le : S * (δ / (1 + S)) ≤ δ := by rw [mul_div_assoc', div_le_iff₀ hden]; nlinarith
     linarith
   linarith [hb.2 z ⟨hz_nn, hz_exp⟩]
 
@@ -248,10 +246,9 @@ theorem isLocallyNonsatiated_linearUtility_iff (v : G → ℝ) :
     refine ⟨Function.update b g₀ (b g₀ + ε / 2),
       le_update_iff.2 ⟨by linarith [hb_nn g₀], fun j _ => hb_nn j⟩, fun g => ?_, ?_⟩
     · by_cases h : g = g₀ <;> simp [h, abs_of_pos (half_pos hε), half_lt_self hε, hε]
-    · have hdiff : linearUtility v (Function.update b g₀ (b g₀ + ε / 2)) - linearUtility v b =
-          v g₀ * (ε / 2) := by
-        simp [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub]
-      nlinarith
+    · rw [← sub_pos]
+      simpa [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub, sum_mul_update_sub] using
+        mul_pos hg₀ (half_pos hε)
 
 /-- If a bundle `b` is optimal for `linearUtility v` at nonnegative prices `p`, every good with
 strictly positive marginal utility must have strictly positive price. -/
@@ -303,20 +300,16 @@ theorem mem_demandSet_linearUtility_iff {v p : G → ℝ} {m : ℝ} {b : G → �
         exacts [add_nonneg (hb.1.1 _) (div_nonneg (mul_nonneg (hp g).le hbg.le) (hp g').le),
           le_rfl, hb.1.1 k]
       have hb'_exp : expenditure p b' = expenditure p b := by
-        rw [← sub_eq_zero]
-        simp only [b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub,
-          sum_mul_update_two_sub p b hgg']
-        field_simp [(hp g').ne']
-        ring
+        simp [← sub_eq_zero, b', expenditure, ← Finset.sum_sub_distrib, ← mul_sub,
+          sum_mul_update_two_sub p b hgg', mul_div_cancel₀ _ (hp g').ne']
       have hutil_diff : linearUtility v b' - linearUtility v b =
           v g' * (p g * b g / p g') - v g * b g := by
-        simp only [linearUtility, ← Finset.sum_sub_distrib, ← mul_sub]
-        exact sum_mul_update_two_sub v b hgg' (p g * b g / p g')
+        simp only [b', linearUtility, ← Finset.sum_sub_distrib, ← mul_sub,
+          sum_mul_update_two_sub v b hgg']
       have hle_mul : v g' * (p g * b g / p g') ≤ v g * b g := by
-        linarith [hb.2 b' ⟨hb'_nn, by linarith [hb.1.2]⟩]
+        linarith [hb.2 b' ⟨hb'_nn, hb'_exp.trans_le hb.1.2⟩]
       rw [mul_div_assoc', div_le_iff₀ (hp g')] at hle_mul
-      rw [div_le_div_iff₀ (hp g') (hp g)]
-      exact le_of_mul_le_mul_right (by linarith) hbg
+      exact (div_le_div_iff₀ (hp g') (hp g)).2 (le_of_mul_le_mul_right (by linarith) hbg)
   · rintro ⟨hb_nn, hb_exp, hmax⟩
     refine ⟨⟨hb_nn, hb_exp.le⟩, fun b' hb' => ?_⟩
     obtain rfl | hm_pos := hm.eq_or_lt

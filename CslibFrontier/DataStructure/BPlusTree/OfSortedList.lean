@@ -313,8 +313,7 @@ private theorem pack_cons_of_drop_eq_nil {first : BPlusTree α β} {rest : List 
     {s : ℕ} (ss : List ℕ) (h : rest.drop s = []) :
     pack first rest (s :: ss) = (.node first rest, []) := by
   -- `pack` unfolds through `Id` to the `match` of `packM_cons`
-  simp only [pack, packM_cons, h]
-  rfl
+  simp only [pack, packM_cons, h]; rfl
 
 private theorem pack_cons_of_drop_eq_cons {first : BPlusTree α β} {rest : List (Branch α β)}
     {s : ℕ} {k : α} {c : BPlusTree α β} {rest' : List (Branch α β)} (ss : List ℕ)
@@ -322,8 +321,7 @@ private theorem pack_cons_of_drop_eq_cons {first : BPlusTree α β} {rest : List
     pack first rest (s :: ss) =
       (.node first (rest.take s), (k, (pack c rest' ss).1) :: (pack c rest' ss).2) := by
   -- `pack` unfolds through `Id` to the `match` of `packM_cons`
-  simp only [pack, packM_cons, h]
-  rfl
+  simp only [pack, packM_cons, h]; rfl
 
 private theorem build_nil (fuel : ℕ) (first : BPlusTree α β) :
     build t fuel first [] = first := by
@@ -576,9 +574,8 @@ private theorem good_leafBranches (ht : 2 ≤ t) {ss : List ℕ} {l : List (α �
     · simp [leafBranches_nil]
     · obtain ⟨h₁, h₂⟩ := hss s List.mem_cons_self
       rw [List.sum_cons] at hsum
-      rw [leafBranches_cons_cons]
       intro e he
-      rcases List.mem_cons.1 he with rfl | he
+      rcases List.mem_cons.1 (leafBranches_cons_cons s ss p l ▸ he) with rfl | he
       · have hlen : ((p :: l).take s).length = s := by rw [List.length_take]; omega
         refine ⟨⟨.leaf, rfl, .leaf (by omega) (by omega)⟩, ?_⟩
         obtain ⟨s', rfl⟩ : ∃ s', s = s' + 1 := ⟨s - 1, by omega⟩
@@ -593,9 +590,8 @@ private theorem good_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
     Good t 1 (leafLevel (chunkSizes t l.length l.length) l).1 ∧
       ∀ e ∈ (leafLevel (chunkSizes t l.length l.length) l).2,
         Good t 1 e.child ∧ HeadKey e := by
-  rcases hn : l.length with _ | n
-  · omega
-  rw [chunkSizes_succ_of_lt (hn ▸ hlt), ← hn, leafLevel_cons]
+  obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero ((Nat.zero_le _).trans_lt hlt).ne'
+  rw [hn, chunkSizes_succ_of_lt (hn ▸ hlt), ← hn, leafLevel_cons]
   generalize hsd : (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) = s
   have hs : (t - 1 ≤ s ∧ s ≤ 2 * t - 1) ∧ t - 1 ≤ l.length - s := by
     rw [← hsd]
@@ -641,9 +637,8 @@ private theorem separated_node {first : BPlusTree α β} {rest : List (Branch α
     rw [hl] at hc hp
     rcases List.mem_cons.1 hp with rfl | hp
     exacts [le_rfl, ((List.isSortedAssoc_cons_iff.1 hc).1 p hp).le]
-  · have hp := hrs.pairwise
-    rw [List.flatMap_def, List.pairwise_flatten] at hp
-    refine (List.pairwise_map.1 hp.2).imp_of_mem fun {a b} _ hb hab p hp => ?_
+  · have hp := (List.pairwise_flatten.1 (List.flatMap_def .. ▸ hrs.pairwise)).2
+    refine (List.pairwise_map.1 hp).imp_of_mem fun {a b} _ hb hab p hp => ?_
     obtain ⟨v, l, hl⟩ := hk b hb
     exact hab p hp (b.1, v) (hl ▸ List.mem_cons_self)
   · obtain ⟨v, l, hl⟩ := hk e he
@@ -660,8 +655,7 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
   | nil => exact ⟨pack_nil .. ▸ separated_node hf hr hk hs, by simp [pack_nil]⟩
   | cons s ss ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · rw [pack_cons_of_drop_eq_nil ss hd]
-      exact ⟨separated_node hf hr hk hs, by simp⟩
+    · exact pack_cons_of_drop_eq_nil ss hd ▸ ⟨separated_node hf hr hk hs, by simp⟩
     · rw [pack_cons_of_drop_eq_cons ss hd]
       have hmem : ∀ e ∈ (k, c) :: rest', e ∈ rest := fun e he =>
         List.mem_of_mem_drop (hd ▸ he)

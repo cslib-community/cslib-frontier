@@ -135,13 +135,11 @@ theorem RunsTo.hole {K : ℕ} {ν : HoleList n State} {rs : List (List (Γ × St
     (h : M.RunsTo K ν rs w) (hK : ν.holes.length < K) (hv : M.BlockRun i ν.last t r v) :
     M.RunsTo K ⟨ν.holes ++ [⟨i, ν.last, t⟩], t⟩ (rs ++ [r]) (w ++ v) := by
   obtain ⟨s₀, hs₀, C, hd, hst, hsym, hrun⟩ := h
-  obtain ⟨hv, hvrun⟩ := hv
-  obtain ⟨ps, hb, hps⟩ := hv w.length
+  obtain ⟨ps, hb, hps⟩ := hv.1 w.length
   refine ⟨s₀, hs₀, C ++ [⟨i, ps⟩], .hole hd (by rw [hst.length_eq]; exact hK) hb,
     List.rel_append hst (.cons rfl .nil), List.rel_append hsym (.cons hps .nil),
     hrun.comp _ ?_⟩
-  rw [stacksOf_append_singleton]
-  simpa [hps] using hvrun (stacksOf C)
+  simpa [stacksOf_append_singleton, hps] using hv.2 (stacksOf C)
 
 /-- The common part of a pop: the run takes the pop of the newest push of the last hole of stack
 `i`, which leaves that hole's chain with one push less. -/
@@ -221,8 +219,7 @@ theorem RunsTo.accepting {K : ℕ} {μ : HoleList n State} {w v : List (Symbol �
     ∃ s₀ ∈ M.start, M.configLTS.MTr ⟨s₀, Stacks.empty⟩ (w ++ v) ⟨f, Stacks.empty⟩ ∧
       HoleBounded K (w ++ v) := by
   obtain ⟨s₀, hs₀, C, hd, hst, -, hrun⟩ := h
-  rw [hholes] at hst
-  cases hst
+  cases hholes ▸ hst
   exact ⟨s₀, hs₀, hrun.comp _ (hv.configLTS_mTr hvrun _), (hd.wellNested hv).holeBounded⟩
 
 end Runs
@@ -247,9 +244,8 @@ variable {M}
 theorem mem_holeSegments_iff_realizes {i : Fin n} {s t : State} :
     (s, t) ∈ M.holeSegments i ↔ ∃ r, M.Realizes i s t r := by
   rw [mem_holeSegments]
-  constructor
-  · intro h
-    induction h with
+  refine ⟨fun h => ?_, ?_⟩
+  · induction h with
     | refl => exact ⟨[], .nil⟩
     | tail _ hstep ih => exact ih.elim fun r hr => hstep.elim fun γ hγ => ⟨_, .cons hr hγ⟩
   · rintro ⟨r, hr⟩
@@ -337,8 +333,7 @@ theorem Reachable.exists_runsTo {K : ℕ} {μ : HoleList n State}
 answers `false`, some word has a `K`-hole-bounded accepting run. -/
 theorem exists_mem_boundedLanguage_of_isEmpty_eq_false [DecidablePred (· ∈ M.accept)] {K : ℕ}
     (h : M.isEmpty K = false) : ∃ x, x ∈ M.boundedLanguage (HoleBounded K) := by
-  unfold isEmpty isEmptyFrom at h
-  rw [decide_eq_false_iff_not, not_not] at h
+  simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not] at h
   obtain ⟨μ, hμ, hholes, f, hf, hwr⟩ := h
   obtain ⟨w, hw⟩ := ((mem_explore fun ν hν => (mem_initialLists.mp hν).1).mp hμ).exists_runsTo []
     (by rw [hholes]; exact .nil)

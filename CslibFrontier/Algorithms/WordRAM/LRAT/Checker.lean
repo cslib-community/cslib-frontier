@@ -222,7 +222,6 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
   · wram_simp at hyp hym
     simp only [List.nil_append] at hytab
     rw [hFl] at hyp
-    have hdb : φ.zipIdx.map (fun e => (e.2 + 1, e.1)) = numbered φ 1 := zipIdx_map_eq_numbered φ
     have hinv : StepInv w M T 1 (numbered φ 1) y :=
       ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame,
         by regs_frame, by regs_frame, by regs_frame, hytab, hyfr,
@@ -232,9 +231,9 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
         hw', by rw [hyp]; omega⟩
     wram_call (stepLoop_spec (w := w) cert.toList (numbered φ 1) y M T 1) [hinv, hyp, hSW]
       with z hzo
-    · refine ⟨?_, by rw [hzo, CNF.checkLRAT, CNF.lratDB, hdb]⟩
+    · refine ⟨?_, by rw [hzo, CNF.checkLRAT, CNF.lratDB, zipIdx_map_eq_numbered]⟩
       have := length_le_length_flatMap_encodeClause φ
-      simp only [certWork, hdb]; omega
+      simp only [certWork, zipIdx_map_eq_numbered]; omega
     · rw [hyp]; exact hC.frame fun a _ _ => hym a (by omega)
     · exact fun v hv => hM v (hinputeq ▸ List.mem_cons_of_mem _ (List.mem_append_right _ hv))
   · wram_simp
@@ -279,14 +278,13 @@ private theorem hintsWork_le {db : List (ℕ × Clause ℕ)} {W : ℕ} (hdb : �
 the number of hints (`Cslib.Logic.PL.CNF.lratHintCount`) times `dbWidth φ cert`. -/
 theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
     certWork φ cert ≤ CNF.lratHintCount cert.toList * dbWidth φ cert := by
-  set W := dbWidth φ cert
+  let W := dbWidth φ cert
   have hφ : ∀ c ∈ φ, c.length ≤ W := fun c hc =>
     List.le_max_of_le' 0 (List.mem_map_of_mem (List.mem_append_left _ hc)) le_rfl
   have hadd : ∀ i c hints, (.addRup i c hints : LRAT.IntAction) ∈ cert.toList →
       (Clause.ofDIMACS c.toList).length ≤ W := fun i c hints h =>
     List.le_max_of_le' 0 (List.mem_map_of_mem (List.mem_append_right _
       (List.mem_filterMap.mpr ⟨_, h, rfl⟩))) le_rfl
-  clear_value W
   rcases cert with ⟨l⟩
   suffices ∀ (db : List (ℕ × Clause ℕ)) (l' : List LRAT.IntAction), (∀ e ∈ db, e.2.length ≤ W) →
       (∀ i c hints, (.addRup i c hints : LRAT.IntAction) ∈ l' →
@@ -303,10 +301,9 @@ theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
       simpa only [stepsWork, CNF.lratHintCount, Array.length_toList] using
         (hintsWork_le hdb hints.toList).trans (Nat.mul_le_mul_right W (Nat.le_add_right _ _))
     | addRup i c hints =>
-      have h2 := ih' ((i, Clause.ofDIMACS c.toList) :: db) <| List.forall_mem_cons.mpr
-        ⟨hl' i c hints List.mem_cons_self, hdb⟩
       simpa only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] using
-        Nat.add_le_add (hintsWork_le hdb hints.toList) h2
+        Nat.add_le_add (hintsWork_le hdb hints.toList)
+          (ih' _ (List.forall_mem_cons.mpr ⟨hl' i c hints List.mem_cons_self, hdb⟩))
     | addRat => simp [stepsWork]
     | del ids =>
       simpa [stepsWork, CNF.lratHintCount] using
@@ -338,14 +335,11 @@ theorem program_spec_dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) {w : �
       Executes w program (State.init (encode φ cert)) (CNF.checkLRAT φ cert).toNat n := by
   obtain ⟨n, hn, he⟩ := program_spec φ cert hw
   refine ⟨n, ?_, he⟩
-  have hL : (encode φ cert).length =
-      1 + (φ.flatMap encodeClause).length + (stepWords cert.toList).length := by
-    simp [encode, stepWords]; omega
+  rw [encode, ← stepWords, List.length_cons, List.length_append] at hn
   have hW := (certWork_le φ cert).trans <| Nat.mul_le_mul
     (lratHintCount_le_length_stepWords cert.toList) (le_max_right 1 (dbWidth φ cert))
   have hC := Nat.le_mul_of_pos_right (stepWords cert.toList).length
     (lt_of_lt_of_le Nat.one_pos (le_max_left 1 (dbWidth φ cert)))
-  rw [hL] at hn
   generalize (stepWords cert.toList).length * max 1 (dbWidth φ cert) = k at hW hC ⊢
   omega
 

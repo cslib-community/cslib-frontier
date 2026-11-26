@@ -78,14 +78,13 @@ open Finset
 theorem abs_ediv_sub_div_lt_one (A : ℤ) {M : ℤ} (hM : 0 < M) :
     |((A / M : ℤ) : ℝ) - (A : ℝ) / (M : ℝ)| < 1 := by
   have hM_real : (0 : ℝ) < (M : ℝ) := by exact_mod_cast hM
-  have hdiv : M * (A / M) + A % M = A := by linarith [Int.emod_def A M]
-  have hreal : (M : ℝ) * ((A / M : ℤ) : ℝ) + ((A % M : ℤ) : ℝ) = (A : ℝ) := by exact_mod_cast hdiv
+  have hreal : (M : ℝ) * ((A / M : ℤ) : ℝ) + ((A % M : ℤ) : ℝ) = (A : ℝ) :=
+    mod_cast Int.mul_ediv_add_emod A M
   have heq : ((A / M : ℤ) : ℝ) - (A : ℝ) / (M : ℝ) = -(((A % M : ℤ) : ℝ) / (M : ℝ)) := by
-    field_simp
-    linarith
+    field_simp; linarith
   rw [heq, abs_neg, abs_div, abs_of_nonneg (by exact_mod_cast Int.emod_nonneg A hM.ne'),
-    abs_of_pos hM_real]
-  exact (div_lt_one hM_real).mpr (by exact_mod_cast Int.emod_lt_of_pos A hM)
+    abs_of_pos hM_real, div_lt_one hM_real]
+  exact_mod_cast Int.emod_lt_of_pos A hM
 
 /-- Closing step of the scaled floor-quotient approximations: if `A / M = 2 ^ t * P` over `ℝ` and
 `2 ^ t * P` is within `3 / 8` of `2 ^ t * Z`, then the floor quotient `A / M` is within scaled
@@ -107,17 +106,14 @@ private theorem abs_two_pow_mul_sub_le_of_prefix {t : ℕ} {P Z : ℝ}
   rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ t)]
   calc (2 : ℝ) ^ t * |P - Z| ≤ (2 : ℝ) ^ t * (6 / (2 : ℝ) ^ (t + 4)) := by gcongr
     _ = 3 / 8 := by
-        have hpow : (2 : ℝ) ^ (t + 4) = 16 * (2 : ℝ) ^ t := by ring
-        rw [hpow]
-        field_simp
-        ring
+        rw [pow_add]
+        field_simp; norm_num
 
 /-- Rescaling by `16 = 2 ^ 4`: `a / 16 = 2 ^ t * (a / 2 ^ (t + 4))`. -/
 private theorem div_sixteen_eq (a : ℝ) (t : ℕ) :
     a / 16 = (2 : ℝ) ^ t * (a / (2 : ℝ) ^ (t + 4)) := by
   rw [pow_add]
-  field_simp
-  norm_num
+  field_simp; norm_num
 
 section RationalStreams
 
@@ -386,10 +382,9 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
     set B : ℤ := (2 : ℤ) ^ (t + 4)
     set A : ℤ := max (-B) (min B (intPrefix x K))
     have hzpow : (2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K) = 1 / 16 := by
-      rw [← zpow_natCast (2 : ℝ) t, ← zpow_natCast (2 : ℝ) K, div_eq_mul_inv,
-        ← zpow_neg, ← mul_assoc, ← zpow_add₀ (by norm_num), ← zpow_add₀ (by norm_num)]
       have hexp : (t : ℤ) + v + -(K : ℤ) = -4 := by omega
-      rw [hexp]
+      rw [← zpow_natCast (2 : ℝ) t, ← zpow_natCast (2 : ℝ) K, div_eq_mul_inv,
+        ← zpow_neg, ← mul_assoc, ← zpow_add₀ (by norm_num), ← zpow_add₀ (by norm_num), hexp]
       norm_num
     have hscale : (intPrefix x K : ℝ) / (16 : ℝ) =
         (2 : ℝ) ^ t * ((2 : ℝ) ^ v * streamPrefix x K) := by
@@ -397,9 +392,7 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
       ring
     have hA : (A : ℝ) / (16 : ℝ) = (2 : ℝ) ^ t * shiftClipVal v (streamPrefix x K) := by
       dsimp [A, B, shiftClipVal]
-      have hB : (((2 : ℤ) ^ (t + 4) : ℤ) : ℝ) / 16 = (2 : ℝ) ^ t := by
-        push_cast
-        ring
+      have hB : (((2 : ℤ) ^ (t + 4) : ℤ) : ℝ) / 16 = (2 : ℝ) ^ t := by push_cast; ring
       rw [Int.cast_max, Int.cast_min, Int.cast_neg,
         ← max_div_div_right (by norm_num : (0 : ℝ) ≤ 16),
         ← min_div_div_right (by norm_num : (0 : ℝ) ≤ 16),
@@ -417,9 +410,8 @@ theorem shiftClipApprox_isScaledApprox (v : ℤ) {x : ℕ → ℤ} (hx : IsSigne
             rw [← mul_sub, abs_mul, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ v)]
             gcongr
         _ = 3 / 8 := by
-            have hr : (2 : ℝ) ^ t * ((2 : ℝ) ^ v * (6 / (2 : ℝ) ^ K)) =
-                6 * ((2 : ℝ) ^ t * ((2 : ℝ) ^ v / (2 : ℝ) ^ K)) := by ring
-            linarith
+            rw [mul_div_left_comm ((2 : ℝ) ^ v), mul_left_comm, hzpow]
+            norm_num
     exact abs_ediv_sub_lt_two_of_scaled A (by decide : 0 < 16) hA htrunc
 
 end ElementaryOperations
@@ -544,10 +536,8 @@ private theorem abs_two_pow_mul_streamPrefix_sub_le (M R : ℕ) {x : ℕ → ℤ
       ≤ (2 : ℝ) ^ M * (6 / (2 : ℝ) ^ (M + R + 7)) :=
         mul_le_mul_of_nonneg_left h (by positivity)
     _ = (3 / 64) / (2 : ℝ) ^ R := by
-        have hp : (2 : ℝ) ^ (M + R + 7) = 128 * ((2 : ℝ) ^ M * (2 : ℝ) ^ R) := by ring
-        rw [hp]
-        field_simp
-        ring
+        rw [pow_add, pow_add]
+        field_simp; norm_num
 
 /-- Five times the buffered-test slack `(3 / 64) / 2 ^ R` is below any `ρ ≥ 1 / 2 ^ R`. -/
 private theorem five_mul_slack_lt {R : ℕ} {ρ : ℝ} (hρ : 1 / (2 : ℝ) ^ R ≤ ρ) :
@@ -568,12 +558,10 @@ theorem bufferedTest_eq_true_of_two_mul_lt {M R : ℕ} {s u : ℕ → ℤ}
   unfold bufferedTest
   subst hsVal huVal
   rw [decide_eq_true_eq, cmpBuffered_pos_iff hs hu]
-  have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
-  have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
-  have hscaled : (2 : ℝ) ^ M * (3 * streamPrefix u (M + R + 7)) <
-      (2 : ℝ) ^ M * (2 * streamPrefix s (M + R + 7)) := by
-    linarith [five_mul_slack_lt hρ, neg_le_of_abs_le hs_err, le_of_abs_le hu_err]
-  exact lt_of_mul_lt_mul_left hscaled (by positivity)
+  refine lt_of_mul_lt_mul_left (a := (2 : ℝ) ^ M) ?_ (by positivity)
+  linarith [five_mul_slack_lt hρ,
+    neg_le_of_abs_le (abs_two_pow_mul_streamPrefix_sub_le M R hs),
+    le_of_abs_le (abs_two_pow_mul_streamPrefix_sub_le M R hu)]
 
 /-- **Lemma 10.8 (soundness of buffered test)** [OpenAI2026LogSpace, Lemma 10.8]: under the same
 scaling hypotheses, if `sVal ≤ uVal`, then `bufferedTest M R s u = false`. -/
@@ -587,10 +575,9 @@ theorem bufferedTest_eq_false_of_le {M R : ℕ} {s u : ℕ → ℤ}
   subst hsVal huVal
   rw [decide_eq_false_iff_not, cmpBuffered_pos_iff hs hu]
   intro hlt
-  have hs_err := abs_two_pow_mul_streamPrefix_sub_le M R hs
-  have hu_err := abs_two_pow_mul_streamPrefix_sub_le M R hu
-  have hmul_lt := mul_lt_mul_of_pos_left hlt (pow_pos zero_lt_two M)
-  linarith [five_mul_slack_lt hρ, le_of_abs_le hs_err, neg_le_of_abs_le hu_err]
+  linarith [mul_lt_mul_of_pos_left hlt (pow_pos zero_lt_two M), five_mul_slack_lt hρ,
+    le_of_abs_le (abs_two_pow_mul_streamPrefix_sub_le M R hs),
+    neg_le_of_abs_le (abs_two_pow_mul_streamPrefix_sub_le M R hu)]
 
 end OrderStatisticsAndBufferedTests
 

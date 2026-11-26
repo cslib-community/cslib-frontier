@@ -215,15 +215,12 @@ private theorem valleyFree_provider_backprop {G : SimpleGraph V} {rel : V → V 
 private theorem transGen_cycle_forward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
     (hstep : ∀ i : Fin k, Relation.TransGen R (f i) (f ⟨(i.val + 1) % k, Nat.mod_lt _ hk⟩)) :
     Relation.TransGen R (f ⟨0, hk⟩) (f ⟨0, hk⟩) := by
-  have hwalk : ∀ m, 1 ≤ m →
+  have hwalk (m : ℕ) (hm : 1 ≤ m) :
       Relation.TransGen R (f ⟨0, hk⟩) (f ⟨m % k, Nat.mod_lt _ hk⟩) := by
-    intro m hm
     induction m, hm using Nat.le_induction with
     | base => exact hstep ⟨0, hk⟩
-    | succ m hm ihm =>
-      have hs := hstep ⟨m % k, Nat.mod_lt _ hk⟩
-      simp only [Nat.mod_add_mod] at hs
-      exact ihm.trans hs
+    | succ m _ ihm =>
+      exact ihm.trans (by simpa only [Nat.mod_add_mod] using hstep ⟨m % k, Nat.mod_lt _ hk⟩)
   simpa only [Nat.mod_self] using hwalk k hk
 
 private theorem transGen_cycle_backward {R : V → V → Prop} {k : ℕ} (hk : 0 < k) (f : Fin k → V)
@@ -245,10 +242,8 @@ exist. -/
 theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWheel S) := by
   refine ⟨fun W => ?_⟩
   -- For each spoke `i`, decompose `W.pivot i = W.node i :: v_i :: t_i`.
-  have hpiv_decomp : ∀ i : Fin W.size,
-      ∃ v t, W.pivot i = W.node i :: v :: t ∧ S.graph.Adj (W.node i) v := fun i =>
+  choose nextHop pivTail hpiv_eq _ using fun i =>
     S.exists_cons_cons_of_permitted (W.node_ne_dest i) (W.pivot_permitted i)
-  choose nextHop pivTail hpiv_eq _ using hpiv_decomp
   have hrp_perm : ∀ i : Fin W.size, S.permitted (W.node i) (W.rim i ++ W.pivot (W.next i)) :=
     W.rim_pivot_permitted
   have hrp_sp : ∀ i : Fin W.size,
@@ -276,10 +271,8 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         by_contra hne
         have hlt := hGR.preferCustomer (W.node i) (nextHop i) w (pivTail i) t'
           (hpiv_eq i ▸ W.pivot_permitted i) (hrp_eq ▸ hrp_perm i) hcust_i hne
-        have hpref : S.rank (W.node i) (some (W.pivot i)) <
-            S.rank (W.node i) (some (W.rim i ++ W.pivot (W.next i))) := W.prefers i
-        rw [hpiv_eq i, hrp_eq] at hpref
-        omega
+        rw [← hpiv_eq i, ← hrp_eq] at hlt
+        exact lt_asymm hlt (W.prefers i)
       exact valleyFree_customer_propagate (hrim_head i) (hchain i) (hvf i)
         (by simpa only [← hpiv_eq (W.next i), hrp_eq] using hcust_rim)
     obtain ⟨i₀, hi₀⟩ := hex
@@ -301,8 +294,8 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
       have hidx : (⟨(i₀.val + (i.val + W.size - i₀.val)) % W.size, Nat.mod_lt _ W.size_pos⟩ :
           Fin W.size) = i := Fin.ext (by simp [hadd, Nat.mod_eq_of_lt i.isLt])
       simpa only [hidx] using hshift (i.val + W.size - i₀.val)
-    have hcyc := transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1
-    exact hGR.noCustomerProviderCycle _ hcyc
+    exact hGR.noCustomerProviderCycle _
+      (transGen_cycle_forward W.size_pos W.node fun i => (hprop i (hall_cust i)).1)
   · -- Case 2: no spoke has a customer pivot path; backward propagation forces a reverse
     -- customer–provider cycle around the entire wheel.
     push Not at hex
@@ -310,8 +303,7 @@ theorem isEmpty_disputeWheel (hGR : GaoRexfordConditions S) : IsEmpty (DisputeWh
         Relation.TransGen (IsProviderOf S.graph hGR.rel) (W.node (W.next i)) (W.node i) := fun i =>
       (valleyFree_provider_backprop hGR.rel_symm (hrim_head i) (hchain i) (hvf i)
         (hex (W.next i))).1
-    have hcyc := transGen_cycle_backward W.size_pos W.node hback
-    exact hGR.noCustomerProviderCycle _ hcyc
+    exact hGR.noCustomerProviderCycle _ (transGen_cycle_backward W.size_pos W.node hback)
 
 /-- **Gao–Rexford stability** ([GaoRexford2001]): under the Gao–Rexford commercial routing
 conditions, an `SPP` instance has a unique stable path assignment. -/

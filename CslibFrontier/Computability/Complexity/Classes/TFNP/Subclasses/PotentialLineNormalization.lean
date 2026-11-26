@@ -458,8 +458,7 @@ theorem normalizedPotential_lt_two_pow_succ {m : ℕ}
     (hm : ∀ u, u.length = n a → V (a, u) < 2 ^ m)
     (hw : w.length = normalizedPotentialWidth n a) :
     normalizedPotential V (a, w) < 2 ^ (m + 1) := by
-  rw [Nat.pow_succ]
-  linarith [normalizedPotential_lt_succ hm hw, @Nat.one_le_two_pow m]
+  rw [Nat.pow_succ]; linarith [normalizedPotential_lt_succ hm hw, @Nat.one_le_two_pow m]
 
 /-! ### Active edges and exact witness bijection -/
 
@@ -539,9 +538,8 @@ theorem potentialSucc_normalized_cons (b : Bool) (u : List Bool) :
     normalizedPotentialSucc n P S V (a, b :: u) := by
   cases b
   · by_cases huz : u = zeroVertex (n a)
-    · subst huz
-      rw [← zeroVertex_normalizedPotentialWidth]
-      exact potentialSucc_of_true (hasPotentialOut_normalized_zeroVertex n P S V a)
+    · exact huz.symm ▸ zeroVertex_normalizedPotentialWidth n a ▸
+        potentialSucc_of_true (hasPotentialOut_normalized_zeroVertex n P S V a)
     · rw [potentialSucc_of_false (hasPotentialOut_normalized_false_of_ne huz),
         normalizedPotentialSucc_false_of_ne huz]
   · cases hout : hasPotentialOut n P S V a u
@@ -671,9 +669,8 @@ theorem endOfPotentialLineRel_tail_of_promised_normalized
     (h : endOfPotentialLinePromisedRel (normalizedPotentialWidth n)
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w) :
-    endOfPotentialLineRel n P S V a w.tail := by
-  obtain ⟨_, rfl, hu⟩ := endOfPotentialLinePromisedRel_normalized_iff.mp h
-  exact hu
+    endOfPotentialLineRel n P S V a w.tail :=
+  (endOfPotentialLinePromisedRel_normalized_iff.mp h).elim fun _ ⟨hw, hu⟩ => hw ▸ hu
 
 /-- Forward witness embedding (`SOPL`): every sink `u` of `(n, P, S, V)` embeds as `true :: u`. -/
 theorem sinkOfPotentialLinePromisedRel_normalized_cons (h : sinkOfPotentialLineRel n P S V a u) :
@@ -688,9 +685,8 @@ theorem sinkOfPotentialLineRel_tail_of_promised_normalized
     (h : sinkOfPotentialLinePromisedRel (normalizedPotentialWidth n)
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w) :
-    sinkOfPotentialLineRel n P S V a w.tail := by
-  obtain ⟨_, rfl, hu⟩ := sinkOfPotentialLinePromisedRel_normalized_iff.mp h
-  exact hu
+    sinkOfPotentialLineRel n P S V a w.tail :=
+  (sinkOfPotentialLinePromisedRel_normalized_iff.mp h).elim fun _ ⟨hw, hu⟩ => hw ▸ hu
 
 /-- When `LineSourcePromise n P S a` fails, `normalizedViolationBack` returns the raw violation
 witness `0 ^ (n a)`. -/
@@ -949,10 +945,9 @@ theorem mem_EOPL_iff_promised {R : α → List Bool → Prop} :
       promisedPotentialLine_normalized n P S V,
       hred.trans (endOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    have heq : endOfPotentialLinePromisedRel n P S V = endOfPotentialLineViolationRel n P S V :=
-      funext₂ fun a _ =>
-        propext (endOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
-    exact mem_EOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
+    exact mem_EOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len,
+      (funext₂ fun a u => propext (endOfPotentialLineViolationRel_iff_promised_of_promise
+        (V := V) (x := u) (hprom a).1).symm) ▸ hred⟩
 
 /-- **`EOPL` under the promised convention with explicit unary potential bit-bound `m`.** Includes
 the range bound `V (a, u) < 2 ^ m a` (`{0, …, 2 ^ m - 1}`) of
@@ -1002,10 +997,9 @@ theorem mem_SOPL_iff_promised {R : α → List Bool → Prop} :
       promisedPotentialLine_normalized n P S V,
       hred.trans (sinkOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    have heq : sinkOfPotentialLinePromisedRel n P S V = sinkOfPotentialLineViolationRel n P S V :=
-      funext₂ fun a _ =>
-        propext (sinkOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
-    exact mem_SOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
+    exact mem_SOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len,
+      (funext₂ fun a u => propext (sinkOfPotentialLineViolationRel_iff_promised_of_promise
+        (V := V) (x := u) (hprom a).1).symm) ▸ hred⟩
 
 /-- **`SOPL` under the promised convention with explicit unary potential bit-bound `m`.** -/
 theorem mem_SOPL_iff_promised_bounded {R : α → List Bool → Prop} :

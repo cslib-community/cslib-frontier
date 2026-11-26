@@ -133,11 +133,8 @@ private theorem sum_map_queriesWith_liftRight_query_bind {β : Type} (cost : P �
     OracleComp.sumPure_inr]
 
 private theorem sum_range_eq (τ : ℕ) : (List.range τ).sum = τ * (τ - 1) / 2 := by
-  suffices (List.range τ).sum = ∑ i ∈ Finset.range τ, i by rw [this, Finset.sum_range_id]
-  induction τ with
-  | zero => rfl
-  | succ n ih =>
-    rw [List.range_succ, List.sum_append, List.sum_singleton, ih, Finset.sum_range_succ]
+  simpa [List.toFinset_range, Finset.sum_range_id] using
+    (List.sum_toFinset id (List.nodup_range (n := τ))).symm
 
 private theorem range_sum_add_self (τ : ℕ) :
     τ * (τ - 1) / 2 + τ = τ * (τ + 1) / 2 := by
@@ -162,10 +159,8 @@ theorem sum_map_lookupCost_queriesWith_rainbowAttackStep (h : P → Y) (lookup :
   cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
   | none => simp
   | some pw₀ =>
-    rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero,
-      Nat.zero_add, evalPure_rainbowChain,
-      sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero, Nat.zero_add,
-      OracleComp.evalPure_query]
+    rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, evalPure_rainbowChain,
+      sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, OracleComp.evalPure_query]
     split_ifs <;> simp
 
 /-- At step `k < τ`, `rainbowAttackStep` makes `k` hash queries when `lookup` misses and `τ` hash
@@ -180,9 +175,7 @@ theorem sum_map_hashCost_queriesWith_rainbowAttackStep (h : P → Y) (lookup : P
     evalPure_rainbowChain, length_queriesWith_rainbowChain,
     sum_map_queriesWith_liftRight_query_bind, TableAttackSpec.hashCost_inr, Nat.zero_add]
   cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
-  | none =>
-    simp only [OracleComp.queriesWith_pure, List.map_nil, List.sum_nil, Nat.add_zero,
-      Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+  | none => simp
   | some pw₀ =>
     rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.hashCost_inl, Nat.mul_one,
       evalPure_rainbowChain, length_queriesWith_rainbowChain,
@@ -242,22 +235,13 @@ private theorem sum_map_hashCost_findSomeM?_le (h : P → Y) (lookup : P → Opt
   | nil => simp
   | cons k ks ih =>
     have hk : k < τ := hxs k List.mem_cons_self
+    have hih := ih fun k' hk' => hxs k' (List.mem_cons_of_mem k hk')
     rw [OracleComp.queriesWith_findSomeM?_cons, List.map_append, List.sum_append,
       sum_map_hashCost_queriesWith_rainbowAttackStep h lookup g y hk, List.sum_cons,
       List.countP_cons]
-    have htail :
-        ((if ((rainbowAttackStep g τ y k).evalPure (OracleComp.sumPure h lookup)).isSome then []
-          else OracleComp.queriesWith (OracleComp.sumPure h lookup)
-            (ks.findSomeM? (rainbowAttackStep g τ y))).map TableAttackSpec.hashCost).sum ≤
-          ks.sum +
-            (ks.countP fun k' =>
-              (lookup (rainbowChainPure h g (τ - k') k' (g (τ - 1 - k') y))).isSome) * τ := by
-      split_ifs
-      · simp only [List.map_nil, List.sum_nil, Nat.zero_le]
-      · exact ih fun k' hk' => hxs k' (List.mem_cons_of_mem k hk')
     cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
-      simp only [Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ↓reduceIte,
-        Nat.add_mul, Nat.one_mul, Nat.add_zero] <;> omega
+      split_ifs <;>
+      simp only [List.map_nil, List.sum_nil, Nat.add_mul, Nat.one_mul, Nat.add_zero] <;> omega
 
 /-- **General run hash bound of `rainbowAttack`.** Along any deterministic run (including early
 termination when a preimage is found), total hash evaluations are at most
@@ -416,9 +400,8 @@ private theorem sum_map_hashCost_hellmanLoop_of_no_false_alarm {h : P → Y}
     cases hlk : lookup z with
     | none =>
       have hrec := ih (g₀ (h z)) fun k hk pw₀ hlk' => by
-        rw [← Function.iterate_succ_apply (fun x => g₀ (h x)) k z] at hlk'
         simpa only [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] using
-          hnofa (k + 1) (Nat.succ_lt_succ hk) pw₀ hlk'
+          hnofa (k + 1) (Nat.succ_lt_succ hk) pw₀ (by rwa [Function.iterate_succ_apply])
       simp only [hrec]; omega
     | some pw₀ =>
       exact ite_eq_left (by
@@ -460,9 +443,8 @@ private theorem add_le_sum_map_hashCost_hellmanLoop_of_false_alarm {h : P → Y}
     rw [Function.iterate_succ_apply] at hhit
     rw [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] at hfa
     have hrec := ih (Nat.lt_of_succ_lt_succ hk) (fun j hj pw₁ hlk' => by
-      rw [← Function.iterate_succ_apply (fun x => g₀ (h x)) j z] at hlk'
       simpa only [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] using
-        hbefore (j + 1) (Nat.succ_lt_succ hj) pw₁ hlk') hhit hfa
+        hbefore (j + 1) (Nat.succ_lt_succ hj) pw₁ (by rwa [Function.iterate_succ_apply])) hhit hfa
     rw [sum_map_hashCost_queriesWith_hellmanLoop_succ]
     cases hlk : lookup z with
     | none => simp only; omega

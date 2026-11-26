@@ -148,8 +148,8 @@ private theorem min_mul_cap (n a b : ℕ) : min n (min n a * b) = min n (a * b) 
   | succ b =>
     by_cases h : a ≤ n
     · rw [Nat.min_eq_right h]
-    · rw [Nat.min_eq_left (by omega : n ≤ a)]
-      rw [Nat.min_eq_left (by nlinarith), Nat.min_eq_left (by nlinarith)]
+    · rw [Nat.min_eq_left (Nat.le_of_not_ge h), Nat.min_eq_left (by nlinarith),
+        Nat.min_eq_left (by nlinarith)]
 
 private theorem scan_eq (n a p : ℕ) (bs : List Bool) (ha : a ≤ n) :
     scan n a p bs = min n (a + p * bs.foldr Nat.bit 0) := by
@@ -178,12 +178,10 @@ private theorem read_bound_loop (bs : List Bool) {j a p : ℕ}
         p', j + bs.length, 0, 0]) [] := by
   induction bs generalizing j a p with
   | nil =>
-    refine ⟨p, hp, ReachesOut.read (by rfl) (I.bounded_scan hn ha hp (by simp at hj; omega)) ?_⟩
+    refine ⟨p, hp, ReachesOut.read rfl (I.bounded_scan hn ha hp (by simpa using hj)) ?_⟩
     have hend : (encBoundedSTCON I)[j]? = none := by simpa using hlookup 0
     simp only [eval_reg, List.getD_cons_succ, List.getD_cons_zero, hend, readLabel]
-    simpa [scan] using
-      (ReachesOut.refl (P := writer) (w := encBoundedSTCON I)
-        (Q := writer.Active B) (12, [I.graph.n, I.graph.s, I.graph.t, a, p, j, 0, 0]))
+    exact ReachesOut.refl _
   | cons b bs ih =>
     have hb {a p j : ℕ} := I.bounded_scan hn (a := a) (p := p) (j := j)
     obtain ⟨p', hp', hr⟩ := ih (j := j + 1)
@@ -258,8 +256,8 @@ private theorem write_entry {p j u v : ℕ} (hn : I.layered.n ≤ B) (hp : p ≤
         List.getD_cons_succ, List.getD_cons_zero]
       let u' : Fin I.graph.n := ⟨u % I.graph.n, Nat.mod_lt _ I.graph.n_pos⟩
       let v' : Fin I.graph.n := ⟨v % I.graph.n, Nat.mod_lt _ I.graph.n_pos⟩
-      have hpos := I.graph.mul_add_lt u' v'
-      dsimp only [u', v'] at hpos
+      have hpos : (u % I.graph.n) * I.graph.n + v % I.graph.n < I.graph.n * I.graph.n :=
+        I.graph.mul_add_lt u' v'
       rw [I.input_graph (by rw [I.graph.length_encode]; omega),
         I.graph.getElem?_encode_matrix u'.isLt v'.isLt]
       cases h : I.graph.adj u' v'
@@ -297,14 +295,13 @@ private theorem write_rows {p j i : ℕ} (hn : I.layered.n ≤ B) (hp : p ≤ I.
       ∀ r ∈ rs, r ≤ B := by
   have hc₁ : writer.CodeAt 27 (forCode 27 6 vertices 30 38) := codeAt_of_prefix ⟨_, rfl⟩
   have hc₂ : writer.CodeAt 30 (forCode 30 7 vertices 33 29) := codeAt_of_prefix ⟨_, rfl⟩
-  have he (u v : ℕ) : vertices.eval (regs I p j u v) = I.layered.n := rfl
   obtain ⟨rs, hr, v, rfl, _, hv⟩ := reachesOut_forCode (w := encBoundedSTCON I)
     (N := I.layered.n)
     (o := fun u => (List.range I.layered.n).map (entry I u)) hc₁
     (fun u rs => ∃ v, rs = regs I p j u v ∧ u ≤ I.layered.n ∧ v ≤ I.layered.n) hn
     (by
       rintro u rs ⟨v, rfl, hu, hv⟩
-      exact ⟨by rfl, he u v, by simp [regs], I.regs_bounded hn hp hj hu hv⟩)
+      exact ⟨rfl, rfl, by simp [regs], I.regs_bounded hn hp hj hu hv⟩)
     (by
       rintro u hu rs ⟨v, rfl, _, hv⟩
       obtain ⟨_, hrow, rfl, _⟩ := reachesOut_forCode (w := encBoundedSTCON I)
@@ -312,15 +309,14 @@ private theorem write_rows {p j i : ℕ} (hn : I.layered.n ≤ B) (hp : p ≤ I.
         (fun v rs => rs = regs I p j u v ∧ v ≤ I.layered.n) hn
         (by
           rintro v rs ⟨rfl, hv⟩
-          exact ⟨by rfl, he u v, by simp [regs], I.regs_bounded hn hp hj hu.le hv⟩)
+          exact ⟨rfl, rfl, by simp [regs], I.regs_bounded hn hp hj hu.le hv⟩)
         (by
           rintro v hv rs ⟨rfl, _⟩
           exact ⟨_, I.write_entry hn hp hj hu hv, rfl,
             I.regs_bounded hn hp hj hu.le hv.le, by simp [regs], by omega⟩)
         (regs I p j u v) (I.regs_bounded hn hp hj hu.le hv) (by simp [regs])
-      refine ⟨_, ?_, rfl, I.regs_bounded hn hp hj hu.le le_rfl,
-        I.layered.n, by simp [regs], by omega, le_rfl⟩
-      simpa only [← List.map_eq_flatMap] using hrow)
+      exact ⟨_, by simpa only [← List.map_eq_flatMap] using hrow, rfl,
+        I.regs_bounded hn hp hj hu.le le_rfl, I.layered.n, by simp [regs], by omega, le_rfl⟩)
     (regs I p j i 0) (I.regs_bounded hn hp hj hi (by omega)) (by simp [regs])
   exact ⟨_, hr, I.regs_bounded hn hp hj le_rfl hv⟩
 

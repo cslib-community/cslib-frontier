@@ -155,9 +155,8 @@ private theorem Rep.of_eq {vs : List ℕ} {x y : Data 12} (h : Rep vs x)
 element once the array is nonempty. -/
 theorem Rep.space {vs : List ℕ} {x : Data 12} (h : Rep vs x) (hne : vs ≠ []) :
     x.regs frontier < 4 * vs.length := by
-  have hn : 0 < vs.length := List.length_pos_iff.mpr hne
-  have := h.capacity_le
-  have := h.frontier_eq
+  obtain ⟨_, hcap_pos, _, hcap_le, _, hfront_eq, _⟩ := h
+  have := List.length_pos_iff.mpr hne
   omega
 
 /-- The doubled frontier bound `x.regs frontier + 2 * x.regs cap` is bounded by `8 * vs.length + 3`
@@ -394,9 +393,9 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
       get_exec hx₁_rep (harg ▸ hv.1) (hr.bounded.1 frontier)
     have hdest : ((implementation w).prepare (.get idx) x).regs dest = 1 := rfl
     wram_exec [hdest]
-    refine WP.Exact.of_exec he fun hb => ⟨?_, ⟨hb, hy_rep⟩, fun a _ => congrFun hy_mem a, ?_⟩
-    · simp [htemp, harg, spec]
-    · dsimp only [charge]; omega
+    refine WP.Exact.of_exec he fun hb =>
+      ⟨by simp [htemp, harg, spec], ⟨hb, hy_rep⟩, fun a _ => congrFun hy_mem a, ?_⟩
+    dsimp only [charge]; omega
 
 /-- Semantic realization certificate for the bounded-word dynamic array. -/
 @[expose] def certificate {w : ℕ} (h1 : Fits w 1) : DynamicCertificate (implementation w) w :=
@@ -493,11 +492,7 @@ theorem runClient_appendAll (w : ℕ) (vs us : List ℕ) :
     (spec w).runClient vs (appendAll us) = ((), vs ++ us, us.map Op.append) := by
   induction us generalizing vs with
   | nil => simp [appendAll]
-  | cons v us ih =>
-    rw [appendAll, DataStructure.StateTransitionSpec.runClient_liftBind]
-    dsimp only [spec, DataStructure.StateTransitionSpec.stepFn]
-    rw [ih (vs ++ [v]), List.append_assoc]
-    rfl
+  | cons v us ih => simp [appendAll, spec, ih (vs ++ [v]), List.append_assoc]
 
 /-- `appendAll us` is admissible from `vs` whenever every element of `us` fits `w` and
 `8 * (vs.length + us.length) + 4` fits `w`. -/

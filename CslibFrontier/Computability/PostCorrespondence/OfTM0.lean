@@ -128,18 +128,14 @@ private def IsActive : Letter Γ Λ → Prop
 private theorem split_active {x y : Letter Γ Λ} (hy : IsActive y) :
     ∀ {p s u v : List (Letter Γ Λ)}, (∀ z ∈ u, ¬IsActive z) → (∀ z ∈ v, ¬IsActive z) →
       p ++ y :: s = u ++ x :: v → p = u ∧ y = x ∧ s = v
-  | [], s, [], v, _, _, h => ⟨rfl, List.cons.inj h⟩
-  | [], s, z :: u, v, hu, _, h => by
-    obtain ⟨rfl, -⟩ := List.cons.inj h
-    exact absurd hy (hu y List.mem_cons_self)
-  | z :: p, s, [], v, _, hv, h => by
-    obtain ⟨-, h⟩ := List.cons.inj h
-    exact absurd hy (hv y (h ▸ List.mem_append_right p List.mem_cons_self))
-  | z :: p, s, z' :: u, v, hu, hv, h => by
-    simp only [List.cons_append, List.cons.injEq] at h
-    obtain ⟨rfl, h⟩ := h
-    obtain ⟨h₁, h₂, h₃⟩ := split_active hy (fun w hw => hu w (List.mem_cons_of_mem _ hw)) hv h
-    exact ⟨congrArg _ h₁, h₂, h₃⟩
+  | [], _, [], _, _, _, h => ⟨rfl, List.cons.inj h⟩
+  | [], _, _ :: _, _, hu, _, h => absurd hy (hu y ((List.cons.inj h).1 ▸ List.mem_cons_self))
+  | _ :: p, _, [], _, _, hv, h =>
+    absurd hy (hv y ((List.cons.inj h).2 ▸ List.mem_append_right p List.mem_cons_self))
+  | _ :: _, _, _ :: _, _, hu, hv, h =>
+    let ⟨rfl, h⟩ := List.cons.inj h
+    let ⟨h₁, h₂, h₃⟩ := split_active hy (fun w hw => hu w (List.mem_cons_of_mem _ hw)) hv h
+    ⟨congrArg _ h₁, h₂, h₃⟩
 
 private theorem not_active_left (L : List Γ) :
     ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := fun _ hz => by
@@ -410,18 +406,17 @@ theorem eval_dom_iff_solvable [Fintype Γ] [Fintype Λ] (M : TM0.Machine Γ Λ) 
       · exact ⟨[], List.mem_singleton.mp hrb ▸ rfl, List.not_mem_nil⟩
     have hrt := reflTransGen_of_mSolvable hD he
       (fun u hu => good_ends (good_of_reflTransGen hu)) h
-    rcases good_of_reflTransGen hrt with ⟨q, a, L, R, -, h⟩ | ⟨hh, -⟩
-    · simp [word] at h
-    · exact hh
+    exact ((good_of_reflTransGen hrt).resolve_left fun ⟨_, _, _, _, _, h⟩ => by simp [word] at h).1
 
 theorem primrec_mInstance [Fintype Γ] [Fintype Λ] [Primcodable Γ] [Primcodable Λ]
     (M : TM0.Machine Γ Λ) : Primrec (mInstance M) := by
-  have hsym : Primrec (sym : Γ → Letter Γ Λ) := Primrec.dom_finite _
-  have hcell : Primrec fun a : Γ => (cell default a : Letter Γ Λ) := Primrec.dom_finite _
   have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail :=
     (Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
-      (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
-        (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂)
+      ((Primrec.dom_finite (f := fun a : Γ => (cell default a : Letter Γ Λ))).comp
+        Primrec.list_headI)
+      (Primrec.list_append.comp
+        (Primrec.list_map Primrec.list_tail
+          ((Primrec.dom_finite (f := (sym : Γ → Letter Γ Λ))).comp Primrec.snd).to₂)
         (Primrec.const _)))).of_eq fun _ => rfl
   exact (MInstance.primrec₂_mk.comp
     (Domino.primrec₂_mk.comp (Primrec.const ([] : List (Letter Γ Λ))) hw)

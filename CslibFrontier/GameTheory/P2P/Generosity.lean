@@ -153,10 +153,8 @@ theorem unifRoot_props {θ_m : ℝ} (hθ : 4 ≤ θ_m) :
 private theorem uniformEquilibrium_of_quad {θ_m x : ℝ} (hθ : 0 < θ_m) (hx₀ : 0 < x)
     (hx₁ : x ≤ 1) (hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0) :
     generosityEquilibrium (uniformTail θ_m) x := by
-  have hle_θm : 1 / x ≤ θ_m := by
-    rw [div_le_iff₀ hx₀]
-    have hsq : 0 ≤ θ_m * x ^ 2 := mul_nonneg hθ.le (sq_nonneg x)
-    linarith
+  have hle_θm : 1 / x ≤ θ_m :=
+    (div_le_iff₀ hx₀).mpr (by linarith [mul_nonneg hθ.le (sq_nonneg x)])
   refine ⟨hx₀, hx₁, ?_⟩
   rw [uniformTail_of_pos_le (one_div_pos.mpr hx₀) hle_θm]
   field_simp [hx₀.ne', hθ.ne']; linarith
@@ -221,15 +219,12 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
     have hquad_neg : θ_m * x ^ 2 - θ_m * x + 1 < 0 := by
       rw [hfac]
       exact mul_neg_of_pos_of_neg (mul_pos hθ (sub_pos.mpr hl)) (sub_neg.mpr hh)
-    have hle_θm : 1 / x ≤ θ_m := by
-      rw [div_le_iff₀ hx₀]
-      have hsq_pos : 0 < θ_m * x ^ 2 := mul_pos hθ (sq_pos_of_pos hx₀)
-      linarith
+    have hle_θm : 1 / x ≤ θ_m :=
+      (div_le_iff₀ hx₀).mpr (by linarith [mul_pos hθ (sq_pos_of_pos hx₀)])
     rw [uniformTail_of_pos_le hinv_pos hle_θm, ← sub_pos]
     have hid : 1 - (1 / x) / θ_m - x = -(θ_m * x ^ 2 - θ_m * x + 1) / (θ_m * x) := by
       field_simp [hx₀.ne', hθ.ne']; ring
-    rw [hid]
-    exact div_pos (by linarith) (mul_pos hθ hx₀)
+    exact hid ▸ div_pos (by linarith) (mul_pos hθ hx₀)
   · intro hdisj
     have hquad_pos : 0 < θ_m * x ^ 2 - θ_m * x + 1 := by
       rw [hfac]
@@ -390,10 +385,8 @@ theorem mixtureEquilibrium_iff {θ_m φ x : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < 
   constructor
   · rintro ⟨hx₀, _, hxeq⟩
     have hinv_pos : 0 < 1 / x := one_div_pos.mpr hx₀
-    have hle_θm : 1 / x ≤ θ_m := by
-      by_contra hgt
-      have h0 : mixtureTail θ_m φ (1 / x) = 0 := mixtureTail_of_gt hθ (lt_of_not_ge hgt)
-      linarith
+    have hle_θm : 1 / x ≤ θ_m :=
+      le_of_not_gt fun hgt => by linarith [mixtureTail_of_gt (φ := φ) hθ hgt]
     rw [mixtureTail_of_pos_le hinv_pos hle_θm] at hxeq
     have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 := by
       field_simp [hx₀.ne', hθ.ne'] at hxeq
@@ -411,10 +404,8 @@ theorem mixtureEquilibrium_iff {θ_m φ x : ℝ} (hθ : 0 < θ_m) (hφ₀ : 0 < 
       (quad_sol_iff hθ hdisc).mpr hroot
     refine ⟨hx₀, hx₁, ?_⟩
     rw [mixtureTail_of_pos_le (one_div_pos.mpr hx₀) hle_θm]
-    have h1 : (x - ((1 + φ) / 2 - φ * (1 / x) / θ_m)) * (θ_m * x) = 0 := by
-      field_simp [hx₀.ne', hθ.ne']
-      linarith
-    linarith [(mul_eq_zero.mp h1).resolve_right (mul_pos hθ hx₀).ne']
+    field_simp [hx₀.ne', hθ.ne']
+    linarith
 
 /-- **Two-regime positive-equilibrium threshold for mixture generosity** (NRTV Exercise 23.1):
 for `0 < θ_m` and `0 < φ ≤ 1`, a positive generosity equilibrium exists under `mixtureTail θ_m φ`
@@ -435,8 +426,7 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       have h1φ_sub : 0 < 1 - φ := by linarith
       rw [div_le_iff₀ h1φ_sub]
       have hx₀ : 0 < x := heq.1
-      have hy1 : 1 ≤ θ_m * x := by
-        rwa [div_le_iff₀ hx₀] at hle_θm
+      have hy1 : 1 ≤ θ_m * x := (div_le_iff₀ hx₀).mp hle_θm
       have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
         (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
       have hquad : θ_m * x ^ 2 - ((1 + φ) / 2 * θ_m) * x + φ = 0 :=
@@ -461,7 +451,6 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
           ((1 + φ) / 2 * θ_m + Real.sqrt (((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ)) / 2 := by
         dsimp [mixHighRoot]
         field_simp [hθ.ne']
-      rw [hid]
       linarith
     · have h1φ_sub : 0 < 1 - φ := by linarith
       have h1φ_sq : 0 < (1 + φ) ^ 2 := by positivity
@@ -475,24 +464,16 @@ theorem exists_mixtureEquilibrium_iff {θ_m φ : ℝ} (hθ : 0 < θ_m) (hφ₀ :
       have hhigh_pos : 0 < mixHighRoot θ_m φ := lt_of_lt_of_le hlow_pos hlow_le
       rw [div_le_iff₀ hhigh_pos]
       have h2mul : 2 ≤ θ_m * (1 - φ) := (div_le_iff₀ h1φ_sub).mp h2
-      have hdisc : 0 ≤ ((1 + φ) / 2 * θ_m) ^ 2 - 4 * θ_m * φ :=
-        (mixture_disc_nonneg_iff hθ hφ₀).mp hthr
       set b := (1 + φ) / 2 * θ_m
       set d := Real.sqrt (b ^ 2 - 4 * θ_m * φ)
-      have hd_sq : d ^ 2 = b ^ 2 - 4 * θ_m * φ := Real.sq_sqrt hdisc
-      have hsq_le : (2 - b) ^ 2 ≤ d ^ 2 := by
-        have hid : d ^ 2 - (2 - b) ^ 2 = 2 * (θ_m * (1 - φ) - 2) := by
-          rw [hd_sq]
-          dsimp [b]
-          ring
+      have hsq_le : (2 - b) ^ 2 ≤ b ^ 2 - 4 * θ_m * φ := by
+        have hid : (b ^ 2 - 4 * θ_m * φ) - (2 - b) ^ 2 = 2 * (θ_m * (1 - φ) - 2) := by
+          dsimp [b]; ring
         linarith
-      have hbd : 2 ≤ b + d := by
-        have hle_d : 2 - b ≤ d := Real.le_sqrt_of_sq_le (hd_sq ▸ hsq_le)
-        linarith
+      have hle_d : 2 - b ≤ d := Real.le_sqrt_of_sq_le hsq_le
       have hid : θ_m * mixHighRoot θ_m φ = (b + d) / 2 := by
         dsimp [mixHighRoot, b, d]
         field_simp [hθ.ne']
-      rw [hid]
       linarith
 
 theorem mixture_threshold_le_four {φ : ℝ} (hφ₀ : 0 ≤ φ) :
@@ -600,21 +581,15 @@ theorem exclHighRoot_equilibrium {θ_m z : ℝ} (hθ_pos : 0 < θ_m) (hz₁ : z 
       exclHighRoot θ_m z < 1 := by
   have h1z : 0 < 1 - z := sub_pos.mpr hz₁
   have hrad : 0 ≤ θ_m * (θ_m - 4 * (1 - z)) := mul_nonneg hθ_pos.le (sub_nonneg.mpr hthr)
-  have hsq_lt : Real.sqrt (θ_m * (θ_m - 4 * (1 - z))) < θ_m := by
-    rw [Real.sqrt_lt' hθ_pos]
-    nlinarith
-  have hpos : 0 < exclHighRoot θ_m z := by
-    dsimp [exclHighRoot]
-    have hnn := Real.sqrt_nonneg (θ_m * (θ_m - 4 * (1 - z)))
-    positivity
-  have hlt1 : exclHighRoot θ_m z < 1 := by
-    dsimp [exclHighRoot]
-    rw [div_lt_one (by linarith)]
-    linarith
+  have h2θ : 0 < 2 * θ_m := mul_pos two_pos hθ_pos
+  have hsq_lt : Real.sqrt (θ_m * (θ_m - 4 * (1 - z))) < θ_m :=
+    (Real.sqrt_lt' hθ_pos).mpr (by nlinarith)
+  have hpos : 0 < exclHighRoot θ_m z :=
+    div_pos (by linarith [Real.sqrt_nonneg (θ_m * (θ_m - 4 * (1 - z)))]) h2θ
+  have hlt1 : exclHighRoot θ_m z < 1 := (div_lt_one h2θ).mpr (by linarith)
   have hdisc_eq : θ_m ^ 2 - 4 * θ_m * (1 - z) = θ_m * (θ_m - 4 * (1 - z)) := by ring
-  have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * (1 - z) := by rw [hdisc_eq]; exact hrad
   have hquad : θ_m * (exclHighRoot θ_m z) ^ 2 - θ_m * exclHighRoot θ_m z + (1 - z) = 0 :=
-    (quad_sol_iff hθ_pos hdisc).mpr (Or.inr (by unfold exclHighRoot; rw [← hdisc_eq]))
+    (quad_sol_iff hθ_pos (hdisc_eq ▸ hrad)).mpr (Or.inr (by rw [exclHighRoot, ← hdisc_eq]))
   have hle_θm : (1 - z) / exclHighRoot θ_m z ≤ θ_m := by
     rw [div_le_iff₀ hpos]
     have hlt_prod : exclHighRoot θ_m z ^ 2 < exclHighRoot θ_m z := by nlinarith

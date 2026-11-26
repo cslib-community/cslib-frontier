@@ -248,7 +248,6 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
       n + C₀ < m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) ∧
       4 * (m : ℝ) ≤ (n : ℝ) ^ 2 := by
   set m₀ := n + γ * Nat.log 2 n with hm₀_def
-  have hγ_log_ge : γ + 1 ≤ γ * Nat.log 2 n := by nlinarith
   have hm_le_m₀ : m ≤ m₀ := by omega
   have hlog_le : Nat.log 2 n ≤ n := Nat.log_le_self 2 n
   have hm₀_le : m ≤ (γ + 1) * n := by nlinarith only [hm_le_m₀, hm₀_def, hlog_le]
@@ -266,11 +265,10 @@ private theorem threshold_arith_bounds {γ d C₀ n c m : ℕ}
           Nat.mul_lt_mul'' hn_lt_pow hn_lt_pow
         _ = 2 ^ (2 * Nat.log 2 n + 2) := by rw [← pow_add]; congr 1; omega
     exact Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) hm_lt_pow)
-  have hd_log : d * (Nat.log 2 m + 1) ≤ 2 * d * Nat.log 2 n + 2 * d := by
-    nlinarith only [hlog_m_le]
-  have hγ_split : 2 * d * Nat.log 2 n + 2 * Nat.log 2 n + Nat.log 2 n ≤ γ * Nat.log 2 n := by
-    nlinarith only [hγ]
-  refine ⟨by omega, by omega, by omega, by omega, ?_⟩
+  have hbound_log :
+      n + C₀ + (2 * Nat.log 2 n + 3) + d * (Nat.log 2 m + 1) + c < n + γ * Nat.log 2 n := by
+    nlinarith only [hγ, hc_le, hlog_n_ge, hlog_m_le]
+  refine ⟨by omega, hm_le_m₀, by omega, by omega, ?_⟩
   exact_mod_cast hm_le_nat.trans_eq (sq n).symm
 
 private theorem condEPPRG_real_threshold_accept_le
@@ -313,16 +311,13 @@ private theorem condEPPRG_real_threshold_accept_le
         (((PMF.uniformOfFinset E_n hE_n).map List.ofFn).map G).map (List.take m) := by
     simp only [pG_dist, p_full, PMF.map_comp, Function.comp_def]
     congr 1 with x : 1
-    have hlen_Gx : (G (List.ofFn x)).length = m₀ := by
-      simpa [hm₀_def] using hG_len (List.ofFn x)
-    simp [BitString.ofFn_ofList, hlen_Gx, hm_le_m₀]
+    simp [BitString.ofFn_ofList, hG_len, ← hm₀_def, hm_le_m₀]
   have hreal_eq :
       ((((PMF.uniformOfFinset E_n hE_n).map List.ofFn).map G).bind fun y =>
         ProbComp.eval (thresholdDistinguisher γ d c H n y)) =
       (pG_dist.map List.ofFn).bind fun y =>
         (ProbComp.eval (H y)).map fun v => decide (m - k - g_err ≤ v) := by
-    rw [hpG_map]
-    simp only [pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
+    simp only [hpG_map, pmf_norm, thresholdDistinguisher, ← hm₀_def, ← hm_def, hthr_eq]
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hB3 : 3 ≤ B := by
     have hlog_real : ((γ : ℝ) + 5) + (α : ℝ) * (Nat.log 2 n : ℝ) ≤ n := mod_cast hlog_bound
@@ -377,9 +372,8 @@ private theorem oneSided_succ_le_of_threshold_bounds
         _ ≤ 2 * (2 ^ (Nat.log 2 n + 1) * 2 ^ (Nat.log 2 n + 1)) :=
           Nat.mul_le_mul_left 2 (Nat.mul_le_mul hn_lt.le hn_lt.le)
         _ = 2 ^ (2 * Nat.log 2 n + 3) := by rw [← pow_add, ← pow_succ']; congr 1; omega
-    have hsq_real : 2 * (n : ℝ) ^ 2 ≤ (2 : ℝ) ^ (2 * Nat.log 2 n + 3) := by exact_mod_cast hsq
-    rw [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, one_div]
-    exact inv_anti₀ (by positivity) hsq_real
+    rw [Real.rpow_neg (by norm_num), Real.rpow_natCast, one_div]
+    exact inv_anti₀ (by positivity) (mod_cast hsq)
   set B : ℝ := (n : ℝ) - (α : ℝ) * (Nat.log 2 n : ℝ) - (c : ℝ) with hB_def
   have hexp_eq : (m : ℝ) - (B - 3) = (((γ + α) * Nat.log 2 n + 3 : ℕ) : ℝ) := by
     have hm_real : (m : ℝ) + (c : ℝ) = (n : ℝ) + (γ : ℝ) * (Nat.log 2 n : ℝ) := by
@@ -415,10 +409,8 @@ private theorem oneSided_succ_le_of_threshold_bounds
         1 / ((m + 1 : ℕ) : ℝ) ^ 2 := by ring
     linarith only [hclaim1, hclaim2, hadv_diff, hk_pow, hprod_le, hfail_le_sq, hdiv_add, hdiv_m]
   have h1_lt : 1 / ((m + 1 : ℕ) : ℝ) ^ 2 < 1 / (2 * (m : ℝ)) := by
-    apply one_div_lt_one_div_of_lt (by positivity)
-    push_cast
-    have hm4_r : (4 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm4
-    nlinarith only [hm4_r]
+    have h2m : 2 * m < (m + 1) ^ 2 := by nlinarith only [hm4]
+    exact one_div_lt_one_div_of_lt (by positivity) (by exact_mod_cast h2m)
   have h2_le : 3 / (2 * (n : ℝ) ^ 2) ≤ 1 / (2 * (m : ℝ)) := by
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     nlinarith only [hm_le_nsq]
@@ -476,17 +468,15 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
     have hc_le : c.val ≤ γ + 1 := Nat.le_of_lt_succ c.isLt
     obtain ⟨hm_ge_n, hm_le_m₀, hm4, hKt_low, hm_le_nsq⟩ :=
       threshold_arith_bounds hγ hc_le hn_4γ hlog_n_ge hm_def
-    have hthr_eq :
-        thresholdValue γ d c.val n = m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) := by
-      dsimp [thresholdValue]; rw [← hm_def]
     have hideal_eq :
         ((BitString.uniformList (n + γ * Nat.log 2 n)).bind fun y =>
           ProbComp.eval (thresholdDistinguisher γ d c.val H n y)) =
         (BitString.uniformList m).bind fun y =>
           (ProbComp.eval (H y)).map fun v =>
             decide (m - (2 * Nat.log 2 n + 3) - d * (Nat.log 2 m + 1) ≤ v) := by
-      simp only [thresholdDistinguisher, ProbComp.eval_map, ← hm_def, hthr_eq]
-      rw [← BitString.uniformList_take hm_le_m₀, PMF.bind_map]; rfl
+      simp only [thresholdDistinguisher, thresholdValue, ProbComp.eval_map, ← hm_def,
+        ← BitString.uniformList_take hm_le_m₀, PMF.bind_map]
+      rfl
     have ht_ge_m : m + 1 ≤ t m := (hpG_ge m).trans (ht m)
     have hclaim1 := uniformList_threshold_accept_ge ht_ge_m (2 * Nat.log 2 n + 3)
       (d * (Nat.log 2 m + 1)) (fun y => ProbComp.eval (H y))
@@ -501,9 +491,8 @@ theorem CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_
       (toReal_apply_le_one _ _)
       hclaim1 hclaim2 ((le_abs_self _).trans hadv)
   filter_upwards [(tendsto_seedLen γ).eventually h_ev_n] with m hm
-  have hseed := lt_stretchLen_seedLen γ m
-  let c : Fin (γ + 2) := ⟨stretchLen γ (seedLen γ m) - m, by omega⟩
-  exact hm c m (by change m = stretchLen γ (seedLen γ m) - (stretchLen γ (seedLen γ m) - m); omega)
+  obtain ⟨hseed_lt, hseed_le⟩ := lt_stretchLen_seedLen γ m
+  exact hm ⟨stretchLen γ (seedLen γ m) - m, by omega⟩ m (Nat.sub_sub_self hseed_lt.le).symm
 
 /-- One-sided $(d \lfloor \log_2 n \rfloor)$-approximation corollary of
 `CondEPPRG.exists_mildlyHardOnAverageToOneSidedApprox_timeBoundedNat_log_succ`

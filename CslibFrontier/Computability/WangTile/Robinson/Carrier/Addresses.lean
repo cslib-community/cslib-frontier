@@ -70,16 +70,14 @@ coordinate property. -/
 @[simp] private theorem carrierRole_isHorizontalCarrier (level x y : Nat) :
     (carrierRole level x y).horizontalCarrier =
       isHorizontalCarrier level x y := by
-  cases horizontal : isHorizontalCarrier level x y <;>
-    cases vertical : isVerticalCarrier level x y <;>
-    simp [carrierRole, horizontal, vertical, RouteRole.horizontalCarrier]
+  unfold carrierRole
+  cases isHorizontalCarrier level x y <;> cases isVerticalCarrier level x y <;> rfl
 
 @[simp] private theorem carrierRole_isVerticalCarrier (level x y : Nat) :
     (carrierRole level x y).verticalCarrier =
       isVerticalCarrier level x y := by
-  cases horizontal : isHorizontalCarrier level x y <;>
-    cases vertical : isVerticalCarrier level x y <;>
-    simp [carrierRole, horizontal, vertical, RouteRole.verticalCarrier]
+  unfold carrierRole
+  cases isHorizontalCarrier level x y <;> cases isVerticalCarrier level x y <;> rfl
 
 /-- Coordinates that become logical vertices of their depth's carrier grid. -/
 private def isFreeCoordinate (depth coordinate : Nat) : Bool :=
@@ -803,29 +801,21 @@ private theorem selectedBorder_ne_some_false_before_frameOpening
     (beforeOpening : candidate < frameOpening depth coordinate) :
     selectedBorder level candidate transverse ≠ some false := by
   intro selected
-  rcases (selectedBorder_eq_some_false_iff_of_owner owner).1 selected with
-    ⟨frameDepth, depthLeFrame, _, _, closing⟩
-  have baseLe : frameBase depth coordinate ≤ candidate :=
-      (Nat.mul_div_le coordinate (period depth)).trans lower
-  have openingBeforeBlockEnd : frameOpening depth coordinate <
-        frameBase depth coordinate + period depth := by
-      simp only [frameOpening]
-      exact Nat.add_lt_add_left
-        ((frameStartResidue_lt_frameEndResidue depth).trans
-          (frameEndResidue_lt_period depth)) _
-  have candidateMod : candidate % period depth =
-        candidate - frameBase depth coordinate :=
-      mod_eq_sub_frameBase_of_mem_block baseLe
-        (beforeOpening.trans openingBeforeBlockEnd)
-  rcases depthLeFrame.eq_or_lt with equal | larger
-  · subst frameDepth
-    have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
+  obtain ⟨frameDepth, depthLeFrame, -, -, closing⟩ :=
+    (selectedBorder_eq_some_false_iff_of_owner owner).1 selected
+  have hbase : frameBase depth coordinate ≤ coordinate := Nat.mul_div_le coordinate (period depth)
+  have openingLt : frameOpening depth coordinate < frameBase depth coordinate + period depth :=
+    Nat.add_lt_add_left ((frameStartResidue_lt_frameEndResidue depth).trans
+      (frameEndResidue_lt_period depth)) (frameBase depth coordinate)
+  have candidateMod : candidate % period depth = candidate - frameBase depth coordinate :=
+    mod_eq_sub_frameBase_of_mem_block (hbase.trans lower) (beforeOpening.trans openingLt)
+  rcases depthLeFrame.eq_or_lt with rfl | larger
+  · have := frameStartResidue_lt_frameEndResidue depth
     simp only [frameOpening] at beforeOpening
     omega
-  · have hmod := largeClosing_mod_small larger closing
-    have hbase : frameBase depth coordinate ≤ coordinate := Nat.mul_div_le coordinate (period depth)
-    have hcand : candidate = coordinate := by omega
-    exact absurd (hcand ▸ selected) (by simp [coordinateClear])
+  · have := largeClosing_mod_small larger closing
+    obtain rfl : candidate = coordinate := by omega
+    simp [coordinateClear] at selected
 
 private theorem selectedBorder_eq_none_after_frameClosing
     {level depth coordinate transverse candidate : Nat}
@@ -872,18 +862,13 @@ private theorem selectedBorder_ne_some_false_of_no_owner
     (coordinate_lt : coordinate < 2 * scale level) :
     selectedBorder level coordinate transverse ≠ some false := by
   intro selected
-  rcases (selectedBorder_eq_some_false_iff level coordinate transverse).1
-      selected with ⟨depth, positive, bounded, inside, closing⟩
-  by_cases withinSearch : depth ≤ level - 1
-  · have outside := inFrame_eq_false_of_depthAt_eq_none owner
-      positive withinSearch
-    simp [inside] at outside
-  · have depthEq : depth = level := by omega
-    subst depth
-    have residueLe := Nat.mod_le coordinate (period level)
-    rw [closing] at residueLe
+  obtain ⟨depth, positive, bounded, inside, closing⟩ :=
+    (selectedBorder_eq_some_false_iff level coordinate transverse).1 selected
+  rcases Nat.lt_or_eq_of_le bounded with hlt | rfl
+  · simp [inFrame_eq_false_of_depthAt_eq_none owner positive (Nat.le_sub_one_of_lt hlt)] at inside
+  · have residueLe := closing ▸ Nat.mod_le coordinate (period depth)
+    have := scale_pos depth
     simp only [frameEndResidue] at residueLe
-    have := scale_pos level
     omega
 
 private theorem period_dvd_two_mul_scale {depth level : Nat} (hdepth : depth < level) :

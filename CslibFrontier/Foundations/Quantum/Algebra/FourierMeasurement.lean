@@ -137,24 +137,19 @@ theorem sum_fourierCoeff_cube (A : (ι → Bool) → R) :
   congr 1
   · push_cast
     field_simp
-  · refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => ?_
-    rw [add_comm b a]
+  · exact sum_congr rfl fun a _ => sum_congr rfl fun b _ => by rw [add_comm b a]
 
 /-- `E_a A(a) (∑_u (-1)^{a·u} D(u)) = ∑_u Â(u) D(u)`. -/
 theorem smul_sum_mul_walshSum (A D : (ι → Bool) → R) :
     (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, A a * walshSum D a = ∑ u, fourierCoeff A u * D u := by
   simp only [fourierCoeff, walshSum, mul_sum, sum_mul, mul_smul_comm, smul_mul_assoc, smul_sum]
-  rw [sum_comm]
-  refine sum_congr rfl fun u _ => sum_congr rfl fun a _ => ?_
-  rw [dotProduct_comm]
+  exact sum_comm.trans (sum_congr rfl fun u _ => sum_congr rfl fun a _ => by rw [dotProduct_comm])
 
 /-- `E_a (∑_u (-1)^{a·u} D(u)) A(a) = ∑_u D(u) Â(u)`. -/
 theorem smul_sum_walshSum_mul (A D : (ι → Bool) → R) :
     (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, walshSum D a * A a = ∑ u, D u * fourierCoeff A u := by
   simp only [fourierCoeff, walshSum, mul_sum, sum_mul, mul_smul_comm, smul_mul_assoc, smul_sum]
-  rw [sum_comm]
-  refine sum_congr rfl fun u _ => sum_congr rfl fun a _ => ?_
-  rw [dotProduct_comm]
+  exact sum_comm.trans (sum_congr rfl fun u _ => sum_congr rfl fun a _ => by rw [dotProduct_comm])
 
 /-- A Fourier coefficient of an exactly linear family is a right eigenspace
 operator, with the eigenvalue given by its character. -/
@@ -339,9 +334,8 @@ theorem expect_norm_sub_walshSum_sq_le_of_contractions [SelfAdjointDecompose R]
       (𝔼 a, (φ (f a)).re) = (φ ((((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, f a)).re := by
     rw [re_apply_real_smul, map_sum, Complex.re_sum, Fintype.expect_eq_sum_div_card,
       Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_inv_mul]
-  have hAavg : (𝔼 a, (φ (A a * A a)).re) ≤ 1 := by
-    rw [hexpect, ← sum_fourierCoeff_mul_self_eq]
-    exact φ.re_apply_le_one hTotal
+  have hAavg : (𝔼 a, (φ (A a * A a)).re) ≤ 1 :=
+    hexpect _ ▸ sum_fourierCoeff_mul_self_eq A ▸ φ.re_apply_le_one hTotal
   have hT₁ : (𝔼 a, (φ (A a * χ a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by
     rw [hexpect, smul_sum_mul_walshSum, re_apply_sum_fourierCoeff_cube]
   have hT₂ : (𝔼 a, (φ (χ a * A a)).re) = 𝔼 a, 𝔼 b, (φ (A a * A b * A (a + b))).re := by

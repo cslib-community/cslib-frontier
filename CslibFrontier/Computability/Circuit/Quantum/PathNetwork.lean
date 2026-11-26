@@ -872,9 +872,8 @@ theorem length_table_network (neg : R) (S : List ℕ) (X : List Bool) {gs : List
     List.mem_singleton] at hv
   have hgate (c i : ℕ) (hi : i < gs.length) :
       (gateVertex neg X gs c i).2.length = 2 ^ (gateVertex neg X gs c i).1.length := by
-    have hle : (gatePorts gs c i).length ≤ 6 :=
-      (length_gatePorts_le gs c i).trans (by have := hgs _ (List.getD_mem default hi); omega)
-    simp [gateVertex, boundedTable_eq _ hle]
+    simp [gateVertex, boundedTable_eq _ ((length_gatePorts_le gs c i).trans
+      (Nat.mul_le_mul_left 2 (hgs _ (List.getD_mem default hi))))]
   rcases hv with (((⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩) | ⟨w, -, rfl⟩) | rfl) | ⟨w, -, rfl⟩
   · exact hgate 0 i hi
   · exact hgate 1 i hi
@@ -1135,19 +1134,16 @@ theorem isRowsFirstBipartite_network (neg : R) (S : List ℕ) (X : List Bool) {g
           count_gatePorts_out (List.mem_range.mp hi) (hnd' i hi) hc Nat.one_lt_two hu,
         List.sum_map_ite_and, List.sum_map_ite_and, sum_range_base gs hu]
       interval_cases c <;> simp
-    · rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.zero_lt_two hu,
+    · let qs := occurrences gs
+      have hiff (w : ℕ) : (lastOcc qs (qs.getD w 0) qs.length = some w ∧ w = u) ↔
+          lastOcc qs (qs.getD u 0) qs.length = some u ∧ w = u :=
+        and_congr_left fun h => by rw [h]
+      rw [List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.zero_lt_two hu,
         List.map_congr_left fun i hi => count_gatePorts_link i (hnd' i hi) hc Nat.one_lt_two hu,
         List.map_congr_left fun w hw => count_glueVertex_link S gs (List.mem_range.mp hw) hc hu,
-        List.sum_map_ite_and, List.sum_map_ite_and]
-      have hglue : ((List.range (occurrences gs).length).map fun w =>
-          if lastOcc (occurrences gs) ((occurrences gs).getD w 0) (occurrences gs).length =
-            some w ∧ w = u then (1 : ℕ) else 0).sum =
-          if lastOcc (occurrences gs) ((occurrences gs).getD u 0) (occurrences gs).length =
-            some u then 1 else 0 := by
-        rw [List.map_congr_left fun w _ =>
-            if_congr (and_congr_left fun h => by subst h; rfl) rfl rfl,
-          List.sum_map_ite_and, List.sum_map_range_ite_eq, ite_eq_left hu]
-      rw [hglue]
+        List.sum_map_ite_and, List.sum_map_ite_and,
+        List.map_congr_left fun w _ => if_congr (hiff w) rfl rfl,
+        List.sum_map_ite_and, List.sum_map_range_ite_eq, ite_eq_left hu]
       interval_cases c <;> simpa using sum_readers hnd hu
   · simp only [numEdges_network] at he
     rw [fst_network, vertices_network, List.drop_left' (by simp; omega)]

@@ -101,16 +101,14 @@ replaced by the pair of strategies `(fA · r, fB · r)` that it selects. -/
 theorem IsEmbeddable.of_dist_le {R : Type*} {P₀ : PMF (X × Y)} {P₁ : PMF ((X × Y) × (S × T))}
     {ε : ℝ} (ρ : PMF R) (fA : X → R → S) (fB : Y → R → T)
     (h : dist (P₀.bind fun xy => ρ.map fun r => (xy, (fA xy.1 r, fB xy.2 r))) P₁ ≤ ε) :
-    IsEmbeddable P₀ P₁ ε := by
-  refine ⟨(X → S) × (Y → T), ρ.map fun r => (fun x => fA x r, fun y => fB y r),
-    fun x g => g.1 x, fun y g => g.2 y, ?_⟩
-  simpa only [PMF.map_comp, Function.comp_def] using h
+    IsEmbeddable P₀ P₁ ε :=
+  ⟨(X → S) × (Y → T), ρ.map fun r => (fun x => fA x r, fun y => fB y r),
+    fun x g => g.1 x, fun y g => g.2 y, by simpa only [PMF.map_comp, Function.comp_def] using h⟩
 
 /-- Local embeddability is monotone in the error. -/
 theorem IsEmbeddable.mono {P₀ : PMF (X × Y)} {P₁ : PMF ((X × Y) × (S × T))} {ε ε' : ℝ}
-    (h : IsEmbeddable P₀ P₁ ε) (hε : ε ≤ ε') : IsEmbeddable P₀ P₁ ε' := by
-  obtain ⟨R, ρ, fA, fB, hd⟩ := h
-  exact ⟨R, ρ, fA, fB, hd.trans hε⟩
+    (h : IsEmbeddable P₀ P₁ ε) (hε : ε ≤ ε') : IsEmbeddable P₀ P₁ ε' :=
+  h.imp fun _ ⟨ρ, fA, fB, hd⟩ => ⟨ρ, fA, fB, hd.trans hε⟩
 
 /-- **Local post-processing.** If `P₀` embeds in `P₁`, Alice and Bob can apply local maps `gA` and
 `gB` to their outputs, for instance to forget part of them, with the same error. -/
@@ -280,11 +278,9 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
     IsEmbeddable (J.map Prod.fst) J 0 := by
   classical
   have hF (x : X) : ∑' s, f x s ≠ ∞ := by
-    rw [tsum_fintype]
-    exact ENNReal.sum_ne_top.mpr fun s _ => hf x s
+    simpa only [tsum_fintype] using ENNReal.sum_ne_top.mpr fun s _ => hf x s
   have hG (y : Y) : ∑' t, g y t ≠ ∞ := by
-    rw [tsum_fintype]
-    exact ENNReal.sum_ne_top.mpr fun t _ => hg y t
+    simpa only [tsum_fintype] using ENNReal.sum_ne_top.mpr fun t _ => hg y t
   -- Normalize `f x` and `g y`. Where a normalizer vanishes, `J` has no mass and any law works.
   let KS : X → PMF S := fun x =>
     if h : ∑' s, f x s = 0 then J.map fun z => z.2.1 else PMF.normalize (f x) h (hF x)
@@ -328,10 +324,8 @@ theorem dist_filter_le_two_mul {Z : Type*} [Fintype Z] (p q : PMF Z) (E : Set Z)
   rw [Cslib.Probability.PMF.filter_apply_toReal, Cslib.Probability.PMF.filter_apply_toReal,
     hp, hq]
   split_ifs
-  · rw [← sub_div, abs_div]
-    norm_num [div_eq_mul_inv, mul_comm]
-  · simp only [sub_self, abs_zero]
-    positivity
+  · rw [← sub_div, abs_div]; norm_num [div_eq_mul_inv, mul_comm]
+  · simp only [sub_self, abs_zero]; positivity
 
 /-! ### The hypotheses of Corollary 5.3 from a redrawn input -/
 
@@ -361,10 +355,7 @@ private theorem dist_withKernel_cond_le {A B : Type*} [Fintype A]
   rw [hR, hT]
   calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
         dist ((M.map Prod.fst).bind Λ) ((P₀.map proj).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+    _ ≤ _ := add_le_add le_rfl (hM ▸ dist_bind_le _ _ _)
 
 /-- **The triangle step of Holenstein's (6.13)–(6.15)** [Holenstein, proof of Lemma 6.4,
 (6.13)–(6.15)][Holenstein2009]. Let `K` draw `x` given `y` under `P₀`, so that `P₀ = P_Y K`. A

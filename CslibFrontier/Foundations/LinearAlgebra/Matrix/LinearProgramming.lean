@@ -93,7 +93,7 @@ theorem dotProduct_le_dotProduct_add_parts_of_mulVec_le {A : Matrix ι κ K}
     · simp [negPart_eq_zero.mpr (le_of_not_gt hj)]
   have hd : d ⬝ᵥ x = d⁺ ⬝ᵥ x - d⁻ ⬝ᵥ x := by rw [← sub_dotProduct, posPart_sub_negPart]
   have hres : d ⬝ᵥ x = c ⬝ᵥ x - y ⬝ᵥ (A *ᵥ x) := by
-    rw [show d = c - y ᵥ* A from rfl, sub_dotProduct, ← dotProduct_mulVec]
+    simp only [d, sub_dotProduct, ← dotProduct_mulVec]
   linarith [dotProduct_le_dotProduct_of_nonneg_left hx hy]
 
 /-- With two-sided variable bounds, the residual correction can equivalently be written
@@ -123,8 +123,7 @@ theorem dotProduct_le_dotProduct_of_mulVec_le {A : Matrix ι κ K} {b : ι → K
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x ≤ y ⬝ᵥ b := by
   simpa using dotProduct_le_dotProduct_add_parts_of_mulVec_le (c := c) (l := 0) (u := 0) hx hy
-    (fun _ hj => by simp [hyA] at hj)
-    (fun _ hj => by simp [hyA] at hj)
+    (fun _ => by simp [hyA]) (fun _ => by simp [hyA])
 
 /-- A linear objective bounded above on a nonempty polyhedron `A *ᵥ x ≤ b` attains its maximum at
 a point `x`, certified by a dual solution `y` of the same value [Schrijver1986, Section 7.4]. -/
@@ -141,8 +140,7 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
   obtain ⟨ρ, _, T, hT, hTA, hiff⟩ := FourierMotzkin.exists_projection A' B' b'
   set β : ρ → K := fun r => T r (.inr ())
   set γ : ρ → K := T *ᵥ b'
-  have hTB : ∀ t : K, (T * B') *ᵥ (fun _ => t) = fun r => β r * t := by
-    intro t
+  have hTB (t : K) : (T * B') *ᵥ (fun _ => t) = fun r => β r * t := by
     rw [← mulVec_mulVec, fromRows_mulVec, zero_mulVec, one_mulVec]
     funext r
     simp only [mulVec, dotProduct, Fintype.sum_sum_type, Sum.elim_inl, Sum.elim_inr,
@@ -178,9 +176,8 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
       Pi.zero_apply, mul_zero, Finset.sum_const_zero, add_zero]
   have huA : u ᵥ* A = β r • c := by
     have h : T r ᵥ* A' = 0 := congr_fun hTA r
-    rw [vecMul_fromRows] at h
     ext j
-    have hj := congr_fun h j
+    have hj := congr_fun (vecMul_fromRows A (replicateRow Unit (-c)) (T r) ▸ h) j
     simp only [Pi.add_apply, Pi.zero_apply, vecMul, dotProduct, replicateRow_apply,
       Finset.univ_unique, Finset.sum_singleton, Function.comp_apply, PUnit.default_eq_unit,
       Pi.neg_apply, mul_neg, Pi.smul_apply, smul_eq_mul, u, β] at hj ⊢
@@ -221,11 +218,10 @@ theorem exists_isGreatest_isLeast_dotProduct (A : Matrix ι κ K) (b : ι → K)
 primal program with infeasible dual is unbounded [Schrijver1986, Section 7.4]. -/
 theorem bddAbove_image_dotProduct_iff (A : Matrix ι κ K) (b : ι → K) (c : κ → K)
     (hP : ∃ x, A *ᵥ x ≤ b) :
-    BddAbove ((c ⬝ᵥ ·) '' {x | A *ᵥ x ≤ b}) ↔ ∃ y, 0 ≤ y ∧ y ᵥ* A = c := by
-  refine ⟨fun h => ?_, fun ⟨y, hy, hyA⟩ =>
-    ⟨y ⬝ᵥ b, Set.forall_mem_image.2 fun _ hx => dotProduct_le_dotProduct_of_mulVec_le hx hy hyA⟩⟩
-  obtain ⟨_, y, -, hy, hyA, -⟩ := exists_dual_eq_of_bddAbove A b c hP h
-  exact ⟨y, hy, hyA⟩
+    BddAbove ((c ⬝ᵥ ·) '' {x | A *ᵥ x ≤ b}) ↔ ∃ y, 0 ≤ y ∧ y ᵥ* A = c :=
+  ⟨fun h => (exists_dual_eq_of_bddAbove A b c hP h).elim fun _ ⟨y, _, hy, hyA, _⟩ => ⟨y, hy, hyA⟩,
+    fun ⟨y, hy, hyA⟩ =>
+      ⟨y ⬝ᵥ b, Set.forall_mem_image.2 fun _ hx => dotProduct_le_dotProduct_of_mulVec_le hx hy hyA⟩⟩
 
 /-- A feasible dual program is bounded below iff the primal is feasible. In particular a feasible
 dual program with infeasible primal is unbounded [Schrijver1986, Section 7.4]. -/
@@ -311,13 +307,10 @@ theorem exists_isGreatest_isLeast_dotProduct_of_nonneg (A : Matrix ι κ K) (b :
   have hc : c ≤ (w ∘ Sum.inl) ᵥ* A := fun k => by
     rw [← hwM, vecMul_fromRows, vecMul_neg, vecMul_one, Pi.add_apply, Pi.neg_apply]
     exact add_le_of_nonpos_right (neg_nonpos.2 (hw _))
-  have hval : (w ∘ Sum.inl) ⬝ᵥ b = c ⬝ᵥ x := by
-    simpa [dotProduct] using hxw
-  refine ⟨c ⬝ᵥ x, ⟨⟨x, ⟨hx, hAx⟩, rfl⟩, ?_⟩,
-    ⟨⟨w ∘ Sum.inl, ⟨fun i => hw _, hc⟩, hval⟩, ?_⟩⟩
-  · rintro _ ⟨x', ⟨hx', hAx'⟩, rfl⟩
-    exact hval ▸ dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx' hAx' (fun i => hw _) hc
-  · rintro _ ⟨y', ⟨hy', hc'⟩, rfl⟩
-    exact dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy' hc'
+  have hval : (w ∘ Sum.inl) ⬝ᵥ b = c ⬝ᵥ x := by simpa [dotProduct] using hxw
+  exact ⟨c ⬝ᵥ x, ⟨⟨x, ⟨hx, hAx⟩, rfl⟩, Set.forall_mem_image.2 fun _ ⟨hx', hAx'⟩ =>
+      hval ▸ dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx' hAx' (fun i => hw _) hc⟩,
+    ⟨⟨w ∘ Sum.inl, ⟨fun i => hw _, hc⟩, hval⟩, Set.forall_mem_image.2 fun _ ⟨hy', hc'⟩ =>
+      dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy' hc'⟩⟩
 
 end Matrix

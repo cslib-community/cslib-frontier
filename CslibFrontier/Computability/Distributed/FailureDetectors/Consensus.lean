@@ -619,10 +619,8 @@ private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
     · have := ctSt_proposal_inv F H tick deliver x (4 * r) c r v hprop
       omega
     · rw [← hm₀] at hprop
-      clear_value m₀
-      clear hm₀
-      unfold ctUpdate at hprop
-      simp only [hm0, Nat.mul_div_cancel_left r (by omega : 0 < 4), hc, ↓reduceIte] at hprop
+      generalize m₀ = m' at hprop ⊢
+      simp only [ctUpdate, hm0, Nat.mul_div_cancel_left r (Nat.succ_pos 3), hc, ↓reduceIte] at hprop
       grind
   obtain ⟨hmem, hmax⟩ := selectMaxTs_mem_and_max hsel
   have hextract : ∀ j w ts', extractPhase1 (m₀ j) = some (w, ts') →
@@ -641,10 +639,9 @@ private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
   · rwa [List.toFinset_card_of_nodup (procs.nodup_dedup.filter _),
       ← length_filterMap_eq_length_filter]
   · exact List.mem_toFinset.mpr (List.mem_filter.mpr ⟨hj₀_dedup, by simp [hj₀_ex]⟩)
-  · simp only [Q_est, List.mem_toFinset, List.mem_filter, Option.isSome_iff_exists] at hj
-    obtain ⟨hj_dedup, ⟨w, ts'⟩, hw⟩ := hj
-    rw [(hextract j w ts' hw).2]
-    exact hmax w ts' (List.mem_filterMap.mpr ⟨j, hj_dedup, hw⟩)
+  · obtain ⟨hj_dedup, ⟨w, ts'⟩, hw⟩ := by
+      simpa only [Q_est, List.mem_toFinset, List.mem_filter, Option.isSome_iff_exists] using hj
+    exact (hextract j w ts' hw).2 ▸ hmax w ts' (List.mem_filterMap.mpr ⟨j, hj_dedup, hw⟩)
 
 /-- Simultaneous provenance of `(state k p).est` (every estimate is an initial input `x q`) and
 positive timestamps `(state k p).ts = r₀ + 1` (witnessed by `coordinator r₀`'s round-`r₀`
@@ -669,9 +666,8 @@ private theorem ctSt_est_ts_origin (k : ℕ) :
         have hc_prop : (ctSt F H tick deliver x procs fallback (4 * (k / 4) + 1)
             (rotatingCoordinator procs fallback (k / 4))).proposal =
               some (k / 4, (ctSt F H tick deliver x procs fallback (k + 1) p).est) := by
-          have := ctIn_eq_some F H tick deliver x hm
-          rw [show 4 * (k / 4) + 1 = k by omega]
-          simpa [ctSend, h1] using this.symm
+          have hk4 : 4 * (k / 4) + 1 = k := by omega
+          simpa [hk4, ctSend, h1] using (ctIn_eq_some F H tick deliver x hm).symm
         obtain ⟨_, _, j₀, _, _, hj₀_est, _, _⟩ :=
           ctSt_roundProposal_quorum F H tick deliver x hc_prop
         obtain ⟨⟨q, hq⟩, _⟩ := ih (4 * (k / 4)) (by omega) j₀
@@ -723,13 +719,12 @@ theorem ctRoundProtocol_lock_preservation {r : ℕ} {v : V}
     obtain ⟨_, hts_jStar⟩ := ctSt_reply_origin F H tick deliver x (4 * r + 2) jStar r
       (hQ_ack jStar hj_ack)
     have hts_mono := ctSt_ts_mono F H tick deliver x (procs := procs) (fallback := fallback)
-      (show 4 * r + 2 ≤ 4 * r' by omega) jStar
+      (by omega : 4 * r + 2 ≤ 4 * r') jStar
     have hmax := hQ_est_max jStar hj_est
     have hle := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (4 * r') j₀
     obtain ⟨r₀, hr₀_eq⟩ : ∃ r₀, ts_max = r₀ + 1 := ⟨ts_max - 1, by omega⟩
-    have hprop_r₀ := (ctSt_est_ts_origin F H tick deliver x (4 * r') j₀).2 r₀
+    have hprop_r₀ := hj₀_est ▸ (ctSt_est_ts_origin F H tick deliver x (4 * r') j₀).2 r₀
       (hj₀_ts.trans hr₀_eq)
-    rw [hj₀_est] at hprop_r₀
     rcases eq_or_lt_of_le (by omega : r ≤ r₀) with rfl | hr_lt_r₀
     · simpa [hprop_r] using hprop_r₀.symm
     · exact ih r₀ (by omega) hr_lt_r₀ hprop_r₀
@@ -749,8 +744,7 @@ private theorem ctSt_decided_locked :
             Fintype.card P / 2 + 1 ≤ (procs.dedup.filter fun j => isRoundAck (k / 4) (m j)).length ∨
           k % 4 = 3 ∧ procs.dedup.findSome? (fun j => extractDecide (m j)) = some d := by
       rw [ctSt_succ, ← hm] at h
-      clear_value m
-      clear hm
+      generalize m = m' at h ⊢
       rcases (by omega : k % 4 = 0 ∨ k % 4 = 1 ∨ k % 4 = 2 ∨ k % 4 = 3) with h4 | h4 | h4 | h4 <;>
         simp only [ctUpdate, h4, Nat.reduceEqDiff, ↓reduceIte] at h <;>
         grind [Option.or_eq_some_iff]
@@ -763,10 +757,10 @@ private theorem ctSt_decided_locked :
       cases hm : m j with
       | none => simp [hm, isRoundAck] at hj
       | some msg =>
+        have hk4 : 4 * (k / 4) + 2 = k := by omega
         rw [hm, ctIn_eq_some F H tick deliver x hm] at hj
-        rw [show 4 * (k / 4) + 2 = k by omega]
-        simp only [ctSend, h2, isRoundAck] at hj
-        grind
+        rw [hk4]
+        simp only [ctSend, h2, isRoundAck] at hj; grind
     · -- `p` adopted a decision broadcast in Subround `3`.
       obtain ⟨j, _, hj⟩ := List.exists_of_findSome?_eq_some hfind
       cases hm : m j with
@@ -905,10 +899,10 @@ theorem ctRoundProtocol_decides_in_good_round
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
       simp only [m₂, FDAsyncRoundProtocol.incoming, hj, not_false_eq_true, and_self, ↓reduceIte,
         hsend, ctSend, hm2, hack_all j hj_corr, isRoundAck, decide_true]
-    rw [hstate_succ (4 * rStar + 2)]
     simp only [m₂] at hacks_len
-    simp only [hqStar (tick (4 * rStar + 2)), ↓reduceIte, ctUpdate, hm2, hd2, hcoord, hprop_2,
-      hacks_len, and_self, Nat.reduceEqDiff, Option.isSome_or, Option.isSome_some, Bool.or_true]
+    simp only [hstate_succ (4 * rStar + 2), hqStar (tick (4 * rStar + 2)), ↓reduceIte, ctUpdate,
+      hm2, hd2, hcoord, hprop_2, hacks_len, and_self, Nat.reduceEqDiff, Option.isSome_or,
+      Option.isSome_some, Bool.or_true]
   -- Subround `3` (`4 * rStar + 3`): `qStar` broadcasts `decided` and every `p ∈ F.Correct`
   -- receives it (`qStar ∉ H p`) and decides!
   obtain ⟨dStar, hdStar⟩ := Option.isSome_iff_exists.mp hq_dec
@@ -924,12 +918,10 @@ theorem ctRoundProtocol_decides_in_good_round
     List.findSome?_isSome_iff.mpr
       ⟨qStar, List.mem_dedup.mpr (hprocs qStar), by rw [hq_extract]; rfl⟩
   have hk4 : 4 * (rStar + 1) = (4 * rStar + 3) + 1 := by omega
-  rw [hk4]
-  change (st ((4 * rStar + 3) + 1) p).decided.isSome = true
-  rw [hstate_succ]
   simp only [m₃] at hinc_some
-  simp only [hp (tick (4 * rStar + 3)), ↓reduceIte, ctUpdate, hm3, Nat.reduceEqDiff,
-    Option.isSome_or, hinc_some, Bool.or_true]
+  change (st (4 * (rStar + 1)) p).decided.isSome = true
+  simp only [hk4, hstate_succ, hp (tick (4 * rStar + 3)), ↓reduceIte, ctUpdate, hm3,
+    Nat.reduceEqDiff, Option.isSome_or, hinc_some, Bool.or_true]
 
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): under `2 * t < Fintype.card P` and
@@ -967,10 +959,9 @@ theorem solvesFDAsyncRoundConsensus_ctRoundProtocol
     ctRoundProtocol_uniform_agreement F H tick deliver x h₁ h₂
   validity F _ H tick deliver x _ _ _ _ _ _ hdec :=
     ctRoundProtocol_validity F H tick deliver x hdec
-  termination F _ H tick deliver x hadm hES p hp := by
-    obtain ⟨kStar, hkStar⟩ :=
-      ctRoundProtocol_terminates_of_isEventuallyStrong hprocs fallback ht hadm hES x
-    exact ⟨kStar, hkStar p hp⟩
+  termination _ _ _ _ _ x hadm hES p hp :=
+    (ctRoundProtocol_terminates_of_isEventuallyStrong hprocs fallback ht hadm hES x).imp
+      fun _ hkStar => hkStar p hp
 
 /-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Corollary 6.2.4, pp. 246–247][ChandraToueg1996]): given any `◇W` history `H`
@@ -1092,7 +1083,7 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
     exact ⟨fun ⟨p, hp, hpm⟩ => hpm ▸ hp, fun hm => ⟨e.symm ⟨m, by omega⟩, by simpa using hm,
       by simp⟩⟩
   have hA₁_card : A₁.card = n - half := by
-    rw [show A₁ = A₀ᶜ from (compl_eq_univ_sdiff A₀).symm, card_compl, hA₀_card]
+    simp only [A₁, n, ← compl_eq_univ_sdiff, card_compl, hA₀_card]
   have hA₀_quorum : n - t ≤ A₀.card := by omega
   have hA₁_quorum : n - t ≤ A₁.card := by omega
   let a₀ : P := e.symm ⟨0, by omega⟩
@@ -1165,9 +1156,8 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
         · exact fun hq => hq.1)
       K₁ le_rfl a₁ ha₁_not_A₀]
     exact hw₁
-  have hag := hsol.agreement F_A (fun _ => by simp [F_A]) H_A id deliver_A x_A hadm_A hEP_A
-    K₀ K₁ a₀ (by simp [F_A]) a₁ (by simp [F_A]) v₀ v₁ hdec_a₀ hdec_a₁
-  exact hne hag
+  exact hne (hsol.agreement F_A (fun _ => by simp [F_A]) H_A id deliver_A x_A hadm_A hEP_A
+    K₀ K₁ a₀ (by simp [F_A]) a₁ (by simp [F_A]) v₀ v₁ hdec_a₀ hdec_a₁)
 
 /-! ### Exact asynchronous-round resilience characterizations -/
 

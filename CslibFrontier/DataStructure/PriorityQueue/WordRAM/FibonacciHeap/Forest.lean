@@ -278,10 +278,8 @@ private theorem CutStep.restrict {n : ℕ} {st st' : RawState n} {pending : Opti
 private theorem CutStep.clear_pending {n : ℕ} {st st' : RawState n} {pending : Option (Fin n)}
     {T : FHTree n} {cur p : Fin n} (hs : CutStep st st' pending T cur p) {c : FHTree n}
     (hsub : ValidSubtree st pending c) (hnot : cur ∉ forestNodes c.children) :
-    ValidSubtree st none c := by
-  rcases hs.pend with rfl | rfl
-  · exact hsub
-  · exact hsub.clear_pending hnot
+    ValidSubtree st none c :=
+  hs.pend.elim (· ▸ hsub) fun h => (h ▸ hsub).clear_pending hnot
 
 private theorem CutStep.pending_zero_of_ne {n : ℕ} {st st' : RawState n}
     {pending : Option (Fin n)} {T : FHTree n} {cur p : Fin n}
@@ -389,10 +387,10 @@ private theorem CutStep.erase_child_valid {n : ℕ} {st st' : RawState n} {pendi
       have hkm := List.getElem_mem hk
       have hr_in : (cs[k]).root ∈ (FHTree.node u cs).nodes :=
         child_mem_node hkm (cs[k]).root_mem_nodes
+      have hne_u : (cs[k]).root ≠ u := fun e => hnd_u (e ▸ root_mem_forestNodes hkm)
       have hro := hrank k hk
       rw [hs.pending_zero_of_ne (hne_cur k hk hki)] at hro
-      rw [hs.deg.2 _ hr_in (fun e => hnd_u (e ▸ root_mem_forestNodes hkm)),
-        hs.mark.2 _ hr_in (hne_cur k hk hki)]
+      rw [hs.deg.2 _ hr_in hne_u, hs.mark.2 _ hr_in (hne_cur k hk hki)]
       omega
     rw [List.getElem_eraseIdx]
     by_cases hji : j < i
@@ -551,10 +549,7 @@ theorem ValidSubtree.mark_pending {n : ℕ} {st st' : RawState n} {z : Fin n} {T
   | @mk u cs hin hmark hdeg hchild hpar hprio hrank _ ih =>
     have hu := hunch u List.mem_cons_self
     refine ValidSubtree.rebuild hin hdeg hchild hpar hu.1
-      (by
-        by_cases huz : u = z
-        · subst huz; omega
-        · rw [hm_other u List.mem_cons_self huz]; exact hmark)
+      (if huz : u = z then (huz ▸ hm1).le else hm_other u List.mem_cons_self huz ▸ hmark)
       hu.2.1 hu.2.2.1
       (fun c hc => hptr c.root (root_mem_forestNodes hc))
       (fun c hc => by
@@ -698,9 +693,8 @@ theorem descendant_ne_root_of_nodup {n : ℕ} {ts : List (FHTree n)} (hnd : (for
       (T.nodes_eq ▸ List.mem_cons_of_mem T.root hx) R.root_mem_nodes
 
 /-- A tree is rebuilt from its root and children. -/
-theorem FHTree.eta {n : ℕ} (T : FHTree n) : FHTree.node T.root T.children = T := by
-  cases T
-  rfl
+theorem FHTree.eta {n : ℕ} (T : FHTree n) : FHTree.node T.root T.children = T :=
+  match T with | .node _ _ => rfl
 
 /-! ## Framing and pure-`ℕ` degree bounds during consolidation -/
 
@@ -887,8 +881,7 @@ theorem ValidSubtree.par_ne_self {n : ℕ} {st : RawState n} {pending : Option (
     obtain ⟨c, hc, hv_c⟩ := mem_forestNodes_iff.mp hv
     rw [c.nodes_eq] at hv_c
     rcases List.mem_cons.mp hv_c with rfl | hv_desc_c
-    · have hpc := hpar c hc
-      obtain rfl : u = c.root := Fin.ext (by omega)
+    · obtain rfl : u = c.root := Fin.ext (Nat.add_right_cancel ((hpar c hc).symm.trans hpv))
       exact hu_not hv
     · exact (hsub c hc).par_ne_self (forestNodes_nodup_tree (List.nodup_cons.mp hnd).2 hc)
         hv_desc_c hpv
@@ -973,10 +966,10 @@ theorem CutInv.to_fibRawInv {n K_max : ℕ} {s : IndexedMinPQ.State n} {st st' :
   rcases hmin with ⟨hlt, hmin_v⟩ | ⟨hnlt, hmin_m⟩
   · obtain ⟨vtail, hcirc_v, hperm_v⟩ :=
       hcirc.exists_head (hperm.symm.subset (hTv_r ▸ List.mem_map_of_mem (f := FHTree.root) hTv))
-    refine Or.inr ⟨v, vtail, hmin_v, hcirc_v, hperm_v.trans hperm, fun T hT => hk ▸ ?_⟩
-    exact if hTr : T.root = v then hTr ▸ .refl _ else hlt.le.trans (hmin_other T hT hTr)
-  · refine Or.inr ⟨m, rtail, hmin_m, hcirc, hperm, fun T hT => hk ▸ ?_⟩
-    exact if hTr : T.root = v then hTr ▸ IndexedMinPQ.not_prioLT_iff_prioLE.mp hnlt
-      else hmin_other T hT hTr
+    exact Or.inr ⟨v, vtail, hmin_v, hcirc_v, hperm_v.trans hperm, fun T hT =>
+      hk ▸ if hTr : T.root = v then hTr ▸ .refl _ else hlt.le.trans (hmin_other T hT hTr)⟩
+  · exact Or.inr ⟨m, rtail, hmin_m, hcirc, hperm, fun T hT =>
+      hk ▸ if hTr : T.root = v then hTr ▸ IndexedMinPQ.not_prioLT_iff_prioLE.mp hnlt
+        else hmin_other T hT hTr⟩
 
 end Cslib.DataStructure.PriorityQueue.WordRAM.FibonacciHeap

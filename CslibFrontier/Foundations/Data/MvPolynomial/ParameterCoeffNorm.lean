@@ -138,12 +138,9 @@ theorem mul_le (p q : MvPolynomial ι (Polynomial ℤ)) : norm (p * q) ≤ norm 
     Polynomial.coeffNorm1_mul_le p q
 
 /-- Powers satisfy the corresponding coefficient norm bound. -/
-theorem pow_le (p : MvPolynomial ι (Polynomial ℤ)) (n : ℕ) : norm (p ^ n) ≤ norm p ^ n := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [pow_succ, pow_succ]
-    exact (mul_le _ _).trans (Nat.mul_le_mul_right _ ih)
+theorem pow_le (p : MvPolynomial ι (Polynomial ℤ)) (n : ℕ) : norm (p ^ n) ≤ norm p ^ n :=
+  sum_pow_le_of_submultiplicative Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le
+    Polynomial.coeffNorm1_add_le Polynomial.coeffNorm1_mul_le p n
 
 /-- A finite product has norm at most the product of the norms. -/
 theorem prod_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι (Polynomial ℤ)) :

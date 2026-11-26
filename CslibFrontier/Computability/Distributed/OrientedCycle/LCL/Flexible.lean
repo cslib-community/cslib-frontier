@@ -182,10 +182,8 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
   intro N
   induction N with
   | zero =>
-    intro v hv
-    refine ⟨0, by simp, ?_⟩
-    rw [Int.cast_zero, add_zero, anchorRule_apply]
-    intro m hm
+    refine fun v hv => ⟨0, by simp, (anchorRule_apply c _).2 fun m hm => ?_⟩
+    rw [Int.cast_zero, add_zero]
     have := hc v m hm
     have := sub_add_cancel v (m + 1) ▸ hc (v - (m + 1)) m hm
     omega
@@ -323,31 +321,29 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
       rwa [Nat.cast_zero, sub_zero]
     have hP1 : P (v + 1) = 0 :=
       firstTrue_eq _ _ hnext0 (fun j hj => absurd hj (Nat.not_lt_zero _)) ⟨0, by omega, hnext0⟩
-    have hg1 := hgap (v + 1)
-    have hg := hgap v
-    simp only [hQ0, hP1, add_zero, zero_add] at hg hg1 ⊢
-    rw [hW0 _ hg1, ← hWm (P v + 1) hg]
+    have hg : k + 1 ≤ P v + 1 := by simpa [hQ0] using hgap v
+    simp only [hQ0, hP1, add_zero, zero_add]
+    rw [hW0 _ (by simpa [hP1] using hgap (v + 1)), ← hWm (P v + 1) hg]
     exact hWR _ hg _ (Nat.lt_succ_self _)
-  · have hnext' : a (v + 1) = false := by simpa using hnext
-    have hQpos : 1 ≤ Q v := Nat.pos_of_ne_zero fun h0 => by
-      simpa [h0, hnext'] using (hQspec v).2.1
+  · have hQpos : 1 ≤ Q v := Nat.pos_of_ne_zero fun h0 => by
+      simpa [h0, hnext] using (hQspec v).2.1
     have hP1 : P (v + 1) = P v + 1 := by
       obtain ⟨d, hd, had⟩ := hcov (v + 1)
       refine firstTrue_eq _ _ ?_ ?_ ⟨d, by omega, had⟩
       · convert (hPspec v).2.1 using 2
         push_cast; ring
       · rintro (_ | j) hj
-        · simpa using hnext'
+        · simpa using hnext
         · convert (hPspec v).2.2 j (by omega) using 2
           push_cast; ring
     have hQ1 : Q (v + 1) = Q v - 1 := by
-      have hspec := hQspec v
       have hi : a (v + 1 + (((Q v - 1 : ℕ) : ZMod n) + 1)) = true := by
-        convert hspec.2.1 using 2
+        convert (hQspec v).2.1 using 2
         rw [Nat.cast_sub hQpos]
         push_cast; ring
-      refine firstTrue_eq _ _ hi (fun j hj => ?_) ⟨Q v - 1, by omega, hi⟩
-      convert hspec.2.2 (j + 1) (by omega) using 2
+      refine firstTrue_eq _ _ hi (fun j hj => ?_)
+        ⟨Q v - 1, Nat.lt_succ_of_le ((Nat.sub_le _ _).trans (hQspec v).1), hi⟩
+      convert (hQspec v).2.2 (j + 1) (by omega) using 2
       push_cast; ring
     have hsum_eq : P v + 1 + (Q v - 1) + 1 = P v + Q v + 1 := by omega
     rw [hP1, hQ1, hsum_eq]

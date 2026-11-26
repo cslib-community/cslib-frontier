@@ -104,12 +104,10 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
       let t := (z.im - a.im) / (b.im - a.im)
       have ht : t ∈ Set.Icc (0 : ℝ) 1 := by
         rcases lt_or_gt_of_ne hab with hab | hab
-        · rw [min_eq_left hab.le] at hlo
-          rw [max_eq_right hab.le] at hhi
+        · simp only [min_eq_left hab.le, max_eq_right hab.le] at hlo hhi
           exact ⟨div_nonneg (sub_nonneg.mpr hlo) (sub_nonneg.mpr hab.le),
             (div_le_one (sub_pos.mpr hab)).mpr (by linarith)⟩
-        · rw [min_eq_right hab.le] at hlo
-          rw [max_eq_left hab.le] at hhi
+        · simp only [min_eq_right hab.le, max_eq_left hab.le] at hlo hhi
           exact ⟨div_nonneg_of_nonpos (by linarith) (by linarith),
             (div_le_one_of_neg (sub_neg.mpr hab)).mpr (by linarith)⟩
       exact ⟨t, ht, by simp [lineMap_im, t, div_mul_cancel₀ _ hden], (lineMap_re a b t).symm ▸ hx,
@@ -135,20 +133,15 @@ private theorem decide_rayCrosses_split_of_im_lt {a b : ℂ} (hab : a.im < b.im)
     (z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
     decide (RayCrosses a (AffineMap.lineMap a b t) z) +
       decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
-  let m := AffineMap.lineMap a b t
-  change decide (RayCrosses a m z) + decide (RayCrosses m b z) =
-    decide (RayCrosses a b z)
-  have ham : a.im < m.im := by
-    simp only [m, lineMap_im]; nlinarith [mul_pos ht.1 (sub_pos.mpr hab)]
-  have hmb : m.im < b.im := by
-    simp only [m, lineMap_im]; nlinarith [mul_pos (sub_pos.mpr ht.2) (sub_pos.mpr hab)]
+  rcases ht with ⟨ht0, ht1⟩
+  set m := AffineMap.lineMap a b t with hm
+  have ham : a.im < m.im := by rw [hm, lineMap_im]; nlinarith
+  have hmb : m.im < b.im := by rw [hm, lineMap_im]; nlinarith
   have hleft : horizontalIntercept a m z.im = horizontalIntercept a b z.im :=
-    intercept_lineMap_left hab.ne (ne_of_gt ht.1) z.im
+    intercept_lineMap_left hab.ne (ne_of_gt ht0) z.im
   have hright : horizontalIntercept m b z.im = horizontalIntercept a b z.im := by
-    rw [horizontalIntercept_reverse hmb.ne.symm]
-    change horizontalIntercept b (AffineMap.lineMap a b t) z.im = _
-    rw [← AffineMap.lineMap_apply_one_sub b a t,
-      intercept_lineMap_left hab.ne.symm (sub_ne_zero.mpr ht.2.ne.symm),
+    rw [horizontalIntercept_reverse hmb.ne.symm, hm, ← AffineMap.lineMap_apply_one_sub b a t,
+      intercept_lineMap_left hab.ne.symm (sub_ne_zero.mpr ht1.ne.symm),
       horizontalIntercept_reverse hab.ne]
   simp only [RayCrosses, min_eq_left ham.le, min_eq_left hmb.le, min_eq_left hab.le,
     max_eq_right ham.le, max_eq_right hmb.le, max_eq_right hab.le, hleft, hright]

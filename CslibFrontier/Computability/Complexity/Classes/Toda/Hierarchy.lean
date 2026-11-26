@@ -168,11 +168,9 @@ theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Boo
     have hlen : (u ++ List.ofFn r).length = ℓ.eval (enc a).length + ρ.eval (enc a).length := by
       simp [hu]
     simp only [notVerifier, ← hlen, List.take_left' rfl, List.drop_left' rfl]
-  refine le_of_eq_of_le ?_ (h a u hu)
-  congr 2
+  refine le_of_eq_of_le (congrArg (2 ^ e.eval (enc a).length * ·) (congrArg card ?_)) (h a u hu)
   ext r
-  simp only [mem_filter, mem_univ, true_and, hcount, Nat.odd_add_one]
-  tauto
+  simp only [mem_filter, mem_univ, true_and, hcount, Nat.odd_add_one]; tauto
 
 /-! ### The existential quantifier -/
 
@@ -341,11 +339,9 @@ theorem IsRandomParityRep.exists {ℓ m ρ ζ e : Polynomial ℕ} {W : α × Lis
   set T := 4 * (E + 1) * (M + 3) with hT
   set B := (M + 2) * (M + 1) with hB
   have hρ : (ρ + 4 * (e + 1) * (m + 3) * ((m + 2) * (m + 1))).eval n = R + T * B := by
-    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat,
-      Polynomial.eval_one, hT, hB, hM, hE, hR]
+    simp [hT, hB, hM, hE, hR]
   have hζ : (4 * (e + 1) * (m + 3) * (m + ζ + 1) + 1).eval n = T * (M + Z + 1) + 1 := by
-    simp only [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_ofNat,
-      Polynomial.eval_one, hT, hM, hE, hZ]
+    simp [hT, hM, hE, hZ]
   rw [hρ, hζ]
   -- the set of strings `w` satisfying the inner predicate
   set S := univ.filter fun x : Fin M → Bool => P a (u ++ List.ofFn x) with hS
@@ -367,9 +363,9 @@ theorem IsRandomParityRep.exists {ℓ m ρ ζ e : Polynomial ℕ} {W : α × Lis
     (Equiv.prodCongr (Equiv.refl _) BitString.blocksEquiv.symm).trans (Fin.appendEquiv R (T * B))
   refine Finset.card_equiv eqv.symm fun r' => ?_
   obtain ⟨⟨r, s⟩, rfl⟩ := eqv.surjective r'
+  have heqv : eqv (r, s) = Fin.append r (BitString.blocksEquiv.symm s) := rfl
   simp only [mem_filter, mem_univ, true_and, Equiv.symm_apply_apply]
-  rw [show eqv (r, s) = Fin.append r (BitString.blocksEquiv.symm s) from rfl,
-    acceptCount_existsVerifier ℓ m ρ ζ e W a u hu rfl rfl rfl rfl rfl r,
+  rw [heqv, acceptCount_existsVerifier ℓ m ρ ζ e W a u hu rfl rfl rfl rfl rfl r,
     Equiv.apply_symm_apply, hQ]
 
 /-! ### Alternating quantifiers -/
@@ -393,16 +389,13 @@ theorem exists_isRandomParityRep_alternation {V : α × List Bool → Bool}
     cases q
     · -- `∀ w, P (u ++ w)` is `¬∃ w, ¬P (u ++ w)`
       obtain ⟨ρ, ζ, W, hW, h⟩ := ih true (ℓ + p) (e + p + 1)
-      refine ⟨_, _, _, computableInPolyTime_notVerifier _ _
+      exact ⟨_, _, _, computableInPolyTime_notVerifier _ _
         (computableInPolyTime_existsVerifier ℓ p ρ (ζ + 1) e
-          (computableInPolyTime_notVerifier _ _ hW)), (h.not.exists.not).congr
-          fun a u _ => ?_⟩
-      simp only [List.map_cons, alternation_false_cons, List.append_assoc, not_exists, not_and,
-        not_not]
+          (computableInPolyTime_notVerifier _ _ hW)), h.not.exists.not.congr fun a u _ => by
+            simp [alternation_false_cons, List.append_assoc]⟩
     · obtain ⟨ρ, ζ, W, hW, h⟩ := ih false (ℓ + p) (e + p + 1)
-      refine ⟨_, _, _, computableInPolyTime_existsVerifier ℓ p ρ ζ e hW, h.exists.congr
-        fun a u _ => ?_⟩
-      simp only [List.map_cons, alternation_true_cons, List.append_assoc]
+      exact ⟨_, _, _, computableInPolyTime_existsVerifier ℓ p ρ ζ e hW, h.exists.congr
+        fun a u _ => by simp [alternation_true_cons, List.append_assoc]⟩
 
 end Toda
 

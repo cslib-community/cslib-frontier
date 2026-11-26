@@ -157,8 +157,7 @@ private theorem crashState_congr_lt (m₀ : M) {alive₁ alive₂ : ℕ → P �
     ∀ r ≤ k, π.crashState m₀ alive₁ x r = π.crashState m₀ alive₂ x r
   | 0, _ => rfl
   | r + 1, hr => by
-    have ih := crashState_congr_lt m₀ x h r (by omega)
-    simp only [crashState, ih, h r (by omega)]
+    simp only [crashState, crashState_congr_lt m₀ x h r (by omega), h r (by omega)]
 
 /-- Canonical continuation from round `k`: keep `alive` before round `k`, and for rounds `≥ k` let
 processes outside `C` send honestly while processes in `C` send `m₀`. -/
@@ -212,8 +211,7 @@ private theorem silenceAt_honest {k : ℕ} {C : Finset P} {p : P} {U : Finset P}
     {alive : ℕ → P → P → Bool} (h : ∀ r < k, ∀ j ∉ C, ∀ i, alive r j i = true) :
     ∀ r < k + 1, ∀ j ∉ insert p C, ∀ i, silenceAt k C p U alive r j i = true := by
   intro r hr j hj i
-  simp only [Finset.mem_insert, not_or] at hj
-  obtain ⟨hjp, hjC⟩ := hj
+  obtain ⟨hjp, hjC⟩ := not_or.mp (Finset.mem_insert.not.mp hj)
   unfold silenceAt
   split_ifs with h₁ h₂
   · exact h r h₁ j hjC i
@@ -229,8 +227,7 @@ private theorem crashState_silenceAt_insert_eq_of_ne (m₀ : M) (k : ℕ) (C : F
       π.crashState m₀ (silenceAt k C p U alive) x k :=
     π.crashState_congr_lt m₀ x (fun r hr => funext₂ fun j i => by simp [silenceAt, hr]) k le_rfl
   simp only [crashState, hk]
-  refine congrArg _ (funext fun j => ?_)
-  simp [silenceAt, hq]
+  exact congrArg _ (funext fun j => by simp [silenceAt, hq])
 
 private theorem crashState_extAlive_eq (m₀ : M) (k : ℕ) (C : Finset P)
     (alive : ℕ → P → P → Bool) (x : P → Bool) :
@@ -283,8 +280,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
   have agr_of_sil (d : ℕ) (hsil : Sil d) : Agr d := by
     intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
     obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
-    have hmid := π.crashState_extAlive_eq_of_agree m₀ hagree d q₀ hq₀
-    rw [hk] at hmid
+    have hmid := hk ▸ π.crashState_extAlive_eq_of_agree m₀ hagree d q₀ hq₀
     exact (hsil k hk C hC p alive₁ x₁ halive₁ i₁ hi₁ q₀ hq₀).trans
       ((congrArg (π.output q₀) hmid).trans (hsil k hk C hC p alive₂ x₂ halive₂ i₂ hi₂ q₀ hq₀).symm)
   -- Backward induction on `d`.
@@ -292,8 +288,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
     induction d with
     | zero =>
       intro k hk C hC p alive x halive i₁ hi₁ i₂ hi₂
-      rw [Nat.add_zero] at hk
-      subst hk
+      rcases Nat.add_zero k ▸ hk with rfl
       rw [π.crashState_extAlive_eq m₀ k (insert p C) alive x,
         ← π.crashState_extAlive_eq m₀ k C alive x]
       exact π.crashDecision_agree hagr m₀ hC
@@ -334,15 +329,16 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
         π.output p₀ (π.crashState m₀ aliveTrue (fun i => decide (i ∈ U)) R p₀) := by
     intro U
     induction U using Finset.induction with
-    | empty =>
-      simp only [Finset.notMem_empty, decide_false]
+    | empty => rfl
     | insert p U hpU ihU =>
       refine ihU.trans ?_
       simpa only [hext] using agr_of_sil R (sil R) 0 (Nat.zero_add R) ∅ (by simp) p
         aliveTrue aliveTrue (fun i => decide (i ∈ U)) (fun i => decide (i ∈ insert p U))
         (fun _ hr => absurd hr (Nat.not_lt_zero _))
         (fun _ hr => absurd hr (Nat.not_lt_zero _))
-        (fun q hq => by simp [crashState, show q ≠ p from fun heq => hq (by simp [heq])])
+        (fun q hq => by
+          have hqp : q ≠ p := fun heq => hq (by simp [heq])
+          simp [crashState, hqp])
         p₀ (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
   have hstate_eq : ∀ x, π.crashState m₀ aliveTrue x R p₀ =
       π.state ∅ (π.crashAdv m₀ aliveTrue x) x R p₀ := fun x =>
@@ -432,10 +428,9 @@ private theorem state_eq_of_init_eq {P S M : Type*} [DecidableEq P]
     (F : Finset P) (adv : ℕ → P → P → M) :
     ∀ r, π₁.state F adv x₁ r = π₂.state F adv x₂ r
   | 0 => funext hinit
-  | r + 1 => by
-    have ih := state_eq_of_init_eq π₁ π₂ x₁ x₂ hsend hupd hinit F adv r
-    funext i
-    simp only [Protocol.state, ih, hsend, hupd]
+  | r + 1 => funext fun i => by
+    simp only [Protocol.state, state_eq_of_init_eq π₁ π₂ x₁ x₂ hsend hupd hinit F adv r,
+      hsend, hupd]
 
 end Protocol
 
@@ -588,17 +583,15 @@ theorem solvesByzantineAgreement_toByzantineAgreement {t R : ℕ}
     set ones := Finset.univ.filter fun q => π.decision F adv x R i q
     cases v with
     | false =>
-      have hsub : ones ⊆ F := fun q hq => by
-        by_contra hqF
-        have htrue : π.decision F adv x R i q = true := (Finset.mem_filter.1 hq).2
-        rw [h.validity F hF adv x i hi q hqF, hv q hqF] at htrue
-        exact Bool.false_ne_true htrue
+      have hsub : ones ⊆ F := fun q hq => by_contra fun hqF =>
+        Bool.false_ne_true ((hv q hqF).symm.trans
+          ((h.validity F hF adv x i hi q hqF).symm.trans (Finset.mem_filter.1 hq).2))
       exact decide_eq_false (by finset_card)
     | true =>
-      have hsub : Finset.univ \ F ⊆ ones := fun q hq => by
-        have hqF : q ∉ F := (Finset.mem_sdiff.1 hq).2
-        exact Finset.mem_filter.2 ⟨Finset.mem_univ q,
-          (h.validity F hF adv x i hi q hqF).trans (hv q hqF)⟩
+      have hsub : Finset.univ \ F ⊆ ones := fun q hq =>
+        Finset.mem_filter.2 ⟨Finset.mem_univ q,
+          (h.validity F hF adv x i hi q (Finset.mem_sdiff.1 hq).2).trans
+            (hv q (Finset.mem_sdiff.1 hq).2)⟩
       exact decide_eq_true (by finset_card)
 
 end Bridge
@@ -636,12 +629,10 @@ theorem exists_solvesByzantineAgreement_iff_full.{u, v, w} (P : Type u) [Fintype
         Protocol.solvesByzantineAgreement_reindex (Equiv.refl P) Equiv.ulift Equiv.ulift
           (Protocol.solvesByzantineAgreement_ownInput t R)⟩
     · let eP := Fintype.equivFin P
-      have hcard : 3 * t < Fintype.card (Fin (Fintype.card P)) := by
-        simpa only [Fintype.card_fin] using h3
       exact ⟨ULift.{v} (List (Fin (Fintype.card P)) → Bool),
         ULift.{w} (List (Fin (Fintype.card P)) → Bool),
         Protocol.reindex eP Equiv.ulift Equiv.ulift (om (Fin (Fintype.card P)) t),
         Protocol.solvesByzantineAgreement_reindex eP Equiv.ulift Equiv.ulift
-          (solvesByzantineAgreement_om hcard hR)⟩
+          (solvesByzantineAgreement_om ((Fintype.card_fin _).symm ▸ h3) hR)⟩
 
 end Cslib.Distributed.Byzantine

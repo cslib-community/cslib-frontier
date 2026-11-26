@@ -89,13 +89,10 @@ theorem interpolationScale_two_mul_le (n : ℕ) :
   set y : ℝ := ((2 * n : ℕ) : ℝ) + 16
   have hx : 0 < x := by positivity
   have hy : 0 < y := by positivity
-  have hxy_le : x ≤ y := by
-    simp only [x, y, Nat.cast_mul, Nat.cast_ofNat]
-    linarith [(Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
+  have hxy_le : x ≤ y := add_le_add_left (Nat.cast_le.mpr (Nat.le_mul_of_pos_left n two_pos)) 16
   have hy_sq : y ≤ x ^ 2 := by
-    have hsq : 0 ≤ (n : ℝ) ^ 2 + 30 * n + 240 := by positivity
-    simp only [x, y, Nat.cast_mul, Nat.cast_ofNat]
-    linarith [show ((n : ℝ) + 16) ^ 2 = (n : ℝ) ^ 2 + 32 * n + 256 by ring]
+    push_cast [x, y]
+    nlinarith only [Nat.cast_nonneg (α := ℝ) n]
   have hlogx : 0 < Real.log x := log_add_sixteen_pos n
   have hlogy : 0 < Real.log y := log_add_sixteen_pos (2 * n)
   have hlogy_le : Real.log y ≤ 2 * Real.log x :=
@@ -109,9 +106,7 @@ theorem interpolationScale_two_mul_le (n : ℕ) :
       _ = Real.log 2 + Real.log (Real.log x) := Real.log_mul (by norm_num) hlogx.ne'
       _ ≤ 2 * Real.log (Real.log x) := by linarith
   have hll_sq : Real.log (Real.log y) ^ 2 ≤ 4 * Real.log (Real.log x) ^ 2 := by
-    have h1 := one_lt_log_log_add_sixteen (2 * n)
-    have hsq := pow_le_pow_left₀ (by linarith : 0 ≤ Real.log (Real.log y)) hlly_le 2
-    linarith [show (2 * Real.log (Real.log x)) ^ 2 = 4 * Real.log (Real.log x) ^ 2 by ring]
+    nlinarith only [hlly_le, one_lt_log_log_add_sixteen (2 * n)]
   have hsqrt_le : Real.sqrt (Real.log x) ≤ Real.sqrt (Real.log y) :=
     Real.sqrt_le_sqrt (Real.log_le_log hx hxy_le)
   have hsqx : 0 < Real.sqrt (Real.log x) := Real.sqrt_pos.mpr hlogx
@@ -148,9 +143,7 @@ theorem interpolationScale_le_of_linear {a b C D : ℕ} (h : a ≤ C * b + D) :
   rcases le_total (C * b) D with hCD | hDC
   · have h1 := (interpolationScale_mono (show a ≤ 2 * D by omega)).trans
       (interpolationScale_two_mul_le D)
-    have h2 : 0 ≤ ((8 ^ (2 * C) : ℕ) : ℝ) * interpolationScale b :=
-      mul_nonneg (Nat.cast_nonneg _) (interpolationScale_nonneg b)
-    linarith
+    linarith [mul_nonneg (Nat.cast_nonneg (8 ^ (2 * C))) (interpolationScale_nonneg b)]
   · have h1 := (interpolationScale_mono (show a ≤ (2 * C) * b by rw [mul_assoc]; omega)).trans
       (interpolationScale_mul_le (2 * C) b)
     linarith [interpolationScale_nonneg D]

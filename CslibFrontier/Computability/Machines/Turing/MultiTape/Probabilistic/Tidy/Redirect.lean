@@ -71,10 +71,9 @@ theorem RunsWords.extendTapes {machine : MultiTapePTM k Bool State Operation}
   let cfg₀ : Config k Bool State Operation x :=
     { tapes := wordsCfg x (some machine.initial) (fun j => ws₀ (e j)) out₀
       channels := cfg.channels }
-  have hembed : cfg = cfg₀.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0) := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    exact (MultiTapeTM.embed_wordsCfg e (fun _ => rfl) (fun _ _ => rfl)).symm
+  have hembed : cfg = cfg₀.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0) :=
+    Config.ext (htapes.trans
+      (MultiTapeTM.embed_wordsCfg e (fun _ => rfl) (fun _ _ => rfl)).symm) rfl
   have hrun :
       (machine.extendTapes e).runOracleConfigFrom time cfg =
         (fun final => final.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0)) <$>
@@ -85,19 +84,11 @@ theorem RunsWords.extendTapes {machine : MultiTapePTM k Bool State Operation}
   dsimp only
   rw [hrun, ProbOracleComp.runWith_map]
   constructor
-  · have hmap :
-        PMF.map (fun (final, s') => (final.tapes, s'))
-          (PMF.map (Prod.map (fun a => a.embed e (fun l => tapeOfList (ws₀ l)) (fun _ => 0)) id)
-            (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfg₀) s)) =
-        PMF.map (fun (tapes, s') =>
-            (MultiTapeTM.embed e tapes (fun l => tapeOfList (ws₀ l)) (fun _ => 0), s'))
-          (PMF.map (fun (final, s') => (final.tapes, s'))
-            (ProbOracleComp.runWith oracle (machine.runOracleConfigFrom time cfg₀) s)) := by
-      simp only [PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd, id_eq, Config.embed]
-    rw [hmap, hlaw, PMF.map_comp]
-    congr 1
-    funext ⟨a, s'⟩
-    refine Prod.ext ?_ rfl
+  · have hlaw' := congrArg (PMF.map fun (tapes, s') =>
+        (MultiTapeTM.embed e tapes (fun l => tapeOfList (ws₀ l)) (fun _ => 0), s')) hlaw
+    simp only [PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd, id_eq,
+      Config.embed] at hlaw' ⊢
+    refine hlaw'.trans (congrArg (PMF.map · _) (funext fun ⟨a, s'⟩ => Prod.ext ?_ rfl))
     exact MultiTapeTM.embed_wordsCfg e (fun j => by simp)
       (fun l hl => by simp [MultiTapeTM.partialInv_eq_none e hl])
   · intro final hfinal op

@@ -154,14 +154,11 @@ theorem blockPower_ne_zero (hf : IsSetPartitioned Prod.fst f) (hf0 : f ≠ 0) :
       monomial m (f.coeff m) := by
     ext m'
     rw [coeff_weightedHomogeneousComponent, coeff_monomial]
-    by_cases hm' : m' ∈ f.support
-    · by_cases hmm : m = m'
-      · subst hmm
-        simp
-      · have hne : Finsupp.weight blockWeight m' ≠ Finsupp.weight blockWeight m :=
-          fun hw => hmm (weight_blockWeight_injOn (hf m hm) (hf m' hm') hw.symm)
-        simp [hmm, hne]
-    · simp [notMem_support_iff.1 hm', show m ≠ m' from fun e => hm' (e ▸ hm)]
+    rcases eq_or_ne m m' with rfl | hmm
+    · simp
+    · simp only [hmm, ↓reduceIte, ite_eq_right_iff]
+      exact fun hw => by_contra fun hm' =>
+        hmm (weight_blockWeight_injOn (hf m hm) (hf m' (mem_support_iff.2 hm')) hw.symm)
   simpa [blockPower, MvPolynomial.coeff_aeval_monomial, hcomp, eval_monomial] using hc
 
 /-- `blockPower f` has individual degree at most `d` for a set-partitioned `f`. -/
@@ -197,12 +194,8 @@ theorem shift_blockPower (b : Fin n → F) (f : MvPolynomial (Fin n × Fin d) F)
     shift b (blockPower F n d f) =
       aeval (fun v : Fin n × Fin d => (X v.1 + C (b v.1)) ^ (v.2.val + 1) -
         (C (b v.1 ^ (v.2.val + 1)) : MvPolynomial (Fin n) F)) (shift (blockPowerPoint b) f) := by
-  have h : (shift b).comp (blockPower F n d) =
-      (aeval fun v : Fin n × Fin d => (X v.1 + C (b v.1)) ^ (v.2.val + 1) -
-        (C (b v.1 ^ (v.2.val + 1)) : MvPolynomial (Fin n) F)).comp (shift (blockPowerPoint b)) :=
-    algHom_ext fun v => by
-      simp [blockPower_X, shift_X, blockPowerPoint]
-  exact congrArg (fun φ : MvPolynomial (Fin n × Fin d) F →ₐ[F] MvPolynomial (Fin n) F => φ f) h
+  change ((shift b).comp (blockPower F n d)) f = ((aeval _).comp (shift (blockPowerPoint b))) f
+  exact DFunLike.congr_fun (algHom_ext fun v => by simp [blockPower_X, shift_X, blockPowerPoint]) f
 
 /-- [Shpilka2026, proof of Theorem 1.2]: if `f` is set-partitioned and a shift `b` of
 `blockPower f` has a monomial `μ`, then the shift of `f` by `(b j ^ (i + 1))` has a monomial

@@ -188,14 +188,8 @@ theorem singleItem_winner (b : ι → ℝ) : singleItem (winner b) = allocation 
 
 /-- Every single-item outcome allocates a feasible 0-1 vector. -/
 theorem singleItem_mem_singleItemFeasible (ω : Option ι) : singleItem ω ∈ singleItemFeasible := by
-  refine ⟨fun j => ?_, ?_⟩
-  · cases ω with
-    | none => exact Or.inl (singleItem_none j)
-    | some k =>
-      rw [singleItem_some]
-      split_ifs
-      exacts [Or.inr rfl, Or.inl rfl]
-  · cases ω <;> simp
+  refine ⟨fun j => ?_, by cases ω <;> simp⟩
+  by_cases h : ω = some j <;> simp [singleItem, h]
 
 /-- On nonnegative bids the Vickrey winner maximizes welfare among single-item outcomes. -/
 theorem welfare_le_winner {b : ι → ℝ} (hb : 0 ≤ b) (ω : Option ι) :
@@ -364,12 +358,10 @@ theorem vcg_singleItemFeasible_payment {b : ι → ℝ} (hb : 0 ≤ b) :
       mechanism.payment b := by
   let hmax := GameTheory.Mechanism.exists_isWelfareMaximizing (ι := ι) (Ω := Option ι)
   funext i
-  change (vcg fun u =>
-      singleItemEquiv (vickreyRule hmax.choose fun j ω => u j (singleItemEquiv ω))).payment
-      (linearProfile Subtype.val b) i = mechanism.payment b i
+  dsimp only [GameTheory.Mechanism.toSingleParameter]
+  unfold vcgOutcome
   rw [GameTheory.Mechanism.vcg_payment_comp_equiv singleItemEquiv]
   exact congrFun (vcg_toSingleParameter_eq_of_eq_winner
-    (isWelfareMaximizing_vickreyRule hmax.choose_spec)
-    (vickreyRule_linearProfile hmax.choose hb)).2 i
+    (isWelfareMaximizing_vickreyRule hmax.choose_spec) (vickreyRule_linearProfile _ hb)).2 i
 
 end Cslib.GameTheory.SingleParameter.Vickrey

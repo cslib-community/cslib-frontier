@@ -185,8 +185,7 @@ private theorem realizesBounded_writeHashParamsLo :
       (WordEncoding.encode (α := ((ℕ × ℕ) × (ℕ × ℕ)) × (ℕ × ℕ)))
       (WordEncoding.encode (α := ℕ))
       WriteHashParamsLoPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  realize
+  realize [realizesBounded_writeBlock4]
   all_goals (
     rcases d with ⟨⟨⟨hpBase, w0⟩, ⟨minW0, c⟩⟩, ⟨l0, p⟩⟩
     obtain ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩ := h
@@ -326,9 +325,7 @@ private theorem realizesBounded_writeHashParamsHi :
       (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × (ℕ × ℕ))))
       (WordEncoding.encode (α := Unit))
       WriteHashParamsHiPre (fun _ _ => 0) := by
-  have hb4 := realizesBounded_writeBlock4
-  have hb3 := realizesBounded_writeBlock3
-  realize
+  realize [realizesBounded_writeBlock4, realizesBounded_writeBlock3]
   all_goals (
     rcases d with ⟨⟨hpBase, c⟩, ⟨l0, ⟨p, logN⟩⟩⟩
     obtain ⟨U, N, dstMetaBase, hw, hN, hNU, hU, rfl, rfl, rfl, rfl, rfl, h27, hfit_dst⟩ := h
@@ -428,10 +425,8 @@ theorem realizesBounded_writeHashParamsSub :
     RealizesBounded .exact writeHashParamsSubProg
       (WordEncoding.encode (α := (ℕ × ℕ) × (ℕ × (ℕ × ℕ)))) (WordEncoding.encode (α := ℕ))
       WriteHashParamsSubPre (fun _ _ => 0) := by
-  have hcore := realizesBounded_computeHashCore
-  have hlo := realizesBounded_writeHashParamsLo
-  have hhi := realizesBounded_writeHashParamsHi
-  realize
+  realize [realizesBounded_computeHashCore, realizesBounded_writeHashParamsLo,
+    realizesBounded_writeHashParamsHi]
   all_goals (
     rcases d with ⟨⟨hdrBase, dstMetaBase⟩, ⟨wVal, ⟨qBitsVal, logN⟩⟩⟩
     obtain ⟨U, N, hw, hN, hNU, hU, hwVal, rfl, rfl, hhdr, h27, hfit_dst⟩ := h

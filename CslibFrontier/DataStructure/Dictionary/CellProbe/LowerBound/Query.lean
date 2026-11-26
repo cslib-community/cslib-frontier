@@ -68,15 +68,14 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
         (m / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
       clear hF_lo
       have hlogV : Real.logb 2 V ≤ 3 * Real.logb 2 U := by
-        have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hV_pos hV3
-        rwa [Real.logb_pow] at h1
+        simpa only [Real.logb_pow, Nat.cast_ofNat] using
+          Real.logb_le_logb_of_le one_lt_two hV_pos hV3
+      have hsumV : Real.logb 2 U + Real.logb 2 V ≤ 4 * Real.logb 2 U := by linarith only [hlogV]
       have hw_le : (w : ℝ) ≤ 4 * c_w * Real.logb 2 U := by
-        linarith only [hw, mul_le_mul_of_nonneg_left
-          (by linarith only [hlogV] : Real.logb 2 U + Real.logb 2 V ≤ 4 * Real.logb 2 U) hcw]
+        linarith only [hw, mul_le_mul_of_nonneg_left hsumV hcw]
       have hlog_poly : (1 + α) * Real.logb 2 n ≤ Real.logb 2 U := by
-        have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
-          (Real.rpow_pos_of_pos hn_pos _) hU_poly
-        rwa [Real.logb_rpow_eq_mul_logb_of_pos hn_pos] at h1
+        simpa only [Real.logb_rpow_eq_mul_logb_of_pos hn_pos] using
+          Real.logb_le_logb_of_le one_lt_two (Real.rpow_pos_of_pos hn_pos _) hU_poly
       have hlog_div : (α / (1 + α)) * Real.logb 2 U ≤ Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
         rw [Real.logb_div hU_pos.ne' hn_pos.ne']
         have h1 : Real.logb 2 n ≤ Real.logb 2 U / (1 + α) :=
@@ -85,10 +84,8 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
           field_simp; ring
         linarith
       have hcoef : (4 + 4 * c_w) * γ ≤ α / (2 * (1 + α)) := by
-        have h2c : (8 + 8 * c_w) * γ ≤ (20 + 24 * c_w) * γ :=
-          mul_le_mul_of_nonneg_right (by linarith only [hcw]) hγ.le
-        have hhalf : α / (1 + α) / 2 = α / (2 * (1 + α)) := by rw [div_div, mul_comm (1 + α) 2]
-        linarith only [h2c, hγ_eq, hhalf]
+        rw [mul_comm 2 (1 + α), ← div_div, ← hγ_eq]
+        linarith only [mul_nonneg hcw hγ.le, hγ]
       have h4 : ((4 + 4 * c_w) * γ) * (m * Real.logb 2 U) ≤
           (α / (2 * (1 + α))) * (m * Real.logb 2 U) :=
         mul_le_mul_of_nonneg_right hcoef (by positivity)
@@ -96,9 +93,9 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
           (m / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ)) :=
         calc _ = (m / 2) * ((α / (1 + α)) * Real.logb 2 U) := by rw [div_mul_eq_div_div]; ring
           _ ≤ _ := mul_le_mul_of_nonneg_left hlog_div (by positivity)
+      have hγm : 0 ≤ γ * m := by positivity
       linarith only [hR_in, mul_le_mul_of_nonneg_right h11_mul hm_nn,
-        mul_le_mul_of_nonneg_right ht_hi hm_nn,
-        mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m), h4, h5]
+        mul_le_mul_of_nonneg_right ht_hi hm_nn, mul_le_mul_of_nonneg_left hw_le hγm, h4, h5]
     exact outer_lemma_insertQueryDelete hU hV hspace hspace T hcorr hγ ht hℓ ht_stop hm_lo hF_lo
       hF_hi hR_outer hbud
   · push Not at hV3
@@ -106,18 +103,14 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
         (m / 2) * Real.logb 2 V - m * Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
       clear hF_lo
       have hlogV : 3 * Real.logb 2 U ≤ Real.logb 2 V := by
-        have h1 := (Real.logb_lt_logb (by norm_num : (1 : ℝ) < 2) (by positivity) hV3).le
-        rwa [Real.logb_pow] at h1
+        simpa only [Real.logb_pow, Nat.cast_ofNat] using
+          (Real.logb_lt_logb one_lt_two (by positivity) hV3).le
+      have hsumV : Real.logb 2 U + Real.logb 2 V ≤ 2 * Real.logb 2 V := by
+        linarith only [hlogV, hlogU_nn]
       have hw_le : (w : ℝ) ≤ 2 * c_w * Real.logb 2 V := by
-        linarith only [hw, mul_le_mul_of_nonneg_left (by linarith only [hlogV, hlogU_nn] :
-          Real.logb 2 U + Real.logb 2 V ≤ 2 * Real.logb 2 V) hcw]
-      have hγ20 : 5 * γ ≤ 1 / 4 := by
-        have h := mul_le_mul_of_nonneg_right (show 20 ≤ 20 + 24 * c_w by linarith only [hcw]) hγ.le
-        linarith only [h, hγ_eq, hα_frac]
-      have hcw12 : 2 * c_w * γ ≤ 1 / 12 := by
-        have h := mul_le_mul_of_nonneg_right
-          (show 24 * c_w ≤ 20 + 24 * c_w by linarith only [hcw]) hγ.le
-        linarith only [h, hγ_eq, hα_frac]
+        linarith only [hw, mul_le_mul_of_nonneg_left hsumV hcw]
+      have hγ20 : 5 * γ ≤ 1 / 4 := by linarith only [mul_nonneg hcw hγ.le, hγ_eq, hα_frac]
+      have hcw12 : 2 * c_w * γ ≤ 1 / 12 := by linarith only [hγ, hγ_eq, hα_frac]
       have hgap_V : (1 / 4) * Real.logb 2 U + (1 / 12) * Real.logb 2 V ≤
           (1 / 2) * Real.logb 2 V - Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
         rw [Real.logb_div hU_pos.ne' hn_pos.ne']; linarith only [hlogV, hlogn_nn]
@@ -128,8 +121,8 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ : 
       have h5 : (2 * c_w * γ) * (m * Real.logb 2 V) ≤ (1 / 12) * (m * Real.logb 2 V) :=
         mul_le_mul_of_nonneg_right hcw12 (mul_nonneg hm_nn (by linarith only [hlogV, hlogU_nn]))
       have h6 := mul_le_mul_of_nonneg_left hgap_V hm_nn
-      linarith only [hR_in, h12, mul_le_mul_of_nonneg_left hw_le (by positivity : 0 ≤ γ * m), h4,
-        h5, h6]
+      have hγm : 0 ≤ γ * m := by positivity
+      linarith only [hR_in, h12, mul_le_mul_of_nonneg_left hw_le hγm, h4, h5, h6]
     exact outer_lemma_largeVal_insertQueryDelete
       (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hspace hspace T hcorr hγ
       ht hℓ ht_stop hF_lo hF_hi hR_outer hbud
@@ -160,8 +153,9 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
   obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_iterLog true hγ hγ1 hcR
   exact ⟨c, hc, fun {_U _V n _k _cells _w} hn hU hU_poly hV hk_lo hk_hi hw hspace {_D_det} hcorr =>
     hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hk_lo hk_hi hspace
-      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
-        using hcorr)
+      (by
+        have h4n : n + 3 * n = 4 * n := by omega
+        simpa only [modeHorizon, modeStride, ↓reduceIte, h4n] using hcorr)
       (outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hcorr)⟩
 
 /-- Zero-error randomized **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 /
@@ -259,8 +253,9 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
   obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_sublinear true hγ hγ1
   exact ⟨c, hc, fun {_U _V n _cells _w _R} hn hU hU_poly hV hR_hi hw hspace {_D_det} hcorr =>
     hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hR_hi hspace
-      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
-        using hcorr)
+      (by
+        have h4n : n + 3 * n = 4 * n := by omega
+        simpa only [modeHorizon, modeStride, ↓reduceIte, h4n] using hcorr)
       (outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hcorr)⟩
 
 /-- Zero-error randomized **Theorem 1.2 / Theorem 6.1** ([LiLiangYuZhou2023], Section 1, p. 2 /

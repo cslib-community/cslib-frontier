@@ -87,8 +87,7 @@ theorem size_compileOp (o : Op .standard r) : (compileOp o).size ≤ 3 := by
 theorem size_compile (c : Code .standard r) : (compile c).size ≤ 3 * c.size := by
   induction c with
   | op o => exact size_compileOp o
-  | seq a b ha hb | branch c a b ha hb => simp only [compile, Code.size]; omega
-  | loop c a ha => simp only [compile, Code.size]; omega
+  | seq _ _ _ _ | branch _ _ _ _ _ | loop _ _ _ => simp only [compile, Code.size]; omega
   | rand => simp [compile]
 
 /-- Memory rebasing introduces no reads of the physical word width. -/
@@ -102,18 +101,16 @@ theorem readsWidth_compile (c : Code .standard r) : (compile c).ReadsWidth ↔ c
 private theorem view_set (w b : ℕ) (x : Data (r + 3)) (i : Fin r) (v : ℕ) :
     view w b (x.set (i.castAdd 3) v) = (view w b x).set i v := by
   ext j
-  · change (x.set (i.castAdd 3) v).regs (j.castAdd 3) = ((view w b x).set i v).regs j
-    by_cases h : j = i
-    · subst j; wram_simp
-    · wram_simp
-      rfl
+  · by_cases h : j = i
+    · subst j
+      wram_simp [view]
+    · wram_simp [view]
   · rfl
 
 private theorem view_address (w b : ℕ) (x : Data (r + 3)) (v : ℕ) :
     view w b (x.set Reg.address v) = view w b x := by
   ext j
-  · change (x.set Reg.address v).regs (j.castAdd 3) = x.regs (j.castAdd 3)
-    wram_simp
+  · wram_simp [view]
   · rfl
 
 private theorem view_write (w b : ℕ) (x : Data (r + 3)) (a v : ℕ) (hv : Fits w v) :
@@ -166,38 +163,33 @@ theorem exec_compileOp {w W b : ℕ} {o : Op .standard r} {x x' : Data r}
     refine ⟨y.set (d.castAdd 3) v, (ExecWithin.const (hv.mono hw)).mono (by omega),
       hxy.set d v, fun _ _ => rfl⟩
   | copy d s =>
-    simp only [Op.eval, Option.some.injEq] at he
-    subst x'
+    obtain rfl := Option.some.inj he
     refine ⟨y.set (d.castAdd 3) (x.regs s), ?_, hxy.set d _, fun _ _ => rfl⟩
     simpa only [compileOp, Op.rename, hxy.regs s] using
       (ExecWithin.copy (w := W) (B := .standard) (d := d.castAdd 3)
-        (s := s.castAdd 3) (x := y)).mono (by omega : 1 ≤ 3)
+        (s := s.castAdd 3) (x := y)).mono (by omega)
   | alu f d args =>
     obtain ⟨v, hf, hv, rfl⟩ := Op.eval_alu_eq_some.1 he
     have hargs : y.regs ∘ (Fin.castAdd 3 ∘ args) = x.regs ∘ args :=
       funext fun i => hxy.regs (args i)
     have hf' := Basis.standard.interp_mono_of_not_readsWidth f ho hw hf hv
-    refine ⟨y.set (d.castAdd 3) v, ?_, hxy.set d v, fun _ _ => rfl⟩
-    exact (ExecWithin.alu (by rw [hargs]; exact hf') (hv.mono hw)).mono (by omega)
+    exact ⟨y.set (d.castAdd 3) v, (ExecWithin.alu (hargs ▸ hf') (hv.mono hw)).mono (by omega),
+      hxy.set d v, fun _ _ => rfl⟩
   | load d a =>
-    simp only [Op.eval, Option.some.injEq] at he
-    subst x'
-    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; wram_omega [this])
-    have hz : Matches w b x (y.set Reg.address (b + x.regs a)) := hxy.address _
+    obtain rfl := Option.some.inj he
+    have ha : Fits W (b + x.regs a) := hfit.of_le (by wram_omega [hx.1 a])
     have hfm : Fits W (x.mem (x.regs a)) := (hx.2 (x.regs a)).mono hw
     unfold compileOp
     wram_exec [hxy.base_eq, hxy.regs, hxy.modulus_eq, hxy.mem, ha, hfm]
-    exact ⟨by rw [Data.set_set]; exact hz.set d _, fun _ _ => rfl⟩
+    rw [Data.set_set]
+    exact ⟨(hxy.address _).set d _, fun _ _ => rfl⟩
   | store a s =>
-    simp only [Op.eval, Option.some.injEq] at he
-    subst x'
-    have ha : Fits W (b + x.regs a) := hfit.of_le (by have := hx.1 a; wram_omega [this])
-    have hz : Matches w b x (y.set Reg.address (b + x.regs a)) := hxy.address _
+    obtain rfl := Option.some.inj he
+    have ha : Fits W (b + x.regs a) := hfit.of_le (by wram_omega [hx.1 a])
     unfold compileOp
     wram_exec [hxy.base_eq, hxy.regs, ha]
-    refine ⟨hz.write _ _ (hx.1 s), fun j hj => Function.update_of_ne ?_ _ _⟩
-    have := hx.1 a
-    wram_omega [this]
+    exact ⟨(hxy.address _).write _ _ (hx.1 s),
+      fun j hj => Function.update_of_ne (by wram_omega [hx.1 a]) _ _⟩
 
 private theorem Matches.holds {w b : ℕ} {x : Data r} {y : Data (r + 3)}
     (h : Matches w b x y) (c : Cond r) : (c.rename (Fin.castAdd 3)).Holds y ↔ c.Holds x := by
@@ -234,8 +226,8 @@ theorem exec {w W b : ℕ} {c : Code .standard r} {x x' : Data r} {n : ℕ}
     exact ⟨z, (ExecWithin.branch_neg (fun h => hp ((hxy.holds _).1 h)) hz).mono (by omega),
       hzm, hzf⟩
   | loop_exit hp =>
-    refine ⟨y, ?_, hxy, fun _ _ => rfl⟩
-    exact (Exec.loop_exit (fun h => hp ((hxy.holds _).1 h))).within.mono (by omega)
+    exact ⟨y, (Exec.loop_exit (fun h => hp ((hxy.holds _).1 h))).within.mono (by omega),
+      hxy, fun _ _ => rfl⟩
   | loop_iter hp h₁ h₂ ih₁ ih₂ =>
     obtain ⟨z, hz, hzm, hzf⟩ := ih₁ hc hx hxy
     obtain ⟨z', hz', hz'm, hz'f⟩ := ih₂ hc (h₁.bounded hx) hzm
@@ -277,7 +269,7 @@ private theorem exec_normalizeBankList {w W : ℕ} (is : List (Fin r)) (x : Data
   | cons i is ih =>
     let z := x.set (i.castAdd 3) (x.regs (i.castAdd 3) % 2 ^ w)
     have hfit : Fits W (x.regs (i.castAdd 3) % 2 ^ w) :=
-      (show Fits w (x.regs (i.castAdd 3) % 2 ^ w) from Nat.mod_lt _ (Nat.two_pow_pos _)).mono hw
+      Fits.mono (Nat.mod_lt _ (Nat.two_pow_pos _)) hw
     have h1 : ExecWithin W (.op (.bin .mod (i.castAdd 3) (i.castAdd 3) Reg.modulus)) x z 1 := by
       wram_exec [hm, hfit]
     obtain ⟨y, he, hmem, hbase, hmod, hregs⟩ := ih z (by wram_simp [z, hm])
@@ -299,8 +291,8 @@ theorem exec_normalizeRegisters {w W b : ℕ} (x : Data (r + 3))
   obtain ⟨y, he, hmem, hbase, hmod, hregs⟩ := exec_normalizeBankList (List.finRange r) x hm hw
   have hr (j : Fin r) : y.regs (j.castAdd 3) = x.regs (j.castAdd 3) % 2 ^ w := by
     simpa only [List.mem_finRange, ↓reduceIte] using hregs j
-  refine ⟨y, ?_, hmem, ⟨rfl, hbase.trans hb, hmod⟩, ?_, hr⟩
-  · simpa only [normalizeRegisters, List.length_finRange] using he
-  · exact view_bounded w b y (fun j => by rw [hr]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
+  exact ⟨y, by simpa only [normalizeRegisters, List.length_finRange] using he, hmem,
+    ⟨rfl, hbase.trans hb, hmod⟩,
+    view_bounded w b y fun j => hr j ▸ Nat.mod_lt _ (Nat.two_pow_pos _), hr⟩
 
 end Cslib.WordRAM.MemoryWindow

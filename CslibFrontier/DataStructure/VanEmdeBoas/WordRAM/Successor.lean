@@ -166,8 +166,7 @@ private theorem successor_push_step
     (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame)
   refine ⟨s₁, s₃, (he.loop_iter (cond := .lt zero runFlag) ?_ hs₁).mono (by omega),
     by mem_frame, hs₃, ?_⟩
-  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-    decide
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
   · intro z T hcont
     have hiter : ExecWithin w successorUnwind s₂ z (21 + T) := by
       refine (hbody.loop_iter (cond := .lt stackBase sp) ?_ hcont).mono (by omega)
@@ -188,10 +187,9 @@ private theorem successor_some_finish {d w stackBase₀ sp₀ base query ans : �
         ExecWithin w successorUnwind s₁ z (21 * d + T) := by
   obtain ⟨s₁, he, hk, hu⟩ := hstep
   refine ⟨s₁, s₁, (he.loop_once (cond := .lt zero runFlag) ?_ ?_).mono (by omega),
-    fun a _ => by rw [hu.mem_eq], hu.mem_eq ▸ hu, fun z T hcont => hcont.mono (by omega)⟩
-  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-    decide
-  · simp only [Cond.holds_lt, hu.zero_eq, hk, lt_self_iff_false, not_false_eq_true]
+    fun a _ => congrFun hu.mem_eq a, hu.mem_eq ▸ hu, fun _ _ hcont => hcont.mono (by omega)⟩
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
+  · simp [Cond.holds_lt, hu.zero_eq, hk]
 
 /-- Combined inductive certification of `successorDescent` and CPS `successorUnwind` whenever
 `tree.successor query = some ans`. -/
@@ -246,9 +244,7 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     let i : Fin (universeSize d) := ⟨query / universeSize d, hi⟩
     let lo := query % universeSize d
     let ch := base + clusterOffset d i.val
-    have hch_eq : base + 5 + (query / universeSize d + 1) * span d = ch := by
-      dsimp only [ch, clusterOffset, i]
-      omega
+    have hch_eq : base + 5 + (query / universeSize d + 1) * span d = ch := Nat.add_assoc base 5 _
     have summary_branch
         (hc_max : (cluster i).maximum.any (lo < ·) = false)
         (hstep : ∃ next, ExecWithin w successorDescentBody s next 42 ∧
@@ -309,12 +305,11 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     · have hch1 : s.mem ch = 1 := by
         simpa only [ch, hcb, Option.isSome_some, ↓reduceIte] using (hr.2.2 i).header.1
       have hch_ne0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) ≠ 0 := by
-        rw [hch_eq, hch1]; decide
+        simp [hch_eq, hch1]
       have hcM : s.mem (base + 5 + (query / universeSize d + 1) * span d + 2) = cM := by
-        rw [hch_eq]
         have hh := (hr.2.2 i).header
         simp only [Header, hcb] at hh
-        exact hh.2.1.2
+        simpa only [hch_eq] using hh.2.1.2
       by_cases hlo_cM : lo < cM
       · have hlo_mx : query % universeSize d < cM := hlo_cM
         have hc_max : (cluster i).maximum.any (lo < ·) = true := by
@@ -396,9 +391,8 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       and_intros <;> wram_simp *
   obtain ⟨s₁, he, hz₁, hk₁, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩ := hstep
   refine ⟨s₁, he.loop_once (cond := .lt zero runFlag) ?_ ?_, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩
-  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
-    decide
-  · simp only [Cond.holds_lt, hz₁, hk₁, lt_self_iff_false, not_false_eq_true]
+  · simp [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
+  · simp [Cond.holds_lt, hz₁, hk₁]
 
 /-- Complete certification of `successorDescent; successorUnwind` from `sp = stackBase₀`:
 executes in at most `65 * (d + 1) + 4` instructions, computes `tree.successor query`,

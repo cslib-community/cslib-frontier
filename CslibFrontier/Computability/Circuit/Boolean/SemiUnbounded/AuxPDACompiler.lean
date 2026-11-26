@@ -121,9 +121,8 @@ private lemma realTreeMap_size {V V' : Type*} {stay : V → V → Prop}
 private lemma realTree_cast {V : Type*} {stay : V → V → Prop}
     {pushPop : V → V → V → V → Prop} {u v : V} (u' v' : V) (hu : u = u') (hv : v = v')
     (T : RealTree stay pushPop u v) :
-    ∃ T' : RealTree stay pushPop u' v', T'.size = T.size := by
-  subst hu hv
-  exact ⟨T, rfl⟩
+    ∃ T' : RealTree stay pushPop u' v', T'.size = T.size :=
+  hu ▸ hv ▸ ⟨T, rfl⟩
 
 /-- Every bounded realizability tree lifts to an `AuxPDA.Realizable` witness. -/
 theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
@@ -159,15 +158,11 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
       obtain ⟨rfl⟩ := hop ▸ hstack
       exact .inr ⟨q, act, hq, htr, hop,
         hpLast.symm ▸ surface_apply_eq_applySurfaceTapes act.tape p.head p.head.stack⟩
-    | push γ =>
-      obtain ⟨rfl⟩ := hop ▸ hstack
-      simp [hpLast] at hlenEq
+    | push γ => simp [hpLast, ← Option.some.inj (hop ▸ hstack)] at hlenEq
     | pop =>
       cases hst : p.head.stack with
       | nil => nomatch (hop ▸ hst ▸ hstack)
-      | cons _ _ =>
-        obtain ⟨rfl⟩ := hop ▸ hst ▸ hstack
-        simp [hpLast, hst] at hlenEq
+      | cons _ _ => simp [hpLast, hst, ← Option.some.inj (hop ▸ hst ▸ hstack)] at hlenEq
 
 private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSym State} (d : ℕ) :
     ∀ (p : M.RunPath input), p.length = d → SameHeightRun p →
@@ -410,12 +405,10 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
   let N := compiledGateCount mStack mState k input.length s t
   let L := Nat.log2 N + 1
   let B := Nat.log2 (4 * A + 3) + 1
-  have hSge : input.length + 2 ≤ compiledSurfaceCount mStack mState k input.length s :=
-    input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s
-  have hNge : compiledSurfaceCount mStack mState k input.length s + 3 ≤ N :=
-    le_balancedGateCount _ _
-  have hltN : N < 2 ^ L := Nat.lt_log2_self
-  have hn1lt : input.length + 1 < 2 ^ L := by omega
+  have hn1lt : input.length + 1 < 2 ^ L :=
+    ((Nat.lt_succ_self _).trans_le
+      ((input_length_add_two_le_boundedSurfaceCard mStack (mState + 1) k input.length s).trans
+        ((Nat.le_add_right _ 3).trans (le_balancedGateCount _ _)))).trans Nat.lt_log2_self
   have hAlt : 4 * A + 3 < 2 ^ B := Nat.lt_log2_self
   have h1lePow : 1 ≤ (input.length + 1) ^ D := Nat.one_le_pow _ _ (Nat.succ_pos _)
   have h4t3 : 4 * t + 3 < 2 ^ (B + D * L) := calc
@@ -424,14 +417,11 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
         (Nat.mul_lt_mul_of_pos_right hAlt (by positivity)).trans_le
           (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hn1lt.le D))
     _ = 2 ^ (B + D * L) := by rw [← pow_mul, ← pow_add, Nat.mul_comm L D]
-  have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := by
-    rw [Nat.log2_eq_log_two]
-    exact Nat.le_of_lt_succ
-      (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ']; omega))
+  have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := Nat.log2_eq_log_two ▸ Nat.le_of_lt_succ
+    (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ']; omega))
   refine (compileAuxPDA_andLevel_le M eStack eState input s t g).trans ?_
   unfold compiledRounds roundsForSize depthConstant
-  have : 1 ≤ L := Nat.succ_pos _
-  dsimp only [B, L, N] at hlogLe this ⊢
+  dsimp only [B, L, N] at hlogLe ⊢
   nlinarith
 
 /-- **Polynomial compiled gate count in logarithmic space and polynomial time**: when

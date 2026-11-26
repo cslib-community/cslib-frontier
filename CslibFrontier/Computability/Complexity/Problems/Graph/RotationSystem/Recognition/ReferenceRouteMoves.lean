@@ -126,18 +126,17 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
     apply Set.subset_inter
     · apply (convex_closedBall c ρ).segment_subset (Metric.mem_closedBall_self hρ.le)
       rw [Metric.mem_closedBall, dist_lineMap_left, Real.norm_eq_abs, abs_of_pos hδ.1]
-      have hd := (lt_div_iff₀ (by positivity : 0 < length a + 1)).mp (hδ.2.trans_lt
+      have hd := (lt_div_iff₀ (add_pos_of_nonneg_of_pos dist_nonneg one_pos)).mp (hδ.2.trans_lt
         (hbound _ (Finset.mem_insert_of_mem (Finset.mem_image_of_mem _ (Finset.mem_univ a)))))
-      dsimp only [length] at hd; linarith [hδ.1]
+      linarith [hδ.1]
     · have hc : c ∈ (ref.route a.1).support := by
         change ref.vertex (Dart.vertex (a.1, a.2)) ∈ _
         rw [← ref.endpoint_eq a.1 a.2]
         cases a.2 <;> exact (ref.route a.1).point_mem_support _
-      have hm : m ∈ (ref.route a.1).support :=
-        (ref.route a.1).at_mem_support 0 (by constructor <;> norm_num)
       have hs : Convex ℝ (ref.route a.1).support :=
         (Route.support_line _ _).symm ▸ convex_segment _ _
-      exact hs.segment_subset hc (hs.segment_subset hc hm
+      exact hs.segment_subset hc (hs.segment_subset hc
+        ((ref.route a.1).at_mem_support 0 (by constructor <;> norm_num))
         (lineMap_mem_segment ℝ _ _ ⟨hδ.1.le, hδ.2.trans hδ₀.2.le⟩))
   have hport (a : Dart G) :
       port a ∈ Metric.closedBall (ref.vertex a.vertex) ρ ∩ (ref.route a.1).support :=
@@ -152,9 +151,8 @@ theorem exists_reference_move_stub_isolation {I : FixedRotationInput} (hI : Vali
         (ref.vertex (Dart.vertex (e, true))) (1 / 2 : ℝ) = ref.vertex (Dart.vertex (e, side)) :=
       (Route.eval_line _ _ 0 (1 / 2 : ℝ)).symm.trans
         ((AffineMap.lineMap_eq_left_iff.mp h).resolve_right hδ.1.ne').symm
-    cases side
-    · exact absurd ((AffineMap.lineMap_eq_left_iff.mp hmid).resolve_left hxy) (by norm_num)
-    · exact absurd ((AffineMap.lineMap_eq_right_iff.mp hmid).resolve_left hxy) (by norm_num)
+    cases side <;>
+      simp [AffineMap.lineMap_eq_left_iff, AffineMap.lineMap_eq_right_iff, hxy] at hmid
   refine ⟨hstub, ?_, ?_⟩
   · rintro ⟨e, s⟩ ⟨f, t⟩ heq
     change port (e, s) = port (f, t) at heq
@@ -232,8 +230,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       simpa only [G, F, subdivisionGraph, frame, List.length_map] using e.isLt
     let idx : Fin F.segments.length := ⟨e.val, heIdx⟩
     have hread (v : V) : readMove F moves e.val v.val = moves idx v := by
-      simp only [readMove, heIdx, v.isLt, dite_true, idx]
-      rfl
+      simp only [readMove, heIdx, v.isLt, dite_true, idx]; rfl
     let a := ref.vertex (Dart.vertex (e, false))
     let b := ref.vertex (Dart.vertex (e, true))
     let L := AffineMap.lineMap (k := ℝ) a b
@@ -257,11 +254,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
     have hsub : odd ⊆ points := Finset.map_subset_map.mpr (Finset.filter_subset _ _)
     have hbit (v : V) : decide (point v ∈ odd) = readMove F moves e.val v.val := by
       rw [hread]
-      have hm : point v ∈ odd ↔ moves idx v = true := by
-        simp only [odd, Finset.mem_map' point, Finset.mem_filter, Finset.mem_univ, true_and]
-      calc
-        _ = decide (moves idx v = true) := Bool.decide_congr hm
-        _ = _ := by cases moves idx v <;> rfl
+      cases h : moves idx v <;> simp [odd, h]
     have hhalf : (1 / 2 : ℝ) ∈ Set.Ioo 0 1 := by constructor <;> norm_num
     have hδ' : 1 - δ ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr hδ.2, sub_lt_self _ hδ.1⟩
     have hc : c = L (δ / 2) := by
@@ -322,9 +315,7 @@ theorem exists_reference_drawing_with_move_rayParity {I : FixedRotationInput} (h
       · exact (congrArg (· - a) hc).trans (AffineMap.lineMap_vsub_left a b (δ / 2))
       · change d - b = (δ / 2) • (a - b)
         rw [hd]
-        calc
-          _ = (1 - (1 - δ / 2)) • (a - b) := AffineMap.lineMap_vsub_right a b _
-          _ = _ := by rw [sub_sub_cancel]
+        simpa only [vsub_eq_sub, sub_sub_cancel] using AffineMap.lineMap_vsub_right a b (1 - δ / 2)
     · intro v hne hv
       rw [Route.support_concat _ _ hright, Route.support_concat _ _ hleft, Route.support_line,
         Route.support_line] at hv

@@ -72,18 +72,15 @@ private theorem winProb_fixedBasis_le
   change game.commutingWinProb S ≤ _
   rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
   refine sum_le_sum fun r _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-  unfold pauliBraidingLinearityStrategy
-  rw [S.sum_ite_prob_map]
+  rw [pauliBraidingLinearityStrategy, S.sum_ite_prob_map]
   have hq : game.query r = (.basis basis (sym.query r).1, .basis basis (sym.query r).2) := by
     simp only [game, SeededGame.pullbackSeed, Function.comp_apply, pauliBraidingGame,
       pauliBraidingBranchGame, sym]
   rw [hq]
   refine sum_le_sum fun p _ => sum_le_sum fun q _ => ?_
-  split_ifs with h₁ h₂ h₂
-  · exact le_rfl
+  split_ifs with h₁ h₂ h₂ <;> try exact le_rfl
   · cases p <;> cases q <;> first | exact (h₂ h₁).elim | exact h₁.elim
   · exact S.prob_nonneg _ _ _ _
-  · exact le_rfl
 
 /-- For either basis, the rejection of the decoded symmetric strategy is at most twice
 the combined verifier's linearity rejection. -/
@@ -227,9 +224,8 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
       have h := expect_prob_mismatch_pauliBraidingDiagonal_le G special decode (!roles) true S
       dsimp only at h
       have hdecode : (fun a => first a ^^ second a) =
-          Sum.elim (fun bits : Bool × Bool => bits.1 ^^ bits.2) (fun _ => false) := by
-        funext a
-        cases a <;> rfl
+          Sum.elim (fun bits : Bool × Bool => bits.1 ^^ bits.2) (fun _ => false) :=
+        funext fun a => by cases a <;> rfl
       simp only [bad, tie, hdecode, size]
       cases roles <;> exact h
     simp only [ite_true, AlgState.norm_nnqsmul, NNRat.cast_inv, NNRat.cast_natCast, mul_pow]
@@ -240,9 +236,7 @@ theorem expect_norm_asymmetricLinearity_sub_basis_sq_le
           (tie c).norm_observable_map_sub_sq_le S.state first second
         simpa only [mul_assoc, mul_left_comm (((size : ℝ)⁻¹) ^ 2) 4] using
           mul_le_mul_of_nonneg_left h (sq_nonneg ((size : ℝ)⁻¹))
-      _ = (4 / size) * ((𝔼 c, bad c) / size) := by
-        rw [← mul_expect]
-        ring
+      _ = (4 / size) * ((𝔼 c, bad c) / size) := by rw [← mul_expect]; ring
       _ ≤ _ := by
         rw [show (48 : ℝ) / size = (4 / size) * 12 by ring, mul_assoc]
         exact mul_le_mul_of_nonneg_left hweighted (by positivity)

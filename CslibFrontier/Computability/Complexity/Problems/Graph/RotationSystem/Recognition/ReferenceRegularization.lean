@@ -48,10 +48,7 @@ open Polygonal
 private theorem frozen_parameter_open {α β t : ℝ}
     (hα : 0 ≤ α) (hαβ : α < β) (hβ : β ≤ 1) (ht : t ∈ Set.Ioo 0 1) :
     α + (β - α) * t ∈ Set.Ioo 0 1 := by
-  have hl := (left_lt_lineMap_iff_lt ht.1).mpr hαβ
-  have hu := (lineMap_lt_right_iff_lt ht.2).mpr hαβ
-  rw [AffineMap.lineMap_apply_ring'] at hl hu
-  exact ⟨by linarith, by linarith⟩
+  constructor <;> nlinarith [ht.1, ht.2]
 
 -- Read the *actual vectors*, not slopes, from an all-real local/global evaluation
 -- equation. The affine-map linear-part API supplies the difference calculation.
@@ -64,10 +61,10 @@ private theorem vector_of_reparameterization (p q : Route)
     simpa only [mul_zero, add_zero, Route.eval, AffineMap.lineMap_apply_zero] using heval 0
   have hone : AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) β = p.point i.succ := by
     simpa only [mul_one, add_sub_cancel, Route.eval, AffineMap.lineMap_apply_one] using heval 1
-  have hlinear := (AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) :
-    ℝ →ᵃ[ℝ] ℂ).linear_apply_vsub β α
   simpa only [AffineMap.lineMap_linear, LinearMap.smulRight_apply, LinearMap.id_apply,
-    vsub_eq_sub, hone, hzero] using hlinear.symm
+    vsub_eq_sub, hone, hzero] using
+    ((AffineMap.lineMap (q.point j.castSucc) (q.point j.succ) : ℝ →ᵃ[ℝ] ℂ).linear_apply_vsub
+      β α).symm
 
 -- Transversality is transported using the actual local/global vector factors.
 -- This retains the factor 2 of the protected one-segment local member.
@@ -174,20 +171,19 @@ private theorem ordered_gap_avoids_all_cuts {ι : Type*}
     (hupper : ∀ hk : k.val < L.length, t ≤ α (L[k.val]'hk)) :
     ∀ q : Fin L.length, t ∉ Set.Ioo (α L[q]) (β L[q]) := by
   intro q ht
+  rw [Fin.getElem_fin] at ht
   by_cases hqk : q.val < k.val
   · have hk : 0 < k.val := Nat.zero_lt_of_lt hqk
-    have hprev : k.val - 1 < L.length := by omega
-    refine (not_lt_of_ge ?_) ht.2
-    by_cases heq : q.val = k.val - 1
-    · simpa only [Fin.getElem_fin, heq] using hlower hk
-    · have hpair := (List.pairwise_iff_getElem.mp hsorted) q.val (k.val - 1) q.isLt hprev (by omega)
-      exact hpair.le.trans ((hcut _ (List.getElem_mem hprev)).le.trans (hlower hk))
-  · have hk : k.val < L.length := lt_of_le_of_lt (Nat.le_of_not_gt hqk) q.isLt
-    refine (not_lt_of_ge ?_) ht.1
-    by_cases heq : k.val = q.val
-    · simpa only [Fin.getElem_fin, heq] using hupper hk
-    · have hpair := (List.pairwise_iff_getElem.mp hsorted) k.val q.val hk q.isLt (by omega)
-      exact (hupper hk).trans ((hcut _ (List.getElem_mem hk)).le.trans hpair.le)
+    rcases eq_or_lt_of_le (Nat.le_sub_one_of_lt hqk) with heq | hlt
+    · exact not_lt_of_ge (by simpa only [heq] using hlower hk) ht.2
+    · have hprev : k.val - 1 < L.length := by omega
+      have hpair := List.pairwise_iff_getElem.mp hsorted q.val (k.val - 1) q.isLt hprev hlt
+      linarith [ht.2, hcut _ (List.getElem_mem hprev), hlower hk]
+  · rcases eq_or_lt_of_le (Nat.le_of_not_gt hqk) with heq | hlt
+    · exact not_lt_of_ge (by simpa only [heq] using hupper (heq ▸ q.isLt)) ht.1
+    · have hk : k.val < L.length := hlt.trans q.isLt
+      have hpair := List.pairwise_iff_getElem.mp hsorted k.val q.val hk q.isLt hlt
+      linarith [ht.1, hcut _ (List.getElem_mem hk), hupper hk]
 
 -- The boundary case carries an ACTUAL consecutive center pair, not an arbitrary
 -- earlier/later pair. Tags are local proof bookkeeping and never change the word.
@@ -240,11 +236,11 @@ private theorem patch_word_pair_cases {ι : Type*} (L : List ι) (a b : ℂ)
               List.length_map, List.getElem_map] using hp
           exact Or.inr (Or.inr (Or.inr (Or.inr ⟨(z :: zs)[k], (z :: zs)[k + 1],
             List.getElem_mem_consecutivePairs (z :: zs) k hk, hx, hy⟩)))
-      · obtain ⟨rfl, rfl⟩ :
+      · have hne_map : (z :: zs).map (Sum.inr (α := Bool)) ≠ [] := by simp
+        obtain ⟨rfl, rfl⟩ :
             tag = Sum.inr ((z :: zs).getLast (List.cons_ne_nil _ _)) ∧ next = Sum.inl true := by
           simpa only [List.consecutivePairs_singleton, List.mem_cons, List.not_mem_nil, or_false,
-            List.head_cons, List.getLast_cons (by simp : (z :: zs).map Sum.inr ≠ []),
-            List.getLast_map, Prod.mk.injEq] using hp
+            List.head_cons, List.getLast_cons hne_map, List.getLast_map, Prod.mk.injEq] using hp
         exact Or.inr (Or.inr (Or.inr (Or.inl ⟨List.cons_ne_nil _ _, hx, hy⟩)))
 
 private theorem gap_interpolation_avoids_cuts {ι : Type*}
@@ -674,11 +670,8 @@ theorem exists_reference_crossing_regularization {I : FixedRotationInput} (hI : 
         w ∈ (A.drawing.route e).support → w ∈ (A.drawing.route f).support →
         w ∉ (A.drawing.route g).support) := by
   classical
+  intro E old
   obtain ⟨A⟩ := exists_reference_patch_assembly hI
-  let E := Fin (subdivisionGraph I).edges.length
-  let old : E → E → Set ℂ := fun e f =>
-    openSegment ℝ ((referenceDrawing I).route e).start ((referenceDrawing I).route e).finish ∩
-    openSegment ℝ ((referenceDrawing I).route f).start ((referenceDrawing I).route f).finish
   have hsupport (e f : E) (z : ℂ) (hz : z ∈ old e f) :
       z ∈ ((referenceDrawing I).route e).support ∧ z ∈ ((referenceDrawing I).route f).support :=
     ⟨Route.support_line _ _ ▸ openSegment_subset_segment ℝ _ _ hz.1,

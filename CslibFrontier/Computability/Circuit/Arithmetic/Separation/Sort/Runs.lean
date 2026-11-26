@@ -227,16 +227,14 @@ namespace Runs
 variable {F : Type*} [CommRing F] {Z Γ : Type*} [Fintype Z] [DecidableEq Z] [Finite Γ]
 
 theorem mono {n m : ℕ} {X : Type*} {em : X → Z → List Γ} {wt : X → F}
-    (h : Runs n em wt) (hm : n ≤ m) : Runs m em wt := by
-  obtain ⟨P, h1, h2⟩ := h
-  exact ⟨P, h1.mono hm, h2⟩
+    (h : Runs n em wt) (hm : n ≤ m) : Runs m em wt :=
+  h.imp fun _ hP => ⟨hP.1.mono hm, hP.2⟩
 
 theorem congr {n : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
     {em' : Y → Z → List Γ} {wt' : Y → F} (h : Runs n em wt) (e : Y ≃ X)
     (h1 : ∀ y z, em (e y) z = em' y z) (h2 : ∀ y, wt (e y) = wt' y) :
-    Runs n em' wt' := by
-  obtain ⟨P, g1, g2⟩ := h
-  exact ⟨P, g1, g2.congr e h1 h2⟩
+    Runs n em' wt' :=
+  h.imp fun _ hP => ⟨hP.1, hP.2.congr e h1 h2⟩
 
 theorem mul {n m : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
     {em' : Y → Z → List Γ} {wt' : Y → F} (hf : Runs n em wt) (hg : Runs m em' wt') :
@@ -269,9 +267,9 @@ theorem add {n m : ℕ} {X Y : Type*} {em : X → Z → List Γ} {wt : X → F}
 theorem kstar {n : ℕ} {X : Type*} {em : X → Z → List Γ} {wt : X → F}
     (hf : Runs n em wt) (hne : ∀ x, ∃ z, em x z ≠ []) :
     Runs (n + 1) (fun (l : List X) z => l.flatMap fun x => em x z)
-      (fun l => (l.map wt).prod) := by
-  obtain ⟨P, g1, g2⟩ := hf
-  exact ⟨_, g1.kstar, g2.kstar fun x h => (hne x).elim fun z hz => hz (congrFun h z)⟩
+      (fun l => (l.map wt).prod) :=
+  let ⟨_, g1, g2⟩ := hf
+  ⟨_, g1.kstar, g2.kstar fun x h => (hne x).elim fun z hz => hz (congrFun h z)⟩
 
 theorem one :
     Runs 1 (fun (_ : Unit) (_ : Z) => ([] : List Γ)) (fun _ => (1 : F)) :=
@@ -307,10 +305,7 @@ theorem pi {k : ℕ} {n : Fin k → ℕ} {X : Fin k → Type*}
       ⟨fun _ => (), fun _ i => i.elim0, fun _ => Subsingleton.elim _ _, fun _ => rfl⟩
       (fun _ _ => rfl) (fun _ => by simp)).mono (by omega)
   | succ k ih =>
-    have h1 := (h 0).mul
-      (ih (n := fun i => n i.succ) (X := fun i => X i.succ)
-        (em := fun i => em i.succ) (wt := fun i => wt i.succ) fun i => h i.succ)
-    refine (h1.congr (Fin.consEquiv X).symm
+    refine (((h 0).mul (ih (X := fun i => X i.succ) fun i => h i.succ)).congr (Fin.consEquiv X).symm
       (fun y z => by simp [Fin.consEquiv, List.ofFn_succ, Fin.tail])
       fun y => by simp [Fin.consEquiv, Fin.prod_univ_succ, Fin.tail]).mono ?_
     rw [Fin.sum_univ_succ]; omega

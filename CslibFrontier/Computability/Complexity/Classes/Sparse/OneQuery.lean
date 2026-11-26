@@ -120,9 +120,9 @@ theorem stage_sublist : ∀ l : List α, (stage label t l).Sublist l
   | [] => List.Sublist.slnil
   | a :: rest => by
     rw [stage]
-    split
-    · exact (reps_sublist a rest).cons a
-    · exact ((List.take_sublist _ _).trans (reps_sublist a rest)).cons_cons a
+    split_ifs
+    exacts [(reps_sublist a rest).cons a,
+      ((List.take_sublist _ _).trans (reps_sublist a rest)).cons_cons a]
 
 theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (2 * t + 2) (l.length - 1)
   | [] => Nat.zero_le _
@@ -211,12 +211,11 @@ private theorem exists_mem_stage (hkey : ∀ ψ, ψ ∈ SAT ↔ ((key ψ).1 ∈ 
     · rename_i hpos
       by_cases hasat : units a ++ φ ∈ SAT
       · /- If `a` were satisfiable, every kept label with the sign `true` would lie in `K`. -/
-        exact False.elim (by
-          have hle := filter_length_le_of_nodup hc hnodup (List.Sublist.refl kept) hlen (s₀ := true)
-            (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign =>
-              ((hkey _).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))).2 hsign
-          dsimp only [lab] at hle
-          omega)
+        have hle := filter_length_le_of_nodup hc hnodup (List.Sublist.refl kept) hlen (s₀ := true)
+          (p := fun b => (lab b).2) (fun _ h => h) fun b _ hsign =>
+            ((hkey _).1 (Mahaney.disj_mem_SAT_iff.2 (.inl hasat))).2 hsign
+        dsimp only [lab] at hle
+        omega
       · exact hcases.resolve_left hasat
     · rename_i hpos
       by_contra! hnone
@@ -297,8 +296,7 @@ private theorem computableInPolyTime_stage {key : CNF ℕ → List Bool × Bool}
       (fun r : (CNF ℕ × ℕ) × List (List (Literal ℕ)) =>
         stage (fun a b => key (Mahaney.disj r.1.1 a b)) r.1.2 r.2)
       (encPair (encPair encCNF encUnary) encNodes) encNodes := by
-  simp only [stage_eq]
-  unfold Mahaney.disj
+  simp only [stage_eq, Mahaney.disj]
   fun_prop
 
 /-- A level of the search is polynomial-time, uniformly in the formula, the bound, the nodes and
@@ -389,20 +387,17 @@ theorem SAT_mem_P {β : Type} {encB : β ↪ List Bool} {S : Set β} (hS : S ∈
   them are marked encodings of members of the sparse problem. -/
   let Q : Polynomial ℕ := Polynomial.C C * (p.comp (Polynomial.X * Polynomial.X *
     (16 * Polynomial.X + 21) + Polynomial.X) + 1) ^ D
-  have hQ (L : ℕ) : Q.eval L = C * (p.eval (L * L * (16 * L + 21) + L) + 1) ^ D := by
-    simp [Q]
   refine ⟨fun φ => accepts (signedKey encB r q d) (Q.eval (encCNF φ).length) φ,
     computableInPolyTime_accepts hkey ((unary_eval Q).comp (encoding_length encCNF)),
     fun φ => (accepts_iff (K := List.cons true '' (encB '' S)) (M := p.eval ((encCNF φ).length *
       (encCNF φ).length * (16 * (encCNF φ).length + 21) + (encCNF φ).length))
       (mem_SAT_iff_signedKey hr1 hL) (fun a b ha hb hla hlb => ?_) (fun s hs => ?_)).symm⟩
   · refine (hp _).trans (Polynomial.eval_mono _ ((Mahaney.length_encCNF_disj_le ha hb).trans ?_))
-    have := hla.trans (length_vars_le φ)
-    have := hlb.trans (length_vars_le φ)
-    gcongr
+    gcongr <;> exact le_trans ‹_› (length_vars_le φ)
   · /- Dropping the leading `true` is injective on `s`, and gives members of the sparse problem
     no longer than the words in `s`. -/
-    rw [hQ]
+    simp only [Q, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
+      Polynomial.eval_comp, Polynomial.eval_X, Polynomial.eval_ofNat, Polynomial.eval_one]
     have hinj : Set.InjOn List.tail (s : Set (List Bool)) := fun w hw w' hw' hww' => by
       obtain ⟨_, -, rfl⟩ := (hs w hw).1
       obtain ⟨_, -, rfl⟩ := (hs w' hw').1

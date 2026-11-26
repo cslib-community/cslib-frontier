@@ -102,9 +102,8 @@ private theorem perm_three_of_ne {α : Type} {a b : Fin 3} (hab : a ≠ b) (f : 
 
 private theorem sum_three_of_ne {a b : Fin 3} (hab : a ≠ b) (g : Fin 3 → ℝ) :
     g (thirdFin3 a b) + g b + g a = g 0 + g 1 + g 2 := by
-  have hp := (perm_three_of_ne hab g).sum_eq
-  simp only [List.sum_cons, List.sum_nil, add_zero] at hp
-  linarith
+  simpa only [List.sum_cons, List.sum_nil, add_zero, add_assoc] using
+    (perm_three_of_ne hab g).sum_eq
 
 /-- Evaluate agent `i` on all three pieces of `P : Fin 3 → CakePiece`. -/
 private noncomputable def evalThree (i : Fin 3) (P : Fin 3 → CakePiece) :
@@ -319,10 +318,8 @@ theorem numCuts_selfridgeConwayQ_eq_two_of_eq {v : Fin 3 → CakeValuation}
   rw [numCuts_selfridgeConwayQ_eq]
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
-  have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 := by
-    rw [eval_evalThree ho 1]
-    funext k
-    simpa only [CakeValuation.pieceVal, h10] using hv0_X k
+  have hu1_const : (evalThree 1 (scInitialPieces c1 c2)).eval oracle = fun _ => 1 / 3 :=
+    (eval_evalThree ho 1 _).trans (funext fun k => h10.symm ▸ hv0_X k)
   simp [hu1_const]
 
 /-- When Player `1` has a unique strictly largest initial piece among `[0, c₁], [c₁, c₂], [c₂, 1]`,
@@ -399,12 +396,9 @@ private theorem isValidPartition_scBuildTrimmed {c1 c2 : ℝ}
   set s2 : Fin 3 := if q2 = p0 then s_pa else s_pd
   have hT_perm : [T_sub s_0, T_sub s1, T_sub s2].Perm [T_sub 0, T_sub 1, T_sub 2] := by
     have hbase := perm_three_of_ne hspa0 T_sub
-    by_cases hq : q2 = p0
-    · simp only [s1, s2, hq, ↓reduceIte]
-      exact (List.Perm.swap (T_sub s_pd) (T_sub s_0) [T_sub s_pa]).trans hbase
-    · simp only [s1, s2, hq, ↓reduceIte]
-      exact ((List.Perm.cons (T_sub s_0)
-        (List.Perm.swap (T_sub s_pd) (T_sub s_pa) [])).trans
+    by_cases hq : q2 = p0 <;> simp only [s1, s2, hq, ↓reduceIte]
+    · exact (List.Perm.swap (T_sub s_pd) (T_sub s_0) [T_sub s_pa]).trans hbase
+    · exact ((List.Perm.cons (T_sub s_0) (List.Perm.swap (T_sub s_pd) (T_sub s_pa) [])).trans
         (List.Perm.swap (T_sub s_pd) (T_sub s_0) [T_sub s_pa])).trans hbase
   have hY_perm : [Y q0, Y q1, Y q2].Perm [Y 0, Y 1, Y 2] := perm_three_of_ne hq21 Y
   have hall_perm :
@@ -439,13 +433,11 @@ theorem isValidPartition_selfridgeConwayQ
   set p0 := σ1 0
   set p1 := σ1 1
   have hp01 : p0 ≠ p1 := fun h => absurd (σ1.injective h) (by decide)
-  by_cases htie : u1 p0 ≤ u1 p1
-  · rw [ite_eq_left htie]
-    simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
+  split_ifs with htie
+  · simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
     exact ⟨⟨hc1.1, hc2.1, hc2.2⟩,
       perm_three_of_ne (bestOther_ne u1 (topChoice _)).symm (scInitialPieces c1 c2)⟩
-  · rw [ite_eq_right htie]
-    simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
+  · simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
     have hlr : (scInitialPieces c1 c2 p0).left ≤ (scInitialPieces c1 c2 p0).right := by
       clear_value p0
       fin_cases p0
@@ -493,10 +485,8 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
   have hp0_ne_p1 : p0 ≠ p1 := fun h => absurd (σ1.injective h) (by decide)
   have hu1_p1_le_p0 : u1 p1 ≤ u1 p0 :=
     Tuple.antitone_sortDesc u1 (by decide : (0 : Fin 3) ≤ 1)
-  have hu1_top : ∀ k : Fin 3, u1 k ≤ u1 p0 := le_topChoice u1
-  by_cases htie : u1 p0 ≤ u1 p1
+  split_ifs with htie
   · -- Branch A: Player 1's top two pieces are tied (`u1 p0 = u1 p1`), 2 cuts total.
-    rw [ite_eq_left htie]
     simp only [scUntrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
     set u2 := (evalThree 2 X).eval oracle
     set q2 := topChoice u2
@@ -506,7 +496,7 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     have hq1_val : u1 q1 = u1 p0 := by
       by_cases hq : σ1 0 ≠ q2 <;> simp [q1, bestOther, σ1, p0, p1, hq, hu1_tie_eq]
     have h1_fav (k : Fin 3) : (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
-      simpa only [hu1_eq] using (hq1_val ▸ hu1_top k : u1 k ≤ u1 q1)
+      simpa only [hu1_eq] using (hq1_val ▸ le_topChoice u1 k : u1 k ≤ u1 q1)
     have h2_fav (k : Fin 3) : (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) := by
       simpa only [u2, q2, eval_evalThree ho 2 X] using le_topChoice u2 k
     intro i j
@@ -515,7 +505,6 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     exacts [le_rfl, (hv0_X q1).trans_le (hv0_X q0).ge, (hv0_X q2).trans_le (hv0_X q0).ge,
       h1_fav q0, le_rfl, h1_fav q2, h2_fav q0, h2_fav q1, le_rfl]
   · -- Branch B: Trim needed (`u1 p1 < u1 p0`), 5 cuts total.
-    rw [ite_eq_right htie]
     simp only [scTrimmedBranchQ, FreeM.eval_bind, FreeM.eval_pure]
     set l := (X p0).left
     set r := (X p0).right
@@ -559,11 +548,11 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     -- Phase 2: pd divides [t, r] into three equal pieces of value w_pd / 3.
     set pa : Fin 3 := if q2 = p0 then 2 else 1
     set pd : Fin 3 := if q2 = p0 then 1 else 2
-    have hw_pd_eq : (RWQuery.evalAsk pd t r).eval oracle = v pd t r := ho.eval_evalAsk pd t r
     set w_pd := (RWQuery.evalAsk pd t r).eval oracle
     have ht0 : 0 ≤ t := hl0.trans ht_l
     obtain ⟨hu1_t, hu2_u1, hu2_r, hv_pd_T⟩ :=
-      cutIntoThirds_spec ho pd ht0 ht_r hr1 (α := w_pd / 3) (by rw [hw_pd_eq])
+      cutIntoThirds_spec ho pd ht0 ht_r hr1 (α := w_pd / 3)
+        (congrArg (· / 3) (ho.eval_evalAsk pd t r))
     have hu1_r : (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle ≤ r := hu2_u1.trans hu2_r
     set u_cut1 := (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle
     set u_cut2 := (RWQuery.cutIn pd u_cut1 r (w_pd / 3)).eval oracle
@@ -588,16 +577,15 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     -- Irrevocable advantage of Player 0 over pa: Y p0 and T_sub 0, 1, 2 partition X p0.
     have hv0_irrevocable :
         (v 0).pieceVal (Y p0) + (v 0).pieceVal (T_sub s_pa) ≤ 1 / 3 := by
-      have hT_sum_012 :
-          (v 0).pieceVal (T_sub 0) + (v 0).pieceVal (T_sub 1) + (v 0).pieceVal (T_sub 2) =
-            v 0 t r := by
+      have hT_012 : (v 0).pieceVal (T_sub 0) + (v 0).pieceVal (T_sub 1) +
+          (v 0).pieceVal (T_sub 2) = v 0 t r := by
         dsimp only [T_sub, scTrimSubPieces, CakeValuation.pieceVal]
         linarith [(v 0).val_add ht0 hu1_t hu1_r hr1,
           (v 0).val_add (ht0.trans hu1_t) hu2_u1 hu2_r hr1]
       have hT_perm_sum := sum_three_of_ne hspa0 (fun m => (v 0).pieceVal (T_sub m))
       have hYp0_T : (v 0).pieceVal (Y p0) + v 0 t r = 1 / 3 := by
-        simp only [Y, scTrimmedPieces, ↓reduceIte, CakeValuation.pieceVal]
-        exact ((v 0).val_add hl0 ht_l ht_r hr1).trans (hv0_X p0)
+        simpa only [Y, scTrimmedPieces, ↓reduceIte, CakeValuation.pieceVal] using
+          ((v 0).val_add hl0 ht_l ht_r hr1).trans (hv0_X p0)
       linarith [hT_nonneg 0 s_0, hT_nonneg 0 s_pd]
     set s1 : Fin 3 := if q2 = p0 then s_pd else s_pa
     set s2 : Fin 3 := if q2 = p0 then s_pa else s_pd
@@ -617,22 +605,19 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
           (v 0).pieceVal (Y q0) + (v 0).pieceVal (T_sub s_0) := by
       rintro qk sk (⟨rfl, rfl⟩ | ⟨hne, rfl⟩)
       · linarith [hv0_Y_q0, hv0_irrevocable, hT_nonneg 0 s_0]
-      · have hY : (v 0).pieceVal (Y qk) = 1 / 3 := by
-          simp only [Y, scTrimmedPieces, hne, ↓reduceIte, hv0_X qk]
-        linarith [hv0_Y_q0, hY, hv0_T_pd_le_0]
+      · rw [hv0_Y_q0]
+        simpa only [Y, scTrimmedPieces, scInitialPieces, hne, ↓reduceIte, hv0_X qk] using
+          add_le_add le_rfl hv0_T_pd_le_0
     intro i j
-    fin_cases i
-    · fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, CakeValuation.bundleVal_cons, CakeValuation.bundleVal_nil, add_zero]
-      exacts [le_rfl,
-        h0_other q1 s1 (by by_cases hq : q2 = p0 <;> simp [q1, s1, hq, hp0_ne_p1.symm]),
-        h0_other q2 s2 (by by_cases hq : q2 = p0 <;> simp [s2, hq])]
-    · fin_cases j <;> simpa only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, CakeValuation.bundleVal_cons, CakeValuation.bundleVal_nil, add_zero] using
-        add_le_add ((hv1_Y_le _).trans_eq hv1_Y_q1.symm) (h1_T _)
-    · fin_cases j <;> simpa only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one, Fin.reduceFinMk,
-        Fin.isValue, CakeValuation.bundleVal_cons, CakeValuation.bundleVal_nil, add_zero] using
-        add_le_add (hv2_Y_le _) (h2_T _)
+    fin_cases i <;> fin_cases j <;> simp only [scBuildTrimmed, Fin.zero_eta, Fin.mk_one,
+      Fin.reduceFinMk, Fin.isValue, CakeValuation.bundleVal_cons, CakeValuation.bundleVal_nil,
+      add_zero]
+    · exact le_rfl
+    · exact h0_other q1 s1 (by by_cases hq : q2 = p0 <;> simp [q1, s1, hq, hp0_ne_p1.symm])
+    · exact h0_other q2 s2 (by by_cases hq : q2 = p0 <;> simp [s2, hq])
+    all_goals first
+      | exact add_le_add ((hv1_Y_le _).trans_eq hv1_Y_q1.symm) (h1_T _)
+      | exact add_le_add (hv2_Y_le _) (h2_T _)
 
 /-- **Selfridge–Conway Proportionality Corollary:** under any valid Robertson–Webb oracle, every
 player receives at least `1 / 3` of the cake according to their own valuation. -/

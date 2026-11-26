@@ -300,24 +300,20 @@ lemma netToSynod_reach {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
     Reachable qs inp (netToSynod s) ∧
       ∀ q, (s.proc q).out = ((netToSynod s).learners q).learned := by
   obtain ⟨xl, hmtr⟩ := hreach
-  have hgen : ∀ {u u' : NetState P (SynodNodeState P V) (Msg P P V) V} {yl},
-      (synodQuorumProtocol qs).lts.MTr u yl u' →
-      Reachable qs inp (netToSynod u) →
-      (∀ q, (u.proc q).out = (u.proc q).state.learn.learned) →
-      Reachable qs inp (netToSynod u') ∧
-        ∀ q, (u'.proc q).out = (u'.proc q).state.learn.learned := by
-    intro u u' yl hm
-    induction hm with
-    | refl => exact fun hr ho => ⟨hr, ho⟩
-    | stepL hstep _ ih =>
-      intro hr ho
-      obtain ⟨ho', hsim⟩ := netToSynod_step qs hstep ho
-      rcases hsim with heq | ⟨sact, hstr⟩
-      exacts [ih (heq ▸ hr) ho', ih (hr.trans ⟨[sact], LTS.MTr.single _ hstr⟩) ho']
   have hinit_eq : netToSynod ((synodQuorumProtocol qs).start inp) = initState inp :=
     SynodState.ext (by simp [netToSynod, AsyncQuorumProtocol.start, initState]) rfl rfl rfl
-  exact hgen hmtr (hinit_eq.symm ▸ (⟨[], LTS.MTr.refl⟩ : Reachable qs inp (initState inp)))
-    fun _ => rfl
+  have hinit : Reachable qs inp (netToSynod ((synodQuorumProtocol qs).start inp)) ∧
+      ∀ q, (((synodQuorumProtocol qs).start inp).proc q).out =
+        (((synodQuorumProtocol qs).start inp).proc q).state.learn.learned :=
+    ⟨hinit_eq ▸ ⟨[], .refl⟩, fun _ => rfl⟩
+  change Reachable qs inp (netToSynod s) ∧ ∀ q, (s.proc q).out = (s.proc q).state.learn.learned
+  generalize (synodQuorumProtocol qs).start inp = u at hmtr hinit
+  induction hmtr with
+  | refl => exact hinit
+  | stepL hstep _ ih =>
+    obtain ⟨ho', hsim⟩ := netToSynod_step qs hstep hinit.2
+    exact hsim.elim (fun heq => ih ⟨heq ▸ hinit.1, ho'⟩)
+      fun ⟨sact, hstr⟩ => ih ⟨hinit.1.trans ⟨[sact], .single _ hstr⟩, ho'⟩
 
 
 end Cslib.Distributed.Paxos

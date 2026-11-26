@@ -110,12 +110,8 @@ private theorem iterate_sqrt_succ_pow_le (p : ℕ) {v : ℕ} (hv : 1 ≤ v) :
   | succ p ih =>
     rw [Function.iterate_succ_apply']
     set w := (fun w => Nat.sqrt w + 1)^[p] v
-    have hw1 : 1 ≤ w := by
-      cases p with
-      | zero => exact hv
-      | succ p => simp only [w, Function.iterate_succ_apply']; omega
-    have hw : (Nat.sqrt w + 1) ^ 2 ≤ 4 * w := by
-      nlinarith [Nat.sqrt_le w, Nat.sqrt_le_self w]
+    have hw1 : 1 ≤ w := by cases p <;> simp [w, hv, Function.iterate_succ_apply']
+    have hw : (Nat.sqrt w + 1) ^ 2 ≤ 4 * w := by nlinarith [Nat.sqrt_le w, Nat.sqrt_le_self w]
     calc (Nat.sqrt w + 1) ^ 2 ^ (p + 1) = ((Nat.sqrt w + 1) ^ 2) ^ 2 ^ p := by
           rw [← pow_mul, pow_succ']
       _ ≤ (4 * w) ^ 2 ^ p := Nat.pow_le_pow_left hw _
@@ -221,10 +217,9 @@ theorem DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow {a : ℕ} (ha : 1 ≤ a) (p 
     | zero => exact Set.Subset.refl _
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
-  have hsep := hk (f := fun n => (n + 1) ^ a) (g := fun n => chain p (2 ^ p * (k + 1)) n ^ a)
+  exact (hk (f := fun n => (n + 1) ^ a) (g := fun n => chain p (2 ^ p * (k + 1)) n ^ a)
     (timeConstructible_succ_pow a) (fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _))
-    (eventually_polylog_le_chain ha p k)
-  exact hsep.2 (hchain _)
+    (eventually_polylog_le_chain ha p k)).2 (hchain _)
 
 /-- `iterSqrtLog p n ^ a` is eventually at most `(log n) ^ ε` once `a / 2 ^ p < ε`. -/
 private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
@@ -243,9 +238,8 @@ private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
   have hL : ((Nat.log 2 n : ℕ) : ℝ) + 1 ≤ 3 * Real.log n := by
     have h1 : (Nat.log 2 n : ℝ) * Real.log 2 ≤ Real.log n :=
       (le_div_iff₀ (Real.log_pos one_lt_two)).1 (by simpa [Real.logb] using Real.natLog_le_logb n 2)
-    have h3 : (Nat.log 2 n : ℝ) * 0.6931471803 ≤ Real.log n :=
-      (mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le (Nat.cast_nonneg _)).trans h1
-    linarith
+    linarith [mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le
+      (Nat.cast_nonneg (α := ℝ) (Nat.log 2 n))]
   have hr : (iterSqrtLog p n : ℝ) ^ 2 ^ p ≤ 4 ^ 2 ^ p * ((Nat.log 2 n : ℝ) + 1) := by
     exact_mod_cast iterSqrtLog_pow_le p n
   have hr0 : (0 : ℝ) ≤ iterSqrtLog p n := Nat.cast_nonneg _
@@ -279,9 +273,8 @@ theorem DTIME_pow_ssubset_DTIME_of_pow_mul_log_rpow_le {a : ℕ} (ha : 1 ≤ a) 
     suffices (((n * iterSqrtLog p n) ^ a : ℕ) : ℝ) ≤ g n from mod_cast this
     push_cast [mul_pow]
     exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-  have hsep := DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow ha p
-  exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
-    fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩
+  exact (DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow ha p).trans_subset
+    (DTIME_mono_of_eventually_le hle)
 
 /-! ### Exponential time -/
 
@@ -312,9 +305,8 @@ private theorem le_expChain (q j n : ℕ) :
   | succ j ih =>
     change _ ≤ expChain q j n + Nat.log 2 (expChain q j n + 1) / q + 1
     have h : Nat.log 2 (n + 1) / q ≤ Nat.log 2 (expChain q j n + 1) / q :=
-      Nat.div_le_div_right (Nat.log_mono_right (by have := lt_expChain q j n; omega))
-    rw [add_one_mul]
-    omega
+      Nat.div_le_div_right (Nat.log_mono_right (Nat.succ_le_succ (lt_expChain q j n).le))
+    rw [add_one_mul]; omega
 
 /-- Far enough along, the additive chain exceeds the polylogarithmic gap at `2 ^ n`. -/
 private theorem eventually_polylog_le_expChain {q : ℕ} (hq : 1 ≤ q) (k : ℕ) :
@@ -328,8 +320,6 @@ private theorem eventually_polylog_le_expChain {q : ℕ} (hq : 1 ≤ q) (k : ℕ
   have hM : L + 1 ≤ 2 * (q * (L / q)) := by
     have h1 := Nat.div_add_mod L q
     have h2 := Nat.mod_lt L (by omega : 0 < q)
-    generalize q * (L / q) = e at h1 ⊢
-    generalize L % q = r at h1 h2
     omega
   have hlogn : Nat.log 2 (2 ^ n + 1) + 1 ≤ n + 1 :=
     Nat.succ_le_of_lt (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ]; omega))
@@ -376,10 +366,9 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
       exact DTIME_mono_of_le_mul_add (C := 2) fun n => by rw [expChain, pow_succ]; omega
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
-  have hsep := hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)
+  exact (hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)
     timeConstructible_two_pow (fun n => Nat.lt_two_pow_self.le)
-    (eventually_polylog_le_expChain hq k)
-  exact hsep.2 (hchain _)
+    (eventually_polylog_le_expChain hq k)).2 (hchain _)
 
 /-- `2 ^ (⌊log₂ (n + 1)⌋ / q)` is eventually at most `n ^ ε` once `1 / q < ε`. -/
 private theorem eventually_two_pow_log_div_le {q : ℕ} (hq : 1 ≤ q) {ε : ℝ}
@@ -425,8 +414,7 @@ theorem DTIME_two_pow_ssubset_DTIME_of_two_pow_mul_rpow_le {ε : ℝ} (hε : 0 <
     suffices ((2 ^ (n + Nat.log 2 (n + 1) / q) : ℕ) : ℝ) ≤ g n from mod_cast this
     push_cast [pow_add] at hr ⊢
     exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-  have hsep := DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div hq1
-  exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
-    fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩
+  exact (DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div hq1).trans_subset
+    (DTIME_mono_of_eventually_le hle)
 
 end Cslib.Complexity

@@ -232,11 +232,7 @@ theorem mem_Clique_complementEdgesInterpretation
       M ∈ IndependentSet := by
   refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_Clique
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.Clique, Bundled.of]
   rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
     mem_IndependentSet]
   refine exists_congr fun s => and_congr_right fun _ => ?_
@@ -251,11 +247,7 @@ theorem mem_IndependentSet_complementEdgesInterpretation
       M ∈ Clique := by
   refine (complementEdgesInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      ¬ (complementEdgesInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.IndependentSet, Bundled.of]
   rw [ncard_size_eq_of_iff M _ (relMap_complementEdges_size M), exists_ncard_image_iff,
     mem_Clique]
   refine exists_congr fun s => and_congr_right fun _ => ?_
@@ -335,12 +327,7 @@ theorem mem_VertexCover_complementSizeInterpretation
       M ∈ IndependentSet := by
   refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_VertexCover
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    ∀ u v, u ≠ v →
-      (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v] →
-      u ∈ t ∨ v ∈ t) ↔ _
+  dsimp [FO.sizedGraph.VertexCover, Bundled.of]
   rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
     mem_IndependentSet]
   refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_
@@ -355,11 +342,7 @@ theorem mem_IndependentSet_complementSizeInterpretation
       M ∈ VertexCover := by
   refine (complementSizeInterpretation.mem_of_isoClosed FO.sizedGraph.isoClosed_IndependentSet
     (by decide) M).symm.trans ?_
-  change (∃ t : Set (Fin 1 → Fin M.size),
-    t.ncard = {u | (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.size
-      ![u]}.ncard ∧
-    t.Pairwise fun u v =>
-      ¬ (complementSizeInterpretation.tupleStructure M).RelMap FO.sizedGraph.adj ![u, v]) ↔ _
+  dsimp [FO.sizedGraph.IndependentSet, Bundled.of]
   rw [ncard_size_complementSize M, exists_ncard_image_iff, compl_surjective.exists,
     mem_VertexCover]
   refine exists_congr fun s => and_congr FO.sizedGraph.ncard_compl_eq_iff ?_

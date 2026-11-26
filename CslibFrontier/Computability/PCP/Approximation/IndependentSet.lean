@@ -142,8 +142,7 @@ theorem card_toFinset_vertices_toIndependentSet {φ : CNF ℕ} (h3 : ∀ c ∈ �
       exact ⟨(i, j), Finset.mem_product.2 ⟨Finset.mem_range.2 hi,
         Finset.mem_range.2 ((h3 _ (List.getElem_mem hi)) ▸ hj)⟩, rfl⟩
     · rintro ⟨⟨i, j⟩, hij, rfl⟩
-      obtain ⟨hi, hj⟩ := Finset.mem_product.1 hij
-      rw [Finset.mem_range] at hi hj
+      obtain ⟨hi, hj⟩ := by simpa only [Finset.mem_product, Finset.mem_range] using hij
       have hj' : j < φ[i].length := (h3 _ (List.getElem_mem hi)).symm ▸ hj
       exact ⟨⟨i, j, φ[i][j]⟩, mem_occurrences.2 ⟨hi, hj', rfl⟩, rfl⟩
   rw [hset, Finset.card_image_of_injective _ fun p q h => Prod.ext (Nat.pair_eq_pair.1 h).1
@@ -279,14 +278,13 @@ theorem polyTimeReducible_GapIndependentSet_of_mem_PCPWith {α : Type} {enc : α
     simp only [GapIndependentSet, PromiseProblem.mem_yes_gapMax, PCPVerifier.fglssToIndependentSet,
       PCPVerifier.indepNum_fglssEdgeList, hind, le_rfl]
   · obtain ⟨π, hπ⟩ := V.exists_acceptCount_eq_indepNum_fglssGraph a
-    have hpos : (0 : ℝ) < (2 ^ V.coins a : ℕ) := by positivity
+    have hpos : (0 : ℝ) < 2 ^ V.coins a := by positivity
     have hprob : (V.acceptCount a π : ℝ) ≤ s * (2 ^ V.coins a : ℕ) := by
-      have hs := hpcp.sound a ha π
-      rw [PCPVerifier.acceptProb, div_le_iff₀ (by positivity)] at hs
-      simpa only [Nat.cast_pow, Nat.cast_ofNat] using hs
-    refine (PromiseProblem.mem_no_gapMax_of_lt (show s * (2 ^ V.coins a : ℕ) < (2 ^ V.coins a : ℕ)
-      by nlinarith)).2 ?_
-    change ((V.fglssEdgeList a).indepNum : ℝ) ≤ s * (2 ^ V.coins a : ℕ)
+      simpa only [PCPVerifier.acceptProb, div_le_iff₀ hpos, Nat.cast_pow, Nat.cast_ofNat] using
+        hpcp.sound a ha π
+    refine (PromiseProblem.mem_no_gapMax_of_lt
+      (show s * (2 ^ V.coins a : ℕ) < (2 ^ V.coins a : ℕ) by push_cast; nlinarith)).2 ?_
+    dsimp only [PCPVerifier.fglssToIndependentSet]
     rwa [PCPVerifier.indepNum_fglssEdgeList, ← hπ]
 
 /-- **MAX-3SAT reduces to maximum independent set with the same gap**, by Karp's graph: a
@@ -334,14 +332,13 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCover (hs : s < 1) :
     IndependentSet.computableInPolyTime_toVertexCover.comp
       SAT.computableInPolyTime_toIndependentSet, fun φ hφ => ?_, fun φ hφ => ?_⟩
   · obtain ⟨h3, hsat⟩ := yes_GapExactThreeSAT ▸ hφ
-    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum := by
-      exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
+    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum :=
+      mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
     simp only [GapVertexCover, PromiseProblem.mem_yes_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
     cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
-    have hm : (0 : ℝ) < φ.length := by
-      exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
+    have hm : (0 : ℝ) < φ.length := mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
     have hα := SAT.indepNum_toIndependentSet_le φ
     simp only [GapVertexCover, PromiseProblem.mem_no_gapMin, hred φ h3,
       SAT.vertexCoverNum_toIndependentSet h3]
@@ -360,23 +357,18 @@ theorem polyTimeReducible_GapExactThreeSAT_GapVertexCoverFraction (hs : s < 1) {
   refine ⟨fun φ => (SAT.toIndependentSet φ).graph,
     by have h := SAT.computableInPolyTime_toIndependentSet; fun_prop,
     fun φ hφ => ?_, fun φ hφ => ?_⟩
-  · rw [yes_GapExactThreeSAT] at hφ
-    obtain ⟨h3, hsat⟩ := hφ
-    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum := by
-      exact_mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
-    change ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ) ≤
-      2 / 3 * (SAT.toIndependentSet φ).graph.vertices.toFinset.card
-    rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
+  · obtain ⟨h3, hsat⟩ := yes_GapExactThreeSAT ▸ hφ
+    have hα : (φ.length : ℝ) ≤ (SAT.toIndependentSet φ).graph.indepNum :=
+      mod_cast Graph.le_indepNum_iff.2 ((SAT.toIndependentSet_mem_iff φ).2 hsat)
+    simp only [GapVertexCoverFraction, Set.mem_ofPred_eq, SAT.vertexCoverNum_toIndependentSet h3,
+      SAT.card_toFinset_vertices_toIndependentSet h3]
     cast_linarith
   · obtain ⟨h3, hval⟩ := (mem_no_GapExactThreeSAT hs).1 hφ
-    have hm : (0 : ℝ) < φ.length := by
-      exact_mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
+    have hm : (0 : ℝ) < φ.length := mod_cast CNF.length_pos_of_unsatVal_pos (by linarith)
     have hα := SAT.indepNum_toIndependentSet_le φ
-    refine ⟨hL, ?_⟩
-    change L * (SAT.toIndependentSet φ).graph.vertices.toFinset.card <
-      ((SAT.toIndependentSet φ).graph.vertexCoverNum : ℝ)
-    rw [SAT.vertexCoverNum_toIndependentSet h3, SAT.card_toFinset_vertices_toIndependentSet h3]
-    cast_nlinarith
+    simp only [GapVertexCoverFraction, Set.mem_ofPred_eq, SAT.vertexCoverNum_toIndependentSet h3,
+      SAT.card_toFinset_vertices_toIndependentSet h3]
+    exact ⟨hL, by cast_nlinarith⟩
 
 /-! ### Inapproximability -/
 

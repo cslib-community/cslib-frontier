@@ -278,8 +278,7 @@ theorem two_mul_rawStrideHash_add_one_lt {c_exp U n_max : ℕ} (θ : Seed c_exp 
     2 * (rawStrideHash θ u).val + 1 < numBuckets n_max := by
   have := (rawStrideHash θ u).isLt
   have : 2 * 2 ^ (bucketBits n_max - 1) = numBuckets n_max := by
-    dsimp only [numBuckets]
-    rw [← pow_succ', Nat.sub_add_cancel (bucketBits_pos n_max)]
+    rw [numBuckets, ← pow_succ', Nat.sub_add_cancel (bucketBits_pos n_max)]
   omega
 
 /-- Odd probe stride `2 * (rawStrideHash θ u).val + 1 ∈ Fin (numBuckets n_max)`. -/
@@ -321,10 +320,8 @@ private theorem val_probePerm_succ {c_exp U n_max : ℕ} (θ : Seed c_exp n_max)
     (probePerm θ u ⟨i + 1, hi⟩).val =
       ((probePerm θ u ⟨i, by omega⟩).val + (strideHash θ u).val) &&&
         (numBuckets n_max - 1) := by
-  change (probePerm θ u ⟨i + 1, hi⟩).val =
-    ((probePerm θ u ⟨i, by omega⟩).val + (strideHash θ u).val) &&&
-      (2 ^ bucketBits n_max - 1)
-  rw [Nat.and_two_pow_sub_one_eq_mod, val_probePerm, val_probePerm]
+  have hm : numBuckets n_max - 1 = 2 ^ bucketBits n_max - 1 := rfl
+  rw [hm, Nat.and_two_pow_sub_one_eq_mod, val_probePerm, val_probePerm]
   simp [numBuckets, Nat.add_mul, one_mul, Nat.add_assoc]
 
 /-! ## Section 2: Concrete Slot Extraction and Representation Invariant -/
@@ -1085,12 +1082,11 @@ private theorem slotArrayWF_insertSlotMem {base c_exp U n_max : ℕ} {mem : ℕ 
     (hwf : SlotArrayWF base c_exp U n_max mem) (slot : Fin (numBuckets n_max))
     (u : Fin U) (v : ℕ) :
     SlotArrayWF base c_exp U n_max (insertSlotMem base c_exp n_max mem slot u.val v) := fun j => by
-  by_cases hjs : j = slot
-  · subst hjs
-    have ⟨h0, h1, _⟩ := insertSlotMem_self (base := base) (c_exp := c_exp) (mem := mem)
+  rcases eq_or_ne j slot with rfl | hjs
+  · obtain ⟨h0, h1, _⟩ := insertSlotMem_self (base := base) (c_exp := c_exp) (mem := mem)
       (slot := j) (u := u.val) (v := v)
-    exact ⟨.inr h0, fun _ => by rw [h1]; exact u.isLt⟩
-  · have ⟨h0, h1, _⟩ := insertSlotMem_eq_self_of_ne (base := base) (c_exp := c_exp) (mem := mem)
+    exact ⟨.inr h0, fun _ => h1.trans_lt u.isLt⟩
+  · obtain ⟨h0, h1, _⟩ := insertSlotMem_eq_self_of_ne (base := base) (c_exp := c_exp) (mem := mem)
       (u := u.val) (v := v) hjs
     simpa only [SlotArrayWF, h0, h1] using hwf j
 
@@ -1144,8 +1140,6 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
       base + slotOffset c_exp n_max + numBuckets n_max + slot.val := by omega
   have ha2 : base + slotOffset c_exp n_max + numBuckets n_max + slot.val + numBuckets n_max =
       base + slotOffset c_exp n_max + 2 * numBuckets n_max + slot.val := by omega
-  have hst : DoubleTabulation.space (numChars c_exp) (tupleLen c_exp) (charBits n_max) =
-      singleTabSpace c_exp n_max := rfl
   refine WP.exists_execWithin ?_
   unfold finishInsertCode
   wram_exec (disch := first | fits | layout_omega) [hsbase, hslot, hm, hu, hv, ha1, ha2]
@@ -1160,21 +1154,23 @@ private theorem finishInsertCode_execWithin {w base c_exp U V n_max : ℕ} {θ :
   have hbelow : ∀ a < base + slotOffset c_exp n_max,
       insertSlotMem base c_exp n_max x.mem slot u.val v a = x.mem a :=
     fun a h => by update_simp [insertSlotMem]
-  refine ⟨by wram_simp [hbase], by wram_simp, ?_, ?_, ?_, ?_,
+  rw [hmem_eq]
+  refine ⟨by wram_simp [hbase],
+    by wram_simp,
+    hrep.primary_rep.congr_mem fun a _ h =>
+      hbelow a (by dsimp only [slotOffset, singleTabSpace] at h ⊢; omega),
+    hrep.stride_rep.congr_mem fun a _ h =>
+      hbelow a (by dsimp only [slotOffset, singleTabSpace] at h ⊢; omega),
+    slotArrayWF_insertSlotMem hrep.slot_wf slot u v, ?_,
     Dictionary.card_dom_step_le_of_valid (V := V) hrep.dom_le (o := .insert u v) hvalid,
     Dictionary.valuesBounded_step_of_valid (n_max := n_max) hrep.vals_bounded
-      (o := .insert u v) hvalid, ?_⟩
-  · rw [hmem_eq]; exact hrep.primary_rep.congr_mem fun a _ h =>
-      hbelow a (by rw [hst] at h; wram_omega)
-  · rw [hmem_eq]; exact hrep.stride_rep.congr_mem fun a _ h =>
-      hbelow a (by rw [hst] at h; wram_omega)
-  · rw [hmem_eq]; exact slotArrayWF_insertSlotMem hrep.slot_wf slot u v
-  · rw [hmem_eq, extractSlots_insertSlotMem hrep.slot_wf slot u v,
-      ← tableInsert_eq_update_targetSlot (numBuckets_pos n_max) (probePerm θ) _ u v hO]
-    exact hrep.table_rep.tableInsert (numBuckets_pos n_max) u v hO
-  · rw [hmem_eq]; exact Modifies.block_iff.mpr fun a ha => by
+      (o := .insert u v) hvalid,
+    Modifies.block_iff.mpr fun a ha => by
       dsimp only [space] at ha
-      update_simp [insertSlotMem]
+      update_simp [insertSlotMem]⟩
+  rw [extractSlots_insertSlotMem hrep.slot_wf slot u v,
+    ← tableInsert_eq_update_targetSlot (numBuckets_pos n_max) (probePerm θ) _ u v hO]
+  exact hrep.table_rep.tableInsert (numBuckets_pos n_max) u v hO
 
 /-- Complete operation body `opCode c_exp n_max` for both `query` and `insert`. -/
 def opCode (c_exp n_max : ℕ) : Code .exact 16 :=

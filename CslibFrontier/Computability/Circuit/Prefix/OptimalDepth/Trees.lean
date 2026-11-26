@@ -107,9 +107,8 @@ theorem IntervalTree.unit_mem_intervals {a b : ℕ} (t : IntervalTree a b) :
   induction t with
   | leaf a =>
     intro p hp1 hp2
-    have hpeq : p = a := by omega
-    rw [hpeq]
-    simp only [IntervalTree.intervals, Finset.mem_singleton]
+    obtain rfl : p = a := by omega
+    simp [IntervalTree.intervals]
   | @node _ m _ L R ihL ihR =>
     intro p hp1 hp2
     simp only [IntervalTree.intervals, Finset.mem_insert, Finset.mem_union]
@@ -123,12 +122,10 @@ theorem IntervalTree.erase_root_eq_union {a m b : ℕ} (L : IntervalTree a m)
     (IntervalTree.node L R).intervals.erase (a, b) = L.intervals ∪ R.intervals := by
   have hL := L.lt
   have hR := R.lt
-  have hnot : (a, b) ∉ L.intervals ∪ R.intervals := by
-    rw [Finset.mem_union]
-    rintro (h1 | h2)
-    · have := L.mem_intervals_bounds h1; omega
-    · have := R.mem_intervals_bounds h2; omega
-  simp only [IntervalTree.intervals, Finset.erase_insert hnot]
+  refine Finset.erase_insert fun h => ?_
+  rcases Finset.mem_union.mp h with h1 | h2
+  · have := L.mem_intervals_bounds h1; omega
+  · have := R.mem_intervals_bounds h2; omega
 
 /-- Given a proper left prefix `(a, s) ∈ t.intervals.erase (a, b)`, extracts a suffix interval tree
 on `[s, b)` of depth at most `t.depth` covering all intervals starting at `≥ s`. -/
@@ -232,39 +229,27 @@ theorem GenPrefixTree.child_depth_lt {st : ℕ} {hasOut : Bool} {r : ℕ}
 theorem GenPrefixTree.outCount_le_two_pow :
     ∀ (t : GenPrefixTree), t.FanoutAtMost 2 → (∀ s, t.outAt s ≤ 1) →
       t.outCount ≤ 2 ^ t.depth
-  | .node st hasOut r isMul child, hfan, hout => by
-    obtain ⟨hr, hch_fan⟩ := hfan
-    have hch_out (i : Fin r) (s : ℕ) : (child i).outAt s ≤ 1 := by
-      have hs := hout s
-      simp only [GenPrefixTree.outAt] at hs
-      exact (Finset.single_le_sum (f := fun j : Fin r => (child j).outAt s)
-        (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)).trans (by omega)
-    by_cases hr0 : r = 0
-    · subst hr0
-      simp only [GenPrefixTree.outCount, Finset.univ_eq_empty, Finset.sum_empty]
-      have := Nat.one_le_pow (GenPrefixTree.node st hasOut 0 isMul child).depth 2 (by decide)
-      cases hasOut <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega
-    · have hr_le2 : r ≤ 2 := by omega
-      have hd_pos : 1 ≤ (GenPrefixTree.node st hasOut r isMul child).depth :=
-        (Nat.le_add_left 1 _).trans (GenPrefixTree.child_depth_lt ⟨0, Nat.pos_of_ne_zero hr0⟩)
-      set H := (GenPrefixTree.node st hasOut r isMul child).depth - 1
-      have hch_le : ∀ i : Fin r, (child i).outCount ≤ 2 ^ H := by
-        intro i
-        have h1 := GenPrefixTree.outCount_le_two_pow (child i) (hch_fan i) (hch_out i)
-        have h2 := GenPrefixTree.child_depth_lt (st := st) (hasOut := hasOut) (isMul := isMul)
-          (child := child) i
-        exact h1.trans (Nat.pow_le_pow_right (by omega) (by omega))
-      have hsum_le : ∑ i : Fin r, (child i).outCount ≤ r * 2 ^ H :=
-        (Finset.sum_le_sum fun i _ => hch_le i).trans_eq (by simp)
-      have hpow : 2 ^ (GenPrefixTree.node st hasOut r isMul child).depth = 2 * 2 ^ H := by
-        rw [show (GenPrefixTree.node st hasOut r isMul child).depth = H + 1 by omega,
-          Nat.pow_succ, Nat.mul_comm]
-      have hH_pos : 1 ≤ 2 ^ H := Nat.one_le_pow _ _ (by omega)
-      simp only [GenPrefixTree.outCount]
-      rcases (show r = 1 ∨ r = 2 by omega) with rfl | rfl <;>
-        (cases hasOut <;>
-          simp only [Bool.false_eq_true, ↓reduceIte, Nat.one_mul] at hr hsum_le ⊢ <;>
-          omega)
+  | .node st hasOut r isMul child, ⟨hr, hch_fan⟩, hout => by
+    set d := (GenPrefixTree.node st hasOut r isMul child).depth
+    have hch_out (i : Fin r) (s : ℕ) : (child i).outAt s ≤ 1 :=
+      (Finset.single_le_sum (f := fun j : Fin r => (child j).outAt s)
+        (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)).trans
+        ((Nat.le_add_left _ _).trans (hout s))
+    have hch (i : Fin r) : 2 * (child i).outCount ≤ 2 ^ d :=
+      calc 2 * (child i).outCount
+          ≤ 2 * 2 ^ (child i).depth := Nat.mul_le_mul_left 2
+            (GenPrefixTree.outCount_le_two_pow (child i) (hch_fan i) (hch_out i))
+        _ = 2 ^ ((child i).depth + 1) := by rw [Nat.pow_succ, Nat.mul_comm]
+        _ ≤ 2 ^ d := Nat.pow_le_pow_right (by decide) (GenPrefixTree.child_depth_lt i)
+    have hsum : 2 * ∑ i : Fin r, (child i).outCount ≤ r * 2 ^ d := by
+      rw [Finset.mul_sum]
+      exact (Finset.sum_le_sum fun i _ => hch i).trans_eq (by simp)
+    have hpos : 1 ≤ 2 ^ d := Nat.one_le_two_pow
+    have hcases : r = 0 ∨ r = 1 ∨ r = 2 := by omega
+    simp only [GenPrefixTree.outCount]
+    rcases hcases with rfl | rfl | rfl <;> cases hasOut <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, Nat.zero_mul, Nat.one_mul] at hr hsum ⊢ <;>
+      omega
 
 
 end Cslib.Circuits.Prefix

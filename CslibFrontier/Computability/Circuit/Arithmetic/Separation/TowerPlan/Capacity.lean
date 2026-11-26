@@ -103,10 +103,9 @@ private theorem minUnits_le (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1) (l : Verte
     single_le_sum (f := fun ω' => √(T.NN2 (T.nEnd i nf ω')) ^ 2) (fun _ _ => sq_nonneg _)
       (mem_univ ω)
   have h4 : (r : ℝ) * Fintype.card (T.X j) / 2 * ∑ e ∈ univ.filter (T.ty · = i), (nf e : ℝ) ^ 2 ≤
-      T.kap nf ^ 2 := by
-    rw [Tower.kap_sq]
-    gcongr
-    exact subset_univ _
+      T.kap nf ^ 2 :=
+    Tower.kap_sq nf ▸ mul_le_mul_of_nonneg_left
+      (sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => sq_nonneg _) (by positivity)
   have h5 : √(T.NN2 (T.nEnd i nf ω)) ^ 2 ≤ 8 * b * T.kap nf ^ 2 := by
     have h6 := (mul_le_mul_of_nonneg_left h3 (by positivity : (0 : ℝ) ≤
       Fintype.card (T.X (j + 1)) / b)).trans
@@ -137,20 +136,18 @@ private theorem moveCount_le_moveCap (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1)
       3 * b * normBound FL Uu A lhat).trans hceil)
   unfold moveCap
   rcases mv with ⟨⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e, hx⟩ | l
-  · have := moveCount_start_le (lhat := lhat) (n := n) (o := o) hx
-    have := batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ
-    have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
-    omega
+  · have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
+    linarith [moveCount_start_le (lhat := lhat) (n := n) (o := o) hx,
+      batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ]
   · exact ((moveCount_relay_le _ hx).trans (hedge j.castSucc e)).trans (Nat.le_add_left _ _)
   · have := (moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx).trans
       (by split_ifs; exacts [hedge j.castSucc e, Nat.zero_le _])
     omega
   · exact ((moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)).trans (Nat.le_add_left _ _)
-  · have h1 := moveCount_vertex_le (lhat := lhat) (n := n) (o := o) l
-    have h2 := minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l
-    have h3 : l.minUnits (load lhat n o) < ⌈3 * (b : ℝ) * normBound FL Uu A lhat⌉₊ + 2 :=
-      Nat.cast_lt (α := ℝ) |>.1 (by push_cast; linarith)
-    omega
+  · refine (moveCount_vertex_le l).trans (Nat.cast_le (α := ℝ) |>.1 ?_)
+    push_cast
+    linarith [minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l,
+      (U0.cast_nonneg : (0 : ℝ) ≤ U0)]
 
 /-- **The tower plan obeys the rules** ([AnthropicVPVNP2026], proof of Theorem H.2, pp. 46–48),
 with the bound `moveCap` for the numbers of units of its moves; the rate `ρ ≤ 1` bounds the norms
@@ -213,8 +210,7 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
   set M := max 1 (√D * ρ) with hMdef
   have hM : (M ^ 2) ^ q ≤ (D : ℝ) ^ (q - 2 * p) := by
     rcases le_total (√D * ρ) 1 with hle | hle
-    · rw [hMdef, max_eq_left hle, one_pow, one_pow]
-      exact one_le_pow₀ hD1
+    · simpa only [hMdef, max_eq_left hle, one_pow] using one_le_pow₀ hD1
     · rw [hMdef, max_eq_right hle, mul_pow, Real.sq_sqrt (zero_le_one.trans hD1)]
       calc ((D : ℝ) * ρ ^ 2) ^ q = (D : ℝ) ^ (q - 2 * p) * (ρ ^ q * (D : ℝ) ^ p) ^ 2 := by
             rw [mul_pow, ← pow_mul, mul_pow, ← pow_mul, ← pow_mul, mul_comm q 2]
@@ -227,12 +223,12 @@ theorem edgeUnitBound_pow_le (hD : 0 < D) (hρ : 0 ≤ ρ) (hh : 0 < h)
   have hb : 0 ≤ edgeBound FL Uu A lhat ρ := by unfold edgeBound; positivity
   have key : (edgeBound FL Uu A lhat ρ ^ q * x ^ p) ^ 2 ≤
       ((2 * (h : ℝ)) ^ q * normBound FL Uu A lhat ^ q) ^ 2 := by
-    have ha : √(2 * h / x) ^ 2 = 2 * h / x := Real.sq_sqrt (by positivity)
+    have haq : (2 * h / x) ^ q = (√(2 * h / x) ^ 2) ^ q := by rw [Real.sq_sqrt (by positivity)]
     have hxq : x ^ (q - 2 * p) * (x ^ p) ^ 2 = x ^ q := by
       rw [← pow_mul, ← pow_add, mul_comm p 2, Nat.sub_add_cancel hpq]
     calc (edgeBound FL Uu A lhat ρ ^ q * x ^ p) ^ 2 =
         (2 * h / x) ^ q * ((M ^ 2) ^ q) ^ J * (normBound FL Uu A lhat ^ q) ^ 2 * (x ^ p) ^ 2 := by
-          rw [edgeBound, ← hMdef, show (2 * h / x) ^ q = (√(2 * h / x) ^ 2) ^ q by rw [ha]]
+          rw [edgeBound, ← hMdef, haq]
           ring
       _ ≤ (2 * h / x) ^ q * ((D : ℝ) ^ J) ^ (q - 2 * p) * (normBound FL Uu A lhat ^ q) ^ 2 *
           (x ^ p) ^ 2 := by

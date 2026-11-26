@@ -431,12 +431,10 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
     rcases List.mem_cons.mp hT with rfl | hT
     · exact ⟨hvalid_cut.1.weaken_pending _, hvalid_cut.2.1, hvalid_cut.2.2⟩
     · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hT
-      by_cases hji : j = i
-      · subst hji
-        simp only [List.getElem_set_self]
-        refine ⟨hvalid_T', ?_, ?_⟩
-        · rw [hcut.par_ne _ hT'_ne_cur, hT'_r]; exact (h.valid _ hTi).2.1
-        · rw [hcut.mark_ne _ hT'_ne_cur, hT'_r]; exact (h.valid _ hTi).2.2
+      rcases eq_or_ne j i with rfl | hji
+      · simp only [List.getElem_set_self]
+        exact ⟨hvalid_T', (hcut.par_ne _ hT'_ne_cur).trans (hT'_r.symm ▸ (h.valid _ hTi).2.1),
+          (hcut.mark_ne _ hT'_ne_cur).trans (hT'_r.symm ▸ (h.valid _ hTi).2.2)⟩
       · rw [List.getElem_set_ne (Ne.symm hji)]
         exact hother j (by simpa using hj) hji
   have hroots' : (m :: cur :: rtail).Perm (ts'.map FHTree.root) := by
@@ -472,10 +470,8 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
     · rw [hcut_r] at hTv ⊢
       exact (h.min_le _ hTi hTi_ne_v).trans ((h.valid _ hTi).1.prioLE_of_mem hcur_Ti)
     · obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hT
-      by_cases hji : j = i
-      · subst hji
-        simp only [List.getElem_set_self, hT'_r] at hTv ⊢
-        exact h.min_le _ hTi hTi_ne_v
+      rcases eq_or_ne j i with rfl | hji
+      · simpa only [List.getElem_set_self, hT'_r] using h.min_le _ hTi hTi_ne_v
       · simp only [List.getElem_set_ne (Ne.symm hji)] at hTv ⊢
         exact h.min_le _ (List.getElem_mem (by simpa using hj)) hTv
   · rcases hv_root with rfl | ⟨Tv, hTv, hTv_r⟩
@@ -814,9 +810,8 @@ theorem wp_cascade {K : ℕ} {s : IndexedMinPQ.State n} {v m : Fin n} (hfit : Fi
         fun g₁ t₁ ht₁ hcut => ?_
       obtain ⟨ts₁, hc₁, hv₁, hpv₁, hp₁⟩ :=
         hcut.cascading h hperm (Or.inr rfl) (Or.inr hv) hzv hz hpar
-      have hpos : 1 ≤ (view n g).numMarked := by
-        rw [h.numMarked]
-        exact Finset.card_pos.mpr ⟨z, by simp [markedSet, hinz, hmz]⟩
+      have hpos : 1 ≤ (view n g).numMarked :=
+        h.numMarked ▸ Finset.card_pos.mpr ⟨z, by simp [markedSet, hinz, hmz]⟩
       refine Record.wp_mono (fun _ g' t ⟨ts', hc', hv', hcost⟩ => ⟨ts', hc', hv', ?_⟩)
         (wp_cascade hfit fuel hc₁ hv₁ hpv₁ hp₁ (by rw [hcut.numMarked]; omega))
       simp only [potential, credit, hcut.numRoots, hcut.numMarked] at hcost ⊢
@@ -873,9 +868,8 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
   have hdone : ∀ g' t, FibRawInv n K (Function.update (abs n g) v (some k)) (view n g') →
       t + potential n g' ≤ 104 + potential n g →
       abs n g' = Function.update (abs n g) v (some k) ∧ Inv n K g' ∧
-        t + potential n g' ≤ 104 + potential n g := fun g' t hinv hcost => by
-    obtain ⟨hI', habs⟩ := inv_of_fibRawInv hinv
-    exact ⟨habs, hI', hcost⟩
+        t + potential n g' ≤ 104 + potential n g := fun g' t hinv hcost =>
+    ⟨(inv_of_fibRawInv hinv).2, (inv_of_fibRawInv hinv).1, hcost⟩
   simp only [decreaseKey, Record.wp_read_bind, Cell.ok]
   refine ⟨v.isLt, ?_⟩
   by_cases hpv : g (.par v) = 0

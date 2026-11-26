@@ -255,52 +255,43 @@ theorem eval_midpoint {e : List Bool → List Bool → Bool} {w : ℕ} {base : Q
   | zero => exact hbase σ
   | succ i ih =>
     -- blocks of level `i + 1` are untouched by the quantifiers of level `i`
-    have hlow (k : ℕ) (hk : k < 3) {j : ℕ} (_ : j < w)
-        (h : blockVar k (i + 1) j ∈ blockVars w 0 i ++ blockVars w 1 i) : False := by
+    have hlow {τ₁ τ₂} (hτ : ∀ x ∉ blockVars w 0 i ++ blockVars w 1 i, τ₂ x = τ₁ x)
+        {k} (hk : k < 3) : block τ₂ w k (i + 1) = block τ₁ w k (i + 1) := by
+      refine block_eq_of_agree hτ fun _ _ h => ?_
       rcases List.mem_append.mp h with h | h <;>
         exact absurd ((blockVar_mem_blockVars hk (by omega)).mp h).2.1 (by omega)
-    have hmid (k : ℕ) (_ : k < 2) {j : ℕ} (_ : j < w)
-        (h : blockVar k (i + 1) j ∈ blockVars w 2 (i + 1)) : False := by
-      rw [blockVar_mem_blockVars (by omega) (by omega)] at h
-      omega
+    have hmid {τ} (hτ : ∀ x ∉ blockVars w 2 (i + 1), τ x = σ x) {k} (hk : k < 2) :
+        block τ w k (i + 1) = block σ w k (i + 1) := by
+      refine block_eq_of_agree hτ fun _ _ h => ?_
+      exact absurd ((blockVar_mem_blockVars (Nat.lt_succ_of_lt hk) (Nat.lt_succ_self 2)).mp h).1
+        (by omega)
     rw [Bool.eq_iff_iff, midpoint, QBF.eval_exs_eq_true_iff]
     simp only [reach, List.any_eq_true, Bool.and_eq_true, BitString.mem_enumList]
     constructor
     · rintro ⟨τ₁, hτ₁, h⟩
       rw [QBF.eval_alls_eq_true_iff] at h
-      have hsrc := block_eq_of_agree hτ₁ (fun _ => hmid 0 (by omega))
-      have hdst := block_eq_of_agree hτ₁ (fun _ => hmid 1 (by omega))
       -- the halves, for the words held by the source and target blocks of level `i`
-      have hhalf : ∀ u v, u.length = w → v.length = w →
-          ((u = block σ w 0 (i + 1) ∧ v = block τ₁ w 2 (i + 1)) ∨
-            (u = block τ₁ w 2 (i + 1) ∧ v = block σ w 1 (i + 1))) → reach e w i u v = true := by
-        intro u v hu hv huv
+      have hhalf {u v : List Bool} (hu : u.length = w) (hv : v.length = w)
+          (huv : (u = block σ w 0 (i + 1) ∧ v = block τ₁ w 2 (i + 1)) ∨
+            (u = block τ₁ w 2 (i + 1) ∧ v = block σ w 1 (i + 1))) :
+          reach e w i u v = true := by
         obtain ⟨τ₂, hτ₂, h₁, h₂⟩ := exists_agree_block τ₁ i hu hv
-        have := h τ₂ hτ₂
-        rw [QBF.eval_imp, Bool.or_eq_true, Bool.not_eq_true', ih, h₁, h₂] at this
-        refine this.resolve_left ?_
-        simp only [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock, h₁, h₂,
-          block_eq_of_agree hτ₂ (fun _ => hlow 0 (by omega)),
-          block_eq_of_agree hτ₂ (fun _ => hlow 1 (by omega)),
-          block_eq_of_agree hτ₂ (fun _ => hlow 2 (by omega)), hsrc, hdst]
-        rcases huv with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> simp
-      exact ⟨block τ₁ w 2 (i + 1), length_block .., hhalf _ _ (length_block ..)
-        (length_block ..) (.inl ⟨rfl, rfl⟩), hhalf _ _ (length_block ..) (length_block ..)
-        (.inr ⟨rfl, rfl⟩)⟩
+        rcases huv with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+          simpa [QBF.eval_imp, halves, QBF.eval_or, QBF.eval_and, eval_eqBlock,
+            hlow hτ₂, hmid hτ₁, h₁, h₂, ih] using h τ₂ hτ₂
+      exact ⟨block τ₁ w 2 (i + 1), length_block ..,
+        hhalf (length_block ..) (length_block ..) (.inl ⟨rfl, rfl⟩),
+        hhalf (length_block ..) (length_block ..) (.inr ⟨rfl, rfl⟩)⟩
     · rintro ⟨m, hm, h₁, h₂⟩
       obtain ⟨τ₁, hτ₁, hτm⟩ := exists_agree_block_one σ (k := 2) (by omega) (i + 1) hm
       refine ⟨τ₁, hτ₁, (QBF.eval_alls_eq_true_iff ..).mpr fun τ₂ hτ₂ => ?_⟩
-      rw [QBF.eval_imp, Bool.or_eq_true, Bool.not_eq_true', ih]
-      by_cases hh : (halves w i).eval τ₂ = true
-      · simp only [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock,
-          block_eq_of_agree hτ₂ (fun _ => hlow 0 (by omega)),
-          block_eq_of_agree hτ₂ (fun _ => hlow 1 (by omega)),
-          block_eq_of_agree hτ₂ (fun _ => hlow 2 (by omega)),
-          block_eq_of_agree hτ₁ (fun _ => hmid 0 (by omega)),
-          block_eq_of_agree hτ₁ (fun _ => hmid 1 (by omega)), hτm,
-          Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at hh
-        exact .inr (hh.elim (fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₁) fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₂)
-      · exact .inl (Bool.eq_false_iff.mpr hh)
+      rw [QBF.eval_imp, ih]
+      cases hh : (halves w i).eval τ₂
+      · rfl
+      · have hh' : (block τ₂ w 0 i = block σ w 0 (i + 1) ∧ block τ₂ w 1 i = m) ∨
+            (block τ₂ w 0 i = m ∧ block τ₂ w 1 i = block σ w 1 (i + 1)) := by
+          simpa [halves, QBF.eval_or, QBF.eval_and, eval_eqBlock, hlow hτ₂, hmid hτ₁, hτm] using hh
+        simpa using hh'.elim (fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₁) fun ⟨ha, hb⟩ => ha ▸ hb ▸ h₂
 
 /-- The free variables of the midpoint formula of level `i` lie in the source and target blocks
 of level `i`, as soon as those of the formula of level `0` lie in the blocks of level `0`. -/

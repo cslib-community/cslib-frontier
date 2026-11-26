@@ -116,8 +116,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
       (hd : det2 (z x) (z y) ≠ 0) : 1 ≤ fn (x, y) ∧ (det2 (z x) (z y) < 0 → 2 ≤ fn (x, y)) :=
     one_or_two_le_sum_rayCross c hx hy hd
   have hne {i j : Fin 3} {x y : F} (hx : inOpenSector i (z x)) (hy : inOpenSector j (z y))
-      (hij : i ≠ j) : x ≠ y := by
-    rintro rfl; exact hij (inOpenSector_unique hx hy)
+      (hij : i ≠ j) : x ≠ y := fun h => hij (inOpenSector_unique hx (h ▸ hy))
   have hs_card : s.card = 3 := Finset.card_eq_three.2 ⟨e₀, e₁, e₂, h01, h02, h12, rfl⟩
   have hs_eq {x y w : F} (hx : x ∈ s) (hy : y ∈ s) (hw : w ∈ s) (hxy : x ≠ y) (hyw : y ≠ w)
       (hxw : x ≠ w) : s = {x, y, w} :=
@@ -163,7 +162,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
       simp only [Finset.filter_insert, hn1, hn2, ↓reduceIte]
       exact (Finset.card_filter_le _ _).trans_lt (by simp)
     have hcol : blockColor Q q R ω B = c₀ :=
-      blockColor_of_strict_majority hinj fun c' hc' => by rw [hcnt_c₀]; exact hcnt_lt c' hc'
+      blockColor_of_strict_majority hinj fun c' hc' => hcnt_c₀ ▸ hcnt_lt c' hc'
     obtain ⟨hr1, hr2⟩ : 1 ≤ fn (a₂, b) ∧ 1 ≤ fn (b, a₁) := by
       rcases hadj c₀ c₁ hc01 with rfl | rfl
       · rw [fn_swap b]
@@ -173,8 +172,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
         exact ⟨(hfn h_b h_a₂ (hdet _ hb _ ha₂ _ _ h_b h_a₂ hc01.symm)).1,
           (hfn h_b h_a₁ (hdet _ hb _ ha₁ _ _ h_b h_a₁ hc01.symm)).1⟩
     rw [hcol, hcnt_c₀] at hbad_compl
-    have := hsum3 ha₁ ha₂ hb ha12 ha2b ha1b.symm
-    omega
+    linarith [hsum3 ha₁ ha₂ hb ha12 ha2b ha1b.symm]
   by_cases hs01 : s₀ = s₁
   · subst hs01
     by_cases hs02 : s₀ = s₂
@@ -242,10 +240,8 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
             rw [hs_u, Finset.sum_insert (by simp [hu01, hu20.symm]), Finset.sum_pair hu12] at h1
             simp only [wt, ↓reduceIte, hu01, hu01.symm, hu12, hu12.symm, hu20, hu20.symm] at h1
             linarith
-          refine ⟨wt e₀, wt e₁, wt e₂, hwt e₀, hwt e₁, hwt e₂, ?_, ?_, ?_⟩
-          · linarith [hsum_s fun _ => 1]
-          · rw [hsum_s fun e => (z e).1, hx']
-          · rw [hsum_s fun e => (z e).2, hy']
+          exact ⟨wt e₀, wt e₁, wt e₂, hwt e₀, hwt e₁, hwt e₂, by linarith [hsum_s fun _ => 1],
+            (hsum_s fun e => (z e).1).trans hx', (hsum_s fun e => (z e).2).trans hy'⟩
         · refine le_trans ?_ (Nat.le_add_right _ _)
           by_contra hgt
           exact hall_pos
@@ -268,9 +264,7 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
           then 1 else 0)) := by
     rw [Finset.card_filter]
     refine Finset.sum_le_sum fun e _ => ?_
-    split_ifs with hcut hs ht
-    all_goals try omega
-    exact absurd (inOpenSector_unique hs ht) hcut
+    split_ifs with hcut hs ht <;> first | omega | exact absurd (inOpenSector_unique hs ht) hcut
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,

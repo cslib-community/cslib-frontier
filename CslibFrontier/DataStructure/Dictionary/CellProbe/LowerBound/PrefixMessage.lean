@@ -177,9 +177,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
         fun h0 => hp_ne (by simp only [h0, ENNReal.zero_div]))
     obtain ⟨hWx, rfl⟩ := Prod.mk.inj hx_eq
     have hW_true := of_decide_eq_true hWx
-    have hx_Fg : x.2 ∈ ctx.Fg x.1 := by
-      by_contra hnFg
-      exact (ENNReal.toReal_pos ((_root_.PMF.mem_support_iff μ_g x).mp hx_supp)
+    have hx_Fg : x.2 ∈ ctx.Fg x.1 := of_not_not fun hnFg =>
+      (ENNReal.toReal_pos ((_root_.PMF.mem_support_iff μ_g x).mp hx_supp)
         (PMF.apply_ne_top μ_g x)).ne' (by rw [toReal_innerPoolDist_apply, ite_eq_right hnFg])
     exact ⟨hx_Fg, hW_true.1, hW_true.2⟩
   -- Define execution objects and 6-piece codeword on Ω
@@ -255,8 +254,7 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     obtain ⟨ha, hobs_rest⟩ := Prod.mk.inj hobs
     obtain ⟨hB, hd⟩ := Prod.mk.inj hobs_rest
     have hA_eq : sb₁.1.insertedSet t₀ m ht₀ = sb₂.1.insertedSet t₀ m ht₀ := by
-      dsimp only [HardKeyValSeed.insertedSet]
-      rw [Function.Embedding.ext (congrFun ha)]
+      simp only [HardKeyValSeed.insertedSet, Function.Embedding.ext (congrFun ha)]
     obtain ⟨hm₁, hp2⟩ := prefix_append_of_length_eq
       (by simp only [m₁, length_encodeRestr, hB]) hpref
     have hkvB : ∀ x ∈ sb₁.2, sb₁.1.kv x = sb₂.1.kv x := encodeRestr_inj hB hm₁
@@ -292,8 +290,7 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
             of_not_not fun hne => hjΔ (Finset.mem_filter.mpr ⟨hjI, hne⟩)
           have hj₂ : C_A sb₂ j = CB_sim sb₂ j :=
             of_not_not fun hne => (hΔ ▸ hjΔ) (Finset.mem_filter.mpr ⟨hI_AB ▸ hjI, hne⟩)
-          dsimp only [CB_sim] at hj₁ hj₂
-          rw [hj₁, hj₂, hcm, hopsB]
+          simp only [hj₁, hj₂, CB_sim, hcm, hopsB]
         · have hrec (sb : Ω) (hnot : j ∉ I_AB sb) : C_A sb j = C_mix sb j :=
             (mixMem_eq_postMem_of_notMem_inter D_det step₀ (C_bef sb) (ops_A sb)
               (S_B sb) (S_B sb) Finset.inter_subset_left
@@ -364,13 +361,12 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
   -- Lower bound Real.logb 2 M_nat
   have hlog_M : benchmarkBits U V n + (3 / 2) * (m : ℝ) * Real.logb 2 V -
       (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) - 5 * (m : ℝ) ≤ Real.logb 2 (M_nat : ℝ) := by
-    have hc_pos : (0 : ℝ) < ((U - 3 * m).choose (n - m) : ℝ) := by
-      exact_mod_cast Nat.choose_pos (by omega)
-    have hv_pos : (0 : ℝ) < ((V ^ (n + 2 * m - g) : ℕ) : ℝ) := by exact_mod_cast Nat.pow_pos hV
+    have hc_pos : (0 : ℝ) < ((U - 3 * m).choose (n - m) : ℝ) := mod_cast Nat.choose_pos (by omega)
+    have hv_pos : (0 : ℝ) < ((V ^ (n + 2 * m - g) : ℕ) : ℝ) := mod_cast Nat.pow_pos hV
     have hchoose_gap := logb_choose_sub_logb_sub_three_mul_choose_sub_le hU
       (by omega : 1 ≤ m) (by omega : m ≤ n)
+    have hg_le : 2 * (g : ℝ) ≤ (m : ℝ) := mod_cast (by omega : 2 * g ≤ m)
     have hexp_ge : (n : ℝ) + (3 / 2) * (m : ℝ) ≤ ((n + 2 * m - g : ℕ) : ℝ) := by
-      have : 2 * (g : ℝ) ≤ (m : ℝ) := by exact_mod_cast (by omega : 2 * g ≤ m)
       rw [Nat.cast_sub (by omega), Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
       linarith
     have hv_gap := mul_le_mul_of_nonneg_right hexp_ge
@@ -390,8 +386,7 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       dite_eq_left hBc'
     obtain ⟨_, _, hSB_eq, hCB_on⟩ := runInterval_mixMem_eq_of_probedCellsInterval_subset D_det
       step₀ (C_bef sb) (C_A sb) (S_B sb) (ops_B sb) subset_rfl
-    have hSB_cap : ((S_B sb).card : ℝ) ≤ (m : ℝ) * t := by
-      simpa only [S_B, hopsB_eq] using hSB_le_raw
+    have hSB_cap : ((S_B sb).card : ℝ) ≤ (m : ℝ) * t := by simpa [S_B, hopsB_eq] using hSB_le_raw
     have hΔ_cap : ((Δ_set sb).card : ℝ) ≤ γ * (m : ℝ) := by
       have heq_set : Δ_set sb = (S_A sb ∩ S_B sb).filter fun j => C_A sb j ≠ C_B sb j := by
         simpa only [Δ_set, I_AB, SB_sim, CB_sim, C_mix, hSB_eq] using
@@ -424,16 +419,15 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
           Real.logb_rpow_eq_mul_logb_of_pos hU_pos]
       linarith [(clog_two_lt_logb_add_one hK_pos).le]
     simp only [msg, List.length_append, Nat.cast_add]; linarith
-  set C_upper := benchmarkBits U V n + (m : ℝ) * Real.logb 2 V + 2 * R +
+  let C_upper := benchmarkBits U V n + (m : ℝ) * Real.logb 2 V + 2 * R +
     2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + γ * (m : ℝ) * Real.logb 2 U + 3
   have hexp_msg : (∑ sb : Ω, (p sb).toReal * ((msg sb).length : ℝ)) ≤ C_upper := by
-    refine (Finset.sum_le_sum fun sb _ => ?_).trans_eq
-      (by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul] : ∑ sb, (p sb).toReal * C_upper = _)
-    by_cases hsb : sb ∈ p.support
-    · exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
-    · simp [(_root_.PMF.apply_eq_zero_iff p sb).2 hsb]
-  have hm_real : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
-  dsimp only [C_upper] at hexp_msg
+    refine (Finset.sum_le_sum (g := fun sb => (p sb).toReal * C_upper) fun sb _ => ?_).trans_eq ?_
+    · by_cases hsb : sb ∈ p.support
+      · exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
+      · simp [(_root_.PMF.apply_eq_zero_iff p sb).2 hsb]
+    · rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul]
+  have hm_real : (2 : ℝ) ≤ (m : ℝ) := mod_cast hm
   linarith
 
 end Cslib.DataStructure.Dictionary.CellProbe

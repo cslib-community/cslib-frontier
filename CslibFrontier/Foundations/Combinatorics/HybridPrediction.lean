@@ -92,12 +92,9 @@ private theorem hybrid_succ (E : ∀ t, Z t → Bool) (i : Fin T) (b : Bool) (z 
     (u : Fin T → Bool) :
     hybrid E ((i : ℕ) + 1) (b, z, u) = update (hybrid E i (b, z, u)) i (z i, E i (z i) + b) := by
   funext t
-  by_cases h : t = i
-  · subst h
-    simp [hybrid]
-  · have hne : (t : ℕ) ≠ i := fun h' => h (Fin.ext h')
-    have hlt : (t : ℕ) < i + 1 ↔ (t : ℕ) < i := by omega
-    simp [hybrid, update_of_ne h, hlt]
+  rcases eq_or_ne t i with rfl | h
+  · simp [hybrid]
+  · simp [hybrid, h, Fin.val_ne_of_ne h, Nat.lt_succ_iff_lt_or_eq]
 
 /-- The two samples that differ in the trial bit `u` contribute the same to both sides. Here
 `g y` is the decoder's output with `y` at the predicted position, `e` is the channel's value and
@@ -126,9 +123,7 @@ private theorem guesses_step (E : ∀ t, Z t → Bool) (D : (∀ t, Z t × Bool)
     2 * guesses E D i + 2 * hits E D i =
       Fintype.card (Sample Z) + 2 * hits E D ((i : ℕ) + 1) := by
   let τ : Sample Z → Sample Z := fun ω => (ω.1, ω.2.1, update ω.2.2 i (!ω.2.2 i))
-  have hτ : Involutive τ := by
-    rintro ⟨b, z, u⟩
-    simp [τ]
+  have hτ : Involutive τ := fun ⟨b, z, u⟩ => by simp [τ]
   let G : Sample Z → ℕ := fun ω => if ω.2.2 i + D (hybrid E i ω) = E i (ω.2.1 i) then 1 else 0
   let H : ℕ → Sample Z → ℕ := fun j ω => if D (hybrid E j ω) = ω.1 then 1 else 0
   have hG : ∑ ω, G (τ ω) = ∑ ω, G ω := Equiv.sum_comp (Involutive.toPerm τ hτ) G
@@ -153,15 +148,11 @@ exactly half of the samples. -/
 private theorem two_mul_hits_zero (E : ∀ t, Z t → Bool) (D : (∀ t, Z t × Bool) → Bool) :
     2 * hits E D 0 = Fintype.card (Sample Z) := by
   let σ : Sample Z → Sample Z := fun ω => (!ω.1, ω.2)
-  have hσ : Involutive σ := by
-    rintro ⟨b, z, u⟩
-    simp [σ]
+  have hσ : Involutive σ := fun ⟨b, z, u⟩ => by simp [σ]
   let F : Sample Z → ℕ := fun ω => if D (hybrid E 0 ω) = ω.1 then 1 else 0
   have hsum : ∑ ω, F (σ ω) = ∑ ω, F ω := Equiv.sum_comp (Involutive.toPerm σ hσ) F
   have hpair (b : Bool) (z : ∀ t, Z t) (u : Fin T → Bool) : F (b, z, u) + F (σ (b, z, u)) = 1 := by
-    have h0 : hybrid E 0 (!b, z, u) = hybrid E 0 (b, z, u) := by
-      funext t
-      simp [hybrid]
+    have h0 : hybrid E 0 (!b, z, u) = hybrid E 0 (b, z, u) := funext fun _ => by simp [hybrid]
     dsimp only [F, σ]
     rw [h0]
     generalize D (hybrid E 0 (b, z, u)) = d
@@ -177,11 +168,7 @@ private theorem hits_top (E : ∀ t, Z t → Bool) (D : (∀ t, Z t × Bool) →
     hits E D T = Fintype.card (Sample Z) := by
   rw [hits, filter_true_of_mem, card_univ]
   rintro ⟨b, z, u⟩ -
-  have h : hybrid E T (b, z, u) = fun t => (z t, E t (z t) + b) := by
-    funext t
-    simp [hybrid, t.isLt]
-  rw [h]
-  exact hD z b
+  exact (congrArg D (funext fun t => by simp [hybrid, t.isLt])).trans (hD z b)
 
 /-- **Predicting a masked channel.** Let `D` recover `b` from the pairs `(z t, E t (z t) + b)`,
 `t < T`, for every choice of the inputs `z` and the bit `b`. Then for some channel `t`, some pairs
@@ -219,9 +206,7 @@ theorem exists_card_add_decode_update_eq [∀ t, Nonempty (Z t)]
         Fintype.card (Z i) * guesses E D i := by
     let φ : Sample Z × Z i → Sample Z × Z i :=
       fun p => ((p.1.1, update p.1.2.1 i p.2, p.1.2.2), p.1.2.1 i)
-    have hφ : Involutive φ := by
-      rintro ⟨⟨b, z, u⟩, x⟩
-      simp [φ]
+    have hφ : Involutive φ := fun ⟨⟨b, z, u⟩, x⟩ => by simp [φ]
     let F : Sample Z × Z i → ℕ := fun p =>
       if p.1.2.2 i + D (update (hybrid E i p.1) i (p.2, p.1.2.2 i)) = E i p.2 then 1 else 0
     have hpt (b : Bool) (z : ∀ t, Z t) (u : Fin T → Bool) (x : Z i) :
@@ -236,9 +221,7 @@ theorem exists_card_add_decode_update_eq [∀ t, Nonempty (Z t)]
       _ = ∑ ω : Sample Z, ∑ _x : Z i,
           if ω.2.2 i + D (hybrid E i ω) = E i (ω.2.1 i) then 1 else 0 := by
         rw [Fintype.sum_prod_type]
-        refine sum_congr rfl ?_
-        rintro ⟨b, z, u⟩ -
-        exact sum_congr rfl fun x _ => hpt b z u x
+        exact sum_congr rfl fun ⟨b, z, u⟩ _ => sum_congr rfl fun x _ => hpt b z u x
       _ = Fintype.card (Z i) * guesses E D i := by
         simp only [sum_const, card_univ, smul_eq_mul, guesses, card_filter, mul_sum]
   obtain ⟨ω, -, hω⟩ := exists_le_of_sum_le (s := univ)

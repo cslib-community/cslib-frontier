@@ -75,26 +75,22 @@ theorem intersectionParity_line_line (a b c d : ℂ) :
       decide ((openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty) := by
   unfold intersectionParity
   change (∑ i : Fin 1, ∑ j : Fin 1, _) = _
-  rw [Fin.sum_univ_one, Fin.sum_univ_one]
-  rfl
+  rw [Fin.sum_univ_one, Fin.sum_univ_one]; rfl
 
 /-- Nonzero complex multiplication preserves incidence of the open segment pairs. -/
 theorem intersectionParity_mulComplex (p q : Route) {u : ℂ} (hu : u ≠ 0) :
     (mulComplex u p).intersectionParity (mulComplex u q) = p.intersectionParity q := by
   classical
   let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-  have hf : Function.Injective f := fun _ _ h => mul_left_cancel₀ hu h
+  have hf : Function.Injective f.toAffineMap := fun _ _ h => mul_left_cancel₀ hu h
   unfold intersectionParity
   change (∑ i : Fin p.segments, ∑ j : Fin q.segments, _) = _
-  apply Finset.sum_congr rfl
-  intro i _
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => ?_
   change decide ((openSegment ℝ (f.toAffineMap (p.point i.castSucc))
     (f.toAffineMap (p.point i.succ))) ∩ openSegment ℝ
     (f.toAffineMap (q.point j.castSucc)) (f.toAffineMap (q.point j.succ))).Nonempty = _
   rw [← image_openSegment ℝ f.toAffineMap, ← image_openSegment ℝ f.toAffineMap,
-    ← Set.image_inter (show Function.Injective f.toAffineMap from hf), Set.image_nonempty]
+    ← Set.image_inter hf, Set.image_nonempty]
 
 /-- A finite family of routes with nondegenerate pieces admits one coordinate factor
 making every piece nonhorizontal. -/
@@ -154,11 +150,8 @@ theorem sum_intersectionParity_eq_false_of_even {ι κ : Type*} [Fintype ι] [Fi
     (∑ j, y j * ∑ i, x i * (p i).intersectionParity (q j)) = false := by
   classical
   let routes : ι ⊕ κ → Route := Sum.elim p q
-  have hne (i : ι ⊕ κ) (k : Fin (routes i).segments) :
-      (routes i).point k.castSucc ≠ (routes i).point k.succ := by
-    cases i with
-    | inl i => exact hp i k
-    | inr j => exact hq j k
+  have hne : ∀ i (k : Fin (routes i).segments),
+      (routes i).point k.castSucc ≠ (routes i).point k.succ := Sum.rec hp hq
   obtain ⟨u, hu, hheight⟩ := exists_mul_im_ne_of_segments_ne routes hne
   let a (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.castSucc
   let b (k : (i : ι) × Fin (p i).segments) := u * (p k.1).point k.2.succ

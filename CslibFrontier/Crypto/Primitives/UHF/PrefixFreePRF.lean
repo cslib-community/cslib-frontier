@@ -318,11 +318,8 @@ theorem eval_prfIdealGameOn_prefixFreeCollisionReduction_le
         cachedDistOracle (oracleValid n) dist request cache =
           dist.map (fun reply => (reply, (request, reply) :: cache)) := by
       simp [cachedDistOracle, hValid, memoize, hMiss, PMF.map, Function.comp_def]
-    have hSecond (reply : List Bool) :
-        cachedDistOracle (oracleValid n) dist right [(left, reply)] =
-          dist.map (fun other => (other, [(right, other), (left, reply)])) := by
-      apply hFresh hRight
-      simp [List.lookup_cons, beq_eq_false_iff_ne.mpr hDistinct.symm]
+    have hSecond (reply : List Bool) := hFresh (cache := [(left, reply)]) hRight
+      (by simp [List.lookup_cons, beq_eq_false_iff_ne.mpr hDistinct.symm])
     simp only [ite_eq_left hg, map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def,
       ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
     change ((cachedDistOracle (oracleValid n) dist left []).bind (fun a =>
@@ -628,9 +625,7 @@ theorem succProbability_multiQueryGame_le_real_prefixFreeBatchReduction
         messages.length * maxBlocks := by
       simpa [nsmul_eq_mul] using
         List.sum_le_length_nsmul (messages.map fun word => word.length / width n) maxBlocks
-          (fun k hk => by
-            obtain ⟨word, hm, rfl⟩ := List.mem_map.mp hk
-            exact hBlocks word (hvalid word hm))
+          (List.forall_mem_map.mpr fun word hm => hBlocks word (hvalid word hm))
     have hsize := (hcount.trans (Nat.mul_le_mul_right _ hlen)).trans_lt
       (by simpa only [Nat.mul_comm] using hAlphabet)
     obtain ⟨block, hblock⟩ := Option.isSome_iff_exists.mp
@@ -733,10 +728,9 @@ theorem eval_prfIdealGameOn_prefixFreeBatchReduction_le
       ProbOracleComp.runWith oracle program [] := by
     rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
     congr 1
-    refine hCalls.interpret_congr fun req hreq => ?_
-    cases req with
-    | inl _ => rfl
-    | inr req => exact funext fun cache => ite_eq_left hreq
+    exact hCalls.interpret_congr fun
+      | .inl _, _ => rfl
+      | .inr _, hreq => funext fun _ => ite_eq_left hreq
   let send (word : List Bool) : WordOracleComp Unit (List Bool) := ProbOracleComp.query ((), word)
   have hSim : ProbOracleComp.simulate send program =
       words.mapM fun word => List.take (outLen n) <$> send word := by

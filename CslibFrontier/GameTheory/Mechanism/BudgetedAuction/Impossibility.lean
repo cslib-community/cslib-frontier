@@ -310,22 +310,15 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
   rcases lt_or_eq_of_le hbind with hstrict | heq
   · have hpay_bind (w : ℝ) (hw : (θ i).val < w) :
         (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j = (θ j).budget :=
-      hpay_if_lt w hw (lt_of_le_of_lt (hupper w hw) ((div_lt_iff₀ hv_i_pos).mpr (by linarith)))
+      hpay_if_lt w hw
+        (lt_of_le_of_lt (hupper w hw) ((div_lt_iff₀ hv_i_pos).mpr (mul_comm (θ i).val m ▸ hstrict)))
     have hp_s : (M.outcome θ).payment j = (θ j).budget := by
       simpa only [Function.update_eq_self] using hpay_bind (θ j).val hlt_ij
-    have hx_const (w : ℝ) (hw : (θ i).val < w) :
-        (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j = (M.outcome θ).alloc j := by
-      have hw_pos : 0 < w := hv_i_pos.trans hw
-      have hθw := update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hw_pos, hB_j_pos⟩
-      have h1 := hic θ hθ j ⟨w, (θ j).budget⟩ ⟨hw_pos, hB_j_pos⟩ (hpay_bind w hw).le
-      have h2 := hic _ hθw j (θ j) (hθ j) (by
-        simpa only [Function.update_idem, Function.update_eq_self, Function.update_self] using
-          hp_s.le)
-      simp only [Outcome.utility, Function.update_idem, Function.update_eq_self,
-        Function.update_self, hpay_bind w hw, hp_s] at h1 h2
-      exact le_antisymm
-        (le_of_mul_le_mul_left (by linarith : (θ j).val * _ ≤ (θ j).val * _) (hθ j).1)
-        (le_of_mul_le_mul_left (by linarith : w * _ ≤ w * _) hw_pos)
+    have hx_le (w : ℝ) (hw : (θ i).val < w) :
+        (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j ≤ (M.outcome θ).alloc j := by
+      have h1 := hic θ hθ j ⟨w, (θ j).budget⟩ ⟨hv_i_pos.trans hw, hB_j_pos⟩ (hpay_bind w hw).le
+      simp only [Outcome.utility, hpay_bind w hw, hp_s] at h1
+      nlinarith only [h1, (hθ j).1]
     have hlow : (θ j).budget / (θ i).val ≤ (M.outcome θ).alloc j := by
       rw [div_le_iff₀ hv_i_pos]
       by_contra! hlt
@@ -336,10 +329,10 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       have hw : (θ i).val < w := lt_add_of_pos_right _ (div_pos (sub_pos.mpr hlt) (by positivity))
       have hiru := payment_le_of_ir hir
         (update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hv_i_pos.trans hw, hB_j_pos⟩) j
-      simp only [Function.update_self, hx_const w hw, hpay_bind w hw] at hiru
+      simp only [Function.update_self, hpay_bind w hw] at hiru
       have hwx : w * x = x * (θ i).val + ((θ j).budget - x * (θ i).val) / 2 := by
         dsimp only [w]; field_simp [hx_pos.ne']
-      linarith
+      nlinarith only [hiru, hlt, hwx, hx_le w hw, hv_i_pos.trans hw]
     exact ⟨le_antisymm hup_self hlow, by linarith, hother0, fun _ => hp_s⟩
   · -- Boundary case `(θ j).budget = (θ i).val * m`: then `budget / v_i = m`.
     have hdiv_eq : (θ j).budget / (θ i).val = m := heq ▸ mul_div_cancel_left₀ m hv_i_pos.ne'

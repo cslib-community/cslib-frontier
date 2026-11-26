@@ -271,8 +271,7 @@ theorem kickTreeWords_le_succinctWords (C C₀ U V w n_max : ℕ) :
 theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
     totalSpace p ≤
       kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax := by
-  have hq_eq : quotBits p = fullQuotBits p.U p.nMax := by
-    unfold quotBits; split_ifs; rfl
+  have hq_eq : quotBits p = fullQuotBits p.U p.nMax := ite_eq_left hq
   rw [totalSpace_eq]
   unfold quotWords; rw [hq_eq]
   have h12 := packedWords_add_le p.nMax (fullQuotBits p.U p.nMax) p.nMax (valBits p.V) p.w
@@ -470,9 +469,8 @@ theorem writeQuotMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
       metaAt base p (writeQuotMem base p mem idx val) = metaAt base p mem ∧
       (∀ a, ¬(base + offQuot p ≤ a ∧ a < base + offQuot p + quotWords p) →
         writeQuotMem base p mem idx val a = mem a) := by
-  have hout : ∀ a, ¬(base + offQuot p ≤ a ∧ a < base + offQuot p + quotWords p) →
-      writeQuotMem base p mem idx val a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val ha
+  have hout (a : ℕ) :=
+    writePacked_outside (base := base + offQuot p) (k := quotBits p) hw mem hidx val (addr := a)
   refine ⟨readPacked_writePacked_bounded hw hidx hval mem,
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
@@ -493,9 +491,8 @@ theorem writeValMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (me
       metaAt base p (writeValMem base p mem idx val) = metaAt base p mem ∧
       (∀ a, ¬(base + offVal p ≤ a ∧ a < base + offVal p + valWords p) →
         writeValMem base p mem idx val a = mem a) := by
-  have hout : ∀ a, ¬(base + offVal p ≤ a ∧ a < base + offVal p + valWords p) →
-      writeValMem base p mem idx val a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val ha
+  have hout (a : ℕ) :=
+    writePacked_outside (base := base + offVal p) (k := valBits p.V) hw mem hidx val (addr := a)
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
       hout a (by wram_omega)),
     readPacked_writePacked_bounded hw hidx hval mem,
@@ -515,9 +512,8 @@ theorem writeOccMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (me
       metaAt base p (writeOccMem base p mem idx val) = metaAt base p mem ∧
       (∀ a, ¬(base + offOcc p ≤ a ∧ a < base + offOcc p + occWords p) →
         writeOccMem base p mem idx val a = mem a) := by
-  have hout : ∀ a, ¬(base + offOcc p ≤ a ∧ a < base + offOcc p + occWords p) →
-      writeOccMem base p mem idx val a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val ha
+  have hout (a : ℕ) :=
+    writePacked_outside (base := base + offOcc p) (k := 1) hw mem hidx val (addr := a)
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
       hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
@@ -539,9 +535,8 @@ theorem writeElevMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
       metaAt base p (writeElevMem base p mem idx val) = metaAt base p mem ∧
       (∀ a, ¬(base + offElev p ≤ a ∧ a < base + offElev p + elevWords p) →
         writeElevMem base p mem idx val a = mem a) := by
-  have hout : ∀ a, ¬(base + offElev p ≤ a ∧ a < base + offElev p + elevWords p) →
-      writeElevMem base p mem idx val a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val ha
+  have hout (a : ℕ) :=
+    writePacked_outside (base := base + offElev p) (k := 1) hw mem hidx val (addr := a)
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
       hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
@@ -563,9 +558,8 @@ theorem writeMetaMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
         Function.update (metaAt base p mem) idx val ∧
       (∀ a, ¬(base + offMeta p ≤ a ∧ a < base + offMeta p + metaWords p) →
         writeMetaMem base p mem idx val a = mem a) := by
-  have hout : ∀ a, ¬(base + offMeta p ≤ a ∧ a < base + offMeta p + metaWords p) →
-      writeMetaMem base p mem idx val a = mem a := fun a ha =>
-    writePacked_outside hw mem hidx val ha
+  have hout (a : ℕ) :=
+    writePacked_outside (base := base + offMeta p) (k := metaBits p) hw mem hidx val (addr := a)
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
       hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
