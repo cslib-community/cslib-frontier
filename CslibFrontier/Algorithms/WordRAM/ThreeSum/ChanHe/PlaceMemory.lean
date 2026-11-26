@@ -54,25 +54,16 @@ theorem memory_heavy (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
   induction k generalizing j with
   | zero => simp only [heavyList, List.length_nil] at hj; omega
   | succ k ih =>
-    let L := heavyList values n M k
-    have hl : L.length ≤ k := length_heavyList_le values n M k
-    have hlen : (heavyList values n M k).length = L.length := rfl
+    have hl := length_heavyList_le values n M k
     by_cases hh : 1 < Histogram.count (fun i => residueKey M (values i)) n
-        (residueKey M (values k))
-    · have hlist : heavyList values n M (k + 1) = L ++ [values k] := by
-        simp only [heavyList, hh, ↓reduceIte, L]
-      simp only [hlist] at hj ⊢
-      simp only [memory, write, hh, ↓reduceIte]
-      by_cases hj' : j < L.length
+        (residueKey M (values k)) <;>
+      simp only [heavyList, memory, write, hh, ↓reduceIte, List.append_nil] at hj ⊢
+    · by_cases hj' : j < (heavyList values n M k).length
       · rw [Function.update_of_ne (by omega), ih (by omega) hj', List.getElem_append_left hj']
-      · obtain rfl : j = L.length := by
-          rw [List.length_append, List.length_singleton] at hj; omega
-        rw [Function.update_self]; simp
-    · have hlist : heavyList values n M (k + 1) = L := by
-        simp only [heavyList, hh, ↓reduceIte, List.append_nil, L]
-      simp only [hlist] at hj ⊢
-      simp only [memory, write, hh, ↓reduceIte]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+      · obtain rfl : j = (heavyList values n M k).length := by
+          simp only [List.length_append, List.length_singleton] at hj; omega
+        simp
+    · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       exact ih (by omega) hj
 
 /-- The signed target keys identify exactly the same buckets as the original keys. -/
@@ -80,8 +71,7 @@ theorem targetKey_eq_iff {M : ℕ} (hM : 0 < M) (neg : Bool) (a b : ℤ) :
     targetKey M neg a = targetKey M neg b ↔ residueKey M a = residueKey M b := by
   rw [targetKey_eq hM, targetKey_eq hM]
   cases neg
-  · rfl
-  · exact residueKey_neg_eq_iff hM a b
+  exacts [Iff.rfl, residueKey_neg_eq_iff hM a b]
 
 /-- The two copies cannot alias another bucket's cells. -/
 theorem targetKey_eq_of_address_eq {M dst col dist r s : ℕ} (hr : r < M) (hs : s < M)
@@ -107,21 +97,18 @@ theorem memory_light (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
   | succ k ih =>
     have hl := length_heavyList_le values n M k
     simp only [memory, write]
-    by_cases hh : 1 < Histogram.count (fun j => residueKey M (values j)) n
-        (residueKey M (values k))
-    · rw [ite_eq_left hh, Function.update_of_ne (by omega)]
+    split_ifs with hh
+    · rw [Function.update_of_ne (by omega)]
       exact ih (by omega) ((Nat.lt_succ_iff_lt_or_eq.mp hi).resolve_right (by rintro rfl; omega))
-    · rw [ite_eq_right hh]
-      by_cases he : i = k
-      · subst i
-        rcases ha with rfl | rfl <;> simp [Function.update_apply]
-      · have hne (b : ℕ)
-            (hb : b = dst + 4 * targetKey M neg (values k) + col ∨
-              b = dst + 4 * targetKey M neg (values k) + col + dist) : a ≠ b := fun hab =>
+    · rcases eq_or_ne i k with rfl | he
+      · rcases ha with rfl | rfl <;> simp [Function.update_apply]
+      · have hlt (j : ℕ) : targetKey M neg (values j) < M :=
+          targetKey_eq hM neg _ ▸ residueKey_lt hM _
+        have hne (b : ℕ) (hb : b = dst + 4 * targetKey M neg (values k) + col ∨
+            b = dst + 4 * targetKey M neg (values k) + col + dist) : a ≠ b := fun hab =>
           he (eq_of_count_one values n M (by omega) (by omega) hlight
-            ((targetKey_eq_iff hM neg (values i) (values k)).mp (targetKey_eq_of_address_eq
-              (by rw [targetKey_eq hM]; exact residueKey_lt hM _)
-              (by rw [targetKey_eq hM]; exact residueKey_lt hM _) hd ha (hab ▸ hb))))
+            ((targetKey_eq_iff hM neg (values i) (values k)).mp
+              (targetKey_eq_of_address_eq (hlt i) (hlt k) hd ha (hab ▸ hb))))
         rw [Function.update_of_ne (hne _ (Or.inr rfl)),
           Function.update_of_ne (hne _ (Or.inl rfl))]
         exact ih (by omega) (by omega)
@@ -172,23 +159,18 @@ theorem memory_arrXY (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
     rw [memory_light mem values n M out dst col 0 t false hM (Or.inl rfl)
       hdisj le_rfl (Finset.mem_range.mp hj) hlight (a := dst + 4 * i + col)
       (Or.inl (by simp only [targetKey, Bool.false_eq_true, ↓reduceIte, hkey]))]
-    dsimp only [S] at hc hz
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrXY,
-      Cslib.Algorithms.ThreeSum.ChanHe.arr, ↓reduceIte, hz, Finset.sum_singleton,
-      Finset.card_singleton, signedValue, Bool.false_eq_true]
-  · have he := memory_unwritten mem values n M out dst col 0 t false hdisj
-      (k := n) (a := dst + 4 * i + col) le_rfl (by omega) (by
-        intro j hj hlight
-        have hne : dst + 4 * i + col ≠ dst + 4 * targetKey M false (values j) + col := by
-          intro heq
-          have hkey : residueKey M (values j) = i := by
-            change dst + 4 * i + col = dst + 4 * residueKey M (values j) + col at heq; omega
-          exact hc (by rwa [← count_eq_card_bucket values n hM hinj, ← hkey])
-        exact ⟨hne, by simpa only [Nat.add_zero] using hne⟩)
-    rw [he, hpad]
-    dsimp only [S] at hc
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrXY,
-      Cslib.Algorithms.ThreeSum.ChanHe.arr, hc, ↓reduceIte]
+    simp only [S, Cslib.Algorithms.ThreeSum.ChanHe.arrXY, Cslib.Algorithms.ThreeSum.ChanHe.arr,
+      ↓reduceIte, hz, Finset.sum_singleton, Finset.card_singleton, signedValue,
+      Bool.false_eq_true]
+  · simp only [S, Cslib.Algorithms.ThreeSum.ChanHe.arrXY, Cslib.Algorithms.ThreeSum.ChanHe.arr,
+      hc, ↓reduceIte, ← hpad]
+    refine memory_unwritten mem values n M out dst col 0 t false hdisj le_rfl (by omega) ?_
+    intro j _ hlight
+    have hne : dst + 4 * i + col ≠ dst + 4 * targetKey M false (values j) + col := fun heq => by
+      have hkey : residueKey M (values j) = i := by
+        simp only [targetKey, Bool.false_eq_true, ↓reduceIte] at heq; omega
+      exact hc (by rwa [← count_eq_card_bucket values n hM hinj, ← hkey])
+    exact ⟨hne, by simpa only [Nat.add_zero] using hne⟩
 
 /-- Below `2M`, a residue occurs at exactly its first and second copies. -/
 theorem mod_eq_iff_copies {M i r : ℕ} (hi : i < 2 * M) (hr : r < M) :
@@ -208,8 +190,7 @@ theorem memory_arrZ (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col 
         ((Finset.range n).image values) M U i + (t : ℤ)) := by
   let vals := fun j => -values j
   let T := (Finset.range n).image vals
-  have hT : ((Finset.range n).image values).image (fun z : ℤ => -z) = T := by
-    rw [Finset.image_image]; rfl
+  have hT : ((Finset.range n).image values).image (fun z : ℤ => -z) = T := Finset.image_image
   have hinj' : Set.InjOn vals (↑(Finset.range n) : Set ℕ) := fun j hj k hk he =>
     hinj hj hk (neg_injective he)
   have hkey (j : ℕ) : targetKey M true (values j) = residueKey M (vals j) :=
@@ -233,26 +214,21 @@ theorem memory_arrZ (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col 
         hdisj le_rfl (Finset.mem_range.mp hj) hlight (a := dst + 4 * i + col) (by rw [hkey]; omega)]
       simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, hT,
         Cslib.Algorithms.ThreeSum.ChanHe.arr, hz, Finset.sum_singleton,
-        Finset.card_singleton, signedValue]
-      rfl
-    · have he := memory_unwritten mem values n M out dst col (4 * M) t true hdisj
-        (k := n) (a := dst + 4 * i + col) le_rfl (by omega) (by
-          intro j hj hlight
-          have hn : i % M ≠ targetKey M true (values j) := fun heq =>
-            hc (by rwa [← count_eq_card_bucket vals n hM hinj', heq, hkey, hcount])
-          have hcopies := (mod_eq_iff_copies hi (residueKey_lt hM (vals j))).not.mp
-            (by simpa only [hkey] using hn)
-          rw [hkey]; omega)
-      rw [he, hpad]
-      simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, hT,
-        Cslib.Algorithms.ThreeSum.ChanHe.arr, hc]
-  · have he := memory_unwritten mem values n M out dst col (4 * M) t true hdisj
-      (k := n) (a := dst + 4 * i + col) le_rfl (by omega) (by
-        intro j hj hlight
-        have hr : targetKey M true (values j) < M := by rw [hkey]; exact residueKey_lt hM _
-        omega)
-    rw [he, hpad]
-    simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte]
+        Finset.card_singleton, signedValue, vals]
+    · simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, hT,
+        Cslib.Algorithms.ThreeSum.ChanHe.arr, hc, ← hpad]
+      refine memory_unwritten mem values n M out dst col (4 * M) t true hdisj le_rfl (by omega) ?_
+      intro j _ hlight
+      have hn : i % M ≠ targetKey M true (values j) := fun heq =>
+        hc (by rwa [← count_eq_card_bucket vals n hM hinj', heq, hkey, hcount])
+      have hcopies := (mod_eq_iff_copies hi (residueKey_lt hM (vals j))).not.mp
+        (by simpa only [hkey] using hn)
+      rw [hkey]; omega
+  · simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, ← hpad]
+    refine memory_unwritten mem values n M out dst col (4 * M) t true hdisj le_rfl (by omega) ?_
+    intro j _ _
+    have hr : targetKey M true (values j) < M := hkey j ▸ residueKey_lt hM _
+    omega
 
 /-- Placement changes only its own packed column. -/
 theorem memory_other_column (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col dist t : ℕ)
